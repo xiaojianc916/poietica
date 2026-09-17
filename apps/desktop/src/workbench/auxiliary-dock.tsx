@@ -1,5 +1,6 @@
 import type { AgentSkill } from '@poietica/conversation'
 import {
+  AuxiliaryComposer,
   DelegateChannelIcon,
   DelegateChannelPane,
   useDelegateChannelNames,
@@ -135,7 +136,7 @@ export function AuxiliaryDock({
         release: () => undefined,
       },
       assistant: {
-        body: () => <p className="p-4 text-xs text-muted-foreground">辅助对话尚未实现。</p>,
+        body: () => <AuxiliaryComposer />,
         icon: <PanelRight aria-hidden className="size-3.5" />,
         name: () => '辅助对话',
         release: () => undefined,

@@ -54,6 +54,14 @@ function glyphOf(value: string): LucideIcon {
 export interface PermissionPickerProps {
   readonly controls: readonly SessionConfigControl[]
   readonly onSelect: (controlId: string, value: string) => void
+  /**
+   * 只画字形，不画档位名。
+   *
+   * 窄格里的取舍：辅助对话那一栏最窄只有 320，一行里还要放模型名与草稿，档位名
+   * 留在屏幕上就等于把草稿挤成一条缝。字形仍按档位取色（完全访问那一档是橙的），
+   * 而档位名在弹层里逐档写全 —— 唯一被省掉的是那一行字，不是那一档的信息。
+   */
+  readonly iconOnly?: boolean
 }
 
 /*
@@ -61,6 +69,7 @@ export interface PermissionPickerProps {
  */
 export const PermissionPicker = memo(function PermissionPicker({
   controls,
+  iconOnly,
   onSelect,
 }: PermissionPickerProps) {
   const [open, setOpen] = useState(false)
@@ -98,10 +107,11 @@ export const PermissionPicker = memo(function PermissionPicker({
         aria-label="批准方式"
         className="assistant-posture"
         data-alert={current.alerts ? 'true' : undefined}
+        data-icon-only={iconOnly ? 'true' : undefined}
       >
         <Mark aria-hidden="true" />
 
-        <span className="assistant-posture__label">{current.pill}</span>
+        {iconOnly ? null : <span className="assistant-posture__label">{current.pill}</span>}
       </DropdownMenuTrigger>
 
       <DropdownMenuContent

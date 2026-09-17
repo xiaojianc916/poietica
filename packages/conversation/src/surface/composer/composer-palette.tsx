@@ -3,7 +3,7 @@ import './composer-palette.css'
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react'
 import type { ReactNode } from 'react'
 import type { PromptConfiguration } from '../../agent/session'
-import { CheckIcon } from '../primitives/icons'
+import { AttachIcon, CheckIcon } from '../primitives/icons'
 import { ENTER_EASE, ENTER_SECONDS, EXIT_EASE, EXIT_SECONDS, RISE_PX } from '../primitives/motion'
 
 /*
@@ -52,6 +52,29 @@ export interface PaletteGroup {
 /** 面板与输入框共用这一条 id 规则：活动项由 aria-activedescendant 指过来。 */
 export function paletteOptionId(listboxId: string, rowId: string): string {
   return `${listboxId}-${rowId}`
+}
+
+/*
+ * 面板的第一组：往这一句里加什么。
+ *
+ * 归这里而不是归某一个 composer —— 行本身不认识文件，只认一个回调，所以主对话的
+ * 加号与辅助对话的加号翻开的是同一组行。放在这一层也避开一条环：持有文件选择器的
+ * prompt-input 反过来要读它。
+ */
+export function composerComposeGroup(onAddFile: () => void): PaletteGroup {
+  return {
+    id: 'compose',
+    heading: '添加',
+    rows: [
+      {
+        id: 'compose:file',
+        icon: <AttachIcon aria-hidden="true" />,
+        label: '添加文件',
+        hint: 'Ctrl+U',
+        action: { kind: 'run', run: onAddFile },
+      },
+    ],
+  }
 }
 
 export interface ComposerPaletteProps {

@@ -1,0 +1,97 @@
+@import "./composer-metrics.css";
+
+/*
+ * 辅助对话的输入条。
+ *
+ * 这一格只有侧栏那么宽（320–800），所以它是**一行**而不是主对话那张两行的卡：
+ * 加号、草稿、模型与档位、批准方式、发送全在同一颗药丸里，卡里放不下第二条行。
+ *
+ * 它也只有一层容器：药丸自己带边，外面不再套卡片。两层同色边隔着十来个像素并列，
+ * 读起来是双线框而不是两层结构 —— 主对话那张卡需要外框是因为它装得下两行，这里
+ * 只有一行，外框就只是多出来的一圈线。
+ */
+
+.auxiliary-composer-pane__feed {
+  min-block-size: 0;
+  flex: 1;
+  overflow: hidden;
+}
+
+.auxiliary-composer-pane__empty {
+  margin: 0;
+  padding: var(--cp-stack) var(--cp-gutter);
+  font-size: var(--cp-font-caption);
+  color: var(--cp-ink-subtle);
+}
+
+.auxiliary-composer-pane__dock {
+  flex: none;
+  padding: 0 var(--cp-inset) var(--cp-inset);
+}
+
+/* 加号面板贴着这条的上沿展开，所以它是一个定位上下文，本身不画任何东西。 */
+.auxiliary-composer {
+  position: relative;
+}
+
+/*
+ * 药丸的高度由里面最高的那颗键解出，不写像素数：加号与发送是 --cp-control-sm，
+ * 上下各留一层 --cp-pad-mid。换一档控件高度，这一行跟着走。
+ *
+ * 这一档比主对话那张卡矮（那里是 --cp-control 加 --cp-inset）：辅助对话是右栏里的
+ * 一格，输入条不该和主对话抢同样的分量。横向留白不动，只有高度与两端那对圆钮收一档。
+ */
+.auxiliary-composer__pill {
+  display: flex;
+  block-size: calc(var(--cp-control-sm) + var(--cp-pad-mid) * 2);
+  align-items: center;
+  gap: var(--cp-control-gap);
+  padding-inline: var(--cp-inset);
+  border: var(--cp-px) solid var(--cp-edge);
+  border-radius: 9999px;
+  background: var(--cp-surface);
+  /*
+   * 比输入卡那一档（--cp-lift）轻：那两层的宽软影是给一张浮在转录之上的大卡的，
+   * 这一条只有一行高，压同样的影会显得比它自己还重。--ui-shadow-sm 是设计系统里
+   * 既有的下一档，本包 timeline 的悬浮工具条读的也是它。
+   */
+  box-shadow: var(--ui-shadow-sm);
+}
+
+/* 加号与发送同高：两颗圆钮是这一行两端的括号，中间那三样都比它们矮。 */
+.auxiliary-composer .assistant-plus,
+.auxiliary-composer [data-slot="prompt-input-submit"] {
+  block-size: var(--cp-control-sm);
+  inline-size: var(--cp-control-sm);
+}
+
+/*
+ * 草稿是这一行里唯一会伸缩的东西。
+ *
+ * 侧栏可以窄到 320，挤不下时先收模型名（它自己带省略号），因为草稿是这一行里唯一
+ * 不能没有的东西：一个宽度为零的输入框看起来就是坏的。下限按提示那四个字取 ——
+ * 提示都看不全的输入框与没有输入框是同一种坏；4em 跟着字号走，换一档自动跟上。
+ *
+ * 字号比正文矮一档（--cp-font-label），与同一行里模型名那一段同号：这一条只有一行，
+ * 行里出现两种字号的正文会先被读成"有一处没对齐"，而不是"这一处更重要"。
+ */
+.auxiliary-composer__field {
+  min-inline-size: 4em;
+  flex: 1;
+  border: 0;
+  background: transparent;
+  font: inherit;
+  font-size: var(--cp-font-label);
+  color: var(--cp-ink);
+  outline: none;
+}
+
+/* 模型名先让位：它有省略号收尾，草稿没有。 */
+.auxiliary-composer .assistant-model-select__button {
+  min-inline-size: 0;
+  flex: 0 1 auto;
+}
+
+.auxiliary-composer__field::placeholder {
+  color: var(--cp-placeholder);
+}

@@ -31,6 +31,12 @@
   transition: background-color var(--cp-motion-swift) var(--cp-motion-ease);
 }
 
+/* 只剩字形时两侧留白取同一个数：那一对 6/10 是给「前导圆 + 后随字」的补偿，
+   没有字就没有要补偿的那一侧，留着尾巴会把字形顶得偏左。 */
+.assistant-posture[data-icon-only] {
+  padding-inline: var(--cp-pill-lead);
+}
+
 .assistant-posture > svg {
   block-size: var(--cp-icon);
   inline-size: var(--cp-icon);

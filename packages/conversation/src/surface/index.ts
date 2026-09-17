@@ -1,5 +1,6 @@
 export { AssistantSurface } from './assistant-surface'
 export { AttachmentIntakeContext, useAttachmentIntake } from './composer/attachment-intake'
+export { AuxiliaryComposer } from './composer/auxiliary-composer'
 export { ComposerDraftsContext } from './composer/drafts-context'
 export type { PromptInputHandle } from './composer/prompt-input'
 export { AgentControlsContext, useAgentControls } from './configuration/agent-controls-context'

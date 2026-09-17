@@ -40,10 +40,11 @@ import {
   type PromptInputMessage,
 } from '../../composer/prompt'
 import { cx } from '../primitives/class-names'
-import { AttachIcon, ResumeIcon, StopIcon, SubmitIcon } from '../primitives/icons'
+import { ResumeIcon, StopIcon, SubmitIcon } from '../primitives/icons'
 import { useAttachmentIntake } from './attachment-intake'
 import {
   ComposerPalette,
+  composerComposeGroup,
   type PaletteGroup,
   type PaletteRow,
   paletteOptionId,
@@ -507,22 +508,7 @@ function PromptInputShell({
   )
 
   const allGroups = useMemo<readonly PaletteGroup[]>(
-    () => [
-      {
-        id: 'compose',
-        heading: '添加',
-        rows: [
-          {
-            id: 'compose:file',
-            icon: <AttachIcon aria-hidden="true" />,
-            label: '添加文件',
-            hint: 'Ctrl+U',
-            action: { kind: 'run' as const, run: openFilePicker },
-          },
-        ],
-      },
-      ...(groups ?? NO_GROUPS),
-    ],
+    () => [composerComposeGroup(openFilePicker), ...(groups ?? NO_GROUPS)],
     [groups, openFilePicker],
   )
 
