@@ -115,7 +115,7 @@ export function createReviewStore(options: ReviewStoreOptions): ReviewStore {
     openFiles: new Set<string>(),
     collapsedFolders: new Set<string>(),
     openGaps: new Set<string>(),
-    treeOpen: true,
+    treeOpen: false,
     treeWidth: 240,
     splitter: 'idle',
     busy: false,

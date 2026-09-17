@@ -9,7 +9,7 @@
   --review-added-edge: #00a240;
   --review-added-emphasis: #c6e4ca;
   --review-removed-fill: #fbe6e2;
-  --review-removed-edge: #ba2522;
+  --review-removed-edge: #ba2623;
   --review-removed-emphasis: #f3caca;
   transition: --review-tree-width var(--workspace-layout-duration) var(--workspace-layout-ease);
 }
@@ -38,6 +38,30 @@
 
   border-inline-start-color: var(--review-removed-edge);
   background: var(--review-removed-fill);
+}
+
+/*
+ * 行号槽：正文那套等宽字体不跟过来（数字用正文字体），字号比正文大一档；
+ * 右缘一道细线把行号与正文分开。取色随种类走 —— 增绿删红，上下文行留淡灰。
+ *
+ * 细线用前景半透明而不是 #ededed：它压在增删底色上，中性灰在浅底上比底色还浅，
+ * 半透明前景自己会跟着底色深浅走，深色主题下不用另写一套。
+ * 整段外观写在这里而非组件里，理由同 .review-mark —— app.css 的无层级通配规则
+ * 压过 utilities 层，边框色在组件里根本改不动。
+ */
+.review-line__number {
+  border-inline-end: 1px solid color-mix(in srgb, var(--color-foreground) 8%, transparent);
+  color: color-mix(in srgb, var(--color-foreground) 30%, transparent);
+  font-family: var(--font-sans);
+  font-size: 12px;
+}
+
+.review-line--added .review-line__number {
+  color: var(--review-added-edge);
+}
+
+.review-line--removed .review-line__number {
+  color: var(--review-removed-edge);
 }
 
 /* 语法色由 shiki 给出，两套主题各一个值；选哪一套是样式的事，组件不问主题。 */
@@ -135,22 +159,43 @@
   background: color-mix(in srgb, #ffffff 5%, transparent);
 }
 
-/* 工具条按钮的悬浮：产品指定的灰；深色沿用前景半透明。 */
-.review-toolbar-action:hover {
+/*
+ * 工具条按钮的悬浮：产品指定的灰；深色沿用前景半透明。
+ * 菜单触发器打开时也取这一档（data-popup-open）—— 弹窗盖住的正是按钮本身，
+ * 不补这一档，指针移开按钮就一点反馈都不剩。
+ */
+.review-toolbar-action:hover,
+.review-toolbar-action[data-popup-open] {
   background-color: #f2f3f3;
 }
 
-:root[data-theme="dark"] .review-toolbar-action:hover {
+:root[data-theme="dark"] .review-toolbar-action:hover,
+:root[data-theme="dark"] .review-toolbar-action[data-popup-open] {
   background-color: color-mix(in srgb, #ffffff 10%, transparent);
 }
 
 /* 卡头的悬浮底：浅色是产品指定的灰；深色沿用原来的前景半透明。 */
-.review-card__head:hover {
+.review-card__head-row:hover {
   background: #f1f2f2;
 }
 
-:root[data-theme="dark"] .review-card__head:hover {
+:root[data-theme="dark"] .review-card__head-row:hover {
   background: color-mix(in srgb, #ffffff 5%, transparent);
+}
+
+/*
+ * 卡头钉在滚动口上缘：滚到哪张卡，哪张卡的文件名就停在工具条下面 —— 长差异里
+ * 不必回头认自己在看哪个文件。底色必须给且必须不透明，否则行会从标题底下滚过去。
+ *
+ * 铺满整宽的只有这一层底色，药丸的内缩落在里面那层：底色若跟着 mx 缩进，两侧
+ * 6px 会漏出滚过去的增删底色。底色取 --ui-background，与外壳铺给这一列的是同一个
+ * （判例：apps/desktop/src/workbench/skill-document-pane.css 的 .skill-doc__gutter）。
+ */
+.review-card__head {
+  position: sticky;
+  inset-block-start: 0;
+  z-index: 1;
+  background: var(--ui-background);
 }
 
 /*

@@ -1,9 +1,13 @@
-/* Menu 与 Select 共用浮层表面与定位层，避免样式与栈序分叉。 */
+/*
+ * Menu 与 Select 共用浮层表面与定位层，避免样式与栈序分叉。
+ *
+ * 不投影：产品要求浮层只有 1px 边框这一道界，靠边框与底色分层，不加高度感。
+ * 这是整个浮层族的决定，单个弹层不要再自己补 shadow-*（补了就是第二个产地）。
+ */
 export const popupSurfaceClassName = [
   'overflow-hidden',
   'rounded-[10px] border border-divider',
   'bg-popover text-popover-foreground',
-  'shadow-[0_0_0_0.5px_color-mix(in_srgb,var(--ui-foreground)_4%,transparent),0_1px_2px_color-mix(in_srgb,var(--ui-foreground)_6%,transparent),0_8px_24px_-8px_color-mix(in_srgb,var(--ui-foreground)_18%,transparent)]',
   'outline-none',
   'origin-[var(--transform-origin)]',
   'transition-[transform,scale,opacity]',

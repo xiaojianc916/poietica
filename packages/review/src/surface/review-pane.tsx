@@ -25,7 +25,6 @@ import {
   FileText,
   Folders,
   FoldVertical,
-  GitBranch,
   GitCommitHorizontal,
   type LucideIcon,
   Minus,
@@ -42,6 +41,7 @@ import {
 } from 'lucide-react'
 import {
   type CSSProperties,
+  Fragment,
   memo,
   type ReactNode,
   type RefObject,
@@ -205,13 +205,6 @@ function Cards({
     </>
   )
 }
-/* HEAD 不是分支名：分支在就印分支，分离时按 git 自己的说法印短号。 */
-function headLabel(reading: Ready): string {
-  if (reading.head !== null) {
-    return reading.head
-  }
-  return reading.detachedAt === null ? '未知 HEAD' : `分离于 ${reading.detachedAt}`
-}
 /* 一条工具条：比较基准、总计、更多操作、折叠、文件树、提交 —— 基准入口只有一个。 */
 function Toolbar({
   reading,
@@ -225,21 +218,9 @@ function Toolbar({
   const allOpen = reading.files.length > 0 && state.openFiles.size >= reading.files.length
   return (
     <div className="review-rule flex h-[var(--ui-control-height-sm)] shrink-0 items-center gap-2 px-2.5">
-      <Bases base={state.base} reading={reading} store={store}>
-        <GitBranch aria-hidden className="size-3.5 shrink-0 opacity-60" />
-        <span className="max-w-28 truncate text-xs">{headLabel(reading)}</span>
-        {/* 默认那一档的名字菜单里就有，工具条不重复印一遍。 */}
-        {state.base === WORKTREE_BASE ? null : (
-          <>
-            <span aria-hidden className="text-xs opacity-30">
-              ·
-            </span>
-            <span className="max-w-28 truncate text-xs opacity-70">{state.base}</span>
-          </>
-        )}
-        <ChevronDown aria-hidden className="size-3 shrink-0 opacity-50" />
-      </Bases>
-      <Tally dense stat={reading.stat} />
+      <Bases base={state.base} reading={reading} store={store} />
+      {/* 与卡头右侧那一处同档：整条工具条上只有这一对加减数，两处不一样大就是缺陷。 */}
+      <Tally stat={reading.stat} />
       {reading.ahead + reading.behind > 0 ? (
         <span className="shrink-0 text-[11px] tabular-nums opacity-50">
           ↑{reading.ahead} ↓{reading.behind}
@@ -267,99 +248,67 @@ function Toolbar({
     </div>
   )
 }
+/*
+ * 比较基准：一层菜单，档位、分组、选中打勾与不可用置灰都照 waku 的 diff 来源选择器
+ * （src/app/right_panel.rs 的 right-panel-diff-source）。
+ *
+ * 六档先全部摆上：本仓现在只有「工作树对某个 ref」这一条路，落得下的只有未提交
+ * （对 HEAD）与分支（对该分支的上游，没有上游就置灰）；其余四档要 git 侧先给出对应
+ * 的范围，届时把它们接上即可 —— 所以这里只声明「哪一档对应哪个 ref」，ref 为 null
+ * 即尚无实现，按 waku 对「上一轮」的做法置灰。
+ */
 function Bases({
   base,
-  children,
   reading,
   store,
 }: {
   readonly base: string
-  readonly children: ReactNode
   readonly reading: Ready
   readonly store: ReviewStore
 }) {
-  const refs = [
-    ...new Set([...(reading.upstream === null ? [] : [reading.upstream]), ...reading.branches]),
+  const sources: readonly {
+    readonly label: string
+    readonly ref: string | null
+    readonly separatorBefore?: boolean
+  }[] = [
+    { label: '上一轮', ref: null },
+    { label: '未提交', ref: WORKTREE_BASE, separatorBefore: true },
+    { label: '未暂存', ref: null },
+    { label: '已暂存', ref: null },
+    { label: '已提交', ref: null, separatorBefore: true },
+    { label: '分支', ref: reading.upstream },
   ]
+  const picked = sources.find((source) => source.ref !== null && source.ref === base)
   return (
     <DropdownMenu>
       <DropdownMenuTrigger
         aria-label="比较基准"
-        className="review-toolbar-action flex shrink-0 items-center gap-1.5 rounded-md px-1.5 py-1 opacity-80 hover:opacity-100"
+        className="review-toolbar-action flex h-6 shrink-0 items-center gap-1 rounded-md px-2 text-xs"
       >
-        {children}
+        <span className="max-w-28 truncate">{picked?.label ?? '未提交'}</span>
+        <ChevronDown aria-hidden className="size-2.5 shrink-0 opacity-40" />
       </DropdownMenuTrigger>
-      <DropdownMenuContent className="w-60">
-        {/* 搜索态住在菜单内容里：菜单一关它随之卸载，不需要谁去清它。 */}
-        <BaseList base={base} head={reading.head} refs={refs} store={store} />
+      <DropdownMenuContent className="w-40">
+        {sources.map((source) => (
+          <Fragment key={source.label}>
+            {source.separatorBefore === true ? <DropdownMenuSeparator /> : null}
+            <DropdownMenuItem
+              disabled={source.ref === null}
+              onClick={() => {
+                if (source.ref !== null) {
+                  store.setBase(source.ref)
+                }
+              }}
+            >
+              <span className={ROW_CLASS}>{source.label}</span>
+              {source.ref !== null && source.ref === base ? (
+                <Check aria-hidden className="size-3 shrink-0 opacity-60" />
+              ) : null}
+            </DropdownMenuItem>
+          </Fragment>
+        ))}
       </DropdownMenuContent>
     </DropdownMenu>
-  )
-}
-function BaseList({
-  base,
-  head,
-  refs,
-  store,
-}: {
-  readonly base: string
-  readonly head: string | null
-  readonly refs: readonly string[]
-  readonly store: ReviewStore
-}) {
-  const [needle, setNeedle] = useState('')
-  const shown = refs.filter((ref) => ref.toLowerCase().includes(needle.trim().toLowerCase()))
-  return (
-    <>
-      <div className="mx-1 mb-1 flex items-center gap-1.5 rounded-md border border-current/15 px-2 py-1.5">
-        <Search aria-hidden className="size-3.5 shrink-0 opacity-50" />
-        <input
-          aria-label="搜索分支"
-          className="min-w-0 flex-1 bg-transparent text-xs outline-none placeholder:opacity-50"
-          onChange={(event) => {
-            setNeedle(event.target.value)
-          }}
-          onKeyDown={(event) => {
-            /* 菜单把方向键与字母当导航；搜索框里它们是输入。 */
-            if (event.key !== 'Escape' && event.key !== 'Tab') {
-              event.stopPropagation()
-            }
-          }}
-          placeholder="搜索分支"
-          value={needle}
-        />
-      </div>
-      <p className="px-2 pb-1 text-[11px] opacity-40">比较基准</p>
-      <DropdownMenuItem
-        onClick={() => {
-          store.setBase(WORKTREE_BASE)
-        }}
-      >
-        <span className={ROW_CLASS}>未提交的改动</span>
-        {base === WORKTREE_BASE ? (
-          <Check aria-hidden className="size-3 shrink-0 opacity-60" />
-        ) : null}
-      </DropdownMenuItem>
-      <p className="px-2 pt-1.5 pb-1 text-[11px] opacity-40">分支</p>
-      {shown.length === 0 ? (
-        <p className="px-2 py-1 text-xs opacity-50">没有匹配的分支。</p>
-      ) : (
-        shown.map((ref) => (
-          <DropdownMenuItem
-            key={ref}
-            onClick={() => {
-              store.setBase(ref)
-            }}
-          >
-            <span className={ROW_CLASS}>{ref}</span>
-            {ref === head ? (
-              <span className="shrink-0 text-[11px] opacity-40">当前分支</span>
-            ) : null}
-            {ref === base ? <Check aria-hidden className="size-3 shrink-0 opacity-60" /> : null}
-          </DropdownMenuItem>
-        ))
-      )}
-    </>
   )
 }
 function Overflow({ state, store }: { readonly state: ReviewState; readonly store: ReviewStore }) {
@@ -427,16 +376,10 @@ function Commit({
         <ChevronDown aria-hidden className="size-3 opacity-50" />
       </DropdownMenuTrigger>
       <DropdownMenuContent className="review-commit-menu w-80 rounded-2xl p-2">
-        {/* 分支只展示当前值：换基准走工具条那一个入口，这里不另开。 */}
-        <div className="flex items-center gap-1.5 px-3 pt-2 pb-1 text-sm font-medium">
-          <GitBranch aria-hidden className="size-4 shrink-0 opacity-60" />
-          <span className="min-w-0 flex-1 truncate">{headLabel(reading)}</span>
-          <ChevronDown aria-hidden className="size-3.5 shrink-0 opacity-50" />
-        </div>
         {/* 无缝输入：无边框，靠弹层自己垫底。 */}
         <textarea
           aria-label="提交信息"
-          className="w-full resize-none bg-transparent px-3 py-2 text-sm outline-none placeholder:opacity-50"
+          className="w-full resize-none bg-transparent px-3 py-2 text-xs outline-none placeholder:opacity-50"
           name="commit-message"
           onChange={(event) => {
             store.setDraft(event.target.value)
@@ -458,7 +401,7 @@ function Commit({
           rows={4}
           value={state.draft}
         />
-        <label className="flex cursor-default items-center gap-2 px-3 py-2 text-sm">
+        <label className="flex cursor-default items-center gap-2 px-3 py-2 text-xs">
           <input
             checked={state.stageAll}
             className="peer sr-only"
@@ -485,7 +428,7 @@ function Commit({
           }}
         >
           <GitCommitHorizontal aria-hidden className={MENU_ICON_CLASS} />
-          <span className="min-w-0 flex-1 truncate text-sm">提交</span>
+          <span className="min-w-0 flex-1 truncate text-xs">提交</span>
           <span className="review-commit-kbd">Ctrl+↵</span>
         </DropdownMenuItem>
         <DropdownMenuItem
@@ -496,7 +439,7 @@ function Commit({
           }}
         >
           <ArrowUp aria-hidden className={MENU_ICON_CLASS} />
-          <span className="min-w-0 flex-1 truncate text-sm">提交并推送</span>
+          <span className="min-w-0 flex-1 truncate text-xs">提交并推送</span>
         </DropdownMenuItem>
         <DropdownMenuItem
           className="rounded-xl px-3"
@@ -506,7 +449,7 @@ function Commit({
           }}
         >
           <Upload aria-hidden className={MENU_ICON_CLASS} />
-          <span className="min-w-0 flex-1 truncate text-sm">推送</span>
+          <span className="min-w-0 flex-1 truncate text-xs">推送</span>
         </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>
@@ -530,24 +473,26 @@ function Card({
   const style: ReviewStyle = { '--review-card-rows': String(rows) }
   return (
     <section className="review-card" id={cardId(file.path)} style={style}>
-      {/* 整行给悬浮底色：这一行是一个可点的对象，指到哪里都该有回应。
-       * 底色是不贴边的圆角药丸，与树行同一条语言：margin 收出留白，padding 补回
-       * 原位的 10px —— 与工具条同一条内线，所以行内文字不因药丸移位。 */}
-      <header className="review-card__head mx-1.5 flex h-7 items-center gap-2 rounded-md px-1">
-        <button
-          aria-expanded={open}
-          className="flex min-w-0 flex-1 items-center gap-2 text-left"
-          onClick={() => {
-            store.toggleFile(file.path)
-          }}
-          type="button"
-        >
-          <FileTypeMark className="size-3.5 shrink-0" name={file.path} />
-          <span className="review-card__path min-w-0 text-sm">
-            <bdi>{file.path}</bdi>
-          </span>
-          <Tally stat={file.stat} />
-        </button>
+      {/* 两层：外面那条整宽且不透明，钉在滚动口上缘；里面的药丸给悬浮底色。
+       * 底色不贴边、与树行同一条语言：margin 收出留白，padding 补回行内起点 ——
+       * 比工具条那条 10px 内线再右挪 4px，文件名不贴着图标站。 */}
+      <header className="review-card__head">
+        <div className="review-card__head-row mx-1.5 flex h-7 items-center gap-2 rounded-md px-2">
+          <button
+            aria-expanded={open}
+            className="flex min-w-0 flex-1 items-center gap-2 text-left"
+            onClick={() => {
+              store.toggleFile(file.path)
+            }}
+            type="button"
+          >
+            <FileTypeMark className="size-3.5 shrink-0" name={file.path} />
+            <span className="review-card__path min-w-0 text-sm">
+              <bdi>{file.path}</bdi>
+            </span>
+            <Tally stat={file.stat} />
+          </button>
+        </div>
       </header>
       {open ? <Body file={file} scroller={scroller} state={state} store={store} /> : null}
     </section>
@@ -900,12 +845,14 @@ function VirtualRows({
 }
 /*
  * 单一行号槽 —— 统一视图里两列行号只有一列是答案。
+ * 行号的字体、取色与右缘那道细线在 review-pane.css 的 .review-line__number；
+ * self-stretch 让槽长满行高，折行的行上竖线才不在行中断开。
  * memo：行不变就不重渲 —— 筛选输入与分隔条拖动每帧都换快照，与行无关。
  */
 const Line = memo(function Line({ row, wrap }: { readonly row: DiffRow; readonly wrap: boolean }) {
   return (
     <div className={cn('flex items-start pr-2.5', toneOf(row.kind))}>
-      <span className="w-11 shrink-0 select-none pr-2 text-right tabular-nums opacity-30">
+      <span className="review-line__number w-11 shrink-0 self-stretch select-none pr-2 text-right">
         {row.number}
       </span>
       <span
