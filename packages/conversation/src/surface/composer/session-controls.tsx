@@ -151,8 +151,6 @@ export const SessionControls = memo(function SessionControls({
   const listPane =
     model === undefined ? null : (
       <div className="assistant-model-select__list-pane">
-        <span className="assistant-model-select__list-title">选择模型</span>
-
         <DropdownMenuRadioGroup
           onValueChange={(value) => {
             if (value === model.current) {

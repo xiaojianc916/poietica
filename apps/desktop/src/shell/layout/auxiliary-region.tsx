@@ -7,6 +7,8 @@ export interface AuxiliaryRegionProps {
   readonly isDocked: boolean
   readonly fullscreen: boolean
   readonly width: number
+  /** 宽度上限由侧边栏的停靠状态算出（见 auxiliaryMaxWidth），拖拽与钳制读同一份。 */
+  readonly maxWidth: number
   readonly onClose: () => void
   readonly onResize: (width: number) => void
   readonly children: ReactNode
@@ -16,6 +18,7 @@ export function AuxiliaryRegion({
   isDocked,
   fullscreen,
   width,
+  maxWidth,
   onClose,
   onResize,
   children,
@@ -37,7 +40,7 @@ export function AuxiliaryRegion({
         <RegionSplitter
           edge="inline-end"
           label="调整辅助面板宽度"
-          max={WORKSPACE_LAYOUT.auxiliary.maxWidth}
+          max={maxWidth}
           min={WORKSPACE_LAYOUT.auxiliary.minWidth}
           onActivity={workspaceLayoutStore.setAuxiliarySplitterActivity}
           onCollapse={onClose}

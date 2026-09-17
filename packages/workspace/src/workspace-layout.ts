@@ -43,3 +43,23 @@ export const WORKSPACE_LAYOUT = {
     layoutEase: [0.2, 0, 0, 1],
   },
 } as const
+
+/** 辅助列上限要看的两件事：侧边栏在不在占位，以及它占位时有多宽。 */
+export interface SidebarDock {
+  readonly sidebarOpen: boolean
+  readonly sidebarWidth: number
+}
+
+/**
+ * 辅助列的宽度上限。
+ *
+ * 产品上限（auxiliary.maxWidth）说的是面板自己能读多宽，与窗口无关。但侧边栏
+ * 收起后让出的那一份宽度没人用 —— 主区拿到它只是把同一列正文摊得更开，面板
+ * 拿到它能多读几列 diff。所以上限随停靠状态走：展开时是产品上限，收起时多出
+ * 侧边栏的宽度。展开态因此保持原样，只有收起态多出这一份。
+ *
+ * 这里只给上限，实际宽度仍由用户拖出来 —— 上限与主区怎么分配是两回事。
+ */
+export function auxiliaryMaxWidth(sidebar: SidebarDock): number {
+  return WORKSPACE_LAYOUT.auxiliary.maxWidth + (sidebar.sidebarOpen ? 0 : sidebar.sidebarWidth)
+}

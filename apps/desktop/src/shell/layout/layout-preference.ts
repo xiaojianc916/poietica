@@ -1,20 +1,17 @@
 import { createPreference, type Preference } from '@poietica/external-store'
 import { warn } from '@poietica/problem'
 import * as v from 'valibot'
-import {
-  clampAuxiliaryWidth,
-  clampSidebarWidth,
-  DEFAULT_LAYOUT_INTENT,
-  type LayoutIntent,
-} from './layout-store'
+import { clampSidebarWidth, DEFAULT_LAYOUT_INTENT, type LayoutIntent } from './layout-store'
 
-const width = (clamp: (value: number) => number, fallback: number) =>
-  v.fallback(v.pipe(v.number(), v.finite(), v.transform(clamp)), fallback)
 const schema = v.object({
   sidebarOpen: v.fallback(v.boolean(), DEFAULT_LAYOUT_INTENT.sidebarOpen),
-  sidebarWidth: width(clampSidebarWidth, DEFAULT_LAYOUT_INTENT.sidebarWidth),
+  sidebarWidth: v.fallback(
+    v.pipe(v.number(), v.finite(), v.transform(clampSidebarWidth)),
+    DEFAULT_LAYOUT_INTENT.sidebarWidth,
+  ),
   auxiliaryThread: v.fallback(v.nullable(v.string()), DEFAULT_LAYOUT_INTENT.auxiliaryThread),
-  auxiliaryWidth: width(clampAuxiliaryWidth, DEFAULT_LAYOUT_INTENT.auxiliaryWidth),
+  /* 辅助列的上限取决于同一份偏好里的侧边栏状态，落界由 store 的 normalize 一处负责。 */
+  auxiliaryWidth: v.fallback(v.pipe(v.number(), v.finite()), DEFAULT_LAYOUT_INTENT.auxiliaryWidth),
 })
 export function createWorkspaceLayoutPreference(): Preference<LayoutIntent> {
   return createPreference({

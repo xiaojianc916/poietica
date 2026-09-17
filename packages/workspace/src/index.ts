@@ -42,4 +42,5 @@ export {
   resolveWorkbenchTabDragLayout,
   resolveWorkbenchTabKeyboardAction,
 } from './workbench-tabs-model'
-export { WORKSPACE_LAYOUT } from './workspace-layout'
+export type { SidebarDock } from './workspace-layout'
+export { auxiliaryMaxWidth, WORKSPACE_LAYOUT } from './workspace-layout'

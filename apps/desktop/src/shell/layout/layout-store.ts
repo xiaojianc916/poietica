@@ -1,6 +1,6 @@
 import type { SplitterActivity } from '@poietica/design-system'
 import { createExternalStore, type Preference } from '@poietica/external-store'
-import { WORKSPACE_LAYOUT } from '@poietica/workspace'
+import { auxiliaryMaxWidth, type SidebarDock, WORKSPACE_LAYOUT } from '@poietica/workspace'
 
 export type { SplitterActivity }
 export type SplitterRegion = 'sidebar' | 'auxiliary'
@@ -31,8 +31,22 @@ function clampWidth(value: number, bounds: { minWidth: number; maxWidth: number 
 }
 export const clampSidebarWidth = (value: number): number =>
   clampWidth(value, WORKSPACE_LAYOUT.sidebar)
-export const clampAuxiliaryWidth = (value: number): number =>
-  clampWidth(value, WORKSPACE_LAYOUT.auxiliary)
+
+/*
+ * 辅助列的上限是侧边栏状态的因变量（见 auxiliaryMaxWidth），所以钳制要连侧边栏
+ * 一起看 —— 拖拽值与落盘值走的是同一个上限。
+ */
+export const clampAuxiliaryWidth = (value: number, sidebar: SidebarDock): number =>
+  clampWidth(value, {
+    minWidth: WORKSPACE_LAYOUT.auxiliary.minWidth,
+    maxWidth: auxiliaryMaxWidth(sidebar),
+  })
+
+/* 侧边栏一变，辅助列就得重新落回它当时的上限之内 —— 一份意图只在一个地方钳制。 */
+function normalize(intent: LayoutIntent): LayoutIntent {
+  const auxiliaryWidth = clampAuxiliaryWidth(intent.auxiliaryWidth, intent)
+  return auxiliaryWidth === intent.auxiliaryWidth ? intent : { ...intent, auxiliaryWidth }
+}
 
 function intentOf(state: LayoutIntent): LayoutIntent {
   return {
@@ -57,7 +71,7 @@ export function createWorkspaceLayoutStore(persisted: Preference<LayoutIntent>) 
   let disposed = false
   let detachPersistence: (() => void) | undefined
   let snapshot: WorkspaceLayoutState = Object.freeze({
-    ...persisted.read(),
+    ...normalize(persisted.read()),
     todoThread: null,
     splitter: 'idle',
     splitterRegion: 'sidebar',
@@ -70,7 +84,7 @@ export function createWorkspaceLayoutStore(persisted: Preference<LayoutIntent>) 
         return undefined
       }
       const stop = persisted.subscribe(() => {
-        commit(persisted.read())
+        commit(normalize(persisted.read()))
       })
       detachPersistence = stop
       return () => {
@@ -123,13 +137,13 @@ export function createWorkspaceLayoutStore(persisted: Preference<LayoutIntent>) 
     subscribe: store.subscribe,
     getSnapshot: store.read,
     setSidebarOpen: (open: boolean): void => {
-      settle({ sidebarOpen: open })
+      settle(normalize({ ...intentOf(snapshot), sidebarOpen: open }))
     },
     toggleSidebar: (): void => {
-      settle({ sidebarOpen: !snapshot.sidebarOpen })
+      settle(normalize({ ...intentOf(snapshot), sidebarOpen: !snapshot.sidebarOpen }))
     },
     setSidebarWidth: (value: number): void => {
-      settle({ sidebarWidth: clampSidebarWidth(value) })
+      settle(normalize({ ...intentOf(snapshot), sidebarWidth: clampSidebarWidth(value) }))
     },
     setAuxiliaryThread: (threadId: string | null): void => {
       settle({ auxiliaryThread: threadId })
@@ -145,7 +159,7 @@ export function createWorkspaceLayoutStore(persisted: Preference<LayoutIntent>) 
       return true
     },
     setAuxiliaryWidth: (value: number): void => {
-      settle({ auxiliaryWidth: clampAuxiliaryWidth(value) })
+      settle({ auxiliaryWidth: clampAuxiliaryWidth(value, snapshot) })
     },
     setTodoThread: (threadId: string | null): void => {
       commit({ todoThread: threadId })

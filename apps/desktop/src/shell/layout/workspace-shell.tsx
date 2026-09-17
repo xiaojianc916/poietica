@@ -1,5 +1,5 @@
 import { TooltipProvider } from '@poietica/design-system'
-import { encodeWorkbenchTabDomId } from '@poietica/workspace'
+import { auxiliaryMaxWidth, encodeWorkbenchTabDomId } from '@poietica/workspace'
 import { AuxiliaryRegion } from './auxiliary-region'
 import { useWorkspaceLayoutState, useWorkspaceLayoutStore } from './layout-context'
 import type { WorkspaceShellProps } from './shell-contract'
@@ -40,6 +40,7 @@ export function WorkspaceShell({ model, parts }: WorkspaceShellProps) {
           <AuxiliaryRegion
             fullscreen={auxiliaryFullscreenActive}
             isDocked={dockAuxiliary}
+            maxWidth={auxiliaryMaxWidth({ sidebarOpen, sidebarWidth })}
             onClose={closeAuxiliary}
             onResize={setAuxiliaryWidth}
             width={auxiliaryWidth}

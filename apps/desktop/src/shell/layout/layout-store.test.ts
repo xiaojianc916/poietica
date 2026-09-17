@@ -98,6 +98,20 @@ test('background activity never steals another conversation and removal clears b
   stop()
 })
 
+test('the auxiliary cap follows the sidebar dock, and a widened pane falls back when it returns', () => {
+  const { store, stop } = fixture()
+  const cap = WORKSPACE_LAYOUT.auxiliary.maxWidth
+  const freed = store.getSnapshot().sidebarWidth
+  store.setAuxiliaryWidth(cap + freed)
+  expect(store.getSnapshot().auxiliaryWidth).toBe(cap)
+  store.setSidebarOpen(false)
+  store.setAuxiliaryWidth(cap + freed)
+  expect(store.getSnapshot().auxiliaryWidth).toBe(cap + freed)
+  store.setSidebarOpen(true)
+  expect(store.getSnapshot().auxiliaryWidth).toBe(cap)
+  stop()
+})
+
 test('widths stay finite and disposal fences later mutation', () => {
   const { store, writes, stop } = fixture()
   expect(() => store.setSidebarWidth(Number.NaN)).toThrow(RangeError)

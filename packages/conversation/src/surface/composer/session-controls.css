@@ -281,13 +281,6 @@
   padding: 6px var(--cp-model-panel-pad);
 }
 
-.assistant-model-select__list-title {
-  margin-block-end: 4px;
-  color: var(--cp-model-quiet-ink);
-  font-size: var(--cp-model-size);
-  line-height: 1.2;
-}
-
 /* 行比面板窄四格：字仍起在面板的留白上，底色往里收，四周才不顶着卡片边。 */
 [data-assistant-skin] .assistant-model-select__item {
   display: flex;

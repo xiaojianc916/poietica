@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'bun:test'
-import { WORKSPACE_LAYOUT } from './workspace-layout'
+import { auxiliaryMaxWidth, WORKSPACE_LAYOUT } from './workspace-layout'
 
 describe('WORKSPACE_LAYOUT', () => {
   it('keeps the default sidebar width inside its bounds', () => {
@@ -19,6 +19,16 @@ describe('WORKSPACE_LAYOUT', () => {
     const { minWidth, defaultWidth, maxWidth } = WORKSPACE_LAYOUT.auxiliary
     expect(minWidth).toBeLessThan(defaultWidth)
     expect(defaultWidth).toBeLessThan(maxWidth)
+  })
+
+  it('widens the auxiliary cap by the width the sidebar gives up when it closes', () => {
+    const { auxiliary, sidebar } = WORKSPACE_LAYOUT
+    const sidebarWidth = sidebar.defaultWidth
+    const open = { sidebarOpen: true, sidebarWidth }
+    const closed = { sidebarOpen: false, sidebarWidth }
+    expect(auxiliaryMaxWidth(open)).toBe(auxiliary.maxWidth)
+    expect(auxiliaryMaxWidth(closed)).toBe(auxiliary.maxWidth + sidebarWidth)
+    expect(auxiliaryMaxWidth({ ...open, sidebarWidth: 0 })).toBe(auxiliary.maxWidth)
   })
 
   it('uses a short layout animation', () => {
