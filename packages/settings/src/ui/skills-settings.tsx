@@ -17,20 +17,8 @@ import { Check, Copy, MoreHorizontal, PackageOpen, Search, Trash2 } from 'lucide
 import { type Ref, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react'
 import './skills-settings.css'
 
-/*
- * 技能页是一张清单，不是一本说明书。
- *
- * 每一行只说两件事：这是什么、开没开。SKILL.md 本身（正文、来源、大小、更新时间）
- * 搬到右侧辅助面板里去看 —— 一份文档占满一列，比挤在设置页右半边的一格好读，而且
- * 那一列本来就在那里。这一页因此只剩「列清单」这一件职责。
- */
-
 type SourceFilter = 'all' | 'managed' | 'project' | 'user' | 'extra' | 'builtin'
 
-/*
- * 来源的短名。清单一行只有这么宽，长名字会把说明挤没；筛选器读同一张表，
- * 同一件事不出现两种叫法。
- */
 const SOURCE_LABELS: Record<Exclude<SourceFilter, 'all'>, string> = {
   builtin: '内置',
   managed: '本机',
@@ -94,13 +82,7 @@ export function SkillsSettings({ skills, store, openSkillDocument }: SkillsSetti
     }
   }, [focusedKey])
 
-  /*
-   * 打开一份文档不留痕。
-   *
-   * 高亮只属于两种当下：指针在那一行上（样式管），或键盘正在那一行上（这个状态）。点一下
-   * 就记一笔「上次点过它」，鼠标一走那一块灰还在，读起来就是一次卡住的悬停 —— 文档开在
-   * 右栏里，右栏自己会说是哪一份。
-   */
+  /* 打开文档不保留选中态；高亮只跟随悬停与键盘焦点。 */
   const open = (skill: SkillRow) => {
     openSkillDocument(skill.key)
   }

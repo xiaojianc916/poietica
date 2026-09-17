@@ -11,21 +11,10 @@ import {
 } from './usage-activity'
 
 /*
- * 热力图：一格一天，一列一周，周一在最上面。
- *
- * 形制取自 GitHub 的贡献图与 kibo-ui 的 Contribution Graph。后者对自己的定位写
- * 得很清楚 ——「只是可视化层，不管数据获取与状态」，分档交给 data 属性由 CSS
- * 决定。这两条正是这里照搬的：进来的是已经铺好的一段日历，出去的是格子。
- *
- * 依赖一个都不装。kibo 那个组件按 shadcn registry 的办法分发，装它等于把它自己
- * 的一套排版连同源码拷进来，而这一页的排版要跟设置界面走。
- *
- * 提示气泡走设计系统的 Tooltip，不用 title：原生提示的字体、配色、延时都不归我们
- * 管，同一页里会出现两种气泡。全屏只有一条 TooltipProvider（workspace-shell），
- * 延时不在这里写。
- *
- * 第一列不一定从周一开始，所以第一格直接落到它该在的那一行，其余由 grid 按列
- * 往下排。空格子不进 DOM：那是几个不表示任何一天的方块。
+ * 热力图：一格一天，一列一周，周一在最上面。形制取自 GitHub 贡献图 / kibo-ui
+ * Contribution Graph：进来的是已铺好的日历，出去的是格子，分档交给 data 属性由
+ * CSS 决定。依赖一个不装（kibo 按 shadcn registry 分发，装它拷进一整套外来排版）。
+ * 提示走设计系统 Tooltip，不用原生 title：同页不能有两种气泡。
  */
 
 const CELL_DATE = new Intl.DateTimeFormat('zh-CN', { month: 'long', day: 'numeric' })
@@ -60,9 +49,7 @@ export function ActivityHeatmap({ days }: ActivityHeatmapProps) {
           )
 
           /*
-           * 没账可记的日子整格不装气泡，而不是装一个空气泡：Trigger 配一个没有
-           * Popup 的 Root 不在官方用法里，182 格全挂上去等于把一条没写进契约的
-           * 行为当成常态。
+           * 没账的日子不装空气泡：Trigger 配没有 Popup 的 Root 不在官方用法里。
            */
           return hint === undefined ? (
             <Fragment key={day.date}>{cell}</Fragment>

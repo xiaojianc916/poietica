@@ -1,13 +1,4 @@
-/*
- * 技能清单：上面一行工具（搜索、来源筛选），下面一张卡，一行一个技能。
- *
- * 工具不进卡里：卡是「有哪些技能」这件事本身，搜索与筛选是在它上面做的事。与其它设置页
- * 同一套面色与发丝线（--settings-* 由 settings-surface.css 给出），只多两样这一页独有的
- * 东西：行的前导字形，以及只在悬停/聚焦时露出的「更多操作」。
- *
- * 卡跟着内容长，滚动交给设置页本身 —— 与通用页那张开关卡同一种形态：设置里没有第二个
- * 滚动条，也没有一屏装得下多少行这种前提。
- */
+/* 卡片随内容增长，滚动交给设置页，避免嵌套滚动条。 */
 
 .skill-page {
   display: flex;
@@ -40,10 +31,6 @@
   background: var(--settings-surface);
 }
 
-/*
- * 行与行之间那条发丝线，与其它设置页同源：内缩量与 --settings-divider-inset 对齐
- * （行的 6px 外边距算在外，所以是 14 + 6）。
- */
 .skill-list__row {
   position: relative;
   display: flex;
@@ -65,7 +52,6 @@
   border-block-start: 1px solid var(--settings-divider);
 }
 
-/* 悬停与键盘走位铺同一个面：--ui-accent（浅色 #f2f2f3），与编排器上那些悬停同源。 */
 .skill-list__row:hover,
 .skill-list__row[data-focused="true"] {
   background: var(--ui-accent);

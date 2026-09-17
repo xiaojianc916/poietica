@@ -12,12 +12,9 @@ interface SettingsSessionSnapshot {
   readonly error?: string
 }
 
-interface SettingsSessionScheduler {
-  readonly schedule: (task: () => void, delayMs: number) => () => void
-}
-
-interface SettingsSessionOptions extends SettingsSessionScheduler {
+interface SettingsSessionOptions {
   readonly store: SettingsStore
+  readonly schedule: (task: () => void, delayMs: number) => () => void
 }
 
 interface SettingsSession {
@@ -135,14 +132,7 @@ export function createSettingsSession(options: SettingsSessionOptions): Settings
     }
 
     if (settingsEqual(draft, persisted)) {
-      saveQueued = false
-
-      if (closeRequested) {
-        finishClose()
-      } else {
-        publish('ready')
-      }
-
+      settleWrite(false)
       return
     }
 
@@ -169,25 +159,7 @@ export function createSettingsSession(options: SettingsSessionOptions): Settings
           return
         }
 
-        if (!settingsEqual(currentDraft, submitted)) {
-          publish('ready')
-
-          if (closeRequested || saveQueued) {
-            flushSave()
-          } else if (cancelScheduledSave === null) {
-            scheduleSave()
-          }
-
-          return
-        }
-
-        saveQueued = false
-
-        if (closeRequested) {
-          finishClose()
-        } else {
-          publish('ready')
-        }
+        settleWrite(!settingsEqual(currentDraft, submitted))
       },
       (cause: unknown) => {
         if (!active || lifecycle !== lifecycleAtStart) {
@@ -199,6 +171,28 @@ export function createSettingsSession(options: SettingsSessionOptions): Settings
         publish('error', 'save', getErrorMessage(cause))
       },
     )
+  }
+
+  const settleWrite = (dirty: boolean): void => {
+    if (dirty) {
+      publish('ready')
+
+      if (closeRequested || saveQueued) {
+        flushSave()
+      } else if (cancelScheduledSave === null) {
+        scheduleSave()
+      }
+
+      return
+    }
+
+    saveQueued = false
+
+    if (closeRequested) {
+      finishClose()
+    } else {
+      publish('ready')
+    }
   }
 
   const beginLoad = (refresh = false): void => {
@@ -306,25 +300,7 @@ export function createSettingsSession(options: SettingsSessionOptions): Settings
         draft = nextDraft
         resetUpdaters = []
 
-        if (!settingsEqual(nextDraft, settings)) {
-          publish('ready')
-
-          if (closeRequested || saveQueued) {
-            flushSave()
-          } else if (cancelScheduledSave === null) {
-            scheduleSave()
-          }
-
-          return
-        }
-
-        saveQueued = false
-
-        if (closeRequested) {
-          finishClose()
-        } else {
-          publish('ready')
-        }
+        settleWrite(!settingsEqual(nextDraft, settings))
       },
       (cause: unknown) => {
         if (!active || lifecycle !== lifecycleAtStart) {

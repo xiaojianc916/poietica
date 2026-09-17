@@ -2,11 +2,7 @@ import { Switch } from '@poietica/design-system'
 import type { ReactNode } from 'react'
 
 /*
- * 设置页面的排版词汇：页、组、行、开关行。
- *
- * 分类页各自渲染内容，但页面骨架只有这一份。否则每加一页就多一套边距与分隔线的
- * 写法，屏幕上会出现几种"差不多"的设置页 —— 那正是这轮重构在收敛的那类问题。
- * 样式仍旧只有 settings-surface.css 一个来源，这里只负责结构。
+ * 设置页排版词汇：页、组、行、开关行。骨架只有这一份，样式只有 settings-surface.css 一个来源。
  */
 
 export interface SettingsPageProps {
@@ -14,11 +10,7 @@ export interface SettingsPageProps {
 }
 
 export function SettingsPage({ children }: SettingsPageProps) {
-  return (
-    <section className="settings-page">
-      <div className="settings-page__body">{children}</div>
-    </section>
-  )
+  return <section className="settings-page">{children}</section>
 }
 
 export interface SettingsGroupProps {
@@ -47,17 +39,7 @@ export function SettingsGroup({ title, className, headerAction, children }: Sett
 
 export interface SettingRowProps {
   readonly label: string
-  /*
-   * 显式带上 undefined。
-   *
-   * exactOptionalPropertyTypes 下「?: string」的意思是「可以不写，写了必须是字符串」，
-   * 它不接受一个显式传进来的 undefined。而这个属性的用法恰恰是被转发的 —— ToggleRow 从
-   * 自己的可选属性里解构出 string | undefined，再原样交给这里。转发正是那个组件存在的
-   * 理由，所以这个契约必须容得下转发。
-   *
-   * 同一个包里 SettingsGroupProps.title 保持「?: string」不动：它在调用点手写，从不被
-   * 转发，窄一档是更准确的声明，不是漏改。
-   */
+  /* 显式 | undefined：description 由 ToggleRow 转发，exactOptionalPropertyTypes 下 ?: 收不下转发值。 */
   readonly description?: string | undefined
   readonly children: ReactNode
 }

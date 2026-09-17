@@ -1,13 +1,7 @@
 import { Button, Select, type SelectOption } from '@poietica/design-system'
 import { Plus, RefreshCw, Trash2 } from 'lucide-react'
 import { type ReactNode, useEffect, useSyncExternalStore } from 'react'
-import type {
-  CustomAgentDraft,
-  DelegationMode,
-  ModelPreference,
-  PersonalizationStore,
-  ToolMode,
-} from '../index'
+import type { DelegationMode, ModelPreference, PersonalizationStore, ToolMode } from '../index'
 import './personalization-surface.css'
 
 const TOOL_MODES: readonly SelectOption<ToolMode>[] = [
@@ -34,9 +28,6 @@ export interface PersonalizationSurfaceProps {
   readonly store: PersonalizationStore
 }
 
-/**
- * 侧边栏「个性化」那一格。纯投影：所有状态与写路径都在 PersonalizationStore。
- */
 export function PersonalizationSurface({ store }: PersonalizationSurfaceProps) {
   const view = useSyncExternalStore(store.subscribe, store.getSnapshot, store.getSnapshot)
 
@@ -296,7 +287,7 @@ interface FieldProps {
 }
 
 function Field({ label, hint, wide = false, children }: FieldProps) {
-  /* children 恒为原生表单控件，label 包裹是刻意的；规则看不见 prop 里的控件（豁免登记在 biome.json）。 */
+  /* label 包裹是刻意的；Biome 追不到 prop 里的控件（豁免登记在 biome.json）。 */
   return (
     <label
       className={
@@ -312,5 +303,3 @@ function Field({ label, hint, wide = false, children }: FieldProps) {
     </label>
   )
 }
-
-export type { CustomAgentDraft }

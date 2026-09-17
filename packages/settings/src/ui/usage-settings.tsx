@@ -1,7 +1,6 @@
 import type { ThreadsStore } from '@poietica/conversation'
 import { useEffect, useMemo, useState, useSyncExternalStore } from 'react'
 import { ActivityHeatmap } from './activity-heatmap'
-import { SegmentedControl, type SegmentedOption } from './surface/segmented-control'
 import { SettingsGroup, SettingsPage } from './surface/settings-primitives'
 import {
   formatTokens,
@@ -12,12 +11,60 @@ import {
 } from './usage-activity'
 
 /*
- * 用量页。
- *
- * 页上有两个时间窗口，各管各的：滑块只改概览那几个数；热力图恒定看最近 26 周。
- * 两个窗口同屏必须能被分辨，所以那张图的窗口写进它自己的组标题，而不是靠人猜。
- * 热力图不跟着滑块走 —— 一张按周成列的图缩到 7 天只剩一列，那不是热力图。
+ * 用量页。两个时间窗口各管各的：滑块只改概览的数，热力图恒定看最近 26 周，
+ * 窗口写进组标题。热力图不跟滑块走 —— 按周成列的图缩到 7 天只剩一列。
  */
+
+/* 分段控件：原生单选钮打底，滑块位置由 index/count 算出，等宽轨无需对齐余量。 */
+interface SegmentedOption<TValue extends string = string> {
+  readonly value: TValue
+  readonly label: string
+}
+
+function SegmentedControl<TValue extends string>({
+  label,
+  name,
+  onValueChange,
+  options,
+  value,
+}: {
+  readonly label: string
+  readonly name: string
+  readonly options: readonly SegmentedOption<TValue>[]
+  readonly value: TValue
+  readonly onValueChange: (value: TValue) => void
+}) {
+  const index = Math.max(
+    options.findIndex((option) => option.value === value),
+    0,
+  )
+
+  return (
+    <div aria-label={label} className="settings-segmented" role="radiogroup">
+      <span
+        className="settings-segmented__thumb"
+        style={{
+          inlineSize: `${100 / options.length}%`,
+          insetInlineStart: `${(index * 100) / options.length}%`,
+        }}
+      />
+
+      {options.map((option) => (
+        <label className="settings-segmented__option" key={option.value}>
+          <input
+            checked={option.value === value}
+            name={name}
+            onChange={() => onValueChange(option.value)}
+            type="radio"
+            value={option.value}
+          />
+
+          <span>{option.label}</span>
+        </label>
+      ))}
+    </div>
+  )
+}
 
 const SPANS = [
   { value: '7', label: '最近 7 天' },
@@ -36,11 +83,7 @@ const UNRECORDED = '—'
 
 interface UsageMetric {
   readonly label: string
-  /*
-   * 没有读数的那几格是 undefined，不是一个占位字符串：占位符由渲染那一侧给，
-   * 而且它得知道自己画的是占位符 —— 22px 的破折号加粗后是一根黑杠，会被读成
-   * 一个量出来的数。
-   */
+  /* undefined 让渲染层用 data-unrecorded 区分占位符，避免沿用读数的粗体样式。 */
   readonly value: string | undefined
 }
 
@@ -61,10 +104,8 @@ export interface UsageSettingsProps {
 }
 
 /*
- * 账本这一侧的读：一次读满热力图那段日历，切时间范围因此不再往原生侧多跑一趟。
- *
- * 读不出来就不写出一个数（与「关于」页问版本号同一条规矩）：这一格宁可说
- * 「没记过」，也不写一个编出来的 0。
+ * 一次读满热力图窗口，切概览范围不再多跑原生。读失败不写出数：宁可「没记过」，
+ * 不写编出来的 0。
  */
 function useTokenLedger(readTokenDays: ReadTokenDays): ReadonlyMap<string, number> | undefined {
   const [ledger, setLedger] = useState<ReadonlyMap<string, number>>()

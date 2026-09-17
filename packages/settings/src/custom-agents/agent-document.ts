@@ -97,10 +97,6 @@ export function parseAgentDocument(relativePath: string, document: string): Cust
   }
 }
 
-/**
- * 工具与委派清单共用的方言：['*'] 是全放行，空清单是什么都没有，其余按白名单。
- * 缺席怎么解释（tools 缺是全放行，subagents 缺是默认）只有调用方知道。
- */
 function listMode(raw: string[]): ToolMode {
   if (raw.length === 1 && raw[0] === '*') {
     return 'all'
@@ -148,16 +144,9 @@ export function serializeAgentDocument(draft: CustomAgentDraft): string {
     frontmatter['model_preference'] = draft.modelPreference
   }
 
-  /* extras 放最后：已知键不会落进 extras，因此不存在覆盖。 */
   Object.assign(frontmatter, draft.extras)
 
-  return (
-    '---\n' +
-    stringify(frontmatter, { lineWidth: 0 }).trimEnd() +
-    '\n---\n' +
-    draft.prompt.trim() +
-    '\n'
-  )
+  return `---\n${stringify(frontmatter, { lineWidth: 0 }).trimEnd()}\n---\n${draft.prompt.trim()}\n`
 }
 
 export function validateAgentDraft(draft: CustomAgentDraft): string | null {

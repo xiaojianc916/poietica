@@ -17,11 +17,7 @@ const DISABLED = '已关闭'
 
 const FAILURE_PREFIX = '安装失败：'
 
-/*
- * 浏览器设置的下拉选项。纯 UI 占位：值是字面量，后端接入时换成真实枚举。
- * 与 settings-surface.tsx 的 COLOR_MODES 同一种写法——静态表收在模块级，
- * 组件里只引用，不内联。
- */
+/* 纯 UI 占位：值是字面量，后端接入时换成真实枚举（同 settings-surface.tsx 的 COLOR_MODES 写法）。 */
 const URL_OPEN_TARGETS: readonly SelectOption<string>[] = [
   { value: 'system', label: '默认浏览器' },
   { value: 'builtin', label: '内置浏览器' },
@@ -64,10 +60,7 @@ export function ComputerUseSettings({ store }: ComputerUseSettingsProps) {
     store.refreshCapabilities()
   }, [store])
 
-  /*
-   * 浏览器设置——纯 UI 占位，状态留在组件本地。
-   * 后端接入时整组替换为真实 store 的读写，删掉这个 useState 即可。
-   */
+  /* 纯 UI 占位，状态留本地；后端接入时换成真实 store 读写并删掉此 useState。 */
   const [browser, setBrowser] = useState({
     enabled: true,
     urlOpenTarget: 'system',

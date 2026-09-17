@@ -41,13 +41,6 @@ import { describeAgentCliFailure } from '../agent-install/agent-cli-text'
 import { AgentInstallAction } from '../agent-install/agent-install-action'
 import './models-settings.css'
 
-/*
- * 「模型」设置页：已配置模型的可见性清单，与供应商手风琴工作区。
- *
- * 供应商区交互逻辑（折叠行 + 内联展开编辑 + 三种添加方式）参考 Kimi Code web；
- * 表单控件、模型编辑器、按钮与视觉风格沿用本仓设置页原组件，不另起一套。
- */
-
 const COLLAPSED_MODEL_LIMIT = 8
 const ADD_PROVIDER = '__add_provider__'
 const PROVIDER_TYPES: SelectOption[] = [
@@ -68,7 +61,6 @@ export interface ModelsSettingsProps {
   readonly hiddenModelAliases: readonly string[]
   readonly providerOrder: readonly string[]
   readonly onModelVisibilityChange: (modelId: string, visible: boolean) => void
-  readonly onProviderOrderChange: (providerIds: readonly string[]) => void
 }
 
 export function ModelsSettings({
@@ -77,7 +69,6 @@ export function ModelsSettings({
   hiddenModelAliases,
   providerOrder,
   onModelVisibilityChange,
-  onProviderOrderChange,
 }: ModelsSettingsProps) {
   const [agentError, setAgentError] = useState<string | null>(null)
   useEffect(() => {
@@ -110,7 +101,6 @@ export function ModelsSettings({
       <ModelCatalogPanel
         hiddenModelAliases={hiddenModelAliases}
         onModelVisibilityChange={onModelVisibilityChange}
-        onProviderOrderChange={onProviderOrderChange}
         providerOrder={providerOrder}
         store={modelCatalog}
       />
@@ -123,13 +113,11 @@ function ModelCatalogPanel({
   hiddenModelAliases,
   providerOrder,
   onModelVisibilityChange,
-  onProviderOrderChange,
 }: {
   readonly store: ModelCatalogStore
   readonly hiddenModelAliases: readonly string[]
   readonly providerOrder: readonly string[]
   readonly onModelVisibilityChange: (modelId: string, visible: boolean) => void
-  readonly onProviderOrderChange: (providerIds: readonly string[]) => void
 }) {
   const snapshot = useSyncExternalStore(store.subscribe, store.getSnapshot)
   const [actionError, setActionError] = useState<string | null>(null)
@@ -182,7 +170,6 @@ function ModelCatalogPanel({
         data={snapshot.data}
         disabled={snapshot.mutating}
         onModelVisibilityChange={onModelVisibilityChange}
-        onProviderOrderChange={onProviderOrderChange}
         onRemove={setRemoving}
         onRun={run}
         providerOrder={providerOrder}
@@ -320,7 +307,6 @@ function ProviderWorkspace({
   disabled,
   providerOrder,
   onModelVisibilityChange,
-  onProviderOrderChange,
   onRemove,
   onRun,
 }: {
@@ -328,7 +314,6 @@ function ProviderWorkspace({
   readonly disabled: boolean
   readonly providerOrder: readonly string[]
   readonly onModelVisibilityChange: (modelId: string, visible: boolean) => void
-  readonly onProviderOrderChange: (providerIds: readonly string[]) => void
   readonly onRemove: (providerId: string) => void
   readonly onRun: RunMutation
 }) {
@@ -349,8 +334,6 @@ function ProviderWorkspace({
       setOpenIds([])
     }
   }, [providers, openId])
-  /* 手风琴无拖拽排序；顺序仍由 providerOrder 驱动展示，接口保留。 */
-  void onProviderOrderChange
 
   return (
     <div className="models-block">
@@ -663,7 +646,7 @@ function CatalogAddTab({
           </Field>
         ) : null}
         <p className="models-add-hint">将从目录导入 {selected.models.length} 个模型</p>
-        <div className="models-form-footer models-form-footer--end">
+        <div className="models-form-footer">
           <span aria-live="polite" className="models-model-message">
             {message}
           </span>

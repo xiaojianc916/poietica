@@ -139,14 +139,9 @@
 }
 
 @media (max-width: 700px) {
-  .archived-chats__toolbar {
-    grid-template-columns: minmax(0, 1fr);
-  }
-
   .archived-chats__filter {
     inline-size: 100%;
     max-inline-size: none;
-    justify-self: stretch;
   }
 
   .archived-chats__row {

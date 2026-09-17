@@ -1,13 +1,8 @@
 /*
- * 用量页的算术：一本按天的账铺成一段日历，或者一串时刻点成一份概览。
- *
- * 这一段不认识 React，也不认识 ThreadsStore：进来的是数据，出去的是数。
- *
- * 日历分两半：对内索引用本地日历字段，对外显示用 Intl。索引不能借某个 locale
- * 的短日期格式当键 —— 那是排版，不是标识；显示也不能自己拼，那是手搓国际化。
- *
- * 跨天加减一律走 Date 构造器的溢出归一，不用 86_400_000 乘法：夏令时那天只有
- * 23 小时，乘法会把整张图错开一格。
+ * 用量页的算术：一本按天的账铺成日历，或一串时刻点成概览。
+ * 不认识 React 也不认识 ThreadsStore：进来的是数据，出去的是数。
+ * 索引用本地日历字段（dayKeyOf），显示用 Intl —— locale 的短日期格式是排版不是标识。
+ * 跨天加减走 Date 构造器的溢出归一：夏令时那天只有 23 小时，86_400_000 乘法会错一格。
  */
 
 /** 一天，以及那天的量。量是什么由调用方决定 —— 热力图喂的是 token。 */
@@ -47,13 +42,7 @@ export function dayKeyOf(at: Date): string {
   return `${at.getFullYear()}-${month}-${day}`
 }
 
-/*
- * 把键读回一个时刻。
- *
- * 补上 T00:00:00 不是装饰：只写日期的字符串按 UTC 解析，带时刻的按本地解析，
- * 这是 ECMA-262 的 Date Time String Format 明文规定的两条路。少了它，东八区的
- * 每一天都会落到前一天，整张热力图整体错一格。
- */
+/* 键读回时刻必须补 T00:00:00：纯日期字符串按 UTC 解析，UTC 以西的时区会读成前一天。 */
 export function dateOf(key: string): Date {
   return new Date(`${key}T00:00:00`)
 }
@@ -109,15 +98,7 @@ const MILLION = 1_000_000
 /** 不到一千的数原样报，分组由平台给。 */
 const PLAIN = new Intl.NumberFormat('zh-CN')
 
-/*
- * 大数报成 K / M：K 留一位小数，M 留两位，不到一千的原样报。
- *
- * 不用 Intl 的 compact：它的小数位是整份格式一个值（999 会被写成 999.0），单位也
- * 由它自己挑（999_950 给的是 999.95K，十亿给的是 B）—— 这两条都不在这里的规则里。
- *
- * 上界要单独管：999_950 起写成 K 就是「1000.0K」，四位整数带一个小数，量级反而
- * 读不出来。阈值取的是四舍五入到一位的进位点。
- */
+/* K 阈值取一位小数的进位点，避免显示「1000.0K」。 */
 export function formatTokens(count: number): string {
   if (count < THOUSAND) {
     return PLAIN.format(count)
@@ -146,12 +127,8 @@ function countBy(times: readonly string[]): ReadonlyMap<string, number> {
 }
 
 /*
- * 连续天数从哪一头起算。
- *
- * 今天还没有活动时从昨天算起，而不是当场归零：计数器的通行读法是「到目前为止
- * 连续了几天」，早上八点把昨天以前的成绩清掉，说的不是同一件事。
- *
- * 它不受窗口约束 —— 连续了多少天是一个事实，不是一个视图。
+ * 今天还没活动时从昨天算起，而不是当场归零：计数器的通行读法是「到目前为止
+ * 连续了几天」，早上八点把昨天以前的成绩清掉说的不是同一件事。不受窗口约束。
  */
 function streakOf(counted: ReadonlyMap<string, number>, today: Date): number {
   const offset = counted.has(dayKeyOf(today)) ? 0 : 1

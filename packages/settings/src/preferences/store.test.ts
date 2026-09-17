@@ -18,15 +18,6 @@ function settings(theme: AppSettings['theme'] = 'system'): AppSettings {
     privacy: { telemetry: false, crashReporting: true, updateCheck: true },
   }
 }
-function deferred<T>() {
-  let resolve!: (value: T | PromiseLike<T>) => void
-  let reject!: (cause: unknown) => void
-  const promise = new Promise<T>((yes, no) => {
-    resolve = yes
-    reject = no
-  })
-  return { promise, resolve, reject }
-}
 const receipt = (value: AppSettings): SettingsWriteResult => ({
   settings: value,
   applicationProblem: null,
@@ -48,7 +39,7 @@ function create(port = persistence()) {
   return { store, problems }
 }
 test('reads coalesce and the confirmed snapshot stays stable', async () => {
-  const pending = deferred<AppSettings>()
+  const pending = Promise.withResolvers<AppSettings>()
   let reads = 0
   const { store } = create(
     persistence({
@@ -67,8 +58,8 @@ test('reads coalesce and the confirmed snapshot stays stable', async () => {
   expect(reads).toBe(1)
 })
 test('save and reset share one queue and submitted input is isolated', async () => {
-  const started = deferred<void>()
-  const saved = deferred<SettingsWriteResult>()
+  const started = Promise.withResolvers<void>()
+  const saved = Promise.withResolvers<SettingsWriteResult>()
   const calls: string[] = []
   let submitted: AppSettings | undefined
   const { store } = create(
@@ -112,8 +103,8 @@ test('a failed write neither poisons the queue nor changes the confirmed snapsho
   expect((await store.reset()).theme).toBe('system')
 })
 test('a late read cannot overwrite a later committed write', async () => {
-  const reading = deferred<AppSettings>()
-  const started = deferred<void>()
+  const reading = Promise.withResolvers<AppSettings>()
+  const started = Promise.withResolvers<void>()
   const { store } = create(
     persistence({
       read: () => {
@@ -146,7 +137,7 @@ test('application failure reports a problem but retains the successful commit', 
   expect(problems).toEqual([problem])
 })
 test('dispose rejects new work, drains accepted writes, and stops notifications', async () => {
-  const pending = deferred<SettingsWriteResult>()
+  const pending = Promise.withResolvers<SettingsWriteResult>()
   const { store } = create(persistence({ save: () => pending.promise }))
   let notifications = 0
   store.subscribe(() => {
@@ -161,8 +152,8 @@ test('dispose rejects new work, drains accepted writes, and stops notifications'
   expect(notifications).toBe(0)
 })
 test('session retry supersedes a stalled read rather than reusing it', async () => {
-  const first = deferred<AppSettings>()
-  const second = deferred<AppSettings>()
+  const first = Promise.withResolvers<AppSettings>()
+  const second = Promise.withResolvers<AppSettings>()
   const tasks = new Set<() => void>()
   let reads = 0
   const { store } = create(

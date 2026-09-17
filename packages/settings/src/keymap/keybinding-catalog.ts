@@ -1,24 +1,9 @@
-/*
- * 设置页要读的那份快捷键事实的形状。
- *
- * 真相在命令注册表里，而这个包不认识 workspace —— tools/architecture 里
- * settings ✗→ workspace 是显式禁止的一条。所以这里只定义形状，实现由组合根
- * 注入，与 appVersion / dataDirectory 同一条纪律。
- *
- * shortcuts 是已按当前平台渲染好的写法（'Ctrl+K'），不是逻辑串：平台差异属于
- * 显示，而显示只有 packages/workspace 的 formatKeybinding 一份实现 —— 命令面板
- * 用的也是它，两处不可能对同一条绑定给出两种写法。空数组即"未分配"。
- *
- * description 来自命令的 detail：设置页每行那一小行灰字，与命令面板同源。
- *
- * 没有 category：这一页用搜索定位，不用分组定位，多一个字段就多一处会分叉的
- * 事实。命令面板需要分组是因为它没有筛选之外的第二种导航方式。
- */
+/* 由组合根注入命令注册表的快照，避免 settings 依赖 workspace。 */
 export interface KeybindingEntry {
   readonly id: string
   readonly label: string
-  /* 与 SettingRow.description 同一档：被转发时必须容得下显式 undefined。 */
   readonly description?: string | undefined
+  /* 已按当前平台格式化；空数组表示未分配。 */
   readonly shortcuts: readonly string[]
 }
 

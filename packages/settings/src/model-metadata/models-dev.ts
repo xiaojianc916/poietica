@@ -104,11 +104,7 @@ function thinkingOptions(model: UnknownRecord): {
   return { efforts, hasOff, hasToggle }
 }
 
-/*
- * registry 的键是固定 slug（tokenrouter），而 provider id 与模型 id 都是用户
- * 写的（TokenRouter）。精确查表在这一步静默落空，整条元数据链断掉，屏幕上看
- * 不出原因——所以这里先认精确键，再退到大小写不敏感的匹配。
- */
+/* 用户填写的 id 可能与 registry slug 大小写不同，精确匹配失败后忽略大小写查找。 */
 function insensitiveLookup(table: UnknownRecord, key: string): UnknownRecord | undefined {
   const exact = record(table[key])
   if (exact !== undefined) {
@@ -176,8 +172,7 @@ function modelPatch(
   const inputs = Array.isArray(rawInputs) ? rawInputs : []
   const thinking = thinkingOptions(model)
 
-  /* 名字只补空，不覆写：registry 的 name 未必更好（"GLM 5.3 (free)" 会被换成
-     "GLM-5.3 (free)"），而这一步是自动跑的，改掉的是用户已经在看的那个名字。 */
+  /* 仅补空名，保留已有显示名，避免自动同步改掉用户正在看的名称。 */
   const currentName = current.displayName?.trim() ?? ''
   if (name !== undefined && currentName === '') {
     patch['displayName'] = name

@@ -283,9 +283,6 @@
   color: var(--ui-foreground);
   background: var(--models-field);
 }
-.models-form-footer--end {
-  justify-content: flex-end;
-}
 .models-add-hint {
   margin: 0;
   color: var(--ui-muted-foreground);
@@ -434,24 +431,20 @@
   border-radius: 10px;
   background: #ffffff;
 }
-.models-model-grid__header {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) 140px minmax(0, 1fr) 36px;
-  align-items: center;
-  gap: 8px;
-  padding: 8px 10px;
-  border-block-end: 1px solid var(--models-divider);
-  background: var(--models-field);
-  color: var(--ui-muted-foreground);
-  font-size: 11px;
-  font-weight: 550;
-}
+.models-model-grid__header,
 .models-model-grid__row {
   display: grid;
   grid-template-columns: minmax(0, 1fr) 140px minmax(0, 1fr) 36px;
   align-items: center;
   gap: 8px;
   padding: 8px 10px;
+}
+.models-model-grid__header {
+  border-block-end: 1px solid var(--models-divider);
+  background: var(--models-field);
+  color: var(--ui-muted-foreground);
+  font-size: 11px;
+  font-weight: 550;
 }
 .models-model-grid__row + .models-model-grid__row {
   border-block-start: 1px solid var(--models-divider);

@@ -25,23 +25,6 @@ const INITIAL: AppSettings = {
   },
 }
 
-function deferred<T>() {
-  let resolve: (value: T | PromiseLike<T>) => void = () => undefined
-
-  let reject: (cause?: unknown) => void = () => undefined
-
-  const promise = new Promise<T>((nextResolve, nextReject) => {
-    resolve = nextResolve
-    reject = nextReject
-  })
-
-  return {
-    promise,
-    resolve,
-    reject,
-  }
-}
-
 function manualScheduler() {
   let tasks: Array<{
     active: boolean
@@ -111,11 +94,11 @@ describe('SettingsSession', () => {
   })
 
   it('accepts edits during a save and persists the newest draft', async () => {
-    const loaded = deferred<AppSettings>()
+    const loaded = Promise.withResolvers<AppSettings>()
 
     const saves: Array<{
       settings: AppSettings
-      result: ReturnType<typeof deferred<void>>
+      result: ReturnType<typeof Promise.withResolvers<void>>
     }> = []
 
     const scheduler = manualScheduler()
@@ -125,7 +108,7 @@ describe('SettingsSession', () => {
       load: () => loaded.promise,
 
       save: (settings) => {
-        const result = deferred<void>()
+        const result = Promise.withResolvers<void>()
 
         saves.push({
           settings,
@@ -196,7 +179,7 @@ describe('SettingsSession', () => {
   })
 
   it('waits for every dirty draft before closing', async () => {
-    const saves: Array<ReturnType<typeof deferred<void>>> = []
+    const saves: Array<ReturnType<typeof Promise.withResolvers<void>>> = []
 
     const scheduler = manualScheduler()
 
@@ -205,7 +188,7 @@ describe('SettingsSession', () => {
       load: async () => INITIAL,
 
       save: () => {
-        const result = deferred<void>()
+        const result = Promise.withResolvers<void>()
 
         saves.push(result)
 
@@ -258,7 +241,7 @@ describe('SettingsSession', () => {
   })
 
   it('applies edits made during reset on top of the reset result', async () => {
-    const resetResult = deferred<AppSettings>()
+    const resetResult = Promise.withResolvers<AppSettings>()
 
     const saves: AppSettings[] = []
     const scheduler = manualScheduler()

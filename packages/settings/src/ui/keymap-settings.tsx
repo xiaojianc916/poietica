@@ -7,15 +7,7 @@ export interface KeymapSettingsProps {
   readonly catalog: KeybindingCatalog
 }
 
-/*
- * 快捷键页：搜索 + 可编辑列表。
- *
- * 编辑 / 删除是纯 UI 占位：状态留在组件本地，不写回命令注册表。
- * 后端接入时把 setRows 换成真实的持久化调用即可。
- *
- * 每行右侧是一个绑定列表：每个绑定自带编辑与删除；未分配的命令只显示
- * 「未分配」+ 编辑入口。编辑态把胶囊换成「按下快捷键」输入框 + 取消。
- */
+/* 编辑 / 删除是纯 UI 占位，状态留组件本地，不写回命令注册表；后端接入时把 setRows 换成持久化调用。 */
 export function KeymapSettings({ catalog }: KeymapSettingsProps) {
   const entries = useSyncExternalStore(catalog.subscribe, catalog.getSnapshot, catalog.getSnapshot)
 
@@ -163,13 +155,8 @@ function BindingEditor({ onCancel }: { readonly onCancel: () => void }) {
 }
 
 /*
- * 顺序跟着目录给的顺序走，不另排一次序。
- *
- * 目录的顺序就是命令注册的顺序，而注册顺序是组合根里那张表决定的产品顺序；在
- * 这里按字典序再排一遍，等于给"命令怎么排"造第二个来源。
- *
- * 按键也参与匹配，而且匹配的是屏幕上那一串（'Ctrl+K'）：用户搜的是他看见的
- * 东西，不是逻辑写法 'Mod+K'。
+ * 顺序跟着目录的注册顺序走，不在 UI 里另排一次序（否则"命令怎么排"出现第二个来源）。
+ * 按键参与匹配的是屏幕显示串（'Ctrl+K'），不是逻辑写法 'Mod+K'。
  */
 function filterRows(
   entries: readonly KeybindingEntry[],

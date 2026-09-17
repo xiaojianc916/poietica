@@ -1,31 +1,13 @@
 /*
- * 设置界面样式：单层。一个选择器只在这里定义一次。
- *
- * 卡片是白卡：卡面即页面底色，边界由 1px 外框承担；卡内是 1px 分隔线、
- * 两侧内缩，是整个设置界面的规则，不只是某一个分类。色值一律来自设计
- * 系统的语义令牌，本表只做命名，模型页等子样式表只做别名。
- *
- * 分割线用 ::before 画而不是 border-block-start：要求是两侧内缩不接到底，
- * 边框做不到。这里的 position 只作用于行自身，不参与外壳栅格。
- *
- * 这里没有 position: fixed / inset / z-index / border-right：设置界面是外壳
- * 栅格里的两个格子，列宽只有 workspaceLayoutStore 一个来源。
- *
- * 控件尺寸不在这一层：开关走 Switch 的 size 档位；下拉触发器的几何是 select.tsx
- * 固定的 TRIGGER 常量，组件没有 size / tone 入口。
+ * 外壳栅格负责列宽，此处只定义设置内容；控件尺寸由设计系统组件负责。
+ * 卡内分隔线用伪元素实现两侧内缩，避免整行边框接到卡片边缘。
  */
 
 /* ---------------- 导航（栅格第 1 列） ---------------- */
 
 .settings-navigation {
   /*
-   * 导航的悬停 / 选中底色。
-   *
-   * 取 --ui-sidebar-accent：设置导航就是一条侧边栏，和主侧边栏的选中底色
-   * 同源，浅色主题下两者本来就是同一个取值。不取 --ui-accent —— 那是命令
-   * 面板与菜单在用的全局强调色，语义不同，改它等于改整个应用。
-   * 这个变量挂在 .settings-navigation 而不是和 --settings-surface 那几个放一起，
-   * 因为导航与内容是外壳栅格里两个互不嵌套的格子，没有共同的承载元素。
+   * 导航与主侧栏共用选中底色；导航和内容互不嵌套，变量须声明在导航自身。
    */
   --settings-nav-hover: var(--ui-sidebar-accent);
 
@@ -38,14 +20,8 @@
 }
 
 /*
- * 行几何整族读设计系统的 --ui-row-*，与主侧栏的 .sidebar-nav-row 是同一批声明 ——
- * 两种侧边栏的图标必须落在同一条竖线上，靠的是同一条前导内缩公式，不是两次对齐。
- *
- * 此前这里把公式重算了一遍：calc(中线 − 12px)，那个 12 是旧内缩 4px 下的 lead
- * 字面值；内缩、圆角、行高、图标尺寸也各写各的。于是注释说着「同源」，改主侧栏
- * 时这里一动不动。注意 --ui-row-lead 声明在 [data-ui-rows] 上，而设置导航正好
- * 顶替的是 WorkspaceFrame 里的 sidebar 格子 —— 它必须留在那棵子树里，否则
- * var() 解析失败会让 padding 静默退成 0。
+ * 共用 --ui-row-* 保持与主侧栏图标对齐；导航须留在 [data-ui-rows] 子树内，
+ * 否则取不到 --ui-row-lead，padding 会因 var() 解析失败退成 0。
  */
 .settings-navigation__back,
 .settings-navigation__item {
@@ -127,11 +103,8 @@
 
 .settings-content {
   /*
-   * 设置界面的面色，取值全部来自语义令牌，深浅两套主题各自给值。
-   * 子样式表（models-settings.css 等）只允许引用，不允许再写一遍色值。
-   *
-   * 输入格取 sunken 而不是 surface：卡面已与页面同白，白格放在白卡上
-   * 等于没有格；sunken 在浅色下压暗、深色下提亮，两个主题都看得见。
+   * 面色全部取语义令牌，子样式表只允许引用；输入格取 sunken 而非 surface，
+   * 在浅深两色主题下都与卡面拉开对比。
    */
   --settings-surface: var(--ui-background);
   --settings-frame: var(--ui-card-frame);
@@ -169,8 +142,7 @@
   padding-block: 40px;
 }
 
-.settings-page,
-.settings-page__body {
+.settings-page {
   display: flex;
   flex-direction: column;
   gap: 24px;
@@ -254,37 +226,18 @@
 }
 
 /*
- * 触发器高度与字号来自 select.tsx 固定的 TRIGGER 常量（h-[26px]、text-xs），这里只
- * 限制宽度上限。
- *
- * 弹出面板一条都不写在这里，而且写了也不生效：面板经 BaseSelect.Portal 渲染在
- * body 下，本表的 --settings-* 不会级联到它。面板样式随 select.tsx 引用的
- * popup-surface 一处取值 —— 菜单在哪里打开都是同一个菜单。组件只有
- * data/type/value/align 几个入口，没有尺寸旋钮。
+ * 触发器高度与字号来自 select.tsx 固定的 TRIGGER 常量（h-[26px]、text-xs），这里只限宽度。
+ * 弹出面板一条都不写：面板经 BaseSelect.Portal 渲染在 body 下，本表的 --settings-*
+ * 级联不到，样式随 select.tsx 引用的 popup-surface 一处取值。
  */
 .settings-select-trigger {
   max-inline-size: 220px;
 }
 
-/*
- * 用量页。
- *
- * 一格指标不是一张卡：这个界面的卡是 .settings-group__surface，一组一张。六个
- * 指标因此是同一张卡里的六格，分隔仍旧是那条内缩的发丝线，与 .settings-row 之间
- * 的分隔同一个来源。参考稿把它们画成六张浮起来的小卡，那是另一套皮肤。
- *
- * 时间范围不在这张卡里，挂在组标题那一行（SettingsGroup 的 headerAction）——
- * 它只管概览这几个数，落在标题右侧，与它所管的那张卡挨着，又不占卡内一格。
- */
+/* 用量指标共用一张卡，时间范围放在组标题，避免占用指标格。 */
 
 /*
- * 轨与滑块都相对卡面兑出来：轨掺分隔线的灰，滑块就是卡面色本身。
- * 选中项靠「从轨道里浮起来」表达，不靠加墨 —— 浅色下是白胶囊压在灰轨上，
- * 深色下卡面比轨深，反过来仍然读得出来，两边都不需要主题专用的字面值。
- *
- * 轨的内缩用透明边框而不是 padding：绝对定位的包含块是内边距框，而栅格的列宽
- * 算的是内容盒。padding 会把这两个基准错开，滑块就对不上档位；边框同时属于两者，
- * 一个值把两处对齐。
+ * 透明边框提供轨道内缩，避免 padding 错开绝对定位与栅格列宽的基准，导致滑块偏移。
  */
 .settings-segmented {
   position: relative;
@@ -297,17 +250,8 @@
 }
 
 /*
- * 滑块是一个独立的胶囊，不是给选中项加背景 —— 它要能从一档滑到另一档，位置本身
- * 就是这个控件的状态。
- *
- * 滑块取卡面色加一层 1 级投影：选中项比轨道亮一档，边界由投影给出而不是描边 ——
- * 描边会把胶囊钉在轨道上，浮不起来。
- *
- * 位移走 inset-inline-start 而不是 translate：这一仓的排版全用逻辑属性，物理位移
- * 在从右往左的书写方向下会滑向反面。
- *
- * 这里不写 prefers-reduced-motion：accessibility.css 已经全局把过渡时长压到
- * 0.01ms 且带 !important，再写一遍就是第二份实现。
+ * 独立的卡面色滑块靠投影区分轨道，以 inset-inline-start 动画适配从右往左的书写方向。
+ * reduced-motion 由全局 accessibility.css 缩短过渡时长，此处不重复实现。
  */
 .settings-segmented__thumb {
   position: absolute;
@@ -334,11 +278,7 @@
   color: var(--ui-foreground);
 }
 
-/*
- * 焦点环画在整条轨上，不画在单格上：--ui-ring 与 --ui-primary 在两个主题里是同一
- * 支蓝，画在被选中的那一格上就是蓝压蓝。而单选组里焦点跟着选中走，环出现在哪一
- * 格并不带额外信息。
- */
+/* 焦点环标示整个单选组，当前选项由卡面色滑块标示。 */
 .settings-segmented:has(:focus-visible) {
   outline: var(--ui-focus-ring-width) solid var(--ui-ring);
   outline-offset: var(--ui-focus-ring-offset);
@@ -357,15 +297,6 @@
   position: relative;
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
-}
-
-.settings-row + .settings-metrics::before {
-  position: absolute;
-  content: "";
-  inset-inline: var(--settings-divider-inset);
-  inset-block-start: 0;
-  block-size: 0;
-  border-block-start: 1px solid var(--settings-divider);
 }
 
 .settings-metric {
@@ -408,12 +339,8 @@
 }
 
 /*
- * 没有读数的那一格画的是占位符，不是一个数。
- *
- * 颜色走设计系统里「这里还没有内容」那一档，不复用 muted-foreground —— light.css
- * 写明这两者是不同的东西。字重退回常规：22px 的破折号在 550 下是一根黑杠，跟旁边
- * 真量出来的数一样重，扫一眼分不出哪格是空的。字号不动，否则有无读数两态之间
- * 行高会跳。
+ * 无读数格是占位符：placeholder 语义就是「还没有内容」；字重退回常规，
+ * 避免与真实读数同重而分不出空格，字号不动以免行高跳动。
  */
 .settings-metric__value[data-unrecorded="true"] {
   color: var(--ui-placeholder);
@@ -428,17 +355,8 @@
 }
 
 /*
- * 热力图的五档。
- *
- * 设计系统里没有「热力档位」这种东西，所以这里声明一次：底色是浅灰，满档是
- * --ui-info，中间三档由这两头调和 —— 调和一律读 --settings-heat-0，改底色时
- * 三档跟着走。满档是语义令牌，跟着主题走；调色板原语不在这里出现 —— palette.css
- * 开头就写着功能包不得直接消费它们。
- *
- * 空格子比卡面深一档而不是等于卡面色：一张还没有账可记的图，格子必须看得见，
- * 否则那不是「这段时间没有用量」，那是一片白。
- *
- * 五个离散档而不是连续渐变：格子要能被一眼归类，不是被两两比较。
+ * 五个离散档：底色浅灰、满档 --ui-info，中间三档由两端经 --settings-heat-0
+ * 调和，改底色时三档跟着走。空格比卡面深一档，格子必须看得见。
  */
 .settings-heatmap {
   --settings-heat-swatch: 10px;
@@ -458,10 +376,7 @@
   --settings-heat-0: var(--ui-divider);
 }
 
-/*
- * 一列一周，一行一个星期几。列宽按卡片均分而不是写死像素 —— 26 列固定 11px 只占
- * 卡片一半，右边空一大截；方形由 aspect-ratio 保住，不用另算高度。
- */
+/* 列宽按卡片均分，方形由 aspect-ratio 保住。 */
 .settings-heatmap__grid {
   display: grid;
   grid-auto-columns: minmax(8px, 1fr);
@@ -514,19 +429,7 @@
   gap: 8px;
 }
 
-.settings-filter p {
-  margin: 0;
-  color: var(--ui-muted-foreground);
-  font-size: 12px;
-  line-height: 1.45;
-}
-
-/*
- * 设置界面唯一的输入框长相。
- *
- * 所有页的文本输入格都用这一个类：白底、1px #e4e4e5 描边、聚焦变 #339cff。
- * 带图标的搜索框把这个类放在外层容器上，内部 input 透明无边框。
- */
+/* 全部设置页共用的输入框外观；带图标搜索框把本类放在外层容器上。 */
 .settings-input {
   inline-size: 100%;
   min-block-size: 32px;
@@ -582,29 +485,9 @@
   border-color: #339cff;
 }
 
-/*
- * 一条绑定的写法。
- *
- * 与命令面板里那颗 kbd 同一种长相（muted、12px、等宽数字，无键帽框）：同一条
- * 快捷键在两个界面上不该有两种画法。等宽数字是为了 Ctrl+1 / Ctrl+2 这一列不
- * 随字宽左右跳，与 .models-row__meta 同一条理由。
- */
-.settings-shortcut {
-  color: var(--ui-muted-foreground);
-  font-family: inherit;
-  font-size: 12px;
-  font-variant-numeric: tabular-nums;
-}
-
 /* ---------------- 局部区块 ---------------- */
 
-/*
- * 设置界面操作按钮（soft variant）。
- *
- * 设计系统的 soft variant 取 --ui-divider，这里按需求压到更浅的两档灰：
- * 常态 #f3f3f4，悬停 #e8e8e8。作用域限定在 .settings-content 内带 bg-divider
- * 的按钮，不碰左侧导航、outline variant 的重试按钮或其他界面。
- */
+/* soft 按钮压浅两档灰，仅限 .settings-content 内带 bg-divider 的按钮。 */
 .settings-content button.bg-divider {
   background-color: #f3f3f4;
 }
@@ -719,10 +602,7 @@
   font-size: 12px;
 }
 
-/*
- * 错误态保留边框：它是需要和普通卡片区分开的信号，不是装饰。
- * 无边框规则作用于承载设置项的面板，不作用于报警。
- */
+/* 错误态需要与普通卡片区分开，保留边框。 */
 .settings-error {
   display: flex;
   align-items: center;
@@ -749,12 +629,7 @@
 
 /* ---------------- 快捷键列表 ---------------- */
 
-/*
- * 快捷键页的长列表：一张卡，行内分隔线与 .settings-row 同源。
- *
- * 与 .settings-group__surface 同一种边框圆角，但行结构不同——左侧是命令
- * 文案，右侧是绑定列表（一列可能有多个绑定），所以不复用 SettingsGroup。
- */
+/* 快捷键行左命令右绑定列表，结构与 SettingsRow 不同，不复用 SettingsGroup。 */
 .settings-keymap-list {
   display: flex;
   flex-direction: column;
@@ -910,10 +785,7 @@
   }
 }
 
-/*
- * 一条绝对路径比这一栏里其余的值长一个数量级，而它必须完整可读：这一行的
- * 用途就是让人照着它去备份。所以是换行，不是省略号。
- */
+/* 绝对路径须完整可读，故换行而不是省略号。 */
 .settings-about-path {
   word-break: break-all;
   text-align: right;

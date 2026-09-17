@@ -46,12 +46,6 @@ interface Row {
   readonly issue: string | null
 }
 
-/**
- * 子 Agent 目录的唯一事实来源。
- *
- * 拥有：目录快照、每个文件的解析结果、按文件保留的草稿、忙态、失败。
- * 不认识 React、设置页与侧边栏；表面只投影这份快照，不另存一份。
- */
 export class PersonalizationStore {
   readonly #agents: CustomAgentStore
   readonly #listeners = new Set<() => void>()
@@ -253,20 +247,14 @@ export class PersonalizationStore {
   }
 
   #draft(): CustomAgentDraft {
-    const stored = this.#drafts.get(this.#selection)
-
-    if (stored !== undefined) {
-      return stored
-    }
-
     const selectedPath = this.#selectedPath()
-
     return (
-      (selectedPath === null ? null : this.#rows.get(selectedPath)?.parsed) ?? emptyAgentDraft()
+      this.#drafts.get(this.#selection) ??
+      (selectedPath === null ? null : this.#rows.get(selectedPath)?.parsed) ??
+      emptyAgentDraft()
     )
   }
 
-  /* 唯一写入点。 */
   #commit(): void {
     this.#view = this.#project()
 
