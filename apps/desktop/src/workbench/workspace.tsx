@@ -266,13 +266,6 @@ export function DesktopWorkspace({
     workspace.openSurface({ surfaceId: 'ai' })
   }, [workspace])
 
-  const openConversationInNewTab = useCallback(
-    (threadId: string, title: string) => {
-      workspace.openConversationInNewTab({ threadId, title })
-    },
-    [workspace],
-  )
-
   const desktopSurfaces = useMemo(
     () =>
       createDesktopSurfaces({
@@ -374,7 +367,6 @@ export function DesktopWorkspace({
               activeThreadId={activeConversationId}
               onCreate={openAssistantEntry}
               onOpen={startConversation}
-              onOpenInNewTab={openConversationInNewTab}
               runningThreadIds={runningThreadIds}
             />
           }

@@ -8,7 +8,6 @@ export interface AssistantSidebarPanelProps {
   readonly activeThreadId: string | null
   readonly onCreate: () => void
   readonly onOpen: (threadId: string, title: string) => void
-  readonly onOpenInNewTab: (threadId: string, title: string) => void
   readonly runningThreadIds: ReadonlySet<string>
 }
 
@@ -16,7 +15,6 @@ export const AssistantSidebarPanel = memo(function AssistantSidebarPanel({
   activeThreadId,
   onCreate,
   onOpen,
-  onOpenInNewTab,
   runningThreadIds,
 }: AssistantSidebarPanelProps) {
   const threads = useThreadsActions()
@@ -49,13 +47,6 @@ export const AssistantSidebarPanel = memo(function AssistantSidebarPanel({
       onOpen(threadId, threads.titleOf(threadId))
     },
     [onOpen, threads],
-  )
-
-  const openInNewTab = useCallback(
-    (threadId: string) => {
-      onOpenInNewTab(threadId, threads.titleOf(threadId))
-    },
-    [onOpenInNewTab, threads],
   )
 
   const pin = useCallback(
@@ -98,7 +89,6 @@ export const AssistantSidebarPanel = memo(function AssistantSidebarPanel({
         onArchive={archive}
         onCreate={create}
         onExport={exportThread}
-        onOpenInNewTab={openInNewTab}
         onPin={pin}
         onRename={rename}
         onToggleWorkspace={toggleWorkspace}

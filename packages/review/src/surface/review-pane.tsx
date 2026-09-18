@@ -153,9 +153,13 @@ export function ReviewPane({ root, gateway, report }: ReviewPaneProps) {
   const style: ReviewStyle = { '--review-tree-width': `${String(treeColumn)}px` }
   return (
     <div
+      /*
+       * 只有拖拽中关掉划选，悬停不算：分隔条那 8px 命中区跨在列边界上，指针停在
+       * 那里是完全正常的一件事，不该顺手把整格 diff 变成选不了。
+       */
       className={cn(
         'review-pane flex h-full min-h-0 flex-col',
-        state.splitter === 'idle' ? null : 'select-none',
+        state.splitter === 'drag' ? 'select-none' : null,
       )}
       data-splitter={state.splitter}
       style={style}

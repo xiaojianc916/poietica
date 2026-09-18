@@ -67,7 +67,13 @@ export function RegionSplitter({
   const widthAt = (current: DragSession, clientX: number): number =>
     clamp(current.startWidth + grow * (clientX - current.startX))
 
-  const settle = (current: DragSession, finalWidth: number): void => {
+  /*
+   * 收尾只有一个出口：放捕获、把最终宽度交回、把交互态归位。
+   *
+   * 交互态由调用方点名，不在这里按几何猜：指针离开文档那一路（下面那条监听）几何
+   * 已经不可信 —— 最后已知的位置还留在条上，而指针其实已经进了原生子 webview。
+   */
+  const settle = (current: DragSession, finalWidth: number, activity: SplitterActivity): void => {
     session.current = null
 
     /* lostpointercapture 时捕获已释放，此时 release 会抛 NotFoundError。 */
@@ -76,8 +82,12 @@ export function RegionSplitter({
     }
 
     onResize(finalWidth)
-    onActivity(isPointerOver(current.element, current.point) ? 'hover' : 'idle')
+    onActivity(activity)
   }
+
+  /* 拖拽结束的那一刻指针还在不在条上，只能按几何算：捕获期间的 hover 记在捕获元素上。 */
+  const restActivity = (current: DragSession): SplitterActivity =>
+    isPointerOver(current.element, current.point) ? 'hover' : 'idle'
 
   const end = (event: PointerEvent<HTMLHRElement>): void => {
     const current = session.current
@@ -86,8 +96,41 @@ export function RegionSplitter({
       return
     }
 
-    settle(current, widthAt(current, event.clientX))
+    settle(current, widthAt(current, event.clientX), restActivity(current))
   }
+
+  /*
+   * 指针一离开文档就收不回交互态了。
+   *
+   * 右栏装的是原生子 webview：它整幅盖在宿主 DOM 之上，指针一进去文档就再也收不到
+   * 指针事件 —— 没有 pointerleave，悬停态会一直亮着；拖到一半进去，pointerup 也等
+   * 不到。判据在文档上而不在条上，所以监听挂 document（use-rail-pointer 同一条做法）。
+   *
+   * 收尾逻辑用 ref 持有：它要读当前这一帧的 props，而监听只装一次。
+   */
+  const release = useRef<() => void>(() => undefined)
+
+  release.current = (): void => {
+    const current = session.current
+
+    if (current === null) {
+      onActivity('idle')
+
+      return
+    }
+
+    settle(current, widthAt(current, current.point.x), 'idle')
+  }
+
+  useEffect(() => {
+    const onLeave = (): void => release.current()
+
+    document.addEventListener('pointerleave', onLeave, { passive: true })
+
+    return () => {
+      document.removeEventListener('pointerleave', onLeave)
+    }
+  }, [])
 
   /* 条随区域收起而卸载：谁写的状态谁收回。 */
   useEffect(
@@ -104,7 +147,7 @@ export function RegionSplitter({
     if (event.key === 'Escape') {
       if (current !== null) {
         event.preventDefault()
-        settle(current, current.startWidth)
+        settle(current, current.startWidth, restActivity(current))
       }
 
       return

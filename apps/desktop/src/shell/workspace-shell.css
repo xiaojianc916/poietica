@@ -18,6 +18,22 @@
   initial-value: 0px;
 }
 
+/*
+ * 外壳的家具不可选：页头那一行与侧栏那一列都是控件，不是文档。
+ *
+ * 判据是「这是哪一格」，不是「铺了什么底色」。这条规则此前按 .bg-chrome / .bg-sidebar
+ * 两个底色类判，而主区与右栏为了圆角缺口也铺 chrome 地色 —— 整片正文与审查面板因此
+ * 一起被关掉划选（实测：正文的 user-select 计算值是 none）。地色今天恰好只落在这两格
+ * 上，明天多铺一处这个规则就不成立，所以改成按格位写。
+ *
+ * 主区与右栏不点名：它们装的是文档，正文、diff 都要能划选。
+ */
+.workspace-shell__chrome,
+.workspace-shell__sidebar {
+  -webkit-user-select: none;
+  user-select: none;
+}
+
 .workspace-shell {
   /* 会话面板：四角圆角 + 右、下两条地色留白。两者各只有这一份。 */
   --workspace-main-corner-radius: 16px;

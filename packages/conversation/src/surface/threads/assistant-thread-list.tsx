@@ -4,19 +4,10 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
-  DropdownMenuSeparator,
   DropdownMenuTrigger,
   PixelLoader,
 } from '@poietica/design-system'
-import {
-  Archive,
-  Download,
-  Pencil as Edit,
-  ExternalLink,
-  FolderClosed,
-  FolderOpen,
-  PinOff,
-} from 'lucide-react'
+import { Archive, Download, Pencil as Edit, FolderClosed, FolderOpen, PinOff } from 'lucide-react'
 import { memo, useCallback, useMemo, useRef, useState } from 'react'
 import { useHorizon, useNow } from '../primitives/clock'
 import { ChevronDownIcon, MoreIcon, PinIcon, PlusIcon } from '../primitives/icons'
@@ -108,7 +99,6 @@ export interface AssistantThreadListProps {
   readonly onRename?: (threadId: string, title: string) => void
   readonly onExport?: (threadId: string) => void
   readonly onArchive?: (threadId: string) => void
-  readonly onOpenInNewTab?: (threadId: string) => void
 }
 
 /** Widths that make the skeleton read as a list rather than as a bar. */
@@ -297,7 +287,6 @@ interface ThreadRowProps {
   readonly onCancelRename: () => void
   readonly onExport?: ((threadId: string) => void) | undefined
   readonly onArchive?: ((threadId: string) => void) | undefined
-  readonly onOpenInNewTab?: ((threadId: string) => void) | undefined
 }
 
 /*
@@ -321,7 +310,6 @@ const ThreadRow = memo(function ThreadRow({
   onCancelRename,
   onExport,
   onArchive,
-  onOpenInNewTab,
 }: ThreadRowProps) {
   /*
    * 菜单开合是这一行的状态，所以它住在这一行里。
@@ -464,23 +452,6 @@ const ThreadRow = memo(function ThreadRow({
                       <span>归档</span>
                     </DropdownMenuItem>
                   )}
-
-                  {/* 分隔符属于它下面那一项：那一项不在，这条线也不该在。 */}
-                  {onOpenInNewTab === undefined ? null : (
-                    <>
-                      <DropdownMenuSeparator className="assistant-thread-menu__separator" />
-
-                      <DropdownMenuItem
-                        className="assistant-thread-menu__item"
-                        onClick={() => {
-                          onOpenInNewTab(thread.id)
-                        }}
-                      >
-                        <ExternalLink aria-hidden="true" />
-                        <span>在新选项卡中打开</span>
-                      </DropdownMenuItem>
-                    </>
-                  )}
                 </DropdownMenuContent>
               </DropdownMenu>
             </span>
@@ -592,7 +563,6 @@ export function AssistantThreadList({
   onRename,
   onExport,
   onArchive,
-  onOpenInNewTab,
 }: AssistantThreadListProps) {
   /*
    * 时钟在这里进来一次，整张列表共用；每行不再各自读一次墙上时间。
@@ -714,7 +684,6 @@ export function AssistantThreadList({
       onCancelRename={cancelRename}
       onCommitRename={commitRename}
       onExport={onExport}
-      onOpenInNewTab={onOpenInNewTab}
       onPin={onPin}
       thread={thread}
     />

@@ -496,10 +496,6 @@
   color: currentcolor;
 }
 
-.assistant-thread-menu .assistant-thread-menu__separator {
-  border-block-start-color: var(--cp-hairline);
-}
-
 .assistant-thread-menu .assistant-thread-menu__meta {
   padding: 0;
   border: 0;
@@ -597,10 +593,6 @@
 .assistant-thread-menu[data-assistant-skin] .assistant-thread-menu__item svg {
   block-size: var(--cp-icon);
   inline-size: var(--cp-icon);
-}
-
-.assistant-thread-menu[data-assistant-skin] .assistant-thread-menu__separator {
-  margin: var(--am-pad) 8px;
 }
 
 .assistant-thread-menu[data-assistant-skin] .assistant-thread-menu__meta {
