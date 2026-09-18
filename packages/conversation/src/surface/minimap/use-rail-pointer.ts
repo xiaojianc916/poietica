@@ -68,13 +68,11 @@ export function useRailPointer(
           bars[index]?.style.removeProperty(WEIGHT_VAR)
         }
       }
+      /* 下标由柱子自己带在身上：焦点进来时读一次，不必按 DOM 顺序线性扫。 */
       const indexOfBar = (turn: HTMLElement) => {
-        for (let index = 0; index < bars.length; index += 1) {
-          if (bars[index] === turn) {
-            return index
-          }
-        }
-        return -1
+        const held = Number(turn.dataset['minimapIndex'])
+
+        return Number.isInteger(held) ? held : -1
       }
       /** 卡片贴着它那一根走；轨道会滚，所以按柱子自己的盒子重算。 */
       const place = (index: number) => {

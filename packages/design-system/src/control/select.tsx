@@ -1,5 +1,6 @@
 import { Select as BaseSelect } from '@base-ui/react/select'
 import { Check, ChevronDown } from 'lucide-react'
+import type { ReactNode } from 'react'
 import { cn } from '../class-names'
 import { popupPositionerClassName, popupSurfaceClassName } from './popup-surface'
 
@@ -7,6 +8,13 @@ import { popupPositionerClassName, popupSurfaceClassName } from './popup-surface
 export interface SelectOption<TValue extends string = string> {
   readonly value: TValue
   readonly label: string
+  /**
+   * 行首图标。
+   *
+   * 名字彼此只差一个序号时（字段列表就是「字段 1」「字段 2」），图标是唯一一眼能
+   * 分出种类的东西。触发器与清单画同一份 —— 分开画就是两个产地。
+   */
+  readonly mark?: ReactNode
 }
 
 export interface SelectProps<TValue extends string = string> {
@@ -44,7 +52,12 @@ const TRIGGER = cn(
   'w-auto max-w-full rounded-lg border border-divider [--color-divider:var(--ui-popover-trigger-frame)] bg-popover hover:bg-[var(--ui-popup-highlight)] data-[popup-open]:bg-[var(--ui-popup-highlight)]',
 )
 
+/* 触发器与清单里的字都是这一个盒子：图标另起一格，字占住剩下的并自己省略号收尾。 */
 const VALUE = cn('min-w-0 flex-1', 'truncate')
+
+const TRIGGER_VALUE = cn('flex min-w-0 flex-1', 'items-center gap-1.5')
+
+const MARK = cn('flex shrink-0', 'items-center', 'text-muted-foreground')
 
 /*
  * ChevronDown 而不是 ChevronsUpDown：双向箭头说的是「有一根轴能上下走」，那是
@@ -124,7 +137,31 @@ export function Select<TValue extends string = string>({
         id={id}
         type="button"
       >
-        <BaseSelect.Value className={VALUE} placeholder={`选择${type}…`} />
+        {/*
+         * 触发器自己渲染选中的那一项，不用 Value 的 placeholder：icon 与文案要一起
+         * 画，而 placeholder 只认一段文字。占位走同一个盒子，因此与选中的样子同宽。
+         */}
+        <BaseSelect.Value className={TRIGGER_VALUE}>
+          {(value: unknown) => {
+            const held = data.find((option) => option.value === value)
+
+            if (held === undefined) {
+              return <span className={VALUE}>{`选择${type}…`}</span>
+            }
+
+            return (
+              <>
+                {held.mark === undefined ? null : (
+                  <span aria-hidden="true" className={MARK}>
+                    {held.mark}
+                  </span>
+                )}
+
+                <span className={VALUE}>{held.label}</span>
+              </>
+            )
+          }}
+        </BaseSelect.Value>
 
         <BaseSelect.Icon>
           <ChevronDown aria-hidden="true" className={ICON} />
@@ -148,6 +185,12 @@ export function Select<TValue extends string = string>({
             <BaseSelect.List className={LIST}>
               {data.map((option) => (
                 <BaseSelect.Item className={ITEM} key={option.value} value={option.value}>
+                  {option.mark === undefined ? null : (
+                    <span aria-hidden="true" className={MARK}>
+                      {option.mark}
+                    </span>
+                  )}
+
                   <BaseSelect.ItemText className={VALUE}>{option.label}</BaseSelect.ItemText>
 
                   <BaseSelect.ItemIndicator className="ml-auto shrink-0">

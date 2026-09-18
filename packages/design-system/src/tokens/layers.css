@@ -6,6 +6,9 @@
  * 并且让修复无法传播（select.tsx 曾这样自救，dropdown-menu.tsx 就一直没被救到）。
  * 需要新的相对次序，就来这张表里加一层。
  *
+ * floating 与 dialog 之间是内容自己的一层：表格的 sticky 表头、卡片头这类
+ * 「钉在滚动口上」的元素留在容器内部，不与浮层争位。
+ *
  * popover 必须高于 dialog：Base UI 的 Dialog.Portal 与 Menu/Select 的
  * Positioner 都挂到 body 下，是共享同一 stacking context 的兄弟节点。
  * 在对话框内打开菜单或下拉是常规场景（设置页尤其密集），popover 低于
@@ -13,10 +16,14 @@
  *
  * toast 高于 popover：toast 固定在角落且不拦截自身矩形外的指针事件，
  * 反过来会出现"报错提示被一个下拉框遮住"。
+ *
+ * chrome 是窗口装饰，压在所有浮层之上：致命屏的标题栏必须在场，
+ * 被任何一个弹层盖住，那个窗口就关不掉了。
  */
 :root {
   --ui-z-floating: 40;
   --ui-z-dialog: 100;
   --ui-z-popover: 110;
   --ui-z-toast: 120;
+  --ui-z-chrome: 130;
 }

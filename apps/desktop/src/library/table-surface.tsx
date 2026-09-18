@@ -1,11 +1,14 @@
 import {
   Button,
+  ContextMenuContent,
+  ContextMenuItem,
+  ContextMenuRoot,
+  ContextMenuSeparator,
+  ContextMenuTrigger,
   cn,
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuTrigger,
-  popupPositionerClassName,
-  popupSurfaceClassName,
   Select,
   Switch,
 } from '@poietica/design-system'
@@ -61,7 +64,7 @@ import {
   Trash2,
   Undo,
 } from 'lucide-react'
-import { type ReactNode, useEffect, useMemo, useRef, useState } from 'react'
+import { type CSSProperties, type ReactNode, useEffect, useMemo, useRef, useState } from 'react'
 import {
   ConditionPanel,
   ConditionRow,
@@ -70,7 +73,6 @@ import {
   KIND_ORDER,
   moveCondition,
   needsOperand,
-  Picker,
   TINT_CLASS,
   TintPicker,
   testOptions,
@@ -368,11 +370,13 @@ function FilterPanel({ controller, list, onClose, sheet, view }: Shell & { onClo
           }
           onRemove={() => controller.configure({ ...view, filters: drop(view.filters, filter.id) })}
         >
-          <Picker
-            onSelect={(test) =>
+          <Select
+            className="min-w-0 flex-1"
+            data={testOptions(kindAt(list, filter.field))}
+            onValueChange={(test) =>
               controller.configure({ ...view, filters: update(view.filters, filter.id, { test }) })
             }
-            options={testOptions(kindAt(list, filter.field))}
+            type="判据"
             value={filter.test}
           />
           {needsOperand(filter.test) ? (
@@ -467,17 +471,19 @@ function SortPanel({
           }
           onRemove={() => controller.configure({ ...view, sorts: drop(view.sorts, sort.id) })}
         >
-          <Picker
-            onSelect={(order) =>
+          <Select
+            className="min-w-0 flex-1"
+            data={[
+              { value: 'asc', label: '升序' },
+              { value: 'desc', label: '降序' },
+            ]}
+            onValueChange={(order) =>
               controller.configure({
                 ...view,
                 sorts: update(view.sorts, sort.id, { descending: order === 'desc' }),
               })
             }
-            options={[
-              { value: 'asc', label: '升序' },
-              { value: 'desc', label: '降序' },
-            ]}
+            type="顺序"
             value={sort.descending ? 'desc' : 'asc'}
           />
         </ConditionRow>
@@ -521,11 +527,13 @@ function TintPanel({ controller, list, onClose, sheet, view }: Shell & { onClose
           }
           onRemove={() => controller.configure({ ...view, tints: drop(view.tints, tint.id) })}
         >
-          <Picker
-            onSelect={(test) =>
+          <Select
+            className="min-w-0 flex-1"
+            data={testOptions(kindAt(list, tint.field))}
+            onValueChange={(test) =>
               controller.configure({ ...view, tints: update(view.tints, tint.id, { test }) })
             }
-            options={testOptions(kindAt(list, tint.field))}
+            type="判据"
             value={tint.test}
           />
           {needsOperand(tint.test) ? (
@@ -579,14 +587,33 @@ interface Shown {
   key: string
 }
 
-/** 右键菜单的落点：行是底层行号，列是底层列号，行头菜单没有列。 */
-interface MenuTarget {
-  readonly x: number
-  readonly y: number
-  readonly row: number
-  readonly field: number | null
+/** 右键落点：行菜单说底层行号（行头没有列），列菜单说底层列号。 */
+type MenuTarget =
+  | { readonly of: 'row'; readonly row: number; readonly field: number | null }
+  | { readonly of: 'column'; readonly field: number }
+
+/*
+ * 落点由 DOM 上的标记反解，不在每个格子里各存一份坐标。
+ *
+ * 菜单开在哪、怎么翻转、怎么关全归 ContextMenu（锚点就是指针落点），这里只回答
+ * 「点的是哪一格」；没有标记的地方返回 null，那一下右键不该开菜单。
+ */
+function menuTargetAt(target: EventTarget | null): MenuTarget | null {
+  if (!(target instanceof Element)) {
+    return null
+  }
+
+  const field = target.closest<HTMLElement>('[data-sheet-field]')?.dataset['sheetField']
+  const row = target.closest<HTMLElement>('[data-sheet-row]')?.dataset['sheetRow']
+
+  if (row !== undefined) {
+    return { of: 'row', row: Number(row), field: field === undefined ? null : Number(field) }
+  }
+
+  return field === undefined ? null : { of: 'column', field: Number(field) }
 }
 
+/** 这一族菜单里的一行：图标、文案、行尾注释，危险动作取警示色。 */
 function MenuItem({
   children,
   danger,
@@ -603,15 +630,10 @@ function MenuItem({
   onClick: () => void
 }) {
   return (
-    <button
-      className={cn(
-        'flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm hover:bg-accent',
-        danger === true && 'text-destructive',
-        disabled === true && 'opacity-50 hover:bg-transparent',
-      )}
+    <ContextMenuItem
+      className={cn(danger === true && 'text-destructive')}
       disabled={disabled}
       onClick={onClick}
-      type="button"
     >
       <Mark
         aria-hidden="true"
@@ -621,263 +643,119 @@ function MenuItem({
       {meta === undefined ? null : (
         <span className="ml-auto pl-4 text-muted-foreground text-xs">{meta}</span>
       )}
-    </button>
+    </ContextMenuItem>
   )
 }
 
-/** 右键菜单的外壳：按住落点定位，点外面、Esc、滚动、改窗口就关。 */
-function MenuShell({
-  children,
-  onClose,
-  target,
-}: {
-  children: ReactNode
-  onClose: () => void
-  target: { x: number; y: number }
-}) {
-  const panel = useRef<HTMLDivElement>(null)
-  const [at, setAt] = useState(() => ({
-    x: Math.max(8, Math.min(target.x, window.innerWidth - 232)),
-    y: Math.max(8, Math.min(target.y, window.innerHeight - 320)),
-  }))
-
-  useEffect(() => {
-    const node = panel.current
-
-    if (node !== null) {
-      const rect = node.getBoundingClientRect()
-
-      setAt({
-        x: Math.max(8, Math.min(target.x, window.innerWidth - rect.width - 8)),
-        y: Math.max(8, Math.min(target.y, window.innerHeight - rect.height - 8)),
-      })
-    }
-
-    const onKey = (event: KeyboardEvent): void => {
-      if (event.key === 'Escape') {
-        onClose()
-      }
-    }
-    const onPointer = (event: PointerEvent): void => {
-      if (event.target instanceof Node && panel.current?.contains(event.target) !== true) {
-        onClose()
-      }
-    }
-    const onScroll = (): void => onClose()
-
-    window.addEventListener('keydown', onKey)
-    window.addEventListener('pointerdown', onPointer)
-    window.addEventListener('resize', onScroll)
-    window.addEventListener('scroll', onScroll, true)
-
-    return () => {
-      window.removeEventListener('keydown', onKey)
-      window.removeEventListener('pointerdown', onPointer)
-      window.removeEventListener('resize', onScroll)
-      window.removeEventListener('scroll', onScroll, true)
-    }
-  }, [onClose, target.x, target.y])
-
-  return (
-    <div
-      className={cn(popupSurfaceClassName, popupPositionerClassName, 'fixed w-52 p-1.5')}
-      ref={panel}
-      role="menu"
-      style={{ left: at.x, top: at.y }}
-    >
-      {children}
-    </div>
-  )
-}
-
-/** 在上方/下方插入：数字框是菜单的一部分，点它不关菜单。 */
-function InsertItem({
-  above,
-  count,
-  onCount,
-  onInsert,
-  row,
-}: {
-  above: boolean
-  count: number
-  onCount: (count: number) => void
-  onInsert: () => void
-  row: number
-}) {
-  const Mark = above ? ArrowUp : ArrowDown
-
-  return (
-    <div className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-sm hover:bg-accent">
-      <Mark aria-hidden="true" className="size-4 shrink-0 text-muted-foreground" />
-      <button
-        aria-label={above ? `在第 ${row + 1} 行上方插入` : `在第 ${row + 1} 行下方插入`}
-        className="flex-1 text-left"
-        onClick={onInsert}
-        type="button"
-      >
-        {above ? '在上方插入' : '在下方插入'}
-      </button>
-      <input
-        aria-label="插入行数"
-        className="h-6 w-10 rounded-md border border-input bg-background text-center text-sm outline-none"
-        max={99}
-        min={1}
-        onChange={(event) => onCount(Number(event.target.value))}
-        onKeyDown={(event) => {
-          if (event.key === 'Enter') {
-            onInsert()
-          }
-        }}
-        type="number"
-        value={count}
-      />
-      <span className="text-muted-foreground">行</span>
-    </div>
-  )
-}
-
-/** 单元格与行头的右键菜单：前者多两项筛选，后者只有行操作。 */
-function RowMenu({
+/** 单元格与行头的菜单项：前者有一条按该列筛选的捷径，后者只有行操作。 */
+function RowItems({
   controller,
-  onClose,
   target,
   view,
 }: {
   controller: LibraryController
-  onClose: () => void
-  target: MenuTarget
+  target: { readonly row: number; readonly field: number | null }
   view: SheetView
 }) {
-  const [above, setAbove] = useState(1)
-  const [below, setBelow] = useState(1)
-
-  const onlyEmpty = (): void => {
-    if (target.field === null) {
-      return
-    }
-
-    controller.configure({
-      ...view,
-      filters: [
-        ...view.filters.filter((filter) => filter.field !== target.field),
-        { id: crypto.randomUUID(), field: target.field, test: 'empty', operand: '' },
-      ],
-    })
-    onClose()
-  }
-  const insert = (anchor: number, count: number): void => {
-    controller.revise((sheet) => insertRows(sheet, anchor, count))
-    onClose()
-  }
+  const field = target.field
 
   return (
-    <MenuShell onClose={onClose} target={target}>
-      {target.field === null ? null : (
+    <>
+      {field === null ? null : (
         <>
-          <MenuItem mark={Filter} onClick={onlyEmpty}>
-            不看已填写
-          </MenuItem>
-          <MenuItem mark={Filter} onClick={onlyEmpty}>
+          <MenuItem
+            mark={Filter}
+            onClick={() =>
+              controller.configure({
+                ...view,
+                filters: [
+                  ...view.filters.filter((filter) => filter.field !== field),
+                  { id: crypto.randomUUID(), field, test: 'empty', operand: '' },
+                ],
+              })
+            }
+          >
             只看未填写
           </MenuItem>
-          <div aria-hidden="true" className="-mx-1.5 my-1 h-px bg-divider" />
+          <ContextMenuSeparator />
         </>
       )}
       <MenuItem
         mark={Copy}
-        onClick={() => {
-          controller.revise((sheet) => duplicateRow(sheet, target.row))
-          onClose()
-        }}
+        onClick={() => controller.revise((sheet) => duplicateRow(sheet, target.row))}
       >
         创建副本
       </MenuItem>
-      <InsertItem
-        above={true}
-        count={above}
-        onCount={setAbove}
-        onInsert={() => insert(target.row, above)}
-        row={target.row}
-      />
-      <InsertItem
-        above={false}
-        count={below}
-        onCount={setBelow}
-        onInsert={() => insert(target.row + 1, below)}
-        row={target.row}
-      />
+      <MenuItem
+        mark={ArrowUp}
+        onClick={() => controller.revise((sheet) => insertRows(sheet, target.row, 1))}
+      >
+        在上方插入
+      </MenuItem>
+      <MenuItem
+        mark={ArrowDown}
+        onClick={() => controller.revise((sheet) => insertRows(sheet, target.row + 1, 1))}
+      >
+        在下方插入
+      </MenuItem>
       <MenuItem
         danger={true}
         mark={Trash2}
-        onClick={() => {
-          controller.revise((sheet) => removeRow(sheet, target.row))
-          onClose()
-        }}
+        onClick={() => controller.revise((sheet) => removeRow(sheet, target.row))}
       >
         删除
       </MenuItem>
-    </MenuShell>
+    </>
   )
 }
 
-/** 列头的右键菜单。列宽与冻结只有样子，功能二期再做。 */
-function ColumnMenu({
+/** 列头的菜单项。列宽与冻结只有样子，功能二期再做。 */
+function ColumnItems({
   controller,
   item,
-  onClose,
   onEdit,
   onOpenPanel,
-  target,
   view,
 }: {
   controller: LibraryController
   item: Shown
-  onClose: () => void
   onEdit: () => void
   onOpenPanel: (panel: 'filter' | 'group' | 'sort' | 'tint') => void
-  target: { x: number; y: number }
   view: SheetView
 }) {
-  const act = (work: () => void): void => {
-    work()
-    onClose()
-  }
-
   return (
-    <MenuShell onClose={onClose} target={target}>
-      <MenuItem mark={Pencil} meta={KIND_LABEL[item.field.kind]} onClick={() => act(onEdit)}>
+    <>
+      <MenuItem mark={Pencil} meta={KIND_LABEL[item.field.kind]} onClick={onEdit}>
         修改字段
       </MenuItem>
       <MenuItem
         mark={ListPlus}
         onClick={() =>
-          act(() =>
-            controller.reshape((sheet) => insertField(sheet, item.index + 1, nextFieldName(sheet))),
-          )
+          controller.reshape((sheet) => insertField(sheet, item.index + 1, nextFieldName(sheet)))
         }
       >
         插入字段
       </MenuItem>
       <MenuItem
         mark={Copy}
-        onClick={() => act(() => controller.reshape((sheet) => duplicateField(sheet, item.index)))}
+        onClick={() => controller.reshape((sheet) => duplicateField(sheet, item.index))}
       >
         创建副本
       </MenuItem>
-      <div aria-hidden="true" className="-mx-1.5 my-1 h-px bg-divider" />
-      <MenuItem mark={Filter} onClick={() => act(() => onOpenPanel('filter'))}>
+      <ContextMenuSeparator />
+      <MenuItem mark={Filter} onClick={() => onOpenPanel('filter')}>
         筛选
       </MenuItem>
-      <MenuItem mark={Layers} onClick={() => act(() => onOpenPanel('group'))}>
+      <MenuItem mark={Layers} onClick={() => onOpenPanel('group')}>
         分组
       </MenuItem>
-      <MenuItem mark={ArrowUpDown} onClick={() => act(() => onOpenPanel('sort'))}>
+      <MenuItem mark={ArrowUpDown} onClick={() => onOpenPanel('sort')}>
         排序
       </MenuItem>
-      <MenuItem mark={Palette} onClick={() => act(() => onOpenPanel('tint'))}>
+      <MenuItem mark={Palette} onClick={() => onOpenPanel('tint')}>
         填色
       </MenuItem>
-      <div aria-hidden="true" className="-mx-1.5 my-1 h-px bg-divider" />
+      <ContextMenuSeparator />
       <MenuItem disabled={true} mark={MoveHorizontal} onClick={() => {}}>
         调整至合适列宽
       </MenuItem>
@@ -887,71 +765,63 @@ function ColumnMenu({
       <MenuItem
         mark={EyeOff}
         onClick={() =>
-          act(() =>
-            controller.configure({
-              ...view,
-              hidden: view.hidden.includes(item.index) ? view.hidden : [...view.hidden, item.index],
-            }),
-          )
+          controller.configure({
+            ...view,
+            hidden: view.hidden.includes(item.index) ? view.hidden : [...view.hidden, item.index],
+          })
         }
       >
         隐藏字段
       </MenuItem>
-      <div aria-hidden="true" className="-mx-1.5 my-1 h-px bg-divider" />
+      <ContextMenuSeparator />
       <MenuItem
         danger={true}
         mark={Trash2}
-        onClick={() => act(() => controller.reshape((sheet) => removeField(sheet, item.index)))}
+        onClick={() => controller.reshape((sheet) => removeField(sheet, item.index))}
       >
         删除字段
       </MenuItem>
-    </MenuShell>
+    </>
   )
 }
 
 function Row({
-  columns,
   controller,
   list,
   menu,
-  onMenu,
   row,
   shown,
   view,
 }: {
-  columns: string
   controller: LibraryController
   list: readonly Field[]
   menu: MenuTarget | null
-  onMenu: (target: MenuTarget) => void
   row: SheetRow
   shown: readonly Shown[]
   view: SheetView
 }) {
   const tint = tintOf(list, view, row)
   const ordinal = row.index + 1
+  const held = menu?.of === 'row' && menu.row === row.index ? menu : null
   /* 行头菜单开着时这一行保持悬浮态；菜单一关状态跟着消失。 */
-  const pinRow = menu !== null && menu.row === row.index && menu.field === null
+  const pinRow = held !== null && held.field === null
 
   return (
     <div
       className={cn(
         'grid border-divider border-b',
         ROW_HEIGHT[view.rowHeight],
+        '[grid-template-columns:var(--sheet-columns)]',
         tint === null ? undefined : TINT_CLASS[tint],
         'hover:bg-muted/50',
         pinRow && 'bg-muted/50',
       )}
-      style={{ gridTemplateColumns: columns }}
     >
       <div className="flex items-center justify-center text-muted-foreground text-xs">
         <button
           aria-label={`第 ${ordinal} 行`}
           className="flex h-full w-full cursor-context-menu items-center justify-center"
-          onContextMenu={(event) => {
-            event.preventDefault()
-            onMenu({ x: event.clientX, y: event.clientY, row: row.index, field: null })
-          }}
+          data-sheet-row={row.index}
           tabIndex={-1}
           type="button"
         >
@@ -963,11 +833,10 @@ function Row({
           aria-label={`${item.field.name}，第 ${ordinal} 行`}
           className={cn(
             'min-w-0 border-divider border-l bg-transparent px-3 text-sm outline-none focus:bg-accent/50',
-            menu !== null &&
-              menu.row === row.index &&
-              menu.field === item.index &&
-              'ring-2 ring-inset ring-blue-500',
+            held !== null && held.field === item.index && 'ring-2 ring-inset ring-blue-500',
           )}
+          data-sheet-field={item.index}
+          data-sheet-row={row.index}
           key={item.key}
           onChange={(event) =>
             controller.revise(
@@ -975,10 +844,6 @@ function Row({
               `cell:${row.index}:${item.index}`,
             )
           }
-          onContextMenu={(event) => {
-            event.preventDefault()
-            onMenu({ x: event.clientX, y: event.clientY, row: row.index, field: item.index })
-          }}
           value={row.cells[item.index] ?? ''}
         />
       ))}
@@ -1091,13 +956,11 @@ function HeaderCell({
   editing,
   item,
   onEditChange,
-  onMenu,
 }: {
   controller: LibraryController
   editing: boolean
   item: Shown
   onEditChange: (editing: boolean) => void
-  onMenu: (at: { x: number; y: number }) => void
 }) {
   const [open, setOpen] = useState(false)
   const Mark = KIND_MARK[item.field.kind]
@@ -1119,10 +982,7 @@ function HeaderCell({
     >
       <DropdownMenuTrigger
         className="group flex h-9 w-full items-center gap-1.5 border-divider border-l px-3 text-left text-sm hover:bg-muted"
-        onContextMenu={(event) => {
-          event.preventDefault()
-          onMenu({ x: event.clientX, y: event.clientY })
-        }}
+        data-sheet-field={item.index}
       >
         <Mark aria-hidden="true" className="size-3.5 shrink-0 text-muted-foreground" />
         <span className="min-w-0 flex-1 truncate">{item.field.name}</span>
@@ -1156,13 +1016,14 @@ export function TableSurface({
         .filter((item) => !view.hidden.includes(item.index)),
     [list, view.hidden],
   )
+  /* 列几何只有一个产地：滚动容器把它写成自定义属性，表头、每一行与尾行照着读。 */
   const columns = `3rem repeat(${shown.length}, minmax(9rem, 1fr)) 3rem`
   const shell = { controller, list, sheet, view }
   const [menu, setMenu] = useState<MenuTarget | null>(null)
-  const [column, setColumn] = useState<{ x: number; y: number; field: number } | null>(null)
   const [editingField, setEditingField] = useState<number | null>(null)
   const [panelSignal, setPanelSignal] = useState({ filter: 0, group: 0, sort: 0, tint: 0 })
-  const columnItem = column === null ? undefined : shown.find((item) => item.index === column.field)
+  const columnItem =
+    menu?.of === 'column' ? shown.find((item) => item.index === menu.field) : undefined
   const openPanel = (panel: 'filter' | 'group' | 'sort' | 'tint'): void => {
     setPanelSignal((signals) => ({ ...signals, [panel]: signals[panel] + 1 }))
   }
@@ -1226,91 +1087,112 @@ export function TableSurface({
         </div>
       </div>
       <div className="min-h-0 flex-1 overflow-hidden px-4 py-3">
-        <div className="max-h-full overflow-auto rounded-lg border border-divider bg-background">
+        <ContextMenuRoot
+          onOpenChange={(open) => {
+            if (!open) {
+              setMenu(null)
+            }
+          }}
+        >
           <div
-            className="sticky top-0 z-10 grid border-divider border-b bg-background"
-            style={{ gridTemplateColumns: columns }}
+            className="max-h-full overflow-auto rounded-lg border border-divider bg-background"
+            style={{ '--sheet-columns': columns } as CSSProperties}
           >
-            <div />
-            {shown.map((item) => (
-              <HeaderCell
-                controller={controller}
-                editing={editingField === item.index}
-                item={item}
-                key={item.key}
-                onEditChange={(editing) => setEditingField(editing ? item.index : null)}
-                onMenu={(at) => setColumn({ ...at, field: item.index })}
-              />
-            ))}
-            <button
-              aria-label="新增字段"
-              className="flex items-center justify-center border-divider border-l text-muted-foreground hover:bg-accent"
-              onClick={() =>
-                controller.reshape((current) => addField(current, nextFieldName(current)))
-              }
-              type="button"
+            {/*
+             * 整片表格一个触发区：落点由 data-sheet-* 标记反解，不必每格各挂一个
+             * 菜单根。没有标记的地方（分组带、尾行之外）右键盘还给系统。
+             */}
+            <ContextMenuTrigger
+              onContextMenu={(event) => {
+                const found = menuTargetAt(event.target)
+
+                if (found === null) {
+                  event.preventBaseUIHandler()
+
+                  return
+                }
+
+                setMenu(found)
+              }}
             >
-              <Plus aria-hidden="true" className="size-3.5" />
-            </button>
-          </div>
-          {groups.map((group) => (
-            <div key={group.label}>
-              {group.label === '' ? null : (
-                <div className="flex h-8 items-center gap-1.5 bg-muted/50 px-3 text-muted-foreground text-xs">
-                  <Layers aria-hidden="true" className="size-3.5 shrink-0" />
-                  <span className="min-w-0 truncate">{group.label}</span>
-                  <span>{group.rows.length}</span>
+              <div className="sticky top-0 z-10 grid border-divider border-b bg-background [grid-template-columns:var(--sheet-columns)]">
+                <div />
+                {shown.map((item) => (
+                  <HeaderCell
+                    controller={controller}
+                    editing={editingField === item.index}
+                    item={item}
+                    key={item.key}
+                    onEditChange={(editing) => setEditingField(editing ? item.index : null)}
+                  />
+                ))}
+                <button
+                  aria-label="新增字段"
+                  className="flex items-center justify-center border-divider border-l text-muted-foreground hover:bg-accent"
+                  onClick={() =>
+                    controller.reshape((current) => addField(current, nextFieldName(current)))
+                  }
+                  type="button"
+                >
+                  <Plus aria-hidden="true" className="size-3.5" />
+                </button>
+              </div>
+              {groups.map((group) => (
+                <div key={group.label}>
+                  {group.label === '' ? null : (
+                    <div className="flex h-8 items-center gap-1.5 bg-muted/50 px-3 text-muted-foreground text-xs">
+                      <Layers aria-hidden="true" className="size-3.5 shrink-0" />
+                      <span className="min-w-0 truncate">{group.label}</span>
+                      <span>{group.rows.length}</span>
+                    </div>
+                  )}
+                  {group.rows.map((row) => (
+                    <Row
+                      controller={controller}
+                      key={row.index}
+                      list={list}
+                      menu={menu}
+                      row={row}
+                      shown={shown}
+                      view={view}
+                    />
+                  ))}
                 </div>
-              )}
-              {group.rows.map((row) => (
-                <Row
-                  columns={columns}
-                  controller={controller}
-                  key={row.index}
-                  list={list}
-                  menu={menu}
-                  onMenu={setMenu}
-                  row={row}
-                  shown={shown}
-                  view={view}
-                />
               ))}
-            </div>
-          ))}
-          <button
-            aria-label="添加一行"
-            className={cn(
-              'grid w-full text-muted-foreground hover:bg-accent/50',
-              ROW_HEIGHT[view.rowHeight],
+              <button
+                aria-label="添加一行"
+                className={cn(
+                  'grid w-full text-muted-foreground hover:bg-accent/50 [grid-template-columns:var(--sheet-columns)]',
+                  ROW_HEIGHT[view.rowHeight],
+                )}
+                onClick={() => controller.revise(addRow)}
+                type="button"
+              >
+                <span className="flex items-center justify-center">
+                  <CirclePlus aria-hidden="true" className="size-4" />
+                </span>
+                {shown.map((item) => (
+                  <span className="border-divider border-l" key={item.key} />
+                ))}
+                <span className="border-divider border-l" />
+              </button>
+            </ContextMenuTrigger>
+          </div>
+          <ContextMenuContent className="w-52">
+            {menu === null ? null : menu.of === 'row' ? (
+              <RowItems controller={controller} target={menu} view={view} />
+            ) : columnItem === undefined ? null : (
+              <ColumnItems
+                controller={controller}
+                item={columnItem}
+                onEdit={() => setEditingField(menu.field)}
+                onOpenPanel={openPanel}
+                view={view}
+              />
             )}
-            onClick={() => controller.revise(addRow)}
-            style={{ gridTemplateColumns: columns }}
-            type="button"
-          >
-            <span className="flex items-center justify-center">
-              <CirclePlus aria-hidden="true" className="size-4" />
-            </span>
-            {shown.map((item) => (
-              <span className="border-divider border-l" key={item.key} />
-            ))}
-            <span className="border-divider border-l" />
-          </button>
-        </div>
+          </ContextMenuContent>
+        </ContextMenuRoot>
       </div>
-      {menu === null ? null : (
-        <RowMenu controller={controller} onClose={() => setMenu(null)} target={menu} view={view} />
-      )}
-      {column === null || columnItem === undefined ? null : (
-        <ColumnMenu
-          controller={controller}
-          item={columnItem}
-          onClose={() => setColumn(null)}
-          onEdit={() => setEditingField(column.field)}
-          onOpenPanel={openPanel}
-          target={column}
-          view={view}
-        />
-      )}
     </div>
   )
 }

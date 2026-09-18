@@ -755,6 +755,12 @@ function VirtualGap({
     />
   )
 }
+/* 列表相对滚动内容的原点：上方内容的开合与滚动口自身的盒子，最后都只落在这一个数上。 */
+function originOf(hostEl: HTMLElement, scrollEl: HTMLElement): number {
+  return (
+    hostEl.getBoundingClientRect().top - scrollEl.getBoundingClientRect().top + scrollEl.scrollTop
+  )
+}
 function VirtualRows({
   file,
   scroller,
@@ -773,7 +779,15 @@ function VirtualRows({
     [file.path, file.rows, state.openGaps],
   )
   const widest = useMemo(() => widestOf(file.rows), [file.rows])
-  /* 上方卡片的开合会挪这份列表的原点：渲染一次测一次，窗口变宽再补一次。 */
+  /*
+   * 这份列表的原点。两个触发源各走各的路：
+   *
+   * - 上方内容的开合改的是布局（items 换了就是它），量一次比观察谁都准，
+   *   所以每次提交后重量一次；同值不触发重渲染。
+   * - 面板拖宽改的是滚动口自己的盒子，而那条路上浏览器不发 resize —— 侧栏开合、
+   *   拖宽、窗口移动都只改位置（见 packages/browser/src/viewport-alignment.ts）。
+   *   观察滚动口与列表本身接住它，观察者只装卸一次。
+   */
   const [origin, setOrigin] = useState(0)
   useLayoutEffect(() => {
     const hostEl = host.current
@@ -781,19 +795,23 @@ function VirtualRows({
     if (hostEl === null || scrollEl === null) {
       return
     }
-    const measure = (): void => {
-      setOrigin(
-        hostEl.getBoundingClientRect().top -
-          scrollEl.getBoundingClientRect().top +
-          scrollEl.scrollTop,
-      )
-    }
-    measure()
-    window.addEventListener('resize', measure)
-    return () => {
-      window.removeEventListener('resize', measure)
-    }
+    setOrigin(originOf(hostEl, scrollEl))
   })
+  useLayoutEffect(() => {
+    const hostEl = host.current
+    const scrollEl = scroller.current
+    if (hostEl === null || scrollEl === null) {
+      return
+    }
+    const observer = new ResizeObserver(() => {
+      setOrigin(originOf(hostEl, scrollEl))
+    })
+    observer.observe(scrollEl)
+    observer.observe(hostEl)
+    return () => {
+      observer.disconnect()
+    }
+  }, [scroller])
   const virtualizer = useVirtualizer({
     count: items.length,
     estimateSize: () => 20,

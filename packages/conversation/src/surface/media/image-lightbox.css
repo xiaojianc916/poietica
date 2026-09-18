@@ -1,11 +1,15 @@
 /* Image preview surface for agent attachments. */
 
-/* Keep the lightbox above Tauri window chrome and app overlays. */
+/*
+ * 看图是对话框那一层：铺满窗口的一张面，不是又一个弹层。它进表之后，
+ * 「图上的菜单压在图上」（popover 高于 dialog）才是表里写着的一条次序，
+ * 而不是越到表外去比大小。
+ */
 .poietica-lightbox.yarl__root {
   --yarl__color_backdrop: rgb(0 0 0 / 82%);
   --yarl__slide_captions_container_background: transparent;
 
-  z-index: var(--poietica-z-overlay, 2000);
+  z-index: var(--ui-z-dialog);
 }
 
 @media (prefers-reduced-motion: reduce) {

@@ -14,7 +14,7 @@
     },
     "apps/desktop": {
       "name": "@poietica/desktop",
-      "version": "0.3.6",
+      "version": "0.3.7",
       "dependencies": {
         "@milkdown/crepe": "catalog:",
         "@poietica/agent-catalog": "workspace:*",

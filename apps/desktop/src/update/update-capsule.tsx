@@ -22,7 +22,7 @@ export function UpdateCapsule({ store }: UpdateCapsuleProps) {
   const busy = isBusy(state)
   return (
     <div
-      className="pointer-events-none fixed inset-x-0 bottom-3 z-50 flex justify-center"
+      className="pointer-events-none fixed inset-x-0 bottom-3 z-[var(--ui-z-toast)] flex justify-center"
       role="status"
     >
       <Button

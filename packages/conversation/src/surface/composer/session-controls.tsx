@@ -101,22 +101,30 @@ function stopOffset(position: number, count: number): string {
   return `calc(var(--cp-model-thumb) / 2 + ${ratio} * (100% - var(--cp-model-thumb)))`
 }
 
-/* 指针落在哪一个档位上：比的是指针到各个档位点的实际距离，不是自己再算一遍几何。 */
-function stopAt(rail: HTMLElement, clientX: number): number {
-  let found = 0
-  let nearest = Number.POSITIVE_INFINITY
+/*
+ * 指针落在哪一个档位上：反解 stopOffset，不逐点测量。
+ *
+ * 档位点按与滑块同一条式子摆放，所以「最近的一档」就是这条式子的逆运算；每一帧读
+ * 一次轨道盒子与滑块宽即可，与档位数无关。
+ */
+function stopAt(rail: HTMLElement, clientX: number, count: number): number {
+  const span = count - 1
 
-  rail.querySelectorAll<HTMLElement>('[data-stop]').forEach((dot, index) => {
-    const box = dot.getBoundingClientRect()
-    const gap = Math.abs(clientX - (box.x + box.width / 2))
+  if (span < 1) {
+    return 0
+  }
 
-    if (gap < nearest) {
-      nearest = gap
-      found = index
-    }
-  })
+  const thumb = Number.parseFloat(getComputedStyle(rail).getPropertyValue('--cp-model-thumb'))
+  const box = rail.getBoundingClientRect()
+  const travel = box.width - thumb
 
-  return found
+  if (!Number.isFinite(thumb) || travel <= 0) {
+    return 0
+  }
+
+  const ratio = (clientX - box.left - thumb / 2) / travel
+
+  return Math.max(0, Math.min(span, Math.round(ratio * span)))
 }
 
 export interface SessionControlsProps {
@@ -256,9 +264,9 @@ export const SessionControls = memo(function SessionControls({
 /*
  * 离散轨道。
  *
- * 指针全归底轨自己：点一下、按住横拖，都走 setPointerCapture 加「离得最近的那个档位」。
+ * 指针全归底轨自己：点一下、按住横拖，都走 setPointerCapture 加「落点反解出来的那一档」。
  * 档位是离散的，所以一次横拖最多换这么多次档（每跨一格一次），这里不另做节流。档位点
- * 那个 24px 命中区冒泡上来落到的也是底轨，所以「从点上起手拖」不会断。
+ * 那个命中区冒泡上来落到的也是底轨，所以「从点上起手拖」不会断。
  *
  * 原生 range 只剩键盘与 aria：指针一律穿透，滑块隐形（看得见的那颗是自己画的）。不这么
  * 分，滑块就跟不上换档的动画 —— 原生滑块的落点是布局算出来的，位置一变就是跳。
@@ -295,12 +303,12 @@ function rail(
         event.currentTarget.setPointerCapture(event.pointerId)
         /* 顺手把焦点交给输入框：点完接着按方向键微调，和点原生滑块时一样。 */
         event.currentTarget.querySelector('input')?.focus()
-        pick(stopAt(event.currentTarget, event.clientX))
+        pick(stopAt(event.currentTarget, event.clientX, count))
       }}
       onPointerMove={(event) => {
         /* 捕获在 pointerup 时由浏览器自己放掉，所以这一条同时也是「还在拖」的判据。 */
         if (event.currentTarget.hasPointerCapture(event.pointerId)) {
-          pick(stopAt(event.currentTarget, event.clientX))
+          pick(stopAt(event.currentTarget, event.clientX, count))
         }
       }}
       style={{ backgroundSize: `${stopOffset(at, count)} 100%` }}
@@ -309,8 +317,9 @@ function rail(
         <span
           className="assistant-model-select__dot"
           data-passed={position <= at ? 'true' : 'false'}
-          data-stop=""
           key={choice.value}
+          /* 档位点与滑块同一条式子：中心落在行程上，两端各留半个滑块。 */
+          style={{ insetInlineStart: stopOffset(position, count) }}
         />
       ))}
 

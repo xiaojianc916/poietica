@@ -11,8 +11,13 @@ import type { BrowserViewportBounds } from './browser-port'
 const STILL_FRAMES = 2
 
 export interface ViewportAlignment {
-  /** 几何输入的指纹变了就重新起跑；同一个指纹只起跑一次。 */
-  readonly follow: (signal: unknown) => void
+  /**
+   * 重新起跑一次跟随。
+   *
+   * 指纹只做同一性比较，本层从不解读它，所以它是 object 而不是某个具体形状 ——
+   * 断言成形状等于宣称这一层认识布局。传进来的值必须引用稳定。
+   */
+  readonly follow: (signal: object) => void
   readonly stop: () => void
 }
 
@@ -23,7 +28,7 @@ export function alignViewport(
   let frame = 0
   let still = 0
   let last: BrowserViewportBounds | null = null
-  let signal: unknown = null
+  let signal: object | null = null
 
   const measure = (): void => {
     const rect = element.getBoundingClientRect()

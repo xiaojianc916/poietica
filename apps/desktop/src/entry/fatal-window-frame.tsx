@@ -26,7 +26,7 @@ export function FatalWindowFrame({ children }: { readonly children: ReactNode })
        * 最大化由系统非客户区处理。WindowControls 是填充区的兄弟节点，天然在
        * 拖拽区外——caption 命中会吞掉按钮的 click。
        */}
-      <div className="fixed inset-x-0 top-0 z-50 flex h-8 items-stretch">
+      <div className="fixed inset-x-0 top-0 z-[var(--ui-z-chrome)] flex h-8 items-stretch">
         <div className="fatal-drag-region h-full flex-1" />
 
         <WindowControls

@@ -153,16 +153,14 @@
  * 填充的长度在这里过渡，滑块的位置在 __thumb 上过渡，两者读同一个时长与曲线：换一档
  * 时它们是同一条动作的两半，各走各的就会看出错位。时长与曲线都是既有的令牌，不新定。
  *
+ * 这一层里没有参与排布的子元素：填充是它的背景，档位点、滑块与原生输入都按
+ * stopOffset 绝对定位，轨道自己只管高度与圆角。
+ *
  * 指针全部归这一层（原生输入一律穿透），所以拖动从档位点上起手也是通的。
  */
 .assistant-model-select__rail {
   position: relative;
-  display: flex;
   block-size: var(--cp-model-rail);
-  align-items: center;
-  justify-content: space-between;
-  /* 两端各留半个滑块：滑块因此整块停在轨道里，档位点也跟着往里收半个。 */
-  padding-inline: calc(var(--cp-model-thumb) / 2);
   border-radius: 9999px;
   background-color: var(--cp-model-rail-face);
   background-image: linear-gradient(var(--cp-model-rail-fill), var(--cp-model-rail-fill));
@@ -176,18 +174,21 @@
 /*
  * 档位点。
  *
+ * 位置由 rail() 逐档写出，读的是与滑块、填充同一条式子（stopOffset）—— 三者是同一组
+ * 坐标，不会各自算一遍再对不上。中心靠 translate 拉回落点，因此点本身不占位。
+ *
  * 点自己只有 4px，悬停够不着，所以给它一个透明命中区（::after），撑到设计系统的指针
- * 目标下限。命中区不参与排布，档位点的中心因此还是 flex 算出来的那个位置。
+ * 目标下限。
  *
  * 自身 pointer-events: none、命中区 auto：悬停落在命中区上（点照样 :hover），而指针
  * 按下时冒泡上来的是底轨，拖动不会因为起手在点上就断掉。
  */
 .assistant-model-select__dot {
-  position: relative;
+  position: absolute;
+  inset-block-start: 50%;
   inline-size: var(--cp-model-rail-dot);
   block-size: var(--cp-model-rail-dot);
-  flex: none;
-  margin-inline: calc(var(--cp-model-rail-dot) / -2);
+  translate: -50% -50%;
   border-radius: 50%;
   background: color-mix(in srgb, var(--cp-ink) 26%, transparent);
   pointer-events: none;
@@ -220,7 +221,7 @@
  * 滑块。
  *
  * 自己画的这一颗才跟得上左右滑动的动画：原生滑块的落点是布局算出来的，位置一变就是
- * 跳，CSS 补不了间 —— 它在这一层里早已被藏起来（见下一条的 opacity）。
+ * 跳，CSS 补不了间。
  */
 .assistant-model-select__thumb {
   position: absolute;
@@ -363,9 +364,8 @@
 /*
  * 工具条浮层族共用的那张脸。
  *
- * 边与面读菜单那一对（--cp-menu-edge / --cp-menu-face），与权限弹窗同源 —— 此前
- * 这两格是 --ui-divider 与 --cp-surface，于是同一个输入卡上打开的两个弹窗量出两
- * 种面色。几何（圆角、内边距）仍是它自己的。
+ * 边与面读菜单那一对（--cp-menu-edge / --cp-menu-face），与权限弹窗同源：同一个输入
+ * 卡上打开的弹窗只有一种面色。几何（圆角、内边距）仍是它自己的。
  */
 .assistant-menu-surface {
   border: var(--ui-hairline) solid var(--cp-menu-edge);

@@ -1,14 +1,8 @@
-import {
-  cn,
-  popupPositionerClassName,
-  popupSurfaceClassName,
-  type SelectOption,
-} from '@poietica/design-system'
+import { cn, Select, type SelectOption } from '@poietica/design-system'
 import type { Field, FieldKind, Test, TintColor } from '@poietica/library'
 import {
   ALargeSmall,
   CalendarDays,
-  ChevronDown,
   CircleDot,
   CircleMinus,
   CirclePlus,
@@ -26,8 +20,7 @@ import {
   User,
   X,
 } from 'lucide-react'
-import { type ReactNode, useEffect, useRef, useState } from 'react'
-import { createPortal } from 'react-dom'
+import type { ReactNode } from 'react'
 
 /** 字段图标的唯一产地：列头、字段管理与判据下拉都认这一张表。 */
 export const KIND_MARK: Record<FieldKind, LucideIcon> = {
@@ -204,175 +197,11 @@ export function moveCondition<T extends { readonly id: string }>(
   return next
 }
 
-export interface PickerOption<T extends string> {
-  readonly value: T
-  readonly label: string
-  readonly mark?: LucideIcon
-}
+/** 字段的种类记号：列头与判据行读同一张表。 */
+function kindMark(kind: FieldKind): ReactNode {
+  const Mark = KIND_MARK[kind]
 
-/**
- * 判据行里的下拉：圆角框 + 悬浮列表。不用设计系统的 Select，
- * 它是单根浮层，嵌进面板的浮层里点选会把整张面板一起关掉。
- * 列表挂到 body 上：面板浮层自带位移与裁剪，寄生在里面量不准位置。
- */
-export function Picker<const T extends string>({
-  onSelect,
-  options,
-  value,
-}: {
-  onSelect: (value: T) => void
-  options: readonly PickerOption<T>[]
-  value: T
-}) {
-  const [open, setOpen] = useState(false)
-  const trigger = useRef<HTMLButtonElement>(null)
-  const list = useRef<HTMLDivElement>(null)
-  const [at, setAt] = useState<{
-    above: boolean
-    anchorTop: number
-    left: number
-    top: number
-    width: number
-  } | null>(null)
-  const current = options.find((option) => option.value === value)
-  const Mark = current?.mark
-
-  useEffect(() => {
-    if (!open) {
-      return
-    }
-
-    const onKey = (event: KeyboardEvent): void => {
-      if (event.key === 'Escape') {
-        setAt(null)
-        setOpen(false)
-      }
-    }
-    const onPointer = (event: PointerEvent): void => {
-      if (
-        event.target instanceof Node &&
-        (trigger.current?.contains(event.target) ?? false) === false &&
-        (list.current?.contains(event.target) ?? false) === false
-      ) {
-        setAt(null)
-        setOpen(false)
-      }
-    }
-    const onScroll = (): void => {
-      setAt(null)
-      setOpen(false)
-    }
-
-    window.addEventListener('keydown', onKey)
-    window.addEventListener('pointerdown', onPointer)
-    window.addEventListener('resize', onScroll)
-    window.addEventListener('scroll', onScroll, true)
-
-    return () => {
-      window.removeEventListener('keydown', onKey)
-      window.removeEventListener('pointerdown', onPointer)
-      window.removeEventListener('resize', onScroll)
-      window.removeEventListener('scroll', onScroll, true)
-    }
-  }, [open])
-
-  /* 列表先长在触发器下方，装好后超出视口才翻上去，只翻一次。 */
-  useEffect(() => {
-    const node = list.current
-
-    if (!open || at === null || at.above || node === null) {
-      return
-    }
-
-    const rect = node.getBoundingClientRect()
-
-    if (rect.bottom > window.innerHeight - 8) {
-      setAt({ ...at, above: true, top: Math.max(8, at.anchorTop - rect.height - 4) })
-    }
-  }, [open, at])
-
-  return (
-    <div className="min-w-0 flex-1">
-      <button
-        className="flex h-9 w-full items-center gap-2 rounded-xl border border-input bg-background px-3 text-left text-sm hover:bg-accent/50"
-        onClick={() => {
-          if (open) {
-            setAt(null)
-            setOpen(false)
-
-            return
-          }
-
-          const rect = trigger.current?.getBoundingClientRect()
-
-          if (rect === undefined) {
-            return
-          }
-
-          setAt({
-            above: false,
-            anchorTop: rect.top,
-            left: rect.left,
-            top: rect.bottom + 4,
-            width: rect.width,
-          })
-          setOpen(true)
-        }}
-        ref={trigger}
-        type="button"
-      >
-        {Mark === undefined ? null : (
-          <Mark aria-hidden="true" className="size-4 shrink-0 text-muted-foreground" />
-        )}
-        <span className="min-w-0 flex-1 truncate">{current?.label ?? ''}</span>
-        <ChevronDown
-          aria-hidden="true"
-          className={cn(
-            'size-4 shrink-0 text-muted-foreground transition-transform',
-            open && 'rotate-180',
-          )}
-        />
-      </button>
-      {open && at !== null
-        ? createPortal(
-            <div
-              className={cn(popupSurfaceClassName, popupPositionerClassName, 'fixed p-1.5')}
-              ref={list}
-              style={{ left: at.left, top: at.top, width: Math.max(at.width, 120) }}
-            >
-              <ul className="flex max-h-64 flex-col gap-0.5 overflow-y-auto">
-                {options.map((option) => {
-                  const OptionMark = option.mark
-
-                  return (
-                    <li key={option.value}>
-                      <button
-                        className="flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-left text-sm hover:bg-accent"
-                        onClick={() => {
-                          onSelect(option.value)
-                          setAt(null)
-                          setOpen(false)
-                        }}
-                        type="button"
-                      >
-                        {OptionMark === undefined ? null : (
-                          <OptionMark
-                            aria-hidden="true"
-                            className="size-4 shrink-0 text-muted-foreground"
-                          />
-                        )}
-                        <span className="min-w-0 flex-1 truncate">{option.label}</span>
-                      </button>
-                    </li>
-                  )
-                })}
-              </ul>
-            </div>,
-            document.body,
-          )
-        : null}
-    </div>
-  )
+  return <Mark aria-hidden="true" className="size-3.5" />
 }
 
 /** 筛选、分组、排序、填色共用的外壳：标题、判据列表、左下添加。 */
@@ -459,13 +288,15 @@ export function ConditionRow({
       >
         <GripVertical aria-hidden="true" className="size-4" />
       </button>
-      <Picker
-        onSelect={(value) => onField(Number(value))}
-        options={fields.map((item, index) => ({
+      <Select
+        className="min-w-0 flex-1"
+        data={fields.map((item, index) => ({
           value: String(index),
           label: item.name,
-          mark: KIND_MARK[item.kind],
+          mark: kindMark(item.kind),
         }))}
+        onValueChange={(value) => onField(Number(value))}
+        type="字段"
         value={String(field)}
       />
       {children}

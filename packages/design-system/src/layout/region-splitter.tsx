@@ -143,9 +143,11 @@ export function RegionSplitter({
       aria-valuemin={min}
       aria-valuenow={Math.round(width)}
       className={
-        'workspace-region-splitter absolute top-0 z-40 h-full w-2 cursor-col-resize touch-none ' +
-        'select-none border-0 bg-transparent outline-none ' +
-        (edge === 'inline-start' ? '-right-1' : '-left-1')
+        'workspace-region-splitter absolute top-0 z-[var(--ui-z-floating)] h-full ' +
+        'cursor-col-resize touch-none select-none border-0 bg-transparent outline-none ' +
+        /* 命中区是分隔线的 8 倍宽，跨在线的两侧各一半：线宽改一处，命中区跟着走。 */
+        '[inline-size:calc(var(--ui-region-divider-width)*8)] ' +
+        (edge === 'inline-start' ? 'right-0 translate-x-1/2' : 'left-0 -translate-x-1/2')
       }
       data-edge={edge}
       onDoubleClick={(event) => {

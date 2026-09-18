@@ -52,8 +52,8 @@ export interface AuxiliaryPanelProps {
   readonly panes: AuxiliaryPaneRenderers
   /** 加号菜单可开的通道种类。 */
   readonly paneOffers: readonly AuxiliaryPaneOffer[]
-  /** 几何输入的指纹：变了就重新起跑视口对齐，内容不解读。 */
-  readonly layoutSignal: unknown
+  /** 几何输入的指纹：变了就重新起跑视口对齐，内容不解读；必须是引用稳定的值。 */
+  readonly layoutSignal: object
   /** 全屏进出与状态由宿主外壳持有；这里只认当前值并转发给标签条。 */
   readonly fullscreen: boolean
   readonly onToggleFullscreen: () => void
@@ -347,7 +347,7 @@ function Viewport({
 }: {
   readonly showEmpty: boolean
   readonly store: AuxiliaryPanelStore
-  readonly layoutSignal: unknown
+  readonly layoutSignal: object
 }) {
   const region = useRef<HTMLDivElement | null>(null)
   const alignment = useRef<ViewportAlignment | null>(null)

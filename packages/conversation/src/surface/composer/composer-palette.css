@@ -13,7 +13,8 @@
   right: 0;
   bottom: 8px;
   left: 0;
-  z-index: 20;
+  /* 贴着输入框长出来的一层浮层：在内容之上、对话与弹层之下。 */
+  z-index: var(--ui-z-floating);
   /* 它从输入框上沿长出来，缩放的支点因此在下沿。 */
   transform-origin: bottom;
   max-block-size: min(290px, calc(100vh - 96px));

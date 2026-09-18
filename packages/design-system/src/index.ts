@@ -13,6 +13,13 @@ export {
 export { Button } from './control/button'
 export { CommandMenu, type CommandMenuGroup, type CommandMenuItem } from './control/command-menu'
 export { ConfirmationDialog } from './control/confirmation-dialog'
+export {
+  ContextMenuContent,
+  ContextMenuItem,
+  ContextMenuRoot,
+  ContextMenuSeparator,
+  ContextMenuTrigger,
+} from './control/context-menu'
 export { Dialog } from './control/dialog'
 export {
   DropdownMenu,
