@@ -233,19 +233,6 @@
   font-weight: 500;
   line-height: 1.4;
 }
-.models-provider-dot {
-  inline-size: 7px;
-  block-size: 7px;
-  flex: none;
-  border-radius: 50%;
-  background: color-mix(in srgb, currentColor 30%, transparent);
-}
-.models-provider-dot[data-status="connected"] {
-  background: var(--ui-success);
-}
-.models-provider-dot[data-status="error"] {
-  background: var(--ui-destructive);
-}
 .models-provider-meta {
   display: flex;
   flex: none;

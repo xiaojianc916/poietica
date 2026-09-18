@@ -111,11 +111,12 @@
   --ui-info-foreground: var(--ui-palette-dark-1000);
 
   /*
-   * 终端那一格的颜色。取值是 VS Code 的终端默认调色板：用户心里的“正常终端”就是
-   * 它，而 ANSI 十六色属于终端域，不跟界面语义令牌共用。只能写 hex 或 rgb()——
-   * xterm 的颜色解析只认这两种，链到 oklch 档位会被它静默丢回默认色。
+   * 终端那一格的颜色。ANSI 十六色取 VS Code 的终端默认调色板：用户心里的“正常终端”
+   * 就是它，而这一域不跟界面语义令牌共用。底色是例外——同浅色那边一样跟着页面地色
+   * 走，终端在辅助面板里才不像嵌了一块更暗的板。只能写 hex 或 rgb()——xterm 的颜色
+   * 解析只认这两种，链到 oklch 档位会被它静默丢回默认色。
    */
-  --terminal-background: var(--ui-palette-dark-975);
+  --terminal-background: var(--ui-palette-dark-950);
   --terminal-foreground: #cccccc;
   --terminal-cursor: #cccccc;
   --terminal-selection: rgb(255 255 255 / 30%);

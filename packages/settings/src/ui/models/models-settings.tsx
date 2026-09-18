@@ -422,12 +422,6 @@ function ProviderItem({
           <span className="models-provider-summary">
             <strong>{provider.id}</strong>
             <span className="models-provider-pill">{provider.providerType}</span>
-            <span
-              aria-label={provider.status}
-              className="models-provider-dot"
-              data-status={provider.status}
-              role="img"
-            />
           </span>
           <span className="models-provider-meta">
             <span>{models.length} 个模型</span>
