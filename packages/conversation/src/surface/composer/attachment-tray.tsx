@@ -2,7 +2,7 @@ import './attachment-tray.css'
 
 import { useCallback, useMemo, useState } from 'react'
 import { ImageLightbox, type PreviewableImage } from '../media/image-lightbox'
-import { CloseIcon, ElementIcon, FileIcon, SpinnerIcon } from '../primitives/icons'
+import { CloseIcon, FileIcon, SpinnerIcon } from '../primitives/icons'
 import { usePromptInputActions, usePromptInputAttachments } from './prompt-input'
 
 /*
@@ -11,6 +11,9 @@ import { usePromptInputActions, usePromptInputAttachments } from './prompt-input
  * 这一层只画那份草稿。附件的唯一所有者是 PromptInput（见 prompt-input.tsx 的
  * AttachmentsContext），移除也只经过它交出的 removeAttachment —— 原生注册表里
  * 那份字节由那条路负责放掉，这里不认识原生，也不持有第二份清单。
+ *
+ * 例外是浏览器拾取的元素上下文：它不住这一排，在正文里占一枚记号
+ * （prompt-chip.tsx），这一层对它视而不见。
  *
  * 名字与媒体类型不再印在屏幕上：那是文件管理器的语言，占掉整行宽度却不回答
  * 「我贴的是哪张图」。名字挂在这一格的 title 上，指针停一下就读得到。
@@ -97,35 +100,13 @@ function AttachmentThumbnail({ filename, onOpen, src }: AttachmentThumbnailProps
   )
 }
 
-function ElementAttachment({
-  filename,
-  label,
-  onRemove,
-}: {
-  readonly filename: string
-  readonly label: string
-  readonly onRemove: () => void
-}) {
-  return (
-    <li className="assistant-prompt-chip composer-element-context" title={filename}>
-      <ElementIcon aria-hidden="true" className="assistant-prompt-chip__icon" />
-      <span>{label}</span>
-      <button
-        aria-label={`移除元素上下文 ${label}`}
-        className="composer-element-context__remove"
-        onClick={onRemove}
-        type="button"
-      >
-        <CloseIcon aria-hidden="true" />
-      </button>
-    </li>
-  )
-}
-
 export function AttachmentTray() {
   const attachments = usePromptInputAttachments()
   const { removeAttachment } = usePromptInputActions()
   const [openIndex, setOpenIndex] = useState<number | null>(null)
+
+  /* 元素上下文在正文里，不在这里；灯箱与格子都只数文件。 */
+  const files = attachments.filter((attachment) => attachment.context?.kind !== 'browser-element')
 
   /*
    * 灯箱只装图片，编号也只在图片之间连续。混排时拿附件下标当幻灯片下标，左右键
@@ -133,7 +114,7 @@ export function AttachmentTray() {
    */
   const images = useMemo<readonly PreviewableImage[]>(
     () =>
-      attachments.flatMap((attachment) =>
+      files.flatMap((attachment) =>
         attachment.mediaType.startsWith('image/')
           ? [
               {
@@ -145,33 +126,20 @@ export function AttachmentTray() {
             ]
           : [],
       ),
-    [attachments],
+    [files],
   )
 
   /* 一次建好「附件 → 幻灯片」的对照，而不是每格各扫一遍图片序列。 */
   const slides = useMemo(() => new Map(images.map((image, index) => [image.id, index])), [images])
 
-  if (attachments.length === 0) {
+  if (files.length === 0) {
     return null
   }
 
   return (
     <>
       <ul className="composer-tray" data-slot="composer-tray">
-        {attachments.map((attachment) => {
-          if (attachment.context?.kind === 'browser-element') {
-            return (
-              <ElementAttachment
-                filename={attachment.filename}
-                key={attachment.assetToken}
-                label={attachment.context.label}
-                onRemove={() => {
-                  removeAttachment(attachment.assetToken)
-                }}
-              />
-            )
-          }
-
+        {files.map((attachment) => {
           const slide = slides.get(attachment.assetToken)
 
           return (

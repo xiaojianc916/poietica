@@ -2,11 +2,16 @@ import './prompt-chip.css'
 
 import { DecoratorNode, type NodeKey, type SerializedLexicalNode } from 'lexical'
 import type { ReactNode } from 'react'
-import { SkillIcon, ToolIcon } from '../primitives/icons'
+import { ElementIcon, SkillIcon, ToolIcon } from '../primitives/icons'
 
+/*
+ * skill / mcp 来自面板点名；element 来自浏览器拾取 —— 字节仍住在附件册
+ * （prompt-input.tsx 的 AttachmentsContext），记号只挂 token 与标签。
+ */
 export type PromptChipValue =
   | { readonly kind: 'skill'; readonly name: string; readonly args?: string | undefined }
   | { readonly kind: 'mcp'; readonly id: string; readonly name: string }
+  | { readonly kind: 'element'; readonly assetToken: string; readonly label: string }
 
 type SerializedChipNode = SerializedLexicalNode & { readonly value: PromptChipValue }
 
@@ -15,7 +20,9 @@ export function samePromptChip(left: PromptChipValue, right: PromptChipValue): b
     left.kind === right.kind &&
     (left.kind === 'skill'
       ? left.name === (right.kind === 'skill' ? right.name : '')
-      : left.id === (right.kind === 'mcp' ? right.id : ''))
+      : left.kind === 'mcp'
+        ? left.id === (right.kind === 'mcp' ? right.id : '')
+        : left.assetToken === (right.kind === 'element' ? right.assetToken : ''))
   )
 }
 
@@ -70,8 +77,8 @@ export function PromptChip({
   readonly kind: PromptChipValue['kind']
   readonly name: string
 }) {
-  /* MCP 是一类东西，不是一堆牌子：与工具调用行同一枚字形。 */
-  const Glyph = kind === 'mcp' ? ToolIcon : SkillIcon
+  /* MCP 是一类东西，不是一堆牌子：与工具调用行同一枚字形。元素上下文用拾取光标。 */
+  const Glyph = kind === 'mcp' ? ToolIcon : kind === 'element' ? ElementIcon : SkillIcon
 
   /* 描边字形随文字走 currentColor；两枚记号的几何同归 prompt-chip.css。 */
   return (
@@ -136,9 +143,11 @@ export class ChipNode extends DecoratorNode<ReactNode> {
   }
 
   override decorate(): ReactNode {
+    const value = this.#value
+
     return (
       <span contentEditable={false}>
-        <PromptChip kind={this.#value.kind} name={this.#value.name} />
+        <PromptChip kind={value.kind} name={value.kind === 'element' ? value.label : value.name} />
       </span>
     )
   }

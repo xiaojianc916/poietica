@@ -1,6 +1,6 @@
-import type { BrowserState, BrowserTab } from '@poietica/contract/browser'
+import type { BrowserState, BrowserTab, ResolvedTheme } from '@poietica/contract/browser'
 
-export type { BrowserState, BrowserTab }
+export type { BrowserState, BrowserTab, ResolvedTheme }
 
 /** 子 webview 在 dock 里该贴着哪块矩形：坐标与尺寸，单位 CSS 像素。 */
 export interface BrowserViewportBounds {
@@ -20,7 +20,7 @@ export interface BrowserHostPort {
   readonly forward: (id: number) => Promise<void>
   readonly reload: (id: number) => Promise<void>
   readonly print: (id: number) => Promise<void>
-  readonly setElementPicker: (id: number, enabled: boolean) => Promise<void>
+  readonly setElementPicker: (id: number, enabled: boolean, theme: ResolvedTheme) => Promise<void>
   readonly reopenClosed: (index: number) => Promise<void>
   readonly setViewportBounds: (bounds: BrowserViewportBounds) => Promise<void>
   readonly setVisible: (visible: boolean) => Promise<void>

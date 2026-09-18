@@ -1,4 +1,5 @@
 import type { BrowserHostPort, BrowserViewportBounds } from '@poietica/browser'
+import type { ResolvedTheme } from '@poietica/contract'
 import { commands, events } from '@poietica/contract'
 import { throughIpc } from './ipc-error'
 
@@ -9,6 +10,7 @@ export type {
   BrowserPickSubmission,
   BrowserState,
   BrowserTab,
+  ResolvedTheme,
 } from '@poietica/contract'
 
 import type { BrowserElementPicked, BrowserState } from '@poietica/contract'
@@ -94,8 +96,12 @@ export function browserDevtoolsEndpoint(): Promise<string | null> {
   return throughIpc(() => commands.browserDevtoolsEndpoint())
 }
 
-export function setBrowserElementPicker(id: number, enabled: boolean): Promise<void> {
-  return throughIpc(() => commands.browserSetElementPicker(id, enabled))
+export function setBrowserElementPicker(
+  id: number,
+  enabled: boolean,
+  theme: ResolvedTheme,
+): Promise<void> {
+  return throughIpc(() => commands.browserSetElementPicker(id, enabled, theme))
 }
 
 export function watchBrowserElementPicked(

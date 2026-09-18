@@ -5,8 +5,12 @@ import {
   isElementGrabbable,
 } from 'react-grab/primitives'
 
+/** 注入脚本自成一包，不引契约图：档位与 src-tauri webview/bridge.rs 的
+    ResolvedTheme（serde lowercase）一致，由它的 start 脚本注入。 */
+type ResolvedTheme = 'light' | 'dark'
+
 interface PickerController {
-  start(token: number): void
+  start(token: number, theme: ResolvedTheme): void
   cancel(): void
 }
 
@@ -195,36 +199,41 @@ const gap = 8
 type Context = Awaited<ReturnType<typeof getElementContext>>
 
 const css = [
-  ':host{all:initial;color-scheme:light;--ink:#111827;--muted:#667085;--line:#e5e7eb;--accent:#2563eb;--surface:#fff;font:13px/1.4 Inter,ui-sans-serif,system-ui,sans-serif}',
+  /* 面板长在外部页面里，带不进设计系统的样式表：下面的 --ui-* 值逐字抄自
+     packages/design-system/src/tokens/light.css 与 dark.css 的同名令牌，
+     正本改，这里必须跟。 */
+  ':host{all:initial;color-scheme:light;font:13px/1.4 Inter,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;--ui-foreground:oklch(0.19 0.01 90);--ui-muted-foreground:oklch(0.47 0.012 90);--ui-placeholder:oklch(0.6 0.012 90);--ui-popover:#fff;--ui-popover-frame:#e2e4e4;--ui-divider:#e0e0e0;--ui-divider-subtle:#f8f8f8;--ui-input:oklch(0.84 0.006 90);--ui-ring:oklch(0.55 0.19 255);--ui-primary:oklch(0.55 0.19 255);--ui-primary-foreground:oklch(0.99 0 0);--ui-destructive:oklch(0.56 0.22 28);--ui-accent:#f2f2f3}',
+  ':host([data-theme=dark]){color-scheme:dark;--ui-foreground:#c3c3c3;--ui-muted-foreground:rgb(255 255 255 / 65%);--ui-placeholder:rgb(255 255 255 / 40%);--ui-popover:#2a2a2a;--ui-popover-frame:#3d3d3d;--ui-divider:rgb(255 255 255 / 16%);--ui-divider-subtle:#1d1d1d;--ui-input:rgb(255 255 255 / 24%);--ui-ring:#6e9ecc;--ui-primary:#5e9fe8;--ui-primary-foreground:#111;--ui-destructive:#e97366;--ui-accent:#383836}',
   '*{box-sizing:border-box}',
-  '.outline{position:fixed;z-index:2147483646;pointer-events:none;border:2px solid #2563eb;background:rgba(37,99,235,.08);border-radius:3px}',
-  '.badge{position:absolute;left:-2px;bottom:100%;max-width:280px;padding:3px 7px;border-radius:5px 5px 0 0;background:#2563eb;color:white;font:600 11px/1.3 ui-monospace,monospace;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}',
-  '.panel{position:fixed;z-index:2147483647;width:min(380px,calc(100vw - 16px));max-height:min(520px,calc(100vh - 16px));display:none;flex-direction:column;border:1px solid rgba(17,24,39,.12);border-radius:14px;background:var(--surface);box-shadow:0 20px 60px rgba(15,23,42,.24);color:var(--ink);overflow:hidden}',
+  '.outline{position:fixed;z-index:2147483646;pointer-events:none;border:2px solid var(--ui-primary);background:color-mix(in srgb,var(--ui-primary) 8%,transparent);border-radius:3px}',
+  '.badge{position:absolute;left:-2px;bottom:100%;max-width:280px;padding:3px 7px;border-radius:5px 5px 0 0;background:var(--ui-primary);color:var(--ui-primary-foreground);font:600 11px/1.3 ui-monospace,monospace;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}',
+  '.panel{position:fixed;z-index:2147483647;width:min(380px,calc(100vw - 16px));max-height:min(520px,calc(100vh - 16px));display:none;flex-direction:column;border:1px solid var(--ui-popover-frame);border-radius:14px;background:var(--ui-popover);box-shadow:0 20px 60px rgba(15,23,42,.24);color:var(--ui-foreground);overflow:hidden}',
   '.panel[data-open=true]{display:flex}',
   'button,input,select,textarea{font:inherit}',
   'button{border:0;background:transparent;color:inherit;cursor:pointer}',
-  'textarea{width:calc(100% - 24px);min-height:74px;margin:12px 12px 8px;padding:10px 11px;resize:vertical;border:1px solid var(--line);border-radius:9px;outline:none;color:var(--ink);background:#fff}',
-  'textarea:focus,input:focus,select:focus{border-color:#93b4ff;box-shadow:0 0 0 3px rgba(37,99,235,.12);outline:none}',
-  '.tabs{display:grid;grid-template-columns:1fr 1fr;margin:0 12px;border-bottom:1px solid var(--line)}',
-  '.tab{padding:9px;color:var(--muted);font-weight:600;border-bottom:2px solid transparent}.tab[aria-selected=true]{border-color:var(--accent);color:var(--accent)}',
+  'textarea{width:calc(100% - 24px);min-height:74px;margin:12px 12px 8px;padding:10px 11px;resize:vertical;border:1px solid var(--ui-input);border-radius:9px;outline:none;color:var(--ui-foreground);background:var(--ui-popover)}',
+  'textarea::placeholder{color:var(--ui-placeholder)}',
+  'textarea:focus,input:focus,select:focus{border-color:var(--ui-ring);box-shadow:0 0 0 1px var(--ui-ring);outline:none}',
+  '.tabs{display:grid;grid-template-columns:1fr 1fr;margin:0 12px;border-bottom:1px solid var(--ui-divider)}',
+  '.tab{padding:9px;color:var(--ui-muted-foreground);font-weight:600;border-bottom:2px solid transparent}.tab[aria-selected=true]{border-color:var(--ui-primary);color:var(--ui-primary)}',
   /* 限高并藏起滚动条：scrollbar-width 是 CSS Scrollbars Styling 的标准写法，
      ::-webkit-scrollbar 兜住旧内核。overflow 保持 auto，滚动能力不受影响。 */
   '.body{max-height:232px;overflow:auto;padding:4px 12px 12px;scrollbar-width:none}',
   '.body::-webkit-scrollbar{width:0;height:0}',
-  '.group{padding:10px 0;border-bottom:1px solid #f0f2f5}.group:last-child{border-bottom:0}',
-  '.group h3{margin:0 0 8px;font-size:11px;letter-spacing:.04em;text-transform:uppercase;color:var(--muted)}',
+  '.group{padding:10px 0;border-bottom:1px solid var(--ui-divider-subtle)}.group:last-child{border-bottom:0}',
+  '.group h3{margin:0 0 8px;font-size:11px;letter-spacing:.04em;text-transform:uppercase;color:var(--ui-muted-foreground)}',
   '.field{display:grid;grid-template-columns:92px minmax(0,1fr);align-items:center;gap:8px;margin:6px 0}',
-  '.field span{color:#475467}',
-  '.field input,.field select{width:100%;height:30px;border:1px solid var(--line);border-radius:7px;padding:0 8px;color:var(--ink);background:#fff}',
-  '.status{min-height:18px;padding:0 12px;color:var(--muted);font-size:12px}',
-  '.status[data-tone=error]{color:#b42318}',
-  '.foot{display:flex;align-items:center;justify-content:flex-end;gap:8px;padding:10px 12px;border-top:1px solid var(--line)}',
+  '.field span{color:var(--ui-muted-foreground)}',
+  '.field input,.field select{width:100%;height:30px;border:1px solid var(--ui-input);border-radius:7px;padding:0 8px;color:var(--ui-foreground);background:var(--ui-popover)}',
+  '.status{min-height:18px;padding:0 12px;color:var(--ui-muted-foreground);font-size:12px}',
+  '.status[data-tone=error]{color:var(--ui-destructive)}',
+  '.foot{display:flex;align-items:center;justify-content:flex-end;gap:8px;padding:10px 12px;border-top:1px solid var(--ui-divider)}',
   '.action{display:inline-flex;align-items:center;justify-content:center;height:34px;padding:0 16px;border-radius:9px;font-weight:600;transition:background .15s,border-color .15s,box-shadow .15s,transform .06s}',
   '.action:active{transform:translateY(1px)}',
-  '.action:focus-visible{outline:none;box-shadow:0 0 0 3px rgba(37,99,235,.35)}',
+  '.action:focus-visible{outline:none;box-shadow:0 0 0 1px var(--ui-ring)}',
   '.action[disabled]{opacity:.55;cursor:default;transform:none}',
-  '.attach{border:1px solid var(--line);background:#fff;color:#344054}.attach:hover:not([disabled]){background:#f9fafb;border-color:#d0d5dd}',
-  '.send{background:var(--accent);color:#fff;box-shadow:0 1px 2px rgba(16,24,40,.08)}.send:hover:not([disabled]){background:#1d4ed8}',
+  '.attach{border:1px solid var(--ui-input);background:transparent;color:var(--ui-foreground)}.attach:hover:not([disabled]){background:var(--ui-accent)}',
+  '.send{background:var(--ui-primary);color:var(--ui-primary-foreground);box-shadow:0 1px 2px rgba(16,24,40,.08)}.send:hover:not([disabled]){background:color-mix(in srgb,var(--ui-primary) 90%,transparent)}',
 ].join('\n')
 
 const markup =
@@ -257,10 +266,10 @@ class ElementPicker implements PickerController {
   private readonly baseline = new Map<string, Baseline>()
   private readonly changes = new Map<string, Change>()
 
-  start(token: number): void {
+  start(token: number, theme: ResolvedTheme): void {
     this.cancel()
     this.token = token
-    this.ensureUi()
+    this.ensureUi(theme)
     document.addEventListener('pointermove', this.onPointerMove, true)
     document.addEventListener('click', this.onClick, true)
     document.addEventListener('keydown', this.onKeyDown, true)
@@ -301,9 +310,10 @@ class ElementPicker implements PickerController {
     this.host?.remove()
   }
 
-  private ensureUi(): void {
+  private ensureUi(theme: ResolvedTheme): void {
     const host = document.createElement('div')
     host.dataset['poieticaElementPicker'] = 'true'
+    host.dataset['theme'] = theme
     const root = host.attachShadow({ mode: 'closed' })
     const style = document.createElement('style')
     style.textContent = css

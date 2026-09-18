@@ -408,7 +408,13 @@ export function createAuxiliaryPanelStore(port: BrowserHostPort): AuxiliaryPanel
       reload: (id) => run('reload', () => port.reload(id)),
       print: (id) => run('print', () => port.print(id)),
       setElementPicker: (id, enabled) =>
-        run('set-element-picker', () => port.setElementPicker(id, enabled)),
+        run('set-element-picker', () =>
+          port.setElementPicker(
+            id,
+            enabled,
+            document.documentElement.dataset['theme'] === 'dark' ? 'dark' : 'light',
+          ),
+        ),
       reopenClosed: (index) => run('reopen-closed', () => port.reopenClosed(index)),
       openExternally: (url) => run('open-externally', () => port.openExternally(url)),
     },

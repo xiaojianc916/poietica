@@ -488,10 +488,24 @@ pub async fn browser_devtools_endpoint(app: AppHandle) -> Option<String> {
     app.state::<BrowserHost>().devtools_endpoint()
 }
 
+/// 应用界面解析后的主题。拾取面板长在外部页面里读不到 data-theme，
+/// 主题随 start 调用一次性带进去。
+#[derive(Clone, Copy, Debug, Deserialize, Serialize, specta::Type)]
+#[serde(rename_all = "lowercase")]
+pub enum ResolvedTheme {
+    Light,
+    Dark,
+}
+
 /// 显式设置当前标签的元素选择模式；状态只归 BrowserHost。
 #[command]
 #[specta::specta]
-pub async fn browser_set_element_picker(app: AppHandle, id: u32, enabled: bool) {
+pub async fn browser_set_element_picker(
+    app: AppHandle,
+    id: u32,
+    enabled: bool,
+    theme: ResolvedTheme,
+) {
     if !enabled {
         if stop_picker(&app, Some(id)) {
             publish(&app);
@@ -508,7 +522,11 @@ pub async fn browser_set_element_picker(app: AppHandle, id: u32, enabled: bool) 
         let _ = run_in_page(&app, previous.tab_id(), PICKER_CANCEL_SCRIPT);
     }
     let lease = lock(&app.state::<BrowserHost>().picker).start(id);
-    let script = format!("window.__poieticaElementPicker.start({});", lease.token());
+    let theme = match theme {
+        ResolvedTheme::Light => "light",
+        ResolvedTheme::Dark => "dark",
+    };
+    let script = format!("window.__poieticaElementPicker.start({token},'{theme}');", token = lease.token());
     if !run_in_page(&app, id, &script) {
         let _ = lock(&app.state::<BrowserHost>().picker).finish(id, lease.token());
     }

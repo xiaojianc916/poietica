@@ -50,7 +50,7 @@ import {
   paletteOptionId,
 } from './composer-palette'
 import { useComposerDraftKey, useComposerDrafts } from './drafts-context'
-import { $createChipNode, ChipNode, samePromptChip } from './prompt-chip'
+import { $createChipNode, ChipNode, type PromptChipValue, samePromptChip } from './prompt-chip'
 
 const NO_ATTACHMENTS: readonly ComposerAsset[] = []
 const NO_GROUPS: readonly PaletteGroup[] = []
@@ -129,16 +129,20 @@ export interface PromptInputHandle {
   readonly focus: () => void
 }
 
+type ElementChip = Extract<PromptChipValue, { kind: 'element' }>
+
 interface DraftProjection {
   readonly text: string
   readonly skills: readonly PromptSkill[]
+  readonly elements: readonly ElementChip[]
 }
 
-const EMPTY_PROJECTION: DraftProjection = { text: '', skills: [] }
+const EMPTY_PROJECTION: DraftProjection = { text: '', skills: [], elements: [] }
 
 /* 纯读：进 editorState.read，不许有副作用。 */
 function readDraft(): DraftProjection {
   const skills = new Map<string, PromptSkill>()
+  const elements: ElementChip[] = []
   for (const node of $nodesOfType(ChipNode)) {
     const value = node.value()
     if (value.kind === 'skill') {
@@ -146,9 +150,11 @@ function readDraft(): DraftProjection {
         name: value.name,
         ...(value.args === undefined ? {} : { args: value.args }),
       })
+    } else if (value.kind === 'element') {
+      elements.push(value)
     }
   }
-  return { text: $getRoot().getTextContent(), skills: [...skills.values()] }
+  return { text: $getRoot().getTextContent(), skills: [...skills.values()], elements }
 }
 
 /* 插入点。编辑器还没被聚焦过时选区是 null（官方 Selection 文档的第四种），当场落在正文末尾。 */
@@ -441,6 +447,42 @@ function PromptInputShell({
         addAssets(incoming)
       })
 
+      /*
+       * 元素上下文不走附件区：入册即插成正文里的一枚记号。入册没收下的（重号）
+       * 不插 —— 字节不在手里的记号是空头。
+       */
+      const picked = incoming.flatMap((asset) =>
+        asset.context?.kind === 'browser-element'
+          ? [{ assetToken: asset.assetToken, label: asset.context.label }]
+          : [],
+      )
+
+      if (picked.length > 0) {
+        editor.update(() => {
+          for (const chip of picked) {
+            if (!handoff.current.attachments.some((held) => held.assetToken === chip.assetToken)) {
+              continue
+            }
+
+            const duplicate = $nodesOfType(ChipNode).some((node) => {
+              const value = node.value()
+              return value.kind === 'element' && value.assetToken === chip.assetToken
+            })
+
+            if (!duplicate) {
+              $caret().insertNodes([
+                $createChipNode({
+                  kind: 'element',
+                  assetToken: chip.assetToken,
+                  label: chip.label,
+                }),
+                $createTextNode(' '),
+              ])
+            }
+          }
+        })
+      }
+
       const text = options.text?.trim() ?? ''
       if (text === '') {
         focusEditor()
@@ -452,7 +494,7 @@ function PromptInputShell({
         formRef.current?.requestSubmit()
       }
     },
-    [addAssets, focusEditor, insertText],
+    [addAssets, editor, focusEditor, insertText],
   )
 
   useImperativeHandle(
@@ -549,7 +591,10 @@ function PromptInputShell({
   )
 
   const hasText = draftText.text.trim().length > 0
-  const hasFiles = attachments.length > 0
+  /* 元素上下文不进附件区，它的「有附件」由正文里的记号说了算。 */
+  const hasFiles =
+    attachments.some((attachment) => attachment.context?.kind !== 'browser-element') ||
+    draftText.elements.length > 0
   const draft = useMemo<PromptInputDraft>(
     () => ({
       hasText,
@@ -753,19 +798,46 @@ function PromptInputShell({
               const projection = editor.getEditorState().read(readDraft)
               const said = projection.text.trim()
 
+              /*
+               * 元素上下文以正文里的记号为准：记号在，字节才跟着走。记号已被删掉的
+               * （退格、撤销都算），那份附件就地放掉，不随行。
+               */
+              const elementTokens = new Set(projection.elements.map((chip) => chip.assetToken))
+              const assets = [
+                ...attachments.filter(
+                  (attachment) => attachment.context?.kind !== 'browser-element',
+                ),
+                ...attachments.filter(
+                  (attachment) =>
+                    attachment.context?.kind === 'browser-element' &&
+                    elementTokens.has(attachment.assetToken),
+                ),
+              ]
+
               if (
                 !canSubmitDraft({
                   hasText: said.length > 0,
-                  hasFiles: attachments.length > 0,
+                  hasFiles: assets.length > 0,
                   requiresText: pendingConfiguration.length > 0,
                 })
               ) {
                 return
               }
 
+              if (intake !== null) {
+                for (const attachment of attachments) {
+                  if (
+                    attachment.context?.kind === 'browser-element' &&
+                    !elementTokens.has(attachment.assetToken)
+                  ) {
+                    intake.discard(attachment)
+                  }
+                }
+              }
+
               const message: PromptInputMessage = {
                 text: said,
-                assets: attachments,
+                assets,
                 skills: projection.skills,
                 configuration: [
                   ...carriedConfiguration,

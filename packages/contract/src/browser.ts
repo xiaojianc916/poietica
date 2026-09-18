@@ -1,1 +1,6 @@
-export type { BrowserClosedTab, BrowserState, BrowserTab } from './generated/ipc-bindings'
+export type {
+  BrowserClosedTab,
+  BrowserState,
+  BrowserTab,
+  ResolvedTheme,
+} from './generated/ipc-bindings'

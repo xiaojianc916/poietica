@@ -623,8 +623,8 @@ async browserDevtoolsEndpoint() : Promise<string | null> {
 /**
  * 显式设置当前标签的元素选择模式；状态只归 BrowserHost。
  */
-async browserSetElementPicker(id: number, enabled: boolean) : Promise<void> {
-    await TAURI_INVOKE("browser_set_element_picker", { id, enabled });
+async browserSetElementPicker(id: number, enabled: boolean, theme: ResolvedTheme) : Promise<void> {
+    await TAURI_INVOKE("browser_set_element_picker", { id, enabled, theme });
 }
 }
 
@@ -1571,6 +1571,11 @@ export type ProviderDto = { id: string; providerType: string; baseUrl: string | 
 export type ProviderInputDto = { id: string; providerType: string; apiKey: string | null; baseUrl: string | null; defaultModel: string | null; models: ProviderModelInputDto[] }
 export type ProviderModelInputDto = { model: string; maxContextSize: number; displayName: string | null; capabilities: string[] | null; maxOutputSize: number | null; supportEfforts: string[] | null; adaptiveThinking: boolean | null }
 export type ProviderReplacementDto = { newId: string | null; providerType: string; apiKey: string | null; baseUrl: string | null; defaultModel: string | null; models: ProviderModelInputDto[] }
+/**
+ * 应用界面解析后的主题。拾取面板长在外部页面里读不到 data-theme，
+ * 主题随 start 调用一次性带进去。
+ */
+export type ResolvedTheme = "light" | "dark"
 /**
  * 能不能再来一次，以及由谁发起。
  */
