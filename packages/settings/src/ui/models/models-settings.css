@@ -270,6 +270,16 @@
   flex-direction: column;
   gap: 10px;
 }
+
+/* 这一处比组件默认亮一格；带 .segmented-control 才压得过组件自己的 dark 规则。 */
+:root[data-theme="dark"] .segmented-control.models-add-modes {
+  background: #2e2e2e;
+}
+
+:root[data-theme="dark"] .models-add-modes .segmented-control__thumb {
+  background: #424242;
+}
+
 .models-tab-panel {
   padding-block-start: 12px;
 }
@@ -332,6 +342,12 @@
 .models-catalog-row:hover:not(:disabled) {
   background: #f2f2f3;
 }
+
+/* 深色下同 accordion 触发条：浅色那格是整行白，另给一档。 */
+:root[data-theme="dark"] .models-catalog-row:hover:not(:disabled) {
+  background: #303030;
+}
+
 .models-catalog-row:disabled {
   cursor: not-allowed;
   opacity: 0.5;

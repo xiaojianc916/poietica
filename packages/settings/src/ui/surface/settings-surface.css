@@ -236,63 +236,6 @@
 
 /* 用量指标共用一张卡，时间范围放在组标题，避免占用指标格。 */
 
-/*
- * 透明边框提供轨道内缩，避免 padding 错开绝对定位与栅格列宽的基准，导致滑块偏移。
- */
-.settings-segmented {
-  position: relative;
-  display: grid;
-  grid-auto-columns: 1fr;
-  grid-auto-flow: column;
-  border: 3px solid transparent;
-  border-radius: 999px;
-  background: color-mix(in oklab, var(--ui-divider) 30%, var(--settings-surface));
-}
-
-/*
- * 独立的卡面色滑块靠投影区分轨道，以 inset-inline-start 动画适配从右往左的书写方向。
- * reduced-motion 由全局 accessibility.css 缩短过渡时长，此处不重复实现。
- */
-.settings-segmented__thumb {
-  position: absolute;
-  inset-block: 0;
-  border-radius: 999px;
-  background: var(--settings-surface);
-  box-shadow: var(--ui-shadow-sm);
-  transition: inset-inline-start var(--ui-duration-fast) var(--ui-ease-standard);
-}
-
-.settings-segmented__option {
-  position: relative;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 5px 12px;
-  border-radius: 999px;
-  color: var(--ui-muted-foreground);
-  font-size: 12px;
-  white-space: nowrap;
-}
-
-.settings-segmented__option:has(:checked) {
-  color: var(--ui-foreground);
-}
-
-/* 焦点环标示整个单选组，当前选项由卡面色滑块标示。 */
-.settings-segmented:has(:focus-visible) {
-  outline: var(--ui-focus-ring-width) solid var(--ui-ring);
-  outline-offset: var(--ui-focus-ring-offset);
-}
-
-/* 单选钮不显形，但盖住整格：点标签哪里都算点这一档。 */
-.settings-segmented__option input {
-  position: absolute;
-  inset: 0;
-  margin: 0;
-  appearance: none;
-  cursor: pointer;
-}
-
 .settings-metrics {
   position: relative;
   display: grid;

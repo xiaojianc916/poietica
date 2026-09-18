@@ -399,31 +399,6 @@
   margin: 4px 0 0;
 }
 
-.mcp-create__tabs {
-  display: inline-flex;
-  flex-shrink: 0;
-  gap: 2px;
-  border-radius: 999px;
-  padding: 3px;
-  background: var(--ui-sunken);
-}
-
-.mcp-create__tab {
-  border: 0;
-  border-radius: 999px;
-  padding: 5px 14px;
-  background: transparent;
-  color: var(--ui-muted-foreground);
-  font: inherit;
-  cursor: pointer;
-}
-
-.mcp-create__tab[data-active="true"] {
-  background: var(--ui-background);
-  color: var(--ui-foreground);
-  box-shadow: var(--ui-shadow-xs);
-}
-
 .mcp-create__card {
   display: grid;
   gap: 14px;

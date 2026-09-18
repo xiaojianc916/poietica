@@ -5,10 +5,8 @@ import {
   Button,
   ConfirmationDialog,
   PlayIcon,
-  Tabs,
-  TabsList,
-  TabsPanel,
-  TabsTab,
+  SegmentedControl,
+  type SegmentedOption,
 } from '@poietica/design-system'
 import { warn } from '@poietica/problem'
 import { type ReactNode, useEffect, useMemo, useState, useSyncExternalStore } from 'react'
@@ -145,24 +143,35 @@ function EditorDialogs({
   )
 }
 
+type EditorView = 'settings' | 'runs'
+
+const EDITOR_VIEWS = [
+  { value: 'settings', label: '设置' },
+  { value: 'runs', label: '历史' },
+] as const satisfies readonly SegmentedOption<EditorView>[]
+
 function EditorHeader({
   automation,
   conflict,
   dirty,
   onBack,
   onDelete,
+  onViewChange,
   ready,
   saving,
   store,
+  view,
 }: {
   readonly automation: Automation | null
   readonly conflict: boolean
   readonly dirty: boolean
   readonly onBack: () => void
   readonly onDelete: () => void
+  readonly onViewChange: (view: EditorView) => void
   readonly ready: boolean
   readonly saving: boolean
   readonly store: AutomationStore
+  readonly view: EditorView
 }) {
   const active = automation === null ? null : activeRun(automation)
   return (
@@ -179,10 +188,13 @@ function EditorHeader({
           >
             <ArrowLeftIcon className="size-4" />
           </Button>
-          <TabsList aria-label="自动化编辑视图">
-            <TabsTab value="settings">设置</TabsTab>
-            <TabsTab value="runs">历史 · {automation?.runs.length ?? 0}</TabsTab>
-          </TabsList>
+          <SegmentedControl
+            label="自动化编辑视图"
+            name="automation-editor-view"
+            onValueChange={onViewChange}
+            options={EDITOR_VIEWS}
+            value={view}
+          />
         </div>
         <div className="flex items-center gap-1">
           {automation === null ? null : (
@@ -251,6 +263,7 @@ export function AutomationEditor({
   const [confirmingBack, setConfirmingBack] = useState(false)
   const [localError, setLocalError] = useState<string | null>(null)
   const [previewState, setPreviewState] = useState<PreviewState | null>(null)
+  const [view, setView] = useState<EditorView>('settings')
   const sessionConfig = useMemo(() => resolve(picked, controls), [picked, controls])
   const dirty =
     automation === null ||
@@ -354,7 +367,7 @@ export function AutomationEditor({
   }
 
   return (
-    <Tabs className="flex h-full flex-col overflow-y-auto bg-ground" defaultValue="settings">
+    <div className="flex h-full flex-col overflow-y-auto bg-ground">
       <EditorHeader
         automation={automation}
         conflict={conflict}
@@ -363,9 +376,11 @@ export function AutomationEditor({
         onDelete={() => {
           setConfirmingDelete(true)
         }}
+        onViewChange={setView}
         ready={ready}
         saving={saving}
         store={store}
+        view={view}
       />
       <div className="mx-auto w-full max-w-5xl px-8 pb-16 pt-4">
         {(localError ?? snapshot.error) ? (
@@ -391,7 +406,7 @@ export function AutomationEditor({
             </Button>
           </div>
         ) : null}
-        <TabsPanel value="settings">
+        {view === 'settings' ? (
           <form
             aria-busy={saving}
             className="flex flex-col gap-7"
@@ -479,8 +494,8 @@ export function AutomationEditor({
               </div>
             </Field>
           </form>
-        </TabsPanel>
-        <TabsPanel value="runs">
+        ) : null}
+        {view === 'runs' ? (
           <AutomationRunHistory
             onCancel={(runId) => {
               void store.cancel(runId)
@@ -489,7 +504,7 @@ export function AutomationEditor({
             runs={automation?.runs ?? []}
             title={automation?.title ?? title}
           />
-        </TabsPanel>
+        ) : null}
       </div>
       <EditorDialogs
         automation={automation}
@@ -503,6 +518,6 @@ export function AutomationEditor({
         setConfirmingRevision={setConfirmingRevision}
         store={store}
       />
-    </Tabs>
+    </div>
   )
 }

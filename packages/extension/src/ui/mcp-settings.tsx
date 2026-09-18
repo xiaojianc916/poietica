@@ -6,6 +6,8 @@ import {
   DropdownMenuItem,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
+  SegmentedControl,
+  type SegmentedOption,
   Switch,
 } from '@poietica/design-system'
 import { Check, ChevronDown, Download, Monitor, Plus, RotateCw, Search } from 'lucide-react'
@@ -28,6 +30,11 @@ import './mcp-settings.css'
  */
 
 type CreateTab = 'form' | 'json'
+
+const CREATE_MODES = [
+  { value: 'form', label: '表单' },
+  { value: 'json', label: 'JSON' },
+] as const satisfies readonly SegmentedOption<CreateTab>[]
 
 /*
  * 本应用自己托管的内置服务器：自动化引擎与浏览器 CDP 桥。
@@ -308,28 +315,13 @@ function McpCreatePage({
             <p className="mcp__muted">填写新的 MCP 配置，保存后返回列表。</p>
           </div>
         </div>
-        <div aria-label="编辑方式" className="mcp-create__tabs" role="tablist">
-          <button
-            aria-selected={tab === 'form'}
-            className="mcp-create__tab"
-            data-active={tab === 'form' ? 'true' : 'false'}
-            onClick={() => setTab('form')}
-            role="tab"
-            type="button"
-          >
-            表单
-          </button>
-          <button
-            aria-selected={tab === 'json'}
-            className="mcp-create__tab"
-            data-active={tab === 'json' ? 'true' : 'false'}
-            onClick={() => setTab('json')}
-            role="tab"
-            type="button"
-          >
-            JSON
-          </button>
-        </div>
+        <SegmentedControl
+          label="编辑方式"
+          name="mcp-create-mode"
+          onValueChange={setTab}
+          options={CREATE_MODES}
+          value={tab}
+        />
       </div>
       {tab === 'form' ? (
         <McpFormPage onClose={onClose} store={store} />

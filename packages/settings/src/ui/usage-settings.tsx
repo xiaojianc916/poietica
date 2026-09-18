@@ -1,4 +1,5 @@
 import type { ThreadsStore } from '@poietica/conversation'
+import { SegmentedControl, type SegmentedOption } from '@poietica/design-system'
 import { useEffect, useMemo, useState, useSyncExternalStore } from 'react'
 import { ActivityHeatmap } from './activity-heatmap'
 import { SettingsGroup, SettingsPage } from './surface/settings-primitives'
@@ -14,57 +15,6 @@ import {
  * 用量页。两个时间窗口各管各的：滑块只改概览的数，热力图恒定看最近 26 周，
  * 窗口写进组标题。热力图不跟滑块走 —— 按周成列的图缩到 7 天只剩一列。
  */
-
-/* 分段控件：原生单选钮打底，滑块位置由 index/count 算出，等宽轨无需对齐余量。 */
-interface SegmentedOption<TValue extends string = string> {
-  readonly value: TValue
-  readonly label: string
-}
-
-function SegmentedControl<TValue extends string>({
-  label,
-  name,
-  onValueChange,
-  options,
-  value,
-}: {
-  readonly label: string
-  readonly name: string
-  readonly options: readonly SegmentedOption<TValue>[]
-  readonly value: TValue
-  readonly onValueChange: (value: TValue) => void
-}) {
-  const index = Math.max(
-    options.findIndex((option) => option.value === value),
-    0,
-  )
-
-  return (
-    <div aria-label={label} className="settings-segmented" role="radiogroup">
-      <span
-        className="settings-segmented__thumb"
-        style={{
-          inlineSize: `${100 / options.length}%`,
-          insetInlineStart: `${(index * 100) / options.length}%`,
-        }}
-      />
-
-      {options.map((option) => (
-        <label className="settings-segmented__option" key={option.value}>
-          <input
-            checked={option.value === value}
-            name={name}
-            onChange={() => onValueChange(option.value)}
-            type="radio"
-            value={option.value}
-          />
-
-          <span>{option.label}</span>
-        </label>
-      ))}
-    </div>
-  )
-}
 
 const SPANS = [
   { value: '7', label: '最近 7 天' },

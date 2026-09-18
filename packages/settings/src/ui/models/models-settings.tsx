@@ -8,13 +8,11 @@ import {
   Button,
   ConfirmationDialog,
   InlineSpinner,
+  SegmentedControl,
+  type SegmentedOption,
   Select,
   type SelectOption,
   Switch,
-  Tabs,
-  TabsList,
-  TabsPanel,
-  TabsTab,
 } from '@poietica/design-system'
 import { ArrowLeft, ChevronDown, Eye, EyeOff, Plus, RotateCw, Trash2 } from 'lucide-react'
 import {
@@ -455,6 +453,14 @@ function ProviderItem({
 
 /* ── 添加供应商（目录 / 注册表 / 手动） ─────────────────────────────── */
 
+type AddMode = 'catalog' | 'registry' | 'manual'
+
+const ADD_MODES = [
+  { value: 'catalog', label: '从目录添加' },
+  { value: 'registry', label: '注册表' },
+  { value: 'manual', label: '手动添加' },
+] as const satisfies readonly SegmentedOption<AddMode>[]
+
 function AddProviderItem({
   data,
   disabled,
@@ -470,6 +476,8 @@ function AddProviderItem({
   readonly onOpen: (id: string) => void
   readonly onRun: RunMutation
 }) {
+  const [mode, setMode] = useState<AddMode>('catalog')
+
   return (
     <AccordionItem className="models-accordion-item" value={ADD_PROVIDER}>
       <AccordionHeader className="models-accordion-header">
@@ -480,13 +488,16 @@ function AddProviderItem({
       </AccordionHeader>
       <AccordionPanel className="models-accordion-panel">
         <div className="models-accordion-panel__inner">
-          <Tabs defaultValue="catalog">
-            <TabsList>
-              <TabsTab value="catalog">从目录添加</TabsTab>
-              <TabsTab value="registry">注册表</TabsTab>
-              <TabsTab value="manual">手动添加</TabsTab>
-            </TabsList>
-            <TabsPanel className="models-tab-panel" value="catalog">
+          <SegmentedControl
+            className="models-add-modes"
+            label="添加方式"
+            name="models-add-mode"
+            onValueChange={setMode}
+            options={ADD_MODES}
+            value={mode}
+          />
+          <div className="models-tab-panel">
+            {mode === 'catalog' ? (
               <CatalogAddTab
                 data={data}
                 disabled={disabled}
@@ -497,11 +508,11 @@ function AddProviderItem({
                 onModelVisibilityChange={onModelVisibilityChange}
                 onRun={onRun}
               />
-            </TabsPanel>
-            <TabsPanel className="models-tab-panel" value="registry">
+            ) : null}
+            {mode === 'registry' ? (
               <RegistryAddTab disabled={disabled} onImported={onClose} onRun={onRun} />
-            </TabsPanel>
-            <TabsPanel className="models-tab-panel" value="manual">
+            ) : null}
+            {mode === 'manual' ? (
               <ProviderForm
                 disabled={disabled}
                 onCancel={onClose}
@@ -511,8 +522,8 @@ function AddProviderItem({
                   onOpen(id)
                 }}
               />
-            </TabsPanel>
-          </Tabs>
+            ) : null}
+          </div>
         </div>
       </AccordionPanel>
     </AccordionItem>
@@ -1168,7 +1179,7 @@ function ModelListEditor({
             取消
           </Button>
         )}
-        <Button disabled={disabled} size="xs" type="submit" variant="default">
+        <Button disabled={disabled} size="xs" type="submit" variant="soft">
           {disabled ? '正在保存…' : onDelete === undefined ? '添加供应商' : '保存'}
         </Button>
       </div>
