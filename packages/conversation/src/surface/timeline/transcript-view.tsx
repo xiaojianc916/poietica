@@ -24,6 +24,9 @@ import { TimelineSeat } from './timeline-seat'
  * 这里不量任何几何，也不持有领域态：滚动归虚拟器，投影归 selectPresentation。
  */
 
+/* 回复操作行占掉的流内高度，与 reply-actions.css 的 margin/min-block-size 同源。 */
+const REPLY_ACTIONS_PX = 32
+
 /**
  * 人亲手改过的开合，一份。
  *
@@ -191,7 +194,11 @@ export function TranscriptView({
 
   /* 估高、节奏与渲染同源：类别知识都在这一层，滚动窗口只收三个按下标问的函数。 */
   const estimateRowAt = useCallback(
-    (index: number) => estimateRow(feed.rowAt(index)),
+    (index: number) => {
+      const estimate = estimateRow(feed.rowAt(index))
+      /* 挂回复操作的行多占流内一条；高度正本在 reply-actions.css（4px 间距 + 28px 行高）。 */
+      return feed.replyAt(index) === undefined ? estimate : estimate + REPLY_ACTIONS_PX
+    },
     [estimateRow, feed],
   )
   const rowRhythmAt = useCallback((index: number) => rowRhythmOf(feed.rowAt(index)), [feed])

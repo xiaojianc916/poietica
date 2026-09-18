@@ -2,10 +2,7 @@ import './reply-actions.css'
 
 import { useCopy } from '@poietica/design-system'
 import { Check, Copy, Split } from 'lucide-react'
-import { memo, type ReactNode, useCallback, useEffect, useRef, useState } from 'react'
-
-/* 给从回复移向按钮的指针保留短暂宽限。 */
-const REPLY_ACTION_HIDE_GRACE_MS = 500
+import { memo, type ReactNode } from 'react'
 
 export interface ReplyActionHostProps {
   readonly children: ReactNode
@@ -18,10 +15,13 @@ export interface ReplyActionHostProps {
 }
 
 /*
- * 一轮回复末端与操作工具栏的共同交互边界。
+ * 一轮回复末端与操作行的共同悬停边界。
  *
- * 显示立即发生，隐藏延后发生。重新进入、移动到工具栏内部或取得键盘
- * 焦点都会取消隐藏。计时器归这个宿主所有，卸载时一定清除。
+ * 对标 OpenCode 桌面端（packages/session-ui/src/components/message-part.tsx 的
+ * text-part-copy-wrapper）：操作行在正常文档流里占住自己那一条，显隐全部交给
+ * CSS :hover / :focus-within。按钮本就在悬停子树内部，从正文移到按钮不会离开
+ * 热区，不需要任何退场宽限计时器；操作行也不再绝对定位悬浮，不会盖住虚拟器
+ * 铺出来的相邻行。
  */
 export function ReplyActionHost({
   children,
@@ -30,51 +30,8 @@ export function ReplyActionHost({
   onFork,
   text,
 }: ReplyActionHostProps) {
-  const [visible, setVisible] = useState(false)
-  const hideTimer = useRef<number | undefined>(undefined)
-
-  const cancelScheduledHide = useCallback(() => {
-    if (hideTimer.current === undefined) {
-      return
-    }
-
-    window.clearTimeout(hideTimer.current)
-    hideTimer.current = undefined
-  }, [])
-
-  const showActions = useCallback(() => {
-    cancelScheduledHide()
-    setVisible(true)
-  }, [cancelScheduledHide])
-
-  const scheduleHide = useCallback(() => {
-    cancelScheduledHide()
-
-    hideTimer.current = window.setTimeout(() => {
-      hideTimer.current = undefined
-      setVisible(false)
-    }, REPLY_ACTION_HIDE_GRACE_MS)
-  }, [cancelScheduledHide])
-
-  useEffect(() => cancelScheduledHide, [cancelScheduledHide])
-
   return (
-    <div
-      className="timeline-turn-end"
-      data-actions-visible={visible ? 'true' : undefined}
-      onBlurCapture={(event) => {
-        const nextTarget = event.relatedTarget
-
-        if (nextTarget instanceof Node && event.currentTarget.contains(nextTarget)) {
-          return
-        }
-
-        scheduleHide()
-      }}
-      onFocusCapture={showActions}
-      onPointerEnter={showActions}
-      onPointerLeave={scheduleHide}
-    >
+    <div className="timeline-turn-end">
       {children}
       <ReplyActions
         forkUnavailableReason={forkUnavailableReason}
@@ -114,6 +71,7 @@ function Actions({ undoCount, forkUnavailableReason, onFork, text }: ReplyAction
         className="timeline-reply-actions__button"
         data-copied={copied ? 'true' : undefined}
         onClick={() => copy(text)}
+        onMouseDown={(event) => event.preventDefault()}
         type="button"
       >
         <CopyStateIcon aria-hidden="true" />
@@ -127,6 +85,7 @@ function Actions({ undoCount, forkUnavailableReason, onFork, text }: ReplyAction
             onFork?.(undoCount)
           }
         }}
+        onMouseDown={(event) => event.preventDefault()}
         title={label}
         type="button"
       >

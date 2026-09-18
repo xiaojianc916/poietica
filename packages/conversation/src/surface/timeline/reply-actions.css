@@ -1,57 +1,41 @@
 /*
  * 整轮最后一个可见条目的包裹层。
  *
- * 它只提供绝对定位参照，不增加高度。按钮的轮次归属已经由 turn-fold 决定，
- * 这里不再依赖 agent_text 这样的局部条目类型。
+ * 只提供悬停边界，不加装饰；操作行在文档流里有自己的位置，这里不再需要
+ * 绝对定位参照。按钮的轮次归属由 turn-fold 决定。
  */
 .timeline-turn-end {
-  position: relative;
   min-inline-size: 0;
 }
 
 /*
- * 轨道只摆放，不接管命中。
+ * 回复操作行：流内占位，悬停整段末端才淡入。
  *
- * 行由虚拟器绝对定位（agent-activity-feed.css），一块横贯整行、可命中的浮层
- * 会盖住它下面那几行 —— 工具调用行的行距只有 4px，一块 60px 的浮层能压掉两三
- * 张卡。所以命中范围收回按钮本身：pointer-events 不继承，祖先为 none 时后代仍
- * 可命中。悬停发现仍由 .timeline-turn-end 承担，与这一格无关。
+ * 对标 OpenCode 桌面端的 text-part-copy-wrapper：行高始终保留，淡入淡出不引起
+ * 布局跳动；透明时 pointer-events: none，不挡正文的选择与点击。按钮就在这个
+ * 子树里，:hover 从正文移到按钮不会中断，因此显隐纯靠 CSS，无需 JS 退场宽限。
+ * 不做绝对定位浮层：行由虚拟器绝对定位（agent-activity-feed.css），横贯整行的
+ * 浮层会盖住相邻行可点的卡片。
  */
 .timeline-reply-actions {
-  position: absolute;
-  z-index: 3;
-  inset-block-start: calc(100% - 0.75rem);
-  inset-inline: 0;
   display: flex;
-  align-items: flex-start;
+  align-items: center;
   gap: 0.125rem;
-  block-size: 2.25rem;
-  padding-block-start: 0.5rem;
+  min-block-size: 1.75rem;
+  margin-block-start: 0.25rem;
   opacity: 0;
   pointer-events: none;
-  transform: translateY(-2px);
-
-  /*
-   * 这里只负责淡入淡出。真正的退场宽限由 ReplyActionHost 的指针意图
-   * 计时器控制，因此重新进入时不会与 CSS 延迟互相竞争。
-   */
-  transition:
-    opacity 120ms var(--cp-motion-ease),
-    transform 120ms var(--cp-motion-ease);
+  transition: opacity 120ms var(--cp-motion-ease);
 }
 
-/* 悬停轮次末端、悬停按钮或聚焦任一按钮，都立即显示并保持显示。 */
+/* 悬停轮次末端，或键盘聚焦到任一按钮，操作行显现并接管指针。 */
 .timeline-turn-end:hover .timeline-reply-actions,
-.timeline-turn-end[data-actions-visible="true"] .timeline-reply-actions,
-.timeline-turn-end:focus-within .timeline-reply-actions,
-.timeline-reply-actions:hover {
+.timeline-turn-end:focus-within .timeline-reply-actions {
   opacity: 1;
-  transform: none;
-  transition-delay: 0ms;
+  pointer-events: auto;
 }
 
 .timeline-reply-actions__button {
-  pointer-events: none;
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -68,13 +52,6 @@
   transition:
     color 100ms var(--cp-motion-ease),
     background-color 100ms var(--cp-motion-ease);
-}
-
-/* 藏着的时候不挡任何东西；露出来才接管指针。 */
-.timeline-turn-end:hover .timeline-reply-actions__button,
-.timeline-turn-end[data-actions-visible="true"] .timeline-reply-actions__button,
-.timeline-turn-end:focus-within .timeline-reply-actions__button {
-  pointer-events: auto;
 }
 
 .timeline-reply-actions__button:hover:not(:disabled),
@@ -112,10 +89,6 @@
 @media (hover: none) and (pointer: coarse) {
   .timeline-reply-actions {
     opacity: 1;
-    transform: none;
-  }
-
-  .timeline-reply-actions__button {
     pointer-events: auto;
   }
 }
