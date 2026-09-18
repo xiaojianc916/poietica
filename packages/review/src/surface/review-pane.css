@@ -12,6 +12,9 @@
   --review-removed-fill: #fbe6e2;
   --review-removed-edge: #ba2623;
   --review-removed-emphasis: #f3caca;
+  /* 行号槽底色：比正文浅一档。 */
+  --review-added-gutter: #edf7ed;
+  --review-removed-gutter: #fdece9;
   transition: --review-tree-width var(--workspace-layout-duration) var(--workspace-layout-ease);
 }
 
@@ -20,6 +23,9 @@
   --review-added-emphasis: color-mix(in srgb, #4fa356 30%, transparent);
   --review-removed-fill: #3b1f1a;
   --review-removed-emphasis: color-mix(in srgb, #e0674f 30%, transparent);
+  /* dark 下 fill 已重赋值，gutter 另给一套浅一档。 */
+  --review-added-gutter: #132017;
+  --review-removed-gutter: #28130e;
 }
 
 /*
@@ -29,6 +35,9 @@
  * 9 个，宽出一半。
  */
 .review-line {
+  position: relative;
+  /* w-max 父级里 flex 容器默认收缩到内容宽，显式铺满才能让增删底色到行尾。 */
+  inline-size: 100%;
   border-inline-start: 4px solid transparent;
 }
 
@@ -36,14 +45,103 @@
   --review-line-emphasis: var(--review-added-emphasis);
 
   border-inline-start-color: var(--review-added-edge);
-  background: var(--review-added-fill);
 }
 
 .review-line--removed {
   --review-line-emphasis: var(--review-removed-emphasis);
 
-  border-inline-start-color: var(--review-removed-edge);
+  /* 左边那道 4px 红竖线：2 设备 px 亮 + 1 设备 px 暗，垂直循环。
+   * 150% 缩放下 1 CSS px = 1.5 设备 px，直接写 2px/1px 会出 1.5 设备 px 的亚
+   * 像素模糊。折成 CSS px：亮 4/3 ≈ 1.333，暗 2/3 ≈ 0.667，正好落在整数设备
+   * 像素上。伪元素绝对定位在左边 4px，不参与 flex。 */
+  border-inline-start-color: transparent;
+}
+
+.review-line--removed::before {
+  content: "";
+  position: absolute;
+  inset-block: 0;
+  /* left:0 落在 padding-box，被 4px 透明 border 顶右；负偏移补回 border 宽度。 */
+  inset-inline-start: -4px;
+  inline-size: 4px;
+  pointer-events: none;
+  background: repeating-linear-gradient(
+    to bottom,
+    #ba2522 0,
+    #ba2522 1.333px,
+    #f3cfcb 1.333px,
+    #f3cfcb 2px
+  );
+}
+
+/*
+ * 行号槽读 gutter（浅一档）；margin-right 推开正文 3px，这道缝落在行容器的
+ * 透明底上，不红不绿。正文的 fill 底色由行容器 ::after 铺（见下）。普通行
+ * 没有这两套类，背景与间距都不变。
+ */
+.review-line--added .review-line__number,
+.review-line--removed .review-line__number {
+  margin-right: 3px;
+}
+
+.review-line--added .review-line__number {
+  background: var(--review-added-gutter);
+}
+
+.review-line--removed .review-line__number {
+  background: var(--review-removed-gutter);
+}
+
+/* 正文区占满行号槽右侧：flex 只管文字布局，底色交给行容器 ::after。 */
+.review-line__code {
+  flex: 1;
+  min-width: 0;
+}
+
+/*
+ * 增删行的正文底色：绝对定位背景层，从行号槽右侧 3px 起铺到行尾。
+ *
+ * 底色不能挂在 code 上：code 是 flex item，在 w-max（max-content）父级里
+ * flex:1 不会增长到视口宽，短代码行的底色就只到文字末尾。行容器作为 block
+ * 必然铺满父级，::after 的 right:0 一定到行尾，与代码长短无关。行号槽宽
+ * 2.75rem（w-11），再加 3px 无色间隙。
+ */
+.review-line--added::after,
+.review-line--removed::after {
+  content: "";
+  position: absolute;
+  inset-block: 0;
+  inset-inline-start: calc(2.75rem + 3px);
+  inset-inline-end: 0;
+  pointer-events: none;
+}
+
+.review-line--added::after {
+  background: var(--review-added-fill);
+}
+
+.review-line--removed::after {
   background: var(--review-removed-fill);
+}
+
+/* 行号槽与正文文字压在 ::after 背景层之上。 */
+.review-line--added .review-line__number,
+.review-line--removed .review-line__number,
+.review-line--added .review-line__code,
+.review-line--removed .review-line__code {
+  position: relative;
+  z-index: 1;
+}
+
+/* 深色模式下的红竖线条纹色。 */
+:root[data-theme="dark"] .review-pane .review-line--removed::before {
+  background: repeating-linear-gradient(
+    to bottom,
+    #fa423e 0,
+    #fa423e 1.333px,
+    #51231e 1.333px,
+    #51231e 2px
+  );
 }
 
 /*
@@ -56,7 +154,6 @@
  * 压过 utilities 层，边框色在组件里根本改不动。
  */
 .review-line__number {
-  border-inline-end: 1px solid color-mix(in srgb, var(--color-foreground) 8%, transparent);
   color: color-mix(in srgb, var(--color-foreground) 30%, transparent);
   font-family: var(--font-sans);
   font-size: 12px;
@@ -250,11 +347,12 @@
 }
 
 /*
- * 卡头的路径向前截断：末段（文件名）比前缀更能认出文件，所以裁前面、留后面。
+ * 卡头两段式：文件名在前（tsx 侧 shrink-0，永不裁），目录在后并淡化（tsx 的
+ * opacity-50），空间不足时目录向前截断 —— 靠近文件的段比远段更能定位。
  * 省略号落到行首只有一条路 —— rtl 把行末缘翻到左边；text-align 用物理值补回对齐。
  * 文本必须裹 <bdi>：否则 rtl 段落会把 .github 的首个点当行末中性字符甩到右边。
  */
-.review-card__path {
+.review-card__dir {
   direction: rtl;
   text-align: left;
   overflow: hidden;
@@ -267,6 +365,7 @@
  */
 .review-gap {
   background: #f3f3f3;
+  border-radius: 6px;
 }
 
 :root[data-theme="dark"] .review-gap {
@@ -314,7 +413,9 @@
 .review-gap-row {
   position: sticky;
   inset-inline-start: 0;
-  inline-size: 100cqw;
+  /* 宽度 = 滚动口可视宽，由 review-pane.tsx 的 ResizeObserver 量测写变量；
+   * 100cqw 只是变量未就绪时的回退。 */
+  inline-size: var(--review-main-inline-size, 100cqw);
 }
 
 /*

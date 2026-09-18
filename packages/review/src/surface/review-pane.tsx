@@ -131,6 +131,22 @@ export function ReviewPane({ root, gateway, report }: ReviewPaneProps) {
   )
   useEffect(() => store.start(), [store])
   const scroller = useRef<HTMLDivElement | null>(null)
+  const resizeObserver = useRef<ResizeObserver | null>(null)
+  /* 折叠带的宽度锚：滚动口可视宽写在自带的变量上（后代继承）。cqw 在真实 DOM 里
+   * 会被降级/覆盖成内容宽，JS 量测是对两种失效都免疫的唯一产地。 */
+  const attachScroller = useCallback((el: HTMLDivElement | null) => {
+    resizeObserver.current?.disconnect()
+    resizeObserver.current = null
+    scroller.current = el
+    if (el === null) {
+      return
+    }
+    const observer = new ResizeObserver(() => {
+      el.style.setProperty('--review-main-inline-size', `${String(el.clientWidth)}px`)
+    })
+    observer.observe(el)
+    resizeObserver.current = observer
+  }, [])
   const state = useSyncExternalStore(store.subscribe, store.getSnapshot, store.getSnapshot)
   const reading = state.reading
   if (reading.phase === 'notARepository') {
@@ -166,7 +182,7 @@ export function ReviewPane({ root, gateway, report }: ReviewPaneProps) {
     >
       <Toolbar reading={reading} state={state} store={store} />
       <div className="flex min-h-0 flex-1">
-        <div className="review-scroll min-h-0 flex-1 overflow-y-auto" ref={scroller}>
+        <div className="review-scroll min-h-0 flex-1 overflow-y-auto" ref={attachScroller}>
           <Cards reading={reading} scroller={scroller} shown={shown} state={state} store={store} />
         </div>
         <Tree docked={treeColumn > 0} shown={shown} state={state} store={store} />
@@ -463,6 +479,9 @@ function Card({
   readonly store: ReviewStore
 }) {
   const open = state.openFiles.has(file.path)
+  const cut = file.path.lastIndexOf('/')
+  const fileName = cut === -1 ? file.path : file.path.slice(cut + 1)
+  const fileDir = cut === -1 ? undefined : file.path.slice(0, cut + 1)
   /* 报一份估高：视口外的卡跳过绘制，没有估高滚动条会随视口推进跳动。
    * 行数按展开态算：折叠带展开的行也是这张卡此刻的真实高度。 */
   const rows = open ? renderedRowsOf(file, state.openGaps) : 0
@@ -476,16 +495,21 @@ function Card({
         <div className="review-card__head-row mx-1.5 flex h-7 items-center gap-2 rounded-md px-2">
           <button
             aria-expanded={open}
-            className="flex min-w-0 flex-1 items-center gap-2 text-left"
+            className="flex min-w-0 flex-1 items-center gap-2 overflow-hidden text-left"
             onClick={() => {
               store.toggleFile(file.path)
             }}
             type="button"
           >
             <FileTypeMark className="size-3.5 shrink-0" name={file.path} />
-            <span className="review-card__path min-w-0 text-sm">
-              <bdi>{file.path}</bdi>
+            <span className="shrink-0 text-sm">
+              <bdi>{fileName}</bdi>
             </span>
+            {fileDir ? (
+              <span className="review-card__dir min-w-0 text-sm opacity-50">
+                <bdi>{fileDir}</bdi>
+              </span>
+            ) : null}
             <Tally stat={file.stat} />
           </button>
         </div>
@@ -586,14 +610,14 @@ function GapBar({
   /* 悬浮药丸：无上下边框，左右留白不贴边，相邻两条之间由外层的 py 隔开。
    * 外层另带 review-gap-row：宽度取主区（见 review-pane.css），不跟最宽行走。 */
   return (
-    <div className="review-gap-row px-2 py-1" ref={barRef}>
+    <div className="review-gap-row px-1.5 py-1" ref={barRef}>
       <button
-        className="review-gap flex w-full items-center gap-1.5 rounded-md px-2.5 py-0.5 text-left text-[10px] text-current/50 enabled:hover:text-current/90"
+        className="review-gap flex h-7 w-full items-center gap-1.5 rounded-md px-2.5 text-left text-xs text-current/50 enabled:hover:text-current/90"
         disabled={onClick === undefined}
         onClick={onClick}
         type="button"
       >
-        <Chevron aria-hidden className="size-3 shrink-0" />
+        <Chevron aria-hidden className="size-3.5 shrink-0" />
         {label}
       </button>
     </div>
@@ -875,7 +899,10 @@ const Line = memo(function Line({ row, wrap }: { readonly row: DiffRow; readonly
         {row.number}
       </span>
       <span
-        className={wrap ? 'min-w-0 whitespace-pre-wrap [overflow-wrap:anywhere]' : 'whitespace-pre'}
+        className={cn(
+          'review-line__code',
+          wrap ? 'min-w-0 whitespace-pre-wrap [overflow-wrap:anywhere]' : 'whitespace-pre',
+        )}
       >
         {row.pieces.map((piece) => (
           <Piece key={piece.at} piece={piece} />
