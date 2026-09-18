@@ -8,19 +8,19 @@
  *
  *   surface —— 主区换成这一格。渲染器是强制的，漏一条是编译错误（见 surface.ts）。
  *   planned —— 导航里画得出来，点进去是一张写明「还没实现」的页面。
- *   command —— 点它是执行一条命令，主区不动。
  *
- * 判别联合而不是两列（status + commandId?）：两列之间存在「planned 却带着
- * commandId」这种说不通的组合，而不变量是要靠人记住的东西。这里让它连写都
- * 写不出来。「搜索」是一个动作而不是一格页面，只有这个形状表达得了它。
+ * 判别联合而不是两列（status + planned?）：两列之间存在「画面里画得出来却
+ * 没有渲染器」这种说不通的组合，而不变量是要靠人记住的东西。这里让它连写都
+ * 写不出来。
+ *
+ * 动作不是表面，所以没有第三种形态。「搜索」曾以 command 形态混在导航里，
+ * 现在是标题栏那枚搜索按钮（apps/desktop/src/shell/chrome/title-bar.tsx），
+ * 命令本身由命令注册表声明（apps/desktop/src/shell/commands/app-commands.ts）。
  */
 
-export type SurfaceIconId = 'book-open' | 'clock' | 'message' | 'search' | 'hat-glasses'
+export type SurfaceIconId = 'book-open' | 'clock' | 'message' | 'hat-glasses'
 
-export type SurfaceActivation =
-  | { readonly kind: 'surface' }
-  | { readonly kind: 'planned' }
-  | { readonly kind: 'command'; readonly commandId: string }
+export type SurfaceActivation = { readonly kind: 'surface' } | { readonly kind: 'planned' }
 
 export interface SurfaceDescriptor {
   readonly title: string
@@ -45,36 +45,25 @@ export const SURFACE_REGISTRY = {
     navigationOrder: null,
     activation: { kind: 'surface' },
   },
-  search: {
-    title: '搜索',
-    description: '跨仓库检索文件与会话。',
-    iconId: 'search',
-    navigationOrder: 0,
-    /*
-     * 搜索是一个动作，不是一格页面：点它开那张命令面板，主区不动。
-     * 命令本身声明在组合根（apps/desktop/src/shell/commands/app-commands.ts），这里只指名。
-     */
-    activation: { kind: 'command', commandId: 'application.toggle-command-palette' },
-  },
   library: {
     title: '资料库',
     description: '应用自己保管的资料：新建或导入 Markdown、表格与网页。',
     iconId: 'book-open',
-    navigationOrder: 1,
+    navigationOrder: 0,
     activation: { kind: 'surface' },
   },
   automations: {
     title: '自动化',
     description: '按计划反复执行的任务。每次运行都是一条对话。',
     iconId: 'clock',
-    navigationOrder: 2,
+    navigationOrder: 1,
     activation: { kind: 'surface' },
   },
   personalization: {
     title: '个性化',
     description: '实现Agent的个性化定制。',
     iconId: 'hat-glasses',
-    navigationOrder: 3,
+    navigationOrder: 2,
     activation: { kind: 'surface' },
   },
 } as const satisfies Record<string, SurfaceDescriptor>

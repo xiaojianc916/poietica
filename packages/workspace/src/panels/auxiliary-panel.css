@@ -35,3 +35,21 @@
   opacity: 1;
   pointer-events: auto;
 }
+
+/*
+ * 标签条右缘那份让位（给右上角那枚会话开关腾的，见 auxiliary-tab-strip.tsx）在
+ * 全屏进出时的收回与归还。
+ *
+ * 时间轴读外壳写下的那一份（workspace-frame.tsx 写在根节点上，继承到这里）：按钮
+ * 右移那一瞬面板列宽正在补间，贴着面板右缘滑过去才不读成跳一下。令牌缺席时整条
+ * 声明失效、退化成瞬时切换，不是错误。
+ */
+.auxiliary-tab-strip__row {
+  transition: padding-inline-end var(--workspace-layout-duration) var(--workspace-layout-ease);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .auxiliary-tab-strip__row {
+    transition: none;
+  }
+}

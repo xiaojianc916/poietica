@@ -1,5 +1,5 @@
 import { Button } from '@poietica/design-system'
-import { ChevronLeft, ChevronRight, PanelLeft } from 'lucide-react'
+import { ChevronLeft, ChevronRight, PanelLeft, Search } from 'lucide-react'
 import type { ReactNode } from 'react'
 import { WindowControls } from '../../window/window-controls'
 import { useWorkspaceLayoutState, useWorkspaceLayoutStore } from '../layout/layout-context'
@@ -19,6 +19,8 @@ export interface DesktopTitleBarProps {
   /** 中段拖拽区的内容。标签条撤出这一行之后，它可以是空的。 */
   readonly children?: ReactNode
   readonly activeTabSequence: ActiveTabSequence
+  /** 搜索按钮按下去发生的事。搜索是一个动作而非一格页面，所以它在这里而不在导航里。 */
+  readonly onOpenSearch: () => void
   readonly onMinimize: () => void
   readonly onMaximize: () => void
   readonly onClose: () => void
@@ -28,6 +30,7 @@ export interface DesktopTitleBarProps {
 export function DesktopTitleBar({
   children,
   activeTabSequence,
+  onOpenSearch,
   onMinimize,
   onMaximize,
   onClose,
@@ -49,6 +52,17 @@ export function DesktopTitleBar({
           variant="ghost"
         >
           <PanelLeft aria-hidden="true" className="size-4" />
+        </Button>
+
+        <Button
+          aria-label="搜索"
+          className={CHROME_BUTTON_CLASS}
+          onClick={onOpenSearch}
+          size="icon"
+          type="button"
+          variant="ghost"
+        >
+          <Search aria-hidden="true" className="size-4" />
         </Button>
 
         {sidebarOpen ? (

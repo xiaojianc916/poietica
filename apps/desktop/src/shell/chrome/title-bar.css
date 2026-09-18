@@ -6,20 +6,21 @@
  * 本文件不写它的兜底值：兜底值就是第二份真相，上游改数它不跟，而且永远不报错。
  *
  * 开合按钮的盒子居中压在这条中线上，所以前导留白 = 中线 − 控件高 / 2；区宽的下限
- * = 前导 × 2 + 控件高，右侧留白因此与前导恒等——对称是算出来的。
+ * = 前导 × 2 + 开合与搜索两枚控件的宽 + 两者间距，右侧留白因此与前导恒等——对称是
+ * 算出来的，加一枚前导控件就得改这一行。
  *
  * 前导夹到 0 不是装饰：控件高是 rem，根字号放大到控件高 > 2 × 中线时前导本该为负，
  * 而负 padding 会被静默夹成 0；区宽若仍按负值算就会小于内容，收起态的按钮会溢出到
- * 标签条底下被它的不透明底色盖住——按钮还在、只是点不到。显式 max(0px, …) 让位置
- * 与区宽用同一个夹紧结果。
+ * 拖拽区底下——按钮还在、只是点不到。显式 max(0px, …) 让位置与区宽用同一个夹紧结果。
  *
  * --workspace-sidebar-column-width 的 0px 兜底保留：那不是一份重复的真相，而是
  * "没有侧边栏列"这个状态本身的正确渲染。
  */
 
 .desktop-title-bar__toggle-zone {
-  /* 三个图标按钮的盒子：比 sm 小一档，hover 范围跟着收，中线算法不变。 */
+  /* 四个图标按钮的盒子：比 sm 小一档，hover 范围跟着收，中线算法不变。 */
   --titlebar-toggle-size: 1.75rem;
+  --titlebar-toggle-gap: 0.125rem;
   --titlebar-toggle-lead: max(
     0px,
     calc(var(--ui-row-icon-center) - var(--titlebar-toggle-size) / 2)
@@ -27,11 +28,18 @@
 
   display: flex;
   align-items: center;
+  gap: var(--titlebar-toggle-gap);
   flex-shrink: 0;
   padding-inline-start: var(--titlebar-toggle-lead);
   inline-size: max(
     var(--workspace-sidebar-column-width, 0px),
-    calc(var(--titlebar-toggle-lead) * 2 + var(--titlebar-toggle-size))
+    calc(
+      var(--titlebar-toggle-lead) *
+      2 +
+      var(--titlebar-toggle-size) *
+      2 +
+      var(--titlebar-toggle-gap)
+    )
   );
 }
 

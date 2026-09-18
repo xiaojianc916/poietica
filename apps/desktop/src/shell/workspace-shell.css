@@ -299,6 +299,19 @@
 }
 
 /*
+ * 上面那条「左边不留给它自己」有一个例外：全屏 + 侧栏收起时主区不在了，左缘那条缝
+ * 没人给（常态由主区自己的 padding-inline-start 给，见上），面板就贴住窗口左缘。
+ * 这一档面板得自己让出来，让法与右边同源：右缘仍钉在 gap 上、宽度上限再收一条 gap，
+ * 左缘因此落在 gap 上 —— 两侧对称，左上那个圆角也才露得出来。
+ *
+ * 侧栏展开时不让：那时面板左缘贴着侧栏，正是那一列的地色，与常态同一个理由。
+ */
+.workspace-shell[data-auxiliary-fullscreen="true"][data-sidebar-docked="false"]
+.workspace-shell__auxiliary-content {
+  max-inline-size: calc(100% - 2 * var(--workspace-main-gap));
+}
+
+/*
  * 辅助面板全屏占满主列+右栏，仍留左侧栏与页头。
  * 栅格三列保持不动：列宽经 @property 插值逐帧过渡（见 workspace-frame），
  * main 的 1fr 被压到 0、aux 列铺到剩余全部，视觉与侧边栏开合同一套时长曲线。

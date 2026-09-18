@@ -49,11 +49,13 @@ describe('workbench session controller', () => {
   it('deduplicates singleton surfaces', () => {
     const store = createWorkbenchSessionController()
 
-    store.openSurface({ surfaceId: 'search' })
+    store.openSurface({ surfaceId: 'automations' })
 
-    store.openSurface({ surfaceId: 'search' })
+    store.openSurface({ surfaceId: 'automations' })
 
-    expect(store.getSnapshot().tabs.filter((tab) => tab.id === 'surface:search')).toHaveLength(1)
+    expect(store.getSnapshot().tabs.filter((tab) => tab.id === 'surface:automations')).toHaveLength(
+      1,
+    )
   })
 
   it('selects the right adjacent tab after closing active', () => {
@@ -61,12 +63,12 @@ describe('workbench session controller', () => {
 
     store.openSurface({ surfaceId: 'library' })
 
-    store.openSurface({ surfaceId: 'search' })
+    store.openSurface({ surfaceId: 'automations' })
 
     store.activateTab('surface:library')
     store.closeTab('surface:library')
 
-    expect(store.getSnapshot().activeTabId).toBe('surface:search')
+    expect(store.getSnapshot().activeTabId).toBe('surface:automations')
   })
 
   it('selects the left adjacent tab when closing the last tab', () => {
@@ -84,13 +86,13 @@ describe('workbench session controller', () => {
 
     store.openSurface({ surfaceId: 'library' })
 
-    store.openSurface({ surfaceId: 'search' })
+    store.openSurface({ surfaceId: 'automations' })
 
-    store.moveTab('surface:search', 1)
+    store.moveTab('surface:automations', 1)
 
     expect(store.getSnapshot().tabs.map((tab) => tab.id)).toEqual([
       'surface:ai',
-      'surface:search',
+      'surface:automations',
       'surface:library',
     ])
 

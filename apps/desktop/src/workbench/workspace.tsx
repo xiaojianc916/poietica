@@ -40,7 +40,7 @@ import {
 } from '../assistant/conversation-todo-popover'
 import { useThreadsActions } from '../assistant/threads-context'
 import { type ActiveTabSequence, DesktopTitleBar } from '../shell/chrome/title-bar'
-import { tabNeighbors } from '../shell/commands/app-commands'
+import { TOGGLE_COMMAND_PALETTE_COMMAND_ID, tabNeighbors } from '../shell/commands/app-commands'
 import {
   SidebarFooter,
   SurfaceHost,
@@ -197,12 +197,10 @@ export function DesktopWorkspace({
   /* 「哪条对话在跑」只订一次：标签条与侧栏读同一份。 */
   const runningThreadIds = useRunningThreads()
 
-  const runCommand = useCallback(
-    (commandId: string) => {
-      void commands.execute(commandId)
-    },
-    [commands],
-  )
+  /* 标题栏的搜索按钮走命令注册表：注册表知道这条命令现在该做什么，这里不该再抄一遍。 */
+  const openSearch = useCallback(() => {
+    void commands.execute(TOGGLE_COMMAND_PALETTE_COMMAND_ID)
+  }, [commands])
 
   const actions = useMemo<WorkspaceShellActions>(
     () => ({
@@ -347,6 +345,7 @@ export function DesktopWorkspace({
           onClose={onWindowClose}
           onMaximize={onWindowMaximize}
           onMinimize={onWindowMinimize}
+          onOpenSearch={openSearch}
         />
       ),
     },
@@ -366,7 +365,6 @@ export function DesktopWorkspace({
       ) : (
         <WorkspaceSidebar
           activeNavigationId={activeNavigationId}
-          onCommand={runCommand}
           onCreateConversation={openAssistantEntry}
           onDeveloperToolsOpen={onDeveloperToolsOpen}
           onSettingsOpen={onSettingsOpen}

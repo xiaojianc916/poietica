@@ -9,15 +9,11 @@ import { describeSurface, SURFACE_NAVIGATION_ORDER, SURFACE_REGISTRY } from './s
  */
 describe('工作区表面注册表', () => {
   it('导航顺序钉在这一行：进导航的表面增减或重排，这里必须跟着改', () => {
-    expect([...SURFACE_NAVIGATION_ORDER]).toEqual([
-      'search',
-      'library',
-      'automations',
-      'personalization',
-    ])
+    expect([...SURFACE_NAVIGATION_ORDER]).toEqual(['library', 'automations', 'personalization'])
 
-    /* 新建对话是动作而非导航目标，由导航条单独渲染。 */
+    /* 新建对话是动作而非导航目标，由导航条单独渲染；搜索也是动作，但它在标题栏。 */
     expect(SURFACE_NAVIGATION_ORDER).not.toContain('ai')
+    expect(SURFACE_NAVIGATION_ORDER).not.toContain('search')
     expect(new Set(SURFACE_NAVIGATION_ORDER).size).toBe(SURFACE_NAVIGATION_ORDER.length)
   })
 

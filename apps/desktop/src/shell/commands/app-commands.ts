@@ -11,6 +11,14 @@ import type { CommandRegistry, WorkbenchSessionStore } from '@poietica/workspace
  */
 type CommandRegistration = Parameters<CommandRegistry['register']>[0]
 
+/**
+ * 命令面板的开合 id。
+ *
+ * 标题栏那枚搜索按钮要按的就是它，所以 id 只能有一处：写成两处字面量，改一处漏一处
+ * 不会有任何编译错误，只会静默失效。
+ */
+export const TOGGLE_COMMAND_PALETTE_COMMAND_ID = 'application.toggle-command-palette'
+
 export interface ApplicationCommandContext {
   readonly workspace: WorkbenchSessionStore
   readonly toggleCommandPalette: () => void
@@ -84,7 +92,7 @@ const APPLICATION_COMMANDS: readonly ApplicationCommand[] = [
     },
   },
   {
-    id: 'application.toggle-command-palette',
+    id: TOGGLE_COMMAND_PALETTE_COMMAND_ID,
     label: '切换命令面板',
     category: '面板',
     shortcut: 'Mod+K',

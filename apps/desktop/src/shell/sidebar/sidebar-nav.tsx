@@ -7,15 +7,12 @@ export interface SidebarNavProps {
   readonly activeNavigationId: SurfaceId | null
   readonly onSurfaceActivate: (surfaceId: SurfaceId) => void
   readonly onCreateConversation: () => void
-  /** 动作行按下去执行的那条命令。执行由组合根接线，这一层只报 id。 */
-  readonly onCommand: (commandId: string) => void
 }
 
 export function SidebarNav({
   activeNavigationId,
   onSurfaceActivate,
   onCreateConversation,
-  onCommand,
 }: SidebarNavProps) {
   return (
     <nav aria-label="主导航" className="workspace-sidebar__nav shrink-0 pb-1 pt-2">
@@ -29,27 +26,18 @@ export function SidebarNav({
           />
         </li>
 
-        {SURFACE_NAVIGATION_ORDER.map((surfaceId) => {
-          const { title, activation } = describeSurface(surfaceId)
-
-          return (
-            <li key={surfaceId}>
-              <NavRow
-                active={activation.kind !== 'command' && surfaceId === activeNavigationId}
-                icon={surfaceIcon(surfaceId)}
-                label={title}
-                onClick={() => {
-                  if (activation.kind === 'command') {
-                    onCommand(activation.commandId)
-                    return
-                  }
-
-                  onSurfaceActivate(surfaceId)
-                }}
-              />
-            </li>
-          )
-        })}
+        {SURFACE_NAVIGATION_ORDER.map((surfaceId) => (
+          <li key={surfaceId}>
+            <NavRow
+              active={surfaceId === activeNavigationId}
+              icon={surfaceIcon(surfaceId)}
+              label={describeSurface(surfaceId).title}
+              onClick={() => {
+                onSurfaceActivate(surfaceId)
+              }}
+            />
+          </li>
+        ))}
       </ul>
     </nav>
   )

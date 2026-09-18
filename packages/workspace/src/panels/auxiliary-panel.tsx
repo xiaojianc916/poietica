@@ -376,8 +376,13 @@ function Viewport({
     alignment.current?.follow(layoutSignal)
   }, [layoutSignal])
 
+  /*
+   * 底部让出一条圆角半径。页面本体是原生子 webview（按这个元素的矩形摆放），原生层整幅
+   * 盖在宿主 DOM 之上 —— 面板那层的圆角与 overflow 裁不到它，不缩这一条，页面就会把
+   * 面板底部的两个圆角盖成直角。
+   */
   return (
-    <div className="relative min-h-0 flex-1" ref={region}>
+    <div className="relative mb-[var(--workspace-main-corner-radius)] min-h-0 flex-1" ref={region}>
       {showEmpty ? (
         /* 空态。活动标签是空白页时原生侧没有 webview，这里就是画面本身。 */
         <div className="flex h-full flex-col items-center justify-center gap-2 px-6 text-center">
