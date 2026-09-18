@@ -326,6 +326,16 @@
       }
     },
     {
+      "includes": ["packages/terminal/src/surface/terminal-pane.css"],
+      "linter": {
+        "rules": {
+          "complexity": {
+            "noImportantStyles": "off"
+          }
+        }
+      }
+    },
+    {
       "includes": ["apps/desktop/src/shell/sidebar/sidebar-footer.tsx"],
       "linter": {
         "rules": {

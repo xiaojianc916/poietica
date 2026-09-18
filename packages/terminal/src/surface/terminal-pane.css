@@ -1,7 +1,38 @@
 /*
- * 内容离边的距离挂在 .xterm 上：addon-fit 量网格时减掉的正是这个元素自己的
- * padding，内缩与网格因此是同一件事。
+ * 内缩挂在 .xterm 上（addon-fit 减掉的正是这个元素的 padding），padding-inline
+ * 另有一个读者：下面的负 margin 必须与它同值。
  */
 .xterm {
-  padding: 6px 10px;
+  --terminal-pane-padding-inline: 10px;
+
+  padding: 6px var(--terminal-pane-padding-inline);
+}
+
+/*
+ * v6 起 .xterm-viewport 不再是滚动容器：滚动与底色都归 .xterm-scrollable-element
+ * （6.0.0 的 Viewport.ts:74）。xterm.css 留给它的 #000 与 overflow-y: scroll 于是
+ * 无人接手 —— 前者让 padding 那圈露黑，后者画一条空的原生条。
+ */
+.xterm .xterm-viewport {
+  background-color: transparent;
+  overflow: hidden;
+}
+
+/*
+ * v5 的条长在 .xterm 的 padding box 上，正好贴面板右缘；v6 自绘的条落在
+ * content box，负 margin 把它挪回去。
+ */
+.xterm .xterm-scrollable-element > .scrollbar.vertical {
+  margin-inline-end: calc(-1 * var(--terminal-pane-padding-inline));
+}
+
+/*
+ * 滑块几何全在行内（width 14px 来自 DEFAULT_SCROLL_BAR_WIDTH）：收到 8px、左让
+ * 6px，右边缘留在轨道右端；半径须小于宽度一半，否则最短的 20px 滑块读成胶囊。
+ * !important 压的是行内值（豁免登记在 biome.json）。
+ */
+.xterm .xterm-scrollable-element > .scrollbar.vertical > .slider {
+  width: 8px !important;
+  margin-inline-start: 6px;
+  border-radius: 3px;
 }
