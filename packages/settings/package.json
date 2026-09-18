@@ -27,7 +27,7 @@
     "streamdown": "catalog:",
     "yaml": "catalog:",
     "@poietica/contract": "workspace:*",
-    "dequal": "2.0.3"
+    "dequal": "^2.0.3"
   },
   "peerDependencies": {
     "react": "catalog:",

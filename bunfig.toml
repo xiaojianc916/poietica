@@ -3,4 +3,5 @@
 # node_modules/.bun/node_modules 兜底目录，未声明的依赖从那里照样解析得到，所以 hoist 必须关。
 linker = "isolated"
 hoist = false
-exact = true
+# 依赖版本只写在 catalog 里，一律范围声明，不锁死到具体版本；可复现性由 bun.lock 负责。
+exact = false

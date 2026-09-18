@@ -773,6 +773,8 @@ pub enum SessionSnapshotDataSubagentsSubagentPhaseEnum {
     Completed,
     #[serde(rename = "failed")]
     Failed,
+    #[serde(rename = "cancelled")]
+    Cancelled,
 }
 
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
@@ -1370,6 +1372,9 @@ pub struct SubmitPromptDataStruct {
     pub content: Vec<SessionSnapshotDataMessagesItemsContentChoice>,
     #[serde(rename = "created_at")]
     pub created_at: serde_json::Value,
+    #[serde(rename = "metadata")]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub metadata: Option<serde_json::Value>,
 }
 
 #[derive(Debug, Clone, PartialEq, Default, serde::Serialize, serde::Deserialize)]
@@ -1419,6 +1424,14 @@ pub enum ListSkillsDataSkillsSourceEnum {
     Builtin,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+pub enum ListSkillsDataSkillsScopesEnum {
+    #[serde(rename = "tui")]
+    Tui,
+    #[serde(rename = "web")]
+    Web,
+}
+
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct ListSkillsDataSkillsStruct {
     #[serde(rename = "name")]
@@ -1435,6 +1448,9 @@ pub struct ListSkillsDataSkillsStruct {
     #[serde(rename = "disable_model_invocation")]
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub disable_model_invocation: Option<bool>,
+    #[serde(rename = "scopes")]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub scopes: Option<Vec<ListSkillsDataSkillsScopesEnum>>,
 }
 
 #[derive(Debug, Clone, PartialEq, Default, serde::Serialize, serde::Deserialize)]

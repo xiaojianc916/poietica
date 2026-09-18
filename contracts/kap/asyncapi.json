@@ -2,7 +2,7 @@
   "asyncapi": "3.1.0",
   "info": {
     "title": "Kimi Code WebSocket API",
-    "version": "0.43.1",
+    "version": "2.0.0",
     "description": "WebSocket protocol for Kimi Code daemon control frames, acknowledgements, system frames, and session event streaming."
   },
   "defaultContentType": "application/json",
@@ -5137,6 +5137,22 @@
                         "type",
                         "subagentId",
                         "error"
+                      ]
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "type": {
+                          "type": "string",
+                          "const": "subagent.cancelled"
+                        },
+                        "subagentId": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "type",
+                        "subagentId"
                       ]
                     },
                     {

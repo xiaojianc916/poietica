@@ -3,7 +3,7 @@
   "info": {
     "title": "Kimi Code Server API",
     "description": "REST API for the Kimi Code local server. All JSON responses are wrapped in a uniform envelope `{ code, msg, data, request_id }`.",
-    "version": "0.43.1"
+    "version": "2.0.0"
   },
   "components": {
     "schemas": {}
@@ -8423,6 +8423,16 @@
                                   },
                                   "disable_model_invocation": {
                                     "type": "boolean"
+                                  },
+                                  "scopes": {
+                                    "type": "array",
+                                    "items": {
+                                      "type": "string",
+                                      "enum": [
+                                        "tui",
+                                        "web"
+                                      ]
+                                    }
                                   }
                                 },
                                 "required": [
@@ -8562,6 +8572,16 @@
                                   },
                                   "disable_model_invocation": {
                                     "type": "boolean"
+                                  },
+                                  "scopes": {
+                                    "type": "array",
+                                    "items": {
+                                      "type": "string",
+                                      "enum": [
+                                        "tui",
+                                        "web"
+                                      ]
+                                    }
                                   }
                                 },
                                 "required": [
@@ -8649,10 +8669,35 @@
                   "args": {
                     "type": "string"
                   },
+                  "metadata": {
+                    "type": "object",
+                    "propertyNames": {
+                      "type": "string"
+                    },
+                    "additionalProperties": {}
+                  },
                   "attachments": {
                     "type": "array",
                     "items": {
                       "oneOf": [
+                        {
+                          "type": "object",
+                          "properties": {
+                            "type": {
+                              "type": "string",
+                              "enum": [
+                                "text"
+                              ]
+                            },
+                            "text": {
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "type",
+                            "text"
+                          ]
+                        },
                         {
                           "type": "object",
                           "properties": {
@@ -16456,7 +16501,11 @@
                                     ]
                                   }
                                 },
-                                "created_at": {}
+                                "created_at": {},
+                                "metadata": {
+                                  "type": "object",
+                                  "additionalProperties": {}
+                                }
                               },
                               "required": [
                                 "prompt_id",
@@ -16890,7 +16939,11 @@
                                       ]
                                     }
                                   },
-                                  "created_at": {}
+                                  "created_at": {},
+                                  "metadata": {
+                                    "type": "object",
+                                    "additionalProperties": {}
+                                  }
                                 },
                                 "required": [
                                   "prompt_id",
@@ -17895,7 +17948,11 @@
                                 ]
                               }
                             },
-                            "created_at": {}
+                            "created_at": {},
+                            "metadata": {
+                              "type": "object",
+                              "additionalProperties": {}
+                            }
                           },
                           "required": [
                             "prompt_id",
@@ -26124,7 +26181,8 @@
                                       "working",
                                       "suspended",
                                       "completed",
-                                      "failed"
+                                      "failed",
+                                      "cancelled"
                                     ]
                                   },
                                   "suspended_reason": {
@@ -26769,37 +26827,85 @@
                                                             ]
                                                           },
                                                           "origin": {
-                                                            "type": "object",
-                                                            "properties": {
-                                                              "kind": {
-                                                                "type": "string",
-                                                                "enum": [
-                                                                  "user"
-                                                                ]
-                                                              },
-                                                              "skillActivations": {
-                                                                "type": "array",
-                                                                "items": {
-                                                                  "type": "object",
-                                                                  "properties": {
-                                                                    "skillName": {
-                                                                      "type": "string"
-                                                                    },
-                                                                    "skillArgs": {
-                                                                      "type": "string"
+                                                            "oneOf": [
+                                                              {
+                                                                "type": "object",
+                                                                "properties": {
+                                                                  "kind": {
+                                                                    "type": "string",
+                                                                    "enum": [
+                                                                      "user"
+                                                                    ]
+                                                                  },
+                                                                  "clientMetadata": {
+                                                                    "type": "array",
+                                                                    "items": {
+                                                                      "type": "object",
+                                                                      "additionalProperties": {}
                                                                     }
                                                                   },
-                                                                  "required": [
-                                                                    "skillName"
-                                                                  ],
-                                                                  "additionalProperties": false
-                                                                }
+                                                                  "skillActivations": {
+                                                                    "type": "array",
+                                                                    "items": {
+                                                                      "type": "object",
+                                                                      "properties": {
+                                                                        "skillName": {
+                                                                          "type": "string"
+                                                                        },
+                                                                        "skillArgs": {
+                                                                          "type": "string"
+                                                                        }
+                                                                      },
+                                                                      "required": [
+                                                                        "skillName"
+                                                                      ],
+                                                                      "additionalProperties": false
+                                                                    }
+                                                                  }
+                                                                },
+                                                                "required": [
+                                                                  "kind"
+                                                                ],
+                                                                "additionalProperties": false
+                                                              },
+                                                              {
+                                                                "type": "object",
+                                                                "properties": {
+                                                                  "kind": {
+                                                                    "type": "string",
+                                                                    "enum": [
+                                                                      "skill_activation"
+                                                                    ]
+                                                                  },
+                                                                  "trigger": {
+                                                                    "type": "string",
+                                                                    "enum": [
+                                                                      "user-slash"
+                                                                    ]
+                                                                  },
+                                                                  "skillName": {
+                                                                    "type": "string",
+                                                                    "minLength": 1
+                                                                  },
+                                                                  "skillArgs": {
+                                                                    "type": "string"
+                                                                  },
+                                                                  "clientMetadata": {
+                                                                    "type": "array",
+                                                                    "items": {
+                                                                      "type": "object",
+                                                                      "additionalProperties": {}
+                                                                    }
+                                                                  }
+                                                                },
+                                                                "required": [
+                                                                  "kind",
+                                                                  "trigger",
+                                                                  "skillName"
+                                                                ],
+                                                                "additionalProperties": false
                                                               }
-                                                            },
-                                                            "required": [
-                                                              "kind"
-                                                            ],
-                                                            "additionalProperties": false
+                                                            ]
                                                           }
                                                         },
                                                         "required": [
@@ -27498,6 +27604,13 @@
                                     "type": "string"
                                   },
                                   "content": {},
+                                  "clientMetadata": {
+                                    "type": "array",
+                                    "items": {
+                                      "type": "object",
+                                      "additionalProperties": {}
+                                    }
+                                  },
                                   "createdAt": {
                                     "type": "string"
                                   },
@@ -28501,37 +28614,85 @@
                                                                                 ]
                                                                               },
                                                                               "origin": {
-                                                                                "type": "object",
-                                                                                "properties": {
-                                                                                  "kind": {
-                                                                                    "type": "string",
-                                                                                    "enum": [
-                                                                                      "user"
-                                                                                    ]
-                                                                                  },
-                                                                                  "skillActivations": {
-                                                                                    "type": "array",
-                                                                                    "items": {
-                                                                                      "type": "object",
-                                                                                      "properties": {
-                                                                                        "skillName": {
-                                                                                          "type": "string"
-                                                                                        },
-                                                                                        "skillArgs": {
-                                                                                          "type": "string"
+                                                                                "oneOf": [
+                                                                                  {
+                                                                                    "type": "object",
+                                                                                    "properties": {
+                                                                                      "kind": {
+                                                                                        "type": "string",
+                                                                                        "enum": [
+                                                                                          "user"
+                                                                                        ]
+                                                                                      },
+                                                                                      "clientMetadata": {
+                                                                                        "type": "array",
+                                                                                        "items": {
+                                                                                          "type": "object",
+                                                                                          "additionalProperties": {}
                                                                                         }
                                                                                       },
-                                                                                      "required": [
-                                                                                        "skillName"
-                                                                                      ],
-                                                                                      "additionalProperties": false
-                                                                                    }
+                                                                                      "skillActivations": {
+                                                                                        "type": "array",
+                                                                                        "items": {
+                                                                                          "type": "object",
+                                                                                          "properties": {
+                                                                                            "skillName": {
+                                                                                              "type": "string"
+                                                                                            },
+                                                                                            "skillArgs": {
+                                                                                              "type": "string"
+                                                                                            }
+                                                                                          },
+                                                                                          "required": [
+                                                                                            "skillName"
+                                                                                          ],
+                                                                                          "additionalProperties": false
+                                                                                        }
+                                                                                      }
+                                                                                    },
+                                                                                    "required": [
+                                                                                      "kind"
+                                                                                    ],
+                                                                                    "additionalProperties": false
+                                                                                  },
+                                                                                  {
+                                                                                    "type": "object",
+                                                                                    "properties": {
+                                                                                      "kind": {
+                                                                                        "type": "string",
+                                                                                        "enum": [
+                                                                                          "skill_activation"
+                                                                                        ]
+                                                                                      },
+                                                                                      "trigger": {
+                                                                                        "type": "string",
+                                                                                        "enum": [
+                                                                                          "user-slash"
+                                                                                        ]
+                                                                                      },
+                                                                                      "skillName": {
+                                                                                        "type": "string",
+                                                                                        "minLength": 1
+                                                                                      },
+                                                                                      "skillArgs": {
+                                                                                        "type": "string"
+                                                                                      },
+                                                                                      "clientMetadata": {
+                                                                                        "type": "array",
+                                                                                        "items": {
+                                                                                          "type": "object",
+                                                                                          "additionalProperties": {}
+                                                                                        }
+                                                                                      }
+                                                                                    },
+                                                                                    "required": [
+                                                                                      "kind",
+                                                                                      "trigger",
+                                                                                      "skillName"
+                                                                                    ],
+                                                                                    "additionalProperties": false
                                                                                   }
-                                                                                },
-                                                                                "required": [
-                                                                                  "kind"
-                                                                                ],
-                                                                                "additionalProperties": false
+                                                                                ]
                                                                               }
                                                                             },
                                                                             "required": [
@@ -29227,6 +29388,13 @@
                                                         "type": "string"
                                                       },
                                                       "content": {},
+                                                      "clientMetadata": {
+                                                        "type": "array",
+                                                        "items": {
+                                                          "type": "object",
+                                                          "additionalProperties": {}
+                                                        }
+                                                      },
                                                       "createdAt": {
                                                         "type": "string"
                                                       },
@@ -30190,37 +30358,85 @@
                                                           ]
                                                         },
                                                         "origin": {
-                                                          "type": "object",
-                                                          "properties": {
-                                                            "kind": {
-                                                              "type": "string",
-                                                              "enum": [
-                                                                "user"
-                                                              ]
-                                                            },
-                                                            "skillActivations": {
-                                                              "type": "array",
-                                                              "items": {
-                                                                "type": "object",
-                                                                "properties": {
-                                                                  "skillName": {
-                                                                    "type": "string"
-                                                                  },
-                                                                  "skillArgs": {
-                                                                    "type": "string"
+                                                          "oneOf": [
+                                                            {
+                                                              "type": "object",
+                                                              "properties": {
+                                                                "kind": {
+                                                                  "type": "string",
+                                                                  "enum": [
+                                                                    "user"
+                                                                  ]
+                                                                },
+                                                                "clientMetadata": {
+                                                                  "type": "array",
+                                                                  "items": {
+                                                                    "type": "object",
+                                                                    "additionalProperties": {}
                                                                   }
                                                                 },
-                                                                "required": [
-                                                                  "skillName"
-                                                                ],
-                                                                "additionalProperties": false
-                                                              }
+                                                                "skillActivations": {
+                                                                  "type": "array",
+                                                                  "items": {
+                                                                    "type": "object",
+                                                                    "properties": {
+                                                                      "skillName": {
+                                                                        "type": "string"
+                                                                      },
+                                                                      "skillArgs": {
+                                                                        "type": "string"
+                                                                      }
+                                                                    },
+                                                                    "required": [
+                                                                      "skillName"
+                                                                    ],
+                                                                    "additionalProperties": false
+                                                                  }
+                                                                }
+                                                              },
+                                                              "required": [
+                                                                "kind"
+                                                              ],
+                                                              "additionalProperties": false
+                                                            },
+                                                            {
+                                                              "type": "object",
+                                                              "properties": {
+                                                                "kind": {
+                                                                  "type": "string",
+                                                                  "enum": [
+                                                                    "skill_activation"
+                                                                  ]
+                                                                },
+                                                                "trigger": {
+                                                                  "type": "string",
+                                                                  "enum": [
+                                                                    "user-slash"
+                                                                  ]
+                                                                },
+                                                                "skillName": {
+                                                                  "type": "string",
+                                                                  "minLength": 1
+                                                                },
+                                                                "skillArgs": {
+                                                                  "type": "string"
+                                                                },
+                                                                "clientMetadata": {
+                                                                  "type": "array",
+                                                                  "items": {
+                                                                    "type": "object",
+                                                                    "additionalProperties": {}
+                                                                  }
+                                                                }
+                                                              },
+                                                              "required": [
+                                                                "kind",
+                                                                "trigger",
+                                                                "skillName"
+                                                              ],
+                                                              "additionalProperties": false
                                                             }
-                                                          },
-                                                          "required": [
-                                                            "kind"
-                                                          ],
-                                                          "additionalProperties": false
+                                                          ]
                                                         }
                                                       },
                                                       "required": [
@@ -30944,6 +31160,13 @@
                                                   "type": "string"
                                                 },
                                                 "content": {},
+                                                "clientMetadata": {
+                                                  "type": "array",
+                                                  "items": {
+                                                    "type": "object",
+                                                    "additionalProperties": {}
+                                                  }
+                                                },
                                                 "createdAt": {
                                                   "type": "string"
                                                 },
