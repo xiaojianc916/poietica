@@ -72,11 +72,14 @@ export function createDesktopSurfaces({
 
       automations: () => (
         <Suspense fallback={<SurfaceLoading />}>
-          <AutomationsView
-            onOpenThread={onConversationStarted}
-            pickWorkspace={pickWorkspace}
-            store={automationStore}
-          />
+          {/* 自动化编辑器里那张输入框与对话用的是同一本离屏草稿册子。 */}
+          <ComposerDraftsContext value={drafts}>
+            <AutomationsView
+              onOpenThread={onConversationStarted}
+              pickWorkspace={pickWorkspace}
+              store={automationStore}
+            />
+          </ComposerDraftsContext>
         </Suspense>
       ),
 

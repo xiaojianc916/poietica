@@ -1,4 +1,6 @@
 import type { SessionConfigControl } from '@poietica/conversation'
+import { isProjectlessWorkspaceRoot, workspaceRootName } from '@poietica/conversation'
+import type { WorkspaceChoice } from '@poietica/conversation/surface'
 import { useMemo, useState, useSyncExternalStore } from 'react'
 import {
   type Automation,
@@ -37,6 +39,24 @@ export function AutomationsSurface({
   const { automations, loaded, error, watchError, pending } = snapshot
   const [view, setView] = useState<SurfaceView>({ kind: 'list' })
   const summary = useMemo(() => summarize(automations), [automations])
+  /*
+   * 换目录时能选的那些。
+   *
+   * 「最近用过的工作目录」不另存一份名单：已经在跑的任务占着的目录就是它，与对话
+   * 那一边拿已有对话当最近名单同一条规矩。无项目会话那种内部目录不列 —— 它不是
+   * 一个可以特意选中的地方。
+   */
+  const workspaceChoices = useMemo<readonly WorkspaceChoice[]>(() => {
+    const seen = new Map<string, WorkspaceChoice>()
+    for (const row of automations) {
+      const root = row.workspaceRoot
+      if (root === null || root === '' || seen.has(root) || isProjectlessWorkspaceRoot(root)) {
+        continue
+      }
+      seen.set(root, { id: root, name: workspaceRootName(root) })
+    }
+    return [...seen.values()]
+  }, [automations])
   const context = { timeZone: defaultTimeZone, workspaceRoot: '' }
   const back = () => setView({ kind: 'list' })
   if (view.kind === 'draft') {
@@ -49,6 +69,7 @@ export function AutomationsSurface({
         onOpenThread={onOpenThread}
         pickWorkspace={pickWorkspace}
         store={store}
+        workspaceChoices={workspaceChoices}
       />
     )
   }
@@ -64,6 +85,7 @@ export function AutomationsSurface({
         onOpenThread={onOpenThread}
         pickWorkspace={pickWorkspace}
         store={store}
+        workspaceChoices={workspaceChoices}
       />
     )
   }

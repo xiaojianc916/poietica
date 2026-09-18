@@ -47,8 +47,13 @@ export interface WorkspacePickerProps {
   readonly current: WorkspaceChoice | null
   readonly choices: readonly WorkspaceChoice[]
   readonly onChoose: (rootPath: string) => void
-  /** 清除项目选择；下一条会话会获得独立的临时工作目录。 */
-  readonly onClear: () => void
+  /**
+   * 清除项目选择；下一条会话会获得独立的临时工作目录。
+   *
+   * 缺席表示这一处不接受「不在项目中工作」：清除键与菜单里那一行都不画。自动化那
+   * 条任务没有目录就跑不起来，给它一个通往非法状态的入口比不给更糟。
+   */
+  readonly onClear?: (() => void) | undefined
   /** 开系统的文件夹选择器。这一层不知道那是怎么开的。 */
   readonly onBrowse: () => void
   /** 侧栏行，或者新对话输入框下方的上下文栏。 */
@@ -128,6 +133,9 @@ export function WorkspacePicker({
 
   const activeHighlightId = preferredWorkspaceHighlight(matches, heldHighlightId, current)
 
+  /* 有目录、且这一处接受「不在项目中」时，左边那一格才存在。 */
+  const clearable = current !== null && onClear !== undefined
+
   return (
     <div className="workspace-picker" data-assistant-skin data-placement={placement}>
       <DropdownMenu
@@ -157,22 +165,22 @@ export function WorkspacePicker({
         {placement === 'composer' ? (
           <div
             className="workspace-picker__context-control"
-            data-projectless={current === null ? 'true' : undefined}
+            data-projectless={clearable ? undefined : 'true'}
           >
-            {current === null ? null : (
+            {clearable ? (
               <button
                 aria-label="不在项目中工作"
                 className="workspace-picker__context-clear"
                 onClick={() => {
                   setOpen(false)
-                  onClear()
+                  onClear?.()
                 }}
                 type="button"
               >
                 <FolderClosed aria-hidden="true" className="workspace-picker__context-folder" />
                 <X aria-hidden="true" className="workspace-picker__context-x" />
               </button>
-            )}
+            ) : null}
 
             <DropdownMenuTrigger
               aria-label="切换项目"
@@ -300,13 +308,18 @@ export function WorkspacePicker({
             <span className="workspace-picker__item-name">新建项目</span>
           </DropdownMenuItem>
 
-          {current === null ? null : (
-            <DropdownMenuItem className="workspace-picker__item" onClick={onClear}>
+          {clearable ? (
+            <DropdownMenuItem
+              className="workspace-picker__item"
+              onClick={() => {
+                onClear?.()
+              }}
+            >
               <X aria-hidden="true" />
 
               <span className="workspace-picker__item-name">不在项目中工作</span>
             </DropdownMenuItem>
-          )}
+          ) : null}
         </DropdownMenuContent>
       </DropdownMenu>
     </div>

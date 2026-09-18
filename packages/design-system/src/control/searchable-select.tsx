@@ -78,7 +78,7 @@ export function SearchableSelect<TValue extends string = string>({
             <Combobox.List className="searchable-select__list grid max-h-64 gap-0.5 overflow-y-auto p-1 outline-none">
               {(option: SelectOption<TValue>) => (
                 <Combobox.Item
-                  className="flex min-h-8 cursor-default select-none items-center gap-2 rounded-[6px] px-2 text-xs outline-none transition-colors data-[highlighted]:bg-[#f2f3f3]"
+                  className="flex min-h-8 cursor-default select-none items-center gap-2 rounded-[6px] px-2 text-xs outline-none transition-colors data-[highlighted]:bg-[var(--ui-popup-highlight)] data-[highlighted]:text-[var(--ui-foreground)]"
                   key={option.value}
                   value={option}
                 >

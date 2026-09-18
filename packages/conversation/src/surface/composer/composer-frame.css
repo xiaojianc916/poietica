@@ -3,6 +3,14 @@
 /* One visual frame shared by conversation and automation composers. */
 [data-slot="prompt-input"] {
   position: relative;
+  /*
+   * 卡片的绘制层。
+   *
+   * 它下面那条上下文栏向上探进卡里一个圆角的量（见 .composer-context），所以卡
+   * 必须压在栏之上，否则栏的底色会把卡片下沿那两个圆角吃掉。栏自己也是定位元素，
+   * 树序又排在后面 —— 不显式抬一层，赢的是它。
+   */
+  z-index: 1;
   display: flex;
   inline-size: 100%;
   min-inline-size: 0;
@@ -83,4 +91,29 @@ textarea[data-slot="prompt-input-editor"] {
 textarea[data-slot="prompt-input-editor"]::placeholder {
   color: var(--cp-placeholder);
   opacity: 1;
+}
+
+/*
+ * 输入框下方那条上下文栏：这次执行「在哪跑」的两枚 chip 的灰色基座。
+ *
+ * 归这里而不是归对话表面，因为它不是对话的：新对话的入口、自动化编辑器，两处
+ * 的输入框下面挂的是同一条栏，栏里的 chip 也来自同一份选择器。
+ *
+ * 栏向上藏到输入框后面一个圆角的距离，接缝由重叠给出 —— 卡片压在上面（见
+ * [data-slot="prompt-input"] 的 z-index），所以完整的圆角、边框和阴影原样覆盖接缝，
+ * 两边没有哪个数需要与对方保持同步。
+ */
+.composer-context {
+  position: relative;
+  z-index: 0;
+  display: flex;
+  align-items: center;
+  gap: var(--cp-control-gap);
+  min-block-size: calc(var(--cp-control) + var(--cp-pad-mid) + var(--cp-radius));
+  margin-block-start: calc(-1 * var(--cp-radius));
+  border-radius: 0 0 var(--cp-radius) var(--cp-radius);
+  padding-block-start: calc(var(--cp-radius) + var(--cp-pad-mid) / 2);
+  padding-block-end: calc(var(--cp-pad-mid) / 2);
+  padding-inline: var(--cp-inset);
+  background: var(--cp-shelf);
 }

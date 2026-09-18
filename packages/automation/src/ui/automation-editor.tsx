@@ -1,5 +1,14 @@
 import '@poietica/conversation/composer/frame.css'
+
 import type { SessionConfigControl } from '@poietica/conversation'
+import { workspaceRootName } from '@poietica/conversation'
+import {
+  AssistantComposer,
+  ComposerDraftKeyContext,
+  SwarmToggle,
+  type WorkspaceChoice,
+  WorkspacePicker,
+} from '@poietica/conversation/surface'
 import {
   ArrowLeftIcon,
   Button,
@@ -9,7 +18,14 @@ import {
   type SegmentedOption,
 } from '@poietica/design-system'
 import { warn } from '@poietica/problem'
-import { type ReactNode, useEffect, useMemo, useState, useSyncExternalStore } from 'react'
+import {
+  type ReactNode,
+  useCallback,
+  useEffect,
+  useMemo,
+  useState,
+  useSyncExternalStore,
+} from 'react'
 import {
   type Automation,
   type AutomationDraft,
@@ -20,7 +36,6 @@ import {
 } from '../index'
 import { AutomationRunHistory } from './automation-run-history'
 import { AutomationScheduleField } from './automation-schedule-field'
-import { AutomationSessionConfig } from './automation-session-config'
 
 export interface AutomationEditorProps {
   readonly automation: Automation | null
@@ -30,6 +45,8 @@ export interface AutomationEditorProps {
   readonly onBack: () => void
   readonly pickWorkspace: () => Promise<string | null>
   readonly onOpenThread: (threadId: string, title: string) => void
+  /** 别处已经用过的工作目录。任务自己的目录也从这里换。 */
+  readonly workspaceChoices: readonly WorkspaceChoice[]
 }
 const FORM_ID = 'automation-editor-form'
 
@@ -44,6 +61,68 @@ function resolve(
   }
 
   return resolved
+}
+
+/*
+ * 人选过的档位，以及写它的那一格。
+ *
+ * 写入口的引用要稳：它进的是工具条那几个 memo 的依赖表，换一次就整排重建。
+ * 记的只是「人选过的」，没选过的仍由 agent 报的那张表说了算（见 resolve）。
+ */
+function usePickedSessionConfig(
+  initial: Readonly<Record<string, string>>,
+): readonly [Record<string, string>, (controlId: string, value: string) => void] {
+  const [picked, setPicked] = useState<Record<string, string>>(() => ({ ...initial }))
+  const select = useCallback((controlId: string, value: string) => {
+    setPicked((current) => ({ ...current, [controlId]: value }))
+  }, [])
+
+  return [picked, select]
+}
+
+/*
+ * 这条任务记着的目录，交给上下文栏那枚 chip。还没选过就是 null —— chip 那时候
+ * 显示的是「选择项目」。
+ */
+function workspaceChoiceOf(root: string): WorkspaceChoice | null {
+  return root === '' ? null : { id: root, name: workspaceRootName(root) ?? root }
+}
+
+/* 输入框草稿的键。入口那一条不跟对话入口共用一个，否则两边的草稿会串到对方框里。 */
+function draftKeyOf(automation: Automation | null): string {
+  return automation === null ? 'automation:new' : `automation:${automation.id}`
+}
+
+/*
+ * 交回 agent 那张表，但把这一条任务记着的档位摆到台前。
+ *
+ * 任务可以在没连上 agent 的时候打开，那时 agent 报的档位表里没有它存着的那一档；
+ * 少一档就等于屏幕上那颗胶囊显示的不是它真正要用的档位。所以缺的补进候选集并注明
+ * 来历 —— 不是替 agent 编一档，是让记录里的值有地方站。
+ *
+ * appliesOnSubmit 不在往下传的那几格里。它说的是「这一档要跟着下一句一起交出去」，
+ * 而自动化每一档都跟着这次运行新建的会话走，没有「下一句」这回事；传下去，面板里
+ * 那一行就成了一个只落在草稿里、永远交不出去的动作。
+ */
+function project(
+  controls: readonly SessionConfigControl[],
+  value: Readonly<Record<string, string>>,
+): readonly SessionConfigControl[] {
+  return controls.map((control) => {
+    const current = value[control.id] ?? control.current
+    const known = control.choices.some((choice) => choice.value === current)
+
+    return {
+      choices: known
+        ? control.choices
+        : [...control.choices, { value: current, label: `${current}（agent 未提供）` }],
+      current,
+      detail: control.detail,
+      id: control.id,
+      label: control.label,
+      purpose: control.purpose,
+    }
+  })
 }
 
 function Field({
@@ -223,12 +302,13 @@ function EditorHeader({
               </Button>
             </>
           )}
+          {/* 与设置页几个提交键同一档（soft + xs）：中性灰、无框、26px。 */}
           <Button
-            className="rounded-lg bg-foreground text-ground hover:bg-foreground/90"
             disabled={!ready || !dirty || saving || conflict}
             form={FORM_ID}
-            size="sm"
+            size="xs"
             type="submit"
+            variant="soft"
           >
             {saving ? '保存中…' : automation === null ? '创建自动化' : '保存'}
           </Button>
@@ -246,6 +326,7 @@ export function AutomationEditor({
   onBack,
   pickWorkspace,
   onOpenThread,
+  workspaceChoices,
 }: AutomationEditorProps) {
   const snapshot = useSyncExternalStore(store.subscribe, store.getSnapshot, store.getSnapshot)
   const [baselineDraft] = useState(draft)
@@ -256,7 +337,7 @@ export function AutomationEditor({
   const [schedule, setSchedule] = useState(draft.schedule)
   const [timeZone, setTimeZone] = useState(draft.timeZone)
   const [workspaceRoot, setWorkspaceRoot] = useState(draft.workspaceRoot)
-  const [picked, setPicked] = useState<Record<string, string>>(() => ({ ...draft.sessionConfig }))
+  const [picked, selectControl] = usePickedSessionConfig(draft.sessionConfig)
   const [saving, setSaving] = useState(false)
   const [confirmingDelete, setConfirmingDelete] = useState(false)
   const [confirmingRevision, setConfirmingRevision] = useState(false)
@@ -265,6 +346,8 @@ export function AutomationEditor({
   const [previewState, setPreviewState] = useState<PreviewState | null>(null)
   const [view, setView] = useState<EditorView>('settings')
   const sessionConfig = useMemo(() => resolve(picked, controls), [picked, controls])
+  const sessionControls = useMemo(() => project(controls, picked), [controls, picked])
+  const currentWorkspace = workspaceChoiceOf(workspaceRoot)
   const dirty =
     automation === null ||
     title !== baselineDraft.title ||
@@ -417,37 +500,15 @@ export function AutomationEditor({
             }}
           >
             <Field htmlFor="automation-title" label="任务标题">
+              {/* 底与「添加计划」「IANA 时区」同读 --ui-popover；焦点不换框色、不画环。 */}
               <input
                 autoComplete="off"
-                className="h-11 w-full rounded-xl border border-divider bg-background px-4 text-sm"
+                className="h-11 w-full rounded-xl border border-divider bg-popover px-4 text-sm outline-none"
                 id="automation-title"
                 onChange={(event) => setTitle(event.currentTarget.value)}
                 placeholder="未命名任务"
                 value={title}
               />
-            </Field>
-            <Field htmlFor="automation-workspace" label="工作目录">
-              <div className="flex gap-2">
-                <input
-                  className="h-11 min-w-0 flex-1 rounded-xl border border-divider bg-background px-4 text-sm"
-                  id="automation-workspace"
-                  placeholder="请选择任务实际操作的目录"
-                  readOnly
-                  value={workspaceRoot}
-                />
-                <Button
-                  onClick={() => {
-                    void chooseWorkspace()
-                  }}
-                  type="button"
-                  variant="outline"
-                >
-                  选择目录
-                </Button>
-              </div>
-              <p className="mt-2 text-xs text-muted-foreground">
-                执行时使用这里保存的目录，不跟随当前打开的工作区。
-              </p>
             </Field>
             <Field label="调度">
               <AutomationScheduleField
@@ -469,27 +530,43 @@ export function AutomationEditor({
                 </label>
               )}
             </Field>
-            <Field htmlFor="automation-prompt" label="指令">
-              <div className="assistant-prompt-input" data-assistant-skin data-slot="prompt-input">
-                <div data-slot="prompt-input-body">
-                  <div className="assistant-prompt-editor">
-                    <textarea
-                      aria-label="指令"
-                      className="assistant-prompt-editor__input"
-                      data-slot="prompt-input-editor"
-                      id="automation-prompt"
-                      onChange={(event) => setPrompt(event.currentTarget.value)}
-                      placeholder="到期时发给 agent 的指令"
-                      value={prompt}
-                    />
-                  </div>
-                </div>
-                <div data-slot="prompt-input-toolbar">
-                  <AutomationSessionConfig
-                    controls={controls}
-                    onChange={(id, value) => setPicked((current) => ({ ...current, [id]: value }))}
-                    value={picked}
+            <Field label="指令">
+              {/*
+                这里放的就是对话那张输入框本身：同一张卡、同一排工具条、加号翻开的
+                同一张面板。它没有收信人（不给 onSubmit），所以没有发送键、Enter 只
+                换行 —— 它的提交键是页头那颗。正文经 onChange 回到 prompt 那一格，
+                与别的字段没有分别。
+
+                「在哪跑」跟着这张卡走，不由页面上另开一栏问：工作目录是执行上下文，
+                而执行上下文一直长在输入框下沿（见 composer-frame.css 的
+                .composer-context）。所以这一栏里没有它，它在卡下面那条灰栏上。
+              */}
+              <div className="flex flex-col" data-assistant-skin>
+                {/* 草稿的册子由组合根给（ComposerDraftsContext），这一格只认领一个键。 */}
+                <ComposerDraftKeyContext value={draftKeyOf(automation)}>
+                  <AssistantComposer
+                    attachments={false}
+                    controls={sessionControls}
+                    initialText={baselineDraft.prompt}
+                    onChange={setPrompt}
+                    onSelectControl={selectControl}
+                    placeholder="到期时发给 agent 的指令"
                   />
+                </ComposerDraftKeyContext>
+
+                <div className="composer-context">
+                  <WorkspacePicker
+                    choices={workspaceChoices}
+                    current={currentWorkspace}
+                    onBrowse={() => {
+                      void chooseWorkspace()
+                    }}
+                    onChoose={setWorkspaceRoot}
+                    placement="composer"
+                  />
+
+                  {/* 最右端：左边那枚说「在哪跑」，它说「这一句怎么跑」。 */}
+                  <SwarmToggle controls={sessionControls} onSelect={selectControl} />
                 </div>
               </div>
             </Field>

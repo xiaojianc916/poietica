@@ -3,9 +3,11 @@ import {
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
+  SearchableSelect,
+  type SelectOption,
 } from '@poietica/design-system'
 import { ChevronDown, Plus, X } from 'lucide-react'
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import {
   type CommonScheduleKind,
   DEFAULT_SCHEDULE,
@@ -43,6 +45,32 @@ const OPTIONS: readonly ScheduleKind[] = [
   'custom',
 ]
 
+/*
+ * 时区候选表读运行时那份 IANA 名录（Intl.supportedValuesOf，本机 418 条），不写死
+ * 一份常量表：名录跟着平台的 tzdata 走，写死的那份要替时区的增删负责。TS 的 lib
+ * 还没声明这个方法，所以按可选方法取，缺了就当名录为空。
+ */
+const TIME_ZONES: readonly SelectOption[] = (() => {
+  const runtime = Intl as typeof Intl & {
+    supportedValuesOf?: (key: 'timeZone') => string[]
+  }
+  return (runtime.supportedValuesOf?.('timeZone') ?? []).map((zone) => ({
+    label: zone,
+    value: zone,
+  }))
+})()
+
+/*
+ * 候选表里必须有当前值：存着的可能是旧别名，或原名录里已经移除的时区；缺了它
+ * 触发器只显示占位符，屏幕上就没有这个值的落点。缺的补进来并注明来历。
+ */
+function withCurrentZone(current: string): readonly SelectOption[] {
+  if (current === '' || TIME_ZONES.some((zone) => zone.value === current)) {
+    return TIME_ZONES
+  }
+  return [{ label: `${current}（平台未提供）`, value: current }, ...TIME_ZONES]
+}
+
 function ScheduleMenu({
   empty,
   onPick,
@@ -57,7 +85,7 @@ function ScheduleMenu({
       <DropdownMenuTrigger
         className={
           empty
-            ? 'flex h-11 w-full items-center gap-2 rounded-xl border border-divider bg-background px-4 text-sm text-muted-foreground hover:bg-sidebar-accent/30'
+            ? 'flex h-11 w-full items-center gap-2 rounded-xl border border-divider bg-popover px-4 text-sm text-muted-foreground hover:bg-[var(--ui-popup-highlight)]'
             : 'inline-flex h-8 items-center gap-1 rounded-lg bg-sidebar-accent/60 px-3 text-sm text-foreground hover:bg-sidebar-accent'
         }
         type="button"
@@ -114,6 +142,7 @@ export function AutomationScheduleField({
   onTimeZoneChange,
 }: AutomationScheduleFieldProps) {
   const [forceCustom, setForceCustom] = useState(false)
+  const zones = useMemo(() => withCurrentZone(timeZone), [timeZone])
   const kind: ScheduleKind = forceCustom ? 'custom' : (scheduleKindOf(schedule) ?? 'custom')
   const time = scheduleTimeOf(schedule) ?? DEFAULT_SCHEDULE_TIME
   const problem = preview?.problem ?? null
@@ -127,7 +156,7 @@ export function AutomationScheduleField({
       {schedule === null ? (
         <ScheduleMenu empty onPick={pick} selected={null} />
       ) : (
-        <div className="flex min-h-11 flex-wrap items-center gap-2 rounded-xl border border-divider bg-background px-3 py-1.5">
+        <div className="flex min-h-11 flex-wrap items-center gap-2 rounded-xl border border-divider bg-popover px-3 py-1.5">
           <ScheduleMenu empty={false} onPick={pick} selected={kind} />
           {kind === 'custom' ? (
             <input
@@ -167,23 +196,19 @@ export function AutomationScheduleField({
           </button>
         </div>
       )}
-      <label
-        className="flex items-center gap-3 text-xs text-muted-foreground"
-        htmlFor="automation-time-zone"
-      >
-        IANA 时区
-        <input
-          aria-describedby="automation-schedule-feedback"
-          aria-invalid={problem === 'timeZone'}
-          autoComplete="off"
-          className="h-9 flex-1 rounded-lg border border-divider bg-background px-3 text-foreground"
+      {/* 与「添加计划」同一张脸：同样的高、同样的圆角、同样的 --ui-popover 底。
+          名录四百多条，所以用可搜索的那种选择器，而不是菜单。 */}
+      <div className="flex items-center gap-3 text-xs text-muted-foreground">
+        <span>IANA 时区</span>
+        <SearchableSelect
+          className="h-11 w-80 rounded-xl px-4 text-sm"
+          data={zones}
           id="automation-time-zone"
-          onChange={(event) => onTimeZoneChange(event.currentTarget.value)}
-          placeholder="Asia/Shanghai"
-          spellCheck={false}
+          onValueChange={onTimeZoneChange}
+          type="IANA 时区"
           value={timeZone}
         />
-      </label>
+      </div>
       <p
         className={feedback === null ? 'text-xs text-muted-foreground' : 'text-xs text-destructive'}
         id="automation-schedule-feedback"

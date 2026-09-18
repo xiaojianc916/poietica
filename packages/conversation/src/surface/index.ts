@@ -1,8 +1,11 @@
 export { AssistantSurface } from './assistant-surface'
+export type { AssistantComposerProps } from './composer/assistant-composer'
+export { AssistantComposer } from './composer/assistant-composer'
 export { AttachmentIntakeContext, useAttachmentIntake } from './composer/attachment-intake'
 export { AuxiliaryComposer } from './composer/auxiliary-composer'
-export { ComposerDraftsContext } from './composer/drafts-context'
+export { ComposerDraftKeyContext, ComposerDraftsContext } from './composer/drafts-context'
 export type { PromptInputHandle } from './composer/prompt-input'
+export { SwarmToggle } from './composer/swarm-toggle'
 export { AgentControlsContext, useAgentControls } from './configuration/agent-controls-context'
 export {
   SessionControlsContext,
@@ -13,7 +16,8 @@ export {
 } from './configuration/session-controls-context'
 export { AssistantThreadList } from './threads/assistant-thread-list'
 export type { GitBranchPickerProps } from './threads/git-branch-picker'
-export type { WorkspacePickerProps } from './threads/workspace-picker'
+export type { WorkspaceChoice, WorkspacePickerProps } from './threads/workspace-picker'
+export { WorkspacePicker } from './threads/workspace-picker'
 export { DelegateChannelContext, useDelegateChannel } from './timeline/delegate-channel-context'
 export {
   DelegateChannelIcon,

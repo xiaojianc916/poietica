@@ -308,7 +308,7 @@ export const AssistantSurface = memo(function AssistantSurface({
         <ComposerDraftKeyContext value={draftKey}>{dock}</ComposerDraftKeyContext>
 
         {live || workspace === undefined ? null : (
-          <div className="assistant-surface__context">
+          <div className="composer-context">
             <WorkspacePicker {...workspace} placement="composer" />
 
             {git === undefined ? null : <GitBranchPicker {...git} />}

@@ -42,7 +42,20 @@ import { QuestionPanel } from './question-panel'
 export interface AssistantComposerProps {
   readonly placeholder?: string
   readonly status?: ChatStatus
-  readonly onSubmit: (input: PromptInputMessage) => void
+  /**
+   * 这一句发出去做什么。
+   *
+   * 缺席时这张卡不是消息框而是一个字段：没有发送键，Enter 只换行，草稿不会被消费
+   * 掉。自动化编辑器那条「到期时发给 agent 的指令」就是这么用的 —— 它的提交键在
+   * 页头，不在卡里。
+   */
+  readonly onSubmit?: ((input: PromptInputMessage) => void) | undefined
+  /** 挂载时先写进编辑器的正文。此后草稿归编辑器。 */
+  readonly initialText?: string | undefined
+  /** 草稿正文变了。字段用法靠它把正文读回去。 */
+  readonly onChange?: ((text: string) => void) | undefined
+  /** 这一格收不收文件。收不了就不画面板里「添加文件」那一行。 */
+  readonly attachments?: boolean | undefined
   readonly onCancel?: (() => void) | undefined
   /** 中断后发送一条可见的继续消息。空草稿时那颗键就是它。 */
   readonly onContinue?: (() => void) | undefined
@@ -90,7 +103,7 @@ export interface AssistantComposerProps {
  */
 type ComposerToolbarProps = Pick<
   AssistantComposerProps,
-  'controls' | 'onCancel' | 'onContinue' | 'onSelectControl' | 'usage'
+  'controls' | 'onCancel' | 'onContinue' | 'onSelectControl' | 'onSubmit' | 'usage'
 > & { readonly status: ChatStatus }
 
 function ComposerToolbar({
@@ -98,6 +111,7 @@ function ComposerToolbar({
   onCancel,
   onContinue,
   onSelectControl,
+  onSubmit,
   status,
   usage,
 }: ComposerToolbarProps) {
@@ -136,8 +150,10 @@ function ComposerToolbar({
       <SessionControls controls={controls} onSelect={onSelectControl} />
 
       {/* 判据同源。「有没有东西可发」现在只从 PromptInput 自己那份草稿读，
-          按钮与 onSubmit 看的是同一个所有者。 */}
-      <PromptInputSubmit onCancel={onCancel} onContinue={onContinue} status={status} />
+          按钮与 onSubmit 看的是同一个所有者。字段用法没有发送键。 */}
+      {onSubmit === undefined ? null : (
+        <PromptInputSubmit onCancel={onCancel} onContinue={onContinue} status={status} />
+      )}
     </PromptInputToolbar>
   )
 }
@@ -145,6 +161,9 @@ function ComposerToolbar({
 /* memo 只允许语义状态变化重渲染输入区；流式帧由状态球的稳定投影隔离。 */
 export const AssistantComposer = memo(function AssistantComposer({
   approval,
+  attachments,
+  initialText,
+  onChange,
   onAnswerQuestions,
   onDismissQuestions,
   mcpServers,
@@ -203,10 +222,13 @@ export const AssistantComposer = memo(function AssistantComposer({
       {approval == null ? null : <PermissionDock {...approval} />}
 
       <PromptInput
+        attachments={attachments}
         className={asking ? 'assistant-prompt-input--question' : undefined}
         configuration={configuration}
         groups={groups}
+        initialText={initialText}
         multiple
+        onChange={onChange}
         onSubmit={onSubmit}
         ref={ref}
       >
@@ -227,7 +249,7 @@ export const AssistantComposer = memo(function AssistantComposer({
               <PromptInputEditor placeholder={placeholder} />
             </PromptInputBody>
 
-            <ComposerToolbar status={status} {...toolbar} />
+            <ComposerToolbar onSubmit={onSubmit} status={status} {...toolbar} />
           </>
         )}
       </PromptInput>

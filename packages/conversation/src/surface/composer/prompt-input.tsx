@@ -203,10 +203,31 @@ export interface PromptInputProps {
   readonly ref?: Ref<PromptInputHandle> | undefined
   readonly multiple?: boolean
   readonly maxFiles?: number
+  /**
+   * 这一格收不收文件。
+   *
+   * 收不了就不画「添加文件」那一行：面板里不该有一按不动的按钮，也不该有一张收下
+   * 之后无处安放的卡片。默认收。
+   */
+  readonly attachments?: boolean | undefined
+  /**
+   * 挂载时先写进编辑器的正文。此后草稿归编辑器，这个值不再被读第二次。
+   *
+   * 缺席就是空草稿 —— 与离屏册子（ComposerDrafts）同一条规矩：装回去只发生一次。
+   */
+  readonly initialText?: string | undefined
+  /** 草稿正文变了。往外报一次，让不是消息框的调用方也能把它当普通字段读。 */
+  readonly onChange?: ((text: string) => void) | undefined
   /** 面板里 agent 那几组（模式、技能、命令、other 选择器）。「添加」组由这个框自己起头。 */
   readonly groups?: readonly PaletteGroup[] | undefined
   readonly configuration?: readonly PromptConfiguration[] | undefined
-  readonly onSubmit: (message: PromptInputMessage) => void
+  /**
+   * 这一句发出去做什么。
+   *
+   * 缺席时这一格不是消息框而是一个字段：Enter 只换行，提交这条路整个不存在，草稿
+   * 也不会在某个动作里被消费掉。自动化那条「到期时发给 agent 的指令」就是字段。
+   */
+  readonly onSubmit?: ((message: PromptInputMessage) => void) | undefined
 }
 
 interface PromptInputShellProps extends PromptInputProps {
@@ -243,12 +264,15 @@ export function PromptInput(props: PromptInputProps) {
 }
 
 function PromptInputShell({
+  attachments: acceptsAttachments = true,
   children,
   className,
   configuration: carriedConfiguration = [],
   groups,
+  initialText,
   maxFiles,
   multiple = false,
+  onChange,
   onSubmit,
   ref,
   restored,
@@ -267,8 +291,14 @@ function PromptInputShell({
   const [paletteOpened, setPaletteOpened] = useState(false)
   const [highlighted, setHighlighted] = useState(0)
   const handoff = useRef({ attachments, configuration: pendingConfiguration })
+  /* 两条往外走的路。监听器与命令都只注册一次，回调却每次渲染都可能是新的。 */
+  const report = useRef(onChange)
+  const submit = useRef(onSubmit)
+  const seeded = useRef(false)
 
   handoff.current = { attachments, configuration: pendingConfiguration }
+  report.current = onChange
+  submit.current = onSubmit
 
   const listboxId = useId()
   const formRef = useRef<HTMLFormElement>(null)
@@ -286,10 +316,28 @@ function PromptInputShell({
   useEffect(
     () =>
       editor.registerUpdateListener(({ editorState }: { editorState: EditorState }) => {
-        setDraftText(editorState.read(readDraft))
+        const projection = editorState.read(readDraft)
+
+        setDraftText(projection)
+        report.current?.(projection.text)
       }),
     [editor],
   )
+
+  /* 起始正文只在挂载那一次写进去；册子里已经装着的那一份优先，它比记录新。 */
+  useEffect(() => {
+    if (seeded.current) {
+      return
+    }
+
+    seeded.current = true
+
+    if (initialText === undefined || initialText === '' || restored !== undefined) {
+      return
+    }
+
+    replaceDraft(editor, initialText)
+  }, [editor, initialText, restored])
 
   /* 只在卸载时转移所有权；依赖变化不能把仍在编辑器里的草稿复制到离屏册子。 */
   useEffect(
@@ -308,7 +356,12 @@ function PromptInputShell({
       editor.registerCommand(
         KEY_ENTER_COMMAND,
         (event) => {
-          if (event === null || event.shiftKey || editor.isComposing()) {
+          /* 没有收信人时 Enter 就是换行：字段不是消息框。 */
+          if (submit.current === undefined || event === null || event.shiftKey) {
+            return false
+          }
+
+          if (editor.isComposing()) {
             return false
           }
 
@@ -508,8 +561,11 @@ function PromptInputShell({
   )
 
   const allGroups = useMemo<readonly PaletteGroup[]>(
-    () => [composerComposeGroup(openFilePicker), ...(groups ?? NO_GROUPS)],
-    [groups, openFilePicker],
+    () =>
+      acceptsAttachments
+        ? [composerComposeGroup(openFilePicker), ...(groups ?? NO_GROUPS)]
+        : (groups ?? NO_GROUPS),
+    [acceptsAttachments, groups, openFilePicker],
   )
 
   const visible = useMemo(
@@ -689,6 +745,11 @@ function PromptInputShell({
             onSubmit={(event) => {
               event.preventDefault()
 
+              /* 字段没有收信人：这一条路整条不存在，草稿也不许被消费掉。 */
+              if (submit.current === undefined) {
+                return
+              }
+
               const projection = editor.getEditorState().read(readDraft)
               const said = projection.text.trim()
 
@@ -720,7 +781,7 @@ function PromptInputShell({
 
               /* 不 discard：这些字节现在归这条对话的交付会话。 */
               setAttachments([])
-              onSubmit(message)
+              submit.current(message)
             }}
             ref={formRef}
           >
