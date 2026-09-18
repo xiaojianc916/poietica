@@ -15,22 +15,10 @@ use crate::error::{KapError, Result};
 use crate::generated::rest::routes;
 use crate::session::rest::envelope_data;
 
-fn pinned_server_version() -> Result<String> {
-    crate::compatibility::pinned_manifest()?
-        .get("server_version")
-        .and_then(Value::as_str)
-        .filter(|version| !version.is_empty())
-        .map(str::to_owned)
-        .ok_or_else(|| KapError::Handshake {
-            message: "the embedded KAP capability manifest has no server_version".to_owned(),
-        })
-}
-
 #[derive(Debug, Eq, PartialEq)]
 enum Probe {
     Ready,
     Refused,
-    Incompatible(String),
 }
 
 #[derive(serde::Deserialize)]
@@ -58,7 +46,6 @@ async fn probe_instance(
     dial: &str,
     port: u16,
     token: &str,
-    expected_version: &str,
 ) -> Probe {
     let Ok(url) = routes::meta(&format!("http://{dial}:{port}")) else {
         return Probe::Refused;
@@ -74,18 +61,14 @@ async fn probe_instance(
     let Ok(body) = response.json::<Value>().await else {
         return Probe::Refused;
     };
-    let Ok(data) = envelope_data(&body) else {
+    let Ok(_data) = envelope_data(&body) else {
         return Probe::Refused;
     };
-    let actual = data
-        .get("server_version")
-        .and_then(Value::as_str)
-        .unwrap_or("<missing>");
-    if actual == expected_version {
-        Probe::Ready
-    } else {
-        Probe::Incompatible(actual.to_owned())
-    }
+    // 不比对 server_version：上游它就是 npm 包版本（kap-server/src/version.ts 读
+    // package.json），每次发版都动，官方 web 客户端只在设置页显示、从不比较；协议
+    // 代际按 URL 路径冻结并存（/api/v1/ws 与 /api/v3/ws），不随包版本演进。
+    // code 0 + 认令牌 = 我们拉起的那个 server。
+    Probe::Ready
 }
 
 /// 等到注册表出现本次拉起之后的条目、且那个地址认我们的令牌，返回
@@ -111,7 +94,6 @@ pub(crate) async fn discover_instance(
             message: e.to_string(),
         })?;
 
-    let expected_version = pinned_server_version()?;
     let mut refused: Vec<String> = Vec::new();
 
     loop {
@@ -150,16 +132,8 @@ pub(crate) async fn discover_instance(
                     let dial = dialable_host(&info.host);
 
                     let address = format!("{dial}:{}", info.port);
-                    match probe_instance(&probe, &dial, info.port, &token, &expected_version).await
-                    {
+                    match probe_instance(&probe, &dial, info.port, &token).await {
                         Probe::Ready => return Ok((info.host, info.port, token)),
-                        Probe::Incompatible(actual) => {
-                            return Err(KapError::Handshake {
-                                message: format!(
-                                    "incompatible Kimi Code server at {address}: expected {expected_version}, got {actual}"
-                                ),
-                            });
-                        }
                         Probe::Refused => {
                             if !refused.contains(&address) {
                                 refused.push(address);
