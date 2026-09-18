@@ -16,7 +16,8 @@ export interface ActiveTabSequence {
 }
 
 export interface DesktopTitleBarProps {
-  readonly children: ReactNode
+  /** 中段拖拽区的内容。标签条撤出这一行之后，它可以是空的。 */
+  readonly children?: ReactNode
   readonly activeTabSequence: ActiveTabSequence
   readonly onMinimize: () => void
   readonly onMaximize: () => void

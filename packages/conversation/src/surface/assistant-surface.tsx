@@ -204,7 +204,7 @@ export const AssistantSurface = memo(function AssistantSurface({
 
   /* KAP 没有恢复同一轮的协议动作；这里发送一条可见新消息，不伪装成断流重建。 */
   const continueConversation = useCallback(() => {
-    draft.current?.insertTextAndSubmit('请从刚才中断的地方继续。')
+    draft.current?.insertTextAndSubmit('Continue')
   }, [])
 
   /*

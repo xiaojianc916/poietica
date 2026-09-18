@@ -51,7 +51,7 @@ test('shell capabilities have direction rather than a permissive same-package ex
     ),
   ).toHaveLength(1)
   expect(
-    desktopBoundaries(root, file('shell/tabs/workbench-tabs.tsx'), file('shell/index.ts')),
+    desktopBoundaries(root, file('shell/sidebar/workspace-sidebar.tsx'), file('shell/index.ts')),
   ).toHaveLength(1)
 })
 

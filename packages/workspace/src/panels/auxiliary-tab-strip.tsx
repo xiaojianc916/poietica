@@ -149,7 +149,12 @@ export function AuxiliaryTabStrip({
 
   return (
     <div className="shrink-0">
-      <div className="flex h-8 shrink-0 items-center gap-1 pl-1 pr-10">
+      {/* 这一行与右上角那枚会话开关对齐，四条内边距都对着外壳那张卡片的圆角量：
+          行高 40px 让 24px 的标签与 24px 的开关同高（都从面板顶下 8px 起）；
+          左 = 圆角半径再让 4px —— 面板左上那个缺口是半径 16px 的四分之一圆，标签左缘
+          落在 12px 时它的左上角顺着弧走，不再是一段被切掉的直角；
+          右 = 圆角半径 + 开关那枚按钮的宽度 + 行内间距（按钮与开关之间不留零缝）。 */}
+      <div className="flex h-10 shrink-0 items-center gap-1 pl-[calc(var(--workspace-main-corner-radius)-0.25rem)] pr-[calc(var(--workspace-main-corner-radius)+1.75rem)]">
         <div
           aria-label="辅助面板标签页"
           className="flex min-w-0 flex-1 items-center gap-1 overflow-x-auto"

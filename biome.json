@@ -336,34 +336,11 @@
       }
     },
     {
-      "includes": ["apps/desktop/src/shell/tabs/workbench-tab.tsx"],
-      "linter": {
-        "rules": {
-          "a11y": {
-            "noStaticElementInteractions": "off"
-          }
-        }
-      }
-    },
-    {
       "includes": ["packages/settings/src/ui/personalization-surface.tsx"],
       "linter": {
         "rules": {
           "a11y": {
             "noLabelWithoutControl": "off"
-          }
-        }
-      }
-    },
-    {
-      "includes": [
-        "apps/desktop/src/shell/tabs/use-baseline-gap.ts",
-        "apps/desktop/src/shell/tabs/use-viewport.ts"
-      ],
-      "linter": {
-        "rules": {
-          "correctness": {
-            "useExhaustiveDependencies": "off"
           }
         }
       }

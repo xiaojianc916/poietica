@@ -29,7 +29,11 @@ import type {
 import type { AuxiliaryPane, AuxiliaryPanelStore } from '@poietica/workspace/panels'
 import { type ReactNode, useCallback, useMemo, useSyncExternalStore } from 'react'
 import { AssistantSidebarPanel } from '../assistant/assistant-sidebar-panel'
-import { ConversationControls, ConversationHeader } from '../assistant/conversation-header'
+import {
+  AuxiliaryToggle,
+  ConversationControls,
+  ConversationHeader,
+} from '../assistant/conversation-header'
 import {
   CONVERSATION_TODO_LAYOUT_STYLE,
   ConversationTodoPopover,
@@ -41,7 +45,6 @@ import {
   SidebarFooter,
   SurfaceHost,
   useWorkspaceLayoutState,
-  WorkbenchTabs,
   WorkspaceShell,
   WorkspaceSidebar,
 } from '../shell/index'
@@ -118,6 +121,20 @@ interface AuxiliaryBinding {
  * 平时它跟着对话走：属于当前这条对话才停靠。设置打开时对话不在场，本来一律不出现 ——
  * 技能文档那一格是唯一的例外，它恰恰是被设置页点开的，所以它出现时右栏就出现。
  */
+/*
+ * 设置页右上角只有辅助开关，没有任务开关：那一格是技能文档（见 auxiliaryBinding）。
+ * 它只在文档开着时出现，动作只有收起 —— 打开它的动作是点开一份技能文档，不是这枚按钮。
+ */
+function SettingsAuxiliaryControl({
+  docked,
+  onClose,
+}: {
+  readonly docked: boolean
+  readonly onClose: () => void
+}): ReactNode {
+  return docked ? <AuxiliaryToggle auxiliaryOpen onToggleAuxiliary={onClose} /> : null
+}
+
 function auxiliaryBinding(input: {
   readonly activeConversationId: string | null
   readonly auxiliaryThread: string | null
@@ -318,6 +335,8 @@ export function DesktopWorkspace({
 
   const parts: WorkspaceParts = {
     chrome: {
+      /* 标题栏只剩开合、前后切换与窗口控制：标签条不再进这一行，见 workspace-shell.css
+       * 里主区左上圆角那一段 —— 会话面板自己带圆角，与标签的 Chrome 形咬口互斥。 */
       content: (
         <DesktopTitleBar
           activeTabSequence={describeTabSequence(
@@ -328,18 +347,7 @@ export function DesktopWorkspace({
           onClose={onWindowClose}
           onMaximize={onWindowMaximize}
           onMinimize={onWindowMinimize}
-        >
-          {isSettingsOpen ? null : (
-            <WorkbenchTabs
-              onActivate={actions.activateTab}
-              onClose={actions.closeTab}
-              onCreate={openAssistantEntry}
-              onMove={actions.moveTab}
-              runningThreadIds={runningThreadIds}
-              tabs={workbench.tabs}
-            />
-          )}
-        </DesktopTitleBar>
+        />
       ),
     },
 
@@ -378,23 +386,27 @@ export function DesktopWorkspace({
     },
 
     main: {
-      controls:
-        isSettingsOpen || activeConversationId === null ? null : (
-          <ConversationControls
-            auxiliaryOpen={auxiliaryThread === activeConversationId}
-            onToggleAuxiliary={() =>
-              workspaceLayoutStore.setAuxiliaryThread(
-                auxiliaryThread === activeConversationId ? null : activeConversationId,
-              )
-            }
-            onToggleTodo={() =>
-              workspaceLayoutStore.setTodoThread(
-                todoThread === activeConversationId ? null : activeConversationId,
-              )
-            }
-            todoOpen={todoThread === activeConversationId}
-          />
-        ),
+      controls: isSettingsOpen ? (
+        <SettingsAuxiliaryControl
+          docked={auxiliary.docked}
+          onClose={auxiliaryPanel.closeFilePanes}
+        />
+      ) : activeConversationId === null ? null : (
+        <ConversationControls
+          auxiliaryOpen={auxiliaryThread === activeConversationId}
+          onToggleAuxiliary={() =>
+            workspaceLayoutStore.setAuxiliaryThread(
+              auxiliaryThread === activeConversationId ? null : activeConversationId,
+            )
+          }
+          onToggleTodo={() =>
+            workspaceLayoutStore.setTodoThread(
+              todoThread === activeConversationId ? null : activeConversationId,
+            )
+          }
+          todoOpen={todoThread === activeConversationId}
+        />
+      ),
       content: isSettingsOpen ? (
         <SettingsContentRegion />
       ) : (
@@ -457,7 +469,7 @@ export function DesktopWorkspace({
       threads={threads}
     >
       <DelegateChannelContext value={openDelegateChannel}>
-        <WorkspaceShell model={workbench} parts={parts} />
+        <WorkspaceShell parts={parts} />
       </DelegateChannelContext>
     </SettingsProvider>
   )

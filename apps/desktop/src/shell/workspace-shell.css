@@ -19,6 +19,10 @@
 }
 
 .workspace-shell {
+  /* 会话面板：四角圆角 + 右、下两条地色留白。两者各只有这一份。 */
+  --workspace-main-corner-radius: 16px;
+  --workspace-main-gap: 8px;
+
   grid-template-columns:
     var(--workspace-sidebar-column-width)
     minmax(0, 1fr)
@@ -35,14 +39,20 @@
 /*
  * 两枚会话控件是外壳栅格家具。辅助面板开合只移动主区边界：
  * 辅助开关始终贴窗口右边，任务开关始终贴主区右边，DOM 不搬家。
+ *
+ * 右边距 = 面板那条留白 + 圆角半径，算下来按钮右缘正好落在圆角的竖切点上，
+ * 整个按钮因此都在圆角缺口（顶端 R 像素里的那个四分之一圆）左边，不压在弧上。
+ * 贴窗口边写 12px 的话落到面板上只剩 4px，正是压在弧上的那一版。
+ *
+ * 上边距只是气：横向让开之后纵向放哪都不会碰缺口。
  */
 .workspace-shell__conversation-control {
   z-index: 3;
   grid-row: 2;
   align-self: start;
   justify-self: end;
-  margin-block-start: 0.25rem;
-  margin-inline-end: 0.75rem;
+  margin-block-start: 0.5rem;
+  margin-inline-end: calc(var(--workspace-main-gap) + var(--workspace-main-corner-radius));
 }
 
 .workspace-shell__todo-toggle {
@@ -50,8 +60,9 @@
   transition: margin-inline-end var(--workspace-layout-duration) var(--workspace-layout-ease);
 }
 
+/* 辅助面板收起时让开辅助开关：再退它一个按钮宽（size-6，1.5rem）。 */
 .workspace-shell[data-auxiliary-docked="false"] .workspace-shell__todo-toggle {
-  margin-inline-end: 2.5rem;
+  margin-inline-end: calc(var(--workspace-main-gap) + var(--workspace-main-corner-radius) + 1.5rem);
 }
 
 .workspace-shell__auxiliary-toggle {
@@ -73,17 +84,16 @@
 /*
  * 区域分隔线：整窗一条，唯一的画者。
  *
+ * 常态不画线 —— 侧栏与主区之间、主区与右栏之间都靠色阶分开，产品要的是无缝。这条
+ * 元素因此连 border 都不留：唯一会画出来的是交互态（悬停／拖拽／键盘焦点）那道抓手
+ * （::after），尺寸、落点、上下长度都由它自己带，不再靠一条常态的线当底。
+ *
  * 它是栅格里的一个格位——第一列、跨所有行、贴列的 inline-end 边，位置就是列边界
  * 本身，没有第二份坐标，chrome 行与侧栏行不可能对不齐。静态定位的栅格项同样认
  * z-index（CSS Grid Layout「Z-axis Ordering」），所以压过主区不必脱离文档流。
  *
- * 厚度画在 border 上而不是 1px 宽的背景盒上：Chromium 把边框吸附到设备像素边界
- * （见 packages/design-system/src/tokens/controls.css），非整数显示缩放下只有这一种
- * 画法的设备像素数是确定的。
- *
  * 强调态读根节点的 data-splitter，不读 :hover / :active：拖拽走 setPointerCapture，
  * 捕获期间的 hover 按 Pointer Events L3 记在捕获元素上，松手不保证当帧纠正。
- * 键盘焦点只加深墨色，不加粗。
  */
 .workspace-shell__divider {
   --workspace-divider-hover-delay: 50ms;
@@ -94,24 +104,20 @@
   grid-area: 1 / 1 / -1 / 2;
   justify-self: end;
   inline-size: 0;
-  border-inline-end: var(--ui-region-divider-width) solid var(--color-divider);
   pointer-events: none;
-  transition:
-    border-inline-end-color var(--workspace-layout-duration) ease,
-    opacity var(--workspace-layout-duration) ease;
+  transition: opacity var(--workspace-layout-duration) ease;
 }
 
 /*
- * 抓手：拖拽与悬停时盖在竖线上的那一道。
+ * 抓手：悬停／拖拽／键盘焦点时出现在列边界上那一道。
  *
- * 墨色重一档、比静态线粗半档，向上向下连续渐隐回静态线的颜色与宽度 —— 中间
- * 粗且深、两端细且浅，形状本身就是「这里能拖」。此前是整条加粗压深：一条等
- * 宽的线变了色不构成形状，指针落在哪一行都读不出差别。
+ * 它是这条分隔线唯一会画出来的东西，所以尺寸、落点、上下长度都自己带：1.5px 宽、
+ * 上下各收 6%、两端用渐变收进透明 —— 中间实、两端虚，形状本身就是「这里能拖」。
+ * 收进的那 6% 是产品要的：这条线不该顶满整窗高（收 15% 试过，太多）。
  *
- * 半档是量出来的：整档 2px 在 150% 缩放下是三倍墨宽，看着不再像一条线；只铺
- * 中段又读成一枚斑点。1.5px 是这条线上站得住的最小粗细差。它是一层要渐隐的
- * 墨，边缘发虚就是渐隐本身 —— 上面那条「厚度走 border 吸附设备像素」管的是
- * 静态线，不是它。
+ * 宽度骑在列边界两侧各 0.75px（半个宽度）。半档是量出来的：整档 2px 在 150% 缩放
+ * 下是三倍墨宽，看着不再像一条线；只铺中段又读成一枚斑点。它是一层要渐隐的墨，
+ * 边缘发虚就是渐隐本身。
  *
  * 画者是分隔线自己（::after），不是接指针的那根 hr。
  */
@@ -120,9 +126,8 @@
 
   content: "";
   position: absolute;
-  inset-block: 0;
-  /* 1.5px 压在那 1px 上，横向居中：两端各露 1/4 像素。 */
-  inset-inline-start: calc(-0.25 * var(--ui-region-divider-width));
+  inset-block: 6%;
+  inset-inline-start: calc(-0.75 * var(--ui-region-divider-width));
   inline-size: calc(var(--ui-region-divider-width) * 1.5);
   background: linear-gradient(to bottom, transparent, var(--workspace-divider-grip), transparent);
   opacity: 0;
@@ -130,15 +135,17 @@
 }
 
 /*
- * 浏览器侧的同一根家具，只换格位：画在主列的末像素而不是浏览器列的首像素。
- * 列 3 的页面本体是原生子 webview（browser.rs 按视口矩形摆放），原生层永远
- * 整幅盖在宿主 DOM 之上 —— 画进列 3 的任何像素都会被它吃掉；主列属于 DOM，
- * 线在这里才存在。位置仍是主/浏览器列边界本身，描边、过渡与强调全部沿用
- * 基类，此处只剩格位一处差异。线从内容行起跨，不进页头行：页头那条横线是
- * chrome 行的家具，右侧不重复它（左侧竖线穿页头是侧栏专属形态）。
+ * 浏览器侧的同一根家具，只换格位与横向落点：画在主列的末像素而不是浏览器列的首像素。
+ * 列 3 的页面本体是原生子 webview（browser.rs 按视口矩形摆放），原生层永远整幅盖在
+ * 宿主 DOM 之上 —— 画进列 3 的任何像素都会被它吃掉；主列属于 DOM，线在这里才存在。
+ *
+ * 它还要落在两张面板之间那条缝的正中：缝是主区右侧那条 8px 留白，本元素默认贴在列
+ * 边界上（缝的右端），往主区一侧挪半个缝宽就居中。线从内容行起跨，不进页头行 ——
+ * 页头是 chrome 行的家具。
  */
 .workspace-shell__divider--auxiliary {
   grid-area: 2 / 2 / -1 / 3;
+  margin-inline-end: calc(var(--workspace-main-gap) / 2);
 }
 
 /* 对话区与右侧栏的竖线单取 #ededed，比全局区域分隔线淡一档；深色主题不跟。 */
@@ -148,7 +155,7 @@
 
 /* 右栏抓手再淡一档：基底已是更浅的 #ededed，墨量从基类的 22% 降到 14%。 */
 :root:not([data-theme="dark"]) .workspace-shell__divider--auxiliary::after {
-  --workspace-divider-grip: color-mix(in oklab, var(--color-foreground) 14%, #ededed);
+  --workspace-divider-grip: color-mix(in oklab, var(--color-foreground) 14%, var(--color-divider));
 }
 
 /* :not 隔离两侧开关；辅助面板全屏时主列消失，其末像素上的分隔线也须隐藏。 */
@@ -160,31 +167,12 @@
 }
 
 /*
- * 强调态按侧圈定：两根线共享基类，region 限定必须配 :not，否则悬停一侧
- * 会把另一侧也点亮。键盘焦点读分隔条自己的 data-edge，同样只亮自己那根。
+ * 抓手浮现的三种因由，按侧圈定：两根共享基类，region 限定必须配 :not，否则悬停一侧
+ * 会把另一侧也点亮。键盘焦点读分隔条自己的 data-edge，同样只亮自己那根 —— 常态没有
+ * 线了，抓手就是焦点唯一的指示，所以它跟悬停／拖拽同一档，不再只压深颜色。
+ *
+ * 三条按特异性递增排：悬停与拖拽同档，键盘焦点那条带 :has() 更高一档，排最后。
  */
-.workspace-shell[data-splitter="hover"][data-splitter-region="sidebar"]
-.workspace-shell__divider:not(.workspace-shell__divider--auxiliary),
-.workspace-shell[data-splitter="drag"][data-splitter-region="sidebar"]
-  .workspace-shell__divider:not(.workspace-shell__divider--auxiliary),
-.workspace-shell[data-splitter="hover"][data-splitter-region="auxiliary"]
-  .workspace-shell__divider--auxiliary,
-.workspace-shell[data-splitter="drag"][data-splitter-region="auxiliary"]
-  .workspace-shell__divider--auxiliary,
-.workspace-shell:has(.workspace-region-splitter[data-edge="inline-start"]:focus-visible)
-  .workspace-shell__divider:not(.workspace-shell__divider--auxiliary),
-.workspace-shell:has(.workspace-region-splitter[data-edge="inline-end"]:focus-visible)
-  .workspace-shell__divider--auxiliary {
-  border-inline-end-color: color-mix(in oklab, var(--color-foreground) 3%, var(--color-divider));
-}
-
-/* 拖拽中立刻浮现：指针已经按下去了，没有需要提防的擦边。 */
-.workspace-shell[data-splitter="drag"][data-splitter-region="sidebar"]
-.workspace-shell__divider:not(.workspace-shell__divider--auxiliary)::after,
-.workspace-shell[data-splitter="drag"][data-splitter-region="auxiliary"]
-  .workspace-shell__divider--auxiliary::after {
-  opacity: 1;
-}
 
 /* 悬停要够 50ms 才浮现，擦边划过不闪。 */
 .workspace-shell[data-splitter="hover"][data-splitter-region="sidebar"]
@@ -195,19 +183,28 @@
   transition-delay: var(--workspace-divider-hover-delay);
 }
 
+/* 拖拽中立刻浮现：指针已经按下去了，没有需要提防的擦边。 */
+.workspace-shell[data-splitter="drag"][data-splitter-region="sidebar"]
+.workspace-shell__divider:not(.workspace-shell__divider--auxiliary)::after,
+.workspace-shell[data-splitter="drag"][data-splitter-region="auxiliary"]
+  .workspace-shell__divider--auxiliary::after {
+  opacity: 1;
+}
+
+/* 键盘焦点：不留延迟，焦点到了就得看见。 */
+.workspace-shell:has(.workspace-region-splitter[data-edge="inline-start"]:focus-visible)
+.workspace-shell__divider:not(.workspace-shell__divider--auxiliary)::after,
+.workspace-shell:has(.workspace-region-splitter[data-edge="inline-end"]:focus-visible)
+  .workspace-shell__divider--auxiliary::after {
+  opacity: 1;
+}
+
 /*
- * chrome 与内容之间那条横线。
- *
- * 它此前写在 WorkspaceShell 的 className 里（border-b border-divider），厚度
- * 因此是 Tailwind 的 1px；而竖线要向下穿过它，穿多少读的是
- * --ui-region-divider-width，也是 1px。两个 1px 分居两处，今天相等是巧合，
- * 改任何一处另一处都不跟 —— 接缝会裂开或者叠一层，而这两种都不会报错。
- *
- * 现在两者读同一个令牌，接缝对齐是算出来的。
+ * chrome 行不画与内容之间那条横线：顶栏、侧栏与主区在圆角之外连成一片，边界由
+ * 主区自己的左上圆角给（见 .workspace-shell__main-panel）。
  */
 .workspace-shell__chrome {
   grid-area: chrome;
-  border-block-end: var(--ui-region-divider-width) solid var(--color-divider);
 }
 
 /*
@@ -234,6 +231,33 @@
 .workspace-shell__main {
   position: relative;
   grid-area: main;
+  /* 面板不贴右、下两边：让出来的这一圈与圆角缺口同色（section 的 bg-chrome），
+   * 面板因此读成一张浮在 chrome 地色上的卡片，而不是一块填满的格子。 */
+  padding-block-end: var(--workspace-main-gap);
+  padding-inline-end: var(--workspace-main-gap);
+}
+
+/*
+ * 侧栏收起时左边那条也要留：那时主区贴窗口左缘，左上方没有侧栏可让位，不留就只剩
+ * 三面有缝，和右边那条对不上。侧栏展开时不留 —— 面板左缘贴着侧栏，正是那一列的地色。
+ */
+.workspace-shell[data-sidebar-docked="false"] .workspace-shell__main {
+  padding-inline-start: var(--workspace-main-gap);
+}
+
+/*
+ * 会话面板的四角圆角。
+ *
+ * 圆角缺口里露出来的那一块是 chrome 地色，所以地色铺在栅格格位上（section 的
+ * bg-chrome）、面板自己只负责圆角与页面底色（main 的 bg-background）。两者必须同时
+ * 在：只有圆角没有地色，缺口与面板同色，那个圆角在屏幕上不存在。
+ *
+ * 面板自带 overflow: hidden，圆角因此同时裁掉面板里的内容 —— 上限看各面自己左上角
+ * 的内边距。最紧的一处是资料库侧栏（它的搜索框就坐在这一角），已按 16px 让开；
+ * 改大这段数之前先看那一处跟不跟。
+ */
+.workspace-shell__main-panel {
+  border-radius: var(--workspace-main-corner-radius);
 }
 
 /*
@@ -244,7 +268,18 @@
   pointer-events: none;
 }
 
-/* 浏览器列与侧栏同一套：定宽底面贴列的 inline-end 一侧，由自己那一列裁剪。 */
+/*
+ * 浏览器列与侧栏同一套：定宽底面贴列的 inline-end 一侧，由自己那一列裁剪。
+ *
+ * 面板与主区同一张卡片：地色铺在栅格格位上、内容自己铺页面底色并带同一档圆角。
+ * 留白只给右边和下边 —— 左边不留给它自己：两张面板之间那条缝由主区右侧那条给，
+ * 两条加起来就比四周宽一倍（量出来 16px 对 8px）。这一列左缘因此与列边界重合，
+ * 分隔线（只在悬停／拖拽时点亮）正好落在它左边一个像素上。
+ *
+ * 留白写在内容自己的 inset 上，不写成这一格的 padding：内容是绝对定位的，而绝对
+ * 定位的包含块是这一格的 border box —— 给它加 padding 不会把内容推进来（量过：
+ * 加了 8px padding，内容仍然贴到 border box 的边上）。
+ */
 .workspace-shell__auxiliary {
   position: relative;
   grid-area: auxiliary;
@@ -252,9 +287,11 @@
 
 .workspace-shell__auxiliary-content {
   position: absolute;
-  inset-block: 0;
-  inset-inline-end: 0;
-  max-inline-size: 100%;
+  inset-block: 0 var(--workspace-main-gap);
+  inset-inline-end: var(--workspace-main-gap);
+  /* 宽度由 store 给，这一条只管留白之后还剩多少：全屏时宽度写 100%，同样被它收到列内。 */
+  max-inline-size: calc(100% - var(--workspace-main-gap));
+  border-radius: var(--workspace-main-corner-radius);
 }
 
 .workspace-shell[data-auxiliary-docked="false"] .workspace-shell__auxiliary {

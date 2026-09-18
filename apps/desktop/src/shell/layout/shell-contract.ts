@@ -1,4 +1,4 @@
-import type { SurfaceId, WorkbenchTabId, WorkbenchViewModel } from '@poietica/workspace'
+import type { SurfaceId, WorkbenchTabId } from '@poietica/workspace'
 import type { WorkspaceParts } from './parts'
 
 export type { WorkspaceParts }
@@ -14,6 +14,5 @@ export interface WorkspaceShellActions {
 }
 
 export interface WorkspaceShellProps {
-  readonly model: WorkbenchViewModel
   readonly parts: WorkspaceParts
 }

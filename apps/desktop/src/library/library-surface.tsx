@@ -426,9 +426,11 @@ export function LibrarySurface({
         }
       }}
     >
+      {/* 内边距 16px 是外壳那边会话面板左上圆角的下限：搜索框坐在这一角，
+          再小就会被那个圆角咬掉。见 apps/desktop/src/shell/workspace-shell.css。 */}
       <aside
         aria-label={ROOT_LABEL}
-        className="flex min-h-0 flex-col gap-3 bg-background px-3 py-3"
+        className="flex min-h-0 flex-col gap-3 bg-background px-4 py-4"
       >
         <div className="flex items-center gap-1.5 rounded-md bg-muted px-2">
           <Search aria-hidden="true" className="size-4 shrink-0 text-muted-foreground" />

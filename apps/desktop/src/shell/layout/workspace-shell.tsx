@@ -1,12 +1,12 @@
 import { TooltipProvider } from '@poietica/design-system'
-import { auxiliaryMaxWidth, encodeWorkbenchTabDomId } from '@poietica/workspace'
+import { auxiliaryMaxWidth } from '@poietica/workspace'
 import { AuxiliaryRegion } from './auxiliary-region'
 import { useWorkspaceLayoutState, useWorkspaceLayoutStore } from './layout-context'
 import type { WorkspaceShellProps } from './shell-contract'
 import { SidebarRegion } from './sidebar-region'
 import { WorkspaceFrame } from './workspace-frame'
 
-export function WorkspaceShell({ model, parts }: WorkspaceShellProps) {
+export function WorkspaceShell({ parts }: WorkspaceShellProps) {
   const workspaceLayoutStore = useWorkspaceLayoutStore()
 
   const {
@@ -28,10 +28,6 @@ export function WorkspaceShell({ model, parts }: WorkspaceShellProps) {
     (() => {
       setAuxiliaryThread(null)
     })
-
-  const activeTabDomId = encodeWorkbenchTabDomId(model.activeTabId)
-
-  const isTabPanel = parts.main.label === undefined
 
   return (
     <TooltipProvider delay={450}>
@@ -58,16 +54,15 @@ export function WorkspaceShell({ model, parts }: WorkspaceShellProps) {
         isAuxiliaryFullscreen={auxiliaryFullscreenActive}
         isSidebarDocked={sidebarOpen}
         main={
+          /* 栅格格位铺 chrome 地色，面板自己铺页面底色并带四角圆角、右与下各留一条
+           * 留白：圆角缺口与留白里露出来的就是这一格的地色。见 workspace-shell.css。 */
           <section
             aria-label="内容区"
-            className="workspace-shell__main min-h-0 min-w-0 overflow-hidden bg-background"
+            className="workspace-shell__main min-h-0 min-w-0 overflow-hidden bg-chrome"
           >
             <main
               aria-label={parts.main.label}
-              aria-labelledby={isTabPanel ? `workbench-tab-${activeTabDomId}` : undefined}
-              className="relative h-full min-h-0 min-w-0 overflow-hidden"
-              id={isTabPanel ? `workbench-panel-${activeTabDomId}` : undefined}
-              role={isTabPanel ? 'tabpanel' : 'region'}
+              className="workspace-shell__main-panel relative h-full min-h-0 min-w-0 overflow-hidden bg-background"
             >
               {parts.main.content}
             </main>

@@ -26,10 +26,10 @@ export function AuxiliaryRegion({
   const workspaceLayoutStore = useWorkspaceLayoutStore()
 
   return (
-    <div className="workspace-shell__auxiliary min-h-0 min-w-0 bg-background" inert={!isDocked}>
+    <div className="workspace-shell__auxiliary min-h-0 min-w-0 bg-chrome" inert={!isDocked}>
       <div className="workspace-shell__region-clip">
         <div
-          className="workspace-shell__auxiliary-content min-h-0 overflow-hidden"
+          className="workspace-shell__auxiliary-content min-h-0 overflow-hidden bg-background"
           style={{ width: fullscreen ? '100%' : width }}
         >
           {children}

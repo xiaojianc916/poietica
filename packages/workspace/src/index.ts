@@ -29,18 +29,5 @@ export type {
   WorkbenchViewModel,
 } from './workbench'
 export { createWorkbenchSessionController } from './workbench-session-controller'
-export type {
-  WorkbenchTabDragLayout,
-  WorkbenchTabKeyboardAction,
-  WorkbenchTabModelItem,
-  WorkbenchTabSlot,
-} from './workbench-tabs-model'
-export {
-  encodeWorkbenchTabDomId,
-  resolveWorkbenchTabAutoScrollVelocity,
-  resolveWorkbenchTabCloseTarget,
-  resolveWorkbenchTabDragLayout,
-  resolveWorkbenchTabKeyboardAction,
-} from './workbench-tabs-model'
 export type { SidebarDock } from './workspace-layout'
 export { auxiliaryMaxWidth, WORKSPACE_LAYOUT } from './workspace-layout'
