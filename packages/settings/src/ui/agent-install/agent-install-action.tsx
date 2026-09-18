@@ -130,10 +130,14 @@ export function AgentInstallAction({ store, agentId }: AgentInstallActionProps) 
   return message === null ? null : <Row {...IDLE} error={error} note={message} run={run} />
 }
 
+/*
+ * 状态与动作同装一格：散着放会被 .models-row 的 space-between 摊到整行，
+ * 转圈孤零零停在中间。装起来才是一组，跟按钮贴着。
+ */
 function Row({ action, label, note, busy, error, run }: AgentInstallView) {
   const message = error ?? note
   return (
-    <>
+    <div className="models-row__actions">
       {message === null ? null : <span className="models-row__meta">{message}</span>}
       {busy ? <InlineSpinner /> : null}
       {action === 'none' ? null : (
@@ -141,6 +145,6 @@ function Row({ action, label, note, busy, error, run }: AgentInstallView) {
           {label}
         </Button>
       )}
-    </>
+    </div>
   )
 }

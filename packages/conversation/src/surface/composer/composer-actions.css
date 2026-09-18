@@ -54,12 +54,28 @@
   color: var(--cp-ink);
 }
 
+/*
+ * 竖线的宽度按设备像素给，不按 CSS 像素：2px 在 150% 缩放下栅格化出来是 3 个设备
+ * 像素（design-system 的 light.css 记过这条），而这里要的是屏幕上的两格。
+ * 4/3 = 2 ÷ 1.5。要动这个数，先量再改。
+ */
 .assistant-mode-chip__divider {
-  inline-size: var(--cp-px);
+  inline-size: calc(var(--cp-px) * 4 / 3);
   block-size: var(--cp-icon);
   flex: none;
   align-self: center;
   background: var(--cp-hairline);
+}
+
+/*
+ * 深色下这条竖线是实色 #373737。
+ *
+ * --cp-hairline 在深色下是 #1d1d1d，压在 #2a2a2a 的输入卡上比卡面还暗，读出来是
+ * 一道凹槽而不是一条分隔线。定稿要的是比卡面亮一档的那条线，所以按用途给实色。
+ * 只写这一处，不动 --cp-hairline —— 那个令牌还归时间线那类地方。
+ */
+:root[data-theme="dark"] .assistant-mode-chip__divider {
+  background: #373737;
 }
 
 .assistant-mode-chip__icon {

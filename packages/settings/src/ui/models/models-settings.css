@@ -51,6 +51,20 @@
 .models-row--compact {
   padding-block: 8px;
 }
+/*
+ * 行右端的「状态 + 动作」装在一格里。散着交给 .models-row 的话，space-between
+ * 会把行内每一件都当成一个端点 —— 忙碌时转圈会孤零零停在正中间，离按钮一整个空档。
+ */
+.models-row__actions {
+  display: flex;
+  min-inline-size: 0;
+  align-items: center;
+  gap: 8px;
+}
+.models-row__meta {
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
 .models-row__copy {
   display: flex;
   min-inline-size: 0;

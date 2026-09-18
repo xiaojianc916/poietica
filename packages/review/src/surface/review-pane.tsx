@@ -370,7 +370,6 @@ function Commit({
       >
         <GithubMark className="opacity-60" />
         {state.busy ? '正在提交…' : '提交或推送'}
-        <ChevronDown aria-hidden className="size-3 opacity-50" />
       </DropdownMenuTrigger>
       <DropdownMenuContent className="review-commit-menu w-80 rounded-2xl p-2">
         {/* 无缝输入：无边框，靠弹层自己垫底。 */}
