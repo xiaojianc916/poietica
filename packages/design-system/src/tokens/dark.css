@@ -92,11 +92,11 @@
   --ui-popup-divider: rgb(255 255 255 / 10%);
 
   /*
-   * 底与浅色同一个值（指定色，不随主题走），字必须翻深：深色下正文是白字，而
-   * 高亮底是浅蓝，只换底等于把选中的字抹掉。
+   * 划选高亮底：深色下是产品指定的深蓝，与浅色那支的浅蓝各一格；字取本主题的
+   * 默认前景（同 light.css 的结构），深底上仍是亮字。
    */
-  --ui-selection-background: var(--ui-palette-blue-100);
-  --ui-selection-foreground: var(--ui-palette-dark-900);
+  --ui-selection-background: #384c5e;
+  --ui-selection-foreground: var(--ui-foreground);
 
   --ui-destructive: var(--ui-palette-red-400);
   --ui-destructive-foreground: var(--ui-palette-dark-1000);

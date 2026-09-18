@@ -238,7 +238,7 @@ body {
 /*
  * Crepe 自带一条 *::selection（底走 --crepe-color-selected），同一族令牌还兼作
  * 工具栏按下态与选中节点的底，所以接回主题令牌，而不是跟它抢选择器。底之外还要
- * 补字：深色下正文是白字，压在这个浅底上读不出来，而 Crepe 只声明了底。
+ * 补字：Crepe 只声明了底，字要接回主题那一对，不留正文自己的颜色。
  */
 .library-editor .milkdown {
   --crepe-color-background: transparent;

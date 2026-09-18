@@ -587,14 +587,10 @@
 
 :root[data-theme="dark"] [data-assistant-skin] {
   /*
-   * 内联代码的底。浅色那一档是实色，这里不能跟着写死 —— 近黑卡面上铺 #e9eaea
-   * 就是一块白斑。改成白色兑面，浓度取与浅色同一个绝对差（22/255），解出 #363636。
+   * 内联代码的底：定稿给的实色 #2e2e2e。与浅色那支同为字面值 —— 近黑卡面上铺
+   * 浅色那一档就是一块白斑，两档各给一格，不共用。
    */
-  --cp-timeline-inline-code-surface: color-mix(
-    in srgb,
-    var(--ui-foreground) 10%,
-    var(--cp-surface)
-  );
+  --cp-timeline-inline-code-surface: #2e2e2e;
   /*
    * 正文链接的墨。按主色那一对（浅 #006edc → 深 #5e9fe8）的同一条式子推：
    * 明度抬 0.139、彩度乘 0.68，解出 oklch(0.735 0.099 251) 即 #7aaee6。
