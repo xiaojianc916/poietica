@@ -1,7 +1,20 @@
 use serde::{Deserialize, Serialize};
 
 use crate::error::TurnError;
-use crate::turn::cancellation::CancelOrigin;
+
+/// 取消由谁发起。取消状态只存在 TurnState 里，这里不另存一份。
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum CancelOrigin {
+    User,
+    Shutdown,
+}
+
+impl CancelOrigin {
+    pub fn signal(self) -> TurnSignal {
+        TurnSignal::CancelRequested { origin: self }
+    }
+}
 
 /// 一轮的终局。取消是终局的一种，不是异常。
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
