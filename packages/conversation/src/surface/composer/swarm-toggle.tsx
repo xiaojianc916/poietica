@@ -32,9 +32,11 @@ export function swarmControlOf(
 export interface SwarmToggleProps {
   readonly controls: readonly SessionConfigControl[]
   readonly onSelect: (controlId: string, value: string) => void
+  /** 这张表还没被 agent 确认过：画法不变，只是点不动。见 permission-picker 同名入参。 */
+  readonly pending?: boolean | undefined
 }
 
-export function SwarmToggle({ controls, onSelect }: SwarmToggleProps) {
+export function SwarmToggle({ controls, onSelect, pending }: SwarmToggleProps) {
   const control = swarmControlOf(controls)
 
   /* agent 没报这一格就没有它 —— 与分支 chip 同一条规矩，这里不画空态。 */
@@ -54,9 +56,16 @@ export function SwarmToggle({ controls, onSelect }: SwarmToggleProps) {
       <TooltipTrigger
         render={
           <button
+            aria-busy={pending ? true : undefined}
+            aria-disabled={pending ? true : undefined}
             aria-pressed={enabled}
             className="swarm-toggle"
             onClick={() => {
+              /* 未确认时点不动，但看起来与平时一样：不靠 disabled，那会连画法一起改掉。 */
+              if (pending) {
+                return
+              }
+
               onSelect(control.id, enabled ? 'off' : 'on')
             }}
             type="button"

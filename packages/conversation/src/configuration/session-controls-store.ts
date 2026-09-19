@@ -7,7 +7,11 @@ import { describeFailure } from '../failure'
 import type { TranscriptSink } from '../transcript/transcript-sink'
 import { ArrivalOrder } from './arrival-order'
 import { withEntry, withoutEntry } from './immutable-map'
-import { isPermissionPostureChange, pendingPostureAlignment } from './permission-posture'
+import {
+  isPermissionPostureChange,
+  pendingPostureAlignment,
+  projectPosture,
+} from './permission-posture'
 
 interface Held {
   readonly selectors: ReadonlyMap<string, readonly SessionConfigControl[]>
@@ -93,7 +97,7 @@ export class SessionControlsStore {
    * 这条对话已经为哪一个意图补发过对齐。
    *
    * 同一个意图不补第二次：agent 拒了那一次改动会走 #reopen 拉回权威表，而那正是
-   * #align 再次被叫到的时刻 —— 不记这一格就是一个自己喂自己的循环。
+   * #remember 再次被叫到的时刻 —— 不记这一格就是一个自己喂自己的循环。
    */
   #alignedTo = new Map<string, string>()
 
@@ -272,7 +276,7 @@ export class SessionControlsStore {
   /*
    * 下发一次改动，排在这条对话自己的队伍后面。
    *
-   * 用户选择与 #align 自动对齐都经这里发出 set_config。
+   * 用户选择与 #remember 里的自动对齐都经这里发出 set_config。
    *
    * 队列按对话分，不按连接分：两条对话各改各的互不相干，而同一条对话上的两次改动
    * 必须分先后 —— 后一次要用前一次的答复当判据。
@@ -457,14 +461,33 @@ export class SessionControlsStore {
    *
    * 原样存下来。屏幕上写的就是 agent 说的那一句，中间没有第二个人插话 —— 这条会话
    * 此刻在用什么，只有它自己有资格回答。
+   *
+   * 唯一一处例外是批准方式正在补发的那一趟：那时画的是要收敛到的那一档（见
+   * projectPosture）。中间值照原样画出来，屏幕上就会先闪一下新会话的默认档、再跳回
+   * 用户上次选的那个 —— 那一闪是一个用户从没选过、也马上要被覆盖的值。
    */
   #remember(
     threadId: string,
     offered: readonly SessionConfigControl[],
     goal?: SessionGoal | null,
   ): void {
+    /*
+     * 判据全部来自刚落地的那张表：agent 提供哪些档位由它说了算。同一个意图只补一次 ——
+     * agent 拒了那次改动会报回它真在用的那一档，而那时这里会再次被叫到，不记这一格
+     * 就是一个自己喂自己的循环。
+     */
+    const decision = pendingPostureAlignment(offered, this.#posture?.read())
+    const aligning =
+      decision === undefined || this.#alignedTo.get(threadId) === decision.wanted
+        ? undefined
+        : decision
+
     this.#commit({
-      selectors: withEntry(this.#held.selectors, threadId, offered),
+      selectors: withEntry(
+        this.#held.selectors,
+        threadId,
+        aligning === undefined ? offered : projectPosture(offered, aligning),
+      ),
       selectorFailure: withoutEntry(this.#held.selectorFailure, threadId),
       ...(goal === undefined
         ? {}
@@ -476,23 +499,9 @@ export class SessionControlsStore {
           }),
     })
 
-    this.#align(threadId, offered)
-  }
-
-  /*
-   * 让这条会话回到用户上次选的那个批准方式。
-   *
-   * 判据全部来自刚落地的那张表：agent 提供哪些档位由它说了算。补发走 selectControl，
-   * 所以「发出 set_config」仍然只有一条路。
-   */
-  #align(threadId: string, offered: readonly SessionConfigControl[]): void {
-    const decision = pendingPostureAlignment(offered, this.#posture?.read())
-
-    if (decision === undefined || this.#alignedTo.get(threadId) === decision.wanted) {
-      return
+    if (aligning !== undefined) {
+      this.selectControl(threadId, aligning.control.id, aligning.wanted)
     }
-
-    this.selectControl(threadId, decision.control.id, decision.wanted)
   }
 
   #noteSelectorFailure(threadId: string, reason: unknown): void {

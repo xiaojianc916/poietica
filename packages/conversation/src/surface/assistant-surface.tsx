@@ -55,6 +55,8 @@ export interface AssistantSurfaceProps {
    * 对话由上层持有。这一层只负责把它画出来。
    */
   readonly controls: readonly SessionConfigControl[]
+  /** 这张表还没被 agent 确认过：画得出内容，但点不动，也不参与下发。 */
+  readonly controlsPending?: boolean | undefined
   /** 没能连上 agent 时那句话的原样；只做提示条的 title，正文是 DISCONNECTED。 */
   readonly controlsFailure?: string | undefined
   readonly onSelectControl: (controlId: string, value: string, input?: string) => void
@@ -95,6 +97,7 @@ export const AssistantSurface = memo(function AssistantSurface({
   composer,
   controls,
   controlsFailure,
+  controlsPending,
   endpoint,
   git,
   isNew,
@@ -253,6 +256,7 @@ export const AssistantSurface = memo(function AssistantSurface({
       <AssistantComposer
         approval={approval}
         controls={controls}
+        controlsPending={controlsPending}
         mcpServers={mcpServers}
         onAnswerQuestions={assistant.answerQuestions}
         onCancel={assistant.cancel}
@@ -314,7 +318,7 @@ export const AssistantSurface = memo(function AssistantSurface({
             {git === undefined ? null : <GitBranchPicker {...git} />}
 
             {/* 最右端：左边两枚说「在哪跑」，它说「这一句怎么跑」。 */}
-            <SwarmToggle controls={controls} onSelect={onSelectControl} />
+            <SwarmToggle controls={controls} onSelect={onSelectControl} pending={controlsPending} />
           </div>
         )}
       </div>

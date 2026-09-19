@@ -1,4 +1,8 @@
-import { type AgentSessionPort, projectVisibleModelChoices } from '@poietica/conversation'
+import {
+  type AgentSessionPort,
+  projectVisibleModelChoices,
+  type SessionConfigControl,
+} from '@poietica/conversation'
 import {
   AssistantSurface,
   type GitBranchPickerProps,
@@ -15,6 +19,9 @@ import { useCallback, useEffect, useMemo, useRef } from 'react'
 import { useBrowserPick } from '../browser/pick-context'
 
 import { useThreadsActions } from './threads-context'
+
+/* 一条对话还没有自己的表时交回它：盘上那份属于上一次开窗，不属于这条对话。 */
+const NONE: readonly SessionConfigControl[] = []
 
 export interface ConversationSurfaceProps {
   readonly isNew: boolean
@@ -65,14 +72,27 @@ export function ConversationSurface({
     sessionControls.adopt(threadId)
   }, [isNew, sessionControls, threadId])
 
-  const { controls: known, failure: knownFailure, retry, selectControl } = useAgentControls()
+  const {
+    controls: known,
+    failure: knownFailure,
+    provisional,
+    retry,
+    selectControl,
+  } = useAgentControls()
 
-  const sourceControls = isNew ? known : (offered ?? known)
+  /*
+   * 入口那一格读的是锚会话的表，盘上那份正是为它准备的。对话里读的是那条会话的表，
+   * 而它由 #reopen 在打开时取回 —— 盘上那份说的是「上一次开窗时 agent 怎么说」，
+   * 未必属于这条对话，所以在那张表回来之前宁可什么都不画，也不拿它顶替。
+   */
+  const sourceControls = isNew ? known : (offered ?? (provisional ? NONE : known))
   const hiddenModelAliases = useHiddenModelAliases()
   const controls = useMemo(
     () => projectVisibleModelChoices(sourceControls, hiddenModelAliases),
     [hiddenModelAliases, sourceControls],
   )
+
+  const controlsPending = isNew && provisional
 
   const controlsFailure = isNew ? knownFailure : failure
 
@@ -126,6 +146,7 @@ export function ConversationSurface({
       composer={composer}
       controls={controls}
       controlsFailure={controlsFailure}
+      controlsPending={controlsPending}
       endpoint={threadId}
       git={git}
       isNew={isNew}

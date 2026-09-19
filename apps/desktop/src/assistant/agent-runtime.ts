@@ -4,6 +4,7 @@ import type {
   OpenedThread,
   PermissionPosturePort,
   SessionConfigControl,
+  SessionConfigMemoryPort,
   SessionConfigPort,
   SessionUsagePort,
   ThreadPort,
@@ -22,6 +23,7 @@ export interface DesktopAgentRuntime {
   readonly sessionConfig: SessionConfigPort
   readonly sessionUsage: SessionUsagePort
   readonly permissionPosture: PermissionPosturePort
+  readonly controlsMemory: SessionConfigMemoryPort
   readonly capabilities: () => AgentCapabilityPort
   readonly dispose: () => Promise<void>
 }
@@ -38,6 +40,7 @@ export interface AgentRuntimeDependencies {
   readonly agentId: string
   readonly modelCatalog: ModelCatalogAccess
   readonly mcpReady: () => Promise<void>
+  readonly controlsMemory: SessionConfigMemoryPort
   readonly permissionPosture: PermissionPosturePort
   readonly thinking: ThinkingPreference
   readonly connect: (prepareAgent: () => Promise<string>) => AgentRuntimeChannels
@@ -73,12 +76,21 @@ export function createAgentRuntime(options: AgentRuntimeDependencies): DesktopAg
       }
     }
   }
+  /*
+   * 起 agent 只等一件事：受控 home 里的 mcp.json 已经对齐。
+   *
+   * 那是 agent 进程启动时读一次的文件，排在 spawn 之前是必须的。
+   *
+   * 模型元数据不在这里等。它是一趟目录快照加一次 patchConfig 的写，产出的是模型
+   * 的显示名与上下文上限 —— 没有它，选择器照样报得出这一刻在用哪个模型、哪些档位。
+   * 把它排进 launch，等于让第一张控件表去等一次与它无关的写盘往返；那一趟照样跑，
+   * 只是不再挡在会话前面（见下面 seedDefaultModel 的同一条理由）。
+   */
   const prepareAgent = async (): Promise<string> => {
     requireActive()
     await options.mcpReady()
     requireActive()
-    await ensureModelMetadata()
-    requireActive()
+    void ensureModelMetadata()
     return options.agentId
   }
   const channels = options.connect(prepareAgent)
@@ -196,6 +208,7 @@ export function createAgentRuntime(options: AgentRuntimeDependencies): DesktopAg
     sessionConfig,
     sessionUsage: channels.usage,
     permissionPosture: options.permissionPosture,
+    controlsMemory: options.controlsMemory,
     capabilities: () => capabilityPort,
     dispose() {
       disposed = true

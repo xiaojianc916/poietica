@@ -368,6 +368,261 @@ describe('锚会话的那张表', () => {
   })
 })
 
+describe('盘上那张表（上一趟 agent 确认过的）', () => {
+  /* 一个只读不写的记忆，外加一个什么都不做的端口。 */
+  const memoryOf = (remembered: readonly SessionConfigControl[]) => {
+    const written: Array<readonly SessionConfigControl[]> = []
+
+    return {
+      port: {
+        read: () => remembered,
+        write: (controls: readonly SessionConfigControl[]) => {
+          written.push(controls)
+        },
+      },
+      written,
+    }
+  }
+
+  it('开窗第一帧就是完整的样子，且标成还没被确认', () => {
+    const { port } = memoryOf(ON_OFF)
+    const store = new AgentCapabilityStore({ memory: port })
+
+    /* 一次 start 都还没发生：这正是「窗口刚画出来」那一刻。 */
+    const held = store.snapshot()
+
+    expect(held.controls).toBe(ON_OFF)
+    expect(held.provisional).toBe(true)
+  })
+
+  it('agent 答了一次之后就不再是未确认态', async () => {
+    const { port } = memoryOf(ON_OFF)
+    const store = new AgentCapabilityStore({ memory: port })
+
+    const stop = store.start({
+      read: () => Promise.resolve(THREE_TIER),
+      select: () => Promise.resolve(THREE_TIER),
+      subscribe: inert,
+      readToolkit: () => Promise.resolve(EMPTY_TOOLKIT),
+    })
+
+    await settled()
+
+    expect(store.snapshot().controls).toBe(THREE_TIER)
+    expect(store.snapshot().provisional).toBe(false)
+
+    stop()
+  })
+
+  it('未确认期间下发被拦住，确认之后照常下发', async () => {
+    const { port } = memoryOf(ON_OFF)
+    const store = new AgentCapabilityStore({ memory: port })
+
+    let asked = 0
+    let release: ((table: readonly SessionConfigControl[]) => void) | undefined
+
+    const stop = store.start({
+      read: () =>
+        new Promise<readonly SessionConfigControl[]>((resolve) => {
+          release = resolve
+        }),
+      select: () => {
+        asked += 1
+
+        return Promise.resolve(THREE_TIER)
+      },
+      subscribe: inert,
+      readToolkit: () => Promise.resolve(EMPTY_TOOLKIT),
+    })
+
+    /*
+     * 读还在飞的时候点一下：盘上那张表不是「现在」的判据，据此发 set_config
+     * 改的可能正是 agent 这一趟已经不提供的那一档。
+     */
+    store.selectControl('model', 'kimi-k3')
+    await settled()
+
+    expect(asked).toBe(0)
+
+    release?.(ON_OFF)
+    await settled()
+
+    /* 确认过了：同一次点击现在真的发得出去。 */
+    store.selectControl('model', 'kimi-k3')
+    await settled()
+
+    expect(asked).toBe(1)
+
+    stop()
+  })
+
+  it('agent 确认过的那张表落成下一趟的第一帧', async () => {
+    const { port, written } = memoryOf([])
+    const store = new AgentCapabilityStore({ memory: port })
+
+    const stop = store.start({
+      read: () => Promise.resolve(ON_OFF),
+      select: () => Promise.resolve(THREE_TIER),
+      subscribe: inert,
+      readToolkit: () => Promise.resolve(EMPTY_TOOLKIT),
+    })
+
+    await settled()
+
+    expect(written).toEqual([ON_OFF])
+
+    /* 换模型那一次答复也落盘：下一趟开窗该看到的是最后那张表。 */
+    store.selectControl('model', 'kimi-k3')
+    await settled()
+
+    expect(written).toEqual([ON_OFF, THREE_TIER])
+
+    stop()
+  })
+
+  it('盘上那份读不出来时第一帧照旧空白，不抛', () => {
+    const store = new AgentCapabilityStore({
+      memory: {
+        read: () => {
+          throw new Error('存坏了')
+        },
+        write: () => undefined,
+      },
+    })
+
+    expect(store.snapshot().controls).toEqual([])
+    expect(store.snapshot().provisional).toBe(false)
+  })
+})
+
+describe('补发批准方式的那一趟', () => {
+  /*
+   * 新会话默认报 manual，而用户的持久意图是 auto —— 这一对就是那一闪的来源：
+   * 照原样画会先画「请求批准」，下一趟往返再跳回「完全访问」。
+   */
+  const OFFERED: readonly SessionConfigControl[] = [
+    control('model', 'model', 'kimi-k2', ['kimi-k2', 'kimi-k3']),
+    {
+      id: 'permission',
+      label: '批准方式',
+      purpose: 'permission',
+      current: 'manual',
+      choices: [
+        { value: 'manual', label: '请求批准' },
+        { value: 'yolo', label: '帮我批准' },
+        { value: 'auto', label: '完全访问权限' },
+      ],
+    },
+  ]
+
+  const ALIGNED: readonly SessionConfigControl[] = OFFERED.map((entry) =>
+    entry.id === 'permission' ? { ...entry, current: 'auto' } : entry,
+  )
+
+  const postureOf = (value: string) => ({ read: () => value, write: () => undefined })
+
+  it('中间那一档不上屏，补发照样发得出去', async () => {
+    const memory: Array<readonly SessionConfigControl[]> = []
+    const store = new AgentCapabilityStore({
+      memory: {
+        read: () => [],
+        write: (controls) => {
+          memory.push(controls)
+        },
+      },
+      posture: postureOf('auto'),
+    })
+
+    const painted: Array<string | undefined> = []
+    store.subscribe(() => {
+      painted.push(currentOf(store.snapshot().controls, 'permission'))
+    })
+
+    const sent: string[] = []
+    const stop = store.start({
+      read: () => Promise.resolve(OFFERED),
+      select: (_control, value) => {
+        sent.push(value)
+
+        return Promise.resolve(ALIGNED)
+      },
+      subscribe: inert,
+      readToolkit: () => Promise.resolve(EMPTY_TOOLKIT),
+    })
+
+    await settled()
+
+    /* 中间那一档一次都没画过。 */
+    expect(painted).not.toContain('manual')
+    expect(painted).toContain('auto')
+    /*
+     * 画成 auto 不能把下发一起吞掉：同值早退的判据必须是 agent 的原话，
+     * 拿屏幕上投影过的那张去判，这一条就发不出去 —— 屏幕说完全访问，agent 停在请求批准。
+     */
+    expect(sent).toEqual(['auto'])
+    /* 盘上落的也是收敛后的那一档，下一次开窗才不会换个方向再闪一遍。 */
+    expect(memory).toContainEqual(ALIGNED)
+    expect(memory).not.toContainEqual(OFFERED)
+
+    stop()
+  })
+
+  it('agent 拒了之后画的是它报的那一档，且不会再发第二遍', async () => {
+    const store = new AgentCapabilityStore({ posture: postureOf('auto') })
+
+    const sent: string[] = []
+    const stop = store.start({
+      read: () => Promise.resolve(OFFERED),
+      select: (_control, value) => {
+        sent.push(value)
+
+        /* 拒了：报回来的还是 manual。 */
+        return Promise.resolve(OFFERED)
+      },
+      subscribe: inert,
+      readToolkit: () => Promise.resolve(EMPTY_TOOLKIT),
+    })
+
+    await settled()
+
+    expect(sent).toEqual(['auto'])
+    /* 权威回滚：屏幕上留的是 agent 真在用的那一档，不是我们想让它变成的那一档。 */
+    expect(currentOf(store.snapshot().controls, 'permission')).toBe('manual')
+
+    /* 再读一次也不再发：同一个意图只补一次。 */
+    store.refresh()
+    await settled()
+
+    expect(sent).toEqual(['auto'])
+
+    stop()
+  })
+
+  it('用户没选过批准方式时，agent 报什么就画什么', async () => {
+    const store = new AgentCapabilityStore({ posture: postureOf('auto') })
+
+    let sent = 0
+    const stop = store.start({
+      read: () => Promise.resolve(ON_OFF),
+      select: () => {
+        sent += 1
+
+        return Promise.resolve(ON_OFF)
+      },
+      subscribe: inert,
+      readToolkit: () => Promise.resolve(EMPTY_TOOLKIT),
+    })
+
+    await settled()
+
+    /* 这张表里根本没有批准方式那一格：补发无从谈起，更不能凭空造一个值出来。 */
+    expect(sent).toBe(0)
+    expect(currentOf(store.snapshot().controls, 'permission')).toBeUndefined()
+
+    stop()
+  })
+})
+
 describe('capability binding ownership', () => {
   it('restarting the same port invalidates previous reads and cleanup', async () => {
     let release: ((table: readonly SessionConfigControl[]) => void) | undefined

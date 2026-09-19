@@ -64,6 +64,23 @@ export interface SessionConfigReport {
   readonly goal: SessionGoal | null
 }
 
+/**
+ * 上一趟运行里 agent 确认过的那张表，留到下一次开窗。
+ *
+ * 它答的是「这一格上一次是什么样」，不是「这一格现在是什么样」—— 只有 agent 说得出
+ * 后者。所以读回来的那份永远以 provisional 的身份上屏：画得出内容，点不动，也不参与
+ * 任何一次下发（见 capability-store 的 selectControl 与 composer-actions 的
+ * activePromptConfiguration）。
+ *
+ * 为什么要它：这张表要等 agent 进程起来、握手、建锚会话之后才回得来，而那几秒里
+ * 工具条是三块空白。盘上那份能让第一帧就是完整的样子。
+ */
+export interface SessionConfigMemoryPort {
+  readonly read: () => readonly SessionConfigControl[]
+  /** agent 刚确认过的那一张。写失败不该影响这一趟，由宿主自己上报。 */
+  readonly write: (controls: readonly SessionConfigControl[]) => void
+}
+
 export interface SessionConfigPort {
   readonly select: (
     threadId: ThreadId,

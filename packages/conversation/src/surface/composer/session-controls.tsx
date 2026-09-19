@@ -130,15 +130,19 @@ function stopAt(rail: HTMLElement, clientX: number, count: number): number {
 export interface SessionControlsProps {
   readonly controls: readonly SessionConfigControl[]
   readonly onSelect: (controlId: string, value: string) => void
+  /** 这张表还没被 agent 确认过：画法不变，只是点不动。见 permission-picker 同名入参。 */
+  readonly pending?: boolean | undefined
 }
 
 /** 入参只有 controls 会变，而这下面只有一张弹层加一个页签状态。 */
 export const SessionControls = memo(function SessionControls({
   controls,
   onSelect,
+  pending,
 }: SessionControlsProps) {
   const rows = useMemo(() => sessionControlRows(controls), [controls])
   const [pane, setPane] = useState<string>(LEVEL)
+  const [open, setOpen] = useState(false)
 
   const level = rows.find((control) => control.purpose === 'thought')
   const model = rows.find((control) => control.purpose === 'model')
@@ -222,13 +226,31 @@ export const SessionControls = memo(function SessionControls({
 
   return (
     <DropdownMenu
-      onOpenChange={(open) => {
-        if (!open) {
+      onOpenChange={(nextOpen) => {
+        /*
+         * 未确认时开不动，但看起来与平时一样。开不了这件事由这里拦，不靠 disabled ——
+         * 那会连画法一起改掉（DropdownMenuTrigger 自带 disabled:opacity-50）。
+         *
+         * provisional 只会从真转假一次，所以不必担心「已经开着的时候转成未确认」。
+         */
+        if (pending) {
+          return
+        }
+
+        setOpen(nextOpen)
+
+        if (!nextOpen) {
           setPane(LEVEL)
         }
       }}
+      open={open}
     >
-      <DropdownMenuTrigger aria-label="模型与思考档位" className="assistant-model-select__button">
+      <DropdownMenuTrigger
+        aria-busy={pending ? true : undefined}
+        aria-disabled={pending ? true : undefined}
+        aria-label="模型与思考档位"
+        className="assistant-model-select__button"
+      >
         {name === undefined ? null : <span className="assistant-model-select__name">{name}</span>}
 
         {band === undefined ? null : <span className="assistant-model-select__band">{band}</span>}

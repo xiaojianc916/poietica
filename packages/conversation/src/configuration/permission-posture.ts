@@ -92,6 +92,12 @@ export function postureAlignment(
     : undefined
 }
 
+/* 批准方式该补发的那一个决定：换成哪一格、换成哪一档。 */
+export interface PostureAlignment {
+  readonly control: SessionConfigControl
+  readonly wanted: string
+}
+
 /*
  * 表刚落地时该补发的那个决定。锚会话与单条对话的两条表到达路径共用它；
  * 返回 undefined 就什么都不发。
@@ -99,7 +105,7 @@ export function postureAlignment(
 export function pendingPostureAlignment(
   controls: readonly SessionConfigControl[],
   intent: string | undefined,
-): { control: SessionConfigControl; wanted: string } | undefined {
+): PostureAlignment | undefined {
   const control = permissionControlOf(controls)
 
   if (control === undefined) {
@@ -109,4 +115,27 @@ export function pendingPostureAlignment(
   const wanted = postureAlignment(control, intent)
 
   return wanted === undefined ? undefined : { control, wanted }
+}
+
+/*
+ * 这张表该怎么画。
+ *
+ * 补发已经在路上时，把要补发的那一档先画上。不这么做，屏幕上就先画 agent 这一趟报的
+ * 中间值、再画补发的结果 —— 新会话默认报 manual，而用户上次选的是 auto，那一闪是
+ * 一个用户从没选过、且下一次往返就会被覆盖的值。
+ *
+ * 只在真的要补发时才换（见两个调用点的 alignedTo 判据）：agent 真拒了那次改动时不换，
+ * 那时它报的值就是事实。
+ */
+export function projectPosture(
+  controls: readonly SessionConfigControl[],
+  alignment: PostureAlignment | undefined,
+): readonly SessionConfigControl[] {
+  if (alignment === undefined) {
+    return controls
+  }
+
+  return controls.map((control) =>
+    control.id === alignment.control.id ? { ...control, current: alignment.wanted } : control,
+  )
 }

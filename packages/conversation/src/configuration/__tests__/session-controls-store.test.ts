@@ -237,4 +237,55 @@ describe('一条对话的那张表', () => {
 
     expect(store.goalOf(THREAD)).toBe(goal)
   })
+
+  it('补发批准方式时中间那一档不上屏，补发照样发得出去', async () => {
+    const OFFERED: readonly SessionConfigControl[] = [
+      control('model', 'model', 'kimi-k3', ['kimi-k3']),
+      {
+        id: 'permission',
+        label: '批准方式',
+        purpose: 'permission',
+        current: 'manual',
+        choices: [
+          { value: 'manual', label: '请求批准' },
+          { value: 'auto', label: '完全访问权限' },
+        ],
+      },
+    ]
+    const ALIGNED: readonly SessionConfigControl[] = OFFERED.map((entry) =>
+      entry.id === 'permission' ? { ...entry, current: 'auto' } : entry,
+    )
+
+    const sent: string[] = []
+    const config: SessionConfigPort = {
+      select: (_thread, _id, value) => {
+        sent.push(value)
+
+        return Promise.resolve(ALIGNED)
+      },
+      subscribe: () => () => undefined,
+    }
+    const store = new SessionControlsStore({
+      config,
+      transcripts: routeSink(),
+      posture: { read: () => 'auto', write: () => undefined },
+    })
+
+    /* 画过哪几档：中间那个 manual 一次都不该出现。 */
+    const painted: Array<string | undefined> = []
+    const stop = store.start()
+    store.subscribe(() => {
+      painted.push(currentOf(store, 'permission'))
+    })
+
+    store.opened(opened(OFFERED))
+    await settled()
+
+    expect(painted).not.toContain('manual')
+    expect(currentOf(store, 'permission')).toBe('auto')
+    /* 画成 auto 不能把下发一起吞掉 —— 屏幕说完全访问、agent 停在请求批准是最坏的一种。 */
+    expect(sent).toEqual(['auto'])
+
+    stop()
+  })
 })

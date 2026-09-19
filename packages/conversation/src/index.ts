@@ -3,6 +3,7 @@ export type { AgentCapabilityPort } from './agent/capability'
 export type {
   SessionConfigChoice,
   SessionConfigControl,
+  SessionConfigMemoryPort,
   SessionConfigPort,
   SessionConfigPurpose,
   SessionConfigReport,

@@ -1,5 +1,5 @@
 import type { AgentCapabilityPort } from './agent/capability'
-import type { SessionConfigPort } from './agent/config'
+import type { SessionConfigMemoryPort, SessionConfigPort } from './agent/config'
 import type { PermissionPosturePort } from './agent/permission'
 import type { AgentSessionPort } from './agent/session'
 import type { ThreadPort } from './agent/thread'
@@ -18,6 +18,7 @@ type Dependencies = {
   readonly config: SessionConfigPort
   readonly usage: SessionUsagePort
   readonly posture: PermissionPosturePort
+  readonly controlsMemory: SessionConfigMemoryPort
   readonly capabilities: AgentCapabilityPort
   readonly workspace: {
     readonly read: () => string | null
@@ -52,6 +53,7 @@ export function createConversationRuntime(input: Dependencies) {
     port: input.threads,
   })
   const capabilities = new AgentCapabilityStore({
+    memory: input.controlsMemory,
     posture: input.posture,
     report: input.report.capability,
   })

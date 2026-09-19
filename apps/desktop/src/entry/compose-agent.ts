@@ -11,6 +11,7 @@ import {
 import { error as reportError } from '@poietica/problem'
 import type { ModelCatalogStore } from '@poietica/settings'
 import { createAgentRuntime, type DesktopAgentRuntime } from '../assistant/agent-runtime'
+import { createControlsMemory } from '../assistant/controls-memory'
 import { createThinkingPreference } from '../assistant/thinking-preference'
 
 interface DesktopAgentRuntimeOptions {
@@ -42,6 +43,13 @@ export function createDesktopAgentRuntime(
       cause: failure.cause,
     })
   })
+  const controlsMemory = createControlsMemory((failure) => {
+    reportError('session controls memory failed', {
+      scope: 'agent-runtime',
+      operation: failure.stage,
+      cause: failure.cause,
+    })
+  })
   const onListenFailure = (cause: unknown): void => {
     reportError('agent event subscription failed', {
       scope: 'agent-runtime',
@@ -53,6 +61,7 @@ export function createDesktopAgentRuntime(
     agentId: agent.id,
     modelCatalog: options.modelCatalog,
     mcpReady: options.mcpReady,
+    controlsMemory,
     permissionPosture: { read: posture.read, write: posture.write },
     thinking,
     report: reportError,

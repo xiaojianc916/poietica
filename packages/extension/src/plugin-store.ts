@@ -735,6 +735,10 @@ export function createPluginStore(options: PluginStoreOptions): PluginStore {
         /*
          * 五趟互不依赖，一起等而不是排成五趟：每一趟都只读，写的只是各自那个模块级
          * 变量，所以并发跑不会互相盖。首屏因此是一趟往返的时间，不是五趟。
+         *
+         * readCapabilities 不在这里。它经原生侧问的是「这台机器上某项能力装到哪一步」，
+         * 而那条 IPC 会顺手把 agent 拉起来 —— 排在首屏这一批里，等于让开一条对话去等
+         * 一件与它无关的事（见下面的 queueCapabilityRead）。
          */
         await Promise.all([
           guard('插件列表读取失败', rescan, () => {
@@ -751,7 +755,6 @@ export function createPluginStore(options: PluginStoreOptions): PluginStore {
             publish({ mcpFailure: 'MCP 配置读取失败，请刷新重试；不会将失败当作空配置。' })
           }),
           loadCatalog(),
-          readCapabilities(),
         ])
 
         /*
@@ -764,6 +767,9 @@ export function createPluginStore(options: PluginStoreOptions): PluginStore {
       ready = queue
 
       queue = queue.then(async () => {
+        /* 能力清单只喂插件页那一格，谁都没在等它 —— 首屏落定之后才问。 */
+        await readCapabilities()
+
         /*
          * 只有从来没取过才自动拉一次，这条判据由 shouldFetchOnOpen 一个地方说了算，
          * 而它要等 loadCatalog 落定才问得出来。背书是拿账本里的 pluginId 回目录

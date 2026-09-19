@@ -84,6 +84,7 @@ function fixture() {
       },
     },
     mcpReady: () => state.ready(),
+    controlsMemory: { read: () => [], write: () => undefined },
     permissionPosture: { read: () => undefined, write: () => undefined },
     thinking: {
       selection: () => undefined,

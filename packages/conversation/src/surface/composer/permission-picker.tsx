@@ -55,6 +55,16 @@ export interface PermissionPickerProps {
   readonly controls: readonly SessionConfigControl[]
   readonly onSelect: (controlId: string, value: string) => void
   /**
+   * 这张表还没被 agent 确认过（开窗时从盘上读回来的那一份）。
+   *
+   * 画法不变，只是点不动：那一刻我们并不知道这一档现在还算不算数，点下去要么被
+   * agent 拒、要么改掉一件用户没打算改的事。等答复落地就恢复可点。
+   *
+   * 拦在 onOpenChange 里，不用 disabled —— DropdownMenuTrigger 自带
+   * disabled:opacity-50，加上它整颗胶囊会变淡，那正是这里不要的效果。
+   */
+  readonly pending?: boolean | undefined
+  /**
    * 只画字形，不画档位名。
    *
    * 窄格里的取舍：辅助对话那一栏最窄只有 320，一行里还要放模型名与草稿，档位名
@@ -71,6 +81,7 @@ export const PermissionPicker = memo(function PermissionPicker({
   controls,
   iconOnly,
   onSelect,
+  pending,
 }: PermissionPickerProps) {
   const [open, setOpen] = useState(false)
   const control = permissionControlOf(controls)
@@ -99,11 +110,18 @@ export const PermissionPicker = memo(function PermissionPicker({
   return (
     <DropdownMenu
       onOpenChange={(nextOpen) => {
+        /* 未确认时开不动，但看起来与平时一样：不摆出一副「这格坏了」的样子。 */
+        if (pending) {
+          return
+        }
+
         setOpen(nextOpen)
       }}
       open={open}
     >
       <DropdownMenuTrigger
+        aria-busy={pending ? true : undefined}
+        aria-disabled={pending ? true : undefined}
         aria-label="批准方式"
         className="assistant-posture"
         data-alert={current.alerts ? 'true' : undefined}

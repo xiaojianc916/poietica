@@ -67,6 +67,8 @@ export interface AssistantComposerProps {
   readonly mcpServers?: readonly AgentMcpServer[] | undefined
   /** Everything the session (or, before one exists, the agent config) offers. */
   readonly controls: readonly SessionConfigControl[]
+  /** 这张表还没被 agent 确认过：画得出内容，但点不动。 */
+  readonly controlsPending?: boolean | undefined
   readonly onSelectControl: (controlId: string, value: string, input?: string) => void
   /** 这条会话最近报的上下文用量。缺席就不画那颗胶囊。 */
   readonly usage?: SessionUsage | undefined
@@ -103,11 +105,23 @@ export interface AssistantComposerProps {
  */
 type ComposerToolbarProps = Pick<
   AssistantComposerProps,
-  'controls' | 'onCancel' | 'onContinue' | 'onSelectControl' | 'onSubmit' | 'usage'
-> & { readonly status: ChatStatus }
+  | 'controls'
+  | 'controlsPending'
+  | 'onCancel'
+  | 'onContinue'
+  | 'onSelectControl'
+  | 'onSubmit'
+  | 'usage'
+> & {
+  readonly status: ChatStatus
+  /** 只用来组装要发出去的东西的那张表；未确认时是空的。见 AssistantComposer。 */
+  readonly confirmed: readonly SessionConfigControl[]
+}
 
 function ComposerToolbar({
+  confirmed,
   controls,
+  controlsPending,
   onCancel,
   onContinue,
   onSelectControl,
@@ -135,10 +149,14 @@ function ComposerToolbar({
           藏进菜单意味着人必须先点开才知道自己此刻授了多大的权,而完全访问那一档是
           不可撤销的。它也因此同时是切换入口 —— 一颗只能"摘掉"的标记不是控件。
         */}
-        <PermissionPicker controls={controls} onSelect={onSelectControl} />
+        <PermissionPicker
+          controls={controls}
+          onSelect={onSelectControl}
+          pending={controlsPending}
+        />
 
-        {/* 这一句处在哪个模式，以及摘掉它的地方。 */}
-        <ComposerChips controls={controls} onSelect={onSelectControl} />
+        {/* 这一句处在哪个模式，以及摘掉它的地方。未确认时不画：那一枚就是一次下发。 */}
+        <ComposerChips controls={confirmed} onSelect={onSelectControl} />
       </PromptInputTools>
 
       <span className="assistant-toolbar__spacer" />
@@ -147,7 +165,7 @@ function ComposerToolbar({
       <ContextGauge usage={usage} />
 
       {/* 模型选择器挨着「发」：它说的正是这一句将被谁回答。 */}
-      <SessionControls controls={controls} onSelect={onSelectControl} />
+      <SessionControls controls={controls} onSelect={onSelectControl} pending={controlsPending} />
 
       {/* 判据同源。「有没有东西可发」现在只从 PromptInput 自己那份草稿读，
           按钮与 onSubmit 看的是同一个所有者。字段用法没有发送键。 */}
@@ -191,21 +209,28 @@ export const AssistantComposer = memo(function AssistantComposer({
    */
   const asking = question != null
 
+  /*
+   * 未确认的那张表只用来画，不用来组装任何要发出去的东西。
+   *
+   * 它答的是「上一次是什么样」，而下面这几样都会变成命令的一部分：摊平的
+   * configuration 跟着 prompt 一起发出去，面板里的模式行会往草稿里写一格待提交的
+   * 配置，模式 chip 点一下就是一次 set_config。拿一份可能早就变了的表去组装它们，
+   * 等于让「这次也别问」押在一个旧值上。
+   */
+  const confirmed = toolbar.controlsPending === true ? [] : toolbar.controls
+
   /* agent 报的选择器与技能，摊平一次交给输入框。引用稳定，面板才不会每敲一字重建。 */
-  const configuration = useMemo(
-    () => activePromptConfiguration(toolbar.controls),
-    [toolbar.controls],
-  )
+  const configuration = useMemo(() => activePromptConfiguration(confirmed), [confirmed])
 
   const groups = useMemo(
     () =>
       composerPaletteGroups({
-        controls: toolbar.controls,
+        controls: confirmed,
         mcpServers: mcpServers ?? [],
         onSelectControl: toolbar.onSelectControl,
         skills: skills ?? [],
       }),
-    [mcpServers, skills, toolbar.controls, toolbar.onSelectControl],
+    [confirmed, mcpServers, skills, toolbar.onSelectControl],
   )
 
   return (
@@ -249,7 +274,12 @@ export const AssistantComposer = memo(function AssistantComposer({
               <PromptInputEditor placeholder={placeholder} />
             </PromptInputBody>
 
-            <ComposerToolbar onSubmit={onSubmit} status={status} {...toolbar} />
+            <ComposerToolbar
+              confirmed={confirmed}
+              onSubmit={onSubmit}
+              status={status}
+              {...toolbar}
+            />
           </>
         )}
       </PromptInput>

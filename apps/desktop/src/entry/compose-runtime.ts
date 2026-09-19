@@ -232,6 +232,7 @@ export function createApplicationRuntime(restored: string | null): ApplicationRu
     config: agent.sessionConfig,
     usage: agent.sessionUsage,
     posture: agent.permissionPosture,
+    controlsMemory: agent.controlsMemory,
     capabilities: agent.capabilities(),
     workspace: {
       read: workspaceRoots.readDefault,
