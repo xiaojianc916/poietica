@@ -2,7 +2,7 @@ import { Button } from '@poietica/design-system'
 import { ChevronLeft, ChevronRight, PanelLeft, Search } from 'lucide-react'
 import type { ReactNode } from 'react'
 import { WindowControls } from '../../window/window-controls'
-import { useWorkspaceLayoutState, useWorkspaceLayoutStore } from '../layout/layout-context'
+import { useWorkspaceLayoutStore, useWorkspaceLayoutValue } from '../layout/layout-context'
 import './title-bar.css'
 
 const CHROME_BUTTON_CLASS =
@@ -38,7 +38,7 @@ export function DesktopTitleBar({
 }: DesktopTitleBarProps) {
   const workspaceLayoutStore = useWorkspaceLayoutStore()
 
-  const { sidebarOpen } = useWorkspaceLayoutState()
+  const sidebarOpen = useWorkspaceLayoutValue((state) => state.sidebarOpen)
 
   return (
     <div className="flex h-full min-h-0 w-full min-w-0 items-stretch bg-chrome">

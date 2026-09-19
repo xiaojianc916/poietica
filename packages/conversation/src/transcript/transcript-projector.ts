@@ -324,11 +324,29 @@ function framesOf(
   return { items, userAnchors }
 }
 
+/*
+ * Turn 的投影按对象身份记账。上游 reducer 是结构共享的：一条 op 只换它碰到的
+ * 那一个 turn（`{ ...turn, steps }`），其余 turn 原样保留 —— 所以没变的 turn
+ * 直接复用上一次的投影，流式期间每条 delta 只重算正在变的那一个，而不是整本
+ * 对话。presentation 层的行身份（WeakMap<TimelineItem>）也依赖这份身份成立：
+ * 投影每次新建的话，全部行位的 memo 都会被击穿。
+ */
+const TURN_PROJECTIONS = new WeakMap<
+  TranscriptTurn,
+  { page: TurnPage; fact: TurnFact; span: TurnSpan }
+>()
+
 function projectTurn(turn: TranscriptTurn): {
   page: TurnPage
   fact: TurnFact
   span: TurnSpan
 } {
+  const cached = TURN_PROJECTIONS.get(turn)
+
+  if (cached !== undefined) {
+    return cached
+  }
+
   const stamp = at(turn.startedAt)
   const source = sourceOfTurn(turn)
   const hasInput = turn.prompt !== undefined || (turn.attachmentIds?.length ?? 0) > 0
@@ -361,14 +379,26 @@ function projectTurn(turn: TranscriptTurn): {
       message: turn.error,
     })
   }
-  return {
+  const projected = {
     page: { turn: turn.ordinal, items },
     fact: { opensWithAnchor: opening === 1, anchors },
     span: spanOf(turn, turn.ordinal),
   }
+  TURN_PROJECTIONS.set(turn, projected)
+
+  return projected
 }
 
 // :undo removes a suffix ending at a user anchor, not at an arbitrary run.
+
+/*
+ * 包裹页按基础页的身份记账。run 的三个字段由后缀推出：busy、锚点与后缀形状不变
+ * 时，历史段的 run 逐字段相同 —— 原样复用上一次的包裹页。TurnPage 的契约是
+ * 「封口之后不再改写，跨帧按引用共享」，presentation 层按页身份的段缓存
+ * （WeakMap<TurnPage>）依赖它成立；这里每次新建一个壳，那条缓存就永远不命中。
+ */
+const WRAPPED_PAGES = new WeakMap<TurnPage, TurnPage>()
+
 function runBoundariesOf(
   pages: readonly TurnPage[],
   facts: readonly TurnFact[],
@@ -396,13 +426,20 @@ function runBoundariesOf(
         ? '会话仍在运行或等待输入，暂不可分叉。'
         : (uncertainty ??
           (nextOpensWithAnchor ? null : '下一段不从用户撤销锚点开始，无法精确截到此处。'))
-    result[runIndex] = {
-      ...page,
-      run: {
-        settled,
-        undoCount: reason === null ? suffixAnchors : null,
-        forkUnavailableReason: reason,
-      },
+    const undoCount = reason === null ? suffixAnchors : null
+    const wrapped = WRAPPED_PAGES.get(page)
+    if (
+      wrapped !== undefined &&
+      wrapped.run !== undefined &&
+      wrapped.run.settled === settled &&
+      wrapped.run.undoCount === undoCount &&
+      wrapped.run.forkUnavailableReason === reason
+    ) {
+      result[runIndex] = wrapped
+    } else {
+      const fresh = { ...page, run: { settled, undoCount, forkUnavailableReason: reason } }
+      WRAPPED_PAGES.set(page, fresh)
+      result[runIndex] = fresh
     }
     if (fact.anchors === null) {
       uncertainty = '来源或撤销锚点信息不足，不能可靠计算分叉位置。'
@@ -451,24 +488,35 @@ export function projectTranscript(snapshot: AgentTranscriptSnapshot): TimelineSt
   }
 }
 
+/* 目录标记同样按 turn 身份记账：reply 那一格要 join 整轮的助手文本，长对话里
+   每条 delta 都重算一遍就是纯粹的分配 churn。turn 未变时标记原样复用。 */
+const TURN_MARKS = new WeakMap<TranscriptTurn, TurnMark>()
+
 export const outlineOf = (snapshot: AgentTranscriptSnapshot): readonly TurnMark[] =>
-  snapshot.items.flatMap((item) =>
-    item.kind === 'turn' && sourceOfTurn(item).isUser
-      ? [
-          {
-            turnId: item.turnId,
-            admissionId: item.triggerPromptId ?? item.turnId,
-            prompt: item.prompt ?? '',
-            reply:
-              item.steps
-                .flatMap((step) => step.frames)
-                .filter((frame) => frame.kind === 'text' && frame.role === 'assistant')
-                .map((frame) => frame.text)
-                .join('\n\n') || null,
-          },
-        ]
-      : [],
-  )
+  snapshot.items.flatMap((item) => {
+    if (item.kind !== 'turn' || !sourceOfTurn(item).isUser) {
+      return []
+    }
+
+    let mark = TURN_MARKS.get(item)
+
+    if (mark === undefined) {
+      mark = {
+        turnId: item.turnId,
+        admissionId: item.triggerPromptId ?? item.turnId,
+        prompt: item.prompt ?? '',
+        reply:
+          item.steps
+            .flatMap((step) => step.frames)
+            .filter((frame) => frame.kind === 'text' && frame.role === 'assistant')
+            .map((frame) => frame.text)
+            .join('\n\n') || null,
+      }
+      TURN_MARKS.set(item, mark)
+    }
+
+    return [mark]
+  })
 
 export function knownPromptIds(snapshot: AgentTranscriptSnapshot): ReadonlySet<string> {
   const result = new Set(snapshot.prompts.map((prompt) => prompt.promptId))

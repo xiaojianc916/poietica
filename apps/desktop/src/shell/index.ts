@@ -1,5 +1,5 @@
 export { CommandPalette, formatKeybinding, useCommandKeybindings } from './commands'
-export { useWorkspaceLayoutState, useWorkspaceLayoutStore } from './layout/layout-context'
+export { useWorkspaceLayoutStore } from './layout/layout-context'
 export { WorkspaceShell } from './layout/workspace-shell'
 export { SidebarFooter } from './sidebar/sidebar-footer'
 export { WorkspaceSidebar } from './sidebar/workspace-sidebar'

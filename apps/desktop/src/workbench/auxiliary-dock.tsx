@@ -26,7 +26,7 @@ import {
 } from 'lucide-react'
 import { lazy, type ReactNode, Suspense, useEffect, useMemo, useSyncExternalStore } from 'react'
 import { useConversationWorkspaceRoot } from '../assistant/threads-context'
-import { useWorkspaceLayoutState, useWorkspaceLayoutStore } from '../shell/layout/layout-context'
+import { useWorkspaceLayoutStore, useWorkspaceLayoutValue } from '../shell/layout/layout-context'
 import type { WorkbenchHost } from './runtime-contract'
 
 const PANE_ICONS: Readonly<Record<AuxiliaryLauncherKind, ReactNode>> = {
@@ -98,7 +98,16 @@ export function AuxiliaryDock({
   store,
   host,
 }: AuxiliaryDockProps) {
-  const layout = useWorkspaceLayoutState()
+  /*
+   * 视口指纹只认会挪动辅助面板的几何：侧栏开合与两列宽度（主列 1fr，侧栏一动
+   * 右栏跟着挪）。交互态与任务归属不挪面板，进指纹只会让对齐循环空转。
+   */
+  const layoutGeometry = useWorkspaceLayoutValue(
+    (state) =>
+      `${String(state.sidebarOpen)}:${state.sidebarWidth}:${state.auxiliaryWidth}:${String(state.auxiliaryFullscreen)}`,
+  )
+  const auxiliaryFullscreen = useWorkspaceLayoutValue((state) => state.auxiliaryFullscreen)
+  const layoutSignal = useMemo(() => ({ layoutGeometry }), [layoutGeometry])
   const layoutStore = useWorkspaceLayoutStore()
   const state = useSyncExternalStore(store.subscribe, store.getSnapshot, store.getSnapshot)
 
@@ -179,8 +188,8 @@ export function AuxiliaryDock({
 
   return (
     <AuxiliaryPanel
-      fullscreen={layout.auxiliaryFullscreen}
-      layoutSignal={layout}
+      fullscreen={auxiliaryFullscreen}
+      layoutSignal={layoutSignal}
       onToggleFullscreen={layoutStore.toggleAuxiliaryFullscreen}
       paneOffers={paneOffers}
       panes={panes}

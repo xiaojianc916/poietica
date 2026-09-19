@@ -13,3 +13,19 @@ export function useWorkspaceLayoutState(): WorkspaceLayoutState {
   const store = useWorkspaceLayoutStore()
   return useSyncExternalStore(store.subscribe, store.getSnapshot, store.getSnapshot)
 }
+
+/**
+ * 只订布局快照里的一格。
+ *
+ * 拖拽是 pointermove 频率的通报，全量订阅者（标题栏、工作台、右栏）会跟着每一帧
+ * 重渲染。选择器必须返回引用稳定的值 —— 原始值或快照里现成的引用；现场构造的
+ * 对象或数组每次都是新引用，等于没订。
+ */
+export function useWorkspaceLayoutValue<T>(selector: (state: WorkspaceLayoutState) => T): T {
+  const store = useWorkspaceLayoutStore()
+  return useSyncExternalStore(
+    store.subscribe,
+    () => selector(store.getSnapshot()),
+    () => selector(store.getSnapshot()),
+  )
+}

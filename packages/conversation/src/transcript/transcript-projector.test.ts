@@ -94,6 +94,24 @@ function repliesOf(snapshot: AgentTranscriptSnapshot) {
   )
 }
 
+describe('projection identity across deltas', () => {
+  test('unchanged turns keep their page and outline identity while one turn streams', () => {
+    /* 上游 reducer 是结构共享的：一条 delta 只换它碰到的那一个 turn。投影对没变
+     * 的 turn 必须复用身份 —— 行 memo 与 presentation 段缓存都吃这份引用。 */
+    const settled = runSample(1)
+    const streaming = runSample(2, { kind: 'user' }, undefined, 'running')
+    const before = projectTranscript(snapshotOf([settled, streaming]))
+
+    const advanced: TranscriptTurn = { ...streaming }
+    const after = projectTranscript(snapshotOf([settled, advanced]))
+
+    expect(after.sealed[0]).toBe(before.sealed[0])
+    expect(after.sealed[0]?.items).toBe(before.sealed[0]?.items)
+    expect(after.active).not.toBe(before.active)
+    expect(outlineOf(snapshotOf([settled, advanced]))[0]).toBe(outlineOf(snapshotOf([settled]))[0])
+  })
+})
+
 describe('run origin, completion and undo boundaries', () => {
   test('a non-user run has no input row and still carries its seal', () => {
     const origins: TranscriptTurn['origin'][] = [

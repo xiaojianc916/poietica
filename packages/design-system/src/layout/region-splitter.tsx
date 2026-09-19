@@ -81,6 +81,16 @@ export function RegionSplitter({
       current.element.releasePointerCapture(current.pointerId)
     }
 
+    /*
+     * 焦点留在条上（方向键微调还靠它），但可见性交还给键盘：指针拖拽留下的焦点
+     * 会被 focus-visible 启发式从上一位键盘焦点继承成可见，抓手因此常亮到下一
+     * 次点击才灭。显式声明这次焦点不可见；一旦真的按键，启发式自然翻回可见。
+     * 焦点已归别处（捕获被夺走）时不抢回。
+     */
+    if (document.activeElement === current.element) {
+      current.element.focus({ focusVisible: false })
+    }
+
     onResize(finalWidth)
     onActivity(activity)
   }

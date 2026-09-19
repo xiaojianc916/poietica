@@ -41,14 +41,8 @@ import {
 import { useThreadsActions } from '../assistant/threads-context'
 import { type ActiveTabSequence, DesktopTitleBar } from '../shell/chrome/title-bar'
 import { TOGGLE_COMMAND_PALETTE_COMMAND_ID, tabNeighbors } from '../shell/commands/app-commands'
-import {
-  SidebarFooter,
-  SurfaceHost,
-  useWorkspaceLayoutState,
-  WorkspaceShell,
-  WorkspaceSidebar,
-} from '../shell/index'
-import { useWorkspaceLayoutStore } from '../shell/layout/layout-context'
+import { SidebarFooter, SurfaceHost, WorkspaceShell, WorkspaceSidebar } from '../shell/index'
+import { useWorkspaceLayoutStore, useWorkspaceLayoutValue } from '../shell/layout/layout-context'
 import type { WorkspaceParts, WorkspaceShellActions } from '../shell/layout/shell-contract'
 import { AuxiliaryDock } from './auxiliary-dock'
 import type { WorkbenchHost } from './runtime-contract'
@@ -236,20 +230,22 @@ export function DesktopWorkspace({
 
   /* Toolkit scope belongs to the active workspace identity, not to whichever child mounted last. */
 
-  const { auxiliaryThread, todoThread } = useWorkspaceLayoutState()
-  const workspaceLayoutStore = useWorkspaceLayoutStore()
-
-  const auxiliaryState = useSyncExternalStore(
+  /* 只订用得着的那几格：拖宽是 pointermove 频率的通报，全量订阅会把整棵
+   * 工作台树（含对话时间线）拖进每一帧的重渲染。 */
+  const auxiliaryThread = useWorkspaceLayoutValue((state) => state.auxiliaryThread)
+  const todoThread = useWorkspaceLayoutValue((state) => state.todoThread)
+  const auxiliaryPanes = useSyncExternalStore(
     auxiliaryPanel.subscribe,
-    auxiliaryPanel.getSnapshot,
-    auxiliaryPanel.getSnapshot,
+    () => auxiliaryPanel.getSnapshot().panes,
+    () => auxiliaryPanel.getSnapshot().panes,
   )
+  const workspaceLayoutStore = useWorkspaceLayoutStore()
 
   const auxiliary = auxiliaryBinding({
     activeConversationId,
     auxiliaryThread,
     isSettingsOpen,
-    panes: auxiliaryState.panes,
+    panes: auxiliaryPanes,
   })
 
   const activeNavigationId =
