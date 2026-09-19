@@ -707,6 +707,51 @@ export async function runFrameWireStaysTyped(root: string): Promise<Violation[]>
   return violations
 }
 
+/** 契约包的转发层只许转发。
+ *
+ * 领域包经这些子路径拿到自己那一片线上类型，而不是整张生成面 —— 那是
+ * transport-contract-is-adapter-private 的执行机构，所以文件本身必须保持透明：
+ * 一旦能在这里声明新形状或引入运行时值，跨进程契约就有了第二个产地。
+ */
+export async function contractShimsStayGenerated(root: string): Promise<Violation[]> {
+  const directory = 'packages/contract/src'
+  const violations: Violation[] = []
+  const forbidden = /^export\s+(interface|const|function|class|enum|let|var)\b/
+
+  for (const entry of await readdir(path.join(root, directory), { withFileTypes: true })) {
+    if (!entry.isFile() || !entry.name.endsWith('.ts')) {
+      continue
+    }
+
+    const file = `${directory}/${entry.name}`
+    const source = await readFile(path.join(root, file), 'utf8')
+
+    for (const line of source.split('\n')) {
+      const trimmed = line.trim()
+
+      if (forbidden.test(trimmed)) {
+        violations.push({
+          policy: 'contract-shims-stay-generated',
+          where: file,
+          detail: `转发层声明了新形状：${trimmed}`,
+        })
+        continue
+      }
+
+      /* 值导入会把这层变成可执行代码；契约包只转发类型。 */
+      if (/^import\s+\{/.test(trimmed)) {
+        violations.push({
+          policy: 'contract-shims-stay-generated',
+          where: file,
+          detail: `转发层引入了运行时值：${trimmed}`,
+        })
+      }
+    }
+  }
+
+  return violations
+}
+
 /** Review watcher 必须是有所有者的订阅，不得以超时命令伪装推送。 */
 export async function reviewWatcherHasLease(root: string): Promise<Violation[]> {
   const probes = [

@@ -99,6 +99,7 @@ const violations: Violation[] = [
   ...(await charter.designSystemOwnsItsTokens(ROOT)),
   ...(await charter.windowSurfaceIsNamedOnce(ROOT)),
   ...(await charter.noWildcardReExports(ROOT)),
+  ...(await charter.contractShimsStayGenerated(ROOT)),
   ...(await charter.documentedScriptsExist(ROOT)),
   ...(await charter.documentedPackagesExist(ROOT, workspaces)),
   ...charter.workspaceNamesFollowTheirDirectory(workspaces),
