@@ -46,6 +46,9 @@ function isPointerOver(element: HTMLHRElement, point: { x: number; y: number }):
  * 指针捕获交给平台：setPointerCapture 之后 move / up / cancel 都派发到条本身，
  * 越过邻区或离开窗口也不丢，因此不需要 document 上的全局监听。
  * 交互态经 onActivity 交回调用方 —— 条不认识任何 store。
+ *
+ * 焦点不抢：按下时平台自己把焦点落到条上（见 onPointerDown 的注释），Esc 与方向键
+ * 微调因此照旧可用。
  */
 export function RegionSplitter({
   label,
@@ -79,16 +82,6 @@ export function RegionSplitter({
     /* lostpointercapture 时捕获已释放，此时 release 会抛 NotFoundError。 */
     if (current.element.hasPointerCapture(current.pointerId)) {
       current.element.releasePointerCapture(current.pointerId)
-    }
-
-    /*
-     * 焦点留在条上（方向键微调还靠它），但可见性交还给键盘：指针拖拽留下的焦点
-     * 会被 focus-visible 启发式从上一位键盘焦点继承成可见，抓手因此常亮到下一
-     * 次点击才灭。显式声明这次焦点不可见；一旦真的按键，启发式自然翻回可见。
-     * 焦点已归别处（捕获被夺走）时不抢回。
-     */
-    if (document.activeElement === current.element) {
-      current.element.focus({ focusVisible: false })
     }
 
     onResize(finalWidth)
@@ -216,7 +209,13 @@ export function RegionSplitter({
           return
         }
 
-        event.preventDefault()
+        /*
+         * 只拦冒泡，不 preventDefault、不 focus()：焦点与划选都交回平台。
+         *
+         * 脚本 focus() 会被 :focus-visible 启发式算成「键盘来的」——上一次交互是键盘时
+         * 抓手就常亮到下一次点击（workspace-shell.css 的 :has 那条读的正是它）。平台按
+         * 鼠标归类这次焦点，松手即灭；焦点照样落在条上，Esc 与方向键微调不受影响。
+         */
         event.stopPropagation()
 
         const element = event.currentTarget
@@ -231,9 +230,6 @@ export function RegionSplitter({
 
         onActivity('drag')
         element.setPointerCapture(event.pointerId)
-
-        /* 取得焦点后，拖拽中的 Esc 与拖拽后的方向键微调才能落到条上。 */
-        element.focus()
       }}
       onPointerEnter={() => {
         if (session.current === null) {
