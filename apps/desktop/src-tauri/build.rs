@@ -1,8 +1,4 @@
 //! Bundles the element picker runtime for the browser panel.
-//!
-//! A build script's only way to fail the build is to abort its own process;
-//! panics here run on the developer's machine during compilation and never in
-//! the shipped app.
 #![allow(
     clippy::expect_used,
     clippy::panic,
@@ -13,12 +9,9 @@ use std::env;
 use std::path::PathBuf;
 use std::process::Command;
 
-/// Locate the bun executable.
-///
-/// On Windows, a bun installed via npm exposes only a `bun.cmd` shim on PATH;
-/// the real `bun.exe` lives under `<npm-prefix>/node_modules/bun/bin/`. Rust's
-/// [`Command`] does not resolve `.cmd`/`.bat` shims, so we search the common
-/// install locations before falling back to plain `"bun"`.
+/// Locates the bun executable. npm's Windows install only exposes a `bun.cmd`
+/// shim, which [`Command`] does not resolve, so search the common install
+/// locations for `bun.exe` before falling back to plain `"bun"`.
 fn find_bun() -> PathBuf {
     if let Some(bun) = env::var_os("BUN") {
         return PathBuf::from(bun);

@@ -15,9 +15,8 @@ pub struct ConfigSelection {
 /// Writes the selections a prompt carries and returns the one authoritative
 /// table.
 ///
-/// 「要不要写」不在这一层判：同一个问题 driver 的 set_selector 已经答过，而它
-/// 多认一样东西 —— 入参。目标开着时提交的那句话是新的 objective，在这里按
-/// 「值没变」挡掉，它就没了。
+/// 「要不要写」不在这一层判：set_selector 已答过，而它多认一样东西 —— 入参。
+/// 目标开着时提交的那句话是新的 objective，在这里按「值没变」挡掉它就没了。
 pub async fn apply_configurations(
     client: &AgentClient,
     session_id: String,
@@ -50,10 +49,9 @@ pub async fn apply_configurations(
 /// Changes one session control. The answer is the table the agent reports for
 /// that write.
 ///
-/// 收敛不由这一侧轮询判定：改一项可能增删另一项，而「改完之后是什么样」只有 agent
-/// 说得算 —— 它会把收敛后的那张表自己推过来（配置更新推送，见
-/// packages/conversation/src/agent/config.ts）。本地再立一个截止时间，等于给同一个
-/// 事实设第二个权威，而那个权威只会更早、更容易说错。
+/// 收敛不由这一侧轮询判定：「改完之后是什么样」只有 agent 说得算，它会把收敛
+/// 后的表自己推过来（packages/conversation/src/agent/config.ts）。本地再立一个
+/// 截止时间就是第二个权威，只会更早、更容易说错。
 pub async fn select_config(
     client: &AgentClient,
     session_id: String,
@@ -103,8 +101,8 @@ mod tests {
         }
     }
 
-    /// 每一项都原样交给写入侧，入参跟着走：目标开着时提交的那句话是新的
-    /// objective，不能在这一层被「值没变」挡掉。
+    /// 入参要原样跟到写入侧：目标开着时提交的那句话是新的 objective，不能被
+    /// 「值没变」挡掉。
     #[tokio::test]
     async fn a_selection_carries_its_input_to_the_writer() {
         let (commands, mut received) = futures::channel::mpsc::unbounded();

@@ -1,7 +1,6 @@
-//! 审批与提问的对账：WS 之外还要拉清单、送答案，这些动作各自成任务。
-//!
-//! 一条会话一个对账任务；WS 循环只投递意图（Poll / RefreshQuestions / Reset /
-//! QuestionRequested），REST 调用、桌面等待与帧记账都在这个后台任务里完成。
+//! 审批与提问的对账：一条会话一个后台任务，WS 循环只投递意图（Poll /
+//! RefreshQuestions / Reset / QuestionRequested），REST 调用、桌面等待与帧记账
+//! 都在这个任务里完成。
 
 use std::collections::HashSet;
 
@@ -176,10 +175,8 @@ impl Drop for ReconcileOwner {
     }
 }
 
-/// agent 报它卡在审批上时，把这条会话挂着的审批逐个请上桌。
-///
-/// status=pending 是必填 query（rest-approval.ts 的
-/// listPendingApprovalsQuerySchema），不带它服务器回 40001。
+/// agent 报它卡在审批上时，把这条会话挂着的审批逐个请上桌。status=pending 是
+/// 必填 query（rest-approval.ts 的 listPendingApprovalsQuerySchema），缺了回 40001。
 async fn fetch_and_record_approvals(
     http: &reqwest::Client,
     base_url: &str,
@@ -217,8 +214,7 @@ async fn fetch_and_record_approvals(
             continue;
         };
 
-        // 重连对账会把还挂着的审批再报一次：桌上已经有了的不记第二帧、不等第二
-        // 份答案。
+        // 重连对账会重复上报：桌上已有的审批不记第二帧、不等第二份答案。
         if pending.contains(&approval_id) {
             continue;
         }
@@ -248,8 +244,8 @@ async fn fetch_and_record_approvals(
         let book2 = book.clone();
 
         tasks.spawn(async move {
-            // 发送端被丢掉只有一种情形：这一轮已经结束了（turn.ended 把它从桌上
-            // 放掉了）。那时这不再是我们该回答的问题 —— 什么都不发。
+            // 发送端被丢掉只有一种情形：这一轮已结束（turn.ended 把它从桌上放掉），
+            // 这不再是该回答的问题 —— 什么都不发。
             let Ok(response) = answer_rx.await else {
                 return;
             };
@@ -283,22 +279,12 @@ async fn fetch_and_record_approvals(
     }
 }
 
-/// 撤下成功时信封里的 code。
-///
-/// 官方用一个非零码宣告成功：撤下这一路回的是
-/// { code: QUESTION_DISMISSED, data: { dismissed: true, dismissed_at } }
-/// （routes/questions.ts 的 dismiss 分支；error-codes.ts 里它是 40909）。不按码
-/// 判，每一次成功的撤下都会被记成一次失败。
+/// 撤下成功的信封码：官方用非零码宣告成功（routes/questions.ts 的 dismiss 分支，
+/// error-codes.ts 里它是 40909）。不按码判，每次成功撤下都会被记成一次失败。
 const QUESTION_DISMISSED: i64 = 40909;
 
-/// 把一组题的收场送回 kap。
-///
-/// 两个动作同一条路由，靠动作后缀分路：POST …/questions/{id} 是回答，
-/// POST …/questions/{id}:dismiss 是撤下（routes/questions.ts 的 parseActionSuffix：
-/// allowedActions 只有 dismiss，默认 resolve）。
-///
-/// 错误不带 KapError 出来 —— 这里只有一个调用者，它要的就是一句能写进日志与帧
-/// 的话。
+/// 把一组题的收场送回 kap：同一条路由靠动作后缀分路（routes/questions.ts 的
+/// parseActionSuffix，默认 resolve、:dismiss 撤下）。错误只回一句话，供日志与帧。
 async fn settle_question(
     http: &reqwest::Client,
     base_url: &str,
@@ -371,8 +357,7 @@ fn record_question_request(
         return;
     };
 
-    // 重连对账会把还挂着的题组再报一次：桌上已经有了的不记第二帧、不等第二
-    // 份答案。
+    // 同审批：重连对账会重复上报，桌上已有的题组不重记、不等第二份答案。
     if pending.contains(&group.question_id) {
         return;
     }
@@ -393,8 +378,7 @@ fn record_question_request(
     let book2 = book.clone();
 
     tasks.spawn(async move {
-        // 发送端被丢掉只有一种情形：这一轮已经结束了（turn.ended 把它从桌上
-        // 放掉了）。那时这不再是我们该回答的问题 —— 什么都不发。
+        // 同审批：发送端被丢掉＝这一轮已结束，不再回答。
         let Ok(outcome) = answer_rx.await else {
             return;
         };

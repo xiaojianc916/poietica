@@ -15,16 +15,9 @@ pub struct SessionCursor {
 }
 
 impl AgentStore {
-    /// 记下这条会话读到哪儿了。
-    ///
-    /// 同一纪元只前进：乱序到达的一帧不该把读点拉回去。纪元一换就整格重置 ——
-    /// 新纪元的 seq 与旧纪元的 seq 不在同一条流上（contracts/kap/asyncapi.json
-    /// components/messages/resync_required：epoch_changed 是 reason 枚举的
-    /// 三种断流原因之一）。
-    ///
-    /// # Errors
-    ///
-    /// 语句被拒时返回错误。
+    /// 记下这条会话读到哪儿了。同一纪元只前进（乱序到达的一帧不把读点拉回去）；
+    /// 纪元一换就整格重置 —— 新旧纪元的 seq 不在同一条流上（contracts/kap/
+    /// asyncapi.json components/messages/resync_required 的 epoch_changed）。
     pub fn remember_cursor(&self, session: &str, cursor: &SessionCursor) -> Result<()> {
         self.write(
             "INSERT INTO session_cursors (session_id, seq, epoch, at)
@@ -38,10 +31,6 @@ impl AgentStore {
     }
 
     /// 这条会话上一次读到哪儿了；没读过就是空。
-    ///
-    /// # Errors
-    ///
-    /// 查询被拒时返回错误。
     pub fn cursor_of(&self, session: &str) -> Result<Option<SessionCursor>> {
         let mut statement = self
             .connection
@@ -61,10 +50,6 @@ impl AgentStore {
     }
 
     /// 忘掉这条会话的读点：kap 说那一段流断了，从它接不下去。
-    ///
-    /// # Errors
-    ///
-    /// 删除被拒时返回错误。
     pub fn forget_cursor(&self, session: &str) -> Result<()> {
         self.write(
             "DELETE FROM session_cursors WHERE session_id = ?1",

@@ -1,10 +1,8 @@
 //! 这个应用暴露给渲染层的那一张 IPC 面。
 //!
-//! 清单只有一份，就在下面的 `surface`。它同时是两件事的产地：运行期交给 Tauri 的
-//! `invoke_handler`，以及构建期导出的 TypeScript 绑定。
-//!
-//! 一份清单两用是 tauri-specta 的范式：手抄第二份没有东西校验它，漏抄不报错，
-//! 只会安静地少一条绑定。
+//! 清单只有一份，就在下面的 `surface`：它同时是运行期交给 Tauri 的 `invoke_handler`
+//! 与构建期导出的 TypeScript 绑定的产地（tauri-specta 的范式）。手抄第二份没有东西
+//! 校验它，漏抄不报错，只会安静地少一条绑定。
 
 pub(crate) mod export_bindings;
 pub(crate) mod problem;
@@ -62,9 +60,7 @@ use crate::{
     workspace::environment::EnvironmentFile,
 };
 
-/// 这个应用的全部 IPC 命令与 DTO。
-///
-/// Rust 侧的类型是权威，渲染层不得重新声明原生 DTO。
+/// 这个应用的全部 IPC 命令与 DTO。Rust 侧的类型是权威，渲染层不得重新声明原生 DTO。
 #[must_use]
 pub(crate) fn surface() -> Builder<Wry> {
     Builder::<Wry>::new()

@@ -1,23 +1,14 @@
-//! 会话处置账：本地已经不认、agent 侧还留着的那些会话。
-//!
-//! agent 那一份不随本地行一起消失：送达一句 session/delete 要一条活着的、
-//! 主人对得上的、声明过能力的连接，而删除发生的那一刻常常凑不齐三样 ——
-//! 离线删除、换号、锚会话退役、幽灵行收割，全是同一件事。这张表记的就是
-//! 欠下的那句话：一行一笔账，下一次对上这个 agent 的连接握手后冲销
-//! （conversation-runtime 的 disposal.rs）。
+//! 会话处置账：本地已经不认、agent 侧还留着的会话。送达一句 session/delete 要
+//! 一条活着、主人对得上、声明过能力的连接，删除发生的那一刻常常凑不齐 —— 这张
+//! 表记下欠的那句话，下一次对上这个 agent 的连接握手后冲销（conversation-runtime
+//! 的 disposal.rs）。
 
 use crate::error::Result;
 use crate::index::store::AgentStore;
 
 impl AgentStore {
-    /// 记一笔待送达的 session/delete。
-    ///
-    /// 同一个号记两次是同一笔账：换号与收割可能先后碰到同一条会话，第二次
-    /// 落账不该是错误。
-    ///
-    /// # Errors
-    ///
-    /// Fails when the insert is rejected.
+    /// 记一笔待送达的 session/delete。同一个号记两次是同一笔账（换号与收割可能
+    /// 先后碰到同一条会话），第二次落账不是错误。
     pub fn record_session_disposal(&self, session_id: &str, agent_id: &str) -> Result<()> {
         self.write(
             "INSERT INTO session_disposals (session_id, agent_id, noted_at)
@@ -40,10 +31,6 @@ impl AgentStore {
     }
 
     /// 这个 agent 名下未销的账，按落账先后。
-    ///
-    /// # Errors
-    ///
-    /// Fails when the query is rejected.
     pub fn session_disposals(&self, agent_id: &str) -> Result<Vec<String>> {
         let mut statement = self.connection.prepare_cached(
             "SELECT session_id FROM session_disposals WHERE agent_id = ?1 ORDER BY noted_at",

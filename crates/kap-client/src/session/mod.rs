@@ -1,7 +1,5 @@
-//! 一条连接说得出口的名词。
-//!
-//! 怎么起进程（process/）、怎么走链路（connection/）、怎么跑一轮（本目录的
-//! driver/client/router）各在自己的模块；这里只有那几个两边都要认识的类型。
+//! 一条连接说得出口的名词：两边都要认识的类型。起进程（process/）、走链路
+//! （connection/）、跑一轮（本目录 driver/client/router）各归各的模块。
 
 pub(crate) mod book;
 pub(crate) mod client;
@@ -34,13 +32,9 @@ use crate::process::profile::ProcessEnvironment;
 /// How the agent process is started.
 #[derive(Clone, Debug)]
 pub struct AgentSpawn {
-    /// 可执行文件名或路径，不含参数，也不经过 shell。
-    ///
-    /// 进程只是宿主：协议在 loopback 的 HTTP + WebSocket 上说，它的标准错误流
-    /// 只用于日志。
-    ///
-    /// 名字与参数分开存，因为拼成一行再切回来是有损的：POSIX 词法会把 Windows
-    /// 路径里的反斜杠当成转义符吃掉，带空格的路径会被切断。Zed 的
+    /// 可执行文件名或路径，不经过 shell。进程只是宿主：协议在 loopback 的
+    /// HTTP + WebSocket 上说，stderr 只用于日志。名字与参数分开存 —— 拼成一行
+    /// 再切回来有损（POSIX 词法会吃掉 Windows 路径的反斜杠）；Zed 的
     /// `AgentServerCommand` 同样是 path/args/env 三元组。
     pub program: String,
     /// 传给它的参数，逐个原样递给进程，不做任何引号或转义处理。
@@ -49,23 +43,18 @@ pub struct AgentSpawn {
     pub cwd: PathBuf,
     /// Environment variables the child process is started with.
     ///
-    /// 只放非密文的启动变量，受控 home 的路径就是其一。密钥不走这里：模式 B
-    /// 下它们由 agent 自己的 CLI 写进那个 home 里的配置文件。也不走参数 ——
-    /// Windows 上任何用户都读得到别的进程的完整命令行。
+    /// 只放非密文变量。密钥不走这里（由 agent 自己的 CLI 写进受控 home 的配置），
+    /// 也不走参数 —— Windows 上任何用户都读得到别的进程的完整命令行。
     pub env: ProcessEnvironment,
-    /// 这家 agent 读写的那个家：实例注册表与 server.token 都在它下面。
-    ///
-    /// 由组合层算 —— 档案与受控 home 都归它。传输层不认识任何一家 agent 的
-    /// 环境变量名。
+    /// 这家 agent 读写的家：实例注册表与 server.token 都在它下面。由组合层算，
+    /// 传输层不认识任何一家 agent 的环境变量名。
     pub home: PathBuf,
 }
 
-/// agent 主动报的一件会话级状态。
-///
-/// 它不属于任何一轮：到达的时刻多半没有轮次在飞（导入配置、终端 CLI、热重载、
-/// 答复落定之后补报的用量），而轮外的运行帧按规矩丢弃 —— 所以它有自己的路。
-/// 会话号是它唯一带得出的地址；载荷恒为整份，到达即替换，重报无害。载荷的形状
-/// 由这个 enum 定死：字段名拼错是编译错误，不是界面上一格空白。
+/// agent 主动报的一件会话级状态，不属于任何一轮：到达时刻多半没有轮次在飞，
+/// 而轮外的运行帧按规矩丢弃 —— 所以它有自己的路。会话号是它唯一带得出的地址，
+/// 载荷恒为整份、到达即替换。载荷的形状由这个 enum 定死：字段名拼错是编译
+/// 错误，不是界面上一格空白。
 #[derive(Debug, Clone)]
 pub enum SessionEvent {
     /// 这条会话现在的整张选择器表，以及目标模式此刻的事实。
@@ -99,9 +88,8 @@ pub enum SessionEvent {
     Link(poietica_conversation::link::LinkState),
 }
 
-/// 一条会话此刻的上下文读数，与它累计的输入构成。
-///
-/// kap 的 agent.status.updated 报的是仪表值：到达即替换，不是增量。
+/// 一条会话此刻的上下文读数，与它累计的输入构成。kap 的 agent.status.updated
+/// 报的是仪表值：到达即替换，不是增量。
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct SessionUsageSnapshot {
     /// 已占用的 token 数（contextTokens）。
@@ -116,11 +104,9 @@ pub struct SessionUsageSnapshot {
     pub input_cache_creation: u64,
 }
 
-/// kap 的事件流上，一条会话已经被读到的位置。
-///
-/// 位置由 server 签发（信封上的 seq，跨守护进程重启有效），纪元说明它属于哪一段
-/// 流：重新订阅时把这两样原样报回去，server 才知道从哪一帧接着发（契约快照
-/// contracts/kap/asyncapi.json 的 subscribe 载荷）。
+/// kap 的事件流上，一条会话已经被读到的位置。位置由 server 签发（信封 seq，跨
+/// 守护进程重启有效），纪元标记流段；重新订阅原样报回去，server 才知道从哪帧
+/// 接着发（contracts/kap/asyncapi.json 的 subscribe 载荷）。
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct Cursor {
     /// 信封上的 seq。
@@ -129,10 +115,8 @@ pub struct Cursor {
     pub epoch: Option<String>,
 }
 
-/// 一条连接上的会话级状态流，接收端。
-///
-/// 组合根把它排干到界面事件；通道在驱动器退出时合上，那就是排空任务的终点。
-/// 通道类型包在这里，不把某一个执行器生态的类型名泄进公共字段。
+/// 一条连接上的会话级状态流，接收端；组合根把它排干到界面事件，通道在驱动器
+/// 退出时合上。通道类型包在这里，不把某一个执行器生态的类型名泄进公共字段。
 pub struct SessionEvents(mpsc::UnboundedReceiver<SessionEvent>);
 
 impl SessionEvents {
@@ -160,21 +144,15 @@ pub struct AgentConnection {
     pub stop: tokio_util::sync::CancellationToken,
     /// Sends prompts, cancellation and shutdown to the connection.
     pub client: AgentClient,
-    /// The sessions of this connection, keyed by the name the agent gave
-    /// them.
-    ///
-    /// Held by the caller so a session opened later is entered in the same
-    /// book the protocol handlers already read from.
+    /// The sessions of this connection, keyed by the name the agent gave them.
+    /// Held by the caller so a session opened later enters the same book the
+    /// protocol handlers already read from.
     pub book: SessionBook,
-    /// agent 主动报的会话级状态，往界面去的那条路。
-    ///
-    /// 与运行帧分开：帧过了轮次就不录，而这些事多半发生在轮外。判别式在载荷
-    /// 里 —— 与运行帧同走一条通道是同一条规矩。
+    /// agent 主动报的会话级状态，往界面去的那条路。与运行帧分开：帧过了轮次
+    /// 就不录，而这些事多半发生在轮外。
     pub events: SessionEvents,
-    /// 握手谈成之后才知道的那几件事，或者握手为什么没成。
-    ///
-    /// 失败带着原因回来：「要求先登录」「进程崩了」「版本谈不拢」是三件事，
-    /// 屏幕上不该都变成同一句「应用操作失败」。
+    /// 握手谈成之后才知道的那几件事，或者握手为什么没成：失败带原因回来，
+    /// 「要求先登录」「进程崩了」「版本谈不拢」不该都变成同一句「应用操作失败」。
     pub handshake: oneshot::Receiver<Result<Handshake>>,
     /// Must be spawned — in a tokio runtime: the driver uses tokio process/fs/
     /// time and select!, so polling it outside a reactor panics. The connection
@@ -191,11 +169,8 @@ impl fmt::Debug for AgentConnection {
     }
 }
 
-/// 握手谈成之后才知道的事。
-///
-/// kap 不谈 per-session 能力：协议能力只在 server_hello.capabilities，而装载、
-/// 归档、分叉、中止是 kap-server 路由面自带的，每条会话一律收得下。所以这一刻
-/// 只有一件事要报 —— 这条连接自带的那个会话叫什么。
+/// 握手谈成之后才知道的事。kap 不谈 per-session 能力（能力只在
+/// server_hello.capabilities，装载/归档/分叉/中止是路由面自带），这里只报锚会话名。
 #[derive(Debug, Clone)]
 pub struct Handshake {
     /// 这条连接自带的那个会话的名字。
@@ -248,10 +223,9 @@ pub struct McpServer {
     pub last_error: Option<String>,
 }
 
-/// kap 报的一条技能（protocol/skill.ts 的 skillDescriptorSchema）。
-///
-/// 可否激活不在这里判：官方在服务端用 isUserActivatableSkillType 拦，拒绝理由
-/// 由它回。多一格本地判据就是多一份会分叉的事实。
+/// kap 报的一条技能（protocol/skill.ts 的 skillDescriptorSchema）。可否激活不
+/// 在这里判：官方在服务端用 isUserActivatableSkillType 拦，多一格本地判据就是
+/// 多一份会分叉的事实。
 #[derive(Debug, Clone)]
 pub struct Skill {
     pub name: String,
@@ -266,19 +240,14 @@ pub struct Skill {
 /// A session the agent just opened, and the selectors it offers for it.
 #[derive(Debug, Clone)]
 pub struct OpenedSession {
-    /// The name every frame of this session will carry.
     pub session_id: String,
-    /// What may be chosen for this session, as the agent reported it.
     pub selectors: Vec<ConfigControl>,
 }
 
 /// One line of the agent's own session list.
 #[derive(Debug, Clone)]
 pub struct SessionEntry {
-    /// The session this line describes.
     pub session_id: String,
-    /// The title the agent gave it, if it has given one.
     pub title: Option<String>,
-    /// When the agent last saw activity on it, as it reported it.
     pub updated_at: Option<String>,
 }

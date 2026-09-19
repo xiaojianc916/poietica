@@ -196,7 +196,6 @@ impl From<GitCommitIntent> for poietica_git_adapter_native::CommitIntent {
         }
     }
 }
-/// 一次提交动作的全部输入。
 #[derive(Clone, Debug, Deserialize, Type)]
 #[serde(rename_all = "camelCase")]
 pub struct GitCommitRequest {

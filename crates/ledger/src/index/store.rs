@@ -1,8 +1,5 @@
-//! The store itself.
-//!
-//! Opening the file is all this module does. What can be asked of it lives
-//! next to the thing being asked about: each domain module extends this same
-//! type with the questions of its own domain.
+//! The store itself: opening the file is all this module does. Domain questions
+//! live next to their domain — each module extends this same type.
 
 use std::path::Path;
 
@@ -13,10 +10,8 @@ use poietica_time::WallClock;
 
 use crate::error::Result;
 
-/// Owns one database connection.
-///
-/// LocalIndex gives the writable instance to one writer actor and opens a
-/// separate query-only instance for reads. Ordering therefore has one owner
+/// Owns one database connection. The writable instance goes to one writer actor
+/// and reads use a separate query-only instance, so ordering has a single owner
 /// without cancelling WAL reader/writer concurrency.
 #[derive(Debug)]
 pub struct AgentStore {
@@ -25,14 +20,8 @@ pub struct AgentStore {
 }
 
 impl AgentStore {
-    /// Opens the store.
-    ///
-    /// 调用的是 `crate::connection::open` 的全名而不是 import 进来：这个类型
-    /// 自己的方法也叫 open，写全了就没有人需要在脑子里做一次消歧。
-    ///
-    /// # Errors
-    ///
-    /// Fails when the file cannot be opened or a migration is rejected.
+    /// Opens the store. `crate::connection::open` 写全名而非 import：本类型的
+    /// 方法也叫 open，写全了读的人不用做消歧。
     pub fn open(path: &Path, clock: impl WallClock + 'static) -> Result<Self> {
         let mut connection = crate::connection::open(path)?;
 
@@ -61,25 +50,14 @@ impl AgentStore {
         self.clock.as_ref()
     }
 
-    /// 一段写事务。同一拍的多条写共用一次提交；调用方负责 commit。
-    ///
-    /// unchecked：可写连接只归 writer actor，调用在该 actor 上串行执行。
-    ///
-    /// # Errors
-    ///
-    /// 语句被拒时返回错误。
+    /// 一段写事务：同一拍的多条写共用一次提交，调用方负责 commit。用 unchecked
+    /// 是因为可写连接只归 writer actor，调用在其上串行执行。
     pub(crate) fn unchecked_transaction(&self) -> Result<Transaction<'_>> {
         Ok(self.connection.unchecked_transaction()?)
     }
 
-    /// 一条写语句，走和读一样的那个语句缓存。
-    ///
-    /// 人的动作触发的单条写走这里；同一拍到达的一批写自己开事务
-    /// （journal 的批量追加）。
-    ///
-    /// # Errors
-    ///
-    /// 语句被拒时返回错误。
+    /// 一条写语句，走和读一样的语句缓存。单条写走这里；同一拍的一批写自己开
+    /// 事务（journal 的批量追加）。
     pub(crate) fn write(&self, sql: &str, params: &[&dyn ToSql]) -> Result<()> {
         self.connection.prepare_cached(sql)?.execute(params)?;
 

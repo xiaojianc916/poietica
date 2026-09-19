@@ -1,15 +1,9 @@
 //! agent 运行时的安装与更新。
 //!
-//! 这不是 `agent_cli_exec` 的放宽版，也永远不该并进去。那条管线的白名单说的是
-//! 「provider 子命令」；把一次全局安装塞进那张表，等于把一个受控入口改成通用执行
-//! 入口。这里是第二条同样封闭的管线：包名由 agents.json 的档案声明，程序只可能是
-//! bun、pnpm、npm 三者之一，渲染层能说的只有「装哪个 agent」。
-//!
-//! 归属判定、最新版查询与安装执行住在 `poietica-kap-client` 的 process/install.rs
-//! —— 那里的判据有自己的单测；这里只剩两样宿主的事：agents.json 里那份 24 小时
-//! 的检测缓存，与「档案 → crate 调用」的编排。检测结果不轮询 —— 这是 npm
-//! update-notifier 的默认间隔与 Homebrew `HOMEBREW_AUTO_UPDATE_SECS` 的同一个
-//! 量级。全局 bin 目录只查一次，一次会话内不变。
+//! 与 `agent_cli_exec` 并行的第二条封闭管线，不是它的放宽版：包名由 agents.json
+//! 档案声明，程序只能是 bun、pnpm、npm 之一，渲染层能说的只有「装哪个 agent」。
+//! 判据住在 `poietica-kap-client` 的 process/install.rs，这里只有 24 小时检测
+//! 缓存与「档案 → crate 调用」的编排。
 
 use poietica_time::WallClock;
 use serde::{Deserialize, Serialize};
@@ -28,6 +22,9 @@ use poietica_problem::Problem;
 use super::profile::{agent_install_spec, agent_program, open_store, surfaced};
 
 const CHECK_KEY: &str = "installChecks";
+
+/// 检测间隔与 npm update-notifier 的默认值、Homebrew 的 `HOMEBREW_AUTO_UPDATE_SECS`
+/// 同一量级：检测不轮询，命中缓存就不起网络。
 const CHECK_TTL_MS: i64 = 24 * 60 * 60 * 1000;
 
 /// 界面读到的安装处境（IPC DTO；判据在 crate 的 InstallState）。
@@ -181,10 +178,7 @@ fn install(app: &AppHandle, agent_id: &str) -> Result<AgentInstallStatus> {
         )));
     };
 
-    /*
-     * 已经装了就交回给装它的那一个 —— 换一个包管理器不是升级，是在另一个地方放第二份。
-     * 还没装才轮到偏好顺序。
-     */
+    /* 已装就交回装它的那一个：换一个包管理器不是升级，是在别处放第二份。 */
     let owner = agent_program(app, agent_id)
         .ok()
         .and_then(|program| resolve_program(&program).ok())
@@ -215,9 +209,8 @@ fn install(app: &AppHandle, agent_id: &str) -> Result<AgentInstallStatus> {
     let status = compute(app, agent_id, true)?;
 
     /*
-     * 退出码 0 不等于装到位了 —— 这一版就发生过：包管理器报成功，落地的是上一个版本。
-     * 不比对的话，界面只会把同一个「更新到 X」再画一次，而一个点了没反应的按钮比一句
-     * 错误难排查得多。
+     * 退出码 0 不等于装到位——出过报成功却落地旧版本的事；不比对，界面只会把
+     * 同一个「更新到 X」再画一次。
      */
     if let (Some(target), Some(installed)) =
         (target.as_deref(), status.installed_version.as_deref())
@@ -238,12 +231,8 @@ fn install(app: &AppHandle, agent_id: &str) -> Result<AgentInstallStatus> {
 
 /// 当前这个 agent 装了没有、是不是最新。
 ///
-/// force 为假时命中 24 小时内的缓存就直接返回，不起网络。界面每次挂载都可以调它。
-///
-/// # Errors
-///
-/// 读不到 agent 档案时返回错误。「没装」「不归我们管」「问不到最新版」都不是错误，
-/// 它们是状态。
+/// force 为假时命中 24 小时内的缓存就直接返回，不起网络，界面每次挂载都可以调。
+/// 没装、不归我们管、问不到最新版都是状态，不是错误。
 #[command]
 #[specta::specta]
 pub async fn agent_install_status(
@@ -258,10 +247,6 @@ pub async fn agent_install_status(
 }
 
 /// 安装或更新这个 agent 的运行时，完成后返回新的状态。
-///
-/// # Errors
-///
-/// 档案没有声明安装方式、这份运行时不归 pnpm/npm 管、包管理器缺席、或安装本身失败。
 #[command]
 #[specta::specta]
 pub async fn agent_install_run(

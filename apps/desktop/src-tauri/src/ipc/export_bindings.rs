@@ -10,18 +10,12 @@ const OUTPUT_PATH: &str = concat!(
     "/../../../packages/contract/src/generated/ipc-bindings.ts"
 );
 
-/// 线上 64 位整数（epoch 毫秒时间戳）导出为 `number`。
+/// 导出渲染层消费的那一份 IPC DTO 面；只由专用的 `export-ipc-bindings` 可执行文件
+/// 调用，绝不在桌面应用启动时调用。
 ///
-/// 前提是值不超过 2^53 —— 目前线面上仅有的 i64 都来自账本时钟的 epoch 毫秒
-/// （约 1.7e12），该假设稳定成立。出现更大的计数字段时改回 Fail，由 DTO 边界收窄。
-/// 导出渲染层消费的那一份 IPC DTO 面。
-///
-/// 只由专用的 `export-ipc-bindings` 可执行文件调用，绝不在桌面应用启动时调用。
-///
-/// # Panics
-///
-/// 写不出绑定时 panic。那是构建故障而不是运行期状况，构建必须停在这里 ——
-/// 静默失败的结果是发布一份过时的 IPC 面。
+/// i64（线面上仅有账本时钟的 epoch 毫秒，约 1.7e12）导出为 `number` 的前提是不超
+/// 2^53，出现更大的计数字段时改回 Fail、由 DTO 边界收窄。写不出绑定时 panic：
+/// 静默失败等于发布过时的 IPC 面，构建必须停在这里。
 #[allow(
     clippy::expect_used,
     reason = "a binding export that silently failed would ship a stale IPC surface"

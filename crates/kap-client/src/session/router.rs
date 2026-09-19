@@ -62,8 +62,8 @@ impl EventRouter {
     /// 这条会话在 server 侧没有了：在飞的那一轮判死，读点作废，本地不再留任何
     /// 与它有关的所有权。链路与其余会话不受影响 —— 全仓只有这一处这条策略。
     pub(crate) fn forget(&mut self, session_id: &str, reason: &str) {
-        /* 记成 debug：重连轮换里这是一句常态账目，判死的后果（CursorLost + fail_turn）
-        已经显式上桌，warn 只会让终端替它刷屏。文件仍是完整记录。 */
+        /* debug 而非 warn：重连轮换里这是常态账目，判死后果（CursorLost +
+        fail_turn）已显式上桌，warn 只会刷屏。 */
         log::debug!("kap no longer serves {session_id}: {reason}");
 
         if let Err(error) = self.book.fail_turn(session_id, reason) {
@@ -86,13 +86,10 @@ impl EventRouter {
     }
 
     pub(crate) fn handle(&mut self, envelope: &Value) {
-        // 事件帧的 type 就是事件自己的 type（turn.ended / assistant.delta / …），
-        // 不是字符串 "session_event"：wsEventEnvelopeSchema 里 type 是 z.string()，
-        // sessionEventOperation 的 'session_event' 只是操作目录里那一条的名字。
-        //
-        // 判据：同时带 session_id、seq 和一个自带 type 的载荷，且两个 type 相等。
-        // 控制帧与系统帧就此排除 —— 系统 error 帧的载荷是 { code, msg, fatal }，
-        // 既没有 type 也没有 seq，不会被当成 agent 的 error 事件收进来。
+        // 事件帧的 type 就是事件自己的 type（turn.ended / …），不是 "session_event"：
+        // 那只是操作目录里那条的名字（wsEventEnvelopeSchema 里 type 是 z.string()）。
+        // 判据：session_id + seq + 载荷自带同值 type，控制帧与系统帧就此排除 ——
+        // 系统 error 帧的载荷 { code, msg, fatal } 既无 type 也无 seq，收不进来。
         let kind = envelope.get("type").and_then(Value::as_str).unwrap_or("");
 
         if matches!(kind, "event.config.changed" | "event.model_catalog.changed") {
@@ -184,10 +181,9 @@ impl EventRouter {
             return;
         }
 
-        // kap 说这条会话的事件流断了（reason 枚举 buffer_overflow / session_recreated /
-        // epoch_changed，见 contracts/kap/asyncapi.json 的 resync_required 载荷）：断点
-        // 之后的帧不会再来，这一轮的经过补不齐。判死它 —— 补不回来的东西不该装作还在路上。
-        // transcript 通道同帧受累：转发 resync，让下游走全量刷新。
+        // kap 断流（reason 枚举见 contracts/kap/asyncapi.json 的 resync_required
+        // 载荷）：断点后的帧不会再来，这一轮补不齐，判死它；transcript 通道同帧
+        // 受累，转发 resync 让下游走全量刷新。
         if kind == "resync_required" {
             if let Some(session_id) =
                 envelope
@@ -281,8 +277,7 @@ impl EventRouter {
             return;
         };
 
-        // 位置由 kap 签发（信封上的 seq，跨守护进程重启有效）。此前它只被用来判一下
-        // 「这是不是一帧事件」随后丢掉，于是重新订阅时说不出从哪儿接着发。
+        // 位置由 kap 签发（信封 seq，跨守护进程重启有效），续订按它接着发。
         let Some(seq) = envelope.get("seq").and_then(Value::as_i64) else {
             return;
         };
@@ -334,9 +329,9 @@ impl EventRouter {
                         .poll();
                 }
 
-                /* work_changed 是会话活动投影，不是轮终错误通道。busy=false 只说明聚合已
-                空闲；正式结果由 main agent 的 turn.ended 携带。这里仅在聚合落定后推进
-                durable cursor，让同轮稍后到达的 error 事件也包含在续订水位内。 */
+                /* work_changed 是活动投影，不是轮终错误通道：正式结果由 turn.ended
+                携带。仅在聚合落定后推进 durable cursor，同轮稍后的 error 事件也在
+                续订水位内。 */
                 if payload.get("busy").and_then(Value::as_bool) == Some(false) {
                     let _sent = events_tx.unbounded_send(SessionEvent::Cursor {
                         session_id: session_id.to_owned(),
@@ -408,9 +403,9 @@ impl EventRouter {
             }
 
             "agent.status.updated" => {
-                // 仪表值是 volatile 信号（不进帧日志）：到达即替换。同一帧还挂着这条
-                // 会话累计的输入构成（usage.total，kap events-zod.ts），三格计数与读数
-                // 在同一次取走 —— 这条协议知识全程只有这一处。
+                // 仪表值是 volatile 信号（不进帧日志），到达即替换；同帧还挂着累计
+                // 输入构成（usage.total，kap events-zod.ts），三格计数与读数一次取走，
+                // 这条协议知识全程只有这一处。
                 if let (Some(used), Some(size)) = (
                     payload.get("contextTokens").and_then(Value::as_u64),
                     payload.get("maxContextTokens").and_then(Value::as_u64),

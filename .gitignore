@@ -206,3 +206,4 @@ dist-release/
 .workbuddy/
 .workbuddy/memory
 .workbuddy-ai/
+.zcodeignore

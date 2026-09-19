@@ -136,6 +136,17 @@
   --cp-tile-inset: 4px;
   --cp-tile-badge: var(--cp-control-xs);
   --cp-tile-badge-glyph: calc(var(--cp-icon) - 4px);
+  /*
+   * 删除键自己那一对色，不跟主题走。
+   *
+   * 圆点压着的是一张任意内容的图，不是地色 —— 主题驱动的深/浅圆点只会与它底下
+   * 那张图同调。定死的中灰配白叉，在两套主题、任何一张图上都是同一枚记号（与
+   * --cp-model-rail-fill 那条不跟主题走的蓝同一条规矩）。悬停压深一档：圆点没有
+   * 环，状态只能由它自己说。
+   */
+  --cp-tile-badge-face: #61666b;
+  --cp-tile-badge-hover: color-mix(in srgb, var(--cp-tile-badge-face) 88%, black);
+  --cp-tile-badge-ink: #ffffff;
   --cp-target-min: 24px;
 
   --cp-dot: calc(var(--cp-icon) * 3 / 8);

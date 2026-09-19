@@ -20,12 +20,9 @@ type CommandResult<T> = Result<T, Problem>;
 #[serde(rename_all = "camelCase")]
 pub struct AssetUploadRequest {
     pub session_token: String,
-    /// base64 编码的原始字节，不带 `data:` 前缀。
-    ///
-    /// 不是 `Vec<u8>`。默认的 JSON IPC 下 `Vec<u8>` 在线上是一个 `number[]`
-    /// —— 每个字节一个十进制数字加一个逗号，比 base64 还大出四五倍。原始
-    /// 字节只有在整个 args 就是 ArrayBuffer/Uint8Array 时才走 raw body，
-    /// 塞在对象的一格里必然退化（见 Tauri v2 的 InvokeArgs）。
+    /// base64 编码的原始字节，不带 `data:` 前缀。刻意不用 `Vec<u8>`：JSON IPC 下
+    /// 它线上是 `number[]`，比 base64 大四五倍；raw body 只在 args 整体是
+    /// ArrayBuffer/Uint8Array 时生效（见 Tauri v2 的 InvokeArgs）。
     pub base64: String,
 }
 
@@ -65,12 +62,8 @@ pub struct AssetSessionCloseRequest {
     pub session_token: String,
 }
 
-/// Opens an asset session and returns its opaque token.
-///
-/// # Errors
-///
-/// Returns an error when the registry refuses to open the session. The caller
-/// receives the redacted IPC message, never native detail.
+/// Opens an asset session and returns its opaque token; the caller only ever
+/// sees the redacted IPC message, never native detail.
 #[tauri::command]
 #[specta::specta]
 pub async fn asset_session_open(
@@ -150,10 +143,8 @@ fn map_intake_error(error: AssetIntakeError) -> Problem {
     }
 }
 
-/// 一种收得下的格式，交给渲染层的那一面。
-///
-/// 只有内容类型和扩展名。判据（那个函数指针）留在这一侧：渲染层不判文件头，
-/// 它拿这张表只为了给系统对话框写过滤器。
+/// 一种收得下的格式，交给渲染层的那一面；判据留在这一侧，渲染层拿这张表
+/// 只为给系统对话框写过滤器。
 #[derive(Clone, Debug, Serialize, Type)]
 #[serde(rename_all = "camelCase")]
 pub struct AssetFormat {
@@ -162,11 +153,8 @@ pub struct AssetFormat {
     pub extensions: Vec<String>,
 }
 
-/// 收得下的格式清单。系统文件对话框的过滤器按它来。
-///
-/// 这条命令存在的唯一理由，是扩展名那张表不该有第二份。一个进程只问一次
-/// （native-bridge 的 gateways 那侧缓存住），代价是一次本机往返，换掉的是一个漏改不
-/// 报错的静默失败。
+/// 收得下的格式清单，系统文件对话框的过滤器按它来。存在的唯一理由是扩展名
+/// 那张表不该有第二份：一次本机往返，换掉一个漏改不报错的静默失败。
 #[tauri::command]
 #[specta::specta]
 #[must_use]
@@ -186,11 +174,6 @@ pub fn asset_formats() -> Vec<AssetFormat> {
 }
 
 /// Removes one asset from an open session.
-///
-/// # Errors
-///
-/// Returns an error when the registry rejects the request, and when the asset
-/// is not present in that session.
 #[tauri::command]
 #[specta::specta]
 pub async fn asset_remove(
@@ -208,24 +191,15 @@ pub async fn asset_remove(
     Ok(())
 }
 
-/// Closes an asset session and releases everything it still holds.
-///
-/// # Errors
-///
-/// Returns an error only when the registry itself fails. A session that is
-/// already gone is a success, not a failure: document close may have released
-/// it first, and no caller should have to tell the two apart.
+/// Closes an asset session and releases everything it still holds. A session
+/// that is already gone is a success: document close may have released it
+/// first, and no caller should have to tell the two apart.
 #[tauri::command]
 #[specta::specta]
 pub async fn asset_session_close(
     request: AssetSessionCloseRequest,
     assets: State<'_, AssetProtocolRegistry>,
 ) -> CommandResult<()> {
-    /*
-     * Document close may already have released a restored asset session, so a
-     * session that is not there is a success rather than a failure. The
-     * returned flag distinguishes the two cases and no caller needs to.
-     */
     assets
         .remove_session(&request.session_token)
         .map_err(map_asset_error)?;
@@ -290,8 +264,7 @@ mod tests {
         assert_eq!(sniff(&[0xFF, 0xD8, 0xFF, 0xE0]), Some("image/jpeg"));
         assert_eq!(sniff(b"RIFF\x00\x00\x00\x00WEBPVP8 "), Some("image/webp"));
 
-        /* 改名成 .png 的 SVG。扩展名骗得过，文件头骗不过 —— 字节落成
-        text/plain，而不是扩展名声称的图片。 */
+        /* 改名成 .png 的 SVG：扩展名骗得过，文件头骗不过，字节落成 text/plain。 */
         assert_eq!(
             sniff(b"<svg xmlns=\"http://www.w3.org/2000/svg\"/>"),
             Some("text/plain")
@@ -302,8 +275,7 @@ mod tests {
 
     #[test]
     fn the_file_dialog_is_offered_exactly_what_the_sniffer_accepts() {
-        /* 交给渲染层的那张表就是判据那张表，一行不多一行不少。此前这两者
-        是两个语言里的两份文本，这条断言当时写不出来。 */
+        /* 交给渲染层的那张表就是判据那张表，一行不多一行不少。 */
         assert_eq!(asset_formats().len(), FORMATS.len());
 
         for format in FORMATS {
@@ -314,7 +286,7 @@ mod tests {
                 format.content_type
             );
 
-            /* 判据认得自己。这条挡的是「表里加了一行，判据忘了接上」。 */
+            /* 挡的是「表里加了一行，判据忘了接上」。 */
             assert!(
                 sniff(b"").is_none(),
                 "an empty payload must never sniff as {}",
@@ -325,8 +297,7 @@ mod tests {
 
     #[test]
     fn every_importable_format_is_also_deliverable() {
-        /* 导入先过嗅探再过注册表的白名单；两道门对不上时，用户会看到一条
-        不说真因的错误。 */
+        /* 导入与交付两道白名单必须一致，对不上时用户会看到不说真因的错误。 */
         for format in FORMATS {
             assert!(
                 poietica_asset::is_deliverable_content_type(format.content_type),

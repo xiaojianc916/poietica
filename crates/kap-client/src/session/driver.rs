@@ -1,17 +1,9 @@
-//! kap 传输驱动器：起进程、开锚会话、握手、主循环收命令收事件。
-//!
-//! 进程模型：spawn "kimi web --no-open" → 等注册表出现本次拉起后的条目、且那个
-//! 地址认我们手里的 server.token（process/instance_registry）→ /meta 兼容门禁
-//! （compatibility.rs）→ REST 开锚会话（rest.rs）→ WS client_hello + subscribe
-//! （connection/）→ 主循环。
-//!
-//! 事件帧的 type 就是事件自己的 type（turn.ended / assistant.delta / …）：信封是
-//! { type, seq, session_id, timestamp, payload }，payload 里再带一份同名 type、
-//! agentId 与 sessionId。契约快照钉在 contracts/kap/asyncapi.json。
-//!
-//! 协议事实来源是 MoonshotAI/kimi-code 的 packages/kap-server（routes/ 与
-//! protocol/ 两个目录）。信封约定 { code, msg, data, request_id }：业务成败看
-//! code，不看 HTTP 状态。
+//! kap 传输驱动器：spawn "kimi web --no-open" → 等实例注册且地址认 server.token
+//! → /meta 兼容门禁 → REST 开锚会话 → WS 握手 + subscribe → 主循环收命令收事件。
+//! 事件帧的 type 就是事件自己的 type，信封 { type, seq, session_id, timestamp,
+//! payload }；REST 信封 { code, msg, data, request_id } 业务成败看 code，不看
+//! HTTP 状态。协议事实来源：MoonshotAI/kimi-code 的 packages/kap-server，契约
+//! 快照 contracts/kap/asyncapi.json。
 
 use std::future::Future;
 use std::sync::Arc;
@@ -94,7 +86,6 @@ pub fn connect(
         if cancellation.is_cancelled() {
             return Err(KapError::Refused(Refusal::Gone));
         }
-        // 1. 启动 kimi web --no-open
         let spawned_at = now_millis();
         let mut command = tokio::process::Command::new(&resolved);
         command
@@ -115,7 +106,6 @@ pub fn connect(
         let tasks = super::tasks::SessionTasks::new(cancellation.clone());
         let mut shutdown_reply = None;
         let operation = async {
-        // stderr 日志透传
         let diag_stderr = diagnostics.clone();
         if let Some(stderr) = child.0.stderr.take() {
             tasks.spawn(async move {
@@ -130,7 +120,6 @@ pub fn connect(
             });
         }
 
-        // 2. 等待实例注册
         let instances_dir = home_dir.join("server").join("instances");
         let (host, port, token) = match discover_instance(
             &instances_dir,
@@ -155,13 +144,12 @@ pub fn connect(
             }
         };
 
-        // 3. 令牌已经在第 2 步读到：只有「认这份令牌的地址」才算发现成功。
+        // 令牌校验已在 discover_instance 里完成：只有「认这份令牌的地址」才算发现成功。
 
         let dial = dialable_host(&host);
         let base_url = format!("http://{dial}:{port}");
 
-        // 4. HTTP 客户端：令牌走 Authorization 头（kap 的全局 bearer 鉴权，
-        //    kap-server/src/middleware/auth.ts）。
+        // 令牌走 Authorization 头（kap 全局 bearer 鉴权，kap-server/src/middleware/auth.ts）。
         let auth_header = match reqwest::header::HeaderValue::from_str(&format!("Bearer {token}")) {
             Ok(value) => value,
             Err(error) => {
@@ -195,7 +183,7 @@ pub fn connect(
             return Err(error);
         }
 
-        // 5. 建锚会话（REST）。create handler 不消费 agent_config；模型随后经 profile 绑定。
+        // create handler 不消费 agent_config；模型随后经 profile 绑定。
         let session = match post(
             &http,
             routes::create_session(&base_url),
@@ -233,7 +221,7 @@ pub fn connect(
             return Err(error);
         }
 
-        // 6. WebSocket 握手。首连与重连走同一个 dial_ws / shake_hands。
+        // 首连与重连走同一个 dial_ws / shake_hands。
         let ws_url = websocket::connect(&base_url).map_err(|error| KapError::Transport {
             message: error.to_string(),
         })?;
@@ -261,7 +249,6 @@ pub fn connect(
             return Err(error);
         }
 
-        // 7. 注册槽 + 订阅锚会话
         if book_clone.adopt(&session_id, slot).is_err() {
             let _ = ready_tx.send(Err(KapError::Poisoned));
             return Err(KapError::Poisoned);
@@ -313,7 +300,6 @@ pub fn connect(
             session_id: session_id.clone(),
         }));
 
-        // 8. 主循环
         let mut router = EventRouter::new(
             book_clone.clone(),
             desk.clone(),
@@ -324,9 +310,8 @@ pub fn connect(
 
         /* 每条会话最后读到的位置。重连按它续订：帧不重发，也不缺号。 */
 
-        // 补投握手期间收下的帧。里面可能有一帧 ping 不必答：我们刚发出去的
-        // client_hello 与 subscribe 已经刷新了服务端的 lastInboundAt，而它的
-        // 判死线是连续两个周期没有任何入站帧（wsConnectionV1.ts onHeartbeat）。
+        // 补投握手期间收下的帧；里面的 ping 不必答：刚发出的 client_hello 与 subscribe
+        // 已刷新服务端 lastInboundAt，判死线是连续两个周期无入站帧（wsConnectionV1.ts onHeartbeat）。
         for envelope in std::mem::take(&mut stash) {
             router.handle(&envelope);
         }
@@ -646,9 +631,8 @@ pub fn connect(
                         }
 
                         Some(Ok(Message::Text(raw))) => {
-                            // kap 的心跳是应用层帧（契约快照 contracts/kap/
-                            // asyncapi.json 的 ping/pong），与 tungstenite 的协议层
-                            // Ping 是两回事 —— 两个都要答。
+                            // kap 心跳是应用层帧（contracts/kap/asyncapi.json 的
+                            // ping/pong），与 tungstenite 协议层 Ping 两回事，都要答。
                             if let Ok(ServerFrame::Ping { payload, .. }) =
                                 server_frame(&raw)
                             {

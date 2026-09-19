@@ -16,15 +16,10 @@ use poietica_problem::Problem;
 pub struct UsageDay {
     /// `YYYY-MM-DD`。
     pub day: String,
-    /// 那天累计的 token。
     pub tokens: u32,
 }
 
 /// 最近 span 天的日账，由早到晚。没有账的日子不占行。
-///
-/// # Errors
-///
-/// 库读不出、或某一天的数大到这份 IPC 面装不下时返回错误。
 #[tauri::command]
 #[specta::specta]
 pub async fn usage_token_days(

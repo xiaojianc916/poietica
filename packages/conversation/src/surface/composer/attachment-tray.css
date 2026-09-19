@@ -125,8 +125,10 @@
  * 删除键落在格内右上角。
  *
  * 它压在图上，而不是排在图旁边：并排要为按钮另留一列，那正是旧那一行占满整个
- * 输入框宽度的原因。白色那一圈不是装饰 —— 圆点底下是任意一张图，深底加白环这
- * 一对在深浅两种画面上都分得开。
+ * 输入框宽度的原因。
+ *
+ * 静息隐形，指针进这一格才现身：缩略图自己是主角，一枚常驻的圆点在整个附件条上
+ * 就是一片噪点。位置照旧占着 —— 绝对定位本就不占流内，淡入淡出不会让图动一下。
  */
 .composer-tile__remove {
   position: absolute;
@@ -136,13 +138,38 @@
   place-items: center;
   inset-block-start: var(--cp-tile-inset);
   inset-inline-end: var(--cp-tile-inset);
-  border: var(--cp-px) solid var(--cp-surface);
+  border: 0;
   border-radius: 9999px;
   padding: 0;
-  background: var(--cp-ink);
-  color: var(--cp-surface);
+  background: var(--cp-tile-badge-face);
+  color: var(--cp-tile-badge-ink);
   cursor: pointer;
-  transition: background-color var(--cp-motion-swift) var(--cp-motion-ease);
+  opacity: 0;
+  pointer-events: none;
+  transition:
+    opacity var(--cp-motion-swift) var(--cp-motion-ease),
+    background-color var(--cp-motion-swift) var(--cp-motion-ease);
+}
+
+/*
+ * 指针进这一格、或键盘落在格内任一控件上，按钮现身并接管指针。
+ *
+ * 键盘那一条不是补丁：opacity 隐形的按钮仍在无障碍树里、仍可聚焦，只写 :hover
+ * 就是一个「Tab 得到、却看不见」的陷阱。指针从图移到按钮上也不会中断 —— 按钮是
+ * 这一格的子孙，:hover 一直成立，所以显隐纯靠 CSS，不需要 JS 退场宽限。
+ */
+.composer-tile:hover .composer-tile__remove,
+.composer-tile:focus-within .composer-tile__remove {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+/* 没有 hover 能力的设备不能依赖悬停发现删除键。 */
+@media (hover: none) and (pointer: coarse) {
+  .composer-tile__remove {
+    opacity: 1;
+    pointer-events: auto;
+  }
 }
 
 /*
@@ -156,7 +183,7 @@
 }
 
 .composer-tile__remove:hover {
-  background: var(--cp-ink-muted);
+  background: var(--cp-tile-badge-hover);
 }
 
 .composer-tile__remove:focus-visible {

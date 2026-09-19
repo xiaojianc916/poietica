@@ -358,10 +358,8 @@ async fn activate(
     })
 }
 
-/// 一条会话一个 agent 的 transcript 页（REST transcript，原样 JSON）。
-///
-/// 载荷不在这一层解：它的契约钉在 vendored @poietica/transcript 的 zod
-/// schema，由桥那一侧校验 —— 这里只管地址、信封与透传。
+/// 一条会话一个 agent 的 transcript 页（原样 JSON）。载荷不在这一层解：契约钉
+/// 在 vendored @poietica/transcript 的 zod schema，由桥那一侧校验，这里只管透传。
 pub(crate) async fn read_transcript(
     http: &reqwest::Client,
     base_url: &str,
@@ -417,9 +415,8 @@ pub(crate) async fn open_session(
     activate(http, base_url, &opened.id, None, book, ws).await
 }
 
-/// kap 的会话在 server 侧持久：装载 = 验存在 + 重新订阅。号在 server 侧也没了
-/// 时，GET 的信封带非零 code，在这里变成 Err —— 调用侧据此把「agent 那边已经
-/// 没有这条会话」与其它失败分开（桌面 DTO 的 AgentHistoryLoss）。
+/// kap 的会话在 server 侧持久：装载 = 验存在 + 重新订阅。号在 server 侧也没了时
+/// GET 信封带非零 code，在这里变 Err，调用侧据此分辨 AgentHistoryLoss。
 pub(crate) async fn load_session(
     http: &reqwest::Client,
     base_url: &str,
@@ -452,10 +449,9 @@ pub(crate) async fn fork_session(
     let forked: CreateSessionDataStruct = decoded(data, "forked session")?;
     let id = forked.id;
 
-    // 分叉点。:fork 的请求体只有 title 与 metadata（kap-server 的
-    // sessionForkSchema），没有分叉点这一格；能回退上下文的只有 :undo，它按用户
-    // 轮次数收（undoSessionRequestSchema 的 count）。回退落在复制件上，源会话
-    // 一个字不动。
+    // :fork 的请求体没有分叉点这一格（kap-server 的 sessionForkSchema）；回退
+    // 走 :undo 按用户轮次数收（undoSessionRequestSchema 的 count），落在复制件
+    // 上，源会话不动。
     if drop_turns > 0 {
         post(
             http,

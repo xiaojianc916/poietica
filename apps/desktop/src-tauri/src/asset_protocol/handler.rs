@@ -26,7 +26,6 @@ pub fn respond<B>(registry: &AssetProtocolRegistry, request: &Request<B>) -> Res
     }
 }
 
-/// 从请求 URI 里拆出会话与资产两个令牌。
 fn resolve_request<B>(
     registry: &AssetProtocolRegistry,
     request: &Request<B>,
@@ -143,10 +142,7 @@ mod tests {
             .expect("request should be valid")
     }
 
-    /*
-     * 允许清单里有 video/mp4 与 application/pdf，而媒体元素靠 206 做 seek。
-     * 这几条用例把「可以对我发 Range」从一句注释变成一个会失败的断言。
-     */
+    /* 媒体元素靠 206 做 seek：把「可以对我发 Range」钉成会失败的断言。 */
     #[test]
     fn serves_the_three_range_forms_browsers_actually_send() {
         let registry = AssetProtocolRegistry::default();
@@ -225,10 +221,8 @@ mod tests {
         );
     }
 
-    /*
-     * 认不出的 Range 退成整份交付，不是 416：RFC 9110 要求源服务器忽略它读不懂
-     * 的 range unit。回 416 会把一个本来能播的资源变成播不了的。
-     */
+    /* RFC 9110 要求忽略读不懂的 range unit：退整份交付而非 416，别把能播的
+    资源变成播不了的。 */
     #[test]
     fn an_unreadable_range_falls_back_to_the_whole_asset() {
         let registry = AssetProtocolRegistry::default();
@@ -254,12 +248,8 @@ mod tests {
         }
     }
 
-    /*
-     * 生成器与解析器必须对得上，而且要按平台对。
-     *
-     * 上面那些用例手拼 URI，所以它们绕过了 asset_protocol_url —— 那道缝正是
-     * Windows 上整条对话破图的地方。这一条从生成器出发，走完整条解析路径。
-     */
+    /* 上面的用例手拼 URI，绕过了 asset_protocol_url——那道缝正是 Windows 上
+    破图的地方；这一条从生成器出发走完整条解析路径，并按平台逐字对。 */
     #[test]
     fn the_url_it_hands_out_resolves_on_this_platform() {
         let registry = AssetProtocolRegistry::default();
@@ -392,9 +382,7 @@ mod tests {
         assert_eq!(result, Err(AssetProtocolError::InvalidContentHash),);
     }
 
-    /*
-     * 这条路径此前只比对两个字符串，字节从未被摘要过：谎报身份的插入会成功。
-     */
+    /* 此前只比对字符串、从未摘要字节，谎报身份的插入会成功——这条挡住它。 */
     #[test]
     fn rejects_bytes_that_do_not_match_their_declared_identity() {
         let registry = AssetProtocolRegistry::default();
@@ -427,11 +415,8 @@ mod tests {
         .expect("fixture entry should verify")
     }
 
-    /*
-     * The digest check did not disappear, it moved to the only place that can
-     * establish it once. An entry claiming an identity its bytes do not have
-     * can no longer be built, so no session can be published from one.
-     */
+    /* 摘要校验移进了 verify 这个唯一能一次建立身份的地方：伪造身份的 entry
+    从此构造不出来，没有任何会话能从它发布。 */
     #[test]
     fn an_entry_cannot_claim_an_identity_its_bytes_do_not_have() {
         let result = AssetSessionSnapshotEntry::verify(

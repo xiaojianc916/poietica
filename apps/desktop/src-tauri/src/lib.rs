@@ -3,10 +3,8 @@
     reason = "Tauri command signatures are consumed by generated IPC handlers"
 )]
 /*
- * Synchronous Tauri commands are supported, but they dispatch on the main
- * thread, whereas async commands go to the async runtime. Trivial registry
- * commands are async on purpose, to keep even a short lock off the thread that
- * draws the window.
+ * Trivial registry commands are async on purpose: sync commands dispatch on the
+ * main thread, and even a short lock should stay off the thread that draws the window.
  */
 #![allow(
     clippy::unused_async,
@@ -40,11 +38,6 @@ pub use error::{Error, Result};
 pub use ipc::export_bindings::export_ipc_bindings;
 
 /// Single composition root. Called from main.rs.
-///
-/// # Panics
-///
-/// Panics when the application cannot be handed to the platform at all, which
-/// is a packaging fault rather than a runtime condition.
 #[allow(
     clippy::exit,
     reason = "the generated Tauri context expands to an exit this crate never writes"
