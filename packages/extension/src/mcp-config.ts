@@ -1,4 +1,4 @@
-import * as v from 'valibot'
+import { z } from 'zod'
 import type { ContributionOrigin } from './origin'
 
 export interface DeclaredMcpServer {
@@ -12,21 +12,11 @@ export interface McpConfigDecoding {
   readonly malformed: boolean
 }
 
-const IsObject = v.check<unknown>(
-  (value) => typeof value === 'object' && value !== null && !Array.isArray(value),
-)
-const ObjectValue = v.pipe(v.unknown(), IsObject, v.looseObject({}))
-const ServerEntry = v.pipe(
-  v.unknown(),
-  IsObject,
-  v.looseObject({ enabled: v.optional(v.boolean()) }),
-)
-const ServerMap = v.pipe(v.unknown(), IsObject, v.record(v.string(), ServerEntry))
-const McpConfigDocument = v.pipe(
-  v.unknown(),
-  IsObject,
-  v.looseObject({ mcpServers: v.optional(ServerMap) }),
-)
+/* 只判「是一个对象」：zod 的 object 系不接受数组与原始值，这一条就是全部判据。 */
+const ObjectValue = z.looseObject({})
+const McpConfigDocument = z.looseObject({
+  mcpServers: z.record(z.string(), z.looseObject({ enabled: z.boolean().optional() })).optional(),
+})
 
 function parseJson(contents: string): unknown {
   try {
@@ -42,19 +32,12 @@ type McpDocument = Record<string, unknown> & {
 }
 
 function checkedDocument(input: unknown): McpDocument | undefined {
-  if (!v.safeParse(McpConfigDocument, input).success) {
-    return undefined
-  }
-  const document = input as McpDocument
-  // 校验不承担序列化：保留输入中的所有自有字段，包括特殊名称。
-  if (
-    Object.values(document.mcpServers ?? {}).some(
-      (entry) => !v.safeParse(ServerEntry, entry).success,
-    )
-  ) {
-    return undefined
-  }
-  return document
+  /*
+   * 交回的是原始输入而不是解析结果：zod 会丢掉 __proto__ 这类自有键，而写回磁盘时
+   * 那些键必须原样保留（用例见 packages/extension/src/mcp-management.test.ts 的
+   * "uses own keys rather than inherited object properties"）。
+   */
+  return McpConfigDocument.safeParse(input).success ? (input as McpDocument) : undefined
 }
 
 function parseForEdit(contents: string | null): McpDocument {
@@ -132,31 +115,24 @@ export function setMcpServerEnabledInConfig(
 }
 
 // 这里只校验配置输入；协议和连接管理由 Kimi 的 MCP SDK 客户端负责。
-const Timeout = v.pipe(v.number(), v.integer(), v.minValue(1), v.maxValue(2_147_483_647))
-const Nonempty = v.pipe(
-  v.string(),
-  v.check((value) => value.trim().length > 0),
-)
-const Strings = v.pipe(v.unknown(), IsObject, v.record(v.string(), v.string()))
-const InputBody = v.pipe(
-  v.unknown(),
-  IsObject,
-  v.looseObject({
-    command: v.optional(Nonempty),
-    args: v.optional(v.array(v.string())),
-    url: v.optional(Nonempty),
-    transport: v.optional(v.picklist(['stdio', 'http', 'sse'])),
-    env: v.optional(Strings),
-    cwd: v.optional(v.string()),
-    headers: v.optional(Strings),
-    bearerTokenEnvVar: v.optional(Nonempty),
-    enabled: v.optional(v.boolean()),
-    startupTimeoutMs: v.optional(Timeout),
-    toolTimeoutMs: v.optional(Timeout),
-    enabledTools: v.optional(v.array(v.string())),
-    disabledTools: v.optional(v.array(v.string())),
-  }),
-)
+const Timeout = z.int().min(1).max(2_147_483_647)
+const Nonempty = z.string().refine((value) => value.trim().length > 0)
+const Strings = z.record(z.string(), z.string())
+const InputBody = z.looseObject({
+  command: Nonempty.optional(),
+  args: z.array(z.string()).optional(),
+  url: Nonempty.optional(),
+  transport: z.enum(['stdio', 'http', 'sse']).optional(),
+  env: Strings.optional(),
+  cwd: z.string().optional(),
+  headers: Strings.optional(),
+  bearerTokenEnvVar: Nonempty.optional(),
+  enabled: z.boolean().optional(),
+  startupTimeoutMs: Timeout.optional(),
+  toolTimeoutMs: Timeout.optional(),
+  enabledTools: z.array(z.string()).optional(),
+  disabledTools: z.array(z.string()).optional(),
+})
 
 export interface McpEntry {
   readonly name: string
@@ -167,13 +143,13 @@ export function validateMcpEntry(name: string, input: unknown): McpEntry {
   if (name.trim() === '' || name !== name.trim()) {
     throw new Error('名称不能为空或带首尾空格。')
   }
-  const parsed = v.safeParse(InputBody, input)
+  const parsed = InputBody.safeParse(input)
   if (!parsed.success) {
     throw new Error(
       '配置字段类型错误：参数须为字符串数组，环境变量/请求头须为字符串映射，超时须为 1–2147483647 的整数。',
     )
   }
-  const body = parsed.output
+  const body = parsed.data
   if (Object.hasOwn(body, 'type')) {
     throw new Error('Kimi 使用 transport 而不是 type 字段；请按 stdio、http 或 sse 配置。')
   }
@@ -201,7 +177,7 @@ export function validateMcpEntry(name: string, input: unknown): McpEntry {
 
 export function parseMcpImport(contents: string): readonly McpEntry[] {
   const input = parseJson(contents)
-  if (!v.safeParse(ObjectValue, input).success) {
+  if (!ObjectValue.safeParse(input).success) {
     throw new Error('导入内容必须是 JSON 对象。')
   }
   const raw = input as Record<string, unknown>
@@ -210,7 +186,7 @@ export function parseMcpImport(contents: string): readonly McpEntry[] {
     throw new Error('批量导入只接受 mcpServers；请去掉外层其他配置，避免静默丢弃。')
   }
   const source = wrapped ? raw['mcpServers'] : raw
-  if (!v.safeParse(ObjectValue, source).success) {
+  if (!ObjectValue.safeParse(source).success) {
     throw new Error('mcpServers 必须是对象。')
   }
   const entries = Object.entries(source as Record<string, unknown>)

@@ -13,7 +13,7 @@
   },
   "dependencies": {
     "@poietica/problem": "workspace:*",
-    "valibot": "catalog:",
+    "zod": "catalog:",
     "@poietica/browser": "workspace:*",
     "@poietica/design-system": "workspace:*",
     "@poietica/external-store": "workspace:*",

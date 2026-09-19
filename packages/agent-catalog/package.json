@@ -11,7 +11,7 @@
     "typecheck": "tsc --project tsconfig.json --noEmit"
   },
   "dependencies": {
-    "valibot": "catalog:"
+    "zod": "catalog:"
   },
   "devDependencies": {
     "@types/bun": "catalog:",

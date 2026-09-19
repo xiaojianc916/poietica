@@ -40,7 +40,7 @@
     "react-dom": "catalog:",
     "react-grab": "catalog:",
     "uuid": "catalog:",
-    "valibot": "catalog:"
+    "zod": "catalog:"
   },
   "devDependencies": {
     "@tailwindcss/vite": "catalog:",

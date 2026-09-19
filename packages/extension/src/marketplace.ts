@@ -1,5 +1,5 @@
 import { assertUnreachable } from '@poietica/problem'
-import * as v from 'valibot'
+import { z } from 'zod'
 import {
   type PluginInstallSource,
   type PluginTrustTier,
@@ -70,20 +70,20 @@ export interface MarketplaceCatalog {
  * 只认一个名字，官方目录里用另一个名字写的条目会安静地少掉半格 —— 少掉来源的那一条
  * 直接装不上，而界面上它看起来与别的条目没有任何区别。
  */
-const RawEntry = v.looseObject({
-  id: v.string(),
-  displayName: v.optional(v.string()),
-  name: v.optional(v.string()),
-  description: v.optional(v.string()),
-  shortDescription: v.optional(v.string()),
-  homepage: v.optional(v.string()),
-  websiteURL: v.optional(v.string()),
-  version: v.optional(v.string()),
-  keywords: v.optional(v.array(v.string())),
-  tier: v.optional(v.string()),
-  source: v.optional(v.string()),
-  url: v.optional(v.string()),
-  downloadUrl: v.optional(v.string()),
+const RawEntry = z.looseObject({
+  id: z.string(),
+  displayName: z.string().optional(),
+  name: z.string().optional(),
+  description: z.string().optional(),
+  shortDescription: z.string().optional(),
+  homepage: z.string().optional(),
+  websiteURL: z.string().optional(),
+  version: z.string().optional(),
+  keywords: z.array(z.string()).optional(),
+  tier: z.string().optional(),
+  source: z.string().optional(),
+  url: z.string().optional(),
+  downloadUrl: z.string().optional(),
 })
 
 /*
@@ -93,9 +93,9 @@ const RawEntry = v.looseObject({
  * 版本号是发布方自己的记事，不是消费方的准入条件。写死一个数字去比，等于官方哪天把它
  * 从一个字符串改成另一个，我们这边整页空白，而目录的形状一个字节都没变。
  */
-const RawCatalog = v.looseObject({
-  version: v.optional(v.string()),
-  plugins: v.array(RawEntry),
+const RawCatalog = z.looseObject({
+  version: z.string().optional(),
+  plugins: z.array(RawEntry),
 })
 
 export interface DecodedCatalog {
@@ -115,15 +115,18 @@ export type CatalogDecoding = DecodedCatalog | UndecodableCatalog
  * 沿途每一处各自解释一遍，而解释不一致时没有任何东西会报错。
  */
 export function decodeMarketplaceCatalog(raw: unknown, catalogUrl: string): CatalogDecoding {
-  const parsed = v.safeParse(RawCatalog, raw)
+  const parsed = RawCatalog.safeParse(raw)
 
   if (!parsed.success) {
-    return { kind: 'undecodable', reason: parsed.issues.map((issue) => issue.message).join('; ') }
+    return {
+      kind: 'undecodable',
+      reason: parsed.error.issues.map((issue) => issue.message).join('; '),
+    }
   }
 
   const entries: MarketplaceEntry[] = []
 
-  for (const entry of parsed.output.plugins) {
+  for (const entry of parsed.data.plugins) {
     const specifier = entry.source ?? entry.url ?? entry.downloadUrl
 
     /*

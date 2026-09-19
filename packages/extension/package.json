@@ -18,8 +18,8 @@
     "@poietica/design-system": "workspace:*",
     "@poietica/problem": "workspace:*",
     "lucide-react": "catalog:",
-    "valibot": "catalog:",
-    "yaml": "catalog:"
+    "yaml": "catalog:",
+    "zod": "catalog:"
   },
   "peerDependencies": {
     "react": "catalog:",

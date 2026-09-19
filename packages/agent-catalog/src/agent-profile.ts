@@ -1,4 +1,4 @@
-import * as v from 'valibot'
+import { z } from 'zod'
 import { kimiCode } from './kimi/descriptor'
 
 /** 会话配置值。 */
@@ -49,21 +49,21 @@ const PROFILE_ISSUE = 'agent 档案无法解析'
 const FOREIGN_ISSUE = '配置里有不属于本软件的 agent 档案，已从 agents.json 移除'
 const DUPLICATE_ISSUE = '配置里有重复的 agent 档案，只保留了第一条'
 
-const text = v.pipe(v.string(), v.minLength(1), v.maxLength(MAX_TEXT))
-const envName = v.pipe(v.string(), v.regex(ENV_NAME_PATTERN))
-const processEnvName = v.pipe(v.string(), v.regex(PROCESS_ENV_NAME_PATTERN))
+const text = z.string().min(1).max(MAX_TEXT)
+const envName = z.string().regex(ENV_NAME_PATTERN)
+const processEnvName = z.string().regex(PROCESS_ENV_NAME_PATTERN)
 
-const ProfileSchema = v.object({
-  id: v.pipe(v.string(), v.regex(ID_PATTERN)),
-  cwd: v.optional(text),
-  env: v.record(envName, text),
-  defaultConfigOptions: v.record(text, v.union([text, v.boolean()])),
-  command: v.optional(text),
-  args: v.optional(v.array(text)),
-  unsetEnv: v.optional(v.array(processEnvName)),
-  homeVar: v.optional(envName),
-  ownHomeDirectory: v.optional(text),
-  install: v.optional(v.object({ packageName: text, versionArgs: v.array(text) })),
+const ProfileSchema = z.object({
+  id: z.string().regex(ID_PATTERN),
+  cwd: text.optional(),
+  env: z.record(envName, text),
+  defaultConfigOptions: z.record(text, z.union([text, z.boolean()])),
+  command: text.optional(),
+  args: z.array(text).optional(),
+  unsetEnv: z.array(processEnvName).optional(),
+  homeVar: envName.optional(),
+  ownHomeDirectory: text.optional(),
+  install: z.object({ packageName: text, versionArgs: z.array(text) }).optional(),
 })
 
 function idOf(entry: unknown): string | undefined {
@@ -84,13 +84,13 @@ export function parseAgentProfile(input: unknown): AgentProfileParse {
     return { ok: false, issue: ID_ISSUE }
   }
 
-  const parsed = v.safeParse(ProfileSchema, input)
+  const parsed = ProfileSchema.safeParse(input)
 
   if (!parsed.success) {
     return { ok: false, issue: PROFILE_ISSUE }
   }
 
-  const profile = parsed.output
+  const profile = parsed.data
 
   if (
     Object.keys(profile.env).length > MAX_ENTRIES ||

@@ -1,4 +1,4 @@
-import * as v from 'valibot'
+import { z } from 'zod'
 import {
   DEFAULT_SURFACE_ID,
   describeSurface,
@@ -291,21 +291,21 @@ function project(state: WorkbenchState): WorkbenchViewModel {
  * 标题跟着存。它是 threads 表那一列的副本，而读回路径上没有第二条来源：
  * 不存的代价是恢复出来的第一帧全是没有名字的标签。
  */
-const DOCUMENT = v.object({
-  entries: v.array(
-    v.union([
-      v.object({
-        kind: v.literal('conversation'),
-        threadId: v.custom<ConversationId>((value) => typeof value === 'string' && value !== ''),
-        title: v.string(),
+const DOCUMENT = z.object({
+  entries: z.array(
+    z.union([
+      z.object({
+        kind: z.literal('conversation'),
+        threadId: z.custom<ConversationId>((value) => typeof value === 'string' && value !== ''),
+        title: z.string(),
       }),
-      v.object({
-        kind: v.literal('surface'),
-        surfaceId: v.string(),
+      z.object({
+        kind: z.literal('surface'),
+        surfaceId: z.string(),
       }),
     ]),
   ),
-  activeIndex: v.pipe(v.number(), v.finite()),
+  activeIndex: z.number(),
 })
 
 function encode(state: WorkbenchState): string {
@@ -326,17 +326,17 @@ function decode(document: string | null | undefined): WorkbenchState {
     return INITIAL_STATE
   }
 
-  const read = v.safeParse(DOCUMENT, parsed)
+  const read = DOCUMENT.safeParse(parsed)
 
-  if (!read.success || read.output.entries.length === 0) {
+  if (!read.success || read.data.entries.length === 0) {
     return INITIAL_STATE
   }
 
   const entries: Entry[] = []
-  const restoredIndex = normalizeActiveIndex(read.output.activeIndex)
+  const restoredIndex = normalizeActiveIndex(read.data.activeIndex)
   let activeIndex = 0
 
-  for (const [index, entry] of read.output.entries.entries()) {
+  for (const [index, entry] of read.data.entries.entries()) {
     if (entry.kind === 'surface') {
       if (!isSurfaceId(entry.surfaceId)) {
         continue

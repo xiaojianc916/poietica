@@ -120,7 +120,7 @@ The project is intentionally building reliability before broadening the product 
 
 | Interface | Agent transport | Desktop runtime | Tooling | Validation |
 | :---: | :---: | :---: | :---: | :---: |
-| React + TypeScript | kap | Tauri + Rust | Bun + Turborepo + Vite | Biome + bun test + Valibot |
+| React + TypeScript | kap | Tauri + Rust | Bun + Turborepo + Vite | Biome + bun test + Zod |
 
 </div>
 
@@ -132,7 +132,7 @@ The project is intentionally building reliability before broadening the product 
 - **Bun + Turborepo** — workspace management and task orchestration.
 - **Biome** — formatting and static analysis.
 - **bun test** — unit and integration tests across the workspace.
-- **Valibot** — runtime validation at file, IPC, AI, and application boundaries.
+- **Zod** — runtime validation at file, IPC, AI, and application boundaries.
 
 ## Get started
 

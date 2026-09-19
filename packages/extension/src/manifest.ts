@@ -1,4 +1,4 @@
-import * as v from 'valibot'
+import { z } from 'zod'
 
 /*
  * 上游运行时已经不认这几个字段。读到只记一条诊断、不生效 —— 静默忽略会把
@@ -103,32 +103,32 @@ export interface RejectedManifest {
  */
 export type ManifestDecoding = AcceptedManifest | RejectedManifest
 
-const InterfaceBlock = v.looseObject({
-  displayName: v.optional(v.string()),
-  shortDescription: v.optional(v.string()),
-  developerName: v.optional(v.string()),
-  websiteURL: v.optional(v.string()),
-  capabilities: v.optional(v.array(v.string())),
+const InterfaceBlock = z.looseObject({
+  displayName: z.string().optional(),
+  shortDescription: z.string().optional(),
+  developerName: z.string().optional(),
+  websiteURL: z.string().optional(),
+  capabilities: z.array(z.string()).optional(),
 })
 
 /* 一条路径与一串路径在下游没有区别，差异在解码期就抹掉。 */
-const PathList = v.union([v.string(), v.array(v.string())])
+const PathList = z.union([z.string(), z.array(z.string())])
 
-const RawManifest = v.looseObject({
-  name: v.string(),
-  version: v.optional(v.string()),
-  description: v.optional(v.string()),
-  homepage: v.optional(v.string()),
-  interface: v.optional(InterfaceBlock),
-  skills: v.optional(PathList),
-  agents: v.optional(PathList),
-  commands: v.optional(PathList),
-  mcpServers: v.optional(v.record(v.string(), v.record(v.string(), v.unknown()))),
-  sessionStart: v.optional(v.looseObject({ skill: v.optional(v.string()) })),
-  skillInstructions: v.optional(v.string()),
-  systemPrompt: v.optional(v.string()),
-  systemPromptPath: v.optional(v.string()),
-  hooks: v.optional(v.array(v.unknown())),
+const RawManifest = z.looseObject({
+  name: z.string(),
+  version: z.string().optional(),
+  description: z.string().optional(),
+  homepage: z.string().optional(),
+  interface: InterfaceBlock.optional(),
+  skills: PathList.optional(),
+  agents: PathList.optional(),
+  commands: PathList.optional(),
+  mcpServers: z.record(z.string(), z.record(z.string(), z.unknown())).optional(),
+  sessionStart: z.looseObject({ skill: z.string().optional() }).optional(),
+  skillInstructions: z.string().optional(),
+  systemPrompt: z.string().optional(),
+  systemPromptPath: z.string().optional(),
+  hooks: z.array(z.unknown()).optional(),
 })
 
 /* 落在插件根之内：以 ./ 开头（或就是 .），且没有任何一段是 ..。 */
@@ -217,7 +217,7 @@ function hookDiagnostics(
 }
 
 export function decodePluginManifest(input: unknown): ManifestDecoding {
-  const parsed = v.safeParse(RawManifest, input)
+  const parsed = RawManifest.safeParse(input)
 
   if (!parsed.success) {
     return {
@@ -226,13 +226,13 @@ export function decodePluginManifest(input: unknown): ManifestDecoding {
         {
           code: 'manifest-invalid',
           pluginId: '',
-          detail: parsed.issues.map((issue) => issue.message).join('; '),
+          detail: parsed.error.issues.map((issue) => issue.message).join('; '),
         },
       ],
     }
   }
 
-  const raw = parsed.output
+  const raw = parsed.data
 
   if (!PLUGIN_NAME.test(raw.name)) {
     return {

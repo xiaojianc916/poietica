@@ -150,8 +150,6 @@ export const SessionControls = memo(function SessionControls({
 
   const name = model === undefined ? undefined : chosen(model)
   const band = level === undefined ? undefined : chosen(level)
-  /* 全名展示（截断已放开），窄窗下仍被挤住时靠 title 兜底。 */
-  const summary = [name, band].filter((part) => part !== undefined).join('  ')
 
   /* 没有档位控件时，卡里只剩模型清单这一页。 */
   const listing = model !== undefined && (level === undefined || pane === MODEL)
@@ -230,11 +228,7 @@ export const SessionControls = memo(function SessionControls({
         }
       }}
     >
-      <DropdownMenuTrigger
-        aria-label="模型与思考档位"
-        className="assistant-model-select__button"
-        title={summary}
-      >
+      <DropdownMenuTrigger aria-label="模型与思考档位" className="assistant-model-select__button">
         {name === undefined ? null : <span className="assistant-model-select__name">{name}</span>}
 
         {band === undefined ? null : <span className="assistant-model-select__band">{band}</span>}
