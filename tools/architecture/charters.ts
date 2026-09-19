@@ -16,6 +16,8 @@ const SKIP = new Set([
   'Architecture',
   'coverage',
   'dist',
+  'dist-release',
+  'dist-types',
   'gen',
   'node_modules',
   'target',
@@ -397,6 +399,37 @@ export async function noWildcardReExports(root: string): Promise<Violation[]> {
       }
     }
   }
+
+  violations.push(...(await wildcardTypeScriptReExports(root)))
+  violations.push(...(await wildcardModuleDeclarations(root)))
+
+  return violations
+}
+
+/* 同一判据在 TS 侧：`export * from` 让出口不可枚举，还会把「同名两份定义」静默吞掉
+ * —— 那个名字从公开面消失，谁都不会收到任何提示。 */
+async function wildcardTypeScriptReExports(root: string): Promise<Violation[]> {
+  const violations: Violation[] = []
+
+  for (const file of await walk(root, ['apps', 'packages', 'tools'], ['.ts', '.tsx'])) {
+    const source = await readFile(path.join(root, file), 'utf8')
+
+    for (const line of source.split('\n')) {
+      if (/^export\s+\*\s+from\s/.test(line.trim())) {
+        violations.push({
+          policy: 'wildcard-module-declarations',
+          where: file,
+          detail: line.trim(),
+        })
+      }
+    }
+  }
+
+  return violations
+}
+
+async function wildcardModuleDeclarations(root: string): Promise<Violation[]> {
+  const violations: Violation[] = []
 
   for (const file of await walk(root, ['apps', 'packages', 'tools'], ['.d.ts'])) {
     /* CSS 副作用导入的类型来源：全仓唯一被认可的模块通配声明（见该文件头）。 */

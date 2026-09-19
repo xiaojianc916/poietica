@@ -24,7 +24,8 @@
 ## 1. 产品不变量
 
 Poietica 是本地高性能 kap 客户端桌面应用，对标 Codex 桌面版。唯一接入的
-agent 是 Kimi Code（TypeScript 版，`kimi web` 入口，见 ADR 0024/0025）：它以
+agent 是 Kimi Code（TypeScript 版，`kimi web` 入口，见 ADR 0026——ADR 0024/0025
+的 ACP 前提已被它取代）：它以
 `packages/agent-catalog` 的档案接入，通用层不认识任何一家的名字，再接一家接的
 是 kap 的第二个实现而不是第二条协议。多会话并发
 是常态而非特例。
@@ -105,7 +106,9 @@ emit、宿主节拍（攒批、窗口、托盘）。
 ## 5. 微型架构条例（文件内部）
 
 - **单一分发点**：一种帧/一种状态只允许一个 match/switch 主干；协议知识收在
-  一处（TS 侧唯一认识官方 transcript 形状的文件是 transcript/transcript-projector.ts，
+  一处（TS 侧 vendored schema 是 packages/transcript/src/contract/schema.ts，线上
+  信封判别是 packages/native-bridge/src/conversation/transcript-decoding.ts，
+  投影读法是 packages/conversation/src/transcript/transcript-projector.ts；
   Rust 侧是 crates/kap-client/src/frame.rs——别处出现协议判别即为泄漏）。
 - **成形与投递两段式**：昂贵构造在锁外/号外完成，占号、上锁、发布只做最后一步
   （判例：crates/kap-client/src/recorder.rs 的 shape/deliver，asset_protocol 的

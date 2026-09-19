@@ -10,8 +10,8 @@ use specta::Type;
 use tauri::{AppHandle, async_runtime, command};
 
 use crate::agent::profile::agent_home_directory;
-use crate::error::{Error, Result};
-use crate::extension::{PluginFetch, staged_fetch, staging_root};
+use crate::error::Result;
+use crate::extension::{PluginFetch, plugin_failure, staged_fetch, staging_root};
 
 type SkillsCommandResult<T> = std::result::Result<T, Problem>;
 
@@ -21,11 +21,6 @@ fn skills_root(app: &AppHandle) -> Result<PathBuf> {
     let directory = agent_home_directory(app)?.join(SKILLS_DIRECTORY);
     fs::create_dir_all(&directory)?;
     Ok(directory)
-}
-
-fn skill_failure(cause: impl std::fmt::Display) -> Error {
-    log::warn!("skill operation failed: {cause}");
-    Error::Plugin(cause.to_string())
 }
 
 #[derive(Debug, Serialize, Type)]
@@ -61,8 +56,8 @@ pub async fn skills_list(app: AppHandle) -> SkillsCommandResult<Vec<SkillRecord>
     let root = skills_root(&app).map_err(Problem::from)?;
     let scanned = async_runtime::spawn_blocking(move || extension::scan_skills(&root))
         .await
-        .map_err(skill_failure)
-        .and_then(|result| result.map_err(skill_failure))
+        .map_err(plugin_failure)
+        .and_then(|result| result.map_err(plugin_failure))
         .map_err(Problem::from)?;
 
     Ok(scanned
@@ -87,12 +82,12 @@ pub async fn skills_list(app: AppHandle) -> SkillsCommandResult<Vec<SkillRecord>
 #[command]
 #[specta::specta]
 pub async fn skills_stage(app: AppHandle, fetch: PluginFetch) -> SkillsCommandResult<SkillStaged> {
-    staged_fetch(&app, fetch, skill_failure, |staging, subdirectory| {
+    staged_fetch(&app, fetch, plugin_failure, |staging, subdirectory| {
         let staging_id = staging.identifier().to_owned();
         let root = extension::locate_skill_root(staging.path(), subdirectory)
-            .map_err(|_| skill_failure("这个来源里没有 SKILL.md，它不是一个技能目录"))?;
+            .map_err(|_| plugin_failure("这个来源里没有 SKILL.md，它不是一个技能目录"))?;
         let skill_md =
-            fs::read_to_string(root.join(extension::SKILL_FILENAME)).map_err(skill_failure)?;
+            fs::read_to_string(root.join(extension::SKILL_FILENAME)).map_err(plugin_failure)?;
 
         Ok(SkillStaged {
             staging_id,
@@ -108,14 +103,14 @@ pub async fn skills_stage(app: AppHandle, fetch: PluginFetch) -> SkillsCommandRe
 pub async fn skills_commit(app: AppHandle, request: SkillCommitRequest) -> SkillsCommandResult<()> {
     (|| -> Result<()> {
         let staging = extension::Staging::open(&staging_root(&app)?, &request.staging_id)
-            .map_err(skill_failure)?;
+            .map_err(plugin_failure)?;
         extension::install_skill(
             staging,
             &skills_root(&app)?,
             &request.name,
             request.subdirectory.as_deref(),
         )
-        .map_err(skill_failure)
+        .map_err(plugin_failure)
     })()
     .map_err(Problem::from)
 }
@@ -125,8 +120,8 @@ pub async fn skills_commit(app: AppHandle, request: SkillCommitRequest) -> Skill
 pub async fn skills_discard(app: AppHandle, staging_id: String) -> SkillsCommandResult<()> {
     (|| -> Result<()> {
         let staging =
-            extension::Staging::open(&staging_root(&app)?, &staging_id).map_err(skill_failure)?;
-        staging.discard().map_err(skill_failure)
+            extension::Staging::open(&staging_root(&app)?, &staging_id).map_err(plugin_failure)?;
+        staging.discard().map_err(plugin_failure)
     })()
     .map_err(Problem::from)
 }
@@ -137,8 +132,8 @@ pub async fn skills_trash(app: AppHandle, name: String) -> SkillsCommandResult<(
     let root = skills_root(&app).map_err(Problem::from)?;
     async_runtime::spawn_blocking(move || extension::trash_skill(&root, &name))
         .await
-        .map_err(skill_failure)
-        .and_then(|result| result.map_err(skill_failure))
+        .map_err(plugin_failure)
+        .and_then(|result| result.map_err(plugin_failure))
         .map_err(Problem::from)
 }
 
@@ -152,7 +147,7 @@ pub async fn skills_set_enabled(
     let root = skills_root(&app).map_err(Problem::from)?;
     async_runtime::spawn_blocking(move || extension::set_skill_enabled(&root, &name, enabled))
         .await
-        .map_err(skill_failure)
-        .and_then(|result| result.map_err(skill_failure))
+        .map_err(plugin_failure)
+        .and_then(|result| result.map_err(plugin_failure))
         .map_err(Problem::from)
 }

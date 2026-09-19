@@ -1,6 +1,6 @@
-import type { UpdateProgress, UpdateRelease } from './model'
-
-export type { UpdateProgress, UpdateRelease }
+/** 三个动作的输入与输出形状；消费者只有 app-update-store。 */
+export type UpdateProgress = { percent: number | null }
+export type UpdateRelease = { version: string; notes: string | null }
 
 export interface AppUpdateController {
   readonly check: () => Promise<UpdateRelease | null>

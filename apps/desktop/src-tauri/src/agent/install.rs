@@ -19,26 +19,16 @@ use tauri::{AppHandle, async_runtime, command};
 
 use crate::error::{Error, Result};
 use poietica_kap_client::{
-    InstallState as NativeInstallState, InstallStatus as NativeInstallStatus, KapError,
-    install_package, install_state_of, latest_version, owner_of, preferred_manager,
-    reported_version, resolve_program,
+    InstallState as NativeInstallState, InstallStatus as NativeInstallStatus, install_package,
+    install_state_of, latest_version, owner_of, preferred_manager, reported_version,
+    resolve_program,
 };
 use poietica_problem::Problem;
 
-use super::profile::{agent_install_spec, agent_program, open_store};
+use super::profile::{agent_install_spec, agent_program, open_store, surfaced};
 
 const CHECK_KEY: &str = "installChecks";
 const CHECK_TTL_MS: i64 = 24 * 60 * 60 * 1000;
-
-/// crate 侧工具链失败原样上屏；其余按 Display 折叠。
-fn surfaced(error: KapError) -> Error {
-    match error {
-        KapError::Toolchain { message } | KapError::Validation { message } => {
-            Error::AgentCli(message)
-        }
-        other => Error::AgentCli(other.to_string()),
-    }
-}
 
 /// 界面读到的安装处境（IPC DTO；判据在 crate 的 InstallState）。
 #[derive(Clone, Copy, Debug, Deserialize, PartialEq, Eq, Serialize, Type)]

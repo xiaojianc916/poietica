@@ -1,6 +1,8 @@
 import { createExternalStore } from '@poietica/external-store'
 import { useEffect, useId, useSyncExternalStore } from 'react'
 
+import { SECOND } from '../semantics/duration'
+
 /*
  * 会话时间的唯一管线：一口时钟、一套文案、一套分段。
  *
@@ -16,8 +18,7 @@ import { useEffect, useId, useSyncExternalStore } from 'react'
  * 都是这么做的，没有一个是定周期轮询。
  *
  * 订阅那圈样板不在这个文件里：它是每个 React 外部数据源都要写一遍的东西，
- * 住在 @poietica/design-system 的 external-store。这个文件只负责「现在几点」和「下次
- * 几点」。
+ * 住在 @poietica/external-store。这个文件只负责「现在几点」和「下次几点」。
  *
  * now 只在 fire() 里换一次。getSnapshot 必须是纯读，这是 useSyncExternalStore
  * 的前提 —— 在 subscribe() 里写它就是 React 的 effect 阶段，等于让这一帧用旧值
@@ -29,9 +30,6 @@ const FLOOR = 250
 
 /** 单次等待的上限：兜住 setTimeout 的 32 位截断，也兜住休眠期间的时钟跳变。 */
 const CEILING = 86_400_000
-
-/** 秒表的一拍。 */
-const SECOND = 1_000
 
 const view = typeof document === 'undefined' ? undefined : document
 

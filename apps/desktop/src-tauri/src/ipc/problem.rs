@@ -52,7 +52,7 @@ fn code(error: &Error) -> Code {
 /// 带得出「用户拿得去修正的理由」的那几个变体；其余不外传现场。
 ///
 /// 插件失败在列：那句原因说的是服务器答了什么、清单在不在、归档解不开
-/// （commands/extension.rs 的 plugin_failure），都是用户自己给的来源上的外部事实。
+/// （src/extension.rs 的 plugin_failure），都是用户自己给的来源上的外部事实。
 /// 剥掉它，装不上就只剩「插件操作失败」一句，人无从下手。
 fn reason(error: &Error) -> Option<&str> {
     match error {

@@ -27,11 +27,7 @@ pub(super) fn apply_layout(app: &AppHandle) {
         webviews
             .iter()
             .filter_map(|(id, webview)| {
-                let wanted = (visible && Some(*id) == showing).then(|| PanelBounds {
-                    width: bounds.width.max(1.0),
-                    height: bounds.height.max(1.0),
-                    ..bounds
-                });
+                let wanted = (visible && Some(*id) == showing).then(|| bounds.clamped());
 
                 (placed.insert(*id, wanted) != Some(wanted)).then(|| (webview.clone(), *id, wanted))
             })

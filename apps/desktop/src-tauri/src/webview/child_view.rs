@@ -144,9 +144,10 @@ fn create_target(
             LogicalSize::new(1.0, 1.0),
         )
     } else {
+        let rect = bounds.clamped();
         (
-            LogicalPosition::new(bounds.x, bounds.y),
-            LogicalSize::new(bounds.width.max(1.0), bounds.height.max(1.0)),
+            LogicalPosition::new(rect.x, rect.y),
+            LogicalSize::new(rect.width, rect.height),
         )
     };
 

@@ -58,7 +58,7 @@ struct PersistedAgentConfig {
 }
 
 /// crate 侧拒绝与工具链失败原样上屏；其余按 Display 折叠。
-fn surfaced(error: KapError) -> Error {
+pub(super) fn surfaced(error: KapError) -> Error {
     match error {
         KapError::Toolchain { message } | KapError::Validation { message } => {
             Error::AgentCli(message)

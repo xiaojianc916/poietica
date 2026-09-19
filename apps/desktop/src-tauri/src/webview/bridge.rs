@@ -22,6 +22,18 @@ pub struct PanelBounds {
     pub height: f64,
 }
 
+impl PanelBounds {
+    /// 内核不接受零尺寸。收窄只在这一处做：创建与布局两条路都必须拿到同一个矩形，
+    /// 各写一份 max(1.0) 就会分叉成一个能显示、一个看不见。
+    pub(super) fn clamped(self) -> Self {
+        Self {
+            width: self.width.max(1.0),
+            height: self.height.max(1.0),
+            ..self
+        }
+    }
+}
+
 /// 一个标签在渲染层眼里的样子。url 缺席 = 空白页。
 #[derive(Clone, Debug, Deserialize, Serialize, specta::Type)]
 #[serde(rename_all = "camelCase")]

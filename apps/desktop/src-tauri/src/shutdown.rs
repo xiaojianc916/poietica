@@ -44,11 +44,6 @@ pub fn quit(app: &AppHandle) {
     app.exit(0);
 }
 
-pub fn relaunch(app: &AppHandle) -> ! {
-    drain(app);
-    app.restart()
-}
-
 fn drain(app: &AppHandle) {
     app.state::<ShutdownBarrier>().drained.call_once(|| {
         if let Err(error) = app.save_window_state(WINDOW_STATE_FLAGS) {

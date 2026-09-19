@@ -116,9 +116,10 @@ pub struct ForeignPluginInventory {
 /// 折成 IPC 上那条插件错误，并把真正的原因留在日志里。
 ///
 /// 公共文案是脱敏的固定串（见 error.rs 的 public_message），原因不写进日志就等于
-/// 丢了 —— 而排查插件装不上，靠的正是这句原因。
-fn plugin_failure(cause: impl std::fmt::Display) -> Error {
-    log::warn!("plugin operation failed: {cause}");
+/// 丢了 —— 而排查插件装不上，靠的正是这句原因。技能是同一类制品、走同一条 IPC
+/// 变体，所以共用这一处折叠，不再各写一份。
+pub(crate) fn plugin_failure(cause: impl std::fmt::Display) -> Error {
+    log::warn!("extension operation failed: {cause}");
 
     Error::Plugin(cause.to_string())
 }

@@ -610,6 +610,68 @@ export async function problemCopyIsComplete(
   return violations
 }
 
+/**
+ * 词汇镜像必须与它的产地逐字一致。
+ *
+ * `packages/problem` 不许 import 传输契约（transport-contract-is-adapter-private），
+ * 所以 Code/Category/Retryability 三个并集只能手抄一份 —— 手抄就要有门禁，
+ * 否则 Rust 加一个错误码，TS 侧永远不知道，而两边都编译通过。
+ */
+export async function problemVocabularyMirrorsSource(
+  root: string,
+  codeSource: string,
+  categorySource: string,
+  retrySource: string,
+): Promise<Violation[]> {
+  const camel = (name: string): string =>
+    name.charAt(0).toLowerCase() + name.slice(1).replace(/_(.)/g, (_, c: string) => c.toUpperCase())
+
+  const members = (source: string, name: string): string[] => {
+    const body = new RegExp(`pub enum ${name} \\{([^}]*)\\}`).exec(source)?.[1] ?? ''
+
+    return [...body.matchAll(/^\s*([A-Z][A-Za-z0-9_]*),\s*$/gm)].map((match) =>
+      camel(match[1] ?? ''),
+    )
+  }
+
+  const mirror = await readFile(path.join(root, 'packages/problem/src/model.ts'), 'utf8')
+  const violations: Violation[] = []
+
+  for (const [name, source] of [
+    ['Code', codeSource],
+    ['Category', categorySource],
+    ['Retryability', retrySource],
+  ] as const) {
+    const declared = members(source, name)
+    const union = new RegExp(`export type ${name} =([^\\n]*(?:\\n\\s*\\|[^\\n]*)*)`).exec(mirror)
+    const copied = [...(union?.[1] ?? '').matchAll(/'([A-Za-z0-9_]+)'/g)].map(
+      (match) => match[1] ?? '',
+    )
+
+    for (const member of declared) {
+      if (!copied.includes(member)) {
+        violations.push({
+          policy: 'problem-vocabulary-mirrors-source',
+          where: 'packages/problem/src/model.ts',
+          detail: `${name} 缺成员 ${member}，crates/problem 里有`,
+        })
+      }
+    }
+
+    for (const member of copied) {
+      if (!declared.includes(member)) {
+        violations.push({
+          policy: 'problem-vocabulary-mirrors-source',
+          where: 'packages/problem/src/model.ts',
+          detail: `${name} 多出成员 ${member}，crates/problem 里没有`,
+        })
+      }
+    }
+  }
+
+  return violations
+}
+
 /** 包只能 import 自己在 package.json 里声明过的 @poietica/*。 */
 export async function declaredDependenciesOnly(
   root: string,

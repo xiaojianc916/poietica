@@ -55,6 +55,8 @@ const exportBindings = await readFile(
   'utf8',
 )
 const codeSource = await readFile(path.join(ROOT, 'crates/problem/src/code.rs'), 'utf8')
+const categorySource = await readFile(path.join(ROOT, 'crates/problem/src/category.rs'), 'utf8')
+const retrySource = await readFile(path.join(ROOT, 'crates/problem/src/retry.rs'), 'utf8')
 
 const scripted = [
   {
@@ -90,6 +92,7 @@ const violations: Violation[] = [
   ...(await policy.manifestScriptsResolve(ROOT, scripted)),
   ...(await policy.invokedScriptsResolve(ROOT)),
   ...(await policy.problemCopyIsComplete(ROOT, codeSource)),
+  ...(await policy.problemVocabularyMirrorsSource(ROOT, codeSource, categorySource, retrySource)),
   ...(await charter.preferencesHaveOneOwner(ROOT)),
   ...(await charter.nativeEventsUseGeneratedSurface(ROOT)),
   ...(await charter.capabilitiesAreWiredAtTheRoot(ROOT)),

@@ -35,7 +35,6 @@
     "test": "bun test src"
   },
   "dependencies": {
-    "@poietica/agent-catalog": "workspace:*",
     "@poietica/automation": "workspace:*",
     "@poietica/contract": "workspace:*",
     "@poietica/conversation": "workspace:*",
