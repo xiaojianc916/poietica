@@ -116,7 +116,7 @@ export function AuxiliaryDock({
     [ownsBrowser],
   )
 
-  /* 每种通道一个渲染器：委派通道归 agent-ui，审查归 review。空态归 AuxiliaryPanel。 */
+  /* 每种通道一个渲染器：委派通道归 conversation 包，审查归 review。空态归 AuxiliaryPanel。 */
   const paneName = useDelegateChannelNames(conversationId)
 
   const terminalRoot = useConversationWorkspaceRoot(conversationId)

@@ -5,7 +5,7 @@ import {
   takePreviousNativeCrashReport,
 } from '@poietica/native-bridge/diagnostics'
 import { readWorkbenchSession } from '@poietica/native-bridge/workspace/session'
-import { reportFatalIncident } from '../notice/problem-presentation'
+import { reportFatalIncident } from '../notice/fatal-incident'
 import { installContextMenuGuard } from '../window/context-menu-guard'
 import { installExternalLinks } from '../window/external-links'
 import { installScrollbarSize } from '../window/scrollbar-size'

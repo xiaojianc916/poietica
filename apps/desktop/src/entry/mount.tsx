@@ -7,11 +7,8 @@ import type { Root } from 'react-dom/client'
 import { createRoot } from 'react-dom/client'
 import { BrowserPickContext } from '../browser/pick-context'
 import { FatalErrorHost } from '../notice/error-boundary'
-import {
-  markReactFatalHostMounted,
-  reportFailure,
-  reportFatalIncident,
-} from '../notice/problem-presentation'
+import { markReactFatalHostMounted, reportFatalIncident } from '../notice/fatal-incident'
+import { reportFailure } from '../notice/problem-presentation'
 import { WorkspaceLayoutContext } from '../shell/layout/layout-context'
 import { AppShell } from '../workbench/app-shell'
 import type { ApplicationRuntime } from '../workbench/runtime-contract'

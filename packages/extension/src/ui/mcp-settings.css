@@ -322,17 +322,6 @@
   flex-shrink: 0;
 }
 
-.mcp__group {
-  display: grid;
-  gap: 10px;
-}
-
-.mcp__group-title {
-  margin: 2px 0 0;
-  font-size: 13px;
-  font-weight: 500;
-}
-
 .mcp__error {
   margin: 0;
   padding: 10px 12px;

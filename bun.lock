@@ -38,7 +38,6 @@
         "react": "catalog:",
         "react-dom": "catalog:",
         "react-grab": "catalog:",
-        "shiki": "catalog:",
         "uuid": "catalog:",
         "valibot": "catalog:",
       },

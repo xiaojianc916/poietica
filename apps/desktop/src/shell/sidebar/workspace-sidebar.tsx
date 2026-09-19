@@ -22,10 +22,6 @@ export interface WorkspaceSidebarProps {
  * 打开对应表面——侧边栏在整个会话期间保持同一副样子，用户不会因为点了一个
  * 导航项就丢失会话记录。
  *
- * 这与它此前的形态相反：原先按 activeNavigationItem 去 panelRenderers 里取面板，
- * 而那张表只有 ai 一个有效键，于是点其余导航项侧边栏就换成占位符。那是活动栏
- * 范式的残留，随图标条一起去掉。
- *
  * 面板本体由 apps 组合根注入，features/* 之间不互相依赖这条规则不变。
  */
 export function WorkspaceSidebar({

@@ -1,8 +1,8 @@
+use poietica_time::WallClock;
 use std::collections::VecDeque;
 use std::fmt;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicI64, Ordering};
-use std::time::{SystemTime, UNIX_EPOCH};
 
 use serde::Serialize;
 use serde_json::{Value, json};
@@ -206,14 +206,6 @@ impl Recorder {
             self.in_flight.push_back(admission_id.to_owned());
         }
         accepted
-    }
-
-    /// 记下这一轮的一帧。
-    ///
-    /// 收的是帧而不是某条协议的通知：成帧在协议侧做（frame.rs 的 RunFrame），
-    /// 此后共用这一条路。
-    pub fn record_frame(&mut self, frame: RunFrame) {
-        self.append(frame);
     }
 
     /// 记录原子快照，使重建仍经 RunFrame → FrameSink → conversation_events。
@@ -463,11 +455,7 @@ fn approval_title(tool_name: &str, item: &Value, tool_call_id: &str) -> String {
 /// 的是一条对话在屏幕上断掉 —— 代价不对等。
 #[must_use]
 pub(crate) fn now_millis() -> i64 {
-    SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .ok()
-        .and_then(|elapsed| i64::try_from(elapsed.as_millis()).ok())
-        .unwrap_or_default()
+    poietica_time::wall_clock::SystemWallClock.now_unix_millis()
 }
 
 #[cfg(test)]

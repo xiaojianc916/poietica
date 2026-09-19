@@ -17,15 +17,19 @@
     "typecheck": "bun run typecheck:browser && bun run typecheck:node"
   },
   "dependencies": {
+    "@milkdown/crepe": "catalog:",
     "@poietica/agent-catalog": "workspace:*",
-    "@poietica/conversation": "workspace:*",
     "@poietica/automation": "workspace:*",
+    "@poietica/conversation": "workspace:*",
     "@poietica/design-system": "workspace:*",
     "@poietica/extension": "workspace:*",
     "@poietica/external-store": "workspace:*",
+    "@poietica/library": "workspace:*",
     "@poietica/native-bridge": "workspace:*",
     "@poietica/problem": "workspace:*",
+    "@poietica/review": "workspace:*",
     "@poietica/settings": "workspace:*",
+    "@poietica/terminal": "workspace:*",
     "@poietica/update": "workspace:*",
     "@poietica/workspace": "workspace:*",
     "@streamdown/mermaid": "catalog:",
@@ -35,13 +39,8 @@
     "react": "catalog:",
     "react-dom": "catalog:",
     "react-grab": "catalog:",
-    "shiki": "catalog:",
     "uuid": "catalog:",
-    "valibot": "catalog:",
-    "@poietica/review": "workspace:*",
-    "@poietica/terminal": "workspace:*",
-    "@poietica/library": "workspace:*",
-    "@milkdown/crepe": "catalog:"
+    "valibot": "catalog:"
   },
   "devDependencies": {
     "@tailwindcss/vite": "catalog:",

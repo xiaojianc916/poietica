@@ -9,11 +9,11 @@ export interface WorkspacePart {
 }
 
 /** 主区内容由组合根提供；控件由外壳摆放，以保持跨布局状态的 DOM 身份。 */
-export interface WorkspaceMainPart extends WorkspacePart {
+interface WorkspaceMainPart extends WorkspacePart {
   readonly controls: ReactNode
 }
 
-export interface WorkspaceAuxiliaryPart extends WorkspacePart {
+interface WorkspaceAuxiliaryPart extends WorkspacePart {
   readonly isDocked: boolean
   /**
    * 收起这一列时做什么。省略就是「不再属于任何对话」。

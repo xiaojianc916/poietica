@@ -33,7 +33,6 @@ function routeSink(): TranscriptSink {
   const owners = new Map<string, string>()
   return {
     opening: () => undefined,
-    history: () => undefined,
     failed: () => undefined,
     route: (sessionId, threadId) => {
       owners.set(sessionId, threadId)

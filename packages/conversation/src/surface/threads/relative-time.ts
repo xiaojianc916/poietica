@@ -3,7 +3,7 @@
  *
  * 这里没有时间桶表（今天／昨天／过去 7 天／过去 30 天／更早）：列表的一级索引是
  * 工作区而不是时间，时间退回它本来的位置 —— 行尾那一格的元数据。判据的正文在
- * packages/agent 的 thread-order.ts。
+ * threads/thread-order.ts。
  *
  * 留下的两件事都不随分组变化：一段时长怎么说（formatElapsed），以及这一屏下
  * 一次会变的时刻（nextChangeIn）。文案与绝对时刻交给 Intl：数量词、词序、语言
@@ -168,7 +168,7 @@ export interface PaintedMember<T> extends DatedMember<T> {
 }
 
 /*
- * name 可以是 null：那一组的目录还没有被记下来，见 agent-session 的
+ * name 可以是 null：那一组的目录还没有被记下来，见 threads/thread-order 的
  * workspaceNameOf。这三个形状只是同一份数据的两级投影，所以它们原样带过
  * 这件事，不在中途替它补一个名字 —— 补在哪一层，都是同一个编造。
  */

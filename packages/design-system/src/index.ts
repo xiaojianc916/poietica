@@ -39,7 +39,6 @@ export { SearchableSelect } from './control/searchable-select'
 export { SegmentedControl, type SegmentedOption } from './control/segmented-control'
 export { Select, type SelectOption } from './control/select'
 export { Switch } from './control/switch'
-export { Tabs, TabsList, TabsPanel, TabsTab } from './control/tabs'
 export { ToastRegion } from './control/toast'
 export {
   Tooltip,
@@ -61,4 +60,4 @@ export {
   type ThemePreference,
   type ThemePreferenceBinding,
 } from './theme/theme-controller'
-export { type CopyAction, useCopy } from './use-copy'
+export { useCopy } from './use-copy'

@@ -1,6 +1,5 @@
 export type {
   LibraryBody,
-  LibraryCatalog,
   LibraryDocument,
   LibraryEntry,
   LibraryFormat,

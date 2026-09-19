@@ -8,7 +8,7 @@ export type {
   SessionConfigReport,
 } from './agent/config'
 export type { SessionGoal, SessionGoalStatus } from './agent/goal'
-export type { KapSessionId, KapStopReason, KapToolCallId } from './agent/kap'
+export type { KapToolCallId } from './agent/kap'
 export type { SessionLink } from './agent/link'
 export type {
   ApprovalAnswer,
@@ -45,7 +45,6 @@ export type {
   ToolCallContent,
   ToolCallLocation,
   ToolCallStatus,
-  ToolCallUpdate,
   ToolKind,
 } from './agent/tool-call'
 export type { AgentMcpServer, AgentMcpStatus, AgentSkill, AgentToolkit } from './agent/toolkit'
@@ -55,7 +54,6 @@ export type {
   TranscriptPage,
   TranscriptPort,
   TranscriptSignal,
-  TranscriptTurnId,
 } from './agent/transcript'
 export type { SessionUsage, SessionUsagePort, SessionUsageReport } from './agent/usage'
 export type {
@@ -110,11 +108,9 @@ export type { PendingInteractions } from './timeline/timeline-queries'
 export {
   activeScope,
   currentTodos,
-  inflightPromptId,
   pendingInteractions,
   pendingPermission,
   pendingPermissionCount,
-  pendingQuestion,
   selectIsBusy,
 } from './timeline/timeline-queries'
 export { createTimelineState } from './timeline/timeline-state'

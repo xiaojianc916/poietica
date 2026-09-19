@@ -5,7 +5,6 @@ import type {
 } from '@poietica/transcript'
 
 export type TranscriptAgentId = string
-export type TranscriptTurnId = string
 
 export interface TranscriptPage extends AgentTranscriptSnapshot {
   readonly agentId: TranscriptAgentId

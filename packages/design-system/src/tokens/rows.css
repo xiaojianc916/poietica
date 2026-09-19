@@ -1,11 +1,11 @@
 /*
  * 一行的形状。
  *
- * 会话列表的行与侧边栏导航项的行是同一种行，但它们分属 agent-ui 与 workspace
+ * 会话列表的行与侧边栏导航项的行是同一种行，但它们分属 conversation 与 workspace
  * 两个平级的特性包，而平级的包之间不得互相依赖 —— 所以「一行长什么样」这件事
  * 只能由它们共同依赖的基座回答。
  *
- * 此前这一族令牌声明在 workspace 的 .workspace-sidebar 上，agent-ui 读得到它们
+ * 此前这一族令牌声明在 workspace 的 .workspace-sidebar 上，conversation 读得到它们
  * 纯属渲染树的巧合：线程列表恰好被组合根挂进了那个子树。架构规则只扫 .ts/.tsx，
  * 看不见这条 CSS 上的越界边，于是它一次也没有报过警。
  *

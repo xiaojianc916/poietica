@@ -34,22 +34,6 @@
   gap: var(--cp-mast-gap);
 }
 
-/*
- * 一次技能调用，就在这句话里。
- *
- * 左图标右文字，字号随正文，没有底色也没有叉叉 —— 它是文档里的一个字，不是一枚
- * 附件。原子性归编辑器：整枚选中、整枚删除。
- */
-.composer-skill {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--cp-control-gap);
-  color: #2e82d2;
-  vertical-align: baseline;
-  user-select: none;
-}
-
-.composer-skill svg,
 [data-slot="prompt-input-submit"] svg,
 .assistant-threads__create svg,
 .assistant-thread__action svg,
@@ -60,7 +44,6 @@
   inline-size: var(--cp-icon);
 }
 
-.composer-skill svg,
 .workspace-picker__field svg,
 .workspace-picker__context-trigger svg {
   flex: none;
@@ -496,15 +479,6 @@
   color: currentcolor;
 }
 
-.assistant-thread-menu .assistant-thread-menu__meta {
-  padding: 0;
-  border: 0;
-  font-family: inherit;
-  font-weight: 400;
-  line-height: 1.25;
-  color: var(--cp-ink-subtle);
-}
-
 /*
  * 两个静止态的几何。中间没有任何可插值的量。
  *
@@ -593,11 +567,6 @@
 .assistant-thread-menu[data-assistant-skin] .assistant-thread-menu__item svg {
   block-size: var(--cp-icon);
   inline-size: var(--cp-icon);
-}
-
-.assistant-thread-menu[data-assistant-skin] .assistant-thread-menu__meta {
-  margin: 2px 8px 0;
-  font-size: var(--cp-font-micro);
 }
 
 /*

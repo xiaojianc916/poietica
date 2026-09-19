@@ -1,7 +1,7 @@
 //! Conversations: their names, their sessions, and their place in the list.
 
-use rusqlite::Row;
 use rusqlite::types::{FromSql, FromSqlResult, ToSql, ToSqlOutput, ValueRef};
+use rusqlite::{OptionalExtension, Row};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
@@ -160,6 +160,30 @@ impl AgentStore {
         transaction.commit()?;
 
         Ok(id)
+    }
+
+    /// fork 的复制上界：drop_turns 不为 0 时，被丢弃的最后一轮的起始 seq。
+    /// 没有更多轮次（或 drop_turns 为 0）时取 i64::MAX，即复制全部。
+    pub(crate) fn turn_cut(&self, thread: Uuid, drop_turns: u32, turn_start: &str) -> Result<i64> {
+        if drop_turns == 0 {
+            return Ok(i64::MAX);
+        }
+
+        let mut statement = self.connection.prepare_cached(
+            "SELECT seq FROM conversation_events
+             WHERE thread_id = ?1 AND kind = ?2
+             ORDER BY seq DESC
+             LIMIT 1 OFFSET ?3",
+        )?;
+
+        let found = statement
+            .query_row(
+                rusqlite::params![thread.to_string(), turn_start, drop_turns - 1],
+                |row| row.get::<_, i64>(0),
+            )
+            .optional()?;
+
+        Ok(found.unwrap_or(i64::MAX))
     }
 
     /// Reads one conversation, whether or not anything has been said in it.

@@ -25,7 +25,7 @@ import { ChevronDownIcon, FolderPlusIcon, SearchIcon } from '../primitives/icons
  * 一张纯文字的菜单读起来是一张便签，不是选择器。
  *
  * 「最近」不是一份新名单。已经有对话的工作区就是最近用过的工作区，而那份
- * 分组侧栏本来就在画（agent-session 的 groupByWorkspace）—— 所以它从
+ * 分组侧栏本来就在画（threads/thread-order 的 groupByWorkspace）—— 所以它从
  * props 进来，不新开存储，也不会有第二份会跟真相分叉的记录。当前那一个
  * 不出现在名单里：行上写着的就是它，再列一遍只是一个点了没有反应的选项。
  * 名字缺席的那一组也不出现 —— 那一组说的是「目录没被记下来」，它不是

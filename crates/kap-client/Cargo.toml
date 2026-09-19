@@ -9,6 +9,7 @@ publish = false
 [dependencies]
 tokio-util.workspace = true
 poietica-conversation = { path = "../conversation" }
+poietica-time = { path = "../time" }
 poietica-process-host = { path = "../process-host" }
 
 futures.workspace = true

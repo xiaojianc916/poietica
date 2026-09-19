@@ -10,7 +10,6 @@ use poietica_kap_client::{
     SessionUsageSnapshot,
 };
 use serde::{Deserialize, Serialize};
-use serde_json::Value;
 use specta::Type;
 use tauri_specta::Event;
 
@@ -245,203 +244,6 @@ pub(super) fn reported_usage(usage: SessionUsageSnapshot) -> AgentSessionUsage {
         input_cache_read: narrow(usage.input_cache_read),
         input_cache_creation: narrow(usage.input_cache_creation),
     }
-}
-
-/// Closed wire vocabulary. Opaque protocol payloads remain JSON, but an event envelope cannot.
-#[derive(Clone, Debug, Deserialize, Serialize, Type)]
-#[serde(tag = "state", rename_all = "snake_case")]
-pub enum AgentLinkState {
-    #[serde(rename_all = "camelCase")]
-    Retrying {
-        attempt: u32,
-        of: u32,
-        retry_at: i64,
-        reason: String,
-    },
-    #[serde(rename_all = "camelCase")]
-    Recovered { reason: String },
-    #[serde(rename_all = "camelCase")]
-    Severed { attempts: u32, reason: String },
-}
-
-#[derive(Clone, Debug, Deserialize, Serialize, Type)]
-#[serde(tag = "kind", rename_all = "snake_case")]
-pub enum AgentRunFrame {
-    #[serde(rename_all = "camelCase")]
-    TurnAdmitted { turn: String },
-    #[serde(rename_all = "camelCase")]
-    PromptAdmitted {
-        admission_id: String,
-        prompt: Option<String>,
-        images: Option<Vec<String>>,
-        skills: Option<Vec<String>>,
-    },
-    #[serde(rename_all = "camelCase")]
-    PermissionRequested {
-        request_id: String,
-        tool_call_id: Option<String>,
-        title: String,
-        tool_call: Value,
-    },
-    #[serde(rename_all = "camelCase")]
-    PermissionResolved {
-        request_id: String,
-        decision: String,
-        scope: Option<String>,
-        selected_label: Option<String>,
-        feedback: Option<String>,
-    },
-    #[serde(rename_all = "camelCase")]
-    QuestionsAsked {
-        question_id: String,
-        tool_call_id: Option<String>,
-        questions: Value,
-    },
-    #[serde(rename_all = "camelCase")]
-    QuestionsResolved {
-        question_id: String,
-        outcome: String,
-        answers: Value,
-        note: String,
-    },
-    #[serde(rename_all = "camelCase")]
-    SessionRecovered { snapshot: Value },
-    #[serde(rename_all = "camelCase")]
-    LinkChanged { link: AgentLinkState },
-    #[serde(rename_all = "camelCase")]
-    RunFinished {
-        turn: Option<String>,
-        stop_reason: String,
-    },
-    #[serde(rename_all = "camelCase")]
-    RunFailed {
-        turn: Option<String>,
-        message: String,
-    },
-    #[serde(rename_all = "camelCase")]
-    UnsupportedExternalEvent { raw_kind: String },
-}
-
-#[derive(Clone, Debug, Deserialize, Serialize, Type)]
-#[serde(rename_all = "camelCase")]
-pub struct AgentRunEvent {
-    pub session_id: String,
-    pub seq: u32,
-    pub at: i64,
-    #[serde(flatten)]
-    pub frame: AgentRunFrame,
-}
-
-impl From<poietica_conversation::event::EventEnvelope> for AgentRunEvent {
-    fn from(envelope: poietica_conversation::event::EventEnvelope) -> Self {
-        use poietica_conversation::event::ConversationEvent as Event;
-        use poietica_conversation::link::LinkState as Link;
-        let frame = match envelope.event {
-            Event::TurnAdmitted { turn } => AgentRunFrame::TurnAdmitted {
-                turn: turn.to_string(),
-            },
-            Event::PromptAdmitted {
-                admission_id,
-                prompt,
-                images,
-                skills,
-            } => AgentRunFrame::PromptAdmitted {
-                admission_id: admission_id.to_string(),
-                prompt,
-                images,
-                skills,
-            },
-            Event::PermissionRequested {
-                request_id,
-                tool_call_id,
-                title,
-                tool_call,
-            } => AgentRunFrame::PermissionRequested {
-                request_id,
-                tool_call_id,
-                title,
-                tool_call,
-            },
-            Event::PermissionResolved {
-                request_id,
-                decision,
-                scope,
-                selected_label,
-                feedback,
-            } => AgentRunFrame::PermissionResolved {
-                request_id,
-                decision,
-                scope,
-                selected_label,
-                feedback,
-            },
-            Event::QuestionsAsked {
-                question_id,
-                tool_call_id,
-                questions,
-            } => AgentRunFrame::QuestionsAsked {
-                question_id,
-                tool_call_id,
-                questions,
-            },
-            Event::QuestionsResolved {
-                question_id,
-                outcome,
-                answers,
-                note,
-            } => AgentRunFrame::QuestionsResolved {
-                question_id,
-                outcome,
-                answers,
-                note,
-            },
-            Event::SessionRecovered { snapshot } => AgentRunFrame::SessionRecovered { snapshot },
-            Event::LinkChanged { link } => AgentRunFrame::LinkChanged {
-                link: match link {
-                    Link::Retrying {
-                        attempt,
-                        of,
-                        retry_at,
-                        reason,
-                    } => AgentLinkState::Retrying {
-                        attempt,
-                        of,
-                        retry_at,
-                        reason,
-                    },
-                    Link::Recovered { reason } => AgentLinkState::Recovered { reason },
-                    Link::Severed { attempts, reason } => {
-                        AgentLinkState::Severed { attempts, reason }
-                    }
-                },
-            },
-            Event::RunFinished { turn, stop_reason } => AgentRunFrame::RunFinished {
-                turn: turn.map(|value| value.to_string()),
-                stop_reason,
-            },
-            Event::RunFailed { turn, message } => AgentRunFrame::RunFailed {
-                turn: turn.map(|value| value.to_string()),
-                message,
-            },
-            Event::UnsupportedExternalEvent { raw_kind } => {
-                AgentRunFrame::UnsupportedExternalEvent { raw_kind }
-            }
-        };
-        Self {
-            session_id: envelope.session_id,
-            seq: u32::try_from(envelope.seq.value()).unwrap_or(u32::MAX),
-            at: envelope.at,
-            frame,
-        }
-    }
-}
-
-/// A persisted batch; the outer session id makes its routing invariant explicit.
-#[derive(Clone, Debug, Deserialize, Event, Serialize, Type)]
-#[serde(rename_all = "camelCase")]
-pub struct AgentRunBatch {
-    pub session_id: String,
-    pub events: Vec<AgentRunEvent>,
 }
 
 /// agent 主动报来的一件会话级状态。
@@ -694,30 +496,13 @@ pub struct AgentPinThreadRequest {
     pub pinned: bool,
 }
 
-/// 一段历史打不开的时候，是因为什么。
-///
-/// 两种，都不是这一侧的故障，也都不是可以重试的：会话在对面手里，而对面要么
-/// 不是同一个 agent，要么自己也不留着了。
-#[derive(Debug, Serialize, Type)]
-#[serde(rename_all = "camelCase")]
-pub enum AgentHistoryLoss {
-    /// 这条对话是另一个 agent 开的。
-    ///
-    /// sessionId 活在各自 agent 的命名空间里，把 A 的号发给 B 只会换回一句
-    /// `UnknownSession` —— 所以这里根本不发。
-    OtherAgent,
-    /// 号发过去了，agent 说它这边已经没有这条会话。
-    Forgotten,
-}
-
 /// 这一次打开，屏幕上应该出现什么。
 ///
 /// 空的经过说不出区别：刚建的对话是空的，理所应当；而一条聊过两小时的对话在
 /// 换了 agent 之后也是空的。那不是"没有历史"，那是"有历史但拿不到"，两件事对
 /// 人的意义完全不同。
 ///
-/// 内部标签，所以线上是一个判别联合：`{ state: "live" }`、
-/// `{ state: "unavailable", reason: …, owner: … }`。
+/// 内部标签，所以线上是一个判别联合：`{ state: "live" }`、`{ state: "fresh" }`。
 #[derive(Debug, Serialize, Type)]
 #[serde(tag = "state", rename_all = "camelCase")]
 pub enum AgentHistory {
@@ -731,14 +516,6 @@ pub enum AgentHistory {
     Live,
     /// agent 把它装载回来了，`events` 就是它交出来的那一整段。
     Loaded,
-    /// 打不开。说清是为什么，以及它在谁手里。
-    #[serde(rename_all = "camelCase")]
-    Unavailable {
-        /// 为什么打不开。
-        reason: AgentHistoryLoss,
-        /// 持有这条对话的那个 agent；这一列存在之前写下的行没有。
-        owner: Option<String>,
-    },
 }
 
 /// 人是怎么答的这一组题。

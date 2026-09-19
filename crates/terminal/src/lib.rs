@@ -6,7 +6,7 @@
 
 mod shell;
 
-pub use shell::Shell;
+use shell::Shell;
 
 use std::collections::{HashMap, VecDeque};
 use std::io::{Read, Write};

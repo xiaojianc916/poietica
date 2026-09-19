@@ -31,7 +31,6 @@ export type ModelCatalogData = Snapshot<ModelCatalogWire>
 export type ModelProvider = ModelCatalogData['providers'][number]
 export type ModelDescriptor = ModelCatalogData['models'][number]
 export type CatalogProvider = ModelCatalogData['catalog'][number]
-export type CatalogModel = CatalogProvider['models'][number]
 
 export function modelAlias(providerId: string, modelId: string): string {
   return `${providerId}/${modelId}`

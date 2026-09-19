@@ -1,5 +1,3 @@
-import type { KapToolCallId } from './kap'
-
 /** 产品工具类别；协议身份与展示信息由 transcript/kimi-tool.ts 投影。 */
 export type ToolKind =
   | 'delegate'
@@ -79,14 +77,3 @@ export type ToolCallContent =
         readonly status: 'done' | 'in_progress' | 'pending'
       }[]
     }
-
-export interface ToolCallUpdate {
-  readonly toolCallId: KapToolCallId
-  readonly title?: string | undefined
-  readonly kind?: ToolKind | undefined
-  readonly status?: ToolCallStatus | undefined
-  readonly content?: readonly ToolCallContent[] | undefined
-  readonly locations?: readonly ToolCallLocation[] | undefined
-  readonly rawInput?: unknown
-  readonly rawOutput?: unknown
-}

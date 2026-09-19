@@ -11,8 +11,7 @@
 //! update-notifier 的默认间隔与 Homebrew `HOMEBREW_AUTO_UPDATE_SECS` 的同一个
 //! 量级。全局 bin 目录只查一次，一次会话内不变。
 
-use std::time::{SystemTime, UNIX_EPOCH};
-
+use poietica_time::WallClock;
 use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value, json};
 use specta::Type;
@@ -90,13 +89,7 @@ impl From<NativeInstallStatus> for AgentInstallStatus {
 }
 
 fn now_ms() -> i64 {
-    i64::try_from(
-        SystemTime::now()
-            .duration_since(UNIX_EPOCH)
-            .unwrap_or_default()
-            .as_millis(),
-    )
-    .unwrap_or(0)
+    poietica_time::wall_clock::SystemWallClock.now_unix_millis()
 }
 
 fn cached_latest(app: &AppHandle, agent_id: &str) -> Option<(String, i64)> {

@@ -10,7 +10,9 @@
 
     <!--
       Native window, WebView and document surfaces must remain aligned.
-      See docs/adr/0036-theme-aligned-window-surface.md.
+      See docs/adr/0036-theme-aligned-window-surface.md. React 挂载后由
+      apps/desktop/src/window/theme-runtime.ts 的 WINDOW_SURFACES 接管这一面；
+      两侧的颜色值必须同步修改。
     -->
     <style id="window-backing-surface">
       :root {

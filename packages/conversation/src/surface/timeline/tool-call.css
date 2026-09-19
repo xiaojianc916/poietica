@@ -397,14 +397,6 @@
   white-space: pre;
 }
 
-.timeline-tool__diff-note {
-  grid-column: 1 / -1;
-  margin: 0;
-  padding: 0.25rem 0.75rem;
-  color: var(--cp-timeline-quiet-text);
-  font-size: var(--cp-font-micro);
-}
-
 /* 断线那一行的详情：与调用抽屉里的说明同一个音量。 */
 .timeline-link__detail {
   padding: 0.375rem 0 0.5rem 1.5rem;

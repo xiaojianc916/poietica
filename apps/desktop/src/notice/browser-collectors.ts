@@ -1,6 +1,7 @@
 import { isRecord, optionalProperty, safeStringify } from '@poietica/problem'
-import type { FailurePhase, TerminalFailureInput } from './problem-presentation'
-import { isReactFatalHostMounted, reportFailure, reportFatalIncident } from './problem-presentation'
+import type { FailurePhase, TerminalFailureInput } from './fatal-incident'
+import { isReactFatalHostMounted, reportFatalIncident } from './fatal-incident'
+import { reportFailure } from './problem-presentation'
 
 /*
  * 浏览器引擎把 ResizeObserver 的投递推迟到下一帧时发出的那两句话。

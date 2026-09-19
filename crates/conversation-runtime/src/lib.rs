@@ -1,5 +1,5 @@
 mod connection;
-pub use connection::{LaunchRequest, RuntimeError, Takeover};
+pub use connection::{RuntimeError, Takeover};
 /// Host-independent conversation execution.
 pub mod catalog;
 mod runtime;

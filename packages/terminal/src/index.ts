@@ -1,1 +1,1 @@
-export type { TerminalHostPort, TerminalSignal } from './terminal-port'
+export type { TerminalHostPort } from './terminal-port'

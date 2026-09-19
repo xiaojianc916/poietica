@@ -27,25 +27,13 @@
   --desktop-window-close-active: #b3251a;
   --desktop-window-close-foreground: #ffffff;
 
-  /*
-   * 滚动条的颜色。两个区域各自覆盖，所以它留在令牌层。
-   *
-   * 只剩这一个了。停留时长、淡出时长、命中区、可见宽度、最小长度 —— 那五个
-   * 数字存在的唯一理由，是有一层手绘滑块要照着它们画。浏览器自己画的时候，
-   * 它们不是被简化了，是没有收件人。
-   */
+  /* 滚动条滑块的颜色；两个区域各自覆盖这个令牌（见下方 scrollbar-color）。 */
   --desktop-scrollbar-thumb: color-mix(in srgb, var(--color-foreground) 24%, transparent);
 }
 
 /*
- * 这里只保留 border-color。
- *
- * box-sizing 由 Tailwind preflight 对 *、::before、::after 设过，重复。
- *
- * 这里曾经还有 -webkit-font-smoothing: antialiased 与 -moz-osx-font-smoothing:
- * grayscale。两条都是 macOS 的补偿：在 Windows 上，前者的实际作用是关闭
- * ClearType 亚像素渲染，把全屏文字退回灰度抗锯齿，笔画因此整体变细变虚。
- * 这个应用只出 Windows，所以它们不是"可留可不留"，是净损失。
+ * 这里只保留 border-color。box-sizing 由 Tailwind preflight 设过；字体平滑两条
+ * macOS 补偿在 Windows 上只关闭 ClearType，净损失，不留。
  *
  * border-color 必须留：Tailwind v4 把默认边框色改成了 currentColor，这条是
  * 有意的行为覆盖，不是重复。
@@ -69,13 +57,7 @@ body {
   color: var(--color-foreground);
 }
 
-/*
- * 标签条不要滚动条。
- *
- * 上一版靠一个自定义属性退出浮层，而原生条那时被 * { scrollbar-width: none }
- * 全局关着 —— 两条路都堵上了，所以这个规则块清掉退出令牌之后是空的。现在条是
- * 常驻的，「不要」必须自己说出来，否则标签条上会冒出一根。
- */
+/* 条常驻，所以「标签条不要滚动条」必须自己说出来，否则上面会冒出一根。 */
 [role="tablist"] {
   scrollbar-width: none;
 }
@@ -148,52 +130,23 @@ body {
 }
 
 /*
- * 滚动条交回浏览器。
+ * 滚动条交回浏览器（CSS Scrollbars Styling，WebView2 支持，无需回退分支）。
  *
- * 上一版在这里手绘了一层 fixed 的滑块，理由写了三段，核心那条是「原生条属于
- * 布局，内容一多它出现，整列文字瞬间左移 10px」。这条理由的前提是它时有时无
- * —— 下面这两句让它常驻，前提就不存在了。真需要预留，scrollbar-gutter:
- * stable 就是官方为此而设的那条沟，转录区已经用上了。
- *
- * scrollbar-width 与 scrollbar-color 是 CSS Scrollbars Styling 的标准能力，
- * Chromium 121 起支持，而这个应用的渲染器只有 WebView2 一个，不需要回退分支。
- * 指定 scrollbar-color 同时也就退出了 Windows 那套会自己淡出的覆盖式滚动条：
- * 常驻不是额外加的开关，是这一句的既定效果。
- *
- * 挂在 * 上而不是 :root 上，和它替换掉的那一句同一个选择器 —— 这一条不能改。
- * var() 在声明所在的元素上就解析完了，继承出去的是已经算好的颜色；写在 :root
- * 上，下面两个区域重新给 --desktop-scrollbar-thumb 赋的值一个都不会生效。
- * 逐元素解析，原来那条「区域覆盖令牌」的取值链才原封不动。
+ * 挂在 * 上而不是 :root 上，这一条不能改：var() 在声明所在的元素上就解析完，
+ * 继承出去的是算好的颜色；写在 :root 上，区域令牌的覆盖一个都不会生效。
  */
 
 * {
-  /*
-   * 合法值只有三个：auto、thin、none。
-   *
-   * 标准属性里没有像素这个旋钮。想要一个任意宽度只有一条路 —— 回到
-   * ::-webkit-scrollbar，而它是非标准的遗留伪元素，并且与 scrollbar-color /
-   * scrollbar-width 互斥：一旦给伪元素上样式，标准属性整组失效，滑块、轨道、
-   * 拐角、按钮就得重新一笔一笔画回来 —— 那正是上一轮删掉的那 21KB。
-   *
-   * 所以 thin 与 auto 之间二选一，没有中间档。这里取 auto。
-   */
+  /* 合法值只有 auto/thin/none，没有像素旋钮；::-webkit-scrollbar 与标准属性
+     互斥且非标准，所以 thin 与 auto 二选一，取 auto。 */
   scrollbar-width: auto;
   scrollbar-color: var(--desktop-scrollbar-thumb) transparent;
 }
 
 /*
- * 滚动条的取色：区域在自己的根上重给这个令牌。
- *
- * 上面那句 scrollbar-color 挂在 * 上、逐元素解析，而自定义属性会继承，所以一个
- * 区域只需在自己的根上重新给值 —— 滚动盒是哪一个、嵌套多深，这里都不必知道。
- *
- * 挂在区域根而不是滚动盒自己(.assistant-threads / .agent-activity-feed__
- * viewport):那两个类已经在各自的特性样式表里声明过一批自定义属性,同名选择器
- * 分居两个文件会变成加载顺序说了算的隐性竞争。祖先没有这个问题。
- *
- * 下面几条是写死的十六进制,按指定取值,因此不随主题走 —— 与上面那个由前景色
- * color-mix 推出来的默认值不同,记在这里,免得下次被当成疏漏顺手"修正"。深色另有
- * 一对,在同节末尾把这几条逐条压回同一个值。
+ * 滚动条的取色：区域在自己的根上重给这个令牌 —— scrollbar-color 逐元素解析而
+ * 自定义属性会继承。挂在区域根而不是滚动盒自己，避免同名选择器分居两个文件的
+ * 加载顺序竞争。十六进制是产品指定色，不随主题走，不是疏漏。
  */
 .workspace-shell__sidebar {
   /* 原生条没有悬停态，所以这里取原来那对里较实的一个。 */

@@ -34,7 +34,7 @@ pub use error::{DecodeError, EnvelopeError, KapError, Refusal, Result};
 
 pub use generated::{events, rest};
 
-pub use frame::{PROMPT_ADMITTED, RUN_FINISHED, RunFrame};
+pub use frame::{PROMPT_ADMITTED, RunFrame};
 pub use interaction::desk::{PermissionDesk, QuestionDesk};
 pub use interaction::permission::{ApprovalResponse, Decision, Scope};
 pub use interaction::question::{
@@ -46,7 +46,7 @@ pub use process::custom_agents::{
     CustomAgentCatalog, CustomAgentFile, CustomAgentFileError, delete_custom_agent,
     list_custom_agents, save_custom_agent,
 };
-pub use process::daemon::{Daemon, DaemonIntent, DaemonPhase, Reaction};
+pub use process::daemon::{Daemon, DaemonIntent, Reaction};
 pub use process::install::{
     InstallState, InstallStatus, PackageManager, first_semver, install_package, install_state_of,
     latest_version, owner_of, preferred_manager, reported_version,

@@ -5,9 +5,9 @@ use std::path::{Path, PathBuf};
 
 /// 一条可启动的交互 shell。
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub struct Shell {
-    pub program: PathBuf,
-    pub args: Vec<String>,
+pub(crate) struct Shell {
+    pub(crate) program: PathBuf,
+    pub(crate) args: Vec<String>,
 }
 
 /// Unix 从 SHELL 读用户配置；Windows 的 ComSpec 只作 PowerShell 缺席时的兜底。
@@ -25,7 +25,7 @@ const FALLBACK: &str = "/bin/sh";
 impl Shell {
     /// 默认交互 shell。
     #[must_use]
-    pub fn user() -> Self {
+    pub(crate) fn user() -> Self {
         #[cfg(windows)]
         if let Some(program) = ["pwsh.exe", "powershell.exe"]
             .into_iter()

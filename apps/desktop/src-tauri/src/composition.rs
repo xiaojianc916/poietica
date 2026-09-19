@@ -2,7 +2,6 @@
 
 use tauri::{Manager, Wry, async_runtime};
 use tauri_plugin_store::StoreExt;
-use tauri_specta::Event as _;
 
 use crate::asset_protocol::{ASSET_PROTOCOL_SCHEME, AssetProtocolRegistry};
 use crate::diagnostics::structured_log;
@@ -69,22 +68,10 @@ pub(crate) fn build() -> tauri::Builder<Wry> {
                 &database,
                 poietica_time::wall_clock::SystemWallClock,
             )?;
-            let publisher = handle.clone();
-            let journal = poietica_conversation_runtime::journal::FrameJournal::new(
-                index.clone(),
-                move |session_id, envelopes| {
-                    let events = envelopes
-                        .into_iter()
-                        .map(crate::conversation::dto::AgentRunEvent::from)
-                        .collect();
-                    if let Err(error) =
-                        (crate::conversation::dto::AgentRunBatch { session_id, events })
-                            .emit(&publisher)
-                    {
-                        log::warn!("emit agent event failed after persistence: {error}");
-                    }
-                },
-            )?;
+            // journal 只负责落盘；屏幕经过走 transcript，不发第二套对话正文。
+            let journal =
+                poietica_conversation_runtime::journal::FrameJournal::new(index.clone(), |_, _| {})?;
+
             let runtime = crate::conversation::composition::compose(
                 handle, handle.path().home_dir()?, paths::attachments_root(handle)?,
                 index.clone(), journal,

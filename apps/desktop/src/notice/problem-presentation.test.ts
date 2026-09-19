@@ -1,10 +1,10 @@
 import { describe, expect, it } from 'bun:test'
 import { FailureCoordinator, type TerminalFailureIncident } from '@poietica/problem'
 
+import { createTerminalFailureViewModel } from './fatal-incident'
 import {
   APPLICATION_FAILURE_CODES,
   APPLICATION_FAILURE_POLICIES,
-  createTerminalFailureViewModel,
   DEGRADABLE_FEATURE_IDS,
 } from './problem-presentation'
 

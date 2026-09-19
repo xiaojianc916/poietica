@@ -1,22 +1,13 @@
-//! Agent 配置：kap agent 接入档案，以及按 agent 隔离的凭据。
+//! Agent 配置：kap agent 接入档案，以及按 agent 隔离的路径。
 //!
 //! 模式 B（受控 home）下，模型与 provider 的真身在各 agent 自己的配置文件里
 //! （Kimi Code 是 `KIMI_CODE_HOME` 下的 config.toml），由 agent 自己 watch 并热
 //! 重载。这里存的是 Poietica 侧的接入档案与投影源，不是模型配置的权威副本。
 //!
-//! 这里不存密钥，一份都不存。
-//!
-//! API key 的整个生命是一次投递：界面拿到用户输入，经 kap 的 providers REST
-//! （`agent_model_catalog`）交给 agent 进程，它写进自己 config.toml 的
-//! `[providers.<id>].api_key` —— 明文。此后 agent 只读那个文件。
-//!
-//! 所以钥匙串在这条链上保护不了任何东西：下游是一个明文文件，能读它的人不需要
-//! 撬钥匙串。曾经存过一份，账户名是「agent:{id}:{var}」，那份副本换来的只有
-//! 「不用重新输一次 key」，代价是写入、清除、跨代迁移三条命令和两代账户名。
-//!
-//! 上游自己的范式也是一次性的：`KIMI_REGISTRY_API_KEY=...` kimi provider add ...
-//! 「哪些 provider 已配好」的权威因此是 agent，问它的 provider list，不是问
-//! 我们。
+//! 这里不存密钥：API key 经 kap 的 providers REST 交给 agent 进程，写进它自己
+//! config.toml 的 `[providers.<id>].api_key` 明文。下游是明文文件，钥匙串保护
+//! 不了任何东西（曾存过一份副本，删净时它只换来三条命令和两代账户名）。
+//! 「哪些 provider 已配好」的权威是 agent，问它的 provider list，不是问我们。
 //!
 //! 档案字段的判读、npm 包名闸门、config.toml 的读与写住在 `poietica-kap-client`
 //! 的 process/（profile.rs、controlled_home.rs）—— 那里的判据有自己的单测；这里
@@ -205,7 +196,7 @@ pub fn agent_install_spec(app: &AppHandle, agent_id: &str) -> Result<Option<Agen
 ///
 /// 它刻意不来自请求。渲染层报一个程序路径过来，而 `is_allowed` 只校验参数，
 /// 于是白名单挡不住 `{ command: 任意程序, args: ["provider", "list"] }`。档案
-/// 要先过 TS 侧的 `parseAcpAgentProfile` 才写得进 agents.json，绕过这里的成本
+/// 要先过 TS 侧的 `parseAgentProfile` 才写得进 agents.json，绕过这里的成本
 /// 因此高得多 —— 但也仅此而已，所以调用方仍要自己校验一遍程序名。
 ///
 /// # Errors
@@ -379,7 +370,7 @@ pub async fn agent_config_get(app: AppHandle) -> AgentConfigCommandResult<AgentC
 }
 
 /// 原子写回一份配置。判据与实现在 crate 的 controlled_home.rs，这里只是入口
-/// （environment.rs 的 mcp.json 落盘走同一条路）。
+/// （workspace/environment.rs 的 mcp.json 落盘走同一条路）。
 ///
 /// # Errors
 ///

@@ -16,6 +16,8 @@ interface ThemeRuntimeOptions {
   readonly report: (cause: unknown) => void
 }
 
+/* 挂到原生窗口上的背景面。index.html 的 window-backing-surface 是同一对值的
+   预 React 初稿（ADR 0036），改色必须两侧同步。 */
 const WINDOW_SURFACES = {
   light: [255, 255, 255],
   dark: [24, 24, 24],

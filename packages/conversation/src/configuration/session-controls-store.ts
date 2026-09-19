@@ -186,7 +186,6 @@ export class SessionControlsStore {
 
     this.#hold(answer)
     this.#asked.add(threadId)
-    this.#transcripts?.history(threadId, answer.history)
 
     this.#orderOf(threadId).arrive()
     this.#remember(threadId, answer.selectors, answer.goal)
@@ -248,8 +247,8 @@ export class SessionControlsStore {
    * 改这条对话的一项会话设置；答案就是改完之后的整张表。
    *
    * 批准方式多一件事：它同时是一个跨会话的决定，所以这一次点击既发给这条会话，也
-   * 落成持久意图。写在发出之前，与 default_model 同一条顺序（见 apps/desktop 的
-   * agent-session.ts）：失手时盘上那份仍是用户上一次真的按下的那一颗。
+   * 落成持久意图。写在发出之前，与 default_model 的落盘同一条顺序：失手时盘上那份
+   * 仍是用户上一次真的按下的那一颗。
    */
   selectControl = (
     threadId: string,

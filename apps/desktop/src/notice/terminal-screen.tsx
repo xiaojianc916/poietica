@@ -2,7 +2,7 @@ import type { TerminalFailureIncident } from '@poietica/problem'
 import { CircleCheck as CheckCircle, Copy, RefreshCw as Refresh } from 'lucide-react'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import errorRobotIllustration from './assets/error-robot.svg'
-import { createTerminalFailureViewModel } from './problem-presentation'
+import { createTerminalFailureViewModel } from './fatal-incident'
 
 export interface FatalErrorScreenProps {
   readonly incident: TerminalFailureIncident

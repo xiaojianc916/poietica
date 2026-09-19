@@ -21,7 +21,7 @@ export const kimiCode = {
   command: 'kimi',
   /*
    * 本地服务模式：同一个进程挂 REST + WebSocket 与 web UI，--no-open 不起
-   * 浏览器（docs/en/reference/kimi-command.md 的 kimi web）。
+   * 浏览器（ADR 0026 记的 `kimi web` 子命令）。
    */
   args: ['web', '--no-open'],
   // 让每个 PowerShell 版本按自己的 $PSHOME 重建模块路径，避免跨版本模块遮蔽。

@@ -41,12 +41,7 @@ impl InstanceDisk {
 ///
 /// /meta 走全局 bearer 鉴权（start.ts 挂的 createAuthHook），认了才回 code 0。
 /// 不能用 healthz —— 它在 defaultIsBypassed 的免鉴权名单里，谁都答得出来。
-async fn probe_instance(
-    probe: &reqwest::Client,
-    dial: &str,
-    port: u16,
-    token: &str,
-) -> Probe {
+async fn probe_instance(probe: &reqwest::Client, dial: &str, port: u16, token: &str) -> Probe {
     let Ok(url) = routes::meta(&format!("http://{dial}:{port}")) else {
         return Probe::Refused;
     };

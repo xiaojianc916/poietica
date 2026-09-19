@@ -1,20 +1,14 @@
 mod admissions;
 pub mod events;
 pub mod outbox;
-pub mod screen;
 
-use std::sync::{Mutex, MutexGuard};
-
+use crate::error::LedgerError;
+use crate::index::AgentStore;
 use poietica_conversation::error::LedgerUnavailable;
 use poietica_conversation::event::{ConversationEvent, EventEnvelope};
 use poietica_conversation::identity::{Seq, ThreadId, TurnId};
 use poietica_conversation::ports::{ConversationLedger, PromptDelivery};
 use poietica_conversation::turn::{Admission, AdmissionDecision, DeliveryOutcome, DeliveryState};
-use poietica_time::WallClock;
-use rusqlite::Connection;
-
-use crate::error::LedgerError;
-use crate::index::AgentStore;
 
 /// 同一次 journal flush 中一个会话的连续事件。
 #[derive(Debug)]
@@ -49,118 +43,10 @@ fn finish_batches(
         .collect()
 }
 
-/// 时钟显式注入；连接由账本自己拥有，所以它也负责串行化。
-#[derive(Debug)]
-pub struct SqliteLedger<C: WallClock> {
-    connection: Mutex<Connection>,
-    clock: C,
-}
-
-impl<C: WallClock> SqliteLedger<C> {
-    pub fn new(connection: Connection, clock: C) -> Self {
-        Self {
-            connection: Mutex::new(connection),
-            clock,
-        }
-    }
-
-    /// 中毒是真故障，不是可忽略的软错：报出去，不 unwrap。
-    pub fn guard(&self) -> Result<MutexGuard<'_, Connection>, LedgerError> {
-        self.connection.lock().map_err(|_| LedgerError::Poisoned)
-    }
-
-    pub fn clock(&self) -> &C {
-        &self.clock
-    }
-
-    /// 建库与迁移用同一个时钟，重放时时间才能对得上。
-    pub fn migrate(&self) -> Result<(), LedgerError> {
-        let mut guard = self.guard()?;
-
-        crate::migrations::apply(&mut guard, &self.clock)
-    }
-}
-
 /// 领域只看得见 LedgerUnavailable；SQLite 的细节到这一层为止。
 fn unavailable(error: &LedgerError) -> LedgerUnavailable {
     LedgerUnavailable {
         reason: error.to_string(),
-    }
-}
-
-impl<C: WallClock> ConversationLedger for SqliteLedger<C> {
-    fn admit(&self, admission: &PromptDelivery) -> Result<AdmissionDecision, LedgerUnavailable> {
-        let mut guard = self.guard().map_err(|error| unavailable(&error))?;
-        let transaction = guard
-            .transaction()
-            .map_err(|error| unavailable(&LedgerError::from(error)))?;
-        let decision = admissions::admit(&transaction, self.clock(), admission)
-            .map_err(|error| unavailable(&error))?;
-        transaction
-            .commit()
-            .map_err(|error| unavailable(&LedgerError::from(error)))?;
-        Ok(decision)
-    }
-
-    fn append(
-        &self,
-        thread: &ThreadId,
-        session: &str,
-        events: &[ConversationEvent],
-    ) -> Result<Vec<EventEnvelope>, LedgerUnavailable> {
-        let mut guard = self.guard().map_err(|error| unavailable(&error))?;
-        let transaction = guard
-            .transaction()
-            .map_err(|error| unavailable(&LedgerError::from(error)))?;
-        let mut batches = [AppendBatch {
-            thread: thread.clone(),
-            session: session.to_owned(),
-            events: events.to_vec(),
-        }];
-        let stamps = events::append(&transaction, self.clock(), &batches)
-            .map_err(|error| unavailable(&error))?;
-        transaction
-            .commit()
-            .map_err(|error| unavailable(&LedgerError::from(error)))?;
-        Ok(finish_batches(&mut batches, stamps)
-            .pop()
-            .unwrap_or_default())
-    }
-
-    fn events_after(
-        &self,
-        thread: &ThreadId,
-        after: Seq,
-    ) -> Result<Vec<EventEnvelope>, LedgerUnavailable> {
-        let guard = self.guard().map_err(|error| unavailable(&error))?;
-        events::after(&guard, thread, after).map_err(|error| unavailable(&error))
-    }
-
-    fn delivery_state(&self, turn: &TurnId) -> Result<Option<DeliveryState>, LedgerUnavailable> {
-        let guard = self.guard().map_err(|error| unavailable(&error))?;
-        outbox::state(&guard, turn).map_err(|error| unavailable(&error))
-    }
-
-    fn record_delivery(
-        &self,
-        turn: &TurnId,
-        outcome: DeliveryOutcome,
-    ) -> Result<DeliveryState, LedgerUnavailable> {
-        let mut guard = self.guard().map_err(|error| unavailable(&error))?;
-        let transaction = guard
-            .transaction()
-            .map_err(|error| unavailable(&LedgerError::from(error)))?;
-        let state = outbox::record(&transaction, self.clock(), turn, outcome)
-            .map_err(|error| unavailable(&error))?;
-        transaction
-            .commit()
-            .map_err(|error| unavailable(&LedgerError::from(error)))?;
-        Ok(state)
-    }
-
-    fn unresolved_deliveries(&self) -> Result<Vec<Admission>, LedgerUnavailable> {
-        let guard = self.guard().map_err(|error| unavailable(&error))?;
-        outbox::unresolved(&guard).map_err(|error| unavailable(&error))
     }
 }
 
@@ -369,5 +255,45 @@ mod submission_tests {
             .query_row("SELECT COUNT(*) FROM attachments", [], |row| row.get(0))
             .expect("blobs");
         assert_eq!(blobs, 0);
+    }
+
+    #[test]
+    fn failed_event_append_rolls_back_the_admission_and_outbox() {
+        let directory = tempfile::tempdir().expect("directory");
+        let store = AgentStore::open(&directory.path().join("index.sqlite3"), SystemWallClock)
+            .expect("store");
+        store
+            .connection
+            .execute_batch(
+                "CREATE TRIGGER reject_event BEFORE INSERT ON conversation_events
+             BEGIN SELECT RAISE(ABORT, 'event unavailable'); END;",
+            )
+            .expect("trigger");
+        let requested = PromptDelivery {
+            admission: Admission {
+                thread: ThreadId::new("thread-1".to_owned()),
+                turn: TurnId::new("turn-1".to_owned()),
+                prompt: "same intent".to_owned(),
+                model: "kimi-k2".to_owned(),
+                attachments: Vec::new(),
+                skills: Vec::new(),
+                submitted_at_unix_millis: 1,
+            },
+            session: "session-1".to_owned(),
+        };
+        assert!(store.admit(&requested).is_err());
+        assert!(store.unresolved_deliveries().expect("outbox").is_empty());
+        assert_eq!(
+            store
+                .delivery_state(&requested.admission.turn)
+                .expect("state"),
+            None
+        );
+        assert!(
+            store
+                .events_after(&requested.admission.thread, Seq::NONE)
+                .expect("events")
+                .is_empty()
+        );
     }
 }

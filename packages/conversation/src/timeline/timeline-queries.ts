@@ -81,11 +81,6 @@ export function pendingPermissionCount(scope: WaitingScope): number {
   return pendingInteractions(scope).permissionCount
 }
 
-/** 审批和题组并存时题组仍保留，但终态中的题组不再可操作。 */
-export function pendingQuestion(scope: WaitingScope): QuestionTimelineItem | undefined {
-  return pendingInteractions(scope).question
-}
-
 export function currentTodos(state: TimelineState): readonly TodoItem[] | null {
   const pages = [...state.sealed, state.active]
   for (let pageIndex = pages.length - 1; pageIndex >= 0; pageIndex -= 1) {
@@ -113,21 +108,4 @@ export function currentTodos(state: TimelineState): readonly TodoItem[] | null {
 
 export function selectIsBusy(state: TimelineState): boolean {
   return isInFlight(state.status)
-}
-
-/**
- * kap 手上那条还没落定的号。
- *
- * 出账簿一次只放一条出去，所以它至多一个 —— 单值，引用天生稳定，不需要缓存。
- */
-export function inflightPromptId(scope: WaitingScope): string | undefined {
-  for (let index = scope.items.length - 1; index >= 0; index -= 1) {
-    const item = scope.items[index]
-
-    if (item?.type === 'inflight_prompt' && item.settled === undefined) {
-      return item.promptId
-    }
-  }
-
-  return undefined
 }

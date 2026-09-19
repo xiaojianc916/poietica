@@ -5,7 +5,7 @@ import { normalizeWorkspaceRoot, workspaceRootName } from './workspace-root'
  * 会话列表的次序与分组，一份规则。
  *
  * 一级索引是**工作区**，不是时间。时间桶（今天／昨天／过去 7 天）曾经长在视图
- * 组件里（agent-ui 的 threads/relative-time.ts），那是个人聊天机器人的信息架构：它
+ * 组件里（surface/threads/relative-time.ts），那是个人聊天机器人的信息架构：它
  * 假设「什么时候说的」是找回一条对话的主线索。对着一个工作目录干活的 agent
  * 客户端不是那样 —— 主线索是「在哪个项目里」，时间退回行尾那一格的元数据。
  *

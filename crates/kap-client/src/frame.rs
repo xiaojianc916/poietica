@@ -21,7 +21,7 @@ pub(crate) const PERMISSION_REQUESTED: &str = "permission_requested";
 /// 那次授权请求得到的答复。
 pub(crate) const PERMISSION_RESOLVED: &str = "permission_resolved";
 /// 这一轮按 agent 自己的说法结束了。
-pub const RUN_FINISHED: &str = "run_finished";
+pub(crate) const RUN_FINISHED: &str = "run_finished";
 /// 这一轮以失败结束。
 pub(crate) const RUN_FAILED: &str = "run_failed";
 

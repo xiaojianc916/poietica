@@ -8,7 +8,6 @@ use crate::turn::state_machine::TurnSignal;
 pub enum CancelOrigin {
     User,
     Shutdown,
-    Superseded,
 }
 
 impl CancelOrigin {

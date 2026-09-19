@@ -17,10 +17,7 @@ interface FatalErrorBoundaryState {
  * 接住的与已恢复的两种。留 getDerivedStateFromError 就足以成为错误边界 ——
  * componentDidCatch 从来不是成为边界的条件，它只是第二个上报口。
  */
-export class FatalErrorBoundary extends Component<
-  FatalErrorBoundaryProps,
-  FatalErrorBoundaryState
-> {
+class FatalErrorBoundary extends Component<FatalErrorBoundaryProps, FatalErrorBoundaryState> {
   override state: FatalErrorBoundaryState = {
     crashed: false,
   }

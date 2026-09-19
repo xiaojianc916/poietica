@@ -320,38 +320,7 @@
   color: var(--cp-ink);
 }
 
-/* ---------- 与自动化编辑器共用的那一张 ---------- */
-
-.assistant-config-menu__panel[data-assistant-skin] {
-  min-inline-size: 184px;
-}
-
-[data-assistant-skin] .assistant-config-menu__row {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  width: 100%;
-  min-height: 28px;
-  padding: 0 6px 0 8px;
-  border: 0;
-  border-radius: var(--am-item);
-  background: transparent;
-  color: var(--cp-ink);
-  font: inherit;
-  font-size: var(--cp-font-caption);
-  text-align: start;
-  cursor: default;
-}
-
-[data-assistant-skin] .assistant-config-menu__row:hover,
-[data-assistant-skin] .assistant-config-menu__row[data-popup-open] {
-  background: var(--cp-hover);
-}
-
-[data-assistant-skin] .assistant-config-menu__row-label {
-  white-space: nowrap;
-}
-
+/* 工具条浮层族共用的几何与面色变量（--am-*，多处消费）。 */
 [data-assistant-skin] {
   --am-radius: 8px;
   --am-item: 5px;

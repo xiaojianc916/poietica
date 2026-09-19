@@ -632,7 +632,6 @@ async browserSetElementPicker(id: number, enabled: boolean, theme: ResolvedTheme
 
 
 export const events = __makeEvents__<{
-agentRunBatch: AgentRunBatch,
 agentSessionEvent: AgentSessionEvent,
 agentTranscriptEvent: AgentTranscriptEvent,
 automationCatalogChanged: AutomationCatalogChanged,
@@ -643,7 +642,6 @@ terminalStreamed: TerminalStreamed,
 terminationRequested: TerminationRequested,
 windowMaximized: WindowMaximized
 }>({
-agentRunBatch: "agent-run-batch",
 agentSessionEvent: "agent-session-event",
 agentTranscriptEvent: "agent-transcript-event",
 automationCatalogChanged: "automation-catalog-changed",
@@ -884,8 +882,7 @@ export type AgentGoal = { objective: string; completionCriterion: string | null;
  * 换了 agent 之后也是空的。那不是"没有历史"，那是"有历史但拿不到"，两件事对
  * 人的意义完全不同。
  * 
- * 内部标签，所以线上是一个判别联合：`{ state: "live" }`、
- * `{ state: "unavailable", reason: …, owner: … }`。
+ * 内部标签，所以线上是一个判别联合：`{ state: "live" }`、`{ state: "fresh" }`。
  */
 export type AgentHistory = 
 /**
@@ -903,29 +900,7 @@ export type AgentHistory =
 /**
  * agent 把它装载回来了，`events` 就是它交出来的那一整段。
  */
-{ state: "loaded" } | 
-/**
- * 打不开。说清是为什么，以及它在谁手里。
- */
-{ state: "unavailable"; reason: AgentHistoryLoss; owner: string | null }
-/**
- * 一段历史打不开的时候，是因为什么。
- * 
- * 两种，都不是这一侧的故障，也都不是可以重试的：会话在对面手里，而对面要么
- * 不是同一个 agent，要么自己也不留着了。
- */
-export type AgentHistoryLoss = 
-/**
- * 这条对话是另一个 agent 开的。
- * 
- * sessionId 活在各自 agent 的命名空间里，把 A 的号发给 B 只会换回一句
- * `UnknownSession` —— 所以这里根本不发。
- */
-"otherAgent" | 
-/**
- * 号发过去了，agent 说它这边已经没有这条会话。
- */
-"forgotten"
+{ state: "loaded" }
 /**
  * 界面读到的安装处境（IPC DTO；判据在 crate 的 InstallState）。
  */
@@ -954,10 +929,6 @@ export type AgentLaunch = {
  * 要启动的 agent。它决定受控 home 落在哪里。
  */
 agentId: string }
-/**
- * Closed wire vocabulary. Opaque protocol payloads remain JSON, but an event envelope cannot.
- */
-export type AgentLinkState = { state: "retrying"; attempt: number; of: number; retryAt: number; reason: string } | { state: "recovered"; reason: string } | { state: "severed"; attempts: number; reason: string }
 export type AgentMcpServer = { id: string; name: string; status: AgentMcpStatus; toolCount: number; lastError: string | null }
 export type AgentMcpStatus = "connected" | "connecting" | "disconnected" | "error"
 export type AgentModelCatalogRequest = { launch: AgentLaunch; cwd: string | null; operation: ModelCatalogOperationDto }
@@ -1133,11 +1104,6 @@ selectedLabel: string | null;
  * 给 agent 的可选留言。
  */
 feedback: string | null }
-/**
- * A persisted batch; the outer session id makes its routing invariant explicit.
- */
-export type AgentRunBatch = { sessionId: string; events: AgentRunEvent[] }
-export type AgentRunEvent = ({ kind: "turn_admitted"; turn: string } | { kind: "prompt_admitted"; admissionId: string; prompt: string | null; images: string[] | null; skills: string[] | null } | { kind: "permission_requested"; requestId: string; toolCallId: string | null; title: string; toolCall: JsonValue } | { kind: "permission_resolved"; requestId: string; decision: string; scope: string | null; selectedLabel: string | null; feedback: string | null } | { kind: "questions_asked"; questionId: string; toolCallId: string | null; questions: JsonValue } | { kind: "questions_resolved"; questionId: string; outcome: string; answers: JsonValue; note: string } | { kind: "session_recovered"; snapshot: JsonValue } | { kind: "link_changed"; link: AgentLinkState } | { kind: "run_finished"; turn: string | null; stopReason: string } | { kind: "run_failed"; turn: string | null; message: string } | { kind: "unsupported_external_event"; rawKind: string }) & { sessionId: string; seq: number; at: number }
 /**
  * A change made in the interface.
  */

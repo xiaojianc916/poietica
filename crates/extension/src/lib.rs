@@ -13,7 +13,7 @@ mod staging;
 mod text_file;
 
 pub use error::{ExtensionError, Result};
-pub use inventory::{InstalledPlugin, PluginInstall, PluginInventory, PluginReference};
+pub use inventory::{InstalledPlugin, PluginInstall, PluginInventory};
 pub use layout::{SKILL_FILENAME, is_safe_segment, locate_root, locate_skill_root, manifest_in};
 pub use skills::{ScannedSkill, install_skill, scan_skills, set_skill_enabled, trash_skill};
 pub use source::{copy_tree, extract_zip};

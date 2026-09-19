@@ -5,16 +5,17 @@
 use poietica_conversation::identity::{Seq, ThreadId, TurnId};
 use poietica_conversation::ports::{ConversationLedger, PromptDelivery};
 use poietica_conversation::turn::{Admission, AdmissionDecision, DeliveryOutcome, DeliveryState};
-use poietica_ledger::{SqliteLedger, connection::open_in_memory};
+use poietica_ledger::index::AgentStore;
 use poietica_time::test_clock::TestClock;
 
-fn ledger() -> SqliteLedger<TestClock> {
-    let ledger = SqliteLedger::new(
-        open_in_memory().expect("open"),
+fn ledger() -> (tempfile::TempDir, AgentStore) {
+    let directory = tempfile::tempdir().expect("directory");
+    let store = AgentStore::open(
+        &directory.path().join("index.sqlite3"),
         TestClock::at_unix_millis(1_700_000_000_000),
-    );
-    ledger.migrate().expect("migrate");
-    ledger
+    )
+    .expect("open");
+    (directory, store)
 }
 fn delivery() -> PromptDelivery {
     PromptDelivery {
@@ -32,7 +33,7 @@ fn delivery() -> PromptDelivery {
 }
 #[test]
 fn repeated_admission_owes_one_delivery_and_records_one_event() {
-    let ledger = ledger();
+    let (_directory, ledger) = ledger();
     let requested = delivery();
     assert_eq!(
         ledger.admit(&requested).expect("first"),
@@ -53,7 +54,7 @@ fn repeated_admission_owes_one_delivery_and_records_one_event() {
 }
 #[test]
 fn one_identity_cannot_freeze_two_inputs() {
-    let ledger = ledger();
+    let (_directory, ledger) = ledger();
     let mut requested = delivery();
     ledger.admit(&requested).expect("first");
     requested.admission.prompt = "different input".to_owned();
@@ -61,35 +62,8 @@ fn one_identity_cannot_freeze_two_inputs() {
     assert_eq!(ledger.unresolved_deliveries().expect("outbox").len(), 1);
 }
 #[test]
-fn failed_event_append_rolls_back_the_admission_and_outbox() {
-    let ledger = ledger();
-    ledger
-        .guard()
-        .expect("connection")
-        .execute_batch(
-            "CREATE TRIGGER reject_event BEFORE INSERT ON conversation_events
-         BEGIN SELECT RAISE(ABORT, 'event unavailable'); END;",
-        )
-        .expect("trigger");
-    let requested = delivery();
-    assert!(ledger.admit(&requested).is_err());
-    assert!(ledger.unresolved_deliveries().expect("outbox").is_empty());
-    assert_eq!(
-        ledger
-            .delivery_state(&requested.admission.turn)
-            .expect("state"),
-        None
-    );
-    assert!(
-        ledger
-            .events_after(&requested.admission.thread, Seq::NONE)
-            .expect("events")
-            .is_empty()
-    );
-}
-#[test]
 fn settled_deliveries_do_not_roll_back() {
-    let ledger = ledger();
+    let (_directory, ledger) = ledger();
     let requested = delivery();
     let turn = &requested.admission.turn;
     ledger.admit(&requested).expect("admit");

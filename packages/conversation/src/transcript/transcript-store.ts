@@ -9,7 +9,7 @@ import type {
   PromptConfiguration,
   PromptSkill,
 } from '../agent/session'
-import type { ThreadHistory, TurnMark } from '../agent/thread'
+import type { TurnMark } from '../agent/thread'
 import type { TranscriptPage, TranscriptSignal } from '../agent/transcript'
 import { describeFailure } from '../failure'
 import { InterjectionOutbox } from '../interjection/interjection-outbox'
@@ -289,16 +289,6 @@ export class TranscriptStore implements TranscriptSink {
   opening = (threadId: string): void => {
     this.#lifetime(threadId)
     this.#put(threadId, { ...this.read(threadId), restoring: true })
-  }
-  history = (threadId: string, history: ThreadHistory): void => {
-    if (history.state === 'unavailable') {
-      this.note(
-        threadId,
-        history.reason === 'otherAgent'
-          ? '这段对话由另一个 agent 保管。'
-          : 'agent 已没有这段会话。',
-      )
-    }
   }
   failed = (key: string, cause: unknown, endsTurn = false): void => {
     this.#put(key, {

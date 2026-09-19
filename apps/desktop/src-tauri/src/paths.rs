@@ -60,7 +60,7 @@ const AGENTS_DIRECTORY: &str = "agents";
 
 /// 无项目会话的工作目录根。
 ///
-/// 这个名字同时由 packages/conversation/src/session/workspace-root.ts 识别；复制处
+/// 这个名字同时由 packages/conversation/src/threads/workspace-root.ts 识别；复制处
 /// 带着正本路径，任一侧改名时必须同步修改。
 const PROJECTLESS_DIRECTORY: &str = "projectless";
 
@@ -294,8 +294,8 @@ pub fn marketplace_catalog<R: Runtime>(app: &AppHandle<R>) -> Result<PathBuf> {
 /**
  * 为一条新的无项目会话创建独立工作目录。
  *
- * 目录跨应用重启保留，因为会话恢复时 agent 仍然需要原来的 cwd。它不是 paths.rs
- * 里的 tmp：tmp 每次启动都会被清空，而这份目录与会话同寿。
+ * 目录跨应用重启保留，因为会话恢复时 agent 仍然需要原来的 cwd。它不是本模块的
+ * tmp：tmp 每次启动都会被清空，而这份目录与会话同寿。
  *
  * # Errors
  *
@@ -411,7 +411,7 @@ pub fn sweep_projectless_workspaces(snapshot: Vec<PathBuf>, referenced: &[String
 
 /// 这条路径的末段是不是本应用签发的无项目目录名。
 ///
-/// 判据与 packages/conversation/src/session/workspace-root.ts 的 isProjectlessWorkspaceRoot
+/// 判据与 packages/conversation/src/threads/workspace-root.ts 的 isProjectlessWorkspaceRoot
 /// 是同一条：目录名是一个 UUID。任一侧改动时必须同步修改。
 fn projectless_identity(candidate: &Path) -> Option<Uuid> {
     candidate

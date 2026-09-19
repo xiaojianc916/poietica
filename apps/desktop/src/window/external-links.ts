@@ -10,19 +10,14 @@ import { openBrowserUrlExternally } from '@poietica/native-bridge/browser'
  * 用委托而不是逐个组件接管：链接的来源太多（Streamdown 正文、设置页、错误面板），
  * 逐处接管既漏又要各自复制一遍判断。capture 阶段一个监听，谁也漏不掉，而且没有
  * 任何组件需要知道它的存在 —— Streamdown 自带的 link-safety 确认框也因此被关掉
- * （见 agent-ui 的 timeline/Prose.tsx）：一条已经被接管的路径上不该再有确认框。
+ * （见 packages/conversation/src/surface/timeline/prose.tsx）：一条已经被接管的路径上不该再有确认框。
  */
 
 const EXTERNAL_PROTOCOLS = new Set(['http:', 'https:', 'mailto:'])
 
 /*
- * 左键与中键都算，修饰键不改变归属。
- *
- * 此前这里只认「左键裸点击」，理由写的是「中键、Ctrl/Cmd 点击在桌面语义里本来
- * 就是另开」—— 但被放过的那一次点击并没有被交给系统浏览器，它落回 webview 的
- * 默认导航。主窗口是 decorations: false，没有地址栏也没有后退：Ctrl+点一个引用
- * 链接，应用当场变成一张回不来的网页。
- *
+ * 左键与中键都算，修饰键不改变归属：被放过的那次点击（Ctrl/中键）会落回 webview
+ * 的默认导航，而主窗口没有地址栏也没有后退，应用会当场变成一张回不来的网页。
  * 右键不在其中 —— 那是上下文菜单，不是打开。
  */
 function isOpenIntent(event: MouseEvent): boolean {

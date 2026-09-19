@@ -22,7 +22,6 @@ export type {
 export { PersonalizationStore } from './custom-agents/personalization-store'
 export type { KeybindingCatalog, KeybindingEntry } from './keymap/keybinding-catalog'
 export type {
-  CatalogModel,
   CatalogProvider,
   ModelCatalogData,
   ModelCatalogOperation,

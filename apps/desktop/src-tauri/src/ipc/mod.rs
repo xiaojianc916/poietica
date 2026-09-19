@@ -44,9 +44,9 @@ use crate::{
         AgentExportThreadRequest, AgentForkThreadRequest, AgentGoal, AgentPinThreadRequest,
         AgentPromptConfiguration, AgentPromptRequest, AgentPromptResult, AgentPromptSkill,
         AgentQuestionAnswer, AgentQuestionChoice, AgentQuestionMethod, AgentRenameThreadRequest,
-        AgentResolvePermissionRequest, AgentRunBatch, AgentRunEvent, AgentSelectConfigRequest,
-        AgentSessionEvent, AgentThreadRequest, AgentTranscriptEvent, AgentTranscriptJson,
-        AgentTranscriptOpsRequest, AgentTranscriptRequest,
+        AgentResolvePermissionRequest, AgentSelectConfigRequest, AgentSessionEvent,
+        AgentThreadRequest, AgentTranscriptEvent, AgentTranscriptJson, AgentTranscriptOpsRequest,
+        AgentTranscriptRequest,
     },
     extension::{
         ForeignPluginInventory, ForeignPluginRecord, PluginCommitRequest, PluginFetch,
@@ -179,7 +179,6 @@ pub(crate) fn surface() -> Builder<Wry> {
             crate::webview::bridge::browser_set_element_picker,
         ])
         .events(tauri_specta::collect_events![
-            AgentRunBatch,
             AgentSessionEvent,
             AgentTranscriptEvent,
             AutomationCatalogChanged,
@@ -204,8 +203,6 @@ pub(crate) fn surface() -> Builder<Wry> {
         .typ::<AgentConfigChoice>()
         .typ::<AgentConfigControl>()
         .typ::<AgentGoal>()
-        .typ::<AgentRunBatch>()
-        .typ::<AgentRunEvent>()
         .typ::<AgentSessionEvent>()
         .typ::<AgentCapabilitiesRequest>()
         .typ::<AgentSelectConfigRequest>()

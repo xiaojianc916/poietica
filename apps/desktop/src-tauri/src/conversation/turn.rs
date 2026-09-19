@@ -149,12 +149,6 @@ pub async fn agent_abort_prompt(
 }
 #[tauri::command]
 #[specta::specta]
-pub async fn agent_shutdown(state: State<'_, AgentRuntime>) -> AgentCommandResult<()> {
-    state.disconnect().await?;
-    Ok(())
-}
-#[tauri::command]
-#[specta::specta]
 pub async fn agent_transcript(
     state: State<'_, AgentRuntime>,
     request: AgentTranscriptRequest,

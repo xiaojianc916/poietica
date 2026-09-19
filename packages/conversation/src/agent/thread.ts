@@ -5,14 +5,12 @@ import type { SessionGoal } from './goal'
 import type { TranscriptPage } from './transcript'
 import type { SessionUsage } from './usage'
 
-export type ThreadTitleSource = AgentThread['titleSource']
 export type ThreadRecord = Readonly<
   Omit<AgentThread, 'threadId' | 'pinned' | 'workspaceRoot' | 'archived'> & {
     threadId: ThreadId
   } & Partial<Pick<AgentThread, 'pinned' | 'workspaceRoot' | 'archived'>>
 >
 export type ThreadHistory = Readonly<AgentHistory>
-export type ThreadHistoryLoss = Extract<AgentHistory, { state: 'unavailable' }>['reason']
 
 export interface TurnMark {
   readonly turnId: string

@@ -3368,6 +3368,7 @@ dependencies = [
  "mime",
  "poietica-conversation",
  "poietica-process-host",
+ "poietica-time",
  "reqwest 0.12.28",
  "semver",
  "serde",

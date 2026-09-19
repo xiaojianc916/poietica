@@ -353,7 +353,7 @@ describe('锚会话的那张表', () => {
 
     /*
      * 空表与失败是两种不同的画法：一个都没有时屏幕上什么都不画，而这是一次真的
-     * 失败，它必须说出理由并且能被再试一次（见 agent-ui 的 session-controls.tsx）。
+     * 失败，它必须说出理由并且能被再试一次（见 surface/composer/session-controls.tsx）。
      */
     expect(store.snapshot().controls).toHaveLength(0)
     expect(store.snapshot().failure).toContain('agent 没起来')

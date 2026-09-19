@@ -36,7 +36,7 @@ export const clampSidebarWidth = (value: number): number =>
  * 辅助列的上限是侧边栏状态的因变量（见 auxiliaryMaxWidth），所以钳制要连侧边栏
  * 一起看 —— 拖拽值与落盘值走的是同一个上限。
  */
-export const clampAuxiliaryWidth = (value: number, sidebar: SidebarDock): number =>
+const clampAuxiliaryWidth = (value: number, sidebar: SidebarDock): number =>
   clampWidth(value, {
     minWidth: WORKSPACE_LAYOUT.auxiliary.minWidth,
     maxWidth: auxiliaryMaxWidth(sidebar),

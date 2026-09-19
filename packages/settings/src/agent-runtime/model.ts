@@ -1,7 +1,6 @@
 import type { AgentProfile } from '@poietica/agent-catalog'
 import type { AgentInstallStatus as WireInstallStatus } from '@poietica/contract/settings'
 export type AgentInstallStatus = Readonly<WireInstallStatus>
-export type AgentInstallState = AgentInstallStatus['state']
 export interface AgentConfigSnapshot {
   readonly profile: AgentProfile
   readonly issues: readonly string[]

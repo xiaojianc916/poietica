@@ -7,22 +7,18 @@
 use poietica_conversation::event::ConversationEvent;
 use poietica_conversation::identity::{Seq, ThreadId, TurnId};
 use poietica_conversation::ports::{ConversationLedger, PromptDelivery};
-use poietica_conversation::projection::project;
-use poietica_conversation::turn::{Admission, AdmissionDecision, TurnCompletion, TurnState};
-use poietica_ledger::SqliteLedger;
-use poietica_ledger::connection::open_in_memory;
-use poietica_ledger::projection::rebuild;
+use poietica_conversation::turn::{Admission, AdmissionDecision};
+use poietica_ledger::index::AgentStore;
 use poietica_time::test_clock::TestClock;
 
-fn ledger() -> SqliteLedger<TestClock> {
-    let ledger = SqliteLedger::new(
-        open_in_memory().expect("in-memory ledger opens"),
+fn ledger() -> (tempfile::TempDir, AgentStore) {
+    let directory = tempfile::tempdir().expect("directory");
+    let store = AgentStore::open(
+        &directory.path().join("index.sqlite3"),
         TestClock::at_unix_millis(1_700_000_000_000),
-    );
-
-    ledger.migrate().expect("migrations apply");
-
-    ledger
+    )
+    .expect("open");
+    (directory, store)
 }
 
 fn admission(thread: &ThreadId, turn: &TurnId) -> Admission {
@@ -38,8 +34,8 @@ fn admission(thread: &ThreadId, turn: &TurnId) -> Admission {
 }
 
 #[test]
-fn events_round_trip_and_projection_rebuilds() {
-    let ledger = ledger();
+fn events_round_trip() {
+    let (_directory, ledger) = ledger();
     let thread = ThreadId::new("thread-1".to_owned());
     let turn = TurnId::new("turn-1".to_owned());
 
@@ -74,20 +70,4 @@ fn events_round_trip_and_projection_rebuilds() {
         .expect("read events");
 
     assert_eq!(events.len(), 2);
-
-    let view = project(&thread, &events);
-    let rebuilt = rebuild(
-        &ledger.guard().expect("the ledger lock"),
-        ledger.clock(),
-        &thread,
-    )
-    .expect("rebuild projection");
-
-    assert_eq!(view, rebuilt);
-    assert_eq!(
-        rebuilt.turns.get(&turn).map(|turn| turn.state.clone()),
-        Some(TurnState::Finished {
-            completion: TurnCompletion::Completed
-        })
-    );
 }

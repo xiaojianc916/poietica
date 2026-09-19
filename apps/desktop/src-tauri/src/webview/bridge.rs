@@ -277,17 +277,19 @@ pub(crate) async fn browser_state(app: AppHandle) -> BrowserState {
     app.state::<BrowserHost>().snapshot()
 }
 
+/// 地址栏只认 URL：规整不出受支持地址时，这里是唯一的报错产地。
+fn normalized_url(address: &str) -> Result<String, Error> {
+    poietica_browser_native::normalize_address(address)
+        .ok_or_else(|| Error::Validation("browser address is not a supported URL".to_owned()))
+}
+
 /// 开标签。不带地址就是空白页。
 #[command]
 #[specta::specta]
 pub async fn browser_open_tab(app: AppHandle, url: Option<String>) -> Result<(), Problem> {
     stop_picker(&app, None);
     let normalized = match url.as_deref() {
-        Some(value) => Some(
-            poietica_browser_native::normalize_address(value).ok_or_else(|| {
-                Error::Validation("browser address is not a supported URL".to_owned())
-            })?,
-        ),
+        Some(value) => Some(normalized_url(value)?),
         None => None,
     };
 
@@ -361,8 +363,7 @@ pub async fn browser_select_tab(app: AppHandle, id: u32) {
 #[command]
 #[specta::specta]
 pub async fn browser_navigate(app: AppHandle, id: u32, address: String) -> Result<(), Problem> {
-    let normalized = poietica_browser_native::normalize_address(&address)
-        .ok_or_else(|| Error::Validation("browser address is not a supported URL".to_owned()))?;
+    let normalized = normalized_url(&address)?;
     let url = Url::parse(&normalized)
         .map_err(|_| Error::Validation("browser address is not a valid URL".to_owned()))?;
 
@@ -526,7 +527,10 @@ pub async fn browser_set_element_picker(
         ResolvedTheme::Light => "light",
         ResolvedTheme::Dark => "dark",
     };
-    let script = format!("window.__poieticaElementPicker.start({token},'{theme}');", token = lease.token());
+    let script = format!(
+        "window.__poieticaElementPicker.start({token},'{theme}');",
+        token = lease.token()
+    );
     if !run_in_page(&app, id, &script) {
         let _ = lock(&app.state::<BrowserHost>().picker).finish(id, lease.token());
     }

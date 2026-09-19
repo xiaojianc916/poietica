@@ -47,12 +47,6 @@ pub fn open_read_only(path: &Path) -> Result<Connection, LedgerError> {
     Ok(connection)
 }
 
-pub fn open_in_memory() -> Result<Connection, LedgerError> {
-    let connection = Connection::open_in_memory()?;
-    tune_writer(&connection)?;
-    Ok(connection)
-}
-
 fn tune_writer(connection: &Connection) -> Result<(), LedgerError> {
     connection.pragma_update(None, "synchronous", "FULL")?;
     connection.pragma_update(None, "foreign_keys", true)?;
