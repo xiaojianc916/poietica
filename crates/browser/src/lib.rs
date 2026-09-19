@@ -326,6 +326,36 @@ pub fn icon_data_url(content_type: &str, bytes: &[u8]) -> Option<String> {
     ))
 }
 
+/// 把 `icon_probe` 给出的探测地址取回来，编成 data URL。
+///
+/// 走 HTTP 而不是内核的图标事件：WebView2 的 FaviconChanged 只能经 COM 拿，而
+/// 根 Cargo.toml 是 unsafe_code = "deny"，那条路在这个仓库里不存在。超时 5 秒；
+/// 失败（超时、非 2xx、非 image/*、空或超限字节）返回 None —— 失败只是没有
+/// 图标，不打断任何操作。
+pub async fn fetch_icon_data_url(probe: &str) -> Option<String> {
+    let client = reqwest::Client::builder()
+        .timeout(std::time::Duration::from_secs(5))
+        .build()
+        .ok()?;
+
+    let response = client.get(probe).send().await.ok()?;
+
+    if !response.status().is_success() {
+        return None;
+    }
+
+    let content_type = response
+        .headers()
+        .get(reqwest::header::CONTENT_TYPE)
+        .and_then(|value| value.to_str().ok())
+        .unwrap_or_default()
+        .to_owned();
+
+    let bytes = response.bytes().await.ok()?;
+
+    icon_data_url(&content_type, &bytes)
+}
+
 #[cfg(test)]
 mod tests {
     #![allow(clippy::unwrap_used, reason = "测试内的失败就该当场炸")]

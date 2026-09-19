@@ -185,10 +185,8 @@ pub(super) fn note_url(app: &AppHandle, id: u32, url: &str) {
 ///
 /// 两个触发点对应两个事件源：我们发起的导航（drive）与页面发起的导航
 /// （note_url）；图标按来源存一份，has_icon 让重复触发与同源第二个标签免费。
-///
-/// 走 HTTP 而不是内核的图标事件：WebView2 的 FaviconChanged 只能经 COM 拿，
-/// 而根 Cargo.toml 是 unsafe_code = "deny"，那条路在这个仓库里不存在。
-/// 失败只是没有图标，不打断任何操作。
+/// 拉取与编码在 crates/browser 的 fetch_icon_data_url；失败只是没有图标，
+/// 不打断任何操作。
 pub(super) fn fetch_icon(app: &AppHandle, page: &str) {
     let Some((origin, probe)) = poietica_browser_native::icon_probe(page) else {
         return;
@@ -206,42 +204,14 @@ pub(super) fn fetch_icon(app: &AppHandle, page: &str) {
     let handle = app.clone();
 
     tauri::async_runtime::spawn(async move {
-        let Ok(client) = reqwest::Client::builder()
-            .timeout(std::time::Duration::from_secs(5))
-            .build()
-        else {
-            return;
-        };
+        if let Some(icon) = poietica_browser_native::fetch_icon_data_url(&probe).await {
+            {
+                let host = handle.state::<BrowserHost>();
+                lock(&host.tabs).note_icon(origin, icon);
+            }
 
-        let Ok(response) = client.get(&probe).send().await else {
-            return;
-        };
-
-        if !response.status().is_success() {
-            return;
+            publish(&handle);
         }
-
-        let content_type = response
-            .headers()
-            .get(reqwest::header::CONTENT_TYPE)
-            .and_then(|value| value.to_str().ok())
-            .unwrap_or_default()
-            .to_owned();
-
-        let Ok(bytes) = response.bytes().await else {
-            return;
-        };
-
-        let Some(icon) = poietica_browser_native::icon_data_url(&content_type, &bytes) else {
-            return;
-        };
-
-        {
-            let host = handle.state::<BrowserHost>();
-            lock(&host.tabs).note_icon(origin, icon);
-        }
-
-        publish(&handle);
     });
 }
 
