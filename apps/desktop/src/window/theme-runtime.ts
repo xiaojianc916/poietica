@@ -16,11 +16,12 @@ interface ThemeRuntimeOptions {
   readonly report: (cause: unknown) => void
 }
 
-/* 挂到原生窗口上的背景面。index.html 的 window-backing-surface 是同一对值的
-   预 React 初稿（ADR 0036），改色必须两侧同步。 */
+/* 挂到原生窗口上的背景面：与工作区外壳同色（--ui-chrome），拖拽或还原时露出的
+   就是它。正本是 packages/design-system/src/tokens/palette.css 的两格，
+   tauri.conf.json 与 index.html 各持一份投影，window-surface-policy 核对三处相等。 */
 const WINDOW_SURFACES = {
-  light: [255, 255, 255],
-  dark: [24, 24, 24],
+  light: [243, 243, 243],
+  dark: [32, 32, 32],
 } as const satisfies Readonly<Record<ResolvedTheme, readonly [number, number, number]>>
 
 export function createThemeRuntime({ mainWindow, report }: ThemeRuntimeOptions): ThemeRuntime {

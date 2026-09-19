@@ -253,21 +253,77 @@ function surfaceColor(
 const toHex = (color: readonly [number, number, number]): string =>
   ['#', color.map((value) => value.toString(16).padStart(2, '0')).join('')].join('')
 
-/** 主题表面与预运行底色、权限、唯一写入管线一致。 */
-async function themeSurfaceIsAligned(root: string): Promise<Violation[]> {
+/** 从调色板源码读某一格的字面值。写 oklch 之类的派生表达式就核不动了，判 null。 */
+function paletteColor(source: string, token: string): readonly [number, number, number] | null {
+  const hex = new RegExp(['^\\s*', token, ':\\s*#([0-9a-f]{6});'].join(''), 'm').exec(source)?.[1]
+
+  if (hex === undefined) {
+    return null
+  }
+
+  return [0, 2, 4].map((offset) => Number.parseInt(hex.slice(offset, offset + 2), 16)) as [
+    number,
+    number,
+    number,
+  ]
+}
+
+/** 衬底正本：设计系统里那两格外壳色，窗口衬底与外壳同色是这条策略的要点。 */
+const SURFACE_ORIGIN = 'packages/design-system/src/tokens/palette.css'
+
+type Rgb = readonly [number, number, number]
+
+/** 外壳档必须指向衬底正本；分叉时拖拽露出的那一层与顶部栏、侧栏对不上。 */
+async function chromePointsAtOrigin(root: string): Promise<Violation[]> {
+  const violations: Violation[] = []
+
+  for (const [cssFile, token] of [
+    ['packages/design-system/src/tokens/light.css', '--ui-palette-neutral-75'],
+    ['packages/design-system/src/tokens/dark.css', '--ui-palette-dark-850'],
+  ] as const) {
+    const declaration = ['--ui-chrome: var(', token, ');'].join('')
+
+    if (!(await readFile(path.join(root, cssFile), 'utf8')).includes(declaration)) {
+      violations.push({
+        policy: 'window-surface-policy',
+        where: cssFile,
+        detail: ['--ui-chrome 必须指向衬底正本 ', token].join(''),
+      })
+    }
+  }
+
+  return violations
+}
+
+/** 三份抄本各自与正本逐字相等：渲染层的 RGB 投影、预运行初稿、窗口创建底色。 */
+async function copiesMatchOrigin(
+  root: string,
+  origin: Readonly<Record<'light' | 'dark', Rgb>>,
+  projected: Readonly<Record<'light' | 'dark', Rgb>>,
+): Promise<Violation[]> {
   const violations: Violation[] = []
   const themeOwner = 'apps/desktop/src/window/theme-runtime.ts'
-  const themeSource = await readFile(path.join(root, themeOwner), 'utf8')
-  const light = surfaceColor(themeSource, 'light')
-  const dark = surfaceColor(themeSource, 'dark')
+  const indexPath = 'apps/desktop/index.html'
+  const indexSource = await readFile(path.join(root, indexPath), 'utf8')
 
-  if (light === null || dark === null) {
-    violations.push({
-      policy: 'window-surface-policy',
-      where: themeOwner,
-      detail: '主题运行时必须声明可静态核对的 light/dark 原生表面色',
-    })
-    return violations
+  for (const scheme of ['light', 'dark'] as const) {
+    if (toHex(projected[scheme]) !== toHex(origin[scheme])) {
+      violations.push({
+        policy: 'window-surface-policy',
+        where: themeOwner,
+        detail: [scheme, ' 的原生表面投影与调色板正本不一致'].join(''),
+      })
+    }
+
+    const declaration = ['--window-backing-surface: ', toHex(origin[scheme]), ';'].join('')
+
+    if (!indexSource.includes(declaration)) {
+      violations.push({
+        policy: 'window-surface-policy',
+        where: indexPath,
+        detail: [scheme, ' 的预运行表面与调色板衬底正本不一致'].join(''),
+      })
+    }
   }
 
   const configPath = 'apps/desktop/src-tauri/tauri.conf.json'
@@ -275,29 +331,69 @@ async function themeSurfaceIsAligned(root: string): Promise<Violation[]> {
     app?: { windows?: Array<{ label?: string; backgroundColor?: string }> }
   }
   const configured = config.app?.windows?.find((window) => window.label === 'main')?.backgroundColor
-  if (configured?.toLowerCase() !== toHex(light)) {
+
+  if (configured?.toLowerCase() !== toHex(origin.light)) {
     violations.push({
       policy: 'window-surface-policy',
       where: configPath,
-      detail: '主窗口创建底色必须等于主题运行时的浅色表面',
+      detail: '主窗口创建底色必须等于调色板的浅色衬底正本',
     })
   }
 
-  const indexPath = 'apps/desktop/index.html'
-  const indexSource = await readFile(path.join(root, indexPath), 'utf8')
-  for (const [scheme, color] of [
-    ['light', light],
-    ['dark', dark],
-  ] as const) {
-    const declaration = ['--window-backing-surface: ', toHex(color), ';'].join('')
-    if (!indexSource.includes(declaration)) {
-      violations.push({
-        policy: 'window-surface-policy',
-        where: indexPath,
-        detail: [scheme, ' 的预运行表面与主题运行时不一致'].join(''),
-      })
-    }
+  const meta = ['<meta content="', toHex(origin.light), '" name="theme-color" />'].join('')
+
+  if (!indexSource.includes(meta)) {
+    violations.push({
+      policy: 'window-surface-policy',
+      where: indexPath,
+      detail: 'theme-color 的静态初值必须等于调色板的浅色衬底正本',
+    })
   }
+
+  return violations
+}
+
+/** 主题表面与预运行底色、权限、唯一写入管线一致。 */
+async function themeSurfaceIsAligned(root: string): Promise<Violation[]> {
+  const violations: Violation[] = []
+  const themeOwner = 'apps/desktop/src/window/theme-runtime.ts'
+
+  const originSource = await readFile(path.join(root, SURFACE_ORIGIN), 'utf8')
+  const light = paletteColor(originSource, '--ui-palette-neutral-75')
+  const dark = paletteColor(originSource, '--ui-palette-dark-850')
+
+  if (light === null || dark === null) {
+    return [
+      {
+        policy: 'window-surface-policy',
+        where: SURFACE_ORIGIN,
+        detail: '衬底正本必须是可核对的字面十六进制：--ui-palette-neutral-75 与 dark-850',
+      },
+    ]
+  }
+
+  const themeSource = await readFile(path.join(root, themeOwner), 'utf8')
+  const projectedLight = surfaceColor(themeSource, 'light')
+  const projectedDark = surfaceColor(themeSource, 'dark')
+
+  if (projectedLight === null || projectedDark === null) {
+    return [
+      {
+        policy: 'window-surface-policy',
+        where: themeOwner,
+        detail: '主题运行时必须声明可静态核对的 light/dark 原生表面色',
+      },
+    ]
+  }
+
+  violations.push(...(await chromePointsAtOrigin(root)))
+  violations.push(
+    ...(await copiesMatchOrigin(
+      root,
+      { light, dark },
+      { light: projectedLight, dark: projectedDark },
+    )),
+  )
 
   const hostSurfaceProbes = [
     ['apps/desktop/src-tauri/src/window/surface.rs', 'pub struct WindowSurface'],
@@ -312,6 +408,24 @@ async function themeSurfaceIsAligned(root: string): Promise<Violation[]> {
         where: file,
         detail: '窗口底色必须由宿主状态持有，并在恢复前重应用',
       })
+    }
+  }
+
+  /*
+   * 衬底是两层独立表面：原生窗口一层、WebView2 一层。创建期
+   * （WebviewWindowBuilder::background_color）两层一起设，运行期只设窗口层就会
+   * 留下一层停在创建值 —— 深色下拖拽与启动露出的正是那一层。
+   */
+  const surfaceSource = await readFile(path.join(root, hostSurfaceProbes[0][0]), 'utf8')
+  for (const [needle, detail] of [
+    ['window.set_background_color(', '衬底必须设原生窗口层'],
+    [
+      'get_webview(MAIN_WINDOW)',
+      '衬底必须设主 WebView2 层：按 label 直取，不走 get_webview_window',
+    ],
+  ] as const) {
+    if (!surfaceSource.includes(needle)) {
+      violations.push({ policy: 'window-surface-policy', where: hostSurfaceProbes[0][0], detail })
     }
   }
 

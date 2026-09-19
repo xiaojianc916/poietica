@@ -6,17 +6,18 @@
       content="width=device-width, initial-scale=1.0"
       name="viewport"
     />
-    <meta content="#ffffff" name="theme-color" />
+    <meta content="#f3f3f3" name="theme-color" />
 
     <!--
       Native window, WebView and document surfaces must remain aligned.
-      See docs/adr/0036-theme-aligned-window-surface.md. React 挂载后由
-      apps/desktop/src/window/theme-runtime.ts 的 WINDOW_SURFACES 接管这一面；
-      两侧的颜色值必须同步修改。
+      See docs/adr/0036-theme-aligned-window-surface.md. 正本是设计系统调色板的
+      --ui-palette-neutral-75 / dark-850（packages/design-system/src/tokens/
+      palette.css），React 挂载后由 apps/desktop/src/window/theme-runtime.ts 的
+      WINDOW_SURFACES 接管这一面；window-surface-policy 核对两侧相等。
     -->
     <style id="window-backing-surface">
       :root {
-        --window-backing-surface: #ffffff;
+        --window-backing-surface: #f3f3f3;
         --fatal-foreground: #18181b;
         --fatal-muted: #71717a;
         --fatal-border: #d4d4d8;
@@ -144,7 +145,7 @@
 
       @media (prefers-color-scheme: dark) {
         :root {
-          --window-backing-surface: #181818;
+          --window-backing-surface: #202020;
           --fatal-foreground: #f4f4f5;
           --fatal-muted: #a1a1aa;
           --fatal-border: #3f3f46;

@@ -23,7 +23,7 @@
         "decorations": false,
         "transparent": false,
         "visible": false,
-        "backgroundColor": "#ffffff",
+        "backgroundColor": "#f3f3f3",
         "additionalBrowserArgs": "--disable-features=msWebOOUI,msPdfOOUI,msSmartScreenProtection,RemoveRedirectionBitmap --autoplay-policy=no-user-gesture-required --enable-features=msWebView2EnableDraggableRegions"
       }
     ],
