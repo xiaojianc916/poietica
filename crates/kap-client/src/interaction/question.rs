@@ -1,11 +1,5 @@
-//! 官方 kap 的提问域：一组题、一组答复，以及答复合不合这组题。
-//!
-//! 契约事实来源是 kap-server 的 protocol/question.ts 与 routes/questions.ts。
-//! 三件事决定了这个模块的形状：题号 q_{i} 与选项号 opt_{i}_{j} 由 server 每次列举
-//! 现编，所以这一侧不解析号、不重排号、不从号里读语义，号原样往返；一题的合法答复
-//! 取决于它自己（multi_select 管多选、allow_other 管写字），校验按题做不按组做；
-//! wire 要 snake_case、帧要 camelCase，同一个类型两种渲染各只有一处（derive 管帧，
-//! on_wire 管线上）。
+//! 契约来源：kap-server 的 protocol/question.ts 与 routes/questions.ts；题号与选项号
+//! 由 server 现编，这一侧不解析、原样往返。
 
 use std::collections::HashMap;
 
@@ -22,68 +16,53 @@ const ONE_OPTION_ONLY: &str = "that question takes a single option";
 const NO_WRITTEN_ANSWER: &str = "that question does not accept a written answer";
 const NO_OPTION_PICKED: &str = "a multiple choice answer needs at least one option";
 
-/// 一个说不通的答复。这一层唯一的拒绝理由，措辞留给发现它的那一处。
 pub(crate) fn refused(message: &str) -> KapError {
     KapError::Question {
         message: message.to_owned(),
     }
 }
 
-/// 一题里的一个选项。
 #[derive(Clone, Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct QuestionOption {
-    /// server 现编的号，原样交回去。
     pub id: String,
     pub label: String,
-    /// 这个选项自己的一句解释，agent 给了才有。
     #[serde(skip_serializing_if = "Option::is_none")]
     pub description: Option<String>,
 }
 
-/// 一道题。
 #[derive(Clone, Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct QuestionItem {
     pub id: String,
     pub question: String,
-    /// 题面之上的一行标题。
     #[serde(skip_serializing_if = "Option::is_none")]
     pub header: Option<String>,
-    /// 题面之下的正文。
     #[serde(skip_serializing_if = "Option::is_none")]
     pub body: Option<String>,
     /// 两到四个（questionItemSchema 的 min 2 max 4）。
     pub options: Vec<QuestionOption>,
-    /// 这一题能不能多选。
     pub multi_select: bool,
-    /// 这一题能不能自己写一句。routes/questions.ts 的 buildItem 对它无条件置真。
+    /// routes/questions.ts 的 buildItem 对它无条件置真。
     pub allow_other: bool,
-    /// 「其他」那一栏怎么称呼。
     #[serde(skip_serializing_if = "Option::is_none")]
     pub other_label: Option<String>,
-    /// 「其他」那一栏的说明。
     #[serde(skip_serializing_if = "Option::is_none")]
     pub other_description: Option<String>,
 }
 
-/// 一次提问：最多四题，一起问也一起答。
 #[derive(Clone, Debug)]
 pub struct QuestionGroup {
     /// kap 签发的号（interaction.id）。答复与撤下都认它。
     pub question_id: String,
     pub session_id: String,
-    /// 第几轮。线上是个整数，不是字符串。
     pub turn_id: Option<i64>,
-    /// 引出这一组题的那次工具调用；kap 说它可以缺席。
     pub tool_call_id: Option<String>,
     pub items: Vec<QuestionItem>,
     pub created_at: String,
 }
 
-/// 一题答的是什么，五种，与 questionAnswerSchema 的判别联合逐一对应。
-///
-/// 判别式在线上叫 kind。
+/// 五种，与 questionAnswerSchema 的判别联合逐一对应。
 #[derive(Clone, Debug, Serialize)]
 #[serde(
     tag = "kind",
@@ -91,25 +70,19 @@ pub struct QuestionGroup {
     rename_all_fields = "camelCase"
 )]
 pub enum QuestionAnswer {
-    /// 选了一个。
     Single { option_id: String },
-    /// 选了几个。
     Multi { option_ids: Vec<String> },
-    /// 一个都没选，自己写了一句。
     Other { text: String },
-    /// 选了几个，还自己写了一句。线上允许一个都没选。
+    /// 选了几个，还自己写了一句；线上允许一个都没选。
     MultiWithOther {
         option_ids: Vec<String>,
         other_text: String,
     },
-    /// 这一题跳过。
     Skipped,
 }
 
-/// 人是怎么答的。
-///
-/// 如实上报：官方把 click 丢掉（toInProcessResponse 只在 method 不是 click 时才
-/// 带上它），但它在 wire 上是合法值，改报成别的就是撒谎。
+/// 官方把 click 丢掉（toInProcessResponse 只在 method 不是 click 时才带上它），
+/// 但它在 wire 上合法，改报成别的就是撒谎。
 #[derive(Clone, Copy, Debug)]
 pub enum AnswerMethod {
     Enter,
@@ -118,30 +91,20 @@ pub enum AnswerMethod {
     Click,
 }
 
-/// 一整组的答复。
 #[derive(Clone, Debug)]
 pub struct QuestionResponse {
-    /// 逐题一条，键是题号。
     pub answers: HashMap<String, QuestionAnswer>,
     pub method: Option<AnswerMethod>,
-    /// 整组的备注。
-    ///
-    /// wire 上它是合法的一格（questionResponseSchema 的 note），但官方 server 收
-    /// 下之后不读它：toInProcessResponse 只把 answers 与 method 交给
-    /// ISessionQuestionService。送它是因为契约里有它，不是因为它今天有效果。
+    /// wire 上合法的一格（questionResponseSchema 的 note），但官方 server 收下之后不读它。
     pub note: Option<String>,
 }
 
-/// 一组题最终怎么收场。
 #[derive(Clone, Debug)]
 pub enum QuestionOutcome {
-    /// 人答了。
     Answered(QuestionResponse),
-    /// 人把这一组撤下了，一题都不答。
     Dismissed,
 }
 
-/// 帧上逐题的那一条：一张 map 在帧里排不出顺序，而界面要按问的顺序显示。
 #[derive(Clone, Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
 struct AnsweredQuestion {
@@ -197,11 +160,7 @@ impl QuestionItem {
         })
     }
 
-    /// 这一题收不收这个答复。
-    ///
-    /// 比 server 严：官方只按 schema 验形状，不拿题去验答案。这一侧要严，因为
-    /// 界面产不出来的答复就不该发得出去 —— 一个只能在对面被发现的错误，等于没
-    /// 有被发现。
+    /// 比 server 严：官方只按 schema 验形状，不拿题去验答案。
     fn accepts(&self, answer: &QuestionAnswer) -> Result<()> {
         match answer {
             QuestionAnswer::Single { option_id } => self.offers(option_id),
@@ -263,7 +222,6 @@ impl QuestionItem {
 }
 
 impl QuestionAnswer {
-    /// 线上那一份（snake_case）。
     fn on_wire(&self) -> Value {
         let mut body = Map::new();
 
@@ -298,7 +256,6 @@ impl QuestionAnswer {
 }
 
 impl AnswerMethod {
-    /// 线上那个词（questionAnswerMethodSchema）。
     #[must_use]
     pub const fn on_wire(self) -> &'static str {
         match self {
@@ -311,10 +268,7 @@ impl AnswerMethod {
 }
 
 impl QuestionGroup {
-    /// 读 kap 的 questionRequestSchema。
-    ///
-    /// 缺一格就整组不认：一组半懂的题问不出去，而一个猜出来的题号会让答复落到
-    /// 别的题上。
+    /// 读 kap 的 questionRequestSchema；缺一格整组不认。
     #[must_use]
     pub fn from_wire(value: &Value) -> Option<Self> {
         let mut items = Vec::new();
@@ -337,17 +291,12 @@ impl QuestionGroup {
         })
     }
 
-    /// 这一组里的那一题。
     #[must_use]
     pub fn item(&self, question_id: &str) -> Option<&QuestionItem> {
         self.items.iter().find(|item| item.id == question_id)
     }
 
-    /// 帧上那一份题目（camelCase，界面读的那一份）。
-    ///
-    /// 序列化失败退回空数组而不是 panic：这里只有字符串、布尔与数组，没有非字符
-    /// 串的键，也没有手写的 Serialize，所以那一支到不了；而即便到了，一组题显示
-    /// 不出来是缺陷，把整条连接打死是事故。
+    /// 序列化失败退回空数组而不是 panic：一组题显示不出来是缺陷，把整条连接打死是事故。
     #[must_use]
     pub fn on_frame(&self) -> Value {
         serde_json::to_value(&self.items).unwrap_or_else(|_impossible| Value::Array(Vec::new()))
@@ -355,12 +304,6 @@ impl QuestionGroup {
 }
 
 impl QuestionResponse {
-    /// 这一组答复对不对得上这一组题。
-    ///
-    /// # Errors
-    ///
-    /// 题号不在这一组、有题没答、选项没提供过、多选答给了单选题、写的字给了不收
-    /// 字的题，或多选一个都没选。
     pub fn checked_against(&self, group: &QuestionGroup) -> Result<()> {
         for (question_id, answer) in &self.answers {
             let Some(item) = group.item(question_id) else {
@@ -370,8 +313,8 @@ impl QuestionResponse {
             item.accepts(answer)?;
         }
 
-        // 一组题一次答齐，是这一侧的规矩，不是协议的要求：官方对缺答的题不作声。
-        // 这一侧要求答齐，因为界面就是整组一起收的 —— 少一题只可能是漏发。
+        // 一次答齐是这一侧的规矩，不是协议的要求（官方对缺答的题不作声）；
+        // 界面整组一起收，少一题只可能是漏发。
         if group
             .items
             .iter()
@@ -383,7 +326,6 @@ impl QuestionResponse {
         Ok(())
     }
 
-    /// 按 questionResolveRequestSchema 做成请求体。
     #[must_use]
     pub fn on_wire(&self) -> Value {
         let mut answers = Map::new();
@@ -406,7 +348,6 @@ impl QuestionResponse {
         Value::Object(body)
     }
 
-    /// 帧上那一份答复，按问的顺序。
     #[must_use]
     pub fn on_frame(&self, group: &QuestionGroup) -> Value {
         let answered: Vec<AnsweredQuestion> = group

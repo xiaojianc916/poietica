@@ -1,4 +1,4 @@
-//! IPC encoding, executor selection and redacted asset errors.
+//! 资产的 IPC 编码、执行器选择与脱敏错误。
 
 use base64::Engine as _;
 use base64::engine::general_purpose::STANDARD as BASE64;
@@ -20,9 +20,7 @@ type CommandResult<T> = Result<T, Problem>;
 #[serde(rename_all = "camelCase")]
 pub struct AssetUploadRequest {
     pub session_token: String,
-    /// base64 编码的原始字节，不带 `data:` 前缀。刻意不用 `Vec<u8>`：JSON IPC 下
-    /// 它线上是 `number[]`，比 base64 大四五倍；raw body 只在 args 整体是
-    /// ArrayBuffer/Uint8Array 时生效（见 Tauri v2 的 InvokeArgs）。
+    /// base64 原始字节，不带 `data:` 前缀；刻意不用 `Vec<u8>`：JSON IPC 下它线上是 `number[]`，大四五倍（见 Tauri v2 InvokeArgs）。
     pub base64: String,
 }
 
@@ -62,8 +60,7 @@ pub struct AssetSessionCloseRequest {
     pub session_token: String,
 }
 
-/// Opens an asset session and returns its opaque token; the caller only ever
-/// sees the redacted IPC message, never native detail.
+/// 调用方只见脱敏后的 IPC 文案，永远拿不到原生细节。
 #[tauri::command]
 #[specta::specta]
 pub async fn asset_session_open(
@@ -86,7 +83,6 @@ pub async fn asset_upload(
 ) -> CommandResult<AssetUploadResult> {
     let registry = assets.inner().clone();
     async_runtime::spawn_blocking(move || {
-        // Reject excessive transport allocation before asking the codec to decode.
         if request.base64.len() > MAX_ASSET_BYTES.div_ceil(3) * 4 {
             return Err(map_asset_error(AssetProtocolError::AssetTooLarge));
         }
@@ -143,8 +139,6 @@ fn map_intake_error(error: AssetIntakeError) -> Problem {
     }
 }
 
-/// 一种收得下的格式，交给渲染层的那一面；判据留在这一侧，渲染层拿这张表
-/// 只为给系统对话框写过滤器。
 #[derive(Clone, Debug, Serialize, Type)]
 #[serde(rename_all = "camelCase")]
 pub struct AssetFormat {
@@ -153,8 +147,6 @@ pub struct AssetFormat {
     pub extensions: Vec<String>,
 }
 
-/// 收得下的格式清单，系统文件对话框的过滤器按它来。存在的唯一理由是扩展名
-/// 那张表不该有第二份：一次本机往返，换掉一个漏改不报错的静默失败。
 #[tauri::command]
 #[specta::specta]
 #[must_use]
@@ -173,7 +165,6 @@ pub fn asset_formats() -> Vec<AssetFormat> {
         .collect()
 }
 
-/// Removes one asset from an open session.
 #[tauri::command]
 #[specta::specta]
 pub async fn asset_remove(
@@ -191,9 +182,6 @@ pub async fn asset_remove(
     Ok(())
 }
 
-/// Closes an asset session and releases everything it still holds. A session
-/// that is already gone is a success: document close may have released it
-/// first, and no caller should have to tell the two apart.
 #[tauri::command]
 #[specta::specta]
 pub async fn asset_session_close(
@@ -264,7 +252,6 @@ mod tests {
         assert_eq!(sniff(&[0xFF, 0xD8, 0xFF, 0xE0]), Some("image/jpeg"));
         assert_eq!(sniff(b"RIFF\x00\x00\x00\x00WEBPVP8 "), Some("image/webp"));
 
-        /* 改名成 .png 的 SVG：扩展名骗得过，文件头骗不过，字节落成 text/plain。 */
         assert_eq!(
             sniff(b"<svg xmlns=\"http://www.w3.org/2000/svg\"/>"),
             Some("text/plain")
@@ -275,18 +262,15 @@ mod tests {
 
     #[test]
     fn the_file_dialog_is_offered_exactly_what_the_sniffer_accepts() {
-        /* 交给渲染层的那张表就是判据那张表，一行不多一行不少。 */
         assert_eq!(asset_formats().len(), FORMATS.len());
 
         for format in FORMATS {
-            /* 没有扩展名的格式在对话框里选不中，等于没登记。 */
             assert!(
                 !format.extensions.is_empty(),
                 "{} has no extension for the file dialog",
                 format.content_type
             );
 
-            /* 挡的是「表里加了一行，判据忘了接上」。 */
             assert!(
                 sniff(b"").is_none(),
                 "an empty payload must never sniff as {}",
@@ -297,7 +281,6 @@ mod tests {
 
     #[test]
     fn every_importable_format_is_also_deliverable() {
-        /* 导入与交付两道白名单必须一致，对不上时用户会看到不说真因的错误。 */
         for format in FORMATS {
             assert!(
                 poietica_asset::is_deliverable_content_type(format.content_type),
@@ -311,7 +294,6 @@ mod tests {
     fn asset_errors_do_not_expose_internal_details() {
         let problem = map_asset_error(AssetProtocolError::RegistryBudgetExceeded);
 
-        /* 过边界的只有一个码：句子归前端文案表，现场一条都不外带。 */
         assert_eq!(problem.code, Code::AssetRejected);
         assert!(problem.details.is_empty());
     }

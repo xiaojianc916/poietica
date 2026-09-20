@@ -1,12 +1,4 @@
 //! kap（Kimi Code 本地服务）的客户端：生成的协议模型、进程与链路、会话与帧。
-//!
-//! `generated/` 由 tools/contract/generate-kap.ts 从 contracts/kap 的快照生成，
-//! 禁手改；本 crate 其余部分只做信封语义与解码判据，不添加协议形状。
-//!
-//! 三条规矩：本侧的失败由驱动器在轮终记录并上报，不回敬给 agent 当成它自己的；
-//! 连接比会话长、会话比一轮长，而 handler 活得和连接一样久、recorder 只活一轮，
-//! 两者因此经一个 slot 相会而不是靠所有权；审批与题组各占一张桌子，handler 在
-//! 自己的桌子上等到真答案，不编一个。
 
 pub mod error;
 pub mod generated;
@@ -68,12 +60,9 @@ pub use session::{
     goal_snapshot, select_config, selector_patch,
 };
 
-/// 链路态的词汇住在领域那侧；这里只是转发，让消费者不必两处 import。
 pub use poietica_conversation::link::LinkState;
 
-/// 解一条 REST 应答信封。业务成败看 code（快照的约定），不看 HTTP 状态。
-///
-/// 成功的 data 缺席即协议破坏；失败的 data 一律不解析（错误分支里它是 null）。
+/// 业务成败看 code（快照的约定），不看 HTTP 状态。
 pub fn envelope_data<T: serde::de::DeserializeOwned>(
     envelope: rest::RestEnvelope,
 ) -> std::result::Result<T, EnvelopeError> {
@@ -87,7 +76,6 @@ pub fn envelope_data<T: serde::de::DeserializeOwned>(
     serde_json::from_value(data).map_err(EnvelopeError::from)
 }
 
-/// 解一条 server 帧。未知 type 走这里报错，由调用方决定丢弃还是计数。
 pub fn server_frame(raw: &str) -> std::result::Result<events::ServerFrame, DecodeError> {
     serde_json::from_str(raw).map_err(DecodeError::from)
 }

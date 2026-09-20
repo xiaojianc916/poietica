@@ -1,14 +1,4 @@
-//! 一个工作目录的 git 分支问答与操作。
-//!
-//! 分支状态的唯一真相是磁盘上的仓库，所以这里不缓存：每问一次就跑一次 git。
-//! 走 git CLI 而不是 libgit2 绑定是这个场景的标杆做法（VS Code 内置 git 扩展与
-//! JetBrains git4idea 都外调 git 可执行文件）：仓库可能带 worktree、sparse、
-//! submodule 与自定义 hooks，只有 git 自己的解释与用户在终端里看到的一致；
-//! libgit2 还会把一整个 C 库编进产物，换来的是这里用不到的对象库读写。
-//!
-//! 边界：这个 crate 不认识 Tauri，也不判断「哪个目录允许被操作」—— 那是命令层
-//! 的事。它拿到路径与分支名，交还快照或 git 自己的拒绝理由。审查面的领域类型与
-//! porcelain 解码在 crates/review，这里只执行与拼装。
+//! 分支状态的唯一真相是磁盘上的仓库：不缓存，每问一次就跑一次 git。
 
 use std::path::Path;
 use std::process::Output;
@@ -23,21 +13,16 @@ mod watch;
 pub use review::{commit, file_patch, review};
 pub use watch::WatchRegistry;
 
-/// 审查面的领域类型由 review 领域拥有；从这里转发，消费者不必两处 import。
 pub use poietica_review_native::{ChangeStatus, CommitIntent, FileChange, ReviewSnapshot};
 
-/// git 起不来，或它自己说了不。
 #[derive(Debug, Error)]
 pub enum GitError {
-    /// git 可执行文件起不来。
     #[error("无法启动 git：{0}")]
     Spawn(#[from] std::io::Error),
 
-    /// git 拒绝了这次操作：stderr 原样带回，那是用户唯一拿得去修正的信息。
     #[error("{0}")]
     Refused(String),
 
-    /// 监视挂不上：平台句柄耗尽，或目录在挂之前就没了。
     #[error("无法监视工作目录：{0}")]
     Unwatchable(#[from] notify::Error),
 
@@ -48,14 +33,10 @@ pub enum GitError {
     WatchRoot(std::io::Error),
 }
 
-/// 一个仓库此刻的分支快照。
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct BranchSnapshot {
-    /// 当前检出的分支；HEAD 分离时为 None。
     pub branch: Option<String>,
-    /// HEAD 分离时所在提交的短号；在分支上时为 None。
     pub detached_at: Option<String>,
-    /// 本地分支，按最近提交排序 —— 换分支的人要找的多半是刚用过的那个。
     pub branches: Vec<String>,
 }
 
@@ -86,8 +67,6 @@ pub(crate) fn git_missing(error: &GitError) -> bool {
     )
 }
 
-/// 问一个目录的分支快照。不是工作区、或机器没有 git，都是 None：这项能力在
-/// 那里不存在，界面据此整个消失，不是错误。
 pub async fn snapshot(root: &Path) -> Result<Option<BranchSnapshot>, GitError> {
     let queried = tokio::try_join!(
         repository_probe(root),
@@ -108,7 +87,6 @@ pub async fn snapshot(root: &Path) -> Result<Option<BranchSnapshot>, GitError> {
     let name = line(&head.stdout);
     let branch = if name.is_empty() { None } else { Some(name) };
 
-    /* 分离 HEAD 才多问一次提交号；普通分支只需一轮并发查询。 */
     let detached_at = if branch.is_some() {
         None
     } else {
@@ -122,7 +100,6 @@ pub async fn snapshot(root: &Path) -> Result<Option<BranchSnapshot>, GitError> {
         branches: branches_from(refs)?,
     }))
 }
-/// 解析已经取回的本地分支清单；查询时机由调用方统一编排。
 pub(crate) fn branches_from(refs: Output) -> Result<Vec<String>, GitError> {
     let refs = expect_ok(refs)?;
     Ok(String::from_utf8_lossy(&refs.stdout)
@@ -133,7 +110,6 @@ pub(crate) fn branches_from(refs: Output) -> Result<Vec<String>, GitError> {
         .collect())
 }
 
-/// 检出一个已有分支，交还盘面上的新快照。
 pub async fn switch(root: &Path, branch: &str) -> Result<BranchSnapshot, GitError> {
     checked_name(branch)?;
     expect_ok(run(root, &["switch", branch]).await?)?;
@@ -141,8 +117,6 @@ pub async fn switch(root: &Path, branch: &str) -> Result<BranchSnapshot, GitErro
     refreshed(root).await
 }
 
-/// 创建并检出一个新分支，交还盘面上的新快照。名字是否合法由 git 判 ——
-/// check-ref-format 的规则它自己最全，这里不抄第二份。
 pub async fn create(root: &Path, branch: &str) -> Result<BranchSnapshot, GitError> {
     checked_name(branch)?;
     expect_ok(run(root, &["switch", "-c", branch]).await?)?;
@@ -150,12 +124,10 @@ pub async fn create(root: &Path, branch: &str) -> Result<BranchSnapshot, GitErro
     refreshed(root).await
 }
 
-/// 操作刚成功的目录突然不是仓库，只可能是外部世界在并发改它 —— 照实说。
 pub(crate) fn still_a_worktree<T>(found: Option<T>) -> Result<T, GitError> {
     found.ok_or_else(|| GitError::Refused("这个目录已经不是 git 工作区".to_owned()))
 }
 
-/// 操作刚成功的目录突然不是仓库，只可能是外部世界在并发改它 —— 照实说。
 async fn refreshed(root: &Path) -> Result<BranchSnapshot, GitError> {
     still_a_worktree(snapshot(root).await?)
 }
@@ -218,8 +190,7 @@ mod tests {
         assert!(checked_name("feature/one").is_ok());
     }
 
-    /// 机器上没有 git 时这些测试没有对象，直接返回 —— 能力缺席不是失败。
-    /// 探测与生产同产地：process-host 的 which 解析。
+    /// 探测与生产同产地：process-host 的 which 解析；机器上没有 git 时这些测试直接返回。
     fn git_available() -> bool {
         poietica_process_host::program::resolve_program("git").is_ok()
     }

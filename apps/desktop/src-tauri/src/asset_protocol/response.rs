@@ -10,10 +10,7 @@ use tauri::http::{
 
 use super::range::resolve_range;
 
-/// 交付这份资源，整份或其中一段。
-///
-/// 无论对方有没有提 Range，都发 Accept-Ranges：那是「可以对我发 Range」这件事
-/// 唯一的宣告方式，媒体元素据此决定进度条能不能拖。
+/// 始终发 Accept-Ranges：媒体元素据此判断能否对这份资源拖进度条。
 pub(super) fn asset_response(
     asset: &poietica_asset::DeliveredAsset,
     requested: Option<(Option<u64>, Option<u64>)>,
@@ -36,10 +33,7 @@ pub(super) fn asset_response(
     };
 
     let Some((start, end)) = resolve_range(requested, length) else {
-        /*
-         * 416 必须带上真实长度，否则对方无从修正自己的请求。RFC 9110 为这个
-         * 状态码规定的 Content-Range 形式就是 `bytes * /<length>`。
-         */
+        // RFC 9110：416 必须带真实长度，Content-Range 形式就是 `bytes * /<length>`。
         return Response::builder()
             .status(StatusCode::RANGE_NOT_SATISFIABLE)
             .header(CONTENT_RANGE, format!("bytes */{length}"))
@@ -51,14 +45,7 @@ pub(super) fn asset_response(
             .unwrap_or_else(|_| empty_response(StatusCode::RANGE_NOT_SATISFIABLE));
     };
 
-    /*
-     * 区间请求只拷对方要的那一段。整份交付那一支拷的是全部，而那一次拷贝去不掉：
-     * Tauri 用 Into<Cow<'static, [u8]>> 框住响应体，注册表持有的字节不是 'static，
-     * 只能以 Cow::Owned 交出去。
-     *
-     * 能选的只有由谁来付。bootstrap/app.rs 用异步协议把整个处理器搬进
-     * spawn_blocking，所以付这笔账的不是画窗口的那条线程。
-     */
+    // 整份交付那次拷贝去不掉：Tauri 的响应体要求 Into<Cow<'static, [u8]>>，而注册表持有的字节不是 'static；处理器已在 spawn_blocking，拷贝不占画窗线程。
     let slice = asset
         .bytes
         .get(usize::try_from(start).unwrap_or(usize::MAX)..=usize::try_from(end).unwrap_or(0))

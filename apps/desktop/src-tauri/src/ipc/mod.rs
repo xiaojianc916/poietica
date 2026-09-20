@@ -1,9 +1,3 @@
-//! 这个应用暴露给渲染层的那一张 IPC 面。
-//!
-//! 清单只有一份，就在下面的 `surface`：它同时是运行期交给 Tauri 的 `invoke_handler`
-//! 与构建期导出的 TypeScript 绑定的产地（tauri-specta 的范式）。手抄第二份没有东西
-//! 校验它，漏抄不报错，只会安静地少一条绑定。
-
 pub(crate) mod export_bindings;
 pub(crate) mod problem;
 

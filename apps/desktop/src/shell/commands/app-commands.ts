@@ -1,22 +1,7 @@
 import type { CommandRegistry, WorkbenchSessionStore } from '@poietica/workspace'
 
-/**
- * 应用命令的唯一声明表。
- *
- * id、文案、类别、快捷键与行为都是数据，不是散在 useEffect 里的六次调用：
- * 那种写法把产品文案硬编在生命周期里，effect 依赖也被迫写成整个 runtime 对象，
- * 于是 runtime 任一引用变化都会全量注销再重注册。
- *
- * 注册项类型直接从注册表签名派生，避免这里再养一份会漂移的接口副本。
- */
 type CommandRegistration = Parameters<CommandRegistry['register']>[0]
 
-/**
- * 命令面板的开合 id。
- *
- * 标题栏那枚搜索按钮要按的就是它，所以 id 只能有一处：写成两处字面量，改一处漏一处
- * 不会有任何编译错误，只会静默失效。
- */
 export const TOGGLE_COMMAND_PALETTE_COMMAND_ID = 'application.toggle-command-palette'
 
 export interface ApplicationCommandContext {
@@ -31,12 +16,7 @@ type ApplicationCommand = Omit<CommandRegistration, 'execute'> & {
   readonly execute: (context: ApplicationCommandContext) => void
 }
 
-/*
- * 这张表的先后 = 面板里的先后。
- *
- * 会话那一组排在它们之前，因为贡献它的组件挂在 AppShell 之内，而 effect
- * 自下而上兑现 —— 这不是巧合，是 React 的兑现次序（见 conversation-commands）。
- */
+/* 表内先后 = 面板内先后；会话组排最前，因贡献它的组件挂在 AppShell 内、effect 自下而上先兑现（见 workbench/connections）。 */
 const APPLICATION_COMMANDS: readonly ApplicationCommand[] = [
   {
     id: 'ai.open-assistant',
@@ -102,13 +82,6 @@ const APPLICATION_COMMANDS: readonly ApplicationCommand[] = [
   },
 ]
 
-/*
- * 活动标签的前一格与后一格。
- *
- * 「有没有邻居」和「邻居是谁」出自同一次查找，所以两者不可能不一致，两端也
- * 天然不回绕。标题栏的两个箭头（describeTabSequence）与命令面板的
- * workspace.previous-tab／workspace.next-tab 都从它取值。
- */
 export function tabNeighbors<T extends { readonly id: string }>(
   tabs: readonly T[],
   activeTabId: string | undefined,
@@ -131,7 +104,6 @@ function stepTab(workspace: WorkbenchSessionStore, step: number): void {
   }
 }
 
-/** 把声明表接上注册表，返回按注册逆序注销的清理函数。 */
 export function registerApplicationCommands(
   registry: CommandRegistry,
   context: ApplicationCommandContext,

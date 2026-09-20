@@ -1,14 +1,10 @@
 import { type FailureCoordinator, optionalProperty } from '@poietica/problem'
 
-/* 同时在场的上限。挤出去的那几张已经在诊断日志里，不必再抢屏幕。 */
 const MAX_VISIBLE = 3
-/* 停留时长 = 底线 + 按字数估的阅读时间，上限收口。中文约 11 字每秒。 */
 const MIN_DWELL_MS = 4_000
 const MAX_DWELL_MS = 12_000
 const MS_PER_CHARACTER = 90
-/*
- * 退场动画时长。正本是 --ui-duration-fast（packages/design-system/src/tokens/motion.css）。
- */
+/* 退场动画时长，正本是 --ui-duration-fast（packages/design-system/src/tokens/motion.css）。 */
 const CLOSING_MS = 120
 export type NoticePauseReason = 'hover' | 'hidden'
 export interface Notice {
@@ -17,7 +13,6 @@ export interface Notice {
   readonly detail?: string
   readonly closing: boolean
 }
-/** 读完一条要多久。字数是唯一变量，所以它是纯函数。 */
 export function noticeDwellMs(title: string, detail: string | undefined): number {
   const length = title.length + (detail === undefined ? 0 : detail.length)
   return Math.min(MAX_DWELL_MS, MIN_DWELL_MS + length * MS_PER_CHARACTER)
@@ -45,7 +40,6 @@ export class NoticeStore {
     }
   }
   getSnapshot = (): readonly Notice[] => this.#notices
-  /** 跟着 coordinator 活。装载几次就退订几次。 */
   start = (): (() => void) => {
     const stop = this.#coordinator.subscribe(this.#sync)
     this.#sync()
@@ -58,7 +52,6 @@ export class NoticeStore {
       this.#notices = []
     }
   }
-  /** 人在读、或者窗口根本没露面，就不要烧停留时间。 */
   setPaused = (reason: NoticePauseReason, paused: boolean): void => {
     const before = this.#paused.size > 0
     if (paused) {
@@ -82,7 +75,6 @@ export class NoticeStore {
       this.#arm(id, presence)
     }
   }
-  /** 点一下就走。没有叉，整张卡片就是这个动作。 */
   dismiss = (noticeId: string): void => {
     const presence = this.#presences.get(noticeId)
     if (presence === undefined || presence.closing) {
@@ -94,7 +86,6 @@ export class NoticeStore {
   #sync = (): void => {
     const visible = this.#coordinator.getSnapshot().operations.slice(-MAX_VISIBLE)
     const live = new Set(visible.map((entry) => entry.incident.id))
-    /* 被更新的挤出去的那几张也播完退场，别当场消失。 */
     for (const [id, presence] of this.#presences) {
       if (!live.has(id) && !presence.closing) {
         this.#beginClosing(id, presence)
@@ -150,7 +141,6 @@ export class NoticeStore {
       this.#publish()
     }, CLOSING_MS)
   }
-  /* 销号连同比它更旧的一起：那些从没上过屏，已经在诊断日志里，不必再排队。 */
   #retire = (noticeId: string): void => {
     const operations = this.#coordinator.getSnapshot().operations
     const index = operations.findIndex((entry) => entry.incident.id === noticeId)
@@ -191,7 +181,6 @@ export class NoticeStore {
   }
 }
 
-/* 第二行只在它真说了新东西时才有：与用户那句一样的诊断文本是噪音。 */
 function readDetail(incident: {
   readonly userMessage: string
   readonly technicalMessage: string

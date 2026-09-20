@@ -76,16 +76,7 @@ export function createAgentRuntime(options: AgentRuntimeDependencies): DesktopAg
       }
     }
   }
-  /*
-   * 起 agent 只等一件事：受控 home 里的 mcp.json 已经对齐。
-   *
-   * 那是 agent 进程启动时读一次的文件，排在 spawn 之前是必须的。
-   *
-   * 模型元数据不在这里等。它是一趟目录快照加一次 patchConfig 的写，产出的是模型
-   * 的显示名与上下文上限 —— 没有它，选择器照样报得出这一刻在用哪个模型、哪些档位。
-   * 把它排进 launch，等于让第一张控件表去等一次与它无关的写盘往返；那一趟照样跑，
-   * 只是不再挡在会话前面（见下面 seedDefaultModel 的同一条理由）。
-   */
+  // mcp.json 是 agent 进程启动时读一次的文件，必须排在 spawn 之前；模型元数据刻意不 await，不挡会话。
   const prepareAgent = async (): Promise<string> => {
     requireActive()
     await options.mcpReady()
@@ -138,7 +129,6 @@ export function createAgentRuntime(options: AgentRuntimeDependencies): DesktopAg
       return
     }
     seeded = true
-    // A failed optional seed must not turn a capability read into a connection failure.
     void firstUsableModel(options.modelCatalog)
       .then(async (alias) => {
         if (!disposed && alias !== undefined) {

@@ -250,6 +250,27 @@ function surfaceColor(
   return [red, green, blue]
 }
 
+/** 从宿主衬底源码读 `const X_SURFACE: Color(r, g, b, a)` 那一格。 */
+function hostSurfaceColor(
+  source: string,
+  name: 'LIGHT' | 'DARK',
+): readonly [number, number, number] | null {
+  const declaration = new RegExp(
+    ['const ', name, '_SURFACE: Color = Color\\(([0-9]+), ([0-9]+), ([0-9]+), '].join(''),
+  ).exec(source)
+  const channels = declaration?.slice(1, 4).map(Number)
+
+  if (
+    channels === undefined ||
+    channels.length !== 3 ||
+    !channels.every((value) => Number.isInteger(value) && value >= 0 && value <= 255)
+  ) {
+    return null
+  }
+
+  return channels as [number, number, number]
+}
+
 const toHex = (color: readonly [number, number, number]): string =>
   ['#', color.map((value) => value.toString(16).padStart(2, '0')).join('')].join('')
 
@@ -353,6 +374,54 @@ async function copiesMatchOrigin(
   return violations
 }
 
+/*
+ * 启动衬底必须由宿主按持久化偏好落定，且必须与原生主题一起钉。
+ *
+ * 只留渲染层投影这一条路时，投影要等设置加载与 React 首帧，中间露出的是
+ * tauri.conf.json 的创建值 —— 深色偏好配浅色创建值，启动那一瞬就是浅色底。
+ * 主题不钉则文档层的预运行初稿继续跟系统走，与偏好脱钩，页面自己刷成浅色。
+ */
+async function startupSurfaceIsAdopted(
+  root: string,
+  origin: Readonly<Record<'light' | 'dark', Rgb>>,
+  surfaceSource: string,
+): Promise<Violation[]> {
+  const violations: Violation[] = []
+  const owner = 'apps/desktop/src-tauri/src/window/surface.rs'
+
+  /* 宿主启动落定用的那两格是第四份抄本，同样与正本逐通道相等。 */
+  for (const [name, expected] of [
+    ['LIGHT', origin.light],
+    ['DARK', origin.dark],
+  ] as const) {
+    const copied = hostSurfaceColor(surfaceSource, name)
+
+    if (copied === null || toHex(copied) !== toHex(expected)) {
+      violations.push({
+        policy: 'window-surface-policy',
+        where: owner,
+        detail: [name, '_SURFACE 必须等于调色板衬底正本'].join(''),
+      })
+    }
+  }
+
+  for (const [file, needle, detail] of [
+    [owner, 'pub fn adopt(', '启动衬底必须由宿主按偏好落定'],
+    [owner, 'window.set_theme(', '启动落定必须同时钉住原生主题，否则文档层跟着系统走'],
+    [
+      'apps/desktop/src-tauri/src/composition.rs',
+      '.adopt(&main_window,',
+      '组合根必须在窗口被看见之前落定衬底',
+    ],
+  ] as const) {
+    if (!(await readFile(path.join(root, file), 'utf8')).includes(needle)) {
+      violations.push({ policy: 'window-surface-policy', where: file, detail })
+    }
+  }
+
+  return violations
+}
+
 /** 主题表面与预运行底色、权限、唯一写入管线一致。 */
 async function themeSurfaceIsAligned(root: string): Promise<Violation[]> {
   const violations: Violation[] = []
@@ -428,6 +497,8 @@ async function themeSurfaceIsAligned(root: string): Promise<Violation[]> {
       violations.push({ policy: 'window-surface-policy', where: hostSurfaceProbes[0][0], detail })
     }
   }
+
+  violations.push(...(await startupSurfaceIsAdopted(root, { light, dark }, surfaceSource)))
 
   const typeScriptFiles = await walk(root, ['apps', 'packages'], ['.ts', '.tsx'])
   for (const file of await holding(root, typeScriptFiles, '.setBackgroundColor(')) {

@@ -13,7 +13,6 @@ use super::{PICKER_CANCEL_SCRIPT, lock};
 use crate::error::Error;
 use poietica_problem::Problem;
 
-/// 面板视口在主窗口客户区里的逻辑坐标。渲染层量 DOM，这里只收数。
 #[derive(Clone, Copy, Debug, Default, Deserialize, PartialEq, Serialize, specta::Type)]
 pub struct PanelBounds {
     pub x: f64,
@@ -23,8 +22,7 @@ pub struct PanelBounds {
 }
 
 impl PanelBounds {
-    /// 内核不接受零尺寸。收窄只在这一处做：创建与布局两条路都必须拿到同一个矩形，
-    /// 各写一份 max(1.0) 就会分叉成一个能显示、一个看不见。
+    /// 内核不接受零尺寸；收窄只在这一处做，创建与布局两条路共用同一个矩形。
     pub(super) fn clamped(self) -> Self {
         Self {
             width: self.width.max(1.0),
@@ -34,7 +32,6 @@ impl PanelBounds {
     }
 }
 
-/// 一个标签在渲染层眼里的样子。url 缺席 = 空白页。
 #[derive(Clone, Debug, Deserialize, Serialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct BrowserTab {
@@ -42,11 +39,9 @@ pub struct BrowserTab {
     pub url: Option<String>,
     pub title: String,
     pub loading: bool,
-    /// 站点图标的 data URL。缺席时渲染层画地球。
     pub favicon: Option<String>,
 }
 
-/// 最近关闭的一条，够画出下拉里的那一行。
 #[derive(Clone, Debug, Deserialize, Serialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct BrowserClosedTab {
@@ -54,12 +49,6 @@ pub struct BrowserClosedTab {
     pub title: String,
 }
 
-/// 广播给渲染层的全量快照。全量而不是增量：状态就一屏标签，
-/// 增量协议换来的只是两侧各一份需要对账的账本。
-///
-/// revision 只用于消费端丢弃乱序到达的旧快照；u32 是绑定能表达的宽度
-/// （仓规：数值按绑定能表达的宽度收窄），42 亿次广播之后封顶不再变化，
-/// 后果与 u64 饱和相同。
 #[derive(Clone, Debug, Deserialize, Serialize, specta::Type, tauri_specta::Event)]
 #[serde(rename_all = "camelCase")]
 pub struct BrowserState {
@@ -70,7 +59,6 @@ pub struct BrowserState {
     pub recently_closed: Vec<BrowserClosedTab>,
 }
 
-/// 标签状态与内核实例的唯一所有者。bootstrap 里 manage 一份，进程级。
 #[derive(Debug, Default)]
 
 pub struct BrowserHost {
@@ -83,23 +71,16 @@ pub struct BrowserHost {
     pub(super) next_target: AtomicU32,
     pub(super) bounds: Mutex<PanelBounds>,
     pub(super) visible: Mutex<bool>,
-    /// CDP 端口。启动时抽一次，写进 WebView2 的环境参数；非 Windows 或
-    /// 端口抽取失败时为 None，agent 操控面就不存在，浏览器本体不受影响。
     pub(super) devtools_port: Option<u16>,
     pub(super) picker: Mutex<poietica_browser_native::Picker>,
     /// 上一次真正下发给内核的摆放。相等就不再下发 —— 一次拖拽每帧都经过这里。
     pub(super) placed: Mutex<HashMap<u32, Placement>>,
 }
 
-/// 一个标签此刻该在哪：Some 是摆在这个矩形上并呈现，None 是隐藏。
 type Placement = Option<PanelBounds>;
 
 impl BrowserHost {
-    /// 抽一个 127.0.0.1 上的空闲端口给 CDP 用。
-    ///
-    /// 只能启动时抽：端口要进 WebView2 的环境参数，而环境在第一个 webview
-    /// 创建时定型。绑定成功即释放，端口在释放与内核启动之间存在被其他进程
-    /// 抢走的窗口 —— 抢走时这一次启动没有 agent 操控面，属于已声明的限制。
+    /// 端口只能启动时抽：它要进 WebView2 的环境参数，而环境在第一个 webview 创建时定型。
     #[must_use]
     pub fn new() -> Self {
         let devtools_port = if cfg!(windows) {
@@ -172,7 +153,6 @@ impl BrowserHost {
     }
 }
 
-/// 每次变更后广播快照。发不出去只说明还没有订阅者，不是故障。
 pub(super) fn publish(app: &AppHandle) {
     let state = app.state::<BrowserHost>().publish_snapshot();
 
@@ -181,7 +161,6 @@ pub(super) fn publish(app: &AppHandle) {
     }
 }
 
-/// 内核报来的导航（用户点了链接、重定向都走这里）。
 pub(super) fn note_url(app: &AppHandle, id: u32, url: &str) {
     {
         let host = app.state::<BrowserHost>();
@@ -193,12 +172,6 @@ pub(super) fn note_url(app: &AppHandle, id: u32, url: &str) {
     publish(app);
 }
 
-/// 取一页的站点图标，落进模型。
-///
-/// 两个触发点对应两个事件源：我们发起的导航（drive）与页面发起的导航
-/// （note_url）；图标按来源存一份，has_icon 让重复触发与同源第二个标签免费。
-/// 拉取与编码在 crates/browser 的 fetch_icon_data_url；失败只是没有图标，
-/// 不打断任何操作。
 pub(super) fn fetch_icon(app: &AppHandle, page: &str) {
     let Some((origin, probe)) = poietica_browser_native::icon_probe(page) else {
         return;
@@ -227,7 +200,6 @@ pub(super) fn fetch_icon(app: &AppHandle, page: &str) {
     });
 }
 
-/// 内核报来的文档标题。
 pub(super) fn note_title(app: &AppHandle, id: u32, title: &str) {
     {
         let host = app.state::<BrowserHost>();
@@ -238,11 +210,7 @@ pub(super) fn note_title(app: &AppHandle, id: u32, title: &str) {
     publish(app);
 }
 
-/// 内核报来的装载进度：Started 亮转圈，Finished 熄掉。
-///
-/// 只记装载，不动活动标签：内核眼里 CDP 导航与页面自刷新都是无命令导航，
-/// 据此换活动标签就是从用户手里抢焦点。要不要跟着 agent 走是面板那一侧的
-/// 意图（browser-panel-store 的自动展开），静音位在那里。
+/// 只记装载，不动活动标签：内核眼里 CDP 导航与页面自刷新都是无命令导航，跟走即抢焦点。
 pub(super) fn note_loading(app: &AppHandle, id: u32, loading: bool) {
     {
         let host = app.state::<BrowserHost>();
@@ -254,18 +222,15 @@ pub(super) fn note_loading(app: &AppHandle, id: u32, loading: bool) {
 
 #[command]
 #[specta::specta]
-/// 渲染层进面板时拉一次的初始快照。之后靠事件。
 pub(crate) async fn browser_state(app: AppHandle) -> BrowserState {
     app.state::<BrowserHost>().snapshot()
 }
 
-/// 地址栏只认 URL：规整不出受支持地址时，这里是唯一的报错产地。
 fn normalized_url(address: &str) -> Result<String, Error> {
     poietica_browser_native::normalize_address(address)
         .ok_or_else(|| Error::Validation("browser address is not a supported URL".to_owned()))
 }
 
-/// 开标签。不带地址就是空白页。
 #[command]
 #[specta::specta]
 pub async fn browser_open_tab(app: AppHandle, url: Option<String>) -> Result<(), Problem> {
@@ -341,7 +306,6 @@ pub async fn browser_select_tab(app: AppHandle, id: u32) {
     }
 }
 
-/// 地址栏回车。规整不出 URL 就什么也不做 —— 这个地址栏只认 URL，不做搜索。
 #[command]
 #[specta::specta]
 pub async fn browser_navigate(app: AppHandle, id: u32, address: String) -> Result<(), Problem> {
@@ -367,8 +331,6 @@ pub async fn browser_navigate(app: AppHandle, id: u32, address: String) -> Resul
     Ok(())
 }
 
-/// 后退。历史归内核所有，这里只请求 —— 没有历史时它自然无事发生，
-/// 与浏览器本体的行为一致，不另记一份「能不能后退」的影子账。
 #[command]
 #[specta::specta]
 pub async fn browser_back(app: AppHandle, id: u32) {
@@ -409,7 +371,6 @@ pub async fn browser_print(app: AppHandle, id: u32) -> Result<(), Problem> {
     Ok(())
 }
 
-/// 重开最近关闭下拉里的第 index 条。
 #[command]
 #[specta::specta]
 pub async fn browser_reopen_closed(app: AppHandle, index: u32) {
@@ -432,7 +393,6 @@ pub async fn browser_reopen_closed(app: AppHandle, index: u32) {
     publish(&app);
 }
 
-/// 渲染层量好的视口逻辑坐标。React 只报数，摆放由这里做。
 #[command]
 #[specta::specta]
 pub async fn browser_set_bounds(app: AppHandle, x: f64, y: f64, width: f64, height: f64) {
@@ -449,7 +409,6 @@ pub async fn browser_set_bounds(app: AppHandle, x: f64, y: f64, width: f64, heig
     apply_layout(&app);
 }
 
-/// 面板开合（含切到非对话表面）。隐藏不销毁：标签还在，回来接着用。
 #[command]
 #[specta::specta]
 pub async fn browser_set_visible(app: AppHandle, visible: bool) {
@@ -464,15 +423,13 @@ pub async fn browser_set_visible(app: AppHandle, visible: bool) {
     apply_layout(&app);
 }
 
-/// 内核 CDP 端点，mcp.json 对账用。非 Windows 或端口没抽到时为 None。
+/// 内核 CDP 端点，mcp.json 对账用。
 #[command]
 #[specta::specta]
 pub async fn browser_devtools_endpoint(app: AppHandle) -> Option<String> {
     app.state::<BrowserHost>().devtools_endpoint()
 }
 
-/// 应用界面解析后的主题。拾取面板长在外部页面里读不到 data-theme，
-/// 主题随 start 调用一次性带进去。
 #[derive(Clone, Copy, Debug, Deserialize, Serialize, specta::Type)]
 #[serde(rename_all = "lowercase")]
 pub enum ResolvedTheme {
@@ -480,7 +437,6 @@ pub enum ResolvedTheme {
     Dark,
 }
 
-/// 显式设置当前标签的元素选择模式；状态只归 BrowserHost。
 #[command]
 #[specta::specta]
 pub async fn browser_set_element_picker(

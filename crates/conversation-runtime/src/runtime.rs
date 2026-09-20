@@ -43,7 +43,7 @@ impl<T> RuntimeFailure for T where
 {
 }
 
-/// Public use cases do not expose connection handles or identity machinery.
+/// 公共用例不暴露连接句柄与身份机制（由下方 compile_fail doctest 把守）。
 ///
 /// ```compile_fail
 /// use poietica_conversation_runtime::session::SessionResolver;

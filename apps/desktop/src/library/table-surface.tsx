@@ -137,7 +137,6 @@ function drop<T extends { readonly id: string }>(rows: readonly T[], id: string)
   return rows.filter((row) => row.id !== id)
 }
 
-/** 工具条上的一个开关：图标、名字、条数徽标，打开后是它自己的面板。 */
 function Panel({
   badge,
   children,
@@ -154,7 +153,6 @@ function Panel({
   const [open, setOpen] = useState(false)
   const lastSignal = useRef(signal)
 
-  /* 列头菜单点名打开：计数变一次就开一次，平时不干预自己的开关。 */
   useEffect(() => {
     if (signal !== undefined && signal !== lastSignal.current) {
       lastSignal.current = signal
@@ -180,7 +178,6 @@ function Panel({
   )
 }
 
-/** 单选列拿现有取值做下拉，其余列交给平台原生输入控件。 */
 function Operand({
   choices,
   kind,
@@ -587,17 +584,10 @@ interface Shown {
   key: string
 }
 
-/** 右键落点：行菜单说底层行号（行头没有列），列菜单说底层列号。 */
 type MenuTarget =
   | { readonly of: 'row'; readonly row: number; readonly field: number | null }
   | { readonly of: 'column'; readonly field: number }
 
-/*
- * 落点由 DOM 上的标记反解，不在每个格子里各存一份坐标。
- *
- * 菜单开在哪、怎么翻转、怎么关全归 ContextMenu（锚点就是指针落点），这里只回答
- * 「点的是哪一格」；没有标记的地方返回 null，那一下右键不该开菜单。
- */
 function menuTargetAt(target: EventTarget | null): MenuTarget | null {
   if (!(target instanceof Element)) {
     return null
@@ -613,7 +603,6 @@ function menuTargetAt(target: EventTarget | null): MenuTarget | null {
   return field === undefined ? null : { of: 'column', field: Number(field) }
 }
 
-/** 这一族菜单里的一行：图标、文案、行尾注释，危险动作取警示色。 */
 function MenuItem({
   children,
   danger,
@@ -647,7 +636,6 @@ function MenuItem({
   )
 }
 
-/** 单元格与行头的菜单项：前者有一条按该列筛选的捷径，后者只有行操作。 */
 function RowItems({
   controller,
   target,
@@ -709,7 +697,6 @@ function RowItems({
   )
 }
 
-/** 列头的菜单项。列宽与冻结只有样子，功能二期再做。 */
 function ColumnItems({
   controller,
   item,
@@ -803,7 +790,6 @@ function Row({
   const tint = tintOf(list, view, row)
   const ordinal = row.index + 1
   const held = menu?.of === 'row' && menu.row === row.index ? menu : null
-  /* 行头菜单开着时这一行保持悬浮态；菜单一关状态跟着消失。 */
   const pinRow = held !== null && held.field === null
 
   return (
@@ -852,7 +838,6 @@ function Row({
   )
 }
 
-/** 列编辑面板：改名与改类型一次确认，走同一条 revise。 */
 function HeaderPanel({
   controller,
   item,
@@ -950,7 +935,6 @@ function HeaderPanel({
   )
 }
 
-/** 列头就是这一列的入口：悬浮露出箭头，点开改名与改类型，右键出列菜单。 */
 function HeaderCell({
   controller,
   editing,
@@ -1016,7 +1000,6 @@ export function TableSurface({
         .filter((item) => !view.hidden.includes(item.index)),
     [list, view.hidden],
   )
-  /* 列几何只有一个产地：滚动容器把它写成自定义属性，表头、每一行与尾行照着读。 */
   const columns = `3rem repeat(${shown.length}, minmax(9rem, 1fr)) 3rem`
   const shell = { controller, list, sheet, view }
   const [menu, setMenu] = useState<MenuTarget | null>(null)
@@ -1098,10 +1081,6 @@ export function TableSurface({
             className="max-h-full overflow-auto rounded-lg border border-divider bg-background"
             style={{ '--sheet-columns': columns } as CSSProperties}
           >
-            {/*
-             * 整片表格一个触发区：落点由 data-sheet-* 标记反解，不必每格各挂一个
-             * 菜单根。没有标记的地方（分组带、尾行之外）右键盘还给系统。
-             */}
             <ContextMenuTrigger
               onContextMenu={(event) => {
                 const found = menuTargetAt(event.target)

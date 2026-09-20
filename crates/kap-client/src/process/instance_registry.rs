@@ -1,9 +1,4 @@
-//! kap server 的实例注册表与令牌发现。
-//!
-//! 「等」的判据是认令牌，不是文件出现：start.ts 的第一行就 register，那时 server
-//! 还没 listen，条目里的端口只是「要的那个」（DEFAULT_PORT 58627）；端口被占就
-//! +1 往上走，绑上之后才 registration.update({ port: boundPort }) 回填真端口。
-//! 文件先于监听存在，只信文件就会在这段窗口里拨到别人身上。
+//! 就绪判据是认令牌而不是文件出现：start.ts 先 register 后 listen，端口还可能 +1 回填。
 
 use std::path::Path;
 use std::time::Duration;
@@ -37,10 +32,7 @@ impl InstanceDisk {
     }
 }
 
-/// 一次探针：这个地址上的 server 认不认我们手里这份令牌。
-///
-/// /meta 走全局 bearer 鉴权（start.ts 挂的 createAuthHook），认了才回 code 0。
-/// 不能用 healthz —— 它在 defaultIsBypassed 的免鉴权名单里，谁都答得出来。
+/// 用 /meta 不用 healthz：healthz 在免鉴权名单里谁都答得出来，/meta 认令牌才回 code 0。
 async fn probe_instance(probe: &reqwest::Client, dial: &str, port: u16, token: &str) -> Probe {
     let Ok(url) = routes::meta(&format!("http://{dial}:{port}")) else {
         return Probe::Refused;
@@ -59,21 +51,12 @@ async fn probe_instance(probe: &reqwest::Client, dial: &str, port: u16, token: &
     let Ok(_data) = envelope_data(&body) else {
         return Probe::Refused;
     };
-    // 不比对 server_version：上游它就是 npm 包版本（kap-server/src/version.ts 读
-    // package.json），每次发版都动，官方 web 客户端只在设置页显示、从不比较；协议
-    // 代际按 URL 路径冻结并存（/api/v1/ws 与 /api/v3/ws），不随包版本演进。
-    // code 0 + 认令牌 = 我们拉起的那个 server。
+    // 不比 server_version：它随 npm 发版每版都动，官方客户端也从不比较；认令牌即我们拉起的 server。
     Probe::Ready
 }
 
-/// 等到注册表出现本次拉起之后的条目、且那个地址认我们的令牌，返回
-/// (host, port, token)。超时则报错。
-///
-/// 令牌也在这里读：它是判据的一部分，而且首次启动时是 server 自己把它建出来的，
-/// 早读会读空。
-///
-/// 不比 pid：注册表记的是 server 自己的 pid，而 Windows 上我们拉起的直接子进程
-/// 是 .cmd Shim，两边永远对不上。
+/// 等到注册表出现本次拉起之后的条目、且那个地址认我们的令牌；超时则报错。
+/// 不比 pid（Windows 上直接子进程是 .cmd Shim，对不上）；令牌在此读，首次启动由 server 建，早读是空。
 pub(crate) async fn discover_instance(
     instances_dir: &Path,
     home_dir: &Path,
@@ -109,7 +92,6 @@ pub(crate) async fn discover_instance(
             });
         }
 
-        // 令牌可能比注册表条目晚落地：首次启动时是 server 自己创建它的。
         let Some(token) = read_token(home_dir).await.ok().filter(|t| !t.is_empty()) else {
             tokio::time::sleep(Duration::from_millis(150)).await;
             continue;
@@ -143,9 +125,7 @@ pub(crate) async fn discover_instance(
     }
 }
 
-/// 注册表里的通配绑定（0.0.0.0 / ::）不是每个平台都能拨的地址，同一个监听器
-/// 走回环一定到得了。同一规则的另一份在 tools/contract/kap-spec-sync.ts 的
-/// dialableHost。
+/// 通配绑定（0.0.0.0/::）拨回环；同一规则的另一份在 tools/contract/kap-spec-sync.ts 的 dialableHost。
 pub(crate) fn dialable_host(host: &str) -> String {
     if host.is_empty() || host == "0.0.0.0" || host == "::" {
         return "127.0.0.1".to_owned();
@@ -158,7 +138,6 @@ pub(crate) fn dialable_host(host: &str) -> String {
     host.to_owned()
 }
 
-/// <home>/server.token 的内容（去首尾空白）。
 async fn read_token(home_dir: &Path) -> Result<String> {
     let path = home_dir.join("server.token");
     tokio::fs::read_to_string(&path)

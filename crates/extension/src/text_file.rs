@@ -6,10 +6,6 @@ use tempfile::NamedTempFile;
 
 use crate::error::Result;
 
-/// 读一份 UTF-8 文本，文件不存在时返回 None。
-///
-/// 「还没有这个文件」不是错误：第一次打开插件面板时 installed.json 本来就不存在。
-/// 折成错误，调用方就得靠 message 去分辨两种情况。
 pub fn read_optional(path: &Path) -> Result<Option<String>> {
     match fs::read_to_string(path) {
         Ok(contents) => Ok(Some(contents)),
@@ -18,13 +14,7 @@ pub fn read_optional(path: &Path) -> Result<Option<String>> {
     }
 }
 
-/// 原子写：同目录临时文件加 rename 覆盖。
-///
-/// 临时文件必须与目标同目录 —— 跨卷 rename 会失败，而系统临时目录与数据根经常不在
-/// 一个卷上，NamedTempFile::new_in 正是为这件事存在的；它的 Drop 会删掉没能 persist
-/// 的那一份，所以中途失败不留半成品，不需要自己写清理。std 的 fs::rename 在 Windows
-/// 上用带 MOVEFILE_REPLACE_EXISTING 的 MoveFileEx，与 POSIX 语义一致：断电只会留下
-/// 旧的那一份或新的那一份。
+/// 临时文件必须与目标同目录：跨卷 rename 会失败。
 pub fn write_atomic(path: &Path, contents: &str) -> Result<()> {
     let directory = path
         .parent()

@@ -1,7 +1,4 @@
-//! 资料库：应用自己拥有的一块磁盘空间。
-//!
-//! 根由宿主给出（apps/desktop/src-tauri/src/paths.rs），本 crate 不认识 Tauri，
-//! 也不接受库外路径：它只在根之内做树操作。
+//! 资料库：应用自己拥有的一块磁盘空间，只在根之内做树操作。
 
 use fs2::FileExt;
 use serde::{Deserialize, Serialize};
@@ -17,15 +14,11 @@ mod table;
 
 pub use table::{SheetFieldKind, TableSheet};
 
-/// 单份资料的读写上限。
 const MAX_DOCUMENT_BYTES: u64 = 16 * 1024 * 1024;
 
-/// 目录规模上限，同时是同名去重的尝试次数上限。
 const MAX_ENTRIES: usize = 20_000;
 const LOCK_FILE: &str = ".poietica-library.lock";
 const UNTITLED_FOLDER: &str = "未命名文件夹";
-/// 新建表格落盘的初始表：空文件不是表，打开就得是一张可用的表。
-/// 列名即列类型，种子边车跟着写一份，见 create。
 const TABLE_SEED: &str = "标题,数字,单选,日期\n,,,\n,,,\n,,,\n,,,\n,,,\n";
 /// 新建表格的初始列类型，与 TABLE_SEED 的列名一一对应。
 const TABLE_SEED_KINDS: [SheetFieldKind; 4] = [
@@ -47,7 +40,6 @@ pub enum LibraryError {
 
 pub type Result<T> = std::result::Result<T, LibraryError>;
 
-/// 资料库认识的文件种类。扩展名与新建默认名只在 spec 里写一次。
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Type)]
 #[serde(rename_all = "camelCase")]
 pub enum LibraryFormat {
@@ -59,7 +51,6 @@ pub enum LibraryFormat {
 impl LibraryFormat {
     const ALL: [Self; 3] = [Self::Markdown, Self::Table, Self::Page];
 
-    /// 加一种格式：加 variant（编译器逼你补齐这里）并加进 ALL。
     const fn spec(self) -> (&'static str, &'static str, &'static str) {
         match self {
             Self::Markdown => ("md", "未命名文档", ""),
@@ -68,12 +59,10 @@ impl LibraryFormat {
         }
     }
 
-    /// 新建时写进去的初始内容。
     const fn seed(self) -> &'static str {
         self.spec().2
     }
 
-    /// 导入过滤器与目录识别用同一份扩展名，不在宿主侧再抄一遍。
     #[must_use]
     pub fn extensions() -> [&'static str; 3] {
         Self::ALL.map(Self::extension)
@@ -88,7 +77,6 @@ impl LibraryFormat {
         self.spec().1
     }
 
-    /// 认扩展名：库里的名字都由本 crate 落下。
     #[must_use]
     pub fn of(path: &Path) -> Option<Self> {
         let extension = path.extension()?.to_str()?.to_ascii_lowercase();
@@ -102,13 +90,10 @@ impl LibraryFormat {
 #[derive(Debug, Clone, Serialize, Deserialize, Type)]
 #[serde(rename_all = "camelCase")]
 pub struct LibraryEntry {
-    /// 相对根的路径，也是这一行的身份。
     pub path: String,
     pub name: String,
     pub parent: String,
-    /// None 即文件夹：种类与「是不是文件夹」是同一个判别式。
     pub format: Option<LibraryFormat>,
-    /// 修改时间，Unix 秒。字符串是为了过 IPC 不被 f64 削精度。
     pub modified: Option<String>,
     pub bytes: String,
 }
@@ -119,7 +104,6 @@ pub struct LibraryCatalog {
     pub entries: Vec<LibraryEntry>,
 }
 
-/// 一份资料的正文。变体与文件种类一一对应，判别式只有这一个。
 #[derive(Debug, Clone, Serialize, Deserialize, Type)]
 #[serde(tag = "kind", content = "value", rename_all = "camelCase")]
 pub enum LibraryBody {
@@ -142,13 +126,10 @@ impl LibraryBody {
 #[serde(rename_all = "camelCase")]
 pub struct LibraryDocument {
     pub path: String,
-    /// 落盘字节的指纹。保存时带回来做乐观并发比对，语义同 HTTP ETag。
     pub version: String,
     pub body: LibraryBody,
 }
 
-/// 渲染层能发出的全部请求。库外路径不在其中：导入的源文件由宿主的
-/// 文件选择器给出，渲染层无从指定库外的任何一个位置。
 #[derive(Debug, Clone, Serialize, Deserialize, Type)]
 #[serde(tag = "kind", rename_all = "camelCase")]
 pub enum LibraryRequest {
@@ -184,21 +165,16 @@ pub enum LibraryRequest {
 pub enum LibraryReply {
     Catalog(LibraryCatalog),
     Document(LibraryDocument),
-    /// 新建、导入与重命名之后条目的落点，供界面选中它。
     Placed(String),
     Done,
 }
 
-/// 一块资料库空间。持有根路径，所有操作锁在根之内。
 #[derive(Debug)]
 pub struct Vault {
     root: PathBuf,
 }
 
 impl Vault {
-    /// # Errors
-    ///
-    /// 根路径无法规范化或不是目录时返回错误。
     pub fn open(root: &Path) -> Result<Self> {
         let root = root.canonicalize()?;
 
@@ -209,11 +185,6 @@ impl Vault {
         Ok(Self { root })
     }
 
-    /// 唯一分发点。
-    ///
-    /// # Errors
-    ///
-    /// 请求越界、目标不存在、或磁盘操作失败时返回错误。
     pub fn execute(&self, request: LibraryRequest) -> Result<LibraryReply> {
         match request {
             LibraryRequest::List { query } => self.catalog(&query).map(LibraryReply::Catalog),
@@ -236,11 +207,6 @@ impl Vault {
         }
     }
 
-    /// 把库外的一份文件复制进来。按字节复制，不经文本解码。
-    ///
-    /// # Errors
-    ///
-    /// 源文件不是三种格式、不是普通文件、超过上限或复制失败时返回错误。
     pub fn import(&self, parent: &str, source: &Path) -> Result<String> {
         let format = LibraryFormat::of(source).ok_or_else(|| {
             LibraryError::Invalid("只支持导入 .md、.csv 与 .html 文件。".to_owned())
@@ -343,7 +309,6 @@ impl Vault {
         Ok(LibraryCatalog { entries })
     }
 
-    /// 种类决定正文形状，这个映射只在这里做一次。
     fn document(&self, path: &str) -> Result<LibraryDocument> {
         let (target, format) = self.file(path)?;
         let bytes = read_bytes(&target)?;
@@ -365,8 +330,6 @@ impl Vault {
         })
     }
 
-    /// 先读现状比对指纹，不符即冲突、一个字节都不动；相符才写临时文件再原子替换，
-    /// 所以写失败不会留下半份文件。指纹叠加边车：只改列类型也算改动。
     fn write(&self, path: &str, body: &LibraryBody, expected: &str) -> Result<LibraryDocument> {
         let _lock = self.lock()?;
         let (target, format) = self.file(path)?;
@@ -496,7 +459,6 @@ impl Vault {
         self.relative(&target)
     }
 
-    /// 进系统回收站，文件与文件夹同一条路径。表格先清边车，再送主文件。
     fn trash(&self, path: &str) -> Result<()> {
         let _lock = self.lock()?;
         let target = self.path(path, false)?;
@@ -547,7 +509,6 @@ impl Vault {
         Ok(resolved)
     }
 
-    /// 资料文件连同它的种类：种类是正文形状的唯一判据，不在调用点二次判断。
     fn file(&self, relative: &str) -> Result<(PathBuf, LibraryFormat)> {
         let resolved = self.path(relative, false)?;
 
@@ -557,7 +518,6 @@ impl Vault {
         }
     }
 
-    /// 落点目录。空串就是根。
     fn directory(&self, relative: &str) -> Result<PathBuf> {
         if relative.is_empty() {
             return Ok(self.root.clone());
@@ -583,7 +543,6 @@ impl Vault {
             .ok_or_else(|| LibraryError::Invalid("落点不在资料库内。".to_owned()))
     }
 
-    /// 一把跳过进程的排他锁，所有写操作都从它下面走。
     fn lock(&self) -> Result<File> {
         let handle = OpenOptions::new()
             .create(true)
@@ -597,8 +556,6 @@ impl Vault {
     }
 }
 
-/// 名字命中即算命中；只有文件才继续读正文。读不出文本的文件不参与正文匹配：
-/// 一次检索不该被一个坏文件打断。
 fn matches(absolute: &Path, path: &str, readable: bool, needle: &str) -> bool {
     if path.to_lowercase().contains(needle) {
         return true;
@@ -607,7 +564,6 @@ fn matches(absolute: &Path, path: &str, readable: bool, needle: &str) -> bool {
     readable && read_text(absolute).is_ok_and(|text| text.to_lowercase().contains(needle))
 }
 
-/// 「未命名文档」「未命名文档 2」…… 在 holder 下找第一个空位。
 fn vacancy(holder: &Path, stem: &str, extension: Option<&str>) -> Result<PathBuf> {
     for attempt in 1..=MAX_ENTRIES {
         let stem = if attempt == 1 {
@@ -629,12 +585,10 @@ fn vacancy(holder: &Path, stem: &str, extension: Option<&str>) -> Result<PathBuf
     Err(LibraryError::Invalid("同名条目过多，未新建。".to_owned()))
 }
 
-/// 边车文件名：表.csv → 表.schema.json。json 不在资料种类里，目录与搜索自然无视它。
 fn schema_path(target: &Path) -> PathBuf {
     target.with_extension("schema.json")
 }
 
-/// 边车缺席是常态（老文件、导入的文件），只有其它读错误才算错。
 fn read_schema(target: &Path) -> Result<Option<String>> {
     match fs::read_to_string(schema_path(target)) {
         Ok(text) => Ok(Some(text)),
@@ -643,7 +597,6 @@ fn read_schema(target: &Path) -> Result<Option<String>> {
     }
 }
 
-/// 边车与主文件同一次落盘。None 表示没有指定的类型，旧边车顺手清掉。
 fn write_schema(target: &Path, schema: Option<&str>) -> Result<()> {
     let path = schema_path(target);
 
@@ -672,7 +625,6 @@ fn write_schema(target: &Path, schema: Option<&str>) -> Result<()> {
     }
 }
 
-/// CSV 解码后再把边车的类型按列对上：外部改过表头时多退少补，不报错。
 fn decode_sheet(text: &str, schema: Option<&str>) -> Result<TableSheet> {
     let mut sheet = table::decode(text)?;
     let mut kinds = table::decode_kinds(schema);
@@ -683,8 +635,6 @@ fn decode_sheet(text: &str, schema: Option<&str>) -> Result<TableSheet> {
     Ok(sheet)
 }
 
-/// 落盘内容的指纹。乐观并发只需要「变没变」，blake3 已在本工作区，不再引第二套摘要。
-/// 边车也在指纹里：只改列类型也算一次改动。
 fn fingerprint_doc(csv: &[u8], schema: &[u8]) -> String {
     let mut hasher = blake3::Hasher::new();
 
@@ -708,7 +658,6 @@ fn read_bytes(path: &Path) -> Result<Vec<u8>> {
     Ok(fs::read(path)?)
 }
 
-/// 三种格式都是文本格式，所以只接 UTF-8。
 fn decode_text(bytes: Vec<u8>) -> Result<String> {
     String::from_utf8(bytes).map_err(|_| LibraryError::Invalid("资料不是 UTF-8 文本。".to_owned()))
 }
@@ -717,7 +666,6 @@ fn read_text(path: &Path) -> Result<String> {
     decode_text(read_bytes(path)?)
 }
 
-/// 正文形状必须与资料种类相符，序列化只在这里做一次。
 fn serialize(format: LibraryFormat, body: &LibraryBody) -> Result<String> {
     if body.format() != format {
         return Err(LibraryError::Invalid("正文形状与资料种类不符。".to_owned()));

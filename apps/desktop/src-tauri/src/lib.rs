@@ -2,10 +2,6 @@
     clippy::needless_pass_by_value,
     reason = "Tauri command signatures are consumed by generated IPC handlers"
 )]
-/*
- * Trivial registry commands are async on purpose: sync commands dispatch on the
- * main thread, and even a short lock should stay off the thread that draws the window.
- */
 #![allow(
     clippy::unused_async,
     reason = "async dispatches a command onto the async runtime; sync would run it on the main thread"
@@ -37,7 +33,6 @@ pub mod workspace;
 pub use error::{Error, Result};
 pub use ipc::export_bindings::export_ipc_bindings;
 
-/// Single composition root. Called from main.rs.
 #[allow(
     clippy::exit,
     reason = "the generated Tauri context expands to an exit this crate never writes"

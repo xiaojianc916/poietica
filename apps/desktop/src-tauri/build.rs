@@ -1,4 +1,4 @@
-//! Bundles the element picker runtime for the browser panel.
+//! 为浏览器面板打包 element picker 运行时。
 #![allow(
     clippy::expect_used,
     clippy::panic,
@@ -9,9 +9,7 @@ use std::env;
 use std::path::PathBuf;
 use std::process::Command;
 
-/// Locates the bun executable. npm's Windows install only exposes a `bun.cmd`
-/// shim, which [`Command`] does not resolve, so search the common install
-/// locations for `bun.exe` before falling back to plain `"bun"`.
+/// Windows 的 npm 只装 bun.cmd shim，[`Command`] 解析不了，故按常见位置找 bun.exe。
 fn find_bun() -> PathBuf {
     if let Some(bun) = env::var_os("BUN") {
         return PathBuf::from(bun);

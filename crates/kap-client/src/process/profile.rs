@@ -1,43 +1,30 @@
-//! 接入档案的判读：agents.json 里的一条档案 → 起进程、找 home、装运行时要的事实。
-//!
-//! 档案的存取归宿主（agents.json 是它的 store）；这里只认档案 JSON 里的字段，
-//! 全部是纯函数，有自己的单测。agents.json 可以被手改，TS 侧那道校验不在这个
-//! 进程里 —— 凡是会被接去拼路径、交给全局安装的字段，判据在这里再立一遍。
+//! agents.json 档案判读（纯函数）；agents.json 可手改、TS 校验不在此进程，判据在此再立一遍。
 
 use std::collections::{BTreeMap, BTreeSet};
 use std::path::PathBuf;
 
 use serde_json::Value;
 
-/// 档案里声明的安装方式。缺席表示这个 agent 不由我们管安装。
 #[derive(Debug)]
 pub struct InstallSpec {
     pub package_name: String,
     pub version_args: Vec<String>,
 }
 
-/// 受控 home：这家 agent 的配置文件在我们手上时，它在哪、认哪个变量名。
-///
-/// 路径由宿主算（它拥有磁盘布局）；判据 —— 档案声明了 homeVar 才受控 —— 在这里。
+/// 受控 home：变量名 + 宿主已创建好的目录；档案声明了 homeVar 才受控。
 #[derive(Debug)]
 pub struct ControlledHome {
-    /// 它认自己数据根目录的那个环境变量名。
     pub variable: String,
-    /// 已经创建好的目录。
     pub path: PathBuf,
 }
 
-/// 子进程边界上完整的环境变更：显式设置，或显式停止继承。
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct ProcessEnvironment {
     pub set: Vec<(String, String)>,
     pub remove: Vec<String>,
 }
 
-/// 一个纯粹的目录名：不是路径，也不能往上走。
-///
-/// agents.json 是一个可以手改的文件，这一格会被接在用户 home 后面去读文件，
-/// 一个 `..` 或者一个分隔符就能把它带到别处。
+/// 纯目录名（非路径、不能上行）：这一格接在用户 home 后读文件，手改档案可塞 `..`。
 pub fn is_plain_directory_name(name: &str) -> bool {
     !name.is_empty()
         && name.len() <= 64
@@ -46,10 +33,6 @@ pub fn is_plain_directory_name(name: &str) -> bool {
         && !name.contains(['/', '\\', ':'])
 }
 
-/// 档案里声明的、这家 agent 自己那份 home 的目录名（用户 home 之下）。
-///
-/// 缺失或不是一个纯粹的目录名，都表示我们说不出这一家把配置放在哪 —— 那就
-/// 不猜，交给调用方决定怎么说。
 pub fn own_home_of(agent: &Value) -> Option<String> {
     agent
         .get("ownHomeDirectory")
@@ -58,7 +41,6 @@ pub fn own_home_of(agent: &Value) -> Option<String> {
         .map(str::to_owned)
 }
 
-/// 档案声明的 home 环境变量名。缺失表示这个 agent 不接受受控 home。
 pub fn home_var_of(agent: &Value) -> Option<String> {
     agent
         .get("homeVar")
@@ -67,10 +49,6 @@ pub fn home_var_of(agent: &Value) -> Option<String> {
         .map(str::to_owned)
 }
 
-/// 档案里声明的非密文启动变量。
-///
-/// 值不是字符串的条目被丢弃而不是让整次启动失败 —— 一个写坏的档案不该让
-/// agent 起不来。
 pub fn declared_env_of(agent: &Value) -> BTreeMap<String, String> {
     agent
         .get("env")
@@ -98,7 +76,6 @@ fn is_process_environment_name(name: &str) -> bool {
         && glyphs.all(|glyph| glyph == '_' || glyph.is_ascii_alphanumeric())
 }
 
-/// 档案要求在子进程边界停止继承的环境变量。
 #[must_use]
 pub fn unset_env_of(agent: &Value) -> Vec<String> {
     agent
@@ -114,10 +91,7 @@ pub fn unset_env_of(agent: &Value) -> Vec<String> {
         .collect()
 }
 
-/// 启动子进程的环境变量。
-///
-/// 档案声明的先进去，受控 home 后进去 —— 后者必须压过前者：用户在 env 里手写
-/// 的 home 路径可能根本不存在，而受控 home 是宿主刚 create_dir_all 出来的。
+/// 受控 home 必须压过档案声明：手写的 home 路径可能不存在，受控的是宿主刚建好的。
 pub fn launch_env(
     declared: &BTreeMap<String, String>,
     controlled: Option<&ControlledHome>,
@@ -138,7 +112,6 @@ pub fn launch_env(
     }
 }
 
-/// 档案里声明的可执行文件。缺席或为空都交给调用方去说。
 pub fn program_of(agent: &Value) -> Option<String> {
     agent
         .get("command")
@@ -147,7 +120,6 @@ pub fn program_of(agent: &Value) -> Option<String> {
         .map(str::to_owned)
 }
 
-/// 档案里声明的启动参数。没有 args 一格不是错误，是空表。
 pub fn args_of(agent: &Value) -> Vec<String> {
     agent
         .get("args")
@@ -161,10 +133,7 @@ pub fn args_of(agent: &Value) -> Vec<String> {
         .unwrap_or_default()
 }
 
-/// 读出档案里声明的安装方式。
-///
-/// 包名的字符集在这里判：这一格会被交给全局安装，一个 `--registry` 形态的
-/// token 会被包管理器读成旗标而不是包名。
+/// 包名在此判字符集：这一格交给全局安装，`--registry` 形态会被读成旗标。
 pub fn install_spec_of(agent: &Value) -> Option<InstallSpec> {
     let install = agent.get("install").and_then(Value::as_object)?;
 
@@ -191,25 +160,18 @@ pub fn install_spec_of(agent: &Value) -> Option<InstallSpec> {
     })
 }
 
-/// npm 名字里允许的字符：小写字母、数字、`.`、`_`、`-`。斜杠是结构，不进字符集。
 fn is_npm_name_glyph(glyph: char) -> bool {
     glyph.is_ascii_lowercase() || glyph.is_ascii_digit() || "._-".contains(glyph)
 }
 
-/// 包名的一段（scope 或名字本体）：非空、不以 `.`/`_`/`-` 开头、字符集之内。
-///
-/// 开头字符的禁令有两个出处：npm 的命名规则不许以 `.` 或 `_` 起头；以 `-` 起头的
-/// token 会被包管理器的选项解析器读成旗标而不是包名 —— 这一格要拦的正是它。
+/// 非空、不以 `.`/`_`/`-` 开头、字符集之内（npm 命名规则；`-` 起头会被读成旗标）。
 fn is_npm_package_segment(segment: &str) -> bool {
     !segment.is_empty()
         && !segment.starts_with(['.', '_', '-'])
         && segment.chars().all(is_npm_name_glyph)
 }
 
-/// 会被交给包管理器全局安装的那个包名。
-///
-/// 形状取自 npm 的命名规则：`name` 或 `@scope/name`，长度上限 214。只判字符集
-/// 判不住选项形态的 token，逐段的首字符判得住。
+/// npm 命名规则的包名：`name` 或 `@scope/name`，上限 214；逐段拦选项形态 token。
 pub fn is_npm_package_name(name: &str) -> bool {
     if name.is_empty() || name.len() > 214 {
         return false;

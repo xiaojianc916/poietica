@@ -10,7 +10,6 @@ use crate::error::{KapError, Refusal, Result};
 use crate::recorder::FrameSink;
 use crate::{ModelCatalogOperation, ModelCatalogSnapshot};
 
-/// 与一句话一起送出的附件。判别式决定协议内容块，文本不会伪装成图片。
 pub enum PromptAttachment {
     Image {
         data: String,
@@ -60,46 +59,28 @@ pub struct PromptSkill {
     pub args: Option<String>,
 }
 
-/// What the driver is asked to do next.
-///
-/// 每一条都是一件事，而不是一个时段：驱动器把它变成一个自己的未来推进去，
-/// 谁先回来谁先落账 —— 「正在等一个回应」不该成为拒绝其他命令的理由。
 pub(crate) enum Command {
-    /// Open one more session on the connection that is already running.
     NewSession {
         cwd: PathBuf,
         reply: oneshot::Sender<Result<OpenedSession>>,
     },
-    /// 把一条以前开过的会话装回本次连接。
-    ///
-    /// 会话号是上一次运行存下来的。kap 的会话在 server 侧持久，装载就是
-    /// 验存在并重新订阅（load_session）：装载之后这条会话仍然是它自己，
-    /// 历史因此还在 agent 手里 —— 与新开一条的分别在于上下文还在不在。
+    /// 装回一条以前开过的会话：kap 的会话在 server 侧持久，load_session 验存在并重订阅，历史还在 agent 手里。
     LoadSession {
         session_id: String,
-        /// 上一次这条会话的事件流读到哪儿了；没读过就是空。
         from: Option<Cursor>,
         reply: oneshot::Sender<Result<OpenedSession>>,
     },
-    /// 让 agent 从一条已有会话的某一轮分叉出一条新会话。
-    ///
-    /// 历史归 agent 所有，本地只有索引，所以这只能是协议动作：kap 的 :fork
-    /// 复制整条，:undo 把复制件收到分叉点。源会话原样不动。
+    /// 分叉出一条新会话：kap 的 :fork 复制整条、:undo 收到分叉点，源会话原样不动。
     ForkSession {
         session_id: String,
-        /// 复制件上再回退几轮；0 就是整条带走。
         drop_turns: u32,
         reply: oneshot::Sender<Result<OpenedSession>>,
     },
-    /// 让 agent 删掉一条它自己存着的会话。
-    ///
-    /// 删除对话不是本地的事：agent 那侧存着同一条对话的全文。kap 没有
-    /// 硬删除，删除由 :archive 承接。
+    /// 删除由 kap 的 :archive 承接（无硬删除），agent 那侧存着对话全文。
     DeleteSession {
         session_id: String,
         reply: oneshot::Sender<Result<()>>,
     },
-    /// Ask the agent which sessions it keeps, and what it calls them.
     Sessions {
         reply: oneshot::Sender<Result<Vec<SessionEntry>>>,
     },
@@ -108,50 +89,32 @@ pub(crate) enum Command {
         destination: PathBuf,
         reply: oneshot::Sender<Result<()>>,
     },
-    /// 这条会话能用的技能。
     Skills {
         session_id: String,
         reply: oneshot::Sender<Result<Vec<Skill>>>,
     },
-    /// Kimi 当前进程检测到的 MCP server。
     McpServers {
         reply: oneshot::Sender<Result<Vec<McpServer>>>,
     },
-    /// 本机 kap 报的能力清单。
     Capabilities {
         reply: oneshot::Sender<Result<Vec<Capability>>>,
     },
-    /// 让本机 kap 装一项能力，交回它此刻的进度。
     InstallCapability {
         capability_id: String,
         reply: oneshot::Sender<Result<Capability>>,
     },
     Prompt {
-        /// The session this turn belongs to.
-        ///
-        /// 一条连接可以开很多条会话，agent 发回的每一帧都自报会话名。
-        /// 提问也必须说出它是给哪一条的，否则它只能发给第一条。
         session_id: String,
         text: String,
-        /// 这一句带的图片。
-        ///
-        /// 与 text 是同一句话的两半：只挑了图、没打字，是一句完整的话，
-        /// 而不是一句空话 —— 判空的地方在桌面 seam，那里两者一起看。
+        /// 与 text 同属一句话：只挑图没打字也是完整的话，判空在桌面 seam 两格一起看。
         attachments: Vec<PromptAttachment>,
-        /// 与正文、附件同一次提交的 Skill。
         skills: Vec<PromptSkill>,
-        /// 投递的幂等键。快照的 SubmitPromptRequest 自带 prompt_id 一格：
-        /// 客户端报名，重试投递时 server 收过就不重复入列。
+        /// 幂等键：快照的 SubmitPromptRequest.prompt_id，重试投递时 server 收过不重复入列。
         idempotency: String,
-        /// 这条会话的帧交到哪里去。记录器由驱动器造：序号线在它的槽里。
         frames: FrameSink,
-        /// kap 收下这句话时给的 prompt id。
         reply: oneshot::Sender<Result<String>>,
     },
     /// 停掉这条会话上正在飞的那一轮，只停它。
-    ///
-    /// 一条连接同时开着多条会话，而现在它们可以同时在飞：不点名的取消
-    /// 停掉的会是别人那一轮。
     Cancel {
         session_id: String,
         reply: oneshot::Sender<Result<()>>,
@@ -173,16 +136,12 @@ pub(crate) enum Command {
         operation: ModelCatalogOperation,
         reply: oneshot::Sender<Result<ModelCatalogSnapshot>>,
     },
-    /// 退场：杀掉这条连接起的那个进程，杀完从收据上报一声。
-    ///
-    /// 收据是退出屏障唯一的凭据 —— 进程离场之后没有人能再替它收尸。
+    /// 退场：杀掉这条连接起的进程，杀完从收据上报一声。
     Shutdown(SyncSender<()>),
-    /// Answers with the selectors that session is currently offering.
     Selectors {
         session_id: String,
         reply: oneshot::Sender<Result<Vec<ConfigControl>>>,
     },
-    /// Asks the agent to change one selector on one session.
     Select {
         session_id: String,
         config_id: String,
@@ -190,13 +149,11 @@ pub(crate) enum Command {
         input: Option<String>,
         reply: oneshot::Sender<Result<Vec<ConfigControl>>>,
     },
-    /// 这条会话此刻的目标；没有目标在跑交 None。
     Goal {
         session_id: String,
         reply: oneshot::Sender<Result<Option<GoalSnapshot>>>,
     },
-    /// 一个 agent 的 transcript 页（REST transcript，原样 JSON —— 契约钉在
-    /// vendored @poietica/transcript 的 schema，由桥那一侧校验）。
+    /// 一个 agent 的 transcript 页，原样 JSON（契约钉在 vendored @poietica/transcript 的 schema）。
     ReadTranscript {
         session_id: String,
         agent_id: String,
@@ -212,7 +169,6 @@ pub(crate) enum Command {
     },
 }
 
-/// A handle onto a live connection. Cheap to clone, safe to hold anywhere.
 #[derive(Clone)]
 pub struct AgentClient {
     commands: mpsc::UnboundedSender<Command>,
@@ -228,17 +184,10 @@ impl fmt::Debug for AgentClient {
 }
 
 impl AgentClient {
-    /// The sending end of a driver's command stream.
     pub(crate) const fn new(commands: mpsc::UnboundedSender<Command>) -> Self {
         Self { commands }
     }
 
-    /// Opens one more session on the running connection.
-    ///
-    /// # Errors
-    ///
-    /// Fails when the connection is gone, when the agent refuses to open a
-    /// session, or when the book cannot record the one it opened.
     pub async fn new_session(&self, cwd: PathBuf) -> Result<OpenedSession> {
         let (reply, answer) = oneshot::channel();
 
@@ -249,16 +198,7 @@ impl AgentClient {
             .map_err(|_dropped| KapError::Refused(Refusal::Gone))?
     }
 
-    /// Reloads a session this agent opened in an earlier run.
-    ///
-    /// 会话号原样交回去，agent 那侧把它重新装载起来，历史因此还在。
-    ///
-    /// 读点一起交回去：订阅时报得出上一次读到哪儿，server 才从那一帧之后接着发。
-    ///
-    /// # Errors
-    ///
-    /// Fails when the connection is gone, or when the agent no longer keeps
-    /// that session.
+    /// 重装一条以前开过的会话；读点一起交回去，server 从那一帧之后接着发。
     pub async fn load_session(
         &self,
         session_id: String,
@@ -277,15 +217,6 @@ impl AgentClient {
             .map_err(|_dropped| KapError::Refused(Refusal::Gone))?
     }
 
-    /// Forks a session the agent keeps into a new, independent one.
-    ///
-    /// 号与分叉点一起交过去：agent 复制整条再回退 drop_turns 轮，交回新会话
-    /// —— 源会话原样不动。
-    ///
-    /// # Errors
-    ///
-    /// Fails when the connection is gone, or when the agent refuses to fork
-    /// that session.
     pub async fn fork_session(&self, session_id: String, drop_turns: u32) -> Result<OpenedSession> {
         let (reply, answer) = oneshot::channel();
 
@@ -300,14 +231,6 @@ impl AgentClient {
             .map_err(|_dropped| KapError::Refused(Refusal::Gone))?
     }
 
-    /// Asks the agent to delete one of the sessions it keeps.
-    ///
-    /// 号删掉之后它不再指向任何东西：驱动器会同时把它从选择器表和会话册子里抹掉。
-    ///
-    /// # Errors
-    ///
-    /// Fails when the connection is gone, or when the agent refuses to
-    /// delete that session.
     pub async fn delete_session(&self, session_id: String) -> Result<()> {
         let (reply, answer) = oneshot::channel();
 
@@ -318,14 +241,7 @@ impl AgentClient {
             .map_err(|_dropped| KapError::Refused(Refusal::Gone))?
     }
 
-    /// Asks the agent which sessions it keeps, and what it calls them.
-    ///
-    /// The title is the agent's own, so it is the only honest source for
-    /// one; a session it has not named yet reports none.
-    ///
-    /// # Errors
-    ///
-    /// Fails when the connection is gone or the agent refuses to list.
+    /// 标题是 agent 自己的，唯一诚实的来源；未命名的会话不报标题。
     pub async fn sessions(&self) -> Result<Vec<SessionEntry>> {
         let (reply, answer) = oneshot::channel();
 
@@ -336,7 +252,6 @@ impl AgentClient {
             .map_err(|_dropped| KapError::Refused(Refusal::Gone))?
     }
 
-    /// Streams a session archive to the selected destination.
     pub async fn export_session(&self, session_id: String, destination: PathBuf) -> Result<()> {
         let (reply, answer) = oneshot::channel();
 
@@ -362,11 +277,6 @@ impl AgentClient {
             .map_err(|_dropped| KapError::Refused(Refusal::Gone))?
     }
 
-    /// 一个 agent 的 transcript 页，原样 JSON（契约见 `Command::ReadTranscript`）。
-    ///
-    /// # Errors
-    ///
-    /// Fails when the connection is gone or the agent refuses the read.
     pub async fn read_transcript(
         &self,
         session_id: String,
@@ -387,11 +297,6 @@ impl AgentClient {
             .map_err(|_dropped| KapError::Refused(Refusal::Gone))?
     }
 
-    /// 一个 agent 的 transcript 追赶批次，原样 JSON。
-    ///
-    /// # Errors
-    ///
-    /// Fails when the connection is gone or the agent refuses the read.
     pub async fn catch_up_transcript(
         &self,
         session_id: String,
@@ -412,10 +317,7 @@ impl AgentClient {
             .map_err(|_dropped| KapError::Refused(Refusal::Gone))?
     }
 
-    /// Starts a turn, delivering every frame of it to the sink handed in.
-    ///
-    /// 答复是 kap 收下这句话时给的 prompt id，不是这一轮的停止原因：提交一到
-    /// 手就回，帧走 sink。运行中再提交一句由 kap 排队，本机不拦。
+    /// 提交一到手就回 prompt id（不是停止原因）；帧走 sink，运行中再提交由 kap 排队。
     pub fn prompt(
         &self,
         session_id: String,
@@ -440,13 +342,7 @@ impl AgentClient {
         Ok(answer)
     }
 
-    /// 把排队的那几句并进正在跑的那一轮。不中断在跑的那一轮，这是它与 cancel 的分野。
-    ///
-    /// 停哪一条必须说出来：一条连接上有多条会话，而它们可以同时在飞。
-    ///
-    /// # Errors
-    ///
-    /// 驱动已退场，或 kap 说这几句不在队列里。
+    /// 把排队的几句并进正在跑的那一轮，不中断在跑的（与 cancel 的分野）。
     pub async fn steer(&self, session_id: String, prompt_ids: Vec<String>) -> Result<()> {
         let (reply, answer) = oneshot::channel();
 
@@ -461,11 +357,7 @@ impl AgentClient {
             .map_err(|_dropped| KapError::Refused(Refusal::Gone))?
     }
 
-    /// 撤掉一条还在排队的提问。在跑的那一轮一个字不动。
-    ///
-    /// # Errors
-    ///
-    /// 驱动已退场，或 kap 说没有这一条。
+    /// 撤掉一条还在排队的提问，在跑的那一轮一个字不动。
     pub async fn abort_prompt(&self, session_id: String, prompt_id: String) -> Result<()> {
         let (reply, answer) = oneshot::channel();
 
@@ -480,13 +372,7 @@ impl AgentClient {
             .map_err(|_dropped| KapError::Refused(Refusal::Gone))?
     }
 
-    /// 停掉这条会话上正在跑的那一轮。
-    ///
     /// 取消是协作式的：agent 也可能刚好正常跑完，轮终帧会报是哪一种。
-    ///
-    /// # Errors
-    ///
-    /// 驱动已退场时失败。
     pub async fn cancel(&self, session_id: String) -> Result<()> {
         let (reply, answer) = oneshot::channel();
         self.send(Command::Cancel { session_id, reply })?;
@@ -495,13 +381,7 @@ impl AgentClient {
             .map_err(|_dropped| KapError::Refused(Refusal::Gone))?
     }
 
-    /// 结束这条连接，并交回「它起的那个进程已经没了」的收据。
-    ///
-    /// 收据只有退出屏障会等：换 agent 时驱动器还活着，它自己会收尸。
-    ///
-    /// # Errors
-    ///
-    /// 驱动已退场时失败 —— 那种情况下它的子进程已经收掉了。
+    /// 结束这条连接，交回「它起的进程已经没了」的收据；只有退出屏障会等。
     pub fn shutdown(&self) -> Result<Receiver<()>> {
         /* 容量 1：驱动器报完就走，不为一个已经等到超时的收据挂住。 */
         let (gone, receipt) = sync_channel(1);
@@ -511,10 +391,7 @@ impl AgentClient {
         Ok(receipt)
     }
 
-    /// Asks which selectors the session is offering.
-    ///
-    /// The list is whatever the agent reported. This crate never adds a
-    /// model, a reasoning level or a mode of its own.
+    /// 清单就是 agent 报的那份：本 crate 从不自己加模型、档位或模式。
     pub fn selectors(
         &self,
         session_id: String,
@@ -526,11 +403,7 @@ impl AgentClient {
         Ok(answer)
     }
 
-    /// Changes one selector to one of the values it offered.
-    ///
-    /// The answer is the whole list again, because changing one selector
-    /// may add or remove another: a model with no reasoning levels takes
-    /// that selector away with it.
+    /// 回交整份清单：改一个选择器可能增删另一个。
     pub fn select(
         &self,
         session_id: String,
@@ -551,13 +424,7 @@ impl AgentClient {
         Ok(answer)
     }
 
-    /// Asks which skills that session can use.
-    ///
-    /// 本地不扫盘：四层技能目录的合并与覆盖规则归上游。
-    ///
-    /// # Errors
-    ///
-    /// Fails when the connection is gone, or when the agent refuses to list.
+    /// 本地不扫盘：技能目录的合并与覆盖规则归上游。
     pub async fn skills(&self, session_id: String) -> Result<Vec<Skill>> {
         let (reply, answer) = oneshot::channel();
 
@@ -576,11 +443,6 @@ impl AgentClient {
             .map_err(|_dropped| KapError::Refused(Refusal::Gone))?
     }
 
-    /// 本机 kap 报的能力清单：某项能力装到哪一步，只有它说得出。
-    ///
-    /// # Errors
-    ///
-    /// 连接已退场，或 kap 拒绝列举。
     pub async fn capabilities(&self) -> Result<Vec<Capability>> {
         let (reply, answer) = oneshot::channel();
 
@@ -591,11 +453,7 @@ impl AgentClient {
             .map_err(|_dropped| KapError::Refused(Refusal::Gone))?
     }
 
-    /// 让本机 kap 装一项能力。幂等，交回它此刻的进度。
-    ///
-    /// # Errors
-    ///
-    /// 连接已退场，或 kap 拒绝安装。
+    /// 幂等，交回它此刻的进度。
     pub async fn install_capability(&self, capability_id: String) -> Result<Capability> {
         let (reply, answer) = oneshot::channel();
 

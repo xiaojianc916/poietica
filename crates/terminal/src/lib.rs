@@ -1,8 +1,4 @@
-//! 本机伪终端：PTY、子进程与回放窗口的唯一所有者。
-//!
-//! 这一层不认识窗口、事件系统与序列化。字节从读线程出来，先落回放再交给调用方
-//! 注入的 sink；谁渲染、怎么送出去都在宿主那一侧，所以本 crate 能在没有窗口的
-//! 进程里跑完单测。
+//! 本机伪终端：PTY、子进程与回放窗口的唯一所有者；字节先落回放再交 sink。
 
 mod shell;
 
@@ -17,25 +13,18 @@ use std::thread::JoinHandle;
 
 use portable_pty::{CommandBuilder, MasterPty, PtySize, native_pty_system};
 
-/// 回放窗口的上界。越界时最老的整块出队 —— 按块丢至少不会切开一条转义序列。
 const REPLAY_BYTES: usize = 256 * 1024;
 
-/// 一次 read 的上界。PTY 内核缓冲本身成块到达，攒批交给渲染层的写队列。
 const READ_BYTES: usize = 32 * 1024;
 
-/// 通道上的一件事。
 #[derive(Debug)]
 pub enum TerminalSignal {
-    /// PTY 吐出来的原始字节。VTE 解析归渲染层的终端模拟器。
     Output(Vec<u8>),
-    /// shell 已退出。
     Exited,
 }
 
-/// 字节离开本 crate 的那一跳。显式注入，不摸全局。
 pub type TerminalSink = Arc<dyn Fn(&str, TerminalSignal) + Send + Sync>;
 
-/// 这一层能失败的全部方式。
 #[derive(Debug, thiserror::Error)]
 pub enum TerminalError {
     #[error("terminal working directory is not a directory: {0}")]
@@ -63,7 +52,6 @@ fn size(cols: u16, rows: u16) -> PtySize {
     }
 }
 
-/// 回放窗口：这条会话上过屏的字节，截到上界。
 #[derive(Debug, Default)]
 struct Replay {
     chunks: VecDeque<Vec<u8>>,
@@ -95,7 +83,6 @@ impl Replay {
     }
 }
 
-/// 一条会话：一个 PTY、一个子进程、一条读线程、一份回放。
 struct Session {
     master: Box<dyn MasterPty + Send>,
     writer: Box<dyn Write + Send>,
@@ -182,7 +169,7 @@ impl Session {
             .map_err(|error| TerminalError::Control(error.to_string()))
     }
 
-    /// 收场。主端是这条伪终端的最后一个持有者：放掉它读端才会 EOF，join 才有上界。
+    /// 主端是这条伪终端的最后一个持有者：放掉它读端才会 EOF，join 才有上界。
     fn shutdown(self) {
         self.stopped.store(true, Ordering::Release);
 
@@ -243,18 +230,13 @@ fn spawn_pump(
         .map_err(TerminalError::Io)
 }
 
-/// 会话表：开、写、量、关都从这里过。宿主 manage 一份。
 #[derive(Debug, Default)]
 pub struct TerminalSessions {
     open: Mutex<HashMap<String, Session>>,
 }
 
 impl TerminalSessions {
-    /// 接上这个键的会话；没有就按 cwd 开一条。
-    ///
-    /// 回放经同一个 sink 交回，而且是在回放锁里发出的 —— 读线程也在同一把锁里
-    /// 先落回放再交 sink，于是「回放 + 实时」在这一个通道上恰好一次、不乱序。
-    /// 新开的会话没有回放可放：读线程吐出的第一块就是这条流的开头。
+    /// 回放在回放锁里经同一 sink 交回：与读线程同锁同序，「回放 + 实时」恰好一次、不乱序。
     pub fn attach(
         &self,
         key: &str,
@@ -275,7 +257,6 @@ impl TerminalSessions {
             return Err(TerminalError::Unknown(key.to_owned()));
         };
 
-        /* 重新接上时面板可能已经换了宽度：网格先对齐，再回放。 */
         session.resize(cols, rows)?;
 
         let replay = hold(&session.replay);
@@ -289,7 +270,6 @@ impl TerminalSessions {
         Ok(())
     }
 
-    /// 键盘与粘贴的字节。
     pub fn write(&self, key: &str, bytes: &[u8]) -> Result<(), TerminalError> {
         if bytes.is_empty() {
             return Ok(());
@@ -306,7 +286,6 @@ impl TerminalSessions {
         Ok(())
     }
 
-    /// 渲染层量出来的网格。
     pub fn resize(&self, key: &str, cols: u16, rows: u16) -> Result<(), TerminalError> {
         hold(&self.open)
             .get(key)
@@ -314,7 +293,6 @@ impl TerminalSessions {
             .resize(cols, rows)
     }
 
-    /// 关掉这条会话。
     pub fn close(&self, key: &str) -> bool {
         /* 摘除在表锁里，拆卸在锁外：等读线程醒过来的那段时间不该停掉整张表。 */
         let Some(session) = hold(&self.open).remove(key) else {
@@ -382,7 +360,6 @@ mod tests {
 
         assert!(sessions.attach("key", &cwd, 80, 24, &sink).is_ok());
         assert!(sessions.close("key"));
-        /* 拆卸若留在表锁里等读线程，下面这句会挂住而不是通过。 */
         assert!(sessions.attach("key", &cwd, 80, 24, &sink).is_ok());
         assert!(sessions.close("key"));
     }

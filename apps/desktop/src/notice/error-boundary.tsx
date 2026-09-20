@@ -10,13 +10,7 @@ interface FatalErrorBoundaryState {
   readonly crashed: boolean
 }
 
-/*
- * 只管画什么，不管报什么。
- *
- * 上报归 root 的 onCaughtError（见 entry/mount.tsx），那里同时收得到没被
- * 接住的与已恢复的两种。留 getDerivedStateFromError 就足以成为错误边界 ——
- * componentDidCatch 从来不是成为边界的条件，它只是第二个上报口。
- */
+/* 只画不报：上报归 root 的 onCaughtError（见 entry/mount.tsx），getDerivedStateFromError 单独即构成错误边界。 */
 class FatalErrorBoundary extends Component<FatalErrorBoundaryProps, FatalErrorBoundaryState> {
   override state: FatalErrorBoundaryState = {
     crashed: false,
@@ -30,7 +24,7 @@ class FatalErrorBoundary extends Component<FatalErrorBoundaryProps, FatalErrorBo
 
   override render(): ReactNode {
     if (this.state.crashed) {
-      // FatalErrorHost owns the only global fatal UI.
+      /* 全局致命 UI 由 FatalErrorHost 独有，这里退位。 */
       return null
     }
 
@@ -43,11 +37,6 @@ export interface FatalErrorHostProps {
   readonly frame: (screen: ReactNode) => ReactNode
 }
 
-/*
- * 终止失败的唯一接管者：coordinator 一说 terminal，整棵树换成致命屏。
- * 没有终止失败时，它退回一层错误边界 —— 边界接住渲染错误只为了让树安静地
- * 停住，上报在 root 那一侧。
- */
 export function FatalErrorHost({ children, frame }: FatalErrorHostProps) {
   const snapshot = useSyncExternalStore(
     failureCoordinator.subscribe,

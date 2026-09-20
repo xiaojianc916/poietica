@@ -1,9 +1,4 @@
-//! 工作树此刻相对某个基准的审查面：一次问答交回分支、清单与整份补丁。
-//!
-//! 清单走 `git status --porcelain=v2 -z --branch`：v2 是 git 给机器读者定的稳定格式，
-//! 分支表头在同一次里带回 head、upstream 与 ahead/behind。补丁走一条 git diff，
-//! 加减行数由补丁自己数出 —— 徽章与画面同源，不存在第二个数法。
-//! porcelain 记录的解释在 crates/review 的纯解码里，这里只跑命令、拼快照。
+//! 审查面：清单走 porcelain=v2、补丁走一条 git diff；porcelain 记录的解释在 crates/review，这里只跑命令、拼快照。
 
 use std::path::{Path, PathBuf};
 
@@ -32,7 +27,6 @@ const STATUS_ARGS: &[&str] = &[
     "--no-renames",
 ];
 
-/// 一次问答交回审查面。不是 git 工作区、或机器没有 git，都是 None。
 pub async fn review(
     root: &Path,
     base: &str,
@@ -73,7 +67,6 @@ pub async fn review(
             None => held.changes.extend(parse_entry(record)),
         }
     }
-    /* oid 表头永远在；短号只在分离 HEAD 时是答案。 */
     if held.branch.is_some() {
         held.detached_at = None;
     }
@@ -90,9 +83,6 @@ pub async fn review(
     Ok(Some(held))
 }
 
-/// 一个文件相对基准的整份补丁：折叠带上的行由它带回来，取回时机由界面决定。
-///
-/// 走的仍是审查面那条 patch，只把范围收到一个路径 —— 未跟踪文件照样与空文件比。
 pub async fn file_patch(
     root: &Path,
     base: &str,
@@ -123,7 +113,6 @@ pub async fn file_patch(
     .await
 }
 
-/// 按意图暂存、提交、推送，交回新的审查面。
 pub async fn commit(
     root: &Path,
     intent: CommitIntent,
@@ -244,8 +233,7 @@ async fn untracked_patches(
     ignore_whitespace: bool,
     changes: &[FileChange],
 ) -> Result<Vec<String>, GitError> {
-    /* 管线里的 future 只带自有数据：借用条目的 future 过不了
-    command 宏的高阶 lifetime 边界（见 apps/desktop/src-tauri/src/review.rs）。 */
+    /* future 只带自有数据：借用条目的 future 过不了 command 宏的高阶 lifetime 边界（见 apps/desktop/src-tauri/src/review.rs）。 */
     let pending: Vec<(PathBuf, String, String)> = changes
         .iter()
         .filter(|change| change.status == ChangeStatus::Untracked)

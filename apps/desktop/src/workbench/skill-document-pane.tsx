@@ -4,13 +4,6 @@ import { AlertTriangle } from 'lucide-react'
 import { useState } from 'react'
 import './skill-document-pane.css'
 
-/*
- * 一份技能文档：上面一行说「这是哪个文件、现在看的是哪一种」，下面整块给文档。
- *
- * 两种看法各有各的读者：Preview 给人读，Source 给要对齐字节的人。原文与正文都来自
- * 同一份名册快照，这里不再回盘上读第二次 —— 屏幕上这两半永远出自同一次扫描。
- */
-
 type ViewMode = 'preview' | 'source'
 
 export function SkillDocumentPane({ skill }: { readonly skill: SkillRow | undefined }) {
@@ -124,12 +117,6 @@ function PreviewView({ skill }: { readonly skill: SkillRow }) {
   )
 }
 
-/*
- * 源码视图带行号：对一份要逐行对齐的文档，「第几行」是最常被引用的坐标。
- *
- * 行号与正文是两块等宽等行高的 pre，不是一个 div 一行：一份几百行的文档不该有几百个
- * 节点，横向滚动时行号那一列贴着左缘不动（sticky），读起来才对得上号。
- */
 function SourceView({ document }: { readonly document: string | undefined }) {
   if (document === undefined || document === '') {
     return (
@@ -160,10 +147,7 @@ function Fact({ children, label }: { readonly children: React.ReactNode; readonl
   )
 }
 
-/*
- * 名册上的位置有时是 SKILL.md 本身，有时是它所在的目录（本机装的那些只报目录）。
- * 文档视图要的是那个文件，所以这里把两种写法收成一个。
- */
+// 名册上的路径可能是 SKILL.md 本身，也可能只是目录（本机安装只报目录）。
 function skillDocumentPath(skill: SkillRow): string {
   if (/\.md$/i.test(skill.path)) {
     return skill.path
@@ -174,7 +158,6 @@ function skillDocumentPath(skill: SkillRow): string {
   return `${skill.path.replace(/[\\/]+$/, '')}${separator}SKILL.md`
 }
 
-/* 一段一段地读路径。键是这一段的来路：路径里可以有同名的目录，前缀不会重。 */
 function pathCrumbs(path: string): readonly { readonly key: string; readonly label: string }[] {
   let prefix = ''
 

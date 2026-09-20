@@ -1,23 +1,19 @@
-//! CSV 的编解码。引号、内嵌换行与转义（RFC 4180）交给 csv crate，本文件只把
-//! 宽窄不一的记录对齐到表头宽度。
+//! CSV 编解码：RFC 4180 交给 csv crate，这里只把记录对齐到表头宽度。
 
 use serde::{Deserialize, Serialize};
 use specta::Type;
 
 use crate::{LibraryError, Result};
 
-/// 一张表。表头即字段名，每行按表头宽度对齐。
 #[derive(Debug, Clone, Serialize, Deserialize, Type)]
 #[serde(rename_all = "camelCase")]
 pub struct TableSheet {
     pub header: Vec<String>,
     pub rows: Vec<Vec<String>>,
-    /// 按列对齐的列类型。None 表示未指定，界面按列里的值推断。
-    /// 类型只住在边车文件里（见 ADR 0043），CSV 本体保持纯表格。
     pub kinds: Vec<Option<SheetFieldKind>>,
 }
 
-/// 列类型的唯一词汇（ADR 0043）。TS 侧经生成绑定引用，不手抄。
+/// 列类型的唯一词汇，TS 侧经生成绑定引用，不手抄。
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Type)]
 #[serde(rename_all = "camelCase")]
 pub enum SheetFieldKind {
@@ -37,7 +33,6 @@ pub enum SheetFieldKind {
 }
 
 impl SheetFieldKind {
-    /// 边车里的名字。未知名字返回 None：新版本加的类型不该打断老版本开表。
     fn named(name: &str) -> Option<Self> {
         Some(match name {
             "text" => Self::Text,
@@ -58,7 +53,6 @@ impl SheetFieldKind {
     }
 }
 
-/// 边车解码：坏了按无类型处理，不为此打不开表。
 pub(crate) fn decode_kinds(raw: Option<&str>) -> Vec<Option<SheetFieldKind>> {
     let Some(raw) = raw else {
         return Vec::new();
@@ -74,7 +68,6 @@ pub(crate) fn decode_kinds(raw: Option<&str>) -> Vec<Option<SheetFieldKind>> {
         .collect()
 }
 
-/// 边车编码：全是未指定就不写文件，一份没动过类型的表旁边是干净的。
 pub(crate) fn encode_kinds(kinds: &[Option<SheetFieldKind>]) -> Option<String> {
     if kinds.iter().all(Option::is_none) {
         return None;

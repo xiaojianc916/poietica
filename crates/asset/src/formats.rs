@@ -2,14 +2,7 @@
 
 use sha2::{Digest, Sha256};
 
-/// 一种收得下的格式。
-///
-/// 三个面长在一起，因为它们同属一条策略：拿什么判、投递时写在 Content-Type 上的
-/// 那个字符串、系统对话框里能被选中的名字。加一种格式就是这里加一行，没有第二处
-/// 要跟着改。
-///
-/// 扩展名必须与对话框那份名单一致，漏改哪一侧都不会报错，只会安静地坏：多在对话框
-/// 那侧，用户选得中却什么也不发生；多在这一侧，新格式等于没加。
+/// extensions 必须与文件对话框那份名单一致：漏改任一侧都不报错，只会安静地坏。
 #[derive(Clone, Copy, Debug)]
 pub struct Format {
     pub kind: AssetKind,
@@ -42,9 +35,6 @@ fn is_avif(bytes: &[u8]) -> bool {
     bytes.get(4..12) == Some(b"ftypavif".as_slice())
 }
 
-/// 一种可附件的东西：缩略图那一类，还是纯色磁贴那一类。
-///
-/// 渲染层据此选画法，系统对话框据此分组。这是这张表唯一的分类维度。
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum AssetKind {
     Image,
@@ -64,14 +54,8 @@ impl AssetKind {
 /// 判定文本只看这么多字节。与 Kimi 的 FS_BINARY_SAMPLE_BYTES 同一个数。
 const TEXT_SAMPLE_BYTES: usize = 4 * 1024;
 
-/// 这段字节是文本吗：首 4 KiB 是合法 UTF-8 且不含 NUL。
-///
-/// UTF-8 合法性交给 std::str::from_utf8，不自己数字节。样本边界会把一个多字节
-/// 字符切断，那不是「不是文本」—— Utf8Error::error_len() 为 None 正是「还没读完」，
-/// 所以退到 valid_up_to() 再判一次。NUL 是二进制最稳的标志，Kimi 的
-/// classifyTextSample 也以它作硬判据。
+/// 样本边界可能切断多字节字符：Utf8Error::error_len() 为 None 是「还没读完」而非「不是文本」。
 fn is_text(bytes: &[u8]) -> bool {
-    /* 空文件什么都不是：没有内容就没有种类，与「认不出来就是不投递」同一条。 */
     if bytes.is_empty() {
         return false;
     }
@@ -88,11 +72,7 @@ fn is_text(bytes: &[u8]) -> bool {
     }
 }
 
-/// 这个应用收得下的全部格式，按判定顺序排。魔数、内容类型、扩展名、种类只在
-/// 这里出现一次；文本排在最后 —— 它的判据是「不像任何一种图」的兜底，而图的
-/// 魔数各自唯一。加一种格式就是这里加一行，没有第二处要跟着改。每一行的内容
-/// 类型必须落在下面的 DELIVERABLE_CONTENT_TYPES 里，否则注册表的 insert 会拒，
-/// 而那时错误说的就不是真正的原因了 —— 这条由测试把着，不靠约定。
+/// 每行 content_type 必须落在 DELIVERABLE_CONTENT_TYPES 里（由测试把守）；文本判据是兜底，排最后。
 pub const FORMATS: &[Format] = &[
     Format {
         kind: AssetKind::Image,
@@ -143,12 +123,7 @@ pub const FORMATS: &[Format] = &[
     },
 ];
 
-/// 资产协议投递侧收得下的全部内容类型 —— 正本，全仓唯一一份。
-///
-/// 用户导得进的那几种在上面 FORMATS 里，各有文件头判据；媒体与 PDF 只从 agent
-/// 产物与会话恢复路径进入注册表，没有文件头可嗅探，因此在这里只有类型没有行。
-/// 导入先经 FORMATS 嗅探、再过这张表（identity.rs 的 validate_content_type 引用的
-/// 就是它），两道门用的是同一份名单，不会一个放行一个拦下。
+/// 投递侧收得下的全部内容类型（正本）：媒体与 PDF 只从 agent 产物与恢复路径进来，没有文件头可嗅探。
 const DELIVERABLE_CONTENT_TYPES: &[&str] = &[
     "image/png",
     "image/jpeg",
@@ -166,15 +141,10 @@ const DELIVERABLE_CONTENT_TYPES: &[&str] = &[
     "application/pdf",
 ];
 
-/// 这类内容投递得出去吗。
 pub fn is_deliverable_content_type(content_type: &str) -> bool {
     DELIVERABLE_CONTENT_TYPES.contains(&content_type)
 }
 
-/// 认文件头，不认扩展名。认不出来就是不投递。
-///
-/// 只在 FORMATS 里查，所以它不可能交回一种没有登记过的类型 —— 这不靠约定，
-/// 靠的是没有别的地方可返回。
 pub fn sniff(bytes: &[u8]) -> Option<&'static str> {
     FORMATS
         .iter()
@@ -182,10 +152,7 @@ pub fn sniff(bytes: &[u8]) -> Option<&'static str> {
         .map(|format| format.content_type)
 }
 
-/// 这个字符串是不是一个规范的 SHA-256 摘要（64 个小写十六进制字符）。
-///
-/// 磁盘上的目录名就是摘要，一个宽一格的判定在落盘那侧等于一次路径穿越，
-/// 所以判定与校验共用这一份。
+/// 磁盘目录名就是摘要：判定放宽一格等于落盘侧的路径穿越，故从严。
 #[must_use]
 pub fn is_content_hash(value: &str) -> bool {
     value.len() == 64
@@ -194,7 +161,6 @@ pub fn is_content_hash(value: &str) -> bool {
             .all(|byte| matches!(byte, b'0'..=b'9' | b'a'..=b'f'))
 }
 
-/// 内容寻址用的摘要：小写十六进制 SHA-256。算身份与验完整性只走这一处。
 pub(crate) fn digest_hex(bytes: &[u8]) -> String {
     hex::encode(Sha256::digest(bytes))
 }

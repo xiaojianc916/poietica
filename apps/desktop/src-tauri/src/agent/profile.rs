@@ -1,9 +1,4 @@
-//! Agent 配置：kap agent 接入档案，以及按 agent 隔离的路径。
-//!
-//! 这里只存接入档案，不存模型配置的权威副本——真身在各 agent 受控 home 的
-//! config.toml，由 agent 自己热重载，「哪些 provider 已配好」也以它为准。
-//! 这里不存密钥：API key 经 kap 的 providers REST 交进 agent 自己的 config.toml，
-//! 我们的盘上没有副本。判据住在 `poietica-kap-client` 的 process/。
+//! agent 接入档案与按 agent 隔离的路径；不存密钥——API key 只进 agent 受控 home 的 config.toml，本盘无副本。
 
 use crate::error::{Error, Result};
 use crate::paths::{agent_home, agents_store};
@@ -24,22 +19,17 @@ type AgentConfigCommandResult<T> = std::result::Result<T, Problem>;
 
 const STORE_KEY: &str = "agentConfig";
 
-/// MCP 服务器清单，与 config.toml 同一个家：官方位置是 `$KIMI_CODE_HOME/mcp.json`，
-/// 该变量的值由 `launch_env` 设定。
+/// 官方位置是 `$KIMI_CODE_HOME/mcp.json`，该变量的值由 `launch_env` 设定。
 const MCP_CONFIG_FILE: &str = "mcp.json";
 
-/// 渲染层工作所依据的完整配置快照。agents 是不透明 JSON，由 TS 侧的
-/// @poietica/agent-catalog 校验，Rust 侧只存取不解释。
 #[derive(Debug, Deserialize, Serialize, Type, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct AgentConfigSnapshot {
     pub agents: Vec<Value>,
     pub default_agent_id: String,
-    /// agents.json 中存在但无法反序列化的内容。界面应显示出来。
     pub issues: Vec<String>,
 }
 
-/// 落盘到 agents.json 的形状。
 #[derive(Debug, Deserialize, Serialize, Default)]
 #[serde(rename_all = "camelCase", default)]
 struct PersistedAgentConfig {
@@ -47,7 +37,6 @@ struct PersistedAgentConfig {
     default_agent_id: String,
 }
 
-/// crate 侧拒绝与工具链失败原样上屏；其余按 Display 折叠。
 pub(super) fn surfaced(error: KapError) -> Error {
     match error {
         KapError::Toolchain { message } | KapError::Validation { message } => {
@@ -57,8 +46,6 @@ pub(super) fn surfaced(error: KapError) -> Error {
     }
 }
 
-/// 这个 agent 的接入档案。查找只有这一处：CLI 用哪个程序、往哪个 home 写
-/// provider、会话起哪个进程，全部从这一份档案读。
 fn profile_of(app: &AppHandle, agent_id: &str) -> Result<Value> {
     let (config, _issues) = read_config(app)?;
 
@@ -69,8 +56,6 @@ fn profile_of(app: &AppHandle, agent_id: &str) -> Result<Value> {
         .ok_or_else(|| Error::AgentCli(format!("agents.json 里没有 {agent_id} 的接入档案")))
 }
 
-/// 受控 home：档案声明了 homeVar 才接手——启动时把目录设给它，它读写的就是
-/// 这里；没声明就不设，它去哪儿是它自己的事。判据在 crate 的 profile.rs。
 fn controlled_home(
     app: &AppHandle,
     agent_id: &str,
@@ -86,8 +71,6 @@ fn controlled_home(
     }))
 }
 
-/// 用户自己那份 home —— 命令行上用这家 agent 时它认的目录。收 profile 而不是
-/// 再查一遍：同一份档案查两次，迟早查出两个答案。
 fn own_home(app: &AppHandle, agent_id: &str, profile: &Value) -> Result<PathBuf> {
     let directory = own_home_of(profile)
         .ok_or_else(|| Error::AgentCli(format!("{agent_id} 的档案没有说它自己把配置放在哪")))?;
@@ -100,8 +83,6 @@ fn own_home(app: &AppHandle, agent_id: &str, profile: &Value) -> Result<PathBuf>
     Ok(home.join(directory))
 }
 
-/// 这家 agent 实际会去读的那个家。config.toml、mcp.json、skills/ 都挂在它下面
-/// —— 同一个进程按同一个环境变量找到的同一个目录，「家在哪」只能有一个答案。
 pub fn agent_data_home(app: &AppHandle, agent_id: &str) -> Result<PathBuf> {
     let profile = profile_of(app, agent_id)?;
 
@@ -111,9 +92,7 @@ pub fn agent_data_home(app: &AppHandle, agent_id: &str) -> Result<PathBuf> {
     }
 }
 
-/// 启动这个 agent 的子进程时要设的环境变量，只有非密文项——密钥由 agent 自己的
-/// CLI 写进受控 home 的配置文件，从不经过启动环境。档案不存在按错误处理而非
-/// 「没有变量」：那样 homeVar 设不上，agent 会安静改用用户全局目录，受控 home 失效。
+/// 只设非密文项：密钥由 agent 自己的 CLI 写进受控 home，从不经过启动环境；档案缺失按错误处理，否则 homeVar 设不上、受控 home 静默失效。
 pub fn launch_env(app: &AppHandle, agent_id: &str) -> Result<ProcessEnvironment> {
     launch_env_inner(app, agent_id, true)
 }
@@ -138,40 +117,26 @@ fn launch_env_inner(
     ))
 }
 
-/// 档案里声明的安装方式，缺席表示不由我们管安装。判据在 crate 的 profile.rs。
 pub use poietica_kap_client::InstallSpec as AgentInstallSpec;
 
-/// 读出这个 agent 的安装声明；档案里没有 install 一格是 Ok(None)，不是错误。
 pub fn agent_install_spec(app: &AppHandle, agent_id: &str) -> Result<Option<AgentInstallSpec>> {
     Ok(install_spec_of(&profile_of(app, agent_id)?))
 }
 
-/// 这个 agent 的可执行文件，与 `launch_env` 读同一份档案：两处各算一次，迟早
-/// 算出两个。
-///
-/// 刻意不来自请求：`is_allowed` 只校验参数，白名单挡不住 `{ command: 任意程序 }`
-/// 这类请求；档案要过 TS 侧的 `parseAgentProfile` 才写得进 agents.json，但绕过
-/// 成本有限，调用方仍要自己校验一遍程序名。
+/// 程序名刻意不来自请求：白名单挡不住 `{ command: 任意程序 }` 这类请求，调用方须自行校验程序名。
 pub fn agent_program(app: &AppHandle, agent_id: &str) -> Result<String> {
     program_of(&profile_of(app, agent_id)?)
         .ok_or_else(|| Error::AgentCli(format!("{agent_id} 的接入档案里没有可执行文件")))
 }
 
-/// 这个 agent 的启动参数，与 `agent_program` 读同一份档案：产地只有描述符，
-/// 磁盘那份由 withDescriptorFields 每次启动覆盖。kimi 的 acp 子命令在这里，
-/// 与 launchEnv 的实验开关是同一个决定的两半；没有 args 一格是空表，不是错误。
 pub fn agent_args(app: &AppHandle, agent_id: &str) -> Result<Vec<String>> {
     Ok(profile_args_of(&profile_of(app, agent_id)?))
 }
 
-/// 默认 agent 会去读的那份 mcp.json。取默认 agent 而非「当前会话那一个」：
-/// Tool 面板不挂会话，说不出会话是哪个；会话能各自选 agent 后这格要跟着走。
 pub fn agent_mcp_config(app: &AppHandle) -> Result<PathBuf> {
     Ok(agent_home_directory(app)?.join(MCP_CONFIG_FILE))
 }
 
-/// 受控 home 里那份 mcp.json，写入只认它。不受控时那份是用户自己在终端里的
-/// 服务器，从这里写等于替人改配置，所以拒绝；归属判断只在这里做一次。
 pub fn agent_mcp_config_for_write(app: &AppHandle) -> Result<PathBuf> {
     let agent_id = default_agent_id(app)?;
     controlled_mcp_config(app, &agent_id)?.ok_or_else(|| {
@@ -186,17 +151,13 @@ pub(crate) fn controlled_mcp_config(app: &AppHandle, agent_id: &str) -> Result<O
     Ok(controlled_home(app, agent_id, &profile)?.map(|home| home.path.join(MCP_CONFIG_FILE)))
 }
 
-/// 默认 agent 那个家的目录本身，插件仓库的位置是它的派生——官方 data-locations
-/// 逐字把 plugins/installed.json 与 plugins/managed/ 列在 `$KIMI_CODE_HOME` 之下。
 pub fn agent_home_directory(app: &AppHandle) -> Result<PathBuf> {
     let agent_id = default_agent_id(app)?;
 
     agent_data_home(app, &agent_id)
 }
 
-/// 用户自己在命令行上用这家 agent 时认的那个家，仅当受控 home 生效时才存在；
-/// 不受控时两者同目录，返回 None。只读用途：没有什么该写进这个家，与
-/// `launch_env` 不设全局 home 变量是同一条规矩。
+/// 只读用途：不应往这个家写任何东西；不受控时与受控 home 同目录，返回 None。
 pub fn own_home_directory(app: &AppHandle) -> Result<Option<PathBuf>> {
     let agent_id = default_agent_id(app)?;
     let profile = profile_of(app, &agent_id)?;
@@ -208,8 +169,6 @@ pub fn own_home_directory(app: &AppHandle) -> Result<Option<PathBuf>> {
     own_home(app, &agent_id, &profile).map(Some)
 }
 
-/// 现在默认用哪一个 agent。空串当作没有：那一格缺省值就是空串，拿去查档案只会
-/// 得到一句缺了名字的错误。
 pub(crate) fn default_agent_id(app: &AppHandle) -> Result<String> {
     let (config, _issues) = read_config(app)?;
 
@@ -253,13 +212,11 @@ fn save_config(app: &AppHandle, config: &PersistedAgentConfig) -> Result<()> {
     Ok(())
 }
 
-/// agents.json 那个库，开库的手只在这一文件；install.rs 的检测缓存表也经这里
-/// 读写——每一次开库都从这一处出。
+/// 开库只经这一处：install.rs 的检测缓存表也走它读写。
 pub(crate) fn open_store(app: &AppHandle) -> Result<Arc<Store<Wry>>> {
     Ok(app.store(agents_store(app)?)?)
 }
 
-/// 读取完整配置快照。agents.json 缺失或损坏不算失败：返回空配置，解析问题进 issues。
 #[command]
 #[specta::specta]
 pub async fn agent_config_get(app: AppHandle) -> AgentConfigCommandResult<AgentConfigSnapshot> {
@@ -270,12 +227,10 @@ pub async fn agent_config_get(app: AppHandle) -> AgentConfigCommandResult<AgentC
     .map_err(Problem::from)
 }
 
-/// 原子写回一份配置；实现在 crate 的 controlled_home.rs，这里只是入口。
 pub(crate) fn write_config_atomically(path: &Path, text: &str) -> Result<()> {
     poietica_kap_client::write_config_atomically(path, text).map_err(surfaced)
 }
 
-/// 替换 agent 列表与默认 agent。
 #[command]
 #[specta::specta]
 pub async fn agent_config_save_agents(

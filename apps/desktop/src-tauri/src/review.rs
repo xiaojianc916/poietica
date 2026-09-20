@@ -9,7 +9,7 @@ use tauri_specta::Event as _;
 use crate::error::Error;
 use poietica_problem::Problem;
 
-/// 一个工作目录此刻的分支快照。branch 为空即 HEAD 分离，detachedAt 给出所在短号。
+/// branch 为空即 HEAD 分离，detachedAt 给出所在短号。
 #[derive(Clone, Debug, Serialize, Type)]
 #[serde(rename_all = "camelCase")]
 pub struct GitBranches {
@@ -28,14 +28,11 @@ impl From<poietica_git_adapter_native::BranchSnapshot> for GitBranches {
     }
 }
 
-/* git 的拒绝理由原样透出（error.rs 的 Git 变体），与 AgentCli 同一判据：
-本机 CLI 对本机用户说的话不是秘密，而是用户唯一拿得去修正的信息。 */
 fn surfaced(error: poietica_git_adapter_native::GitError) -> Problem {
     Problem::from(Error::Git(error.to_string()))
 }
 
-/// 问一个目录的分支快照。不是 git 仓库、或机器没有 git，都是 None：
-/// 界面据此整个隐藏分支 chip，这不是错误。
+/// 非 git 仓库或机器没有 git 时返回 None：界面据此整个隐藏分支 chip，不是错误。
 #[command]
 #[specta::specta]
 pub async fn git_branches(root: String) -> Result<Option<GitBranches>, Problem> {
@@ -45,7 +42,6 @@ pub async fn git_branches(root: String) -> Result<Option<GitBranches>, Problem> 
         .map_err(surfaced)
 }
 
-/// 检出一个已有分支。成功即交回盘面上的新快照 —— 界面不自己拼「操作后的世界」。
 #[command]
 #[specta::specta]
 pub async fn git_switch_branch(root: String, branch: String) -> Result<GitBranches, Problem> {
@@ -55,7 +51,6 @@ pub async fn git_switch_branch(root: String, branch: String) -> Result<GitBranch
         .map_err(surfaced)
 }
 
-/// 创建并检出一个新分支，交回盘面上的新快照。名字合法性由 git 自己判。
 #[command]
 #[specta::specta]
 pub async fn git_create_branch(root: String, branch: String) -> Result<GitBranches, Problem> {
@@ -65,7 +60,6 @@ pub async fn git_create_branch(root: String, branch: String) -> Result<GitBranch
         .map_err(surfaced)
 }
 
-/// 一个文件此刻相对 HEAD 的处境。
 #[derive(Clone, Copy, Debug, Serialize, Type)]
 #[serde(rename_all = "kebab-case")]
 pub enum GitChangeStatus {
@@ -76,7 +70,7 @@ pub enum GitChangeStatus {
     Conflicted,
 }
 
-/// 工作树里一处变更。path 是仓库根的相对路径；加减行数由补丁自己数出。
+/// path 是仓库根的相对路径。
 #[derive(Clone, Debug, Serialize, Type)]
 #[serde(rename_all = "camelCase")]
 pub struct GitFileChange {
@@ -107,7 +101,6 @@ impl From<poietica_git_adapter_native::FileChange> for GitFileChange {
     }
 }
 
-/// 审查那一格此刻要画的全部事实。
 #[derive(Clone, Debug, Serialize, Type)]
 #[serde(rename_all = "camelCase")]
 pub struct GitReview {
@@ -134,8 +127,7 @@ impl From<poietica_git_adapter_native::ReviewSnapshot> for GitReview {
         }
     }
 }
-/// 问一次审查面：分支、上游、清单与整份补丁。不是 git 仓库、或机器没有 git，
-/// 都是 None —— 界面据此整个隐藏这一格，这不是错误。
+/// 非 git 仓库或机器没有 git 时返回 None：界面据此整个隐藏这一格，不是错误。
 #[command]
 #[specta::specta]
 pub async fn git_review(
@@ -149,7 +141,6 @@ pub async fn git_review(
         .map(|held| held.map(GitReview::from))
         .map_err(surfaced)
 }
-/// 问一个文件的整份补丁：折叠带上的行由它带回来，取回时机由界面决定。
 #[command]
 #[specta::specta]
 pub async fn git_file_patch(
@@ -162,7 +153,6 @@ pub async fn git_file_patch(
         .await
         .map_err(surfaced)
 }
-/// 提交或推送，成功即交回盘面上的新审查面 —— 界面不自己拼「操作后的世界」。
 #[command]
 #[specta::specta]
 pub async fn git_commit(request: GitCommitRequest) -> Result<GitReview, Problem> {
@@ -179,7 +169,6 @@ pub async fn git_commit(request: GitCommitRequest) -> Result<GitReview, Problem>
     .map(GitReview::from)
     .map_err(surfaced)
 }
-/// 一次提交动作的意图。
 #[derive(Clone, Copy, Debug, Deserialize, Type)]
 #[serde(rename_all = "kebab-case")]
 pub enum GitCommitIntent {
@@ -208,7 +197,6 @@ pub struct GitCommitRequest {
     pub ignore_whitespace: bool,
 }
 
-/// A lease on the shared watcher for one canonical repository root.
 #[derive(Clone, Debug, Serialize, Type)]
 #[serde(rename_all = "camelCase")]
 pub struct GitWatchLease {

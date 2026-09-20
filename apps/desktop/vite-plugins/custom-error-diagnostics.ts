@@ -45,12 +45,6 @@ function getProperty(record: UnknownRecord, property: string): unknown {
   return record[property]
 }
 
-/*
- * 这些字段的唯一去向是 WebSocket 上的 JSON 载荷，而 JSON.stringify 本来就会
- * 丢弃值为 undefined 的键——「键存在但值是 undefined」和「键不存在」在线上是
- * 同一件事。所以按 exactOptionalPropertyTypes 的语义直接省略这些键，而不是把
- * 接口放宽成 `?: string | undefined` 去迁就构造方式。
- */
 function compact<Shape extends object>(
   shape: Shape,
 ): { [Key in keyof Shape]?: Exclude<Shape[Key], undefined> } {
@@ -123,16 +117,7 @@ function isViteErrorPayload(payload: unknown): payload is UnknownRecord & {
   return isRecord(payload) && getString(payload, 'type') === 'error' && 'err' in payload
 }
 
-/**
- * Vite 暂时没有公开的自定义 Overlay 替换 API。
- *
- * 这里将兼容逻辑隔离在一个仅开发环境启用的插件中：
- * - 不修改 Vite 客户端源码；
- * - 不查询或删除 vite-error-overlay DOM；
- * - 不进入生产构建；
- * - 原始 Vite 错误仍正常转发给 HMR 客户端和终端；
- * - 额外发送 Poietica 自定义诊断事件。
- */
+// Vite 没有公开的自定义 Overlay 替换 API，只能包一层 ws.send：原始错误仍照常转发，额外附带诊断事件。
 export function customErrorDiagnosticsPlugin(): Plugin {
   return {
     name: 'poietica:custom-error-diagnostics',

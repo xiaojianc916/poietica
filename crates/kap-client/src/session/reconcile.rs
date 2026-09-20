@@ -1,6 +1,4 @@
-//! 审批与提问的对账：一条会话一个后台任务，WS 循环只投递意图（Poll /
-//! RefreshQuestions / Reset / QuestionRequested），REST 调用、桌面等待与帧记账
-//! 都在这个任务里完成。
+//! 审批与提问的对账：一条会话一个后台任务，WS 循环只投递意图，REST 调用与帧记账都在任务里。
 
 use std::collections::HashSet;
 
@@ -67,7 +65,6 @@ impl ReconcileState {
     }
 }
 
-/// A session owns one reconciliation task. The WebSocket loop only enqueues intent.
 pub(super) struct ReconcileOwner {
     messages: mpsc::UnboundedSender<ReconcileMessage>,
     task: tokio::task::JoinHandle<()>,
@@ -175,8 +172,7 @@ impl Drop for ReconcileOwner {
     }
 }
 
-/// agent 报它卡在审批上时，把这条会话挂着的审批逐个请上桌。status=pending 是
-/// 必填 query（rest-approval.ts 的 listPendingApprovalsQuerySchema），缺了回 40001。
+/// status=pending 是必填 query（rest-approval.ts 的 listPendingApprovalsQuerySchema），缺了回 40001。
 async fn fetch_and_record_approvals(
     http: &reqwest::Client,
     base_url: &str,
@@ -214,7 +210,6 @@ async fn fetch_and_record_approvals(
             continue;
         };
 
-        // 重连对账会重复上报：桌上已有的审批不记第二帧、不等第二份答案。
         if pending.contains(&approval_id) {
             continue;
         }
@@ -244,8 +239,6 @@ async fn fetch_and_record_approvals(
         let book2 = book.clone();
 
         tasks.spawn(async move {
-            // 发送端被丢掉只有一种情形：这一轮已结束（turn.ended 把它从桌上放掉），
-            // 这不再是该回答的问题 —— 什么都不发。
             let Ok(response) = answer_rx.await else {
                 return;
             };
@@ -279,12 +272,9 @@ async fn fetch_and_record_approvals(
     }
 }
 
-/// 撤下成功的信封码：官方用非零码宣告成功（routes/questions.ts 的 dismiss 分支，
-/// error-codes.ts 里它是 40909）。不按码判，每次成功撤下都会被记成一次失败。
+/// 官方用 40909 宣告撤下成功（routes/questions.ts 的 dismiss 分支）：不按码判，成功撤下会被记成失败。
 const QUESTION_DISMISSED: i64 = 40909;
 
-/// 把一组题的收场送回 kap：同一条路由靠动作后缀分路（routes/questions.ts 的
-/// parseActionSuffix，默认 resolve、:dismiss 撤下）。错误只回一句话，供日志与帧。
 async fn settle_question(
     http: &reqwest::Client,
     base_url: &str,
@@ -333,7 +323,6 @@ fn record_question_request(
     tasks: &SessionTasks,
 ) {
     let Some(group) = QuestionGroup::from_wire(item) else {
-        /* 读不出的题组不能装作没来过：撤下它，agent 才不会在人这一侧死等到超时。 */
         let Some(question_id) = item.get("question_id").and_then(Value::as_str) else {
             log::error!("kap listed a pending question without an id: {item}");
             return;
@@ -357,7 +346,6 @@ fn record_question_request(
         return;
     };
 
-    // 同审批：重连对账会重复上报，桌上已有的题组不重记、不等第二份答案。
     if pending.contains(&group.question_id) {
         return;
     }
@@ -378,7 +366,6 @@ fn record_question_request(
     let book2 = book.clone();
 
     tasks.spawn(async move {
-        // 同审批：发送端被丢掉＝这一轮已结束，不再回答。
         let Ok(outcome) = answer_rx.await else {
             return;
         };
@@ -402,7 +389,6 @@ fn record_question_request(
 
 #[cfg(test)]
 mod tests {
-    // 测试里的 expect 是响亮失败，豁免只写在测试作用域，不靠根配置放开（Cargo.toml lints 注释）。
     #![allow(
         clippy::expect_used,
         reason = "a test proves itself by panicking, so a failed step must fail the test"

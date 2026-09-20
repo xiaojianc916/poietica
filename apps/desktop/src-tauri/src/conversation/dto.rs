@@ -1,7 +1,4 @@
-//! 这一层交给渲染进程的类型。
-//!
-//! 每一个都带 specta 标注，绑定由它们生成。形状只为界面服务：库里的行、协议
-//! 里的帧都不是这个样子，翻译在各自的模块里做。
+//! 这一层交给渲染进程的类型，绑定由它们生成。
 
 use std::collections::HashMap;
 
@@ -13,28 +10,17 @@ use serde::{Deserialize, Serialize};
 use specta::Type;
 use tauri_specta::Event;
 
-/// 起一个 agent 进程要说清的那件事。
-///
-/// 不带 argv：程序在哪是这台机器上的事实，由原生侧解析一次（runtime.rs 的
-/// outfit）。渲染层报一个程序路径过来，参数白名单就挡不住它。
+/// 不带 argv：渲染层报程序路径过来，参数白名单就挡不住它，程序由原生侧解析。
 #[derive(Debug, Deserialize, Type)]
 #[serde(rename_all = "camelCase")]
 pub struct AgentLaunch {
-    /// 要启动的 agent。它决定受控 home 落在哪里。
     pub agent_id: String,
 }
 
-/// 一张随这一句话送出去的图片，按它在交付注册表里的位置点名。
-///
-/// 字节不再跨 IPC。它们在用户把文件放进输入框的那一刻就已经在原生侧了
-/// （见 commands/asset.rs 的 asset_import 与 asset_upload），这里交回来的
-/// 只是取得它的两个令牌 —— 一次提问因此不再搬运任何字节，无论那张图多大。
 #[derive(Debug, Deserialize, Type)]
 #[serde(rename_all = "camelCase")]
 pub struct AgentPromptAsset {
-    /// 这张图挂在哪条资产会话下（输入框那一条）。
     pub session_token: String,
-    /// 它在那条会话里的令牌，也就是内容摘要。
     pub asset_token: String,
     pub filename: String,
 }
@@ -57,26 +43,16 @@ pub struct AgentPromptConfiguration {
 #[derive(Debug, Deserialize, Type)]
 #[serde(rename_all = "camelCase")]
 pub struct AgentPromptRequest {
-    /// What the user typed.
     pub text: String,
-    /// Selector values committed as part of this prompt.
     pub configuration: Vec<AgentPromptConfiguration>,
-    /// 这一句带的图片，按它们在交付注册表里的位置点名。
-    ///
-    /// 与 text 是同一句话的两半，所以判空要一起判：只挑了图、没打字是一句
-    /// 完整的话。
+    /// 与 text 是同一句话的两半：只挑了图、没打字也是一句完整的话，判空要一起判。
     pub assets: Vec<AgentPromptAsset>,
-    /// 与正文和附件同一次 prompt 提交的 Skill。
     pub skills: Vec<AgentPromptSkill>,
-    /// The conversation this turn belongs to, when the interface names one.
     pub thread_id: Option<String>,
-    /// 起哪个 agent。
     pub launch: AgentLaunch,
-    /// The working directory the session is created against.
     pub cwd: Option<String>,
 }
 
-/// What the interface needs to follow the turn it just started.
 #[derive(Debug, Serialize, Type)]
 #[serde(rename_all = "camelCase")]
 pub struct AgentPromptResult {
@@ -84,10 +60,6 @@ pub struct AgentPromptResult {
     pub prompt_id: String,
 }
 
-/// 人能给出的答复。
-///
-/// 取消不在其中：那不是人答的，是没有人答时这一侧的收场（recorder 的
-/// record_pending_cancelled）。取值域由类型定死，所以别的词根本反序列化不出来。
 #[derive(Clone, Copy, Debug, Deserialize, Type)]
 #[serde(rename_all = "snake_case")]
 pub enum AgentApprovalDecision {
@@ -95,32 +67,23 @@ pub enum AgentApprovalDecision {
     Rejected,
 }
 
-/// 「这条会话都照此办理」。kap 只有这一个取值（approvalScopeSchema）。
+/// kap 的 approvalScopeSchema 只有这一个取值。
 #[derive(Clone, Copy, Debug, Deserialize, Type)]
 #[serde(rename_all = "snake_case")]
 pub enum AgentApprovalScope {
     Session,
 }
 
-/// A user's answer to a permission request.
 #[derive(Debug, Deserialize, Type)]
 #[serde(rename_all = "camelCase")]
 pub struct AgentResolvePermissionRequest {
-    /// The request being answered.
     pub request_id: String,
-    /// 放行还是拒绝。
     pub decision: AgentApprovalDecision,
-    /// 带上它就是「这条会话都照此办理」；只此一次时缺席。
     pub scope: Option<AgentApprovalScope>,
-    /// 计划复审所选方案的协议 label。
     pub selected_label: Option<String>,
-    /// 给 agent 的可选留言。
     pub feedback: Option<String>,
 }
 
-/// 把界面报来的答复翻成运行时的域类型。
-///
-/// 没有校验可做：不合法的词在 serde 那一步就已经被拒掉了。
 pub(super) fn decided(request: &AgentResolvePermissionRequest) -> ApprovalResponse {
     ApprovalResponse {
         decision: match request.decision {
@@ -136,16 +99,14 @@ pub(super) fn decided(request: &AgentResolvePermissionRequest) -> ApprovalRespon
     }
 }
 
-/// 要并进这一轮的那几条排队提问。
 #[derive(Debug, Deserialize, Type)]
 #[serde(rename_all = "camelCase")]
 pub struct AgentSteerRequest {
     pub thread_id: String,
-    /// 号由 kap 签发（prompt.queued 的 promptId）：队列不在这一侧，所以收号不收话。
+    /// 号由 kap 签发（prompt.queued 的 promptId）：队列不在这一侧，收号不收话。
     pub prompt_ids: Vec<String>,
 }
 
-/// 要撤掉的那条排队提问。
 #[derive(Debug, Deserialize, Type)]
 #[serde(rename_all = "camelCase")]
 pub struct AgentAbortPromptRequest {
@@ -153,87 +114,53 @@ pub struct AgentAbortPromptRequest {
     pub prompt_id: String,
 }
 
-/// 要停的那条对话。
 #[derive(Debug, Deserialize, Type)]
 #[serde(rename_all = "camelCase")]
 pub struct AgentCancelRequest {
-    /// The conversation whose turn should stop.
     pub thread_id: String,
 }
 
-/// What a session selector is for.
-///
-/// These are the categories the protocol defines. A category the agent
-/// invents beyond them arrives as other and is still shown.
 #[derive(Clone, Debug, Deserialize, Serialize, Type)]
 #[serde(rename_all = "camelCase")]
 pub enum AgentConfigPurpose {
-    /// How tool approvals are decided.
     Permission,
-    /// Independent Plan, Goal and Swarm controls.
     Mode,
-    /// Which model answers.
     Model,
-    /// How long the model deliberates before answering.
     Thought,
-    /// Something the agent named itself.
     Other,
 }
 
-/// One value a selector will accept.
 #[derive(Clone, Debug, Deserialize, Serialize, Type)]
 #[serde(rename_all = "camelCase")]
 pub struct AgentConfigChoice {
-    /// The value sent back when this one is picked.
     pub value: String,
-    /// The name the agent gave it.
     pub label: String,
-    /// The explanation the agent gave, where it gave one.
     pub detail: Option<String>,
 }
 
-/// One selector the running session offers.
 #[derive(Clone, Debug, Deserialize, Serialize, Type)]
 #[serde(rename_all = "camelCase")]
 pub struct AgentConfigControl {
-    /// The identifier the agent answers to when the value is changed.
     pub id: String,
-    /// The name the agent gave this selector.
     pub label: String,
-    /// The explanation the agent gave, where it gave one.
     pub detail: Option<String>,
-    /// Where this selector belongs on screen.
     pub purpose: AgentConfigPurpose,
-    /// Enabling this selector is committed with the next prompt.
     pub applies_on_submit: bool,
-    /// The value in force right now.
     pub current: String,
-    /// Every value on offer.
     pub choices: Vec<AgentConfigChoice>,
 }
 
-/// 一条会话此刻占了多少上下文，以及它累计的输入构成。
-///
-/// kap 的 agent.status.updated 报的是仪表值：到达即替换，不是增量 —— 三格累计
-/// 计数同帧到达，恒为最新整份（usage.total）。按读数算增量的是账本
-/// （persistence 的 usage.rs），这一格只说现在。
+/// kap 的 agent.status.updated 报的是仪表值：到达即替换，不是增量；按读数算增量的是账本。
 #[derive(Clone, Copy, Debug, Deserialize, Serialize, Type)]
 #[serde(rename_all = "camelCase")]
 pub struct AgentSessionUsage {
-    /// 已占用的 token 数。
     pub used: u32,
-    /// 上下文窗口总量，token 数。
     pub size: u32,
-    /// 累计输入里未命中缓存的 token（kap usage.total.inputOther）。
     pub input_other: u32,
-    /// 累计输入里命中缓存的 token（kap usage.total.inputCacheRead）。
     pub input_cache_read: u32,
-    /// 累计输入里写入缓存的 token（kap usage.total.inputCacheCreation）。
     pub input_cache_creation: u32,
 }
 
-/// 领域快照 -> 线上形状。数值按绑定能表达的宽度收窄，溢出即封顶 —— 与
-/// `reported_goal` 同一条规矩。
 pub(super) fn reported_usage(usage: SessionUsageSnapshot) -> AgentSessionUsage {
     let narrow = |value: u64| u32::try_from(value).unwrap_or(u32::MAX);
 
@@ -246,100 +173,66 @@ pub(super) fn reported_usage(usage: SessionUsageSnapshot) -> AgentSessionUsage {
     }
 }
 
-/// agent 主动报来的一件会话级状态。
-///
-/// 会话号是它唯一带得出的地址：帧里没有对话，反查由渲染层用「开这条会话时是
-/// 哪条对话」去做。它不出现在任何命令签名里，所以不进生成绑定 —— 事件不是命令。
-///
-/// 内部标签，所以线上是一个判别联合：`{ kind: "selectors", … }`。
 #[derive(Clone, Debug, Deserialize, Event, Serialize, Type)]
 #[serde(tag = "kind", rename_all = "camelCase")]
 pub enum AgentSessionEvent {
-    /// 那条会话上现在的整张选择器表。
     #[serde(rename_all = "camelCase")]
     Selectors {
         session_id: String,
         selectors: Vec<AgentConfigControl>,
         goal: Option<AgentGoal>,
     },
-    /// 那条会话此刻的上下文用量。
     #[serde(rename_all = "camelCase")]
     Usage {
         session_id: String,
         usage: AgentSessionUsage,
     },
-    /// agent 侧的模型目录变了：provider、模型或默认模型的真身以它为准，读者作废重问。
+    /// provider、模型或默认模型的真身以它为准：收到即作废缓存重问。
     ModelCatalogChanged,
 }
 
-/// A change made in the interface.
 #[derive(Debug, Deserialize, Type)]
 #[serde(rename_all = "camelCase")]
 pub struct AgentSelectConfigRequest {
-    /// The conversation the change applies to.
     pub thread_id: Option<String>,
-    /// One of the selector identifiers the session reported.
     pub config_id: String,
-    /// One of the values that selector offered.
     pub value: String,
-    /// Goal creation uses the current composer draft as its objective.
     pub input: Option<String>,
 }
 
-/// 问这个 agent 提供什么，不点名任何一条对话。
 #[derive(Debug, Deserialize, Type)]
 #[serde(rename_all = "camelCase")]
 pub struct AgentCapabilitiesRequest {
-    /// 起哪个 agent。
     pub launch: AgentLaunch,
-    /// The working directory the session is created against.
     pub cwd: Option<String>,
 }
 
-/// Reported when a thread was written but could not be read back.
 pub(super) const NO_THREAD: &str = "the conversation was created but could not be read back";
 
-/// Where a conversation's name came from.
-///
-/// A closed set of three, and the interface ranks on it: a name the user
-/// typed is never replaced by one derived from the text.
+/// 界面按它排序：用户手打的名字永不被派生名替换。
 #[derive(Debug, Serialize, Type)]
 #[serde(rename_all = "camelCase")]
 pub enum AgentTitleSource {
-    /// Taken from the first thing the user said.
     Message,
-    /// Generated from the session transcript.
     Generated,
-    /// Shown before there was anything to take a name from.
     Fallback,
-    /// The user typed it. Nothing derived replaces it.
     Manual,
 }
 
-/// One conversation, as a list of conversations and a tab strip need it.
 #[derive(Debug, Serialize, Type)]
 #[serde(rename_all = "camelCase")]
 pub struct AgentThread {
-    /// The stored conversation.
     pub thread_id: String,
-    /// The agent session it is holding, where it holds one.
     pub session_id: Option<String>,
-    /// The name to show for it.
     pub title: String,
-    /// Where that name came from.
     pub title_source: AgentTitleSource,
-    /// When it was last touched, in RFC 3339.
     pub updated_at: String,
-    /// Whether it is held at the top of the list.
     pub pinned: bool,
-    /// 它是在哪个工作目录里开的。列表按它分组；空表示默认那一个工作区
-    /// （thread-order.ts 的 DEFAULT_WORKSPACE_ID 那一段说明了为什么）。
+    /// 它是在哪个工作目录里开的；空表示默认那一个工作区。
     pub workspace_root: Option<String>,
-    /// 是否已经离开活动会话列表。
     pub archived: bool,
 }
 
-/// 要打开或创建的对话。操作由判别式表达，不用可空 id 猜。
 #[derive(Debug, Deserialize, Type)]
 #[serde(tag = "kind", rename_all = "camelCase")]
 pub enum AgentThreadTarget {
@@ -349,19 +242,14 @@ pub enum AgentThreadTarget {
     Existing { thread_id: String },
 }
 
-/// 要打开的对话，以及必要时怎样启动 agent。
 #[derive(Debug, Deserialize, Type)]
 #[serde(rename_all = "camelCase")]
 pub struct AgentOpenThreadRequest {
-    /// 创建与打开是两种显式操作；两者都携带稳定标识。
     pub target: AgentThreadTarget,
-    /// 起哪个 agent。
     pub launch: AgentLaunch,
-    /// The working directory the session is created against.
     pub cwd: Option<String>,
 }
 
-/// A bounded local read-model snapshot. It never starts or restores an agent.
 #[derive(Debug, Serialize, Type)]
 #[serde(rename_all = "camelCase")]
 pub struct AgentThreadSnapshot {
@@ -369,7 +257,6 @@ pub struct AgentThreadSnapshot {
     pub usage: Option<AgentSessionUsage>,
 }
 
-/// The result of activating one conversation in the agent runtime.
 #[derive(Debug, Serialize, Type)]
 #[serde(rename_all = "camelCase")]
 pub struct AgentOpenedThread {
@@ -380,17 +267,13 @@ pub struct AgentOpenedThread {
     pub transcript: AgentTranscriptJson,
 }
 
-/// A conversation the interface is renaming.
 #[derive(Debug, Deserialize, Type)]
 #[serde(rename_all = "camelCase")]
 pub struct AgentRenameThreadRequest {
-    /// The conversation being renamed.
     pub thread_id: String,
-    /// The name the user typed.
     pub title: String,
 }
 
-/// A conversation archive requested by the renderer.
 #[derive(Debug, Deserialize, Type)]
 #[serde(rename_all = "camelCase")]
 pub struct AgentExportThreadRequest {
@@ -398,130 +281,77 @@ pub struct AgentExportThreadRequest {
     pub launch: AgentLaunch,
 }
 
-/// A conversation an action applies to, and nothing else.
 #[derive(Debug, Deserialize, Type)]
 #[serde(rename_all = "camelCase")]
 pub struct AgentThreadRequest {
-    /// The conversation the action applies to.
     pub thread_id: String,
 }
 
-/// 一个 agent 的 transcript 页怎么读。
-///
-/// 载荷以 JSON 文本透传：契约钉在 vendored @poietica/transcript 的 schema，
-/// 校验发生在桥那一侧，这里不重抄第二份形状。
+/// 载荷以 JSON 文本透传：契约钉在 vendored @poietica/transcript 的 schema，这里不重抄第二份形状。
 #[derive(Debug, Deserialize, Type)]
 #[serde(rename_all = "camelCase")]
 pub struct AgentTranscriptRequest {
     pub session_id: String,
     pub agent_id: String,
-    /// 往前读到哪一轮为止；缺席读最新一页。
     pub before_turn: Option<String>,
 }
 
-/// 一个 agent 的 transcript 追赶怎么读。
 #[derive(Debug, Deserialize, Type)]
 #[serde(rename_all = "camelCase")]
 pub struct AgentTranscriptOpsRequest {
     pub session_id: String,
     pub agent_id: String,
-    /// 只取 seq 比它新的批次。
     pub since_seq: i64,
 }
 
-/// transcript 通道的一帧：官方 transcript 事件原样 JSON。
-///
-/// `{ type: "transcript.ops" | "transcript.reset" | …, payload }` 的判别与
-/// 校验归渲染层（vendored schema）；这一侧只交会话地址与原文。
 #[derive(Clone, Debug, Deserialize, Event, Serialize, Type)]
 #[serde(rename_all = "camelCase")]
 pub struct AgentTranscriptEvent {
     pub session_id: String,
-    /// 官方 transcript 事件的原文（含 type 与 payload）。
     pub json: String,
 }
 
-/// 一条 transcript 读命令的答复：原样 JSON 文本。
-///
-/// 与 `AgentTranscriptEvent` 同一条规矩：形状由 vendored schema 说，这里是
-/// 透传壳。
 #[derive(Clone, Debug, Deserialize, Serialize, Type)]
 #[serde(rename_all = "camelCase")]
 pub struct AgentTranscriptJson {
     pub json: String,
 }
 
-/// 要分叉的对话，以及必要时怎样启动 agent。
-///
-/// 带 launch 与 cwd，因为分叉的第一步可能要把 agent 起起来、把源会话装载成
-/// 本次连接上活的地址 —— 与打开一条对话要说清的是同一批事。
 #[derive(Debug, Deserialize, Type)]
 #[serde(rename_all = "camelCase")]
 pub struct AgentForkThreadRequest {
-    /// 从哪条对话分叉。
     pub thread_id: String,
-    /// 分叉出的新对话叫什么。
-    ///
-    /// 名字由界面按命名规则算好（thread-title.ts 的 forkNameOf）：源名加下一
-    /// 个序号。这一侧照改名那条防线收：去空白、按上限截断、拒绝空名。
     pub title: String,
-    /// 分叉点：这一轮之后还有几轮。0 就是从最后一轮分叉。
-    ///
-    /// agent 那侧按它回退上下文，本机日志按同一个数截断 —— 屏幕与上下文
-    /// 因此止于同一处。
+    /// 分叉点：这一轮之后还有几轮，0 就是从最后一轮分叉；agent 侧回退上下文与本机日志截断用同一个数，屏幕与上下文止于同一处。
     pub drop_turns: u32,
-    /// 起哪个 agent。
     pub launch: AgentLaunch,
-    /// The working directory the session is created against.
     pub cwd: Option<String>,
 }
 
-/// A conversation being archived or restored.
 #[derive(Debug, Deserialize, Type)]
 #[serde(rename_all = "camelCase")]
 pub struct AgentArchiveThreadRequest {
-    /// The conversation the action applies to.
     pub thread_id: String,
-    /// True archives it; false restores it.
     pub archived: bool,
 }
 
-/// A conversation being held at the top of the list, or released.
 #[derive(Debug, Deserialize, Type)]
 #[serde(rename_all = "camelCase")]
 pub struct AgentPinThreadRequest {
-    /// The conversation the action applies to.
     pub thread_id: String,
-    /// Whether it should be held at the top.
     pub pinned: bool,
 }
 
-/// 这一次打开，屏幕上应该出现什么。
-///
-/// 空的经过说不出区别：刚建的对话是空的，理所应当；而一条聊过两小时的对话在
-/// 换了 agent 之后也是空的。那不是"没有历史"，那是"有历史但拿不到"，两件事对
-/// 人的意义完全不同。
-///
-/// 内部标签，所以线上是一个判别联合：`{ state: "live" }`、`{ state: "fresh" }`。
+/// Fresh 是本来就没有经过，Live 是有经过但这次没让 agent 重放——两种"空"对人的意义完全不同。
 #[derive(Debug, Serialize, Type)]
 #[serde(tag = "state", rename_all = "camelCase")]
 pub enum AgentHistory {
-    /// 这条对话刚刚建出来，本来就没有经过。
     Fresh,
-    /// 这一次没让 agent 重放经过。
-    ///
-    /// 提问和改设置走的就是这一路：它们不需要历史。打开一条会话已在本连接上活着
-    /// 的对话也走它 —— addressing.rs 的快路径直接交回这一格，经过由本机日志重放
-    /// 补上，界面照常收。
     Live,
-    /// agent 把它装载回来了，`events` 就是它交出来的那一整段。
     Loaded,
 }
 
-/// 人是怎么答的这一组题。
-///
-/// 四个值就是 kap 的 questionAnswerMethodSchema。如实上报：官方把 click 丢掉，
-/// 但改报成别的就是撒谎。
+/// 取值即 kap 的 questionAnswerMethodSchema；官方把 click 丢掉，仍如实上报。
 #[derive(Debug, Deserialize, Type)]
 #[serde(rename_all = "snake_case")]
 pub enum AgentQuestionMethod {
@@ -531,72 +361,46 @@ pub enum AgentQuestionMethod {
     Click,
 }
 
-/// 一题答的是什么。
-///
-/// 判别联合，五支，与 kap 的 questionAnswerSchema 逐一对应，判别式与分支名逐字
-/// 相同。摊平成「一个 kind 加几个可选格」会让「多选却没有选项」这种答复在类型上
-/// 就合法。
+/// 与 kap 的 questionAnswerSchema 逐一对应，判别式与分支名逐字相同，不摊平。
 #[derive(Debug, Deserialize, Type)]
 #[serde(tag = "kind", rename_all = "snake_case")]
 pub enum AgentQuestionChoice {
-    /// 选了一个。
     #[serde(rename_all = "camelCase")]
     Single { option_id: String },
-    /// 选了几个。
     #[serde(rename_all = "camelCase")]
     Multi { option_ids: Vec<String> },
-    /// 自己写了一句。
     Other { text: String },
-    /// 选了几个，还自己写了一句。
     #[serde(rename_all = "camelCase")]
     MultiWithOther {
         option_ids: Vec<String>,
         other_text: String,
     },
-    /// 这一题跳过。
     Skipped,
 }
 
-/// 一题一条答复，按题号点名。
 #[derive(Debug, Deserialize, Type)]
 #[serde(rename_all = "camelCase")]
 pub struct AgentQuestionAnswer {
-    /// 题号，就是 kap 在这一组里现编的那个。
     pub question_id: String,
-    /// 这一题答的是什么。
     pub answer: AgentQuestionChoice,
 }
 
-/// 一整组题的答复。
 #[derive(Debug, Deserialize, Type)]
 #[serde(rename_all = "camelCase")]
 pub struct AgentAnswerQuestionsRequest {
-    /// 被回答的那一组。
     pub question_id: String,
-    /// 逐题一条，一次交齐 —— 一组最多四题，问是一起问的。
     pub answers: Vec<AgentQuestionAnswer>,
-    /// 人怎么答的，界面知道就报。
     pub method: Option<AgentQuestionMethod>,
-    /// 整组的备注。
-    ///
-    /// wire 上它是合法的一格，但官方 server 收下之后不读它（routes/questions.ts
-    /// 的 toInProcessResponse 只把 answers 与 method 交出去）。送它是因为契约里有
-    /// 它，不是因为它今天有效果。
+    /// wire 上合法的一格，但官方 server 收下之后不读它（routes/questions.ts 的 toInProcessResponse）；送它是因为契约里有它。
     pub note: Option<String>,
 }
 
-/// 要撤下的那一组题。
 #[derive(Debug, Deserialize, Type)]
 #[serde(rename_all = "camelCase")]
 pub struct AgentDismissQuestionsRequest {
-    /// 被撤下的那一组。
     pub question_id: String,
 }
 
-/// 把界面报来的一组答复翻成运行时的域类型。
-///
-/// 号原样搬：题号与选项号都是 kap 现编的，这一层不解析也不校验 —— 合不合这一组
-/// 题，由桌子对着它自己留下的那一组题判（kap-client 的 QuestionDesk::answer）。
 pub(super) fn answered(request: AgentAnswerQuestionsRequest) -> QuestionResponse {
     let mut answers = HashMap::new();
 
@@ -640,7 +444,6 @@ const fn measured(method: AgentQuestionMethod) -> AnswerMethod {
     }
 }
 
-/// 目标模式此刻的事实，线上形状。
 #[derive(Clone, Debug, Deserialize, Serialize, Type)]
 #[serde(rename_all = "camelCase")]
 pub struct AgentGoal {
@@ -652,7 +455,6 @@ pub struct AgentGoal {
     pub wall_clock_ms: u32,
 }
 
-/// 领域快照 -> 线上形状。数值按绑定能表达的宽度收窄，溢出即封顶。
 #[must_use]
 pub fn reported_goal(goal: poietica_kap_client::GoalSnapshot) -> AgentGoal {
     let narrow = |value: u64| u32::try_from(value).unwrap_or(u32::MAX);

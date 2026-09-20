@@ -1,7 +1,4 @@
-//! 插件命令的 Tauri 组合边界。
-//!
-//! installed.json 的解释与写入由 plugin-host 独占；这里仅解析 IPC、组合路径、
-//! 推进暂存目录并把宿主类型映射成 IPC 类型。
+//! 插件命令的 Tauri 组合边界：installed.json 的解释与写入归 plugin-host，这里只管 IPC、路径与暂存。
 
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -18,8 +15,6 @@ use poietica_problem::Problem;
 
 type PluginsCommandResult<T> = std::result::Result<T, Problem>;
 
-/// 一次下载最多接受这么多字节。没有上限，一个坏掉的直链就能把内存吃光；逐块累加
-/// 意味着服务器谎报 Content-Length 也没有用。
 const MAX_DOWNLOAD_BYTES: usize = 32 * 1024 * 1024;
 
 /// 这几个名字都出自官方 data-locations 的目录图，不是我们起的。
@@ -30,8 +25,6 @@ const RECORD_FILE: &str = "installed.json";
 /// 点开头：`is_safe_segment` 不接受它，所以暂存区不会被当成一个插件标识符。
 const STAGING_DIRECTORY: &str = ".staging";
 
-/// 一次取用从哪里拿字节。GitHub 不在此出现：仓库地址变归档 URL 是领域侧判断
-/// （packages/extension 的 planFetch），判不出的当场报错。
 #[derive(Debug, Deserialize, Type)]
 #[serde(tag = "kind", rename_all = "camelCase")]
 pub enum PluginFetch {
@@ -40,17 +33,14 @@ pub enum PluginFetch {
     #[serde(rename_all = "camelCase")]
     Archive {
         url: String,
-        /// 插件根在归档解开后的哪一层；目录型市场一个仓库装多个插件，不指名只能猜。
         subdirectory: Option<String>,
     },
 }
 
-/// 已经解到暂存区、还没被认领的一份插件。
 #[derive(Debug, Serialize, Type)]
 #[serde(rename_all = "camelCase")]
 pub struct PluginStaged {
     pub staging_id: String,
-    /// 清单原文。这一层不解析它。
     pub manifest_json: String,
 }
 
@@ -58,20 +48,14 @@ pub struct PluginStaged {
 #[serde(rename_all = "camelCase")]
 pub struct PluginCommitRequest {
     pub staging_id: String,
-    /// 渲染层解码清单之后判定的标识符，也就是官方记录里的 id。
     pub plugin_id: String,
-    /// 取用时用的那一段子目录。认领的是清单所在的那一层，与取用时是同一层。
     pub subdirectory: Option<String>,
-    /// 官方 InstalledRecord.source 的三个取值之一：local-path / zip-url / github。
     pub source: String,
-    /// 人当初给的那一串地址。官方拿它显示来源，我们拿它回查目录里的背书。
     pub original_source: Option<String>,
-    /// ISO-8601，时钟归领域层（原生侧不持有第二个时间源）。
     pub installed_at: String,
 }
 
-/// 账本里的一条，加上那条记录指向的清单原文。清单读不出时 manifest_json 是空串，
-/// 这一条仍然交出：装了却坏了的插件必须在界面占一行，滤掉它人只会看到「装了却不见了」。
+/// 清单读不出时 manifest_json 是空串，这一条仍要交出：坏插件也必须在界面占一行。
 #[derive(Debug, Serialize, Type)]
 #[serde(rename_all = "camelCase")]
 pub struct PluginPayload {
@@ -84,19 +68,14 @@ pub struct PluginPayload {
     pub disabled_mcp_servers: Vec<String>,
 }
 
-/// 用户在命令行上装的插件，按他自家 home 那本账读出。它不是「已安装」：我们开出的
-/// 会话把 home 变量指向受控 home，CLI 只装载受控账里的插件，这一份里的东西一个都
-/// 不参与会话。合成一个列表，屏幕上会有一半的行是假的。
+/// 用户在命令行装的插件，读自用户自家 home 的账；它们不参与受控会话，不得并进已安装列表。
 #[derive(Debug, Serialize, Type)]
 #[serde(rename_all = "camelCase")]
 pub struct ForeignPluginRecord {
     pub plugin_id: String,
-    /// 人当初给命令行的那一串地址；缺席表示那条记录没记，导入没有起点。
     pub original_source: Option<String>,
 }
 
-/// 另一本账的现状：它在哪，以及里面有哪些插件。形状与 `EnvironmentFile` 同源——
-/// 界面要说得出读的是哪个文件，否则「别处已装」没有落点。
 #[derive(Debug, Serialize, Type)]
 #[serde(rename_all = "camelCase")]
 pub struct ForeignPluginInventory {
@@ -104,16 +83,12 @@ pub struct ForeignPluginInventory {
     pub plugins: Vec<ForeignPluginRecord>,
 }
 
-/// 折成 IPC 上那条插件错误，真正的原因留在日志里：公共文案是脱敏固定串
-/// （error.rs 的 public_message），不记日志原因就丢了。技能走同一条 IPC 变体，
-/// 共用这一处折叠。
 pub(crate) fn plugin_failure(cause: impl std::fmt::Display) -> Error {
     log::warn!("extension operation failed: {cause}");
 
     Error::Plugin(cause.to_string())
 }
 
-/// agent 家里的插件仓库根。
 fn store_root(app: &AppHandle) -> Result<PathBuf> {
     let directory = agent_home_directory(app)?.join(PLUGINS_DIRECTORY);
 
@@ -126,8 +101,7 @@ fn record_file(app: &AppHandle) -> Result<PathBuf> {
     Ok(store_root(app)?.join(RECORD_FILE))
 }
 
-/// 安装中途的暂存区。放在 plugins/ 里而非系统临时目录：认领那步是一次 rename，
-/// 跨卷会失败，而系统临时目录经常在另一个卷上。
+/// 认领那步是一次 rename，暂存区必须与 managed/ 同卷，故不放系统临时目录。
 pub(crate) fn staging_root(app: &AppHandle) -> Result<PathBuf> {
     let directory = store_root(app)?.join(STAGING_DIRECTORY);
 
@@ -136,8 +110,7 @@ pub(crate) fn staging_root(app: &AppHandle) -> Result<PathBuf> {
     Ok(directory)
 }
 
-/// 某一个插件的托管副本。标识符在此验证 is_safe_segment——这是它唯一变成路径的地方，
-/// 不指望每个调用点自己记得验。
+/// plugin_id 在此验证 is_safe_segment——这是它唯一变成路径的地方。
 fn managed_directory(app: &AppHandle, plugin_id: &str) -> Result<PathBuf> {
     if !extension::is_safe_segment(plugin_id) {
         return Err(Error::Validation(format!(
@@ -175,17 +148,12 @@ pub(crate) async fn download(url: &str) -> Result<Vec<u8>> {
     Ok(bytes)
 }
 
-/// 丢弃一份失败的暂存。丢弃本身再失败只进日志，不能盖掉真正的原因；`discard`
-/// 拿走所有权，丢掉的那一份不该再被碰。
 pub(crate) fn discard_failed(staging: extension::Staging) {
     if let Err(cleanup) = staging.discard() {
         log::warn!("could not discard a failed staging directory: {cleanup}");
     }
 }
 
-/// 取件管线，装插件与装技能共用：归档先取回字节，目录原样拷贝，填进新建暂存区；
-/// 填充或 locate 失败当场丢掉暂存，否则留着的目录下次列举就是垃圾。差异点只在
-/// locate：插件认清单，技能认 SKILL.md。归档拿不到字节是显式错误，不是不可达状态。
 pub(crate) async fn staged_fetch<T>(
     app: &AppHandle,
     fetch: PluginFetch,
@@ -231,7 +199,6 @@ pub(crate) async fn staged_fetch<T>(
     }
 }
 
-/// 暂存目录填好了，读出清单原文交回去。读不出来就报错，丢弃由 staged_fetch 统一负责。
 fn finish_staging(
     staging: &extension::Staging,
     subdirectory: Option<&str>,
@@ -250,9 +217,7 @@ fn finish_staging(
         })
 }
 
-/// 装了什么，agent 的账本说了算，不扫目录：官方卸载「only deletes the installation
-/// record; the managed copy and original source files remain on disk」，盘上有目录不代表
-/// 装着——扫目录会把刚卸载的重新显示成装着的，而 agent 那边不会装载它。
+/// 装没装以账本为准，不扫目录：官方卸载只删记录、盘上留副本，扫目录会把刚卸载的显示成装着。
 #[command]
 #[specta::specta]
 pub async fn plugins_list(app: AppHandle) -> PluginsCommandResult<Vec<PluginPayload>> {
@@ -278,10 +243,7 @@ pub async fn plugins_list(app: AppHandle) -> PluginsCommandResult<Vec<PluginPayl
     .map_err(Problem::from)
 }
 
-/// 用户在命令行上装的插件——只读，一个字节都不写。不 create_dir_all：那个目录不归
-/// 我们所有，探测一份不存在的账本不该在用户 home 里留空目录（`store_root` 会建目录，
-/// 正因为那一个是自己的家）。返回 None 表示没有第二本账：受控 home 未生效时，CLI 与
-/// 我们读的是同一个文件，同一个文件没有「另一份」。
+/// 只读探测，不 create_dir_all——目录不归我们所有；返回 None 即受控 home 未生效，没有第二本账。
 #[command]
 #[specta::specta]
 pub async fn plugins_foreign_list(
@@ -318,9 +280,7 @@ pub async fn plugins_stage(
         .map_err(Problem::from)
 }
 
-/// 认领：副本进 managed/<id>/，然后往账本里记一条。顺序不能反：先写记录再搬副本，
-/// 中间失败会留下一条指向空气的记录，而 agent 会照着它去装载；反过来最坏是这一次
-/// 没装上，重来一次即可。
+/// 顺序不能反：先搬副本、后写账。反了会留下指向空气的记录，而 agent 会照着它装载。
 #[command]
 #[specta::specta]
 pub async fn plugins_commit(
@@ -360,9 +320,6 @@ pub async fn plugins_discard(app: AppHandle, staging_id: String) -> PluginsComma
     .map_err(Problem::from)
 }
 
-/// 卸载：账本里那一条去掉，托管副本一并删掉。官方只删记录、留副本，但副本没有
-/// 第二个读者——agent 只按记录装载——留着它，换源重装同一个 id 时旧文件会混进
-/// 新目录。删掉不改变 agent 观察到的任何行为。
 #[command]
 #[specta::specta]
 pub async fn plugins_remove(app: AppHandle, plugin_id: String) -> PluginsCommandResult<()> {
@@ -377,7 +334,6 @@ pub async fn plugins_remove(app: AppHandle, plugin_id: String) -> PluginsCommand
     .map_err(Problem::from)
 }
 
-/// 拨动整个插件。写的是 agent 会读的那一格，所以拨完在新会话里就是真的。
 #[command]
 #[specta::specta]
 pub async fn plugins_set_enabled(
@@ -391,8 +347,7 @@ pub async fn plugins_set_enabled(
         .map_err(Problem::from)
 }
 
-/// 拨动某个插件带来的一台 MCP 服务器。落点是官方的
-/// `capabilities.mcpServers.<name>.enabled`，即 `/plugins mcp disable` 写的同一格。
+/// 落点是官方的 `capabilities.mcpServers.<name>.enabled`，即 `/plugins mcp disable` 写的同一格。
 #[command]
 #[specta::specta]
 pub async fn plugins_set_mcp_enabled(
@@ -416,8 +371,6 @@ pub async fn plugins_catalog_read(app: AppHandle) -> PluginsCommandResult<Option
     .map_err(Problem::from)
 }
 
-/// 拉一次市场目录，覆盖本地那一份并交回去。该不该拉是 packages/extension 的
-/// shouldFetchOnOpen（状态机）的判断，这里只负责「拉了就覆盖」。
 #[command]
 #[specta::specta]
 pub async fn plugins_catalog_refresh(app: AppHandle, url: String) -> PluginsCommandResult<String> {

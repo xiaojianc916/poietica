@@ -28,11 +28,6 @@ pub struct NativeCrashReport {
     pub target_arch: String,
 }
 
-/// Installs the process-level panic recorder.
-///
-/// A Rust panic can terminate the native process before the `WebView` is able to
-/// render anything. The panic hook therefore writes a local crash report that
-/// is consumed on the next launch.
 #[allow(
     clippy::print_stderr,
     reason = "the panic hook must still reach stderr when the logger is already down"
@@ -56,10 +51,6 @@ pub fn install(app: &AppHandle) -> Result<()> {
     Ok(())
 }
 
-/// Reads and consumes the previous crash report.
-///
-/// Reports are removed after a successful read so reloading the renderer does
-/// not display the same historical crash indefinitely.
 pub fn take_previous_crash_report(app: &AppHandle) -> Result<Option<NativeCrashReport>> {
     let report_path = crash_report(app)?;
 
@@ -139,10 +130,7 @@ fn panic_payload_message(panic_info: &PanicHookInfo<'_>) -> String {
     "Rust panic with a non-string payload".to_owned()
 }
 
-/// 崩溃报告直接落盘。
-///
-/// 旧文档保存所依赖的原子写实现已随旧产品形态一并移除。崩溃报告是尽力而为的
-/// 诊断产物，写失败只损失一份报告，不为它保留文档编解码器的写路径。
+/// 尽力而为的诊断产物：直接 fs::write，写失败只损失一份报告。
 fn write_report(path: &Path, report: &NativeCrashReport) -> std::io::Result<()> {
     let serialized = serde_json::to_vec_pretty(report).map_err(std::io::Error::other)?;
 

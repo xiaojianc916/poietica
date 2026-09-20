@@ -1,56 +1,33 @@
-//! 审查面的领域模型：变更清单、快照与提交意图。
-//!
-//! 解码是纯函数：porcelain v2 的记录与表头在这里变成类型，跑 git、拼快照的
-//! 活在 git-adapter。同一条记录只有这一处解释。
+//! 审查面的领域模型：变更清单、快照与提交意图；porcelain v2 记录只有这一处解释。
 
-/// 一个文件此刻的处境。
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum ChangeStatus {
-    /// 新增。
     Added,
-    /// 改动。
     Modified,
-    /// 删除。
     Deleted,
-    /// 还没被跟踪。
     Untracked,
-    /// 合并冲突未解决。
     Conflicted,
 }
 
-/// 工作树里一处变更。
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct FileChange {
-    /// 仓库根的相对路径，正斜杠 —— git 自己的说法。
     pub path: String,
-    /// 它此刻的处境。
     pub status: ChangeStatus,
-    /// 暂存区里也有这次改动（porcelain v2 的 X 位不是 '.'）。
     pub staged: bool,
 }
 
-/// 审查这一格此刻需要的全部事实。
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct ReviewSnapshot {
-    /// 当前检出的分支；HEAD 分离时为 None。
     pub branch: Option<String>,
-    /// HEAD 分离时所在提交的短号。
     pub detached_at: Option<String>,
-    /// 当前分支的上游引用；没有配置时为 None。
     pub upstream: Option<String>,
-    /// 相对上游领先的提交数。
     pub ahead: u32,
-    /// 相对上游落后的提交数。
     pub behind: u32,
-    /// 本地分支，按最近提交排序。
     pub branches: Vec<String>,
-    /// 变更清单，按 git status 的顺序。
     pub changes: Vec<FileChange>,
-    /// 整棵工作树相对基准的统一补丁，未跟踪文件在尾部追加。
     pub patch: String,
 }
 
-/// 一次提交动作的意图：三个动作三条路，界面不靠一个动作替人决定要不要联网。
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum CommitIntent {
     Commit,
@@ -58,8 +35,6 @@ pub enum CommitIntent {
     Push,
 }
 
-/// 解一条 porcelain v2 的普通/未合并/未跟踪记录。不认识的记录交回 None，
-/// 由调用方决定丢弃还是报错。
 #[must_use]
 pub fn parse_entry(record: &str) -> Option<FileChange> {
     let (marker, rest) = record.split_once(' ')?;
@@ -112,8 +87,6 @@ fn decode_marks(marks: &str) -> Option<(ChangeStatus, bool)> {
     Some((status, index != '.'))
 }
 
-/// 读一条 porcelain v2 的分支表头（# branch.oid / branch.head /
-/// branch.upstream / branch.ab）。
 pub fn read_header(held: &mut ReviewSnapshot, header: &str) {
     let Some((key, value)) = header.split_once(' ') else {
         return;
@@ -143,7 +116,6 @@ pub fn read_header(held: &mut ReviewSnapshot, header: &str) {
     }
 }
 
-/* ab 表头是 +<领先> -<落后>：符号属于格式，数字才是答案。 */
 fn signed(field: &str) -> Option<u32> {
     field.get(1..)?.parse().ok()
 }

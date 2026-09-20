@@ -1,5 +1,4 @@
-//! KAP REST 边界：生成路由负责地址，生成 wire 类型负责载荷。
-//! 信封只解一次，领域层不接触未验证的选择器数据。
+//! KAP REST 边界：生成路由与 wire 类型打头；信封只在这里解一次，领域层不接触未验证数据。
 
 use std::path::Path;
 
@@ -33,7 +32,6 @@ use crate::session::{
     OpenedSession, Skill,
 };
 
-/// 取信封里的 data；信封 code 只在这一处判定，路由随后解码生成类型。
 pub(crate) fn envelope_data(body: &Value) -> Result<Value> {
     let envelope: crate::generated::rest::RestEnvelope = serde_json::from_value(body.clone())
         .map_err(|error| KapError::Transport {
@@ -50,7 +48,6 @@ pub(crate) fn envelope_data(body: &Value) -> Result<Value> {
     })
 }
 
-/// 按快照类型读一条 data：字段名与形状的判据只有生成类型，没有第二条手挖的路。
 pub(crate) fn decoded<T: serde::de::DeserializeOwned>(data: Value, what: &str) -> Result<T> {
     serde_json::from_value(data).map_err(|error| KapError::Transport {
         message: format!("{what} does not fit the pinned contract: {error}"),
@@ -113,7 +110,6 @@ pub(crate) async fn delete(http: &reqwest::Client, route: routes::Route) -> Resu
     envelope_data(&body).map(|_| ())
 }
 
-/// 发请求、解信封。get 与 post 只差请求的构造，收发与解包走同一条路。
 async fn send(builder: reqwest::RequestBuilder) -> Result<Value> {
     let body: Value = builder
         .send()
@@ -130,7 +126,6 @@ async fn send(builder: reqwest::RequestBuilder) -> Result<Value> {
     envelope_data(&body)
 }
 
-/// POST /sessions 只发送 create handler 实际消费的字段。
 pub(crate) fn create_session_body(cwd: &Path) -> CreateSessionRequestStruct {
     CreateSessionRequestStruct {
         metadata: Some(CreateSessionRequestMetadataStruct {
@@ -140,7 +135,6 @@ pub(crate) fn create_session_body(cwd: &Path) -> CreateSessionRequestStruct {
     }
 }
 
-/// Kimi 配置的默认模型优先；目录首项只在配置未指定时兜底。
 pub(crate) async fn default_model(http: &reqwest::Client, base_url: &str) -> Result<String> {
     let (config, catalog): (Value, ListModelsDataStruct) =
         tokio::try_join!(get(http, routes::client_config(base_url)), async {
@@ -186,7 +180,6 @@ fn model_in_status(status: &Value) -> Option<&str> {
         .filter(|model| !model.trim().is_empty())
 }
 
-/// 会话只有在 profile 已确认模型后才允许订阅或返回调用方。
 pub(crate) async fn ensure_session_model(
     http: &reqwest::Client,
     base_url: &str,
@@ -220,7 +213,6 @@ pub(crate) async fn ensure_session_model(
     })
 }
 
-/// POST /sessions/{id}/profile 的请求体：只带要改的那一格，其余缺席不上 wire。
 pub(crate) fn profile_body(
     patch: CreateSessionRequestAgentConfigStruct,
 ) -> SetProfileRequestStruct {
@@ -230,8 +222,7 @@ pub(crate) fn profile_body(
     }
 }
 
-/// 提交一句话。幂等键随载荷上 wire（快照的 SubmitPromptRequest.prompt_id）：
-/// 重试投递时 server 收过就不重复入列，所以 ambiguous 的传输失败可以重试。
+/// 幂等键 prompt_id 随载荷上 wire：server 收过就不重复入列，ambiguous 的传输失败可重试（快照的 SubmitPromptRequest.prompt_id）。
 pub(crate) async fn submit_prompt(
     http: &reqwest::Client,
     base_url: &str,
@@ -316,7 +307,6 @@ fn prompt_body(
     })
 }
 
-/// 原子快照先由生成契约验证；调用方只消费水位与重建载荷。
 pub(crate) async fn session_snapshot(
     http: &reqwest::Client,
     base_url: &str,
@@ -334,7 +324,6 @@ pub(crate) async fn session_snapshot(
     ))
 }
 
-/// 三条会话出生路（新开 / 装载 / 分叉）共用的激活序列。
 async fn activate(
     http: &reqwest::Client,
     base_url: &str,
@@ -346,8 +335,7 @@ async fn activate(
     ensure_session_model(http, base_url, session_id).await?;
     book.open(session_id)?;
     subscribe(ws, session_id, from).await?;
-    /* transcript 流与事件流同一次激活挂上：不带读点首订，server 用
-    transcript.reset 从当前水位整发。 */
+    /* transcript 首订不带读点：server 用 transcript.reset 从当前水位整发。 */
     subscribe_transcript(ws, session_id, None).await?;
 
     let (selectors, _goal) = get_selectors(http, base_url, session_id).await?;
@@ -358,8 +346,7 @@ async fn activate(
     })
 }
 
-/// 一条会话一个 agent 的 transcript 页（原样 JSON）。载荷不在这一层解：契约钉
-/// 在 vendored @poietica/transcript 的 zod schema，由桥那一侧校验，这里只管透传。
+/// transcript 载荷原样透传，不在这一层解：契约钉在 vendored @poietica/transcript 的 schema，由桥校验。
 pub(crate) async fn read_transcript(
     http: &reqwest::Client,
     base_url: &str,
@@ -378,7 +365,6 @@ pub(crate) async fn read_transcript(
     get(http, url).await
 }
 
-/// 一条会话一个 agent 的追赶批次（REST transcript/ops，原样 JSON）。
 pub(crate) async fn catch_up_transcript(
     http: &reqwest::Client,
     base_url: &str,
@@ -415,8 +401,6 @@ pub(crate) async fn open_session(
     activate(http, base_url, &opened.id, None, book, ws).await
 }
 
-/// kap 的会话在 server 侧持久：装载 = 验存在 + 重新订阅。号在 server 侧也没了时
-/// GET 信封带非零 code，在这里变 Err，调用侧据此分辨 AgentHistoryLoss。
 pub(crate) async fn load_session(
     http: &reqwest::Client,
     base_url: &str,
@@ -438,7 +422,6 @@ pub(crate) async fn fork_session(
     book: &SessionBook,
     ws: &WsSink,
 ) -> Result<OpenedSession> {
-    // 动作后缀路由：POST /sessions/{id}:fork（routes/action-suffix.ts）。
     let data = post(
         http,
         routes::fork_session(base_url, &format!("{source_id}:fork")),
@@ -449,9 +432,7 @@ pub(crate) async fn fork_session(
     let forked: CreateSessionDataStruct = decoded(data, "forked session")?;
     let id = forked.id;
 
-    // :fork 的请求体没有分叉点这一格（kap-server 的 sessionForkSchema）；回退
-    // 走 :undo 按用户轮次数收（undoSessionRequestSchema 的 count），落在复制件
-    // 上，源会话不动。
+    // :fork 的请求体没有分叉点这一格（kap-server 的 sessionForkSchema）：回退走 :undo 按轮数收，落在复制件上。
     if drop_turns > 0 {
         post(
             http,
@@ -501,7 +482,6 @@ pub(crate) async fn list_sessions(
         .collect())
 }
 
-/// 这条会话能用的技能（rest-skill.ts 的 listSkillsResponseSchema）。
 pub(crate) async fn list_skills(
     http: &reqwest::Client,
     base_url: &str,
@@ -524,7 +504,6 @@ pub(crate) async fn list_skills(
         .collect())
 }
 
-/// 技能来源的领域写法与 wire 同名；判别式在生成枚举里，这里只落成名字。
 const fn skill_source(source: ListSkillsDataSkillsSourceEnum) -> &'static str {
     match source {
         ListSkillsDataSkillsSourceEnum::Project => "project",
@@ -563,7 +542,6 @@ pub(crate) async fn list_mcp_servers(
         .collect()
 }
 
-/// 本机 KAP 报的能力清单。生成类型先验证 wire，随后才进入领域映射。
 pub(crate) async fn list_capabilities(
     http: &reqwest::Client,
     base_url: &str,
@@ -574,7 +552,6 @@ pub(crate) async fn list_capabilities(
     Ok(listed.capabilities.into_iter().map(capability_of).collect())
 }
 
-/// 启动或跟随 KAP 的后台安装，直到它明确落定。
 pub(crate) async fn install_capability(
     http: &reqwest::Client,
     base_url: &str,
@@ -644,7 +621,6 @@ fn capability_of(wire: ListCapabilitiesDataCapabilitiesStruct) -> Capability {
     }
 }
 
-/// 读取目标真相；协议缺席与传输失败不能合并。
 pub(crate) async fn fetch_goal(
     http: &reqwest::Client,
     base_url: &str,
@@ -655,8 +631,6 @@ pub(crate) async fn fetch_goal(
     Ok(goal_snapshot(goal.as_ref()))
 }
 
-/// 选择器表与目标快照一趟取回：turn.ended 收尾两样都要，分开打就是同一轮里
-/// 第二次 /goal。
 pub(crate) async fn get_selectors(
     http: &reqwest::Client,
     base_url: &str,
@@ -802,7 +776,6 @@ pub(crate) async fn set_selector(
 
 #[cfg(test)]
 mod tests {
-    // 测试里的 expect 是响亮失败，豁免只写在测试作用域，不靠根配置放开（Cargo.toml lints 注释）。
     #![allow(
         clippy::expect_used,
         reason = "a test proves itself by panicking, so a failed step must fail the test"

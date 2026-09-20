@@ -20,22 +20,16 @@ import { useBrowserPick } from '../browser/pick-context'
 
 import { useThreadsActions } from './threads-context'
 
-/* 一条对话还没有自己的表时交回它：盘上那份属于上一次开窗，不属于这条对话。 */
 const NONE: readonly SessionConfigControl[] = []
 
 export interface ConversationSurfaceProps {
   readonly isNew: boolean
-  /** 第一条消息前把已铸造的标识写入平台。 */
   readonly onPrepare?: (() => Promise<boolean>) | undefined
-  /** 这条对话说出第一句话时，带上它当时的名字。 */
   readonly onStarted?: (threadId: string, title: string) => void
   readonly session: AgentSessionPort
   readonly threadId: string
-  /** 分叉出的对话开出来之后，去它那里 —— 与打开列表里一条是同一个动作。 */
   readonly onForked?: ((threadId: string, title: string) => void) | undefined
-  /** 只有新对话入口会交出这项。 */
   readonly workspace?: Omit<WorkspacePickerProps, 'placement'> | undefined
-  /** 工作目录的分支上下文，与 workspace 同来源同去处；不是仓库就没有。 */
   readonly git?: GitBranchPickerProps | undefined
 }
 
@@ -61,7 +55,6 @@ export function ConversationSurface({
 
   const failure = useThreadSelectorFailure(isNew ? null : threadId)
 
-  /* 用量只属于真的对话：入口那一格没有会话可报数，胶囊整个不画。 */
   const usage = useThreadUsage(isNew ? null : threadId)
 
   useEffect(() => {
@@ -80,11 +73,7 @@ export function ConversationSurface({
     selectControl,
   } = useAgentControls()
 
-  /*
-   * 入口那一格读的是锚会话的表，盘上那份正是为它准备的。对话里读的是那条会话的表，
-   * 而它由 #reopen 在打开时取回 —— 盘上那份说的是「上一次开窗时 agent 怎么说」，
-   * 未必属于这条对话，所以在那张表回来之前宁可什么都不画，也不拿它顶替。
-   */
+  /* 盘上那份控件表属于上一次开窗、不属于这条对话；表回来之前宁可空着，也不拿它顶替。 */
   const sourceControls = isNew ? known : (offered ?? (provisional ? NONE : known))
   const hiddenModelAliases = useHiddenModelAliases()
   const controls = useMemo(
@@ -96,15 +85,11 @@ export function ConversationSurface({
 
   const controlsFailure = isNew ? knownFailure : failure
 
-  /* 名册按会话回答，所以它跟着这一格走：入口是锚会话，进了对话就是那条会话。 */
-
-  /* 交回这一趟的承诺：重试图标转多久由它说了算（见 ComposerNotice）。 */
   const retryControls = useCallback(
     () => (isNew ? retry() : sessionControls.retrySelectors(threadId)),
     [isNew, retry, sessionControls, threadId],
   )
 
-  /* 改一项，交给持有这张表的那一方：入口那格是锚会话，对话里是那条会话。 */
   const chooseControl = useCallback(
     (controlId: string, value: string, input?: string) => {
       if (isNew) {

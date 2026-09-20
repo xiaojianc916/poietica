@@ -4,13 +4,6 @@ import type { AgentToolkit } from '../../agent/toolkit'
 
 import { AgentCapabilityStore } from '../capability-store'
 
-/*
- * 每个用例造一份自己的 store，端口由 start() 交进去。
- *
- * 它不认识 React、不认识进程，也不认识 IPC，所以这里不需要任何模块级的复位动作。
- */
-
-/* 名册不是这些用例的主角：给一个恒空的读法，让端口完整。 */
 const EMPTY_TOOLKIT: AgentToolkit = { skills: [], mcpServers: [] }
 
 const skill = (name: string, source: string): AgentToolkit['skills'][number] => ({
@@ -47,7 +40,6 @@ const control = (
   choices: values.map((value) => ({ value, label: value })),
 })
 
-/* 三张表。档位候选各不相同，那正是"档位随模型变"这件事本身。 */
 const ON_OFF: readonly SessionConfigControl[] = [
   control('model', 'model', 'kimi-k2', ['kimi-k2', 'kimi-k3']),
   control('thought', 'thought', 'off', ['off', 'on']),
@@ -63,7 +55,6 @@ const MAXED: readonly SessionConfigControl[] = [
   control('thought', 'thought', 'max', ['off', 'high', 'max']),
 ]
 
-/* 批准方式一格：purpose 是 permission，不是 mode —— 写错判据的那次事故就在这里。 */
 const WITH_PERMISSION: readonly SessionConfigControl[] = [
   control('model', 'model', 'kimi-k2', ['kimi-k2', 'kimi-k3']),
   {
@@ -78,7 +69,6 @@ const WITH_PERMISSION: readonly SessionConfigControl[] = [
   },
 ]
 
-/* 让已经兑现的那些 then 跑完。这里没有计时器，所以不需要假时钟。 */
 async function settled(): Promise<void> {
   for (let tick = 0; tick < 32; tick += 1) {
     await Promise.resolve()
@@ -112,12 +102,9 @@ describe('锚会话的那张表', () => {
     store.selectControl('model', 'kimi-k3')
     await settled()
 
-    /* 一次答复整张换掉：不存在"新模型 + 旧档位"这种中间形态。 */
     expect(currentOf(store.snapshot().controls, 'model')).toBe('kimi-k3')
     expect(currentOf(store.snapshot().controls, 'thought')).toBe('high')
 
-    /* 端口收的是控件，不是它的 id：桌面那一侧靠 purpose 认出「模型那一格」才会去
-    写 default_model。传字符串过去，两处一起读出 undefined。 */
     expect(asked?.id).toBe('model')
     expect(asked?.purpose).toBe('model')
 
@@ -147,7 +134,6 @@ describe('锚会话的那张表', () => {
 
     expect(currentOf(store.snapshot().controls, 'thought')).toBe('off')
 
-    /* agent 补推了一次：屏幕必须跟着回到它真在用的那张表。 */
     table = THREE_TIER
     announce?.()
 
@@ -183,7 +169,6 @@ describe('锚会话的那张表', () => {
 
     await settled()
 
-    /* 第二次读取还在飞的时候，切换的答复先回来。 */
     store.refresh()
     store.selectControl('model', 'kimi-k3')
     await settled()
@@ -193,7 +178,6 @@ describe('锚会话的那张表', () => {
     release?.(ON_OFF)
     await settled()
 
-    /* 该赢的是问得晚的那一个，不是回来得晚的那一个。 */
     expect(currentOf(store.snapshot().controls, 'thought')).toBe('high')
 
     stop()
@@ -217,7 +201,6 @@ describe('锚会话的那张表', () => {
 
     await settled()
 
-    /* 这张表的档位只有 off/on：max 不属于它，发出去只会换回一个错误。 */
     store.selectControl('thought', 'max')
     await settled()
 
@@ -249,15 +232,10 @@ describe('锚会话的那张表', () => {
 
     await settled()
 
-    /*
-     * 同一拍里发两次。max 只存在于换完模型之后那张表里 —— 并发下发的第二条命令
-     * 读的是改动前那张，于是它会被当成"agent 从没提供过的值"静默丢掉。
-     */
     store.selectControl('model', 'kimi-k3')
     store.selectControl('thought', 'max')
     await settled()
 
-    /* 两条都发出去了，而且第二条带着的是新表里那个档位控件。 */
     expect(sent).toHaveLength(2)
     expect(sent[0]).toEqual({ id: 'model', value: 'kimi-k3', from: 'kimi-k2' })
     expect(sent[1]).toEqual({ id: 'thought', value: 'max', from: 'high' })
@@ -303,7 +281,6 @@ describe('锚会话的那张表', () => {
 
     expect(written).toEqual(['yolo'])
 
-    /* 模型走 agent 配置，不进批准姿态这一个持久端口。 */
     store.selectControl('model', 'kimi-k3')
     await settled()
 
@@ -351,10 +328,6 @@ describe('锚会话的那张表', () => {
 
     await settled()
 
-    /*
-     * 空表与失败是两种不同的画法：一个都没有时屏幕上什么都不画，而这是一次真的
-     * 失败，它必须说出理由并且能被再试一次（见 surface/composer/session-controls.tsx）。
-     */
     expect(store.snapshot().controls).toHaveLength(0)
     expect(store.snapshot().failure).toContain('agent 没起来')
 
@@ -369,7 +342,6 @@ describe('锚会话的那张表', () => {
 })
 
 describe('盘上那张表（上一趟 agent 确认过的）', () => {
-  /* 一个只读不写的记忆，外加一个什么都不做的端口。 */
   const memoryOf = (remembered: readonly SessionConfigControl[]) => {
     const written: Array<readonly SessionConfigControl[]> = []
 
@@ -388,7 +360,6 @@ describe('盘上那张表（上一趟 agent 确认过的）', () => {
     const { port } = memoryOf(ON_OFF)
     const store = new AgentCapabilityStore({ memory: port })
 
-    /* 一次 start 都还没发生：这正是「窗口刚画出来」那一刻。 */
     const held = store.snapshot()
 
     expect(held.controls).toBe(ON_OFF)
@@ -435,10 +406,6 @@ describe('盘上那张表（上一趟 agent 确认过的）', () => {
       readToolkit: () => Promise.resolve(EMPTY_TOOLKIT),
     })
 
-    /*
-     * 读还在飞的时候点一下：盘上那张表不是「现在」的判据，据此发 set_config
-     * 改的可能正是 agent 这一趟已经不提供的那一档。
-     */
     store.selectControl('model', 'kimi-k3')
     await settled()
 
@@ -447,7 +414,6 @@ describe('盘上那张表（上一趟 agent 确认过的）', () => {
     release?.(ON_OFF)
     await settled()
 
-    /* 确认过了：同一次点击现在真的发得出去。 */
     store.selectControl('model', 'kimi-k3')
     await settled()
 
@@ -471,7 +437,6 @@ describe('盘上那张表（上一趟 agent 确认过的）', () => {
 
     expect(written).toEqual([ON_OFF])
 
-    /* 换模型那一次答复也落盘：下一趟开窗该看到的是最后那张表。 */
     store.selectControl('model', 'kimi-k3')
     await settled()
 
@@ -496,10 +461,6 @@ describe('盘上那张表（上一趟 agent 确认过的）', () => {
 })
 
 describe('补发批准方式的那一趟', () => {
-  /*
-   * 新会话默认报 manual，而用户的持久意图是 auto —— 这一对就是那一闪的来源：
-   * 照原样画会先画「请求批准」，下一趟往返再跳回「完全访问」。
-   */
   const OFFERED: readonly SessionConfigControl[] = [
     control('model', 'model', 'kimi-k2', ['kimi-k2', 'kimi-k3']),
     {
@@ -552,15 +513,10 @@ describe('补发批准方式的那一趟', () => {
 
     await settled()
 
-    /* 中间那一档一次都没画过。 */
     expect(painted).not.toContain('manual')
     expect(painted).toContain('auto')
-    /*
-     * 画成 auto 不能把下发一起吞掉：同值早退的判据必须是 agent 的原话，
-     * 拿屏幕上投影过的那张去判，这一条就发不出去 —— 屏幕说完全访问，agent 停在请求批准。
-     */
+    /* 同值早退必须判 agent 的原话；判屏幕上投影过的表会把这次下发吞掉。 */
     expect(sent).toEqual(['auto'])
-    /* 盘上落的也是收敛后的那一档，下一次开窗才不会换个方向再闪一遍。 */
     expect(memory).toContainEqual(ALIGNED)
     expect(memory).not.toContainEqual(OFFERED)
 
@@ -576,7 +532,6 @@ describe('补发批准方式的那一趟', () => {
       select: (_control, value) => {
         sent.push(value)
 
-        /* 拒了：报回来的还是 manual。 */
         return Promise.resolve(OFFERED)
       },
       subscribe: inert,
@@ -586,10 +541,8 @@ describe('补发批准方式的那一趟', () => {
     await settled()
 
     expect(sent).toEqual(['auto'])
-    /* 权威回滚：屏幕上留的是 agent 真在用的那一档，不是我们想让它变成的那一档。 */
     expect(currentOf(store.snapshot().controls, 'permission')).toBe('manual')
 
-    /* 再读一次也不再发：同一个意图只补一次。 */
     store.refresh()
     await settled()
 
@@ -615,7 +568,6 @@ describe('补发批准方式的那一趟', () => {
 
     await settled()
 
-    /* 这张表里根本没有批准方式那一格：补发无从谈起，更不能凭空造一个值出来。 */
     expect(sent).toBe(0)
     expect(currentOf(store.snapshot().controls, 'permission')).toBeUndefined()
 

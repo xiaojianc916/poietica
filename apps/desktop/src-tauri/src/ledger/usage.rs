@@ -1,6 +1,4 @@
-//! 每天用掉多少 token —— 设置页那张图读的就是它。
-//!
-//! 账怎么算是账本的事（persistence 的 usage.rs），这一侧只把它交出去。
+//! 设置页每日 token 图的数据出口；口径归账本（persistence 的 usage.rs），这里只交出去。
 
 use serde::Serialize;
 use specta::Type;
@@ -10,11 +8,9 @@ use crate::ledger::{LocalIndex, counted};
 use poietica_ledger::execution::read_index;
 use poietica_problem::Problem;
 
-/// 一天的账。日历日按本机时区算，键就是渲染层索引热力图的那一个。
 #[derive(Debug, Serialize, Type)]
 #[serde(rename_all = "camelCase")]
 pub struct UsageDay {
-    /// `YYYY-MM-DD`。
     pub day: String,
     pub tokens: u32,
 }

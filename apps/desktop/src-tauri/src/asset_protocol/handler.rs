@@ -8,7 +8,6 @@ use super::range::requested_range;
 use super::response::{asset_response, empty_response};
 use crate::asset_protocol::{AssetProtocolError, AssetProtocolRegistry};
 
-/// 宿主接线（bootstrap/app.rs）只调这一个。
 pub fn respond<B>(registry: &AssetProtocolRegistry, request: &Request<B>) -> Response<Vec<u8>> {
     match resolve_request(registry, request) {
         Ok(asset) => asset_response(&asset, requested_range(request)),
@@ -142,7 +141,6 @@ mod tests {
             .expect("request should be valid")
     }
 
-    /* 媒体元素靠 206 做 seek：把「可以对我发 Range」钉成会失败的断言。 */
     #[test]
     fn serves_the_three_range_forms_browsers_actually_send() {
         let registry = AssetProtocolRegistry::default();
@@ -159,7 +157,6 @@ mod tests {
             ("bytes=2-4", vec![2, 3, 4], "bytes 2-4/10"),
             ("bytes=7-", vec![7, 8, 9], "bytes 7-9/10"),
             ("bytes=-3", vec![7, 8, 9], "bytes 7-9/10"),
-            // 越界的上端点收敛到最后一个字节，不是一个错误。
             ("bytes=8-100", vec![8, 9], "bytes 8-9/10"),
         ] {
             let response = respond(&registry, &range_request(&uri, spec));
@@ -221,8 +218,7 @@ mod tests {
         );
     }
 
-    /* RFC 9110 要求忽略读不懂的 range unit：退整份交付而非 416，别把能播的
-    资源变成播不了的。 */
+    /* RFC 9110 要求忽略读不懂的 range unit：退整份交付而非 416。 */
     #[test]
     fn an_unreadable_range_falls_back_to_the_whole_asset() {
         let registry = AssetProtocolRegistry::default();
@@ -248,8 +244,6 @@ mod tests {
         }
     }
 
-    /* 上面的用例手拼 URI，绕过了 asset_protocol_url——那道缝正是 Windows 上
-    破图的地方；这一条从生成器出发走完整条解析路径，并按平台逐字对。 */
     #[test]
     fn the_url_it_hands_out_resolves_on_this_platform() {
         let registry = AssetProtocolRegistry::default();
@@ -261,7 +255,6 @@ mod tests {
         let asset = insert(&registry, "session-1", "image/png", &[1, 2, 3]);
         let url = asset_protocol_url("session-1", &asset).expect("url should build");
 
-        /* 逐字比，不比前缀：畸形 URL 的前缀断言在非 Windows 宿主上跑不到。 */
         let expected = if cfg!(windows) {
             format!("http://poietica-asset.localhost/asset/session-1/{asset}")
         } else {
@@ -330,7 +323,6 @@ mod tests {
 
         assert_eq!(asset, duplicate);
 
-        /* 同一份字节只记一次账：第二次插入只是把引用加一。 */
         assert_eq!(registry.total_bytes(), 3);
 
         assert!(
@@ -382,7 +374,6 @@ mod tests {
         assert_eq!(result, Err(AssetProtocolError::InvalidContentHash),);
     }
 
-    /* 此前只比对字符串、从未摘要字节，谎报身份的插入会成功——这条挡住它。 */
     #[test]
     fn rejects_bytes_that_do_not_match_their_declared_identity() {
         let registry = AssetProtocolRegistry::default();
@@ -415,8 +406,6 @@ mod tests {
         .expect("fixture entry should verify")
     }
 
-    /* 摘要校验移进了 verify 这个唯一能一次建立身份的地方：伪造身份的 entry
-    从此构造不出来，没有任何会话能从它发布。 */
     #[test]
     fn an_entry_cannot_claim_an_identity_its_bytes_do_not_have() {
         let result = AssetSessionSnapshotEntry::verify(
@@ -441,10 +430,6 @@ mod tests {
         assert_eq!(result, Err(AssetProtocolError::UnsupportedContentType));
     }
 
-    /*
-     * 打开一条对话会反复走到这里：Ctrl+R 一次，开第二个窗口一次。拆和铺
-     * 分成两步的那条路上，中间那段空窗就是屏幕上的破图标；这一个不需要拆。
-     */
     #[test]
     fn replacing_a_live_session_swaps_its_contents_in_one_step() {
         let registry = AssetProtocolRegistry::default();
@@ -474,8 +459,6 @@ mod tests {
             "the old asset should be gone"
         );
 
-        /* 反复铺同一条会话不该把字节重复计入预算。分两步时这笔账由 remove
-        那一半负责减，少走一次就永远回不来，而它对外完全不可见。 */
         let steady = registry.total_bytes();
 
         for _repeat in 0..8 {
@@ -502,11 +485,6 @@ mod tests {
         assert_eq!(response.body(), after.as_ref());
     }
 
-    /*
-     * 过继是这一刀的地基：输入框那条会话与对话的交付会话共用同一份内存。
-     * 共用没做到，就是每发一句话复制一次最多 32 MB；共用做错了（比如把字节
-     * 重复计入预算），账只会朝一个方向漂，而它从外面完全看不见。
-     */
     #[test]
     fn adopting_shares_the_bytes_instead_of_copying_them() {
         let registry = AssetProtocolRegistry::default();
@@ -529,7 +507,6 @@ mod tests {
         assert_eq!(mime, "image/png");
         assert_eq!(bytes.as_ref(), &vec![1, 2, 3]);
 
-        /* 源与目标都还在交付：两条 URL 都必须解析。 */
         for session in ["composer", "thread-1"] {
             let response = respond(
                 &registry,
@@ -539,11 +516,6 @@ mod tests {
             assert_eq!(response.status(), StatusCode::OK, "{session}");
         }
 
-        /*
-         * 「没有复制」就是字面意思：比 Arc 的地址。这是这一刀的全部价值 ——
-         * 共用没做到，就是每发一句话把最多 32 MB 复制一遍。把这份字节再过继
-         * 一手，两次交出的必须是同一个 Arc。
-         */
         registry
             .open_session("thread-2")
             .expect("session should open");
@@ -558,14 +530,8 @@ mod tests {
             "过继必须交出同一份内存，而不是它的副本"
         );
 
-        /* 账按「会话 × 资源」记，三条会话各记一份。 */
         assert_eq!(registry.total_bytes(), once * 3);
 
-        /*
-         * 加减对得上，才是这笔账唯一的硬性要求，也是它唯一会出问题的地方。
-         * 漏减一次就永远回不来，而 total_bytes 从外面完全看不见 —— 看不见的
-         * 不变量等于没有不变量。
-         */
         registry
             .remove_session("composer")
             .expect("the source session should close");

@@ -7,9 +7,7 @@ pub enum Error {
     #[error("IO error: {0}")]
     Io(#[from] std::io::Error),
 
-    /// 本地索引库拒绝了一条语句，消息原样透给界面（判据与 AgentCli 同一条）：SQLite
-    /// 的话不含路径与用户名，且它是唯一说得出哪条语句被拒的；折叠成固定文案后，屏幕
-    /// 之外再无人知道发生了什么。
+    /// SQLite 的拒绝消息不含路径与用户名，可原样透给界面：它是唯一说得出哪条语句被拒的。
     #[error("Persistence error: {0}")]
     Persistence(String),
 
@@ -40,14 +38,9 @@ pub enum Error {
     #[error("File error: {0}")]
     File(String),
 
-    /// 受控 agent CLI 被拒或失败，或 agent 自己说明了原因。与 Git 是仅有的两个消息
-    /// 原样透给界面的变体：桌面单机应用，屏幕前的人就是跑这个进程的本机用户，agent
-    /// 对他说的话不是秘密，而是他唯一拿得去排查、据以修正的东西。
     #[error("Agent CLI error: {0}")]
     AgentCli(String),
 
-    /// git CLI 拒绝或失败。与 AgentCli 同一判据：理由原样透给界面，
-    /// 那是用户唯一拿得去修正的信息（分支重名、工作区不干净……）。
     #[error("Git error: {0}")]
     Git(String),
 }

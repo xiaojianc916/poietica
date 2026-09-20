@@ -1,9 +1,4 @@
-//! agent 运行时的安装与更新。
-//!
-//! 与 `agent_cli_exec` 并行的第二条封闭管线，不是它的放宽版：包名由 agents.json
-//! 档案声明，程序只能是 bun、pnpm、npm 之一，渲染层能说的只有「装哪个 agent」。
-//! 判据住在 `poietica-kap-client` 的 process/install.rs，这里只有 24 小时检测
-//! 缓存与「档案 → crate 调用」的编排。
+//! agent 运行时安装的第二条封闭管线：包名由 agents.json 档案声明，渲染层只能说「装哪个 agent」；判据在 poietica-kap-client 的 process/install.rs。
 
 use poietica_time::WallClock;
 use serde::{Deserialize, Serialize};
@@ -23,22 +18,16 @@ use super::profile::{agent_install_spec, agent_program, open_store, surfaced};
 
 const CHECK_KEY: &str = "installChecks";
 
-/// 检测间隔与 npm update-notifier 的默认值、Homebrew 的 `HOMEBREW_AUTO_UPDATE_SECS`
-/// 同一量级：检测不轮询，命中缓存就不起网络。
 const CHECK_TTL_MS: i64 = 24 * 60 * 60 * 1000;
 
-/// 界面读到的安装处境（IPC DTO；判据在 crate 的 InstallState）。
 #[derive(Clone, Copy, Debug, Deserialize, PartialEq, Eq, Serialize, Type)]
 #[serde(rename_all = "camelCase")]
 pub enum AgentInstallState {
-    /// 档案没说这东西怎么装。界面什么都不画。
     Unmanaged,
     Missing,
     Outdated,
     Current,
-    /// 装着，但不是 bun、pnpm、npm 装的。我们不碰别人的安装。
     External,
-    /// 装着，但问不到最新版（离线、镜像不通），或者它的 --version 读不懂。
     Unknown,
 }
 
@@ -117,7 +106,6 @@ fn compute(app: &AppHandle, agent_id: &str, force: bool) -> Result<AgentInstallS
 
     let program = agent_program(app, agent_id)?;
 
-    /* 解析处只有一个：kap 会话与 provider CLI 起的也是它解析出的那份。 */
     let Ok(resolved) = resolve_program(&program) else {
         return Ok(NativeInstallStatus {
             state: NativeInstallState::Missing,
@@ -129,7 +117,6 @@ fn compute(app: &AppHandle, agent_id: &str, force: bool) -> Result<AgentInstallS
 
     let installed = reported_version(&resolved, &spec.version_args);
 
-    /* 装着但不归我们管：不查最新版，也不画按钮。这里发一次网络请求只会白花时间。 */
     let Some(owner) = owner_of(&resolved) else {
         return Ok(NativeInstallStatus {
             state: NativeInstallState::External,
@@ -147,7 +134,6 @@ fn compute(app: &AppHandle, agent_id: &str, force: bool) -> Result<AgentInstallS
             .filter(|(_version, at)| now_ms().saturating_sub(*at) < CHECK_TTL_MS)
     };
 
-    /* 检查时刻只服务于 TTL 判定，留在这一侧。 */
     let latest = match fresh {
         Some((version, _at)) => Some(version),
         None => match latest_version(owner, &spec.package_name) {
@@ -155,7 +141,6 @@ fn compute(app: &AppHandle, agent_id: &str, force: bool) -> Result<AgentInstallS
                 remember_latest(app, agent_id, &version, now_ms());
                 Some(version)
             }
-            /* 问不到最新版是一件可以发生的事，不是一次失败：装着的那份照样能用。 */
             Err(_offline) => None,
         },
     };
@@ -178,7 +163,6 @@ fn install(app: &AppHandle, agent_id: &str) -> Result<AgentInstallStatus> {
         )));
     };
 
-    /* 已装就交回装它的那一个：换一个包管理器不是升级，是在别处放第二份。 */
     let owner = agent_program(app, agent_id)
         .ok()
         .and_then(|program| resolve_program(&program).ok())
@@ -200,18 +184,13 @@ fn install(app: &AppHandle, agent_id: &str) -> Result<AgentInstallStatus> {
         )
     })?;
 
-    /* 目标版本与检测同源。查不到（离线、镜像不通）才退回 latest。 */
     let target = latest_version(manager, &spec.package_name).ok();
 
     install_package(manager, &spec.package_name, target.as_deref()).map_err(surfaced)?;
 
-    /* 装完那一刻缓存必然过期：强制重算，调用方拿到的就是新状态，不用再问一次。 */
     let status = compute(app, agent_id, true)?;
 
-    /*
-     * 退出码 0 不等于装到位——出过报成功却落地旧版本的事；不比对，界面只会把
-     * 同一个「更新到 X」再画一次。
-     */
+    /* 包管理器可能报成功却落地旧版本（元数据缓存过旧），必须比对落地版本。 */
     if let (Some(target), Some(installed)) =
         (target.as_deref(), status.installed_version.as_deref())
         && target != installed
@@ -229,10 +208,6 @@ fn install(app: &AppHandle, agent_id: &str) -> Result<AgentInstallStatus> {
     Ok(status)
 }
 
-/// 当前这个 agent 装了没有、是不是最新。
-///
-/// force 为假时命中 24 小时内的缓存就直接返回，不起网络，界面每次挂载都可以调。
-/// 没装、不归我们管、问不到最新版都是状态，不是错误。
 #[command]
 #[specta::specta]
 pub async fn agent_install_status(
@@ -246,7 +221,6 @@ pub async fn agent_install_status(
         .map_err(Problem::from)
 }
 
-/// 安装或更新这个 agent 的运行时，完成后返回新的状态。
 #[command]
 #[specta::specta]
 pub async fn agent_install_run(

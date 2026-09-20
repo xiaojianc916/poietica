@@ -52,9 +52,7 @@ export interface DesktopWorkspaceProps {
   readonly host: WorkbenchHost
   readonly agentSession: AgentSessionPort
   readonly appVersion: () => Promise<string>
-  /** 数据目录。与版本号同源同层：关于页面上的两个事实出自同一条链。 */
   readonly dataDirectory: () => Promise<string>
-  /** Token 日账的读。与上面两个同源同层：用量页要的账只有原生侧那一份。 */
   readonly readTokenDays: SettingsProviderProps['readTokenDays']
   readonly workspace: WorkbenchSessionStore
   readonly commands: CommandRegistry
@@ -63,15 +61,12 @@ export interface DesktopWorkspaceProps {
   readonly settingsStore: SettingsStore
   readonly onThemeChange: SettingsProviderProps['onThemeChange']
   readonly agentSettings: AgentSettings
-  /** 模型目录的唯一持有者，由组合根注入（见 entry/compose-runtime.ts）。 */
   readonly modelCatalog: ModelCatalogStore
   readonly composerDrafts: ComposerDrafts
   readonly personalization: PersonalizationStore
-  /** 资料库表面渲染器，由组合根注入（见 entry/compose-runtime.ts）。 */
   readonly librarySurface: () => ReactNode
   readonly auxiliaryPanel: AuxiliaryPanelStore
   readonly plugins: PluginStore
-  /** 进程级自动化表，由组合根构造注入（见 entry/compose-runtime.ts）。 */
   readonly automationStore: AutomationStore
   readonly keybindings: KeybindingCatalog
   readonly updateRow: ReactNode
@@ -83,42 +78,21 @@ export interface DesktopWorkspaceProps {
   readonly onWindowClose: () => void
 }
 
-/** 这一格是 AI 助手（真实对话或新建入口）时，页头与背景皮肤才挂出来。 */
 function isAssistantChromeSurface(surface: WorkbenchSurfaceViewModel): boolean {
   return (
     surface.kind === 'conversation' || (surface.kind === 'surface' && surface.surfaceId === 'ai')
   )
 }
 
-/*
- * 设置页在右栏那一格的归属键。
- *
- * 与对话的 threadId 同一张表里的另一个键：threadId 是 uuid，撞不上。
- */
+// 归属键与对话的 threadId 同一张表：threadId 是 uuid，撞不上这个字面量。
 const SETTINGS_AUXILIARY_OWNER = 'settings'
 
 interface AuxiliaryBinding {
-  /** 这一格归谁：对话是它的 threadId，设置页是设置自己那个键。 */
   readonly owner: string | null
-  /** 浏览器那一段算不算这一格的。 */
   readonly ownsBrowser: boolean
   readonly docked: boolean
 }
 
-/*
- * 右栏这一格的归属与在场。
- *
- * 设置页有自己那一格，与任何一条对话都不共用：在设置里点开的技能文档不会跑到对话的右栏里，
- * 对话那边的标签页也不会跟到设置里来；浏览器那一段更是宿主全局的一份，设置页不认领它。
- * 与布局里「哪条对话的右栏是开的」同一个道理 —— 状态按归属分账。
- *
- * 平时它跟着对话走：属于当前这条对话才停靠。设置打开时对话不在场，本来一律不出现 ——
- * 技能文档那一格是唯一的例外，它恰恰是被设置页点开的，所以它出现时右栏就出现。
- */
-/*
- * 设置页右上角只有辅助开关，没有任务开关：那一格是技能文档（见 auxiliaryBinding）。
- * 它只在文档开着时出现，动作只有收起 —— 打开它的动作是点开一份技能文档，不是这枚按钮。
- */
 function SettingsAuxiliaryControl({
   docked,
   onClose,
@@ -188,10 +162,8 @@ export function DesktopWorkspace({
   const threads = useThreadsActions()
   const { toolkit } = useAgentControls()
 
-  /* 「哪条对话在跑」只订一次：标签条与侧栏读同一份。 */
   const runningThreadIds = useRunningThreads()
 
-  /* 标题栏的搜索按钮走命令注册表：注册表知道这条命令现在该做什么，这里不该再抄一遍。 */
   const openSearch = useCallback(() => {
     void commands.execute(TOGGLE_COMMAND_PALETTE_COMMAND_ID)
   }, [commands])
@@ -210,7 +182,6 @@ export function DesktopWorkspace({
         workspace.moveTab(tabId, targetIndex)
       },
 
-      /* 只递 id：标题是注册表已经拥有的事实，递第二遍就是第二个来源。 */
       openSurface(surfaceId) {
         workspace.openSurface({ surfaceId })
       },
@@ -228,10 +199,7 @@ export function DesktopWorkspace({
 
   const showAssistantChrome = isAssistantChromeSurface(workbench.activeSurface)
 
-  /* Toolkit scope belongs to the active workspace identity, not to whichever child mounted last. */
-
-  /* 只订用得着的那几格：拖宽是 pointermove 频率的通报，全量订阅会把整棵
-   * 工作台树（含对话时间线）拖进每一帧的重渲染。 */
+  // 只订所需字段：拖宽是 pointermove 频率的通报，全量订阅会把整棵工作台树拖进每一帧的重渲染。
   const auxiliaryThread = useWorkspaceLayoutValue((state) => state.auxiliaryThread)
   const todoThread = useWorkspaceLayoutValue((state) => state.todoThread)
   const auxiliaryPanes = useSyncExternalStore(
@@ -270,7 +238,6 @@ export function DesktopWorkspace({
         drafts: composerDrafts,
         personalization,
         library: librarySurface,
-        /* 分叉出的对话就地打开：与点开列表里一条是同一个动作。 */
         onConversationForked: startConversation,
         onConversationStarted: startConversation,
         session: agentSession,
@@ -286,7 +253,6 @@ export function DesktopWorkspace({
     ],
   )
 
-  /* AI 入口晋升时只换 threadId；非 AI 表面仍由工作区的统一宿主渲染。 */
   const surface =
     workbench.activeSurface.kind === 'conversation' ? (
       desktopSurfaces.renderAssistant(workbench.activeSurface.threadId)
@@ -299,7 +265,6 @@ export function DesktopWorkspace({
       />
     )
 
-  /* 派发通道只有这一个入口：点开那一行，右侧那一格亮起来并停在这条通道上。 */
   const openDelegateChannel = useCallback(
     (agentId: string) => {
       if (activeConversationId === null) {
@@ -312,7 +277,6 @@ export function DesktopWorkspace({
     [activeConversationId, auxiliaryPanel, workspaceLayoutStore],
   )
 
-  /* 技能文档落在设置那一格里：设置页只说要看的技能，开在哪一格是工作台的事。 */
   const openSkillDocument = useCallback(
     (skillId: string) => {
       auxiliaryPanel.openFile(SETTINGS_AUXILIARY_OWNER, skillId)
@@ -322,8 +286,6 @@ export function DesktopWorkspace({
 
   const parts: WorkspaceParts = {
     chrome: {
-      /* 标题栏只剩开合、前后切换与窗口控制：标签条不再进这一行，见 workspace-shell.css
-       * 里主区左上圆角那一段 —— 会话面板自己带圆角，与标签的 Chrome 形咬口互斥。 */
       content: (
         <DesktopTitleBar
           activeTabSequence={describeTabSequence(
@@ -396,7 +358,6 @@ export function DesktopWorkspace({
       content: isSettingsOpen ? (
         <SettingsContentRegion />
       ) : (
-        /* 任务面板按会话容器宽度在停靠与覆盖之间切换。 */
         <div className="flex h-full min-h-0 min-w-0 flex-col">
           {showAssistantChrome ? <ConversationHeader /> : null}
           <div className="conversation-body" style={CONVERSATION_TODO_LAYOUT_STYLE}>
@@ -418,7 +379,6 @@ export function DesktopWorkspace({
       label: isSettingsOpen ? '设置' : undefined,
     },
 
-    /* 辅助面板是外壳的第三列，不是主区里的一块：开合走与侧栏同一条动画。 */
     auxiliary: {
       content: (
         <AuxiliaryDock
@@ -432,7 +392,6 @@ export function DesktopWorkspace({
         />
       ),
       isDocked: auxiliary.docked,
-      /* 设置里这一列只有文档格，收起它就是把文档格关掉；对话那一路仍旧收起右栏。 */
       onClose: isSettingsOpen ? auxiliaryPanel.closeFilePanes : undefined,
     },
   }

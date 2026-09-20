@@ -3,12 +3,9 @@
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
-/// 在这台机器上找不到这个程序。
 #[derive(Debug)]
 pub struct ProgramNotFound {
-    /// 人要读的那句话：说清缺的是什么、装完之后该做什么。
     pub message: String,
-    /// 解析器的原始错误，诊断需要它。
     pub source: which::Error,
 }
 
@@ -27,10 +24,7 @@ impl std::error::Error for ProgramNotFound {
 #[cfg(windows)]
 const CREATE_NO_WINDOW: u32 = 0x0800_0000;
 
-/// Applies the desktop process policy to every child command.
-///
-/// GUI 宿主 spawn 控制台程序时，Windows 会给它开一个控制台窗口：选一次工作区
-/// 闪一排黑框。全仓唯一的一份；此前 kap-client 与 git-adapter 各持一份。
+/// GUI 宿主 spawn 控制台程序时 Windows 会开控制台窗口；全仓唯一的一份。
 pub fn hide_console(command: &mut Command) {
     #[cfg(windows)]
     {
@@ -44,21 +38,7 @@ pub fn hide_console(command: &mut Command) {
     }
 }
 
-/// 在这台机器上找出该启动哪个文件。
-///
-/// 一个裸名字不是一条可启动的路径。Windows 上 agent 通常是包管理器装出来的
-/// `kimi.CMD`：`CreateProcess` 只会替你补 `.exe`，**不读 PATHEXT**，于是
-/// `Command::new("kimi")` 直接 `NotFound` —— 明明装了，却报找不到。
-///
-/// 所以这里不写死任何路径，也不自己遍历 PATH × PATHEXT。那是 which 这个
-/// crate 的既有职责，Zed 解析外部 agent 的可执行文件用的也是它。解析发生在
-/// 运行的那台机器上，换机器、换包管理器都不需要改配置；档案里直接写绝对路径
-/// 同样成立，which 会原样交还它。
-///
-/// # Errors
-///
-/// 在这台机器的搜索路径上找不到这个程序时返回 [`ProgramNotFound`]；它的
-/// message 是给人看的（会走到设置页那张卡片上），source 是给日志看的。
+/// `CreateProcess` 只补 `.exe` 不读 PATHEXT，包管理器装的 `kimi.CMD` 得靠 which 解析。
 pub fn resolve_program(program: &str) -> Result<PathBuf, ProgramNotFound> {
     which::which(program).map_err(|error| ProgramNotFound {
         message: format!(
@@ -69,7 +49,6 @@ pub fn resolve_program(program: &str) -> Result<PathBuf, ProgramNotFound> {
     })
 }
 
-/// 一条可以直接交给子进程启动器的启动式。
 #[derive(Debug, PartialEq, Eq)]
 pub struct Launcher {
     pub program: String,
@@ -77,9 +56,7 @@ pub struct Launcher {
 }
 
 impl Launcher {
-    /// Windows 的 .cmd/.bat 是包管理器写的批处理垫片，`CreateProcess` 与 Node 的
-    /// spawn 都拒直接起它们；cmd.exe /c 代起是 VS Code 与 Claude Desktop 的官方
-    /// Windows 文档给 stdio MCP 服务器开的同一张方子。
+    /// .cmd/.bat 是包管理器写的批处理垫片，`CreateProcess` 与 Node spawn 都拒直接起，cmd /c 代起。
     #[cfg(windows)]
     pub(crate) fn wrap(path: &Path) -> Self {
         let shim = matches!(
@@ -110,10 +87,6 @@ impl Launcher {
     }
 }
 
-/// 把一个裸名字解析成 mcp.json 的 stdio 条目能直接用的启动式；解不出就是 `None`。
-///
-/// 写盘那一刻就把这台机器的平台事实固化下来，而不是把裸名留给下游进程碰运气。
-/// 缺程序不是这次调用的故障，是那台机器的现状，所以是 `None` 不是错误。
 pub fn resolve_launcher(program: &str) -> Option<Launcher> {
     which::which(program).ok().map(|path| Launcher::wrap(&path))
 }
@@ -130,7 +103,6 @@ mod tests {
 
     #[test]
     fn an_existing_absolute_path_is_accepted_as_is() {
-        // 当前测试二进制本身就是一条已存在的绝对路径，不需要造文件。
         if let Ok(here) = std::env::current_exe() {
             assert!(resolve_program(&here.to_string_lossy()).is_ok());
         }

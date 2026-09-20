@@ -1,12 +1,4 @@
-//! 内置浏览器的标签页模型 —— 唯一的事实来源；外加图标探测与取回。
-//!
-//! 状态与不变式：标签的次序、活动标签、关闭后的焦点迁移、最近关闭的环、地址的
-//! 规整。图标也在这里，因为它属于标签：探测地址由地址规整推出，取回与编码都不
-//! 需要窗口，失败只是没有图标。
-//!
-//! 谁来渲染、谁来导航（WebView2、CDP、还是测试桩）不在这一层出现 —— 宿主接线归
-//! apps/desktop/src-tauri/src/webview/bridge.rs，本 crate 必须能在没有窗口的进程
-//! 里跑完全部单测。
+//! 标签页模型的唯一事实来源；宿主接线（渲染与导航）归 apps/desktop/src-tauri/src/webview/bridge.rs，本 crate 须能无窗口跑完全部单测。
 
 mod picker;
 
@@ -19,41 +11,34 @@ use std::collections::{HashMap, VecDeque};
 
 use base64::Engine as _;
 
-/// 最近关闭的环的容量。第 11 条进来时最老的一条出去。
 pub(crate) const RECENTLY_CLOSED_CAP: usize = 10;
 
-/// 空白页在内核那一侧的地址。模型里空白页是 url 缺席，这个常量只给宿主
-/// 驱动内核用 —— 空白页的写法只有一处产地。
+/// 空白页写法的唯一产地。模型里空白页是 url 缺席（None：未导航过，也没有对应 webview）。
 pub const BLANK_PAGE: &str = "about:blank";
 
-/// 标签标识。u32 足够（一个进程开不满四十亿个标签），并且能无损过 IPC。
 pub(crate) type TabId = u32;
 
-/// 一个标签页。url 为 None 表示空白页：还没有导航过，也没有对应的 webview。
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Tab {
     pub id: TabId,
     pub url: Option<String>,
     pub title: String,
-    /// 内核此刻是否在装载这一页。宿主的 on_page_load 事件驱动它。
     pub loading: bool,
 }
 
-/// 最近关闭的一条。空白页关掉不进环 —— 重开一个空白页没有意义。
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct ClosedTab {
     pub url: String,
     pub title: String,
 }
 
-/// 标签集合。所有变更都从这里过 —— 宿主与 UI 都不得各自记一份。
+/// 所有标签变更的唯一入口：宿主与 UI 都不得各自记一份。
 #[derive(Debug, Default)]
 pub struct Tabs {
     entries: Vec<Tab>,
     active: Option<TabId>,
     recently_closed: VecDeque<ClosedTab>,
     next_id: TabId,
-    /// 站点图标按来源存一份：同源的标签共用，标签上不留副本。
     icons: HashMap<String, String>,
 }
 
@@ -63,7 +48,6 @@ impl Tabs {
         Self::default()
     }
 
-    /// 开一个标签并激活它。url 为 None 时是空白页。
     pub fn open(&mut self, url: Option<String>) -> TabId {
         let id = self.next_id;
         self.next_id = self.next_id.wrapping_add(1);
@@ -85,8 +69,6 @@ impl Tabs {
         id
     }
 
-    /// 关一个标签。焦点迁移规则与主流浏览器一致：先右邻，无右邻取左邻。
-    /// 返回它存在过没有；焦点落在哪，问 active_id。
     pub fn close(&mut self, id: TabId) -> bool {
         let Some(index) = self.entries.iter().position(|tab| tab.id == id) else {
             return false;
@@ -111,7 +93,6 @@ impl Tabs {
                 .map(|tab| tab.id);
         }
 
-        /* 图标随最后一个用它的标签一起走：这张表的上界是开着的来源数。 */
         let entries = &self.entries;
 
         self.icons.retain(|origin, _| {
@@ -125,7 +106,6 @@ impl Tabs {
         true
     }
 
-    /// 激活一个标签。不存在的 id 返回 false，状态不变。
     pub fn select(&mut self, id: TabId) -> bool {
         if self.entries.iter().any(|tab| tab.id == id) {
             self.active = Some(id);
@@ -135,7 +115,6 @@ impl Tabs {
         false
     }
 
-    /// 记录一次导航意图：地址落到标签上，标题先用主机名顶着，真标题随事件到。
     pub fn navigate(&mut self, id: TabId, url: &str) -> bool {
         let Some(tab) = self.entries.iter_mut().find(|tab| tab.id == id) else {
             return false;
@@ -148,8 +127,6 @@ impl Tabs {
         true
     }
 
-    /// 内核报来的真实地址（重定向、页内跳转都从这里回来）。
-    /// 内核报空白页时落回缺席：空白页在这个模型里只有一种写法。
     pub fn note_url(&mut self, id: TabId, url: &str) {
         if let Some(tab) = self.entries.iter_mut().find(|tab| tab.id == id) {
             tab.url = if url == BLANK_PAGE {
@@ -160,7 +137,6 @@ impl Tabs {
         }
     }
 
-    /// 内核报来的文档标题。空串不覆盖 —— 那只是文档还没解析完。
     pub fn note_title(&mut self, id: TabId, title: &str) {
         if title.is_empty() {
             return;
@@ -171,14 +147,12 @@ impl Tabs {
         }
     }
 
-    /// 宿主报来的装载进度：Started 亮，Finished 熄。
     pub fn note_loading(&mut self, id: TabId, loading: bool) {
         if let Some(tab) = self.entries.iter_mut().find(|tab| tab.id == id) {
             tab.loading = loading;
         }
     }
 
-    /// 重开最近关闭环里的第 index 条：从环里取出，开成新标签。
     pub fn reopen(&mut self, index: usize) -> Option<(TabId, String)> {
         let record = self.recently_closed.remove(index)?;
         let id = self.open(Some(record.url.clone()));
@@ -186,8 +160,6 @@ impl Tabs {
         Some((id, record.url))
     }
 
-    /// 屏幕上该出现的那一页：活动标签，且它真的有地址。
-    /// 空白页没有画面 —— 预热出来的内核实例不该盖在新标签页上。
     #[must_use]
     pub fn showing(&self) -> Option<TabId> {
         self.entries
@@ -205,7 +177,6 @@ impl Tabs {
         self.icons.insert(origin, icon);
     }
 
-    /// 一个标签此刻该画的图标：由它的地址派生，不是它自己的字段。
     #[must_use]
     pub fn icon(&self, id: TabId) -> Option<&str> {
         let tab = self.entries.iter().find(|tab| tab.id == id)?;
@@ -229,8 +200,6 @@ impl Tabs {
     }
 }
 
-/// 把地址栏输入规整成可导航的 URL。显式 `file:` 只接受本机绝对路径；
-/// 裸主机名仍按公网 HTTPS、本机 HTTP 补全；公网候选的主机名必须带点，裸路径不补全。
 #[must_use]
 pub fn normalize_address(input: &str) -> Option<String> {
     let trimmed = input.trim();
@@ -272,8 +241,6 @@ pub fn normalize_address(input: &str) -> Option<String> {
     }
     Some(parsed.into())
 }
-/// 本机地址：开发服务器几乎不说 TLS，公网几乎只说 TLS。
-/// 只取权限部分的主机名，端口与路径在这里剥掉。
 fn is_local_authority(input: &str) -> bool {
     let authority = input.split('/').next().unwrap_or(input);
     let host = authority
@@ -283,7 +250,6 @@ fn is_local_authority(input: &str) -> bool {
     host == "localhost" || host.parse::<std::net::IpAddr>().is_ok()
 }
 
-/// 一条 URL 在标签上的临时名字：主机名。解析不出来就原样显示。
 fn display_host(url: &str) -> String {
     url::Url::parse(url)
         .ok()
@@ -291,17 +257,12 @@ fn display_host(url: &str) -> String {
         .unwrap_or_else(|| url.to_owned())
 }
 
-/// 图标的归属键：方案加权限部分。没有主机的地址（about:blank）没有图标。
 fn origin_of(url: &str) -> Option<String> {
     let parsed = url::Url::parse(url).ok()?;
 
     matches!(parsed.scheme(), "http" | "https").then(|| parsed.origin().ascii_serialization())
 }
 
-/// 一页的图标去哪里取：来源，以及来源根上的 /favicon.ico。
-///
-/// 只认这一条众所皆知的默认位置。文档里 <link rel="icon"> 声明的路径要读 HTML
-/// 才知道，而手写 HTML 解析必漏边界；取不到时标签条画地球。
 #[must_use]
 pub fn icon_probe(page: &str) -> Option<(String, String)> {
     let origin = origin_of(page)?;
@@ -310,9 +271,7 @@ pub fn icon_probe(page: &str) -> Option<(String, String)> {
     Some((origin, probe.into()))
 }
 
-/// 把取回的字节编成标签条画得出的 data URL。
-///
-/// 只收 image/*：服务器给缺失的图标回 200 加一页 HTML 是常见做法，那不是图标。
+/// 只收 image/*：服务器对缺失的图标常回 200 加一页 HTML，那不是图标。
 #[must_use]
 pub fn icon_data_url(content_type: &str, bytes: &[u8]) -> Option<String> {
     const MAX_ICON_BYTES: usize = 128 * 1024;
@@ -329,12 +288,7 @@ pub fn icon_data_url(content_type: &str, bytes: &[u8]) -> Option<String> {
     ))
 }
 
-/// 把 `icon_probe` 给出的探测地址取回来，编成 data URL。
-///
-/// 走 HTTP 而不是内核的图标事件：WebView2 的 FaviconChanged 只能经 COM 拿，而
-/// 根 Cargo.toml 是 unsafe_code = "deny"，那条路在这个仓库里不存在。超时 5 秒；
-/// 失败（超时、非 2xx、非 image/*、空或超限字节）返回 None —— 失败只是没有
-/// 图标，不打断任何操作。
+/// 走 HTTP 而非 WebView2 的 FaviconChanged（后者只能经 COM 拿，而根 Cargo.toml 是 unsafe_code = "deny"）；失败只是没有图标。
 pub async fn fetch_icon_data_url(probe: &str) -> Option<String> {
     let client = reqwest::Client::builder()
         .timeout(std::time::Duration::from_secs(5))

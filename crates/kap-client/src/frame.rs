@@ -1,43 +1,22 @@
-//! 一次运行的事件契约。
-//!
-//! 这里是帧形状在整个仓库里的唯一定义处。它是一个强类型 enum 而不是一串
-//! json! 字面量，所以字段名拼错是编译错误，而不是一个要靠界面侧第二份
-//! schema 在运行期抓出来的问题。
-//!
-//! 判别式与字段名由 serde 派生：kind 用 snake_case，字段用界面读的
-//! camelCase。线上形状就是契约：kap 的语义事件走官方 transcript 通道
-//! （SessionEvent::Transcript），这一层只收协议不建模、而客户端必须记住的
-//! 事实。
+//! 帧形状在全仓的唯一定义处；判别式 kind 用 snake_case、字段用 camelCase，均由 serde 派生。
 
 use serde::Serialize;
 use serde_json::Value;
 
 use poietica_conversation::link::LinkState;
 
-/// 一轮的第一帧。
 pub const PROMPT_ADMITTED: &str = "prompt_admitted";
-/// agent 正卡在一次授权请求上。
 pub(crate) const PERMISSION_REQUESTED: &str = "permission_requested";
-/// 那次授权请求得到的答复。
 pub(crate) const PERMISSION_RESOLVED: &str = "permission_resolved";
-/// 这一轮按 agent 自己的说法结束了。
 pub(crate) const RUN_FINISHED: &str = "run_finished";
-/// 这一轮以失败结束。
 pub(crate) const RUN_FAILED: &str = "run_failed";
 
-/// 这条连接的链路态变了。
 pub(crate) const LINK_CHANGED: &str = "link_changed";
 
-/// 这一组题问出去了，agent 正卡在它上面。
 pub(crate) const QUESTIONS_ASKED: &str = "questions_asked";
 
-/// 那一组题结清了。
 pub(crate) const QUESTIONS_RESOLVED: &str = "questions_resolved";
 
-/// 一次运行里可能发生的事。
-///
-/// 其余变体是协议不建模、而客户端必须记住的事实。每一种都带 seq 与 at
-/// （见 RecordedEvent），所以重放是确定的。
 #[derive(Clone, Debug, Serialize)]
 #[serde(
     tag = "kind",
@@ -47,21 +26,11 @@ pub(crate) const QUESTIONS_RESOLVED: &str = "questions_resolved";
 pub enum RunFrame {
     /// 这一轮开始了：问的是什么，以及随它一起送出去的图片与技能。
     PromptAdmitted {
-        /// 本机签发的 durable admission identity。
         admission_id: String,
-        /// 人说的那句话，按记录时的原文。
         prompt: String,
         /// 随这句话送出去的图片，按用户挑选的顺序，本机资产协议地址。
-        ///
-        /// 记地址而不是字节：字节按内容摘要落在磁盘上，而地址跨重启仍然指得回
-        /// 同一张图（交付令牌是对话号，见桌面侧 deliver_attachments）。图不是
-        /// agent 发来的，但它属于人说的那一句话 —— 所以它的家在这一帧里，不在
-        /// 一本要靠数轮次去对齐的第二本账上。
         images: Vec<String>,
         /// 随这句话挂上的技能名，按用户挑选的顺序。
-        ///
-        /// 与图片同一个理由住在这一帧里：它属于人说的那一句话，而那句话的
-        /// 全部事实只有这一个家。
         skills: Vec<String>,
     },
     /// snapshot 在原子水位上的在飞状态；只用于续接当前轮次。
@@ -70,22 +39,17 @@ pub enum RunFrame {
     PermissionRequested {
         /// 用来把请求与答复对起来的标识 —— kap 自己签发的 approval_id。
         request_id: String,
-        /// 被问到的那次工具调用。
         tool_call_id: String,
-        /// 界面必须显示的标题。
         title: String,
         /// 被征求同意的那次操作，归一成界面读的三格：toolCallId、title、
-        /// rawInput（审批项的 tool_input_display）。审批项的其余格子是传输
-        /// 层的事，帧不留。
+        /// rawInput（审批项的 tool_input_display）；其余格子是传输层的事，帧不留。
         tool_call: Value,
     },
     /// 那次授权请求是怎么结束的。
     PermissionResolved {
-        /// 被结清的那个请求。
         request_id: String,
         /// kap 的 decision：approved、rejected 或 cancelled。
         decision: String,
-        /// 「这条会话都照此办理」时是 session；只此一次就不出现。
         #[serde(skip_serializing_if = "Option::is_none")]
         scope: Option<String>,
         #[serde(skip_serializing_if = "Option::is_none")]
@@ -104,7 +68,6 @@ pub enum RunFrame {
     },
     /// 那一组提问结清了。
     QuestionsResolved {
-        /// 被结清的那一组。
         question_id: String,
         /// answered、dismissed、cancelled 或 undelivered。
         outcome: String,
@@ -117,18 +80,15 @@ pub enum RunFrame {
     LinkChanged { link: LinkState },
     /// 这一轮按 agent 自己的说法结束了。
     RunFinished {
-        /// agent 报的停止原因。
         stop_reason: String,
     },
     /// 这一轮以失败结束。
     RunFailed {
-        /// 我们的说法。
         message: String,
     },
 }
 
 impl RunFrame {
-    /// 这一帧在日志里记作哪一类。返回的就是 wire 上的判别式。
     #[must_use]
     pub const fn kind(&self) -> &'static str {
         match self {
@@ -145,7 +105,6 @@ impl RunFrame {
     }
 }
 
-/// 删掉 null 成员。它们是 Option::None 的产物，对界面而言与缺席同义。
 pub(crate) fn prune(value: &mut Value) {
     match value {
         Value::Object(fields) => {

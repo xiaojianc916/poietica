@@ -16,7 +16,6 @@ use crate::generated::events::{
 };
 use crate::server_frame;
 
-/// 一帧控制帧的 ack 最多等多久：对端接下 TCP 却不说话时，裸等会让握手永远停住。
 pub(crate) const ACK_TIMEOUT: Duration = Duration::from_secs(10);
 
 const SUPPORTED_KAP_WS_PROTOCOL: i64 = 2;
@@ -33,7 +32,6 @@ fn validate_protocol_version(version: i64) -> Result<()> {
     })
 }
 
-/// server_hello → client_hello → ack。首连与重连共用这一条。
 pub(crate) async fn shake_hands(
     ws: &WsSink,
     ws_rx: &mut SplitStream<WsStream>,
@@ -87,10 +85,8 @@ pub(crate) async fn shake_hands(
     Ok(())
 }
 
-/// 等某帧的 ack，返回它的载荷；等待期间到达的其它帧收进 stash。
-///
-/// 不能丢：ack 是 sendImmediateFrame 发的，它把整条出队队列一次冲干净
-/// （wsConnectionV1.ts flush），所以排在 ack 前面的事件帧会先到这里。
+/// ack 由 sendImmediateFrame 发出（wsConnectionV1.ts flush，一次冲净出队队列）：
+/// 排在 ack 前面的事件帧会先到这里，收进 stash 不能丢。
 pub(crate) async fn wait_ack(
     ws_rx: &mut SplitStream<WsStream>,
     id: &str,
@@ -109,7 +105,6 @@ pub(crate) async fn wait_ack(
                     ..
                 }) = frame
                 else {
-                    // 不是 ack 的帧原样进 stash：它们排在这条 ack 前面，属于事件流。
                     if let Ok(frame) = serde_json::from_str::<Value>(&raw) {
                         stash.push(frame);
                     }
@@ -150,10 +145,8 @@ pub(crate) async fn wait_ack(
     }
 }
 
-/// 订阅的 ack 永远是 code 0：成败写在载荷的 accepted / not_found 里
-/// （contracts/kap/asyncapi.json 的 subscribe_ack）。
-/// 只看 code 就会把「这条会话没订上」当成订上了，然后一帧不来地等到超时。
-/// Ok(false) 是「这条会话没订上」，一条会话的事；Err 是这条链路的事。
+/// 订阅的 ack 永远是 code 0，成败写在载荷的 accepted / not_found 里（contracts/kap/asyncapi.json 的 subscribe_ack）；
+/// Ok(false) 是这条会话没订上，Err 是链路的事。
 pub(crate) async fn wait_subscribe_ack(
     ws_rx: &mut SplitStream<WsStream>,
     id: &str,
@@ -166,12 +159,7 @@ pub(crate) async fn wait_subscribe_ack(
     Ok(decoded.is_some_and(|ack| ack.accepted.iter().any(|entry| entry == session_id)))
 }
 
-/// 把一条会话挂到这条连接的事件流上，返回那一帧的 id。不在握手内联订阅：
-/// 订阅走独立的 subscribe 操作（contracts/kap/asyncapi.json 的 subscribe）。
-///
-/// 带着读点订阅，server 就从那一帧之后接着发（subscribePayloadSchema 的 cursors、
-/// sessionCursorSchema）；接不下去时它回 resync_required，而不是默默从头来。新开
-/// 与分叉出来的会话没有读点：它们的流从这一刻才开始。
+/// 带读点订阅时 server 从那一帧之后接着发，接不下去时回 resync_required（contracts/kap/asyncapi.json 的 subscribe）。
 pub(crate) async fn subscribe(
     ws: &WsSink,
     session_id: &str,
@@ -203,8 +191,6 @@ pub(crate) async fn subscribe(
     .await
 }
 
-/// 本地关掉一条会话时，同步告诉 server 别再发它的帧
-/// （contracts/kap/asyncapi.json 的 unsubscribe）。
 pub(crate) async fn unsubscribe(ws: &WsSink, session_id: &str) -> Result<()> {
     send_frame(
         ws,
@@ -219,12 +205,7 @@ pub(crate) async fn unsubscribe(ws: &WsSink, session_id: &str) -> Result<()> {
     .map(|_id| ())
 }
 
-/// 把一条会话的 transcript 粒度流挂上这条连接（subscribe_v2，asyncapi.json）。
-///
-/// 粒度按 agent 声明：`*` 是默认档，逐 agent 的键盖过它。delta 是最细一档，
-/// 屏幕（块与流片都要）与追赶（REST catch-up）都吃得下；更粗的档会丢流片。
-/// `transcript_since` 只在对得上号的续订里带，否则 server 从头整发 —— 首订
-/// 就该整发。
+/// 粒度取 delta（更粗的档丢流片）；transcript_since 只在对得上号的续订里带，否则 server 从头整发（subscribe_v2）。
 pub(crate) async fn subscribe_transcript(
     ws: &WsSink,
     session_id: &str,

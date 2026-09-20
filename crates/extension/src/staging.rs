@@ -7,11 +7,7 @@ use uuid::Uuid;
 use crate::error::{ExtensionError, Result};
 use crate::layout::is_safe_segment;
 
-/// 一份解到暂存区、还没有被认领的插件。
-///
-/// 装插件分两步，中间隔着一次解码：原生解出字节，渲染层解出清单并判定这份东西叫
-/// 什么，然后才认领。一次装到位就意味着原生得自己解析清单，那会造出第二个解析器。
-/// 形状抄同仓库的 asset_session_open / asset_import / asset_session_close。
+/// 一份解到暂存区、还没被认领的插件；形状抄同仓库的 asset_session_open / asset_import / asset_session_close。
 #[derive(Debug)]
 pub struct Staging {
     identifier: String,
@@ -28,7 +24,6 @@ impl Staging {
         Ok(Self { identifier, root })
     }
 
-    /// 认回一个已经开着的暂存目录。标识符来自渲染层，先当不可信字符串验一遍。
     pub fn open(staging_root: &Path, identifier: &str) -> Result<Self> {
         if !is_safe_segment(identifier) {
             return Err(ExtensionError::UnsafeSegment);
@@ -54,13 +49,7 @@ impl Staging {
         &self.root
     }
 
-    /// 把暂存里的某一层变成正式的托管副本，剩下的丢掉。
-    ///
-    /// source 允许是暂存根下面的子目录 —— GitHub 归档套着一层 <repo>-<ref>/。
-    ///
-    /// 顺序是刻意的：旧副本先挪到回收名下，新的搬进去，最后才删旧的。先
-    /// remove_dir_all 再 rename 会留下「旧的没了、新的还没到」的窗口，那一瞬间崩掉
-    /// 用户的插件就凭空消失了。搬新的失败时旧的原样挪回来。
+    /// 顺序是刻意的：旧副本先挪进回收名、新的搬进去、最后才删旧的 —— 先删后搬会留下数据丢失窗口。
     pub fn promote(self, source: &Path, destination: &Path) -> Result<()> {
         if source.strip_prefix(&self.root).is_err() {
             return Err(ExtensionError::UnsafeSegment);
@@ -92,7 +81,6 @@ impl Staging {
         self.discard()
     }
 
-    /// 丢掉这份暂存。已经不在了也算丢掉成功。
     pub fn discard(self) -> Result<()> {
         match fs::remove_dir_all(&self.root) {
             Ok(()) => Ok(()),

@@ -3,11 +3,6 @@ import type { FailurePhase, TerminalFailureInput } from './fatal-incident'
 import { isReactFatalHostMounted, reportFatalIncident } from './fatal-incident'
 import { reportFailure } from './problem-presentation'
 
-/*
- * 浏览器引擎把 ResizeObserver 的投递推迟到下一帧时发出的那两句话。
- *
- * 精确白名单：不因为消息里含 ResizeObserver 就放过任意错误。
- */
 const BENIGN_MESSAGES = new Set([
   'ResizeObserver loop completed with undelivered notifications.',
   'ResizeObserver loop limit exceeded',
@@ -40,12 +35,6 @@ interface ParsedViteError {
 
 let installed = false
 
-/**
- * Installs process-lifetime browser collectors.
- *
- * Resource element failures are deliberately ignored. An image, font or media
- * loading failure is not automatically an application-fatal incident.
- */
 export function installFatalCollectors(): void {
   if (installed) {
     return
@@ -67,21 +56,13 @@ export function installFatalCollectors(): void {
 }
 
 function handleWindowError(event: Event): void {
+  /* 资源元素加载失败不是 ErrorEvent，也不算应用致命错误。 */
   if (!(event instanceof ErrorEvent)) {
     return
   }
 
   if (isBenignWindowError(event)) {
-    /*
-     * Chromium and WebKit may dispatch ResizeObserver loop
-     * scheduling notifications through window.error when
-     * an animated layout invalidates observed bounds during
-     * the same frame.
-     *
-     * This does not indicate lost application state or an
-     * unsafe runtime, so it must not enter the terminal
-     * failure path.
-     */
+    /* Chromium/WebKit 同帧动画布局失效时把 ResizeObserver loop 通知派发进 window.error，与状态丢失无关。 */
     event.preventDefault()
     return
   }
@@ -94,7 +75,6 @@ function handleWindowError(event: Event): void {
     ...optionalProperty('column', positiveNumber(event.colno)),
   }
 
-  /* 界面已经挂载：这是一次操作失手，不是这个进程不能继续。 */
   if (isReactFatalHostMounted()) {
     reportFailure('UNHANDLED_WINDOW_ERROR', {
       cause: capturedError,
@@ -123,10 +103,7 @@ function handleWindowError(event: Event): void {
 }
 
 function handleUnhandledRejection(event: PromiseRejectionEvent): void {
-  /*
-   * 取消不是故障：AbortController.abort() 按 DOM 标准以 AbortError
-   * DOMException 拒绝，卸载时中止一次 fetch 走的就是这条路。
-   */
+  /* 取消不是故障：AbortController.abort() 按 DOM 标准以 AbortError 拒绝。 */
   if (event.reason instanceof DOMException && event.reason.name === 'AbortError') {
     event.preventDefault()
     return
@@ -274,7 +251,5 @@ function emergencyLogIncident(incident: {
 }): void {
   try {
     console.error('[Poietica Fatal Incident]', incident)
-  } catch {
-    // The fatal UI remains the primary output.
-  }
+  } catch {}
 }

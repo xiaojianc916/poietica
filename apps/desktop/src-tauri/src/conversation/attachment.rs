@@ -1,10 +1,4 @@
-//! 图片的两条路：进去和出来。
-//!
-//! 进去是一句话带的图片落盘、过继进交付会话、把引用交还准入；出来是打开一条
-//! 旧对话时把存着的字节装回交付注册表。
-//!
-//! 协议载荷不在这里成形：投递时由网关按准入冻结的引用重建（gateway.rs 的
-//! materialise），首次投递与重投递走同一条路 —— 这里只落字节、记账、交引用。
+//! 附件字节：进（落盘、过继、交引用）与出（装回交付注册表）；协议载荷由 gateway 的 materialise 成形，这里不碰。
 
 use crate::asset_protocol::{AssetProtocolError, AssetProtocolRegistry, AssetSessionSnapshotEntry};
 use crate::error::{Error, Result};
@@ -22,10 +16,7 @@ use super::AgentRuntime;
 use super::dto::AgentPromptAsset;
 use super::{IMAGE_TOO_LARGE, NO_READ, NO_SUCH_ASSET};
 
-/// 这条对话的交付会话，没有就开一个。
-///
-/// 注册表用 DuplicateAsset 表示"这条会话已经在了"，而同一条对话上的第二句话
-/// 带图时它必然已经开着 —— 那不是错误，是常态。
+/// DuplicateAsset 不是错误：同一条对话第二句带图时会话必然已开着。
 fn opened_session(assets: &AssetProtocolRegistry, session: &str) -> Result<()> {
     match assets.open_session(session) {
         Ok(()) | Err(AssetProtocolError::DuplicateAsset) => Ok(()),
@@ -33,12 +24,7 @@ fn opened_session(assets: &AssetProtocolRegistry, session: &str) -> Result<()> {
     }
 }
 
-/// 一句话带的图片：落盘、过继进这条对话的交付会话，把引用交还给准入。
-///
-/// 字节搬的是 Arc 不是内存（见 adopt）：用户放手那一刻它们已经在本进程里。
-/// 投递时由网关从盘上读回再编码 —— KAP 的 image content block 只认 base64。
-/// 落盘与 SHA-256 都要过一遍全部字节，所以整段留在阻塞执行器上。
-/// 账本行不在这里写：那要拿库的锁，而这里拿的是文件系统。
+/// 落盘并过继进交付会话、交还引用；整段留在阻塞执行器上（落盘与摘要都要过全部字节），账本行不在这里写。
 pub(super) async fn keep_bytes(
     root: PathBuf,
     assets: AssetProtocolRegistry,
@@ -54,8 +40,6 @@ pub(super) async fn keep_bytes(
 
         let mut rows = Vec::with_capacity(attached.len());
         for reference in attached {
-            /* 取不到就不发。这一句带的图已经不在了，而静默少发一张比失败更坏：
-            对面收到一句没有附件的话，屏幕上什么都不会说。 */
             let (mime, bytes) = assets
                 .adopt(&reference.session_token, &reference.asset_token, &session)
                 .map_err(asset)?
@@ -78,14 +62,7 @@ pub(super) async fn keep_bytes(
     .map_err(|_dropped| Error::Internal(NO_READ.to_owned()))?
 }
 
-/// 把这条对话挂着的字节装回交付注册表，并交出可以直接用的 URL。
-///
-/// 交付会话的令牌是**对话**，不是 ACP 的 sessionId：后者随连接生灭，而这些
-/// URL 要在重启之后仍然指向同一张图。
-///
-/// # Errors
-///
-/// 账本读不出、字节读不动（缺失除外）、或注册表拒绝这一批时返回错误。
+/// 交付会话的令牌是对话 id 而非 ACP 的 sessionId：这些 URL 必须在重启之后仍指向同一张图。
 pub(super) async fn deliver_attachments(
     state: &State<'_, AgentRuntime>,
     index: &State<'_, LocalIndex>,
@@ -99,11 +76,9 @@ pub(super) async fn deliver_attachments(
 
     let session = thread_id.to_string();
 
-    /* 账本空了也要走完这一趟：上一次铺下的那一份得换成一条空的。 */
+    /* 账本空了也要走完：上一次铺下的那一份得被换成空的一批。 */
 
-    /* 按摘要去重。同一张图挂在两轮上是常事 —— 内容寻址的全部意义就在这里 ——
-    而 replace_session 收到两个相同的摘要会把整批拒掉。账本给的是链接行，不是
-    字节，两者的条数本来就不相等。 */
+    /* 按摘要去重：同一张图挂在两轮是常事，replace_session 收到重复摘要会把整批拒掉。 */
     let mut seen = HashSet::new();
     let mut wanted = Vec::new();
 
@@ -123,9 +98,7 @@ pub(super) async fn deliver_attachments(
 
             let bytes = match std::fs::read(&path) {
                 Ok(bytes) => bytes,
-                /* 少一张图不该让整条对话打不开。人可以手动清过那个目录，同步
-                软件也可能吞掉文件；那时候正确的行为是显示其余的，而不是把这
-                条对话变成一个打不开的东西。无主的账下一次回收会扫掉。 */
+                /* 字节缺失（手动清过目录、同步软件吞文件）只跳过该张，不挡整条对话打开。 */
                 Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
                     log::warn!("an attachment's bytes are missing: {hash}");
                     continue;
@@ -133,14 +106,10 @@ pub(super) async fn deliver_attachments(
                 Err(error) => return Err(Error::Io(error)),
             };
 
-            /* verify 在这里重新付一次摘要：这些字节刚从磁盘读上来，进程里
-            没有人对它们的身份验过。文件名就是摘要，所以这一次哈希同时就是一
-            次完整性检查。 */
+            /* 字节刚从磁盘读回，进程里无人验过其身份，verify 在此重付一次摘要。 */
             match AssetSessionSnapshotEntry::verify(hash.clone(), mime, Arc::new(bytes)) {
                 Ok(entry) => entries.push(entry),
-                /* 门口现在挡着这类附件（见 agent_prompt），但迁移之前存下的那些
-                还在账本里。一张交付不了的图此前会让整条对话打不开 —— 与上面缺
-                字节那一支同一条规矩：显示其余的，把这一张记进日志。 */
+                /* 门口现已挡住的附件类型，迁移前存下的还在账本里：跳过并记日志。 */
                 Err(error) => {
                     log::warn!("an attachment cannot be delivered: {hash} {error:?}");
                 }
@@ -152,18 +121,12 @@ pub(super) async fn deliver_attachments(
     .await
     .map_err(|_dropped| Error::Internal(NO_READ.to_owned()))??;
 
-    /* 撤旧与铺新在注册表的同一次写锁里完成：这条命令的重入是常态，两次写锁之间
-    这条会话会短暂不存在，旧页面上还挂着的图片元素就会取到 404。缺字节的那几张
-    不在 entries 里 —— 那张图真的没了，这条对话其余部分照旧打开。 */
+    /* 撤旧与铺新在注册表的同一次写锁里完成（replace_session 原子换）：重入是常态，两次写锁之间旧页面挂着的图会取到 404。 */
     assets.replace_session(&session, entries).map_err(asset)?;
 
     Ok(())
 }
 
-/// 交付失败，说给屏幕听的那一句。
-///
-/// 与 translate 同一条规矩：细节进日志，上屏的是固定文案。这里的细节是注册表
-/// 的内部判定（预算、令牌形状、摘要不符），对屏幕前的人没有一句是可行动的。
 fn asset(error: AssetProtocolError) -> Error {
     log::error!("an attachment could not be delivered: {error:?}");
 

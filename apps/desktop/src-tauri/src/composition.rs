@@ -122,6 +122,34 @@ pub(crate) fn build() -> tauri::Builder<Wry> {
                 .get_window(MAIN_WINDOW)
                 .ok_or("tauri.conf.json 未声明 main 窗口")?;
 
+            /*
+             * 衬底在窗口能被看见之前就按偏好落定。此前只有渲染层投影这一条路，
+             * 而它要等设置加载与 React 首帧 —— 中间露出的就是创建期那个浅色底。
+             * 读设置失败不拦启动：衬底退回创建值，渲染层的投影照旧接管。
+             */
+            match app.state::<crate::settings::SettingsService>().load() {
+                Ok(settings) => {
+                    let theme = match settings.theme {
+                        crate::settings::ThemePreference::Light => Some(tauri::Theme::Light),
+                        crate::settings::ThemePreference::Dark => Some(tauri::Theme::Dark),
+                        crate::settings::ThemePreference::System => None,
+                    };
+
+                    match app.state::<WindowSurface>().adopt(&main_window, theme) {
+                        Ok(resolved) => log::info!(
+                            "startup surface adopted: preference {:?}, resolved {resolved:?}",
+                            settings.theme
+                        ),
+                        Err(error) => {
+                            log::warn!("could not adopt the persisted theme on the window surface: {error}");
+                        }
+                    }
+                }
+                Err(problem) => {
+                    log::warn!("could not read the persisted theme for the window surface: {problem:?}");
+                }
+            }
+
             crate::window::lifecycle::restore_initial_geometry(&main_window)?;
             crate::window::lifecycle::watch_maximized(&main_window);
             crate::window::lifecycle::present_watchdog(main_window.clone());

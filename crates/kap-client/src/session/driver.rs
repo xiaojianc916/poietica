@@ -1,9 +1,4 @@
-//! kap 传输驱动器：spawn "kimi web --no-open" → 等实例注册且地址认 server.token
-//! → /meta 兼容门禁 → REST 开锚会话 → WS 握手 + subscribe → 主循环收命令收事件。
-//! 事件帧的 type 就是事件自己的 type，信封 { type, seq, session_id, timestamp,
-//! payload }；REST 信封 { code, msg, data, request_id } 业务成败看 code，不看
-//! HTTP 状态。协议事实来源：MoonshotAI/kimi-code 的 packages/kap-server，契约
-//! 快照 contracts/kap/asyncapi.json。
+//! kap 传输驱动器。事件信封 { type, seq, session_id, timestamp, payload }；REST 信封成败看 code（契约快照 contracts/kap/asyncapi.json）。
 
 use std::future::Future;
 use std::sync::Arc;
@@ -46,13 +41,10 @@ use crate::session::router::EventRouter;
 use crate::session::{AgentConnection, AgentSpawn, Handshake, SessionEvent, SessionEvents};
 use crate::trace::{open_trace, trace};
 
-/// 命令处理的统一收尾：spawn 出去的工作无论成败，收据必回命令端。
 async fn settle<T>(reply: oneshot::Sender<Result<T>>, fut: impl Future<Output = Result<T>>) {
     let _ = reply.send(fut.await);
 }
 
-/// Spawns kimi web --no-open, waits for it to register, connects via WS,
-/// and returns an AgentConnection ready to accept commands.
 pub fn connect(
     spawn: AgentSpawn,
     slot: RunSlot,
@@ -131,9 +123,6 @@ pub fn connect(
         {
             Ok(found) => found,
             Err(error) => {
-                // 收尸再报：超时的根因多半写在 server 自己的 stderr 上（端口、
-                // 配置、崩溃），不带回来就只剩一句"没注册"。
-
                 let message = format!("{error}; server stderr: {}", diagnostics.tail());
 
                 let _ = ready_tx.send(Err(KapError::Handshake {
@@ -144,12 +133,9 @@ pub fn connect(
             }
         };
 
-        // 令牌校验已在 discover_instance 里完成：只有「认这份令牌的地址」才算发现成功。
-
         let dial = dialable_host(&host);
         let base_url = format!("http://{dial}:{port}");
 
-        // 令牌走 Authorization 头（kap 全局 bearer 鉴权，kap-server/src/middleware/auth.ts）。
         let auth_header = match reqwest::header::HeaderValue::from_str(&format!("Bearer {token}")) {
             Ok(value) => value,
             Err(error) => {
@@ -175,7 +161,6 @@ pub fn connect(
                 message: e.to_string(),
             })?;
 
-        // 兼容门禁：活着的 server 必须仍然认快照钉住的能力集（compatibility.rs）。
         if let Err(error) = require_pinned_capabilities(&http, &base_url).await {
             let _ = ready_tx.send(Err(KapError::Handshake {
                 message: error.to_string(),
@@ -221,7 +206,6 @@ pub fn connect(
             return Err(error);
         }
 
-        // 首连与重连走同一个 dial_ws / shake_hands。
         let ws_url = websocket::connect(&base_url).map_err(|error| KapError::Transport {
             message: error.to_string(),
         })?;
@@ -239,7 +223,6 @@ pub fn connect(
         let (ws_sink, mut ws_rx) = ws_stream.split();
         let ws: WsSink = Arc::new(tokio::sync::Mutex::new(ws_sink));
 
-        // 等 ack 期间到达的事件帧先收着，主循环开张前补投。
         let mut stash: Vec<serde_json::Value> = Vec::new();
 
         if let Err(error) = shake_hands(&ws, &mut ws_rx, &mut stash).await {
@@ -264,7 +247,6 @@ pub fn connect(
             }
         };
 
-        /* 锚会话是这条连接自己的地址：它没订上，这条连接就没有能问话的会话。 */
         match wait_subscribe_ack(&mut ws_rx, &anchor_sub, &session_id, &mut stash).await {
             Ok(true) => {}
             Ok(false) => {
@@ -287,7 +269,6 @@ pub fn connect(
             }
         }
 
-        /* transcript 流随锚会话一起挂上（subscribe_v2）：屏幕的经过从这一条来。 */
         if let Err(error) = subscribe_transcript(&ws, &session_id, None).await {
             let _ = ready_tx.send(Err(KapError::Handshake {
                 message: error.to_string(),
@@ -308,10 +289,7 @@ pub fn connect(
             http.clone(),
             base_url.clone(), Arc::clone(&ws), tasks.clone());
 
-        /* 每条会话最后读到的位置。重连按它续订：帧不重发，也不缺号。 */
-
-        // 补投握手期间收下的帧；里面的 ping 不必答：刚发出的 client_hello 与 subscribe
-        // 已刷新服务端 lastInboundAt，判死线是连续两个周期无入站帧（wsConnectionV1.ts onHeartbeat）。
+        // stash 里的 ping 不必答：client_hello 与 subscribe 已刷新服务端 lastInboundAt（wsConnectionV1.ts onHeartbeat）。
         for envelope in std::mem::take(&mut stash) {
             router.handle(&envelope);
         }
@@ -320,7 +298,6 @@ pub fn connect(
         let mut severed: Option<String> = None;
 
         loop {
-            /* 链路断了：先接回来再往下读。到顶了这一轮判死，连接退场。 */
             if let Some(reason) = severed.take() {
                 let Some(relinked) = relink(
                     &ws,
@@ -354,7 +331,6 @@ pub fn connect(
                             shutdown_reply = Some(gone);
                             break;
                         }
-                        /* 命令端全没了：没人再要收据，收尸照做。 */
                         None => break,
 
                         Some(Command::Steer {
@@ -410,8 +386,7 @@ pub fn connect(
                                 let accepted = result.is_ok();
                                 let _ = reply.send(result);
 
-                                /* 请求本身没送出去时这一轮还在 agent 手上，
-                                轮终仍由 turn.ended 说话。 */
+                                /* abort 未被 kap 接受时这一轮还在 agent 手上，轮终仍由 turn.ended 说话。 */
                                 if !accepted {
                                     return;
                                 }
@@ -631,8 +606,7 @@ pub fn connect(
                         }
 
                         Some(Ok(Message::Text(raw))) => {
-                            // kap 心跳是应用层帧（contracts/kap/asyncapi.json 的
-                            // ping/pong），与 tungstenite 协议层 Ping 两回事，都要答。
+                            // kap 心跳是应用层帧（contracts/kap/asyncapi.json 的 ping/pong），与 tungstenite 协议层 Ping 都要答。
                             if let Ok(ServerFrame::Ping { payload, .. }) =
                                 server_frame(&raw)
                             {

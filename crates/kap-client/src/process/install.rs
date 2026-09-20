@@ -1,15 +1,4 @@
 //! agent 运行时的安装与更新：包管理器归属、最新版查询、一次安装的执行。
-//!
-//! 归属是查出来的，不是猜的：PATH 上的 kimi 只是个 shim，用 npm 去升级一份 pnpm
-//! 装的运行时不会升级它，只会在 npm 的 prefix 里放第二个同名 shim —— 两份同时在
-//! PATH 上，界面说新版本、进程跑旧版本，一声不吭。所以从已解析出的那个文件反查：
-//! 它的目录落在谁的全局 bin 里，它就归谁。三家都不是（官方脚本、Homebrew、手工
-//! 放的）就是 External，一个按钮都不画：替用户装第二份比不作为更坏。还没装时才挑，
-//! 顺序 bun、pnpm、npm —— npm 随 Node.js 必然存在，当默认等于对每个刻意装过别家
-//! 的人都装错地方。
-//!
-//! 最新版问包管理器自己：registry、镜像、代理与企业证书全在它的配置里，绕过就是
-//! 在国内镜像下必然检测失败。缓存的存取归宿主（agents.json），这里只有查询与执行。
 
 use std::path::{Path, PathBuf};
 use std::process::Command;
@@ -20,10 +9,8 @@ use serde_json::Value;
 use super::program::{hide_console, resolve_program};
 use crate::error::{KapError, Result};
 
-/// 检测不该把界面挂住。安装没有这道闸：它本来就可能跑几分钟。
 const FETCH_TIMEOUT: &str = "--fetch-timeout=8000";
 
-/// 三家受管的包管理器。
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum PackageManager {
     Bun,
@@ -32,7 +19,6 @@ pub enum PackageManager {
 }
 
 impl PackageManager {
-    /// 顺序即优先级，只在「还没装」时用得上。理由见模块头。
     const ALL: [Self; 3] = [Self::Bun, Self::Pnpm, Self::Npm];
 
     pub fn program(self) -> &'static str {
@@ -47,12 +33,7 @@ impl PackageManager {
         resolve_program(self.program()).ok()
     }
 
-    /// 装到一个具体版本，而不是把 latest 这个标签交回去。
-    ///
-    /// latest 由谁解析是有分歧的：我们这一侧 view 出来是 0.31.1，包管理器自己再解析
-    /// 一次可能因为元数据缓存落到 0.31.0 —— 退出码 0，版本却没到位，界面只好把同一个
-    /// 按钮再画一次。调用方已解析过最新版，就把那个具体版本号交下来；查不到时才退回
-    /// latest，让包管理器自己决定。
+    /// 交具体版本而不是 latest：包管理器自己再解析可能落到旧版，退出码 0 版本却没到位。
     pub fn install_args(self, package: &str, version: Option<&str>) -> Vec<String> {
         let target = match version {
             Some(version) => format!("{package}@{version}"),
@@ -72,7 +53,6 @@ impl PackageManager {
     }
 
     fn view_args(self, package: &str) -> Vec<String> {
-        /* 动词各家不同：bun 是 info，pnpm 与 npm 是 view。 */
         let verb = match self {
             Self::Bun => "info",
             Self::Pnpm | Self::Npm => "view",
@@ -93,7 +73,6 @@ impl PackageManager {
         args
     }
 
-    /// 这个包管理器把全局可执行文件放在哪。
     fn global_bin(self) -> Option<PathBuf> {
         let program = self.resolved()?;
 
@@ -121,21 +100,16 @@ impl PackageManager {
     }
 }
 
-/// 一个 agent 运行时此刻的安装处境。
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum InstallState {
-    /// 档案没说这东西怎么装。界面什么都不画。
     Unmanaged,
     Missing,
     Outdated,
     Current,
-    /// 装着，但不是 bun、pnpm、npm 装的。我们不碰别人的安装。
     External,
-    /// 装着，但问不到最新版（离线、镜像不通），或者它的 --version 读不懂。
     Unknown,
 }
 
-/// 安装检测的完整答案。
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct InstallStatus {
     pub state: InstallState,
@@ -145,7 +119,6 @@ pub struct InstallStatus {
 }
 
 impl InstallStatus {
-    /// 只有处境、没有版本的答案。
     #[must_use]
     pub fn plain(state: InstallState) -> Self {
         Self {
@@ -157,11 +130,9 @@ impl InstallStatus {
     }
 }
 
-/// 装与没装、新与旧的裁决。纯函数：判据是 semver，不是排版。
 #[must_use]
 pub fn install_state_of(installed: Option<&str>, latest: Option<&str>) -> InstallState {
     match (installed, latest) {
-        /* 文件在，只是它的 --version 读不懂。这不是「没装」。 */
         (None, _) | (Some(_), None) => InstallState::Unknown,
         (Some(current), Some(newest)) => {
             match (
@@ -176,10 +147,7 @@ pub fn install_state_of(installed: Option<&str>, latest: Option<&str>) -> Instal
     }
 }
 
-/// 这个可执行文件是谁装的。
-///
-/// 规范化的是它所在的目录，不是它本身：pnpm 的全局 bin 里放的是指向内容寻址仓库的
-/// 符号链接，把文件本身 canonicalize 掉，就再也认不出它原本挂在谁的 bin 下面。
+/// canonicalize 的是所在目录不是文件：pnpm 全局 bin 里放的是指向内容寻址仓库的符号链接。
 #[must_use]
 pub fn owner_of(executable: &Path) -> Option<PackageManager> {
     let home = executable.parent()?.canonicalize().ok()?;
@@ -193,7 +161,6 @@ pub fn owner_of(executable: &Path) -> Option<PackageManager> {
         .map(|(manager, _dir)| *manager)
 }
 
-/// 还没装时挑哪一个：bun、pnpm、npm，第一个解析得到的。
 #[must_use]
 pub fn preferred_manager() -> Option<PackageManager> {
     PackageManager::ALL
@@ -202,7 +169,6 @@ pub fn preferred_manager() -> Option<PackageManager> {
         .find(|manager| manager.resolved().is_some())
 }
 
-/// 两个包管理器的全局 bin 目录。一次会话查一次 —— 它在进程存续期间不会变。
 fn global_bins() -> &'static [(PackageManager, PathBuf)] {
     static BINS: OnceLock<Vec<(PackageManager, PathBuf)>> = OnceLock::new();
 
@@ -214,7 +180,6 @@ fn global_bins() -> &'static [(PackageManager, PathBuf)] {
     })
 }
 
-/// 跑一个程序，stdout 与 stderr 合在一起交回来。
 fn spoken_output(program: &Path, args: &[String]) -> Option<String> {
     let mut command = Command::new(program);
     command.args(args);
@@ -228,10 +193,6 @@ fn spoken_output(program: &Path, args: &[String]) -> Option<String> {
     Some(spoken)
 }
 
-/// 一段输出里第一个说得通的 semver。
-///
-/// 各家 --version 的排版不一样（"kimi-code 1.4.2"、"v1.4.2"、带 build 后缀），
-/// 但版本号本身是标准的，所以判据交给 semver，而不是猜排版。
 #[must_use]
 pub fn first_semver(text: &str) -> Option<String> {
     text.split(|glyph: char| glyph.is_whitespace() || "(),".contains(glyph))
@@ -240,11 +201,6 @@ pub fn first_semver(text: &str) -> Option<String> {
         .map(str::to_owned)
 }
 
-/// 问包管理器这个包的最新版本。
-///
-/// # Errors
-///
-/// 包管理器缺席、没有执行成功，或问不出一个版本时返回错误。
 pub fn latest_version(manager: PackageManager, package: &str) -> Result<String> {
     let program = manager
         .resolved()
@@ -253,11 +209,7 @@ pub fn latest_version(manager: PackageManager, package: &str) -> Result<String> 
     let spoken = spoken_output(&program, &manager.view_args(package))
         .ok_or_else(|| toolchain(format!("{} 没有执行成功", manager.program())))?;
 
-    /*
-     * --json 下给的是一个字符串，多版本匹配时是一个数组。两家的实现都可能在前面先
-     * 打一行提示，所以读不成 JSON 时退回「扫出第一个 semver」——判据仍然是 semver，
-     * 不是排版。
-     */
+    /* --json 给的是字符串或多版本数组；两家都可能先打一行提示，读不成 JSON 就扫 semver。 */
     let parsed: Option<Value> = serde_json::from_str(spoken.trim()).ok();
 
     let version = match parsed {
@@ -269,7 +221,6 @@ pub fn latest_version(manager: PackageManager, package: &str) -> Result<String> 
     version.ok_or_else(|| toolchain(format!("{package} 的最新版本问不出来")))
 }
 
-/// 这个程序自己报的版本：跑它、听它说、扫出第一个 semver。
 #[must_use]
 pub fn reported_version(program: &Path, version_args: &[String]) -> Option<String> {
     spoken_output(program, version_args)
@@ -277,12 +228,6 @@ pub fn reported_version(program: &Path, version_args: &[String]) -> Option<Strin
         .and_then(first_semver)
 }
 
-/// 用这一个包管理器全局安装一个包（可以钉住版本）。
-///
-/// # Errors
-///
-/// 包管理器没有执行成功，或它自己说了不时返回错误 —— stderr 的第一句非空行
-/// 原样带回来，那是用户唯一拿得去修正的信息。
 pub fn install_package(manager: PackageManager, package: &str, target: Option<&str>) -> Result<()> {
     let program = manager
         .resolved()

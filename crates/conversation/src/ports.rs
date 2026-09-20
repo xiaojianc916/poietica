@@ -4,23 +4,17 @@ use crate::identity::{Seq, ThreadId, TurnId};
 use crate::turn::admission::{Admission, AdmissionDecision};
 use crate::turn::delivery::{DeliveryOutcome, DeliveryState};
 
-/// 一次投递的全部事实：冻结的意图，加上这一轮要去的会话地址。
-///
-/// 会话号是协议命名空间里的事实，由会话用例经账本解析出来；
-/// 领域只负责把它和意图一起递给网关。
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PromptDelivery {
     pub admission: Admission,
     pub session: String,
 }
 
-/// 账本：唯一真相的写入与读回。实现落在适配环，领域只认这个形状。
+/// 账本：唯一真相的唯一写入与读回路径；实现住在适配环，领域只认这个形状。
 pub trait ConversationLedger {
-    /// 相同冻结输入与 turn 幂等；准入、发件箱和准入事件一起提交。
+    /// 相同冻结输入与 turn 幂等；准入、发件箱和准入事件原子地一起提交。
     fn admit(&self, delivery: &PromptDelivery) -> Result<AdmissionDecision, LedgerUnavailable>;
 
-    /// 追加一批事件；账本按对话发号并盖时戳。答的是带位置的完整信封 ——
-    /// 上屏与重放用的是同一个形状。
     fn append(
         &self,
         thread: &ThreadId,
@@ -42,14 +36,13 @@ pub trait ConversationLedger {
         outcome: DeliveryOutcome,
     ) -> Result<DeliveryState, LedgerUnavailable>;
 
-    /// 欠着的投递：pending / sent / unknown。重启后由这里接上。
     fn unresolved_deliveries(&self) -> Result<Vec<Admission>, LedgerUnavailable>;
 }
 
-/// 投递端口声明重放能力；没有幂等依据时禁止恢复任务再次发送。
+/// 没有幂等依据时禁止恢复任务再次发送。
 pub trait AgentGateway {
     fn can_replay(&self, delivery: &PromptDelivery) -> bool;
-    /// Err 仅表示尚未交给传输层；送出后的结果必须通过收据返回。
+    /// Err 仅表示尚未交给传输层；送出后的结果必须经收据返回。
     fn deliver(&self, delivery: &PromptDelivery) -> Result<DeliveryReceipt, GatewayFailure>;
 }
 

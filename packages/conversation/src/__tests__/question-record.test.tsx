@@ -3,20 +3,6 @@ import { renderToStaticMarkup } from 'react-dom/server'
 import { QuestionRecord } from '../surface/timeline/question-record'
 import type { QuestionTimelineItem } from '../timeline/timeline-contract'
 
-/*
- * 落定的题在转录里的样子。
- *
- * 提问是协议自己的条目（kap 的 questions），不再有「这道帧算不算一道题」的判据
- * 要守 —— 那层闸门整个消失了。剩下两件事要钉住：
- *
- *   还没结清的不上屏   判据在 agent 侧的 renderable.ts，这里守组件自己的防线
- *   结清之后的形态     答过只留被选中的那一个，跳过的说跳过，没答成的写明由来
- *
- * 用 react-dom/server 而不是 testing-library：要守的都只关乎一次渲染的产物，
- * 不需要 DOM，也就不需要为此往这个包里添三个依赖和一套环境配置。
- */
-
-/** 一道题，题面与选项都是协议自己带的。 */
 function group(overrides: Partial<QuestionTimelineItem> = {}): QuestionTimelineItem {
   return {
     type: 'question',
@@ -42,7 +28,6 @@ function group(overrides: Partial<QuestionTimelineItem> = {}): QuestionTimelineI
 
 describe('落定的题', () => {
   it('还没结清的一行都不画', () => {
-    /* renderable 先把这一条挡在转录外；这里守住组件自己的防线。 */
     expect(renderToStaticMarkup(<QuestionRecord item={group()} />)).toBe('')
   })
 
