@@ -11,6 +11,7 @@ use super::child_view::{drive, ensure_live_kernel, run_in_page};
 use super::picker_bridge::{stop_picker, stop_picker_unless};
 use super::{PICKER_CANCEL_SCRIPT, lock};
 use crate::error::Error;
+use crate::window::ResolvedTheme;
 use poietica_problem::Problem;
 
 #[derive(Clone, Copy, Debug, Default, Deserialize, PartialEq, Serialize, specta::Type)]
@@ -428,13 +429,6 @@ pub async fn browser_set_visible(app: AppHandle, visible: bool) {
 #[specta::specta]
 pub async fn browser_devtools_endpoint(app: AppHandle) -> Option<String> {
     app.state::<BrowserHost>().devtools_endpoint()
-}
-
-#[derive(Clone, Copy, Debug, Deserialize, Serialize, specta::Type)]
-#[serde(rename_all = "lowercase")]
-pub enum ResolvedTheme {
-    Light,
-    Dark,
 }
 
 #[command]

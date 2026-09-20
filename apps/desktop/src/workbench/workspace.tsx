@@ -174,23 +174,11 @@ export function DesktopWorkspace({
         workspace.activateTab(tabId)
       },
 
-      closeTab(tabId) {
-        workspace.closeTab(tabId)
-      },
-
-      moveTab(tabId, targetIndex) {
-        workspace.moveTab(tabId, targetIndex)
-      },
-
       openSurface(surfaceId) {
         workspace.openSurface({ surfaceId })
       },
-
-      openDeveloperTools: onDeveloperToolsOpen,
-
-      openSettingsWindow: onSettingsOpen,
     }),
-    [onDeveloperToolsOpen, onSettingsOpen, workspace],
+    [workspace],
   )
 
   /* 侧栏高亮的那一行就是正在看的那一格：身份来自工作台，没有第二份状态。 */

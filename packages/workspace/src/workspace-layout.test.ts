@@ -8,11 +8,10 @@ describe('WORKSPACE_LAYOUT', () => {
     expect(defaultWidth).toBeLessThan(maxWidth)
   })
 
-  it('keeps the todo popup inside the auxiliary width range', () => {
-    const { todo, auxiliary } = WORKSPACE_LAYOUT
+  it('keeps the todo popup geometry positive', () => {
+    const { todo } = WORKSPACE_LAYOUT
     expect(todo.width).toBeGreaterThan(0)
     expect(todo.gap).toBeGreaterThan(0)
-    expect(todo.width).toBeLessThanOrEqual(auxiliary.maxWidth)
   })
 
   it('keeps the default auxiliary width inside its bounds', () => {
@@ -29,6 +28,35 @@ describe('WORKSPACE_LAYOUT', () => {
     expect(auxiliaryMaxWidth(open)).toBe(auxiliary.maxWidth)
     expect(auxiliaryMaxWidth(closed)).toBe(auxiliary.maxWidth + sidebarWidth)
     expect(auxiliaryMaxWidth({ ...open, sidebarWidth: 0 })).toBe(auxiliary.maxWidth)
+  })
+
+  it('never lets the auxiliary pane push the main column out of the shell', () => {
+    const { auxiliary, main, sidebar } = WORKSPACE_LAYOUT
+    const sidebarWidth = sidebar.defaultWidth
+
+    /* 中间地带：上限正好是「窗口 − 侧栏 − 主列地板」。 */
+    const viewportWidth = 1000
+    expect(auxiliaryMaxWidth({ sidebarOpen: true, sidebarWidth, viewportWidth })).toBe(
+      viewportWidth - sidebarWidth - main.minWidth,
+    )
+
+    /* 窗口够宽时产品上限说了算，窗口那一维不介入。 */
+    expect(auxiliaryMaxWidth({ sidebarOpen: true, sidebarWidth, viewportWidth: 1600 })).toBe(
+      auxiliary.maxWidth,
+    )
+
+    /* 窗口窄到连下限都放不下时下限优先：主列是 minmax(0, 1fr)，该让的是它，
+     * 而且上限低过下限会让分隔条的 aria-valuemax 小于 aria-valuemin。 */
+    const narrow = auxiliaryMaxWidth({ sidebarOpen: true, sidebarWidth, viewportWidth: 800 })
+    expect(narrow).toBe(auxiliary.minWidth)
+    expect(narrow).toBeLessThanOrEqual(auxiliary.maxWidth)
+  })
+
+  it('does not constrain the auxiliary pane before the shell has been measured', () => {
+    const { auxiliary, sidebar } = WORKSPACE_LAYOUT
+    const layout = { sidebarOpen: true, sidebarWidth: sidebar.defaultWidth }
+    expect(auxiliaryMaxWidth({ ...layout, viewportWidth: null })).toBe(auxiliary.maxWidth)
+    expect(auxiliaryMaxWidth(layout)).toBe(auxiliary.maxWidth)
   })
 
   it('uses a short layout animation', () => {

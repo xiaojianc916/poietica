@@ -534,6 +534,10 @@
   --cp-input-hover: #3b3b3b;
   --cp-input-lift: none;
 
+  /* 附件格的面：深色下给实色 #383838。上面那条式子（6% 的墨兑 --cp-surface）
+     解出来正是 #2a2a2a，与输入卡同色，一格文件贴上去像没画出来。浅色那支不动。 */
+  --cp-tile-face: #383838;
+
   --cp-menu-hover: #2e2e2e;
 
   /*

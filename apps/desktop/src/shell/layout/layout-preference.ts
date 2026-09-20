@@ -1,14 +1,17 @@
 import { createPreference, type Preference } from '@poietica/external-store'
 import { warn } from '@poietica/problem'
 import { z } from 'zod'
-import { clampSidebarWidth, DEFAULT_LAYOUT_INTENT, type LayoutIntent } from './layout-store'
+import { DEFAULT_LAYOUT_INTENT, type LayoutIntent } from './layout-store'
 
-/* 每一格坏了就回落到默认值：一份读不动的偏好不该让界面打不开。 */
+/* 每一格坏了就回落到默认值：一份读不动的偏好不该让界面打不开。
+ *
+ * 两个宽度只验类型，落界由 store 的 normalize 一处负责 —— 侧栏宽度在这里夹一次、
+ * 辅助列宽度在那里夹一次的话，同一件事就有两个答案，而辅助列的上限还随窗口走，
+ * 这里根本算不出来。 */
 const schema = z.object({
   sidebarOpen: z.boolean().catch(DEFAULT_LAYOUT_INTENT.sidebarOpen),
-  sidebarWidth: z.number().transform(clampSidebarWidth).catch(DEFAULT_LAYOUT_INTENT.sidebarWidth),
+  sidebarWidth: z.number().catch(DEFAULT_LAYOUT_INTENT.sidebarWidth),
   auxiliaryThread: z.string().nullable().catch(DEFAULT_LAYOUT_INTENT.auxiliaryThread),
-  /* 辅助列的上限取决于同一份偏好里的侧边栏状态，落界由 store 的 normalize 一处负责。 */
   auxiliaryWidth: z.number().catch(DEFAULT_LAYOUT_INTENT.auxiliaryWidth),
 })
 export function createWorkspaceLayoutPreference(): Preference<LayoutIntent> {

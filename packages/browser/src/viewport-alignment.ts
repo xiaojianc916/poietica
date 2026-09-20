@@ -14,10 +14,10 @@ export interface ViewportAlignment {
   /**
    * 重新起跑一次跟随。
    *
-   * 指纹只做同一性比较，本层从不解读它，所以它是 object 而不是某个具体形状 ——
+   * 指纹只做同一性比较，本层从不解读它，所以它是 unknown 而不是某个具体形状 ——
    * 断言成形状等于宣称这一层认识布局。传进来的值必须引用稳定。
    */
-  readonly follow: (signal: object) => void
+  readonly follow: (signal: unknown) => void
   readonly stop: () => void
 }
 
@@ -28,7 +28,9 @@ export function alignViewport(
   let frame = 0
   let still = 0
   let last: BrowserViewportBounds | null = null
-  let signal: object | null = null
+  /* 独立哨兵，不用 null 也不 undefined：指纹是调用方给的值，可能正好是它们。 */
+  const NO_SIGNAL = Symbol('no-signal')
+  let signal: unknown = NO_SIGNAL
 
   const measure = (): void => {
     const rect = element.getBoundingClientRect()

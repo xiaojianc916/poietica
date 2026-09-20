@@ -130,6 +130,7 @@ pub(crate) fn surface() -> Builder<Wry> {
             crate::shutdown::application_quit,
             crate::window::commands::window_open_devtools,
             crate::window::commands::window_set_surface,
+            crate::window::commands::window_set_theme,
             crate::window::commands::window_open_external_url,
             crate::settings::commands::settings_get,
             crate::settings::commands::settings_set,

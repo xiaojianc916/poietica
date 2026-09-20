@@ -21,15 +21,10 @@ export function SidebarRegion({
   const workspaceLayoutStore = useWorkspaceLayoutStore()
 
   return (
-    <div
-      className="workspace-shell__sidebar min-h-0 min-w-0 overflow-visible bg-sidebar"
-      inert={!isDocked}
-    >
+    <div className="workspace-shell__region workspace-shell__sidebar bg-sidebar" inert={!isDocked}>
       <div className="workspace-shell__region-clip">
-        <div
-          className="workspace-shell__sidebar-content h-full min-h-0 overflow-hidden"
-          style={{ width }}
-        >
+        {/* 定宽内容贴 inline-start：列窄于内容时从右边（远离主区那一端）被裁掉。 */}
+        <div className="workspace-shell__region-content" style={{ width }}>
           {children}
         </div>
       </div>

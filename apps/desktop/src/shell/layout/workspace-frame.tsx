@@ -16,6 +16,11 @@ const WORKSPACE_LAYOUT_STYLE: WorkspaceStyle = {
   '--workspace-layout-ease': `cubic-bezier(${easeX1}, ${easeY1}, ${easeX2}, ${easeY2})`,
 
   '--chrome-height': `${WORKSPACE_LAYOUT.chrome.height}px`,
+
+  /* 卡片几何：外壳、右栏标签条与浏览器视口（packages/workspace 自己）共读这一份。 */
+  '--workspace-card-gap': `${WORKSPACE_LAYOUT.card.gap}px`,
+  '--workspace-card-radius': `${WORKSPACE_LAYOUT.card.cornerRadius}px`,
+  '--workspace-card-control': `${WORKSPACE_LAYOUT.card.controlSize}px`,
 }
 
 export interface WorkspaceFrameProps {
@@ -47,8 +52,16 @@ export function WorkspaceFrame({
   splitter,
   splitterRegion,
 }: WorkspaceFrameProps) {
-  /* 全屏把 aux 列宽铺到「剩余全部」：main 的 1fr 被逐帧压到 0，主区随之让位。
-     两者都是 <length>，经 @property 插值过渡 —— 与侧边栏开合同一套机制。 */
+  /*
+   * 全屏把 aux 列宽铺到「剩余全部」：main 的 1fr 被逐帧压到 0，主区随之让位。
+   * 两者都是 <length>，经 @property 插值过渡 —— 与侧边栏开合同一套机制。
+   *
+   * 算式只能用视口单位，不能用更贴切的 1fr 或 100cqw：
+   * 这条属性注册成 <length>，1fr 不是长度，整条声明会失效并退回 initial-value 0px；
+   * cqw 要给外壳加 container-type，而那会造出一个包含块，把 dialog / toast 那些
+   * fixed inset-0 的浮层关进外壳里。外壳是整窗元素、根上又没有滚动条
+   * （app.css 的 body overflow: hidden），所以 dvw 与它的实际宽度相等。
+   */
   const style: WorkspaceStyle = {
     ...WORKSPACE_LAYOUT_STYLE,
     '--workspace-sidebar-column-width': `${sidebarColumnWidth}px`,

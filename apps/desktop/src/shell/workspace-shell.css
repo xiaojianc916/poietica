@@ -5,6 +5,10 @@
  * gridColumn / gridRow。列宽由 WorkspaceFrame 在提交时写成内联自定义属性；
  * 注册成 <length> 才能被 CSS 过渡插值（CSS Properties and Values API L1），
  * 插值因此归样式引擎、与样式解析同帧，不存在动画引擎迟一帧的中间态。
+ *
+ * 卡片几何（留白、圆角、贴角控件宽）的正本是 WORKSPACE_LAYOUT.card，由
+ * WorkspaceFrame 挂成 --workspace-card-*。本文件不写它们的值，也不写兜底值：
+ * 兜底值就是第二份真相，上游改数它不跟，而且永远不报错。
  */
 @property --workspace-sidebar-column-width {
   syntax: "<length>";
@@ -35,10 +39,6 @@
 }
 
 .workspace-shell {
-  /* 会话面板：四角圆角 + 右、下两条地色留白。两者各只有这一份。 */
-  --workspace-main-corner-radius: 16px;
-  --workspace-main-gap: 8px;
-
   grid-template-columns:
     var(--workspace-sidebar-column-width)
     minmax(0, 1fr)
@@ -68,7 +68,7 @@
   align-self: start;
   justify-self: end;
   margin-block-start: 0.5rem;
-  margin-inline-end: calc(var(--workspace-main-gap) + var(--workspace-main-corner-radius));
+  margin-inline-end: calc(var(--workspace-card-gap) + var(--workspace-card-radius));
 }
 
 .workspace-shell__todo-toggle {
@@ -76,9 +76,13 @@
   transition: margin-inline-end var(--workspace-layout-duration) var(--workspace-layout-ease);
 }
 
-/* 辅助面板收起时让开辅助开关：再退它一个按钮宽（size-6，1.5rem）。 */
+/* 辅助面板收起时让开辅助开关：再退它一个控件宽。 */
 .workspace-shell[data-auxiliary-docked="false"] .workspace-shell__todo-toggle {
-  margin-inline-end: calc(var(--workspace-main-gap) + var(--workspace-main-corner-radius) + 1.5rem);
+  margin-inline-end: calc(
+    var(--workspace-card-gap) +
+    var(--workspace-card-radius) +
+    var(--workspace-card-control)
+  );
 }
 
 .workspace-shell__auxiliary-toggle {
@@ -169,7 +173,7 @@
  */
 .workspace-shell__divider--auxiliary {
   grid-area: 2 / 2 / -1 / 3;
-  margin-inline-end: calc(var(--workspace-main-gap) / 2);
+  margin-inline-end: calc(var(--workspace-card-gap) / 2);
 }
 
 /*
@@ -241,23 +245,45 @@
 }
 
 /*
- * 收起 = 内容被自己那一列裁掉，不是靠邻居盖住。
+ * 收起 = 内容被自己那一列裁掉，不是靠邻居盖住，也不是被压扁。
  *
  * 定宽底面挂在列外、靠不透明主区遮住，只在「主区宽 ≥ 被收起的列宽」时成立；
  * 窗口一窄这个算式就不成立，露出的那条带子正好落到另一侧的区域上。裁剪只改
  * 绘制不改布局，子树因此不重排、不卸载。
  *
+ * 两侧区域共用这一个形状：裁剪层绝对定位铺满自己那一列，内容是 flex: none 的定宽
+ * 项、不参与收缩，于是列变窄时被裁掉的是远离主区的那一端 —— 内容不重排、不卸载，
+ * 只是滑出去。裁哪一端由裁剪层的 justify-content 定：侧栏贴 start（从右边被吃掉，
+ * 读成向左滑出），右栏贴 end（从左边被吃掉，读成向右滑出）。
+ *
+ * 右栏的留白写成内容自己的 margin，不写成裁剪层的 padding：内容比列宽时它从 start
+ * 一端溢出，那时 padding 推不动它 —— 溢出穿过内边距，起点仍由宽度决定。margin 是
+ * 内容外框的一部分，贴 end 的是外框，留白因此一定生效。
+ *
  * 两侧区域都只给 position，不给 z-index：分隔条要靠自己的 z-index 越过主区去
  * 接指针，父级一旦成为层叠上下文就把它关在里面了。
  */
+.workspace-shell__region {
+  position: relative;
+  min-inline-size: 0;
+  min-block-size: 0;
+}
+
 .workspace-shell__region-clip {
   position: absolute;
   inset: 0;
+  display: flex;
   overflow: clip;
 }
 
+/* 宽度由 store 给，这一条只管内容不参与收缩：列窄于内容时被裁剪层裁掉。 */
+.workspace-shell__region-content {
+  flex: none;
+  min-block-size: 0;
+  overflow: hidden;
+}
+
 .workspace-shell__sidebar {
-  position: relative;
   grid-area: sidebar;
 }
 
@@ -266,8 +292,8 @@
   grid-area: main;
   /* 面板不贴右、下两边：让出来的这一圈与圆角缺口同色（section 的 bg-chrome），
    * 面板因此读成一张浮在 chrome 地色上的卡片，而不是一块填满的格子。 */
-  padding-block-end: var(--workspace-main-gap);
-  padding-inline-end: var(--workspace-main-gap);
+  padding-block-end: var(--workspace-card-gap);
+  padding-inline-end: var(--workspace-card-gap);
 }
 
 /*
@@ -275,7 +301,7 @@
  * 三面有缝，和右边那条对不上。侧栏展开时不留 —— 面板左缘贴着侧栏，正是那一列的地色。
  */
 .workspace-shell[data-sidebar-docked="false"] .workspace-shell__main {
-  padding-inline-start: var(--workspace-main-gap);
+  padding-inline-start: var(--workspace-card-gap);
 }
 
 /*
@@ -290,54 +316,62 @@
  * 改大这段数之前先看那一处跟不跟。
  */
 .workspace-shell__main-panel {
-  border-radius: var(--workspace-main-corner-radius);
-}
-
-/* 列宽归零后的空列不吃指针事件。判据与列宽同源，不由各区域内联一份。 */
-.workspace-shell[data-sidebar-docked="false"] .workspace-shell__sidebar {
-  pointer-events: none;
+  border-radius: var(--workspace-card-radius);
 }
 
 /*
- * 浏览器列与侧栏同一套：定宽底面贴列的 inline-end 一侧，由自己那一列裁剪。
+ * 浏览器列与侧栏同一套形状，三处不同：贴 end 一端、右与下两条留白、以及左边那条。
  *
  * 面板与主区同一张卡片：地色铺在栅格格位上、内容自己铺页面底色并带同一档圆角。
  * 留白只给右边和下边 —— 左边不留给它自己：两张面板之间那条缝由主区右侧那条给，
  * 两条加起来就比四周宽一倍。这一列左缘因此与列边界重合，分隔线（只在悬停／拖拽时
  * 点亮）正好落在它左边一个像素上。
- *
- * 留白写在内容自己的 inset 上，不写成这一格的 padding：内容是绝对定位的，而绝对
- * 定位的包含块是这一格的 border box —— 加 padding 推不动它。
  */
 .workspace-shell__auxiliary {
-  position: relative;
   grid-area: auxiliary;
 }
 
-.workspace-shell__auxiliary-content {
-  position: absolute;
-  inset-block: 0 var(--workspace-main-gap);
-  inset-inline-end: var(--workspace-main-gap);
-  /* 宽度由 store 给，这一条只管留白之后还剩多少：全屏时宽度写 100%，同样被它收到列内。 */
-  max-inline-size: calc(100% - var(--workspace-main-gap));
-  border-radius: var(--workspace-main-corner-radius);
-}
-
-.workspace-shell[data-auxiliary-docked="false"] .workspace-shell__auxiliary {
-  pointer-events: none;
+.workspace-shell__auxiliary .workspace-shell__region-clip {
+  justify-content: flex-end;
 }
 
 /*
- * 上面那条「左边不留给它自己」有一个例外：全屏 + 侧栏收起时主区不在了，左缘那条缝
- * 没人给（常态由主区自己的 padding-inline-start 给，见上），面板就贴住窗口左缘。
- * 这一档面板得自己让出来，让法与右边同源：右缘仍钉在 gap 上、宽度上限再收一条 gap，
- * 左缘因此落在 gap 上 —— 两侧对称，左上那个圆角也才露得出来。
+ * 留白写在内容自己的 margin 上，不写成裁剪层的 padding，也不写成内容的 max-inline-size：
+ *
+ * - padding 不行：内容比列宽时从 start 一端溢出，而溢出穿过内边距，起点仍由宽度决定；
+ * - max-inline-size 不行：它把内容压窄到列宽，列一变窄面板就跟着重排（内容被压扁），
+ *   而这里要的是内容定宽、从左边滑出去 —— 与侧栏同一种读法。
+ *
+ * margin 是内容外框的一部分，贴 end 的是外框，所以留白一定生效；内容本身仍是它那份
+ * 定宽，列窄于内容时多出来的部分被裁剪层吃掉。实测（tools/dev/probe-workspace-geometry.ts）：
+ * 列 420 → 面板占 0..412；列 200 → 面板仍占 0..192，宽度不变、右缘钉在留白上。
+ */
+.workspace-shell__auxiliary-content {
+  margin-block-end: var(--workspace-card-gap);
+  margin-inline-end: var(--workspace-card-gap);
+  border-radius: var(--workspace-card-radius);
+}
+
+/*
+ * 全屏：列宽由外壳铺满，内容跟着铺满（内联写 100%），这里只把右缘那条留白让出来。
+ * 上限在这里可以收，因为要的正是「面板比列窄」—— 列没有变窄，是面板退让，两端都落
+ * 在留白上，圆角也才露得出来。（与上面那条的区别：那里是列被拖窄，内容必须定宽。）
+ */
+.workspace-shell[data-auxiliary-fullscreen="true"] .workspace-shell__auxiliary-content {
+  max-inline-size: calc(100% - var(--workspace-card-gap));
+}
+
+/*
+ * 上面那条「左边不留给它自己」有一个例外：全屏 + 侧栏收起时主区不在了（全屏下主列
+ * 整个 display: none），左缘那条缝没人给，面板就贴住窗口左缘。这一档再让一条，两侧
+ * 对称。
  *
  * 侧栏展开时不让：那时面板左缘贴着侧栏，正是那一列的地色，与常态同一个理由。
  */
 .workspace-shell[data-auxiliary-fullscreen="true"][data-sidebar-docked="false"]
 .workspace-shell__auxiliary-content {
-  max-inline-size: calc(100% - 2 * var(--workspace-main-gap));
+  max-inline-size: calc(100% - 2 * var(--workspace-card-gap));
+  margin-inline-start: var(--workspace-card-gap);
 }
 
 /*

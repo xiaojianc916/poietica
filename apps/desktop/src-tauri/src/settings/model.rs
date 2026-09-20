@@ -3,7 +3,7 @@ use serde::{Deserialize, Serialize};
 use specta::Type;
 #[derive(Debug, Deserialize, Serialize, Type, Clone, Copy, PartialEq, Eq, Default)]
 #[serde(rename_all = "camelCase")]
-pub(crate) enum ThemePreference {
+pub enum ThemePreference {
     Light,
     Dark,
     #[default]

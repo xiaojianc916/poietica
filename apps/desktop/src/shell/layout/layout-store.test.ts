@@ -112,6 +112,43 @@ test('the auxiliary cap follows the sidebar dock, and a widened pane falls back 
   stop()
 })
 
+test('the auxiliary cap follows the shell width, and never pushes the main column out', () => {
+  const { store, stop } = fixture()
+  const { auxiliary, main } = WORKSPACE_LAYOUT
+  const sidebarWidth = store.getSnapshot().sidebarWidth
+  const capAt = (viewportWidth: number): number => viewportWidth - sidebarWidth - main.minWidth
+
+  store.setViewportWidth(1100)
+  expect(store.getSnapshot().viewportWidth).toBe(1100)
+  /* 拖到远超窗口宽：落进快照的是「窗口 − 侧栏 − 主列地板」。 */
+  store.setAuxiliaryWidth(5000)
+  expect(store.getSnapshot().auxiliaryWidth).toBe(capAt(1100))
+
+  /* 窗口更窄，同一份宽度要跟着收。 */
+  store.setViewportWidth(1000)
+  expect(store.getSnapshot().auxiliaryWidth).toBe(capAt(1000))
+
+  /* 窄到连下限都放不下时下限优先：不会出现低过 minWidth 的值。 */
+  store.setViewportWidth(800)
+  expect(capAt(800)).toBeLessThan(auxiliary.minWidth)
+  expect(store.getSnapshot().auxiliaryWidth).toBe(auxiliary.minWidth)
+
+  /* 窗口再宽回来它不会自己长回去：拖出来的宽度是用户的选择。 */
+  store.setViewportWidth(1600)
+  expect(store.getSnapshot().auxiliaryWidth).toBe(auxiliary.minWidth)
+  stop()
+})
+
+test('an unmeasurable shell width is ignored rather than poisoning the cap', () => {
+  const { store, stop } = fixture()
+  const before = store.getSnapshot()
+  store.setViewportWidth(Number.NaN)
+  store.setViewportWidth(Number.POSITIVE_INFINITY)
+  expect(store.getSnapshot()).toBe(before)
+  expect(store.getSnapshot().viewportWidth).toBeNull()
+  stop()
+})
+
 test('widths stay finite and disposal fences later mutation', () => {
   const { store, writes, stop } = fixture()
   expect(() => store.setSidebarWidth(Number.NaN)).toThrow(RangeError)
@@ -125,5 +162,21 @@ test('widths stay finite and disposal fences later mutation', () => {
   expect(store.claimAuxiliaryThread('thread-a')).toBe(false)
   expect(store.getSnapshot()).toBe(settled)
   expect(writes).toHaveLength(saved)
+  stop()
+})
+
+test('fullscreen is a transient state the shell can revoke, and it never reaches disk', () => {
+  const { store, writes, stop } = fixture()
+  store.toggleAuxiliaryFullscreen()
+  expect(store.getSnapshot().auxiliaryFullscreen).toBe(true)
+  /* 外壳判定这一格离场后写回 false：这是「收起即失效」真正成立的那一步。 */
+  store.setAuxiliaryFullscreen(false)
+  expect(store.getSnapshot().auxiliaryFullscreen).toBe(false)
+  /* 全屏与窗口宽都不落盘：意图只有那四个字段。 */
+  store.setViewportWidth(1200)
+  for (const write of writes) {
+    expect(Object.hasOwn(write, 'auxiliaryFullscreen')).toBe(false)
+    expect(Object.hasOwn(write, 'viewportWidth')).toBe(false)
+  }
   stop()
 })

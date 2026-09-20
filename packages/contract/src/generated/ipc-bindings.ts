@@ -101,23 +101,11 @@ async agentPinThread(request: AgentPinThreadRequest) : Promise<null> {
 async agentForkThread(request: AgentForkThreadRequest) : Promise<AgentThread> {
     return await TAURI_INVOKE("agent_fork_thread", { request });
 },
-/**
- * 收得下的格式清单。系统文件对话框的过滤器按它来。
- * 
- * 这条命令存在的唯一理由，是扩展名那张表不该有第二份。一个进程只问一次
- * （native-bridge 的 gateways 那侧缓存住），代价是一次本机往返，换掉的是一个漏改不
- * 报错的静默失败。
- */
 async assetFormats() : Promise<AssetFormat[]> {
     return await TAURI_INVOKE("asset_formats");
 },
 /**
- * Opens an asset session and returns its opaque token.
- * 
- * # Errors
- * 
- * Returns an error when the registry refuses to open the session. The caller
- * receives the redacted IPC message, never native detail.
+ * 调用方只见脱敏后的 IPC 文案，永远拿不到原生细节。
  */
 async assetSessionOpen() : Promise<AssetSessionResult> {
     return await TAURI_INVOKE("asset_session_open");
@@ -128,26 +116,9 @@ async assetImport(request: AssetImportRequest) : Promise<AssetUploadResult[]> {
 async assetUpload(request: AssetUploadRequest) : Promise<AssetUploadResult> {
     return await TAURI_INVOKE("asset_upload", { request });
 },
-/**
- * Removes one asset from an open session.
- * 
- * # Errors
- * 
- * Returns an error when the registry rejects the request, and when the asset
- * is not present in that session.
- */
 async assetRemove(request: AssetRemoveRequest) : Promise<null> {
     return await TAURI_INVOKE("asset_remove", { request });
 },
-/**
- * Closes an asset session and releases everything it still holds.
- * 
- * # Errors
- * 
- * Returns an error only when the registry itself fails. A session that is
- * already gone is a success, not a failure: document close may have released
- * it first, and no caller should have to tell the two apart.
- */
 async assetSessionClose(request: AssetSessionCloseRequest) : Promise<null> {
     return await TAURI_INVOKE("asset_session_close", { request });
 },
@@ -181,32 +152,17 @@ async environmentMcpConfig() : Promise<EnvironmentFile> {
 async environmentMcpConfigWrite(expectedContents: string | null, contents: string) : Promise<EnvironmentFile> {
     return await TAURI_INVOKE("environment_mcp_config_write", { expectedContents, contents });
 },
-/**
- * 解析一台 stdio MCP 服务器的启动器；这台机器上没有该程序时是 `None`。
- * 
- * 返回 `None` 而不是错误：缺程序是那台机器的现状，界面要把这句话说出来，而不是
- * 弹一次错误。
- */
 async launcherResolve(program: string) : Promise<McpLauncher | null> {
     return await TAURI_INVOKE("launcher_resolve", { program });
 },
 async pluginsCatalogRead() : Promise<string | null> {
     return await TAURI_INVOKE("plugins_catalog_read");
 },
-/**
- * 拉一次市场目录，覆盖本地那一份，并把它交回去。
- * 
- * 这条命令不判断该不该拉 —— 那个判断是 packages/extension 的 shouldFetchOnOpen，
- * 属于状态机。这里只负责「拉了就覆盖」。
- */
 async pluginsCatalogRefresh(url: string) : Promise<string> {
     return await TAURI_INVOKE("plugins_catalog_refresh", { url });
 },
 /**
- * 认领：副本进 managed/<id>/，然后往账本里记一条。
- * 
- * 顺序不能反。副本在了但记录没写成，最坏是这个插件这一次没装上，重来一次即可；反过来
- * 先写记录再搬副本，中间失败就留下一条指向空气的记录，而 agent 会照着它去装载。
+ * 顺序不能反：先搬副本、后写账。反了会留下指向空气的记录，而 agent 会照着它装载。
  */
 async pluginsCommit(request: PluginCommitRequest) : Promise<null> {
     return await TAURI_INVOKE("plugins_commit", { request });
@@ -215,51 +171,25 @@ async pluginsDiscard(stagingId: string) : Promise<null> {
     return await TAURI_INVOKE("plugins_discard", { stagingId });
 },
 /**
- * 用户在命令行上装的那些插件 —— 只读，一个字节都不写。
- * 
- * 不 create_dir_all：那个目录不归我们所有，探测一份不存在的账本不该在用户的 home 里
- * 留下一个空目录（`store_root` 会建目录，正因为那一个是我们自己的家）。
- * 
- * 返回 None 表示这台机器上没有第二本账：受控 home 没有生效时，CLI 与我们读的是同一个
- * 文件，而同一个文件没有「另一份」。
- * 
- * # Errors
- * 
- * 家目录算不出来、账本读不动、不是合法 JSON，或里面没有 plugins 数组时返回错误。
+ * 只读探测，不 create_dir_all——目录不归我们所有；返回 None 即受控 home 未生效，没有第二本账。
  */
 async pluginsForeignList() : Promise<ForeignPluginInventory | null> {
     return await TAURI_INVOKE("plugins_foreign_list");
 },
 /**
- * 装了什么，agent 的账本说了算。
- * 
- * 不扫目录。官方卸载「only deletes the installation record; the managed copy and
- * original source files remain on disk」，所以盘上有一个目录不代表它装着 —— 扫目录会
- * 把刚卸载的插件重新显示成装着的，而 agent 那边不会装载它。
+ * 装没装以账本为准，不扫目录：官方卸载只删记录、盘上留副本，扫目录会把刚卸载的显示成装着。
  */
 async pluginsList() : Promise<PluginPayload[]> {
     return await TAURI_INVOKE("plugins_list");
 },
-/**
- * 卸载：账本里那一条去掉，托管副本一并删掉。
- * 
- * 官方只删记录、留副本。副本没有第二个读者 —— agent 只按记录装载 —— 留着它，换一个
- * 来源重装同一个 id 时，旧文件会混进新目录。删掉不改变 agent 观察到的任何行为。
- */
 async pluginsRemove(pluginId: string) : Promise<null> {
     return await TAURI_INVOKE("plugins_remove", { pluginId });
 },
-/**
- * 拨动整个插件。写的是 agent 会读的那一格，所以拨完在新会话里就是真的。
- */
 async pluginsSetEnabled(pluginId: string, enabled: boolean) : Promise<null> {
     return await TAURI_INVOKE("plugins_set_enabled", { pluginId, enabled });
 },
 /**
- * 拨动某个插件带来的一台 MCP 服务器。
- * 
- * 落点是官方的 `capabilities.mcpServers.<name>.enabled`，也就是 `/plugins mcp
- * disable` 写的同一格。
+ * 落点是官方的 `capabilities.mcpServers.<name>.enabled`，即 `/plugins mcp disable` 写的同一格。
  */
 async pluginsSetMcpEnabled(pluginId: string, server: string, enabled: boolean) : Promise<null> {
     return await TAURI_INVOKE("plugins_set_mcp_enabled", { pluginId, server, enabled });
@@ -285,27 +215,15 @@ async skillsSetEnabled(name: string, enabled: boolean) : Promise<null> {
 async skillsStage(fetch: PluginFetch) : Promise<SkillStaged> {
     return await TAURI_INVOKE("skills_stage", { fetch });
 },
-/**
- * 接上这个工作目录的终端；没有就开一条。回放经事件通道交回。
- */
 async terminalAttach(root: string, cols: number, rows: number) : Promise<null> {
     return await TAURI_INVOKE("terminal_attach", { root, cols, rows });
 },
-/**
- * 渲染层的键入与粘贴。
- */
 async terminalWrite(root: string, data: string) : Promise<null> {
     return await TAURI_INVOKE("terminal_write", { root, data });
 },
-/**
- * 渲染层量出来的网格。
- */
 async terminalResize(root: string, cols: number, rows: number) : Promise<null> {
     return await TAURI_INVOKE("terminal_resize", { root, cols, rows });
 },
-/**
- * 关掉这一格：子进程与读线程随会话一起收场。已经关掉的键不是故障。
- */
 async terminalClose(root: string) : Promise<void> {
     await TAURI_INVOKE("terminal_close", { root });
 },
@@ -338,40 +256,26 @@ async applicationQuit() : Promise<void> {
     await TAURI_INVOKE("application_quit");
 },
 /**
- * 打开开发者工具。
- * 
- * 目标 webview 不在了就什么也不做 —— 关掉的 webview 没有开发者工具可开，那不是故障。
- * 
- * 不返回 `Result`：每条路径都是 Ok(())，那个返回值到了生成绑定里只是一个渲染层
- * 必须接、且永远接到 null 的东西。
- * 
- * 发行构建同样带开发者工具。真正的闸在根 Cargo.toml：tauri 的 devtools feature
- * 只在 debug 构建里自动开，不显式写上它，这个方法在发行构建里根本不存在。
+ * 发行构建同样带 devtools：闸在根 Cargo.toml 的 tauri devtools feature，不显式开就没有。
  */
 async windowOpenDevtools(label: string) : Promise<void> {
     await TAURI_INVOKE("window_open_devtools", { label });
 },
-/**
- * 记录并应用主窗口的 native backing surface。
- * 
- * 一条宿主命令承接 renderer 的主题投影；恢复路径读取同一状态，避免把窗口生命周期
- * 建立在 renderer 是否仍能及时提交 IPC 上。
- */
 async windowSetSurface(red: number, green: number, blue: number) : Promise<null> {
     return await TAURI_INVOKE("window_set_surface", { red, green, blue });
 },
 /**
- * 把一个外部 URL 交给系统默认浏览器。没有 `JavaScript` 对应物的两个之二。
+ * 运行期改偏好时落定原生主题，并把宿主回读的解析结果交回渲染层。
  * 
- * 主窗口是 decorations: false，没有地址栏也没有后退按钮。让 webview 自己导航
- * 到外站，等于把应用替换成一个回不来的浏览器 —— 用户只能去杀进程。所以渲染层
- * 里所有 http(s) 链接都在 capture 阶段被拦下，改走这里。
- * 
- * 协议白名单在渲染层（chrome/external-links.ts）先过一遍，这里
- * 再过一遍：一条能把任意字符串交给系统 shell 的命令，不能只靠调用方自律。
- * 
- * 打不开一个链接不是故障，不中断调用方：拒掉一个非 web 协议、以及系统浏览器没能
- * 打开，都各自记进原生日志。不返回 `Result` 的理由与上一条命令相同。
+ * 渲染层自己问不出「系统此刻是哪一档」：`prefers-color-scheme` 由原生主题推出来，
+ * 而原生主题是这一跳的结果。让渲染层先读、宿主后钉，读到的就是上一个偏好 ——
+ * 「跟随系统」正是这样解出深色的。所以解析归宿主，渲染层只消费返回值。
+ */
+async windowSetTheme(preference: ThemePreference) : Promise<ResolvedTheme> {
+    return await TAURI_INVOKE("window_set_theme", { preference });
+},
+/**
+ * 协议白名单在渲染层（chrome/external-links.ts）先过一遍，这里再过一遍：能把任意字符串交给系统 shell 的命令不能只靠调用方自律。
  */
 async windowOpenExternalUrl(url: string) : Promise<void> {
     await TAURI_INVOKE("window_open_external_url", { url });
@@ -385,57 +289,20 @@ async settingsSet(settings: AppSettings) : Promise<SettingsWriteResult> {
 async settingsReset() : Promise<SettingsWriteResult> {
     return await TAURI_INVOKE("settings_reset");
 },
-/**
- * 读取完整配置快照。
- * 
- * agents.json 缺失或损坏都不算失败：返回空配置，把解析问题放进 issues。
- * 
- * # Errors
- * 
- * 仅当 store 插件无法打开时返回错误。
- */
 async agentConfigGet() : Promise<AgentConfigSnapshot> {
     return await TAURI_INVOKE("agent_config_get");
 },
-/**
- * 替换 agent 列表与默认 agent。
- * 
- * # Errors
- * 
- * store 无法写入时返回错误。
- */
 async agentConfigSaveAgents(agents: JsonValue[], defaultAgentId: string) : Promise<AgentConfigSnapshot> {
     return await TAURI_INVOKE("agent_config_save_agents", { agents, defaultAgentId });
 },
-/**
- * 当前这个 agent 装了没有、是不是最新。
- * 
- * force 为假时命中 24 小时内的缓存就直接返回，不起网络。界面每次挂载都可以调它。
- * 
- * # Errors
- * 
- * 读不到 agent 档案时返回错误。「没装」「不归我们管」「问不到最新版」都不是错误，
- * 它们是状态。
- */
 async agentInstallStatus(agentId: string, force: boolean) : Promise<AgentInstallStatus> {
     return await TAURI_INVOKE("agent_install_status", { agentId, force });
 },
-/**
- * 安装或更新这个 agent 的运行时，完成后返回新的状态。
- * 
- * # Errors
- * 
- * 档案没有声明安装方式、这份运行时不归 pnpm/npm 管、包管理器缺席、或安装本身失败。
- */
 async agentInstallRun(agentId: string) : Promise<AgentInstallStatus> {
     return await TAURI_INVOKE("agent_install_run", { agentId });
 },
 /**
  * 最近 span 天的日账，由早到晚。没有账的日子不占行。
- * 
- * # Errors
- * 
- * 库读不出、或某一天的数大到这份 IPC 面装不下时返回错误。
  */
 async usageTokenDays(span: number) : Promise<UsageDay[]> {
     return await TAURI_INVOKE("usage_token_days", { span });
@@ -463,90 +330,42 @@ async storageDataDirectory() : Promise<string> {
 async tableExport(request: TableExportRequest) : Promise<boolean> {
     return await TAURI_INVOKE("table_export", { request });
 },
-/**
- * 上一次关掉时工作台开着什么。第一次启动是 None。
- * 
- * # Errors
- * 
- * 库读不出时返回错误。
- */
 async workbenchSessionLoad() : Promise<string | null> {
     return await TAURI_INVOKE("workbench_session_load");
 },
-/**
- * 记下工作台此刻开着什么。整份覆盖，不是增量。
- * 
- * # Errors
- * 
- * 库写不进时返回错误。
- */
 async workbenchSessionSave(document: string) : Promise<null> {
     return await TAURI_INVOKE("workbench_session_save", { document });
 },
 /**
- * 请系统的文件夹选择器给出一个工作目录。人按了取消就是 None。
- * 
- * 为什么是一条自己的命令，而不是让渲染层直接调 dialog 插件 —— 这与 opener 的
- * 取舍同源（理由写在 src-tauri/Cargo.toml 里那一段）：把插件的 IPC 面交给
- * webview，等于连 save / message / ask / confirm 一起交出去，而这里要的只有
- * 「选一个目录」。走这条命令，webview 能碰到的就只有它：没有参数，回一个路径。
- * 
- * 它不返回 Result。选择器开不出来、人什么都没选，调用方要做的事完全相同 ——
- * 什么也不改。与 window.rs 那两条命令同一条理由。
+ * 包成自己的命令而不让渲染层直接调 dialog 插件：webview 的 IPC 面只留「选一个目录」这一条。
  */
 async workspacePickRoot() : Promise<string | null> {
     return await TAURI_INVOKE("workspace_pick_root");
 },
-/**
- * 
- * * 为下一条无项目会话创建一个独立工作目录。
- * *
- * * 目录名由原生层发放，渲染层不能自己拼应用数据路径。返回的是可以直接作为 agent
- * * cwd 使用的绝对路径。
- * *
- * * # Errors
- * *
- * * 数据目录无法解析或创建时返回错误。
- * 
- */
 async workspaceCreateProjectlessRoot() : Promise<string> {
     return await TAURI_INVOKE("workspace_create_projectless_root");
 },
 /**
- * 问一个目录的分支快照。不是 git 仓库、或机器没有 git，都是 None：
- * 界面据此整个隐藏分支 chip，这不是错误。
+ * 非 git 仓库或机器没有 git 时返回 None：界面据此整个隐藏分支 chip，不是错误。
  */
 async gitBranches(root: string) : Promise<GitBranches | null> {
     return await TAURI_INVOKE("git_branches", { root });
 },
-/**
- * 检出一个已有分支。成功即交回盘面上的新快照 —— 界面不自己拼「操作后的世界」。
- */
 async gitSwitchBranch(root: string, branch: string) : Promise<GitBranches> {
     return await TAURI_INVOKE("git_switch_branch", { root, branch });
 },
-/**
- * 创建并检出一个新分支，交回盘面上的新快照。名字合法性由 git 自己判。
- */
 async gitCreateBranch(root: string, branch: string) : Promise<GitBranches> {
     return await TAURI_INVOKE("git_create_branch", { root, branch });
 },
 /**
- * 问一次审查面：分支、上游、清单与整份补丁。不是 git 仓库、或机器没有 git，
- * 都是 None —— 界面据此整个隐藏这一格，这不是错误。
+ * 非 git 仓库或机器没有 git 时返回 None：界面据此整个隐藏这一格，不是错误。
  */
 async gitReview(root: string, base: string, context: number, ignoreWhitespace: boolean) : Promise<GitReview | null> {
     return await TAURI_INVOKE("git_review", { root, base, context, ignoreWhitespace });
 },
-/**
- * 问一个文件的整份补丁：折叠带上的行由它带回来，取回时机由界面决定。
- */
 async gitFilePatch(root: string, base: string, path: string, ignoreWhitespace: boolean) : Promise<string> {
     return await TAURI_INVOKE("git_file_patch", { root, base, path, ignoreWhitespace });
 },
-/**
- * 提交或推送，成功即交回盘面上的新审查面 —— 界面不自己拼「操作后的世界」。
- */
 async gitCommit(request: GitCommitRequest) : Promise<GitReview> {
     return await TAURI_INVOKE("git_commit", { request });
 },
@@ -556,15 +375,9 @@ async gitWatchStart(root: string) : Promise<GitWatchLease> {
 async gitWatchStop(token: string) : Promise<null> {
     return await TAURI_INVOKE("git_watch_stop", { token });
 },
-/**
- * 渲染层进面板时拉一次的初始快照。之后靠事件。
- */
 async browserState() : Promise<BrowserState> {
     return await TAURI_INVOKE("browser_state");
 },
-/**
- * 开标签。不带地址就是空白页。
- */
 async browserOpenTab(url: string | null) : Promise<null> {
     return await TAURI_INVOKE("browser_open_tab", { url });
 },
@@ -574,16 +387,9 @@ async browserCloseTab(id: number) : Promise<void> {
 async browserSelectTab(id: number) : Promise<void> {
     await TAURI_INVOKE("browser_select_tab", { id });
 },
-/**
- * 地址栏回车。规整不出 URL 就什么也不做 —— 这个地址栏只认 URL，不做搜索。
- */
 async browserNavigate(id: number, address: string) : Promise<null> {
     return await TAURI_INVOKE("browser_navigate", { id, address });
 },
-/**
- * 后退。历史归内核所有，这里只请求 —— 没有历史时它自然无事发生，
- * 与浏览器本体的行为一致，不另记一份「能不能后退」的影子账。
- */
 async browserBack(id: number) : Promise<void> {
     await TAURI_INVOKE("browser_back", { id });
 },
@@ -596,33 +402,21 @@ async browserReload(id: number) : Promise<void> {
 async browserPrint(id: number) : Promise<null> {
     return await TAURI_INVOKE("browser_print", { id });
 },
-/**
- * 重开最近关闭下拉里的第 index 条。
- */
 async browserReopenClosed(index: number) : Promise<void> {
     await TAURI_INVOKE("browser_reopen_closed", { index });
 },
-/**
- * 渲染层量好的视口逻辑坐标。React 只报数，摆放由这里做。
- */
 async browserSetBounds(x: number, y: number, width: number, height: number) : Promise<void> {
     await TAURI_INVOKE("browser_set_bounds", { x, y, width, height });
 },
-/**
- * 面板开合（含切到非对话表面）。隐藏不销毁：标签还在，回来接着用。
- */
 async browserSetVisible(visible: boolean) : Promise<void> {
     await TAURI_INVOKE("browser_set_visible", { visible });
 },
 /**
- * 内核 CDP 端点，mcp.json 对账用。非 Windows 或端口没抽到时为 None。
+ * 内核 CDP 端点，mcp.json 对账用。
  */
 async browserDevtoolsEndpoint() : Promise<string | null> {
     return await TAURI_INVOKE("browser_devtools_endpoint");
 },
-/**
- * 显式设置当前标签的元素选择模式；状态只归 BrowserHost。
- */
 async browserSetElementPicker(id: number, enabled: boolean, theme: ResolvedTheme) : Promise<void> {
     await TAURI_INVOKE("browser_set_element_picker", { id, enabled, theme });
 }
@@ -659,77 +453,20 @@ windowMaximized: "window-maximized"
 
 /** user-defined types **/
 
-/**
- * 要撤掉的那条排队提问。
- */
 export type AgentAbortPromptRequest = { threadId: string; promptId: string }
+export type AgentAnswerQuestionsRequest = { questionId: string; answers: AgentQuestionAnswer[]; method: AgentQuestionMethod | null; 
 /**
- * 一整组题的答复。
- */
-export type AgentAnswerQuestionsRequest = { 
-/**
- * 被回答的那一组。
- */
-questionId: string; 
-/**
- * 逐题一条，一次交齐 —— 一组最多四题，问是一起问的。
- */
-answers: AgentQuestionAnswer[]; 
-/**
- * 人怎么答的，界面知道就报。
- */
-method: AgentQuestionMethod | null; 
-/**
- * 整组的备注。
- * 
- * wire 上它是合法的一格，但官方 server 收下之后不读它（routes/questions.ts
- * 的 toInProcessResponse 只把 answers 与 method 交出去）。送它是因为契约里有
- * 它，不是因为它今天有效果。
+ * wire 上合法的一格，但官方 server 收下之后不读它（routes/questions.ts 的 toInProcessResponse）；送它是因为契约里有它。
  */
 note: string | null }
-/**
- * 人能给出的答复。
- * 
- * 取消不在其中：那不是人答的，是没有人答时这一侧的收场（recorder 的
- * record_pending_cancelled）。取值域由类型定死，所以别的词根本反序列化不出来。
- */
 export type AgentApprovalDecision = "approved" | "rejected"
 /**
- * 「这条会话都照此办理」。kap 只有这一个取值（approvalScopeSchema）。
+ * kap 的 approvalScopeSchema 只有这一个取值。
  */
 export type AgentApprovalScope = "session"
-/**
- * A conversation being archived or restored.
- */
-export type AgentArchiveThreadRequest = { 
-/**
- * The conversation the action applies to.
- */
-threadId: string; 
-/**
- * True archives it; false restores it.
- */
-archived: boolean }
-/**
- * 要停的那条对话。
- */
-export type AgentCancelRequest = { 
-/**
- * The conversation whose turn should stop.
- */
-threadId: string }
-/**
- * 问这个 agent 提供什么，不点名任何一条对话。
- */
-export type AgentCapabilitiesRequest = { 
-/**
- * 起哪个 agent。
- */
-launch: AgentLaunch; 
-/**
- * The working directory the session is created against.
- */
-cwd: string | null }
+export type AgentArchiveThreadRequest = { threadId: string; archived: boolean }
+export type AgentCancelRequest = { threadId: string }
+export type AgentCapabilitiesRequest = { launch: AgentLaunch; cwd: string | null }
 export type AgentCapability = { id: string; pluginId: string | null; label: string; supported: boolean; state: AgentCapabilityState; install: AgentCapabilityInstall }
 /**
  * KAP 持有的后台安装进度，原样投影。
@@ -740,571 +477,96 @@ export type AgentCapabilityInstallRequest = { capabilityId: string }
  * KAP 对一项能力的就绪裁决，原样投影。
  */
 export type AgentCapabilityState = "notInstalled" | "partial" | "ready" | "unsupported"
-/**
- * One value a selector will accept.
- */
-export type AgentConfigChoice = { 
-/**
- * The value sent back when this one is picked.
- */
-value: string; 
-/**
- * The name the agent gave it.
- */
-label: string; 
-/**
- * The explanation the agent gave, where it gave one.
- */
-detail: string | null }
-/**
- * One selector the running session offers.
- */
-export type AgentConfigControl = { 
-/**
- * The identifier the agent answers to when the value is changed.
- */
-id: string; 
-/**
- * The name the agent gave this selector.
- */
-label: string; 
-/**
- * The explanation the agent gave, where it gave one.
- */
-detail: string | null; 
-/**
- * Where this selector belongs on screen.
- */
-purpose: AgentConfigPurpose; 
-/**
- * Enabling this selector is committed with the next prompt.
- */
-appliesOnSubmit: boolean; 
-/**
- * The value in force right now.
- */
-current: string; 
-/**
- * Every value on offer.
- */
-choices: AgentConfigChoice[] }
-/**
- * What a session selector is for.
- * 
- * These are the categories the protocol defines. A category the agent
- * invents beyond them arrives as other and is still shown.
- */
-export type AgentConfigPurpose = 
-/**
- * How tool approvals are decided.
- */
-"permission" | 
-/**
- * Independent Plan, Goal and Swarm controls.
- */
-"mode" | 
-/**
- * Which model answers.
- */
-"model" | 
-/**
- * How long the model deliberates before answering.
- */
-"thought" | 
-/**
- * Something the agent named itself.
- */
-"other"
-/**
- * 渲染层工作所依据的完整配置快照。
- * 
- * agents 是不透明 JSON，由 TS 侧的 @poietica/agent-catalog 校验；Rust 侧
- * 只负责存取，不解释任何字段。
- */
-export type AgentConfigSnapshot = { agents: JsonValue[]; defaultAgentId: string; 
-/**
- * agents.json 中存在但无法反序列化的内容。界面应显示出来。
- */
-issues: string[] }
-/**
- * 要撤下的那一组题。
- */
-export type AgentDismissQuestionsRequest = { 
-/**
- * 被撤下的那一组。
- */
-questionId: string }
-/**
- * A conversation archive requested by the renderer.
- */
+export type AgentConfigChoice = { value: string; label: string; detail: string | null }
+export type AgentConfigControl = { id: string; label: string; detail: string | null; purpose: AgentConfigPurpose; appliesOnSubmit: boolean; current: string; choices: AgentConfigChoice[] }
+export type AgentConfigPurpose = "permission" | "mode" | "model" | "thought" | "other"
+export type AgentConfigSnapshot = { agents: JsonValue[]; defaultAgentId: string; issues: string[] }
+export type AgentDismissQuestionsRequest = { questionId: string }
 export type AgentExportThreadRequest = { threadId: string; launch: AgentLaunch }
+export type AgentForkThreadRequest = { threadId: string; title: string; 
 /**
- * 要分叉的对话，以及必要时怎样启动 agent。
- * 
- * 带 launch 与 cwd，因为分叉的第一步可能要把 agent 起起来、把源会话装载成
- * 本次连接上活的地址 —— 与打开一条对话要说清的是同一批事。
+ * 分叉点：这一轮之后还有几轮，0 就是从最后一轮分叉；agent 侧回退上下文与本机日志截断用同一个数，屏幕与上下文止于同一处。
  */
-export type AgentForkThreadRequest = { 
-/**
- * 从哪条对话分叉。
- */
-threadId: string; 
-/**
- * 分叉出的新对话叫什么。
- * 
- * 名字由界面按命名规则算好（thread-title.ts 的 forkNameOf）：源名加下一
- * 个序号。这一侧照改名那条防线收：去空白、按上限截断、拒绝空名。
- */
-title: string; 
-/**
- * 分叉点：这一轮之后还有几轮。0 就是从最后一轮分叉。
- * 
- * agent 那侧按它回退上下文，本机日志按同一个数截断 —— 屏幕与上下文
- * 因此止于同一处。
- */
-dropTurns: number; 
-/**
- * 起哪个 agent。
- */
-launch: AgentLaunch; 
-/**
- * The working directory the session is created against.
- */
-cwd: string | null }
-/**
- * 目标模式此刻的事实，线上形状。
- */
+dropTurns: number; launch: AgentLaunch; cwd: string | null }
 export type AgentGoal = { objective: string; completionCriterion: string | null; status: string; turnsUsed: number; tokensUsed: number; wallClockMs: number }
 /**
- * 这一次打开，屏幕上应该出现什么。
- * 
- * 空的经过说不出区别：刚建的对话是空的，理所应当；而一条聊过两小时的对话在
- * 换了 agent 之后也是空的。那不是"没有历史"，那是"有历史但拿不到"，两件事对
- * 人的意义完全不同。
- * 
- * 内部标签，所以线上是一个判别联合：`{ state: "live" }`、`{ state: "fresh" }`。
+ * Fresh 是本来就没有经过，Live 是有经过但这次没让 agent 重放——两种"空"对人的意义完全不同。
  */
-export type AgentHistory = 
-/**
- * 这条对话刚刚建出来，本来就没有经过。
- */
-{ state: "fresh" } | 
-/**
- * 这一次没让 agent 重放经过。
- * 
- * 提问和改设置走的就是这一路：它们不需要历史。打开一条会话已在本连接上活着
- * 的对话也走它 —— addressing.rs 的快路径直接交回这一格，经过由本机日志重放
- * 补上，界面照常收。
- */
-{ state: "live" } | 
-/**
- * agent 把它装载回来了，`events` 就是它交出来的那一整段。
- */
-{ state: "loaded" }
-/**
- * 界面读到的安装处境（IPC DTO；判据在 crate 的 InstallState）。
- */
-export type AgentInstallState = 
-/**
- * 档案没说这东西怎么装。界面什么都不画。
- */
-"unmanaged" | "missing" | "outdated" | "current" | 
-/**
- * 装着，但不是 bun、pnpm、npm 装的。我们不碰别人的安装。
- */
-"external" | 
-/**
- * 装着，但问不到最新版（离线、镜像不通），或者它的 --version 读不懂。
- */
-"unknown"
+export type AgentHistory = { state: "fresh" } | { state: "live" } | { state: "loaded" }
+export type AgentInstallState = "unmanaged" | "missing" | "outdated" | "current" | "external" | "unknown"
 export type AgentInstallStatus = { state: AgentInstallState; installedVersion: string | null; latestVersion: string | null; packageName: string | null }
 /**
- * 起一个 agent 进程要说清的那件事。
- * 
- * 不带 argv：程序在哪是这台机器上的事实，由原生侧解析一次（runtime.rs 的
- * outfit）。渲染层报一个程序路径过来，参数白名单就挡不住它。
+ * 不带 argv：渲染层报程序路径过来，参数白名单就挡不住它，程序由原生侧解析。
  */
-export type AgentLaunch = { 
-/**
- * 要启动的 agent。它决定受控 home 落在哪里。
- */
-agentId: string }
+export type AgentLaunch = { agentId: string }
 export type AgentMcpServer = { id: string; name: string; status: AgentMcpStatus; toolCount: number; lastError: string | null }
 export type AgentMcpStatus = "connected" | "connecting" | "disconnected" | "error"
 export type AgentModelCatalogRequest = { launch: AgentLaunch; cwd: string | null; operation: ModelCatalogOperationDto }
-/**
- * 要打开的对话，以及必要时怎样启动 agent。
- */
-export type AgentOpenThreadRequest = { 
-/**
- * 创建与打开是两种显式操作；两者都携带稳定标识。
- */
-target: AgentThreadTarget; 
-/**
- * 起哪个 agent。
- */
-launch: AgentLaunch; 
-/**
- * The working directory the session is created against.
- */
-cwd: string | null }
-/**
- * The result of activating one conversation in the agent runtime.
- */
+export type AgentOpenThreadRequest = { target: AgentThreadTarget; launch: AgentLaunch; cwd: string | null }
 export type AgentOpenedThread = { thread: AgentThread; selectors: AgentConfigControl[]; goal: AgentGoal | null; history: AgentHistory; transcript: AgentTranscriptJson }
-/**
- * A conversation being held at the top of the list, or released.
- */
-export type AgentPinThreadRequest = { 
-/**
- * The conversation the action applies to.
- */
-threadId: string; 
-/**
- * Whether it should be held at the top.
- */
-pinned: boolean }
-/**
- * 一张随这一句话送出去的图片，按它在交付注册表里的位置点名。
- * 
- * 字节不再跨 IPC。它们在用户把文件放进输入框的那一刻就已经在原生侧了
- * （见 commands/asset.rs 的 asset_import 与 asset_upload），这里交回来的
- * 只是取得它的两个令牌 —— 一次提问因此不再搬运任何字节，无论那张图多大。
- */
-export type AgentPromptAsset = { 
-/**
- * 这张图挂在哪条资产会话下（输入框那一条）。
- */
-sessionToken: string; 
-/**
- * 它在那条会话里的令牌，也就是内容摘要。
- */
-assetToken: string; filename: string }
+export type AgentPinThreadRequest = { threadId: string; pinned: boolean }
+export type AgentPromptAsset = { sessionToken: string; assetToken: string; filename: string }
 export type AgentPromptConfiguration = { id: string; value: string }
 /**
  * A prompt, and how to start the agent if it is not running yet.
  */
-export type AgentPromptRequest = { 
+export type AgentPromptRequest = { text: string; configuration: AgentPromptConfiguration[]; 
 /**
- * What the user typed.
+ * 与 text 是同一句话的两半：只挑了图、没打字也是一句完整的话，判空要一起判。
  */
-text: string; 
-/**
- * Selector values committed as part of this prompt.
- */
-configuration: AgentPromptConfiguration[]; 
-/**
- * 这一句带的图片，按它们在交付注册表里的位置点名。
- * 
- * 与 text 是同一句话的两半，所以判空要一起判：只挑了图、没打字是一句
- * 完整的话。
- */
-assets: AgentPromptAsset[]; 
-/**
- * 与正文和附件同一次 prompt 提交的 Skill。
- */
-skills: AgentPromptSkill[]; 
-/**
- * The conversation this turn belongs to, when the interface names one.
- */
-threadId: string | null; 
-/**
- * 起哪个 agent。
- */
-launch: AgentLaunch; 
-/**
- * The working directory the session is created against.
- */
-cwd: string | null }
-/**
- * What the interface needs to follow the turn it just started.
- */
+assets: AgentPromptAsset[]; skills: AgentPromptSkill[]; threadId: string | null; launch: AgentLaunch; cwd: string | null }
 export type AgentPromptResult = { sessionId: string; promptId: string }
 export type AgentPromptSkill = { name: string; args: string | null }
+export type AgentQuestionAnswer = { questionId: string; answer: AgentQuestionChoice }
 /**
- * 一题一条答复，按题号点名。
+ * 与 kap 的 questionAnswerSchema 逐一对应，判别式与分支名逐字相同，不摊平。
  */
-export type AgentQuestionAnswer = { 
+export type AgentQuestionChoice = { kind: "single"; optionId: string } | { kind: "multi"; optionIds: string[] } | { kind: "other"; text: string } | { kind: "multi_with_other"; optionIds: string[]; otherText: string } | { kind: "skipped" }
 /**
- * 题号，就是 kap 在这一组里现编的那个。
- */
-questionId: string; 
-/**
- * 这一题答的是什么。
- */
-answer: AgentQuestionChoice }
-/**
- * 一题答的是什么。
- * 
- * 判别联合，五支，与 kap 的 questionAnswerSchema 逐一对应，判别式与分支名逐字
- * 相同。摊平成「一个 kind 加几个可选格」会让「多选却没有选项」这种答复在类型上
- * 就合法。
- */
-export type AgentQuestionChoice = 
-/**
- * 选了一个。
- */
-{ kind: "single"; optionId: string } | 
-/**
- * 选了几个。
- */
-{ kind: "multi"; optionIds: string[] } | 
-/**
- * 自己写了一句。
- */
-{ kind: "other"; text: string } | 
-/**
- * 选了几个，还自己写了一句。
- */
-{ kind: "multi_with_other"; optionIds: string[]; otherText: string } | 
-/**
- * 这一题跳过。
- */
-{ kind: "skipped" }
-/**
- * 人是怎么答的这一组题。
- * 
- * 四个值就是 kap 的 questionAnswerMethodSchema。如实上报：官方把 click 丢掉，
- * 但改报成别的就是撒谎。
+ * 取值即 kap 的 questionAnswerMethodSchema；官方把 click 丢掉，仍如实上报。
  */
 export type AgentQuestionMethod = "enter" | "space" | "number_key" | "click"
+export type AgentRenameThreadRequest = { threadId: string; title: string }
+export type AgentResolvePermissionRequest = { requestId: string; decision: AgentApprovalDecision; scope: AgentApprovalScope | null; selectedLabel: string | null; feedback: string | null }
+export type AgentSelectConfigRequest = { threadId: string | null; configId: string; value: string; input: string | null }
+export type AgentSessionEvent = { kind: "selectors"; sessionId: string; selectors: AgentConfigControl[]; goal: AgentGoal | null } | { kind: "usage"; sessionId: string; usage: AgentSessionUsage } | 
 /**
- * A conversation the interface is renaming.
- */
-export type AgentRenameThreadRequest = { 
-/**
- * The conversation being renamed.
- */
-threadId: string; 
-/**
- * The name the user typed.
- */
-title: string }
-/**
- * A user's answer to a permission request.
- */
-export type AgentResolvePermissionRequest = { 
-/**
- * The request being answered.
- */
-requestId: string; 
-/**
- * 放行还是拒绝。
- */
-decision: AgentApprovalDecision; 
-/**
- * 带上它就是「这条会话都照此办理」；只此一次时缺席。
- */
-scope: AgentApprovalScope | null; 
-/**
- * 计划复审所选方案的协议 label。
- */
-selectedLabel: string | null; 
-/**
- * 给 agent 的可选留言。
- */
-feedback: string | null }
-/**
- * A change made in the interface.
- */
-export type AgentSelectConfigRequest = { 
-/**
- * The conversation the change applies to.
- */
-threadId: string | null; 
-/**
- * One of the selector identifiers the session reported.
- */
-configId: string; 
-/**
- * One of the values that selector offered.
- */
-value: string; 
-/**
- * Goal creation uses the current composer draft as its objective.
- */
-input: string | null }
-/**
- * agent 主动报来的一件会话级状态。
- * 
- * 会话号是它唯一带得出的地址：帧里没有对话，反查由渲染层用「开这条会话时是
- * 哪条对话」去做。它不出现在任何命令签名里，所以不进生成绑定 —— 事件不是命令。
- * 
- * 内部标签，所以线上是一个判别联合：`{ kind: "selectors", … }`。
- */
-export type AgentSessionEvent = 
-/**
- * 那条会话上现在的整张选择器表。
- */
-{ kind: "selectors"; sessionId: string; selectors: AgentConfigControl[]; goal: AgentGoal | null } | 
-/**
- * 那条会话此刻的上下文用量。
- */
-{ kind: "usage"; sessionId: string; usage: AgentSessionUsage } | 
-/**
- * agent 侧的模型目录变了：provider、模型或默认模型的真身以它为准，读者作废重问。
+ * provider、模型或默认模型的真身以它为准：收到即作废缓存重问。
  */
 { kind: "modelCatalogChanged" }
 /**
- * 一条会话此刻占了多少上下文，以及它累计的输入构成。
- * 
- * kap 的 agent.status.updated 报的是仪表值：到达即替换，不是增量 —— 三格累计
- * 计数同帧到达，恒为最新整份（usage.total）。按读数算增量的是账本
- * （persistence 的 usage.rs），这一格只说现在。
+ * kap 的 agent.status.updated 报的是仪表值：到达即替换，不是增量；按读数算增量的是账本。
  */
-export type AgentSessionUsage = { 
-/**
- * 已占用的 token 数。
- */
-used: number; 
-/**
- * 上下文窗口总量，token 数。
- */
-size: number; 
-/**
- * 累计输入里未命中缓存的 token（kap usage.total.inputOther）。
- */
-inputOther: number; 
-/**
- * 累计输入里命中缓存的 token（kap usage.total.inputCacheRead）。
- */
-inputCacheRead: number; 
-/**
- * 累计输入里写入缓存的 token（kap usage.total.inputCacheCreation）。
- */
-inputCacheCreation: number }
+export type AgentSessionUsage = { used: number; size: number; inputOther: number; inputCacheRead: number; inputCacheCreation: number }
 export type AgentSkill = { id: string; name: string; description: string; source: string; path: string; project: string | null; projectPath: string | null; document: string | null; directory: string | null; enabled: boolean; loaded: boolean; kind: string | null; disableModelInvocation: boolean | null; supportingFiles: number | null; totalBytes: number | null; modifiedAt: number | null }
-/**
- * 要并进这一轮的那几条排队提问。
- */
 export type AgentSteerRequest = { threadId: string; 
 /**
- * 号由 kap 签发（prompt.queued 的 promptId）：队列不在这一侧，所以收号不收话。
+ * 号由 kap 签发（prompt.queued 的 promptId）：队列不在这一侧，收号不收话。
  */
 promptIds: string[] }
+export type AgentThread = { threadId: string; sessionId: string | null; title: string; titleSource: AgentTitleSource; updatedAt: string; pinned: boolean; 
 /**
- * One conversation, as a list of conversations and a tab strip need it.
+ * 它是在哪个工作目录里开的；空表示默认那一个工作区。
  */
-export type AgentThread = { 
-/**
- * The stored conversation.
- */
-threadId: string; 
-/**
- * The agent session it is holding, where it holds one.
- */
-sessionId: string | null; 
-/**
- * The name to show for it.
- */
-title: string; 
-/**
- * Where that name came from.
- */
-titleSource: AgentTitleSource; 
-/**
- * When it was last touched, in RFC 3339.
- */
-updatedAt: string; 
-/**
- * Whether it is held at the top of the list.
- */
-pinned: boolean; 
-/**
- * 它是在哪个工作目录里开的。列表按它分组；空表示默认那一个工作区
- * （thread-order.ts 的 DEFAULT_WORKSPACE_ID 那一段说明了为什么）。
- */
-workspaceRoot: string | null; 
-/**
- * 是否已经离开活动会话列表。
- */
-archived: boolean }
-/**
- * A conversation an action applies to, and nothing else.
- */
-export type AgentThreadRequest = { 
-/**
- * The conversation the action applies to.
- */
-threadId: string }
-/**
- * A bounded local read-model snapshot. It never starts or restores an agent.
- */
+workspaceRoot: string | null; archived: boolean }
+export type AgentThreadRequest = { threadId: string }
 export type AgentThreadSnapshot = { thread: AgentThread; usage: AgentSessionUsage | null }
-/**
- * 要打开或创建的对话。操作由判别式表达，不用可空 id 猜。
- */
 export type AgentThreadTarget = { kind: "create"; threadId: string } | { kind: "existing"; threadId: string }
 /**
- * Where a conversation's name came from.
- * 
- * A closed set of three, and the interface ranks on it: a name the user
- * typed is never replaced by one derived from the text.
+ * 界面按它排序：用户手打的名字永不被派生名替换。
  */
-export type AgentTitleSource = 
-/**
- * Taken from the first thing the user said.
- */
-"message" | 
-/**
- * Generated from the session transcript.
- */
-"generated" | 
-/**
- * Shown before there was anything to take a name from.
- */
-"fallback" | 
-/**
- * The user typed it. Nothing derived replaces it.
- */
-"manual"
+export type AgentTitleSource = "message" | "generated" | "fallback" | "manual"
 export type AgentToolkit = { skills: AgentSkill[]; mcpServers: AgentMcpServer[] }
 export type AgentToolkitRequest = { launch: AgentLaunch; cwd: string | null; threadId: string | null }
-/**
- * transcript 通道的一帧：官方 transcript 事件原样 JSON。
- * 
- * `{ type: "transcript.ops" | "transcript.reset" | …, payload }` 的判别与
- * 校验归渲染层（vendored schema）；这一侧只交会话地址与原文。
- */
-export type AgentTranscriptEvent = { sessionId: string; 
-/**
- * 官方 transcript 事件的原文（含 type 与 payload）。
- */
-json: string }
-/**
- * 一条 transcript 读命令的答复：原样 JSON 文本。
- * 
- * 与 `AgentTranscriptEvent` 同一条规矩：形状由 vendored schema 说，这里是
- * 透传壳。
- */
+export type AgentTranscriptEvent = { sessionId: string; json: string }
 export type AgentTranscriptJson = { json: string }
+export type AgentTranscriptOpsRequest = { sessionId: string; agentId: string; sinceSeq: number }
 /**
- * 一个 agent 的 transcript 追赶怎么读。
+ * 载荷以 JSON 文本透传：契约钉在 vendored @poietica/transcript 的 schema，这里不重抄第二份形状。
  */
-export type AgentTranscriptOpsRequest = { sessionId: string; agentId: string; 
-/**
- * 只取 seq 比它新的批次。
- */
-sinceSeq: number }
-/**
- * 一个 agent 的 transcript 页怎么读。
- * 
- * 载荷以 JSON 文本透传：契约钉在 vendored @poietica/transcript 的 schema，
- * 校验发生在桥那一侧，这里不重抄第二份形状。
- */
-export type AgentTranscriptRequest = { sessionId: string; agentId: string; 
-/**
- * 往前读到哪一轮为止；缺席读最新一页。
- */
-beforeTurn: string | null }
+export type AgentTranscriptRequest = { sessionId: string; agentId: string; beforeTurn: string | null }
 export type AppSettings = { theme: ThemePreference; language: string; general: GeneralSettings; appearance: AppearanceSettings; modelPicker: ModelPickerSettings; privacy: PrivacySettings }
 export type AppearanceSettings = { density: Density; reduceMotion: boolean; messageTimestamps: boolean }
-/**
- * 一种收得下的格式，交给渲染层的那一面。
- * 
- * 只有内容类型和扩展名。判据（那个函数指针）留在这一侧：渲染层不判文件头，
- * 它拿这张表只为了给系统对话框写过滤器。
- */
 export type AssetFormat = { kind: string; contentType: string; extensions: string[] }
 export type AssetImportRequest = { sessionToken: string; paths: string[] }
 export type AssetRemoveRequest = { sessionToken: string; assetToken: string }
@@ -1312,12 +574,7 @@ export type AssetSessionCloseRequest = { sessionToken: string }
 export type AssetSessionResult = { sessionToken: string }
 export type AssetUploadRequest = { sessionToken: string; 
 /**
- * base64 编码的原始字节，不带 `data:` 前缀。
- * 
- * 不是 `Vec<u8>`。默认的 JSON IPC 下 `Vec<u8>` 在线上是一个 `number[]`
- * —— 每个字节一个十进制数字加一个逗号，比 base64 还大出四五倍。原始
- * 字节只有在整个 args 就是 ArrayBuffer/Uint8Array 时才走 raw body，
- * 塞在对象的一格里必然退化（见 Tauri v2 的 InvokeArgs）。
+ * base64 原始字节，不带 `data:` 前缀；刻意不用 `Vec<u8>`：JSON IPC 下它线上是 `number[]`，大四五倍（见 Tauri v2 InvokeArgs）。
  */
 base64: string }
 export type AssetUploadResult = { assetToken: string; contentHash: string; source: string; byteLength: number; contentType: string }
@@ -1328,9 +585,6 @@ export type AutomationCreation = { title: string; prompt: string; schedule: stri
 export type AutomationRun = { id: string; threadId: string | null; scheduledFor: string | null; startedAt: string; settledAt: string | null; outcome: AutomationRunOutcome; message: string | null }
 export type AutomationRunOutcome = "queued" | "dispatching" | "running" | "cancelling" | "uncertain" | "succeeded" | "failed" | "cancelled"
 export type AutomationUpdate = { id: string; expectedRevision: number; creation: AutomationCreation; enabled: boolean }
-/**
- * 最近关闭的一条，够画出下拉里的那一行。
- */
 export type BrowserClosedTab = { url: string; title: string }
 export type BrowserElementPicked = { tabId: number; submission: BrowserPickSubmission; elementType: string; comment: string; 
 /**
@@ -1338,23 +592,8 @@ export type BrowserElementPicked = { tabId: number; submission: BrowserPickSubmi
  */
 reportPath: string }
 export type BrowserPickSubmission = "attach" | "send"
-/**
- * 广播给渲染层的全量快照。全量而不是增量：状态就一屏标签，
- * 增量协议换来的只是两侧各一份需要对账的账本。
- * 
- * revision 只用于消费端丢弃乱序到达的旧快照；u32 是绑定能表达的宽度
- * （仓规：数值按绑定能表达的宽度收窄），42 亿次广播之后封顶不再变化，
- * 后果与 u64 饱和相同。
- */
 export type BrowserState = { revision: number; tabs: BrowserTab[]; activeTabId: number | null; pickingTabId: number | null; recentlyClosed: BrowserClosedTab[] }
-/**
- * 一个标签在渲染层眼里的样子。url 缺席 = 空白页。
- */
-export type BrowserTab = { id: number; url: string | null; title: string; loading: boolean; 
-/**
- * 站点图标的 data URL。缺席时渲染层画地球。
- */
-favicon: string | null }
+export type BrowserTab = { id: number; url: string | null; title: string; loading: boolean; favicon: string | null }
 export type CatalogModelDto = { id: string; name: string | null; maxContextSize: number; capabilities: string[] | null; reasoning: boolean }
 export type CatalogProviderDto = { id: string; name: string; wireType: string | null; guessed: boolean; needsBaseUrl: boolean; rejected: boolean; rejectReason: string | null; envKey: string | null; models: CatalogModelDto[] }
 /**
@@ -1377,25 +616,11 @@ export type Density = "comfortable" | "compact"
  */
 export type DiagnosticId = string
 export type EnvironmentFile = { location: string; contents: string | null }
-/**
- * 另一本账的现状：它在哪，以及里面有哪些插件。
- * 
- * 形状与 `EnvironmentFile` 同源 —— 界面要说得出自己读的是哪个文件，否则「别处已装」
- * 这句话没有落点。
- */
 export type ForeignPluginInventory = { location: string; plugins: ForeignPluginRecord[] }
 /**
- * 用户在命令行上装的一个插件，按他自己那个家里的账本读出来。
- * 
- * 这不是「已安装」。我们开出去的会话把 home 变量指向受控 home，CLI 因此只装载受控
- * home 那本账里的插件；这一份里的东西一个都不参与会话。把两份合成一个列表，屏幕上
- * 就会有一半的行是假的。
+ * 用户在命令行装的插件，读自用户自家 home 的账；它们不参与受控会话，不得并进已安装列表。
  */
-export type ForeignPluginRecord = { pluginId: string; 
-/**
- * 人当初给命令行的那一串地址。缺席表示那条记录没记，导入因此没有起点。
- */
-originalSource: string | null }
+export type ForeignPluginRecord = { pluginId: string; originalSource: string | null }
 export type GeneralSettings = { sendWithModifier: boolean; confirmBeforeDelete: boolean; notifyOnCompletion: boolean; 
 /**
  * 守着本地 agent 进程的那一个意图。相位不在这里：它是进程内的事实，
@@ -1403,75 +628,27 @@ export type GeneralSettings = { sendWithModifier: boolean; confirmBeforeDelete: 
  */
 daemon: boolean }
 /**
- * 一个工作目录此刻的分支快照。branch 为空即 HEAD 分离，detachedAt 给出所在短号。
+ * branch 为空即 HEAD 分离，detachedAt 给出所在短号。
  */
 export type GitBranches = { branch: string | null; detachedAt: string | null; branches: string[] }
-/**
- * 一个文件此刻相对 HEAD 的处境。
- */
 export type GitChangeStatus = "added" | "modified" | "deleted" | "untracked" | "conflicted"
-/**
- * 一次提交动作的意图。
- */
 export type GitCommitIntent = "commit" | "commit-and-push" | "push"
-/**
- * 一次提交动作的全部输入。
- */
 export type GitCommitRequest = { root: string; intent: GitCommitIntent; message: string; stageAll: boolean; base: string; context: number; ignoreWhitespace: boolean }
 /**
- * 工作树里一处变更。path 是仓库根的相对路径；加减行数由补丁自己数出。
+ * path 是仓库根的相对路径。
  */
 export type GitFileChange = { path: string; status: GitChangeStatus; staged: boolean }
-/**
- * 审查那一格此刻要画的全部事实。
- */
 export type GitReview = { branch: string | null; detachedAt: string | null; upstream: string | null; ahead: number; behind: number; branches: string[]; changes: GitFileChange[]; patch: string }
-/**
- * A lease on the shared watcher for one canonical repository root.
- */
 export type GitWatchLease = { token: string; root: string }
 export type GitWorkingTreeChanged = { root: string }
 export type JsonValue = null | boolean | number | string | JsonValue[] | Partial<{ [key in string]: JsonValue }>
-/**
- * 一份资料的正文。变体与文件种类一一对应，判别式只有这一个。
- */
 export type LibraryBody = { kind: "markdown"; value: string } | { kind: "table"; value: TableSheet } | { kind: "page"; value: string }
 export type LibraryCatalog = { entries: LibraryEntry[] }
-export type LibraryDocument = { path: string; 
-/**
- * 落盘字节的指纹。保存时带回来做乐观并发比对，语义同 HTTP ETag。
- */
-version: string; body: LibraryBody }
-export type LibraryEntry = { 
-/**
- * 相对根的路径，也是这一行的身份。
- */
-path: string; name: string; parent: string; 
-/**
- * None 即文件夹：种类与「是不是文件夹」是同一个判别式。
- */
-format: LibraryFormat | null; 
-/**
- * 修改时间，Unix 秒。字符串是为了过 IPC 不被 f64 削精度。
- */
-modified: string | null; bytes: string }
-/**
- * 资料库认识的文件种类。扩展名与新建默认名只在 spec 里写一次。
- */
+export type LibraryDocument = { path: string; version: string; body: LibraryBody }
+export type LibraryEntry = { path: string; name: string; parent: string; format: LibraryFormat | null; modified: string | null; bytes: string }
 export type LibraryFormat = "markdown" | "table" | "page"
-export type LibraryReply = { kind: "catalog"; value: LibraryCatalog } | { kind: "document"; value: LibraryDocument } | 
-/**
- * 新建、导入与重命名之后条目的落点，供界面选中它。
- */
-{ kind: "placed"; value: string } | { kind: "done" }
-/**
- * 渲染层能发出的全部请求。库外路径不在其中：导入的源文件由宿主的
- * 文件选择器给出，渲染层无从指定库外的任何一个位置。
- */
+export type LibraryReply = { kind: "catalog"; value: LibraryCatalog } | { kind: "document"; value: LibraryDocument } | { kind: "placed"; value: string } | { kind: "done" }
 export type LibraryRequest = { kind: "list"; query: string } | { kind: "read"; path: string } | { kind: "save"; path: string; expected: string; body: LibraryBody } | { kind: "create"; parent: string; format: LibraryFormat } | { kind: "folder"; parent: string } | { kind: "rename"; path: string; name: string } | { kind: "trash"; path: string }
-/**
- * 一条能直接交给启动器的启动式：程序在哪儿，前面还要垫哪些参数。
- */
 export type McpLauncher = { program: string; prefixArgs: string[] }
 /**
  * 一次目录操作。判别式与 @poietica/settings 的 ModelCatalogOperation 一一对应。
@@ -1481,49 +658,13 @@ export type ModelCatalogSnapshotDto = { providers: ProviderDto[]; models: ModelD
 export type ModelDto = { provider: string; model: string; displayName: string | null; maxContextSize: number; capabilities: string[] | null; maxOutputSize: number | null; supportEfforts: string[] | null; adaptiveThinking: boolean | null; defaultEffort: string | null }
 export type ModelPickerSettings = { hiddenModelAliases: string[]; providerOrder: string[] }
 export type NativeCrashReport = { incidentId: string; occurredAt: string; process: string; thread: string; message: string; location: string | null; backtrace: string; appVersion: string; targetOs: string; targetArch: string }
-export type PluginCommitRequest = { stagingId: string; 
-/**
- * 渲染层解码清单之后判定的标识符，也就是官方记录里的 id。
- */
-pluginId: string; 
-/**
- * 取用时用的那一段子目录。认领的是清单所在的那一层，与取用时是同一层。
- */
-subdirectory: string | null; 
-/**
- * 官方 InstalledRecord.source 的三个取值之一：local-path / zip-url / github。
- */
-source: string; 
-/**
- * 人当初给的那一串地址。官方拿它显示来源，我们拿它回查目录里的背书。
- */
-originalSource: string | null; 
-/**
- * ISO-8601。时钟在领域层，不在这里 —— 原生侧没有理由持有第二个时间源。
- */
-installedAt: string }
-/**
- * 一次取用从哪里拿字节。
- * 
- * GitHub 不在这里出现：把仓库地址变成归档 URL 是领域侧的判断，由 packages/extension
- * 的 planFetch 做，判不出来的（默认分支）当场就说判不出来。
- */
+export type PluginCommitRequest = { stagingId: string; pluginId: string; subdirectory: string | null; source: string; originalSource: string | null; installedAt: string }
 export type PluginFetch = { kind: "directory"; path: string } | { kind: "archive"; url: string; subdirectory: string | null }
 /**
- * 账本里的一条，加上那条记录指向的清单原文。
- * 
- * 清单读不出来时 manifest_json 是空串，而这一条仍然交出去：一个装着却坏了的插件必须
- * 在界面上占一行，好让人看见原因。把它滤掉，人只会看到「我明明装了它却不见了」。
+ * 清单读不出时 manifest_json 是空串，这一条仍要交出：坏插件也必须在界面占一行。
  */
 export type PluginPayload = { pluginId: string; manifestJson: string; enabled: boolean; installedAt: string | null; source: string; originalSource: string | null; disabledMcpServers: string[] }
-/**
- * 已经解到暂存区、还没被认领的一份插件。
- */
-export type PluginStaged = { stagingId: string; 
-/**
- * 清单原文。这一层不解析它。
- */
-manifestJson: string }
+export type PluginStaged = { stagingId: string; manifestJson: string }
 export type PrivacySettings = { telemetry: boolean; crashReporting: boolean; updateCheck: boolean }
 /**
  * 唯一允许跨越进程与语言边界的错误形状。
@@ -1538,8 +679,8 @@ export type ProviderInputDto = { id: string; providerType: string; apiKey: strin
 export type ProviderModelInputDto = { model: string; maxContextSize: number; displayName: string | null; capabilities: string[] | null; maxOutputSize: number | null; supportEfforts: string[] | null; adaptiveThinking: boolean | null }
 export type ProviderReplacementDto = { newId: string | null; providerType: string; apiKey: string | null; baseUrl: string | null; defaultModel: string | null; models: ProviderModelInputDto[] }
 /**
- * 应用界面解析后的主题。拾取面板长在外部页面里读不到 data-theme，
- * 主题随 start 调用一次性带进去。
+ * 宿主裁决过的主题：偏好为 `System` 时它是系统此刻那一档，与渲染层的
+ * `ResolvedTheme` 同形。定义在这里而不是浏览器桥，是因为解钉与回读都发生在这一层。
  */
 export type ResolvedTheme = "light" | "dark"
 /**
@@ -1550,7 +691,7 @@ export type SchedulePreview = { nextRunAt: string | null; problem: ScheduleProbl
 export type ScheduleProblem = "unreadable" | "neverRuns" | "tooFrequent" | "timeZone"
 export type SettingsWriteResult = { settings: AppSettings; applicationProblem: Problem | null }
 /**
- * 列类型的唯一词汇（ADR 0043）。TS 侧经生成绑定引用，不手抄。
+ * 列类型的唯一词汇，TS 侧经生成绑定引用，不手抄。
  */
 export type SheetFieldKind = "text" | "number" | "currency" | "select" | "multiSelect" | "date" | "person" | "checkbox" | "link" | "email" | "phone" | "image" | "attachment"
 export type SkillCommitRequest = { stagingId: string; name: string; subdirectory: string | null }
@@ -1558,46 +699,12 @@ export type SkillRecord = { name: string; enabled: boolean; document: string; pa
 export type SkillStaged = { stagingId: string; skillMd: string }
 export type TableExportFormat = "csv" | "markdown"
 export type TableExportRequest = { content: string; format: TableExportFormat }
-/**
- * 一张表。表头即字段名，每行按表头宽度对齐。
- */
-export type TableSheet = { header: string[]; rows: string[][]; 
-/**
- * 按列对齐的列类型。None 表示未指定，界面按列里的值推断。
- * 类型只住在边车文件里（见 ADR 0043），CSV 本体保持纯表格。
- */
-kinds: (SheetFieldKind | null)[] }
-/**
- * 一段 PTY 字节，或一次退出。字节是 base64：Tauri 的事件与命令走 JSON。
- */
+export type TableSheet = { header: string[]; rows: string[][]; kinds: (SheetFieldKind | null)[] }
 export type TerminalChunk = { kind: "output"; value: string } | { kind: "exited" }
-/**
- * 播给渲染层的一跳。root 是会话键，也就是这条对话的工作目录。
- */
 export type TerminalStreamed = { root: string; chunk: TerminalChunk }
-/**
- * 与渲染层之间唯一的退出契约。
- * 
- * 事件名随 tauri-specta 的注册面走（termination-requested），不再手写字符串：
- * 手写的名字两侧没有东西校验它，改一端漏一端不会报错。
- */
 export type TerminationRequested = null
 export type ThemePreference = "light" | "dark" | "system"
-/**
- * 一天的账。日历日按本机时区算，键就是渲染层索引热力图的那一个。
- */
-export type UsageDay = { 
-/**
- * `YYYY-MM-DD`。
- */
-day: string; 
-/**
- * 那天累计的 token。
- */
-tokens: number }
-/**
- * 窗口最大化态的一次翻转。
- */
+export type UsageDay = { day: string; tokens: number }
 export type WindowMaximized = { isMaximized: boolean }
 
 /** tauri-specta globals **/

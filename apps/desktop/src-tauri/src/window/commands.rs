@@ -3,7 +3,8 @@ use tauri::{AppHandle, Manager, command, utils::config::Color};
 
 use crate::{
     error::{Error, Result},
-    window::{MAIN_WINDOW, WindowSurface},
+    settings::ThemePreference,
+    window::{MAIN_WINDOW, ResolvedTheme, WindowSurface},
 };
 
 #[command]
@@ -23,6 +24,29 @@ pub async fn window_set_surface(
             .set(&window, Color(red, green, blue, 255))?;
 
         Ok(())
+    })()
+    .map_err(Problem::from)
+}
+
+/// 运行期改偏好时落定原生主题，并把宿主回读的解析结果交回渲染层。
+///
+/// 渲染层自己问不出「系统此刻是哪一档」：`prefers-color-scheme` 由原生主题推出来，
+/// 而原生主题是这一跳的结果。让渲染层先读、宿主后钉，读到的就是上一个偏好 ——
+/// 「跟随系统」正是这样解出深色的。所以解析归宿主，渲染层只消费返回值。
+#[command]
+#[specta::specta]
+pub async fn window_set_theme(
+    app: AppHandle,
+    preference: ThemePreference,
+) -> std::result::Result<ResolvedTheme, Problem> {
+    (|| -> Result<ResolvedTheme> {
+        let window = app
+            .get_window(MAIN_WINDOW)
+            .ok_or_else(|| Error::NotFound("main window".to_owned()))?;
+
+        Ok(app
+            .state::<WindowSurface>()
+            .adopt(&window, WindowSurface::native_theme(preference))?)
     })()
     .map_err(Problem::from)
 }

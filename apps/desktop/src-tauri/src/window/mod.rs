@@ -9,5 +9,5 @@ pub mod tray;
 
 pub use lifecycle::WindowMaximized;
 pub use state::{MAIN_WINDOW, WINDOW_STATE_FLAGS};
-pub use surface::WindowSurface;
+pub use surface::{ResolvedTheme, WindowSurface};
 pub use tray::TerminationRequested;

@@ -129,11 +129,7 @@ pub(crate) fn build() -> tauri::Builder<Wry> {
              */
             match app.state::<crate::settings::SettingsService>().load() {
                 Ok(settings) => {
-                    let theme = match settings.theme {
-                        crate::settings::ThemePreference::Light => Some(tauri::Theme::Light),
-                        crate::settings::ThemePreference::Dark => Some(tauri::Theme::Dark),
-                        crate::settings::ThemePreference::System => None,
-                    };
+                    let theme = WindowSurface::native_theme(settings.theme);
 
                     match app.state::<WindowSurface>().adopt(&main_window, theme) {
                         Ok(resolved) => log::info!(

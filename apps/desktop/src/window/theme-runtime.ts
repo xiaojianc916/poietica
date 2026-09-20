@@ -12,7 +12,7 @@ export interface ThemeRuntime {
 }
 
 interface ThemeRuntimeOptions {
-  readonly mainWindow: Pick<MainWindowController, 'setSurfaceColor'>
+  readonly mainWindow: Pick<MainWindowController, 'setSurfaceColor' | 'setTheme'>
   readonly report: (cause: unknown) => void
 }
 
@@ -45,21 +45,42 @@ export function createThemeRuntime({ mainWindow, report }: ThemeRuntimeOptions):
     return nativeUpdates
   }
 
-  const setPreference = (preference: ThemePreference): Promise<void> => {
+  /*
+   * 偏好改一次就落定一次，顺序不能颠倒：宿主先解钉并回读系统此刻那一档，渲染层再
+   * 拿这个值去投影。反过来的话，matchMedia 读到的还是上一个偏好 —— 「跟随系统」
+   * 会解出切换前的那一档，而系统明明已经变了。
+   */
+  const setPreference = async (preference: ThemePreference): Promise<void> => {
     if (disposed || preference === currentPreference) {
       return nativeUpdates
     }
 
     binding?.dispose()
     const activeGeneration = ++generation
-    const nextBinding = applyThemePreference(preference, (theme) => {
-      if (!disposed && generation === activeGeneration) {
-        void synchronizeSurface(theme)
-      }
+    currentPreference = preference
+
+    const resolvedByHost = await mainWindow.setTheme(preference).catch((cause: unknown) => {
+      report(cause)
+
+      /* 宿主答不上来时退回自己解：拿不到系统值也好过整格主题停摆。 */
+      return undefined
     })
 
+    if (disposed || generation !== activeGeneration) {
+      return nativeUpdates
+    }
+
+    const nextBinding = applyThemePreference(
+      preference,
+      (theme) => {
+        if (!disposed && generation === activeGeneration) {
+          void synchronizeSurface(theme)
+        }
+      },
+      resolvedByHost,
+    )
+
     binding = nextBinding
-    currentPreference = preference
     return synchronizeSurface(nextBinding.resolved)
   }
 

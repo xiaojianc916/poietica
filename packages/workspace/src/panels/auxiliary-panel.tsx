@@ -53,7 +53,7 @@ export interface AuxiliaryPanelProps {
   /** 加号菜单可开的通道种类。 */
   readonly paneOffers: readonly AuxiliaryPaneOffer[]
   /** 几何输入的指纹：变了就重新起跑视口对齐，内容不解读；必须是引用稳定的值。 */
-  readonly layoutSignal: object
+  readonly layoutSignal: unknown
   /** 全屏进出与状态由宿主外壳持有；这里只认当前值并转发给标签条。 */
   readonly fullscreen: boolean
   readonly onToggleFullscreen: () => void
@@ -347,7 +347,7 @@ function Viewport({
 }: {
   readonly showEmpty: boolean
   readonly store: AuxiliaryPanelStore
-  readonly layoutSignal: object
+  readonly layoutSignal: unknown
 }) {
   const region = useRef<HTMLDivElement | null>(null)
   const alignment = useRef<ViewportAlignment | null>(null)
@@ -382,7 +382,7 @@ function Viewport({
    * 面板底部的两个圆角盖成直角。
    */
   return (
-    <div className="relative mb-[var(--workspace-main-corner-radius)] min-h-0 flex-1" ref={region}>
+    <div className="relative mb-[var(--workspace-card-radius)] min-h-0 flex-1" ref={region}>
       {showEmpty ? (
         /* 空态。活动标签是空白页时原生侧没有 webview，这里就是画面本身。 */
         <div className="flex h-full flex-col items-center justify-center gap-2 px-6 text-center">

@@ -87,12 +87,15 @@ export function AuxiliaryDock({
   store,
   host,
 }: AuxiliaryDockProps) {
-  const layoutGeometry = useWorkspaceLayoutValue(
+  /*
+   * 几何指纹：外壳每次改动列宽就换一个值，浏览器视口据此重新量一次矩形。它只做同一性
+   * 比较（viewport-alignment 从不解读它），字符串本身就是稳定引用 —— 不必再套一层对象。
+   */
+  const layoutSignal = useWorkspaceLayoutValue(
     (state) =>
       `${String(state.sidebarOpen)}:${state.sidebarWidth}:${state.auxiliaryWidth}:${String(state.auxiliaryFullscreen)}`,
   )
   const auxiliaryFullscreen = useWorkspaceLayoutValue((state) => state.auxiliaryFullscreen)
-  const layoutSignal = useMemo(() => ({ layoutGeometry }), [layoutGeometry])
   const layoutStore = useWorkspaceLayoutStore()
   const state = useSyncExternalStore(store.subscribe, store.getSnapshot, store.getSnapshot)
 

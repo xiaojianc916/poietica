@@ -1,3 +1,4 @@
+import type { ResolvedTheme, ThemePreference } from '@poietica/contract'
 import { commands, events } from '@poietica/contract'
 import { isTauri } from '@tauri-apps/api/core'
 import { getCurrentWebviewWindow, type WebviewWindow } from '@tauri-apps/api/webviewWindow'
@@ -7,6 +8,8 @@ export type WindowSurfaceColor = readonly [red: number, green: number, blue: num
 export interface MainWindowController {
   present(): Promise<void>
   setSurfaceColor(color: WindowSurfaceColor): Promise<void>
+  /** 按偏好落定原生主题，交回宿主解析出的那一档（跟随系统时就是系统此刻那一档）。 */
+  setTheme(preference: ThemePreference): Promise<ResolvedTheme>
   minimize(): Promise<void>
   toggleMaximize(): Promise<void>
   isMaximized(): Promise<boolean>
@@ -50,6 +53,11 @@ export function createMainWindowController(): MainWindowController {
     async setSurfaceColor([red, green, blue]) {
       requireMainWindow(mainWindow)
       await commands.windowSetSurface(red, green, blue)
+    },
+
+    async setTheme(preference) {
+      requireMainWindow(mainWindow)
+      return await commands.windowSetTheme(preference)
     },
 
     minimize: () => requireMainWindow(mainWindow).minimize(),
