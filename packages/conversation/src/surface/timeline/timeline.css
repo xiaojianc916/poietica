@@ -79,10 +79,6 @@
 /*
  * The vertical rhythm of prose, declared once for every stream in the timeline.
  *
- * It was not declared at all before: nothing here gave a paragraph a margin, so
- * the gaps came from whatever utility classes the markdown package happens to
- * emit — a rhythm the product neither owns nor can tune. One token owns it now.
- *
  * The token is in em, so a scope that sets a smaller type size gets
  * proportionally tighter spacing without restating a number. That is the whole
  * mechanism behind the thought chain reading tighter than the answer: it says
@@ -90,24 +86,20 @@
  *
  * 表格不在这张清单里：Streamdown 把它包了三层（包裹层 → 滚动盒 → table），
  * 下面那条首块清零只够到两层。清单若把 table 算进来，这道 margin 会落在滚动盒
- * 内部的 <table> 上，在表头上方顶出一条空白，控件就浮在那条空白里。边距归包裹
- * 层所有 —— 它才是这条流里的那个块。
+ * 内部的 <table> 上，在表头上方顶出一条空白。边距归包裹层所有 —— 它才是这条流
+ * 里的那个块。
  */
 /*
  * prose type scale — 一条回复的排版，在这里一次性定死。
  *
- * 在此之前这个作用域只声明了节奏，字号、标题级差和 strong 的字重都还是浏览器
- * 的默认值：h1 是 2em 且 700，h2 是 1.5em。那套刻度是给一整页文档准备的，放进
- * 一条 13px 的聊天流里，一个二级标题就有 20 多个像素高，段落于是被顶得四散 ——
- * "太大太散"不是节奏没调好，是级差根本不属于这个语境。
- *
- * 做法是 scoped prose：先在这个作用域里推翻 UA 的级差，再重新给一套。这不是
- * 自创的写法，Tailwind Typography 的 prose、GitHub 的 .markdown-body、
- * Bootstrap Reboot 都是同一个模式 —— 排版归组件所有，而不是归文档默认值所有。
+ * scoped prose：先在这个作用域里推翻 UA 的级差，再重新给一套。UA 那套刻度是给
+ * 一整页文档准备的 —— h1 是 2em 且 700，放进一条聊天流里一个二级标题就有 20 多个
+ * 像素高，段落于是被顶得四散。Tailwind Typography 的 prose、GitHub 的
+ * .markdown-body、Bootstrap Reboot 都是同一个模式：排版归组件所有，而不是归文档
+ * 默认值所有。
  *
  * 刻度只有一个绝对值：容器的 --ui-prose-size。其余全部用 em 相对它表达，所以
- * 思维链那边只要把容器字号降一档，整套级差和间距会等比跟着收紧，不必重述任何
- * 一个数字。节奏仍是原来那一个 --cp-prose-flow，只是从 0.75em 收到 0.6em。
+ * 思维链那边只要把容器字号降一档，整套级差和间距会等比跟着收紧。
  *
  * 字重取 600 而非 UA 的 700：这个字号下 700 会糊成一团，编辑器类产品普遍停在
  * 600。字距取 0 —— 小字号收紧字距只会伤中文。
@@ -225,8 +217,7 @@
  * 一格 --cp-timeline-link-ink。
  *
  * 字重与断行也从这里给：链接不再由 streamdown 的类名着色排版，它那串类名换成了
- * 这个组件（见 prose-link.tsx），落在这条链接上的外观由这一处说清。字重 500 与
- * 断行分别是它原来那句 font-medium 与 wrap-anywhere，取值不变，只是换了产地。
+ * 这个组件（见 prose-link.tsx），落在这条链接上的外观由这一处说清。
  */
 .timeline-prose a {
   color: var(--cp-timeline-link-ink);
@@ -306,10 +297,9 @@
 /*
  * 一段代码是一段代码,不是一整屏。
  *
- * 这里此前既没有高度上限,也没有 overflow —— 而外层容器写着 overflow: hidden
- * (它要用自己的圆角裁住内部,那条不能动)。两者合起来的后果不是"不限高"这么
- * 简单:超出宽度的长行被父级裁掉,而且没有任何滚动出口,那些字符在界面上根本
- * 取不到。
+ * 高度上限与 overflow 缺一不可：外层容器写着 overflow: hidden（它要用自己的圆角
+ * 裁住内部，那条不能动），所以没有 overflow 出口时，超出宽度的长行会被父级裁掉，
+ * 那些字符在界面上根本取不到。
  *
  * 交出去的是滚动权：overflow: auto 一次管住两个轴。纵向的上限归 prose.tsx 的
  * codeBlockMaxHeight —— 只有上游拿到高度，它才给这个盒子挂流式末端锚定。
@@ -351,9 +341,7 @@
  * whole list conditionally — packages/streamdown/lib/code-block/body.tsx:
  * `className={lineNumbers ? lineNumberClasses : undefined}`. We render without
  * line numbers, so the line box went out with the gutter and every line ran
- * into the next; the only breaks left were the blank lines, which that same
- * component emits as a literal newline. Upstream reads this as a bug
- * (vercel/streamdown#532).
+ * into the next (vercel/streamdown#532).
  *
  * The line box is structure, not decoration, so it is declared once, here,
  * instead of being chased with white-space tricks — and the gutter stays off.
@@ -368,12 +356,8 @@
  * body.tsx 给每个 token 的 inline style 只写 --sdm-c（前景）、--sdm-tbg（底色）
  * 和双主题的 --shiki-dark，真正的 color 声明在上游自己的 Tailwind 工具类
  * text-[var(--sdm-c,inherit)] 里。官方 styles.css 只提供流式动画，不包含这些 Tailwind
- * 工具类；本应用的 Tailwind 也不扫描 node_modules，于是变量照旧下发、
- * 没人消费，每个 token 回落到 inherit：结构还在（一行一个 span），颜色全丢。
- * 这不是上游没有高亮能力，是那份颜色停在了半路。
- *
- * 同一个坑这张表里已经踩过一次并留下了结论，这份颜色也是
- * 因为"管线是我们的，外观也就是我们的"而在这里自己花掉的。
+ * 工具类；本应用的 Tailwind 也不扫描 node_modules，于是变量照旧下发、没人消费，
+ * 每个 token 回落到 inherit：结构还在，颜色全丢。管线是我们的，外观也就是我们的。
  *
  * light-dark() 跟随文档的 color-scheme，所以两套主题共用一条声明，不必猜主题
  * 的类名，也不必再写一条媒体查询。fallback 一路退到 inherit：Shiki 还没解析
@@ -410,12 +394,9 @@
  */
 
 /*
- * 这里此前有八个类：diff 的容器与两栏、路径、新建提示、终端、不透明内容、那句空话，
- * 外加一张 locations 的裸 ul。它们画的是同一种东西 —— 一段等宽的机器输出 —— 却各写
- * 了一份底色、一份留白、一份字号。现在抽屉里的一个面就是一段 markdown，围栏由
- * Streamdown 上色（diff 走它自带的 diff 着色），排版全部来自 .timeline-prose。
- *
- * 八个类因此没有消费者了，一并删掉，不留兼容层。
+ * 抽屉里的一个面就是一段 markdown：围栏由 Streamdown 上色（diff 走它自带的 diff
+ * 着色），排版全部来自 .timeline-prose，不再为「一段等宽的机器输出」各写一份底色、
+ * 留白与字号。
  */
 
 .timeline-plan {
@@ -541,26 +522,19 @@
 
 /* ── 表格 ───────────────────────────────────────────────────────────
  *
- * 上游把表格包成三层：外层 rounded-lg border bg-sidebar p-2，里层滚动盒
- * rounded-md border bg-background，最里面才是 <table>；控件是外层的第一个
- * 子元素（lib/table/index.tsx）。正文里因此出现一个卡中卡，和同一条流里的
- * 代码块根本不是一种语言。这里让外层退成纯定位容器，边框只保留一层，
- * 标题栏由表头自己充当，控件坐进这条标题栏的右端。
+ * 上游把表格包成三层（外层 rounded-lg border bg-sidebar p-2、里层滚动盒
+ * rounded-md border bg-background、最里面才是 <table>），正文里因此出现一个卡中卡。
+ * 这里让外层退成纯定位容器，边框只保留一层，标题栏由表头自己充当。
  *
- * 这条栏的高度只有一个来源：--cp-table-head 同时是表头单元格的 block-size
- * 和控件层的 block-size。上一版把高度写了两遍 —— 表头靠 padding 加行高撑出
- * (≈36.8px)，控件层另写一个 min-block-size (36px) —— 两个数只能凭运气对齐，
- * 字号、行高、字体任何一处一动就错位。现在表头 padding-block 归零，行高不再
- * 参与，栏高就是那个 token。
+ * 这条栏的高度只有一个来源：--cp-table-head 同时是表头单元格与控件层的
+ * block-size。表头 padding-block 归零，行高不参与，栏高就是那个 token ——
+ * 高度写两遍只能凭运气对齐，字号、行高、字体任何一处一动就错位。
  *
- * 右端留白也不再是拍脑袋的 4.5rem。按钮的真实尺寸是 p-1 + 14px 图标 = 22px，
- * 容器 gap-1 = 4px（copy-dropdown.tsx / fullscreen-button.tsx），两个按钮只占
- * 3rem，三个占 4.625rem —— 一个常量同时能太大和太小。改成：按钮尺寸由
- * --cp-table-control 接管，个数由 :has() 从 DOM 数出来，末列让位宽度是这几个
- * 量算出来的，Prose 里的 CONTROLS 增删一个按钮，这里自动跟上。
+ * 末列让位宽度由按钮尺寸（--cp-table-control）、间距与 :has() 数出来的个数算出，
+ * Prose 里的 CONTROLS 增删一个按钮，这里自动跟上。
  *
- * 包裹层不再 overflow: hidden。复制菜单是 absolute top-full z-20，挂在包裹层
- * 内部，裁剪会把它剪断；圆角交给滚动盒继承半径来收，它本来就带 overflow-auto。
+ * 包裹层不能 overflow: hidden：复制菜单是 absolute top-full z-20，裁剪会把它剪断；
+ * 圆角交给本来就带 overflow-auto 的滚动盒继承半径来收。
  */
 
 .timeline-prose [data-streamdown="table-wrapper"] {
@@ -654,10 +628,9 @@
 /*
  * 滚动盒交出边框，只留滚动，并接手圆角裁剪。
  *
- * 轴写死成「横向 auto、纵向 hidden」：上游给的是 overflow-auto，两个轴都成了
- * 滚动容器，而表格在这条流里从来没有纵向上限、也就从来没有纵向溢出。一个不会
- * 滚的滚动容器不是中性的 —— 它会被浮层当成一条候选轨道，此前还配着
- * overscroll-behavior: contain，于是指针停在表格上时滚轮整个失效。
+ * 轴写死成「横向 auto、纵向 hidden」：上游给的是 overflow-auto，两个轴都成了滚动
+ * 容器，而表格在这条流里从来没有纵向上限、也就从来没有纵向溢出。一个不会滚的滚动
+ * 容器不是中性的 —— 它会被浮层当成一条候选轨道，指针停在表格上时滚轮整个失效。
  */
 .timeline-prose [data-streamdown="table-wrapper"] > div:last-child {
   overflow: auto hidden;
@@ -746,9 +719,8 @@
  * 修的是继承的作用范围，不是那三条声明本身：它们在自己的语境里没有错，只是
  * 不该穿透进另一套排版体系。word-break 一并复位 —— 两个属性都能触发同一件事。
  *
- * 行内公式同时拿到自己的溢出出口。块级的那一条已经在上面了，而行内公式在启用
- * 单美元号之前几乎不出现，所以这个缺口此前看不见。理由与代码块、与 katex-display
- * 完全相同：交出去的是滚动权，不是一个宽度上限 —— 被裁掉的字符是取不回来的。
+ * 行内公式同时拿到自己的溢出出口。理由与代码块、与 katex-display 完全相同：
+ * 交出去的是滚动权，不是一个宽度上限 —— 被裁掉的字符是取不回来的。
  */
 .timeline-prose :is(.katex, .katex-display) {
   overflow-wrap: normal;

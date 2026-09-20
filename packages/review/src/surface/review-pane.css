@@ -202,9 +202,9 @@
   opacity: 0.6;
 }
 
-/* 横线：工具条与筛选行下缘，浅色 #ededed，深色沿用前景半透明。 */
+/* 横线：工具条与筛选行下缘，浅色读卡片线，深色沿用前景半透明。 */
 .review-rule {
-  border-bottom: 1px solid #ededed;
+  border-bottom: 1px solid var(--ui-card-divider);
 }
 
 :root[data-theme="dark"] .review-rule {
@@ -250,7 +250,7 @@
 
 /* 树行的悬浮：左右留白不贴边的小圆角药丸，与折叠带同一条语言。 */
 .review-tree-row:hover {
-  background: #f4f4f4;
+  background: var(--ui-sunken);
 }
 
 /*
@@ -363,6 +363,10 @@
 /*
  * 折叠带的底色：悬浮药丸只这一处取色，不跟随上面的增删色。
  */
+/*
+ * 折叠带的底色：悬浮药丸只这一处取色，不跟随上面的增删色。
+ * 这一格是审查面板自己的产品取值，不借 --ui-chrome（那是窗口家具的底色）。
+ */
 .review-gap {
   background: #f3f3f3;
   border-radius: 6px;
@@ -387,7 +391,7 @@
    * 4 格灰，贴在一起会读成一整块 —— 上面那张卡的卡头会贴，下面那张卡的卡头也会贴。
    * 缝落在带子这一侧，正文是真差异的那些卡不跟着动。 */
   margin-block: 4px;
-  background: #f4f4f4;
+  background: var(--ui-sunken);
   color: #8c8c8c;
 }
 
@@ -458,7 +462,7 @@
   position: absolute;
   inset-block: 0;
   inset-inline-end: 0;
-  border-inline-start: 1px solid #ededed;
+  border-inline-start: 1px solid var(--ui-card-divider);
   transition: border-inline-start-color var(--workspace-layout-duration) ease;
 }
 

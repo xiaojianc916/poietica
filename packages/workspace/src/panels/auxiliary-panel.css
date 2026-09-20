@@ -3,7 +3,7 @@
  * 深色沿用原来的前景半透明，不另立色。
  */
 .auxiliary-toolbar {
-  border-bottom: 1px solid #ededed;
+  border-bottom: 1px solid var(--ui-card-divider);
 }
 
 :root[data-theme="dark"] .auxiliary-toolbar {
@@ -13,12 +13,11 @@
 /*
  * 启动器四枚按钮的底与悬浮。
  *
- * 底是 --ui-launcher（浅色 #f2f3f3 / 深色 #1f1f1f），悬浮原本写的是 currentColor
- * 7% 的一层墨：深色下压在 #1f1f1f 上兑出 #2f2f2f，比产品要的 #2a2a2a 亮 5 格，
- * 所以深色那一档另给。浅色那支不动。
+ * 底是 --ui-launcher，悬浮原本写的是 currentColor 7% 的一层墨：深色下压在 #1f1f1f
+ * 上兑出 #2f2f2f，比产品要的 #2a2a2a 亮 5 格，所以深色那一档另给。浅色那支不动。
  */
 :root[data-theme="dark"] .auxiliary-launcher {
-  background-color: #1f1f1f;
+  background-color: var(--ui-launcher);
 }
 
 :root[data-theme="dark"] .auxiliary-launcher:hover:not(:disabled) {

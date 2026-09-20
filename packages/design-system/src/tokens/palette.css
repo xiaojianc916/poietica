@@ -19,7 +19,6 @@
   --ui-palette-neutral-75: #f3f3f3;
   --ui-palette-neutral-100: oklch(0.95 0.004 90);
   --ui-palette-neutral-150: oklch(0.945 0.005 90);
-  --ui-palette-neutral-200: oklch(0.925 0.007 90);
   --ui-palette-neutral-300: oklch(0.84 0.006 90);
   /* 占位符档。对基底约 3:1，比 500 整整淡一档。 */
   --ui-palette-neutral-400: oklch(0.6 0.012 90);
@@ -30,17 +29,14 @@
 
   /*
    * 深色梯级，从亮到暗。档位是按界面层次定的，不是等差：
-   * 700/750 悬停与选中，850 抬起的面与外壳（顶部栏、侧边栏）兼深色窗口衬底的
+   * 750 悬停与选中，850 抬起的面与外壳（顶部栏、侧边栏）兼深色窗口衬底的
    * 正本（抄本清单见上面 --ui-palette-neutral-75 那条），
-   * 900 独立界面的地色，950 主内容区，975 终端底，1000 只作前景反色用。
+   * 950 主内容区，1000 只作前景反色用。
    */
-  --ui-palette-dark-700: #252525;
   --ui-palette-dark-750: #30302f;
   --ui-palette-dark-800: #383836;
   --ui-palette-dark-850: #202020;
-  --ui-palette-dark-900: #1d1d1d;
   --ui-palette-dark-950: #181818;
-  --ui-palette-dark-975: #141414;
   --ui-palette-dark-1000: #111111;
 
   --ui-palette-blue-500: oklch(0.55 0.19 255);

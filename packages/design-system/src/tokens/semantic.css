@@ -3,6 +3,10 @@
  *
  * Feature code should consume semantic utilities such
  * as bg-background, text-muted-foreground and border-divider.
+ *
+ * 这一层是对外的工具类词汇表，不是实现：每个键生成一族 Tailwind 类。少数键当前
+ * 没有消费点仍然保留 —— 词汇表缺一角比多一角更难用，删了它下次要用的人只会写
+ * 一个硬编码值回来。
  */
 
 @theme {

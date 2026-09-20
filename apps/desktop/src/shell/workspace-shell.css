@@ -138,7 +138,15 @@
  * 画者是分隔线自己（::after），不是接指针的那根 hr。
  */
 .workspace-shell__divider::after {
-  --workspace-divider-grip: color-mix(in oklab, var(--color-foreground) 22%, var(--color-divider));
+  /*
+   * 抓手的墨：压在区域分隔线上。--workspace-divider-line 由分隔线本体（父元素）
+   * 提供并继承下来，这里只读不声明 —— 在 ::after 上声明会把父级那份覆盖掉。
+   */
+  --workspace-divider-grip: color-mix(
+    in oklab,
+    var(--color-foreground) 22%,
+    var(--workspace-divider-line, var(--color-divider))
+  );
 
   content: "";
   position: absolute;
@@ -164,14 +172,23 @@
   margin-inline-end: calc(var(--workspace-main-gap) / 2);
 }
 
-/* 对话区与右侧栏的竖线单取 #ededed，比全局区域分隔线淡一档；深色主题不跟。 */
+/*
+ * 对话区与右侧栏的竖线单取卡片线那档，比全局区域分隔线淡一档；深色主题不跟。
+ *
+ * 这里覆盖的是自己那一格 --workspace-divider-line，不去改写设计系统的
+ * --color-divider：后者是全局语义令牌，就地覆盖它等于在别处凭空造出第二个产地。
+ */
 :root:not([data-theme="dark"]) .workspace-shell__divider--auxiliary {
-  --color-divider: #ededed;
+  --workspace-divider-line: var(--ui-card-divider);
 }
 
-/* 右栏抓手再淡一档：基底已是更浅的 #ededed，墨量从基类的 22% 降到 14%。 */
+/* 右栏抓手再淡一档：基底已是更浅的卡片线，墨量从基类的 22% 降到 14%。 */
 :root:not([data-theme="dark"]) .workspace-shell__divider--auxiliary::after {
-  --workspace-divider-grip: color-mix(in oklab, var(--color-foreground) 14%, var(--color-divider));
+  --workspace-divider-grip: color-mix(
+    in oklab,
+    var(--color-foreground) 14%,
+    var(--workspace-divider-line)
+  );
 }
 
 /* :not 隔离两侧开关；辅助面板全屏时主列消失，其末像素上的分隔线也须隐藏。 */

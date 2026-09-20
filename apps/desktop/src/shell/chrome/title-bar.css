@@ -16,7 +16,6 @@
  * --workspace-sidebar-column-width 的 0px 兜底保留：那不是一份重复的真相，而是
  * "没有侧边栏列"这个状态本身的正确渲染。
  */
-
 .desktop-title-bar__toggle-zone {
   /* 四个图标按钮的盒子：比 sm 小一档，hover 范围跟着收，中线算法不变。 */
   --titlebar-toggle-size: 1.75rem;

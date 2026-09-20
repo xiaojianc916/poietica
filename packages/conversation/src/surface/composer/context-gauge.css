@@ -4,7 +4,18 @@
  * 触发器长在输入框工具条里，读 composer-metrics.css 那套 --cp-* 令牌；卡经
  * Portal 落在 body 下，[data-assistant-skin] 罩不到它，所以卡上每一个 var 都
  * 带兜底值，不赖任何作用域令牌。
+ *
+ * 阈值配色沿用 ACP 会话用量规范的建议档：75% 黄、90% 橙、95% 红。字形与进度条
+ * 各用一档（同一色阶的深浅两级），两个消费者读同一组名字 —— 写两遍迟早分叉。
  */
+:root {
+  --gauge-warn-ink: #b45309;
+  --gauge-warn-fill: #d97706;
+  --gauge-high-ink: #c2410c;
+  --gauge-high-fill: #ea580c;
+  --gauge-critical-ink: #dc2626;
+  --gauge-critical-fill: #dc2626;
+}
 
 [data-assistant-skin] .context-gauge__trigger {
   display: inline-flex;
@@ -25,18 +36,17 @@
   color: var(--cp-ink);
 }
 
-/* 阈值配色沿用 ACP 会话用量规范的建议档：75% 黄、90% 橙、95% 红。写在 hover
-   之后，同特异度靠顺序取胜：临界色不因悬浮而被冲掉。 */
+/* 临界色写在 hover 之后，同特异度靠顺序取胜：不因悬浮而被冲掉。 */
 [data-assistant-skin] .context-gauge__trigger[data-level="warn"] {
-  color: #b45309;
+  color: var(--gauge-warn-ink);
 }
 
 [data-assistant-skin] .context-gauge__trigger[data-level="high"] {
-  color: #c2410c;
+  color: var(--gauge-high-ink);
 }
 
 [data-assistant-skin] .context-gauge__trigger[data-level="critical"] {
-  color: #dc2626;
+  color: var(--gauge-critical-ink);
 }
 
 [data-assistant-skin] .context-gauge__ring {
@@ -112,13 +122,13 @@
 }
 
 .context-gauge__bar-fill[data-level="warn"] {
-  background: #d97706;
+  background: var(--gauge-warn-fill);
 }
 
 .context-gauge__bar-fill[data-level="high"] {
-  background: #ea580c;
+  background: var(--gauge-high-fill);
 }
 
 .context-gauge__bar-fill[data-level="critical"] {
-  background: #dc2626;
+  background: var(--gauge-critical-fill);
 }

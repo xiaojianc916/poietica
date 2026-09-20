@@ -9,10 +9,6 @@
    */
   --ui-foreground: #c3c3c3;
   --ui-surface: var(--ui-palette-dark-850);
-  --ui-inverse-surface: #000000;
-  --ui-inverse-foreground: #f7f7f8;
-  --ui-inverse-muted: rgb(255 255 255 / 68%);
-  --ui-inverse-border: rgb(255 255 255 / 18%);
 
   /*
    * 卡面：比页面底色抬一档，卡因此浮在页面上而不是与它同色（浅色下这一格

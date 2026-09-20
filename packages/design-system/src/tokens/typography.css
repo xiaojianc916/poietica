@@ -17,12 +17,9 @@
   --ui-font-size-micro: 0.625rem;
   --ui-font-size-caption: 0.6875rem;
 
-  --ui-font-size-xs: 0.75rem;
-
   --ui-line-height-tight: 1.25;
   --ui-line-height-normal: 1.5;
 
-  --ui-font-weight-regular: 400;
   --ui-font-weight-semibold: 600;
 
   --ui-letter-spacing-normal: 0;
@@ -35,7 +32,6 @@
    * 其余级差在消费处用 em 相对它表达。桌面 IDE 的聊天正文量级（14px / 1.65）。
    */
   --ui-prose-size: 0.875rem;
-  --ui-prose-size-quiet: 0.8125rem;
   --ui-prose-size-aux: 0.8125rem;
   --ui-prose-size-meta: 0.75rem;
   --ui-prose-line-height: 1.65;
