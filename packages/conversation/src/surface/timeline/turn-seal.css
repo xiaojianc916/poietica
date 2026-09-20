@@ -43,7 +43,6 @@
   flex: none;
   inline-size: 1rem;
   block-size: 1lh;
-  stroke-width: var(--cp-icon-stroke);
   rotate: -90deg;
   transition: rotate var(--cp-motion-swift) cubic-bezier(0.2, 0, 0, 1);
 }

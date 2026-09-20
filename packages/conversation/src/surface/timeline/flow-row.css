@@ -56,7 +56,6 @@ button.timeline-row:focus-visible {
   flex: none;
   inline-size: var(--cp-icon);
   block-size: 1lh;
-  stroke-width: var(--cp-icon-stroke);
 }
 
 /* 箭头是给鼠标的第二遍提示，读屏那一遍由 aria-expanded 说。一直占位，出现时不重排。 */

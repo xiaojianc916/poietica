@@ -104,7 +104,7 @@ function KeymapRow({ entry, editing, onStartEdit, onCancelEdit, onDelete }: Keym
                   onClick={() => onStartEdit(index)}
                   type="button"
                 >
-                  <Pencil size={14} strokeWidth={1.7} />
+                  <Pencil size={14} />
                 </button>
                 <button
                   aria-label={`删除 ${entry.label} 的快捷键`}
@@ -112,7 +112,7 @@ function KeymapRow({ entry, editing, onStartEdit, onCancelEdit, onDelete }: Keym
                   onClick={() => onDelete(entry.id, index)}
                   type="button"
                 >
-                  <Trash2 size={14} strokeWidth={1.7} />
+                  <Trash2 size={14} />
                 </button>
               </div>
             ),
@@ -128,7 +128,7 @@ function KeymapRow({ entry, editing, onStartEdit, onCancelEdit, onDelete }: Keym
               onClick={() => onStartEdit(-1)}
               type="button"
             >
-              <Pencil size={14} strokeWidth={1.7} />
+              <Pencil size={14} />
             </button>
           </div>
         )}

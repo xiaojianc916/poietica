@@ -171,7 +171,7 @@ function GoalBarView({ goal, onClear, onEdit, onPause, onResume }: GoalBarViewPr
                 void commit()
               }}
             >
-              <Check aria-hidden size={14} strokeWidth={1.5} />
+              <Check aria-hidden size={14} />
             </ActionButton>
             <ActionButton
               disabled={pending}
@@ -181,7 +181,7 @@ function GoalBarView({ goal, onClear, onEdit, onPause, onResume }: GoalBarViewPr
                 setEditing(false)
               }}
             >
-              <X aria-hidden size={14} strokeWidth={1.5} />
+              <X aria-hidden size={14} />
             </ActionButton>
           </div>
         </div>
@@ -193,7 +193,7 @@ function GoalBarView({ goal, onClear, onEdit, onPause, onResume }: GoalBarViewPr
     <div className="goal-bar__dock" data-goal-bar>
       <div className="goal-bar">
         <span className="goal-bar__glyph">
-          <Goal aria-hidden size={14} strokeWidth={1.5} />
+          <Goal aria-hidden size={14} />
         </span>
         <span className="goal-bar__label">{presentation.label}</span>
         <span className="goal-bar__objective">{goal.objective}</span>
@@ -211,7 +211,7 @@ function GoalBarView({ goal, onClear, onEdit, onPause, onResume }: GoalBarViewPr
                 void runAction(onPause)
               }}
             >
-              <CirclePause aria-hidden size={14} strokeWidth={1.5} />
+              <CirclePause aria-hidden size={14} />
             </ActionButton>
           ) : null}
           {presentation.toggle === 'resume' ? (
@@ -222,7 +222,7 @@ function GoalBarView({ goal, onClear, onEdit, onPause, onResume }: GoalBarViewPr
                 void runAction(onResume)
               }}
             >
-              <CirclePlay aria-hidden size={14} strokeWidth={1.5} />
+              <CirclePlay aria-hidden size={14} />
             </ActionButton>
           ) : null}
           <ActionButton
@@ -233,7 +233,7 @@ function GoalBarView({ goal, onClear, onEdit, onPause, onResume }: GoalBarViewPr
               setEditing(true)
             }}
           >
-            <Pencil aria-hidden size={14} strokeWidth={1.5} />
+            <Pencil aria-hidden size={14} />
           </ActionButton>
           <ActionButton
             disabled={pending}
@@ -242,7 +242,7 @@ function GoalBarView({ goal, onClear, onEdit, onPause, onResume }: GoalBarViewPr
               void clear()
             }}
           >
-            <Trash2 aria-hidden size={14} strokeWidth={1.5} />
+            <Trash2 aria-hidden size={14} />
           </ActionButton>
         </div>
       </div>

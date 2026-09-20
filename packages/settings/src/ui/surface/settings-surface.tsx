@@ -517,7 +517,7 @@ const SettingsNavigation = memo(function SettingsNavigation({
   return (
     <section aria-label="设置分类" className="settings-navigation">
       <button className="settings-navigation__back" onClick={onBack} type="button">
-        <ArrowLeft aria-hidden="true" className="settings-navigation__icon" strokeWidth={1.7} />
+        <ArrowLeft aria-hidden="true" className="settings-navigation__icon" />
 
         <span>返回</span>
       </button>

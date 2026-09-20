@@ -79,17 +79,9 @@
   --cp-icon: var(--ui-icon-size-sm);
 
   /*
-   * 图标的描边宽度。
-   *
-   * 线重是一个独立的旋钮，所有权因此在本文件而不在图标库：不声明它就由
-   * @lucide/react 的默认值决定。CSS 覆盖得了字形库写在 SVG 上的那个值：
-   * presentation attribute 的优先级等同于作者样式表最开头的一条规则，任何选择器
-   * 都压得过它，不需要 !important。它是无单位数，跟着 viewBox 缩放走。
-   *
-   * 与设计系统的 --ui-icon-stroke（2）不同值是有意的：这一档在 2/3 缩放下解出
-   * 1.0 CSS px，与 VS Code 的 codicon 在 16px 下同档。
+   * 图标的描边宽度不在这里声明：全仓读设计系统的 --ui-icon-stroke，由
+   * tokens/controls.css 的 :where(svg) 一处发放。这一层不再持有第二个旋钮。
    */
-  --cp-icon-stroke: 1.5;
   --cp-optical: 6px;
 
   /*

@@ -242,7 +242,7 @@ function ConfiguredModels({
             onClick={onRefresh}
             type="button"
           >
-            <RotateCw aria-hidden="true" size={16} strokeWidth={1.7} />
+            <RotateCw aria-hidden="true" size={16} />
           </button>
         </div>
         {models.length === 0 ? (

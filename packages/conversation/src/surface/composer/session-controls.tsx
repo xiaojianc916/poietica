@@ -181,7 +181,7 @@ export const SessionControls = memo(function SessionControls({
               <span className="assistant-model-select__item-name">{choice.label}</span>
 
               <DropdownMenuRadioItemIndicator className="assistant-model-select__item-tick">
-                <Check aria-hidden="true" size={14} strokeWidth={2} />
+                <Check aria-hidden="true" size={14} />
               </DropdownMenuRadioItemIndicator>
             </DropdownMenuRadioItem>
           ))}
@@ -212,7 +212,6 @@ export const SessionControls = memo(function SessionControls({
                 aria-hidden="true"
                 className="assistant-model-select__head-chevron"
                 size={12}
-                strokeWidth={2.5}
               />
             </span>
 
