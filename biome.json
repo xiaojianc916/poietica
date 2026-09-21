@@ -26,7 +26,8 @@
       "!packages/transcript/src",
       "!packages/transcript/dist-types",
       "!**/*.snap",
-      "!**/*.svg"
+      "!**/*.svg",
+      "!tests/benchmark/fixtures"
     ],
     "maxSize": 2097152
   },

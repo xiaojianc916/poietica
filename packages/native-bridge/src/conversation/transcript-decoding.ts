@@ -45,7 +45,13 @@ export function decodeTranscriptEvent(wire: AgentTranscriptEvent): Decoded {
       const data = transcriptResetPayloadSchema.parse(envelope.payload)
       return {
         ok: true,
-        signal: { kind: 'reset', sessionId: wire.sessionId, agentId: data.agent_id },
+        signal: {
+          kind: 'reset',
+          sessionId: wire.sessionId,
+          agentId: data.agent_id,
+          /* server 自报的水位；缺席即水位未知，下游只能照旧去 REST 补。 */
+          seq: data.seq,
+        },
       }
     }
     if (envelope.type !== 'transcript.ops') {

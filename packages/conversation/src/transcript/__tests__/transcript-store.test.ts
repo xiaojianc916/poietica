@@ -609,7 +609,12 @@ describe('transcript recovery ownership', () => {
     replica.seed(page('main', 40, { items: [running] }))
     const inFlight = replica.refresh('main')
     await entered.promise
-    const reset = replica.receive({ kind: 'reset', sessionId: 'session', agentId: 'main' })
+    const reset = replica.receive({
+      kind: 'reset',
+      sessionId: 'session',
+      agentId: 'main',
+      seq: undefined,
+    })
     await recovering.promise
     replica.seed(page('main', 80, { items: [running] }))
     expect(replica.snapshot('main')?.items).toEqual([running])
@@ -651,7 +656,7 @@ describe('transcript recovery ownership', () => {
       (_agent, snapshot) => publications.push(snapshot),
     )
     replica.seed(page('main', 40, { items: [first, second] }))
-    await replica.receive({ kind: 'reset', sessionId: 'session', agentId: 'main' })
+    await replica.receive({ kind: 'reset', sessionId: 'session', agentId: 'main', seq: undefined })
     expect(requests).toEqual([undefined, third.turnId, second.turnId])
     expect(replica.snapshot('main')?.items).toEqual([first, second, third])
     expect(publications).toHaveLength(2)
@@ -718,11 +723,85 @@ describe('transcript recovery ownership', () => {
       () => undefined,
     )
     replica.seed(page('main', 40, { items: [running] }))
-    await replica.receive({ kind: 'reset', sessionId: 'session', agentId: 'main' })
+    await replica.receive({ kind: 'reset', sessionId: 'session', agentId: 'main', seq: undefined })
     replica.seed(page('main', 99, { items: [running] }))
     await replica.receive(ops('main', 2))
     expect(replica.snapshot('main')?.items).toEqual([completed])
     expect(catches).toBe(0)
+    replica.dispose()
+  })
+
+  /*
+   * reset 自报的水位就是我们的水位时，中间没有待补的帧 —— 再整读一次 head 只会拿回
+   * 同一份正文。冷会话（server 内存里没有的旧对话）恒走这一档：本机 180 条对话里
+   * 178 条是这个形状，正文 400–600 KB，多读一次就是白花一次全文往返。
+   */
+  test('a reset at our own watermark does not refetch the page we already hold', async () => {
+    let heads = 0
+    let catches = 0
+    const replica = new TranscriptReplica(
+      'session',
+      transcriptPort({
+        readTranscript: async (_session, agent) => {
+          heads += 1
+          return page(agent, 5)
+        },
+        catchUpTranscript: async (_session, agent) => {
+          catches += 1
+          return { agentId: agent, batches: [], latestSeq: 5, complete: false }
+        },
+      }),
+      () => undefined,
+    )
+    replica.seed(page('main', 5))
+    await replica.synchronize('main')
+    /* synchronize 的 catch-up 连一帧都没有，且与手上那一页同水位：不读 head。 */
+    expect(catches).toBe(1)
+    expect(heads).toBe(0)
+
+    await replica.receive({ kind: 'reset', sessionId: 'session', agentId: 'main', seq: 5 })
+    expect(heads).toBe(0)
+    /* 换了一代，但视图还在：位次照旧推进。 */
+    await replica.receive(ops('main', 6))
+    expect(replica.snapshot('main')).toBeDefined()
+    replica.dispose()
+  })
+
+  /* 水位比我们新的时候，中间那些帧只有 REST 补得回来，不能省。 */
+  test('a reset ahead of our watermark still recovers over REST', async () => {
+    let heads = 0
+    const replica = new TranscriptReplica(
+      'session',
+      transcriptPort({
+        readTranscript: async (_session, agent) => {
+          heads += 1
+          return page(agent, 9)
+        },
+      }),
+      () => undefined,
+    )
+    replica.seed(page('main', 5))
+    await replica.receive({ kind: 'reset', sessionId: 'session', agentId: 'main', seq: 9 })
+    expect(heads).toBe(1)
+    replica.dispose()
+  })
+
+  /* 水位未知（server 没报）时只能照旧去读：猜一个水位就是拿旧正文冒充新事实。 */
+  test('an unknown reset watermark still recovers over REST', async () => {
+    let heads = 0
+    const replica = new TranscriptReplica(
+      'session',
+      transcriptPort({
+        readTranscript: async (_session, agent) => {
+          heads += 1
+          return page(agent, 5)
+        },
+      }),
+      () => undefined,
+    )
+    replica.seed(page('main', 5))
+    await replica.receive({ kind: 'reset', sessionId: 'session', agentId: 'main', seq: undefined })
+    expect(heads).toBe(1)
     replica.dispose()
   })
 
@@ -769,7 +848,7 @@ describe('transcript recovery ownership', () => {
     replica.seed(page('main', 40))
     const pending = replica.refresh('main')
     await entered.promise
-    await replica.receive({ kind: 'reset', sessionId: 'session', agentId: 'main' })
+    await replica.receive({ kind: 'reset', sessionId: 'session', agentId: 'main', seq: undefined })
     release.resolve()
     await pending
     expect(reads).toBe(2)
@@ -862,7 +941,7 @@ describe('transcript recovery ownership', () => {
     )
     replica.seed(page('main', 40, { items: [first] }))
     await expect(
-      replica.receive({ kind: 'reset', sessionId: 'session', agentId: 'main' }),
+      replica.receive({ kind: 'reset', sessionId: 'session', agentId: 'main', seq: undefined }),
     ).rejects.toThrow('Transcript pagination did not advance.')
     expect(replica.snapshot('main')?.items).toEqual([first])
     replica.dispose()
@@ -926,7 +1005,7 @@ describe('transcript recovery ownership', () => {
         }
       })
     })
-    receive({ kind: 'reset', sessionId: 'session', agentId: 'worker' })
+    receive({ kind: 'reset', sessionId: 'session', agentId: 'worker', seq: undefined })
     await failed
     expect(store.read('thread').operation.kind).toBe('ready')
     expect(store.read(key).operation.kind).toBe('failed')

@@ -19,6 +19,8 @@
   "scripts": {
     "audit": "bun audit --audit-level=high",
     "audit:rust": "cargo deny check --all-features",
+    "bench:open": "bun run tests/benchmark/open-conversation.bench.ts",
+    "bench:reads": "bun run tests/benchmark/reads.bench.ts",
     "build:debug": "bun run --filter @poietica/desktop tauri:build:debug",
     "build:release": "bun run --filter @poietica/desktop tauri:build:release",
     "build:web": "turbo run build",

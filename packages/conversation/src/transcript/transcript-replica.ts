@@ -133,7 +133,7 @@ export class TranscriptReplica {
       return this.#resync()
     }
     if (signal.kind === 'reset') {
-      return this.#restart(signal.agentId)
+      return this.#restart(signal.agentId, signal.seq)
     }
     return this.#queue(signal.agentId, (feed) => this.#advance(signal, feed))
   }
@@ -171,12 +171,29 @@ export class TranscriptReplica {
     return !this.#disposed && this.#feeds.get(agentId) === feed
   }
 
-  #restart(agentId: string): Promise<void> {
+  /**
+   * Retire this agent's generation and rebuild it.
+   *
+   * `watermark` 是 server 在 reset 里自报的当前水位（缺席即不知道）。reset 的载荷本身是
+   * 「从当前水位起的尾巴」，而我们手上那一页正好就落在这个水位上时，那截尾巴我们已经
+   * 有了 —— 再整读一次只会拿回同一份正文，一次全文往返白花。
+   *
+   * 换掉 feed 对象这一步不省：它是这一代的身份，在飞的老读法必须作废。
+   */
+  #restart(agentId: string, watermark?: number): Promise<void> {
     if (this.#disposed) {
       return Promise.resolve()
     }
+    const held = this.#feeds.get(agentId)
+    const arrived = watermark !== undefined && held?.valid === true && watermark === held.seq
     this.#feeds.delete(agentId)
-    return this.refresh(agentId)
+    if (!arrived) {
+      return this.refresh(agentId)
+    }
+    const generation = this.#feed(agentId)
+    generation.seq = watermark
+    generation.valid = true
+    return Promise.resolve()
   }
 
   async #resync(): Promise<void> {
@@ -275,7 +292,14 @@ export class TranscriptReplica {
       return
     }
     const folded = foldCatchUp(caught, feed.seq)
-    if (!folded.complete || folded.cursor !== caught.latestSeq) {
+    /*
+     * 判据是「我们到没到 server 的水位」，不是「批次日志连不连续」。
+     *
+     * complete:false 只说 journal 够不着 since_seq —— 冷会话（server 内存里没有的旧对话）
+     * 恒回这一档，而它的 latest_seq 与我们手上那一页的水位本就相等。水位相等时两家之间
+     * 没有任何待补的帧，再整读一次 head 只会拿回同一份正文：那是纯粹的一次全文往返。
+     */
+    if (folded.cursor !== caught.latestSeq) {
       feed.valid = false
       await this.#head(agentId, feed, caught.latestSeq)
       return

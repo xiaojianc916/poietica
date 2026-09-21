@@ -69,7 +69,10 @@ test('an empty-tail reset invalidates only its named agent', () => {
           },
         }),
       }),
-    ).toEqual({ ok: true, signal: { kind: 'reset', sessionId: 'session', agentId: 'worker' } })
+    ).toEqual({
+      ok: true,
+      signal: { kind: 'reset', sessionId: 'session', agentId: 'worker', seq },
+    })
   }
 })
 
