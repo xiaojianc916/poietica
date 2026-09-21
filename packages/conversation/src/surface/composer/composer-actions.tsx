@@ -4,9 +4,9 @@ import type { PromptConfiguration } from '../../agent/session'
 import type { AgentMcpServer, AgentSkill } from '../../agent/toolkit'
 import { GOAL_CONTROL_ID } from '../goal/goal-control'
 import { CloseIcon, GoalIcon, PlusIcon, SirenIcon, SkillIcon, ToolIcon } from '../primitives/icons'
+import type { PromptChipValue } from '../primitives/prompt-chip'
 import type { PaletteGroup, PaletteRow } from './composer-palette'
 import { isToggleControl } from './controls'
-import type { PromptChipValue } from './prompt-chip'
 import { usePromptInputActions, usePromptInputDraft, usePromptInputPalette } from './prompt-input'
 
 /* 扳机自报开合（WAI-ARIA disclosure），皮肤读的就是这一格：真相只有输入框那一份。 */

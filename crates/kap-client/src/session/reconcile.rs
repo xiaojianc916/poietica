@@ -7,12 +7,13 @@ use futures::{FutureExt, StreamExt};
 use serde_json::{Value, json};
 
 use super::book::SessionBook;
-use super::rest::{get, post, session_snapshot};
+use super::rest::session_snapshot;
 use super::tasks::SessionTasks;
 use crate::generated::rest::{
     ResolveApprovalRequestDecisionEnum, ResolveApprovalRequestScopeEnum,
     ResolveApprovalRequestStruct, routes,
 };
+use crate::http::{get, post};
 use crate::interaction::desk::{PermissionDesk, QuestionDesk};
 use crate::interaction::permission::Decision;
 use crate::interaction::question::{QuestionGroup, QuestionOutcome};

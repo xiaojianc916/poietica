@@ -5,7 +5,6 @@ import { selectPresentation } from '../../timeline/presentation'
 import { selectIsBusy } from '../../timeline/timeline-queries'
 import { AgentActivityFeed, type FeedPort } from '../feed/agent-activity-feed'
 import { ConversationMinimap } from '../minimap/conversation-minimap'
-import { RestoreSpinner } from '../restore-spinner'
 import { useTranscripts } from '../transcript/transcripts-context'
 import {
   useAssistantHasEarlier,
@@ -13,6 +12,7 @@ import {
   useAssistantRevealTarget,
   useAssistantTimeline,
 } from '../transcript/use-assistant-session'
+import { RestoreSpinner } from './restore-spinner'
 import { createRowEstimator } from './row-estimate'
 import { rowRhythmOf } from './row-rhythm'
 import { TimelineSeat } from './timeline-seat'

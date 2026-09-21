@@ -26,6 +26,8 @@ Both manifest and source checks use that decision. Undeclared peer edges are for
 Cross-package access uses exports. Same-domain implementation uses relative module paths.
 The runtime file graph rejects cycles and opaque loads and follows headless entries transitively.
 Erased type-only file edges are not runtime cycles. Package direction applies to them.
+Directory cycles inside a package and module cycles inside a crate are rejected too, so a facade
+cannot hide a mutual dependency. Crate directories come from cargo metadata, never from crate names.
 Conversation core additionally rejects upward knowledge dependencies and cycles including type-only edges.
 Native integration consumes domain headless entries, including through compiler-resolved aliases.
 

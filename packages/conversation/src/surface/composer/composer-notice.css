@@ -1,4 +1,4 @@
-@import "./composer-metrics.css";
+@import "../skin/metrics.css";
 
 /* 输入框上沿那条提示：卡外、与卡同宽、无边影。高度取 --cp-row（36px）。 */
 .assistant-notice {
@@ -58,7 +58,7 @@
   color: var(--cp-ink);
 }
 
-/* 这一趟在飞：字形转起来，钮按不动。旋转复用 assistant.css 的 assistant-spin。 */
+/* 这一趟在飞：字形转起来，钮按不动。旋转复用 skin/surface.css 的 assistant-spin。 */
 .assistant-notice__retry[data-retrying="true"] {
   cursor: default;
 }

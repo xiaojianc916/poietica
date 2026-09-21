@@ -115,7 +115,8 @@ pub(crate) fn build() -> tauri::Builder<Wry> {
             });
 
             crate::diagnostics::crash_report::install(app.handle())?;
-            tray::install(app.handle())?;
+            /* 强制退出那条路在这里注入：托盘不认识退出屏障（见 window/tray.rs）。 */
+            tray::install(app.handle(), std::sync::Arc::new(crate::shutdown::quit))?;
 
             /* 恢复几何、播报最大化态、挂呈现看门狗 —— 都归 window::lifecycle。 */
             let main_window = app

@@ -9,7 +9,7 @@ import { ChevronLeft, ChevronRight, Circle, CircleCheck, X } from 'lucide-react'
 import { type RefObject, useEffect, useRef, useState } from 'react'
 import type { QuestionAnswerMethod, QuestionResponse } from '../../agent/question'
 import type { QuestionTimelineItem } from '../../timeline/timeline-contract'
-import { answerOf, EMPTY_DRAFT, type QuestionDraft, responseOf } from './question-answer'
+import { answerOf, EMPTY_DRAFT, type QuestionDraft, responseOf } from '../semantics/question-answer'
 
 /*
  * 一组题一次只画一道，全部答完或跳过后才提交。

@@ -68,7 +68,7 @@ body {
  * 这一条此前认的是 .bg-chrome 与 .bg-sidebar 两个**底色类**：底色是铺给圆角缺口看的，
  * 而主区与右栏为了露出地色也铺了 chrome —— 于是整片正文与审查面板一起被关掉划选
  * （实测正文的 user-select 计算值就是 none）。判据属于格位，所以搬去
- * workspace-shell.css，按外壳自己的类名写。
+ * workspace-shell.css，按外壳自己的类名写。见 shell/layout/workspace-shell.css。
  */
 
 /*

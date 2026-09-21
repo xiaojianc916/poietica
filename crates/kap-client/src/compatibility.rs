@@ -3,13 +3,13 @@
 //! 协议版本由 WS 握手判（connection/handshake.rs 的 validate_protocol_version）；
 //! 这里判 /meta 自述的能力集必须覆盖 contracts/kap/capabilities.json 钉住的那一组。
 //! 缺一个就不连，而不是连上之后在某条路由上静默丢字段。
-//! 发送与信封解包仍走 crate 唯一那条 REST 路（session/rest.rs 的 get）。
+//! 发送与信封解包仍走 crate 唯一那条 REST 路（crate::http 的 get）。
 
 use serde_json::Value;
 
 use crate::error::{KapError, Result};
 use crate::generated::rest::routes;
-use crate::session::rest::get;
+use crate::http::get;
 
 /// 钉住的能力集矩阵，由 tools/contract/kap-spec-sync.ts 从快照派生。
 const PINNED: &str = include_str!("../../../contracts/kap/capabilities.json");

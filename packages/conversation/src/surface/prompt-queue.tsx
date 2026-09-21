@@ -32,7 +32,7 @@ interface RowProps {
  * dragListener 关掉，起手权归把手；键盘走 Alt 加上下方向键。
  *
  * 拖动期间不缩放：这一行里最小的东西是 14px 的字形，一次非整数缩放把它的起点推到
- * 半个设备像素上（composer-metrics.css 的居中偏移那一条）。浮起由把手 :active 的
+ * 半个设备像素上（skin/metrics.css 的居中偏移那一条）。浮起由把手 :active 的
  * 投影表达，那一层不动几何。
  */
 const QueueRow = memo(function QueueRow({ item, onEdit, onNudge, onRemove, onUrge }: RowProps) {

@@ -1,4 +1,4 @@
-import './assistant.css'
+import './skin/surface.css'
 
 import { memo, type Ref, useCallback, useMemo, useRef, useState } from 'react'
 import type { SessionConfigControl } from '../agent/config'
@@ -280,7 +280,7 @@ export const AssistantSurface = memo(function AssistantSurface({
       /*
        * 相位写到 DOM 上。
        *
-       * 版式按相位分家本来就是这一层的范式（见 assistant.css：两个静止态，
+       * 版式按相位分家本来就是这一层的范式（见 skin/surface.css：两个静止态，
        * 两棵树）。输入框只在会话态浮起 —— 入口态它是居中的，浮起来会掉到
        * 底部。样式表需要知道现在是哪一态，所以这个布尔值不能只留在闭包里。
        */

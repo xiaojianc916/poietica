@@ -6,7 +6,7 @@
  * prefers-reduced-motion 同理，由那一侧归零。
  *
  * 布局也不在这里：这一层装的是一列相邻的行（组与组、列表与「更多」），行距与组头
- * 那条同属一个判据，一起声明在消费者 assistant.css 的
+ * 那条同属一个判据，一起声明在消费者 threads/assistant-threads.css 的
  * `.assistant-threads__group, .thread-disclosure` 那条规则里。
  */
 

@@ -1,7 +1,7 @@
 /*
  * 上下文用量胶囊与它的悬浮卡。
  *
- * 触发器长在输入框工具条里，读 composer-metrics.css 那套 --cp-* 令牌；卡经
+ * 触发器长在输入框工具条里，读 skin/metrics.css 那套 --cp-* 令牌；卡经
  * Portal 落在 body 下，[data-assistant-skin] 罩不到它，所以卡上每一个 var 都
  * 带兜底值，不赖任何作用域令牌。
  *

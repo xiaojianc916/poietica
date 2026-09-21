@@ -2,7 +2,7 @@ import { Button, Select, type SelectOption, Switch } from '@poietica/design-syst
 import { COMPUTER_USE, type ComputerUse, computerUse, type PluginStore } from '@poietica/extension'
 import { assertUnreachable } from '@poietica/problem'
 import { useEffect, useState, useSyncExternalStore } from 'react'
-import { SettingRow, SettingsGroup, SettingsPage, ToggleRow } from './surface/settings-primitives'
+import { SettingRow, SettingsGroup, SettingsPage, ToggleRow } from './settings-primitives'
 
 const LABEL = 'Kimi Computer Use'
 const UNREAD = '正在读取本机 Kimi 的安装状态…'

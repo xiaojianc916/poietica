@@ -23,6 +23,9 @@ export type Violation = { readonly policy: string; readonly where: string; reado
 
 export const CONTRACT_BINDINGS = 'packages/contract/src/generated/ipc-bindings.ts'
 
+/** 目录门面：只转发，不持有依赖。 */
+const FACADE = /(?:^|\/)index\.[cm]?[jt]sx?$/
+
 const scoped = (specifier: string): boolean => specifier.startsWith('@poietica/')
 
 const packageOf = (specifier: string): string => specifier.split('/').slice(0, 2).join('/')
@@ -170,6 +173,178 @@ export function noCycles(
     where: 'workspace graph',
     detail: cycle.join(' -> '),
   }))
+}
+
+/**
+ * 包内目录之间的运行时环。
+ *
+ * 文件级的 runtime-file-cycle 抓不到这一族：两个目录互相依赖时，只要其中一头经由
+ * 自己的 index.ts 转发，文件图上就没有环 —— facade 把环藏起来了。而「A 目录与 B
+ * 目录互相依赖」是真实的耦合缺陷，与有没有 facade 无关。判例：surface 与它自己的
+ * composer / threads / timeline 三族曾经互指（皮肤文件住在 composer 里，而三族都读它）。
+ *
+ * 单元的定义：包内 src/ 下的文件取父目录，src/ 根下的散文件各自成单元。后者是刻意
+ * 的 —— 把 src/failure.ts 与 src/index.ts 并成一个节点，会把「子目录引用根下的叶子」
+ * 误报成「子目录引用 facade」，而那是两回事。
+ *
+ * facade 只转发，不持有依赖：把它算成边的起点，它对自己子目录的每一次转发都会变成
+ * 一条反向边，于是每个有 index.ts 的包都自成一环。所以 facade 不作为起点；作为终点
+ * 时归它所在的目录 —— 依赖一个门面就是依赖那个目录。
+ */
+export function intraPackageCycles(
+  imports: readonly ImportRecord[],
+  workspaces: readonly Workspace[],
+): Violation[] {
+  const owners = workspaces
+    .map((workspace) => `${workspace.directory}/src/`)
+    .sort((left, right) => right.length - left.length)
+  const unitOf = (file: string): string | undefined => {
+    const owner = owners.find((candidate) => file.startsWith(candidate))
+
+    if (owner === undefined) {
+      return undefined
+    }
+
+    const local = file.slice(owner.length)
+    const segments = local.split('/')
+
+    return segments.length === 1 ? `${owner}${local}` : `${owner}${segments.slice(0, -1).join('/')}`
+  }
+  const edges = new Map<string, Set<string>>()
+
+  for (const record of imports) {
+    /* 跨包边归 layer-direction 与 no-cycles；这里只看一个包自己的目录怎么摆。 */
+    if (!record.specifier.startsWith('.') || FACADE.test(record.file)) {
+      continue
+    }
+
+    const from = unitOf(record.file)
+
+    if (from === undefined) {
+      continue
+    }
+
+    const resolved = path.posix.normalize(
+      path.posix.join(path.posix.dirname(record.file), record.specifier),
+    )
+    const to = unitOf(resolved)
+
+    if (to === undefined || to === from) {
+      continue
+    }
+
+    const held = edges.get(from) ?? new Set<string>()
+    held.add(to)
+    edges.set(from, held)
+  }
+
+  return cyclesIn(edges).map((cycle) => ({
+    policy: 'intra-package-cycles',
+    where: cycle[0] ?? '',
+    detail: `包内目录互相依赖：${cycle.join(' -> ')}`,
+  }))
+}
+
+/** Rust 源码里的 `crate::<第一段>`：use 声明与代码里的路径引用都算一条边。 */
+const RUST_CRATE_REFERENCE = /\bcrate::([a-z_][a-z0-9_]*)/g
+
+/** 注释里的例子不是依赖。整行注释与行尾注释都剥掉。 */
+const stripRustComments = (source: string): string =>
+  source
+    .split('\n')
+    .map((line) => {
+      const cut = line.indexOf('//')
+
+      return cut < 0 ? line : line.slice(0, cut)
+    })
+    .join('\n')
+
+/**
+ * Rust 源文件到它所属的模块单元。
+ *
+ * 单元是 `src/` 下的父目录：`src/session/rest.rs` 与 `src/session/mod.rs` 同属
+ * `session`，`src/http.rs` 自成 `http`。`crate::X` 的 X 就是单元名，所以边不需要
+ * 解析文件路径 —— Rust 的模块路径本身就是地址。
+ *
+ * `lib.rs` 与 `main.rs` 是 crate 根，不是一个模块：返回 undefined。
+ */
+function rustModuleOf(local: string): string | undefined {
+  const segments = local.split('/')
+
+  if (segments.length === 1) {
+    return local === 'lib.rs' || local === 'main.rs' ? undefined : local.replace(/\.rs$/, '')
+  }
+
+  return segments[0]
+}
+
+/** 一个 crate 里，模块单元之间的 `crate::X` 边。 */
+async function rustModuleEdges(
+  root: string,
+  directory: string,
+  files: readonly string[],
+): Promise<Map<string, Set<string>>> {
+  const prefix = `${directory}/src/`
+  /* 逐文件记账：一个模块目录下有多份文件，按模块名收会互相覆盖。 */
+  const units = files
+    .map((file) => ({ file, from: rustModuleOf(file.slice(prefix.length)) }))
+    .filter((unit): unit is { file: string; from: string } => unit.from !== undefined)
+  const modules = new Set(units.map((unit) => unit.from))
+  const edges = new Map<string, Set<string>>()
+
+  for (const { file, from } of units) {
+    const source = stripRustComments(await readFile(path.join(root, file), 'utf8'))
+
+    for (const match of source.matchAll(RUST_CRATE_REFERENCE)) {
+      const to = match[1] ?? ''
+
+      if (to === from || !modules.has(to)) {
+        continue
+      }
+
+      const held = edges.get(from) ?? new Set<string>()
+      held.add(to)
+      edges.set(from, held)
+    }
+  }
+
+  return edges
+}
+
+/**
+ * Rust crate 内部模块之间的环。
+ *
+ * `crateDependencyDirection` 只看 crate 之间的边（数据来自 cargo metadata），
+ * crate 自己的模块怎么摆它看不见。判例：kap-client 的 connection 与 session 曾经
+ * 互指 —— 重连逻辑（会话恢复）住在 connection 里，而 session 又要拨号与发帧。
+ *
+ * crate 目录取自 cargo metadata 的 manifest_path，不由 crate 名推：判例是
+ * poietica-extension-native 住在 crates/extension，按名字推会静默空转。
+ */
+export async function rustModuleCycles(
+  root: string,
+  crates: readonly Crate[],
+): Promise<Violation[]> {
+  const violations: Violation[] = []
+
+  for (const { directory } of crates) {
+    /* 目录不在就跳过：workspace 之外的路径依赖没有源码可扫。 */
+    if (!(await present(path.join(root, directory, 'src')))) {
+      continue
+    }
+
+    const files = await walkFiles(root, [`${directory}/src`], (file) => file.endsWith('.rs'))
+
+    for (const cycle of cyclesIn(await rustModuleEdges(root, directory, files))) {
+      violations.push({
+        policy: 'rust-module-cycles',
+        where: `${directory}/src`,
+        detail: `crate 内模块互相依赖：${cycle.join(' -> ')}`,
+      })
+    }
+  }
+
+  return violations
 }
 
 /** 跨包只走 exports 声明的入口，包根与子路径同样检查。 */

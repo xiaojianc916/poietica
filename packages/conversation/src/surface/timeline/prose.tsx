@@ -14,7 +14,7 @@ import {
   type StreamdownTranslations,
 } from 'streamdown'
 import 'streamdown/styles.css'
-import '../composer/composer-metrics.css'
+import '../skin/metrics.css'
 import './timeline.css'
 
 import { cx } from '../primitives/class-names'

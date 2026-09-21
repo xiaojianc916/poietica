@@ -1,4 +1,4 @@
-import '../assistant.css'
+import '../skin/surface.css'
 
 import { useCallback } from 'react'
 import { channelNameOf, delegateKey, delegationOf } from '../../timeline/delegate-channel'

@@ -24,7 +24,12 @@ export type Workspace = {
   readonly manifest: Manifest
 }
 
-export type Crate = { readonly name: string; readonly dependencies: readonly string[] }
+export type Crate = {
+  readonly name: string
+  readonly dependencies: readonly string[]
+  /** crate 根相对仓库的路径。名字推不出目录：poietica-extension-native 在 crates/extension。 */
+  readonly directory: string
+}
 
 type RootManifest = {
   workspaces?: { packages?: string[] } | string[]
@@ -102,6 +107,7 @@ export function readCrates(root: string): Crate[] {
   const parsed = JSON.parse(result.stdout) as {
     packages: Array<{
       name: string
+      manifest_path: string
       dependencies: Array<{ name: string; kind?: string | null }>
     }>
   }
@@ -111,5 +117,6 @@ export function readCrates(root: string): Crate[] {
     dependencies: entry.dependencies
       .filter((dependency) => dependency.kind !== 'dev')
       .map((dependency) => dependency.name),
+    directory: path.relative(root, path.dirname(entry.manifest_path)).split(path.sep).join('/'),
   }))
 }

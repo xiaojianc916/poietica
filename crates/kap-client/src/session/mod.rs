@@ -4,6 +4,7 @@ pub(crate) mod config;
 pub(crate) mod driver;
 pub(crate) mod export;
 pub(crate) mod reconcile;
+pub(crate) mod reconnect;
 pub(crate) mod rest;
 pub(crate) mod router;
 pub(crate) mod selection;
@@ -73,11 +74,7 @@ pub struct SessionUsageSnapshot {
 }
 
 /// 位置由 server 签发（信封 seq，跨守护进程重启有效）；重新订阅原样报回去，server 才知道从哪帧接着发（contracts/kap/asyncapi.json 的 subscribe 载荷）。
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub struct Cursor {
-    pub seq: i64,
-    pub epoch: Option<String>,
-}
+pub use crate::connection::cursor::Cursor;
 
 pub struct SessionEvents(mpsc::UnboundedReceiver<SessionEvent>);
 

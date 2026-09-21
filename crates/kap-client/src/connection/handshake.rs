@@ -163,9 +163,9 @@ pub(crate) async fn wait_subscribe_ack(
 pub(crate) async fn subscribe(
     ws: &WsSink,
     session_id: &str,
-    from: Option<&crate::session::Cursor>,
+    from: Option<&super::cursor::Cursor>,
 ) -> Result<String> {
-    let cursors = from.map(|crate::session::Cursor { seq, epoch }| {
+    let cursors = from.map(|super::cursor::Cursor { seq, epoch }| {
         [(
             session_id.to_owned(),
             ClientHelloCursorsValueStruct {

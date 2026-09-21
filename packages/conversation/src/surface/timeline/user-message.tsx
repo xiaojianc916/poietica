@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import type { MessageImage } from '../../timeline/timeline-contract'
-import { PromptChip, promptSegments } from '../composer/prompt-chip'
+import { PromptChip, promptSegments } from '../primitives/prompt-chip'
 import { MessageAttachments } from './message-attachments'
 
 /*

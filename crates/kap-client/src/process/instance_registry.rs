@@ -8,7 +8,7 @@ use tokio_tungstenite::tungstenite::http::header::AUTHORIZATION;
 
 use crate::error::{KapError, Result};
 use crate::generated::rest::routes;
-use crate::session::rest::envelope_data;
+use crate::http::envelope_data;
 
 #[derive(Debug, Eq, PartialEq)]
 enum Probe {

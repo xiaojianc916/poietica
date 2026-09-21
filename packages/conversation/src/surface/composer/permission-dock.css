@@ -29,7 +29,7 @@
    * 咬合就是这一行。
    *
    * 下沿探进卡里一个圆角的量，卡在树序上排在后面、又是定位元素，所以它压在上面
-   * （见 assistant.css 的 position: relative）。探进去多少不需要精确：只要不小于
+   * （见 skin/surface.css 的 position: relative）。探进去多少不需要精确：只要不小于
    * 卡的圆角，重叠段就完全看不见。
    */
   margin-block-end: calc(-1 * var(--cp-radius));

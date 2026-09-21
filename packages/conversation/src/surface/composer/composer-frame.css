@@ -1,4 +1,4 @@
-@import "./composer-metrics.css";
+@import "../skin/metrics.css";
 
 /* One visual frame shared by conversation and automation composers. */
 [data-slot="prompt-input"] {
@@ -116,4 +116,48 @@ textarea[data-slot="prompt-input-editor"]::placeholder {
   padding-block-end: calc(var(--cp-pad-mid) / 2);
   padding-inline: var(--cp-inset);
   background: var(--cp-shelf);
+}
+
+[data-slot="prompt-input-submit"] {
+  display: inline-grid;
+  block-size: var(--cp-control);
+  inline-size: var(--cp-control);
+  flex: none;
+  place-items: center;
+  border: 0;
+  border-radius: 9999px;
+  padding: 0;
+  background: var(--cp-accent);
+  color: var(--cp-accent-foreground);
+  box-shadow:
+    inset 0 1px 0 color-mix(in srgb, var(--cp-accent-foreground) 28%, transparent),
+    0 1px 2px color-mix(in srgb, var(--cp-accent) 32%, transparent);
+  cursor: pointer;
+  transition:
+    background-color var(--cp-motion-swift) var(--cp-motion-ease),
+    transform var(--cp-motion-swift) var(--cp-motion-ease);
+}
+
+[data-slot="prompt-input-submit"]:hover:not(:disabled) {
+  background: var(--cp-accent-hover);
+}
+
+[data-slot="prompt-input-submit"]:active:not(:disabled) {
+  transform: scale(0.96);
+}
+
+[data-slot="prompt-input-submit"]:disabled {
+  background: var(--cp-accent-idle);
+  box-shadow: none;
+  cursor: default;
+}
+
+[data-slot="prompt-input-submit"][data-status="submitted"] svg {
+  animation: assistant-spin 900ms linear infinite;
+}
+
+@keyframes assistant-spin {
+  to {
+    transform: rotate(360deg);
+  }
 }

@@ -1,7 +1,7 @@
 import './question-record.css'
 
 import type { QuestionTimelineItem } from '../../timeline/timeline-contract'
-import { describeAnswer } from '../composer/question-answer'
+import { describeAnswer } from '../semantics/question-answer'
 import { Prose } from './prose'
 
 const UNANSWERED = {

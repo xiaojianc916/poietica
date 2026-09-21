@@ -1,48 +1,10 @@
-@import "@poietica/conversation/composer/frame.css";
-
 /*
- * Assistant skin. The composer card is the input itself: it owns the border,
- * the elevation and the click target, and nothing inside it draws a second
- * frame.
- */
-
-/*
- * The surface is the frame of one scroller.
+ * 侧栏会话列表：会话行、行尾菜单、工作区选择器，以及它们共用的行几何。
  *
- * It gives the scroller the height of the panel and the paint of the ground,
- * and holds nothing else: the reading measure, the free space and the resting
- * states all belong to the scroller, because they are all inside the scroll
- * box. A frame that also scrolled would give the wheel two owners.
+ * 归本目录而不是归共享皮肤：这些类名只有这里的组件画得出来，别处一个都不读。
+ * 令牌与皮从 skin 来 —— 侧栏是这层皮上的一格，不是另一层皮。
  */
-.assistant-surface {
-  /* 回放那段空白里的加载图标绝对定位于此。 */
-  position: relative;
-  display: flex;
-  /* 自上而下:相位那一棵,输入框,以及入口态才有的压舱块。 */
-  flex-direction: column;
-  block-size: 100%;
-  overflow: hidden;
-  background: var(--cp-ground);
-  color: var(--cp-ink);
-  font-size: var(--cp-font);
-}
-
-.assistant-masthead {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: var(--cp-mast-gap);
-}
-
-[data-slot="prompt-input-submit"] svg,
-.assistant-threads__create svg,
-.assistant-thread__action svg,
-.workspace-picker__repositories-action svg,
-.workspace-picker__field svg,
-.workspace-picker__context-trigger svg {
-  block-size: var(--cp-icon);
-  inline-size: var(--cp-icon);
-}
+@import "../skin/surface.css";
 
 .workspace-picker__field svg,
 .workspace-picker__context-trigger svg {
@@ -51,50 +13,6 @@
 
 .workspace-picker__context-trigger svg {
   color: var(--cp-ink-muted);
-}
-
-[data-slot="prompt-input-submit"] {
-  display: inline-grid;
-  block-size: var(--cp-control);
-  inline-size: var(--cp-control);
-  flex: none;
-  place-items: center;
-  border: 0;
-  border-radius: 9999px;
-  padding: 0;
-  background: var(--cp-accent);
-  color: var(--cp-accent-foreground);
-  box-shadow:
-    inset 0 1px 0 color-mix(in srgb, var(--cp-accent-foreground) 28%, transparent),
-    0 1px 2px color-mix(in srgb, var(--cp-accent) 32%, transparent);
-  cursor: pointer;
-  transition:
-    background-color var(--cp-motion-swift) var(--cp-motion-ease),
-    transform var(--cp-motion-swift) var(--cp-motion-ease);
-}
-
-[data-slot="prompt-input-submit"]:hover:not(:disabled) {
-  background: var(--cp-accent-hover);
-}
-
-[data-slot="prompt-input-submit"]:active:not(:disabled) {
-  transform: scale(0.96);
-}
-
-[data-slot="prompt-input-submit"]:disabled {
-  background: var(--cp-accent-idle);
-  box-shadow: none;
-  cursor: default;
-}
-
-[data-slot="prompt-input-submit"][data-status="submitted"] svg {
-  animation: assistant-spin 900ms linear infinite;
-}
-
-@keyframes assistant-spin {
-  to {
-    transform: rotate(360deg);
-  }
 }
 
 @keyframes assistant-menu-in {
@@ -469,63 +387,6 @@
 }
 
 /*
- * 两个静止态的几何，中间没有任何可插值的量。
- *
- * 入口态与会话态各挂各的东西：会话态挂一个占满剩余空间的滚动区，入口态挂上下两块
- * 各占一半自由空间的兄弟。挂载与卸载不可补间，所以不会出现「半落」那个中间态。
- */
-.assistant-surface__entry {
-  display: flex;
-  min-block-size: 0;
-  min-inline-size: 0;
-  flex: 1 1 0;
-  flex-direction: column;
-  justify-content: flex-end;
-  padding-block: var(--cp-gutter) var(--cp-dock-dissolve);
-  padding-inline: max(
-    var(--cp-gutter),
-    round(calc((100% - var(--cp-grid)) / 2), var(--ui-hairline))
-  );
-}
-
-/* 输入框下方的另一半自由空间。它只有这一个作用,所以它只有这一条声明。 */
-.assistant-surface__ballast {
-  flex: 1 1 0;
-}
-
-/*
- * 输入框那一带。
- *
- * 左右内边距与滚动区相同，这是它与气泡对齐的唯一依据。它归这里而不归
- * agent-activity-feed，是因为它两个相位都在，而那个组件只在会话态存在。
- */
-.assistant-surface__dock {
-  --assistant-surface-inline-padding: max(
-    var(--cp-gutter),
-    round(
-      calc((100% - var(--assistant-surface-inline-end-clearance, 0px) - var(--cp-grid)) / 2),
-      var(--ui-hairline)
-    )
-  );
-
-  position: relative;
-  flex: none;
-  min-inline-size: 0;
-  padding-block: var(--cp-pad-mid) var(--cp-gutter);
-  padding-inline-start: var(--assistant-surface-inline-padding);
-  padding-inline-end: calc(
-    var(--assistant-surface-inline-padding) +
-    var(--assistant-surface-inline-end-clearance, 0px)
-  );
-}
-
-.assistant-surface__composer {
-  display: flex;
-  min-inline-size: 0;
-  flex-direction: column;
-}
-
-/*
  * The sidebar popup, at menu scale.
  *
  * The design-system dropdown keeps behaviour, focus order and positioning.
@@ -647,63 +508,6 @@
 
 .assistant-thread__glyph[data-pinned="true"] {
   color: var(--cp-ink);
-}
-
-/*
- * 会话态：输入框盖在转录上。
- *
- * 浮起来之后滚动盒就是整个界面，原生的滚动条自然贯通全高，不需要自绘一层浮层
- * 滚动条。只在会话态浮：入口态输入框是居中的，浮起来会掉到底部。
- *
- * 最后一条消息不会被压住：useDockClearance 在绘制前实测输入区，并把数值
- * 显式传给虚拟器的 paddingEnd。
- */
-.assistant-surface[data-phase="live"] .assistant-surface__dock {
-  position: absolute;
-  inset-block-end: 0;
-  /*
-   * 右边让开滚动条那条沟。
-   *
-   * 滚动盒的 padding-inline 里那个百分比按包含块算（整个界面宽 W），不减那条沟，
-   * 而它自己的内容宽还要再减掉沟。于是消息列的中心落在 W/2 减去半条沟的位置，
-   * 整宽的带子却把输入框摆在 W/2 —— 输入框比消息列右偏半条沟、宽出一整条沟。
-   * 让开之后带子的内容宽解出 768 − 沟，与消息列逐像素相同，中心也重合。
-   *
-   * 兜底 0px 而不是省略：读不到值的 var() 会让整条 inset-inline 失效，代价是带子
-   * 整个塌掉，这种回退不值得赌。
-   */
-  inset-inline: 0 var(--desktop-scrollbar-size, 0px);
-  /*
-   * 带子是整宽的，但它不是一个可以点的东西。
-   *
-   * 不让开指针，输入框左右两侧那两片空白就会吞掉滚轮 —— 鼠标停在那里滚不
-   * 动页面，而人眼看到的是一片什么都没有的地方。收指针的只有输入框本体。
-   */
-  pointer-events: none;
-}
-
-/*
- * 只在输入框卡片下方画一条不透明底色条，盖住滚到底的内容。
- *
- * 上方不再有渐隐雾效：消息一直清晰显示到卡片顶部，卡片自己的背景把它矩形
- * 范围内的内容挡住。下方这一条才需要底色，否则卡片外那圈下 padding 会漏字。
- *
- * 往上多盖一个圆角半径：卡片底部圆角外侧的三角形区域不是卡片背景，不补这
- * 一截，圆角下沿会透出后面的字。卡片自身 z-index 压在这条之上，伸进去的一
- * 截正好被卡片盖住，不露边。
- */
-.assistant-surface[data-phase="live"] .assistant-surface__dock::after {
-  content: "";
-  position: absolute;
-  inset: auto 0 0;
-  block-size: calc(var(--cp-gutter) + var(--cp-radius));
-  background: var(--cp-ground);
-}
-
-.assistant-surface[data-phase="live"] .assistant-surface__composer {
-  /* 带子整体 pointer-events: none，只把输入框本体放出来接指针。 */
-  position: relative;
-  pointer-events: auto;
 }
 
 /*
@@ -1228,14 +1032,4 @@
 
 [data-assistant-skin] .assistant-thread__title[data-ordinal] .assistant-thread__title-ordinal {
   flex: none;
-}
-
-/*
- * 吉祥物只声明高度。宽度由 viewBox 的宽高比推出，所以盒子恒等于画面，换一个
- * 尺寸只改这一个数；水平居中由 .assistant-masthead 的 align-items 负责。
- */
-.assistant-masthead__mascot {
-  display: block;
-  block-size: clamp(120px, 18vh, 144px);
-  inline-size: auto;
 }

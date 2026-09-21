@@ -5,7 +5,7 @@ use crate::error::{KapError, Result};
 use crate::generated::rest::{
     ClientConfigDataStruct, ListModelsDataStruct, ListProvidersDataStruct, routes,
 };
-use crate::session::rest::{decoded, delete, get, post, put};
+use crate::http::{decoded, delete, get, post, put};
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct ProviderModelInput {

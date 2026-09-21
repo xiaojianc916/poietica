@@ -44,12 +44,12 @@ import type {
 import { ComputerUseSettings } from '../computer-use-settings'
 import { KeymapSettings } from '../keymap-settings'
 import { ModelsSettings } from '../models/models-settings'
+import { SettingRow, SettingsGroup, SettingsPage, ToggleRow } from '../settings-primitives'
 import { SkillsSettings } from '../skills-settings'
 import type { ReadTokenDays } from '../usage-activity'
 import { UsageSettings } from '../usage-settings'
 import { ArchivedChatsSettings } from './archived-chats-settings'
 import { MascotPrefsGroup } from './mascot-prefs'
-import { SettingRow, SettingsGroup, SettingsPage, ToggleRow } from './settings-primitives'
 import {
   type SettingsController,
   type SettingsOperation,

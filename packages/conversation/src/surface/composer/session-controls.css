@@ -1,11 +1,11 @@
-@import "./composer-metrics.css";
+@import "../skin/metrics.css";
 
 /* Session configuration controls shared by every composer. */
 
 /*
  * 模型与思考档位选择器：工具条上一颗胶囊，打开是一张卡。
  *
- * 量度与配色是复刻参考稿的量过的值，住在 composer-metrics.css 的 --cp-model-*
+ * 量度与配色是复刻参考稿的量过的值，住在 skin/metrics.css 的 --cp-model-*
  * 一栏；这里只说它们怎么摆。轨道四层皮（底轨 / 填充 / 档位点 / 滑块）的定位关系
  * 写在 session-controls.tsx 的 stopOffset 上 —— 三样东西分别算一次就会错位。
  */

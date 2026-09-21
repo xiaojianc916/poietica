@@ -2,7 +2,7 @@ import type { ThreadsStore } from '@poietica/conversation'
 import { SegmentedControl, type SegmentedOption } from '@poietica/design-system'
 import { useEffect, useMemo, useState, useSyncExternalStore } from 'react'
 import { ActivityHeatmap } from './activity-heatmap'
-import { SettingsGroup, SettingsPage } from './surface/settings-primitives'
+import { SettingsGroup, SettingsPage } from './settings-primitives'
 import {
   formatTokens,
   type ReadTokenDays,

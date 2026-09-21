@@ -41,6 +41,12 @@ import {
 } from '../../composer/prompt'
 import { cx } from '../primitives/class-names'
 import { ResumeIcon, StopIcon, SubmitIcon } from '../primitives/icons'
+import {
+  $createChipNode,
+  ChipNode,
+  type PromptChipValue,
+  samePromptChip,
+} from '../primitives/prompt-chip'
 import { useAttachmentIntake } from './attachment-intake'
 import {
   ComposerPalette,
@@ -52,7 +58,6 @@ import {
   useDismissOutside,
 } from './composer-palette'
 import { useComposerDraftKey, useComposerDrafts } from './drafts-context'
-import { $createChipNode, ChipNode, type PromptChipValue, samePromptChip } from './prompt-chip'
 
 const NO_ATTACHMENTS: readonly ComposerAsset[] = []
 const NO_GROUPS: readonly PaletteGroup[] = []

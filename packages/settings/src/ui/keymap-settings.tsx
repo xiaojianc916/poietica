@@ -1,7 +1,7 @@
 import { Pencil, Trash2 } from 'lucide-react'
 import { useDeferredValue, useEffect, useMemo, useState, useSyncExternalStore } from 'react'
 import type { KeybindingCatalog, KeybindingEntry } from '../index'
-import { SettingsPage } from './surface/settings-primitives'
+import { SettingsPage } from './settings-primitives'
 
 export interface KeymapSettingsProps {
   readonly catalog: KeybindingCatalog

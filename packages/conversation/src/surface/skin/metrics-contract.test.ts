@@ -22,11 +22,9 @@ const declOf = (css: string, name: string) => {
   return captured.trim()
 }
 
-const metrics = stripComments(
-  readFileSync(new URL('../composer-metrics.css', import.meta.url), 'utf8'),
-)
+const metrics = stripComments(readFileSync(new URL('./metrics.css', import.meta.url), 'utf8'))
 
-describe('composer metrics contract', () => {
+describe('assistant skin metrics contract', () => {
   it('表格行线读卡内线那一档，不自己定一个灰', () => {
     expect(declOf(metrics, '--cp-hairline')).toBe('var(--ui-divider-subtle)')
   })

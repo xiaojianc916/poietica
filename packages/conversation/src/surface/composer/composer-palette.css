@@ -1,7 +1,7 @@
 /*
  * 面板的皮肤：贴着输入框卡片的上沿、与它同宽，向上展开。
  *
- * 令牌取自 composer-metrics.css，浅色面板两处字面值见文件尾。
+ * 令牌取自 skin/metrics.css，浅色面板两处字面值见文件尾。
  */
 
 .composer-palette {
@@ -113,7 +113,7 @@
  * 浅色面板取设计字面值：纯白面板、浅灰悬停。深色仍走上面的令牌。
  *
  * 悬停那一格不接 --cp-menu-hover：那个值是 #f2f2f3，与产品定稿的 #f2f3f3 差一个
- * 通道，兑不出来（同 composer-metrics.css 里内联代码底那条的理由）。
+ * 通道，兑不出来（同 skin/metrics.css 里内联代码底那条的理由）。
  */
 :root[data-theme="light"] .composer-palette__panel {
   background: var(--ui-popover);

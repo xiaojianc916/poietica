@@ -21,7 +21,7 @@ import { ENTER_EASE, ENTER_SECONDS, EXIT_EASE, EXIT_SECONDS, RISE_PX } from '../
  * 也不该拿到写草稿的权力。
  */
 export type PaletteAction =
-  | { readonly kind: 'insert'; readonly chip: import('./prompt-chip').PromptChipValue }
+  | { readonly kind: 'insert'; readonly chip: import('../primitives/prompt-chip').PromptChipValue }
   | {
       readonly kind: 'configure'
       readonly configuration: PromptConfiguration

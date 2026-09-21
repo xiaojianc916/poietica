@@ -6,7 +6,7 @@ use tokio::io::AsyncWriteExt;
 
 use crate::error::{KapError, Result};
 use crate::generated::rest::{ExportSessionRequestStruct, routes};
-use crate::session::rest::envelope_data;
+use crate::http::envelope_data;
 
 const MAX_ERROR_BODY_BYTES: usize = 1024 * 1024;
 

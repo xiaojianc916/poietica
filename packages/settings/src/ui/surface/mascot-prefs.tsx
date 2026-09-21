@@ -1,7 +1,7 @@
 import { createPreference } from '@poietica/external-store'
 import { warn } from '@poietica/problem'
 import { useSyncExternalStore } from 'react'
-import { SettingsGroup, ToggleRow } from './settings-primitives'
+import { SettingsGroup, ToggleRow } from '../settings-primitives'
 
 /*
  * 吉祥物的两个开关。刻意不进 AppSettings：那张表与 src-tauri 的 AppSettings

@@ -8,7 +8,7 @@
  * 属性（--sdm-c 前景，只有自带底色的 token 才有 --sdm-tbg）。绝大多数元素上它并不存在，
  * 逗号后面那一半正是没被注入时该长什么样。
  *
- * 本仓自己的令牌一律不带兜底：名字在 composer-metrics.css 里，取不到值应当看得见。
+ * 本仓自己的令牌一律不带兜底：名字在 skin/metrics.css 里，取不到值应当看得见。
  */
 
 /*
@@ -431,7 +431,7 @@
  * 弹性子项 —— flex: 1 1 0 不适用于行内盒，block-size 对非替换行内盒也不生效，
  * 两条线的宽度归零，屏幕上只剩一个图标和一行左对齐的字。
  *
- * 间距用 --cp-timeline-error-gap：那个令牌一直在 composer-metrics.css 里，
+ * 间距用 --cp-timeline-error-gap：那个令牌一直在 skin/metrics.css 里，
  * 消费者只有这一处，被删之后它就成了孤儿。放回来，它重新有主。
  */
 .timeline-error {

@@ -1,4 +1,7 @@
 //! 断线重连：有界重试 + 指数退避，判据与退避在 link.rs。
+//!
+//! 它归会话而不是归链路：重连要做的是把每条已开的会话按各自的读点重新挂上，
+//! 判据是账本（SessionBook）与读点表 —— 那是会话的事实，链路只提供拨号与发帧。
 
 use std::collections::HashMap;
 
@@ -7,13 +10,13 @@ use futures::channel::mpsc;
 use futures::stream::SplitStream;
 use serde_json::Value;
 
+use crate::connection::cursor::Cursor;
 use crate::connection::handshake::{
     shake_hands, subscribe, subscribe_transcript, wait_subscribe_ack,
 };
 use crate::connection::socket::{WsSink, WsStream, dial_ws};
 use crate::error::Result;
 use crate::link::{RELINK_TRIES, backoff, recovered, retrying, severed};
-use crate::session::Cursor;
 use crate::session::SessionEvent;
 use crate::session::book::SessionBook;
 

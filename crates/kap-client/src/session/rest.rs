@@ -1,4 +1,4 @@
-//! KAP REST 边界：生成路由与 wire 类型打头；信封只在这里解一次，领域层不接触未验证数据。
+//! KAP REST 边界：生成路由与 wire 类型打头；发送与信封解包在 crate::http。
 
 use std::path::Path;
 
@@ -21,6 +21,7 @@ use crate::generated::rest::{
 use crate::generated::rest::{
     ListModelsDataStruct, SessionGoalDataStruct, SessionStatusDataStruct, routes,
 };
+use crate::http::{decoded, get, post};
 use crate::policy::{CAPABILITY_POLL_ATTEMPTS, CAPABILITY_POLL_INTERVAL};
 use crate::session::book::SessionBook;
 use crate::session::client::{PromptAttachment, PromptSkill};
@@ -31,100 +32,6 @@ use crate::session::{
     Capability, CapabilityInstall, CapabilityReadiness, Cursor, McpServer, McpStatus,
     OpenedSession, Skill,
 };
-
-pub(crate) fn envelope_data(body: &Value) -> Result<Value> {
-    let envelope: crate::generated::rest::RestEnvelope = serde_json::from_value(body.clone())
-        .map_err(|error| KapError::Transport {
-            message: format!("the REST envelope does not fit the pinned contract: {error}"),
-        })?;
-
-    crate::envelope_data(envelope).map_err(|error| match error {
-        crate::error::EnvelopeError::Refused { code, msg } => {
-            KapError::Envelope { code, message: msg }
-        }
-        crate::error::EnvelopeError::Shape(error) => KapError::Transport {
-            message: error.to_string(),
-        },
-    })
-}
-
-pub(crate) fn decoded<T: serde::de::DeserializeOwned>(data: Value, what: &str) -> Result<T> {
-    serde_json::from_value(data).map_err(|error| KapError::Transport {
-        message: format!("{what} does not fit the pinned contract: {error}"),
-    })
-}
-
-pub(crate) async fn get(http: &reqwest::Client, route: routes::Route) -> Result<Value> {
-    let url = route.map_err(|error| KapError::Transport {
-        message: error.to_string(),
-    })?;
-    send(http.get(url)).await
-}
-
-pub(crate) async fn post<T: serde::Serialize>(
-    http: &reqwest::Client,
-    route: routes::Route,
-    body: &T,
-) -> Result<Value> {
-    let url = route.map_err(|error| KapError::Transport {
-        message: error.to_string(),
-    })?;
-    send(http.post(url).json(body)).await
-}
-
-pub(crate) async fn put<T: serde::Serialize>(
-    http: &reqwest::Client,
-    route: routes::Route,
-    body: &T,
-) -> Result<Value> {
-    let url = route.map_err(|error| KapError::Transport {
-        message: error.to_string(),
-    })?;
-    send(http.put(url).json(body)).await
-}
-
-pub(crate) async fn delete(http: &reqwest::Client, route: routes::Route) -> Result<()> {
-    let url = route.map_err(|error| KapError::Transport {
-        message: error.to_string(),
-    })?;
-    let response = http
-        .delete(url)
-        .send()
-        .await
-        .map_err(|error| KapError::Transport {
-            message: error.to_string(),
-        })?;
-    let status = response.status();
-    let bytes = response
-        .bytes()
-        .await
-        .map_err(|error| KapError::Transport {
-            message: error.to_string(),
-        })?;
-    if bytes.is_empty() && status.is_success() {
-        return Ok(());
-    }
-    let body: Value = serde_json::from_slice(&bytes).map_err(|error| KapError::Transport {
-        message: error.to_string(),
-    })?;
-    envelope_data(&body).map(|_| ())
-}
-
-async fn send(builder: reqwest::RequestBuilder) -> Result<Value> {
-    let body: Value = builder
-        .send()
-        .await
-        .map_err(|e| KapError::Transport {
-            message: e.to_string(),
-        })?
-        .json()
-        .await
-        .map_err(|e| KapError::Transport {
-            message: e.to_string(),
-        })?;
-
-    envelope_data(&body)
-}
 
 pub(crate) fn create_session_body(cwd: &Path) -> CreateSessionRequestStruct {
     CreateSessionRequestStruct {

@@ -2,7 +2,7 @@ import { groupByWorkspace, type ThreadsStore } from '@poietica/conversation'
 import { Button, ConfirmationDialog, Select, type SelectOption } from '@poietica/design-system'
 import { ArchiveRestore, Search, Trash2 } from 'lucide-react'
 import { useCallback, useMemo, useState, useSyncExternalStore } from 'react'
-import { SettingRow, SettingsGroup, SettingsPage } from './settings-primitives'
+import { SettingRow, SettingsGroup, SettingsPage } from '../settings-primitives'
 import './archived-chats-settings.css'
 
 const ARCHIVED_DATE = new Intl.DateTimeFormat('zh-CN', {

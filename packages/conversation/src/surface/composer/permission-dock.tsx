@@ -10,7 +10,7 @@ import { sayToolLine } from '../semantics/tool-intent'
  *
  * 它不是转录的一行：一次审批是拦在「继续」前面的一道闸，闸属于操作区，放进流里
  * 它会跟着滚动条走开，人得先找回它才能放行。它也不是浮在输入框上的第二块东西 ——
- * 它咬在那张卡（assistant.css 的 [data-slot="prompt-input"]）的上沿：自己画上半
+ * 它咬在那张卡（skin/surface.css 的 [data-slot="prompt-input"]）的上沿：自己画上半
  * 张脸，下沿多出一个圆角的量、被卡整个盖住。
  *
  * 接缝因此不存在，而不是被对齐：重叠的那一段盖多盖少都不露缝，所以两边没有任何

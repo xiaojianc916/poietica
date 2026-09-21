@@ -48,6 +48,7 @@ const violations: Violation[] = [
   ...policy.layerDirection(imports, workspaces),
   ...policy.declaredDependenciesOnly(everyImport, workspaces),
   ...policy.noCycles(imports, workspaces),
+  ...policy.intraPackageCycles(imports, workspaces),
   ...(await fileGraph(ROOT, workspaces)),
   ...policy.publicEntryOnly(imports, workspaces),
   ...policy.relativeImportsStayHome(imports, workspaces),
@@ -55,6 +56,7 @@ const violations: Violation[] = [
   ...policy.transportContractIsAdapterPrivate(imports, workspaces),
   ...policy.frameworkFreeVocabulary(imports, workspaces),
   ...policy.crateDependencyDirection(crates),
+  ...(await policy.rustModuleCycles(ROOT, crates)),
   ...policy.cratesStayHostAgnostic(crates),
   ...policy.capabilityScopedDirectories(tree),
   ...(await policy.singleGeneratedContract(

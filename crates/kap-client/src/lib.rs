@@ -12,6 +12,7 @@ pub use model_catalog::{
 mod compatibility;
 mod connection;
 mod frame;
+mod http;
 mod interaction;
 mod link;
 mod policy;

@@ -2,7 +2,7 @@ import { WORKSPACE_LAYOUT } from '@poietica/workspace'
 import type { CSSProperties, ReactNode } from 'react'
 import type { SplitterActivity, SplitterRegion } from './layout-store'
 
-import '../workspace-shell.css'
+import './workspace-shell.css'
 
 type WorkspaceStyle = CSSProperties & Record<`--${string}`, string | number>
 

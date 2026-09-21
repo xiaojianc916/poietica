@@ -1,4 +1,4 @@
-import '../assistant.css'
+import './assistant-threads.css'
 
 import {
   DropdownMenu,

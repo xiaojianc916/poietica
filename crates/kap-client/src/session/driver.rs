@@ -13,11 +13,11 @@ use crate::compatibility::require_pinned_capabilities;
 use crate::connection::handshake::{
     shake_hands, subscribe, subscribe_transcript, wait_subscribe_ack,
 };
-use crate::connection::reconnect::{fail_in_flight, relink};
 use crate::connection::socket::{WsSink, dial_ws, send_frame};
 use crate::error::{KapError, Refusal, Result};
 use crate::generated::events::{ClientFrame, PongStruct, ServerFrame, websocket};
 use crate::generated::rest::{SteerPromptsRequestStruct, routes};
+use crate::http::post;
 use crate::interaction::desk::{PermissionDesk, QuestionDesk};
 use crate::model_catalog::execute as execute_model_catalog;
 use crate::policy::CANCEL_GRACE;
@@ -31,10 +31,11 @@ use crate::server_frame;
 use crate::session::book::SessionBook;
 use crate::session::client::{AgentClient, Command};
 use crate::session::export::export_session;
+use crate::session::reconnect::{fail_in_flight, relink};
 use crate::session::rest::{
     archive_session, catch_up_transcript, create_session_body, ensure_session_model, fetch_goal,
     fork_session, get_selectors, install_capability, list_capabilities, list_mcp_servers,
-    list_sessions, list_skills, load_session, open_session, post, read_transcript, set_selector,
+    list_sessions, list_skills, load_session, open_session, read_transcript, set_selector,
     submit_prompt,
 };
 use crate::session::router::EventRouter;
