@@ -61,6 +61,11 @@
   user-select: none;
 }
 
+/*
+ * 工具条自己当容器查询的参照物：判据是这一行还剩多宽，不是窗口多宽 —— 展开右栏
+ * 也会把它挤窄，窗口宽度答不出那一种。它下面没有 fixed 定位的后代（弹层都 portal
+ * 到 body），所以这一层包含不关住谁。
+ */
 [data-slot="prompt-input-toolbar"] {
   display: flex;
   inline-size: 100%;
@@ -68,6 +73,7 @@
   align-items: center;
   gap: var(--cp-control-gap);
   padding: var(--cp-pad-mid) var(--cp-inset) var(--cp-inset);
+  container-type: inline-size;
 }
 
 [data-slot="prompt-input-tools"] {
@@ -78,6 +84,28 @@
 
 .assistant-toolbar__spacer {
   flex: 1;
+}
+
+/*
+ * 工具条窄到 360 时，批准方式的档位名与模型胶囊右侧的思考档位让位，只留字形。
+ *
+ * 360 是这一行装不下的大致位置，再窄整行就从卡片右边溢出去，溢出的是发送键那一头。这一
+ * 行没有可压缩的东西（各控件 flex: none，模式 chip 也收不动），能腾的只有这两段字；值在
+ * 弹层里都逐档写全，省掉的只是胶囊上那一行字。
+ *
+ * 数字只能是字面量（容器查询的条件不认 var()），所以这一份不住 metrics.css。内边距那条
+ * 带 [data-assistant-skin] 前缀是为了压过 permission-picker.css 里同名的静息那一对：
+ * 两个文件的加载次序由打包器决定，胜负不该押在次序上。
+ */
+@container (max-width: 360px) {
+  [data-assistant-skin] .assistant-posture {
+    padding-inline: var(--cp-pill-lead);
+  }
+
+  .assistant-posture__label,
+  .assistant-model-select__band {
+    display: none;
+  }
 }
 
 textarea[data-slot="prompt-input-editor"] {

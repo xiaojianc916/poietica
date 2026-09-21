@@ -17,13 +17,18 @@ export const WORKSPACE_LAYOUT = {
     navIconCenter: 24,
 
     minWidth: 220,
-    maxWidth: 420,
+    maxWidth: 360,
     defaultWidth: 280,
   },
 
-  /* 主列地板：两张卡片都在时正文至少留这么宽，辅助列上限要把它让出来。 */
+  /*
+   * 主列地板：两张卡片都在时正文至少留这么宽，辅助列上限要把它让出来。
+   *
+   * 它是留给主列的预算，不是主列的 CSS 下限 —— 主列仍是 minmax(0, 1fr)，窗口窄到
+   * 辅助列自己的下限都放不下时，让位的还是它（见 auxiliaryMaxWidth）。
+   */
   main: {
-    minWidth: 320,
+    minWidth: 360,
   },
 
   /*
