@@ -1,3 +1,4 @@
+import { createExternalStore, type ExternalStore } from '@poietica/external-store'
 import { type FailureCoordinator, optionalProperty } from '@poietica/problem'
 
 const MAX_VISIBLE = 3
@@ -27,18 +28,14 @@ interface Presence {
 export class NoticeStore {
   readonly #coordinator: FailureCoordinator
   readonly #presences = new Map<string, Presence>()
-  readonly #listeners = new Set<() => void>()
+  readonly #store: ExternalStore<readonly Notice[]>
   readonly #paused = new Set<NoticePauseReason>()
   #notices: readonly Notice[] = []
   constructor(coordinator: FailureCoordinator) {
     this.#coordinator = coordinator
+    this.#store = createExternalStore<readonly Notice[]>({ read: () => this.#notices })
   }
-  subscribe = (listener: () => void): (() => void) => {
-    this.#listeners.add(listener)
-    return () => {
-      this.#listeners.delete(listener)
-    }
-  }
+  subscribe = (listener: () => void): (() => void) => this.#store.subscribe(listener)
   getSnapshot = (): readonly Notice[] => this.#notices
   start = (): (() => void) => {
     const stop = this.#coordinator.subscribe(this.#sync)
@@ -175,9 +172,7 @@ export class NoticeStore {
       return
     }
     this.#notices = Object.freeze(next)
-    for (const listener of [...this.#listeners]) {
-      listener()
-    }
+    this.#store.notify()
   }
 }
 

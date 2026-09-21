@@ -7,7 +7,9 @@ mod intake;
 mod registry;
 
 pub use content::AssetSessionSnapshotEntry;
-pub use delivery::{ASSET_PROTOCOL_HOST, ASSET_PROTOCOL_SCHEME, asset_protocol_url};
+pub use delivery::{
+    ASSET_PROTOCOL_HOST, ASSET_PROTOCOL_LOCALHOST, ASSET_PROTOCOL_SCHEME, asset_protocol_url,
+};
 pub use formats::{
     AssetKind, FORMATS, Format, is_content_hash, is_deliverable_content_type, sniff,
 };

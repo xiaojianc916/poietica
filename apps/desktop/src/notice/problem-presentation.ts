@@ -58,7 +58,7 @@ interface ApplicationFailurePolicy {
 
   readonly recovery: FailureRecovery
 
-  readonly scope: (context: FailureReportContext) => FailureScope
+  readonly scope: FailureScope
 }
 
 export const APPLICATION_FAILURE_POLICIES = {
@@ -66,21 +66,21 @@ export const APPLICATION_FAILURE_POLICIES = {
     impact: 'recoverable',
     userMessage: '窗口最小化失败，可以重试。',
     recovery: 'retry',
-    scope: operationScope('minimize-window'),
+    scope: { kind: 'operation', operation: 'minimize-window' },
   },
 
   WINDOW_MAXIMIZE_UNAVAILABLE: {
     impact: 'recoverable',
     userMessage: '窗口最大化或还原失败，可以重试。',
     recovery: 'retry',
-    scope: operationScope('toggle-maximize-window'),
+    scope: { kind: 'operation', operation: 'toggle-maximize-window' },
   },
 
   WINDOW_CLOSE_UNAVAILABLE: {
     impact: 'recoverable',
     userMessage: '应用未能退出，请重试或使用托盘中的强制退出。',
     recovery: 'retry',
-    scope: operationScope('quit-application'),
+    scope: { kind: 'operation', operation: 'quit-application' },
   },
 
   WINDOW_DRAG_UNAVAILABLE: {
@@ -89,7 +89,7 @@ export const APPLICATION_FAILURE_POLICIES = {
 
     recovery: 'disable-feature',
 
-    scope: featureScope('window-dragging'),
+    scope: { kind: 'feature', featureId: 'window-dragging' },
   },
 
   DEVELOPER_TOOLS_UNAVAILABLE: {
@@ -98,14 +98,14 @@ export const APPLICATION_FAILURE_POLICIES = {
 
     recovery: 'disable-feature',
 
-    scope: featureScope('developer-tools'),
+    scope: { kind: 'feature', featureId: 'developer-tools' },
   },
 
   SETTINGS_APPLICATION_FAILED: {
     impact: 'recoverable',
     userMessage: '设置已保存，但守护进程未能应用。重新切换守护进程设置或重启应用可再次应用。',
     recovery: 'dismiss',
-    scope: operationScope('apply-settings'),
+    scope: { kind: 'operation', operation: 'apply-settings' },
   },
   SETTINGS_LOAD_FAILED: {
     impact: 'feature-degraded',
@@ -113,7 +113,7 @@ export const APPLICATION_FAILURE_POLICIES = {
 
     recovery: 'disable-feature',
 
-    scope: featureScope('settings'),
+    scope: { kind: 'feature', featureId: 'settings' },
   },
 
   WINDOW_STATE_QUERY_UNAVAILABLE: {
@@ -122,7 +122,7 @@ export const APPLICATION_FAILURE_POLICIES = {
 
     recovery: 'disable-feature',
 
-    scope: featureScope('window-state-sync'),
+    scope: { kind: 'feature', featureId: 'window-state-sync' },
   },
 
   WINDOW_STATE_SYNC_UNAVAILABLE: {
@@ -131,14 +131,14 @@ export const APPLICATION_FAILURE_POLICIES = {
 
     recovery: 'disable-feature',
 
-    scope: featureScope('window-state-sync'),
+    scope: { kind: 'feature', featureId: 'window-state-sync' },
   },
 
   WINDOW_SURFACE_SYNC_UNAVAILABLE: {
     impact: 'recoverable',
     userMessage: '窗口底色未能与当前主题同步，界面仍可继续使用。',
     recovery: 'dismiss',
-    scope: operationScope('sync-window-surface'),
+    scope: { kind: 'operation', operation: 'sync-window-surface' },
   },
 
   WINDOW_CLOSE_LISTENER_UNAVAILABLE: {
@@ -147,7 +147,7 @@ export const APPLICATION_FAILURE_POLICIES = {
 
     recovery: 'disable-feature',
 
-    scope: featureScope('window-close-coordination'),
+    scope: { kind: 'feature', featureId: 'window-close-coordination' },
   },
 
   AGENT_CAPABILITIES_UNREADABLE: {
@@ -156,7 +156,7 @@ export const APPLICATION_FAILURE_POLICIES = {
 
     recovery: 'retry',
 
-    scope: operationScope('read-capabilities'),
+    scope: { kind: 'operation', operation: 'read-capabilities' },
   },
 
   AGENT_CONFIG_CHANGE_REJECTED: {
@@ -165,7 +165,7 @@ export const APPLICATION_FAILURE_POLICIES = {
 
     recovery: 'retry',
 
-    scope: operationScope('change-capability'),
+    scope: { kind: 'operation', operation: 'change-capability' },
   },
 
   SESSION_CONFIG_CHANGE_REJECTED: {
@@ -174,7 +174,7 @@ export const APPLICATION_FAILURE_POLICIES = {
 
     recovery: 'retry',
 
-    scope: operationScope('change-session-config'),
+    scope: { kind: 'operation', operation: 'change-session-config' },
   },
 
   THREAD_REOPEN_FAILED: {
@@ -183,41 +183,41 @@ export const APPLICATION_FAILURE_POLICIES = {
 
     recovery: 'retry',
 
-    scope: operationScope('reopen-thread'),
+    scope: { kind: 'operation', operation: 'reopen-thread' },
   },
 
   THREAD_MODES_NOT_KEPT: {
     impact: 'recoverable',
     userMessage: '这条对话的模式没能记住，重启后需要重新设置。',
     recovery: 'retry',
-    scope: operationScope('keep-thread-modes'),
+    scope: { kind: 'operation', operation: 'keep-thread-modes' },
   },
 
   WORKSPACE_PICK_FAILED: {
     impact: 'recoverable',
     userMessage: '工作目录选择器未能打开，可以重试。',
     recovery: 'retry',
-    scope: operationScope('pick-workspace'),
+    scope: { kind: 'operation', operation: 'pick-workspace' },
   },
   GIT_BRANCH_OPERATION_FAILED: {
     impact: 'recoverable',
     userMessage: 'Git 分支操作失败',
     recovery: 'retry',
-    scope: operationScope('git-branch-operation'),
+    scope: { kind: 'operation', operation: 'git-branch-operation' },
   },
   /* 读不到变更清单：审查那一格自己说读取失败，控件不变灰，重进就再问一次。 */
   GIT_CHANGES_UNREADABLE: {
     impact: 'recoverable',
     userMessage: 'Git 变更读取失败',
     recovery: 'retry',
-    scope: operationScope('git-changes'),
+    scope: { kind: 'operation', operation: 'git-changes' },
   },
   /* 提交或推送被 git 拒绝：理由原文走统一失败管线进 toast，面板不留错误副本。 */
   GIT_REVIEW_ACTION_FAILED: {
     impact: 'recoverable',
     userMessage: 'Git 提交或推送失败',
     recovery: 'retry',
-    scope: operationScope('git-review-action'),
+    scope: { kind: 'operation', operation: 'git-review-action' },
   },
 
   /* 只出自人亲手要的那次检查：后台按节奏问的那条自己咽下去，离线是常态。 */
@@ -225,34 +225,34 @@ export const APPLICATION_FAILURE_POLICIES = {
     impact: 'recoverable',
     userMessage: '没能连上更新服务，暂时问不到有没有新版本。',
     recovery: 'dismiss',
-    scope: operationScope('check-update'),
+    scope: { kind: 'operation', operation: 'check-update' },
   },
   UPDATE_DOWNLOAD_FAILED: {
     impact: 'recoverable',
     userMessage: '更新没能下载完成，当前版本没有被改动。',
     recovery: 'retry',
-    scope: operationScope('download-update'),
+    scope: { kind: 'operation', operation: 'download-update' },
   },
   /* 那份字节已经被消耗，store 会退回 idle 让下一轮检查重新发现。 */
   UPDATE_INSTALL_FAILED: {
     impact: 'recoverable',
     userMessage: '更新没能装上，当前版本没有被改动。',
     recovery: 'retry',
-    scope: operationScope('install-update'),
+    scope: { kind: 'operation', operation: 'install-update' },
   },
 
   UNHANDLED_WINDOW_ERROR: {
     impact: 'recoverable',
     userMessage: '有一处操作出错了，界面仍在正常运行。',
     recovery: 'dismiss',
-    scope: operationScope('window-error'),
+    scope: { kind: 'operation', operation: 'window-error' },
   },
 
   UNHANDLED_PROMISE_REJECTION: {
     impact: 'recoverable',
     userMessage: '有一处后台任务出错了，界面仍在正常运行。',
     recovery: 'dismiss',
-    scope: operationScope('unhandled-rejection'),
+    scope: { kind: 'operation', operation: 'unhandled-rejection' },
   },
 } as const satisfies Readonly<Record<ApplicationFailureCode, ApplicationFailurePolicy>>
 
@@ -278,7 +278,7 @@ export function reportFailure(
     code,
     userMessage: policy.userMessage,
 
-    scope: policy.scope(context),
+    scope: policy.scope,
 
     recovery: policy.recovery,
 
@@ -298,22 +298,6 @@ export function reportFailure(
   }
 
   return failureCoordinator.report(signal)
-}
-
-function featureScope(
-  featureId: DegradableFeatureId,
-): (context: FailureReportContext) => FailureScope {
-  return (_context) => ({
-    kind: 'feature',
-    featureId,
-  })
-}
-
-function operationScope(operation: string): (context: FailureReportContext) => FailureScope {
-  return (_context) => ({
-    kind: 'operation',
-    operation,
-  })
 }
 
 function removeCause(context: FailureReportContext): Readonly<Record<string, unknown>> {

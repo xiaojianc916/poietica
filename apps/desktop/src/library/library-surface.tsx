@@ -44,16 +44,6 @@ const FORMATS = [
   { format: 'page', label: '新建网页（.html）', Mark: Code },
 ] as const satisfies readonly { format: LibraryFormat; label: string; Mark: typeof FileText }[]
 
-/** 一行条目能发出的全部意图。落点由点下去的那一行给出，不靠全局选中态推断。 */
-interface LibraryIntents {
-  readonly open: (path: string) => void
-  readonly create: (parent: string, format: LibraryFormat) => void
-  readonly folder: (parent: string) => void
-  readonly importFile: (parent: string) => void
-  readonly rename: (path: string, name: string) => void
-  readonly trash: (path: string) => void
-}
-
 function siblings(entries: readonly LibraryEntry[]): Map<string, LibraryEntry[]> {
   const grouped = new Map<string, LibraryEntry[]>()
 
@@ -70,12 +60,13 @@ function siblings(entries: readonly LibraryEntry[]): Map<string, LibraryEntry[]>
   return grouped
 }
 
+/** 一行条目能发出的全部意图都由 controller 直接承担：包一层转发壳只会多一处要同步的名字。 */
 function CreateMenu({
-  intents,
+  controller,
   label,
   parent,
 }: {
-  intents: LibraryIntents
+  controller: LibraryController
   label: string
   parent: string
 }) {
@@ -89,17 +80,30 @@ function CreateMenu({
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end">
         {FORMATS.map(({ format, label: title, Mark }) => (
-          <DropdownMenuItem key={format} onClick={() => intents.create(parent, format)}>
+          <DropdownMenuItem
+            key={format}
+            onClick={() => {
+              void controller.create(parent, format)
+            }}
+          >
             <Mark aria-hidden="true" className="size-4" />
             {title}
           </DropdownMenuItem>
         ))}
         <DropdownMenuSeparator />
-        <DropdownMenuItem onClick={() => intents.folder(parent)}>
+        <DropdownMenuItem
+          onClick={() => {
+            void controller.folder(parent)
+          }}
+        >
           <FolderPlus aria-hidden="true" className="size-4" />
           新建文件夹
         </DropdownMenuItem>
-        <DropdownMenuItem onClick={() => intents.importFile(parent)}>
+        <DropdownMenuItem
+          onClick={() => {
+            void controller.importFile(parent)
+          }}
+        >
           <Upload aria-hidden="true" className="size-4" />
           导入文件
         </DropdownMenuItem>
@@ -109,17 +113,17 @@ function CreateMenu({
 }
 
 function EntryRow({
+  controller,
   depth,
   entry,
-  intents,
   opened,
   renaming,
   setRenaming,
   tree,
 }: {
+  controller: LibraryController
   depth: number
   entry: LibraryEntry
-  intents: LibraryIntents
   opened: string | undefined
   renaming: string | null
   setRenaming: (path: string | null) => void
@@ -143,7 +147,7 @@ function EntryRow({
           setRenaming(null)
 
           if (typeof value === 'string' && value.trim().length > 0) {
-            intents.rename(entry.path, value.trim())
+            void controller.rename(entry.path, value.trim())
           }
         }}
         style={{ paddingLeft: 8 + depth * 12 }}
@@ -173,7 +177,7 @@ function EntryRow({
       >
         <button
           className="flex min-w-0 flex-1 items-center gap-1.5 py-1 text-left"
-          onClick={() => (folder ? setExpanded(!expanded) : intents.open(entry.path))}
+          onClick={() => (folder ? setExpanded(!expanded) : void controller.open(entry.path))}
           type="button"
         >
           {folder ? (
@@ -204,7 +208,9 @@ function EntryRow({
             <DropdownMenuSeparator />
             <DropdownMenuItem
               className="text-destructive"
-              onClick={() => intents.trash(entry.path)}
+              onClick={() => {
+                void controller.trash(entry.path)
+              }}
             >
               <Trash2 aria-hidden="true" className="size-4" />
               删除
@@ -212,15 +218,15 @@ function EntryRow({
           </DropdownMenuContent>
         </DropdownMenu>
         {folder ? (
-          <CreateMenu intents={intents} label={`在${entry.name}中新建`} parent={entry.path} />
+          <CreateMenu controller={controller} label={`在${entry.name}中新建`} parent={entry.path} />
         ) : null}
       </div>
       {folder && expanded
         ? (tree.get(entry.path) ?? []).map((child) => (
             <EntryRow
+              controller={controller}
               depth={depth + 1}
               entry={child}
-              intents={intents}
               key={child.path}
               opened={opened}
               renaming={renaming}
@@ -385,29 +391,6 @@ export function LibrarySurface({
   )
   const [renaming, setRenaming] = useState<string | null>(null)
   const tree = useMemo(() => siblings(state.entries), [state.entries])
-  const intents = useMemo<LibraryIntents>(
-    () => ({
-      open: (path) => {
-        void controller.open(path)
-      },
-      create: (parent, format) => {
-        void controller.create(parent, format)
-      },
-      folder: (parent) => {
-        void controller.folder(parent)
-      },
-      importFile: (parent) => {
-        void controller.importFile(parent)
-      },
-      rename: (path, name) => {
-        void controller.rename(path, name)
-      },
-      trash: (path) => {
-        void controller.trash(path)
-      },
-    }),
-    [controller],
-  )
 
   useEffect(() => {
     void controller.start()
@@ -445,7 +428,7 @@ export function LibrarySurface({
         </div>
         <div className="flex items-center justify-between gap-1 px-1">
           <span className="font-medium text-muted-foreground text-xs">{ROOT_LABEL}</span>
-          <CreateMenu intents={intents} label={`在${ROOT_LABEL}中新建`} parent="" />
+          <CreateMenu controller={controller} label={`在${ROOT_LABEL}中新建`} parent="" />
         </div>
         <nav aria-label={ROOT_LABEL} className="min-h-0 flex-1 overflow-y-auto">
           {state.entries.length === 0 ? (
@@ -456,9 +439,9 @@ export function LibrarySurface({
           {state.query === ''
             ? (tree.get('') ?? []).map((entry) => (
                 <EntryRow
+                  controller={controller}
                   depth={0}
                   entry={entry}
-                  intents={intents}
                   key={entry.path}
                   opened={opened?.path}
                   renaming={renaming}
@@ -475,7 +458,9 @@ export function LibrarySurface({
                       entry.path === opened?.path && 'bg-accent font-medium',
                     )}
                     key={entry.path}
-                    onClick={() => intents.open(entry.path)}
+                    onClick={() => {
+                      void controller.open(entry.path)
+                    }}
                     type="button"
                   >
                     <FileText

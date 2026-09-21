@@ -153,15 +153,7 @@ impl EventRouter {
 
         // transcript 通道（subscribe_v2 的 per-agent 流）原样转交宿主，不进本地帧日志：重放由 agent 自己的 transcript 承担。
         if matches!(kind, "transcript.reset" | "transcript.ops") {
-            let session_id = envelope
-                .get("session_id")
-                .and_then(Value::as_str)
-                .or_else(|| {
-                    envelope
-                        .pointer("/payload/session_id")
-                        .and_then(Value::as_str)
-                });
-            if let Some(session_id) = session_id {
+            if let Some(session_id) = named_session(envelope) {
                 let _sent = self.events_tx.unbounded_send(SessionEvent::Transcript {
                     session_id: session_id.to_owned(),
                     payload: envelope.clone(),
@@ -172,28 +164,15 @@ impl EventRouter {
 
         // kap 断流（reason 枚举见 contracts/kap/asyncapi.json 的 resync_required）：断点后的帧不会再来，本轮判死；transcript 转发 resync 让下游全量刷新。
         if kind == "resync_required" {
-            if let Some(session_id) =
-                envelope
-                    .get("session_id")
-                    .and_then(Value::as_str)
-                    .or_else(|| {
-                        envelope
-                            .pointer("/payload/session_id")
-                            .and_then(Value::as_str)
-                    })
-            {
+            if let Some(session_id) = named_session(envelope) {
                 let _sent = self.events_tx.unbounded_send(SessionEvent::Transcript {
                     session_id: session_id.to_owned(),
                     payload: envelope.clone(),
                 });
             }
-            let Some(cut) = envelope
-                .get("payload")
-                .and_then(|payload| payload.get("session_id"))
-                .or_else(|| envelope.get("session_id"))
-                .and_then(Value::as_str)
-                .filter(|named| !named.is_empty())
-            else {
+            // 转发的 transcript 与这里判死的会话必须同号：两处各查一次就会在
+            // 两个键都存在且不一致时各说各话，用同一个判据。
+            let Some(cut) = named_session(envelope).filter(|named| !named.is_empty()) else {
                 log::warn!("kap asked for a resync without naming a session");
 
                 return;
@@ -413,5 +392,60 @@ impl EventRouter {
 
             _ => {}
         }
+    }
+}
+
+/// 这条信封说的会话号。信封顶层与 payload 里各可能出现一次，判据只有这一处：
+/// 两处各写一份，键都在且不一致时同一条帧就会指向两条会话。
+fn named_session(envelope: &Value) -> Option<&str> {
+    envelope
+        .get("session_id")
+        .and_then(Value::as_str)
+        .or_else(|| {
+            envelope
+                .pointer("/payload/session_id")
+                .and_then(Value::as_str)
+        })
+}
+
+#[cfg(test)]
+mod tests {
+    #![allow(clippy::expect_used, reason = "a broken fixture must fail loudly")]
+
+    use serde_json::json;
+
+    use super::named_session;
+
+    /* transcript 帧把号放在顶层（payload 里只有 agent_id）；resync_required 放在 payload 里。 */
+    #[test]
+    fn both_wire_shapes_name_the_same_session() {
+        assert_eq!(
+            named_session(&json!({ "type": "transcript.ops", "session_id": "s1" })),
+            Some("s1")
+        );
+        assert_eq!(
+            named_session(&json!({
+                "type": "resync_required",
+                "payload": { "session_id": "s1", "reason": "buffer_overflow" }
+            })),
+            Some("s1")
+        );
+    }
+
+    /* 两个键都在时只能有一个答案：各查一次就会让转发的帧与判死的会话分家。 */
+    #[test]
+    fn a_disagreeing_payload_cannot_split_the_decision() {
+        assert_eq!(
+            named_session(&json!({
+                "session_id": "outer",
+                "payload": { "session_id": "inner" }
+            })),
+            Some("outer")
+        );
+    }
+
+    #[test]
+    fn a_frame_without_a_session_is_unnamed() {
+        assert_eq!(named_session(&json!({ "type": "resync_required" })), None);
     }
 }

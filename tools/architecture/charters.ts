@@ -2,9 +2,9 @@
 
 import { readdir, readFile } from 'node:fs/promises'
 import path from 'node:path'
-import { valueBindingsOf } from './imports.ts'
+import { valueBindingsOf, walkFiles } from './imports.ts'
 import { CARGO_RINGS, UNLAYERED_DIRECTORIES } from './layering.ts'
-import type { Violation } from './policies.ts'
+import { present, type Violation } from './policies.ts'
 import type { Crate, Workspace } from './workspace.ts'
 
 /** 方案文档写的是目标形态、工作记忆是过程记录：都不参与"点名的东西必须存在"。 */
@@ -28,51 +28,46 @@ const SELF = 'tools/architecture/charters.ts'
 
 const BACKTICK = String.fromCharCode(96)
 
-async function walk(
+/** 本文件那条更宽的跳过清单：方案文档、工作记忆与产物都不参与判据。 */
+const walk = (
   root: string,
   from: readonly string[],
   suffixes: readonly string[],
-): Promise<string[]> {
-  const found: string[] = []
-  const pending = [...from]
-
-  while (pending.length > 0) {
-    const current = pending.pop()
-
-    if (current === undefined) {
-      break
-    }
-
-    const entries = await readdir(path.join(root, current), { withFileTypes: true })
-
-    for (const entry of entries) {
-      if (SKIP.has(entry.name)) {
-        continue
-      }
-
-      const child = current === '.' ? entry.name : `${current}/${entry.name}`
-
-      if (entry.isDirectory()) {
-        pending.push(child)
-        continue
-      }
-
-      if (suffixes.some((suffix) => entry.name.endsWith(suffix))) {
-        found.push(child)
-      }
-    }
-  }
-
-  return found.sort()
-}
+): Promise<string[]> =>
+  walkFiles(
+    root,
+    from,
+    (file) => suffixes.some((suffix) => file.endsWith(suffix)),
+    (name) => !SKIP.has(name),
+  )
 
 const rust = (root: string): Promise<string[]> => walk(root, ['apps', 'crates'], ['.rs'])
+
+/*
+ * 一次闸门运行里同一份文件会被多条法则读：按路径缓存，每条法则各读一遍就是
+ * O(法则数 × 文件数)，加一条法则就多一整轮磁盘读。进程一次性，缓存不必失效。
+ */
+const SOURCES = new Map<string, string>()
+
+async function readOnce(root: string, file: string): Promise<string> {
+  const absolute = path.join(root, file)
+  const held = SOURCES.get(absolute)
+
+  if (held !== undefined) {
+    return held
+  }
+
+  const source = await readFile(absolute, 'utf8')
+  SOURCES.set(absolute, source)
+
+  return source
+}
 
 async function holding(root: string, files: readonly string[], needle: string): Promise<string[]> {
   const hits: string[] = []
 
   for (const file of files) {
-    if ((await readFile(path.join(root, file), 'utf8')).includes(needle)) {
+    if ((await readOnce(root, file)).includes(needle)) {
       hits.push(file)
     }
   }
@@ -209,7 +204,7 @@ export async function designSystemOwnsItsTokens(root: string): Promise<Violation
       continue
     }
 
-    const source = await readFile(path.join(root, file), 'utf8')
+    const source = await readOnce(root, file)
 
     for (const line of source.split('\n')) {
       if (line.trim().startsWith('--ui-')) {
@@ -414,7 +409,7 @@ async function startupSurfaceIsAdopted(
       '组合根必须在窗口被看见之前落定衬底',
     ],
   ] as const) {
-    if (!(await readFile(path.join(root, file), 'utf8')).includes(needle)) {
+    if (!(await readOnce(root, file)).includes(needle)) {
       violations.push({ policy: 'window-surface-policy', where: file, detail })
     }
   }
@@ -471,7 +466,7 @@ async function themeSurfaceIsAligned(root: string): Promise<Violation[]> {
     ['packages/native-bridge/src/window.ts', 'commands.windowSetSurface'],
   ] as const
   for (const [file, needle] of hostSurfaceProbes) {
-    if (!(await readFile(path.join(root, file), 'utf8')).includes(needle)) {
+    if (!(await readOnce(root, file)).includes(needle)) {
       violations.push({
         policy: 'window-surface-policy',
         where: file,
@@ -570,7 +565,7 @@ export async function noWildcardReExports(root: string): Promise<Violation[]> {
   const violations: Violation[] = []
 
   for (const file of await walk(root, ['apps', 'crates'], ['.rs'])) {
-    const source = await readFile(path.join(root, file), 'utf8')
+    const source = await readOnce(root, file)
 
     for (const line of source.split('\n')) {
       const trimmed = line.trim()
@@ -597,7 +592,7 @@ async function wildcardTypeScriptReExports(root: string): Promise<Violation[]> {
   const violations: Violation[] = []
 
   for (const file of await walk(root, ['apps', 'packages', 'tools'], ['.ts', '.tsx'])) {
-    const source = await readFile(path.join(root, file), 'utf8')
+    const source = await readOnce(root, file)
 
     for (const line of source.split('\n')) {
       if (/^export\s+\*\s+from\s/.test(line.trim())) {
@@ -622,7 +617,7 @@ async function wildcardModuleDeclarations(root: string): Promise<Violation[]> {
       continue
     }
 
-    const source = await readFile(path.join(root, file), 'utf8')
+    const source = await readOnce(root, file)
 
     for (const line of source.split('\n')) {
       if (line.includes('declare module ') && line.includes('*')) {
@@ -649,21 +644,12 @@ const tokens = (source: string): string[] =>
 const prose = async (root: string): Promise<string[]> =>
   (await walk(root, ['.'], ['.md'])).filter((file) => !file.startsWith('docs/adr/'))
 
-const present = async (target: string): Promise<boolean> => {
-  try {
-    await readFile(target)
-    return true
-  } catch {
-    return false
-  }
-}
-
 /** 文档点名的脚本必须存在，并且不许还指着已经不在的目录。 */
 export async function documentedScriptsExist(root: string): Promise<Violation[]> {
   const violations: Violation[] = []
 
   for (const file of await prose(root)) {
-    const source = await readFile(path.join(root, file), 'utf8')
+    const source = await readOnce(root, file)
 
     for (const token of tokens(source)) {
       if (token.startsWith('scripts/')) {
@@ -703,7 +689,7 @@ export async function documentedPackagesExist(
   const violations: Violation[] = []
 
   for (const file of await prose(root)) {
-    const source = await readFile(path.join(root, file), 'utf8')
+    const source = await readOnce(root, file)
 
     for (const token of tokens(source)) {
       /* 只认真实形状的包名；`@poietica/*`、`@poietica/<目录名>` 这类泛指不是点名。 */
@@ -770,7 +756,7 @@ export async function noTaskScopedGuards(root: string): Promise<Violation[]> {
       continue
     }
 
-    const source = await readFile(path.join(root, file), 'utf8')
+    const source = await readOnce(root, file)
 
     for (const { label, re } of WORD_MARKS) {
       if (re.test(source)) {
@@ -854,7 +840,7 @@ export async function processStateIsComposedAtRoot(root: string): Promise<Violat
     if (file.includes('/__tests__/') || file.endsWith('.test.tsx') || file.endsWith('.spec.tsx')) {
       continue
     }
-    for (const binding of valueBindingsOf(file, await readFile(path.join(root, file), 'utf8'))) {
+    for (const binding of valueBindingsOf(file, await readOnce(root, file))) {
       const declared = owners.get(binding.specifier)
       if (declared !== undefined && (binding.name === '*' || declared.has(binding.name))) {
         violations.push({
@@ -880,7 +866,7 @@ export async function runFrameWireStaysTyped(root: string): Promise<Violation[]>
   const violations: Violation[] = []
 
   for (const [file, needle] of probes) {
-    if ((await readFile(path.join(root, file), 'utf8')).includes(needle)) {
+    if ((await readOnce(root, file)).includes(needle)) {
       violations.push({
         policy: 'run-frame-wire-stays-typed',
         where: file,
@@ -909,7 +895,7 @@ export async function contractShimsStayGenerated(root: string): Promise<Violatio
     }
 
     const file = `${directory}/${entry.name}`
-    const source = await readFile(path.join(root, file), 'utf8')
+    const source = await readOnce(root, file)
 
     for (const line of source.split('\n')) {
       const trimmed = line.trim()
@@ -947,7 +933,7 @@ export async function reviewWatcherHasLease(root: string): Promise<Violation[]> 
   const violations: Violation[] = []
 
   for (const [file, needle] of probes) {
-    if ((await readFile(path.join(root, file), 'utf8')).includes(needle)) {
+    if ((await readOnce(root, file)).includes(needle)) {
       violations.push({
         policy: 'review-watcher-has-lease',
         where: file,

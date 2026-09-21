@@ -4,7 +4,7 @@ import { fileURLToPath, pathToFileURL } from 'node:url'
 import ts from '@typescript/typescript6'
 import { conversationBoundaries, conversationCore } from './conversation-boundaries.ts'
 import { DESKTOP_HEADLESS, desktopBoundaries } from './desktop-boundaries.ts'
-import { type ImportRecord, importsOf, sources } from './imports.ts'
+import { cyclesIn, type ImportRecord, importsOf, sources } from './imports.ts'
 import {
   DOMAIN_CONTRACT_IMPORTS,
   FRAMEWORK_SPECIFIERS,
@@ -202,7 +202,9 @@ function scanUnit(
   const outgoing = new Set<string>()
   const dependencies = new Set<string>()
   const forbidden: string[] = []
-  const imports: ImportRecord[] = importsOf(file, unit.code)
+  /* 同一个文件只解析一次：importsOf 与下面的 JSX/import.meta 走查吃的是同一棵树。 */
+  const tree = ts.createSourceFile(file, unit.code, ts.ScriptTarget.Latest, true)
+  const imports: ImportRecord[] = importsOf(file, unit.code, tree)
   const visit = (node: ts.Node): void => {
     if (jsxMarker(node) && !forbidden.includes('JSX')) {
       forbidden.push('JSX')
@@ -226,7 +228,7 @@ function scanUnit(
     }
     ts.forEachChild(node, visit)
   }
-  visit(ts.createSourceFile(file, unit.code, ts.ScriptTarget.Latest, true))
+  visit(tree)
   for (const record of imports) {
     const edge = edgeOf(file, record, unit, records, host, resolveEntry, boundary, reject)
     forbidden.push(...edge.forbidden)
@@ -275,34 +277,14 @@ export function analyzeSourceFiles(
       knowledgeEdges.set(file, new Set([...scan.dependencies].filter(knowledgeScope)))
     }
   }
-  const detectCycles = (graph: ReadonlyMap<string, ReadonlySet<string>>, policy: string): void => {
-    const visited = new Set<string>()
-    const active = new Set<string>()
-    const stack: string[] = []
-    const walk = (file: string): void => {
-      if (active.has(file)) {
-        const route = [...stack.slice(stack.indexOf(file)), file]
-        reject(policy, file, route.map((item) => path.relative(root, item)).join(' -> '))
-        return
-      }
-      if (visited.has(file)) {
-        return
-      }
-      active.add(file)
-      stack.push(file)
-      for (const target of graph.get(file) ?? []) {
-        walk(target)
-      }
-      stack.pop()
-      active.delete(file)
-      visited.add(file)
-    }
-    for (const file of graph.keys()) {
-      walk(file)
+  const reportCycles = (graph: ReadonlyMap<string, ReadonlySet<string>>, policy: string): void => {
+    for (const cycle of cyclesIn(graph)) {
+      /* reject 自己会把路径化成相对路径；这里只写环的形状。 */
+      reject(policy, cycle[0] ?? '', cycle.map((item) => path.relative(root, item)).join(' -> '))
     }
   }
-  detectCycles(edges, 'runtime-file-cycle')
-  detectCycles(knowledgeEdges, 'core-file-dependency-cycle')
+  reportCycles(edges, 'runtime-file-cycle')
+  reportCycles(knowledgeEdges, 'core-file-dependency-cycle')
   for (const entry of headless) {
     const start = canonicalOf(host, entry)
     if (!records.has(start)) {

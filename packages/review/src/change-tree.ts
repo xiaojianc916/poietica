@@ -4,6 +4,8 @@
  * 纯函数：吃路径与折叠集合，交回一串带缩进深度的行。只有一个子目录且没有直属文件的
  * 目录段并成一行（src/review/…）—— 变更集是稀疏的，不并就会出现一长串单孩子目录。
  */
+import { basename } from './unified-diff'
+
 export interface ChangeTreeFile {
   readonly kind: 'file'
   readonly key: string
@@ -16,7 +18,6 @@ export interface ChangeTreeFolder {
   readonly key: string
   readonly label: string
   readonly depth: number
-  readonly paths: readonly string[]
 }
 export type ChangeTreeNode = ChangeTreeFile | ChangeTreeFolder
 interface Branch {
@@ -66,7 +67,7 @@ function walk(
       key = `${key}/${only[0]}`
       folder = only[1]
     }
-    rows.push({ depth, key, kind: 'folder', label, paths: filesOf(folder) })
+    rows.push({ depth, key, kind: 'folder', label })
     if (!collapsed.has(key)) {
       walk(folder, key, depth + 1, collapsed, rows)
     }
@@ -76,15 +77,8 @@ function walk(
       depth,
       key: held,
       kind: 'file',
-      label: held.slice(held.lastIndexOf('/') + 1),
+      label: basename(held),
       path: held,
     })
   }
-}
-function filesOf(here: Branch): readonly string[] {
-  const found = [...here.files]
-  for (const child of here.folders.values()) {
-    found.push(...filesOf(child))
-  }
-  return found
 }

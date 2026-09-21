@@ -72,7 +72,8 @@ export class AgentTranscript {
   }
 
   getTurn(turnId: TurnId): TranscriptTurn | undefined {
-    const item = this.#state.items.find((entry) => entry.kind === 'turn' && entry.turnId === turnId)
+    const at = this.#state.turnIndex.get(turnId)
+    const item = at === undefined ? undefined : this.#state.items[at]
     return item?.kind === 'turn' ? item : undefined
   }
 

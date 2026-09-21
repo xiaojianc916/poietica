@@ -1,54 +1,27 @@
 #!/usr/bin/env bun
 /** 架构闸门：图与元数据说话。 */
 
-import { readdir, readFile } from 'node:fs/promises'
+import { readFile } from 'node:fs/promises'
 import path from 'node:path'
 import process from 'node:process'
 import { fileURLToPath } from 'node:url'
 
 import * as charter from './charters.ts'
 import { fileGraph } from './file-graph.ts'
-import { readImports } from './imports.ts'
+import { readImports, walkDirectories } from './imports.ts'
 import { manifestBoundaries } from './manifest-graph.ts'
 import type { Violation } from './policies.ts'
 import * as policy from './policies.ts'
 import { readCrates, readWorkspaces } from './workspace.ts'
 
 const ROOT = path.resolve(fileURLToPath(new URL('../../', import.meta.url)))
-const SKIP = new Set(['.turbo', 'coverage', 'dist', 'gen', 'node_modules', 'target'])
-
-async function directories(root: string, from: readonly string[]): Promise<string[]> {
-  const found: string[] = []
-  const pending = [...from]
-
-  while (pending.length > 0) {
-    const current = pending.pop()
-
-    if (current === undefined) {
-      break
-    }
-
-    const entries = await readdir(path.join(root, current), { withFileTypes: true })
-
-    for (const entry of entries) {
-      if (!entry.isDirectory() || SKIP.has(entry.name)) {
-        continue
-      }
-
-      const child = `${current}/${entry.name}`
-      found.push(child)
-      pending.push(child)
-    }
-  }
-
-  return found.sort()
-}
 
 const workspaces = await readWorkspaces(ROOT)
 const crates = readCrates(ROOT)
 const imports = await readImports(ROOT, ['apps', 'packages'])
-const everyImport = await readImports(ROOT, ['apps', 'packages', 'tests', 'tools'])
-const tree = await directories(ROOT, ['apps', 'packages'])
+/* 后两组是前一组之外的部分：再整读一遍就是把 432 个生产文件重解析一次。 */
+const everyImport = [...imports, ...(await readImports(ROOT, ['tests', 'tools']))]
+const tree = await walkDirectories(ROOT, ['apps', 'packages'])
 const rootManifest = await readFile(path.join(ROOT, 'package.json'), 'utf8')
 const exportBindings = await readFile(
   path.join(ROOT, 'apps/desktop/src-tauri/src/ipc/export_bindings.rs'),
@@ -73,7 +46,7 @@ const violations: Violation[] = [
   ...policy.everythingIsRegistered(workspaces, crates),
   ...manifestBoundaries(workspaces),
   ...policy.layerDirection(imports, workspaces),
-  ...(await policy.declaredDependenciesOnly(ROOT, everyImport, workspaces)),
+  ...policy.declaredDependenciesOnly(everyImport, workspaces),
   ...policy.noCycles(imports, workspaces),
   ...(await fileGraph(ROOT, workspaces)),
   ...policy.publicEntryOnly(imports, workspaces),

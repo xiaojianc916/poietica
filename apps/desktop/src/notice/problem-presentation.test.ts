@@ -22,7 +22,7 @@ const degradableCodes = APPLICATION_FAILURE_CODES.filter(
 
 const usedFeatureIds = new Set(
   degradableCodes.flatMap((code) => {
-    const scope = APPLICATION_FAILURE_POLICIES[code].scope({})
+    const scope = APPLICATION_FAILURE_POLICIES[code].scope
     return scope.kind === 'feature' ? [scope.featureId] : []
   }),
 )
@@ -33,7 +33,7 @@ describe('Git branch operation failures', () => {
 
     expect(policy.impact).toBe('recoverable')
     expect(policy.recovery).toBe('retry')
-    expect(policy.scope({})).toEqual({
+    expect(policy.scope).toEqual({
       kind: 'operation',
       operation: 'git-branch-operation',
     })
@@ -52,7 +52,7 @@ describe('the features this application knows how to lose', () => {
 
   it('gives every disable-feature policy a feature to disable', () => {
     for (const code of degradableCodes) {
-      expect(APPLICATION_FAILURE_POLICIES[code].scope({}).kind).toBe('feature')
+      expect(APPLICATION_FAILURE_POLICIES[code].scope.kind).toBe('feature')
     }
   })
 })

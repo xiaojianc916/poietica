@@ -1,3 +1,4 @@
+import { isRecord } from '@poietica/problem'
 import snapshot from './models-dev.catalog.json'
 
 interface ProviderLike {
@@ -33,9 +34,7 @@ const CAPABILITY_ORDER = [
 ] as const
 
 function record(value: unknown): UnknownRecord | undefined {
-  return typeof value === 'object' && value !== null && !Array.isArray(value)
-    ? (value as UnknownRecord)
-    : undefined
+  return isRecord(value) ? value : undefined
 }
 
 function catalogFrom(value: unknown): UnknownRecord {

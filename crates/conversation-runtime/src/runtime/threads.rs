@@ -372,13 +372,7 @@ where
             // Writer jobs can outlive their response; verify behind the writer before compensation.
             let bound = write_index(index, move |store| {
                 store
-                    .list_threads()
-                    .map(|threads| {
-                        threads.iter().any(|thread| {
-                            thread.session_id.as_deref() == Some(checked.as_str())
-                                && thread.agent_id.as_deref() == Some(owner.as_str())
-                        })
-                    })
+                    .session_is_bound(&checked, &owner)
                     .map_err(IndexError::from)
                     .map_err(E::from)
             })

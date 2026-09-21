@@ -9,6 +9,7 @@ import {
 } from '@poietica/design-system'
 import { Archive, Download, Pencil as Edit, FolderClosed, FolderOpen, PinOff } from 'lucide-react'
 import { memo, useCallback, useMemo, useRef, useState } from 'react'
+import { byIsoDescending } from '../../threads/thread-order'
 import { useHorizon, useNow } from '../primitives/clock'
 import { ChevronDownIcon, MoreIcon, PinIcon, PlusIcon } from '../primitives/icons'
 import { datedGroupsOf, instantsOf, nextChangeIn, paintedGroupsOf } from './relative-time'
@@ -577,7 +578,7 @@ export function AssistantThreadList({
       painted
         .flatMap((group) => group.members)
         .filter(({ thread }) => thread.isPinned)
-        .sort((left, right) => right.thread.updatedAt.localeCompare(left.thread.updatedAt)),
+        .sort((left, right) => byIsoDescending(left.thread.updatedAt, right.thread.updatedAt)),
     [painted],
   )
 
@@ -587,7 +588,7 @@ export function AssistantThreadList({
         .filter((group) => projectlessWorkspaces.has(group.id))
         .flatMap((group) => group.members)
         .filter(({ thread }) => !thread.isPinned)
-        .sort((left, right) => right.thread.updatedAt.localeCompare(left.thread.updatedAt)),
+        .sort((left, right) => byIsoDescending(left.thread.updatedAt, right.thread.updatedAt)),
     [painted, projectlessWorkspaces],
   )
 

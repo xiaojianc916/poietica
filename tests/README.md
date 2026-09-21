@@ -9,7 +9,7 @@
   就住在谁的包里 —— 它随包一起被移动、被改名、被删除。
 - `tools/architecture/`：全部架构规则的唯一产地（`layering.ts` 是判据数据，
   `policies.ts` 是规则，`verify.ts` 是入口）。加一条规则等于加一个函数。
-- `tests/integration/`：跨包不变量。`tests/perf/`：基准，只报数字不设时限。
+- `tests/integration/`：跨包不变量。
 
 架构规则不写成 `.test.ts`：它要遍历整个仓库，而一个 `it` 的失败面只有一条断言。
 规则进 `policies.ts`，由 `bun run test:architecture` 执行。

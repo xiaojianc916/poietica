@@ -15,6 +15,11 @@ pub enum LinkState {
         retry_at: i64,
         reason: String,
     },
-    Recovered { reason: String },
-    Severed { attempts: u32, reason: String },
+    Recovered {
+        reason: String,
+    },
+    Severed {
+        attempts: u32,
+        reason: String,
+    },
 }

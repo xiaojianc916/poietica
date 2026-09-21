@@ -1,3 +1,4 @@
+import { createExternalStore } from '@poietica/external-store'
 import { assertUnreachable, warn } from '@poietica/problem'
 import {
   CAPABILITIES_UNREAD,
@@ -283,7 +284,7 @@ function sourceKindOf(source: PluginInstallSource): string {
 
 export function createPluginStore(options: PluginStoreOptions): PluginStore {
   const { gateway } = options
-  const listeners = new Set<() => void>()
+  const store = createExternalStore<PluginsViewModel>({ read: () => snapshot })
 
   let scanned: readonly ScannedPlugin[] = []
   /* 最近一次成功读取的配置投影；读取失败不清空。 */
@@ -333,10 +334,7 @@ export function createPluginStore(options: PluginStoreOptions): PluginStore {
 
   function publish(next: Partial<PluginsViewModel>): void {
     snapshot = { ...snapshot, ...next }
-
-    for (const listener of listeners) {
-      listener()
-    }
+    store.notify()
   }
 
   /* 背书来自目录，按插件号判：展示串不是标识，它换一个写法就不等了。 */
@@ -718,13 +716,7 @@ export function createPluginStore(options: PluginStoreOptions): PluginStore {
   return {
     getSnapshot: () => snapshot,
 
-    subscribe(listener) {
-      listeners.add(listener)
-
-      return () => {
-        listeners.delete(listener)
-      }
-    },
+    subscribe: store.subscribe,
 
     start() {
       if (ready !== null) {

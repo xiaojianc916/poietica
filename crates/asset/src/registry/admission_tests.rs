@@ -74,3 +74,30 @@ fn oversized_content_is_rejected_before_registration() {
         Err(AssetProtocolError::AssetTooLarge)
     );
 }
+
+/* 预算是注册表自己的判据，连已经收下的字节一起算：把这条挪回调用方就会更松。 */
+#[test]
+fn a_batch_that_exceeds_the_registry_budget_is_refused_and_leaves_nothing_behind() {
+    let registry = AssetProtocolRegistry::default();
+    registry.open_session("session").expect("session");
+
+    /* 单份上限 32 MiB、总预算 256 MiB：拿满 8 份就正好越过总额。 */
+    let full = crate::identity::MAX_ASSET_BYTES;
+    let held: Vec<_> = (0..8)
+        .map(|fill| content(&vec![fill; full], "application/pdf"))
+        .collect();
+    registry
+        .register("session", held)
+        .expect("eight fit exactly at the cap");
+
+    let overflow = content(&vec![99; full], "application/pdf");
+    assert_eq!(
+        registry.register("session", vec![overflow.clone()]),
+        Err(AssetProtocolError::RegistryBudgetExceeded)
+    );
+    /* 整批不进：超预算那一份不许留下一半。 */
+    assert!(matches!(
+        registry.deliver("session", overflow.content_hash()),
+        Err(AssetProtocolError::NotFound)
+    ));
+}

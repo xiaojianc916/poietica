@@ -11,7 +11,8 @@
     "test": "bun test src"
   },
   "dependencies": {
-    "@poietica/contract": "workspace:*"
+    "@poietica/contract": "workspace:*",
+    "@poietica/external-store": "workspace:*"
   },
   "devDependencies": {
     "@types/bun": "catalog:",

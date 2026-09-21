@@ -40,7 +40,6 @@
     "lint:fix": "biome check --write .",
     "latest-json": "bun tools/release/latest-json.ts",
     "models:update": "node tools/models/update-model-catalog.mjs",
-    "perf": "bun run --filter @poietica/tests perf",
     "prepare": "bun tools/dev/install-git-hooks.ts",
     "release": "bun tools/release/release.ts",
     "test": "turbo run test",

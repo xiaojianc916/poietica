@@ -71,7 +71,8 @@ pub fn collect_toolkit(
         skills.push(restate_skill(skill, owned.as_ref(), fallback_cwd));
     }
     skills.extend(by_name.into_values().map(restate_unloaded));
-    skills.sort_by_key(|skill| skill.name.to_lowercase());
+    // 缓存键：to_lowercase 每次都分配一个新串，逐次比较排下来就是 O(n log n) 次分配。
+    skills.sort_by_cached_key(|skill| skill.name.to_lowercase());
 
     Ok(AgentToolkit {
         skills,

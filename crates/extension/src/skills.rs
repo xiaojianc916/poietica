@@ -37,7 +37,8 @@ pub struct ScannedSkill {
 
 pub fn scan_skills(skills_root: &Path) -> Result<Vec<ScannedSkill>> {
     let mut entries = fs::read_dir(skills_root)?.collect::<std::io::Result<Vec<_>>>()?;
-    entries.sort_by_key(fs::DirEntry::file_name);
+    // 缓存键：file_name 每次都交回一个新 OsString，逐次比较排下来就是 O(n log n) 次分配。
+    entries.sort_by_cached_key(fs::DirEntry::file_name);
 
     let mut found = Vec::new();
 

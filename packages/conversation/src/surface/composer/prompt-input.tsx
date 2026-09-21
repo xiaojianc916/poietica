@@ -47,7 +47,9 @@ import {
   composerComposeGroup,
   type PaletteGroup,
   type PaletteRow,
+  paletteKeyDown,
   paletteOptionId,
+  useDismissOutside,
 } from './composer-palette'
 import { useComposerDraftKey, useComposerDrafts } from './drafts-context'
 import { $createChipNode, ChipNode, type PromptChipValue, samePromptChip } from './prompt-chip'
@@ -675,62 +677,20 @@ function PromptInputShell({
     [closePalette, draftText.text, editor, focusEditor, toggleConfiguration],
   )
 
-  /* 点到卡外就收面板：捕获相 pointerdown，因为点不可聚焦区域不移走焦点。 */
-  useEffect(() => {
-    if (!paletteOpen) {
-      return undefined
-    }
-
-    const onPointerDown = (event: PointerEvent) => {
-      if (event.target instanceof Node && formRef.current?.contains(event.target) === true) {
-        return
-      }
-
-      closePalette()
-    }
-
-    document.addEventListener('pointerdown', onPointerDown, true)
-
-    return () => {
-      document.removeEventListener('pointerdown', onPointerDown, true)
-    }
-  }, [closePalette, paletteOpen])
+  /* 点到卡外就收面板。 */
+  useDismissOutside(paletteOpen, formRef, closePalette)
 
   /* 面板开着时这几个键归面板。捕获相先到，编辑器因此不需要知道面板存在。 */
   const onPaletteKeyDown = (event: KeyboardEvent<HTMLFormElement>) => {
-    if (!paletteOpen || event.nativeEvent.isComposing) {
-      return
-    }
-
-    if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
-      event.preventDefault()
-      event.stopPropagation()
-
-      const step = event.key === 'ArrowDown' ? 1 : -1
-
-      setHighlighted((current) => (current + step + rows.length) % rows.length)
-
-      return
-    }
-
-    if (event.key === 'Enter' || event.key === 'Tab') {
-      event.preventDefault()
-      event.stopPropagation()
-
-      const chosen = rows[highlighted] ?? rows[0]
-
-      if (chosen !== undefined) {
-        pickRow(chosen)
-      }
-
-      return
-    }
-
-    if (event.key === 'Escape') {
-      event.preventDefault()
-      event.stopPropagation()
-      closePalette()
-    }
+    paletteKeyDown(event, {
+      highlighted,
+      onClose: closePalette,
+      onHighlight: setHighlighted,
+      onPick: pickRow,
+      open: paletteOpen,
+      rows,
+      stopPropagation: true,
+    })
   }
 
   const onFormKeyDown = (event: KeyboardEvent<HTMLFormElement>) => {

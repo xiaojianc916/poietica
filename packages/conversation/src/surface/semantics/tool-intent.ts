@@ -25,7 +25,7 @@ const VERB: Record<ToolKind, string | null> = {
 /** 一行放不下就截断。这个数按一行能扫完的字数取，不是按存储。 */
 const CLAMP = 160
 
-/** 一段原文收成一行：取首行，过长截断。截断判据全仓只有这一处。 */
+/** 一段原文收成一行：取首行，过长截断。摘要那条（fatal-incident.ts）另有归一空白与兜底，不是同一条规则。 */
 export function clampToLine(full: string): string | null {
   const cut = full.indexOf('\n')
   const said = (cut === -1 ? full : full.slice(0, cut)).trim()

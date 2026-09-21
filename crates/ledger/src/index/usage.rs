@@ -1,5 +1,5 @@
 use rusqlite::OptionalExtension;
-use time::{Date, Duration as TimeDuration, OffsetDateTime};
+use time::{Date, Duration as TimeDuration};
 
 use crate::error::Result;
 use crate::index::store::AgentStore;
@@ -19,13 +19,10 @@ pub struct TokenDay {
     pub tokens: i64,
 }
 
-fn local_day() -> Result<Date> {
-    Ok(OffsetDateTime::now_local()?.date())
-}
-
 impl AgentStore {
     pub fn record_usage(&mut self, session_id: &str, usage: SessionUsage) -> Result<()> {
-        self.record_usage_on(session_id, usage, local_day()?)
+        let day = self.clock().now_local_date()?;
+        self.record_usage_on(session_id, usage, day)
     }
 
     fn record_usage_on(&mut self, session_id: &str, usage: SessionUsage, day: Date) -> Result<()> {
@@ -89,7 +86,8 @@ impl AgentStore {
     }
 
     pub fn token_days(&self, span: i64) -> Result<Vec<TokenDay>> {
-        self.token_days_through(span, local_day()?)
+        let today = self.clock().now_local_date()?;
+        self.token_days_through(span, today)
     }
 
     fn token_days_through(&self, span: i64, today: Date) -> Result<Vec<TokenDay>> {
@@ -118,6 +116,7 @@ impl AgentStore {
 mod tests {
     #![allow(clippy::expect_used, reason = "a broken test fixture must fail loudly")]
 
+    use poietica_time::WallClock;
     use poietica_time::test_clock::TestClock;
     use tempfile::TempDir;
     use time::{Date, Month};
@@ -152,5 +151,21 @@ mod tests {
         let days = store.token_days_through(1, day).expect("days");
         assert_eq!(days.len(), 1);
         assert_eq!(days.first().expect("recorded day").tokens, 170);
+    }
+
+    /* 今天这一格必须来自注入的时钟：直接读系统时间的话，跨时区的那一笔会记到隔壁那一天。 */
+    #[test]
+    fn the_recorded_day_comes_from_the_injected_clock() {
+        let root = TempDir::new().expect("temporary directory");
+        let clock = TestClock::at_unix_millis(1_700_000_000_000);
+        let expected = clock.now_local_date().expect("local date");
+        let mut store = AgentStore::open(&root.path().join("usage.sqlite3"), clock).expect("store");
+        store.record_usage("session", usage(100)).expect("recorded");
+        let days = store.token_days(1).expect("days");
+        assert_eq!(days.len(), 1);
+        assert_eq!(
+            days.first().expect("recorded day").day,
+            expected.to_string()
+        );
     }
 }

@@ -71,6 +71,7 @@
         "@poietica/contract": "workspace:*",
         "@poietica/conversation": "workspace:*",
         "@poietica/design-system": "workspace:*",
+        "@poietica/external-store": "workspace:*",
         "@poietica/problem": "workspace:*",
         "lucide-react": "catalog:",
       },
@@ -173,6 +174,7 @@
       "version": "0.1.0",
       "dependencies": {
         "@poietica/design-system": "workspace:*",
+        "@poietica/external-store": "workspace:*",
         "@poietica/problem": "workspace:*",
         "lucide-react": "catalog:",
         "yaml": "catalog:",
@@ -204,6 +206,7 @@
       "version": "0.1.0",
       "dependencies": {
         "@poietica/contract": "workspace:*",
+        "@poietica/external-store": "workspace:*",
       },
       "devDependencies": {
         "@types/bun": "catalog:",

@@ -1,9 +1,10 @@
 use std::{backtrace::Backtrace, fs, panic::PanicHookInfo, path::Path};
 
+use poietica_time::{WallClock, wall_clock::SystemWallClock};
 use serde::{Deserialize, Serialize};
 use specta::Type;
 use tauri::AppHandle;
-use time::{OffsetDateTime, format_description::well_known::Rfc3339};
+use time::format_description::well_known::Rfc3339;
 use uuid::Uuid;
 
 use crate::Result;
@@ -39,7 +40,7 @@ pub fn install(app: &AppHandle) -> Result<()> {
     let previous_hook = std::panic::take_hook();
 
     std::panic::set_hook(Box::new(move |panic_info| {
-        let report = create_report(panic_info, &app_version);
+        let report = create_report(panic_info, &app_version, &SystemWallClock);
 
         if let Err(error) = write_report(&report_path, &report) {
             eprintln!("[Poietica] failed to persist native crash report: {error}");
@@ -58,12 +59,17 @@ pub fn take_previous_crash_report(app: &AppHandle) -> Result<Option<NativeCrashR
         return Ok(None);
     }
 
+    /* 读不出与解不开同一种处置：这份报告没用了，删掉，别让它每次都来烦一遍。 */
+    let discard = |error: &dyn std::fmt::Display| {
+        log::error!("discarded an unusable native crash report: {error}");
+
+        let _ = fs::remove_file(&report_path);
+    };
+
     let source = match fs::read_to_string(&report_path) {
         Ok(source) => source,
         Err(error) => {
-            log::error!("failed to read native crash report: {error}");
-
-            let _ = fs::remove_file(&report_path);
+            discard(&error);
             return Ok(None);
         }
     };
@@ -71,9 +77,7 @@ pub fn take_previous_crash_report(app: &AppHandle) -> Result<Option<NativeCrashR
     let report = match serde_json::from_str::<NativeCrashReport>(&source) {
         Ok(report) => report,
         Err(error) => {
-            log::error!("invalid native crash report was discarded: {error}");
-
-            let _ = fs::remove_file(&report_path);
+            discard(&error);
             return Ok(None);
         }
     };
@@ -83,7 +87,11 @@ pub fn take_previous_crash_report(app: &AppHandle) -> Result<Option<NativeCrashR
     Ok(Some(report))
 }
 
-fn create_report(panic_info: &PanicHookInfo<'_>, app_version: &str) -> NativeCrashReport {
+fn create_report(
+    panic_info: &PanicHookInfo<'_>,
+    app_version: &str,
+    clock: &impl WallClock,
+) -> NativeCrashReport {
     let current_thread = std::thread::current();
 
     let thread_name = current_thread.name().unwrap_or("unnamed").to_owned();
@@ -106,7 +114,7 @@ fn create_report(panic_info: &PanicHookInfo<'_>, app_version: &str) -> NativeCra
 
     NativeCrashReport {
         incident_id: format!("native-{}", Uuid::now_v7()),
-        occurred_at: current_timestamp(),
+        occurred_at: current_timestamp(clock),
         process: "poietica".to_owned(),
         thread: truncate(thread_name, 256),
         message: truncate(message, MAX_MESSAGE_LENGTH),
@@ -137,10 +145,12 @@ fn write_report(path: &Path, report: &NativeCrashReport) -> std::io::Result<()> 
     fs::write(path, &serialized)
 }
 
-fn current_timestamp() -> String {
-    OffsetDateTime::now_utc()
+/// 时钟经注入：与账本、日程同一条规则，进程里只有 `crates/time` 读系统时间。
+fn current_timestamp(clock: &impl WallClock) -> String {
+    clock
+        .now_utc()
         .format(&Rfc3339)
-        .unwrap_or_else(|_| OffsetDateTime::now_utc().unix_timestamp().to_string())
+        .unwrap_or_else(|_| clock.now_utc().unix_timestamp().to_string())
 }
 
 fn truncate(mut value: String, maximum_length: usize) -> String {

@@ -669,13 +669,5 @@ export function selectPresentation(
 
 /** 这一组里还在跑的那一条，倒着找：卡片只报最后一条的状态。 */
 export function liveMemberOf(plan: ToolGroupPlan): FeedRow | undefined {
-  for (let i = plan.members.length - 1; i >= 0; i -= 1) {
-    const member = plan.members[i]
-
-    if (member?.isInFlight === true) {
-      return member
-    }
-  }
-
-  return undefined
+  return plan.members.findLast((member) => member.isInFlight === true)
 }

@@ -1,3 +1,4 @@
+import { createExternalStore } from '@poietica/external-store'
 import type { SessionConfigControl, SessionConfigPort, SessionConfigReport } from '../agent/config'
 import type { SessionGoal } from '../agent/goal'
 import type { PermissionPosturePort } from '../agent/permission'
@@ -66,7 +67,7 @@ export class SessionControlsStore {
 
   readonly #transcripts: TranscriptSink | undefined
 
-  readonly #listeners = new Set<() => void>()
+  readonly #store = createExternalStore<Held>({ read: () => this.#held })
 
   readonly #posture: PermissionPosturePort | undefined
 
@@ -118,13 +119,7 @@ export class SessionControlsStore {
    * 与 AgentCapabilityStore 同一个形状（subscribe / snapshot 两个箭头字段），
    * useSyncExternalStore 直接就能用；引用终生不变，订阅不会因为重画而重装。
    */
-  subscribe = (listener: () => void): (() => void) => {
-    this.#listeners.add(listener)
-
-    return () => {
-      this.#listeners.delete(listener)
-    }
-  }
+  subscribe = (listener: () => void): (() => void) => this.#store.subscribe(listener)
 
   start = (): (() => void) => {
     if (this.#disposed) {
@@ -157,7 +152,6 @@ export class SessionControlsStore {
     this.#inflight.clear()
     this.#order.clear()
     this.#alignedTo.clear()
-    this.#listeners.clear()
     this.#held = EMPTY
   }
 
@@ -531,12 +525,6 @@ export class SessionControlsStore {
     }
 
     this.#held = next
-    this.#announce()
-  }
-
-  #announce(): void {
-    for (const listener of this.#listeners) {
-      listener()
-    }
+    this.#store.notify()
   }
 }

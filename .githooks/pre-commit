@@ -5,6 +5,12 @@ set -eu
 # Format and fix only what is being committed. Biome owns the rules.
 bunx biome check --write --staged --no-errors-on-unmatched --files-ignore-unknown=true
 
+# 同上，Rust 侧。cargo fmt 不接受文件清单，所以只在整个工作区都已暂存时才跑，
+# 否则 rustfmt 会因未暂存的改动报错。
+if [ -z "$(git diff --name-only)" ] && [ -n "$(git diff --cached --name-only -- '*.rs')" ]; then
+  cargo fmt --all
+fi
+
 # Refresh index entries that already exist there. Never stage anything new:
 # "git add -u" would sweep unrelated working-tree changes into this commit.
 git update-index --again

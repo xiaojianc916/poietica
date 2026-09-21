@@ -278,6 +278,7 @@ export function DesktopWorkspace({
         <DesktopTitleBar
           activeTabSequence={describeTabSequence(
             isSettingsOpen ? [] : workbench.tabs,
+            workbench.activeTabId,
             actions.activateTab,
           )}
           isMaximized={isWindowMaximized}
@@ -410,9 +411,10 @@ export function DesktopWorkspace({
 
 function describeTabSequence(
   tabs: readonly WorkbenchTabViewModel[],
+  activeTabId: WorkbenchTabId,
   onActivateTab: (tabId: WorkbenchTabId) => void,
 ): ActiveTabSequence {
-  const { next, previous } = tabNeighbors(tabs, tabs.find((tab) => tab.isActive)?.id)
+  const { next, previous } = tabNeighbors(tabs, activeTabId)
 
   return {
     canActivatePrevious: previous !== undefined,

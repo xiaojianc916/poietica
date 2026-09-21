@@ -366,10 +366,16 @@ pub enum AgentQuestionMethod {
 #[serde(tag = "kind", rename_all = "snake_case")]
 pub enum AgentQuestionChoice {
     #[serde(rename_all = "camelCase")]
-    Single { option_id: String },
+    Single {
+        option_id: String,
+    },
     #[serde(rename_all = "camelCase")]
-    Multi { option_ids: Vec<String> },
-    Other { text: String },
+    Multi {
+        option_ids: Vec<String>,
+    },
+    Other {
+        text: String,
+    },
     #[serde(rename_all = "camelCase")]
     MultiWithOther {
         option_ids: Vec<String>,

@@ -247,14 +247,10 @@ impl TerminalSessions {
     ) -> Result<(), TerminalError> {
         let mut open = hold(&self.open);
 
-        if !open.contains_key(key) {
+        let Some(session) = open.get(key) else {
             open.insert(key.to_owned(), Session::open(key, cwd, cols, rows, sink)?);
 
             return Ok(());
-        }
-
-        let Some(session) = open.get(key) else {
-            return Err(TerminalError::Unknown(key.to_owned()));
         };
 
         session.resize(cols, rows)?;

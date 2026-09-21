@@ -154,7 +154,7 @@ async fn refreshed(
 }
 
 /* 只挡把参数读成命令行开关的那一类注入；其余交给 git 自己解释。 */
-fn checked(kind: &str, value: &str) -> Result<(), GitError> {
+pub(crate) fn checked(kind: &str, value: &str) -> Result<(), GitError> {
     if value.trim().is_empty() || value.starts_with('-') {
         return Err(GitError::Refused(format!("无效的{kind}：{value}")));
     }

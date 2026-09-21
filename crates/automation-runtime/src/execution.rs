@@ -116,17 +116,13 @@ where
             .await;
         }
     };
-    let terminal = match observation {
-        Observation::Succeeded => Some(Outcome::Succeeded),
-        Observation::Failed => Some(Outcome::Failed),
-        Observation::Cancelled => Some(Outcome::Cancelled),
-        Observation::Active | Observation::Missing => None,
-    };
-    if let Some(outcome) = terminal {
-        return record(index, id, outcome, None).await;
-    }
-    if observation == Observation::Missing {
-        return unresolved(index, id).await;
+    /* 一个观察值只判一次：分成 match 加等值两处，加一种观察值就要记得改两处。 */
+    match observation {
+        Observation::Succeeded => return record(index, id, Outcome::Succeeded, None).await,
+        Observation::Failed => return record(index, id, Outcome::Failed, None).await,
+        Observation::Cancelled => return record(index, id, Outcome::Cancelled, None).await,
+        Observation::Missing => return unresolved(index, id).await,
+        Observation::Active => {}
     }
     let requested = id.clone();
     let Some(execution) = read_index(index, move |store| {

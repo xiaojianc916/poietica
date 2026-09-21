@@ -399,6 +399,21 @@ function projectTurn(turn: TranscriptTurn): {
  */
 const WRAPPED_PAGES = new WeakMap<TurnPage, TurnPage>()
 
+function wrappedPage(page: TurnPage, run: NonNullable<TurnPage['run']>): TurnPage {
+  const wrapped = WRAPPED_PAGES.get(page)
+  if (
+    wrapped?.run !== undefined &&
+    wrapped.run.settled === run.settled &&
+    wrapped.run.undoCount === run.undoCount &&
+    wrapped.run.forkUnavailableReason === run.forkUnavailableReason
+  ) {
+    return wrapped
+  }
+  const fresh = { ...page, run }
+  WRAPPED_PAGES.set(page, fresh)
+  return fresh
+}
+
 function runBoundariesOf(
   pages: readonly TurnPage[],
   facts: readonly TurnFact[],
@@ -426,21 +441,11 @@ function runBoundariesOf(
         ? '会话仍在运行或等待输入，暂不可分叉。'
         : (uncertainty ??
           (nextOpensWithAnchor ? null : '下一段不从用户撤销锚点开始，无法精确截到此处。'))
-    const undoCount = reason === null ? suffixAnchors : null
-    const wrapped = WRAPPED_PAGES.get(page)
-    if (
-      wrapped !== undefined &&
-      wrapped.run !== undefined &&
-      wrapped.run.settled === settled &&
-      wrapped.run.undoCount === undoCount &&
-      wrapped.run.forkUnavailableReason === reason
-    ) {
-      result[runIndex] = wrapped
-    } else {
-      const fresh = { ...page, run: { settled, undoCount, forkUnavailableReason: reason } }
-      WRAPPED_PAGES.set(page, fresh)
-      result[runIndex] = fresh
-    }
+    result[runIndex] = wrappedPage(page, {
+      settled,
+      undoCount: reason === null ? suffixAnchors : null,
+      forkUnavailableReason: reason,
+    })
     if (fact.anchors === null) {
       uncertainty = '来源或撤销锚点信息不足，不能可靠计算分叉位置。'
     } else {

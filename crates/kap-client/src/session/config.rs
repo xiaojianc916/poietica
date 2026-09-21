@@ -380,12 +380,14 @@ fn thinking_offer(
 ) -> Option<ThinkingOffer> {
     let item = items.iter().find(|item| item.model == model)?;
     let capabilities = item.capabilities.as_deref().unwrap_or_default();
-    let supports = capabilities
-        .iter()
-        .any(|capability| matches!(capability.as_str(), "thinking" | "always_thinking"));
     let always = capabilities
         .iter()
         .any(|capability| capability == "always_thinking");
+    // always_thinking 蕴含 thinking，一次遍历就够。
+    let supports = always
+        || capabilities
+            .iter()
+            .any(|capability| capability == "thinking");
     let mut choices = Vec::new();
 
     for effort in item.support_efforts.as_deref().unwrap_or_default() {
@@ -393,47 +395,37 @@ fn thinking_offer(
             push_unique(&mut choices, thinking_choice(value));
         }
     }
-    if !choices.is_empty() {
-        if supports && !always {
-            choices.insert(0, thinking_choice(OFF));
+    if choices.is_empty() {
+        if !supports {
+            return None;
         }
-        let current = reported
-            .filter(|value| contains(&choices, value))
-            .or_else(|| {
-                item.default_effort
-                    .as_deref()
-                    .and_then(non_empty)
-                    .filter(|value| contains(&choices, value))
-            })
-            .or_else(|| {
-                choices
-                    .get(choices.len() / 2)
-                    .map(|choice| choice.value.as_str())
-            })?;
-        return Some(ThinkingOffer {
-            current: current.to_owned(),
-            choices,
-        });
+        // 没有声明档位时只有开这一档；它在下面正好落在这串的正中。
+        choices.push(thinking_choice(ON));
     }
-    if !supports {
-        return None;
-    }
-    choices.push(thinking_choice(ON));
-    if !always {
+    if supports && !always {
         choices.insert(0, thinking_choice(OFF));
     }
     let current = reported
         .filter(|value| contains(&choices, value))
-        .unwrap_or(ON)
-        .to_owned();
-    Some(ThinkingOffer { current, choices })
+        .or_else(|| {
+            item.default_effort
+                .as_deref()
+                .and_then(non_empty)
+                .filter(|value| contains(&choices, value))
+        })
+        .or_else(|| {
+            choices
+                .get(choices.len() / 2)
+                .map(|choice| choice.value.as_str())
+        })?;
+    Some(ThinkingOffer {
+        current: current.to_owned(),
+        choices,
+    })
 }
 
 fn in_force(choices: &[ConfigChoice], reported: &str) -> Option<String> {
-    choices
-        .iter()
-        .find(|choice| choice.value == reported)
-        .map(|choice| choice.value.clone())
+    contains(choices, reported).then(|| reported.to_owned())
 }
 
 fn current_not_offered(choices: &[ConfigChoice], current: &str) -> bool {

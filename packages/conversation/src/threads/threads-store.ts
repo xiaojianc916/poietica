@@ -1,3 +1,4 @@
+import { createExternalStore } from '@poietica/external-store'
 import type { OpenedThread, ThreadPort, ThreadRecord } from '../agent/thread'
 import { describeFailure } from '../failure'
 import type { ThreadsList } from './thread-order'
@@ -33,7 +34,7 @@ export class ThreadsStore {
   readonly #now: () => string
   readonly #projection = new ThreadProjection()
   readonly #archivedProjection = new ThreadProjection()
-  readonly #listeners = new Set<() => void>()
+  readonly #store = createExternalStore<ThreadsList>({ read: () => this.#list })
   readonly #removed = new Set<(threadId: string) => void>()
   readonly #opened = new Set<(answer: OpenedThread) => void>()
   readonly #tails = new Map<string, Promise<void>>()
@@ -55,19 +56,12 @@ export class ThreadsStore {
   dispose = (): void => {
     this.#disposed = true
     this.#revision += 1
-    this.#listeners.clear()
     this.#removed.clear()
     this.#opened.clear()
     this.#tails.clear()
   }
-  subscribe = (listener: () => void): (() => void) => {
-    if (!this.#disposed) {
-      this.#listeners.add(listener)
-    }
-    return () => {
-      this.#listeners.delete(listener)
-    }
-  }
+  subscribe = (listener: () => void): (() => void) =>
+    this.#disposed ? () => undefined : this.#store.subscribe(listener)
   onRemoved = (listener: (threadId: string) => void): (() => void) => {
     if (!this.#disposed) {
       this.#removed.add(listener)
@@ -471,9 +465,7 @@ export class ThreadsStore {
       this.#archived = { items: archived, isLoading, failure }
     }
     if (previous !== this.#list || previousArchived !== this.#archived) {
-      for (const listener of this.#listeners) {
-        listener()
-      }
+      this.#store.notify()
     }
   }
 }

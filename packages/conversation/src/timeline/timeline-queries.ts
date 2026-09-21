@@ -77,10 +77,6 @@ export function pendingPermission(scope: WaitingScope): PermissionItem | undefin
   return pendingInteractions(scope).permission
 }
 
-export function pendingPermissionCount(scope: WaitingScope): number {
-  return pendingInteractions(scope).permissionCount
-}
-
 export function currentTodos(state: TimelineState): readonly TodoItem[] | null {
   const pages = [...state.sealed, state.active]
   for (let pageIndex = pages.length - 1; pageIndex >= 0; pageIndex -= 1) {

@@ -319,17 +319,24 @@ function ProviderWorkspace({
     () => reconcileProviderOrder(data.providers, providerOrder),
     [data.providers, providerOrder],
   )
-  /* Base UI 手风琴默认 multiple；这里在逻辑层强制单开，展开新项即收起旧项。 */
-  const [openIds, setOpenIds] = useState<readonly string[]>([])
-  const openId = openIds[0] ?? null
-  const setOpenId = (id: string | null) => setOpenIds(id === null ? [] : [id])
-  const handleValueChange = (next: string[]) => {
-    const added = next.find((id) => !openIds.includes(id))
-    setOpenIds(added === undefined ? next : [added])
-  }
+  /* 按供应商分一次组：逐项现 filter 一遍就是 O(供应商 × 模型)，每次重画都付。 */
+  const modelsByProvider = useMemo(() => {
+    const grouped = new Map<string, ModelDescriptor[]>()
+    for (const model of data.models) {
+      const held = grouped.get(model.provider)
+      if (held === undefined) {
+        grouped.set(model.provider, [model])
+      } else {
+        held.push(model)
+      }
+    }
+    return grouped
+  }, [data.models])
+  /* 单开是 Base UI 手风琴的默认形态，这里只把它的数组值收成一项。 */
+  const [openId, setOpenId] = useState<string | null>(null)
   useEffect(() => {
     if (openId !== null && openId !== ADD_PROVIDER && !providers.some((p) => p.id === openId)) {
-      setOpenIds([])
+      setOpenId(null)
     }
   }, [providers, openId])
 
@@ -347,7 +354,10 @@ function ProviderWorkspace({
         </Button>
       </div>
       <div className="models-card">
-        <Accordion multiple onValueChange={handleValueChange} value={openIds as string[]}>
+        <Accordion
+          onValueChange={(next) => setOpenId(next[0] ?? null)}
+          value={openId === null ? [] : [openId]}
+        >
           {openId === ADD_PROVIDER ? (
             <AddProviderItem
               data={data}
@@ -360,9 +370,9 @@ function ProviderWorkspace({
           ) : null}
           {providers.map((provider) => (
             <ProviderItem
-              data={data}
               disabled={disabled}
               key={provider.id}
+              models={modelsByProvider.get(provider.id) ?? []}
               onRemove={() => onRemove(provider.id)}
               onRun={onRun}
               onSaved={() => setOpenId(null)}
@@ -401,20 +411,19 @@ function reconcileProviderOrder(
 
 function ProviderItem({
   provider,
-  data,
   disabled,
+  models,
   onRemove,
   onRun,
   onSaved,
 }: {
   readonly provider: ModelProvider
-  readonly data: ModelCatalogData
   readonly disabled: boolean
+  readonly models: readonly ModelDescriptor[]
   readonly onRemove: () => void
   readonly onRun: RunMutation
   readonly onSaved: () => void
 }) {
-  const models = data.models.filter((model) => model.provider === provider.id)
   return (
     <AccordionItem className="models-accordion-item" value={provider.id}>
       <AccordionHeader className="models-accordion-header">

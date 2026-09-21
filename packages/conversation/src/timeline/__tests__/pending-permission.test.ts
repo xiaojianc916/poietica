@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'bun:test'
 import type { PermissionItem, TimelineItem, TimelineState } from '../timeline-contract'
-import { activeScope, pendingPermission, type WaitingScope } from '../timeline-queries'
+import { activeScope, pendingInteractions, type WaitingScope } from '../timeline-queries'
 
 /*
  * 并行子代理会让一轮里同时挂着几个请求（ADR 0002）。
@@ -47,17 +47,17 @@ function waiting(items: readonly TimelineItem[]): WaitingScope {
   return { items, status: 'awaiting_permission' }
 }
 
-describe('pendingPermission', () => {
+describe('pendingInteractions', () => {
   it('交出本段最早那个还没答复的请求', () => {
     const items: readonly TimelineItem[] = [asked('a', 1), asked('b', 1), asked('c', 1)]
 
-    expect(pendingPermission(waiting(items))?.requestId).toBe('a')
+    expect(pendingInteractions(waiting(items)).permission?.requestId).toBe('a')
   })
 
   it('答掉一个，下一个顶上来', () => {
     const items: readonly TimelineItem[] = [answered('a', 1), asked('b', 1), asked('c', 1)]
 
-    expect(pendingPermission(waiting(items))?.requestId).toBe('b')
+    expect(pendingInteractions(waiting(items)).permission?.requestId).toBe('b')
   })
 
   it('不越过段边界：封口段里的请求不再交出', () => {
@@ -70,19 +70,26 @@ describe('pendingPermission', () => {
       spans: [],
     }
 
-    expect(pendingPermission(activeScope(state))?.requestId).toBe('now')
+    expect(pendingInteractions(activeScope(state)).permission?.requestId).toBe('now')
   })
 
   it('全部答完就没有了', () => {
     const items: readonly TimelineItem[] = [answered('a', 1), answered('b', 1)]
 
-    expect(pendingPermission(waiting(items))).toBeUndefined()
+    expect(pendingInteractions(waiting(items)).permission).toBeUndefined()
   })
 
   /* 状态说没人在等，就没人在等 —— 倒扫连开始都不该开始。 */
   it('没在等人就不交，哪怕转录里还挂着一条没答复的请求', () => {
     const items: readonly TimelineItem[] = [asked('a', 1)]
 
-    expect(pendingPermission({ items, status: 'running' })).toBeUndefined()
+    expect(pendingInteractions({ items, status: 'running' }).permission).toBeUndefined()
+  })
+
+  /* 分母与「该问谁」出自同一趟扫描：两处各算一次，序号就会与画出来的那条对不上。 */
+  it('审批总数与本段条数一致', () => {
+    const items: readonly TimelineItem[] = [asked('a', 1), answered('b', 1), asked('c', 1)]
+
+    expect(pendingInteractions(waiting(items)).permissionCount).toBe(2)
   })
 })

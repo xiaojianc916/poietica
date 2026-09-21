@@ -70,9 +70,15 @@ pub struct QuestionGroup {
     rename_all_fields = "camelCase"
 )]
 pub enum QuestionAnswer {
-    Single { option_id: String },
-    Multi { option_ids: Vec<String> },
-    Other { text: String },
+    Single {
+        option_id: String,
+    },
+    Multi {
+        option_ids: Vec<String>,
+    },
+    Other {
+        text: String,
+    },
     /// 选了几个，还自己写了一句；线上允许一个都没选。
     MultiWithOther {
         option_ids: Vec<String>,

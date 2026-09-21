@@ -6,7 +6,7 @@ use poietica_ledger::{
 };
 use poietica_time::WallClock;
 use std::{
-    collections::HashMap,
+    collections::{HashMap, HashSet},
     fmt::Display,
     fs::File,
     sync::{Arc, Mutex},
@@ -184,18 +184,25 @@ async fn drive<E, X, C, P>(
             published = Some(state.revision);
         }
         let now = Instant::now();
-        attempted.retain(|run, _| state.executions.values().any(|entry| &entry.run.id == run));
+        let live: HashSet<&str> = state
+            .executions
+            .values()
+            .map(|entry| entry.run.id.as_str())
+            .collect();
+        let owned: HashSet<&str> = owners.values().map(String::as_str).collect();
+        attempted.retain(|run, _| live.contains(run.as_str()));
         let mut ready: Vec<_> = state
             .executions
             .into_values()
             .filter(|execution| {
-                !owners.values().any(|run| run == &execution.run.id)
+                !owned.contains(execution.run.id.as_str())
                     && attempted
                         .get(&execution.run.id)
                         .is_none_or(|at| now.duration_since(*at) >= POLL)
             })
             .collect();
-        ready.sort_by_key(|execution| attempted.get(&execution.run.id).copied());
+        /* 缓存键：键闭包每次比较都跑一遍，现查 map 就是 O(n log n) 次查找。 */
+        ready.sort_by_cached_key(|execution| attempted.get(&execution.run.id).copied());
         for execution in ready
             .into_iter()
             .take(PARALLELISM.saturating_sub(owners.len()))

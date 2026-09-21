@@ -110,8 +110,6 @@ export {
   activeScope,
   currentTodos,
   pendingInteractions,
-  pendingPermission,
-  pendingPermissionCount,
   selectIsBusy,
 } from './timeline/timeline-queries'
 export { createTimelineState } from './timeline/timeline-state'

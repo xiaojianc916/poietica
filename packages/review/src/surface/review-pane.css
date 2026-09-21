@@ -75,7 +75,20 @@
 }
 
 /*
- * 行号槽读 gutter（浅一档）；margin-right 推开正文 3px，这道缝落在行容器的
+ * 行号槽：正文那套等宽字体不跟过来（数字用正文字体），字号比正文大一档。
+ *
+ * 取色随种类走：增绿删红，上下文行留淡灰。用前景半透明而不是 #ededed —— 它压在
+ * 增删底色上，中性灰在浅底上比底色还浅，半透明前景自己会跟着底色深浅走，深色
+ * 主题下不用另写一套。
+ */
+.review-line__number {
+  color: color-mix(in srgb, var(--color-foreground) 30%, transparent);
+  font-family: var(--font-sans);
+  font-size: 12px;
+}
+
+/*
+ * 增删行另读 gutter（浅一档）；margin-right 推开正文 3px，这道缝落在行容器的
  * 透明底上，不红不绿。正文的 fill 底色由行容器 ::after 铺（见下）。普通行
  * 没有这两套类，背景与间距都不变。
  */
@@ -86,10 +99,12 @@
 
 .review-line--added .review-line__number {
   background: var(--review-added-gutter);
+  color: var(--review-added-edge);
 }
 
 .review-line--removed .review-line__number {
   background: var(--review-removed-gutter);
+  color: var(--review-removed-edge);
 }
 
 /* 正文区占满行号槽右侧：flex 只管文字布局，底色交给行容器 ::after。 */
@@ -142,29 +157,6 @@
     #51231e 1.333px,
     #51231e 2px
   );
-}
-
-/*
- * 行号槽：正文那套等宽字体不跟过来（数字用正文字体），字号比正文大一档；
- * 右缘一道细线把行号与正文分开。取色随种类走 —— 增绿删红，上下文行留淡灰。
- *
- * 细线用前景半透明而不是 #ededed：它压在增删底色上，中性灰在浅底上比底色还浅，
- * 半透明前景自己会跟着底色深浅走，深色主题下不用另写一套。
- * 整段外观写在这里而非组件里，理由同 .review-mark —— app.css 的无层级通配规则
- * 压过 utilities 层，边框色在组件里根本改不动。
- */
-.review-line__number {
-  color: color-mix(in srgb, var(--color-foreground) 30%, transparent);
-  font-family: var(--font-sans);
-  font-size: 12px;
-}
-
-.review-line--added .review-line__number {
-  color: var(--review-added-edge);
-}
-
-.review-line--removed .review-line__number {
-  color: var(--review-removed-edge);
 }
 
 /* 语法色由 shiki 给出，两套主题各一个值；选哪一套是样式的事，组件不问主题。 */

@@ -1,6 +1,5 @@
 import type { AttachmentIntake, ComposerAsset } from '@poietica/conversation'
 import {
-  type AssetFormat,
   importAssets,
   listAssetFormats,
   openAssetSession,
@@ -17,35 +16,32 @@ const KIND_LABELS: Readonly<Record<string, string>> = { image: '图片', text: '
 /** 同一批 paths 在这么久之内再来一次，当作重复触发。 */
 const REPEAT_WINDOW = 1000
 
+/**
+ * 一次成型：同一件事在飞的时候再来就搭上那一次，不另起一次。
+ *
+ * 失败后必须把槽位放掉，否则一次网络抖动会让这条通道永远回不来。
+ */
+function once<T>(work: () => Promise<T>): () => Promise<T> {
+  let held: Promise<T> | undefined
+
+  return () => {
+    if (held === undefined) {
+      const pending = work()
+      held = pending
+      void pending.catch(() => {
+        if (held === pending) {
+          held = undefined
+        }
+      })
+    }
+
+    return held
+  }
+}
+
 export function createAttachmentIntake(): AttachmentIntake {
-  let opened: Promise<string> | undefined
-  let offered: Promise<readonly AssetFormat[]> | undefined
-
-  const composerSession = (): Promise<string> => {
-    if (opened === undefined) {
-      const pending = openAssetSession()
-      opened = pending
-      void pending.catch(() => {
-        if (opened === pending) {
-          opened = undefined
-        }
-      })
-    }
-    return opened
-  }
-
-  const knownFormats = (): Promise<readonly AssetFormat[]> => {
-    if (offered === undefined) {
-      const pending = listAssetFormats()
-      offered = pending
-      void pending.catch(() => {
-        if (offered === pending) {
-          offered = undefined
-        }
-      })
-    }
-    return offered
-  }
+  const composerSession = once(openAssetSession)
+  const knownFormats = once(listAssetFormats)
 
   const intake = async (paths: readonly string[]): Promise<readonly ComposerAsset[]> => {
     if (paths.length === 0) {

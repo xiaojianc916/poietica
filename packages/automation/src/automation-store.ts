@@ -1,4 +1,5 @@
 import type { Automation, AutomationCatalog, SchedulePreview } from '@poietica/contract/automation'
+import { createExternalStore } from '@poietica/external-store'
 import type { AutomationDraft } from './automation'
 import type { AutomationGateway } from './automation-gateway'
 
@@ -48,7 +49,7 @@ export function createAutomationStore(
     watchError: null,
     pending: [],
   }
-  const listeners = new Set<() => void>()
+  const store = createExternalStore<AutomationsViewModel>({ read: () => snapshot })
   const commands = new Map<string, Promise<boolean>>()
   const runRequests = new Map<string, string>()
   let generation = 0
@@ -57,9 +58,7 @@ export function createAutomationStore(
 
   function publish(patch: Partial<AutomationsViewModel>): void {
     snapshot = { ...snapshot, ...patch }
-    for (const listener of listeners) {
-      listener()
-    }
+    store.notify()
   }
 
   function accept(catalog: AutomationCatalog): void {
@@ -145,12 +144,7 @@ export function createAutomationStore(
 
   return {
     getSnapshot: () => snapshot,
-    subscribe(listener) {
-      listeners.add(listener)
-      return () => {
-        listeners.delete(listener)
-      }
-    },
+    subscribe: store.subscribe,
     create: (draft) =>
       command('create', '创建失败', () =>
         gateway.create({ ...draft, sessionConfig: { ...draft.sessionConfig } }),

@@ -16,4 +16,15 @@ pub trait WallClock: fmt::Debug + Send + Sync {
 
         i64::try_from(millis).unwrap_or(i64::MAX)
     }
+
+    /// 本机日历上的今天。分桶按用户看到的日期，不按 UTC —— 否则跨时区的一笔
+    /// 会被记到昨天或明天那一格。
+    /// 本机日历上的今天。分桶按用户看到的日期，不按 UTC —— 否则跨时区的一笔
+    /// 会被记到昨天或明天那一格。
+    fn now_local_date(&self) -> Result<time::Date, time::error::IndeterminateOffset> {
+        Ok(self
+            .now_utc()
+            .to_offset(time::UtcOffset::current_local_offset()?)
+            .date())
+    }
 }

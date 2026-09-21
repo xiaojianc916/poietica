@@ -109,7 +109,7 @@ export function workspaceNameOf(id: string): string | null {
  */
 // ISO-8601 定长串按字典序即时间序，与库那条 ORDER BY 的 BINARY 排序同一规则；
 // localeCompare 走的是 ICU 区域排序，会与库分叉。
-function byIsoDescending(left: string, right: string): number {
+export function byIsoDescending(left: string, right: string): number {
   return left > right ? -1 : left < right ? 1 : 0
 }
 

@@ -12,7 +12,9 @@ use crate::link::LinkState;
     rename_all_fields = "camelCase"
 )]
 pub enum ConversationEvent {
-    TurnAdmitted { turn: TurnId },
+    TurnAdmitted {
+        turn: TurnId,
+    },
     /// admission_id 同时是投递的幂等键（ports 的 PromptDelivery）：屏幕上那条用户消息与账本准入行同号；可缺省，加该字段之前的旧帧没有它。
     PromptAdmitted {
         #[serde(rename = "admissionId")]
@@ -54,8 +56,12 @@ pub enum ConversationEvent {
         answers: Value,
         note: String,
     },
-    LinkChanged { link: LinkState },
-    SessionRecovered { snapshot: Value },
+    LinkChanged {
+        link: LinkState,
+    },
+    SessionRecovered {
+        snapshot: Value,
+    },
     RunFinished {
         #[serde(skip_serializing_if = "Option::is_none")]
         turn: Option<TurnId>,
@@ -68,7 +74,9 @@ pub enum ConversationEvent {
         message: String,
     },
     /// 字段不能叫 kind：与 serde 的内部 tag 撞名。
-    UnsupportedExternalEvent { raw_kind: String },
+    UnsupportedExternalEvent {
+        raw_kind: String,
+    },
 }
 
 impl ConversationEvent {

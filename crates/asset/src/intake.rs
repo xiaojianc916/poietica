@@ -1,6 +1,6 @@
 use crate::content::AssetSessionSnapshotEntry;
 use crate::delivery::asset_protocol_url;
-use crate::identity::{AssetProtocolError, MAX_ASSET_BYTES, MAX_REGISTRY_BYTES};
+use crate::identity::{AssetProtocolError, MAX_ASSET_BYTES};
 use crate::registry::AssetProtocolRegistry;
 use std::collections::HashMap;
 use std::fs::File;
@@ -43,7 +43,6 @@ pub fn import_files(
 ) -> Result<Vec<ImportedAsset>, AssetIntakeError> {
     let mut unique = HashMap::<String, AssetSessionSnapshotEntry>::new();
     let mut prepared = Vec::with_capacity(paths.len());
-    let mut unique_bytes = 0_usize;
     for name in paths {
         let file = File::open(Path::new(name))?;
         if !file.metadata()?.is_file() {
@@ -57,15 +56,11 @@ pub fn import_files(
         file.take(MAX_ASSET_BYTES as u64 + 1)
             .read_to_end(&mut bytes)?;
         let entry = AssetSessionSnapshotEntry::from_bytes(bytes)?;
+        /* 同内容只留一份：几份副本共用一个 Arc，峰值内存才不被路径数放大。
+        预算判据归 register —— 它连注册表里已有的字节一起算，这里再判一遍只会更松。 */
         if let Some(existing) = unique.get(entry.content_hash()) {
             prepared.push(existing.clone());
         } else {
-            unique_bytes = unique_bytes
-                .checked_add(entry.bytes().len())
-                .ok_or(AssetProtocolError::RegistryBudgetExceeded)?;
-            if unique_bytes > MAX_REGISTRY_BYTES {
-                return Err(AssetProtocolError::RegistryBudgetExceeded.into());
-            }
             unique.insert(entry.content_hash().to_owned(), entry.clone());
             prepared.push(entry);
         }

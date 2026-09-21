@@ -1,7 +1,7 @@
 import './composer-palette.css'
 
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react'
-import type { ReactNode } from 'react'
+import { type KeyboardEvent, type ReactNode, type RefObject, useEffect } from 'react'
 import type { PromptConfiguration } from '../../agent/session'
 import { AttachIcon, CheckIcon } from '../primitives/icons'
 import { ENTER_EASE, ENTER_SECONDS, EXIT_EASE, EXIT_SECONDS, RISE_PX } from '../primitives/motion'
@@ -54,6 +54,70 @@ export function paletteOptionId(listboxId: string, rowId: string): string {
   return `${listboxId}-${rowId}`
 }
 
+/**
+ * 面板开着时，这几个键归面板。两个 composer 共用一条规则 —— 抄成两份的话，
+ * 补一个键位就会只补到其中一处。
+ *
+ * 只在捕获相调用：编辑器与输入框都不该知道面板存在，放它们先看见方向键，
+ * 光标就先挪走了。`stopPropagation` 归调用方：主输入框里还有 Lexical 在听。
+ */
+export function paletteKeyDown(
+  event: KeyboardEvent<HTMLFormElement>,
+  {
+    highlighted,
+    onClose,
+    onHighlight,
+    onPick,
+    open,
+    rows,
+    stopPropagation,
+  }: {
+    readonly highlighted: number
+    readonly onClose: () => void
+    readonly onHighlight: (index: number) => void
+    readonly onPick: (row: PaletteRow) => void
+    readonly open: boolean
+    readonly rows: readonly PaletteRow[]
+    readonly stopPropagation: boolean
+  },
+): void {
+  if (!open || event.nativeEvent.isComposing) {
+    return
+  }
+
+  const swallow = (): void => {
+    event.preventDefault()
+
+    if (stopPropagation) {
+      event.stopPropagation()
+    }
+  }
+
+  if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
+    swallow()
+    onHighlight((highlighted + (event.key === 'ArrowDown' ? 1 : -1) + rows.length) % rows.length)
+
+    return
+  }
+
+  if (event.key === 'Enter' || event.key === 'Tab') {
+    swallow()
+
+    const chosen = rows[highlighted] ?? rows[0]
+
+    if (chosen !== undefined) {
+      onPick(chosen)
+    }
+
+    return
+  }
+
+  if (event.key === 'Escape') {
+    swallow()
+    onClose()
+  }
+}
+
 /*
  * 面板的第一组：往这一句里加什么。
  *
@@ -77,6 +141,38 @@ export function composerComposeGroup(onAddFile: () => void): PaletteGroup {
   }
 }
 
+/**
+ * 点到框外就收面板：捕获相 pointerdown，因为点不可聚焦区域不移走焦点。
+ *
+ * 两个 composer 共用一条规则。`inside` 交回此刻算「框内」的那个元素 ——
+ * 主输入框的框是 form，辅助那一格是输入条本身。
+ */
+export function useDismissOutside(
+  open: boolean,
+  inside: RefObject<Element | null>,
+  close: () => void,
+): void {
+  useEffect(() => {
+    if (!open) {
+      return undefined
+    }
+
+    const onPointerDown = (event: PointerEvent) => {
+      if (event.target instanceof Node && inside.current?.contains(event.target) === true) {
+        return
+      }
+
+      close()
+    }
+
+    document.addEventListener('pointerdown', onPointerDown, true)
+
+    return () => {
+      document.removeEventListener('pointerdown', onPointerDown, true)
+    }
+  }, [close, inside, open])
+}
+
 export interface ComposerPaletteProps {
   readonly groups: readonly PaletteGroup[]
   /** 开合的真相在 PromptInput，这里只负责把它播出来。 */
@@ -98,7 +194,13 @@ export function ComposerPalette({
   onHighlight,
   onPick,
 }: ComposerPaletteProps) {
-  const flat = groups.flatMap((group) => group.rows)
+  /* 高亮位置按拍平后的序号算。逐行现查一次就是每次按键一遍 O(n²)。 */
+  let at = 0
+  const laid = groups.map((group) => {
+    const start = at
+    at += group.rows.length
+    return { group, start }
+  })
 
   /* 关掉动画是系统级偏好，不是这一处的开关。 */
   const reduced = useReducedMotion() === true
@@ -131,12 +233,12 @@ export function ComposerPalette({
             key="composer-palette"
             role="listbox"
           >
-            {groups.map((group) => (
+            {laid.map(({ group, start }) => (
               <div className="composer-palette__group" key={group.id}>
                 <div className="composer-palette__heading">{group.heading}</div>
 
-                {group.rows.map((row) => {
-                  const at = flat.indexOf(row)
+                {group.rows.map((row, offset) => {
+                  const at = start + offset
 
                   return (
                     /* mousedown 而不是 click：preventDefault 拦住焦点转移，落点由 onPick 决定。 */

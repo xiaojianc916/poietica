@@ -679,15 +679,11 @@ async fn replace_existing_goal(
         ..Default::default()
     });
 
+    // 取消失败时只有一种补救：目标真的没了（Ok(None)）才算成功，其余一律报原错。
     if let Err(cancel_error) = post(http, routes::set_profile(base_url, session_id), &cancel).await
+        && !matches!(fetch_goal(http, base_url, session_id).await, Ok(None))
     {
-        match fetch_goal(http, base_url, session_id).await {
-            Ok(None) => {}
-            Ok(Some(observed)) if observed.objective == previous.objective => {
-                return Err(cancel_error);
-            }
-            Ok(Some(_)) | Err(_) => return Err(cancel_error),
-        }
+        return Err(cancel_error);
     }
 
     match post(

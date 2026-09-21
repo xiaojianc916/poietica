@@ -1,8 +1,8 @@
-import { readdir, readFile, stat } from 'node:fs/promises'
+import { readFile, stat } from 'node:fs/promises'
 import path from 'node:path'
 import { pathToFileURL } from 'node:url'
 
-import type { ImportRecord } from './imports.ts'
+import { cyclesIn, type ImportRecord, walkFiles } from './imports.ts'
 import {
   CARGO_RINGS,
   DOMAIN_CONTRACT_IMPORTS,
@@ -16,6 +16,7 @@ import {
   typeScriptDependencyAllowed,
   UNLAYERED_DIRECTORIES,
 } from './layering.ts'
+import { dependenciesOf } from './manifest-graph.ts'
 import type { Crate, Workspace } from './workspace.ts'
 
 export type Violation = { readonly policy: string; readonly where: string; readonly detail: string }
@@ -164,42 +165,11 @@ export function noCycles(
     edges.set(owner.name, next)
   }
 
-  const violations: Violation[] = []
-  const state = new Map<string, 'open' | 'closed'>()
-  const trail: string[] = []
-
-  const visit = (node: string): void => {
-    const seen = state.get(node)
-
-    if (seen === 'closed') {
-      return
-    }
-
-    if (seen === 'open') {
-      violations.push({
-        policy: 'no-cycles',
-        where: 'workspace graph',
-        detail: [...trail.slice(trail.indexOf(node)), node].join(' -> '),
-      })
-      return
-    }
-
-    state.set(node, 'open')
-    trail.push(node)
-
-    for (const next of edges.get(node) ?? []) {
-      visit(next)
-    }
-
-    trail.pop()
-    state.set(node, 'closed')
-  }
-
-  for (const workspace of workspaces) {
-    visit(workspace.name)
-  }
-
-  return violations
+  return cyclesIn(edges).map((cycle) => ({
+    policy: 'no-cycles',
+    where: 'workspace graph',
+    detail: cycle.join(' -> '),
+  }))
 }
 
 /** 跨包只走 exports 声明的入口，包根与子路径同样检查。 */
@@ -431,7 +401,8 @@ export function capabilityScopedDirectories(directories: readonly string[]): Vio
     }))
 }
 
-const present = async (target: string): Promise<boolean> => {
+/** 路径在不在。存在性只问一句就够，别把整份内容读进来。 */
+export const present = async (target: string): Promise<boolean> => {
   try {
     await stat(target)
     return true
@@ -528,31 +499,9 @@ const INVOKED_SCRIPT = /(?:apps|packages|tools)\/[\w./-]+\.(?:tsx|ts|mjs)/g
 
 export async function invokedScriptsResolve(root: string): Promise<Violation[]> {
   const violations: Violation[] = []
-  const pending = ['tools']
-  const files: string[] = []
+  const files = await walkFiles(root, ['tools'], (file) => file.endsWith('.ts'))
 
-  while (pending.length > 0) {
-    const current = pending.pop()
-
-    if (current === undefined) {
-      break
-    }
-
-    for (const entry of await readdir(path.join(root, current), { withFileTypes: true })) {
-      const child = `${current}/${entry.name}`
-
-      if (entry.isDirectory()) {
-        pending.push(child)
-        continue
-      }
-
-      if (child.endsWith('.ts')) {
-        files.push(child)
-      }
-    }
-  }
-
-  for (const file of files.sort()) {
+  for (const file of files) {
     const source = await readFile(path.join(root, file), 'utf8')
 
     for (const match of source.matchAll(INVOKED_SCRIPT)) {
@@ -673,33 +622,14 @@ export async function problemVocabularyMirrorsSource(
 }
 
 /** 包只能 import 自己在 package.json 里声明过的 @poietica/*。 */
-export async function declaredDependenciesOnly(
-  root: string,
+export function declaredDependenciesOnly(
   imports: readonly ImportRecord[],
   workspaces: readonly Workspace[],
-): Promise<Violation[]> {
-  const declared = new Map<string, Set<string>>()
-
-  for (const workspace of workspaces) {
-    const manifest = JSON.parse(
-      await readFile(path.join(root, workspace.directory, 'package.json'), 'utf8'),
-    ) as {
-      dependencies?: Record<string, string>
-      devDependencies?: Record<string, string>
-      peerDependencies?: Record<string, string>
-      optionalDependencies?: Record<string, string>
-    }
-
-    declared.set(
-      workspace.name,
-      new Set([
-        ...Object.keys(manifest.dependencies ?? {}),
-        ...Object.keys(manifest.devDependencies ?? {}),
-        ...Object.keys(manifest.peerDependencies ?? {}),
-        ...Object.keys(manifest.optionalDependencies ?? {}),
-      ]),
-    )
-  }
+): Violation[] {
+  /* manifest 已经在手上（Workspace 的一个字段）：再读一遍盘就是把同一份 JSON 解析两次。 */
+  const declared = new Map(
+    workspaces.map((workspace) => [workspace.name, dependenciesOf(workspace.manifest)]),
+  )
 
   const violations: Violation[] = []
 

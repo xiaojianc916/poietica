@@ -17,7 +17,7 @@ import { sayToolLine } from '../semantics/tool-intent'
  * 一个数需要同步。
  *
  * 一次只画一个。并行的请求彼此独立，一个个答与一叠一起答在协议上没有分别，
- * 而一个个答不需要把这条带子改成队列 —— 序号只报分母（见 pendingPermissionCount）。
+ * 而一个个答不需要把这条带子改成队列 —— 序号只报分母（见 pendingInteractions）。
  *
  * 答完什么都不留。剩下的是一次操作痕迹，而痕迹归事件日志：原生侧的
  * permission_requested / permission_resolved 一条不少，转录不做第二个事实来源。

@@ -15,11 +15,13 @@ import {
 import {
   addField,
   addRow,
+  type Condition,
   duplicateField,
   duplicateRow,
   type Field,
   type FieldKind,
   fields,
+  type Group,
   insertField,
   insertRows,
   type LibraryController,
@@ -33,9 +35,11 @@ import {
   renameField,
   type SheetRow,
   type SheetView,
+  type Sort,
   setCell,
   setKind,
   type TableSheet,
+  type Tint,
   tintOf,
 } from '@poietica/library'
 import {
@@ -53,9 +57,7 @@ import {
   Layers,
   List,
   ListPlus,
-  Lock,
   type LucideIcon,
-  MoveHorizontal,
   Palette,
   Pencil,
   Plus,
@@ -332,47 +334,116 @@ function FieldsPanel({ controller, list, view }: Omit<Shell, 'sheet'>) {
   )
 }
 
-function FilterPanel({ controller, list, onClose, sheet, view }: Shell & { onClose: () => void }) {
+/*
+ * 四张判据面板（筛选、分组、排序、填色）的骨架只有一份：一条判据的行、拖动换位、
+ * 移除、以及「改这一条」的写回。差别只有三处 —— 数据在 view 的哪一格、新条目长
+ * 什么样、这一行多画什么控件。抄成四份的话，换位判据一改就要改四处。
+ */
+interface ConditionPanelSpec<T extends { readonly id: string; readonly field: number }> {
+  readonly addLabel: string
+  readonly empty: string
+  readonly fresh: () => T
+  /** 换列时补全这一行的写回：筛选与填色的 operand 认的是旧列，必须一起清掉。 */
+  readonly onField: (field: number) => Partial<T>
+  readonly rows: (view: SheetView) => readonly T[]
+  readonly title: string
+  readonly write: (view: SheetView, rows: readonly T[]) => SheetView
+}
+
+function ConditionRows<T extends { readonly id: string; readonly field: number }>({
+  controller,
+  list,
+  onClose,
+  panel,
+  render,
+  view,
+}: Omit<Shell, 'sheet'> & {
+  readonly onClose: () => void
+  readonly panel: ConditionPanelSpec<T>
+  readonly render: (row: T, write: (change: Partial<T>) => void) => ReactNode
+}) {
+  const rows = panel.rows(view)
+  const write = (next: readonly T[]) => controller.configure(panel.write(view, next))
+
   return (
     <ConditionPanel
-      addLabel="添加筛选条件"
-      count={view.filters.length}
-      empty="暂无筛选条件"
-      onAdd={() =>
-        controller.configure({
-          ...view,
-          filters: [
-            ...view.filters,
-            { id: crypto.randomUUID(), field: 0, test: 'filled', operand: '' },
-          ],
-        })
-      }
+      addLabel={panel.addLabel}
+      count={rows.length}
+      empty={panel.empty}
+      onAdd={() => write([...rows, panel.fresh()])}
       onClose={onClose}
-      title="筛选"
+      title={panel.title}
     >
-      {view.filters.map((filter) => (
+      {rows.map((row) => (
         <ConditionRow
-          field={filter.field}
+          field={row.field}
           fields={list}
-          id={filter.id}
-          key={filter.id}
-          onField={(field) =>
-            controller.configure({
-              ...view,
-              filters: update(view.filters, filter.id, { field, operand: '' }),
-            })
-          }
-          onMove={(from, to) =>
-            controller.configure({ ...view, filters: moveCondition(view.filters, from, to) })
-          }
-          onRemove={() => controller.configure({ ...view, filters: drop(view.filters, filter.id) })}
+          id={row.id}
+          key={row.id}
+          onField={(field) => write(update(rows, row.id, panel.onField(field)))}
+          onMove={(from, to) => write(moveCondition(rows, from, to))}
+          onRemove={() => write(drop(rows, row.id))}
         >
+          {render(row, (change) => write(update(rows, row.id, change)))}
+        </ConditionRow>
+      ))}
+    </ConditionPanel>
+  )
+}
+
+const FILTER_PANEL: ConditionPanelSpec<Condition> = {
+  addLabel: '添加筛选条件',
+  empty: '暂无筛选条件',
+  fresh: () => ({ id: crypto.randomUUID(), field: 0, test: 'filled', operand: '' }),
+  onField: (field) => ({ field, operand: '' }),
+  rows: (view) => view.filters,
+  title: '筛选',
+  write: (view, filters) => ({ ...view, filters }),
+}
+
+const GROUP_PANEL: ConditionPanelSpec<Group> = {
+  addLabel: '添加分组依据',
+  empty: '暂无分组依据',
+  fresh: () => ({ id: crypto.randomUUID(), field: 0 }),
+  onField: (field) => ({ field }),
+  rows: (view) => view.groups,
+  title: '分组',
+  write: (view, groups) => ({ ...view, groups }),
+}
+
+const SORT_PANEL: ConditionPanelSpec<Sort> = {
+  addLabel: '添加排序依据',
+  empty: '暂无排序依据',
+  fresh: () => ({ id: crypto.randomUUID(), field: 0, descending: false }),
+  onField: (field) => ({ field }),
+  rows: (view) => view.sorts,
+  title: '排序',
+  write: (view, sorts) => ({ ...view, sorts }),
+}
+
+const TINT_PANEL: ConditionPanelSpec<Tint> = {
+  addLabel: '添加条件',
+  empty: '暂无填色条件',
+  fresh: () => ({ id: crypto.randomUUID(), field: 0, test: 'filled', operand: '', color: 'blue' }),
+  onField: (field) => ({ field, operand: '' }),
+  rows: (view) => view.tints,
+  title: '填色',
+  write: (view, tints) => ({ ...view, tints }),
+}
+
+function FilterPanel({ controller, list, onClose, sheet, view }: Shell & { onClose: () => void }) {
+  return (
+    <ConditionRows
+      controller={controller}
+      list={list}
+      onClose={onClose}
+      panel={FILTER_PANEL}
+      render={(filter, write) => (
+        <>
           <Select
             className="min-w-0 flex-1"
             data={testOptions(kindAt(list, filter.field))}
-            onValueChange={(test) =>
-              controller.configure({ ...view, filters: update(view.filters, filter.id, { test }) })
-            }
+            onValueChange={(test) => write({ test })}
             type="判据"
             value={filter.test}
           />
@@ -380,18 +451,14 @@ function FilterPanel({ controller, list, onClose, sheet, view }: Shell & { onClo
             <Operand
               choices={options(sheet, filter.field)}
               kind={kindAt(list, filter.field)}
-              onChange={(operand) =>
-                controller.configure({
-                  ...view,
-                  filters: update(view.filters, filter.id, { operand }),
-                })
-              }
+              onChange={(operand) => write({ operand })}
               value={filter.operand}
             />
           ) : null}
-        </ConditionRow>
-      ))}
-    </ConditionPanel>
+        </>
+      )}
+      view={view}
+    />
   )
 }
 
@@ -402,35 +469,14 @@ function GroupPanel({
   view,
 }: Omit<Shell, 'sheet'> & { onClose: () => void }) {
   return (
-    <ConditionPanel
-      addLabel="添加分组依据"
-      count={view.groups.length}
-      empty="暂无分组依据"
-      onAdd={() =>
-        controller.configure({
-          ...view,
-          groups: [...view.groups, { id: crypto.randomUUID(), field: 0 }],
-        })
-      }
+    <ConditionRows
+      controller={controller}
+      list={list}
       onClose={onClose}
-      title="分组"
-    >
-      {view.groups.map((group) => (
-        <ConditionRow
-          field={group.field}
-          fields={list}
-          id={group.id}
-          key={group.id}
-          onField={(field) =>
-            controller.configure({ ...view, groups: update(view.groups, group.id, { field }) })
-          }
-          onMove={(from, to) =>
-            controller.configure({ ...view, groups: moveCondition(view.groups, from, to) })
-          }
-          onRemove={() => controller.configure({ ...view, groups: drop(view.groups, group.id) })}
-        />
-      ))}
-    </ConditionPanel>
+      panel={GROUP_PANEL}
+      render={() => null}
+      view={view}
+    />
   )
 }
 
@@ -441,95 +487,41 @@ function SortPanel({
   view,
 }: Omit<Shell, 'sheet'> & { onClose: () => void }) {
   return (
-    <ConditionPanel
-      addLabel="添加排序依据"
-      count={view.sorts.length}
-      empty="暂无排序依据"
-      onAdd={() =>
-        controller.configure({
-          ...view,
-          sorts: [...view.sorts, { id: crypto.randomUUID(), field: 0, descending: false }],
-        })
-      }
+    <ConditionRows
+      controller={controller}
+      list={list}
       onClose={onClose}
-      title="排序"
-    >
-      {view.sorts.map((sort) => (
-        <ConditionRow
-          field={sort.field}
-          fields={list}
-          id={sort.id}
-          key={sort.id}
-          onField={(field) =>
-            controller.configure({ ...view, sorts: update(view.sorts, sort.id, { field }) })
-          }
-          onMove={(from, to) =>
-            controller.configure({ ...view, sorts: moveCondition(view.sorts, from, to) })
-          }
-          onRemove={() => controller.configure({ ...view, sorts: drop(view.sorts, sort.id) })}
-        >
-          <Select
-            className="min-w-0 flex-1"
-            data={[
-              { value: 'asc', label: '升序' },
-              { value: 'desc', label: '降序' },
-            ]}
-            onValueChange={(order) =>
-              controller.configure({
-                ...view,
-                sorts: update(view.sorts, sort.id, { descending: order === 'desc' }),
-              })
-            }
-            type="顺序"
-            value={sort.descending ? 'desc' : 'asc'}
-          />
-        </ConditionRow>
-      ))}
-    </ConditionPanel>
+      panel={SORT_PANEL}
+      render={(sort, write) => (
+        <Select
+          className="min-w-0 flex-1"
+          data={[
+            { value: 'asc', label: '升序' },
+            { value: 'desc', label: '降序' },
+          ]}
+          onValueChange={(order) => write({ descending: order === 'desc' })}
+          type="顺序"
+          value={sort.descending ? 'desc' : 'asc'}
+        />
+      )}
+      view={view}
+    />
   )
 }
 
 function TintPanel({ controller, list, onClose, sheet, view }: Shell & { onClose: () => void }) {
   return (
-    <ConditionPanel
-      addLabel="添加条件"
-      count={view.tints.length}
-      empty="暂无填色条件"
-      onAdd={() =>
-        controller.configure({
-          ...view,
-          tints: [
-            ...view.tints,
-            { id: crypto.randomUUID(), field: 0, test: 'filled', operand: '', color: 'blue' },
-          ],
-        })
-      }
+    <ConditionRows
+      controller={controller}
+      list={list}
       onClose={onClose}
-      title="填色"
-    >
-      {view.tints.map((tint) => (
-        <ConditionRow
-          field={tint.field}
-          fields={list}
-          id={tint.id}
-          key={tint.id}
-          onField={(field) =>
-            controller.configure({
-              ...view,
-              tints: update(view.tints, tint.id, { field, operand: '' }),
-            })
-          }
-          onMove={(from, to) =>
-            controller.configure({ ...view, tints: moveCondition(view.tints, from, to) })
-          }
-          onRemove={() => controller.configure({ ...view, tints: drop(view.tints, tint.id) })}
-        >
+      panel={TINT_PANEL}
+      render={(tint, write) => (
+        <>
           <Select
             className="min-w-0 flex-1"
             data={testOptions(kindAt(list, tint.field))}
-            onValueChange={(test) =>
-              controller.configure({ ...view, tints: update(view.tints, tint.id, { test }) })
-            }
+            onValueChange={(test) => write({ test })}
             type="判据"
             value={tint.test}
           />
@@ -537,21 +529,15 @@ function TintPanel({ controller, list, onClose, sheet, view }: Shell & { onClose
             <Operand
               choices={options(sheet, tint.field)}
               kind={kindAt(list, tint.field)}
-              onChange={(operand) =>
-                controller.configure({ ...view, tints: update(view.tints, tint.id, { operand }) })
-              }
+              onChange={(operand) => write({ operand })}
               value={tint.operand}
             />
           ) : null}
-          <TintPicker
-            color={tint.color}
-            onChange={(color) =>
-              controller.configure({ ...view, tints: update(view.tints, tint.id, { color }) })
-            }
-          />
-        </ConditionRow>
-      ))}
-    </ConditionPanel>
+          <TintPicker color={tint.color} onChange={(color) => write({ color })} />
+        </>
+      )}
+      view={view}
+    />
   )
 }
 
@@ -743,12 +729,6 @@ function ColumnItems({
         填色
       </MenuItem>
       <ContextMenuSeparator />
-      <MenuItem disabled={true} mark={MoveHorizontal} onClick={() => {}}>
-        调整至合适列宽
-      </MenuItem>
-      <MenuItem disabled={true} mark={Lock} onClick={() => {}}>
-        冻结到此列
-      </MenuItem>
       <MenuItem
         mark={EyeOff}
         onClick={() =>

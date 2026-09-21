@@ -2,12 +2,18 @@ import '../assistant.css'
 import './composer-actions.css'
 import './auxiliary-composer.css'
 
-import { type KeyboardEvent, useCallback, useEffect, useId, useMemo, useRef, useState } from 'react'
+import { type KeyboardEvent, useCallback, useId, useMemo, useRef, useState } from 'react'
 import type { SessionConfigControl } from '../../agent/config'
 import { useAgentToolkit } from '../configuration/agent-controls-context'
 import { PlusIcon, SubmitIcon } from '../primitives/icons'
 import { composerPaletteGroups } from './composer-actions'
-import { ComposerPalette, composerComposeGroup, type PaletteRow } from './composer-palette'
+import {
+  ComposerPalette,
+  composerComposeGroup,
+  type PaletteRow,
+  paletteKeyDown,
+  useDismissOutside,
+} from './composer-palette'
 import { PermissionPicker, SessionControls } from './controls'
 
 /*
@@ -119,26 +125,8 @@ export function AuxiliaryComposer() {
   const rows = useMemo(() => groups.flatMap((group) => group.rows), [groups])
   const open = paletteOpen && rows.length > 0
 
-  /* 点到条外就收面板：捕获相 pointerdown，因为点不可聚焦区域不移走焦点。 */
-  useEffect(() => {
-    if (!open) {
-      return undefined
-    }
-
-    const onPointerDown = (event: PointerEvent) => {
-      if (event.target instanceof Node && bar.current?.contains(event.target) === true) {
-        return
-      }
-
-      setPaletteOpen(false)
-    }
-
-    document.addEventListener('pointerdown', onPointerDown, true)
-
-    return () => {
-      document.removeEventListener('pointerdown', onPointerDown, true)
-    }
-  }, [open])
+  /* 点到条外就收面板。 */
+  useDismissOutside(open, bar, () => setPaletteOpen(false))
 
   /*
    * 面板里能落地的只有模式开关：它改的是这一格自己的占位表。插入技能要一张装得下
@@ -155,36 +143,15 @@ export function AuxiliaryComposer() {
   /* 面板开着时这几个键归面板。捕获相先到 —— 与主输入框同一条理由：草稿那个输入框
      不该知道面板存在，放它冒泡上去，方向键就先去挪光标了。 */
   const onKeyDown = (event: KeyboardEvent<HTMLFormElement>) => {
-    if (!open || event.nativeEvent.isComposing) {
-      return
-    }
-
-    if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
-      event.preventDefault()
-
-      const step = event.key === 'ArrowDown' ? 1 : -1
-
-      setHighlighted((current) => (current + step + rows.length) % rows.length)
-
-      return
-    }
-
-    if (event.key === 'Enter' || event.key === 'Tab') {
-      event.preventDefault()
-
-      const chosen = rows[highlighted] ?? rows[0]
-
-      if (chosen !== undefined) {
-        pick(chosen)
-      }
-
-      return
-    }
-
-    if (event.key === 'Escape') {
-      event.preventDefault()
-      setPaletteOpen(false)
-    }
+    paletteKeyDown(event, {
+      highlighted,
+      onClose: () => setPaletteOpen(false),
+      onHighlight: setHighlighted,
+      onPick: pick,
+      open,
+      rows,
+      stopPropagation: false,
+    })
   }
 
   return (

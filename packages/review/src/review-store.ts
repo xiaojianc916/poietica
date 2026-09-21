@@ -102,6 +102,14 @@ export function createReviewStore(options: ReviewStoreOptions): ReviewStore {
   let answer: GitReview | null = null
   let trouble: 'asking' | 'notARepository' | 'unreadable' = 'asking'
   let listing: { patch: string; files: readonly DiffFile[] } = { patch: '', files: [] }
+  /* listing.files 的按路径索引。keyFor 在 find/map 里逐条调用，每次现查一遍就是 O(n²)。 */
+  let byPath = new Map<string, DiffFile>()
+
+  /* listing 与 byPath 必须同进同退：分两处写，迟早有一处忘了跟着改。 */
+  function setListing(patch: string, files: readonly DiffFile[]): void {
+    listing = { patch, files }
+    byPath = new Map(files.map((file) => [file.path, file] as const))
+  }
   const wholeFiles = new Map<string, { key: string; file: DiffFile }>()
   let projectionVersion = 0
   let draftVersion = 0
@@ -143,20 +151,21 @@ export function createReviewStore(options: ReviewStoreOptions): ReviewStore {
       snapshot.base,
       snapshot.presentation.hideWhitespace,
       snapshot.presentation.wordDiff,
-      fingerprintOf(listing.files.find((item) => item.path === file.path) ?? file),
+      fingerprintOf(byPath.get(file.path) ?? file),
     ])
   }
   function pending(owner: Observation): DiffFile | undefined {
     if (snapshot.reading.phase !== 'ready') {
       return undefined
     }
-    return snapshot.reading.files.find(
-      (file) =>
-        snapshot.openFiles.has(file.path) &&
-        !file.binary &&
-        wholeFiles.get(file.path)?.key !== keyFor(file) &&
-        owner.attempted.get(file.path) !== keyFor(file),
-    )
+    return snapshot.reading.files.find((file) => {
+      if (!snapshot.openFiles.has(file.path) || file.binary) {
+        return false
+      }
+      /* keyFor 要算一遍整份指纹，一条问一次就够。 */
+      const key = keyFor(file)
+      return wholeFiles.get(file.path)?.key !== key && owner.attempted.get(file.path) !== key
+    })
   }
   function project(): void {
     projectionVersion += 1
@@ -166,7 +175,7 @@ export function createReviewStore(options: ReviewStoreOptions): ReviewStore {
       return
     }
     if (answer.patch !== listing.patch) {
-      listing = { patch: answer.patch, files: parseUnifiedPatch(answer.patch, false) }
+      setListing(answer.patch, parseUnifiedPatch(answer.patch, false))
     }
     const livePaths = new Set(listing.files.map((file) => file.path))
     for (const file of wholeFiles.keys()) {
@@ -304,7 +313,7 @@ export function createReviewStore(options: ReviewStoreOptions): ReviewStore {
     }
     projectionVersion += 1
     answer = null
-    listing = { patch: '', files: [] }
+    setListing('', [])
     wholeFiles.clear()
     trouble = 'asking'
     publish({ ...change, reading: { phase: 'asking' } })

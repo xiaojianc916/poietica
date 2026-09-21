@@ -1,3 +1,4 @@
+import { isRecord } from '@poietica/problem'
 import { parse } from 'yaml'
 import type { AgentSkill, SkillRecord } from './model'
 
@@ -74,8 +75,8 @@ export function skillFrontmatter(document: string): ParsedSkillDocument {
   let fields: Record<string, unknown> = {}
   try {
     const decoded: unknown = parse(lines.slice(1, closing).join('\n'))
-    if (typeof decoded === 'object' && decoded !== null && !Array.isArray(decoded)) {
-      fields = decoded as Record<string, unknown>
+    if (isRecord(decoded)) {
+      fields = decoded
     } else {
       issues.push('frontmatter 顶层必须是映射。')
     }

@@ -1,8 +1,12 @@
 import type { SessionConfigControl } from '@poietica/conversation'
 import { createPreference, type Preference, type PreferenceFailure } from '@poietica/external-store'
+import { z } from 'zod'
 
 type ThinkingValues = Readonly<Record<string, string>>
 type ThinkingStorage = Pick<Preference<ThinkingValues>, 'read' | 'write'>
+
+/* 存的是「模型 → 档位」这张表；非空字符串值之外一律丢弃，与 controls-memory 同一个形状。 */
+const ThinkingValuesSchema = z.record(z.string(), z.string().min(1))
 
 interface PreferredThinking {
   readonly control: SessionConfigControl
@@ -27,23 +31,7 @@ function storageKey(agentId: string, model: string): string {
 }
 
 function decodeValues(raw: string): ThinkingValues {
-  const parsed: unknown = JSON.parse(raw)
-
-  if (parsed === null || typeof parsed !== 'object' || Array.isArray(parsed)) {
-    throw new Error('Thinking preference must be a JSON object.')
-  }
-
-  const values: Record<string, string> = {}
-
-  for (const [key, value] of Object.entries(parsed)) {
-    if (typeof value !== 'string' || value.length === 0) {
-      throw new Error('Thinking preference values must be non-empty strings.')
-    }
-
-    values[key] = value
-  }
-
-  return values
+  return ThinkingValuesSchema.parse(JSON.parse(raw))
 }
 
 function modelOf(controls: readonly SessionConfigControl[]): string | undefined {

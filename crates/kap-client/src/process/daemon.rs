@@ -26,7 +26,10 @@ pub enum DaemonPhase {
         retry_at: i64,
         reason: String,
     },
-    Failed { attempts: u32, reason: String },
+    Failed {
+        attempts: u32,
+        reason: String,
+    },
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]

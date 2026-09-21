@@ -1,3 +1,4 @@
+import { cyclesIn } from './imports.ts'
 import { typeScriptDependencyAllowed, UNLAYERED_DIRECTORIES } from './layering.ts'
 import type { Violation } from './policies.ts'
 import type { Manifest, Workspace } from './workspace.ts'
@@ -9,7 +10,8 @@ const SECTIONS = [
   'peerDependencies',
 ] as const
 
-function dependenciesOf(manifest: Manifest): Set<string> {
+/** 一份 manifest 声明了哪些包：四个 section 的键。单一产地，别处只许读这一份。 */
+export function dependenciesOf(manifest: Manifest): Set<string> {
   return new Set(SECTIONS.flatMap((section) => Object.keys(manifest[section] ?? {})))
 }
 
@@ -69,38 +71,13 @@ export function manifestBoundaries(workspaces: readonly Workspace[]): Violation[
     boundaryViolations(workspace, [...dependenciesOf(workspace.manifest)], graph),
   )
 
-  const edges = graph.edges
-  const state = new Map<string, 'open' | 'closed'>()
-  const trail: string[] = []
-  const reported = new Set<string>()
-  const visit = (node: string): void => {
-    const seen = state.get(node)
-    if (seen === 'closed') {
-      return
-    }
-    if (seen === 'open') {
-      const cycle = [...trail.slice(trail.indexOf(node)), node].join(' -> ')
-      if (!reported.has(cycle)) {
-        reported.add(cycle)
-        violations.push({
-          policy: 'manifest-no-cycles',
-          where: 'workspace manifest graph',
-          detail: cycle,
-        })
-      }
-      return
-    }
-    state.set(node, 'open')
-    trail.push(node)
-    for (const next of edges.get(node) ?? []) {
-      visit(next)
-    }
-    trail.pop()
-    state.set(node, 'closed')
+  for (const cycle of cyclesIn(graph.edges)) {
+    violations.push({
+      policy: 'manifest-no-cycles',
+      where: 'workspace manifest graph',
+      detail: cycle.join(' -> '),
+    })
   }
 
-  for (const workspace of workspaces) {
-    visit(workspace.name)
-  }
   return violations
 }

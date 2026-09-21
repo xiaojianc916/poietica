@@ -13,6 +13,8 @@ import type { AppendOp, StepHeader, TranscriptOperation, TurnHeader } from './op
 
 export interface AgentState {
   readonly items: readonly TranscriptItem[]
+  /* 位置是 items 的派生。没有它，流式期间每一条 append 都要线性扫一遍整本对话。 */
+  readonly turnIndex: ReadonlyMap<TurnId, number>
   readonly tasks: ReadonlyMap<TaskId, TranscriptTask>
   readonly interactions: ReadonlyMap<InteractionId, TranscriptInteraction>
   readonly attachments: ReadonlyMap<AttachmentId, TranscriptAttachment>
@@ -25,6 +27,7 @@ export interface AgentState {
 
 export const EMPTY_AGENT_STATE: AgentState = {
   items: [],
+  turnIndex: new Map(),
   tasks: new Map(),
   interactions: new Map(),
   attachments: new Map(),
@@ -78,13 +81,15 @@ function applyReset(
   state: AgentState,
   op: Extract<TranscriptOperation, { op: 'reset' }>,
 ): ApplyResult {
+  const items = op.snapshot.items
   const pending = new Set<InteractionId>()
   for (const interaction of op.snapshot.interactions) {
     if (interaction.state === 'pending') pending.add(interaction.interactionId)
   }
   return {
     state: {
-      items: op.snapshot.items,
+      items,
+      turnIndex: turnIndexIn(items),
       tasks: new Map(op.snapshot.tasks.map((task) => [task.taskId, task])),
       interactions: new Map(
         op.snapshot.interactions.map((interaction) => [interaction.interactionId, interaction]),
@@ -122,36 +127,49 @@ function skeletonStep(stepId: string, turnId: TurnId): TranscriptStep {
   return { kind: 'step', stepId, turnId, ordinal, state: 'running', frames: [] }
 }
 
+/** 位置表是 items 的派生，只在 items 真的动过时重建：插入/删除本来就已付出一次 O(n) 复制。 */
+function turnIndexIn(items: readonly TranscriptItem[]): ReadonlyMap<TurnId, number> {
+  const turnIndex = new Map<TurnId, number>()
+  for (let at = 0; at < items.length; at += 1) {
+    const entry = items[at]
+    if (entry?.kind === 'turn') turnIndex.set(entry.turnId, at)
+  }
+  return turnIndex
+}
+
 function getTurn(state: AgentState, turnId: TurnId): TranscriptTurn | undefined {
-  const item = state.items.find((entry) => entry.kind === 'turn' && entry.turnId === turnId)
+  const at = state.turnIndex.get(turnId)
+  const item = at === undefined ? undefined : state.items[at]
   return item?.kind === 'turn' ? item : undefined
 }
 
 function insertTurn(
-  items: readonly TranscriptItem[],
+  state: AgentState,
   turn: TranscriptTurn,
-): readonly TranscriptItem[] {
-  const next = [...items]
-  let at = next.length
-  for (let i = 0; i < next.length; i += 1) {
-    const entry = next[i]
+): Pick<AgentState, 'items' | 'turnIndex'> {
+  const items = [...state.items]
+  let at = items.length
+  for (let i = 0; i < items.length; i += 1) {
+    const entry = items[i]
     if (entry?.kind === 'turn' && entry.ordinal > turn.ordinal) {
       at = i
       break
     }
   }
-  next.splice(at, 0, turn)
-  return next
+  items.splice(at, 0, turn)
+  return { items, turnIndex: turnIndexIn(items) }
 }
 
 function replaceTurn(
-  items: readonly TranscriptItem[],
+  state: AgentState,
   turnId: TurnId,
-  fn: (turn: TranscriptTurn) => TranscriptTurn,
-): readonly TranscriptItem[] {
-  return items.map((entry) =>
-    entry.kind === 'turn' && entry.turnId === turnId ? fn(entry) : entry,
-  )
+  turn: TranscriptTurn,
+): Pick<AgentState, 'items' | 'turnIndex'> {
+  const at = state.turnIndex.get(turnId)
+  if (at === undefined) return insertTurn(state, turn)
+  const items = [...state.items]
+  items[at] = turn
+  return { items, turnIndex: state.turnIndex }
 }
 
 function applyTurnUpsert(state: AgentState, header: TurnHeader): ApplyResult {
@@ -161,15 +179,13 @@ function applyTurnUpsert(state: AgentState, header: TurnHeader): ApplyResult {
     return {
       state: {
         ...state,
-        items: replaceTurn(state.items, header.turnId, (turn) =>
-          turnHeaderToTurn(header, turn.steps),
-        ),
+        ...replaceTurn(state, header.turnId, turnHeaderToTurn(header, existing.steps)),
       },
       changed: true,
     }
   }
   return {
-    state: { ...state, items: insertTurn(state.items, turnHeaderToTurn(header, [])) },
+    state: { ...state, ...insertTurn(state, turnHeaderToTurn(header, [])) },
     changed: true,
   }
 }
@@ -214,11 +230,10 @@ function applyStepUpsert(state: AgentState, turnId: TurnId, header: StepHeader):
     )
   }
   if (!changed) return { state, changed: false }
-  const nextTurn: TranscriptTurn = { ...turn, steps: [...steps] }
-  const items = getTurn(state, turnId)
-    ? replaceTurn(state.items, turnId, () => nextTurn)
-    : insertTurn(state.items, nextTurn)
-  return { state: { ...state, items }, changed: true }
+  return {
+    state: { ...state, ...replaceTurn(state, turnId, { ...turn, steps: [...steps] }) },
+    changed: true,
+  }
 }
 
 function stepEquals(step: TranscriptStep, header: StepHeader): boolean {
@@ -258,12 +273,8 @@ function applyFrameUpsert(
   const steps = turn.steps.some((entry) => entry.stepId === op.stepId)
     ? turn.steps.map((entry) => (entry.stepId === op.stepId ? nextStep : entry))
     : [...turn.steps, nextStep].toSorted((a, b) => a.ordinal - b.ordinal)
-  const nextTurn: TranscriptTurn = { ...turn, steps }
-  const items = getTurn(state, op.turnId)
-    ? replaceTurn(state.items, op.turnId, () => nextTurn)
-    : insertTurn(state.items, nextTurn)
   return {
-    state: { ...state, items },
+    state: { ...state, ...replaceTurn(state, op.turnId, { ...turn, steps }) },
     changed: true,
   }
 }
@@ -325,7 +336,7 @@ function applyAppend(state: AgentState, op: AppendOp): ApplyResult {
     steps: turn.steps.map((entry) => (entry.stepId === stepId ? nextStep : entry)),
   }
   return {
-    state: { ...state, items: replaceTurn(state.items, turnId, () => nextTurn) },
+    state: { ...state, ...replaceTurn(state, turnId, nextTurn) },
     changed: true,
   }
 }
@@ -371,30 +382,25 @@ function applyItemUpsert(
   id: string,
   beforeTurn?: number,
 ): ApplyResult {
-  const exists = state.items.some((entry) => itemIdOf(entry) === id)
-  if (exists) {
-    let changed = false
-    const items = state.items.map((entry) => {
-      if (itemIdOf(entry) !== id) return entry
-      if (entry === item) return entry
-      changed = true
-      return item
-    })
-    if (!changed) return { state, changed: false }
+  const at = state.items.findIndex((entry) => itemIdOf(entry) === id)
+  if (at >= 0) {
+    if (state.items[at] === item) return { state, changed: false }
+    const items = [...state.items]
+    items[at] = item
     return { state: { ...state, items }, changed: true }
   }
   if (beforeTurn !== undefined) {
     const items = [...state.items]
-    let at = items.length
+    let insertAt = items.length
     for (let i = 0; i < items.length; i += 1) {
       const entry = items[i]
       if (entry?.kind === 'turn' && entry.ordinal >= beforeTurn) {
-        at = i
+        insertAt = i
         break
       }
     }
-    items.splice(at, 0, item)
-    return { state: { ...state, items }, changed: true }
+    items.splice(insertAt, 0, item)
+    return { state: { ...state, items, turnIndex: turnIndexIn(items) }, changed: true }
   }
   return { state: { ...state, items: [...state.items, item] }, changed: true }
 }
@@ -443,7 +449,16 @@ function applyItemsRemove(state: AgentState, ids: readonly string[]): ApplyResul
     }
     pending = nextPending
   }
-  return { state: { ...state, items, interactions, pendingInteractions: pending }, changed: true }
+  return {
+    state: {
+      ...state,
+      items,
+      turnIndex: turnIndexIn(items),
+      interactions,
+      pendingInteractions: pending,
+    },
+    changed: true,
+  }
 }
 
 function applyTaskUpsert(state: AgentState, task: TranscriptTask): ApplyResult {

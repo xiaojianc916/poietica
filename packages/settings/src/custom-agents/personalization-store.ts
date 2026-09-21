@@ -1,3 +1,4 @@
+import { createExternalStore, type ExternalStore } from '@poietica/external-store'
 import {
   type CustomAgentDraft,
   emptyAgentDraft,
@@ -48,9 +49,9 @@ interface Row {
 
 export class PersonalizationStore {
   readonly #agents: CustomAgentStore
-  readonly #listeners = new Set<() => void>()
   readonly #rows = new Map<string, Row>()
   readonly #drafts = new Map<Selection, CustomAgentDraft>()
+  readonly #store: ExternalStore<PersonalizationView>
 
   #issues: readonly string[] = []
   #selection: Selection = NEW_AGENT
@@ -64,15 +65,10 @@ export class PersonalizationStore {
     this.#agents = agents
     this.#drafts.set(NEW_AGENT, emptyAgentDraft())
     this.#view = this.#project()
+    this.#store = createExternalStore<PersonalizationView>({ read: () => this.#view })
   }
 
-  subscribe = (listener: () => void): (() => void) => {
-    this.#listeners.add(listener)
-
-    return () => {
-      this.#listeners.delete(listener)
-    }
-  }
+  subscribe = (listener: () => void): (() => void) => this.#store.subscribe(listener)
 
   getSnapshot = (): PersonalizationView => this.#view
 
@@ -257,10 +253,7 @@ export class PersonalizationStore {
 
   #commit(): void {
     this.#view = this.#project()
-
-    for (const listener of this.#listeners) {
-      listener()
-    }
+    this.#store.notify()
   }
 
   #project(): PersonalizationView {

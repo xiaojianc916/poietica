@@ -1,3 +1,4 @@
+import { createExternalStore } from '@poietica/external-store'
 import type { AgentCapabilityPort } from '../agent/capability'
 import type { SessionConfigControl, SessionConfigMemoryPort } from '../agent/config'
 import type { PermissionPosturePort } from '../agent/permission'
@@ -60,7 +61,7 @@ export class AgentCapabilityStore {
   readonly #posture: PermissionPosturePort | undefined
   readonly #report: CapabilityFailureReport | undefined
   readonly #memory: SessionConfigMemoryPort | undefined
-  readonly #listeners = new Set<() => void>()
+  readonly #store = createExternalStore<AgentControls>({ read: () => this.#held })
   #held: AgentControls = EMPTY
   #binding: Binding | undefined
   #stop: (() => void) | undefined
@@ -84,12 +85,7 @@ export class AgentCapabilityStore {
     }
   }
   snapshot = (): AgentControls => this.#held
-  subscribe = (listener: () => void): (() => void) => {
-    this.#listeners.add(listener)
-    return () => {
-      this.#listeners.delete(listener)
-    }
-  }
+  subscribe = (listener: () => void): (() => void) => this.#store.subscribe(listener)
   start = (port: AgentCapabilityPort): (() => void) => {
     this.#stop?.()
     const binding: Binding = {
@@ -321,8 +317,6 @@ export class AgentCapabilityStore {
       return
     }
     this.#held = next
-    for (const listener of this.#listeners) {
-      listener()
-    }
+    this.#store.notify()
   }
 }

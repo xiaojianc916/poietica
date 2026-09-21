@@ -12,6 +12,6 @@ pub use handler::respond;
 
 /// 领域类型经这里对组合根可见：实现住在 poietica_asset，宿主只是协议面。
 pub use poietica_asset::{
-    ASSET_PROTOCOL_SCHEME, AssetProtocolError, AssetProtocolRegistry, AssetSessionSnapshotEntry,
-    asset_protocol_url,
+    ASSET_PROTOCOL_HOST, ASSET_PROTOCOL_LOCALHOST, ASSET_PROTOCOL_SCHEME, AssetProtocolError,
+    AssetProtocolRegistry, AssetSessionSnapshotEntry, asset_protocol_url,
 };

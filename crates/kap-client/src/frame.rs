@@ -79,13 +79,9 @@ pub enum RunFrame {
     /// 这条连接此刻的链路态。它耽误的是这一轮，所以它进这一轮的账。
     LinkChanged { link: LinkState },
     /// 这一轮按 agent 自己的说法结束了。
-    RunFinished {
-        stop_reason: String,
-    },
+    RunFinished { stop_reason: String },
     /// 这一轮以失败结束。
-    RunFailed {
-        message: String,
-    },
+    RunFailed { message: String },
 }
 
 impl RunFrame {

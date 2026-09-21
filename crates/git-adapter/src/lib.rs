@@ -111,14 +111,14 @@ pub(crate) fn branches_from(refs: Output) -> Result<Vec<String>, GitError> {
 }
 
 pub async fn switch(root: &Path, branch: &str) -> Result<BranchSnapshot, GitError> {
-    checked_name(branch)?;
+    review::checked("分支名", branch)?;
     expect_ok(run(root, &["switch", branch]).await?)?;
 
     refreshed(root).await
 }
 
 pub async fn create(root: &Path, branch: &str) -> Result<BranchSnapshot, GitError> {
-    checked_name(branch)?;
+    review::checked("分支名", branch)?;
     expect_ok(run(root, &["switch", "-c", branch]).await?)?;
 
     refreshed(root).await
@@ -130,15 +130,6 @@ pub(crate) fn still_a_worktree<T>(found: Option<T>) -> Result<T, GitError> {
 
 async fn refreshed(root: &Path) -> Result<BranchSnapshot, GitError> {
     still_a_worktree(snapshot(root).await?)
-}
-
-/* 只挡把名字读成命令行开关的那一类注入；其余交给 git 自己的 check-ref-format。 */
-fn checked_name(branch: &str) -> Result<(), GitError> {
-    if branch.trim().is_empty() || branch.starts_with('-') {
-        return Err(GitError::Refused(format!("无效的分支名：{branch}")));
-    }
-
-    Ok(())
 }
 
 pub(crate) async fn run(root: &Path, args: &[&str]) -> Result<Output, GitError> {
@@ -181,13 +172,18 @@ mod tests {
 
     use std::path::Path;
 
-    use super::{GitError, checked_name, create, snapshot, switch};
+    use super::{GitError, create, snapshot, switch};
 
     #[test]
     fn names_that_read_as_flags_are_refused_before_git_runs() {
-        assert!(matches!(checked_name("-x"), Err(GitError::Refused(_))));
-        assert!(matches!(checked_name("   "), Err(GitError::Refused(_))));
-        assert!(checked_name("feature/one").is_ok());
+        use crate::review::checked;
+
+        assert!(matches!(checked("分支名", "-x"), Err(GitError::Refused(_))));
+        assert!(matches!(
+            checked("分支名", "   "),
+            Err(GitError::Refused(_))
+        ));
+        assert!(checked("分支名", "feature/one").is_ok());
     }
 
     /// 探测与生产同产地：process-host 的 which 解析；机器上没有 git 时这些测试直接返回。

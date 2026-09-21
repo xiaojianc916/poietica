@@ -57,6 +57,28 @@ impl AgentStore {
         Ok(found)
     }
 
+    /// 这条会话号是否已经落在某条「开口过」的对话上。
+    ///
+    /// 与 list_threads 同一条可见性判据（title_source <> 'fallback'）：还没被说过话
+    /// 的对话不算绑定，否则补偿会把一条占位行读成已经落定。
+    ///
+    /// # Errors
+    ///
+    /// Fails when the query is rejected.
+    pub fn session_is_bound(&self, session_id: &str, agent_id: &str) -> Result<bool> {
+        let bound: bool = self
+            .connection
+            .prepare_cached(
+                "SELECT EXISTS (
+                SELECT 1 FROM threads
+                 WHERE session_id = ?1 AND agent_id = ?2 AND title_source <> 'fallback'
+            )",
+            )?
+            .query_row(rusqlite::params![session_id, agent_id], |row| row.get(0))?;
+
+        Ok(bound)
+    }
+
     /// A conversation may acquire an identity, but acquisition cannot replace one.
     pub fn attach_session(&self, id: Uuid, session_id: &str, agent_id: &str) -> Result<()> {
         let _attached: String = self
@@ -342,21 +364,12 @@ impl AgentStore {
     ///
     /// Fails when the query is rejected.
     pub fn workspace_root_in_use(&self, workspace_root: &str) -> Result<bool> {
-        let held: bool = self
-            .connection
-            .prepare_cached(
-                "SELECT EXISTS (
-                SELECT 1 FROM threads WHERE workspace_root = ?1
-                UNION ALL
-                SELECT 1 FROM automation_state, json_each(document, '$.automations') AS definition
-                    WHERE json_extract(definition.value, '$.workspaceRoot') = ?1
-                UNION ALL
-                SELECT 1 FROM automation_state, json_each(document, '$.executions') AS execution
-                    WHERE json_extract(execution.value, '$.workspaceRoot') = ?1
-            )",
-            )?
-            .query_row(rusqlite::params![workspace_root], |row| row.get(0))?;
-        Ok(held)
+        /* 归属判据只有 workspace_roots 那一份：三个来源抄两遍，加第四个时漏一处
+        就会把还在用的目录当遗留删掉。 */
+        Ok(self
+            .workspace_roots()?
+            .iter()
+            .any(|held| held == workspace_root))
     }
 
     /// 仍被引用的工作目录，每个一次。

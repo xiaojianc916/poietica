@@ -599,14 +599,9 @@ function currentTurnToolFrame(
   toolCallId: string | undefined,
 ): TranscriptFrame | undefined {
   if (!turn || toolCallId === undefined) return undefined
-  for (let s = turn.steps.length - 1; s >= 0; s -= 1) {
-    const frames = turn.steps[s]?.frames ?? []
-    for (let f = frames.length - 1; f >= 0; f -= 1) {
-      const frame = frames[f]
-      if (frame?.kind === 'tool' && frame.toolCallId === toolCallId) return frame
-    }
-  }
-  return undefined
+  return turn.steps
+    .flatMap((step) => step.frames)
+    .findLast((frame) => frame.kind === 'tool' && frame.toolCallId === toolCallId)
 }
 
 function replaceToolFrame(turn: TurnDraft, toolCallId: string, next: TranscriptFrame): void {

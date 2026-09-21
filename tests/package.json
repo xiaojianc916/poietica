@@ -4,7 +4,6 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "perf": "bun test perf",
     "test": "bun test integration",
     "typecheck": "tsc --project tsconfig.json --noEmit"
   },

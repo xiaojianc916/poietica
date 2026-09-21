@@ -2,7 +2,7 @@
 
 use tauri::http::{Request, Response, StatusCode};
 
-use poietica_asset::ASSET_PROTOCOL_HOST;
+use poietica_asset::{ASSET_PROTOCOL_HOST, ASSET_PROTOCOL_LOCALHOST};
 
 use super::range::requested_range;
 use super::response::{asset_response, empty_response};
@@ -42,7 +42,9 @@ fn resolve_request<B>(
         .split('/')
         .filter(|component| !component.is_empty());
 
-    if host == "poietica-asset.localhost" || host == "localhost" {
+    /* 两种宿主写法：裸 host（Linux 的 scheme 转发）与 .localhost 包装（Windows）。
+    后者把 host 名带进了路径首段，所以那一段要先吃掉。 */
+    if host == ASSET_PROTOCOL_LOCALHOST || host == "localhost" {
         if components.next() != Some(ASSET_PROTOCOL_HOST) {
             return Err(AssetProtocolError::InvalidToken);
         }
@@ -73,7 +75,9 @@ mod tests {
     )]
 
     use super::*;
-    use crate::asset_protocol::{AssetSessionSnapshotEntry, asset_protocol_url};
+    use crate::asset_protocol::{
+        ASSET_PROTOCOL_SCHEME, AssetSessionSnapshotEntry, asset_protocol_url,
+    };
     use sha2::{Digest, Sha256};
     use std::sync::Arc;
     use tauri::http::header::{ACCEPT_RANGES, CONTENT_RANGE, CONTENT_TYPE, RANGE};
@@ -256,9 +260,9 @@ mod tests {
         let url = asset_protocol_url("session-1", &asset).expect("url should build");
 
         let expected = if cfg!(windows) {
-            format!("http://poietica-asset.localhost/asset/session-1/{asset}")
+            format!("http://{ASSET_PROTOCOL_LOCALHOST}/{ASSET_PROTOCOL_HOST}/session-1/{asset}")
         } else {
-            format!("poietica-asset://asset/session-1/{asset}")
+            format!("{ASSET_PROTOCOL_SCHEME}://{ASSET_PROTOCOL_HOST}/session-1/{asset}")
         };
 
         assert_eq!(url, expected, "生成器与解析器必须逐字对得上");

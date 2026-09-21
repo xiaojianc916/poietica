@@ -7,6 +7,7 @@ import type {
   LibraryRequest,
   TableSheet,
 } from '@poietica/contract/library'
+import { createExternalStore } from '@poietica/external-store'
 import { EMPTY_VIEW, type Restructure, retarget, type SheetView } from './sheet'
 
 /** 输入即时进真相，检索延后触发：一次按键不该换来一次全树遍历。 */
@@ -63,7 +64,7 @@ function within(ancestor: string, path: string): boolean {
  */
 export class LibraryController {
   private state: LibraryState = EMPTY
-  private readonly listeners = new Set<() => void>()
+  private readonly store = createExternalStore<LibraryState>({ read: () => this.state })
   private queue: Promise<unknown> = Promise.resolve()
   private timer: ReturnType<typeof setTimeout> | null = null
   private loaded = false
@@ -79,13 +80,7 @@ export class LibraryController {
 
   readonly getSnapshot = (): LibraryState => this.state
 
-  readonly subscribe = (listener: () => void): (() => void) => {
-    this.listeners.add(listener)
-
-    return () => {
-      this.listeners.delete(listener)
-    }
-  }
+  readonly subscribe = (listener: () => void): (() => void) => this.store.subscribe(listener)
 
   /** 有没有未落盘的编辑。正文是不可变值，改过就换了个身份。 */
   get dirty(): boolean {
@@ -278,7 +273,6 @@ export class LibraryController {
     await this.operation(async () => (await this.persist()) ?? {})
 
     this.disposed = true
-    this.listeners.clear()
   }
 
   private sheet(): TableSheet | null {
@@ -308,8 +302,9 @@ export class LibraryController {
   private publish(next: Partial<LibraryState>): void {
     this.state = { ...this.state, ...next }
 
-    for (const listener of this.listeners) {
-      listener()
+    /* 关掉之后不再叫：退订由订阅者自己做，这里只是不再有新值要报。 */
+    if (!this.disposed) {
+      this.store.notify()
     }
   }
 
