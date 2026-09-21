@@ -1,60 +1,92 @@
 /*
- * 居中的小图标，不参与布局。
+ * 居中于「转录顶端 → 输入区上沿」这一段，不是整个界面。
  *
- * 尺寸压到 20px：它要说的是"稍等"，不是"出事了"。大转盘会把一次几百毫秒的
- * 等待渲染成一次事故。
+ * 输入区在会话态是浮在转录之上的绝对定位带子，它压住的那一条不算可读的空白，所以
+ * 标记的盒子到它上沿就停。取整个界面的中心会让标记正好偏下「输入区高度的一半」——
+ * 那一带越高偏得越多，这正是「看着没居中」的来源。
  *
- * 颜色走 currentcolor，所以它跟着 .assistant-surface 的 --cp-ink 走，换主题
- * 不需要在这里再声明一遍。
+ * 数值与滚动区末端留白读的是同一次实测（useDockClearance 量的输入区高度），
+ * 由调用点写进 --cp-dock-clearance：同一个事实只有一个产地，两处不各量一次。
+ *
+ * 右侧让开滚动条那条沟，与消息列同一条式子；不参与布局，底下的滚动与点击一概照旧。
  */
 
 .restore-spinner {
   position: absolute;
-  inset-block: 0;
+  inset-block: 0 var(--cp-dock-clearance, 0px);
   inset-inline-start: 0;
   inset-inline-end: var(--assistant-surface-inline-end-clearance, 0px);
   z-index: 1;
   display: grid;
   place-items: center;
 
-  /* 只是反馈，不是交互层：底下的滚动与点击一概照旧。 */
+  /* 只是反馈，不是交互层。 */
   pointer-events: none;
 }
 
+/*
+ * 标记自己的墨。取 --ui-mark-ink 而不是 --cp-ink：后者的浅色档是近黑，标记会与
+ * 正文同一个重量；标记要的是中性灰。深浅两档在 tokens/light.css 与 dark.css 各给一次。
+ *
+ * 48px：它是整片空白正中唯一的东西，32px 在这个尺度里仍偏小。
+ *
+ * 不给 opacity：这一格是定稿指定的实色，压一层透明度量出来就不是那个值了。
+ */
 .restore-spinner__mark {
-  block-size: 20px;
-  inline-size: 20px;
-  fill: none;
-  stroke-width: 2;
-  stroke-linecap: round;
-  opacity: 0.72;
-  animation: restore-spinner-turn 900ms linear infinite;
-}
-
-@keyframes restore-spinner-turn {
-  to {
-    transform: rotate(1turn);
-  }
+  block-size: 48px;
+  inline-size: 48px;
+  color: var(--ui-mark-ink);
 }
 
 /*
- * 减弱动态偏好下换成呼吸，而不是关掉。
+ * 两道墨：底下那一层是静止的标记，上面那一层是同一份字形，被一条横着走的亮条
+ * 裁着 —— 亮条扫过的那一段于是换成更亮的一档墨。
  *
- * 关掉动画只剩一个静止的图标，人分不清是在转还是卡死了——那比没有图标更糟。
+ * 与时间线那句「正在思考」同一个做法（见 timeline/shimmer.css），但机制不同：
+ * 那边是 background-clip: text，只有文字能用；这里是遮罩，字形是路径。两边共用
+ * 的是画法与节奏（2000ms 一趟、两端透明的渐变），不是同一段声明 —— 一条声明没法
+ * 同时裁文字与裁路径。
+ *
+ * 动的是遮罩里那条亮条的 transform，只重绘不重排。
  */
-@media (prefers-reduced-motion: reduce) {
-  .restore-spinner__mark {
-    animation: restore-spinner-pulse 1600ms ease-in-out infinite;
-  }
+.restore-spinner__base {
+  fill: currentcolor;
 }
 
-@keyframes restore-spinner-pulse {
-  0%,
-  100% {
-    opacity: 0.35;
+/*
+ * 扫过的那一段。取 --cp-timeline-body-ink，不是 --cp-ink。
+ *
+ * 这两个在浅色下同值（都是近黑），深色下分家：--cp-ink 是 #c3c3c3，比标记自己的
+ * #c8c8c8 还暗五格 —— 拿它当亮带，扫过去是一片几乎看不见的暗纹。--cp-timeline-body-ink
+ * 深色下是纯白，正是这个面上对比度最高的那一档，浅色下仍是近黑。
+ *
+ * 方向与 shimmer.css 一致：亮带是「对比度拉满的那一档」，浅色下因此比标记更深、
+ * 深色下更亮，不是一律更亮。
+ */
+.restore-spinner__glint {
+  fill: var(--cp-timeline-body-ink);
+}
+
+/*
+ * 亮条停在视口右侧外，动画只负责把它从左边带进来。
+ *
+ * 这一格非动画值就是「不在画面上」：减弱动效时全局策略把动画压成一次 0.01ms 的
+ * 迭代（tokens/accessibility.css），迭代一结束元素就回到这个值 —— 于是标记是
+ * 干干净净的一枚静态字形，而不是半亮半暗地卡在中间。若把静止值放在中间，收掉
+ * 动画反而会留下一道永久的亮边。
+ */
+.restore-spinner__band {
+  transform: translateX(24px);
+  animation: restore-spinner-sweep 2000ms linear infinite;
+}
+
+/* 12 宽的亮条走完 -12..24 这一程：左边框外进，右边框外出。 */
+@keyframes restore-spinner-sweep {
+  from {
+    transform: translateX(-12px);
   }
 
-  50% {
-    opacity: 0.9;
+  to {
+    transform: translateX(24px);
   }
 }

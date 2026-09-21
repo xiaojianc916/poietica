@@ -120,6 +120,11 @@
   scrollbar-width: none;
 }
 
+/* 深色下分隔线写字面实色（产品指定），不跟卡片线那支半透明墨：半透明压在卡面上量出来的灰比卡面亮一档。 */
+:root[data-theme="dark"] .settings-content {
+  --settings-divider: #353535;
+}
+
 .settings-content::-webkit-scrollbar {
   display: none;
 }

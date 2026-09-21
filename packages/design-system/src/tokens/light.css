@@ -133,6 +133,15 @@
   --ui-info: var(--ui-palette-blue-500);
   --ui-info-foreground: oklch(0.99 0 0);
 
+  /*
+   * 产品标记的墨。
+   *
+   * 不复用 --ui-foreground：浅色那档是近黑（oklch 0.19 解出 #15140f），而标记要的是
+   * 中性灰 #3a3a3a —— 它出现在加载态这类「正在发生」的位置，与正文同一个黑会读成
+   * 一段内容。深色那支在 dark.css，两边各自成立。
+   */
+  --ui-mark-ink: #3a3a3a;
+
   /* 同上，浅底那一套。跟着 --ui-background 走，只能写 hex：xterm 不认 oklch。 */
   --terminal-background: #ffffff;
   --terminal-foreground: #333333;

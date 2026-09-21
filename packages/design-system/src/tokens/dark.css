@@ -132,4 +132,10 @@
   --terminal-ansi-bright-magenta: #d670d6;
   --terminal-ansi-bright-cyan: #29b8db;
   --terminal-ansi-bright-white: #e5e5e5;
+
+  /*
+   * 产品标记的墨。比 --ui-foreground（#c3c3c3）亮五格：标记是实心墨块，同一档灰
+   * 在近黑底上比描边字形轻。浅色那支在 light.css。
+   */
+  --ui-mark-ink: #c8c8c8;
 }

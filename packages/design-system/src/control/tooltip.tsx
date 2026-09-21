@@ -2,6 +2,7 @@ import { Tooltip } from '@base-ui/react/tooltip'
 import type { ComponentProps } from 'react'
 import { cn } from '../class-names'
 import { popupPositionerClassName } from './popup-surface'
+import './tooltip.css'
 
 /*
  * 三个部件都从 Base UI 的命名空间直接展平，不再手搓转发。
@@ -34,12 +35,12 @@ const TooltipRoot = Tooltip.Root
 const TooltipTrigger = Tooltip.Trigger
 
 /*
- * 反色是有意的：提示气泡与它解释的界面对调明暗，才不会被读成界面的一部分。
+ * 浅色下气泡反色：提示与它解释的界面对调明暗，才不会被读成界面的一部分。反色的
+ * 来源是主题令牌，不是 dark: 变体 —— 后者读的是 prefers-color-scheme，用户手动
+ * 切主题时会脱钩，气泡朝着系统的方向翻过去。
  *
- * 反色的来源必须是主题令牌，不是 dark: 变体。主题由 :root[data-theme] 驱动，
- * 而 dark: 读的是 prefers-color-scheme——用户手动切主题时两者会脱钩，气泡会朝
- * 着系统的方向翻过去。bg-foreground / text-background 天然跟随 data-theme：
- * 浅色下是深气泡，深色下是浅气泡，反色语义在两个主题里都成立。
+ * 深色下不反色，改读 tooltip.css 那一格：深色界面里反色是一块近白，比它解释的
+ * 任何东西都亮。
  *
  * 进出动画交给 Base UI 的 data-starting-style / data-ending-style。此前这里是
  * 一串 animate-in / data-[state=closed] ——前者来自没有安装的 tailwindcss-animate，
@@ -59,7 +60,7 @@ function TooltipContent({
       <Tooltip.Positioner className={popupPositionerClassName} side={side} sideOffset={sideOffset}>
         <Tooltip.Popup
           className={cn(
-            'overflow-hidden rounded-md px-3 py-1.5 text-xs',
+            'ui-tooltip overflow-hidden rounded-md px-3 py-1.5 text-xs',
             'bg-foreground text-background',
             'origin-[var(--transform-origin)]',
             'transition-[transform,scale,opacity]',

@@ -250,7 +250,7 @@ export function TranscriptView({
       {/*
        * 判据里带 count === 0 不是防抖，是归属：这个图标属于「空白」，不属于「忙碌」。
        */}
-      <RestoreSpinner active={isRestoring && feed.count === 0} />
+      <RestoreSpinner active={isRestoring && feed.count === 0} dockClearance={dockClearance} />
 
       <AgentActivityFeed
         conversation={sessionKey}
