@@ -86,6 +86,9 @@ async agentTranscript(request: AgentTranscriptRequest) : Promise<AgentTranscript
 async agentTranscriptOps(request: AgentTranscriptOpsRequest) : Promise<AgentTranscriptJson> {
     return await TAURI_INVOKE("agent_transcript_ops", { request });
 },
+async agentSessionMedia(request: AgentSessionMediaRequest) : Promise<AgentSessionMediaResult> {
+    return await TAURI_INVOKE("agent_session_media", { request });
+},
 async agentRenameThread(request: AgentRenameThreadRequest) : Promise<null> {
     return await TAURI_INVOKE("agent_rename_thread", { request });
 },
@@ -100,9 +103,6 @@ async agentPinThread(request: AgentPinThreadRequest) : Promise<null> {
 },
 async agentForkThread(request: AgentForkThreadRequest) : Promise<AgentThread> {
     return await TAURI_INVOKE("agent_fork_thread", { request });
-},
-async assetFormats() : Promise<AssetFormat[]> {
-    return await TAURI_INVOKE("asset_formats");
 },
 /**
  * 调用方只见脱敏后的 IPC 文案，永远拿不到原生细节。
@@ -505,7 +505,11 @@ export type AgentModelCatalogRequest = { launch: AgentLaunch; cwd: string | null
 export type AgentOpenThreadRequest = { target: AgentThreadTarget; launch: AgentLaunch; cwd: string | null }
 export type AgentOpenedThread = { thread: AgentThread; selectors: AgentConfigControl[]; goal: AgentGoal | null; history: AgentHistory; transcript: AgentTranscriptJson }
 export type AgentPinThreadRequest = { threadId: string; pinned: boolean }
-export type AgentPromptAsset = { sessionToken: string; assetToken: string; filename: string }
+export type AgentPromptAsset = { sessionToken: string; assetToken: string; filename: string; 
+/**
+ * Image 走内存注册表；File 是暂存在磁盘上的通用文件。
+ */
+kind: AssetKind }
 export type AgentPromptConfiguration = { id: string; value: string }
 /**
  * A prompt, and how to start the agent if it is not running yet.
@@ -534,6 +538,11 @@ export type AgentSessionEvent = { kind: "selectors"; sessionId: string; selector
  * provider、模型或默认模型的真身以它为准：收到即作废缓存重问。
  */
 { kind: "modelCatalogChanged" }
+/**
+ * 取一张 agent 会话媒体（历史图片）：webview 无法带 Bearer 直连，原生侧代取回 base64。
+ */
+export type AgentSessionMediaRequest = { sessionId: string; fileId: string }
+export type AgentSessionMediaResult = { contentType: string; base64: string }
 /**
  * kap 的 agent.status.updated 报的是仪表值：到达即替换，不是增量；按读数算增量的是账本。
  */
@@ -567,8 +576,8 @@ export type AgentTranscriptOpsRequest = { sessionId: string; agentId: string; si
 export type AgentTranscriptRequest = { sessionId: string; agentId: string; beforeTurn: string | null }
 export type AppSettings = { theme: ThemePreference; language: string; general: GeneralSettings; appearance: AppearanceSettings; modelPicker: ModelPickerSettings; privacy: PrivacySettings }
 export type AppearanceSettings = { density: Density; reduceMotion: boolean; messageTimestamps: boolean }
-export type AssetFormat = { kind: string; contentType: string; extensions: string[] }
 export type AssetImportRequest = { sessionToken: string; paths: string[] }
+export type AssetKind = "image" | "file"
 export type AssetRemoveRequest = { sessionToken: string; assetToken: string }
 export type AssetSessionCloseRequest = { sessionToken: string }
 export type AssetSessionResult = { sessionToken: string }
@@ -577,7 +586,11 @@ export type AssetUploadRequest = { sessionToken: string;
  * base64 原始字节，不带 `data:` 前缀；刻意不用 `Vec<u8>`：JSON IPC 下它线上是 `number[]`，大四五倍（见 Tauri v2 InvokeArgs）。
  */
 base64: string }
-export type AssetUploadResult = { assetToken: string; contentHash: string; source: string; byteLength: number; contentType: string }
+export type AssetUploadResult = { 
+/**
+ * Image：进内存注册表、source 是预览地址；File：落盘暂存、source 为空。
+ */
+kind: AssetKind; assetToken: string; contentHash: string; source: string; byteLength: number; contentType: string }
 export type Automation = { id: string; title: string; prompt: string; schedule: string | null; enabled: boolean; createdAt: string; nextRunAt: string | null; sessionConfig: Partial<{ [key in string]: string }>; runs: AutomationRun[]; revision: number; workspaceRoot: string | null; timeZone: string; issue: string | null }
 export type AutomationCatalog = { revision: number; automations: Automation[] }
 export type AutomationCatalogChanged = { catalog: AutomationCatalog }

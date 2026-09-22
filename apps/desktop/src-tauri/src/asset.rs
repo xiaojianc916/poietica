@@ -4,12 +4,13 @@ use base64::Engine as _;
 use base64::engine::general_purpose::STANDARD as BASE64;
 use serde::{Deserialize, Serialize};
 use specta::Type;
-use tauri::{State, async_runtime};
+use tauri::{AppHandle, State, async_runtime};
 use uuid::Uuid;
 
 use crate::error::Error;
+use crate::paths;
 use poietica_asset::{
-    AssetIntakeError, AssetProtocolError, AssetProtocolRegistry, FORMATS, ImportedAsset,
+    AssetIntakeError, AssetProtocolError, AssetProtocolRegistry, ImportedAsset, ImportedKind,
     MAX_ASSET_BYTES, import_bytes, import_files,
 };
 use poietica_problem::Problem;
@@ -37,9 +38,27 @@ pub struct AssetSessionResult {
     pub session_token: String,
 }
 
+#[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize, Type)]
+#[serde(rename_all = "camelCase")]
+pub enum AssetKind {
+    Image,
+    File,
+}
+
+impl From<ImportedKind> for AssetKind {
+    fn from(kind: ImportedKind) -> Self {
+        match kind {
+            ImportedKind::Image => Self::Image,
+            ImportedKind::File => Self::File,
+        }
+    }
+}
+
 #[derive(Clone, Debug, Serialize, Type)]
 #[serde(rename_all = "camelCase")]
 pub struct AssetUploadResult {
+    /// Image：进内存注册表、source 是预览地址；File：落盘暂存、source 为空。
+    pub kind: AssetKind,
     pub asset_token: String,
     pub content_hash: String,
     pub source: String,
@@ -103,12 +122,14 @@ pub async fn asset_upload(
 #[tauri::command]
 #[specta::specta]
 pub async fn asset_import(
+    app: AppHandle,
     request: AssetImportRequest,
     assets: State<'_, AssetProtocolRegistry>,
 ) -> CommandResult<Vec<AssetUploadResult>> {
     let registry = assets.inner().clone();
+    let staging = paths::composer_staging_root(&app).map_err(Problem::from)?;
     async_runtime::spawn_blocking(move || {
-        import_files(&registry, &request.session_token, &request.paths)
+        import_files(&registry, &request.session_token, &staging, &request.paths)
             .map(|items| items.into_iter().map(AssetUploadResult::from).collect())
             .map_err(map_intake_error)
     })
@@ -122,6 +143,7 @@ pub async fn asset_import(
 impl From<ImportedAsset> for AssetUploadResult {
     fn from(asset: ImportedAsset) -> Self {
         Self {
+            kind: asset.kind.into(),
             asset_token: asset.content_hash.clone(),
             content_hash: asset.content_hash,
             source: asset.source,
@@ -135,34 +157,12 @@ fn map_intake_error(error: AssetIntakeError) -> Problem {
     log::warn!("asset ingestion failed: {error}");
     match error {
         AssetIntakeError::Protocol(cause) => map_asset_error(cause),
+        AssetIntakeError::Blob(cause) => {
+            log::error!("an attachment could not be staged: {cause}");
+            Error::Asset("an attachment could not be stored".into()).into()
+        }
         AssetIntakeError::Read(_) => Error::NotFound("file could not be read".into()).into(),
     }
-}
-
-#[derive(Clone, Debug, Serialize, Type)]
-#[serde(rename_all = "camelCase")]
-pub struct AssetFormat {
-    kind: String,
-    pub content_type: String,
-    pub extensions: Vec<String>,
-}
-
-#[tauri::command]
-#[specta::specta]
-#[must_use]
-pub fn asset_formats() -> Vec<AssetFormat> {
-    FORMATS
-        .iter()
-        .map(|format| AssetFormat {
-            kind: format.kind.as_str().to_owned(),
-            content_type: format.content_type.to_owned(),
-            extensions: format
-                .extensions
-                .iter()
-                .map(|extension| (*extension).to_owned())
-                .collect(),
-        })
-        .collect()
 }
 
 #[tauri::command]
@@ -175,8 +175,10 @@ pub async fn asset_remove(
         .remove(&request.session_token, &request.asset_token)
         .map_err(map_asset_error)?;
 
+    // 通用文件不进内存注册表（在 tmp 暂存，启动对账清）：查无此项不是错误。
+    // 记 warn 而不是 debug：这一支同样接得住拼错的图片令牌，静默会把真错误埋掉。
     if !removed {
-        return Err(Error::NotFound("asset does not exist in session".into()).into());
+        log::warn!("asset {} is not held by the registry", request.asset_token);
     }
 
     Ok(())
@@ -227,7 +229,7 @@ mod tests {
         reason = "tests operate on known-good fixtures; a broken assumption must fail the test loudly"
     )]
 
-    use super::*;
+    use super::{AssetProtocolError, map_asset_error};
     use poietica_asset::sniff;
     use poietica_problem::Code;
     use sha2::{Digest, Sha256};
@@ -258,36 +260,6 @@ mod tests {
         );
         assert_eq!(sniff(b"plain text"), Some("text/plain"));
         assert_eq!(sniff(b""), None);
-    }
-
-    #[test]
-    fn the_file_dialog_is_offered_exactly_what_the_sniffer_accepts() {
-        assert_eq!(asset_formats().len(), FORMATS.len());
-
-        for format in FORMATS {
-            assert!(
-                !format.extensions.is_empty(),
-                "{} has no extension for the file dialog",
-                format.content_type
-            );
-
-            assert!(
-                sniff(b"").is_none(),
-                "an empty payload must never sniff as {}",
-                format.content_type
-            );
-        }
-    }
-
-    #[test]
-    fn every_importable_format_is_also_deliverable() {
-        for format in FORMATS {
-            assert!(
-                poietica_asset::is_deliverable_content_type(format.content_type),
-                "{} can be imported but not delivered",
-                format.content_type
-            );
-        }
     }
 
     #[test]

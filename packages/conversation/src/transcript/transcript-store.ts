@@ -18,7 +18,13 @@ import type { TimelineState } from '../timeline/timeline-contract'
 import { isInFlight } from '../timeline/timeline-contract'
 import { selectIsBusy } from '../timeline/timeline-queries'
 import { createTimelineState } from '../timeline/timeline-state'
-import { knownPromptIds, outlineOf, projectTranscript, promptOutcome } from './transcript-projector'
+import {
+  knownPromptIds,
+  needsMediaFetch,
+  outlineOf,
+  projectTranscript,
+  promptOutcome,
+} from './transcript-projector'
 import { TranscriptReplica } from './transcript-replica'
 import type { TranscriptSink } from './transcript-sink'
 
@@ -78,6 +84,8 @@ export interface SendOptions {
 }
 const MAIN_AGENT_ID = 'main'
 const PENDING_SIGNAL_LIMIT = 64
+/** 一张图的字节最多代取几次：重试要挡得住抖动，又不能变成每次发布都发一遍。 */
+const MEDIA_ATTEMPTS = 3
 const EMPTY: Transcript = {
   timeline: createTimelineState(),
   status: 'idle',
@@ -106,6 +114,21 @@ export class TranscriptStore implements TranscriptSink {
   readonly #lifetimes = new Map<string, AbortController>()
   readonly #listeners = new Map<string, Set<() => void>>()
   readonly #runningListeners = new Set<() => void>()
+  /**
+   * 历史图片字节的代取缓存：sessionId -> (fileId -> data URL)。
+   *
+   * media 端点要 Bearer，webview 直连不了，经端口让原生侧代取；内层 Map 不可变
+   * 更新（每次解析完换一张新 Map），投影器按 Map 身份判断缓存是否失效。
+   */
+  readonly #media = new Map<string, Map<string, string>>()
+  /**
+   * 已经在取、或取失败还在等下文的媒体：`sessionId␟fileId` -> 已经试过几次。
+   *
+   * 有次数上限：`#requestMedia` 每次发布都会跑，而「这张图的服务端 fileId 已经
+   * 不存在」是永久的 —— 不留上限就是每次流式 delta 都发一次注定失败的请求。
+   * 换会话与放掉对话都会清掉它（#dropMedia），重开对话自然再试。
+   */
+  readonly #mediaAttempts = new Map<string, number>()
   readonly #now: () => number
   #running = new Set<string>()
   #port: AgentSessionPort | null = null
@@ -274,6 +297,8 @@ export class TranscriptStore implements TranscriptSink {
       this.#pending.clear()
       this.#held.clear()
       this.#listeners.clear()
+      this.#media.clear()
+      this.#mediaAttempts.clear()
       this.#running = new Set()
       this.#runningListeners.clear()
     }
@@ -308,6 +333,7 @@ export class TranscriptStore implements TranscriptSink {
     if (owner !== undefined) {
       this.#routes.delete(owner.sessionId)
       this.#pending.delete(owner.sessionId)
+      this.#dropMedia(owner.sessionId)
     }
     for (const key of this.#held.keys()) {
       if (addressOf(key).conversation === threadId) {
@@ -316,6 +342,17 @@ export class TranscriptStore implements TranscriptSink {
       }
     }
     this.#publishRunning()
+  }
+
+  /** 丢掉一条会话的代取缓存与尝试计数：换会话或放掉这条对话都从这里走。 */
+  #dropMedia = (sessionId: string): void => {
+    this.#media.delete(sessionId)
+    const prefix = `${sessionId}\u241f`
+    for (const key of this.#mediaAttempts.keys()) {
+      if (key.startsWith(prefix)) {
+        this.#mediaAttempts.delete(key)
+      }
+    }
   }
 
   readEarlier = async (key: string): Promise<void> => {
@@ -498,6 +535,7 @@ export class TranscriptStore implements TranscriptSink {
       this.#owners.delete(thread)
       this.#routes.delete(previous.sessionId)
       this.#pending.delete(previous.sessionId)
+      this.#dropMedia(previous.sessionId)
       for (const key of this.#held.keys()) {
         if (key !== thread && addressOf(key).conversation === thread) {
           this.#held.delete(key)
@@ -576,7 +614,12 @@ export class TranscriptStore implements TranscriptSink {
     const key = channelKey(thread, agentId)
     const current = this.read(key)
     const turns = snapshot.items.filter((item) => item.kind === 'turn')
-    const timeline = projectTranscript(snapshot)
+    const owner = this.#owners.get(thread)
+    const media = owner === undefined ? undefined : this.#media.get(owner.sessionId)
+    const timeline = projectTranscript(snapshot, media)
+    if (owner !== undefined) {
+      this.#requestMedia(thread, agentId, owner.sessionId, snapshot)
+    }
     const known = knownPromptIds(snapshot)
     const remaining = current.submissions.filter(
       (entry) => entry.promptId === null || !known.has(entry.promptId),
@@ -604,6 +647,72 @@ export class TranscriptStore implements TranscriptSink {
     this.#held.set(key, { ...next, status: activityOf(next) })
     this.#publishRunning()
     this.#fire(key)
+  }
+  /**
+   * 把这页里还没拿到字节的历史图片排上代取。
+   *
+   * 投影器对没解析的图片只给占位；这里经端口让原生侧代取 media 端点（webview
+   * 带不了 Bearer），回来后换一张新的 media 表再重投一次。
+   */
+  #requestMedia(
+    thread: string,
+    agentId: string,
+    sessionId: string,
+    snapshot: AgentTranscriptSnapshot,
+  ): void {
+    const port = this.#port
+    if (port === null) {
+      return
+    }
+    const resolved = this.#media.get(sessionId)
+    for (const attachment of snapshot.attachments) {
+      if (!needsMediaFetch(attachment)) {
+        continue
+      }
+      // needsMediaFetch 已经保证 source 存在且不是现成的 URL。
+      const { fileId } = attachment.source as { readonly fileId: string }
+      if (resolved?.has(fileId) === true) {
+        continue
+      }
+      const requestKey = `${sessionId}\u241f${fileId}`
+      const attempts = this.#mediaAttempts.get(requestKey) ?? 0
+      if (attempts >= MEDIA_ATTEMPTS) {
+        continue
+      }
+      this.#mediaAttempts.set(requestKey, attempts + 1)
+      const lifetime = this.#lifetimes.get(thread)
+      void port.transcript.readMedia(sessionId, fileId).then(
+        ({ mediaType, base64 }) => {
+          if (lifetime?.signal.aborted) {
+            return
+          }
+          const previous = this.#media.get(sessionId)
+          this.#media.set(
+            sessionId,
+            new Map(previous).set(fileId, `data:${mediaType};base64,${base64}`),
+          )
+          this.#republishMedia(sessionId, thread, agentId)
+        },
+        () => {
+          /* 代取失败：这一张留在占位，不挡对话。次数记着而不是清掉 ——
+             服务端永久没有这个 fileId 时，清掉就是每次 delta 重发一次。 */
+        },
+      )
+    }
+  }
+  /** 媒体表换了一张新 Map 之后，用 owner 手上的快照重投这一格。 */
+  #republishMedia(sessionId: string, thread: string, agentId: string): void {
+    if (this.#disposed) {
+      return
+    }
+    const owner = this.#owners.get(thread)
+    if (owner === undefined || owner.sessionId !== sessionId) {
+      return
+    }
+    const snapshot = owner.snapshot(agentId)
+    if (snapshot !== undefined) {
+      this.#publish(thread, agentId, snapshot)
+    }
   }
   #fire(key: string): void {
     for (const listener of this.#listeners.get(key) ?? []) {

@@ -195,3 +195,96 @@
   block-size: var(--cp-tile-badge-glyph);
   inline-size: var(--cp-tile-badge-glyph);
 }
+
+/*
+ * 通用文件是一张紧凑宽卡，宽度贴着内容（长名截断在 18rem），不占满整行：
+ * 图标、名字、「类型 大小」、末尾一个移除键。它没有可预览的图，名字与大小
+ * 才是用户发送前要核对的事实。
+ */
+.composer-file {
+  position: relative;
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 0.375rem;
+  box-sizing: border-box;
+  max-inline-size: min(100%, 18rem);
+  min-inline-size: 0;
+  padding: 0.25rem 0.375rem 0.25rem 0.5rem;
+  border: var(--cp-px) solid var(--cp-tile-edge);
+  border-radius: var(--cp-tile-corner);
+  background: var(--cp-tile-face);
+  list-style: none;
+}
+
+.composer-file__icon {
+  display: grid;
+  flex: none;
+  place-items: center;
+  color: var(--cp-ink-subtle);
+}
+
+.composer-file__icon svg {
+  block-size: calc(var(--cp-icon) - 2px);
+  inline-size: calc(var(--cp-icon) - 2px);
+}
+
+.composer-file__text {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  min-inline-size: 0;
+  gap: 0;
+}
+
+.composer-file__name {
+  overflow: hidden;
+  color: var(--cp-ink);
+  font-size: var(--ui-prose-size-aux);
+  line-height: 1.25;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.composer-file__meta {
+  color: var(--cp-ink-subtle);
+  font-size: var(--ui-prose-size-meta);
+  line-height: 1.2;
+  white-space: nowrap;
+}
+
+.composer-file__remove {
+  position: relative;
+  display: grid;
+  flex: none;
+  place-items: center;
+  block-size: var(--cp-tile-badge);
+  inline-size: var(--cp-tile-badge);
+  border: 0;
+  border-radius: 9999px;
+  padding: 0;
+  background: transparent;
+  color: var(--cp-ink-subtle);
+  cursor: pointer;
+}
+
+.composer-file__remove::after {
+  content: "";
+  position: absolute;
+  inset: calc((var(--cp-tile-badge) - var(--cp-target-min)) / 2);
+}
+
+.composer-file__remove:hover {
+  background: var(--cp-tile-badge-hover);
+  color: var(--cp-ink);
+}
+
+.composer-file__remove:focus-visible {
+  outline: calc(var(--cp-px) * 2) solid var(--cp-accent);
+  outline-offset: var(--cp-px);
+}
+
+.composer-file__remove svg {
+  block-size: var(--cp-tile-badge-glyph);
+  inline-size: var(--cp-tile-badge-glyph);
+}

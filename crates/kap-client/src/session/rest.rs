@@ -24,7 +24,7 @@ use crate::generated::rest::{
 use crate::http::{decoded, get, post};
 use crate::policy::{CAPABILITY_POLL_ATTEMPTS, CAPABILITY_POLL_INTERVAL};
 use crate::session::book::SessionBook;
-use crate::session::client::{PromptAttachment, PromptSkill};
+use crate::session::client::{MediaBytes, PromptAttachment, PromptSkill};
 use crate::session::config::{
     ConfigControl, GoalSnapshot, controls, goal_snapshot, selector_patch,
 };
@@ -32,6 +32,9 @@ use crate::session::{
     Capability, CapabilityInstall, CapabilityReadiness, Cursor, McpServer, McpStatus,
     OpenedSession, Skill,
 };
+
+/// 一次 media 代取的上限：与附件进门同额（crates/asset identity.rs 的 MAX_ASSET_BYTES）。
+const MAX_MEDIA_BYTES: usize = 32 * 1024 * 1024;
 
 pub(crate) fn create_session_body(cwd: &Path) -> CreateSessionRequestStruct {
     CreateSessionRequestStruct {
@@ -177,18 +180,32 @@ fn prompt_body(
     }
     for attachment in attachments {
         match attachment {
-            PromptAttachment::Image {
-                data, mime_type, ..
-            } => content.push(SubmitPromptRequestContentChoice::Image {
-                source: SubmitPromptRequestContentChoiceImageSourceChoice::Base64 {
-                    media_type: mime_type.clone(),
-                    data: data.clone(),
-                },
-                name: None,
-            }),
-            PromptAttachment::Text { text, .. } => {
-                content.push(SubmitPromptRequestContentChoice::Text { text: text.clone() });
+            // 图片走 path 源：服务端把它收进会话媒体库（session_media）并给回 fileId，
+            // transcript 因此带上这条附件，气泡才画得出它。内联 base64 拿不到 fileId，
+            // 那条路会让图片在屏幕上彻底消失（ADR 0050）。类型由服务端按文件头判，
+            // 线上 image part 没有 media_type 这一格。
+            PromptAttachment::Image { path, name } => {
+                content.push(SubmitPromptRequestContentChoice::Image {
+                    source: SubmitPromptRequestContentChoiceImageSourceChoice::Path {
+                        path: path.to_string_lossy().into_owned(),
+                    },
+                    name: Some(name.clone()),
+                });
             }
+            // 通用文件走 file part：给路径与元数据，服务端登记为「用 Read 打开」的附件，
+            // 字节不拍平进正文（kimi-code kap-server promptMedia.ts）。
+            PromptAttachment::File {
+                path,
+                name,
+                mime_type,
+                size,
+            } => content.push(SubmitPromptRequestContentChoice::File {
+                file_id: None,
+                path: Some(path.to_string_lossy().into_owned()),
+                media_type: Some(mime_type.clone()),
+                name: Some(name.clone()),
+                size: Some(*size),
+            }),
         }
     }
     if content.is_empty() {
@@ -287,6 +304,88 @@ pub(crate) async fn catch_up_transcript(
     });
 
     get(http, url).await
+}
+
+///
+/// 取一张会话媒体（历史图片）的原始字节。它不在生成路由表里——生成器只表达 JSON
+/// 信封路由，而这里回的是二进制，所以手写这一次 GET。连接自带 Bearer 头（driver.rs
+/// 建 client 时放的 default headers），webview 自己无法带鉴权直连这个地址。
+///
+/// 上限与附件进门同额：base64 之后要跨 IPC 进 webview，没有上限就是一个能被远端
+/// 撑爆的内存放大器（见 asset 的 MAX_ASSET_BYTES）。
+pub(crate) async fn read_session_media(
+    http: &reqwest::Client,
+    base_url: &str,
+    session_id: &str,
+    file_id: &str,
+) -> Result<MediaBytes> {
+    let base = url::Url::parse(base_url).map_err(|error| KapError::Transport {
+        message: format!("the daemon base url is invalid: {error}"),
+    })?;
+    let mut url = base;
+    url.path_segments_mut()
+        .map_err(|()| KapError::Transport {
+            message: "the daemon base url cannot be a base".to_owned(),
+        })?
+        .push("api")
+        .push("v1")
+        .push("sessions")
+        .push(session_id)
+        .push("media")
+        .push(file_id);
+
+    let response = http
+        .get(url)
+        .send()
+        .await
+        .map_err(|error| KapError::Transport {
+            message: error.to_string(),
+        })?;
+
+    if !response.status().is_success() {
+        return Err(KapError::Transport {
+            message: format!("media fetch returned {}", response.status()),
+        });
+    }
+
+    if response
+        .content_length()
+        .is_some_and(|length| length > MAX_MEDIA_BYTES as u64)
+    {
+        return Err(KapError::Transport {
+            message: "media fetch exceeds the size limit".to_owned(),
+        });
+    }
+
+    let content_type = response
+        .headers()
+        .get(reqwest::header::CONTENT_TYPE)
+        .and_then(|value| value.to_str().ok())
+        .unwrap_or("application/octet-stream")
+        .to_owned();
+
+    let mut bytes = Vec::new();
+    let mut response = response;
+    while let Some(chunk) = response
+        .chunk()
+        .await
+        .map_err(|error| KapError::Transport {
+            message: error.to_string(),
+        })?
+    {
+        // 先看这一块会不会越线再收：Content-Length 可以撒谎，也可以没有。
+        if bytes.len().saturating_add(chunk.len()) > MAX_MEDIA_BYTES {
+            return Err(KapError::Transport {
+                message: "media fetch exceeds the size limit".to_owned(),
+            });
+        }
+        bytes.extend_from_slice(&chunk);
+    }
+
+    Ok(MediaBytes {
+        content_type,
+        bytes,
+    })
 }
 
 pub(crate) async fn open_session(
@@ -685,6 +784,7 @@ mod tests {
     )]
 
     use super::*;
+    use std::path::PathBuf;
 
     #[test]
     fn a_bundled_skill_prompt_omits_the_incompatible_prompt_id() {
@@ -706,6 +806,74 @@ mod tests {
         assert_eq!(
             wire.get("content").and_then(Value::as_array).map(Vec::len),
             Some(1)
+        );
+    }
+
+    #[test]
+    fn an_image_travels_as_a_path_so_the_agent_can_register_it() {
+        let body = prompt_body(
+            "look at this",
+            &[PromptAttachment::Image {
+                path: PathBuf::from("/attachments/ab/abcdef"),
+                name: "shot.png".to_owned(),
+            }],
+            &[],
+        )
+        .expect("prompt body");
+        let wire = serde_json::to_value(&body).expect("wire body");
+        let image = wire
+            .get("content")
+            .and_then(Value::as_array)
+            .and_then(|items| items.get(1))
+            .expect("the image part");
+
+        assert_eq!(image.get("type").and_then(Value::as_str), Some("image"));
+        /* base64 那条路拿不到服务端 fileId，图片就不会进 transcript 而彻底消失。
+        判据因此钉在 source 的形状上，不只是「有个 image part」。 */
+        assert_eq!(
+            image.pointer("/source/kind").and_then(Value::as_str),
+            Some("path")
+        );
+        assert_eq!(
+            image.pointer("/source/path").and_then(Value::as_str),
+            Some("/attachments/ab/abcdef")
+        );
+        assert!(image.pointer("/source/data").is_none());
+    }
+
+    #[test]
+    fn a_generic_file_travels_as_a_path_and_never_as_inline_text() {
+        let body = prompt_body(
+            "read this",
+            &[PromptAttachment::File {
+                path: PathBuf::from("/attachments/cd/cdefgh"),
+                name: "notes.txt".to_owned(),
+                mime_type: "text/plain".to_owned(),
+                size: 22,
+            }],
+            &[],
+        )
+        .expect("prompt body");
+        let wire = serde_json::to_value(&body).expect("wire body");
+        let items = wire
+            .get("content")
+            .and_then(Value::as_array)
+            .expect("content parts");
+
+        assert_eq!(items.len(), 2, "只有那句话与那一个 file part");
+        let file = items.get(1).expect("the file part");
+        assert_eq!(file.get("type").and_then(Value::as_str), Some("file"));
+        assert_eq!(
+            file.get("path").and_then(Value::as_str),
+            Some("/attachments/cd/cdefgh")
+        );
+        /* 文件字节绝不进正文：正文里只有用户自己打的那句话。 */
+        assert_eq!(
+            items
+                .first()
+                .and_then(|item| item.get("text"))
+                .and_then(Value::as_str),
+            Some("read this")
         );
     }
 }

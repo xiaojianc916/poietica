@@ -816,7 +816,7 @@ function PromptInputShell({
               setPendingConfiguration([])
               rewindPalette()
 
-              /* 不 discard：这些字节现在归这条对话的交付会话。 */
+              /* 不 discard：这些字节已随准入交给这条对话，注册表里那一份由原生侧放掉。 */
               setAttachments([])
               submit.current(message)
             }}

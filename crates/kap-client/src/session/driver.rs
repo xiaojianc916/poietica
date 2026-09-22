@@ -35,8 +35,8 @@ use crate::session::reconnect::{fail_in_flight, relink};
 use crate::session::rest::{
     archive_session, catch_up_transcript, create_session_body, ensure_session_model, fetch_goal,
     fork_session, get_selectors, install_capability, list_capabilities, list_mcp_servers,
-    list_sessions, list_skills, load_session, open_session, read_transcript, set_selector,
-    submit_prompt,
+    list_sessions, list_skills, load_session, open_session, read_session_media, read_transcript,
+    set_selector, submit_prompt,
 };
 use crate::session::router::EventRouter;
 use crate::session::{AgentConnection, AgentSpawn, Handshake, SessionEvent, SessionEvents};
@@ -463,7 +463,6 @@ pub fn connect(
                             let held = book_clone.slot(&sid).ok().flatten();
                             if let Some(slot) = held {
                                 let admission_id = idempotency.clone();
-                                let shown = attachments.iter().map(|item| item.url().to_owned()).collect();
                                 let attached = skills.iter().map(|skill| skill.name.clone()).collect();
                                 if slot.attach(|| Recorder::new(sid.clone(), slot.seq(), frames)).is_err() {
                                     let _sent = reply.send(Err(KapError::Poisoned));
@@ -474,7 +473,6 @@ pub fn connect(
                                     durable = recorder.record_prompt_admitted(
                                         &admission_id,
                                         &text,
-                                        shown,
                                         attached,
                                     );
                                 });
@@ -583,6 +581,14 @@ pub fn connect(
                             let base = base_url.clone();
                             tasks.spawn(settle(reply, async move {
                                 catch_up_transcript(&http, &base, &sid, &agent_id, since_seq).await
+                            }));
+                        }
+
+                        Some(Command::ReadMedia { session_id: sid, file_id, reply }) => {
+                            let http = http.clone();
+                            let base = base_url.clone();
+                            tasks.spawn(settle(reply, async move {
+                                read_session_media(&http, &base, &sid, &file_id).await
                             }));
                         }
 

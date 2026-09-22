@@ -10,46 +10,61 @@ use crate::error::{KapError, Refusal, Result};
 use crate::recorder::FrameSink;
 use crate::{ModelCatalogOperation, ModelCatalogSnapshot};
 
+/// 一个附件怎么交给 agent。
+///
+/// 两条路都是「磁盘绝对路径 + 元数据」：图片与通用文件在线上是不同的 content part
+/// （`image` 对 `file`），但字节一律不拍平进提示正文，也一律不内联 base64。
+/// 图片走路径才会被服务端收进会话媒体库，气泡也才拿得到它（见 ADR 0050）。
 pub enum PromptAttachment {
     Image {
-        data: String,
+        path: PathBuf,
+        name: String,
+    },
+    /// 通用文件：只给 agent 一个磁盘路径与元数据，它经 Read 工具按需打开。
+    File {
+        path: PathBuf,
+        name: String,
         mime_type: String,
-        url: String,
+        size: i64,
     },
-    Text {
-        text: String,
-        url: String,
-    },
-}
-
-impl PromptAttachment {
-    #[must_use]
-    pub fn url(&self) -> &str {
-        match self {
-            Self::Image { url, .. } | Self::Text { url, .. } => url,
-        }
-    }
 }
 
 impl fmt::Debug for PromptAttachment {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Self::Image {
-                data,
-                mime_type,
-                url,
-            } => formatter
+            Self::Image { name, .. } => formatter
                 .debug_struct("PromptAttachment::Image")
+                .field("name", name)
+                .finish_non_exhaustive(),
+            Self::File {
+                name,
+                mime_type,
+                size,
+                ..
+            } => formatter
+                .debug_struct("PromptAttachment::File")
+                .field("name", name)
                 .field("mime_type", mime_type)
-                .field("base64_len", &data.len())
-                .field("url", url)
-                .finish(),
-            Self::Text { text, url } => formatter
-                .debug_struct("PromptAttachment::Text")
-                .field("text_len", &text.len())
-                .field("url", url)
-                .finish(),
+                .field("size", size)
+                .finish_non_exhaustive(),
         }
+    }
+}
+
+/// agent transcript 里 session_media 图片的字节：webview 无法带 Bearer 直连，
+/// 由这条连接（已带鉴权头）取回转给渲染层。Debug 不打字节。
+pub struct MediaBytes {
+    pub content_type: String,
+    pub bytes: Vec<u8>,
+}
+
+impl fmt::Debug for MediaBytes {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter
+            .debug_struct("MediaBytes")
+            .field("content_type", &self.content_type)
+            .field("byte_len", &self.bytes.len())
+            .finish()
     }
 }
 
@@ -166,6 +181,12 @@ pub(crate) enum Command {
         agent_id: String,
         since_seq: i64,
         reply: oneshot::Sender<Result<serde_json::Value>>,
+    },
+    /// 取一张 session_media 图片的字节（GET sessions/{id}/media/{file_id}，需 Bearer）。
+    ReadMedia {
+        session_id: String,
+        file_id: String,
+        reply: oneshot::Sender<Result<MediaBytes>>,
     },
 }
 
@@ -309,6 +330,21 @@ impl AgentClient {
             session_id,
             agent_id,
             since_seq,
+            reply,
+        })?;
+
+        answer
+            .await
+            .map_err(|_dropped| KapError::Refused(Refusal::Gone))?
+    }
+
+    /// 取 agent 侧会话媒体（历史图片）的字节；连接带着 Bearer，webview 自己取不到。
+    pub async fn read_media(&self, session_id: String, file_id: String) -> Result<MediaBytes> {
+        let (reply, answer) = oneshot::channel();
+
+        self.send(Command::ReadMedia {
+            session_id,
+            file_id,
             reply,
         })?;
 

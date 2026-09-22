@@ -2,8 +2,6 @@
 
 use std::path::PathBuf;
 
-use base64::Engine as _;
-use base64::engine::general_purpose::STANDARD as BASE64;
 use poietica_conversation::error::GatewayFailure;
 use poietica_conversation::ports::{
     AgentGateway, DeliveryConfirmation, DeliveryReceipt, PromptDelivery,
@@ -13,8 +11,7 @@ use poietica_kap_client::{AgentClient, KapError, PromptAttachment, PromptSkill};
 use uuid::Uuid;
 
 use crate::journal::FrameJournal;
-use poietica_asset::asset_protocol_url;
-use poietica_asset::blob::read_blob;
+use poietica_asset::blob::blob_path;
 use poietica_ledger::index::ThreadAttachment;
 
 #[derive(Clone)]
@@ -87,31 +84,29 @@ fn refusal(reason: String) -> GatewayFailure {
 
 impl KapGateway {
     /// Frozen attachments are all-or-nothing; never silently change a submitted prompt.
+    ///
+    /// 两条路都只交「磁盘绝对路径 + 元数据」：图片与通用文件在线上是不同的 content
+    /// part，但字节一律不内联（base64 那条路拿不到服务端的 fileId，图片就不会进
+    /// transcript，屏幕上彻底消失，见 ADR 0050）。
     fn materialise(&self, admission: &Admission) -> Result<Vec<PromptAttachment>, String> {
         let mut carried = Vec::with_capacity(admission.attachments.len());
 
         for reference in &admission.attachments {
-            let bytes = read_blob(&self.attachments_root, &reference.hash)
+            let path = blob_path(&self.attachments_root, &reference.hash)
                 .map_err(|error| error.to_string())?;
-
-            let url = asset_protocol_url(admission.thread.as_str(), &reference.hash)
-                .map_err(|error| format!("{error:?}"))?;
 
             let prompt = if reference.mime.starts_with("image/") {
                 PromptAttachment::Image {
-                    data: BASE64.encode(bytes.as_slice()),
-                    mime_type: reference.mime.clone(),
-                    url,
+                    path,
+                    name: reference.name.clone(),
                 }
-            } else if reference.mime == "text/plain" {
-                let text = std::str::from_utf8(bytes.as_slice())
-                    .map_err(|_utf8| "a text attachment is not UTF-8".to_owned())?
-                    .to_owned();
-                PromptAttachment::Text { text, url }
             } else {
-                return Err(
-                    "an attachment type cannot be delivered; the prompt was not sent".to_owned(),
-                );
+                PromptAttachment::File {
+                    path,
+                    name: reference.name.clone(),
+                    mime_type: reference.mime.clone(),
+                    size: reference.size,
+                }
             };
 
             carried.push(prompt);
@@ -126,6 +121,8 @@ pub(crate) fn attachment_reference(entry: &ThreadAttachment) -> AttachmentRef {
     AttachmentRef {
         hash: entry.hash.clone(),
         mime: entry.mime.clone(),
+        name: entry.name.clone(),
+        size: entry.byte_size,
     }
 }
 

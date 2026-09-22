@@ -72,6 +72,12 @@ export function createAgentSessionPort({
           complete: data.complete,
         } as TranscriptCatchUp
       },
+      /* 历史图片的字节在 daemon 的 media 端点后、要 Bearer：webview 直连不了，
+         由原生侧代取，交回 base64，store 再缓存成 data URL。 */
+      readMedia: async (sessionId, fileId) => {
+        const wire = await throughIpc(() => commands.agentSessionMedia({ sessionId, fileId }))
+        return { mediaType: wire.contentType, base64: wire.base64 }
+      },
     },
     prompt: async (request) => {
       const resolvedLaunch = await launch()
@@ -93,6 +99,7 @@ export function createAgentSessionPort({
             sessionToken: asset.sessionToken,
             assetToken: asset.assetToken,
             filename: asset.filename,
+            kind: asset.kind,
           })),
           launch: resolvedLaunch,
           cwd: cwd?.() ?? null,

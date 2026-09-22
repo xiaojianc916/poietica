@@ -173,120 +173,8 @@ impl AssetProtocolRegistry {
         Ok(true)
     }
 
-    pub fn replace_session(
-        &self,
-        session_token: &str,
-        assets: Vec<AssetSessionSnapshotEntry>,
-    ) -> Result<(), AssetProtocolError> {
-        validate_token(session_token)?;
-
-        let (restored_assets, restored_bytes) = materialise(assets)?;
-
-        let mut state = self
-            .state
-            .write()
-            .map_err(|_| AssetProtocolError::Internal)?;
-
-        /* 旧的那一份先从账上减掉再算总量。不减就是把同一条会话的字节反复计入，
-        而打开对话这件事一天里会发生很多次 —— 那笔账只会朝一个方向漂。 */
-        let released = state.sessions.get(session_token).map_or(0, |assets| {
-            assets
-                .values()
-                .map(|asset| asset.bytes.len())
-                .sum::<usize>()
-        });
-
-        let next_total = state
-            .total_bytes
-            .saturating_sub(released)
-            .checked_add(restored_bytes)
-            .ok_or(AssetProtocolError::RegistryBudgetExceeded)?;
-
-        if next_total > MAX_REGISTRY_BYTES {
-            return Err(AssetProtocolError::RegistryBudgetExceeded);
-        }
-
-        state
-            .sessions
-            .insert(session_token.to_owned(), restored_assets);
-
-        state.total_bytes = next_total;
-
-        Ok(())
-    }
-
     pub fn total_bytes(&self) -> usize {
         self.state.read().map_or(0, |state| state.total_bytes)
-    }
-
-    pub fn adopt(
-        &self,
-        from_session: &str,
-        from_token: &str,
-        into_session: &str,
-    ) -> Result<Option<(String, Arc<Vec<u8>>)>, AssetProtocolError> {
-        validate_token(from_session)?;
-        validate_token(from_token)?;
-        validate_token(into_session)?;
-
-        let mut state = self
-            .state
-            .write()
-            .map_err(|_| AssetProtocolError::Internal)?;
-
-        /* 取的是 RegisteredAsset 的克隆：一个 Arc 加一个 String，与字节数无关。 */
-        let Some(found) = state
-            .sessions
-            .get(from_session)
-            .and_then(|assets| assets.get(from_token))
-            .cloned()
-        else {
-            return Ok(None);
-        };
-
-        let current_total = state.total_bytes;
-
-        let session = state
-            .sessions
-            .get_mut(into_session)
-            .ok_or(AssetProtocolError::NotFound)?;
-
-        if let Some(existing) = session.get_mut(from_token) {
-            if existing.content_type != found.content_type {
-                return Err(AssetProtocolError::DuplicateAsset);
-            }
-
-            existing.references = existing
-                .references
-                .checked_add(1)
-                .ok_or(AssetProtocolError::ReferenceOverflow)?;
-
-            return Ok(Some((found.content_type, found.bytes)));
-        }
-
-        let next_total = current_total
-            .checked_add(found.bytes.len())
-            .ok_or(AssetProtocolError::RegistryBudgetExceeded)?;
-
-        if next_total > MAX_REGISTRY_BYTES {
-            return Err(AssetProtocolError::RegistryBudgetExceeded);
-        }
-
-        let content_type = found.content_type.clone();
-        let bytes = Arc::clone(&found.bytes);
-
-        session.insert(
-            from_token.to_owned(),
-            RegisteredAsset {
-                bytes: found.bytes,
-                content_type: found.content_type,
-                references: 1,
-            },
-        );
-
-        state.total_bytes = next_total;
-
-        Ok(Some((content_type, bytes)))
     }
 
     pub fn deliver(
@@ -312,36 +200,6 @@ impl AssetProtocolRegistry {
             bytes: asset.bytes,
         })
     }
-}
-
-fn materialise(
-    assets: Vec<AssetSessionSnapshotEntry>,
-) -> Result<(HashMap<String, RegisteredAsset>, usize), AssetProtocolError> {
-    let mut restored = HashMap::new();
-    let mut bytes_total = 0_usize;
-    for asset in assets {
-        let (hash, content_type, bytes) = asset.into_parts();
-        bytes_total = bytes_total
-            .checked_add(bytes.len())
-            .ok_or(AssetProtocolError::RegistryBudgetExceeded)?;
-        if bytes_total > MAX_REGISTRY_BYTES {
-            return Err(AssetProtocolError::RegistryBudgetExceeded);
-        }
-        if restored
-            .insert(
-                hash,
-                RegisteredAsset {
-                    bytes,
-                    content_type,
-                    references: 1,
-                },
-            )
-            .is_some()
-        {
-            return Err(AssetProtocolError::DuplicateAsset);
-        }
-    }
-    Ok((restored, bytes_total))
 }
 
 #[cfg(test)]

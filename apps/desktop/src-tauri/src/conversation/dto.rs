@@ -23,6 +23,8 @@ pub struct AgentPromptAsset {
     pub session_token: String,
     pub asset_token: String,
     pub filename: String,
+    /// Image 走内存注册表；File 是暂存在磁盘上的通用文件。
+    pub kind: crate::asset::AssetKind,
 }
 
 #[derive(Debug, Deserialize, Type)]
@@ -302,6 +304,21 @@ pub struct AgentTranscriptOpsRequest {
     pub session_id: String,
     pub agent_id: String,
     pub since_seq: i64,
+}
+
+/// 取一张 agent 会话媒体（历史图片）：webview 无法带 Bearer 直连，原生侧代取回 base64。
+#[derive(Debug, Deserialize, Type)]
+#[serde(rename_all = "camelCase")]
+pub struct AgentSessionMediaRequest {
+    pub session_id: String,
+    pub file_id: String,
+}
+
+#[derive(Debug, Serialize, Type)]
+#[serde(rename_all = "camelCase")]
+pub struct AgentSessionMediaResult {
+    pub content_type: String,
+    pub base64: String,
 }
 
 #[derive(Clone, Debug, Deserialize, Event, Serialize, Type)]

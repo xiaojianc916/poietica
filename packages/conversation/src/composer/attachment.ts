@@ -6,9 +6,14 @@ export interface ComposerAssetContext {
 export interface ComposerAsset {
   readonly sessionToken: string
   readonly assetToken: string
+  /** image：资产协议预览地址；file：空字符串（通用文件没有预览，只渲染卡片）。 */
   readonly url: string
   readonly filename: string
   readonly mediaType: string
+  /** 字节数，文件卡片那一行「类型 大小」用；图片也带着，来源同一份收据。 */
+  readonly size: number
+  /** image 进内存注册表走预览；file 是暂存在原生侧的通用文件，发 file part。 */
+  readonly kind: 'image' | 'file'
   readonly context?: ComposerAssetContext
 }
 

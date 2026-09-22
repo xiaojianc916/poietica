@@ -132,4 +132,25 @@ impl<E: RuntimeFailure> Runtime<E> {
             .map(|value| value.to_string())
             .map_err(CommandError::Agent)
     }
+
+    ///
+    /// 取一张会话媒体（历史图片）的字节并以 base64 回交：webview 无法带 Bearer 直连
+    /// daemon 的 media 端点，只能由这条已鉴权的连接代取。失败按传输错误上抛，调用方
+    /// 降级为占位图，不挡对话。
+    pub async fn session_media(
+        &self,
+        session: String,
+        file_id: String,
+    ) -> Result<(String, String), CommandError<E>> {
+        use base64::Engine as _;
+        use base64::engine::general_purpose::STANDARD as BASE64;
+
+        let media = self
+            .require_live()?
+            .client
+            .read_media(session, file_id)
+            .await
+            .map_err(CommandError::Agent)?;
+        Ok((media.content_type, BASE64.encode(media.bytes)))
+    }
 }

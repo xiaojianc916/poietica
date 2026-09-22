@@ -56,9 +56,9 @@ pub use session::driver::connect;
 pub use session::{
     AgentClient, AgentConnection, AgentSpawn, Capability, CapabilityInstall, CapabilityReadiness,
     ConfigChoice, ConfigControl, ConfigPurpose, ConfigSelection, Cursor, GoalSnapshot, Handshake,
-    McpServer, McpStatus, OpenedSession, PromptAttachment, PromptSkill, SessionBook, SessionEntry,
-    SessionEvent, SessionEvents, SessionUsageSnapshot, Skill, apply_configurations, controls,
-    goal_snapshot, select_config, selector_patch,
+    McpServer, McpStatus, MediaBytes, OpenedSession, PromptAttachment, PromptSkill, SessionBook,
+    SessionEntry, SessionEvent, SessionEvents, SessionUsageSnapshot, Skill, apply_configurations,
+    controls, goal_snapshot, select_config, selector_patch,
 };
 
 pub use poietica_conversation::link::LinkState;

@@ -36,6 +36,7 @@ function fixture() {
         subscribeTranscript: subscribe,
         readTranscript: unavailable,
         catchUpTranscript: unavailable,
+        readMedia: unavailable,
       },
       prompt: unavailable,
       cancel: unavailable,

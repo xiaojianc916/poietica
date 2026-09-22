@@ -150,7 +150,10 @@ impl AgentStore {
                 .iter()
                 .zip(attached)
                 .all(|(reference, metadata)| {
-                    reference.hash == metadata.hash && reference.mime == metadata.mime
+                    reference.hash == metadata.hash
+                        && reference.mime == metadata.mime
+                        && reference.name == metadata.name
+                        && reference.size == metadata.byte_size
                 })
         {
             return Err(LedgerError::InvalidSubmission(
@@ -223,7 +226,7 @@ mod submission_tests {
             submitted_at_unix_millis: 1,
         };
         admission.attachments = serde_json::from_value(serde_json::json!([
-            {"hash": attachment.hash, "mime": attachment.mime}
+            {"hash": attachment.hash, "mime": attachment.mime, "name": attachment.name, "size": attachment.byte_size}
         ]))
         .expect("attachment reference");
         let request = PromptDelivery {

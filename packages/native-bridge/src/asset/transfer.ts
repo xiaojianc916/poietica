@@ -1,8 +1,8 @@
-import { type AssetFormat, type AssetUploadResult, commands } from '@poietica/contract'
+import { type AssetUploadResult, commands } from '@poietica/contract'
 import { throughIpc } from '../ipc-error'
 
 /*
- * 资产会话：一批图片挂在一个令牌下面，关掉就一起释放。
+ * 资产会话：一批附件挂在一个令牌下面，关掉就一起释放。
  *
  * 原生命令统一经 ipc-error.ts 的 throughIpc 调用。AssetUploadResult 直接取自
  * 生成绑定，Rust 侧的类型是权威。
@@ -11,22 +11,14 @@ import { throughIpc } from '../ipc-error'
  * 避免 webview 先读入、编码再送回本机进程；剪贴板上传仍传 base64。
  */
 
-/** 原生按路径入库之后交回来的那一份。source 就是 <img src> 能直接用的地址。 */
-export type AssetImport = AssetUploadResult
-
-/** 一种收得下的格式：内容类型，加上它在系统对话框里的扩展名。 */
-export type { AssetFormat }
-
 /**
- * 原生收得下的格式清单。
+ * 原生按路径入库之后交回来的那一份。
  *
- * 扩展名只给系统对话框的过滤器用，不是判据 —— 判据是文件头，在原生那一侧，
- * 而且两者出自同一张表（crates/asset/src/formats.rs 的 FORMATS）。这一层因此不持有
- * 任何格式知识，它只是把那张表运过来。
+ * kind 为 Image 时 source 是 <img src> 能直接用的资产协议地址；kind 为 File
+ * 时是通用文件（含文本、压缩包等），字节已暂存在原生侧、source 为空，界面渲染
+ * 文件卡片而不是预览。
  */
-export function listAssetFormats(): Promise<readonly AssetFormat[]> {
-  return throughIpc(() => commands.assetFormats())
-}
+export type AssetImport = AssetUploadResult
 
 /** 开一条资产会话，拿到它的令牌。 */
 export function openAssetSession(): Promise<string> {
@@ -40,8 +32,8 @@ export function openAssetSession(): Promise<string> {
 /**
  * 把这些路径读进会话，顺序与传入一致。
  *
- * 内容类型由原生按文件头判定，不看扩展名，也不看渲染层的猜测；认不出来的格式
- * 整批拒绝，所以调用方拿到的每一项都是能投递的。
+ * 选择框收所有文件：图片按文件头进内存注册表走预览，其余一律按通用文件暂存，
+ * 不再整批拒绝未知格式。
  */
 export function importAssets(
   sessionToken: string,
@@ -53,7 +45,7 @@ export function importAssets(
 }
 
 /**
- * 剪贴板里的那一张图。
+ * 剪贴板里的那一张图（只可能是图片）。
  *
  * 三条进门的路里只有这一条要经过字节：截图是一团没有名字也没有路径的 blob，
  * 系统给不出路径，所以它走不了 importAssets。拖放与文件对话框交的都是路径。
@@ -65,7 +57,10 @@ export function uploadAsset(sessionToken: string, base64: string): Promise<Asset
   return throughIpc(() => commands.assetUpload({ sessionToken, base64 }))
 }
 
-/** 从会话里放掉一张。输入框里被移除的那一张不该继续占着注册表的预算。 */
+/**
+ * 从会话里放掉一个附件。图片释放注册表预算；通用文件本就不在注册表里，
+ * 原生侧查无此项时按成功处理（暂存字节随 tmp 对账清空）。
+ */
 export function removeAsset(sessionToken: string, assetToken: string): Promise<void> {
   return throughIpc(async () => {
     await commands.assetRemove({ sessionToken, assetToken })

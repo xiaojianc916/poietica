@@ -8,6 +8,8 @@ export interface PromptAsset {
   readonly sessionToken: string
   readonly assetToken: string
   readonly filename: string
+  /** image：进内存注册表走预览；file：暂存在原生侧的通用文件，发 file part。 */
+  readonly kind: 'image' | 'file'
 }
 
 export interface PromptSkill {

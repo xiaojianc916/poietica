@@ -52,15 +52,7 @@ pub struct ExportSource {
 }
 
 impl<E: RuntimeFailure> Runtime<E> {
-    pub async fn open_thread<P, PF>(
-        &self,
-        request: OpenThread,
-        deliver_assets: P,
-    ) -> Result<OpenedThread, CommandError<E>>
-    where
-        P: FnOnce(Uuid) -> PF + Send,
-        PF: Future<Output = Result<(), E>> + Send,
-    {
+    pub async fn open_thread(&self, request: OpenThread) -> Result<OpenedThread, CommandError<E>> {
         let (named, create) = match request.target {
             ThreadTarget::Create(named) => (named, true),
             ThreadTarget::Existing(named) => (named, false),
@@ -133,9 +125,6 @@ impl<E: RuntimeFailure> Runtime<E> {
         .await
         .map_err(CommandError::Persistence)?
         .ok_or(CommandError::Readback)?;
-        deliver_assets(id)
-            .await
-            .map_err(CommandError::Attachments)?;
         let result = OpenedThread {
             thread,
             selectors,

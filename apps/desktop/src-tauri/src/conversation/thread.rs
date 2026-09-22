@@ -5,10 +5,7 @@ use super::dto::{
     AgentThreadRequest, AgentThreadSnapshot, AgentThreadTarget, AgentTitleSource,
     AgentTranscriptJson, reported_goal,
 };
-use super::{
-    AgentCommandResult, AgentRuntime, attachment::deliver_attachments, configuration::restate,
-};
-use crate::asset_protocol::AssetProtocolRegistry;
+use super::{AgentCommandResult, AgentRuntime, configuration::restate};
 use crate::error::{Error, Result};
 use crate::ledger::LocalIndex;
 use crate::paths::remove_projectless_workspace;
@@ -44,8 +41,6 @@ pub async fn agent_thread_snapshot(
 #[specta::specta]
 pub async fn agent_open_thread(
     state: State<'_, AgentRuntime>,
-    index: State<'_, LocalIndex>,
-    assets: State<'_, AssetProtocolRegistry>,
     request: AgentOpenThreadRequest,
 ) -> AgentCommandResult<AgentOpenedThread> {
     let target = match request.target {
@@ -53,14 +48,11 @@ pub async fn agent_open_thread(
         AgentThreadTarget::Existing { thread_id } => ThreadTarget::Existing(thread_id),
     };
     let opened = state
-        .open_thread(
-            OpenThread {
-                agent_id: request.launch.agent_id,
-                cwd: request.cwd,
-                target,
-            },
-            |id| deliver_attachments(&state, &index, &assets, id),
-        )
+        .open_thread(OpenThread {
+            agent_id: request.launch.agent_id,
+            cwd: request.cwd,
+            target,
+        })
         .await
         .map_err(Error::from)?;
     Ok(AgentOpenedThread {

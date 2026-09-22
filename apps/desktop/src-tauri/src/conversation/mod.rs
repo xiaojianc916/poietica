@@ -31,6 +31,3 @@ const NO_CONVERSATION: &str = "no conversation was named";
 const NO_SUCH_CONVERSATION: &str = "that conversation no longer exists";
 
 const IMAGE_TOO_LARGE: &str = "an attachment is too large";
-
-/// 到不了才是常态；真到了说明这一句带的图已经不在，宁可报错也不静默少发一张。
-const NO_SUCH_ASSET: &str = "an attachment is no longer available";

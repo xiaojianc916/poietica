@@ -24,12 +24,13 @@ pub(crate) const QUESTIONS_RESOLVED: &str = "questions_resolved";
     rename_all_fields = "camelCase"
 )]
 pub enum RunFrame {
-    /// 这一轮开始了：问的是什么，以及随它一起送出去的图片与技能。
+    /// 这一轮开始了：问的是什么，以及随它一起送出去的技能。
+    ///
+    /// 附件不在这帧上：哪句话带了哪些附件由 agent transcript 记（ADR 0050），
+    /// 本机再存一份就是第二套对话正文。
     PromptAdmitted {
         admission_id: String,
         prompt: String,
-        /// 随这句话送出去的图片，按用户挑选的顺序，本机资产协议地址。
-        images: Vec<String>,
         /// 随这句话挂上的技能名，按用户挑选的顺序。
         skills: Vec<String>,
     },

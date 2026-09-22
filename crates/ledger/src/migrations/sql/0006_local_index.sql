@@ -47,8 +47,8 @@ CREATE TABLE attachments (
     created_at TEXT    NOT NULL
 ) STRICT;
 
--- 这条对话引用了哪些字节，就这一个问题。图片的落点由帧自己带
--- （run_events 里 prompt_admitted 的 images），所以这里不记第几轮第几张：
+-- 这条对话引用了哪些字节，就这一个问题。哪一句话带了哪几张由 agent 的
+-- transcript 记（turn 的 attachmentIds，见 ADR 0050），所以这里不记第几轮第几张：
 -- 两侧各数一遍再对齐，那是同一件事有两个来源。
 CREATE TABLE thread_attachments (
     thread_id TEXT NOT NULL REFERENCES threads (id),

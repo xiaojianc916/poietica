@@ -1,5 +1,6 @@
 import type {
   AgentTranscriptSnapshot,
+  TranscriptAttachment,
   TranscriptFrame,
   TranscriptInteraction,
   TranscriptTask,
@@ -10,6 +11,8 @@ import type { TurnMark } from '../agent/thread'
 import type { ToolCallContent } from '../agent/tool-call'
 import type {
   BackgroundTaskItem,
+  MessageFile,
+  MessageImage,
   PermissionItem,
   QuestionTimelineItem,
   TimelineItem,
@@ -20,7 +23,8 @@ import type {
   UserMessageItem,
 } from '../timeline/timeline-contract'
 
-import { isInFlight } from '../timeline/timeline-contract'
+import { fileMetaLabel, isInFlight } from '../timeline/timeline-contract'
+import { withoutKimiAttachmentNotices } from './kimi-attachment'
 import { describeKimiTool } from './kimi-tool'
 
 function timeOf(value?: string): number | undefined {
@@ -100,7 +104,92 @@ function sourceOfFrame(frame: Extract<TranscriptFrame, { role: 'user' }>): Input
   return { isUser: false, anchors: frame.taskId === undefined ? null : 0 }
 }
 
-/** 只有真的用户输入才成行；其它来源的运行不伪造消息气泡。 */
+/** 一条 turn 的附件投成什么：图片（可能还在代取字节）与通用文件卡片。 */
+interface TurnAttachments {
+  readonly images: MessageImage[]
+  readonly files: MessageFile[]
+}
+
+const NO_TURN_ATTACHMENTS: TurnAttachments = { images: [], files: [] }
+
+/**
+ * 媒体字节的解析结果：fileId -> data/asset URL。
+ *
+ * 历史图片在 agent 的 media 端点后（要 Bearer），webview 直连不了，由 store 经
+ * 原生侧代取后填进这张表；投影器只读表、不发请求。空表是一个稳定的共享常量。
+ */
+const EMPTY_MEDIA: ReadonlyMap<string, string> = new Map()
+
+/** 没有附件可查时的稳定空表：与 EMPTY_MEDIA 同理，免得白建一张 Map。 */
+const EMPTY_INDEX: ReadonlyMap<string, TranscriptAttachment> = new Map()
+
+/**
+ * 附件画成图还是卡片。
+ *
+ * 判据是「有没有能取回像素的 source」，不是 media_type：agent 只给可显示的图片
+ * 记 source，给不了的那种（模型不收的格式、被降级成文件的图）本来就只能是卡片。
+ * 只看 media_type 会把这类附件画成永远转圈的占位。
+ */
+function imageUrlOf(
+  attachment: TranscriptAttachment,
+  media: ReadonlyMap<string, string>,
+): string | undefined {
+  const { source } = attachment
+  if (source === undefined) {
+    return undefined
+  }
+  if (source.kind === 'url') {
+    return source.url
+  }
+  return media.get(source.fileId)
+}
+
+/** 这句附件是一张要画的图吗：图片类型，而且 agent 给了能取回字节的 source。 */
+const isDrawableImage = (attachment: TranscriptAttachment): boolean =>
+  attachment.mediaType.startsWith('image/') && attachment.source !== undefined
+
+/**
+ * 这张图的字节要在原生侧代取吗：是图，而且 source 不是现成的 URL。
+ *
+ * 投影器不在这里发请求，store 代取；两处问的是同一个问题，所以只有这一个判据。
+ */
+export const needsMediaFetch = (attachment: TranscriptAttachment): boolean =>
+  isDrawableImage(attachment) && attachment.source?.kind !== 'url'
+
+function attachmentsOfTurn(
+  turn: TranscriptTurn,
+  index: ReadonlyMap<string, TranscriptAttachment>,
+  media: ReadonlyMap<string, string>,
+): TurnAttachments {
+  const ids = turn.attachmentIds
+  if (ids === undefined || ids.length === 0) {
+    return NO_TURN_ATTACHMENTS
+  }
+  const images: MessageImage[] = []
+  const files: MessageFile[] = []
+  for (const id of ids) {
+    const attachment = index.get(id)
+    if (attachment === undefined) {
+      continue
+    }
+    if (isDrawableImage(attachment)) {
+      const url = imageUrlOf(attachment, media)
+      // 字节还没代取回来：先占位，store 解析完换图；取失败也停在占位，不挡对话。
+      images.push(url === undefined ? { pending: true } : { url })
+    } else {
+      const name = attachment.name ?? '附件'
+      files.push({ name, meta: fileMetaLabel(name, attachment.size) })
+    }
+  }
+  return { images, files }
+}
+
+/**
+ * 只有真的用户输入才成行；其它来源的运行不伪造消息气泡。
+ *
+ * 正文里混着给模型看的附件句子，气泡只画人说的话：附件由卡片画，句子在这里
+ * 摘掉（见 kimi-attachment.ts）。开场与中途插话走的是同一个判据。
+ */
 function inputItem(
   source: InputSource,
   id: string,
@@ -108,6 +197,7 @@ function inputItem(
   stamp: number,
   text: string,
   skills: readonly string[],
+  attached: TurnAttachments = NO_TURN_ATTACHMENTS,
 ): UserMessageItem | null {
   return source.isUser
     ? {
@@ -115,7 +205,9 @@ function inputItem(
         id,
         turn,
         at: stamp,
-        text,
+        text: withoutKimiAttachmentNotices(text),
+        ...(attached.images.length === 0 ? {} : { images: attached.images }),
+        ...(attached.files.length === 0 ? {} : { files: attached.files }),
         ...(skills.length === 0 ? {} : { skills }),
       }
     : null
@@ -330,20 +422,54 @@ function framesOf(
  * 直接复用上一次的投影，流式期间每条 delta 只重算正在变的那一个，而不是整本
  * 对话。presentation 层的行身份（WeakMap<TimelineItem>）也依赖这份身份成立：
  * 投影每次新建的话，全部行位的 memo 都会被击穿。
+ *
+ * 带附件的 turn 还依赖两本外部集合：attachment.upsert 换 attachments、媒体字节
+ * 取回来换 media 表，而 turn 自身一动不动。判据得跟着这两本走，否则图片永远停在
+ * 占位。它们按**引用**比：attachments 是每次 snapshot 重建的数组，所以只比对这条
+ * turn 真正用到的那几个附件对象；media 表只在解析成功后换新，可以直接比身份。
  */
 const TURN_PROJECTIONS = new WeakMap<
   TranscriptTurn,
-  { page: TurnPage; fact: TurnFact; span: TurnSpan }
+  {
+    readonly sources: readonly (TranscriptAttachment | undefined)[]
+    readonly media: ReadonlyMap<string, string>
+    page: TurnPage
+    fact: TurnFact
+    span: TurnSpan
+  }
 >()
 
-function projectTurn(turn: TranscriptTurn): {
+/** 这条 turn 用到的附件对象，按 attachmentIds 的顺序；缺席的是找不到的 id。 */
+function sourcesOf(
+  turn: TranscriptTurn,
+  index: ReadonlyMap<string, TranscriptAttachment>,
+): readonly (TranscriptAttachment | undefined)[] {
+  const ids = turn.attachmentIds
+  return ids === undefined || ids.length === 0 ? [] : ids.map((id) => index.get(id))
+}
+
+const sameSources = (
+  left: readonly (TranscriptAttachment | undefined)[],
+  right: readonly (TranscriptAttachment | undefined)[],
+): boolean => left.length === right.length && left.every((value, at) => value === right[at])
+
+function projectTurn(
+  turn: TranscriptTurn,
+  index: ReadonlyMap<string, TranscriptAttachment>,
+  media: ReadonlyMap<string, string>,
+): {
   page: TurnPage
   fact: TurnFact
   span: TurnSpan
 } {
   const cached = TURN_PROJECTIONS.get(turn)
 
-  if (cached !== undefined) {
+  const usesAttachments = (turn.attachmentIds?.length ?? 0) > 0
+  if (
+    cached !== undefined &&
+    (!usesAttachments ||
+      (cached.media === media && sameSources(cached.sources, sourcesOf(turn, index))))
+  ) {
     return cached
   }
 
@@ -351,17 +477,19 @@ function projectTurn(turn: TranscriptTurn): {
   const source = sourceOfTurn(turn)
   const hasInput = turn.prompt !== undefined || (turn.attachmentIds?.length ?? 0) > 0
   const opening = hasInput ? source.anchors : source.isUser ? null : 0
-  const opened =
-    turn.prompt === undefined
-      ? null
-      : inputItem(
-          source,
-          turn.triggerPromptId ?? turn.turnId,
-          turn.ordinal,
-          stamp,
-          turn.prompt,
-          skillNamesOf(turn.origin.payload),
-        )
+  const attached = hasInput ? attachmentsOfTurn(turn, index, media) : NO_TURN_ATTACHMENTS
+  /* 正文里混着给模型看的附件句子，inputItem 会把它们摘掉。 */
+  const opened = hasInput
+    ? inputItem(
+        source,
+        turn.triggerPromptId ?? turn.turnId,
+        turn.ordinal,
+        stamp,
+        turn.prompt ?? '',
+        skillNamesOf(turn.origin.payload),
+        attached,
+      )
+    : null
   const frames = framesOf(turn, stamp)
   const anchors =
     frames.userAnchors === null || opening === null ? null : opening + frames.userAnchors
@@ -380,6 +508,8 @@ function projectTurn(turn: TranscriptTurn): {
     })
   }
   const projected = {
+    sources: sourcesOf(turn, index),
+    media,
     page: { turn: turn.ordinal, items },
     fact: { opensWithAnchor: opening === 1, anchors },
     span: spanOf(turn, turn.ordinal),
@@ -464,18 +594,25 @@ function runBoundariesOf(
   return result
 }
 
-export function projectTranscript(snapshot: AgentTranscriptSnapshot): TimelineState {
+export function projectTranscript(
+  snapshot: AgentTranscriptSnapshot,
+  media: ReadonlyMap<string, string> = EMPTY_MEDIA,
+): TimelineState {
   const turns = snapshot.items.filter((item): item is TranscriptTurn => item.kind === 'turn')
   const status = phaseOf(snapshot, turns.at(-1))
   const busy =
     isInFlight(status) ||
     turns.some((turn) => !isSettled(turn.state)) ||
     (snapshot.meta.activity !== undefined && snapshot.meta.activity !== 'idle')
+  const attachmentIndex =
+    turns.some((turn) => (turn.attachmentIds?.length ?? 0) > 0) && snapshot.attachments.length > 0
+      ? new Map(snapshot.attachments.map((attachment) => [attachment.attachmentId, attachment]))
+      : EMPTY_INDEX
   const pages: TurnPage[] = []
   const spans: TurnSpan[] = []
   const facts: TurnFact[] = []
   for (const turn of turns) {
-    const projected = projectTurn(turn)
+    const projected = projectTurn(turn, attachmentIndex, media)
     pages.push(projected.page)
     facts.push(projected.fact)
     spans.push(projected.span)
@@ -509,7 +646,8 @@ export const outlineOf = (snapshot: AgentTranscriptSnapshot): readonly TurnMark[
       mark = {
         turnId: item.turnId,
         admissionId: item.triggerPromptId ?? item.turnId,
-        prompt: item.prompt ?? '',
+        /* 侧栏的小地图也画人说的话：与气泡同一条摘除规矩。 */
+        prompt: withoutKimiAttachmentNotices(item.prompt ?? ''),
         reply:
           item.steps
             .flatMap((step) => step.frames)

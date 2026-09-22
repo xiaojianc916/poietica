@@ -16,13 +16,13 @@ pub enum ConversationEvent {
         turn: TurnId,
     },
     /// admission_id 同时是投递的幂等键（ports 的 PromptDelivery）：屏幕上那条用户消息与账本准入行同号；可缺省，加该字段之前的旧帧没有它。
+    ///
+    /// 附件不在这条事件上：哪句话带了哪些附件由 agent transcript 记（ADR 0050）。
     PromptAdmitted {
         #[serde(rename = "admissionId")]
         admission_id: TurnId,
         #[serde(skip_serializing_if = "Option::is_none")]
         prompt: Option<String>,
-        #[serde(skip_serializing_if = "Option::is_none")]
-        images: Option<Vec<String>>,
         #[serde(skip_serializing_if = "Option::is_none")]
         skills: Option<Vec<String>>,
     },

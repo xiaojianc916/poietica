@@ -11,7 +11,7 @@ pub(crate) mod selection;
 mod tasks;
 
 pub use book::SessionBook;
-pub use client::{AgentClient, PromptAttachment, PromptSkill};
+pub use client::{AgentClient, MediaBytes, PromptAttachment, PromptSkill};
 pub use config::{
     ConfigChoice, ConfigControl, ConfigPurpose, GoalSnapshot, controls, goal_snapshot,
     selector_patch,

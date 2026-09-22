@@ -116,6 +116,16 @@ pub fn reset_temp_directory<R: Runtime>(app: &AppHandle<R>) -> Result<PathBuf> {
     temp_directory(app)
 }
 
+/// 通用文件发送前的暂存根：在 tmp 下，随启动对账清空（workspace/reconcile.rs）。
+/// 图片走内存注册表不落地这里；这里只放不进展示协议的文件字节。
+pub fn composer_staging_root<R: Runtime>(app: &AppHandle<R>) -> Result<PathBuf> {
+    let directory = temp_directory(app)?.join("composer-attachments");
+
+    fs::create_dir_all(&directory)?;
+
+    Ok(directory)
+}
+
 /// 只放丢了能重新取回的东西；没人自动清，清理是用户在关于面板上的一次动作。
 pub fn cache_directory<R: Runtime>(app: &AppHandle<R>) -> Result<PathBuf> {
     let directory = root(app)?.join(CACHE_DIRECTORY);

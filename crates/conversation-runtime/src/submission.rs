@@ -34,7 +34,7 @@ where
         + 'static,
 {
     let opener = if request.text.is_empty() {
-        "[图片]".to_owned()
+        "[附件]".to_owned()
     } else {
         request.text.chars().take(TITLE_CHARS).collect()
     };

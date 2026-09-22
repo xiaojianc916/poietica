@@ -96,6 +96,7 @@ export type {
   CompactionState,
   CompactionTimelineItem,
   LinkTimelineItem,
+  MessageFile,
   MessageImage,
   PermissionItem,
   PlanItem,

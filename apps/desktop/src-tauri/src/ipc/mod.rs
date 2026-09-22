@@ -19,8 +19,8 @@ use crate::{
     agent::install::{AgentInstallState, AgentInstallStatus},
     agent::profile::AgentConfigSnapshot,
     asset::{
-        AssetFormat, AssetImportRequest, AssetRemoveRequest, AssetSessionCloseRequest,
-        AssetSessionResult, AssetUploadRequest, AssetUploadResult,
+        AssetImportRequest, AssetRemoveRequest, AssetSessionCloseRequest, AssetSessionResult,
+        AssetUploadRequest, AssetUploadResult,
     },
     automation::AutomationCatalogChanged,
     conversation::capability::{
@@ -37,7 +37,8 @@ use crate::{
         AgentPromptConfiguration, AgentPromptRequest, AgentPromptResult, AgentPromptSkill,
         AgentQuestionAnswer, AgentQuestionChoice, AgentQuestionMethod, AgentRenameThreadRequest,
         AgentResolvePermissionRequest, AgentSelectConfigRequest, AgentSessionEvent,
-        AgentThreadRequest, AgentTranscriptEvent, AgentTranscriptJson, AgentTranscriptOpsRequest,
+        AgentSessionMediaRequest, AgentSessionMediaResult, AgentThreadRequest,
+        AgentTranscriptEvent, AgentTranscriptJson, AgentTranscriptOpsRequest,
         AgentTranscriptRequest,
     },
     extension::{
@@ -81,12 +82,12 @@ pub(crate) fn surface() -> Builder<Wry> {
             crate::conversation::thread::agent_open_thread,
             crate::conversation::turn::agent_transcript,
             crate::conversation::turn::agent_transcript_ops,
+            crate::conversation::turn::agent_session_media,
             crate::conversation::thread::agent_rename_thread,
             crate::conversation::thread::agent_archive_thread,
             crate::conversation::thread::agent_delete_thread,
             crate::conversation::thread::agent_pin_thread,
             crate::conversation::thread::agent_fork_thread,
-            crate::asset::asset_formats,
             crate::asset::asset_session_open,
             crate::asset::asset_import,
             crate::asset::asset_upload,
@@ -214,7 +215,8 @@ pub(crate) fn surface() -> Builder<Wry> {
         .typ::<AgentTranscriptRequest>()
         .typ::<AgentTranscriptOpsRequest>()
         .typ::<AgentTranscriptJson>()
-        .typ::<AssetFormat>()
+        .typ::<AgentSessionMediaRequest>()
+        .typ::<AgentSessionMediaResult>()
         .typ::<AssetSessionResult>()
         .typ::<AssetImportRequest>()
         .typ::<AssetUploadRequest>()

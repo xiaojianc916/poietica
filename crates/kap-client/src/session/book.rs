@@ -225,7 +225,7 @@ mod tests {
 
         assert!(slot.attach(|| recorder).is_ok());
         slot.record(|frames| {
-            frames.record_prompt_admitted("adm", "hi", Vec::new(), Vec::new());
+            frames.record_prompt_admitted("adm", "hi", Vec::new());
         });
         assert!(matches!(book.fail_active("agent connection lost"), Ok(1)));
         assert!(seen.lock().is_ok_and(|events| {
@@ -248,7 +248,7 @@ mod tests {
 
         assert!(slot.attach(|| recorder).is_ok());
         slot.record(|frames| {
-            frames.record_prompt_admitted("adm", "hi", Vec::new(), Vec::new());
+            frames.record_prompt_admitted("adm", "hi", Vec::new());
         });
         assert!(matches!(book.finish_turn(NAME, "cancelled"), Ok(true)));
         assert!(matches!(book.finish_turn(NAME, "cancelled"), Ok(false)));
@@ -270,7 +270,7 @@ mod tests {
 
         assert!(slot.attach(|| recorder).is_ok());
         slot.record(|frames| {
-            frames.record_prompt_admitted("adm", "hi", Vec::new(), Vec::new());
+            frames.record_prompt_admitted("adm", "hi", Vec::new());
         });
         assert!(matches!(book.current_prompt(NAME), Ok(Some(prompt)) if prompt == "adm"));
 

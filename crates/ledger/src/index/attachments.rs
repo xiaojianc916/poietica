@@ -1,7 +1,7 @@
-//! 附件的账：哪条对话引用着哪几段字节。字节本身按摘要落磁盘，由桌面层的资产
-//! 协议交付（apps/desktop/src-tauri/src/asset_protocol/）；这里只回答某条对话该
-//! 显示哪些附件、哪些字节没人要了。附件不是对话内容，是这台机器上用户自己的
-//! 文件：agent 收到的 base64 副本它没有义务交还。
+//! 附件的账：哪条对话引用着哪几段字节。字节本身按摘要落磁盘，进附件根之后由
+//! agent 经 file part 的磁盘路径读取（apps/desktop/src-tauri/src/conversation/）；
+//! 这里只回答某条对话引用着哪些字节、哪些字节没人要了。附件不是对话内容，是这
+//! 台机器上用户自己的文件。
 
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
@@ -10,7 +10,7 @@ use crate::error::Result;
 use crate::index::store::AgentStore;
 
 /// 一段被某条对话引用着的字节，交付它需要的全部。它不说这张图属于哪句话 ——
-/// 那件事写在帧上（prompt_admitted 的 images）。
+/// 那件事写在 agent 的 transcript 上（turn 的 attachmentIds，见 ADR 0050）。
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
 pub struct ThreadAttachment {
     /// 小写十六进制 SHA-256。它同时是资产协议里的 asset token。

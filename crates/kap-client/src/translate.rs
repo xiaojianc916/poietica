@@ -18,12 +18,10 @@ pub fn conversation_event(frame: RunFrame) -> ConversationEvent {
         RunFrame::PromptAdmitted {
             admission_id,
             prompt,
-            images,
             skills,
         } => ConversationEvent::PromptAdmitted {
             admission_id: TurnId::new(admission_id),
             prompt: Some(prompt),
-            images: Some(images),
             skills: Some(skills),
         },
         RunFrame::PermissionRequested {

@@ -75,6 +75,7 @@ async function openOnce(scenario: Scenario): Promise<Counted> {
         ? { agentId, batches: [], latestSeq: 1, complete: true }
         : { agentId, batches: [], latestSeq: 0, complete: false }
     },
+    readMedia: async () => ({ mediaType: 'image/png', base64: '' }),
   } as unknown as TranscriptPort
 
   const store = new TranscriptStore()

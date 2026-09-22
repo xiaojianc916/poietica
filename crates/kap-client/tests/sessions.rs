@@ -85,7 +85,7 @@ fn many_sessions_record_concurrently_without_aliasing() {
                     .is_ok()
                 );
                 assert!(slot.record(|recorder| {
-                    recorder.record_prompt_admitted("adm", "prompt", Vec::new(), Vec::new());
+                    recorder.record_prompt_admitted("adm", "prompt", Vec::new());
                     recorder.record_run_finished("completed");
                 }));
             });

@@ -20,9 +20,11 @@ const message: BrowserPickMessage = {
 const asset: ComposerAsset = {
   sessionToken: 'session',
   assetToken: 'asset',
-  url: 'asset://report',
+  url: '',
   filename: 'report',
   mediaType: 'text/plain',
+  size: 0,
+  kind: 'file',
 }
 
 test('a listener acquired after shutdown is released exactly once', async () => {

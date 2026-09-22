@@ -139,7 +139,6 @@ impl Recorder {
         &mut self,
         admission_id: &str,
         prompt: &str,
-        images: Vec<String>,
         skills: Vec<String>,
     ) -> bool {
         self.settle_pending_end();
@@ -147,7 +146,6 @@ impl Recorder {
         let accepted = self.append_checked(RunFrame::PromptAdmitted {
             admission_id: admission_id.to_owned(),
             prompt: prompt.to_owned(),
-            images,
             skills,
         });
         if accepted {
@@ -446,7 +444,7 @@ mod tests {
             }),
         );
 
-        assert!(recorder.record_prompt_admitted("adm", "hi", Vec::new(), Vec::new()));
+        assert!(recorder.record_prompt_admitted("adm", "hi", Vec::new()));
 
         *refusing.lock().expect("the gate is writable") = true;
         recorder.record_link(&LinkState::Recovered {
@@ -480,8 +478,8 @@ mod tests {
         );
 
         assert_eq!(recorder.current_prompt(), None);
-        assert!(recorder.record_prompt_admitted("first", "hi", Vec::new(), Vec::new()));
-        assert!(recorder.record_prompt_admitted("second", "again", Vec::new(), Vec::new()));
+        assert!(recorder.record_prompt_admitted("first", "hi", Vec::new()));
+        assert!(recorder.record_prompt_admitted("second", "again", Vec::new()));
         assert_eq!(recorder.current_prompt(), Some("first"));
 
         recorder.record_run_finished("end_turn");

@@ -24,11 +24,61 @@ export type TimelineItemId = string
 /**
  * 一张挂在某条用户消息上的图片。
  *
- * 地址由原生侧拼好（`poietica-asset://asset/{thread}/{sha256}`），它随这一轮的
- * prompt_admitted 帧一起到达，所以这一侧不拼、也不必知道它属于第几句话。
+ * 历史图片的字节在 agent 的 media 端点后（要 Bearer），webview 不能直连：原生侧
+ * 代取回来之前这一格先画占位（pending），解析完换成 url。
  */
 export interface MessageImage {
-  readonly url: string
+  /** 已解析的资产/data 地址；pending 时整格缺席。 */
+  readonly url?: string
+  /** 字节还在原生侧代取，先画占位；取失败也停在占位，不挡对话。 */
+  readonly pending?: boolean
+}
+
+/** 一张挂在用户消息上的通用文件卡片：没有预览，只有名字与「类型 大小」。 */
+export interface MessageFile {
+  readonly name: string
+  /** 文件卡片第二行，投影层拼好的「TXT 22.89KB」。 */
+  readonly meta: string
+}
+
+/** 扩展名是人认得的那个词：去点、大写、截短；没有扩展名给「文件」。 */
+export function fileExtensionLabel(name: string): string {
+  const dot = name.lastIndexOf('.')
+  const extension = dot > 0 ? name.slice(dot + 1) : ''
+  return extension === '' ? '文件' : extension.slice(0, 5).toUpperCase()
+}
+
+/** 人读的字节数：22.89KB、1.2MB；给不出大小返回 undefined。 */
+export function formatByteSize(bytes: number | undefined): string | undefined {
+  if (bytes === undefined || !Number.isFinite(bytes) || bytes < 0) {
+    return undefined
+  }
+  if (bytes < 1024) {
+    return `${String(bytes)}B`
+  }
+  const units = ['KB', 'MB', 'GB', 'TB']
+  let value = bytes
+  let unit = -1
+  do {
+    value /= 1024
+    unit += 1
+  } while (value >= 1024 && unit < units.length - 1)
+  const shown =
+    value >= 100 || Number.isInteger(value)
+      ? String(Math.round(value))
+      : value.toFixed(2).replace(/\.?0+$/, '')
+  /* 四舍五入能把 1023.99 推成 1024：那不是「1024 千字节」，是下一个单位。 */
+  if (Number(shown) >= 1024 && unit < units.length - 1) {
+    return `1${units[unit + 1]}`
+  }
+  return `${shown}${units[unit]}`
+}
+
+/** 文件卡片那一行：「TXT 22.89KB」；没有大小就只剩类型词。 */
+export function fileMetaLabel(name: string, size: number | undefined): string {
+  const kind = fileExtensionLabel(name)
+  const bytes = formatByteSize(size)
+  return bytes === undefined ? kind : `${kind} ${bytes}`
 }
 
 /**
@@ -53,6 +103,8 @@ export interface UserMessageItem extends TimelineEntry {
    * 下两者不是一回事，而重放出来的条目本来就没有这一格。
    */
   readonly images?: readonly MessageImage[]
+  /** 这句话带的通用文件卡片，与图片同一条可选规矩。 */
+  readonly files?: readonly MessageFile[]
   /** 这句话挂上的技能名，与图片同一条可选规矩。 */
   readonly skills?: readonly string[]
 }

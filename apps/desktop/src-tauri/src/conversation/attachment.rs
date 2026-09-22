@@ -1,34 +1,33 @@
-//! 附件字节：进（落盘、过继、交引用）与出（装回交付注册表）；协议载荷由 gateway 的 materialise 成形，这里不碰。
+//! 附件字节：把一句话带的字节落进附件根，交还账本行。
+//!
+//! 附件只交「磁盘绝对路径 + 元数据」给 agent（见 gateway.rs 的 materialise）：图片
+//! 与通用文件在线上是不同的 content part，但字节都不内联。落盘之后再放掉 composer
+//! 注册表里的那一份 —— 进门时的注册只为预览，字节一旦进了附件根就归这条对话。
 
-use crate::asset_protocol::{AssetProtocolError, AssetProtocolRegistry, AssetSessionSnapshotEntry};
+use crate::asset_protocol::{AssetProtocolError, AssetProtocolRegistry};
 use crate::error::{Error, Result};
-use crate::ledger::LocalIndex;
-use poietica_asset::blob::{blob_path, store_bytes};
-use poietica_ledger::execution::read_index;
+use poietica_asset::blob::{read_blob, store_bytes};
+use poietica_asset::classify;
 use poietica_ledger::index::ThreadAttachment;
-use std::collections::HashSet;
 use std::path::PathBuf;
 use std::sync::Arc;
-use tauri::{State, async_runtime};
-use uuid::Uuid;
+use tauri::async_runtime;
 
-use super::AgentRuntime;
 use super::dto::AgentPromptAsset;
-use super::{IMAGE_TOO_LARGE, NO_READ, NO_SUCH_ASSET};
+use super::{IMAGE_TOO_LARGE, NO_READ};
+use crate::asset::AssetKind;
 
-/// DuplicateAsset 不是错误：同一条对话第二句带图时会话必然已开着。
-fn opened_session(assets: &AssetProtocolRegistry, session: &str) -> Result<()> {
-    match assets.open_session(session) {
-        Ok(()) | Err(AssetProtocolError::DuplicateAsset) => Ok(()),
-        Err(error) => Err(asset(error)),
-    }
-}
-
-/// 落盘并过继进交付会话、交还引用；整段留在阻塞执行器上（落盘与摘要都要过全部字节），账本行不在这里写。
+///
+/// 落盘并交还引用；整段留在阻塞执行器上（落盘与摘要都要过全部字节），
+/// 账本行不在这里写（在账本准入事务里写，见 ledger conversation/mod.rs）。
+///
+/// 通用文件的字节在 composer 暂存根；图片在 composer 注册表里 —— 进门时的注册
+/// 只为预览，字节落进附件根之后就把那一份放掉，否则发过的图会一直占着注册表预算
+/// （256MiB 封顶，占满之后新的图就进不来了）。
 pub(super) async fn keep_bytes(
     root: PathBuf,
+    staging_root: PathBuf,
     assets: AssetProtocolRegistry,
-    session: String,
     attached: Vec<AgentPromptAsset>,
 ) -> Result<Vec<ThreadAttachment>> {
     if attached.is_empty() {
@@ -36,16 +35,29 @@ pub(super) async fn keep_bytes(
     }
 
     async_runtime::spawn_blocking(move || {
-        opened_session(&assets, &session)?;
-
         let mut rows = Vec::with_capacity(attached.len());
         for reference in attached {
-            let (mime, bytes) = assets
-                .adopt(&reference.session_token, &reference.asset_token, &session)
-                .map_err(asset)?
-                .ok_or_else(|| Error::NotFound(NO_SUCH_ASSET.to_owned()))?;
+            let (mime, bytes) = match reference.kind {
+                AssetKind::File => {
+                    let bytes = read_blob(&staging_root, &reference.asset_token)?;
+                    (classify(&bytes).to_owned(), bytes)
+                }
+                AssetKind::Image => {
+                    let delivered = assets
+                        .deliver(&reference.session_token, &reference.asset_token)
+                        .map_err(asset)?;
+                    let mime = delivered.content_type;
+                    // 注册表条目与别处共享 Arc，落盘要的是一份独占字节。
+                    (
+                        mime,
+                        Arc::try_unwrap(delivered.bytes).unwrap_or_else(|shared| (*shared).clone()),
+                    )
+                }
+            };
 
+            // 顺序即不变量：字节先落进附件根，再放掉进门的那一份；中间态只会多留一份。
             let blob = store_bytes(&root, &bytes)?;
+            release(&assets, &reference);
 
             rows.push(ThreadAttachment {
                 hash: blob.hash,
@@ -62,73 +74,22 @@ pub(super) async fn keep_bytes(
     .map_err(|_dropped| Error::Internal(NO_READ.to_owned()))?
 }
 
-/// 交付会话的令牌是对话 id 而非 ACP 的 sessionId：这些 URL 必须在重启之后仍指向同一张图。
-pub(super) async fn deliver_attachments(
-    state: &State<'_, AgentRuntime>,
-    index: &State<'_, LocalIndex>,
-    assets: &State<'_, AssetProtocolRegistry>,
-    thread_id: Uuid,
-) -> Result<()> {
-    let ledger = read_index(index, move |store| {
-        store.attachments_of(thread_id).map_err(Error::from)
-    })
-    .await?;
-
-    let session = thread_id.to_string();
-
-    /* 账本空了也要走完：上一次铺下的那一份得被换成空的一批。 */
-
-    /* 按摘要去重：同一张图挂在两轮是常事，replace_session 收到重复摘要会把整批拒掉。 */
-    let mut seen = HashSet::new();
-    let mut wanted = Vec::new();
-
-    for attachment in &ledger {
-        if seen.insert(attachment.hash.clone()) {
-            wanted.push((attachment.hash.clone(), attachment.mime.clone()));
-        }
+/// 放掉进门时的那一份。
+///
+/// 通用文件在暂存根上，不进注册表，这里没它的事；图片可能已被用户自己从托盘上
+/// 删掉（那时注册表里已经没有它），所以放不掉也不算错误。
+fn release(assets: &AssetProtocolRegistry, reference: &AgentPromptAsset) {
+    if reference.kind == AssetKind::File {
+        return;
     }
 
-    let root = state.attachments().clone();
-
-    let entries = async_runtime::spawn_blocking(move || {
-        let mut entries = Vec::with_capacity(wanted.len());
-
-        for (hash, mime) in wanted {
-            let path = blob_path(&root, &hash)?;
-
-            let bytes = match std::fs::read(&path) {
-                Ok(bytes) => bytes,
-                /* 字节缺失（手动清过目录、同步软件吞文件）只跳过该张，不挡整条对话打开。 */
-                Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
-                    log::warn!("an attachment's bytes are missing: {hash}");
-                    continue;
-                }
-                Err(error) => return Err(Error::Io(error)),
-            };
-
-            /* 字节刚从磁盘读回，进程里无人验过其身份，verify 在此重付一次摘要。 */
-            match AssetSessionSnapshotEntry::verify(hash.clone(), mime, Arc::new(bytes)) {
-                Ok(entry) => entries.push(entry),
-                /* 门口现已挡住的附件类型，迁移前存下的还在账本里：跳过并记日志。 */
-                Err(error) => {
-                    log::warn!("an attachment cannot be delivered: {hash} {error:?}");
-                }
-            }
-        }
-
-        Ok::<_, Error>(entries)
-    })
-    .await
-    .map_err(|_dropped| Error::Internal(NO_READ.to_owned()))??;
-
-    /* 撤旧与铺新在注册表的同一次写锁里完成（replace_session 原子换）：重入是常态，两次写锁之间旧页面挂着的图会取到 404。 */
-    assets.replace_session(&session, entries).map_err(asset)?;
-
-    Ok(())
+    if let Err(error) = assets.remove(&reference.session_token, &reference.asset_token) {
+        log::warn!("a sent attachment stayed registered: {error:?}");
+    }
 }
 
 fn asset(error: AssetProtocolError) -> Error {
-    log::error!("an attachment could not be delivered: {error:?}");
+    log::error!("an attachment could not be read: {error:?}");
 
-    Error::Asset("an attachment could not be delivered".to_owned())
+    Error::Asset("an attachment could not be read".to_owned())
 }

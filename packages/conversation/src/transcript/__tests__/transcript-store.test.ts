@@ -46,6 +46,7 @@ function transcriptPort(patch: Partial<TranscriptPort> = {}): TranscriptPort {
       latestSeq: seq,
       complete: true,
     }),
+    readMedia: async () => ({ mediaType: 'image/png', base64: '' }),
     ...patch,
   }
 }
@@ -1010,5 +1011,96 @@ describe('transcript recovery ownership', () => {
     expect(store.read('thread').operation.kind).toBe('ready')
     expect(store.read(key).operation.kind).toBe('failed')
     store.dispose()
+  })
+})
+
+describe('turn attachments projection', () => {
+  const turnWith = (attachmentIds: readonly string[], prompt?: string): TranscriptTurn => ({
+    ...officialTurn('attach-turn', 'attach-prompt', 1),
+    ...(prompt === undefined ? {} : { prompt }),
+    attachmentIds: [...attachmentIds],
+  })
+
+  test('a generic file becomes a file card and never message text', () => {
+    const snapshot = page('main', 0, {
+      items: [turnWith(['doc'], '看一下')],
+      attachments: [
+        { attachmentId: 'doc', mediaType: 'text/plain', name: 'notes.txt', size: 23440 },
+      ],
+    })
+    const items = projectTranscript(snapshot).active.items
+    const user = items.find((item) => item.type === 'user_message')
+    expect(user).toMatchObject({
+      type: 'user_message',
+      text: '看一下',
+      files: [{ name: 'notes.txt', meta: 'TXT 22.89KB' }],
+    })
+    expect(user && 'images' in user ? user.images : undefined).toBeUndefined()
+  })
+
+  test('an attachment-only turn still opens a user bubble anchor', () => {
+    const snapshot = page('main', 0, {
+      items: [turnWith(['doc'])],
+      attachments: [
+        { attachmentId: 'doc', mediaType: 'application/zip', name: 'bundle.zip', size: 512 },
+      ],
+    })
+    const items = projectTranscript(snapshot).active.items
+    expect(items.some((item) => item.type === 'user_message')).toBe(true)
+  })
+
+  test('the agent’s attachment notice never reaches the bubble', () => {
+    const notice =
+      'Attached file "notes.txt" (text/plain, 22 bytes): ' +
+      'C:\\Users\\someone\\attachments\\ab\\abc — open it with the Read tool'
+    const snapshot = page('main', 0, {
+      items: [turnWith(['doc'], `看一下${notice}`)],
+      attachments: [{ attachmentId: 'doc', mediaType: 'text/plain', name: 'notes.txt', size: 22 }],
+    })
+    const user = projectTranscript(snapshot).active.items.find(
+      (item) => item.type === 'user_message',
+    )
+    expect(user).toMatchObject({ text: '看一下', files: [{ name: 'notes.txt' }] })
+  })
+
+  test('an image the agent gave no source for is a card, not a spinner forever', () => {
+    const snapshot = page('main', 0, {
+      items: [turnWith(['shot'])],
+      attachments: [{ attachmentId: 'shot', mediaType: 'image/png', name: 'shot.png', size: 4 }],
+    })
+    const user = projectTranscript(snapshot).active.items.find(
+      (item) => item.type === 'user_message',
+    )
+    expect(user).toMatchObject({ files: [{ name: 'shot.png', meta: 'PNG 4B' }] })
+    expect(user && 'images' in user ? user.images : undefined).toBeUndefined()
+  })
+
+  test('a historical image stays a placeholder until its bytes are resolved', () => {
+    const turn = turnWith(['img'])
+    const snapshotPage = () =>
+      page('main', 0, {
+        items: [turn],
+        attachments: [
+          {
+            attachmentId: 'img',
+            mediaType: 'image/png',
+            name: 'shot.png',
+            size: 4,
+            source: { kind: 'session_media', fileId: 'media-1' },
+          },
+        ],
+      })
+    const pending = projectTranscript(snapshotPage()).active.items
+    expect(pending.find((item) => item.type === 'user_message')).toMatchObject({
+      images: [{ pending: true }],
+    })
+
+    const resolved = projectTranscript(
+      snapshotPage(),
+      new Map([['media-1', 'data:image/png;base64,AAAA']]),
+    ).active.items
+    expect(resolved.find((item) => item.type === 'user_message')).toMatchObject({
+      images: [{ url: 'data:image/png;base64,AAAA' }],
+    })
   })
 })

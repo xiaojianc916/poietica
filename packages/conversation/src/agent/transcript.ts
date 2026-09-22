@@ -57,4 +57,12 @@ export interface TranscriptPort {
     agentId: string,
     sinceSeq: number,
   ) => Promise<TranscriptCatchUp>
+  /**
+   * 取一张会话媒体（历史图片）的字节：media 端点要 Bearer，webview 直连不了，
+   * 由原生侧代取回 base64。失败由调用方降级为占位，不挡对话。
+   */
+  readonly readMedia: (
+    sessionId: string,
+    fileId: string,
+  ) => Promise<{ readonly mediaType: string; readonly base64: string }>
 }
