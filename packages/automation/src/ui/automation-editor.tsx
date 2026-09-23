@@ -18,13 +18,12 @@ import {
   DropdownMenuItem,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
-  PlayIcon,
   SegmentedControl,
   type SegmentedOption,
   Switch,
 } from '@poietica/design-system'
 import { warn } from '@poietica/problem'
-import { ChevronRight, CirclePause, CirclePlay, Ellipsis, Trash, Workflow } from 'lucide-react'
+import { ChevronRight, CirclePause, CirclePlay, Ellipsis, Trash } from 'lucide-react'
 import {
   type ReactNode,
   useCallback,
@@ -38,8 +37,6 @@ import {
   type AutomationDraft,
   type AutomationStore,
   activeRun,
-  latestRun,
-  RUN_LABELS,
   type SchedulePreview,
   sameSessionConfig,
 } from '../index'
@@ -296,8 +293,9 @@ const EDITOR_VIEWS = [
 ] as const satisfies readonly SegmentedOption<EditorView>[]
 
 /*
- * 面包屑是这一页唯一确定的返回入口，与下面的字段同一条左缘；字号与正文同档，
- * 「自动化」带着模块的字形，可点即返回列表。
+ * 面包屑是这一页唯一确定的返回入口，坐在页面最左上角：贴面板内缘 16px —— 与面板
+ * 卡片圆角半径同档，再往里就压到圆角的弧上；它不跟正文那条居中列缩进。「自动化」
+ * 可点即返回列表，悬停时带一块底色，点得到才看得出来。
  */
 function EditorBreadcrumb({
   automation,
@@ -309,14 +307,13 @@ function EditorBreadcrumb({
   readonly saving: boolean
 }) {
   return (
-    <nav className="flex items-center gap-1.5 text-sm">
+    <nav className="flex items-center gap-1 px-2 pt-2 text-sm">
       <button
-        className="flex items-center gap-1.5 text-muted-foreground transition-colors hover:text-foreground disabled:opacity-50"
+        className="rounded-md px-2 py-1 text-muted-foreground transition-colors hover:bg-sidebar-accent hover:text-foreground disabled:opacity-50"
         disabled={saving}
         onClick={onBack}
         type="button"
       >
-        <Workflow aria-hidden className="size-3.5" />
         自动化
       </button>
       <ChevronRight aria-hidden className="size-3.5 text-muted-foreground/60" />
@@ -327,14 +324,12 @@ function EditorBreadcrumb({
   )
 }
 
-/* 「状态」字段：胶囊报当前落在哪一档，右边的滑块管周期任务开不开。 */
+/* 「状态」字段：胶囊与右边的滑块说的是同一件事 —— 这条任务开不开。 */
 function StatusField({
-  automation,
   enabled,
   hasSchedule,
   onToggleEnabled,
 }: {
-  readonly automation: Automation
   readonly enabled: boolean
   readonly hasSchedule: boolean
   readonly onToggleEnabled: (enabled: boolean) => void
@@ -342,7 +337,7 @@ function StatusField({
   return (
     <Field label="状态">
       <div className="flex items-center gap-3">
-        <StatusBadge automation={automation} />
+        <StatusBadge enabled={enabled} />
         {hasSchedule ? (
           <div className="ml-auto flex items-center gap-2 text-xs text-muted-foreground">
             <span id="automation-enabled-label">启用周期任务</span>
@@ -359,28 +354,19 @@ function StatusField({
 }
 
 /*
- * 胶囊里的那一档：有活动运行报活动那一档，否则报最近一次落定的结果，没跑过的任务
- * 只落在「未运行」。点色跟着档位走。
+ * 胶囊只有两档：任务开着是「运行中」，关掉是「已暂停」。
+ *
+ * 读的是这一页的开关值，不是落盘的那一份 —— 胶囊与开关在同一行，说的是同一件事；
+ * 拨了开关而胶囊不动，屏幕上就同时挂着两个状态。
  */
-function StatusBadge({ automation }: { readonly automation: Automation }) {
-  const active = activeRun(automation)
-  const lastRun = latestRun(automation)
-  const label =
-    active !== null
-      ? RUN_LABELS[active.outcome]
-      : lastRun === null
-        ? '未运行'
-        : RUN_LABELS[lastRun.outcome]
-  const dot =
-    active !== null || lastRun?.outcome === 'succeeded'
-      ? 'bg-success'
-      : lastRun?.outcome === 'failed'
-        ? 'bg-destructive'
-        : 'bg-muted-foreground'
+function StatusBadge({ enabled }: { readonly enabled: boolean }) {
   return (
     <span className="inline-flex items-center gap-2 rounded-lg bg-sidebar-accent px-3 py-1.5 text-xs">
-      <span aria-hidden className={cn('size-1.5 rounded-full', dot)} />
-      {label}
+      <span
+        aria-hidden
+        className={cn('size-1.5 rounded-full', enabled ? 'bg-success' : 'bg-muted-foreground')}
+      />
+      {enabled ? '运行中' : '已暂停'}
     </span>
   )
 }
@@ -443,11 +429,11 @@ function EditorToolbar({
         ) : (
           <>
             <Button
-              className={submitClassName}
               disabled={!ready || !dirty || saving || conflict}
               form={FORM_ID}
               size="sm"
               type="submit"
+              variant="soft"
             >
               {saving ? '保存中…' : '保存'}
             </Button>
@@ -458,16 +444,15 @@ function EditorToolbar({
               }}
               size="sm"
               type="button"
-              variant="ghost"
+              variant="soft"
             >
-              <PlayIcon className="mr-1 size-3.5" />
               立即运行
             </Button>
             <DropdownMenu>
+              {/* 方块与左边两颗同高：size="sm" 给高，宽度收回 32px。 */}
               <DropdownMenuTrigger
                 aria-label="更多操作"
-                className="inline-flex size-8 items-center justify-center rounded-lg bg-sidebar-accent text-foreground transition-colors hover:bg-[var(--ui-popup-highlight)]"
-                type="button"
+                render={<Button className="w-8 px-0" size="sm" type="button" variant="soft" />}
               >
                 <Ellipsis aria-hidden className="size-3.5" />
               </DropdownMenuTrigger>
@@ -637,8 +622,9 @@ export function AutomationEditor({
 
   return (
     <div className="flex h-full flex-col overflow-y-auto bg-ground">
-      <div className="mx-auto w-full max-w-3xl px-8 pb-16 pt-6">
-        <EditorBreadcrumb automation={automation} onBack={requestBack} saving={saving} />
+      {/* 面包屑是这一页的家具，坐左上角；正文那条居中列从它下面起。 */}
+      <EditorBreadcrumb automation={automation} onBack={requestBack} saving={saving} />
+      <div className="mx-auto w-full max-w-3xl px-8 pb-16">
         <h1 className="mt-6 text-2xl font-semibold tracking-tight">
           {automation === null ? '新建定时任务' : '编辑定时任务'}
         </h1>
@@ -682,7 +668,6 @@ export function AutomationEditor({
             >
               {automation === null ? null : (
                 <StatusField
-                  automation={automation}
                   enabled={enabled}
                   hasSchedule={schedule !== null}
                   onToggleEnabled={setEnabled}

@@ -100,7 +100,7 @@ export function AutomationsSurface({
     <section className="h-full overflow-y-auto bg-ground">
       <div className="mx-auto w-full max-w-3xl px-8 pb-16 pt-10">
         <header>
-          <h1 className="text-3xl font-semibold tracking-tight">自动化 工作流</h1>
+          <h1 className="text-3xl font-semibold tracking-tight">自动化</h1>
           <p className="mt-2 text-xs leading-5 text-muted-foreground">
             按计划运行任务，或在需要时随时执行。关闭此页面不会停止任务，应用退出期间不执行。
           </p>
