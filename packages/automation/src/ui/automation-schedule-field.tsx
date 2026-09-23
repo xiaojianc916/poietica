@@ -1,4 +1,7 @@
+import './automation-schedule-field.css'
+
 import {
+  cn,
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
@@ -6,8 +9,8 @@ import {
   Select,
   type SelectOption,
 } from '@poietica/design-system'
-import { ChevronDown, Plus, X } from 'lucide-react'
-import { type ReactNode, useState } from 'react'
+import { ChevronDown, Clock, Plus, X } from 'lucide-react'
+import { type ReactNode, useCallback, useState } from 'react'
 import {
   DEFAULT_SCHEDULE,
   DEFAULT_SCHEDULE_TIME,
@@ -93,6 +96,116 @@ function ScheduleMenu({
   )
 }
 
+/*
+ * 两列数字，点一下就是那个值。
+ *
+ * 不用原生 <input type="time">：点文字是编辑数字段，点时钟图标才是挑，同一个控件
+ * 两副面孔；而这一行里其余两处（计划、星期）都是点选。两列各排各的，改小时不必
+ * 先跨过分钟那一栏。
+ */
+const HOURS: readonly string[] = Array.from({ length: 24 }, (_, hour) =>
+  String(hour).padStart(2, '0'),
+)
+
+const MINUTES: readonly string[] = Array.from({ length: 60 }, (_, minute) =>
+  String(minute).padStart(2, '0'),
+)
+
+function TimeColumn({
+  label,
+  onPick,
+  options,
+  selected,
+}: {
+  readonly label: string
+  readonly onPick: (value: string) => void
+  readonly options: readonly string[]
+  readonly selected: string
+}) {
+  /*
+   * 选中项一挂上就滚进视野：分钟那列有 60 项，打开面板不该从 00 数起。
+   *
+   * 推迟一帧是因为浮层打开时自己还要聚焦一次，抢在它前面滚会被它滚回去。
+   */
+  const reveal = useCallback((node: HTMLElement | null) => {
+    requestAnimationFrame(() => {
+      if (node?.isConnected === true) {
+        node.scrollIntoView({ block: 'nearest' })
+      }
+    })
+  }, [])
+
+  return (
+    <div
+      aria-label={label}
+      className="automation-schedule-field__column max-h-56 w-14 overflow-y-auto overscroll-contain"
+      role="group"
+    >
+      {options.map((option) => (
+        <DropdownMenuItem
+          className={cn('justify-center', option === selected && 'bg-[var(--ui-popup-highlight)]')}
+          key={option}
+          onClick={() => {
+            onPick(option)
+          }}
+          ref={option === selected ? reveal : undefined}
+        >
+          {option}
+        </DropdownMenuItem>
+      ))}
+    </div>
+  )
+}
+
+/*
+ * 时间触发器：点开是两列，选完即关。
+ *
+ * 值仍是 `HH:MM`（scheduleTimeOf / scheduleFor 那一对的口径），面板只负责把它拆成
+ * 两段再拼回去，不认 cron。
+ */
+function TimePicker({
+  onChange,
+  time,
+}: {
+  readonly onChange: (time: string) => void
+  readonly time: string
+}) {
+  const [hours = '00', minutes = '00'] = time.split(':')
+
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger
+        aria-label="运行时间"
+        className="inline-flex h-8 items-center gap-1.5 rounded-lg bg-sidebar-accent/60 px-2.5 text-sm text-foreground hover:bg-sidebar-accent"
+        type="button"
+      >
+        <span>{time}</span>
+        <Clock aria-hidden className="size-3.5 opacity-60" />
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="start" className="w-auto min-w-0">
+        <div className="flex gap-1">
+          <TimeColumn
+            label="小时"
+            onPick={(hour) => {
+              onChange(`${hour}:${minutes}`)
+            }}
+            options={HOURS}
+            selected={hours}
+          />
+          <TimeColumn
+            label="分钟"
+            onPick={(minute) => {
+              onChange(`${hours}:${minute}`)
+            }}
+            options={MINUTES}
+            selected={minutes}
+          />
+        </div>
+      </DropdownMenuContent>
+    </DropdownMenu>
+  )
+}
+
 export interface AutomationScheduleFieldProps {
   readonly schedule: string | null
   readonly preview: SchedulePreview | null
@@ -154,17 +267,11 @@ function ScheduleRow({
     )
   } else if (kind !== 'hourly') {
     detail = (
-      <input
-        aria-label="运行时间"
-        className="h-8 rounded-lg bg-sidebar-accent/60 px-2 text-sm"
-        onChange={(event) => {
-          if (event.currentTarget.value !== '') {
-            onChange(scheduleFor(kind, event.currentTarget.value, weekday))
-          }
+      <TimePicker
+        onChange={(next) => {
+          onChange(scheduleFor(kind, next, weekday))
         }}
-        step={60}
-        type="time"
-        value={time}
+        time={time}
       />
     )
   }

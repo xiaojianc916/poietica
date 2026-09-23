@@ -9,7 +9,6 @@ import {
   Switch,
 } from '@poietica/design-system'
 import {
-  ChevronDown,
   CirclePlay,
   Clock,
   Ellipsis,
@@ -23,10 +22,8 @@ import {
 } from 'lucide-react'
 import { useState } from 'react'
 import {
-  AUTOMATION_TEMPLATES,
   type Automation,
   type AutomationStore,
-  type AutomationTemplate,
   activeRun,
   describeMoment,
   describeSchedule,
@@ -38,7 +35,6 @@ export interface AutomationListProps {
   readonly pending: readonly string[]
   readonly onCreateBlank: () => void
   readonly onOpen: (automationId: string) => void
-  readonly onPickTemplate: (template: AutomationTemplate) => void
   readonly store: AutomationStore
 }
 
@@ -66,7 +62,6 @@ export function AutomationList({
   pending,
   onCreateBlank,
   onOpen,
-  onPickTemplate,
   store,
 }: AutomationListProps) {
   const [filter, setFilter] = useState<StatusFilter>('全部')
@@ -78,16 +73,33 @@ export function AutomationList({
         <>
           <div className="mt-8 flex flex-col items-center justify-center gap-5 rounded-2xl border border-divider px-6 py-16">
             <p className="text-xs text-muted-foreground">还没有定时任务</p>
-            <CreateMenu onCreateBlank={onCreateBlank} onPickTemplate={onPickTemplate} />
+            <CreateButton onCreateBlank={onCreateBlank} />
           </div>
           <KeepAwakeRow />
         </>
       ) : (
         <>
           <div className="mt-6 flex items-center gap-2">
-            <span className="rounded-lg bg-sidebar-accent px-3 py-1.5 text-xs font-medium">
-              定时任务
-            </span>
+            <div className="flex gap-1">
+              {STATUS_FILTERS.map((tab) => (
+                <button
+                  aria-pressed={tab === filter}
+                  className={cn(
+                    'rounded-md px-2.5 py-1 text-xs transition-colors',
+                    tab === filter
+                      ? 'bg-sidebar-accent text-foreground'
+                      : 'text-muted-foreground hover:bg-sidebar-accent/60',
+                  )}
+                  key={tab}
+                  onClick={() => {
+                    setFilter(tab)
+                  }}
+                  type="button"
+                >
+                  {tab}
+                </button>
+              ))}
+            </div>
             <button
               aria-label="刷新自动化目录"
               className="ml-auto inline-flex size-8 items-center justify-center rounded-lg text-muted-foreground hover:bg-sidebar-accent hover:text-foreground"
@@ -98,28 +110,7 @@ export function AutomationList({
             >
               <RefreshCw aria-hidden className="size-3.5" />
             </button>
-            <CreateMenu onCreateBlank={onCreateBlank} onPickTemplate={onPickTemplate} />
-          </div>
-
-          <div className="mt-3 flex gap-1">
-            {STATUS_FILTERS.map((tab) => (
-              <button
-                aria-pressed={tab === filter}
-                className={cn(
-                  'rounded-md px-2.5 py-1 text-xs transition-colors',
-                  tab === filter
-                    ? 'bg-sidebar-accent text-foreground'
-                    : 'text-muted-foreground hover:bg-sidebar-accent/60',
-                )}
-                key={tab}
-                onClick={() => {
-                  setFilter(tab)
-                }}
-                type="button"
-              >
-                {tab}
-              </button>
-            ))}
+            <CreateButton onCreateBlank={onCreateBlank} />
           </div>
 
           <KeepAwakeRow />
@@ -327,39 +318,21 @@ function TaskMenu({
   )
 }
 
-/* 空态那张大卡片中央的白按钮，与有任务时工具栏右侧那颗，用的是同一个菜单。 */
-function CreateMenu({
-  onCreateBlank,
-  onPickTemplate,
-}: {
-  readonly onCreateBlank: () => void
-  readonly onPickTemplate: (template: AutomationTemplate) => void
-}) {
+/*
+ * 空态那张大卡片中央的白按钮，与有任务时工具栏右侧那颗，是同一颗。
+ *
+ * 一步进编辑页：模板在列表下方另有画廊（template-gallery），下拉里再摆一岔只会
+ * 让「新建」变成两次点击。
+ */
+function CreateButton({ onCreateBlank }: { readonly onCreateBlank: () => void }) {
   return (
-    <DropdownMenu>
-      <DropdownMenuTrigger
-        className="inline-flex items-center gap-1.5 rounded-lg bg-foreground px-4 py-2 text-xs font-medium text-background transition-opacity hover:opacity-90"
-        type="button"
-      >
-        创建定时任务
-        <ChevronDown aria-hidden className="size-3.5 opacity-70" />
-      </DropdownMenuTrigger>
-
-      <DropdownMenuContent className="w-56">
-        <DropdownMenuItem onClick={onCreateBlank}>空白任务</DropdownMenuItem>
-        <DropdownMenuSeparator />
-        {AUTOMATION_TEMPLATES.map((template) => (
-          <DropdownMenuItem
-            key={template.id}
-            onClick={() => {
-              onPickTemplate(template)
-            }}
-          >
-            {template.title}
-          </DropdownMenuItem>
-        ))}
-      </DropdownMenuContent>
-    </DropdownMenu>
+    <button
+      className="inline-flex items-center rounded-lg bg-foreground px-4 py-2 text-xs font-medium text-background transition-opacity hover:opacity-90"
+      onClick={onCreateBlank}
+      type="button"
+    >
+      创建定时任务
+    </button>
   )
 }
 

@@ -1,0 +1,14 @@
+/*
+ * 两列各自滚，但不画条。
+ *
+ * 面板一共两列宽，一条滚动条占掉近四分之一；两列的值本来就是连续数字，滚轮和拖拽
+ * 都不需要一根条指路。::-webkit-scrollbar 与 scrollbar-width 并存：Chromium 见到
+ * 前者就用前者，只写标准属性在它那里不生效（同 searchable-select.css）。
+ */
+.automation-schedule-field__column {
+  scrollbar-width: none;
+}
+
+.automation-schedule-field__column::-webkit-scrollbar {
+  display: none;
+}

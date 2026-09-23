@@ -127,7 +127,6 @@ export function AutomationsSurface({
                 setView({ kind: 'editor', baseline })
               }
             }}
-            onPickTemplate={startFromTemplate}
             pending={pending}
             store={store}
           />

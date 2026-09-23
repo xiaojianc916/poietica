@@ -43,7 +43,7 @@
   overflow-y: auto;
   padding: var(--cp-pad-top) var(--cp-pad-x) 0;
   font-family: inherit;
-  font-size: var(--cp-font);
+  font-size: var(--cp-font-editor);
   line-height: var(--cp-line-ratio);
   color: var(--cp-ink);
   outline: none;

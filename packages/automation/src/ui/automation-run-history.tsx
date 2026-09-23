@@ -16,7 +16,7 @@ export function AutomationRunHistory({
   if (runs.length === 0) {
     return (
       <div className="flex flex-col items-center justify-center rounded-2xl border border-divider px-6 py-28">
-        <p className="text-xs text-muted-foreground">还没有运行记录。</p>
+        <p className="text-xs text-muted-foreground">没有运行记录</p>
       </div>
     )
   }
