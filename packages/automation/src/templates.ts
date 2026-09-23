@@ -1,11 +1,7 @@
 import type { AutomationDraft } from './automation'
 
-export const AUTOMATION_CATEGORIES = ['代码审查', '安全', '测试', '文档'] as const
-export type AutomationCategory = (typeof AUTOMATION_CATEGORIES)[number]
-
 export interface AutomationTemplate {
   readonly id: string
-  readonly category: AutomationCategory
   readonly title: string
   readonly description: string
   readonly prompt: string
@@ -25,58 +21,45 @@ export function draftOfTemplate(
   }
 }
 
+/*
+ * description 是卡片上那两行灰字，超出部分由 line-clamp-2 截掉，所以写完整句。
+ * prompt 是真正投给 agent 的正文：与 description 同一件事，但说清边界与产出形态。
+ */
 export const AUTOMATION_TEMPLATES: readonly AutomationTemplate[] = [
   {
-    id: 'critical-bugs',
-    category: '代码审查',
-    title: '找出关键缺陷',
-    description: '审阅最近的提交，只报正确性层面的高危问题，并给出最小修复',
+    id: 'morning-briefing',
+    title: '晨会动态',
+    description:
+      '汇总上一个工作日以来的提交、模块变化、CI 状态和待跟进事项，最终生成不超过 6 条的晨会口述摘要。只读分析，只使用已有数据，不修改任何文件',
     prompt:
-      '审阅最近一天的提交。只报正确性层面的高危缺陷：数据丢失、竞态、边界条件、错误吞掉。每一条给出文件与行号，以及一份最小改动的修复建议。没有就直接说没有',
-    schedule: '0 9 * * *',
+      '汇总上一个工作日以来的进展：提交、模块变化、CI 状态、待跟进事项。最终给出一条不超过 6 条的晨会口述摘要，每条一句话，按重要性排序。只读分析，不改任何文件，也不要提交',
+    schedule: '0 9 * * 1-5',
   },
   {
-    id: 'review-diff',
-    category: '代码审查',
-    title: '审阅当前改动',
-    description: '对工作区未提交的改动做一次结构性审阅，而不是逐行挑刺',
+    id: 'risk-scan',
+    title: '风险扫描',
+    description:
+      '检查最近 24 小时的代码变更，识别运行错误、数据丢失、权限绕过、资源泄漏及跨端兼容等高危风险，并附代码和复现路径',
     prompt:
-      '审阅工作区当前未提交的改动。先判断这次改动有没有引入新旧杂糅或兼容层，再看命名与分层是否与仓库既有约定一致，最后才是细节',
-    schedule: null,
+      '检查最近 24 小时的代码变更，识别运行错误、数据丢失、权限绕过、资源泄漏、跨端兼容等高风险问题。每一条给出文件与行号、触发条件、以及最小复现路径。没有就直接说没有，不要为凑数报低危项',
+    schedule: '0 10 * * *',
   },
   {
-    id: 'dependency-audit',
-    category: '安全',
-    title: '依赖与许可证巡检',
-    description: '每周一检查依赖的已知漏洞与许可证变化',
+    id: 'release-notes',
+    title: '发布简报',
+    description:
+      '整理本周合并的 PR 和 commit，按功能、修复、体验及工程改进分类，同时生成团队版和面向用户的精简发布说明。只读不改代码',
     prompt:
-      '检查这个仓库的依赖：有没有新增的已知漏洞、有没有许可证发生变化、有没有版本没有钉死。逐条给出证据与处置建议',
-    schedule: '0 10 * * 1',
+      '整理本周合并的 PR 与 commit，按功能、修复、体验、工程改进四类归纳。产出两份：一份给团队的内部简报（含 PR 编号），一份面向用户的精简发布说明（只讲用户能感知的变化）。只读，不改代码',
+    schedule: '0 16 * * 5',
   },
   {
-    id: 'secret-scan',
-    category: '安全',
-    title: '密钥泄漏排查',
-    description: '扫描仓库里可能被写进源码或配置的凭据',
-    prompt: '扫描仓库中可能被写进源码、配置或提交历史的凭据与密钥。给出位置与处置步骤',
-    schedule: null,
-  },
-  {
-    id: 'test-coverage',
-    category: '测试',
-    title: '补齐高风险测试',
-    description: '找出最近改动中缺少覆盖的高风险逻辑，补上测试',
+    id: 'docs-sync',
+    title: '文档同步检查',
+    description:
+      '对照最近 7 天的代码、配置、接口与文档变更，识别已改变公开行为但文档尚未同步的高置信差异，并附文件路径和修改建议',
     prompt:
-      '找出最近改动里缺少测试覆盖的高风险逻辑（状态机、并发、错误路径、边界条件），为它们补上测试。只补真正有风险的部分，不为了数字而写测试',
-    schedule: null,
-  },
-  {
-    id: 'docs-drift',
-    category: '文档',
-    title: '文档与代码对账',
-    description: '找出注释与文档中已经不再成立的说法',
-    prompt:
-      '把 docs 与 AGENTS.md 里的说法与当前源码逐条对账，找出已经不成立的描述。不要相信注释，以代码为准',
-    schedule: '0 18 * * *',
+      '对照最近 7 天的代码、配置、接口与文档变更，找出已经改变对外行为、但文档还停在旧说法的位置。只报高置信差异，每条附文件路径与建议改法。以代码为准，不要相信注释',
+    schedule: '0 15 * * 3',
   },
 ]

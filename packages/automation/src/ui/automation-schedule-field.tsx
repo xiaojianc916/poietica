@@ -3,13 +3,12 @@ import {
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
-  SearchableSelect,
+  Select,
   type SelectOption,
 } from '@poietica/design-system'
 import { ChevronDown, Plus, X } from 'lucide-react'
-import { useMemo, useState } from 'react'
+import { type ReactNode, useState } from 'react'
 import {
-  type CommonScheduleKind,
   DEFAULT_SCHEDULE,
   DEFAULT_SCHEDULE_TIME,
   type ScheduleKind,
@@ -18,13 +17,17 @@ import {
   scheduleFor,
   scheduleKindOf,
   scheduleTimeOf,
+  scheduleWeekdayOf,
+  WEEKDAY_LABELS,
+  type Weekday,
 } from '../index'
 
 const PROBLEMS: Record<ScheduleProblem, string> = {
   neverRuns: '这段日程没有未来的运行时间。',
   tooFrequent: '最小调度粒度是一分钟。',
   unreadable: '无法识别这段 crontab 表达式。',
-  timeZone: '请输入有效的 IANA 时区，例如 Asia/Shanghai。',
+  /* 时区不再由界面给：任务一律落系统时区。这一条只为契约里的枚举键有着落。 */
+  timeZone: '任务记着的时区无效。',
 }
 
 const LABELS: Record<ScheduleKind, string> = {
@@ -45,31 +48,11 @@ const OPTIONS: readonly ScheduleKind[] = [
   'custom',
 ]
 
-/*
- * 时区候选表读运行时那份 IANA 名录（Intl.supportedValuesOf，本机 418 条），不写死
- * 一份常量表：名录跟着平台的 tzdata 走，写死的那份要替时区的增删负责。TS 的 lib
- * 还没声明这个方法，所以按可选方法取，缺了就当名录为空。
- */
-const TIME_ZONES: readonly SelectOption[] = (() => {
-  const runtime = Intl as typeof Intl & {
-    supportedValuesOf?: (key: 'timeZone') => string[]
-  }
-  return (runtime.supportedValuesOf?.('timeZone') ?? []).map((zone) => ({
-    label: zone,
-    value: zone,
-  }))
-})()
-
-/*
- * 候选表里必须有当前值：存着的可能是旧别名，或原名录里已经移除的时区；缺了它
- * 触发器只显示占位符，屏幕上就没有这个值的落点。缺的补进来并注明来历。
- */
-function withCurrentZone(current: string): readonly SelectOption[] {
-  if (current === '' || TIME_ZONES.some((zone) => zone.value === current)) {
-    return TIME_ZONES
-  }
-  return [{ label: `${current}（平台未提供）`, value: current }, ...TIME_ZONES]
-}
+/* 「每周」必须连着说是周几，否则那颗下拉名不副实：它底下只能是周一。 */
+const WEEKDAYS: readonly SelectOption[] = ([0, 1, 2, 3, 4, 5, 6] as const).map((day) => ({
+  label: WEEKDAY_LABELS[day],
+  value: String(day),
+}))
 
 function ScheduleMenu({
   empty,
@@ -112,110 +95,132 @@ function ScheduleMenu({
 
 export interface AutomationScheduleFieldProps {
   readonly schedule: string | null
-  readonly timeZone: string
   readonly preview: SchedulePreview | null
   readonly error: string | null
   readonly onChange: (schedule: string | null) => void
-  readonly onTimeZoneChange: (timeZone: string) => void
 }
 
-function statusText(preview: SchedulePreview | null, schedule: string | null): string {
-  if (preview === null) {
-    return '正在由原生调度器校验…'
-  }
+/*
+ * 计划那一行：没选过是一颗「添加计划」，选过之后是 [计划][星期][时间] 与移除键。
+ * 拆出来只为把这一层的条件收进一个名字里，它读的全是调用点算好的值。
+ */
+function ScheduleRow({
+  feedback,
+  kind,
+  onClear,
+  onChange,
+  onPick,
+  schedule,
+  time,
+  weekday,
+}: {
+  readonly feedback: string | null
+  readonly kind: ScheduleKind
+  readonly onClear: () => void
+  readonly onChange: (schedule: string | null) => void
+  readonly onPick: (kind: ScheduleKind) => void
+  readonly schedule: string | null
+  readonly time: string
+  readonly weekday: Weekday
+}) {
   if (schedule === null) {
-    return '仅手动运行'
+    return <ScheduleMenu empty onPick={onPick} selected={null} />
   }
-  const next = preview.nextRunAt ?? null
-  if (next === null) {
-    return '没有下一次运行'
+  let detail: ReactNode = null
+  if (kind === 'custom') {
+    detail = (
+      <input
+        aria-describedby="automation-schedule-feedback"
+        aria-invalid={feedback !== null}
+        aria-label="crontab 表达式"
+        autoComplete="off"
+        className="h-8 min-w-44 flex-1 rounded-lg bg-sidebar-accent/60 px-3 font-mono text-xs outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        onChange={(event) => onChange(event.currentTarget.value)}
+        spellCheck={false}
+        value={schedule}
+      />
+    )
+  } else if (kind === 'weekly') {
+    detail = (
+      <Select
+        className="h-8"
+        data={WEEKDAYS}
+        onValueChange={(next) => {
+          onChange(scheduleFor('weekly', time, Number(next) as Weekday))
+        }}
+        type="星期"
+        value={String(weekday)}
+      />
+    )
+  } else if (kind !== 'hourly') {
+    detail = (
+      <input
+        aria-label="运行时间"
+        className="h-8 rounded-lg bg-sidebar-accent/60 px-2 text-sm"
+        onChange={(event) => {
+          if (event.currentTarget.value !== '') {
+            onChange(scheduleFor(kind, event.currentTarget.value, weekday))
+          }
+        }}
+        step={60}
+        type="time"
+        value={time}
+      />
+    )
   }
-  return ['下一次：', new Date(next).toLocaleString('zh-CN'), '（本机时间）'].join('')
+  return (
+    <div className="flex min-h-11 flex-wrap items-center gap-2 rounded-xl border border-divider bg-popover px-3 py-1.5">
+      <ScheduleMenu empty={false} onPick={onPick} selected={kind} />
+      {detail}
+      <button
+        aria-label="移除计划"
+        className="ml-auto rounded-md p-1.5 hover:bg-sidebar-accent"
+        onClick={onClear}
+        type="button"
+      >
+        <X aria-hidden className="size-3.5" />
+      </button>
+    </div>
+  )
 }
 
 export function AutomationScheduleField({
   schedule,
-  timeZone,
   preview,
   error,
   onChange,
-  onTimeZoneChange,
 }: AutomationScheduleFieldProps) {
   const [forceCustom, setForceCustom] = useState(false)
-  const zones = useMemo(() => withCurrentZone(timeZone), [timeZone])
   const kind: ScheduleKind = forceCustom ? 'custom' : (scheduleKindOf(schedule) ?? 'custom')
   const time = scheduleTimeOf(schedule) ?? DEFAULT_SCHEDULE_TIME
+  const weekday = scheduleWeekdayOf(schedule) ?? 1
   const problem = preview?.problem ?? null
   const feedback = error ?? (problem === null ? null : PROBLEMS[problem])
   function pick(next: ScheduleKind): void {
     setForceCustom(next === 'custom')
-    onChange(next === 'custom' ? (schedule ?? DEFAULT_SCHEDULE) : scheduleFor(next, time))
+    onChange(next === 'custom' ? (schedule ?? DEFAULT_SCHEDULE) : scheduleFor(next, time, weekday))
   }
   return (
     <div className="space-y-3">
-      {schedule === null ? (
-        <ScheduleMenu empty onPick={pick} selected={null} />
-      ) : (
-        <div className="flex min-h-11 flex-wrap items-center gap-2 rounded-xl border border-divider bg-popover px-3 py-1.5">
-          <ScheduleMenu empty={false} onPick={pick} selected={kind} />
-          {kind === 'custom' ? (
-            <input
-              aria-describedby="automation-schedule-feedback"
-              aria-invalid={feedback !== null}
-              aria-label="crontab 表达式"
-              autoComplete="off"
-              className="h-8 min-w-44 flex-1 rounded-lg bg-sidebar-accent/60 px-3 font-mono text-xs outline-none focus-visible:ring-2 focus-visible:ring-ring"
-              onChange={(event) => onChange(event.currentTarget.value)}
-              spellCheck={false}
-              value={schedule}
-            />
-          ) : kind === 'hourly' ? null : (
-            <input
-              aria-label="运行时间"
-              className="h-8 rounded-lg bg-sidebar-accent/60 px-2 text-sm"
-              onChange={(event) => {
-                if (event.currentTarget.value !== '') {
-                  onChange(scheduleFor(kind as CommonScheduleKind, event.currentTarget.value))
-                }
-              }}
-              step={60}
-              type="time"
-              value={time}
-            />
-          )}
-          <button
-            aria-label="移除计划"
-            className="ml-auto rounded-md p-1.5 hover:bg-sidebar-accent"
-            onClick={() => {
-              setForceCustom(false)
-              onChange(null)
-            }}
-            type="button"
-          >
-            <X aria-hidden className="size-3.5" />
-          </button>
-        </div>
+      <ScheduleRow
+        feedback={feedback}
+        kind={kind}
+        onChange={onChange}
+        onClear={() => {
+          setForceCustom(false)
+          onChange(null)
+        }}
+        onPick={pick}
+        schedule={schedule}
+        time={time}
+        weekday={weekday}
+      />
+      {/* 「下一次」在「调度」标题右边（编辑器的 Field aside），这里只报校验失败。 */}
+      {feedback === null ? null : (
+        <p className="text-xs text-destructive" id="automation-schedule-feedback" role="alert">
+          {feedback}
+        </p>
       )}
-      {/* 与「添加计划」同一张脸：同样的高、同样的圆角、同样的 --ui-popover 底。
-          名录四百多条，所以用可搜索的那种选择器，而不是菜单。 */}
-      <div className="flex items-center gap-3 text-xs text-muted-foreground">
-        <span>IANA 时区</span>
-        <SearchableSelect
-          className="h-11 w-80 rounded-xl px-4 text-sm"
-          data={zones}
-          id="automation-time-zone"
-          onValueChange={onTimeZoneChange}
-          type="IANA 时区"
-          value={timeZone}
-        />
-      </div>
-      <p
-        className={feedback === null ? 'text-xs text-muted-foreground' : 'text-xs text-destructive'}
-        id="automation-schedule-feedback"
-        role={feedback === null ? 'status' : 'alert'}
-      >
-        {feedback ?? statusText(preview, schedule)}
-      </p>
     </div>
   )
 }

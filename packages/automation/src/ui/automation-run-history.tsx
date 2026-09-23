@@ -14,7 +14,11 @@ export function AutomationRunHistory({
   onCancel,
 }: AutomationRunHistoryProps) {
   if (runs.length === 0) {
-    return <p className="py-10 text-center text-xs text-muted-foreground">暂无运行历史</p>
+    return (
+      <div className="flex flex-col items-center justify-center rounded-2xl border border-divider px-6 py-28">
+        <p className="text-xs text-muted-foreground">还没有运行记录。</p>
+      </div>
+    )
   }
   return (
     <div>

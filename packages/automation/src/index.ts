@@ -24,15 +24,16 @@ export {
   scheduleFor,
   scheduleKindOf,
   scheduleTimeOf,
+  scheduleWeekdayOf,
   sessionConfigOf,
   summarize,
+  WEEKDAY_LABELS,
+  type Weekday,
 } from './automation'
 export type { AutomationGateway } from './automation-gateway'
 export { type AutomationStore, createAutomationStore } from './automation-store'
 export {
-  AUTOMATION_CATEGORIES,
   AUTOMATION_TEMPLATES,
-  type AutomationCategory,
   type AutomationTemplate,
   draftOfTemplate,
 } from './templates'

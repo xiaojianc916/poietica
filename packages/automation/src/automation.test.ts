@@ -9,6 +9,7 @@ import {
   scheduleFor,
   scheduleKindOf,
   scheduleTimeOf,
+  scheduleWeekdayOf,
   summarize,
 } from './automation'
 
@@ -17,6 +18,7 @@ describe('describeSchedule', () => {
     expect(describeSchedule(null)).toBe('手动')
     expect(describeSchedule('0 9 * * *')).toBe('每天 09:00')
     expect(describeSchedule('0 9 * * 1-5')).toBe('每工作日 09:00')
+    expect(describeSchedule('0 16 * * 5')).toBe('每周五 16:00')
     expect(describeSchedule('*/30 * * * *')).toBe('*/30 * * * *')
   })
 })
@@ -27,6 +29,7 @@ describe('structured schedule projection', () => {
     expect(scheduleFor('daily', '09:05')).toBe('5 9 * * *')
     expect(scheduleFor('weekdays', '09:05')).toBe('5 9 * * 1-5')
     expect(scheduleFor('weekly', '09:05')).toBe('5 9 * * 1')
+    expect(scheduleFor('weekly', '09:05', 5)).toBe('5 9 * * 5')
     expect(scheduleFor('monthly', '09:05')).toBe('5 9 1 * *')
     expect(scheduleFor('daily')).toBe(DEFAULT_SCHEDULE)
   })
@@ -34,6 +37,10 @@ describe('structured schedule projection', () => {
   it('只把产品生成的形状识别成常见日程', () => {
     expect(scheduleKindOf('5 9 * * 1-5')).toBe('weekdays')
     expect(scheduleTimeOf('5 9 * * 1-5')).toBe('09:05')
+    expect(scheduleKindOf('5 9 * * 5')).toBe('weekly')
+    expect(scheduleWeekdayOf('5 9 * * 5')).toBe(5)
+    /* cron 的 7 与 0 同指周日，折成 0。 */
+    expect(scheduleWeekdayOf('5 9 * * 7')).toBe(0)
     expect(scheduleKindOf('*/30 * * * *')).toBe('custom')
     expect(scheduleKindOf(null)).toBeNull()
   })
