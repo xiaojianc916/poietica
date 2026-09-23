@@ -7,7 +7,7 @@ import { type AgentTranscriptSnapshot, transcriptResponseSchema } from '@poietic
 /*
  * 真实经过的一次转录，取自本机 kimi web 的
  *   GET /api/v1/sessions/{id}/transcript?agent_id=main
- * 落盘的是 data 那一层（HTTP 信封由 Rust 在 crates/kap-client 的 rest.rs 拆掉，
+ * 落盘的是 data 那一层（信封由 Rust 在 agent-client 的桥驱动里拆掉，
  * 过桥的只有它）。
  *
  * 本机最大的真实对话是 2 轮 / 263 帧 / 600 KB 量级；"超大"那一档用真实轮次模板

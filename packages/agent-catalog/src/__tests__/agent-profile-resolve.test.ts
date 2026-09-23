@@ -1,33 +1,29 @@
 import { describe, expect, it } from 'bun:test'
 import { parseAgentProfile, resolveAgentProfile } from '../agent-profile'
-import { kimiCode } from '../kimi/descriptor'
+import { ohMyPi } from '../omp/descriptor'
 
 /*
- * agents.json 是 kimiCode 描述符的一份物化，不是第二个来源。
+ * agents.json 是 ohMyPi 描述符的一份物化，不是第二个来源。
  *
  * 用户那几格原样保留；原生侧要读的那几格每次无条件盖回 —— 它读的是磁盘，而名单在
  * 这个进程里。
  */
 const stored = {
-  id: kimiCode.id,
+  id: ohMyPi.id,
   env: {},
   defaultConfigOptions: {},
-  command: kimiCode.command,
-  args: [...kimiCode.args],
-  unsetEnv: [...kimiCode.unsetEnv],
-  homeVar: kimiCode.homeVar,
-  ownHomeDirectory: kimiCode.ownHomeDirectory,
-  install: {
-    packageName: kimiCode.install.packageName,
-    versionArgs: [...kimiCode.install.versionArgs],
-  },
+  command: ohMyPi.command,
+  args: [...ohMyPi.args],
+  unsetEnv: [...ohMyPi.unsetEnv],
+  homeVar: ohMyPi.homeVar,
+  ownHomeDirectory: ohMyPi.ownHomeDirectory,
 }
 
 describe('resolveAgentProfile', () => {
   it('磁盘为空时给出内置档案，并要求物化', () => {
     const resolved = resolveAgentProfile([])
 
-    expect(resolved.profile.id).toBe(kimiCode.id)
+    expect(resolved.profile.id).toBe(ohMyPi.id)
     expect(resolved.materialize).toBe(true)
     expect(resolved.issues).toEqual([])
   })
@@ -52,8 +48,8 @@ describe('resolveAgentProfile', () => {
   it('手写进磁盘的启动命令活不过一次解析', () => {
     const resolved = resolveAgentProfile([{ ...stored, command: 'rm', unsetEnv: [] }])
 
-    expect(resolved.profile.command).toBe(kimiCode.command)
-    expect(resolved.profile.unsetEnv).toEqual(kimiCode.unsetEnv)
+    expect(resolved.profile.command).toBe(ohMyPi.command)
+    expect(resolved.profile.unsetEnv).toEqual(ohMyPi.unsetEnv)
     expect(resolved.materialize).toBe(true)
   })
 
@@ -63,7 +59,7 @@ describe('resolveAgentProfile', () => {
       { id: 'homemade', env: {}, defaultConfigOptions: {} },
     ])
 
-    expect(resolved.profile.id).toBe(kimiCode.id)
+    expect(resolved.profile.id).toBe(ohMyPi.id)
     expect(resolved.materialize).toBe(true)
     expect(resolved.issues).toHaveLength(1)
   })
@@ -73,7 +69,7 @@ describe('resolveAgentProfile', () => {
 
     expect(resolved.materialize).toBe(false)
     expect(resolved.issues).toHaveLength(1)
-    expect(resolved.profile.command).toBe(kimiCode.command)
+    expect(resolved.profile.command).toBe(ohMyPi.command)
   })
 
   it('物化出去的那一份自己能过校验，且原生侧要读的格子齐全', () => {
@@ -88,7 +84,6 @@ describe('resolveAgentProfile', () => {
       'env',
       'homeVar',
       'id',
-      'install',
       'ownHomeDirectory',
       'unsetEnv',
     ])

@@ -168,11 +168,11 @@ export function publicPluginRows(input: PluginListingInput): readonly CatalogRow
             }
 
       return {
-        key: `kimi/${entry.id}`,
+        key: `agent/${entry.id}`,
         id: entry.id,
         displayName: entry.displayName,
         description: entry.description ?? describeInstallSource(entry.source),
-        channel: 'kimi',
+        channel: 'agent',
         group: entry.keywords[0] ?? '其他',
         status,
         source: entry.source,

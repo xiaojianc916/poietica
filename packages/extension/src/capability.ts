@@ -1,7 +1,14 @@
 import type { InstalledPlugin } from './installation'
 import type { AgentCapability } from './model'
 
-export const COMPUTER_USE = { capabilityId: 'kimi-cu' } as const
+/*
+ * 桌面控制这项能力在 agent 报上来的清单里叫的名字。
+ *
+ * 它是**上游给的名字**，不是我们起的：条目由 agent 自己的插件目录分发，改这里等于
+ * 认不出它。桥目前不报能力清单（capabilities 那条命令如实答「还没接」），所以这一格
+ * 现在匹配不到东西；等桥接上再按实际情况核对。
+ */
+export const COMPUTER_USE = { capabilityId: 'computer-use' } as const
 
 export type CapabilityInventory =
   | { readonly kind: 'unread' }

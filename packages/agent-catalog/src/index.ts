@@ -12,4 +12,4 @@ export type {
   AgentProfileResolution,
 } from './agent-profile'
 export { parseAgentProfile, resolveAgentProfile } from './agent-profile'
-export { kimiCode as agent } from './kimi/descriptor'
+export { ohMyPi as agent } from './omp/descriptor'

@@ -2,7 +2,7 @@
 
 use std::collections::HashMap;
 
-use poietica_kap_client::{
+use poietica_agent_client::{
     AnswerMethod, ApprovalResponse, Decision, QuestionAnswer, QuestionResponse, Scope,
     SessionUsageSnapshot,
 };
@@ -479,7 +479,7 @@ pub struct AgentGoal {
 }
 
 #[must_use]
-pub fn reported_goal(goal: poietica_kap_client::GoalSnapshot) -> AgentGoal {
+pub fn reported_goal(goal: poietica_agent_client::GoalSnapshot) -> AgentGoal {
     let narrow = |value: u64| u32::try_from(value).unwrap_or(u32::MAX);
 
     AgentGoal {

@@ -2,8 +2,8 @@
 
 use super::POISONED;
 use crate::error::Error;
+use poietica_agent_client::{AgentError, Refusal};
 use poietica_conversation_runtime::RuntimeError;
-use poietica_kap_client::{KapError, Refusal};
 
 /// 全是本仓的字面量常量，不拼任何 agent 回话、外部输入或系统错误，故可原样上屏。
 const fn refusal(reason: Refusal) -> &'static str {
@@ -14,10 +14,10 @@ const fn refusal(reason: Refusal) -> &'static str {
 }
 
 /// 本仓字面量的拒绝原样上屏；agent 报回的原话先落日志再原样上屏——桌面单机里确切的原话最有用。
-pub(super) fn translate(error: KapError) -> Error {
+pub(super) fn translate(error: AgentError) -> Error {
     match error {
-        KapError::Io(cause) => Error::Io(cause),
-        KapError::Refused(reason) => Error::AgentCli(refusal(reason).to_owned()),
+        AgentError::Io(cause) => Error::Io(cause),
+        AgentError::Refused(reason) => Error::AgentCli(refusal(reason).to_owned()),
         other => {
             log::error!("the agent request failed: {other}");
 
@@ -113,7 +113,7 @@ impl From<RuntimeError> for Error {
     fn from(error: RuntimeError) -> Self {
         match error {
             RuntimeError::Agent(error) => translate(error),
-            RuntimeError::Gone => translate(KapError::Refused(Refusal::Gone)),
+            RuntimeError::Gone => translate(AgentError::Refused(Refusal::Gone)),
             RuntimeError::Busy => Self::Automation(poietica_automation::AutomationError::Data(
                 "另一代理正在使用连接；后台任务不会中断它".to_owned(),
             )),

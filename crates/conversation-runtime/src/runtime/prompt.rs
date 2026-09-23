@@ -5,8 +5,8 @@ use crate::{
     session::{SessionMode, SessionRequest},
     submission::{Submission, submit},
 };
+use poietica_agent_client::{ConfigSelection, apply_configurations};
 use poietica_conversation::{identity::TurnId, turn::SkillSpec};
-use poietica_kap_client::{ConfigSelection, apply_configurations};
 use poietica_ledger::{LedgerError, index::ThreadAttachment};
 use std::{fmt, future::Future};
 use uuid::Uuid;

@@ -7,14 +7,14 @@ const record: SkillRecord = {
   enabled: true,
   document:
     '---\nname: review\ndescription: Review changed code\ntype: flow\nwhen_to_use: Before merging\ndisable_model_invocation: true\n---\nInspect the diff.',
-  path: '/home/person/.kimi-code/skills/review',
+  path: '/home/person/.omp/skills/review',
   supportingFiles: 2,
   totalBytes: 3200,
   modifiedAt: 1_700_000_000,
 }
 
 describe('skill catalog projection', () => {
-  test('decodes Kimi metadata aliases and body', () => {
+  test('decodes metadata aliases and body', () => {
     const parsed = skillFrontmatter(record.document)
 
     expect(parsed).toMatchObject({
@@ -41,7 +41,7 @@ describe('skill catalog projection', () => {
       name: 'review',
       description: 'Review changed code',
       source: 'project',
-      path: '/work/poietica/.kimi-code/skills/review/SKILL.md',
+      path: '/work/poietica/.omp/skills/review/SKILL.md',
       project: 'poietica',
       projectPath: '/work/poietica',
       document: record.document,

@@ -76,7 +76,7 @@ describe('parseInstallSource', () => {
 
 describe('requiresInstallConfirmation', () => {
   it('只有官方来源不需要二次确认', () => {
-    expect(requiresInstallConfirmation('kimi-official')).toBe(false)
+    expect(requiresInstallConfirmation('official')).toBe(false)
     expect(requiresInstallConfirmation('curated')).toBe(true)
     expect(requiresInstallConfirmation('third-party')).toBe(true)
   })

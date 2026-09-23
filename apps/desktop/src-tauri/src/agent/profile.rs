@@ -2,8 +2,8 @@
 
 use crate::error::{Error, Result};
 use crate::paths::{agent_home, agents_store};
-use poietica_kap_client::{
-    KapError, ProcessEnvironment, args_of as profile_args_of, declared_env_of, home_var_of,
+use poietica_agent_client::{
+    AgentError, ProcessEnvironment, args_of as profile_args_of, declared_env_of, home_var_of,
     install_spec_of, launch_env as compose_launch_env, own_home_of, program_of, unset_env_of,
 };
 use poietica_problem::Problem;
@@ -19,7 +19,7 @@ type AgentConfigCommandResult<T> = std::result::Result<T, Problem>;
 
 const STORE_KEY: &str = "agentConfig";
 
-/// 官方位置是 `$KIMI_CODE_HOME/mcp.json`，该变量的值由 `launch_env` 设定。
+/// 官方位置是 `<agent home>/mcp.json`，那个 home 由 `launch_env` 的受控变量指出来。
 const MCP_CONFIG_FILE: &str = "mcp.json";
 
 #[derive(Debug, Deserialize, Serialize, Type, Clone)]
@@ -37,9 +37,9 @@ struct PersistedAgentConfig {
     default_agent_id: String,
 }
 
-pub(super) fn surfaced(error: KapError) -> Error {
+pub(super) fn surfaced(error: AgentError) -> Error {
     match error {
-        KapError::Toolchain { message } | KapError::Validation { message } => {
+        AgentError::Toolchain { message } | AgentError::Validation { message } => {
             Error::AgentCli(message)
         }
         other => Error::AgentCli(other.to_string()),
@@ -60,12 +60,12 @@ fn controlled_home(
     app: &AppHandle,
     agent_id: &str,
     profile: &Value,
-) -> Result<Option<poietica_kap_client::ControlledHome>> {
+) -> Result<Option<poietica_agent_client::ControlledHome>> {
     let Some(variable) = home_var_of(profile) else {
         return Ok(None);
     };
 
-    Ok(Some(poietica_kap_client::ControlledHome {
+    Ok(Some(poietica_agent_client::ControlledHome {
         variable,
         path: agent_home(app, agent_id)?,
     }))
@@ -117,7 +117,7 @@ fn launch_env_inner(
     ))
 }
 
-pub use poietica_kap_client::InstallSpec as AgentInstallSpec;
+pub use poietica_agent_client::InstallSpec as AgentInstallSpec;
 
 pub fn agent_install_spec(app: &AppHandle, agent_id: &str) -> Result<Option<AgentInstallSpec>> {
     Ok(install_spec_of(&profile_of(app, agent_id)?))
@@ -228,7 +228,7 @@ pub async fn agent_config_get(app: AppHandle) -> AgentConfigCommandResult<AgentC
 }
 
 pub(crate) fn write_config_atomically(path: &Path, text: &str) -> Result<()> {
-    poietica_kap_client::write_config_atomically(path, text).map_err(surfaced)
+    poietica_agent_client::write_config_atomically(path, text).map_err(surfaced)
 }
 
 #[command]

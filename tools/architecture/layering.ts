@@ -12,6 +12,7 @@ export const TYPESCRIPT_RINGS: readonly Ring[] = [
       '@poietica/external-store',
       '@poietica/transcript',
       '@poietica/agent-catalog',
+      '@poietica/agent-bridge',
       '@poietica/design-system',
     ],
   },
@@ -48,7 +49,7 @@ export const CARGO_RINGS: readonly Ring[] = [
       'poietica-browser-native',
       'poietica-extension-native',
       'poietica-git-adapter-native',
-      'poietica-kap-client',
+      'poietica-agent-client',
       'poietica-ledger',
       'poietica-process-host',
       'poietica-terminal-native',
@@ -74,7 +75,7 @@ export const HOST_AGNOSTIC_CRATES: readonly string[] = [
   'poietica-conversation',
   'poietica-extension-native',
   'poietica-git-adapter-native',
-  'poietica-kap-client',
+  'poietica-agent-client',
   'poietica-ledger',
   'poietica-problem',
   'poietica-process-host',
@@ -126,6 +127,8 @@ const PEER_DEPENDENCIES: Readonly<Record<string, readonly string[]>> = {
   '@poietica/workspace': ['@poietica/browser'],
   '@poietica/automation': ['@poietica/conversation'],
   '@poietica/settings': ['@poietica/conversation', '@poietica/extension'],
+  /* 桥是 transcript 契约的产地：投影要按线上形状产出，所以它读那一份定义。 */
+  '@poietica/agent-bridge': ['@poietica/transcript'],
 }
 export function typeScriptDependencyAllowed(from: string, to: string): boolean {
   const source = ringOf(TYPESCRIPT_RINGS, from)

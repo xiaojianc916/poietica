@@ -5,7 +5,7 @@ use std::error::Error;
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Weak};
 
-use poietica_kap_client::{AgentClient, ConfigControl, Cursor, KapError, SessionBook};
+use poietica_agent_client::{AgentClient, AgentError, ConfigControl, Cursor, SessionBook};
 use poietica_ledger::execution::{IndexError, LocalIndex, read_index, write_index};
 use tokio::sync::Mutex;
 use uuid::Uuid;
@@ -23,18 +23,18 @@ pub enum SessionError<E: Error + 'static> {
     #[error("the conversation belongs to another agent")]
     WrongOwner,
     #[error(transparent)]
-    Agent(#[from] KapError),
+    Agent(#[from] AgentError),
     #[error("restoring the session failed: {cause}; releasing its subscription failed: {cleanup}")]
     RestoreCleanup {
         #[source]
-        cause: KapError,
-        cleanup: KapError,
+        cause: AgentError,
+        cleanup: AgentError,
     },
     #[error("binding the session failed: {cause}; archiving the unbound session failed: {cleanup}")]
     AttachCleanup {
         #[source]
         cause: E,
-        cleanup: KapError,
+        cleanup: AgentError,
     },
 }
 

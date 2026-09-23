@@ -7,7 +7,7 @@ import type { ContributionOrigin } from './origin'
  *
  * 装载不在这里发生，也不在本应用里发生。官方 plugins 文档写明插件声明的服务器由运行时
  * 按 installed.json 的 capabilities.mcpServers.<名字>.enabled 自己装载，mcp.json 那份
- * 同理由 CLI 读；官方 kimi-datasource 的条目是
+ * 同理由 CLI 读；官方那个插件的条目是
  * { "command": "node", "args": ["./bin/kimi-datasource.mjs"], "cwd": "./" }，少了 cwd
  * 那条相对路径必然找不到文件。
  *

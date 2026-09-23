@@ -32,7 +32,7 @@ Review carefully.
     expect(serializeAgentDocument(parsed)).toContain('model: vendor/model')
   })
 
-  test('rejects names outside the Kimi schema', () => {
+  test('rejects names outside the agent schema', () => {
     const input = `---
 description: Reviews code
 ---

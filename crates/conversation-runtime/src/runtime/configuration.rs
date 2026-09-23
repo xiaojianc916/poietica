@@ -2,7 +2,7 @@ use super::failure::CommandError;
 use super::{Runtime, RuntimeFailure};
 use crate::connection::Handle;
 use crate::session::{SessionMode, SessionRequest};
-use poietica_kap_client::{ConfigControl, SessionEvent, select_config};
+use poietica_agent_client::{ConfigControl, SessionEvent, select_config};
 
 impl<E: RuntimeFailure> Runtime<E> {
     pub async fn select_configuration(

@@ -1,6 +1,6 @@
 use super::{CommandError, Runtime, RuntimeFailure, Takeover};
 use crate::session::{SessionMode, SessionRequest};
-use poietica_kap_client::{
+use poietica_agent_client::{
     Capability, ConfigControl, McpServer, ModelCatalogOperation, ModelCatalogSnapshot, Skill,
 };
 

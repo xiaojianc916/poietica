@@ -8,10 +8,10 @@ use std::sync::{Arc, Mutex};
 use std::thread::{JoinHandle, ThreadId};
 use std::time::{Duration, Instant};
 
+use poietica_agent_client::translate;
+use poietica_agent_client::{FrameSink, RecordedEvent};
 use poietica_conversation::event::EventEnvelope;
 use poietica_conversation::identity::ThreadId as ConversationId;
-use poietica_kap_client::translate;
-use poietica_kap_client::{FrameSink, RecordedEvent};
 use poietica_ledger::conversation::AppendBatch;
 use poietica_ledger::execution::{IndexError, LocalIndex, write_index_worker};
 
@@ -397,7 +397,7 @@ mod tests {
 #[cfg(test)]
 mod lifecycle_tests {
     use super::{FrameJournal, JournalError};
-    use poietica_kap_client::{RecordedEvent, RunFrame};
+    use poietica_agent_client::{RecordedEvent, RunFrame};
     use std::error::Error;
     use std::sync::Arc;
     use std::sync::atomic::{AtomicUsize, Ordering};

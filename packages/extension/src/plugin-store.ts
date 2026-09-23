@@ -238,7 +238,7 @@ interface PluginStoreOptions {
   /**
    * 市场目录在哪。
    *
-   * 官方默认值是 CDN 上那一份（上游 apps/kimi-code/src/constant/app.ts 的
+   * 官方默认值是 CDN 上那一份（上游常量的
    * KIMI_CODE_PLUGIN_MARKETPLACE_URL），不是仓库里那份源码检出兜底 —— 后者由上游
    * getSourceCheckoutMarketplaceLocation 提供，只在没配来源且 CDN 取失败时才用。
    *

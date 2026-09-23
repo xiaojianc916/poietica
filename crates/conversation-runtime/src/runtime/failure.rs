@@ -1,5 +1,5 @@
 use crate::session::SessionError;
-use poietica_kap_client::KapError;
+use poietica_agent_client::AgentError;
 use std::error::Error;
 
 #[derive(Debug, thiserror::Error)]
@@ -11,7 +11,7 @@ pub enum CommandError<E: Error + 'static> {
     #[error("attachment preparation failed: {0}")]
     Attachments(#[source] E),
     #[error(transparent)]
-    Agent(KapError),
+    Agent(AgentError),
     #[error("submission failed: {0}")]
     Delivery(#[source] E),
     #[error("the prompt is empty")]
@@ -27,7 +27,7 @@ pub enum CommandError<E: Error + 'static> {
     #[error("conversation persistence failed: {0}")]
     Persistence(#[source] E),
     #[error(transparent)]
-    Interaction(KapError),
+    Interaction(AgentError),
     #[error("the agent dropped a response")]
     ResponseClosed,
     #[error("the committed conversation could not be read back")]

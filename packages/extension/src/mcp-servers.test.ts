@@ -41,7 +41,7 @@ function plugin(name: string, parts: PluginParts = {}): InstalledPlugin {
 function declared(name: string, enabledInConfig: boolean): DeclaredMcpServer {
   return {
     name,
-    origin: { kind: 'user', location: '/home/one/.kimi-code/mcp.json' },
+    origin: { kind: 'user', location: '/home/one/.omp/mcp.json' },
     enabledInConfig,
   }
 }

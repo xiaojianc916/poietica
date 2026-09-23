@@ -3,9 +3,9 @@ use super::dto::{AgentSessionEvent, AgentTranscriptEvent, reported_goal, reporte
 use crate::agent::profile::{agent_args, agent_data_home, agent_program, launch_env};
 use crate::error::Error;
 use crate::ledger::LocalIndex;
+use poietica_agent_client::{AgentSpawn, SessionEvent};
 use poietica_conversation_runtime::Runtime;
 use poietica_conversation_runtime::journal::FrameJournal;
-use poietica_kap_client::{AgentSpawn, SessionEvent};
 use std::path::PathBuf;
 use std::sync::Arc;
 use tauri::AppHandle;

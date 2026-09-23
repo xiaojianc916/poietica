@@ -4,7 +4,7 @@
 //! 副本 —— 每次调用现问，每次改完由 agent 回一份新快照。crate 侧的线上类型是
 //! snake_case 的协议形状，这里的 DTO 是 IPC 形状，互转只在本文件。
 
-use poietica_kap_client::{
+use poietica_agent_client::{
     CatalogImport, CatalogModel, CatalogProvider, Model, ModelCatalogOperation,
     ModelCatalogSnapshot, Provider, ProviderInput, ProviderModelInput, ProviderReplacement,
     RegistryImport,

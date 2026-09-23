@@ -1,4 +1,4 @@
-//! agent 运行时安装的第二条封闭管线：包名由 agents.json 档案声明，渲染层只能说「装哪个 agent」；判据在 poietica-kap-client 的 process/install.rs。
+//! agent 运行时安装的第二条封闭管线：包名由 agents.json 档案声明，渲染层只能说「装哪个 agent」；判据在 poietica-agent-client 的 process/install.rs。
 
 use poietica_time::WallClock;
 use serde::{Deserialize, Serialize};
@@ -7,7 +7,7 @@ use specta::Type;
 use tauri::{AppHandle, async_runtime, command};
 
 use crate::error::{Error, Result};
-use poietica_kap_client::{
+use poietica_agent_client::{
     InstallState as NativeInstallState, InstallStatus as NativeInstallStatus, install_package,
     install_state_of, latest_version, owner_of, preferred_manager, reported_version,
     resolve_program,

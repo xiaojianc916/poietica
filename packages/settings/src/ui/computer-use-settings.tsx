@@ -4,11 +4,11 @@ import { assertUnreachable } from '@poietica/problem'
 import { useEffect, useState, useSyncExternalStore } from 'react'
 import { SettingRow, SettingsGroup, SettingsPage, ToggleRow } from './settings-primitives'
 
-const LABEL = 'Kimi Computer Use'
-const UNREAD = '正在读取本机 Kimi 的安装状态…'
-const UNLISTED = '当前 Kimi 版本没有提供这项能力'
+const LABEL = 'Oh My Pi Computer Use'
+const UNREAD = '正在读取本机 Oh My Pi 的安装状态…'
+const UNLISTED = '当前 Oh My Pi 版本没有提供这项能力'
 const UNSUPPORTED = '这台电脑不支持这项能力'
-const INSTALLING = '正在安装 Kimi Computer Use…'
+const INSTALLING = '正在安装 Oh My Pi Computer Use…'
 const INSTALLABLE = '让它看屏幕、移动鼠标、敲键盘替你操作这台电脑'
 const REPAIRABLE = '安装不完整，修复后即可使用'
 const READY = '已就绪'
@@ -46,7 +46,7 @@ const noop = () => {}
 export function computerUseFailureDescription(reason: string): string {
   const detail = reason.trim().replace(/^(?:安装失败[：:]\s*)+/u, '')
 
-  return `${FAILURE_PREFIX}${detail === '' ? 'Kimi Code 未提供失败原因。' : detail}`
+  return `${FAILURE_PREFIX}${detail === '' ? 'Oh My Pi 未提供失败原因。' : detail}`
 }
 
 export interface ComputerUseSettingsProps {
@@ -232,7 +232,7 @@ function describe(state: ComputerUse): string {
     case 'unread':
       return UNREAD
     case 'unavailable':
-      return `无法启动本机 Kimi：${state.reason}`
+      return `无法启动本机 Oh My Pi：${state.reason}`
     case 'unlisted':
       return UNLISTED
     case 'unsupported':

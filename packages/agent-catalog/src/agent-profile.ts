@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import { kimiCode } from './kimi/descriptor'
+import { ohMyPi } from './omp/descriptor'
 
 /** 会话配置值。 */
 export type AgentConfigOptionValue = string | boolean
@@ -7,7 +7,7 @@ export type AgentConfigOptionValue = string | boolean
 /**
  * 这台机器上，这一家 agent 的接入档案。
  *
- * 前三格归用户，其余几格是 kimiCode 描述符往磁盘上的单向投影 —— 原生侧读的是磁盘上
+ * 前三格归用户，其余几格是 ohMyPi 描述符往磁盘上的单向投影 —— 原生侧读的是磁盘上
  * 那几格，而名单在 TypeScript 里，那个进程读不到它。所以它们落盘，但磁盘上写着什么
  * 都不作数：每次解析都被描述符无条件盖掉。
  */
@@ -106,16 +106,15 @@ export function parseAgentProfile(input: unknown): AgentProfileParse {
 /** 用户那几格还是空的那一份。 */
 function blankProfile(): AgentProfile {
   return {
-    id: kimiCode.id,
+    id: ohMyPi.id,
     cwd: undefined,
     env: {},
     defaultConfigOptions: {},
-    command: kimiCode.command,
-    args: kimiCode.args,
-    unsetEnv: kimiCode.unsetEnv,
-    homeVar: kimiCode.homeVar,
-    ownHomeDirectory: kimiCode.ownHomeDirectory,
-    install: kimiCode.install,
+    command: ohMyPi.command,
+    args: ohMyPi.args,
+    unsetEnv: ohMyPi.unsetEnv,
+    homeVar: ohMyPi.homeVar,
+    ownHomeDirectory: ohMyPi.ownHomeDirectory,
   }
 }
 
@@ -123,14 +122,6 @@ function sameArgs(left: readonly string[] | undefined, right: readonly string[])
   return (
     left !== undefined && left.length === right.length && left.every((one, at) => one === right[at])
   )
-}
-
-function sameInstall(left: AgentProfile['install'], right: AgentProfile['install']): boolean {
-  if (left === undefined || right === undefined) {
-    return left === right
-  }
-
-  return left.packageName === right.packageName && sameArgs(left.versionArgs, right.versionArgs)
 }
 
 /*
@@ -141,23 +132,21 @@ function sameInstall(left: AgentProfile['install'], right: AgentProfile['install
  */
 function projected(profile: AgentProfile): AgentProfile {
   const aligned =
-    profile.command === kimiCode.command &&
-    sameArgs(profile.args, kimiCode.args) &&
-    sameArgs(profile.unsetEnv, kimiCode.unsetEnv) &&
-    profile.homeVar === kimiCode.homeVar &&
-    profile.ownHomeDirectory === kimiCode.ownHomeDirectory &&
-    sameInstall(profile.install, kimiCode.install)
+    profile.command === ohMyPi.command &&
+    sameArgs(profile.args, ohMyPi.args) &&
+    sameArgs(profile.unsetEnv, ohMyPi.unsetEnv) &&
+    profile.homeVar === ohMyPi.homeVar &&
+    profile.ownHomeDirectory === ohMyPi.ownHomeDirectory
 
   return aligned
     ? profile
     : {
         ...profile,
-        command: kimiCode.command,
-        args: kimiCode.args,
-        unsetEnv: kimiCode.unsetEnv,
-        homeVar: kimiCode.homeVar,
-        ownHomeDirectory: kimiCode.ownHomeDirectory,
-        install: kimiCode.install,
+        command: ohMyPi.command,
+        args: ohMyPi.args,
+        unsetEnv: ohMyPi.unsetEnv,
+        homeVar: ohMyPi.homeVar,
+        ownHomeDirectory: ohMyPi.ownHomeDirectory,
       }
 }
 
@@ -168,7 +157,7 @@ function projected(profile: AgentProfile): AgentProfile {
  * 条目连原因一起交出去。谁来写盘不在这里决定 —— 这一层不认识 IPC。
  */
 export function resolveAgentProfile(stored: readonly unknown[]): AgentProfileResolution {
-  const own = stored.filter((entry) => idOf(entry) === kimiCode.id)
+  const own = stored.filter((entry) => idOf(entry) === ohMyPi.id)
   const issues: string[] = []
 
   if (own.length !== stored.length) {

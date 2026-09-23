@@ -18,7 +18,7 @@ use crate::{
     journal::{FrameJournal, JournalError},
     session::SessionResolver,
 };
-use poietica_kap_client::SessionEvent;
+use poietica_agent_client::SessionEvent;
 use poietica_ledger::execution::{IndexError, LocalIndex};
 use std::{error::Error, fmt, path::PathBuf, sync::Arc};
 

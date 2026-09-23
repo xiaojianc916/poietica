@@ -283,6 +283,12 @@
       }
     },
     {
+      "includes": ["packages/agent-bridge/src/main.ts"],
+      "javascript": {
+        "globals": ["Bun"]
+      }
+    },
+    {
       "includes": ["**/src/generated/**/*.ts", "**/generated/**/*.ts", "**/*.generated.ts"],
       "formatter": {
         "enabled": false

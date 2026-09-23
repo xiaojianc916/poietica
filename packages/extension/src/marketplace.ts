@@ -15,7 +15,7 @@ import {
  * 而没有背书恰好就是第三方的定义。为一个新档位把整份目录判死是不成比例的。
  */
 const TIER_TRUST: Readonly<Record<string, PluginTrustTier>> = {
-  official: 'kimi-official',
+  official: 'official',
   curated: 'curated',
 }
 
@@ -26,7 +26,7 @@ const RELATIVE_SOURCE = /^\.\.?\//
  *
  * 解析交给 URL 构造器的第二个参数，也就是 WHATWG URL Standard 里 new URL(input, base)
  * 那条 base-relative 解析（底下是 RFC 3986 §5），与上游
- * apps/kimi-code/src/utils/plugin-marketplace.ts 解条目来源时用的是同一句。
+ * 上游解条目来源时用的是同一句。
  *
  * 手写「拆四段、拼路径、挡 ..」是在重做一件标准库已经做完的事，而它挡住的东西目录
  * 本来就能用绝对地址直接写出来 —— 挡的是自己，不是攻击者。真正拦第三方来源的那道门
@@ -63,7 +63,7 @@ export interface MarketplaceCatalog {
 }
 
 /*
- * 每一格都接受上游接受的那两个名字（apps/kimi-code/src/utils/plugin-marketplace.ts 的
+ * 每一格都接受上游接受的那两个名字（上游的 plugin-marketplace 的
  * parseMarketplaceEntry：source|url|downloadUrl、displayName|name、
  * description|shortDescription、homepage|websiteURL）。
  *

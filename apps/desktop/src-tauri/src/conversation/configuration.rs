@@ -1,5 +1,5 @@
 use super::dto::{AgentConfigChoice, AgentConfigControl, AgentConfigPurpose};
-use poietica_kap_client::{ConfigControl, ConfigPurpose};
+use poietica_agent_client::{ConfigControl, ConfigPurpose};
 
 pub(super) fn restate(control: ConfigControl) -> AgentConfigControl {
     AgentConfigControl {

@@ -17,7 +17,7 @@ const DELEGATION_MODES: readonly SelectOption<DelegationMode>[] = [
   { value: 'none', label: '禁止继续委派' },
 ]
 
-/* 与 Kimi 的 agent-file 解析器同义：model_preference 只认 primary / secondary。 */
+/* 与 agent-file 解析器同义：model_preference 只认 primary / secondary。 */
 const MODEL_PREFERENCES: readonly SelectOption<ModelPreference>[] = [
   { value: 'session', label: '跟随会话' },
   { value: 'primary', label: '主模型' },
@@ -181,7 +181,7 @@ export function PersonalizationSurface({ store }: PersonalizationSurfaceProps) {
             </Field>
 
             {draft.delegationMode === 'allowlist' ? (
-              <Field hint="逗号分隔；派发前由 Kimi 再校验一次" label="可委派 Agent">
+              <Field hint="逗号分隔；派发前由 agent 再校验一次" label="可委派 Agent">
                 <input
                   className="settings-input"
                   onChange={(event) => store.edit({ subagents: event.target.value })}
@@ -222,10 +222,10 @@ export function PersonalizationSurface({ store }: PersonalizationSurfaceProps) {
               ) : view.absolutePath !== null ? (
                 <>
                   <span>作为主代理启动</span>
-                  <code>kimi --agent-file &quot;{view.absolutePath}&quot;</code>
+                  <code>omp --agent-file &quot;{view.absolutePath}&quot;</code>
                 </>
               ) : (
-                <span>保存后写入受控 Kimi agents 目录。</span>
+                <span>保存后写入受控 agents 目录。</span>
               )}
             </div>
 

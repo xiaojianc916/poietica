@@ -23,7 +23,7 @@ describe('ModelCatalogStore', () => {
       },
       subscribeInvalidation: async () => () => undefined,
     }
-    const store = new ModelCatalogStore(port, 'kimi-code')
+    const store = new ModelCatalogStore(port, 'omp')
 
     await Promise.all([store.load(), store.load()])
     await store.load()
@@ -60,7 +60,7 @@ describe('ModelCatalogStore', () => {
       },
       subscribeInvalidation: async () => () => undefined,
     }
-    const store = new ModelCatalogStore(port, 'kimi-code')
+    const store = new ModelCatalogStore(port, 'omp')
     await store.load()
     await store.mutate(operation)
     expect(received).toEqual([{ kind: 'snapshot' }, operation])
@@ -74,7 +74,7 @@ describe('ModelCatalogStore', () => {
       execute: async () => DATA,
       subscribeInvalidation: () => registration.promise,
     }
-    const store = new ModelCatalogStore(port, 'kimi-code')
+    const store = new ModelCatalogStore(port, 'omp')
     store.dispose()
     registration.resolve(() => {
       disposed += 1

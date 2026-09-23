@@ -120,14 +120,15 @@ The project is intentionally building reliability before broadening the product 
 
 | Interface | Agent transport | Desktop runtime | Tooling | Validation |
 | :---: | :---: | :---: | :---: | :---: |
-| React + TypeScript | kap | Tauri + Rust | Bun + Turborepo + Vite | Biome + bun test + Zod |
+| React + TypeScript | embedded SDK over stdio | Tauri + Rust | Bun + Turborepo + Vite | Biome + bun test + Zod |
 
 </div>
 
 <br>
 
 - **React + TypeScript** — product interaction and interface composition.
-- **kap** — the single transport between the desktop client and coding agents.
+- **embedded SDK over stdio** — the agent ships inside the app: its SDK is compiled into a
+  single sidecar binary, and the desktop client drives it over newline-delimited JSON.
 - **Tauri + Rust** — desktop integration, durable local state, system capabilities, security boundaries.
 - **Bun + Turborepo** — workspace management and task orchestration.
 - **Biome** — formatting and static analysis.

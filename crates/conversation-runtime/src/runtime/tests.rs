@@ -43,7 +43,7 @@ async fn disconnect_invalidates_an_in_progress_preparation() {
             let entered = Arc::clone(&preparing);
             Box::pin(async move {
                 entered.notify_one();
-                std::future::pending::<Result<poietica_kap_client::AgentSpawn, Failure>>().await
+                std::future::pending::<Result<poietica_agent_client::AgentSpawn, Failure>>().await
             })
         },
         |_| {},

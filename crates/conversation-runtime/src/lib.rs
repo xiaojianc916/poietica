@@ -3,7 +3,7 @@ pub use connection::{RuntimeError, Takeover};
 /// Host-independent conversation execution.
 pub mod catalog;
 mod runtime;
-pub use poietica_kap_client::{ConfigSelection, PromptObservation};
+pub use poietica_agent_client::{ConfigSelection, PromptObservation};
 pub use runtime::{
     CommandError, DeletedThread, ExportSource, ForkThread, OpenThread, OpenedThread, Prompt,
     PromptReceipt, Runtime, RuntimeFailure, SessionAction, ThreadTarget,

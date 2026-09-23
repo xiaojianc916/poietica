@@ -72,34 +72,38 @@ from `static.rust-lang.org`, which no cargo registry mirror covers. The real
 lower bound is `rust-version` under `[workspace.package]` in the root
 `Cargo.toml`; Cargo enforces it natively and reports a readable error.
 
-## Running the live kap turn
+## Building the embedded agent
 
-`cargo test -p poietica-kap-client --test live_turn -- --ignored` starts a
-real Kimi Code kap server, so it needs one on the machine. It is not part of
-`cargo test` and nothing else in the repository depends on it.
+The agent ships inside the app: `tools/agent/build-bridge.ts` compiles
+`packages/agent-bridge` — which imports the oh-my-pi SDK — into one
+self-contained executable (about 187 MB, Bun runtime and the platform `.node`
+addon included). Tauri picks it up as an `externalBin`, so the shipped installer
+needs no separate CLI on the machine.
 
-Three prerequisites, in order:
+`bun run build:debug`, `bun run build:release` and `bun run dev` all run it
+first; to build it on its own:
 
-1. `kimi` has to be executable by name. The client spawns a program, not a
-   shell, so a launcher installed as a script must be named in full on Windows.
-   Check with `where.exe kimi` and override with `POIETICA_KAP_PROGRAM` if the
-   resolved name differs.
-2. Kimi Code has to be logged in. Without it the server starts and then refuses
-   to create a session, which looks like a transport failure but is not one.
-3. Loopback REST and WebSocket connections have to be allowed on this machine.
+```bash
+bun run agent:build
+```
 
-The overrides the test reads are declared in
-`crates/kap-client/tests/live_turn.rs`:
+It lands in `apps/desktop/src-tauri/binaries/` (gitignored). The file name
+carries the host target triple — Tauri resolves the sidecar by that name, so a
+mismatch shows up as a missing-file error at bundle time rather than at runtime.
+Override the triple with `POIETICA_BRIDGE_TRIPLE`, or cross-compile with
+`POIETICA_BRIDGE_TARGET`.
 
-- `POIETICA_KAP_PROGRAM`
-- `POIETICA_KAP_ARGS`
-- `POIETICA_KAP_PROMPT`
-- `POIETICA_KAP_CWD`
-- `POIETICA_KAP_TIMEOUT`
-- `POIETICA_KAP_MODEL`
-- `POIETICA_KAP_CAPTURE`
-- `POIETICA_KAP_EXPECT`
+The end-to-end test drives the real sidecar, and skips itself when the binary is
+absent:
 
-None of these prerequisites is worked around in code. A client that silently
-rewrites the command it was given, or that treats a login failure as a transport
-error, hides exactly the information the person running it needs.
+```bash
+cargo test -p poietica-agent-client --test bridge
+```
+
+It does not need a model or credentials: it proves the process starts, the
+handshake completes, a session opens and a command round-trips. A live model
+turn is a separate, future verification (see ADR 0052's "待验证" section).
+
+Nothing here is worked around in code. A client that silently rewrites the
+command it was given, or that treats a missing sidecar as a transport error,
+hides exactly the information the person running it needs.

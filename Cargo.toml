@@ -10,7 +10,7 @@ members = [
   "crates/conversation-runtime",
   "crates/extension",
   "crates/git-adapter",
-  "crates/kap-client",
+  "crates/agent-client",
   "crates/ledger",
   "crates/library",
   "crates/problem",
@@ -64,8 +64,8 @@ toml = "0.8.23"
 # 保留格式的原地 TOML 编辑。
 #
 # 与上面的 toml 不是重复：toml 是「反序列化成结构体」，往回写会重排键序、丢掉注释
-# 与空行。我们要改的是 agent 自己的 config.toml —— 那是用户和官方 CLI 都在写的文件，
-# 把它重排一遍等于把别人的东西弄乱。
+# 与空行。我们要改的是 agent 自己的 config.toml —— 那是用户和 agent 自己都在写的
+# 文件，把它重排一遍等于把别人的东西弄乱。
 #
 # 业界标杆同款：Zed 根 Cargo.toml 逐字 toml_edit = { version = "0.22", ... }，
 # tooling/xtask/src/tasks/publish_gpui.rs 逐字
@@ -110,11 +110,9 @@ ed25519-dalek = { version = "2.1.1", features = [
 
 # Observability
 
-mime = "0.3.17"
-
-# HTTP 客户端，全仓一份：厂商密钥探测、kap 的 REST 调用、更新清单与载荷下载都走它。
+# HTTP 客户端，全仓一份：厂商密钥探测、插件目录抓取、更新清单与载荷下载都走它。
 #
-# rustls-tls 不带第二套 TLS；json 为 kap driver 而开。
+# rustls-tls 不带第二套 TLS。
 reqwest = { version = "0.12", default-features = false, features = [
   "rustls-tls", "json", "multipart", "stream",
 ] }
@@ -181,9 +179,6 @@ rusqlite = { version = "0.40.1", features = [
   "bundled",
 ] }
 
-# kap 的 WebSocket 通道：driver 经 /api/v1/ws 收事件、发控制帧。
-tokio-tungstenite = { version = "0.24", features = ["rustls-tls-native-roots"] }
-
 # 让一个裸名字变成一条可启动的路径。手写 PATH × PATHEXT 遍历是这个 crate 的
 # 既有职责：Zed 的 11 个 crate 全部依赖它，其中
 # crates/project/src/debugger/dap_store.rs 的 which::which_in 与这里同构。
@@ -192,10 +187,6 @@ which = "8"
 # 包管理器 view 与 agent --version 输出里的版本号判读。判据交给 semver 官方
 # 实现 —— 与 cargo 自己用的是同一个 crate，不手搓字符串比大小。
 semver = "1"
-
-# 没有受控 home 时定位 agent 自己的 home（实例注册表与令牌都在那下面）：
-# 平台家目录解析是平台 API，手搓 %USERPROFILE%/$HOME 分支必然漏边界，交给 dirs。
-dirs = "6"
 
 # 伪终端是平台 API：Unix 的 openpty 与 Windows 的 ConPTY 各有一套边界条件，
 # 手搓必漏。portable-pty 是 WezTerm 抽出来的那一份，两个平台都由它兜。
@@ -228,7 +219,7 @@ wildcard_dependencies = "deny"
 # panic 纪律：生产代码收紧，测试逐处豁免。
 #
 # 「逐处」是字面意思，不是省略说法：这里只把生产代码收紧，放开由每个测试作用域
-# 自己写一句 #![allow(clippy::expect_used, reason = "…")]（见 crates/kap-client
+# 自己写一句 #![allow(clippy::expect_used, reason = "…")]（见 crates/agent-client
 # 的 tests/recorder.rs 与 src/recorder.rs 的 mod tests）。
 #
 # 不在根上放一个 clippy.toml 开 allow-expect-in-tests：那个开关只认 #[cfg(test)]

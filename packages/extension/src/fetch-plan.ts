@@ -45,7 +45,7 @@ export type FetchPlanning = PlannedFetch | UnplannableFetch
  * /archive/<sha>.zip —— 三种都要求已经知道 ref 叫什么。
  *
  * 只给仓库地址时那个 ref 是「默认分支」，而默认分支的名字只能从 api.github.com 的
- * 仓库信息里读（actions/checkout 的 getDefaultBranch 就是这么做的）。上游 Kimi Code
+ * 仓库信息里读（actions/checkout 的 getDefaultBranch 就是这么做的）。上游 agent
  * 的网络面不含 api.github.com，所以这里不猜 main 再猜 master：猜两次会造出两条安装
  * 路径，而且猜错时装进来的是另一个仓库状态。说不出 ref 就说不出。
  */

@@ -16,7 +16,7 @@ tokio-util.workspace = true
 base64.workspace = true
 log.workspace = true
 poietica-asset = { path = "../asset" }
-poietica-kap-client = { path = "../kap-client" }
+poietica-agent-client = { path = "../agent-client" }
 poietica-conversation = { path = "../conversation" }
 poietica-ledger = { path = "../ledger" }
 thiserror.workspace = true

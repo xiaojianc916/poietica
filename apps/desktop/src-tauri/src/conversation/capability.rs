@@ -3,7 +3,7 @@
 //! 能力属于 agent 进程级服务；命令经统一运行时确保连接，不依赖某条用户对话。
 
 use crate::agent::profile::default_agent_id;
-use poietica_kap_client::{Capability, CapabilityReadiness};
+use poietica_agent_client::{Capability, CapabilityReadiness};
 use serde::{Deserialize, Serialize};
 use specta::Type;
 use tauri::{AppHandle, State};

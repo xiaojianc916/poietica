@@ -168,7 +168,7 @@ export function validateAgentDraft(draft: CustomAgentDraft): string | null {
   return null
 }
 
-/* 与 Kimi 的 agent-file 解析器同义：只认 primary / secondary，其余显式拒绕。 */
+/* 与 agent-file 解析器同义：只认 primary / secondary，其余显式拒绕。 */
 function parseModelPreference(value: unknown): ModelPreference {
   if (value === undefined || value === null) {
     return 'session'

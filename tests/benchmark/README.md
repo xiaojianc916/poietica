@@ -23,7 +23,7 @@ bun run bench:reads    # server 的整份正文被要了几次
 
 `fixtures/real-conversation.json` 取自本机 kimi web 的
 `GET /api/v1/sessions/{id}/transcript?agent_id=main`，是 server 应答的 `data` 那一层
-（HTTP 信封由 Rust 在 `crates/kap-client/src/rest.rs` 拆掉，过桥的只有它）。
+（信封由 Rust 在 agent-client 的桥驱动里拆掉，过桥的只有它）。
 
 **正文已替换为同长度填充物**：原件是用户自己的对话原文与本机路径。
 替换保持三件事不变：

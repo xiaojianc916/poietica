@@ -1,5 +1,5 @@
-use poietica_kap_client::{
-    AgentClient, AgentConnection, AgentSpawn, Daemon, DaemonIntent, KapError, PermissionDesk,
+use poietica_agent_client::{
+    AgentClient, AgentConnection, AgentError, AgentSpawn, Daemon, DaemonIntent, PermissionDesk,
     QuestionDesk, Reaction, RunSlot, SessionBook, SessionEvent, connect,
 };
 use std::error::Error;
@@ -14,7 +14,7 @@ use tokio_util::sync::CancellationToken;
 #[derive(Debug, thiserror::Error)]
 pub enum RuntimeError {
     #[error(transparent)]
-    Agent(KapError),
+    Agent(AgentError),
     #[error("the conversation runtime is closed or its launch was cancelled")]
     Gone,
     #[error("another agent owns the connection")]
@@ -321,7 +321,7 @@ impl<E: ConnectionFailure> ConnectionOwner<E> {
                 driver,
                 mut events,
                 stop,
-            } = connect(spawn, RunSlot::new(), desk.clone(), questions.clone())
+            } = connect(spawn, RunSlot::new(), &desk, &questions)
                 .map_err(RuntimeError::Agent)
                 .map_err(E::from)?;
             let lease = Arc::new(stop);

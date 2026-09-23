@@ -1,5 +1,5 @@
+use poietica_agent_client::{McpServer, McpStatus, Skill};
 use poietica_extension_native as extension;
-use poietica_kap_client::{McpServer, McpStatus, Skill};
 use serde::Serialize;
 use sha2::{Digest, Sha256};
 use specta::Type;

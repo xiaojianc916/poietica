@@ -17,17 +17,18 @@
 | IPC 契约 | Rust 类型，生成到 `packages/contract/src/generated/` | `bun run ipc:check` |
 | IPC 命令清单 | `apps/desktop/src-tauri/src/ipc/mod.rs` 的 surface()，唯一一份 | 同上 |
 | 磁盘布局 | `apps/desktop/src-tauri/src/paths.rs` | 运行时 |
-| 帧的形状 | `crates/kap-client/src/frame.rs` | serde + 测试 |
+| 帧的形状 | `crates/agent-client/src/frame.rs` | serde + 测试 |
+| 传输的线上形状 | `packages/agent-bridge/src/protocol.ts`（产地）与 `crates/agent-client/src/wire.rs`（读者） | 两侧同时改 + 测试 |
 
 **不要在文档里重抄任何一张表。** 手抄表制造第二个事实，第二个事实必然分叉。
 
 ## 1. 产品不变量
 
-Poietica 是本地高性能 kap 客户端桌面应用，对标 Codex 桌面版。唯一接入的
-agent 是 Kimi Code（TypeScript 版，`kimi web` 入口，见 ADR 0026——ADR 0024/0025
-的 ACP 前提已被它取代）：它以
+Poietica 是本地高性能桌面 agent 客户端，对标 Codex 桌面版。唯一接入的
+agent 是 oh-my-pi（omp，npm `@oh-my-pi/pi-coding-agent`，见 ADR 0052 —— ADR 0026
+的 kap 前提已被它取代）：它以
 `packages/agent-catalog` 的档案接入，通用层不认识任何一家的名字，再接一家接的
-是 kap 的第二个实现而不是第二条协议。多会话并发
+是同一个传输的第二个实现而不是第二条协议。多会话并发
 是常态而非特例。
 
 - **会话是唯一中心。** 任何能力不得绕过会话另立入口。
@@ -39,19 +40,20 @@ agent 是 Kimi Code（TypeScript 版，`kimi web` 入口，见 ADR 0026——ADR
 
 ## 2. 数据流（一句话验收）
 
-屏幕经过走官方 transcript 通道：`kimi web` 子进程的 WebSocket 上 subscribe_v2
-（session/driver.rs）把 per-agent transcript 流引进来（transcript.ops / reset /
-resync_required），经 router → SessionEvent::Transcript → Tauri
+屏幕经过走 agent 自己的 transcript：随包发的边车（`packages/agent-bridge`，omp 的
+SDK 编在里面，用户不装任何 CLI）在 stdout 上推 `transcript.ops` / `transcript.reset`
+（session/bridge.rs 的 driver），经 router → SessionEvent::Transcript → Tauri
 agentTranscriptEvent（原样 JSON）→ native-bridge 的 transcript 端口（vendored
-schema 校验）→ transcript-store（增量 ops / reset 快照 / REST catch-up 追赶）→
+schema 校验）→ transcript-store（增量 ops / reset 快照 / 追赶）→
 projectTranscript 投影 → React。本机帧日志（conversation_events）只记协议不
 建模而客户端必须记住的事实（准入、审批、提问、链路、轮终）。反向的命令路：
-prompt / cancel / resolvePermission / transcript 两条读（agentTranscript 与
+prompt / cancel / steer / resolvePermission / transcript 两条读（agentTranscript 与
 agentTranscriptOps）。
 谁持有唯一真相：屏幕经过 = agent 的 transcript；模型上下文 = agent；对话索引 =
 threads 表（单写者）；transcript 线上形状 = vendored @poietica/transcript 的
-schema（packages/transcript）；本机帧形状 = frame.rs；配置真身 = agent 受控
-home 的 config.toml（由 agent 自己热重载，我们只经它的官方 CLI 写入）。
+schema（packages/transcript）；传输线上形状 = agent-bridge 的 protocol.ts；
+本机帧形状 = frame.rs；配置真身 = agent 受控 home 自己的配置（由 agent 自己
+热重载，我们只经它的官方写入面改它）。
 
 ## 3. 宏观架构
 
@@ -109,9 +111,11 @@ FORMATS 把文件头判定与 Content-Type 收成一张表，加一种格式只�
   一处（TS 侧 vendored schema 是 packages/transcript/src/contract/schema.ts，线上
   信封判别是 packages/native-bridge/src/conversation/transcript-decoding.ts，
   投影读法是 packages/conversation/src/transcript/transcript-projector.ts；
-  Rust 侧是 crates/kap-client/src/frame.rs——别处出现协议判别即为泄漏）。
+  Rust 侧是 crates/agent-client/src/frame.rs；桥那条线的线上形状是
+  packages/agent-bridge/src/protocol.ts 与 crates/agent-client/src/wire.rs
+  这一对——别处出现协议判别即为泄漏）。
 - **成形与投递两段式**：昂贵构造在锁外/号外完成，占号、上锁、发布只做最后一步
-  （判例：crates/kap-client/src/recorder.rs 的 shape/deliver，asset_protocol 的
+  （判例：crates/agent-client/src/recorder.rs 的 shape/deliver，asset_protocol 的
   materialise 后上锁）。
 - **错误一套规则**：领域保留自己的 typed error；跨边界统一转换成生成的问题信封。
   取消不伪装成失败，对外文案与脱敏诊断分离，按可恢复、功能降级与致命影响处置。
@@ -129,9 +133,9 @@ FORMATS 把文件头判定与 Content-Type 收成一张表，加一种格式只�
 - 指名道姓：引用标杆（Zed/Codex 的文件路径、SDK 文档节名）、引用本仓判例时给
   **当前**路径。文件被移动/拆分时，指向它的注释锚点必须同步更新——判例：
   transcript-store.ts 曾指向已拆分的 commands/agent.rs。
-- 外部行为断言注明来源与日期。Kimi Code 的行为以 TS 版（MoonshotAI/kimi-code，
-  npm @moonshot-ai/kimi-code）官方文档为准；kimi_cli Python 版的锚点已过时，
-  发现即更新。
+- 外部行为断言注明来源与日期。oh-my-pi 的行为以它自己的仓库
+  （can1357/oh-my-pi，锚定 18.2.11）与包内源码为准；Kimi Code 的锚点已随
+  ADR 0052 过时，发现即更新。
 - 注释与代码矛盾按缺陷处理：改注释或改代码，不许并存。
 - 注释必须**凝练简短**，长篇大论的注释被视为错误示范。
 
@@ -143,10 +147,10 @@ FORMATS 把文件头判定与 Content-Type 收成一张表，加一种格式只�
   `bun run ipc:generate` → TS 端口层适配。TS 侧先写形状即为缺陷。
 - **加一种帧**：frame.rs 加 variant，两侧由编译器与生成绑定兜底。
 - **加一个包**：先在分层表定层，再建目录。
-- **协议升级**：kap 的契约由 server 自述（/openapi.json 与 /asyncapi.json），
-  快照钉在 contracts/kap，`bun run kap:spec:check` 守漂移；升级 kimi-code 后重跑
-  `bun run kap:spec` 并审 diff。禁手抄协议类型（判例：protocol.ts 记录的 8/13
-  variant 落后事故）。
+- **协议升级**：传输的线上形状没有服务端自述可钉（omp 没有 kap 那样的
+  `/openapi.json`），所以版本锁死（`packages/agent-bridge/package.json` 里精确
+  版本，无 `^`），升级时同一次改完 protocol.ts 与 wire.rs 两侧并重跑测试。
+  禁手抄协议类型（判例：protocol.ts 记录的 8/13 variant 落后事故）。
 - **加持久化**：迁移只追加，一条 shipped 的迁移永不修改。
 
 ## 8. 变更纪律

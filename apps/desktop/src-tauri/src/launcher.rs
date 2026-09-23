@@ -4,7 +4,7 @@ use serde::Serialize;
 use specta::Type;
 use tauri::command;
 
-use poietica_kap_client::resolve_launcher;
+use poietica_agent_client::resolve_launcher;
 
 #[derive(Debug, Serialize, Type)]
 #[serde(rename_all = "camelCase")]

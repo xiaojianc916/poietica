@@ -2,9 +2,9 @@ import { describe, expect, it } from 'bun:test'
 import { parseAgentProfile } from '../agent-profile'
 
 const valid = {
-  id: 'kimi',
+  id: 'omp',
   env: { NO_COLOR: '1' },
-  defaultConfigOptions: { model: 'kimi-k2-turbo-preview', brave_mode: false },
+  defaultConfigOptions: { model: 'claude-sonnet-4-6', brave_mode: false },
 }
 
 describe('parseAgentProfile', () => {
@@ -21,7 +21,7 @@ describe('parseAgentProfile', () => {
   })
 
   it('拒绝不合法的 agent 标识', () => {
-    const parsed = parseAgentProfile({ ...valid, id: 'Kimi Code' })
+    const parsed = parseAgentProfile({ ...valid, id: 'Oh My Pi' })
 
     expect(parsed.ok).toBe(false)
   })
@@ -46,6 +46,6 @@ describe('parseAgentProfile', () => {
 
   it('拒绝不是对象的东西', () => {
     expect(parseAgentProfile(null).ok).toBe(false)
-    expect(parseAgentProfile('kimi').ok).toBe(false)
+    expect(parseAgentProfile('omp').ok).toBe(false)
   })
 })

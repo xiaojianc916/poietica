@@ -315,7 +315,7 @@ async function rustModuleEdges(
  * Rust crate 内部模块之间的环。
  *
  * `crateDependencyDirection` 只看 crate 之间的边（数据来自 cargo metadata），
- * crate 自己的模块怎么摆它看不见。判例：kap-client 的 connection 与 session 曾经
+ * crate 自己的模块怎么摆它看不见。判例：agent-client 的 connection 与 session 曾经
  * 互指 —— 重连逻辑（会话恢复）住在 connection 里，而 session 又要拨号与发帧。
  *
  * crate 目录取自 cargo metadata 的 manifest_path，不由 crate 名推：判例是

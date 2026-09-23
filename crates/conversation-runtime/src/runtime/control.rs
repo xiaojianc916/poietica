@@ -1,6 +1,8 @@
 use super::{CommandError, Handle, Runtime, RuntimeFailure, Takeover};
 use crate::session::{SessionError, address};
-use poietica_kap_client::{ApprovalResponse, PromptObservation, QuestionResponse, observe_prompt};
+use poietica_agent_client::{
+    ApprovalResponse, PromptObservation, QuestionResponse, observe_prompt,
+};
 
 #[derive(Debug)]
 pub enum SessionAction {
@@ -108,7 +110,7 @@ async fn dispatch(
     live: &Handle,
     session: String,
     action: SessionAction,
-) -> Result<(), poietica_kap_client::KapError> {
+) -> Result<(), poietica_agent_client::AgentError> {
     match action {
         SessionAction::Cancel => live.client.cancel(session).await,
         SessionAction::Steer(prompts) => live.client.steer(session, prompts).await,

@@ -3,8 +3,8 @@ import { describe, expect, it } from 'bun:test'
 import { decodeMcpConfig } from './mcp-config'
 import type { ContributionOrigin } from './origin'
 
-/* 夹具照抄 Kimi 官方 MCP 文档里那份 mcp.json 示例，不改写。 */
-const USER: ContributionOrigin = { kind: 'user', location: '/home/me/.kimi-code/mcp.json' }
+/* 夹具照抄官方 MCP 文档里那份 mcp.json 示例，不改写。 */
+const USER: ContributionOrigin = { kind: 'user', location: '/home/me/.omp/mcp.json' }
 
 const DOCUMENTED = {
   mcpServers: {

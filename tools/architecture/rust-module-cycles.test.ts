@@ -65,12 +65,13 @@ test('the repository currently has no crate-internal module cycle', async () => 
  * 覆盖率证明不了灵敏度，只有注入一条边能。
  */
 test('an injected back edge is reported', async () => {
-  const target = path.join(root, 'crates/kap-client/src/http.rs')
+  /* 一片真正的叶子（没有任何 crate 内 import），注入的边才必然是新增的那一条。 */
+  const target = path.join(root, 'crates/agent-client/src/policy.rs')
   const original = await Bun.file(target).text()
 
   await Bun.write(
     target,
-    `${original}\n#[allow(dead_code)]\nfn probe_back_edge() -> usize {\n    crate::session::book::SessionBook::len_hint()\n}\n`,
+    `${original}\n#[allow(dead_code)]\nfn probe_back_edge() -> usize {\n    crate::session::book::SessionBook::new().ids().map_or(0, |ids| ids.len())\n}\n`,
   )
 
   let injected: number

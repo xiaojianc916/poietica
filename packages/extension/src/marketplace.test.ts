@@ -79,10 +79,7 @@ describe('decodeMarketplaceCatalog', () => {
   })
 
   it('tier 折成内部的信任档位', () => {
-    expect(decode(CATALOG).entries.map((entry) => entry.trust)).toEqual([
-      'kimi-official',
-      'curated',
-    ])
+    expect(decode(CATALOG).entries.map((entry) => entry.trust)).toEqual(['official', 'curated'])
   })
 
   /* 没见过的档位意味着没有背书，而没有背书恰好就是第三方的定义 —— 多问一次，不是少问。 */

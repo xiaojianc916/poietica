@@ -4,7 +4,7 @@ import { assertUnreachable } from '@poietica/problem'
  * 信任级别取自上游目录里那一列 tier。它是市场目录声明的事实，不从 URL 猜 ——
  * 猜出来的信任是最坏的一种信任。
  */
-const PLUGIN_TRUST_TIERS = ['kimi-official', 'curated', 'third-party'] as const
+const PLUGIN_TRUST_TIERS = ['official', 'curated', 'third-party'] as const
 
 export type PluginTrustTier = (typeof PLUGIN_TRUST_TIERS)[number]
 
@@ -16,7 +16,7 @@ export const UNLISTED_TRUST: PluginTrustTier = 'third-party'
  * 的会话，默认值应该是「不」。
  */
 export function requiresInstallConfirmation(trust: PluginTrustTier): boolean {
-  return trust !== 'kimi-official'
+  return trust !== 'official'
 }
 
 export interface DefaultBranchRef {
@@ -58,8 +58,8 @@ export interface GitHubSource {
   /**
    * 仓库里插件根所在的那一段路径。
    *
-   * 一个仓库装多个插件是目录型市场的常态 —— kimi-code 的 plugins/official/ 下
-   * 就并排放着两个。没有这一段，「装 kimi-datasource」只能解成「装整个 kimi-code
+   * 一个仓库装多个插件是目录型市场的常态 —— 上游目录的 plugins/official/ 下
+   * 就并排放着两个。没有这一段，「装其中一个」只能解成「装整个仓库」
    * 仓库」，而那个仓库根本没有清单。
    *
    * 它只从显式来源来（目录里的相对路径、界面上的稀疏路径输入），不从网页地址里

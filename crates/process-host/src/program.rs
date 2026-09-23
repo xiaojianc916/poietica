@@ -49,6 +49,24 @@ pub fn resolve_program(program: &str) -> Result<PathBuf, ProgramNotFound> {
     })
 }
 
+/// 随包发出去的边车（Tauri 的 externalBin）落在应用可执行文件旁边，不在 PATH 上。
+///
+/// 先找同目录，再回落到 `resolve_program`：开发期直接跑 `cargo test` 或没走打包时，
+/// 边车可能只在一个手放的路径上，PATH 那一步能兜住。
+pub fn resolve_sidecar(name: &str) -> Result<PathBuf, ProgramNotFound> {
+    if let Ok(here) = std::env::current_exe()
+        && let Some(directory) = here.parent()
+    {
+        let candidate = directory.join(format!("{name}{}", std::env::consts::EXE_SUFFIX));
+
+        if candidate.is_file() {
+            return Ok(candidate);
+        }
+    }
+
+    resolve_program(name)
+}
+
 #[derive(Debug, PartialEq, Eq)]
 pub struct Launcher {
     pub program: String,
@@ -93,12 +111,17 @@ pub fn resolve_launcher(program: &str) -> Option<Launcher> {
 
 #[cfg(test)]
 mod tests {
-    use super::{Launcher, resolve_launcher, resolve_program};
+    use super::{Launcher, resolve_launcher, resolve_program, resolve_sidecar};
     use std::path::Path;
 
     #[test]
     fn a_name_on_no_search_path_is_reported_rather_than_guessed() {
         assert!(resolve_program("poietica-no-such-program-4f1a").is_err());
+    }
+
+    #[test]
+    fn a_sidecar_that_is_nowhere_falls_back_to_the_search_path_and_fails_loudly() {
+        assert!(resolve_sidecar("poietica-no-such-sidecar-4f1a").is_err());
     }
 
     #[test]

@@ -96,7 +96,7 @@ fn reported(recorded: poietica_ledger::index::SessionUsage) -> Result<AgentSessi
             .map_err(|_| Error::Persistence("a stored usage counter is negative".to_owned()))
     }
     Ok(super::dto::reported_usage(
-        poietica_kap_client::SessionUsageSnapshot {
+        poietica_agent_client::SessionUsageSnapshot {
             used: unsigned(recorded.used)?,
             size: unsigned(recorded.size)?,
             input_other: unsigned(recorded.input_other)?,

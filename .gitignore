@@ -49,6 +49,9 @@ apps/desktop/src-tauri/.tauri/
 **/src-tauri/gen/
 **/src-tauri/.tauri/
 
+# 随包发的 agent 边车（190MB 量级）：由 tools/agent/build-bridge.ts 现编，不入库。
+apps/desktop/src-tauri/binaries/
+
 # Desktop installers and bundles
 *.app
 *.app/

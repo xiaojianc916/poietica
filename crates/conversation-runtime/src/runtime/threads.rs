@@ -3,7 +3,7 @@ use crate::{
     catalog::{FALLBACK_THREAD_TITLE, checked_title},
     session::{SessionError, SessionHistory, SessionMode, SessionRequest, address, bound_session},
 };
-use poietica_kap_client::{ConfigControl, GoalSnapshot, KapError, PROMPT_ADMITTED};
+use poietica_agent_client::{AgentError, ConfigControl, GoalSnapshot, PROMPT_ADMITTED};
 use poietica_ledger::{
     execution::{IndexError, LocalIndex, read_index, write_index},
     index::ThreadSummary,
@@ -336,7 +336,7 @@ async fn bind_fork<E, F, A>(
 where
     E: Error + From<IndexError> + Send + 'static,
     F: FnOnce(String) -> A,
-    A: Future<Output = Result<(), KapError>>,
+    A: Future<Output = Result<(), AgentError>>,
 {
     let session = binding.session.clone();
     let owner = binding.owner.clone();
@@ -387,7 +387,7 @@ where
 #[cfg(test)]
 mod tests {
     use super::{CommandError, ForkBinding, SessionError, bind_fork};
-    use poietica_kap_client::{KapError, Refusal};
+    use poietica_agent_client::{AgentError, Refusal};
     use poietica_ledger::execution::{IndexError, LocalIndex, read_index, write_index};
     use poietica_time::wall_clock::SystemWallClock;
     use std::{error::Error, future::ready};
@@ -425,7 +425,7 @@ mod tests {
         let index =
             LocalIndex::<IndexError>::open(&directory.path().join("index.db"), SystemWallClock)?;
         let outcome = bind_fork(&index, binding(), |_| {
-            ready(Err(KapError::Refused(Refusal::Gone)))
+            ready(Err(AgentError::Refused(Refusal::Gone)))
         })
         .await;
         assert!(matches!(

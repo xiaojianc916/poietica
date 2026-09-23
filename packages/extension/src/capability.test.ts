@@ -4,9 +4,9 @@ import type { InstalledPlugin } from './installation'
 import type { AgentCapability } from './model'
 
 const base: AgentCapability = {
-  id: 'kimi-cu',
-  pluginId: 'kimi-cu-win',
-  label: 'Kimi Computer Use',
+  id: 'computer-use',
+  pluginId: 'computer-use-win',
+  label: 'Oh My Pi Computer Use',
   supported: true,
   state: 'partial',
   install: { running: false, step: null, percent: null, error: null },
@@ -31,34 +31,36 @@ function installed(pluginId: string, enabled: boolean): InstalledPlugin {
 describe('computerUse', () => {
   it('uses KAP readiness as the installation truth', () => {
     expect(project({ ...base, state: 'ready' })).toEqual({ kind: 'ready' })
-    expect(project({ ...base, state: 'notInstalled' }, [installed('kimi-cu-win', true)])).toEqual({
+    expect(
+      project({ ...base, state: 'notInstalled' }, [installed('computer-use-win', true)]),
+    ).toEqual({
       kind: 'installable',
     })
   })
 
   it('offers repair for a partial enabled installation', () => {
-    expect(project(base, [installed('kimi-cu-win', true)])).toEqual({ kind: 'repairable' })
+    expect(project(base, [installed('computer-use-win', true)])).toEqual({ kind: 'repairable' })
   })
 
   it('keeps the official plugin switch for a disabled partial installation', () => {
-    expect(project(base, [installed('kimi-cu-win', false)])).toEqual({
+    expect(project(base, [installed('computer-use-win', false)])).toEqual({
       kind: 'installed',
-      pluginId: 'kimi-cu-win',
+      pluginId: 'computer-use-win',
       enabled: false,
     })
   })
 
   it('uses the platform plugin id reported by KAP', () => {
-    const mac = { ...base, pluginId: 'kimi-cu', state: 'ready' as const }
-    expect(project(mac, [installed('kimi-cu', true)])).toEqual({
+    const mac = { ...base, pluginId: 'computer-use', state: 'ready' as const }
+    expect(project(mac, [installed('computer-use', true)])).toEqual({
       kind: 'installed',
-      pluginId: 'kimi-cu',
+      pluginId: 'computer-use',
       enabled: true,
     })
   })
 
   it('keeps installation stable while the command is pending', () => {
-    expect(project(base, [], { kind: 'pending', capabilityId: 'kimi-cu' })).toEqual({
+    expect(project(base, [], { kind: 'pending', capabilityId: 'computer-use' })).toEqual({
       kind: 'installing',
     })
   })
@@ -66,11 +68,11 @@ describe('computerUse', () => {
   it('surfaces connection and installation failures separately', () => {
     expect(
       computerUse({
-        capabilities: { kind: 'failed', reason: 'Kimi failed to start' },
+        capabilities: { kind: 'failed', reason: 'the agent failed to start' },
         capabilityCommand: CAPABILITY_COMMAND_IDLE,
         plugins: [],
       }),
-    ).toEqual({ kind: 'unavailable', reason: 'Kimi failed to start' })
+    ).toEqual({ kind: 'unavailable', reason: 'the agent failed to start' })
     expect(project({ ...base, install: { ...base.install, error: 'runtime failed' } })).toEqual({
       kind: 'failed',
       reason: 'runtime failed',
@@ -81,7 +83,7 @@ describe('computerUse', () => {
     expect(
       project({ ...base, state: 'ready' }, [], {
         kind: 'failed',
-        capabilityId: 'kimi-cu',
+        capabilityId: 'computer-use',
         reason: 'connection closed after acceptance',
       }),
     ).toEqual({ kind: 'ready' })

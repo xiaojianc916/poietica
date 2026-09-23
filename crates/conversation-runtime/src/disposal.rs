@@ -2,13 +2,13 @@
 
 use std::future::Future;
 
-use poietica_kap_client::KapError;
+use poietica_agent_client::AgentError;
 use poietica_ledger::execution::{IndexError, LocalIndex, write_index};
 
 #[derive(Debug)]
 pub struct DisposalFailure {
     pub session_id: String,
-    pub cause: KapError,
+    pub cause: AgentError,
 }
 
 pub async fn discharge<E, F, A, L>(
@@ -21,7 +21,7 @@ pub async fn discharge<E, F, A, L>(
 where
     E: From<IndexError> + Send + 'static,
     F: Fn(String) -> A,
-    A: Future<Output = Result<(), KapError>>,
+    A: Future<Output = Result<(), AgentError>>,
     L: Fn() -> bool,
 {
     let agent = owner.to_owned();
@@ -63,7 +63,7 @@ where
 #[cfg(test)]
 mod tests {
     use super::discharge;
-    use poietica_kap_client::KapError;
+    use poietica_agent_client::AgentError;
     use poietica_ledger::execution::{IndexError, LocalIndex, read_index, write_index};
     use poietica_time::wall_clock::SystemWallClock;
     use std::error::Error;
@@ -85,7 +85,7 @@ mod tests {
             "agent",
             "active",
             |_| {
-                ready(Err(KapError::Transport {
+                ready(Err(AgentError::Transport {
                     message: "response lost".to_owned(),
                 }))
             },

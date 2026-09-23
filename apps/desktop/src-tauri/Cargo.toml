@@ -42,9 +42,8 @@ serde_json.workspace = true
 sha2.workspace = true
 thiserror.workspace = true
 time = { workspace = true, features = ["formatting", "parsing"] }
-toml_edit.workspace = true
 uuid.workspace = true
-poietica-kap-client = { path = "../../../crates/kap-client" }
+poietica-agent-client = { path = "../../../crates/agent-client" }
 poietica-asset = { path = "../../../crates/asset" }
 poietica-browser-native = { path = "../../../crates/browser" }
 poietica-git-adapter-native = { path = "../../../crates/git-adapter" }

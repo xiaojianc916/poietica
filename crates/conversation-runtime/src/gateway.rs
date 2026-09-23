@@ -2,12 +2,12 @@
 
 use std::path::PathBuf;
 
+use poietica_agent_client::{AgentClient, AgentError, PromptAttachment, PromptSkill};
 use poietica_conversation::error::GatewayFailure;
 use poietica_conversation::ports::{
     AgentGateway, DeliveryConfirmation, DeliveryReceipt, PromptDelivery,
 };
 use poietica_conversation::turn::{Admission, AttachmentRef};
-use poietica_kap_client::{AgentClient, KapError, PromptAttachment, PromptSkill};
 use uuid::Uuid;
 
 use crate::journal::FrameJournal;
@@ -127,11 +127,11 @@ pub(crate) fn attachment_reference(entry: &ThreadAttachment) -> AttachmentRef {
 }
 
 // 只接受上游提交路由在入队之前明确报告的拒绝；内部错误及 ID 冲突不能证明未入队。
-fn delivery_failure(error: &KapError) -> DeliveryConfirmation {
+fn delivery_failure(error: &AgentError) -> DeliveryConfirmation {
     let rejected = matches!(
         error,
-        KapError::Validation { .. }
-            | KapError::Envelope {
+        AgentError::Validation { .. }
+            | AgentError::Envelope {
                 code: 40_001 | 40_002 | 40_110
                     ..=40_113 | 40_401 | 40_407 | 40_415 | 40_901 | 40_912,
                 ..
@@ -147,22 +147,22 @@ fn delivery_failure(error: &KapError) -> DeliveryConfirmation {
 
 #[cfg(test)]
 mod delivery_confirmation_tests {
-    use super::{DeliveryConfirmation, KapError, delivery_failure};
+    use super::{AgentError, DeliveryConfirmation, delivery_failure};
 
     #[test]
     fn transport_loss_does_not_discharge_the_outbox() {
         for error in [
-            KapError::Transport {
+            AgentError::Transport {
                 message: "lost response".to_owned(),
             },
-            KapError::Timeout {
+            AgentError::Timeout {
                 message: "no acknowledgement".to_owned(),
             },
-            KapError::Envelope {
+            AgentError::Envelope {
                 code: 50_001,
                 message: "internal error".to_owned(),
             },
-            KapError::Envelope {
+            AgentError::Envelope {
                 code: 40_927,
                 message: "id already present".to_owned(),
             },
@@ -177,7 +177,7 @@ mod delivery_confirmation_tests {
     #[test]
     fn explicit_admission_refusal_is_terminal() {
         assert!(matches!(
-            delivery_failure(&KapError::Envelope {
+            delivery_failure(&AgentError::Envelope {
                 code: 40_001,
                 message: "invalid request".to_owned()
             }),

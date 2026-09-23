@@ -1,0 +1,27 @@
+{
+  "name": "@poietica/agent-bridge",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "test": "bun test src",
+    "typecheck": "tsc --project tsconfig.json --noEmit"
+  },
+  "dependencies": {
+    "@oh-my-pi/pi-coding-agent": "18.2.11",
+    "@poietica/transcript": "workspace:*",
+    "zod": "catalog:"
+  },
+  "devDependencies": {
+    "@types/bun": "catalog:",
+    "typescript": "catalog:"
+  },
+  "poietica": {
+    "headless": [
+      "."
+    ]
+  }
+}

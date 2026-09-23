@@ -106,7 +106,7 @@ export function skillFrontmatter(document: string): ParsedSkillDocument {
     issues.push('目录型 SKILL.md 必须声明 description。')
   }
   if (!['prompt', 'inline', 'flow'].includes(type)) {
-    issues.push(`Kimi Code 不支持 type: ${type}。`)
+    issues.push(`当前 agent 不支持 type: ${type}。`)
   }
 
   return {

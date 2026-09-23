@@ -114,7 +114,7 @@ export function setMcpServerEnabledInConfig(
   })
 }
 
-// 这里只校验配置输入；协议和连接管理由 Kimi 的 MCP SDK 客户端负责。
+// 这里只校验配置输入；协议和连接管理由 agent 自己的 MCP 客户端负责。
 const Timeout = z.int().min(1).max(2_147_483_647)
 const Nonempty = z.string().refine((value) => value.trim().length > 0)
 const Strings = z.record(z.string(), z.string())
@@ -151,7 +151,7 @@ export function validateMcpEntry(name: string, input: unknown): McpEntry {
   }
   const body = parsed.data
   if (Object.hasOwn(body, 'type')) {
-    throw new Error('Kimi 使用 transport 而不是 type 字段；请按 stdio、http 或 sse 配置。')
+    throw new Error('这份配置用 transport 而不是 type 字段；请按 stdio、http 或 sse 配置。')
   }
   const transport = body.transport ?? (body.command === undefined ? 'http' : 'stdio')
   if (transport === 'stdio') {
