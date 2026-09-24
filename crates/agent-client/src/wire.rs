@@ -63,6 +63,30 @@ pub enum Command {
         config_id: String,
         value: String,
     },
+    /// 目标模式此刻的事实；`data.goal` 为 null 就是没有目标。
+    Goal {
+        id: String,
+    },
+    /// 屏幕经过的一页（打开一条会话时的基线）。
+    Transcript {
+        id: String,
+        #[serde(rename = "sessionId")]
+        session_id: String,
+        #[serde(rename = "agentId")]
+        agent_id: String,
+        #[serde(rename = "beforeTurn")]
+        before_turn: Option<String>,
+    },
+    /// 从某个水位起的增量。
+    TranscriptOps {
+        id: String,
+        #[serde(rename = "sessionId")]
+        session_id: String,
+        #[serde(rename = "agentId")]
+        agent_id: String,
+        #[serde(rename = "sinceSeq")]
+        since_seq: i64,
+    },
     Sessions {
         id: String,
     },
@@ -138,6 +162,9 @@ pub enum Event {
         #[serde(rename = "sessionId")]
         session_id: String,
         controls: Vec<Value>,
+        /// 此刻的目标；缺席即没有目标，与「这一格是空」不是一回事。
+        #[serde(default)]
+        goal: Option<Value>,
     },
     Usage {
         #[serde(rename = "sessionId")]

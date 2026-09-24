@@ -11,8 +11,10 @@ export {
   type BridgeCommandType,
   type BridgeEvent,
   type BridgeFrame,
+  type GoalSnapshot,
   MAX_FRAME_BYTES,
   type SelectorChoice,
   type SelectorControl,
   type UsageSnapshot,
 } from './protocol.ts'
+export { TranscriptMirror } from './transcript-mirror.ts'

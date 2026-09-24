@@ -49,6 +49,24 @@ export type BridgeCommand =
       readonly configId: string
       readonly value: string
     }
+  /** 目标模式此刻的事实；`data.goal` 为 null 就是这条会话没有目标。 */
+  | { readonly id: string; readonly type: 'goal' }
+  /** 屏幕经过的一页：打开一条会话时的基线。 */
+  | {
+      readonly id: string
+      readonly type: 'transcript'
+      readonly sessionId: string
+      readonly agentId: string
+      readonly beforeTurn: string | null
+    }
+  /** 从某个水位起的增量。 */
+  | {
+      readonly id: string
+      readonly type: 'transcript_ops'
+      readonly sessionId: string
+      readonly agentId: string
+      readonly sinceSeq: number
+    }
   | { readonly id: string; readonly type: 'sessions' }
   | { readonly id: string; readonly type: 'skills' }
   | { readonly id: string; readonly type: 'mcp_servers' }
@@ -160,11 +178,17 @@ export type BridgeEvent =
       readonly outcome: 'completed' | 'cancelled' | 'failed'
       readonly message?: string
     }
-  /** 这条会话此刻能改的选择器。 */
+  /**
+   * 这条会话此刻能改的选择器，以及此刻的目标。
+   *
+   * 目标与选择器同车：两者都是「此刻这条会话是什么样」，而目标会在一次工具调用
+   * 里被 agent 自己改掉（`goal_updated`），分开报就会有两个到达时刻。
+   */
   | {
       readonly kind: 'selectors'
       readonly sessionId: string
       readonly controls: readonly SelectorControl[]
+      readonly goal: GoalSnapshot | null
     }
   /**
    * agent 要问一个对话框。
@@ -195,6 +219,26 @@ export interface SelectorControl {
 export interface SelectorChoice {
   readonly value: string
   readonly label: string
+}
+
+/**
+ * 目标模式此刻的事实。
+ *
+ * 与 crates/agent-client 的 GoalSnapshot、以及桌面的 AgentGoal 逐字同形（camelCase），
+ * 所以 Rust 侧 serde 直接对，不做第二套命名。
+ *
+ * `status` 已经是产品那四个词（active / paused / blocked / complete）：omp 自己的
+ * `GoalStatus`（多 budget-limited 与 dropped 两档）在桥里折一次，通用层不认识它。
+ */
+export interface GoalSnapshot {
+  readonly objective: string
+  /** omp 的目标没有「完成判据」这一格，恒为 null，不编一个。 */
+  readonly completionCriterion: string | null
+  readonly status: string
+  /** 同上：omp 不按目标记轮数，恒为 0。 */
+  readonly turnsUsed: number
+  readonly tokensUsed: number
+  readonly wallClockMs: number
 }
 
 export interface UsageSnapshot {

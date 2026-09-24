@@ -672,6 +672,42 @@ fn outgoing(command: ClientCommand, id: &str, session_id: Option<&str>) -> Resul
             })
         }
 
+        ClientCommand::Goal { reply } => ask(&Command::Goal { id: id.to_owned() }, reply, |data| {
+            Ok(data.get("goal").and_then(goal_of))
+        }),
+
+        ClientCommand::ReadTranscript {
+            session_id,
+            agent_id,
+            before_turn,
+            reply,
+        } => ask(
+            &Command::Transcript {
+                id: id.to_owned(),
+                session_id,
+                agent_id,
+                before_turn,
+            },
+            reply,
+            Ok,
+        ),
+
+        ClientCommand::CatchUpTranscript {
+            session_id,
+            agent_id,
+            since_seq,
+            reply,
+        } => ask(
+            &Command::TranscriptOps {
+                id: id.to_owned(),
+                session_id,
+                agent_id,
+                since_seq,
+            },
+            reply,
+            Ok,
+        ),
+
         ClientCommand::Select {
             config_id,
             value,
@@ -706,6 +742,31 @@ fn outgoing(command: ClientCommand, id: &str, session_id: Option<&str>) -> Resul
         | ClientCommand::PromptState { .. }
         | ClientCommand::ModelCatalog { .. } => Ok(None),
     }
+}
+
+/// 桥报的目标 → 产品的形状。
+///
+/// 字段与 packages/agent-bridge/src/protocol.ts 的 GoalSnapshot 逐字对应；缺一格
+/// 就报缺，不猜默认值（猜出来的 0 与真的 0 在屏幕上分不出来）。
+fn goal_of(value: &Value) -> Option<crate::session::config::GoalSnapshot> {
+    Some(crate::session::config::GoalSnapshot {
+        objective: value.get("objective")?.as_str()?.to_owned(),
+        completion_criterion: value
+            .get("completionCriterion")
+            .and_then(Value::as_str)
+            .map(str::to_owned),
+        status: value
+            .get("status")
+            .and_then(Value::as_str)
+            .unwrap_or_default()
+            .to_owned(),
+        turns_used: value.get("turnsUsed").and_then(Value::as_u64).unwrap_or(0),
+        tokens_used: value.get("tokensUsed").and_then(Value::as_u64).unwrap_or(0),
+        wall_clock_ms: value
+            .get("wallClockMs")
+            .and_then(Value::as_u64)
+            .unwrap_or(0),
+    })
 }
 
 fn controls_of(data: &Value) -> Vec<crate::ConfigControl> {
@@ -1177,11 +1238,13 @@ fn dispatch(
         Event::Selectors {
             session_id,
             controls,
+            goal,
         } => {
             let _sent = events_tx.unbounded_send(SessionEvent::Selectors {
                 session_id,
                 controls: controls.iter().filter_map(control_of).collect(),
-                goal: None,
+                /* 桥报什么就是什么：缺席（老桥）与「没有目标」在这里都是 None。 */
+                goal: goal.as_ref().and_then(goal_of),
             });
         }
 

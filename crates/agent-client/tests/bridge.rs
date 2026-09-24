@@ -101,6 +101,60 @@ async fn the_client_opens_a_session_on_the_bundled_agent() {
     let _ = offered;
 
     /*
+     * 打开一条会话要走的两条读：目标与正文基线。
+     *
+     * 这两条此前答「还没接」，而 `open_thread` 把它们放在同一个 try_join 里，
+     * 于是每一次发消息都在这里断掉（屏幕上就是 ProblemError: the goal switch is
+     * not wired to this agent yet）。所以这里的判据是「它们真的答得上话」。
+     */
+    let goal = tokio::time::timeout(
+        std::time::Duration::from_secs(30),
+        connection.client.goal(opened.session_id.clone()),
+    )
+    .await
+    .expect("the goal query must not hang")
+    .expect("the driver must answer the goal query");
+
+    /* 没有目标就是没有：新建的会话本就不该有目标。 */
+    assert!(goal.is_none(), "a fresh session must not report a goal");
+
+    let page = tokio::time::timeout(
+        std::time::Duration::from_secs(30),
+        connection
+            .client
+            .read_transcript(opened.session_id.clone(), "main".to_owned(), None),
+    )
+    .await
+    .expect("the transcript read must not hang")
+    .expect("the driver must answer the transcript read");
+
+    /* 空会话的一页仍要是一页：形状不对的话 native-bridge 的 zod 会当场拒掉。 */
+    assert_eq!(page.get("agent_id").and_then(|v| v.as_str()), Some("main"));
+    assert_eq!(
+        page.get("items").and_then(|v| v.as_array()).map(Vec::len),
+        Some(0)
+    );
+
+    let caught = tokio::time::timeout(
+        std::time::Duration::from_secs(30),
+        connection
+            .client
+            .catch_up_transcript(opened.session_id.clone(), "main".to_owned(), 0),
+    )
+    .await
+    .expect("the transcript catch-up must not hang")
+    .expect("the driver must answer the transcript catch-up");
+
+    assert_eq!(
+        caught.get("latest_seq").and_then(serde_json::Value::as_i64),
+        Some(0)
+    );
+    assert_eq!(
+        caught.get("complete").and_then(serde_json::Value::as_bool),
+        Some(true)
+    );
+
+    /*
      * 模型目录：这条走的是「问桥要 agent 自己那份注册表」，证明目录不再由本机
      * 空答。目录内容随这台机器的 agent 配置而变，所以只断言它解得开、且每一格
      * 都有出处 —— 具体有几个 provider 不是本层的判据。

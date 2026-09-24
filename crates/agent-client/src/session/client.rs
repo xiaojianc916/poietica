@@ -134,6 +134,24 @@ pub(crate) enum Command {
     Selectors {
         reply: oneshot::Sender<Result<Vec<ConfigControl>>>,
     },
+    /// 目标真相；桥没有目标时回 None，那是「没有」，不是「读不到」。
+    Goal {
+        reply: oneshot::Sender<Result<Option<GoalSnapshot>>>,
+    },
+    /// 打开一条会话时要的那一页正文。
+    ReadTranscript {
+        session_id: String,
+        agent_id: String,
+        before_turn: Option<String>,
+        reply: oneshot::Sender<Result<serde_json::Value>>,
+    },
+    /// 从某个水位起的增量。
+    CatchUpTranscript {
+        session_id: String,
+        agent_id: String,
+        since_seq: i64,
+        reply: oneshot::Sender<Result<serde_json::Value>>,
+    },
     Select {
         config_id: String,
         value: String,
@@ -244,25 +262,58 @@ impl AgentClient {
 
     /// 读取目标真相；未启用是 Ok(None)，连接故障是 Err。
     pub async fn goal(&self, _session_id: String) -> Result<Option<GoalSnapshot>> {
-        Err(unwired("the goal switch"))
+        let (reply, answer) = oneshot::channel();
+
+        self.send(Command::Goal { reply })?;
+
+        answer
+            .await
+            .map_err(|_dropped| AgentError::Refused(Refusal::Gone))?
     }
 
+    /// 打开一条会话时要的那一页正文：基线。
+    ///
+    /// 正文平时是推的（transcript 事件），这一条只服务「刚打开」——没有它，一条
+    /// 已经有内容的会话在屏幕上就是空的。
     pub async fn read_transcript(
         &self,
-        _session_id: String,
-        _agent_id: String,
-        _before_turn: Option<String>,
+        session_id: String,
+        agent_id: String,
+        before_turn: Option<String>,
     ) -> Result<serde_json::Value> {
-        Err(unwired("reading the transcript over the wire"))
+        let (reply, answer) = oneshot::channel();
+
+        self.send(Command::ReadTranscript {
+            session_id,
+            agent_id,
+            before_turn,
+            reply,
+        })?;
+
+        answer
+            .await
+            .map_err(|_dropped| AgentError::Refused(Refusal::Gone))?
     }
 
+    /// 断流后从某个水位追赶：只补缺的那几批，不重读整页。
     pub async fn catch_up_transcript(
         &self,
-        _session_id: String,
-        _agent_id: String,
-        _since_seq: i64,
+        session_id: String,
+        agent_id: String,
+        since_seq: i64,
     ) -> Result<serde_json::Value> {
-        Err(unwired("catching up the transcript over the wire"))
+        let (reply, answer) = oneshot::channel();
+
+        self.send(Command::CatchUpTranscript {
+            session_id,
+            agent_id,
+            since_seq,
+            reply,
+        })?;
+
+        answer
+            .await
+            .map_err(|_dropped| AgentError::Refused(Refusal::Gone))?
     }
 
     /// 取 agent 侧会话媒体（历史图片）的字节；连接带着鉴权，webview 自己取不到。

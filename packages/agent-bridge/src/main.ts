@@ -26,6 +26,7 @@ import {
   initializeWithSettings,
 } from '@oh-my-pi/pi-coding-agent/discovery'
 import { initializeExtensions } from '@oh-my-pi/pi-coding-agent/modes/runtime-init'
+import type { TranscriptOperation } from '@poietica/transcript'
 import { createUIContext, DialogDesk, labelFor } from './approval.ts'
 import { aliasOf, executeCatalog } from './catalog.ts'
 import { removeProvider, writeProvider, writeProviderOverride } from './models-file.ts'
@@ -36,13 +37,21 @@ import {
   type BridgeCommand,
   type BridgeEvent,
   type BridgeFrame,
+  type GoalSnapshot,
   type SelectorControl,
   type UsageSnapshot,
 } from './protocol.ts'
+import { TranscriptMirror } from './transcript-mirror.ts'
 
 const write = (frame: BridgeFrame): void => {
   process.stdout.write(`${JSON.stringify(frame)}\n`)
 }
+
+/*
+ * omp 的目标类型。它住在 pi-tui 里、不由 SDK 再导出，所以从会话的读法上取 ——
+ * 比为了一个类型注解多引一条依赖边干净。
+ */
+type GoalOfSession = NonNullable<ReturnType<AgentSession['getGoalModeState']>>['goal']
 
 const emit = (event: BridgeEvent): void => {
   write({ type: 'event', event })
@@ -58,6 +67,8 @@ interface Session {
   readonly id: string
   readonly agent: AgentSession
   readonly projector: TranscriptProjector
+  /** 屏幕经过的镜像：ops 推出去的同时落进它，打开与追赶两条读从它答。 */
+  readonly mirror: TranscriptMirror
   /** 模型目录读的是它；每一条会话自己那份注册表。 */
   readonly registry: ModelRegistry
   /** 凭据读写走它（agent 自己的 agent.db）。 */
@@ -171,6 +182,7 @@ async function openSession(cwd: string): Promise<string> {
     id,
     agent: session,
     projector: new TranscriptProjector(),
+    mirror: new TranscriptMirror(id),
     registry: modelRegistry,
     authStorage,
     settings: session.settings,
@@ -216,6 +228,7 @@ async function openSession(cwd: string): Promise<string> {
     kind: 'selectors',
     sessionId: id,
     controls: await readSelectors(record),
+    goal: readGoal(record),
   })
 
   return id
@@ -275,6 +288,16 @@ function handleEvent(record: Session, event: AgentSessionEvent): void {
       reselect(record)
       break
 
+    /*
+     * 目标变了（agent 自己调的 `goal` 工具、预算翻转、完成）。
+     *
+     * 与模型/档位同一条路重报一次选择器事件：目标就挂在那条事件的车上，所以
+     * 「重报」只有一个动作，不是两个各自会漏的出口。
+     */
+    case 'goal_updated':
+      reselect(record)
+      break
+
     case 'agent_end':
       /* isTerminal 为 false 时后面还有活干，这一轮没真结束。 */
       if (event.isTerminal !== false) {
@@ -289,7 +312,7 @@ function handleEvent(record: Session, event: AgentSessionEvent): void {
   }
 
   if (ops.length > 0) {
-    emit({ kind: 'transcript', sessionId: record.id, payload: { agentId: 'main', ops } })
+    pushTranscript(record, ops)
   }
 
   if (ending !== null) {
@@ -309,7 +332,12 @@ function handleEvent(record: Session, event: AgentSessionEvent): void {
  * 选择器是「此刻能改什么」，`readSelectors` 是唯一的产地；这里只是把它推出去。
  */
 function reselect(record: Session): void {
-  emit({ kind: 'selectors', sessionId: record.id, controls: readSelectors(record) })
+  emit({
+    kind: 'selectors',
+    sessionId: record.id,
+    controls: readSelectors(record),
+    goal: readGoal(record),
+  })
 }
 
 function reportUsage(record: Session): void {
@@ -488,12 +516,63 @@ function settleDialog(record: Session, requestId: string, payload: unknown): unk
   return {}
 }
 
-function pushTranscript(record: Session, ops: readonly unknown[]): void {
+/**
+ * 把一批 ops 推给 Rust。
+ *
+ * 出去的不是裸的 ops 表，而是 `transcript.ops` 信封：Rust 那边原样转给
+ * native-bridge，由它按 packages/transcript 钉住的形状校验（transcript-decoding.ts
+ * 认的是 `{type, payload:{agent_id, seq, ops}}`）。信封与水位的产地在镜像那一处 ——
+ * 推出去的和读回来的因此是同一份，不会一边带 seq 一边不带。
+ */
+function pushTranscript(record: Session, ops: readonly TranscriptOperation[]): void {
   if (ops.length === 0) {
     return
   }
 
-  emit({ kind: 'transcript', sessionId: record.id, payload: { agentId: 'main', ops } })
+  emit({
+    kind: 'transcript',
+    sessionId: record.id,
+    payload: record.mirror.accept(ops),
+  })
+}
+
+/**
+ * 目标模式此刻的事实，从 omp 自己的会话状态读。
+ *
+ * 唯一的产地是 `session.getGoalModeState()`（agent-session.ts）—— 官方 TUI 的状态
+ * 行与 `/goal show` 读的都是它。没有目标时它是 undefined，如实报 null。
+ */
+function readGoal(record: Session): GoalSnapshot | null {
+  const state = record.agent.getGoalModeState()
+
+  return state === undefined ? null : goalSnapshotOf(state.goal)
+}
+
+/**
+ * omp 的一个目标 → 产品的形状。
+ *
+ * 两处折算，都是因为产品那一侧没有对应的格：
+ *
+ * - `budget-limited`（预算用尽、等加预算）正是产品说的受阻 `blocked`；
+ * - `dropped`（用户清掉了目标）产品没有这一档，而它的意思就是「没有目标了」，
+ *   所以报 null —— 折算成别的档会让灵动岛留着一条已经不存在的目标。
+ *
+ * `completionCriterion` 与 `turnsUsed` 在 omp 的目标里根本没有这两格，恒报
+ * null / 0，不编一个看起来合理的值（ADR 0053：假数据比缺数据更坏）。
+ */
+function goalSnapshotOf(goal: GoalOfSession): GoalSnapshot | null {
+  if (goal.status === 'dropped') {
+    return null
+  }
+
+  return {
+    objective: goal.objective,
+    completionCriterion: null,
+    status: goal.status === 'budget-limited' ? 'blocked' : goal.status,
+    turnsUsed: 0,
+    tokensUsed: goal.tokensUsed,
+    wallClockMs: goal.timeUsedSeconds * 1000,
+  }
 }
 
 /**
@@ -616,6 +695,22 @@ async function dispatch(command: BridgeCommand): Promise<unknown> {
     }
     case 'selectors':
       return { controls: await readSelectors(required()) }
+
+    /* 目标：与选择器同一条读，只是单独问一次。没有目标如实回 null。 */
+    case 'goal':
+      return { goal: readGoal(required()) }
+
+    /*
+     * 屏幕经过的两条读。
+     *
+     * 正文是推的（`transcript` 事件），这两条只服务「打开一条会话要一页基线」与
+     * 「断流后要一次追赶」—— 都由桥自己的镜像答，内容与推出去的那批逐字相同。
+     */
+    case 'transcript':
+      return required().mirror.page(command.agentId)
+
+    case 'transcript_ops':
+      return required().mirror.catchUp(command.agentId, command.sinceSeq)
 
     case 'select': {
       const record = required()
