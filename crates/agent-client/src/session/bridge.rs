@@ -50,17 +50,21 @@ pub fn connect(
     } = spawn;
 
     /*
-     * 审批与提问这两张桌子还挂在签名上：桥暂时不推这两类事件（omp 的审批走
-     * RPC 的 extension_ui_request，接它是一件单独的活），但界面那一整套照旧
-     * 存在 —— ADR 0052 的后果第 5 条：控件不删，等后端补齐。
+     * 审批桌要交给驱动器：桥报上来的 permission_requested 落在这里等人答，
+     * 人的答复再从 answer_permission 那条命令回到桥上。提问桌还没有对应的
+     * 事件源（omp 的 ask 工具走 askDialog，尚未接），照旧留着。
      */
-    let _ = (desk, questions);
+    let desk = desk.clone();
+    let _ = questions;
 
     let resolved = resolve_sidecar(&program)?;
 
     let (commands_tx, commands_rx) = mpsc::unbounded::<ClientCommand>();
     let (events_tx, events_rx) = mpsc::unbounded::<SessionEvent>();
     let (ready_tx, ready_rx) = oneshot::channel::<Result<Handshake>>();
+
+    /* 驱动器自己也要发命令（把授权答复送回桥），所以留一个自己的句柄。 */
+    let outbound = AgentClient::new(commands_tx.clone());
 
     let book = SessionBook::new();
     let book_clone = book.clone();
@@ -104,6 +108,8 @@ pub fn connect(
             book_clone,
             slot,
             &cwd,
+            desk,
+            outbound,
             diagnostics,
             traced,
             cancellation,
@@ -145,6 +151,8 @@ async fn run_session(
     book: SessionBook,
     slot: RunSlot,
     cwd: &std::path::Path,
+    desk: crate::interaction::desk::PermissionDesk,
+    outbound: AgentClient,
     diagnostics: StderrLog,
     traced: Option<crate::trace::TraceSink>,
     cancellation: tokio_util::sync::CancellationToken,
@@ -233,9 +241,30 @@ async fn run_session(
                     continue;
                 }
 
-                /* 目录编辑还没接到 omp 的配置面上：本机答不支持，不走管道。 */
+                /*
+                 * 模型目录：走管道问桥（它拿着 agent 自己的注册表与配置）。
+                 * 本层只把产品的那份 operation 转成线上的形状。
+                 */
                 if let ClientCommand::ModelCatalog { operation, reply } = command {
-                    let _ = reply.send(crate::model_catalog::execute(&operation));
+                    let (slot, answer) = oneshot::channel();
+                    let line = encode(&Command::ModelCatalog {
+                        id: id.clone(),
+                        operation: catalog_operation(&operation),
+                    })?;
+                    let _replaced = pending.insert(id, slot);
+
+                    tokio::spawn(async move {
+                        let result = answer
+                            .await
+                            .map_err(|_dropped| AgentError::Refused(Refusal::Gone))
+                            .and_then(|outcome| outcome.map(|data| catalog_snapshot(&data)));
+                        let _ = reply.send(result);
+                    });
+
+                    if let Err(error) = send(&mut stdin, &line).await {
+                        return handshake_failed(ready_tx, error.to_string());
+                    }
+
                     continue;
                 }
 
@@ -501,7 +530,7 @@ async fn run_session(
 
                     Frame::Event { event } => {
                         if ready {
-                            dispatch(event, &events_tx, &book, &diagnostics);
+                            dispatch(event, &events_tx, &book, &desk, &outbound, &diagnostics);
                         }
                     }
                 }
@@ -593,6 +622,36 @@ fn outgoing(command: ClientCommand, id: &str, session_id: Option<&str>) -> Resul
             )
         }
 
+        ClientCommand::AnswerPermission {
+            request_id,
+            decision,
+            scope,
+            reply,
+        } => ask(
+            &Command::AnswerPermission {
+                id: id.to_owned(),
+                request_id,
+                decision,
+                scope,
+            },
+            reply,
+            |_| Ok(()),
+        ),
+
+        ClientCommand::AnswerDialog {
+            request_id,
+            response,
+            reply,
+        } => ask(
+            &Command::AnswerDialog {
+                id: id.to_owned(),
+                request_id,
+                response,
+            },
+            reply,
+            |_| Ok(()),
+        ),
+
         ClientCommand::Selectors { reply } => {
             ask(&Command::Selectors { id: id.to_owned() }, reply, |data| {
                 Ok(controls_of(&data))
@@ -650,6 +709,184 @@ fn servers_of(_data: &Value) -> Vec<crate::McpServer> {
     Vec::new()
 }
 
+/// 一次授权请求里，界面要的那三格。
+struct Approval {
+    tool_call_id: String,
+    title: String,
+    tool_call: Value,
+}
+
+/// 上游授权闸门问的那两颗；与 packages/agent-bridge/src/approval.ts 逐字对应。
+const APPROVAL_LABELS: [&str; 2] = ["Approve", "Deny"];
+
+/// 这条对话框是不是授权闸门那一句话。
+///
+/// 判据是「method 为 select，且选项正好是那两颗」：上游没有给授权单独一个 method，
+/// 它走的就是普通 select（extensibility/extensions/wrapper.ts 的
+/// `select(safetyPrompt, ["Approve", "Deny"])`），靠选项集区分。判据只有这一处 ——
+/// 两处各判一次，改一处就会一半认得一半认不得。
+fn approval_of(request: &Value) -> Option<Approval> {
+    if request.get("method").and_then(Value::as_str) != Some("select") {
+        return None;
+    }
+
+    let options = request.get("options").and_then(Value::as_array)?;
+    let labels: Vec<&str> = options.iter().filter_map(Value::as_str).collect();
+
+    if labels.len() != APPROVAL_LABELS.len()
+        || !APPROVAL_LABELS.iter().all(|label| labels.contains(label))
+    {
+        return None;
+    }
+
+    /*
+     * 工具名与调用号从标题里取：上游的 select 只给一句话（formatApprovalPrompt
+     * 的第一行是 `Allow tool: <name>`），没有结构化的字段。取不到就留空 ——
+     * 界面会退到标题那一行，不会因此画不出来。
+     */
+    let title = request
+        .get("title")
+        .and_then(Value::as_str)
+        .unwrap_or_default()
+        .to_owned();
+
+    let tool_name = title
+        .lines()
+        .find_map(|line| line.trim().strip_prefix("Allow tool:"))
+        .map(str::trim)
+        .unwrap_or_default()
+        .to_owned();
+
+    let tool_call = serde_json::json!({
+        "toolCallId": tool_name.clone(),
+        "title": tool_name.clone(),
+        "rawInput": title,
+    });
+
+    Some(Approval {
+        tool_call_id: tool_name,
+        title,
+        tool_call,
+    })
+}
+
+/// 产品的一次目录操作 → 线上的形状。
+///
+/// 与 packages/agent-bridge/src/protocol.ts 的 ModelCatalogOperation 逐字对应。
+/// 桥认不出的那些（增删 provider）由桥自己如实拒绝 —— 这里不预筛，筛两遍就会
+/// 一半认得一半认不得。
+fn catalog_operation(operation: &crate::ModelCatalogOperation) -> Value {
+    use crate::ModelCatalogOperation as Op;
+
+    match operation {
+        Op::Snapshot => serde_json::json!({ "kind": "snapshot" }),
+        Op::RefreshProviders => serde_json::json!({ "kind": "refreshProviders" }),
+        Op::SetDefault { model_id } => {
+            serde_json::json!({ "kind": "setDefault", "modelId": model_id })
+        }
+        Op::PatchConfig(patch) => serde_json::json!({ "kind": "patchConfig", "patch": patch }),
+        other => serde_json::json!({ "kind": format!("{other:?}") }),
+    }
+}
+
+/// 桥报的目录快照 → 产品的形状。
+///
+/// 桥给的 provider/model 两栏与产品那两栏同名，只是嵌套不同：这一层只做搬运与
+/// 缺省，不重新解释任何一格。
+fn catalog_snapshot(data: &Value) -> crate::ModelCatalogSnapshot {
+    use crate::model_catalog::{CatalogProvider, Model, ModelCatalogSnapshot, Provider};
+
+    let text = |value: &Value, key: &str| value.get(key).and_then(Value::as_str).map(str::to_owned);
+
+    let providers =
+        data.get("providers")
+            .and_then(Value::as_array)
+            .map(|providers| {
+                providers
+                    .iter()
+                    .filter_map(|provider| {
+                        Some(Provider {
+                            id: text(provider, "id")?,
+                            provider_type: text(provider, "type").unwrap_or_default(),
+                            base_url: text(provider, "baseUrl"),
+                            default_model: text(provider, "defaultModel"),
+                            has_api_key: provider
+                                .get("hasApiKey")
+                                .and_then(Value::as_bool)
+                                .unwrap_or(false),
+                            status: text(provider, "status").unwrap_or_default(),
+                            models: provider.get("models").and_then(Value::as_array).map(
+                                |models| {
+                                    models
+                                        .iter()
+                                        .filter_map(Value::as_str)
+                                        .map(str::to_owned)
+                                        .collect()
+                                },
+                            ),
+                        })
+                    })
+                    .collect()
+            })
+            .unwrap_or_default();
+
+    let models = data
+        .get("models")
+        .and_then(Value::as_array)
+        .map(|models| {
+            models
+                .iter()
+                .filter_map(|model| {
+                    Some(Model {
+                        provider: text(model, "provider")?,
+                        model: text(model, "model")?,
+                        display_name: text(model, "displayName"),
+                        max_context_size: model
+                            .get("maxContextSize")
+                            .and_then(Value::as_u64)
+                            .unwrap_or(0),
+                        capabilities: None,
+                        max_output_size: model.get("maxOutputSize").and_then(Value::as_u64),
+                        support_efforts: None,
+                        adaptive_thinking: None,
+                        default_effort: text(model, "defaultEffort"),
+                    })
+                })
+                .collect()
+        })
+        .unwrap_or_default();
+
+    let catalog = data
+        .get("catalog")
+        .and_then(Value::as_array)
+        .map(|entries| {
+            entries
+                .iter()
+                .filter_map(|entry| {
+                    Some(CatalogProvider {
+                        id: text(entry, "id")?,
+                        name: text(entry, "name").unwrap_or_default(),
+                        wire_type: text(entry, "wireType"),
+                        guessed: false,
+                        needs_base_url: false,
+                        rejected: false,
+                        reject_reason: None,
+                        env_key: None,
+                        models: Vec::new(),
+                    })
+                })
+                .collect()
+        })
+        .unwrap_or_default();
+
+    ModelCatalogSnapshot {
+        providers,
+        models,
+        catalog,
+        default_model: text(data, "defaultModel"),
+    }
+}
+
 /// 桥报的一条选择器 → 产品控制项。
 fn control_of(value: &Value) -> Option<crate::ConfigControl> {
     use crate::session::config::{ConfigChoice, ConfigPurpose};
@@ -703,6 +940,8 @@ fn dispatch(
     event: Event,
     events_tx: &mpsc::UnboundedSender<SessionEvent>,
     book: &SessionBook,
+    desk: &crate::interaction::desk::PermissionDesk,
+    outbound: &AgentClient,
     diagnostics: &StderrLog,
 ) {
     match event {
@@ -714,6 +953,76 @@ fn dispatch(
                 session_id,
                 payload,
             });
+        }
+
+        /*
+         * 一次对话框请求。
+         *
+         * 授权那一类（上游的 select，选项正是那四档）翻成产品的一问一答：界面只有
+         * 三颗按钮，语义比上游窄，映射只在这里做一次。其余（ask 工具的题目、
+         * confirm、input）原样交给宿主 —— 本层不解释它们的形状。
+         */
+        Event::DialogRequested {
+            session_id,
+            request,
+        } => {
+            let request_id = request
+                .get("id")
+                .and_then(Value::as_str)
+                .unwrap_or_default()
+                .to_owned();
+
+            let Some(approval) = approval_of(&request) else {
+                let _sent = events_tx.unbounded_send(SessionEvent::Dialog {
+                    session_id,
+                    request,
+                });
+
+                return;
+            };
+
+            /* 先落账再等人：账上没有这一条时，人答了也没有东西可对。 */
+            if let Ok(Some(slot)) = book.slot(&session_id) {
+                slot.record(|recorder| {
+                    recorder.record_permission_requested(
+                        &request_id,
+                        &approval.tool_call_id,
+                        &approval.title,
+                        approval.tool_call.clone(),
+                    );
+                });
+            }
+
+            /*
+             * 桌是这两头的会合点：这一头把「在等人答」登记上去，`answer_permission`
+             * 那条命令从另一头把答复送进来。中间那一段必须有人等 —— 不等的话答复
+             * 送进一个已经没人读的槽，人点了按钮而 agent 永远卡着。
+             */
+            match desk.wait(&request_id) {
+                Ok(waiting) => {
+                    let outbound = outbound.clone();
+                    let request = request_id.clone();
+
+                    tokio::spawn(async move {
+                        let Ok(response) = waiting.await else {
+                            return;
+                        };
+
+                        let decision = response.decision.on_wire().to_owned();
+                        let scope = response
+                            .decision
+                            .scope()
+                            .map(|scope| scope.on_wire().to_owned());
+
+                        if let Err(error) =
+                            outbound.answer_permission(request, decision, scope).await
+                        {
+                            log::error!("could not hand an approval answer back: {error}");
+                        }
+                    });
+                }
+                Err(error) => log::error!("could not put the approval on the desk: {error}"),
+            }
         }
 
         Event::TurnEnd {

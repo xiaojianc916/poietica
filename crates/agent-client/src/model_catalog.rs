@@ -7,8 +7,6 @@
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
-use crate::error::{AgentError, Result};
-
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct ProviderModelInput {
     pub model: String,
@@ -145,29 +143,4 @@ pub struct ModelCatalogSnapshot {
     pub models: Vec<Model>,
     pub catalog: Vec<CatalogProvider>,
     pub default_model: Option<String>,
-}
-
-/// 目录改动还没有 omp 那条路。如实说不支持，不假装改成功了 —— 界面上那几个
-/// 控件因此照常渲染、照常给出失败原因（ADR 0052 的后果第 5 条）。
-pub(crate) fn execute(operation: &ModelCatalogOperation) -> Result<ModelCatalogSnapshot> {
-    Err(AgentError::Validation {
-        message: format!(
-            "the model catalog is not wired to this agent yet ({})",
-            name_of(operation)
-        ),
-    })
-}
-
-const fn name_of(operation: &ModelCatalogOperation) -> &'static str {
-    match operation {
-        ModelCatalogOperation::Snapshot => "snapshot",
-        ModelCatalogOperation::RefreshProviders => "refresh",
-        ModelCatalogOperation::Create(_) => "create",
-        ModelCatalogOperation::Replace { .. } => "replace",
-        ModelCatalogOperation::Delete { .. } => "delete",
-        ModelCatalogOperation::ImportCatalog(_) => "import_catalog",
-        ModelCatalogOperation::ImportRegistry(_) => "import_registry",
-        ModelCatalogOperation::SetDefault { .. } => "set_default",
-        ModelCatalogOperation::PatchConfig(_) => "patch_config",
-    }
 }

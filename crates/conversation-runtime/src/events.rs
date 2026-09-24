@@ -64,6 +64,7 @@ pub(crate) async fn record<E: RuntimeFailure>(
             .map_err(E::from),
         SessionEvent::Selectors { .. }
         | SessionEvent::Transcript { .. }
+        | SessionEvent::Dialog { .. }
         | SessionEvent::ModelCatalogChanged => Ok(()),
     }
 }

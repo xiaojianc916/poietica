@@ -52,6 +52,14 @@ pub enum SessionEvent {
         session_id: String,
         payload: serde_json::Value,
     },
+    /// agent 要问一个对话框（ask 工具的题目、confirm、input）。
+    ///
+    /// 原样转发上游 RpcExtensionUIRequest 的形状：本层不认识它的 method，也不该
+    /// 认识 —— 解释归宿主。授权那一类不走这里（它翻成产品的 permission 帧）。
+    Dialog {
+        session_id: String,
+        request: serde_json::Value,
+    },
     ModelCatalogChanged,
     Link(poietica_conversation::link::LinkState),
 }

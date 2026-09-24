@@ -7,6 +7,7 @@ use poietica_agent_client::{
     SessionUsageSnapshot,
 };
 use serde::{Deserialize, Serialize};
+use serde_json::Value;
 use specta::Type;
 use tauri_specta::Event;
 
@@ -191,6 +192,12 @@ pub enum AgentSessionEvent {
     },
     /// provider、模型或默认模型的真身以它为准：收到即作废缓存重问。
     ModelCatalogChanged,
+    /// agent 要问一个对话框（ask 工具的题目、confirm、input）。
+    ///
+    /// `request` 是 agent 自己那份形状，原样转发 —— 本层不认识它，也不该认识。
+    /// 授权那一类不走这里（它走 permission_requested 那帧）。
+    #[serde(rename_all = "camelCase")]
+    Dialog { session_id: String, request: Value },
 }
 
 #[derive(Debug, Deserialize, Type)]

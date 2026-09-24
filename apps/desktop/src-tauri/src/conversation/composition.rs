@@ -77,6 +77,14 @@ pub(crate) fn compose(
                 SessionEvent::ModelCatalogChanged => {
                     AgentSessionEvent::ModelCatalogChanged.emit(&publishing)
                 }
+                SessionEvent::Dialog {
+                    session_id,
+                    request,
+                } => AgentSessionEvent::Dialog {
+                    session_id,
+                    request,
+                }
+                .emit(&publishing),
                 SessionEvent::Cursor { .. }
                 | SessionEvent::CursorLost { .. }
                 | SessionEvent::Link(_) => return,

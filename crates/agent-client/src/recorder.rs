@@ -5,9 +5,9 @@ use std::sync::Arc;
 use std::sync::atomic::{AtomicI64, Ordering};
 
 use serde::Serialize;
-use serde_json::{Value, json};
+use serde_json::Value;
 
-use crate::frame::{RunFrame, prune};
+use crate::frame::RunFrame;
 use crate::interaction::permission::{ApprovalResponse, Decision};
 use crate::interaction::question::{QuestionGroup, QuestionOutcome};
 use poietica_conversation::link::LinkState;
@@ -166,48 +166,35 @@ impl Recorder {
         self.append(RunFrame::LinkChanged { link: link.clone() });
     }
 
-    /// 请求号就是 kap 签发的 approval_id，不另铸一个，两处免对账。
-    pub fn record_permission_requested_kap(
+    /// 一次工具授权请求。
+    ///
+    /// `tool_call` 由知道协议形状的那一侧成形（三格：toolCallId、title、rawInput），
+    /// 这里不再从别家的字段名里挑 —— 挑法只有一处，在桥里。
+    pub fn record_permission_requested(
         &mut self,
-        approval_id: &str,
+        request_id: &str,
         tool_call_id: &str,
-        tool_name: &str,
-        item: &Value,
-    ) -> String {
-        self.approvals.push(approval_id.to_owned());
-
-        let title = approval_title(tool_name, item, tool_call_id);
-
-        // rawInput 装审批项的显示提示（tool_input_display），由 transcript-projector 的 interactionOf 落成展示格。
-        let mut tool_call = json!({
-            "toolCallId": tool_call_id,
-            "title": title,
-            "rawInput": item.get("tool_input_display").cloned().unwrap_or(Value::Null),
-        });
-        prune(&mut tool_call);
+        title: &str,
+        tool_call: Value,
+    ) {
+        self.approvals.push(request_id.to_owned());
 
         self.append(RunFrame::PermissionRequested {
-            request_id: approval_id.to_owned(),
+            request_id: request_id.to_owned(),
             tool_call_id: tool_call_id.to_owned(),
-            title,
+            title: title.to_owned(),
             tool_call,
         });
-
-        approval_id.to_owned()
     }
 
-    pub fn record_permission_resolved_kap(
-        &mut self,
-        approval_id: &str,
-        response: ApprovalResponse,
-    ) {
-        self.note_resolution(approval_id, response);
+    pub fn record_permission_resolved(&mut self, request_id: &str, response: ApprovalResponse) {
+        self.note_resolution(request_id, response);
     }
 
     pub fn record_pending_cancelled(&mut self) {
-        for approval_id in std::mem::take(&mut self.approvals) {
-            self.record_permission_resolved_kap(
-                &approval_id,
+        for request_id in std::mem::take(&mut self.approvals) {
+            self.record_permission_resolved(
+                &request_id,
                 ApprovalResponse {
                     decision: Decision::Cancelled,
                     selected_label: None,
@@ -375,19 +362,6 @@ impl Recorder {
     pub const fn ended(&self) -> u64 {
         self.ended
     }
-}
-
-/// kap 审批必带 tool_name（approvalRequestSchema min(1)）；名缺才轮到动作，再缺报调用号。
-fn approval_title(tool_name: &str, item: &Value, tool_call_id: &str) -> String {
-    if !tool_name.is_empty() {
-        return tool_name.to_owned();
-    }
-
-    item.get("action")
-        .and_then(Value::as_str)
-        .filter(|action| !action.is_empty())
-        .unwrap_or(tool_call_id)
-        .to_owned()
 }
 
 /// 现在，毫秒；时钟异常时算 0 —— 帧时刻只作排序，不值得为此断掉一条对话。

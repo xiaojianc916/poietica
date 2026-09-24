@@ -273,38 +273,38 @@ describe('run origin, completion and undo boundaries', () => {
 describe('tool identity and run presentation', () => {
   test('known tools keep their category before display and after cold restoration', () => {
     const samples = [
-      ['Bash', { command: 'pwd' }, { kind: 'command', command: 'pwd' }, 'execute', 'pwd'],
+      ['bash', { command: 'pwd' }, { kind: 'command', command: 'pwd' }, 'execute', 'pwd'],
       [
-        'Read',
+        'read',
         { path: 'a.ts' },
         { kind: 'file_io', operation: 'read', path: '/repo/a.ts' },
         'read',
         'a.ts',
       ],
       [
-        'Grep',
+        'grep',
         { pattern: 'needle' },
         { kind: 'file_io', operation: 'grep', path: '/repo' },
         'search',
         'needle',
       ],
       [
-        'Glob',
+        'glob',
         { pattern: '*.ts' },
         { kind: 'file_io', operation: 'glob', path: '/repo' },
         'search',
         '*.ts',
       ],
       [
-        'FetchURL',
+        'github',
         { url: 'https://example.com' },
         { kind: 'url_fetch', url: 'https://example.com' },
         'fetch',
         'https://example.com',
       ],
       [
-        'Skill',
-        { skill: 'review' },
+        'manage_skill',
+        { name: 'review' },
         { kind: 'skill_call', skill_name: 'review' },
         'skill',
         'review',

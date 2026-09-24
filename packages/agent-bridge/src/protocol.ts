@@ -22,6 +22,26 @@ export type BridgeCommand =
     }
   | { readonly id: string; readonly type: 'cancel' }
   | { readonly id: string; readonly type: 'steer'; readonly text: string }
+  /** 回答一次工具授权。decision 与 scope 是产品那三颗按钮的取值域。 */
+  | {
+      readonly id: string
+      readonly type: 'answer_permission'
+      readonly requestId: string
+      readonly decision: 'approved' | 'rejected' | 'cancelled'
+      readonly scope?: 'session'
+    }
+  /**
+   * 回答任意一个对话框（上游 extension_ui_response 的四种）。
+   *
+   * 授权走 answer_permission（产品只有三颗按钮，语义比上游四档窄）；这一条是
+   * 给别的对话框用的（ask 工具的题目、confirm、input），原样转发上游的响应形状。
+   */
+  | {
+      readonly id: string
+      readonly type: 'answer_dialog'
+      readonly requestId: string
+      readonly response: unknown
+    }
   | { readonly id: string; readonly type: 'selectors' }
   | {
       readonly id: string
@@ -32,7 +52,26 @@ export type BridgeCommand =
   | { readonly id: string; readonly type: 'sessions' }
   | { readonly id: string; readonly type: 'skills' }
   | { readonly id: string; readonly type: 'mcp_servers' }
+  /**
+   * 模型目录的一次读或一次改。
+   *
+   * 读返回 providers / models / catalog / defaultModel；改只接 setDefault 与
+   * patchConfig（写进 agent 自己的 config.yml），增删 provider 还没接 ——
+   * 如实报不支持，不假装改成功了。
+   */
+  | {
+      readonly id: string
+      readonly type: 'model_catalog'
+      readonly operation: ModelCatalogOperation
+    }
   | { readonly id: string; readonly type: 'shutdown' }
+
+/** 与 crates/agent-client 的 ModelCatalogOperation 逐字对应。 */
+export type ModelCatalogOperation =
+  | { readonly kind: 'snapshot' }
+  | { readonly kind: 'refreshProviders' }
+  | { readonly kind: 'setDefault'; readonly modelId: string }
+  | { readonly kind: 'patchConfig'; readonly patch: unknown }
 
 export type BridgeCommandType = BridgeCommand['type']
 
@@ -73,6 +112,18 @@ export type BridgeEvent =
       readonly kind: 'selectors'
       readonly sessionId: string
       readonly controls: readonly SelectorControl[]
+    }
+  /**
+   * agent 要问一个对话框。
+   *
+   * `request` 是上游 RpcExtensionUIRequest 的原样形状（method 为 select / confirm /
+   * input / editor / notify / …）。授权那一类（method=select 且选项是那四档）由
+   * Rust 翻成产品的一问一答；其余原样交给宿主，本层不解释。
+   */
+  | {
+      readonly kind: 'dialog_requested'
+      readonly sessionId: string
+      readonly request: unknown
     }
   /** 一次会话的用量快照。 */
   | {

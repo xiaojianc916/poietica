@@ -26,12 +26,12 @@ impl PermissionDesk {
         Self::default()
     }
 
-    pub fn wait_kap(&self, approval_id: &str) -> Result<oneshot::Receiver<ApprovalResponse>> {
+    pub fn wait(&self, request_id: &str) -> Result<oneshot::Receiver<ApprovalResponse>> {
         let (answer, waiting) = oneshot::channel();
 
         let _replaced = self
             .lock()?
-            .insert(approval_id.to_owned(), Waiting { answer });
+            .insert(request_id.to_owned(), Waiting { answer });
 
         Ok(waiting)
     }

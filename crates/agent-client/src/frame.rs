@@ -101,25 +101,3 @@ impl RunFrame {
         }
     }
 }
-
-pub(crate) fn prune(value: &mut Value) {
-    match value {
-        Value::Object(fields) => {
-            fields.retain(|_name, member| {
-                if member.is_null() {
-                    return false;
-                }
-
-                prune(member);
-
-                true
-            });
-        }
-        Value::Array(members) => {
-            for member in members.iter_mut() {
-                prune(member);
-            }
-        }
-        _ => {}
-    }
-}

@@ -110,6 +110,19 @@ pub(crate) enum Command {
         prompt_ids: Vec<String>,
         reply: oneshot::Sender<Result<()>>,
     },
+    /// 回答一次工具授权。答复从 PermissionDesk 来，落到桥那边的 select() 上。
+    AnswerPermission {
+        request_id: String,
+        decision: String,
+        scope: Option<String>,
+        reply: oneshot::Sender<Result<()>>,
+    },
+    /// 回答任意一个对话框：原样转发上游 extension_ui_response 的载荷。
+    AnswerDialog {
+        request_id: String,
+        response: serde_json::Value,
+        reply: oneshot::Sender<Result<()>>,
+    },
     Skills {
         reply: oneshot::Sender<Result<Vec<Skill>>>,
     },
@@ -286,6 +299,49 @@ impl AgentClient {
         let (reply, answer) = oneshot::channel();
 
         self.send(Command::Steer { prompt_ids, reply })?;
+
+        answer
+            .await
+            .map_err(|_dropped| AgentError::Refused(Refusal::Gone))?
+    }
+
+    /// 把一次授权答复送到卡住的那次工具调用上。
+    ///
+    /// 答复不落本机账 —— 那是 `permission_resolved` 帧的事（recorder 记它），
+    /// 这条命令只负责把人的决定交回给 agent。
+    pub async fn answer_permission(
+        &self,
+        request_id: String,
+        decision: String,
+        scope: Option<String>,
+    ) -> Result<()> {
+        let (reply, answer) = oneshot::channel();
+
+        self.send(Command::AnswerPermission {
+            request_id,
+            decision,
+            scope,
+            reply,
+        })?;
+
+        answer
+            .await
+            .map_err(|_dropped| AgentError::Refused(Refusal::Gone))?
+    }
+
+    /// 回答别的对话框：载荷原样转发，本层不解释。
+    pub async fn answer_dialog(
+        &self,
+        request_id: String,
+        response: serde_json::Value,
+    ) -> Result<()> {
+        let (reply, answer) = oneshot::channel();
+
+        self.send(Command::AnswerDialog {
+            request_id,
+            response,
+            reply,
+        })?;
 
         answer
             .await

@@ -38,6 +38,22 @@ pub enum Command {
         id: String,
         text: String,
     },
+    /// 回答一次工具授权。decision 与 scope 是产品那三颗按钮的取值域。
+    AnswerPermission {
+        id: String,
+        #[serde(rename = "requestId")]
+        request_id: String,
+        decision: String,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        scope: Option<String>,
+    },
+    /// 回答任意一个对话框：原样转发上游 extension_ui_response 的载荷。
+    AnswerDialog {
+        id: String,
+        #[serde(rename = "requestId")]
+        request_id: String,
+        response: Value,
+    },
     Selectors {
         id: String,
     },
@@ -55,6 +71,11 @@ pub enum Command {
     },
     McpServers {
         id: String,
+    },
+    /// 模型目录的一次读或一次改。
+    ModelCatalog {
+        id: String,
+        operation: Value,
     },
     Shutdown {
         id: String,
@@ -106,6 +127,12 @@ pub enum Event {
         outcome: Outcome,
         #[serde(default)]
         message: Option<String>,
+    },
+    /// agent 要问一个对话框。`request` 是上游 RpcExtensionUIRequest 的原样形状。
+    DialogRequested {
+        #[serde(rename = "sessionId")]
+        session_id: String,
+        request: Value,
     },
     Selectors {
         #[serde(rename = "sessionId")]

@@ -25,7 +25,7 @@ import type {
 
 import { fileMetaLabel, isInFlight } from '../timeline/timeline-contract'
 import { withoutKimiAttachmentNotices } from './kimi-attachment'
-import { describeKimiTool } from './kimi-tool'
+import { describeTool } from './tool-vocabulary'
 
 function timeOf(value?: string): number | undefined {
   if (value === undefined) {
@@ -250,7 +250,7 @@ function frameOf(frame: TranscriptFrame, turn: number, stamp: number): TimelineI
   if (frame.kind === 'notice') {
     return { type: 'error', id: frame.frameId, turn, at: stamp, message: frame.message }
   }
-  const tool = describeKimiTool(frame)
+  const tool = describeTool(frame)
   return {
     type: 'tool_call',
     id: frame.frameId,

@@ -100,6 +100,31 @@ async fn the_client_opens_a_session_on_the_bundled_agent() {
     的判据。清单内容归桥那边，不在这一层断言。 */
     let _ = offered;
 
+    /*
+     * 模型目录：这条走的是「问桥要 agent 自己那份注册表」，证明目录不再由本机
+     * 空答。目录内容随这台机器的 agent 配置而变，所以只断言它解得开、且每一格
+     * 都有出处 —— 具体有几个 provider 不是本层的判据。
+     */
+    let catalog = connection
+        .client
+        .model_catalog(poietica_agent_client::ModelCatalogOperation::Snapshot)
+        .await
+        .expect("the model catalog must answer through the bridge");
+
+    for model in &catalog.models {
+        assert!(
+            !model.provider.is_empty() && !model.model.is_empty(),
+            "a catalog entry without a provider or an id cannot be picked"
+        );
+    }
+
+    for provider in &catalog.providers {
+        assert!(
+            !provider.id.is_empty(),
+            "a provider entry without an id cannot be addressed"
+        );
+    }
+
     connection.stop.cancel();
     let _ = driver.await;
 

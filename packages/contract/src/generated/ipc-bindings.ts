@@ -537,7 +537,14 @@ export type AgentSessionEvent = { kind: "selectors"; sessionId: string; selector
 /**
  * provider、模型或默认模型的真身以它为准：收到即作废缓存重问。
  */
-{ kind: "modelCatalogChanged" }
+{ kind: "modelCatalogChanged" } | 
+/**
+ * agent 要问一个对话框（ask 工具的题目、confirm、input）。
+ * 
+ * `request` 是 agent 自己那份形状，原样转发 —— 本层不认识它，也不该认识。
+ * 授权那一类不走这里（它走 permission_requested 那帧）。
+ */
+{ kind: "dialog"; sessionId: string; request: JsonValue }
 /**
  * 取一张 agent 会话媒体（历史图片）：webview 无法带 Bearer 直连，原生侧代取回 base64。
  */

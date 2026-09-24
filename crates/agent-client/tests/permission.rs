@@ -14,7 +14,7 @@ use poietica_agent_client::{ApprovalResponse, Decision, PermissionDesk, Scope};
 #[test]
 fn an_answer_reaches_the_waiting_handler() {
     let desk = PermissionDesk::new();
-    let waiting = desk.wait_kap("appr_1").expect("a fresh desk");
+    let waiting = desk.wait("appr_1").expect("a fresh desk");
 
     desk.answer(
         "appr_1",
@@ -62,7 +62,7 @@ fn an_answer_to_an_unknown_request_is_refused() {
 #[test]
 fn a_turn_that_ends_first_cancels_the_wait() {
     let desk = PermissionDesk::new();
-    let waiting = desk.wait_kap("appr_3").expect("a fresh desk");
+    let waiting = desk.wait("appr_3").expect("a fresh desk");
 
     desk.clear();
 
