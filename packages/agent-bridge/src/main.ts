@@ -152,26 +152,57 @@ function settingsFor(): Promise<Settings> {
   return settingsPromise
 }
 
-async function openSession(cwd: string): Promise<string> {
-  return (await adopt(await SessionManager.create(cwd), cwd)).id
+/*
+ * 会话初始化串行排队：omp 的注册表每进程只有一个 "Main" 槽，两次
+ * createAgentSession 并发初始化会互相顶掉（replaced during initialization）。
+ */
+let sessionInit: Promise<unknown> = Promise.resolve()
+
+function queueInit<T>(work: () => Promise<T>): Promise<T> {
+  const run = sessionInit.then(work, work)
+  sessionInit = run.then(
+    () => undefined,
+    () => undefined,
+  )
+  return run
+}
+
+function openSession(cwd: string): Promise<Session> {
+  return queueInit(() => adopt(SessionManager.create(cwd), cwd))
 }
 
 /**
  * 重装一条以前开过的会话：先扫对话工作区的桶，miss 再全桶按 id 找（旧会话可能
- * 落在别的 cwd 桶里）。找不到回 null，不是链路错误。
+ * 落在别的 cwd 桶里）。连接已持有这条会话时只拨回 active。找不到回 null，不是
+ * 链路错误。
  */
-async function loadSession(sessionId: string, cwd: string): Promise<Session | null> {
-  const found =
-    (await SessionManager.list(cwd)).find((entry) => entry.id === sessionId) ??
-    (await SessionManager.listAll()).find((entry) => entry.id === sessionId)
-
-  if (found === undefined) {
-    log('no session file holds', sessionId)
-
-    return null
+function loadSession(sessionId: string, cwd: string): Promise<Session | null> {
+  const held = sessions.get(sessionId)
+  if (held !== undefined) {
+    active = sessionId
+    return Promise.resolve(held)
   }
 
-  return adopt(await SessionManager.open(found.path), cwd)
+  return queueInit(async () => {
+    /* 排到队首再看一眼：排队期间可能已经有命令把这条会话装载进来了。 */
+    const loaded = sessions.get(sessionId)
+    if (loaded !== undefined) {
+      active = sessionId
+      return loaded
+    }
+
+    const found =
+      (await SessionManager.list(cwd)).find((entry) => entry.id === sessionId) ??
+      (await SessionManager.listAll()).find((entry) => entry.id === sessionId)
+
+    if (found === undefined) {
+      log('no session file holds', sessionId)
+
+      return null
+    }
+
+    return adopt(await SessionManager.open(found.path), cwd)
+  })
 }
 
 /**
@@ -290,42 +321,15 @@ function replayHistory(record: Session): void {
 
   for (const message of record.agent.messages) {
     if (message.role === 'user') {
-      if (project.isTurnOpen) {
-        pushTranscript(record, project.turnEnd('completed', undefined, endedAt ?? undefined))
-      }
-
+      closeReplayedTurn(record, endedAt)
       pushTranscript(
         record,
         project.userTurn(textOf(message.content), [], undefined, iso(message.timestamp)),
       )
-
-      continue
-    }
-
-    if (message.role === 'assistant') {
+    } else if (message.role === 'assistant') {
       endedAt = iso(message.timestamp)
-
-      for (const block of message.content) {
-        if (block.type === 'text' && block.text.length > 0) {
-          pushTranscript(record, project.textDelta(block.text))
-        } else if (block.type === 'thinking' && block.thinking.length > 0) {
-          pushTranscript(record, project.thinkingDelta(block.thinking))
-        } else if (block.type === 'toolCall') {
-          pushTranscript(
-            record,
-            project.toolStart({
-              toolCallId: block.id,
-              toolName: block.name,
-              args: block.arguments,
-            }),
-          )
-        }
-      }
-
-      continue
-    }
-
-    if (message.role === 'toolResult') {
+      replayAssistant(record, message.content)
+    } else if (message.role === 'toolResult') {
       pushTranscript(
         record,
         project.toolEnd({
@@ -339,9 +343,42 @@ function replayHistory(record: Session): void {
     }
   }
 
-  if (project.isTurnOpen) {
-    pushTranscript(record, project.turnEnd('completed', undefined, endedAt ?? undefined))
+  closeReplayedTurn(record, endedAt)
+}
+
+function replayAssistant(record: Session, content: readonly ReplayBlock[]): void {
+  for (const block of content) {
+    if (block.type === 'text' && block.text) {
+      pushTranscript(record, record.projector.textDelta(block.text))
+    } else if (block.type === 'thinking' && block.thinking) {
+      pushTranscript(record, record.projector.thinkingDelta(block.thinking))
+    } else if (block.type === 'toolCall' && block.id && block.name) {
+      pushTranscript(
+        record,
+        record.projector.toolStart({
+          toolCallId: block.id,
+          toolName: block.name,
+          args: block.arguments,
+        }),
+      )
+    }
   }
+}
+
+function closeReplayedTurn(record: Session, endedAt: string | null): void {
+  if (record.projector.isTurnOpen) {
+    pushTranscript(record, record.projector.turnEnd('completed', undefined, endedAt ?? undefined))
+  }
+}
+
+/** 历史消息的内容块；这里只认这几种，其余（图片等）如实跳过。 */
+type ReplayBlock = {
+  readonly type: string
+  readonly text?: string
+  readonly thinking?: string
+  readonly id?: string
+  readonly name?: string
+  readonly arguments?: Record<string, unknown>
 }
 
 /** 用户消息的正文：只有文本块上得了产品的正文帧，图片块在会话媒体库里。 */
@@ -1122,8 +1159,10 @@ async function writeDefaultModel(modelId: string): Promise<void> {
 
 async function dispatch(command: BridgeCommand): Promise<unknown> {
   switch (command.type) {
-    case 'new_session':
-      return { sessionId: await openSession(command.cwd) }
+    case 'new_session': {
+      const record = await openSession(command.cwd)
+      return { sessionId: record.id, controls: readSelectors(record) }
+    }
 
     case 'load_session': {
       const record = await loadSession(command.sessionId, command.cwd)

@@ -210,3 +210,7 @@ dist-release/
 .workbuddy/memory
 .workbuddy-ai/
 .zcodeignore
+
+# 集成测试把受控 home 建在这里；.gitkeep 之外的内容不入库。
+.cargo/link-tmp/*
+!.cargo/link-tmp/.gitkeep

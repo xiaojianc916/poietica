@@ -490,9 +490,9 @@ export type AgentForkThreadRequest = { threadId: string; title: string;
 dropTurns: number; launch: AgentLaunch; cwd: string | null }
 export type AgentGoal = { objective: string; completionCriterion: string | null; status: string; turnsUsed: number; tokensUsed: number; wallClockMs: number }
 /**
- * Fresh 是本来就没有经过，Live 是有经过但这次没让 agent 重放——两种"空"对人的意义完全不同。
+ * Fresh 是本来就没有经过；Loaded 是这次把已有会话重装了回来。
  */
-export type AgentHistory = { state: "fresh" } | { state: "live" } | { state: "loaded" }
+export type AgentHistory = { state: "fresh" } | { state: "loaded" }
 export type AgentInstallState = "unmanaged" | "missing" | "outdated" | "current" | "external" | "unknown"
 export type AgentInstallStatus = { state: AgentInstallState; installedVersion: string | null; latestVersion: string | null; packageName: string | null }
 /**

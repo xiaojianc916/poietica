@@ -195,10 +195,8 @@ async fn run_session(
     let mut issued = 0_u64;
     let mut session_id: Option<String> = None;
     let mut ready = false;
-    /* 开会话那一条请求的号与它的应答槽；应答回到 Frame::Response 那一支认领。 */
-    let mut opening: Option<String> = None;
-    /* 重装会话请求的号，同在 Response 那一支认领。 */
-    let mut switching: Option<String> = None;
+    /* 指派会话那一条请求（握手/重装/新开）的号；应答回到 Frame::Response 那一支认领。 */
+    let mut assigning: Option<String> = None;
     /* 握手的总期限：边车起不来时这里兜住，而不是让界面永远等。 */
     let handshake_deadline = tokio::time::sleep(HANDSHAKE_TIMEOUT);
     tokio::pin!(handshake_deadline);
@@ -327,7 +325,7 @@ async fn run_session(
                 }
 
                 /*
-                 * 重装一条旧会话：应答的号由 Response 那一支的 `switching` 认领
+                 * 重装一条旧会话：应答的号由 Response 那一支的 `assigning` 认领
                  * （在这里 await 就等于没人再读 stdout）。
                  */
                 if let ClientCommand::LoadSession {
@@ -343,7 +341,7 @@ async fn run_session(
                     })?;
                     let (slot_reply, answer) = oneshot::channel();
                     let _replaced = pending.insert(id.clone(), slot_reply);
-                    switching = Some(id);
+                    assigning = Some(id);
 
                     tokio::spawn(async move {
                         let result = match answer.await {
@@ -367,33 +365,31 @@ async fn run_session(
                 }
 
                 /*
-                 * 这条连接上那一条会话：握手时就开好了。号与**此刻的选择器表**一起
-                 * 交回去。
-                 *
-                 * 表必须在这里给：上层拿它当「这条会话此刻提供什么」的第一帧，而
-                 * 空表是一个有意义的答复（这家 agent 什么都不给改）。用空表表示
-                 * 「还没问」的话，上层就不会再去问，屏幕上那一排控件整个消失 ——
-                 * 进入具体对话后批准方式不见了，正是这一条。
+                 * 新对话要一口**全新**的会话：active 可能已绑给别的对话（重装会换
+                 * 掉它），再交出去就是账本上两条对话绑同一个会话号。让桥现开一条，
+                 * 应答由 Response 那一支的 `assigning` 认领。
                  */
                 if let ClientCommand::CurrentSession { reply } = command {
-                    let Some(session_id) = session_id.clone() else {
-                        let _ = reply.send(Err(AgentError::Refused(Refusal::UnknownSession)));
-                        continue;
-                    };
-
-                    issued += 1;
-                    let ask_id = format!("c{issued}");
-                    let (slot, answer) = oneshot::channel();
-                    let line = encode(&Command::Selectors { id: ask_id.clone() })?;
-                    let _replaced = pending.insert(ask_id, slot);
-                    send(&mut stdin, &line).await?;
+                    let line = encode(&Command::NewSession {
+                        id: id.clone(),
+                        cwd: cwd.to_string_lossy().into_owned(),
+                    })?;
+                    let (slot_reply, answer) = oneshot::channel();
+                    let _replaced = pending.insert(id.clone(), slot_reply);
+                    assigning = Some(id);
 
                     tokio::spawn(async move {
                         let result = match answer.await {
-                            Ok(Ok(data)) => Ok(OpenedSession {
-                                session_id,
-                                selectors: controls_of(&data),
-                            }),
+                            Ok(Ok(data)) => match data.get("sessionId").and_then(Value::as_str) {
+                                Some(opened) => Ok(OpenedSession {
+                                    session_id: opened.to_owned(),
+                                    selectors: controls_of(&data),
+                                }),
+                                None => Err(AgentError::Transport {
+                                    message: "the agent bridge minted a session without an id"
+                                        .to_owned(),
+                                }),
+                            },
                             Ok(Err(error)) => Err(error),
                             Err(_dropped) => Err(AgentError::Refused(Refusal::Gone)),
                         };
@@ -401,6 +397,7 @@ async fn run_session(
                         let _ = reply.send(result);
                     });
 
+                    send(&mut stdin, &line).await?;
                     continue;
                 }
 
@@ -556,7 +553,7 @@ async fn run_session(
                         /*
                          * 开第一条会话。应答**不能**在这里 await：这一支正占着
                          * 读循环，await 就等于没人再去读 stdout，双方互等。
-                         * 请求发出去，号记在 `opening` 上，等 Response 那一支认领。
+                         * 请求发出去，号记在 `assigning` 上，等 Response 那一支认领。
                          */
                         issued += 1;
                         let id = format!("c{issued}");
@@ -564,7 +561,7 @@ async fn run_session(
                             id: id.clone(),
                             cwd: cwd.to_string_lossy().into_owned(),
                         })?;
-                        opening = Some(id);
+                        assigning = Some(id);
 
                         send(&mut stdin, &line).await?;
                     }
@@ -574,48 +571,37 @@ async fn run_session(
                             let _ = reply.send(Ok(data.clone()));
                         }
 
-                        if opening.as_deref() == Some(id.as_str()) {
-                            opening = None;
+                        /*
+                         * 指派会话的应答（握手、重装、新开三者同形）：认进 book 并把
+                         * active 指过去。握手那一次还要把 ready 槽打发掉；重装的 null
+                         * （文件没了）不动连接，UnknownSession 已由应答槽交回。
+                         */
+                        if assigning.as_deref() == Some(id.as_str()) {
+                            assigning = None;
 
-                            let opened = data
-                                .get("sessionId")
-                                .and_then(Value::as_str)
-                                .map(str::to_owned);
-
-                            let Some(opened) = opened else {
-                                return handshake_failed(
-                                    ready_tx,
-                                    "the agent bridge opened a session without an id".to_owned(),
-                                );
-                            };
-
-                            if book.adopt(&opened, slot.clone()).is_err() {
-                                if let Some(tx) = ready_tx.take() {
-                                    let _ = tx.send(Err(AgentError::Poisoned));
-                                }
-                                return Err(AgentError::Poisoned);
-                            }
-
-                            session_id = Some(opened.clone());
-
-                            if let Some(tx) = ready_tx.take() {
-                                let _ = tx.send(Ok(Handshake { session_id: opened }));
-                            }
-                        }
-
-                        /* 重装会话的应答：认进 book 并顶掉握手那条；null（文件没了）
-                         * 不动连接，UnknownSession 已由应答槽交回。 */
-                        if switching.as_deref() == Some(id.as_str()) {
-                            switching = None;
-
-                            if let Some(opened) =
-                                data.get("sessionId").and_then(Value::as_str).map(str::to_owned)
+                            match data.get("sessionId").and_then(Value::as_str).map(str::to_owned)
                             {
-                                if book.adopt(&opened, slot.clone()).is_err() {
-                                    return Err(AgentError::Poisoned);
-                                }
+                                Some(opened) => {
+                                    if book.adopt(&opened, slot.clone()).is_err() {
+                                        if let Some(tx) = ready_tx.take() {
+                                            let _ = tx.send(Err(AgentError::Poisoned));
+                                        }
+                                        return Err(AgentError::Poisoned);
+                                    }
 
-                                session_id = Some(opened);
+                                    session_id = Some(opened.clone());
+
+                                    if let Some(tx) = ready_tx.take() {
+                                        let _ = tx.send(Ok(Handshake { session_id: opened }));
+                                    }
+                                }
+                                None if ready_tx.is_some() => {
+                                    return handshake_failed(
+                                        ready_tx,
+                                        "the agent bridge opened a session without an id".to_owned(),
+                                    );
+                                }
+                                None => {}
                             }
                         }
                     }

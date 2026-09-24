@@ -42,7 +42,6 @@ pub enum SessionError<E: Error + 'static> {
 pub enum SessionHistory {
     Fresh,
     Loaded,
-    Live,
 }
 
 #[derive(Debug)]
@@ -119,15 +118,11 @@ impl SessionResolver {
         .ok_or(SessionError::Missing)?;
 
         if let Some(session_id) = bound_session(&thread, owner)? {
-            if book.slot(&session_id)?.is_some() {
-                return Ok(Held {
-                    thread_id,
-                    session_id,
-                    offered: None,
-                    history: SessionHistory::Live,
-                    _lease: lease,
-                });
-            }
+            /*
+             * 绑定的对话一律过一遍 load：连接的 active 会话可能在服务别的对话，
+             * 不拨回去，提交与正文读都会落到错的会话上。桥端已持有这条会话时
+             * 只是拨回 active，没有盘上动作。
+             */
             let workspace = thread
                 .workspace_root
                 .map_or_else(|| default_root.to_path_buf(), PathBuf::from);
@@ -265,7 +260,7 @@ mod operation_ownership_tests {
             thread_id: thread,
             session_id: "session".to_owned(),
             offered: None,
-            history: SessionHistory::Live,
+            history: SessionHistory::Loaded,
             _lease: resolver.exclusive(thread).await,
         };
         assert!(lane.try_lock().is_err());

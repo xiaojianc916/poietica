@@ -279,11 +279,8 @@ async fn the_client_opens_a_session_on_the_bundled_agent() {
     );
 
     /*
-     * 这条连接上那一条会话：握手时就开好了。
-     *
-     * 它必须与**此刻的选择器表**一起交回来。此前这里回一张空表，而上层拿它当
-     * 「这条会话提供什么」的权威答复 —— 于是进入具体对话后，批准方式、模式那一排
-     * 控件整个消失。判据是它至少答得出批准方式这一格（这条往返本来就有）。
+     * 新对话要一口全新会话：这里开的是第二条，号必须与握手那条不同 —— 交出已有
+     * 主的会话会让两条对话绑同一个号。表随应答带来，裸环境下为空也是有效答复。
      */
     let current = connection
         .client
@@ -291,7 +288,7 @@ async fn the_client_opens_a_session_on_the_bundled_agent() {
         .await
         .expect("the current session must answer");
 
-    assert_eq!(current.session_id, opened.session_id);
+    assert_ne!(current.session_id, opened.session_id);
 
     /*
      * 技能与 MCP 名册：问桥要它自己那份。

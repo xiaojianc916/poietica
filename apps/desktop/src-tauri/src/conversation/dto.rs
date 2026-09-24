@@ -366,12 +366,11 @@ pub struct AgentPinThreadRequest {
     pub pinned: bool,
 }
 
-/// Fresh 是本来就没有经过，Live 是有经过但这次没让 agent 重放——两种"空"对人的意义完全不同。
+/// Fresh 是本来就没有经过；Loaded 是这次把已有会话重装了回来。
 #[derive(Debug, Serialize, Type)]
 #[serde(tag = "state", rename_all = "camelCase")]
 pub enum AgentHistory {
     Fresh,
-    Live,
     Loaded,
 }
 

@@ -62,7 +62,6 @@ pub async fn agent_open_thread(
         history: match opened.history {
             SessionHistory::Fresh => super::dto::AgentHistory::Fresh,
             SessionHistory::Loaded => super::dto::AgentHistory::Loaded,
-            SessionHistory::Live => super::dto::AgentHistory::Live,
         },
         transcript: AgentTranscriptJson {
             json: opened.transcript,
