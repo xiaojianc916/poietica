@@ -52,9 +52,8 @@ pub async fn apply_configurations(
 /// 收敛不由这一侧轮询判定：「改完之后是什么样」只有 agent 说得算，它会把收敛
 /// 后的表自己推过来。本地再立一个截止时间就是第二个权威，只会更早、更容易说错。
 ///
-/// `input` 是「跟着这次改动一起交上去的一段文字」（目标那一格用它）。桥这一版
-/// 的 select 只带 id 与 value，所以这段文字暂时到不了 agent —— 界面照旧收得下、
-/// 照旧渲染，等桥补上那一格再送。**不是**把它悄悄塞进 value。
+/// `input` 是「跟着这次改动一起交上去的一段文字」（目标那一格用它当 objective）。
+/// 它原样跟到写入侧，由认它的那一格解释 —— 不塞进 value，认不得的选择器忽略它。
 pub async fn select_config(
     client: &AgentClient,
     session_id: String,
@@ -62,10 +61,7 @@ pub async fn select_config(
     value: String,
     input: Option<String>,
 ) -> Result<Vec<ConfigControl>> {
-    /* 这一段文字这一版到不了 agent（见上）；留着入参是因为调用方按公开契约传它。 */
-    drop(input);
-
-    receive(client.select(session_id, config_id, value)?).await
+    receive(client.select(session_id, config_id, value, input)?).await
 }
 
 async fn receive(

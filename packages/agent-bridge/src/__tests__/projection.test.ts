@@ -155,4 +155,37 @@ describe('omp 事件投影成 transcript ops', () => {
     expect(turn('t1')?.prompt).toBe('第一句')
     expect(turn('t2')?.prompt).toBe('第二句')
   })
+
+  /*
+   * 账本那个号必须一路跟到收轮。
+   *
+   * 屏幕靠 `triggerPromptId` 把「刚提交、还没落地」的那条记录认回这一轮
+   * （transcript-projector.ts 的 knownPromptIds）。丢了它，那条记录永远收不掉：
+   * 发送键一直转，取消还会说「消息仍在提交」。
+   *
+   * 收轮那一趟尤其要看：`turn.upsert` 是整格替换，"带不带" 两半都得对。
+   */
+  it('提交的号挂在开轮与收轮两处，收轮不会把它冲掉', () => {
+    const projector = new TranscriptProjector()
+    const ops: Op[] = [...projector.userTurn('做点事', [], 'turn-abc')]
+
+    expect(
+      ops.some((op) => op.op === 'turn.upsert' && op.turn.triggerPromptId === 'turn-abc'),
+    ).toBe(true)
+
+    ops.push(...projector.turnEnd('completed'))
+
+    const { turn } = settle(ops)
+    expect(turn('t1')?.triggerPromptId).toBe('turn-abc')
+    expect(turn('t1')?.state).toBe('completed')
+  })
+
+  it('没有提交号时不编一个：那一格保持缺席', () => {
+    const projector = new TranscriptProjector()
+    const ops: Op[] = [...projector.userTurn('做点事')]
+    ops.push(...projector.turnEnd('completed'))
+
+    const { turn } = settle(ops)
+    expect(turn('t1')?.triggerPromptId).toBeUndefined()
+  })
 })

@@ -94,11 +94,19 @@ async fn the_client_opens_a_session_on_the_bundled_agent() {
     let offered = tokio::time::timeout(std::time::Duration::from_secs(30), controls)
         .await
         .expect("the selector query must not hang")
-        .expect("the driver must answer the selector query");
+        .expect("the driver must answer the selector query")
+        .expect("the bridge must report a selector table");
 
-    /* 没有凭据时 omp 报不出模型，所以这里只要求这条往返本身成功 —— 那是本层
-    的判据。清单内容归桥那边，不在这一层断言。 */
-    let _ = offered;
+    /*
+     * 模式那一排要有东西。
+     *
+     * 加号面板里的「目标」「计划」就是这两格（`purpose: mode`）；它们此前根本不在
+     * 表里，所以面板画不出来。没有凭据时 omp 报不出模型，所以这里不要求模型那一格，
+     * 只要求两个模式开关在 —— 它们的产地是会话自己的状态与设置，与凭据无关。
+     */
+    let mode = |id: &str| offered.iter().any(|control| control.id == id);
+    assert!(mode("goal"), "the goal switch must be offered: {offered:?}");
+    assert!(mode("plan"), "the plan switch must be offered: {offered:?}");
 
     /*
      * 打开一条会话要走的两条读：目标与正文基线。
@@ -117,6 +125,122 @@ async fn the_client_opens_a_session_on_the_bundled_agent() {
 
     /* 没有目标就是没有：新建的会话本就不该有目标。 */
     assert!(goal.is_none(), "a fresh session must not report a goal");
+
+    /*
+     * 开关一次目标，走的是屏幕上那颗开关的同一条命令。
+     *
+     * 判据不是「状态位翻了一下」，而是**开关真的接上了 SDK**：建得出目标、读得回来、
+     * 关得掉。少了把 `goal` 塞回活动工具那一步，模型叫不动它，目标就只是个没人执行
+     * 的标志位 —— 所以这三趟往返本身就是那条接线的验收。
+     */
+    connection
+        .client
+        .select(
+            opened.session_id.clone(),
+            "goal".to_owned(),
+            "on".to_owned(),
+            Some("ship the release".to_owned()),
+        )
+        .expect("the goal switch must be sendable")
+        .await
+        .expect("the driver must answer the goal switch")
+        .expect("the bridge must accept the goal switch");
+
+    let armed = connection
+        .client
+        .goal(opened.session_id.clone())
+        .await
+        .expect("the goal must be readable after switching it on")
+        .expect("switching a goal on must leave a goal behind");
+
+    assert_eq!(armed.objective, "ship the release");
+
+    connection
+        .client
+        .select(
+            opened.session_id.clone(),
+            "goal".to_owned(),
+            "off".to_owned(),
+            None,
+        )
+        .expect("the goal switch must be sendable")
+        .await
+        .expect("the driver must answer the goal switch")
+        .expect("the bridge must accept the goal switch");
+
+    assert!(
+        connection
+            .client
+            .goal(opened.session_id.clone())
+            .await
+            .expect("the goal must be readable after switching it off")
+            .is_none(),
+        "switching a goal off must leave no goal behind"
+    );
+
+    /*
+     * 开关一次计划模式。
+     *
+     * 判据是这条往返真的接上了 SDK：上游的 `setPlanProposalHandler` 只在计划模式
+     * 里挂得上，而「挂上了」这件事没有公开的读法 —— 所以这里验的是它不报错、并且
+     * 状态确实翻了过去。真正的语义（模型能否提交计划）要一次真实模型轮次才验得到。
+     */
+    connection
+        .client
+        .select(
+            opened.session_id.clone(),
+            "plan".to_owned(),
+            "on".to_owned(),
+            None,
+        )
+        .expect("the plan switch must be sendable")
+        .await
+        .expect("the driver must answer the plan switch")
+        .expect("the bridge must accept the plan switch");
+
+    let entered = connection
+        .client
+        .selectors(opened.session_id.clone())
+        .expect("the selector query must be sendable")
+        .await
+        .expect("the driver must answer the selector query")
+        .expect("the bridge must report a selector table");
+
+    let plan = entered
+        .iter()
+        .find(|control| control.id == "plan")
+        .expect("the plan switch must still be offered");
+
+    assert_eq!(plan.current, "on", "switching plan mode on must show as on");
+
+    connection
+        .client
+        .select(
+            opened.session_id.clone(),
+            "plan".to_owned(),
+            "off".to_owned(),
+            None,
+        )
+        .expect("the plan switch must be sendable")
+        .await
+        .expect("the driver must answer the plan switch")
+        .expect("the bridge must accept the plan switch");
+
+    let left = connection
+        .client
+        .selectors(opened.session_id.clone())
+        .expect("the selector query must be sendable")
+        .await
+        .expect("the driver must answer the selector query")
+        .expect("the bridge must report a selector table");
+
+    assert_eq!(
+        left.iter()
+            .find(|control| control.id == "plan")
+            .map(|control| control.current.as_str()),
+        Some("off"),
+        "switching plan mode off must show as off"
+    );
 
     let page = tokio::time::timeout(
         std::time::Duration::from_secs(30),
@@ -153,6 +277,53 @@ async fn the_client_opens_a_session_on_the_bundled_agent() {
         caught.get("complete").and_then(serde_json::Value::as_bool),
         Some(true)
     );
+
+    /*
+     * 这条连接上那一条会话：握手时就开好了。
+     *
+     * 它必须与**此刻的选择器表**一起交回来。此前这里回一张空表，而上层拿它当
+     * 「这条会话提供什么」的权威答复 —— 于是进入具体对话后，批准方式、模式那一排
+     * 控件整个消失。判据是它至少答得出批准方式这一格（这条往返本来就有）。
+     */
+    let current = connection
+        .client
+        .new_session(std::env::temp_dir())
+        .await
+        .expect("the current session must answer");
+
+    assert_eq!(current.session_id, opened.session_id);
+
+    /*
+     * 技能与 MCP 名册：问桥要它自己那份。
+     *
+     * 内容随这台机器的 agent 配置而变（装了哪些技能、配了哪几台 MCP），所以判据是
+     * 「这条往返解得开」以及「每一格都有出处」—— 具体几个不是本层的判据。
+     */
+    let skills = connection
+        .client
+        .skills(opened.session_id.clone())
+        .await
+        .expect("the skill roster must answer through the bridge");
+
+    for skill in &skills {
+        assert!(
+            !skill.name.is_empty(),
+            "a skill without a name cannot be addressed"
+        );
+    }
+
+    let servers = connection
+        .client
+        .mcp_servers()
+        .await
+        .expect("the MCP roster must answer through the bridge");
+
+    for server in &servers {
+        assert!(
+            !server.name.is_empty(),
+            "an MCP server without a name cannot be addressed"
+        );
+    }
 
     /*
      * 模型目录：这条走的是「问桥要 agent 自己那份注册表」，证明目录不再由本机

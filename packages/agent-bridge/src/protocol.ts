@@ -16,6 +16,7 @@ export type BridgeCommand =
       readonly id: string
       readonly type: 'prompt'
       readonly text: string
+      readonly promptId: string
       /** 磁盘绝对路径：字节不进协议，omp 自己按路径读。 */
       readonly attachments: readonly string[]
       readonly skills: readonly { readonly name: string; readonly args?: string }[]
@@ -48,6 +49,13 @@ export type BridgeCommand =
       readonly type: 'select'
       readonly configId: string
       readonly value: string
+      /**
+       * 与这次改动一起交上去的一段文字（目标那一格用它当 objective）。
+       *
+       * 可缺席，**且只对认它的那一格有意义** —— 别的选择器忽略它，不是把它塞进
+       * value。Rust 的 Option::None 到这边是 null，所以写成 `?: string | null`。
+       */
+      readonly input?: string | null
     }
   /** 目标模式此刻的事实；`data.goal` 为 null 就是这条会话没有目标。 */
   | { readonly id: string; readonly type: 'goal' }
@@ -219,6 +227,8 @@ export interface SelectorControl {
 export interface SelectorChoice {
   readonly value: string
   readonly label: string
+  /** 这一档的说明；缺席即没有话要说。与 crates/agent-client 的 ConfigChoice 同形。 */
+  readonly detail?: string
 }
 
 /**

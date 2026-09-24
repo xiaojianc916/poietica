@@ -324,14 +324,41 @@ async fn run_session(
                     continue;
                 }
 
-                /* 这条连接上那一条会话：握手时就开好了，这里只是把号交回去。 */
+                /*
+                 * 这条连接上那一条会话：握手时就开好了。号与**此刻的选择器表**一起
+                 * 交回去。
+                 *
+                 * 表必须在这里给：上层拿它当「这条会话此刻提供什么」的第一帧，而
+                 * 空表是一个有意义的答复（这家 agent 什么都不给改）。用空表表示
+                 * 「还没问」的话，上层就不会再去问，屏幕上那一排控件整个消失 ——
+                 * 进入具体对话后批准方式不见了，正是这一条。
+                 */
                 if let ClientCommand::CurrentSession { reply } = command {
-                    let opened = session_id.clone().map(|session_id| OpenedSession {
-                        session_id,
-                        selectors: Vec::new(),
+                    let Some(session_id) = session_id.clone() else {
+                        let _ = reply.send(Err(AgentError::Refused(Refusal::UnknownSession)));
+                        continue;
+                    };
+
+                    issued += 1;
+                    let ask_id = format!("c{issued}");
+                    let (slot, answer) = oneshot::channel();
+                    let line = encode(&Command::Selectors { id: ask_id.clone() })?;
+                    let _replaced = pending.insert(ask_id, slot);
+                    send(&mut stdin, &line).await?;
+
+                    tokio::spawn(async move {
+                        let result = match answer.await {
+                            Ok(Ok(data)) => Ok(OpenedSession {
+                                session_id,
+                                selectors: controls_of(&data),
+                            }),
+                            Ok(Err(error)) => Err(error),
+                            Err(_dropped) => Err(AgentError::Refused(Refusal::Gone)),
+                        };
+
+                        let _ = reply.send(result);
                     });
 
-                    let _ = reply.send(opened.ok_or(AgentError::Refused(Refusal::UnknownSession)));
                     continue;
                 }
 
@@ -388,6 +415,7 @@ async fn run_session(
                     let line = encode(&Command::Prompt {
                         id: id.clone(),
                         text,
+                        prompt_id: idempotency.clone(),
                         attachments: attachments
                             .into_iter()
                             .map(|attachment| match attachment {
@@ -711,12 +739,14 @@ fn outgoing(command: ClientCommand, id: &str, session_id: Option<&str>) -> Resul
         ClientCommand::Select {
             config_id,
             value,
+            input,
             reply,
         } => ask(
             &Command::Select {
                 id: id.to_owned(),
                 config_id,
                 value,
+                input,
             },
             reply,
             |data| Ok(controls_of(&data)),
@@ -776,12 +806,83 @@ fn controls_of(data: &Value) -> Vec<crate::ConfigControl> {
         .unwrap_or_default()
 }
 
-fn skills_of(_data: &Value) -> Vec<crate::Skill> {
-    Vec::new()
+fn skills_of(data: &Value) -> Vec<crate::Skill> {
+    data.get("skills")
+        .and_then(Value::as_array)
+        .map(|skills| {
+            skills
+                .iter()
+                .filter_map(|skill| {
+                    Some(crate::Skill {
+                        name: skill.get("name")?.as_str()?.to_owned(),
+                        description: skill
+                            .get("description")
+                            .and_then(Value::as_str)
+                            .unwrap_or_default()
+                            .to_owned(),
+                        path: skill
+                            .get("path")
+                            .and_then(Value::as_str)
+                            .unwrap_or_default()
+                            .to_owned(),
+                        source: skill
+                            .get("source")
+                            .and_then(Value::as_str)
+                            .unwrap_or_default()
+                            .to_owned(),
+                        kind: skill.get("kind").and_then(Value::as_str).map(str::to_owned),
+                        disable_model_invocation: skill
+                            .get("disableModelInvocation")
+                            .and_then(Value::as_bool),
+                    })
+                })
+                .collect()
+        })
+        .unwrap_or_default()
 }
 
-fn servers_of(_data: &Value) -> Vec<crate::McpServer> {
-    Vec::new()
+fn servers_of(data: &Value) -> Vec<crate::McpServer> {
+    use crate::session::McpStatus;
+
+    data.get("servers")
+        .and_then(Value::as_array)
+        .map(|servers| {
+            servers
+                .iter()
+                .filter_map(|server| {
+                    let name = server.get("name")?.as_str()?.to_owned();
+
+                    Some(crate::McpServer {
+                        id: server
+                            .get("id")
+                            .and_then(Value::as_str)
+                            .unwrap_or(&name)
+                            .to_owned(),
+                        name,
+                        /*
+                         * 认不出的状态落到 Disconnected，不猜成 Connected：猜错会让界面
+                         * 画出一个并不存在的连接。
+                         */
+                        status: match server.get("status").and_then(Value::as_str) {
+                            Some("connected") => McpStatus::Connected,
+                            Some("connecting") => McpStatus::Connecting,
+                            Some("error") => McpStatus::Error,
+                            _ => McpStatus::Disconnected,
+                        },
+                        tool_count: server
+                            .get("toolCount")
+                            .and_then(Value::as_u64)
+                            .and_then(|count| u32::try_from(count).ok())
+                            .unwrap_or(0),
+                        last_error: server
+                            .get("lastError")
+                            .and_then(Value::as_str)
+                            .map(str::to_owned),
+                    })
+                })
+                .collect()
+        })
+        .unwrap_or_default()
 }
 
 /// 一次授权请求里，界面要的那三格。

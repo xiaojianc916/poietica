@@ -155,6 +155,7 @@ pub(crate) enum Command {
     Select {
         config_id: String,
         value: String,
+        input: Option<String>,
         reply: oneshot::Sender<Result<Vec<ConfigControl>>>,
     },
     /// 一次提交现在怎么样了。答案在本机账本里（recorder 的准入与轮终帧），
@@ -441,12 +442,14 @@ impl AgentClient {
         _session_id: String,
         config_id: String,
         value: String,
+        input: Option<String>,
     ) -> Result<oneshot::Receiver<Result<Vec<ConfigControl>>>> {
         let (reply, answer) = oneshot::channel();
 
         self.send(Command::Select {
             config_id,
             value,
+            input,
             reply,
         })?;
 

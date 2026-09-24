@@ -30,6 +30,9 @@ pub enum Command {
         text: String,
         attachments: Vec<String>,
         skills: Vec<PromptSkill>,
+
+        #[serde(rename = "promptId")]
+        prompt_id: String,
     },
     Cancel {
         id: String,
@@ -62,6 +65,11 @@ pub enum Command {
         #[serde(rename = "configId")]
         config_id: String,
         value: String,
+        /// 与这次改动一起交上去的一段文字（目标那一格用它当 objective）。
+        ///
+        /// 可缺席，且只对认它的那一格有意义 —— 别的选择器忽略它，不是把它塞进 value。
+        #[serde(skip_serializing_if = "Option::is_none")]
+        input: Option<String>,
     },
     /// 目标模式此刻的事实；`data.goal` 为 null 就是没有目标。
     Goal {
@@ -215,6 +223,7 @@ mod tests {
         let command = Command::Prompt {
             id: "p1".to_owned(),
             text: "读一下 README".to_owned(),
+            prompt_id: "turn-1".to_owned(),
             attachments: vec!["/tmp/a.png".to_owned()],
             skills: Vec::new(),
         };
@@ -224,6 +233,8 @@ mod tests {
         assert_eq!(line.matches('\n').count(), 1);
         assert!(line.contains(r#""type":"prompt""#));
         assert!(line.contains(r#""id":"p1""#));
+        /* 账本那个号必须真的上 wire：屏幕靠它把这一轮认回那条提交记录。 */
+        assert!(line.contains(r#""promptId":"turn-1""#));
     }
 
     #[test]

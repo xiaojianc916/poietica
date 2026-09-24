@@ -35,6 +35,7 @@ export class TranscriptProjector {
   /* turn.upsert 是整格替换（ops/apply.ts 的 applyTurnUpsert），收轮时得把开轮写下的
    * 那几格原样带回去，否则 prompt 会被自己的收尾覆盖成空。 */
   #prompt = ''
+  #promptId: string | undefined
   #startedAt = ''
   #attachmentIds: readonly string[] = []
 
@@ -46,8 +47,19 @@ export class TranscriptProjector {
     return this.#turnOpen
   }
 
-  /** 一条用户消息：开一个新 turn，正文落在它下面第一个 step 的第一帧。 */
-  userTurn(text: string, attachmentIds: readonly string[] = []): TranscriptOperation[] {
+  /**
+   * 一条用户消息：开一个新 turn，正文落在它下面第一个 step 的第一帧。
+   *
+   * `promptId` 是提交时本机账本签的那个号，挂成 `triggerPromptId` —— 屏幕靠它把这
+   * 一格与「刚提交还没落地」的那条记录认成同一件事（transcript-projector.ts 的
+   * knownPromptIds）。不挂的话那条记录永远收不掉：发送键一直转，取消还会说
+   * 「消息仍在提交」。
+   */
+  userTurn(
+    text: string,
+    attachmentIds: readonly string[] = [],
+    promptId?: string,
+  ): TranscriptOperation[] {
     const ordinal = this.#turn + 1
     const turn = turnId(ordinal)
     const step = stepId(turn, 0)
@@ -61,6 +73,7 @@ export class TranscriptProjector {
     this.#streaming = null
     this.#tools.clear()
     this.#prompt = text
+    this.#promptId = promptId
     this.#startedAt = now()
     this.#attachmentIds = attachmentIds
 
@@ -75,6 +88,7 @@ export class TranscriptProjector {
           origin: { kind: 'user' },
           prompt: text,
           startedAt: this.#startedAt,
+          ...(promptId === undefined ? {} : { triggerPromptId: promptId }),
           ...(attachmentIds.length > 0 ? { attachmentIds } : {}),
         },
       },
@@ -298,6 +312,7 @@ export class TranscriptProjector {
         prompt: this.#prompt,
         startedAt: this.#startedAt,
         endedAt: at,
+        ...(this.#promptId === undefined ? {} : { triggerPromptId: this.#promptId }),
         ...(this.#attachmentIds.length > 0 ? { attachmentIds: this.#attachmentIds } : {}),
         ...(message === undefined ? {} : { error: message }),
       },
@@ -308,6 +323,7 @@ export class TranscriptProjector {
     this.#stepOpen = false
     this.#streaming = null
     this.#tools.clear()
+    this.#promptId = undefined
 
     return ops
   }

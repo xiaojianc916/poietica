@@ -15,6 +15,7 @@ import {
   createAgentSession,
   discoverAuthStorage,
   getAgentDir,
+  type MCPManager,
   ModelRegistry,
   SessionManager,
   Settings,
@@ -69,6 +70,13 @@ interface Session {
   readonly projector: TranscriptProjector
   /** 屏幕经过的镜像：ops 推出去的同时落进它，打开与追赶两条读从它答。 */
   readonly mirror: TranscriptMirror
+  /**
+   * MCP 管理器：`createAgentSession` 的结果给的，不在会话对象上。
+   *
+   * 它缺席就是这条会话没开 MCP（`restrictToolNames` 会强制关掉）。缺席即不报名册，
+   * 不编一个空表 —— 空表与「一个都没连上」在屏幕上分不出来。
+   */
+  readonly mcp: MCPManager | undefined
   /** 模型目录读的是它；每一条会话自己那份注册表。 */
   readonly registry: ModelRegistry
   /** 凭据读写走它（agent 自己的 agent.db）。 */
@@ -82,6 +90,8 @@ interface Session {
   readonly desk: DialogDesk
   /** 用户在这条会话里选过的默认模型；目录那一页读它。 */
   defaultModel: string | null
+  /** 进计划模式之前的活动工具集；出来时照它还原。没进过就是 undefined。 */
+  planTools: readonly string[] | undefined
 }
 
 const sessions = new Map<string, Session>()
@@ -162,7 +172,7 @@ async function openSession(cwd: string): Promise<string> {
     emit({ kind: 'dialog_requested', sessionId: id, request: frame })
   })
 
-  const { session, setToolUIContext } = await createAgentSession({
+  const { session, setToolUIContext, mcpManager } = await createAgentSession({
     cwd,
     authStorage,
     modelRegistry,
@@ -183,6 +193,7 @@ async function openSession(cwd: string): Promise<string> {
     agent: session,
     projector: new TranscriptProjector(),
     mirror: new TranscriptMirror(id),
+    mcp: mcpManager,
     registry: modelRegistry,
     authStorage,
     settings: session.settings,
@@ -195,6 +206,7 @@ async function openSession(cwd: string): Promise<string> {
     unsubscribe: null,
     desk,
     defaultModel: session.model === undefined ? null : aliasOf(session.model),
+    planTools: undefined,
   }
 
   const uiContext = createUIContext(desk)
@@ -430,6 +442,49 @@ function readSelectors(record: Session): SelectorControl[] {
     })
   }
 
+  /*
+   * 两个模式开关。
+   *
+   * 产品的取值域是 on/off 两档（session-controls.tsx 的 isToggleControl 就是这么认
+   * 的），所以这里报两档，current 由会话自己此刻的状态算。
+   *
+   * 两格的开关方式不同，各自有出处：
+   *
+   * - plan 由我们直接写会话状态（`setPlanModeState` + 重算活动工具集），这是官方
+   *   ACP 宿主 acp-agent.ts 的做法 —— 官方 TUI 的 `#enterPlanMode` 是私有的，嵌
+   *   入方只能照 ACP 那条路自己拼。
+   * - goal 由 `goalRuntime` 建/收目标，并且必须把 `goal` 工具塞回活动集：SDK 建
+   *   会话时无条件把它摘掉（sdk.ts 的 `filter(name => name !== "goal")`），不塞回
+   *   去模型就叫不动它。
+   */
+  const plan = record.agent.getPlanModeState()
+
+  if (record.settings.get('plan.enabled')) {
+    controls.push({
+      id: 'plan',
+      purpose: 'mode',
+      current: plan?.enabled === true ? 'on' : 'off',
+      choices: [
+        { value: 'on', label: '计划', detail: '先只读探查并给出计划，批准后再动手' },
+        { value: 'off', label: '直接执行', detail: '不先出计划，直接动手' },
+      ],
+    })
+  }
+
+  if (record.settings.get('goal.enabled')) {
+    const goal = record.agent.getGoalModeState()
+
+    controls.push({
+      id: 'goal',
+      purpose: 'mode',
+      current: goal?.enabled === true ? 'on' : 'off',
+      choices: [
+        { value: 'on', label: '目标', detail: '把它当作一个持续目标，达成前不中断' },
+        { value: 'off', label: '不收目标', detail: '按普通一轮对话处理' },
+      ],
+    })
+  }
+
   return controls
 }
 
@@ -607,6 +662,320 @@ function selectThinking(record: Session, value: string): void {
   record.agent.setThinkingLevel(value as never)
 }
 
+/*
+ * 两个模式开关在会话控件里的 id。正本在 packages/conversation：
+ * surface/goal/goal-control.ts 的 GOAL_CONTROL_ID，以及 composer-actions 认的
+ * 'plan'。这里照抄字面量，因为那一份不在本包的依赖边上。
+ */
+const GOAL_CONTROL_ID = 'goal'
+const PLAN_CONTROL_ID = 'plan'
+
+/**
+ * 一次选择器写入：按 id 分派到它自己的写法。
+ *
+ * 分派收在这里而不是摊在 dispatch 里：那一个 switch 已经很大，而这几条各有各的
+ * 语义（有的写设置、有的写会话状态、有的连工具集一起动），混进命令分派里两件事
+ * 就搅在一起了。
+ *
+ * 认不得的 id 如实拒绝：静默回一张没变的表，界面会以为改成功了。
+ */
+async function applySelection(
+  record: Session,
+  configId: string,
+  value: string,
+  input: string | null,
+): Promise<void> {
+  switch (configId) {
+    case 'model':
+      return await selectModel(record, value)
+    case 'thinking':
+      return selectThinking(record, value)
+    case 'permission':
+      return await selectPermission(record, value)
+    case GOAL_CONTROL_ID:
+      return await selectGoal(record, value, input)
+    case PLAN_CONTROL_ID:
+      return await selectPlan(record, value)
+    default:
+      throw new Error(`no selector is called ${configId}`)
+  }
+}
+
+/** 计划文件的正本名；与 plan-mode/plan-protection.ts 的 PLAN_FILE_URL 同一个值。 */
+const DEFAULT_PLAN_FILE = 'local://PLAN.md'
+
+/**
+ * 开关目标模式。
+ *
+ * 三件事缺一不可，这是官方 TUI 的 `#enterGoalMode`（interactive-mode.ts）做的事，
+ * 它自己是私有的，所以嵌入方照做：
+ *
+ * 1. `goalRuntime.createGoal` / `dropGoal` 建或收目标 —— 记账（token、墙钟、预算
+ *    翻转）全在 runtime 里，会话自己挂的钩子，我们不用管。
+ * 2. 把 `goal` 工具塞回活动集。**这一步不能省**：SDK 建会话时无条件把它摘掉
+ *    （sdk.ts 的 `filter(name => name !== "goal")`），不塞回去模型根本叫不动它，
+ *    目标就只是一个没人执行的标志位。
+ * 3. 目标是「正在跑的会话」的状态，所以要 `setGoalModeState`。
+ *
+ * objective 从 `input` 来：产品的目标栏把那句话当目标正文交上来。没有正文时用
+ * 这一轮的话本身（跟 TUI 的 `/goal <text>` 一个意思）—— 空目标建不出来，
+ * runtime 会拒。
+ */
+async function selectGoal(record: Session, value: string, input: string | null): Promise<void> {
+  const runtime = record.agent.goalRuntime
+
+  if (value === 'off') {
+    await runtime.dropGoal()
+    record.agent.setGoalModeState(undefined)
+
+    return
+  }
+
+  const objective = input?.trim() ?? ''
+  const existing = record.agent.getGoalModeState()
+
+  if (!record.agent.hasBuiltInTool('goal')) {
+    /* 这一版没编进 goal 工具（`goal.enabled` 关着，或档案限制了工具集）：如实说。 */
+    throw new Error('this agent has no goal tool')
+  }
+
+  /*
+   * 先把活动工具集算好，再落状态 —— 与 TUI 的 `#enterGoalMode` 同一个次序
+   * （interactive-mode.ts：先 `setActiveToolsByName`，后 `setGoalModeState`）。
+   *
+   * `getEnabledToolNames` 是上游给的读法，收的是**整份**活动集，所以在现有基础上
+   * 加一个，不能只传这一个 —— 只传它会把别的工具全关掉。
+   */
+  const previous = record.agent.getEnabledToolNames().filter((name) => name !== 'goal')
+  await record.agent.setActiveToolsByName([...new Set([...previous, 'goal'])])
+
+  if (objective.length === 0 && existing?.goal.objective) {
+    /* 没有新正文就是「继续这个目标」：恢复它，不拿空串覆掉原来的。 */
+    const state = existing.goal.status === 'paused' ? await runtime.resumeGoal() : existing
+    record.agent.setGoalModeState(state)
+  } else {
+    if (objective.length === 0) {
+      throw new Error('a goal needs an objective')
+    }
+
+    const created =
+      existing === undefined
+        ? await runtime.createGoal({ objective })
+        : await runtime.replaceGoal({ objective })
+    record.agent.setGoalModeState(created)
+  }
+
+  /* 正在跑的会话里改目标：让模型立刻看见新的目标上下文，不等下一轮。 */
+  if (record.agent.isStreaming) {
+    await record.agent.sendGoalModeContext({ deliverAs: 'steer' })
+  }
+}
+
+/**
+ * 开关计划模式。
+ *
+ * 官方 TUI 的 `#enterPlanMode` 是私有的，能用的公开面只有 `setPlanModeState` 与
+ * `setActiveToolsByName`；官方自己的 ACP 宿主（modes/acp/acp-agent.ts）就是这么
+ * 拼的，这里照它做。
+ *
+ * 进计划模式时把活动工具收成只读那一组：计划模式的语义就是「先别动手」。`write`
+ * 是例外 —— 模型要把计划写进那个计划文件（plan-mode 的 plan-protection 只放行
+ * 计划文件本身的写），不收它计划就落不了盘。
+ *
+ * 出去时按进之前记下的那一份还原，不猜默认值。
+ */
+async function selectPlan(record: Session, value: string): Promise<void> {
+  if (!record.settings.get('plan.enabled')) {
+    throw new Error('plan mode is disabled in this agent settings')
+  }
+
+  const state = record.agent.getPlanModeState()
+
+  if (value === 'off') {
+    const previous = record.planTools
+    record.planTools = undefined
+
+    /* 收摊的次序与 TUI 一致：先摘处理器，再落状态，最后还原工具集。 */
+    record.agent.setPlanProposalHandler(null)
+    record.agent.setPlanModeState(undefined)
+
+    if (previous !== undefined) {
+      await record.agent.setActiveToolsByName([...previous])
+    }
+
+    return
+  }
+
+  const active = record.agent.getEnabledToolNames()
+  record.planTools ??= active
+
+  /*
+   * 状态必须先落，再动工具集。
+   *
+   * 上游按 `planModeEnabled()` 判 `write` 该不该留在直连面上（session-tools.ts 的
+   * `transportNeeded`），而计划批准本身就是一次 `write xd://propose`。次序反过来
+   * 会让 `write` 在计算工具集那一刻还没被认成「计划模式要用」，于是模型既写不了
+   * 计划文件、也提交不了计划 —— 卡在那里烧完三次提醒然后停住。
+   */
+  record.agent.setPlanModeState({
+    enabled: true,
+    planFilePath: state?.planFilePath ?? DEFAULT_PLAN_FILE,
+    workflow: state?.workflow ?? 'parallel',
+    reentry: state !== undefined,
+  })
+
+  /*
+   * 只留只读那些，外加写计划文件要用的 write；`bash`/`eval`/`task` 由我们摘掉。
+   *
+   * 上游**没有**把它们收起来（tools/bash.ts 里一处都没有读 plan 状态），只靠系统
+   * 提示叫模型别提交、别装依赖。嵌入方不摘，计划模式的「先别动手」就只是一句话。
+   */
+  const readonly = active.filter((name) => !PLAN_MODE_STRIP.has(name))
+
+  await record.agent.setActiveToolsByName(
+    record.agent.hasBuiltInTool('write') ? [...new Set([...readonly, 'write'])] : readonly,
+  )
+
+  record.agent.setPlanProposalHandler((title) => proposePlan(record, title))
+
+  if (record.agent.isStreaming) {
+    await record.agent.sendPlanModeContext({ deliverAs: 'steer' })
+  }
+}
+
+/**
+ * 计划模式下要收掉的写工具：它们动手改的是用户的工程，不只是计划文件。
+ *
+ * 上游只挡 `write`/`edit` 对工作区的那条路（tools/plan-mode-guard.ts 的
+ * `enforcePlanModeWrite`），命令执行没有这道闸 —— 所以这一条是嵌入方的责任。
+ */
+const PLAN_MODE_STRIP: ReadonlySet<string> = new Set(['bash', 'eval', 'task'])
+
+/**
+ * 模型把计划交上来等批准。
+ *
+ * 这是计划模式唯一被认可的收轮方式（系统提示 plan-mode-active.md 明说「不许用
+ * 散文问批准，只用 `write xd://propose`」）。不装这个处理器，那次 write 会直接抛
+ * 「No plan is awaiting approval」—— 计划模式因此永远收不了尾，模型烧完三次提醒
+ * 然后停住（上游 issue #1869）。
+ *
+ * **批准暂时是自动的**，照官方 ACP 宿主对「没有表单界面的客户端」的做法
+ * （acp-agent.ts：「auto-approve so plan mode is never stranded」）。理由是这一版
+ * 还没有能答这个问题的界面：桥把对话框推成 `dialog` 事件，而屏幕上没有一处订阅它，
+ * 问出去就是一个永远等不到的回答。计划本身照样看得见 —— 模型是用 `write` 写的计划
+ * 文件，那次工具调用就在转录里。
+ *
+ * 要变成真的「人批准才动手」，得先在界面上接一条批准路（订阅 dialog 事件、把计划
+ * 摊开给人看），再把这里换回 `record.desk.ask`。在那之前按自动批准走，不假装有人
+ * 在把关。
+ */
+async function proposePlan(record: Session, title: string): Promise<PlanReview> {
+  const review = await record.agent.preparePlanForReview(title)
+  const plan = review.details as PlanApproval | undefined
+
+  if (plan === undefined) {
+    return review
+  }
+
+  /* 批准：记下这份计划、摘掉处理器、退出计划模式、把工具集还回去。 */
+  record.agent.setPlanReferencePath(plan.planFilePath)
+  record.agent.setPlanProposalHandler(null)
+  record.agent.setPlanModeState(undefined)
+
+  const restore = record.planTools
+  record.planTools = undefined
+
+  if (restore !== undefined) {
+    await record.agent.setActiveToolsByName([...restore])
+  }
+
+  return {
+    content: [
+      {
+        type: 'text',
+        text: `计划已确认：${plan.planFilePath}。按它执行。`,
+      },
+    ],
+    details: plan,
+  }
+}
+
+/*
+ * 计划处理器交回的那一份。形状直接取自官方那一步的返回类型
+ * （`session.preparePlanForReview` 的 `AgentToolResult`）—— 手抄一遍就是第二个
+ * 事实，上游改了这里不会跟着编译错。
+ */
+type PlanReview = Awaited<ReturnType<AgentSession['preparePlanForReview']>>
+
+/** `preparePlanForReview` 交回的那几格。 */
+interface PlanApproval {
+  readonly planFilePath: string
+  readonly title: string
+  readonly planExists: boolean
+}
+
+/**
+ * omp 的技能来源 → 产品那一列的词。
+ *
+ * 上游给的是 `${provider}:${level}`（extensibility/skills.ts 的
+ * `source: \`${capSkill._source.provider}:${capSkill.level}\``），level 只有
+ * user / project / native 三种（capability/types.ts 的 SourceMeta）。
+ *
+ * 产品那一列是封闭的五个词：内置 / 本机 / 项目 / 用户 / 额外
+ * （settings/ui/skills-settings.tsx 的 SOURCE_LABELS）。公开在屏幕上的只能是这
+ * 五个，所以在这里折一次。'native' 是上游自己编进包里的那些，就是产品的「内置」。
+ *
+ * 认不出的来源落到 'user'：技能的正文与开关都照旧能用，只是分组那一格说得笼统
+ * 一点 —— 比编一个不存在的来源好。
+ */
+function skillSourceOf(source: string): string {
+  const level = source.slice(source.lastIndexOf(':') + 1)
+
+  switch (level) {
+    case 'native':
+      return 'builtin'
+    case 'project':
+      return 'project'
+    default:
+      return 'user'
+  }
+}
+
+/**
+ * MCP 名册。
+ *
+ * 状态与工具数各有出处（manager.ts）：状态读 `getConnectionStatus`，工具数读连接
+ * 自己的 `tools` 表 —— 上游自己的命令控制器就是这么取的。
+ *
+ * 上游没有逐服务器的错误格，只有连接失败事件里那一条，所以 `lastError` 如实报
+ * null，不编一句错误文案。缺席（这条会话没开 MCP）就是空名册。
+ */
+function readServers(record: Session): readonly {
+  readonly id: string
+  readonly name: string
+  readonly status: 'connected' | 'connecting' | 'disconnected' | 'error'
+  readonly toolCount: number
+  readonly lastError: string | null
+}[] {
+  const manager = record.mcp
+
+  if (manager === undefined) {
+    return []
+  }
+
+  return manager.getAllServerNames().map((name) => {
+    const connection = manager.getConnection(name)
+
+    return {
+      id: name,
+      name,
+      status: manager.getConnectionStatus(name),
+      toolCount: connection?.tools?.length ?? 0,
+      lastError: null,
+    }
+  })
+}
+
 /**
  * 换批准方式。
  *
@@ -646,7 +1015,7 @@ async function dispatch(command: BridgeCommand): Promise<unknown> {
 
     case 'prompt': {
       const record = required()
-      pushTranscript(record, record.projector.userTurn(command.text))
+      pushTranscript(record, record.projector.userTurn(command.text, [], command.promptId))
 
       try {
         await record.agent.prompt(command.text)
@@ -715,16 +1084,7 @@ async function dispatch(command: BridgeCommand): Promise<unknown> {
     case 'select': {
       const record = required()
 
-      if (command.configId === 'model') {
-        await selectModel(record, command.value)
-      } else if (command.configId === 'thinking') {
-        selectThinking(record, command.value)
-      } else if (command.configId === 'permission') {
-        await selectPermission(record, command.value)
-      } else {
-        /* 认不得的选择器如实拒绝：静默回一张没变的表，界面会以为改成功了。 */
-        throw new Error(`no selector is called ${command.configId}`)
-      }
+      await applySelection(record, command.configId, command.value, command.input ?? null)
 
       return { controls: await readSelectors(record) }
     }
@@ -732,11 +1092,48 @@ async function dispatch(command: BridgeCommand): Promise<unknown> {
     case 'sessions':
       return { sessions: [] }
 
+    /*
+     * 技能名册。
+     *
+     * 产地是会话自己那份已装载的技能（`session.skills`），不是我们再去盘上扫一遍
+     * —— 官方 TUI 的技能页读的也是它（`AgentSession.skills`，agent-session.ts）。
+     * 再扫一遍就是第二个产地：扫出来的东西可能根本没被这条会话装载。
+     *
+     * source 折成产品那五个词（见 skillSourceOf）：产品那一列是封闭取值域，把
+     * 上游的 `provider:level` 原样画上去，人是读不懂的。
+     */
     case 'skills':
-      return { skills: [] }
+      return {
+        skills: required().agent.skills.map((skill) => ({
+          name: skill.name,
+          description: skill.description,
+          path: skill.filePath,
+          source: skillSourceOf(skill.source),
+          kind: null,
+          disableModelInvocation: skill.hide === true ? true : null,
+        })),
+      }
 
-    case 'mcp_servers':
-      return { servers: [] }
+    /*
+     * MCP 名册。
+     *
+     * 管理器是 `createAgentSession` 的结果给的，不在会话对象上。状态与工具数各有
+     * 出处：状态读 `getConnectionStatus`，工具数读连接自己的 `tools` 表 —— 上游
+     * TUI 的命令控制器就是这么取的。上游没有逐服务器的错误字段，只有连接失败事件
+     * 里那一句，所以这里如实报 null，不编一条错误文案。
+     *
+     * `hasUI: true` 时上游把发现**推迟**到建会话之后异步做（sdk.ts 的
+     * `deferMCPDiscoveryForUI`），所以刚开完会话那一刻名册可能还是空的 —— 那是
+     * 「还在连」，不是「一台都没有」。这里等一次在飞的握手，让人打开面板时看得到
+     * 真名册；等待有上限，连不上的服务器不该把人挡在这里。
+     */
+    case 'mcp_servers': {
+      const record = required()
+
+      await record.mcp?.waitForPendingConnections()
+
+      return { servers: readServers(record) }
+    }
 
     case 'model_catalog': {
       const record = required()
