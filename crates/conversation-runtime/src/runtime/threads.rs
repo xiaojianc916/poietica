@@ -59,9 +59,19 @@ impl<E: RuntimeFailure> Runtime<E> {
         };
         let id =
             Uuid::parse_str(&named).map_err(|_| CommandError::Session(SessionError::InvalidId))?;
-        let cwd = request.cwd.clone();
+        let mut cwd = request.cwd;
+        if !create {
+            /* 连接的 cwd 决定会话文件的桶与工具的工作目录：重开时优先账本里记的
+             * 工作区；对话不存在让 resolve 去报 Missing。 */
+            cwd = read_index(&self.index, move |store| {
+                store.thread(id).map_err(IndexError::from).map_err(E::from)
+            })
+            .await
+            .map_err(CommandError::Persistence)?
+            .and_then(|thread| thread.workspace_root.or(cwd));
+        }
         let live = self
-            .ensure(request.agent_id, request.cwd, Takeover::Replace)
+            .ensure(request.agent_id, cwd.clone(), Takeover::Replace)
             .await
             .map_err(CommandError::Runtime)?;
         if create {

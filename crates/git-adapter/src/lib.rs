@@ -219,6 +219,21 @@ mod tests {
 
         let dir = tempfile::tempdir().expect("tempdir");
 
+        /* TMP 被构建链钉在仓内（.cargo/config.toml），tempdir 会被 git 的向上发现
+         * 撞进本仓；GIT_CEILING_DIRECTORIES 让发现止步于临时目录自身。 */
+        let ceiling = dir
+            .path()
+            .parent()
+            .expect("tempdir 必有父目录")
+            .to_string_lossy()
+            .into_owned();
+
+        /* SAFETY: 测试内一次写入；兄弟测试的发现从不向上爬，不受此值影响。 */
+        #[allow(unsafe_code, reason = "GIT_CEILING_DIRECTORIES 只能经进程环境传给 git")]
+        unsafe {
+            std::env::set_var("GIT_CEILING_DIRECTORIES", &ceiling);
+        }
+
         assert_eq!(snapshot(dir.path()).await.expect("snapshot"), None);
     }
 

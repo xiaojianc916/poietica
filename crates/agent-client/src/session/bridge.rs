@@ -197,6 +197,8 @@ async fn run_session(
     let mut ready = false;
     /* 开会话那一条请求的号与它的应答槽；应答回到 Frame::Response 那一支认领。 */
     let mut opening: Option<String> = None;
+    /* 重装会话请求的号，同在 Response 那一支认领。 */
+    let mut switching: Option<String> = None;
     /* 握手的总期限：边车起不来时这里兜住，而不是让界面永远等。 */
     let handshake_deadline = tokio::time::sleep(HANDSHAKE_TIMEOUT);
     tokio::pin!(handshake_deadline);
@@ -321,6 +323,46 @@ async fn run_session(
                     });
 
                     let _ = reply.send(Ok(()));
+                    continue;
+                }
+
+                /*
+                 * 重装一条旧会话：应答的号由 Response 那一支的 `switching` 认领
+                 * （在这里 await 就等于没人再读 stdout）。
+                 */
+                if let ClientCommand::LoadSession {
+                    session_id: wanted,
+                    cwd,
+                    reply,
+                } = command
+                {
+                    let line = encode(&Command::LoadSession {
+                        id: id.clone(),
+                        session_id: wanted,
+                        cwd: cwd.to_string_lossy().into_owned(),
+                    })?;
+                    let (slot_reply, answer) = oneshot::channel();
+                    let _replaced = pending.insert(id.clone(), slot_reply);
+                    switching = Some(id);
+
+                    tokio::spawn(async move {
+                        let result = match answer.await {
+                            Ok(Ok(data)) => match data.get("sessionId").and_then(Value::as_str) {
+                                Some(opened) => Ok(OpenedSession {
+                                    session_id: opened.to_owned(),
+                                    selectors: controls_of(&data),
+                                }),
+                                /* 会话文件已经不在了：如实说没有，不是链路错误。 */
+                                None => Err(AgentError::Refused(Refusal::UnknownSession)),
+                            },
+                            Ok(Err(error)) => Err(error),
+                            Err(_dropped) => Err(AgentError::Refused(Refusal::Gone)),
+                        };
+
+                        let _ = reply.send(result);
+                    });
+
+                    send(&mut stdin, &line).await?;
                     continue;
                 }
 
@@ -560,6 +602,22 @@ async fn run_session(
                                 let _ = tx.send(Ok(Handshake { session_id: opened }));
                             }
                         }
+
+                        /* 重装会话的应答：认进 book 并顶掉握手那条；null（文件没了）
+                         * 不动连接，UnknownSession 已由应答槽交回。 */
+                        if switching.as_deref() == Some(id.as_str()) {
+                            switching = None;
+
+                            if let Some(opened) =
+                                data.get("sessionId").and_then(Value::as_str).map(str::to_owned)
+                            {
+                                if book.adopt(&opened, slot.clone()).is_err() {
+                                    return Err(AgentError::Poisoned);
+                                }
+
+                                session_id = Some(opened);
+                            }
+                        }
                     }
 
                     Frame::Failed { id, message } => {
@@ -770,7 +828,8 @@ fn outgoing(command: ClientCommand, id: &str, session_id: Option<&str>) -> Resul
         | ClientCommand::Cancel { .. }
         | ClientCommand::Shutdown(_)
         | ClientCommand::PromptState { .. }
-        | ClientCommand::ModelCatalog { .. } => Ok(None),
+        | ClientCommand::ModelCatalog { .. }
+        | ClientCommand::LoadSession { .. } => Ok(None),
     }
 }
 

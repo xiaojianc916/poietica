@@ -73,7 +73,7 @@ pub(crate) fn build() -> tauri::Builder<Wry> {
                 poietica_conversation_runtime::journal::FrameJournal::new(index.clone(), |_, _| {})?;
 
             let runtime = crate::conversation::composition::compose(
-                handle, handle.path().home_dir()?, paths::attachments_root(handle)?,
+                handle, paths::projectless_root(handle)?, paths::attachments_root(handle)?,
                 index.clone(), journal,
             );
             let settings_runtime = std::sync::Arc::clone(&runtime);

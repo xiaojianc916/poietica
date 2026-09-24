@@ -5,7 +5,7 @@ use std::sync::mpsc::{Receiver, SyncSender, sync_channel};
 use futures::channel::{mpsc, oneshot};
 
 use super::config::{ConfigControl, GoalSnapshot};
-use super::{Capability, Cursor, McpServer, OpenedSession, SessionEntry, Skill};
+use super::{Capability, McpServer, OpenedSession, SessionEntry, Skill};
 use crate::error::{AgentError, Refusal, Result};
 use crate::recorder::FrameSink;
 use crate::{ModelCatalogOperation, ModelCatalogSnapshot};
@@ -170,6 +170,13 @@ pub(crate) enum Command {
         operation: ModelCatalogOperation,
         reply: oneshot::Sender<Result<ModelCatalogSnapshot>>,
     },
+    /// 重装一条以前开过的会话。
+    LoadSession {
+        session_id: String,
+        /// 这条对话记下的工作区，找会话文件要按它扫。
+        cwd: PathBuf,
+        reply: oneshot::Sender<Result<OpenedSession>>,
+    },
 }
 
 /// 「这个 agent 的这条能力还没接上」。
@@ -228,16 +235,19 @@ impl AgentClient {
             .map_err(|_dropped| AgentError::Refused(Refusal::Gone))?
     }
 
-    /// 重装一条以前开过的会话。
-    ///
-    /// 还没接：omp 的会话重装要走 `SessionManager.open`，桥只开第一条。补上之前
-    /// 如实说没有，而不是假装装回来了。
-    pub async fn load_session(
-        &self,
-        _session_id: String,
-        _from: Option<Cursor>,
-    ) -> Result<OpenedSession> {
-        Err(unwired("restoring an earlier session"))
+    /// 重装一条以前开过的会话；会话号不变，文件没了应答 `Refusal::UnknownSession`。
+    pub async fn load_session(&self, session_id: String, cwd: PathBuf) -> Result<OpenedSession> {
+        let (reply, answer) = oneshot::channel();
+
+        self.send(Command::LoadSession {
+            session_id,
+            cwd,
+            reply,
+        })?;
+
+        answer
+            .await
+            .map_err(|_dropped| AgentError::Refused(Refusal::Gone))?
     }
 
     pub async fn fork_session(

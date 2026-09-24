@@ -24,6 +24,8 @@ pub enum Command {
         id: String,
         #[serde(rename = "sessionId")]
         session_id: String,
+        /// 这条对话记下的工作区，找会话文件要按它扫。
+        cwd: String,
     },
     Prompt {
         id: String,
@@ -248,6 +250,20 @@ mod tests {
             let line = encode(&command).expect("encode");
             assert!(line.contains(&format!(r#""type":"{expected}""#)), "{line}");
         }
+    }
+
+    #[test]
+    fn a_load_session_names_the_session_and_the_workspace_to_scan() {
+        let command = Command::LoadSession {
+            id: "l1".to_owned(),
+            session_id: "s1".to_owned(),
+            cwd: "D:\\work".to_owned(),
+        };
+
+        let line = encode(&command).expect("encode");
+        assert!(line.contains(r#""type":"load_session""#));
+        assert!(line.contains(r#""sessionId":"s1""#));
+        assert!(line.contains(r#""cwd":"D:\\work""#));
     }
 
     #[test]

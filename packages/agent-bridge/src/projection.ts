@@ -59,6 +59,7 @@ export class TranscriptProjector {
     text: string,
     attachmentIds: readonly string[] = [],
     promptId?: string,
+    startedAt: string = now(),
   ): TranscriptOperation[] {
     const ordinal = this.#turn + 1
     const turn = turnId(ordinal)
@@ -74,7 +75,7 @@ export class TranscriptProjector {
     this.#tools.clear()
     this.#prompt = text
     this.#promptId = promptId
-    this.#startedAt = now()
+    this.#startedAt = startedAt
     this.#attachmentIds = attachmentIds
 
     return [
@@ -275,13 +276,17 @@ export class TranscriptProjector {
    * 一次 omp turn 里可能有多段 assistant 文本与多次工具调用，它们按顺序各占一个
    * step，所以这里先把当前 step 收掉，再把 turn 收掉。
    */
-  turnEnd(outcome: 'completed' | 'cancelled' | 'failed', message?: string): TranscriptOperation[] {
+  turnEnd(
+    outcome: 'completed' | 'cancelled' | 'failed',
+    message?: string,
+    endedAt: string = now(),
+  ): TranscriptOperation[] {
     if (!this.#turnOpen) {
       return []
     }
 
     const turn = turnId(this.#turn)
-    const at = now()
+    const at = endedAt
     const ops: TranscriptOperation[] = []
 
     if (this.#stepOpen) {

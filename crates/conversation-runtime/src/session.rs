@@ -5,7 +5,7 @@ use std::error::Error;
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Weak};
 
-use poietica_agent_client::{AgentClient, AgentError, ConfigControl, Cursor, SessionBook};
+use poietica_agent_client::{AgentClient, AgentError, ConfigControl, SessionBook};
 use poietica_ledger::execution::{IndexError, LocalIndex, read_index, write_index};
 use tokio::sync::Mutex;
 use uuid::Uuid;
@@ -128,11 +128,11 @@ impl SessionResolver {
                     _lease: lease,
                 });
             }
-            let from = read_point(index, &session_id)
-                .await
-                .map_err(SessionError::Catalog)?;
+            let workspace = thread
+                .workspace_root
+                .map_or_else(|| default_root.to_path_buf(), PathBuf::from);
             book.open(&session_id)?;
-            let loaded = match client.load_session(session_id.clone(), from).await {
+            let loaded = match client.load_session(session_id.clone(), workspace).await {
                 Ok(loaded) => loaded,
                 Err(cause) => {
                     if let Err(cleanup) = book.close(&session_id) {
@@ -181,27 +181,6 @@ impl SessionResolver {
             _lease: lease,
         })
     }
-}
-
-pub(crate) async fn read_point<E>(
-    index: &LocalIndex<E>,
-    session_id: &str,
-) -> Result<Option<Cursor>, E>
-where
-    E: From<IndexError> + Send + 'static,
-{
-    let asked = session_id.to_owned();
-    let stored = read_index(index, move |store| {
-        store
-            .cursor_of(&asked)
-            .map_err(IndexError::from)
-            .map_err(E::from)
-    })
-    .await?;
-    Ok(stored.map(|read| Cursor {
-        seq: read.seq,
-        epoch: read.epoch,
-    }))
 }
 
 pub(crate) fn bound_session<E: Error + 'static>(

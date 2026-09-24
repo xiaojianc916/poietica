@@ -152,7 +152,7 @@ export const APPLICATION_FAILURE_POLICIES = {
 
   AGENT_CAPABILITIES_UNREADABLE: {
     impact: 'recoverable',
-    userMessage: 'kimi code模型连接失败',
+    userMessage: 'agent 连接失败',
 
     recovery: 'retry',
 

@@ -153,6 +153,34 @@ function settingsFor(): Promise<Settings> {
 }
 
 async function openSession(cwd: string): Promise<string> {
+  return (await adopt(await SessionManager.create(cwd), cwd)).id
+}
+
+/**
+ * 重装一条以前开过的会话：先扫对话工作区的桶，miss 再全桶按 id 找（旧会话可能
+ * 落在别的 cwd 桶里）。找不到回 null，不是链路错误。
+ */
+async function loadSession(sessionId: string, cwd: string): Promise<Session | null> {
+  const found =
+    (await SessionManager.list(cwd)).find((entry) => entry.id === sessionId) ??
+    (await SessionManager.listAll()).find((entry) => entry.id === sessionId)
+
+  if (found === undefined) {
+    log('no session file holds', sessionId)
+
+    return null
+  }
+
+  return adopt(await SessionManager.open(found.path), cwd)
+}
+
+/**
+ * 用一条会话管理器建起会话、接上 UI 与扩展、登记进表。
+ *
+ * 新建与重装共用这一条：两边的差别只有「管理器从哪来」，其余（对话框、授权闸门、
+ * 事件订阅）必须逐字相同 —— 分成两份就会一边修好一边没修。
+ */
+async function adopt(manager: SessionManager, cwd: string): Promise<Session> {
   const authStorage = await discoverAuthStorage()
   /*
    * 注册表照官方那一份建：ModelRegistry 读内置目录 + 用户 models.yml（provider
@@ -177,7 +205,7 @@ async function openSession(cwd: string): Promise<string> {
     authStorage,
     modelRegistry,
     settings: await settingsFor(),
-    sessionManager: SessionManager.create(cwd),
+    sessionManager: manager,
     /*
      * hasUI 必须为 true，否则上游的授权闸门 fail closed：非 yolo 模式下每一次
      * write/exec 都会抛「requires approval but no interactive UI available」。
@@ -243,8 +271,92 @@ async function openSession(cwd: string): Promise<string> {
     goal: readGoal(record),
   })
 
-  return id
+  /* 重装进来的会话把历史投进镜像；新建会话没有消息，空转。 */
+  if (record.agent.messages.length > 0) {
+    replayHistory(record)
+  }
+
+  return record
 }
+
+/**
+ * 把恢复出来的历史按顺序喂给投影器（官方宿主回放历史的同一条路）：一条用户
+ * 消息开一轮，assistant 与工具结果落轮下，下一条用户消息先收上一轮。时间戳
+ * 用消息自带的。投影器只有一套，历史与直播同形。
+ */
+function replayHistory(record: Session): void {
+  const project = record.projector
+  let endedAt: string | null = null
+
+  for (const message of record.agent.messages) {
+    if (message.role === 'user') {
+      if (project.isTurnOpen) {
+        pushTranscript(record, project.turnEnd('completed', undefined, endedAt ?? undefined))
+      }
+
+      pushTranscript(
+        record,
+        project.userTurn(textOf(message.content), [], undefined, iso(message.timestamp)),
+      )
+
+      continue
+    }
+
+    if (message.role === 'assistant') {
+      endedAt = iso(message.timestamp)
+
+      for (const block of message.content) {
+        if (block.type === 'text' && block.text.length > 0) {
+          pushTranscript(record, project.textDelta(block.text))
+        } else if (block.type === 'thinking' && block.thinking.length > 0) {
+          pushTranscript(record, project.thinkingDelta(block.thinking))
+        } else if (block.type === 'toolCall') {
+          pushTranscript(
+            record,
+            project.toolStart({
+              toolCallId: block.id,
+              toolName: block.name,
+              args: block.arguments,
+            }),
+          )
+        }
+      }
+
+      continue
+    }
+
+    if (message.role === 'toolResult') {
+      pushTranscript(
+        record,
+        project.toolEnd({
+          toolCallId: message.toolCallId,
+          toolName: message.toolName,
+          /* 与直播的 tool_execution_end 同形（AgentToolResult 的 content 那一格）。 */
+          result: { content: message.content },
+          isError: message.isError,
+        }),
+      )
+    }
+  }
+
+  if (project.isTurnOpen) {
+    pushTranscript(record, project.turnEnd('completed', undefined, endedAt ?? undefined))
+  }
+}
+
+/** 用户消息的正文：只有文本块上得了产品的正文帧，图片块在会话媒体库里。 */
+function textOf(content: string | { readonly type: string; readonly text?: string }[]): string {
+  if (typeof content === 'string') {
+    return content
+  }
+
+  return content
+    .filter((block) => block.type === 'text')
+    .map((block) => block.text ?? '')
+    .join('\n')
+}
+
+const iso = (ms: number): string => new Date(ms).toISOString()
 
 function handleEvent(record: Session, event: AgentSessionEvent): void {
   const project = record.projector
@@ -1012,6 +1124,14 @@ async function dispatch(command: BridgeCommand): Promise<unknown> {
   switch (command.type) {
     case 'new_session':
       return { sessionId: await openSession(command.cwd) }
+
+    case 'load_session': {
+      const record = await loadSession(command.sessionId, command.cwd)
+
+      return record === null
+        ? { sessionId: null }
+        : { sessionId: record.id, controls: readSelectors(record) }
+    }
 
     case 'prompt': {
       const record = required()

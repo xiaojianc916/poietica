@@ -11,7 +11,16 @@
 /** Rust → 桥。一行一条，id 由 Rust 签发，应答原样回。 */
 export type BridgeCommand =
   | { readonly id: string; readonly type: 'new_session'; readonly cwd: string }
-  | { readonly id: string; readonly type: 'load_session'; readonly sessionId: string }
+  /**
+   * 重装一条以前开过的会话。`cwd` 是这条对话记下的工作区；应答是
+   * `{sessionId, controls}`，会话文件已经不在了就回 `{sessionId: null}`。
+   */
+  | {
+      readonly id: string
+      readonly type: 'load_session'
+      readonly sessionId: string
+      readonly cwd: string
+    }
   | {
       readonly id: string
       readonly type: 'prompt'

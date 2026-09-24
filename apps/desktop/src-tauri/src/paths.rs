@@ -168,12 +168,18 @@ pub fn marketplace_catalog<R: Runtime>(app: &AppHandle<R>) -> Result<PathBuf> {
     Ok(cache_directory(app)?.join(MARKETPLACE_CATALOG_FILE))
 }
 
-/// 目录与会话同寿、跨重启保留（会话恢复需要原 cwd），不是本模块的 tmp。
-pub fn create_projectless_workspace<R: Runtime>(app: &AppHandle<R>) -> Result<PathBuf> {
+/// 无项目工作区的根；Runtime 连接没有工作区时退到这里，不退到用户主目录。
+pub fn projectless_root<R: Runtime>(app: &AppHandle<R>) -> Result<PathBuf> {
     let parent = root(app)?.join(PROJECTLESS_DIRECTORY);
 
     fs::create_dir_all(&parent)?;
 
+    Ok(parent)
+}
+
+/// 目录与会话同寿、跨重启保留（会话恢复需要原 cwd），不是本模块的 tmp。
+pub fn create_projectless_workspace<R: Runtime>(app: &AppHandle<R>) -> Result<PathBuf> {
+    let parent = projectless_root(app)?;
     let directory = parent.join(Uuid::now_v7().to_string());
 
     fs::create_dir(&directory)?;
