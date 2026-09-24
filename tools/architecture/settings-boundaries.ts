@@ -2,30 +2,13 @@ import path from 'node:path'
 import type { Violation } from './policies.ts'
 
 const groups: Readonly<Record<string, readonly string[]>> = {
-  entry: [
-    'preferences',
-    'agent-runtime',
-    'model-catalog',
-    'model-metadata',
-    'custom-agents',
-    'keymap',
-  ],
+  entry: ['preferences', 'agent-runtime', 'model-catalog', 'custom-agents', 'keymap'],
   preferences: ['preferences'],
   'agent-runtime': ['agent-runtime'],
-  'model-catalog': ['model-catalog', 'model-metadata'],
-  'model-metadata': ['model-metadata'],
+  'model-catalog': ['model-catalog'],
   'custom-agents': ['custom-agents'],
   keymap: ['keymap'],
-  ui: [
-    'ui',
-    'entry',
-    'preferences',
-    'agent-runtime',
-    'model-catalog',
-    'model-metadata',
-    'custom-agents',
-    'keymap',
-  ],
+  ui: ['ui', 'entry', 'preferences', 'agent-runtime', 'model-catalog', 'custom-agents', 'keymap'],
 }
 const ranks: Readonly<Record<string, number>> = {
   'preferences/store.ts': 0,

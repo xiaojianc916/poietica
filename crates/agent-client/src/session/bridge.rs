@@ -32,6 +32,20 @@ use crate::wire::{self, Command, Event, Frame, Outcome};
 /// 解包会慢一些。
 const HANDSHAKE_TIMEOUT: Duration = Duration::from_secs(60);
 
+/// 一个字符串数组字段；缺席或形状不对就是 None，不猜成空表。
+///
+/// 「没有这一格」与「这一格是空表」在下游不是一回事：界面按它判这条模型支不支持
+/// 思考、有哪些档位，回空表等于说「一个档位都没有」。
+fn strings(value: &Value, key: &str) -> Option<Vec<String>> {
+    value.get(key).and_then(Value::as_array).map(|items| {
+        items
+            .iter()
+            .filter_map(Value::as_str)
+            .map(str::to_owned)
+            .collect()
+    })
+}
+
 /// 一次应答槽：桥回了什么，或为什么没回。
 type Reply = oneshot::Sender<Result<Value>>;
 
@@ -773,8 +787,10 @@ fn approval_of(request: &Value) -> Option<Approval> {
 /// 产品的一次目录操作 → 线上的形状。
 ///
 /// 与 packages/agent-bridge/src/protocol.ts 的 ModelCatalogOperation 逐字对应。
-/// 桥认不出的那些（增删 provider）由桥自己如实拒绝 —— 这里不预筛，筛两遍就会
-/// 一半认得一半认不得。
+/// 桥认不出的那些由桥自己如实拒绝 —— 这里不预筛，筛两遍就会一半认得一半认不得。
+///
+/// 认不出的那种只报**判别式**，绝不 Debug 整条操作：它里面装着 `api_key`，`{:?}`
+/// 会把明文密钥写进错误消息、日志和界面（AGENTS.md §5「Debug 不打载荷」）。
 fn catalog_operation(operation: &crate::ModelCatalogOperation) -> Value {
     use crate::ModelCatalogOperation as Op;
 
@@ -784,9 +800,78 @@ fn catalog_operation(operation: &crate::ModelCatalogOperation) -> Value {
         Op::SetDefault { model_id } => {
             serde_json::json!({ "kind": "setDefault", "modelId": model_id })
         }
-        Op::PatchConfig(patch) => serde_json::json!({ "kind": "patchConfig", "patch": patch }),
-        other => serde_json::json!({ "kind": format!("{other:?}") }),
+        Op::Delete { provider_id } => {
+            serde_json::json!({ "kind": "delete", "providerId": provider_id })
+        }
+        Op::Create(provider) => serde_json::json!({
+            "kind": "create",
+            "provider": provider_on_wire(provider),
+        }),
+        Op::Replace {
+            provider_id,
+            provider,
+        } => serde_json::json!({
+            "kind": "replace",
+            "providerId": provider_id,
+            "provider": replacement_on_wire(provider),
+        }),
+        Op::ImportCatalog(catalog) => serde_json::json!({
+            "kind": "importCatalog",
+            "catalogId": catalog.catalog_id,
+            "apiKey": catalog.api_key,
+            "baseUrl": catalog.base_url,
+            "id": catalog.id,
+        }),
     }
+}
+
+/// 一次 provider 输入 → 线上形状（camelCase，与 protocol.ts 的 ProviderInput 对应）。
+///
+/// 两种输入（Create 的 `ProviderInput` 与 Replace 的 `ProviderReplacement`）字段同名
+/// 同义，只有 Replace 多一格 `newId`；所以这里按同一张表搬，那一格由调用方自己带。
+///
+/// **缺席的格在这里发成 `null`，不是省略。** `serde_json::json!` 把 `Option::None`
+/// 序列化成 null，而桥那一侧的 TS 从 JSON 解出来也是 null —— 所以 protocol.ts 里
+/// 可缺席的格必须写成 `?: T | null`，下游也只许用 `??` 判，不许用 `=== undefined`。
+/// 只写 `undefined` 就会漏掉 null，后面 `.length` 一取就炸（这条已经发生过一次）。
+fn provider_on_wire(provider: &crate::model_catalog::ProviderInput) -> Value {
+    serde_json::json!({
+        "id": provider.id,
+        "providerType": provider.provider_type,
+        "apiKey": provider.api_key,
+        "baseUrl": provider.base_url,
+        "defaultModel": provider.default_model,
+        "models": models_on_wire(&provider.models),
+    })
+}
+
+/// 同上，用于整份替换。`newId` 缺省就是不改名。
+fn replacement_on_wire(provider: &crate::model_catalog::ProviderReplacement) -> Value {
+    serde_json::json!({
+        "newId": provider.new_id,
+        "providerType": provider.provider_type,
+        "apiKey": provider.api_key,
+        "baseUrl": provider.base_url,
+        "defaultModel": provider.default_model,
+        "models": models_on_wire(&provider.models),
+    })
+}
+
+fn models_on_wire(models: &[crate::model_catalog::ProviderModelInput]) -> Vec<Value> {
+    models
+        .iter()
+        .map(|model| {
+            serde_json::json!({
+                "model": model.model,
+                "maxContextSize": model.max_context_size,
+                "displayName": model.display_name,
+                "capabilities": model.capabilities,
+                "maxOutputSize": model.max_output_size,
+                "supportEfforts": model.support_efforts,
+                "adaptiveThinking": model.adaptive_thinking,
+            })
+        })
+        .collect()
 }
 
 /// 桥报的目录快照 → 产品的形状。
@@ -794,7 +879,9 @@ fn catalog_operation(operation: &crate::ModelCatalogOperation) -> Value {
 /// 桥给的 provider/model 两栏与产品那两栏同名，只是嵌套不同：这一层只做搬运与
 /// 缺省，不重新解释任何一格。
 fn catalog_snapshot(data: &Value) -> crate::ModelCatalogSnapshot {
-    use crate::model_catalog::{CatalogProvider, Model, ModelCatalogSnapshot, Provider};
+    use crate::model_catalog::{
+        CatalogModel, CatalogProvider, Model, ModelCatalogSnapshot, Provider,
+    };
 
     let text = |value: &Value, key: &str| value.get(key).and_then(Value::as_str).map(str::to_owned);
 
@@ -845,10 +932,10 @@ fn catalog_snapshot(data: &Value) -> crate::ModelCatalogSnapshot {
                             .get("maxContextSize")
                             .and_then(Value::as_u64)
                             .unwrap_or(0),
-                        capabilities: None,
+                        capabilities: strings(model, "capabilities"),
                         max_output_size: model.get("maxOutputSize").and_then(Value::as_u64),
-                        support_efforts: None,
-                        adaptive_thinking: None,
+                        support_efforts: strings(model, "supportEfforts"),
+                        adaptive_thinking: model.get("adaptiveThinking").and_then(Value::as_bool),
                         default_effort: text(model, "defaultEffort"),
                     })
                 })
@@ -867,12 +954,44 @@ fn catalog_snapshot(data: &Value) -> crate::ModelCatalogSnapshot {
                         id: text(entry, "id")?,
                         name: text(entry, "name").unwrap_or_default(),
                         wire_type: text(entry, "wireType"),
-                        guessed: false,
-                        needs_base_url: false,
-                        rejected: false,
-                        reject_reason: None,
-                        env_key: None,
-                        models: Vec::new(),
+                        guessed: entry
+                            .get("guessed")
+                            .and_then(Value::as_bool)
+                            .unwrap_or(false),
+                        needs_base_url: entry
+                            .get("needsBaseUrl")
+                            .and_then(Value::as_bool)
+                            .unwrap_or(false),
+                        rejected: entry
+                            .get("rejected")
+                            .and_then(Value::as_bool)
+                            .unwrap_or(false),
+                        reject_reason: text(entry, "rejectReason"),
+                        env_key: text(entry, "envKey"),
+                        models: entry
+                            .get("models")
+                            .and_then(Value::as_array)
+                            .map(|models| {
+                                models
+                                    .iter()
+                                    .filter_map(|model| {
+                                        Some(CatalogModel {
+                                            id: text(model, "id")?,
+                                            name: text(model, "name"),
+                                            max_context_size: model
+                                                .get("maxContextSize")
+                                                .and_then(Value::as_u64)
+                                                .unwrap_or(0),
+                                            capabilities: strings(model, "capabilities"),
+                                            reasoning: model
+                                                .get("reasoning")
+                                                .and_then(Value::as_bool)
+                                                .unwrap_or(false),
+                                        })
+                                    })
+                                    .collect()
+                            })
+                            .unwrap_or_default(),
                     })
                 })
                 .collect()
@@ -888,6 +1007,10 @@ fn catalog_snapshot(data: &Value) -> crate::ModelCatalogSnapshot {
 }
 
 /// 桥报的一条选择器 → 产品控制项。
+///
+/// purpose 的取值与 packages/agent-bridge/src/protocol.ts 的 SelectorControl
+/// 逐字对应。认不出的如实落到 Other，不猜成某一类 —— 猜错会让界面把它画到
+/// 错误的住处（模型与思考档位共用一个卡，批准方式是工具条上的胶囊）。
 fn control_of(value: &Value) -> Option<crate::ConfigControl> {
     use crate::session::config::{ConfigChoice, ConfigPurpose};
 
@@ -895,6 +1018,7 @@ fn control_of(value: &Value) -> Option<crate::ConfigControl> {
     let purpose = match value.get("purpose").and_then(Value::as_str) {
         Some("model") => ConfigPurpose::Model,
         Some("thinking") => ConfigPurpose::Thought,
+        Some("permission") => ConfigPurpose::Permission,
         Some("mode") => ConfigPurpose::Mode,
         _ => ConfigPurpose::Other,
     };

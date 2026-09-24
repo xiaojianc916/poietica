@@ -23,9 +23,6 @@ test('settings responsibilities permit only inward dependencies', () => {
   expect(
     settingsBoundaries(root, file('agent-runtime/model.ts'), file('agent-runtime/settings.ts')),
   ).toHaveLength(1)
-  expect(
-    settingsBoundaries(root, file('model-metadata/models-dev.ts'), file('model-catalog/store.ts')),
-  ).toHaveLength(1)
   expect(settingsBoundaries(root, file('preferences/store.ts'), file('index.ts'))).toHaveLength(1)
   expect(
     settingsBoundaries(root, file('preferences/store.ts'), file('ui/surface/settings-surface.tsx')),

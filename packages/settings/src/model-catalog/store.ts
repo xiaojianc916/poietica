@@ -1,4 +1,3 @@
-import { modelConfigPatch } from '../model-metadata/models-dev'
 import type {
   ModelCatalogData,
   ModelCatalogOperation,
@@ -21,7 +20,6 @@ export class ModelCatalogStore {
   #snapshot = EMPTY
   #generation = 0
   #loading: Promise<void> | null = null
-  #metadataSync: Promise<void> | null = null
   #dispose: (() => void) | null = null
   #disposed = false
 
@@ -129,42 +127,13 @@ export class ModelCatalogStore {
     }
   }
 
-  synchronizeMetadata = (): Promise<void> => {
-    if (this.#disposed) {
-      return Promise.reject(stoppedCatalog())
-    }
-    if (this.#metadataSync !== null) {
-      return this.#metadataSync
-    }
-    const pending = this.#synchronizeMetadata()
-    this.#metadataSync = pending
-    const settle = () => {
-      if (this.#metadataSync === pending) {
-        this.#metadataSync = null
-      }
-    }
-    void pending.then(settle, settle)
-    return pending
-  }
-
-  refreshFromSources = async (): Promise<void> => {
-    await this.mutate({ kind: 'refreshProviders' })
-    await this.synchronizeMetadata()
-  }
-
-  async #synchronizeMetadata(): Promise<void> {
-    await this.refresh()
-    this.#requireActive()
-    const { data, error } = this.#snapshot
-    if (data === null || error !== null) {
-      throw new Error(error ?? 'Model catalog is unavailable.')
-    }
-    const models = modelConfigPatch(data)
-    if (Object.keys(models).length === 0) {
-      return
-    }
-    await this.mutate({ kind: 'patchConfig', patch: { models } })
-  }
+  /**
+   * 让 agent 自己去重取模型目录（在线目录 + 端点发现），再回一张新快照。
+   *
+   * 不在这条线上补元数据：模型的档位、上下文、能力位只有一个产地 —— agent 自己的
+   * 注册表（ADR 0053）。我们这侧再拿一份目录去"补全"它，就是第二个事实。
+   */
+  refreshFromSources = (): Promise<void> => this.mutate({ kind: 'refreshProviders' })
 
   setDefaultModel(modelId: string): Promise<void> {
     return this.mutate({ kind: 'setDefault', modelId })

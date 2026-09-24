@@ -55,9 +55,8 @@ export type BridgeCommand =
   /**
    * 模型目录的一次读或一次改。
    *
-   * 读返回 providers / models / catalog / defaultModel；改只接 setDefault 与
-   * patchConfig（写进 agent 自己的 config.yml），增删 provider 还没接 ——
-   * 如实报不支持，不假装改成功了。
+   * 读返回 providers / models / catalog / defaultModel；改接 setDefault 与
+   * provider 的增删改（写进 agent 自己的 models.yml 与 config.yml）。
    */
   | {
       readonly id: string
@@ -66,12 +65,66 @@ export type BridgeCommand =
     }
   | { readonly id: string; readonly type: 'shutdown' }
 
+/*
+ * 一次 provider 输入；与 crates/agent-client 的 ProviderInput 逐字对应。
+ *
+ * 可缺席的格一律写成 `?: T | null`：这份形状是从 Rust 那条 JSON 线上解出来的，
+ * Rust 的 `Option::None` 到这边是 `null`，不是 `undefined`。只写 `undefined` 会让
+ * 下游误以为 `x === undefined` 就够判缺席 —— 那正是「null is not an object」的来源。
+ */
+export interface ProviderInput {
+  readonly id: string
+  readonly providerType: string
+  readonly apiKey?: string | null
+  readonly baseUrl?: string | null
+  readonly defaultModel?: string | null
+  readonly models: readonly ProviderModelInput[]
+}
+
+export interface ProviderModelInput {
+  readonly model: string
+  readonly maxContextSize: number
+  readonly displayName?: string | null
+  readonly capabilities?: readonly string[] | null
+  readonly maxOutputSize?: number | null
+  readonly supportEfforts?: readonly string[] | null
+  readonly adaptiveThinking?: boolean | null
+}
+
+export interface ProviderReplacement extends Omit<ProviderInput, 'id'> {
+  readonly newId?: string | null
+}
+
 /** 与 crates/agent-client 的 ModelCatalogOperation 逐字对应。 */
 export type ModelCatalogOperation =
   | { readonly kind: 'snapshot' }
   | { readonly kind: 'refreshProviders' }
   | { readonly kind: 'setDefault'; readonly modelId: string }
-  | { readonly kind: 'patchConfig'; readonly patch: unknown }
+  /** 给一个 provider 配一把钥匙；落 agent 自己的凭据库（agent.db）。 */
+  | { readonly kind: 'setApiKey'; readonly provider: string; readonly apiKey: string }
+  /** 删一个 provider：钥匙从 agent.db 删，定义从 models.yml 删，provider 停用。 */
+  | { readonly kind: 'delete'; readonly providerId: string }
+  /** 建一个 provider；定义写 agent 自己的 models.yml。 */
+  | { readonly kind: 'create'; readonly provider: ProviderInput }
+  /** 整份换掉一个 provider；`newId` 给了就是改名。 */
+  | {
+      readonly kind: 'replace'
+      readonly providerId: string
+      readonly provider: ProviderReplacement
+    }
+  /**
+   * 从 agent 自己的内置目录添加一个 provider。
+   *
+   * 目录里那一行已经带着 baseUrl / api / 模型清单，所以只有改端点（`baseUrl`）或
+   * 改 id（`id`）时才写 models.yml；原样添加只写钥匙并解除停用。
+   */
+  | {
+      readonly kind: 'importCatalog'
+      readonly catalogId: string
+      readonly apiKey?: string | null
+      readonly baseUrl?: string | null
+      readonly id?: string | null
+    }
 
 export type BridgeCommandType = BridgeCommand['type']
 
@@ -134,7 +187,7 @@ export type BridgeEvent =
 
 export interface SelectorControl {
   readonly id: string
-  readonly purpose: 'model' | 'thinking' | 'mode' | 'other'
+  readonly purpose: 'model' | 'thinking' | 'permission' | 'mode' | 'other'
   readonly current: string
   readonly choices: readonly SelectorChoice[]
 }

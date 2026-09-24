@@ -1,16 +1,14 @@
-//! 模型与 provider 的目录：kap 的 providers/models REST 是唯一读写路。
+//! 模型与 provider 的目录：真身在 agent 自己的配置里。
 //!
-//! 权威是 agent 进程自己（它 watch config.toml 并热重载），这一侧不持有第二份
-//! 副本 —— 每次调用现问，每次改完由 agent 回一份新快照。crate 侧的线上类型是
-//! snake_case 的协议形状，这里的 DTO 是 IPC 形状，互转只在本文件。
+//! 权威是 agent 进程自己（它按 mtime 重读 `models.yml` 并热重载 config），这一侧
+//! 不持有第二份副本 —— 每次调用现问，每次改完由 agent 回一份新快照。crate 侧的
+//! 线上类型是 snake_case 的协议形状，这里的 DTO 是 IPC 形状，互转只在本文件。
 
 use poietica_agent_client::{
     CatalogImport, CatalogModel, CatalogProvider, Model, ModelCatalogOperation,
     ModelCatalogSnapshot, Provider, ProviderInput, ProviderModelInput, ProviderReplacement,
-    RegistryImport,
 };
 use serde::{Deserialize, Serialize};
-use serde_json::Value;
 use specta::Type;
 use tauri::State;
 
@@ -79,17 +77,8 @@ pub enum ModelCatalogOperationDto {
         id: Option<String>,
     },
     #[serde(rename_all = "camelCase")]
-    ImportRegistry {
-        url: String,
-        api_key: Option<String>,
-    },
-    #[serde(rename_all = "camelCase")]
     SetDefault {
         model_id: String,
-    },
-    #[serde(rename_all = "camelCase")]
-    PatchConfig {
-        patch: Value,
     },
 }
 
@@ -207,14 +196,8 @@ fn into_operation(operation: ModelCatalogOperationDto) -> ModelCatalogOperation 
             base_url,
             id,
         }),
-        ModelCatalogOperationDto::ImportRegistry { url, api_key } => {
-            ModelCatalogOperation::ImportRegistry(RegistryImport { url, api_key })
-        }
         ModelCatalogOperationDto::SetDefault { model_id } => {
             ModelCatalogOperation::SetDefault { model_id }
-        }
-        ModelCatalogOperationDto::PatchConfig { patch } => {
-            ModelCatalogOperation::PatchConfig(patch)
         }
     }
 }

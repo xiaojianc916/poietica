@@ -60,9 +60,7 @@ export type ModelCatalogOperation =
       readonly baseUrl?: string
       readonly id?: string
     }
-  | { readonly kind: 'importRegistry'; readonly url: string; readonly apiKey?: string }
   | { readonly kind: 'setDefault'; readonly modelId: string }
-  | { readonly kind: 'patchConfig'; readonly patch: Readonly<Record<string, unknown>> }
 
 export interface ModelCatalogPort {
   readonly execute: (agentId: string, operation: ModelCatalogOperation) => Promise<ModelCatalogData>

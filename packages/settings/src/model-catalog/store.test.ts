@@ -102,12 +102,12 @@ describe('ModelCatalogStore', () => {
       'name',
       'AbortError',
     )
-    await expect(store.synchronizeMetadata()).rejects.toHaveProperty('name', 'AbortError')
+    await expect(store.refreshFromSources()).rejects.toHaveProperty('name', 'AbortError')
     expect(() => store.subscribe(() => undefined)).toThrow(DOMException)
     expect(calls).toEqual([])
   })
 
-  it('metadata synchronization cannot resume after its owner is disposed', async () => {
+  it('a refresh in flight cannot publish after its owner is disposed', async () => {
     const reply = Promise.withResolvers<ModelCatalogData>()
     const calls: ModelCatalogOperation[] = []
     const store = new ModelCatalogStore(
@@ -120,15 +120,10 @@ describe('ModelCatalogStore', () => {
       },
       'agent',
     )
-    const pending = store.synchronizeMetadata()
-    // Attach handlers eagerly: Bun's expect().rejects hangs when awaited late.
-    const settled = pending.then(
-      () => new Error('Expected metadata work to stop after disposal'),
-      (cause: unknown) => cause,
-    )
+    const pending = store.refresh()
     store.dispose()
     reply.resolve(DATA)
-    expect(await settled).toHaveProperty('name', 'AbortError')
+    await pending
     expect(calls).toEqual([{ kind: 'snapshot' }])
     expect(store.getSnapshot().data).toBeNull()
   })

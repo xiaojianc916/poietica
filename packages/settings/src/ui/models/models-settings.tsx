@@ -456,11 +456,10 @@ function ProviderItem({
 
 /* ── 添加供应商（目录 / 注册表 / 手动） ─────────────────────────────── */
 
-type AddMode = 'catalog' | 'registry' | 'manual'
+type AddMode = 'catalog' | 'manual'
 
 const ADD_MODES = [
   { value: 'catalog', label: '从目录添加' },
-  { value: 'registry', label: '注册表' },
   { value: 'manual', label: '手动添加' },
 ] as const satisfies readonly SegmentedOption<AddMode>[]
 
@@ -511,9 +510,6 @@ function AddProviderItem({
                 onModelVisibilityChange={onModelVisibilityChange}
                 onRun={onRun}
               />
-            ) : null}
-            {mode === 'registry' ? (
-              <RegistryAddTab disabled={disabled} onImported={onClose} onRun={onRun} />
             ) : null}
             {mode === 'manual' ? (
               <ProviderForm
@@ -716,73 +712,6 @@ function CatalogAddTab({
         )}
       </div>
     </div>
-  )
-}
-
-function RegistryAddTab({
-  disabled,
-  onImported,
-  onRun,
-}: {
-  readonly disabled: boolean
-  readonly onImported: () => void
-  readonly onRun: RunMutation
-}) {
-  const [url, setUrl] = useState('')
-  const [apiKey, setApiKey] = useState('')
-  const [message, setMessage] = useState<string | null>(null)
-  const submit = async (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault()
-    const trimmed = url.trim()
-    if (trimmed === '') {
-      setMessage('请填写注册表 URL。')
-      return
-    }
-    const ok = await onRun({
-      kind: 'importRegistry',
-      url: trimmed,
-      ...(apiKey.trim() === '' ? {} : { apiKey: apiKey.trim() }),
-    })
-    if (ok) {
-      onImported()
-    }
-  }
-  return (
-    <form className="models-add-tab" onSubmit={(event) => void submit(event)}>
-      <p className="models-add-hint">
-        从 api.json 注册表导入供应商与模型；同一 URL 重复导入即为刷新。
-      </p>
-      <Field htmlFor="registry-url" label="注册表 URL">
-        <input
-          aria-required
-          className="settings-input"
-          id="registry-url"
-          onChange={(event) => setUrl(event.target.value)}
-          placeholder="https://example.com/api.json"
-          type="url"
-          value={url}
-        />
-      </Field>
-      <Field htmlFor="registry-api-key" label="API Key">
-        <SecretInput
-          id="registry-api-key"
-          onChange={(event) => setApiKey(event.target.value)}
-          placeholder="可选"
-          value={apiKey}
-        />
-      </Field>
-      <div className="models-form-footer">
-        <span aria-live="polite" className="models-model-message">
-          {message}
-        </span>
-        <div className="models-form-footer__actions">
-          {disabled ? <InlineSpinner /> : null}
-          <Button disabled={disabled} size="xs" type="submit" variant="soft">
-            {disabled ? '正在导入…' : '导入'}
-          </Button>
-        </div>
-      </div>
-    </form>
   )
 }
 

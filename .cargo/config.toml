@@ -1,0 +1,17 @@
+# 链接器生成导入库时先把内容写进 %TEMP%\lnk{GUID}.tmp，再拷到 /IMPLIB 目的地，
+# 所以这一步必然要打开那个临时文件。共享的 %TEMP% 一旦被外部清理程序动过，
+# 链接就报 LNK1104 无法打开 lnk{...}.tmp —— 判据是残留的 .tmp 与最终的 .dll.lib
+# 逐字节相同，说明它是导入库的中转副本，不是多余文件。
+#
+# 指向 .cargo/link-tmp：该目录随 .gitkeep 入库，因此必然存在（不依赖 cargo 先建
+# 出 target/，也就不会被 CARGO_TARGET_DIR 改写目标目录时击穿）；遗留的 lnk*.tmp
+# 由根 .gitignore 的 *.tmp 规则自动忽略，不产生 git 噪声。
+#
+# force 必需 —— 不写它 cargo 不会覆盖已继承的 TMP；relative 相对本文件所在目录
+# 解析，所以从 apps/desktop/src-tauri 构建也命中同一处。
+#
+# 来源：MSVC LNK1104 文档 "Problems in the TMP environment variable" 一节；
+# force/relative 语义、target/ 缺失与 CARGO_TARGET_DIR 改写两种情形均为 2026-09-24 实测。
+[env]
+TMP = { value = ".cargo/link-tmp", relative = true, force = true }
+TEMP = { value = ".cargo/link-tmp", relative = true, force = true }

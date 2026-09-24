@@ -12,10 +12,7 @@ import type {
 import type { ModelCatalogStore } from '@poietica/settings'
 import type { ThinkingPreference } from './thinking-preference'
 
-type ModelCatalogAccess = Pick<
-  ModelCatalogStore,
-  'synchronizeMetadata' | 'refresh' | 'getSnapshot' | 'mutate'
->
+type ModelCatalogAccess = Pick<ModelCatalogStore, 'refresh' | 'getSnapshot' | 'mutate'>
 
 export interface DesktopAgentRuntime {
   readonly session: AgentSessionPort
@@ -52,36 +49,16 @@ export interface AgentRuntimeDependencies {
 
 export function createAgentRuntime(options: AgentRuntimeDependencies): DesktopAgentRuntime {
   let disposed = false
-  let metadataReady: Promise<void> | null = null
   const requireActive = (): void => {
     if (disposed) {
       throw new DOMException('Agent runtime stopped.', 'AbortError')
     }
   }
-  const ensureModelMetadata = async (): Promise<void> => {
-    const pending = metadataReady ?? options.modelCatalog.synchronizeMetadata()
-    metadataReady = pending
-    try {
-      await pending
-    } catch (cause: unknown) {
-      if (metadataReady === pending) {
-        metadataReady = null
-      }
-      if (!disposed) {
-        options.report('model metadata synchronization failed', {
-          scope: 'agent-runtime',
-          operation: 'synchronize-model-metadata',
-          cause,
-        })
-      }
-    }
-  }
-  // mcp.json 是 agent 进程启动时读一次的文件，必须排在 spawn 之前；模型元数据刻意不 await，不挡会话。
+  // mcp.json 是 agent 进程启动时读一次的文件，必须排在 spawn 之前；模型目录由会话自己按需读，不挡会话。
   const prepareAgent = async (): Promise<string> => {
     requireActive()
     await options.mcpReady()
     requireActive()
-    void ensureModelMetadata()
     return options.agentId
   }
   const channels = options.connect(prepareAgent)

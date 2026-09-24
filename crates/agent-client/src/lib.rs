@@ -23,7 +23,6 @@ pub use error::{AgentError, DecodeError, EnvelopeError, Refusal, Result};
 pub use model_catalog::{
     CatalogImport, CatalogModel, CatalogProvider, Model, ModelCatalogOperation,
     ModelCatalogSnapshot, Provider, ProviderInput, ProviderModelInput, ProviderReplacement,
-    RegistryImport,
 };
 
 pub use frame::{PROMPT_ADMITTED, RunFrame};

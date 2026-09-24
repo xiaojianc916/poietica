@@ -22,12 +22,10 @@ function fixture() {
   const state: {
     select: SessionConfigPort['select']
     ready: () => Promise<void>
-    metadata: () => Promise<void>
     mutation: () => Promise<void>
   } = {
     select: () => Promise.resolve(controls),
     ready: () => Promise.resolve(),
-    metadata: () => Promise.resolve(),
     mutation: () => Promise.resolve(),
   }
   const channels: AgentRuntimeChannels = {
@@ -65,10 +63,6 @@ function fixture() {
   const dependencies: AgentRuntimeDependencies = {
     agentId: 'agent',
     modelCatalog: {
-      synchronizeMetadata: () => {
-        effects.push('metadata')
-        return state.metadata()
-      },
       refresh: () => Promise.resolve(),
       getSnapshot: () => ({
         data: { providers: [], models: [], catalog: [], defaultModel: 'chosen' },
@@ -156,15 +150,14 @@ test('disposal while a model write completes stops subsequent preference effects
   expect(h.effects).toEqual(['default:chosen'])
 })
 
-test('launches share metadata readiness and capabilities retain their identity', async () => {
+test('launches share one readiness pass and capabilities retain their identity', async () => {
   const h = fixture()
   expect(await Promise.all([h.prepare(), h.prepare()])).toEqual(['agent', 'agent'])
-  expect(h.effects).toEqual(['metadata'])
   expect(h.runtime.capabilities()).toBe(h.runtime.capabilities())
   await h.runtime.dispose()
 })
 
-test('stopping during launch prerequisites prevents metadata work', async () => {
+test('stopping during launch prerequisites prevents the agent from starting', async () => {
   const h = fixture()
   const ready = Promise.withResolvers<void>()
   h.state.ready = () => ready.promise

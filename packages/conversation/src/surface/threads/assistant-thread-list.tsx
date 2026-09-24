@@ -110,7 +110,7 @@ const NO_PAGES: ReadonlyMap<string, number> = new Map()
 const NO_PROJECTLESS_WORKSPACES: ReadonlySet<string> = new Set()
 
 /** 读完了，确实没有。这句话只有读成功才说得出口。 */
-const EMPTY = '还没有对话。'
+const EMPTY = ''
 
 /*
  * 列表本体之外那一句话。

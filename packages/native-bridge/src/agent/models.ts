@@ -1,7 +1,6 @@
 import {
   commands,
   events,
-  type JsonValue,
   type ModelCatalogOperationDto,
   type ProviderInputDto,
   type ProviderModelInputDto,
@@ -68,13 +67,8 @@ function intoDto(operation: ModelCatalogOperation): ModelCatalogOperationDto {
         baseUrl: operation.baseUrl ?? null,
         id: operation.id ?? null,
       }
-    case 'importRegistry':
-      return { kind: 'importRegistry', url: operation.url, apiKey: operation.apiKey ?? null }
     case 'setDefault':
       return { kind: 'setDefault', modelId: operation.modelId }
-    case 'patchConfig':
-      /* 端口侧只说「一张补丁」，线上形状是 JsonValue：翻译层这一处断言对齐两种写法。 */
-      return { kind: 'patchConfig', patch: operation.patch as JsonValue }
   }
 }
 

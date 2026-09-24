@@ -14,7 +14,7 @@
 1. `pluginStore.start()` —— 插件账本、技能目录、外部账本、mcp.json、市场目录、
    能力清单六趟 I/O，外加 `reconcileBrowserMcpServer`。其中能力清单那趟经
    `agent_capability_report` 反过来还要 `ensure` 一次连接。
-2. `modelCatalog.synchronizeMetadata()` —— 一趟目录快照加一次 `patchConfig` 的写。
+2. 模型目录的元数据同步（一趟目录快照加一次写）。
 
 而真正的选择器读取（`get_selectors`）是一条独立的 REST 调用，不依赖上面任何一件。
 
@@ -22,11 +22,15 @@
 
 ### 1. launch 只等 agent 启动时真会读的东西
 
-`prepareAgent` 只等 `mcpReady()`。模型元数据改成不阻塞地跑：它产出的是模型的显示名与
-上下文上限，没有它选择器照样报得出这一刻在用哪个模型、哪些档位。
+`prepareAgent` 只等 `mcpReady()`。模型目录改成按需读，不挡在 launch 前面。
 
 `readCapabilities` 从 plugin-store 首扫那一批里移出，排在首屏落定之后。它只喂插件页
 那一格，没有读者在等它。
+
+> 后续（ADR 0053）：当初那一趟「元数据同步」是我们拿一份 models.dev 快照去补
+> `displayName` / 上下文 / 能力位，再经 `patchConfig` 写回。那是**第二个元数据产地**，
+> 0053 已经把它整条删掉 —— 模型的档位与上限只认 agent 自己的注册表。所以今天
+> `prepareAgent` 后面没有第二件事，「不阻塞」这一条落成了「根本没有这一趟」。
 
 ### 2. 上一趟 agent 确认过的那张表留到下一次开窗
 
@@ -85,8 +89,6 @@ agent 真拒了那次改动时不投影（同一个意图只补一次，判据�
 - 盘上那份说的是「上一次开窗时 agent 怎么说」，未必属于用户马上要开的这条对话。所以
   它只喂入口那一格（读的是锚会话的表），不往已有对话里灌 —— 那里的表由 `#reopen`
   在打开时取回。
-- 模型元数据不再挡在 launch 前面，所以第一张表可能带着同步前的显示名。下一趟
-  `patchConfig` 落定后 agent 会补推一张收敛过的表。
 
 ## 参考
 

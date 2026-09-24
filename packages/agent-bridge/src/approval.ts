@@ -1,37 +1,39 @@
 /*
- * omp 的 uiContext：把它的对话框接到我们这条 stdio 上。
+ * 给 SDK 的 uiContext：把 agent 的对话框接到我们这条 stdio 上。
  *
- * 不自己实现对话框语义 —— 上游已经给了一份**无终端宿主**的现成实现
- * （modes/rpc/rpc-mode.ts 的 RpcExtensionUIContext，ACP 模式也走同一套
- * requestRpcDialog），它处理了超时、AbortSignal、取消帧、响应配对这些边界。
- * 这里只做两件事：把上游导出的那几个 request* 帮手接上我们的输出口，把答复
- * 从 Rust 那边喂回来。
+ * 这是 SDK 自己的扩展面（CreateAgentSessionResult.setToolUIContext 收的就是它），
+ * 不是 RPC 模式的实现：ExtensionUIContext 是上游给宿主定的接口，谁嵌它谁实现。
+ * 我们只实现问得出人的那几个（select / confirm / input / editor），其余是交互式
+ * TUI 的面，嵌入方没有也不该有。
  *
- * 授权闸门（extensibility/extensions/wrapper.ts）在没有 UI 时 fail closed：
- * 非 yolo 模式下每一次 write/exec 都会抛「requires approval but no interactive
- * UI available」。所以这不是加功能，是让这条路不堵死。
+ * 授权闸门（extensibility/extensions/wrapper.ts）在没有 UI 时 fail closed：非 yolo
+ * 模式下每一次 write/exec 都会抛「requires approval but no interactive UI
+ * available」。所以这不是加功能，是让这条路不堵死。
+ *
+ * 一问一答的形状照上游 RpcExtensionUIResponse：`{ type, id, ...载荷 }`，载荷三种
+ * 取值（value / confirmed / cancelled）由各自的对话框自己解释。
  */
 
-import type { ExtensionUIContext } from '@oh-my-pi/pi-coding-agent'
-import {
-  type RpcPendingExtensionRequests,
-  requestRpcDialog,
-  requestRpcEditor,
-  requestRpcSelect,
-} from '@oh-my-pi/pi-coding-agent/modes/rpc/rpc-mode'
+import type {
+  ExtensionAskDialogQuestion,
+  ExtensionAskDialogResult,
+  ExtensionUIContext,
+  ExtensionUIDialogOptions,
+  ExtensionUISelectItem,
+} from '@oh-my-pi/pi-coding-agent'
 
-/*
- * 授权闸门问的那颗按钮。
+/**
+ * 授权闸门问的那两颗按钮。
  *
- * 上游问的就是这两颗（extensibility/extensions/wrapper.ts 的
- * `uiContext.select(safetyPrompt, ["Approve", "Deny"])`，eval prelude 同款）：
- * 我们要落的是「批准」那一颗，答别的或不答都按未批准处理。
- *
- * ACP 那条路上还有四档（PERMISSION_OPTIONS 的 allow_once / allow_always /
- * reject_once / reject_always），但 SDK 这条路走不到那儿 —— 别照 ACP 的表去认。
- * 分类（「这是不是授权」）只有一处，在 Rust 侧：这里只管把答复翻成标签。
+ * 正本是上游 extensibility/extensions/wrapper.ts 的
+ * `uiContext.select(safetyPrompt, ["Approve", "Deny"])` —— 它没有给授权单独一个
+ * method，靠选项集区分。这两个标签是这条路的协议字面量，两侧（这里与 Rust 的
+ * approval_of）必须逐字一致。
  */
-const APPROVE = 'Approve'
+export const APPROVAL_OPTIONS: readonly [string, string] = ['Approve', 'Deny']
+
+/** 产品那三颗按钮里，「批准」落到哪一颗。 */
+const APPROVE = APPROVAL_OPTIONS[0]
 
 /** 产品那三颗按钮的取值域，与 crates/agent-client 的 permission.rs 逐字对应。 */
 export interface ApprovalAnswer {
@@ -39,11 +41,59 @@ export interface ApprovalAnswer {
   readonly scope?: 'session'
 }
 
-/** 一条待答的对话框请求，形状与上游 RpcExtensionUIRequest 对应。 */
-export interface DialogRequest {
-  readonly id: string
-  readonly method: string
-  readonly [key: string]: unknown
+/**
+ * 等答复的那张表。
+ *
+ * 上游的请求 id 由我们签发（它是我们这条线上的号），答复按同一个号回来。
+ */
+export class DialogDesk {
+  readonly #waiting = new Map<string, (response: unknown) => void>()
+  readonly #emit: (frame: Record<string, unknown>) => void
+  #next = 0
+
+  /** 出口由构造方给：桥把它写成一行到 stdout。 */
+  constructor(emit: (frame: Record<string, unknown>) => void) {
+    this.#emit = emit
+  }
+
+  /** 问一次人，等一个答复；超时与中止由调用方给。 */
+  ask(request: Record<string, unknown>, options?: ExtensionUIDialogOptions): Promise<unknown> {
+    const id = `d${++this.#next}`
+
+    return new Promise<unknown>((resolve) => {
+      const settle = (response: unknown) => {
+        if (this.#waiting.delete(id)) {
+          resolve(response)
+        }
+      }
+
+      this.#waiting.set(id, resolve)
+
+      if (options?.timeout !== undefined && options.timeout > 0) {
+        setTimeout(() => settle(cancelled(id)), options.timeout)
+      }
+
+      options?.signal?.addEventListener('abort', () => settle(cancelled(id)), { once: true })
+
+      this.#emit({ type: 'extension_ui_request', id, ...request })
+    })
+  }
+
+  /** 答复到了。认不出的号如实说没有，不假装答上了。 */
+  settle(id: string, payload: Record<string, unknown>): void {
+    const waiting = this.#waiting.get(id)
+
+    if (waiting === undefined) {
+      throw new Error(`no dialog is waiting under ${id}`)
+    }
+
+    this.#waiting.delete(id)
+    waiting({ type: 'extension_ui_response', id, ...payload })
+  }
+}
+
+function cancelled(id: string): Record<string, unknown> {
+  return { type: 'extension_ui_response', id, cancelled: true }
 }
 
 /**
@@ -54,54 +104,88 @@ export interface DialogRequest {
  *
  * 上游这条路只有批准与不批准两颗，所以「本次会话都批准」在这一层与「批准」同义：
  * 它仍然只放行这一次。要真正做到会话级放行得走 `tools.approval.<tool>: allow`
- * 那条设置（写进 config.yml），那是另一件活 —— 界面照旧画三颗，语义如实窄一档。
+ * 那条设置（写进 config.yaml），那是另一件活 —— 界面照旧画三颗，语义如实窄一档。
  */
 export function labelFor(answer: ApprovalAnswer): string | undefined {
   return answer.decision === 'approved' ? APPROVE : undefined
 }
 
-/**
- * 给 SDK 的 uiContext。
- *
- * 对话框走上游的 request* 帮手；输出口由调用方给（桥写 stdout），答复由
- * `settle` 从 Rust 那条命令喂进来。其余（主题、组件、编辑器）是无终端宿主
- * 本来就没有的面，与上游 RPC 模式的处理一致：能忽略的忽略，做不到的如实说。
- */
-export function createUIContext(
-  pending: RpcPendingExtensionRequests,
-  output: (frame: unknown) => void,
-): ExtensionUIContext {
+/** 上游 select 的选项可能是字符串，也可能是带说明的对象。 */
+function labelOf(option: ExtensionUISelectItem): string {
+  return typeof option === 'string' ? option : option.label
+}
+
+export function createUIContext(desk: DialogDesk): ExtensionUIContext {
   const ui = {
     timeoutStartsOnPresentation: false,
 
-    select: (title: string, options: readonly unknown[], dialogOptions?: unknown) =>
-      requestRpcSelect(pending, output, title, options as never, dialogOptions as never),
+    async select(
+      title: string,
+      options: ExtensionUISelectItem[],
+      dialogOptions?: ExtensionUIDialogOptions,
+    ): Promise<string | undefined> {
+      const response = (await desk.ask(
+        { method: 'select', title, options: options.map(labelOf) },
+        dialogOptions,
+      )) as { value?: unknown; cancelled?: boolean }
 
-    confirm: (title: string, message: string, dialogOptions?: unknown) =>
-      requestRpcDialog(
-        pending,
-        output,
-        dialogOptions as never,
-        false,
-        { method: 'confirm', title, message },
-        (response: Record<string, unknown>) => response['confirmed'] === true,
-      ),
+      return response.cancelled === true || typeof response.value !== 'string'
+        ? undefined
+        : response.value
+    },
 
-    input: (title: string, placeholder?: string, dialogOptions?: unknown) =>
-      requestRpcDialog(
-        pending,
-        output,
-        dialogOptions as never,
-        undefined,
-        { method: 'input', title, placeholder },
-        (response: Record<string, unknown>) =>
-          typeof response['value'] === 'string' ? response['value'] : undefined,
-      ),
+    async confirm(
+      title: string,
+      message: string,
+      dialogOptions?: ExtensionUIDialogOptions,
+    ): Promise<boolean> {
+      const response = (await desk.ask({ method: 'confirm', title, message }, dialogOptions)) as {
+        confirmed?: unknown
+      }
 
-    editor: (title: string, prefill?: string, dialogOptions?: unknown) =>
-      requestRpcEditor(pending, output, title, prefill, dialogOptions as never),
+      return response.confirmed === true
+    },
 
-    /* 无终端宿主本来就没有的面：与上游 RPC 模式同一套处理。 */
+    async input(
+      title: string,
+      placeholder?: string,
+      dialogOptions?: ExtensionUIDialogOptions,
+    ): Promise<string | undefined> {
+      const response = (await desk.ask({ method: 'input', title, placeholder }, dialogOptions)) as {
+        value?: unknown
+      }
+
+      return typeof response.value === 'string' ? response.value : undefined
+    },
+
+    async editor(
+      title: string,
+      prefill?: string,
+      dialogOptions?: ExtensionUIDialogOptions,
+    ): Promise<string | undefined> {
+      const response = (await desk.ask({ method: 'editor', title, prefill }, dialogOptions)) as {
+        value?: unknown
+      }
+
+      return typeof response.value === 'string' ? response.value : undefined
+    },
+
+    /*
+     * ask 工具的题目走这里。它不是授权，形状比 select 宽（一组题、可多选），
+     * 所以原样交给宿主去画，本层不解释它的字段。
+     */
+    async askDialog(
+      questions: ExtensionAskDialogQuestion[],
+      dialogOptions?: ExtensionUIDialogOptions,
+    ): Promise<ExtensionAskDialogResult | undefined> {
+      const response = (await desk.ask({ method: 'ask', questions }, dialogOptions)) as {
+        value?: unknown
+      }
+
+      return response.value as ExtensionAskDialogResult | undefined
+    },
+
+    /* 无终端宿主本来就没有的面：与上游 RPC 模式同一套处理，能忽略的忽略。 */
     notify: () => {},
     onTerminalInput: () => () => {},
     setStatus: () => {},
@@ -118,5 +202,10 @@ export function createUIContext(
     custom: async () => undefined as never,
   }
 
+  /*
+   * 一个 cast，而且窄：闸门那条路只走 select / confirm，其余是交互式 TUI 的面
+   * （主题、组件），嵌入方没有也不该有。逐个补空实现会把「这里没有终端」说成
+   * 「这里有，只是都是空的」—— 上游真调到它们时应当看见拒绝，而不是假成功。
+   */
   return ui as unknown as ExtensionUIContext
 }

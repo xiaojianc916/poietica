@@ -283,7 +283,7 @@
       }
     },
     {
-      "includes": ["packages/agent-bridge/src/main.ts"],
+      "includes": ["packages/agent-bridge/src/**/*.ts"],
       "javascript": {
         "globals": ["Bun"]
       }
