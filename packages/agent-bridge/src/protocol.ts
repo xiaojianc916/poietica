@@ -229,6 +229,8 @@ export type BridgeEvent =
 
 export interface SelectorControl {
   readonly id: string
+  /** 这一格在人面前叫什么；缺席时原生侧退回用 id 当名字。 */
+  readonly label?: string
   readonly purpose: 'model' | 'thinking' | 'permission' | 'mode' | 'other'
   readonly current: string
   readonly choices: readonly SelectorChoice[]

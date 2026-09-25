@@ -1303,7 +1303,10 @@ fn control_of(value: &Value) -> Option<crate::ConfigControl> {
                             .and_then(Value::as_str)
                             .unwrap_or_default()
                             .to_owned(),
-                        detail: None,
+                        detail: choice
+                            .get("detail")
+                            .and_then(Value::as_str)
+                            .map(str::to_owned),
                     })
                 })
                 .collect()
@@ -1311,7 +1314,11 @@ fn control_of(value: &Value) -> Option<crate::ConfigControl> {
         .unwrap_or_default();
 
     Some(crate::ConfigControl {
-        label: id.clone(),
+        /* 名字由桥给（人话）；老桥不给就退回 id。 */
+        label: value
+            .get("label")
+            .and_then(Value::as_str)
+            .map_or_else(|| id.clone(), str::to_owned),
         detail: None,
         applies_on_submit: false,
         id,

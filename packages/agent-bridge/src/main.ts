@@ -611,6 +611,7 @@ function readSelectors(record: Session): SelectorControl[] {
   if (record.settings.get('plan.enabled')) {
     controls.push({
       id: 'plan',
+      label: '计划',
       purpose: 'mode',
       current: plan?.enabled === true ? 'on' : 'off',
       choices: [
@@ -625,6 +626,7 @@ function readSelectors(record: Session): SelectorControl[] {
 
     controls.push({
       id: 'goal',
+      label: '目标',
       purpose: 'mode',
       current: goal?.enabled === true ? 'on' : 'off',
       choices: [
