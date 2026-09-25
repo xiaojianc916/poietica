@@ -1252,6 +1252,27 @@ async function dispatch(command: BridgeCommand): Promise<unknown> {
       return { sessions: [] }
 
     /*
+     * agent 自己提供的能力清单。
+     *
+     * omp 的桌面控制编译在这个构建里（tools/computer.ts + pi-natives），开与关是它
+     * 自己的 `computer.enabled` 设置 —— 所以 supported 恒真、报 ready、不带插件；
+     * 安装与修复两条路对它不存在。这是构建事实，与任何一条会话无关。
+     */
+    case 'capabilities':
+      return {
+        capabilities: [
+          {
+            id: 'computer-use',
+            pluginId: null,
+            label: 'Computer use',
+            supported: true,
+            state: 'ready',
+            install: { running: false, step: null, percent: null, error: null },
+          },
+        ],
+      }
+
+    /*
      * 技能名册。
      *
      * 产地是会话自己那份已装载的技能（`session.skills`），不是我们再去盘上扫一遍

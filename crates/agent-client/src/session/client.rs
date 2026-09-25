@@ -165,10 +165,14 @@ pub(crate) enum Command {
         prompt: String,
         reply: oneshot::Sender<Result<crate::session::observe::PromptObservation>>,
     },
-    /// 模型目录的一次操作。omp 那条路还没接上，所以本机答不支持。
+    /// 模型目录的一次操作。
     ModelCatalog {
         operation: ModelCatalogOperation,
         reply: oneshot::Sender<Result<ModelCatalogSnapshot>>,
+    },
+    /// agent 自己报的能力清单。
+    Capabilities {
+        reply: oneshot::Sender<Result<Vec<Capability>>>,
     },
     /// 重装一条以前开过的会话。
     LoadSession {
@@ -485,8 +489,15 @@ impl AgentClient {
             .map_err(|_dropped| AgentError::Refused(Refusal::Gone))?
     }
 
+    /// agent 自己报的能力清单；本 crate 不添不减。
     pub async fn capabilities(&self) -> Result<Vec<Capability>> {
-        Err(unwired("the capability report"))
+        let (reply, answer) = oneshot::channel();
+
+        self.send(Command::Capabilities { reply })?;
+
+        answer
+            .await
+            .map_err(|_dropped| AgentError::Refused(Refusal::Gone))?
     }
 
     /// 幂等，交回它此刻的进度。

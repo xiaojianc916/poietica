@@ -1,4 +1,4 @@
-//! 本机能力的体检与安装。能力状态与安装过程均以 KAP 为唯一事实源。
+//! 本机能力清单。清单由 agent 自己报（桥原样转交）；安装没有 omp 对应物，如实答未接。
 //!
 //! 能力属于 agent 进程级服务；命令经统一运行时确保连接，不依赖某条用户对话。
 
@@ -11,7 +11,7 @@ use tauri::{AppHandle, State};
 use super::AgentCommandResult;
 use super::AgentRuntime;
 
-/// KAP 对一项能力的就绪裁决，原样投影。
+/// agent 对一项能力的就绪裁决，原样投影。
 #[derive(Debug, Serialize, Type)]
 #[serde(rename_all = "camelCase")]
 pub enum AgentCapabilityState {
@@ -21,7 +21,7 @@ pub enum AgentCapabilityState {
     Unsupported,
 }
 
-/// KAP 持有的后台安装进度，原样投影。
+/// 后台安装进度，原样投影。
 #[derive(Debug, Serialize, Type)]
 #[serde(rename_all = "camelCase")]
 pub struct AgentCapabilityInstall {
@@ -69,7 +69,7 @@ fn reported(capability: Capability) -> AgentCapability {
     }
 }
 
-/// 读取 KAP 的应用级能力清单；连接不存在时按统一启动管线建立。
+/// 读取 agent 的应用级能力清单；连接不存在时按统一启动管线建立。
 #[tauri::command]
 #[specta::specta]
 pub async fn agent_capability_report(
@@ -84,7 +84,7 @@ pub async fn agent_capability_report(
     Ok(listed.into_iter().map(reported).collect())
 }
 
-/// 启动或跟随 KAP 的幂等安装，连接不存在时先按统一管线建立。
+/// 启动或跟随幂等安装，连接不存在时先按统一管线建立。
 #[tauri::command]
 #[specta::specta]
 pub async fn agent_capability_install(

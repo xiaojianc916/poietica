@@ -85,6 +85,7 @@ export type BridgeCommand =
       readonly sinceSeq: number
     }
   | { readonly id: string; readonly type: 'sessions' }
+  | { readonly id: string; readonly type: 'capabilities' }
   | { readonly id: string; readonly type: 'skills' }
   | { readonly id: string; readonly type: 'mcp_servers' }
   /**

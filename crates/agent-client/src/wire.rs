@@ -100,6 +100,10 @@ pub enum Command {
     Sessions {
         id: String,
     },
+    /// agent 自己报的能力清单。
+    Capabilities {
+        id: String,
+    },
     Skills {
         id: String,
     },

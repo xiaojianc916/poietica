@@ -57,13 +57,13 @@ async agentModelCatalog(request: AgentModelCatalogRequest) : Promise<ModelCatalo
     return await TAURI_INVOKE("agent_model_catalog", { request });
 },
 /**
- * 读取 KAP 的应用级能力清单；连接不存在时按统一启动管线建立。
+ * 读取 agent 的应用级能力清单；连接不存在时按统一启动管线建立。
  */
 async agentCapabilityReport() : Promise<AgentCapability[]> {
     return await TAURI_INVOKE("agent_capability_report");
 },
 /**
- * 启动或跟随 KAP 的幂等安装，连接不存在时先按统一管线建立。
+ * 启动或跟随幂等安装，连接不存在时先按统一管线建立。
  */
 async agentCapabilityInstall(request: AgentCapabilityInstallRequest) : Promise<AgentCapability> {
     return await TAURI_INVOKE("agent_capability_install", { request });
@@ -469,12 +469,12 @@ export type AgentCancelRequest = { threadId: string }
 export type AgentCapabilitiesRequest = { launch: AgentLaunch; cwd: string | null }
 export type AgentCapability = { id: string; pluginId: string | null; label: string; supported: boolean; state: AgentCapabilityState; install: AgentCapabilityInstall }
 /**
- * KAP 持有的后台安装进度，原样投影。
+ * 后台安装进度，原样投影。
  */
 export type AgentCapabilityInstall = { running: boolean; step: string | null; percent: number | null; error: string | null }
 export type AgentCapabilityInstallRequest = { capabilityId: string }
 /**
- * KAP 对一项能力的就绪裁决，原样投影。
+ * agent 对一项能力的就绪裁决，原样投影。
  */
 export type AgentCapabilityState = "notInstalled" | "partial" | "ready" | "unsupported"
 export type AgentConfigChoice = { value: string; label: string; detail: string | null }

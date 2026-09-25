@@ -4,7 +4,7 @@ import { assertUnreachable } from '@poietica/problem'
 import { useEffect, useState, useSyncExternalStore } from 'react'
 import { SettingRow, SettingsGroup, SettingsPage, ToggleRow } from './settings-primitives'
 
-const LABEL = 'Oh My Pi Computer Use'
+const LABEL = 'Computer Use'
 const UNREAD = '正在读取本机 Oh My Pi 的安装状态…'
 const UNLISTED = '当前 Oh My Pi 版本没有提供这项能力'
 const UNSUPPORTED = '这台电脑不支持这项能力'

@@ -808,6 +808,12 @@ fn outgoing(command: ClientCommand, id: &str, session_id: Option<&str>) -> Resul
             })
         }
 
+        ClientCommand::Capabilities { reply } => ask(
+            &Command::Capabilities { id: id.to_owned() },
+            reply,
+            |data| Ok(capabilities_of(&data)),
+        ),
+
         /* 这些在驱动器的别的支上收掉了，或者本机自己答；到不了这里。 */
         ClientCommand::Prompt { .. }
         | ClientCommand::CurrentSession { .. }
@@ -928,6 +934,59 @@ fn servers_of(data: &Value) -> Vec<crate::McpServer> {
                 .collect()
         })
         .unwrap_or_default()
+}
+
+/// 桥报的能力清单 → 产品的形状。认不出的状态跳过，不猜成别的。
+fn capabilities_of(data: &Value) -> Vec<crate::Capability> {
+    data.get("capabilities")
+        .and_then(Value::as_array)
+        .map(|items| items.iter().filter_map(capability_of).collect())
+        .unwrap_or_default()
+}
+
+fn capability_of(value: &Value) -> Option<crate::Capability> {
+    let text = |key: &str| value.get(key).and_then(Value::as_str).map(str::to_owned);
+    let state = match value.get("state").and_then(Value::as_str)? {
+        "notInstalled" => crate::CapabilityReadiness::NotInstalled,
+        "partial" => crate::CapabilityReadiness::Partial,
+        "ready" => crate::CapabilityReadiness::Ready,
+        "unsupported" => crate::CapabilityReadiness::Unsupported,
+        _ => return None,
+    };
+    let install = value.get("install")?;
+
+    Some(crate::Capability {
+        id: text("id")?,
+        plugin_id: value
+            .get("pluginId")
+            .and_then(Value::as_str)
+            .map(str::to_owned),
+        label: value
+            .get("label")
+            .and_then(Value::as_str)
+            .unwrap_or_default()
+            .to_owned(),
+        supported: value
+            .get("supported")
+            .and_then(Value::as_bool)
+            .unwrap_or(false),
+        state,
+        install: crate::CapabilityInstall {
+            running: install
+                .get("running")
+                .and_then(Value::as_bool)
+                .unwrap_or(false),
+            step: install
+                .get("step")
+                .and_then(Value::as_str)
+                .map(str::to_owned),
+            percent: install.get("percent").and_then(Value::as_f64),
+            error: install
+                .get("error")
+                .and_then(Value::as_str)
+                .map(str::to_owned),
+        },
+    })
 }
 
 /// 一次授权请求里，界面要的那三格。
