@@ -51,6 +51,8 @@ pub struct LaunchRequest {
 pub(crate) struct Handle {
     pub(crate) client: AgentClient,
     pub(crate) agent_id: String,
+    /// 这条连接起进程时的工作区：会话桶与工具工作目录都锚在它上面。
+    pub(crate) cwd: PathBuf,
     pub(crate) anchor: String,
     pub(crate) desk: PermissionDesk,
     pub(crate) questions: QuestionDesk,
@@ -60,6 +62,7 @@ pub(crate) struct Handle {
 struct Connection {
     client: AgentClient,
     agent_id: String,
+    cwd: PathBuf,
     anchor: Option<String>,
     desk: PermissionDesk,
     questions: QuestionDesk,
@@ -74,6 +77,7 @@ impl Connection {
         Some(Handle {
             client: self.client.clone(),
             agent_id: self.agent_id.clone(),
+            cwd: self.cwd.clone(),
             anchor: self.anchor.clone()?,
             desk: self.desk.clone(),
             questions: self.questions.clone(),
@@ -292,7 +296,12 @@ impl<E: ConnectionFailure> ConnectionOwner<E> {
                 }
                 let live = state.connection.as_ref().and_then(Connection::handle);
                 if let Some(live) = live {
-                    if live.agent_id == agent {
+                    /*
+                     * 复用判据是 agent **加**工作区：连接的 cwd 锚着会话桶与工具的
+                     * 工作目录，拿它去服务另一个工作区的对话，agent 就会在错的目录
+                     * 里动手。同 agent 不同工作区一律按请求的工作区重建。
+                     */
+                    if live.agent_id == agent && live.cwd == cwd {
                         return Ok(live);
                     }
                     if takeover == Takeover::Preserve {
@@ -364,6 +373,7 @@ impl<E: ConnectionFailure> ConnectionOwner<E> {
                     state.connection = Some(Connection {
                         client: client.clone(),
                         agent_id: agent.clone(),
+                        cwd: cwd.clone(),
                         anchor: None,
                         desk: desk.clone(),
                         questions: questions.clone(),
@@ -373,6 +383,7 @@ impl<E: ConnectionFailure> ConnectionOwner<E> {
                 }
                 let weak = Arc::downgrade(&self);
                 let watched_agent = agent.clone();
+                let watched_cwd = cwd.clone();
                 let watched_scope = Arc::clone(&scope);
                 let watched_lease = Arc::clone(&lease);
                 let event_stop = lease.as_ref().clone();
@@ -415,7 +426,7 @@ impl<E: ConnectionFailure> ConnectionOwner<E> {
                             Err(error) => error.to_string(),
                         };
                         if let Some(owner) = weak.upgrade() {
-                            owner.after_exit(watched_lease, watched_scope, watched_agent, cwd, reason).await;
+                            owner.after_exit(watched_lease, watched_scope, watched_agent, watched_cwd, reason).await;
                         }
                         Ok(())
                     })
@@ -433,6 +444,7 @@ impl<E: ConnectionFailure> ConnectionOwner<E> {
             let live = Handle {
                 client,
                 agent_id: agent,
+                cwd,
                 anchor: handshake.session_id,
                 desk,
                 questions,

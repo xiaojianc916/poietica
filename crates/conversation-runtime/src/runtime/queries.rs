@@ -1,10 +1,22 @@
 use super::{CommandError, Runtime, RuntimeFailure, Takeover};
+use crate::connection::Handle;
 use crate::session::{SessionMode, SessionRequest};
 use poietica_agent_client::{
     Capability, ConfigControl, McpServer, ModelCatalogOperation, ModelCatalogSnapshot, Skill,
 };
 
 impl<E: RuntimeFailure> Runtime<E> {
+    /// 进程级读的连接选择：有同 agent 的活连接就用它，没有才按兜底工作区起一条。
+    async fn or_live(&self, agent: String) -> Result<Handle, CommandError<E>> {
+        match self.connection.current().map_err(CommandError::Runtime)? {
+            Some(handle) if handle.agent_id == agent => Ok(handle),
+            _ => self
+                .ensure(agent, None, Takeover::Replace)
+                .await
+                .map_err(CommandError::Runtime),
+        }
+    }
+
     pub async fn configuration_for(
         &self,
         agent: String,
@@ -64,10 +76,11 @@ impl<E: RuntimeFailure> Runtime<E> {
         &self,
         agent: String,
     ) -> Result<Vec<Capability>, CommandError<E>> {
-        let live = self
-            .ensure(agent, None, Takeover::Replace)
-            .await
-            .map_err(CommandError::Runtime)?;
+        /*
+         * 能力清单是进程级事实，与连接锚在哪个工作区无关：用活着的连接，别为这一问
+         * 拆掉用户对话正用的连接。没有活连接才按兜底工作区起一条。
+         */
+        let live = self.or_live(agent).await?;
         live.client
             .capabilities()
             .await
@@ -79,10 +92,7 @@ impl<E: RuntimeFailure> Runtime<E> {
         agent: String,
         capability: String,
     ) -> Result<Capability, CommandError<E>> {
-        let live = self
-            .ensure(agent, None, Takeover::Replace)
-            .await
-            .map_err(CommandError::Runtime)?;
+        let live = self.or_live(agent).await?;
         live.client
             .install_capability(capability)
             .await
