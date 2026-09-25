@@ -110,3 +110,20 @@ function settled(
 
   return { kind: 'installable' }
 }
+
+/** agent 的浏览器控制设置；cdpUrl 为 null 即托管启动（agent 自己拉 Chromium）。 */
+export type BrowserControl =
+  | { readonly kind: 'unread' }
+  | { readonly kind: 'failed'; readonly reason: string }
+  | {
+      readonly kind: 'ready'
+      readonly enabled: boolean
+      readonly headless: boolean
+      readonly cdpUrl: string | null
+    }
+
+export interface BrowserSettingsPatch {
+  readonly enabled?: boolean
+  readonly headless?: boolean
+  readonly cdpUrl?: string
+}

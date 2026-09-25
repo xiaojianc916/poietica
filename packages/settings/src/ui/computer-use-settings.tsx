@@ -1,10 +1,15 @@
 import { Button, Select, type SelectOption, Switch } from '@poietica/design-system'
-import { COMPUTER_USE, type ComputerUse, computerUse, type PluginStore } from '@poietica/extension'
+import {
+  type BrowserControl,
+  COMPUTER_USE,
+  computerUse,
+  type PluginStore,
+} from '@poietica/extension'
 import { assertUnreachable } from '@poietica/problem'
 import { useEffect, useState, useSyncExternalStore } from 'react'
 import { SettingRow, SettingsGroup, SettingsPage, ToggleRow } from './settings-primitives'
 
-const LABEL = 'Computer Use'
+const LABEL = 'Oh My Pi Computer Use'
 const UNREAD = '正在读取本机 Oh My Pi 的安装状态…'
 const UNLISTED = '当前 Oh My Pi 版本没有提供这项能力'
 const UNSUPPORTED = '这台电脑不支持这项能力'
@@ -17,31 +22,15 @@ const DISABLED = '已关闭'
 
 const FAILURE_PREFIX = '安装失败：'
 
-/* 纯 UI 占位：值是字面量，后端接入时换成真实枚举（同 settings-surface.tsx 的 COLOR_MODES 写法）。 */
-const URL_OPEN_TARGETS: readonly SelectOption<string>[] = [
-  { value: 'system', label: '默认浏览器' },
-  { value: 'builtin', label: '内置浏览器' },
-]
+const BROWSER_READING = '正在读取 agent 的浏览器控制设置…'
+const BROWSER_MANAGED = 'agent 自己启动一个浏览器来操作网页'
+const BROWSER_CDP = '附着到一个已经在跑的浏览器（CDP）'
+const CDP_DEFAULT = 'http://127.0.0.1:9222'
 
-const LOCAL_URL_OPEN_TARGETS: readonly SelectOption<string>[] = [
-  { value: 'builtin', label: '内置浏览器' },
-  { value: 'system', label: '默认浏览器' },
+const CONTROL_MODES: readonly SelectOption<string>[] = [
+  { value: 'managed', label: '托管启动' },
+  { value: 'cdp', label: '附着到现成浏览器' },
 ]
-
-const ANNOTATION_MODES: readonly SelectOption<string>[] = [
-  { value: 'always', label: '始终包含' },
-  { value: 'ask', label: '询问' },
-  { value: 'never', label: '不包含' },
-]
-
-const HISTORY_ACCESS_MODES: readonly SelectOption<string>[] = [
-  { value: 'ask', label: '始终询问' },
-  { value: 'allow', label: '始终允许' },
-  { value: 'deny', label: '不允许' },
-]
-
-/* 占位：按钮尚未接后端，点击不做事。 */
-const noop = () => {}
 
 export function computerUseFailureDescription(reason: string): string {
   const detail = reason.trim().replace(/^(?:安装失败[：:]\s*)+/u, '')
@@ -54,25 +43,14 @@ export interface ComputerUseSettingsProps {
 }
 
 export function ComputerUseSettings({ store }: ComputerUseSettingsProps) {
-  const state = computerUse(useSyncExternalStore(store.subscribe, store.getSnapshot))
+  const view = useSyncExternalStore(store.subscribe, store.getSnapshot)
+  const state = computerUse(view)
+  const browser = view.browser
 
   useEffect(() => {
     store.refreshCapabilities()
+    store.refreshBrowserSettings()
   }, [store])
-
-  /* 纯 UI 占位，状态留本地；后端接入时换成真实 store 读写并删掉此 useState。 */
-  const [browser, setBrowser] = useState({
-    enabled: true,
-    urlOpenTarget: 'system',
-    localUrlOpenTarget: 'builtin',
-    showFullUrl: false,
-    annotation: 'always',
-    askBeforeDownload: false,
-    historyAccess: 'ask',
-    siteTools: true,
-  })
-  const patchBrowser = (patch: Partial<typeof browser>) =>
-    setBrowser((current) => ({ ...current, ...patch }))
 
   return (
     <SettingsPage>
@@ -82,152 +60,121 @@ export function ComputerUseSettings({ store }: ComputerUseSettingsProps) {
         </SettingRow>
       </SettingsGroup>
 
-      <SettingsGroup>
-        <SettingRow description="让 Poietica 控制内置浏览器" label="浏览器">
-          <Switch
-            aria-label="浏览器"
-            checked={browser.enabled}
-            onCheckedChange={(enabled) => patchBrowser({ enabled })}
-            size="sm"
-          />
-        </SettingRow>
-      </SettingsGroup>
-
-      <SettingsGroup
-        headerAction={
-          <Button onClick={noop} size="xs" type="button" variant="soft">
-            导入
-          </Button>
-        }
-        title="常规"
-      >
-        <SettingRow description="链接默认打开位置" label="网页 URL 和链接打开位置">
-          <Select
-            align="end"
-            className="settings-select-trigger"
-            data={URL_OPEN_TARGETS}
-            onValueChange={(urlOpenTarget) => patchBrowser({ urlOpenTarget })}
-            type="网页 URL 和链接打开位置"
-            value={browser.urlOpenTarget}
-          />
-        </SettingRow>
-
-        <SettingRow description="本地开发站点默认打开位置" label="本地 URL 打开位置">
-          <Select
-            align="end"
-            className="settings-select-trigger"
-            data={LOCAL_URL_OPEN_TARGETS}
-            onValueChange={(localUrlOpenTarget) => patchBrowser({ localUrlOpenTarget })}
-            type="本地 URL 打开位置"
-            value={browser.localUrlOpenTarget}
-          />
-        </SettingRow>
-
-        <ToggleRow
-          checked={browser.showFullUrl}
-          description="在地址栏中显示路径、查询参数和片段"
-          label="显示完整网址"
-          onChange={(showFullUrl) => patchBrowser({ showFullUrl })}
-        />
-
-        <SettingRow
-          description="清除应用内浏览器中的浏览历史、网站数据、缓存和下载历史记录"
-          label="浏览数据"
-        >
-          <Button onClick={noop} size="xs" type="button" variant="soft">
-            清除浏览数据
-          </Button>
-        </SettingRow>
-
-        <SettingRow description="查看和管理在内置浏览器中访问过的页面" label="浏览历史">
-          <Button onClick={noop} size="xs" type="button" variant="soft">
-            管理
-          </Button>
-        </SettingRow>
-
-        <SettingRow
-          description="截图可帮助 Poietica 更好地理解和处理页面，但会增加用量"
-          label="批注截图"
-        >
-          <Select
-            align="end"
-            className="settings-select-trigger"
-            data={ANNOTATION_MODES}
-            onValueChange={(annotation) => patchBrowser({ annotation })}
-            type="批注截图"
-            value={browser.annotation}
-          />
-        </SettingRow>
-      </SettingsGroup>
-
-      <SettingsGroup title="自动填充和密码">
-        <SettingRow description="添加、删除和编辑已保存的密码" label="密码管理器">
-          <Button onClick={noop} size="xs" type="button" variant="soft">
-            管理
-          </Button>
-        </SettingRow>
-
-        <SettingRow
-          description="添加、删除和编辑已保存的地址、电话号码和电子邮箱地址"
-          label="联系信息"
-        >
-          <Button onClick={noop} size="xs" type="button" variant="soft">
-            管理
-          </Button>
-        </SettingRow>
-      </SettingsGroup>
-
-      <SettingsGroup title="下载">
-        <SettingRow description="系统下载文件夹" label="位置">
-          <Button onClick={noop} size="xs" type="button" variant="soft">
-            更改
-          </Button>
-        </SettingRow>
-
-        <ToggleRow
-          checked={browser.askBeforeDownload}
-          description="对在内置浏览器中发起的下载显示保存对话框"
-          label="下载前询问保存位置"
-          onChange={(askBeforeDownload) => patchBrowser({ askBeforeDownload })}
-        />
-
-        <SettingRow description="查看和管理从内置浏览器下载的文件" label="下载历史记录">
-          <Button onClick={noop} size="xs" type="button" variant="soft">
-            管理
-          </Button>
-        </SettingRow>
-      </SettingsGroup>
-
-      <SettingsGroup title="浏览器权限">
-        <SettingRow description="管理内置浏览器中的摄像头和麦克风权限" label="网站设置">
-          <Button onClick={noop} size="xs" type="button" variant="soft">
-            管理
-          </Button>
-        </SettingRow>
-
-        <SettingRow description="选择 Poietica 是否可访问你的内置浏览器历史记录" label="历史记录">
-          <Select
-            align="end"
-            className="settings-select-trigger"
-            data={HISTORY_ACCESS_MODES}
-            onValueChange={(historyAccess) => patchBrowser({ historyAccess })}
-            type="历史记录"
-            value={browser.historyAccess}
-          />
-        </SettingRow>
-
-        <ToggleRow
-          checked={browser.siteTools}
-          description="允许 Poietica 发现并调用网站公开的站点工具，包括 WebMCP"
-          label="启用站点工具"
-          onChange={(siteTools) => patchBrowser({ siteTools })}
-        />
-      </SettingsGroup>
+      <BrowserSection browser={browser} store={store} />
     </SettingsPage>
   )
 }
 
-function describe(state: ComputerUse): string {
+/*
+ * agent 的浏览器控制走它自己的内置能力（Puppeteer 驱动 Chromium）：这一页只把它
+ * 的开关与连接方式摊出来，写的全是 agent 自己的设置，由它自己热重载。
+ */
+function BrowserSection({
+  browser,
+  store,
+}: {
+  readonly browser: BrowserControl
+  readonly store: PluginStore
+}) {
+  if (browser.kind === 'unread') {
+    return (
+      <SettingsGroup title="浏览器">
+        <SettingRow description={BROWSER_READING} label="浏览器控制" />
+      </SettingsGroup>
+    )
+  }
+
+  if (browser.kind === 'failed') {
+    return (
+      <SettingsGroup title="浏览器">
+        <SettingRow description={browser.reason} label="浏览器控制">
+          <Button
+            onClick={() => store.refreshBrowserSettings()}
+            size="xs"
+            type="button"
+            variant="soft"
+          >
+            重试
+          </Button>
+        </SettingRow>
+      </SettingsGroup>
+    )
+  }
+
+  return (
+    <SettingsGroup title="浏览器">
+      <SettingRow description="让 agent 用它自带的浏览器打开和操作网页" label="浏览器控制">
+        <Switch
+          aria-label="浏览器控制"
+          checked={browser.enabled}
+          onCheckedChange={(enabled) => store.setBrowserSettings({ enabled })}
+          size="sm"
+        />
+      </SettingRow>
+
+      <ToggleRow
+        checked={browser.headless}
+        description="不显示浏览器窗口，在后台完成操作"
+        label="无头模式"
+        onChange={(headless) => store.setBrowserSettings({ headless })}
+      />
+
+      <SettingRow
+        description={browser.cdpUrl === null ? BROWSER_MANAGED : BROWSER_CDP}
+        label="连接方式"
+      >
+        <Select
+          align="end"
+          className="settings-select-trigger"
+          data={CONTROL_MODES}
+          onValueChange={(mode) =>
+            store.setBrowserSettings({ cdpUrl: mode === 'cdp' ? CDP_DEFAULT : '' })
+          }
+          type="连接方式"
+          value={browser.cdpUrl === null ? 'managed' : 'cdp'}
+        />
+      </SettingRow>
+
+      {browser.cdpUrl !== null ? <CdpUrlRow store={store} value={browser.cdpUrl} /> : null}
+    </SettingsGroup>
+  )
+}
+
+function CdpUrlRow({ store, value }: { readonly store: PluginStore; readonly value: string }) {
+  const [draft, setDraft] = useState(value)
+
+  useEffect(() => {
+    setDraft(value)
+  }, [value])
+
+  const commit = () => {
+    if (draft.trim() !== value) {
+      store.setBrowserSettings({ cdpUrl: draft })
+    }
+  }
+
+  return (
+    <SettingRow
+      description="浏览器需带 --remote-debugging-port 启动；agent 从这个端点附着"
+      label="CDP 地址"
+    >
+      <input
+        className="settings-input"
+        onBlur={commit}
+        onChange={(event) => setDraft(event.target.value)}
+        onKeyDown={(event) => {
+          if (event.key === 'Enter') {
+            commit()
+          }
+        }}
+        placeholder={CDP_DEFAULT}
+        value={draft}
+      />
+    </SettingRow>
+  )
+}
+
+function describe(state: ReturnType<typeof computerUse>): string {
   switch (state.kind) {
     case 'unread':
       return UNREAD
@@ -255,7 +202,7 @@ function describe(state: ComputerUse): string {
 }
 
 interface ControlProps {
-  readonly state: ComputerUse
+  readonly state: ReturnType<typeof computerUse>
   readonly store: PluginStore
 }
 

@@ -162,6 +162,15 @@ pub struct Capability {
     pub install: CapabilityInstall,
 }
 
+/// agent 的浏览器控制设置：开关、有头无头，以及附着用的 CDP 端点
+/// （None 即托管启动——agent 自己拉起一个 Chromium）。
+#[derive(Clone, Debug, PartialEq)]
+pub struct BrowserSettings {
+    pub enabled: bool,
+    pub headless: bool,
+    pub cdp_url: Option<String>,
+}
+
 #[derive(Debug, Clone)]
 pub struct McpServer {
     pub id: String,

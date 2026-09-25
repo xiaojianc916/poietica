@@ -86,6 +86,19 @@ export type BridgeCommand =
     }
   | { readonly id: string; readonly type: 'sessions' }
   | { readonly id: string; readonly type: 'capabilities' }
+  /** 读 agent 的浏览器控制设置。 */
+  | { readonly id: string; readonly type: 'browser_settings' }
+  /**
+   * 写 agent 的浏览器控制设置；缺席的格不改。`cdpUrl` 给空串即清掉
+   * （回到托管启动），给了地址就是附着到那个 CDP 端点而不是自己拉浏览器。
+   */
+  | {
+      readonly id: string
+      readonly type: 'set_browser_settings'
+      readonly enabled?: boolean
+      readonly headless?: boolean
+      readonly cdpUrl?: string
+    }
   | { readonly id: string; readonly type: 'skills' }
   | { readonly id: string; readonly type: 'mcp_servers' }
   /**

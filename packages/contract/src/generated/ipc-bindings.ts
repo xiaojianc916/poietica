@@ -68,6 +68,18 @@ async agentCapabilityReport() : Promise<AgentCapability[]> {
 async agentCapabilityInstall(request: AgentCapabilityInstallRequest) : Promise<AgentCapability> {
     return await TAURI_INVOKE("agent_capability_install", { request });
 },
+/**
+ * 读取 agent 的浏览器控制设置；连接不存在时按统一启动管线建立。
+ */
+async agentBrowserSettings() : Promise<AgentBrowserSettings> {
+    return await TAURI_INVOKE("agent_browser_settings");
+},
+/**
+ * 写 agent 的浏览器控制设置；缺席的格不改，交回写完的整份。
+ */
+async agentSetBrowserSettings(request: AgentBrowserSettingsPatch) : Promise<AgentBrowserSettings> {
+    return await TAURI_INVOKE("agent_set_browser_settings", { request });
+},
 async agentThreads() : Promise<AgentThread[]> {
     return await TAURI_INVOKE("agent_threads");
 },
@@ -465,6 +477,14 @@ export type AgentApprovalDecision = "approved" | "rejected"
  */
 export type AgentApprovalScope = "session"
 export type AgentArchiveThreadRequest = { threadId: string; archived: boolean }
+/**
+ * agent 的浏览器控制设置，原样投影。
+ */
+export type AgentBrowserSettings = { enabled: boolean; headless: boolean; cdpUrl: string | null }
+/**
+ * 一次浏览器控制设置的改动；缺席的格不改。
+ */
+export type AgentBrowserSettingsPatch = { enabled: boolean | null; headless: boolean | null; cdpUrl: string | null }
 export type AgentCancelRequest = { threadId: string }
 export type AgentCapabilitiesRequest = { launch: AgentLaunch; cwd: string | null }
 export type AgentCapability = { id: string; pluginId: string | null; label: string; supported: boolean; state: AgentCapabilityState; install: AgentCapabilityInstall }

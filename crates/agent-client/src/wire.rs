@@ -104,6 +104,20 @@ pub enum Command {
     Capabilities {
         id: String,
     },
+    /// agent 的浏览器控制设置。
+    BrowserSettings {
+        id: String,
+    },
+    /// 写浏览器控制设置；缺席的格不改，`cdp_url` 空串即清掉。
+    SetBrowserSettings {
+        id: String,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        enabled: Option<bool>,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        headless: Option<bool>,
+        #[serde(rename = "cdpUrl", skip_serializing_if = "Option::is_none")]
+        cdp_url: Option<String>,
+    },
     Skills {
         id: String,
     },

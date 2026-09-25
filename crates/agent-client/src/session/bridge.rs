@@ -814,6 +814,28 @@ fn outgoing(command: ClientCommand, id: &str, session_id: Option<&str>) -> Resul
             |data| Ok(capabilities_of(&data)),
         ),
 
+        ClientCommand::BrowserSettings { reply } => ask(
+            &Command::BrowserSettings { id: id.to_owned() },
+            reply,
+            |data| Ok(browser_settings_of(&data)),
+        ),
+
+        ClientCommand::SetBrowserSettings {
+            enabled,
+            headless,
+            cdp_url,
+            reply,
+        } => ask(
+            &Command::SetBrowserSettings {
+                id: id.to_owned(),
+                enabled,
+                headless,
+                cdp_url,
+            },
+            reply,
+            |data| Ok(browser_settings_of(&data)),
+        ),
+
         /* 这些在驱动器的别的支上收掉了，或者本机自己答；到不了这里。 */
         ClientCommand::Prompt { .. }
         | ClientCommand::CurrentSession { .. }
@@ -934,6 +956,30 @@ fn servers_of(data: &Value) -> Vec<crate::McpServer> {
                 .collect()
         })
         .unwrap_or_default()
+}
+
+/// 桥报的浏览器控制设置 → 产品的形状；cdpUrl 空串与未设都算「托管启动」。
+fn browser_settings_of(data: &Value) -> crate::BrowserSettings {
+    let browser = data.get("browser");
+
+    let text = |key: &str| {
+        browser
+            .and_then(|browser| browser.get(key))
+            .and_then(Value::as_str)
+            .map(str::to_owned)
+    };
+
+    crate::BrowserSettings {
+        enabled: browser
+            .and_then(|browser| browser.get("enabled"))
+            .and_then(Value::as_bool)
+            .unwrap_or(false),
+        headless: browser
+            .and_then(|browser| browser.get("headless"))
+            .and_then(Value::as_bool)
+            .unwrap_or(true),
+        cdp_url: text("cdpUrl").filter(|url| !url.trim().is_empty()),
+    }
 }
 
 /// 桥报的能力清单 → 产品的形状。认不出的状态跳过，不猜成别的。

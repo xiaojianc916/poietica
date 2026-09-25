@@ -24,8 +24,8 @@ use crate::{
     },
     automation::AutomationCatalogChanged,
     conversation::capability::{
-        AgentCapability, AgentCapabilityInstall, AgentCapabilityInstallRequest,
-        AgentCapabilityState,
+        AgentBrowserSettings, AgentBrowserSettingsPatch, AgentCapability, AgentCapabilityInstall,
+        AgentCapabilityInstallRequest, AgentCapabilityState,
     },
     conversation::custom_agents::{
         CustomAgentCatalog, CustomAgentFile, CustomAgentRemoveRequest, CustomAgentSaveRequest,
@@ -76,6 +76,8 @@ pub(crate) fn surface() -> Builder<Wry> {
             crate::conversation::model_catalog::agent_model_catalog,
             crate::conversation::capability::agent_capability_report,
             crate::conversation::capability::agent_capability_install,
+            crate::conversation::capability::agent_browser_settings,
+            crate::conversation::capability::agent_set_browser_settings,
             crate::conversation::thread::agent_threads,
             crate::conversation::thread::agent_thread_snapshot,
             crate::conversation::export::agent_export_thread,
@@ -206,6 +208,8 @@ pub(crate) fn surface() -> Builder<Wry> {
         .typ::<AgentCapabilityState>()
         .typ::<AgentCapability>()
         .typ::<AgentCapabilityInstallRequest>()
+        .typ::<AgentBrowserSettings>()
+        .typ::<AgentBrowserSettingsPatch>()
         .typ::<AgentRenameThreadRequest>()
         .typ::<AgentArchiveThreadRequest>()
         .typ::<AgentThreadRequest>()

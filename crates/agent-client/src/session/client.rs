@@ -5,7 +5,7 @@ use std::sync::mpsc::{Receiver, SyncSender, sync_channel};
 use futures::channel::{mpsc, oneshot};
 
 use super::config::{ConfigControl, GoalSnapshot};
-use super::{Capability, McpServer, OpenedSession, SessionEntry, Skill};
+use super::{BrowserSettings, Capability, McpServer, OpenedSession, SessionEntry, Skill};
 use crate::error::{AgentError, Refusal, Result};
 use crate::recorder::FrameSink;
 use crate::{ModelCatalogOperation, ModelCatalogSnapshot};
@@ -173,6 +173,17 @@ pub(crate) enum Command {
     /// agent 自己报的能力清单。
     Capabilities {
         reply: oneshot::Sender<Result<Vec<Capability>>>,
+    },
+    /// agent 的浏览器控制设置。
+    BrowserSettings {
+        reply: oneshot::Sender<Result<BrowserSettings>>,
+    },
+    /// 写浏览器控制设置；缺席的格不改。
+    SetBrowserSettings {
+        enabled: Option<bool>,
+        headless: Option<bool>,
+        cdp_url: Option<String>,
+        reply: oneshot::Sender<Result<BrowserSettings>>,
     },
     /// 重装一条以前开过的会话。
     LoadSession {
@@ -494,6 +505,38 @@ impl AgentClient {
         let (reply, answer) = oneshot::channel();
 
         self.send(Command::Capabilities { reply })?;
+
+        answer
+            .await
+            .map_err(|_dropped| AgentError::Refused(Refusal::Gone))?
+    }
+
+    /// agent 的浏览器控制设置（开关、有头无头、CDP 附着）。
+    pub async fn browser_settings(&self) -> Result<BrowserSettings> {
+        let (reply, answer) = oneshot::channel();
+
+        self.send(Command::BrowserSettings { reply })?;
+
+        answer
+            .await
+            .map_err(|_dropped| AgentError::Refused(Refusal::Gone))?
+    }
+
+    /// 写浏览器控制设置；缺席的格不改，交回写完的整份。
+    pub async fn set_browser_settings(
+        &self,
+        enabled: Option<bool>,
+        headless: Option<bool>,
+        cdp_url: Option<String>,
+    ) -> Result<BrowserSettings> {
+        let (reply, answer) = oneshot::channel();
+
+        self.send(Command::SetBrowserSettings {
+            enabled,
+            headless,
+            cdp_url,
+            reply,
+        })?;
 
         answer
             .await

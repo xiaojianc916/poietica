@@ -5,6 +5,7 @@
  * 是这个包自己的事，外面只需要「装了什么、市场上有什么、界面长什么样」。
  */
 
+export type { BrowserControl, BrowserSettingsPatch } from './capability'
 export {
   type CapabilityCommand,
   type CapabilityInventory,

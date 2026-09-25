@@ -1159,6 +1159,21 @@ async function writeDefaultModel(modelId: string): Promise<void> {
   await settings.flush()
 }
 
+/** omp 的浏览器控制设置 → 产品的形状；cdpUrl 空串与未设都算「托管启动」。 */
+function browserSettingsOf(settings: Settings): {
+  enabled: boolean
+  headless: boolean
+  cdpUrl: string | null
+} {
+  const cdpUrl = settings.get('browser.cdpUrl')
+
+  return {
+    enabled: settings.get('browser.enabled') === true,
+    headless: settings.get('browser.headless') === true,
+    cdpUrl: typeof cdpUrl === 'string' && cdpUrl.trim() !== '' ? cdpUrl : null,
+  }
+}
+
 async function dispatch(command: BridgeCommand): Promise<unknown> {
   switch (command.type) {
     case 'new_session': {
@@ -1252,6 +1267,32 @@ async function dispatch(command: BridgeCommand): Promise<unknown> {
 
     case 'sessions':
       return { sessions: [] }
+
+    /*
+     * 浏览器控制设置。omp 的浏览器是内置能力（Puppeteer 驱动 Chromium）：开与关、
+     * 有头无头、附着到现成 CDP 端点还是自己拉一个，都是它自己的设置。写走官方
+     * 写入面并 flush，与磁盘上那份逐字一致。
+     */
+    case 'browser_settings':
+      return { browser: browserSettingsOf(await settingsFor()) }
+
+    case 'set_browser_settings': {
+      const settings = await settingsFor()
+
+      if (command.enabled !== undefined) {
+        settings.set('browser.enabled', command.enabled)
+      }
+      if (command.headless !== undefined) {
+        settings.set('browser.headless', command.headless)
+      }
+      if (command.cdpUrl !== undefined) {
+        settings.set('browser.cdpUrl', command.cdpUrl)
+      }
+
+      await settings.flush()
+
+      return { browser: browserSettingsOf(settings) }
+    }
 
     /*
      * agent 自己提供的能力清单。

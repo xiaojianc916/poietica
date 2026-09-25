@@ -53,11 +53,11 @@ pub use run_slot::RunSlot;
 pub use session::bridge::connect;
 pub use session::observe::{PromptObservation, observe_prompt};
 pub use session::{
-    AgentClient, AgentConnection, AgentSpawn, Capability, CapabilityInstall, CapabilityReadiness,
-    ConfigChoice, ConfigControl, ConfigPurpose, ConfigSelection, Cursor, GoalSnapshot, Handshake,
-    McpServer, McpStatus, MediaBytes, OpenedSession, PromptAttachment, PromptSkill, SessionBook,
-    SessionEntry, SessionEvent, SessionEvents, SessionUsageSnapshot, Skill, apply_configurations,
-    select_config,
+    AgentClient, AgentConnection, AgentSpawn, BrowserSettings, Capability, CapabilityInstall,
+    CapabilityReadiness, ConfigChoice, ConfigControl, ConfigPurpose, ConfigSelection, Cursor,
+    GoalSnapshot, Handshake, McpServer, McpStatus, MediaBytes, OpenedSession, PromptAttachment,
+    PromptSkill, SessionBook, SessionEntry, SessionEvent, SessionEvents, SessionUsageSnapshot,
+    Skill, apply_configurations, select_config,
 };
 
 pub use poietica_conversation::link::LinkState;

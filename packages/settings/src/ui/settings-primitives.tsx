@@ -6,7 +6,7 @@ import type { ReactNode } from 'react'
  */
 
 export interface SettingsPageProps {
-  readonly children: ReactNode
+  readonly children?: ReactNode
 }
 
 export function SettingsPage({ children }: SettingsPageProps) {
@@ -41,7 +41,7 @@ export interface SettingRowProps {
   readonly label: string
   /* 显式 | undefined：description 由 ToggleRow 转发，exactOptionalPropertyTypes 下 ?: 收不下转发值。 */
   readonly description?: string | undefined
-  readonly children: ReactNode
+  readonly children?: ReactNode
 }
 
 export function SettingRow({ label, description, children }: SettingRowProps) {

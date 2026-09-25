@@ -103,4 +103,14 @@ export const capabilityGateway: CapabilityGateway = {
   readCapabilities: () => throughIpc(() => commands.agentCapabilityReport()),
   installCapability: (capabilityId) =>
     throughIpc(() => commands.agentCapabilityInstall({ capabilityId })),
+  readBrowserSettings: () => throughIpc(() => commands.agentBrowserSettings()),
+  writeBrowserSettings: (patch) =>
+    throughIpc(() =>
+      commands.agentSetBrowserSettings({
+        /* 缺席的格发 null：生成的契约是可空必填（serde Option 的投影）。 */
+        enabled: patch.enabled ?? null,
+        headless: patch.headless ?? null,
+        cdpUrl: patch.cdpUrl ?? null,
+      }),
+    ),
 }

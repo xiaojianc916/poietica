@@ -1,5 +1,6 @@
 import { createExternalStore } from '@poietica/external-store'
 import { assertUnreachable, warn } from '@poietica/problem'
+import type { BrowserControl, BrowserSettingsPatch } from './capability'
 import {
   CAPABILITIES_UNREAD,
   CAPABILITY_COMMAND_IDLE,
@@ -87,8 +88,10 @@ export interface PluginsViewModel {
    * 什么只有受控 home 那本账说得出来。
    */
   readonly foreign: readonly ForeignPlugin[]
-  /** 本机 kap 报的能力清单：某项能力装到哪一步，只有它说得出。 */
+  /** 本机 agent 报的能力清单：某项能力装到哪一步，只有它说得出。 */
   readonly capabilities: CapabilityInventory
+  /** agent 的浏览器控制设置：开关、有头无头、CDP 附着。 */
+  readonly browser: BrowserControl
   /** 一次能力安装的进行时。 */
   readonly capabilityCommand: CapabilityCommand
   readonly marketplace: MarketplaceState
@@ -157,6 +160,10 @@ export interface PluginStore {
   readonly start: () => Promise<void>
   /** 让下一次 start() 重新首扫。谁 start 谁 stop。 */
   readonly stop: () => void
+  /** 重新读 agent 的浏览器控制设置（电脑控制页的重试也走它）。 */
+  readonly refreshBrowserSettings: () => void
+  /** 写浏览器控制设置；缺席的格不改。 */
+  readonly setBrowserSettings: (patch: BrowserSettingsPatch) => void
   readonly setEnabled: (pluginId: string, enabled: boolean) => void
   /**
    * 拨动一台服务器。
@@ -299,6 +306,7 @@ export function createPluginStore(options: PluginStoreOptions): PluginStore {
     mcpFailure: undefined,
     foreign: [],
     capabilities: CAPABILITIES_UNREAD,
+    browser: { kind: 'unread' },
     capabilityCommand: CAPABILITY_COMMAND_IDLE,
     marketplace: MARKETPLACE_ABSENT,
     install: INSTALL_IDLE,
@@ -623,6 +631,32 @@ export function createPluginStore(options: PluginStoreOptions): PluginStore {
     }
   }
 
+  async function readBrowserSettings(): Promise<void> {
+    try {
+      const browser = await options.capability.readBrowserSettings()
+
+      publish({ browser: { kind: 'ready', ...browser } })
+    } catch (cause: unknown) {
+      const reason = cause instanceof Error ? cause.message : String(cause)
+
+      warn('浏览器控制设置读取失败', { scope: 'plugins', cause })
+      publish({ browser: { kind: 'failed', reason } })
+    }
+  }
+
+  async function writeBrowserSettings(patch: BrowserSettingsPatch): Promise<void> {
+    try {
+      const browser = await options.capability.writeBrowserSettings(patch)
+
+      publish({ browser: { kind: 'ready', ...browser } })
+    } catch (cause: unknown) {
+      const reason = cause instanceof Error ? cause.message : String(cause)
+
+      warn('浏览器控制设置写入失败', { scope: 'plugins', cause })
+      publish({ browser: { kind: 'failed', reason } })
+    }
+  }
+
   let capabilityReadQueued = false
 
   function queueCapabilityRead(): void {
@@ -759,8 +793,9 @@ export function createPluginStore(options: PluginStoreOptions): PluginStore {
       ready = queue
 
       queue = queue.then(async () => {
-        /* 能力清单只喂插件页那一格，谁都没在等它 —— 首屏落定之后才问。 */
+        /* 能力清单与浏览器设置只喂电脑控制页那一格，谁都没在等它 —— 首屏落定之后才问。 */
         await readCapabilities()
+        await readBrowserSettings()
 
         /*
          * 只有从来没取过才自动拉一次，这条判据由 shouldFetchOnOpen 一个地方说了算，
@@ -1023,6 +1058,12 @@ export function createPluginStore(options: PluginStoreOptions): PluginStore {
       })
     },
 
+    refreshBrowserSettings() {
+      void readBrowserSettings()
+    },
+    setBrowserSettings(patch) {
+      queue = queue.then(() => writeBrowserSettings(patch)).catch(() => undefined)
+    },
     refreshCapabilities() {
       queueCapabilityRead()
     },

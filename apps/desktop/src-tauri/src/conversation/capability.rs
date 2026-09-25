@@ -3,7 +3,7 @@
 //! 能力属于 agent 进程级服务；命令经统一运行时确保连接，不依赖某条用户对话。
 
 use crate::agent::profile::default_agent_id;
-use poietica_agent_client::{Capability, CapabilityReadiness};
+use poietica_agent_client::{BrowserSettings, Capability, CapabilityReadiness};
 use serde::{Deserialize, Serialize};
 use specta::Type;
 use tauri::{AppHandle, State};
@@ -98,4 +98,66 @@ pub async fn agent_capability_install(
         .map_err(crate::error::Error::from)?;
 
     Ok(reported(installed))
+}
+
+/// agent 的浏览器控制设置，原样投影。
+#[derive(Debug, Serialize, Type)]
+#[serde(rename_all = "camelCase")]
+pub struct AgentBrowserSettings {
+    pub enabled: bool,
+    pub headless: bool,
+    pub cdp_url: Option<String>,
+}
+
+/// 一次浏览器控制设置的改动；缺席的格不改。
+#[derive(Debug, Deserialize, Type)]
+#[serde(rename_all = "camelCase")]
+pub struct AgentBrowserSettingsPatch {
+    pub enabled: Option<bool>,
+    pub headless: Option<bool>,
+    pub cdp_url: Option<String>,
+}
+
+fn reported_browser(settings: BrowserSettings) -> AgentBrowserSettings {
+    AgentBrowserSettings {
+        enabled: settings.enabled,
+        headless: settings.headless,
+        cdp_url: settings.cdp_url,
+    }
+}
+
+/// 读取 agent 的浏览器控制设置；连接不存在时按统一启动管线建立。
+#[tauri::command]
+#[specta::specta]
+pub async fn agent_browser_settings(
+    app: AppHandle,
+    state: State<'_, AgentRuntime>,
+) -> AgentCommandResult<AgentBrowserSettings> {
+    let settings = state
+        .browser_settings(default_agent_id(&app)?)
+        .await
+        .map_err(crate::error::Error::from)?;
+
+    Ok(reported_browser(settings))
+}
+
+/// 写 agent 的浏览器控制设置；缺席的格不改，交回写完的整份。
+#[tauri::command]
+#[specta::specta]
+pub async fn agent_set_browser_settings(
+    app: AppHandle,
+    state: State<'_, AgentRuntime>,
+    request: AgentBrowserSettingsPatch,
+) -> AgentCommandResult<AgentBrowserSettings> {
+    let settings = state
+        .set_browser_settings(
+            default_agent_id(&app)?,
+            request.enabled,
+            request.headless,
+            request.cdp_url,
+        )
+        .await
+        .map_err(crate::error::Error::from)?;
+
+    Ok(reported_browser(settings))
 }

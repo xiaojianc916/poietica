@@ -2,7 +2,8 @@ use super::{CommandError, Runtime, RuntimeFailure, Takeover};
 use crate::connection::Handle;
 use crate::session::{SessionMode, SessionRequest};
 use poietica_agent_client::{
-    Capability, ConfigControl, McpServer, ModelCatalogOperation, ModelCatalogSnapshot, Skill,
+    BrowserSettings, Capability, ConfigControl, McpServer, ModelCatalogOperation,
+    ModelCatalogSnapshot, Skill,
 };
 
 impl<E: RuntimeFailure> Runtime<E> {
@@ -70,6 +71,33 @@ impl<E: RuntimeFailure> Runtime<E> {
             .map_err(CommandError::Agent)?;
         drop(held);
         Ok(snapshot)
+    }
+
+    /// agent 的浏览器控制设置；进程级事实，与连接锚在哪个工作区无关。
+    pub async fn browser_settings(
+        &self,
+        agent: String,
+    ) -> Result<BrowserSettings, CommandError<E>> {
+        let live = self.or_live(agent).await?;
+        live.client
+            .browser_settings()
+            .await
+            .map_err(CommandError::Agent)
+    }
+
+    /// 写浏览器控制设置；缺席的格不改，交回写完的整份。
+    pub async fn set_browser_settings(
+        &self,
+        agent: String,
+        enabled: Option<bool>,
+        headless: Option<bool>,
+        cdp_url: Option<String>,
+    ) -> Result<BrowserSettings, CommandError<E>> {
+        let live = self.or_live(agent).await?;
+        live.client
+            .set_browser_settings(enabled, headless, cdp_url)
+            .await
+            .map_err(CommandError::Agent)
     }
 
     pub async fn capability_report(
