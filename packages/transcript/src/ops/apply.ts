@@ -13,7 +13,7 @@ import type { AppendOp, StepHeader, TranscriptOperation, TurnHeader } from './op
 
 export interface AgentState {
   readonly items: readonly TranscriptItem[]
-  /* 位置是 items 的派生。没有它，流式期间每一条 append 都要线性扫一遍整本对话。 */
+  // 位置是 items 的派生：没有它，流式期间每条 append 都要线性扫整本对话。
   readonly turnIndex: ReadonlyMap<TurnId, number>
   readonly tasks: ReadonlyMap<TaskId, TranscriptTask>
   readonly interactions: ReadonlyMap<InteractionId, TranscriptInteraction>
@@ -127,7 +127,7 @@ function skeletonStep(stepId: string, turnId: TurnId): TranscriptStep {
   return { kind: 'step', stepId, turnId, ordinal, state: 'running', frames: [] }
 }
 
-/** 位置表是 items 的派生，只在 items 真的动过时重建：插入/删除本来就已付出一次 O(n) 复制。 */
+// 位置表是 items 的派生，只在 items 真的动过时重建（插入/删除已付出 O(n) 复制）。
 function turnIndexIn(items: readonly TranscriptItem[]): ReadonlyMap<TurnId, number> {
   const turnIndex = new Map<TurnId, number>()
   for (let at = 0; at < items.length; at += 1) {
@@ -295,12 +295,10 @@ function frameEquals(a: TranscriptFrame, b: TranscriptFrame): boolean {
       a.state === b.state &&
       a.toolCallId === b.toolCallId &&
       a.name === b.name &&
-      a.view === b.view &&
       a.input === b.input &&
+      a.intent === b.intent &&
       a.output === b.output &&
-      a.display === b.display &&
       a.error === b.error &&
-      a.inputText === b.inputText &&
       a.progress === b.progress &&
       a.taskId === b.taskId &&
       a.approvalId === b.approvalId &&

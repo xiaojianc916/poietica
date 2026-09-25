@@ -70,6 +70,32 @@ describe('omp 事件投影成 transcript ops', () => {
     expect(tools[0]).toMatchObject({ kind: 'tool', toolCallId: 'c1', state: 'done' })
   })
 
+  /*
+   * 覆盖是整格替换（ops/apply.ts 的 applyFrameUpsert），所以结果那一帧必须把入参带回来。
+   * 不带的话，path/command 在结果到达那一刻就被抹掉：一次读文件退成没有路径的
+   * 「读取文件」，送出去的那一面也空了。
+   */
+  it('结果那一帧把入参一起带回来，路径与命令不会被抹掉', () => {
+    const projector = new TranscriptProjector()
+    const ops: Op[] = [...projector.userTurn('读一下')]
+
+    ops.push(
+      ...projector.toolStart({ toolCallId: 'c1', toolName: 'read', args: { path: 'src/a.ts' } }),
+    )
+    ops.push(
+      ...projector.toolEnd({
+        toolCallId: 'c1',
+        toolName: 'read',
+        result: { content: [{ type: 'text', text: 'const a = 1' }] },
+      }),
+    )
+
+    const { turn } = settle(ops)
+    const tool = (turn('t1')?.steps[0]?.frames ?? []).find((frame) => frame.kind === 'tool')
+
+    expect(tool).toMatchObject({ state: 'done', input: { path: 'src/a.ts' } })
+  })
+
   it('失败的工具调用落 error，并把结果写进 error 文案', () => {
     const projector = new TranscriptProjector()
     const ops: Op[] = [...projector.userTurn('跑一下')]

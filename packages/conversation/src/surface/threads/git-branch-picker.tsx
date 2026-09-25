@@ -94,11 +94,7 @@ export function GitBranchPicker({
         }}
         open={open}
       >
-        <DropdownMenuTrigger
-          aria-label="切换分支"
-          className="git-branch-picker__trigger"
-          title={label}
-        >
+        <DropdownMenuTrigger aria-label="切换分支" className="git-branch-picker__trigger">
           <GitBranch aria-hidden="true" />
 
           <span className="git-branch-picker__name">{label}</span>
@@ -133,40 +129,42 @@ export function GitBranchPicker({
             />
           </div>
 
-          {matches.map((name) => {
-            const selected = name === branch
+          <div className="git-branch-picker__list">
+            {matches.map((name) => {
+              const selected = name === branch
 
-            return (
-              <DropdownMenuItem
-                className="git-branch-picker__item"
-                closeOnClick={false}
-                data-current={selected ? 'true' : undefined}
-                disabled={busy}
-                key={name}
-                onClick={() => {
-                  if (selected) {
-                    setOpen(false)
+              return (
+                <DropdownMenuItem
+                  className="git-branch-picker__item"
+                  closeOnClick={false}
+                  data-current={selected ? 'true' : undefined}
+                  disabled={busy}
+                  key={name}
+                  onClick={() => {
+                    if (selected) {
+                      setOpen(false)
 
-                    return
-                  }
+                      return
+                    }
 
-                  void onSwitch(name).then(settle)
-                }}
-              >
-                <GitBranch aria-hidden="true" />
+                    void onSwitch(name).then(settle)
+                  }}
+                >
+                  <GitBranch aria-hidden="true" />
 
-                <span className="git-branch-picker__item-name">{name}</span>
+                  <span className="git-branch-picker__item-name">{name}</span>
 
-                {selected ? (
-                  <Check aria-hidden="true" className="git-branch-picker__check" />
-                ) : null}
-              </DropdownMenuItem>
-            )
-          })}
+                  {selected ? (
+                    <Check aria-hidden="true" className="git-branch-picker__check" />
+                  ) : null}
+                </DropdownMenuItem>
+              )
+            })}
 
-          {matches.length === 0 && !creatable ? (
-            <p className="git-branch-picker__none">没有匹配的分支。</p>
-          ) : null}
+            {matches.length === 0 && !creatable ? (
+              <p className="git-branch-picker__none">没有匹配的分支。</p>
+            ) : null}
+          </div>
 
           <DropdownMenuSeparator className="git-branch-picker__separator" />
 

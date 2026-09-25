@@ -273,11 +273,11 @@ export function ArchivedChatsSettings({ threads }: ArchivedChatsSettingsProps) {
       ) : null}
 
       {!snapshot.isLoading && snapshot.items.length === 0 ? (
-        <p className="archived-chats__message">还没有已归档的聊天。</p>
+        <p className="archived-chats__message">还没有已归档的聊天</p>
       ) : null}
 
       {snapshot.items.length > 0 && visibleGroups.length === 0 ? (
-        <p className="archived-chats__message">没有符合当前筛选条件的聊天。</p>
+        <p className="archived-chats__message">没有符合当前筛选条件的聊天</p>
       ) : null}
 
       <div className="archived-chats__groups">

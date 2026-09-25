@@ -1,4 +1,3 @@
-/** Public headless conversation API. React bindings use the surface entry. */
 export type { AgentCapabilityPort } from './agent/capability'
 export type {
   SessionConfigChoice,
@@ -9,7 +8,6 @@ export type {
   SessionConfigReport,
 } from './agent/config'
 export type { SessionGoal, SessionGoalStatus } from './agent/goal'
-export type { KapToolCallId } from './agent/kap'
 export type { SessionLink } from './agent/link'
 export type {
   ApprovalAnswer,
@@ -99,7 +97,6 @@ export type {
   MessageFile,
   MessageImage,
   PermissionItem,
-  PlanItem,
   QuestionTimelineItem,
   TimelineState,
   TodoItem,

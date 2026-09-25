@@ -739,6 +739,7 @@
 .workspace-picker__menu[data-assistant-skin] {
   min-inline-size: 216px;
   font-size: var(--cp-font-caption);
+  box-shadow: none;
 }
 
 /* 搜索是弹层的标题栏：图标在左，与名单隔一条线。 */

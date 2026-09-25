@@ -96,8 +96,7 @@ function repliesOf(snapshot: AgentTranscriptSnapshot) {
 
 describe('projection identity across deltas', () => {
   test('unchanged turns keep their page and outline identity while one turn streams', () => {
-    /* 上游 reducer 是结构共享的：一条 delta 只换它碰到的那一个 turn。投影对没变
-     * 的 turn 必须复用身份 —— 行 memo 与 presentation 段缓存都吃这份引用。 */
+    // 上游 reducer 结构共享：没变的 turn 必须复用身份，行 memo 与段缓存都吃这份引用。
     const settled = runSample(1)
     const streaming = runSample(2, { kind: 'user' }, undefined, 'running')
     const before = projectTranscript(snapshotOf([settled, streaming]))
@@ -271,46 +270,25 @@ describe('run origin, completion and undo boundaries', () => {
   })
 })
 describe('tool identity and run presentation', () => {
-  test('known tools keep their category before display and after cold restoration', () => {
+  test('known tools keep their category and their own line before and after cold restoration', () => {
     const samples = [
-      ['bash', { command: 'pwd' }, { kind: 'command', command: 'pwd' }, 'execute', 'pwd'],
+      ['bash', { command: 'pwd' }, 'execute', 'pwd', 'pwd'],
+      ['read', { path: 'a.ts' }, 'read', 'a.ts', '阅读 a.ts'],
+      ['grep', { pattern: 'needle' }, 'search', 'needle', '搜索 needle'],
+      ['glob', { path: '*.ts' }, 'search', '*.ts', '按模式查找 *.ts'],
+      ['github', { op: 'repo_view', repo: 'a/b' }, 'fetch', 'a/b', 'GitHub 查看仓库 a/b'],
+      ['manage_skill', { action: 'create', name: 'review' }, 'skill', 'review', '新建技能 review'],
+      ['web_search', { query: 'omp' }, 'fetch', 'omp', '联网搜索 omp'],
+      ['todo', { op: 'start', task: '建索引' }, 'todo', '建索引', '开始任务 建索引'],
       [
-        'read',
-        { path: 'a.ts' },
-        { kind: 'file_io', operation: 'read', path: '/repo/a.ts' },
-        'read',
-        'a.ts',
-      ],
-      [
-        'grep',
-        { pattern: 'needle' },
-        { kind: 'file_io', operation: 'grep', path: '/repo' },
-        'search',
-        'needle',
-      ],
-      [
-        'glob',
-        { pattern: '*.ts' },
-        { kind: 'file_io', operation: 'glob', path: '/repo' },
-        'search',
-        '*.ts',
-      ],
-      [
-        'github',
-        { url: 'https://example.com' },
-        { kind: 'url_fetch', url: 'https://example.com' },
+        'browser',
+        { action: 'open', url: 'https://x' },
         'fetch',
-        'https://example.com',
-      ],
-      [
-        'manage_skill',
-        { name: 'review' },
-        { kind: 'skill_call', skill_name: 'review' },
-        'skill',
-        'review',
+        'open · https://x',
+        '浏览器 打开 https://x',
       ],
     ] as const
-    for (const [name, input, display, kind, subject] of samples) {
+    for (const [name, input, kind, subject, headline] of samples) {
       const frame = {
         kind: 'tool',
         frameId: 'call',
@@ -318,36 +296,38 @@ describe('tool identity and run presentation', () => {
         name,
         state: 'done',
       } as const
-      for (const variant of [frame, { ...frame, input }, { ...frame, input, display }]) {
+      for (const variant of [frame, { ...frame, input }]) {
         const state = projectTranscript(snapshotOf([runSample(0, undefined, [variant])]))
         const tool = state.active.items.find((item) => item.type === 'tool_call')
         expect(tool?.kind).toBe(kind)
         if ('input' in variant) {
           expect(tool?.subject).toBe(subject)
-          expect(tool?.requestContent.length).toBeGreaterThan(0)
+          expect(tool?.headline).toBe(headline)
         }
       }
     }
   })
 
-  test('view identity is authoritative, case-insensitive, and not a substring guess', () => {
+  test('an unknown tool keeps its raw name and guesses its nature from the argument shape', () => {
     const frames: TranscriptFrame[] = [
       { kind: 'tool', frameId: 'a', toolCallId: 'a', name: 'bash', state: 'done' },
       {
         kind: 'tool',
         frameId: 'b',
         toolCallId: 'b',
-        name: 'custom',
-        view: 'Read',
+        name: 'mcp__srv__run',
         state: 'done',
         input: { path: 'a.ts' },
       },
-      { kind: 'tool', frameId: 'c', toolCallId: 'c', name: 'ReadEverything', state: 'done' },
+      { kind: 'tool', frameId: 'c', toolCallId: 'c', name: 'mystery', state: 'done' },
     ]
     const state = projectTranscript(snapshotOf([runSample(0, undefined, frames)]))
-    expect(
-      state.active.items.filter((item) => item.type === 'tool_call').map((item) => item.kind),
-    ).toEqual(['execute', 'read', 'other'])
+    const tools = state.active.items.filter((item) => item.type === 'tool_call')
+    expect(tools.map((item) => item.kind)).toEqual(['execute', 'read', 'other'])
+    // MCP 认前缀：服务器与工具名分开报，类别按入参形状猜。
+    expect(tools[1]?.headline).toBe('srv · run')
+    // 完全不认得的名字没有 headline：折叠行退到工具名。
+    expect(tools[2]?.headline).toBe('')
   })
 
   test('a trailing tool is process; actions follow the visible run tail in both disclosure states', () => {
@@ -498,20 +478,7 @@ describe('tool identity and run presentation', () => {
         const { frames, ...stepHeader } = step
         live.receive([{ op: 'step.upsert', turnId: item.turnId, step: stepHeader }])
         for (const frame of frames) {
-          live.receive([
-            {
-              op: 'frame.upsert',
-              turnId: item.turnId,
-              stepId: step.stepId,
-              frame:
-                frame.kind === 'tool'
-                  ? {
-                      ...frame,
-                      display: { kind: 'file_io', operation: 'read', path: '/repo/a.ts' },
-                    }
-                  : frame,
-            },
-          ])
+          live.receive([{ op: 'frame.upsert', turnId: item.turnId, stepId: step.stepId, frame }])
         }
       }
     }

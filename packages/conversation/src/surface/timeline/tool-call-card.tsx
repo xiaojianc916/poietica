@@ -16,10 +16,8 @@ import {
   ModelIcon,
   PencilIcon,
   PlanIcon,
-  PreviewIcon,
   SearchIcon,
   SkillIcon,
-  SwarmIcon,
   TerminalIcon,
   ToolIcon,
 } from '../primitives/icons'
@@ -28,7 +26,6 @@ import { clampToLine, readToolLine, sayToolCount } from '../semantics/tool-inten
 import { useDelegateChannel } from './delegate-channel-context'
 import { ToolCallPanels } from './tool-call-panels'
 
-/** 类别来自统一投影，未知工具保留通用图标。 */
 export function ToolKindIcon({ kind }: { readonly kind: ToolCallTimelineItem['kind'] }) {
   const className = 'timeline-row__icon'
 
@@ -50,10 +47,6 @@ export function ToolKindIcon({ kind }: { readonly kind: ToolCallTimelineItem['ki
       return <SkillIcon aria-hidden="true" className={className} />
     case 'todo':
       return <PlanIcon aria-hidden="true" className={className} />
-    case 'plan':
-      return <PreviewIcon aria-hidden="true" className={className} />
-    case 'task':
-      return <SwarmIcon aria-hidden="true" className={className} />
     case 'goal':
       return <GoalIcon aria-hidden="true" className={className} />
     case 'other':
@@ -73,26 +66,16 @@ interface ToolCallCardView {
   readonly isRunning: boolean
 }
 
-/*
- * isRunning 的两个条件缺一不可：这一轮还在飞，并且这次调用还没有收到终态。后半
- * 句单独用不得 —— status 是 agent 说过的话，一次没等到终态的调用会永远停在
- * in_progress。轮次是否还在飞由读模型说。
- *
- * 它有两个去处：抽屉里那句空态文案（还在跑，所以还没有返回），以及这一行的字上扫过
- * 的那道光。除此之外标题栏不画状态 —— 失败与耗时不在这一行上说。
- *
- * 开合不属于这份投影：它归转录那一层，按条目 id 记账。
- */
+// isRunning 两条件缺一不可：轮次还在飞，且调用没收到终态。
+// status 是 agent 说过的话，没等到终态的调用会永远停在 in_progress。
 function describeToolCall(item: ToolCallTimelineItem, isInFlight: boolean): ToolCallCardView {
   return {
-    /* 只有徽章要它，而它记在 WeakMap 里；两个面的 markdown 归抽屉自己算。 */
     diffStat: diffStatOf(toDiffFilesOf(item)),
     isRunning: isInFlight && (item.status === 'pending' || item.status === 'in_progress'),
     line: readToolLine(item),
   }
 }
 
-/** 加减了多少行。两边都是零就不占位。 */
 export function ToolCallDiffStat({ diffStat }: { readonly diffStat: DiffStat | null }) {
   if (diffStat === null || diffStat.added + diffStat.removed === 0) {
     return null
@@ -110,7 +93,6 @@ export function ToolCallDiffStat({ diffStat }: { readonly diffStat: DiffStat | n
   )
 }
 
-/** 这一行：一枚图标，一句话，指到才出现的箭头 —— 还在跑的时候，那句话上有一道光扫过。 */
 function ToolCallHeader({
   isChannel,
   isOpen,
@@ -148,17 +130,8 @@ function ToolCallHeader({
   )
 }
 
-/**
- * One tool call, from the moment it is announced to the moment it settles.
- *
- * 不是一张卡：外框、圆角与投影归 [data-surface]，戴它的是需要人回答的东西。这
- * 一行是活动流里的一条记事，和思考链那一行同一个音量。
- *
- * 抽屉：收起就不挂载，所以两个面的 markdown 只在点开的那一份上解析。
- *
- * 一次投影、两个渲染器。不包 memo —— 唯一的调用点 TimelineRow 已经按 row 记忆
- * 化，再包一层只是多一次比较。
- */
+// 活动流里的一条记事，不是一张卡（外框圆角归 [data-surface]）。
+// 抽屉收起就不挂载，两个面的 markdown 只在点开时解析。
 export function ToolCallCard({
   isInFlight,
   isOpen,
@@ -173,11 +146,10 @@ export function ToolCallCard({
   const view = describeToolCall(item, isInFlight)
   const openChannel = useDelegateChannel()
 
-  /* 派发的账目在它自己的通道里，这一行只是入口 —— 主转录不摊开子代理说的话。 */
+  // 派发的账目在它自己的通道里，这一行只是入口。
   if (isDelegation(item)) {
     const [only] = item.channels
 
-    /* 只派出一个：这一行本身就是那条通道的入口。 */
     if (only !== undefined && item.channels.length === 1) {
       return (
         <section className="timeline-tool">
@@ -194,7 +166,6 @@ export function ToolCallCard({
       )
     }
 
-    /* 派出好几个：汇总头只管开合，进哪一条通道由成员那一行说。 */
     return (
       <section className="timeline-group">
         <button aria-expanded={isOpen} className="timeline-row" onClick={onToggle} type="button">

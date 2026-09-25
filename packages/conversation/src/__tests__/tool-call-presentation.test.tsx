@@ -6,19 +6,21 @@ import { TurnSeal, type TurnSealProps } from '../surface/timeline/turn-seal'
 import type { LinkTimelineItem, ToolCallTimelineItem } from '../timeline/timeline-contract'
 
 describe('工具调用的产品呈现', () => {
-  it('计划只显示渲染后的计划正文', () => {
+  it('只有一面的调用不挂切换条，纸就是它', () => {
     const item: ToolCallTimelineItem = {
       type: 'tool_call',
-      id: 'tool-plan',
+      id: 'tool-read',
       turn: 0,
       at: 0,
-      toolCallId: 'plan-1',
-      title: '计划',
-      kind: 'plan',
-      subject: '# 成都 5 天 4 晚休闲游',
+      toolCallId: 'read-1',
+      title: 'read',
+      kind: 'read',
+      headline: '阅读 src/app.ts',
+      subject: 'src/app.ts',
+      shape: 'result',
       status: 'completed',
-      requestContent: [{ type: 'prose', text: '# 成都 5 天 4 晚休闲游\n\n## 行程总览' }],
-      content: [{ type: 'content', content: { type: 'text', text: 'ok' } }],
+      requestContent: [],
+      content: [{ type: 'command', command: 'const app = 1', language: 'typescript' }],
       locations: [],
       channels: [],
       startedAt: 0,
@@ -27,11 +29,39 @@ describe('工具调用的产品呈现', () => {
 
     const markup = renderToStaticMarkup(<ToolCallPanels isRunning={false} item={item} />)
 
-    expect(markup).toContain('成都 5 天 4 晚休闲游')
-    expect(markup).toContain('行程总览')
-    expect(markup).not.toContain('Request')
-    expect(markup).not.toContain('Response')
-    expect(markup).not.toContain('>ok<')
+    expect(markup).toContain('const app = 1')
+    expect(markup).not.toContain('输入')
+    expect(markup).not.toContain('输出')
+  })
+
+  it('前后相接的两面摞在同一张纸上，不挂切换条', () => {
+    const item: ToolCallTimelineItem = {
+      type: 'tool_call',
+      id: 'tool-bash',
+      turn: 0,
+      at: 0,
+      toolCallId: 'bash-1',
+      title: 'bash',
+      kind: 'execute',
+      headline: 'bun test',
+      subject: 'bun test',
+      shape: 'flow',
+      status: 'completed',
+      requestContent: [{ type: 'command', command: 'bun test', language: 'bash' }],
+      content: [{ type: 'content', content: { type: 'text', text: '42 pass' } }],
+      locations: [],
+      channels: [],
+      startedAt: 0,
+      endedAt: 1,
+    }
+
+    const markup = renderToStaticMarkup(<ToolCallPanels isRunning={false} item={item} />)
+
+    expect(markup).toContain('bun test')
+    expect(markup).toContain('42 pass')
+    expect(markup).toContain('data-seam')
+    expect(markup).not.toContain('输入')
+    expect(markup).not.toContain('输出')
   })
 
   it('重连状态不显示倒计时', () => {

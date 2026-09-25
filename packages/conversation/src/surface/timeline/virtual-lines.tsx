@@ -1,16 +1,15 @@
 import { useVirtualizer } from '@tanstack/react-virtual'
 
 /*
- * 一大段机器输出的画法：按行虚拟化。
+ * 一段长文本的画法：按行虚拟化。
  *
- * 抽屉里的那一面本来是整段交给 markdown 管线的。产出长到几百行时那一步就不划算了 ——
- * 每一行都要分词、要建节点，而屏幕上一次只看得到十行。过了阈值就换这一条路：只画视口
- * 里那几行，没画的两头各留一段空白把高度占住。
+ * 两个消费点同一套机器：抽屉里那一大段机器输出（tool-call-panels）与展开的推理
+ * （thought-card）。产出长到几百行时整段交给 markdown 管线就不划算了 —— 每一行都要
+ * 分词、要建节点，而屏幕上一次只看得到十行。过了阈值就换这一条路：只画视口里那几行，
+ * 没画的两头各留一段空白把高度占住。
  *
- * 代价是这一面不再是 markdown：不上色，也不再有 markdown 结构。会长到三百行以上的东西
- * 是机器输出 —— 一次搜索的全部命中、一整份文件正文、一段 JSON —— 它们本来就是一行一条
- * 的记录，而抽屉作用域里围栏的外壳与复制按钮早被摘掉（tool-call.css 的 __prose 一节），
- * 所以换过来的画面与原来基本相同。
+ * 差别只有一处：机器输出一行就是屏幕上的一行（等宽、不折行，高度恒定）；推理是散文，
+ * 一格会折行，高度得量（measured）。
  *
  * 判据是行数不是字节数：屏幕上要建多少个节点，由行数决定。
  */
@@ -22,8 +21,8 @@ export const VIRTUAL_ABOVE_LINES = 300
  * 一个行盒的高度：--ui-prose-size-aux（0.8125rem）× --ui-line-height-normal（1.5）。
  * 与 row-estimate.ts 同一条规矩 —— 令牌是正本，这里是它的读数，换算写在注释里。
  *
- * 它只用来估高度，行本身多高由 CSS 给（同样那两条令牌）。所以这个数偏一点也不会错位：
- * 行在文档流里，永远首尾相接；偏的只是滚动条总长。
+ * 它只用来估高度，行本身多高由 CSS 给。所以这个数偏一点也不会错位：行在文档流里，
+ * 永远首尾相接；偏的只是滚动条总长。measured 那一档连估都不用，量出来的会覆盖它。
  */
 const LINE_PX = 19.5
 
@@ -31,7 +30,7 @@ const LINE_PX = 19.5
 const OVERSCAN = 8
 
 /*
- * 滚动容器是外面那个面板，元素本身由父组件交进来 —— 而且交的是元素，不是 ref。
+ * 滚动容器是外面那个盒子，元素本身由父组件交进来 —— 而且交的是元素，不是 ref。
  *
  * 这不是风格问题。虚拟器只在挂载的那一次读 getScrollElement()，而 React 挂 ref 是在
  * 布局阶段、子组件的布局副作用跑完之后（commitAttachRef 在递归子节点之后）。所以
@@ -41,12 +40,19 @@ const OVERSCAN = 8
  * 用状态就对了：回调 ref 一挂上就写进 state，多出来这一次渲染正赶上虚拟器重读元素，
  * 观察者在那时接上。
  */
-export function ToolOutputLines({
+export function VirtualLines({
+  className,
+  lineClassName,
   lines,
+  measured = false,
   viewport,
 }: {
+  readonly className: string
+  readonly lineClassName: string
   readonly lines: readonly string[]
-  readonly viewport: HTMLDivElement | null
+  /** 一格会折行时置起：高度交给虚拟器量，估的那个数只是个初值。 */
+  readonly measured?: boolean
+  readonly viewport: HTMLElement | null
 }) {
   const virtualizer = useVirtualizer({
     count: lines.length,
@@ -61,11 +67,17 @@ export function ToolOutputLines({
   const tail = total - (items.at(-1)?.end ?? 0)
 
   return (
-    <div className="timeline-tool__output">
+    <div className={className}>
       {/* 没画的那两段各占住自己的高度，否则滚动条会随着渲染缩掉。 */}
       <div style={{ blockSize: head }} />
       {items.map((item) => (
-        <div className="timeline-tool__output-line" key={item.key}>
+        <div
+          className={lineClassName}
+          /* 量高度要按 index 认行：虚拟器靠它把量到的值写回自己那张表。 */
+          data-index={measured ? item.index : undefined}
+          key={item.key}
+          ref={measured ? virtualizer.measureElement : undefined}
+        >
           {lines[item.index] ?? ''}
         </div>
       ))}

@@ -5,31 +5,18 @@ import type { FeedRow } from '../../timeline/presentation'
 import { CompactionStatus } from './compaction-status'
 import { ErrorNotice } from './error-notice'
 import { LinkCard } from './link-card'
-import { PlanPanel } from './plan-panel'
 import { Prose } from './prose'
 import { QuestionRecord } from './question-record'
 import { ThoughtCard } from './thought-card'
 import { ToolCallCard } from './tool-call-card'
 import { UserMessage } from './user-message'
 
-/**
- * One entry in the activity feed.
- *
- * Dispatch only. The feed owns scrolling and measurement, each renderer owns
- * its own appearance, and this decides nothing except which one applies.
- *
- * Memoised against the row, whose identity the selector holds stable for as
- * long as its entry is untouched: an arriving token then re-renders the tail
- * and nothing above it.
- *
- * 上屏的条目类型各一支，一个分发点。新增一种在这里是编译错误，不是一行静默
- * 的空白。
- */
+// 纯分发：feed 管滚动和测量，每个渲染器管自己的外观。
+// 按 row memo，selector 保持条目身份稳定，到达的 token 只重渲尾部。
 export interface TimelineRowProps {
   readonly row: FeedRow
-  /** 抽屉开着没有。开合归转录那一层，按条目 id 记账，滚出视口也不丢。 */
   readonly isOpen: boolean
-  /** 收下 id 而不是一个闭包：这一支是 memo 过的，每帧换身份就等于每帧重渲。 */
+  // 收下 id 而不是闭包：这一支是 memo 过的，每帧换身份等于每帧重渲。
   readonly onToggle: (id: string) => void
 }
 
@@ -50,7 +37,7 @@ export const TimelineRow = memo(function TimelineRow({ isOpen, onToggle, row }: 
     case 'agent_text':
       return <Prose className="timeline-message" streaming={row.isStreamingTail} text={item.text} />
 
-    /* 推理是一行现场：运行中不是控件，落定之后才交出开合（thought-card）。 */
+    // 推理是一行现场：运行中不是控件，落定之后才交出开合。
     case 'agent_thought':
       return (
         <ThoughtCard
@@ -75,16 +62,12 @@ export const TimelineRow = memo(function TimelineRow({ isOpen, onToggle, row }: 
         />
       )
 
-    case 'plan':
-      return <PlanPanel entries={item.entries} />
-
     case 'compaction':
       return <CompactionStatus item={item} />
 
     case 'error':
       return <ErrorNotice message={item.message} />
 
-    /* 断线与工具调用同一个形制：它同样是「这一轮里发生的一件事」。 */
     case 'link':
       return (
         <LinkCard
@@ -100,7 +83,7 @@ export const TimelineRow = memo(function TimelineRow({ isOpen, onToggle, row }: 
     case 'question':
       return <QuestionRecord item={item} />
 
-    /* 运行锚点只承载封条；审批与在飞身份不单独成行。 */
+    // 运行锚点只承载封条；审批与在飞身份不单独成行。
     case 'run_anchor':
     case 'inflight_prompt':
     case 'permission':
@@ -111,7 +94,6 @@ export const TimelineRow = memo(function TimelineRow({ isOpen, onToggle, row }: 
   }
 })
 
-/* A new entry type fails to compile here; at runtime, nothing is drawn. */
 function unhandled(_item: never): null {
   return null
 }

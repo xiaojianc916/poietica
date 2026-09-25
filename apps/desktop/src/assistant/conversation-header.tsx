@@ -30,7 +30,6 @@ export function AuxiliaryToggle({
       aria-label={label}
       className={[controlClass, 'workspace-shell__auxiliary-toggle'].join(' ')}
       onClick={onToggleAuxiliary}
-      title={label}
       type="button"
     >
       <PanelRight aria-hidden className="size-4" />
@@ -58,7 +57,6 @@ function TodoToggle({
       ].join(' ')}
       id="conversation-todo-trigger"
       onClick={onToggleTodo}
-      title={label}
       type="button"
     >
       <ListTodo aria-hidden className="size-4" />

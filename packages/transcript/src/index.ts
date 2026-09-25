@@ -1,10 +1,4 @@
-/*
- * 这个包的公开面。
- *
- * 显式罗列而不是 export *：谁在用什么必须一眼可见，而且通配再导出会把
- * 「同一形状两份定义」这种分叉藏起来 —— 线上契约在 contract/，消费侧读法在
- * model/，两者同名同形时 export * 让调用方分不出拿到的是哪一份。
- */
+// 显式罗列而非 export *：线上契约在 contract/，消费侧读法在 model/，通配会藏起同名同形的分叉。
 
 export type {
   TranscriptEvent,
@@ -289,16 +283,6 @@ export type {
 export {
   TranscriptStore,
 } from './store/transcriptStore'
-
-export type {
-  InputViewContext,
-  MarkerViewContext,
-  ToolViewContext,
-  ViewRegistryOptions,
-} from './view/registry'
-export {
-  ViewRegistry,
-} from './view/registry'
 
 export type { AgentState, ApplyResult } from './ops/apply'
 export { appendAtOffset, applyOperation, EMPTY_AGENT_STATE } from './ops/apply'

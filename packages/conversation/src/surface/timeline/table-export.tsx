@@ -48,7 +48,6 @@ export function ExportableTable({ children, className, node: _node, ...props }: 
           className={ACTION_CLASS}
           data-copied={copied ? 'true' : undefined}
           onClick={copyMarkdown}
-          title="复制表格 Markdown"
           type="button"
         >
           <CopyStateIcon aria-hidden="true" size={14} />
@@ -58,7 +57,6 @@ export function ExportableTable({ children, className, node: _node, ...props }: 
           className={ACTION_CLASS}
           disabled={save === null}
           onClick={downloadMarkdown}
-          title="下载表格 Markdown"
           type="button"
         >
           <DownloadIcon aria-hidden="true" size={14} />

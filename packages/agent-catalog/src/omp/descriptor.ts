@@ -4,7 +4,7 @@ import type { AgentDescriptor } from '../agent-descriptor'
  * oh-my-pi（omp）的档案。
  *
  * 事实来源是它自己的仓库与包，不是观察和猜测：can1357/oh-my-pi，
- * npm @oh-my-pi/pi-coding-agent（锚定 18.2.11）。每一条下面都注明出处。
+ * npm @oh-my-pi/pi-coding-agent（锚定 18.3.0）。每一条下面都注明出处。
  *
  * 我们不经 kap：omp 没有本地服务模式，它给的是 SDK 与 stdio 上的 RPC/ACP。
  * 这里接的是**我们自己编出来的那个可执行文件**（packages/agent-bridge 的入口，

@@ -1,24 +1,13 @@
 import './flow-row.css'
 import './shimmer.css'
-import './thought-card.css'
 
-import { useCallback, useEffect, useRef, useState } from 'react'
-import { createPortal } from 'react-dom'
+import { useEffect, useState } from 'react'
 import { cx } from '../primitives/class-names'
 import { DisclosureBody } from '../primitives/disclosure'
 import { ChevronDownIcon, ThinkingIcon } from '../primitives/icons'
 import { useFollowEnd } from '../primitives/use-follow-end'
 import { readThoughtLine } from '../semantics/thought-line'
-
-/*
- * 滚动区与浮层宿主，契约在 agent-activity-feed 的类名上：viewport 是唯一滚动盒，
- * feed 自身不随滚动移动（position: relative），吸顶副本 portal 到它上面。
- */
-const FEED_VIEWPORT = '.agent-activity-feed__viewport'
-const FEED_HOST = '.agent-activity-feed'
-
-/* rootMargin 把 root 收成视口顶边的一条横线：相交即「压着顶部线」。 */
-const TOP_LINE_MARGIN = '0px 0px -100% 0px'
+import { VIRTUAL_ABOVE_LINES, VirtualLines } from './virtual-lines'
 
 interface ThoughtHeadProps {
   readonly isOpen: boolean
@@ -26,27 +15,11 @@ interface ThoughtHeadProps {
   readonly line: string
   readonly name: string
   readonly onToggle: () => void
-  /** 自然位那一份跟随末行横向滚动；吸顶副本不跟随（它只负责托住状态与开合）。 */
-  readonly follow: boolean
-  /** 只挂在自然位那一份上：吸顶观察要拿到这个元素。 */
-  readonly headRef?: (node: HTMLElement | null) => void
 }
 
-/**
- * 推理头：一枚图标、一个名、一行原话，落定之后多一枚箭头。
- *
- * 自然位与吸顶副本是同一个组件，差别只有 follow 与 ref。
- */
-function ThoughtHead({
-  follow,
-  headRef,
-  isOpen,
-  isStreaming,
-  line,
-  name,
-  onToggle,
-}: ThoughtHeadProps) {
-  const label = useFollowEnd<HTMLSpanElement>(follow && isStreaming)
+/** 推理头：一枚图标、一个名、一行原话，落定之后多一枚箭头。 */
+function ThoughtHead({ isOpen, isStreaming, line, name, onToggle }: ThoughtHeadProps) {
+  const label = useFollowEnd<HTMLSpanElement>(isStreaming)
 
   const face = (
     <>
@@ -58,7 +31,7 @@ function ThoughtHead({
 
       <span
         className={cx('timeline-row__label', isStreaming && 'timeline-shimmer')}
-        data-follow-end={follow && isStreaming ? '' : undefined}
+        data-follow-end={isStreaming ? '' : undefined}
         ref={label}
       >
         {line}
@@ -68,7 +41,7 @@ function ThoughtHead({
 
   if (isStreaming) {
     return (
-      <div className="timeline-row" data-measure="prose" ref={headRef}>
+      <div className="timeline-row" data-measure="prose">
         {face}
       </div>
     )
@@ -81,9 +54,6 @@ function ThoughtHead({
       className="timeline-row"
       data-measure="prose"
       onClick={onToggle}
-      ref={headRef}
-      /* 副本不进 Tab 序：键盘滚动时浏览器把焦点所在的自然位按钮留在视口里。 */
-      tabIndex={follow ? undefined : -1}
       type="button"
     >
       {face}
@@ -106,9 +76,9 @@ function ThoughtHead({
  * 次滚动增量，人一边读一边被往上拽；而那一格每帧在变，让它当按钮的可访问名等于让读屏的
  * 落脚点一直在动。所以运行中只有状态、没有开合入口，落定之后才交出按钮与箭头。
  *
- * 长文滚动时头要一直在视口顶。虚拟行是 absolute + transform，行内 sticky 会被 transform
- * 钉死（见 thought-card.css），所以自然头滚过顶部线时，在不滚动的 feed 层 portal 一份
- * 几何对齐的副本；副本对读屏隐藏（aria-hidden），读屏与键盘只认自然位那一个头。
+ * 正文封顶并自己滚（flow-row.css 的 .timeline-thought）：一段推理动辄几十行，全铺开会
+ * 把这一行下面的东西整片推走，而那一段只是过程。封顶之后头也就不用吸顶了 —— 它不再随
+ * 正文滚出视口，于是那套 portal 副本与相交观察一并删掉。
  */
 export function ThoughtCard({
   isOpen,
@@ -123,90 +93,22 @@ export function ThoughtCard({
 }) {
   const line = readThoughtLine(text, isStreaming ? 'tail' : 'head')
   const name = isStreaming ? '正在思考' : '思考完毕'
-
-  const sectionRef = useRef<HTMLElement | null>(null)
-  const [head, setHead] = useState<HTMLElement | null>(null)
-  const [host, setHost] = useState<HTMLElement | null>(null)
-  const [dock, setDock] = useState<{ readonly left: number; readonly width: number } | null>(null)
-
-  const bindSection = useCallback((node: HTMLElement | null) => {
-    sectionRef.current = node
-  }, [])
+  const [body, setBody] = useState<HTMLDivElement | null>(null)
+  const lines = text.split('\n')
 
   /*
-   * 吸顶判定：顶部线同时落在 section 内、又落在自然头之外 —— 头已经滚过视口顶，
-   * 而这段推理还没滚完。流式时长高只改 section 底边，ResizeObserver 重判一次即可。
+   * 流式追加要把容器钉在末端 —— 不钉，新写的字落在容器外面，人只看到开头。
+   * 落定之后不再动：那时这是读者的滚动位置，不是我们的。
    */
   useEffect(() => {
-    const section = sectionRef.current
-
-    if (head === null || section === null) {
-      return
+    if (body !== null && isStreaming) {
+      body.scrollTop = body.scrollHeight
     }
-
-    const viewport = head.closest(FEED_VIEWPORT)
-    const dockHost = head.closest(FEED_HOST)
-
-    if (!(viewport instanceof HTMLElement) || !(dockHost instanceof HTMLElement)) {
-      return
-    }
-
-    setHost(dockHost)
-
-    let headCrossing = false
-    let sectionCrossing = false
-    let geometryKey = ''
-
-    const measure = () => {
-      const box = section.getBoundingClientRect()
-      const hostBox = dockHost.getBoundingClientRect()
-
-      return { left: box.left - hostBox.left, width: box.width }
-    }
-
-    const apply = () => {
-      const next = sectionCrossing && !headCrossing ? measure() : null
-      const key = next === null ? '' : `${String(next.left)}:${String(next.width)}`
-
-      /* 几何没变就不提交：流式每帧长高，不该每帧重挂副本。 */
-      if (key !== geometryKey) {
-        geometryKey = key
-        setDock(next)
-      }
-    }
-
-    const observer = new IntersectionObserver(
-      (entries) => {
-        for (const entry of entries) {
-          if (entry.target === head) {
-            headCrossing = entry.isIntersecting
-          } else if (entry.target === section) {
-            sectionCrossing = entry.isIntersecting
-          }
-        }
-
-        apply()
-      },
-      { root: viewport, rootMargin: TOP_LINE_MARGIN, threshold: 0 },
-    )
-
-    observer.observe(head)
-    observer.observe(section)
-
-    const resized = new ResizeObserver(apply)
-    resized.observe(section)
-
-    return () => {
-      observer.disconnect()
-      resized.disconnect()
-    }
-  }, [head])
+  })
 
   return (
-    <section className="timeline-tool" ref={bindSection}>
+    <section className="timeline-tool">
       <ThoughtHead
-        follow
-        headRef={setHead}
         isOpen={isOpen}
         isStreaming={isStreaming}
         line={line}
@@ -215,28 +117,20 @@ export function ThoughtCard({
       />
 
       <DisclosureBody isOpen={isOpen}>
-        <div className="timeline-thought">{text}</div>
+        <div className="timeline-thought" ref={setBody}>
+          {lines.length > VIRTUAL_ABOVE_LINES ? (
+            <VirtualLines
+              className="timeline-thought__lines"
+              lineClassName="timeline-thought__line"
+              lines={lines}
+              measured
+              viewport={body}
+            />
+          ) : (
+            text
+          )}
+        </div>
       </DisclosureBody>
-
-      {host !== null && dock !== null
-        ? createPortal(
-            <div
-              aria-hidden="true"
-              className="timeline-thought-dock"
-              style={{ left: dock.left, width: dock.width }}
-            >
-              <ThoughtHead
-                follow={false}
-                isOpen={isOpen}
-                isStreaming={isStreaming}
-                line={line}
-                name={name}
-                onToggle={onToggle}
-              />
-            </div>,
-            host,
-          )
-        : null}
     </section>
   )
 }

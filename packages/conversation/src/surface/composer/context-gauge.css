@@ -5,16 +5,12 @@
  * Portal 落在 body 下，[data-assistant-skin] 罩不到它，所以卡上每一个 var 都
  * 带兜底值，不赖任何作用域令牌。
  *
- * 阈值配色沿用 ACP 会话用量规范的建议档：75% 黄、90% 橙、95% 红。字形与进度条
- * 各用一档（同一色阶的深浅两级），两个消费者读同一组名字 —— 写两遍迟早分叉。
+ * 阈值配色沿用 ACP 会话用量规范的建议档：75% 黄、90% 橙、95% 红。
  */
 :root {
   --gauge-warn-ink: #b45309;
-  --gauge-warn-fill: #d97706;
   --gauge-high-ink: #c2410c;
-  --gauge-high-fill: #ea580c;
   --gauge-critical-ink: #dc2626;
-  --gauge-critical-fill: #dc2626;
 }
 
 [data-assistant-skin] .context-gauge__trigger {
@@ -65,70 +61,26 @@
 }
 
 /* 类名叠写压过 TooltipContent 自带的深底浅字（bg-foreground text-background）：
-   0-2-0 的特异度赢过 0-1-0，与样式加载顺序无关。 */
+   0-2-0 的特异度赢过 0-1-0，与样式加载顺序无关。
+   卡经 Portal 落在 body 下，[data-assistant-skin] 罩不到，走 :root 上的 --ui-* 令牌。 */
 .context-gauge__card.context-gauge__card {
-  min-width: 220px;
-  padding: 10px 12px;
-  border: 1px solid var(--cp-menu-edge, rgb(0 0 0 / 8%));
-  border-radius: 12px;
-  background: var(--cp-menu-face, #fff);
-  box-shadow: var(--cp-lift-menu, 0 8px 24px rgb(0 0 0 / 12%));
-  color: var(--cp-ink, #1f2328);
+  padding: 6px 10px;
+  border: 1px solid var(--ui-popover-frame, rgb(0 0 0 / 8%));
+  border-radius: 10px;
+  background: var(--ui-popover, #fff);
+  color: var(--ui-popover-foreground, #1f2328);
   font-size: 12px;
   font-variant-numeric: tabular-nums;
 }
 
-.context-gauge__row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 16px;
+/* 深色弹窗底色用户指定 #43454a，配白字与半透明白边。 */
+:root[data-theme="dark"] .context-gauge__card.context-gauge__card {
+  background: #43454a;
+  border-color: rgb(255 255 255 / 10%);
+  color: #fff;
 }
 
-.context-gauge__row--section {
-  margin-top: 8px;
-  padding-top: 8px;
-  border-top: 1px solid var(--cp-hairline, rgb(0 0 0 / 8%));
-}
-
-.context-gauge__label {
-  color: var(--cp-ink-muted, rgb(0 0 0 / 55%));
-}
-
-.context-gauge__value {
-  font-weight: 600;
-}
-
-.context-gauge__percent {
-  font-weight: 600;
-}
-
-.context-gauge__ratio {
-  color: var(--cp-ink-muted, rgb(0 0 0 / 55%));
-}
-
-.context-gauge__bar {
-  height: 4px;
-  margin-top: 8px;
-  border-radius: 999px;
-  background: var(--cp-hairline, rgb(0 0 0 / 8%));
-  overflow: hidden;
-}
-
-.context-gauge__bar-fill {
-  height: 100%;
-  border-radius: inherit;
-  background: var(--cp-accent, #3b82f6);
-}
-
-.context-gauge__bar-fill[data-level="warn"] {
-  background: var(--gauge-warn-fill);
-}
-
-.context-gauge__bar-fill[data-level="high"] {
-  background: var(--gauge-high-fill);
-}
-
-.context-gauge__bar-fill[data-level="critical"] {
-  background: var(--gauge-critical-fill);
+.context-gauge__card-text {
+  font-weight: 500;
+  white-space: nowrap;
 }

@@ -1,10 +1,4 @@
-/*
- * 一次工具调用：一行安静的字，点开是一张纸。
- *
- * 没有外框、没有投影 —— 那三样归 [data-surface]，而戴它的是需要人回答的东西
- * （审批请求与审批结果）。一次工具调用是活动流里的一条记事，和思考链那一行同一
- * 个音量；给记事套上卡壳，它就和答案一样重了。
- */
+/* 工具调用条目：一行记事 + 抽屉。外框圆角归 [data-surface]，这里不加。 */
 
 /*
  * 一行一格，列宽恒等于行宽。
@@ -21,16 +15,12 @@
 /*
  * 展开之后的那张纸：一个实色块。
  *
- * 没有边框也没有投影 —— 它不是浮起来的一张卡，是这一行摊开之后的内容。必须是
- * 实色而不是一层半透明墨，理由写在 --cp-timeline-drawer-surface 那一段。圆角要
- * 能剪掉里面那一面的滚动条，所以收边在这一层。
+ * 没有边框也没有投影 —— 它不是浮起来的一张卡，是这一行摊开之后的内容。圆角要能剪掉
+ * 里面那一面的滚动条，所以收边在这一层。
  *
- * 左边缘从那句话的第一个字起，不从图标起 —— 缩进为什么是那两个量的和，写在
- * --cp-timeline-tool-indent 那一节。
- *
- * 右边缘仍与那一行齐平，所以上限是同一个数减掉缩进：只把纸右移而不收上限，它会整块
- * 探出一枚图标的宽度，右侧于是参差，而这一段注释又在说两者同宽。这一步减法留在消费
- * 处 —— 两个独立的量归令牌表，「右边与行齐平」是这一处的排版主张，不是第三个可调的数。
+ * 左边缘从那句话的第一个字起，不从图标起（缩进为什么是那两个量的和，见
+ * --cp-timeline-tool-indent）。右边缘仍与那一行齐平，所以上限是同一个数减掉缩进：只把
+ * 纸右移而不收上限，它会整块探出一枚图标的宽度，右侧于是参差。
  *
  * 长内容不折行，横向由面板那唯一一个滚动容器接住 —— 封顶不会吃掉任何字符。
  */
@@ -51,9 +41,8 @@
  * 抽屉里唯一的滚动容器。
  *
  * 上限挂在整个面上，不挂在每一段产出自己身上 —— 一次改三个文件就是三份上限叠起来，
- * 同屏冒出三个互不相干的滚动容器，滚轮停在卡片里出不去。一个面板一个滚动容器，是
- * DevTools 的 Response 面板与 VS Code 输出面板的做法。上限仍是
- * --cp-timeline-output-max，内容不满就不撑高。
+ * 同屏冒出三个互不相干的滚动容器。一个面板一个滚动容器，是 DevTools 的 Response 面板
+ * 与 VS Code 输出面板的做法；内容不满就不撑高。
  *
  * 两个轴归同一个盒子，横条才钉得住：横轴留给围栏自己时，那根横条会贴在围栏的底边
  * —— 而围栏是内容流里的一个盒子，内容一滚横条跟着上下跑。滚动条是滚动容器的边缘，
@@ -73,23 +62,130 @@
  * Chromium 滚动闩锁的行为。
  */
 
+/* 上下相接的第二面：与上面那条之间隔一条发丝线，说明这不是又一次调用。 */
+.timeline-tool__panel[data-seam] {
+  box-shadow: inset 0 1px 0 var(--cp-hairline);
+}
+
 /*
- * 面板里那一大段机器输出。
+ * 卡片里的 markdown。
  *
- * 还是这个滚动容器、这份留白，只是内容换成了一串按行虚拟化的行盒
- * （tool-output-lines.tsx）。所以行高与字号必须和围栏里的代码行一字不差 ——
- * 它们是同一段输出，只因为长到三百行以上才换了画法，不该在交界处看出接缝。
- * 这一对令牌就是 timeline.css 里 code-block-body 用的那一对。
- *
- * min-block-size 是给空行留的：一个没有内容的块不产生行盒，高度会是零，整列会
- * 从那里开始错位 —— 而这串行盒的高度同时被 JS 那边的估值用着。
+ * 排版本身全部来自 .timeline-prose —— 标题级差、围栏、表格与回答里的完全同款，这里不再
+ * 写第二套。盒子的那几条（底色、上限、滚动、留白）归 __panel，也就是抽屉里唯一那个滚动
+ * 容器。这一条只剩下属于「这一面的内容」自己的事：它比回答小一档。
  */
-.timeline-tool__output-line {
-  min-block-size: calc(var(--ui-prose-size-aux) * var(--ui-line-height-normal));
-  font-family: var(--cp-font-mono);
+.timeline-prose.timeline-tool__prose {
+  margin: 0;
+  font-size: var(--ui-prose-size-aux);
+}
+
+/*
+ * 抽屉里的围栏没有外壳。
+ *
+ * 一段围栏出现在回答里，它是文章引用的一段代码：报一下语言、给一个复制按钮、用边框把
+ * 自己和正文隔开。出现在抽屉里，它**就是**这一面的全部内容 —— 再挂一枚语言胶囊是同一
+ * 句话说两遍，再套一圈边框就是卡中卡，而抽屉本身已经是那张纸了。
+ *
+ * 最要紧的是 code-block-body 那个 max-block-size 加 overflow：它会让围栏成为面板里
+ * 第二个滚动容器，而「一个面板一个滚动容器」是上面那条规则的全部内容。围栏在这里不滚，
+ * 它只是长，长出来的部分由面板去滚。
+ *
+ * 判据是「围栏在哪」，不是「围栏是什么」：这几条与全局那几条特异性相同，靠书写顺序
+ * 决定胜负，而这里在后面。
+ */
+.timeline-prose.timeline-tool__prose [data-streamdown="code-block"] {
+  display: block;
+  overflow: visible;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  margin: 0;
+  padding: 0;
+}
+
+.timeline-prose.timeline-tool__prose [data-streamdown="code-block-header"],
+.timeline-prose.timeline-tool__prose
+  [data-streamdown="code-block"]
+  > :has(> [data-streamdown="code-block-actions"]) {
+  display: none;
+}
+
+.timeline-prose.timeline-tool__prose [data-streamdown="code-block-body"] {
+  max-block-size: none;
+  overflow: visible;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  padding: 0;
+}
+
+/*
+ * 代码不折行。
+ *
+ * 代码视图默认不折行，是 DevTools、VS Code、GitHub、Sublime 的一致行为：等宽排版的全部
+ * 价值就在于列是对齐的，而折行按定义会破坏列。一条十几行的命令或一份深层嵌套的 JSON 折
+ * 下来之后层级全平，那不是把字符还给读者，是把结构拿走了。出口给横向滚动，字符一个不少。
+ *
+ * 出口在面板上，不在这里：这个盒子 overflow 是 visible，长行照直伸出去，由面板那唯一
+ * 一个滚动容器接住。横条因此钉在面板底边，不随内容上下跑。
+ */
+.timeline-prose.timeline-tool__prose [data-streamdown="code-block-body"] pre {
+  white-space: pre;
+}
+
+/*
+ * 行内代码在这张卡里要再退一档。
+ *
+ * 它平时的底色就是 --cp-timeline-inline-code-surface —— 那在回答里是对的，因为回答铺在
+ * 卡面上。可这个块自己已经是那个颜色了，同色叠同色，胶囊直接消失。所以在这个作用域里
+ * 往上挪一档：仍是同一套灰阶，只是不再和自己的背景撞在一起。
+ */
+.timeline-prose.timeline-tool__prose :not(pre) > code {
+  background: var(--cp-hover);
+}
+
+/*
+ * 这一面里的截图（浏览器每一帧、桌面快照、read 一张图、生成的图）。
+ *
+ * 竖排、限宽：一张全屏截图按原始尺寸铺开会把抽屉撑到几屏高，把同一面上那些字挤出去。
+ * 图走 <img> 不走 markdown —— data URL 会被 Streamdown 当可疑来源拦掉。
+ */
+.timeline-tool__shots {
+  display: flex;
+  flex-direction: column;
+  gap: 0.375rem;
+  margin-block-start: 0.5rem;
+}
+
+.timeline-tool__shot {
+  align-self: flex-start;
+  max-inline-size: 100%;
+  padding: 0;
+  border: 0;
+  border-radius: var(--cp-radius-item);
+  background: transparent;
+  cursor: zoom-in;
+  overflow: hidden;
+}
+
+.timeline-tool__shot img {
+  display: block;
+  max-inline-size: 100%;
+  max-block-size: var(--cp-timeline-output-max);
+  object-fit: contain;
+}
+
+/* 这一面只有图：第一张图不该再顶一层留白。 */
+.timeline-tool__shots:only-child {
+  margin-block-start: 0;
+}
+
+/* 产出为空时的占位说明，与正常产出同字号同颜色。 */
+.timeline-tool__empty {
+  margin: 0;
+  color: var(--cp-timeline-quiet-text);
   font-size: var(--ui-prose-size-aux);
   line-height: var(--ui-line-height-normal);
-  white-space: pre;
 }
 
 /*
@@ -97,12 +193,9 @@
  *
  * 底色不在这里给 —— 带和面是同一张纸，纸色归 __body 一处声明。这一条只管留白。
  *
- * 选中态在这里重新给一次，不改 tabs.css：那一层是全局原语，别处的标签仍要它原来的那
- * 一档。底色一旦落到纸上，原语给的半透明墨叠上去只解出约 12% 的对比，偏弱；换成实色
- * 的上一档，两者的差正是设计系统在菜单那两级边界上定下的量。
- *
- * 悬停不必动：原语用的 4% 半透明墨叠在这层底色上解出约 10%，正好落在纸面与选中态之
- * 间，三档的次序自然成立。
+ * 选中态在这里重新给一次，不改 tabs.css：那一层是全局原语，别处的标签仍要它原来的那一
+ * 档。底色一旦落到纸上，原语给的半透明墨叠上去只解出约 12% 的对比，偏弱；换成实色的上
+ * 一档，两者的差正是设计系统在菜单那两级边界上定下的量。
  */
 .timeline-tool__tabs {
   padding: 0.375rem 0.75rem;
@@ -112,10 +205,23 @@
   background: var(--cp-timeline-tabs-active);
 }
 
+/*
+ * 后台派发的记号。
+ *
+ * 一个词，不染色：它不是警告，只是说明这次派发不占前台，答复会晚一些回来。
+ */
+.timeline-tool__background {
+  flex: none;
+  color: var(--cp-ink-subtle);
+  font-size: var(--cp-font-micro);
+  line-height: 1;
+  white-space: nowrap;
+}
+
 /* ── 改动规模 ───────────────────────────────────────────────────────
  *
- * 只有带 diff 的调用才有这一对数字，所以它是标题旁的一处事实，而不是每张卡片
- * 都要预留的一个槽位。等宽且表格数字对齐：连续几次编辑读下来是一列，不是一堆。
+ * 只有带 diff 的调用才有这一对数字，所以它是标题旁的一处事实，而不是每张卡片都要预留
+ * 的一个槽位。等宽且表格数字对齐：连续几次编辑读下来是一列，不是一堆。
  */
 
 .timeline-tool__diffstat {
@@ -138,239 +244,90 @@
 }
 
 /*
- * 卡片里的 markdown。
- *
- * 排版本身全部来自 .timeline-prose —— 标题级差、围栏、表格与回答里的完全同款，
- * 这里不再写第二套。
- *
- * 盒子的那几条（底色、上限、滚动、留白）归 __panel，也就是抽屉里唯一的那个滚动
- * 容器。这一条只剩下两件属于「这一面的内容」自己的事 —— 它是虚拟块的包含块，
- * 以及它比回答小一档。
- */
-.timeline-prose.timeline-tool__prose {
-  font-size: var(--ui-prose-size-aux);
-}
-
-/*
- * 抽屉里的围栏没有外壳。
- *
- * 一段围栏出现在回答里，它是文章引用的一段代码：报一下语言、给一个复制按钮、用边框
- * 把自己和正文隔开。出现在抽屉里，它就是这一面的全部内容 —— 页签上写着 Request，
- * 再挂一枚 json 胶囊是同一句话说两遍；卡片已经有一圈边，再套一圈就是卡中卡。
- *
- * 最要紧的是 code-block-body 那个 max-block-size 加 overflow：它会让围栏成为面板里
- * 第二个滚动容器，而「一个面板一个滚动容器」是上面那条规则的全部内容。围栏在这里
- * 不滚，它只是长，长出来的部分由面板去滚。
- *
- * 判据是「围栏在哪」，不是「围栏是什么」：这四条与上面那四条特异性相同，靠书写顺序
- * 决定胜负，而这里在后面。
- */
-.timeline-prose.timeline-tool__prose [data-streamdown="code-block"] {
-  display: block;
-  overflow: visible;
-  border: 0;
-  border-radius: 0;
-  background: transparent;
-}
-
-.timeline-prose.timeline-tool__prose [data-streamdown="code-block-header"],
-.timeline-prose.timeline-tool__prose
-  [data-streamdown="code-block"]
-  > :has(> [data-streamdown="code-block-actions"]) {
-  display: none;
-}
-
-.timeline-prose.timeline-tool__prose [data-streamdown="code-block-body"] {
-  max-block-size: none;
-  overflow: visible;
-  padding: 0;
-}
-
-/*
- * 代码不折行。
- *
- * 代码视图默认不折行，是 DevTools、VS Code、GitHub、Sublime 的一致行为：等宽排版的
- * 全部价值就在于列是对齐的，而折行按定义会破坏列。一条十几行的命令或一份深层嵌套
- * 的 JSON 折下来之后层级全平，那不是把字符还给读者，是把结构拿走了。出口给横向
- * 滚动，字符一个不少。
- *
- * 出口在面板上，不在这里：这个盒子 overflow 是 visible，长行照直伸出去，由面板那唯一
- * 一个滚动容器接住。横条因此钉在面板底边，不随内容上下跑。
- */
-.timeline-prose.timeline-tool__prose [data-streamdown="code-block-body"] pre {
-  white-space: pre;
-}
-
-/*
- * 行内代码在这张卡里要再退一档。
- *
- * 它平时的底色就是 --cp-timeline-inline-code-surface —— 那在回答里是对的，因为回答
- * 铺在卡面上。可这个块自己已经是那个颜色了，同色叠同色，胶囊直接消失。所以在
- * 这个作用域里往上挪一档，用 hover 那一层：仍是同一套灰阶，只是不再和自己的
- * 背景撞在一起。
- */
-.timeline-prose.timeline-tool__prose :not(pre) > code {
-  background: var(--cp-hover);
-}
-
-/*
- * 后台派发的记号。
- *
- * 一个词，不染色：它不是警告，只是说明这次派发不占前台，答复会晚一些回来。
- */
-.timeline-tool__background {
-  flex: none;
-  font-size: var(--cp-font-micro);
-  color: var(--cp-ink-subtle);
-  white-space: nowrap;
-}
-
-/* 抽屉里只挂当前那一面，高度因此就是它自己的高度。 */
-
-/*
- * 一处改动摊开的样子：路径一行，下面是带行号的统一 diff。
+ * 一处改动。
  *
  * 底还是 __body 那张纸，diff 只是画在它上面 —— 增删两行各自兑一层色，左沿一道记号。
+ * 行号槽等宽，代码列吃掉剩下的宽度。
+ *
+ * 它自己是一个双轴滚动容器：diff 比正文更需要横向滚动（长行不折），而面板那一个滚动
+ * 容器在这里不够用 —— 一套行号槽必须与代码列同时移动，横条贴在面板上时两者会错开。
+ * 自定义滚动条因此是 JS 画的 range（见 DiffViewport）。
  */
-.timeline-tool__file {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr);
-}
-
-/* 切换条腾出来的那一格：一枚文件类型字形，一个文件名。全路径挂在 title 上。 */
-.timeline-tool__path {
-  display: flex;
-  align-items: center;
-  gap: 0.375rem;
-  padding: 0.375rem 0.75rem;
-  font-family: var(--cp-font-mono);
-  font-size: var(--cp-font-micro);
-  line-height: 1.6;
-}
-
-.timeline-tool__path-icon {
-  flex: none;
-  inline-size: var(--cp-icon);
-  block-size: 1lh;
-}
-
-.timeline-tool__path-name {
-  min-inline-size: 0;
-  overflow: hidden;
-  color: var(--cp-ink);
-  white-space: nowrap;
-  text-overflow: ellipsis;
-}
-
-/* diff 的 scrollTop/scrollLeft 是唯一真相；range 只把它投影成覆盖式滑块。 */
 .timeline-tool__diff-frame {
   position: relative;
-  min-inline-size: 0;
-  max-block-size: var(--cp-timeline-output-max);
+  border-radius: var(--cp-radius-item);
   overflow: hidden;
 }
 
 .timeline-tool__diff {
-  display: grid;
-  grid-template-columns: auto minmax(max-content, 1fr);
-  align-content: start;
-  max-block-size: inherit;
+  position: relative;
+  max-block-size: 60vh;
+  padding-block: 0.375rem;
   overflow: auto;
-  scrollbar-width: none;
-  font-family: var(--cp-font-mono);
-  font-size: var(--ui-prose-size-aux);
-  line-height: var(--ui-line-height-normal);
-  tab-size: 2;
-  background-image: var(--cp-timeline-diff-field);
-  background-attachment: local;
-  background-repeat: repeat no-repeat;
+  /* 增删底色折成竖直渐变铺在滚动容器上（理由见 tool-call-panels.tsx 的 fieldOf）。 */
+  background: var(--cp-timeline-diff-field);
   background-size: 100% calc(var(--cp-timeline-diff-rows) * 1lh);
+  background-repeat: repeat-y;
 }
 
-.timeline-tool__diff::-webkit-scrollbar {
-  display: none;
-}
-
+/* 自定义滚动条：range input 伪装，thumb 长度由 JS 按可视/内容比算。 */
 .timeline-tool__diff-scrollbar {
-  --timeline-tool-thumb: 24px;
   position: absolute;
-  z-index: 1;
-  margin: 0;
   appearance: none;
-  border: 0;
-  padding: 0;
   background: transparent;
   cursor: pointer;
-}
-
-.timeline-tool__diff-scrollbar--x {
-  right: 0;
-  bottom: 0;
-  left: 0;
-  width: 100%;
-  height: 6px;
-}
-
-.timeline-tool__diff-scrollbar--y {
-  top: 0;
-  right: 0;
-  bottom: 0;
-  width: 6px;
-  height: 100%;
-  writing-mode: vertical-lr;
-  direction: ltr;
+  outline: none;
 }
 
 .timeline-tool__diff-scrollbar::-webkit-slider-runnable-track {
-  border: 0;
   background: transparent;
 }
 
 .timeline-tool__diff-scrollbar::-webkit-slider-thumb {
   appearance: none;
-  border: 2px solid transparent;
-  border-radius: 999px;
+  width: var(--timeline-tool-thumb, 24px);
+  height: var(--timeline-tool-thumb, 24px);
+  border-radius: var(--ui-radius-sm);
   background: var(--ui-scrollbar-thumb);
-  background-clip: content-box;
+}
+
+.timeline-tool__diff-scrollbar--x {
+  left: 0;
+  right: 12px;
+  bottom: 0;
+  height: 12px;
 }
 
 .timeline-tool__diff-scrollbar--x::-webkit-slider-thumb {
-  width: var(--timeline-tool-thumb);
-  height: 6px;
+  width: var(--timeline-tool-thumb, 24px);
+  height: 10px;
+}
+
+.timeline-tool__diff-scrollbar--y {
+  top: 0;
+  right: 0;
+  bottom: 12px;
+  width: 12px;
+  writing-mode: vertical-lr;
 }
 
 .timeline-tool__diff-scrollbar--y::-webkit-slider-thumb {
-  width: 6px;
-  height: var(--timeline-tool-thumb);
+  width: 10px;
+  height: var(--timeline-tool-thumb, 24px);
 }
 
-.timeline-tool__diff-scrollbar::-webkit-slider-thumb:hover {
-  background-color: var(--ui-scrollbar-thumb-hover);
-}
-
-.timeline-tool__diff-scrollbar:focus-visible {
-  outline: var(--cp-px) solid var(--cp-accent);
-  outline-offset: calc(-1 * var(--cp-px));
-}
+/*
+ * 行高必须与代码一致：渐变的 lh 刻度就落在这些行盒上，差一像素色带就会错行。
+ * 这一对令牌与 timeline.css 的 code-block-body 是同一对。
+ */
 .timeline-tool__diff-row {
   display: grid;
-  grid-column: 1 / -1;
-  grid-template-columns: subgrid;
-}
-
-.timeline-tool__diff-row[data-kind="added"] {
-  box-shadow: inset 0.125rem 0 0 var(--cp-diff-added-text);
-}
-
-.timeline-tool__diff-row[data-kind="removed"] {
-  box-shadow: inset 0.125rem 0 0 var(--cp-diff-removed-text);
-}
-
-/* 断点：一根发丝线说明这里不连续。用内阴影不用边框 —— 边框会撑高行，色带的 lh 刻度就对不上了。 */
-.timeline-tool__diff-row[data-kind="gap"] {
-  box-shadow:
-    inset 0 1px 0 var(--cp-hairline),
-    inset 0 -1px 0 var(--cp-hairline);
+  grid-template-columns: 3rem minmax(0, 1fr);
+  min-block-size: 1lh;
+  font-family: var(--cp-font-mono);
+  font-size: var(--ui-prose-size-aux);
+  line-height: var(--ui-line-height-normal);
+  white-space: pre;
 }
 
 .timeline-tool__diff-line {
@@ -383,12 +340,62 @@
 
 .timeline-tool__diff-code {
   padding-inline-end: 0.75rem;
-  white-space: pre;
+  overflow-wrap: normal;
 }
 
-/* 断线那一行的详情：与调用抽屉里的说明同一个音量。 */
-.timeline-link__detail {
-  padding: 0.375rem 0 0.5rem 1.5rem;
+/* 增删行的文字色（底色由渐变铺）。 */
+.timeline-tool__diff-row[data-kind="added"] .timeline-tool__diff-code {
+  color: var(--cp-diff-added-text);
+}
+
+.timeline-tool__diff-row[data-kind="removed"] .timeline-tool__diff-code {
+  color: var(--cp-diff-removed-text);
+}
+
+/* 断点：一根发丝线说明这里不连续。内阴影不撑高行，色带的 lh 刻度才对得上。 */
+.timeline-tool__diff-row[data-kind="gap"] {
+  box-shadow:
+    inset 0 1px 0 var(--cp-hairline),
+    inset 0 -1px 0 var(--cp-hairline);
+}
+
+/*
+ * 多文件改动：每一处之间隔一条发丝线，各自带自己的路径。
+ * 面板已经给了左右留白，这里只分上下。
+ */
+.timeline-tool__file + .timeline-tool__file {
+  border-block-start: 1px solid var(--cp-hairline);
+}
+
+.timeline-tool__path {
+  display: flex;
+  align-items: center;
+  gap: 0.375rem;
+  padding: 0.375rem 0.75rem;
   color: var(--cp-timeline-quiet-text);
-  font-size: 0.8125rem;
+  font-size: calc(var(--ui-prose-size) - 2px);
+}
+
+.timeline-tool__path-icon {
+  display: inline-flex;
+  flex: none;
+  color: var(--cp-ink-subtle);
+}
+
+.timeline-tool__path-name {
+  font-family: var(--cp-font-mono);
+  overflow-wrap: anywhere;
+}
+
+/* 长产出：按行虚拟化的那一串行盒与围栏里的行一字不差，交界处看不出接缝。 */
+.timeline-tool__output {
+  min-inline-size: min-content;
+}
+
+.timeline-tool__output-line {
+  min-block-size: calc(var(--ui-prose-size-aux) * var(--ui-line-height-normal));
+  font-family: var(--cp-font-mono);
+  font-size: var(--ui-prose-size-aux);
+  line-height: var(--ui-line-height-normal);
+  white-space: pre;
 }

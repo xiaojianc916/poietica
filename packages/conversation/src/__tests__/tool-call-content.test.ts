@@ -1,12 +1,7 @@
 import { describe, expect, it } from 'bun:test'
 import { toToolContentParts } from '../surface/semantics/tool-call-content'
 
-/**
- * 工具卡片画什么。
- *
- * 这里测的只是这一层自己的映射：一个内容块进去，一张卡片画得出的片段出来。
- * 「线上真的送来什么」由投影层的用例守着，不在这里再断言一遍 —— 这一层看不见帧。
- */
+// 只测这一层的映射：内容块 → 可画片段。线上帧由投影层用例守。
 
 describe('what a tool call has to show', () => {
   it('drops the empty bubble a tool call opens with', () => {
@@ -49,12 +44,20 @@ describe('what a tool call has to show', () => {
     ])
   })
 
-  it('names a block it cannot draw instead of inventing one', () => {
+  it('把图按正本画出来：base64 与 mimeType 就是它的形状', () => {
     const parts = toToolContentParts([
-      { type: 'content', content: { type: 'image', data: 'x', mimeType: 'image/png' } },
+      { type: 'content', content: { type: 'image', data: 'QUJD', mimeType: 'image/webp' } },
     ])
 
-    expect(parts).toEqual([{ type: 'opaque', label: '一张图片' }])
+    expect(parts).toEqual([{ type: 'image', data: 'QUJD', mimeType: 'image/webp' }])
+  })
+
+  it('画不出来的块留个名字，不发明一种画法', () => {
+    const parts = toToolContentParts([
+      { type: 'content', content: { type: 'audio', data: 'AA==', mimeType: 'audio/mpeg' } },
+    ])
+
+    expect(parts).toEqual([{ type: 'opaque', label: '一段音频' }])
   })
 
   it('keeps what we sent drawable on its own terms', () => {

@@ -64,6 +64,7 @@
     "catalog": {
       "@base-ui/react": "^1.8.0",
       "@biomejs/biome": "^2.5.14",
+      "@oh-my-pi/pi-coding-agent": "^18.3.0",
       "@streamdown/cjk": "^1.0.3",
       "@streamdown/code": "^1.1.1",
       "@streamdown/math": "^1.0.2",

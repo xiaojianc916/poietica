@@ -2,15 +2,10 @@ import { describe, expect, it } from 'bun:test'
 import { renderToStaticMarkup } from 'react-dom/server'
 import { fencedBodyOf, toToolCallFacets } from '../surface/semantics/tool-call-facets'
 import { ToolCallPanels } from '../surface/timeline/tool-call-panels'
-import { VIRTUAL_ABOVE_LINES } from '../surface/timeline/tool-output-lines'
+import { VIRTUAL_ABOVE_LINES } from '../surface/timeline/virtual-lines'
 import type { ToolCallTimelineItem } from '../timeline/timeline-contract'
 
-/*
- * 抽屉里那一面的长度。
- *
- * 两件事各有一条判据：文本一个字符都不许少（这里此前按 64 KiB 截断），而长到几百行
- * 的那一段改由虚拟化画（DOM 里只留视口那几行）。
- */
+// 两件事：文本不许截断（此前按 64 KiB 截断），长段改虚拟化画。
 
 function outputItem(text: string): ToolCallTimelineItem {
   return {
@@ -19,9 +14,11 @@ function outputItem(text: string): ToolCallTimelineItem {
     turn: 0,
     at: 0,
     toolCallId: 'output-1',
-    title: '搜索',
+    title: 'grep',
     kind: 'search',
+    headline: '搜索 **/*.png',
     subject: '**/*.png',
+    shape: 'result',
     status: 'completed',
     requestContent: [],
     content: [{ type: 'content', content: { type: 'text', text } }],
@@ -40,7 +37,7 @@ function linesOf(count: number): string {
   return Array.from({ length: count }, (_unused, index) => `line-${String(index)}`).join('\n')
 }
 
-/** 一块围栏的行盒高度：--ui-prose-size-aux（13px）× --ui-line-height-normal（1.5）。 */
+// 行盒高度：--ui-prose-size-aux(13px) × --ui-line-height-normal(1.5)。
 const LINE_PX = 19.5
 
 describe('抽屉里那段输出的长度', () => {
@@ -59,7 +56,7 @@ describe('抽屉里那段输出的长度', () => {
 
     expect(markup).toContain('timeline-tool__output')
     expect(markup).toContain(String(count * LINE_PX))
-    /* 围栏记号不该漏到屏幕上：虚拟化那一面画的是围栏里的行。 */
+    // 围栏记号不该漏到屏幕上：虚拟化那一面画的是围栏里的行。
     expect(markup).not.toContain('```')
     expect(markup).not.toContain('内容过长')
   })
@@ -70,6 +67,39 @@ describe('抽屉里那段输出的长度', () => {
 
     expect(markup).not.toContain('line-0</')
     expect(markup).not.toContain(`line-${String(count - 1)}`)
+  })
+})
+
+describe('抽屉里的截图', () => {
+  // 浏览器/桌面控制回 base64 图，屏幕上要是一张图，不是占位方块。
+  it('产出里的图渲染成 data URL，而不是一个占位标签', () => {
+    const item: ToolCallTimelineItem = {
+      type: 'tool_call',
+      id: 'tool-shot',
+      turn: 0,
+      at: 0,
+      toolCallId: 'shot-1',
+      title: 'browser',
+      kind: 'fetch',
+      headline: '浏览器 打开 https://x',
+      subject: 'open · https://x',
+      shape: 'flow',
+      status: 'completed',
+      requestContent: [],
+      content: [
+        { type: 'content', content: { type: 'text', text: 'done' } },
+        { type: 'content', content: { type: 'image', data: 'QUJD', mimeType: 'image/png' } },
+      ],
+      locations: [],
+      channels: [],
+      startedAt: 0,
+      endedAt: 1,
+    }
+
+    const markup = renderToStaticMarkup(<ToolCallPanels isRunning={false} item={item} />)
+
+    expect(markup).toContain('data:image/png;base64,QUJD')
+    expect(markup).not.toContain('一张图片')
   })
 })
 

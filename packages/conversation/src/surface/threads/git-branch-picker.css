@@ -59,6 +59,7 @@
 .git-branch-picker__menu[data-assistant-skin] {
   min-inline-size: 216px;
   font-size: var(--cp-font-caption);
+  box-shadow: none;
 }
 
 /* 搜索是弹层的标题栏，与项目选择器同一形状：图标在左，与名单隔一条线。 */
@@ -134,6 +135,17 @@
   padding: 4px 8px 8px;
   color: var(--cp-ink-subtle);
   font-size: var(--cp-font-micro);
+}
+
+/* 名单最多露 6 行（6 × 28px），超出滚动；滚动条藏起来，保持弹层干净。 */
+.git-branch-picker__menu[data-assistant-skin] .git-branch-picker__list {
+  max-block-size: 168px;
+  overflow-y: auto;
+  scrollbar-width: none;
+}
+
+.git-branch-picker__menu[data-assistant-skin] .git-branch-picker__list::-webkit-scrollbar {
+  display: none;
 }
 
 .git-branch-picker__menu[data-assistant-skin] .git-branch-picker__separator {

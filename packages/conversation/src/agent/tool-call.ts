@@ -5,13 +5,15 @@ export type ToolKind =
   | 'fetch'
   | 'goal'
   | 'other'
-  | 'plan'
   | 'read'
   | 'search'
   | 'skill'
-  | 'task'
   | 'todo'
   | 'write'
+
+// flow: 送出在上、交回在下同一张纸；diff: 一处改动按行画；
+// result: 只有产出面；tabs: 两头不相干时退到入参/产出两页签。
+export type ToolDrawerShape = 'diff' | 'flow' | 'result' | 'tabs'
 
 export type ToolCallStatus = 'completed' | 'failed' | 'in_progress' | 'pending'
 

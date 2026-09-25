@@ -1138,7 +1138,6 @@ function ChangeMark({ status }: { readonly status: GitChangeStatus }) {
       className="review-mark flex size-[13px] shrink-0 items-center justify-center rounded-[4px]"
       data-status={status}
       role="img"
-      title={label}
     >
       {status === 'deleted' ? (
         /* 同 U：字面 D 而不是图标 —— git 清单里 D 就是删除。 */

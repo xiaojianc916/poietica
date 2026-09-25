@@ -138,7 +138,11 @@
 }
 
 .archived-chats__message {
+  display: flex;
+  align-items: center;
+  justify-content: center;
   margin: 0;
+  min-block-size: 96px;
   border: 1px solid var(--settings-frame);
   border-radius: 10px;
   padding: 16px 14px;
@@ -146,6 +150,7 @@
   color: var(--ui-muted-foreground);
   font-size: 12px;
   line-height: 1.5;
+  text-align: center;
 }
 
 .archived-chats__message--error {

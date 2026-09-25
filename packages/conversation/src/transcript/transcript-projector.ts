@@ -51,6 +51,15 @@ const textContent = (value: unknown): readonly ToolCallContent[] =>
     ? [{ type: 'content', content: { type: 'text', text: value } }]
     : []
 
+// 工具入参是模型写的任意值，不能假定可序列化；循环引用时退回空。
+function jsonOf(value: unknown): string | undefined {
+  try {
+    return JSON.stringify(value, null, 2)
+  } catch {
+    return undefined
+  }
+}
+
 interface InputSource {
   readonly isUser: boolean
   readonly anchors: number | null
@@ -61,7 +70,6 @@ const USER_INPUT: InputSource = { isUser: true, anchors: 1 }
 const originField = (value: unknown, key: string): unknown =>
   typeof value === 'object' && value !== null ? Reflect.get(value, key) : undefined
 
-/** 技能激活由用户来源描述符携带（TranscriptUserOrigin.skillActivations）。 */
 function skillNamesOf(origin: unknown): readonly string[] {
   const activations = originField(origin, 'skillActivations')
   if (!Array.isArray(activations)) {
@@ -105,7 +113,6 @@ function sourceOfFrame(frame: Extract<TranscriptFrame, { role: 'user' }>): Input
   return { isUser: false, anchors: frame.taskId === undefined ? null : 0 }
 }
 
-/** 一条 turn 的附件投成什么：图片（可能还在代取字节）与通用文件卡片。 */
 interface TurnAttachments {
   readonly images: MessageImage[]
   readonly files: MessageFile[]
@@ -113,24 +120,11 @@ interface TurnAttachments {
 
 const NO_TURN_ATTACHMENTS: TurnAttachments = { images: [], files: [] }
 
-/**
- * 媒体字节的解析结果：fileId -> data/asset URL。
- *
- * 历史图片在 agent 的 media 端点后（要 Bearer），webview 直连不了，由 store 经
- * 原生侧代取后填进这张表；投影器只读表、不发请求。空表是一个稳定的共享常量。
- */
+// 历史图片在 agent media 端点后（要 Bearer），由 store 经原生侧代取后填进这张表。
 const EMPTY_MEDIA: ReadonlyMap<string, string> = new Map()
-
-/** 没有附件可查时的稳定空表：与 EMPTY_MEDIA 同理，免得白建一张 Map。 */
 const EMPTY_INDEX: ReadonlyMap<string, TranscriptAttachment> = new Map()
 
-/**
- * 附件画成图还是卡片。
- *
- * 判据是「有没有能取回像素的 source」，不是 media_type：agent 只给可显示的图片
- * 记 source，给不了的那种（模型不收的格式、被降级成文件的图）本来就只能是卡片。
- * 只看 media_type 会把这类附件画成永远转圈的占位。
- */
+// 判据是有没有能取回像素的 source，不是 media_type：给不了 source 的本来就只能是卡片。
 function imageUrlOf(
   attachment: TranscriptAttachment,
   media: ReadonlyMap<string, string>,
@@ -145,15 +139,9 @@ function imageUrlOf(
   return media.get(source.fileId)
 }
 
-/** 这句附件是一张要画的图吗：图片类型，而且 agent 给了能取回字节的 source。 */
 const isDrawableImage = (attachment: TranscriptAttachment): boolean =>
   attachment.mediaType.startsWith('image/') && attachment.source !== undefined
 
-/**
- * 这张图的字节要在原生侧代取吗：是图，而且 source 不是现成的 URL。
- *
- * 投影器不在这里发请求，store 代取；两处问的是同一个问题，所以只有这一个判据。
- */
 export const needsMediaFetch = (attachment: TranscriptAttachment): boolean =>
   isDrawableImage(attachment) && attachment.source?.kind !== 'url'
 
@@ -175,7 +163,6 @@ function attachmentsOfTurn(
     }
     if (isDrawableImage(attachment)) {
       const url = imageUrlOf(attachment, media)
-      // 字节还没代取回来：先占位，store 解析完换图；取失败也停在占位，不挡对话。
       images.push(url === undefined ? { pending: true } : { url })
     } else {
       const name = attachment.name ?? '附件'
@@ -185,12 +172,7 @@ function attachmentsOfTurn(
   return { images, files }
 }
 
-/**
- * 只有真的用户输入才成行；其它来源的运行不伪造消息气泡。
- *
- * 正文里混着给模型看的附件句子，气泡只画人说的话：附件由卡片画，句子在这里
- * 摘掉（见 kimi-attachment.ts）。开场与中途插话走的是同一个判据。
- */
+// 只有真用户输入才成行；正文里混着给模型看的附件句子，在这里摘掉。
 function inputItem(
   source: InputSource,
   id: string,
@@ -251,8 +233,8 @@ function frameOf(frame: TranscriptFrame, turn: number, stamp: number): TimelineI
   if (frame.kind === 'notice') {
     return { type: 'error', id: frame.frameId, turn, at: stamp, message: frame.message }
   }
-  const tool = describeTool(frame)
-  const view = ompToolView(frame.name, frame.input, frame.output, frame.error)
+  const tool = describeTool(frame.input)
+  const view = ompToolView(frame.name, frame.input, frame.output, frame.error, frame.intent)
   return {
     type: 'tool_call',
     id: frame.frameId,
@@ -260,16 +242,14 @@ function frameOf(frame: TranscriptFrame, turn: number, stamp: number): TimelineI
     at: stamp,
     toolCallId: frame.toolCallId,
     title: frame.name,
-    kind: tool.kind,
-    /* 视图的主语优先：它是按工具的性子挑的（命令、路径、模式、地址）。 */
+    kind: view.known ? view.kind : tool.kind,
+    headline: view.headline,
     subject: view.subject || tool.subject,
+    shape: view.shape,
+    ...(view.background ? { isBackground: true as const } : {}),
     status:
       frame.state === 'running' ? 'in_progress' : frame.state === 'error' ? 'failed' : 'completed',
-    /* 因地制宜的两面；视图认不出的工具交回空两面，抽屉的兜底按 JSON 重排。 */
-    requestContent:
-      view.request.length > 0
-        ? view.request
-        : textContent(frame.inputText || JSON.stringify(frame.input, null, 2)),
+    requestContent: view.request.length > 0 ? view.request : textContent(jsonOf(frame.input)),
     content: view.response.length > 0 ? view.response : textContent(frame.error ?? frame.output),
     locations: [],
     channels: (frame.agentRefs ?? []).map((agent) => ({
@@ -358,8 +338,7 @@ function spanOf(turn: TranscriptTurn, index: number): TurnSpan {
   }
 }
 
-/* 待答的审批与提问挂在活动段：interactions 全局于轮次，而屏幕上它们
-出现在这条对话当前的尾部。 */
+// 待答的审批与提问挂在活动段尾部。
 const tailOf = (
   pages: readonly TurnPage[],
   interactions: AgentTranscriptSnapshot['interactions'],
@@ -424,18 +403,8 @@ function framesOf(
   return { items, userAnchors }
 }
 
-/*
- * Turn 的投影按对象身份记账。上游 reducer 是结构共享的：一条 op 只换它碰到的
- * 那一个 turn（`{ ...turn, steps }`），其余 turn 原样保留 —— 所以没变的 turn
- * 直接复用上一次的投影，流式期间每条 delta 只重算正在变的那一个，而不是整本
- * 对话。presentation 层的行身份（WeakMap<TimelineItem>）也依赖这份身份成立：
- * 投影每次新建的话，全部行位的 memo 都会被击穿。
- *
- * 带附件的 turn 还依赖两本外部集合：attachment.upsert 换 attachments、媒体字节
- * 取回来换 media 表，而 turn 自身一动不动。判据得跟着这两本走，否则图片永远停在
- * 占位。它们按**引用**比：attachments 是每次 snapshot 重建的数组，所以只比对这条
- * turn 真正用到的那几个附件对象；media 表只在解析成功后换新，可以直接比身份。
- */
+// 按 turn 对象身份记账：上游 reducer 结构共享，没变的 turn 复用上次投影。
+// 带附件的 turn 还依赖两本外部集合（attachments、media），判据跟着它们走。
 const TURN_PROJECTIONS = new WeakMap<
   TranscriptTurn,
   {
@@ -447,7 +416,6 @@ const TURN_PROJECTIONS = new WeakMap<
   }
 >()
 
-/** 这条 turn 用到的附件对象，按 attachmentIds 的顺序；缺席的是找不到的 id。 */
 function sourcesOf(
   turn: TranscriptTurn,
   index: ReadonlyMap<string, TranscriptAttachment>,
@@ -486,7 +454,6 @@ function projectTurn(
   const hasInput = turn.prompt !== undefined || (turn.attachmentIds?.length ?? 0) > 0
   const opening = hasInput ? source.anchors : source.isUser ? null : 0
   const attached = hasInput ? attachmentsOfTurn(turn, index, media) : NO_TURN_ATTACHMENTS
-  /* 正文里混着给模型看的附件句子，inputItem 会把它们摘掉。 */
   const opened = hasInput
     ? inputItem(
         source,
@@ -527,14 +494,7 @@ function projectTurn(
   return projected
 }
 
-// :undo removes a suffix ending at a user anchor, not at an arbitrary run.
-
-/*
- * 包裹页按基础页的身份记账。run 的三个字段由后缀推出：busy、锚点与后缀形状不变
- * 时，历史段的 run 逐字段相同 —— 原样复用上一次的包裹页。TurnPage 的契约是
- * 「封口之后不再改写，跨帧按引用共享」，presentation 层按页身份的段缓存
- * （WeakMap<TurnPage>）依赖它成立；这里每次新建一个壳，那条缓存就永远不命中。
- */
+// 包裹页按基础页身份记账：run 字段不变时复用，否则 presentation 层的页缓存永远不命中。
 const WRAPPED_PAGES = new WeakMap<TurnPage, TurnPage>()
 
 function wrappedPage(page: TurnPage, run: NonNullable<TurnPage['run']>): TurnPage {
@@ -638,8 +598,7 @@ export function projectTranscript(
   }
 }
 
-/* 目录标记同样按 turn 身份记账：reply 那一格要 join 整轮的助手文本，长对话里
-   每条 delta 都重算一遍就是纯粹的分配 churn。turn 未变时标记原样复用。 */
+// 目录标记按 turn 身份记账：reply 要 join 整轮助手文本，turn 未变时复用。
 const TURN_MARKS = new WeakMap<TranscriptTurn, TurnMark>()
 
 export const outlineOf = (snapshot: AgentTranscriptSnapshot): readonly TurnMark[] =>
@@ -654,7 +613,6 @@ export const outlineOf = (snapshot: AgentTranscriptSnapshot): readonly TurnMark[
       mark = {
         turnId: item.turnId,
         admissionId: item.triggerPromptId ?? item.turnId,
-        /* 侧栏的小地图也画人说的话：与气泡同一条摘除规矩。 */
         prompt: withoutKimiAttachmentNotices(item.prompt ?? ''),
         reply:
           item.steps

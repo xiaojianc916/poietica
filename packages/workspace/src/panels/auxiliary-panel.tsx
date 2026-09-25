@@ -332,7 +332,6 @@ function ToolbarButton({
       className="flex size-6 shrink-0 items-center justify-center rounded-md opacity-60 enabled:hover:bg-launcher enabled:hover:opacity-100 aria-pressed:bg-current/10 aria-pressed:opacity-100 disabled:opacity-30"
       disabled={disabled}
       onClick={onClick}
-      title={label}
       type="button"
     >
       {children}

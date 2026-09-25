@@ -329,6 +329,8 @@
    *   增删与报错走 --ui-success / --ui-destructive，两套主题各有明度。
    */
   --cp-timeline-quiet-text: var(--cp-ink-subtle);
+  /* turn-seal 下沿的分隔线：浅色走 quiet-text 的 14% 墨，深色定稿 #2b2b2b。 */
+  --cp-turn-seal-rule: color-mix(in oklab, var(--cp-timeline-quiet-text) 14%, transparent);
   --cp-timeline-output-surface: color-mix(in srgb, var(--ui-foreground) 4%, transparent);
   --cp-timeline-danger-text: var(--ui-destructive);
 
@@ -400,6 +402,14 @@
   --cp-timeline-said-max: 10.5rem;
   --cp-timeline-code-cap: 32rem;
   --cp-timeline-output-max: 14rem;
+  /*
+   * 一段推理摊开之后的正文上限。
+   *
+   * 比机器产出高一档：推理是散文，人在读它，十四行读不了一个念头；而它又必须封顶，
+   * 否则一段几十行的自语会把这一行下面的东西整片推出屏幕。到顶之后正文自己滚 ——
+   * 上下两条边就是「这里还有」的记号，不另给指示器。
+   */
+  --cp-timeline-thought-max: 20rem;
 
   /*
    * 一次工具调用的量度：折叠着的那一行，和它摊开的那张纸，同一个上限。
@@ -541,6 +551,9 @@
   --cp-tile-face: #383838;
 
   --cp-menu-hover: #2e2e2e;
+
+  /* turn-seal 下沿分隔线：产品指定深灰，不随 quiet-text 走。 */
+  --cp-turn-seal-rule: #2b2b2b;
 
   /*
    * 正文与气泡的字：深色下要的是白。

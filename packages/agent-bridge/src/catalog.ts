@@ -155,10 +155,10 @@ export function snapshotOf(
   /*
    * 哪些 provider 已经有凭据、且没被停用。
    *
-   * 判据是上游自己那一对：`hasAuth`（存储的凭据、运行时覆盖、config 覆盖、专用
-   * env、回落解析器都算）加 `disabledProviders`（停用开关）。两格合起来正是官方
-   * 注册表的可用性判据（model-registry.ts 的 `#createProviderAvailabilityCheck`），
-   * 与 model-hub 的 locked/unlocked 分野同一句。
+   * 判据照抄官方注册表那一句（config/model-registry.ts 的
+   * `#createProviderAvailabilityCheck`）：`keys.source` 有来源、或它是免密钥的
+   * （`keys.keyless`），且不在停用表里。旧版的 `hasAuth` 已随 18.3.0 拆进
+   * `credentials` / `keys` 两组子 API，原来那一个名字没有了。
    *
    * 停用的 provider 不进 providers，也不进 catalog —— 它此刻两栏都不该出现，人想
    * 再用就去「添加供应商」里重新配一次。
@@ -166,7 +166,12 @@ export function snapshotOf(
   const disabled = new Set(settings.get('disabledProviders') ?? [])
   const keyed = new Set<string>()
   for (const model of every) {
-    if (authStorage.hasAuth(model.provider) && !disabled.has(model.provider)) {
+    const available =
+      !disabled.has(model.provider) &&
+      (authStorage.keys.source(model.provider) !== undefined ||
+        authStorage.keys.keyless(model.provider))
+
+    if (available) {
       keyed.add(model.provider)
     }
   }
@@ -202,10 +207,10 @@ export function snapshotOf(
      * 名字先用 provider id：上游的内置目录没有单独的 provider 显示名，官方 TUI 的
      * 侧栏写的也是 id（pi-tui 的 overlays/model-hub.ts，`label: providerId`）。
      *
-     * `envKey` 取自上游自己的凭据来源分类（`getCredentialOrigin` 的 `envVar`）：
-     * 有些 provider 靠环境变量就能用，界面把那个变量名写出来，人才知道该配什么。
+     * `envKey` 取自上游自己的凭据来源分类（`keys.source` 的 `envVar`）：有些
+     * provider 靠环境变量就能用，界面把那个变量名写出来，人才知道该配什么。
      */
-    const origin = authStorage.getCredentialOrigin(provider)
+    const origin = authStorage.keys.source(provider)
 
     catalog.push({
       id: provider,

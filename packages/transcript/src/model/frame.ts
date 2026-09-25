@@ -64,13 +64,18 @@ export interface ToolCallFrame {
   readonly frameId: FrameId
   readonly toolCallId: string
   readonly name: string
-  readonly view?: string
   readonly state: ToolFrameState
   readonly input?: unknown
+  /**
+   * agent 自己写的那句话：这次调用打算做什么。
+   *
+   * omp 的 `tool_execution_start` 与 `ToolCall` 都带它（pi-wire 的 INTENT_FIELD，
+   * 提示里叫 "concise intent"）——「Reading ADR 0052」「Checking kap-client drift」。
+   * 它由模型自己写、比我们按参数猜得准，官方渲染器也优先用它当那一行。
+   */
+  readonly intent?: string
   readonly output?: unknown
-  readonly display?: unknown
   readonly error?: string
-  readonly inputText?: string
   readonly progress?: ToolFrameProgress
   readonly taskId?: TaskId
   readonly approvalId?: InteractionId

@@ -32,6 +32,9 @@ export class TranscriptProjector {
   #stepOpen = false
   #streaming: Streaming | null = null
   #tools = new Map<string, string>()
+  /* 入参与意图按 toolCallId 记着：结果那一帧要一起带回去（覆盖是整格替换）。 */
+  #args = new Map<string, unknown>()
+  #intents = new Map<string, string>()
   /* turn.upsert 是整格替换（ops/apply.ts 的 applyTurnUpsert），收轮时得把开轮写下的
    * 那几格原样带回去，否则 prompt 会被自己的收尾覆盖成空。 */
   #prompt = ''
@@ -73,6 +76,8 @@ export class TranscriptProjector {
     this.#stepOpen = true
     this.#streaming = null
     this.#tools.clear()
+    this.#args.clear()
+    this.#intents.clear()
     this.#prompt = text
     this.#promptId = promptId
     this.#startedAt = startedAt
@@ -202,12 +207,13 @@ export class TranscriptProjector {
    * 工具调用开始。
    *
    * omp 的 `tool_execution_start` 只给 toolCallId/toolName/args，帧先落 running；
-   * 结果到了按同一 frameId 覆盖（frame.upsert 是幂等覆盖）。
+   * 结果到了按同一 frameId 覆盖。
    */
   toolStart(call: {
     readonly toolCallId: string
     readonly toolName: string
     readonly args: unknown
+    readonly intent?: string
   }): TranscriptOperation[] {
     if (!this.#turnOpen) {
       return []
@@ -219,6 +225,10 @@ export class TranscriptProjector {
     const step = stepId(turnId(this.#turn), this.#step)
     const id = `tool.${call.toolCallId}`
     this.#tools.set(call.toolCallId, id)
+    this.#args.set(call.toolCallId, call.args)
+    if (call.intent !== undefined && call.intent !== '') {
+      this.#intents.set(call.toolCallId, call.intent)
+    }
 
     return [
       {
@@ -232,12 +242,19 @@ export class TranscriptProjector {
           name: call.toolName,
           state: 'running',
           input: call.args,
+          ...(call.intent === undefined || call.intent === '' ? {} : { intent: call.intent }),
         },
       },
     ]
   }
 
-  /** 工具结果：同一帧覆盖，state 从 running 走到 done 或 error。 */
+  /**
+   * 工具结果：同一帧覆盖，state 从 running 走到 done 或 error。
+   *
+   * 覆盖是**整格替换**（ops/apply.ts 的 applyFrameUpsert），所以入参必须跟着带回来 ——
+   * 不带就等于在结果到达那一刻把 path/command 抹掉，投影层再取不到主语与那一句话，
+   * 一次读文件于是退成没有路径的「读取文件」，一面也因此空了。
+   */
   toolEnd(call: {
     readonly toolCallId: string
     readonly toolName: string
@@ -251,6 +268,8 @@ export class TranscriptProjector {
     const step = stepId(turnId(this.#turn), this.#step)
     const id = this.#tools.get(call.toolCallId) ?? `tool.${call.toolCallId}`
     const failed = call.isError === true
+    const args = this.#args.get(call.toolCallId)
+    const intent = this.#intents.get(call.toolCallId)
 
     return [
       {
@@ -263,6 +282,8 @@ export class TranscriptProjector {
           toolCallId: call.toolCallId,
           name: call.toolName,
           state: failed ? 'error' : 'done',
+          ...(args === undefined ? {} : { input: args }),
+          ...(intent === undefined ? {} : { intent }),
           output: call.result,
           ...(failed ? { error: text(call.result) } : {}),
         },
@@ -328,6 +349,8 @@ export class TranscriptProjector {
     this.#stepOpen = false
     this.#streaming = null
     this.#tools.clear()
+    this.#args.clear()
+    this.#intents.clear()
     this.#promptId = undefined
 
     return ops

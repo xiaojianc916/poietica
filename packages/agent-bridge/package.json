@@ -11,7 +11,7 @@
     "typecheck": "tsc --project tsconfig.json --noEmit"
   },
   "dependencies": {
-    "@oh-my-pi/pi-coding-agent": "18.2.11",
+    "@oh-my-pi/pi-coding-agent": "catalog:",
     "@poietica/transcript": "workspace:*",
     "zod": "catalog:"
   },

@@ -8,7 +8,7 @@
 ## 决定
 
 Poietica 唯一的 agent 是 oh-my-pi（omp，`@oh-my-pi/pi-coding-agent`，MIT，
-锚定 18.2.11）。接入方式是**把 omp 的 SDK 编进我们自己产出的一个可执行文件**，
+锚定 18.3.0）。接入方式是**把 omp 的 SDK 编进我们自己产出的一个可执行文件**，
 Rust 侧以 `--mode rpc`（stdio NDJSON）驱动它。用户不装任何 CLI，只装 Poietica。
 
 三件事同时成立，缺一条这个决定就不成立：

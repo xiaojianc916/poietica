@@ -114,7 +114,6 @@ function AuxiliaryTab({ active, icon, id, onClose, onSelect, title }: AuxiliaryT
       }}
       role="tab"
       tabIndex={active ? 0 : -1}
-      title={title}
       type="button"
     >
       <span aria-hidden className="auxiliary-tab-icon relative size-3.5 shrink-0">
