@@ -278,7 +278,11 @@ function partMarkdown(part: Exclude<ToolContentPart, { type: 'diff' }>): string 
   return part.label
 }
 
-/** 协议只给了 rawOutput 的时候，它就是这一面唯一交得出来的东西。 */
+/*
+ * 协议只给了 rawOutput 的时候，它就是这一面唯一交得出来的东西。
+ * omp 的产出信封（AgentToolResult：content 块数组）在这里拆开：文本块接起来画，
+ * 图块折成 markdown 图；空信封不画 —— 一对空括号不是产出。
+ */
 function outputOf(value: unknown): string | null {
   if (value === undefined || value === null) {
     return null
@@ -286,6 +290,26 @@ function outputOf(value: unknown): string | null {
 
   if (typeof value === 'string') {
     return value === '' ? null : textBlock(value)
+  }
+
+  if (value !== null && typeof value === 'object' && Array.isArray(Reflect.get(value, 'content'))) {
+    const blocks = Reflect.get(value, 'content') as readonly {
+      type: string
+      text?: string
+      data?: string
+      mimeType?: string
+    }[]
+    const pieces: string[] = []
+
+    for (const block of blocks) {
+      if (block.type === 'text' && typeof block.text === 'string' && block.text !== '') {
+        pieces.push(block.text)
+      } else if (block.type === 'image' && typeof block.data === 'string') {
+        pieces.push(`![截图](data:${block.mimeType ?? 'image/png'};base64,${block.data})`)
+      }
+    }
+
+    return pieces.length === 0 ? null : pieces.join('\n\n')
   }
 
   return jsonBlock(value)

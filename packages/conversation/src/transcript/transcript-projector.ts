@@ -25,6 +25,7 @@ import type {
 
 import { fileMetaLabel, isInFlight } from '../timeline/timeline-contract'
 import { withoutKimiAttachmentNotices } from './kimi-attachment'
+import { ompToolView } from './omp-tool-view'
 import { describeTool } from './tool-vocabulary'
 
 function timeOf(value?: string): number | undefined {
@@ -251,6 +252,7 @@ function frameOf(frame: TranscriptFrame, turn: number, stamp: number): TimelineI
     return { type: 'error', id: frame.frameId, turn, at: stamp, message: frame.message }
   }
   const tool = describeTool(frame)
+  const view = ompToolView(frame.name, frame.input, frame.output, frame.error)
   return {
     type: 'tool_call',
     id: frame.frameId,
@@ -258,11 +260,17 @@ function frameOf(frame: TranscriptFrame, turn: number, stamp: number): TimelineI
     at: stamp,
     toolCallId: frame.toolCallId,
     title: frame.name,
-    ...tool,
+    kind: tool.kind,
+    /* 视图的主语优先：它是按工具的性子挑的（命令、路径、模式、地址）。 */
+    subject: view.subject || tool.subject,
     status:
       frame.state === 'running' ? 'in_progress' : frame.state === 'error' ? 'failed' : 'completed',
-    requestContent: textContent(frame.inputText || JSON.stringify(frame.input, null, 2)),
-    content: textContent(frame.error ?? frame.output),
+    /* 因地制宜的两面；视图认不出的工具交回空两面，抽屉的兜底按 JSON 重排。 */
+    requestContent:
+      view.request.length > 0
+        ? view.request
+        : textContent(frame.inputText || JSON.stringify(frame.input, null, 2)),
+    content: view.response.length > 0 ? view.response : textContent(frame.error ?? frame.output),
     locations: [],
     channels: (frame.agentRefs ?? []).map((agent) => ({
       agentId: agent.agentId,

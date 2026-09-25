@@ -136,10 +136,9 @@ function TimeColumn({
   }, [])
 
   return (
-    <div
+    <fieldset
       aria-label={label}
       className="automation-schedule-field__column max-h-56 w-14 overflow-y-auto overscroll-contain"
-      role="group"
     >
       {options.map((option) => (
         <DropdownMenuItem
@@ -153,7 +152,7 @@ function TimeColumn({
           {option}
         </DropdownMenuItem>
       ))}
-    </div>
+    </fieldset>
   )
 }
 
