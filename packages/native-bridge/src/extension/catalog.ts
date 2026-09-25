@@ -104,6 +104,7 @@ export const capabilityGateway: CapabilityGateway = {
   installCapability: (capabilityId) =>
     throughIpc(() => commands.agentCapabilityInstall({ capabilityId })),
   readBrowserSettings: () => throughIpc(() => commands.agentBrowserSettings()),
+  readAppBrowserEndpoint: () => throughIpc(() => commands.browserDevtoolsEndpoint()),
   writeBrowserSettings: (patch) =>
     throughIpc(() =>
       commands.agentSetBrowserSettings({

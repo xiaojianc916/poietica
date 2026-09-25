@@ -120,6 +120,8 @@ export type BrowserControl =
       readonly enabled: boolean
       readonly headless: boolean
       readonly cdpUrl: string | null
+      /** 本机内置浏览器的 CDP 端点；非 Windows 或未分配端口时为 null。 */
+      readonly appEndpoint: string | null
     }
 
 export interface BrowserSettingsPatch {

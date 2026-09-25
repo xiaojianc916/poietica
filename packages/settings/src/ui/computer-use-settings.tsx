@@ -24,13 +24,10 @@ const FAILURE_PREFIX = '安装失败：'
 
 const BROWSER_READING = '正在读取 agent 的浏览器控制设置…'
 const BROWSER_MANAGED = 'agent 自己启动一个浏览器来操作网页'
+const BROWSER_APP = 'agent 直接操控 Poietica 的内置浏览器'
 const BROWSER_CDP = '附着到一个已经在跑的浏览器（CDP）'
 const CDP_DEFAULT = 'http://127.0.0.1:9222'
-
-const CONTROL_MODES: readonly SelectOption<string>[] = [
-  { value: 'managed', label: '托管启动' },
-  { value: 'cdp', label: '附着到现成浏览器' },
-]
+const APP_MODE = 'app'
 
 export function computerUseFailureDescription(reason: string): string {
   const detail = reason.trim().replace(/^(?:安装失败[：:]\s*)+/u, '')
@@ -101,6 +98,14 @@ function BrowserSection({
     )
   }
 
+  const modes: readonly SelectOption<string>[] = [
+    { value: 'managed', label: '托管启动' },
+    ...(browser.appEndpoint === null ? [] : [{ value: APP_MODE, label: '内置浏览器' }]),
+    { value: 'cdp', label: '附着到现成浏览器' },
+  ]
+  const mode =
+    browser.cdpUrl === null ? 'managed' : browser.cdpUrl === browser.appEndpoint ? APP_MODE : 'cdp'
+
   return (
     <SettingsGroup title="浏览器">
       <SettingRow description="让 agent 用它自带的浏览器打开和操作网页" label="浏览器控制">
@@ -120,22 +125,30 @@ function BrowserSection({
       />
 
       <SettingRow
-        description={browser.cdpUrl === null ? BROWSER_MANAGED : BROWSER_CDP}
+        description={
+          mode === 'managed' ? BROWSER_MANAGED : mode === APP_MODE ? BROWSER_APP : BROWSER_CDP
+        }
         label="连接方式"
       >
         <Select
           align="end"
           className="settings-select-trigger"
-          data={CONTROL_MODES}
-          onValueChange={(mode) =>
-            store.setBrowserSettings({ cdpUrl: mode === 'cdp' ? CDP_DEFAULT : '' })
-          }
+          data={modes}
+          onValueChange={(next) => {
+            if (next === 'managed') {
+              store.setBrowserSettings({ cdpUrl: '' })
+            } else if (next === APP_MODE) {
+              store.setBrowserSettings({ cdpUrl: browser.appEndpoint ?? '' })
+            } else {
+              store.setBrowserSettings({ cdpUrl: CDP_DEFAULT })
+            }
+          }}
           type="连接方式"
-          value={browser.cdpUrl === null ? 'managed' : 'cdp'}
+          value={mode}
         />
       </SettingRow>
 
-      {browser.cdpUrl !== null ? <CdpUrlRow store={store} value={browser.cdpUrl} /> : null}
+      {mode === 'cdp' ? <CdpUrlRow store={store} value={browser.cdpUrl ?? ''} /> : null}
     </SettingsGroup>
   )
 }

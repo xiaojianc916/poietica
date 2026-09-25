@@ -8,6 +8,8 @@ export interface CapabilityGateway {
   installCapability(capabilityId: string): Promise<AgentCapability>
   /** agent 的浏览器控制设置。 */
   readBrowserSettings(): Promise<{ enabled: boolean; headless: boolean; cdpUrl: string | null }>
+  /** 本机内置浏览器的 CDP 端点；非 Windows 或未分配端口时为 null。 */
+  readAppBrowserEndpoint(): Promise<string | null>
   /** 写浏览器控制设置；缺席的格不改，交回写完的整份。 */
   writeBrowserSettings(patch: BrowserSettingsPatch): Promise<{
     enabled: boolean

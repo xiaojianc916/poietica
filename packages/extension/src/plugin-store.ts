@@ -633,9 +633,12 @@ export function createPluginStore(options: PluginStoreOptions): PluginStore {
 
   async function readBrowserSettings(): Promise<void> {
     try {
-      const browser = await options.capability.readBrowserSettings()
+      const [browser, appEndpoint] = await Promise.all([
+        options.capability.readBrowserSettings(),
+        options.capability.readAppBrowserEndpoint(),
+      ])
 
-      publish({ browser: { kind: 'ready', ...browser } })
+      publish({ browser: { kind: 'ready', appEndpoint, ...browser } })
     } catch (cause: unknown) {
       const reason = cause instanceof Error ? cause.message : String(cause)
 
@@ -646,9 +649,12 @@ export function createPluginStore(options: PluginStoreOptions): PluginStore {
 
   async function writeBrowserSettings(patch: BrowserSettingsPatch): Promise<void> {
     try {
-      const browser = await options.capability.writeBrowserSettings(patch)
+      const [browser, appEndpoint] = await Promise.all([
+        options.capability.writeBrowserSettings(patch),
+        options.capability.readAppBrowserEndpoint(),
+      ])
 
-      publish({ browser: { kind: 'ready', ...browser } })
+      publish({ browser: { kind: 'ready', appEndpoint, ...browser } })
     } catch (cause: unknown) {
       const reason = cause instanceof Error ? cause.message : String(cause)
 
