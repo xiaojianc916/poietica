@@ -195,13 +195,29 @@ export function createApplicationRuntime(restored: string | null): ApplicationRu
       return backgroundServicesReady
     }
 
-    const started = pluginStore.start().then(async () => {
-      if (disposed) {
-        pluginStore.stop()
-        return
+    /*
+     * 接入档案先落盘，排在其余前置之前：这条链上每一步都要读它 —— pluginStore.start()
+     * 的 environmentMcpConfig 与 reconcileBrowserMcpServer 都要 defaultAgentId，原生侧的
+     * launch_env / agent_program 认整条档案。此前这步只挂在设置→模型页上，全新安装因此
+     * 起不了会话，而「重试」重跑的是同一条读路径、治不了。
+     *
+     * 落盘失败不当成前置失败：插件首扫照跑，档案缺席由起会话那条路自己报（它才是需要它的那条）。
+     */
+    const profileReady = agentConfig.load().catch((cause: unknown) => {
+      /* 退出途中的 AbortError 不是故障，不报。 */
+      if (!disposed) {
+        warn('agent 接入档案没能落盘', { scope: 'agent-config', cause })
       }
-      await reconcileBrowserMcpServer(pluginStore)
     })
+    const started = profileReady
+      .then(() => pluginStore.start())
+      .then(async () => {
+        if (disposed) {
+          pluginStore.stop()
+          return
+        }
+        await reconcileBrowserMcpServer(pluginStore)
+      })
 
     backgroundServicesReady = started
     void started.catch(() => {
