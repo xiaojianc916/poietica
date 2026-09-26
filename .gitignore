@@ -215,4 +215,7 @@ dist-release/
 .cargo/link-tmp/*
 !.cargo/link-tmp/.gitkeep
 
+# 开发构建的数据根（见 apps/desktop/src-tauri/src/paths.rs installed_root），整目录不入库。
+.dev-data/
+
 oh-my-pi/

@@ -62,6 +62,12 @@ pub struct SettingEntry {
     /// 那是界面那一侧的事，本层原样带上（别处出现协议判别即为泄漏，AGENTS.md §5）。
     #[serde(skip_serializing_if = "Option::is_none")]
     pub condition: Option<String>,
+    /// 所在分节的中文名。分组仍按 `group`（agent 自己的词）分：键译了同一节会分裂。
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub group_label: Option<String>,
+    /// 这一格的**行**由产品别处的控件负责；值仍然报（别的格子按它决定显不显示）。
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub owned: bool,
 }
 
 impl fmt::Debug for SettingEntry {
@@ -83,8 +89,22 @@ impl fmt::Debug for SettingEntry {
 #[serde(rename_all = "camelCase")]
 pub struct SettingsCatalog {
     /// 栏目清单，按 agent 自己的顺序。界面拿它搭导航，不另立一份。
-    pub tabs: Vec<String>,
+    pub tabs: Vec<SettingsTab>,
     pub settings: Vec<SettingEntry>,
+    /// agent 此刻在用的那份配置文件（绝对路径，由 agent 自己报）。
+    #[serde(default)]
+    pub config_file: String,
+    /// 那份文件此刻在不在；不在就是还没写过。
+    #[serde(default)]
+    pub config_file_exists: bool,
+}
+
+/// 一栏：键是 agent 自己的栏目词汇（筛选认它），名是给人看的那一列。
+#[derive(Clone, Debug, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SettingsTab {
+    pub key: String,
+    pub label: String,
 }
 
 impl SettingEntry {
@@ -127,6 +147,8 @@ impl SettingEntry {
                 }),
             warning: text(value, "warning"),
             condition: text(value, "condition"),
+            group_label: text(value, "groupLabel"),
+            owned: flag(value, "owned"),
         })
     }
 }
@@ -139,15 +161,22 @@ pub(crate) fn catalog_of(data: &Value) -> SettingsCatalog {
         tabs: data
             .get("tabs")
             .and_then(Value::as_array)
-            .map(|tabs| {
-                tabs.iter()
-                    .filter_map(Value::as_str)
-                    .map(str::to_owned)
-                    .collect()
-            })
+            .map(|tabs| tabs.iter().filter_map(tab_of).collect())
             .unwrap_or_default(),
         settings: entries_of(data),
+        /* 配置文件路径也由 agent 报：它知道自己在读哪个 home，我们不知道。 */
+        config_file: text(data, "configFile").unwrap_or_default(),
+        config_file_exists: flag(data, "configFileExists"),
     }
+}
+
+/// 桥报的一栏：键与名缺一不可（键是筛选用的那一格，名是给人的那一格）。
+fn tab_of(value: &Value) -> Option<SettingsTab> {
+    Some(SettingsTab {
+        key: text(value, "key")?,
+        /* 名可以缺着：缺了就用键，界面显示英文而不是空白。 */
+        label: text(value, "label").unwrap_or_else(|| text(value, "key").unwrap_or_default()),
+    })
 }
 
 /// 桥报的一栏格子（`set_setting` 的应答就是整份目录里的 settings 那一格）。
@@ -204,7 +233,10 @@ mod tests {
     #[test]
     fn a_catalog_entry_keeps_what_the_agent_reported() {
         let catalog = catalog_of(&json!({
-            "tabs": ["appearance", "tools"],
+            "tabs": [
+                { "key": "appearance", "label": "外观" },
+                { "key": "tools", "label": "工具" }
+            ],
             "settings": [{
                 "path": "browser.headless",
                 "type": "boolean",
@@ -219,7 +251,10 @@ mod tests {
             }]
         }));
 
-        assert_eq!(catalog.tabs, vec!["appearance", "tools"]);
+        /* 栏是键与名成对的：键给筛选认（不译），名给人看。 */
+        assert_eq!(catalog.tabs.len(), 2);
+        assert_eq!(catalog.tabs[0].key, "appearance");
+        assert_eq!(catalog.tabs[0].label, "外观");
         assert_eq!(catalog.settings.len(), 1);
 
         let entry = &catalog.settings[0];

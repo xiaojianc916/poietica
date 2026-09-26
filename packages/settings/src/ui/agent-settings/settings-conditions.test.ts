@@ -40,10 +40,15 @@ function at(values: Record<string, unknown>) {
   return settingLookup(Object.entries(values).map(([path, value]) => entry({ path, value })))
 }
 
-/** 条件名到「让它成立的那一份设置」。 */
+/*
+ * 条件名到「让它成立的那一份设置」。
+ *
+ * 只列**界面还认**的条件：`vimModeEnabled` 随 `tui.vimMode` 一起被挡在目录外（那是终端
+ * 的事），认不出它就按「不知道就不显示」处理 —— 把它列在这里等于要求一个已经删掉的判据
+ * 还活着。
+ */
 const SATISFYING: readonly (readonly [string, Record<string, unknown>])[] = [
   ['advisorEnabled', { 'advisor.enabled': true }],
-  ['vimModeEnabled', { 'tui.vimMode': true }],
   ['autolearnActive', { 'autolearn.enabled': true }],
   ['usageAwareFallbackEnabled', { 'retry.usageAwareFallback': true }],
   ['planModeEnabled', { 'plan.enabled': true }],

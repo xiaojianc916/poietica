@@ -19,3 +19,9 @@
   font-size: 12px;
   font-variant-numeric: tabular-nums;
 }
+
+/* 搜索框占满一整行：它是这一页的入口，缩在右端会让人以为只是个筛选项。 */
+.agent-settings__search {
+  inline-size: 100%;
+  max-inline-size: 360px;
+}

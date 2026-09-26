@@ -421,6 +421,62 @@ export function interactionOp(input: {
   ]
 }
 
+/**
+ * 一次标记的 upsert：上下文压缩走这一条。
+ *
+ * 与交互同形：不绑 turn 的独立构建函数，不碰流式累加状态。压缩也一样不绑某一轮 ——
+ * agent 压的是上下文，不是「这一轮做了什么」。
+ *
+ * 号必须稳定：开门与关门是同一行的两次 upsert，换号会在屏幕上多出一行。
+ */
+export function markerOp(input: {
+  readonly markerId: string
+  readonly marker: string
+  readonly payload?: unknown
+  readonly at?: string
+}): TranscriptOperation[] {
+  return [
+    {
+      op: 'marker.upsert',
+      item: {
+        kind: 'marker',
+        markerId: input.markerId,
+        marker: input.marker,
+        at: input.at ?? now(),
+        ...(input.payload === undefined ? {} : { payload: input.payload }),
+      },
+    },
+  ]
+}
+
+/**
+ * 一次附件的 upsert：回放历史里的图片走这一条。
+ *
+ * 与交互、标记同形：不绑 turn 的独立构建函数。图片挂在用户那一轮上，但它自己的事实
+ * （媒体类型、像素、名字）与轮无关，所以另立一格，由 `userTurn` 的 attachmentIds 引用。
+ *
+ * 像素用 `url` 源直接给：omp 读会话文件时已经把 blob 引用换回 base64，所以这一格是
+ * data URL，界面直接画得出来，不必再开一条取字节的通道。
+ */
+export function attachmentOp(input: {
+  readonly attachmentId: string
+  readonly mediaType: string
+  readonly dataUrl: string
+  readonly name?: string
+}): TranscriptOperation[] {
+  return [
+    {
+      op: 'attachment.upsert',
+      attachment: {
+        attachmentId: input.attachmentId,
+        mediaType: input.mediaType,
+        source: { kind: 'url', url: input.dataUrl },
+        ...(input.name === undefined ? {} : { name: input.name }),
+      },
+    },
+  ]
+}
+
 function appendOp(
   turn: number,
   step: string,

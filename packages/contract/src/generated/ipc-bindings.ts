@@ -90,6 +90,18 @@ async agentSettingsCatalog() : Promise<AgentSettingsCatalog> {
     return await TAURI_INVOKE("agent_settings_catalog");
 },
 /**
+ * 把 agent 自己的配置文件交给系统默认编辑器。
+ * 
+ * 路径**现问 agent**，不从前端收：交给系统 shell 的东西不能由调用方任选（同
+ * `window_open_external_url` 那条纪律）。这里只开它自己报的那一个文件。
+ * 
+ * 改完不必我们替它重读：omp 自己看盘（`Settings.reloadFromDisk()`），下一次读目录
+ * 就读到新的。所以这条命令不返回新目录 —— 它是「把文件交出去」，不是「提交一次改动」。
+ */
+async agentOpenConfigFile() : Promise<null> {
+    return await TAURI_INVOKE("agent_open_config_file");
+},
+/**
  * 改一格设置，交回**改完之后**整份目录的 settings 那一格。
  * 
  * 界面拿这一份刷新自己，不做乐观改写：改没改由 agent 自己说，那是它写的盘。
@@ -622,11 +634,23 @@ options: AgentSettingOption[] | null;
 /**
  * 没有 options 时的取值域。
  */
-enumValues: string[] | null; warning: string | null; condition: string | null }
+enumValues: string[] | null; warning: string | null; condition: string | null; 
+/**
+ * 所在分节的中文名；分组仍然按 `group`（agent 自己的词）分。
+ */
+groupLabel: string | null; 
+/**
+ * 这一格的**行**由产品别处的控件负责；值仍然报（别的格子按它决定显不显示）。
+ */
+owned: boolean }
 /**
  * 枚举/子菜单的一张选项表；原样投影。
  */
 export type AgentSettingOption = { value: string; label: string; description: string | null }
+/**
+ * 一栏：键是 agent 自己的栏目词汇（筛选认它），名是给人看的那一列。
+ */
+export type AgentSettingTab = { key: string; label: string }
 /**
  * 改一格设置。`value` 的类型由 agent 自己的 schema 说了算，本层不折算。
  */
@@ -638,7 +662,15 @@ export type AgentSettingsCatalog = {
 /**
  * 栏目清单，按 agent 自己的顺序；界面拿它搭导航，不另立一份。
  */
-tabs: string[]; settings: AgentSettingEntry[] }
+tabs: AgentSettingTab[]; settings: AgentSettingEntry[]; 
+/**
+ * agent 此刻在用的那份配置文件（绝对路径，由它自己报）。
+ */
+configFile: string; 
+/**
+ * 那份文件此刻在不在；不在就是还没写过。
+ */
+configFileExists: boolean }
 export type AgentSkill = { id: string; name: string; description: string; source: string; path: string; project: string | null; projectPath: string | null; document: string | null; directory: string | null; enabled: boolean; loaded: boolean; kind: string | null; disableModelInvocation: boolean | null; supportingFiles: number | null; totalBytes: number | null; modifiedAt: number | null }
 export type AgentSteerRequest = { threadId: string; 
 /**

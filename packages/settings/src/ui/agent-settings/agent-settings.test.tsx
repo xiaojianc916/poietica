@@ -85,13 +85,19 @@ function fullCatalog(): AgentSettingsCatalog {
     }
   }
 
-  return { tabs: ['tools'], settings }
+  return {
+    tabs: [{ key: 'tools', label: '工具' }],
+    settings,
+    configFile: '/home/config.yml',
+    configFileExists: true,
+  }
 }
 
 function storeOf(read: () => Promise<AgentSettingsCatalog>): AgentSettingsStore {
   const port: AgentSettingsPort = {
     read,
     write: () => Promise.resolve([]),
+    openConfigFile: () => Promise.resolve(),
   }
 
   return new AgentSettingsStore(port)
@@ -107,8 +113,11 @@ describe('agent 设置页', () => {
 
     expect(store.getSnapshot().catalog?.settings).toHaveLength(378)
 
-    /* 每一格都画出来了（外加「来源」那一行）。 */
-    expect(markup.match(/class="settings-row"/g)).toHaveLength(379)
+    /*
+     * 每一格都画出来了，外加「来源」那一组的两行（搜索框与开配置文件）。
+     * 那两行不是设置：它们是这一页自己的入口，所以数在这里要一起算进去。
+     */
+    expect(markup.match(/class="settings-row"/g)).toHaveLength(380)
 
     /* 六种类型各自落到了对的控件上，逐类点一个名。 */
     expect(markup).toContain('role="switch"') // boolean
@@ -125,8 +134,10 @@ describe('agent 设置页', () => {
    */
   it('导航跟着目录报的 tabs 走，我们这侧没有第二份栏名', async () => {
     const renamed: AgentSettingsCatalog = {
-      tabs: ['zzz-invented-tab'],
+      tabs: [{ key: 'zzz-invented-tab', label: 'zzz-invented-tab' }],
       settings: [entry(0, 'boolean', 'zzz-invented-tab')],
+      configFile: '/home/config.yml',
+      configFileExists: true,
     }
     const store = storeOf(() => Promise.resolve(renamed))
 
@@ -147,7 +158,7 @@ describe('agent 设置页', () => {
    */
   it('钥匙那一格带着明文也画不上屏', async () => {
     const catalog: AgentSettingsCatalog = {
-      tabs: ['memory'],
+      tabs: [{ key: 'memory', label: '记忆' }],
       settings: [
         {
           path: SECRET_PATH,
@@ -163,6 +174,8 @@ describe('agent 设置页', () => {
           hasValue: true,
         },
       ],
+      configFile: '/home/config.yml',
+      configFileExists: true,
     }
     const store = storeOf(() => Promise.resolve(catalog))
 
@@ -178,7 +191,7 @@ describe('agent 设置页', () => {
 
   it('没配过的钥匙说未配置，不说空', async () => {
     const catalog: AgentSettingsCatalog = {
-      tabs: ['memory'],
+      tabs: [{ key: 'memory', label: '记忆' }],
       settings: [
         {
           path: SECRET_PATH,
@@ -192,6 +205,8 @@ describe('agent 设置页', () => {
           hasValue: false,
         },
       ],
+      configFile: '/home/config.yml',
+      configFileExists: true,
     }
     const store = storeOf(() => Promise.resolve(catalog))
 
@@ -209,7 +224,7 @@ describe('agent 设置页', () => {
    */
   it('认得出的条件按目录里此刻的值决定显不显示', async () => {
     const catalog = (advisorEnabled: boolean): AgentSettingsCatalog => ({
-      tabs: ['model'],
+      tabs: [{ key: 'model', label: '模型' }],
       settings: [
         {
           ...entry(0, 'boolean', 'model'),
@@ -224,6 +239,8 @@ describe('agent 设置页', () => {
           condition: 'advisorEnabled',
         },
       ],
+      configFile: '/home/config.yml',
+      configFileExists: true,
     })
 
     const off = storeOf(() => Promise.resolve(catalog(false)))
@@ -241,7 +258,7 @@ describe('agent 设置页', () => {
 
   it('认不出的条件不显示：不知道就不画，不猜一个默认值', async () => {
     const catalog: AgentSettingsCatalog = {
-      tabs: ['tools'],
+      tabs: [{ key: 'tools', label: '工具' }],
       settings: [
         { ...entry(0, 'boolean', 'tools'), label: 'Plain' },
         {
@@ -250,6 +267,8 @@ describe('agent 设置页', () => {
           condition: 'aConditionFromSomeFutureVersion',
         },
       ],
+      configFile: '/home/config.yml',
+      configFileExists: true,
     }
     const store = storeOf(() => Promise.resolve(catalog))
 
@@ -264,8 +283,10 @@ describe('agent 设置页', () => {
   it('风险提示原样上屏', async () => {
     const warning = 'At your own risk: providers have flagged this request shape as abuse'
     const catalog: AgentSettingsCatalog = {
-      tabs: ['model'],
+      tabs: [{ key: 'model', label: '模型' }],
       settings: [{ ...entry(0, 'boolean', 'model'), label: 'External Thinking', warning }],
+      configFile: '/home/config.yml',
+      configFileExists: true,
     }
     const store = storeOf(() => Promise.resolve(catalog))
 
@@ -287,5 +308,79 @@ describe('agent 设置页', () => {
     for (const group of ['Group 0', 'Group 1', 'Group 2', 'Group 3']) {
       expect(markup).toContain(`<h3>${group}</h3>`)
     }
+  })
+
+  /*
+   * 用户提的那三个问题：三百多项翻不完、全是英文、能不能直接改配置文件。
+   * 下面三条各钉一个判据，且都钉在「没有它就等于没做」的那一格上。
+   */
+  it('搜索框在：三百多项没有搜索就只能靠翻', async () => {
+    const store = storeOf(() => Promise.resolve(fullCatalog()))
+
+    await store.load()
+
+    const markup = renderToStaticMarkup(<Surface store={store} />)
+
+    expect(markup).toContain('按名称或路径搜索…')
+  })
+
+  /*
+   * 跟这台桌面软件无关的格子**不上屏**，而不是折叠起来。
+   *
+   * 画一格改了没有效果的控件就是骗人 —— 它让人以为改了会变。过滤在桥那一侧做
+   * （`irrelevantSettingOf`），所以界面这一层只须证明：目录里给什么就画什么，
+   * 而目录不会再给那些。
+   */
+  it('目录里没有的格子一屏都不出现', async () => {
+    const store = storeOf(() => Promise.resolve(fullCatalog()))
+
+    await store.load()
+
+    const markup = renderToStaticMarkup(<Surface store={store} />)
+
+    /* 折叠机制本身已经删掉了：不要再留一个收起来的入口。 */
+    expect(markup).not.toContain('<details')
+    expect(markup).not.toContain('终端界面')
+  })
+
+  it('搜索结果跟着目录走：搜不到的就不画', async () => {
+    const store = storeOf(() => Promise.resolve(fullCatalog()))
+
+    await store.load()
+
+    const markup = renderToStaticMarkup(<Surface store={store} />)
+
+    /* 三百多项的设置页，搜索框是入口；它必须在，且带说明。 */
+    expect(markup).toContain('搜索设置')
+  })
+
+  it('没有配置文件时按钮点不动，并说清为什么', async () => {
+    const catalog: AgentSettingsCatalog = {
+      tabs: [{ key: 'tools', label: '工具' }],
+      settings: [entry(0, 'boolean')],
+      configFile: '/home/config.yml',
+      configFileExists: false,
+    }
+    const store = storeOf(() => Promise.resolve(catalog))
+
+    await store.load()
+
+    const markup = renderToStaticMarkup(<Surface store={store} />)
+
+    expect(markup).toContain('配置文件还没生成')
+    expect(markup).toContain('/home/config.yml')
+    /* 文件还没有就给个点得动却报错的按钮，比灰着更坏。 */
+    expect(markup).toContain('disabled')
+  })
+
+  it('配置文件的路径与「打开」入口都在屏上', async () => {
+    const store = storeOf(() => Promise.resolve(fullCatalog()))
+
+    await store.load()
+
+    const markup = renderToStaticMarkup(<Surface store={store} />)
+
+    expect(markup).toContain('用编辑器改配置文件')
+    expect(markup).toContain('/home/config.yml')
   })
 })

@@ -20,7 +20,7 @@ import type { AgentSettingsCatalogWire } from '@poietica/contract/settings'
  */
 const agentSettingsCatalog = mock((...args: unknown[]): Promise<AgentSettingsCatalogWire> => {
   void args
-  return Promise.resolve({ tabs: [], settings: [] })
+  return Promise.resolve({ tabs: [], settings: [], configFile: '', configFileExists: false })
 })
 const agentSetSetting = mock(
   (...args: unknown[]): Promise<AgentSettingsCatalogWire['settings']> => {
@@ -39,7 +39,12 @@ const { catalogOf } = await import('@poietica/settings')
 
 /** 一格线上元数据：可缺席的格一律 null（Rust 的 Option::None 到这边就是 null）。 */
 const wire: AgentSettingsCatalogWire = {
-  tabs: ['memory', 'tools'],
+  tabs: [
+    { key: 'memory', label: '记忆' },
+    { key: 'tools', label: '工具' },
+  ],
+  configFile: '/home/config.yml',
+  configFileExists: true,
   settings: [
     {
       path: 'browser.headless',
@@ -56,6 +61,8 @@ const wire: AgentSettingsCatalogWire = {
       enumValues: null,
       warning: null,
       condition: null,
+      groupLabel: null,
+      owned: false,
     },
     {
       path: 'mnemopi.llmApiKey',
@@ -73,6 +80,8 @@ const wire: AgentSettingsCatalogWire = {
       enumValues: null,
       warning: null,
       condition: 'mnemopiActive',
+      groupLabel: null,
+      owned: false,
     },
     {
       path: 'sleep.prevention',
@@ -92,6 +101,8 @@ const wire: AgentSettingsCatalogWire = {
       enumValues: null,
       warning: null,
       condition: null,
+      groupLabel: null,
+      owned: false,
     },
   ],
 }
@@ -107,7 +118,11 @@ describe('agent 设置目录的传输口', () => {
 
     const catalog = await createAgentSettingsPort().read()
 
-    expect(catalog.tabs).toEqual(['memory', 'tools'])
+    /* 栏是键与名成对的：键给筛选认，名给人看。 */
+    expect(catalog.tabs).toEqual([
+      { key: 'memory', label: '记忆' },
+      { key: 'tools', label: '工具' },
+    ])
 
     const headless = catalog.settings[0]
 

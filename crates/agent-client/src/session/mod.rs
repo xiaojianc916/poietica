@@ -2,6 +2,7 @@ pub(crate) mod book;
 pub(crate) mod bridge;
 pub(crate) mod client;
 pub(crate) mod config;
+pub(crate) mod lifecycle;
 pub(crate) mod observe;
 pub(crate) mod selection;
 

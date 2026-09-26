@@ -17,8 +17,11 @@
 需要写下任何声明 —— 用户把整个目录搬到别的盘，数据跟着一起走。
 
 开发构建不适用这条：exe 在 `target/debug` 下，往那里写用户数据会被 cargo clean
-抹掉。开发落点固定在平台目录，identifier 由 `tauri.dev.conf.json` 覆盖成带
-`.dev` 后缀的形式。
+抹掉。开发落点由 `paths.rs` 的 `installed_root` 给出：**当前是仓库旁的
+`.dev-data/`**（2026-09 起，本机对仓内诞生的进程有未破案的仓外写入拦截，
+`docs/runbooks/dev-write-interception.md` 记录了来龙去脉与还原条件）；
+`tauri.dev.conf.json` 里的 `.dev` identifier 只再决定 WebView2 用户数据目录
+（EBWebView，framework 自算，不经 paths.rs）。
 开发与安装版因此不会同时打开同一个 WAL 库，也不会互相覆盖各自的 settings.json
 与 agent 凭据。
 

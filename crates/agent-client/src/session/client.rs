@@ -77,7 +77,7 @@ pub struct PromptSkill {
 
 /// 进管道的命令：桥真的会做的那几条。
 ///
-/// 桥做不到的那些（装载、分叉、导出、目录编辑、历史读、媒体）**不在这里**：
+/// 桥做不到的那些（目录编辑、历史读、媒体、能力安装、撤回排队）**不在这里**：
 /// 它们的公开方法在 `AgentClient` 上直接答「这个 agent 还不支持」，不占一条
 /// 永远不会被应答的管道命令。界面那一整套照旧（ADR 0052 后果第 5 条）。
 pub(crate) enum Command {
@@ -204,6 +204,31 @@ pub(crate) enum Command {
         cwd: PathBuf,
         reply: oneshot::Sender<Result<OpenedSession>>,
     },
+    /// 从一条会话分叉出新的那条，丢掉尾部 `drop_turns` 轮。
+    ///
+    /// 这是一次**现场换会话**：agent 那边分叉完成后，这条连接的活会话已经是新的
+    /// 那一条（omp 的 AgentSession#branch / #fork 都落在新文件上），所以应答之后
+    /// 连接上的号要接过去 —— 驱动器因此把它走成和新开同一条指派的路。
+    ForkSession {
+        session_id: String,
+        drop_turns: u32,
+        reply: oneshot::Sender<Result<OpenedSession>>,
+    },
+    /// 删掉一条会话。删的是 agent 自己的会话文件，本层不碰盘。
+    DeleteSession {
+        session_id: String,
+        reply: oneshot::Sender<Result<()>>,
+    },
+    /// 把一条会话导成一页 HTML，写到 `destination`。
+    ExportSession {
+        session_id: String,
+        destination: PathBuf,
+        reply: oneshot::Sender<Result<()>>,
+    },
+    /// agent 自己的会话清单。跨工作区的多会话要另开一条连接（见 ADR 0052）。
+    Sessions {
+        reply: oneshot::Sender<Result<Vec<SessionEntry>>>,
+    },
 }
 
 /// 「这个 agent 的这条能力还没接上」。
@@ -220,7 +245,7 @@ fn unwired(what: &str) -> AgentError {
 /*
  * 下面这些方法刻意留着 `async`：调用方在 `.await` 它们，签名是公开契约的一部分。
  * 改成同步会把「哪条命令走网络」这一格漏给每一个调用点，而那一格恰恰是这一层
- * 的事。体里没有 await 是因为它们现在只答「还没接」。
+ * 的事。体里没有 await 是因为它们只把命令塞进管道、等应答。
  */
 #[derive(Clone)]
 pub struct AgentClient {
@@ -277,25 +302,73 @@ impl AgentClient {
             .map_err(|_dropped| AgentError::Refused(Refusal::Gone))?
     }
 
-    pub async fn fork_session(
-        &self,
-        _session_id: String,
-        _drop_turns: u32,
-    ) -> Result<OpenedSession> {
-        Err(unwired("forking a session"))
+    /// 从一条会话分叉出新的那条，丢掉尾部 `drop_turns` 轮，交回**新的**会话。
+    ///
+    /// 分叉是一次现场换会话：agent 那边分叉完，这条连接的活会话就是新的那一条
+    /// （omp 的 AgentSession#branch 落在新文件上，agent-session.ts:10060）。所以这条
+    /// 命令之后，连接上的号已经换了 —— 上层要接着用交回来的这个号，旧号在新连接上
+    /// 不再有效。分叉做不到时如实报错（例如源会话不是这条连接的活会话、或要丢掉的
+    /// 轮次多于已有的轮次），不假装成功：一个没发生的分叉报成功就是丢对话正文。
+    pub async fn fork_session(&self, session_id: String, drop_turns: u32) -> Result<OpenedSession> {
+        let (reply, answer) = oneshot::channel();
+
+        self.send(Command::ForkSession {
+            session_id,
+            drop_turns,
+            reply,
+        })?;
+
+        answer
+            .await
+            .map_err(|_dropped| AgentError::Refused(Refusal::Gone))?
     }
 
-    pub async fn delete_session(&self, _session_id: String) -> Result<()> {
-        Err(unwired("deleting a session"))
+    /// 删掉一条会话：删的是 agent 自己的会话文件（连同它的产物目录）。
+    ///
+    /// 找不到会话文件按失败报 —— 上层把「没删掉」记成待回收，下次连接再试
+    /// （conversation-runtime/src/disposal.rs）；报成功等于把那次回收悄悄丢掉。
+    pub async fn delete_session(&self, session_id: String) -> Result<()> {
+        let (reply, answer) = oneshot::channel();
+
+        self.send(Command::DeleteSession { session_id, reply })?;
+
+        answer
+            .await
+            .map_err(|_dropped| AgentError::Refused(Refusal::Gone))?
     }
 
+    /// agent 自己的会话清单：它那份会话文件目录里此刻有什么。
+    ///
+    /// 只读，不是第二条会话：桥的形态仍是「一条连接一条会话」，这条只是问管理器
+    /// 要一张表（`SessionManager.list`，session-manager.ts:3675）。因此它的范围是
+    /// 这条连接锚着的那个工作区 —— 跨工作区的清单要另开一条连接（ADR 0052）。
     /// 标题是 agent 自己的，唯一诚实的来源；未命名的会话不报标题。
     pub async fn sessions(&self) -> Result<Vec<SessionEntry>> {
-        Err(unwired("listing sessions"))
+        let (reply, answer) = oneshot::channel();
+
+        self.send(Command::Sessions { reply })?;
+
+        answer
+            .await
+            .map_err(|_dropped| AgentError::Refused(Refusal::Gone))?
     }
 
-    pub async fn export_session(&self, _session_id: String, _destination: PathBuf) -> Result<()> {
-        Err(unwired("exporting a session"))
+    /// 把一条会话导成一页 HTML，写到 `destination`。
+    ///
+    /// 字节由 agent 自己写盘（它那份导出器自己落文件），本层只给路径 —— 所以这里
+    /// 不做原子写、也不碰目标文件：两处各写一次就是两份字节。
+    pub async fn export_session(&self, session_id: String, destination: PathBuf) -> Result<()> {
+        let (reply, answer) = oneshot::channel();
+
+        self.send(Command::ExportSession {
+            session_id,
+            destination,
+            reply,
+        })?;
+
+        answer
+            .await
+            .map_err(|_dropped| AgentError::Refused(Refusal::Gone))?
     }
 
     /// 读取目标真相；未启用是 Ok(None)，连接故障是 Err。

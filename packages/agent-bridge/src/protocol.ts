@@ -32,6 +32,28 @@ export type BridgeCommand =
     }
   | { readonly id: string; readonly type: 'cancel' }
   | { readonly id: string; readonly type: 'steer'; readonly text: string }
+  /**
+   * 从某一轮分叉出一条新会话：丢掉末尾 `dropTurns` 轮，从更早那一点另起一条。
+   *
+   * 上游的原语是 `AgentSession#branch(entryId)`（它调 `createBranchedSession` 再重锚），
+   * 不是 `SessionManager#fork()` —— 后者整份复制、一轮都不丢，做不出这个契约。
+   * `dropTurns === 0` 才走整份复制。
+   */
+  | {
+      readonly id: string
+      readonly type: 'fork_session'
+      readonly sessionId: string
+      readonly dropTurns: number
+    }
+  /** 删掉一条会话文件与其产物目录；不存在的会话按失败回，不假装删掉了。 */
+  | { readonly id: string; readonly type: 'delete_session'; readonly sessionId: string }
+  /** 把一条会话导成一份自包含的 HTML，落点是绝对路径。 */
+  | {
+      readonly id: string
+      readonly type: 'export_session'
+      readonly sessionId: string
+      readonly destination: string
+    }
   /** 回答一次工具授权。decision 与 scope 是产品那三颗按钮的取值域。 */
   | {
       readonly id: string
@@ -392,12 +414,56 @@ export interface SettingEntry {
    * 我们不把一张条件表从 agent 的进程搬到这儿。
    */
   readonly condition?: string
+  /**
+   * 所在分节的中文名。
+   *
+   * 分组仍然按 `group`（agent 自己的词）分：键不能译，译了同一节会分裂成两节。
+   * 落在这里的只是给人看的那一列。
+   */
+  readonly groupLabel?: string
+  /**
+   * 这一格的**行**由产品别处的控件负责（输入框那一排的选择器、设置页的浏览器一节）。
+   *
+   * 值仍然要报：别的格子按 `condition` 读它的 value 决定显不显示。界面据此只跳过这一行，
+   * 不跳过它的值。一个事实两个控件是缺陷（AGENTS.md §1），但把值一起抽掉会让依赖它的
+   * 那几行永远消失，而屏幕上没有任何迹象 —— 那比重复控件更难发现。
+   */
+  readonly owned?: boolean
 }
 
 export interface SettingOption {
   readonly value: string
   readonly label: string
   readonly description?: string
+}
+
+export interface SettingsTab {
+  /** agent 自己的栏目键；筛选与分组都认它，不译。 */
+  readonly key: string
+  /** 给人看的名字。 */
+  readonly label: string
+}
+
+/**
+ * 设置目录 + 它背后那份配置文件。
+ *
+ * 带上配置文件路径是因为「几百项设置」这件事有个更省事的出路：直接改 agent 自己的
+ * 配置文件。路径不由界面拼 —— 正本是 agent 自己的 getAgentDir()，拼一份就是第二个
+ * 事实，换个 home 就分叉。
+ */
+export interface SettingsCatalog {
+  /**
+   * 栏目清单，按 agent 自己的顺序。
+   *
+   * 键与名成对给，不给两条并行数组：并行数组一旦错位就是「点了外观出来模型」，而这里
+   * 没有一种读法能发现它错了。
+   */
+  readonly tabs: readonly SettingsTab[]
+  readonly settings: readonly SettingEntry[]
+  /** agent 此刻在用的配置文件绝对路径（config.yml）。 */
+  readonly configFile: string
+  /** 那份文件此刻在不在；不在就是 agent 还没写过。 */
+  readonly configFileExists: boolean
 }
 
 export const BRIDGE_PROTOCOL_VERSION = 2

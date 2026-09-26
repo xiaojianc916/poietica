@@ -82,6 +82,7 @@ pub(crate) fn surface() -> Builder<Wry> {
             crate::conversation::capability::agent_browser_settings,
             crate::conversation::capability::agent_set_browser_settings,
             crate::conversation::settings::agent_settings_catalog,
+            crate::conversation::settings::agent_open_config_file,
             crate::conversation::settings::agent_set_setting,
             crate::conversation::thread::agent_threads,
             crate::conversation::thread::agent_thread_snapshot,

@@ -386,12 +386,13 @@ async fn the_client_opens_a_session_on_the_bundled_agent() {
         .clone();
     let scoped = connection
         .client
-        .settings_catalog(Some(tab.clone()))
+        .settings_catalog(Some(tab.key.clone()))
         .await
         .expect("a tab-scoped catalog must answer through the bridge");
 
+    /* 筛的是键：名是给人看的那一列，拿它当入参会一格都筛不出来。 */
     assert!(
-        scoped.settings.iter().all(|entry| entry.tab == tab),
+        scoped.settings.iter().all(|entry| entry.tab == tab.key),
         "a tab-scoped read must only report that tab"
     );
 

@@ -97,8 +97,34 @@ pub enum Command {
         #[serde(rename = "sinceSeq")]
         since_seq: i64,
     },
+    /// agent 自己的会话清单；工作区由这条连接锚着，所以不带 cwd。
     Sessions {
         id: String,
+    },
+    /// 从一条会话分叉出新的那条，丢掉尾部 `dropTurns` 轮。
+    ///
+    /// 宿主自己的「分叉」是一次现场换会话：SDK 的 AgentSession#branch / #fork
+    /// 都会把这条连接的活会话换成新的那条（agent-session.ts:8573 与 :10060），
+    /// 所以应答与新开、重装同形 —— 回来的号要接过去。
+    ForkSession {
+        id: String,
+        #[serde(rename = "sessionId")]
+        session_id: String,
+        #[serde(rename = "dropTurns")]
+        drop_turns: u32,
+    },
+    /// 删掉一条会话：本层给号，由桥按号找到文件（它认路径，见 protocol.ts）。
+    DeleteSession {
+        id: String,
+        #[serde(rename = "sessionId")]
+        session_id: String,
+    },
+    /// 把一条会话导成一页 HTML，写到 `destination`（绝对路径）。
+    ExportSession {
+        id: String,
+        #[serde(rename = "sessionId")]
+        session_id: String,
+        destination: String,
     },
     /// agent 自己报的能力清单。
     Capabilities {
@@ -312,6 +338,71 @@ mod tests {
             let line = encode(&command).expect("encode");
             assert!(line.contains(&format!(r#""type":"{expected}""#)), "{line}");
         }
+    }
+
+    /// 会话生命周期那三条各自带判别式与号；分叉还带要丢几轮。
+    #[test]
+    fn the_session_lifecycle_commands_carry_their_discriminators() {
+        for (command, expected) in [
+            (Command::Sessions { id: "x".to_owned() }, "sessions"),
+            (
+                Command::ForkSession {
+                    id: "x".to_owned(),
+                    session_id: "s1".to_owned(),
+                    drop_turns: 2,
+                },
+                "fork_session",
+            ),
+            (
+                Command::DeleteSession {
+                    id: "x".to_owned(),
+                    session_id: "s1".to_owned(),
+                },
+                "delete_session",
+            ),
+            (
+                Command::ExportSession {
+                    id: "x".to_owned(),
+                    session_id: "s1".to_owned(),
+                    destination: "D:\\out.html".to_owned(),
+                },
+                "export_session",
+            ),
+        ] {
+            let line = encode(&command).expect("encode");
+            assert!(line.contains(&format!(r#""type":"{expected}""#)), "{line}");
+        }
+    }
+
+    /// 分叉要丢几轮是这一条的全部信息量：号给错，分叉点就错一轮。
+    #[test]
+    fn a_fork_names_the_session_and_how_many_turns_to_drop() {
+        let line = encode(&Command::ForkSession {
+            id: "c4".to_owned(),
+            session_id: "s1".to_owned(),
+            drop_turns: 3,
+        })
+        .expect("encode");
+
+        assert!(line.contains(r#""sessionId":"s1""#), "{line}");
+        assert!(line.contains(r#""dropTurns":3"#), "{line}");
+    }
+
+    /// 导出那一格是**磁盘路径**：字节由 agent 自己写，不过这条线。
+    #[test]
+    fn an_export_carries_the_destination_verbatim() {
+        let line = encode(&Command::ExportSession {
+            id: "c6".to_owned(),
+            session_id: "s1".to_owned(),
+            destination: "D:\\reports\\会话.html".to_owned(),
+        })
+        .expect("encode");
+
+        assert!(line.contains(r#""type":"export_session""#), "{line}");
+        assert!(
+            line.contains(r#""destination":"D:\\reports\\会话.html""#),
+            "{line}"
+        );
     }
 
     /// 改一格设置：路径与值原样上 wire，值不折算（类型由 agent 的 schema 说了算）。

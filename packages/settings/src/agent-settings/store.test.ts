@@ -24,19 +24,35 @@ function entry(path: string, value: unknown): AgentSettingEntry {
   }
 }
 
+/** 目录的最小形状：栏、格子、以及那份配置文件的两格。 */
 function catalog(settings: readonly AgentSettingEntry[]): AgentSettingsCatalog {
-  return { tabs: ['tools'], settings }
+  return {
+    tabs: [{ key: 'tools', label: '工具' }],
+    settings,
+    configFile: '/home/config.yml',
+    configFileExists: true,
+  }
+}
+
+/** 端口的最小实现：不关心开文件的那一条时，给它一个不会失败的。 */
+function inertPort(overrides: Partial<AgentSettingsPort>): AgentSettingsPort {
+  return {
+    read: () => Promise.resolve(catalog([])),
+    write: () => Promise.resolve([]),
+    openConfigFile: () => Promise.resolve(),
+    ...overrides,
+  }
 }
 
 function bench(initial: AgentSettingsCatalog) {
   const writes: { path: string; value: unknown }[] = []
-  const port: AgentSettingsPort = {
+  const port: AgentSettingsPort = inertPort({
     read: () => Promise.resolve(initial),
     write: (path, value) => {
       writes.push({ path, value })
       return Promise.resolve([])
     },
-  }
+  })
 
   return { port, writes, store: new AgentSettingsStore(port) }
 }
@@ -44,13 +60,14 @@ function bench(initial: AgentSettingsCatalog) {
 describe('AgentSettingsStore', () => {
   it('读一次就够：同一份目录不重复问 agent', async () => {
     let calls = 0
-    const store = new AgentSettingsStore({
-      read: () => {
-        calls += 1
-        return Promise.resolve(catalog([entry('browser.headless', false)]))
-      },
-      write: () => Promise.resolve([]),
-    })
+    const store = new AgentSettingsStore(
+      inertPort({
+        read: () => {
+          calls += 1
+          return Promise.resolve(catalog([entry('browser.headless', false)]))
+        },
+      }),
+    )
 
     await Promise.all([store.load(), store.load()])
     await store.load()
@@ -80,11 +97,13 @@ describe('AgentSettingsStore', () => {
 
     await store.load()
 
-    const store2 = new AgentSettingsStore({
-      read: () => Promise.resolve(catalog([entry('browser.headless', false)])),
-      /* 请求写 true，agent 那头报回来还是 false（比如它自己拒绝了这个值）。 */
-      write: () => Promise.resolve([entry('browser.headless', false)]),
-    })
+    const store2 = new AgentSettingsStore(
+      inertPort({
+        read: () => Promise.resolve(catalog([entry('browser.headless', false)])),
+        /* 请求写 true，agent 那头报回来还是 false（比如它自己拒绝了这个值）。 */
+        write: () => Promise.resolve([entry('browser.headless', false)]),
+      }),
+    )
 
     await store2.load()
     await store2.write('browser.headless', true)
@@ -101,15 +120,17 @@ describe('AgentSettingsStore', () => {
 
     await store.load()
 
-    const after = new AgentSettingsStore({
-      read: () => Promise.resolve(catalog([entry('browser.headless', false)])),
-      write: () => Promise.resolve([entry('browser.enabled', true)]),
-    })
+    const after = new AgentSettingsStore(
+      inertPort({
+        read: () => Promise.resolve(catalog([entry('browser.headless', false)])),
+        write: () => Promise.resolve([entry('browser.enabled', true)]),
+      }),
+    )
 
     await after.load()
     await after.write('browser.enabled', true)
 
-    expect(after.getSnapshot().catalog?.tabs).toEqual(['tools'])
+    expect(after.getSnapshot().catalog?.tabs).toEqual([{ key: 'tools', label: '工具' }])
     expect(after.getSnapshot().catalog?.settings[0]?.path).toBe('browser.enabled')
 
     store.dispose()
@@ -117,10 +138,12 @@ describe('AgentSettingsStore', () => {
   })
 
   it('写失败时留下错误，且不把那一次改动留在快照里', async () => {
-    const store = new AgentSettingsStore({
-      read: () => Promise.resolve(catalog([entry('browser.headless', false)])),
-      write: () => Promise.reject(new Error('agent refused the value')),
-    })
+    const store = new AgentSettingsStore(
+      inertPort({
+        read: () => Promise.resolve(catalog([entry('browser.headless', false)])),
+        write: () => Promise.reject(new Error('agent refused the value')),
+      }),
+    )
 
     await store.load()
 
@@ -138,10 +161,12 @@ describe('AgentSettingsStore', () => {
 
   it('写的时候报出正在写哪一格', async () => {
     const gate = Promise.withResolvers<readonly AgentSettingEntry[]>()
-    const store = new AgentSettingsStore({
-      read: () => Promise.resolve(catalog([entry('browser.headless', false)])),
-      write: () => gate.promise,
-    })
+    const store = new AgentSettingsStore(
+      inertPort({
+        read: () => Promise.resolve(catalog([entry('browser.headless', false)])),
+        write: () => gate.promise,
+      }),
+    )
 
     await store.load()
 
@@ -158,13 +183,15 @@ describe('AgentSettingsStore', () => {
 
   it('读失败留下错误，重试能救回来', async () => {
     let fail = true
-    const store = new AgentSettingsStore({
-      read: () =>
-        fail
-          ? Promise.reject(new Error('no live session'))
-          : Promise.resolve(catalog([entry('browser.headless', false)])),
-      write: () => Promise.resolve([]),
-    })
+    const store = new AgentSettingsStore(
+      inertPort({
+        read: () =>
+          fail
+            ? Promise.reject(new Error('no live session'))
+            : Promise.resolve(catalog([entry('browser.headless', false)])),
+        write: () => Promise.resolve([]),
+      }),
+    )
 
     await store.load()
 

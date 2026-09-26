@@ -1,8 +1,10 @@
 /*
  * 设置目录的两条判据，一条都不许松：
  *
- * 1. 目录是**从 omp 的 schema 读出来的**，不是我们抄的 —— 所以它的条数与标签必须与
- *    上游此刻的自报一致。抄一份的代码会在上游加一格时静默落后，而这一条会红。
+ * 1. 目录是**从 omp 的 schema 读出来的**，不是我们抄的 —— 所以它的条数与每一格的出处
+ *    必须与上游此刻的自报一致（减去跟这台桌面软件无关的那几格，判据在
+ *    settings-labels.ts 的 `irrelevantSettingOf`）。抄一份的代码会在上游加一格时静默落后，
+ *    而这一条会红。标题那一列是我们补的中文，由 settings-labels.test.ts 逐格钉住。
  * 2. 钥匙那一格绝不带值。这是隐私边界，写错就是把用户的钥匙送到 webview。
  *
  * 自检跑法：bun test src/__tests__/settings.test.ts
@@ -16,6 +18,7 @@ import {
   type SettingPath,
 } from '@oh-my-pi/pi-coding-agent/config/settings-schema'
 import { readCatalog, SETTING_TABS } from '../settings.ts'
+import { irrelevantSettingOf, settingLabelOf } from '../settings-labels.ts'
 
 /** 一个假 reader：给什么回什么，用来钉住「目录不读我们的状态」。 */
 function reader(values: Record<string, unknown> = {}): { get(key: string): unknown } {
@@ -24,13 +27,25 @@ function reader(values: Record<string, unknown> = {}): { get(key: string): unkno
 
 test('the catalog is omp own schema, not a copy in our source', () => {
   const all = readCatalog(reader())
-  const expected = (Object.keys(SETTINGS_SCHEMA) as SettingPath[]).filter((path) => hasUi(path))
+  /*
+   * 上游自报的带 ui 元数据的那几格，去掉跟这台桌面软件无关的。
+   *
+   * 「无关」的判据在 settings-labels.ts 的 `irrelevantSettingOf`，由 settings-labels.test.ts
+   * 逐格钉住。这里只确认两件事：留下来的每一格都出自上游，且一条不多一条不少。
+   */
+  const expected = (Object.keys(SETTINGS_SCHEMA) as SettingPath[]).filter(
+    (path) => hasUi(path) && !irrelevantSettingOf(path, getUi(path)?.group),
+  )
 
-  // 条数必须等于上游自报的带 ui 元数据的那几格。差一条就说明两边分叉了。
+  // 条数必须等于上游自报的那几格减去不上屏的。差一条就说明两边分叉了。
   expect(all.length).toBe(expected.length)
   expect(all.length).toBeGreaterThan(300)
 
-  // 每一格的标签都来自上游，逐格核对；顺带证明我们没有自己编过一份文案。
+  /*
+   * 标题仍是「从路径算出来的」，不是这段代码自己编的一句：认不出的路径由
+   * settingLabelOf 原文返回上游 label。说明那一列的中文同样由
+   * settings-labels.test.ts 逐格钉住（它是我们补的，无法与上游相等）。
+   */
   for (const entry of all) {
     const ui = getUi(entry.path as SettingPath)
 
@@ -38,8 +53,12 @@ test('the catalog is omp own schema, not a copy in our source', () => {
       throw new Error(`catalog carries ${entry.path}, which has no ui metadata upstream`)
     }
 
-    expect(entry.label).toBe(ui.label)
-    expect(entry.description).toBe(ui.description)
+    expect(entry.label).toBe(settingLabelOf(entry.path, ui.label))
+  }
+
+  /* 每一格都出自上游那张表：没有一格是我们自己造的。 */
+  for (const entry of all) {
+    expect(entry.path in SETTINGS_SCHEMA).toBe(true)
   }
 })
 

@@ -45,10 +45,16 @@ const SYSTEM_TEMP_DIRECTORY: &str = "poietica";
 
 static ROOT: OnceLock<PathBuf> = OnceLock::new();
 
-/// 安装时选定的根（exe 旁）。开发构建返回 None：不能往 target/ 写用户数据；用 cfg! 让两条分支都参与编译。
+/// 安装构建选 exe 旁（自选数据根）。开发构建选仓库 `.dev-data`；用 cfg! 让两条分支都参与编译。
 fn installed_root() -> Option<PathBuf> {
     if cfg!(debug_assertions) {
-        return None;
+        // ponytail: 本机按镜像路径拦截 D:\xiaojianc\poietica 下进程对仓外（LOCALAPPDATA/TEMP）的写入
+        // （os error 5，2026-09-26 实测，WMI/提权皆复现，过滤器排除法未定位到元凶）。
+        // dev 数据根暂退仓内；破案后改回 app_local_data_dir。
+        return Some(PathBuf::from(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/../../../.dev-data"
+        )));
     }
 
     Some(std::env::current_exe().ok()?.parent()?.to_path_buf())

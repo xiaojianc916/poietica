@@ -367,6 +367,46 @@ async fn run_session(
                 }
 
                 /*
+                 * 从某一轮分叉：与重装同一条指派路。
+                 *
+                 * 分叉完成后 agent 那边的活会话已经是**新**那一条（omp 的
+                 * AgentSession#branch / #fork 都落在新文件上），所以应答里的号必须由
+                 * `assigning` 认领 —— 这与 LoadSession 是同一件事：应答换掉了连接上的号。
+                 */
+                if let ClientCommand::ForkSession {
+                    session_id: wanted,
+                    drop_turns,
+                    reply,
+                } = command
+                {
+                    let line = encode(&Command::ForkSession {
+                        id: id.clone(),
+                        session_id: wanted,
+                        drop_turns,
+                    })?;
+                    let (slot_reply, answer) = oneshot::channel();
+                    let _replaced = pending.insert(id.clone(), slot_reply);
+                    assigning = Some(id);
+
+                    tokio::spawn(async move {
+                        let result = match answer.await {
+                            Ok(Ok(data)) => crate::session::lifecycle::a_session_id(&data)
+                                .map(|opened| OpenedSession {
+                                    session_id: opened,
+                                    selectors: controls_of(&data),
+                                }),
+                            Ok(Err(error)) => Err(error),
+                            Err(_dropped) => Err(AgentError::Refused(Refusal::Gone)),
+                        };
+
+                        let _ = reply.send(result);
+                    });
+
+                    send(&mut stdin, &line).await?;
+                    continue;
+                }
+
+                /*
                  * 新对话要一口**全新**的会话：active 可能已绑给别的对话（重装会换
                  * 掉它），再交出去就是账本上两条对话绑同一个会话号。让桥现开一条，
                  * 应答由 Response 那一支的 `assigning` 认领。
@@ -844,6 +884,38 @@ fn outgoing(command: ClientCommand, id: &str, session_id: Option<&str>) -> Resul
             |data| Ok(capabilities_of(&data)),
         ),
 
+        ClientCommand::Sessions { reply } => ask(
+            &Command::Sessions { id: id.to_owned() },
+            reply,
+            /* 清单由本模块自己的读法解：它是一条独立的读，不是选择器那一类。 */
+            |data| Ok(crate::session::lifecycle::entries_of(&data)),
+        ),
+
+        ClientCommand::DeleteSession { session_id, reply } => ask(
+            &Command::DeleteSession {
+                id: id.to_owned(),
+                session_id,
+            },
+            reply,
+            /* 空应答：删成功就是成功，没有别的可读。 */
+            |_| Ok(()),
+        ),
+
+        ClientCommand::ExportSession {
+            session_id,
+            destination,
+            reply,
+        } => ask(
+            &Command::ExportSession {
+                id: id.to_owned(),
+                session_id,
+                destination: destination.to_string_lossy().into_owned(),
+            },
+            reply,
+            /* 字节由 agent 写；目标路径的拼接与落盘都不经这条线。 */
+            |_| Ok(()),
+        ),
+
         ClientCommand::BrowserSettings { reply } => ask(
             &Command::BrowserSettings { id: id.to_owned() },
             reply,
@@ -873,7 +945,8 @@ fn outgoing(command: ClientCommand, id: &str, session_id: Option<&str>) -> Resul
         | ClientCommand::Shutdown(_)
         | ClientCommand::PromptState { .. }
         | ClientCommand::ModelCatalog { .. }
-        | ClientCommand::LoadSession { .. } => Ok(None),
+        | ClientCommand::LoadSession { .. }
+        | ClientCommand::ForkSession { .. } => Ok(None),
     }
 }
 

@@ -56,6 +56,18 @@ pub struct AgentSettingEntry {
     pub enum_values: Option<Vec<String>>,
     pub warning: Option<String>,
     pub condition: Option<String>,
+    /// 所在分节的中文名；分组仍然按 `group`（agent 自己的词）分。
+    pub group_label: Option<String>,
+    /// 这一格的**行**由产品别处的控件负责；值仍然报（别的格子按它决定显不显示）。
+    pub owned: bool,
+}
+
+/// 一栏：键是 agent 自己的栏目词汇（筛选认它），名是给人看的那一列。
+#[derive(Debug, Serialize, Type)]
+#[serde(rename_all = "camelCase")]
+pub struct AgentSettingTab {
+    pub key: String,
+    pub label: String,
 }
 
 impl std::fmt::Debug for AgentSettingEntry {
@@ -77,8 +89,12 @@ impl std::fmt::Debug for AgentSettingEntry {
 #[serde(rename_all = "camelCase")]
 pub struct AgentSettingsCatalog {
     /// 栏目清单，按 agent 自己的顺序；界面拿它搭导航，不另立一份。
-    pub tabs: Vec<String>,
+    pub tabs: Vec<AgentSettingTab>,
     pub settings: Vec<AgentSettingEntry>,
+    /// agent 此刻在用的那份配置文件（绝对路径，由它自己报）。
+    pub config_file: String,
+    /// 那份文件此刻在不在；不在就是还没写过。
+    pub config_file_exists: bool,
 }
 
 /// 改一格设置。`value` 的类型由 agent 自己的 schema 说了算，本层不折算。
@@ -107,6 +123,45 @@ pub async fn agent_settings_catalog(
     Ok(reported_catalog(catalog))
 }
 
+/// 把 agent 自己的配置文件交给系统默认编辑器。
+///
+/// 路径**现问 agent**，不从前端收：交给系统 shell 的东西不能由调用方任选（同
+/// `window_open_external_url` 那条纪律）。这里只开它自己报的那一个文件。
+///
+/// 改完不必我们替它重读：omp 自己看盘（`Settings.reloadFromDisk()`），下一次读目录
+/// 就读到新的。所以这条命令不返回新目录 —— 它是「把文件交出去」，不是「提交一次改动」。
+#[tauri::command]
+#[specta::specta]
+pub async fn agent_open_config_file(
+    app: AppHandle,
+    state: State<'_, AgentRuntime>,
+) -> AgentCommandResult<()> {
+    let catalog = state
+        .settings_catalog(default_agent_id(&app)?, None)
+        .await
+        .map_err(crate::error::Error::from)?;
+
+    let path = std::path::PathBuf::from(&catalog.config_file);
+
+    if !path.is_file() {
+        log::warn!("the agent has not written its config file yet");
+
+        return Err(crate::error::Error::NotFound("agent 还没有写过配置文件".to_owned()).into());
+    }
+
+    if let Err(error) = tauri_plugin_opener::open_path(&path, None::<&str>) {
+        /*
+         * 开不了编辑器不是致命事：文件还在那儿，人自己能打开。但要如实报出去 ——
+         * 静默失败会让人以为按钮坏了。
+         */
+        log::warn!("could not hand the agent config file to the system editor: {error}");
+
+        return Err(crate::error::Error::Internal(format!("无法打开配置文件：{error}")).into());
+    }
+
+    Ok(())
+}
+
 /// 改一格设置，交回**改完之后**整份目录的 settings 那一格。
 ///
 /// 界面拿这一份刷新自己，不做乐观改写：改没改由 agent 自己说，那是它写的盘。
@@ -127,8 +182,17 @@ pub async fn agent_set_setting(
 
 fn reported_catalog(catalog: SettingsCatalog) -> AgentSettingsCatalog {
     AgentSettingsCatalog {
-        tabs: catalog.tabs,
+        tabs: catalog
+            .tabs
+            .into_iter()
+            .map(|tab| AgentSettingTab {
+                key: tab.key,
+                label: tab.label,
+            })
+            .collect(),
         settings: catalog.settings.into_iter().map(reported_entry).collect(),
+        config_file: catalog.config_file,
+        config_file_exists: catalog.config_file_exists,
     }
 }
 
@@ -157,6 +221,8 @@ fn reported_entry(entry: SettingEntry) -> AgentSettingEntry {
         enum_values: entry.enum_values,
         warning: entry.warning,
         condition: entry.condition,
+        group_label: entry.group_label,
+        owned: entry.owned,
     }
 }
 
@@ -188,6 +254,8 @@ mod tests {
             enum_values: None,
             warning: None,
             condition: None,
+            group_label: None,
+            owned: false,
         }
     }
 

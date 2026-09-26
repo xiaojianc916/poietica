@@ -25,5 +25,14 @@ export function createAgentSettingsPort(): AgentSettingsPort {
           value: value as AgentSettingEntryWire['value'],
         }),
       ).then((settings) => settings.map(entryOf)),
+
+    /*
+     * 开文件这件事只把路径交给系统：路径由 Rust 现问 agent，前端不参与（那是安全边界，
+     * 同 windowOpenExternalUrl 那条纪律，`window/commands.rs`）。所以这一层没有入参，
+     * 也不把 Rust 的 `null` 交给上头 —— 命令成功就是成功，没有值。
+     */
+    openConfigFile: async () => {
+      await throughIpc(() => commands.agentOpenConfigFile())
+    },
   }
 }

@@ -2,12 +2,14 @@
 // 只做三件事：Rust 命令 → SDK 调用、SDK event → transcript ops、两者写一行 JSON 到 stdout。
 // 落账/超时/取消重启归 Rust，这里不做第二套。
 
+import fs from 'node:fs'
 import path from 'node:path'
 import type { AgentSession, AgentSessionEvent } from '@oh-my-pi/pi-coding-agent'
 import {
   type AuthStorage,
   createAgentSession,
   discoverAuthStorage,
+  FileSessionStorage,
   getAgentDir,
   type MCPManager,
   ModelRegistry,
@@ -21,6 +23,7 @@ import {
   enableProvider,
   initializeWithSettings,
 } from '@oh-my-pi/pi-coding-agent/discovery'
+import { exportFromFile } from '@oh-my-pi/pi-coding-agent/export/html'
 import { initializeExtensions } from '@oh-my-pi/pi-coding-agent/modes/runtime-init'
 import type { TranscriptOperation } from '@poietica/transcript'
 import {
@@ -37,7 +40,7 @@ import {
 import { aliasOf, executeCatalog } from './catalog.ts'
 import { removeProvider, writeProvider, writeProviderOverride } from './models-file.ts'
 import { outcomeOf, type TurnOutcome } from './outcome.ts'
-import { interactionOp, TranscriptProjector } from './projection.ts'
+import { attachmentOp, interactionOp, markerOp, TranscriptProjector } from './projection.ts'
 import {
   type AskedQuestion,
   BRIDGE_PROTOCOL_VERSION,
@@ -50,6 +53,7 @@ import {
 } from './protocol.ts'
 import { answerPayloadOf, askQuestionsOf } from './questions.ts'
 import { readCatalog, SETTING_TABS } from './settings.ts'
+import { tabLabelOf } from './settings-labels.ts'
 import { TranscriptMirror } from './transcript-mirror.ts'
 
 const write = (frame: BridgeFrame): void => {
@@ -96,6 +100,15 @@ interface Session {
   readonly asked: Map<string, readonly AskedQuestion[]>
   /** 本次会话已允许的工具（scope=session 的产物），免得重复写同一格设置。 */
   readonly allowed: Set<string>
+  /*
+   * 正在压的那一次压缩的号与已发出的那几格。
+   *
+   * 压缩是「开门 → 关门」两件事，而 omp 的关门事件不带开门的号；号要我们自己记，
+   * 否则关上门会在屏幕上多出一行而不是把原来那行改掉。关门即清。
+   */
+  compacting: { readonly markerId: string } | null
+  /** 压缩次数：只用来给新的一次起号，不参与显示。 */
+  compactions: number
 }
 
 interface PendingInteraction {
@@ -193,6 +206,208 @@ function loadSession(sessionId: string, cwd: string): Promise<Session | null> {
   })
 }
 
+/*
+ * 会话号 → 会话文件路径。
+ *
+ * 删除与导出都要的是路径（上游那两个接口收的都是路径，不是号），而号是我们这边的东西
+ * 唯一的键。先按这条连接的工作区找，再全量找 —— 与 loadSession 同一个次序：
+ * 会话可能属于另一个工作区，只看当前目录会漏。
+ */
+async function findSessionFile(
+  sessionId: string,
+  manager: SessionManager | undefined,
+): Promise<string | undefined> {
+  const loaded = manager?.getSessionFile()
+
+  if (manager !== undefined && manager.getSessionId() === sessionId && loaded !== undefined) {
+    return loaded
+  }
+
+  return (
+    (await SessionManager.list(manager?.getCwd() ?? process.cwd())).find(
+      (entry) => entry.id === sessionId,
+    )?.path ?? (await SessionManager.listAll()).find((entry) => entry.id === sessionId)?.path
+  )
+}
+
+/*
+ * 从某一轮分叉。
+ *
+ * 上游没有「丢 N 轮再复制」这一个动作，得自己拼：
+ * - `dropTurns === 0`：整份复制，`AgentSession#fork()`（它整份克隆并重锚）。
+ * - `dropTurns > 0`：`AgentSession#branch(entryId)` —— 它按 `createBranchedSession`
+ *   截到那一条之前，再把会话重锚（id 同步、消息替换、记忆重键、bash 过渡都在里面）。
+ *
+ * `branch()` 只认 user 消息那一条作锚（agent-session.ts:10069），所以「丢 N 轮」
+ * 就是把锚定在倒数第 N 条 user 消息上。
+ *
+ * **这一步会把这条连接移到新会话上**（新号、新文件），所以回来之后要重新记账，
+ * 否则之后用旧号说话会打到新会话上。
+ */
+async function forkSession(
+  record: Session,
+  command: Extract<BridgeCommand, { type: 'fork_session' }>,
+): Promise<unknown> {
+  if (record.id !== command.sessionId) {
+    throw new Error(`refusing to fork ${command.sessionId}: the live session is ${record.id}`)
+  }
+
+  const users = record.agent.sessionManager
+    .getBranch()
+    .filter((entry) => entry.type === 'message' && entry.message.role === 'user')
+
+  if (command.dropTurns > users.length) {
+    /* 超出可丢的轮数不夹到边界：静默夹会让「丢 5 轮」变成「丢 3 轮」而没人知道。 */
+    throw new Error(
+      `cannot drop ${String(command.dropTurns)} turns: only ${String(users.length)} exist`,
+    )
+  }
+
+  const dropped = users[users.length - command.dropTurns]
+
+  if (command.dropTurns > 0 && dropped === undefined) {
+    throw new Error(`no turn to branch at for ${String(command.dropTurns)} dropped turns`)
+  }
+
+  const forked =
+    command.dropTurns === 0
+      ? await record.agent.fork()
+      : !(await record.agent.branch(String(dropped?.id))).cancelled
+
+  if (!forked) {
+    /*
+     * `fork()` 在不能持久化时返回 **false**（不是抛），`branch()` 被扩展取消时回
+     * `cancelled`：两个都不能当成成功 —— 报一件没发生的事比报失败坏得多。
+     */
+    throw new Error('the agent did not fork the session')
+  }
+
+  const newId = record.agent.sessionId
+
+  if (newId === record.id) {
+    throw new Error('the agent forked but kept the session id')
+  }
+
+  return rebind(record, newId)
+}
+
+/*
+ * 会话清单：agent 自己那份文件目录里有什么。
+ *
+ * 只报三格。上游的 `SessionInfo` 还带 `allMessagesText`（整条会话的全文），原样转发会
+ * 顶穿单行上限（MAX_FRAME_BYTES），Rust 那边直接判连接死掉 —— 清单宁可少几格，
+ * 也不能把连接弄断。
+ *
+ * 范围是这条连接的工作区（一个连接一条会话、锚在一个工作区）。
+ */
+async function listSessions(): Promise<unknown> {
+  const cwd = currentSession()?.agent.sessionManager.getCwd() ?? process.cwd()
+  const listed = await SessionManager.list(cwd)
+
+  return {
+    sessions: listed.map((entry) => ({
+      sessionId: entry.id,
+      title: entry.title ?? null,
+      /* 上游给的是 Date；线上要的是时刻字符串（ISO）。 */
+      updatedAt: entry.modified instanceof Date ? entry.modified.toISOString() : null,
+    })),
+  }
+}
+
+/*
+ * 删一条会话：文件与它的产物目录一起删。
+ *
+ * **必须先经过那个正持有它的 SessionManager**：它拿着写句柄，绕过它删文件会让句柄指着
+ * 已经不存在的路径，下一次说话把文件又写回来（omp 自己的会话选择器就是这么处理的，
+ * `modes/controllers/selector-controller.ts` 先 `newSession()` 再删）。所以：载进来的走
+ * 它自己的 manager，没载进来的才新开一个存储去删。
+ *
+ * 删不掉（找不到）如实回失败：运行时会把这笔删除当成还欠着，稍后重试。
+ */
+async function deleteSession(sessionId: string): Promise<unknown> {
+  const held = sessions.get(sessionId)
+  const manager = held?.agent.sessionManager
+  const found = await findSessionFile(sessionId, manager)
+
+  if (found === undefined) {
+    throw new Error(`no session file holds ${sessionId}`)
+  }
+
+  if (manager !== undefined) {
+    await manager.dropSession(found)
+  } else {
+    await new FileSessionStorage().deleteSessionWithArtifacts(found)
+  }
+
+  /* 留着记录会让它在下一次说话时把文件复活：删完就从表里拿掉。 */
+  if (held !== undefined) {
+    held.unsubscribe?.()
+    sessions.delete(sessionId)
+
+    if (active === sessionId) {
+      active = null
+    }
+  }
+
+  return {}
+}
+
+/*
+ * 导出一份自包含的 HTML。
+ *
+ * 当前会话走会话自己的导出（带 systemPrompt 与工具段，最全）；其余按文件独立导出，
+ * 不必把它装载起来。
+ */
+async function exportSession(sessionId: string, destination: string): Promise<unknown> {
+  const held = sessions.get(sessionId)
+
+  if (held !== undefined && active === sessionId) {
+    await held.agent.exportToHtml(destination)
+
+    return {}
+  }
+
+  const found = await findSessionFile(sessionId, undefined)
+
+  if (found === undefined) {
+    throw new Error(`no session file holds ${sessionId}`)
+  }
+
+  const written = await exportFromFile(found, { outputPath: destination })
+
+  if (written === undefined) {
+    throw new Error(`the agent could not export ${sessionId}`)
+  }
+
+  return {}
+}
+
+/*
+ * 会话换了号之后重新记账。
+ *
+ * `fork()` 与 `branch()` 都会把这条连接搬到新会话上（新号、新文件），而我们的表是按号
+ * 记的。不重记的话：旧号查得到一条 `agent` 已经在新会话上的记录，之后任何一次说话都会
+ * 打到新会话上，而调用方以为自己说的是旧那一条。
+ *
+ * 新号配一份新的投影器与镜像：分叉出来的是另一条会话，把两条会话的帧缝在同一个镜像里
+ * 会让「这条会话到此为止有哪些帧」变成假的。历史由调用方重新拉一次（与开一条会话同路）。
+ */
+function rebind(record: Session, newId: string): unknown {
+  sessions.delete(record.id)
+
+  const rebound: Session = {
+    ...record,
+    id: newId,
+    projector: new TranscriptProjector(),
+    mirror: new TranscriptMirror(newId),
+  }
+
+  sessions.set(newId, rebound)
+  active = newId
+
+  return { sessionId: newId, controls: readSelectors(rebound) }
+}
+
 // 新建与重装共用这一条：差别只有「管理器从哪来」，其余必须逐字相同。
 async function adopt(manager: SessionManager, cwd: string): Promise<Session> {
   const authStorage = await discoverAuthStorage()
@@ -258,6 +473,8 @@ async function adopt(manager: SessionManager, cwd: string): Promise<Session> {
     pending: new Map(),
     asked: new Map(),
     allowed: new Set(),
+    compacting: null,
+    compactions: 0,
   }
 
   record = adopted
@@ -304,7 +521,12 @@ async function adopt(manager: SessionManager, cwd: string): Promise<Session> {
   return adopted
 }
 
-// 按顺序喂给投影器（官方宿主回放历史同一条路）：用户消息开一轮，assistant 与工具结果落轮下。
+/*
+ * 按顺序喂给投影器（官方宿主回放历史同一条路）：用户消息开一轮，assistant 与工具结果落轮下。
+ *
+ * 历史里的图片就在消息正文里（见 `imagesOf`）：omp 读会话文件时已经把 blob 引用换回
+ * base64（`resolveBlobRefsInEntries` → `resolveImageData`），所以像素到手了，不必另开通道。
+ */
 function replayHistory(record: Session): void {
   const project = record.projector
   let endedAt: string | null = null
@@ -312,9 +534,24 @@ function replayHistory(record: Session): void {
   for (const message of record.agent.messages) {
     if (message.role === 'user') {
       closeReplayedTurn(record, endedAt)
+
+      const images = imagesOf(message.content, iso(message.timestamp))
+
+      if (images.length > 0) {
+        pushTranscript(
+          record,
+          images.flatMap((image) => image.ops),
+        )
+      }
+
       pushTranscript(
         record,
-        project.userTurn(textOf(message.content), [], undefined, iso(message.timestamp)),
+        project.userTurn(
+          textOf(message.content),
+          images.map((image) => image.attachmentId),
+          undefined,
+          iso(message.timestamp),
+        ),
       )
     } else if (message.role === 'assistant') {
       endedAt = iso(message.timestamp)
@@ -373,7 +610,7 @@ type ReplayBlock = {
   readonly intent?: string
 }
 
-// 只有文本块上得了产品正文帧，图片块在会话媒体库里。
+/* 正文帧只装文字：图片块另走 `attachmentOp`（回放历史时由 `imagesOf` 挑出来）。 */
 function textOf(content: string | { readonly type: string; readonly text?: string }[]): string {
   if (typeof content === 'string') {
     return content
@@ -383,6 +620,53 @@ function textOf(content: string | { readonly type: string; readonly text?: strin
     .filter((block) => block.type === 'text')
     .map((block) => block.text ?? '')
     .join('\n')
+}
+
+/*
+ * 用户消息里的图片。
+ *
+ * omp 把图片按 blob 存盘、读会话时又换回 base64 内联进消息正文
+ * （`resolveBlobRefsInEntries` → `resolveImageData`，session-loader.ts），所以像素此刻
+ * 就在手上 —— 不必另开一条「按 fileId 取字节」的通道（那条通道的注释说「webview 取不到
+ * daemon 的 media 端点」，那是 kap 时代的形状，omp 没有那个端点）。
+ *
+ * 号必须**跨消息唯一**：每条消息都从 `image-0` 起号的话，两条各带一张图的用户消息会撞在
+ * 同一个号上，后一张把前一张覆盖掉，两轮显示同一张图。所以号里带上这条消息的时刻。
+ */
+function imagesOf(
+  content:
+    | string
+    | readonly { readonly type: string; readonly data?: string; readonly mimeType?: string }[],
+  stamp: string,
+): { readonly attachmentId: string; readonly ops: TranscriptOperation[] }[] {
+  if (typeof content === 'string') {
+    return []
+  }
+
+  const out: { attachmentId: string; ops: TranscriptOperation[] }[] = []
+
+  for (const [index, block] of content.entries()) {
+    if (block.type !== 'image' || typeof block.data !== 'string' || block.data === '') {
+      continue
+    }
+
+    const mediaType = block.mimeType ?? 'image/png'
+    const attachmentId = `${stamp}#${String(index)}`
+
+    out.push({
+      attachmentId,
+      ops: attachmentOp({
+        attachmentId,
+        mediaType,
+        /* 上游给的是裸 base64；`url` 源要的是 data URL。 */
+        dataUrl: block.data.startsWith('data:')
+          ? block.data
+          : `data:${mediaType};base64,${block.data}`,
+      }),
+    })
+  }
+
+  return out
 }
 
 const iso = (ms: number): string => new Date(ms).toISOString()
@@ -440,6 +724,37 @@ function handleEvent(record: Session, event: AgentSessionEvent): void {
       reselect(record)
       break
 
+    /*
+     * 上下文压缩。
+     *
+     * 这件事不绑 turn（agent 压的是上下文，不是某一轮），所以它走标记而不是轮里的帧。
+     * 开门与关门共用同一个号 —— 上游的关门事件不带号，换号就会在屏幕上多出一行，
+     * 而人看到的是「上下文被压了两次」这种不存在的历史。
+     */
+    case 'auto_compaction_start':
+      record.compactions += 1
+      record.compacting = { markerId: `compaction-${String(record.compactions)}` }
+      ops = markerOp({
+        markerId: record.compacting.markerId,
+        marker: 'compaction',
+        payload: { state: 'running' },
+      })
+      break
+
+    case 'auto_compaction_end': {
+      /*
+       * 号只作落点：上游在关门事件里没带号，取此刻正在压的那一个；真没有就现起一个
+       * （比如中途接上一条已经在压的会话），总比丢掉这一条强。
+       */
+      const markerId = record.compacting?.markerId ?? `compaction-${String(++record.compactions)}`
+      record.compacting = null
+      ops = markerOp({
+        markerId,
+        marker: 'compaction',
+        payload: compactionEnded(event),
+      })
+      break
+    }
     case 'agent_end':
       // isTerminal 为 false 时后面还有活干，这一轮没真结束。
       if (event.isTerminal !== false) {
@@ -475,6 +790,41 @@ function reselect(record: Session): void {
     controls: readSelectors(record),
     goal: readGoal(record),
   })
+}
+
+/*
+ * 压缩那一行的载荷。
+ *
+ * 只报 agent 真的给了、而屏幕真的会读的那两格 —— 宁可少一句，也不能是编的：
+ * - `state`：上游的 `aborted` 说这次没成，`skipped` 说它压根没动手，`errorMessage`
+ *   在也一样，三者都不能说成「完成」。
+ * - `tokensBefore`：`CompactionResult` **只有**这一格
+ *   （pi-agent-core 的 dist/types/compaction/compaction.d.ts:21-31），没有 `tokensAfter`。
+ *   所以后一个缺着 —— 渲染器按缺席退成一句不带数字的话。
+ * - `trigger`（手动/自动）：上游的事件里没有这一格，不猜。
+ */
+function compactionStateOf(event: {
+  readonly aborted: boolean
+  readonly skipped?: boolean | undefined
+  readonly errorMessage?: string | undefined
+}): 'cancelled' | 'completed' {
+  return event.aborted || event.skipped === true || event.errorMessage !== undefined
+    ? 'cancelled'
+    : 'completed'
+}
+
+function compactionEnded(event: {
+  readonly aborted: boolean
+  readonly skipped?: boolean | undefined
+  readonly errorMessage?: string | undefined
+  readonly result?: { readonly tokensBefore?: number | undefined } | undefined
+}): Record<string, unknown> {
+  const tokensBefore = event.result?.tokensBefore
+
+  return {
+    state: compactionStateOf(event),
+    ...(typeof tokensBefore === 'number' && Number.isFinite(tokensBefore) ? { tokensBefore } : {}),
+  }
 }
 
 function reportUsage(record: Session): void {
@@ -1210,7 +1560,41 @@ function browserSettingsOf(settings: Settings): {
 async function settingsCatalog(tab: string | null): Promise<unknown> {
   const settings = await settingsFor()
 
-  return { tabs: SETTING_TABS, settings: readCatalog(settings, tab) }
+  return {
+    // 键与名成对：键是 agent 的栏目词汇（筛选认它），名是给人看的那一列。
+    tabs: SETTING_TABS.map((key) => ({ key, label: tabLabelOf(key) })),
+    settings: readCatalog(settings, tab),
+    ...configFileOf(),
+  }
+}
+
+/*
+ * agent 此刻在用的那份配置文件。
+ *
+ * 路径取自它自己的 getAgentDir()（受控时读 PI_CODING_AGENT_DIR）。文件名只能写字面量：
+ * `MAIN_CONFIG_FILENAMES` 在 `@oh-my-pi/pi-utils/dirs` 里，而那个包不是我们的依赖
+ * （bunfig.toml 的 hoist=false 下未声明的包 import 不到），SDK 也没有转出它。
+ * 正本：pi-utils 的 src/dirs.ts:27 `MAIN_CONFIG_FILENAMES = ["config.yml", "config.yaml"]`。
+ *
+ * 存在的意义是给人一条出路：几百项设置不必都画成控件，直接改它自己的文件更省事。
+ * 路径不由界面拼 —— 那是第二个事实，换个 home 就分叉。
+ */
+const CONFIG_FILENAMES: readonly string[] = ['config.yml', 'config.yaml']
+
+function configFileOf(): { readonly configFile: string; readonly configFileExists: boolean } {
+  for (const name of CONFIG_FILENAMES) {
+    const candidate = path.join(getAgentDir(), name)
+
+    if (fs.existsSync(candidate)) {
+      return { configFile: candidate, configFileExists: true }
+    }
+  }
+
+  // 还没写过：报它认的那个写法，界面据此也能把人带过去。
+  return {
+    configFile: path.join(getAgentDir(), CONFIG_FILENAMES[0] ?? 'config.yml'),
+    configFileExists: false,
+  }
 }
 
 /*
@@ -1372,8 +1756,17 @@ async function dispatch(command: BridgeCommand): Promise<unknown> {
       return { controls: await readSelectors(record) }
     }
 
+    case 'fork_session':
+      return await forkSession(required(), command)
+
     case 'sessions':
-      return { sessions: [] }
+      return await listSessions()
+
+    case 'delete_session':
+      return await deleteSession(command.sessionId)
+
+    case 'export_session':
+      return await exportSession(command.sessionId, command.destination)
 
     case 'browser_settings':
       return { browser: browserSettingsOf(await settingsFor()) }

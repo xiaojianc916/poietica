@@ -29,10 +29,12 @@ export function settingLookup(settings: readonly AgentSettingEntry[]): SettingLo
  *
  * `planModeEnabled` 与 `planAutosaveEnabled` 用真值判定而不是 `=== true`，与上游一致
  * （它的 `plan.enabled` 直接返回读到的值）。
+ *
+ * 只列**目录里还有的**条件：`vimModeEnabled` 随 `tui.vimMode` / `tui.vimModeDisplay`
+ * 一起被挡在目录外（那是终端的事），留着它是一条永远为假的死判据。
  */
 const PREDICATES: Readonly<Record<string, (value: SettingLookup) => boolean>> = {
   advisorEnabled: (at) => at('advisor.enabled') === true,
-  vimModeEnabled: (at) => at('tui.vimMode') === true,
   hindsightActive: (at) => at('memory.backend') === 'hindsight',
   mnemopiActive: (at) => at('memory.backend') === 'mnemopi',
   autolearnActive: (at) => at('autolearn.enabled') === true,
