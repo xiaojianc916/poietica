@@ -7,6 +7,7 @@
     "./conversation": "./src/conversation/index.ts",
     "./agent/config": "./src/agent/configuration.ts",
     "./agent/models": "./src/agent/models.ts",
+    "./agent/settings": "./src/agent/settings.ts",
     "./agent/custom": "./src/agent/custom.ts",
     "./agent/launcher": "./src/agent/launcher.ts",
     "./assets": "./src/asset/transfer.ts",

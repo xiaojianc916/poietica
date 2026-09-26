@@ -1,8 +1,9 @@
 /*
- * kimi 把「这句话带了什么附件」写成给**模型**看的机器句子，塞进提示正文
- * （kap-server promptMedia.ts 的 buildAttachedFileNotice / buildImageCompressionCaption，
- * 2026-09 的 kimi-code 2.0.2）。正文因此混着这些句子，而气泡只画人说的话：
- * 附件由 transcript 的 attachmentIds 画成卡片，句子在这里摘掉（ADR 0050）。
+ * 提示正文里可能混着给**模型**看的机器句子（「这句话带了什么附件」那类），而气泡只画人
+ * 说的话：附件由 transcript 的 attachmentIds 画成卡片，句子在这里摘掉（ADR 0050）。
+ *
+ * 这些拼法来自 Kimi（kap 时代，2026-09 的 kimi-code 2.0.2）；omp 不产生它们，但历史
+ * 会话的正文里可能留着 —— 所以这一层是回放时的过滤器，不是通道。
  *
  * 摘的是句子，不是内容：正文里从来没有过文件字节，附件本体走磁盘路径。
  */

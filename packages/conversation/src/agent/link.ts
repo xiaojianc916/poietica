@@ -2,8 +2,7 @@
  * 这条连接此刻的链路态。
  *
  * 它是一帧的载荷（frame.rs 的 RunFrame::LinkChanged），所以重放一条对话会原样
- * 再演一遍。判别式与字段名与原生侧的 LinkState 逐字相同
- * （crates/kap-client/src/link.rs）。
+ * 再演一遍。判别式与字段名与原生侧的 LinkState 逐字相同（crates/conversation 的 link.rs）。
  */
 export type SessionLink =
   | {

@@ -56,7 +56,16 @@ pub(crate) fn build() -> tauri::Builder<Wry> {
             /* 日志比其余一切都早：出事时它是唯一的目击者，它只需要落点先算出来。 */
             let handle = app.handle();
 
-            handle.plugin(structured_log::plugin(paths::log_directory(handle)?).build())?;
+            /* 预检已在 structured_log 内规避落点被拒；这里兜底任何残余的初始化失败，降级为无插件运行。 */
+            #[allow(
+                clippy::print_stderr,
+                reason = "the log plugin failed to initialize; stderr is the only channel left"
+            )]
+            if let Err(error) =
+                handle.plugin(structured_log::plugin(paths::log_directory(handle)?).build())
+            {
+                eprintln!("log plugin unavailable, continuing without it: {error}");
+            }
 
             /* 生成的事件面挂一次；命令面走 invoke_handler，两者同源。 */
             ipc.mount_events(app);

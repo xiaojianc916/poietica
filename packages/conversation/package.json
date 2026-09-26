@@ -37,6 +37,7 @@
     "@poietica/review": "workspace:*"
   },
   "devDependencies": {
+    "@oh-my-pi/pi-coding-agent": "catalog:",
     "@types/bun": "catalog:",
     "typescript": "catalog:",
     "@types/react": "catalog:",

@@ -41,6 +41,9 @@ use crate::{
         AgentTranscriptEvent, AgentTranscriptJson, AgentTranscriptOpsRequest,
         AgentTranscriptRequest,
     },
+    conversation::settings::{
+        AgentSettingEntry, AgentSettingOption, AgentSettingWriteRequest, AgentSettingsCatalog,
+    },
     extension::{
         ForeignPluginInventory, ForeignPluginRecord, PluginCommitRequest, PluginFetch,
         PluginPayload, PluginStaged,
@@ -78,6 +81,8 @@ pub(crate) fn surface() -> Builder<Wry> {
             crate::conversation::capability::agent_capability_install,
             crate::conversation::capability::agent_browser_settings,
             crate::conversation::capability::agent_set_browser_settings,
+            crate::conversation::settings::agent_settings_catalog,
+            crate::conversation::settings::agent_set_setting,
             crate::conversation::thread::agent_threads,
             crate::conversation::thread::agent_thread_snapshot,
             crate::conversation::export::agent_export_thread,
@@ -210,6 +215,10 @@ pub(crate) fn surface() -> Builder<Wry> {
         .typ::<AgentCapabilityInstallRequest>()
         .typ::<AgentBrowserSettings>()
         .typ::<AgentBrowserSettingsPatch>()
+        .typ::<AgentSettingsCatalog>()
+        .typ::<AgentSettingEntry>()
+        .typ::<AgentSettingOption>()
+        .typ::<AgentSettingWriteRequest>()
         .typ::<AgentRenameThreadRequest>()
         .typ::<AgentArchiveThreadRequest>()
         .typ::<AgentThreadRequest>()

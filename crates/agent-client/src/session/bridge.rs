@@ -15,6 +15,7 @@ use serde_json::Value;
 use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
 
 use crate::error::{AgentError, Refusal, Result};
+use crate::interaction::question::{QuestionGroup, QuestionOutcome, QuestionResponse};
 use crate::process::program::{hide_console, resolve_sidecar};
 use crate::process::stderr_probe::StderrLog;
 use crate::process::supervisor::{Spawned, kill_tree};
@@ -64,12 +65,11 @@ pub fn connect(
     } = spawn;
 
     /*
-     * 审批桌要交给驱动器：桥报上来的 permission_requested 落在这里等人答，
-     * 人的答复再从 answer_permission 那条命令回到桥上。提问桌还没有对应的
-     * 事件源（omp 的 ask 工具走 askDialog，尚未接），照旧留着。
+     * 两张桌都要交给驱动器：桥报上来的 permission_requested 落一张，问答题组落另一张，
+     * 人的答复再从 answer_permission / answer_dialog 那两条命令回到桥上。
      */
     let desk = desk.clone();
-    let _ = questions;
+    let questions = questions.clone();
 
     let resolved = resolve_sidecar(&program)?;
 
@@ -123,6 +123,7 @@ pub fn connect(
             slot,
             &cwd,
             desk,
+            questions,
             outbound,
             diagnostics,
             traced,
@@ -166,6 +167,7 @@ async fn run_session(
     slot: RunSlot,
     cwd: &std::path::Path,
     desk: crate::interaction::desk::PermissionDesk,
+    questions: crate::interaction::desk::QuestionDesk,
     outbound: AgentClient,
     diagnostics: StderrLog,
     traced: Option<crate::trace::TraceSink>,
@@ -616,7 +618,15 @@ async fn run_session(
 
                     Frame::Event { event } => {
                         if ready {
-                            dispatch(event, &events_tx, &book, &desk, &outbound, &diagnostics);
+                            dispatch(
+                                event,
+                                &events_tx,
+                                &book,
+                                &desk,
+                                &questions,
+                                &outbound,
+                                &diagnostics,
+                            );
                         }
                     }
                 }
@@ -807,6 +817,26 @@ fn outgoing(command: ClientCommand, id: &str, session_id: Option<&str>) -> Resul
                 Ok(servers_of(&data))
             })
         }
+
+        ClientCommand::SettingsCatalog { tab, reply } => ask(
+            &Command::SettingsCatalog {
+                id: id.to_owned(),
+                tab,
+            },
+            reply,
+            |data| Ok(crate::settings::catalog_of(&data)),
+        ),
+
+        ClientCommand::SetSetting { path, value, reply } => ask(
+            &Command::SetSetting {
+                id: id.to_owned(),
+                path,
+                value,
+            },
+            reply,
+            /* 应答是改完之后整份目录的 settings 那一格。 */
+            |data| Ok(crate::settings::entries_of(&data)),
+        ),
 
         ClientCommand::Capabilities { reply } => ask(
             &Command::Capabilities { id: id.to_owned() },
@@ -1384,6 +1414,7 @@ fn dispatch(
     events_tx: &mpsc::UnboundedSender<SessionEvent>,
     book: &SessionBook,
     desk: &crate::interaction::desk::PermissionDesk,
+    questions: &crate::interaction::desk::QuestionDesk,
     outbound: &AgentClient,
     diagnostics: &StderrLog,
 ) {
@@ -1399,11 +1430,79 @@ fn dispatch(
         }
 
         /*
+         * 一组题在等人答。
+         *
+         * 题组原样落在提问桌上，人从 `agent_answer_questions` 那条命令答，答复再由
+         * 这里送回桥上（settle 那次 `askDialog` 的 Promise）。桌上没人等就等于人点了
+         * 按钮而模型永远卡着 —— 所以 `wait` 的接收端必须有人读，就在下面那个任务里。
+         */
+        Event::QuestionsAsked {
+            session_id,
+            request_id,
+            questions: asked,
+        } => {
+            let Some(group) = QuestionGroup::from_questions(&session_id, &request_id, &asked)
+            else {
+                log::error!(
+                    "the agent bridge asked {} questions that this build cannot read",
+                    asked.as_array().map_or(0, Vec::len)
+                );
+
+                return;
+            };
+
+            /* 先落账再等人：账上没有这一条时，人答了也没有东西可对。 */
+            if let Ok(Some(slot)) = book.slot(&group.session_id) {
+                slot.record(|recorder| recorder.record_questions_asked(&group));
+            }
+
+            let Ok(waiting) = questions.wait(group.clone()) else {
+                log::error!("could not put a question group on the desk");
+
+                return;
+            };
+
+            let outbound = outbound.clone();
+            let book = book.clone();
+
+            tokio::spawn(async move {
+                let Ok(outcome) = waiting.await else {
+                    /* 桌被清掉（连接收摊）：这一组没了，账上按取消结。 */
+                    return;
+                };
+
+                let wire = match &outcome {
+                    QuestionOutcome::Answered(response) => response.on_wire(),
+                    QuestionOutcome::Dismissed => QuestionResponse::dismissed().on_wire(),
+                };
+
+                let delivered = outbound
+                    .answer_dialog(request_id.clone(), wire)
+                    .await
+                    .is_ok();
+
+                if let Ok(Some(slot)) = book.slot(&group.session_id) {
+                    slot.record(|recorder| {
+                        recorder.record_questions_resolved(&group, &outcome, delivered);
+                    });
+                }
+
+                if !delivered {
+                    log::error!("could not hand a question answer back to the agent bridge");
+                }
+            });
+        }
+
+        /*
          * 一次对话框请求。
          *
-         * 授权那一类（上游的 select，选项正是那四档）翻成产品的一问一答：界面只有
-         * 三颗按钮，语义比上游窄，映射只在这里做一次。其余（ask 工具的题目、
-         * confirm、input）原样交给宿主 —— 本层不解释它们的形状。
+         * 授权那一类（上游的 select，选项正是那两颗）翻成产品的一问一答：界面只有
+         * 三颗按钮，语义比上游窄，映射只在这里做一次。其余（confirm、input、editor）
+         * 原样交给宿主 —— 本层不解释它们的形状。
+         *
+         * ask 工具的题组不从这里过：桥那边就不发这一条（main.ts 的 DialogDesk 出口
+         * 对 method=ask 直接返回），题组只走上面那一支。这里不再按 method 筛一遍 ——
+         * 那是第二个判别点，而且"ask 这个字符串代表题组"是 agent 专属知识。
          */
         Event::DialogRequested {
             session_id,
@@ -1520,5 +1619,371 @@ fn dispatch(
                 },
             });
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    #![allow(
+        clippy::expect_used,
+        reason = "a test proves itself by panicking, so a failed step must fail the test"
+    )]
+
+    use std::collections::HashMap;
+    use std::sync::{Arc, Mutex};
+    use std::time::Duration;
+
+    use futures::FutureExt;
+    use futures::StreamExt;
+    use futures::channel::mpsc;
+    use serde_json::{Value, json};
+
+    use super::{Event, StderrLog, dispatch};
+    use crate::frame::RunFrame;
+    use crate::interaction::desk::{PermissionDesk, QuestionDesk};
+    use crate::interaction::question::{AnswerMethod, QuestionAnswer, QuestionResponse};
+    use crate::recorder::{RecordedEvent, Recorder, SeqLine};
+    use crate::session::SessionEvent;
+    use crate::session::book::SessionBook;
+    use crate::session::client::{AgentClient, Command as ClientCommand};
+
+    const SESSION: &str = "sess_ask";
+    /// 上游那次对话框的号（approval.ts 的 DialogDesk 签发的 `d<n>`）。
+    const REQUEST: &str = "d7";
+
+    /// 一组题：题号来自 omp，选项号由桥签发（o0/o1）。
+    fn asked() -> Value {
+        json!([
+            {
+                "id": "q0",
+                "question": "这一版用哪种配色？",
+                "header": "配色",
+                "options": [
+                    { "id": "o0", "label": "深色", "description": "夜里不刺眼" },
+                    { "id": "o1", "label": "浅色" }
+                ],
+                "multiSelect": false,
+                "allowOther": true
+            },
+            {
+                "id": "q1",
+                "question": "要带上哪些文件？",
+                "options": [{ "id": "o0", "label": "README" }],
+                "multiSelect": true,
+                "allowOther": true
+            }
+        ])
+    }
+
+    /// 一台会落账的运行槽：帧从这里被看见。
+    fn recording() -> (SessionBook, Arc<Mutex<Vec<RunFrame>>>) {
+        let book = SessionBook::new();
+        let slot = book.open(SESSION).expect("a fresh book opens");
+        let seen = Arc::new(Mutex::new(Vec::new()));
+        let sink = Arc::clone(&seen);
+
+        slot.attach(|| {
+            Recorder::new(
+                SESSION.to_owned(),
+                SeqLine::new(),
+                Box::new(move |event: RecordedEvent| {
+                    if let Ok(mut held) = sink.lock() {
+                        held.push(event.frame);
+                    }
+
+                    true
+                }),
+            )
+        })
+        .expect("the slot takes a recorder");
+
+        (book, seen)
+    }
+
+    /// 这条回路的两头：题组进得了提问桌（人答得动），答复带着**同一个号**回到桥上。
+    ///
+    /// 判据是请求号的身份而不是「发了一条命令」：桥按 requestId 认那次 askDialog，
+    /// 号对不上它那里就没有人在等（questions.ts 的 settle 会如实说没有）。
+    #[tokio::test]
+    async fn an_ask_group_is_answerable_and_its_answer_keeps_the_request_id_and_question_ids() {
+        let (book, seen) = recording();
+        let (commands_tx, mut commands) = mpsc::unbounded::<ClientCommand>();
+        let (events_tx, _events) = mpsc::unbounded::<SessionEvent>();
+        let questions = QuestionDesk::new();
+
+        dispatch(
+            Event::QuestionsAsked {
+                session_id: SESSION.to_owned(),
+                request_id: REQUEST.to_owned(),
+                questions: asked(),
+            },
+            &events_tx,
+            &book,
+            &PermissionDesk::new(),
+            &questions,
+            &AgentClient::new(commands_tx),
+            &StderrLog::new(),
+        );
+
+        /* 题组先落账：账上没有这一条时，人答了也没有东西可对。 */
+        assert!(
+            seen.lock()
+                .is_ok_and(|held| held.first().is_some_and(|frame| matches!(
+                    frame,
+                    RunFrame::QuestionsAsked { question_id, tool_call_id, .. }
+                        if question_id == REQUEST && tool_call_id == "ask"
+                ))),
+            "an ask group must be filed before anyone can answer it"
+        );
+
+        /*
+         * 人答得了：桌上有这一组才答得上话。答不上时 QuestionDesk::answer 报
+         * UNKNOWN_GROUP —— 那正是「题组没落桌」这个缺陷的样子。
+         */
+        let mut answers = HashMap::new();
+        let _first = answers.insert(
+            "q0".to_owned(),
+            QuestionAnswer::Single {
+                option_id: "o1".to_owned(),
+            },
+        );
+        let _second = answers.insert(
+            "q1".to_owned(),
+            QuestionAnswer::Multi {
+                option_ids: vec!["o0".to_owned()],
+            },
+        );
+
+        questions
+            .answer(
+                REQUEST,
+                QuestionResponse {
+                    answers,
+                    method: Some(AnswerMethod::Click),
+                    note: Some("就这样".to_owned()),
+                },
+            )
+            .expect("a group on the desk must accept an answer");
+
+        let sent = tokio::time::timeout(Duration::from_secs(5), commands.next())
+            .await
+            .expect("the answer must reach the bridge without hanging")
+            .expect("an answer command is sent");
+
+        let ClientCommand::AnswerDialog {
+            request_id,
+            response,
+            reply,
+        } = sent
+        else {
+            unreachable!("answering an ask group goes back as an answer_dialog command");
+        };
+
+        assert_eq!(
+            request_id, REQUEST,
+            "the answer must ride the id the dialog opened with"
+        );
+
+        /*
+         * 这一份就是桥读的那份载荷（questions.ts 的 answerPayloadOf）：键是**题号**
+         * （对不上就没有 results 可交），值是产品答复的判别联合，原样，不改写。
+         */
+        assert_eq!(
+            response,
+            json!({
+                "answers": {
+                    "q0": { "kind": "single", "optionId": "o1" },
+                    "q1": { "kind": "multi", "optionIds": ["o0"] }
+                },
+                "method": "click",
+                "note": "就这样"
+            }),
+            "answers must be keyed by the questions' own ids and carry the option ids unrewritten"
+        );
+
+        /* 驱动器收下这一条：答复算送出去了（undelivered 与 answered 必须分得开）。 */
+        reply.send(Ok(())).expect("the driver answers the receipt");
+
+        let settled = async {
+            loop {
+                if seen
+                    .lock()
+                    .expect("the journal is readable")
+                    .iter()
+                    .any(|frame| matches!(frame, RunFrame::QuestionsResolved { .. }))
+                {
+                    return;
+                }
+
+                tokio::time::sleep(Duration::from_millis(5)).await;
+            }
+        };
+
+        tokio::time::timeout(Duration::from_secs(5), settled)
+            .await
+            .expect("a delivered answer must be filed as resolved");
+
+        let ledger = seen.lock().expect("the journal is readable");
+
+        assert!(
+            ledger.iter().any(|frame| matches!(
+                frame,
+                RunFrame::QuestionsResolved { question_id, outcome, .. }
+                    if question_id == REQUEST && outcome == "answered"
+            )),
+            "a delivered answer is answered, not undelivered: {ledger:?}"
+        );
+    }
+
+    /// 撤下整组：答复空着回去，桥按「answers 空」判作没答，上游把没答读成取消。
+    #[tokio::test]
+    async fn dismissing_an_ask_group_sends_an_empty_answer_under_the_same_request_id() {
+        let (book, _seen) = recording();
+        let (commands_tx, mut commands) = mpsc::unbounded::<ClientCommand>();
+        let (events_tx, _events) = mpsc::unbounded::<SessionEvent>();
+        let questions = QuestionDesk::new();
+
+        dispatch(
+            Event::QuestionsAsked {
+                session_id: SESSION.to_owned(),
+                request_id: REQUEST.to_owned(),
+                questions: asked(),
+            },
+            &events_tx,
+            &book,
+            &PermissionDesk::new(),
+            &questions,
+            &AgentClient::new(commands_tx),
+            &StderrLog::new(),
+        );
+
+        questions
+            .dismiss(REQUEST)
+            .expect("a group on the desk must be dismissible");
+
+        let sent = tokio::time::timeout(Duration::from_secs(5), commands.next())
+            .await
+            .expect("dismissing must not hang")
+            .expect("a dismiss is sent as a command");
+
+        let ClientCommand::AnswerDialog {
+            request_id,
+            response,
+            reply,
+        } = sent
+        else {
+            unreachable!("dismissing an ask group goes back as an answer_dialog command");
+        };
+
+        assert_eq!(request_id, REQUEST);
+        assert_eq!(
+            response,
+            json!({ "answers": {} }),
+            "an empty answer is this side's dismiss: the bridge reads no answers as no submission"
+        );
+
+        reply.send(Ok(())).expect("the driver answers the receipt");
+    }
+
+    /// 题面读不下来就整组不落桌：宁可如实报错，也不画半组题让人答一道残缺的题。
+    #[tokio::test]
+    async fn an_unreadable_question_group_is_not_put_on_the_desk() {
+        let (book, _seen) = recording();
+        let (commands_tx, _commands) = mpsc::unbounded::<ClientCommand>();
+        let (events_tx, _events) = mpsc::unbounded::<SessionEvent>();
+        let questions = QuestionDesk::new();
+
+        dispatch(
+            Event::QuestionsAsked {
+                session_id: SESSION.to_owned(),
+                request_id: REQUEST.to_owned(),
+                /* 选项缺 label：这一题读不下来，整组都不认。 */
+                questions: json!([{ "id": "q0", "question": "?", "options": [{ "id": "o0" }] }]),
+            },
+            &events_tx,
+            &book,
+            &PermissionDesk::new(),
+            &questions,
+            &AgentClient::new(commands_tx),
+            &StderrLog::new(),
+        );
+
+        assert!(
+            questions
+                .answer(REQUEST, QuestionResponse::dismissed())
+                .is_err(),
+            "a group that was never put on the desk must not be answerable"
+        );
+    }
+
+    /// 题组只有一条来源：桥不发 `dialog_requested` 给 ask（它的 DialogDesk 出口就
+    /// 返回了），只发 `questions_asked`。所以本层这一支不按 method 筛 —— 那既是第二个
+    /// 判别点，也要求通用层认识「ask 这个字符串代表题组」这件 agent 专属知识。
+    ///
+    /// 这条钉的是**本层不再解释对话框的 method**：送一个 method=ask 的原样帧进来，
+    /// 它照旧原样交给宿主。真相由桥那一侧的单测守着。
+    #[tokio::test]
+    async fn an_uninterpreted_dialog_is_handed_to_the_host_without_reading_its_method() {
+        let (book, _seen) = recording();
+        let (commands_tx, _commands) = mpsc::unbounded::<ClientCommand>();
+        let (events_tx, mut events) = mpsc::unbounded::<SessionEvent>();
+
+        dispatch(
+            Event::DialogRequested {
+                session_id: SESSION.to_owned(),
+                request: json!({
+                    "type": "extension_ui_request",
+                    "id": REQUEST,
+                    "method": "ask",
+                    "questions": []
+                }),
+            },
+            &events_tx,
+            &book,
+            &PermissionDesk::new(),
+            &QuestionDesk::new(),
+            &AgentClient::new(commands_tx),
+            &StderrLog::new(),
+        );
+
+        let Some(SessionEvent::Dialog { request, .. }) = events.next().now_or_never().flatten()
+        else {
+            unreachable!("a dialog this layer does not interpret must be handed to the host");
+        };
+
+        /* 一个字节不改：原样转发是这条路的契约。 */
+        assert_eq!(request.get("method").and_then(Value::as_str), Some("ask"));
+        assert_eq!(request.get("id").and_then(Value::as_str), Some(REQUEST));
+    }
+
+    /// 别的对话框（confirm / input / editor）照旧原样交给宿主：本层不解释它们。
+    #[tokio::test]
+    async fn a_non_ask_dialog_still_reaches_the_host_verbatim() {
+        let (book, _seen) = recording();
+        let (commands_tx, _commands) = mpsc::unbounded::<ClientCommand>();
+        let (events_tx, mut events) = mpsc::unbounded::<SessionEvent>();
+
+        dispatch(
+            Event::DialogRequested {
+                session_id: SESSION.to_owned(),
+                request: json!({ "id": "d9", "method": "confirm", "title": "继续？" }),
+            },
+            &events_tx,
+            &book,
+            &PermissionDesk::new(),
+            &QuestionDesk::new(),
+            &AgentClient::new(commands_tx),
+            &StderrLog::new(),
+        );
+
+        let Some(SessionEvent::Dialog { request, .. }) = events.next().now_or_never().flatten()
+        else {
+            unreachable!("a dialog this layer does not interpret must be handed to the host");
+        };
+
+        assert_eq!(
+            request.get("method").and_then(Value::as_str),
+            Some("confirm")
+        );
     }
 }

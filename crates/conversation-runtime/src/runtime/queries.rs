@@ -3,7 +3,7 @@ use crate::connection::Handle;
 use crate::session::{SessionMode, SessionRequest};
 use poietica_agent_client::{
     BrowserSettings, Capability, ConfigControl, McpServer, ModelCatalogOperation,
-    ModelCatalogSnapshot, Skill,
+    ModelCatalogSnapshot, SettingEntry, SettingValue, SettingsCatalog, Skill,
 };
 
 impl<E: RuntimeFailure> Runtime<E> {
@@ -96,6 +96,39 @@ impl<E: RuntimeFailure> Runtime<E> {
         let live = self.or_live(agent).await?;
         live.client
             .set_browser_settings(enabled, headless, cdp_url)
+            .await
+            .map_err(CommandError::Agent)
+    }
+
+    /// agent 自己那份设置目录；`tab` 只筛栏。
+    ///
+    /// 目录是进程级事实，与连接锚在哪个工作区无关：用活着的连接，别为这一问拆掉
+    /// 用户对话正用的连接。没有活连接才按兜底工作区起一条。
+    pub async fn settings_catalog(
+        &self,
+        agent: String,
+        tab: Option<String>,
+    ) -> Result<SettingsCatalog, CommandError<E>> {
+        let live = self.or_live(agent).await?;
+        live.client
+            .settings_catalog(tab)
+            .await
+            .map_err(CommandError::Agent)
+    }
+
+    /// 改一格设置，交回改完之后整份目录的 settings 那一格。
+    ///
+    /// 写的是 agent 自己的持久层（它自己热重载），本层不碰它的 config 文件，也不预筛
+    /// 路径与类型 —— 预筛就是第二份路径表，两边必然分叉。认不出的由 agent 自己拒绝。
+    pub async fn set_setting(
+        &self,
+        agent: String,
+        path: String,
+        value: SettingValue,
+    ) -> Result<Vec<SettingEntry>, CommandError<E>> {
+        let live = self.or_live(agent).await?;
+        live.client
+            .set_setting(path, value)
             .await
             .map_err(CommandError::Agent)
     }

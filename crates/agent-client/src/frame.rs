@@ -38,7 +38,7 @@ pub enum RunFrame {
     SessionRecovered { snapshot: Value },
     /// agent 正卡在一次授权请求上。
     PermissionRequested {
-        /// 用来把请求与答复对起来的标识 —— kap 自己签发的 approval_id。
+        /// 用来把请求与答复对起来的标识 —— 桥那次对话框签发的号。
         request_id: String,
         tool_call_id: String,
         title: String,
@@ -49,7 +49,7 @@ pub enum RunFrame {
     /// 那次授权请求是怎么结束的。
     PermissionResolved {
         request_id: String,
-        /// kap 的 decision：approved、rejected 或 cancelled。
+        /// 产品的 decision：approved、rejected 或 cancelled。
         decision: String,
         #[serde(skip_serializing_if = "Option::is_none")]
         scope: Option<String>,
@@ -60,11 +60,11 @@ pub enum RunFrame {
     },
     /// agent 正卡在一组提问上。
     QuestionsAsked {
-        /// kap 签发的号。答复与撤下都认它。
+        /// 这一次提问的号：上游那次对话框的 requestId。答复与撤下都认它。
         question_id: String,
-        /// 引出这一组题的那次工具调用；kap 说它可以缺席，缺席时是空串。
+        /// 引出这一组题的那次工具调用；omp 的 ask 载荷里没有调用号，据实记 'ask'。
         tool_call_id: String,
-        /// 这一组题，原样。题号与选项号是 server 现编的，答的时候原样交回去。
+        /// 这一组题，原样。题号与选项号是桥签发的，答的时候原样交回去。
         questions: Value,
     },
     /// 那一组提问结清了。

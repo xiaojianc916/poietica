@@ -8,6 +8,7 @@ import {
 import type { PluginStore } from '@poietica/extension'
 import type {
   AgentSettings,
+  AgentSettingsStore,
   KeybindingCatalog,
   ModelCatalogStore,
   PersonalizationStore,
@@ -61,6 +62,8 @@ export interface DesktopWorkspaceProps {
   readonly settingsStore: SettingsStore
   readonly onThemeChange: SettingsProviderProps['onThemeChange']
   readonly agentSettings: AgentSettings
+  /** agent 自己那份设置目录的持有者；与 modelCatalog 同层同源。 */
+  readonly agentSettingsCatalog: AgentSettingsStore
   readonly modelCatalog: ModelCatalogStore
   readonly composerDrafts: ComposerDrafts
   readonly personalization: PersonalizationStore
@@ -137,6 +140,7 @@ export function DesktopWorkspace({
   settingsStore,
   onThemeChange,
   agentSettings,
+  agentSettingsCatalog,
   modelCatalog,
   composerDrafts,
   personalization,
@@ -388,6 +392,7 @@ export function DesktopWorkspace({
   return (
     <SettingsProvider
       agentSettings={agentSettings}
+      agentSettingsCatalog={agentSettingsCatalog}
       appVersion={appVersion}
       dataDirectory={dataDirectory}
       isOpen={isSettingsOpen}

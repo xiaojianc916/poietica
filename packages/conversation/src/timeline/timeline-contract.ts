@@ -158,6 +158,13 @@ export interface PermissionItem extends TimelineEntry {
   readonly type: 'permission'
   readonly requestId: string
   readonly title: string
+  /**
+   * 待批准的那件事本身（上游算好的 `Command: …` / 路径 / 新旧正文）。
+   *
+   * 「要不要允许 Bash」回答不了任何问题，人要知道的是**将跑哪条命令**。它是多行原文，
+   * 带子只截第一行（sayToolLine），所以这里单独一格而不是塞进 title 里当一句话。
+   */
+  readonly headline?: string
   readonly kind: ToolKind
   readonly subject: string
   readonly locations: readonly ToolCallLocation[]

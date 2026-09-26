@@ -387,6 +387,40 @@ export class TranscriptProjector {
   }
 }
 
+/**
+ * 一次未结交互的 upsert：审批与提问共用这一条路。
+ *
+ * 交互不绑 turn：它是拦在「继续」前面的一道闸，人答完之前那一轮根本没收。
+ * 所以它是投影器上一个独立的构建函数，不碰流式累加状态。
+ *
+ * 这一条 op 是屏幕看得见审批的唯一前提：`phaseOf` 靠 snapshot.interactions 里有没有
+ * pending 决出 `awaiting_permission` / `awaiting_question`，而输入框那一带靠那个相位
+ * 才把带子挂出来（transcript-projector.ts 的 phaseOf / assistant-surface.tsx）。
+ */
+export function interactionOp(input: {
+  readonly interactionId: string
+  readonly kind: 'approval' | 'question'
+  readonly state: 'pending' | 'approved' | 'rejected' | 'cancelled' | 'answered' | 'dismissed'
+  readonly toolCallId?: string
+  /** 原始请求：提问那一路把题组装在这里（投影层按 `questions` 取）。 */
+  readonly request?: unknown
+  readonly response?: unknown
+}): TranscriptOperation[] {
+  return [
+    {
+      op: 'interaction.upsert',
+      interaction: {
+        interactionId: input.interactionId,
+        interactionKind: input.kind,
+        state: input.state,
+        ...(input.toolCallId === undefined ? {} : { toolCallId: input.toolCallId }),
+        ...(input.request === undefined ? {} : { request: input.request }),
+        ...(input.response === undefined ? {} : { response: input.response }),
+      },
+    },
+  ]
+}
+
 function appendOp(
   turn: number,
   step: string,

@@ -15,6 +15,7 @@ import {
   saveCustomAgent,
 } from '@poietica/native-bridge/agent/custom'
 import { createModelCatalogPort } from '@poietica/native-bridge/agent/models'
+import { createAgentSettingsPort } from '@poietica/native-bridge/agent/settings'
 import { automationGateway } from '@poietica/native-bridge/automation'
 import { browserHostPort, watchBrowserElementPicked } from '@poietica/native-bridge/browser'
 import { capabilityGateway, extensionGateway } from '@poietica/native-bridge/extensions'
@@ -32,6 +33,7 @@ import { homeDirectory } from '@poietica/native-bridge/workspace/paths'
 import { writeWorkbenchSession } from '@poietica/native-bridge/workspace/session'
 import { failureCoordinator, ProblemError, warn } from '@poietica/problem'
 import {
+  AgentSettingsStore,
   type CustomAgentStore,
   createAgentSettings,
   createSettingsStore,
@@ -236,6 +238,11 @@ export function createApplicationRuntime(restored: string | null): ApplicationRu
   })
 
   const modelCatalog = new ModelCatalogStore(createModelCatalogPort(), agentDescriptor.id)
+  /*
+   * agent 自己那份设置目录：378 格的真身住在 agent 进程的 settings-schema 里，这一份是投影。
+   * 写走它自己的 Settings.set + flush，它自己热重载（ADR 0054 决定四）。
+   */
+  const agentSettingsCatalog = new AgentSettingsStore(createAgentSettingsPort())
   const agent = createDesktopAgentRuntime({
     modelCatalog,
     cwd: workspaceRoots.readActive,
@@ -355,6 +362,7 @@ export function createApplicationRuntime(restored: string | null): ApplicationRu
     start,
     settings,
     agentConfig,
+    agentSettingsCatalog,
     modelCatalog,
     customAgents,
     agent,
@@ -383,6 +391,11 @@ export function createApplicationRuntime(restored: string | null): ApplicationRu
       const failures: unknown[] = []
       try {
         modelCatalog.dispose()
+      } catch (cause) {
+        failures.push(cause)
+      }
+      try {
+        agentSettingsCatalog.dispose()
       } catch (cause) {
         failures.push(cause)
       }

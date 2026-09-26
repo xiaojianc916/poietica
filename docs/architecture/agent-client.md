@@ -24,16 +24,24 @@
 
 ## 线上的两类帧
 
-上行（Rust → 边车）：`new_session`、`prompt`、`cancel`、`steer`、`selectors`、
-`select`、`skills`、`mcp_servers`、`shutdown`。每条带 `id`，应答原样回。
+上行（Rust → 边车）：`new_session`、`load_session`、`prompt`、`cancel`、`steer`、
+`answer_permission`、`answer_dialog`、`selectors`、`select`、`goal`、`transcript`、
+`transcript_ops`、`browser_settings`、`set_browser_settings`、`settings_catalog`、
+`set_setting`、`skills`、`mcp_servers`、`capabilities`、`model_catalog`、`shutdown`。
+每条带 `id`，应答原样回。**正本是 `protocol.ts` 的 `BridgeCommand`**，这里不重抄清单
+（§0）；`crates/agent-client/src/wire.rs` 的 `Command` 与它逐字对应。
 
-下行（边车 → Rust）：`ready`、`response`、`failed`，以及三类事件 ——
+下行（边车 → Rust）：`ready`、`response`、`failed`，以及这几类事件 ——
 
 - `transcript`：屏幕经过。载荷就是 `packages/transcript` 钉住的 ops / reset 形状，
   本层**原样转交**，不解析（`SessionEvent::Transcript`）。
 - `turn_end`：这一轮按 agent 自己的说法结束了（completed / cancelled / failed）。
   本机账本靠它收账，不去读 transcript 里的 turn 状态 —— 那会是第二个判别点。
 - `selectors` / `usage`：可调项与用量。
+- `dialog_requested`：agent 要问一个对话框。授权那一类（`method=select` 且选项集正是
+  `Approve`/`Deny`）由本层翻成产品的一问一答，其余原样交给宿主。
+- `questions_asked`：ask 工具的题组，**产品形状**（号由桥签发）。本层的提问桌收下它，
+  人的答复经 `answer_dialog` 回去（ADR 0054）。
 
 ## 本地事件管线
 
@@ -51,16 +59,15 @@
 - 一轮的起止 = 本机 recorder（准入帧 + 终帧），agent 的 `turn_end` 是它的输入。
 - 取消：命令发出去，同时上 `CANCEL_GRACE` 的闹钟；到期 agent 还没报终帧就由本机
   收摊，界面上不会永远停在「正在取消」。
+- 在等人答的那几件 = 桥投影出来的 `interaction.upsert`（审批与提问），号与答复同号。
+- agent 自己的设置 = agent 自己那份 `settings-schema`（我们读元数据画界面，写走它的
+  持久层，ADR 0054）。
 
 ## 缺口（禁止当成能力用）
 
 这些都**如实报「还没接」**，不假装成功，也不删界面控件（ADR 0052 后果第 5 条）：
 
-- 会话装载、分叉、删除、导出、列举；
-- 线上一页页读 transcript（屏幕经过走推送，不走拉取）；
+- 会话分叉、删除、导出、列举（`client.rs` 的 `unwired()` 逐条列全）；
 - 会话媒体字节；
-- 能力清单与安装；
-- 目标（goal）开关；
-- 模型目录的编辑面（omp 的 `models.yml` / `config.yml`）；
-- 选择性改动附带的那段文字（goal 的 objective）；
-- 审批与提问：omp 的审批走它自己的 RPC `extension_ui_request`，桥还没接。
+- 能力清单的安装（omp 里没有对应物，读得到、装不了）；
+- 计划正文的内联渲染（transcript 的 plan 帧留了位置，还没有生产者）。

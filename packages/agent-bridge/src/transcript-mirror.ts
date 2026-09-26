@@ -68,7 +68,8 @@ export class TranscriptMirror {
    * 历史不在这里 —— omp 的会话由 `SessionManager.create` 新开，这条会话之前没有正文。
    */
   page(agentId: string): unknown {
-    const snapshot = this.#store.getAgent(agentId)?.snapshot() ?? EMPTY
+    const agent = this.#store.getAgent(agentId)
+    const snapshot = agent?.snapshot() ?? EMPTY
 
     return {
       agent_id: agentId,
@@ -81,7 +82,8 @@ export class TranscriptMirror {
       prompts: snapshot.prompts,
       meta: snapshot.meta,
       agents: [{ agentId: MAIN_AGENT, type: 'main' }],
-      pending_interactions: [],
+      // 与 interactions 同一份事实的两个出口：这个是水位的读法，那个是内容。
+      pending_interactions: agent?.listPendingInteractions() ?? [],
       seq: this.#seq,
     }
   }

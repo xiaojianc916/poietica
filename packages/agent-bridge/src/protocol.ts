@@ -41,10 +41,16 @@ export type BridgeCommand =
       readonly scope?: 'session'
     }
   /**
-   * 回答任意一个对话框（上游 extension_ui_response 的四种）。
+   * 回答一个对话框。
    *
-   * 授权走 answer_permission（产品只有三颗按钮，语义比上游四档窄）；这一条是
-   * 给别的对话框用的（ask 工具的题目、confirm、input），原样转发上游的响应形状。
+   * 授权走 answer_permission（产品只有三颗按钮，语义比上游窄）；这一条给别的对话框用，
+   * 两种载荷各自分明：
+   * - **题组**（`questions_asked` 那一种）：`response` 是产品形状的答复
+   *   （`{answers: {题号: {kind,…}}, method?, note?}`），由桥折回上游要的 results；
+   *   空答案表就是「撤下整组」；
+   * - 其余（confirm / input / editor）：原样转发上游的响应形状。
+   *
+   * 判据是「这个号是不是一组还在等的题」，不是载荷长什么样。
    */
   | {
       readonly id: string
@@ -101,6 +107,27 @@ export type BridgeCommand =
     }
   | { readonly id: string; readonly type: 'skills' }
   | { readonly id: string; readonly type: 'mcp_servers' }
+  /**
+   * agent 自己的设置目录。
+   *
+   * 逐格从 omp 的 settings-schema 读出来（label / description / 类型 / 选项 / 默认值
+   * 都是它自报的），我们不抄一份 —— 抄一份就是第二个事实，升级即分叉。
+   *
+   * `secret` 为真的那几格**只报有没有值**，绝不报值本身：那是钥匙，
+   * 出了 agent 的进程就不再是我们的盘（AGENTS.md §1「密钥永不落我们的盘」）。
+   */
+  | { readonly id: string; readonly type: 'settings_catalog'; readonly tab?: string | null }
+  /**
+   * 改 agent 自己的一个设置。
+   *
+   * 走它自己的持久层（Settings.set + flush），由它自己热重载 —— 不手搓 config.yml。
+   */
+  | {
+      readonly id: string
+      readonly type: 'set_setting'
+      readonly path: string
+      readonly value: unknown
+    }
   /**
    * 模型目录的一次读或一次改。
    *
@@ -239,6 +266,22 @@ export type BridgeEvent =
       readonly sessionId: string
       readonly usage: UsageSnapshot
     }
+  /**
+   * agent 的 ask 工具在等人答一组题。
+   *
+   * `questions` 已经是**产品形状**（与 packages/conversation 的 QuestionItem 同形）：
+   * omp 自己那份载荷（选项只有标签、没有号，还有 preview / recommended 这些我们画不出的
+   * 字段）在桥里折过一次，因为「omp 的题长什么样」是 agent 专属知识（AGENTS.md §4）。
+   * 号也由桥签发 —— 下方答案按同一个号回来。
+   *
+   * 答复走既有的 `answer_dialog` 命令，不新开一条：那是同一条路的两端。
+   */
+  | {
+      readonly kind: 'questions_asked'
+      readonly sessionId: string
+      readonly requestId: string
+      readonly questions: readonly AskedQuestion[]
+    }
 
 export interface SelectorControl {
   readonly id: string
@@ -284,7 +327,80 @@ export interface UsageSnapshot {
   readonly inputCacheCreation: number
 }
 
-export const BRIDGE_PROTOCOL_VERSION = 1
+/**
+ * 一道等答的题，产品形状。
+ *
+ * 与 packages/conversation 的 QuestionItem 逐字同形，但少三格：`body`（omp 没有）、
+ * `otherLabel` / `otherDescription`（omp 的「Other」是自己固定的那一句，不是题给的）。
+ * 投影层 absent 即退回它自己的默认文案，所以这里如实缺席而不是编一句。
+ *
+ * `options[].id` 是桥现编的：omp 的选项只有标签。答案按号回来，所以号必须在桥这一侧
+ * 与标签对上 —— 那是答案能被翻译回 omp 的唯一依据。
+ */
+export interface AskedQuestion {
+  readonly id: string
+  readonly question: string
+  /** 题上方的短标签。omp 可缺席。 */
+  readonly header?: string
+  readonly options: readonly AskedQuestionOption[]
+  readonly multiSelect: boolean
+  /** omp 的 ask 恒定允许自答（tools/ask.ts 的 OTHER_OPTION），所以恒 true。 */
+  readonly allowOther: boolean
+}
+
+export interface AskedQuestionOption {
+  /** 桥签发的号；答案按它回来。 */
+  readonly id: string
+  readonly label: string
+  readonly description?: string
+}
+
+/**
+ * agent 自己那一格设置的说明书。
+ *
+ * 全部字段都是 omp 的 settings-schema 自报的，不是我们抄的：`label` / `description`
+ * 由它给（我们只负责画），`options` 是它自己那张选项表。升级 omp 时这一份跟着变，
+ * 我们没有需要同步的第二份。
+ */
+export interface SettingEntry {
+  readonly path: string
+  readonly type: string
+  readonly label: string
+  readonly description: string
+  /** 所在的那一栏；我们的界面按它分组。 */
+  readonly tab: string
+  /** 所在的那一节。 */
+  readonly group?: string
+  /** 未设置时生效的值；界面用它做「默认」提示。 */
+  readonly default: unknown
+  /** 此刻生效的值；`secret` 为真时恒为 null（值不出 agent 的进程）。 */
+  readonly value: unknown
+  /** 是不是钥匙。为真时 `value` 恒为 null，只有 `hasValue` 说话。 */
+  readonly secret: boolean
+  /** 钥匙有没有配过；非钥匙恒为 false。 */
+  readonly hasValue: boolean
+  /** 枚举/子菜单那张选项表；缺席即这一格没有固定选项。 */
+  readonly options?: readonly SettingOption[]
+  /** 枚举的取值域，给没有 options 的那些用。 */
+  readonly enumValues?: readonly string[]
+  /** 风险提示（会把用户拉进限流或被封的那类设置）。 */
+  readonly warning?: string
+  /**
+   * 可见性条件名（omp 自己的写法，如 `advisorEnabled`）。
+   *
+   * 只有名字，不是判据：求值要用**此刻的设置**，那是界面这一侧的事，
+   * 我们不把一张条件表从 agent 的进程搬到这儿。
+   */
+  readonly condition?: string
+}
+
+export interface SettingOption {
+  readonly value: string
+  readonly label: string
+  readonly description?: string
+}
+
+export const BRIDGE_PROTOCOL_VERSION = 2
 
 /** 单行上限；与 omp RPC 的物理帧上限同量级，超了就换 reset 整发。 */
 export const MAX_FRAME_BYTES = 1024 * 1024

@@ -11,6 +11,6 @@ export interface AgentCapabilityPort {
     value: string,
   ) => Promise<readonly SessionConfigControl[]>
   readonly subscribe: (handler: () => void) => () => void
-  /* kap 按会话答名册（Command::Skills 带 session_id）；null 只用于入口那一格。 */
+  /* 名册按会话答；null 只用于入口那一格。 */
   readonly readToolkit: (threadId: string | null) => Promise<AgentToolkit>
 }

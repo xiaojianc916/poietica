@@ -14,7 +14,7 @@
     },
     "apps/desktop": {
       "name": "@poietica/desktop",
-      "version": "0.3.7",
+      "version": "0.4.0",
       "dependencies": {
         "@milkdown/crepe": "catalog:",
         "@poietica/agent-catalog": "workspace:*",
@@ -147,6 +147,7 @@
         "yet-another-react-lightbox": "catalog:",
       },
       "devDependencies": {
+        "@oh-my-pi/pi-coding-agent": "catalog:",
         "@types/bun": "catalog:",
         "@types/react": "catalog:",
         "@types/react-dom": "catalog:",

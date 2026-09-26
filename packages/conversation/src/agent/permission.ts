@@ -1,4 +1,4 @@
-/** 审批的答复词，即 kap 的 approvalResponseSchema.decision；取值域由协议封闭。 */
+/** 审批的答复词；取值域由协议封闭（正本 crates/agent-client 的 permission.rs）。 */
 export type ApprovalDecision = 'approved' | 'rejected' | 'cancelled'
 
 export type ApprovalScope = 'session'

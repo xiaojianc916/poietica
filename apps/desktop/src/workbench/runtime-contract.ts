@@ -6,6 +6,7 @@ import type { MainWindowController } from '@poietica/native-bridge/window'
 import type { ReviewGateway } from '@poietica/review'
 import type {
   AgentSettings,
+  AgentSettingsStore,
   CustomAgentStore,
   ModelCatalogStore,
   PersonalizationStore,
@@ -51,6 +52,12 @@ export interface ApplicationRuntime {
   readonly start: () => void
   readonly settings: SettingsStore
   readonly agentConfig: AgentSettings
+  /**
+   * agent 自己那份设置目录的唯一持有者：那 378 格的真身在 agent 进程，这是它的投影。
+   *
+   * 与 modelCatalog 同层同源：两者都是 agent 自报、由它自己的持久层写。
+   */
+  readonly agentSettingsCatalog: AgentSettingsStore
   /** 模型目录的唯一持有者：默认模型、provider 与密钥的真身都在 agent 进程，这是它的投影。 */
   readonly modelCatalog: ModelCatalogStore
   readonly customAgents: CustomAgentStore

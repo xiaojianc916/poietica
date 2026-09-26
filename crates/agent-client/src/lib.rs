@@ -14,6 +14,7 @@ mod process;
 mod recorder;
 mod run_slot;
 mod session;
+mod settings;
 mod trace;
 pub mod translate;
 pub mod wire;
@@ -59,5 +60,6 @@ pub use session::{
     PromptSkill, SessionBook, SessionEntry, SessionEvent, SessionEvents, SessionUsageSnapshot,
     Skill, apply_configurations, select_config,
 };
+pub use settings::{SettingEntry, SettingOption, SettingValue, SettingsCatalog};
 
 pub use poietica_conversation::link::LinkState;

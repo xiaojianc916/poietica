@@ -8,7 +8,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
 /// 桥自己的协议版本；对不上就拒绝这条连接，而不是猜字段。
-pub const PROTOCOL_VERSION: u32 = 1;
+pub const PROTOCOL_VERSION: u32 = 2;
 
 /// 单行上限。桥侧的 MAX_FRAME_BYTES 同值；超了说明对端不是我们的桥。
 pub const MAX_LINE_BYTES: usize = 1024 * 1024;
@@ -124,6 +124,20 @@ pub enum Command {
     McpServers {
         id: String,
     },
+    /// agent 自己那份设置目录；`tab` 缺席或 null 就是整份。
+    SettingsCatalog {
+        id: String,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        tab: Option<String>,
+    },
+    /// 改 agent 自己的一个设置：走它自己的持久层，由它自己热重载。
+    ///
+    /// `value` 故意是通用 JSON：类型由 agent 的 schema 说了算，这一侧不折算。
+    SetSetting {
+        id: String,
+        path: String,
+        value: Value,
+    },
     /// 模型目录的一次读或一次改。
     ModelCatalog {
         id: String,
@@ -181,10 +195,25 @@ pub enum Event {
         message: Option<String>,
     },
     /// agent 要问一个对话框。`request` 是上游 RpcExtensionUIRequest 的原样形状。
+    ///
+    /// ask 工具的题组不走这一支（它有自己的 `questions_asked`）：同一件事两条路
+    /// 就会一半认得一半认不得。授权那一类（method=select）由本层翻成 permission 帧。
     DialogRequested {
         #[serde(rename = "sessionId")]
         session_id: String,
         request: Value,
+    },
+    /// agent 的 ask 工具在等人答一组题。
+    ///
+    /// `questions` 已经是产品形状（protocol.ts 的 AskedQuestion，camelCase）：omp 那份
+    /// 载荷（选项只有标签、还有画不出的 preview）由桥折过，agent 专属形状不进通用层
+    /// （AGENTS.md §4）。`request_id` 是上游那次对话框的号，答复挂同一个号回去。
+    QuestionsAsked {
+        #[serde(rename = "sessionId")]
+        session_id: String,
+        #[serde(rename = "requestId")]
+        request_id: String,
+        questions: Value,
     },
     Selectors {
         #[serde(rename = "sessionId")]
@@ -236,7 +265,7 @@ mod tests {
     #![allow(clippy::expect_used, reason = "a broken fixture must fail loudly")]
 
     use super::{Command, Event, Frame, decode, encode};
-    use serde_json::json;
+    use serde_json::{Value, json};
 
     #[test]
     fn a_command_round_trips_through_one_line() {
@@ -264,10 +293,64 @@ mod tests {
             (Command::Cancel { id: "x".to_owned() }, "cancel"),
             (Command::Shutdown { id: "x".to_owned() }, "shutdown"),
             (Command::McpServers { id: "x".to_owned() }, "mcp_servers"),
+            (
+                Command::SettingsCatalog {
+                    id: "x".to_owned(),
+                    tab: None,
+                },
+                "settings_catalog",
+            ),
+            (
+                Command::SetSetting {
+                    id: "x".to_owned(),
+                    path: "browser.headless".to_owned(),
+                    value: Value::Bool(false),
+                },
+                "set_setting",
+            ),
         ] {
             let line = encode(&command).expect("encode");
             assert!(line.contains(&format!(r#""type":"{expected}""#)), "{line}");
         }
+    }
+
+    /// 改一格设置：路径与值原样上 wire，值不折算（类型由 agent 的 schema 说了算）。
+    #[test]
+    fn a_set_setting_carries_the_path_and_the_value_verbatim() {
+        let command = Command::SetSetting {
+            id: "s1".to_owned(),
+            path: "browser.headless".to_owned(),
+            value: serde_json::json!({ "nested": [1, true, null] }),
+        };
+
+        let line = encode(&command).expect("encode");
+
+        assert!(line.contains(r#""path":"browser.headless""#), "{line}");
+        assert!(
+            line.contains(r#""value":{"nested":[1,true,null]}"#),
+            "{line}"
+        );
+    }
+
+    /// 整份目录时 `tab` 缺席，不是空串：`null` 与「这一栏」在桥那边是两件事。
+    #[test]
+    fn a_catalog_read_without_a_tab_omits_the_field() {
+        let whole = encode(&Command::SettingsCatalog {
+            id: "s1".to_owned(),
+            tab: None,
+        })
+        .expect("encode");
+        let tabbed = encode(&Command::SettingsCatalog {
+            id: "s2".to_owned(),
+            tab: Some("tools".to_owned()),
+        })
+        .expect("encode");
+
+        assert!(
+            !whole.contains("tab"),
+            "no tab means the whole catalog: {whole}"
+        );
+        assert!(tabbed.contains(r#""tab":"tools""#), "{tabbed}");
     }
 
     #[test]
@@ -286,14 +369,42 @@ mod tests {
 
     #[test]
     fn the_real_ready_frame_decodes() {
-        let raw = r#"{"type":"ready","protocolVersion":1,"agentVersion":"18.2.11"}"#;
+        let raw = r#"{"type":"ready","protocolVersion":2,"agentVersion":"18.3.0"}"#;
 
         assert_eq!(
             decode(raw).expect("ready"),
             Frame::Ready {
-                protocol_version: 1,
-                agent_version: "18.2.11".to_owned(),
+                protocol_version: 2,
+                agent_version: "18.3.0".to_owned(),
             }
+        );
+    }
+
+    #[test]
+    fn a_questions_asked_event_carries_the_request_id_that_the_answer_rides() {
+        let raw = r#"{"type":"event","event":{"kind":"questions_asked","sessionId":"s1","requestId":"d7","questions":[{"id":"q0","question":"哪种配色？","options":[{"id":"o0","label":"深色"}],"multiSelect":false,"allowOther":true}]}}"#;
+
+        let decoded = decode(raw).expect("questions_asked");
+
+        let Frame::Event {
+            event:
+                Event::QuestionsAsked {
+                    session_id,
+                    request_id,
+                    questions,
+                },
+        } = decoded
+        else {
+            unreachable!("this fixture is a questions_asked event");
+        };
+
+        assert_eq!(session_id, "s1");
+        /* 答复挂这个号回去：桥按它认那次 askDialog，换一个号就没有人在等。 */
+        assert_eq!(request_id, "d7");
+        assert_eq!(
+            questions.as_array().map(Vec::len),
+            Some(1),
+            "the questions keep their product shape verbatim"
         );
     }
 
@@ -305,7 +416,7 @@ mod tests {
             decode(raw).expect("response"),
             Frame::Response {
                 id: "r1".to_owned(),
-                data: serde_json::Value::Null,
+                data: Value::Null,
             }
         );
     }

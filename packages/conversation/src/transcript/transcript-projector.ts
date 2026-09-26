@@ -3,6 +3,7 @@ import type {
   TranscriptAttachment,
   TranscriptFrame,
   TranscriptInteraction,
+  TranscriptMarker,
   TranscriptTask,
   TranscriptTurn,
 } from '@poietica/transcript'
@@ -11,6 +12,8 @@ import type { TurnMark } from '../agent/thread'
 import type { ToolCallContent } from '../agent/tool-call'
 import type {
   BackgroundTaskItem,
+  CompactionState,
+  CompactionTimelineItem,
   MessageFile,
   MessageImage,
   PermissionItem,
@@ -267,6 +270,20 @@ const approvalDecision = (state: TranscriptInteraction['state']) =>
 const questionOutcome = (state: TranscriptInteraction['state']) =>
   state === 'answered' ? 'answered' : state === 'dismissed' ? 'dismissed' : 'cancelled'
 
+/** 审批那一格请求里我们要读的：工具名，以及上游算好的「将做什么」。 */
+function approvalFields(request: unknown): { toolName: string; detail: string | null } {
+  if (typeof request !== 'object' || request === null) {
+    return { toolName: '', detail: null }
+  }
+  const toolName = Reflect.get(request, 'toolName')
+  const detail = Reflect.get(request, 'detail')
+
+  return {
+    toolName: typeof toolName === 'string' ? toolName : '',
+    detail: typeof detail === 'string' && detail !== '' ? detail : null,
+  }
+}
+
 function interactionOf(
   interaction: TranscriptInteraction,
   turn: number,
@@ -274,15 +291,27 @@ function interactionOf(
 ): PermissionItem | QuestionTimelineItem {
   const resolved = interaction.state !== 'pending'
   if (interaction.interactionKind === 'approval') {
+    const { toolName, detail } = approvalFields(interaction.request)
+
+    /*
+     * 主语取上游算好的那一段（`Command: rm -rf …` 这类），不是工具名：判据是「要不要
+     * 让它做这件事」，而工具名回答不了。说不出来才退到工具名，再退到一句中性的字。
+     *
+     * 用 headline 而不是 subject：headline 是多行原文，sayToolLine 只截第一行 ——
+     * 它正是给这件事用的那一格（tool-intent.ts）。
+     */
+    const said = detail ?? toolName
+
     return {
       type: 'permission',
       id: interaction.interactionId,
       turn,
       at: stamp,
       requestId: interaction.interactionId,
-      title: interaction.toolCallId ?? 'Approval',
+      title: said === '' ? 'Approval' : said,
+      ...(said === '' ? {} : { headline: said }),
       kind: 'other',
-      subject: '',
+      subject: toolName,
       locations: [],
       ...(resolved ? { resolution: { decision: approvalDecision(interaction.state) } } : {}),
     }
@@ -338,25 +367,84 @@ function spanOf(turn: TranscriptTurn, index: number): TurnSpan {
   }
 }
 
-// 待答的审批与提问挂在活动段尾部。
+/*
+ * 待答的审批与提问挂在活动段尾部；压缩那一条也在这里 —— 它不绑 turn
+ * （agent 压缩的是上下文，不是某一轮），所以没有自己的页可挂。
+ */
 const tailOf = (
   pages: readonly TurnPage[],
   interactions: AgentTranscriptSnapshot['interactions'],
+  items: AgentTranscriptSnapshot['items'],
 ): TurnPage => {
   const held = pages.at(-1)
+  const marks = compactionMarks(items)
+
   if (held === undefined) {
     return {
       turn: 0,
-      items: interactions.map((interaction) => interactionOf(interaction, 0, 0)),
+      items: [
+        ...marks.map((mark) => compactionOf(mark, 0)),
+        ...interactions.map((interaction) => interactionOf(interaction, 0, 0)),
+      ],
     }
   }
   return {
     ...held,
     items: [
       ...held.items,
+      ...marks.map((mark) => compactionOf(mark, held.turn)),
       ...interactions.map((interaction) => interactionOf(interaction, held.turn, 0)),
     ],
   }
+}
+
+/*
+ * 上下文压缩那一条：agent 自己报的，落在标记上。
+ *
+ * 判据是 marker 名（`compaction`，见 packages/transcript 的 KNOWN_MARKERS）。
+ * payload 由桥按 agent 自己的事件填（它知道那次压缩是为什么、成没成）；
+ * 这里只把 payload 读成产品那一格，读不出的格子如实缺席 —— 渲染器本来就按
+ * 缺席退成一句没有数字的话，编一个数比不显示更坏。
+ */
+function compactionMarks(items: AgentTranscriptSnapshot['items']): readonly TranscriptMarker[] {
+  return items.filter(
+    (item): item is TranscriptMarker => item.kind === 'marker' && item.marker === 'compaction',
+  )
+}
+
+function compactionOf(mark: TranscriptMarker, turn: number): CompactionTimelineItem {
+  const payload =
+    typeof mark.payload === 'object' && mark.payload !== null
+      ? (mark.payload as Record<string, unknown>)
+      : {}
+
+  const state = compactionStateOf(payload['state'])
+  const trigger = payload['trigger']
+  const instruction = payload['instruction']
+  const tokensBefore = countOf(payload['tokensBefore'])
+  const tokensAfter = countOf(payload['tokensAfter'])
+
+  return {
+    type: 'compaction',
+    id: mark.markerId,
+    turn,
+    at: timeOf(mark.at) ?? 0,
+    agentId: 'main',
+    state,
+    ...(trigger === 'manual' || trigger === 'auto' ? { trigger } : {}),
+    ...(typeof instruction === 'string' && instruction !== '' ? { instruction } : {}),
+    ...(tokensBefore === undefined ? {} : { tokensBefore }),
+    ...(tokensAfter === undefined ? {} : { tokensAfter }),
+  }
+}
+
+/** 认不出的状态按「正在跑」处理：报完成会把一次没成的压缩说成成了。 */
+function compactionStateOf(value: unknown): CompactionState {
+  return value === 'blocked' || value === 'cancelled' || value === 'completed' ? value : 'running'
+}
+
+function countOf(value: unknown): number | undefined {
+  return typeof value === 'number' && Number.isFinite(value) && value >= 0 ? value : undefined
 }
 
 const phaseOf = (snapshot: AgentTranscriptSnapshot, last: TranscriptTurn | undefined) => {
@@ -592,7 +680,7 @@ export function projectTranscript(
       .map(backgroundOf)
       .filter((item): item is BackgroundTaskItem => item !== null),
     sealed: marked.length === 0 ? [] : marked.slice(0, -1),
-    active: tailOf(marked, snapshot.interactions),
+    active: tailOf(marked, snapshot.interactions, snapshot.items),
     lastSeq: 0,
     spans,
   }

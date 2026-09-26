@@ -130,7 +130,8 @@ impl QuestionDesk {
             .map_err(|_gone| super::question::refused(ASKER_GONE))
     }
 
-    /// 与「每一题都选跳过」不是一件事：撤下是这一组作罢，走 kap 自己的 :dismiss 后缀。
+    /// 与「每一题都选跳过」不是一件事：撤下是这一组作罢 —— 答复空着回到桥那边，
+    /// 桥把它当「没有人答」，上游据此取消这次提问。
     pub fn dismiss(&self, question_id: &str) -> Result<()> {
         let Some(asked) = self.lock()?.remove(question_id) else {
             return Err(super::question::refused(UNKNOWN_GROUP));

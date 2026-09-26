@@ -11,6 +11,7 @@ import { McpSettings } from '@poietica/extension/ui'
 import {
   Archive,
   ArrowLeft,
+  Brain,
   Settings as CogFour,
   Cpu,
   Info,
@@ -36,11 +37,13 @@ import {
 } from 'react'
 import type {
   AgentSettings,
+  AgentSettingsStore,
   AppSettings,
   KeybindingCatalog,
   ModelCatalogStore,
   SettingsStore,
 } from '../../index'
+import { AgentSettingsCatalog } from '../agent-settings/agent-settings'
 import { ComputerUseSettings } from '../computer-use-settings'
 import { KeymapSettings } from '../keymap-settings'
 import { ModelsSettings } from '../models/models-settings'
@@ -71,6 +74,7 @@ type SettingsSection =
   | 'appearance'
   | 'archived'
   | 'models'
+  | 'agent-settings'
   | 'skills'
   | 'mcp'
   | 'keymap'
@@ -101,6 +105,13 @@ interface SettingsSectionContext {
   readonly settings: AppSettings
   readonly controller: SettingsController
   readonly agentSettings: AgentSettings
+  /**
+   * agent 自己那份设置目录的持有者，由组合根注入。
+   *
+   * 与 modelCatalog 同一条理由与同一层：目录的真身在 agent 进程里（它的 settings-schema），
+   * 读写都经它的官方写入面。这个包不认识桌面传输层，它的依赖里没有 @tauri-apps/api。
+   */
+  readonly agentSettingsCatalog: AgentSettingsStore
   readonly modelCatalog: ModelCatalogStore
   readonly threads: ThreadsStore
   readonly keybindings: KeybindingCatalog
@@ -184,6 +195,11 @@ const SECTIONS: Record<SettingsSection, SettingsSectionDescriptor> = {
       <SkillsSettings openSkillDocument={openSkillDocument} skills={skills} store={plugins} />
     ),
   },
+  'agent-settings': {
+    label: 'Agent 设置',
+    icon: Brain,
+    render: ({ agentSettingsCatalog }) => <AgentSettingsCatalog store={agentSettingsCatalog} />,
+  },
   mcp: {
     label: 'MCP',
     icon: Plug,
@@ -229,7 +245,7 @@ const SECTIONS: Record<SettingsSection, SettingsSectionDescriptor> = {
  */
 const SECTION_GROUPS: readonly (readonly SettingsSection[])[] = [
   ['general', 'appearance'],
-  ['models', 'skills', 'mcp', 'keymap', 'computer-use', 'usage', 'archived'],
+  ['models', 'agent-settings', 'skills', 'mcp', 'keymap', 'computer-use', 'usage', 'archived'],
   ['privacy', 'about'],
 ]
 
@@ -243,6 +259,7 @@ const SECTION_GROUPS: readonly (readonly SettingsSection[])[] = [
 interface SettingsSurfaceContextValue {
   readonly controller: SettingsController
   readonly agentSettings: AgentSettings
+  readonly agentSettingsCatalog: AgentSettingsStore
   readonly modelCatalog: ModelCatalogStore
   readonly threads: ThreadsStore
   readonly keybindings: KeybindingCatalog
@@ -282,6 +299,12 @@ function useSettingsSurface(): SettingsSurfaceContextValue {
 export interface SettingsProviderProps {
   readonly store: SettingsStore
   readonly agentSettings: AgentSettings
+  /**
+   * agent 自己那份设置目录的唯一持有者，由组合根注入。
+   *
+   * 与 modelCatalog 同层同源：那一份也是 agent 自报的，读写都落在 agent 进程。
+   */
+  readonly agentSettingsCatalog: AgentSettingsStore
   /** 模型目录的唯一持有者，由组合根注入：模型页读写经 kap REST 落在 agent 进程。 */
   readonly modelCatalog: ModelCatalogStore
   /** 插件账本的唯一持有者，由组合根注入：这个包不认识桌面传输层。 */
@@ -336,6 +359,7 @@ export interface SettingsProviderProps {
 export function SettingsProvider({
   store,
   agentSettings,
+  agentSettingsCatalog,
   modelCatalog,
   plugins,
   threads,
@@ -381,6 +405,7 @@ export function SettingsProvider({
     () => ({
       controller,
       agentSettings,
+      agentSettingsCatalog,
       modelCatalog,
       plugins,
       threads,
@@ -396,6 +421,7 @@ export function SettingsProvider({
     }),
     [
       agentSettings,
+      agentSettingsCatalog,
       appVersion,
       controller,
       dataDirectory,
@@ -439,6 +465,7 @@ export function SettingsContentRegion() {
   const {
     controller,
     agentSettings,
+    agentSettingsCatalog,
     appVersion,
     dataDirectory,
     keybindings,
@@ -482,6 +509,7 @@ export function SettingsContentRegion() {
 
             {SECTIONS[section].render({
               agentSettings,
+              agentSettingsCatalog,
               appVersion,
               controller,
               dataDirectory,

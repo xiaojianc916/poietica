@@ -347,6 +347,54 @@ async fn the_client_opens_a_session_on_the_bundled_agent() {
         );
     }
 
+    /*
+     * 设置目录：agent 自己那份 schema 的那一面。这是 378 格设置的唯一来源，
+     * 内容随 omp 版本而变，所以判据是「解得开、每一格都有出处、钥匙不带值」。
+     */
+    let whole = connection
+        .client
+        .settings_catalog(None)
+        .await
+        .expect("the settings catalog must answer through the bridge");
+
+    assert!(
+        !whole.tabs.is_empty(),
+        "a catalog without tabs cannot be navigated"
+    );
+
+    for entry in &whole.settings {
+        assert!(
+            !entry.path.is_empty() && !entry.label.is_empty(),
+            "a setting without a path or a label cannot be shown"
+        );
+
+        /* 判据是这一层唯一的隐私边界：钥匙那一格的值永远不出 agent 的进程。 */
+        if entry.secret {
+            assert!(
+                entry.value.is_null(),
+                "a credential must never carry its value: {}",
+                entry.path
+            );
+        }
+    }
+
+    /* 按栏筛只改变返回的格子集合，不改变格子自己的形状。 */
+    let tab = whole
+        .tabs
+        .first()
+        .expect("a catalog without tabs cannot be navigated")
+        .clone();
+    let scoped = connection
+        .client
+        .settings_catalog(Some(tab.clone()))
+        .await
+        .expect("a tab-scoped catalog must answer through the bridge");
+
+    assert!(
+        scoped.settings.iter().all(|entry| entry.tab == tab),
+        "a tab-scoped read must only report that tab"
+    );
+
     connection.stop.cancel();
     let _ = driver.await;
 

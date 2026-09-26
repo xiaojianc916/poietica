@@ -54,4 +54,32 @@ describe('审批带', () => {
 
     expect(markup).toContain('bun run check')
   })
+
+  /*
+   * 审批这一格真正要回答的问题是「要不要让它做这件事」。
+   *
+   * agent 已经把答案算好了（上游 formatApprovalPrompt 拼出的 `Command: …` / 路径 /
+   * 新旧正文），我们从 request 里原样带过来当主语。没有它，人只能看见一个工具名 ——
+   * 那回答不了任何问题，闸门就成了一道没有内容的确认框。
+   */
+  it('agent 算好的那一句「将做什么」才是主语', () => {
+    const markup = render(
+      permission({ title: 'bash', headline: 'Command: rm -rf build', subject: 'bash' }),
+    )
+
+    expect(markup).toContain('Command: rm -rf build')
+  })
+
+  it('多行的批准细节只印第一行：带子长高会顶开输入框', () => {
+    const markup = render(
+      permission({
+        title: 'write',
+        headline: 'Path: src/a.ts\n+ 12 lines\n- 3 lines',
+        subject: 'write',
+      }),
+    )
+
+    expect(markup).toContain('Path: src/a.ts')
+    expect(markup).not.toContain('- 3 lines')
+  })
 })

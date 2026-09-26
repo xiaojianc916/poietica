@@ -52,10 +52,11 @@ pub enum SessionEvent {
         session_id: String,
         payload: serde_json::Value,
     },
-    /// agent 要问一个对话框（ask 工具的题目、confirm、input）。
+    /// agent 要问一个对话框（confirm、input、editor）。
     ///
     /// 原样转发上游 RpcExtensionUIRequest 的形状：本层不认识它的 method，也不该
-    /// 认识 —— 解释归宿主。授权那一类不走这里（它翻成产品的 permission 帧）。
+    /// 认识 —— 解释归宿主。授权那一类不走这里（它翻成产品的 permission 帧），
+    /// ask 工具的题组也不走（它翻成 QuestionsAsked，本层认得那份产品形状）。
     Dialog {
         session_id: String,
         request: serde_json::Value,

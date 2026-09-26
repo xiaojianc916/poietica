@@ -192,10 +192,11 @@ pub enum AgentSessionEvent {
     },
     /// provider、模型或默认模型的真身以它为准：收到即作废缓存重问。
     ModelCatalogChanged,
-    /// agent 要问一个对话框（ask 工具的题目、confirm、input）。
+    /// agent 要问一个对话框（confirm / input / editor）。
     ///
     /// `request` 是 agent 自己那份形状，原样转发 —— 本层不认识它，也不该认识。
-    /// 授权那一类不走这里（它走 permission_requested 那帧）。
+    /// 授权那一类不走这里（它走 permission_requested 那帧）；ask 工具的题组也不走
+    /// 这里（它走 questions_asked，产品形状，由提问桌收答复）。
     #[serde(rename_all = "camelCase")]
     Dialog { session_id: String, request: Value },
 }

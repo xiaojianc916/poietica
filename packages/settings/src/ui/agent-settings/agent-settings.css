@@ -1,0 +1,21 @@
+/*
+ * agent 设置页自己的两格样式。
+ *
+ * 排版词汇（行、组、页、输入框外观）全部来自 settings-surface.css，这里只放这一页独有的
+ * 两件事：控件那一格的定宽，与 array/record 那种不给控件的只读显示。
+ */
+
+/* 行右端的控件格定宽：一行里既有开关也有输入框，不固定宽度会让每一行的右边缘参差。 */
+.agent-setting__input {
+  inline-size: 190px;
+}
+
+/*
+ * array / record 的只读显示：它长得像一条状态，不像一个可以点的控件 —— 不给 hover、
+ * 不给焦点环，免得看上去像点得动而点下去什么都不发生。
+ */
+.agent-setting__opaque {
+  color: var(--ui-muted-foreground);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}

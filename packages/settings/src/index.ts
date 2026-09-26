@@ -7,6 +7,14 @@ export type {
 export type { AgentConfigurationRepository } from './agent-runtime/repository'
 export { createAgentSettings } from './agent-runtime/settings'
 export type {
+  AgentSettingEntry,
+  AgentSettingOption,
+  AgentSettingsCatalog,
+  AgentSettingsPort,
+} from './agent-settings/model'
+export { catalogOf, entryOf } from './agent-settings/model'
+export { type AgentSettingsSnapshot, AgentSettingsStore } from './agent-settings/store'
+export type {
   CustomAgentDraft,
   DelegationMode,
   ModelPreference,

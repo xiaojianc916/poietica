@@ -7,7 +7,13 @@ import { CARGO_RINGS, UNLAYERED_DIRECTORIES } from './layering.ts'
 import { present, type Violation } from './policies.ts'
 import type { Crate, Workspace } from './workspace.ts'
 
-/** 方案文档写的是目标形态、工作记忆是过程记录：都不参与"点名的东西必须存在"。 */
+/**
+ * 方案文档写的是目标形态、工作记忆是过程记录：都不参与"点名的东西必须存在"。
+ *
+ * `oh-my-pi` 是外部参考材料（盘点 omp 自己源码树的两份盘点稿），里面的路径是
+ * **相对 omp 的 src/** 写的，不是本仓的路径；这一条法则问的是"本仓文档有没有指着
+ * 已经不存在的本仓文件"，所以那些不参与。该目录也已在 .gitignore 里。
+ */
 const SKIP = new Set([
   '.git',
   '.github',
@@ -20,6 +26,7 @@ const SKIP = new Set([
   'dist-types',
   'gen',
   'node_modules',
+  'oh-my-pi',
   'target',
 ])
 

@@ -1,4 +1,4 @@
-/* 数由 agent 算（kap 的 agent.status.updated 一帧带全）；推送 volatile：到达即替换，断线不回放。 */
+/* 数由 agent 自己算（session.getSessionStats）；推送 volatile：到达即替换，断线不回放。 */
 
 export interface SessionUsage {
   readonly used: number

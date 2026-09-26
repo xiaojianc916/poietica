@@ -8,6 +8,7 @@ use super::config::{ConfigControl, GoalSnapshot};
 use super::{BrowserSettings, Capability, McpServer, OpenedSession, SessionEntry, Skill};
 use crate::error::{AgentError, Refusal, Result};
 use crate::recorder::FrameSink;
+use crate::settings::{SettingEntry, SettingsCatalog};
 use crate::{ModelCatalogOperation, ModelCatalogSnapshot};
 
 /// 一个附件怎么交给 agent。
@@ -128,6 +129,17 @@ pub(crate) enum Command {
     },
     McpServers {
         reply: oneshot::Sender<Result<Vec<McpServer>>>,
+    },
+    /// agent 自己那份设置目录；None 就是整份。
+    SettingsCatalog {
+        tab: Option<String>,
+        reply: oneshot::Sender<Result<SettingsCatalog>>,
+    },
+    /// 改一格设置；应答是**改完之后**的整份目录（改一格可能牵动别的格子）。
+    SetSetting {
+        path: String,
+        value: serde_json::Value,
+        reply: oneshot::Sender<Result<Vec<SettingEntry>>>,
     },
     /// 退场：杀掉这条连接起的进程，杀完从收据上报一声。
     Shutdown(SyncSender<()>),
@@ -495,6 +507,37 @@ impl AgentClient {
     pub async fn mcp_servers(&self) -> Result<Vec<McpServer>> {
         let (reply, answer) = oneshot::channel();
         self.send(Command::McpServers { reply })?;
+        answer
+            .await
+            .map_err(|_dropped| AgentError::Refused(Refusal::Gone))?
+    }
+
+    /// agent 自己那份设置目录：栏与格子都是它自报的，本层不添不减。
+    ///
+    /// `tab` 只筛栏，不改变那一格的形状 —— 界面切栏时不必重新理解目录。
+    pub async fn settings_catalog(&self, tab: Option<String>) -> Result<SettingsCatalog> {
+        let (reply, answer) = oneshot::channel();
+
+        self.send(Command::SettingsCatalog { tab, reply })?;
+
+        answer
+            .await
+            .map_err(|_dropped| AgentError::Refused(Refusal::Gone))?
+    }
+
+    /// 改一格设置，交回**改完之后**的整份目录。
+    ///
+    /// 写的是 agent 自己的持久层（它自己热重载），本层不碰它的 config 文件。
+    /// `value` 原样转发：类型由它的 schema 说了算，这一侧不折算（折算就是第二份类型表）。
+    pub async fn set_setting(
+        &self,
+        path: String,
+        value: serde_json::Value,
+    ) -> Result<Vec<SettingEntry>> {
+        let (reply, answer) = oneshot::channel();
+
+        self.send(Command::SetSetting { path, value, reply })?;
+
         answer
             .await
             .map_err(|_dropped| AgentError::Refused(Refusal::Gone))?

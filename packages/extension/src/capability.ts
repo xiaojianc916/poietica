@@ -78,7 +78,7 @@ export function computerUse(input: ComputerUseInput): ComputerUse {
   return settled(capability, input.plugins, failure)
 }
 
-/* KAP 的就绪是安装事实：ready 时命令失败与 install.error 都不作数（见 capability.test.ts）。 */
+/* ready 是就绪事实：ready 时命令失败与 install.error 都不作数（见 capability.test.ts）。 */
 function settled(
   capability: AgentCapability,
   plugins: readonly InstalledPlugin[],

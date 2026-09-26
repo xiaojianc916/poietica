@@ -223,6 +223,16 @@
   line-height: 1.45;
 }
 
+/*
+ * 风险提示排在说明之上，用警示色与稍重的字重：它说的是「这件事有代价」，不能与
+ * 「这一格是什么」读起来一样。琥珀底不铺满一行 —— 铺满会把整张卡片染成告警状态，
+ * 而多数行没有话要说。
+ */
+.settings-row__warning {
+  color: var(--ui-warning);
+  font-weight: 550;
+}
+
 .settings-row__control {
   flex: none;
   display: flex;

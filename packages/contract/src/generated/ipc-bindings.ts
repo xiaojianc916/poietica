@@ -80,6 +80,23 @@ async agentBrowserSettings() : Promise<AgentBrowserSettings> {
 async agentSetBrowserSettings(request: AgentBrowserSettingsPatch) : Promise<AgentBrowserSettings> {
     return await TAURI_INVOKE("agent_set_browser_settings", { request });
 },
+/**
+ * 读取 agent 自己那份设置目录；连接不存在时按统一启动管线建立。
+ * 
+ * 目录是进程级事实（与连接锚在哪个工作区无关），整份一次交回：界面自己按栏切，
+ * 不为了切栏再问一遍 —— 那一问会多出一个到达时刻，两栏之间的条件求值就对不齐了。
+ */
+async agentSettingsCatalog() : Promise<AgentSettingsCatalog> {
+    return await TAURI_INVOKE("agent_settings_catalog");
+},
+/**
+ * 改一格设置，交回**改完之后**整份目录的 settings 那一格。
+ * 
+ * 界面拿这一份刷新自己，不做乐观改写：改没改由 agent 自己说，那是它写的盘。
+ */
+async agentSetSetting(request: AgentSettingWriteRequest) : Promise<AgentSettingEntry[]> {
+    return await TAURI_INVOKE("agent_set_setting", { request });
+},
 async agentThreads() : Promise<AgentThread[]> {
     return await TAURI_INVOKE("agent_threads");
 },
@@ -559,10 +576,11 @@ export type AgentSessionEvent = { kind: "selectors"; sessionId: string; selector
  */
 { kind: "modelCatalogChanged" } | 
 /**
- * agent 要问一个对话框（ask 工具的题目、confirm、input）。
+ * agent 要问一个对话框（confirm / input / editor）。
  * 
  * `request` 是 agent 自己那份形状，原样转发 —— 本层不认识它，也不该认识。
- * 授权那一类不走这里（它走 permission_requested 那帧）。
+ * 授权那一类不走这里（它走 permission_requested 那帧）；ask 工具的题组也不走
+ * 这里（它走 questions_asked，产品形状，由提问桌收答复）。
  */
 { kind: "dialog"; sessionId: string; request: JsonValue }
 /**
@@ -574,6 +592,53 @@ export type AgentSessionMediaResult = { contentType: string; base64: string }
  * kap 的 agent.status.updated 报的是仪表值：到达即替换，不是增量；按读数算增量的是账本。
  */
 export type AgentSessionUsage = { used: number; size: number; inputOther: number; inputCacheRead: number; inputCacheCreation: number }
+/**
+ * 目录里的一格设置。
+ * 
+ * **手写 Debug**：`default` 与 `value` 是设置载荷，钥匙那一格的值就在其中
+ * （AGENTS.md §5「Debug 不打载荷」）。这里只打非载荷的标识。
+ */
+export type AgentSettingEntry = { path: string; 
+/**
+ * agent 自己那份 schema 的类型词：boolean / enum / number / string / array / record。
+ */
+type: string; label: string; description: string; 
+/**
+ * 所在的那一栏；界面按它分组。
+ */
+tab: string; group: string | null; 
+/**
+ * 未设置时生效的值。
+ */
+default: JsonValue; 
+/**
+ * 此刻生效的值；`secret` 为真时恒为 null。
+ */
+value: JsonValue; secret: boolean; hasValue: boolean; 
+/**
+ * 枚举那张选项表；空即这一格没有固定选项。
+ */
+options: AgentSettingOption[] | null; 
+/**
+ * 没有 options 时的取值域。
+ */
+enumValues: string[] | null; warning: string | null; condition: string | null }
+/**
+ * 枚举/子菜单的一张选项表；原样投影。
+ */
+export type AgentSettingOption = { value: string; label: string; description: string | null }
+/**
+ * 改一格设置。`value` 的类型由 agent 自己的 schema 说了算，本层不折算。
+ */
+export type AgentSettingWriteRequest = { path: string; value: JsonValue }
+/**
+ * 一整份目录：有哪几栏，以及栏里的格子。
+ */
+export type AgentSettingsCatalog = { 
+/**
+ * 栏目清单，按 agent 自己的顺序；界面拿它搭导航，不另立一份。
+ */
+tabs: string[]; settings: AgentSettingEntry[] }
 export type AgentSkill = { id: string; name: string; description: string; source: string; path: string; project: string | null; projectPath: string | null; document: string | null; directory: string | null; enabled: boolean; loaded: boolean; kind: string | null; disableModelInvocation: boolean | null; supportingFiles: number | null; totalBytes: number | null; modifiedAt: number | null }
 export type AgentSteerRequest = { threadId: string; 
 /**

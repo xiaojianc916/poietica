@@ -112,6 +112,7 @@ export function AppShell({ runtime }: AppShellProps) {
           <DesktopWorkspace
             agentSession={runtime.agent.session}
             agentSettings={runtime.agentConfig}
+            agentSettingsCatalog={runtime.agentSettingsCatalog}
             appVersion={runtime.appVersion}
             automationStore={runtime.automationStore}
             auxiliaryPanel={runtime.auxiliaryPanel}

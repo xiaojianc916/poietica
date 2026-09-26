@@ -33,7 +33,7 @@ export function clampToLine(full: string): string | null {
   return said.length > CLAMP ? `${said.slice(0, CLAMP)}…` : said
 }
 
-// 待答的审批项（PermissionItem）没有 headline，走兜底。
+// 待答的审批项也带上 headline（agent 算好的「将做什么」），与工具卡走同一条判据。
 type ToolLineSource = Pick<ToolCallTimelineItem, 'kind' | 'locations' | 'subject' | 'title'> & {
   readonly headline?: string | undefined
 }

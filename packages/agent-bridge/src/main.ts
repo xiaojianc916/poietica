@@ -23,12 +23,23 @@ import {
 } from '@oh-my-pi/pi-coding-agent/discovery'
 import { initializeExtensions } from '@oh-my-pi/pi-coding-agent/modes/runtime-init'
 import type { TranscriptOperation } from '@poietica/transcript'
-import { createUIContext, DialogDesk, labelFor } from './approval.ts'
+import {
+  APPROVAL_OPTIONS,
+  approvalDetailOf,
+  approvalToolOf,
+  createUIContext,
+  DialogDesk,
+  type DialogLifecycle,
+  labelFor,
+  responseOf,
+  type UpstreamDialogRequest,
+} from './approval.ts'
 import { aliasOf, executeCatalog } from './catalog.ts'
 import { removeProvider, writeProvider, writeProviderOverride } from './models-file.ts'
 import { outcomeOf, type TurnOutcome } from './outcome.ts'
-import { TranscriptProjector } from './projection.ts'
+import { interactionOp, TranscriptProjector } from './projection.ts'
 import {
+  type AskedQuestion,
   BRIDGE_PROTOCOL_VERSION,
   type BridgeCommand,
   type BridgeEvent,
@@ -37,6 +48,8 @@ import {
   type SelectorControl,
   type UsageSnapshot,
 } from './protocol.ts'
+import { answerPayloadOf, askQuestionsOf } from './questions.ts'
+import { readCatalog, SETTING_TABS } from './settings.ts'
 import { TranscriptMirror } from './transcript-mirror.ts'
 
 const write = (frame: BridgeFrame): void => {
@@ -71,6 +84,25 @@ interface Session {
   readonly desk: DialogDesk
   defaultModel: string | null
   planTools: readonly string[] | undefined
+  /*
+   * 在等人答的那几件：号 → 那一件是什么。
+   *
+   * 屏幕要画「有一件事在等人答」，而那条事实只有这里知道 —— Rust 那边的 PermissionDesk
+   * 是另一条路上的会合点，它不认识「这是第几号、是哪件工具」。答完就删，不留痕迹
+   * （ADR 0015：答复之后什么都不留）。
+   */
+  readonly pending: Map<string, PendingInteraction>
+  /** ask 工具那组题的号 → 题组；答复翻译要用它把号换回标签。 */
+  readonly asked: Map<string, readonly AskedQuestion[]>
+  /** 本次会话已允许的工具（scope=session 的产物），免得重复写同一格设置。 */
+  readonly allowed: Set<string>
+}
+
+interface PendingInteraction {
+  readonly kind: 'approval' | 'question'
+  /** 授权那一类用它做设置键（会话级放行）与屏幕上的说法；题组恒为 'ask'。 */
+  readonly toolName: string
+  readonly request: UpstreamDialogRequest
 }
 
 const sessions = new Map<string, Session>()
@@ -170,9 +202,32 @@ async function adopt(manager: SessionManager, cwd: string): Promise<Session> {
   // 号由我们签发。sessionId 先占空串：闸门可能在会话对象拿到号之前就被调到。
   let id = ''
 
-  const desk = new DialogDesk((frame) => {
-    emit({ kind: 'dialog_requested', sessionId: id, request: frame })
-  })
+  /*
+   * 桌在会话对象之前就要建（createAgentSession 期间就可能被闸门调到），而它报的
+   * 「在等人答」要落进会话自己的那张表。中间这个空位就是这段先后的交接。
+   */
+  let record: Session | null = null
+
+  const desk = new DialogDesk(
+    (frame) => {
+      /*
+       * 题组不走这一条：它有自己的 `questions_asked`（产品形状），同一件事两条路
+       * 就会一半认得一半认不得。收窄在这里，而不是让下游去筛两遍 —— 筛两遍就是
+       * 第二个判别点（Rust 侧那条 `an_ask_dialog_is_not_also_reported_as_a_raw_dialog`
+       * 钉的是同一件事的另一半）。
+       */
+      if (frame['method'] === 'ask') {
+        return
+      }
+
+      emit({ kind: 'dialog_requested', sessionId: id, request: frame })
+    },
+    (event) => {
+      if (record !== null) {
+        onDialogLifecycle(record, event)
+      }
+    },
+  )
 
   const { session, setToolUIContext, mcpManager } = await createAgentSession({
     cwd,
@@ -186,7 +241,7 @@ async function adopt(manager: SessionManager, cwd: string): Promise<Session> {
 
   id = session.sessionId ?? crypto.randomUUID()
 
-  const record: Session = {
+  const adopted: Session = {
     id,
     agent: session,
     projector: new TranscriptProjector(),
@@ -200,7 +255,12 @@ async function adopt(manager: SessionManager, cwd: string): Promise<Session> {
     desk,
     defaultModel: session.model === undefined ? null : aliasOf(session.model),
     planTools: undefined,
+    pending: new Map(),
+    asked: new Map(),
+    allowed: new Set(),
   }
+
+  record = adopted
 
   const uiContext = createUIContext(desk)
 
@@ -219,24 +279,29 @@ async function adopt(manager: SessionManager, cwd: string): Promise<Session> {
     uiContext,
   })
 
-  record.unsubscribe = session.subscribe((event) => {
-    handleEvent(record, event)
+  adopted.unsubscribe = session.subscribe((event) => {
+    handleEvent(adopted, event)
   })
-  sessions.set(id, record)
+
+  /*
+   * 会话交回给调用方之后，它那几个「在等人答」的表由取消与收摊负责清：
+   * `desk.closeAll()` 结掉挂着的 Promise，屏幕那几条也由观察者跟着结掉。
+   */
+  sessions.set(id, adopted)
   active = id
 
   emit({
     kind: 'selectors',
     sessionId: id,
-    controls: await readSelectors(record),
-    goal: readGoal(record),
+    controls: await readSelectors(adopted),
+    goal: readGoal(adopted),
   })
 
-  if (record.agent.messages.length > 0) {
-    replayHistory(record)
+  if (adopted.agent.messages.length > 0) {
+    replayHistory(adopted)
   }
 
-  return record
+  return adopted
 }
 
 // 按顺序喂给投影器（官方宿主回放历史同一条路）：用户消息开一轮，assistant 与工具结果落轮下。
@@ -578,6 +643,256 @@ function pushTranscript(record: Session, ops: readonly TranscriptOperation[]): v
   })
 }
 
+/*
+ * 一次对话框开门/关门 → 屏幕上的那一件「在等人答」。
+ *
+ * 这是屏幕看得见审批的唯一来源：投影层的 phaseOf 靠 interactions 里有没有 pending
+ * 决出 awaiting_permission，而输入框那一带靠那个相位才挂出三颗按钮。少这一条，
+ * 授权问答整条回路都在，却没有人被问到。
+ *
+ * 授权与提问走同一个号空间（都是上游 extension_ui_request 的 id），但那是两件事：
+ * 授权翻成 approval，题组翻成 question 并把题装进 request 里 —— 投影层按同一格读它们。
+ */
+function onDialogLifecycle(record: Session, event: DialogLifecycle): void {
+  if (event.kind === 'settled') {
+    settleInteraction(record, event.id, event.payload)
+
+    return
+  }
+
+  if (event.kind === 'timeout' || event.kind === 'aborted') {
+    // 没人答：上游已经把这一次对话框收成 cancelled，屏幕那一条也该结掉。
+    closeInteraction(record, event.id, { state: 'cancelled', outcomeReason: event.kind })
+
+    return
+  }
+
+  const request = event.request
+  const method = typeof request.method === 'string' ? request.method : ''
+
+  if (method === 'ask') {
+    openQuestion(record, event.id, request)
+
+    return
+  }
+
+  const toolName = approvalToolOf(request)
+
+  if (toolName === null) {
+    /*
+     * 认不出的对话框（confirm / input / editor / notify）：不是审批也不是题组，
+     * 没有「在等人答」这一格可画。上游要的答复照旧由 answer_dialog 那条路送回去。
+     */
+    return
+  }
+
+  const detail = approvalDetailOf(request)
+
+  record.pending.set(event.id, { kind: 'approval', toolName, request })
+  pushTranscript(
+    record,
+    interactionOp({
+      interactionId: event.id,
+      kind: 'approval',
+      state: 'pending',
+      toolCallId: toolName,
+      /*
+       * `title` 是「要不要允许 Bash」答不了的那一半：上游已经算好了将跑什么
+       * （tools/approval.ts 把 `Command: …` / 路径 / 新旧正文拼在标题里），
+       * 原样带过去给屏幕当主语，不重排也不翻译。
+       */
+      request: { method, toolName, ...(detail === null ? {} : { detail }) },
+    }),
+  )
+}
+
+/*
+ * 一组题在等人答。
+ *
+ * 题组原样挂进 interaction.request：投影层从那里读 `questions`（transcript-projector
+ * 的 interactionOf 正是这样读的），所以屏幕那一格与我们这里看到的是同一份题。
+ */
+function openQuestion(record: Session, requestId: string, request: UpstreamDialogRequest): void {
+  const questions = askQuestionsOf(request.questions)
+
+  if (questions.length === 0) {
+    /*
+     * 一道都认不出：画不出来，但**不能就这么算了** —— askDialog 的 Promise 还挂着，
+     * 人没有可答的东西，模型会永远等下去。如实收成取消（上游把空结果读成「用户取消」，
+     * tools/ask.ts:946-949），那一轮因此停在一个说得清的地方，而不是挂死。
+     */
+    log('an ask dialog arrived with no readable questions; cancelling it')
+
+    record.desk.settle(requestId, { cancelled: true })
+
+    return
+  }
+
+  record.asked.set(requestId, questions)
+  record.pending.set(requestId, { kind: 'question', toolName: 'ask', request })
+
+  // 原样交给 Rust 去挂提问桌：它按这份题组收答复，答复再经 answer_dialog 回来。
+  emit({
+    kind: 'questions_asked',
+    sessionId: record.id,
+    requestId,
+    questions,
+  })
+
+  pushTranscript(
+    record,
+    interactionOp({
+      interactionId: requestId,
+      kind: 'question',
+      state: 'pending',
+      toolCallId: 'ask',
+      request: { questions },
+    }),
+  )
+}
+
+/*
+ * 一次答复到了：先把它送回上游，再把屏幕那一条结掉。
+ *
+ * 次序是有意的 —— 结账先于答复会让屏幕显示「问过了」而 agent 还在等；上游收下之后
+ * 才动手，人看到的永远是已经生效的那一件。
+ */
+function settleInteraction(
+  record: Session,
+  requestId: string,
+  payload: Record<string, unknown>,
+): void {
+  const held = record.pending.get(requestId)
+
+  if (held === undefined) {
+    return
+  }
+
+  if (held.kind === 'approval') {
+    resolveApproval(record, requestId, held, payload)
+
+    return
+  }
+
+  record.pending.delete(requestId)
+  const questions = record.asked.get(requestId)
+  record.asked.delete(requestId)
+
+  /*
+   * 这条答复此刻已经是上游要的那份（dispatch 的 answer_dialog 折过了）：
+   * `value` 在就是答了，`cancelled` 在就是撤下了。这里只做归类，不再翻译一次。
+   */
+  const answer = responseOf(payload)
+  const answered = answer.cancelled !== true && answer.value !== undefined
+
+  pushTranscript(
+    record,
+    interactionOp({
+      interactionId: requestId,
+      kind: 'question',
+      state: answered ? 'answered' : 'dismissed',
+      toolCallId: 'ask',
+      request: { questions: questions ?? [] },
+      ...(answered ? { response: answer.value } : {}),
+    }),
+  )
+}
+
+/*
+ * 一次授权答复 → 结论 + （scope=session 时）会话级放行。
+ *
+ * 「本次会话都批准」不是「再点一次批准」：上游的 select 只有两颗按钮，一次只放行这一次。
+ * 真正让这一条会话往后都放行的是 `tools.approval.<tool>: allow` 那条设置 —— 上游
+ * resolveApproval 先查用户策略（tools/approval.ts:283-291），所以写进去才算数。
+ * 写入走 agent 自己的持久层（Settings.set + flush），由它自己热重载。
+ */
+function resolveApproval(
+  record: Session,
+  requestId: string,
+  held: PendingInteraction,
+  payload: Record<string, unknown>,
+): void {
+  record.pending.delete(requestId)
+
+  const answer = responseOf(payload)
+  const approved = answer.value === APPROVAL_OPTIONS[0]
+  const cancelled = answer.cancelled === true
+
+  if (approved && held.toolName !== '') {
+    grantSessionWide(record, held.toolName, answer.scope === 'session')
+  }
+
+  pushTranscript(
+    record,
+    interactionOp({
+      interactionId: requestId,
+      kind: 'approval',
+      state: cancelled ? 'cancelled' : approved ? 'approved' : 'rejected',
+      toolCallId: held.toolName,
+      request: { method: 'select', toolName: held.toolName },
+      response: { decision: approved ? 'approved' : 'rejected' },
+    }),
+  )
+}
+
+/*
+ * 「本次会话都批准」的落点：把这一件工具写进 agent 自己的 `tools.approval` 表。
+ *
+ * 上游的 select 只有两颗按钮，一次只放行这一次；真正让这一条会话往后都放行的是
+ * `tools.approval.<tool>: allow` 那条用户策略 —— resolveApproval 先查它
+ * （tools/approval.ts:283-291），所以写进去才算数，而不是把审批再答一遍。
+ *
+ * 写入走 agent 自己的持久层（Settings.set + flush），由它自己热重载。写一次就够，
+ * 重复写只是同一格的第二次赋值 —— 所以记着写过的。
+ */
+function grantSessionWide(record: Session, toolName: string, sessionWide: boolean): void {
+  if (!sessionWide || toolName === '' || record.allowed.has(toolName)) {
+    return
+  }
+
+  record.allowed.add(toolName)
+
+  const current = record.settings.get('tools.approval')
+  const policies =
+    typeof current === 'object' && current !== null && !Array.isArray(current)
+      ? (current as Record<string, unknown>)
+      : {}
+
+  record.settings.set('tools.approval', { ...policies, [toolName]: 'allow' })
+
+  void record.settings.flush().catch((error: unknown) => {
+    log('could not persist a session-wide approval', String(error))
+  })
+}
+
+/** 超时与中止：对话框那边已经作罢，屏幕这一条跟着结掉。 */
+function closeInteraction(
+  record: Session,
+  requestId: string,
+  reason: { readonly state: 'cancelled'; readonly outcomeReason: string },
+): void {
+  const held = record.pending.get(requestId)
+
+  if (held === undefined) {
+    return
+  }
+
+  record.pending.delete(requestId)
+  const questions = record.asked.get(requestId)
+  record.asked.delete(requestId)
+
+  pushTranscript(
+    record,
+    interactionOp({
+      interactionId: requestId,
+      kind: held.kind,
+      state: reason.state,
+      toolCallId: held.toolName,
+      request: held.kind === 'question' ? { questions: questions ?? [] } : { method: 'select' },
+    }),
+  )
+}
+
 function readGoal(record: Session): GoalSnapshot | null {
   const state = record.agent.getGoalModeState()
 
@@ -748,13 +1063,26 @@ const PLAN_MODE_STRIP: ReadonlySet<string> = new Set(['bash', 'eval', 'task'])
 
 // 计划模式唯一被认可的收轮方式（系统提示明说不许用散文问批准，只用 write xd://propose）。
 // 不装这个处理器那次 write 会抛「No plan is awaiting approval」，计划模式永远收不了尾。
-// 批准暂时自动（官方 ACP 宿主对无表单界面客户端的做法）：这版还没有能答这个问题的界面。
+// 批准是**真的问人**：走与工具授权同一条路（同一张桌、同一颗带子、同一道
+// answer_permission），所以计划不再自动放行。标题里带上计划文件的路，人据此去读全文 ——
+// 计划正文还没有内联的面，不假装已经有了。
 async function proposePlan(record: Session, title: string): Promise<PlanReview> {
   const review = await record.agent.preparePlanForReview(title)
   const plan = review.details as PlanApproval | undefined
 
   if (plan === undefined) {
     return review
+  }
+
+  if (!(await askPlanApproval(record, plan))) {
+    /*
+     * 人没批准：这一次提交作罢，但**留在计划模式里** —— 出模式等于告诉模型可以动手了。
+     * 处理器照旧装着，下一版计划还能再提一次。
+     */
+    return {
+      content: [{ type: 'text', text: `计划未获批准：${plan.planFilePath}。修正后重新提交。` }],
+      details: plan,
+    }
   }
 
   record.agent.setPlanReferencePath(plan.planFilePath)
@@ -785,6 +1113,23 @@ interface PlanApproval {
   readonly planFilePath: string
   readonly title: string
   readonly planExists: boolean
+}
+
+/**
+ * 把一次计划提交问成人面前的那一次批准；答复由授权那条回路送回来。
+ *
+ * 故意走闸门那张选项表：`select` 的判据是选项集（Rust 的 approval_of 与这里的
+ * approvalToolOf 都这么认），所以人点下去之后送回来的答复与一次工具授权逐字同形 ——
+ * 屏幕上是同一颗带子，不需要第二套控件。
+ */
+async function askPlanApproval(record: Session, plan: PlanApproval): Promise<boolean> {
+  const response = (await record.desk.ask({
+    method: 'select',
+    title: `计划待批准：${plan.title}\n${plan.planFilePath}`,
+    options: [...APPROVAL_OPTIONS],
+  })) as { value?: unknown }
+
+  return response.value === APPROVAL_OPTIONS[0]
 }
 
 // 上游给 ${provider}:${level}，level 只有 user/project/native。
@@ -861,6 +1206,75 @@ function browserSettingsOf(settings: Settings): {
   }
 }
 
+// 目录与那一格此刻的值都是 agent 自报的（见 settings.ts），我们没有第二份。
+async function settingsCatalog(tab: string | null): Promise<unknown> {
+  const settings = await settingsFor()
+
+  return { tabs: SETTING_TABS, settings: readCatalog(settings, tab) }
+}
+
+/*
+ * 改一格设置：走它自己的持久层，它自己热重载。
+ *
+ * 写的是它那一层（Settings.set 落盘 + flush），不是我们手上的副本 —— 我们没有副本。
+ * 认不出的路径与类型由它自己拒绝，这里不预筛：预筛就是第二份路径表，两边必然分叉。
+ */
+async function writeSetting(path: string, value: unknown): Promise<unknown> {
+  const settings = await settingsFor()
+
+  settings.set(path as never, value as never)
+  await settings.flush()
+
+  return { settings: readCatalog(settings, null) }
+}
+
+async function writeBrowserSettings(command: {
+  readonly enabled?: boolean
+  readonly headless?: boolean
+  readonly cdpUrl?: string
+}): Promise<unknown> {
+  const settings = await settingsFor()
+
+  if (command.enabled !== undefined) {
+    settings.set('browser.enabled', command.enabled)
+  }
+  if (command.headless !== undefined) {
+    settings.set('browser.headless', command.headless)
+  }
+  if (command.cdpUrl !== undefined) {
+    settings.set('browser.cdpUrl', command.cdpUrl)
+  }
+
+  await settings.flush()
+
+  return { browser: browserSettingsOf(settings) }
+}
+
+/*
+ * 产品只有三颗按钮，上游 select 要一个标签：翻一次再交回去。
+ *
+ * `scope` 与 `cancelled` 是我们自己加的两格（上游只有 value）：产品那三颗里
+ * 「本次会话都批准」与「批准」在上游是同一颗 —— 会话级放行靠 scope 去写
+ * `tools.approval.<tool>: allow`，而不是把这次审批再答一遍；而「拒绝」与「取消」
+ * 在上游都读成 undefined，屏幕上却必须分得清，所以按产品那三颗如实分成两格。
+ */
+function answerPermission(
+  record: Session,
+  command: Extract<BridgeCommand, { type: 'answer_permission' }>,
+): unknown {
+  const answer = {
+    decision: command.decision,
+    ...(command.scope === undefined ? {} : { scope: command.scope }),
+  }
+  const label = labelFor(answer)
+
+  return settleDialog(record, command.requestId, {
+    ...(label === undefined ? {} : { value: label }),
+    ...(answer.scope === undefined ? {} : { scope: answer.scope }),
+    ...(answer.decision === 'cancelled' ? { cancelled: true } : {}),
+  })
+}
+
 async function dispatch(command: BridgeCommand): Promise<unknown> {
   switch (command.type) {
     case 'new_session': {
@@ -896,6 +1310,14 @@ async function dispatch(command: BridgeCommand): Promise<unknown> {
     case 'cancel': {
       const record = required()
       await record.agent.abort()
+      /*
+       * 取消一轮，屏幕上等着人答的那些一起收掉。
+       *
+       * 上游授权闸门问的那一次 select 不带 signal（wrapper.ts:333），它不会因为这一轮
+       * 被取消而自己作罢；谁都不结它，那次工具调用就永远停在 await 上，屏幕上的带子
+       * 也永远停在「等你批」。所以这里主动把它们收成取消。
+       */
+      record.desk.closeAll()
       pushTranscript(record, record.projector.turnEnd('cancelled'))
       emit({ kind: 'turn_end', sessionId: record.id, outcome: 'cancelled' })
       return {}
@@ -905,21 +1327,29 @@ async function dispatch(command: BridgeCommand): Promise<unknown> {
       await required().agent.steer(command.text)
       return {}
 
-    // 产品只有三颗按钮，上游 select 要一个标签，翻一次后走与 answer_dialog 同一条路。
-    case 'answer_permission': {
-      const record = required()
-      const label = labelFor({
-        decision: command.decision,
-        ...(command.scope === undefined ? {} : { scope: command.scope }),
-      })
-
-      return settleDialog(record, command.requestId, { value: label })
-    }
+    case 'answer_permission':
+      return answerPermission(required(), command)
 
     case 'answer_dialog': {
       const record = required()
+      const questions = record.asked.get(command.requestId)
 
-      return settleDialog(record, command.requestId, command.response)
+      /*
+       * 两组对话框共用这一条命令，而它们期望的答复形状不同：
+       * - 题组（ask）：上一条命令收下的产品答复，折回上游那份 results，挂在 `value` 上
+       *   （askDialog 就是读那一格的，approval.ts 的 askDialog 分支）；
+       * - 其余（confirm / input / editor）：一直就是原样转发。
+       * 判据是「这个号是不是一组还在等的题」，不是载荷本身长什么样 —— 载荷长什么样
+       * 是调用方知道的，这里只按登记表分派。
+       *
+       * 折不出结果就是「没答」：`value` 缺席时上游把这次对话框读成取消
+       * （tools/ask.ts 的 `if (!richResult)`），那正是撤下整组该有的结局。
+       */
+      return questions === undefined
+        ? settleDialog(record, command.requestId, command.response)
+        : settleDialog(record, command.requestId, {
+            value: answerPayloadOf(questions, command.response),
+          })
     }
     case 'selectors':
       return { controls: await readSelectors(required()) }
@@ -948,23 +1378,14 @@ async function dispatch(command: BridgeCommand): Promise<unknown> {
     case 'browser_settings':
       return { browser: browserSettingsOf(await settingsFor()) }
 
-    case 'set_browser_settings': {
-      const settings = await settingsFor()
+    case 'settings_catalog':
+      return await settingsCatalog(command.tab ?? null)
 
-      if (command.enabled !== undefined) {
-        settings.set('browser.enabled', command.enabled)
-      }
-      if (command.headless !== undefined) {
-        settings.set('browser.headless', command.headless)
-      }
-      if (command.cdpUrl !== undefined) {
-        settings.set('browser.cdpUrl', command.cdpUrl)
-      }
+    case 'set_setting':
+      return await writeSetting(command.path, command.value)
 
-      await settings.flush()
-
-      return { browser: browserSettingsOf(settings) }
-    }
+    case 'set_browser_settings':
+      return await writeBrowserSettings(command)
 
     // 桌面控制编译在构建里（tools/computer.ts + pi-natives），开与关是它自己的 computer.enabled 设置。
     case 'capabilities':
@@ -1053,6 +1474,8 @@ async function dispatch(command: BridgeCommand): Promise<unknown> {
     case 'shutdown': {
       for (const record of sessions.values()) {
         record.unsubscribe?.()
+        // 收摊之前先把还挂着的问话结掉：留着它们的 Promise 就永远没有下文了。
+        record.desk.closeAll()
         await record.agent.dispose()
       }
       sessions.clear()
