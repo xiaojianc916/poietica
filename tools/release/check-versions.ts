@@ -2,24 +2,23 @@
 import { readFile } from 'node:fs/promises'
 import process from 'node:process'
 
-import { SEMVER, workspaceVersion } from './version.ts'
+import { SEMVER, VERSION_FILES, workspaceVersion } from './version.ts'
 
-type Read = (text: string) => string | undefined
+const versionOf = (text: string): string | undefined =>
+  (JSON.parse(text) as { version?: string }).version
 
-const versionOf: Read = (text) => (JSON.parse(text) as { version?: string }).version
-
-const sources: ReadonlyArray<readonly [string, string, Read]> = [
-  ['Cargo.toml [workspace.package]', 'Cargo.toml', workspaceVersion],
-  ['package.json', 'package.json', versionOf],
-  ['apps/desktop/package.json', 'apps/desktop/package.json', versionOf],
-  ['tauri.conf.json', 'apps/desktop/src-tauri/tauri.conf.json', versionOf],
-]
+const READERS: Record<(typeof VERSION_FILES)[number], (text: string) => string | undefined> = {
+  'Cargo.toml': workspaceVersion,
+  'package.json': versionOf,
+  'apps/desktop/package.json': versionOf,
+  'apps/desktop/src-tauri/tauri.conf.json': versionOf,
+}
 
 const declared: Array<readonly [string, string | undefined]> = await Promise.all(
-  sources.map(
-    async ([label, file, reader]): Promise<readonly [string, string | undefined]> => [
-      label,
-      reader(await readFile(file, 'utf8')),
+  VERSION_FILES.map(
+    async (file): Promise<readonly [string, string | undefined]> => [
+      file,
+      READERS[file](await readFile(file, 'utf8')),
     ],
   ),
 )

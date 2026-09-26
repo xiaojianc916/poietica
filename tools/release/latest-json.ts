@@ -12,7 +12,8 @@ import { readdir, readFile, writeFile } from 'node:fs/promises'
 import path from 'node:path'
 import process from 'node:process'
 
-const CONF = 'apps/desktop/src-tauri/tauri.conf.json'
+import { TAURI_CONF } from './version.ts'
+
 const ENDPOINT = /^(https:\/\/github\.com\/[^/]+\/[^/]+)\/releases\/latest\/download\/latest\.json$/
 
 export type UpdaterManifest = {
@@ -53,7 +54,7 @@ async function main(): Promise<void> {
     process.exit(2)
   }
 
-  const conf = JSON.parse(await readFile(CONF, 'utf8')) as {
+  const conf = JSON.parse(await readFile(TAURI_CONF, 'utf8')) as {
     version?: string
     plugins?: { updater?: { endpoints?: string[] } }
   }
@@ -64,7 +65,7 @@ async function main(): Promise<void> {
 
   const base = endpointBase(conf.plugins?.updater?.endpoints?.[0])
   if (!base) {
-    fail(`${CONF}：updater endpoint 不是 GitHub latest-release 地址`)
+    fail(`${TAURI_CONF}：updater endpoint 不是 GitHub latest-release 地址`)
   }
 
   const installer = (await readdir(bundleDir)).find((name) => name.endsWith('-setup.exe'))

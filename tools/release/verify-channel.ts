@@ -2,7 +2,8 @@
 import { readFile } from 'node:fs/promises'
 import process from 'node:process'
 
-const CONF = 'apps/desktop/src-tauri/tauri.conf.json'
+import { TAURI_CONF } from './version.ts'
+
 const PLATFORM = 'windows-x86_64'
 const ATTEMPTS = 18
 const RETRY_MS = 5_000
@@ -73,7 +74,7 @@ async function main(): Promise<void> {
   if (!tag) {
     throw new Error('用法：bun tools/release/verify-channel.ts <tag>')
   }
-  const config = JSON.parse(await readFile(CONF, 'utf8')) as {
+  const config = JSON.parse(await readFile(TAURI_CONF, 'utf8')) as {
     plugins?: { updater?: { endpoints?: string[] } }
   }
   const endpoint = config.plugins?.updater?.endpoints?.[0]

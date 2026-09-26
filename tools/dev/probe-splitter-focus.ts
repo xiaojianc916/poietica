@@ -16,25 +16,9 @@
  */
 
 import process from 'node:process'
+import { attach, checker, firstPage, launchEngine, resolveBrowser } from './probe-cdp'
 
-const DEFAULT_BROWSERS = [
-  'C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe',
-  'C:/Program Files/Microsoft/Edge/Application/msedge.exe',
-  'C:/Program Files/Google/Chrome/Application/chrome.exe',
-  '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',
-  '/usr/bin/chromium',
-  '/usr/bin/google-chrome',
-]
-
-const argument = process.argv.indexOf('--browser')
-const browser = argument === -1 ? (process.env['DSH_CHROMIUM'] ?? '') : process.argv[argument + 1]
-const exe = browser === '' ? DEFAULT_BROWSERS.find((path) => Bun.file(path).size > 0) : browser
-
-if (exe === undefined) {
-  console.error('找不到 Chromium：用 --browser <exe> 或 DSH_CHROMIUM 指一个。')
-
-  process.exit(2)
-}
+const exe = resolveBrowser()
 
 /* CSS 正本：apps/desktop/src/shell/workspace-shell.css 的 .workspace-shell__divider 三条。 */
 const PAGE = `<!doctype html><meta charset="utf-8">
@@ -112,79 +96,9 @@ const PAGE = `<!doctype html><meta charset="utf-8">
 
 const port = 9300 + Math.floor(Math.random() * 400)
 const profile = `${process.env['TEMP'] ?? '/tmp'}/poietica-splitter-probe-${String(port)}`
-const engine = Bun.spawn([
-  exe,
-  '--headless=new',
-  '--disable-gpu',
-  '--no-first-run',
-  '--no-default-browser-check',
-  '--window-size=1280,860',
-  `--user-data-dir=${profile}`,
-  `--remote-debugging-port=${String(port)}`,
-  'about:blank',
-])
+const engine = launchEngine(exe, port, profile, '1280,860')
 
-async function firstPage(): Promise<{ webSocketDebuggerUrl: string }> {
-  for (let attempt = 0; attempt < 100; attempt += 1) {
-    try {
-      const list = (await (await fetch(`http://127.0.0.1:${String(port)}/json/list`)).json()) as {
-        type: string
-        webSocketDebuggerUrl: string
-      }[]
-      const page = list.find((target) => target.type === 'page')
-
-      if (page !== undefined) {
-        return page
-      }
-    } catch {
-      /* 引擎还没起来 */
-    }
-
-    await Bun.sleep(200)
-  }
-
-  throw new Error('Chromium 没在 20 秒内开出调试端口。')
-}
-
-const page = await firstPage()
-const socket = new WebSocket(page.webSocketDebuggerUrl)
-await new Promise((resolve) => socket.addEventListener('open', resolve))
-
-let sequence = 0
-const waiting = new Map<number, (message: { result?: unknown; error?: unknown }) => void>()
-socket.addEventListener('message', (event) => {
-  const message = JSON.parse(String(event.data)) as {
-    id?: number
-    result?: unknown
-    error?: unknown
-  }
-
-  if (message.id !== undefined) {
-    waiting.get(message.id)?.(message)
-    waiting.delete(message.id)
-  }
-})
-
-const send = (method: string, params: Record<string, unknown> = {}): Promise<unknown> =>
-  new Promise((resolve, reject) => {
-    sequence += 1
-    const id = sequence
-    waiting.set(id, (message) => {
-      if (message.error === undefined) {
-        resolve(message.result)
-      } else {
-        reject(new Error(JSON.stringify(message.error)))
-      }
-    })
-    socket.send(JSON.stringify({ id, method, params }))
-  })
-
-const evaluate = async (expression: string): Promise<never> =>
-  (
-    (await send('Runtime.evaluate', { expression, returnByValue: true })) as {
-      result: { value: never }
-    }
-  ).result.value
+const probe = await attach(await firstPage(port), engine)
 
 interface Reading {
   readonly fv: boolean
@@ -193,7 +107,7 @@ interface Reading {
 }
 
 const mouse = (type: string, x: number, y: number): Promise<unknown> =>
-  send('Input.dispatchMouseEvent', {
+  probe.send('Input.dispatchMouseEvent', {
     type,
     x,
     y,
@@ -203,43 +117,43 @@ const mouse = (type: string, x: number, y: number): Promise<unknown> =>
   })
 
 const press = async (key: string, code: string, virtual: number, raw = false): Promise<void> => {
-  await send('Input.dispatchKeyEvent', {
+  await probe.send('Input.dispatchKeyEvent', {
     type: raw ? 'rawKeyDown' : 'keyDown',
     key,
     code,
     windowsVirtualKeyCode: virtual,
   })
-  await send('Input.dispatchKeyEvent', { type: 'keyUp', key, code, windowsVirtualKeyCode: virtual })
+  await probe.send('Input.dispatchKeyEvent', {
+    type: 'keyUp',
+    key,
+    code,
+    windowsVirtualKeyCode: virtual,
+  })
 }
 
-const failures: string[] = []
-const check = (what: string, ok: boolean, detail: string): void => {
-  console.log(`${ok ? '  ok  ' : '  FAIL'} ${what} — ${detail}`)
-
-  if (!ok) {
-    failures.push(what)
-  }
-}
+const { check, passed, failureCount } = checker()
 
 const load = async (): Promise<void> => {
-  await send('Page.navigate', { url: `data:text/html;charset=utf-8,${encodeURIComponent(PAGE)}` })
+  await probe.send('Page.navigate', {
+    url: `data:text/html;charset=utf-8,${encodeURIComponent(PAGE)}`,
+  })
   await Bun.sleep(400)
-  await send('Emulation.setFocusEmulationEnabled', { enabled: true })
+  await probe.send('Emulation.setFocusEmulationEnabled', { enabled: true })
 }
 
-await send('Page.enable')
-await send('Runtime.enable')
+await probe.send('Page.enable')
+await probe.send('Runtime.enable')
 
 /* 一、普通鼠标拖拽：松手那一刻 :focus-visible 必须是假 —— 这就是那次回归。 */
 await load()
-let bar = (await evaluate('window.rect()')) as { l: number; w: number }
+let bar = (await probe.evaluate('window.rect()')) as { l: number; w: number }
 let x = bar.l + bar.w / 2
 await mouse('mouseMoved', x, 300)
 await mouse('mousePressed', x, 300)
 await mouse('mouseMoved', x - 140, 300)
 await mouse('mouseReleased', x - 140, 300)
 await Bun.sleep(300)
-let reading = (await evaluate('window.probe()')) as Reading
+let reading = (await probe.evaluate('window.probe()')) as Reading
 check(
   '鼠标拖后焦点环不亮',
   !reading.fv,
@@ -247,7 +161,7 @@ check(
 )
 await mouse('mouseMoved', x + 400, 520)
 await Bun.sleep(400)
-reading = (await evaluate('window.probe()')) as Reading
+reading = (await probe.evaluate('window.probe()')) as Reading
 check('指针移开后抓手灭', reading.grip < 0.05, `抓手不透明度=${String(reading.grip)}`)
 
 /* 二、键盘先动过再拖：启发式原本就是被这一步喂出来的，回归从这里长出来。 */
@@ -256,18 +170,18 @@ await mouse('mousePressed', 60, 460)
 await mouse('mouseReleased', 60, 460)
 await press('a', 'KeyA', 65, true)
 await press('b', 'KeyB', 66, true)
-bar = (await evaluate('window.rect()')) as { l: number; w: number }
+bar = (await probe.evaluate('window.rect()')) as { l: number; w: number }
 x = bar.l + bar.w / 2
 await mouse('mouseMoved', x, 300)
 await mouse('mousePressed', x, 300)
 await mouse('mouseMoved', x - 140, 300)
 await mouse('mouseReleased', x - 140, 300)
 await Bun.sleep(300)
-reading = (await evaluate('window.probe()')) as Reading
+reading = (await probe.evaluate('window.probe()')) as Reading
 check('键盘交互后鼠标拖，焦点环也不亮', !reading.fv, `:focus-visible=${String(reading.fv)}`)
 await mouse('mouseMoved', x + 400, 520)
 await Bun.sleep(400)
-reading = (await evaluate('window.probe()')) as Reading
+reading = (await probe.evaluate('window.probe()')) as Reading
 check(
   '键盘交互后鼠标拖，指针移开抓手灭',
   reading.grip < 0.05,
@@ -280,15 +194,14 @@ await mouse('mousePressed', 60, 460)
 await mouse('mouseReleased', 60, 460)
 await press('Tab', 'Tab', 9, true)
 await Bun.sleep(300)
-reading = (await evaluate('window.probe()')) as Reading
+reading = (await probe.evaluate('window.probe()')) as Reading
 check(
   'Tab 聚焦时焦点环亮',
   reading.fv && reading.grip > 0.5,
   `:focus-visible=${String(reading.fv)} 抓手=${String(reading.grip)}`,
 )
 
-socket.close()
-engine.kill()
+probe.close()
 
-console.log(failures.length === 0 ? '\n全部通过。' : `\n${String(failures.length)} 项未通过。`)
-process.exit(failures.length === 0 ? 0 : 1)
+console.log(passed() ? '\n全部通过。' : `\n${String(failureCount())} 项未通过。`)
+process.exit(passed() ? 0 : 1)

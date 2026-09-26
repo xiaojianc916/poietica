@@ -21,26 +21,9 @@
 import { readdir } from 'node:fs/promises'
 import path from 'node:path'
 import process from 'node:process'
+import { attach, checker, firstPage, launchEngine, resolveBrowser } from './probe-cdp'
 
-const DEFAULT_BROWSERS = [
-  'C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe',
-  'C:/Program Files/Microsoft/Edge/Application/msedge.exe',
-  'C:/Program Files/Google/Chrome/Application/chrome.exe',
-  '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',
-  '/usr/bin/chromium',
-  '/usr/bin/google-chrome',
-]
-
-const argument = process.argv.indexOf('--browser')
-const browser = argument === -1 ? (process.env['DSH_CHROMIUM'] ?? '') : process.argv[argument + 1]
-const exe =
-  browser === '' ? DEFAULT_BROWSERS.find((candidate) => Bun.file(candidate).size > 0) : browser
-
-if (exe === undefined) {
-  console.error('找不到 Chromium：用 --browser <exe> 或 DSH_CHROMIUM 指一个。')
-
-  process.exit(2)
-}
+const exe = resolveBrowser()
 
 const DIST = path.resolve(import.meta.dir, '../../apps/desktop/dist')
 const index = Bun.file(path.join(DIST, 'index.html'))
@@ -91,88 +74,11 @@ const server = Bun.serve({
   },
 })
 
-const engine = Bun.spawn([
-  exe,
-  '--headless=new',
-  '--disable-gpu',
-  '--no-first-run',
-  '--no-default-browser-check',
-  '--window-size=1280,860',
-  `--user-data-dir=${profile}`,
-  `--remote-debugging-port=${String(port)}`,
-  'about:blank',
-])
+const engine = launchEngine(exe, port, profile, '1280,860')
 
-async function firstPage(): Promise<{ webSocketDebuggerUrl: string }> {
-  for (let attempt = 0; attempt < 100; attempt += 1) {
-    try {
-      const list = (await (await fetch(`http://127.0.0.1:${String(port)}/json/list`)).json()) as {
-        type: string
-        webSocketDebuggerUrl: string
-      }[]
-      const page = list.find((target) => target.type === 'page')
+const probe = await attach(await firstPage(port), engine)
 
-      if (page !== undefined) {
-        return page
-      }
-    } catch {
-      /* 引擎还没起来 */
-    }
-
-    await Bun.sleep(200)
-  }
-
-  throw new Error('Chromium 没在 20 秒内开出调试端口。')
-}
-
-const page = await firstPage()
-const socket = new WebSocket(page.webSocketDebuggerUrl)
-await new Promise((resolve) => socket.addEventListener('open', resolve))
-
-let sequence = 0
-const waiting = new Map<number, (message: { result?: unknown; error?: unknown }) => void>()
-socket.addEventListener('message', (event) => {
-  const message = JSON.parse(String(event.data)) as {
-    id?: number
-    result?: unknown
-    error?: unknown
-  }
-
-  if (message.id !== undefined) {
-    waiting.get(message.id)?.(message)
-    waiting.delete(message.id)
-  }
-})
-
-const send = (method: string, params: Record<string, unknown> = {}): Promise<unknown> =>
-  new Promise((resolve, reject) => {
-    sequence += 1
-    const id = sequence
-    waiting.set(id, (message) => {
-      if (message.error === undefined) {
-        resolve(message.result)
-      } else {
-        reject(new Error(JSON.stringify(message.error)))
-      }
-    })
-    socket.send(JSON.stringify({ id, method, params }))
-  })
-
-const evaluate = async (expression: string): Promise<never> =>
-  (
-    (await send('Runtime.evaluate', { expression, returnByValue: true, awaitPromise: true })) as {
-      result: { value: never }
-    }
-  ).result.value
-
-const failures: string[] = []
-const check = (what: string, ok: boolean, detail: string): void => {
-  console.log(`${ok ? '  ok  ' : '  FAIL'} ${what} — ${detail}`)
-
-  if (!ok) {
-    failures.push(what)
-  }
-}
+const { check, passed, failureCount } = checker()
 
 /*
  * 探针页面：只加载真实产物 CSS，自己铺一个 .workspace-shell 的地色格。
@@ -213,13 +119,13 @@ const PROBE = `(async () => {
   return document.styleSheets.length
 })()`
 
-await send('Page.enable')
-await send('Runtime.enable')
+await probe.send('Page.enable')
+await probe.send('Runtime.enable')
 
 const fileUrl = `http://127.0.0.1:${String(server.port)}/`
-await send('Page.navigate', { url: fileUrl })
+await probe.send('Page.navigate', { url: fileUrl })
 await Bun.sleep(1500)
-const sheetCount = await evaluate(PROBE)
+const sheetCount = await probe.evaluate(PROBE, true)
 await Bun.sleep(400)
 
 console.log(`引擎：${exe}`)
@@ -242,14 +148,13 @@ const hexToRgb = (hex: string): number[] =>
 const show = (rgb: number[] | null): string => (rgb === null ? 'null' : `rgb(${rgb.join(' ')})`)
 
 const close = (code: number): never => {
-  socket.close()
-  engine.kill()
+  probe.close()
   void server.stop(true)
   process.exit(code)
 }
 
 /* 一、样式表确实加载了：量不到色就说明产物或路径不对，后面的断言全部无意义。 */
-let reading = (await evaluate('window.probe()')) as Reading
+let reading = (await probe.evaluate('window.probe()')) as Reading
 
 if (reading === undefined || reading.chrome === null || reading.neutral75 === '') {
   console.error('设计系统样式表没加载进探针页面，量不到 --ui-chrome。')
@@ -280,9 +185,9 @@ check(
  * body 的 --window-backing-surface 是 index.html 那份预运行初稿，只由
  * prefers-color-scheme 驱动；这里验的是运行期外壳与调色板深色正本一致。
  */
-await evaluate("window.setTheme('dark')")
+await probe.evaluate("window.setTheme('dark')")
 await Bun.sleep(300)
-reading = (await evaluate('window.probe()')) as Reading
+reading = (await probe.evaluate('window.probe()')) as Reading
 
 const darkExpected = hexToRgb(EXPECTED.dark)
 check(
@@ -304,23 +209,23 @@ check(
 )
 
 /* 五、预运行初稿：把媒体特性模拟成深色，body 的地色必须换成深色衬底。 */
-await send('Emulation.setEmulatedMedia', {
+await probe.send('Emulation.setEmulatedMedia', {
   features: [{ name: 'prefers-color-scheme', value: 'dark' }],
 })
-await evaluate("window.setTheme('light')")
+await probe.evaluate("window.setTheme('light')")
 await Bun.sleep(300)
-reading = (await evaluate('window.probe()')) as Reading
+reading = (await probe.evaluate('window.probe()')) as Reading
 check(
   '深色系统偏好下：预运行初稿 = #202020',
   JSON.stringify(reading.backingUsed) === JSON.stringify(darkExpected),
   `--window-backing-surface = ${reading.backing}，body 解析 = ${show(reading.backingUsed)}`,
 )
 
-await send('Emulation.setEmulatedMedia', {
+await probe.send('Emulation.setEmulatedMedia', {
   features: [{ name: 'prefers-color-scheme', value: 'light' }],
 })
 await Bun.sleep(300)
-reading = (await evaluate('window.probe()')) as Reading
+reading = (await probe.evaluate('window.probe()')) as Reading
 check(
   '浅色系统偏好下：预运行初稿 = #f3f3f3',
   JSON.stringify(reading.backingUsed) === JSON.stringify(lightExpected),
@@ -330,5 +235,5 @@ check(
 /* 报告产物清单，便于确认量的是哪一份构建。 */
 const assets = (await readdir(path.join(DIST, 'assets'))).filter((name) => name.endsWith('.css'))
 console.log(`\n样式产物：${assets.join(', ')}`)
-console.log(failures.length === 0 ? '全部通过。' : `${String(failures.length)} 项未通过。`)
-close(failures.length === 0 ? 0 : 1)
+console.log(passed() ? '全部通过。' : `${String(failureCount())} 项未通过。`)
+close(passed() ? 0 : 1)

@@ -81,6 +81,19 @@ export function compareVersions(left: string, right: string): number {
   return 0
 }
 
+export const TAURI_CONF = 'apps/desktop/src-tauri/tauri.conf.json'
+
+/**
+ * 版本号必须同步的四个声明处；Cargo workspace 是唯一真相，其余三处由它派生。
+ * 发布脚本用它做失败签回与精确 add，set-version/check-versions 以它为键。
+ */
+export const VERSION_FILES = [
+  'Cargo.toml',
+  'package.json',
+  'apps/desktop/package.json',
+  TAURI_CONF,
+] as const
+
 export function workspaceVersion(text: string): string | undefined {
   return text.split(/^\[workspace\.package\]$/m)[1]?.match(/^version\s*=\s*"([^"]+)"/m)?.[1]
 }

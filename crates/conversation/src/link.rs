@@ -1,4 +1,4 @@
-//! 连接链路态，只有状态：重连策略住在 kap-client 的 link.rs；「模型半天不说话」是轮次的事，由轮次封条表达，不从这里冒充断线。
+//! 连接链路态，只有状态：重连策略住在 agent-client 的 daemon.rs；「模型半天不说话」是轮次的事，由轮次封条表达，不从这里冒充断线。
 
 use serde::{Deserialize, Serialize};
 

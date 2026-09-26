@@ -10,7 +10,7 @@
 import { readFile, writeFile } from 'node:fs/promises'
 import process from 'node:process'
 
-import { SEMVER } from './version.ts'
+import { SEMVER, VERSION_FILES } from './version.ts'
 
 const version = process.argv[2]
 
@@ -23,22 +23,24 @@ if (!SEMVER.test(version ?? '')) {
  * 顶层那一个 version 键：TOML 的在 [workspace.package] 段内，JSON 的在两格缩进的
  * 第一层 —— 靠缩进锚定，依赖里同名的 version 字段不会被误伤。
  */
-const TARGETS: ReadonlyArray<readonly [string, RegExp]> = [
-  ['Cargo.toml', /(^\[workspace\.package\][\s\S]*?^version\s*=\s*")[^"]+(")/m],
-  ['package.json', /(^ {2}"version":\s*")[^"]+(")/m],
-  ['apps/desktop/package.json', /(^ {2}"version":\s*")[^"]+(")/m],
-  ['apps/desktop/src-tauri/tauri.conf.json', /(^ {2}"version":\s*")[^"]+(")/m],
-]
+const PATTERN: Record<(typeof VERSION_FILES)[number], RegExp> = {
+  'Cargo.toml': /(^\[workspace\.package\][\s\S]*?^version\s*=\s*")[^"]+(")/m,
+  'package.json': /(^ {2}"version":\s*")[^"]+(")/m,
+  'apps/desktop/package.json': /(^ {2}"version":\s*")[^"]+(")/m,
+  'apps/desktop/src-tauri/tauri.conf.json': /(^ {2}"version":\s*")[^"]+(")/m,
+}
 
-for (const [file, pattern] of TARGETS) {
+for (const file of VERSION_FILES) {
   const source = await readFile(file, 'utf8')
 
-  if (!pattern.test(source)) {
+  if (!PATTERN[file].test(source)) {
     console.error(`${file}：找不到 version 键`)
     process.exit(2)
   }
 
-  await writeFile(file, source.replace(pattern, `$1${version}$2`), 'utf8')
+  await writeFile(file, source.replace(PATTERN[file], `$1${version}$2`), 'utf8')
 }
 
-console.log(`已写入版本 ${version}（${TARGETS.length} 个文件），再跑 bun run check:versions 确认`)
+console.log(
+  `已写入版本 ${version}（${String(VERSION_FILES.length)} 个文件），再跑 bun run check:versions 确认`,
+)

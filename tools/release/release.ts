@@ -9,10 +9,6 @@
  * 构建、签名、上传、验通道全部在本地用 gh 完成，不经过 GitHub Actions。
  * 代价是这台机器必须能完整构建（Rust 工具链 + 签名密钥），且构建的十几分钟里
  * 终端得开着；换来的是不依赖仓库 Secret、不等 CI 排队，失败立刻回滚。
- *
- * 步骤次序是有讲究的：门禁跑在写版本号之前。反过来的后果是门禁一失败，仓库就停在
- * 「版本号已提升、构建从未产出」的脏状态里，下一次发布凭空跳号。写版本号之后的任何
- * 失败——包括 Ctrl+C——这个脚本都会把那四个文件签回去，或者把那个 release 提交撤掉。
  */
 
 import { spawnSync } from 'node:child_process'
@@ -24,30 +20,22 @@ import process from 'node:process'
 import { createInterface } from 'node:readline/promises'
 import { parseArgs } from 'node:util'
 
-import { bumped, compareVersions, SEMVER, workspaceVersion } from './version.ts'
+import {
+  bumped,
+  compareVersions,
+  SEMVER,
+  TAURI_CONF,
+  VERSION_FILES,
+  workspaceVersion,
+} from './version.ts'
 
 const MAIN_BRANCH = 'main'
 const CARGO = 'Cargo.toml'
-const CONF = 'apps/desktop/src-tauri/tauri.conf.json'
 const BUNDLE_DIR = 'target/x86_64-pc-windows-msvc/release/bundle/nsis'
 const STAGE_DIR = 'dist-release'
 const PLACEHOLDER_PUBKEY = 'REPLACE_WITH_TAURI_SIGNER_PUBKEY'
 
-/**
- * version:set 会写的四个文件。
- *
- * 这份清单有两个用途：中途失败时原样签回去（起飞前检查已经保证工作区干净，所以
- * git restore 这四个文件不会误伤任何未提交的改动），以及提交时精确 add —— 发布
- * 提交里只该有版本号，不该把构建过程留下的任何东西顺手卷进去。
- */
-const VERSION_FILES = [CARGO, 'package.json', 'apps/desktop/package.json', CONF] as const
-
-/*
- * 签名密钥住在用户目录，不住在仓库里。
- *
- * 私钥进仓库等于把整条更新通道交出去：拿到它的人能签出一个客户端会自动信任、
- * 自动安装的「更新」。密码只在第一次运行时问一遍，此后脚本自己去取。
- */
+/* 私钥进仓库等于把整条更新通道交出去，所以住在用户目录；密码第一次问一遍后存盘自取。 */
 const KEY_PATH = path.join(homedir(), '.tauri', 'poietica.key')
 const PASS_PATH = path.join(homedir(), '.tauri', 'poietica.pass')
 
@@ -63,14 +51,22 @@ function line(argv: readonly string[]): string {
   return argv.map((value) => (/\s/.test(value) ? JSON.stringify(value) : value)).join(' ')
 }
 
-/** 执行一条命令，输出直通终端。失败即抛。 */
-function run(...argv: string[]): void {
+/** 执行一条命令，输出直通终端；onFail 决定失败时抛 Abort 还是只记一句（回滚路径不能再抛）。 */
+function spawn(argv: readonly string[], onFail: 'throw' | 'log'): void {
   console.log(`    $ ${line(argv)}`)
   const [program, ...args] = argv
   const result = spawnSync(program ?? '', args, { stdio: 'inherit' })
   if (result.status !== 0) {
-    throw new Abort(`命令失败（退出码 ${result.status ?? '未知'}）：${line(argv)}`)
+    if (onFail === 'throw') {
+      throw new Abort(`命令失败（退出码 ${result.status ?? '未知'}）：${line(argv)}`)
+    }
+    console.log(`    回滚命令失败，请手动处理：${line(argv)}`)
   }
+}
+
+/** 执行一条命令，输出直通终端。失败即抛。 */
+function run(...argv: string[]): void {
+  spawn(argv, 'throw')
 }
 
 /** 执行一条命令并拿回它的输出。失败返回 null，用于探测。 */
@@ -80,15 +76,7 @@ function capture(...argv: string[]): string | null {
   return result.status === 0 ? result.stdout.trim() : null
 }
 
-/** 回滚路径上用的命令：它自己失败了也不能再抛，否则会盖掉真正的错误。 */
-function tryRun(...argv: string[]): void {
-  console.log(`    $ ${line(argv)}`)
-  const [program, ...args] = argv
-  const result = spawnSync(program ?? '', args, { stdio: 'inherit' })
-  if (result.status !== 0) {
-    console.log(`    回滚命令失败，请手动处理：${line(argv)}`)
-  }
-}
+const tryRun = (...argv: string[]): void => spawn(argv, 'log')
 
 function restoreVersionFiles(): void {
   if (!versionFilesDirty) {
@@ -121,11 +109,8 @@ async function confirm(question: string, fallback = true): Promise<boolean> {
 }
 
 /**
- * 装载签名密钥。
- *
- * 优先用已经存在的环境变量，否则从用户目录读。密码缺失时问一次并存下来 ——
- * 那种「每次发版前先设两个环境变量」的流程迟早在某个深夜被跳过，而跳过的结果
- * 是一个没有 .sig 的发布，静默地断掉整条更新通道。
+ * 装载签名密钥：优先环境变量，否则读用户目录；密码缺失时问一次存一次 ——
+ * 「每次发版前先设两个环境变量」的流程迟早在深夜被跳过，产出没有 .sig 的发布。
  */
 async function loadSigningKey(): Promise<void> {
   if (!process.env['TAURI_SIGNING_PRIVATE_KEY']) {
@@ -215,7 +200,7 @@ async function preflight(): Promise<{ branch: string; current: string }> {
     throw new Abort('gh 尚未登录。请先运行：gh auth login')
   }
 
-  const conf = await readFile(CONF, 'utf8')
+  const conf = await readFile(TAURI_CONF, 'utf8')
   if (conf.includes(PLACEHOLDER_PUBKEY)) {
     throw new Abort(
       [
@@ -336,10 +321,6 @@ function applyVersion(target: string): void {
   run('bun', 'run', 'check:versions', `v${target}`)
 }
 
-function restoreVersion(): void {
-  restoreVersionFiles()
-}
-
 /* ── [5][6][7] 清空、构建、收集产物 ─────────────────────────── */
 
 async function buildAndStage(target: string, tag: string): Promise<string> {
@@ -380,12 +361,7 @@ async function buildAndStage(target: string, tag: string): Promise<string> {
   }
   run('bun', 'run', 'latest-json', BUNDLE_DIR, STAGE_DIR, tag)
 
-  /*
-   * 四个资产全部入账，不只安装包。
-   *
-   * 只给 exe 出校验和，等于对 latest.json 和 .sig 说「你俩自己看着办」——而它们
-   * 恰恰是整条更新通道的信任来源。
-   */
+  /* 四个资产全部入账：只给 exe 出校验和，等于对 latest.json 和 .sig 这两个信任来源说「自己看着办」。 */
   const digests = new Map<string, string>()
   for (const name of (await readdir(STAGE_DIR)).sort()) {
     const bytes = await readFile(path.join(STAGE_DIR, name))
@@ -436,13 +412,7 @@ async function publish(options: {
   try {
     console.log('\n[8] 提交并打标')
 
-    /*
-     * 精确 add，不用 git add -A。
-     *
-     * 起飞前检查刚保证过工作区是干净的，那么此刻唯一该被提交的就是这四个文件；
-     * -A 会把构建过程留下的任何未忽略产物一起卷进发布提交，而发布提交是要被
-     * 打 tag 的 —— 它的内容必须是完全可预期的。
-     */
+    /* 精确 add 不用 -A：发布提交要被打 tag，-A 会把构建留下的产物卷进内容不可预期的提交。 */
     run('git', 'add', '--', ...VERSION_FILES)
     run('git', 'commit', '-m', `release: ${tag}`)
     state.committed = true
@@ -518,7 +488,7 @@ async function unwind(options: {
   }
 
   if (!state.committed) {
-    restoreVersion()
+    restoreVersionFiles()
     return
   }
   if (state.tagPushed) {
@@ -576,7 +546,7 @@ async function main(): Promise<void> {
     const installer = await buildAndStage(target, tag)
     await publish({ branch, tag, installer, yes: values.yes === true })
   } finally {
-    restoreVersion()
+    restoreVersionFiles()
   }
 
   console.log('')

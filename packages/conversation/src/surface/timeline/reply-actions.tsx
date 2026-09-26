@@ -86,7 +86,6 @@ function Actions({ undoCount, forkUnavailableReason, onFork, text }: ReplyAction
           }
         }}
         onMouseDown={(event) => event.preventDefault()}
-        title={label}
         type="button"
       >
         <Split aria-hidden="true" className="timeline-reply-actions__split-icon" />

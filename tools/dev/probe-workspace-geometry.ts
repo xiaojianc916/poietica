@@ -19,23 +19,9 @@
  */
 
 import process from 'node:process'
+import { attach, checker, firstPage, launchEngine, resolveBrowser } from './probe-cdp'
 
-const DEFAULT_BROWSERS = [
-  'C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe',
-  'C:/Program Files/Microsoft/Edge/Application/msedge.exe',
-  'C:/Program Files/Google/Chrome/Application/chrome.exe',
-  '/usr/bin/chromium',
-]
-
-const argument = process.argv.indexOf('--browser')
-const browser = argument === -1 ? (process.env['DSH_CHROMIUM'] ?? '') : process.argv[argument + 1]
-const exe = browser === '' ? DEFAULT_BROWSERS.find((path) => Bun.file(path).size > 0) : browser
-
-if (exe === undefined) {
-  console.error('找不到 Chromium：用 --browser <exe> 或 DSH_CHROMIUM 指一个。')
-
-  process.exit(2)
-}
+const exe = resolveBrowser()
 
 /* 正本：apps/desktop/src/shell/workspace-shell.css 与 packages/workspace/src/workspace-layout.ts */
 const GAP = 8
@@ -107,79 +93,9 @@ const PAGE = `<!doctype html><meta charset="utf-8">
 
 const port = 9700 + Math.floor(Math.random() * 200)
 const profile = `${process.env['TEMP'] ?? '/tmp'}/poietica-geometry-probe-${String(port)}`
-const engine = Bun.spawn([
-  exe,
-  '--headless=new',
-  '--disable-gpu',
-  '--no-first-run',
-  '--no-default-browser-check',
-  '--window-size=1400,900',
-  `--user-data-dir=${profile}`,
-  `--remote-debugging-port=${String(port)}`,
-  'about:blank',
-])
+const engine = launchEngine(exe, port, profile, '1400,900')
 
-async function firstPage(): Promise<{ webSocketDebuggerUrl: string }> {
-  for (let attempt = 0; attempt < 100; attempt += 1) {
-    try {
-      const list = (await (await fetch(`http://127.0.0.1:${String(port)}/json/list`)).json()) as {
-        type: string
-        webSocketDebuggerUrl: string
-      }[]
-      const page = list.find((target) => target.type === 'page')
-
-      if (page !== undefined) {
-        return page
-      }
-    } catch {
-      /* 引擎还没起来 */
-    }
-
-    await Bun.sleep(200)
-  }
-
-  throw new Error('Chromium 没在 20 秒内开出调试端口。')
-}
-
-const page = await firstPage()
-const socket = new WebSocket(page.webSocketDebuggerUrl)
-await new Promise((resolve) => socket.addEventListener('open', resolve))
-
-let sequence = 0
-const waiting = new Map<number, (message: { result?: unknown; error?: unknown }) => void>()
-socket.addEventListener('message', (event) => {
-  const message = JSON.parse(String(event.data)) as {
-    id?: number
-    result?: unknown
-    error?: unknown
-  }
-
-  if (message.id !== undefined) {
-    waiting.get(message.id)?.(message)
-    waiting.delete(message.id)
-  }
-})
-
-const send = (method: string, params: Record<string, unknown> = {}): Promise<unknown> =>
-  new Promise((resolve, reject) => {
-    sequence += 1
-    const id = sequence
-    waiting.set(id, (message) => {
-      if (message.error === undefined) {
-        resolve(message.result)
-      } else {
-        reject(new Error(JSON.stringify(message.error)))
-      }
-    })
-    socket.send(JSON.stringify({ id, method, params }))
-  })
-
-const evaluate = async (expression: string): Promise<never> =>
-  (
-    (await send('Runtime.evaluate', { expression, returnByValue: true })) as {
-      result: { value: never }
-    }
-  ).result.value
+const probe = await attach(await firstPage(port), engine)
 
 interface Box {
   readonly left: number
@@ -195,29 +111,24 @@ interface Reading {
   readonly sidebarVisible: number
 }
 
-const failures: string[] = []
-const check = (what: string, ok: boolean, detail: string): void => {
-  console.log(`${ok ? '  ok  ' : '  FAIL'} ${what} — ${detail}`)
-
-  if (!ok) {
-    failures.push(what)
-  }
-}
+const { check, passed, failureCount } = checker()
 
 const load = async (): Promise<void> => {
-  await send('Page.navigate', { url: `data:text/html;charset=utf-8,${encodeURIComponent(PAGE)}` })
+  await probe.send('Page.navigate', {
+    url: `data:text/html;charset=utf-8,${encodeURIComponent(PAGE)}`,
+  })
   await Bun.sleep(400)
 }
 
-await send('Page.enable')
-await send('Runtime.enable')
+await probe.send('Page.enable')
+await probe.send('Runtime.enable')
 await load()
 
 /* 一、常态：两侧都开着，两张卡片四周留白都在。 */
-await evaluate('window.setColumns(280, 420)')
-await evaluate('window.setWidths(280, 420)')
+await probe.evaluate('window.setColumns(280, 420)')
+await probe.evaluate('window.setWidths(280, 420)')
 await Bun.sleep(120)
-const reading = (await evaluate('window.probe()')) as Reading
+const reading = (await probe.evaluate('window.probe()')) as Reading
 check(
   '右栏右缘让出一条留白',
   reading.shell.right - reading.auxContent.right === GAP,
@@ -237,9 +148,9 @@ check(
 
 /* 二、右栏被拖窄到内容宽以下：右缘必须钉住不动，从左边被吃掉（可见宽变小，
  * 而内容自身的宽度不变 —— 那才是「滑出去」而不是「被压扁」）。 */
-await evaluate('window.setColumns(280, 200)')
+await probe.evaluate('window.setColumns(280, 200)')
 await Bun.sleep(120)
-const squeezed = (await evaluate('window.probe()')) as Reading
+const squeezed = (await probe.evaluate('window.probe()')) as Reading
 
 check(
   '右栏列窄于内容时右缘仍钉在留白上',
@@ -258,9 +169,9 @@ check(
 )
 
 /* 三、侧栏被拖窄到内容宽以下：左缘必须钉住不动，从右边被吃掉。 */
-await evaluate('window.setColumns(120, 420)')
+await probe.evaluate('window.setColumns(120, 420)')
 await Bun.sleep(120)
-const narrowSidebar = (await evaluate('window.probe()')) as Reading
+const narrowSidebar = (await probe.evaluate('window.probe()')) as Reading
 
 check(
   '侧栏列窄于内容时左缘仍贴外壳左缘',
@@ -279,9 +190,9 @@ check(
 )
 
 /* 四、主面板始终不溢出外壳：这是第 1 条缺陷（上限不含窗口）在 CSS 侧的后果。 */
-await evaluate('window.setColumns(280, 420)')
+await probe.evaluate('window.setColumns(280, 420)')
 await Bun.sleep(120)
-const wide = (await evaluate('window.probe()')) as Reading
+const wide = (await probe.evaluate('window.probe()')) as Reading
 
 check(
   '主面板不溢出外壳右缘',
@@ -289,8 +200,7 @@ check(
   `主面板右缘=${String(wide.mainPanel.right)} 外壳右缘=${String(wide.shell.right)}`,
 )
 
-socket.close()
-engine.kill()
+probe.close()
 
-console.log(failures.length === 0 ? '\n全部通过。' : `\n${String(failures.length)} 项未通过。`)
-process.exit(failures.length === 0 ? 0 : 1)
+console.log(passed() ? '\n全部通过。' : `\n${String(failureCount())} 项未通过。`)
+process.exit(passed() ? 0 : 1)
