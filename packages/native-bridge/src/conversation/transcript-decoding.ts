@@ -49,7 +49,7 @@ export function decodeTranscriptEvent(wire: AgentTranscriptEvent): Decoded {
           kind: 'reset',
           sessionId: wire.sessionId,
           agentId: data.agent_id,
-          /* server 自报的水位；缺席即水位未知，下游只能照旧去 REST 补。 */
+          /* server 自报的水位；缺席即水位未知，下游走 transcript_ops 追赶补页。 */
           seq: data.seq,
         },
       }

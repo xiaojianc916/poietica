@@ -4,7 +4,7 @@ import type {
   TranscriptOperation,
 } from '@poietica/transcript'
 
-export type TranscriptAgentId = string
+type TranscriptAgentId = string
 
 export interface TranscriptPage extends AgentTranscriptSnapshot {
   readonly agentId: TranscriptAgentId
@@ -32,9 +32,9 @@ export type TranscriptSignal =
       readonly ops: readonly TranscriptOperation[]
     }
   /*
-   * Reset invalidates a cursor; REST supplies the populated history window.
+   * Reset invalidates a cursor; the read path re-supplies the populated history window.
    *
-   * `seq` 是 server 报的当前水位。它缺席时只能照旧去 REST 补一页；在场时就能判
+   * `seq` 是 server 报的当前水位。缺席即水位未知，下游只能整读重建；在场时就能判
    * 「我们手上这一页是不是已经到那儿了」—— 相等即无待补的帧，不必再整读一次。
    */
   | {

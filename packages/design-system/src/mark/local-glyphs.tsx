@@ -6,65 +6,12 @@ import type { SVGProps } from 'react'
  * 这些不是  @lucide/react 里的图标，改这个文件不会影响图标库，升级图标库
  * 也不会影响这里——放在设计系统里只是因为工作区外壳和 AI 界面都要用，字形不该
  * 有两份。
- *
- * 几何取自 Lucide（ISC 许可），放进图标库的默认视口：width=24 height=24
- * fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"
- * 圆头圆角（见  @lucide/react 仓库 icons/chevron-left.svg 原文）。描边而非实心，
- * 是因为实心字形无法与描边字形对齐视觉重量，也不随 currentColor 变化粗细。
  */
 
 type GlyphProps = SVGProps<SVGSVGElement>
 
-/*
- * 唯一的字形外框。属性表与图标库逐项一致，字形不各抄一遍；className 之类
- * 由调用方覆盖，所以 props 展开在后面。
- */
-function Glyph({ children, ...props }: GlyphProps) {
-  return (
-    <svg
-      aria-hidden="true"
-      fill="none"
-      height={24}
-      stroke="currentColor"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      strokeWidth="var(--ui-icon-stroke, 2)"
-      viewBox="0 0 24 24"
-      width={24}
-      xmlns="http://www.w3.org/2000/svg"
-      {...props}
-    >
-      {children}
-    </svg>
-  )
-}
-
-/** arrow-left：返回。几何取自 Lucide 的 arrow-left。 */
-export function ArrowLeftIcon(props: GlyphProps) {
-  return (
-    <Glyph {...props}>
-      <path d="m12 19-7-7 7-7" />
-      <path d="M19 12H5" />
-    </Glyph>
-  )
-}
-
 /**
- * play：试运行。
- *
- * 描边而非实心：它与旁边的返回箭头同处一行，实心三角的视觉重量会明显压过
- * 描边字形，而这两颗按钮的分量本该相等。
- */
-export function PlayIcon(props: GlyphProps) {
-  return (
-    <Glyph {...props}>
-      <path d="M6 4.5v15l12-7.5-12-7.5Z" />
-    </Glyph>
-  )
-}
-
-/**
- * 品牌标记。不走上面那个 Glyph 外框。
+ * 品牌标记。
  *
  * 字形来自图标库、可替换、描边、粗细跟着 --ui-icon-stroke 走；标记来自商标持有者、
  * 不可重绘、实心、没有描边概念。后缀 Mark 就是为了在调用点分开这两类。

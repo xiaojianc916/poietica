@@ -336,33 +336,27 @@ async fn run_session(
                     reply,
                 } = command
                 {
-                    let line = encode(&Command::LoadSession {
-                        id: id.clone(),
-                        session_id: wanted,
-                        cwd: cwd.to_string_lossy().into_owned(),
-                    })?;
-                    let (slot_reply, answer) = oneshot::channel();
-                    let _replaced = pending.insert(id.clone(), slot_reply);
-                    assigning = Some(id);
-
-                    tokio::spawn(async move {
-                        let result = match answer.await {
-                            Ok(Ok(data)) => match data.get("sessionId").and_then(Value::as_str) {
-                                Some(opened) => Ok(OpenedSession {
-                                    session_id: opened.to_owned(),
-                                    selectors: controls_of(&data),
-                                }),
-                                /* 会话文件已经不在了：如实说没有，不是链路错误。 */
-                                None => Err(AgentError::Refused(Refusal::UnknownSession)),
-                            },
-                            Ok(Err(error)) => Err(error),
-                            Err(_dropped) => Err(AgentError::Refused(Refusal::Gone)),
-                        };
-
-                        let _ = reply.send(result);
-                    });
-
-                    send(&mut stdin, &line).await?;
+                    assign(
+                        &mut stdin,
+                        &mut pending,
+                        &mut assigning,
+                        id,
+                        |id| Command::LoadSession {
+                            id: id.to_owned(),
+                            session_id: wanted,
+                            cwd: cwd.to_string_lossy().into_owned(),
+                        },
+                        |data| match data.get("sessionId").and_then(Value::as_str) {
+                            Some(opened) => Ok(OpenedSession {
+                                session_id: opened.to_owned(),
+                                selectors: controls_of(data),
+                            }),
+                            /* 会话文件已经不在了：如实说没有，不是链路错误。 */
+                            None => Err(AgentError::Refused(Refusal::UnknownSession)),
+                        },
+                        reply,
+                    )
+                    .await?;
                     continue;
                 }
 
@@ -379,30 +373,27 @@ async fn run_session(
                     reply,
                 } = command
                 {
-                    let line = encode(&Command::ForkSession {
-                        id: id.clone(),
-                        session_id: wanted,
-                        drop_turns,
-                    })?;
-                    let (slot_reply, answer) = oneshot::channel();
-                    let _replaced = pending.insert(id.clone(), slot_reply);
-                    assigning = Some(id);
-
-                    tokio::spawn(async move {
-                        let result = match answer.await {
-                            Ok(Ok(data)) => crate::session::lifecycle::a_session_id(&data)
-                                .map(|opened| OpenedSession {
+                    assign(
+                        &mut stdin,
+                        &mut pending,
+                        &mut assigning,
+                        id,
+                        |id| Command::ForkSession {
+                            id: id.to_owned(),
+                            session_id: wanted,
+                            drop_turns,
+                        },
+                        |data| {
+                            crate::session::lifecycle::a_session_id(data).map(|opened| {
+                                OpenedSession {
                                     session_id: opened,
-                                    selectors: controls_of(&data),
-                                }),
-                            Ok(Err(error)) => Err(error),
-                            Err(_dropped) => Err(AgentError::Refused(Refusal::Gone)),
-                        };
-
-                        let _ = reply.send(result);
-                    });
-
-                    send(&mut stdin, &line).await?;
+                                    selectors: controls_of(data),
+                                }
+                            })
+                        },
+                        reply,
+                    )
+                    .await?;
                     continue;
                 }
 
@@ -412,34 +403,28 @@ async fn run_session(
                  * 应答由 Response 那一支的 `assigning` 认领。
                  */
                 if let ClientCommand::CurrentSession { reply } = command {
-                    let line = encode(&Command::NewSession {
-                        id: id.clone(),
-                        cwd: cwd.to_string_lossy().into_owned(),
-                    })?;
-                    let (slot_reply, answer) = oneshot::channel();
-                    let _replaced = pending.insert(id.clone(), slot_reply);
-                    assigning = Some(id);
-
-                    tokio::spawn(async move {
-                        let result = match answer.await {
-                            Ok(Ok(data)) => match data.get("sessionId").and_then(Value::as_str) {
-                                Some(opened) => Ok(OpenedSession {
-                                    session_id: opened.to_owned(),
-                                    selectors: controls_of(&data),
-                                }),
-                                None => Err(AgentError::Transport {
-                                    message: "the agent bridge minted a session without an id"
-                                        .to_owned(),
-                                }),
-                            },
-                            Ok(Err(error)) => Err(error),
-                            Err(_dropped) => Err(AgentError::Refused(Refusal::Gone)),
-                        };
-
-                        let _ = reply.send(result);
-                    });
-
-                    send(&mut stdin, &line).await?;
+                    assign(
+                        &mut stdin,
+                        &mut pending,
+                        &mut assigning,
+                        id,
+                        |id| Command::NewSession {
+                            id: id.to_owned(),
+                            cwd: cwd.to_string_lossy().into_owned(),
+                        },
+                        |data| match data.get("sessionId").and_then(Value::as_str) {
+                            Some(opened) => Ok(OpenedSession {
+                                session_id: opened.to_owned(),
+                                selectors: controls_of(data),
+                            }),
+                            None => Err(AgentError::Transport {
+                                message: "the agent bridge minted a session without an id"
+                                    .to_owned(),
+                            }),
+                        },
+                        reply,
+                    )
+                    .await?;
                     continue;
                 }
 
@@ -696,6 +681,36 @@ fn handshake_failed(
     }
 
     Err(AgentError::Handshake { message })
+}
+
+/// 指派会话命令（重装/分叉/新开）的共同尾段：encode → 占应答槽 → 置 `assigning`
+/// → 发线。应答不能在这里 await：这一支正占着读循环，await 就等于没人再去读
+/// stdout，双方互等；应答由 Response 那一支的 `assigning` 认领，成形交给 `interpret`。
+async fn assign(
+    stdin: &mut tokio::process::ChildStdin,
+    pending: &mut HashMap<String, Reply>,
+    assigning: &mut Option<String>,
+    id: String,
+    line: impl FnOnce(&str) -> Command,
+    interpret: impl FnOnce(&Value) -> Result<OpenedSession> + Send + 'static,
+    reply: oneshot::Sender<Result<OpenedSession>>,
+) -> Result<()> {
+    let line = encode(&line(&id))?;
+    let (slot_reply, answer) = oneshot::channel();
+    let _replaced = pending.insert(id.clone(), slot_reply);
+    *assigning = Some(id);
+
+    tokio::spawn(async move {
+        let result = match answer.await {
+            Ok(Ok(data)) => interpret(&data),
+            Ok(Err(error)) => Err(error),
+            Err(_dropped) => Err(AgentError::Refused(Refusal::Gone)),
+        };
+
+        let _ = reply.send(result);
+    });
+
+    send(stdin, &line).await
 }
 
 fn encode(command: &Command) -> Result<String> {

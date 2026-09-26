@@ -14,10 +14,8 @@ import type { TranscriptPage, TranscriptSignal } from '../agent/transcript'
 import { describeFailure } from '../failure'
 import { InterjectionOutbox } from '../interjection/interjection-outbox'
 import { delegateAddress, delegateKey } from '../timeline/delegate-channel'
-import type { TimelineState } from '../timeline/timeline-contract'
-import { isInFlight } from '../timeline/timeline-contract'
+import { createTimelineState, isInFlight, type TimelineState } from '../timeline/timeline-contract'
 import { selectIsBusy } from '../timeline/timeline-queries'
-import { createTimelineState } from '../timeline/timeline-state'
 import {
   knownPromptIds,
   needsMediaFetch,
@@ -72,7 +70,7 @@ export interface Transcript {
   readonly reading: boolean
   readonly revealing: string | null
 }
-export interface SendOptions {
+interface SendOptions {
   readonly port: AgentSessionPort | undefined
   readonly threadId: string
   readonly text: string

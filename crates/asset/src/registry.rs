@@ -151,28 +151,6 @@ impl AssetProtocolRegistry {
         Ok(true)
     }
 
-    pub fn remove_session(&self, session_token: &str) -> Result<bool, AssetProtocolError> {
-        validate_token(session_token)?;
-
-        let mut state = self
-            .state
-            .write()
-            .map_err(|_| AssetProtocolError::Internal)?;
-
-        let Some(assets) = state.sessions.remove(session_token) else {
-            return Ok(false);
-        };
-
-        let removed_bytes = assets
-            .values()
-            .map(|asset| asset.bytes.len())
-            .sum::<usize>();
-
-        state.total_bytes = state.total_bytes.saturating_sub(removed_bytes);
-
-        Ok(true)
-    }
-
     pub fn total_bytes(&self) -> usize {
         self.state.read().map_or(0, |state| state.total_bytes)
     }

@@ -48,7 +48,6 @@ export type {
 } from './agent/tool-call'
 export type { AgentMcpServer, AgentMcpStatus, AgentSkill, AgentToolkit } from './agent/toolkit'
 export type {
-  TranscriptAgentId,
   TranscriptCatchUp,
   TranscriptPage,
   TranscriptPort,
@@ -103,6 +102,7 @@ export type {
   TodoStatus,
   ToolCallTimelineItem,
 } from './timeline/timeline-contract'
+export { createTimelineState } from './timeline/timeline-contract'
 export type { PendingInteractions } from './timeline/timeline-queries'
 export {
   activeScope,
@@ -110,7 +110,6 @@ export {
   pendingInteractions,
   selectIsBusy,
 } from './timeline/timeline-queries'
-export { createTimelineState } from './timeline/timeline-state'
 export { projectTranscript } from './transcript/transcript-projector'
 export type { PendingSubmission, Transcript } from './transcript/transcript-store'
 export { TranscriptStore } from './transcript/transcript-store'

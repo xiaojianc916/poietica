@@ -41,14 +41,6 @@ pub enum SessionEvent {
         session_id: String,
         usage: SessionUsageSnapshot,
     },
-    Cursor {
-        session_id: String,
-        cursor: Cursor,
-    },
-    CursorLost {
-        session_id: String,
-    },
-
     Transcript {
         session_id: String,
         payload: serde_json::Value,
@@ -73,17 +65,6 @@ pub struct SessionUsageSnapshot {
     pub input_other: u64,
     pub input_cache_read: u64,
     pub input_cache_creation: u64,
-}
-
-/// 一条会话读到哪一帧。
-///
-/// 旧形状里 `epoch` 由 kap 在重开时换掉，用来判读点失效。桥这条路没有那个服务端
-/// 水位：本机帧日志的 seq 就是位置，`epoch` 只在重装会话时由本层换一次。形状留着，
-/// 是因为它已经落进了 persistence 的 `session_cursors` 表。
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub struct Cursor {
-    pub seq: i64,
-    pub epoch: Option<String>,
 }
 
 pub struct SessionEvents(mpsc::UnboundedReceiver<SessionEvent>);

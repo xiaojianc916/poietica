@@ -891,15 +891,10 @@ const waitView: Handler = (ctx) =>
   view('other', '等待后台结果', '', NONE, failOr(ctx, saidText(ctx)), 'result')
 
 /*
- * hub：18.2.11 的协调面入口，12 个 op 三块 —— 对等消息（send / wait / inbox）、后台
- * 作业（list / jobs / cancel / ps）、受管进程（start / logs / stop / restart / describe）。
- *
- * 我们现在钉 18.3.0，它把这一格收成了 `wait`（空 schema，只等下一个后台结果或同伴消息），
- * 所以新会话不再报 hub。留着它是因为**磁盘上有 18.2.11 写下的会话**：重开一段旧对话时那
- * 些调用要从 jsonl 回放出来，没有这一档它们就是裸 JSON。
- *
- * 每一档自己说自己在做什么：一个 `hub` 后面可以是「给某个 agent 发消息」也可以是「起一个
- * 长驻进程来看日志」，只报工具名等于什么都没说。
+ * hub 是 18.2.11 的协调面入口。钉 18.3.0 后新会话不再报它（这一格收成了 `wait`），
+ * 留着是因为磁盘上有 18.2.11 写下的会话：重开旧对话时这些调用要从 jsonl 回放，没有
+ * 这一档它们就是裸 JSON。一个 hub 后面可以是发消息也可以是起进程看日志，只报工具名
+ * 等于什么都没说。
  */
 const HUB_OPS: Readonly<Record<string, string>> = {
   cancel: '终止作业',

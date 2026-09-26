@@ -34,8 +34,6 @@ pub enum RunFrame {
         /// 随这句话挂上的技能名，按用户挑选的顺序。
         skills: Vec<String>,
     },
-    /// snapshot 在原子水位上的在飞状态；只用于续接当前轮次。
-    SessionRecovered { snapshot: Value },
     /// agent 正卡在一次授权请求上。
     PermissionRequested {
         /// 用来把请求与答复对起来的标识 —— 桥那次对话框签发的号。
@@ -90,7 +88,6 @@ impl RunFrame {
     pub const fn kind(&self) -> &'static str {
         match self {
             Self::PromptAdmitted { .. } => PROMPT_ADMITTED,
-            Self::SessionRecovered { .. } => "session_recovered",
             Self::PermissionRequested { .. } => PERMISSION_REQUESTED,
             Self::PermissionResolved { .. } => PERMISSION_RESOLVED,
             Self::QuestionsAsked { .. } => QUESTIONS_ASKED,

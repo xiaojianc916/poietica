@@ -52,7 +52,7 @@ export {
 } from './layout/region-splitter'
 export { FileTypeMark } from './mark/file-type-mark'
 export { integrationMarkFor } from './mark/integration-mark'
-export { ArrowLeftIcon, GithubMark, PlayIcon } from './mark/local-glyphs'
+export { GithubMark } from './mark/local-glyphs'
 export { PixelLoader } from './mark/pixel-loader'
 export { POIETICA_MARK_PATH, PoieticaMark } from './mark/poietica-mark'
 export {

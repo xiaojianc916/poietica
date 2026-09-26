@@ -20,21 +20,9 @@ export interface DialogProps {
 }
 
 /**
- * Project dialog composition built on Base UI.
- *
- * Base UI owns:
- * - portal lifecycle
- * - focus trapping
- * - initial and final focus
- * - Escape handling
- * - outside-press handling
- * - modal accessibility semantics
- *
- * Poietica owns:
- * - visual tokens
- * - layout
- * - busy policy
- * - product-facing labels
+ * 建在 Base UI Dialog 上的项目对话框：Base UI 管传送门生命周期、焦点圈禁、
+ * 初始与最终焦点、Escape、外点按压与模态无障碍语义；Poietica 管视觉令牌、
+ * 布局、busy 策略与产品文案。
  */
 export function Dialog({
   open,

@@ -8,7 +8,7 @@ use tempfile::NamedTempFile;
 use thiserror::Error;
 
 use crate::formats::digest_hex;
-use crate::is_content_hash;
+use crate::formats::is_content_hash;
 
 const STAGING_DIRECTORY: &str = "tmp";
 

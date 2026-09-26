@@ -7,12 +7,36 @@ import type { SessionUsage, SessionUsagePort, SessionUsageReport } from '../agen
 import { describeFailure } from '../failure'
 import type { TranscriptSink } from '../transcript/transcript-sink'
 import { ArrivalOrder } from './arrival-order'
-import { withEntry, withoutEntry } from './immutable-map'
 import {
   isPermissionPostureChange,
   pendingPostureAlignment,
   projectPosture,
 } from './permission-posture'
+
+/* 改动返回新表；未变保留引用，让上层 Object.is 跳过重画。 */
+function withEntry<T>(map: ReadonlyMap<string, T>, key: string, value: T): ReadonlyMap<string, T> {
+  if (map.get(key) === value) {
+    return map
+  }
+
+  const next = new Map(map)
+
+  next.set(key, value)
+
+  return next
+}
+
+function withoutEntry<T>(map: ReadonlyMap<string, T>, key: string): ReadonlyMap<string, T> {
+  if (!map.has(key)) {
+    return map
+  }
+
+  const next = new Map(map)
+
+  next.delete(key)
+
+  return next
+}
 
 interface Held {
   readonly selectors: ReadonlyMap<string, readonly SessionConfigControl[]>
@@ -48,7 +72,7 @@ export type SessionControlMutationResult =
   | { readonly ok: true }
   | { readonly ok: false; readonly error: string }
 
-export interface SessionControlsOptions {
+interface SessionControlsOptions {
   readonly config?: SessionConfigPort | undefined
   readonly port?: ThreadPort | undefined
   /** 批准方式的持久意图。缺席即不对齐，这台 store 因此仍能裸构造单测。 */

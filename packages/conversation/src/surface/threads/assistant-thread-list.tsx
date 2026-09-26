@@ -117,9 +117,7 @@ const EMPTY = ''
  *
  * 三种处境互斥，而此前只分了两种：还在读就画骨架，读完是空的就说「还没有对话」——
  * 读失败也落在同一句上。那是一个只有读成功才成立的断言，被用来报告读失败。而失败
- * 的说法一直是有的：store 算出 failure（threads/thread-order 的 ThreadWorkspaceList），
- * 一路交到 useThreadsList，然后在侧栏被丢掉。这个文件自己的注释早写明了这条道理，
- * 只兑现了加载那一半。
+ * 的说法一直是有的：store 算出 failure（threads/thread-order 的 ThreadWorkspaceList）。
  */
 function noticeOf(failure: string | null | undefined, count: number): string | null {
   if (failure !== null && failure !== undefined) {

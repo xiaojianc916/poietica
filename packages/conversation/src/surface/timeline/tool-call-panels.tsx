@@ -78,16 +78,6 @@ function ToolPanel({
          *
          * 上限因此只由面板那一处持有（tool-call.css 的 __panel），长出来的部分归它滚。
          */
-        /*
-         * 围栏在这里不封顶。
-         *
-         * Streamdown 把 codeBlockMaxHeight 写成**内联** maxHeight 加 overflow-y-auto
-         * （它 dist 里的 HighlightedCodeBlockBody），内联样式盖不过样式表 —— 所以只在
-         * CSS 里把上限摘掉是不够的：围栏仍是面板里第二个滚动容器，屏幕上多出一条贴着
-         * 自己底边的滚动条。0 是 Streamdown 自己的「禁用」值。
-         *
-         * 上限因此只由面板那一处持有（tool-call.css 的 __panel），长出来的部分归它滚。
-         */
         <Prose className="timeline-tool__prose" codeBlockMaxHeight={0} text={text} />
       )}
 

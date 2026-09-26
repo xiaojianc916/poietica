@@ -1,4 +1,4 @@
-//! 把裸程序名解析成本机能启动的启动式；平台事实与唯一解析处在 crates/kap-client/src/process/program.rs。
+//! 把裸程序名解析成本机能启动的启动式；平台事实与唯一解析处在 crates/process-host/src/program.rs。
 
 use serde::Serialize;
 use specta::Type;

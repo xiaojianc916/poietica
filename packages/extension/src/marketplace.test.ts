@@ -10,10 +10,6 @@ import {
   shouldFetchOnOpen,
 } from './marketplace'
 
-/*
- * 官方那一个地址：上游 apps/kimi-code/src/constant/app.ts 的
- * KIMI_CODE_PLUGIN_MARKETPLACE_URL，也就是 `${KIMI_CODE_CDN_BASE}/plugins/marketplace.json`。
- */
 const CATALOG_URL = 'https://code.kimi.com/kimi-code/plugins/marketplace.json'
 
 const CATALOG = {

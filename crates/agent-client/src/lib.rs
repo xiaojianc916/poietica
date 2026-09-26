@@ -55,10 +55,10 @@ pub use session::bridge::connect;
 pub use session::observe::{PromptObservation, observe_prompt};
 pub use session::{
     AgentClient, AgentConnection, AgentSpawn, BrowserSettings, Capability, CapabilityInstall,
-    CapabilityReadiness, ConfigChoice, ConfigControl, ConfigPurpose, ConfigSelection, Cursor,
-    GoalSnapshot, Handshake, McpServer, McpStatus, MediaBytes, OpenedSession, PromptAttachment,
-    PromptSkill, SessionBook, SessionEntry, SessionEvent, SessionEvents, SessionUsageSnapshot,
-    Skill, apply_configurations, select_config,
+    CapabilityReadiness, ConfigChoice, ConfigControl, ConfigPurpose, ConfigSelection, GoalSnapshot,
+    Handshake, McpServer, McpStatus, MediaBytes, OpenedSession, PromptAttachment, PromptSkill,
+    SessionBook, SessionEntry, SessionEvent, SessionEvents, SessionUsageSnapshot, Skill,
+    apply_configurations, select_config,
 };
 pub use settings::{SettingEntry, SettingOption, SettingValue, SettingsCatalog};
 

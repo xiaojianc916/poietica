@@ -19,8 +19,8 @@ use crate::{
     agent::install::{AgentInstallState, AgentInstallStatus},
     agent::profile::AgentConfigSnapshot,
     asset::{
-        AssetImportRequest, AssetRemoveRequest, AssetSessionCloseRequest, AssetSessionResult,
-        AssetUploadRequest, AssetUploadResult,
+        AssetImportRequest, AssetRemoveRequest, AssetSessionResult, AssetUploadRequest,
+        AssetUploadResult,
     },
     automation::AutomationCatalogChanged,
     conversation::capability::{
@@ -100,7 +100,6 @@ pub(crate) fn surface() -> Builder<Wry> {
             crate::asset::asset_import,
             crate::asset::asset_upload,
             crate::asset::asset_remove,
-            crate::asset::asset_session_close,
             crate::automation::commands::automations_create,
             crate::automation::commands::automations_update,
             crate::automation::commands::automations_enable,
@@ -236,7 +235,6 @@ pub(crate) fn surface() -> Builder<Wry> {
         .typ::<AssetUploadRequest>()
         .typ::<AssetUploadResult>()
         .typ::<AssetRemoveRequest>()
-        .typ::<AssetSessionCloseRequest>()
         .typ::<AutomationCatalogChanged>()
         .typ::<AutomationCreation>()
         .typ::<AutomationUpdate>()

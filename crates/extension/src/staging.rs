@@ -7,7 +7,7 @@ use uuid::Uuid;
 use crate::error::{ExtensionError, Result};
 use crate::layout::is_safe_segment;
 
-/// 一份解到暂存区、还没被认领的插件；形状抄同仓库的 asset_session_open / asset_import / asset_session_close。
+/// 一份解到暂存区、还没被认领的插件。
 #[derive(Debug)]
 pub struct Staging {
     identifier: String,

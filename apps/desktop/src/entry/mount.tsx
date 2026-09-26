@@ -1,7 +1,8 @@
 import { TableExportProvider } from '@poietica/conversation/table-export'
 import type { ThemePreference } from '@poietica/design-system'
+import { createMainWindowController } from '@poietica/native-bridge/window'
 import { exportTable } from '@poietica/native-bridge/workspace/table-export'
-import { type ReactNode, StrictMode } from 'react'
+import { type ReactNode, StrictMode, useMemo } from 'react'
 import { flushSync } from 'react-dom'
 import type { Root } from 'react-dom/client'
 import { createRoot } from 'react-dom/client'
@@ -10,14 +11,42 @@ import { FatalErrorHost } from '../notice/error-boundary'
 import { markReactFatalHostMounted, reportFatalIncident } from '../notice/fatal-incident'
 import { reportFailure } from '../notice/problem-presentation'
 import { WorkspaceLayoutContext } from '../shell/layout/layout-context'
+import { useWindowChrome } from '../window/use-window-chrome'
+import { WindowControls } from '../window/window-controls'
 import { AppShell } from '../workbench/app-shell'
 import type { ApplicationRuntime } from '../workbench/runtime-contract'
 import { WorkspaceRootsContext } from '../workspace/roots-context'
 import { createApplicationRuntime } from './compose-runtime'
-import { FatalWindowFrame } from './fatal-window-frame'
 
 async function saveTable(content: string): Promise<void> {
   await exportTable({ content, format: 'markdown' })
+}
+
+function FatalWindowFrame({ children }: { readonly children: ReactNode }) {
+  const mainWindow = useMemo(() => createMainWindowController(), [])
+
+  const { isMaximized, minimize, toggleMaximize, quit } = useWindowChrome(
+    mainWindow,
+    async () => undefined,
+  )
+
+  return (
+    <>
+      {/* WindowControls 必须是拖拽区（fatal-drag-region）的兄弟节点：落进拖拽区的命中会被 WebView2 按 caption 吞掉按钮 click。 */}
+      <div className="fixed inset-x-0 top-0 z-[var(--ui-z-chrome)] flex h-8 items-stretch">
+        <div className="fatal-drag-region h-full flex-1" />
+
+        <WindowControls
+          isMaximized={isMaximized}
+          onClose={quit}
+          onMaximize={toggleMaximize}
+          onMinimize={minimize}
+        />
+      </div>
+
+      {children}
+    </>
+  )
 }
 
 function fatalFrame(screen: ReactNode): ReactNode {

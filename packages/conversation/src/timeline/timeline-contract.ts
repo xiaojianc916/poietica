@@ -77,7 +77,7 @@ export interface UserMessageItem extends TimelineEntry {
   readonly skills?: readonly string[]
 }
 
-export interface AgentTextItem extends TimelineEntry {
+interface AgentTextItem extends TimelineEntry {
   readonly type: 'agent_text'
   readonly text: string
   // agent 自己报的消息身份（delta 帧的 messageId），缺席退回相邻推断。
@@ -85,14 +85,14 @@ export interface AgentTextItem extends TimelineEntry {
   readonly sealed: boolean
 }
 
-export interface AgentThoughtItem extends TimelineEntry {
+interface AgentThoughtItem extends TimelineEntry {
   readonly type: 'agent_thought'
   readonly text: string
   readonly messageId?: string
   readonly sealed: boolean
 }
 
-export interface DelegateChannel {
+interface DelegateChannel {
   readonly agentId: string
   readonly name: string
 }
@@ -191,7 +191,7 @@ export interface LinkTimelineItem extends TimelineEntry {
   readonly link: SessionLink
 }
 
-export interface InflightPromptItem extends TimelineEntry {
+interface InflightPromptItem extends TimelineEntry {
   readonly type: 'inflight_prompt'
   readonly promptId: string
   readonly settled?: true
@@ -210,7 +210,7 @@ export interface CompactionTimelineItem extends TimelineEntry {
   readonly tokensAfter?: number
 }
 
-export interface ErrorItem extends TimelineEntry {
+interface ErrorItem extends TimelineEntry {
   readonly type: 'error'
   readonly message: string
 }
@@ -255,6 +255,17 @@ export interface TimelineState {
   // 已收到的最大序号；去重只需要它（帧走单条有序 IPC，「到过」等价于「不大于它」）。
   readonly lastSeq: number
   readonly spans: readonly TurnSpan[]
+}
+
+export function createTimelineState(): TimelineState {
+  return {
+    status: 'idle',
+    backgroundTasks: [],
+    sealed: [],
+    active: { turn: 0, items: [] },
+    lastSeq: 0,
+    spans: [],
+  }
 }
 
 // 热路径不走它：摊平正是分段要省掉的复制。给测试与诊断读全量用。

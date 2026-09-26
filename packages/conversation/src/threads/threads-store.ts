@@ -1,10 +1,45 @@
 import { createExternalStore } from '@poietica/external-store'
 import type { OpenedThread, ThreadPort, ThreadRecord } from '../agent/thread'
 import { describeFailure } from '../failure'
-import type { ThreadsList } from './thread-order'
-import { NO_ITEMS, ThreadProjection } from './thread-projection'
+import { byRecency, type ThreadListItem, type ThreadsList, workspaceIdOf } from './thread-order'
 import { forkNameOf, nameOf, shorten } from './thread-title'
 import { normalizeWorkspaceRoot } from './workspace-root'
+
+const NO_ITEMS: readonly ThreadListItem[] = []
+
+class ThreadProjection {
+  #items = new Map<string, ThreadListItem>()
+  #last: readonly ThreadListItem[] = NO_ITEMS
+
+  of(threads: readonly ThreadRecord[], fallbackWorkspaceId?: string): readonly ThreadListItem[] {
+    const listed = [...threads].sort(byRecency)
+    const kept = new Map<string, ThreadListItem>()
+    const items: ThreadListItem[] = []
+    let same = listed.length === this.#last.length
+    for (const [index, thread] of listed.entries()) {
+      const title = nameOf(thread)
+      const isPinned = thread.pinned === true
+      const workspaceId = workspaceIdOf(thread, fallbackWorkspaceId)
+      const previous = this.#items.get(thread.threadId)
+      const item =
+        previous !== undefined &&
+        previous.title === title &&
+        previous.isPinned === isPinned &&
+        previous.updatedAt === thread.updatedAt &&
+        previous.workspaceId === workspaceId
+          ? previous
+          : { id: thread.threadId, title, isPinned, updatedAt: thread.updatedAt, workspaceId }
+      kept.set(thread.threadId, item)
+      items.push(item)
+      if (this.#last[index] !== item) {
+        same = false
+      }
+    }
+    this.#items = kept
+    this.#last = same ? this.#last : items
+    return this.#last
+  }
+}
 
 type Intent =
   | {
@@ -21,7 +56,7 @@ interface Held {
   readonly isLoading: boolean
   readonly failure: string | null
 }
-export interface ThreadsStoreOptions {
+interface ThreadsStoreOptions {
   readonly defaultWorkspaceId?: (() => string | null) | undefined
   readonly port?: ThreadPort | undefined
   readonly now?: (() => string) | undefined

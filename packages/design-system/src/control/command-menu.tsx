@@ -38,22 +38,9 @@ export interface CommandMenuProps {
 }
 
 /**
- * Accessible inline command selection pattern.
- *
- * Base UI owns:
- * - highlighted-item state
- * - list navigation across groups
- * - Home and End behavior
- * - Enter selection
- * - active-descendant semantics
- * - group labelling (role="group" + aria-labelledby)
- *
- * Consumers own:
- * - command registration
- * - filtering policy
- * - grouping and section order
- * - execution
- * - business labels
+ * 建在 Base UI Combobox 上的可访问内联命令选择：Base UI 管高亮、跨组导航、
+ * Home/End、Enter 选中、active-descendant 语义与组标注；调用方管命令注册、
+ * 过滤、分组排序、执行与文案。
  */
 export function CommandMenu({
   groups,

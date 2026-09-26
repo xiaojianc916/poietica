@@ -3,7 +3,7 @@
  * 数学 —— 全是纯逻辑，没有 React（外壳与停靠视图住在 apps/desktop/src/shell）。
  */
 
-export type { RegisteredCommand } from './command-contract'
+export type { RegisteredCommand } from './command-registry'
 export { type CommandRegistry, createCommandRegistry } from './command-registry'
 export {
   DEFAULT_SURFACE_ID,

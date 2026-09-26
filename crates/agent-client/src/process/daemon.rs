@@ -1,4 +1,4 @@
-//! 守护进程的意图与相位。
+//! 守护进程的意图与重启反应。
 
 use std::time::Duration;
 
@@ -26,22 +26,6 @@ pub enum DaemonIntent {
     Stopped,
 }
 
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub enum DaemonPhase {
-    Stopped,
-    Running,
-    Restarting {
-        attempt: u32,
-        of: u32,
-        retry_at: i64,
-        reason: String,
-    },
-    Failed {
-        attempts: u32,
-        reason: String,
-    },
-}
-
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum Reaction {
     Idle,
@@ -52,7 +36,6 @@ pub enum Reaction {
 #[derive(Debug)]
 pub struct Daemon {
     intent: DaemonIntent,
-    phase: DaemonPhase,
     attempt: u32,
     started_at: Option<i64>,
 }
@@ -62,15 +45,9 @@ impl Daemon {
     pub const fn new(intent: DaemonIntent) -> Self {
         Self {
             intent,
-            phase: DaemonPhase::Stopped,
             attempt: 0,
             started_at: None,
         }
-    }
-
-    #[must_use]
-    pub const fn phase(&self) -> &DaemonPhase {
-        &self.phase
     }
 
     /// 拨开不起进程（冷启动的账由第一次对话付）；拨关要当场停。
@@ -82,7 +59,6 @@ impl Daemon {
         self.intent = intent;
         self.attempt = 0;
         self.started_at = None;
-        self.phase = DaemonPhase::Stopped;
 
         match intent {
             DaemonIntent::Running => Reaction::Idle,
@@ -92,10 +68,9 @@ impl Daemon {
 
     pub fn note_started(&mut self) {
         self.started_at = Some(now_millis());
-        self.phase = DaemonPhase::Running;
     }
 
-    pub fn note_exited(&mut self, reason: &str) -> Reaction {
+    pub fn note_exited(&mut self, _reason: &str) -> Reaction {
         let healthy = i64::try_from(HEALTHY_RUN.as_millis()).unwrap_or(i64::MAX);
 
         if self
@@ -108,31 +83,16 @@ impl Daemon {
         self.started_at = None;
 
         if self.intent == DaemonIntent::Stopped {
-            self.phase = DaemonPhase::Stopped;
             return Reaction::Idle;
         }
 
         if self.attempt >= RESTART_TRIES {
-            self.phase = DaemonPhase::Failed {
-                attempts: self.attempt,
-                reason: reason.to_owned(),
-            };
             return Reaction::Idle;
         }
 
         self.attempt = self.attempt.saturating_add(1);
 
-        let wait = backoff(self.attempt);
-        let waited = i64::try_from(wait.as_millis()).unwrap_or(i64::MAX);
-
-        self.phase = DaemonPhase::Restarting {
-            attempt: self.attempt,
-            of: RESTART_TRIES,
-            retry_at: now_millis().saturating_add(waited),
-            reason: reason.to_owned(),
-        };
-
-        Reaction::StartAfter(wait)
+        Reaction::StartAfter(backoff(self.attempt))
     }
 }
 
@@ -140,7 +100,7 @@ impl Daemon {
 mod tests {
     use std::time::Duration;
 
-    use super::{Daemon, DaemonIntent, DaemonPhase, RESTART_TRIES, Reaction, backoff};
+    use super::{Daemon, DaemonIntent, RESTART_TRIES, Reaction, backoff};
 
     #[test]
     fn backoff_doubles_then_stops_at_the_cap() {
@@ -155,7 +115,7 @@ mod tests {
         let mut daemon = Daemon::new(DaemonIntent::Stopped);
 
         assert_eq!(daemon.note_exited("gone"), Reaction::Idle);
-        assert_eq!(daemon.phase(), &DaemonPhase::Stopped);
+        assert_eq!(daemon.attempt, 0);
     }
 
     #[test]
@@ -170,7 +130,7 @@ mod tests {
         }
 
         assert_eq!(daemon.note_exited("crash"), Reaction::Idle);
-        assert!(matches!(daemon.phase(), DaemonPhase::Failed { .. }));
+        assert_eq!(daemon.attempt, RESTART_TRIES);
     }
 
     #[test]
@@ -180,9 +140,10 @@ mod tests {
         for _ in 0..RESTART_TRIES {
             let _asked = daemon.note_exited("crash");
         }
+        assert_eq!(daemon.attempt, RESTART_TRIES);
 
         daemon.note_started();
-        assert_eq!(daemon.phase(), &DaemonPhase::Running);
+        assert!(daemon.started_at.is_some());
     }
 
     #[test]
@@ -192,10 +153,10 @@ mod tests {
         for _ in 0..=RESTART_TRIES {
             let _asked = daemon.note_exited("crash");
         }
+        assert_eq!(daemon.attempt, RESTART_TRIES);
 
-        assert!(matches!(daemon.phase(), DaemonPhase::Failed { .. }));
         assert_eq!(daemon.set_intent(DaemonIntent::Stopped), Reaction::Stop);
         assert_eq!(daemon.set_intent(DaemonIntent::Running), Reaction::Idle);
-        assert_eq!(daemon.phase(), &DaemonPhase::Stopped);
+        assert_eq!(daemon.attempt, 0);
     }
 }

@@ -16,10 +16,11 @@
 import { expect, test } from 'bun:test'
 import { getUi } from '@oh-my-pi/pi-coding-agent/config/settings-schema'
 import { readCatalog } from '../settings.ts'
-import { DESCRIPTIONS_A } from '../settings-descriptions.a.ts'
-import { DESCRIPTIONS_B } from '../settings-descriptions.b.ts'
-import { DESCRIPTIONS_C } from '../settings-descriptions.c.ts'
-import { hasDescriptionTranslation, settingDescriptionOf } from '../settings-descriptions.ts'
+import {
+  DESCRIPTIONS,
+  hasDescriptionTranslation,
+  settingDescriptionOf,
+} from '../settings-descriptions.ts'
 
 /** 上屏那一批：omp 自报带 ui 元数据、且跟这台桌面软件有关。 */
 const visiblePaths = (): string[] =>
@@ -41,41 +42,27 @@ test('a description that is not ours falls back to the English original, never t
   expect(hasDescriptionTranslation('no.such.setting')).toBe(false)
 })
 
-test('the three shards carry no duplicate and no invented key', () => {
-  const shards: readonly (readonly [string, Readonly<Record<string, string>>])[] = [
-    ['a', DESCRIPTIONS_A],
-    ['b', DESCRIPTIONS_B],
-    ['c', DESCRIPTIONS_C],
-  ]
+test('the merged table carries no duplicate key', async () => {
+  /*
+   * 表是一张对象字面量，重复键在运行时已不可见，只可能存在于源码里：逐行取键名断言唯一。
+   * （biome 的 noDuplicateObjectKeys 也在 lint 层钉同一件事，这里是第二道闸。）
+   */
+  const source = await Bun.file(new URL('../settings-descriptions.ts', import.meta.url)).text()
+  const keys = [...source.matchAll(/^[ \t]*(?:'([A-Za-z0-9_.-]+)'|([A-Za-z0-9_.-]+)):/gm)].map(
+    (match) => match[1] ?? match[2]!,
+  )
 
-  const owner = new Map<string, string>()
-  const duplicates: string[] = []
-
-  for (const [letter, table] of shards) {
-    for (const key of Object.keys(table)) {
-      const first = owner.get(key)
-
-      if (first !== undefined) {
-        duplicates.push(`${key} (${first} 与 ${letter})`)
-      }
-
-      owner.set(key, letter)
-    }
-  }
-
-  expect(duplicates).toEqual([])
+  /* 正则失守（比如格式化改了键的写法）时这个数会塌下去，断言不许空转。 */
+  expect(keys.length).toBeGreaterThan(300)
+  expect(new Set(keys).size).toBe(keys.length)
 })
 
-test('every shard key is a setting omp actually publishes on screen', () => {
+test('every table key is a setting omp actually publishes on screen', () => {
   /*
    * 判据取自 omp 的 schema（正本），而不是我们那份过滤后的目录：过滤规则会随判断改，
    * 上游那张表不会。认得出 ui 元数据的才算上屏的格子。
    */
-  const invented = Object.keys({
-    ...DESCRIPTIONS_A,
-    ...DESCRIPTIONS_B,
-    ...DESCRIPTIONS_C,
-  }).filter((path) => getUi(path as never) === undefined)
+  const invented = Object.keys(DESCRIPTIONS).filter((path) => getUi(path as never) === undefined)
 
   expect(invented).toEqual([])
 })

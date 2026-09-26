@@ -47,14 +47,6 @@ impl PermissionDesk {
             .map_err(|_gone| refused(HANDLER_GONE))
     }
 
-    pub fn abandon(&self, request_ids: &[String]) {
-        if let Ok(mut outstanding) = self.outstanding.lock() {
-            for request_id in request_ids {
-                let _abandoned = outstanding.remove(request_id);
-            }
-        }
-    }
-
     pub fn clear(&self) {
         if let Ok(mut outstanding) = self.outstanding.lock() {
             outstanding.clear();
@@ -141,16 +133,6 @@ impl QuestionDesk {
             .answer
             .send(QuestionOutcome::Dismissed)
             .map_err(|_gone| super::question::refused(ASKER_GONE))
-    }
-
-    pub fn abandon(&self, question_ids: &[String]) {
-        let Ok(mut outstanding) = self.lock() else {
-            return;
-        };
-
-        for question_id in question_ids {
-            let _dropped = outstanding.remove(question_id);
-        }
     }
 
     pub fn clear(&self) {

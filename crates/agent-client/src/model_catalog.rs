@@ -1,8 +1,4 @@
-//! 模型与 provider 的目录：产品侧的词汇。
-//!
-//! 旧实现把这套 DTO 打在 kap 的 providers/models REST 上（读一份、改一份、回一份
-//! 新快照）。omp 那条路要在它自己的 `models.yml` / `config.yml` 上做同样的事，
-//! 那是另一件活；这里先把形状留住 —— 界面与 IPC 契约一个字不改，缺的只是执行侧。
+//! 模型与 provider 目录：产品侧词汇，线上形状翻译在 bridge.rs。
 
 use serde::{Deserialize, Serialize};
 

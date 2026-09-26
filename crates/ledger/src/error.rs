@@ -16,8 +16,6 @@ pub enum LedgerError {
     Payload(#[from] serde_json::Error),
     #[error("journal_mode 落在 {actual}，账本要求 wal")]
     JournalMode { actual: String },
-    #[error("账本连接已中毒：上一个持锁者 panic 了")]
-    Poisoned,
     #[error("{column} 存着无法识别的值 {value}")]
     UnknownStoredValue { column: &'static str, value: String },
     #[error("迁移 {version} 的名字变了：账本记着 {recorded}，代码里是 {expected}")]

@@ -13,8 +13,8 @@
  * - models：providers 那一栏各自的模型，带完整的推理元数据。
  * - defaultModel：当前默认模型。
  *
- * 增删 provider 还没接（要动 models.yml，是另一件活），所以那几条操作如实报不支持，
- * 而不是回一份没变的快照假装改成功了。
+ * 增删改经调用方注入的 CatalogWrites 写入面落盘：provider 定义进 models.yml，
+ * 凭据进 agent.db，默认模型与停用表进 config.yml —— 各归各的持久层。
  */
 
 import type { AuthStorage, ModelRegistry, Settings } from '@oh-my-pi/pi-coding-agent'

@@ -25,7 +25,7 @@ export interface FeedRow {
   readonly isInFlight: boolean
 }
 
-export type ToolGroupKind = ToolCallTimelineItem['kind']
+type ToolGroupKind = ToolCallTimelineItem['kind']
 
 export interface ToolGroupPlan {
   /** 这一组自己的开合身份：成员的 id 归成员，组不借用其中任何一个。 */

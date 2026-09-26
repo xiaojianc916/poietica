@@ -59,9 +59,6 @@ pub enum ConversationEvent {
     LinkChanged {
         link: LinkState,
     },
-    SessionRecovered {
-        snapshot: Value,
-    },
     RunFinished {
         #[serde(skip_serializing_if = "Option::is_none")]
         turn: Option<TurnId>,
@@ -72,10 +69,6 @@ pub enum ConversationEvent {
         #[serde(skip_serializing_if = "Option::is_none")]
         turn: Option<TurnId>,
         message: String,
-    },
-    /// 字段不能叫 kind：与 serde 的内部 tag 撞名。
-    UnsupportedExternalEvent {
-        raw_kind: String,
     },
 }
 
@@ -92,15 +85,13 @@ impl ConversationEvent {
             | Self::RunFailed {
                 turn: Some(turn), ..
             } => Some(turn),
-            Self::SessionRecovered { .. }
-            | Self::PermissionRequested { .. }
+            Self::PermissionRequested { .. }
             | Self::PermissionResolved { .. }
             | Self::QuestionsAsked { .. }
             | Self::QuestionsResolved { .. }
             | Self::LinkChanged { .. }
             | Self::RunFinished { turn: None, .. }
-            | Self::RunFailed { turn: None, .. }
-            | Self::UnsupportedExternalEvent { .. } => None,
+            | Self::RunFailed { turn: None, .. } => None,
         }
     }
 
@@ -109,7 +100,6 @@ impl ConversationEvent {
         match self {
             Self::TurnAdmitted { .. } => "turn_admitted",
             Self::PromptAdmitted { .. } => "prompt_admitted",
-            Self::SessionRecovered { .. } => "session_recovered",
             Self::PermissionRequested { .. } => "permission_requested",
             Self::PermissionResolved { .. } => "permission_resolved",
             Self::QuestionsAsked { .. } => "questions_asked",
@@ -117,7 +107,6 @@ impl ConversationEvent {
             Self::LinkChanged { .. } => "link_changed",
             Self::RunFinished { .. } => "run_finished",
             Self::RunFailed { .. } => "run_failed",
-            Self::UnsupportedExternalEvent { .. } => "unsupported_external_event",
         }
     }
 }

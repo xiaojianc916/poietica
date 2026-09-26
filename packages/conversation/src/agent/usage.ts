@@ -1,12 +1,7 @@
-/* 数由 agent 自己算（session.getSessionStats）；推送 volatile：到达即替换，断线不回放。 */
+import type { AgentSessionUsage } from '@poietica/contract/conversation'
 
-export interface SessionUsage {
-  readonly used: number
-  readonly size: number
-  readonly inputOther: number
-  readonly inputCacheRead: number
-  readonly inputCacheCreation: number
-}
+/* 数由 agent 自己算（session.getSessionStats）；推送 volatile：到达即替换，断线不回放。 */
+export type SessionUsage = Readonly<AgentSessionUsage>
 
 export interface SessionUsageReport {
   readonly sessionId: string

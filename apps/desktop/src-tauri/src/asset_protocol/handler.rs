@@ -290,30 +290,6 @@ mod tests {
     }
 
     #[test]
-    fn removing_session_invalidates_all_urls() {
-        let registry = AssetProtocolRegistry::default();
-
-        registry
-            .open_session("session-1")
-            .expect("session should open");
-
-        let asset = insert(&registry, "session-1", "image/png", &[1, 2, 3]);
-
-        assert!(
-            registry
-                .remove_session("session-1")
-                .expect("session should close")
-        );
-
-        let response = respond(
-            &registry,
-            &request(&format!("poietica-asset://asset/session-1/{asset}")),
-        );
-
-        assert_eq!(response.status(), StatusCode::NOT_FOUND);
-    }
-
-    #[test]
     fn deduplicates_equal_content_and_tracks_references() {
         let registry = AssetProtocolRegistry::default();
 

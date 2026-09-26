@@ -334,7 +334,7 @@ export class TranscriptReplica {
     return true
   }
 
-  /** REST catch-up: read earlier pages until the loaded window covers the known boundary. */
+  /** Page catch-up: read earlier pages until the loaded window covers the known boundary. */
   async #coverBoundary(
     agentId: string,
     feed: Feed,
@@ -392,7 +392,7 @@ export class TranscriptReplica {
     if (head.seq < minimumSeq) {
       throw new Error('Recovery snapshot did not cover the observed transcript gap.')
     }
-    // A reset can carry an empty tail; restore the visible window through REST instead.
+    // A reset can carry an empty tail; restore the visible window through the read path instead.
     const page = await this.#coverBoundary(agentId, feed, head, turns.length, boundary?.ordinal)
     if (page === undefined || !this.#owns(agentId, feed)) {
       return

@@ -266,7 +266,7 @@ mod tests {
                 .last()
                 .is_some_and(|event| matches!(&event.frame, RunFrame::RunFailed { .. }))
         }));
-        assert!(!slot.is_listening());
+        assert!(matches!(book.current_prompt(NAME), Ok(None)));
     }
 
     #[test]

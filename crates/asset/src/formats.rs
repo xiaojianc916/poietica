@@ -4,7 +4,7 @@ use sha2::{Digest, Sha256};
 
 /// 一种按文件头认得出来的内容。
 #[derive(Clone, Copy, Debug)]
-pub struct Format {
+pub(crate) struct Format {
     pub content_type: &'static str,
     pub matches: fn(&[u8]) -> bool,
 }
@@ -57,7 +57,7 @@ fn is_text(bytes: &[u8]) -> bool {
 /// 文件选择框收所有文件（见对话框里的「所有文件」过滤器），这张表只负责把认得
 /// 文件头的字节叫出名字：图片进内存注册表走预览，文本与其它文件一律按通用文件
 /// 落盘、原样投递。文本判据是兜底，排最后。
-pub const FORMATS: &[Format] = &[
+pub(crate) const FORMATS: &[Format] = &[
     Format {
         content_type: "image/png",
         matches: is_png,
@@ -106,16 +106,16 @@ const DELIVERABLE_CONTENT_TYPES: &[&str] = &[
     "application/pdf",
 ];
 
-pub fn is_deliverable_content_type(content_type: &str) -> bool {
+pub(crate) fn is_deliverable_content_type(content_type: &str) -> bool {
     DELIVERABLE_CONTENT_TYPES.contains(&content_type)
 }
 
 /// 不进展示协议、只按文件原样投递的那一类：嗅不出来的字节统一归它。
-pub const GENERIC_FILE_CONTENT_TYPE: &str = "application/octet-stream";
+pub(crate) const GENERIC_FILE_CONTENT_TYPE: &str = "application/octet-stream";
 
 /// 图片与「其它文件」的分界：只有图片进内存注册表走预览，其余一律落盘当文件。
 #[must_use]
-pub fn is_image_content_type(content_type: &str) -> bool {
+pub(crate) fn is_image_content_type(content_type: &str) -> bool {
     content_type.starts_with("image/")
 }
 
@@ -134,7 +134,7 @@ pub fn classify(bytes: &[u8]) -> &'static str {
 
 /// 磁盘目录名就是摘要：判定放宽一格等于落盘侧的路径穿越，故从严。
 #[must_use]
-pub fn is_content_hash(value: &str) -> bool {
+pub(crate) fn is_content_hash(value: &str) -> bool {
     value.len() == 64
         && value
             .bytes()

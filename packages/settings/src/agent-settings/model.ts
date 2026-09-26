@@ -50,7 +50,7 @@ export interface AgentSettingEntry {
    * 可见性条件的**名字**（如 `advisorEnabled`），不是判据。
    *
    * 桥刻意不搬求值器（ADR 0054 决定四）。界面这一侧能诚实地算出来的只有它自己那几条，
-   * 其余一律按「不知道就不显示」处理，见 ui/agent-settings/conditions.ts。
+   * 其余一律按「不知道就不显示」处理，见 ui/agent-settings/settings-conditions.ts。
    */
   readonly condition?: string
   /**

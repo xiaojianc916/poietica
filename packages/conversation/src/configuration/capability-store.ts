@@ -27,7 +27,7 @@ export interface CapabilityFailureReport {
   readonly readFailed: (cause: unknown) => void
   readonly changeFailed: (cause: unknown) => void
 }
-export interface AgentCapabilityOptions {
+interface AgentCapabilityOptions {
   readonly posture?: PermissionPosturePort | undefined
   readonly report?: CapabilityFailureReport | undefined
   /** 上一趟那张表。缺席即第一帧空白，与从前一样。 */

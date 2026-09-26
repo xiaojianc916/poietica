@@ -27,7 +27,7 @@ export type {
   CustomAgentRemoveRequest,
   CustomAgentSaveRequest,
   CustomAgentStore,
-} from './custom-agents/custom-agent-store'
+} from './custom-agents/personalization-store'
 export { PersonalizationStore } from './custom-agents/personalization-store'
 export type { KeybindingCatalog, KeybindingEntry } from './keymap/keybinding-catalog'
 export type {

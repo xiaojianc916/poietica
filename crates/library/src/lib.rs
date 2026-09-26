@@ -357,14 +357,7 @@ impl Vault {
             return Err(LibraryError::Conflict);
         }
 
-        let mut prepared = NamedTempFile::new_in(holder)?;
-
-        prepared.as_file().set_permissions(permissions)?;
-        prepared.write_all(content.as_bytes())?;
-        prepared.as_file().sync_all()?;
-        prepared
-            .persist(&target)
-            .map_err(|error| LibraryError::Io(error.error))?;
+        persist_new(holder, &target, &content, Some(permissions))?;
         write_schema(&target, schema.as_deref())?;
 
         Ok(LibraryDocument {
@@ -597,6 +590,27 @@ fn read_schema(target: &Path) -> Result<Option<String>> {
     }
 }
 
+/// 临时文件写满、落盘、原位换名：write 与 write_schema 共用的同一段原子写。
+fn persist_new(
+    holder: &Path,
+    target: &Path,
+    bytes: &str,
+    permissions: Option<fs::Permissions>,
+) -> Result<()> {
+    let mut prepared = NamedTempFile::new_in(holder)?;
+
+    if let Some(permissions) = permissions {
+        prepared.as_file().set_permissions(permissions)?;
+    }
+
+    prepared.write_all(bytes.as_bytes())?;
+    prepared.as_file().sync_all()?;
+    prepared
+        .persist(target)
+        .map_err(|error| LibraryError::Io(error.error))?;
+    Ok(())
+}
+
 fn write_schema(target: &Path, schema: Option<&str>) -> Result<()> {
     let path = schema_path(target);
 
@@ -605,17 +619,8 @@ fn write_schema(target: &Path, schema: Option<&str>) -> Result<()> {
             let holder = path
                 .parent()
                 .ok_or_else(|| LibraryError::Invalid("资料没有父目录。".to_owned()))?;
-            let mut prepared = NamedTempFile::new_in(holder)?;
-
-            if let Ok(permissions) = fs::metadata(&path).map(|metadata| metadata.permissions()) {
-                prepared.as_file().set_permissions(permissions)?;
-            }
-
-            prepared.write_all(text.as_bytes())?;
-            prepared.as_file().sync_all()?;
-            prepared
-                .persist(&path)
-                .map_err(|error| LibraryError::Io(error.error))?;
+            let permissions = fs::metadata(&path).map(|metadata| metadata.permissions());
+            persist_new(holder, &path, text, permissions.ok())?;
             Ok(())
         }
         None => match fs::remove_file(&path) {

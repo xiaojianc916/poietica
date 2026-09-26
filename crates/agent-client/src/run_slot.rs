@@ -49,14 +49,4 @@ impl RunSlot {
             Err(_poisoned) => false,
         }
     }
-
-    pub fn is_listening(&self) -> bool {
-        let mut flying = false;
-
-        self.record(|recorder| {
-            flying = recorder.is_running();
-        });
-
-        flying
-    }
 }

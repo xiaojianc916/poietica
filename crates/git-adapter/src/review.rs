@@ -196,6 +196,17 @@ async fn patch(
     Ok(text)
 }
 
+/// tracked 与 untracked 共用的 diff 旗标：mode 里是各自特有的前置参，尾参由调用方补。
+fn diff_args<'a>(mode: &[&'a str], unified: &'a str, ignore_whitespace: bool) -> Vec<&'a str> {
+    let mut args = vec!["-c", QUOTE_PATH_OFF, "diff"];
+    args.extend_from_slice(mode);
+    args.extend(["--no-color", "--no-ext-diff", unified]);
+    if ignore_whitespace {
+        args.push("--ignore-all-space");
+    }
+    args
+}
+
 async fn tracked_patch(
     root: &Path,
     base: &str,
@@ -208,19 +219,7 @@ async fn tracked_patch(
         return Ok(String::new());
     }
 
-    let mut args = vec![
-        "-c",
-        QUOTE_PATH_OFF,
-        "diff",
-        base,
-        "--no-color",
-        "--no-ext-diff",
-        "--no-renames",
-        unified,
-    ];
-    if ignore_whitespace {
-        args.push("--ignore-all-space");
-    }
+    let mut args = diff_args(&[base, "--no-renames"], unified, ignore_whitespace);
     if let Some(scope) = only {
         args.extend(["--", scope]);
     }
@@ -257,18 +256,7 @@ async fn untracked(
     ignore_whitespace: bool,
     path: &str,
 ) -> Result<String, GitError> {
-    let mut args = vec![
-        "-c",
-        QUOTE_PATH_OFF,
-        "diff",
-        "--no-index",
-        "--no-color",
-        "--no-ext-diff",
-        unified,
-    ];
-    if ignore_whitespace {
-        args.push("--ignore-all-space");
-    }
+    let mut args = diff_args(&["--no-index"], unified, ignore_whitespace);
     args.extend(["--", "/dev/null", path]);
     let output = run(root, &args).await?;
     if output.status.code().unwrap_or_default() > 1 {

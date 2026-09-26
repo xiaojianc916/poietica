@@ -40,11 +40,6 @@ export interface UpstreamDialogRequest {
   readonly questions?: unknown
 }
 
-/** 一行一条 JSON 解出来的请求：这里只做「它是不是那张表」的收窄，不解释形状。 */
-export function dialogOf(frame: Record<string, unknown>): UpstreamDialogRequest {
-  return frame
-}
-
 /**
  * 一次对话框的答复，收窄到上游那三格。
  *
@@ -161,7 +156,7 @@ export class DialogDesk {
   /** 问一次人，等一个答复；超时与中止由调用方给。 */
   ask(request: Record<string, unknown>, options?: ExtensionUIDialogOptions): Promise<unknown> {
     const id = `d${++this.#next}`
-    const shaped = dialogOf(request)
+    const shaped = request as UpstreamDialogRequest
     const signal = options?.signal
 
     /*

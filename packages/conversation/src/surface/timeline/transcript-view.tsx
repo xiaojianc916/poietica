@@ -1,9 +1,9 @@
 import { type ReactNode, useCallback, useMemo, useState } from 'react'
 import type { TurnMark } from '../../agent/thread'
-import type { Presentation } from '../../timeline/presentation'
+import type { FeedRow, Presentation } from '../../timeline/presentation'
 import { selectPresentation } from '../../timeline/presentation'
 import { selectIsBusy } from '../../timeline/timeline-queries'
-import { AgentActivityFeed, type FeedPort } from '../feed/agent-activity-feed'
+import { AgentActivityFeed, type FeedPort, type RowRhythm } from '../feed/agent-activity-feed'
 import { ConversationMinimap } from '../minimap/conversation-minimap'
 import { useTranscripts } from '../transcript/transcripts-context'
 import {
@@ -14,7 +14,6 @@ import {
 } from '../transcript/use-assistant-session'
 import { RestoreSpinner } from './restore-spinner'
 import { createRowEstimator } from './row-estimate'
-import { rowRhythmOf } from './row-rhythm'
 import { TimelineSeat } from './timeline-seat'
 
 /*
@@ -81,6 +80,27 @@ export interface TranscriptViewProps {
   readonly lead?: ReactNode
   /** 参数是协议用户撤销锚点数，不是运行数。缺席表示平台不提供分叉。 */
   readonly onFork?: ((undoCount: number) => void) | undefined
+}
+
+// 表键是条目类型联合，与 row-estimate.ts 同一条约束：新增类型在这里编译失败。
+const RHYTHM: Record<FeedRow['item']['type'], RowRhythm> = {
+  agent_text: 'prose',
+  agent_thought: 'glyph',
+  compaction: 'glyph',
+  error: 'prose',
+  inflight_prompt: 'prose',
+  link: 'glyph',
+  permission: 'prose',
+  question: 'prose',
+  tool_call: 'glyph',
+  run_anchor: 'prose',
+  user_message: 'prose',
+}
+
+function rowRhythmOf(row: FeedRow | undefined): RowRhythm {
+  const item = row?.item
+
+  return item === undefined ? 'prose' : RHYTHM[item.type]
 }
 
 export function TranscriptView({

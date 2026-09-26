@@ -8,11 +8,9 @@ export { TranscriptProjector } from './projection.ts'
 export {
   BRIDGE_PROTOCOL_VERSION,
   type BridgeCommand,
-  type BridgeCommandType,
   type BridgeEvent,
   type BridgeFrame,
   type GoalSnapshot,
-  MAX_FRAME_BYTES,
   type SelectorChoice,
   type SelectorControl,
   type UsageSnapshot,

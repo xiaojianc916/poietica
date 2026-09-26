@@ -85,9 +85,7 @@ pub(crate) fn compose(
                     request,
                 }
                 .emit(&publishing),
-                SessionEvent::Cursor { .. }
-                | SessionEvent::CursorLost { .. }
-                | SessionEvent::Link(_) => return,
+                SessionEvent::Link(_) => return,
             };
             if let Err(error) = emitted {
                 log::warn!("emit the session state failed: {error}");

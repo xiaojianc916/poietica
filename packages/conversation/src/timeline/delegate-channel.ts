@@ -17,7 +17,7 @@ export function delegateKey(conversation: string, agentId: string): string {
 }
 
 /** 这个键是一条通道，不是一条对话。与 delegateKey 同住一处。 */
-export interface DelegateAddress {
+interface DelegateAddress {
   readonly conversation: string
   readonly agentId: string
 }

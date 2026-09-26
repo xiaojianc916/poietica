@@ -1,7 +1,7 @@
 use crate::{RuntimeError, RuntimeFailure};
 use poietica_agent_client::{SessionBook, SessionEvent, SessionUsageSnapshot};
 use poietica_ledger::execution::{IndexError, LocalIndex, write_index};
-use poietica_ledger::index::{SessionCursor, SessionUsage};
+use poietica_ledger::index::SessionUsage;
 
 fn stored_usage(usage: SessionUsageSnapshot) -> SessionUsage {
     fn narrow(value: u64) -> i64 {
@@ -28,30 +28,6 @@ pub(crate) async fn record<E: RuntimeFailure>(
             write_index(index, move |store| {
                 store
                     .record_usage(&session, usage)
-                    .map_err(IndexError::from)
-                    .map_err(E::from)
-            })
-            .await
-        }
-        SessionEvent::Cursor { session_id, cursor } => {
-            let session = session_id.clone();
-            let cursor = SessionCursor {
-                seq: cursor.seq,
-                epoch: cursor.epoch.clone(),
-            };
-            write_index(index, move |store| {
-                store
-                    .remember_cursor(&session, &cursor)
-                    .map_err(IndexError::from)
-                    .map_err(E::from)
-            })
-            .await
-        }
-        SessionEvent::CursorLost { session_id } => {
-            let session = session_id.clone();
-            write_index(index, move |store| {
-                store
-                    .forget_cursor(&session)
                     .map_err(IndexError::from)
                     .map_err(E::from)
             })

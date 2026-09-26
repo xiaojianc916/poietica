@@ -72,8 +72,8 @@ export function createAgentSessionPort({
           complete: data.complete,
         } as TranscriptCatchUp
       },
-      /* 历史图片的字节在 daemon 的 media 端点后、要 Bearer：webview 直连不了，
-         由原生侧代取，交回 base64，store 再缓存成 data URL。 */
+      /* 历史图片链路至今 unwired（agent-client 的 read_media 恒返回 Err）：调用即失败，
+         store 降级为占位图。 */
       readMedia: async (sessionId, fileId) => {
         const wire = await throughIpc(() => commands.agentSessionMedia({ sessionId, fileId }))
         return { mediaType: wire.contentType, base64: wire.base64 }

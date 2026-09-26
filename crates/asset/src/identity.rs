@@ -26,7 +26,7 @@ pub enum AssetProtocolError {
     Internal,
 }
 
-pub fn validate_token(value: &str) -> Result<(), AssetProtocolError> {
+pub(crate) fn validate_token(value: &str) -> Result<(), AssetProtocolError> {
     if value.is_empty()
         || value.len() > MAX_TOKEN_BYTES
         || !value
@@ -38,7 +38,7 @@ pub fn validate_token(value: &str) -> Result<(), AssetProtocolError> {
     Ok(())
 }
 
-pub fn validate_content_hash(value: &str) -> Result<(), AssetProtocolError> {
+pub(crate) fn validate_content_hash(value: &str) -> Result<(), AssetProtocolError> {
     if crate::formats::is_content_hash(value) {
         Ok(())
     } else {
@@ -46,7 +46,7 @@ pub fn validate_content_hash(value: &str) -> Result<(), AssetProtocolError> {
     }
 }
 
-pub fn validate_content_type(value: &str) -> Result<(), AssetProtocolError> {
+pub(crate) fn validate_content_type(value: &str) -> Result<(), AssetProtocolError> {
     if crate::formats::is_deliverable_content_type(value) {
         Ok(())
     } else {

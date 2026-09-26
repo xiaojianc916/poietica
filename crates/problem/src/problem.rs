@@ -1,13 +1,34 @@
+use core::fmt;
 use std::collections::BTreeMap;
 
 use serde::{Deserialize, Serialize};
 use specta::Type;
+use uuid::Uuid;
 
 use crate::category::Category;
 use crate::code::Code;
-use crate::diagnostic::DiagnosticId;
-use crate::redaction::redact;
 use crate::retry::Retryability;
+
+/// 一次失败的编号：日志、上报、界面引用同一个值。
+///
+/// v7 带时间前缀且单调，按字符串排序即按发生顺序，不必手写 ULID。
+#[derive(
+    Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord, Serialize, Deserialize, Type,
+)]
+#[serde(transparent)]
+pub struct DiagnosticId(Uuid);
+
+impl DiagnosticId {
+    pub fn issue() -> Self {
+        Self(Uuid::now_v7())
+    }
+}
+
+impl fmt::Display for DiagnosticId {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(formatter, "{}", self.0)
+    }
+}
 
 /// 唯一允许跨越进程与语言边界的错误形状。
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Type)]
@@ -41,4 +62,28 @@ impl Problem {
         self.details.insert(key.to_owned(), redact(key, value));
         self
     }
+}
+
+/// 键名里出现这些词的值不再原样外传。
+const SENSITIVE: &[&str] = &[
+    "authorization",
+    "cookie",
+    "credential",
+    "key",
+    "password",
+    "secret",
+    "token",
+];
+
+/// 单条细节的长度上限，按字符截断，避免把半个码点写进账本。
+const MAX_CHARS: usize = 256;
+
+fn redact(key: &str, value: &str) -> String {
+    let lowered = key.to_ascii_lowercase();
+
+    if SENSITIVE.iter().any(|marker| lowered.contains(marker)) {
+        return "[redacted]".to_owned();
+    }
+
+    value.chars().take(MAX_CHARS).collect()
 }

@@ -73,12 +73,6 @@ pub struct AssetRemoveRequest {
     pub asset_token: String,
 }
 
-#[derive(Clone, Debug, Deserialize, Type)]
-#[serde(rename_all = "camelCase")]
-pub struct AssetSessionCloseRequest {
-    pub session_token: String,
-}
-
 /// 调用方只见脱敏后的 IPC 文案，永远拿不到原生细节。
 #[tauri::command]
 #[specta::specta]
@@ -180,19 +174,6 @@ pub async fn asset_remove(
     if !removed {
         log::warn!("asset {} is not held by the registry", request.asset_token);
     }
-
-    Ok(())
-}
-
-#[tauri::command]
-#[specta::specta]
-pub async fn asset_session_close(
-    request: AssetSessionCloseRequest,
-    assets: State<'_, AssetProtocolRegistry>,
-) -> CommandResult<()> {
-    assets
-        .remove_session(&request.session_token)
-        .map_err(map_asset_error)?;
 
     Ok(())
 }

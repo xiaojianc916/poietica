@@ -1,5 +1,17 @@
 import { createExternalStore } from '@poietica/external-store'
-import type { AppUpdateController } from './app-update-controller'
+
+export type UpdateProgress = { percent: number | null }
+export type UpdateRelease = { version: string; notes: string | null }
+
+export interface AppUpdateController {
+  readonly check: () => Promise<UpdateRelease | null>
+  readonly download: (
+    version: string,
+    onProgress: (progress: UpdateProgress) => void,
+  ) => Promise<void>
+  readonly relaunch: () => Promise<void>
+  readonly dispose: () => Promise<void>
+}
 
 /* 检查节奏只有这一份：定时器跟着 store 活，六小时才真的是六小时。 */
 const CHECK_EVERY_MS = 6 * 60 * 60 * 1000

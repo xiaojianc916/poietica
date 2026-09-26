@@ -68,7 +68,6 @@ pub fn conversation_event(frame: RunFrame) -> ConversationEvent {
             answers,
             note,
         },
-        RunFrame::SessionRecovered { snapshot } => ConversationEvent::SessionRecovered { snapshot },
         RunFrame::LinkChanged { link } => ConversationEvent::LinkChanged { link },
         RunFrame::RunFinished { stop_reason } => ConversationEvent::RunFinished {
             turn: None,

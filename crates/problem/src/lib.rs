@@ -5,13 +5,10 @@
 
 pub mod category;
 pub mod code;
-pub mod diagnostic;
 pub mod problem;
-pub mod redaction;
 pub mod retry;
 
 pub use category::Category;
 pub use code::Code;
-pub use diagnostic::DiagnosticId;
-pub use problem::Problem;
+pub use problem::{DiagnosticId, Problem};
 pub use retry::Retryability;

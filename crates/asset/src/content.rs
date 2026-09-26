@@ -14,14 +14,23 @@ pub struct AssetSessionSnapshotEntry {
     bytes: Arc<Vec<u8>>,
 }
 
+/// 尺寸与内容类型两道门，from_bytes 与 verify 共用。
+fn admitted(bytes_len: usize, content_type: &str) -> Result<(), AssetProtocolError> {
+    if bytes_len > MAX_ASSET_BYTES {
+        return Err(AssetProtocolError::AssetTooLarge);
+    }
+    validate_content_type(content_type)
+}
+
 impl AssetSessionSnapshotEntry {
     pub fn from_bytes(bytes: Vec<u8>) -> Result<Self, AssetProtocolError> {
+        // 尺寸门先于嗅探（admission_tests 锚定超限报 AssetTooLarge）；嗅探之后与 verify 同过一道 admitted 门。
         if bytes.len() > MAX_ASSET_BYTES {
             return Err(AssetProtocolError::AssetTooLarge);
         }
         let content_type =
             crate::formats::sniff(&bytes).ok_or(AssetProtocolError::UnsupportedContentType)?;
-        validate_content_type(content_type)?;
+        admitted(bytes.len(), content_type)?;
         Ok(Self {
             content_hash: crate::formats::digest_hex(&bytes),
             content_type: content_type.to_owned(),
@@ -35,10 +44,7 @@ impl AssetSessionSnapshotEntry {
         bytes: Arc<Vec<u8>>,
     ) -> Result<Self, AssetProtocolError> {
         validate_content_hash(&content_hash)?;
-        validate_content_type(&content_type)?;
-        if bytes.len() > MAX_ASSET_BYTES {
-            return Err(AssetProtocolError::AssetTooLarge);
-        }
+        admitted(bytes.len(), &content_type)?;
         if crate::formats::digest_hex(bytes.as_slice()) != content_hash {
             return Err(AssetProtocolError::InvalidContentHash);
         }

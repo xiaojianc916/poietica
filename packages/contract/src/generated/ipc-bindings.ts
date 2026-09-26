@@ -160,9 +160,6 @@ async assetUpload(request: AssetUploadRequest) : Promise<AssetUploadResult> {
 async assetRemove(request: AssetRemoveRequest) : Promise<null> {
     return await TAURI_INVOKE("asset_remove", { request });
 },
-async assetSessionClose(request: AssetSessionCloseRequest) : Promise<null> {
-    return await TAURI_INVOKE("asset_session_close", { request });
-},
 async automationsCreate(creation: AutomationCreation) : Promise<AutomationCatalog> {
     return await TAURI_INVOKE("automations_create", { creation });
 },
@@ -703,7 +700,6 @@ export type AppearanceSettings = { density: Density; reduceMotion: boolean; mess
 export type AssetImportRequest = { sessionToken: string; paths: string[] }
 export type AssetKind = "image" | "file"
 export type AssetRemoveRequest = { sessionToken: string; assetToken: string }
-export type AssetSessionCloseRequest = { sessionToken: string }
 export type AssetSessionResult = { sessionToken: string }
 export type AssetUploadRequest = { sessionToken: string; 
 /**

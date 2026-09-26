@@ -158,10 +158,6 @@ impl Recorder {
         accepted
     }
 
-    pub fn record_session_recovered(&mut self, snapshot: Value) {
-        self.append(RunFrame::SessionRecovered { snapshot });
-    }
-
     pub fn record_link(&mut self, link: &LinkState) {
         self.append(RunFrame::LinkChanged { link: link.clone() });
     }

@@ -245,10 +245,6 @@ interface PluginStoreOptions {
   /**
    * 市场目录在哪。
    *
-   * 官方默认值是 CDN 上那一份（上游常量的
-   * KIMI_CODE_PLUGIN_MARKETPLACE_URL），不是仓库里那份源码检出兜底 —— 后者由上游
-   * getSourceCheckoutMarketplaceLocation 提供，只在没配来源且 CDN 取失败时才用。
-   *
    * 相对来源相对的就是这个地址，所以这里换一个地址，条目跟着换一个仓库，不需要在
    * 第二处配一遍。
    */
@@ -609,10 +605,7 @@ export function createPluginStore(options: PluginStoreOptions): PluginStore {
       })
     } catch (cause: unknown) {
       publish({
-        marketplace: failFetch(
-          snapshot.marketplace,
-          cause instanceof Error ? cause.message : String(cause),
-        ),
+        marketplace: failFetch(snapshot.marketplace, reasonOf(cause)),
       })
     }
   }
@@ -624,7 +617,7 @@ export function createPluginStore(options: PluginStoreOptions): PluginStore {
 
       publish({ capabilities: { kind: 'reported', capabilities } })
     } catch (cause: unknown) {
-      const reason = cause instanceof Error ? cause.message : String(cause)
+      const reason = reasonOf(cause)
 
       warn('本机能力清单读取失败', { scope: 'plugins', cause })
       publish({ capabilities: { kind: 'failed', reason } })
@@ -640,7 +633,7 @@ export function createPluginStore(options: PluginStoreOptions): PluginStore {
 
       publish({ browser: { kind: 'ready', appEndpoint, ...browser } })
     } catch (cause: unknown) {
-      const reason = cause instanceof Error ? cause.message : String(cause)
+      const reason = reasonOf(cause)
 
       warn('浏览器控制设置读取失败', { scope: 'plugins', cause })
       publish({ browser: { kind: 'failed', reason } })
@@ -656,7 +649,7 @@ export function createPluginStore(options: PluginStoreOptions): PluginStore {
 
       publish({ browser: { kind: 'ready', appEndpoint, ...browser } })
     } catch (cause: unknown) {
-      const reason = cause instanceof Error ? cause.message : String(cause)
+      const reason = reasonOf(cause)
 
       warn('浏览器控制设置写入失败', { scope: 'plugins', cause })
       publish({ browser: { kind: 'failed', reason } })
@@ -684,7 +677,7 @@ export function createPluginStore(options: PluginStoreOptions): PluginStore {
     publishFlow(flow, {
       kind: 'refused',
       source,
-      reason: cause instanceof Error ? cause.message : String(cause),
+      reason: reasonOf(cause),
     })
   }
 
@@ -1027,7 +1020,7 @@ export function createPluginStore(options: PluginStoreOptions): PluginStore {
         } catch (cause: unknown) {
           warn('技能的开关没能落到磁盘上，界面因此不动', { scope: 'plugins', cause })
           publish({
-            skillFailure: cause instanceof Error ? cause.message : String(cause),
+            skillFailure: reasonOf(cause),
           })
         }
       })
@@ -1043,7 +1036,7 @@ export function createPluginStore(options: PluginStoreOptions): PluginStore {
         } catch (cause: unknown) {
           warn('技能没能移到系统回收站，界面因此不动', { scope: 'plugins', cause })
           publish({
-            skillFailure: cause instanceof Error ? cause.message : String(cause),
+            skillFailure: reasonOf(cause),
           })
         }
       })
@@ -1058,7 +1051,7 @@ export function createPluginStore(options: PluginStoreOptions): PluginStore {
         } catch (cause: unknown) {
           warn('技能目录重读失败', { scope: 'plugins', cause })
           publish({
-            skillFailure: cause instanceof Error ? cause.message : String(cause),
+            skillFailure: reasonOf(cause),
           })
         }
       })
@@ -1103,7 +1096,7 @@ export function createPluginStore(options: PluginStoreOptions): PluginStore {
             capabilityCommand: {
               kind: 'failed',
               capabilityId,
-              reason: cause instanceof Error ? cause.message : String(cause),
+              reason: reasonOf(cause),
             },
           })
         }
@@ -1147,7 +1140,7 @@ export function createPluginStore(options: PluginStoreOptions): PluginStore {
           install: {
             kind: 'refused',
             source,
-            reason: cause instanceof Error ? cause.message : String(cause),
+            reason: reasonOf(cause),
           },
         })
 
@@ -1193,6 +1186,10 @@ function unreadableManifest(name: string): PluginManifest {
   }
 }
 
+function reasonOf(cause: unknown): string {
+  return reasonOf(cause)
+}
+
 function decodeManifestJson(pluginId: string, contents: string) {
   try {
     return decodePluginManifest(JSON.parse(contents))
@@ -1201,7 +1198,7 @@ function decodeManifestJson(pluginId: string, contents: string) {
       {
         code: 'manifest-invalid',
         pluginId,
-        detail: cause instanceof Error ? cause.message : String(cause),
+        detail: reasonOf(cause),
       },
     ]
 

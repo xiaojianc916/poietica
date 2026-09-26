@@ -3,9 +3,8 @@ import type { SessionConfigControl } from '../agent/config'
 /*
  * 批准方式：这个产品对「agent 能自己动手到什么程度」的取值域。
  *
- * 取值是发给 agent 的那个值（kap 的 POST /sessions/{id}/profile），说法是产品自己
- * 的 —— agent 报回来的 label 是它的开发词汇，把开发词汇画在输入框旁边等于让人去
- * 背别人的实现细节。
+ * 取值就是发给 agent 的那个值本身，说法是产品自己的 —— agent 报回来的 label 是
+ * 它的开发词汇，把开发词汇画在输入框旁边等于让人去背别人的实现细节。
  *
  * 表是封闭的，并且按「人的介入从多到少」排：这一列的次序就是屏幕上的次序，也是
  * 「往下一格更危险」这句话的唯一出处。agent 报了但不在表里的档位不画 —— 一个我们
@@ -79,7 +78,7 @@ export function isPermissionPostureChange(control: SessionConfigControl, value: 
  * 三道闸：意图存在、与现状不同、agent 确实提供它。缺一条就什么都不发 —— 发一个
  * agent 给不出的值只会换回一次错误，而那次错误会被当成「改不动」报给用户。
  */
-export function postureAlignment(
+function postureAlignment(
   control: SessionConfigControl,
   intent: string | undefined,
 ): string | undefined {

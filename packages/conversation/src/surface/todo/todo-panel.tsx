@@ -41,26 +41,38 @@ const BACKGROUND_STATUS_LABEL: Record<BackgroundTaskStatus, string> = {
   lost: '已中断',
 }
 
+const BACKGROUND_PROGRESS_LABEL = {
+  running: '运行中',
+  completed: '已完成',
+  interrupted: '已中断',
+} as const
+
+/** 零档不提：进度那一格只说非零的桶；桶间分隔用 EN SPACE，不是普通空格。 */
+function progressLabel(counts: readonly (readonly [number, string])[]): string {
+  return counts
+    .filter(([count]) => count > 0)
+    .map(([count, label]) => `${String(count)} ${label}`)
+    .join('\u2002\u00b7\u2002')
+}
+
 export function todoProgressLabel(todos: readonly TodoItem[]): string {
   const done = todos.filter((item) => item.status === 'done').length
   const active = todos.filter((item) => item.status === 'in_progress').length
-  const pending = todos.length - done - active
-  return [
-    ...(done > 0 ? [[String(done), TASK_STATUS_LABEL.done].join(' ')] : []),
-    ...(active > 0 ? [[String(active), TASK_STATUS_LABEL.in_progress].join(' ')] : []),
-    ...(pending > 0 ? [[String(pending), TASK_STATUS_LABEL.pending].join(' ')] : []),
-  ].join(' · ')
+  return progressLabel([
+    [done, TASK_STATUS_LABEL.done],
+    [active, TASK_STATUS_LABEL.in_progress],
+    [todos.length - done - active, TASK_STATUS_LABEL.pending],
+  ])
 }
 
 export function backgroundTaskProgressLabel(tasks: readonly BackgroundTaskItem[]): string {
   const running = tasks.filter((task) => task.status === 'running').length
   const completed = tasks.filter((task) => task.status === 'completed').length
-  const interrupted = tasks.length - running - completed
-  return [
-    ...(running > 0 ? [[String(running), '运行中'].join(' ')] : []),
-    ...(completed > 0 ? [[String(completed), '已完成'].join(' ')] : []),
-    ...(interrupted > 0 ? [[String(interrupted), '已中断'].join(' ')] : []),
-  ].join(' · ')
+  return progressLabel([
+    [running, BACKGROUND_PROGRESS_LABEL.running],
+    [completed, BACKGROUND_PROGRESS_LABEL.completed],
+    [tasks.length - running - completed, BACKGROUND_PROGRESS_LABEL.interrupted],
+  ])
 }
 
 function TodoStatusGlyph({ status }: { readonly status: TodoItem['status'] }) {

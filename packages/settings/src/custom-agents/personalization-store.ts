@@ -1,3 +1,9 @@
+import type {
+  CustomAgentCatalog,
+  CustomAgentFile,
+  CustomAgentRemoveRequest,
+  CustomAgentSaveRequest,
+} from '@poietica/contract/settings'
 import { createExternalStore, type ExternalStore } from '@poietica/external-store'
 import {
   type CustomAgentDraft,
@@ -6,7 +12,19 @@ import {
   serializeAgentDocument,
   validateAgentDraft,
 } from './agent-document'
-import type { CustomAgentCatalog, CustomAgentFile, CustomAgentStore } from './custom-agent-store'
+
+export type {
+  CustomAgentCatalog,
+  CustomAgentFile,
+  CustomAgentRemoveRequest,
+  CustomAgentSaveRequest,
+}
+
+export interface CustomAgentStore {
+  readonly load: () => Promise<CustomAgentCatalog>
+  readonly save: (request: CustomAgentSaveRequest) => Promise<CustomAgentFile>
+  readonly remove: (request: CustomAgentRemoveRequest) => Promise<void>
+}
 
 /* 新建槽位。用 Symbol 而不是保留字符串：任何字符串都可能撞上真实相对路径。 */
 const NEW_AGENT = Symbol('new-agent')
