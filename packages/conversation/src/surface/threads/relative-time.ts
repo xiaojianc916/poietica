@@ -1,16 +1,10 @@
 /*
- * 会话列表的时间文案与期限。
- *
- * 这里没有时间桶表（今天／昨天／过去 7 天／过去 30 天／更早）：列表的一级索引是
- * 工作区而不是时间，时间退回它本来的位置 —— 行尾那一格的元数据。判据的正文在
- * threads/thread-order.ts。
- *
- * 留下的两件事都不随分组变化：一段时长怎么说（formatElapsed），以及这一屏下
- * 一次会变的时刻（nextChangeIn）。文案与绝对时刻交给 Intl：数量词、词序、语言
- * 是平台的事。
- *
- * 两级投影保留（datedGroupsOf / paintedGroupsOf）：时刻与绝对文案只是 updatedAt
- * 的函数，时钟跳一次不该让整屏重跑一遍 Date.parse 和 dateStyle: 'full'。
+ * 会话列表的时间文案与期限。没有时间桶表（今天／昨天／过去 7 天…）：列表的一级索引
+ * 是工作区而不是时间，时间退回它本来的位置 —— 行尾那一格的元数据，判据正文在
+ * threads/thread-order.ts。留下两件不随分组变化的事：一段时长怎么说（formatElapsed），
+ * 这一屏下一次会变的时刻（nextChangeIn）；文案与绝对时刻交给 Intl。两级投影
+ * （datedGroupsOf / paintedGroupsOf）：时刻与绝对文案只是 updatedAt 的函数，时钟跳
+ * 一次不该让整屏重跑一遍 Date.parse 和 dateStyle: 'full'。
  */
 
 import { DAY, HOUR, MINUTE, narrowUnit } from '../semantics/duration'
@@ -46,11 +40,9 @@ function calendarDays(instant: number, reference: number): number {
 }
 
 /**
- * 一行的时间标签。
- *
- * 一周之内给时长，更久就给日期 —— GitHub、Slack、Linear 用的是同一道阶梯：
- * 时长在近处有用，在远处只剩噪声（「418 天」不解决任何问题）。未来时刻
- * （时钟偏差）读作「现在」，而不是负数。
+ * 一行的时间标签。一周之内给时长，更久就给日期 —— GitHub、Slack、Linear 同一道
+ * 阶梯：时长在近处有用，远处只剩噪声（「418 天」不解决任何问题）。未来时刻（时钟
+ * 偏差）读作「现在」而不是负数。
  */
 export function formatElapsed(instant: number, reference: number): string {
   const since = reference - instant
@@ -86,10 +78,9 @@ export function formatAbsolute(instant: number): string {
 }
 
 /*
- * 这一行的文案下一次会变的时刻 —— 与 formatElapsed 同一道阶梯，反着算。
- *
- * 一天以上没有属于自己的期限：它只在本地午夜改口，而午夜是整屏共同的边界，
- * nextChangeIn 无条件把它算进去。交回 Infinity 是把这句话说清楚。
+ * 这一行的文案下一次会变的时刻 —— 与 formatElapsed 同一道阶梯，反着算。一天以上
+ * 没有属于自己的期限（只在本地午夜改口，而午夜由 nextChangeIn 无条件算进去），
+ * 交回 Infinity 把这句话说清楚。
  */
 function nextChangeOf(instant: number, reference: number): number {
   const since = reference - instant
@@ -109,12 +100,7 @@ function nextChangeOf(instant: number, reference: number): number {
   return Number.POSITIVE_INFINITY
 }
 
-/**
- * 下一个本地午夜。
- *
- * 用日历推进一天，而不是加 86_400_000：夏令时切换的那一天是 23 或 25 小时，
- * 加固定毫秒会把闹钟排错一小时。
- */
+/** 下一个本地午夜。用日历推进一天而非加 86_400_000：夏令时切换那天是 23/25 小时，加固定毫秒会排错一小时。 */
 function nextMidnight(instant: number): number {
   const at = new Date(instant)
 
@@ -125,14 +111,9 @@ function nextMidnight(instant: number): number {
 }
 
 /**
- * 整屏下一次会变的时刻。
- *
- * 入参是一串已经解析好的时刻，不是原始字符串，也不再是「分好段的结果」——
- * 分段维度已经与时间无关，期限没有理由再认识它。解析只发生在 datedGroupsOf
- * 那一趟。
- *
- * 午夜无条件算进去：跨过午夜，「1天」要改口成「2天」，哪怕没有任何一行到达
- * 自己的边界，哪怕列表是空的。
+ * 整屏下一次会变的时刻。入参是一串已解析好的时刻 —— 分段维度已与时间无关，期限
+ * 没有理由再认识它，解析只发生在 datedGroupsOf 那一趟。午夜无条件算进去：跨过
+ * 午夜「1天」要改口「2天」，哪怕没有任何一行到达自己的边界、哪怕列表是空的。
  */
 export function nextChangeIn(instants: readonly number[], reference: number): number {
   let found = nextMidnight(reference)
@@ -168,9 +149,9 @@ export interface PaintedMember<T> extends DatedMember<T> {
 }
 
 /*
- * name 可以是 null：那一组的目录还没有被记下来，见 threads/thread-order 的
- * workspaceNameOf。这三个形状只是同一份数据的两级投影，所以它们原样带过
- * 这件事，不在中途替它补一个名字 —— 补在哪一层，都是同一个编造。
+ * name 可以是 null：那一组的目录还没有被记下来（见 threads/thread-order 的
+ * workspaceNameOf）。这三个形状是同一份数据的两级投影，原样带过这件事，不在中途
+ * 替它补一个名字 —— 补在哪一层，都是同一个编造。
  */
 export interface Grouped<T> {
   readonly id: string

@@ -169,10 +169,7 @@ export function ReviewPane({ root, gateway, report }: ReviewPaneProps) {
   const style: ReviewStyle = { '--review-tree-width': `${String(treeColumn)}px` }
   return (
     <div
-      /*
-       * 只有拖拽中关掉划选，悬停不算：分隔条那 8px 命中区跨在列边界上，指针停在
-       * 那里是完全正常的一件事，不该顺手把整格 diff 变成选不了。
-       */
+      /* 只有拖拽中关掉划选，悬停不算：分隔条那 8px 命中区跨在列边界上，指针停在那里是正常的。 */
       className={cn(
         'review-pane flex h-full min-h-0 flex-col',
         state.splitter === 'drag' ? 'select-none' : null,
@@ -262,13 +259,10 @@ function Toolbar({
   )
 }
 /*
- * 比较基准：一层菜单，档位、分组、选中打勾与不可用置灰都照 waku 的 diff 来源选择器
- * （src/app/right_panel.rs 的 right-panel-diff-source）。
- *
- * 六档先全部摆上：本仓现在只有「工作树对某个 ref」这一条路，落得下的只有未提交
- * （对 HEAD）与分支（对该分支的上游，没有上游就置灰）；其余四档要 git 侧先给出对应
- * 的范围，届时把它们接上即可 —— 所以这里只声明「哪一档对应哪个 ref」，ref 为 null
- * 即尚无实现，按 waku 对「上一轮」的做法置灰。
+ * 比较基准：一层菜单，档位、分组、选中打勾与不可用置灰照 waku 的 diff 来源选择器
+ * （src/app/right_panel.rs 的 right-panel-diff-source）。六档先全部摆上：本仓现在只有
+ * 「工作树对某个 ref」一条路，落得下的只有未提交与分支；其余四档 ref 为 null 即尚无
+ * 实现，git 侧给出对应范围后接上即可。
  */
 function Bases({
   base,
@@ -488,9 +482,8 @@ function Card({
   const style: ReviewStyle = { '--review-card-rows': String(rows) }
   return (
     <section className="review-card" id={cardId(file.path)} style={style}>
-      {/* 两层：外面那条整宽且不透明，钉在滚动口上缘；里面的药丸给悬浮底色。
-       * 底色不贴边、与树行同一条语言：margin 收出留白，padding 补回行内起点 ——
-       * 比工具条那条 10px 内线再右挪 4px，文件名不贴着图标站。 */}
+      {/* 两层：外层整宽不透明钉在滚动口上缘，内层药丸给悬浮底色；margin 收出留白、
+       * padding 补回行内起点 —— 比工具条那条内线再右挪 4px，文件名不贴着图标站。 */}
       <header className="review-card__head">
         <div className="review-card__head-row mx-1.5 flex h-7 items-center gap-2 rounded-md px-2">
           <button
@@ -714,10 +707,8 @@ function Gap({
     </>
   )
 }
-/*
- * 大文件的行带虚拟化：只挂视口附近的行，代价随可见范围走、不随变更集走。
- * 折叠带展开的行也摊平成条目，展开一条万行折叠带不再是一次性挂万行 DOM。
- */
+/* 大文件的行带虚拟化：只挂视口附近的行，代价随可见范围走、不随变更集走；折叠带
+ * 展开的行也摊平成条目，展开一条万行折叠带不再是一次性挂万行 DOM。 */
 interface VirtualRowItem {
   readonly bar: boolean
   readonly edge: GapEdge
@@ -807,13 +798,10 @@ function VirtualRows({
   )
   const widest = useMemo(() => widestOf(file.rows), [file.rows])
   /*
-   * 这份列表的原点。两个触发源各走各的路：
-   *
-   * - 上方内容的开合改的是布局（items 换了就是它），量一次比观察谁都准，
-   *   所以每次提交后重量一次；同值不触发重渲染。
-   * - 面板拖宽改的是滚动口自己的盒子，而那条路上浏览器不发 resize —— 侧栏开合、
-   *   拖宽、窗口移动都只改位置（见 packages/browser/src/viewport-alignment.ts）。
-   *   观察滚动口与列表本身接住它，观察者只装卸一次。
+   * 这份列表的原点，两个触发源各走各的路：上方内容的开合改的是布局（items 换了
+   * 就是它），量一次比观察谁都准，每次提交后重量一次；面板拖宽改的是滚动口自己的
+   * 盒子，那条路上浏览器不发 resize（见 packages/browser/src/viewport-alignment.ts），
+   * 观察滚动口与列表本身接住它，观察者只装卸一次。
    */
   const [origin, setOrigin] = useState(0)
   useLayoutEffect(() => {
@@ -887,10 +875,9 @@ function VirtualRows({
   )
 }
 /*
- * 单一行号槽 —— 统一视图里两列行号只有一列是答案。
- * 行号的字体、取色与右缘那道细线在 review-pane.css 的 .review-line__number；
- * self-stretch 让槽长满行高，折行的行上竖线才不在行中断开。
- * memo：行不变就不重渲 —— 筛选输入与分隔条拖动每帧都换快照，与行无关。
+ * 单一行号槽 —— 统一视图里两列行号只有一列是答案。字体、取色与右缘细线在
+ * review-pane.css 的 .review-line__number；self-stretch 让槽长满行高，折行的行上
+ * 竖线才不在行中断开。memo：筛选输入与分隔条拖动每帧都换快照，行不变就不重渲。
  */
 const Line = memo(function Line({ row, wrap }: { readonly row: DiffRow; readonly wrap: boolean }) {
   return (
@@ -951,9 +938,9 @@ function Tree({
           className="review-tree__surface flex flex-col"
           style={{ width: `${String(state.treeWidth)}px` }}
         >
-          {/* 筛选是输入框而不是工具条：一条圆角药丸圈住图标与输入，与下面的树行
-           * 分开读。左内边距 8 + 8 让放大镜落在树行图标的竖线上；右侧留 8px 给
-           * 清除键 —— 再小它的方形悬浮底就顶出药丸的弧。 */}
+          {/* 筛选是输入框而不是工具条：一条圆角药丸圈住图标与输入。左内边距 8 + 8 让
+           * 放大镜落在树行图标的竖线上；右侧留 8px 给清除键 —— 再小它的方形悬浮底
+           * 就顶出药丸的弧。 */}
           <div className="flex shrink-0 px-2 py-2">
             <div className="review-filter flex h-7 min-w-0 flex-1 items-center gap-1.5 rounded-full pr-2 pl-2.5">
               <Search aria-hidden className="size-3.5 shrink-0 text-placeholder" />
@@ -1119,10 +1106,9 @@ function FileRow({
 function cardId(path: string): string {
   return `review:${path}`
 }
-/* 一处变更的处境：新增是 U、删除是 D、改写是方框里一个点。
- * 只认 git 清单说的 status，不从加减行数反推：+0 −1 是删掉一行的改写，不是删文件。
- * U 与 D 是裸字母（不带框），颜色按处境分：新增绿、删除红、改写橙；色在 review-pane.css。
- * 目录不给徽章，目录不是 git 的变更单位。 */
+/* 一处变更的处境：新增是 U、删除是 D、改写是方框里一个点。只认 git 清单说的 status，
+ * 不从加减行数反推：+0 −1 是删掉一行的改写，不是删文件。U 与 D 是裸字母、颜色按
+ * 处境分（色在 review-pane.css）；目录不给徽章，目录不是 git 的变更单位。 */
 const MARK_LABELS: Readonly<Record<GitChangeStatus, string>> = {
   added: '新增',
   conflicted: '冲突',

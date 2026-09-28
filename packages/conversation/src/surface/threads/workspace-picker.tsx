@@ -13,26 +13,13 @@ import { focusOnMount } from '../primitives/focus-on-mount'
 import { ChevronDownIcon, FolderPlusIcon, SearchIcon } from '../primitives/icons'
 
 /*
- * 当前的工作目录，以及换一个。
- *
- * 它是侧栏的第一行 —— 此前这里另有一栏「工作区」段标题加一枚加号，两个
- * 标题说的是同一件事，留两个就是把一件事说两遍。现在只剩这一行：名字在
- * 左，右侧那枚打开文件夹的图标，站在段标题时代那枚加号的位置上。
- *
- * 行本身没有悬停：它不是动作，只说「现在在哪」。整行唯一的动作是右侧那
- * 枚图标，所以悬停也只属于它。点开一张弹层：上面是搜索，中间是最近的
- * 工作目录，下面是「打开文件夹…」。条目带目录字形，动作带 FolderPlus ——
- * 一张纯文字的菜单读起来是一张便签，不是选择器。
- *
- * 「最近」不是一份新名单。已经有对话的工作区就是最近用过的工作区，而那份
- * 分组侧栏本来就在画（threads/thread-order 的 groupByWorkspace）—— 所以它从
- * props 进来，不新开存储，也不会有第二份会跟真相分叉的记录。当前那一个
- * 不出现在名单里：行上写着的就是它，再列一遍只是一个点了没有反应的选项。
- * 名字缺席的那一组也不出现 —— 那一组说的是「目录没被记下来」，它不是
- * 一个可以切过去的地方。
- *
- * 这一层不认识文件系统，也不认识 Tauri：目录选择器是宿主的能力，从
- * onBrowse 进来（架构规则 nativeAllowed 只放行 desktop / native-bridge
+ * 当前的工作目录，以及换一个 —— 侧栏的第一行（此前另有一栏「工作区」段标题加一枚
+ * 加号，两个标题说同一件事，留两个就是把一件事说两遍）。行本身没有悬停：它不是动作，
+ * 整行唯一的动作是右侧那枚图标。「最近」不是一份新名单：已有对话的工作区就是最近用过
+ * 的，那份分组侧栏本来就在画（threads/thread-order 的 groupByWorkspace），从 props
+ * 进来，不新开存储；当前那一个与名字缺席的那一组不出现在名单里 —— 行上写着的就是它，
+ * 而后者不是一个可以切过去的地方。这一层不认识文件系统也不认识 Tauri：目录选择器是
+ * 宿主的能力，从 onBrowse 进来（架构规则 nativeAllowed 只放行 desktop / native-bridge
  * / ipc）。搜索词是这张弹层的草稿：关掉就清，不落盘，也不出这个组件。
  */
 
@@ -47,12 +34,7 @@ export interface WorkspacePickerProps {
   readonly current: WorkspaceChoice | null
   readonly choices: readonly WorkspaceChoice[]
   readonly onChoose: (rootPath: string) => void
-  /**
-   * 清除项目选择；下一条会话会获得独立的临时工作目录。
-   *
-   * 缺席表示这一处不接受「不在项目中工作」：清除键与菜单里那一行都不画。自动化那
-   * 条任务没有目录就跑不起来，给它一个通往非法状态的入口比不给更糟。
-   */
+  /** 清除项目选择；下一条会话获得独立的临时工作目录。缺席 = 这一处不接受「不在项目中工作」，两处入口都不画。 */
   readonly onClear?: (() => void) | undefined
   /** 开系统的文件夹选择器。这一层不知道那是怎么开的。 */
   readonly onBrowse: () => void
@@ -61,10 +43,8 @@ export interface WorkspacePickerProps {
 }
 
 /**
- * 返回与本次搜索匹配的项目。
- *
- * 搜索与组件的开合、高亮和文件选择无关，所以不应成为 WorkspacePicker 主函数
- * 的分支。项目名称和完整路径都可以参与搜索，但只返回原有对象，不复制数据。
+ * 与本次搜索匹配的项目：名称与完整路径都参与，只返回原有对象不复制数据。
+ * 搜索与开合、高亮、文件选择无关，不进 WorkspacePicker 主函数的分支。
  */
 function matchingWorkspaceChoices(
   choices: readonly WorkspaceChoice[],
@@ -83,16 +63,8 @@ function matchingWorkspaceChoices(
 }
 
 /**
- * 决定项目菜单中唯一保持高亮的项目。
- *
- * 优先级：
- *
- * 1. 指针或键盘最后经过、并且仍在结果中的项目；
- * 2. 当前项目；
- * 3. 第一条搜索结果；
- * 4. 没有结果时为 null。
- *
- * 这个函数只计算视觉高亮，不会切换实际工作区。
+ * 项目菜单中唯一保持高亮的项目，只算视觉高亮不切换工作区。优先级：指针或键盘
+ * 最后经过且仍在结果中的 > 当前项目 > 第一条搜索结果 > null。
  */
 function preferredWorkspaceHighlight(
   choices: readonly WorkspaceChoice[],
@@ -122,11 +94,7 @@ export function WorkspacePicker({
   const [open, setOpen] = useState(false)
   const [expanded, setExpanded] = useState(true)
 
-  /*
-   * Base UI 的 data-highlighted 只表示指针或键盘此刻停在哪里，指针离开菜单后
-   * 会被清掉。工作区选择器需要的是更稳定的“预选项目”：离开弹窗后仍然保留，
-   * 直到另一个项目被指向。
-   */
+  /* Base UI 的 data-highlighted 指针离开菜单就被清掉；这里要的是更稳的「预选」：离开弹窗仍保留，直到指向另一个项目。 */
   const [heldHighlightId, setHeldHighlightId] = useState<string | null>(null)
 
   const matches = matchingWorkspaceChoices(choices, query)
@@ -141,14 +109,7 @@ export function WorkspacePicker({
       <DropdownMenu
         modal={false}
         onOpenChange={(nextOpen) => {
-          /*
-           * 每次打开都重新选择初始高亮：
-           *
-           * - 有当前项目：当前项目；
-           * - 无当前项目：列表中的第一个项目。
-           *
-           * 后续指针或键盘移动只会替换这个 id，因此不会同时留下多个高亮项。
-           */
+          /* 每次打开重选初始高亮（当前项目，否则列表第一条）；后续移动只替换这个 id，不会留下多个高亮。 */
           if (nextOpen) {
             setHeldHighlightId(preferredWorkspaceHighlight(choices, null, current))
           }
@@ -240,10 +201,7 @@ export function WorkspacePicker({
           side="bottom"
           sideOffset={4}
         >
-          {/*
-           * 搜索是这张弹层的标题栏。菜单的 typeahead 与输入框抢键盘，
-           * 所以按键不上冒 —— Escape 除外：关弹层是它本来的事。
-           */}
+          {/* 搜索是弹层的标题栏。菜单的 typeahead 与输入框抢键盘，按键不上冒 —— Escape 除外：关弹层是它本来的事。 */}
           <div className="workspace-picker__field">
             <SearchIcon aria-hidden="true" />
 

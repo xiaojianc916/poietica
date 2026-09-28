@@ -32,28 +32,19 @@ export interface AssistantSurfaceProps {
   /** 第一条消息发送前，把已铸造的标识写入平台。 */
   readonly prepare?: (() => Promise<boolean>) | undefined
   /**
-   * The session this surface talks to.
-   *
-   * Optional on purpose: without one the surface renders against an inert
-   * stub, which is what fixtures and component work need. The desktop app
+   * The session this surface talks to. Optional on purpose: without one the surface
+   * renders against an inert stub (fixtures and component work); the desktop app
    * supplies the real IPC-backed port.
    */
   readonly session?: AgentSessionPort
   /**
-   * What the user just said.
-   *
-   * The conversation list names a conversation from its first message,
-   * and the surface does not own the list, so it reports it outwards.
+   * What the user just said. The conversation list names a conversation from its first
+   * message and does not own the list, so the surface reports it outwards.
    */
   readonly onUserMessage?: ((threadId: string, text: string) => void) | undefined
   /** 从某一轮分叉；dropTurns 是这一轮之后还有几轮。缺席 = 平台没有这个动作。 */
   readonly onFork?: ((dropTurns: number) => void) | undefined
-  /**
-   * 这条对话所持有的会话给出的选择器。
-   *
-   * 它是被交进来的，不是在这里问出来的：选择器属于会话，会话属于对话，而
-   * 对话由上层持有。这一层只负责把它画出来。
-   */
+  /** 这条对话的会话给出的选择器。它是被交进来的，不是在这里问出来的：选择器属于会话，会话由上层持有。 */
   readonly controls: readonly SessionConfigControl[]
   /** 这张表还没被 agent 确认过：画得出内容，但点不动，也不参与下发。 */
   readonly controlsPending?: boolean | undefined
@@ -62,36 +53,21 @@ export interface AssistantSurfaceProps {
   readonly onSelectControl: (controlId: string, value: string, input?: string) => void
   /** 重新连一次。交回这一趟的承诺：重试图标转多久由它说了算。 */
   readonly onRetryControls?: (() => void | Promise<void>) | undefined
-  /**
-   * 新对话入口即将使用的工作目录。
-   *
-   * 已有对话没有这项；第一句话发出后 entry 相位结束，这一栏也随之卸载。
-   */
+  /** 新对话入口即将使用的工作目录。已有对话没有这项；第一句话发出后 entry 相位结束即卸载。 */
   readonly workspace?: Omit<WorkspacePickerProps, 'placement'> | undefined
   /** 工作目录的 git 分支上下文。不是仓库就是 undefined，整枚 chip 不渲染。 */
   readonly git?: GitBranchPickerProps | undefined
   /** 这条会话最近报的上下文用量。缺席（还没报、或是入口）就不画。 */
   readonly usage?: SessionUsage | undefined
-  /**
-   * 往输入框草稿里写字的那条 ref 通道（浏览器拾取是第一个真实调用方）。
-   * 草稿的唯一所有者仍是 PromptInput；这一层只把通道铺过去，不碰内容。
-   */
+  /** 草稿的 ref 通道（浏览器拾取是第一个调用方）。所有者仍是 PromptInput，这层只铺通道不碰内容。 */
   readonly composer?: Ref<PromptInputHandle> | undefined
 }
 
 /*
- * 两个静止态,两棵树,一个输入框。
- *
- * 哪一种静止态生效，由一个显式的相位说了算，不由转录反推：转录是内容，落到
- * 底部是导航，把后者派生自前者，就等于让任何一帧内容变动都能搬动整块构成。
- * 会话态挂滚动区，入口态挂两块自由空间，挂载与卸载不可补间，中间态因此无法
- * 被表达。输入框始终是同一个 DOM 节点，两个相位共用它。
- *
- * 这一层也不再订阅转录。它订三样东西：这一轮忙不忙、历史取回来没有、有没有
- * 一道题在等答复 —— 三个都只在真的发生变化时才换值，所以模型吐字不会动它。
- * 转录归 TranscriptView，那是唯一需要跟着帧率走的地方。
- *
- * 这一层仍然不量任何几何。
+ * 两个静止态、两棵树、一个输入框。静止态由显式相位说了算，不由转录反推：把导航派生自
+ * 内容，等于任何一帧内容变动都能搬动整块构成，且挂载与卸载不可补间、中间态无法表达。
+ * 输入框始终是同一个 DOM 节点，两相位共用。这一层只订忙/历史/待答三样，模型吐字不动它；
+ * 转录归 TranscriptView（唯一跟着帧率走的地方），几何仍然一概不量。
  */
 export const AssistantSurface = memo(function AssistantSurface({
   composer,
@@ -116,11 +92,8 @@ export const AssistantSurface = memo(function AssistantSurface({
   const { mcpServers, skills } = useAgentToolkit()
 
   /*
-   * 连不上 agent 这件事，不在这一层写。
-   *
-   * 它在发生的地方写一次：threads-store 打开这条对话失败时，同一个 catch 里
-   * 既记下控件那一格，也把经过交给转录（#transcripts?.failed）—— 于是它和帧流
-   * 里的失败长同一个样子，都是那条横线。
+   * 连不上 agent 不在这一层写：threads-store 打开对话失败的同一个 catch 里既记控件格，
+   * 也把经过交给转录（#transcripts?.failed）—— 它和帧流里的失败长同一个样子。
    */
   const {
     permission: blocked,
@@ -129,11 +102,8 @@ export const AssistantSurface = memo(function AssistantSurface({
   } = useAssistantInteractions(assistant.key)
 
   /*
-   * 待答的那一次审批。
-   *
-   * 交出去的是那一格自己的整副入参，不是三个各走各的 prop：这一层不摆它，只是
-   * 把它交给持有那张卡的人。引用只随「换了一个请求」或「分母变了」而变，所以流式
-   * 追加动不了被 memo 过的 composer。
+   * 待答的那一次审批。交出去的是那一格的整副入参而非三个各走各的 prop：引用只随
+   * 「换了请求」或「分母变了」而变，流式追加动不了被 memo 过的 composer。
    */
   const approval = useMemo<PermissionDockProps | null>(() => {
     if (blocked === undefined) {
@@ -146,12 +116,9 @@ export const AssistantSurface = memo(function AssistantSurface({
   const [phase, setPhase] = useState<'entry' | 'live'>(() => (isNew ? 'entry' : 'live'))
 
   /*
-   * 相位是派生的，不是记住的。
-   *
-   * 惰性初始化只在挂载那一次算：标签页复用同一个实例、换一条对话进来时，
-   * endpoint 已经变了而这里还停在上一相位 —— 入口的输入框长在对话里，或者反过来。
-   * 渲染期直接改自己的 state 是 React 官方给「props 变了要复位 state」的写法，
-   * 它在本次渲染内重跑，不会多出一帧闪烁，也不需要一个 effect。
+   * 相位是派生的，不是记住的。标签页复用同一实例、换对话进来时 endpoint 已变而相位
+   * 还在上一条 —— 渲染期直接改自己的 state 是 React 官方「props 变了复位 state」的
+   * 写法，本次渲染内重跑，无闪烁也不需要 effect。
    */
   const [seenNew, setSeenNew] = useState(isNew)
 
@@ -166,12 +133,7 @@ export const AssistantSurface = memo(function AssistantSurface({
   /* 这一格的草稿归哪个键：对话是它的 id，入口那一格全局只有一个。 */
   const draftKey = endpoint
 
-  /*
-   * 发言就是那次转场。
-   *
-   * 它先于 send：这一刻起这一格是一段对话，不再是入口，而这件事不该等任何
-   * 一帧回来才成立。
-   */
+  /* 发言就是那次转场，先于 send：这一刻起就是对话而非入口，不等任何一帧回来。 */
   const submit = useCallback(
     (message: AssistantSubmission) => {
       setPhase('live')
@@ -180,10 +142,7 @@ export const AssistantSurface = memo(function AssistantSurface({
     [assistant.send],
   )
 
-  /*
-   * 输入框的把手有两个读者：外面拿它写草稿（浏览器拾取），这一层拿它把队列里
-   * 那一句取回来改。所以铺一条回调 ref 分给两边，草稿的所有者仍是 PromptInput。
-   */
+  /* 把手两个读者：外面写草稿（浏览器拾取），这层取回队列那句改。铺一条回调 ref 分给两边。 */
   const draft = useRef<PromptInputHandle | null>(null)
 
   const composerRef = useCallback(
@@ -211,12 +170,8 @@ export const AssistantSurface = memo(function AssistantSurface({
   }, [])
 
   /*
-   * 输入框只挂一处。
-   *
-   * 两个相位各挂各的东西,但输入框不属于任何一个相位:它是这一层的孩子,相位切换
-   * 时它的 DOM 位置一个字都不变。于是草稿、附件、光标与焦点跨相位存活。
-   *
-   * 它的 prop 引用稳定，AssistantComposer 只随语义状态变化，不随 token 重渲染。
+   * 输入框只挂一处，不属于任何一个相位：相位切换时它的 DOM 位置不变，草稿、附件、
+   * 光标与焦点跨相位存活。prop 引用稳定，AssistantComposer 只随语义状态变化。
    */
   const dock = (
     <div className="assistant-surface__composer">
@@ -278,11 +233,8 @@ export const AssistantSurface = memo(function AssistantSurface({
       className="assistant-surface"
       data-assistant-skin
       /*
-       * 相位写到 DOM 上。
-       *
-       * 版式按相位分家本来就是这一层的范式（见 skin/surface.css：两个静止态，
-       * 两棵树）。输入框只在会话态浮起 —— 入口态它是居中的，浮起来会掉到
-       * 底部。样式表需要知道现在是哪一态，所以这个布尔值不能只留在闭包里。
+       * 相位写到 DOM 上：样式表按相位分家（见 skin/surface.css），输入框只在会话态
+       * 浮起 —— 这个布尔值不能只留在闭包里。
        */
       data-phase={live ? 'live' : 'entry'}
       data-restoring={assistant.isRestoring ? 'true' : undefined}

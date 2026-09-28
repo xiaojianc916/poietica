@@ -18,19 +18,13 @@ import { rowAtAnchor } from './reading-position'
 import { useScrollAuthority } from './scroll-authority'
 
 /*
- * 视口之外预留的行数。
- *
- * 首帧只铺一屏多一点：那时行高多半还是估的，铺得越多越是白测。两帧之后几何已经稳了，
- * 抬到能盖住一次快滚的量。少了快滚露白，多了白测量，所以是两级而不是一个折中值。
+ * 视口之外预留的行数，两级而非一个折中值：首帧行高多半是估的，铺得越多越是白测；
+ * 几何稳了之后抬到能盖住一次快滚的量。
  */
 const OVERSCAN_COLD = 6
 const OVERSCAN_SETTLED = 20
 
-/**
- * 视线在视口里的位置，自上而下的比例。
- *
- * 上沿是一条边，上一轮的残留一个像素就占住它；三分之一处是人真正在看的地方。
- */
+/** 视线在视口里的位置（自上而下）：上沿一条边，上一轮的残留一个像素就占住；三分之一处才是人在看的地方。 */
 const READING_ANCHOR_RATIO = 1 / 3
 
 /** 距顶端不足这么多屏就去要更早的一页：触顶才取，看见的就是一次停顿。 */
@@ -39,9 +33,7 @@ const EARLIER_LEAD_SCREENS = 1
 /** 距末端不足这么多像素算在末端：一格滚轮的量。虚拟器据此决定跟不跟随。 */
 const END_THRESHOLD_PX = 48
 
-/**
- * 浮层可以向滚动区要什么。行号，不是像素。
- */
+/** 浮层可以向滚动区要什么。行号，不是像素。 */
 export interface FeedPort {
   /** 人正在读的那一行；跳转期间是人要求看的那一行。 */
   readonly activeRow: number
@@ -52,20 +44,14 @@ export interface FeedPort {
 export type RowRhythm = 'glyph' | 'prose'
 
 export interface AgentActivityFeedProps {
-  /**
-   * 这些行属于哪一条对话。
-   *
-   * 盒子按它取 key，所以一条对话一个盒子；它同时是这条对话行高量表的名字。
-   */
+  /** 这些行属于哪条对话：盒子按它取 key（一条对话一个盒子），也是行高量表的名字。 */
   readonly conversation: string
   readonly feed: Presentation
   /**
-   * 开合表：封条与抽屉，人亲手改的那一份。这一层只认它的身份 —— 换一个身份 = 这一
-   * 帧的高度变化是人点出来的。
-   *
-   * virtual-core 的 resizeItem 在 anchorTo 为 end 且人本来就在末端时，把长高的量补进
-   * scrollTop 去钉住底边。模型吐字时这正是「跟着流走」；人点开面板时同一个补偿就是整屏
-   * 往上蹿一段。区别只在这次高度变化是谁引起的。
+   * 开合表：封条与抽屉，人亲手改的那一份。这一层只认它的身份 —— 换身份 = 这帧的高度
+   * 变化是人点出来的。virtual-core 的 resizeItem 在 anchorTo 为 end 且人在末端时把长高
+   * 的量补进 scrollTop 钉住底边：模型吐字是「跟着流走」，人点开面板就是整屏上蹿 ——
+   * 区别只在高度变化是谁引起的。
    */
   readonly disclosed: object
   /** 一行还没被测量时有多高。类别知识归转录那一侧。 */
@@ -87,11 +73,8 @@ export interface AgentActivityFeedProps {
 }
 
 /**
- * 会话流的滚动区。
- *
- * 它铺内容、量几何，一个 scrollTop 都不写：位置归虚拟器，意图归 scroll-authority。
- *
- * 它不认识条目类型：内容与估高都从插槽进来。
+ * 会话流的滚动区。铺内容、量几何，一个 scrollTop 都不写：位置归虚拟器，意图归
+ * scroll-authority。不认识条目类型：内容与估高都从插槽进来。
  */
 export function AgentActivityFeed({
   conversation,
@@ -112,17 +95,10 @@ export function AgentActivityFeed({
   const transcriptRef = useRef<HTMLDivElement | null>(null)
   const leadRef = useRef<HTMLDivElement | null>(null)
 
-  /**
-   * 行的落点要踩在设备像素上：落在半个设备像素上，这一行里所有 1px 的边会被摊到两行、
-   * 墨色减半。位置只有一个写入点，对齐也只需要一个。
-   */
+  /* 行的落点要踩在设备像素上：落在半个设备像素，行内 1px 的边会摊到两行、墨色减半。 */
   const snapToDevicePixels = useDevicePixels()
 
-  /**
-   * 转录相对滚动区的偏移。滚动区是转录的 offsetParent，所以这是一次 offsetTop。
-   *
-   * 是 state 而不是 ref：虚拟器在渲染期读它。
-   */
+  /* 转录相对滚动区的偏移（滚动区是转录的 offsetParent，故一次 offsetTop）。是 state 非 ref：虚拟器在渲染期读它。 */
   const [scrollMargin, setScrollMargin] = useState<number | null>(null)
 
   /** 视线落在哪一行。null 是「还没读到过」，不是第 0 行。 */
@@ -156,8 +132,7 @@ export function AgentActivityFeed({
 
   /*
    * 人点开抽屉的那一帧，末端锚定让位给起始锚定：那时要钉的是被点的那一行。
-   *
-   * 归位的判据是总高变了，不是提交完了 —— 行的测量由 ResizeObserver 异步送达。
+   * 归位判据是总高变了而非提交完了 —— 行的测量由 ResizeObserver 异步送达。
    */
   const [held, setHeld] = useState(disclosed)
   const holding = held !== disclosed
@@ -218,13 +193,10 @@ export function AgentActivityFeed({
   const total = virtualizer.getTotalSize()
 
   /*
-   * 末端的坐标：偏移加总高（总高含尾部那段清空距离）。两段都是分帧到的 —— 偏移与尾部
-   * 各等一次 ResizeObserver，行高等实测 —— 所以落到末端只能是一份持续意图，坐标一动
-   * 就重钉一次。挂载那一次命令钉的是「还没量到这两段」的假末端，真值到达后就停在离底
-   * 一段的地方，而那一段正是尾部清空距离。
-   *
-   * 钉末端还是钉某一行由意图那一层说，这里只负责在坐标变化时把同一份意图重写一次。
-   * 行高变化的补偿归虚拟器（anchorTo/followOnAppend）；坐标没动就不写。
+   * 末端坐标：偏移加总高（含尾部清空距离）。两段分帧到达（各等一次 ResizeObserver），
+   * 挂载首钉是还没量到的假末端，所以落末端只能是一份持续意图，坐标一动就重钉一次；
+   * 真值到位后停在离底一段处，正是尾部清空距离。钉末端还是钉某一行由意图层说，这里
+   * 只在坐标变化时重写同一份意图；行高补偿归虚拟器（anchorTo/followOnAppend）。
    */
   const end = (scrollMargin ?? 0) + total
 
@@ -347,12 +319,9 @@ export function AgentActivityFeed({
     }
 
     /*
-     * 转录也在名单上：它盖住行内的异步排版与抽屉展开。回路接不上，因为回调写的都是
-     * state，而 React 在值没变时挡掉 —— 偏移不随转录自身的高度变化，视线所在的行只在
-     * 跨行时才是新值。
-     *
-     * 尾部按边框盒观察不是可选项：它的高度整个来自 padding-block-end，而默认的
-     * content-box 不因内边距变化派发，于是 paddingEnd 会一直停在冷启动那一测。
+     * 转录也在名单上：它盖住行内的异步排版与抽屉展开。回路接不上 —— 回调写的都是
+     * state，React 在值没变时挡掉。尾部按边框盒观察不是可选：它的高度整个来自
+     * padding-block-end，content-box 不因内边距变化派发，paddingEnd 会停在冷启动那一测。
      */
     const observer = new ResizeObserver(() => {
       if (transcriptRef.current !== null) {
@@ -392,10 +361,8 @@ export function AgentActivityFeed({
   }, [sample, viewport, virtualizer, watch])
 
   /*
-   * 自己说的话把视线带回末端：那是答复将要出现的地方。
-   *
-   * 触发者是数据 —— 最后一条我说的话换了 id。一条对话一个盒子，所以换对话走挂载那一路，
-   * 不会被当成「我又说了一句」。
+   * 自己说的话把视线带回末端：那是答复将要出现的地方。触发者是数据 —— 最后一条我说的
+   * 话换了 id；换对话走挂载那一路，不会被当成「我又说了一句」。
    */
   const ownMessage = feed.latestOwnMessage
   const said = useRef<{ readonly message: string | null } | null>(null)
@@ -464,10 +431,9 @@ export function AgentActivityFeed({
       </div>
 
       {/*
-       * 回到最新。常驻挂载，靠 data-shown 在两个静态状态之间过渡。
-       *
-       * 隐藏时挂 inert：一个 opacity 为 0 的按钮仍然可点、仍然进得了 Tab 序。
-       * 判据是 atLatest 而不是 isBusy：它回答的是「下面还有我没看见的东西」。
+       * 回到最新。常驻挂载，靠 data-shown 在两个静态状态间过渡。隐藏时挂 inert：
+       * opacity 为 0 的按钮仍可点、仍进 Tab 序。判据是 atLatest 而非 isBusy：
+       * 它回答「下面还有我没看见的东西」。
        */}
       <button
         aria-label="回到最新"

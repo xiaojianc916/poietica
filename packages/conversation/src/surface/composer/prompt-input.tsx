@@ -79,9 +79,8 @@ const AttachmentsContext = createContext<readonly ComposerAsset[]>(NO_ATTACHMENT
 const DraftContext = createContext<PromptInputDraft | null>(null)
 
 /*
- * 输入框那一格的 combobox 语义（WAI-ARIA APG：带 listbox 弹层的可编辑 combobox）。
- * 焦点始终在编辑器上，活动项靠 aria-activedescendant 指过去，而只有壳知道弹层开没开、
- * 指着哪一行 —— 所以它从这里往下交，不在编辑器里再算一遍。
+ * 输入框的 combobox 语义（WAI-ARIA APG：带 listbox 弹层的 combobox）。焦点始终在编辑器上，
+ * 活动项靠 aria-activedescendant 指过去；只有壳知道弹层开没开、指着哪一行，所以从这里往下交。
  */
 export interface PaletteAria {
   readonly listboxId: string
@@ -122,8 +121,7 @@ export function usePromptInputDraft(): PromptInputDraft {
 
 /**
  * What the composer may be asked from outside it.
- *
- * 草稿归这张卡，所以外面写进来只能经过这条通道；焦点随文字走。
+ * 草稿归这张卡，外面写进来只能经过这条通道；焦点随文字走。
  */
 export interface PromptInputHandle {
   readonly setText: (text: string) => void
@@ -264,30 +262,16 @@ export interface PromptInputProps {
   readonly ref?: Ref<PromptInputHandle> | undefined
   readonly multiple?: boolean
   readonly maxFiles?: number
-  /**
-   * 这一格收不收文件。
-   *
-   * 收不了就不画「添加文件」那一行：面板里不该有一按不动的按钮，也不该有一张收下
-   * 之后无处安放的卡片。默认收。
-   */
+  /** 这一格收不收文件。收不了就不画「添加文件」那一行：面板里不该有按不动的按钮。默认收。 */
   readonly attachments?: boolean | undefined
-  /**
-   * 挂载时先写进编辑器的正文。此后草稿归编辑器，这个值不再被读第二次。
-   *
-   * 缺席就是空草稿 —— 与离屏册子（ComposerDrafts）同一条规矩：装回去只发生一次。
-   */
+  /** 挂载时先写进编辑器的正文，此后不再读第二次。缺席即空草稿 —— 装回去只发生一次（离屏册子 ComposerDrafts 同规）。 */
   readonly initialText?: string | undefined
   /** 草稿正文变了。往外报一次，让不是消息框的调用方也能把它当普通字段读。 */
   readonly onChange?: ((text: string) => void) | undefined
   /** 面板里 agent 那几组（模式、技能、命令、other 选择器）。「添加」组由这个框自己起头。 */
   readonly groups?: readonly PaletteGroup[] | undefined
   readonly configuration?: readonly PromptConfiguration[] | undefined
-  /**
-   * 这一句发出去做什么。
-   *
-   * 缺席时这一格不是消息框而是一个字段：Enter 只换行，提交这条路整个不存在，草稿
-   * 也不会在某个动作里被消费掉。自动化那条「到期时发给 agent 的指令」就是字段。
-   */
+  /** 这一句发出去做什么。缺席时是字段而非消息框：Enter 只换行，提交不存在，草稿不被消费。自动化「到期发给 agent 的指令」就是字段。 */
   readonly onSubmit?: ((message: PromptInputMessage) => void) | undefined
 }
 
@@ -342,10 +326,7 @@ function PromptInputShell({
   const intake = useAttachmentIntake()
   const drafts = useComposerDrafts()
   const draftKey = useComposerDraftKey()
-  /*
-   * 初值直接读编辑器此刻的状态：装回草稿不触发更新监听器，取空会让一份装回来的
-   * 草稿在第一次编辑之前发不出去 —— 记号已画出来，发送键却按「什么都没写」算。
-   */
+  /* 初值直接读编辑器此刻的状态：装回草稿不触发更新监听器，取空会让装回的草稿在首次编辑之前发不出去。 */
   const [draftText, setDraftText] = useState<DraftProjection>(() =>
     editor.getEditorState().read(readDraft),
   )
@@ -472,11 +453,9 @@ function PromptInputShell({
   )
 
   /*
-   * 入册，并把该内联的那几份插成正文里的记号。
-   *
-   * flushSync 是必需的：记号只能在「入册收下了哪几份」之后才插，而那要等这次提交
-   * 落地。判据是「收下了」而不是「新来的」—— 记号被退格删掉后字节仍在册子里，这时
-   * 重挑一次按「新来的」算会什么都不发生。
+   * 入册，并把该内联的几份插成正文记号。flushSync 必需：记号只能在「入册收下了哪几
+   * 份」之后插，而那要等这次提交落地。判据是「收下了」而非「新来的」—— 记号被退格
+   * 删掉后字节仍在册子里，按「新来的」算重挑一次就什么都不发生。
    */
   const addAssets = useCallback(
     (incoming: readonly ComposerAsset[]) => {
@@ -580,10 +559,7 @@ function PromptInputShell({
     formRef.current?.requestSubmit()
   }, [])
 
-  /*
-   * 往窗口里拖文件走原生那一条：Tauri 的 dragDropEnabled 默认接管整个 webview，
-   * Windows 上 HTML5 拖放收不到事件（官方文档）。
-   */
+  /* 拖文件走原生那条：Tauri 的 dragDropEnabled 默认接管整个 webview，Windows 上 HTML5 拖放收不到事件（官方文档）。 */
   useEffect(() => {
     if (intake === null) {
       return undefined
@@ -776,10 +752,7 @@ function PromptInputShell({
               const projection = editor.getEditorState().read(readDraft)
               const said = projection.text.trim()
 
-              /*
-               * 内联的那几份以正文里的记号为准：记号已被删掉的就地放掉，不随行。
-               * 留在册子里的（图片）照旧全发。
-               */
+              /* 内联的几份以正文记号为准：记号已删的就地放掉不随行；留在册子里的（图片）照旧全发。 */
               const tokens = inlineTokens(projection)
               const assets = [
                 ...attachments.filter((attachment) => !isInlineAttachment(attachment)),
@@ -850,12 +823,7 @@ export function PromptInputBody({ className, ...props }: ComponentProps<'div'>) 
   return <div className={className} data-slot="prompt-input-body" {...props} />
 }
 
-/**
- * 正文那一面。
- *
- * contenteditable 归 Lexical：选区、输入法组词、撤销栈与粘贴规范化都在内核里，
- * 这里只声明壳与占位字。
- */
+/** 正文那一面。contenteditable 归 Lexical：选区、输入法组词、撤销栈与粘贴规范化都在内核，这里只声明壳与占位字。 */
 export function PromptInputEditor({ placeholder }: { readonly placeholder: string }) {
   const palette = usePromptInputPalette()
 

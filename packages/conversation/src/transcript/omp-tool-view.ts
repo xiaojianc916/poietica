@@ -518,16 +518,12 @@ const lspView: Handler = (ctx) => {
 const EVAL_LANGS: Readonly<Record<string, string>> = { js: 'javascript', py: 'python' }
 
 /*
- * eval 里那些不是代码的动作名。
- *
- * `browser` 与 `computer` 不是顶层工具 —— 它们是注入 eval 内核的作用域对象（omp 的
- * tools/browser.ts 与 tools/computer.ts 的 createBrowserPrelude / createComputerPrelude，
- * 经 eval/preludes.ts 注册）。模型写 `browser.open(...)` / `desktop.click(...)`，每一次
- * 调用都在 eval 的产出里留一条状态事件：details.statusEvents = `[{ op, detail }]`，
- * op 就是 prelude 名，detail 是上游自己写的那句话（如 `open main https://…`）。
- *
- * 所以这里要把它们挑出来单独说 —— 一次「用浏览器打开某页」在屏幕上不该只显示成
- * 「运行 JavaScript」。
+ * eval 里不是代码的动作名。`browser`/`computer` 是注入 eval 内核的 prelude 作用域对象，
+ * 不是顶层工具（omp 的 tools/browser.ts 与 tools/computer.ts 的 createBrowserPrelude /
+ * createComputerPrelude，经 eval/preludes.ts 注册）；模型写 `browser.open(...)` 等调用，
+ * 每次都在产出里留一条 details.statusEvents = `[{ op, detail }]`，op 即 prelude 名，
+ * detail 是上游自己写的那句（如 `open main https://…`）。单独挑出来说 —— 一次浏览器
+ * 动作不该显示成「运行 JavaScript」。
  */
 const PRELUDE_NAMES: Readonly<Record<string, string>> = {
   browser: '浏览器',
@@ -562,10 +558,7 @@ function preludesOf(ctx: Ctx): readonly string[] {
 
 const evalView: Handler = (ctx) => evalCall(ctx, pick(ctx.input, 'language') ?? 'js')
 
-/*
- * eval 的别名（官方视图表把 js / python / notebook 都指到同一个渲染器）：名字本身
- * 就说了语言，所以入参里没有 language 时按别名来，而不是一律落回 JavaScript。
- */
+/* eval 别名：官方视图表把 js/python/notebook 指到同一渲染器，入参没 language 时按别名来，而非一律落回 JavaScript。 */
 const evalAlias =
   (language: string): Handler =>
   (ctx) =>
@@ -581,10 +574,7 @@ function evalCall(ctx: Ctx, language: string): OmpToolView {
     cells.length === 0
       ? [code(body, EVAL_LANGS[language] ?? '')]
       : cells.map((entry) => code(pick(entry, 'code') ?? '', EVAL_LANGS[language] ?? ''))
-  /*
-   * 那一行字说这次到底在做什么：调了 prelude 就报那件事（「浏览器 打开 main https://x」），
-   * 否则才退回「运行 JavaScript」。两者都报会把一次浏览器动作说成一次脚本运行。
-   */
+  /* 调了 prelude 就报那件事（「浏览器 打开 main https://x」），否则退回「运行 JavaScript」：两者都报会把一次浏览器动作说成脚本运行。 */
   const preludes = preludesOf(ctx)
   const head =
     preludes.length > 0 ? preludes.join('；') : dot(`运行 ${named}`, title ?? oneLine(body))
@@ -891,10 +881,9 @@ const waitView: Handler = (ctx) =>
   view('other', '等待后台结果', '', NONE, failOr(ctx, saidText(ctx)), 'result')
 
 /*
- * hub 是 18.2.11 的协调面入口。钉 18.3.0 后新会话不再报它（这一格收成了 `wait`），
- * 留着是因为磁盘上有 18.2.11 写下的会话：重开旧对话时这些调用要从 jsonl 回放，没有
- * 这一档它们就是裸 JSON。一个 hub 后面可以是发消息也可以是起进程看日志，只报工具名
- * 等于什么都没说。
+ * hub 是 18.2.11 的协调面入口，钉 18.3.0 后新会话不再报它（收成 `wait`）；留着是因为
+ * 磁盘上有 18.2.11 写下的会话，重开旧对话时这些调用要从 jsonl 回放，没有这一档就是裸
+ * JSON。一个 hub 后面可以是发消息也可以是起进程看日志，只报工具名等于什么都没说。
  */
 const HUB_OPS: Readonly<Record<string, string>> = {
   cancel: '终止作业',
@@ -1192,8 +1181,7 @@ const vibeListView: Handler = (ctx) =>
 
 /*
  * xd:// 设备：不是顶层工具，只能经 `write xd://<name>` 到达（omp 的 tools/xdev.ts）。
- * writeView 按 details.xdev.tool 委派，所以这几个名字要认得 —— 委派到一个没有处理器的
- * 名字上，屏幕上就只剩裸名字。
+ * writeView 按 details.xdev.tool 委派，这几个名字要认得 —— 否则屏幕上只剩裸名字。
  */
 const deviceView = (said: string): Handler =>
   function device(ctx) {
@@ -1222,14 +1210,13 @@ function mcpView(name: string, input: unknown): OmpToolView {
 }
 
 /*
- * 表里每一个名字都是 omp 真的会报出来的那一个。
- *
- * - 内建与隐藏工具：tools/builtin-names.ts 的 BUILTIN_TOOL_NAMES + HIDDEN_TOOL_NAMES。
- * - search 是它自己的历史别名（同文件的 LEGACY_BUILTIN_TOOL_NAME_ALIASES → grep）。
- * - apply_patch / puppeteer / js / python / notebook：官方视图表里登记的别名
- *   （dist/tool-views.generated-*.js 的注册表），老会话里存着的名字要认得。
- * - browser / computer：eval 的 prelude（不是顶层工具，见 evalView），但官方视图表按
- *   工具名登记它们，所以这里也留一档。
+ * 表里每个名字都是 omp 真的会报出来的那一个：
+ * - 内建与隐藏工具：tools/builtin-names.ts 的 BUILTIN_TOOL_NAMES + HIDDEN_TOOL_NAMES；
+ *   search 是历史别名（同文件 LEGACY_BUILTIN_TOOL_NAME_ALIASES → grep）。
+ * - apply_patch / puppeteer / js / python / notebook：官方视图表登记的别名
+ *   （dist/tool-views.generated-*.js 的注册表），老会话存着的名字要认得。
+ * - browser / computer：eval 的 prelude（非顶层工具，见 evalView），官方视图表按工具名
+ *   登记它们，故这里留一档。
  * - generate_image / tts / vibe_*：omp 注册的 CustomTool，同样以工具呼叫做出来。
  * - report_issue / resolve / reject / propose：xd:// 设备，经 write 委派到达。
  */
@@ -1302,17 +1289,10 @@ const EMPTY: OmpToolView = {
 }
 
 /*
- * 那一行字认谁。
- *
- * omp 自己带一句 intent（提示里叫 "concise intent"，由模型写：「Reading ADR 0052」
- * 「Checking kap-client drift」），比我们按参数猜得准，所以默认用它。但有两档要压过它
- * —— 与 omp 官方那条路（modes/acp 的 buildToolTitle）同一条优先级：
- *
- * 1. 命令与脚本：`bash` 那一行本来就该是命令本身，模型的概括词盖不过它。
- * 2. 没写 intent 的老会话：退回按参数算出来的那一句。
- *
- * 其余工具（读文件、搜索、派发、清单…）一律听 intent：那是这个 agent 说它自己在做什么，
- * 我们按路径或模式拼出来的那句话只是它的近似。
+ * 折叠行那句话认谁。默认用 omp 自带的 intent（提示里叫 "concise intent"，由模型写，
+ * 比按参数猜得准）；两类压过它 —— 与 omp 官方优先级（modes/acp 的 buildToolTitle）
+ * 一致：命令与脚本那一行该是命令本身，模型的概括词盖不过它；没写 intent 的老会话
+ * 退回按参数算的那句。其余工具一律听 intent，按路径或模式拼的那句只是它的近似。
  */
 const INTENT_OVERRIDDEN: ReadonlySet<string> = new Set(['bash', 'eval', 'js', 'python', 'notebook'])
 

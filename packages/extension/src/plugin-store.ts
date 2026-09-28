@@ -45,31 +45,17 @@ import type { ContributionOrigin } from './origin'
 import { type InstalledSkill, readSkills, skillFrontmatter } from './skill'
 
 /**
- * 「装了什么、开没开、市场上有什么」的唯一持有者。
- *
- * 装了什么由 agent 自己那份 installed.json 说了算 —— 同一个文件，`/plugins` 面板读它，
- * 会话装载读它，我们的界面也读它。屏幕上这份是它的投影：每一次改动都先写那个文件，
- * 写成了才发布快照，所以不存在「界面已经变了、agent 那边还没变」的窗口。
- *
- * 反过来的窗口是存在的，而且不由我们决定：官方文档逐字「Plugin changes apply after
- * /reload or in new sessions」。已经开着的那条会话不会自己更新。
- *
- * 不拆（1155 行）：各状态格子共享同一条串行写队列与同一个发布点，拆开后队列
- * 的所有权就得跨文件协调；插件与技能两条安装流程共用 beginStagedInstall 一条
- * 路径，差别只是参数；「先写 agent 会读的文件、写成才发布」这条顺序不变量
- * 约束每一个动作，拆了就会在两处各养一份顺序。
+ * 「装了什么、开没开、市场上有什么」的唯一持有者。装了什么由 agent 自己那份
+ * installed.json 说了算：每一次改动都先写那个文件，写成了才发布快照。反向的窗口
+ * 不由我们决定 —— 官方文档逐字「Plugin changes apply after /reload or in new sessions」。
+ * 不拆：全部动作共享同一条串行写队列与同一个发布点，且都受「先写文件、写成才发布」
+ * 这条顺序不变量约束。
  */
 
-/**
- * 用户在命令行上装的一个插件。
- *
- * 它不是一个「已安装」的插件：受控 home 生效时，我们开出去的会话只装载受控 home 那本
- * 账里的插件。这一格存在的唯一理由是把「你在别处装过它」这句话说出来 —— 否则目录里
- * 那张卡片写着可安装，而人记得自己装过，屏幕与记忆对不上时人只会认为屏幕坏了。
- */
+/** 用户在命令行上装的插件，但不在受控 home 账本里 —— 存在只为说出「你在别处装过它」，否则目录卡片写「可安装」与人的记忆对不上。 */
 export interface ForeignPlugin {
   readonly pluginId: string
-  /** 人当初给命令行的那一串地址。缺席表示那条记录没记，导入因此没有起点。 */
+  /** 人当初给命令行的地址；缺席表示那条记录没记。 */
   readonly originalSource: string | undefined
   /** 读到它的那本账在哪。 */
   readonly location: string
@@ -77,16 +63,11 @@ export interface ForeignPlugin {
 
 export interface PluginsViewModel {
   readonly plugins: readonly InstalledPlugin[]
-  /* 屏幕上那张 MCP 列表：内置的、这台机器上配好的、插件带来的，同一张表。 */
+  /* 内置的、这台机器上配好的、插件带来的，同一张 MCP 表。 */
   readonly mcpServers: readonly ResolvedMcpServer[]
   readonly mcpPending: number
   readonly mcpFailure: string | undefined
-  /**
-   * 命令行上装过、这里没有的那些。
-   *
-   * 它们不在 plugins 里，因为它们确实没有装在这里。这一格不参与任何状态计算：装了
-   * 什么只有受控 home 那本账说得出来。
-   */
+  /** 命令行上装过、这里没有装的那些。不参与任何状态计算：装了什么只有受控 home 那本账说得出来。 */
   readonly foreign: readonly ForeignPlugin[]
   /** 本机 agent 报的能力清单：某项能力装到哪一步，只有它说得出。 */
   readonly capabilities: CapabilityInventory
@@ -115,17 +96,12 @@ export interface StagingInstall {
   readonly source: PluginInstallSource
 }
 
-/*
- * 已经解到暂存区、等人点头的那一份。
- *
- * 确认这一步拿到的是解码之后的清单，所以人看见的是「要装的到底是什么」，而不是
- * 一句「确定要安装吗」。不点就一直停在这一格，账本上什么也没多。
- */
+/* 已解到暂存区、等人点头的那一份：人看见的是解码后的清单本身，不点就一直停在这格。 */
 export interface StagedInstall {
   readonly kind: 'staged'
   readonly stagingId: string
   readonly source: PluginInstallSource
-  /* 取用时用的那一段子目录。认领的是同一层，所以它要跟着走到 commit。 */
+  /* 取用时的那段子目录，认领的是同一层，要跟着走到 commit。 */
   readonly subdirectory: string | null
   readonly manifest: PluginManifest
   readonly diagnostics: readonly PluginDiagnostic[]
@@ -151,11 +127,8 @@ export interface PluginStore {
   /**
    * 读账本、读技能目录、读环境、取市场目录，然后投一次屏幕。
    *
-   * 交回首扫的落定：账本、技能目录与 mcp.json 读完并投屏之时。MCP 名册在开会话那一刻
-   * 被采样、此后不再重挂，所以开会话的人要先等到它 —— 而市场目录是网络往返，不在这份
-   * 落定里：开一条对话不该等一次 CDN。
-   *
-   * 重复调用是幂等的，交回同一份落定。
+   * 交回首扫的落定：MCP 名册在开会话那一刻被采样、此后不再重挂，要先等到它；市场
+   * 目录是网络往返，不在这份落定里。重复调用幂等，交回同一份落定。
    */
   readonly start: () => Promise<void>
   /** 让下一次 start() 重新首扫。谁 start 谁 stop。 */
@@ -166,23 +139,16 @@ export interface PluginStore {
   readonly setBrowserSettings: (patch: BrowserSettingsPatch) => void
   readonly setEnabled: (pluginId: string, enabled: boolean) => void
   /**
-   * 拨动一台服务器。
-   *
-   * 收的是来源而不是插件号：mcp.json 里那些不属于任何插件，硬塞进账本就得给它们编一个
-   * 假的插件号，而那个号会出现在 agent 的 installed.json 里。开关落在哪份真相里由来源
-   * 说了算：插件在账本里，mcp.json 里那些落回文件本身的 enabled 那一格 —— 与 CLI 拨的
-   * 是同一格。
+   * 拨动一台服务器。收的是来源而不是插件号：mcp.json 里不属于任何插件的没有真插件号。
+   * 开关落在哪份真相由来源说了算：插件的落账本，mcp.json 的落文件本身的 enabled ——
+   * 与 CLI 拨的是同一格。
    */
   readonly setMcpServerEnabled: (
     target: ContributionOrigin,
     server: string,
     enabled: boolean,
   ) => void
-  /**
-   * 把一台服务器写进这个 agent 的 mcp.json —— 内置名单的一键安装。条目正文由调用方
-   * 给：名单知道每台的形状与钥匙落在哪一格，这里只管读—改—写那一趟。同名条目会被
-   * 整个换掉，所以「重装」与「改配置再装」是同一个动作。
-   */
+  /** 把一台服务器写进这个 agent 的 mcp.json —— 内置名单的一键安装。条目正文由调用方给，同名条目整个换掉：「重装」与「改配置再装」是同一个动作。 */
   readonly installEnvironmentServer: (name: string, body: Record<string, unknown>) => void
   /** stdio 条目的启动式解析，内置名单的安装卡片要先把「没有那个程序」说出来。 */
   readonly resolveLauncher: (program: string) => Promise<Launcher | null>
@@ -192,10 +158,8 @@ export interface PluginStore {
   readonly refreshMcpServers: () => void
   /**
    * 本进程托管的那台服务器在 mcp.json 里的条目，对齐到当前地址；body 缺席就拆掉条目。
-   *
-   * 端口每次启动由内核分配，所以这一趟每次启动都要跑，而且要在 agent 进程起来之前跑完 ——
-   * kap 在那一刻读 mcp.json。交回的落定就是「写完了」，拉起 agent 的人等它。界面上的增删改
-   * 同队列、同一条读—改—写：mcp.json 只有一个写者。
+   * 端口每次启动由内核分配，这趟要在 agent 进程起来之前跑完（kap 那一刻读 mcp.json）。
+   * 与界面上的增删改同队列、同一条读—改—写：mcp.json 只有一个写者。
    */
   readonly reconcileHostedServer: (
     name: string,
@@ -203,34 +167,22 @@ export interface PluginStore {
   ) => Promise<void>
   readonly remove: (pluginId: string) => void
   /**
-   * 开始一次安装：下载、解压到暂存区。
-   *
-   * 收的是解好的结构不是字符串 —— 目录卡片手里已经有结构了，渲染成字符串再解析
-   * 回来会丢掉子目录（网页地址里没有无歧义的写法）。输入框那条路自己先解析。
+   * 开始一次安装：下载、解压到暂存区。收解好的结构不是字符串 —— 渲染成字符串再解析
+   * 回来会丢掉子目录（网页地址里没有无歧义的写法）。
    */
   readonly beginInstall: (source: PluginInstallSource) => void
   readonly confirmInstall: () => void
   readonly cancelInstall: () => void
   /** 放弃在途的技能安装。技能没有确认步，所以这里只有「不要了」一个语义。 */
   readonly cancelSkillInstall: () => void
-  /**
-   * 请本机 kap 装一项能力。幂等，装到哪一步由它报回来。
-   *
-   * 这里不下载任何东西：取件、解压、装到哪，全在本机 kap 那一侧。
-   */
+  /** 请本机 kap 装一项能力。幂等，这里不下载任何东西：取件、解压、装到哪全在 kap 那一侧。 */
   readonly installCapability: (capabilityId: string) => void
   /** 重新读取 KAP 能力；连接不存在时由原生运行时建立。 */
   readonly refreshCapabilities: () => void
   readonly refreshMarketplace: () => void
-  /**
-   * 装一个技能：取件、解压、按前言取名、落进 skills/<name>/。一键到底，无确认步 ——
-   * 技能是提示词文本，不带可执行面，风险档比插件低一级。
-   */
+  /** 装一个技能：取件、解压、按前言取名、落进 skills/<name>/。无确认步：技能是提示词文本，风险档比插件低一级。 */
   readonly installSkill: (source: PluginInstallSource) => void
-  /**
-   * 停用或启用一个技能：原生侧改 SKILL.md 的名字，与 CLI 认的是同一个判据。
-   * 正文留在盘上，所以停用不是删除。
-   */
+  /** 停用或启用一个技能：原生侧改 SKILL.md 的名字，与 CLI 同一判据；正文留在盘上，停用不是删除。 */
   readonly setSkillEnabled: (name: string, enabled: boolean) => void
   /** 移到系统回收站，保留可恢复性。 */
   readonly trashInstalledSkill: (name: string) => void
@@ -242,23 +194,15 @@ interface PluginStoreOptions {
   readonly gateway: ExtensionGateway
   /** 本机能力账本的唯一读写路。 */
   readonly capability: CapabilityGateway
-  /**
-   * 市场目录在哪。
-   *
-   * 相对来源相对的就是这个地址，所以这里换一个地址，条目跟着换一个仓库，不需要在
-   * 第二处配一遍。
-   */
+  /** 市场目录地址。相对来源相对的就是它：换一个地址条目跟着换一个仓库，不需要第二处配置。 */
   readonly marketplaceUrl: string
   /** 领域层不摸时钟，时钟从这里交进去。测试因此不需要冻结全局时间。 */
   readonly now: () => string
 }
 
 /*
- * 账本里的一条，解码之后的样子。
- *
- * 开关与清单在同一条记录里，所以拨一个开关不需要回头重读清单：写成之后就地改这一条的
- * enabled 再发布。VS Code 切 enablement 不触发 extension scan，Obsidian 的
- * enabledPlugins 不触发 manifest 扫描，理由就是这个。
+ * 账本里一条记录解码后的样子。开关与清单在同一条记录里，拨开关就地改 enabled 再发布，
+ * 不必回头重读清单（VS Code 切 enablement 不触发 extension scan，同理）。
  */
 interface ScannedPlugin {
   readonly pluginId: string
@@ -292,7 +236,7 @@ export function createPluginStore(options: PluginStoreOptions): PluginStore {
   let scanned: readonly ScannedPlugin[] = []
   /* 最近一次成功读取的配置投影；读取失败不清空。 */
   let environment: readonly DeclaredMcpServer[] = []
-  /* 另一本账里的那些。读不出来就是空 —— 那只意味着这句话说不出来，不意味着装了什么。 */
+  /* 另一本账里的那些；读不出来就是空，不意味着装了什么。 */
   let foreignRecords: readonly ForeignPlugin[] = []
 
   let snapshot: PluginsViewModel = {
@@ -313,11 +257,8 @@ export function createPluginStore(options: PluginStoreOptions): PluginStore {
   }
 
   /*
-   * 这个 store 的状态迁移串行走一条队列。
-   *
-   * 连着拨两个开关会开出两次读—改—写；并发跑的话后写的那次带着更旧的账本，第一个
-   * 开关就被悄悄拨回去了。链成一条队列，每次都在上一次落定之后才动。启动那一趟也在
-   * 这条队列上：它读完账本要投一次屏幕，不能与一次拨动交错。
+   * 状态迁移串行走一条队列：并发跑两次读—改—写时，后写的那次带着更旧的账本，会把
+   * 第一个开关悄悄拨回去。启动那一趟也在这条队列上，不能与一次拨动交错。
    */
   let queue: Promise<void> = Promise.resolve()
 
@@ -325,11 +266,9 @@ export function createPluginStore(options: PluginStoreOptions): PluginStore {
   let ready: Promise<void> | null = null
 
   /*
-   * 两条安装流程各自的世代号。
-   *
-   * 取消只改得了屏幕上的状态，改不了已经飞出去的那一趟取件。带上世代号，落定的结果自己
-   * 就能回答「我还是不是当前这一次」。号按流程分账：共用一个计数器时，开始装一个技能会
-   * 让在途的插件安装在落定时判定自己已过期，而它那一格再没有人拨回去。
+   * 两条安装流程各自的世代号：取消改不了已经飞出去的那一趟取件，落定结果靠它判断
+   * 自己是否过期。按流程分账 —— 共用一个计数器时，装一个技能会让在途的插件安装
+   * 误判过期，而它那一格再没有人拨回去。
    */
   const epochs = { install: 0, skillInstall: 0 }
 
@@ -346,11 +285,7 @@ export function createPluginStore(options: PluginStoreOptions): PluginStore {
     return latestCatalog(snapshot.marketplace)?.entries.find((entry) => entry.id === pluginId)
   }
 
-  /*
-   * 账本 + 清单，投成屏幕上那一份。这一步没有 I/O。
-   *
-   * 走到这里就意味着账本已经读过一遍，所以 loaded 恒真。
-   */
+  /* 账本 + 清单投成屏幕上那一份，没有 I/O。走到这里账本已读过一遍，loaded 恒真。 */
   function republish(): void {
     const plugins: readonly InstalledPlugin[] = scanned.map((entry) => {
       const listed = listing(entry.pluginId)
@@ -380,11 +315,9 @@ export function createPluginStore(options: PluginStoreOptions): PluginStore {
   }
 
   /*
-   * 解一条记录：账本里那几格，加上清单原文解出来的形状。
-   *
-   * 没有 I/O。清单原文由原生侧在列举时一并交过来，所以全部开销就是一次 JSON 解析加一次
-   * schema 校验 —— 此前这里每个插件要为每条声明路径再走一趟原生读目录，而读出来的技能
-   * 与命令没有第二个读者：装载它们的是 CLI。
+   * 解一条记录：账本里那几格，加上清单原文解出来的形状，没有 I/O。清单原文由原生侧
+   * 列举时一并交过来，开销只是一次 JSON 解析加一次 schema 校验（此前每条声明路径
+   * 一趟原生读目录，读出的技能与命令只有 CLI 一个读者）。
    */
   function scan(payload: {
     readonly pluginId: string
@@ -421,11 +354,9 @@ export function createPluginStore(options: PluginStoreOptions): PluginStore {
   }
 
   /*
-   * 这个 agent 自己那份 mcp.json 里已经配好的服务器。
-   *
-   * 不是「这台机器上的所有 MCP」：Cursor、Claude Desktop、Windsurf 各有各的配置文件，
-   * 这个 agent 一个都不读，列出来只会得到一排拨了不生效的开关。哪一份算数由原生侧
-   * 的 agent_home_directory 说了算，这里不猜路径。
+   * 这个 agent 自己那份 mcp.json 里已经配好的服务器，不是「这台机器上的所有 MCP」：
+   * 别家的配置文件它一个都不读，列出来只会得到一排拨了不生效的开关。哪份算数由
+   * 原生侧的 agent_home_directory 说了算。
    */
   async function readEnvironment(): Promise<void> {
     const file = await gateway.readEnvironmentMcpConfig()
@@ -463,12 +394,8 @@ export function createPluginStore(options: PluginStoreOptions): PluginStore {
   }
 
   /*
-   * 另一本账 —— 用户自己那个家里的那一份。只读。
-   *
-   * 读它不是为了把它算进「装了什么」：受控 home 生效时，我们开出去的会话只装载受控
-   * home 那本账，所以这一份里的插件在这里确实没有装上，目录卡片写「可安装」是真话。
-   * 假的是屏幕对此一言不发。
-   *
+   * 另一本账 —— 用户自己那个家里的那一份，只读，不算进「装了什么」：受控 home 生效时
+   * 会话只装载受控账本，这份里的插件在这里确实没装上，目录卡片写「可安装」是真话。
    * null 表示这台机器上没有第二本账（受控 home 没有生效，两边读同一个文件）。
    */
   async function readForeign(): Promise<void> {
@@ -485,9 +412,8 @@ export function createPluginStore(options: PluginStoreOptions): PluginStore {
   }
 
   /*
-   * 写成了才发布。失败不动屏幕：人看到的仍然是账本里那一份。
-   *
-   * 每一次改动都是「先写 agent 会读的那个文件，再改屏幕」，没有第三种顺序。
+   * 写成了才发布，失败不动屏幕：每一次改动都是「先写 agent 会读的那个文件，再改屏幕」，
+   * 没有第三种顺序。
    */
   function commit(what: string, write: () => Promise<void>, after: () => void): Promise<void> {
     queue = queue.then(async () => {
@@ -506,9 +432,8 @@ export function createPluginStore(options: PluginStoreOptions): PluginStore {
   }
 
   /*
-   * mcp.json 的一次读—改—写。原文连同改好的正文一起交给原生侧（写入命令先比对再
-   * 落盘）：这条队列已经把本进程内的改写串成一串，比对挡的是进程外的写者 —— 终端里
-   * 的 CLI 或人手改。写成之后就地重读再投影，屏幕上那份永远来自文件。
+   * mcp.json 的一次读—改—写，原文连同改好的正文一起交给原生侧（写入先比对再落盘）：
+   * 队列串住了本进程内的改写，比对挡的是进程外的写者（终端里的 CLI 或人手改）。
    */
   function performMcp(what: string, action: () => Promise<void>): Promise<boolean> {
     publish({ mcpPending: snapshot.mcpPending + 1 })
@@ -549,12 +474,7 @@ export function createPluginStore(options: PluginStoreOptions): PluginStore {
     return listing(pluginId)?.trust ?? UNLISTED_TRUST
   }
 
-  /*
-   * 启动时那几趟只读取用。
-   *
-   * 一趟坏了不该让另外几趟的结果也进不了屏幕，所以失败在这里落地；「读不出来算什么」
-   * 只有调用方知道，兜底值因此由它给。
-   */
+  /* 启动时那几趟只读取用：一趟坏了不拖累另外几趟进屏幕，兜底值由调用方给。 */
   async function guard(
     what: string,
     read: () => Promise<void>,
@@ -682,13 +602,9 @@ export function createPluginStore(options: PluginStoreOptions): PluginStore {
   }
 
   /*
-   * 取件—暂存—认领这一趟，两条流程同一条代码路径。
-   *
-   * 差别只有三样：状态落在哪一格、怎么暂存、暂存件到手之后做什么。它们是参数，不是第二
-   * 份实现 —— 此前各写一遍，于是「过期就丢掉」那一支在技能那边漏了一半。
-   *
-   * 过期分支不发布：每一次世代号推进都有主人，取消那一路自己发过空闲，被顶掉的那一路
-   * 由顶掉它的那一次发过 staging。这里再发一次只会把新的那一格抹掉。
+   * 取件—暂存—认领这一趟，两条流程同一条代码路径，差别只是三个参数 —— 此前各写
+   * 一遍，「过期就丢掉」那一支在技能那边漏了一半。过期分支不发布：取消那一路自己
+   * 发过空闲，被顶掉的那路由顶掉它的那一次发过 staging，再发只会抹掉新的一格。
    */
   function beginStagedInstall<TStaged extends { readonly stagingId: string }>(
     flow: InstallFlowKey,
@@ -758,12 +674,9 @@ export function createPluginStore(options: PluginStoreOptions): PluginStore {
 
       queue = queue.then(async () => {
         /*
-         * 五趟互不依赖，一起等而不是排成五趟：每一趟都只读，写的只是各自那个模块级
-         * 变量，所以并发跑不会互相盖。首屏因此是一趟往返的时间，不是五趟。
-         *
-         * readCapabilities 不在这里。它经原生侧问的是「这台机器上某项能力装到哪一步」，
-         * 而那条 IPC 会顺手把 agent 拉起来 —— 排在首屏这一批里，等于让开一条对话去等
-         * 一件与它无关的事（见下面的 queueCapabilityRead）。
+         * 五趟互不依赖，一起等而不是排成五趟：每趟只读各自那个模块级变量，并发跑不会
+         * 互相盖，首屏是一趟往返的时间。readCapabilities 不在这批里：那条 IPC 会顺手
+         * 把 agent 拉起来，等于让开一条对话去等无关的事（见 queueCapabilityRead）。
          */
         await Promise.all([
           guard('插件列表读取失败', rescan, () => {
@@ -782,10 +695,7 @@ export function createPluginStore(options: PluginStoreOptions): PluginStore {
           loadCatalog(),
         ])
 
-        /*
-         * 本地真相先上屏。MCP 名册与已装清单只依赖上面那几趟，而名册在开会话那一刻
-         * 被采样、此后不再重挂 —— 它的就绪不能排在一次网络往返之后。
-         */
+        /* 本地真相先上屏：MCP 名册在开会话那一刻被采样、此后不再重挂，就绪不能排在一次网络往返之后。 */
         republish()
       })
 
@@ -797,9 +707,9 @@ export function createPluginStore(options: PluginStoreOptions): PluginStore {
         await readBrowserSettings()
 
         /*
-         * 只有从来没取过才自动拉一次，这条判据由 shouldFetchOnOpen 一个地方说了算，
-         * 而它要等 loadCatalog 落定才问得出来。背书是拿账本里的 pluginId 回目录
-         * 里查出来的，目录到了要再投一次 —— 但开一条对话不等这一趟网络。
+         * 只在从来没取过时才自动拉一次，判据由 shouldFetchOnOpen 一处说了算（要等
+         * loadCatalog 落定才问得出）。背书拿账本里的 pluginId 回目录里查，目录到了
+         * 要再投一次 —— 但开一条对话不等这趟网络。
          */
         if (shouldFetchOnOpen(snapshot.marketplace)) {
           await fetchCatalog()
@@ -891,12 +801,7 @@ export function createPluginStore(options: PluginStoreOptions): PluginStore {
       }
     },
 
-    /*
-     * 卸载 = 账本里那一条没了。
-     *
-     * 装载与不装载都由那份记录说了算，删记录就是卸载本身；托管副本由原生侧顺手清掉，
-     * 那只是清垃圾，不是这件事的语义。
-     */
+    /* 卸载 = 账本里那一条没了：装载与否由记录说了算，删记录就是卸载本身；托管副本由原生侧顺手清。 */
     remove(pluginId) {
       commit(
         '插件没能从 agent 的账本里删掉，界面因此不动',
@@ -1114,10 +1019,8 @@ export function createPluginStore(options: PluginStoreOptions): PluginStore {
   }
 
   /*
-   * 认领：副本进 managed/<id>/，账本里多一条。两件事在原生侧一次做完，因为它们中间
-   * 断开就会留下一条指向空气的记录，而 agent 会照着它去装载。
-   *
-   * 时刻从 options.now() 走。原生侧没有理由持有第二个时间源。
+   * 认领：副本进 managed/<id>/，账本里多一条。两件事在原生侧一次做完 —— 中间断开
+   * 会留下一条指向空气的记录，而 agent 会照着它去装载。时刻从 options.now() 走。
    */
   function adopt(
     stagingId: string,
@@ -1163,10 +1066,7 @@ export function createPluginStore(options: PluginStoreOptions): PluginStore {
   }
 }
 
-/*
- * 清单读不出来的记录仍然是一个装着的插件：它得在界面上占一行，好让人看见原因。
- * 把它从列表里抹掉，人只会看到「我明明装了它却不见了」。
- */
+/* 清单读不出来的记录仍占一行：抹掉它，人只会看到「我明明装了它却不见了」。 */
 function unreadableManifest(name: string): PluginManifest {
   return {
     name,

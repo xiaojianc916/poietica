@@ -62,11 +62,8 @@ import './settings-surface.css'
 
 /*
  * 设置界面外壳：分类导航与内容区两个格子、context 供应，外加通用/外观/隐私/
- * 关于四个内联面板。首屏即带分类。
- *
- * 不拆（923 行）：分类的标签、图标与内容收在 SECTIONS 一张表里，缺任何一列
- * 都是编译错误；内联面板都是 SettingsPanelProps 这一个契约的直接排列，拆出去
- * 只会多出四个没有第二个读者的小文件。
+ * 关于四个内联面板，首屏即带分类。不拆：标签、图标与内容收在 SECTIONS 一张
+ * 表里缺列即编译错误，内联面板都是 SettingsPanelProps 的直接排列。
  */
 
 type SettingsSection =
@@ -89,28 +86,15 @@ type GlyphComponent = ComponentType<{
 }>
 
 /*
- * 一个分类只在这里定义一次：标签、图标、内容各是它的一列。
- *
- * 此前这三件事分在三张表加一个 switch 里，新增一页要改四处，而只有标签那一处
- * 缺键会被 typecheck 拦下；图标那两张表还要靠一个运行时类型守卫去分割分类集合，
- * 守卫本身也得跟着手改。写成一张 Record 之后，缺任何一列都是编译错误。
- *
- * 图标全部取自图标库。此前有五个分类是在这个文件里手描 path 的 —— "通用"那颗
- * 齿轮与侧边栏底部那颗是同一个"设置"，却有两个画法，粗细、齿数、内圆半径都对
- * 不上，而且没有任何机制会在它们分叉时报错。
- *
- * render 是闭包，求值发生在渲染时、晚于模块体，所以它引用下面声明的面板组件合法。
+ * 一个分类只在这里定义一次：标签、图标、内容各是它的一列。此前三件事分在三张表
+ * 加一个 switch 里，新增一页要改四处；图标也曾在文件里手描 path，与库里同款对不上
+ * 且分叉无报错。render 是闭包，求值晚于模块体，引用下面的面板组件合法。
  */
 interface SettingsSectionContext {
   readonly settings: AppSettings
   readonly controller: SettingsController
   readonly agentSettings: AgentSettings
-  /**
-   * agent 自己那份设置目录的持有者，由组合根注入。
-   *
-   * 与 modelCatalog 同一条理由与同一层：目录的真身在 agent 进程里（它的 settings-schema），
-   * 读写都经它的官方写入面。这个包不认识桌面传输层，它的依赖里没有 @tauri-apps/api。
-   */
+  /** agent 自己那份设置目录的持有者，由组合根注入。目录真身在 agent 进程里（它的 settings-schema），读写经它的官方写入面；这个包不认识桌面传输层。 */
   readonly agentSettingsCatalog: AgentSettingsStore
   readonly modelCatalog: ModelCatalogStore
   readonly threads: ThreadsStore
@@ -122,12 +106,7 @@ interface SettingsSectionContext {
   /** 技能名册，由组合根下传：名册属于会话上下文，住在更高的 assistant 环。 */
   readonly skills: readonly AgentSkill[]
   readonly plugins: PluginStore
-  /**
-   * 看一个技能的 SKILL.md，落在哪一列由组合根决定。
-   *
-   * 与 readTokenDays 同一条理由：文档要去的那一列是工作台的右侧栏，而这个包
-   * 不认识工作台。设置页只交出「哪一个」。
-   */
+  /** 看一个技能的 SKILL.md，落在哪一列由组合根决定：那一列是工作台的右侧栏，而这个包不认识工作台。 */
   readonly openSkillDocument: (skillId: string) => void
 }
 
@@ -250,10 +229,8 @@ const SECTION_GROUPS: readonly (readonly SettingsSection[])[] = [
 ]
 
 /*
- * 设置导航与设置内容是外壳栅格里两个互不嵌套的格子（第 1 列与第 2 列）。
- *
- * 它们没有父子关系，所以控制器与当前分类只能由共同祖先持有。这就是这个
- * context 存在的唯一理由：不是为了解耦，而是因为 DOM 上没有别的地方可放。
+ * 设置导航与设置内容是外壳栅格里两个互不嵌套的格子（第 1 列与第 2 列），没有父子
+ * 关系，控制器与当前分类只能由共同祖先持有 —— 这是这个 context 存在的唯一理由。
  * 侧边栏的宽度、拖拽与开合仍然只有 workspaceLayoutStore 一个来源。
  */
 interface SettingsSurfaceContextValue {
@@ -299,11 +276,7 @@ function useSettingsSurface(): SettingsSurfaceContextValue {
 export interface SettingsProviderProps {
   readonly store: SettingsStore
   readonly agentSettings: AgentSettings
-  /**
-   * agent 自己那份设置目录的唯一持有者，由组合根注入。
-   *
-   * 与 modelCatalog 同层同源：那一份也是 agent 自报的，读写都落在 agent 进程。
-   */
+  /** agent 自己那份设置目录的唯一持有者，由组合根注入：那一份也是 agent 自报的，读写都落在 agent 进程。 */
   readonly agentSettingsCatalog: AgentSettingsStore
   /** 模型目录的唯一持有者，由组合根注入：模型页读写经 kap REST 落在 agent 进程。 */
   readonly modelCatalog: ModelCatalogStore
@@ -311,39 +284,15 @@ export interface SettingsProviderProps {
   readonly plugins: PluginStore
   /** KAP 按当前会话报告的技能名册。 */
   readonly threads: ThreadsStore
-  /**
-   * 当前生效的快捷键，由组合根注入。
-   *
-   * 真相在命令注册表里，而这个包不认识 packages/workspace —— 架构规则里
-   * settings ✗→ workspace 是显式禁止的一条。与 appVersion 同一条理由。
-   */
+  /** 当前生效的快捷键，由组合根注入。真相在命令注册表里，架构规则显式禁止 settings ✗→ workspace。 */
   readonly keybindings: KeybindingCatalog
-  /**
-   * 这台机器上，这个应用的数据落在哪，由组合根注入。
-   *
-   * 与 appVersion 同一条理由：这个包不认识桌面传输层，它的依赖里没有
-   * @tauri-apps/api，也不该有。
-   */
+  /** 这台机器上，这个应用的数据落在哪，由组合根注入（同 appVersion：这个包不认识桌面传输层）。 */
   readonly dataDirectory: () => Promise<string>
-  /**
-   * 最近若干天的 token 日账，由组合根注入。
-   *
-   * 与 appVersion 同一条理由：账本在原生侧，而这一层不该认识 native-bridge。
-   */
+  /** 最近若干天的 token 日账，由组合根注入（同 appVersion：账本在原生侧）。 */
   readonly readTokenDays: ReadTokenDays
-  /**
-   * 这个可执行文件自己的版本号，由组合根注入。
-   *
-   * 不在这里直接问 Tauri：功能层认识桌面传输层，就是 ports/settings-store.ts
-   * 那段注释记着的老账。这个包的依赖里也确实没有 @tauri-apps/api。
-   */
+  /** 这个可执行文件自己的版本号，由组合根注入。不直接问 Tauri（见 ports/settings-store.ts 记的那笔老账），这个包的依赖里没有 @tauri-apps/api。 */
   readonly appVersion: () => Promise<string>
-  /**
-   * 这一家 agent 公布的技能名册，由组合根下传。
-   *
-   * 与 readTokenDays 同一条理由，再加一条环序：名册属于会话上下文，住在
-   * assistant 环，本包在 vertical-feature 环，环序禁止反向依赖。
-   */
+  /** 这一家 agent 公布的技能名册，由组合根下传：名册属于会话上下文，住在 assistant 环，环序禁止本包反向依赖。 */
   readonly skills: readonly AgentSkill[]
   /** 打开一个技能的 SKILL.md。与 skills 同源同层：两者说的都是同一份名册。 */
   readonly openSkillDocument: (skillId: string) => void
@@ -589,11 +538,8 @@ interface SettingsPanelProps {
 }
 
 /*
- * 通用页放的是"这台软件怎么陪你干活"，不是杂物抽屉。
- *
- * 三件事按用户心智分组：说话（怎么发出去、干完了怎么告诉我）、后悔（删之前拦
- * 一下）、重来（全部还原）。这也是 Codex / VS Code 一类工具在这一页的形态 ——
- * 通用不是"没地方放的东西"的集合，而是每次会话都会碰到的那几条。
+ * 通用页放的是"这台软件怎么陪你干活"，不是杂物抽屉：说话、后悔、重来三组按用户
+ * 心智排列（同 Codex / VS Code 的通用页形态）。
  */
 const GeneralSettings = memo(function GeneralSettings({
   settings,
@@ -673,10 +619,9 @@ const GeneralSettings = memo(function GeneralSettings({
 })
 
 /*
- * 两张静态表，和 SECTIONS / SECTION_GROUPS 一样属于模块。
- *
- * 形状直接写成基元认的那一种：类型参数保住"只可能是这几个字面量"，
- * onValueChange 的入参因此就是 AppSettings 上那个字段本身，末端不欠一次断言。
+ * 静态选项表，与 SECTIONS / SECTION_GROUPS 一样属于模块。形状直接写成基元认的
+ * 那一种：类型参数保住"只可能是这几个字面量"，onValueChange 的入参就是 AppSettings
+ * 上那个字段本身，末端不欠一次断言。
  */
 const COLOR_MODES: readonly SelectOption<AppSettings['theme']>[] = [
   { value: 'light', label: '浅色' },
@@ -840,13 +785,9 @@ const AboutSettings = memo(function AboutSettings({
   const [directory, setDirectory] = useState<string>()
 
   /*
-   * 版本号问的是这个可执行文件自己。
-   *
-   * 此前这里是写死的 "Version 0.1.0" —— 版本号的第四个真相来源，而
-   * tools/release/check-versions.ts 只对齐 package.json、Cargo.toml 与
-   * tauri.conf.json 那三个，扫不到一段 JSX 里的字符串。
-   *
-   * 读不出来就不写出一个数。一个说错了的版本号比一个没说出来的有害得多。
+   * 版本号问的是这个可执行文件自己，不写死：写死的 JSX 字符串是版本号的第四个
+   * 真相来源，tools/release/check-versions.ts 扫不到它。读不出来就不写出一个数
+   * —— 说错的版本号比没说出来的有害得多。
    */
   useEffect(() => {
     let active = true
@@ -866,11 +807,8 @@ const AboutSettings = memo(function AboutSettings({
   }, [readVersion])
 
   /*
-   * 路径问的是原生侧，与版本号同一条纪律。
-   *
-   * 渲染层没有第二种算法：安装期可以把数据目录指到任何地方，"%LOCALAPPDATA%
-   * 加产品名"这个假设在那一刻就不成立了。一条说错了的路径会把用户的备份引到
-   * 一个空目录。
+   * 路径问的是原生侧，与版本号同一条纪律：安装期可以把数据目录指到任何地方，
+   * 渲染层没有第二种算法，一条说错的路径会把用户的备份引到一个空目录。
    */
   useEffect(() => {
     let active = true

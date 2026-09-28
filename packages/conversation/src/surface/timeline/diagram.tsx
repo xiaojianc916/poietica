@@ -14,13 +14,11 @@ import { CodeBlockCopyButton } from 'streamdown'
 import { CodeIcon, PreviewIcon, ResetIcon, ZoomInIcon, ZoomOutIcon } from '../primitives/icons'
 
 /*
- * 一张图，一块画布。
+ * 一张图，一块画布。自定义渲染器排在上游自带的 mermaid 分支之前，接管 mermaid 围栏；
+ * 面板长什么样归 timeline.css。
  *
- * mermaid 围栏由这里接管：自定义渲染器排在上游自带的 mermaid 分支之前，那套「外层卡片 +
- * 语言标签 + 悬在渲染区上方的按钮 + 内层卡片」因此没有机会出现。面板长什么样归 timeline.css。
- *
- * isIncomplete 由上游给：流式进行中、且这是最后一块、且围栏尚未闭合 —— 官方 Streaming
- * Considerations 一节给的正是这条路径。围栏没闭合的这段时间屏幕上是源码，闭合当场换成图。
+ * isIncomplete 由上游给：流式进行中、最后一块、围栏未闭合 —— 官方 Streaming Considerations
+ * 一节正是这条路径；未闭合期间屏幕上是源码，闭合当场换成图。
  */
 
 type Engine = ReturnType<typeof import('@streamdown/mermaid')['mermaid']['getMermaid']>
@@ -43,12 +41,9 @@ type Ink = {
 type Row = { readonly id: string; readonly inks: readonly Ink[]; readonly tail: string }
 
 /*
- * 引擎的配置只说一次：getMermaid 初始化的是模块级单例，两份配置轮流生效意味着同一段源码
- * 画出两种样子。
- *
- * theme neutral 是灰阶，与这块面板同一个语气；fontFamily 交给 inherit，图里的中文标签因此
- * 和界面同一套字形。securityLevel strict 让标签里的 HTML 不被执行，suppressErrorRendering
- * 让渲染失败不要往文档上挂一张官方错误图 —— 失败该说什么，由下面那个状态决定。
+ * 配置只说一次：getMermaid 初始化的是模块级单例，两份配置轮流生效会让同一段源码画出两种
+ * 样子。securityLevel strict 让标签里的 HTML 不被执行；suppressErrorRendering 让失败不往
+ * 文档上挂官方错误图 —— 失败该说什么由下面的状态决定。
  */
 const CONFIG = {
   fontFamily: 'inherit',
@@ -59,10 +54,8 @@ const CONFIG = {
 } as const
 
 /*
- * 倍率按等比走，不按等差：加法步长在两头的手感是两回事，等比每一档都是 25%。
- *
- * 下限压到 0.1，且适配那一步不封顶 —— 一张巨图要缩到 0.3 才看得全，一张小图放到 2 倍才填得
- * 满这块 26rem 的画布。「适应页面」的含义就是恰好铺满，不是「最多原尺寸」。
+ * 倍率按等比走不按等差：等比每一档都是 25%，加法步长在两头手感不一。适配不封顶 ——
+ * 「适应页面」的含义是恰好铺满，不是「最多原尺寸」。
  */
 const ZOOM_MIN = 0.1
 const ZOOM_MAX = 4
@@ -71,10 +64,7 @@ const ZOOM_RATE = 1.25
 /* 适配后四周留出来的空气，让图不贴着框边。 */
 const INSET = 16
 
-/*
- * 布局引擎按需取，取回来的整个进程共用一台：它在首屏那个 chunk 里是纯负担。动态 import 是
- * ESM 与打包器官方的代码分割形态。
- */
+/* 布局引擎按需取，取回来整个进程共用一台：它在首屏 chunk 里是纯负担。 */
 let engine: Promise<Engine> | undefined
 
 function diagramEngine(): Promise<Engine> {
@@ -95,10 +85,8 @@ function clampZoom(zoom: number): number {
 }
 
 /*
- * 打开时该有的倍率：整张图刚好露出来。
- *
- * 宽高两个方向各算一次，取小的那个 —— 小的那个才是两个方向都装得下的。量不出来（框还没有
- * 尺寸、图没有 viewBox）就交回 undefined，由调用方保持原样，别拿一个 0 把图缩没。
+ * 打开时的倍率：整张图刚好露出来，宽高各算一次取小的。量不出来（框没尺寸、图没
+ * viewBox）交回 undefined 由调用方保持原样，别拿一个 0 把图缩没。
  */
 function fitZoom(host: HTMLElement, of: Size): number | undefined {
   if (of.width === 0 || of.height === 0) {
@@ -116,9 +104,9 @@ function fitZoom(host: HTMLElement, of: Size): number | undefined {
 }
 
 /*
- * 引擎交出来的 svg 自带 width="100%" 与一条 max-width：那是给「跟着栏宽走」用的，在画布上
- * 它意味着图永远只有一栏宽。viewBox 是这张图自己的坐标尺寸（viewBox.baseVal 是 SVG DOM 的
- * 官方读法），按它写死像素，图才有真实大小；缩放是外面那层 transform 的事，与它无关。
+ * 引擎交回的 svg 自带 width="100%" 与 max-width，在画布上意味着图永远只有一栏宽。viewBox
+ * 是图自己的坐标尺寸（viewBox.baseVal 是 SVG DOM 官方读法），按它写死像素才有真实大小；
+ * 缩放是外层 transform 的事。
  */
 function ground(node: SVGSVGElement): Size {
   const box = node.viewBox.baseVal
@@ -149,9 +137,8 @@ function useDiagramSvg(code: string, isIncomplete: boolean) {
 
     if (!isIncomplete) {
       /*
-       * 每画一次换一个 id。引擎拿它造一个临时节点、画完再按 id 把它摘掉，而画出来的那个
-       * svg 自己也带着这个 id 一起交回来 —— id 复用意味着下一次渲染按 id 找到的是上一张
-       * 图。上游同样每次现编一个，HTML 也要求 id 文档内唯一。
+       * 每画一次换一个 id：引擎按 id 造临时节点、画完摘掉，画出的 svg 也带着它 —— id 复用
+       * 会让下一次渲染按 id 找到上一张图。HTML 也要求 id 文档内唯一。
        */
       pass.current += 1
 
@@ -161,7 +148,7 @@ function useDiagramSvg(code: string, isIncomplete: boolean) {
         .then((instance) => instance.render(id, code))
         .then((drawn) => {
           /*
-           * 解析失败时 DOMParser 不抛异常，它交回一份装着 parsererror 的文档（官方
+           * DOMParser 解析失败不抛异常，交回一份装着 parsererror 的文档（官方
            * DOMParser 的 Error handling 一节），所以这里问的是「有没有一个 svg 根」。
            */
           const parsed = new DOMParser().parseFromString(drawn.svg, 'image/svg+xml')
@@ -204,20 +191,11 @@ function darkInk(style: unknown): string | undefined {
 }
 
 /*
- * 围栏是这份语法的入口，不是装饰。
- *
- * tm-grammars 里的 mermaid 是一份 Markdown 注入语法：injectionSelector 写着
- * L:text.html.markdown、fileTypes 是空的，顶层 patterns 只有 mermaid-code-block 与
- * mermaid-code-block-with-attributes 两条围栏规则。裸源码喂进去，顶层一条也匹配不上，每行
- * 退化成一个默认前景色的 token —— 「高亮引擎在跑、屏幕上却一片单色」的成因就在这里，与用不
- * 用官方代码块组件无关。
- *
- * 入口写死在它的 begin 里：(?i)\s*:::\s*mermaid\s*$，闭合是 \s*:::\s*。是 Markdown 容器
- * 指令的三个冒号，不是三个反引号 —— 规则名里的 code-block 说的是容器块。喂反引号顶层一条
- * 也匹配不上，于是整段退化成默认前景色的 token，屏幕上就是一片单色。
- *
- * 所以前后各补一行 :::，拿回 token 再把这两行摘掉。补的是这份语法写明要求的上下文，不是
- * 自己写一个分词器。
+ * tm-grammars 的 mermaid 是一份 Markdown 注入语法：injectionSelector 为 L:text.html.markdown，
+ * 顶层只有 :::mermaid 容器规则（begin 为 (?i)\s*:::\s*mermaid\s*$，闭合 \s*:::\s*；是容器
+ * 指令的三个冒号，不是反引号）。喂裸源码或反引号围栏，顶层一条也匹配不上，整段退化成默认
+ * 前景色 token —— 「高亮引擎在跑、屏幕上却一片单色」的成因，与用不用官方代码块组件无关。
+ * 所以前后各补一行 ::: 拿回 token 再把这两行摘掉，补的是这份语法写明要求的上下文。
  */
 const FENCE = ':::'
 
@@ -235,14 +213,9 @@ function unfence(painted: Painted, lines: number): Painted['tokens'] | undefined
 }
 
 /*
- * 源码也归这块面板自己上色。
- *
- * 官方代码块组件带着一整只壳：外框、圆角、语言标签栏；这块面板要的是与渲染区同一块纯色，
- * 只取它的两样东西：Shiki 的分词，和复制按钮。分词由官方插件的
- * highlight 直接给（与正文里那些围栏共用同一个插件实例、同一份 token 缓存），复制按钮照旧
- * 用官方那一枚。
- *
- * highlight 首次一律返回 null，结果经回调异步到达 —— 那几帧显示的是未上色的纯文本。
+ * 源码归这块面板自己上色：官方代码块组件带着整只壳，这里只要 Shiki 的分词与复制按钮。
+ * 分词由官方插件的 highlight 给（与正文围栏共用同一插件实例与 token 缓存）。highlight
+ * 首次一律返回 null，结果经回调异步到达 —— 那几帧是未上色的纯文本。
  */
 function useSource(source: string): readonly Row[] | undefined {
   const [painted, setPainted] = useState<Painted | undefined>(undefined)
@@ -321,13 +294,9 @@ function Source({ source }: { readonly source: string }) {
 }
 
 /*
- * Ctrl / ⌘ + 滚轮缩放。
- *
- * 只能自己挂监听：React 把 wheel、touchstart、touchmove 一律注册成被动监听器，被动监听里
- * preventDefault 无效，浏览器会照样去缩放整个页面。
- *
- * 不带修饰键的滚轮一概不接 —— 这块面板长在一条会话流里，把滚轮据为己有等于让读者在图上划不
- * 动页面。上游那个 pan-zoom 组件无条件 preventDefault，这一条不抄。
+ * Ctrl/⌘+滚轮缩放。只能自己挂监听：React 把 wheel 等一律注册成被动监听器，被动监听里
+ * preventDefault 无效，浏览器照样缩放整页。不带修饰键的滚轮一概不接 —— 面板长在会话流里，
+ * 不能让读者在图上划不动页面（上游 pan-zoom 无条件 preventDefault，这条不抄）。
  */
 function useWheelZoom(
   stage: React.RefObject<HTMLDivElement | null>,
@@ -364,10 +333,8 @@ function useWheelZoom(
 }
 
 /*
- * 画布的视口。
- *
- * 不用滚动容器：滚动只能沿两条轴走、拖到头就停、还要在图上压两根灰杠。这里是一张摊开的
- * 画布 —— 按住往哪都能拖，位移与倍率合起来是一条 transform。专业绘图工具一律是这个模型。
+ * 画布的视口。不用滚动容器（只两条轴、拖到头就停、图上压两根灰杠）：位移与倍率合成一条
+ * transform，按住往哪都能拖 —— 专业绘图工具一律是这个模型。
  */
 function useCanvas(graphic: SVGSVGElement | undefined) {
   const stage = useRef<HTMLDivElement | null>(null)
@@ -378,10 +345,8 @@ function useCanvas(graphic: SVGSVGElement | undefined) {
   const [view, setView] = useState<View>({ x: 0, y: 0, zoom: 1 })
 
   /*
-   * 回到「适应页面」：位移归零，倍率取刚好装得下的那一档。
-   *
-   * 位移零就是画布中心对准舞台中心 —— 居中不靠对齐属性，靠 transform 的第一段，任何倍率下
-   * 都成立。
+   * 回到「适应页面」：位移归零（画布中心对准舞台中心，靠 transform 第一段居中，任何倍率
+   * 都成立），倍率取刚好装得下的那一档。
    */
   const home = useCallback(() => {
     const host = stage.current
@@ -400,10 +365,7 @@ function useCanvas(graphic: SVGSVGElement | undefined) {
     setView({ x: 0, y: 0, zoom })
   }, [])
 
-  /*
-   * at 是指针相对框中心的位置。缩放前后让它底下那个点原地不动，图就是「以指针为锚」在放大；
-   * 不给 at 就围绕视野中心 —— 按钮走的是这一条。
-   */
+  /* at 是指针相对框中心的位置：缩放前后让它底下那个点原地不动即「以指针为锚」；不给 at 就围绕视野中心（按钮）。 */
   const zoomAt = useCallback((rate: number, at?: { x: number; y: number }) => {
     untouched.current = false
     setView((last) => {
@@ -420,9 +382,8 @@ function useCanvas(graphic: SVGSVGElement | undefined) {
   }, [])
 
   /*
-   * 上屏走 ref 回调，不走 effect：effect 只在依赖变化时跑，而节点是否已经挂上去与依赖无关。
-   * ref 回调由 React 在挂载那一刻调用，数据先到还是节点先到都成立。这一片 DOM 归这个回调独
-   * 有，所以它下面不放任何 React 子节点。
+   * 上屏走 ref 回调不走 effect：effect 只在依赖变化时跑，而节点是否已挂载与依赖无关；ref
+   * 回调在挂载那一刻调用，数据与节点谁先到都成立。这片 DOM 归回调独有，不放 React 子节点。
    */
   const mount = useCallback(
     (host: HTMLDivElement | null) => {
@@ -436,15 +397,9 @@ function useCanvas(graphic: SVGSVGElement | undefined) {
       host.replaceChildren(node)
 
       /*
-       * 换了一张图就在这里重新适配。
-       *
-       * 此前它是一个 useEffect，依赖写着 graphic —— 而 graphic 是这个 hook 的入参，
-       * 不是 hook 自己声明的值：拿它当依赖，规则判它是外层作用域的变量（biome 的
-       * useExhaustiveDependencies）。按建议把它从依赖里删掉则更糟：换图之后再没有
-       * 任何东西触发适配。
-       *
-       * 尺寸就是上一行 ground() 刚量出来的，所以适配的正确位置本来就是这里：节点
-       * 上屏与按新尺寸铺满是同一件事，不必再绕一趟 effect。
+       * 换图就在这里重新适配，不绕 effect：graphic 是 hook 入参，当依赖会被 biome 的
+       * useExhaustiveDependencies 判为外层作用域变量，删掉依赖则换图后无物触发适配。
+       * 尺寸是上一行 ground() 刚量出的，节点上屏与按新尺寸铺满是同一件事。
        */
       home()
     },
@@ -452,9 +407,8 @@ function useCanvas(graphic: SVGSVGElement | undefined) {
   )
 
   /*
-   * 框的尺寸不是一开始就知道的：窗口会缩放，面板在源码视图下是 display: none（量出来是零），
-   * 切回来才有真实尺寸。ResizeObserver 是平台官方的答案，它在开始观察时先报一次当前尺寸，
-   * 首屏那次适配也一并由它兜住。
+   * 框的尺寸不是一开始就知道（源码视图下 display:none 量出零，切回才有真实值）。
+   * ResizeObserver 开始观察时先报一次当前尺寸，首屏适配一并兜住。
    */
   useEffect(() => {
     const host = stage.current
@@ -478,10 +432,7 @@ function useCanvas(graphic: SVGSVGElement | undefined) {
 
   useWheelZoom(stage, zoomAt)
 
-  /*
-   * 按住拖。setPointerCapture 之后指针滑出面板、滑出窗口都还算数，松手才结束 —— 这是指针事
-   * 件规范给的能力，自己在 window 上补 mousemove / mouseup 是同一件事的手写版。
-   */
+  /* 按住拖。setPointerCapture 后指针滑出面板、窗口都还算数，松手才结束（指针事件规范的能力）。 */
   const onPointerDown = (event: PointerEvent<HTMLDivElement>) => {
     if (event.button !== 0) {
       return

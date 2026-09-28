@@ -54,12 +54,10 @@ const EMPTY: Held = {
 }
 
 /**
- * 失败往哪里说一声。与 AgentCapabilityStore 的 CapabilityFailureReport 是同一条
- * 规矩：屏幕要的是「能不能再试一次」，日志与降级要的是「因为什么」，两者不是同
- * 一件事，也不该由同一格承担。
- *
- * 两条分开报，因为它们的处置不同：改不动是 agent 拒了这一次改动，读不回来是这条
- * 对话连不上。可选 —— 这台 store 因此仍然能在 Node 里裸构造单测。
+ * 失败往哪里说一声。与 AgentCapabilityStore 的 CapabilityFailureReport 同一条规矩：
+ * 屏幕要的是「能不能再试一次」，日志与降级要的是「因为什么」，两条分开报、处置不同
+ * —— 改不动是 agent 拒了这次改动，读不回来是这条对话连不上。可选：这台 store 因此
+ * 仍能在 Node 里裸构造单测。
  */
 export interface SessionControlsFailureReport {
   /** set_config 被拒。屏幕上那颗胶囊自己弹回权威值，这里只负责让它留下痕迹。 */
@@ -108,10 +106,8 @@ export class SessionControlsStore {
   /* 会话归属由 TranscriptStore 的 #routes 单点持有。 */
 
   /*
-   * 这条对话此刻在飞的那一次改动，同时是它的队伍。
-   *
-   * 串行不是为了省往返：agent 的答复才是下一步的判据，并发发出去的第二条命令用的
-   * 是一张已经作废的表。
+   * 这条对话此刻在飞的那一次改动，同时是它的队伍。串行不是为了省往返：agent 的答复
+   * 才是下一步的判据，并发发出的第二条命令用的是一张已经作废的表。
    */
   #inflight = new Map<string, Promise<void>>()
 
@@ -119,10 +115,9 @@ export class SessionControlsStore {
   #order = new Map<string, ArrivalOrder>()
 
   /*
-   * 这条对话已经为哪一个意图补发过对齐。
-   *
-   * 同一个意图不补第二次：agent 拒了那一次改动会走 #reopen 拉回权威表，而那正是
-   * #remember 再次被叫到的时刻 —— 不记这一格就是一个自己喂自己的循环。
+   * 这条对话已经为哪一个意图补发过对齐。同一个意图不补第二次：agent 拒了那一次改动
+   * 会走 #reopen 拉回权威表，那正是 #remember 再被叫到的时刻 —— 不记这一格就是
+   * 一个自己喂自己的循环。
    */
   #alignedTo = new Map<string, string>()
 
@@ -137,12 +132,7 @@ export class SessionControlsStore {
 
   snapshot = (): Held => this.#held
 
-  /**
-   * 自己的读者自己收，并交回退订的办法。
-   *
-   * 与 AgentCapabilityStore 同一个形状（subscribe / snapshot 两个箭头字段），
-   * useSyncExternalStore 直接就能用；引用终生不变，订阅不会因为重画而重装。
-   */
+  /** 自己的读者自己收，并交回退订的办法。与 AgentCapabilityStore 同形状（subscribe/snapshot 箭头字段），useSyncExternalStore 直接可用。 */
   subscribe = (listener: () => void): (() => void) => this.#store.subscribe(listener)
 
   start = (): (() => void) => {
@@ -194,11 +184,9 @@ export class SessionControlsStore {
   usageOf = (threadId: string): SessionUsage | undefined => this.#held.usage.get(threadId)
 
   /*
-   * 一份答复到手：新开一条、认领一条、重读一条，三条路唯一的落地处。
-   *
-   * 会话是跟着这条对话一起开出来的，路由、经过、选择器都在同一个答复里，所以这也是
-   * 唯一不需要再问一次的时刻。经过先落地，再谈选择器：它们是同一份答复的两半，谁先
-   * 谁后不该被下游看见。
+   * 一份答复到手：新开一条、认领一条、重读一条，三条路唯一的落地处。路由、经过、
+   * 选择器都在同一个答复里，这也是唯一不需要再问一次的时刻。经过先落地再谈选择器：
+   * 同一份答复的两半，谁先谁后不该被下游看见。
    */
   opened = (answer: OpenedThread): void => {
     if (this.#disposed) {
@@ -239,14 +227,11 @@ export class SessionControlsStore {
   }
 
   /*
-   * 认领一条不是本次运行开出来的对话：让它握住一个会话。
+   * 认领一条不是本次运行开出来的对话：让它握住一个会话。原生侧在同一答复里给出这条
+   * 对话现在持有的会话与整张选择器表，与新开一条走同一条路 —— 选择器只有一个到达口，
+   * 没有"空表"和"读失败"两种半状态。
    *
-   * 原生侧在同一个答复里给出这条对话现在持有的会话，和 agent 为它报的整张选择器表，
-   * 与新开一条对话走的是同一条路 —— 所以选择器只有一个到达口，也就没有"空表"和
-   * "读失败"这两种半状态。
-   *
-   * 已经问过就什么都不做。手上那张表就是 agent 最近一次的原话；它变了的时候 agent
-   * 自己会推过来（start 里订的那一条）。打开一条历史对话不是修改它的时刻。
+   * 已经问过就什么都不做：手上那张表是 agent 最近一次的原话，变了它自己会推过来。
    */
   adopt = (threadId: string): void => {
     if (this.#asked.has(threadId)) {
@@ -256,21 +241,14 @@ export class SessionControlsStore {
     void this.#reopen(threadId)
   }
 
-  /*
-   * 再连一次。
-   *
-   * 失败那一格不在这里清 —— 唯一的清点是拿到权威表的 #remember。这条提示要留到这一趟
-   * 真的落地：连上被清掉，又失败被 #noteSelectorFailure 换掉。交回的承诺决定那颗重试
-   * 图标转多久。
-   */
+  /* 再连一次。失败那一格不在这里清，唯一的清点是拿到权威表的 #remember；交回的承诺决定重试图标转多久。 */
   retrySelectors = (threadId: string): Promise<void> => this.#reopen(threadId)
 
   /**
    * 改这条对话的一项会话设置；答案就是改完之后的整张表。
    *
-   * 批准方式多一件事：它同时是一个跨会话的决定，所以这一次点击既发给这条会话，也
-   * 落成持久意图。写在发出之前，与 default_model 的落盘同一条顺序：失手时盘上那份
-   * 仍是用户上一次真的按下的那一颗。
+   * 批准方式同时是一个跨会话的决定：既发给这条会话，也落成持久意图，写在发出之前
+   * —— 与 default_model 的落盘同一条顺序：失手时盘上那份仍是用户上一次真的按下的那一颗。
    */
   selectControl = (
     threadId: string,
@@ -292,16 +270,12 @@ export class SessionControlsStore {
   }
 
   /*
-   * 下发一次改动，排在这条对话自己的队伍后面。
+   * 下发一次改动，排在这条对话自己的队伍后面；用户选择与 #remember 的自动对齐都经
+   * 这里发出 set_config。队列按对话分不按连接分：同一条对话上的两次改动必须分先后
+   * —— 后一次要用前一次的答复当判据。
    *
-   * 用户选择与 #remember 里的自动对齐都经这里发出 set_config。
-   *
-   * 队列按对话分，不按连接分：两条对话各改各的互不相干，而同一条对话上的两次改动
-   * 必须分先后 —— 后一次要用前一次的答复当判据。
-   *
-   * 失败不把技术原因常驻到会话设置那一格上：那一格说的是"这条对话连没连上 agent"，
-   * 一次改动失败不是那件事。这里向 agent 重问一次权威表，UI 因此回到真正生效的值，
-   * 是权威回滚，不是本地猜一个旧值填回去。
+   * 失败不把技术原因常驻到会话设置那一格：那格说的是"这条对话连没连上 agent"。这里
+   * 向 agent 重问权威表，UI 回到真正生效的值 —— 权威回滚，不是本地猜旧值。
    */
   #dispatch(
     threadId: string,
@@ -351,12 +325,7 @@ export class SessionControlsStore {
     return run
   }
 
-  /*
-   * 把这条对话重新打开一次，拿回权威的整张表。
-   *
-   * 交回一个可等待的东西，因为下发失败之后队伍里的下一条要等它落地 —— 不等就会拿着
-   * 一张已经作废的表出发。
-   */
+  /* 重新打开一次，拿回权威的整张表。交回可等待的东西：下发失败后队伍里的下一条要等它落地，否则拿着已作废的表出发。 */
   async #reopen(threadId: string): Promise<void> {
     if (this.#disposed) {
       return
@@ -411,10 +380,8 @@ export class SessionControlsStore {
   }
 
   /*
-   * 记下这条对话现在握着哪个会话。
-   *
-   * 会话是在 port.open() 里诞生（或被装载回来）的，所以那一处就是这张反查表唯一
-   * 建立得起来的时刻。列表读回来的那些号不算：它们可能是上一次运行留下的，而推送
+   * 记下这条对话现在握着哪个会话。会话在 port.open() 里诞生（或被装载回来），这是
+   * 反查表唯一建立得起来的时刻；列表读回来的那些号可能是上一次运行留下的，而推送
    * 只会来自活着的会话。
    */
   #hold(answer: OpenedThread): void {
@@ -426,12 +393,9 @@ export class SessionControlsStore {
   }
 
   /*
-   * agent 自己报来了一张新表。
-   *
-   * 到达口仍然是 #remember —— 与 open 和 select 同一个。所以这不是第三条取数路径，
-   * 只是第三个说话的人；失败那一格照样清。
-   *
-   * 认不得的会话号直接丢掉，那是别的连接或者已经不在的对话。
+   * agent 自己报来了一张新表，到达口仍然是 #remember —— 不是第三条取数路径，只是
+   * 第三个说话的人；失败那一格照样清。认不得的会话号直接丢：那是别的连接或已不在
+   * 的对话。
    */
   #reported(report: SessionConfigReport): void {
     const threadId = this.#transcripts?.ownerOf(report.sessionId)
@@ -444,11 +408,7 @@ export class SessionControlsStore {
     this.#remember(threadId, report.controls, report.goal)
   }
 
-  /*
-   * agent 报来了一份用量。
-   *
-   * 推送按会话归属更新；#reopen 的快照只补尚无用量的对话，不覆盖已有推送。
-   */
+  /* agent 报来一份用量，按会话归属更新；#reopen 的快照只补尚无用量的对话，不覆盖已有推送。 */
   #usageReported(report: SessionUsageReport): void {
     const threadId = this.#transcripts?.ownerOf(report.sessionId)
 
@@ -475,25 +435,17 @@ export class SessionControlsStore {
   }
 
   /*
-   * 一张表到了。这是三条路（open / select / agent 主动上报）唯一的汇合处。
-   *
-   * 原样存下来。屏幕上写的就是 agent 说的那一句，中间没有第二个人插话 —— 这条会话
-   * 此刻在用什么，只有它自己有资格回答。
-   *
-   * 唯一一处例外是批准方式正在补发的那一趟：那时画的是要收敛到的那一档（见
-   * projectPosture）。中间值照原样画出来，屏幕上就会先闪一下新会话的默认档、再跳回
-   * 用户上次选的那个 —— 那一闪是一个用户从没选过、也马上要被覆盖的值。
+   * 一张表到了：三条路（open / select / agent 主动上报）唯一的汇合处，原样存下来
+   * —— 这条会话此刻在用什么，只有 agent 自己有资格回答。唯一例外是批准方式正在
+   * 补发的那一趟：画的是要收敛到的那一档（见 projectPosture），否则屏幕会先闪一个
+   * 用户从没选过、马上要被覆盖的中间值。
    */
   #remember(
     threadId: string,
     offered: readonly SessionConfigControl[],
     goal?: SessionGoal | null,
   ): void {
-    /*
-     * 判据全部来自刚落地的那张表：agent 提供哪些档位由它说了算。同一个意图只补一次 ——
-     * agent 拒了那次改动会报回它真在用的那一档，而那时这里会再次被叫到，不记这一格
-     * 就是一个自己喂自己的循环。
-     */
+    /* 判据全来自刚落地的那张表：agent 提供哪些档位由它说了算。同一意图只补一次，见 #alignedTo。 */
     const decision = pendingPostureAlignment(offered, this.#posture?.read())
     const aligning =
       decision === undefined || this.#alignedTo.get(threadId) === decision.wanted
@@ -528,11 +480,7 @@ export class SessionControlsStore {
     })
   }
 
-  /*
-   * 换一份状态，然后叫一声。
-   *
-   * 没变就不叫：两张表的引用相同意味着这次提交什么都没改，而每一声都是一次重画。
-   */
+  /* 换一份状态再叫一声；引用相同即这次提交什么都没改，不叫 —— 每一声都是一次重画。 */
   #commit(patch: Partial<Held>): void {
     if (this.#disposed) {
       return

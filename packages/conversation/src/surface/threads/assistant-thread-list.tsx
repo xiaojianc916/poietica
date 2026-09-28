@@ -16,43 +16,18 @@ import { datedGroupsOf, instantsOf, nextChangeIn, paintedGroupsOf } from './rela
 import { ThreadDisclosure } from './thread-disclosure'
 
 /*
- * 会话列表。
- *
- * 一级索引是**工作区**，不是时间桶 —— 判据的正文与分组算法都在 threads/thread-order，
- * 这里只把分好的组画出来（与库那条 ORDER BY 同源）。
- *
- * 收起了哪些工作区也不由这一层持有：那是一份跨窗口、跨重启存活的宿主偏好，
- * 从 props 进来（collapsedWorkspaces / onToggleWorkspace）。展示组件绑死一份
- * 模块级可变状态的话，同一份界面在一个进程里画两次会互相打断，也没法在没有
- * Web Storage 的环境里渲染。这一层自己只留一件视图状态：每组已经展开到第几条。
- *
- * 一行是一个组件（重命名表单、时间格、固定按钮、四项菜单都在行内）：行做成
- * 可比较的组件，时钟每跳一次、草稿每多一个字符才不必重建整张列表。一行的尾部
- * 只有一个格子：时间与操作叠在同一个网格单元上，宽度取两者较大者，图标出现时
- * 标题不动。谁在画只由一件事决定 —— 这一行是否正被介入：指针在行上、键盘落在
- * 行内、或它自己的菜单开着。三者等价，汇成 CSS 里的一条判定。
- *
- * 菜单那一路由本组件持有的 isMenuOpen 显式上报，不再靠 CSS 去嗅探触发器身上
- * 的 aria-expanded：那个属性在关闭动画的第一帧就落回 false，比弹层早消失一拍。
- *
- * 加号是入口，不是记录：它把「新建会话」那一格交给工作台去开或去激活，
- * 不在数据库里先造一条没人说过话的会话。它只长在组头上 —— 面板顶那一栏是
- * 工作目录本身（WorkspacePicker），不是这张列表的标题，新建跟着工作区走。
- *
- * 不拆（829 行）：列表、行与重命名场是同一格的三件 —— 行做成 memo 组件依赖
- * 列表层回调保持稳定，重命名草稿住行里才不会每敲一个字重渲整张列表；三节
- * 从同一份 painted 投影拆出，拆开就要三处各解析一遍时间。
+ * 会话列表。一级索引是工作区，不是时间桶 —— 分组判据与算法在 threads/thread-order，这里只画。
+ * 收起的工作区是跨窗口、跨重启的宿主偏好，从 props 进来：展示组件绑死模块级可变状态，同屏画
+ * 两次会互相打断；本层只留「每组展开到第几条」。加号不是记录：把「新建会话」交给工作台去开
+ * 或激活，不在库里先造一条没人说过话的会话。菜单开合由 isMenuOpen 显式上报，不靠 CSS 嗅探
+ * aria-expanded —— 它在关闭动画第一帧就落回 false，比弹层早一拍。不拆：行是 memo 组件、
+ * 重命名草稿住行里，否则时钟每跳一次、每敲一个字都重渲整张列表。
  */
 
 export interface AssistantThreadSummary {
   readonly id: string
   readonly title: string
-  /**
-   * 最后一次活动的时刻，ISO-8601。
-   *
-   * 传时刻而不是传算好的文案：文案随墙上时间变化，只有持有时钟的这一层
-   * 才有资格算它。
-   */
+  /** 最后一次活动的时刻，ISO-8601。传时刻不传文案：只有持有时钟的这一层才算文案。 */
   readonly updatedAt: string
   readonly isMuted?: boolean
   readonly isPinned?: boolean
@@ -72,11 +47,7 @@ export interface AssistantThreadListProps {
   readonly projectlessWorkspaces?: ReadonlySet<string>
   /** True while the list is still being read for the first time. */
   readonly isLoading?: boolean
-  /**
-   * 读不出来时的说法。
-   *
-   * 空列表与读失败是两件事，此前它们画的是同一句「还没有对话」。
-   */
+  /** 读不出来时的说法：空列表与读失败是两件事，不能共用一句「还没有对话」。 */
   readonly failure?: string | null
   readonly activeThreadId: string | null
   /** 正在跑的那些对话。行首那一格由它决定画不画。 */
@@ -97,11 +68,8 @@ export interface AssistantThreadListProps {
 const PLACEHOLDER_WIDTHS = ['72%', '54%', '64%', '46%']
 
 /*
- * 一组先画多少条。
- *
- * 侧栏不是归档界面：一个长期用着的工作区能攒上几百条，一次全画出来只会把其余
- * 工作区推到屏幕之外。标杆客户端在这里给的是一枚「更多」，每按一次多给一页 ——
- * 增量展开，而不是分页跳转，因为这一列没有「第 2 页」这种位置感。
+ * 一组先画多少条。侧栏不是归档界面：几百条一次全画会把其余工作区推出屏幕，给「更多」
+ * 增量展开而非分页 —— 这一列没有「第 2 页」的位置感。
  */
 const PAGE = 10
 
@@ -113,11 +81,8 @@ const NO_PROJECTLESS_WORKSPACES: ReadonlySet<string> = new Set()
 const EMPTY = ''
 
 /*
- * 列表本体之外那一句话。
- *
- * 三种处境互斥，而此前只分了两种：还在读就画骨架，读完是空的就说「还没有对话」——
- * 读失败也落在同一句上。那是一个只有读成功才成立的断言，被用来报告读失败。而失败
- * 的说法一直是有的：store 算出 failure（threads/thread-order 的 ThreadWorkspaceList）。
+ * 列表本体之外那句话。三种处境互斥，读失败此前也落在「还没有对话」上 —— 那是只有读成功
+ * 才成立的断言；失败文案由 store 给出（threads/thread-order 的 ThreadWorkspaceList）。
  */
 function noticeOf(failure: string | null | undefined, count: number): string | null {
   if (failure !== null && failure !== undefined) {
@@ -127,12 +92,7 @@ function noticeOf(failure: string | null | undefined, count: number): string | n
   return count === 0 ? EMPTY : null
 }
 
-/*
- * 固定与取消固定是同一枚图钉的两种填法。
- *
- * 图标库有 pin 的 solid 变体，于是「已固定」画实心图钉，「未固定」画线稿：
- * 同族字形、同一轮廓，语义由填充承担。
- */
+/* 已固定画实心图钉、未固定画线稿：同族字形，语义由填充承担。 */
 function PinGlyph({ isPinned }: { readonly isPinned: boolean }) {
   const Glyph = isPinned ? PinOff : PinIcon
 
@@ -154,14 +114,9 @@ interface RenameFieldProps {
 }
 
 /*
- * 重命名中的那一行。
- *
- * 草稿住在这里，因为它是这一行的临时输入状态：此前它住在列表上，于是每敲
- * 一个字符整张列表连同每行的菜单根都要重渲一次。
- *
- * ref 用 useCallback 钉住标识。此前是内联箭头，每次渲染都是新函数，React
- * 因此每次都 detach 再 attach，于是每敲一个字符输入框就被整体全选一次——
- * 想在中间插字是插不进去的。挂载时选中一次，才是重命名该有的行为。
+ * 重命名中的那一行。草稿住行里：此前住列表上，每敲一个字符整张列表重渲一次。
+ * ref 用 useCallback 钉住标识：内联箭头每次渲染都是新函数，React 反复 detach 再 attach，
+ * 每敲一个字符输入框就被全选一次，中间插不了字。挂载时只选中一次。
  */
 function RenameField({ initial, onCommit, onCancel }: RenameFieldProps) {
   const [draft, setDraft] = useState(initial)
@@ -171,21 +126,10 @@ function RenameField({ initial, onCommit, onCancel }: RenameFieldProps) {
   }, [])
 
   /*
-   * 一次重命名只了结一次，而「了结」有两种结局。
-   *
-   * 闩防的是输入框的卸载，不是提交本身：无论 Enter 提交还是 Escape 放弃，
-   * 这一行都会切回非重命名分支，输入框因此卸载，浏览器紧跟着派发一次 blur ——
-   * 而 blur 也接在这个出口上。于是一次动作走两遍：rename 落两遍库、发两遍
-   * 通知、列表刷两遍。上层那句 trim().length > 0 拦不住它，两次的标题一模
-   * 一样，都非空。
-   *
-   * 闩此前只装在提交那一路。Escape 走 onCancel 卸载输入框，随后那次 blur
-   * 落进未闩的 commit —— 按下取消，草稿被提交。取消键做了提交键的事，而
-   * 这两条路径共用的那个前提（卸载会再派发一次 blur）就写在上面。
-   *
-   * 所以闩属于「这次重命名结束了」，不属于其中某一个结局。两条出口共用它，
-   * 先到的那个说了算。去重放在这一层而不是 store 里：这一层知道这些出口
-   * 通向同一次了结，store 不知道，它只会看到两条合法的重命名。
+   * 一次重命名只了结一次，闩属于「了结」而不属于某个结局：Enter 或 Escape 都会让输入框
+   * 卸载、紧跟着派发一次 blur，而 blur 也接在这个出口上 —— 不闩就 rename 落两遍库（两次
+   * 标题都非空，上层 trim 拦不住）；闩若只装提交那一路，Escape 卸载后的 blur 会把草稿当
+   * 提交。两条出口共用，先到者说了算。去重放这层而非 store：只有这层知道出口通向同一次了结。
    */
   const settled = useRef(false)
 
@@ -237,9 +181,8 @@ function RenameField({ initial, onCommit, onCancel }: RenameFieldProps) {
 const TRAILING_ORDINAL = /^(?<base>.*)(?<ordinal>\(\d+\))$/su
 
 /*
- * 一行的标题。带分叉序号的名字拆成两段：正文那一段吃省略号，序号钉在末尾 ——
- * 数据层的宽度上限（thread-title.ts）保证多数时候整串放得下，这里守的是侧栏
- * 更窄的那些时刻。普通标题原样一段，不动既有样式。
+ * 带分叉序号的名字拆两段：正文吃省略号，序号钉在末尾。thread-title.ts 的宽度上限
+ * 保证多数时候整串放得下，这里守侧栏更窄的时刻。
  */
 function ThreadTitle({ title }: { readonly title: string }) {
   const matched = TRAILING_ORDINAL.exec(title)
@@ -267,8 +210,7 @@ interface ThreadRowProps {
   readonly isActive: boolean
   readonly isRunning: boolean
   readonly isRenaming: boolean
-  /** 上层给不给重命名这个能力。给不了就不画那一项 —— 画一个点了没反应的菜单项，
-   * 比不画更糟：重命名那一项还会让人先敲完字，再把它静默丢掉。 */
+  /** 上层给不给重命名。给不了就不画那一项 —— 点了没反应的菜单项比不画更糟。 */
   readonly canRename: boolean
   readonly onActivate: (threadId: string) => void
   readonly onPin: (threadId: string, pinned: boolean) => void
@@ -280,10 +222,8 @@ interface ThreadRowProps {
 }
 
 /*
- * 时间以两个字符串进来，不是一个对象。
- *
- * 对象每次都是新引用，memo 会次次落空；传字符串，时钟跳动时只有文案真的
- * 变了的那几行才重渲——"3 天前"的行整晚不动。
+ * 时间以两个字符串进来，不是对象：对象每次都是新引用，memo 次次落空；传字符串，
+ * 时钟跳动时只有文案真变了的那几行重渲。
  */
 const ThreadRow = memo(function ThreadRow({
   thread,
@@ -302,15 +242,10 @@ const ThreadRow = memo(function ThreadRow({
   onArchive,
 }: ThreadRowProps) {
   /*
-   * 菜单开合是这一行的状态，所以它住在这一行里。
-   *
-   * 受控而不是放任：行尾那一格要在菜单打开期间保持显示操作，而弹层是 Portal
-   * 到 body 的 —— 行的 :hover 与 :focus-within 都够不着它。此前 CSS 去看触发器
-   * 的 aria-expanded 来补这一段，但那个属性在关闭动画开始时就落回 false，菜单
-   * 还在屏幕上，图标已经灭了、时间已经冒出来了。
-   *
-   * open / onOpenChange 是 Base UI Menu.Root 的一等能力（DropdownMenu 就是
-   * Menu.Root 的再导出），不是这里自己造的开关。
+   * 菜单开合是这一行的状态，受控：弹层 Portal 到 body，行的 :hover/:focus-within 够不着
+   * 它，行尾那一格要在菜单打开期间保持显示操作。不靠 CSS 嗅探 aria-expanded —— 它在关闭
+   * 动画开始时就落回 false，菜单还在屏上、图标已经灭了。open/onOpenChange 是 Base UI
+   * Menu.Root 的一等能力（DropdownMenu 即其再导出），不是自造开关。
    */
   const [isMenuOpen, setIsMenuOpen] = useState(false)
 
@@ -354,10 +289,7 @@ const ThreadRow = memo(function ThreadRow({
 
           {/* 时间与操作共用这一个格子，谁可见由同一个判定决定。 */}
           <span className="assistant-thread__trail">
-            {/*
-                <time> 而不是 <span>：这一格说的是一个时刻，读屏软件与悬停都
-                应当拿得到准确值，相对文案只是它的近似说法。
-              */}
+            {/* <time> 而非 <span>：读屏与悬停要拿得到准确时刻，相对文案只是它的近似说法。 */}
             {elapsed === null ? null : (
               <time
                 className="assistant-thread__time"
@@ -379,11 +311,9 @@ const ThreadRow = memo(function ThreadRow({
               </button>
 
               {/*
-                  Not modal: a modal menu locks pointer events outside itself,
-                  so the click that dismissed it was swallowed instead of
-                  landing on the row it was aimed at.
-
-                  受控：开合状态上报给这一行，行的底色与行尾那一格据此保持。
+                  Not modal: a modal menu locks pointer events outside itself, so the
+                  click that dismissed it was swallowed instead of landing on the
+                  row it was aimed at. 受控：开合状态上报给行，行底色与行尾格子据此保持。
                 */}
               <DropdownMenu modal={false} onOpenChange={setIsMenuOpen} open={isMenuOpen}>
                 <DropdownMenuTrigger aria-label="更多操作" className="assistant-thread__action">
@@ -391,9 +321,9 @@ const ThreadRow = memo(function ThreadRow({
                 </DropdownMenuTrigger>
 
                 {/*
-                    DropdownMenuContent is rendered through a Portal. Reapply
-                    the AI skin at this DOM boundary so the --cp-* tokens
-                    survive leaving the sidebar subtree.
+                    DropdownMenuContent renders through a Portal; reapply the AI skin
+                    at this DOM boundary so the --cp-* tokens survive leaving the
+                    sidebar subtree.
                   */}
                 <DropdownMenuContent
                   align="end"
@@ -462,27 +392,11 @@ interface WorkspaceHeaderProps {
 }
 
 /*
- * 一个工作区的组头。
- *
- * 它就是这一列里的另一行：与会话行同高、同缩进、同圆角、同悬停底色，
- * 名字同字号同墨色。区别只在于它说的是「下面这张列表属于哪个目录」，
- * 而不是一条对话。此前它是另一套东西：12px 的手转箭头、micro 号灰色
- * 小字、行尾一枚计数 —— 三个数都来自「段标题」这个旧的自我定位，
- * 于是同一列上下两段各用一套尺子。
- *
- * 开与合是两枚文件夹，不是一枚箭头的两个角度，也不是一枚文件夹的两种
- * 填法：此前库里没有 folder-open，只好展开画实心 —— 而实心在这一列已被
- * 图钉占去表示「已固定」，同一种填法不能说两件事。现在两枚都是轮廓，几
- * 何取自 Lucide，住在设计系统的本地字形里。具体会话行不再绘制前导
- * message 图标；文件夹只属于工作区组头，工作区与会话的层级不会混淆。
- *
- * 不数条数：条数是一个没有人问过的问题，它占着行尾，只是让名字在
- * 数字变化时多抖一次。
- *
- * 组头是一个按钮，不是一行装饰文字：它要能收起这个工作区，所以
- * aria-expanded 说的是下面那张列表在不在，而不是它自己的样子。收与展
- * 是往上报的一件事，不是在这里就地去写一份全局状态 —— 这一格和它旁边
- * 那枚加号现在遵守同一条规矩。
+ * 工作区组头，就是这一列里的另一行：与会话行同高同缩进同悬停底色，说的只是「下面这张列表
+ * 属于哪个目录」。开与合是两枚轮廓文件夹 —— 展开曾画实心，而实心已被图钉占用表示「已固定」，
+ * 同一种填法不能说两件事；文件夹只属于组头，工作区与会话的层级不混淆。不数条数：没人问过
+ * 条数，它只会让名字在数字变化时多抖一次。组头是按钮：aria-expanded 说的是下面那张列表在
+ * 不在，收与展往上报，不就地写一份全局状态。
  */
 function WorkspaceHeader({ workspaceId, name, isOpen, onCreate, onToggle }: WorkspaceHeaderProps) {
   const createLabel = `在${name}中新建对话`
@@ -554,11 +468,7 @@ export function AssistantThreadList({
   onExport,
   onArchive,
 }: AssistantThreadListProps) {
-  /*
-   * 时钟在这里进来一次，整张列表共用；每行不再各自读一次墙上时间。
-   *
-   * 同时告诉它这一屏下一次会变的时刻：它不按拍子轮询，睡到那一刻为止。
-   */
+  /* 时钟进来一次整张列表共用，不各行读墙上时间；它睡到下一次会变的时刻，不轮询。 */
   const now = useNow()
 
   /* 两级投影：时刻与绝对文案只随数据变，相对文案才随时钟变。 */
@@ -566,10 +476,8 @@ export function AssistantThreadList({
   const painted = useMemo(() => paintedGroupsOf(dated, now), [dated, now])
 
   /*
-   * 固定是一个独立的顶层入口，不再同时留在工作区下面。
-   *
-   * 从已经算好时间文案的投影里拆，避免为同一行重复解析日期。固定列表跨工作区，
-   * 因此按最近活动时间统一排序；Repositories 保留原来的工作区顺序。
+   * 固定是独立顶层入口，从已算好时间文案的投影里拆出，避免为同一行重复解析日期；
+   * 固定列表跨工作区故按最近活动统一排序，Repositories 保留工作区顺序。
    */
   const pinned = useMemo(
     () =>
@@ -613,11 +521,8 @@ export function AssistantThreadList({
   const [renamingId, setRenamingId] = useState<string | null>(null)
 
   /*
-   * 每组已经展开到第几条。
-   *
-   * 放在这一层而不是组头里：map 里开不了 hook，而组的身份会随数据增删变化 ——
-   * 状态跟着组件走就会在重挂载时丢。它只活这一次会话，所以不落盘；收起来那一份
-   * 要活得更久，因此不在这里，由宿主传进来。
+   * 每组展开到第几条。放这层而非组头：map 里开不了 hook，且组身份随数据增删变化，
+   * 状态跟着组件走会在重挂载时丢。只活本次会话故不落盘；要活过重启的收起状态由宿主传。
    */
   const [shown, setShown] = useState<ReadonlyMap<string, number>>(NO_PAGES)
 
@@ -625,12 +530,7 @@ export function AssistantThreadList({
     setShown((held) => new Map(held).set(workspaceId, (held.get(workspaceId) ?? PAGE) + PAGE))
   }, [])
 
-  /*
-   * 首帧给出行的形状，不给结论。
-   *
-   * "还没有对话"是一个只有读完才成立的断言，把它当加载态显示，等于每次
-   * 开窗都先告诉用户一件错误的事。骨架行是列表类界面的通行做法。
-   */
+  /* 首帧给行的形状不给结论：「还没有对话」只有读完才成立，当加载态显示等于先说错话。 */
   const showPlaceholders = isLoading === true && groups.length === 0
 
   const notice = showPlaceholders ? null : noticeOf(failure, groups.length)
@@ -721,16 +621,10 @@ export function AssistantThreadList({
 
           {repositories.map((group) => {
             /*
-             * 名字缺席的那一组不长组头。
-             *
-             * 缺席说的是「这些对话的工作目录还没有被记下来」，不是「它们没有工作
-             * 区」：会话本来就是对着一个目录开的。缺的是那个目录到这一层的路，所以
-             * 这里没有任何东西可以写在组头上。替它编一个名字（此前写的是「默认工作
-             * 区」）不是省事，是造一个用户问得出「它在哪」而界面答不上来的标题。
-             *
-             * 于是这一组按它本来的样子画：一列对话，没有标题，也没有折叠 —— 收不收
-             * 起一个说不出名字的东西，不是一个能提给用户的选择。原生侧把目录记下来
-             * 之后，它自然长出名字与组头，这一层不用再改。
+             * 名字缺席的组不长组头：缺席说的是「工作目录还没被记下来」，不是没有工作区 ——
+             * 会话本来就对着目录开。编一个「默认工作区」是造一个用户问得出「在哪」而界面
+             * 答不上的标题。于是按本来的样子画：无标题、无折叠（收不起一个说不出名字的
+             * 东西）；原生侧把目录记下后自然长出名字与组头，这层不用再改。
              */
             const named = group.name
             const isOpen = named === null || !collapsedWorkspaces.has(group.id)
