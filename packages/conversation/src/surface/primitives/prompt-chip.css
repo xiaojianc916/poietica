@@ -1,19 +1,40 @@
-/* 一枚记号就是一段有颜色的字：字号、行高、基线全部随输入框。 */
+/* 几何与配色取自 DSH 的 composer inline chip：inline-flex、3px 间隙、8px 圆角、左右 4px、上限 240px。 */
 .assistant-prompt-chip {
-  color: #2563eb;
+  display: inline-flex;
+  align-items: baseline;
+  gap: 3px;
+  max-inline-size: 240px;
+  border-radius: var(--ui-radius-md);
+  padding: 0 4px;
+  color: var(--cp-chip-ink);
+  line-height: inherit;
+  vertical-align: baseline;
   white-space: nowrap;
+  /* 断行时圆角与底色各给一半，断面才是圆角。 */
+  -webkit-box-decoration-break: clone;
+  box-decoration-break: clone;
 }
 
-/*
- * Preflight 把裸 svg 压成 display: block，不纠它图标就自成一行；
- * inline-block 回到行内，随基线对齐。
- *
- * 尺寸写在这里而不是各个调用点：所有记号同一副几何。
- */
+/* 悬停底只在草稿里给：转录里那一枚是只读的。 */
+[data-slot="prompt-input-editor"] .assistant-prompt-chip {
+  user-select: none;
+  transition: background-color var(--cp-motion-swift) var(--cp-motion-ease);
+}
+
+[data-slot="prompt-input-editor"] .assistant-prompt-chip:hover {
+  background: var(--cp-chip-hover);
+}
+
 .assistant-prompt-chip__icon {
-  display: inline-block;
-  inline-size: 12px;
-  block-size: 12px;
-  margin-right: 3px;
-  vertical-align: -2px;
+  flex: none;
+  align-self: center;
+  inline-size: 14px;
+  block-size: 14px;
+}
+
+/* 名字是唯一可截断的那一段。 */
+.assistant-prompt-chip__label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }

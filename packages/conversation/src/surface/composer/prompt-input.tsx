@@ -31,7 +31,7 @@ import {
 import { flushSync } from 'react-dom'
 import type { ChatStatus } from '../../agent/run'
 import type { PromptConfiguration, PromptSkill } from '../../agent/session'
-import type { ComposerAsset } from '../../composer/attachment'
+import { type ComposerAsset, isInlineAttachment } from '../../composer/attachment'
 import type { ComposerDraft } from '../../composer/drafts'
 import {
   canSubmitDraft,
@@ -136,20 +136,18 @@ export interface PromptInputHandle {
   readonly focus: () => void
 }
 
-type ElementChip = Extract<PromptChipValue, { kind: 'element' }>
+type InlineChip = Extract<PromptChipValue, { kind: 'element' | 'file' }>
 
 interface DraftProjection {
   readonly text: string
   readonly skills: readonly PromptSkill[]
-  readonly elements: readonly ElementChip[]
+  readonly inline: readonly InlineChip[]
 }
-
-const EMPTY_PROJECTION: DraftProjection = { text: '', skills: [], elements: [] }
 
 /* 纯读：进 editorState.read，不许有副作用。 */
 function readDraft(): DraftProjection {
   const skills = new Map<string, PromptSkill>()
-  const elements: ElementChip[] = []
+  const inline: InlineChip[] = []
   for (const node of $nodesOfType(ChipNode)) {
     const value = node.value()
     if (value.kind === 'skill') {
@@ -157,11 +155,32 @@ function readDraft(): DraftProjection {
         name: value.name,
         ...(value.args === undefined ? {} : { args: value.args }),
       })
-    } else if (value.kind === 'element') {
-      elements.push(value)
+    } else if (value.kind === 'element' || value.kind === 'file') {
+      inline.push(value)
     }
   }
-  return { text: $getRoot().getTextContent(), skills: [...skills.values()], elements }
+  return { text: $getRoot().getTextContent(), skills: [...skills.values()], inline }
+}
+
+/** 正文里此刻还挂着的那几枚记号，按资产 token 认。 */
+function inlineTokens(projection: DraftProjection): ReadonlySet<string> {
+  return new Set(projection.inline.map((chip) => chip.assetToken))
+}
+
+/* 一份附件在正文里的那枚记号。元素上下文点的是拾取到的元素，不是文件名。 */
+function inlineChipOf(asset: ComposerAsset): InlineChip {
+  return asset.context?.kind === 'browser-element'
+    ? { kind: 'element', assetToken: asset.assetToken, label: asset.context.label }
+    : { kind: 'file', assetToken: asset.assetToken, name: asset.filename }
+}
+
+/* 已经有的不再插：同一份字节落两枚记号，删掉一枚另一枚还挂着。 */
+function $insertChip(value: PromptChipValue): void {
+  const duplicate = $nodesOfType(ChipNode).some((node) => samePromptChip(node.value(), value))
+
+  if (!duplicate) {
+    $caret().insertNodes([$createChipNode(value), $createTextNode(' ')])
+  }
 }
 
 /* 插入点。编辑器还没被聚焦过时选区是 null（官方 Selection 文档的第四种），当场落在正文末尾。 */
@@ -208,6 +227,35 @@ function snapshotOf(
   }
 
   return { assets, configuration, editorState: state.toJSON() }
+}
+
+/* 这一批进门之后册子里还剩哪几份：多选则并集，否则换掉整批。 */
+function mergeAssets(
+  current: readonly ComposerAsset[],
+  incoming: readonly ComposerAsset[],
+  multiple: boolean,
+  maxFiles: number | undefined,
+): readonly ComposerAsset[] {
+  const next = multiple ? [...current] : []
+
+  for (const asset of incoming) {
+    if (maxFiles !== undefined && next.length >= maxFiles) {
+      break
+    }
+
+    /* 身份是内容摘要：同一张图挑两次就是同一张图。 */
+    if (next.some((held) => held.assetToken === asset.assetToken)) {
+      continue
+    }
+
+    next.push(asset)
+
+    if (!multiple) {
+      break
+    }
+  }
+
+  return next
 }
 
 export interface PromptInputProps {
@@ -294,7 +342,13 @@ function PromptInputShell({
   const intake = useAttachmentIntake()
   const drafts = useComposerDrafts()
   const draftKey = useComposerDraftKey()
-  const [draftText, setDraftText] = useState(EMPTY_PROJECTION)
+  /*
+   * 初值直接读编辑器此刻的状态：装回草稿不触发更新监听器，取空会让一份装回来的
+   * 草稿在第一次编辑之前发不出去 —— 记号已画出来，发送键却按「什么都没写」算。
+   */
+  const [draftText, setDraftText] = useState<DraftProjection>(() =>
+    editor.getEditorState().read(readDraft),
+  )
   const [attachments, setAttachments] = useState<readonly ComposerAsset[]>(
     restored?.assets ?? NO_ATTACHMENTS,
   )
@@ -417,32 +471,34 @@ function PromptInputShell({
     [insertText],
   )
 
+  /*
+   * 入册，并把该内联的那几份插成正文里的记号。
+   *
+   * flushSync 是必需的：记号只能在「入册收下了哪几份」之后才插，而那要等这次提交
+   * 落地。判据是「收下了」而不是「新来的」—— 记号被退格删掉后字节仍在册子里，这时
+   * 重挑一次按「新来的」算会什么都不发生。
+   */
   const addAssets = useCallback(
     (incoming: readonly ComposerAsset[]) => {
-      setAttachments((current) => {
-        const next = multiple ? [...current] : []
-
-        for (const asset of incoming) {
-          if (maxFiles !== undefined && next.length >= maxFiles) {
-            break
-          }
-
-          /* 身份是内容摘要：同一张图挑两次就是同一张图。 */
-          if (next.some((held) => held.assetToken === asset.assetToken)) {
-            continue
-          }
-
-          next.push(asset)
-
-          if (!multiple) {
-            break
-          }
-        }
-
-        return next
+      flushSync(() => {
+        setAttachments((current) => mergeAssets(current, incoming, multiple, maxFiles))
       })
+
+      const held = handoff.current.attachments
+      const accepted = incoming.filter((asset) =>
+        held.some((keep) => keep.assetToken === asset.assetToken),
+      )
+      const chips = accepted.filter(isInlineAttachment).map(inlineChipOf)
+
+      if (chips.length > 0) {
+        editor.update(() => {
+          for (const chip of chips) {
+            $insertChip(chip)
+          }
+        })
+      }
     },
-    [maxFiles, multiple],
+    [editor, maxFiles, multiple],
   )
 
   const attach = useCallback(
@@ -450,45 +506,7 @@ function PromptInputShell({
       incoming: readonly ComposerAsset[],
       options: { readonly text?: string; readonly submit?: boolean } = {},
     ) => {
-      flushSync(() => {
-        addAssets(incoming)
-      })
-
-      /*
-       * 元素上下文不走附件区：入册即插成正文里的一枚记号。入册没收下的（重号）
-       * 不插 —— 字节不在手里的记号是空头。
-       */
-      const picked = incoming.flatMap((asset) =>
-        asset.context?.kind === 'browser-element'
-          ? [{ assetToken: asset.assetToken, label: asset.context.label }]
-          : [],
-      )
-
-      if (picked.length > 0) {
-        editor.update(() => {
-          for (const chip of picked) {
-            if (!handoff.current.attachments.some((held) => held.assetToken === chip.assetToken)) {
-              continue
-            }
-
-            const duplicate = $nodesOfType(ChipNode).some((node) => {
-              const value = node.value()
-              return value.kind === 'element' && value.assetToken === chip.assetToken
-            })
-
-            if (!duplicate) {
-              $caret().insertNodes([
-                $createChipNode({
-                  kind: 'element',
-                  assetToken: chip.assetToken,
-                  label: chip.label,
-                }),
-                $createTextNode(' '),
-              ])
-            }
-          }
-        })
-      }
+      addAssets(incoming)
 
       const text = options.text?.trim() ?? ''
       if (text === '') {
@@ -501,7 +519,7 @@ function PromptInputShell({
         formRef.current?.requestSubmit()
       }
     },
-    [addAssets, editor, focusEditor, insertText],
+    [addAssets, focusEditor, insertText],
   )
 
   useImperativeHandle(
@@ -598,10 +616,9 @@ function PromptInputShell({
   )
 
   const hasText = draftText.text.trim().length > 0
-  /* 元素上下文不进附件区，它的「有附件」由正文里的记号说了算。 */
+  /* 留在册子里的（图片）只要在册就算数；内联的那些由正文里那枚记号说了算。 */
   const hasFiles =
-    attachments.some((attachment) => attachment.context?.kind !== 'browser-element') ||
-    draftText.elements.length > 0
+    attachments.some((attachment) => !isInlineAttachment(attachment)) || draftText.inline.length > 0
   const draft = useMemo<PromptInputDraft>(
     () => ({
       hasText,
@@ -665,14 +682,10 @@ function PromptInputShell({
       } else if (action.kind === 'configure') {
         toggleConfiguration({ ...action.configuration, label: action.label })
       } else {
-        editor.update(() => {
-          const duplicate = $nodesOfType(ChipNode).some((node) =>
-            samePromptChip(node.value(), action.chip),
-          )
+        const { chip } = action
 
-          if (!duplicate) {
-            $caret().insertNodes([$createChipNode(action.chip), $createTextNode(' ')])
-          }
+        editor.update(() => {
+          $insertChip(chip)
         })
       }
 
@@ -764,18 +777,15 @@ function PromptInputShell({
               const said = projection.text.trim()
 
               /*
-               * 元素上下文以正文里的记号为准：记号在，字节才跟着走。记号已被删掉的
-               * （退格、撤销都算），那份附件就地放掉，不随行。
+               * 内联的那几份以正文里的记号为准：记号已被删掉的就地放掉，不随行。
+               * 留在册子里的（图片）照旧全发。
                */
-              const elementTokens = new Set(projection.elements.map((chip) => chip.assetToken))
+              const tokens = inlineTokens(projection)
               const assets = [
-                ...attachments.filter(
-                  (attachment) => attachment.context?.kind !== 'browser-element',
-                ),
+                ...attachments.filter((attachment) => !isInlineAttachment(attachment)),
                 ...attachments.filter(
                   (attachment) =>
-                    attachment.context?.kind === 'browser-element' &&
-                    elementTokens.has(attachment.assetToken),
+                    isInlineAttachment(attachment) && tokens.has(attachment.assetToken),
                 ),
               ]
 
@@ -791,10 +801,7 @@ function PromptInputShell({
 
               if (intake !== null) {
                 for (const attachment of attachments) {
-                  if (
-                    attachment.context?.kind === 'browser-element' &&
-                    !elementTokens.has(attachment.assetToken)
-                  ) {
+                  if (isInlineAttachment(attachment) && !tokens.has(attachment.assetToken)) {
                     intake.discard(attachment)
                   }
                 }

@@ -268,6 +268,10 @@
   --cp-surface: var(--ui-surface);
   --cp-ground: var(--ui-background);
 
+  /* 正文里那枚记号的蓝：DSH composer inline chip 的那一对，照抄。 */
+  --cp-chip-ink: #4176e6;
+  --cp-chip-hover: #e4edfd;
+
   /*
    * 输入卡自己的面与悬停底。
    *
@@ -565,6 +569,10 @@
 
   /* 「我」的气泡底：比 --ui-sunken 再压一档，与 #181818 的地色拉出可见的一格。 */
   --cp-timeline-user-surface: #222222;
+
+  /* 记号的蓝深色那一对：DSH 的 #7aaaff / #34415b。 */
+  --cp-chip-ink: #7aaaff;
+  --cp-chip-hover: #34415b;
 
   /*
    * 两圈影的墨。

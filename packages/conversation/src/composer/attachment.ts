@@ -6,15 +6,23 @@ export interface ComposerAssetContext {
 export interface ComposerAsset {
   readonly sessionToken: string
   readonly assetToken: string
-  /** image：资产协议预览地址；file：空字符串（通用文件没有预览，只渲染卡片）。 */
+  /** image：资产协议预览地址；file：空字符串。 */
   readonly url: string
   readonly filename: string
   readonly mediaType: string
-  /** 字节数，文件卡片那一行「类型 大小」用；图片也带着，来源同一份收据。 */
+  /** 字节数，来自进门那份收据。 */
   readonly size: number
   /** image 进内存注册表走预览；file 是暂存在原生侧的通用文件，发 file part。 */
   readonly kind: 'image' | 'file'
   readonly context?: ComposerAssetContext
+}
+
+/**
+ * 通用文件与元素上下文在正文里是一枚记号，发不发它由那枚记号说了算：字节仍住在
+ * 附件册，记号被删掉就不再随行。图片不走这条，它留在输入框上沿那排缩略图里。
+ */
+export function isInlineAttachment(asset: ComposerAsset): boolean {
+  return asset.kind === 'file' || asset.context?.kind === 'browser-element'
 }
 
 export interface AttachmentUpload {

@@ -1,25 +1,19 @@
 import './attachment-tray.css'
 
 import { useCallback, useMemo, useState } from 'react'
-import type { ComposerAsset } from '../../composer/attachment'
+import { isInlineAttachment } from '../../composer/attachment'
 import { fileMetaLabel } from '../../timeline/timeline-contract'
 import { ImageLightbox, type PreviewableImage } from '../media/image-lightbox'
 import { CloseIcon, FileIcon, SpinnerIcon } from '../primitives/icons'
 import { usePromptInputActions, usePromptInputAttachments } from './prompt-input'
 
 /*
- * 输入框里攒着的附件。
+ * 留在输入框里的那一排，只剩图片。
  *
- * 这一层只画那份草稿。附件的唯一所有者是 PromptInput（见 prompt-input.tsx 的
- * AttachmentsContext），移除也只经过它交出的 removeAttachment —— 原生注册表里
- * 那份字节由那条路负责放掉，这里不认识原生，也不持有第二份清单。
- *
- * 图片是一格方块缩略图；通用文件是一张宽卡片（图标 + 名字 + 「类型 大小」），
- * 与 deepseek-harness 的 FileCard 同一个形制 —— 文件没有预览可给，名字与大小
- * 才是用户要核对的事实。
- *
- * 例外是浏览器拾取的元素上下文：它不住这一排，在正文里占一枚记号
- * （prompt-chip.tsx），这一层对它视而不见。
+ * 附件归 PromptInput 所有（prompt-input.tsx 的 AttachmentsContext），移除只经过它
+ * 交出的 removeAttachment。通用文件与元素上下文在正文里各是一枚记号
+ * （prompt-chip.tsx），那枚记号就是它们的移除键（退格），所以按 isInlineAttachment
+ * 让出去；图片没有可内联的形态，仍是一格方块缩略图。
  */
 
 /* 一格画什么由它那张图说了算，所以状态住在这一格里，不在上面。 */
@@ -34,7 +28,6 @@ function TileFallback({ filename }: { readonly filename: string }) {
     </span>
   )
 }
-
 interface AttachmentThumbnailProps {
   readonly filename: string
   readonly onOpen: () => void
@@ -95,52 +88,24 @@ function AttachmentThumbnail({ filename, onOpen, src }: AttachmentThumbnailProps
   )
 }
 
-/* 通用文件那一格：宽卡片，文件图标 + 名字 + 「类型 大小」 + 移除。 */
-function AttachmentFileCard({
-  attachment,
-  onRemove,
-}: {
-  readonly attachment: ComposerAsset
-  readonly onRemove: () => void
-}) {
-  return (
-    <li className="composer-file" title={attachment.filename}>
-      <span className="composer-file__icon">
-        <FileIcon aria-hidden="true" />
-      </span>
-      <span className="composer-file__text">
-        <span className="composer-file__name">{attachment.filename}</span>
-        <span className="composer-file__meta">
-          {fileMetaLabel(attachment.filename, attachment.size)}
-        </span>
-      </span>
-      <button
-        aria-label={`移除 ${attachment.filename}`}
-        className="composer-file__remove"
-        onClick={onRemove}
-        type="button"
-      >
-        <CloseIcon aria-hidden="true" />
-      </button>
-    </li>
-  )
-}
-
 export function AttachmentTray() {
   const attachments = usePromptInputAttachments()
   const { removeAttachment } = usePromptInputActions()
   const [openIndex, setOpenIndex] = useState<number | null>(null)
 
-  /* 元素上下文在正文里，不在这里；灯箱与格子都只数附件。 */
-  const files = attachments.filter((attachment) => attachment.context?.kind !== 'browser-element')
+  /* 内联的那些（通用文件、元素上下文）在正文里，不在这里；灯箱与格子都只数留下的。 */
+  const images = useMemo(
+    () => attachments.filter((attachment) => !isInlineAttachment(attachment)),
+    [attachments],
+  )
 
   /*
    * 灯箱只装图片，编号也只在图片之间连续。进门分类（kind）是唯一判据：
    * mediaType 是嗅探结果，而「能不能预览」在进门那一刻就已经分好了。
    */
-  const images = useMemo<readonly PreviewableImage[]>(
+  const slideshow = useMemo<readonly PreviewableImage[]>(
     () =>
-      files.flatMap((attachment) =>
+      images.flatMap((attachment) =>
         attachment.kind === 'image'
           ? [
               {
@@ -152,32 +117,23 @@ export function AttachmentTray() {
             ]
           : [],
       ),
-    [files],
+    [images],
   )
 
   /* 一次建好「附件 → 幻灯片」的对照，而不是每格各扫一遍图片序列。 */
-  const slides = useMemo(() => new Map(images.map((image, index) => [image.id, index])), [images])
+  const slides = useMemo(
+    () => new Map(slideshow.map((image, index) => [image.id, index])),
+    [slideshow],
+  )
 
-  if (files.length === 0) {
+  if (images.length === 0) {
     return null
   }
 
   return (
     <>
       <ul className="composer-tray" data-slot="composer-tray">
-        {files.map((attachment) => {
-          if (attachment.kind === 'file') {
-            return (
-              <AttachmentFileCard
-                attachment={attachment}
-                key={attachment.assetToken}
-                onRemove={() => {
-                  removeAttachment(attachment.assetToken)
-                }}
-              />
-            )
-          }
-
+        {images.map((attachment) => {
           const slide = slides.get(attachment.assetToken)
 
           return (
@@ -210,7 +166,7 @@ export function AttachmentTray() {
       </ul>
 
       {/* 灯箱是幻灯片层，不是列表项：ul 的孩子只能是 li。 */}
-      <ImageLightbox images={images} index={openIndex} onIndexChange={setOpenIndex} />
+      <ImageLightbox images={slideshow} index={openIndex} onIndexChange={setOpenIndex} />
     </>
   )
 }
