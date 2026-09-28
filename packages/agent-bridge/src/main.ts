@@ -17,7 +17,7 @@ import {
   Settings,
   VERSION,
 } from '@oh-my-pi/pi-coding-agent'
-import { getUi } from '@oh-my-pi/pi-coding-agent/config/settings-schema'
+import { getDefault, getUi } from '@oh-my-pi/pi-coding-agent/config/settings-schema'
 import {
   disableProvider,
   enableProvider,
@@ -54,7 +54,30 @@ import {
 import { answerPayloadOf, askQuestionsOf } from './questions.ts'
 import { readCatalog, SETTING_TABS } from './settings.ts'
 import { tabLabelOf } from './settings-labels.ts'
+import { settleThinking } from './thinking.ts'
 import { TranscriptMirror } from './transcript-mirror.ts'
+
+/*
+ * 关掉 omp 自发的会话标题生成 —— 不花用户没点的钱。
+ *
+ * 上游会在首条消息与 todo 首次初始化之后自己发一次标题请求（`utils/title-generator.ts`
+ * 的 `completeSimple`；触发点是 `agent-session.ts` 的 `maybeStartTitleGeneration` 与
+ * 那之后的重规划）。它选模型的口径是「tiny → commit → smol 角色，一个都没配就退回
+ * **当前会话模型**」（title-generator.ts 的 `getTitleModels`），而我们只写
+ * `modelRoles.default`（`writeDefaultModel`）—— 于是这一次调用落到用户自己那条模型、
+ * 自己那个密钥上，输入还是最近六轮真实对话（`buildReplanTitleContext`）。用户的账就是
+ * 这么莫名其妙少钱的。
+ *
+ * 产品也用不上它：会话标题在我们这边是本地账本的（threads 表，ADR 0049），而
+ * `agent-client` 那条会话清单读（`ClientCommand::Sessions` → `lifecycle::entries_of`
+ * 的 `title`，omp 生成的标题唯一的上屏出口）在本仓没有调用方。
+ *
+ * 赋值在这里就够，不必抢在 import 之前：上游读的是 pi-utils 的 `$env`，而我们验过它
+ * 与 `process.env` 是同一个活对象（pi-utils 的 env.ts 只是加载期把 .env 里**尚未设置**
+ * 的键补进去），所以这句在任何一次读之前落地都算数。官方自己的 rpc/acp 模式也置它
+ * （它的 `src/main.ts`）。
+ */
+process.env['PI_NO_TITLE'] = '1'
 
 const write = (frame: BridgeFrame): void => {
   process.stdout.write(`${JSON.stringify(frame)}\n`)
@@ -501,6 +524,19 @@ async function adopt(manager: SessionManager, cwd: string): Promise<Session> {
   })
 
   /*
+   * 开工前把思考档位收敛到这条模型自己的梯子上（见 thinking.ts）。放在订阅之前：
+   * 这一步自己会发一次 thinking_level_changed，订阅了就等于多报一遍选择器，而
+   * 下面那一次报的就是收敛后的值。放在读之前：报出去的值必须是 agent 此刻真的
+   * 持有的那一档。
+   *
+   * 全局那一档取上游 schema 的默认（`defaultThinkingLevel`，实测 "high"）：它就是
+   * 「一条全新会话本来会拿到的那一档」。产品里这一格的改动只有输入框那一排那颗胶囊
+   * （settings-labels.ts 的 CONTROLLED_ELSEWHERE 把设置页那一行收了），所以盘上那份
+   * 基本就是 schema 默认。
+   */
+  settleThinking(adopted, getDefault('defaultThinkingLevel'))
+
+  /*
    * 会话交回给调用方之后，它那几个「在等人答」的表由取消与收摊负责清：
    * `desk.closeAll()` 结掉挂着的 Promise，屏幕那几条也由观察者跟着结掉。
    */
@@ -843,7 +879,7 @@ function reportUsage(record: Session): void {
 }
 
 // 三格各有产地：model 用 session.model + getAvailableModels；
-// thinking 候选是 off + auto + 模型支持档位（上游 cycleThinkingLevel 同顺序）；
+// thinking 候选**只有这条模型自己的梯子**（上游 getSupportedEfforts，见 thinking.ts）；
 // permission 对应 tools.approvalMode 三档。
 function readSelectors(record: Session): SelectorControl[] {
   const controls: SelectorControl[] = []
@@ -871,7 +907,7 @@ function readSelectors(record: Session): SelectorControl[] {
       purpose: 'thinking',
       current: configured,
       // 标签与说明取自上游自己的表（settings-schema 的 defaultThinkingLevel.ui.options）。
-      choices: [OFF_THINKING, AUTO_THINKING, ...levels].map((level) => {
+      choices: levels.map((level) => {
         const option = THINKING_OPTIONS.get(level)
 
         return {
@@ -941,10 +977,6 @@ const POSTURES: readonly {
   { value: 'yolo', label: '帮我批准', mode: 'write' },
   { value: 'auto', label: '完全访问权限', mode: 'yolo' },
 ]
-
-// 正本：pi-tui src/thinking.ts AUTO_THINKING = "auto"。pi-tui 不在依赖边，照抄字面量。
-const AUTO_THINKING = 'auto'
-const OFF_THINKING = 'off'
 
 // 上游给的档位说法从 settings-schema 的 defaultThinkingLevel.ui.options 取，不在代码里抄。
 const THINKING_OPTIONS: ReadonlyMap<string, { label: string; description?: string }> = new Map(
