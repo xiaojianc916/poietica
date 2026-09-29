@@ -17,7 +17,6 @@ const ALL_ACTIONS = {
   canRename: true,
   canShare: true,
   canExport: true,
-  canArchive: true,
 } as const
 
 describe('分享菜单项', () => {
@@ -27,19 +26,27 @@ describe('分享菜单项', () => {
       'rename',
       'share',
       'export',
-      'archive',
     ])
   })
 
   it('上层给不出分享时,这一项不出现', () => {
     expect(threadMenuEntries({ ...ALL_ACTIONS, canShare: false }).map((entry) => entry.id)).toEqual(
-      ['pin', 'rename', 'export', 'archive'],
+      ['pin', 'rename', 'export'],
     )
   })
 
   it('分享排在本地导出之前:本机那件事先说', () => {
     const ids = threadMenuEntries(ALL_ACTIONS).map((entry) => entry.id)
     expect(ids.indexOf('share')).toBeLessThan(ids.indexOf('export'))
+  })
+
+  /*
+   * 归档已挪到行尾那枚按钮上，菜单里不再有这一项 —— 一处动作一个落点，不同时挂两处。
+   */
+  it('归档不在菜单里:它已经是行尾的按钮', () => {
+    const ids = threadMenuEntries(ALL_ACTIONS).map((entry) => entry.id)
+
+    expect(ids).not.toContain('archive')
   })
 
   it('给不出动作的项一项都不画,固定与重命名照旧', () => {
@@ -49,7 +56,6 @@ describe('分享菜单项', () => {
         canRename: false,
         canShare: false,
         canExport: false,
-        canArchive: false,
       }),
     ).toEqual([{ id: 'pin', label: '取消固定' }])
   })
@@ -62,8 +68,6 @@ const GROUP = [
     items: [{ id: 'thread-1', title: '第一条对话', updatedAt: '2026-01-01T00:00:00.000Z' }],
   },
 ]
-
-const SHARED_URL = 'https://my.omp.sh/s/abc123#secret'
 
 function renderList(props: Partial<AssistantThreadListProps> = {}): string {
   return renderToStaticMarkup(
@@ -81,46 +85,7 @@ function renderList(props: Partial<AssistantThreadListProps> = {}): string {
   )
 }
 
-describe('分享链接的落点', () => {
-  it('链接到手后,这一行把链接说出来 —— 用户拿得到它,而不是点了什么都没发生', () => {
-    const markup = renderList({
-      onShare: () => undefined,
-      shared: { threadId: 'thread-1', url: SHARED_URL, truncated: false },
-    })
-
-    expect(markup).toContain(SHARED_URL)
-    expect(markup).toContain('已上传到 my.omp.sh')
-    expect(markup).toContain('链接已复制')
-  })
-
-  it('被裁剪过就如实说,不装成完整的一份', () => {
-    const markup = renderList({
-      onShare: () => undefined,
-      shared: { threadId: 'thread-1', url: SHARED_URL, truncated: true },
-    })
-
-    expect(markup).toContain('已截短')
-    expect(markup).toContain(SHARED_URL)
-  })
-
-  it('链接只长在它自己那一行下,不挂到别的对话上', () => {
-    const markup = renderList({
-      onShare: () => undefined,
-      groups: [
-        {
-          ...GROUP[0]!,
-          items: [
-            ...GROUP[0]!.items,
-            { id: 'thread-2', title: '第二条对话', updatedAt: '2026-01-01T00:00:01.000Z' },
-          ],
-        },
-      ],
-      shared: { threadId: 'thread-2', url: SHARED_URL, truncated: false },
-    })
-
-    expect(markup.match(/assistant-thread__shared-url/g)).toHaveLength(1)
-  })
-
+describe('分享的界面落点', () => {
   it('正在上传时给得出「在跑」的样子', () => {
     const markup = renderList({ onShare: () => undefined, share: 'thread-1' })
 
@@ -128,7 +93,11 @@ describe('分享链接的落点', () => {
     expect(markup).toContain('正在上传到 my.omp.sh')
   })
 
-  it('还没分享成功时,链接与提示一个字都不出来', () => {
+  /*
+   * 结果不再长在行里：上传成功后的提示与链接由宿主的横幅说，这一列只画会话。
+   * 链接曾以一行小字挂在会话行下面，那段 UI 回来了这个判据就红。
+   */
+  it('结果不长在行里:这一列只画会话', () => {
     const markup = renderList({ onShare: () => undefined })
 
     expect(markup).not.toContain('assistant-thread__shared')

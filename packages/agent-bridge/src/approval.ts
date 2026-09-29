@@ -1,17 +1,12 @@
 /*
  * 给 SDK 的 uiContext：把 agent 的对话框接到我们这条 stdio 上。
  *
- * 这是 SDK 自己的扩展面（CreateAgentSessionResult.setToolUIContext 收的就是它），
- * 不是 RPC 模式的实现：ExtensionUIContext 是上游给宿主定的接口，谁嵌它谁实现。
- * 我们只实现问得出人的那几个（select / confirm / input / editor），其余是交互式
- * TUI 的面，嵌入方没有也不该有。
- *
+ * ExtensionUIContext 是上游给宿主定的接口，谁嵌它谁实现。我们只实现问得出人的那四个
+ * （select / confirm / input / editor），其余是交互式 TUI 的面，嵌入方没有也不该有。
  * 授权闸门（extensibility/extensions/wrapper.ts）在没有 UI 时 fail closed：非 yolo
- * 模式下每一次 write/exec 都会抛「requires approval but no interactive UI
- * available」。所以这不是加功能，是让这条路不堵死。
- *
- * 一问一答的形状照上游 RpcExtensionUIResponse：`{ type, id, ...载荷 }`，载荷三种
- * 取值（value / confirmed / cancelled）由各自的对话框自己解释。
+ * 模式下每一次 write/exec 都抛「requires approval but no interactive UI available」，
+ * 所以这不是加功能，是让这条路不堵死。一问一答的形状照上游 RpcExtensionUIResponse
+ * （`{ type, id, ...载荷 }`，载荷三种取值由各自的对话框解释）。
  */
 
 import type {
@@ -60,13 +55,10 @@ export function responseOf(payload: unknown): UpstreamDialogResponse {
 
 /**
  * 这道对话框是不是授权闸门那一次；是就交出工具名。
- *
  * 判据是「method 为 select，且选项正好是那两颗」，与 Rust 的 approval_of 同一句 ——
- * 两处各判一次就会一半认得一半认不得。
- *
- * 工具名从标题里取：上游的 select 只给一句话（tools/approval.ts 的 formatApprovalPrompt
- * 第一行是 `Allow tool: <name>`），没有结构化的字段。取不到就是空串 —— 那一格只用于
- * 屏幕上的说法与会话级放行的设置键，空串时两件都不做，不编一个名字。
+ * 两处各判一次就会一半认得一半认不得。工具名从标题里取（上游只给一句话，
+ * tools/approval.ts 的 formatApprovalPrompt 首行是 `Allow tool: <name>`）；取不到
+ * 就是空串 —— 那一格只用于屏幕说法与会话级放行的设置键，空串时两件都不做，不编一个。
  */
 export function approvalToolOf(request: UpstreamDialogRequest): string | null {
   if (request.method !== 'select') {
@@ -89,16 +81,11 @@ export function approvalToolOf(request: UpstreamDialogRequest): string | null {
 }
 
 /**
- * 这道对话框要批准的那件事本身。
- *
- * 「要不要允许 Bash」回答不了任何问题：人要知道的是**将跑哪条命令**。上游已经把它
- * 算好了 —— tools/approval.ts 的 formatApprovalPrompt 把工具自报的细节（bash 的
- * `Command: …`、write 的路径、edit 的新旧正文）逐行拼在同一句话里，紧接着
- * `Allow tool: <name>` 那一行。这里只把原文里那几行取出来，**不重排、不翻译**：
- * 它是什么样，屏幕上就该是什么样。
- *
- * 没有 `Allow tool:` 那一行的（计划提交那类：整句标题本身就是被批准的东西），
- * 整句就是细节。调用方已经先验过它确实是这次闸门，所以这里不必再筛。
+ * 这道对话框要批准的那件事本身。「要不要允许 Bash」回答不了任何问题：人要知道的是
+ * **将跑哪条命令**。上游已算好 —— tools/approval.ts 的 formatApprovalPrompt 把工具
+ * 自报的细节（bash 的 `Command: …`、write 的路径、edit 的新旧正文）逐行拼在
+ * `Allow tool: <name>` 之前，这里只取原文那几行，**不重排、不翻译**。
+ * 没有 `Allow tool:` 行的（计划提交那类）整句就是细节；调用方已先验过这是这次闸门。
  */
 export function approvalDetailOf(request: UpstreamDialogRequest): string | null {
   const title = typeof request.title === 'string' ? request.title : ''
@@ -160,11 +147,9 @@ export class DialogDesk {
     const signal = options?.signal
 
     /*
-     * 已经作废的那一次压根不问人。
-     *
-     * `addEventListener('abort')` 只在 abort **之后**触发：信号若在我们登记之前就已中止，
-     * 监听器永远不会响，那一次对话框就永远留在等人答的表里 —— 屏幕上是收不掉的带子，
-     * agent 那头也没有人在等。所以先看状态再决定问不问。
+     * 已经作废的那一次压根不问人：`addEventListener('abort')` 只在 abort **之后**触发，
+     * 信号若在登记之前就已中止，监听器永远不会响，那次对话框就永远留在等人答的表里 ——
+     * 屏幕上是收不掉的带子。所以先看状态再决定问不问。
      */
     if (signal?.aborted === true) {
       this.#observe?.({ kind: 'aborted', id, request: shaped })
@@ -221,13 +206,10 @@ export class DialogDesk {
 
   /**
    * 把还在等的全部收成取消，交出收了几个。
-   *
-   * 取消一轮时要用它：上游授权闸门问的那一次 `select` **不带 signal**
-   * （extensibility/extensions/wrapper.ts:333），所以点「取消」并不会让那一次对话框
-   * 自己作罢。谁都不结它，那次工具调用就永远停在 await 上，而屏幕上那条带子
-   * 也永远停在「等你批」—— 这一轮早就取消了，没有人再会来答它。
-   *
-   * 已答过的不在其中（它们在 `settle` 里就出表了），所以重复调用是安全的。
+   * 上游授权闸门问的那次 `select` **不带 signal**
+   * （extensibility/extensions/wrapper.ts:333），点「取消」不会让它自己作罢；谁都不结它，
+   * 那次工具调用就永远停在 await 上，屏幕那条带子也永远停在「等你批」。
+   * 已答过的不在其中（`settle` 里已出表），重复调用安全。
    */
   closeAll(): number {
     const waiting = [...this.#waiting.keys()]
@@ -278,13 +260,9 @@ function cancelled(id: string): Record<string, unknown> {
 /**
  * 把一次答复翻成上游 select 期望的那个标签。
  *
- * `cancelled` 走 undefined：上游把 undefined 当成「没选」，然后按未批准处理 —— 那
- * 正是取消该有的结局（这一轮停了，不是这一句被拒）。
- *
- * 「本次会话都批准」在这一层与「批准」同义：上游这条路只有批准与不批准两颗，
- * 一次 select 只放行这一次。会话级放行是**另一条设置**（`tools.approval.<tool>: allow`），
- * 由 main.ts 的 answerPermission 在答复之前写进 agent 自己的 config —— 上游在
- * `resolveApproval` 里先查用户策略，所以写进去了才真的「本会话都批准」。
+ * `cancelled` 走 undefined：上游把 undefined 当「没选」按未批准处理 —— 正是取消该有的
+ * 结局（这一轮停了，不是这一句被拒）。「本次会话都批准」在这层与「批准」同义：一次
+ * select 只放行一次；会话级放行是另一条设置，论据正本见 bridge.ts 的 resolveApproval。
  */
 export function labelFor(answer: ApprovalAnswer): string | undefined {
   return answer.decision === 'approved' ? APPROVE : undefined

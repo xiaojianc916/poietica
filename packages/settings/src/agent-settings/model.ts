@@ -37,8 +37,7 @@ export interface AgentSettingEntry {
    * 此刻生效的值。
    *
    * `secret` 为真时恒为 null：值出了 agent 的进程就不再是我们的盘。两层各自折一次
-   * ——桥的 `entryOf` 与 crates 的 `SettingEntry::from_wire`——所以这里读到 null 是
-   * 契约，不是「碰巧还没读到」。
+   * ——桥的 `entryOf` 与 crates 的 `SettingEntry::from_wire`——这里读到 null 是契约。
    */
   readonly value: unknown
   /**
@@ -55,18 +54,13 @@ export interface AgentSettingEntry {
   /** 风险提示：会把用户拉进限流或封号的那类设置，原样上屏。 */
   readonly warning?: string
   /**
-   * 可见性条件的**名字**（如 `advisorEnabled`），不是判据。
-   *
-   * 桥刻意不搬求值器（ADR 0018 决定四）。界面这一侧能诚实地算出来的只有它自己那几条，
-   * 其余一律按「不知道就不显示」处理，见 ui/agent-settings/settings-conditions.ts。
+   * 可见性条件的**名字**（如 `advisorEnabled`），不是判据：求值在界面这一侧
+   * （ADR 0018 决定四），见 ui/agent-settings/settings-conditions.ts。
    */
   readonly condition?: string
   /**
-   * 这一格的**行**由产品别处的控件负责。
-   *
-   * 输入框那一排已有选择器的（计划/目标/思考档位/审批）、设置页已有专属一节的（浏览器），
-   * 不再在 agent 设置里画第二遍 —— 一个事实两个控件是缺陷（AGENTS.md §1）。
-   * 值仍在，因为别的格子按 `condition` 读它决定显不显示；界面只跳过这一行。
+   * 这一格的**行**由产品别处的控件负责，不画第二遍（一个事实两个控件是缺陷，AGENTS.md §1）；
+   * 值仍在，别的格子按 `condition` 读它（详见 protocol.ts 的 SettingEntry.owned）。
    */
   readonly owned?: boolean
   /**
@@ -79,19 +73,12 @@ export interface AgentSettingEntry {
 }
 
 export interface AgentSettingsCatalog {
-  /**
-   * 栏目清单，按 agent 自己的顺序。
-   *
-   * 键与名成对给：键是 agent 的栏目词汇（筛选认它），名是给人看的那一列。两条并行数组
-   * 一旦错位就是「点了外观出来模型」，而这里没有一种读法能发现它错了。
-   */
+  /** 栏目清单，按 agent 自己的顺序；键与名成对给，不给并行数组 —— 错位就是「点了外观出来模型」，且没有一种读法能发现它错了。 */
   readonly tabs: readonly AgentSettingTab[]
   readonly settings: readonly AgentSettingEntry[]
   /**
-   * agent 此刻在用的那份配置文件。
-   *
-   * 这是「几百项设置」这件事的出路：不必都画成控件，直接改它自己的文件更省事。
-   * 路径由 agent 自己报（正本 omp 的 getAgentDir），这一侧不拼 —— 拼一份换个 home 就分叉。
+   * agent 此刻在用的那份配置文件。这是「几百项设置」的出路：不必都画成控件，直接改
+   * 它自己的文件。路径由 agent 自己报（正本 omp 的 getAgentDir），这一侧不拼。
    */
   readonly configFile: string
   /** 那份文件此刻在不在；不在就是还没写过。 */
@@ -106,17 +93,13 @@ export interface AgentSettingTab {
 export interface AgentSettingsPort {
   readonly read: () => Promise<AgentSettingsCatalog>
   /**
-   * 改一格设置。
-   *
-   * 交回的是**改完之后整份目录**：调用方拿它刷新自己，不做乐观改写 —— 改没改由 agent
-   * 自己说，写的是它自己的盘。它自己热重载，没有重启这一步。
+   * 改一格设置。交回的是**改完之后整份目录**：调用方拿它刷新自己，不做乐观改写 ——
+   * 改没改由 agent 自己说（它自己热重载，没有重启这一步）。
    */
   readonly write: (path: string, value: unknown) => Promise<readonly AgentSettingEntry[]>
   /**
-   * 把 agent 自己的配置文件交给系统默认编辑器。
-   *
-   * 改完不必我们替它重读：omp 自己看盘（`Settings.reloadFromDisk()`），下一次读目录
-   * 就读到新的。这一侧只负责把文件交出去 —— 那是它写过的盘，不是我们的。
+   * 把 agent 自己的配置文件交给系统默认编辑器。改完不必我们替它重读：omp 自己看盘
+   * （`Settings.reloadFromDisk()`），下一次读目录就读到新的。
    */
   readonly openConfigFile: () => Promise<void>
 }

@@ -1,6 +1,7 @@
 import { AgentControlsContext, AttachmentIntakeContext } from '@poietica/conversation/surface'
 import { failureCoordinator } from '@poietica/problem'
 import type { KeybindingCatalog, KeybindingEntry } from '@poietica/settings'
+import type { SettingsSection } from '@poietica/settings/ui'
 import type { CommandRegistry } from '@poietica/workspace'
 import { useCallback, useEffect, useMemo, useState, useSyncExternalStore } from 'react'
 import { ThreadsProvider } from '../assistant/threads-provider'
@@ -25,6 +26,12 @@ export function AppShell({ runtime }: AppShellProps) {
   const [isCommandPaletteOpen, setCommandPaletteOpen] = useState(false)
 
   const [isSettingsOpen, setSettingsOpen] = useState(false)
+
+  /*
+   * 设置开在哪一页。除了面板里自己翻页，还有外部入口直接指一页（归档横幅的
+   * 「筛选已归档会话」），所以这份状态住在组合根，不在设置面板里头。
+   */
+  const [settingsSection, setSettingsSection] = useState<SettingsSection>('general')
 
   const {
     isMaximized: isWindowMaximized,
@@ -58,6 +65,15 @@ export function AppShell({ runtime }: AppShellProps) {
 
   const openSettings = useCallback(() => {
     if (canOpenSettings) {
+      setSettingsSection('general')
+      setSettingsOpen(true)
+    }
+  }, [canOpenSettings])
+
+  /* 归档横幅的问法：「我该怎么看已归档的？」—— 把它放在那一页上，别让它自己找。 */
+  const openArchivedChats = useCallback(() => {
+    if (canOpenSettings) {
+      setSettingsSection('archived')
       setSettingsOpen(true)
     }
   }, [canOpenSettings])
@@ -128,6 +144,7 @@ export function AppShell({ runtime }: AppShellProps) {
             onDeveloperToolsOpen={openDeveloperTools}
             onSettingsClose={closeSettings}
             onSettingsOpen={openSettings}
+            onShowArchivedChats={openArchivedChats}
             onThemeChange={runtime.theme.setPreference}
             onWindowClose={closeWindow}
             onWindowMaximize={maximizeWindow}
@@ -135,6 +152,7 @@ export function AppShell({ runtime }: AppShellProps) {
             personalization={runtime.personalization}
             plugins={runtime.pluginStore}
             readTokenDays={runtime.readTokenDays}
+            settingsSection={settingsSection}
             settingsStore={runtime.settings}
             updateRow={<UpdateRow store={updates} />}
             workspace={runtime.workspace}

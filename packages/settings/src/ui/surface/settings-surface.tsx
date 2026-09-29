@@ -33,6 +33,7 @@ import {
   useCallback,
   useContext,
   useEffect,
+  useLayoutEffect,
   useMemo,
   useState,
   useSyncExternalStore,
@@ -68,7 +69,7 @@ import './settings-surface.css'
  * 表里缺列即编译错误，内联面板都是 SettingsPanelProps 的直接排列。
  */
 
-type SettingsSection =
+export type SettingsSection =
   | 'general'
   | 'appearance'
   | 'archived'
@@ -330,6 +331,8 @@ export interface SettingsProviderProps {
   readonly onDismiss: () => void
   /** 主题预览进入应用唯一的主题管线，不由设置 UI 直接写文档。 */
   readonly onThemeChange: (theme: AppSettings['theme']) => void
+  /** 打开设置时先落在哪一页。不给就是 general。外部要在设置里指一个具体落点时用它。 */
+  readonly initialSection?: SettingsSection
   /** 设置是否在场。会话只在打开时启动 —— 挂载不是开合信号。 */
   readonly isOpen: boolean
   readonly children: ReactNode
@@ -350,10 +353,23 @@ export function SettingsProvider({
   openSkillDocument,
   onDismiss,
   onThemeChange,
+  initialSection = 'general',
   isOpen,
   children,
 }: SettingsProviderProps) {
-  const [section, setSection] = useState<SettingsSection>('general')
+  const [section, setSection] = useState<SettingsSection>(initialSection)
+
+  /*
+   * 每次开合都摆回落点那一页。
+   *
+   * 只在 useState 的初值里读一次是不够的：设置关掉时不卸载，上一次自己翻到哪一页
+   * 会带进下一次。而「打开设置看已归档」这类外部入口说的是「这次落在哪」，不是
+   * 「从此默认哪」—— 不重置的话，第二次点它就停在上次手动翻到的那页上。
+   * 关掉时也一并摆回：这样下次无论从哪条路进来，起点都是同一个。
+   */
+  useLayoutEffect(() => {
+    setSection(isOpen ? initialSection : 'general')
+  }, [initialSection, isOpen])
 
   const handleOpenChange = useCallback(
     (nextOpen: boolean) => {

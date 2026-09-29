@@ -8,8 +8,8 @@ export interface RestoreSpinnerProps {
   /**
    * 浮起来的输入区实测高度；标记居中的下边界就是它。
    *
-   * null 只覆盖首帧：useDockClearance 在 useLayoutEffect 里发布首个尺寸，React 会在
-   * 绘制前同步补一次渲染，所以这一档不会被画出来。按 0 兜底只是为了式子恒成立。
+   * null 只覆盖首帧（useLayoutEffect 发布首个尺寸后，React 绘制前会同步补一次渲染，
+   * 这一档不会被画出来）；按 0 兜底只是让式子恒成立。
    */
   readonly dockClearance: number | null
 }
@@ -17,22 +17,12 @@ export interface RestoreSpinnerProps {
 /**
  * 空白正中的那一枚标记。
  *
- * 回放一条已有对话时，界面按最终形态预排版（data-started），而转录还是空的：
- * 开场白被塌掉，转录高度为零，于是滚动区里一个像素都没有。那段空白是刻意
- * 换来的——它买到的是"回放到达时没有状态翻转"——但它此前不带任何反馈。
- * 这个标记就是补上的那一句反馈，没有别的职责。
- *
- * 画的是产品自己的标记（design-system 的 PoieticaMark 几何），不是图标库里
- * 那个通用转圈：等的是「这个产品正在读出你自己的对话」，用别家的字形说不出来。
- *
- * 只有标记和它自己的闪光：没有文案，没有底板，没有骨架屏。骨架屏在这里是错的 ——
- * 回放出来的行高矮不一，假条会在真内容到达时换一次形。
- *
- * 它是浮层，不占文档流。外面已经按"必然有内容"排好了版，标记一旦参与布局，
- * 撤除时就会把内容顶一下，那正是 data-started 花力气避开的东西。
- *
- * 名字直接传给渲染出的 svg，不挂在外面那层。外层是 live region，负责"这里出现了
- * 新状态"；名字属于图形本身，因此仍然只有一个名字、一次播报。
+ * 回放已有对话时界面按最终形态预排版（data-started），转录高度为零 —— 那段空白是
+ * 刻意换来的（回放到达时没有状态翻转），这个标记是补上的反馈。画产品自己的标记
+ * （design-system 的 PoieticaMark 几何），不用图标库的通用转圈。没有骨架屏：回放
+ * 行高矮不一，假条会在真内容到达时换一次形。它是浮层不占文档流：参与布局会在
+ * 撤除时把内容顶一下，那正是 data-started 要避开的。aria-label 直接放 svg 上：
+ * 外层是 live region，各播报一次，只有一个名字。
  */
 export function RestoreSpinner({ active, dockClearance }: RestoreSpinnerProps) {
   /* 每个实例一组自己的 id：mask 与渐变按 url(#id) 解析，重名会取到先落地的那个。 */
@@ -67,11 +57,8 @@ export function RestoreSpinner({ active, dockClearance }: RestoreSpinnerProps) {
           <path d={POIETICA_MARK_PATH} fillRule="evenodd" id={`${id}g`} />
 
           {/*
-           * 亮条自己那一横条的浓淡。
-           *
-           * 两端渐隐、中间一整段是满的 —— 不是从 0 到 1 再到 0 的一条三角。三角形
-           * 只有正中一条线满亮，两侧都是半亮的水洗，扫过去几乎看不出来；平台才是
-           * 一道看得见的亮条。两端留软边，硬切口会读成一块贴上去的矩形补丁。
+           * 两端渐隐、中间满亮，不是三角：三角只有正中一条线满亮，扫不出来。两端
+           * 留软边，硬切口会读成贴上去的矩形补丁。
            */}
           <linearGradient id={`${id}s`}>
             <stop offset="0" stopColor="#fff" stopOpacity="0" />

@@ -10,6 +10,7 @@ export {
   AccordionPanel,
   AccordionTrigger,
 } from './control/accordion'
+export { Banner, type BannerAction, type BannerProps } from './control/banner'
 export { Button } from './control/button'
 export { CommandMenu, type CommandMenuGroup, type CommandMenuItem } from './control/command-menu'
 export { ConfirmationDialog } from './control/confirmation-dialog'

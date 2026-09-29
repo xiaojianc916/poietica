@@ -78,7 +78,6 @@ impl Frames {
         }
     }
 
-    /// 只成形：位置此刻还没用掉，deliver 成功才占号。
     pub(crate) fn shape(&self, frame: RunFrame) -> RecordedEvent {
         RecordedEvent {
             session_id: self.session_id.clone(),
@@ -344,7 +343,6 @@ impl Recorder {
         self.in_flight.front().map(String::as_str)
     }
 
-    /// 这个 prompt 还在飞吗。
     pub fn holds(&self, prompt: &str) -> bool {
         self.in_flight.iter().any(|held| held == prompt)
     }

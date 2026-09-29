@@ -1,19 +1,11 @@
 import type { AgentDescriptor } from '../agent-descriptor'
 
 /*
- * oh-my-pi（omp）的档案。
+ * oh-my-pi（omp）的档案。事实来源是它自己的仓库与包：can1357/oh-my-pi，
+ * npm @oh-my-pi/pi-coding-agent（锚定 18.3.0）。
  *
- * 事实来源是它自己的仓库与包，不是观察和猜测：can1357/oh-my-pi，
- * npm @oh-my-pi/pi-coding-agent（锚定 18.3.0）。每一条下面都注明出处。
- *
- * 我们不经 kap：omp 没有本地服务模式，它给的是 SDK 与 stdio 上的 RPC/ACP。
- * 这里接的是**随包发的一份 Bun 运行时加我们的桥**（packages/agent-bridge 的
- * `src/main.ts`，由 tools/agent/prepare-runtime.ts 收成 bundle），桥把 omp 的 SDK
- * 装在里面，对 Rust 说 NDJSON。用户因此不需要装 omp、也不需要装 Bun（见 ADR 0021）。
- *
- * 不追官方的 `--mode rpc|acp`：那条命令面缺我们一半的命令（settings_catalog、
- * model_catalog、mcp_servers、skills、delete_session、browser_settings），追过去
- * 会变成「官方协议 + 自定义扩展」两套并存。传输线上形状是我们的 protocol.ts。
+ * 不经 kap（omp 没有本地服务模式）；不追官方的 `--mode rpc|acp`：那条命令面缺
+ * settings_catalog 等一半命令，追过去会成「官方协议 + 自定义扩展」两套并存。
  */
 
 /*
@@ -39,26 +31,13 @@ export const ohMyPi = {
    * 只认 bun（ADR 0021 的实测表）。所以程序名是运行时，入口是脚本。
    */
   entry: 'poietica-bridge.js',
-  // 运行时开关留给以后：入口由 entry 那一格给，不放这儿。
   args: [],
   /*
-   * 从子进程环境里摘掉的两格：
-   *
-   * - `PSModulePath`：让每个 PowerShell 版本按自己的 $PSHOME 重建模块路径，避免
-   *   跨版本模块遮蔽。
-   * - `PI_COMPILED`：我们**不是**编译出来的二进制。`isCompiledBinary()` 的第一判据
-   *   读的就是这个变量（pi-utils/src/env.ts:466-470），而它一为真，SDK 与加载器就有
-   *   三处按「编译态」改道（2026-09 实测，锚定 18.3.0）：
-   *     1. pi-natives 的候选表会**多出用户目录并排在最前**（`resolveLoaderCandidates`：
-   *        `~/.omp/natives/<版本>/`、`%LOCALAPPDATA%\omp`）—— 别人机器上残留的一份
-   *        会优先于我们随包发的那个被加载。我们只要随包的那一份，来源要确定。
-   *     2. SDK 的 CLI 入口块会**在进程里**跑起来（`src/cli.ts:601` 的 `isProcessEntry`）：
-   *        那是第二个入口，和我们抢同一根 stdout。
-   *     3. worker 子进程的启动命令换成 `[运行时, "__omp_worker_*"]`（把选择器当文件名），
-   *        而不是 `[运行时, 入口, 选择器]`。
-   *
-   * 只「构建期不折」不够：它读的是运行时环境，宿主里恰有一个就静默改道。官方 npm
-   * 发行版也是不设它、只折 `PI_BUNDLED`。
+   * `PSModulePath`：让 PowerShell 按 $PSHOME 重建模块路径。`PI_COMPILED` 是
+   * `isCompiledBinary()` 的第一判据（pi-utils/src/env.ts:466-470），它读运行时环境，
+   * 一为真就有三处按「编译态」改道（2026-09 实测）：pi-natives 候选表混入用户目录且
+   * 排最前（残留包盖过随包那份）、CLI 入口块在进程内抢 stdout（src/cli.ts:601）、
+   * worker 启动形状变成 `[运行时, "__omp_worker_*"]` —— 所以必须 unset。
    */
   unsetEnv: ['PSModulePath', 'PI_COMPILED'],
   /*

@@ -8,17 +8,12 @@ import { createElement, type FunctionComponent, type SVGProps } from 'react'
  */
 
 /*
- * 一个图标在这个应用里是什么形状。
- *
- * 下面那些 re-export 只换了名字，没换主人：交出去的仍是图标库自己的 props 类型。
- * 图标只写在 JSX 里的时候看不出区别；一旦它被当成「值」交出去 —— 填进别的库的图标
- * 槽、存进一张表 —— 那个类型就跟着出境，而它与 React 的 SVGProps 并不兼容：库把
- * stroke 声明成 string | number，React 的可选属性读出来是 string | undefined。
- * exactOptionalPropertyTypes 打开时「可以不传」与「可以传 undefined」是两件事，
- * 函数参数又是逆变的，于是一个不肯收 undefined 的组件填不进一个会传 undefined 的槽。
- *
- * 运行时没有这回事：React 遇到值为 undefined 的属性就不写它。所以这里要的不是转换，
- * 是给出境的那一面一个本仓说了算的形状 —— 与 @poietica/design-system 的本地字形同一个形状。
+ * 一个图标在这个应用里是什么形状。re-export 只换名字，交出去的仍是图标库自己的
+ * props 类型；一旦被当「值」出境（填进别的库的图标槽、存进表），它就与 React 的
+ * SVGProps 不兼容：lucide 把 stroke 声明成 string | number，React 可选属性读出来是
+ * string | undefined，exactOptionalPropertyTypes 下「不传」与「传 undefined」是两件事，
+ * 函数参数又是逆变的。所以出境面要有本仓说了算的形状
+ * （与 @poietica/design-system 的本地字形同一个形状）。
  */
 export type IconProps = SVGProps<SVGSVGElement> & { readonly size?: number }
 
@@ -39,6 +34,7 @@ export function asIcon(glyph: FunctionComponent<{ className?: string; size?: num
 }
 
 export {
+  Archive as ArchiveIcon,
   ArrowDown as ToLatestIcon,
   ArrowUp as SubmitIcon,
   Atom as ThinkingIcon,

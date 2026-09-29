@@ -1,20 +1,14 @@
 /*
- * models.yml 的读改写：用户自建的 provider 定义住在那里。
+ * models.yml 的读改写：用户自建的 provider 定义住在那里。omp 的 SDK 只给了读者
+ * （`ModelsConfigFile` 没有 save），没有官方 TUI 那个写文件的界面，所以由我们补上，
+ * 写完它自己按 mtime 重读。三件事缺一条就会把用户的配置写坏：
  *
- * 为什么是我们写：omp 的 SDK 只给了读者（`ModelsConfigFile` 没有 save），官方 TUI
- * 的「添加供应商」是在交互式界面里自己写这个文件的。我们嵌的是 SDK，没有那个界面，
- * 所以这一格由我们补上 —— 写的是**它自己的文件、它自己的格式**，写完它自己按 mtime
- * 重读（model-registry.ts 的 `#reloadStaticModels` → `invalidate()`）。
+ * 1. 整份读、整份写：文件里还有用户手写的东西（headers、compat、modelOverrides…），
+ *    只动 `providers.<id>` 那一格，其余原样带回去。
+ * 2. 落盘先于可见：同目录临时文件 + rename，读者看不到写了一半的文件。
+ * 3. 密钥不落这里：密钥只进 agent.db（`AuthStorage`），这里只写定义，一个地方存密钥。
  *
- * 三件事必须同时成立，缺一条就会把用户的配置写坏：
- *
- * 1. **整份读、整份写。** 这个文件里还有用户手写的东西（headers、compat、
- *    discovery、modelOverrides…），我们只动 `providers.<id>` 那一格，其余原样带回去。
- * 2. **落盘先于可见。** 用同目录临时文件 + rename，读者看不到写了一半的文件。
- * 3. **密钥不落这里。** `apiKey` 是 models.yml 支持的字段，但我们的产品把密钥放在
- *    agent.db（`AuthStorage`）。这里只写定义，不写钥匙 —— 一个地方存密钥。
- *
- * 认不出的内容一律保留：读不动就如实报错，不拿一份空配置覆盖用户的东西。
+ * 认不出的内容一律如实报错，不拿一份空配置覆盖用户的东西。
  */
 
 import { mkdir, readFile, rename, writeFile } from 'node:fs/promises'
@@ -63,15 +57,10 @@ export async function writeProvider(
     baseUrl: provider.baseUrl ?? undefined,
     api: provider.api ?? undefined,
     /*
-     * `auth: none` 是必须的，不是可选的修饰。
-     *
-     * 上游的校验（models-config.ts 的 validateProviderConfiguration）规定：定义
-     * `models` 时要么给 `apiKey`，要么 `auth` 是 `none` 或 `oauth`，否则整份配置
-     * 判为无效、所有自定义 provider 一起失效。我们的密钥**不放在这个文件里** ——
-     * 它在 agent.db（`AuthStorage`），所以这里必须写 `auth: none` 才能过校验。
-     *
-     * 「auth: none」说的是「这个文件不提供密钥」，不是「这个 provider 不要密钥」：
-     * 请求时上游照旧去 AuthStorage 取（凭据级联在 pi-ai 的 getApiKey 里）。
+     * `auth: none` 是必须的：上游校验（models-config.ts 的 validateProviderConfiguration）
+     * 规定定义 `models` 时无 `apiKey` 必须 `auth: none`（或 oauth），否则整份配置无效。
+     * 它说的是「这个文件不提供密钥」，不是「这个 provider 不要密钥」——
+     * 请求时上游照旧去 agent.db（AuthStorage）取。
      */
     auth: 'none',
     models: provider.models.map((model) => ({
@@ -94,12 +83,10 @@ export async function writeProvider(
 /**
  * 写一个**只覆盖**的 provider 定义：只动端点（baseUrl / api），不声明模型。
  *
- * 用在「从目录添加」上：目录里那个 provider 的 baseUrl / api / 模型清单**已经在
- * omp 编在包里的目录里**，我们只把端点换掉。声明 `models` 反而会把它编在包里的
- * 那几行挤掉，于是「从目录添加」变成「用我抄的这几行」，上游换了目录它也不跟。
- *
- * 覆盖式定义不写 `auth`：那种写法只在定义 `models` 时才需要（见 `writeProvider`），
- * 写了反而把 provider 变成 keyless，人配的钥匙就被绕过了。
+ * 用在「从目录添加」上：模型清单在 omp 编进包里的目录里，声明 `models` 会把它挤掉，
+ * 「从目录添加」就变成「用我抄的这几行」，上游换目录它也不跟。
+ * 不写 `auth`：那格只在定义 `models` 时才需要（见 `writeProvider`），写了反而把
+ * provider 变成 keyless，绕过人配的钥匙。
  */
 export async function writeProviderOverride(
   file: string,
@@ -166,17 +153,14 @@ async function readModelsFile(file: string): Promise<ModelsFile> {
 }
 
 /**
- * 整份写回。
+ * 整份写回。同目录临时文件 + rename：读者要么看到旧的整份要么看到新的整份 ——
+ * omp 按 mtime 重读，半个文件会让它把自定义 provider 全判为无效。
  *
- * 同目录临时文件 + rename：读者要么看到旧的整份，要么看到新的整份，不会看到写了一半
- * 的（omp 自己按 mtime 重读，半个文件会让它把自定义 provider 全判为无效）。
+ * 序列化必须带缩进参数：`Bun.YAML.stringify(value, null, 2)` 才出块状 YAML，不传出的
+ * 是流式（`{providers: {x: {...}}}`）—— 合法 YAML 但 omp 的配置读取认不出来
+ * （实测：写进去的 provider 读回来是 0 条）。官方也传 2（pi-utils 的 yaml-config.ts）。
  *
- * 序列化必须带缩进参数：`Bun.YAML.stringify(value, null, 2)` 才出块状 YAML。不传时
- * 它出的是流式（`{providers: {x: {...}}}`）—— 那是合法 YAML，但 omp 的配置读取认不
- * 出来（实测：写进去的 provider 它读回来是 0 条）。官方自己的写法就传 2
- * （pi-utils 的 yaml-config.ts `YAML.stringify(value, null, 2)`），照它。
- *
- * 值为 undefined 的格由序列化时丢掉，这正是我们要的：没填的字段不该在文件里留 null。
+ * 值为 undefined 的格由序列化时丢掉：没填的字段不该在文件里留 null。
  */
 async function writeModelsFile(file: string, document: ModelsFile): Promise<void> {
   await mkdir(path.dirname(file), { recursive: true })

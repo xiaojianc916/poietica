@@ -192,14 +192,11 @@ pub struct PromptSkill {
 
 /// 随一句话带上的一个附件，线上形状（protocol.ts 的 prompt.attachments 一格）。
 ///
-/// 四格缺一不可：桥按 `kind` 分派（`image` 的像素由它按 `path` 读出来编码成
-/// SDK 的 `ImageContent`，`file` 只把 `path` 当引用），`mime` 是 `ImageContent.mimeType`
-/// 的唯一来源，`name` 是屏幕上那张卡片的显示名。omp 的 `PromptOptions.images` 只收
-/// base64，没有按路径收附件的 API —— 读盘的活因此在桥那一侧，本层只交事实。
-///
-/// `mime` 必须是进门的**内容判据**（`crates/asset/src/formats.rs` 的 `classify()` 按
-/// 文件头嗅出），不是扩展名：剪贴板粘贴的图叫 `pasted-<uuid>`，按扩展名反推会把一张
-/// 好图说成 `application/octet-stream`，供应商直接拒收。
+/// 四格缺一不可：桥按 `kind` 分派，`mime` 是 SDK `ImageContent.mimeType` 的唯一来源，
+/// `name` 是屏幕上那张卡片的显示名。omp 的 `PromptOptions.images` 只收 base64，
+/// 读盘的活在桥那一侧。`mime` 必须是进门的内容判据（`crates/asset/src/formats.rs`
+/// 的 `classify()` 按文件头嗅出），不是扩展名：粘贴的图叫 `pasted-<uuid>`，
+/// 按扩展名反推会把好图说成 `application/octet-stream`，供应商直接拒收。
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct WireAttachment {
     pub path: String,
@@ -352,14 +349,9 @@ mod tests {
         assert!(line.contains(r#""promptId":"turn-1""#));
     }
 
-    /// 附件是对象不是裸路径：桥要靠 `kind` 分派，靠 `mime` 出 ImageContent.mimeType，
-    /// 靠 `name` 出显示名。
-    ///
-    /// 名字与 protocol.ts 逐字对应，对不上时 serde 会静默丢成缺格（模块头那条），
-    /// 所以这里把四格全钉住 —— 只断言路径会漏掉真正的判别式。
-    ///
-    /// `mime` 那一格尤其要钉：扩展名不是判据（粘贴的图叫 `pasted-<uuid>`），桥拿不到
-    /// 它就只剩再嗅一次文件头这一条路，而这个字段名一旦写错是**静默 None**。
+    /// 附件是对象不是裸路径：桥靠 `kind` 分派、`mime` 出 mimeType、`name` 出显示名。
+    /// 四格与 protocol.ts 逐字对应，对不上是静默缺格（模块头那条），所以全钉住 ——
+    /// `mime` 尤其要钉：扩展名不是判据（粘贴的图叫 `pasted-<uuid>`），写错是**静默 None**。
     #[test]
     fn an_attachment_carries_its_path_kind_mime_and_name() {
         let line = encode(&Command::Prompt {

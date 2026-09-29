@@ -355,40 +355,6 @@
   }
 }
 
-/*
- * 分享的结果长在行下面，不再是一行 28px。
- *
- * 行盒高由 --ui-row-height 定死，内容溢出的部分会盖住下一行；所以拿到链接的这一行
- * 改成自动高度，多出来的那一段才是真的在流里。
- */
-.assistant-thread:has(.assistant-thread__shared) {
-  block-size: auto;
-  flex-wrap: wrap;
-  align-items: center;
-  row-gap: calc(var(--ui-hairline) * 2);
-  padding-block-end: var(--cp-optical);
-}
-
-.assistant-thread__shared {
-  display: flex;
-  min-inline-size: 0;
-  flex: 1 0 100%;
-  flex-wrap: wrap;
-  align-items: baseline;
-  gap: var(--ui-row-gap);
-  margin: 0;
-  padding-inline-start: calc(var(--ui-row-icon-size) + var(--ui-row-gap));
-  font-size: var(--cp-font-micro);
-  color: var(--cp-ink-subtle);
-}
-
-.assistant-thread__shared-url {
-  overflow: hidden;
-  color: var(--cp-accent);
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
 /* 用户说过不要动的减少动效偏好：转圈留着（它是「还在跑」的唯一说法），只是慢下来。 */
 @media (prefers-reduced-motion: reduce) {
   .assistant-thread__sharing svg {
@@ -435,17 +401,6 @@
   outline: none;
   background: var(--cp-hover);
   color: var(--cp-ink);
-}
-
-.assistant-thread-menu .assistant-thread-menu__item--destructive[data-highlighted],
-.assistant-thread-menu .assistant-thread-menu__item--destructive:focus-visible {
-  background: color-mix(in srgb, var(--ui-destructive) 12%, transparent);
-  color: var(--ui-destructive);
-}
-
-.assistant-thread-menu .assistant-thread-menu__item--destructive[data-highlighted] svg,
-.assistant-thread-menu .assistant-thread-menu__item--destructive:focus-visible svg {
-  color: currentcolor;
 }
 
 /*

@@ -1,10 +1,8 @@
 /**
  * Poietica workspace product-layout contract.
  *
- * This module is the single source of truth for
- * Workspace shell dimensions. These values are
- * product semantics and do not belong to the
- * cross-feature design system.
+ * Single source of truth for workspace shell dimensions; product semantics,
+ * not the cross-feature design system.
  */
 export const WORKSPACE_LAYOUT = {
   sidebar: {
@@ -22,10 +20,8 @@ export const WORKSPACE_LAYOUT = {
   },
 
   /*
-   * 主列地板：两张卡片都在时正文至少留这么宽，辅助列上限要把它让出来。
-   *
-   * 它是留给主列的预算，不是主列的 CSS 下限 —— 主列仍是 minmax(0, 1fr)，窗口窄到
-   * 辅助列自己的下限都放不下时，让位的还是它（见 auxiliaryMaxWidth）。
+   * 主列地板：两张卡片都在时正文至少这么宽，辅助列上限要把它让出来。
+   * 是主列的预算不是 CSS 下限 —— 主列仍是 minmax(0, 1fr)，见 auxiliaryMaxWidth。
    */
   main: {
     minWidth: 360,
@@ -80,15 +76,12 @@ export interface SidebarDock {
 /**
  * 辅助列的宽度上限：产品上限与窗口剩余取更紧的一个。
  *
- * - 产品上限（auxiliary.maxWidth）说的是面板自己能读多宽，与窗口无关。但侧边栏
- *   收起后让出的那一份宽度没人用 —— 主区拿到它只是把同一列正文摊得更开，面板
- *   拿到它能多读几列 diff。所以收起态多出侧边栏的宽度。
- * - 窗口剩下的：主列地板（main.minWidth）必须留得住。没有这一条，三列之和可以
- *   超过外壳宽 —— 栅格溢出被外壳裁掉，主区连同卡片右下两个圆角一起消失，而拖动
- *   到某个宽度之前一切正常。上限与主列怎么分配是两回事，但上限不能大于总量。
- *
- * 窗口窄到连辅助列自己的下限都放不下时，下限优先：主列是 minmax(0, 1fr)，它才是
- * 该让的那一个，而且上限不低过下限，分隔条的 aria-valuemax 才不可能小于 valuemin。
+ * - 产品上限（auxiliary.maxWidth）与窗口无关；侧边栏收起让出的宽度主区只会把正文
+ *   摊得更开，面板拿到能多读几列 diff，所以收起态加回侧边栏宽。
+ * - 窗口剩余必须保住主列地板（main.minWidth），否则三列之和超外壳宽，栅格溢出被
+ *   裁掉，主区连同卡片圆角一起消失。
+ * - 下限优先：窗口窄到放不下辅助列下限时该让的是主列（minmax(0, 1fr)）；上限不低
+ *   过下限，分隔条的 aria-valuemax 才不小于 valuemin。
  */
 export function auxiliaryMaxWidth(input: SidebarDock): number {
   const productCap =

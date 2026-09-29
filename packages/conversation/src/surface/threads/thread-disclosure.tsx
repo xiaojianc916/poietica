@@ -5,25 +5,17 @@ import type { ReactNode } from 'react'
 import { ENTER_EASE, ENTER_SECONDS, EXIT_EASE, EXIT_SECONDS } from '../primitives/motion'
 
 /*
- * 一段会收起的侧栏内容。
+ * 一段会收起的侧栏内容。侧栏是高频导航：要快、无回弹、非对称。标杆客户端
+ * （Linear、Slack、Xcode 的大纲）在这个位置给的都是 120–200 毫秒的高度过渡，
+ * 没有弹簧回弹，也没有逐行错开。
  *
- * 侧栏是高频导航，不是展示区域：这里要的是快、无回弹、非对称，而不是好看。
- * 标杆客户端（Linear、Slack、Xcode 的大纲）在这个位置给的都是 120–200 毫秒的
- * 高度过渡，没有一个用弹簧回弹，也没有一个做逐行错开——错开属于首屏，不属于
- * 一天要点几十次的东西。
+ * 展开与收起不共用一条曲线：展开走减速，收起走加速且更短，CSS 的一条 transition
+ * 声明写不出来。透明度与高度错拍：展开时延后一点走，先定位置再浮字；收起时先
+ * 走完，先淡出再压高度，否则像把文字压扁。
  *
- * 展开与收起不共用一条曲线。展开走减速：多出来的内容需要让人看清是什么。
- * 收起走加速、且更短：收起是一个已经做完的决定，不需要陪着看完。这一点是
- * 这类动画显得称手还是廉价的分水岭，而 CSS 的一条 transition 声明写不出来。
- *
- * 透明度与高度不同步。展开时它延后一点再走，先让位置定下来，再让字浮上来；
- * 收起时它先走完，先淡出再压高度——否则那一下看起来像把文字压扁了。
- *
- * 用 motion 而不是仓库里那套 grid 0fr→1fr（primitives/disclosure.css）：那套
- * 要求内容常驻 DOM，靠 inert 屏蔽；这一列可能挂着几百条会话，而且整段本来就
- * 有该消失的时候（没有固定项时 Pinned 不存在）。AnimatePresence 负责"先播完
- * 再卸载"这一段，纯 CSS 做不到。timeline 那套不动它，那边的行挂着虚拟器的
- * measureElement，换实现是另一件事。
+ * 用 motion 而不是 grid 0fr→1fr（primitives/disclosure.css）：那套要求内容常驻 DOM，
+ * 而这一列可能挂几百条会话；AnimatePresence 负责「先播完再卸载」，纯 CSS 做不到。
+ * timeline 那套不动它，那边的行挂着虚拟器的 measureElement。
  */
 
 export interface ThreadDisclosureProps {

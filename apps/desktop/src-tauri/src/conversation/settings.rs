@@ -1,14 +1,12 @@
 //! agent 自己那份设置目录：读它的 schema，写它自己的持久层。
 //!
-//! 目录是 agent 自报的（`label` / `description` / 类型 / 选项表 / 默认值都由它给），
-//! 这一侧一格文案都不抄 —— 抄一份就是第二个事实，升级即分叉（AGENTS.md §0）。
-//!
-//! 写只有一条路：`Settings.set` + `flush`，由 agent 自己热重载。本层不碰它的
-//! config 文件，也不预筛路径与类型 —— 预筛就是第二份路径表，认不出的由它自己拒绝。
+//! 目录是 agent 自报的，这一侧一格文案都不抄 —— 抄一份就是第二个事实，升级即分叉
+//! （AGENTS.md §0）。写只有一条路：`Settings.set` + `flush`，由 agent 自己热重载；
+//! 不预筛路径与类型 —— 预筛就是第二份路径表，认不出的由它自己拒绝。
 //!
 //! **钥匙那一格是信任边界**：`secret` 为真的设置只有「有没有值」过得了这条命令。
-//! `crates/agent-client` 已在解码时把它的值折成 null（settings.rs 的 `from_wire`），
-//! 这里的 DTO 再原样搬运一次，不往回填。
+//! `crates/agent-client` 已在解码时折成 null（settings.rs 的 `from_wire`），
+//! 这里的 DTO 原样搬运，不往回填。
 
 use poietica_agent_client::{SettingEntry, SettingValue, SettingsCatalog};
 use serde::{Deserialize, Serialize};

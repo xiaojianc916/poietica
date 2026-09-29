@@ -207,24 +207,14 @@ export function createBridge(host: BridgeHost): Bridge {
   }
 
   /*
-   * 关掉 omp 自发的会话标题生成 —— 不花用户没点的钱。
-   *
-   * 上游会在首条消息与 todo 首次初始化之后自己发一次标题请求（`utils/title-generator.ts`
-   * 的 `completeSimple`；触发点是 `agent-session.ts` 的 `maybeStartTitleGeneration` 与
-   * 那之后的重规划）。它选模型的口径是「tiny → commit → smol 角色，一个都没配就退回
-   * **当前会话模型**」（title-generator.ts 的 `getTitleModels`），而我们只写
-   * `modelRoles.default`（`writeDefaultModel`）—— 于是这一次调用落到用户自己那条模型、
-   * 自己那个密钥上，输入还是最近六轮真实对话（`buildReplanTitleContext`）。用户的账就是
-   * 这么莫名其妙少钱的。
-   *
-   * 产品也用不上它：会话标题在我们这边是本地账本的（threads 表），而
-   * `agent-client` 那条会话清单读（`ClientCommand::Sessions` → `lifecycle::entries_of`
-   * 的 `title`，omp 生成的标题唯一的上屏出口）在本仓没有调用方。
-   *
-   * 赋值在这里就够，不必抢在 import 之前：上游读的是 pi-utils 的 `$env`，而我们验过它
-   * 与 `process.env` 是同一个活对象（pi-utils 的 env.ts 只是加载期把 .env 里**尚未设置**
-   * 的键补进去），所以这句在任何一次读之前落地都算数。官方自己的 rpc/acp 模式也置它
-   * （它的 `src/main.ts`）。
+   * 关掉 omp 自发的会话标题生成 —— 不花用户没点的钱。上游在首条消息与 todo 首次初始化后
+   * 自己发一次标题请求（agent-session.ts 的 maybeStartTitleGeneration）：选模型
+   * tiny → commit → smol，都没配就退回**当前会话模型**（title-generator.ts 的
+   * getTitleModels），而我们只写 modelRoles.default —— 这一次调用落到用户自己的模型与
+   * 密钥上，输入是最近六轮真实对话。产品用不上：标题正本在本地 threads 表，omp 生成的
+   * 标题在本仓没有上屏出口。赋值在这里就够：上游读的 pi-utils $env 与 process.env 是
+   * 同一个活对象（env.ts 只在加载期补尚未设置的键），任何一次读之前落地都算数；
+   * 官方 rpc/acp 模式也置它。
    */
   process.env['PI_NO_TITLE'] = '1'
 
@@ -359,18 +349,12 @@ export function createBridge(host: BridgeHost): Bridge {
   }
 
   /*
-   * 从某一轮分叉。
-   *
-   * 上游没有「丢 N 轮再复制」这一个动作，得自己拼：
-   * - `dropTurns === 0`：整份复制，`AgentSession#fork()`（它整份克隆并重锚）。
-   * - `dropTurns > 0`：`AgentSession#branch(entryId)` —— 它按 `createBranchedSession`
-   *   截到那一条之前，再把会话重锚（id 同步、消息替换、记忆重键、bash 过渡都在里面）。
-   *
-   * `branch()` 只认 user 消息那一条作锚（agent-session.ts:10069），所以「丢 N 轮」
-   * 就是把锚定在倒数第 N 条 user 消息上。
-   *
-   * **这一步会把这条连接移到新会话上**（新号、新文件），所以回来之后要重新记账，
-   * 否则之后用旧号说话会打到新会话上。
+   * 从某一轮分叉。上游没有「丢 N 轮再复制」这一个动作，得自己拼：`dropTurns === 0` 走
+   * `AgentSession#fork()`（整份克隆并重锚）；`dropTurns > 0` 走 `AgentSession#branch(entryId)`
+   * （createBranchedSession 截到那条之前再重锚）。branch() 只认 user 消息作锚
+   * （agent-session.ts:10069），所以「丢 N 轮」就是锚在倒数第 N 条 user 消息上。
+   * **这一步会把这条连接移到新会话上**，回来之后要重新记账（rebind），否则之后用旧号
+   * 说话会打到新会话上。
    */
   async function forkSession(
     record: Session,
@@ -445,12 +429,9 @@ export function createBridge(host: BridgeHost): Bridge {
   /*
    * 删一条会话：文件与它的产物目录一起删。
    *
-   * **必须先经过那个正持有它的 SessionManager**：它拿着写句柄，绕过它删文件会让句柄指着
-   * 已经不存在的路径，下一次说话把文件又写回来（omp 自己的会话选择器就是这么处理的，
-   * `modes/controllers/selector-controller.ts` 先 `newSession()` 再删）。所以：载进来的走
-   * 它自己的 manager，没载进来的才新开一个存储去删。
-   *
-   * 删不掉（找不到）如实回失败：运行时会把这笔删除当成还欠着，稍后重试。
+   * **必须先经过那个正持有它的 SessionManager**：它拿着写句柄，绕过它删会让句柄指着
+   * 不存在的路径，下一次说话把文件又写回来（omp 的选择器同此处理：selector-controller.ts
+   * 先 newSession() 再删）。删不掉（找不到）如实回失败：运行时把这笔删除当成还欠着，稍后重试。
    */
   async function deleteSession(sessionId: string): Promise<unknown> {
     const held = sessions.get(sessionId)
@@ -553,14 +534,10 @@ export function createBridge(host: BridgeHost): Bridge {
   }
 
   /*
-   * 会话换了号之后重新记账。
-   *
-   * `fork()` 与 `branch()` 都会把这条连接搬到新会话上（新号、新文件），而我们的表是按号
-   * 记的。不重记的话：旧号查得到一条 `agent` 已经在新会话上的记录，之后任何一次说话都会
-   * 打到新会话上，而调用方以为自己说的是旧那一条。
-   *
-   * 新号配一份新的投影器与镜像：分叉出来的是另一条会话，把两条会话的帧缝在同一个镜像里
-   * 会让「这条会话到此为止有哪些帧」变成假的。历史由调用方重新拉一次（与开一条会话同路）。
+   * 会话换了号之后重新记账：fork()/branch() 都会把这条连接搬到新会话上，而我们的表按号记，
+   * 不重记的话之后任何一次说话都会打到新会话上，而调用方以为说的是旧那一条。
+   * 新号配新的投影器与镜像：两条会话的帧缝在同一个镜像里会让「到此为止有哪些帧」变假；
+   * 历史由调用方重新拉一次（与开一条会话同路）。
    */
   function rebind(record: Session, newId: string): unknown {
     sessions.delete(record.id)
@@ -584,12 +561,10 @@ export function createBridge(host: BridgeHost): Bridge {
     const modelRegistry = new ModelRegistry(authStorage)
     /*
      * 与 SDK 自己的嵌入方引导同一次序（sdk.ts 的 hydrateCredentialScopedModelCaches +
-     * refreshInBackground）：先本地补一次凭据作用域的目录，再把联网发现放去后台。
-     *
-     * 不能在这里 await refresh()：它默认 online-if-uncached，缓存过了 24h 就当场等网络
-     * —— 实测 585ms（断网）对 10442ms（联网），而这一段整个压在开窗之前。我们把
-     * modelRegistry 传给了 createAgentSession，SDK 自己的那条后台分支就会被跳过，所以
-     * 这个责任由这里接过来。
+     * refreshInBackground）：先本地补目录，联网发现放后台。不能 await refresh()：它默认
+     * online-if-uncached，缓存过了 24h 就当场等网络 —— 实测 585ms（断网）对 10442ms
+     * （联网），而这一段压在开窗之前。modelRegistry 传给 createAgentSession 后 SDK 自己
+     * 的后台分支会被跳过，这个责任由这里接过来。
      */
     await modelRegistry.hydrateCredentialScopedModelCaches()
     modelRegistry.refreshInBackground()
@@ -630,7 +605,7 @@ export function createBridge(host: BridgeHost): Bridge {
       modelRegistry,
       settings: await settingsFor(),
       sessionManager: manager,
-      // hasUI 必须 true，否则授权闸门 fail closed：非 yolo 下每次 write/exec 都抛 no interactive UI。
+      // hasUI 必须 true（为什么见下方 initializeExtensions 处的两步说明）。
       hasUI: true,
     })
 
@@ -663,8 +638,11 @@ export function createBridge(host: BridgeHost): Bridge {
 
     setToolUIContext(uiContext, true)
 
-    // 两步缺一不可：setToolUIContext 只交给工具上下文；授权闸门读 runner.hasUI()，
-    // runner 的 UI 由 initializeExtensions 装进去。只做第一步闸门仍 fail closed。
+    /*
+     * 两步缺一不可：setToolUIContext 只把 UI 交给工具上下文，而授权闸门读 runner.hasUI()，
+     * runner 的 UI 由 initializeExtensions 装进去；只做第一步，非 yolo 下每次 write/exec
+     * 都抛 no interactive UI（fail closed）。
+     */
     await initializeExtensions(session, {
       reportSendError: (action, error) => {
         log('extension send failed', action, error.message)
@@ -869,17 +847,11 @@ export function createBridge(host: BridgeHost): Bridge {
   const iso = (ms: number): string => new Date(ms).toISOString()
 
   /*
-   * 一次现场发送。
-   *
-   * 附件在线上是磁盘绝对路径 + kind（protocol.ts 的 `attachments`），而 omp 的 prompt 只认
-   * 模型就绪的 `ImageContent`（`PromptOptions.images`，agent-session-types.ts:345）—— 全仓
-   * 没有按路径喂图的入口。所以图片由这里读盘转 base64，就是官方 CLI 自己走的那条路
-   * （cli/file-processor.ts:104-133）。
-   *
-   * 读盘失败必须抛：静默丢掉一张图正是这条命令原来的缺陷（图既没进模型上下文，也没进
-   * 对话记录，屏幕上什么都没有），抛出去至少落成一次 failed 轮终。
-   *
-   * 独立成函数是为了 `dispatch` 那个主干不超复杂度闸门，与 `deltaOps` 同理。
+   * 一次现场发送。附件在线上是磁盘绝对路径 + kind（protocol.ts 的 `attachments`），而
+   * omp 的 prompt 只认模型就绪的 `ImageContent`（agent-session-types.ts:345），所以图片
+   * 由这里读盘转 base64，同官方 CLI（cli/file-processor.ts:104-133）。读盘失败必须抛：
+   * 静默丢一张图正是这条命令原来的缺陷（图既不进上下文也不进记录，屏幕上什么都没有），
+   * 抛出去至少落成一次 failed 轮终。独立成函数是让 dispatch 主干不超复杂度闸门，与 deltaOps 同理。
    */
   async function sendPrompt(command: Extract<BridgeCommand, { type: 'prompt' }>): Promise<unknown> {
     const record = required()
@@ -928,18 +900,10 @@ export function createBridge(host: BridgeHost): Bridge {
   }
 
   /*
-   * 盘上的附件 → omp 认的图片。
-   *
-   * 分派判据是线上那个 `kind`（protocol.ts 的 `attachments`），不是文件头：Rust 侧已经在
-   * 准入时判过一次，这里再嗅一遍就是第二个事实来源（AGENTS.md §5「单一分发点」）。
-   * `ImageContent.mimeType` 同理取自线上那一格 `mime`（Rust 侧 formats.rs 的内容判据），
-   * **不按扩展名反推**：粘贴的图叫 `pasted-<uuid>`，按扩展名判会把它说成
-   * `application/octet-stream`，一张好图就这么被供应商拒了。
-   * `kind: 'file'` 的路径原样留着 —— 它是给 agent 用 Read 工具打开的引用，字节不进这里。
-   *
-   * 上限照抄上游 MAX_CLI_IMAGE_BYTES（cli/file-processor.ts:25）的 25MB：base64 之后还要
-   * 膨胀四分之三，再大就是一次 OOM 而不是一次报错。超限抛错，不静默跳过 —— 一张悄悄
-   * 消失的图正是这条命令原来的缺陷。
+   * 盘上的附件 → omp 认的图片；分派判据与 mime 产地见 protocol.ts 的 `attachments`
+   * （kind 与 mime 都以线上那一格为准，不嗅第二遍、不按扩展名反推）。`kind: 'file'`
+   * 的路径原样留给 agent 的 Read 工具。上限照抄上游 MAX_CLI_IMAGE_BYTES
+   * （cli/file-processor.ts:25）的 25MB：base64 后还要膨胀四分之三，再大是 OOM 不是报错。
    */
   function readPromptImages(
     attachments: Extract<BridgeCommand, { type: 'prompt' }>['attachments'],
@@ -1045,11 +1009,8 @@ export function createBridge(host: BridgeHost): Bridge {
         break
 
       /*
-       * 上下文压缩。
-       *
-       * 这件事不绑 turn（agent 压的是上下文，不是某一轮），所以它走标记而不是轮里的帧。
-       * 开门与关门共用同一个号 —— 上游的关门事件不带号，换号就会在屏幕上多出一行，
-       * 而人看到的是「上下文被压了两次」这种不存在的历史。
+       * 上下文压缩：不绑 turn（压的是上下文，不是某一轮），所以走标记而不是轮里的帧。
+       * 「关门事件不带号、号要自己记」见 Session.compacting 字段注释（正本）。
        */
       case 'auto_compaction_start':
         record.compactions += 1
@@ -1062,10 +1023,7 @@ export function createBridge(host: BridgeHost): Bridge {
         break
 
       case 'auto_compaction_end': {
-        /*
-         * 号只作落点：上游在关门事件里没带号，取此刻正在压的那一个；真没有就现起一个
-         * （比如中途接上一条已经在压的会话），总比丢掉这一条强。
-         */
+        /* 号只作落点：取此刻正在压的那一个；真没有就现起一个（比如中途接上一条已在压的会话），总比丢掉强。 */
         const markerId = record.compacting?.markerId ?? `compaction-${String(++record.compactions)}`
         record.compacting = null
         ops = markerOp({
@@ -1533,12 +1491,10 @@ export function createBridge(host: BridgeHost): Bridge {
   }
 
   /*
-   * 一次授权答复 → 结论 + （scope=session 时）会话级放行。
-   *
-   * 「本次会话都批准」不是「再点一次批准」：上游的 select 只有两颗按钮，一次只放行这一次。
-   * 真正让这一条会话往后都放行的是 `tools.approval.<tool>: allow` 那条设置 —— 上游
-   * resolveApproval 先查用户策略（tools/approval.ts:283-291），所以写进去才算数。
-   * 写入走 agent 自己的持久层（Settings.set + flush），由它自己热重载。
+   * 一次授权答复 → 结论 + （scope=session 时）会话级放行。本论据的正本：
+   * 「本次会话都批准」不是再答一次 —— 上游 select 只有两颗按钮，一次只放行一次；让会话
+   * 往后都放行的是 `tools.approval.<tool>: allow` 那条设置，上游 resolveApproval 先查
+   * 用户策略（tools/approval.ts:283-291），写走 Settings.set + flush，写进去才算数。
    */
   function resolveApproval(
     record: Session,
@@ -1570,16 +1526,7 @@ export function createBridge(host: BridgeHost): Bridge {
     )
   }
 
-  /*
-   * 「本次会话都批准」的落点：把这一件工具写进 agent 自己的 `tools.approval` 表。
-   *
-   * 上游的 select 只有两颗按钮，一次只放行这一次；真正让这一条会话往后都放行的是
-   * `tools.approval.<tool>: allow` 那条用户策略 —— resolveApproval 先查它
-   * （tools/approval.ts:283-291），所以写进去才算数，而不是把审批再答一遍。
-   *
-   * 写入走 agent 自己的持久层（Settings.set + flush），由它自己热重载。写一次就够，
-   * 重复写只是同一格的第二次赋值 —— 所以记着写过的。
-   */
+  /* 会话级放行的落点（论据正本见 resolveApproval）。写一次就够，重复写是同一格的第二次赋值，所以记着写过的。 */
   function grantSessionWide(record: Session, toolName: string, sessionWide: boolean): void {
     if (!sessionWide || toolName === '' || record.allowed.has(toolName)) {
       return
@@ -2021,12 +1968,9 @@ export function createBridge(host: BridgeHost): Bridge {
   }
 
   /*
-   * 产品只有三颗按钮，上游 select 要一个标签：翻一次再交回去。
-   *
-   * `scope` 与 `cancelled` 是我们自己加的两格（上游只有 value）：产品那三颗里
-   * 「本次会话都批准」与「批准」在上游是同一颗 —— 会话级放行靠 scope 去写
-   * `tools.approval.<tool>: allow`，而不是把这次审批再答一遍；而「拒绝」与「取消」
-   * 在上游都读成 undefined，屏幕上却必须分得清，所以按产品那三颗如实分成两格。
+   * 产品三颗按钮 → 上游 select 要的一个标签，翻一次再交回去（会话级放行论据正本见
+   * resolveApproval）。`scope` 与 `cancelled` 是我们加的两格：「拒绝」与「取消」在上游
+   * 都读成 undefined，屏幕上却必须分得清，所以按产品那三颗如实分成两格。
    */
   function answerPermission(
     record: Session,
@@ -2184,16 +2128,12 @@ export function createBridge(host: BridgeHost): Bridge {
         }
 
       /*
-       * hasUI:true 时上游把 MCP 发现推迟到建会话后异步做，刚开完名册可能空，所以等一次在飞的
-       * 握手再答 —— 但必须有真正的截止时间。
-       *
-       * waitForPendingConnections 会 drain 到所有 pending 握手 settle 为止（omp manager.ts 最多
-       * 8 轮），一台连不上的服务器就能把它挂住：实测 npx 拉 @playwright/mcp 时这一等是 181 秒。
-       * 而名册这条路是**同步读**：它一挂，技能与 MCP 两格同时停在「还没就绪」的样子（这与
-       * 拉包无关，换任何一台慢服务器都一样）。
-       *
-       * 所以：等一小会儿，超时就先报此刻的事实。还没连上的那台随后由下一趟读补齐
-       * （会话就绪推 selectors 时名册会跟着重读，见 conversation 的 capability-store）。
+       * hasUI:true 时上游把 MCP 发现推迟到建会话后异步做，刚开完名册可能空，所以等一次
+       * 在飞的握手再答 —— 但必须有截止时间：waitForPendingConnections 会 drain 到所有
+       * pending 握手 settle（omp manager.ts 最多 8 轮），一台连不上的服务器就能挂住，
+       * 实测 npx 拉 @playwright/mcp 时这一等是 181 秒；名册是同步读，一挂技能与 MCP 两格
+       * 同时停在「还没就绪」。所以等一小会儿，超时就先报此刻的事实，没连上的那台由
+       * 下一趟读补齐（会话就绪推 selectors 时名册会重读，见 conversation 的 capability-store）。
        */
       case 'mcp_servers': {
         const record = required()

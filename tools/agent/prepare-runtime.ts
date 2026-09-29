@@ -3,27 +3,16 @@
  * 摆好 agent 运行时的三样东西，交给 Tauri 的 bundle.resources 原样摆进安装目录
  * （与应用可执行文件同目录）：随包的 bun.exe、桥的 bundle、pi-natives 的 .node。
  *
- * 不再产出自有编译产物。omp SDK 的宿主就是 Bun —— 包清单的 engines 只写 bun，
- * 官方 docs/sdk.md 写的是「从 Bun 进程里 createAgentSession()」。我们用自己的 Bun
- * 运行时承载它，而不是把 SDK 编译进一个自有 exe。
+ * 不产出自有编译产物：omp SDK 的宿主就是 Bun —— engines 只写 bun，官方 docs/sdk.md
+ * 写的是「从 Bun 进程里 createAgentSession()」。配方照官方 scripts/bundle-dist.ts
+ * （同一条 Bun.build + target:'bun' 路），两处不同：`omp-legacy-pi-modules` 插件从
+ * 仓库 packages/* 现枚举而 npm 包里没有，嵌入方也不跑旧扩展，给空注册表；文档索引
+ * 用 npm 包预生成的那一份（包里没有 docs/）。
  *
- * 配方照官方的 scripts/bundle-dist.ts（同一条 Bun.build + target:'bun' 路），两处
- * 不同，都是有理由的：
- *
- * 1. 上游用内存插件供给 `omp-legacy-pi-modules`（跑旧 Pi 扩展要用）。那个插件从仓库
- *    的 packages/* 现枚举，npm 包里没有那些目录；嵌入方也不跑旧扩展，这里给一个
- *    空注册表。
- * 2. 上游从仓库 docs/ 现生成文档索引；npm 包里没有 docs/，用它预生成的那一份。
- *
- * 出到 binaries/ 的名字就是安装目录里的名字（资源 map 的 target 是裸文件名），所以
- * 这里不再带 target triple —— triple 是 externalBin 时代的命名要求。平台只用来挑
- * `pi-natives` 的叶子包，而那是按 Node 的 `process.platform`/`process.arch` 挑的
- * （与加载器同一条式子），所以这个脚本**不需要 Rust 工具链**。
- *
- * 刻意**不折** `PI_COMPILED`：那是 `--compile` 的自述，而我们是普通 Bun 进程。它在
- * 运行时读环境，所以档案里另外把这一格从子进程环境摘掉
- * （packages/agent-catalog/src/omp/descriptor.ts）：一为真，pi-natives 的候选表就会
- * 多出两个用户目录并排在最前，别人机器上残留的一份会盖过我们随包发的那个。
+ * 不带 target triple：资源 map 的 target 是裸文件名，平台只按 process.platform/
+ * process.arch 挑 pi-natives 叶子包（与加载器同一条式子），所以不需要 Rust 工具链。
+ * 不折 `PI_COMPILED`（那是 `--compile` 的自述，我们是普通 Bun 进程），并在档案里把
+ * 这一格从子进程环境摘掉（packages/agent-catalog/src/omp/descriptor.ts）。
  */
 
 import { readFileSync, realpathSync } from 'node:fs'
@@ -64,15 +53,11 @@ function nativeLeafPackage(): string {
 /*
  * 叶子包里的那个 `.node`：源路径与文件名都从**它自己的清单**读 `main`。
  *
- * 不自己拼名字：x64 上有 `-baseline` 与 `-modern` 之分，叶子包已经在 `main` 里声明
- * 自己是哪一个（`pi-natives-win32-x64` 的 `"main": "./pi_natives.win32-x64-baseline.node"`），
- * 再列一张表就是第二个事实（AGENTS.md §4「常量单一产地」）。
- *
- * 叶子包的落点不是一个固定路径：bun 的隔离式安装把它放在 **`pi-natives` 自己
- * 的 `node_modules` 里**（`node_modules/.bun/@oh-my-pi+pi-natives@<版本>/node_modules/
- * @oh-my-pi/pi-natives-<平台>/`），工作区的提升不跨它。所以按加载器自己的办法找：
- * 从 `pi-natives` 的入口 `require.resolve`（loader-state.js 的 resolveLeafPackageDir
- * 就是这一句），找不到就报错，不猜路径。
+ * 不自己拼名字：x64 上有 `-baseline` 与 `-modern` 之分，叶子包已在 `main` 里声明
+ * 自己是哪一个，再列一张表就是第二个事实。落点不是固定路径 —— bun 的隔离式安装
+ * 把它放在 `pi-natives` 自己的 node_modules 里，工作区提升不跨它。所以按加载器
+ * 自己的办法（loader-state.js 的 resolveLeafPackageDir）从 `pi-natives` 的入口
+ * `require.resolve`，找不到就报错，不猜路径。
  */
 function leafAddon(leaf: string): { source: string; name: string } {
   /*
@@ -98,12 +83,9 @@ function leafAddon(leaf: string): { source: string; name: string } {
 }
 
 /*
- * 上一次跑的产物必须清掉。
- *
- * OUT 是 gitignore 的构建产物目录，但 bundle 带出来的静态资源是**内容哈希命名**的
- * （template-<hash>.css、tool-views.generated-<hash>.js）：不清就会把上一版的文件
- * 一起打进包里，越积越多。只删条目、不删 OUT 自己 —— 本机它是一个 junction，
- * 删掉它等于拆掉既定的构建布局。
+ * 上一次跑的产物必须清掉：bundle 带出的静态资源是内容哈希命名的
+ * （template-<hash>.css 等），不清就越积越多。只删条目不删 OUT 自己 ——
+ * 本机它是一个 junction，删掉等于拆掉既定构建布局。
  */
 async function cleanOutputs(): Promise<void> {
   const entries = await readdir(OUT, { withFileTypes: true }).catch(() => [])
@@ -120,11 +102,9 @@ async function main(): Promise<void> {
   const docsEmbed = await readFile(path.join(SDK, 'dist/docs-index.generated.txt'), 'utf8')
 
   /*
-   * 三件输入全部先解析出来，**再**动输出目录。
-   *
-   * 反过来的话（先清空、后解析），任何一次「找不到叶子包」的失败都会先把上一次备好
-   * 的运行时删掉，留下一个半成品目录 —— 而 `bundle.resources` 少一个文件是**构建
-   * 失败**，不是静默漏包，看起来就像打包脚本本身坏了。
+   * 三件输入全部先解析出来，**再**动输出目录：反过来，任何一次「找不到叶子包」
+   * 的失败都会先删掉上一次备好的运行时，留下半成品目录 —— bundle.resources 少一个
+   * 文件是构建失败，不是静默漏包。
    */
   const addon = leafAddon(nativeLeafPackage())
 

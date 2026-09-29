@@ -1,21 +1,16 @@
 /**
- * 工作区表面的唯一注册处。
+ * 工作区表面的唯一注册处：表面集合、标题、描述、图标标识、导航次序、实现状态
+ * 只在此处声明一次，SurfaceId 由本表的键派生，不再另立字面量联合。
  *
- * 表面集合、标题、描述、图标标识、导航次序、实现状态只在此处声明一次；
- * SurfaceId 由本表的键派生，不再另立字面量联合。
- *
- * activation 是这张表最关键的一列：点这一行会发生什么。
- *
+ * activation 是最关键的一列：点这一行会发生什么。
  *   surface —— 主区换成这一格。渲染器是强制的，漏一条是编译错误（见 surface.ts）。
  *   planned —— 导航里画得出来，点进去是一张写明「还没实现」的页面。
  *
- * 判别联合而不是两列（status + planned?）：两列之间存在「画面里画得出来却
- * 没有渲染器」这种说不通的组合，而不变量是要靠人记住的东西。这里让它连写都
- * 写不出来。
- *
- * 动作不是表面，所以没有第三种形态。「搜索」曾以 command 形态混在导航里，
- * 现在是标题栏那枚搜索按钮（apps/desktop/src/shell/chrome/title-bar.tsx），
- * 命令本身由命令注册表声明（apps/desktop/src/shell/commands/app-commands.ts）。
+ * 判别联合而不是两列（status + planned?）：两列容得下「画得出来却没有渲染器」这种
+ * 说不通的组合，不变量不该靠人记住 —— 这里让它连写都写不出来。
+ * 动作不是表面，没有第三种形态：「搜索」现居标题栏那枚按钮
+ * （apps/desktop/src/shell/chrome/title-bar.tsx），命令归命令注册表
+ * （apps/desktop/src/shell/commands/app-commands.ts）。
  */
 
 export type SurfaceIconId = 'book-open' | 'clock' | 'message' | 'hat-glasses'

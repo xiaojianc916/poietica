@@ -7,19 +7,18 @@ import {
   DropdownMenuTrigger,
   PixelLoader,
 } from '@poietica/design-system'
-import {
-  Archive,
-  Download,
-  Pencil as Edit,
-  FolderClosed,
-  FolderOpen,
-  PinOff,
-  Share2,
-} from 'lucide-react'
+import { Download, Pencil as Edit, FolderClosed, FolderOpen, PinOff, Share2 } from 'lucide-react'
 import { Fragment, memo, useCallback, useMemo, useRef, useState } from 'react'
 import { byIsoDescending } from '../../threads/thread-order'
 import { useHorizon, useNow } from '../primitives/clock'
-import { ChevronDownIcon, MoreIcon, PinIcon, PlusIcon, SpinnerIcon } from '../primitives/icons'
+import {
+  ArchiveIcon,
+  ChevronDownIcon,
+  MoreIcon,
+  PinIcon,
+  PlusIcon,
+  SpinnerIcon,
+} from '../primitives/icons'
 import { datedGroupsOf, instantsOf, nextChangeIn, paintedGroupsOf } from './relative-time'
 import { ThreadDisclosure } from './thread-disclosure'
 
@@ -69,30 +68,25 @@ export interface AssistantThreadListProps {
   readonly onPin: (threadId: string, pinned: boolean) => void
   readonly onRename?: (threadId: string, title: string) => void
   readonly onExport?: (threadId: string) => void
-  /** 点了就上传到第三方并换回一条链接，所以这一段提示必须说清楚会上传。 */
+  /** 点了就上传到第三方并换回一条链接：结果的提示由宿主给，必须说清楚会上传。 */
   readonly onShare?: (threadId: string) => void
   readonly onArchive?: (threadId: string) => void
   /** 正在上传的那条对话。上传要几秒，这一格必须给出「在跑」的样子。 */
   readonly share?: string | null
-  readonly shared?: SharedThreadResult | null
-}
-
-/** 刚拿到的那条分享链接，以及它属于哪一行。 */
-export interface SharedThreadResult {
-  readonly threadId: string
-  readonly url: string
-  readonly truncated: boolean
 }
 
 /** 行尾菜单里的一项。菜单本身 Portal 到 body，所以「有哪几项」这个判据落在这里才测得动。 */
 export interface ThreadMenuEntry {
-  readonly id: 'pin' | 'rename' | 'share' | 'export' | 'archive'
+  readonly id: 'pin' | 'rename' | 'share' | 'export'
   readonly label: string
 }
 
 /*
  * 这一行画得出来的菜单项，次序就是判据：上传第三方（分享）排在本地导出之上 ——
  * 本地优先，先给不离开这台机器的那个。固定的文案随状态变，所以这里也叫 label 而不只是 id。
+ *
+ * 归档不在这张表里：它是行尾的一枚按钮（与固定并列的常用动作），不是菜单项。它只有一条
+ * 判据、一个落点，所以判据直接写在使用处，不在这里再建一列。
  *
  * 为什么必须是它而不是几条并列的 JSX：菜单 Portal 到 body，静态渲染里一个字都看不见，
  * 而本仓没有真 DOM 测试基建 —— 判据不落在这里，「给不出就不画」这条就无从证明。别合回去。
@@ -102,7 +96,6 @@ export function threadMenuEntries(input: {
   readonly canRename: boolean
   readonly canShare: boolean
   readonly canExport: boolean
-  readonly canArchive: boolean
 }): readonly ThreadMenuEntry[] {
   const entries: ThreadMenuEntry[] = [{ id: 'pin', label: input.isPinned ? '取消固定' : '固定' }]
 
@@ -114,9 +107,6 @@ export function threadMenuEntries(input: {
   }
   if (input.canExport) {
     entries.push({ id: 'export', label: '导出会话' })
-  }
-  if (input.canArchive) {
-    entries.push({ id: 'archive', label: '归档' })
   }
 
   return entries
@@ -280,8 +270,6 @@ interface ThreadRowProps {
   readonly onArchive?: ((threadId: string) => void) | undefined
   /** 这一行正在上传，行尾给一个转圈。 */
   readonly isSharing: boolean
-  /** 这一行的分享结果；别的行拿到了链接时这里是 null。 */
-  readonly shared: SharedThreadResult | null
 }
 
 /* 固定的字形随状态变，不住这张表；其余一项一枚字形。 */
@@ -289,7 +277,6 @@ const MENU_GLYPHS = {
   rename: Edit,
   share: Share2,
   export: Download,
-  archive: Archive,
 } as const
 
 /*
@@ -313,7 +300,6 @@ const ThreadRow = memo(function ThreadRow({
   onShare,
   onArchive,
   isSharing,
-  shared,
 }: ThreadRowProps) {
   /*
    * 菜单开合是这一行的状态，受控：弹层 Portal 到 body，行的 :hover/:focus-within 够不着
@@ -336,12 +322,11 @@ const ThreadRow = memo(function ThreadRow({
     /* 给不出就地发起的动作就不画那一项：点了没反应的菜单项比不画更糟。 */
     canShare: onShare !== undefined,
     canExport: onExport !== undefined,
-    canArchive: onArchive !== undefined,
   })
 
   /*
    * 逐项取出它自己的样子与动作。固定要读这一行的 pinned，重命名走行自己的内联编辑入口，
-   * 其余三项就是上层给的那三个回调 —— 都在这一处落定，别处不再判一次「有没有」。
+   * 其余两项就是上层给的那两个回调 —— 都在这一处落定，别处不再判一次「有没有」。
    */
   const menuItemOf = (entry: ThreadMenuEntry) => {
     switch (entry.id) {
@@ -353,8 +338,6 @@ const ThreadRow = memo(function ThreadRow({
         return { Glyph: MENU_GLYPHS.share, run: () => onShare?.(thread.id) }
       case 'export':
         return { Glyph: MENU_GLYPHS.export, run: () => onExport?.(thread.id) }
-      case 'archive':
-        return { Glyph: MENU_GLYPHS.archive, run: () => onArchive?.(thread.id) }
     }
   }
 
@@ -412,6 +395,20 @@ const ThreadRow = memo(function ThreadRow({
                 <PinGlyph isPinned={isPinned} />
               </button>
 
+              {/* 归档与固定并列，不藏进菜单：给不出动作就不画。 */}
+              {onArchive === undefined ? null : (
+                <button
+                  aria-label="归档"
+                  className="assistant-thread__action"
+                  onClick={() => {
+                    onArchive(thread.id)
+                  }}
+                  type="button"
+                >
+                  <ArchiveIcon aria-hidden="true" />
+                </button>
+              )}
+
               {isSharing ? (
                 <span
                   aria-label="正在上传到 my.omp.sh"
@@ -449,14 +446,7 @@ const ThreadRow = memo(function ThreadRow({
 
                     return (
                       <Fragment key={entry.id}>
-                        <DropdownMenuItem
-                          className={
-                            entry.id === 'archive'
-                              ? 'assistant-thread-menu__item assistant-thread-menu__item--destructive'
-                              : 'assistant-thread-menu__item'
-                          }
-                          onClick={run}
-                        >
+                        <DropdownMenuItem className="assistant-thread-menu__item" onClick={run}>
                           <Glyph aria-hidden="true" />
                           <span>{entry.label}</span>
                         </DropdownMenuItem>
@@ -468,28 +458,6 @@ const ThreadRow = memo(function ThreadRow({
             </span>
           </span>
         </>
-      )}
-
-      {/*
-          分享的结果就长在这一行下面，不进弹层：弹层一关就没了，而这条链接是要被读、
-          被对着复制的。复制已在宿主完成，这里说的只是「它在哪、是什么」。
-      */}
-      {shared === null ? null : (
-        <p className="assistant-thread__shared" role="status">
-          <span className="assistant-thread__shared-note">
-            {shared.truncated
-              ? '已上传到 my.omp.sh（内容超出上限，已截短），链接已复制：'
-              : '已上传到 my.omp.sh，链接已复制：'}
-          </span>
-          <a
-            className="assistant-thread__shared-url"
-            href={shared.url}
-            rel="noreferrer"
-            target="_blank"
-          >
-            {shared.url}
-          </a>
-        </p>
       )}
     </li>
   )
@@ -582,7 +550,6 @@ export function AssistantThreadList({
   onShare,
   onArchive,
   share,
-  shared,
 }: AssistantThreadListProps) {
   /* 时钟进来一次整张列表共用，不各行读墙上时间；它睡到下一次会变的时刻，不轮询。 */
   const now = useNow()
@@ -693,7 +660,6 @@ export function AssistantThreadList({
       onExport={onExport}
       onPin={onPin}
       onShare={onShare}
-      shared={shared?.threadId === thread.id ? shared : null}
       thread={thread}
     />
   )

@@ -28,22 +28,13 @@ export type BridgeCommand =
       readonly promptId: string
       /**
        * 随这句话带上的附件；每一格交的是磁盘绝对路径 + kind + mime + 名字。
-       *
-       * 为什么是对象而不是裸路径：omp 的 SDK 收图是 `PromptOptions.images:
-       * ImageContent[]`（`src/session/agent-session-types.ts:345-349`），只有 base64
-       * 一条路，没有按路径收附件的 API，也没有会话媒体库 —— 所以图片必须由**桥**
-       * 按路径读出来再编码，正如它自己的 CLI 那样
-       * （`src/cli/file-processor.ts:104-129` 读文件头、`buffer.toBase64()`）。
-       * `kind` 是这条命令唯一的分派判据：`image` 的像素由桥读出来交给 SDK 的
-       * ImageContent；`file` 只把路径当引用，由 agent 经 Read 工具按需打开。
-       * 丢了这个判别式，桥就只能重新嗅一次文件头才知道该走哪条路。
-       *
-       * `mime` 是**内容判据的唯一产地**（Rust 侧 `crates/asset/src/formats.rs` 的
-       * `classify()` 按文件头嗅出，经 `AttachmentRef.mime` 带到
-       * `crates/conversation-runtime/src/gateway.rs` 的 `materialise()`）：它是
-       * ImageContent.mimeType 的唯一来源。桥**不得**从扩展名反推 —— 剪贴板粘贴的图
-       * 叫 `pasted-<uuid>`（`apps/desktop/src/assistant/attachment-intake.ts`）
-       * 没有扩展名，按扩展名判会把一张好图说成 `application/octet-stream` 而被供应商拒。
+       * 对象而非裸路径：SDK 收图只有 base64 一条路（`PromptOptions.images:
+       * ImageContent[]`，agent-session-types.ts:345-349），桥按路径读盘同官方 CLI
+       * （file-processor.ts:104-129）。`kind` 是唯一分派判据：image 的像素由桥读出
+       * 交给 ImageContent，file 只把路径当引用。
+       * `mime` 唯一产地是 Rust formats.rs 的 classify()（经 gateway.rs 的
+       * materialise() 带来），桥不得按扩展名反推 —— 剪贴板粘贴的图叫
+       * `pasted-<uuid>`，没有扩展名。
        */
       readonly attachments: readonly {
         readonly path: string
@@ -97,13 +88,10 @@ export type BridgeCommand =
       readonly scope?: 'session'
     }
   /**
-   * 回答一个对话框。
+   * 回答一个对话框（授权走 answer_permission；这条给别的对话框用）。
    *
-   * 授权走 answer_permission（产品只有三颗按钮，语义比上游窄）；这一条给别的对话框用，
-   * 两种载荷各自分明：
-   * - **题组**（`questions_asked` 那一种）：`response` 是产品形状的答复
-   *   （`{answers: {题号: {kind,…}}, method?, note?}`），由桥折回上游要的 results；
-   *   空答案表就是「撤下整组」；
+   * - 题组（`questions_asked` 那一种）：`response` 是产品形状的答复，由桥折回上游要的
+   *   results；空答案表就是「撤下整组」。
    * - 其余（confirm / input / editor）：原样转发上游的响应形状。
    *
    * 判据是「这个号是不是一组还在等的题」，不是载荷长什么样。
@@ -323,14 +311,10 @@ export type BridgeEvent =
       readonly usage: UsageSnapshot
     }
   /**
-   * agent 的 ask 工具在等人答一组题。
-   *
-   * `questions` 已经是**产品形状**（与 packages/conversation 的 QuestionItem 同形）：
-   * omp 自己那份载荷（选项只有标签、没有号，还有 preview / recommended 这些我们画不出的
-   * 字段）在桥里折过一次，因为「omp 的题长什么样」是 agent 专属知识（AGENTS.md §4）。
-   * 号也由桥签发 —— 下方答案按同一个号回来。
-   *
-   * 答复走既有的 `answer_dialog` 命令，不新开一条：那是同一条路的两端。
+   * agent 的 ask 工具在等人答一组题。`questions` 已是产品形状（与 packages/conversation
+   * 的 QuestionItem 同形）：omp 的载荷在桥里折过一次，题的形状是 agent 专属知识
+   * （AGENTS.md §4）。号由桥签发，答案按同一个号回来，走既有 `answer_dialog` 命令
+   * 不新开一条：那是同一条路的两端。
    */
   | {
       readonly kind: 'questions_asked'
@@ -391,14 +375,10 @@ export interface UsageSnapshot {
 }
 
 /**
- * 一道等答的题，产品形状。
- *
- * 与 packages/conversation 的 QuestionItem 逐字同形，但少三格：`body`（omp 没有）、
- * `otherLabel` / `otherDescription`（omp 的「Other」是自己固定的那一句，不是题给的）。
- * 投影层 absent 即退回它自己的默认文案，所以这里如实缺席而不是编一句。
- *
- * `options[].id` 是桥现编的：omp 的选项只有标签。答案按号回来，所以号必须在桥这一侧
- * 与标签对上 —— 那是答案能被翻译回 omp 的唯一依据。
+ * 一道等答的题，产品形状。与 packages/conversation 的 QuestionItem 逐字同形，但少三格
+ * （`body`；`otherLabel` / `otherDescription` —— omp 的「Other」是它自己固定的一句），
+ * 如实缺席而不是编一句。`options[].id` 是桥现编的：omp 的选项只有标签，号必须在
+ * 桥这一侧与标签对上 —— 那是答案能被翻译回 omp 的唯一依据。
  */
 export interface AskedQuestion {
   readonly id: string
@@ -456,29 +436,20 @@ export interface SettingEntry {
    */
   readonly condition?: string
   /**
-   * 所在分节的中文名。
-   *
-   * 分组仍然按 `group`（agent 自己的词）分：键不能译，译了同一节会分裂成两节。
-   * 落在这里的只是给人看的那一列。
+   * 所在分节的中文名。分组仍按 `group`（agent 自己的词）分：键不能译，
+   * 译了同一节会分裂成两节；这里只是给人看的那一列。
    */
   readonly groupLabel?: string
   /**
-   * 这一格的**行**由产品别处的控件负责（输入框那一排的选择器、设置页的浏览器一节）。
-   *
-   * 值仍然要报：别的格子按 `condition` 读它的 value 决定显不显示。界面据此只跳过这一行，
-   * 不跳过它的值。一个事实两个控件是缺陷（AGENTS.md §1），但把值一起抽掉会让依赖它的
-   * 那几行永远消失，而屏幕上没有任何迹象 —— 那比重复控件更难发现。
+   * 这一格的**行**由产品别处的控件负责。值仍然要报：别的格子按 `condition` 读它的
+   * value 决定显不显示，把值一起抽掉会让依赖它的那几行悄悄消失 —— 比重复控件更难发现。
    */
   readonly owned?: boolean
   /**
-   * 这一格归产品哪一个**剥离页**画。
-   *
-   * 「记忆」与「人设与风格」本来混在 agent 自己的栏目里（后者根本没有对应的 tab，
-   * 见 settings-labels.ts 的 `personaSettingOf`），产品把它们各拆成一页，主页面不再画。
-   * 缺席即不属于任何剥离页 —— 绝大多数格子都是这一档。
-   *
-   * 与 `owned` 正交：`owned` 说的是「这一行别处已经有控件」，section 说的是「这一行该
-   * 归哪一页」。一格可以既有归属又 owned（`defaultThinkingLevel`），那一页也不画它的行。
+   * 这一格归产品哪一个**剥离页**画（「记忆」/「人设与风格」，后者本没有对应的 tab，
+   * 见 settings-labels.ts 的 `personaSettingOf`）。缺席即不属于任何剥离页。
+   * 与 `owned` 正交：`owned` 说「这一行别处已有控件」，section 说「归哪一页」；
+   * 一格可以既有归属又 owned（`defaultThinkingLevel`），那一页也不画它的行。
    */
   readonly section?: 'memory' | 'persona'
 }
@@ -504,12 +475,7 @@ export interface SettingsTab {
  * 事实，换个 home 就分叉。
  */
 export interface SettingsCatalog {
-  /**
-   * 栏目清单，按 agent 自己的顺序。
-   *
-   * 键与名成对给，不给两条并行数组：并行数组一旦错位就是「点了外观出来模型」，而这里
-   * 没有一种读法能发现它错了。
-   */
+  /** 栏目清单，按 agent 自己的顺序；键与名成对给，不给并行数组（错位论据见 settings 包 agent-settings/model.ts）。 */
   readonly tabs: readonly SettingsTab[]
   readonly settings: readonly SettingEntry[]
   /** agent 此刻在用的配置文件绝对路径（config.yml）。 */

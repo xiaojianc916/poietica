@@ -10,19 +10,15 @@ use crate::recorder::FrameSink;
 use crate::settings::{SettingEntry, SettingsCatalog};
 use crate::{ModelCatalogOperation, ModelCatalogSnapshot};
 
-/// 随一句话带上的一个附件，交给 agent 的四种事实：路径、类别、内容类型、显示名。
+/// 随一句话带上的一个附件：路径、类别、内容类型、显示名。与 wire.rs 的 WireAttachment
+/// 同形，这里已经是线上形状，不再折一次。
 ///
-/// 为什么图片也只能交路径：omp 的 SDK 收图是 `PromptOptions.images: ImageContent[]`
-/// （`src/session/agent-session-types.ts:345-349`），只有 base64 一条路，**没有**
-/// 按路径收附件的 API，也没有会话媒体库 —— 读盘与编码由桥照它自己 CLI 的做法
-/// 补上（`src/cli/file-processor.ts:104-129`）。所以本层只交事实，不搬字节。
-///
-/// `kind` 是桥那一侧唯一的分派判据（`image` 交像素、`file` 只当引用），
-/// 与 wire.rs 的 WireAttachment 同形：这里已经是线上形状，不再折一次。
-///
-/// `mime` 是进门时的**内容判据**（`crates/asset/src/formats.rs` 的 `classify()` 按文件头
-/// 嗅出），也是 `ImageContent.mimeType` 的唯一来源：扩展名不是判据 —— 剪贴板粘贴的图
-/// 叫 `pasted-<uuid>`，按扩展名反推会把一张好图说成 `application/octet-stream`。
+/// 图片也只能交路径：omp 的 SDK 收图只有 base64 一条路（`PromptOptions.images:
+/// ImageContent[]`，src/session/agent-session-types.ts:345-349），没有按路径收附件的
+/// API —— 读盘与编码由桥照它自己 CLI 的做法补上（src/cli/file-processor.ts:104-129）。
+/// `kind` 是桥那一侧唯一的分派判据；`mime` 是进门的内容判据（`crates/asset/src/formats.rs`
+/// 的 `classify()` 按文件头嗅出）与 `ImageContent.mimeType` 的唯一来源：扩展名不是判据
+/// —— 粘贴的图叫 `pasted-<uuid>`，按扩展名反推会把好图说成 `application/octet-stream`。
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PromptAttachment {
     pub path: PathBuf,
@@ -78,11 +74,8 @@ pub struct PromptSkill {
 /// 它们的公开方法在 `AgentClient` 上直接答「这个 agent 还不支持」，不占一条
 /// 永远不会被应答的管道命令。界面那一整套照旧（ADR 0016 后果第 5 条）。
 pub(crate) enum Command {
-    /// 这条连接上那一条会话。
-    ///
-    /// 桥的形态是「一条连接一条会话」，会话在握手时就开好了 —— 所以这条命令
-    /// 不出进程，它只是把那个号交回去。跨工作区的多会话要另开一条连接，
-    /// 那是本层尚未接上的部分（见 ADR 0016 的待验证一节）。
+    /// 这条连接上那一条会话。桥的形态是一条连接一条会话（握手时开好），
+    /// 所以这条命令不出进程 —— 语义细节见 new_session。
     CurrentSession {
         reply: oneshot::Sender<Result<OpenedSession>>,
     },
@@ -200,11 +193,7 @@ pub(crate) enum Command {
         cwd: PathBuf,
         reply: oneshot::Sender<Result<OpenedSession>>,
     },
-    /// 从一条会话分叉出新的那条，丢掉尾部 `drop_turns` 轮。
-    ///
-    /// 这是一次**现场换会话**：agent 那边分叉完成后，这条连接的活会话已经是新的
-    /// 那一条（omp 的 AgentSession#branch / #fork 都落在新文件上），所以应答之后
-    /// 连接上的号要接过去 —— 驱动器因此把它走成和新开同一条指派的路。
+    /// 从一条会话分叉出新的那条，丢掉尾部 `drop_turns` 轮；现场换会话的语义见 fork_session。
     ForkSession {
         session_id: String,
         drop_turns: u32,
@@ -234,10 +223,9 @@ pub(crate) enum Command {
 /// 屏幕上没有它们的位置，本层不转发 —— 转发就得有人解释它们。
 ///
 /// **手写 `Debug`，`url` 不出现在里面。** omp 的链接形状是 `<serverUrl>/<id>#<key>`，
-/// `#` 之后那一截是解密密钥：拿到整个字符串的人就能读这份分享的对话。所以它不是
-/// 一条普通 URL，是一份**读取凭据** —— 派生的 Debug 会让它落进任何一行日志或错误
-/// 文案，等于把阅读权写出去。判据与那三把模型钥匙相同（AGENTS.md §5「Debug 不打载荷」）：
-/// 不看它像不像敏感数据，看拿到它的人能多做什么。别改回 derive。
+/// `#` 之后那一截是解密密钥，拿到整个字符串的人就能读这份分享 —— 它是读取凭据，
+/// 不是普通 URL；派生的 Debug 会把它写进任何一行日志或错误文案（AGENTS.md §5
+/// 「Debug 不打载荷」：不看像不像敏感数据，看拿到它的人能多做什么）。别改回 derive。
 #[derive(Clone, PartialEq, Eq)]
 pub struct ShareOutcome {
     pub url: String,

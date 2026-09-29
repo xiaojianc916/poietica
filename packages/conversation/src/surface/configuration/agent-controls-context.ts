@@ -3,19 +3,14 @@ import type { AgentToolkit } from '../../agent/toolkit'
 import type { AgentCapabilityStore, AgentControls } from '../../configuration/capability-store'
 
 /*
- * 入口那一格的可调项由谁给。
+ * 入口那一格的可调项由谁给。能力属于 agent，会话此刻真在用什么属于会话 —— 前者
+ * 住这台 store，后者住 SessionControlsStore，两个 scope 各一台。入口那格没有对话
+ * 也没有会话，表不可能按 threadId 寻址（ChatGPT/Claude/Cursor/VS Code Copilot Chat
+ * 的新会话界面同理）。
  *
- * 能力属于 agent，某条会话此刻真在用什么才属于那条会话 —— 前者住在这台 store 里,
- * 后者住在 SessionControlsStore 里，两个 scope 各有一台。ChatGPT / Claude / Cursor /
- * VS Code Copilot Chat 的新会话界面都画得出模型与模式选择器，而那一刻既没有对话也
- * 没有会话，所以入口那一格的表不可能按 threadId 寻址。
- *
- * 实例由组合根造出来，经 Context 交给下面所有人，useSyncExternalStore 订的是拿到手
- * 的那一个，不是 import 来的那一个 —— 与同目录的 transcripts-context 一个形制。
- * React 19 起 <Context value> 是官方形制，不再走内层 Provider 属性。
- *
- * 没有默认实例：拿不到就是接线漏了，那要当场说出来，而不是让半棵组件树对着一份
- * 永远不会更新的空表。
+ * 实例由组合根造出来经 Context 下发，useSyncExternalStore 订拿到手的那一个
+ * （与同目录 transcripts-context 一个形制）；React 19 起 <Context value> 是官方形制。
+ * 没有默认实例：拿不到就是接线漏了，要当场说出来。
  */
 export const AgentControlsContext = createContext<AgentCapabilityStore | null>(null)
 
@@ -54,10 +49,8 @@ const NO_SUBSCRIPTION = () => () => {}
 const NO_TOOLKIT: AgentToolkit = { skills: [], mcpServers: [] }
 
 /**
- * 这一家 agent 公布的技能与 MCP 名册。
- *
- * 缺席即空名册 —— 组件工作台不套 Provider，而那两组只是不出现；可调项不同，
- * 它们是那些界面的必需品，所以 useAgentControls 缺席时抛错。
+ * 这一家 agent 公布的技能与 MCP 名册。缺席即空名册：组件工作台不套 Provider，
+ * 那两组只是不出现；可调项是必需品，所以 useAgentControls 缺席时抛错。
  */
 export function useAgentToolkit(): AgentToolkit {
   const store = useContext(AgentControlsContext)

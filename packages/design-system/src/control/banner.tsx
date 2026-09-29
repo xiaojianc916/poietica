@@ -1,0 +1,148 @@
+import './banner.css'
+
+import { CheckCircle } from 'lucide-react'
+import type { CSSProperties, ReactNode } from 'react'
+import { Fragment, useEffect, useLayoutEffect, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
+
+/*
+ * 顶部居中的一句话横幅：滑入、停留、淡出，自己报完就走。
+ *
+ * 版式与动画的正本是 deepseek-harness 的 packages/client/ui-primitives/src/Toast.tsx
+ * 与 Toast.module.css（锚定 639ed015）。照抄的是它的行为，不是它的令牌：那边读
+ * --dsw-* 设计平台，这里读本仓的 --ui-*，形状与时长一律不动。
+ *
+ * 一件要说出口、且说得出「怎么办」的事才用它：句子后面接得住动作（撤销、去看看）
+ * 才有意义。纯失败通知走 ToastRegion，那是另一件事、另一个落点。
+ */
+
+/** 停满不淡的那一段。正本默认值，这里照抄。 */
+const HOLD_MS = 3000
+
+/** 淡出时长。必须与 banner.css 里 banner-fade 的时长一致。 */
+const FADE_MS = 1000
+
+export interface BannerAction {
+  /** 动作前的连词，例如「或」。不给就是紧接正文。 */
+  readonly prefix?: string
+  readonly label: string
+  readonly onClick: () => void
+}
+
+export interface BannerProps {
+  /** 已经定稿的一句话。文案由调用方给，组件不拼句子。 */
+  readonly text: string
+  /** 语气。success 自带绿勾；不给她就自己带 icon。 */
+  readonly tone?: 'success'
+  /** 前面的字形；tone 为 success 时不画（绿勾在那时才是正主）。 */
+  readonly icon?: ReactNode
+  /** 接着句子往下说的动作，各自渲染成蓝色可点文字。 */
+  readonly actions?: readonly BannerAction[]
+  /** 停满多久才开始淡。要读的字多就报长一点。 */
+  readonly holdMs?: number
+  /** 横幅横向跟谁对齐中心。不给就居中于视口。 */
+  readonly anchor?: HTMLElement | null
+  /** 淡完时叫一次，调用方在这里卸载它。 */
+  readonly onDone: () => void
+}
+
+/**
+ * 一句话横幅。
+ *
+ * 走 body 的 portal：调用方若住在一个有 transform 或 filter 的祖先里，固定定位会被
+ * 那个祖先的盒子关住。
+ *
+ * 停留时长由一条自定义属性同时喂给卸载定时器和样式表的淡出延迟，两边因此不会各说
+ * 各话、把横幅卸在淡出一半的地方。重渲不会延长寿命：定时器只认 holdMs。
+ */
+export function Banner({
+  text,
+  icon,
+  tone,
+  actions,
+  holdMs = HOLD_MS,
+  anchor,
+  onDone,
+}: BannerProps) {
+  const latestOnDone = useRef(onDone)
+
+  useLayoutEffect(() => {
+    latestOnDone.current = onDone
+  }, [onDone])
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      latestOnDone.current()
+    }, holdMs + FADE_MS)
+
+    return () => {
+      clearTimeout(timer)
+    }
+  }, [holdMs])
+
+  /*
+   * 跟着锚点居中时在窗口缩放上重量一次。横幅一共活四秒上下，这段时间里窗口内部的
+   * 布局漂移不在射程内。
+   */
+  const [left, setLeft] = useState<number | null>(null)
+
+  useLayoutEffect(() => {
+    if (anchor === null || anchor === undefined) {
+      return
+    }
+
+    const measure = () => {
+      const rect = anchor.getBoundingClientRect()
+
+      setLeft(rect.left + rect.width / 2)
+    }
+
+    measure()
+    window.addEventListener('resize', measure)
+
+    return () => {
+      window.removeEventListener('resize', measure)
+    }
+  }, [anchor])
+
+  return createPortal(
+    <div
+      className="ui-banner"
+      role="alert"
+      style={
+        {
+          ...(left === null ? {} : { left }),
+          '--ui-banner-hold': `${String(holdMs)}ms`,
+        } as CSSProperties
+      }
+    >
+      {tone === 'success' ? (
+        /* 绿勾是这一档语气自带的字形，此时调用方给的 icon 不画。 */
+        <span aria-hidden="true" className="ui-banner__icon ui-banner__icon--success">
+          <CheckCircle />
+        </span>
+      ) : (
+        icon !== undefined && (
+          <span aria-hidden="true" className="ui-banner__icon">
+            {icon}
+          </span>
+        )
+      )}
+
+      <span className="ui-banner__text">
+        {text}
+
+        {actions?.map((action) => (
+          <Fragment key={action.label}>
+            {action.prefix}
+
+            <button className="ui-banner__action" onClick={action.onClick} type="button">
+              {action.label}
+            </button>
+          </Fragment>
+        ))}
+      </span>
+    </div>,
+    document.body,
+  )
+}

@@ -6,9 +6,8 @@ use serde_json::Value;
 use poietica_conversation::link::LinkState;
 
 /*
- * 判别式的字面量由 serde 的 `tag = "kind"` 从下面那个枚举派生，本模块不再手写一份 ——
- * 曾有一张 kind() 表把八个字面量逐条列出，全仓没有读者，只制造了第二个事实。
- * 这一个例外有外部的读者（conversation-runtime 按它认准入帧），所以留着。
+ * 判别式字面量由 serde 的 `tag = "kind"` 派生，不再手写一份 —— 曾有一张 kind() 表
+ * 制造了第二个事实，已删。这一个常量例外，因为有外部读者（conversation-runtime 按它认准入帧）。
  */
 pub const PROMPT_ADMITTED: &str = "prompt_admitted";
 

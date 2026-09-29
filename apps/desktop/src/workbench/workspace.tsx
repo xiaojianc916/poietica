@@ -19,6 +19,7 @@ import {
   SettingsNavigationRegion,
   SettingsProvider,
   type SettingsProviderProps,
+  type SettingsSection,
 } from '@poietica/settings/ui'
 import type {
   CommandRegistry,
@@ -58,6 +59,8 @@ export interface DesktopWorkspaceProps {
   readonly workspace: WorkbenchSessionStore
   readonly commands: CommandRegistry
   readonly isSettingsOpen: boolean
+  /** 设置这次开在哪一页。外部入口（例如归档横幅的「筛选已归档会话」）指一个具体落点。 */
+  readonly settingsSection: SettingsSection
   readonly onSettingsClose: () => void
   readonly settingsStore: SettingsStore
   readonly onThemeChange: SettingsProviderProps['onThemeChange']
@@ -76,6 +79,8 @@ export interface DesktopWorkspaceProps {
   readonly isWindowMaximized: boolean
   readonly onDeveloperToolsOpen: () => void
   readonly onSettingsOpen: () => void
+  /** 直接落在设置里「已归档」那一页。归档横幅的第二颗按钮走这里。 */
+  readonly onShowArchivedChats: () => void
   readonly onWindowMinimize: () => void
   readonly onWindowMaximize: () => void
   readonly onWindowClose: () => void
@@ -136,6 +141,7 @@ export function DesktopWorkspace({
   workspace,
   commands,
   isSettingsOpen,
+  settingsSection,
   onSettingsClose,
   settingsStore,
   onThemeChange,
@@ -153,6 +159,7 @@ export function DesktopWorkspace({
   isWindowMaximized,
   onDeveloperToolsOpen,
   onSettingsOpen,
+  onShowArchivedChats,
   onWindowMinimize,
   onWindowMaximize,
   onWindowClose,
@@ -318,6 +325,7 @@ export function DesktopWorkspace({
               activeThreadId={activeConversationId}
               onCreate={openAssistantEntry}
               onOpen={startConversation}
+              onShowArchived={onShowArchivedChats}
               runningThreadIds={runningThreadIds}
             />
           }
@@ -395,6 +403,7 @@ export function DesktopWorkspace({
       agentSettingsCatalog={agentSettingsCatalog}
       appVersion={appVersion}
       dataDirectory={dataDirectory}
+      initialSection={settingsSection}
       isOpen={isSettingsOpen}
       keybindings={keybindings}
       modelCatalog={modelCatalog}
