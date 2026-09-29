@@ -13,6 +13,7 @@ export {
   useThreadSelectors,
   useThreadUsage,
 } from './configuration/session-controls-context'
+export type { WorkspaceGitStatus } from './goal/workspace-git-status'
 export { AssistantThreadList } from './threads/assistant-thread-list'
 export type { GitBranchPickerProps } from './threads/git-branch-picker'
 export type { WorkspaceChoice, WorkspacePickerProps } from './threads/workspace-picker'

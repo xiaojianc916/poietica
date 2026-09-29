@@ -41,11 +41,13 @@ import {
   ConversationTodoPopover,
 } from '../assistant/conversation-todo-popover'
 import { useThreadsActions } from '../assistant/threads-context'
+import { useWorkspaceGitStatus } from '../assistant/workspace-git-status'
 import { type ActiveTabSequence, DesktopTitleBar } from '../shell/chrome/title-bar'
 import { TOGGLE_COMMAND_PALETTE_COMMAND_ID, tabNeighbors } from '../shell/commands/app-commands'
 import { SidebarFooter, SurfaceHost, WorkspaceShell, WorkspaceSidebar } from '../shell/index'
 import { useWorkspaceLayoutStore, useWorkspaceLayoutValue } from '../shell/layout/layout-context'
 import type { WorkspaceParts, WorkspaceShellActions } from '../shell/layout/shell-contract'
+import { useActiveWorkspaceRoot } from '../workspace/roots-context'
 import { AuxiliaryDock } from './auxiliary-dock'
 import type { WorkbenchHost } from './runtime-contract'
 import { createDesktopSurfaces } from './surfaces'
@@ -201,6 +203,8 @@ export function DesktopWorkspace({
   // 只订所需字段：拖宽是 pointermove 频率的通报，全量订阅会把整棵工作台树拖进每一帧的重渲染。
   const auxiliaryThread = useWorkspaceLayoutValue((state) => state.auxiliaryThread)
   const todoThread = useWorkspaceLayoutValue((state) => state.todoThread)
+  /* 状态面板 Git 区的事实源；工作区根为空（无项目）时这一区本来就不画。 */
+  const workspaceGit = useWorkspaceGitStatus(useActiveWorkspaceRoot())
   const auxiliaryPanes = useSyncExternalStore(
     auxiliaryPanel.subscribe,
     () => auxiliaryPanel.getSnapshot().panes,
@@ -369,7 +373,19 @@ export function DesktopWorkspace({
               {surface}
               {workbench.activeSurface.kind === 'conversation' ? (
                 <ConversationTodoPopover
-                  open={todoThread === workbench.activeSurface.threadId}
+                  expanded={todoThread === workbench.activeSurface.threadId}
+                  git={workspaceGit}
+                  gitPicker={workspaceGit.picker}
+                  onCollapse={() => {
+                    workspaceLayoutStore.setTodoThread(null)
+                  }}
+                  onOpenReview={() => {
+                    if (workbench.activeSurface.kind !== 'conversation') {
+                      return
+                    }
+                    workspaceLayoutStore.setAuxiliaryThread(workbench.activeSurface.threadId)
+                    auxiliaryPanel.openLauncherPane('review')
+                  }}
                   threadId={workbench.activeSurface.threadId}
                 />
               ) : null}

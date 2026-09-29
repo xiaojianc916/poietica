@@ -27,6 +27,14 @@ function useStore(): SessionControlsStore {
   return shared
 }
 
+/*
+ * 状态面板可以挂在没有 Provider 的树上（弹层独立定位时）。它读目标是装饰，
+ * 读不到就不画目标那一区，不能因为缺 Provider 把整块面板拖崩。
+ */
+function useOptionalStore(): SessionControlsStore | null {
+  return useContext(SessionControlsContext)
+}
+
 /** 只要动作，不订阅：拿到的回调引用终生不变，可以直接传给子组件。 */
 export function useSessionControlsActions(): SessionControlsStore {
   return useStore()
@@ -90,4 +98,27 @@ export function useThreadGoal(threadId: string | null): SessionGoal | undefined 
   )
 
   return useSyncExternalStore(store.subscribe, read, read)
+}
+
+/**
+ * useThreadGoal 的防御版：没有 Provider 时返回 undefined（不画目标区），不抛。
+ * 状态面板必须能在 Provider 缺席的树上存活，所以它的目标与动作都走这一支。
+ */
+export function useOptionalThreadGoal(threadId: string | null): {
+  readonly goal: SessionGoal | undefined
+  readonly controls: SessionControlsStore | null
+} {
+  const store = useOptionalStore()
+
+  const read = useCallback(
+    () => (store === null || threadId === null ? undefined : store.goalOf(threadId)),
+    [store, threadId],
+  )
+  const subscribe = useCallback(
+    (onChange: () => void) => (store === null ? () => undefined : store.subscribe(onChange)),
+    [store],
+  )
+  const goal = useSyncExternalStore(subscribe, read, read)
+
+  return { controls: store, goal }
 }

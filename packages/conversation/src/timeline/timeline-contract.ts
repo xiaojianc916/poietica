@@ -153,6 +153,9 @@ export interface BackgroundTaskItem {
   readonly taskId: string
   readonly description: string
   readonly status: BackgroundTaskStatus
+  /** transcript 给的启动时刻（epoch ms）；运行中行内秒针用它推。 */
+  readonly startedAt?: number
+  readonly endedAt?: number
 }
 
 export interface PermissionItem extends TimelineEntry {

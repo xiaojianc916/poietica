@@ -1,191 +1,590 @@
-.todo-panel {
-  display: flex;
-  min-inline-size: 0;
-  overflow: clip;
-  flex-direction: column;
-  border: 1px solid var(--color-divider);
-  border-radius: 12px;
-  background: var(--cp-ground);
-  color: var(--cp-ink);
-  font-size: 13px;
+/*
+ * 状态面板 —— 逐条复刻 ZCode ConversationStatusPanel
+ * （D:\xiaojianc\zcode-ref\packages\ui\src\v4\ConversationStatusPanel.tsx）。
+ *
+ * 尺寸、圆角、间距、过渡、颜色档位全部取自 ZCode 源码的字面值：
+ * - 字号：ZCode :root 的 --ui-font-size: 14px（text-ui-base）；
+ * - 深色：--color-popover #2b2b2b、--color-border rgba(255,255,255,.1)、
+ *   --color-hover rgba(255,255,255,.05)、--color-menu-hover #363636；
+ * - 浅色：--color-popover #ffffff、--color-border rgba(13,13,13,.1)、
+ *   --color-hover rgba(13,13,13,.05)、--color-menu-hover #f0f0f0。
+ * 这些值在 Poietica 里各有对应令牌，映射见下方每一处注释。
+ */
+/*
+ * 本表用到的取值。面板本体在 [data-assistant-skin] 作用域内（读 --cp-*），
+ * 但每条都带全局兜底，避免换挂载点（如页头控件行）时解析成空值。
+ */
+.status-panel {
+  /* ZCode :root 的 --ui-font-size: 14px（text-ui-base）。 */
+  --status-panel-font-size: 14px;
+  --status-panel-ink: var(--cp-ink, var(--ui-foreground));
+  --status-panel-ink-subtle: var(--cp-ink-subtle, var(--ui-muted-foreground));
+  --status-panel-ink-subtlest: var(--cp-placeholder, var(--ui-placeholder));
+  --status-panel-hover: var(--cp-hover, var(--ui-control-hover));
+  --status-panel-success: var(--cp-diff-added-text, var(--ui-success));
+  --status-panel-added: var(--cp-diff-added-text, var(--ui-success));
+  --status-panel-removed: var(--cp-diff-removed-text, var(--ui-destructive));
 }
 
-.todo-panel__section + .todo-panel__section {
+/* ZCode CollapsibleContent：高度 300ms ease-in-out + 内容淡入，同一条时间轴。 */
+@keyframes status-panel-collapsible-down {
+  from {
+    height: 0;
+  }
+
+  to {
+    height: var(--accordion-panel-height);
+  }
+}
+
+@keyframes status-panel-collapsible-up {
+  from {
+    height: var(--accordion-panel-height);
+  }
+
+  to {
+    height: 0;
+  }
+}
+
+@keyframes status-panel-fade-in {
+  from {
+    opacity: 0;
+  }
+
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes status-panel-fade-out {
+  from {
+    opacity: 1;
+  }
+
+  to {
+    opacity: 0;
+  }
+}
+
+/* ── 面板内容 ──────────────────────────────────────────────────────────
+ * ZCode 把边、圆角、阴影、底色都画在壳（aside）上，内容层只负责 p-2 的排布。
+ * 壳在宿主那一侧（conversation-todo-popover 的 __surface / __mini），
+ * 这里再画一遍就是双层边框 —— 展开态与收起态都会显得比 ZCode 厚一圈。
+ */
+.status-panel {
+  display: flex;
+  min-inline-size: 0;
+  flex-direction: column;
+  gap: 0;
+  padding: 8px;
+  color: var(--cp-ink);
+  font-size: var(--status-panel-font-size);
+}
+
+/* ── 分区 ──────────────────────────────────────────────────────────────
+ * ZCode StatusSection: min-w-0 flex-none；separated 时 border-t pt-2
+ */
+.status-panel__section {
+  display: block;
+  min-inline-size: 0;
+  flex: none;
+}
+
+.status-panel__section[data-separated] {
+  margin-block-start: 8px;
+  padding-block-start: 8px;
   border-block-start: 1px solid var(--color-divider);
 }
 
-.todo-panel__heading {
-  margin: 0;
+/* StatusSectionHeader: mb-0.5 flex h-8 items-center gap-1.5 px-2 pr-8 */
+.status-panel__heading {
+  margin: 0 0 2px;
 }
 
-.todo-panel__header {
+.status-panel__trigger {
   display: flex;
-  min-block-size: 36px;
+  block-size: 32px;
   inline-size: 100%;
   min-inline-size: 0;
   align-items: center;
-  gap: 10px;
+  gap: 6px;
   margin: 0;
-  padding: 6px 12px;
+  padding: 0 32px 0 8px;
   border: 0;
   background: transparent;
   color: inherit;
   font: inherit;
+  font-size: var(--status-panel-font-size);
   text-align: start;
   cursor: pointer;
 }
 
-.todo-panel__header:focus-visible {
+.status-panel__trigger:focus-visible {
   outline: 2px solid var(--cp-accent);
   outline-offset: -2px;
 }
 
-.todo-panel__lead,
-.todo-panel__chevron,
-.todo-panel__glyph {
+/* 标题：text-[--color-foreground-subtle] */
+.status-panel__title {
+  flex: none;
+  color: var(--cp-ink-subtle);
+  font-size: var(--status-panel-font-size);
+  line-height: 24px;
+}
+
+/* 折叠箭头：size-3.5，常态 opacity-0，hover/focus 才显形（ZCode 同款） */
+.status-panel__chevron {
   display: grid;
-  block-size: 16px;
-  inline-size: 16px;
+  block-size: 14px;
+  inline-size: 14px;
   flex: none;
   place-items: center;
-}
-
-.todo-panel__lead,
-.todo-panel__chevron {
   color: var(--cp-ink-subtle);
+  opacity: 0;
+  transition:
+    transform 300ms ease-in-out,
+    opacity 150ms ease-in-out;
 }
 
-.todo-panel__lead svg,
-.todo-panel__chevron,
-.todo-panel__glyph svg {
+.status-panel__chevron svg {
   block-size: 14px;
   inline-size: 14px;
 }
 
-.todo-panel__chevron {
-  transition: transform 140ms ease;
+.status-panel__trigger:hover .status-panel__chevron,
+.status-panel__trigger:focus-visible .status-panel__chevron {
+  opacity: 1;
 }
 
-.todo-panel__header[data-panel-open] .todo-panel__chevron {
+.status-panel__trigger[data-panel-open] .status-panel__chevron {
   transform: rotate(90deg);
 }
 
-.todo-panel__title {
-  flex: none;
-  color: var(--cp-ink);
-  font-weight: 500;
-  line-height: 24px;
+/* 行内摘要：text-ui-sm text-[--color-foreground-subtlest]，靠右 */
+.status-panel__trailing {
+  display: inline-flex;
+  min-inline-size: 0;
+  max-inline-size: 100%;
+  flex: 1 1 auto;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 6px;
+  overflow: hidden;
+  color: var(--cp-placeholder);
+  font-size: calc(var(--status-panel-font-size) - 2px);
+  line-height: 16px;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
 }
 
-.todo-panel__progress {
+.status-panel__elapsed {
+  flex: none;
+  font-variant-numeric: tabular-nums;
+}
+
+.status-panel__dot {
+  flex: none;
+}
+
+.status-panel__count {
+  flex: none;
+  color: var(--cp-ink-subtle);
+  font-variant-numeric: tabular-nums;
+}
+
+.status-panel__count--success {
+  color: var(--status-panel-success);
+}
+
+/* ZCode Button ghost icon-sm：size-6 rounded-full，hover 才给底 */
+.status-panel__icon-button {
+  display: inline-flex;
+  block-size: 24px;
+  inline-size: 24px;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: 0;
+  border-radius: 9999px;
+  background: transparent;
+  color: var(--cp-ink-subtle);
+  cursor: pointer;
+}
+
+.status-panel__icon-button:hover {
+  background: var(--cp-hover);
+  color: var(--cp-ink);
+}
+
+.status-panel__icon {
+  block-size: 14px;
+  inline-size: 14px;
+}
+
+/* ── 折叠动画 ──────────────────────────────────────────────────────────
+ * 与 ZCode collapsible.tsx 同：外层高度 300ms ease-in-out，内层淡入淡出。
+ */
+.status-panel__body {
+  height: var(--accordion-panel-height);
+  overflow: hidden;
+}
+
+.status-panel__body[data-starting-style] {
+  animation: status-panel-collapsible-down 300ms ease-in-out;
+}
+
+.status-panel__body[data-ending-style] {
+  animation: status-panel-collapsible-up 300ms ease-in-out forwards;
+}
+
+.status-panel__region {
+  min-inline-size: 0;
+  padding: 0;
+  animation: status-panel-fade-in 300ms ease-in-out;
+}
+
+.status-panel__body[data-ending-style] .status-panel__region {
+  animation: status-panel-fade-out 300ms ease-in-out forwards;
+}
+
+/* ZCode STATUS_SECTION_SCROLL_POLICY: goal/terminal/workflow/agent max-h-48，
+ * plan（进程）max-h-80。overflow-y-auto pr-1。
+ */
+.status-panel__scroll--goal,
+.status-panel__scroll--agents,
+.status-panel__scroll--terminals {
+  max-block-size: 12rem;
+  overflow-x: hidden;
+  overflow-y: auto;
+  padding-inline-end: 4px;
+}
+
+.status-panel__scroll--todo {
+  max-block-size: 20rem;
+  overflow-x: hidden;
+  overflow-y: auto;
+  padding-inline-end: 4px;
+}
+
+/* ── 列表行 ────────────────────────────────────────────────────────────
+ * ZCode PlanStatusItemRows: flex min-h-8 items-start gap-2 rounded-lg px-2 py-1.5
+ * hover:bg-[--color-hover]
+ */
+.status-panel__list {
+  display: flex;
+  min-inline-size: 0;
+  flex-direction: column;
+  gap: 0;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.status-panel__item {
+  display: flex;
+  min-block-size: 32px;
+  min-inline-size: 0;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 6px 8px;
+  border-radius: 8px;
+  color: var(--cp-ink-muted);
+  font-size: var(--status-panel-font-size);
+  line-height: 20px;
+}
+
+.status-panel__item:hover {
+  background: var(--cp-hover);
+}
+
+.status-panel__item[data-status="in_progress"],
+.status-panel__item[data-status="running"] {
+  color: var(--cp-ink);
+}
+
+.status-panel__item-icon {
+  block-size: 16px;
+  inline-size: 16px;
+  flex: none;
+  margin-block-start: 2px;
+  color: var(--cp-ink-subtle);
+}
+
+.status-panel__item-body {
+  display: flex;
+  min-inline-size: 0;
+  flex: 1 1 auto;
+  flex-direction: column;
+  gap: 6px;
+}
+
+/* ZCode: line-clamp-2 break-words leading-5 */
+.status-panel__item-text {
+  min-inline-size: 0;
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow-wrap: break-word;
+  color: var(--cp-ink);
+  line-height: 20px;
+}
+
+/* 完成项：ZCode 用 line-through + foreground-subtlest */
+.status-panel__item-text[data-done] {
+  color: var(--cp-placeholder);
+  text-decoration: line-through;
+}
+
+/* ZCode PlanStatusIcon：mt-0.5 size-3.5 */
+.status-panel__glyph {
+  display: grid;
+  block-size: 16px;
+  inline-size: 16px;
+  flex: none;
+  margin-block-start: 2px;
+  place-items: center;
+}
+
+.status-panel__glyph svg {
+  block-size: 14px;
+  inline-size: 14px;
+}
+
+.status-panel__glyph--done {
+  color: var(--status-panel-success);
+}
+
+.status-panel__glyph--active {
+  color: var(--cp-ink);
+}
+
+.status-panel__glyph--pending {
+  color: var(--cp-placeholder);
+}
+
+.status-panel__glyph--failed {
+  color: var(--cp-diff-removed-text, #ff5c5c);
+}
+
+.status-panel__spin {
+  animation: status-panel-spin 1s linear infinite;
+}
+
+/* 空态与折叠占位行：ZCode 的 h-8 行高、px-2、subtle 墨 */
+.status-panel__empty,
+.status-panel__fold {
+  display: flex;
+  block-size: 32px;
+  min-inline-size: 0;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  padding: 0 8px;
+  border-radius: 8px;
+  color: var(--cp-placeholder);
+  font-size: var(--status-panel-font-size);
+  line-height: 20px;
+}
+
+.status-panel__fold:hover {
+  background: var(--cp-hover);
+}
+
+.status-panel__fold-icon {
+  display: grid;
+  block-size: 14px;
+  inline-size: 14px;
+  flex: none;
+  place-items: center;
+  transform: rotate(180deg);
+}
+
+.status-panel__fold-icon svg {
+  block-size: 14px;
+  inline-size: 14px;
+}
+
+/* ── Git 工具区 ────────────────────────────────────────────────────────
+ * ZCode GitStatusSection 的三行：h-8 w-full rounded-lg px-2 gap-2
+ * 更改行右侧 +N/-M 用 diff-added / diff-removed 两色。
+ */
+.status-panel__git {
+  display: flex;
+  min-inline-size: 0;
+  flex-direction: column;
+}
+
+.status-panel__git-row {
+  display: flex;
+  block-size: 32px;
+  inline-size: 100%;
+  min-inline-size: 0;
+  align-items: center;
+  gap: 8px;
+  padding: 0 8px;
+  border-radius: 8px;
+  color: var(--cp-ink);
+  font-size: var(--status-panel-font-size);
+  text-align: start;
+}
+
+.status-panel__git-row:hover {
+  background: var(--cp-hover);
+}
+
+.status-panel__git-label {
   min-inline-size: 0;
   flex: 1 1 auto;
   overflow: hidden;
-  color: var(--cp-ink-subtle);
-  line-height: 20px;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.todo-panel__body {
-  height: var(--accordion-panel-height);
-  overflow: hidden;
-  transition: height 160ms ease-out;
+/* 「提交或推送」是按钮：外观与其它两行同款，去掉浏览器默认的按钮装饰。 */
+.status-panel__git-row--action {
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  font-size: var(--status-panel-font-size);
+  text-align: start;
+  cursor: pointer;
 }
 
-.todo-panel__body[data-starting-style],
-.todo-panel__body[data-ending-style] {
-  height: 0;
+.status-panel__git-row--action:disabled {
+  cursor: default;
 }
 
-.todo-panel__region {
-  padding: 0 12px 8px;
+.status-panel__git-row--action:focus-visible {
+  outline: 2px solid var(--cp-accent);
+  outline-offset: -2px;
 }
 
-.todo-panel__list {
-  display: flex;
-  max-block-size: 180px;
-  min-inline-size: 0;
-  flex-direction: column;
-  gap: 8px;
-  margin: 0;
+/* 分支行：里面的 picker 铺满整行，行自己的 padding 让给它（ZCode 的 switcher 也铺满）。 */
+.status-panel__git-row--branch {
   padding: 0;
-  overflow-y: auto;
-  list-style: none;
-  scrollbar-width: none;
 }
 
-.todo-panel__list::-webkit-scrollbar {
-  display: none;
+.status-panel__git-row--branch > * {
+  inline-size: 100%;
 }
 
-/* 到顶了：列表下沿化开，说明下面还有。是一层雾，所以是遮罩，不是涂色。 */
-.todo-panel__section[data-more] .todo-panel__list {
-  mask-image: linear-gradient(to bottom, #000 calc(100% - 10px), rgb(0 0 0 / 35%));
+.status-panel__git-row--branch .git-branch-picker__trigger {
+  block-size: 32px;
+  inline-size: 100%;
+  justify-content: flex-start;
+  gap: 8px;
+  padding: 0 8px;
+  border-radius: 8px;
+  font-size: var(--status-panel-font-size);
 }
 
-.todo-panel__item {
+/* +N -M：等宽数字，两色分列（ZCode 用 --color-diff-added / --color-diff-removed）。 */
+.status-panel__git-stats {
+  display: inline-flex;
+  flex: none;
+  gap: 6px;
+  font-variant-numeric: tabular-nums;
+}
+
+.status-panel__added {
+  color: var(--status-panel-added);
+}
+
+.status-panel__removed {
+  color: var(--status-panel-removed);
+}
+
+/* ZCode EndedDirectoryRow：px-2 py-2，计数靠右，末尾一枚 ChevronRight。 */
+.status-panel__ended[data-separated] {
+  margin-block-start: 8px;
+  padding-block-start: 8px;
+  border-block-start: 1px solid var(--color-divider);
+}
+
+.status-panel__ended-row {
   display: flex;
+  inline-size: 100%;
   min-inline-size: 0;
   align-items: center;
-  gap: 10px;
-  color: var(--cp-ink-muted);
-  line-height: 20px;
-}
-
-.todo-panel__item[data-status="in_progress"],
-.todo-panel__item[data-status="running"] {
+  gap: 8px;
+  padding: 8px;
+  border-radius: 8px;
   color: var(--cp-ink);
+  font-size: var(--status-panel-font-size);
 }
 
-.todo-panel__glyph--done {
-  color: #2d9d5b;
+.status-panel__ended-row:hover {
+  background: var(--cp-hover);
 }
 
-.todo-panel__glyph--progress {
-  color: var(--cp-accent);
-  animation: todo-progress-spin 1s linear infinite;
-}
-
-.todo-panel__glyph--pending {
+.status-panel__ended-chevron {
+  block-size: 16px;
+  inline-size: 16px;
+  flex: none;
+  margin-inline-start: auto;
   color: var(--cp-ink-subtle);
 }
 
-.todo-panel__glyph--failed {
-  color: var(--cp-danger, #c74545);
-}
-
-.todo-panel__content {
+/* ── 目标行 ────────────────────────────────────────────────────────────
+ * ZCode goal iteration row: flex items-start gap-2 rounded-lg px-2 py-2
+ * 正文 line-clamp-3 leading-4
+ */
+.status-panel__goal {
+  display: flex;
   min-inline-size: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 8px;
+  border-radius: 8px;
+  cursor: default;
 }
 
-.todo-panel__empty {
+.status-panel__goal:hover {
+  background: var(--cp-hover);
+}
+
+.status-panel__goal-text {
+  min-inline-size: 0;
+  flex: 1 1 auto;
   margin: 0;
-  color: var(--cp-ink-subtle);
-  line-height: 20px;
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+  overflow-wrap: break-word;
+  color: var(--cp-ink);
+  font-size: var(--status-panel-font-size);
+  line-height: 16px;
 }
 
-@keyframes todo-progress-spin {
+@keyframes status-panel-spin {
   to {
     transform: rotate(360deg);
   }
 }
 
-/* 深色下读 --cp-ground 会与背后的地色（#181818）齐平，只剩一圈边线；抬一档。 */
-:root[data-theme="dark"] .todo-panel {
-  background: #2d2d2d;
+/* 深色下 --cp-ground 与地色齐平，只剩一圈边线；抬一档（ZCode popover 也是 #2b2b2b）。 */
+:root[data-theme="dark"] .status-panel {
+  background: #2b2b2b;
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .todo-panel__body,
-  .todo-panel__chevron {
+  .status-panel__body[data-starting-style],
+  .status-panel__body[data-ending-style],
+  .status-panel__region,
+  .status-panel__body[data-ending-style] .status-panel__region {
+    animation: none;
+  }
+
+  .status-panel__chevron {
     transition: none;
   }
 
-  .todo-panel__glyph--progress {
+  .status-panel__spin {
     animation: none;
   }
 }

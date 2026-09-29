@@ -55,13 +55,14 @@
   margin-inline-end: calc(var(--workspace-card-gap) + var(--workspace-card-radius));
 }
 
-.workspace-shell__todo-toggle {
+/* 任务开关钉在主区（第 2 列），右栏开着时它就在主区右缘、不进右栏。 */
+.workspace-shell__todo-control {
   grid-column: 2;
   transition: margin-inline-end var(--workspace-layout-duration) var(--workspace-layout-ease);
 }
 
-/* 辅助面板收起时让开辅助开关：再退它一个控件宽。 */
-.workspace-shell[data-auxiliary-docked="false"] .workspace-shell__todo-toggle {
+/* 辅助面板收起时让开右栏开关：再退它一个控件宽。 */
+.workspace-shell[data-auxiliary-docked="false"] .workspace-shell__todo-control {
   margin-inline-end: calc(
     var(--workspace-card-gap) +
     var(--workspace-card-radius) +
@@ -80,7 +81,7 @@
 
 @media (prefers-reduced-motion: reduce) {
   .workspace-shell,
-  .workspace-shell__todo-toggle {
+  .workspace-shell__todo-control {
     transition: none;
   }
 }
@@ -284,6 +285,8 @@
  * 过渡（见 workspace-frame）。这里只隐藏残留的主区与浮在面板上的会话开关。
  */
 .workspace-shell[data-auxiliary-fullscreen="true"] .workspace-shell__main,
-.workspace-shell[data-auxiliary-fullscreen="true"] .workspace-shell__conversation-control {
+.workspace-shell[data-auxiliary-fullscreen="true"] .workspace-shell__conversation-control,
+/* 收起态那枚与右栏开关同排，全屏时一起让位。 */
+.workspace-shell[data-auxiliary-fullscreen="true"] .workspace-shell__todo-control {
   display: none;
 }

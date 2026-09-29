@@ -36,6 +36,7 @@ import { buildSecretObfuscator } from '@oh-my-pi/pi-coding-agent/secrets'
 /* 图片的落盘路径要交给 agent 自己认：SDK 靠这个符号注入隐藏的 image-attachment 伴生消息
  * （agent-session.ts:6291-6311 的 `#createAttachmentSourceNotices`）。 */
 import { tagImageAttachmentSource } from '@oh-my-pi/pi-tui/prompt/image-source'
+import { ensureThemeSync } from '@oh-my-pi/pi-tui/theme'
 import type { TranscriptOperation } from '@poietica/transcript'
 import {
   APPROVAL_OPTIONS,
@@ -197,6 +198,15 @@ export function createBridge(host: BridgeHost): Bridge {
   for (const [key, value] of Object.entries(host.env ?? {})) {
     process.env[key] = value
   }
+
+  /*
+   * pi-tui 的主题是模块单例（theme.ts 的 `export var theme`），只在它自己的引导里赋值：
+   * omp 的 CLI 走 main.ts:1661，我们不走 main.ts。而 ask 工具有一句**无条件**读它的
+   * 保留标签（tools/ask.ts:120，execute 在 839 行读），单例空着就是必炸：
+   * `undefined is not an object (evaluating 'theme.status')`，提问全线不可用。
+   * 同步那一支够用：内置主题是内联 JSON，不碰盘、不看 tty；无终端宿主本来也不上色。
+   */
+  ensureThemeSync()
 
   const resolved = getAgentDir()
 

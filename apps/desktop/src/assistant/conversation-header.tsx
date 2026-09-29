@@ -37,25 +37,22 @@ export function AuxiliaryToggle({
   )
 }
 
-function TodoToggle({
-  todoOpen,
+/** 任务与后台任务面板的开关：与右栏开关同形同尺寸，摆在它左边。 */
+export function TodoToggle({
   onToggleTodo,
+  todoOpen,
 }: {
-  readonly todoOpen: boolean
   readonly onToggleTodo: () => void
+  readonly todoOpen: boolean
 }) {
-  const label = todoOpen ? '关闭任务弹窗' : '打开任务弹窗'
+  const label = todoOpen ? '收起任务面板' : '打开任务面板'
 
   return (
     <button
       aria-controls="conversation-todo-panel"
       aria-expanded={todoOpen}
       aria-label={label}
-      className={[
-        controlClass,
-        'workspace-shell__todo-toggle aria-expanded:bg-control-hover aria-expanded:opacity-100',
-      ].join(' ')}
-      id="conversation-todo-trigger"
+      className={[controlClass, 'workspace-shell__todo-control'].join(' ')}
       onClick={onToggleTodo}
       type="button"
     >
@@ -65,15 +62,15 @@ function TodoToggle({
 }
 
 export function ConversationControls({
-  todoOpen,
   auxiliaryOpen,
-  onToggleTodo,
   onToggleAuxiliary,
+  onToggleTodo,
+  todoOpen,
 }: {
-  readonly todoOpen: boolean
   readonly auxiliaryOpen: boolean
-  readonly onToggleTodo: () => void
   readonly onToggleAuxiliary: () => void
+  readonly onToggleTodo: () => void
+  readonly todoOpen: boolean
 }) {
   return (
     <>

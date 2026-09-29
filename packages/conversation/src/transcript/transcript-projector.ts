@@ -342,10 +342,20 @@ function interactionOf(
       : {}),
   }
 }
-const backgroundOf = (task: TranscriptTask): BackgroundTaskItem | null =>
-  task.detached
-    ? { taskId: task.taskId, description: task.description ?? task.taskId, status: task.state }
-    : null
+const backgroundOf = (task: TranscriptTask): BackgroundTaskItem | null => {
+  if (!task.detached) {
+    return null
+  }
+  const startedAt = timeOf(task.startedAt)
+  const endedAt = timeOf(task.endedAt)
+  return {
+    taskId: task.taskId,
+    description: task.description ?? task.taskId,
+    status: task.state,
+    ...(startedAt === undefined ? {} : { startedAt }),
+    ...(endedAt === undefined ? {} : { endedAt }),
+  }
+}
 
 function spanOf(turn: TranscriptTurn, index: number): TurnSpan {
   const startedAt = timeOf(turn.startedAt)
