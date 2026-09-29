@@ -9,7 +9,7 @@ import type { AgentDescriptor } from '../agent-descriptor'
  * 我们不经 kap：omp 没有本地服务模式，它给的是 SDK 与 stdio 上的 RPC/ACP。
  * 这里接的是**随包发的一份 Bun 运行时加我们的桥**（packages/agent-bridge 的
  * `src/main.ts`，由 tools/agent/prepare-runtime.ts 收成 bundle），桥把 omp 的 SDK
- * 装在里面，对 Rust 说 NDJSON。用户因此不需要装 omp、也不需要装 Bun（见 ADR 0057）。
+ * 装在里面，对 Rust 说 NDJSON。用户因此不需要装 omp、也不需要装 Bun（见 ADR 0021）。
  *
  * 不追官方的 `--mode rpc|acp`：那条命令面缺我们一半的命令（settings_catalog、
  * model_catalog、mcp_servers、skills、delete_session、browser_settings），追过去
@@ -30,13 +30,13 @@ export const ohMyPi = {
    * 再回落到 PATH —— 开发期手动跑源码版桥时用得上。
    *
    * 不写 `omp`：官方 CLI 是用户自己要装的东西，而产品的前提是「只装 Poietica」
-   * （ADR 0052）。
+   * （ADR 0016）。
    */
   command: 'bun',
   /*
    * 桥的入口，同一个目录。SDK 的宿主只能是 Node/Bun 进程：它 109 个文件 import
    * `node:fs`、323 个文件用 Bun API，还依赖 pi-natives 的 NAPI `.node`，`engines`
-   * 只认 bun（ADR 0057 的实测表）。所以程序名是运行时，入口是脚本。
+   * 只认 bun（ADR 0021 的实测表）。所以程序名是运行时，入口是脚本。
    */
   entry: 'poietica-bridge.js',
   // 运行时开关留给以后：入口由 entry 那一格给，不放这儿。

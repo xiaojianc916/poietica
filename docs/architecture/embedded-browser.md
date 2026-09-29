@@ -46,22 +46,14 @@ X-Frame-Options/frame-ancestors 会把大多数站点挡在 iframe 外面。
 址的标签都没有就预热一页空白页），端点上才有页面可听。前端启动时
 reconcileBrowserMcpServer 把受控 home 里 mcp.json 的 poietica-browser 条目对
 齐到当前端点（端口每次启动都变，所以每次启动都对账），条目正文是一台
-playwright-mcp，用 --cdp-endpoint 直连现成端点。kimi CLI 读到条目后自己拉起
-这台 stdio 服务器（kap 的提交面不传 MCP 服务器，stdio 归 CLI 亲手
-spawn，所以车道只能是受控 home 的 mcp.json），agent 的 browser_* 工具经 CDP
-驱动面板里的标签。唯一真相不变：标签模型在 crates/browser 的 Tabs 里，CDP
-只是伸进内核的手。
+playwright-mcp，用 --cdp-endpoint 直连现成端点。omp SDK 从受控 home 读到
+条目后自己 spawn 这台 stdio 服务器，agent 的 browser_* 工具经 CDP 驱动面板里
+的标签。唯一真相不变：标签模型在 crates/browser 的 Tabs 里，CDP 只是伸进内
+核的手。
 
-### 选型判决
-
-- playwright-mcp（选它）：微软官方；--cdp-endpoint 白纸黑字接现成端点；
-  Playwright 对 WebView2 有官方专页（playwright.dev/docs/webview2），写的正
-  是本仓形态 —— 环境级 remote-debugging-port 加 connectOverCDP。
-- chrome-devtools-mcp（落选）：Google 官方，--browser-url 同样能接，但定位是
-  DevTools 诊断（trace、insight、Lighthouse），键盘与表单语义比 playwright
-  薄；要做性能诊断可手动再加一台连同一端点，两台可并存。
-- Kimi WebBridge 与 browser-mcp（出局）：二者同构 —— 本地服务加装在用户真实
-  Chrome/Edge 里的浏览器扩展；扩展进不了 WebView2，够不着内置面板。
+playwright-mcp 是选定实现：微软官方，`--cdp-endpoint` 白纸黑字接现成端点，
+Playwright 对 WebView2 有官方专页（playwright.dev/docs/webview2），写的正是
+本仓形态 —— 环境级 remote-debugging-port 加 connectOverCDP。
 
 ### agent 操控面的安全
 

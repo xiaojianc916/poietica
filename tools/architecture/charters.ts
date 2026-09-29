@@ -202,7 +202,7 @@ export async function capabilitiesAreWiredAtTheRoot(root: string): Promise<Viola
  * 设计令牌只有一个定义方；用它的人随便用，定义它的只能有一个。
  *
  * 令牌命名空间是 --ui-（packages/design-system 里 170+ 处定义）。--cp- 不在此列：那是
- * 组件局部派生量的命名空间（判例 ADR 0015 的 --cp-dock-clearance），产品布局
+ * 组件局部派生量的命名空间（判例 ADR 0002 的 --cp-dock-clearance），产品布局
  * 尺寸不进全局令牌（ui-authority-boundaries.md 明文），定义权随组件走。
  */
 export async function designSystemOwnsItsTokens(root: string): Promise<Violation[]> {

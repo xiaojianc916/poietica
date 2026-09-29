@@ -106,7 +106,7 @@ cargo test -p poietica-agent-client --test bridge
 
 It does not need a model or credentials: it proves the process starts, the
 handshake completes, a session opens and a command round-trips. A live model
-turn is a separate, future verification (see ADR 0052's "待验证" section).
+turn is a separate, future verification (see ADR 0016's "待验证" section).
 
 Nothing here is worked around in code. A client that silently rewrites the
 command it was given, or that treats a missing runtime as a transport error,

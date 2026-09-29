@@ -3,7 +3,7 @@ import type { PermissionItem, TimelineItem, TimelineState } from '../timeline-co
 import { activeScope, pendingInteractions, type WaitingScope } from '../timeline-queries'
 
 /*
- * 并行子代理会让一轮里同时挂着几个请求（ADR 0002）。
+ * 并行子代理会让一轮里同时挂着几个请求。
  *
  * 交出最晚那一个，先问的几个就永远等不到按钮 —— 原生侧的 oneshot 收不到答复，
  * 卡片停在 in_progress，这一轮再也结束不了。所以顺序本身就是不变式。

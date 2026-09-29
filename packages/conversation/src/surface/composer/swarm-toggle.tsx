@@ -24,7 +24,7 @@ import type { SessionConfigControl } from '../../agent/config'
  * Swarm 在会话控件里的 id。
  *
  * omp 的桥不报这一格（它的活动工具集里没有 swarm 选择器），所以今天这个 id 找不到控件、
- * 组件恒不渲染。留着是因为「界面控件不删、由 agent 报没报决定画不画」是 0052 的纪律，
+ * 组件恒不渲染。留着是因为「界面控件不删、由 agent 报没报决定画不画」是 0016 的纪律，
  * 而这条查找本身只认 agent 报来的表 —— 哪天真报了，这里一个字的改动都不需要。
  */
 export const SWARM_CONTROL_ID = 'swarm'

@@ -138,7 +138,7 @@ impl Recorder {
         }
     }
 
-    /// admission_id 同时是 wire 上的 prompt_id（ADR 0026：kap 原样认它），也是取消点名的依据。
+    /// admission_id 同时是 wire 上的 prompt_id（agent 原样认它），也是取消点名的依据。
     pub fn record_prompt_admitted(
         &mut self,
         admission_id: &str,

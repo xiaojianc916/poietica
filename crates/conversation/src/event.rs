@@ -17,7 +17,7 @@ pub enum ConversationEvent {
     },
     /// admission_id 同时是投递的幂等键（ports 的 PromptDelivery）：屏幕上那条用户消息与账本准入行同号；可缺省，加该字段之前的旧帧没有它。
     ///
-    /// 附件不在这条事件上：哪句话带了哪些附件由 agent transcript 记（ADR 0050）。
+    /// 附件不在这条事件上：哪句话带了哪些附件由 agent transcript 记（ADR 0014）。
     PromptAdmitted {
         #[serde(rename = "admissionId")]
         admission_id: TurnId,

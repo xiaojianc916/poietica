@@ -1,6 +1,6 @@
 //! 端到端：Rust 客户端真的能驱动随包发的那个桥。
 //!
-//! 这条测试是 ADR 0057 的验收：不装 omp、不装 Bun、不装 node_modules，只有
+//! 这条测试是 ADR 0021 的验收：不装 omp、不装 Bun、不装 node_modules，只有
 //! `apps/desktop/src-tauri/binaries/` 里那三样（Bun 运行时、桥 bundle、原生模块）。
 //! 它起进程、说 NDJSON、拿到会话号、问回选择器。
 //!

@@ -5,7 +5,7 @@ import { isVisible, settingLookup } from './settings-conditions'
 /*
  * 条件求值这一层。
  *
- * 条件的**名字**来自 agent 自己那份 schema（桥只搬名字，ADR 0054 决定四）；名字到判据的
+ * 条件的**名字**来自 agent 自己那份 schema（桥只搬名字，ADR 0018 决定四）；名字到判据的
  * 对应抄自上游 `src/config/settings-ui.ts` 的 `CONDITIONS`（锚定 18.3.0），逐条：
  * advisorEnabled→advisor.enabled、mnemopiActive/hindsightActive→memory.backend、
  * autolearnActive→autolearn.enabled、autoThinkingActive→defaultThinkingLevel、

@@ -21,7 +21,7 @@ pub const PROMPT_ADMITTED: &str = "prompt_admitted";
 pub enum RunFrame {
     /// 这一轮开始了：问的是什么，以及随它一起送出去的技能。
     ///
-    /// 附件不在这帧上：哪句话带了哪些附件由 agent transcript 记（ADR 0050），
+    /// 附件不在这帧上：哪句话带了哪些附件由 agent transcript 记（ADR 0014），
     /// 本机再存一份就是第二套对话正文。
     PromptAdmitted {
         admission_id: String,

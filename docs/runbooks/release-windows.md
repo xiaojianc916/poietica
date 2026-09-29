@@ -57,8 +57,3 @@ push → `gh release create` 上传四个资产 → 用客户端真实访问的�
 
 浏览器测试不能覆盖原生交互。发布前按
 `docs/runbooks/desktop-release-checklist.md` 记录被测提交、操作系统与结果。
-
-## 独立的产品打包缺口
-
-agent 可执行文件仍从终端用户 PATH 解析，安装包未携带 sidecar。该问题不属于发布
-编排本身；在解决前，干净 Windows 机器可能成功安装但无法启动 agent 会话。

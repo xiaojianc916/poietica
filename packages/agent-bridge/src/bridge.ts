@@ -91,7 +91,7 @@ interface Session {
    *
    * 屏幕要画「有一件事在等人答」，而那条事实只有这里知道 —— Rust 那边的 PermissionDesk
    * 是另一条路上的会合点，它不认识「这是第几号、是哪件工具」。答完就删，不留痕迹
-   * （ADR 0015：答复之后什么都不留）。
+   * （ADR 0002：答复之后什么都不留）。
    */
   readonly pending: Map<string, PendingInteraction>
   /** ask 工具那组题的号 → 题组；答复翻译要用它把号换回标签。 */
@@ -173,7 +173,7 @@ export function createBridge(host: BridgeHost): Bridge {
    * 自己那个密钥上，输入还是最近六轮真实对话（`buildReplanTitleContext`）。用户的账就是
    * 这么莫名其妙少钱的。
    *
-   * 产品也用不上它：会话标题在我们这边是本地账本的（threads 表，ADR 0049），而
+   * 产品也用不上它：会话标题在我们这边是本地账本的（threads 表），而
    * `agent-client` 那条会话清单读（`ClientCommand::Sessions` → `lifecycle::entries_of`
    * 的 `title`，omp 生成的标题唯一的上屏出口）在本仓没有调用方。
    *

@@ -21,7 +21,7 @@ const groups: Readonly<Record<string, readonly string[]>> = {
   'model-catalog': ['model-catalog'],
   'custom-agents': ['custom-agents'],
   keymap: ['keymap'],
-  /* agent 自己那份设置：读它的 schema，改它自己的持久层（ADR 0054 决定四）。只依赖本域。 */
+  /* agent 自己那份设置：读它的 schema，改它自己的持久层（ADR 0018 决定四）。只依赖本域。 */
   'agent-settings': ['agent-settings'],
   ui: [
     'ui',

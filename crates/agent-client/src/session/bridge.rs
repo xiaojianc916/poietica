@@ -3,7 +3,7 @@
 //! 形状与它取代的 kap 驱动器一致（一条长活连接 + 命令通道 + 事件通道），换掉的
 //! 只是底下那条线：kap 是 REST + WebSocket，这里是一个子进程的两根管道。
 //!
-//! 分工（ADR 0052）：落账、超时、取消后的重启都归本层；桥只管把 SDK 的 typed
+//! 分工（ADR 0016）：落账、超时、取消后的重启都归本层；桥只管把 SDK 的 typed
 //! event 翻成 transcript ops，不做第二套账。
 
 use std::collections::HashMap;

@@ -4,7 +4,7 @@ import { withoutKimiAttachmentNotices } from './kimi-attachment'
 /*
  * 摘除判据的回归：参考 web UI 与 kap-server 的实际拼法。
  * 文件名是用户起的，含引号或换行都要摘得掉 —— 摘不掉就是那句话留在气泡里、
- * 文件卡片同时消失（ADR 0050 的缺陷 1）。
+ * 文件卡片同时消失（ADR 0014 的缺陷 1）。
  */
 describe('kimi attachment notices', () => {
   const notice = (name: string) =>

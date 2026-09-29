@@ -168,7 +168,7 @@ function TextControl({ entry, saving, onChange }: SettingControlProps) {
    * 见 agent-settings/model.ts 的 `value`）。
    *
    * 「这一页只有 3 格钥匙」不等于「agent 只有 3 条凭据」：实测 agent 自己判定的凭据有 8
-   * 条，另外 5 条没有 ui 元数据，上游自己的设置面板也不画它们（ADR 0054 决定四）。
+   * 条，另外 5 条没有 ui 元数据，上游自己的设置面板也不画它们（ADR 0018 决定四）。
    */
   if (entry.secret) {
     return (

@@ -87,7 +87,7 @@ impl KapGateway {
     ///
     /// 两条路都只交「磁盘绝对路径 + 元数据」：图片与通用文件在线上是不同的 content
     /// part，但字节一律不内联（base64 那条路拿不到服务端的 fileId，图片就不会进
-    /// transcript，屏幕上彻底消失，见 ADR 0050）。
+    /// transcript，屏幕上彻底消失，见 ADR 0014）。
     fn materialise(&self, admission: &Admission) -> Result<Vec<PromptAttachment>, String> {
         let mut carried = Vec::with_capacity(admission.attachments.len());
 

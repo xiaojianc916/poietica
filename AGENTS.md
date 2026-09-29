@@ -25,8 +25,7 @@
 ## 1. 产品不变量
 
 Poietica 是本地高性能桌面 agent 客户端，对标 Codex 桌面版。唯一接入的
-agent 是 oh-my-pi（omp，npm `@oh-my-pi/pi-coding-agent`，见 ADR 0052 —— ADR 0026
-的 kap 前提已被它取代）：它以
+agent 是 oh-my-pi（omp，npm `@oh-my-pi/pi-coding-agent`，见 ADR 0016 与 0021）：它以
 `packages/agent-catalog` 的档案接入，通用层不认识任何一家的名字，再接一家接的
 是同一个传输的第二个实现而不是第二条协议。多会话并发
 是常态而非特例。
@@ -135,7 +134,7 @@ FORMATS 把文件头判定与 Content-Type 收成一张表，加一种格式只�
   transcript-store.ts 曾指向已拆分的 commands/agent.rs。
 - 外部行为断言注明来源与日期。oh-my-pi 的行为以它自己的仓库
   （can1357/oh-my-pi，锚定 18.3.0）与包内源码为准；Kimi Code 的锚点已随
-  ADR 0052 过时，发现即更新。
+  ADR 0016 过时，发现即更新。
 - 注释与代码矛盾按缺陷处理：改注释或改代码，不许并存。
 - 注释必须**凝练简短**，长篇大论的注释被视为错误示范。
 

@@ -4,7 +4,7 @@ import type { AgentSettingEntry, AgentSettingsCatalog, AgentSettingsPort } from 
  * agent 设置目录的持有者：一次读、一次写、一个写点。
  *
  * 写完之后不乐观改写本地状态，而是拿 agent 交回的那整份目录换掉快照 —— 改没改由它说，
- * 写的是它自己的盘（ADR 0054）。所以下面的动作都是「等结果、换快照」，没有第二个写点。
+ * 写的是它自己的盘（ADR 0018）。所以下面的动作都是「等结果、换快照」，没有第二个写点。
  */
 
 const EMPTY: AgentSettingsSnapshot = Object.freeze({

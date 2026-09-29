@@ -6,7 +6,7 @@
 ## 边界
 
 - 唯一接的 agent 是 oh-my-pi（omp）。它**随包发**：`packages/agent-bridge` 把 omp 的
-  SDK 编进一个可执行文件，用户不装 omp、不装 Bun、不装 node_modules（ADR 0052）。
+  SDK 编进一个可执行文件，用户不装 omp、不装 Bun、不装 node_modules（ADR 0016）。
 - 传输是那一个子进程的 stdin/stdout，一行一条 JSON。
 - Rust `agent-client` 拥有进程、连接、取消与事件生命周期。
 - TypeScript 不直接访问 agent，只消费持久化后的帧与 transcript。
@@ -41,7 +41,7 @@
 - `dialog_requested`：agent 要问一个对话框。授权那一类（`method=select` 且选项集正是
   `Approve`/`Deny`）由本层翻成产品的一问一答，其余原样交给宿主。
 - `questions_asked`：ask 工具的题组，**产品形状**（号由桥签发）。本层的提问桌收下它，
-  人的答复经 `answer_dialog` 回去（ADR 0054）。
+  人的答复经 `answer_dialog` 回去（ADR 0018）。
 
 ## 本地事件管线
 
@@ -61,11 +61,11 @@
   收摊，界面上不会永远停在「正在取消」。
 - 在等人答的那几件 = 桥投影出来的 `interaction.upsert`（审批与提问），号与答复同号。
 - agent 自己的设置 = agent 自己那份 `settings-schema`（我们读元数据画界面，写走它的
-  持久层，ADR 0054）。
+  持久层，ADR 0018）。
 
 ## 缺口（禁止当成能力用）
 
-这些都**如实报「还没接」**，不假装成功，也不删界面控件（ADR 0052 后果第 5 条）：
+这些都**如实报「还没接」**，不假装成功，也不删界面控件（ADR 0016 后果第 5 条）：
 
 - 会话分叉、删除、导出、列举（`client.rs` 的 `unwired()` 逐条列全）；
 - 会话媒体字节；

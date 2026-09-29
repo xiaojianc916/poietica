@@ -2,7 +2,7 @@
 //!
 //! 我们不经 kap，也不让用户装 omp：agent 是随包发的一个可执行文件（packages/
 //! agent-bridge 的入口，SDK 编在里面），它以 NDJSON 在 stdio 上说话。本 crate
-//! 拥有进程、连接、取消与事件生命周期；TypeScript 只消费落盘后的帧（ADR 0052）。
+//! 拥有进程、连接、取消与事件生命周期；TypeScript 只消费落盘后的帧（ADR 0016）。
 
 pub mod error;
 

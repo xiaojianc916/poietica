@@ -716,20 +716,20 @@ describe('ompToolView xd:// 设备委派', () => {
 describe('ompToolView 那一行认谁', () => {
   /*
    * omp 每个工具调用都带一句 intent —— 模型自己写的「这次要做什么」（真实录制里是
-   * "Reading ADR 0052"、"Checking kap-client drift"）。它比我们按路径/模式拼出来的那句
+   * "Reading ADR 0016"、"Checking kap-client drift"）。它比我们按路径/模式拼出来的那句
    * 准，所以默认听它；只有命令与脚本那两档压过它（那一行本来就该是命令本身）。
    * 优先级与 omp 官方那条路一致：modes/acp 的 buildToolTitle。
    */
   it('模型自己写的那句话优先于我们按参数拼出来的', () => {
     const view = ompToolView(
       'read',
-      { path: 'docs/adr/0052-omp-is-the-only-agent-via-embedded-sdk.md' },
+      { path: 'docs/adr/0016-omp-is-the-only-agent-via-embedded-sdk.md' },
       envelope(textBlock('...')),
       undefined,
-      'Reading ADR 0052',
+      'Reading ADR 0016',
     )
 
-    expect(view.headline).toBe('Reading ADR 0052')
+    expect(view.headline).toBe('Reading ADR 0016')
   })
 
   it('命令与脚本的那一行仍然是命令本身，概括词盖不过它', () => {

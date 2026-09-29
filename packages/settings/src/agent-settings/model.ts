@@ -5,7 +5,7 @@ import type { AgentSettingEntryWire, AgentSettingsCatalogWire } from '@poietica/
  *
  * 线上型别（生成的绑定）与这里说的是同一件事，差别只在「可缺席怎么写」：线上一律 null，
  * 这里一律 undefined。正文一格都不抄 —— label / description / 选项表 / 默认值全是
- * agent 自报的，我们只负责画（ADR 0054 决定四）。
+ * agent 自报的，我们只负责画（ADR 0018 决定四）。
  */
 export interface AgentSettingOption {
   readonly value: string
@@ -49,7 +49,7 @@ export interface AgentSettingEntry {
   /**
    * 可见性条件的**名字**（如 `advisorEnabled`），不是判据。
    *
-   * 桥刻意不搬求值器（ADR 0054 决定四）。界面这一侧能诚实地算出来的只有它自己那几条，
+   * 桥刻意不搬求值器（ADR 0018 决定四）。界面这一侧能诚实地算出来的只有它自己那几条，
    * 其余一律按「不知道就不显示」处理，见 ui/agent-settings/settings-conditions.ts。
    */
   readonly condition?: string

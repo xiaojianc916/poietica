@@ -3,7 +3,7 @@ import type { SheetFieldKind, TableSheet } from '@poietica/contract/library'
 /**
  * 列类型词汇的唯一产地是 Rust（SheetFieldKind，经 IPC 生成），这里只起别名。
  * 未指定的列（kinds 里是 null）走下面的值推断：CSV 没有 schema，第二份 schema
- * 就是第二份真相，所以推断逻辑与落盘的类型注解共存（ADR 0043）。
+ * 就是第二份真相，所以推断逻辑与落盘的类型注解共存（ADR 0008）。
  */
 export type FieldKind = SheetFieldKind
 
@@ -317,7 +317,7 @@ export function renameField(sheet: TableSheet, field: number, name: string): Tab
   }
 }
 
-/** 指定一列的类型。落盘走边车，见 ADR 0043。 */
+/** 指定一列的类型。落盘走边车，见 ADR 0008。 */
 export function setKind(sheet: TableSheet, field: number, kind: FieldKind): TableSheet {
   return {
     header: sheet.header,

@@ -21,7 +21,6 @@ import { sayToolLine } from '../semantics/tool-intent'
  *
  * 答完什么都不留。剩下的是一次操作痕迹，而痕迹归事件日志：原生侧的
  * permission_requested / permission_resolved 一条不少，转录不做第二个事实来源。
- * 见 docs/adr/0003。
  */
 
 /** 一颗按钮，以及它代表的那个答复。 */

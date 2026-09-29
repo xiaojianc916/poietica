@@ -14,7 +14,7 @@ use crate::{ModelCatalogOperation, ModelCatalogSnapshot};
 ///
 /// 两条路都是「磁盘绝对路径 + 元数据」：图片与通用文件在线上是不同的 content part
 /// （`image` 对 `file`），但字节一律不拍平进提示正文，也一律不内联 base64。
-/// 图片走路径才会被 agent 收进会话媒体库，气泡也才拿得到它（见 ADR 0050）。
+/// 图片走路径才会被 agent 收进会话媒体库，气泡也才拿得到它（见 ADR 0014）。
 pub enum PromptAttachment {
     Image {
         path: PathBuf,
@@ -78,13 +78,13 @@ pub struct PromptSkill {
 ///
 /// 桥做不到的那些（目录编辑、历史读、媒体、能力安装、撤回排队）**不在这里**：
 /// 它们的公开方法在 `AgentClient` 上直接答「这个 agent 还不支持」，不占一条
-/// 永远不会被应答的管道命令。界面那一整套照旧（ADR 0052 后果第 5 条）。
+/// 永远不会被应答的管道命令。界面那一整套照旧（ADR 0016 后果第 5 条）。
 pub(crate) enum Command {
     /// 这条连接上那一条会话。
     ///
     /// 桥的形态是「一条连接一条会话」，会话在握手时就开好了 —— 所以这条命令
     /// 不出进程，它只是把那个号交回去。跨工作区的多会话要另开一条连接，
-    /// 那是本层尚未接上的部分（见 ADR 0052 的待验证一节）。
+    /// 那是本层尚未接上的部分（见 ADR 0016 的待验证一节）。
     CurrentSession {
         reply: oneshot::Sender<Result<OpenedSession>>,
     },

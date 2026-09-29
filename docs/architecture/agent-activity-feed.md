@@ -1,28 +1,19 @@
 # AI activity feed
 
-The feed is a projection, never a source of truth.
+Feed 是投影，不是真相。
 
     transcript ops/reset  ->  transcript-store  ->  projectTranscript  ->  timeline  ->  selectors  ->  feed rows
 
-Rules that hold at every step:
+每一步都成立的规则：
 
-- The projection is pure and replayable. Rendering a persisted run and watching a
-  live one execute the same code path: incremental ops and a reset snapshot land
-  on the same timeline (see tests/integration/transcript-replay-equivalence.test.ts).
-- Entries are typed, not roles. A tool call is addressable by its tool call id
-  because the protocol updates it by id.
-- The feed host owns scrolling and measurement only. Entry rendering is injected,
-  so entry design can change without touching virtualisation.
-- Stick-to-bottom follows user intent: once the reader scrolls up, a streaming
-  run must not pull them back down.
+- 投影是纯的、可回放的。渲染持久化 run 与观看 live run 走同一条代码路径：
+  增量 ops 与 reset 快照落到同一条 timeline（见
+  `tests/integration/transcript-replay-equivalence.test.ts`）。
+- 条目按类型区分，不按角色。工具调用以其 tool call id 可寻址，因为协议按 id
+  更新它。
+- Feed 宿主只拥有滚动与测量。条目渲染是注入的，条目设计变动不触动虚拟化。
+- Stick-to-bottom 跟随用户意图：读者一旦向上滚，流式 run 不得把他们拽回来。
 
-## Next step
-
-Vendor the AI Elements output components into packages/agent-ui/src/ai-elements
-with the official CLI, then replace TimelineItemPreview with renderers built on
-them, driving markdown through Streamdown:
-
-    npx ai-elements@latest add response reasoning tool task actions sources
-
-TimelineItemPreview is scaffolding. It carries no design decisions and is deleted
-in that step.
+条目渲染当前落在 `packages/conversation/src/surface/feed`。设计原语来自
+`@poietica/design-system`，禁自建 dialog/menu/tooltip/select/combobox/toast
+交互内核（见 [UI authority](./ui-authority-boundaries.md)）。

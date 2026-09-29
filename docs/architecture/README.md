@@ -1,52 +1,38 @@
 # Architecture Overview
 
-## Ownership
-
-Packages are bounded contexts, not separate copies of model and UI layers.
-A domain owns its commands, state and projections. Views consume injected owners.
-The default public entry is headless; view entries are explicit package subpaths.
-
-Conversation owns local submission intents until delivery is acknowledged.
-The agent owns accepted prompts and transcript facts. Official reducers project those facts.
-A conversation queue outlives its views; forgetting the conversation disposes the queue.
-Uncertain delivery pauses automatic release instead of replaying an ambiguous command.
-
-## Conversation ownership
-
-Agent vocabulary is lower than configuration, thread indexing, transcript ownership and input drafts.
-Transcript replicas consume the official reducer; pure timeline projections do not own remote facts.
-React contexts, editor integration, DOM geometry and styles belong to the surface boundary.
-Runtime composition assembles owners; private module imports name leaf responsibilities rather than public aggregates.
-Each capability subscription has its own identity, even when a port object is reused.
+架构宪法在 `agents.md`。这里只放**跨包边界的执行事实**与**文档索引**，不重抄宪法。
 
 ## Dependencies
 
-tools/architecture/layering.ts declares layer groups and allowed peer-domain edges.
-Both manifest and source checks use that decision. Undeclared peer edges are forbidden.
-Cross-package access uses exports. Same-domain implementation uses relative module paths.
-The runtime file graph rejects cycles and opaque loads and follows headless entries transitively.
-Erased type-only file edges are not runtime cycles. Package direction applies to them.
-Directory cycles inside a package and module cycles inside a crate are rejected too, so a facade
-cannot hide a mutual dependency. Crate directories come from cargo metadata, never from crate names.
-Conversation core additionally rejects upward knowledge dependencies and cycles including type-only edges.
-Native integration consumes domain headless entries, including through compiler-resolved aliases.
+`tools/architecture/layering.ts` 声明层组与允许的 peer-domain 边。manifest 与
+source 两侧检查都读它。未声明的 peer 边一律禁止。跨包只走 exports；同域实现
+走相对模块路径。
+
+运行时文件图拒绝环与不透明加载，并透传 headless 入口。类型-only 边不构成
+运行时环，但仍受包方向约束。包内目录环与 crate 内模块环同样拒绝， façade
+藏不住互依赖。crate 目录来自 cargo metadata，不来自 crate 名。Conversation
+core 额外拒绝向上的知识依赖与含类型-only 边的环。原生集成消费域的 headless
+入口，包括编译器解析的别名。
 
 ## Composition and contracts
 
-Desktop entry code assembles, starts and releases application owners.
-Model policy, attachment intake, browser integration and window policy remain in their owning capabilities.
-The existing native conversation runtime owns execution leases and recovery.
-Rust IPC types and the shared command surface generate the renderer bindings.
-There is no second protocol reducer, event bus or compatibility entry.
+Desktop entry 组装、启动、释放应用 owner。模型策略、附件接收、浏览器集成、
+窗口策略留在各自能力里。现有的原生 conversation runtime 拥有执行租约与恢复。
+Rust IPC 类型与共享命令面生成 renderer 绑定。**没有第二个协议 reducer、事件
+总线或兼容入口。**
 
 ## Verification
 
-bun run check validates types, tests, architecture, Rust and generated-contract drift.
-A frontend production build additionally validates moved styles and asset imports.
-Native reconnect, cancellation and shutdown behavior also require application-level testing.
-ADRs retain historical decisions; this overview and executable policies describe the current structure.
+`bun run check` 验类型、测试、架构、Rust 与生成契约漂移。前端生产构建额外验
+样式搬迁与资源导入。原生重连、取消与关机行为需要应用级测试。ADR 保留历史
+决策；本总览与可执行策略描述当前结构。
 
-See [UI authority](./ui-authority-boundaries.md), [Rust layers](./rust-layers.md),
-[conversation execution](./conversation-execution-ownership.md) and [window lifecycle](./window-lifecycle.md).
+## 索引
 
-See [layer ownership](./layer-ownership.md) for desktop composition and native conversation boundaries.
+- [UI authority](./ui-authority-boundaries.md)
+- [Layer ownership](./layer-ownership.md)
+- [Window lifecycle](./window-lifecycle.md)
+- [Agent client](./agent-client.md)
+- [Data layout](./data-layout.md)
+- [Embedded browser](./embedded-browser.md)
+- [Agent activity feed](./agent-activity-feed.md)

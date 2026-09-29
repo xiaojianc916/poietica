@@ -240,7 +240,7 @@ export function createApplicationRuntime(restored: string | null): ApplicationRu
   const modelCatalog = new ModelCatalogStore(createModelCatalogPort(), agentDescriptor.id)
   /*
    * agent 自己那份设置目录：378 格的真身住在 agent 进程的 settings-schema 里，这一份是投影。
-   * 写走它自己的 Settings.set + flush，它自己热重载（ADR 0054 决定四）。
+   * 写走它自己的 Settings.set + flush，它自己热重载（ADR 0018 决定四）。
    */
   const agentSettingsCatalog = new AgentSettingsStore(createAgentSettingsPort())
   const agent = createDesktopAgentRuntime({
