@@ -1490,7 +1490,11 @@ fn control_of(value: &Value) -> Option<crate::ConfigControl> {
             .and_then(Value::as_str)
             .map_or_else(|| id.clone(), str::to_owned),
         detail: None,
-        applies_on_submit: false,
+        /* 桥不给就是「当场生效」，与旧桥同形。 */
+        applies_on_submit: value
+            .get("appliesOnSubmit")
+            .and_then(Value::as_bool)
+            .unwrap_or(false),
         id,
         purpose,
         current: value
@@ -1732,7 +1736,7 @@ mod tests {
     use futures::channel::mpsc;
     use serde_json::{Value, json};
 
-    use super::{Event, StderrLog, dispatch};
+    use super::{Event, StderrLog, control_of, dispatch};
     use crate::frame::RunFrame;
     use crate::interaction::desk::{PermissionDesk, QuestionDesk};
     use crate::interaction::question::{AnswerMethod, QuestionAnswer, QuestionResponse};
@@ -1744,6 +1748,31 @@ mod tests {
     const SESSION: &str = "sess_ask";
     /// 上游那次对话框的号（approval.ts 的 DialogDesk 签发的 `d<n>`）。
     const REQUEST: &str = "d7";
+
+    /// 桥标了 appliesOnSubmit 的那一档（目标）要原样传到产品侧：界面靠它把这一行画成
+    /// 「跟着下一句交」，落成 false 就会在点的那一刻空手发一条 set_config。
+    #[test]
+    fn a_prompt_bound_selector_keeps_its_flag_and_a_plain_one_does_not_gain_it() {
+        let bound = control_of(&json!({
+            "id": "goal",
+            "label": "目标",
+            "purpose": "mode",
+            "appliesOnSubmit": true,
+            "current": "off",
+            "choices": [{ "value": "on", "label": "目标" }]
+        }))
+        .expect("a well-formed selector");
+        let plain = control_of(&json!({
+            "id": "plan",
+            "purpose": "mode",
+            "current": "off",
+            "choices": [{ "value": "on", "label": "计划" }]
+        }))
+        .expect("a well-formed selector");
+
+        assert!(bound.applies_on_submit);
+        assert!(!plain.applies_on_submit);
+    }
 
     /// 一组题：题号来自 omp，选项号由桥签发（o0/o1）。
     fn asked() -> Value {

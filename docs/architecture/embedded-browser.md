@@ -44,23 +44,25 @@ X-Frame-Options/frame-ancestors 会把大多数站点挡在 iframe 外面。
 的环境参数（环境级参数：同 profile 的所有标签共用一个 CDP 端点，各自是端点
 下的一个 target）。会话拉起时 ensure_live_kernel 先把内核预热出来（一个带地
 址的标签都没有就预热一页空白页），端点上才有页面可听。前端启动时
-reconcileBrowserMcpServer 把受控 home 里 mcp.json 的 poietica-browser 条目对
-齐到当前端点（端口每次启动都变，所以每次启动都对账），条目正文是一台
-playwright-mcp，用 --cdp-endpoint 直连现成端点。omp SDK 从受控 home 读到
-条目后自己 spawn 这台 stdio 服务器，agent 的 browser_* 工具经 CDP 驱动面板里
-的标签。唯一真相不变：标签模型在 crates/browser 的 Tabs 里，CDP 只是伸进内
-核的手。
+alignBrowserEndpoint（apps/desktop/src/browser/browser-endpoint.ts）把 agent
+的 browser.cdpUrl 对齐到当前端点（端口每次启动都抽，所以每次启动都对账）。
+agent 用它自己的原生浏览器能力经这个 CDP 端点驱动面板里的标签。唯一真相不变：
+标签模型在 crates/browser 的 Tabs 里，CDP 只是伸进内核的手。
 
-playwright-mcp 是选定实现：微软官方，`--cdp-endpoint` 白纸黑字接现成端点，
-Playwright 对 WebView2 有官方专页（playwright.dev/docs/webview2），写的正是
-本仓形态 —— 环境级 remote-debugging-port 加 connectOverCDP。
+判据是探活不是地址形状：上一趟留下的端点与用户自选的现成浏览器在地址上完全
+一样（都是本机回环加端口），区别只在「那个端口还有没有人在听」。所以死端点才
+对齐，活着的用户选择一概不碰（apps/desktop/src/browser/browser-endpoint-probe.ts）。
+
+原先挂的那台 playwright MCP 已删：omp 侧自带浏览器能力，而它会按浏览器类服务器
+把 `@playwright/mcp` 过滤掉（node_modules/.../mcp/config.ts 的 filterBrowserMCPServers），
+留着只会让设置页显示一台在会话里永远不出现的条目。
 
 ### agent 操控面的安全
 
 CDP 端点只听 127.0.0.1，但本机任意进程都能连上并控制内核（Chrome 官方对
 remote-debugging-port 给过同样的警告）。端口不写死、每次启动随机抽取，内核
-profile 与主窗口隔离。要断开 agent 的手，把 mcp.json 里 poietica-browser 条
-目的 enabled 拨掉即可，面板本身不受影响。
+profile 与主窗口隔离。要断开 agent 的手，在设置→电脑控制里关掉「浏览器控制」
+即可，面板本身不受影响。
 
 ## 元素拾取
 

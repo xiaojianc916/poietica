@@ -48,7 +48,7 @@ import { v7 as uuidv7 } from 'uuid'
 import { createAttachmentIntake } from '../assistant/attachment-intake'
 import { createConversationEntry } from '../assistant/conversation-entry'
 import { createWorkspaceCollapse } from '../assistant/workspace-collapse'
-import { reconcileBrowserMcpServer } from '../browser/browser-mcp'
+import { alignBrowserEndpoint } from '../browser/browser-endpoint'
 import { createBrowserPickController } from '../browser/browser-pick'
 import { LibrarySurface } from '../library/library-surface'
 import { NoticeStore } from '../notice/notices'
@@ -199,7 +199,7 @@ export function createApplicationRuntime(restored: string | null): ApplicationRu
 
     /*
      * 接入档案先落盘，排在其余前置之前：这条链上每一步都要读它 —— pluginStore.start()
-     * 的 environmentMcpConfig 与 reconcileBrowserMcpServer 都要 defaultAgentId，原生侧的
+     * 的 environmentMcpConfig 与 alignBrowserEndpoint 都要 defaultAgentId，原生侧的
      * launch_env / agent_program 认整条档案。此前这步只挂在设置→模型页上，全新安装因此
      * 起不了会话，而「重试」重跑的是同一条读路径、治不了。
      *
@@ -218,7 +218,7 @@ export function createApplicationRuntime(restored: string | null): ApplicationRu
           pluginStore.stop()
           return
         }
-        await reconcileBrowserMcpServer(pluginStore)
+        await alignBrowserEndpoint(pluginStore)
       })
 
     backgroundServicesReady = started

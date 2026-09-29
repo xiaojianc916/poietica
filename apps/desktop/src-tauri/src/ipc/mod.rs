@@ -175,6 +175,7 @@ pub(crate) fn surface() -> Builder<Wry> {
             crate::webview::bridge::browser_set_bounds,
             crate::webview::bridge::browser_set_visible,
             crate::webview::bridge::browser_devtools_endpoint,
+            crate::webview::bridge::browser_endpoint_reachable,
             crate::webview::bridge::browser_set_element_picker,
         ])
         .events(tauri_specta::collect_events![

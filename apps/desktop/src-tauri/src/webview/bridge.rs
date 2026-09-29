@@ -424,11 +424,41 @@ pub async fn browser_set_visible(app: AppHandle, visible: bool) {
     apply_layout(&app);
 }
 
-/// 内核 CDP 端点，mcp.json 对账用。
+/// 内核 CDP 端点，启动时对齐 agent 的 browser.cdpUrl 用。
 #[command]
 #[specta::specta]
 pub async fn browser_devtools_endpoint(app: AppHandle) -> Option<String> {
     app.state::<BrowserHost>().devtools_endpoint()
+}
+
+/// 这个 CDP 地址此刻还有没有人在听。
+///
+/// 用来分辨「应用上一趟发的那个端点」（随进程一起死了）与「用户自己选的现成浏览器」
+/// （按定义在跑）：两者在地址上完全一样，都是本机回环加端口，只有探活分得开。
+/// 探活归原生侧：渲染进程没有网络能力，而那台内核本来就由它持有。
+///
+/// 只问 HTTP 端口通不通，不问它是不是一个合规的 CDP 服务 —— 这里要答的是「上一趟那个
+/// 还在不在」，不是「这个地址能不能用」；后者由用了它的一方自己报错。
+#[command]
+#[specta::specta]
+pub async fn browser_endpoint_reachable(endpoint: String) -> bool {
+    let Some(rest) = endpoint.strip_prefix("http://") else {
+        return false;
+    };
+    let Some((host, port)) = rest.split_once(':') else {
+        return false;
+    };
+    let Ok(port) = port.trim_end_matches('/').parse::<u16>() else {
+        return false;
+    };
+
+    /* 拒绝也是立刻的，这个上限只用来兜住「对端不答也不拒」。 */
+    tokio::time::timeout(
+        std::time::Duration::from_millis(300),
+        tokio::net::TcpStream::connect((host, port)),
+    )
+    .await
+    .is_ok_and(|connected| connected.is_ok())
 }
 
 #[command]

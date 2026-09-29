@@ -85,8 +85,12 @@ function toggleRow(
           }
         : {
             kind: 'run',
-            run: () => {
-              onSelect(control.id, enabled ? 'off' : 'on')
+            /*
+             * 草稿正文原样带上：开目标时它就是 objective。吞掉它，用户先打字再点「目标」
+             * 也会被判成「没有正文」（面板只把 run 的入参交到这里，见 composer-palette）。
+             */
+            run: (draft) => {
+              onSelect(control.id, enabled ? 'off' : 'on', draft)
             },
           },
   }

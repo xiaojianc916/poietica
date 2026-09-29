@@ -37,10 +37,14 @@ const CREATE_MODES = [
 ] as const satisfies readonly SegmentedOption<CreateTab>[]
 
 /*
- * 本应用自己托管的内置服务器：自动化引擎与浏览器 CDP 桥。
- * 它们写进同一份 mcp.json，但删了就等于把应用的核心能力拆了，所以不允许删除。
+ * 本应用自己托管的内置服务器：自动化引擎。
+ * 它写进同一份 mcp.json，但删了就等于把应用的核心能力拆了，所以不允许删除。
+ *
+ * 浏览器那台不在这里了：agent 侧走它自己的原生浏览器能力（设置→电脑控制里的
+ * 「连接方式」），再挂一台 playwright MCP 是同一件事的第二条实现 —— 而且它会被 agent
+ * 按浏览器类服务器过滤掉，留着只会让设置页显示一台永远不出现的条目。
  */
-const BUILTIN_MANAGED_SERVERS = ['poietica-automations', 'poietica-browser'] as const
+const BUILTIN_MANAGED_SERVERS = ['poietica-automations'] as const
 
 export function McpSettings({ store }: { readonly store: PluginStore }) {
   const view = useSyncExternalStore(store.subscribe, store.getSnapshot)

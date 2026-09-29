@@ -36,6 +36,12 @@ interface AgentCapabilityOptions {
 interface ToolkitRequest {
   readonly at: string | null
 }
+/*
+ * 「还没有人认领过名册」。threadId 只可能是对话号或入口那一格的 null，
+ * 所以这个哨兵永远不会与一次真实认领撞上。
+ */
+const UNSET_TOOLKIT_SCOPE = Symbol('unclaimed')
+type ToolkitScope = string | null | typeof UNSET_TOOLKIT_SCOPE
 interface Binding {
   readonly port: AgentCapabilityPort
   readonly order: ArrivalOrder
@@ -43,7 +49,7 @@ interface Binding {
   alignedTo: string | undefined
   /** agent 这一趟报的原话，用来判「还要不要再发一次」。屏幕上那张可能被投影过。 */
   reported: readonly SessionConfigControl[] | undefined
-  toolkitAt: string | null
+  toolkitAt: ToolkitScope
   toolkitRequest: ToolkitRequest | undefined
 }
 const EMPTY: AgentControls = {
@@ -94,7 +100,7 @@ export class AgentCapabilityStore {
       tail: Promise.resolve(),
       alignedTo: undefined,
       reported: undefined,
-      toolkitAt: null,
+      toolkitAt: UNSET_TOOLKIT_SCOPE,
       toolkitRequest: undefined,
     }
     let active = true
@@ -173,6 +179,15 @@ export class AgentCapabilityStore {
     binding.toolkitRequest = undefined
     this.#loadToolkit(binding)
   }
+  /*
+   * 「还没人认领名册」。
+   *
+   * 初值不能是 null：入口那一格（threadId 就是 null）在开机时由 connectWorkbench 认领，
+   * 而同值早退会把那一次挡掉 —— 名册从此停在开机那一刻的空表上，技能一直不显示。
+   * 拿一个不可能是 threadId 的哨兵当「还没认领」，第一个 adoptToolkit 才真的走到读；
+   * 认领之前 #loadToolkit 也不读，省掉开机那趟注定问不出东西的请求。
+   */
+  toolkitAt = UNSET_TOOLKIT_SCOPE
   /*
    * 重读这一家的可调项。失败那一格不由这里清（由拿到表的 #adopt 清），所以点了重试
    * 之后那句话会留到这一趟落地；交回的承诺决定那颗重试图标转多久。
@@ -282,6 +297,13 @@ export class AgentCapabilityStore {
     }
   }
   #loadToolkit(binding: Binding): void {
+    /*
+     * 还没人认领就不读：哨兵不是 threadId，问出去的会是入口那一格，而入口那一格该由
+     * 真正的 adoptToolkit 认领（见上）。开机那次 refresh 因此不再白发一趟。
+     */
+    if (binding.toolkitAt === UNSET_TOOLKIT_SCOPE) {
+      return
+    }
     if (this.#binding !== binding || binding.toolkitRequest?.at === binding.toolkitAt) {
       return
     }

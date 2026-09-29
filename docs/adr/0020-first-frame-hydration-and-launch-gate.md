@@ -14,7 +14,7 @@
 慢的是读之前排队的东西。`prepareAgent` 把两件与「起 agent」无关的事挡在 launch 前面：
 
 1. `pluginStore.start()` —— 插件账本、技能目录、外部账本、mcp.json、市场目录、
-   能力清单六趟 I/O，外加 `reconcileBrowserMcpServer`。其中能力清单那趟经
+   能力清单六趟 I/O，外加 `alignBrowserEndpoint`。其中能力清单那趟经
    `agent_capability_report` 反过来还要 `ensure` 一次连接。
 2. 模型目录的元数据同步（一趟目录快照加一次写）。
 

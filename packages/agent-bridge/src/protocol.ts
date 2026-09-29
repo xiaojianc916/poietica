@@ -333,6 +333,13 @@ export interface SelectorControl {
   /** 这一格在人面前叫什么；缺席时原生侧退回用 id 当名字。 */
   readonly label?: string
   readonly purpose: 'model' | 'thinking' | 'permission' | 'mode' | 'other'
+  /**
+   * 这一档改完不算数，要等下一句交出去时才生效（值跟着 prompt 一起送）。
+   *
+   * 目标那一格就是这一档：开目标要有正文当 objective，而正文是用户下一句要写的话。
+   * 面板据此把这行画成「待提交」而不是当场发一条 set_config —— 当场发没有正文，只能被拒。
+   */
+  readonly appliesOnSubmit?: true
   readonly current: string
   readonly choices: readonly SelectorChoice[]
 }

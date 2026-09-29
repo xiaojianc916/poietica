@@ -9,9 +9,9 @@ pub(super) const PICKER_CANCEL_SCRIPT: &str = "window.__poieticaElementPicker?.c
 
 pub use bridge::{
     BrowserClosedTab, BrowserHost, BrowserState, BrowserTab, PanelBounds, browser_back,
-    browser_close_tab, browser_devtools_endpoint, browser_forward, browser_navigate,
-    browser_open_tab, browser_print, browser_reload, browser_reopen_closed, browser_select_tab,
-    browser_set_bounds, browser_set_element_picker, browser_set_visible,
+    browser_close_tab, browser_devtools_endpoint, browser_endpoint_reachable, browser_forward,
+    browser_navigate, browser_open_tab, browser_print, browser_reload, browser_reopen_closed,
+    browser_select_tab, browser_set_bounds, browser_set_element_picker, browser_set_visible,
 };
 pub use child_view::ensure_live_kernel;
 pub use picker_bridge::{BrowserElementPicked, BrowserPickSubmission};

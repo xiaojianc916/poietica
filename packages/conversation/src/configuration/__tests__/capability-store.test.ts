@@ -303,6 +303,8 @@ describe('锚会话的那张表', () => {
         }),
     })
 
+    /* 名册要有人认领才读（见 adoptToolkit 上面的注释）。 */
+    store.adoptToolkit(null)
     await settled()
 
     expect(store.snapshot().toolkit.skills.map((entry) => entry.name)).toEqual(['review'])
@@ -608,6 +610,93 @@ describe('capability binding ownership', () => {
     stop()
     expect(subscriptions).toBe(0)
   })
+  it('入口那一格的名册在会话就绪后还能再读一次', async () => {
+    /*
+     * 开机时序：capabilities.start 先跑一次 refresh（那时 agent 会话还没起，名册是空的），
+     * 紧接着 connectWorkbench 的 activeChanged 调 adoptToolkit(null)。两次都是「入口那一格」，
+     * 所以第二次必须真的再读一遍 —— 早退就会把技能永远锁在那一份空名册上。
+     */
+    let booted = false
+    let toolkits = 0
+    const store = new AgentCapabilityStore()
+
+    const stop = store.start({
+      read: () => Promise.resolve(ON_OFF),
+      select: () => Promise.resolve(ON_OFF),
+      subscribe: inert,
+      readToolkit: () => {
+        toolkits += 1
+
+        return Promise.resolve(
+          booted ? { skills: [skill('review', 'user')], mcpServers: [] } : EMPTY_TOOLKIT,
+        )
+      },
+    })
+
+    /* 还没人认领时不该白发一趟：那一刻 agent 会话还没起，问也问不出东西。 */
+    await settled()
+    expect(toolkits).toBe(0)
+    expect(store.snapshot().toolkit.skills).toHaveLength(0)
+
+    /* agent 起来了，入口那一格认领名册 —— 这一次要真的读到东西。 */
+    booted = true
+    store.adoptToolkit(null)
+    await settled()
+
+    expect(toolkits).toBe(1)
+    expect(store.snapshot().toolkit.skills.map((entry) => entry.name)).toEqual(['review'])
+
+    /* 同一格再认领一次是幂等的，不该重复读。 */
+    store.adoptToolkit(null)
+    await settled()
+    expect(toolkits).toBe(1)
+
+    stop()
+  })
+
+  it('会话就绪推来 selectors 时名册跟着重读', async () => {
+    /*
+     * 认领那一趟可能赶在会话就绪之前（读到空名册）。真正让技能上屏的是 agent 就绪后推来的
+     * selectors：端口订阅回调走 refresh()，名册必须跟着重读一次。
+     */
+    let booted = false
+    let toolkits = 0
+    let push: (() => void) | undefined
+    const store = new AgentCapabilityStore()
+
+    const stop = store.start({
+      read: () => Promise.resolve(ON_OFF),
+      select: () => Promise.resolve(ON_OFF),
+      subscribe: (handler) => {
+        push = handler
+
+        return inert()
+      },
+      readToolkit: () => {
+        toolkits += 1
+
+        return Promise.resolve(
+          booted ? { skills: [skill('review', 'user')], mcpServers: [] } : EMPTY_TOOLKIT,
+        )
+      },
+    })
+
+    /* 开机那一刻会话还没起：认领了，但读到的是空名册。 */
+    store.adoptToolkit(null)
+    await settled()
+    expect(store.snapshot().toolkit.skills).toHaveLength(0)
+
+    /* agent 就绪，推来 selectors。 */
+    booted = true
+    push?.()
+    await settled()
+
+    expect(toolkits).toBeGreaterThan(1)
+    expect(store.snapshot().toolkit.skills.map((entry) => entry.name)).toEqual(['review'])
+
+    stop()
+  })
+
   it('stale read and toolkit failures cannot report into a restarted binding', async () => {
     let rejectRead: ((cause: unknown) => void) | undefined
     let rejectToolkit: ((cause: unknown) => void) | undefined

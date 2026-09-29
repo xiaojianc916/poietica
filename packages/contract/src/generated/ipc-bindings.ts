@@ -450,10 +450,23 @@ async browserSetVisible(visible: boolean) : Promise<void> {
     await TAURI_INVOKE("browser_set_visible", { visible });
 },
 /**
- * 内核 CDP 端点，mcp.json 对账用。
+ * 内核 CDP 端点，启动时对齐 agent 的 browser.cdpUrl 用。
  */
 async browserDevtoolsEndpoint() : Promise<string | null> {
     return await TAURI_INVOKE("browser_devtools_endpoint");
+},
+/**
+ * 这个 CDP 地址此刻还有没有人在听。
+ * 
+ * 用来分辨「应用上一趟发的那个端点」（随进程一起死了）与「用户自己选的现成浏览器」
+ * （按定义在跑）：两者在地址上完全一样，都是本机回环加端口，只有探活分得开。
+ * 探活归原生侧：渲染进程没有网络能力，而那台内核本来就由它持有。
+ * 
+ * 只问 HTTP 端口通不通，不问它是不是一个合规的 CDP 服务 —— 这里要答的是「上一趟那个
+ * 还在不在」，不是「这个地址能不能用」；后者由用了它的一方自己报错。
+ */
+async browserEndpointReachable(endpoint: string) : Promise<boolean> {
+    return await TAURI_INVOKE("browser_endpoint_reachable", { endpoint });
 },
 async browserSetElementPicker(id: number, enabled: boolean, theme: ResolvedTheme) : Promise<void> {
     await TAURI_INVOKE("browser_set_element_picker", { id, enabled, theme });

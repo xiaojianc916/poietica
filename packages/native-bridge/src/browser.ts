@@ -92,6 +92,12 @@ export function openBrowserUrlExternally(url: string): Promise<void> {
   return throughIpc(() => commands.windowOpenExternalUrl(url))
 }
 
+/* 这个 CDP 地址此刻还有没有人在听。用来分辨「应用上一趟发的死端点」与「用户自己选的现成
+ * 浏览器」——两者在地址上完全一样，只有探活分得开。 */
+export function browserEndpointReachable(endpoint: string): Promise<boolean> {
+  return throughIpc(() => commands.browserEndpointReachable(endpoint))
+}
+
 export function browserDevtoolsEndpoint(): Promise<string | null> {
   return throughIpc(() => commands.browserDevtoolsEndpoint())
 }

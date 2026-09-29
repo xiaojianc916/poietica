@@ -98,6 +98,14 @@ function usageOf(
   return { input, output, cacheRead }
 }
 
+/*
+ * 等一次在飞的 MCP 握手的上限。
+ *
+ * 这是用户能感知的那一格：等太久，技能与 MCP 两格一起空着；等太短，刚起好的那台会被漏掉
+ * 一次（下一趟读会补上）。取一个「本机 stdio 服务器握手够用、联网拉包显然不够」的数。
+ */
+const MCP_HANDSHAKE_GRACE_MS = 1500
+
 /* 正文增量的那个联合：从事件联合里取出来，免得为它再 import 一次上游的 pi-ai。 */
 type AssistantDelta = Extract<
   AgentSessionEvent,
@@ -530,7 +538,17 @@ export function createBridge(host: BridgeHost): Bridge {
   async function adopt(manager: SessionManager, cwd: string): Promise<Session> {
     const authStorage = await discoverAuthStorage()
     const modelRegistry = new ModelRegistry(authStorage)
-    await modelRegistry.refresh()
+    /*
+     * 与 SDK 自己的嵌入方引导同一次序（sdk.ts 的 hydrateCredentialScopedModelCaches +
+     * refreshInBackground）：先本地补一次凭据作用域的目录，再把联网发现放去后台。
+     *
+     * 不能在这里 await refresh()：它默认 online-if-uncached，缓存过了 24h 就当场等网络
+     * —— 实测 585ms（断网）对 10442ms（联网），而这一段整个压在开窗之前。我们把
+     * modelRegistry 传给了 createAgentSession，SDK 自己的那条后台分支就会被跳过，所以
+     * 这个责任由这里接过来。
+     */
+    await modelRegistry.hydrateCredentialScopedModelCaches()
+    modelRegistry.refreshInBackground()
 
     // 号由我们签发。sessionId 先占空串：闸门可能在会话对象拿到号之前就被调到。
     let id = ''
@@ -1172,6 +1190,11 @@ export function createBridge(host: BridgeHost): Bridge {
         id: 'goal',
         label: '目标',
         purpose: 'mode',
+        /*
+         * 开目标要有正文当 objective，而正文是用户下一句要打的话：收工由 prompt 一起交。
+         * 面板照这一格把「目标」画成待提交，不在点的那一刻空手发 set_config（见 selectGoal）。
+         */
+        appliesOnSubmit: true,
         current: goal?.enabled === true ? 'on' : 'off',
         choices: [
           { value: 'on', label: '目标', detail: '把它当作一个持续目标，达成前不中断' },
@@ -2043,12 +2066,27 @@ export function createBridge(host: BridgeHost): Bridge {
           })),
         }
 
-      // hasUI:true 时上游把 MCP 发现推迟到建会话后异步做，刚开完名册可能空。
-      // 等一次在飞的握手，等待有上限。
+      /*
+       * hasUI:true 时上游把 MCP 发现推迟到建会话后异步做，刚开完名册可能空，所以等一次在飞的
+       * 握手再答 —— 但必须有真正的截止时间。
+       *
+       * waitForPendingConnections 会 drain 到所有 pending 握手 settle 为止（omp manager.ts 最多
+       * 8 轮），一台连不上的服务器就能把它挂住：实测 npx 拉 @playwright/mcp 时这一等是 181 秒。
+       * 而名册这条路是**同步读**：它一挂，技能与 MCP 两格同时停在「还没就绪」的样子（这与
+       * 拉包无关，换任何一台慢服务器都一样）。
+       *
+       * 所以：等一小会儿，超时就先报此刻的事实。还没连上的那台随后由下一趟读补齐
+       * （会话就绪推 selectors 时名册会跟着重读，见 conversation 的 capability-store）。
+       */
       case 'mcp_servers': {
         const record = required()
 
-        await record.mcp?.waitForPendingConnections()
+        await Promise.race([
+          record.mcp?.waitForPendingConnections(),
+          new Promise<void>((resolve) => {
+            setTimeout(resolve, MCP_HANDSHAKE_GRACE_MS).unref?.()
+          }),
+        ])
 
         return { servers: readServers(record) }
       }
