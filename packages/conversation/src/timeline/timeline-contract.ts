@@ -1,3 +1,4 @@
+import type { TranscriptUsage } from '@poietica/transcript'
 import type { SessionLink } from '../agent/link'
 import type { ApprovalDecision, ApprovalScope } from '../agent/permission'
 import type { QuestionChoice, QuestionItem } from '../agent/question'
@@ -244,6 +245,8 @@ export interface TurnPage {
     readonly undoCount: number | null
     readonly forkUnavailableReason: string | null
   }
+  /** agent 自己报的这一轮 token 用量；缺席表示还没报或协议没给。 */
+  readonly usage?: TranscriptUsage
   readonly items: readonly TimelineItem[]
 }
 

@@ -1,4 +1,4 @@
-/*
+﻿/*
  * omp 的会话事件 → transcript 的 ops。
  *
  * 投影器持有流式累加状态，因为 transcript 的 append 认 offset（ops/apply.ts 的
@@ -301,6 +301,7 @@ export class TranscriptProjector {
     outcome: 'completed' | 'cancelled' | 'failed',
     message?: string,
     endedAt: string = now(),
+    usage?: { readonly input: number; readonly output: number; readonly cacheRead: number },
   ): TranscriptOperation[] {
     if (!this.#turnOpen) {
       return []
@@ -341,6 +342,15 @@ export class TranscriptProjector {
         ...(this.#promptId === undefined ? {} : { triggerPromptId: this.#promptId }),
         ...(this.#attachmentIds.length > 0 ? { attachmentIds: this.#attachmentIds } : {}),
         ...(message === undefined ? {} : { error: message }),
+        ...(usage === undefined
+          ? {}
+          : {
+              usage: {
+                inputTokens: usage.input,
+                outputTokens: usage.output,
+                cachedTokens: usage.cacheRead,
+              },
+            }),
       },
     })
     ops.push({ op: 'meta.merge', meta: { activity: 'idle' } })

@@ -84,6 +84,15 @@
   transform-origin: center;
 }
 
+/* token 用量标签：跟在操作按钮右侧，用 quieter 的颜色不抢注意力。 */
+.timeline-reply-actions__usage {
+  margin-inline-start: 0.25rem;
+  font-size: 0.8125rem;
+  line-height: 1;
+  color: var(--cp-timeline-quiet-text);
+  user-select: none;
+}
+
 /* 没有 hover 能力的设备不能依赖悬停发现操作。 */
 @media (hover: none) and (pointer: coarse) {
   .timeline-reply-actions {

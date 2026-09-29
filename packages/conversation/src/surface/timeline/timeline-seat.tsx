@@ -1,3 +1,4 @@
+import type { TranscriptUsage } from '@poietica/transcript'
 import { memo } from 'react'
 import type { FeedRow, ToolGroupPlan, TurnSealPlan } from '../../timeline/presentation'
 import { ReplyActionHost } from './reply-actions'
@@ -12,6 +13,7 @@ export interface TimelineSeatProps {
   readonly replyText: string | undefined
   readonly replyUndoCount: number | null | undefined
   readonly replyForkReason: string | null | undefined
+  readonly replyUsage: TranscriptUsage | undefined
   readonly open: ReadonlySet<string>
   readonly onToggle: (id: string) => void
   readonly onSealToggle: (turn: number, isOpen: boolean) => void
@@ -27,6 +29,7 @@ export const TimelineSeat = memo(function TimelineSeat({
   replyUndoCount,
   replyForkReason,
   replyText,
+  replyUsage,
   row,
   seal,
 }: TimelineSeatProps) {
@@ -68,6 +71,7 @@ export const TimelineSeat = memo(function TimelineSeat({
       onFork={onFork}
       text={replyText}
       undoCount={replyUndoCount ?? null}
+      usage={replyUsage}
     >
       {content}
     </ReplyActionHost>

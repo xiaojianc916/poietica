@@ -47,6 +47,7 @@ export type {
 
 export type {
   TranscriptTurn,
+  TranscriptUsage,
 } from './model/turn'
 
 export type {

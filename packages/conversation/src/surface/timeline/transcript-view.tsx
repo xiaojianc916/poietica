@@ -204,6 +204,7 @@ export function TranscriptView({
           replyForkReason={replyAction?.forkUnavailableReason}
           replyText={replyAction?.text}
           replyUndoCount={replyAction?.undoCount}
+          replyUsage={replyAction?.usage}
           row={row}
           seal={feed.sealAt(index)}
         />

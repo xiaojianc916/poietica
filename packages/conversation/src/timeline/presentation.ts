@@ -1,3 +1,4 @@
+import type { TranscriptUsage } from '@poietica/transcript'
 import { lastAtOrBefore } from './ordered-lookup'
 import { isRenderable } from './renderable'
 import {
@@ -53,6 +54,8 @@ export interface ReplyActionPlan {
   readonly text: string
   readonly undoCount: number | null
   readonly forkUnavailableReason: string | null
+  /** 这一轮 agent 自己报的 token 用量；缺席不画。 */
+  readonly usage?: TranscriptUsage
 }
 
 /** 屏幕要的一切，按下标问。 */
@@ -362,6 +365,7 @@ function repliesIn(
   text: string,
   rows: readonly FeedRow[],
   run: TurnPage['run'],
+  usage: TranscriptUsage | undefined,
 ): ReadonlyMap<number, ReplyActionPlan> {
   if (run?.settled !== true || text.length === 0 || rows.length === 0) {
     return NO_REPLIES
@@ -373,6 +377,7 @@ function repliesIn(
         text,
         undoCount: run.undoCount,
         forkUnavailableReason: run.forkUnavailableReason,
+        ...(usage === undefined ? {} : { usage }),
       },
     ],
   ])
@@ -434,7 +439,12 @@ function buildSegment(
     groups: grouped.groups,
     ownMessage,
     picked,
-    replies: repliesIn(speechFrom(all, answer ?? 0, all.length), grouped.rows, page.run),
+    replies: repliesIn(
+      speechFrom(all, answer ?? 0, all.length),
+      grouped.rows,
+      page.run,
+      page.usage,
+    ),
     rows: grouped.rows,
     running,
     said: saidAt(grouped.rows),

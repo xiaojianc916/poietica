@@ -64,6 +64,31 @@ import { TranscriptMirror } from './transcript-mirror.ts'
 // omp 的目标类型住在 pi-tui 里、不由 SDK 导出，从会话读法上取。
 type GoalOfSession = NonNullable<ReturnType<AgentSession['getGoalModeState']>>['goal']
 
+/* 最后一条 assistant 消息 → 这一轮上报的 token 用量；没有消息或全零时缺席。 */
+function usageOf(
+  last: unknown,
+): { readonly input: number; readonly output: number; readonly cacheRead: number } | undefined {
+  if (typeof last !== 'object' || last === null) {
+    return undefined
+  }
+  const usage = Reflect.get(last, 'usage')
+  if (typeof usage !== 'object' || usage === null) {
+    return undefined
+  }
+  const input = Reflect.get(usage, 'input')
+  const output = Reflect.get(usage, 'output')
+  const cacheRead = Reflect.get(usage, 'cacheRead')
+  if (
+    typeof input !== 'number' ||
+    typeof output !== 'number' ||
+    typeof cacheRead !== 'number' ||
+    (input === 0 && output === 0 && cacheRead === 0)
+  ) {
+    return undefined
+  }
+  return { input, output, cacheRead }
+}
+
 /* 正文增量的那个联合：从事件联合里取出来，免得为它再 import 一次上游的 pi-ai。 */
 type AssistantDelta = Extract<
   AgentSessionEvent,
@@ -869,8 +894,9 @@ export function createBridge(host: BridgeHost): Bridge {
       case 'agent_end':
         // isTerminal 为 false 时后面还有活干，这一轮没真结束。
         if (event.isTerminal !== false) {
-          const outcome = outcomeOf(record.agent.getLastAssistantMessage())
-          ops = project.turnEnd(outcome.kind, outcome.message)
+          const last = record.agent.getLastAssistantMessage()
+          const outcome = outcomeOf(last)
+          ops = project.turnEnd(outcome.kind, outcome.message, undefined, usageOf(last))
           ending = outcome
         }
         break

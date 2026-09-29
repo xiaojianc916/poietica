@@ -517,6 +517,24 @@ const sameSources = (
   right: readonly (TranscriptAttachment | undefined)[],
 ): boolean => left.length === right.length && left.every((value, at) => value === right[at])
 
+/** turn 上报的错去重后追加到条目尾；没有就不加。 */
+function errorItemOf(turn: TranscriptTurn, items: TimelineItem[], stamp: number): void {
+  if (
+    turn.error === undefined ||
+    turn.error.length === 0 ||
+    items.some((item) => item.type === 'error' && item.message === turn.error)
+  ) {
+    return
+  }
+  items.push({
+    type: 'error',
+    id: `turn-error:${turn.turnId}`,
+    turn: turn.ordinal,
+    at: timeOf(turn.endedAt) ?? stamp,
+    message: turn.error,
+  })
+}
+
 function projectTurn(
   turn: TranscriptTurn,
   index: ReadonlyMap<string, TranscriptAttachment>,
@@ -557,23 +575,15 @@ function projectTurn(
   const anchors =
     frames.userAnchors === null || opening === null ? null : opening + frames.userAnchors
   const items = [...(opened === null ? [] : [opened]), ...frames.items]
-  if (
-    turn.error !== undefined &&
-    turn.error.length > 0 &&
-    !items.some((item) => item.type === 'error' && item.message === turn.error)
-  ) {
-    items.push({
-      type: 'error',
-      id: `turn-error:${turn.turnId}`,
-      turn: turn.ordinal,
-      at: timeOf(turn.endedAt) ?? stamp,
-      message: turn.error,
-    })
-  }
+  errorItemOf(turn, items, stamp)
   const projected = {
     sources: sourcesOf(turn, index),
     media,
-    page: { turn: turn.ordinal, items },
+    page: {
+      turn: turn.ordinal,
+      ...(turn.usage === undefined ? {} : { usage: turn.usage }),
+      items,
+    },
     fact: { opensWithAnchor: opening === 1, anchors },
     span: spanOf(turn, turn.ordinal),
   }
