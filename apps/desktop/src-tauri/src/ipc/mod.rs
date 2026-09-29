@@ -37,9 +37,9 @@ use crate::{
         AgentPromptConfiguration, AgentPromptRequest, AgentPromptResult, AgentPromptSkill,
         AgentQuestionAnswer, AgentQuestionChoice, AgentQuestionMethod, AgentRenameThreadRequest,
         AgentResolvePermissionRequest, AgentSelectConfigRequest, AgentSessionEvent,
-        AgentSessionMediaRequest, AgentSessionMediaResult, AgentThreadRequest,
-        AgentTranscriptEvent, AgentTranscriptJson, AgentTranscriptOpsRequest,
-        AgentTranscriptRequest,
+        AgentSessionMediaRequest, AgentSessionMediaResult, AgentShareThreadRequest,
+        AgentSharedThread, AgentThreadRequest, AgentTranscriptEvent, AgentTranscriptJson,
+        AgentTranscriptOpsRequest, AgentTranscriptRequest,
     },
     conversation::settings::{
         AgentSettingEntry, AgentSettingOption, AgentSettingWriteRequest, AgentSettingsCatalog,
@@ -87,6 +87,7 @@ pub(crate) fn surface() -> Builder<Wry> {
             crate::conversation::thread::agent_threads,
             crate::conversation::thread::agent_thread_snapshot,
             crate::conversation::export::agent_export_thread,
+            crate::conversation::share::agent_share_thread,
             crate::conversation::thread::agent_open_thread,
             crate::conversation::turn::agent_transcript,
             crate::conversation::turn::agent_transcript_ops,
@@ -224,6 +225,8 @@ pub(crate) fn surface() -> Builder<Wry> {
         .typ::<AgentArchiveThreadRequest>()
         .typ::<AgentThreadRequest>()
         .typ::<AgentExportThreadRequest>()
+        .typ::<AgentShareThreadRequest>()
+        .typ::<AgentSharedThread>()
         .typ::<AgentForkThreadRequest>()
         .typ::<AgentPinThreadRequest>()
         .typ::<AgentTranscriptRequest>()

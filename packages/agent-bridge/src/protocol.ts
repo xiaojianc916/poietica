@@ -77,6 +77,17 @@ export type BridgeCommand =
       readonly sessionId: string
       readonly destination: string
     }
+  /**
+   * 把一条会话传到 omp 自己的分享服务，换取一条链接。
+   *
+   * 应答是 `{url, truncated}`：`url` 就是给人点的那一条，`truncated` 说明内容为了
+   * 塞进上行预算被裁过。其余几格（method / gistUrl / sealedBytes）是 omp 的实现
+   * 细节，屏幕上没有它们的位置，本层不转发 —— 转发就得有人解释它们。
+   *
+   * **这是唯一一条把对话正文送出本机的命令**，所以脱敏那一格在桥里按 omp 自己的
+   * 规矩办（见 bridge.ts 的 shareSession）。
+   */
+  | { readonly id: string; readonly type: 'share_session'; readonly sessionId: string }
   /** 回答一次工具授权。decision 与 scope 是产品那三颗按钮的取值域。 */
   | {
       readonly id: string
@@ -459,6 +470,17 @@ export interface SettingEntry {
    * 那几行永远消失，而屏幕上没有任何迹象 —— 那比重复控件更难发现。
    */
   readonly owned?: boolean
+  /**
+   * 这一格归产品哪一个**剥离页**画。
+   *
+   * 「记忆」与「人设与风格」本来混在 agent 自己的栏目里（后者根本没有对应的 tab，
+   * 见 settings-labels.ts 的 `personaSettingOf`），产品把它们各拆成一页，主页面不再画。
+   * 缺席即不属于任何剥离页 —— 绝大多数格子都是这一档。
+   *
+   * 与 `owned` 正交：`owned` 说的是「这一行别处已经有控件」，section 说的是「这一行该
+   * 归哪一页」。一格可以既有归属又 owned（`defaultThinkingLevel`），那一页也不画它的行。
+   */
+  readonly section?: 'memory' | 'persona'
 }
 
 export interface SettingOption {

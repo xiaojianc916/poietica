@@ -41,6 +41,13 @@ export function createAgentThreadBridge({ launch, cwd }: AgentBridgeOptions): Th
     open: (threadId) => openTarget({ kind: 'existing', threadId }),
     export: async (threadId) =>
       throughIpc(async () => commands.agentExportThread({ threadId, launch: await launch() })),
+    /*
+     * 分享把对话传出本机，所以这一条**没有** `export` 那样的「用户取消了」中间态：
+     * 它要么交回一条链接，要么如实抛错（会话找不到、上传被拒）。脱敏策略在桥那一侧
+     * 按 agent 自己的设置办，这一层只转发结果。
+     */
+    share: async (threadId) =>
+      throughIpc(async () => commands.agentShareThread({ threadId, launch: await launch() })),
     rename: async (threadId, title) => {
       await throughIpc(() => commands.agentRenameThread({ threadId, title }))
     },

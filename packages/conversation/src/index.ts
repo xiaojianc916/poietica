@@ -34,6 +34,7 @@ export type {
 } from './agent/session'
 export type {
   OpenedThread,
+  SharedThread,
   ThreadHistory,
   ThreadPort,
   ThreadRecord,

@@ -13,6 +13,14 @@ export interface AgentSettingOption {
   readonly description?: string
 }
 
+/**
+ * 归产品哪一个**剥离页**画。
+ *
+ * `memory` 与 `persona`（人设与风格）本来混在 agent 自己的栏目里，产品各拆成一页；
+ * 主页面不再画这两类行。判据在桥侧（packages/agent-bridge/src/settings-labels.ts）。
+ */
+export type AgentSettingSection = 'memory' | 'persona'
+
 export interface AgentSettingEntry {
   readonly path: string
   /** agent 自己那份 schema 的类型词：boolean / enum / number / string / array / record。 */
@@ -61,6 +69,13 @@ export interface AgentSettingEntry {
    * 值仍在，因为别的格子按 `condition` 读它决定显不显示；界面只跳过这一行。
    */
   readonly owned?: boolean
+  /**
+   * 归产品哪一个剥离页画；缺席即不属于任何一页（绝大多数格子都是这一档）。
+   *
+   * 与 `owned` 正交：`owned` 说的是「这一行别处已经有控件」，这里说的是「这一行归哪一页」。
+   * 一格可以既有归属又 owned（`defaultThinkingLevel`），那一页也不画它的行。
+   */
+  readonly section?: AgentSettingSection
 }
 
 export interface AgentSettingsCatalog {
@@ -142,5 +157,12 @@ export function entryOf(wire: AgentSettingEntryWire): AgentSettingEntry {
     ...(wire.warning === null ? {} : { warning: wire.warning }),
     ...(wire.condition === null ? {} : { condition: wire.condition }),
     ...(wire.owned ? { owned: true } : {}),
+    /*
+     * 显式认那两个词，不写成 `wire.section === null ? {} : …`：线上是 `string | null`，
+     * 只挡 null 会让一个生字符串直接冒充已知识别。上游将来加第三个取值时，这一格
+     * **静默不画它的行**（降级方向与 settings-conditions 的「认不出就不显示」一致），
+     * 而不是把一格我们没定义归属的设置画到主页面上。
+     */
+    ...(wire.section === 'memory' || wire.section === 'persona' ? { section: wire.section } : {}),
   }
 }

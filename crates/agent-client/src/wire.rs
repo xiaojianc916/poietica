@@ -126,6 +126,15 @@ pub enum Command {
         session_id: String,
         destination: String,
     },
+    /// 把一条会话传到 agent 自己的分享服务，换回一条链接。
+    ///
+    /// 这是唯一会把对话正文送出本机的命令。应答只取 `url` 与 `truncated` 两格：
+    /// 脱敏由桥按 agent 自己的设置办（protocol.ts 的 share_session），本层不碰。
+    ShareSession {
+        id: String,
+        #[serde(rename = "sessionId")]
+        session_id: String,
+    },
     /// agent 自己报的能力清单。
     Capabilities {
         id: String,
@@ -439,6 +448,13 @@ mod tests {
                 },
                 "export_session",
             ),
+            (
+                Command::ShareSession {
+                    id: "x".to_owned(),
+                    session_id: "s1".to_owned(),
+                },
+                "share_session",
+            ),
         ] {
             let line = encode(&command).expect("encode");
             assert!(line.contains(&format!(r#""type":"{expected}""#)), "{line}");
@@ -474,6 +490,19 @@ mod tests {
             line.contains(r#""destination":"D:\\reports\\会话.html""#),
             "{line}"
         );
+    }
+
+    /// 分享只带一个会话号：脱敏策略与落点都是 agent 自己的设置，不上 wire。
+    #[test]
+    fn a_share_names_only_the_session() {
+        let line = encode(&Command::ShareSession {
+            id: "c7".to_owned(),
+            session_id: "s1".to_owned(),
+        })
+        .expect("encode");
+
+        assert!(line.contains(r#""type":"share_session""#), "{line}");
+        assert!(line.contains(r#""sessionId":"s1""#), "{line}");
     }
 
     /// 改一格设置：路径与值原样上 wire，值不折算（类型由 agent 的 schema 说了算）。

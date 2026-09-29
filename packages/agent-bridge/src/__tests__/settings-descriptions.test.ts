@@ -28,7 +28,8 @@ const visiblePaths = (): string[] =>
 
 test('every setting on screen carries a Chinese description', () => {
   const paths = visiblePaths()
-  expect(paths.length).toBeGreaterThan(300)
+  /* 防空转：目录被剥到只剩几十格时这个数会塌下去，说明上游或我们的筛选出了事。 */
+  expect(paths.length).toBeGreaterThan(250)
 
   /* 报出具体是哪些格：只报条数的话，修的时候还得自己再找一遍。 */
   const untranslated = paths.filter((path) => !hasDescriptionTranslation(path))

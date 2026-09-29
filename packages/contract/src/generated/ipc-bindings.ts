@@ -118,6 +118,9 @@ async agentThreadSnapshot(request: AgentThreadRequest) : Promise<AgentThreadSnap
 async agentExportThread(request: AgentExportThreadRequest) : Promise<boolean> {
     return await TAURI_INVOKE("agent_export_thread", { request });
 },
+async agentShareThread(request: AgentShareThreadRequest) : Promise<AgentSharedThread> {
+    return await TAURI_INVOKE("agent_share_thread", { request });
+},
 async agentOpenThread(request: AgentOpenThreadRequest) : Promise<AgentOpenedThread> {
     return await TAURI_INVOKE("agent_open_thread", { request });
 },
@@ -652,7 +655,12 @@ groupLabel: string | null;
 /**
  * 这一格的**行**由产品别处的控件负责；值仍然报（别的格子按它决定显不显示）。
  */
-owned: boolean }
+owned: boolean; 
+/**
+ * 归产品哪一个剥离页画（`memory` / `persona`）；缺席即不属于任何一页。
+ * 与 `owned` 正交：一格可以既有归属又 owned，那一页也不画它的行。
+ */
+section: string | null }
 /**
  * 枚举/子菜单的一张选项表；原样投影。
  */
@@ -681,6 +689,18 @@ configFile: string;
  * 那份文件此刻在不在；不在就是还没写过。
  */
 configFileExists: boolean }
+export type AgentShareThreadRequest = { threadId: string; launch: AgentLaunch }
+/**
+ * 一次分享的结果。
+ * 
+ * 只有两格。`url` 是给人点的那一条链接 —— **它同时是读取凭据**（omp 的形状是
+ * `<serverUrl>/<id>#<key>`，`#` 之后是解密密钥），所以它只往界面上走，不进日志、
+ * 不进错误文案（`ShareOutcome` 的手写 Debug 就是这条纪律的落点）。
+ * 
+ * `truncated` 如实来自 agent：为真表示内容为塞进上传预算被裁过。绝不替它猜一个
+ * false —— 那等于替 agent 断言「内容是完整的」。
+ */
+export type AgentSharedThread = { url: string; truncated: boolean }
 export type AgentSkill = { id: string; name: string; description: string; source: string; path: string; project: string | null; projectPath: string | null; document: string | null; directory: string | null; enabled: boolean; loaded: boolean; kind: string | null; disableModelInvocation: boolean | null; supportingFiles: number | null; totalBytes: number | null; modifiedAt: number | null }
 export type AgentSteerRequest = { threadId: string; 
 /**

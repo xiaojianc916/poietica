@@ -9,6 +9,7 @@ export { createAgentSettings } from './agent-runtime/settings'
 export type {
   AgentSettingEntry,
   AgentSettingOption,
+  AgentSettingSection,
   AgentSettingsCatalog,
   AgentSettingsPort,
   AgentSettingTab,

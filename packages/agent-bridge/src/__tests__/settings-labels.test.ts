@@ -56,12 +56,12 @@ test('every setting omp puts on screen resolves to Chinese, not to the English f
   expect(paths.length).toBe(378)
 
   /*
-   * 只查真正会上屏的那些：跟这台桌面软件无关的 68 格由桥挡在目录外
+   * 只查真正会上屏的那些：跟这台桌面软件无关的 84 格由桥挡在目录外
    * （settings.ts 的 irrelevantSettingOf），它们的译名不必维护。
    */
   const shown = paths.filter((path) => !irrelevantSettingOf(path, getUi(path)?.group))
 
-  expect(shown.length).toBe(312)
+  expect(shown.length).toBe(294)
 
   const untranslated = shown.filter((path) => !hasSettingTranslation(path))
 
@@ -151,9 +151,11 @@ test('settings that cannot affect this desktop app are left out of the catalog e
 
   /*
    * 判据不是「折叠起来」，是**不上屏**：画一格改了没效果的控件就是骗人。
-   * 实测 66 格：终端渲染与配色、终端键盘补全、终端语音、agent 自己的启动与自更新。
+   * 84 格 = 原有的 66（终端渲染与配色、终端键盘补全、终端语音、agent 自己的启动与自更新）
+   * 加上补漏的 18 格（终端聊天区的显示开关 7 格 + 协作/分享/直播/技能市场/语音 11 格，
+   * 判据逐条写在 settings-labels.ts 的 IRRELEVANT 里）。
    */
-  expect(entries.length).toBe(312)
+  expect(entries.length).toBe(294)
 
   for (const gone of [
     'theme.dark',
@@ -167,24 +169,46 @@ test('settings that cannot affect this desktop app are left out of the catalog e
     'spelling.typoDetection',
     'stt.enabled',
     'hideThinkingBlock',
+    /* 终端聊天区画什么（pi-tui 的 chat-transcript-builder 读它们）。 */
+    'display.shimmer',
+    'display.cacheMissMarker',
+    'task.showResolvedModelBadge',
+    'colorBlindMode',
+    /* 协作 / 分享 / 直播 / 技能市场 / 语音：入口都是 CLI 子命令或斜杠命令。 */
+    'collab.relayUrl',
+    'collab.autoStart',
+    'share.serverUrl',
+    'share.redactSecrets',
+    'stream.serverUrl',
+    'skills.registryUrl',
+    'stt.submitTrigger',
+    'tts.localVoice',
   ]) {
     expect(paths.has(gone)).toBe(false)
   }
 
   /*
-   * 同一栏里真正作用在桌面这层的必须留着 —— `display.showTokenUsage`、`images.blockImages`
-   * 与 `display.collapseCompacted` 都改变本界面的画法或行为，删掉就是把能力砍掉。
+   * 同一栏里真正作用在桌面这层的必须留着 —— 这几格改变本界面的画法或行为，
+   * 删掉就是把能力砍掉。
    */
-  for (const kept of [
+  for (const kept of ['images.blockImages', 'images.autoResize', 'display.collapseCompacted']) {
+    expect(paths.has(kept)).toBe(true)
+  }
+
+  /*
+   * 终端渲染器的三个显示开关**已经删掉**。
+   *
+   * 它们曾经被这里的测试当成「桌面这层也认」，那是错的：读它们的是 pi-tui 的
+   * `chat/chat-transcript-builder.ts` 与 `stripped-tool-calls-placeholder.ts` ——
+   * omp 终端聊天区的类。我们的时间线是 packages/conversation 里的 React 组件，
+   * 从不实例化那些类，所以这几格在这里改了没有效果（判据见 settings-labels.ts）。
+   */
+  for (const gone of [
     'display.showTokenUsage',
     'display.showTurnTime',
     'display.hideToolActivity',
-    'images.blockImages',
-    'images.autoResize',
-    'display.collapseCompacted',
-    'colorBlindMode',
   ]) {
-    expect(paths.has(kept)).toBe(true)
+    expect(paths.has(gone)).toBe(false)
   }
 
   expect(irrelevantSettingOf('lsp.enabled', 'LSP')).toBe(false)
@@ -193,10 +217,11 @@ test('settings that cannot affect this desktop app are left out of the catalog e
   /*
    * 判据只认路径，不认分节。
    *
-   * `colorBlindMode` 就在 `Theme` 这一节里，而它改的是 diff 的配色 —— 那是我们自己
-   * 也画的 diff。拿分节当判据会连它一起删掉：这是实测踩过的坑，钉在这里。
+   * `Theme` 那一节里既有该删的（`theme.dark` 是终端配色），也有不该按节连坐的 ——
+   * 拿分节当判据会误伤同节的其它格子。这是实测踩过的坑，钉在这里。
    */
-  expect(irrelevantSettingOf('colorBlindMode', 'Theme')).toBe(false)
+  expect(irrelevantSettingOf('theme.dark', 'Theme')).toBe(true)
+  expect(irrelevantSettingOf('images.blockImages', 'Images')).toBe(false)
   expect(irrelevantSettingOf('something.new', 'Status Line')).toBe(false)
 })
 

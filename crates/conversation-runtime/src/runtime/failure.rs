@@ -32,7 +32,8 @@ pub enum CommandError<E: Error + 'static> {
     ResponseClosed,
     #[error("the committed conversation could not be read back")]
     Readback,
-    #[error("the export source changed while choosing a destination")]
+    /* 导出与分享共用：两者都在拿到会话绑定之后才动它，而那段间隙里用户可能已经换了绑定。 */
+    #[error("the thread binding changed before the session could be read")]
     ExportChanged,
     #[error("fork binding failed: {cause}; binding verification failed: {verification}")]
     BindingUncertain {

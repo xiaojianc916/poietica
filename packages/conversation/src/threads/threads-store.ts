@@ -1,5 +1,5 @@
 import { createExternalStore } from '@poietica/external-store'
-import type { OpenedThread, ThreadPort, ThreadRecord } from '../agent/thread'
+import type { OpenedThread, SharedThread, ThreadPort, ThreadRecord } from '../agent/thread'
 import { describeFailure } from '../failure'
 import { byRecency, type ThreadListItem, type ThreadsList, workspaceIdOf } from './thread-order'
 import { forkNameOf, nameOf, shorten } from './thread-title'
@@ -324,6 +324,28 @@ export class ThreadsStore {
     } catch (reason) {
       this.#commit({ failure: describeFailure(reason) })
       return false
+    }
+  }
+  /*
+   * 分享返回链接而不是名字：调用方拿不到它，这个动作用户就什么也没得到。会话不存在、
+   * 上传失败都抛出去 —— 遮成 null 会让「没分享成」和「分享成了但没链接」长得一样。
+   * 失败仍记在 failure 上：侧栏那句失败文案是这条动作唯一的落点。
+   */
+  share = async (threadId: string): Promise<SharedThread | null> => {
+    const action = this.#port?.share
+    if (this.#disposed || action === undefined) {
+      return null
+    }
+    try {
+      const shared = await action(threadId)
+      if (this.#disposed) {
+        return null
+      }
+      this.#commit({ failure: null })
+      return shared
+    } catch (reason) {
+      this.#commit({ failure: describeFailure(reason) })
+      return null
     }
   }
 

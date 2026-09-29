@@ -3,7 +3,9 @@ use crate::{
     catalog::{FALLBACK_THREAD_TITLE, checked_title},
     session::{SessionError, SessionHistory, SessionMode, SessionRequest, address, bound_session},
 };
-use poietica_agent_client::{AgentError, ConfigControl, GoalSnapshot, PROMPT_ADMITTED};
+use poietica_agent_client::{
+    AgentError, ConfigControl, GoalSnapshot, PROMPT_ADMITTED, ShareOutcome,
+};
 use poietica_ledger::{
     execution::{IndexError, LocalIndex, read_index, write_index},
     index::ThreadSummary,
@@ -325,6 +327,34 @@ impl<E: RuntimeFailure> Runtime<E> {
         }
         live.client
             .export_session(source.session, destination)
+            .await
+            .map_err(CommandError::Agent)
+    }
+
+    /*
+     * 把一条会话传到 agent 自己的分享服务。
+     *
+     * 与导出同一套前置（拿绑定、独占、核对该号仍是这条对话此刻绑的那一条），差别只有
+     * 最后那一次调用：导出交路径、字节由 agent 写盘，分享交号、字节由 agent 上传。
+     * 所以共用 `ExportSource` 而不另立一个同形的绑定结构 —— 那样就是两份同样的核对。
+     */
+    pub async fn share_thread(
+        &self,
+        source: ExportSource,
+    ) -> Result<ShareOutcome, CommandError<E>> {
+        let live = self
+            .ensure(source.owner.clone(), source.cwd, Takeover::Replace)
+            .await
+            .map_err(CommandError::Runtime)?;
+        let _lease = self.sessions().exclusive(source.thread).await;
+        let current = address(&self.index, &source.thread.to_string(), &source.owner)
+            .await
+            .map_err(CommandError::Session)?;
+        if current.as_deref() != Some(source.session.as_str()) {
+            return Err(CommandError::ExportChanged);
+        }
+        live.client
+            .share_session(source.session)
             .await
             .map_err(CommandError::Agent)
     }

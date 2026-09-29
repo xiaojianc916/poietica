@@ -16,10 +16,12 @@ import {
   Cpu,
   Info,
   Keyboard,
+  Library,
   Monitor,
   PackageOpen,
   Plug,
   ShieldCheck,
+  Sparkles,
   Sun,
   Zap,
 } from 'lucide-react'
@@ -43,7 +45,7 @@ import type {
   ModelCatalogStore,
   SettingsStore,
 } from '../../index'
-import { AgentSettingsCatalog } from '../agent-settings/agent-settings'
+import { AgentSettingsCatalog, AgentSettingsSectionPage } from '../agent-settings/agent-settings'
 import { ComputerUseSettings } from '../computer-use-settings'
 import { KeymapSettings } from '../keymap-settings'
 import { ModelsSettings } from '../models/models-settings'
@@ -72,6 +74,8 @@ type SettingsSection =
   | 'archived'
   | 'models'
   | 'agent-settings'
+  | 'memory'
+  | 'persona'
   | 'skills'
   | 'mcp'
   | 'keymap'
@@ -179,6 +183,21 @@ const SECTIONS: Record<SettingsSection, SettingsSectionDescriptor> = {
     icon: Brain,
     render: ({ agentSettingsCatalog }) => <AgentSettingsCatalog store={agentSettingsCatalog} />,
   },
+  /* 记忆与人设这两页画的是同一份目录里归属各自的那一段（entry.section），与 Agent 设置页共用同一个 store。 */
+  memory: {
+    label: '记忆',
+    icon: Library,
+    render: ({ agentSettingsCatalog }) => (
+      <AgentSettingsSectionPage section="memory" store={agentSettingsCatalog} />
+    ),
+  },
+  persona: {
+    label: '人设与风格',
+    icon: Sparkles,
+    render: ({ agentSettingsCatalog }) => (
+      <AgentSettingsSectionPage section="persona" store={agentSettingsCatalog} />
+    ),
+  },
   mcp: {
     label: 'MCP',
     icon: Plug,
@@ -224,7 +243,18 @@ const SECTIONS: Record<SettingsSection, SettingsSectionDescriptor> = {
  */
 const SECTION_GROUPS: readonly (readonly SettingsSection[])[] = [
   ['general', 'appearance'],
-  ['models', 'agent-settings', 'skills', 'mcp', 'keymap', 'computer-use', 'usage', 'archived'],
+  [
+    'models',
+    'agent-settings',
+    'memory',
+    'persona',
+    'skills',
+    'mcp',
+    'keymap',
+    'computer-use',
+    'usage',
+    'archived',
+  ],
   ['privacy', 'about'],
 ]
 

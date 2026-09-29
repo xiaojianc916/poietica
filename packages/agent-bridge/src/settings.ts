@@ -30,7 +30,9 @@ import { settingDescriptionOf } from './settings-descriptions.ts'
 import {
   groupLabelOf,
   irrelevantSettingOf,
+  memorySettingOf,
   ownedElsewhereOf,
+  personaSettingOf,
   settingLabelOf,
 } from './settings-labels.ts'
 
@@ -138,7 +140,21 @@ function entryOf(
      * 判据在 settings-labels.ts 的 ownedElsewhereOf。
      */
     ...(ownedElsewhereOf(path) ? { owned: true } : {}),
+    /*
+     * 归产品哪一个剥离页画：「记忆」按 agent 自己的 tab 判，「人设与风格」按 path 名单
+     * （上游没有这一栏）。判据与理由都在 settings-labels.ts。两者互斥，记忆优先。
+     */
+    ...sectionOf(path, ui.tab),
   }
+}
+
+/** 这一格归哪个剥离页；不属于任何一页就是空对象（字段如实缺席）。 */
+function sectionOf(path: string, tab: string): { section?: 'memory' | 'persona' } {
+  if (memorySettingOf(tab)) {
+    return { section: 'memory' }
+  }
+
+  return personaSettingOf(path) ? { section: 'persona' } : {}
 }
 
 /**

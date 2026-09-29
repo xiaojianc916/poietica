@@ -577,10 +577,45 @@ const IRRELEVANT: readonly { readonly why: string; readonly test: (path: string)
   { why: '终端一行的画法', test: (p) => p === 'display.pinnedAgents' },
   { why: '终端一行的画法', test: (p) => p === 'display.smoothStreaming' },
   /*
+   * 终端那一行**画什么**：这几格只在 omp 的终端渲染器里被读（`modes/**` 的
+   * `ui-helpers.ts` / `interactive-mode.ts` 与 `setChatTranscriptDisplayPreferences`），
+   * 而我们这条边车是无界面进程，那段代码不执行。桌面端的时间线有自己的行画法
+   * （`packages/conversation` 的 tool-call 系列），不吃这几个开关。
+   */
+  { why: '终端那一行画什么', test: (p) => p === 'display.shimmer' },
+  { why: '终端那一行画什么', test: (p) => p === 'display.hideToolActivity' },
+  { why: '终端那一行画什么', test: (p) => p === 'display.showTokenUsage' },
+  { why: '终端那一行画什么', test: (p) => p === 'display.showTurnTime' },
+  { why: '终端那一行画什么', test: (p) => p === 'display.cacheMissMarker' },
+  { why: '终端那一行画什么', test: (p) => p === 'task.showResolvedModelBadge' },
+  /*
+   * `colorBlindMode` 改的是**终端主题**：它的 setter 调 pi-tui 的
+   * `setColorBlindMode`（`@oh-my-pi/pi-tui/theme/theme`，settings.ts:3429）。我们界面的
+   * diff 用自己那份令牌画（`--cp-timeline-diff-new` / `--cp-timeline-diff-old`，
+   * packages/conversation 的 tool-call-panels.tsx），拿不到 pi-tui 的主题，所以在这里
+   * 改了看不出任何变化。色觉无障碍要做也该做在我们自己那份令牌上。
+   */
+  { why: '终端主题（我们的 diff 用自己的令牌画）', test: (p) => p === 'colorBlindMode' },
+  /*
    * `display.collapseCompacted` 刻意**不删**：它读的是一个传给 buildSessionContext 的
    * 选项（`options.transcript && collapseCompactedHistory`，session-context.ts:192/405），
    * 而我们自己也走那条读取路径 —— 删掉就是替它判断，而这里证据不足。
    */
+  /*
+   * 协作 / 分享 / 直播：真正的入口是 omp 的斜杠命令与 CLI 子命令（`/collab`、
+   * `/share`、`omp stream`、`omp clip`），读取点分别在 `collab/controller.ts`、
+   * `commands/share.ts`、`commands/stream.ts`、`commands/clip.ts` 与
+   * `slash-commands/builtin-collaboration.ts`。我们这个边车从不调用那些入口，
+   * 而 SDK（sdk.ts）根本没有分享 API —— 这几格在我们这里改不出任何东西。
+   */
+  { why: '协作（终端斜杠命令入口）', test: (p) => p.startsWith('collab.') },
+  { why: '分享（CLI 子命令入口）', test: (p) => p.startsWith('share.') },
+  { why: '直播（`omp stream` 入口）', test: (p) => p === 'stream.serverUrl' },
+  /* 技能市场：`omp skill` 用的仓库，而技能页走的是另一套名册。 */
+  { why: '技能市场（`omp skill` 入口）', test: (p) => p === 'skills.registryUrl' },
+  /* 语音的输入与朗读都要终端那条麦克风/扬声器通道，桌面端不走它。 */
+  { why: '语音（终端入口）', test: (p) => p === 'stt.submitTrigger' },
+  { why: '语音（终端入口）', test: (p) => p === 'tts.localVoice' },
   /* 终端里的提示与通知。 */
   { why: '终端提示与通知', test: (p) => p === 'completion.notify' || p === 'error.notify' },
   { why: '终端提示与通知', test: (p) => p === 'recap.enabled' || p === 'recap.idleSeconds' },
@@ -602,9 +637,9 @@ const IRRELEVANT: readonly { readonly why: string; readonly test: (path: string)
  */
 export function irrelevantSettingOf(path: string, group: string | undefined): boolean {
   /*
-   * 分节级的判据**不用**：`Theme` 那一节里就有 `colorBlindMode`（「diff 新增用蓝色而不是
-   * 绿色」）—— 它改的是我们自己也画的 diff，删掉就是砍掉一个真能力。分节的边界不等于
-   * 有没有用；只有逐条路径的判据才算数。
+   * 分节级的判据**不用**：分节的边界不等于有没有用。判例是 `Theme` 那一节 —— 那一节里
+   * 的 `theme.*` 是终端配色（删），但同节还住着别的东西；按节删会连带砍掉不该砍的。
+   * 只有逐条路径的判据才算数。
    */
   void group
 
@@ -642,4 +677,62 @@ const CONTROLLED_ELSEWHERE: readonly string[] = [
 /** 这一格的**行**由产品别处的控件负责；值仍然要报（有别的格子按它决定显不显示）。 */
 export function ownedElsewhereOf(path: string): boolean {
   return CONTROLLED_ELSEWHERE.includes(path)
+}
+
+/*
+ * 「人设与风格」那一页的归属。
+ *
+ * 判据只能按 path 名单，**因为上游没有这一栏**：omp 的 tab 是它自己的导航结构，而
+ * 「人设与风格」是产品的一个切面 —— personality（人设）与 temperature / topP 那几格
+ * （风格）散在 model 栏的 Prompt / Thinking / Sampling 三个 group 里。拿 group 当判据
+ * 会把整节搬走，而那些节里住着别的格子（Prompt 与 Sampling 各自都只有一部分属于这里）。
+ *
+ * 名单短、每条指得到 omp 源码里的读取点，理由写在行上。
+ */
+const PERSONA: readonly string[] = [
+  /* 系统提示词怎么写：人设、技能清单、模型名、工作区树、工具描述。 */
+  'personality',
+  'skillful',
+  'includeModelInPrompt',
+  'includeWorkspaceTree',
+  'inlineToolDescriptors',
+  'modelRoleStorage',
+  /*
+   * 思考：省不省摘要、要不要外部思考、自动档位能开到多高。
+   * `defaultThinkingLevel` 已被 ownedElsewhereOf 认领（输入框那一排有档位选择器），
+   * 但它的人设归属仍是事实 —— section 与 owned 正交，两个判据各答各的问题。
+   */
+  'omitThinking',
+  'externalThinking',
+  'providers.autoThinkingMaxEffort',
+  'defaultThinkingLevel',
+  /* 采样：这一组整组都是「模型怎么写」的风格旋钮。 */
+  'temperature',
+  'topP',
+  'topK',
+  'minP',
+  'presencePenalty',
+  'repetitionPenalty',
+  'textVerbosity',
+]
+
+/**
+ * 这一格属不属于「人设与风格」那一页。
+ *
+ * `tier.*` 刻意在名单外：它们说的是请求发往哪个服务档位（计费与路由），
+ * 不是模型怎么写 —— 摆进「人设与风格」会让人以为改它能改语气。
+ */
+export function personaSettingOf(path: string): boolean {
+  return PERSONA.includes(path)
+}
+
+/*
+ * 「记忆」那一页的归属。
+ *
+ * 判据是 **omp 自己的 tab**，不是路径前缀名单：tab 是它自报的结构，我们照搬；
+ * 手抄一份 `mnemopi.* / hindsight.* / autolearn.*` 就是第二个事实，上游换掉记忆后端
+ * 时我们的名单会静默落后（AGENTS.md §0）。这一栏此刻 30 格（18.3.0 实测）。
+ */
+export function memorySettingOf(tab: string): boolean {
+  return tab === 'memory'
 }

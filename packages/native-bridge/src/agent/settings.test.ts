@@ -63,6 +63,7 @@ const wire: AgentSettingsCatalogWire = {
       condition: null,
       groupLabel: null,
       owned: false,
+      section: null,
     },
     {
       path: 'mnemopi.llmApiKey',
@@ -82,6 +83,8 @@ const wire: AgentSettingsCatalogWire = {
       condition: 'mnemopiActive',
       groupLabel: null,
       owned: false,
+      /* 这一格归「记忆」那一页画：归属要能原样过这一层。 */
+      section: 'memory',
     },
     {
       path: 'sleep.prevention',
@@ -103,6 +106,7 @@ const wire: AgentSettingsCatalogWire = {
       condition: null,
       groupLabel: null,
       owned: false,
+      section: null,
     },
   ],
 }
@@ -134,6 +138,21 @@ describe('agent 设置目录的传输口', () => {
     /* 有值的那几格原样搬。 */
     expect(headless?.value).toBe(true)
     expect(headless?.default).toBe(false)
+    /* 归属那一格同样按约定译：null 是「不属于任何剥离页」，不是「有个 null 归属」。 */
+    expect(headless?.section).toBeUndefined()
+  })
+
+  /*
+   * 归属是**过线**的字段，不是这一层可以顺手丢掉的元数据：丢了以后记忆页与人设与风格页
+   * 会一起变空，而屏幕上看不出是哪里断的。
+   */
+  it('归属原样过线：写着哪一页就译成那一页', async () => {
+    agentSettingsCatalog.mockImplementation(() => Promise.resolve(wire))
+
+    const catalog = await createAgentSettingsPort().read()
+    const recalled = catalog.settings.find((entry) => entry.path === 'mnemopi.llmApiKey')
+
+    expect(recalled?.section).toBe('memory')
   })
 
   it('选项表带着说法原样搬，缺席的说法不编一个空串', async () => {

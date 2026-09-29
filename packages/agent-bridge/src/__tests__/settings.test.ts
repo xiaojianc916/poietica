@@ -18,7 +18,12 @@ import {
   type SettingPath,
 } from '@oh-my-pi/pi-coding-agent/config/settings-schema'
 import { readCatalog, SETTING_TABS } from '../settings.ts'
-import { irrelevantSettingOf, settingLabelOf } from '../settings-labels.ts'
+import {
+  irrelevantSettingOf,
+  memorySettingOf,
+  personaSettingOf,
+  settingLabelOf,
+} from '../settings-labels.ts'
 
 /** 一个假 reader：给什么回什么，用来钉住「目录不读我们的状态」。 */
 function reader(values: Record<string, unknown> = {}): { get(key: string): unknown } {
@@ -39,7 +44,8 @@ test('the catalog is omp own schema, not a copy in our source', () => {
 
   // 条数必须等于上游自报的那几格减去不上屏的。差一条就说明两边分叉了。
   expect(all.length).toBe(expected.length)
-  expect(all.length).toBeGreaterThan(300)
+  /* 防空转：这一条与上面那条不同，它挡的是「筛选把整个目录吃光」。 */
+  expect(all.length).toBeGreaterThan(250)
 
   /*
    * 标题仍是「从路径算出来的」，不是这段代码自己编的一句：认不出的路径由
@@ -114,4 +120,114 @@ test('a normal setting carries its current value, and a runtime-option enum carr
    */
   const theme = entries.find((entry) => entry.path === 'theme.dark')
   expect(theme?.options).toBeUndefined()
+})
+
+/*
+ * 归属这一层：产品把「记忆」与「人设与风格」各拆成一页，主页面不再画这两类行。
+ * 判据在 settings-labels.ts，这里是它的消费者契约 —— 界面只读 `entry.section`。
+ */
+
+test('every setting on the agent own memory tab belongs to the memory page', () => {
+  const entries = readCatalog(reader(), 'memory')
+
+  /*
+   * 上游那一栏此刻 30 格（18.3.0 实测）。条数钉住是有意的：归属的判据是 tab，
+   * 所以这一栏有几格就有几格归「记忆」，不多不少。
+   */
+  expect(entries.length).toBe(30)
+  expect(memorySettingOf('memory')).toBe(true)
+
+  for (const entry of entries) {
+    expect(entry.tab).toBe('memory')
+    expect(entry.section).toBe('memory')
+  }
+
+  /* 别的栏一格都不许被划进「记忆」：判据是 tab，不是路径前缀。 */
+  for (const entry of readCatalog(reader())) {
+    if (entry.tab !== 'memory') {
+      expect(entry.section).not.toBe('memory')
+    }
+  }
+})
+
+test('the persona page takes the settings that shape how the model writes', () => {
+  const entries = readCatalog(reader())
+  const sectionOf = (path: string) => entries.find((entry) => entry.path === path)?.section
+
+  /*
+   * 上游没有「人设与风格」这一栏，这些格子散在 model 栏的 Prompt / Thinking /
+   * Sampling 三个 group 里，所以判据只能是 path 名单。
+   */
+  const persona = [
+    'personality',
+    'skillful',
+    'includeModelInPrompt',
+    'includeWorkspaceTree',
+    'inlineToolDescriptors',
+    'modelRoleStorage',
+    'omitThinking',
+    'externalThinking',
+    'providers.autoThinkingMaxEffort',
+    /* 已被输入框那一排的档位选择器管着（owned），但人设归属仍是事实。 */
+    'defaultThinkingLevel',
+    'temperature',
+    'topP',
+    'topK',
+    'minP',
+    'presencePenalty',
+    'repetitionPenalty',
+    'textVerbosity',
+  ]
+
+  for (const path of persona) {
+    expect(sectionOf(path)).toBe('persona')
+  }
+
+  /* 名单就是全部：一格不多一格不少，`tier.*` 与同节的邻居都不在其中。 */
+  const actual = entries.filter((entry) => entry.section === 'persona').map((entry) => entry.path)
+  expect(actual.sort()).toEqual([...persona].sort())
+
+  /*
+   * `defaultThinkingLevel` 是唯一同时命中两个判据的格子：section 与 owned 正交，
+   * owned 说的是「这一行别处已经有控件」，section 说的是「这一行归哪一页」。
+   */
+  const thinkingLevel = entries.find((entry) => entry.path === 'defaultThinkingLevel')
+  expect(thinkingLevel?.owned).toBe(true)
+  expect(thinkingLevel?.section).toBe('persona')
+
+  expect(entries.filter((entry) => entry.owned && entry.section !== undefined)).toHaveLength(1)
+
+  /*
+   * `tier.*` 说的是请求发往哪个服务档位（计费与路由），不是模型怎么写 —— 摆进「人设与风格」
+   * 会让人以为改它能改语气。
+   */
+  expect(sectionOf('tier.openai')).toBeUndefined()
+
+  /* 同一节里的邻居不会被整节搬走：Sampling 的 `tier.*` 就在名单外。 */
+  expect(sectionOf('retry.maxRetries')).toBeUndefined()
+})
+
+test('the two sections are mutually exclusive and most settings have none', () => {
+  const entries = readCatalog(reader())
+
+  /* 一格至多一个归属：值域只有两个词，断言它落在值域里而不是同时是两件事。 */
+  for (const entry of entries) {
+    expect([undefined, 'memory', 'persona']).toContain(entry.section)
+  }
+
+  const owned = entries.filter((entry) => entry.section !== undefined)
+  /*
+   * 剥离出来的是 47 格（记忆 30 + 人设与风格 17，18.3.0 实测）。条数钉住是有意的：
+   * 判据一边认 tab、一边认 path，条数变了就说明上游动了这两处结构，值得人看一眼。
+   */
+  expect(owned.length).toBe(47)
+  expect(entries.filter((entry) => entry.section === 'memory')).toHaveLength(30)
+  expect(entries.filter((entry) => entry.section === 'persona')).toHaveLength(17)
+  /* 绝大多数格子不属于任何剥离页：归属是例外，不是默认。 */
+  expect(owned.length).toBeLessThan(entries.length / 2)
+
+  /* 两个判据在全部格子上逐一互斥：memory 的 tab 判据与 persona 的 path 判据不相交。 */
+  for (const entry of entries) {
+    expect(memorySettingOf(entry.tab) && personaSettingOf(entry.path)).toBe(false)
+  }
 })

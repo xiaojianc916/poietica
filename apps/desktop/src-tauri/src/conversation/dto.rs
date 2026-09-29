@@ -293,6 +293,28 @@ pub struct AgentExportThreadRequest {
 
 #[derive(Debug, Deserialize, Type)]
 #[serde(rename_all = "camelCase")]
+pub struct AgentShareThreadRequest {
+    pub thread_id: String,
+    pub launch: AgentLaunch,
+}
+
+/// 一次分享的结果。
+///
+/// 只有两格。`url` 是给人点的那一条链接 —— **它同时是读取凭据**（omp 的形状是
+/// `<serverUrl>/<id>#<key>`，`#` 之后是解密密钥），所以它只往界面上走，不进日志、
+/// 不进错误文案（`ShareOutcome` 的手写 Debug 就是这条纪律的落点）。
+///
+/// `truncated` 如实来自 agent：为真表示内容为塞进上传预算被裁过。绝不替它猜一个
+/// false —— 那等于替 agent 断言「内容是完整的」。
+#[derive(Debug, Serialize, Type)]
+#[serde(rename_all = "camelCase")]
+pub struct AgentSharedThread {
+    pub url: String,
+    pub truncated: bool,
+}
+
+#[derive(Debug, Deserialize, Type)]
+#[serde(rename_all = "camelCase")]
 pub struct AgentThreadRequest {
     pub thread_id: String,
 }

@@ -68,6 +68,10 @@ pub struct SettingEntry {
     /// 这一格的**行**由产品别处的控件负责；值仍然报（别的格子按它决定显不显示）。
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub owned: bool,
+    /// 归产品哪一个剥离页画（`memory` / `persona`）；缺席即不属于任何一页。
+    /// 与 `owned` 正交：一格可以既有归属又 owned，那一页也不画它的行。
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub section: Option<String>,
 }
 
 impl fmt::Debug for SettingEntry {
@@ -149,6 +153,7 @@ impl SettingEntry {
             condition: text(value, "condition"),
             group_label: text(value, "groupLabel"),
             owned: flag(value, "owned"),
+            section: text(value, "section"),
         })
     }
 }

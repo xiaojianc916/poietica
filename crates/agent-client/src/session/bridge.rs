@@ -938,6 +938,34 @@ fn outgoing(command: ClientCommand, id: &str, session_id: Option<&str>) -> Resul
             |_| Ok(()),
         ),
 
+        ClientCommand::ShareSession { session_id, reply } => ask(
+            &Command::ShareSession {
+                id: id.to_owned(),
+                session_id,
+            },
+            reply,
+            /* 缺格即报缺，不猜 default：truncated 猜成 false 就是在说「内容完整」。 */
+            |data| {
+                let url = data.get("url").and_then(Value::as_str).ok_or_else(|| {
+                    AgentError::Validation {
+                        message: "the agent shared the session without a url".to_owned(),
+                    }
+                })?;
+                let truncated =
+                    data.get("truncated")
+                        .and_then(Value::as_bool)
+                        .ok_or_else(|| AgentError::Validation {
+                            message: "the agent shared the session without a truncated flag"
+                                .to_owned(),
+                        })?;
+
+                Ok(crate::session::ShareOutcome {
+                    url: url.to_owned(),
+                    truncated,
+                })
+            },
+        ),
+
         ClientCommand::BrowserSettings { reply } => ask(
             &Command::BrowserSettings { id: id.to_owned() },
             reply,

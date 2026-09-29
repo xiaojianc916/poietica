@@ -7,30 +7,26 @@ import {
 } from '@poietica/design-system'
 import { Search } from 'lucide-react'
 import { useEffect, useMemo, useState, useSyncExternalStore } from 'react'
-import type { AgentSettingEntry, AgentSettingsStore, AgentSettingTab } from '../../index'
+import type {
+  AgentSettingEntry,
+  AgentSettingSection,
+  AgentSettingsStore,
+  AgentSettingTab,
+} from '../../index'
 import { SettingRow, SettingsGroup, SettingsPage } from '../settings-primitives'
-import { SettingControl } from './setting-control'
-import { isVisible, settingLookup } from './settings-conditions'
+import { CatalogRows, mainCatalogEntries, sectionEntries } from './catalog-rows'
 import './agent-settings.css'
 
 /*
- * agent 自己那份设置目录。整页由它自报的元数据生成：栏与节的划分、每一格的文案、控件与
- * 选项表都从目录里读，这里没有一行 per-setting 的表单代码（ADR 0018 决定四）。
+ * agent 自己那份设置目录。整页由它自报的元数据生成：栏、节、文案、控件与选项表都从目录里读，
+ * 这里没有一行 per-setting 的表单代码（ADR 0018 决定四）。
  *
- * 分组是「栏 → 节」两级：栏来自桥交回的 `tabs`（agent 自己的词汇与顺序），节来自每格的
- * `group`。**不硬编码栏名**：抄一份就是第二个事实，上游加一栏我们静默落后（AGENTS.md §0）。
+ * 栏来自桥交回的 `tabs`，节来自每格的 `group`；两者都不硬编码 —— 抄一份就是第二个事实。
  *
- * 几百项设置这一页要能用，靠三件事，缺一样都变成一片翻不完的墙：
- *   1. 搜索：378 项没有搜索就只能靠翻。
- *   2. 收起终端专属的那些：agent 是终端程序，它的主题/状态行/字形在这里改了看不见效果。
- *   3. 直接改它自己的配置文件：懂的人不必跟 378 个控件打交道。
+ * 归属别的页面的格子（`section`）在这里一格都不画：同一件事两页各一个控件就是缺陷（AGENTS.md §1）。
  */
 
-export interface AgentSettingsCatalogProps {
-  readonly store: AgentSettingsStore
-}
-
-export function AgentSettingsCatalog({ store }: AgentSettingsCatalogProps) {
+export function AgentSettingsCatalog({ store }: { readonly store: AgentSettingsStore }) {
   const snapshot = useSyncExternalStore(store.subscribe, store.getSnapshot, store.getSnapshot)
   const [selected, setSelected] = useState<string | null>(null)
   const [query, setQuery] = useState('')
@@ -42,22 +38,15 @@ export function AgentSettingsCatalog({ store }: AgentSettingsCatalogProps) {
   const catalog = snapshot.catalog
   const settings = catalog?.settings
 
-  /*
-   * 只留画得出来的栏：某一栏的格子全被条件挡住时，导航里不留一个点进去空白的入口。
-   * 与条件本身同一个降级方向 —— 少显示一格人看得出，点进去一片空白是人看不出哪里错了。
-   */
+  /* 只留画得出来的栏：某一栏整栏被条件或归属挡掉时，不留一个点进去空白的入口。 */
   const tabs = useMemo(() => {
     if (catalog === null) {
       return []
     }
 
-    const at = settingLookup(catalog.settings)
+    const drawable = mainCatalogEntries(catalog.settings)
 
-    return catalog.tabs.filter((tab) =>
-      catalog.settings.some(
-        (entry) => entry.tab === tab.key && entry.owned !== true && isVisible(entry, at),
-      ),
-    )
+    return catalog.tabs.filter((tab) => drawable.some((entry) => entry.tab === tab.key))
   }, [catalog])
 
   if (settings === undefined) {
@@ -74,22 +63,15 @@ export function AgentSettingsCatalog({ store }: AgentSettingsCatalogProps) {
     )
   }
 
-  /*
-   * 搜索时跨栏找：找一项设置的人不记得它在哪一栏，只记得它叫什么。
-   * 没搜索词就按栏看，那是「浏览」这一种用法。
-   */
+  /* 搜索时跨栏找：人不记得那项设置在哪一栏，只记得它叫什么。 */
   const searching = query.trim() !== ''
   const needle = query.trim().toLowerCase()
   const current = currentTab(selected, tabs)
-  /*
-   * 搜索也跳过 `owned`：搜得到却画不出来，比搜不到更让人以为漏了东西。
-   * 那些格子在输入框那一排或「电脑控制」一节里，人要去那里改。
-   */
-  const matched = (
-    searching
-      ? settings.filter((entry) => matches(entry, needle))
-      : settings.filter((entry) => entry.tab === current?.key)
-  ).filter((entry) => entry.owned !== true)
+  const main = mainCatalogEntries(settings)
+  /* mainCatalogEntries 已滤过归属、owned 与条件，这里只选段：搜索命中，或当前那一栏。 */
+  const matched = searching
+    ? main.filter((entry) => matches(entry, needle))
+    : main.filter((entry) => entry.tab === current?.key)
 
   return (
     <SettingsPage>
@@ -153,26 +135,102 @@ export function AgentSettingsCatalog({ store }: AgentSettingsCatalogProps) {
       </SettingsGroup>
 
       {matched.length === 0 ? (
-        <SettingsGroup>
-          <SettingRow
-            description={
-              searching
-                ? '换个词试试，也可以搜 omp 的原路径（如 lsp.）'
-                : '当前条件下这一栏没有可改的设置'
-            }
-            label={searching ? '没有匹配的设置' : '无可显示的项'}
-          />
-        </SettingsGroup>
+        <EmptyNotice
+          description={
+            searching
+              ? '换个词试试，也可以搜 omp 的原路径（如 lsp.）'
+              : '当前条件下这一栏没有可改的设置'
+          }
+          label={searching ? '没有匹配的设置' : '无可显示的项'}
+        />
       ) : (
-        <TabSettings
+        <CatalogRows
           entries={matched}
           onWrite={(path, value) => void store.write(path, value)}
           saving={snapshot.saving}
-          settings={settings}
         />
       )}
     </SettingsPage>
   )
+}
+
+/*
+ * 记忆与人设与风格两页：同一份目录里取归属自己的一段。两页只差 `section`，所以只有一份实现。
+ *
+ * 空态是防御性的：上游此刻给这两栏 30 / 17 格，正常取不到空。留着它是因为「取到空」与
+ * 「目录还没读到」是两件事，合成一个加载态会让人以为设置丢了。
+ */
+export function AgentSettingsSectionPage({
+  store,
+  section,
+}: {
+  readonly store: AgentSettingsStore
+  readonly section: AgentSettingSection
+}) {
+  const snapshot = useSyncExternalStore(store.subscribe, store.getSnapshot, store.getSnapshot)
+
+  useEffect(() => {
+    void store.load()
+  }, [store])
+
+  const settings = snapshot.catalog?.settings
+
+  return (
+    <SettingsPage>
+      {snapshot.error === null ? null : (
+        <p className="settings-error" role="alert">
+          {snapshot.error}
+        </p>
+      )}
+
+      {settings === undefined ? (
+        <div className="settings-state">
+          {snapshot.error === null ? (
+            <LoadingState label="正在读取 agent 自己的设置…" />
+          ) : (
+            <ErrorState message={snapshot.error} onRetry={() => void store.refresh()} />
+          )}
+        </div>
+      ) : (
+        <SectionRows
+          entries={sectionEntries(settings, section)}
+          onWrite={(path, value) => void store.write(path, value)}
+          saving={snapshot.saving}
+        />
+      )}
+    </SettingsPage>
+  )
+}
+
+/* 空态说清此刻为什么没有可改的，而不是一个光秃秃的标题。 */
+function EmptyNotice({
+  label,
+  description,
+}: {
+  readonly label: string
+  readonly description: string
+}) {
+  return (
+    <SettingsGroup>
+      <SettingRow description={description} label={label} />
+    </SettingsGroup>
+  )
+}
+
+function SectionRows({
+  entries,
+  onWrite,
+  saving,
+}: {
+  readonly entries: readonly AgentSettingEntry[]
+  readonly onWrite: (path: string, value: unknown) => void
+  readonly saving: string | null
+}) {
+  if (entries.length === 0) {
+    return <EmptyNotice description="agent 没有报出这一类设置" label="无可显示的项" />
+  }
+
+  return <CatalogRows entries={entries} onWrite={onWrite} saving={saving} />
 }
 
 function currentTab(
@@ -182,122 +240,12 @@ function currentTab(
   return tabs.find((tab) => tab.key === selected) ?? tabs[0]
 }
 
-/*
- * 命中：名称、路径、分组、说明，四处任一处含这个词就算。
- *
- * 路径也搜是因为「我知道它叫 lsp.，但不知道中文叫什么」是常见的一半；说明也搜是因为
- * 人会记得一句描述而记不住名字。
- */
+/* 命中名称、路径、分组或说明：人会记得那个功能的路径（lsp.）或一句描述，而不是它的标题。 */
 function matches(entry: AgentSettingEntry, needle: string): boolean {
   return (
     entry.label.toLowerCase().includes(needle) ||
     entry.path.toLowerCase().includes(needle) ||
     (entry.group?.toLowerCase().includes(needle) ?? false) ||
     entry.description.toLowerCase().includes(needle)
-  )
-}
-
-interface TabSettingsProps {
-  readonly entries: readonly AgentSettingEntry[]
-  readonly settings: readonly AgentSettingEntry[]
-  readonly saving: string | null
-  readonly onWrite: (path: string, value: unknown) => void
-}
-
-function TabSettings({ entries, settings, saving, onWrite }: TabSettingsProps) {
-  const at = useMemo(() => settingLookup(settings), [settings])
-
-  /* 条件在同一份目录里求值一次：同一格的条件不会在读到下一份目录之前变。 */
-  const groups = useMemo(() => {
-    const order: string[] = []
-    const byGroup = new Map<string, AgentSettingEntry[]>()
-    /*
-     * 分组认 agent 自己的 `group`（键），标题用 `groupLabel`（名）。
-     *
-     * 键不能译：译了以后「Magic Keywords」与它自己就变成两节。名只取一次 —— 同一节里
-     * 每一格报的名本该相同，取第一格就够。
-     */
-    const titles = new Map<string, string>()
-
-    for (const entry of entries) {
-      /*
-       * 已有专属控件的行不画第二遍（`owned`）：计划/目标/思考档位/审批在输入框那一排就有
-       * 选择器，浏览器那三格在「电脑控制」一节里。一个事实两个控件是缺陷（AGENTS.md §1）——
-       * 两个控件改同一件事，改一个另一个不同步，人也不知道哪个算数。
-       *
-       * 它的**值**仍在 `settings` 里，所以别的格子按 `condition` 读它照常求值。
-       */
-      if (entry.owned === true || !isVisible(entry, at)) {
-        continue
-      }
-
-      const name = entry.group ?? ''
-      if (!byGroup.has(name)) {
-        order.push(name)
-        byGroup.set(name, [])
-        titles.set(name, entry.groupLabel ?? name)
-      }
-      byGroup.get(name)?.push(entry)
-    }
-
-    return order.map((name) => ({
-      name,
-      title: titles.get(name) ?? name,
-      items: byGroup.get(name) ?? [],
-    }))
-  }, [at, entries])
-
-  if (groups.length === 0) {
-    return (
-      <SettingsGroup>
-        <SettingRow description="当前条件下这一栏没有可改的设置" label="无可显示的项" />
-      </SettingsGroup>
-    )
-  }
-
-  return (
-    <>
-      {groups.map((group) => (
-        <SettingsGroup
-          key={group.name === '' ? '__ungrouped' : group.name}
-          title={group.name === '' ? undefined : group.title}
-        >
-          <Rows entries={group.items} onWrite={onWrite} saving={saving} />
-        </SettingsGroup>
-      ))}
-    </>
-  )
-}
-
-interface RowsProps {
-  readonly entries: readonly AgentSettingEntry[]
-  readonly saving: string | null
-  readonly onWrite: (path: string, value: unknown) => void
-}
-
-function Rows({ entries, onWrite, saving }: RowsProps) {
-  return (
-    <>
-      {entries.map((entry) => (
-        /*
-         * 风险警示原样交给行去排在说明之上（ADR 0018 决定四）。不翻译也不改语气：
-         * 措辞是上游替自己的行为负责的那一句，改一个字就是我们替它许诺。
-         */
-        <SettingRow
-          description={entry.description}
-          key={entry.path}
-          label={entry.label}
-          warning={entry.warning}
-        >
-          <SettingControl
-            entry={entry}
-            onChange={(value) => {
-              onWrite(entry.path, value)
-            }}
-            saving={saving === entry.path}
-          />
-        </SettingRow>
-      ))}
-    </>
   )
 }

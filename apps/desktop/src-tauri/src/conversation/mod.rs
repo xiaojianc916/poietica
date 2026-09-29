@@ -15,6 +15,7 @@ pub mod model_catalog;
 pub(crate) type AgentRuntime =
     std::sync::Arc<poietica_conversation_runtime::Runtime<crate::error::Error>>;
 pub mod settings;
+pub mod share;
 pub mod thread;
 pub mod toolkit;
 pub mod turn;

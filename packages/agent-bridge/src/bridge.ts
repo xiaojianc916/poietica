@@ -30,7 +30,9 @@ import {
   initializeWithSettings,
 } from '@oh-my-pi/pi-coding-agent/discovery'
 import { exportFromFile } from '@oh-my-pi/pi-coding-agent/export/html'
+import { shareSession as uploadSession } from '@oh-my-pi/pi-coding-agent/export/share'
 import { initializeExtensions } from '@oh-my-pi/pi-coding-agent/modes/runtime-init'
+import { buildSecretObfuscator } from '@oh-my-pi/pi-coding-agent/secrets'
 /* 图片的落盘路径要交给 agent 自己认：SDK 靠这个符号注入隐藏的 image-attachment 伴生消息
  * （agent-session.ts:6291-6311 的 `#createAttachmentSourceNotices`）。 */
 import { tagImageAttachmentSource } from '@oh-my-pi/pi-tui/prompt/image-source'
@@ -506,6 +508,48 @@ export function createBridge(host: BridgeHost): Bridge {
     }
 
     return {}
+  }
+
+  /*
+   * 把一条会话传到 omp 自己的分享服务。
+   *
+   * **这是唯一会把对话正文送出本机的动作**，所以脱敏不是可选项：判据与 omp 自己
+   * 完全一致 —— `src/commands/share.ts:59-66` 的
+   * `settings.get('share.redactSecrets') && settings.get('secrets.enabled')` 两格
+   * 都为真才建 obfuscator，两格默认值（true / false）也由它自己的 schema 给。少抄
+   * 一个判据就是一个泄漏：这两格设置我们没删，正是留在这里读的。
+   *
+   * 设置按**会话自己的工作目录**解析（`Settings.loadReadOnly({cwd})`），与 omp 同：
+   * 一条会话属于它自己的工程，脱敏策略该由那个工程说了算，而不是此刻这条连接站在哪。
+   *
+   * `store` 与 `serverUrl` 都交给 omp 的默认，不在这里写死：那两格是它的设置
+   * （`share.store` / `share.serverUrl`），我们抄一份就是第二个事实。
+   *
+   * 会话号可能不是这条连接上活着的那一条（界面上可以分享任何一条），所以走
+   * `SessionManager.open` 按文件另开一个管理器 —— 与 `omp share <session>` 同路。
+   */
+  async function shareSessionFor(sessionId: string): Promise<unknown> {
+    const held = sessions.get(sessionId)
+    const manager =
+      held?.agent.sessionManager ??
+      (await findSessionFile(sessionId, undefined).then((found) =>
+        found === undefined ? undefined : SessionManager.open(found),
+      ))
+
+    if (manager === undefined) {
+      throw new Error(`no session file holds ${sessionId}`)
+    }
+
+    const settings = await Settings.loadReadOnly({ cwd: manager.getCwd() })
+    const obfuscator =
+      settings.get('share.redactSecrets') && settings.get('secrets.enabled')
+        ? await buildSecretObfuscator(manager.getCwd(), getAgentDir())
+        : undefined
+
+    /* `obfuscator` 缺席即整格不传：ShareSessionOptions 那一格不收显式的 undefined。 */
+    const shared = await uploadSession(manager, obfuscator === undefined ? {} : { obfuscator })
+
+    return { url: shared.url, truncated: shared.truncated }
   }
 
   /*
@@ -2095,6 +2139,9 @@ export function createBridge(host: BridgeHost): Bridge {
 
       case 'export_session':
         return await exportSession(command.sessionId, command.destination)
+
+      case 'share_session':
+        return await shareSessionFor(command.sessionId)
 
       case 'browser_settings':
         return { browser: browserSettingsOf(await settingsFor()) }

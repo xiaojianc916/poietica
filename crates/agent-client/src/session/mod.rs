@@ -7,7 +7,9 @@ pub(crate) mod observe;
 pub(crate) mod selection;
 
 pub use book::SessionBook;
-pub use client::{AgentClient, MediaBytes, PromptAttachment, PromptAttachmentKind, PromptSkill};
+pub use client::{
+    AgentClient, MediaBytes, PromptAttachment, PromptAttachmentKind, PromptSkill, ShareOutcome,
+};
 pub use config::{ConfigChoice, ConfigControl, ConfigPurpose, GoalSnapshot};
 pub use selection::{ConfigSelection, apply_configurations, select_config};
 

@@ -334,6 +334,68 @@
   color: var(--cp-ink);
 }
 
+/* 上传中没有可点的东西，只有「它在跑」；它占的是图钉与菜单之间那一格。 */
+.assistant-thread__sharing {
+  display: grid;
+  block-size: var(--assistant-threads-action-size);
+  inline-size: var(--assistant-threads-action-size);
+  place-items: center;
+  color: var(--cp-ink-muted);
+}
+
+.assistant-thread__sharing svg {
+  block-size: var(--cp-icon);
+  inline-size: var(--cp-icon);
+  animation: assistant-thread-sharing 900ms linear infinite;
+}
+
+@keyframes assistant-thread-sharing {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/*
+ * 分享的结果长在行下面，不再是一行 28px。
+ *
+ * 行盒高由 --ui-row-height 定死，内容溢出的部分会盖住下一行；所以拿到链接的这一行
+ * 改成自动高度，多出来的那一段才是真的在流里。
+ */
+.assistant-thread:has(.assistant-thread__shared) {
+  block-size: auto;
+  flex-wrap: wrap;
+  align-items: center;
+  row-gap: calc(var(--ui-hairline) * 2);
+  padding-block-end: var(--cp-optical);
+}
+
+.assistant-thread__shared {
+  display: flex;
+  min-inline-size: 0;
+  flex: 1 0 100%;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--ui-row-gap);
+  margin: 0;
+  padding-inline-start: calc(var(--ui-row-icon-size) + var(--ui-row-gap));
+  font-size: var(--cp-font-micro);
+  color: var(--cp-ink-subtle);
+}
+
+.assistant-thread__shared-url {
+  overflow: hidden;
+  color: var(--cp-accent);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* 用户说过不要动的减少动效偏好：转圈留着（它是「还在跑」的唯一说法），只是慢下来。 */
+@media (prefers-reduced-motion: reduce) {
+  .assistant-thread__sharing svg {
+    animation-duration: 2400ms;
+  }
+}
+
 .assistant-thread-menu.assistant-thread-menu {
   overflow: hidden;
   font-family: inherit;

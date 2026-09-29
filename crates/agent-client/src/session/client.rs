@@ -221,6 +221,37 @@ pub(crate) enum Command {
         destination: PathBuf,
         reply: oneshot::Sender<Result<()>>,
     },
+    /// 把一条会话传到 agent 自己的分享服务，换回一条链接。
+    ShareSession {
+        session_id: String,
+        reply: oneshot::Sender<Result<ShareOutcome>>,
+    },
+}
+
+/// 一次分享的结果：给人点的链接，以及内容有没有被裁。
+///
+/// 只有这两格：agent 还会报 method / gistUrl / sealedBytes，那是它的实现细节，
+/// 屏幕上没有它们的位置，本层不转发 —— 转发就得有人解释它们。
+///
+/// **手写 `Debug`，`url` 不出现在里面。** omp 的链接形状是 `<serverUrl>/<id>#<key>`，
+/// `#` 之后那一截是解密密钥：拿到整个字符串的人就能读这份分享的对话。所以它不是
+/// 一条普通 URL，是一份**读取凭据** —— 派生的 Debug 会让它落进任何一行日志或错误
+/// 文案，等于把阅读权写出去。判据与那三把模型钥匙相同（AGENTS.md §5「Debug 不打载荷」）：
+/// 不看它像不像敏感数据，看拿到它的人能多做什么。别改回 derive。
+#[derive(Clone, PartialEq, Eq)]
+pub struct ShareOutcome {
+    pub url: String,
+    pub truncated: bool,
+}
+
+impl fmt::Debug for ShareOutcome {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter
+            .debug_struct("ShareOutcome")
+            .field("url", &"<redacted>")
+            .field("truncated", &self.truncated)
+            .finish()
+    }
 }
 
 /// 「这个 agent 的这条能力还没接上」。
@@ -341,6 +372,23 @@ impl AgentClient {
             destination,
             reply,
         })?;
+
+        answer
+            .await
+            .map_err(|_dropped| AgentError::Refused(Refusal::Gone))?
+    }
+
+    /// 把一条会话传到 agent 自己的分享服务，交回链接与「有没有被裁」。
+    ///
+    /// 会话号可能不是这条连接上活着的那一条：桥按号另开管理器（protocol.ts 的
+    /// share_session），所以这里不必先把它装载起来。
+    ///
+    /// 应答缺格按失败上报，不猜默认：`truncated` 猜成 false 就是在说「内容完整」，
+    /// 而那句话会让用户以为发出去的是全部。
+    pub async fn share_session(&self, session_id: String) -> Result<ShareOutcome> {
+        let (reply, answer) = oneshot::channel();
+
+        self.send(Command::ShareSession { session_id, reply })?;
 
         answer
             .await

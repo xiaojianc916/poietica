@@ -60,6 +60,9 @@ pub struct AgentSettingEntry {
     pub group_label: Option<String>,
     /// 这一格的**行**由产品别处的控件负责；值仍然报（别的格子按它决定显不显示）。
     pub owned: bool,
+    /// 归产品哪一个剥离页画（`memory` / `persona`）；缺席即不属于任何一页。
+    /// 与 `owned` 正交：一格可以既有归属又 owned，那一页也不画它的行。
+    pub section: Option<String>,
 }
 
 /// 一栏：键是 agent 自己的栏目词汇（筛选认它），名是给人看的那一列。
@@ -223,6 +226,7 @@ fn reported_entry(entry: SettingEntry) -> AgentSettingEntry {
         condition: entry.condition,
         group_label: entry.group_label,
         owned: entry.owned,
+        section: entry.section,
     }
 }
 
@@ -256,6 +260,7 @@ mod tests {
             condition: None,
             group_label: None,
             owned: false,
+            section: None,
         }
     }
 

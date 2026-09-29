@@ -14,6 +14,7 @@
 
 use poietica_agent_client::{
     CatalogImport, ModelCatalogOperation, ProviderInput, ProviderModelInput, ProviderReplacement,
+    ShareOutcome,
 };
 
 const CANARY: &str = "sk-SECRET-CANARY";
@@ -114,5 +115,40 @@ fn the_inputs_do_not_print_their_keys() {
             }
         ),
         "ProviderReplacement",
+    );
+}
+
+/// **分享链接是读取凭据，不是普通 URL。**
+///
+/// omp 的分享链接形状是 `<serverUrl>/<id>#<key>`，`#` 之后那一截是解密密钥 —— 拿到整个
+/// 字符串的人就能读那份分享出去的对话。所以它必须和上面几把模型钥匙同一条纪律：
+/// 手写 `Debug`，把 url 折成占位符（`session/client.rs` 的 `impl fmt::Debug for
+/// ShareOutcome`）。
+///
+/// 判据不能只看「代码里有没有手写 Debug」：往 url 里种一串能认出来的值，证明它打不出来。
+/// 这条测试的作用是让将来某次「顺手改回 derive」当场变红。
+#[test]
+fn a_share_link_never_prints_its_decryption_key() {
+    const PLANTED: &str = "sk-planted-share-key-must-not-reach-the-log-9f2a";
+
+    let subject = ShareOutcome {
+        url: format!("https://my.omp.sh/s/abc123#{PLANTED}"),
+        truncated: false,
+    };
+
+    let rendered = format!("{subject:?}");
+
+    assert!(
+        !rendered.contains(PLANTED),
+        "Debug printed the share key: {rendered}"
+    );
+    assert!(
+        !rendered.contains("my.omp.sh"),
+        "Debug printed the link: {rendered}"
+    );
+    /* 非凭据的那一格照打：日志里要认得出这次分享有没有被裁剪过。 */
+    assert!(
+        rendered.contains("truncated"),
+        "the truncation flag must survive: {rendered}"
     );
 }
