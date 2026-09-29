@@ -22,7 +22,12 @@ use crate::process::profile::ProcessEnvironment;
 
 #[derive(Clone, Debug)]
 pub struct AgentSpawn {
+    /// 随包发的运行时名（Bun）。先在这个目录里找，再回落到 PATH。
     pub program: String,
+    /// 随包发的文件所在目录：运行时可回落，入口不回落。
+    pub bundled: PathBuf,
+    /// 桥的入口文件名，相对 `bundled`；`program` 是承载它的运行时。
+    pub entry: String,
     pub args: Vec<String>,
     pub cwd: PathBuf,
     /// 只放非密文变量：密钥不走 env 也不走参数（Windows 上任何用户读得到别的进程的完整命令行）。

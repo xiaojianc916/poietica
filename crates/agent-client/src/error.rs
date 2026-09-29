@@ -1,17 +1,3 @@
-use thiserror::Error;
-
-#[derive(Debug, Error)]
-#[error("the frame does not fit the pinned contract: {0}")]
-pub struct DecodeError(#[from] serde_json::Error);
-
-#[derive(Debug, Error)]
-pub enum EnvelopeError {
-    #[error("the server refused with code {code}: {msg}")]
-    Refused { code: i64, msg: String },
-    #[error("the envelope data does not fit the pinned contract: {0}")]
-    Shape(#[from] serde_json::Error),
-}
-
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Refusal {
     UnknownSession,

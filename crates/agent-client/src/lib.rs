@@ -19,7 +19,7 @@ mod trace;
 pub mod translate;
 pub mod wire;
 
-pub use error::{AgentError, DecodeError, EnvelopeError, Refusal, Result};
+pub use error::{AgentError, Refusal, Result};
 
 pub use model_catalog::{
     CatalogImport, CatalogModel, CatalogProvider, Model, ModelCatalogOperation,
@@ -44,9 +44,9 @@ pub use process::install::{
     latest_version, owner_of, preferred_manager, reported_version,
 };
 pub use process::profile::{
-    ControlledHome, InstallSpec, ProcessEnvironment, args_of, declared_env_of, home_var_of,
-    install_spec_of, is_npm_package_name, is_plain_directory_name, launch_env, own_home_of,
-    program_of, unset_env_of,
+    ControlledHome, InstallSpec, ProcessEnvironment, args_of, declared_env_of, entry_of,
+    home_var_of, install_spec_of, is_npm_package_name, is_plain_directory_name, launch_env,
+    own_home_of, program_of, unset_env_of,
 };
 pub use process::program::{Launcher, hide_console, resolve_launcher, resolve_program};
 pub use recorder::{FrameSink, RecordedEvent, Recorder, SeqLine};

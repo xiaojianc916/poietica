@@ -220,7 +220,7 @@ wildcard_dependencies = "deny"
 #
 # 「逐处」是字面意思，不是省略说法：这里只把生产代码收紧，放开由每个测试作用域
 # 自己写一句 #![allow(clippy::expect_used, reason = "…")]（见 crates/agent-client
-# 的 tests/recorder.rs 与 src/recorder.rs 的 mod tests）。
+# 的 tests/sessions.rs 与 src/recorder.rs 的 mod tests）。
 #
 # 不在根上放一个 clippy.toml 开 allow-expect-in-tests：那个开关只认 #[cfg(test)]
 # 模块与 #[test] 函数，盖不住集成测试里的辅助方法（Fixture::frames 的 .expect），

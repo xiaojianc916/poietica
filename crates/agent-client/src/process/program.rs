@@ -2,8 +2,10 @@
 
 pub use poietica_process_host::program::{Launcher, hide_console, resolve_launcher};
 
+pub(crate) use poietica_process_host::program::beside_exe;
+
 use crate::error::{AgentError, Result};
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 pub fn resolve_program(program: &str) -> Result<PathBuf> {
     poietica_process_host::program::resolve_program(program).map_err(|not_found| {
@@ -13,9 +15,9 @@ pub fn resolve_program(program: &str) -> Result<PathBuf> {
     })
 }
 
-/// 随包发的边车在应用可执行文件旁边，不在 PATH 上。解析顺序见 process-host。
-pub(crate) fn resolve_sidecar(program: &str) -> Result<PathBuf> {
-    poietica_process_host::program::resolve_sidecar(program).map_err(|not_found| {
+/// 随包发的运行时：先找随包目录，再回落到 PATH（开发期手动跑源码版用得上）。
+pub(crate) fn resolve_sidecar(directory: &Path, program: &str) -> Result<PathBuf> {
+    poietica_process_host::program::resolve_sidecar(directory, program).map_err(|not_found| {
         AgentError::Spawn {
             message: not_found.message,
         }

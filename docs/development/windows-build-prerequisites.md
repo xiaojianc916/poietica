@@ -74,27 +74,31 @@ lower bound is `rust-version` under `[workspace.package]` in the root
 
 ## Building the embedded agent
 
-The agent ships inside the app: `tools/agent/build-bridge.ts` compiles
-`packages/agent-bridge` — which imports the oh-my-pi SDK — into one
-self-contained executable (about 187 MB, Bun runtime and the platform `.node`
-addon included). Tauri picks it up as an `externalBin`, so the shipped installer
-needs no separate CLI on the machine.
+The agent ships inside the app as **its own Bun runtime plus our bridge**, not as a
+compiled executable of ours: `tools/agent/prepare-runtime.ts` copies the Bun that is
+running the script, bundles `packages/agent-bridge` (which imports the oh-my-pi SDK)
+with `Bun.build({ target: 'bun' })`, and copies the platform `pi-natives` `.node`
+next to both. Tauri picks all three up as `bundle.resources`, so the shipped
+installer needs no separate CLI and no Bun on the machine.
 
 `bun run build:debug`, `bun run build:release` and `bun run dev` all run it
-first; to build it on its own:
+first; to prepare the runtime on its own:
 
 ```bash
-bun run agent:build
+bun run agent:prepare
 ```
 
-It lands in `apps/desktop/src-tauri/binaries/` (gitignored). The file name
-carries the host target triple — Tauri resolves the sidecar by that name, so a
-mismatch shows up as a missing-file error at bundle time rather than at runtime.
-Override the triple with `POIETICA_BRIDGE_TRIPLE`, or cross-compile with
-`POIETICA_BRIDGE_TARGET`.
+It lands in `apps/desktop/src-tauri/binaries/` (gitignored). Every file lands beside
+the installed `poietica.exe` verbatim — the runtime is found there first and the
+bridge entry is only ever looked for there, because running a same-named script from
+`PATH` would be a different program.
 
-The end-to-end test drives the real sidecar, and skips itself when the binary is
-absent:
+The platform `.node` is chosen the way the SDK's own loader chooses it — from Node's
+`process.platform`/`process.arch`, with the filename read from the leaf package's
+`main` field — so this step needs **no Rust toolchain**: `bun dev` works on a machine
+that has Bun but no rustc.
+
+The end-to-end test drives the real bundle, and skips itself when it is absent:
 
 ```bash
 cargo test -p poietica-agent-client --test bridge
@@ -105,5 +109,5 @@ handshake completes, a session opens and a command round-trips. A live model
 turn is a separate, future verification (see ADR 0052's "待验证" section).
 
 Nothing here is worked around in code. A client that silently rewrites the
-command it was given, or that treats a missing sidecar as a transport error,
+command it was given, or that treats a missing runtime as a transport error,
 hides exactly the information the person running it needs.

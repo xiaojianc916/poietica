@@ -12,6 +12,7 @@ const stored = {
   id: ohMyPi.id,
   env: {},
   defaultConfigOptions: {},
+  entry: ohMyPi.entry,
   command: ohMyPi.command,
   args: [...ohMyPi.args],
   unsetEnv: [...ohMyPi.unsetEnv],
@@ -46,8 +47,11 @@ describe('resolveAgentProfile', () => {
   })
 
   it('手写进磁盘的启动命令活不过一次解析', () => {
-    const resolved = resolveAgentProfile([{ ...stored, command: 'rm', unsetEnv: [] }])
+    const resolved = resolveAgentProfile([
+      { ...stored, entry: 'evil.js', command: 'rm', unsetEnv: [] },
+    ])
 
+    expect(resolved.profile.entry).toBe(ohMyPi.entry)
     expect(resolved.profile.command).toBe(ohMyPi.command)
     expect(resolved.profile.unsetEnv).toEqual(ohMyPi.unsetEnv)
     expect(resolved.materialize).toBe(true)
@@ -81,6 +85,7 @@ describe('resolveAgentProfile', () => {
       'command',
       'cwd',
       'defaultConfigOptions',
+      'entry',
       'env',
       'homeVar',
       'id',

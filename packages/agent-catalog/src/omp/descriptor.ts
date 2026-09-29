@@ -7,9 +7,13 @@ import type { AgentDescriptor } from '../agent-descriptor'
  * npm @oh-my-pi/pi-coding-agent（锚定 18.3.0）。每一条下面都注明出处。
  *
  * 我们不经 kap：omp 没有本地服务模式，它给的是 SDK 与 stdio 上的 RPC/ACP。
- * 这里接的是**我们自己编出来的那个可执行文件**（packages/agent-bridge 的入口，
- * 由 tools/agent/build-bridge.ts 收成单文件），它把 omp 的 SDK 装在里面，
- * 对 Rust 说 NDJSON。用户因此不需要装 omp（见 ADR 0052）。
+ * 这里接的是**随包发的一份 Bun 运行时加我们的桥**（packages/agent-bridge 的
+ * `src/main.ts`，由 tools/agent/prepare-runtime.ts 收成 bundle），桥把 omp 的 SDK
+ * 装在里面，对 Rust 说 NDJSON。用户因此不需要装 omp、也不需要装 Bun（见 ADR 0057）。
+ *
+ * 不追官方的 `--mode rpc|acp`：那条命令面缺我们一半的命令（settings_catalog、
+ * model_catalog、mcp_servers、skills、delete_session、browser_settings），追过去
+ * 会变成「官方协议 + 自定义扩展」两套并存。传输线上形状是我们的 protocol.ts。
  */
 
 /*
@@ -21,15 +25,42 @@ export const ohMyPi = {
   id: 'omp',
   displayName: 'Oh My Pi',
   /*
-   * 随包发的边车名。Tauri 把 externalBin 放在应用可执行文件旁边，解析顺序见
-   * crates/process-host/src/program.rs 的 resolve_sidecar：先找同目录，再回落到
-   * PATH（开发期直接跑源码版桥时用得上）。
+   * 随包发的 Bun 运行时，与应用可执行文件同目录（Tauri 的 bundle.resources 摆的），
+   * 解析顺序见 crates/process-host/src/program.rs 的 resolve_sidecar：先找同目录，
+   * 再回落到 PATH —— 开发期手动跑源码版桥时用得上。
+   *
+   * 不写 `omp`：官方 CLI 是用户自己要装的东西，而产品的前提是「只装 Poietica」
+   * （ADR 0052）。
    */
-  command: 'poietica-agent',
-  // 桥自己认协议，不需要命令行开关；参数留给以后。
+  command: 'bun',
+  /*
+   * 桥的入口，同一个目录。SDK 的宿主只能是 Node/Bun 进程：它 109 个文件 import
+   * `node:fs`、323 个文件用 Bun API，还依赖 pi-natives 的 NAPI `.node`，`engines`
+   * 只认 bun（ADR 0057 的实测表）。所以程序名是运行时，入口是脚本。
+   */
+  entry: 'poietica-bridge.js',
+  // 运行时开关留给以后：入口由 entry 那一格给，不放这儿。
   args: [],
-  // 让每个 PowerShell 版本按自己的 $PSHOME 重建模块路径，避免跨版本模块遮蔽。
-  unsetEnv: ['PSModulePath'],
+  /*
+   * 从子进程环境里摘掉的两格：
+   *
+   * - `PSModulePath`：让每个 PowerShell 版本按自己的 $PSHOME 重建模块路径，避免
+   *   跨版本模块遮蔽。
+   * - `PI_COMPILED`：我们**不是**编译出来的二进制。`isCompiledBinary()` 的第一判据
+   *   读的就是这个变量（pi-utils/src/env.ts:466-470），而它一为真，SDK 与加载器就有
+   *   三处按「编译态」改道（2026-09 实测，锚定 18.3.0）：
+   *     1. pi-natives 的候选表会**多出用户目录并排在最前**（`resolveLoaderCandidates`：
+   *        `~/.omp/natives/<版本>/`、`%LOCALAPPDATA%\omp`）—— 别人机器上残留的一份
+   *        会优先于我们随包发的那个被加载。我们只要随包的那一份，来源要确定。
+   *     2. SDK 的 CLI 入口块会**在进程里**跑起来（`src/cli.ts:601` 的 `isProcessEntry`）：
+   *        那是第二个入口，和我们抢同一根 stdout。
+   *     3. worker 子进程的启动命令换成 `[运行时, "__omp_worker_*"]`（把选择器当文件名），
+   *        而不是 `[运行时, 入口, 选择器]`。
+   *
+   * 只「构建期不折」不够：它读的是运行时环境，宿主里恰有一个就静默改道。官方 npm
+   * 发行版也是不设它、只折 `PI_BUNDLED`。
+   */
+  unsetEnv: ['PSModulePath', 'PI_COMPILED'],
   /*
    * src/utils/dirs.ts 的 getAgentDir：受控时读 process.env.PI_CODING_AGENT_DIR
    * （绝对路径的 agent 目录）。PI_CONFIG_DIR 只是 home 下的目录名，不是路径，不用它。

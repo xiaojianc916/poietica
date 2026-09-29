@@ -3,8 +3,9 @@
 use crate::error::{Error, Result};
 use crate::paths::{agent_home, agents_store};
 use poietica_agent_client::{
-    AgentError, ProcessEnvironment, args_of as profile_args_of, declared_env_of, home_var_of,
-    install_spec_of, launch_env as compose_launch_env, own_home_of, program_of, unset_env_of,
+    AgentError, ProcessEnvironment, args_of as profile_args_of, declared_env_of, entry_of,
+    home_var_of, install_spec_of, launch_env as compose_launch_env, own_home_of, program_of,
+    unset_env_of,
 };
 use poietica_problem::Problem;
 use serde::{Deserialize, Serialize};
@@ -127,6 +128,26 @@ pub fn agent_install_spec(app: &AppHandle, agent_id: &str) -> Result<Option<Agen
 pub fn agent_program(app: &AppHandle, agent_id: &str) -> Result<String> {
     program_of(&profile_of(app, agent_id)?)
         .ok_or_else(|| Error::AgentCli(format!("{agent_id} 的接入档案里没有可执行文件")))
+}
+
+/// 桥的入口文件名，与应用可执行文件同目录；随包发，用户机器上没有第二份。
+pub fn agent_entry(app: &AppHandle, agent_id: &str) -> Result<String> {
+    entry_of(&profile_of(app, agent_id)?)
+        .ok_or_else(|| Error::AgentCli(format!("{agent_id} 的接入档案里没有桥的入口")))
+}
+
+/// 随包发的 agent 文件所在目录。
+///
+/// 判据是「应用可执行文件在哪，随包的东西就在哪」：Tauri 的 bundle.resources 把运行时、
+/// 桥的入口与原生模块一起摆在可执行文件旁边，dev 构建由 tauri-build 拷进 target/<profile>。
+/// 不经 `app.path().resource_dir()`：Windows 上它就是这个目录，而多绕一层路径抽象只会让
+/// 「与 exe 同目录」这条唯一的判据散成两处。
+pub fn bundled_directory() -> Result<PathBuf> {
+    std::env::current_exe()
+        .map_err(|error| Error::AgentCli(format!("读不出应用自己的位置：{error}")))?
+        .parent()
+        .map(Path::to_path_buf)
+        .ok_or_else(|| Error::AgentCli("应用可执行文件没有所在目录".to_owned()))
 }
 
 pub fn agent_args(app: &AppHandle, agent_id: &str) -> Result<Vec<String>> {

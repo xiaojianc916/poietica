@@ -1,6 +1,8 @@
 use super::configuration::restate;
 use super::dto::{AgentSessionEvent, AgentTranscriptEvent, reported_goal, reported_usage};
-use crate::agent::profile::{agent_args, agent_data_home, agent_program, launch_env};
+use crate::agent::profile::{
+    agent_args, agent_data_home, agent_entry, agent_program, bundled_directory, launch_env,
+};
 use crate::error::Error;
 use crate::ledger::LocalIndex;
 use poietica_agent_client::{AgentSpawn, SessionEvent};
@@ -42,6 +44,8 @@ pub(crate) fn compose(
                 crate::webview::ensure_live_kernel(&app);
                 Ok(AgentSpawn {
                     program: agent_program(&app, &request.agent_id)?,
+                    bundled: bundled_directory()?,
+                    entry: agent_entry(&app, &request.agent_id)?,
                     args: agent_args(&app, &request.agent_id)?,
                     cwd: request.cwd,
                     env: launch_env(&app, &request.agent_id)?,

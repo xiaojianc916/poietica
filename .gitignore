@@ -49,7 +49,7 @@ apps/desktop/src-tauri/.tauri/
 **/src-tauri/gen/
 **/src-tauri/.tauri/
 
-# 随包发的 agent 边车（190MB 量级）：由 tools/agent/build-bridge.ts 现编，不入库。
+# 随包发的 agent 运行时（Bun + 桥 bundle + 原生模块，约 300MB 量级）：由 tools/agent/prepare-runtime.ts 现备，不入库。
 apps/desktop/src-tauri/binaries/
 
 # Desktop installers and bundles
@@ -214,8 +214,5 @@ dist-release/
 # 集成测试把受控 home 建在这里；.gitkeep 之外的内容不入库。
 .cargo/link-tmp/*
 !.cargo/link-tmp/.gitkeep
-
-# 开发构建的数据根（见 apps/desktop/src-tauri/src/paths.rs installed_root），整目录不入库。
-.dev-data/
 
 oh-my-pi/

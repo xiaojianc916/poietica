@@ -1,16 +1,76 @@
-# 事件报告：bun dev 链 os error 5 与 webview 启动失败（2026-09-26 已恢复）
+# 事件报告：bun dev 链 os error 5 与 webview 启动失败（2026-09-26 已恢复，2026-09-29 破案）
 
 > 读者注意：本文写给零上下文的接手者（人或 AI）。事实、推断、未知三类信息
 > 明确分开标注；所有结论都附实验证据。日期均为 2026-09-26（另有标注除外）。
 
 ## 一句话结论
 
-`bun dev` 曾被三个互相叠加的问题压死：**①本机一个未破案的写入拦截机制**（仓库内
-诞生的进程/文件对仓外路径写入报 os error 5，标记跟随文件本体）——已用「构建产物
-全部移出仓库」绕行；**②应用对日志初始化失败零抵抗**——已改代码降级；**③崩溃风暴
-遗留的僵尸 msedgewebview2 + 写坏的 WebView2 用户数据目录**——已清理。三层全部
-处理后 `bun dev` 完整验收通过（setup 458ms 走完，窗口正常）。①的元凶**没有找到**，
-只锁死了行为规律和规避方法。
+`bun dev` 曾被三个互相叠加的问题压死：**①仓库目录被打了 Windows 强制完整性
+标签 Low**（见下节，2026-09-29 破案）—— 已清除，绕行全部还原；**②应用对日志
+初始化失败零抵抗**——已改代码降级；**③崩溃风暴遗留的僵尸 msedgewebview2 + 写坏
+的 WebView2 用户数据目录**——已清理。三层全部处理后 `bun dev` 完整验收通过
+（setup 458ms 走完，窗口正常）。
+
+### ①的元凶（2026-09-29 定案）
+
+决策与理由见 ADR 0058；本节是证据与复发处置。
+
+**根因是 NTFS 对象的强制完整性标签（Mandatory Integrity Label），不是 DACL、
+不是 SACL、不是防病毒、不是 minifilter。**
+
+```text
+D:\xiaojianc\poietica         Mandatory Label\Low Mandatory Level:(OI)(CI)(NW)
+D:\xiaojianc\poietica-target  Mandatory Label\Low Mandatory Level:(I)(OI)(CI)(NW)
+```
+
+Windows 按**镜像文件所在目录的完整性标签**决定新进程令牌的完整性级别。镜像落在
+Low 标签目录里 → 进程是 Low（S-1-16-4096）→ 往 Medium/High 对象
+（`%LOCALAPPDATA%`、`%TEMP%`、`.rustup`）写就是 write-up，被 `NW`
+（No-Write-Up）拒掉，表现为 os error 5。
+
+**三步对照实测**（同一个 `bun.exe`，只改目录标签）：
+
+| 目录标签 | 进程完整性 | 写 `%TEMP%` |
+| --- | --- | --- |
+| 无 | High (12288) | **通过** |
+| **Low** | **Low (4096)** | **拒（EPERM）** |
+| Medium | Medium (8192) | 通过 |
+
+用系统自带的 `cmd.exe` 复现同款结果（仓内拷贝 Low、仓外拷贝 High）→ 与具体
+可执行文件无关，只与镜像所在目录的标签有关。
+
+**这一条同时解释了本文原先所有"反常"观测**，无需"标记跟随文件本体"这套说法：
+
+| 观测 | 标签机制下的解释 |
+| --- | --- |
+| 同卷移动到仓外仍拒 | 同卷改名保留标签（实测：标签随 rename 走） |
+| 拷贝到仓外则放行 | 拷贝按**目标目录**重新打标（实测：新副本无标签） |
+| 经 junction 调用仍拒 | 标签在目录对象上，junction 解析后仍是同一目录 |
+| 提权无效 | 完整性级别不是权限，提权不改令牌 IL |
+| WMI 启动仍拒 | 父进程与令牌 IL 无关 |
+| 仓内读写正常 | 同级写（Low → Low）不被 No-Write-Up 拦 |
+| 与用户身份无关 | 同上，判据是对象标签 |
+
+**元凶**：OpenAI Codex 桌面版（ChatGPT 应用）的 Windows 沙箱。
+`CodexSandboxService.OpenAI.Codex`（显示名 "ChatGPT"）以 LocalSystem 常驻，
+其 `codex-windows-sandbox-service.exe` / `codex-windows-sandbox-setup.exe`
+内含 `CodexSandboxUsers`、`SetTokenInformation`、`--write-roots-json`、
+`deny-write path` 等字符串；仓库 DACL 上还留有该工具两组组 SID 的 ACE。
+该应用在 2026-09-29 已从本机卸载，服务与本地组一并消失。
+
+**排除方法（本文原先漏掉的一整类）**：`icacls <dir>` 看输出里的
+`Mandatory Label\...` 行。注意 `Get-Acl -Audit` 的 `.Audit` 集合**看不到**它
+（实测 `Audit.Count == 0`），SDDL 也只显示 `S:AI` —— 必须用 `icacls`。
+
+**清除**（2026-09-29 已对 `poietica` 与 `poietica-target` 执行，1,166,707 个对象）：
+
+```powershell
+icacls "D:\xiaojianc\poietica"        /setintegritylevel "(OI)(CI)M" /T /C
+icacls "D:\xiaojianc\poietica-target" /setintegritylevel "(OI)(CI)M" /T /C
+```
+
+子对象继承，**无需** `/T` 也能让新文件打对；`/T` 只是为了清掉已经固化的旧标签。
+
 
 ## 现象全录（按出现顺序）
 
@@ -44,24 +104,26 @@
 
 ## 三层原因（事实 → 结论 → 状态）
 
-### 第一层：机器级写入拦截 —— 元凶未破案，已绕行
+### 第一层：目录完整性标签 —— 已破案并清除（2026-09-29）
 
 **事实（实验证据，见下节）**：
-1. 镜像文件诞生于 `D:\xiaojianc\poietica\**` 的进程，对仓外路径
+1. 镜像文件位于 `D:\xiaojianc\poietica\**` 时，进程对仓外路径
    （`%LOCALAPPDATA%`、`%TEMP%`）的文件写入被拒（os error 5）。
-2. **标记跟随文件本体，不跟调用方式**：同一 exe 无论从 junction 路径调用、
-   还是移动到仓外后按真实路径调用，都被拒；把它**拷贝**到仓外则放行。
-3. 拦截与用户身份无关（提权无效）、与父进程无关（WMI 启动仍拒）、与调用时刻
-   大体无关（后期确定性复现）。
-4. 仓库内自身的读写（cargo/rustc/bun 构建、`.dev-data` 写入）始终正常。
+2. 判据是**镜像所在目录的完整性标签**，不是可执行文件本身：同一个 exe 放在带
+   `Low` 标签的目录里就是 Low 进程（写仓外被拒），放在无标签/Medium 目录里就是
+   High/Medium 进程（放行）。系统自带的 `cmd.exe` 复现同款结果。
+3. 这一条解释了全部观测：同卷移动带走标签（故"移动后仍拒"）、拷贝按目标目录
+   重打标（故"拷到仓外则过"）、junction 解析到同一目录对象（故"经 junction 仍拒"）。
+4. 与用户身份、父进程、调用时刻无关（完整性级别不是权限，提权与改父进程都不改它）。
+5. 仓库内自身的读写正常：Low → Low 是同级别写，不受 No-Write-Up 约束。
 
-**结论（推断，非实锤）**：某个内核组件在文件创建时按「创建路径是否位于
-`D:\xiaojianc\poietica`」打标，命中者（或其派生进程）对仓外写入拒绝。
-flmtc 里没有任何第三方 minifilter 在挂载，故若为内核组件，可能是未在
-fltmc 里出现的路径（legacy filter）或未被卸载测试覆盖的 Microsoft 过滤器。
+**结论（已被 E7/E8 实证）**：`D:\xiaojianc\poietica` 与 `D:\xiaojianc\poietica-target`
+两个目录对象带着 `Mandatory Label\Low Mandatory Level:(OI)(CI)(NW)`。Windows 在
+进程创建时按镜像路径读取该标签并据此定令牌完整性级别，`NW`（No-Write-Up）再禁止
+向更高级别对象写入。标签由 OpenAI Codex 桌面版的 Windows 沙箱服务所打。
 
-**状态**：绕行已固化（见「当前绕行布局」）。**复发条件**：任何 exe 在仓库内
-被创建后直接运行。**规避铁律：让链接产物只生成在仓外。**
+**状态**：标签已清除（`icacls ... /setintegritylevel "(OI)(CI)M" /T /C`），绕行
+布局全部还原。**复发处置见文末。**
 
 ### 第二层：应用对日志失败零抵抗 —— 已改代码（永久保留）
 
@@ -106,7 +168,8 @@ EBWebView 是纯缓存，删除只丢 webview 本地状态（localStorage 等）
 | 经 junction 调用（镜像解析后在仓外） | `.dev\ledger.sqlite3` | **拒** |
 | 同一物理文件按仓外真实路径直调 | `.dev\ledger.sqlite3` | **拒** |
 
-最后两行是「标记跟随文件本体」的直接证据；bash 的 `touch`/`echo >>` 对同样
+最后两行当时被读作「标记跟随文件本体」；真实机制是**标签在目录上**，同卷改名
+带走标签、拷贝按目标目录重新打标（见 E7）。bash 的 `touch`/`echo >>` 对同样
 路径始终成功（对照：拒绝按进程镜像身份，不按用户令牌）。
 
 **E2 ProcMon 抓捕**（600MB PML → CSV，247MB；拒绝时刻 09:43:50）：
@@ -140,6 +203,27 @@ bfs、WinSetupMon、UCPD、storqosflt、CldFlt 逐个卸载后探针**仍被拒*
 9/26 07:30 还正常写过 6.8KB 日志）在排查中段实测**仍可完整启动** → 机器不是
 对所有进程坏了，问题锁死在「仓库内诞生的镜像」上。
 
+**E7 完整性标签三步对照（2026-09-29，定案实验）**：同一个 `bun.exe`，只改所在
+目录的完整性标签：
+
+| 目录标签 | 进程令牌 IL | 写 `%TEMP%` |
+| --- | --- | --- |
+| 无标签 | High (S-1-16-12288) | 通过 |
+| `Low` | Low (S-1-16-4096) | **拒（EPERM）** |
+| `Medium` | Medium (S-1-16-8192) | 通过 |
+
+用系统 `cmd.exe` 交叉验证（仓内拷贝 = Low，仓外拷贝 = High）→ 与可执行文件无关。
+
+**E8 标签的继承与迁移语义**（解释 E1 的表）：
+
+| 操作 | 标签行为 |
+| --- | --- |
+| 在带标签目录下新建文件/子目录 | 继承（`(I)`） |
+| 父目录改标签 | 已存在的子对象跟着变（无需 `/T`） |
+| 同卷 rename / move | **标签跟着走**（→ E1「移动后仍拒」） |
+| 跨目录拷贝 | 按**目标**目录重新打标（→ E1「拷到仓外则过」） |
+| `Get-Acl -Audit` 读 SACL | **读不到**（`Audit.Count == 0`，SDDL 只有 `S:AI`）；只有 `icacls` 看得见 |
+
 ## 已排除清单（每项含排除方法，勿重查）
 
 | 嫌疑 | 排除方法与证据 |
@@ -155,66 +239,77 @@ bfs、WinSetupMon、UCPD、storqosflt、CldFlt 逐个卸载后探针**仍被拒*
 | IFEO / AppLocker / CodeIntegrity | 注册表与事件日志核查为空 |
 | ACE 反作弊（Tencent，机器上有残留驱动） | 驱动 State=Stopped，且拒绝持续存在期间它不在运行 |
 
+**排查盲区（别再漏）**：上面整张表连同 E1-E5 全都在查 DACL / SACL / 过滤器 /
+杀软，**没有任何一项读完整性标签**。`Get-Acl -Audit` 的 `.Audit` 集合看不到它
+（实测 `Audit.Count == 0`），SDDL 也只有 `S:AI`；只有 `icacls` 输出的
+`Mandatory Label\...` 行看得见。今后这类「权限正确却 EPERM」的案子，
+第一步就该是 `icacls <dir> | Select-String 'Mandatory Label'`。
+
 ## 未解释 / 未测（下一个调查者的入口）
 
-1. **WdFilter、bindflt、Wof 三个过滤器从未做卸载实验**（两次实验被用户取消，
-   未获授权不要再动）。其中 WdFilter 是唯一具备行为阻断能力的在挂载过滤器，
-   嫌疑最大。若获授权：`fltmc unload WdFilter → 立即跑探针（MsMpEng 会秒级
-   重载，要抢窗口）→ fltmc load WdFilter`。
-2. **ProcMon PML 里的内核栈未提取**。PML（603MB）已删除；如需重抓，ProcMon
-   GUI 打开拒绝行的 Stack 即可看到返回 ACCESS_DENIED 的过滤器 altitude——
-   这是最直接的定凶手段。
-3. 拦截的判定依据未定位到具体机制（文件 ID？USN 日志里的创建路径史？）。
-   一个可做的判别实验：把被标记文件**改名**（同卷 rename，file ID 不变）后
-   运行——已证明「移动+按新路径调用」仍拒，rename 大概率同样拒，价值不大；
-   更有价值的是反向实验：在仓内创建一个新 exe 但**从未运行**，观察其 USN/属性，
-   确认「打标发生在创建时」还是「进程启动时回溯判定」。
-4. 9/25 之前本机开发一直正常；故障开始前装了什么/更新了什么未回溯（Defender
-   平台版本 4.18.26080.4、引擎 1.1.26080.3 为 2026-08 批次）。机器上运行中的
-   非系统软件：MSPCManager ×3、豆包 ×12、网易 GameViewer、腾讯 WorkBuddy/
-   WorkBuddyAI、宏碁全家桶、Snipaste（杀进程实验未改变拒绝，但它们可能只是
-   不是元凶而非无嫌疑）。
+**这一节的内容已被 E7/E8 取代（2026-09-29 破案），无需再测。** 保留作记录：
+WdFilter/bindflt/Wof 的卸载实验、ProcMon 内核栈提取、「打标时机」实验都不必做了
+—— 机制不在 minifilter 层，也没有"打标"动作：判定完全由目录对象的完整性标签
+在**进程创建时**由内核读取。原先列为"未解释"的观测（移动后仍拒、拷贝后放行）
+由 E8 的标签迁移语义解释完毕。
 
-## 当前绕行布局（机器状态改动，勿随意还原）
+故障开始前的安装史也回溯到了：元凶是 OpenAI Codex 桌面版的 Windows 沙箱
+（`CodexSandboxService.OpenAI.Codex`），该应用现已卸载。
 
-| 项 | 现状 | 性质 |
-| --- | --- | --- |
-| cargo 产物目录 | `D:\xiaojianc\poietica-target\`（原 `repo\target` 8.4GB 同卷改名，缓存无损） | 机器改动 |
-| `repo\target` | junction → `D:\xiaojianc\poietica-target`（`mklink /J`） | 机器改动 |
-| `src-tauri\binaries` | junction → `D:\xiaojianc\poietica-target\sidecar-binaries` | 机器改动 |
-| `CARGO_TARGET_DIR` | 已 `setx` = `D:\xiaojianc\poietica-target`（用户级；junction 已覆盖此功能，属第二道保险） | 机器改动 |
-| dev 数据根 | 仓库旁 `.dev-data\`（robocopy 自 `%LOCALAPPDATA%\com.poietica.Poietica.dev` 迁入 398MB，EBWebView 除外） | 机器改动 |
-| WebView2 | 僵尸已清、EBWebView 已删（现由应用自动重建） | 一次性清理 |
-| 被杀进程 | 豆包/WorkBuddy/Snipaste/GameViewer/msedgewebview2（可自行重启） | 一次性清理 |
+## 绕行布局：已全部还原（2026-09-29）
 
-junction 校验：`dir D:\xiaojianc\poietica` 中 target 应显示 `<JUNCTION>`；
-被工具误删后用 `mklink /J` 重建（target 与 sidecar-binaries 两条命令见上文速查）。
+元凶清除后按本文原「还原步骤」全部还原，机器回到常规布局：
 
-**注意**：`.dev-data` 含 omp 凭据与全部开发数据，已在 `.gitignore`；
-`git clean -fdx` 会删掉它。
+| 项 | 现状 |
+| --- | --- |
+| cargo 产物目录 | `repo\target\`（真实目录，23.6GB 缓存由同卷改名带回，无损） |
+| `repo\target` | 不再是 junction |
+| `src-tauri\binaries` | **真实目录**（随包运行时落在仓内，由 `agent:prepare` 现备） |
+| `CARGO_TARGET_DIR` | 用户级变量已 `reg delete`；新终端下 cargo 默认写 `repo\target` |
+| dev 数据根 | 回到 `%LOCALAPPDATA%\com.poietica.Poietica.dev`（含 omp 凭据与全部开发数据，robocopy /MOVE 已带回） |
+| `paths.rs` | `installed_root` debug 分支回到 `None`（→ `app_local_data_dir`） |
+| `.gitignore` | `.dev-data/` 条目已删 |
+| `D:\xiaojianc\poietica-target` | 已不存在 |
 
-## 仓库改动清单（全部未提交，待用户审阅）
+验收：还原后 `bun dev` 全链通过（`native setup finished 479 ms`，窗口正常），
+数据根落在 `%LOCALAPPDATA%`，未再生成 `.dev-data`。
+
+**仍保留的两项不是绕行**（改动时间早于本次事件，机制也不同）：
+
+- `.cargo/config.toml` 把链接器的 `TMP`/`TEMP` 指向 `.cargo/link-tmp`（2026-09-24）
+  —— 防的是共享 `%TEMP%` 被清理程序动过导致 MSVC 的 `LNK1104`，与完整性标签无关。
+- `turbo.json` 的 `globalPassThroughEnv` 含 `CARGO_TARGET_DIR`（2026-07-26）
+  —— 只是允许用户自带该变量透传，本身不设值。
+
+## 仓库改动清单
 
 | 文件 | 改动 | 层 |
 | --- | --- | --- |
-| `apps/desktop/src-tauri/src/diagnostics/structured_log.rs` | 落点预检 + 降级；`LOG_FILE_STEM` 单一产地；两个单测 | 二 |
-| `apps/desktop/src-tauri/src/composition.rs` | log 插件注册失败降级（`print_stderr` 带 reason allow） | 二 |
-| `apps/desktop/src-tauri/src/paths.rs` | `installed_root` debug 分支返回 `repo\..\..\.dev-data`，带 `ponytail:` 注释与还原条件 | 一(绕行) |
-| `.gitignore` | 加 `.dev-data/` | 一(绕行) |
-| `docs/architecture/data-layout.md` | dev 数据根段落与现状对齐，链接到本文 | 文档 |
-| `docs/runbooks/dev-write-interception.md` | 本文 | 文档 |
+| `apps/desktop/src-tauri/src/diagnostics/structured_log.rs` | 落点预检 + 降级；`LOG_FILE_STEM` 单一产地；两个单测 | 二（永久保留） |
+| `apps/desktop/src-tauri/src/composition.rs` | log 插件注册失败降级（`print_stderr` 带 reason allow） | 二（永久保留） |
+| `docs/architecture/data-layout.md` | 已改回「开发落点在平台目录」 | 文档 |
+| `docs/runbooks/dev-write-interception.md` | 本文，已补 E7/E8 与破案结论 | 文档 |
 
-验证状态：`cargo test --lib diagnostics::structured_log` 2 过；clippy、fmt 干净；
-bun dev 全链验收通过（11:02）。**发布版行为唯一变化**：log 插件初始化失败从
-panic 改为降级（无日志继续跑）。
+验证状态：`cargo test --lib diagnostics::structured_log` 2 过；clippy、fmt 干净。
+**发布版行为唯一变化**：log 插件初始化失败从 panic 改为降级（无日志继续跑）——
+这一条与本机环境无关，是通用健壮性改进，故不回退。
 
-## 还原步骤（元凶破案后，四步独立各一分钟）
+## 复发处置（若再次出现 os error 5）
 
-1. `paths.rs` debug 分支改回 `app_local_data_dir`；停机后把 `.dev-data` 数据
-   迁回 `%LOCALAPPDATA%\com.poietica.Poietica.dev`。
-2. 删两个 junction；`D:\xiaojianc\poietica-target` 改名回 `repo\target`、
-   `sidecar-binaries` 改名回 `src-tauri/binaries`。
-3. `reg delete "HKCU\Environment" /v CARGO_TARGET_DIR /f`，重开终端。
-4. 本文与 `data-layout.md` 对应段落改回「开发落点在平台目录」。
+决策见 ADR 0058。一条命令判定：
+
+```powershell
+icacls "D:\xiaojianc\poietica" | Select-String 'Mandatory Label'
+```
+
+出现 `Low Mandatory Level` 即命中本机制，清除：
+
+```powershell
+icacls "D:\xiaojianc\poietica" /setintegritylevel "(OI)(CI)M" /T /C
+```
+
+然后找谁打的标签：查 `CodexSandboxUsers` 本地组、`CodexSandboxService.*` 服务、
+以及仓库 DACL 上带组 SID 的 ACE（`icacls` 输出的 `S-1-5-21-...` 行）。
+本机 2026-09-29 的元凶是 OpenAI Codex 桌面版（已卸载）。
 
 操作前确认无 poietica / msedgewebview2 进程存活。

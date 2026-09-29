@@ -120,6 +120,16 @@ pub fn program_of(agent: &Value) -> Option<String> {
         .map(str::to_owned)
 }
 
+/// 桥的入口文件名。`command` 是承载它的运行时（Bun），入口是它要跑的脚本 ——
+/// 两格分开写，因为运行时是 PATH 上解析的，而脚本只在随包的目录里。
+pub fn entry_of(agent: &Value) -> Option<String> {
+    agent
+        .get("entry")
+        .and_then(Value::as_str)
+        .filter(|name| !name.is_empty() && !name.contains(['/', '\\']))
+        .map(str::to_owned)
+}
+
 pub fn args_of(agent: &Value) -> Vec<String> {
     agent
         .get("args")

@@ -1,11 +1,10 @@
 use std::fmt;
 use std::path::PathBuf;
-use std::sync::mpsc::{Receiver, SyncSender, sync_channel};
 
 use futures::channel::{mpsc, oneshot};
 
 use super::config::{ConfigControl, GoalSnapshot};
-use super::{BrowserSettings, Capability, McpServer, OpenedSession, SessionEntry, Skill};
+use super::{BrowserSettings, Capability, McpServer, OpenedSession, Skill};
 use crate::error::{AgentError, Refusal, Result};
 use crate::recorder::FrameSink;
 use crate::settings::{SettingEntry, SettingsCatalog};
@@ -141,8 +140,7 @@ pub(crate) enum Command {
         value: serde_json::Value,
         reply: oneshot::Sender<Result<Vec<SettingEntry>>>,
     },
-    /// 退场：杀掉这条连接起的进程，杀完从收据上报一声。
-    Shutdown(SyncSender<()>),
+    /// 此刻能改的选择器。
     Selectors {
         reply: oneshot::Sender<Result<Vec<ConfigControl>>>,
     },
@@ -224,10 +222,6 @@ pub(crate) enum Command {
         session_id: String,
         destination: PathBuf,
         reply: oneshot::Sender<Result<()>>,
-    },
-    /// agent 自己的会话清单。跨工作区的多会话要另开一条连接（见 ADR 0052）。
-    Sessions {
-        reply: oneshot::Sender<Result<Vec<SessionEntry>>>,
     },
 }
 
@@ -331,22 +325,6 @@ impl AgentClient {
         let (reply, answer) = oneshot::channel();
 
         self.send(Command::DeleteSession { session_id, reply })?;
-
-        answer
-            .await
-            .map_err(|_dropped| AgentError::Refused(Refusal::Gone))?
-    }
-
-    /// agent 自己的会话清单：它那份会话文件目录里此刻有什么。
-    ///
-    /// 只读，不是第二条会话：桥的形态仍是「一条连接一条会话」，这条只是问管理器
-    /// 要一张表（`SessionManager.list`，session-manager.ts:3675）。因此它的范围是
-    /// 这条连接锚着的那个工作区 —— 跨工作区的清单要另开一条连接（ADR 0052）。
-    /// 标题是 agent 自己的，唯一诚实的来源；未命名的会话不报标题。
-    pub async fn sessions(&self) -> Result<Vec<SessionEntry>> {
-        let (reply, answer) = oneshot::channel();
-
-        self.send(Command::Sessions { reply })?;
 
         answer
             .await
@@ -522,16 +500,6 @@ impl AgentClient {
         answer
             .await
             .map_err(|_dropped| AgentError::Refused(Refusal::Gone))?
-    }
-
-    /// 结束这条连接，交回「它起的进程已经没了」的收据；只有退出屏障会等。
-    pub fn shutdown(&self) -> Result<Receiver<()>> {
-        /* 容量 1：驱动器报完就走，不为一个已经等到超时的收据挂住。 */
-        let (gone, receipt) = sync_channel(1);
-
-        self.send(Command::Shutdown(gone))?;
-
-        Ok(receipt)
     }
 
     /// 清单就是 agent 报的那份：本 crate 从不自己加模型、档位或模式。

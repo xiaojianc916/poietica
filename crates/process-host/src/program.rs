@@ -2,7 +2,6 @@
 
 use std::path::{Path, PathBuf};
 use std::process::Command;
-
 #[derive(Debug)]
 pub struct ProgramNotFound {
     pub message: String,
@@ -49,19 +48,26 @@ pub fn resolve_program(program: &str) -> Result<PathBuf, ProgramNotFound> {
     })
 }
 
-/// 随包发出去的边车（Tauri 的 externalBin）落在应用可执行文件旁边，不在 PATH 上。
+/// 随包发的文件落在应用可执行文件旁边（Tauri 的 bundle.resources 摆在那儿），不在 PATH 上。
 ///
-/// 先找同目录，再回落到 `resolve_program`：开发期直接跑 `cargo test` 或没走打包时，
-/// 边车可能只在一个手放的路径上，PATH 那一步能兜住。
-pub fn resolve_sidecar(name: &str) -> Result<PathBuf, ProgramNotFound> {
-    if let Ok(here) = std::env::current_exe()
-        && let Some(directory) = here.parent()
-    {
-        let candidate = directory.join(format!("{name}{}", std::env::consts::EXE_SUFFIX));
+/// 只认这个名字、不补后缀：同一个目录里既摆着可执行文件（`bun.exe`），也摆着脚本
+/// （`poietica-bridge.js`），补后缀会把后者找成不存在的 `*.js.exe`。
+pub fn beside_exe(directory: &Path, name: &str) -> Option<PathBuf> {
+    let candidate = directory.join(name);
 
-        if candidate.is_file() {
-            return Ok(candidate);
-        }
+    candidate.is_file().then_some(candidate)
+}
+
+/// 随包发的那个伴侣程序：先找随包目录，再回落到 PATH。
+///
+/// 回落是给开发期留的（手动跑源码版的运行时），它也会掩盖「打包漏了文件」这类
+/// 缺口 —— 所以调用方对**必须随包发**的东西要用 [`beside_exe`]，不要走这条。
+pub fn resolve_sidecar(directory: &Path, name: &str) -> Result<PathBuf, ProgramNotFound> {
+    if let Some(candidate) = beside_exe(
+        directory,
+        &format!("{name}{}", std::env::consts::EXE_SUFFIX),
+    ) {
+        return Ok(candidate);
     }
 
     resolve_program(name)
@@ -121,7 +127,15 @@ mod tests {
 
     #[test]
     fn a_sidecar_that_is_nowhere_falls_back_to_the_search_path_and_fails_loudly() {
-        assert!(resolve_sidecar("poietica-no-such-sidecar-4f1a").is_err());
+        assert!(resolve_sidecar(Path::new("."), "poietica-no-such-sidecar-4f1a").is_err());
+    }
+
+    #[test]
+    fn a_bundled_file_is_found_next_to_the_app_and_not_by_name_alone() {
+        let here = std::env::temp_dir();
+
+        /* 缺席就是缺席：不猜路径、不补后缀，`beside_exe` 与 which 无关。 */
+        assert!(super::beside_exe(&here, "poietica-no-such-bundled-4f1a.js").is_none());
     }
 
     #[test]

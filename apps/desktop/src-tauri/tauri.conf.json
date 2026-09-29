@@ -34,7 +34,11 @@
   "bundle": {
     "active": true,
     "targets": ["nsis"],
-    "externalBin": ["binaries/poietica-agent"],
+    "resources": {
+      "binaries/bun.exe": ".",
+      "binaries/poietica-bridge.js": ".",
+      "binaries/pi_natives.*.node": "."
+    },
     "icon": [
       "icons/32x32.png",
       "icons/64x64.png",

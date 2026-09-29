@@ -63,7 +63,15 @@ export function cyclesIn(graph: ReadonlyMap<string, ReadonlySet<string>>): Cycle
 }
 
 const EXTENSIONS = ['.cjs', '.cts', '.js', '.jsx', '.mjs', '.mts', '.ts', '.tsx']
-const SKIP = new Set(['.turbo', 'coverage', 'dist', 'gen', 'node_modules', 'target'])
+/*
+ * `binaries` 是 `agent:prepare` 现备的随包运行时（bun + 桥 bundle + 平台 `.node`，
+ * 约 300MB，见 .gitignore）。它是**产物**，与 dist/target 同类，不是源码。
+ *
+ * 原先它被漏掉是因为本机把它做成了 junction（遍历器把 junction 当非目录，恰好跳过）；
+ * 2026-09-29 那台机器还原成真实目录后，这份 36MB bundle 立刻被当成源码来判，
+ * 报出 15 条伪违规。产物目录不该靠"恰好没被遍历到"来躲开判据。
+ */
+const SKIP = new Set(['.turbo', 'binaries', 'coverage', 'dist', 'gen', 'node_modules', 'target'])
 
 const notSkipped = (name: string): boolean => !SKIP.has(name)
 

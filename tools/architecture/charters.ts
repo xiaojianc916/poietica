@@ -20,6 +20,8 @@ const SKIP = new Set([
   '.turbo',
   '.workbuddy',
   'Architecture',
+  // 随包发的运行时（产物，见 tools/architecture/imports.ts 的 SKIP 注释）。
+  'binaries',
   'coverage',
   'dist',
   'dist-release',

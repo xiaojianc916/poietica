@@ -17,6 +17,8 @@ export interface AgentProfile {
   /** 非敏感环境变量。密钥永远不在这里：它随一次 execCli 交给 agent 官方 CLI。 */
   readonly env: Readonly<Record<string, string>>
   readonly defaultConfigOptions: Readonly<Record<string, AgentConfigOptionValue>>
+  /** 桥的入口文件名；落在应用可执行文件旁边，与 `command` 同一次启动交给它。 */
+  readonly entry?: string | undefined
   readonly command?: string | undefined
   readonly args?: readonly string[] | undefined
   readonly unsetEnv?: readonly string[] | undefined
@@ -58,6 +60,7 @@ const ProfileSchema = z.object({
   cwd: text.optional(),
   env: z.record(envName, text),
   defaultConfigOptions: z.record(text, z.union([text, z.boolean()])),
+  entry: text.optional(),
   command: text.optional(),
   args: z.array(text).optional(),
   unsetEnv: z.array(processEnvName).optional(),
@@ -110,6 +113,7 @@ function blankProfile(): AgentProfile {
     cwd: undefined,
     env: {},
     defaultConfigOptions: {},
+    entry: ohMyPi.entry,
     command: ohMyPi.command,
     args: ohMyPi.args,
     unsetEnv: ohMyPi.unsetEnv,
@@ -132,6 +136,7 @@ function sameArgs(left: readonly string[] | undefined, right: readonly string[])
  */
 function projected(profile: AgentProfile): AgentProfile {
   const aligned =
+    profile.entry === ohMyPi.entry &&
     profile.command === ohMyPi.command &&
     sameArgs(profile.args, ohMyPi.args) &&
     sameArgs(profile.unsetEnv, ohMyPi.unsetEnv) &&
@@ -142,6 +147,7 @@ function projected(profile: AgentProfile): AgentProfile {
     ? profile
     : {
         ...profile,
+        entry: ohMyPi.entry,
         command: ohMyPi.command,
         args: ohMyPi.args,
         unsetEnv: ohMyPi.unsetEnv,

@@ -16,7 +16,7 @@ use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
 
 use crate::error::{AgentError, Refusal, Result};
 use crate::interaction::question::{QuestionGroup, QuestionOutcome, QuestionResponse};
-use crate::process::program::{hide_console, resolve_sidecar};
+use crate::process::program::{beside_exe, hide_console, resolve_sidecar};
 use crate::process::stderr_probe::StderrLog;
 use crate::process::supervisor::{Spawned, kill_tree};
 use crate::recorder::Recorder;
@@ -58,6 +58,8 @@ pub fn connect(
 ) -> Result<AgentConnection> {
     let AgentSpawn {
         program,
+        bundled,
+        entry,
         args,
         cwd,
         env,
@@ -71,7 +73,23 @@ pub fn connect(
     let desk = desk.clone();
     let questions = questions.clone();
 
-    let resolved = resolve_sidecar(&program)?;
+    /*
+     * 运行时与入口分两处解析，因为产地不同：
+     *
+     * - 运行时（Bun）随包发在 `bundled` 里；这里保留 PATH 回落，那是开发期手动跑
+     *   源码版桥用的。
+     * - 桥的入口**必须**在随包目录里：走到 PATH 上就等于跑另一个程序，那份代码里没有
+     *   我们要说的协议。所以它只认 `beside_exe`，找不到当场报错（AGENTS.md §5「错误
+     *   一套规则」：能降级的才降级，这条没有降级可言）。
+     */
+    let resolved = resolve_sidecar(&bundled, &program)?;
+    let bridge = beside_exe(&bundled, &entry).ok_or_else(|| AgentError::Spawn {
+        message: format!(
+            "随包的 agent 桥 {} 不在 {} 里，Poietica 装得不完整，请重新安装。",
+            entry,
+            bundled.display()
+        ),
+    })?;
 
     let (commands_tx, commands_rx) = mpsc::unbounded::<ClientCommand>();
     let (events_tx, events_rx) = mpsc::unbounded::<SessionEvent>();
@@ -97,6 +115,8 @@ pub fn connect(
 
         let mut command = tokio::process::Command::new(&resolved);
         command
+            /* 运行时先拿桥的入口当脚本跑。 */
+            .arg(&bridge)
             .args(&args)
             .current_dir(&cwd)
             .envs(env.set.iter().map(|(k, v)| (k.as_str(), v.as_str())))
@@ -226,12 +246,6 @@ async fn run_session(
                     let _ = stdin.shutdown().await;
                     return Ok(());
                 };
-
-                if let ClientCommand::Shutdown(receipt) = command {
-                    let _ = stdin.shutdown().await;
-                    let _ = receipt.send(());
-                    return Ok(());
-                }
 
                 issued += 1;
                 let id = format!("c{issued}");
@@ -899,13 +913,6 @@ fn outgoing(command: ClientCommand, id: &str, session_id: Option<&str>) -> Resul
             |data| Ok(capabilities_of(&data)),
         ),
 
-        ClientCommand::Sessions { reply } => ask(
-            &Command::Sessions { id: id.to_owned() },
-            reply,
-            /* 清单由本模块自己的读法解：它是一条独立的读，不是选择器那一类。 */
-            |data| Ok(crate::session::lifecycle::entries_of(&data)),
-        ),
-
         ClientCommand::DeleteSession { session_id, reply } => ask(
             &Command::DeleteSession {
                 id: id.to_owned(),
@@ -957,7 +964,6 @@ fn outgoing(command: ClientCommand, id: &str, session_id: Option<&str>) -> Resul
         ClientCommand::Prompt { .. }
         | ClientCommand::CurrentSession { .. }
         | ClientCommand::Cancel { .. }
-        | ClientCommand::Shutdown(_)
         | ClientCommand::PromptState { .. }
         | ClientCommand::ModelCatalog { .. }
         | ClientCommand::LoadSession { .. }

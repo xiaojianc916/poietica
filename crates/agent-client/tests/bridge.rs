@@ -1,10 +1,10 @@
-//! 端到端：Rust 客户端真的能驱动随包发的那个边车。
+//! 端到端：Rust 客户端真的能驱动随包发的那个桥。
 //!
-//! 这条测试是 ADR 0052 的验收：不装 omp、不装 Bun、不装 node_modules，只有
-//! `apps/desktop/src-tauri/binaries/` 里那一个可执行文件。它起进程、说 NDJSON、
-//! 拿到会话号、问回选择器。
+//! 这条测试是 ADR 0057 的验收：不装 omp、不装 Bun、不装 node_modules，只有
+//! `apps/desktop/src-tauri/binaries/` 里那三样（Bun 运行时、桥 bundle、原生模块）。
+//! 它起进程、说 NDJSON、拿到会话号、问回选择器。
 //!
-//! 边车不在（没跑 `bun run agent:build`）时跳过而不是失败：那不是这条测试的
+//! 那三样不在（没跑 `bun run agent:prepare`）时跳过而不是失败：那不是这条测试的
 //! 判据，是构建前置条件。
 
 #![allow(
@@ -18,21 +18,12 @@ use poietica_agent_client::{
     AgentSpawn, PermissionDesk, ProcessEnvironment, QuestionDesk, RunSlot, connect,
 };
 
-/// 边车落在应用可执行文件旁边；测试进程旁边就是 target/debug。
-fn sidecar() -> Option<PathBuf> {
+/// 随包的三样都在 `apps/desktop/src-tauri/binaries/`；生产里那是应用可执行文件的
+/// 目录（`bundled_directory()`），测试进程这一侧取构建产物目录。
+fn bundled() -> PathBuf {
     let root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../..");
-    let directory = root.join("apps/desktop/src-tauri/binaries");
 
-    let entries = std::fs::read_dir(directory).ok()?;
-
-    entries
-        .filter_map(Result::ok)
-        .map(|entry| entry.path())
-        .find(|path| {
-            path.file_name()
-                .and_then(|name| name.to_str())
-                .is_some_and(|name| name.starts_with("poietica-agent"))
-        })
+    root.join("apps/desktop/src-tauri/binaries")
 }
 
 /// 一个隔离的 agent 目录：不碰这台机器上真实的那一个。
@@ -46,17 +37,21 @@ fn home() -> PathBuf {
 
 #[tokio::test]
 async fn the_client_opens_a_session_on_the_bundled_agent() {
-    let Some(program) = sidecar() else {
-        /* 跳过而不是失败：边车不在是构建前置条件没做，不是这条测试的判据。 */
+    let bundled = bundled();
+
+    /* 跳过而不是失败：随包的东西没备好是构建前置条件没做，不是这条测试的判据。 */
+    if !bundled.join("poietica-bridge.js").is_file() {
         return;
-    };
+    }
 
     let home = home();
     let workspace = std::env::temp_dir();
 
     let connection = connect(
         AgentSpawn {
-            program: program.to_string_lossy().into_owned(),
+            program: "bun".to_owned(),
+            bundled,
+            entry: "poietica-bridge.js".to_owned(),
             args: Vec::new(),
             cwd: workspace.clone(),
             env: ProcessEnvironment {
@@ -407,6 +402,8 @@ async fn a_sidecar_that_is_not_there_fails_loudly() {
     let connection = connect(
         AgentSpawn {
             program: "poietica-no-such-agent-4f1a".to_owned(),
+            bundled: std::env::temp_dir(),
+            entry: "poietica-bridge.js".to_owned(),
             args: Vec::new(),
             cwd: std::env::temp_dir(),
             env: ProcessEnvironment {
@@ -424,5 +421,33 @@ async fn a_sidecar_that_is_not_there_fails_loudly() {
     assert!(
         connection.is_err(),
         "a missing agent program must be refused before any handshake"
+    );
+}
+
+/// 运行时在 PATH 上、入口却在随包目录里缺席：报的是「装得不完整」，不是去 PATH 上
+/// 另找一个同名脚本 —— 跑到别的东西上就不是我们要说的协议了。
+#[tokio::test]
+async fn a_missing_bridge_entry_is_refused_rather_than_looked_up_on_the_path() {
+    let connection = connect(
+        AgentSpawn {
+            program: "bun".to_owned(),
+            bundled: std::env::temp_dir(),
+            entry: "poietica-no-such-bridge-4f1a.js".to_owned(),
+            args: Vec::new(),
+            cwd: std::env::temp_dir(),
+            env: ProcessEnvironment {
+                set: Vec::new(),
+                remove: Vec::new(),
+            },
+            home: home(),
+        },
+        RunSlot::new(),
+        &PermissionDesk::default(),
+        &QuestionDesk::default(),
+    );
+
+    assert!(
+        connection.is_err(),
+        "a bundled bridge that is not installed must be refused before any handshake"
     );
 }
