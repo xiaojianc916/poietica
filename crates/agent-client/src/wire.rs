@@ -30,7 +30,7 @@ pub enum Command {
     Prompt {
         id: String,
         text: String,
-        attachments: Vec<String>,
+        attachments: Vec<WireAttachment>,
         skills: Vec<PromptSkill>,
 
         #[serde(rename = "promptId")]
@@ -181,6 +181,24 @@ pub struct PromptSkill {
     pub args: Option<String>,
 }
 
+/// 随一句话带上的一个附件，线上形状（protocol.ts 的 prompt.attachments 一格）。
+///
+/// 四格缺一不可：桥按 `kind` 分派（`image` 的像素由它按 `path` 读出来编码成
+/// SDK 的 `ImageContent`，`file` 只把 `path` 当引用），`mime` 是 `ImageContent.mimeType`
+/// 的唯一来源，`name` 是屏幕上那张卡片的显示名。omp 的 `PromptOptions.images` 只收
+/// base64，没有按路径收附件的 API —— 读盘的活因此在桥那一侧，本层只交事实。
+///
+/// `mime` 必须是进门的**内容判据**（`crates/asset/src/formats.rs` 的 `classify()` 按
+/// 文件头嗅出），不是扩展名：剪贴板粘贴的图叫 `pasted-<uuid>`，按扩展名反推会把一张
+/// 好图说成 `application/octet-stream`，供应商直接拒收。
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct WireAttachment {
+    pub path: String,
+    pub kind: String,
+    pub mime: String,
+    pub name: String,
+}
+
 #[derive(Debug, Clone, PartialEq, Deserialize)]
 #[serde(tag = "type", rename_all = "snake_case")]
 pub enum Frame {
@@ -290,7 +308,7 @@ pub fn encode(command: &Command) -> Result<String, serde_json::Error> {
 mod tests {
     #![allow(clippy::expect_used, reason = "a broken fixture must fail loudly")]
 
-    use super::{Command, Event, Frame, decode, encode};
+    use super::{Command, Event, Frame, WireAttachment, decode, encode};
     use serde_json::{Value, json};
 
     #[test]
@@ -299,7 +317,20 @@ mod tests {
             id: "p1".to_owned(),
             text: "读一下 README".to_owned(),
             prompt_id: "turn-1".to_owned(),
-            attachments: vec!["/tmp/a.png".to_owned()],
+            attachments: vec![
+                WireAttachment {
+                    path: "/tmp/a.png".to_owned(),
+                    kind: "image".to_owned(),
+                    mime: "image/png".to_owned(),
+                    name: "a.png".to_owned(),
+                },
+                WireAttachment {
+                    path: "/tmp/notes.pdf".to_owned(),
+                    kind: "file".to_owned(),
+                    mime: "application/pdf".to_owned(),
+                    name: "notes.pdf".to_owned(),
+                },
+            ],
             skills: Vec::new(),
         };
 
@@ -310,6 +341,46 @@ mod tests {
         assert!(line.contains(r#""id":"p1""#));
         /* 账本那个号必须真的上 wire：屏幕靠它把这一轮认回那条提交记录。 */
         assert!(line.contains(r#""promptId":"turn-1""#));
+    }
+
+    /// 附件是对象不是裸路径：桥要靠 `kind` 分派，靠 `mime` 出 ImageContent.mimeType，
+    /// 靠 `name` 出显示名。
+    ///
+    /// 名字与 protocol.ts 逐字对应，对不上时 serde 会静默丢成缺格（模块头那条），
+    /// 所以这里把四格全钉住 —— 只断言路径会漏掉真正的判别式。
+    ///
+    /// `mime` 那一格尤其要钉：扩展名不是判据（粘贴的图叫 `pasted-<uuid>`），桥拿不到
+    /// 它就只剩再嗅一次文件头这一条路，而这个字段名一旦写错是**静默 None**。
+    #[test]
+    fn an_attachment_carries_its_path_kind_mime_and_name() {
+        let line = encode(&Command::Prompt {
+            id: "p2".to_owned(),
+            text: String::new(),
+            prompt_id: "turn-2".to_owned(),
+            attachments: vec![
+                WireAttachment {
+                    path: "D:\\media\\pasted-7f3a".to_owned(),
+                    kind: "image".to_owned(),
+                    mime: "image/png".to_owned(),
+                    name: "pasted-7f3a".to_owned(),
+                },
+                WireAttachment {
+                    path: "D:\\media\\notes.pdf".to_owned(),
+                    kind: "file".to_owned(),
+                    mime: "application/pdf".to_owned(),
+                    name: "notes.pdf".to_owned(),
+                },
+            ],
+            skills: Vec::new(),
+        })
+        .expect("encode");
+
+        assert!(
+            line.contains(
+                r#""attachments":[{"path":"D:\\media\\pasted-7f3a","kind":"image","mime":"image/png","name":"pasted-7f3a"},{"path":"D:\\media\\notes.pdf","kind":"file","mime":"application/pdf","name":"notes.pdf"}]"#
+            ),
+            "{line}"
+        );
     }
 
     #[test]

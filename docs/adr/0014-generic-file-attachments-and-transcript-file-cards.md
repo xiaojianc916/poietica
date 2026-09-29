@@ -1,15 +1,25 @@
 # 0014. 附件走磁盘路径，屏幕走 transcript 卡片
 
-- 状态：已接受
+> **决策 1 中"图片也以路径投递"已被 ADR 0023 取代。** 它依据的"omp 有会话媒体库、
+> 走路径是登记一条可还原附件的唯一手段"在 omp 18.3.0 上不成立 —— omp 没有会话
+> 媒体库，也没有以路径为入参的 prompt 面；图片必须作为 base64 `ImageContent` 交给
+> `session.prompt()`。本文编号与其余决策不改（ADR 一改号就断了引用）：决策 3–6
+> 与"已删的路径"继续有效，"字节永不内联"对**传输**仍然有效（见 0023 决策 4）。
+
+- 状态：已接受，**决策 1 的图片部分由 ADR 0023 取代**
 - 日期：2026-09-21
 - 归属：Asset intake / conversation runtime / transcript projection
 
 ## 决策
 
-1. **图片与通用文件都以磁盘绝对路径投递，字节永不内联。**
+1. ~~**图片与通用文件都以磁盘绝对路径投递，字节永不内联。**
    `PromptAttachment` 只有 `Image { path, name }` 与 `File { path, name,
    mime_type, size }` 两个变体。走路径是让 agent 登记一条能在屏幕上还原的
-   会话媒体附件的**唯一**手段；顺带砍掉 base64 进出 IPC 的放大器。
+   会话媒体附件的**唯一**手段；顺带砍掉 base64 进出 IPC 的放大器。~~
+   **图片部分作废（见 ADR 0023）：** omp 18.3.0 没有会话媒体库，投裸路径会让图片
+   彻底消失。图片改走 base64 `ImageContent`。仍然成立的是：**通用文件**以磁盘路径
+   投递、字节不内联，以及"字节永不内联"约束的是**传输**（IPC 与原生帧），不是
+   SDK 边界。
 
 2. **agent 塞给模型看的机器话在投影器里摘掉。**
    `packages/conversation/src/transcript/kimi-attachment.ts`（历史名，实际服务

@@ -498,11 +498,11 @@ async fn run_session(
                         prompt_id: idempotency.clone(),
                         attachments: attachments
                             .into_iter()
-                            .map(|attachment| match attachment {
-                                crate::session::client::PromptAttachment::Image { path, .. }
-                                | crate::session::client::PromptAttachment::File { path, .. } => {
-                                    path.to_string_lossy().into_owned()
-                                }
+                            .map(|attachment| wire::WireAttachment {
+                                path: attachment.path.to_string_lossy().into_owned(),
+                                kind: attachment.kind.as_wire_str().to_owned(),
+                                mime: attachment.mime,
+                                name: attachment.name,
                             })
                             .collect(),
                         skills: skills

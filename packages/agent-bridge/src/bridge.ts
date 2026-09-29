@@ -31,6 +31,9 @@ import {
 } from '@oh-my-pi/pi-coding-agent/discovery'
 import { exportFromFile } from '@oh-my-pi/pi-coding-agent/export/html'
 import { initializeExtensions } from '@oh-my-pi/pi-coding-agent/modes/runtime-init'
+/* 图片的落盘路径要交给 agent 自己认：SDK 靠这个符号注入隐藏的 image-attachment 伴生消息
+ * （agent-session.ts:6291-6311 的 `#createAttachmentSourceNotices`）。 */
+import { tagImageAttachmentSource } from '@oh-my-pi/pi-tui/prompt/image-source'
 import type { TranscriptOperation } from '@poietica/transcript'
 import {
   APPROVAL_OPTIONS,
@@ -63,6 +66,12 @@ import { TranscriptMirror } from './transcript-mirror.ts'
 
 // omp 的目标类型住在 pi-tui 里、不由 SDK 导出，从会话读法上取。
 type GoalOfSession = NonNullable<ReturnType<AgentSession['getGoalModeState']>>['goal']
+
+/*
+ * 一张模型就绪的图。pi-ai 的 `ImageContent` 没有从 SDK 根导出（index.ts 只挑了几样），
+ * 所以从 prompt 自己的入参上取 —— 它跟着 SDK 的签名走，不会与我们抄的一份分叉。
+ */
+type PromptImage = NonNullable<NonNullable<Parameters<AgentSession['prompt']>[1]>['images']>[number]
 
 /* 最后一条 assistant 消息 → 这一轮上报的 token 用量；没有消息或全零时缺席。 */
 function usageOf(
@@ -792,6 +801,111 @@ export function createBridge(host: BridgeHost): Bridge {
   }
 
   const iso = (ms: number): string => new Date(ms).toISOString()
+
+  /*
+   * 一次现场发送。
+   *
+   * 附件在线上是磁盘绝对路径 + kind（protocol.ts 的 `attachments`），而 omp 的 prompt 只认
+   * 模型就绪的 `ImageContent`（`PromptOptions.images`，agent-session-types.ts:345）—— 全仓
+   * 没有按路径喂图的入口。所以图片由这里读盘转 base64，就是官方 CLI 自己走的那条路
+   * （cli/file-processor.ts:104-133）。
+   *
+   * 读盘失败必须抛：静默丢掉一张图正是这条命令原来的缺陷（图既没进模型上下文，也没进
+   * 对话记录，屏幕上什么都没有），抛出去至少落成一次 failed 轮终。
+   *
+   * 独立成函数是为了 `dispatch` 那个主干不超复杂度闸门，与 `deltaOps` 同理。
+   */
+  async function sendPrompt(command: Extract<BridgeCommand, { type: 'prompt' }>): Promise<unknown> {
+    const record = required()
+    const images = readPromptImages(command.attachments)
+    const imagePaths = command.attachments
+      .filter((attachment) => attachment.kind === 'image')
+      .map((attachment) => attachment.path)
+    /* 号必须跨消息唯一：`promptId` 是提交时签的，同一条消息里再按序数排开。 */
+    const attachmentIds = imagePaths.map(
+      (_, index) => `prompt:${command.promptId}:${String(index)}`,
+    )
+
+    /*
+     * 先落 upsert 再落引用它的 turn：反过来的话投影层先看到 turn，那一格引用一个还不存在
+     * 的附件，屏幕上就是一块空白。回放历史（`replayHistory`）也是这个顺序。
+     */
+    for (const [index, image] of images.entries()) {
+      pushTranscript(
+        record,
+        attachmentOp({
+          attachmentId: attachmentIds[index] as string,
+          mediaType: image.mimeType,
+          dataUrl: `data:${image.mimeType};base64,${image.data}`,
+          name: path.basename(imagePaths[index] as string),
+        }),
+      )
+    }
+
+    pushTranscript(record, record.projector.userTurn(command.text, attachmentIds, command.promptId))
+
+    try {
+      await record.agent.prompt(command.text, images.length === 0 ? undefined : { images })
+    } catch (error) {
+      // 起不了一轮也要有轮终：Rust 侧靠它收账。
+      const message = error instanceof Error ? error.message : String(error)
+      pushTranscript(record, record.projector.turnEnd('failed', message))
+      emit({ kind: 'turn_end', sessionId: record.id, outcome: 'failed', message })
+      throw error
+    }
+
+    return {}
+  }
+
+  /*
+   * 盘上的附件 → omp 认的图片。
+   *
+   * 分派判据是线上那个 `kind`（protocol.ts 的 `attachments`），不是文件头：Rust 侧已经在
+   * 准入时判过一次，这里再嗅一遍就是第二个事实来源（AGENTS.md §5「单一分发点」）。
+   * `ImageContent.mimeType` 同理取自线上那一格 `mime`（Rust 侧 formats.rs 的内容判据），
+   * **不按扩展名反推**：粘贴的图叫 `pasted-<uuid>`，按扩展名判会把它说成
+   * `application/octet-stream`，一张好图就这么被供应商拒了。
+   * `kind: 'file'` 的路径原样留着 —— 它是给 agent 用 Read 工具打开的引用，字节不进这里。
+   *
+   * 上限照抄上游 MAX_CLI_IMAGE_BYTES（cli/file-processor.ts:25）的 25MB：base64 之后还要
+   * 膨胀四分之三，再大就是一次 OOM 而不是一次报错。超限抛错，不静默跳过 —— 一张悄悄
+   * 消失的图正是这条命令原来的缺陷。
+   */
+  function readPromptImages(
+    attachments: Extract<BridgeCommand, { type: 'prompt' }>['attachments'],
+  ): PromptImage[] {
+    const images: PromptImage[] = []
+
+    for (const attachment of attachments) {
+      if (attachment.kind !== 'image') {
+        continue
+      }
+
+      const size = fs.statSync(attachment.path).size
+
+      if (size > MAX_PROMPT_IMAGE_BYTES) {
+        throw new Error(
+          `attachment too large: ${attachment.path} is ${String(size)} bytes, limit ${String(MAX_PROMPT_IMAGE_BYTES)}`,
+        )
+      }
+
+      const data = fs.readFileSync(attachment.path).toString('base64')
+
+      /* 带上落盘路径：SDK 靠这个符号注入隐藏的 image-attachment 伴生消息，agent 于是
+       * 既拿到像素，也拿到能 `read`、能上传的那个路径（agent-session.ts:6291-6311）。 */
+      images.push(
+        tagImageAttachmentSource(
+          { type: 'image', data, mimeType: attachment.mime },
+          attachment.path,
+          'image',
+        ),
+      )
+    }
+
+    return images
+  }
+
+  const MAX_PROMPT_IMAGE_BYTES = 25 * 1024 * 1024
 
   /*
    * 增量正文只有两种：说话的那一段与想的那一段。其余内部事件不上屏。
@@ -1809,22 +1923,8 @@ export function createBridge(host: BridgeHost): Bridge {
           : { sessionId: record.id, controls: readSelectors(record) }
       }
 
-      case 'prompt': {
-        const record = required()
-        pushTranscript(record, record.projector.userTurn(command.text, [], command.promptId))
-
-        try {
-          await record.agent.prompt(command.text)
-        } catch (error) {
-          // 起不了一轮也要有轮终：Rust 侧靠它收账。
-          const message = error instanceof Error ? error.message : String(error)
-          pushTranscript(record, record.projector.turnEnd('failed', message))
-          emit({ kind: 'turn_end', sessionId: record.id, outcome: 'failed', message })
-          throw error
-        }
-
-        return {}
-      }
+      case 'prompt':
+        return await sendPrompt(command)
 
       case 'cancel': {
         const record = required()

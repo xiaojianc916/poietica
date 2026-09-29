@@ -10,43 +10,41 @@ use crate::recorder::FrameSink;
 use crate::settings::{SettingEntry, SettingsCatalog};
 use crate::{ModelCatalogOperation, ModelCatalogSnapshot};
 
-/// 一个附件怎么交给 agent。
+/// 随一句话带上的一个附件，交给 agent 的四种事实：路径、类别、内容类型、显示名。
 ///
-/// 两条路都是「磁盘绝对路径 + 元数据」：图片与通用文件在线上是不同的 content part
-/// （`image` 对 `file`），但字节一律不拍平进提示正文，也一律不内联 base64。
-/// 图片走路径才会被 agent 收进会话媒体库，气泡也才拿得到它（见 ADR 0014）。
-pub enum PromptAttachment {
-    Image {
-        path: PathBuf,
-        name: String,
-    },
-    /// 通用文件：只给 agent 一个磁盘路径与元数据，它经 Read 工具按需打开。
-    File {
-        path: PathBuf,
-        name: String,
-        mime_type: String,
-        size: i64,
-    },
+/// 为什么图片也只能交路径：omp 的 SDK 收图是 `PromptOptions.images: ImageContent[]`
+/// （`src/session/agent-session-types.ts:345-349`），只有 base64 一条路，**没有**
+/// 按路径收附件的 API，也没有会话媒体库 —— 读盘与编码由桥照它自己 CLI 的做法
+/// 补上（`src/cli/file-processor.ts:104-129`）。所以本层只交事实，不搬字节。
+///
+/// `kind` 是桥那一侧唯一的分派判据（`image` 交像素、`file` 只当引用），
+/// 与 wire.rs 的 WireAttachment 同形：这里已经是线上形状，不再折一次。
+///
+/// `mime` 是进门时的**内容判据**（`crates/asset/src/formats.rs` 的 `classify()` 按文件头
+/// 嗅出），也是 `ImageContent.mimeType` 的唯一来源：扩展名不是判据 —— 剪贴板粘贴的图
+/// 叫 `pasted-<uuid>`，按扩展名反推会把一张好图说成 `application/octet-stream`。
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PromptAttachment {
+    pub path: PathBuf,
+    pub kind: PromptAttachmentKind,
+    pub mime: String,
+    pub name: String,
 }
 
-impl fmt::Debug for PromptAttachment {
-    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+/// 附件的两类。`File` 与 `Image` 在线上只差这一个判别式。
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum PromptAttachmentKind {
+    Image,
+    File,
+}
+
+impl PromptAttachmentKind {
+    /// 线上那一格：与 protocol.ts 的 `'image' | 'file'` 逐字对应。
+    #[must_use]
+    pub const fn as_wire_str(self) -> &'static str {
         match self {
-            Self::Image { name, .. } => formatter
-                .debug_struct("PromptAttachment::Image")
-                .field("name", name)
-                .finish_non_exhaustive(),
-            Self::File {
-                name,
-                mime_type,
-                size,
-                ..
-            } => formatter
-                .debug_struct("PromptAttachment::File")
-                .field("name", name)
-                .field("mime_type", mime_type)
-                .field("size", size)
-                .finish_non_exhaustive(),
+            Self::Image => "image",
+            Self::File => "file",
         }
     }
 }

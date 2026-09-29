@@ -25,7 +25,7 @@ ACP / kap / kimi-code / deepseek harness / 早期 fatal-incident 草案等已消
 | 0011 | 窗口表面读取 shell chrome |
 | 0012 | 宿主在首帧前采用持久化的主题 |
 | 0013 | 运行时主题切换重新采用原生主题 |
-| 0014 | 附件走磁盘路径，屏幕走 transcript 卡片 |
+| 0014 | 附件走磁盘路径，屏幕走 transcript 卡片（决策 1 的图片部分由 0023 取代） |
 | 0015 | 每周计划覆盖每个工作日 |
 | 0016 | omp 是唯一的 agent，SDK 编进我们自己的二进制（形态由 0021 取代） |
 | 0017 | 选择器与模型元数据来自 agent |
@@ -34,3 +34,4 @@ ACP / kap / kimi-code / deepseek harness / 早期 fatal-incident 草案等已消
 | 0020 | 首帧水合与启动门禁 |
 | 0021 | omp 桥是一个库，不是一个 Webview 模块 |
 | 0022 | 写入被拒是完整性标签，不是 ACL |
+| 0023 | 图片实时投递走 agent 的 SDK 契约，不是磁盘路径 |

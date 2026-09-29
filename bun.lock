@@ -58,6 +58,7 @@
       "version": "0.1.0",
       "dependencies": {
         "@oh-my-pi/pi-coding-agent": "catalog:",
+        "@oh-my-pi/pi-tui": "catalog:",
         "@poietica/transcript": "workspace:*",
         "zod": "catalog:",
       },
@@ -413,6 +414,7 @@
     "@lexical/react": "^0.51.0",
     "@milkdown/crepe": "^7.22.1",
     "@oh-my-pi/pi-coding-agent": "^18.3.0",
+    "@oh-my-pi/pi-tui": "^18.3.0",
     "@streamdown/cjk": "^1.0.3",
     "@streamdown/code": "^1.1.1",
     "@streamdown/math": "^1.0.2",

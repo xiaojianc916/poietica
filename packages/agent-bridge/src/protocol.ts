@@ -26,8 +26,31 @@ export type BridgeCommand =
       readonly type: 'prompt'
       readonly text: string
       readonly promptId: string
-      /** 磁盘绝对路径：字节不进协议，omp 自己按路径读。 */
-      readonly attachments: readonly string[]
+      /**
+       * 随这句话带上的附件；每一格交的是磁盘绝对路径 + kind + mime + 名字。
+       *
+       * 为什么是对象而不是裸路径：omp 的 SDK 收图是 `PromptOptions.images:
+       * ImageContent[]`（`src/session/agent-session-types.ts:345-349`），只有 base64
+       * 一条路，没有按路径收附件的 API，也没有会话媒体库 —— 所以图片必须由**桥**
+       * 按路径读出来再编码，正如它自己的 CLI 那样
+       * （`src/cli/file-processor.ts:104-129` 读文件头、`buffer.toBase64()`）。
+       * `kind` 是这条命令唯一的分派判据：`image` 的像素由桥读出来交给 SDK 的
+       * ImageContent；`file` 只把路径当引用，由 agent 经 Read 工具按需打开。
+       * 丢了这个判别式，桥就只能重新嗅一次文件头才知道该走哪条路。
+       *
+       * `mime` 是**内容判据的唯一产地**（Rust 侧 `crates/asset/src/formats.rs` 的
+       * `classify()` 按文件头嗅出，经 `AttachmentRef.mime` 带到
+       * `crates/conversation-runtime/src/gateway.rs` 的 `materialise()`）：它是
+       * ImageContent.mimeType 的唯一来源。桥**不得**从扩展名反推 —— 剪贴板粘贴的图
+       * 叫 `pasted-<uuid>`（`apps/desktop/src/assistant/attachment-intake.ts`）
+       * 没有扩展名，按扩展名判会把一张好图说成 `application/octet-stream` 而被供应商拒。
+       */
+      readonly attachments: readonly {
+        readonly path: string
+        readonly kind: 'image' | 'file'
+        readonly mime: string
+        readonly name: string
+      }[]
       readonly skills: readonly { readonly name: string; readonly args?: string }[]
     }
   | { readonly id: string; readonly type: 'cancel' }

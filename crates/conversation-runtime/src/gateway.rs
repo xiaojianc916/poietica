@@ -2,7 +2,9 @@
 
 use std::path::PathBuf;
 
-use poietica_agent_client::{AgentClient, AgentError, PromptAttachment, PromptSkill};
+use poietica_agent_client::{
+    AgentClient, AgentError, PromptAttachment, PromptAttachmentKind, PromptSkill,
+};
 use poietica_conversation::error::GatewayFailure;
 use poietica_conversation::ports::{
     AgentGateway, DeliveryConfirmation, DeliveryReceipt, PromptDelivery,
@@ -85,9 +87,13 @@ fn refusal(reason: String) -> GatewayFailure {
 impl KapGateway {
     /// Frozen attachments are all-or-nothing; never silently change a submitted prompt.
     ///
-    /// 两条路都只交「磁盘绝对路径 + 元数据」：图片与通用文件在线上是不同的 content
-    /// part，但字节一律不内联（base64 那条路拿不到服务端的 fileId，图片就不会进
-    /// transcript，屏幕上彻底消失，见 ADR 0014）。
+    /// 交出去的是「磁盘绝对路径 + 类别 + 内容类型 + 名字」：字节不进协议。omp 的 SDK
+    /// 收图只有 base64 一条路（`PromptOptions.images: ImageContent[]`），没有按路径收附件的
+    /// API，也没有会话媒体库 —— 所以图片的像素由桥照它自己 CLI 的做法读盘编码
+    /// （`src/cli/file-processor.ts` 的 `processFileArguments`），本层只交路径与类别。
+    /// 类别与 mime 都来自进门时嗅出的内容类型（`crates/asset/src/formats.rs` 的
+    /// `classify()`），扩展名从不参与 —— 粘贴的图叫 `pasted-<uuid>`，按它判就会把
+    /// 一张好图说成 `application/octet-stream`。通用文件只当引用交给 agent 的 Read 工具。
     fn materialise(&self, admission: &Admission) -> Result<Vec<PromptAttachment>, String> {
         let mut carried = Vec::with_capacity(admission.attachments.len());
 
@@ -95,21 +101,18 @@ impl KapGateway {
             let path = blob_path(&self.attachments_root, &reference.hash)
                 .map_err(|error| error.to_string())?;
 
-            let prompt = if reference.mime.starts_with("image/") {
-                PromptAttachment::Image {
-                    path,
-                    name: reference.name.clone(),
-                }
+            let kind = if reference.mime.starts_with("image/") {
+                PromptAttachmentKind::Image
             } else {
-                PromptAttachment::File {
-                    path,
-                    name: reference.name.clone(),
-                    mime_type: reference.mime.clone(),
-                    size: reference.size,
-                }
+                PromptAttachmentKind::File
             };
 
-            carried.push(prompt);
+            carried.push(PromptAttachment {
+                path,
+                kind,
+                mime: reference.mime.clone(),
+                name: reference.name.clone(),
+            });
         }
 
         Ok(carried)
