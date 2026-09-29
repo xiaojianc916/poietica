@@ -36,7 +36,7 @@ pub struct OpenedThread {
     pub selectors: Vec<ConfigControl>,
     pub goal: Option<GoalSnapshot>,
     pub history: SessionHistory,
-    pub transcript: String,
+    pub transcript: serde_json::Value,
 }
 #[derive(Debug)]
 pub struct DeletedThread {
@@ -140,7 +140,7 @@ impl<E: RuntimeFailure> Runtime<E> {
             selectors,
             goal,
             history: held.history,
-            transcript: transcript.to_string(),
+            transcript,
         };
         drop(held);
         Ok(result)

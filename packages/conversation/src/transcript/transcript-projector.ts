@@ -236,8 +236,9 @@ function frameOf(frame: TranscriptFrame, turn: number, stamp: number): TimelineI
   if (frame.kind === 'notice') {
     return { type: 'error', id: frame.frameId, turn, at: stamp, message: frame.message }
   }
-  const tool = describeTool(frame.input)
   const view = ompToolView(frame.name, frame.input, frame.output, frame.error, frame.intent)
+  // describeTool 只在 view 不认识该工具或 subject 为空时才需要，避免 15k 次无用 Reflect.get
+  const tool = view.known && view.subject ? undefined : describeTool(frame.input)
   return {
     type: 'tool_call',
     id: frame.frameId,
@@ -245,9 +246,9 @@ function frameOf(frame: TranscriptFrame, turn: number, stamp: number): TimelineI
     at: stamp,
     toolCallId: frame.toolCallId,
     title: frame.name,
-    kind: view.known ? view.kind : tool.kind,
+    kind: view.known ? view.kind : (tool?.kind ?? 'other'),
     headline: view.headline,
-    subject: view.subject || tool.subject,
+    subject: view.subject || (tool?.subject ?? ''),
     shape: view.shape,
     ...(view.background ? { isBackground: true as const } : {}),
     status:
@@ -255,10 +256,13 @@ function frameOf(frame: TranscriptFrame, turn: number, stamp: number): TimelineI
     requestContent: view.request.length > 0 ? view.request : textContent(jsonOf(frame.input)),
     content: view.response.length > 0 ? view.response : textContent(frame.error ?? frame.output),
     locations: [],
-    channels: (frame.agentRefs ?? []).map((agent) => ({
-      agentId: agent.agentId,
-      name: agent.agentId,
-    })),
+    channels:
+      frame.agentRefs === undefined || frame.agentRefs.length === 0
+        ? []
+        : frame.agentRefs.map((agent) => ({
+            agentId: agent.agentId,
+            name: agent.agentId,
+          })),
     rawInput: frame.input,
     rawOutput: frame.output,
     startedAt: stamp,
@@ -689,41 +693,101 @@ export function projectTranscript(
     backgroundTasks: snapshot.tasks
       .map(backgroundOf)
       .filter((item): item is BackgroundTaskItem => item !== null),
-    sealed: marked.length === 0 ? [] : marked.slice(0, -1),
+    sealed: stableSealed(marked),
     active: tailOf(marked, snapshot.interactions, snapshot.items),
     lastSeq: 0,
     spans,
   }
 }
 
-// 目录标记按 turn 身份记账：reply 要 join 整轮助手文本，turn 未变时复用。
-const TURN_MARKS = new WeakMap<TranscriptTurn, TurnMark>()
+/*
+ * sealed 引用稳定化：presentation 层的 PREFIX WeakMap 以 sealed 数组为键，
+ * 每次 slice 都换新引用会让缓存永远不命中。元素引用已由 TURN_PROJECTIONS +
+ * WRAPPED_PAGES 保证稳定，所以只需比较长度与逐元素引用即可复用上一次数组。
+ */
+const EMPTY_SEALED: readonly TurnPage[] = []
+let sealedCache: readonly TurnPage[] = EMPTY_SEALED
 
-export const outlineOf = (snapshot: AgentTranscriptSnapshot): readonly TurnMark[] =>
-  snapshot.items.flatMap((item) => {
-    if (item.kind !== 'turn' || !sourceOfTurn(item).isUser) {
-      return []
-    }
-
-    let mark = TURN_MARKS.get(item)
-
-    if (mark === undefined) {
-      mark = {
-        turnId: item.turnId,
-        admissionId: item.triggerPromptId ?? item.turnId,
-        prompt: withoutKimiAttachmentNotices(item.prompt ?? ''),
-        reply:
-          item.steps
-            .flatMap((step) => step.frames)
-            .filter((frame) => frame.kind === 'text' && frame.role === 'assistant')
-            .map((frame) => frame.text)
-            .join('\n\n') || null,
+function stableSealed(marked: readonly TurnPage[]): readonly TurnPage[] {
+  const len = marked.length - 1
+  if (len <= 0) {
+    sealedCache = EMPTY_SEALED
+    return EMPTY_SEALED
+  }
+  if (sealedCache.length === len) {
+    let same = true
+    for (let i = 0; i < len; i += 1) {
+      if (sealedCache[i] !== marked[i]) {
+        same = false
+        break
       }
-      TURN_MARKS.set(item, mark)
+    }
+    if (same) {
+      return sealedCache
+    }
+  }
+  const fresh = marked.slice(0, len)
+  sealedCache = fresh
+  return fresh
+}
+
+// 目录标记按 turnId 记账：流式期间 turn 对象每帧被替换，WeakMap 永远 miss。
+// 改用 turnId 键 + settled 守卫：未封口的轮复用上次 reply（minimap 不需要逐 token 刷新），
+// 封口时重算一次拿到最终文本。结果数组也做引用稳定化，避免 minimap memo 100% 失效。
+const OUTLINE_MARKS = new Map<string, TurnMark>()
+let outlineCache: readonly TurnMark[] = []
+
+export const outlineOf = (snapshot: AgentTranscriptSnapshot): readonly TurnMark[] => {
+  const marks: TurnMark[] = []
+  let changed = false
+
+  for (const item of snapshot.items) {
+    if (item.kind !== 'turn' || !sourceOfTurn(item).isUser) {
+      continue
     }
 
-    return [mark]
-  })
+    const cached = OUTLINE_MARKS.get(item.turnId)
+    const settled = isSettled(item.state)
+
+    // 已有缓存且（轮未封口 或 reply 已算出）→ 复用
+    if (cached !== undefined && (!settled || cached.reply !== null)) {
+      marks.push(cached)
+      continue
+    }
+
+    const mark: TurnMark = {
+      turnId: item.turnId,
+      admissionId: item.triggerPromptId ?? item.turnId,
+      prompt: withoutKimiAttachmentNotices(item.prompt ?? ''),
+      reply:
+        item.steps
+          .flatMap((step) => step.frames)
+          .filter((frame) => frame.kind === 'text' && frame.role === 'assistant')
+          .map((frame) => frame.text)
+          .join('\n\n') || null,
+    }
+    OUTLINE_MARKS.set(item.turnId, mark)
+    marks.push(mark)
+    changed = true
+  }
+
+  // 引用稳定化：元素全同则返回上次数组
+  if (!changed && marks.length === outlineCache.length) {
+    let same = true
+    for (let i = 0; i < marks.length; i += 1) {
+      if (marks[i] !== outlineCache[i]) {
+        same = false
+        break
+      }
+    }
+    if (same) {
+      return outlineCache
+    }
+  }
+
+  outlineCache = marks
+  return marks
+}
 
 export function knownPromptIds(snapshot: AgentTranscriptSnapshot): ReadonlySet<string> {
   const result = new Set(snapshot.prompts.map((prompt) => prompt.promptId))

@@ -3335,6 +3335,7 @@ dependencies = [
  "poietica-ledger",
  "poietica-time",
  "serde",
+ "serde_json",
  "sha2",
  "specta",
  "tempfile",

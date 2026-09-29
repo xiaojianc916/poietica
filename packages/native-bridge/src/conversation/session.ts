@@ -64,7 +64,7 @@ export function createAgentSessionPort({
         const wire = await throughIpc(() =>
           commands.agentTranscriptOps({ sessionId, agentId, sinceSeq }),
         )
-        const data = transcriptOpsCatchupResponseSchema.parse(JSON.parse(wire.json))
+        const data = transcriptOpsCatchupResponseSchema.parse(wire.json)
         return {
           agentId: data.agent_id,
           batches: data.batches,

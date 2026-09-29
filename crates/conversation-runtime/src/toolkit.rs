@@ -92,9 +92,16 @@ fn restate_skill(
         .as_deref()
         .and_then(|path| Path::new(path).file_name())
         .map(|name| name.to_string_lossy().into_owned());
-    let document = managed
-        .map(|item| item.document.clone())
-        .or_else(|| read_document(&skill.path));
+    // builtin 技能的正文不过 IPC：TS 侧 capability-store 在接收后立即丢弃 builtin，
+    // 传输整份 SKILL.md 是纯浪费。skill-document-pane 对 builtin 显示"无正文"即可。
+    let is_builtin = skill.source == "builtin";
+    let document = if is_builtin {
+        None
+    } else {
+        managed
+            .map(|item| item.document.clone())
+            .or_else(|| read_document(&skill.path))
+    };
     let directory = managed.map(|item| item.name.clone());
     let metrics = managed.map(|item| {
         (

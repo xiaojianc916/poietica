@@ -1,7 +1,7 @@
 import './flow-row.css'
 import './shimmer.css'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { cx } from '../primitives/class-names'
 import { DisclosureBody } from '../primitives/disclosure'
 import { ChevronDownIcon, ThinkingIcon } from '../primitives/icons'
@@ -94,7 +94,7 @@ export function ThoughtCard({
   const line = readThoughtLine(text, isStreaming ? 'tail' : 'head')
   const name = isStreaming ? '正在思考' : '思考完毕'
   const [body, setBody] = useState<HTMLDivElement | null>(null)
-  const lines = text.split('\n')
+  const lines = useMemo(() => text.split('\n'), [text])
 
   /*
    * 流式追加要把容器钉在末端 —— 不钉，新写的字落在容器外面，人只看到开头。
@@ -104,7 +104,7 @@ export function ThoughtCard({
     if (body !== null && isStreaming) {
       body.scrollTop = body.scrollHeight
     }
-  })
+  }, [body, isStreaming, text])
 
   return (
     <section className="timeline-tool">

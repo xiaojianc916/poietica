@@ -181,12 +181,11 @@ impl<E: RuntimeFailure> Runtime<E> {
         session: String,
         agent: String,
         before: Option<String>,
-    ) -> Result<String, CommandError<E>> {
+    ) -> Result<serde_json::Value, CommandError<E>> {
         self.require_live()?
             .client
             .read_transcript(session, agent, before)
             .await
-            .map(|value| value.to_string())
             .map_err(CommandError::Agent)
     }
 
@@ -195,12 +194,11 @@ impl<E: RuntimeFailure> Runtime<E> {
         session: String,
         agent: String,
         since: i64,
-    ) -> Result<String, CommandError<E>> {
+    ) -> Result<serde_json::Value, CommandError<E>> {
         self.require_live()?
             .client
             .catch_up_transcript(session, agent, since)
             .await
-            .map(|value| value.to_string())
             .map_err(CommandError::Agent)
     }
 

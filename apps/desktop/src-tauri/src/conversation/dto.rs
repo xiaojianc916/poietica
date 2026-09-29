@@ -333,13 +333,13 @@ pub struct AgentSessionMediaResult {
 #[serde(rename_all = "camelCase")]
 pub struct AgentTranscriptEvent {
     pub session_id: String,
-    pub json: String,
+    pub json: Value,
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize, Type)]
 #[serde(rename_all = "camelCase")]
 pub struct AgentTranscriptJson {
-    pub json: String,
+    pub json: Value,
 }
 
 #[derive(Debug, Deserialize, Type)]

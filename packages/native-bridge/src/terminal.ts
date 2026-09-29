@@ -20,12 +20,12 @@ function decode(base64: string): Uint8Array {
 }
 
 function encode(bytes: Uint8Array): string {
+  // 分块转换避免逐字节字符串拼接的 O(n²) 开销
+  const CHUNK = 0x8000
   let binary = ''
-
-  for (const byte of bytes) {
-    binary += String.fromCharCode(byte)
+  for (let i = 0; i < bytes.length; i += CHUNK) {
+    binary += String.fromCharCode(...bytes.subarray(i, i + CHUNK))
   }
-
   return btoa(binary)
 }
 

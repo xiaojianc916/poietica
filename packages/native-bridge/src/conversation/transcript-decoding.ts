@@ -13,7 +13,7 @@ type Decoded =
 
 export function decodeTranscriptEvent(wire: AgentTranscriptEvent): Decoded {
   try {
-    const envelope: unknown = JSON.parse(wire.json)
+    const envelope: unknown = wire.json
     if (
       typeof envelope !== 'object' ||
       envelope === null ||
@@ -91,8 +91,8 @@ export function decodeTranscriptEvent(wire: AgentTranscriptEvent): Decoded {
   }
 }
 
-export function transcriptPageOf(json: string): TranscriptPage {
-  const data = transcriptResponseSchema.parse(JSON.parse(json))
+export function transcriptPageOf(raw: unknown): TranscriptPage {
+  const data = transcriptResponseSchema.parse(raw)
   return {
     agentId: data.agent_id,
     items: data.items,

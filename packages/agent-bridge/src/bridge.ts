@@ -744,7 +744,11 @@ export function createBridge(host: BridgeHost): Bridge {
 
   function closeReplayedTurn(record: Session, endedAt: string | null): void {
     if (record.projector.isTurnOpen) {
-      pushTranscript(record, record.projector.turnEnd('completed', undefined, endedAt ?? undefined))
+      pushTranscript(
+        record,
+        record.projector.turnEnd('completed', undefined, endedAt ?? undefined),
+        true,
+      )
     }
   }
 
@@ -860,14 +864,18 @@ export function createBridge(host: BridgeHost): Bridge {
       )
     }
 
-    pushTranscript(record, record.projector.userTurn(command.text, attachmentIds, command.promptId))
+    pushTranscript(
+      record,
+      record.projector.userTurn(command.text, attachmentIds, command.promptId),
+      true,
+    )
 
     try {
       await record.agent.prompt(command.text, images.length === 0 ? undefined : { images })
     } catch (error) {
       // 起不了一轮也要有轮终：Rust 侧靠它收账。
       const message = error instanceof Error ? error.message : String(error)
-      pushTranscript(record, record.projector.turnEnd('failed', message))
+      pushTranscript(record, record.projector.turnEnd('failed', message), true)
       emit({ kind: 'turn_end', sessionId: record.id, outcome: 'failed', message })
       throw error
     }
@@ -1042,6 +1050,8 @@ export function createBridge(host: BridgeHost): Bridge {
     }
 
     if (ending !== null) {
+      // 轮终前 flush 攒批：保证屏幕在 turn_end 事件前已收到全部 ops
+      flushTranscript(record)
       emit({
         kind: 'turn_end',
         sessionId: record.id,
@@ -1253,16 +1263,71 @@ export function createBridge(host: BridgeHost): Bridge {
   }
 
   // 出去的是 transcript.ops 信封（Rust 原样转 native-bridge 校验），信封与水位的产地在镜像。
-  function pushTranscript(record: Session, ops: readonly TranscriptOperation[]): void {
+  // 攒批：高频 delta（text/thinking）在 16ms 窗口内合并为一次 accept，减少 emit 数与
+  // 下游 Rust 序列化/webview IPC/TS 解码的趟数。关键事件（turnEnd、userTurn、interactions）
+  // 立即 flush，保证屏幕状态不被延迟。
+  const BATCH_WINDOW_MS = 16
+  const pendingOps = new Map<string, TranscriptOperation[]>()
+  const batchTimers = new Map<string, ReturnType<typeof setTimeout>>()
+
+  function flushTranscript(record: Session): void {
+    const sessionId = record.id
+    const timer = batchTimers.get(sessionId)
+    if (timer !== undefined) {
+      clearTimeout(timer)
+      batchTimers.delete(sessionId)
+    }
+    const buffered = pendingOps.get(sessionId)
+    if (buffered === undefined || buffered.length === 0) {
+      return
+    }
+    pendingOps.delete(sessionId)
+    emit({
+      kind: 'transcript',
+      sessionId,
+      payload: record.mirror.accept(buffered),
+    })
+  }
+
+  function pushTranscript(
+    record: Session,
+    ops: readonly TranscriptOperation[],
+    immediate = false,
+  ): void {
     if (ops.length === 0) {
       return
     }
 
-    emit({
-      kind: 'transcript',
-      sessionId: record.id,
-      payload: record.mirror.accept(ops),
-    })
+    if (immediate) {
+      // 先 flush 已攒的，再立即发这批，保序
+      flushTranscript(record)
+      emit({
+        kind: 'transcript',
+        sessionId: record.id,
+        payload: record.mirror.accept(ops),
+      })
+      return
+    }
+
+    const sessionId = record.id
+    let buffered = pendingOps.get(sessionId)
+    if (buffered === undefined) {
+      buffered = []
+      pendingOps.set(sessionId, buffered)
+    }
+    for (const op of ops) {
+      buffered.push(op)
+    }
+
+    if (!batchTimers.has(sessionId)) {
+      batchTimers.set(
+        sessionId,
+        setTimeout(() => {
+          batchTimers.delete(sessionId)
+          flushTranscript(record)
+        }, BATCH_WINDOW_MS),
+      )
+    }
   }
 
   /*
@@ -1325,6 +1390,7 @@ export function createBridge(host: BridgeHost): Bridge {
          */
         request: { method, toolName, ...(detail === null ? {} : { detail }) },
       }),
+      true,
     )
   }
 
@@ -1370,6 +1436,7 @@ export function createBridge(host: BridgeHost): Bridge {
         toolCallId: 'ask',
         request: { questions },
       }),
+      true,
     )
   }
 
@@ -1417,6 +1484,7 @@ export function createBridge(host: BridgeHost): Bridge {
         request: { questions: questions ?? [] },
         ...(answered ? { response: answer.value } : {}),
       }),
+      true,
     )
   }
 
@@ -1454,6 +1522,7 @@ export function createBridge(host: BridgeHost): Bridge {
         request: { method: 'select', toolName: held.toolName },
         response: { decision: approved ? 'approved' : 'rejected' },
       }),
+      true,
     )
   }
 
@@ -1512,6 +1581,7 @@ export function createBridge(host: BridgeHost): Bridge {
         toolCallId: held.toolName,
         request: held.kind === 'question' ? { questions: questions ?? [] } : { method: 'select' },
       }),
+      true,
     )
   }
 
@@ -1960,7 +2030,7 @@ export function createBridge(host: BridgeHost): Bridge {
          * 也永远停在「等你批」。所以这里主动把它们收成取消。
          */
         record.desk.closeAll()
-        pushTranscript(record, record.projector.turnEnd('cancelled'))
+        pushTranscript(record, record.projector.turnEnd('cancelled'), true)
         emit({ kind: 'turn_end', sessionId: record.id, outcome: 'cancelled' })
         return {}
       }

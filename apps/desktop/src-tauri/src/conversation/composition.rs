@@ -70,7 +70,7 @@ pub(crate) fn compose(
                     payload,
                 } => AgentTranscriptEvent {
                     session_id,
-                    json: payload.to_string(),
+                    json: payload,
                 }
                 .emit(&publishing),
                 SessionEvent::Usage { session_id, usage } => AgentSessionEvent::Usage {

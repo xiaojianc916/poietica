@@ -701,8 +701,8 @@ export type AgentThreadTarget = { kind: "create"; threadId: string } | { kind: "
 export type AgentTitleSource = "message" | "generated" | "fallback" | "manual"
 export type AgentToolkit = { skills: AgentSkill[]; mcpServers: AgentMcpServer[] }
 export type AgentToolkitRequest = { launch: AgentLaunch; cwd: string | null; threadId: string | null }
-export type AgentTranscriptEvent = { sessionId: string; json: string }
-export type AgentTranscriptJson = { json: string }
+export type AgentTranscriptEvent = { sessionId: string; json: JsonValue }
+export type AgentTranscriptJson = { json: JsonValue }
 export type AgentTranscriptOpsRequest = { sessionId: string; agentId: string; sinceSeq: number }
 /**
  * 载荷以 JSON 文本透传：契约钉在 vendored @poietica/transcript 的 schema，这里不重抄第二份形状。

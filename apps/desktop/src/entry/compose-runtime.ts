@@ -43,14 +43,13 @@ import {
 import { AppUpdateStore } from '@poietica/update'
 import { createCommandRegistry, createWorkbenchSessionController } from '@poietica/workspace'
 import { createAuxiliaryPanelStore } from '@poietica/workspace/panels'
-import { createElement } from 'react'
+import { createElement, lazy, Suspense } from 'react'
 import { v7 as uuidv7 } from 'uuid'
 import { createAttachmentIntake } from '../assistant/attachment-intake'
 import { createConversationEntry } from '../assistant/conversation-entry'
 import { createWorkspaceCollapse } from '../assistant/workspace-collapse'
 import { alignBrowserEndpoint } from '../browser/browser-endpoint'
 import { createBrowserPickController } from '../browser/browser-pick'
-import { LibrarySurface } from '../library/library-surface'
 import { NoticeStore } from '../notice/notices'
 import { reportFailure } from '../notice/problem-presentation'
 import { createWorkspaceLayoutPreference } from '../shell/layout/layout-preference'
@@ -62,6 +61,11 @@ import { createWorkspaceRoots } from '../workspace/roots'
 import { createDesktopAgentRuntime } from './compose-agent'
 
 const MARKETPLACE_URL = 'https://code.kimi.com/kimi-code/plugins/marketplace.json'
+
+/* 资料库面板只在用户导航到它时才需要；延迟加载减少首屏 JS 解析量。 */
+const LazyLibrarySurface = lazy(() =>
+  import('../library/library-surface').then((m) => ({ default: m.LibrarySurface })),
+)
 
 export function createApplicationRuntime(restored: string | null): ApplicationRuntime {
   const active = createPreference<string | null>({
@@ -370,7 +374,11 @@ export function createApplicationRuntime(restored: string | null): ApplicationRu
     pluginStore,
     automationStore,
     librarySurface: () =>
-      createElement(LibrarySurface, { controller: library, openLink: openLibraryUrl }),
+      createElement(
+        Suspense,
+        { fallback: null },
+        createElement(LazyLibrarySurface, { controller: library, openLink: openLibraryUrl }),
+      ),
     own,
     appVersion: readAppVersion,
     dataDirectory: readDataDirectory,

@@ -41,10 +41,10 @@ test('an interaction op survives the wire schema and reaches the replica', () =>
   const parsed = transcriptOpsPayloadSchema.parse(pushed.payload)
   expect(parsed.ops).toHaveLength(1)
 
-  // 第二步：native-bridge 的原样转发（wire 的 json 是一行文本）。
+  // 第二步：native-bridge 的原样转发（wire 的 json 是已解析的值）。
   const decoded = decodeTranscriptEvent({
     sessionId: 'session',
-    json: JSON.stringify(pushed),
+    json: pushed,
   } as never)
 
   expect(decoded.ok).toBe(true)

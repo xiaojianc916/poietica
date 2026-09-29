@@ -245,6 +245,25 @@ function foldFrom(rows: readonly FeedRow[], frontier: number): readonly number[]
   return out
 }
 
+/** 从 rows 中剔除 sorted（升序下标）指定的行，游标归并，无 Set 分配。 */
+function omitSorted(rows: readonly FeedRow[], sorted: readonly number[]): readonly FeedRow[] {
+  const out: FeedRow[] = []
+  let cursor = 0
+
+  for (let i = 0; i < rows.length; i += 1) {
+    if (cursor < sorted.length && sorted[cursor] === i) {
+      cursor += 1
+      continue
+    }
+    const row = rows[i]
+    if (row !== undefined) {
+      out.push(row)
+    }
+  }
+
+  return out
+}
+
 function speechFrom(rows: readonly FeedRow[], from: number, until: number): string {
   const said: string[] = []
 
@@ -417,8 +436,9 @@ function buildSegment(
   const answer = answerStart(all, 0, all.length)
   const process = foldFrom(all, answer ?? all.length)
   const seal = sealOf(page, span, running, isOpen, process.length > 0)
-  const hidden = isOpen || seal === undefined ? new Set<number>() : new Set(process)
-  const grouped = groupIn(hidden.size === 0 ? all : all.filter((_, one) => !hidden.has(one)))
+  const visible =
+    isOpen || seal === undefined || process.length === 0 ? all : omitSorted(all, process)
+  const grouped = groupIn(visible)
   const where = placesIn(grouped.rows)
   const first = grouped.rows[0]
   const sealAt = first === undefined ? undefined : where.get(first.item.id)
@@ -439,12 +459,10 @@ function buildSegment(
     groups: grouped.groups,
     ownMessage,
     picked,
-    replies: repliesIn(
-      speechFrom(all, answer ?? 0, all.length),
-      grouped.rows,
-      page.run,
-      page.usage,
-    ),
+    replies:
+      page.run?.settled === true && grouped.rows.length > 0
+        ? repliesIn(speechFrom(all, answer ?? 0, all.length), grouped.rows, page.run, page.usage)
+        : NO_REPLIES,
     rows: grouped.rows,
     running,
     said: saidAt(grouped.rows),

@@ -1,26 +1,25 @@
 import { expect, test } from 'bun:test'
-import { TranscriptStore as ProtocolStore } from '@poietica/transcript'
 import { decodeTranscriptEvent } from './transcript-decoding'
 
 test('malformed data is isolated and does not prevent the next valid event', () => {
-  expect(decodeTranscriptEvent({ sessionId: 'session', json: '{' }).ok).toBe(false)
-  expect(decodeTranscriptEvent({ sessionId: 'session', json: 'null' }).ok).toBe(false)
+  expect(decodeTranscriptEvent({ sessionId: 'session', json: '{' as never }).ok).toBe(false)
+  expect(decodeTranscriptEvent({ sessionId: 'session', json: null as never }).ok).toBe(false)
   expect(
     decodeTranscriptEvent({
       sessionId: 'session',
-      json: JSON.stringify({
+      json: {
         type: 'unrelated',
         payload: {},
-      }),
+      },
     }).ok,
   ).toBe(false)
   expect(
     decodeTranscriptEvent({
       sessionId: 'session',
-      json: JSON.stringify({
+      json: {
         type: 'transcript.ops',
         payload: { agent_id: 'main', seq: 1, ops: [] },
-      }),
+      },
     }),
   ).toEqual({
     ok: true,
@@ -38,10 +37,10 @@ test('a recovery message remains a recovery message', () => {
   expect(
     decodeTranscriptEvent({
       sessionId: 'session',
-      json: JSON.stringify({
+      json: {
         type: 'resync_required',
         payload: { reason: 'buffer_overflow' },
-      }),
+      },
     }),
   ).toEqual({
     ok: true,
@@ -54,20 +53,21 @@ test('a recovery message remains a recovery message', () => {
 })
 
 test('an empty-tail reset invalidates only its named agent', () => {
-  const snapshot = new ProtocolStore('session').ensureAgent('worker').snapshot()
+  /* 线上是 JSON：snapshot 只需通过校验，解码器只读 agent_id 与 seq。 */
+  const snapshot = { items: [], tasks: [], meta: {} }
   for (const seq of [undefined, 0, 7]) {
     expect(
       decodeTranscriptEvent({
         sessionId: 'session',
-        json: JSON.stringify({
+        json: {
           type: 'transcript.reset',
           payload: {
             agent_id: 'worker',
-            snapshot: { ...snapshot, hasMoreOlder: true },
-            has_more_older: true,
+            snapshot,
+            has_more_older: false,
             seq,
           },
-        }),
+        },
       }),
     ).toEqual({
       ok: true,
@@ -79,10 +79,10 @@ test('an empty-tail reset invalidates only its named agent', () => {
 test('a malformed reset is rejected without exposing its private input', () => {
   const decoded = decodeTranscriptEvent({
     sessionId: 'session',
-    json: JSON.stringify({
+    json: {
       type: 'transcript.reset',
       payload: { agent_id: 'worker', snapshot: { prompt: 'private prompt' }, has_more_older: true },
-    }),
+    },
   })
   expect(decoded.ok).toBe(false)
   if (!decoded.ok) {
