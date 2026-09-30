@@ -16,7 +16,7 @@ export interface AgentSettingOption {
 /**
  * 归产品哪一个**剥离页**画。
  *
- * `memory` 与 `persona`（人设与风格）本来混在 agent 自己的栏目里，产品各拆成一页；
+ * `memory` 与 `persona`（个性化）本来混在 agent 自己的栏目里，产品各拆成一页；
  * 主页面不再画这两类行。判据在桥侧（packages/agent-bridge/src/settings-labels.ts）。
  */
 export type AgentSettingSection = 'memory' | 'persona'
@@ -27,7 +27,6 @@ export interface AgentSettingEntry {
   readonly type: string
   readonly label: string
   readonly description: string
-  readonly tab: string
   /** 分节的**键**（agent 自己的词）。分组认它，不译：译了同一节会分裂成两节。 */
   readonly group?: string
   /** 分节给人看的那一列；缺席就用 `group` 那个键。 */
@@ -73,21 +72,7 @@ export interface AgentSettingEntry {
 }
 
 export interface AgentSettingsCatalog {
-  /** 栏目清单，按 agent 自己的顺序；键与名成对给，不给并行数组 —— 错位就是「点了外观出来模型」，且没有一种读法能发现它错了。 */
-  readonly tabs: readonly AgentSettingTab[]
   readonly settings: readonly AgentSettingEntry[]
-  /**
-   * agent 此刻在用的那份配置文件。这是「几百项设置」的出路：不必都画成控件，直接改
-   * 它自己的文件。路径由 agent 自己报（正本 omp 的 getAgentDir），这一侧不拼。
-   */
-  readonly configFile: string
-  /** 那份文件此刻在不在；不在就是还没写过。 */
-  readonly configFileExists: boolean
-}
-
-export interface AgentSettingTab {
-  readonly key: string
-  readonly label: string
 }
 
 export interface AgentSettingsPort {
@@ -97,20 +82,12 @@ export interface AgentSettingsPort {
    * 改没改由 agent 自己说（它自己热重载，没有重启这一步）。
    */
   readonly write: (path: string, value: unknown) => Promise<readonly AgentSettingEntry[]>
-  /**
-   * 把 agent 自己的配置文件交给系统默认编辑器。改完不必我们替它重读：omp 自己看盘
-   * （`Settings.reloadFromDisk()`），下一次读目录就读到新的。
-   */
-  readonly openConfigFile: () => Promise<void>
 }
 
 /** 线上形状 → 领域形状。null 与 undefined 的对齐，没有第二张字段表。 */
 export function catalogOf(wire: AgentSettingsCatalogWire): AgentSettingsCatalog {
   return {
-    tabs: wire.tabs,
     settings: wire.settings.map(entryOf),
-    configFile: wire.configFile,
-    configFileExists: wire.configFileExists,
   }
 }
 
@@ -120,7 +97,6 @@ export function entryOf(wire: AgentSettingEntryWire): AgentSettingEntry {
     type: wire.type,
     label: wire.label,
     description: wire.description,
-    tab: wire.tab,
     ...(wire.group === null ? {} : { group: wire.group }),
     ...(wire.groupLabel === null ? {} : { groupLabel: wire.groupLabel }),
     default: wire.default,

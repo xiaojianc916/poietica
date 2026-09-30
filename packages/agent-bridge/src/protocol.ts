@@ -160,7 +160,7 @@ export type BridgeCommand =
    * `secret` 为真的那几格**只报有没有值**，绝不报值本身：那是钥匙，
    * 出了 agent 的进程就不再是我们的盘（AGENTS.md §1「密钥永不落我们的盘」）。
    */
-  | { readonly id: string; readonly type: 'settings_catalog'; readonly tab?: string | null }
+  | { readonly id: string; readonly type: 'settings_catalog' }
   /**
    * 改 agent 自己的一个设置。
    *
@@ -410,8 +410,6 @@ export interface SettingEntry {
   readonly type: string
   readonly label: string
   readonly description: string
-  /** 所在的那一栏；我们的界面按它分组。 */
-  readonly tab: string
   /** 所在的那一节。 */
   readonly group?: string
   /** 未设置时生效的值；界面用它做「默认」提示。 */
@@ -446,7 +444,7 @@ export interface SettingEntry {
    */
   readonly owned?: boolean
   /**
-   * 这一格归产品哪一个**剥离页**画（「记忆」/「人设与风格」，后者本没有对应的 tab，
+   * 这一格归产品哪一个**剥离页**画（「记忆」/「个性化」，后者本没有对应的 tab，
    * 见 settings-labels.ts 的 `personaSettingOf`）。缺席即不属于任何剥离页。
    * 与 `owned` 正交：`owned` 说「这一行别处已有控件」，section 说「归哪一页」；
    * 一格可以既有归属又 owned（`defaultThinkingLevel`），那一页也不画它的行。
@@ -460,28 +458,13 @@ export interface SettingOption {
   readonly description?: string
 }
 
-export interface SettingsTab {
-  /** agent 自己的栏目键；筛选与分组都认它，不译。 */
-  readonly key: string
-  /** 给人看的名字。 */
-  readonly label: string
-}
-
 /**
- * 设置目录 + 它背后那份配置文件。
+ * 设置目录：agent 自报的那几格设置。
  *
- * 带上配置文件路径是因为「几百项设置」这件事有个更省事的出路：直接改 agent 自己的
- * 配置文件。路径不由界面拼 —— 正本是 agent 自己的 getAgentDir()，拼一份就是第二个
- * 事实，换个 home 就分叉。
+ * 目录整份一次交回（记忆与个性化两页各取归属自己的一段），不按栏切。
  */
 export interface SettingsCatalog {
-  /** 栏目清单，按 agent 自己的顺序；键与名成对给，不给并行数组（错位论据见 settings 包 agent-settings/model.ts）。 */
-  readonly tabs: readonly SettingsTab[]
   readonly settings: readonly SettingEntry[]
-  /** agent 此刻在用的配置文件绝对路径（config.yml）。 */
-  readonly configFile: string
-  /** 那份文件此刻在不在；不在就是 agent 还没写过。 */
-  readonly configFileExists: boolean
 }
 
 export const BRIDGE_PROTOCOL_VERSION = 2

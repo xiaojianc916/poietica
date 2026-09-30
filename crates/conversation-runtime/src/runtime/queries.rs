@@ -100,18 +100,17 @@ impl<E: RuntimeFailure> Runtime<E> {
             .map_err(CommandError::Agent)
     }
 
-    /// agent 自己那份设置目录；`tab` 只筛栏。
+    /// agent 自己那份设置目录。
     ///
     /// 目录是进程级事实，与连接锚在哪个工作区无关：用活着的连接，别为这一问拆掉
     /// 用户对话正用的连接。没有活连接才按兜底工作区起一条。
     pub async fn settings_catalog(
         &self,
         agent: String,
-        tab: Option<String>,
     ) -> Result<SettingsCatalog, CommandError<E>> {
         let live = self.or_live(agent).await?;
         live.client
-            .settings_catalog(tab)
+            .settings_catalog()
             .await
             .map_err(CommandError::Agent)
     }

@@ -39,8 +39,6 @@ pub struct SettingEntry {
     pub setting_type: String,
     pub label: String,
     pub description: String,
-    /// 所在的那一栏；界面按它分组。
-    pub tab: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub group: Option<String>,
     pub default: Value,
@@ -80,7 +78,6 @@ impl fmt::Debug for SettingEntry {
             .debug_struct("SettingEntry")
             .field("path", &self.path)
             .field("setting_type", &self.setting_type)
-            .field("tab", &self.tab)
             .field("secret", &self.secret)
             .field("has_value", &self.has_value)
             /* default 与 value 刻意不在这里：它们是载荷，钥匙那一格的值就在其中。 */
@@ -88,27 +85,11 @@ impl fmt::Debug for SettingEntry {
     }
 }
 
-/// 一整份目录：有哪几栏，以及栏里的格子。
+/// 一整份目录：栏里的格子。
 #[derive(Clone, Debug, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SettingsCatalog {
-    /// 栏目清单，按 agent 自己的顺序。界面拿它搭导航，不另立一份。
-    pub tabs: Vec<SettingsTab>,
     pub settings: Vec<SettingEntry>,
-    /// agent 此刻在用的那份配置文件（绝对路径，由 agent 自己报）。
-    #[serde(default)]
-    pub config_file: String,
-    /// 那份文件此刻在不在；不在就是还没写过。
-    #[serde(default)]
-    pub config_file_exists: bool,
-}
-
-/// 一栏：键是 agent 自己的栏目词汇（筛选认它），名是给人看的那一列。
-#[derive(Clone, Debug, Deserialize, Serialize)]
-#[serde(rename_all = "camelCase")]
-pub struct SettingsTab {
-    pub key: String,
-    pub label: String,
 }
 
 impl SettingEntry {
@@ -128,7 +109,6 @@ impl SettingEntry {
             setting_type: text(value, "type").unwrap_or_default(),
             label: text(value, "label").unwrap_or_default(),
             description: text(value, "description").unwrap_or_default(),
-            tab: text(value, "tab").unwrap_or_default(),
             group: text(value, "group"),
             default: value.get("default").cloned().unwrap_or(Value::Null),
             value: if secret {
@@ -162,26 +142,8 @@ impl SettingEntry {
 #[must_use]
 pub(crate) fn catalog_of(data: &Value) -> SettingsCatalog {
     SettingsCatalog {
-        /* 栏目顺序由 agent 给：界面拿它搭导航，不在这里另排一份。 */
-        tabs: data
-            .get("tabs")
-            .and_then(Value::as_array)
-            .map(|tabs| tabs.iter().filter_map(tab_of).collect())
-            .unwrap_or_default(),
         settings: entries_of(data),
-        /* 配置文件路径也由 agent 报：它知道自己在读哪个 home，我们不知道。 */
-        config_file: text(data, "configFile").unwrap_or_default(),
-        config_file_exists: flag(data, "configFileExists"),
     }
-}
-
-/// 桥报的一栏：键与名缺一不可（键是筛选用的那一格，名是给人的那一格）。
-fn tab_of(value: &Value) -> Option<SettingsTab> {
-    Some(SettingsTab {
-        key: text(value, "key")?,
-        /* 名可以缺着：缺了就用键，界面显示英文而不是空白。 */
-        label: text(value, "label").unwrap_or_else(|| text(value, "key").unwrap_or_default()),
-    })
 }
 
 /// 桥报的一栏格子（`set_setting` 的应答就是整份目录里的 settings 那一格）。
@@ -238,16 +200,11 @@ mod tests {
     #[test]
     fn a_catalog_entry_keeps_what_the_agent_reported() {
         let catalog = catalog_of(&json!({
-            "tabs": [
-                { "key": "appearance", "label": "外观" },
-                { "key": "tools", "label": "工具" }
-            ],
             "settings": [{
                 "path": "browser.headless",
                 "type": "boolean",
                 "label": "Headless",
                 "description": "Run without a window",
-                "tab": "tools",
                 "group": "Browser",
                 "default": true,
                 "value": false,
@@ -256,17 +213,12 @@ mod tests {
             }]
         }));
 
-        /* 栏是键与名成对的：键给筛选认（不译），名给人看。 */
-        assert_eq!(catalog.tabs.len(), 2);
-        assert_eq!(catalog.tabs[0].key, "appearance");
-        assert_eq!(catalog.tabs[0].label, "外观");
         assert_eq!(catalog.settings.len(), 1);
 
         let entry = &catalog.settings[0];
 
         assert_eq!(entry.path, "browser.headless");
         assert_eq!(entry.setting_type, "boolean");
-        assert_eq!(entry.tab, "tools");
         assert_eq!(entry.group.as_deref(), Some("Browser"));
         assert_eq!(entry.default, json!(true));
         assert_eq!(entry.value, json!(false));
@@ -282,13 +234,11 @@ mod tests {
         const PLANTED: &str = "sk-planted-must-not-escape-4f1a";
 
         let catalog = catalog_of(&json!({
-            "tabs": ["memory"],
             "settings": [{
                 "path": "mnemopi.embeddingApiKey",
                 "type": "string",
                 "label": "Embedding API Key",
                 "description": "",
-                "tab": "memory",
                 "default": null,
                 "value": PLANTED,
                 "secret": true,
@@ -325,7 +275,6 @@ mod tests {
             "settings": [{
                 "path": "sleep.prevention",
                 "type": "enum",
-                "tab": "interaction",
                 "secret": false,
                 "options": [
                     { "value": "off", "label": "Off" },
@@ -348,7 +297,6 @@ mod tests {
             "settings": [{
                 "path": "theme.dark",
                 "type": "string",
-                "tab": "appearance",
                 "secret": false,
                 "enumValues": ["a", "b"]
             }]
@@ -366,8 +314,8 @@ mod tests {
     fn an_entry_without_a_path_is_dropped() {
         let entries = entries_of(&json!({
             "settings": [
-                { "type": "boolean", "label": "无名", "tab": "tools" },
-                { "path": "browser.enabled", "type": "boolean", "tab": "tools" }
+                { "type": "boolean", "label": "无名" },
+                { "path": "browser.enabled", "type": "boolean" }
             ]
         }));
 
@@ -382,7 +330,6 @@ mod tests {
             "settings": [{
                 "path": "model.syncBacklog",
                 "type": "number",
-                "tab": "model",
                 "secret": false,
                 "condition": "advisorEnabled",
                 "warning": "may cause rate limiting"

@@ -27,7 +27,6 @@ function entry(overrides: Partial<AgentSettingEntry> = {}): AgentSettingEntry {
     type: 'boolean',
     label: 'Sample',
     description: '',
-    tab: 'tools',
     default: null,
     value: null,
     secret: false,

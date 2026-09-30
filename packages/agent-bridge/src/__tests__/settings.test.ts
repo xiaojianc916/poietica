@@ -17,7 +17,7 @@ import {
   SETTINGS_SCHEMA,
   type SettingPath,
 } from '@oh-my-pi/pi-coding-agent/config/settings-schema'
-import { readCatalog, SETTING_TABS } from '../settings.ts'
+import { readCatalog } from '../settings.ts'
 import {
   irrelevantSettingOf,
   memorySettingOf,
@@ -68,17 +68,6 @@ test('the catalog is omp own schema, not a copy in our source', () => {
   }
 })
 
-test('a tab filter returns exactly that tab', () => {
-  for (const tab of SETTING_TABS) {
-    const entries = readCatalog(reader(), tab)
-    expect(entries.every((entry) => entry.tab === tab)).toBe(true)
-  }
-
-  // 十栏加起来就是全部：没有哪一格被漏掉或重复。
-  const summed = SETTING_TABS.reduce((total, tab) => total + readCatalog(reader(), tab).length, 0)
-  expect(summed).toBe(readCatalog(reader()).length)
-})
-
 test('a credential never carries its value, only whether it is set', () => {
   const secretPath = 'mnemopi.llmApiKey'
   const planted = 'sk-do-not-leak-this-key'
@@ -123,28 +112,30 @@ test('a normal setting carries its current value, and a runtime-option enum carr
 })
 
 /*
- * 归属这一层：产品把「记忆」与「人设与风格」各拆成一页，主页面不再画这两类行。
+ * 归属这一层：产品把「记忆」与「个性化」各拆成一页，主页面不再画这两类行。
  * 判据在 settings-labels.ts，这里是它的消费者契约 —— 界面只读 `entry.section`。
  */
 
 test('every setting on the agent own memory tab belongs to the memory page', () => {
-  const entries = readCatalog(reader(), 'memory')
+  const entries = readCatalog(reader())
+  const tabOf = (path: string) => getUi(path as SettingPath)?.tab
 
   /*
    * 上游那一栏此刻 30 格（18.3.0 实测）。条数钉住是有意的：归属的判据是 tab，
    * 所以这一栏有几格就有几格归「记忆」，不多不少。
    */
-  expect(entries.length).toBe(30)
+  const memory = entries.filter((entry) => memorySettingOf(tabOf(entry.path) ?? ''))
+
+  expect(memory.length).toBe(30)
   expect(memorySettingOf('memory')).toBe(true)
 
-  for (const entry of entries) {
-    expect(entry.tab).toBe('memory')
+  for (const entry of memory) {
     expect(entry.section).toBe('memory')
   }
 
   /* 别的栏一格都不许被划进「记忆」：判据是 tab，不是路径前缀。 */
-  for (const entry of readCatalog(reader())) {
-    if (entry.tab !== 'memory') {
+  for (const entry of entries) {
+    if (!memorySettingOf(tabOf(entry.path) ?? '')) {
       expect(entry.section).not.toBe('memory')
     }
   }
@@ -155,7 +146,7 @@ test('the persona page takes the settings that shape how the model writes', () =
   const sectionOf = (path: string) => entries.find((entry) => entry.path === path)?.section
 
   /*
-   * 上游没有「人设与风格」这一栏，这些格子散在 model 栏的 Prompt / Thinking /
+   * 上游没有「个性化」这一栏，这些格子散在 model 栏的 Prompt / Thinking /
    * Sampling 三个 group 里，所以判据只能是 path 名单。
    */
   const persona = [
@@ -198,7 +189,7 @@ test('the persona page takes the settings that shape how the model writes', () =
   expect(entries.filter((entry) => entry.owned && entry.section !== undefined)).toHaveLength(1)
 
   /*
-   * `tier.*` 说的是请求发往哪个服务档位（计费与路由），不是模型怎么写 —— 摆进「人设与风格」
+   * `tier.*` 说的是请求发往哪个服务档位（计费与路由），不是模型怎么写 —— 摆进「个性化」
    * 会让人以为改它能改语气。
    */
   expect(sectionOf('tier.openai')).toBeUndefined()
@@ -217,7 +208,7 @@ test('the two sections are mutually exclusive and most settings have none', () =
 
   const owned = entries.filter((entry) => entry.section !== undefined)
   /*
-   * 剥离出来的是 47 格（记忆 30 + 人设与风格 17，18.3.0 实测）。条数钉住是有意的：
+   * 剥离出来的是 47 格（记忆 30 + 个性化 17，18.3.0 实测）。条数钉住是有意的：
    * 判据一边认 tab、一边认 path，条数变了就说明上游动了这两处结构，值得人看一眼。
    */
   expect(owned.length).toBe(47)
@@ -228,6 +219,8 @@ test('the two sections are mutually exclusive and most settings have none', () =
 
   /* 两个判据在全部格子上逐一互斥：memory 的 tab 判据与 persona 的 path 判据不相交。 */
   for (const entry of entries) {
-    expect(memorySettingOf(entry.tab) && personaSettingOf(entry.path)).toBe(false)
+    expect(
+      memorySettingOf(getUi(entry.path as SettingPath)?.tab ?? '') && personaSettingOf(entry.path),
+    ).toBe(false)
   }
 })

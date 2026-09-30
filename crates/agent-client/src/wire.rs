@@ -159,11 +159,9 @@ pub enum Command {
     McpServers {
         id: String,
     },
-    /// agent 自己那份设置目录；`tab` 缺席或 null 就是整份。
+    /// agent 自己那份设置目录。
     SettingsCatalog {
         id: String,
-        #[serde(skip_serializing_if = "Option::is_none")]
-        tab: Option<String>,
     },
     /// 改 agent 自己的一个设置：走它自己的持久层，由它自己热重载。
     ///
@@ -392,10 +390,7 @@ mod tests {
             (Command::Shutdown { id: "x".to_owned() }, "shutdown"),
             (Command::McpServers { id: "x".to_owned() }, "mcp_servers"),
             (
-                Command::SettingsCatalog {
-                    id: "x".to_owned(),
-                    tab: None,
-                },
+                Command::SettingsCatalog { id: "x".to_owned() },
                 "settings_catalog",
             ),
             (
@@ -515,25 +510,15 @@ mod tests {
         );
     }
 
-    /// 整份目录时 `tab` 缺席，不是空串：`null` 与「这一栏」在桥那边是两件事。
     #[test]
-    fn a_catalog_read_without_a_tab_omits_the_field() {
-        let whole = encode(&Command::SettingsCatalog {
+    fn a_settings_catalog_read_needs_no_tab() {
+        let line = encode(&Command::SettingsCatalog {
             id: "s1".to_owned(),
-            tab: None,
-        })
-        .expect("encode");
-        let tabbed = encode(&Command::SettingsCatalog {
-            id: "s2".to_owned(),
-            tab: Some("tools".to_owned()),
         })
         .expect("encode");
 
-        assert!(
-            !whole.contains("tab"),
-            "no tab means the whole catalog: {whole}"
-        );
-        assert!(tabbed.contains(r#""tab":"tools""#), "{tabbed}");
+        assert!(line.contains(r#""type":"settings_catalog""#), "{line}");
+        assert!(!line.contains("tab"), "{line}");
     }
 
     #[test]

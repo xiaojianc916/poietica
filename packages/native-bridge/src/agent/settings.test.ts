@@ -20,7 +20,7 @@ import type { AgentSettingsCatalogWire } from '@poietica/contract/settings'
  */
 const agentSettingsCatalog = mock((...args: unknown[]): Promise<AgentSettingsCatalogWire> => {
   void args
-  return Promise.resolve({ tabs: [], settings: [], configFile: '', configFileExists: false })
+  return Promise.resolve({ settings: [] })
 })
 const agentSetSetting = mock(
   (...args: unknown[]): Promise<AgentSettingsCatalogWire['settings']> => {
@@ -39,19 +39,12 @@ const { catalogOf } = await import('@poietica/settings')
 
 /** 一格线上元数据：可缺席的格一律 null（Rust 的 Option::None 到这边就是 null）。 */
 const wire: AgentSettingsCatalogWire = {
-  tabs: [
-    { key: 'memory', label: '记忆' },
-    { key: 'tools', label: '工具' },
-  ],
-  configFile: '/home/config.yml',
-  configFileExists: true,
   settings: [
     {
       path: 'browser.headless',
       type: 'boolean',
       label: 'Headless',
       description: 'Run without a window',
-      tab: 'tools',
       group: null,
       default: false,
       value: true,
@@ -70,7 +63,6 @@ const wire: AgentSettingsCatalogWire = {
       type: 'string',
       label: 'LLM API Key',
       description: '',
-      tab: 'memory',
       group: 'Mnemopi',
       default: null,
       /* 线上就是 null：钥匙的值不出 agent 的进程。 */
@@ -91,7 +83,6 @@ const wire: AgentSettingsCatalogWire = {
       type: 'enum',
       label: 'Sleep prevention',
       description: '',
-      tab: 'tools',
       group: 'Power',
       default: 'idle',
       value: 'idle',
@@ -122,12 +113,6 @@ describe('agent 设置目录的传输口', () => {
 
     const catalog = await createAgentSettingsPort().read()
 
-    /* 栏是键与名成对的：键给筛选认，名给人看。 */
-    expect(catalog.tabs).toEqual([
-      { key: 'memory', label: '记忆' },
-      { key: 'tools', label: '工具' },
-    ])
-
     const headless = catalog.settings[0]
 
     /* group: null 在领域侧是「没有这一格」，不是「这一格是 null」。 */
@@ -143,7 +128,7 @@ describe('agent 设置目录的传输口', () => {
   })
 
   /*
-   * 归属是**过线**的字段，不是这一层可以顺手丢掉的元数据：丢了以后记忆页与人设与风格页
+   * 归属是**过线**的字段，不是这一层可以顺手丢掉的元数据：丢了以后记忆页与个性化页
    * 会一起变空，而屏幕上看不出是哪里断的。
    */
   it('归属原样过线：写着哪一页就译成那一页', async () => {

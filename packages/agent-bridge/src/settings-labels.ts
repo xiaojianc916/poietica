@@ -18,21 +18,6 @@ import {
   type SettingPath,
 } from '@oh-my-pi/pi-coding-agent/config/settings-schema'
 
-/** 栏目名：键是 omp 的 tab key（settings.ts 的 SETTING_TABS）。 */
-const TAB_LABELS: Readonly<Record<string, string>> = {
-  appearance: '外观',
-  model: '模型',
-  interaction: '交互',
-  context: '上下文',
-  memory: '记忆',
-  files: '文件',
-  /* 这一栏装的是 Bash 与 eval 那些命令设置，不是「终端界面」—— 译成「终端」会让人以为它管外观。 */
-  shell: '命令与执行',
-  tools: '工具',
-  tasks: '任务',
-  providers: '供应商',
-}
-
 /** 分节名：键是 omp 的英文 group 原文（会随它改词，查不到就退回英文）。 */
 const GROUP_LABELS: Readonly<Record<string, string>> = {
   Advisor: '顾问',
@@ -506,11 +491,6 @@ export function settingLabelOf(path: string, fallback: string): string {
   return SETTING_LABELS[path as SettingPath] ?? fallback
 }
 
-/** 某一栏的中文名；没有译文时原样交出 tab key。 */
-export function tabLabelOf(tab: string): string {
-  return TAB_LABELS[tab] ?? tab
-}
-
 /** 某一节的中文名；没有译文时原样交出 omp 的英文 group。 */
 export function groupLabelOf(group: string): string {
   return GROUP_LABELS[group] ?? group
@@ -680,10 +660,10 @@ export function ownedElsewhereOf(path: string): boolean {
 }
 
 /*
- * 「人设与风格」那一页的归属。
+ * 「个性化」那一页的归属。
  *
  * 判据只能按 path 名单，**因为上游没有这一栏**：omp 的 tab 是它自己的导航结构，而
- * 「人设与风格」是产品的一个切面 —— personality（人设）与 temperature / topP 那几格
+ * 「个性化」是产品的一个切面 —— personality（人设）与 temperature / topP 那几格
  * （风格）散在 model 栏的 Prompt / Thinking / Sampling 三个 group 里。拿 group 当判据
  * 会把整节搬走，而那些节里住着别的格子（Prompt 与 Sampling 各自都只有一部分属于这里）。
  *
@@ -717,10 +697,10 @@ const PERSONA: readonly string[] = [
 ]
 
 /**
- * 这一格属不属于「人设与风格」那一页。
+ * 这一格属不属于「个性化」那一页。
  *
  * `tier.*` 刻意在名单外：它们说的是请求发往哪个服务档位（计费与路由），
- * 不是模型怎么写 —— 摆进「人设与风格」会让人以为改它能改语气。
+ * 不是模型怎么写 —— 摆进「个性化」会让人以为改它能改语气。
  */
 export function personaSettingOf(path: string): boolean {
   return PERSONA.includes(path)

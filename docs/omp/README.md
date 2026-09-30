@@ -2,7 +2,7 @@
 
 > 本目录是对第三方依赖 **oh-my-pi（omp）** 的官方能力调研归档，供集成开发参考。它**不是** Poietica 自身的架构文档（自有架构见 `docs/architecture/`）。
 > 来源（全部官方）：① 随 npm 发布的 `@oh-my-pi/pi-coding-agent` 18.3.0 完整 TypeScript 源码 + 9 个兄弟官方包（pi-ai / pi-catalog / pi-agent-core / pi-tui / pi-natives / pi-wire / pi-utils / snapcompact / pi-mnemopi）；② npm registry 元数据（最新 18.4.3）；③ GitHub 官方 README（can1357/oh-my-pi）；④ 官方文档站 omp.sh/docs（62 页全目录）；⑤ 官方 SDK/扩展/钩子示例（examples/）。
-> 数据截止 2026-09-30；源码锚点 18.3.0。升级 18.4.x 时复核 `version-history.md` 的 Breaking Changes 与 sdk-integration.md 选项表。
+> 数据截止 2026-09-30；源码锚点 18.3.0（personality 与记忆章节已按 18.4.4 复核；18.4.4 中 settings 定义由 config/settings-schema.ts 迁移为 session/settings.ts 的 register 模式，键与默认值不变）。升级 18.4.x 时复核 `version-history.md` 的 Breaking Changes 与 sdk-integration.md 选项表。
 
 ## 文件索引
 
@@ -18,7 +18,8 @@
 | [extensions-skills.md](./extensions-skills.md) | 扩展 API 全成员、hooks 事件、plugins/marketplace、custom tools/commands、skills、skillshare、discovery 继承、capability 系统 |
 | [code-intelligence.md](./code-intelligence.md) | LSP（54 server / 14 action）、DAP（14 adapter / 28 action）、hashline 编辑、AST、安全扫描、markit、jfind |
 | [web-browser-desktop.md](./web-browser-desktop.md) | web_search（26 引擎）、90+ scraper、fetch 管线、浏览器控制、桌面控制、语音、图像、SSH、IRC、内部 URI scheme 表 |
-| [memory-cognition.md](./memory-cognition.md) | 五种记忆 backend、记忆工具语义、mnemopi、hindsight、advisor、goals、autolearn、auto-thinking |
+| [memory-cognition.md](./memory-cognition.md) | 记忆：五种 backend、local 管线（SQLite 两阶段蒸馏）、mnemopi 引擎内部、sharpshooter 决策提取、hindsight、memory:// 协议、autolearn |
+| [personality.md](./personality.md) | 个性化：personality 设置、三个内置人格全文、PERSONALITY.md 用户级覆盖、渲染链路与边界 |
 | [subsystems.md](./subsystems.md) | 其余子系统：commit、export/share/stream/live、collab、async、task/subagent、vibe、autoresearch、eval/judgment/if-bench、cleanse、stats/telemetry、blob-broker、tiny、plan mode、daemon |
 | [tui.md](./tui.md) | TUI 库：组件、overlays、主题（100 内置）、键位体系、渲染管线 |
 | [security-telemetry.md](./security-telemetry.md) | 审批模型、secrets、围栏、模型输出防护、OTel 遥测、usage 统计 |

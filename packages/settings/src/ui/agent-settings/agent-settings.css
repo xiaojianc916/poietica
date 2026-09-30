@@ -1,8 +1,8 @@
 /*
- * agent 设置页自己的两格样式。
+ * agent 设置目录的画法自己的两格样式。
  *
- * 排版词汇（行、组、页、输入框外观）全部来自 settings-surface.css，这里只放这一页独有的
- * 两件事：控件那一格的定宽，与 array/record 那种不给控件的只读显示。
+ * 排版词汇（行、组、页、输入框外观）全部来自 settings-surface.css，这里只放控件那一格
+ * 与 array/record 那种不给控件的只读显示。
  */
 
 /* 行右端的控件格定宽：一行里既有开关也有输入框，不固定宽度会让每一行的右边缘参差。 */
@@ -18,10 +18,4 @@
   color: var(--ui-muted-foreground);
   font-size: 12px;
   font-variant-numeric: tabular-nums;
-}
-
-/* 搜索框占满一整行：它是这一页的入口，缩在右端会让人以为只是个筛选项。 */
-.agent-settings__search {
-  inline-size: 100%;
-  max-inline-size: 360px;
 }

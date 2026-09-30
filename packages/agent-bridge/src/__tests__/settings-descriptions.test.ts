@@ -24,7 +24,7 @@ import {
 
 /** 上屏那一批：omp 自报带 ui 元数据、且跟这台桌面软件有关。 */
 const visiblePaths = (): string[] =>
-  readCatalog({ get: () => undefined }, null).map((entry) => entry.path)
+  readCatalog({ get: () => undefined }).map((entry) => entry.path)
 
 test('every setting on screen carries a Chinese description', () => {
   const paths = visiblePaths()

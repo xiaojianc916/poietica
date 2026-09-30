@@ -84,7 +84,7 @@ function groupBy(entries: readonly AgentSettingEntry[]): readonly CatalogGroup[]
  *   - `owned`：行由产品别处的控件负责（画第二遍就是一个事实两个控件）。值仍留着，别的格子按 `condition` 读它。
  *   - 条件不成立的：判据要用**别的格子**的值，所以收的是整份目录而不是筛完的那一段。
  *
- * 归属（`section`）不在这里判，由下面两个入口各判各的。
+ * 归属（`section`）也在这里判：只在归属等于这一页时留下。
  */
 function visibleEntries(
   settings: readonly AgentSettingEntry[],
@@ -93,13 +93,6 @@ function visibleEntries(
   const at = settingLookup([...settings])
 
   return settings.filter((entry) => keep(entry) && entry.owned !== true && isVisible(entry, at))
-}
-
-/** Agent 设置页：目录里没有归属给别的页面的那些（与 `owned` 正交）。 */
-export function mainCatalogEntries(
-  settings: readonly AgentSettingEntry[],
-): readonly AgentSettingEntry[] {
-  return visibleEntries(settings, (entry) => entry.section === undefined)
 }
 
 /** 一个剥离页：只画归属给自己的格子。 */

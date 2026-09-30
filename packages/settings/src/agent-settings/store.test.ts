@@ -16,7 +16,6 @@ function entry(path: string, value: unknown): AgentSettingEntry {
     type: 'boolean',
     label: path,
     description: '',
-    tab: 'tools',
     default: false,
     value,
     secret: false,
@@ -24,22 +23,16 @@ function entry(path: string, value: unknown): AgentSettingEntry {
   }
 }
 
-/** 目录的最小形状：栏、格子、以及那份配置文件的两格。 */
+/** 目录的最小形状：那几格设置。 */
 function catalog(settings: readonly AgentSettingEntry[]): AgentSettingsCatalog {
-  return {
-    tabs: [{ key: 'tools', label: '工具' }],
-    settings,
-    configFile: '/home/config.yml',
-    configFileExists: true,
-  }
+  return { settings }
 }
 
-/** 端口的最小实现：不关心开文件的那一条时，给它一个不会失败的。 */
+/** 端口的最小实现。 */
 function inertPort(overrides: Partial<AgentSettingsPort>): AgentSettingsPort {
   return {
     read: () => Promise.resolve(catalog([])),
     write: () => Promise.resolve([]),
-    openConfigFile: () => Promise.resolve(),
     ...overrides,
   }
 }
@@ -115,7 +108,7 @@ describe('AgentSettingsStore', () => {
     store2.dispose()
   })
 
-  it('写完之后栏位表照旧：一次写入不改导航', async () => {
+  it('写完只换 settings 那一格：快照里没有第二份状态', async () => {
     const { store } = bench(catalog([entry('browser.headless', false)]))
 
     await store.load()
@@ -130,7 +123,6 @@ describe('AgentSettingsStore', () => {
     await after.load()
     await after.write('browser.enabled', true)
 
-    expect(after.getSnapshot().catalog?.tabs).toEqual([{ key: 'tools', label: '工具' }])
     expect(after.getSnapshot().catalog?.settings[0]?.path).toBe('browser.enabled')
 
     store.dispose()

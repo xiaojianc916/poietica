@@ -1,4 +1,4 @@
-import type { AgentSettingEntry, AgentSettingsCatalog, AgentSettingsPort } from './model'
+import type { AgentSettingsCatalog, AgentSettingsPort } from './model'
 
 /*
  * agent 设置目录的持有者：一次读、一次写、一个写点。
@@ -98,8 +98,9 @@ export class AgentSettingsStore {
     try {
       const settings = await this.#port.write(path, value)
       if (generation === this.#generation) {
+        /* 只换 settings 那一格：写一格设置不会换那份目录的身份。 */
         this.#publish({
-          catalog: replaceSettings(this.#snapshot.catalog, settings),
+          catalog: { settings },
           loading: false,
           saving: null,
           error: null,
@@ -109,27 +110,6 @@ export class AgentSettingsStore {
       if (generation === this.#generation) {
         this.#publish({ ...this.#snapshot, saving: null, error: describe(cause) })
       }
-      throw cause
-    }
-  }
-
-  /**
-   * 把 agent 自己的配置文件交给系统编辑器。
-   *
-   * 这不是「提交一次改动」，所以不碰快照：改没改由 agent 自己说，下一次读目录才作数
-   * （它自己看盘）。失败如实写进 error —— 静默失败会让人以为按钮坏了。
-   */
-  openConfigFile = async (): Promise<void> => {
-    this.#requireActive()
-    try {
-      await this.#port.openConfigFile()
-    } catch (cause) {
-      const generation = this.#generation
-
-      if (generation === this.#generation) {
-        this.#publish({ ...this.#snapshot, error: describe(cause) })
-      }
-
       throw cause
     }
   }
@@ -148,24 +128,6 @@ export class AgentSettingsStore {
   }
 }
 
-/*
- * 写回来的只是 settings 那一格，栏位表照旧。
- *
- * 栏位表在一次写入里不会变（它是 agent 自己的 tab 词汇，不是某一次写入的产物），
- * 所以这里不重问它 —— 重问就是两个到达时刻，导航会在两次绘制之间抖一下。
- * 配置文件那两格同理：写一格设置不会换 home。
- */
-function replaceSettings(
-  catalog: AgentSettingsCatalog | null,
-  settings: readonly AgentSettingEntry[],
-): AgentSettingsCatalog {
-  return {
-    tabs: catalog?.tabs ?? [],
-    settings,
-    configFile: catalog?.configFile ?? '',
-    configFileExists: catalog?.configFileExists ?? false,
-  }
-}
 function describe(cause: unknown): string {
   return cause instanceof Error ? cause.message : String(cause)
 }

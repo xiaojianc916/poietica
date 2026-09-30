@@ -7,9 +7,8 @@
  * 时两份必然分叉（AGENTS.md §0）。
  *
  * 中文只有**给我们看的那一列**换成译文（settings-labels.ts）：`label` 换成中文，
- * 认不出的路径原文返回。`path` / `tab` / `group` **一律是 omp 自己的标识符** ——
- * 界面拿它们做联表与分组（agent-settings.tsx 的 `entry.tab === current`、按
- * `entry.group` 建 Map），换成中文就把两栏两节合成一格，屏幕看不出哪里错了。
+ * 认不出的路径原文返回。`path` / `group` **一律是 omp 自己的标识符** —— 界面按
+ * `entry.group` 建 Map 分组，换成中文就把两节合成一格，屏幕看不出哪里错了。
  *
  * 钥匙那三格（mnemopi.embeddingApiKey / mnemopi.llmApiKey / hindsight.apiToken）
  * **只有有没有值**这一件出得去：值本身出了 agent 的进程就不再是我们的盘。
@@ -41,22 +40,8 @@ export interface SettingsReader {
   get(key: string): unknown
 }
 
-/** omp 那一栏的名字，与 pi-tui 的 SettingTab 同域；不在这里另立一套词。 */
-export const SETTING_TABS: readonly string[] = [
-  'appearance',
-  'model',
-  'interaction',
-  'context',
-  'memory',
-  'files',
-  'shell',
-  'tools',
-  'tasks',
-  'providers',
-]
-
 /**
- * 整份目录，或只给某一栏。
+ * 整份目录。
  *
  * 只有带 ui 元数据的那几格上屏：没有元数据的格子是内部件（`modelPattern*` 这类），
  * omp 自己的设置面板也不画它们 —— 画出来是我们替它做了一个它没做的决定。
@@ -66,8 +51,7 @@ export const SETTING_TABS: readonly string[] = [
  * 见 `ownedElsewhereOf`）。它们必须留在目录里，因为别的格子按 `condition` 读它们的 value
  * 决定显不显示 —— 抽掉值，那几行会永远消失而没有迹象。
  */
-export function readCatalog(settings: SettingsReader, tab?: string | null): SettingEntry[] {
-  const wanted = tab ?? undefined
+export function readCatalog(settings: SettingsReader): SettingEntry[] {
   const entries: SettingEntry[] = []
 
   for (const path of Object.keys(SETTINGS_SCHEMA) as SettingPath[]) {
@@ -77,7 +61,7 @@ export function readCatalog(settings: SettingsReader, tab?: string | null): Sett
 
     const ui = getUi(path)
 
-    if (ui === undefined || (wanted !== undefined && ui.tab !== wanted)) {
+    if (ui === undefined) {
       continue
     }
 
@@ -123,7 +107,6 @@ function entryOf(
     label: settingLabelOf(path, ui.label),
     /* 说明同样取中文；它是人拿来决定要不要改这一格的东西，英文留在原地等于没做。 */
     description: settingDescriptionOf(path, ui.description),
-    tab: ui.tab,
     ...(ui.group === undefined ? {} : { group: ui.group }),
     default: getDefault(path),
     value: secret ? null : (value ?? null),
@@ -141,7 +124,7 @@ function entryOf(
      */
     ...(ownedElsewhereOf(path) ? { owned: true } : {}),
     /*
-     * 归产品哪一个剥离页画：「记忆」按 agent 自己的 tab 判，「人设与风格」按 path 名单
+     * 归产品哪一个剥离页画：「记忆」按 agent 自己的 tab 判，「个性化」按 path 名单
      * （上游没有这一栏）。判据与理由都在 settings-labels.ts。两者互斥，记忆优先。
      */
     ...sectionOf(path, ui.tab),

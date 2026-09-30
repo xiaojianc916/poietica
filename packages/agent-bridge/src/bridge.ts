@@ -62,8 +62,7 @@ import type {
   UsageSnapshot,
 } from './protocol.ts'
 import { answerPayloadOf, askQuestionsOf } from './questions.ts'
-import { readCatalog, SETTING_TABS } from './settings.ts'
-import { tabLabelOf } from './settings-labels.ts'
+import { readCatalog } from './settings.ts'
 import { settleThinking } from './thinking.ts'
 import { TranscriptMirror } from './transcript-mirror.ts'
 
@@ -1900,43 +1899,11 @@ export function createBridge(host: BridgeHost): Bridge {
   }
 
   // 目录与那一格此刻的值都是 agent 自报的（见 settings.ts），我们没有第二份。
-  async function settingsCatalog(tab: string | null): Promise<unknown> {
+  async function settingsCatalog(): Promise<unknown> {
     const settings = await settingsFor()
 
     return {
-      // 键与名成对：键是 agent 的栏目词汇（筛选认它），名是给人看的那一列。
-      tabs: SETTING_TABS.map((key) => ({ key, label: tabLabelOf(key) })),
-      settings: readCatalog(settings, tab),
-      ...configFileOf(),
-    }
-  }
-
-  /*
-   * agent 此刻在用的那份配置文件。
-   *
-   * 路径取自它自己的 getAgentDir()（受控时读 PI_CODING_AGENT_DIR）。文件名只能写字面量：
-   * `MAIN_CONFIG_FILENAMES` 在 `@oh-my-pi/pi-utils/dirs` 里，而那个包不是我们的依赖
-   * （bunfig.toml 的 hoist=false 下未声明的包 import 不到），SDK 也没有转出它。
-   * 正本：pi-utils 的 src/dirs.ts:27 `MAIN_CONFIG_FILENAMES = ["config.yml", "config.yaml"]`。
-   *
-   * 存在的意义是给人一条出路：几百项设置不必都画成控件，直接改它自己的文件更省事。
-   * 路径不由界面拼 —— 那是第二个事实，换个 home 就分叉。
-   */
-  const CONFIG_FILENAMES: readonly string[] = ['config.yml', 'config.yaml']
-
-  function configFileOf(): { readonly configFile: string; readonly configFileExists: boolean } {
-    for (const name of CONFIG_FILENAMES) {
-      const candidate = path.join(getAgentDir(), name)
-
-      if (fs.existsSync(candidate)) {
-        return { configFile: candidate, configFileExists: true }
-      }
-    }
-
-    // 还没写过：报它认的那个写法，界面据此也能把人带过去。
-    return {
-      configFile: path.join(getAgentDir(), CONFIG_FILENAMES[0] ?? 'config.yml'),
-      configFileExists: false,
+      settings: readCatalog(settings),
     }
   }
 
@@ -1952,7 +1919,7 @@ export function createBridge(host: BridgeHost): Bridge {
     settings.set(path as never, value as never)
     await settings.flush()
 
-    return { settings: readCatalog(settings, null) }
+    return { settings: readCatalog(settings) }
   }
 
   async function writeBrowserSettings(command: {
@@ -2101,7 +2068,7 @@ export function createBridge(host: BridgeHost): Bridge {
         return { browser: browserSettingsOf(await settingsFor()) }
 
       case 'settings_catalog':
-        return await settingsCatalog(command.tab ?? null)
+        return await settingsCatalog()
 
       case 'set_setting':
         return await writeSetting(command.path, command.value)

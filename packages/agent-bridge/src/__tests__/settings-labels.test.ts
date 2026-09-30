@@ -12,12 +12,12 @@
 
 import { expect, test } from 'bun:test'
 import {
-  getPathsForTab,
   getUi,
   hasUi,
+  SETTINGS_SCHEMA,
   type SettingPath,
 } from '@oh-my-pi/pi-coding-agent/config/settings-schema'
-import { readCatalog, SETTING_TABS } from '../settings.ts'
+import { readCatalog } from '../settings.ts'
 import { settingDescriptionOf } from '../settings-descriptions.ts'
 import {
   groupLabelOf,
@@ -25,29 +25,11 @@ import {
   irrelevantSettingOf,
   settingLabelOf,
   settingLabelSource,
-  tabLabelOf,
 } from '../settings-labels.ts'
-
-/* `SettingTab` 没从这个入口转出（它在 pi-tui 里，而那不是我们的依赖），按函数的入参取。 */
-type Tab = Parameters<typeof getPathsForTab>[0]
 
 /** 上屏那一批格子：omp 自报带 ui 元数据的。与 settings.test.ts 同一份判据。 */
 function uiPaths(): SettingPath[] {
-  const paths: SettingPath[] = []
-  const seen = new Set<string>()
-
-  for (const tab of SETTING_TABS) {
-    for (const path of getPathsForTab(tab as Tab) ?? []) {
-      if (!hasUi(path) || seen.has(path)) {
-        continue
-      }
-
-      seen.add(path)
-      paths.push(path)
-    }
-  }
-
-  return paths
+  return (Object.keys(SETTINGS_SCHEMA) as SettingPath[]).filter((path) => hasUi(path))
 }
 
 test('every setting omp puts on screen resolves to Chinese, not to the English fallback', () => {
@@ -72,7 +54,6 @@ test('every setting omp puts on screen resolves to Chinese, not to the English f
 test('a path we do not know falls back to the original English, never to a blank', () => {
   expect(settingLabelOf('no.such.setting', 'Original English')).toBe('Original English')
   expect(groupLabelOf('No Such Group')).toBe('No Such Group')
-  expect(tabLabelOf('no-such-tab')).toBe('no-such-tab')
 
   /* 空串是「没有文案」而不是「查不到」：上游真给空串时我们照它，不编一个。 */
   expect(settingLabelOf('no.such.setting', '')).toBe('')
@@ -99,12 +80,8 @@ const UNTRANSLATED_GROUPS: readonly string[] = [
   'Sharpshooter',
 ]
 
-test('every tab and every group omp reports carries a Chinese name', () => {
+test('every group omp reports carries a Chinese name', () => {
   const groups = new Set<string>()
-
-  for (const tab of SETTING_TABS) {
-    expect(tabLabelOf(tab)).not.toBe(tab)
-  }
 
   for (const path of uiPaths()) {
     const group = getUi(path)?.group
@@ -122,11 +99,10 @@ test('every tab and every group omp reports carries a Chinese name', () => {
   expect(untranslated).toEqual([...UNTRANSLATED_GROUPS].sort())
 })
 
-test('the catalog translates the copy but keeps omp identifiers for tab and group', () => {
+test('the catalog translates the copy but keeps omp identifiers for group and path', () => {
   /*
-   * 换掉的只有给人看的那两列（`label` / `description`）。`tab` / `group` / `path` 是界面
-   * 联表与分组的键（agent-settings.tsx 的 `entry.tab === current`、按 `entry.group` 建
-   * Map）：换成中文就把两栏两节合成一格，而屏幕上看不出哪里错了。
+   * 换掉的只有给人看的那两列（`label` / `description`）。`group` / `path` 是界面分组的键
+   * （按 `entry.group` 建 Map）：换成中文就把两节合成一格，而屏幕上看不出哪里错了。
    *
    * 说明那一列由 settings-descriptions.test.ts 逐格钉住（中文是我们补的，无法与上游相等）。
    */
@@ -136,12 +112,11 @@ test('the catalog translates the copy but keeps omp identifiers for tab and grou
     const ui = getUi(entry.path as SettingPath)
 
     expect(entry.label).toBe(settingLabelOf(entry.path, ui?.label ?? ''))
-    expect(entry.tab).toBe(ui?.tab ?? '')
     expect(entry.group).toBe(ui?.group)
     expect(entry.description).toBe(settingDescriptionOf(entry.path, ui?.description ?? ''))
   }
 
-  /* 三列里至少有一格确实换成了中文，否则这个测试在空转。 */
+  /* 两列里至少有一格确实换成了中文，否则这个测试在空转。 */
   expect(entries.some((entry) => /[\u4e00-\u9fff]/u.test(entry.description))).toBe(true)
 })
 

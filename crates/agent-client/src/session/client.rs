@@ -120,9 +120,8 @@ pub(crate) enum Command {
     McpServers {
         reply: oneshot::Sender<Result<Vec<McpServer>>>,
     },
-    /// agent 自己那份设置目录；None 就是整份。
+    /// agent 自己那份设置目录。
     SettingsCatalog {
-        tab: Option<String>,
         reply: oneshot::Sender<Result<SettingsCatalog>>,
     },
     /// 改一格设置；应答是**改完之后**的整份目录（改一格可能牵动别的格子）。
@@ -588,12 +587,10 @@ impl AgentClient {
     }
 
     /// agent 自己那份设置目录：栏与格子都是它自报的，本层不添不减。
-    ///
-    /// `tab` 只筛栏，不改变那一格的形状 —— 界面切栏时不必重新理解目录。
-    pub async fn settings_catalog(&self, tab: Option<String>) -> Result<SettingsCatalog> {
+    pub async fn settings_catalog(&self) -> Result<SettingsCatalog> {
         let (reply, answer) = oneshot::channel();
 
-        self.send(Command::SettingsCatalog { tab, reply })?;
+        self.send(Command::SettingsCatalog { reply })?;
 
         answer
             .await

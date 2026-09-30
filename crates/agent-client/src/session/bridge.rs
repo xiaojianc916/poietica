@@ -883,11 +883,8 @@ fn outgoing(command: ClientCommand, id: &str, session_id: Option<&str>) -> Resul
             })
         }
 
-        ClientCommand::SettingsCatalog { tab, reply } => ask(
-            &Command::SettingsCatalog {
-                id: id.to_owned(),
-                tab,
-            },
+        ClientCommand::SettingsCatalog { reply } => ask(
+            &Command::SettingsCatalog { id: id.to_owned() },
             reply,
             |data| Ok(crate::settings::catalog_of(&data)),
         ),

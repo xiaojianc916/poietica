@@ -12,7 +12,6 @@ export type {
   AgentSettingSection,
   AgentSettingsCatalog,
   AgentSettingsPort,
-  AgentSettingTab,
 } from './agent-settings/model'
 export { catalogOf, entryOf } from './agent-settings/model'
 export { type AgentSettingsSnapshot, AgentSettingsStore } from './agent-settings/store'

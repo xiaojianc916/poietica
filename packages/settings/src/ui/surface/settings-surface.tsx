@@ -11,7 +11,6 @@ import { McpSettings } from '@poietica/extension/ui'
 import {
   Archive,
   ArrowLeft,
-  Brain,
   Settings as CogFour,
   Cpu,
   Info,
@@ -46,7 +45,7 @@ import type {
   ModelCatalogStore,
   SettingsStore,
 } from '../../index'
-import { AgentSettingsCatalog, AgentSettingsSectionPage } from '../agent-settings/agent-settings'
+import { AgentSettingsSectionPage } from '../agent-settings/agent-settings'
 import { ComputerUseSettings } from '../computer-use-settings'
 import { KeymapSettings } from '../keymap-settings'
 import { ModelsSettings } from '../models/models-settings'
@@ -74,7 +73,6 @@ export type SettingsSection =
   | 'appearance'
   | 'archived'
   | 'models'
-  | 'agent-settings'
   | 'memory'
   | 'persona'
   | 'skills'
@@ -179,12 +177,7 @@ const SECTIONS: Record<SettingsSection, SettingsSectionDescriptor> = {
       <SkillsSettings openSkillDocument={openSkillDocument} skills={skills} store={plugins} />
     ),
   },
-  'agent-settings': {
-    label: 'Agent 设置',
-    icon: Brain,
-    render: ({ agentSettingsCatalog }) => <AgentSettingsCatalog store={agentSettingsCatalog} />,
-  },
-  /* 记忆与人设这两页画的是同一份目录里归属各自的那一段（entry.section），与 Agent 设置页共用同一个 store。 */
+  /* 记忆与个性化这两页画的是同一份目录里归属各自的那一段（entry.section），共用同一个 store。 */
   memory: {
     label: '记忆',
     icon: Library,
@@ -193,7 +186,7 @@ const SECTIONS: Record<SettingsSection, SettingsSectionDescriptor> = {
     ),
   },
   persona: {
-    label: '人设与风格',
+    label: '个性化',
     icon: Sparkles,
     render: ({ agentSettingsCatalog }) => (
       <AgentSettingsSectionPage section="persona" store={agentSettingsCatalog} />
@@ -244,18 +237,7 @@ const SECTIONS: Record<SettingsSection, SettingsSectionDescriptor> = {
  */
 const SECTION_GROUPS: readonly (readonly SettingsSection[])[] = [
   ['general', 'appearance'],
-  [
-    'models',
-    'agent-settings',
-    'memory',
-    'persona',
-    'skills',
-    'mcp',
-    'keymap',
-    'computer-use',
-    'usage',
-    'archived',
-  ],
+  ['models', 'memory', 'persona', 'skills', 'mcp', 'keymap', 'computer-use', 'usage', 'archived'],
   ['privacy', 'about'],
 ]
 

@@ -74,23 +74,11 @@ async agentSetBrowserSettings(request: AgentBrowserSettingsPatch) : Promise<Agen
 /**
  * 读取 agent 自己那份设置目录；连接不存在时按统一启动管线建立。
  * 
- * 目录是进程级事实（与连接锚在哪个工作区无关），整份一次交回：界面自己按栏切，
- * 不为了切栏再问一遍 —— 那一问会多出一个到达时刻，两栏之间的条件求值就对不齐了。
+ * 目录是进程级事实（与连接锚在哪个工作区无关），整份一次交回：界面自己按归属切，
+ * 不为了切页再问一遍 —— 那一问会多出一个到达时刻，跨格子的条件求值就对不齐了。
  */
 async agentSettingsCatalog() : Promise<AgentSettingsCatalog> {
     return await TAURI_INVOKE("agent_settings_catalog");
-},
-/**
- * 把 agent 自己的配置文件交给系统默认编辑器。
- * 
- * 路径**现问 agent**，不从前端收：交给系统 shell 的东西不能由调用方任选（同
- * `window_open_external_url` 那条纪律）。这里只开它自己报的那一个文件。
- * 
- * 改完不必我们替它重读：omp 自己看盘（`Settings.reloadFromDisk()`），下一次读目录
- * 就读到新的。所以这条命令不返回新目录 —— 它是「把文件交出去」，不是「提交一次改动」。
- */
-async agentOpenConfigFile() : Promise<null> {
-    return await TAURI_INVOKE("agent_open_config_file");
 },
 /**
  * 改一格设置，交回**改完之后**整份目录的 settings 那一格。
@@ -606,11 +594,7 @@ export type AgentSettingEntry = { path: string;
 /**
  * agent 自己那份 schema 的类型词：boolean / enum / number / string / array / record。
  */
-type: string; label: string; description: string; 
-/**
- * 所在的那一栏；界面按它分组。
- */
-tab: string; group: string | null; 
+type: string; label: string; description: string; group: string | null; 
 /**
  * 未设置时生效的值。
  */
@@ -645,29 +629,13 @@ section: string | null }
  */
 export type AgentSettingOption = { value: string; label: string; description: string | null }
 /**
- * 一栏：键是 agent 自己的栏目词汇（筛选认它），名是给人看的那一列。
- */
-export type AgentSettingTab = { key: string; label: string }
-/**
  * 改一格设置。`value` 的类型由 agent 自己的 schema 说了算，本层不折算。
  */
 export type AgentSettingWriteRequest = { path: string; value: JsonValue }
 /**
- * 一整份目录：有哪几栏，以及栏里的格子。
+ * 一整份目录：栏里的格子。
  */
-export type AgentSettingsCatalog = { 
-/**
- * 栏目清单，按 agent 自己的顺序；界面拿它搭导航，不另立一份。
- */
-tabs: AgentSettingTab[]; settings: AgentSettingEntry[]; 
-/**
- * agent 此刻在用的那份配置文件（绝对路径，由它自己报）。
- */
-configFile: string; 
-/**
- * 那份文件此刻在不在；不在就是还没写过。
- */
-configFileExists: boolean }
+export type AgentSettingsCatalog = { settings: AgentSettingEntry[] }
 export type AgentShareThreadRequest = { threadId: string; launch: AgentLaunch }
 /**
  * 一次分享的结果。
