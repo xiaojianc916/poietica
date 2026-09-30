@@ -13,10 +13,10 @@ const LABEL = 'Oh My Pi Computer Use'
 const UNREAD = '正在读取本机 Oh My Pi 的安装状态…'
 const UNLISTED = '当前 Oh My Pi 版本没有提供这项能力'
 const UNSUPPORTED = '这台电脑不支持这项能力'
-const INSTALLING = '正在安装 Oh My Pi Computer Use…'
+const INSTALLING = '正在切换 Oh My Pi Computer Use…'
 const INSTALLABLE = '让它看屏幕、移动鼠标、敲键盘替你操作这台电脑'
 const REPAIRABLE = '安装不完整，修复后即可使用'
-const READY = '已就绪'
+const READY = '已开启；关掉它模型就不再持有这块能力'
 const ENABLED = '已开启'
 const DISABLED = '已关闭'
 
@@ -219,6 +219,16 @@ interface ControlProps {
   readonly store: PluginStore
 }
 
+/*
+ * 这一格的控制件。
+ *
+ * `ready` 与 `installable` 都是**开关**，不是「安装」与「已就绪」两颗不同的东西：
+ * omp 里桌面控制没有安装这一步（它是构建期编进来的 eval 前奏），只有开与关。
+ * 把 ready 画成什么都不给，点开之后就再也关不掉 —— 一道单向门。
+ *
+ * `installed` 那一档（插件形态的安装）留着自己的开关：它走的是插件账本，与上面的
+ * 能力开关不是同一件事。
+ */
 function Control({ state, store }: ControlProps) {
   switch (state.kind) {
     case 'unavailable':
@@ -228,22 +238,39 @@ function Control({ state, store }: ControlProps) {
         </Button>
       )
     case 'installable':
+      return (
+        <Switch
+          aria-label={LABEL}
+          checked={false}
+          onCheckedChange={(next) => store.installCapability(COMPUTER_USE.capabilityId, next)}
+          size="sm"
+        />
+      )
+    case 'ready':
+      return (
+        <Switch
+          aria-label={LABEL}
+          checked
+          onCheckedChange={(next) => store.installCapability(COMPUTER_USE.capabilityId, next)}
+          size="sm"
+        />
+      )
     case 'repairable':
     case 'failed':
       return (
         <Button
-          onClick={() => store.installCapability(COMPUTER_USE.capabilityId)}
+          onClick={() => store.installCapability(COMPUTER_USE.capabilityId, true)}
           size="xs"
           type="button"
           variant="soft"
         >
-          {state.kind === 'installable' ? '安装' : state.kind === 'repairable' ? '修复' : '重试'}
+          {state.kind === 'repairable' ? '修复' : '重试'}
         </Button>
       )
     case 'installing':
       return (
         <Button disabled size="xs" type="button" variant="soft">
-          安装中
+          切换中
         </Button>
       )
     case 'installed':
@@ -258,7 +285,6 @@ function Control({ state, store }: ControlProps) {
     case 'unread':
     case 'unlisted':
     case 'unsupported':
-    case 'ready':
       return null
     default:
       return assertUnreachable(state)

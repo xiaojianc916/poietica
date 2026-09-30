@@ -35,6 +35,10 @@ import { initializeExtensions } from '@oh-my-pi/pi-coding-agent/modes/runtime-in
 import { buildSecretObfuscator } from '@oh-my-pi/pi-coding-agent/secrets'
 /* 图片的落盘路径要交给 agent 自己认：SDK 靠这个符号注入隐藏的 image-attachment 伴生消息
  * （agent-session.ts:6291-6311 的 `#createAttachmentSourceNotices`）。 */
+import {
+  TASK_SUBAGENT_LIFECYCLE_CHANNEL,
+  TASK_SUBAGENT_PROGRESS_CHANNEL,
+} from '@oh-my-pi/pi-tui/overlays/session-observer-registry'
 import { tagImageAttachmentSource } from '@oh-my-pi/pi-tui/prompt/image-source'
 import { ensureThemeSync } from '@oh-my-pi/pi-tui/theme'
 import type { TranscriptOperation } from '@poietica/transcript'
@@ -63,6 +67,7 @@ import type {
 } from './protocol.ts'
 import { ASK_TOOL, answerPayloadOf, askQuestionsOf } from './questions.ts'
 import { readCatalog } from './settings.ts'
+import { SubagentLedger } from './subagents.ts'
 import { settleThinking } from './thinking.ts'
 import { TranscriptMirror } from './transcript-mirror.ts'
 
@@ -160,6 +165,15 @@ interface Session {
   compacting: { readonly markerId: string } | null
   /** 压缩次数：只用来给新的一次起号，不参与显示。 */
   compactions: number
+  /*
+   * 子代理那一行行的账。
+   *
+   * omp 把子代理的生死与进度推在根作用域总线上（见 subagents.ts 的模块头），而
+   * transcript 的 task.upsert 由这里唯一地产出。收摊时要退订：总线是会话级的，
+   * 留着订阅就是让已 dispose 的会话继续往一个死镜像里写。
+   */
+  readonly subagents: SubagentLedger
+  unsubscribeSubagents: (() => void) | null
 }
 
 interface PendingInteraction {
@@ -489,6 +503,7 @@ export function createBridge(host: BridgeHost): Bridge {
     /* 留着记录会让它在下一次说话时把文件复活：删完就从表里拿掉。 */
     if (held !== undefined) {
       held.unsubscribe?.()
+      held.unsubscribeSubagents?.()
       sessions.delete(sessionId)
 
       if (active === sessionId) {
@@ -637,7 +652,7 @@ export function createBridge(host: BridgeHost): Bridge {
       },
     )
 
-    const { session, setToolUIContext, mcpManager } = await createAgentSession({
+    const { session, setToolUIContext, mcpManager, subagentEventBus } = await createAgentSession({
       cwd,
       authStorage,
       modelRegistry,
@@ -669,6 +684,8 @@ export function createBridge(host: BridgeHost): Bridge {
       allowed: new Set(),
       compacting: null,
       compactions: 0,
+      subagents: new SubagentLedger({ now: Date.now }),
+      unsubscribeSubagents: null,
     }
 
     record = adopted
@@ -696,6 +713,21 @@ export function createBridge(host: BridgeHost): Bridge {
     adopted.unsubscribe = session.subscribe((event) => {
       handleEvent(adopted, event)
     })
+
+    /*
+     * 子代理那三个频道接上。
+     *
+     * 总线是**根作用域**的：这条会话里再生的子代理全在它上面报（sdk.ts:1372 建一次，
+     * 传给整棵树）。三个频道里只订两个 —— `task:subagent:event` 是每个子代理的原始
+     * AgentSessionEvent 洪流（官方只在 events 级订阅时才要它），我们要的是那一行行的
+     * 生死与进度，不是第二份正文。
+     *
+     * 每一条都推成 transcript 的 task.upsert：后台任务面板与它的秒针早就在等这个
+     * （packages/conversation 的 backgroundOf），此前没有任何生产者。
+     */
+    adopted.unsubscribeSubagents = subagentEventBus
+      ? subscribeSubagents(adopted, subagentEventBus)
+      : null
 
     /*
      * 开工前把思考档位收敛到这条模型自己的梯子上（见 thinking.ts）。放在订阅之前：
@@ -822,6 +854,16 @@ export function createBridge(host: BridgeHost): Bridge {
     readonly arguments?: Record<string, unknown>
     /* omp 让模型自己写的那句话；官方渲染器优先用它当那一行。 */
     readonly intent?: string
+  }
+
+  /*
+   * 子代理总线要的那一面。
+   *
+   * 与 pi-tui 的 `EventBusLike` 同形（on 交回退订函数），但**不从上游 import**：
+   * 那是 omp 的内部类型，而我们只用到这一个方法 —— 抄一份接口比绑一个内部模块稳定。
+   */
+  interface EventBusLike {
+    readonly on: (channel: string, listener: (data: unknown) => void) => () => void
   }
 
   /* 正文帧只装文字：图片块另走 `attachmentOp`（回放历史时由 `imagesOf` 挑出来）。 */
@@ -1450,6 +1492,38 @@ export function createBridge(host: BridgeHost): Bridge {
   }
 
   /*
+   * 子代理总线的两条订阅。
+   *
+   * 频道名取自 pi-tui 的 session-observer-registry（omp 的 task/types.ts 正是从那
+   * re-export 的），不手抄字面量：抄一份就是第二个事实。
+   *
+   * 帧形状按结构收窄（subagents.ts 的入参是可选字段），总线上的载荷是 unknown ——
+   * 认不出的帧在账里变成空 ops，不猜。
+   */
+  function subscribeSubagents(record: Session, bus: EventBusLike): () => void {
+    const lifecycle = bus.on(TASK_SUBAGENT_LIFECYCLE_CHANNEL, (data) => {
+      projectSubagents(record, record.subagents.lifecycle(data))
+    })
+    const progress = bus.on(TASK_SUBAGENT_PROGRESS_CHANNEL, (data) => {
+      projectSubagents(record, record.subagents.progress(data))
+    })
+
+    return () => {
+      lifecycle()
+      progress()
+    }
+  }
+
+  function projectSubagents(record: Session, ops: readonly TranscriptOperation[]): void {
+    if (ops.length === 0) {
+      return
+    }
+
+    /* 任务行是独立于轮的整格替换，不攒批：它的节奏由 omp 的 150ms 合并决定，已经够稀。 */
+    pushTranscript(record, ops, true)
+  }
+
+  /*
    * 一次对话框开门/关门 → 屏幕上的那一件「在等人答」。
    *
    * 这是屏幕看得见审批的唯一来源：投影层的 phaseOf 靠 interactions 里有没有 pending
@@ -1985,6 +2059,118 @@ export function createBridge(host: BridgeHost): Bridge {
     })
   }
 
+  /*
+   * 本机能力清单。
+   *
+   * 只有一项：桌面控制。它是 omp 编进来的 eval 前奏（tools/computer 的
+   * prelude-definition），没有「安装」这一步 —— 它在不在由构建决定，开不开由
+   * `computer.enabled` 决定。所以这里报的是**此刻的就绪**，不是一份目录。
+   *
+   * `supported` 与 `state` 分开是有意的：前者说这台机器上有没有这块能力（构建事实），
+   * 后者说它现在能不能用（人的开关）。恒报 ready 就是把这两件事压成一件，屏幕于是
+   * 说不出「装好了但你关着」。
+   */
+  function readCapabilities(record: Session): readonly {
+    readonly id: string
+    readonly pluginId: string | null
+    readonly label: string
+    readonly supported: boolean
+    readonly state: 'notInstalled' | 'partial' | 'ready' | 'unsupported'
+    readonly install: {
+      readonly running: boolean
+      readonly step: string | null
+      readonly percent: number | null
+      readonly error: string | null
+    }
+  }[] {
+    /*
+     * `ready` 说的是「开着」，`notInstalled` 说的是「关着」。
+     *
+     * 不能拿 `getEvalPreludes()` 当可用性判据：那一支在 `computer.enabled` 为假时
+     * **整份交回空表**（sdk.ts:2009-2021 的 `if (settings.get("computer.enabled"))`），
+     * 于是「关着」与「这个构建没有」会读成同一件事，界面就说不出「装好了但你关着」。
+     *
+     * 所以 `supported` 报构建事实：omp 的 `createComputerPrelude` 是静态编进来的
+     * （sdk.ts:244 的 import），这块能力在这个构建里恒在；真正的平台可用性要等
+     * 真去开它才验得出来（pi-natives 的 DesktopSession），而那一步在
+     * `toggleComputerUse` 里按 omp 官方的做法当场验、验不过就回滚。
+     */
+    const enabled = record.settings.get('computer.enabled') === true
+
+    return [
+      {
+        id: COMPUTER_USE_ID,
+        pluginId: null,
+        label: 'Computer use',
+        supported: true,
+        state: enabled ? 'ready' : 'notInstalled',
+        install: { running: false, step: null, percent: null, error: null },
+      },
+    ]
+  }
+
+  /*
+   * 打开或关上桌面控制。
+   *
+   * 走 omp 官方那两步（slash-commands/builtin-modes.ts:122-138 的
+   * `applyComputerUseToggle`），一步都不少：
+   *
+   * 1. `settings.override` 是**会话级**覆盖，刻意不落盘 —— 那是它自己的选择，
+   *    盘的写入面在设置页（`computer.enabled` 是普通设置，set_setting 能改）。
+   *    官方注释逐字「The override is never persisted to settings.json」。
+   * 2. `refreshBaseSystemPrompt()` 让前奏进出系统提示词。只做第一步，模型手上的
+   *    工具面要到下一轮才变；官方把这一步放在同一次调用里，正是为了当场生效。
+   *
+   * 开之前先验前奏在不在：不在就回滚并把话说清楚，而不是留一个「开着的」假象。
+   */
+  async function toggleComputerUse(record: Session, enabled: boolean): Promise<unknown> {
+    const previous = record.settings.get('computer.enabled')
+
+    /*
+     * 走它自己的持久层（与 browser.* 那三格同一条路）：这一格是设置页上的开关，
+     * 关掉再开一次之后必须还在 —— 会话级 override 一重启就没了。
+     *
+     * 官方 `/computer` 用 override 是因为它是**会话内**的临时开关（官方注释逐字
+     * 「never persisted to settings.json」）；我们这一格是设置页的持久控件，所以
+     * 取它的持久写入面，而把官方那一步 `refreshBaseSystemPrompt` 一起做掉。
+     */
+    record.settings.set('computer.enabled', enabled)
+
+    try {
+      await record.settings.flush()
+      /*
+       * 可用性判据必须在写完**之后**读：前奏是惰性建的，而 `getEvalPreludes()` 只在
+       * `computer.enabled` 为真时才去建它（sdk.ts:2009-2021）—— 写之前读恒是空表，
+       * 那会把「这块能力能用」一律读成「不能用」。官方 `applyComputerUseToggle` 也是
+       * 先落设置再验前奏（slash-commands/builtin-modes.ts:123-128）。
+       */
+      if (
+        enabled &&
+        !record.agent.getEvalPreludes().some((prelude) => prelude.name === COMPUTER_PRELUDE)
+      ) {
+        throw new Error('this session has no computer-use prelude available')
+      }
+
+      /*
+       * 前奏进出系统提示词要靠这一动：只写设置，模型手上的工具面要到下一轮才变，
+       * 而人此刻看到的开关已经是新的了 —— 中间那段不一致正是要消掉的东西。
+       */
+      await record.agent.refreshBaseSystemPrompt()
+    } catch (error) {
+      /* 改到一半失败要把设置还原：留着它等于报了一件没发生的事。 */
+      record.settings.set('computer.enabled', previous as never)
+      await record.settings.flush().catch(() => undefined)
+      throw error
+    }
+
+    return { capabilities: readCapabilities(record) }
+  }
+
+  /* omp 的 eval 前奏名与能力 id 是它自己的词（tools/computer 的 prelude-definition
+   * 与产品 capability 页的约定），改这里等于认不出它。 */
+  const COMPUTER_PRELUDE = 'computer'
+  const COMPUTER_USE_ID = 'computer-use'
+
   // 写 agent 自己的设置层（Settings.set 自己落盘并热重载），flush 后再报选择器。
   async function selectPermission(record: Session, value: string): Promise<void> {
     const posture = POSTURES.find((entry) => entry.value === value)
@@ -2212,20 +2398,38 @@ export function createBridge(host: BridgeHost): Bridge {
       case 'set_browser_settings':
         return await writeBrowserSettings(command)
 
-      // 桌面控制编译在构建里（tools/computer.ts + pi-natives），开与关是它自己的 computer.enabled 设置。
+      /*
+       * 桌面控制这一项：如实报它此刻开没开。
+       *
+       * 此前这里恒报 `state: 'ready'`，而 omp 的 `computer.enabled` 默认是 **false**
+       * （settings-schema.ts:4375-4384）—— 屏幕因此说「已就绪」，而模型手上根本没有那个
+       * 前奏。判据取它自己的两格，一格都不抄：`computer.enabled` 说人开没开，
+       * `getEvalPreludes()` 说这条会话里前奏真的装上了没有（omp 自己的 `/computer`
+       * 命令正是这么判的，slash-commands/builtin-modes.ts:103-116）。
+       *
+       * `supported` 取前奏可用性而不是恒 true：这台机器上 omp 没编进 computer
+       * 前奏时（比如平台没有 pi-natives 那一块），如实说它不支持。
+       */
       case 'capabilities':
-        return {
-          capabilities: [
-            {
-              id: 'computer-use',
-              pluginId: null,
-              label: 'Computer use',
-              supported: true,
-              state: 'ready',
-              install: { running: false, step: null, percent: null, error: null },
-            },
-          ],
+        return { capabilities: readCapabilities(required()) }
+
+      /*
+       * 打开/关上桌面控制。
+       *
+       * 命令名沿用「安装」是因为产品那一页叫能力安装（capability-gateway 的
+       * installCapability），而 omp 里这一项**没有安装这一步** —— 它是构建期编进来的
+       * 前奏，只有开与关。名字留在线上是为了不动已生成的 IPC 契约；语义在这里如实
+       * 收成「切换」。
+       */
+      case 'install_capability': {
+        const record = required()
+
+        if (command.capabilityId !== COMPUTER_USE_ID) {
+          throw new Error(`this agent has no installable capability called ${command.capabilityId}`)
         }
+
+        return await toggleComputerUse(record, command.enabled)
+      }
 
       // 产地是会话已装载的技能（session.skills），不再去盘上扫。
       case 'skills':
@@ -2310,6 +2514,7 @@ export function createBridge(host: BridgeHost): Bridge {
       case 'shutdown': {
         for (const record of sessions.values()) {
           record.unsubscribe?.()
+          record.unsubscribeSubagents?.()
           // 收摊之前先把还挂着的问话结掉：留着它们的 Promise 就永远没有下文了。
           record.desk.closeAll()
           await record.agent.dispose()

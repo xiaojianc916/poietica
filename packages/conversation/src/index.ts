@@ -98,6 +98,7 @@ export type {
   MessageImage,
   PermissionItem,
   QuestionTimelineItem,
+  SubagentItem,
   TimelineState,
   TodoItem,
   TodoStatus,

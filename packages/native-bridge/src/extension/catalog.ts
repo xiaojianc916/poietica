@@ -98,11 +98,11 @@ export const extensionGateway: ExtensionGateway = {
   resolveLauncher,
 }
 
-/* 本机能力账本这一路：读一次清单，或者请它装一项。 */
+/* 本机能力账本这一路：读一次清单，或者开关一项。 */
 export const capabilityGateway: CapabilityGateway = {
   readCapabilities: () => throughIpc(() => commands.agentCapabilityReport()),
-  installCapability: (capabilityId) =>
-    throughIpc(() => commands.agentCapabilityInstall({ capabilityId })),
+  installCapability: (capabilityId, enabled) =>
+    throughIpc(() => commands.agentCapabilityInstall({ capabilityId, enabled })),
   readBrowserSettings: () => throughIpc(() => commands.agentBrowserSettings()),
   readAppBrowserEndpoint: () => throughIpc(() => commands.browserDevtoolsEndpoint()),
   writeBrowserSettings: (patch) =>

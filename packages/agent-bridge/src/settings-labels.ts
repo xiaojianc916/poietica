@@ -725,6 +725,12 @@ const CONTROLLED_ELSEWHERE: readonly string[] = [
   'browser.enabled',
   'browser.headless',
   'browser.cdpUrl',
+  /*
+   * 同一节里的「Oh My Pi Computer Use」开关（agent_capability_report /
+   * agent_capability_install）。它改的就是这一格：omp 里桌面控制是构建期编进来的
+   * eval 前奏，没有安装这一步，开关本身是 `computer.enabled`。
+   */
+  'computer.enabled',
 ]
 
 /** 这一格的**行**由产品别处的控件负责；值仍然要报（有别的格子按它决定显不显示）。 */

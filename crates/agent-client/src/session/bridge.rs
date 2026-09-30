@@ -906,6 +906,20 @@ fn outgoing(command: ClientCommand, id: &str, session_id: Option<&str>) -> Resul
             |data| Ok(capabilities_of(&data)),
         ),
 
+        ClientCommand::InstallCapability {
+            capability_id,
+            enabled,
+            reply,
+        } => ask(
+            &Command::InstallCapability {
+                id: id.to_owned(),
+                capability_id,
+                enabled,
+            },
+            reply,
+            |data| Ok(capabilities_of(&data)),
+        ),
+
         ClientCommand::DeleteSession { session_id, reply } => ask(
             &Command::DeleteSession {
                 id: id.to_owned(),

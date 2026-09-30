@@ -26,6 +26,7 @@ import type { SessionGoal } from '../../agent/goal'
 import type {
   BackgroundTaskItem,
   BackgroundTaskStatus,
+  SubagentItem,
   TodoItem,
   ToolCallTimelineItem,
 } from '../../timeline/timeline-contract'
@@ -35,6 +36,7 @@ import type { WorkspaceGitStatus } from '../goal/workspace-git-status'
 import { GitBranchPicker, type GitBranchPickerProps } from '../threads/git-branch-picker'
 import {
   useAssistantBackgroundTasks,
+  useAssistantSubagents,
   useAssistantTimeline,
   useAssistantTodos,
 } from '../transcript/use-assistant-session'
@@ -137,6 +139,59 @@ export function backgroundTaskProgressLabel(tasks: readonly BackgroundTaskItem[]
     [completed, BACKGROUND_PROGRESS_LABEL.completed],
     [tasks.length - running - completed, BACKGROUND_PROGRESS_LABEL.interrupted],
   ])
+}
+
+/*
+ * 「智能体」那一节的一行。
+ *
+ * 两个来源折成同一个形状：agent 自己报的生命周期帧（subagents），以及时间线上的
+ * delegate 工具调用。前者是 detached 子代理的**唯一**真相 —— 发起它的那次调用早就
+ * 返回了；后者在历史会话里仍然有用（重开一条旧对话时总线上没有任何帧）。
+ */
+interface AgentRow {
+  readonly key: string
+  readonly title: string
+  readonly startedAt: number
+}
+
+/*
+ * 智能体那两拨。
+ *
+ * 有总线帧就用总线帧，否则退回 delegate 工具调用：两条都画会在屏幕上把同一个子代理
+ * 列两遍，而人看不出那是同一个。
+ */
+function agentRows(
+  subagents: readonly SubagentItem[],
+  delegates: { readonly ended: number; readonly running: readonly ToolCallTimelineItem[] },
+): { readonly ended: number; readonly running: readonly AgentRow[] } {
+  if (subagents.length === 0) {
+    return {
+      ended: delegates.ended,
+      running: delegates.running.map((call) => ({
+        key: call.toolCallId,
+        title: call.title,
+        startedAt: call.startedAt,
+      })),
+    }
+  }
+
+  const running: AgentRow[] = []
+  let ended = 0
+
+  for (const agent of subagents) {
+    if (agent.status === 'running') {
+      running.push({
+        key: agent.agentId,
+        title: agent.description,
+        /* 启动时刻缺席时用 0：排序稳定，秒针会显示成一个很大的数 —— 那比丢行好。 */
+        startedAt: agent.startedAt ?? 0,
+      })
+    } else {
+      ended += 1
+    }
+  }
+
+  return { ended, running }
 }
 
 /** 这条时间轴上全部 delegate 工具调用，按结清与否分两拨。 */
@@ -481,7 +536,7 @@ function AgentsSection({
   endedCount,
   separated,
 }: {
-  readonly agents: readonly ToolCallTimelineItem[]
+  readonly agents: readonly AgentRow[]
   readonly endedCount: number
   readonly separated: boolean
 }) {
@@ -533,7 +588,7 @@ function AgentsSection({
           <li
             className="status-panel__item status-panel__item--column"
             data-kind="agent"
-            key={agent.toolCallId}
+            key={agent.key}
           >
             <Bot aria-hidden className="status-panel__item-icon" />
             <div className="status-panel__item-body">
@@ -632,7 +687,7 @@ export function TaskPanelContent({
   readonly onPauseGoal?: (() => void) | undefined
   readonly onResumeGoal?: (() => void) | undefined
   readonly endedAgents?: number | undefined
-  readonly runningAgents?: readonly ToolCallTimelineItem[]
+  readonly runningAgents?: readonly AgentRow[]
   readonly todos: readonly TodoItem[]
 }) {
   const agents = runningAgents ?? []
@@ -694,14 +749,15 @@ export function TodoPanel({
 }) {
   const todos = useAssistantTodos(threadId)
   const backgroundTasks = useAssistantBackgroundTasks(threadId)
+  const subagents = useAssistantSubagents(threadId)
   const timeline = useAssistantTimeline(threadId)
   const { controls, goal } = useOptionalThreadGoal(threadId)
-  const delegates = useMemo(() => delegateCalls(timeline), [timeline])
+  const agents = useMemo(() => agentRows(subagents, delegateCalls(timeline)), [subagents, timeline])
 
   return (
     <TaskPanelContent
       backgroundTasks={backgroundTasks}
-      endedAgents={delegates.ended}
+      endedAgents={agents.ended}
       git={git}
       gitPicker={gitPicker}
       goal={goal}
@@ -712,7 +768,7 @@ export function TodoPanel({
       onResumeGoal={() => {
         void controls?.selectControl(threadId, GOAL_CONTROL_ID, GOAL_RESUMED)
       }}
-      runningAgents={delegates.running}
+      runningAgents={agents.running}
       todos={todos}
     />
   )

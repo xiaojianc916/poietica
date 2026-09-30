@@ -4,9 +4,17 @@ import type { AgentCapability } from './model'
 /*
  * 桌面控制这项能力在 agent 报上来的清单里叫的名字。
  *
- * 它是**上游给的名字**，不是我们起的：条目由 agent 自己的插件目录分发，改这里等于
- * 认不出它。桥目前不报能力清单（capabilities 那条命令如实答「还没接」），所以这一格
- * 现在匹配不到东西；等桥接上再按实际情况核对。
+ * 它是**上游给的名字**，不是我们起的：omp 把它编成一个 eval 前奏（tools/computer 的
+ * prelude-definition），改这里等于认不出它。
+ *
+ * 就绪词表照抄 omp 自己的语义，只有两档会真的出现：
+ * - `ready`：能力可用**且已开**（`computer.enabled` 为真，前奏进了系统提示词）；
+ * - `notInstalled`：能力在这台机器上有（构建期编进来了），但**没开**。omp 里这一项
+ *   没有「安装」这一步，所以这一档现在说的是「关着」而不是「缺件」。
+ * - `unsupported`：这个构建里没有这块能力（比如平台没有对应的 pi-natives）。
+ *
+ * 界面按这三档画：ready 给一个能关掉的开关，notInstalled 给一个能打开的开关。
+ * 少了后者就是一道单向门 —— 点开之后再也关不掉。
  */
 export const COMPUTER_USE = { capabilityId: 'computer-use' } as const
 

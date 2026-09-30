@@ -126,6 +126,37 @@ describe('default open rule', () => {
     const markup = renderToStaticMarkup(<TaskPanelContent backgroundTasks={tasks} todos={[]} />)
     expect(markup).toContain('data-value="terminals"')
   })
+
+  /*
+   * 子代理进「智能体」那一节，不进「后台任务」。
+   *
+   * 这一条钉的是此前那条缺陷：投影层只按 detached 分派、没看 kind，子代理于是被列成
+   * 一台终端。两节同时断言 —— 只说「在智能体里」的话，两边都画也照样通过。
+   */
+  it('lists a subagent under 智能体 and never under 后台任务', () => {
+    const markup = renderToStaticMarkup(
+      <TaskPanelContent
+        backgroundTasks={[]}
+        runningAgents={[{ key: 'Anna', title: '看一遍仓库', startedAt: 0 }]}
+        todos={[]}
+      />,
+    )
+
+    expect(markup).toContain('data-value="agents"')
+    expect(markup).toContain('>智能体<')
+    expect(markup).toContain('看一遍仓库')
+    expect(markup).not.toContain('data-value="terminals"')
+    expect(markup).not.toContain('>后台任务<')
+  })
+
+  it('keeps a background shell job out of 智能体', () => {
+    const markup = renderToStaticMarkup(
+      <TaskPanelContent backgroundTasks={tasks} runningAgents={[]} todos={[]} />,
+    )
+
+    expect(markup).toContain('data-value="terminals"')
+    expect(markup).not.toContain('data-value="agents"')
+  })
 })
 
 describe('status panel sections', () => {

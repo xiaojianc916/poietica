@@ -158,6 +158,24 @@ export interface BackgroundTaskItem {
   readonly endedAt?: number
 }
 
+/*
+ * 一个后台跑着的子代理。
+ *
+ * 与 `BackgroundTaskItem` **分开**是有意的：两者形状相近但说的是两件事 ——
+ * 后台任务那一节画的是 shell/工具的作业（图标就是终端），子代理是「智能体」那一节
+ * 的事。合成一个类型，把子代理塞进后台任务那一格就只是类型允许、语义错误。
+ *
+ * `agentId` 是 omp 给这个子代理签的号（`task` 工具的输出 id，形如 `Anna`、`Anna-2`），
+ * 也就是 transcript 的 `TranscriptTask.agentId`。
+ */
+export interface SubagentItem {
+  readonly agentId: string
+  readonly description: string
+  readonly status: BackgroundTaskStatus
+  readonly startedAt?: number
+  readonly endedAt?: number
+}
+
 export interface PermissionItem extends TimelineEntry {
   readonly type: 'permission'
   readonly requestId: string
@@ -256,6 +274,8 @@ export interface TurnPage {
 export interface TimelineState {
   readonly status: RunStatus
   readonly backgroundTasks: readonly BackgroundTaskItem[]
+  /** 后台跑着的子代理；「智能体」那一节画它们。 */
+  readonly subagents: readonly SubagentItem[]
   readonly sealed: readonly TurnPage[]
   readonly active: TurnPage
   // 已收到的最大序号；去重只需要它（帧走单条有序 IPC，「到过」等价于「不大于它」）。
@@ -267,6 +287,7 @@ export function createTimelineState(): TimelineState {
   return {
     status: 'idle',
     backgroundTasks: [],
+    subagents: [],
     sealed: [],
     active: { turn: 0, items: [] },
     lastSeq: 0,

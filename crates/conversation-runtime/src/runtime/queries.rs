@@ -147,14 +147,20 @@ impl<E: RuntimeFailure> Runtime<E> {
             .map_err(CommandError::Agent)
     }
 
+    /// 开关一项本机能力；应答是改完之后的**整份**清单。
+    ///
+    /// 与 `capability_report` 同形是有意的：omp 里这一项没有「安装」这一步（它是构建期
+    /// 编进来的 eval 前奏），一次开关只改一个设置，而清单里别的项也可能跟着变 ——
+    /// 只交回被点的那一项就是把「别的项现在长什么样」丢给调用方去猜。
     pub async fn capability_install(
         &self,
         agent: String,
         capability: String,
-    ) -> Result<Capability, CommandError<E>> {
+        enabled: bool,
+    ) -> Result<Vec<Capability>, CommandError<E>> {
         let live = self.or_live(agent).await?;
         live.client
-            .install_capability(capability)
+            .install_capability(capability, enabled)
             .await
             .map_err(CommandError::Agent)
     }

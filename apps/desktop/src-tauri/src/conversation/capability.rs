@@ -46,6 +46,8 @@ pub struct AgentCapability {
 #[serde(rename_all = "camelCase")]
 pub struct AgentCapabilityInstallRequest {
     pub capability_id: String,
+    /// 打开还是关上。omp 里这一项没有「安装」这一步，只有开关。
+    pub enabled: bool,
 }
 
 fn reported(capability: Capability) -> AgentCapability {
@@ -84,20 +86,27 @@ pub async fn agent_capability_report(
     Ok(listed.into_iter().map(reported).collect())
 }
 
-/// 启动或跟随幂等安装，连接不存在时先按统一管线建立。
+/// 开关一项本机能力，交回改完之后的整份清单。
+///
+/// 与 `agent_capability_report` 同形：omp 里这一项没有安装这一步，一次开关改的是
+/// 一个设置，清单里别的项也可能跟着变 —— 只回被点的那一项就是让调用方去猜。
 #[tauri::command]
 #[specta::specta]
 pub async fn agent_capability_install(
     app: AppHandle,
     state: State<'_, AgentRuntime>,
     request: AgentCapabilityInstallRequest,
-) -> AgentCommandResult<AgentCapability> {
+) -> AgentCommandResult<Vec<AgentCapability>> {
     let installed = state
-        .capability_install(default_agent_id(&app)?, request.capability_id)
+        .capability_install(
+            default_agent_id(&app)?,
+            request.capability_id,
+            request.enabled,
+        )
         .await
         .map_err(crate::error::Error::from)?;
 
-    Ok(reported(installed))
+    Ok(installed.into_iter().map(reported).collect())
 }
 
 /// agent 的浏览器控制设置，原样投影。

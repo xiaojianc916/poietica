@@ -136,6 +136,21 @@ export type BridgeCommand =
     }
   | { readonly id: string; readonly type: 'sessions' }
   | { readonly id: string; readonly type: 'capabilities' }
+  /**
+   * 打开一项本机能力。
+   *
+   * 名字沿用产品那一页的叫法（capability-gateway 的 installCapability），而 omp 里
+   * 这一项**没有安装这一步**：桌面控制是构建期编进来的 eval 前奏，只有开与关。
+   * 桥把它收成官方那两步（`settings.override` + `refreshBaseSystemPrompt`），
+   * 应答是改完之后的能力清单。
+   */
+  | {
+      readonly id: string
+      readonly type: 'install_capability'
+      readonly capabilityId: string
+      /** 打开还是关上。omp 里这一项只有这两个方向，没有「安装」。 */
+      readonly enabled: boolean
+    }
   /** 读 agent 的浏览器控制设置。 */
   | { readonly id: string; readonly type: 'browser_settings' }
   /**

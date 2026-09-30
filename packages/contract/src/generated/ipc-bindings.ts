@@ -54,9 +54,12 @@ async agentCapabilityReport() : Promise<AgentCapability[]> {
     return await TAURI_INVOKE("agent_capability_report");
 },
 /**
- * 启动或跟随幂等安装，连接不存在时先按统一管线建立。
+ * 开关一项本机能力，交回改完之后的整份清单。
+ * 
+ * 与 `agent_capability_report` 同形：omp 里这一项没有安装这一步，一次开关改的是
+ * 一个设置，清单里别的项也可能跟着变 —— 只回被点的那一项就是让调用方去猜。
  */
-async agentCapabilityInstall(request: AgentCapabilityInstallRequest) : Promise<AgentCapability> {
+async agentCapabilityInstall(request: AgentCapabilityInstallRequest) : Promise<AgentCapability[]> {
     return await TAURI_INVOKE("agent_capability_install", { request });
 },
 /**
@@ -501,7 +504,11 @@ export type AgentCapability = { id: string; pluginId: string | null; label: stri
  * 后台安装进度，原样投影。
  */
 export type AgentCapabilityInstall = { running: boolean; step: string | null; percent: number | null; error: string | null }
-export type AgentCapabilityInstallRequest = { capabilityId: string }
+export type AgentCapabilityInstallRequest = { capabilityId: string; 
+/**
+ * 打开还是关上。omp 里这一项没有「安装」这一步，只有开关。
+ */
+enabled: boolean }
 /**
  * agent 对一项能力的就绪裁决，原样投影。
  */

@@ -139,6 +139,13 @@ pub enum Command {
     Capabilities {
         id: String,
     },
+    /// 开关一项本机能力（omp 里只有开与关：桌面控制是构建期编进来的 eval 前奏）。
+    InstallCapability {
+        id: String,
+        #[serde(rename = "capabilityId")]
+        capability_id: String,
+        enabled: bool,
+    },
     /// agent 的浏览器控制设置。
     BrowserSettings {
         id: String,
@@ -401,6 +408,14 @@ mod tests {
                 },
                 "set_setting",
             ),
+            (
+                Command::InstallCapability {
+                    id: "x".to_owned(),
+                    capability_id: "computer-use".to_owned(),
+                    enabled: true,
+                },
+                "install_capability",
+            ),
         ] {
             let line = encode(&command).expect("encode");
             assert!(line.contains(&format!(r#""type":"{expected}""#)), "{line}");
@@ -460,6 +475,22 @@ mod tests {
 
         assert!(line.contains(r#""sessionId":"s1""#), "{line}");
         assert!(line.contains(r#""dropTurns":3"#), "{line}");
+    }
+
+    /// 能力那一格必须是 camelCase 的 `capabilityId`，方向也必须真的上 wire：
+    /// 桥按这两个名字读，写错是静默 None（或一个永远关不掉的开关）。
+    #[test]
+    fn an_install_names_the_capability_and_the_direction() {
+        let line = encode(&Command::InstallCapability {
+            id: "c7".to_owned(),
+            capability_id: "computer-use".to_owned(),
+            enabled: false,
+        })
+        .expect("encode");
+
+        assert!(line.contains(r#""type":"install_capability""#), "{line}");
+        assert!(line.contains(r#""capabilityId":"computer-use""#), "{line}");
+        assert!(line.contains(r#""enabled":false"#), "{line}");
     }
 
     /// 导出那一格是**磁盘路径**：字节由 agent 自己写，不过这条线。

@@ -64,6 +64,7 @@ describe('pendingInteractions', () => {
     const state: TimelineState = {
       status: 'awaiting_permission',
       backgroundTasks: [],
+      subagents: [],
       sealed: [{ turn: 0, items: [asked('old', 0)] }],
       active: { turn: 1, items: [asked('now', 1)] },
       lastSeq: 2,

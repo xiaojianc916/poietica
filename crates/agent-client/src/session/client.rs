@@ -174,6 +174,12 @@ pub(crate) enum Command {
     Capabilities {
         reply: oneshot::Sender<Result<Vec<Capability>>>,
     },
+    /// 开关一项本机能力；应答是改完之后的能力清单。
+    InstallCapability {
+        capability_id: String,
+        enabled: bool,
+        reply: oneshot::Sender<Result<Vec<Capability>>>,
+    },
     /// agent 的浏览器控制设置。
     BrowserSettings {
         reply: oneshot::Sender<Result<BrowserSettings>>,
@@ -658,9 +664,27 @@ impl AgentClient {
             .map_err(|_dropped| AgentError::Refused(Refusal::Gone))?
     }
 
-    /// 幂等，交回它此刻的进度。
-    pub async fn install_capability(&self, _capability_id: String) -> Result<Capability> {
-        Err(unwired("installing a capability"))
+    /// 开关一项本机能力，交回改完之后的整份清单。
+    ///
+    /// 不是幂等的「安装进度」：omp 里这一项是构建期编进来的 eval 前奏，没有安装
+    /// 这一步，只有开与关（桥把它收成一次持久设置写入 + 刷新系统提示词，失败即回滚）。
+    /// 所以这一问的答案是「现在这份清单长什么样」，与 capability_report 同形。
+    pub async fn install_capability(
+        &self,
+        capability_id: String,
+        enabled: bool,
+    ) -> Result<Vec<Capability>> {
+        let (reply, answer) = oneshot::channel();
+
+        self.send(Command::InstallCapability {
+            capability_id,
+            enabled,
+            reply,
+        })?;
+
+        answer
+            .await
+            .map_err(|_dropped| AgentError::Refused(Refusal::Gone))?
     }
 
     pub async fn model_catalog(

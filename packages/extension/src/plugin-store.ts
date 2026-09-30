@@ -175,8 +175,8 @@ export interface PluginStore {
   readonly cancelInstall: () => void
   /** 放弃在途的技能安装。技能没有确认步，所以这里只有「不要了」一个语义。 */
   readonly cancelSkillInstall: () => void
-  /** 请本机 kap 装一项能力。幂等，这里不下载任何东西：取件、解压、装到哪全在 kap 那一侧。 */
-  readonly installCapability: (capabilityId: string) => void
+  /** 请本机装一项能力。幂等，这里不下载任何东西 */
+  readonly installCapability: (capabilityId: string, enabled: boolean) => void
   /** 重新读取 KAP 能力；连接不存在时由原生运行时建立。 */
   readonly refreshCapabilities: () => void
   readonly refreshMarketplace: () => void
@@ -972,20 +972,16 @@ export function createPluginStore(options: PluginStoreOptions): PluginStore {
       queueCapabilityRead()
     },
 
-    installCapability(capabilityId) {
+    installCapability(capabilityId, enabled) {
       publish({ capabilityCommand: { kind: 'pending', capabilityId } })
 
       queue = queue.then(async () => {
         try {
-          const settled = await options.capability.installCapability(capabilityId)
-          const capabilities =
-            snapshot.capabilities.kind === 'reported'
-              ? snapshot.capabilities.capabilities.some((item) => item.id === settled.id)
-                ? snapshot.capabilities.capabilities.map((item) =>
-                    item.id === settled.id ? settled : item,
-                  )
-                : [...snapshot.capabilities.capabilities, settled]
-              : [settled]
+          /*
+           * agent 交回的是整份清单，原样落账：它不是「这一项变成了什么」的局部更新，
+           * 而是「改完之后全部项长什么样」。按项合并会把别的项的变化吞掉。
+           */
+          const capabilities = await options.capability.installCapability(capabilityId, enabled)
 
           publish({ capabilities: { kind: 'reported', capabilities } })
           await rescan()

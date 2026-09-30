@@ -10,7 +10,12 @@ import type {
 } from '../../agent/session'
 import type { TurnMark } from '../../agent/thread'
 import type { InterjectionOutbox } from '../../interjection/interjection-outbox'
-import type { BackgroundTaskItem, TimelineState, TodoItem } from '../../timeline/timeline-contract'
+import type {
+  BackgroundTaskItem,
+  SubagentItem,
+  TimelineState,
+  TodoItem,
+} from '../../timeline/timeline-contract'
 import type { PendingInteractions } from '../../timeline/timeline-queries'
 import { activeScope, currentTodos, pendingInteractions } from '../../timeline/timeline-queries'
 import type { Transcript } from '../../transcript/transcript-store'
@@ -147,6 +152,10 @@ const readBackgroundTasks = (transcript: Transcript): readonly BackgroundTaskIte
     ? EMPTY_BACKGROUND_TASKS
     : transcript.timeline.backgroundTasks
 
+const EMPTY_SUBAGENTS: readonly SubagentItem[] = []
+const readSubagents = (transcript: Transcript): readonly SubagentItem[] =>
+  transcript.timeline.subagents.length === 0 ? EMPTY_SUBAGENTS : transcript.timeline.subagents
+
 /* 上面还有没有更早的一页。布尔，所以前插与流式追加都叫不醒订阅者。 */
 const readHasEarlier = (transcript: Transcript): boolean => transcript.earlier !== null
 
@@ -229,9 +238,14 @@ export function useAssistantTodos(key: string): readonly TodoItem[] {
   return useSlice(key, readTodos)
 }
 
-/** 由 KAP 生命周期事件投影出的后台任务。 */
+/** 由 agent 生命周期帧投影出的后台任务（shell/工具作业）。 */
 export function useAssistantBackgroundTasks(key: string): readonly BackgroundTaskItem[] {
   return useSlice(key, readBackgroundTasks)
+}
+
+/** 由 agent 生命周期帧投影出的子代理；「智能体」那一节画它们。 */
+export function useAssistantSubagents(key: string): readonly SubagentItem[] {
+  return useSlice(key, readSubagents)
 }
 
 /** 这条对话上面还有没有更早的一页。 */

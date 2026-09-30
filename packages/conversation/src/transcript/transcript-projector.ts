@@ -18,6 +18,7 @@ import type {
   MessageImage,
   PermissionItem,
   QuestionTimelineItem,
+  SubagentItem,
   TimelineItem,
   TimelineState,
   ToolCallTimelineItem,
@@ -461,13 +462,40 @@ function noteOf(response: unknown): string {
   return typeof note === 'string' ? note : ''
 }
 const backgroundOf = (task: TranscriptTask): BackgroundTaskItem | null => {
-  if (!task.detached) {
+  /*
+   * 子代理不走这一格：它们是「智能体」那一节的，见 subagentOf。`detached` 只说明
+   * 「父轮不等它」，不说明它是什么 —— 只按 detached 分派就是那条缺陷本身。
+   */
+  if (!task.detached || task.kind === 'subagent') {
     return null
   }
   const startedAt = timeOf(task.startedAt)
   const endedAt = timeOf(task.endedAt)
   return {
     taskId: task.taskId,
+    description: task.description ?? task.taskId,
+    status: task.state,
+    ...(startedAt === undefined ? {} : { startedAt }),
+    ...(endedAt === undefined ? {} : { endedAt }),
+  }
+}
+
+/*
+ * 子代理那一行。
+ *
+ * 判据是 `kind === 'subagent'`，不是 `detached`：`detached` 说的是「父轮不等它」，
+ * 而**同步**子代理同样要出现在「智能体」那一节（官方 TUI 的 HUD 也列它们）。
+ * 按 detached 分派正是此前那条缺陷 —— 子代理会被塞进「后台任务」，而那一节的图标
+ * 是终端、那一格的名字叫 terminals。
+ */
+const subagentOf = (task: TranscriptTask): SubagentItem | null => {
+  if (task.kind !== 'subagent') {
+    return null
+  }
+  const startedAt = timeOf(task.startedAt)
+  const endedAt = timeOf(task.endedAt)
+  return {
+    agentId: task.agentId ?? task.taskId,
     description: task.description ?? task.taskId,
     status: task.state,
     ...(startedAt === undefined ? {} : { startedAt }),
@@ -928,6 +956,7 @@ export function projectTranscript(
     backgroundTasks: snapshot.tasks
       .map(backgroundOf)
       .filter((item): item is BackgroundTaskItem => item !== null),
+    subagents: snapshot.tasks.map(subagentOf).filter((item): item is SubagentItem => item !== null),
     sealed: stableSealed(placed.pages),
     active: tailOf(placed.pages, placed.tail, snapshot.items),
     lastSeq: 0,

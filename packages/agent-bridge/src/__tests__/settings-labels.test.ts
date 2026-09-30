@@ -222,6 +222,7 @@ test('settings the product already controls elsewhere keep their value but lose 
     'browser.enabled',
     'browser.headless',
     'browser.cdpUrl',
+    'computer.enabled',
   ]) {
     /* 行还在目录里（值要留给条件），但标着 owned，界面据此不画。 */
     expect([path, byPath.get(path)?.owned]).toEqual([path, true])
