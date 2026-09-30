@@ -6,46 +6,63 @@
 )]
 
 use std::env;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::process::Command;
 
-/// Windows 的 npm 只装 bun.cmd shim，[`Command`] 解析不了，故按常见位置找 bun.exe。
+/// npm 前缀里 bun 真身的位置；前缀根本身只放 shim。
+fn bun_exe_under(prefix: &Path) -> PathBuf {
+    prefix.join("node_modules/bun/bin/bun.exe")
+}
+
+/// Windows 的 npm 只装 bun.cmd / bun.ps1 shim，[`Command`] 两个都执行不了
+/// （ps1 连 `CreateProcess` 都过不去，报 os error 193），故一律解析到 bun.exe。
 fn find_bun() -> PathBuf {
     if let Some(bun) = env::var_os("BUN") {
-        return PathBuf::from(bun);
+        let bun = PathBuf::from(bun);
+        // BUN 指到 shim 时取同前缀下的真身：`Get-Command bun` 给出的正是 bun.ps1。
+        return match bun.parent().map(bun_exe_under) {
+            Some(exe) if exe.is_file() => exe,
+            _ => bun,
+        };
     }
 
     #[cfg(windows)]
     {
         let mut candidates = Vec::new();
+        let mut prefixes = Vec::new();
 
         if let Some(prefix) = env::var_os("NPM_CONFIG_PREFIX") {
-            candidates.push(PathBuf::from(prefix).join("node_modules/bun/bin/bun.exe"));
+            prefixes.push(PathBuf::from(prefix));
         }
 
         if let Some(home) = env::var_os("USERPROFILE") {
-            let npmrc = PathBuf::from(&home).join(".npmrc");
-            if let Ok(content) = std::fs::read_to_string(&npmrc) {
+            let home = PathBuf::from(home);
+            if let Ok(content) = std::fs::read_to_string(home.join(".npmrc")) {
                 for line in content.lines() {
                     if let Some((key, value)) = line.split_once('=')
                         && key.trim().eq_ignore_ascii_case("prefix")
                     {
-                        candidates
-                            .push(PathBuf::from(value.trim()).join("node_modules/bun/bin/bun.exe"));
+                        prefixes.push(PathBuf::from(value.trim()));
                     }
                 }
             }
-            candidates.push(PathBuf::from(&home).join(".bun/bin/bun.exe"));
+            // 独立安装的 bun：不是 npm 前缀，真身直接躺在 bin 下。
+            candidates.push(home.join(".bun/bin/bun.exe"));
         }
 
         if let Some(appdata) = env::var_os("APPDATA") {
-            candidates.push(PathBuf::from(appdata).join("npm/node_modules/bun/bin/bun.exe"));
+            prefixes.push(PathBuf::from(appdata).join("npm"));
         }
 
-        for candidate in candidates {
-            if candidate.is_file() {
-                return candidate;
-            }
+        // shim 所在目录就是 npm 前缀根，而它必然在 PATH 上（`bun dev` 能跑起来即证）。
+        if let Some(path) = env::var_os("PATH") {
+            prefixes.extend(env::split_paths(&path));
+        }
+
+        candidates.extend(prefixes.iter().map(|prefix| bun_exe_under(prefix)));
+
+        if let Some(bun) = candidates.into_iter().find(|candidate| candidate.is_file()) {
+            return bun;
         }
     }
 
@@ -75,7 +92,8 @@ fn main() {
         .output()
         .unwrap_or_else(|error| {
             panic!(
-                "failed to run bun at {}: {error}. Set the BUN environment variable to the full path of bun.",
+                "failed to run bun at {}: {error}. Set BUN to the full path of bun.exe, not to a \
+                 bun.cmd / bun.ps1 shim.",
                 bun.display()
             )
         });

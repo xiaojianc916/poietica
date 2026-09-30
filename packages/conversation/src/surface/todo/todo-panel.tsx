@@ -131,13 +131,12 @@ function progressLabel(counts: readonly (readonly [number, string])[]): string {
 export function backgroundTaskProgressLabel(tasks: readonly BackgroundTaskItem[]): string {
   const running = tasks.filter((task) => task.status === 'running').length
   const completed = tasks.filter((task) => task.status === 'completed').length
-  const label = progressLabel([
+  /* 零档不提：进度那一格只说非零的桶。空表即空串，调用方据此整格不画。 */
+  return progressLabel([
     [running, BACKGROUND_PROGRESS_LABEL.running],
     [completed, BACKGROUND_PROGRESS_LABEL.completed],
     [tasks.length - running - completed, BACKGROUND_PROGRESS_LABEL.interrupted],
   ])
-  /* 空表直接说「暂无」，否则摘要那格是一片没字的空白。 */
-  return label.length > 0 ? label : '暂无'
 }
 
 /** 这条时间轴上全部 delegate 工具调用，按结清与否分两拨。 */
@@ -235,7 +234,20 @@ function GitStatusSection({
     return null
   }
   return (
-    <Section summary={() => null} title="Git 工具" value="environment">
+    <Section
+      /*
+       * 收起态把 +N -M 留在标题右边（ZCode GitStatusSection 的 trailing 就是这个）；
+       * 展开时正文里已经有一行「更改」在报同样的数，那一份由 CSS 撤掉，不重复造。
+       */
+      summary={() => (
+        <span className="status-panel__git-stats status-panel__git-stats--summary">
+          <span className="status-panel__added">+{added}</span>{' '}
+          <span className="status-panel__removed">-{removed}</span>
+        </span>
+      )}
+      title="Git 工具"
+      value="environment"
+    >
       <div className="status-panel__git">
         <div className="status-panel__git-row" data-git-row="changes">
           <FileDiff aria-hidden className="status-panel__item-icon" />
@@ -394,6 +406,10 @@ function TodoSection({
   readonly separated: boolean
   readonly todos: readonly TodoItem[]
 }) {
+  /* 没有待办事项就整格不提：空表画一行「暂无任务」是废话，摘要也不留 0/0。 */
+  if (todos.length === 0) {
+    return null
+  }
   const done = todos.filter((item) => item.status === 'done').length
   const window = todoFocusWindow(todos)
   const renderItem = (item: TodoItem, index: number) => (
@@ -420,7 +436,7 @@ function TodoSection({
       summary={() => (
         <span
           className={
-            todos.length > 0 && done === todos.length
+            done === todos.length
               ? 'status-panel__count status-panel__count--success'
               : 'status-panel__count'
           }
@@ -432,7 +448,6 @@ function TodoSection({
       value="todo"
     >
       <ul className="status-panel__list">
-        {todos.length === 0 ? <li className="status-panel__empty">暂无任务</li> : null}
         {window.compact && window.preceding.length > 0 ? (
           <li className="status-panel__fold">
             <ChevronRight aria-hidden className="status-panel__fold-icon" />
@@ -553,8 +568,13 @@ function TerminalsSection({
   readonly separated: boolean
   readonly tasks: readonly BackgroundTaskItem[]
 }) {
+  /* hook 先于闸门：早退写在 hook 之前会让同一组件的 hook 顺序随数据变化，是 React 的硬错。 */
   const running = tasks.filter((task) => task.status === 'running' && task.startedAt !== undefined)
   const now = useNowTicker(running.length > 0)
+  /* 没有后台任务就整格不提，同待办事项：空表画一行「暂无」是废话。 */
+  if (tasks.length === 0) {
+    return null
+  }
   return (
     <Section
       separated={separated}
@@ -565,7 +585,6 @@ function TerminalsSection({
       value="terminals"
     >
       <ul className="status-panel__list">
-        {tasks.length === 0 ? <li className="status-panel__empty">暂无后台任务</li> : null}
         {tasks.map((task) => (
           <li className="status-panel__item" data-status={task.status} key={task.taskId}>
             <span
@@ -622,9 +641,10 @@ export function TaskPanelContent({
   const showGit = git !== undefined && (git.added ?? 0) + (git.removed ?? 0) > 0
 
   /*
-   * 「待办事项」与「后台任务」常驻（空时各说一句「暂无」），其余是有事实才出现的增量区。
+   * 每一格都是有事实才出现：空表连标题都不画（原来「待办事项 / 后台任务」常驻并各说
+   * 一句「暂无」，那是两块永远空着的标题加两句废话）。
    *
-   * 展开与否按同一条规则：**有内容的才默认展开，空的默认收起**。全展开会把一块面板
+   * 展开与否按同一条规则：**有内容的才默认展开，空的谈不上**。全展开会把一块面板
    * 铺成一屏空白；全收起则等于把「有待办在跑」这件事藏起来，都得点一下才知道。
    * Git 是唯一例外 —— 它出现即意味着有改动，恒展开。
    */
@@ -654,7 +674,7 @@ export function TaskPanelContent({
           separated={false}
         />
       ) : null}
-      <TodoSection separated={showGoal} todos={todos} />
+      <TodoSection separated={showGit || showGoal} todos={todos} />
       {showAgents ? <AgentsSection agents={agents} endedCount={endedAgents} separated /> : null}
       <TerminalsSection separated tasks={backgroundTasks} />
     </Accordion>

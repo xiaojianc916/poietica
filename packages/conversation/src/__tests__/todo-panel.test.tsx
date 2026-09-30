@@ -40,6 +40,11 @@ describe('task panel labels', () => {
     )
   })
 
+  /* 空表没有可报的档：摘要给空串，由调用方整格不画。 */
+  it('reports nothing for an empty background list', () => {
+    expect(backgroundTaskProgressLabel([])).toBe('')
+  })
+
   it('formats durations with non-zero units only', () => {
     expect(formatDuration(0)).toBe('0秒')
     expect(formatDuration(11)).toBe('11秒')
@@ -145,15 +150,20 @@ describe('status panel sections', () => {
   it('drops only the goal section when there is no goal', () => {
     const markup = renderToStaticMarkup(<TaskPanelContent backgroundTasks={[]} todos={todos} />)
     expect(markup).not.toContain('data-goal-action')
-    expect(markup).toContain('待办事项')
-    expect(markup).toContain('后台任务')
+    expect(markup).toContain('>待办事项<')
+    expect(markup).not.toContain('>后台任务<')
   })
 
-  /* 两区常驻（空会话里它们仍在），只是默认收起 —— 展开后各说一句「暂无」。 */
-  it('keeps both resident sections in the panel even when empty', () => {
+  /*
+   * 空区整格不提：既不画「暂无」，摘要里也不留一个 0/0。
+   * 断言比的是标题元素本身（>标题<），面板的 aria-label 里也有「后台任务」四个字。
+   */
+  it('keeps empty sections out of the panel entirely', () => {
     const markup = renderToStaticMarkup(<TaskPanelContent backgroundTasks={[]} todos={[]} />)
-    expect(markup).toContain('待办事项')
-    expect(markup).toContain('后台任务')
+    expect(markup).not.toContain('>待办事项<')
+    expect(markup).not.toContain('>后台任务<')
+    expect(markup).not.toContain('暂无')
+    expect(markup).not.toContain('0/0')
   })
 
   it('renders the Git section with +N -M and the branch when there are changes', () => {

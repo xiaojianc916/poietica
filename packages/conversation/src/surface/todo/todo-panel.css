@@ -4,6 +4,9 @@
  *
  * 尺寸、圆角、间距、过渡、颜色档位全部取自 ZCode 源码的字面值：
  * - 字号：ZCode :root 的 --ui-font-size: 14px（text-ui-base）；
+ * - 墨色：ZCode packages/ui/src/styles.css 的 .theme-zai-light / .theme-zai-dark
+ *   （--color-foreground 与其 60% / 40%（深色 30%）两档、--color-diff-added/removed），
+ *   取值见下方「墨色」两条声明；
  * - 深色：--color-popover #2b2b2b、--color-border rgba(255,255,255,.1)、
  *   --color-hover rgba(255,255,255,.05)、--color-menu-hover #363636；
  * - 浅色：--color-popover #ffffff、--color-border rgba(13,13,13,.1)、
@@ -14,39 +17,31 @@
  * 本表用到的取值。面板本体在 [data-assistant-skin] 作用域内（读 --cp-*），
  * 但每条都带全局兜底，避免换挂载点（如页头控件行）时解析成空值。
  */
+/*
+ * 墨色照 ZCode 那张卡取，不跟全站 --cp-*：浅色是 zcode-ref 的 .theme-zai-light
+ * （packages/ui/src/styles.css）—— 正文 neutral-800 #262626，次要 60%、最次 40%，
+ * 增删 #1e8a3e / #e03131。
+ *
+ * 直接声明在面板自己身上即可：skin/metrics.css 那套 --cp-* 挂在祖先
+ * [data-assistant-skin] 上，元素的自身声明恒压过继承值，不必比特异度。
+ * 悬停墨也照抄 ZCode 的 --color-hover（浅 5% 黑、深 5% 白）。
+ */
 .status-panel {
   /* ZCode :root 的 --ui-font-size: 14px（text-ui-base）。 */
   --status-panel-font-size: 14px;
-  --status-panel-ink: var(--cp-ink, var(--ui-foreground));
-  --status-panel-ink-subtle: var(--cp-ink-subtle, var(--ui-muted-foreground));
-  --status-panel-ink-subtlest: var(--cp-placeholder, var(--ui-placeholder));
-  --status-panel-hover: var(--cp-hover, var(--ui-control-hover));
+  --cp-ink: #262626;
+  --cp-ink-muted: #262626;
+  --cp-ink-subtle: color-mix(in oklab, #262626 60%, transparent);
+  --cp-placeholder: color-mix(in oklab, #262626 40%, transparent);
+  --cp-hover: rgb(13 13 13 / 5%);
+  --cp-diff-added-text: #1e8a3e;
+  --cp-diff-removed-text: #e03131;
   --status-panel-success: var(--cp-diff-added-text, var(--ui-success));
   --status-panel-added: var(--cp-diff-added-text, var(--ui-success));
   --status-panel-removed: var(--cp-diff-removed-text, var(--ui-destructive));
 }
 
 /* ZCode CollapsibleContent：高度 300ms ease-in-out + 内容淡入，同一条时间轴。 */
-@keyframes status-panel-collapsible-down {
-  from {
-    height: 0;
-  }
-
-  to {
-    height: var(--accordion-panel-height);
-  }
-}
-
-@keyframes status-panel-collapsible-up {
-  from {
-    height: var(--accordion-panel-height);
-  }
-
-  to {
-    height: 0;
-  }
-}
-
 @keyframes status-panel-fade-in {
   from {
     opacity: 0;
@@ -94,7 +89,7 @@
 .status-panel__section[data-separated] {
   margin-block-start: 8px;
   padding-block-start: 8px;
-  border-block-start: 1px solid var(--color-divider);
+  border-block-start: 1px solid #414141;
 }
 
 /* StatusSectionHeader: mb-0.5 flex h-8 items-center gap-1.5 px-2 pr-8 */
@@ -161,7 +156,7 @@
   transform: rotate(90deg);
 }
 
-/* 行内摘要：text-ui-sm text-[--color-foreground-subtlest]，靠右 */
+/* 行内摘要：text-ui-sm text-[--color-foreground-subtlest]，占满剩余宽度、内容靠右。 */
 .status-panel__trailing {
   display: inline-flex;
   min-inline-size: 0;
@@ -176,6 +171,19 @@
   line-height: 16px;
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
+}
+
+/*
+ * 例外是 Git 那一格：它收起时要贴着「Git 工具」显示，不是甩到对边
+ * （ZCode GitStatusSection 的 trailing 就是标题右邻，见 GitStatusSection）。
+ */
+.status-panel__trailing:has(.status-panel__git-stats--summary) {
+  justify-content: flex-start;
+}
+
+/* 展开时右侧那份 +N -M 撤掉，正文里已经有一行「更改」在报同样的数。 */
+.status-panel__section[data-open] .status-panel__git-stats--summary {
+  display: none;
 }
 
 .status-panel__elapsed {
@@ -224,19 +232,23 @@
 }
 
 /* ── 折叠动画 ──────────────────────────────────────────────────────────
- * 与 ZCode collapsible.tsx 同：外层高度 300ms ease-in-out，内层淡入淡出。
+ * 高度 300ms ease-in-out，同 ZCode CollapsibleContent 的时长与曲线。
+ *
+ * 用 transition 而不是 @keyframes：Base UI 在面板挂上 [data-ending-style] **之前**
+ * 就读 computedStyle 判动画种类（useCollapsiblePanel 的 getAnimationType），只写在
+ * 那个属性下的关键帧它读不到，于是判定「无动画」直接把面板卸载 —— 收起就变成一次
+ * 硬跳。height 用 var(--accordion-panel-height)（Base UI 量的像素高），
+ * 所以两个方向都从实数补间，auto 不参与。
  */
 .status-panel__body {
   height: var(--accordion-panel-height);
   overflow: hidden;
+  transition: height 300ms ease-in-out;
 }
 
-.status-panel__body[data-starting-style] {
-  animation: status-panel-collapsible-down 300ms ease-in-out;
-}
-
+.status-panel__body[data-starting-style],
 .status-panel__body[data-ending-style] {
-  animation: status-panel-collapsible-up 300ms ease-in-out forwards;
+  height: 0;
 }
 
 .status-panel__region {
@@ -373,8 +385,7 @@
   animation: status-panel-spin 1s linear infinite;
 }
 
-/* 空态与折叠占位行：ZCode 的 h-8 行高、px-2、subtle 墨 */
-.status-panel__empty,
+/* 折叠占位行：ZCode 的 h-8 行高、px-2，墨取 TodoPreviewTrigger 的 foreground-subtle。 */
 .status-panel__fold {
   display: flex;
   block-size: 32px;
@@ -384,7 +395,7 @@
   margin: 0;
   padding: 0 8px;
   border-radius: 8px;
-  color: var(--cp-placeholder);
+  color: var(--cp-ink-subtle);
   font-size: var(--status-panel-font-size);
   line-height: 20px;
 }
@@ -433,6 +444,16 @@
 
 .status-panel__git-row:hover {
   background: var(--cp-hover);
+}
+
+/*
+ * 三行的图标都用正文墨：ZCode GitStatusSection 的 FileDiffIcon / GitActionMenu 的
+ * GitCommitIcon 写 text-[var(--color-foreground)]，分支那枚经 triggerClassName 的
+ * [&_svg:first-child] 也压到同一档（picker 自己那支是 --cp-ink-muted，在这里让位）。
+ */
+.status-panel__git-row .status-panel__item-icon,
+.status-panel__git-row--branch .git-branch-picker__trigger svg:first-child {
+  color: var(--cp-ink);
 }
 
 .status-panel__git-label {
@@ -502,7 +523,7 @@
 .status-panel__ended[data-separated] {
   margin-block-start: 8px;
   padding-block-start: 8px;
-  border-block-start: 1px solid var(--color-divider);
+  border-block-start: 1px solid #414141;
 }
 
 .status-panel__ended-row {
@@ -567,17 +588,31 @@
   }
 }
 
-/* 深色下 --cp-ground 与地色齐平，只剩一圈边线；抬一档（ZCode popover 也是 #2b2b2b）。 */
+/*
+ * 深色下 --cp-ground 与地色齐平，只剩一圈边线；抬一档到产品指定的 #202020
+ * （不是 ZCode 的 #2b2b2b，墨色档位仍照 zai-dark）。
+ *
+ * 墨色照 ZCode 那张卡：正文 neutral-300 #d4d4d4，次要 60%、最次 30%，
+ * 增删 #46bf72 / #ff5c5c。全站 --ui-foreground 是 #c3c3c3、次要 55%，
+ * 在这张卡上比 ZCode 那套暗一档。自身声明压过继承，理由见文件头那条。
+ */
 :root[data-theme="dark"] .status-panel {
-  background: #2b2b2b;
+  --cp-ink: #d4d4d4;
+  --cp-ink-muted: #d4d4d4;
+  --cp-ink-subtle: color-mix(in oklab, #d4d4d4 60%, transparent);
+  --cp-placeholder: color-mix(in oklab, #d4d4d4 30%, transparent);
+  --cp-hover: rgb(255 255 255 / 5%);
+  --cp-diff-added-text: #46bf72;
+  --cp-diff-removed-text: #ff5c5c;
+  background: #202020;
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .status-panel__body[data-starting-style],
-  .status-panel__body[data-ending-style],
+  .status-panel__body,
   .status-panel__region,
   .status-panel__body[data-ending-style] .status-panel__region {
     animation: none;
+    transition: none;
   }
 
   .status-panel__chevron {
