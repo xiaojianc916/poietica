@@ -9,8 +9,7 @@
     "./browser": "./src/browser.ts",
     "./review": "./src/review.ts",
     "./conversation": "./src/conversation.ts",
-    "./settings": "./src/settings.ts",
-    "./library": "./src/library.ts"
+    "./settings": "./src/settings.ts"
   },
   "scripts": {
     "typecheck": "tsc --project tsconfig.json --noEmit"

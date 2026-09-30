@@ -4,10 +4,6 @@ export type {
   AgentConfigSnapshot as AgentConfigRecord,
   AgentInstallStatus,
   AppSettings,
-  CustomAgentCatalog,
-  CustomAgentFile,
-  CustomAgentRemoveRequest,
-  CustomAgentSaveRequest,
   Problem,
   SettingsWriteResult,
 } from './generated/ipc-bindings'

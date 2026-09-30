@@ -7,19 +7,12 @@ import {
 } from '@poietica/conversation'
 import { createPluginStore } from '@poietica/extension'
 import { createPreference } from '@poietica/external-store'
-import { LibraryController } from '@poietica/library'
 import { createAgentConfigBridge } from '@poietica/native-bridge/agent/config'
-import {
-  listCustomAgents,
-  removeCustomAgent,
-  saveCustomAgent,
-} from '@poietica/native-bridge/agent/custom'
 import { createModelCatalogPort } from '@poietica/native-bridge/agent/models'
 import { createAgentSettingsPort } from '@poietica/native-bridge/agent/settings'
 import { automationGateway } from '@poietica/native-bridge/automation'
 import { browserHostPort, watchBrowserElementPicked } from '@poietica/native-bridge/browser'
 import { capabilityGateway, extensionGateway } from '@poietica/native-bridge/extensions'
-import { libraryGateway, openLibraryLink } from '@poietica/native-bridge/library'
 import { reviewGateway } from '@poietica/native-bridge/review'
 import { createSettingsPersistence } from '@poietica/native-bridge/settings'
 import { terminalHostPort } from '@poietica/native-bridge/terminal'
@@ -34,16 +27,13 @@ import { writeWorkbenchSession } from '@poietica/native-bridge/workspace/session
 import { failureCoordinator, ProblemError, warn } from '@poietica/problem'
 import {
   AgentSettingsStore,
-  type CustomAgentStore,
   createAgentSettings,
   createSettingsStore,
   ModelCatalogStore,
-  PersonalizationStore,
 } from '@poietica/settings'
 import { AppUpdateStore } from '@poietica/update'
 import { createCommandRegistry, createWorkbenchSessionController } from '@poietica/workspace'
 import { createAuxiliaryPanelStore } from '@poietica/workspace/panels'
-import { createElement, lazy, Suspense } from 'react'
 import { v7 as uuidv7 } from 'uuid'
 import { createAttachmentIntake } from '../assistant/attachment-intake'
 import { createConversationEntry } from '../assistant/conversation-entry'
@@ -61,11 +51,6 @@ import { createWorkspaceRoots } from '../workspace/roots'
 import { createDesktopAgentRuntime } from './compose-agent'
 
 const MARKETPLACE_URL = 'https://code.kimi.com/kimi-code/plugins/marketplace.json'
-
-/* 资料库面板只在用户导航到它时才需要；延迟加载减少首屏 JS 解析量。 */
-const LazyLibrarySurface = lazy(() =>
-  import('../library/library-surface').then((m) => ({ default: m.LibrarySurface })),
-)
 
 export function createApplicationRuntime(restored: string | null): ApplicationRuntime {
   const active = createPreference<string | null>({
@@ -155,24 +140,10 @@ export function createApplicationRuntime(restored: string | null): ApplicationRu
     },
   })
   const agentConfig = createAgentSettings(createAgentConfigBridge())
-  const customAgents: CustomAgentStore = {
-    load: listCustomAgents,
-    save: saveCustomAgent,
-    remove: removeCustomAgent,
-  }
 
-  const library = new LibraryController(libraryGateway, (cause) =>
-    cause instanceof Error ? cause.message : String(cause),
-  )
-  const openLibraryUrl = (url: string): void => {
-    void openLibraryLink(url).catch((cause: unknown) =>
-      warn('无法打开资料链接', { scope: 'library', cause }),
-    )
-  }
   const attachments = createAttachmentIntake()
   const layout = createWorkspaceLayoutStore(createWorkspaceLayoutPreference())
   const composerDrafts = new ComposerDrafts()
-  const personalization = new PersonalizationStore(customAgents)
   const auxiliaryPanel = createAuxiliaryPanelStore(browserHostPort)
   const collapsedWorkspaces = createWorkspaceCollapse()
   const notices = new NoticeStore(failureCoordinator)
@@ -350,7 +321,6 @@ export function createApplicationRuntime(restored: string | null): ApplicationRu
     host: { review: reviewGateway, terminal: terminalHostPort, pickWorkspace: pickWorkspaceRoot },
     layout,
     composerDrafts,
-    personalization,
     auxiliaryPanel,
     browserPick,
     collapsedWorkspaces,
@@ -368,17 +338,10 @@ export function createApplicationRuntime(restored: string | null): ApplicationRu
     agentConfig,
     agentSettingsCatalog,
     modelCatalog,
-    customAgents,
     agent,
     attachments,
     pluginStore,
     automationStore,
-    librarySurface: () =>
-      createElement(
-        Suspense,
-        { fallback: null },
-        createElement(LazyLibrarySurface, { controller: library, openLink: openLibraryUrl }),
-      ),
     own,
     appVersion: readAppVersion,
     dataDirectory: readDataDirectory,
@@ -409,7 +372,6 @@ export function createApplicationRuntime(restored: string | null): ApplicationRu
       }
       disposing = Promise.resolve().then(async () => {
         const cleanup = [
-          () => library.dispose(),
           () => settings.dispose(),
           () => agentConfig.dispose(),
           () => agent.dispose(),

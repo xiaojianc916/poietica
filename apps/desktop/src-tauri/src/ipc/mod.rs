@@ -27,9 +27,6 @@ use crate::{
         AgentBrowserSettings, AgentBrowserSettingsPatch, AgentCapability, AgentCapabilityInstall,
         AgentCapabilityInstallRequest, AgentCapabilityState,
     },
-    conversation::custom_agents::{
-        CustomAgentCatalog, CustomAgentFile, CustomAgentRemoveRequest, CustomAgentSaveRequest,
-    },
     conversation::dto::{
         AgentAnswerQuestionsRequest, AgentArchiveThreadRequest, AgentCapabilitiesRequest,
         AgentConfigChoice, AgentConfigControl, AgentConfigPurpose, AgentDismissQuestionsRequest,
@@ -64,8 +61,6 @@ pub(crate) fn surface() -> Builder<Wry> {
     Builder::<Wry>::new()
         .error_handling(ErrorHandlingMode::Throw)
         .commands(tauri_specta::collect_commands![
-            crate::library::library_execute,
-            crate::library::library_import,
             crate::conversation::turn::agent_prompt,
             crate::conversation::turn::agent_cancel,
             crate::conversation::turn::agent_steer,
@@ -132,9 +127,6 @@ pub(crate) fn surface() -> Builder<Wry> {
             crate::terminal::terminal_write,
             crate::terminal::terminal_resize,
             crate::terminal::terminal_close,
-            crate::conversation::custom_agents::custom_agents_list,
-            crate::conversation::custom_agents::custom_agents_save,
-            crate::conversation::custom_agents::custom_agents_remove,
             crate::diagnostics::commands::diagnostics_take_previous_crash,
             crate::shutdown::application_quit,
             crate::window::commands::window_open_devtools,
@@ -259,10 +251,6 @@ pub(crate) fn surface() -> Builder<Wry> {
         .typ::<SkillRecord>()
         .typ::<SkillStaged>()
         .typ::<SkillCommitRequest>()
-        .typ::<CustomAgentCatalog>()
-        .typ::<CustomAgentFile>()
-        .typ::<CustomAgentSaveRequest>()
-        .typ::<CustomAgentRemoveRequest>()
         .typ::<NativeCrashReport>()
         .typ::<AppSettings>()
         .typ::<PrivacySettings>()

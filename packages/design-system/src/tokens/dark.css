@@ -18,7 +18,7 @@
   --ui-card-divider: var(--ui-region-divider-color);
   --ui-card-frame: var(--ui-surface-frame);
   --ui-chrome: var(--ui-palette-dark-850);
-  /* 独立界面的地色（资料库、自动化、个性化）：与页面底色同值 —— 浅色那边两格
+  /* 独立界面的地色（自动化）：与页面底色同值 —— 浅色那边两格
    * 都是纯白，深色下原来那一格比页面亮，整块界面看着像浮起来的卡片。 */
   --ui-ground: var(--ui-palette-dark-950);
 

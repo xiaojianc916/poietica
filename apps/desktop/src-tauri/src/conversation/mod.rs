@@ -7,7 +7,6 @@ pub mod capability;
 pub(crate) mod composition;
 pub mod config;
 mod configuration;
-pub mod custom_agents;
 pub mod dto;
 pub mod export;
 mod failure;

@@ -8,6 +8,9 @@
 ACP / kap / kimi-code / deepseek harness / 早期 fatal-incident 草案等已消失的
 前提），幸存的 22 份从 0001 起连续编号。源码与文档里的引用已同步更新。
 
+2026-09-30 随资料库与个性化两个表面整包移除，作废 0008（表格列类型与边车
+`.schema.json` 随 crates/library 一起消失，前提不再存在）。该号从此空缺，不再复用。
+
 按文件顺序阅读即按决策时间顺序。当前在册：
 
 | 编号 | 主题 |
@@ -19,7 +22,6 @@ ACP / kap / kimi-code / deepseek harness / 早期 fatal-incident 草案等已消
 | 0005 | 保留 DWM redirection surface |
 | 0006 | 辅助面板是 workbench 的一部分 |
 | 0007 | 与主题对齐的窗口表面 |
-| 0008 | 表格列类型的归属与落盘 |
 | 0009 | 元素拾取面板跟随应用主题 |
 | 0010 | Zod 是唯一的 schema 库 |
 | 0011 | 窗口表面读取 shell chrome |

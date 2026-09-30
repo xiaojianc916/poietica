@@ -13,7 +13,7 @@
  * （apps/desktop/src/shell/commands/app-commands.ts）。
  */
 
-export type SurfaceIconId = 'book-open' | 'clock' | 'message' | 'hat-glasses'
+export type SurfaceIconId = 'clock' | 'message'
 
 export type SurfaceActivation = { readonly kind: 'surface' } | { readonly kind: 'planned' }
 
@@ -40,25 +40,11 @@ export const SURFACE_REGISTRY = {
     navigationOrder: null,
     activation: { kind: 'surface' },
   },
-  library: {
-    title: '资料库',
-    description: '应用自己保管的资料：新建或导入 Markdown、表格与网页。',
-    iconId: 'book-open',
-    navigationOrder: 0,
-    activation: { kind: 'surface' },
-  },
   automations: {
     title: '自动化',
     description: '按计划反复执行的任务。每次运行都是一条对话。',
     iconId: 'clock',
-    navigationOrder: 1,
-    activation: { kind: 'surface' },
-  },
-  personalization: {
-    title: '个性化',
-    description: '实现Agent的个性化定制。',
-    iconId: 'hat-glasses',
-    navigationOrder: 2,
+    navigationOrder: 0,
     activation: { kind: 'surface' },
   },
 } as const satisfies Record<string, SurfaceDescriptor>

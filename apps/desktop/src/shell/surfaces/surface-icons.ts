@@ -1,5 +1,5 @@
 import { describeSurface, type SurfaceIconId, type SurfaceId } from '@poietica/workspace'
-import { AlarmClock, BookOpen, HatGlasses, SquarePen } from 'lucide-react'
+import { AlarmClock, SquarePen } from 'lucide-react'
 import type { ComponentType } from 'react'
 
 export type SurfaceIcon = ComponentType<{
@@ -8,10 +8,8 @@ export type SurfaceIcon = ComponentType<{
 }>
 
 const SURFACE_ICONS: Record<SurfaceIconId, SurfaceIcon> = {
-  'book-open': BookOpen,
   clock: AlarmClock,
   message: SquarePen,
-  'hat-glasses': HatGlasses,
 }
 
 export function surfaceIcon(id: SurfaceId): SurfaceIcon {

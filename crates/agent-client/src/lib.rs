@@ -34,10 +34,6 @@ pub use interaction::question::{
     QuestionResponse,
 };
 pub use process::controlled_home::write_config_atomically;
-pub use process::custom_agents::{
-    CustomAgentCatalog, CustomAgentFile, CustomAgentFileError, delete_custom_agent,
-    list_custom_agents, save_custom_agent,
-};
 pub use process::daemon::{Daemon, DaemonIntent, Reaction};
 pub use process::install::{
     InstallState, InstallStatus, PackageManager, first_semver, install_package, install_state_of,

@@ -1,4 +1,3 @@
-export { PersonalizationSurface } from './personalization-surface'
 export {
   SettingsContentRegion,
   SettingsNavigationRegion,

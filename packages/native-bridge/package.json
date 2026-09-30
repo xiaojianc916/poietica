@@ -8,7 +8,6 @@
     "./agent/config": "./src/agent/configuration.ts",
     "./agent/models": "./src/agent/models.ts",
     "./agent/settings": "./src/agent/settings.ts",
-    "./agent/custom": "./src/agent/custom.ts",
     "./agent/launcher": "./src/agent/launcher.ts",
     "./assets": "./src/asset/transfer.ts",
     "./automation": "./src/automation.ts",
@@ -28,8 +27,7 @@
     "./diagnostics": "./src/diagnostics/crash-report.ts",
     "./window": "./src/window.ts",
     "./workspace/paths": "./src/workspace/paths.ts",
-    "./errors": "./src/ipc-error.ts",
-    "./library": "./src/library.ts"
+    "./errors": "./src/ipc-error.ts"
   },
   "scripts": {
     "typecheck": "tsc --project tsconfig.json --noEmit",
@@ -50,8 +48,7 @@
     "zod": "catalog:",
     "@poietica/browser": "workspace:*",
     "@poietica/review": "workspace:*",
-    "@poietica/terminal": "workspace:*",
-    "@poietica/library": "workspace:*"
+    "@poietica/terminal": "workspace:*"
   },
   "devDependencies": {
     "@types/bun": "catalog:",

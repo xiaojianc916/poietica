@@ -2,7 +2,6 @@ import type { AutomationStore } from '@poietica/automation'
 import type { AgentSessionPort, ComposerDrafts } from '@poietica/conversation'
 import { ComposerDraftsContext, useAgentControls } from '@poietica/conversation/surface'
 import { LoadingState } from '@poietica/design-system'
-import type { PersonalizationStore } from '@poietica/settings'
 import { lazy, type ReactNode, Suspense } from 'react'
 import { AssistantPane } from '../assistant/assistant-pane'
 import type { SurfaceRenderers } from '../shell/surfaces/surface'
@@ -11,11 +10,6 @@ import type { WorkbenchHost } from './runtime-contract'
 const DeferredAutomationsSurface = lazy(() =>
   import('@poietica/automation/ui').then(({ AutomationsSurface }) => ({
     default: AutomationsSurface,
-  })),
-)
-const DeferredPersonalizationSurface = lazy(() =>
-  import('@poietica/settings/ui').then(({ PersonalizationSurface }) => ({
-    default: PersonalizationSurface,
   })),
 )
 function SurfaceLoading() {
@@ -35,9 +29,6 @@ interface DesktopSurfaces {
 interface DesktopSurfacesOptions {
   readonly pickWorkspace: WorkbenchHost['pickWorkspace']
   readonly drafts: ComposerDrafts
-  readonly personalization: PersonalizationStore
-  /** 资料库表面是桌面领域，由组合根注入，工作台领域不认它。 */
-  readonly library: () => ReactNode
   /** 分叉出的对话开出来之后，去它那里 —— 与打开一条对话同一个动作。 */
   readonly onConversationForked: (threadId: string, title: string) => void
   readonly onConversationStarted: (threadId: string, title: string) => void
@@ -49,8 +40,6 @@ export function createDesktopSurfaces({
   pickWorkspace,
   automationStore,
   drafts,
-  personalization,
-  library,
   onConversationForked,
   onConversationStarted,
   session,
@@ -82,13 +71,6 @@ export function createDesktopSurfaces({
           </ComposerDraftsContext>
         </Suspense>
       ),
-
-      personalization: () => (
-        <Suspense fallback={<SurfaceLoading />}>
-          <DeferredPersonalizationSurface store={personalization} />
-        </Suspense>
-      ),
-      library: () => library(),
     },
 
     renderAssistant,

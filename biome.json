@@ -351,16 +351,6 @@
           }
         }
       }
-    },
-    {
-      "includes": ["packages/settings/src/ui/personalization-surface.tsx"],
-      "linter": {
-        "rules": {
-          "a11y": {
-            "noLabelWithoutControl": "off"
-          }
-        }
-      }
     }
   ]
 }

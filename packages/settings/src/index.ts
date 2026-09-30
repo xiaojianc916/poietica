@@ -16,20 +16,6 @@ export type {
 } from './agent-settings/model'
 export { catalogOf, entryOf } from './agent-settings/model'
 export { type AgentSettingsSnapshot, AgentSettingsStore } from './agent-settings/store'
-export type {
-  CustomAgentDraft,
-  DelegationMode,
-  ModelPreference,
-  ToolMode,
-} from './custom-agents/agent-document'
-export type {
-  CustomAgentCatalog,
-  CustomAgentFile,
-  CustomAgentRemoveRequest,
-  CustomAgentSaveRequest,
-  CustomAgentStore,
-} from './custom-agents/personalization-store'
-export { PersonalizationStore } from './custom-agents/personalization-store'
 export type { KeybindingCatalog, KeybindingEntry } from './keymap/keybinding-catalog'
 export type {
   CatalogProvider,

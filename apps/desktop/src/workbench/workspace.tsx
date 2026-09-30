@@ -11,7 +11,6 @@ import type {
   AgentSettingsStore,
   KeybindingCatalog,
   ModelCatalogStore,
-  PersonalizationStore,
   SettingsStore,
 } from '@poietica/settings'
 import {
@@ -71,8 +70,6 @@ export interface DesktopWorkspaceProps {
   readonly agentSettingsCatalog: AgentSettingsStore
   readonly modelCatalog: ModelCatalogStore
   readonly composerDrafts: ComposerDrafts
-  readonly personalization: PersonalizationStore
-  readonly librarySurface: () => ReactNode
   readonly auxiliaryPanel: AuxiliaryPanelStore
   readonly plugins: PluginStore
   readonly automationStore: AutomationStore
@@ -151,8 +148,6 @@ export function DesktopWorkspace({
   agentSettingsCatalog,
   modelCatalog,
   composerDrafts,
-  personalization,
-  librarySurface,
   auxiliaryPanel,
   plugins,
   automationStore,
@@ -239,21 +234,11 @@ export function DesktopWorkspace({
         pickWorkspace: host.pickWorkspace,
         automationStore,
         drafts: composerDrafts,
-        personalization,
-        library: librarySurface,
         onConversationForked: startConversation,
         onConversationStarted: startConversation,
         session: agentSession,
       }),
-    [
-      agentSession,
-      automationStore,
-      composerDrafts,
-      host.pickWorkspace,
-      librarySurface,
-      personalization,
-      startConversation,
-    ],
+    [agentSession, automationStore, composerDrafts, host.pickWorkspace, startConversation],
   )
 
   const surface =

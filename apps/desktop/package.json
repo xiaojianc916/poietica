@@ -17,14 +17,12 @@
     "typecheck": "bun run typecheck:browser && bun run typecheck:node"
   },
   "dependencies": {
-    "@milkdown/crepe": "catalog:",
     "@poietica/agent-catalog": "workspace:*",
     "@poietica/automation": "workspace:*",
     "@poietica/conversation": "workspace:*",
     "@poietica/design-system": "workspace:*",
     "@poietica/extension": "workspace:*",
     "@poietica/external-store": "workspace:*",
-    "@poietica/library": "workspace:*",
     "@poietica/native-bridge": "workspace:*",
     "@poietica/problem": "workspace:*",
     "@poietica/review": "workspace:*",

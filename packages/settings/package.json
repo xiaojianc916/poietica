@@ -25,7 +25,6 @@
     "lucide-react": "catalog:",
     "motion": "catalog:",
     "streamdown": "catalog:",
-    "yaml": "catalog:",
     "@poietica/contract": "workspace:*",
     "dequal": "^2.0.3"
   },

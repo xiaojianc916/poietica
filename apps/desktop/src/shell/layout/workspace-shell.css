@@ -237,8 +237,7 @@
 
 /*
  * 会话面板圆角：地色铺在格位上（section 的 bg-chrome）、面板只管圆角与页面底色，
- * 缺一不可 —— 只有圆角没有地色，圆角在屏幕上不存在。overflow: hidden 连内容一起裁，
- * 改大半径前先看资料库侧栏搜索框（最紧的一处，已按 16px 让开）。
+ * 缺一不可 —— 只有圆角没有地色，圆角在屏幕上不存在。overflow: hidden 连内容一起裁。
  */
 .workspace-shell__main-panel {
   border-radius: var(--workspace-card-radius);

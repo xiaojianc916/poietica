@@ -26,7 +26,6 @@ const CACHE_DIRECTORY: &str = "cache";
 const CRASH_REPORT_FILE: &str = "last-native-crash.json";
 const ATTACHMENTS_DIRECTORY: &str = "attachments";
 
-const LIBRARY_DIRECTORY: &str = "library";
 const MARKETPLACE_CATALOG_FILE: &str = "marketplace.json";
 const AGENTS_DIRECTORY: &str = "agents";
 
@@ -138,14 +137,6 @@ pub fn cache_directory<R: Runtime>(app: &AppHandle<R>) -> Result<PathBuf> {
 /// 字节不跟着对话删：删对话只解开索引链接，引用归零才由 thread.rs 的清扫回收字节。
 pub fn attachments_root<R: Runtime>(app: &AppHandle<R>) -> Result<PathBuf> {
     let directory = root(app)?.join(ATTACHMENTS_DIRECTORY);
-
-    fs::create_dir_all(&directory)?;
-
-    Ok(directory)
-}
-
-pub fn library_root<R: Runtime>(app: &AppHandle<R>) -> Result<PathBuf> {
-    let directory = root(app)?.join(LIBRARY_DIRECTORY);
 
     fs::create_dir_all(&directory)?;
 

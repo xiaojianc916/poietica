@@ -7,16 +7,13 @@ import type { ReviewGateway } from '@poietica/review'
 import type {
   AgentSettings,
   AgentSettingsStore,
-  CustomAgentStore,
   ModelCatalogStore,
-  PersonalizationStore,
   SettingsStore,
 } from '@poietica/settings'
 import type { TerminalHostPort } from '@poietica/terminal'
 import type { AppUpdateStore } from '@poietica/update'
 import type { CommandRegistry, WorkbenchSessionStore } from '@poietica/workspace'
 import type { AuxiliaryPanelStore } from '@poietica/workspace/panels'
-import type { ReactNode } from 'react'
 import type { DesktopAgentRuntime } from '../assistant/agent-runtime'
 import type { ConversationEntry } from '../assistant/conversation-entry'
 import type { WorkspaceCollapse } from '../assistant/workspace-collapse'
@@ -36,7 +33,6 @@ export interface ApplicationRuntime {
   readonly host: WorkbenchHost
   readonly layout: WorkspaceLayoutStore
   readonly composerDrafts: ComposerDrafts
-  readonly personalization: PersonalizationStore
   readonly auxiliaryPanel: AuxiliaryPanelStore
   readonly browserPick: BrowserPickController
   readonly collapsedWorkspaces: WorkspaceCollapse
@@ -60,13 +56,10 @@ export interface ApplicationRuntime {
   readonly agentSettingsCatalog: AgentSettingsStore
   /** 模型目录的唯一持有者：默认模型、provider 与密钥的真身都在 agent 进程，这是它的投影。 */
   readonly modelCatalog: ModelCatalogStore
-  readonly customAgents: CustomAgentStore
   readonly agent: DesktopAgentRuntime
   readonly attachments: AttachmentIntake
   readonly pluginStore: PluginStore
   readonly automationStore: AutomationStore
-  /** 资料库表面渲染器：桌面领域，工作台领域不认它，由组合根装配。 */
-  readonly librarySurface: () => ReactNode
   readonly own: (dispose: () => void) => () => void
   /** 这个可执行文件自己的版本号。 */
   readonly appVersion: () => Promise<string>

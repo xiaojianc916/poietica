@@ -5,15 +5,6 @@
 
 
 export const commands = {
-async libraryExecute(request: LibraryRequest) : Promise<LibraryReply> {
-    return await TAURI_INVOKE("library_execute", { request });
-},
-/**
- * 选一份库外的文件复制进来。用户取消时返回 None。
- */
-async libraryImport(parent: string) : Promise<LibraryReply | null> {
-    return await TAURI_INVOKE("library_import", { parent });
-},
 /**
  * Returns the agent's submission receipt without waiting for model completion.
  */
@@ -267,15 +258,6 @@ async terminalResize(root: string, cols: number, rows: number) : Promise<null> {
 },
 async terminalClose(root: string) : Promise<void> {
     await TAURI_INVOKE("terminal_close", { root });
-},
-async customAgentsList() : Promise<CustomAgentCatalog> {
-    return await TAURI_INVOKE("custom_agents_list");
-},
-async customAgentsSave(request: CustomAgentSaveRequest) : Promise<CustomAgentFile> {
-    return await TAURI_INVOKE("custom_agents_save", { request });
-},
-async customAgentsRemove(request: CustomAgentRemoveRequest) : Promise<null> {
-    return await TAURI_INVOKE("custom_agents_remove", { request });
 },
 /**
  * Returns and consumes the previous native process crash report.
@@ -767,10 +749,6 @@ export type Category = "validation" | "configuration" | "permission" | "transpor
  * 稳定错误码。一个码只对应一个原因；删码等于破坏契约。
  */
 export type Code = "contractDecodeFailed" | "capabilityMissing" | "agentUnavailable" | "agentStartFailed" | "turnRejected" | "deliveryUnknown" | "permissionDenied" | "workspaceUnavailable" | "ledgerAppendFailed" | "ledgerCorrupted" | "cancelled" | "internal" | "requestInvalid" | "resourceMissing" | "fileUnavailable" | "settingsUnavailable" | "assetRejected" | "pluginRejected" | "agentRejected" | "gitRejected" | "hostFailed"
-export type CustomAgentCatalog = { files: CustomAgentFile[]; issues: string[] }
-export type CustomAgentFile = { relativePath: string; absolutePath: string; document: string }
-export type CustomAgentRemoveRequest = { relativePath: string; expectedDocument: string }
-export type CustomAgentSaveRequest = { relativePath: string; document: string; expectedDocument: string | null }
 export type Density = "comfortable" | "compact"
 /**
  * 一次失败的编号：日志、上报、界面引用同一个值。
@@ -805,13 +783,6 @@ export type GitReview = { branch: string | null; detachedAt: string | null; upst
 export type GitWatchLease = { token: string; root: string }
 export type GitWorkingTreeChanged = { root: string }
 export type JsonValue = null | boolean | number | string | JsonValue[] | Partial<{ [key in string]: JsonValue }>
-export type LibraryBody = { kind: "markdown"; value: string } | { kind: "table"; value: TableSheet } | { kind: "page"; value: string }
-export type LibraryCatalog = { entries: LibraryEntry[] }
-export type LibraryDocument = { path: string; version: string; body: LibraryBody }
-export type LibraryEntry = { path: string; name: string; parent: string; format: LibraryFormat | null; modified: string | null; bytes: string }
-export type LibraryFormat = "markdown" | "table" | "page"
-export type LibraryReply = { kind: "catalog"; value: LibraryCatalog } | { kind: "document"; value: LibraryDocument } | { kind: "placed"; value: string } | { kind: "done" }
-export type LibraryRequest = { kind: "list"; query: string } | { kind: "read"; path: string } | { kind: "save"; path: string; expected: string; body: LibraryBody } | { kind: "create"; parent: string; format: LibraryFormat } | { kind: "folder"; parent: string } | { kind: "rename"; path: string; name: string } | { kind: "trash"; path: string }
 export type McpLauncher = { program: string; prefixArgs: string[] }
 /**
  * 一次目录操作。判别式与 @poietica/settings 的 ModelCatalogOperation 一一对应。
@@ -853,16 +824,11 @@ export type Retryability = "no" | "afterDelay" | "afterUserAction"
 export type SchedulePreview = { nextRunAt: string | null; problem: ScheduleProblem | null }
 export type ScheduleProblem = "unreadable" | "neverRuns" | "tooFrequent" | "timeZone"
 export type SettingsWriteResult = { settings: AppSettings; applicationProblem: Problem | null }
-/**
- * 列类型的唯一词汇，TS 侧经生成绑定引用，不手抄。
- */
-export type SheetFieldKind = "text" | "number" | "currency" | "select" | "multiSelect" | "date" | "person" | "checkbox" | "link" | "email" | "phone" | "image" | "attachment"
 export type SkillCommitRequest = { stagingId: string; name: string; subdirectory: string | null }
 export type SkillRecord = { name: string; enabled: boolean; document: string; path: string; supportingFiles: number; totalBytes: number; modifiedAt: number | null }
 export type SkillStaged = { stagingId: string; skillMd: string }
 export type TableExportFormat = "csv" | "markdown"
 export type TableExportRequest = { content: string; format: TableExportFormat }
-export type TableSheet = { header: string[]; rows: string[][]; kinds: (SheetFieldKind | null)[] }
 export type TerminalChunk = { kind: "output"; value: string } | { kind: "exited" }
 export type TerminalStreamed = { root: string; chunk: TerminalChunk }
 export type TerminationRequested = null

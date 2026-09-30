@@ -12,7 +12,6 @@ members = [
   "crates/git-adapter",
   "crates/agent-client",
   "crates/ledger",
-  "crates/library",
   "crates/problem",
   "crates/process-host",
   "crates/review",
@@ -54,8 +53,6 @@ tokio = { version = "1.45.1", features = [
 tokio-util = { version = "0.7.15", features = ["rt"] }
 
 # Serialization and validation
-# CSV 的引号、内嵌换行与转义（RFC 4180）不手搞：csv 是 Rust 侧的成熟实现。
-csv = "1.3"
 serde = { version = "1.0.219", features = ["derive"] }
 serde_json = "1.0.140"
 serde_with = "3.13.0"
@@ -84,7 +81,6 @@ time = { version = "0.3.41", features = [
 uuid = { version = "1.16.0", features = ["serde", "v4", "v7"] }
 
 # File, archive and content-addressed storage
-blake3 = "1.8.2"
 hex = "0.4.3"
 sha2 = "0.10.9"
 tempfile = "3.20.0"

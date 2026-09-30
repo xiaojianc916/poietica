@@ -37,11 +37,11 @@ describe('workbench session controller', () => {
 
     store.activateTab('surface:ai')
 
-    store.openSurface({ surfaceId: 'library' })
+    store.openSurface({ surfaceId: 'automations' })
 
     expect(store.getSnapshot().tabs.map((tab) => tab.id)).toEqual([
       'surface:ai',
-      'surface:library',
+      'surface:automations',
       'conversation:thread-1',
     ])
   })
@@ -61,12 +61,10 @@ describe('workbench session controller', () => {
   it('selects the right adjacent tab after closing active', () => {
     const store = createWorkbenchSessionController()
 
-    store.openSurface({ surfaceId: 'library' })
-
     store.openSurface({ surfaceId: 'automations' })
 
-    store.activateTab('surface:library')
-    store.closeTab('surface:library')
+    store.activateTab('surface:ai')
+    store.closeTab('surface:ai')
 
     expect(store.getSnapshot().activeTabId).toBe('surface:automations')
   })
@@ -74,9 +72,9 @@ describe('workbench session controller', () => {
   it('selects the left adjacent tab when closing the last tab', () => {
     const store = createWorkbenchSessionController()
 
-    store.openSurface({ surfaceId: 'library' })
+    store.openSurface({ surfaceId: 'automations' })
 
-    store.closeTab('surface:library')
+    store.closeTab('surface:automations')
 
     expect(store.getSnapshot().activeTabId).toBe('surface:ai')
   })
@@ -84,21 +82,21 @@ describe('workbench session controller', () => {
   it('moves tabs including the default surface tab', () => {
     const store = createWorkbenchSessionController()
 
-    store.openSurface({ surfaceId: 'library' })
-
     store.openSurface({ surfaceId: 'automations' })
 
-    store.moveTab('surface:automations', 1)
+    store.moveTab('surface:automations', 0)
+
+    expect(store.getSnapshot().tabs.map((tab) => tab.id)).toEqual([
+      'surface:automations',
+      'surface:ai',
+    ])
+
+    store.moveTab('surface:ai', 0)
 
     expect(store.getSnapshot().tabs.map((tab) => tab.id)).toEqual([
       'surface:ai',
       'surface:automations',
-      'surface:library',
     ])
-
-    store.moveTab('surface:ai', 2)
-
-    expect(store.getSnapshot().tabs[2]?.id).toBe('surface:ai')
   })
 
   it('drops the tab of a deleted conversation and lands on a neighbour', () => {
@@ -132,18 +130,18 @@ describe('workbench session controller', () => {
     })
   })
 
-  it('restores the library as a singleton surface', () => {
+  it('restores a navigable surface as a singleton surface', () => {
     const store = createWorkbenchSessionController({
       restored: JSON.stringify({
-        entries: [{ kind: 'surface', surfaceId: 'library' }],
+        entries: [{ kind: 'surface', surfaceId: 'automations' }],
         activeIndex: 0,
       }),
     })
-    store.openSurface({ surfaceId: 'library' })
+    store.openSurface({ surfaceId: 'automations' })
     expect(store.getSnapshot().tabs).toHaveLength(1)
     expect(store.getSnapshot().activeSurface).toMatchObject({
-      surfaceId: 'library',
-      title: '资料库',
+      surfaceId: 'automations',
+      title: '自动化',
     })
   })
 

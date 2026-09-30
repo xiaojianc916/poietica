@@ -840,7 +840,6 @@ export async function processStateIsComposedAtRoot(root: string): Promise<Violat
     ['@poietica/update', new Set(['AppUpdateStore'])],
     ['@poietica/automation', new Set(['createAutomationStore'])],
     ['@poietica/extension', new Set(['createPluginStore'])],
-    ['@poietica/settings', new Set(['PersonalizationStore'])],
     ['@poietica/workspace/panels', new Set(['createAuxiliaryPanelStore'])],
   ])
   const violations: Violation[] = []
