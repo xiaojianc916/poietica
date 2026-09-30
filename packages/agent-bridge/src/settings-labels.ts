@@ -721,6 +721,20 @@ const CONTROLLED_ELSEWHERE: readonly string[] = [
   'goal.enabled',
   'defaultThinkingLevel',
   'tools.approvalMode',
+  /*
+   * 队列三格（ADR 0026）：产品在输入框上方那条队列条上有控件，走的是 `delivery`
+   * 命令 → `setSteeringMode(mode)` 那三个官方写入面 —— 它们**同时**改运行时与落
+   * agent 自己的 config.yml。
+   *
+   * 留在这里当普通格子则是**一个事实两个控件**，而且两个不等价：通用 `set_setting`
+   * 只写 config.yml，上游没有 settings 变更监听（agent-session.ts 的 steeringMode
+   * getter 读的是 `this.agent`），所以那一格改完这一条会话的运行时**不会变** ——
+   * 人改了看见值变了，行为照旧，直到重开会话。值照报（别的格子按 condition 读它），
+   * 行不画。
+   */
+  'steeringMode',
+  'followUpMode',
+  'interruptMode',
   /* 设置页「电脑控制」一节（agent_browser_settings / agent_set_browser_settings）。 */
   'browser.enabled',
   'browser.headless',

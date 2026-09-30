@@ -6,7 +6,10 @@ use crate::{
     submission::{Submission, submit},
 };
 use poietica_agent_client::{ConfigSelection, apply_configurations};
-use poietica_conversation::{identity::TurnId, turn::SkillSpec};
+use poietica_conversation::{
+    identity::TurnId,
+    turn::{DeliverAs, SkillSpec},
+};
 use poietica_ledger::{LedgerError, index::ThreadAttachment};
 use std::{fmt, future::Future};
 use uuid::Uuid;
@@ -18,6 +21,8 @@ pub struct Prompt<A> {
     pub thread_id: Uuid,
     pub turn: TurnId,
     pub text: String,
+    /// 这一句走哪一层。`Turn` 开一轮；另外三层是插话（队列归 agent）。
+    pub deliver_as: DeliverAs,
     pub configuration: Vec<ConfigSelection>,
     pub assets: Vec<A>,
     pub skills: Vec<SkillSpec>,
@@ -119,6 +124,7 @@ impl<E: RuntimeFailure> Runtime<E> {
                 model,
                 attachments,
                 skills: request.skills,
+                deliver_as: request.deliver_as,
                 submitted_at_unix_millis: submitted_at(),
             },
             validate,

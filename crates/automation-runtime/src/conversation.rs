@@ -1,6 +1,7 @@
 use crate::{Executor, Observation};
 use poietica_automation::{AutomationError, Execution};
 use poietica_conversation::identity::TurnId;
+use poietica_conversation::turn::DeliverAs;
 use poietica_conversation_runtime::{
     CommandError, ConfigSelection, Prompt, PromptObservation, Runtime, RuntimeFailure,
     SessionError, Takeover,
@@ -62,6 +63,8 @@ where
                     thread_id,
                     turn: TurnId::new(run.clone()),
                     text: execution.prompt.clone(),
+                    /* 定时任务是一次真的开轮：它不是插话。 */
+                    deliver_as: DeliverAs::Turn,
                     configuration: execution
                         .session_config
                         .iter()

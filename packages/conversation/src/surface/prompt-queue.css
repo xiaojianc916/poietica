@@ -2,7 +2,7 @@
  * 输入框上方那条队列：一张卡，行长在卡里。
  *
  * 颜色与尺寸只取 skin/metrics.css 的令牌，所以它跟着主题走，不自己挑灰度。
- * 高度封在五行半：那半行是唯一说明「下面还有」的东西。
+ * 高度封在五行半：多出来的行由这一层自己滚，卡不会长到把输入框挤出视野。
  */
 .prompt-queue {
   display: flex;
@@ -26,68 +26,26 @@
   display: none;
 }
 
-/* 到顶了：下沿化开半行，说明下面还有。是一层雾，所以是遮罩，不是涂色。 */
-.prompt-queue[data-more] {
-  mask-image: linear-gradient(to bottom, #000 calc(100% - var(--cp-queue-fade)), rgb(0 0 0 / 35%));
-}
-
-/* 一行：五格定宽，所以每一行的图标落在同一列；行高由令牌给，不由内容量。 */
+/*
+ * 一行：正文让位，撤回键按内容宽。
+ *
+ * 只有最后一行有撤回键（上游的撤回是 LIFO），所以这一列必须能塌成 0 ——
+ * 定宽会让不能撤的几行右边空出一格，看着像少画了一颗键。
+ */
 .prompt-queue__row {
-  position: relative;
   display: grid;
-  grid-template-columns:
-    var(--cp-target-min)
-    minmax(0, 1fr)
-    var(--cp-target-min)
-    auto
-    var(--cp-target-min);
+  grid-template-columns: minmax(0, 1fr) auto;
   flex: none;
   align-items: center;
   gap: var(--cp-control-gap);
   block-size: var(--cp-queue-row);
-  padding-inline: 0 var(--cp-queue-pad);
+  padding-inline: var(--cp-queue-pad);
   border-radius: var(--cp-queue-row-radius);
   color: var(--cp-ink);
   font-size: var(--cp-font-caption);
-  transition: box-shadow var(--cp-motion-swift) var(--cp-motion-ease);
 }
 
-/* 正文此刻在输入框里：位置留着，但它不是一句待发的话。 */
-.prompt-queue__row[data-editing] {
-  color: var(--cp-ink-muted);
-}
-
-/* 把手被按住的那一刻正是可拖的那一刻：这一行自己浮起来。 */
-.prompt-queue__row:has(.prompt-queue__grip:active) {
-  background: var(--cp-surface);
-  box-shadow: var(--cp-lift);
-  cursor: grabbing;
-  z-index: 1;
-}
-
-/* 把手常显：它是这一行的抓点，藏起来等于没有。 */
-.prompt-queue__grip {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  inline-size: var(--cp-target-min);
-  block-size: var(--cp-target-min);
-  padding: 0;
-  border: 0;
-  border-radius: var(--cp-radius-item);
-  background: transparent;
-  color: var(--cp-ink-muted);
-  cursor: grab;
-  touch-action: none;
-  transition: color var(--cp-motion-swift) var(--cp-motion-ease);
-}
-
-.prompt-queue__grip:hover,
-.prompt-queue__grip:focus-visible {
-  color: var(--cp-ink);
-}
-
-/* 正文只是正文：进编辑由铅笔那一颗管。 */
+/* 正文只是正文：长了就省略，整句仍在 title 里。 */
 .prompt-queue__said {
   min-inline-size: 0;
   overflow: hidden;
@@ -114,28 +72,46 @@
     color var(--cp-motion-swift) var(--cp-motion-ease);
 }
 
-/* 只有一枚字形的那两颗：命中区仍是 WCAG 2.2 SC 2.5.8 的下限。 */
-.prompt-queue__act--glyph {
-  inline-size: var(--cp-target-min);
-  padding-inline: 0;
-}
-
 .prompt-queue__act:hover,
 .prompt-queue__act:focus-visible {
   background: var(--cp-overlay-hover);
   color: var(--cp-ink);
 }
 
-.prompt-queue__act:disabled {
-  background: transparent;
-  color: var(--cp-placeholder);
-  cursor: default;
+/*
+ * 三个模式那一行：贴在队列底下，与待发的行用一条线分开 —— 上面是「排着哪些话」，
+ * 这里是「排着的话怎么喂」。按下的那一档着色，一眼看得出此刻是哪一档。
+ */
+.prompt-queue__modes {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--cp-control-gap);
+  flex: none;
+  padding: var(--cp-queue-pad) var(--cp-queue-pad) 0;
+  margin-block-start: var(--cp-queue-pad);
+  border-block-start: var(--cp-px) solid var(--cp-edge);
+}
+
+.prompt-queue__mode {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--cp-control-gap);
+  font-size: var(--cp-font-caption);
+  color: var(--cp-ink-muted);
+}
+
+.prompt-queue__mode-label {
+  white-space: nowrap;
+}
+
+.prompt-queue__mode .prompt-queue__act[aria-pressed="true"] {
+  color: var(--cp-ink);
+  box-shadow: inset 0 0 0 var(--cp-px) var(--cp-edge);
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .prompt-queue__act,
-  .prompt-queue__grip,
-  .prompt-queue__row {
+  .prompt-queue__act {
     transition-duration: 1ms;
   }
 }

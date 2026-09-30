@@ -27,6 +27,20 @@ export type BridgeCommand =
       readonly text: string
       readonly promptId: string
       /**
+       * 这句话怎么进 agent —— omp 的三层插话，打断程度递减（agent-session.ts:7843-7903）：
+       *
+       * - `turn`：开一轮。空闲时的正常发送；正在跑时上游抛 AgentBusyError，所以这一格
+       *   在流式中**不会**被选（产品在流式里选下面三层）。
+       * - `steer`：插进正在跑的那一轮，在工具批次之间被模型看到（`session.steer`）。
+       * - `followUp`：不打断，本轮跑完后自动作为下一轮输入（`session.followUp`）。
+       * - `aside`：完全非中断，在 step 边界静默注入，绝不打断在跑的工具批
+       *   （`session.sendUserMessage(content, {deliverAs: 'aside'})`）。
+       *
+       * 只有 `steer`/`followUp`/`aside` 是插话；后两者的存续期与队列都在 agent 里，
+       * 这一侧不留副本（AGENTS.md §1「每一类状态有且只有一个所有者」）。
+       */
+      readonly deliverAs: 'turn' | 'steer' | 'followUp' | 'aside'
+      /**
        * 随这句话带上的附件；每一格交的是磁盘绝对路径 + kind + mime + 名字。
        * 对象而非裸路径：SDK 收图只有 base64 一条路（`PromptOptions.images:
        * ImageContent[]`，agent-session-types.ts:345-349），桥按路径读盘同官方 CLI
@@ -45,7 +59,35 @@ export type BridgeCommand =
       readonly skills: readonly { readonly name: string; readonly args?: string }[]
     }
   | { readonly id: string; readonly type: 'cancel' }
-  | { readonly id: string; readonly type: 'steer'; readonly text: string }
+  /**
+   * 队列此刻的事实：两层的待发正文与三个队列模式。
+   *
+   * 队列归 agent（`AgentSession.getQueuedMessages()` 只给可恢复的用户消息，
+   * `queuedMessageCount` 还含 nextTurn 与 advisor 卡），本层不替它记一份。
+   */
+  | { readonly id: string; readonly type: 'queue' }
+  /**
+   * 撤回最后一条还排着的插话，交回正文（LIFO，`popLastQueuedMessage()`）。
+   *
+   * 上游只有这一种撤回：它先看 steering 再看 followUp，并且会连带取走紧挨在它
+   * 前面的隐藏伴生消息（agent-session.ts:7958-7992）。没有「按号撤回」那一说。
+   */
+  | { readonly id: string; readonly type: 'withdraw' }
+  /**
+   * 改三个队列模式；缺席的格不改。
+   *
+   * steeringMode/followUpMode 是 `all | one-at-a-time`（默认后者：一次只喂一条），
+   * interruptMode 是 `immediate | wait`（默认前者：截断可中断的等待）。上游的
+   * `setSteeringMode/setFollowUpMode/setInterruptMode(mode, persist)` 默认落盘到
+   * agent 自己的 config.yml —— 配置真身就是它自己那一份，所以这里照它的默认来。
+   */
+  | {
+      readonly id: string
+      readonly type: 'delivery'
+      readonly steeringMode?: 'all' | 'one-at-a-time'
+      readonly followUpMode?: 'all' | 'one-at-a-time'
+      readonly interruptMode?: 'immediate' | 'wait'
+    }
   /**
    * 从某一轮分叉出一条新会话：丢掉末尾 `dropTurns` 轮，从更早那一点另起一条。
    *
@@ -337,6 +379,30 @@ export type BridgeEvent =
       readonly requestId: string
       readonly questions: readonly AskedQuestion[]
     }
+  /**
+   * 待发队列变了（有人排了一句 / 有人撤回 / agent 在 step 边界把它喂给了模型）。
+   *
+   * 队列的真相在 agent 里，这条只是把它此刻的样子推出去；读命令 `queue` 是同一份。
+   * 上游没有队列变更事件，所以推送点由桥自己认：投递插话之后、撤回之后、改模式之后、
+   * 轮终之后，以及**模型真的看见那句话**时（注入消息的 message_start）。
+   */
+  | {
+      readonly kind: 'queue'
+      readonly sessionId: string
+      readonly queue: QueuedState
+    }
+  /**
+   * 这一句在入队前就被取消了（abort 或用量预检竞态），**没有落进会话文件**。
+   *
+   * 上游的 `setPromptDropped`（agent-session.ts:8335）只在这两种竞态里响一次；不接它
+   * 就等于用户那句话凭空消失 —— 屏幕上那条乐观记录还挂着，agent 永远不回应答。
+   * 正文是**人打的原样**（模板与斜杠命令展开之前）。
+   */
+  | {
+      readonly kind: 'prompt_dropped'
+      readonly sessionId: string
+      readonly text: string
+    }
 
 export interface SelectorControl {
   readonly id: string
@@ -379,6 +445,28 @@ export interface GoalSnapshot {
   readonly turnsUsed: number
   readonly tokensUsed: number
   readonly wallClockMs: number
+}
+
+/**
+ * 待发队列此刻的样子，以及三个队列模式的取值。
+ *
+ * `steering` 与 `followUp` 都是**已经交给 agent 的**用户消息正文（上游
+ * `getQueuedMessages()` 只挑可恢复的用户消息；aside 不进这两个队列，它在 IRC 那条
+ * 旁路上，因此不在这里）。顺序就是出队顺序。
+ */
+export interface QueuedState {
+  /** 这份队列属于哪条会话。队列是会话级的事实，屏幕按对话订阅，认领要用它。 */
+  readonly sessionId: string
+  readonly steering: readonly string[]
+  readonly followUp: readonly string[]
+  readonly steeringMode: 'all' | 'one-at-a-time'
+  readonly followUpMode: 'all' | 'one-at-a-time'
+  readonly interruptMode: 'immediate' | 'wait'
+}
+
+/** 撤回的应答：`text` 为 null 就是队列本来就空着。 */
+export interface WithdrawnMessage {
+  readonly text: string
 }
 
 export interface UsageSnapshot {

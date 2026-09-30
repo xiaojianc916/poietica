@@ -50,6 +50,8 @@ pub(crate) async fn record<E: RuntimeFailure>(
         SessionEvent::Selectors { .. }
         | SessionEvent::Transcript { .. }
         | SessionEvent::Dialog { .. }
+        | SessionEvent::Queue { .. }
+        | SessionEvent::PromptDropped { .. }
         | SessionEvent::ModelCatalogChanged => Ok(()),
     }
 }

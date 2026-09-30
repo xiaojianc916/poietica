@@ -4,10 +4,13 @@ use std::path::PathBuf;
 use futures::channel::{mpsc, oneshot};
 
 use super::config::{ConfigControl, GoalSnapshot};
-use super::{BrowserSettings, Capability, McpServer, OpenedSession, Skill};
+use super::{
+    BrowserSettings, Capability, McpServer, OpenedSession, QueuedState, Skill, WithdrawnMessage,
+};
 use crate::error::{AgentError, Refusal, Result};
 use crate::recorder::FrameSink;
 use crate::settings::{SettingEntry, SettingsCatalog};
+use crate::wire::DeliverAs;
 use crate::{ModelCatalogOperation, ModelCatalogSnapshot};
 
 /// 随一句话带上的一个附件：路径、类别、内容类型、显示名。与 wire.rs 的 WireAttachment
@@ -84,6 +87,8 @@ pub(crate) enum Command {
         /// 与 text 同属一句话：只挑图没打字也是完整的话，判空在桌面 seam 两格一起看。
         attachments: Vec<PromptAttachment>,
         skills: Vec<PromptSkill>,
+        /// 这一句怎么进 agent；只有 `Turn` 会开一轮，其余三层是插话。
+        deliver_as: DeliverAs,
         /// 幂等键：提交时给出的那一个。本机账本按它认轮（automation 用 run id），
         /// 桥那边不需要 —— 轮终由 turn_end 事件报，不靠回执对账。
         idempotency: String,
@@ -96,10 +101,20 @@ pub(crate) enum Command {
         session_id: String,
         reply: oneshot::Sender<Result<()>>,
     },
-    /// 把排队的那几句并进正在跑的那一轮。
-    Steer {
-        prompt_ids: Vec<String>,
-        reply: oneshot::Sender<Result<()>>,
+    /// 待发队列此刻的样子。
+    Queue {
+        reply: oneshot::Sender<Result<QueuedState>>,
+    },
+    /// 撤回最后一条还排着的插话。
+    Withdraw {
+        reply: oneshot::Sender<Result<Option<WithdrawnMessage>>>,
+    },
+    /// 改队列模式；缺席的格不改，应答是改完之后那一份。
+    Delivery {
+        steering_mode: Option<String>,
+        follow_up_mode: Option<String>,
+        interrupt_mode: Option<String>,
+        reply: oneshot::Sender<Result<QueuedState>>,
     },
     /// 回答一次工具授权。答复从 PermissionDesk 来，落到桥那边的 select() 上。
     AnswerPermission {
@@ -450,12 +465,16 @@ impl AgentClient {
     }
 
     /// 提交一到手就回幂等键（不是停止原因）；帧走 sink，轮终走 turn_end 事件。
+    ///
+    /// `deliver_as` 只有 `Turn` 会开一轮；另外三层是插话，回执同样是幂等键 ——
+    /// 插话的「受理」是 agent 收下（上游三个调用都返回 void），由桥 await 出来。
     pub fn prompt(
         &self,
         _session_id: String,
         text: String,
         attachments: Vec<PromptAttachment>,
         skills: Vec<PromptSkill>,
+        deliver_as: DeliverAs,
         idempotency: String,
         frames: FrameSink,
     ) -> Result<oneshot::Receiver<Result<String>>> {
@@ -465,6 +484,7 @@ impl AgentClient {
             text,
             attachments,
             skills,
+            deliver_as,
             idempotency,
             frames,
             reply,
@@ -473,11 +493,43 @@ impl AgentClient {
         Ok(answer)
     }
 
-    /// 把排队的几句并进正在跑的那一轮，不中断在跑的（与 cancel 的分野）。
-    pub async fn steer(&self, _session_id: String, prompt_ids: Vec<String>) -> Result<()> {
+    /// 待发队列此刻的样子：两层正文 + 三个模式。
+    pub async fn queue(&self) -> Result<QueuedState> {
         let (reply, answer) = oneshot::channel();
 
-        self.send(Command::Steer { prompt_ids, reply })?;
+        self.send(Command::Queue { reply })?;
+
+        answer
+            .await
+            .map_err(|_dropped| AgentError::Refused(Refusal::Gone))?
+    }
+
+    /// 撤回最后一条还排着的插话；队列空着就是 `Ok(None)`（不是错）。
+    pub async fn withdraw(&self) -> Result<Option<WithdrawnMessage>> {
+        let (reply, answer) = oneshot::channel();
+
+        self.send(Command::Withdraw { reply })?;
+
+        answer
+            .await
+            .map_err(|_dropped| AgentError::Refused(Refusal::Gone))?
+    }
+
+    /// 改一到三格队列模式；应答是改完之后那一份队列。
+    pub async fn set_delivery_modes(
+        &self,
+        steering_mode: Option<String>,
+        follow_up_mode: Option<String>,
+        interrupt_mode: Option<String>,
+    ) -> Result<QueuedState> {
+        let (reply, answer) = oneshot::channel();
+
+        self.send(Command::Delivery {
+            steering_mode,
+            follow_up_mode,
+            interrupt_mode,
+            reply,
+        })?;
 
         answer
             .await

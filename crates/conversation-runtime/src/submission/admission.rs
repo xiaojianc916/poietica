@@ -11,7 +11,7 @@ use poietica_conversation::identity::TurnId;
 use poietica_conversation::ports::{
     AgentGateway, DeliveryConfirmation, DeliveryReceipt, PromptDelivery,
 };
-use poietica_conversation::turn::SkillSpec;
+use poietica_conversation::turn::{DeliverAs, SkillSpec};
 use poietica_ledger::execution::{IndexError, LocalIndex, write_index};
 use poietica_time::wall_clock::SystemWallClock;
 use std::sync::{
@@ -54,6 +54,7 @@ fn request(thread: Uuid) -> Submission {
             name: "review".to_owned(),
             args: None,
         }],
+        deliver_as: DeliverAs::default(),
         submitted_at_unix_millis: 1,
     }
 }

@@ -1,14 +1,25 @@
 use super::{CommandError, Handle, Runtime, RuntimeFailure, Takeover};
 use crate::session::{SessionError, address};
 use poietica_agent_client::{
-    ApprovalResponse, PromptObservation, QuestionResponse, observe_prompt,
+    ApprovalResponse, PromptObservation, QuestionResponse, QueuedState, WithdrawnMessage,
+    observe_prompt,
 };
 
 #[derive(Debug)]
 pub enum SessionAction {
     Cancel,
-    Steer(Vec<String>),
     AbortPrompt(String),
+}
+
+/// 改队列模式时交上来的那几格；缺席即不改。
+///
+/// 取值域由 agent 自己把关（`all | one-at-a-time` / `immediate | wait`），本层只转发 ——
+/// 抄一份枚举就是第二个事实，上游加一档我们就会静默把它拒掉。
+#[derive(Debug, Default, Clone)]
+pub struct DeliveryModes {
+    pub steering: Option<String>,
+    pub follow_up: Option<String>,
+    pub interrupt: Option<String>,
 }
 
 impl<E: RuntimeFailure> Runtime<E> {
@@ -46,6 +57,36 @@ impl<E: RuntimeFailure> Runtime<E> {
             .questions
             .dismiss(id)
             .map_err(CommandError::Interaction)
+    }
+
+    /// 待发队列此刻的样子（两层正文 + 三个模式）。队列的真相在 agent 里。
+    pub async fn queued(&self) -> Result<QueuedState, CommandError<E>> {
+        self.require_live()?
+            .client
+            .queue()
+            .await
+            .map_err(CommandError::Agent)
+    }
+
+    /// 撤回最后一条还排着的插话；空队列是 `None`，不是错。
+    pub async fn withdraw(&self) -> Result<Option<WithdrawnMessage>, CommandError<E>> {
+        self.require_live()?
+            .client
+            .withdraw()
+            .await
+            .map_err(CommandError::Agent)
+    }
+
+    /// 改队列模式并回交改完之后那一份队列。
+    pub async fn set_delivery_modes(
+        &self,
+        modes: DeliveryModes,
+    ) -> Result<QueuedState, CommandError<E>> {
+        self.require_live()?
+            .client
+            .set_delivery_modes(modes.steering, modes.follow_up, modes.interrupt)
+            .await
+            .map_err(CommandError::Agent)
     }
 
     pub async fn control_thread(
@@ -113,7 +154,6 @@ async fn dispatch(
 ) -> Result<(), poietica_agent_client::AgentError> {
     match action {
         SessionAction::Cancel => live.client.cancel(session).await,
-        SessionAction::Steer(prompts) => live.client.steer(session, prompts).await,
         SessionAction::AbortPrompt(prompt) => live.client.abort_prompt(session, prompt).await,
     }
 }

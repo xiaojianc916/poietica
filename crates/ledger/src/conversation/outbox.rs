@@ -1,5 +1,5 @@
 use poietica_conversation::identity::{ThreadId, TurnId};
-use poietica_conversation::turn::{Admission, DeliveryOutcome, DeliveryState};
+use poietica_conversation::turn::{Admission, DeliverAs, DeliveryOutcome, DeliveryState};
 use poietica_time::WallClock;
 use rusqlite::{Connection, OptionalExtension, Transaction, params};
 
@@ -66,7 +66,7 @@ pub fn record(
 pub fn unresolved(connection: &Connection) -> Result<Vec<Admission>, LedgerError> {
     let mut statement = connection.prepare(
         "SELECT a.turn_id, a.thread_id, a.prompt, a.model, a.attachments, a.skills,
-                a.submitted_at_unix_ms
+                a.submitted_at_unix_ms, a.deliver_as
            FROM delivery_outbox AS o
            JOIN turn_admissions AS a ON a.turn_id = o.turn_id
           WHERE o.state IN ('pending', 'sent', 'unknown')
@@ -83,13 +83,14 @@ pub fn unresolved(connection: &Connection) -> Result<Vec<Admission>, LedgerError
             row.get::<_, String>(4)?,
             row.get::<_, String>(5)?,
             row.get::<_, i64>(6)?,
+            row.get::<_, String>(7)?,
         ))
     })?;
 
     let mut admissions = Vec::new();
 
     for row in rows {
-        let (turn, thread, prompt, model, attachments, skills, submitted) = row?;
+        let (turn, thread, prompt, model, attachments, skills, submitted, deliver_as) = row?;
 
         admissions.push(Admission {
             thread: ThreadId::new(thread),
@@ -99,6 +100,7 @@ pub fn unresolved(connection: &Connection) -> Result<Vec<Admission>, LedgerError
             attachments: serde_json::from_str(&attachments)?,
             skills: serde_json::from_str(&skills)?,
             submitted_at_unix_millis: submitted,
+            deliver_as: DeliverAs::from_stored(&deliver_as),
         });
     }
 

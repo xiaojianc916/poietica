@@ -28,9 +28,15 @@ export type {
   AgentPromptHandle,
   AgentPromptRequest,
   AgentSessionPort,
+  DeliveryModePatch,
+  DroppedPrompt,
+  MessageQueueMode,
   PromptAsset,
   PromptConfiguration,
+  PromptDelivery,
   PromptSkill,
+  QueuedMessages,
+  WithdrawnMessage,
 } from './agent/session'
 export type {
   OpenedThread,
@@ -73,8 +79,8 @@ export {
 export type { SessionControlsFailureReport } from './configuration/session-controls-store'
 export { SessionControlsStore } from './configuration/session-controls-store'
 export { describeFailure } from './failure'
-export type { Interjection } from './interjection/interjection-contract'
-export { InterjectionOutbox } from './interjection/interjection-outbox'
+export type { MessageQueuePort, MessageQueueState } from './interjection/message-queue'
+export { MessageQueue } from './interjection/message-queue'
 export { type ConversationRuntime, createConversationRuntime } from './runtime'
 export type { ThreadWorkspaceList } from './threads/thread-order'
 export { groupByWorkspace } from './threads/thread-order'

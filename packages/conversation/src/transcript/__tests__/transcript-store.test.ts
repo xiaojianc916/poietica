@@ -5,7 +5,12 @@ import {
   TranscriptStore as ProtocolStore,
   type TranscriptTurn,
 } from '@poietica/transcript'
-import type { AgentPromptHandle, AgentSessionPort } from '../../agent/session'
+import type {
+  AgentPromptHandle,
+  AgentSessionPort,
+  DroppedPrompt,
+  QueuedMessages,
+} from '../../agent/session'
 import type { TranscriptPage, TranscriptPort, TranscriptSignal } from '../../agent/transcript'
 import { delegateKey } from '../../timeline/delegate-channel'
 import { projectTranscript, promptOutcome } from '../transcript-projector'
@@ -59,7 +64,25 @@ function sessionPort(
     transcript,
     prompt: async () => ({ sessionId: 'session', promptId: 'prompt' }),
     cancel: async () => undefined,
-    steer: async () => undefined,
+    readQueue: async () => ({
+      sessionId: 'session',
+      steering: [],
+      followUp: [],
+      steeringMode: 'one-at-a-time',
+      followUpMode: 'one-at-a-time',
+      interruptMode: 'immediate',
+    }),
+    withdraw: async () => null,
+    setDeliveryModes: async () => ({
+      sessionId: 'session',
+      steering: [],
+      followUp: [],
+      steeringMode: 'one-at-a-time',
+      followUpMode: 'one-at-a-time',
+      interruptMode: 'immediate',
+    }),
+    subscribeQueue: () => () => undefined,
+    subscribePromptDropped: () => () => undefined,
     abortPrompt: async () => undefined,
     resolvePermission: async () => undefined,
     answerQuestions: async () => undefined,
@@ -254,6 +277,7 @@ describe('TranscriptStore lifecycle', () => {
     })
     const store = new TranscriptStore()
     const sent = store.send({
+      deliverAs: 'turn',
       port,
       threadId: 'thread',
       text: 'hello',
@@ -282,6 +306,7 @@ describe('TranscriptStore lifecycle', () => {
     const store = new TranscriptStore()
     expect(
       await store.send({
+        deliverAs: 'turn',
         port: undefined,
         threadId: 'thread',
         text: 'hello',
@@ -309,6 +334,7 @@ describe('TranscriptStore lifecycle', () => {
     const store = new TranscriptStore()
     store.ensure(port)
     await store.send({
+      deliverAs: 'turn',
       port,
       threadId: 'thread',
       text: 'hello',
@@ -331,6 +357,7 @@ describe('TranscriptStore lifecycle', () => {
   test('a submission that never left the machine offers no stop', async () => {
     const store = new TranscriptStore()
     await store.send({
+      deliverAs: 'turn',
       port: undefined,
       threadId: 'thread',
       text: 'hello',
@@ -352,6 +379,7 @@ describe('TranscriptStore lifecycle', () => {
   test('a new submission clears the previous failure it supersedes', async () => {
     const store = new TranscriptStore()
     const base = {
+      deliverAs: 'turn' as const,
       port: undefined,
       threadId: 'thread',
       assets: [],
@@ -446,6 +474,7 @@ describe('authoritative transcript projections', () => {
     const answer = deferred<AgentPromptHandle>()
     const store = new TranscriptStore({ now: () => 123 })
     const sending = store.send({
+      deliverAs: 'turn',
       port: sessionPort(transcriptPort(), {
         prompt: () => {
           entered.resolve()
@@ -578,57 +607,151 @@ describe('authoritative transcript projections', () => {
   })
 })
 
-describe('conversation-owned submission queues', () => {
+describe('the agent-owned message queue', () => {
   test('views share an owner while conversations remain isolated', () => {
     const store = new TranscriptStore()
-    const first = store.outbox('first')
+    const first = store.queue('first')
     const off = first.subscribe(() => undefined)
     off()
-    expect(store.outbox('first')).toBe(first)
-    expect(store.outbox('second')).not.toBe(first)
+    expect(store.queue('first')).toBe(first)
+    expect(store.queue('second')).not.toBe(first)
     store.forget('first')
-    expect(() => first.say({ text: 'late', assets: [], configuration: [], skills: [] })).toThrow(
-      'disposed',
-    )
-    expect(store.outbox('first')).not.toBe(first)
+    expect(() => first.withdraw()).toThrow('disposed')
+    expect(store.queue('first')).not.toBe(first)
     store.dispose()
-    expect(() => store.outbox('first')).toThrow('disposed')
+    expect(() => store.queue('first')).toThrow('disposed')
   })
+
   test('session replacement retires the replica, not its conversation queue', () => {
     const store = new TranscriptStore()
     store.ensure(sessionPort(transcriptPort()))
-    const queue = store.outbox('thread')
+    const queue = store.queue('thread')
     store.route('session', 'thread', page())
     store.route('replacement', 'thread', page())
-    expect(store.outbox('thread')).toBe(queue)
+    expect(store.queue('thread')).toBe(queue)
     expect(store.ownerOf('session')).toBeUndefined()
     expect(store.ownerOf('replacement')).toBe('thread')
     store.dispose()
   })
-  test('a forgotten delivery cannot dispatch the next queued message', async () => {
-    const entered = deferred<void>()
-    const receipt = deferred<AgentPromptHandle>()
-    const sent: string[] = []
+
+  /* 队列归 agent：它报什么就画什么，这一侧不排第二份。 */
+  test('a queue snapshot reaches the conversation that owns the session', () => {
+    let push: (queue: QueuedMessages) => void = () => {
+      throw new Error('Not subscribed.')
+    }
     const store = new TranscriptStore()
     store.ensure(
       sessionPort(transcriptPort(), {
-        prompt: (input) => {
-          sent.push(input.text)
-          entered.resolve()
-          return receipt.promise
+        subscribeQueue: (listener) => {
+          push = listener
+          return () => undefined
         },
       }),
     )
-    const queue = store.outbox('thread')
-    queue.say({ text: 'first', assets: [], configuration: [], skills: [] })
-    queue.say({ text: 'second', assets: [], configuration: [], skills: [] })
-    await entered.promise
-    store.forget('thread')
-    receipt.resolve({ sessionId: 'session', promptId: 'accepted' })
-    await receipt.promise
+    store.route('session', 'thread', page())
+    const queue = store.queue('thread')
+    const seen: number[] = []
+    queue.subscribe(() => seen.push(queue.read().steering.length))
+    push({
+      sessionId: 'session',
+      steering: ['插一句'],
+      followUp: ['排队的一句'],
+      steeringMode: 'all',
+      followUpMode: 'one-at-a-time',
+      interruptMode: 'wait',
+    })
+    expect(queue.read().steering).toEqual(['插一句'])
+    expect(queue.read().followUp).toEqual(['排队的一句'])
+    expect(queue.read().interruptMode).toBe('wait')
+    expect(seen).toEqual([1])
+
+    /* 还没绑上对话的会话不认领：猜一个归属就是把 chip 画到别人的对话上。 */
+    push({
+      sessionId: 'other',
+      steering: ['别人的'],
+      followUp: [],
+      steeringMode: 'all',
+      followUpMode: 'all',
+      interruptMode: 'immediate',
+    })
+    expect(queue.read().steering).toEqual(['插一句'])
+    store.dispose()
+  })
+
+  /* 撤回是 LIFO 的 agent 动作：交回正文，队列由它自己报下一次。 */
+  test('withdraw hands the last queued text back for the editor', async () => {
+    const store = new TranscriptStore()
+    store.ensure(
+      sessionPort(transcriptPort(), {
+        withdraw: async () => ({ text: '最后一句' }),
+      }),
+    )
+    const queue = store.queue('thread')
+    await expect(queue.withdraw()).resolves.toEqual({ text: '最后一句' })
+    store.dispose()
+  })
+
+  /* 入队前被取消的那一句不会有任何帧；只能靠 setPromptDropped 那条事件收账。 */
+  test('a dropped prompt fails its pending submission instead of vanishing', async () => {
+    let dropped: (prompt: DroppedPrompt) => void = () => {
+      throw new Error('Not subscribed.')
+    }
+    const store = new TranscriptStore()
+    const port = sessionPort(transcriptPort(), {
+      subscribePromptDropped: (listener) => {
+        dropped = listener
+        return () => undefined
+      },
+      prompt: () => new Promise(() => undefined),
+    })
+    store.ensure(port)
+    /* 队列/掉单都是会话级事件：先认下这条会话属于哪条对话，收账才找得到人。 */
+    store.route('session', 'thread', page())
+    void store.send({
+      deliverAs: 'turn',
+      port,
+      threadId: 'thread',
+      text: '被取消的一句',
+      assets: [],
+      configuration: [],
+      skills: [],
+    })
     await Promise.resolve()
-    expect(sent).toEqual(['first'])
-    expect(store.ownerOf('session')).toBeUndefined()
+    dropped({ sessionId: 'session', text: '被取消的一句' })
+    expect(store.read('thread').submissions.map((entry) => entry.phase)).toEqual(['failed'])
+    expect(store.read('thread').operation.kind).toBe('failed')
+    store.dispose()
+  })
+
+  /* 打了同一句话的是另一条对话：掉单带号，就不该被它认领。 */
+  test('a dropped prompt never fails another conversation that said the same thing', async () => {
+    let dropped: (prompt: DroppedPrompt) => void = () => {
+      throw new Error('Not subscribed.')
+    }
+    const store = new TranscriptStore()
+    const port = sessionPort(transcriptPort(), {
+      subscribePromptDropped: (listener) => {
+        dropped = listener
+        return () => undefined
+      },
+      prompt: () => new Promise(() => undefined),
+    })
+    store.ensure(port)
+    store.route('mine', 'mine', page())
+    store.route('theirs', 'theirs', page())
+    void store.send({
+      deliverAs: 'turn',
+      port,
+      threadId: 'mine',
+      text: '同一句话',
+      assets: [],
+      configuration: [],
+      skills: [],
+    })
+    await Promise.resolve()
+    dropped({ sessionId: 'theirs', text: '同一句话' })
+    expect(store.read('mine').submissions.map((entry) => entry.phase)).toEqual(['submitting'])
+    expect(store.read('mine').operation.kind).not.toBe('failed')
     store.dispose()
   })
   test('question failures are recorded by the domain and propagated to the caller', async () => {

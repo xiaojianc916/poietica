@@ -38,3 +38,4 @@ ACP / kap / kimi-code / deepseek harness / 早期 fatal-incident 草案等已消
 | 0022 | 写入被拒是完整性标签，不是 ACL |
 | 0023 | 图片实时投递走 agent 的 SDK 契约，不是磁盘路径 |
 | 0025 | 子代理的生死走 agent 自己的观测总线，能力开关如实报 |
+| 0026 | 插话走 agent 自己的三层队列，本机不留第二份出账簿 |

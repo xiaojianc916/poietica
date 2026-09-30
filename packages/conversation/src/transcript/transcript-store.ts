@@ -5,14 +5,18 @@ import type { RunStatus } from '../agent/run'
 import type {
   AgentPromptHandle,
   AgentSessionPort,
+  DeliveryModePatch,
+  DroppedPrompt,
   PromptAsset,
   PromptConfiguration,
+  PromptDelivery,
   PromptSkill,
+  QueuedMessages,
 } from '../agent/session'
 import type { TurnMark } from '../agent/thread'
 import type { TranscriptPage, TranscriptSignal } from '../agent/transcript'
 import { describeFailure } from '../failure'
-import { InterjectionOutbox } from '../interjection/interjection-outbox'
+import { MessageQueue } from '../interjection/message-queue'
 import { delegateAddress, delegateKey } from '../timeline/delegate-channel'
 import { createTimelineState, isInFlight, type TimelineState } from '../timeline/timeline-contract'
 import { selectIsBusy } from '../timeline/timeline-queries'
@@ -100,6 +104,7 @@ interface SendOptions {
   readonly port: AgentSessionPort | undefined
   readonly threadId: string
   readonly text: string
+  readonly deliverAs: PromptDelivery
   readonly assets: readonly PromptAsset[]
   readonly configuration: readonly PromptConfiguration[]
   readonly skills: readonly PromptSkill[]
@@ -130,7 +135,7 @@ const addressOf = (key: string): { readonly conversation: string; readonly agent
   delegateAddress(key) ?? { conversation: key, agentId: MAIN_AGENT_ID }
 
 export class TranscriptStore implements TranscriptSink {
-  readonly #outboxes = new Map<string, InterjectionOutbox>()
+  readonly #queues = new Map<string, MessageQueue>()
   readonly #held = new Map<string, Transcript>()
   readonly #owners = new Map<string, TranscriptReplica>()
   readonly #routes = new Map<string, string>()
@@ -157,6 +162,8 @@ export class TranscriptStore implements TranscriptSink {
   #running = new Set<string>()
   #port: AgentSessionPort | null = null
   #off: (() => void) | null = null
+  #offQueue: (() => void) | null = null
+  #offDropped: (() => void) | null = null
   #disposed = false
   #serial = 0
 
@@ -164,31 +171,35 @@ export class TranscriptStore implements TranscriptSink {
     this.#now = now
   }
 
-  outbox = (threadId: string): InterjectionOutbox => {
+  /**
+   * 这条对话的待发队列视图。
+   *
+   * 队列的真相在 agent 里（一次连接一条会话），这里只是把它报来的快照按对话存一份，
+   * 好让屏幕订阅。写动作（撤回、改模式）原样交回端口。
+   */
+  queue = (threadId: string): MessageQueue => {
     const lifetime = this.#lifetime(threadId)
-    const held = this.#outboxes.get(threadId)
+    const held = this.#queues.get(threadId)
     if (held !== undefined) {
       return held
     }
-    const created = new InterjectionOutbox({
-      isBusy: () => isInFlight(this.read(threadId).status),
-      deliver: async (said, context) => {
-        lifetime.signal.throwIfAborted()
-        const receipt = await this.send({
-          ...said,
-          ...context,
-          threadId,
-          port: this.#port ?? undefined,
-        })
-        return receipt?.promptId ?? null
-      },
-      merge: async (promptId) => {
+    const created = new MessageQueue({
+      /* 抛在同步段里也安全：MessageQueue 那两头都在 try 里 await 它。 */
+      withdraw: () => {
         lifetime.signal.throwIfAborted()
         const port = this.#port
         if (port === null) {
           throw new Error('这个界面还没有接上助手会话。')
         }
-        await port.steer(threadId, [promptId])
+        return port.withdraw()
+      },
+      setModes: (patch: DeliveryModePatch) => {
+        lifetime.signal.throwIfAborted()
+        const port = this.#port
+        if (port === null) {
+          throw new Error('这个界面还没有接上助手会话。')
+        }
+        return port.setDeliveryModes(patch)
       },
       failed: (cause) => {
         if (!lifetime.signal.aborted) {
@@ -196,7 +207,7 @@ export class TranscriptStore implements TranscriptSink {
         }
       },
     })
-    this.#outboxes.set(threadId, created)
+    this.#queues.set(threadId, created)
     return created
   }
   answerQuestions = (key: string, response: QuestionResponse): Promise<void> =>
@@ -292,6 +303,8 @@ export class TranscriptStore implements TranscriptSink {
       throw new Error('A transcript store cannot change its session port.')
     }
     this.#off = port.transcript.subscribeTranscript((signal) => this.#accept(signal))
+    this.#offQueue = port.subscribeQueue((queue) => this.#acceptQueue(queue))
+    this.#offDropped = port.subscribePromptDropped((dropped) => this.#acceptDropped(dropped))
     this.#port = port
   }
 
@@ -302,13 +315,17 @@ export class TranscriptStore implements TranscriptSink {
     this.#disposed = true
     try {
       this.#off?.()
+      this.#offQueue?.()
+      this.#offDropped?.()
     } finally {
       this.#off = null
+      this.#offQueue = null
+      this.#offDropped = null
       this.#port = null
-      for (const outbox of this.#outboxes.values()) {
-        outbox.dispose()
+      for (const queue of this.#queues.values()) {
+        queue.dispose()
       }
-      this.#outboxes.clear()
+      this.#queues.clear()
       for (const lifetime of this.#lifetimes.values()) {
         lifetime.abort(new DOMException('Conversation runtime stopped.', 'AbortError'))
       }
@@ -328,12 +345,101 @@ export class TranscriptStore implements TranscriptSink {
     }
   }
 
+  /**
+   * agent 报来的一份队列快照。
+   *
+   * 按会话号找到它属于哪条对话（`#routes` 是这条对应关系的唯一产地）：队列是会话级的
+   * 事实，而屏幕是按对话订阅的。还没绑上对话的会话（刚开、还没读首页）就丢掉 ——
+   * 下一次读命令会补上，猜测一个归属只会把 chip 画到别人的对话上。
+   */
+  #acceptQueue = (queue: QueuedMessages): void => {
+    if (this.#disposed) {
+      return
+    }
+    const threadId = this.ownerOf(queue.sessionId)
+    if (threadId === undefined) {
+      return
+    }
+    this.#queues.get(threadId)?.accept(queue)
+  }
+
+  /**
+   * 这一句在入队前就被取消了。
+   *
+   * 事件按会话到（它带 `sessionId`），所以归属由 `ownerOf` 定 —— 那条对话名下的
+   * 提交记录里按正文找回还在提交中的那一条，收成失败并说清楚：**这句话没有落进
+   * 会话文件**，不会有任何帧来解释它。
+   */
+  #acceptDropped = ({ sessionId, text }: DroppedPrompt): void => {
+    if (this.#disposed) {
+      return
+    }
+    const key = this.ownerOf(sessionId)
+    if (key === undefined) {
+      return
+    }
+    const transcript = this.#held.get(key)
+    if (transcript === undefined) {
+      return
+    }
+    let hit = -1
+    for (let index = transcript.submissions.length - 1; index >= 0; index -= 1) {
+      const entry = transcript.submissions[index]
+      if (entry !== undefined && entry.phase === 'submitting' && entry.text === text) {
+        hit = index
+        break
+      }
+    }
+    if (hit < 0) {
+      return
+    }
+    this.#put(key, {
+      ...transcript,
+      operation: {
+        kind: 'failed',
+        message: '这一句在送出去之前就被取消了（没有落进会话）。',
+        blocks: false,
+        indeterminate: false,
+      },
+      submissions: transcript.submissions.map((entry, index) =>
+        index === hit ? { ...entry, phase: 'failed' as const } : entry,
+      ),
+    })
+  }
+
   route = (sessionId: string, threadId: string, baseline: TranscriptPage): void => {
     const owner = this.#bind(sessionId, threadId)
     owner.seed(baseline)
     this.#flush(sessionId)
     this.#observe(threadId, owner, owner.synchronize(MAIN_AGENT_ID))
+    /* 刚绑上这条会话：队列此刻是什么样，读一次。之后的变由 agent 自己推。 */
+    this.refreshQueue(threadId)
   }
+
+  /**
+   * 读一次队列快照。
+   *
+   * 推送是常规路（谁排了一句、谁撤回、模型看见它，agent 都会报），这一条只补两个缺口：
+   * 刚绑上一条会话（还没有任何变化事件），以及一次断线重连之后。
+   */
+  refreshQueue = (key: string): void => {
+    const port = this.#port
+    if (port === null) {
+      return
+    }
+    const lifetime = this.#lifetime(key)
+    void port.readQueue().then(
+      (queue) => {
+        if (!lifetime.signal.aborted) {
+          this.#acceptQueue(queue)
+        }
+      },
+      () => {
+        /* 读不到队列不是这条对话的失败：chip 那一栏空着，下一句照发。 */
+      },
+    )
+  }
+
   ownerOf = (sessionId: string): string | undefined => this.#routes.get(sessionId)
   opening = (threadId: string): void => {
     this.#lifetime(threadId)
@@ -352,8 +458,8 @@ export class TranscriptStore implements TranscriptSink {
     })
   }
   forget = (threadId: string): void => {
-    this.#outboxes.get(threadId)?.dispose()
-    this.#outboxes.delete(threadId)
+    this.#queues.get(threadId)?.dispose()
+    this.#queues.delete(threadId)
     this.#lifetimes.get(threadId)?.abort(new DOMException('Conversation released.', 'AbortError'))
     this.#lifetimes.delete(threadId)
     const owner = this.#owners.get(threadId)
@@ -421,6 +527,7 @@ export class TranscriptStore implements TranscriptSink {
   send = async ({
     assets,
     configuration,
+    deliverAs,
     onUserMessage,
     port,
     prepare,
@@ -429,6 +536,19 @@ export class TranscriptStore implements TranscriptSink {
     threadId,
   }: SendOptions): Promise<AgentPromptHandle | null> => {
     const lifetime = this.#lifetime(threadId)
+    if (deliverAs !== 'turn') {
+      return await this.#interject({
+        assets,
+        configuration,
+        deliverAs,
+        lifetime,
+        port,
+        prepare,
+        skills,
+        text,
+        threadId,
+      })
+    }
     const submission: PendingSubmission = {
       id: this.#serial++,
       text,
@@ -468,7 +588,7 @@ export class TranscriptStore implements TranscriptSink {
       }
       onUserMessage?.(threadId, text)
       leftTheMachine = true
-      const handle = await port.prompt({ threadId, text, assets, configuration, skills })
+      const handle = await port.prompt({ threadId, text, deliverAs, assets, configuration, skills })
       if (lifetime.signal.aborted) {
         return null
       }
@@ -510,6 +630,62 @@ export class TranscriptStore implements TranscriptSink {
             (entry): PendingSubmission =>
               entry.id === submission.id ? { ...entry, phase: 'failed' } : entry,
           ),
+        })
+      }
+      return null
+    }
+  }
+
+  /**
+   * 一句插话。
+   *
+   * 与开一轮那条路的**全部差别**在这里：
+   * - 不开乐观轮：这句话进的是 agent 的队列，模型看见它的那一刻桥会推一条帧
+   *   （`projection.ts` 的 steeredFrame），屏幕上因此不会先长出一轮再作废。
+   * - 不记提交、不认号：插话没有官方轮身份，收据只是「agent 收下了」。
+   * - 队列 chip 由 agent 报来（`subscribeQueue`），这一侧不排第二份队。
+   *
+   * 失败仍然要说：`kind: failed` 但 `blocks: false` —— 这一句话没进去，正在跑的那一轮
+   * 却没受影响，不该把输入框锁住。结果不明时（回执没回来）标 indeterminate：
+   * 它可能已经排在队里了，屏幕上的队列快照会说明到底进没进。
+   */
+  async #interject(
+    options: SendOptions & { readonly lifetime: AbortController },
+  ): Promise<AgentPromptHandle | null> {
+    const { assets, configuration, deliverAs, lifetime, port, prepare, skills, text, threadId } =
+      options
+    try {
+      if (port === undefined) {
+        throw new Error('这个界面还没有接上助手会话。')
+      }
+      this.ensure(port)
+      const ready = await (prepare?.() ?? Promise.resolve(true))
+      if (lifetime.signal.aborted) {
+        return null
+      }
+      if (!ready) {
+        throw new Error('无法开始新的对话。')
+      }
+      const handle = await port.prompt({
+        threadId,
+        text,
+        deliverAs,
+        assets,
+        configuration,
+        skills,
+      })
+      return lifetime.signal.aborted ? null : handle
+    } catch (cause) {
+      if (!lifetime.signal.aborted) {
+        this.#put(threadId, {
+          ...this.read(threadId),
+          restoring: false,
+          operation: {
+            kind: 'failed',
+            message: describeFailure(cause),
+            blocks: false,
+            indeterminate: true,
+          },
         })
       }
       return null

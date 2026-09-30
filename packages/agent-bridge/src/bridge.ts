@@ -65,6 +65,7 @@ import type {
   BridgeCommand,
   BridgeEvent,
   GoalSnapshot,
+  QueuedState,
   SelectorControl,
   UsageSnapshot,
 } from './protocol.ts'
@@ -177,6 +178,21 @@ interface Session {
    */
   readonly subagents: SubagentLedger
   unsubscribeSubagents: (() => void) | null
+  /*
+   * 已经交给 agent、还没在上下文里露面的插话，按投递顺序排着。
+   *
+   * 上游的 `message_start` 只是「有一条消息进了上下文」，不带它从哪个队列来的；而
+   * 开场那句 prompt 也会走同一条事件。所以投递时就记下正文，事件到了按正文认领：
+   * 认领的那一条说明模型真的看见了 —— 屏幕此刻才把它画进那一轮，队列 chip 也才该消失。
+   * 认不出来的一律不动（宁可少画一条，也不把开场白错画成插话）。
+   */
+  readonly injections: PendingInterjection[]
+}
+
+/** 一条投出去的插话：正文是认领判据，层决定它在不在 agent 的队列里。 */
+interface PendingInterjection {
+  readonly text: string
+  readonly deliverAs: 'steer' | 'followUp' | 'aside'
 }
 
 interface PendingInteraction {
@@ -689,6 +705,7 @@ export function createBridge(host: BridgeHost): Bridge {
       compactions: 0,
       subagents: new SubagentLedger({ now: Date.now }),
       unsubscribeSubagents: null,
+      injections: [],
     }
 
     record = adopted
@@ -715,6 +732,17 @@ export function createBridge(host: BridgeHost): Bridge {
 
     adopted.unsubscribe = session.subscribe((event) => {
       handleEvent(adopted, event)
+    })
+
+    /*
+     * 入队之前就被取消的那一句，只有这一个出口。
+     *
+     * 上游在两种竞态里响它：abort 或用量预检把这一轮抢掉了（agent-session.ts:6588、
+     * 6600），那时这句话**没有落进会话文件**，transcript 里也就永远不会有它。不接
+     * 就等于用户那句话凭空消失 —— 屏幕上那条乐观记录还挂着，agent 永远不回应答。
+     */
+    session.setPromptDropped((prompt) => {
+      emit({ kind: 'prompt_dropped', sessionId: adopted.id, text: prompt.text })
     })
 
     /*
@@ -1002,12 +1030,148 @@ export function createBridge(host: BridgeHost): Bridge {
         }
       })
       .catch((error: unknown) => {
-        const message = error instanceof Error ? error.message : String(error)
-        settleUnstartedTurn(record, ordinal, 'failed', message)
+        /*
+         * 竞态：投递这一刻这一轮已经开跑了（界面上还是空闲，事件还没到）。上游对
+         * 「流式中调 prompt 且没带 streamingBehavior」的处理是抛 AgentBusyError
+         * （agent-session.ts:6467），照原样报错就等于把用户这句话吞掉。
+         *
+         * omp 自己的 TUI 用「空闲路径也带 streamingBehavior: 'steer'」绕开它
+         * （input-controller.ts:1219-1229）。我们绕不开：那一格会把这句悄悄排进
+         * steer 队列，而本机账本与乐观帧都按「这一轮开起来了」记的账。所以这里
+         * 明着补一次插话，并把那一轮如实收成失败 —— 话不丢，账也不假。
+         */
+        if (isBusy(error)) {
+          void record.agent
+            .steer(command.text, images.length === 0 ? undefined : images)
+            .then(() => {
+              record.injections.push({ text: command.text, deliverAs: 'steer' })
+              settleUnstartedTurn(
+                record,
+                ordinal,
+                'failed',
+                '这一句投递时那一轮已经开跑，已改按插话送进正在跑的那一轮。',
+              )
+            })
+            .catch((retry: unknown) => {
+              settleUnstartedTurn(record, ordinal, 'failed', messageOf(retry))
+            })
+          return
+        }
+
+        settleUnstartedTurn(record, ordinal, 'failed', messageOf(error))
       })
 
     return {}
   }
+
+  /*
+   * 三层插话的投递。与 `turn` 分开写，因为两者的「受理」含义不同：
+   *
+   * - `turn` 受理 = 开了一轮，本机账本等的是轮终（sendPrompt 走的是那条路）；
+   * - 插话受理 = **agent 收下了**（上游三个调用都返回 void，收下即回执）。所以这一条
+   *   要 await：拒绝（扩展命令、会话已 dispose）必须如实传上去，不能假装排上了。
+   *
+   * 附件照 `turn` 那条路读盘成 base64（`readPromptImages`），三层都收 images。
+   */
+  async function deliverInterjection(
+    record: Session,
+    command: Extract<BridgeCommand, { type: 'prompt' }>,
+    deliverAs: 'steer' | 'followUp' | 'aside',
+  ): Promise<unknown> {
+    const images = readPromptImages(command.attachments)
+    const carried = images.length === 0 ? undefined : images
+
+    if (deliverAs === 'steer') {
+      await record.agent.steer(command.text, carried)
+    } else if (deliverAs === 'followUp') {
+      await record.agent.followUp(command.text, carried)
+    } else {
+      /*
+       * aside 只有一条路：`sendUserMessage(content, {deliverAs})`（agent-session.ts:7850）。
+       * 空闲时它会退成一轮真的 turn（上游的既定语义：没有在跑的轮可注）；忙碌时它进
+       * 旁路队列，在 step 边界注入，绝不打断在跑的工具批。
+       */
+      const content: readonly unknown[] =
+        images.length === 0 ? [command.text] : [{ type: 'text', text: command.text }, ...images]
+      await record.agent.sendUserMessage(
+        content as Parameters<AgentSession['sendUserMessage']>[0],
+        {
+          deliverAs: 'aside',
+        },
+      )
+    }
+
+    record.injections.push({ text: command.text, deliverAs })
+    emitQueue(record)
+
+    return {}
+  }
+
+  /*
+   * 队列此刻的事实。两层待发正文与三个模式都从 agent 自己的读法来（agent-session.ts
+   * 的 getQueuedMessages / steeringMode / followUpMode / interruptMode），本层不记副本。
+   *
+   * aside 不在这两个队列里（它走 IRC 那条旁路，`queuedMessageCount` 也不算它），
+   * 所以这里没有它的位置 —— 编一格假的只会让屏幕说一句 agent 没说过的话。
+   */
+  function queueOf(record: Session): QueuedState {
+    const queued = record.agent.getQueuedMessages()
+
+    return {
+      sessionId: record.id,
+      steering: [...queued.steering],
+      followUp: [...queued.followUp],
+      steeringMode: record.agent.steeringMode,
+      followUpMode: record.agent.followUpMode,
+      interruptMode: record.agent.interruptMode,
+    }
+  }
+
+  /*
+   * 推一次队列快照。
+   *
+   * 上游没有队列变更事件，所以推送点由这里认：投递插话、撤回、改模式、轮终、取消，
+   * 以及**注入消息的 message_start**（模型真的看见了那句话，chip 该消失）。
+   */
+  function emitQueue(record: Session): void {
+    emit({ kind: 'queue', sessionId: record.id, queue: queueOf(record) })
+  }
+
+  /*
+   * 轮终/取消时，把已经不可能再露面的插话从认领账本里摘掉。
+   *
+   * 判据只有一条：**agent 此刻还排着它吗**。还排着就留着 —— 外部 abort 与「人按过
+   * 停止」都刻意不排空队列（agent-loop.ts:1637-1643 的 `signal?.aborted` 分支、
+   * agent-session.ts 的 #canAutoContinueForFollowUp），那句话等下一次显式提交、在
+   * 那一轮的起点才被注入；先摘掉它，`message_start` 到的时候就没有认领对象，屏幕上
+   * 那句话再也画不出来，队列 chip 也永远不消失。
+   *
+   * 不排着的到此为止：撤回过、被上游丢弃的，都不会再有帧。
+   *
+   * 正文比对**只用作认领回退**：`deliverAs: 'turn'` 的开场白也走 `message_start`，
+   * 它不在这个账本里，所以不会被误认。
+   */
+  function forgetInjected(record: Session): void {
+    const queued = record.agent.getQueuedMessages()
+    const waiting: readonly string[] = [...queued.steering, ...queued.followUp]
+    const still = record.injections.filter(
+      (entry) => entry.deliverAs !== 'aside' && waiting.includes(entry.text),
+    )
+
+    record.injections.length = 0
+    record.injections.push(...still)
+  }
+
+  const messageOf = (error: unknown): string =>
+    error instanceof Error ? error.message : String(error)
+
+  /*
+   * 是不是「agent 正在跑」那一条。按名字认而不是 import 上游的类：那是 pi-agent-core
+   * 的东西，SDK 根导出面里没有它（index.ts 只挑了几样）；名字是上游自己设的
+   * （agent.ts:94-101 的 `this.name = "AgentBusyError"`）。
+   */
+  const isBusy = (error: unknown): boolean =>
+    error instanceof Error && error.name === 'AgentBusyError'
 
   /*
    * 一轮没能起来：就地补轮终。
@@ -1128,6 +1292,49 @@ export function createBridge(host: BridgeHost): Bridge {
     })
   }
 
+  /*
+   * 插话落地。
+   *
+   * 三层插话最终都走同一条上游事件：注入的消息被折进上下文时发
+   * message_start/message_end（agent-loop.ts:1092-1097 的 emitInputMessages）。
+   * 开场那句 prompt 也发同一对事件，所以判据是「这条正文是不是我投出去还没认领的
+   * 那一条」（见 Session.injections）。
+   *
+   * 认领后怎么画由投影器自己判：开着一轮就是这一轮里的一句插话，没开一轮
+   * （followUp 在轮终之后被排成下一轮）就是这句话自己开一轮。
+   *
+   * 没认领的返回 null：场面上什么都没发生，调用方按空 ops 走。
+   */
+  function claimedInjection(
+    record: Session,
+    message: Extract<AgentSessionEvent, { type: 'message_start' }>['message'],
+  ): ReturnType<TranscriptProjector['turnEnd']> | null {
+    if (message.role !== 'user' || !('content' in message)) {
+      return null
+    }
+
+    const content = message.content
+    const text = textOf(content)
+    const at = record.injections.findIndex((pending) => pending.text === text)
+
+    if (at < 0) {
+      return null
+    }
+
+    const [claimed] = record.injections.splice(at, 1)
+    const stamp = iso(message.timestamp)
+    const images = imagesOf(content, stamp)
+
+    return [
+      ...images.flatMap((image) => image.ops),
+      ...record.projector.steeredFrame(
+        claimed?.text ?? text,
+        images.map((image) => image.attachmentId),
+        stamp,
+      ),
+    ]
+  }
+
   function handleEvent(record: Session, event: AgentSessionEvent): void {
     const project = record.projector
     let ops: ReturnType<TranscriptProjector['turnEnd']> = []
@@ -1138,6 +1345,18 @@ export function createBridge(host: BridgeHost): Bridge {
       case 'turn_start':
         // 用户那一轮由 prompt 命令开，这里只接 agent 自己的 turn。
         break
+
+      case 'message_start': {
+        const claimed = claimedInjection(record, event.message)
+
+        if (claimed === null) {
+          break
+        }
+
+        ops = claimed
+        emitQueue(record)
+        break
+      }
 
       case 'message_update':
         ops = deltaOps(project, event.assistantMessageEvent)
@@ -1198,6 +1417,7 @@ export function createBridge(host: BridgeHost): Bridge {
       case 'agent_end':
         // isTerminal 为 false 时后面还有活干，这一轮没真结束。
         if (event.isTerminal !== false) {
+          forgetInjected(record)
           const last = record.agent.getLastAssistantMessage()
           const outcome = outcomeOf(last)
           ops = project.turnEnd(outcome.kind, outcome.message, undefined, usageOf(last))
@@ -1223,6 +1443,8 @@ export function createBridge(host: BridgeHost): Bridge {
         ...(ending.message === undefined ? {} : { message: ending.message }),
       })
       reportUsage(record)
+      /* 轮终是队列唯一会自己变短的时刻之一（followUp 被排成下一轮、steer 已被吃掉）。 */
+      emitQueue(record)
     }
   }
 
@@ -2298,6 +2520,64 @@ export function createBridge(host: BridgeHost): Bridge {
     })
   }
 
+  /*
+   * 一句话按它点名的层走。`turn` 开一轮（回执带轮身份），另外三层是插话
+   * （回执只是「agent 收下了」，队列归它）。
+   */
+  function deliverPrompt(
+    record: Session,
+    command: Extract<BridgeCommand, { type: 'prompt' }>,
+  ): Promise<unknown> | unknown {
+    return command.deliverAs === 'turn'
+      ? sendPrompt(command)
+      : deliverInterjection(record, command, command.deliverAs)
+  }
+
+  /*
+   * 队列那三条命令：读、撤、改模式。三条都落在 agent 自己的读写法上，队列的真相不在
+   * 这一侧留副本（Session 里那几格只是「投出去还没露面」的账，用来认领注入消息）。
+   */
+  function queueCommand(
+    command: Extract<BridgeCommand, { type: 'queue' | 'withdraw' | 'delivery' }>,
+  ): unknown {
+    const record = required()
+
+    if (command.type === 'queue') {
+      return { queue: queueOf(record) }
+    }
+
+    if (command.type === 'withdraw') {
+      const restored = record.agent.popLastQueuedMessage()
+
+      /*
+       * 撤回会连带取走紧挨在这句话前面的隐藏伴生消息（上游 `removeWithCompanions`），
+       * 所以队列真的变了才推 —— 空队列撤回是一次空转，不改任何东西。
+       */
+      if (restored !== undefined) {
+        emitQueue(record)
+      }
+
+      return { message: restored === undefined ? null : { text: restored.text } }
+    }
+
+    /* 缺席的格不改；改完按 agent 自己热重载后的那一份报回去。 */
+    if (command.steeringMode !== undefined) {
+      record.agent.setSteeringMode(command.steeringMode)
+    }
+
+    if (command.followUpMode !== undefined) {
+      record.agent.setFollowUpMode(command.followUpMode)
+    }
+
+    if (command.interruptMode !== undefined) {
+      record.agent.setInterruptMode(command.interruptMode)
+    }
+
+    const queue = queueOf(record)
+    emit({ kind: 'queue', sessionId: record.id, queue })
+    return { queue }
+  }
+
   async function dispatch(command: BridgeCommand): Promise<unknown> {
     switch (command.type) {
       case 'new_session': {
@@ -2314,7 +2594,12 @@ export function createBridge(host: BridgeHost): Bridge {
       }
 
       case 'prompt':
-        return sendPrompt(command)
+        return await deliverPrompt(required(), command)
+
+      case 'queue':
+      case 'withdraw':
+      case 'delivery':
+        return queueCommand(command)
 
       case 'cancel': {
         const record = required()
@@ -2337,6 +2622,14 @@ export function createBridge(host: BridgeHost): Bridge {
          */
         const ended = record.projector.turnEnd('cancelled')
 
+        /*
+         * 队列**刻意不排空**：上游 abort 不动 steering 队列（agent-loop.ts:1637-1643），
+         * 留给 post-abort 的 continue 消费。所以这里只把队列的新样子推出去，不替用户
+         * 删掉任何一句 —— 屏幕上的 chip 在取消之后仍然在，正是它该有的样子。
+         */
+        forgetInjected(record)
+        emitQueue(record)
+
         if (ended.length === 0) {
           return {}
         }
@@ -2345,10 +2638,6 @@ export function createBridge(host: BridgeHost): Bridge {
         emit({ kind: 'turn_end', sessionId: record.id, outcome: 'cancelled' })
         return {}
       }
-
-      case 'steer':
-        await required().agent.steer(command.text)
-        return {}
 
       case 'answer_permission':
         return answerPermission(required(), command)

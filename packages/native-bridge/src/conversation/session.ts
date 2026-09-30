@@ -1,15 +1,57 @@
 import {
   type AgentQuestionChoice,
+  type AgentQueuedState,
   type AgentTranscriptEvent,
   commands,
   events,
 } from '@poietica/contract'
-import type { AgentSessionPort, QuestionChoice, TranscriptCatchUp } from '@poietica/conversation'
+import type {
+  AgentSessionPort,
+  MessageQueueMode,
+  QuestionChoice,
+  QueuedMessages,
+  TranscriptCatchUp,
+} from '@poietica/conversation'
 import { transcriptOpsCatchupResponseSchema } from '@poietica/transcript'
 import { throughIpc } from '../ipc-error'
-import { type AgentEventSourceOptions, subscribeToEvent } from './event-subscription'
+import {
+  type AgentEventSourceOptions,
+  subscribeToEvent,
+  subscribeToSessionEvent,
+} from './event-subscription'
 import type { AgentBridgeOptions } from './launch-contract'
 import { decodeTranscriptEvent, transcriptPageOf } from './transcript-decoding'
+
+/** 线上那一份队列 → 会话层的形状。字段同名，只做一次 readonly 复制。 */
+function queuedOf(queue: AgentQueuedState): QueuedMessages {
+  return {
+    sessionId: queue.sessionId,
+    steering: [...queue.steering],
+    followUp: [...queue.followUp],
+    steeringMode: modeOf(queue.steeringMode),
+    followUpMode: modeOf(queue.followUpMode),
+    interruptMode: interruptOf(queue.interruptMode),
+  }
+}
+
+/*
+ * 模式取值域是 omp 自己的两个枚举（settings-schema.ts 的 steeringMode / followUpMode /
+ * interruptMode）。线上是自由字符串（原生侧不替上游把关），认不出来就**报错**：
+ * 猜一个默认值等于把「它说 A 我当 B」按下去，屏幕上会静默换了行为。
+ */
+function modeOf(value: string): MessageQueueMode {
+  if (value === 'all' || value === 'one-at-a-time') {
+    return value
+  }
+  throw new Error(`agent 报了一个不认识的队列模式：${value}`)
+}
+
+function interruptOf(value: string): 'immediate' | 'wait' {
+  if (value === 'immediate' || value === 'wait') {
+    return value
+  }
+  throw new Error(`agent 报了一个不认识的中断模式：${value}`)
+}
 
 function questionChoiceOf(choice: QuestionChoice): AgentQuestionChoice {
   switch (choice.kind) {
@@ -84,6 +126,7 @@ export function createAgentSessionPort({
       const started = await throughIpc(() =>
         commands.agentPrompt({
           text: request.text,
+          deliverAs: request.deliverAs,
           threadId: request.threadId,
           configuration: request.configuration.map((selected) => ({
             id: selected.id,
@@ -113,10 +156,40 @@ export function createAgentSessionPort({
       await throughIpc(() => commands.agentCancel({ threadId }))
     },
 
-    steer: async (threadId, promptIds) => {
-      /* readonly 数组与生成绑定要的可变数组是两个类型，所以复制一次。 */
-      await throughIpc(() => commands.agentSteer({ threadId, promptIds: [...promptIds] }))
+    /* 队列三件事：读、撤、改模式。队列的真相在 agent 里，这一层只搬。 */
+    readQueue: async () => queuedOf(await throughIpc(() => commands.agentQueue())),
+    withdraw: async () => {
+      const restored = await throughIpc(() => commands.agentWithdraw())
+      return restored === null ? null : { text: restored.text }
     },
+    setDeliveryModes: async (patch) =>
+      queuedOf(
+        await throughIpc(() =>
+          commands.agentSetDeliveryModes({
+            steeringMode: patch.steeringMode ?? null,
+            followUpMode: patch.followUpMode ?? null,
+            interruptMode: patch.interruptMode ?? null,
+          }),
+        ),
+      ),
+
+    subscribeQueue: (listener) =>
+      subscribeToSessionEvent(
+        'queue',
+        (payload) => {
+          listener(queuedOf(payload.queue))
+        },
+        onListenFailure,
+      ),
+
+    subscribePromptDropped: (listener) =>
+      subscribeToSessionEvent(
+        'promptDropped',
+        (payload) => {
+          listener({ sessionId: payload.sessionId, text: payload.text })
+        },
+        onListenFailure,
+      ),
 
     abortPrompt: async (threadId, promptId) => {
       await throughIpc(() => commands.agentAbortPrompt({ threadId, promptId }))

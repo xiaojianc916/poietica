@@ -78,6 +78,14 @@ pub(crate) fn compose(
                     usage: reported_usage(usage),
                 }
                 .emit(&publishing),
+                SessionEvent::Queue { session_id, queue } => AgentSessionEvent::Queue {
+                    session_id,
+                    queue: queue.into(),
+                }
+                .emit(&publishing),
+                SessionEvent::PromptDropped { session_id, text } => {
+                    AgentSessionEvent::PromptDropped { session_id, text }.emit(&publishing)
+                }
                 SessionEvent::ModelCatalogChanged => {
                     AgentSessionEvent::ModelCatalogChanged.emit(&publishing)
                 }

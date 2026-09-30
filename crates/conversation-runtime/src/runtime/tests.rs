@@ -6,6 +6,7 @@ use crate::{
     DeliveryError, Runtime, RuntimeError, Takeover,
     journal::{FrameJournal, JournalError},
 };
+use poietica_conversation::turn::DeliverAs;
 use poietica_ledger::execution::{IndexError, LocalIndex};
 use poietica_time::wall_clock::SystemWallClock;
 use std::sync::{
@@ -125,6 +126,8 @@ async fn invalid_or_closed_commands_do_not_start_an_agent() {
         thread_id: uuid::Uuid::from_u128(1),
         turn: TurnId::new("submission".to_owned()),
         text: text.to_owned(),
+        /* 这一格测的是「空话不开轮」；投递层是哪一层与这条判据无关。 */
+        deliver_as: DeliverAs::default(),
         configuration: Vec::new(),
         assets: Vec::<ThreadAttachment>::new(),
         skills: Vec::new(),

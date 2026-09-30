@@ -4,7 +4,7 @@ use poietica_conversation::identity::{ThreadId, TurnId};
 use poietica_conversation::ports::{
     AgentGateway, ConversationLedger, DeliveryConfirmation, DeliveryReceipt, PromptDelivery,
 };
-use poietica_conversation::turn::{Admission, DeliveryState};
+use poietica_conversation::turn::{Admission, DeliverAs, DeliveryState};
 use poietica_ledger::execution::{LocalIndex, read_index, write_index};
 use poietica_time::wall_clock::SystemWallClock;
 use std::error::Error;
@@ -25,6 +25,7 @@ fn request() -> PromptDelivery {
             model: "test".to_owned(),
             attachments: Vec::new(),
             skills: Vec::new(),
+            deliver_as: DeliverAs::default(),
             submitted_at_unix_millis: 0,
         },
         session: "session".to_owned(),

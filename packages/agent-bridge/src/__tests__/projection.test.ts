@@ -214,4 +214,53 @@ describe('omp 事件投影成 transcript ops', () => {
     const { turn } = settle(ops)
     expect(turn('t1')?.triggerPromptId).toBeUndefined()
   })
+
+  /*
+   * 插话落在哪一格，是这一整套里最容易画错的一处：
+   *
+   * 开着一轮时它是**那一轮里的一句**（模型在工具批次之间看见它，然后接着干同一轮的活），
+   * 所以它进同一个 turn、另起一帧；没开着一轮时（followUp 在轮终之后被排成下一轮）
+   * 它就是这句话自己开的开场白。
+   */
+  describe('插话帧', () => {
+    it('开着一轮：进当前 turn，且封掉正在流的那一帧', () => {
+      const projector = new TranscriptProjector()
+      const ops: Op[] = [...projector.userTurn('干活')]
+      ops.push(...projector.textDelta('先做一半'))
+      ops.push(...projector.steeredFrame('停，改这里'))
+      ops.push(...projector.textDelta('接着做'))
+
+      const { gapped, turn } = settle(ops)
+      expect(gapped).toBe(false)
+
+      const steps = turn('t1')?.steps ?? []
+      expect(steps).toHaveLength(1)
+
+      const frames = steps[0]?.frames ?? []
+      expect(frames.map((frame) => (frame.kind === 'text' ? frame.text : frame.kind))).toEqual([
+        '干活',
+        '先做一半',
+        '停，改这里',
+        '接着做',
+      ])
+      /* 人说的话必须带 origin：投影层认「这是人说的」只看那一格。 */
+      const interjection = frames[2]
+      expect(interjection?.kind === 'text' && interjection.origin).toEqual({ kind: 'user' })
+      /* 没有第二个 turn：插话不是新的一轮。 */
+      expect(turn('t2')).toBeUndefined()
+    })
+
+    it('没开着一轮：这句话自己开一轮', () => {
+      const projector = new TranscriptProjector()
+      const ops: Op[] = [...projector.userTurn('第一轮')]
+      ops.push(...projector.turnEnd('completed'))
+      /* followUp 在轮终之后被排成下一轮，桥收到的是同一条注入消息。 */
+      ops.push(...projector.steeredFrame('排队的那一句'))
+
+      const { gapped, turn } = settle(ops)
+      expect(gapped).toBe(false)
+      expect(turn('t1')?.prompt).toBe('第一轮')
+      expect(turn('t2')?.prompt).toBe('排队的那一句')
+    })
+  })
 })

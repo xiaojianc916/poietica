@@ -7,6 +7,7 @@ use poietica_conversation::identity::TurnId;
 use poietica_conversation::ports::{
     AgentGateway, ConversationLedger, DeliveryConfirmation, DeliveryReceipt, PromptDelivery,
 };
+use poietica_conversation::turn::DeliverAs;
 use poietica_ledger::execution::{IndexError, LocalIndex, read_index, write_index};
 use poietica_ledger::index::ThreadAttachment;
 use poietica_time::wall_clock::SystemWallClock;
@@ -45,6 +46,7 @@ fn request(thread: Uuid, text: &str) -> Submission {
         model: "model".to_owned(),
         attachments: Vec::new(),
         skills: Vec::new(),
+        deliver_as: DeliverAs::default(),
         submitted_at_unix_millis: 1,
     }
 }

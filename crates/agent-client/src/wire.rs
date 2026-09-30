@@ -13,6 +13,33 @@ pub const PROTOCOL_VERSION: u32 = 2;
 /// 单行上限。桥侧的 MAX_FRAME_BYTES 同值；超了说明对端不是我们的桥。
 pub const MAX_LINE_BYTES: usize = 1024 * 1024;
 
+/// 一句话怎么进 agent。判别式与 packages/agent-bridge/src/protocol.ts 的
+/// `deliverAs` 逐字对应：serde 按 camelCase 写出 `turn / steer / followUp / aside`。
+///
+/// 只有 `Turn` 会开一轮；另外三层都是插话，存续期与队列都在 agent 里
+/// （`AgentSession.steer/followUp/sendUserMessage`），本机不留副本。
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub enum DeliverAs {
+    Turn,
+    Steer,
+    FollowUp,
+    Aside,
+}
+
+impl DeliverAs {
+    /// 线上那一格的字面量。两处（写命令、读回包）都用它，不各写一份。
+    #[must_use]
+    pub const fn as_wire_str(self) -> &'static str {
+        match self {
+            Self::Turn => "turn",
+            Self::Steer => "steer",
+            Self::FollowUp => "followUp",
+            Self::Aside => "aside",
+        }
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Serialize)]
 #[serde(tag = "type", rename_all = "snake_case")]
 pub enum Command {
@@ -35,13 +62,30 @@ pub enum Command {
 
         #[serde(rename = "promptId")]
         prompt_id: String,
+        /// 这一句怎么进 agent：turn / steer / followUp / aside。见 protocol.ts 的注释。
+        #[serde(rename = "deliverAs")]
+        deliver_as: DeliverAs,
     },
     Cancel {
         id: String,
     },
-    Steer {
+    /// 待发队列此刻的样子（两层正文 + 三个模式）。读命令，不改队列。
+    Queue {
         id: String,
-        text: String,
+    },
+    /// 撤回最后一条还排着的插话（LIFO）；应答是 `{message: {text} | null}`。
+    Withdraw {
+        id: String,
+    },
+    /// 改队列模式；缺席的格不改。
+    Delivery {
+        id: String,
+        #[serde(rename = "steeringMode", skip_serializing_if = "Option::is_none")]
+        steering_mode: Option<String>,
+        #[serde(rename = "followUpMode", skip_serializing_if = "Option::is_none")]
+        follow_up_mode: Option<String>,
+        #[serde(rename = "interruptMode", skip_serializing_if = "Option::is_none")]
+        interrupt_mode: Option<String>,
     },
     /// 回答一次工具授权。decision 与 scope 是产品那三颗按钮的取值域。
     AnswerPermission {
@@ -283,6 +327,18 @@ pub enum Event {
         session_id: String,
         usage: Value,
     },
+    /// 待发队列此刻的样子（两层正文 + 三个模式）。
+    Queue {
+        #[serde(rename = "sessionId")]
+        session_id: String,
+        queue: Value,
+    },
+    /// 这一句在入队前就被取消了：没有落进会话文件，屏幕上那条乐观记录得撤。
+    PromptDropped {
+        #[serde(rename = "sessionId")]
+        session_id: String,
+        text: String,
+    },
 }
 
 /// 一轮的结局。与 frame.rs 的 stop_reason 同一套词，不是第二套。
@@ -319,7 +375,7 @@ pub fn encode(command: &Command) -> Result<String, serde_json::Error> {
 mod tests {
     #![allow(clippy::expect_used, reason = "a broken fixture must fail loudly")]
 
-    use super::{Command, Event, Frame, WireAttachment, decode, encode};
+    use super::{Command, DeliverAs, Event, Frame, WireAttachment, decode, encode};
     use serde_json::{Value, json};
 
     #[test]
@@ -328,6 +384,7 @@ mod tests {
             id: "p1".to_owned(),
             text: "读一下 README".to_owned(),
             prompt_id: "turn-1".to_owned(),
+            deliver_as: DeliverAs::Turn,
             attachments: vec![
                 WireAttachment {
                     path: "/tmp/a.png".to_owned(),
@@ -354,8 +411,61 @@ mod tests {
         assert!(line.contains(r#""promptId":"turn-1""#));
     }
 
+    /*
+     * 三层插话的字面量必须与 protocol.ts 那一格逐字相同：对不上时桥会把
+     * `deliverAs` 读成 undefined，而 `deliverAs` 是**必填**，整条命令会被静默丢成
+     * 解不开的载荷。四档一次全钉住。
+     */
+    #[test]
+    fn every_delivery_layer_has_one_literal_name() {
+        for (layer, expected) in [
+            (DeliverAs::Turn, r#""deliverAs":"turn""#),
+            (DeliverAs::Steer, r#""deliverAs":"steer""#),
+            (DeliverAs::FollowUp, r#""deliverAs":"followUp""#),
+            (DeliverAs::Aside, r#""deliverAs":"aside""#),
+        ] {
+            let line = encode(&Command::Prompt {
+                id: "p".to_owned(),
+                text: "一句话".to_owned(),
+                prompt_id: "turn".to_owned(),
+                deliver_as: layer,
+                attachments: Vec::new(),
+                skills: Vec::new(),
+            })
+            .expect("encode");
+
+            assert!(line.contains(expected), "{line}");
+            assert!(
+                expected.contains(layer.as_wire_str()),
+                "{}",
+                layer.as_wire_str()
+            );
+        }
+    }
+
+    /* 三条队列命令的形状：判别式与 `id` 之外那几格都要真的上 wire。 */
+    #[test]
+    fn the_queue_commands_carry_their_own_shape() {
+        let queue = encode(&Command::Queue { id: "q".to_owned() }).expect("encode");
+        assert!(queue.contains(r#""type":"queue""#), "{queue}");
+
+        let withdraw = encode(&Command::Withdraw { id: "w".to_owned() }).expect("encode");
+        assert!(withdraw.contains(r#""type":"withdraw""#), "{withdraw}");
+
+        let delivery = encode(&Command::Delivery {
+            id: "d".to_owned(),
+            steering_mode: Some("all".to_owned()),
+            follow_up_mode: None,
+            interrupt_mode: Some("wait".to_owned()),
+        })
+        .expect("encode");
+        assert!(delivery.contains(r#""steeringMode":"all""#), "{delivery}");
+        assert!(delivery.contains(r#""interruptMode":"wait""#), "{delivery}");
+        /* 缺席的格不上 wire：桥那一侧按「在不在」判改不改，写 null 就会被读成一次改。 */
+        assert!(!delivery.contains("followUpMode"), "{delivery}");
+    }
+
     /// 附件是对象不是裸路径：桥靠 `kind` 分派、`mime` 出 mimeType、`name` 出显示名。
-    /// 四格与 protocol.ts 逐字对应，对不上是静默缺格（模块头那条），所以全钉住 ——
     /// `mime` 尤其要钉：扩展名不是判据（粘贴的图叫 `pasted-<uuid>`），写错是**静默 None**。
     #[test]
     fn an_attachment_carries_its_path_kind_mime_and_name() {
@@ -363,6 +473,7 @@ mod tests {
             id: "p2".to_owned(),
             text: String::new(),
             prompt_id: "turn-2".to_owned(),
+            deliver_as: DeliverAs::Aside,
             attachments: vec![
                 WireAttachment {
                     path: "D:\\media\\pasted-7f3a".to_owned(),

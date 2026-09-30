@@ -135,7 +135,7 @@ impl AgentStore {
     pub fn admit_submission<F>(
         &self,
         delivery: &PromptDelivery,
-        opener: &str,
+        opener: Option<&str>,
         attached: &[crate::index::ThreadAttachment],
         validate: F,
     ) -> Result<(AdmissionDecision, DeliveryState), LedgerError>
@@ -165,7 +165,10 @@ impl AgentStore {
         validate(self)?;
         let decision = admissions::admit(&transaction, self.clock(), delivery)?;
         if decision == AdmissionDecision::Admitted {
-            self.record_prompt(thread, opener)?;
+            // 插话不带 opener：这条对话已经在跑了，名字的正本早写过。
+            if let Some(opener) = opener {
+                self.record_prompt(thread, opener)?;
+            }
             for attachment in attached {
                 crate::index::attachments::remember_in(
                     &transaction,
@@ -191,6 +194,7 @@ mod submission_tests {
     )]
     use super::*;
     use crate::index::ThreadAttachment;
+    use poietica_conversation::turn::DeliverAs;
     use poietica_time::wall_clock::SystemWallClock;
 
     #[test]
@@ -223,6 +227,7 @@ mod submission_tests {
             model: String::new(),
             attachments: Vec::new(),
             skills: Vec::new(),
+            deliver_as: DeliverAs::default(),
             submitted_at_unix_millis: 1,
         };
         admission.attachments = serde_json::from_value(serde_json::json!([
@@ -235,7 +240,7 @@ mod submission_tests {
         };
         assert!(
             store
-                .admit_submission(&request, "hello", &[attachment], |_| Ok(()))
+                .admit_submission(&request, Some("hello"), &[attachment], |_| Ok(()))
                 .is_err()
         );
         let after = store.thread(thread).expect("read").expect("exists");
@@ -280,6 +285,7 @@ mod submission_tests {
                 model: "kimi-k2".to_owned(),
                 attachments: Vec::new(),
                 skills: Vec::new(),
+                deliver_as: DeliverAs::default(),
                 submitted_at_unix_millis: 1,
             },
             session: "session-1".to_owned(),

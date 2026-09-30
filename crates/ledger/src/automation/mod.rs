@@ -506,7 +506,7 @@ mod tests {
         use poietica_conversation::{
             identity::{ThreadId, TurnId},
             ports::{ConversationLedger, PromptDelivery},
-            turn::Admission,
+            turn::{Admission, DeliverAs},
         };
         let directory = tempfile::tempdir().expect("directory");
         let store = open(&directory.path().join("index.sqlite3"));
@@ -529,6 +529,7 @@ mod tests {
             model: String::new(),
             attachments: Vec::new(),
             skills: Vec::new(),
+            deliver_as: DeliverAs::default(),
             submitted_at_unix_millis: 0,
         };
         assert!(

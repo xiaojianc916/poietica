@@ -350,6 +350,8 @@ function PromptInputShell({
 
   const listboxId = useId()
   const formRef = useRef<HTMLFormElement>(null)
+  /* Enter 与 Ctrl/Cmd+Enter 只差这一格：命令先写它，提交时读它。 */
+  const queued = useRef(false)
 
   const focusEditor = useCallback(() => {
     editor.focus()
@@ -398,7 +400,7 @@ function PromptInputShell({
     [draftKey, drafts, editor],
   )
 
-  /* Enter 发送，Shift+Enter 换行。组词期间一律不碰 —— 那是输入法在说话。 */
+  /* Enter 发送，Shift+Enter 换行，Ctrl/Cmd+Enter 排队（插话但不打断）。组词期间一律不碰 —— 那是输入法在说话。 */
   useEffect(
     () =>
       editor.registerCommand(
@@ -414,6 +416,7 @@ function PromptInputShell({
           }
 
           event.preventDefault()
+          queued.current = event.ctrlKey || event.metaKey
           formRef.current?.requestSubmit()
 
           return true
@@ -788,7 +791,9 @@ function PromptInputShell({
                   ...carriedConfiguration,
                   ...pendingConfiguration.map(({ id, value }) => ({ id, value })),
                 ],
+                ...(queued.current ? { queued: true } : {}),
               }
+              queued.current = false
 
               clearDraft(editor)
               handoff.current = { attachments: NO_ATTACHMENTS, configuration: [] }

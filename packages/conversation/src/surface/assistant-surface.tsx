@@ -5,6 +5,7 @@ import { memo, type Ref, useCallback, useMemo, useRef, useState } from 'react'
 import type { SessionConfigControl } from '../agent/config'
 import type { AgentSessionPort } from '../agent/session'
 import type { SessionUsage } from '../agent/usage'
+import type { PromptInputMessage } from '../composer/prompt'
 import { AssistantComposer } from './composer/assistant-composer'
 import { ComposerNotice } from './composer/composer-notice'
 import { useDockClearance } from './composer/dock-clearance'
@@ -19,7 +20,6 @@ import { PromptQueue } from './prompt-queue'
 import { GitBranchPicker, type GitBranchPickerProps } from './threads/git-branch-picker'
 import { WorkspacePicker, type WorkspacePickerProps } from './threads/workspace-picker'
 import { TranscriptView } from './timeline/transcript-view'
-import type { AssistantSubmission } from './transcript/use-assistant-session'
 import { useAssistantInteractions, useAssistantSession } from './transcript/use-assistant-session'
 
 /* 连不上 agent 时输入区上沿那一句；原文（controlsFailure）只做 title。 */
@@ -182,11 +182,17 @@ export const AssistantSurface = memo(function AssistantSurface({
   /* 这一格的草稿归哪个键：对话是它的 id，入口那一格全局只有一个。 */
   const draftKey = endpoint
 
-  /* 发言就是那次转场，先于 send：这一刻起就是对话而非入口，不等任何一帧回来。 */
+  /*
+   * 发言就是那次转场，先于 send：这一刻起就是对话而非入口，不等任何一帧回来。
+   *
+   * `queued` 是人点名的「排队」（Ctrl/Cmd+Enter）：正在跑的时候它走 followUp ——
+   * 这一轮跑完接着做，不打断。不点名时缺省按状态选（空闲开一轮、正在跑插话），
+   * 那条判据在 useAssistantSession 里。
+   */
   const submit = useCallback(
-    (message: AssistantSubmission) => {
+    ({ queued, ...message }: PromptInputMessage) => {
       setPhase('live')
-      assistant.send(message)
+      assistant.send(message, queued === true ? 'followUp' : undefined)
     },
     [assistant.send],
   )
@@ -207,7 +213,7 @@ export const AssistantSurface = memo(function AssistantSurface({
     [composer],
   )
 
-  /* 队列里那一句回输入框。改完再发就回原位 —— 位置在出账簿手上，不在这里。 */
+  /* 撤回的那一句回输入框改：改完重发就是重新投一次（队列的顺序归 agent，本机不预演）。 */
   const edit = useCallback((text: string) => {
     draft.current?.setText(text)
     draft.current?.focus()
@@ -238,7 +244,7 @@ export const AssistantSurface = memo(function AssistantSurface({
           tone="error"
         />
       )}
-      <PromptQueue onEdit={edit} outbox={assistant.outbox} />
+      <PromptQueue onEdit={edit} queue={assistant.queue} />
 
       {/* 连不上 agent：卡上沿一条提示，不在工具栏里冒充模型选择器。 */}
       {controlsFailure === undefined ? null : (

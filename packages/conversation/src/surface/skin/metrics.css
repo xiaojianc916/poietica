@@ -146,10 +146,9 @@
   --cp-queue-pad: 6px;
   --cp-queue-row-radius: calc(var(--cp-radius) - var(--cp-queue-pad));
 
-  /* 五行半：那半行是唯一说明「下面还有」的东西，到顶之后下沿化开同样半行。 */
+  /* 五行半：装不下由这张卡自己滚，卡不会长到把输入框挤出视野。 */
   --cp-queue-row: var(--cp-control);
   --cp-queue-rows: 5.5;
-  --cp-queue-fade: calc(var(--cp-queue-row) / 2);
 
   /* 输入框上沿那条提示（连不上 agent 时的那一句）：圆角比卡小一档，与 GoalBar 同档。 */
   --cp-notice-radius: 12px;

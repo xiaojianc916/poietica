@@ -42,11 +42,42 @@ pub struct AgentPromptConfiguration {
     pub value: String,
 }
 
+/// 这句话怎么交给 agent：omp 的三层插话，打断程度递减。
+///
+/// 与 packages/agent-bridge/src/protocol.ts 的 `deliverAs` 以及
+/// crates/conversation 的 `DeliverAs` 三处同名同值，判别式只在各自的边界上翻一次。
+#[derive(Clone, Copy, Debug, Deserialize, Type)]
+#[serde(rename_all = "camelCase")]
+pub enum AgentDeliverAs {
+    /// 开一轮（空闲时的正常发送）。
+    Turn,
+    /// 插进正在跑的那一轮：在工具批次之间被模型看到。
+    Steer,
+    /// 不打断：这一轮跑完后自动作为下一轮输入。
+    FollowUp,
+    /// 完全非中断：在 step 边界静默注入，绝不打断在跑的工具批。
+    Aside,
+}
+
+impl From<AgentDeliverAs> for poietica_conversation::turn::DeliverAs {
+    fn from(value: AgentDeliverAs) -> Self {
+        match value {
+            AgentDeliverAs::Turn => Self::Turn,
+            AgentDeliverAs::Steer => Self::Steer,
+            AgentDeliverAs::FollowUp => Self::FollowUp,
+            AgentDeliverAs::Aside => Self::Aside,
+        }
+    }
+}
+
 /// A prompt, and how to start the agent if it is not running yet.
 #[derive(Debug, Deserialize, Type)]
 #[serde(rename_all = "camelCase")]
 pub struct AgentPromptRequest {
     pub text: String,
+    /// 这一句走哪一层。缺席即开一轮：老调用方（自动化、恢复）不传这一格。
+    #[serde(default = "default_deliver_as")]
+    pub deliver_as: AgentDeliverAs,
     pub configuration: Vec<AgentPromptConfiguration>,
     /// 与 text 是同一句话的两半：只挑了图、没打字也是一句完整的话，判空要一起判。
     pub assets: Vec<AgentPromptAsset>,
@@ -104,17 +135,60 @@ pub(super) fn decided(request: &AgentResolvePermissionRequest) -> ApprovalRespon
 
 #[derive(Debug, Deserialize, Type)]
 #[serde(rename_all = "camelCase")]
-pub struct AgentSteerRequest {
-    pub thread_id: String,
-    /// 号由 kap 签发（prompt.queued 的 promptId）：队列不在这一侧，收号不收话。
-    pub prompt_ids: Vec<String>,
-}
-
-#[derive(Debug, Deserialize, Type)]
-#[serde(rename_all = "camelCase")]
 pub struct AgentAbortPromptRequest {
     pub thread_id: String,
     pub prompt_id: String,
+}
+
+/// 待发队列此刻的样子：两层正文 + 三个模式。
+///
+/// 队列的真相在 agent 里，这一层只搬。`steering` 与 `followUp` 都是已经交给 agent 的
+/// 用户消息正文；aside 不在其中（它走旁路，上游的 queuedMessageCount 也不算它）。
+#[derive(Clone, Debug, Deserialize, Serialize, Type)]
+#[serde(rename_all = "camelCase")]
+pub struct AgentQueuedState {
+    pub session_id: String,
+    pub steering: Vec<String>,
+    pub follow_up: Vec<String>,
+    pub steering_mode: String,
+    pub follow_up_mode: String,
+    pub interrupt_mode: String,
+}
+
+impl From<poietica_agent_client::QueuedState> for AgentQueuedState {
+    fn from(queue: poietica_agent_client::QueuedState) -> Self {
+        Self {
+            session_id: queue.session_id,
+            steering: queue.steering,
+            follow_up: queue.follow_up,
+            steering_mode: queue.steering_mode,
+            follow_up_mode: queue.follow_up_mode,
+            interrupt_mode: queue.interrupt_mode,
+        }
+    }
+}
+
+/// 撤回交回来的那一句；空队列时整格是 null。
+#[derive(Clone, Debug, Serialize, Type)]
+#[serde(rename_all = "camelCase")]
+pub struct AgentWithdrawnMessage {
+    pub text: String,
+}
+
+/// 改队列模式；缺席的格不改。
+#[derive(Clone, Debug, Deserialize, Type)]
+#[serde(rename_all = "camelCase")]
+pub struct AgentDeliveryModesRequest {
+    #[serde(default)]
+    pub steering_mode: Option<String>,
+    #[serde(default)]
+    pub follow_up_mode: Option<String>,
+    #[serde(default)]
+    pub interrupt_mode: Option<String>,
+}
+
+const fn default_deliver_as() -> AgentDeliverAs {
+    AgentDeliverAs::Turn
 }
 
 #[derive(Debug, Deserialize, Type)]
@@ -216,6 +290,21 @@ pub enum AgentSessionEvent {
     },
     /// provider、模型或默认模型的真身以它为准：收到即作废缓存重问。
     ModelCatalogChanged,
+    /// 待发队列变了：谁排了一句、谁撤回了一句、模型在哪一刻真的看见了它。
+    ///
+    /// 队列的真相在 agent 里。这条只把此刻的样子推出去，`agent_queue` 是同一份事实的
+    /// 另一个出口（断线重连、刚打开一条对话时读它）。
+    #[serde(rename_all = "camelCase")]
+    Queue {
+        session_id: String,
+        queue: AgentQueuedState,
+    },
+    /// 这一句在入队前就被取消了（abort 或用量预检竞态），**没有落进会话文件**。
+    ///
+    /// 收到它就要把屏幕上那条乐观记录收成失败：上游不会为它发任何 transcript 帧
+    /// （它压根没进会话）。正文仍可由失败横幅取回输入框。
+    #[serde(rename_all = "camelCase")]
+    PromptDropped { session_id: String, text: String },
     /// agent 要问一个对话框（confirm / input / editor）。
     ///
     /// `request` 是 agent 自己那份形状，原样转发 —— 本层不认识它，也不该认识。

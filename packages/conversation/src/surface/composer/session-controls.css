@@ -56,6 +56,12 @@
   line-height: 1.35;
   text-overflow: ellipsis;
   white-space: nowrap;
+  /*
+   * 胶囊居中的是行盒，看到的却是字身的墨：字体的上伸部高过大写，墨的视觉中心
+   * 比行盒中心低 (ascent - capHeight) / 2 —— 14px 这一档约 1.2px。取 1.5px：
+   * 把 'p' 'g' 那一捺也算进视觉重心。
+   */
+  translate: 0 -1.5px;
 }
 
 .assistant-model-select__band {

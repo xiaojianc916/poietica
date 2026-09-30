@@ -63,7 +63,9 @@ pub(crate) fn surface() -> Builder<Wry> {
         .commands(tauri_specta::collect_commands![
             crate::conversation::turn::agent_prompt,
             crate::conversation::turn::agent_cancel,
-            crate::conversation::turn::agent_steer,
+            crate::conversation::turn::agent_queue,
+            crate::conversation::turn::agent_withdraw,
+            crate::conversation::turn::agent_set_delivery_modes,
             crate::conversation::turn::agent_abort_prompt,
             crate::conversation::turn::agent_resolve_permission,
             crate::conversation::turn::agent_answer_questions,

@@ -6,6 +6,7 @@ pub(crate) mod lifecycle;
 pub(crate) mod observe;
 pub(crate) mod selection;
 
+pub use crate::wire::DeliverAs;
 pub use book::SessionBook;
 pub use client::{
     AgentClient, MediaBytes, PromptAttachment, PromptAttachmentKind, PromptSkill, ShareOutcome,
@@ -48,6 +49,22 @@ pub enum SessionEvent {
         session_id: String,
         usage: SessionUsageSnapshot,
     },
+    /// 待发队列变了：谁排了一句、谁撤回了一句、模型在哪一刻真的看见了它。
+    ///
+    /// 队列的真相在 agent 里（它的 `getQueuedMessages`/`peekXQueue`），这条只是把它
+    /// 此刻的样子推出去；读命令 `queue` 是同一份事实的另一个出口。
+    Queue {
+        session_id: String,
+        queue: QueuedState,
+    },
+    /// 这一句在入队前就被取消了（abort 或用量预检竞态），**没有落进会话文件**。
+    ///
+    /// 上游 `setPromptDropped` 只在这两种竞态里响一次（agent-session.ts:6588、6600）。
+    /// 不接它，用户那句话就凭空消失：屏幕上那条乐观记录还挂着，agent 永远不回应答。
+    PromptDropped {
+        session_id: String,
+        text: String,
+    },
     Transcript {
         session_id: String,
         payload: serde_json::Value,
@@ -63,6 +80,30 @@ pub enum SessionEvent {
     },
     ModelCatalogChanged,
     Link(poietica_conversation::link::LinkState),
+}
+
+/// 待发队列此刻的样子与三个队列模式。
+///
+/// 字段与 packages/agent-bridge/src/protocol.ts 的 `QueuedState` 逐字对应（camelCase
+/// 在桥那一侧折），所以这里不加第二个命名。两层正文都只含**用户消息**：上游
+/// `getQueuedMessages()` 挑的就是可恢复的那一批（aside 不在其中，它走旁路）。
+#[derive(Clone, Debug, Default, Eq, PartialEq)]
+pub struct QueuedState {
+    /// 这份队列属于哪条会话。
+    pub session_id: String,
+    pub steering: Vec<String>,
+    pub follow_up: Vec<String>,
+    pub steering_mode: String,
+    pub follow_up_mode: String,
+    pub interrupt_mode: String,
+}
+
+/// 撤回交回来的那一句。上游还带图片（`RestoredQueuedMessage.images`），但产品这一侧
+/// 的附件是原生资产令牌、不是 base64，接不回去，所以只交正文 —— 缺的那一格如实缺席，
+/// 不编一个假 token。
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct WithdrawnMessage {
+    pub text: String,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]

@@ -5,8 +5,8 @@ pub mod catalog;
 mod runtime;
 pub use poietica_agent_client::{ConfigSelection, PromptObservation};
 pub use runtime::{
-    CommandError, DeletedThread, ExportSource, ForkThread, OpenThread, OpenedThread, Prompt,
-    PromptReceipt, Runtime, RuntimeFailure, SessionAction, ThreadTarget,
+    CommandError, DeletedThread, DeliveryModes, ExportSource, ForkThread, OpenThread, OpenedThread,
+    Prompt, PromptReceipt, Runtime, RuntimeFailure, SessionAction, ThreadTarget,
 };
 mod delivery;
 mod events;

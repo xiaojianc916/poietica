@@ -14,19 +14,21 @@ pub(super) fn admit(
     let admission = &delivery.admission;
     let attachments = serde_json::to_string(&admission.attachments)?;
     let skills = serde_json::to_string(&admission.skills)?;
+    let deliver_as = admission.deliver_as.as_stored();
     let now = clock.now_unix_millis();
     let inserted = transaction.execute(
         "INSERT INTO turn_admissions
-         (turn_id, thread_id, prompt, model, attachments, skills, submitted_at_unix_ms, admitted_at_unix_ms)
-         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)
+         (turn_id, thread_id, prompt, model, attachments, skills, submitted_at_unix_ms, admitted_at_unix_ms, deliver_as)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)
          ON CONFLICT(turn_id) DO NOTHING",
         params![admission.turn.as_str(), admission.thread.as_str(), admission.prompt,
-            admission.model, attachments, skills, admission.submitted_at_unix_millis, now],
+            admission.model, attachments, skills, admission.submitted_at_unix_millis, now, deliver_as],
     )?;
     let decision = if inserted == 0 {
         let identical: bool = transaction.query_row(
             "SELECT thread_id = ?2 AND prompt = ?3 AND model = ?4
                 AND attachments = ?5 AND skills = ?6 AND submitted_at_unix_ms = ?7
+                AND deliver_as = ?8
              FROM turn_admissions WHERE turn_id = ?1",
             params![
                 admission.turn.as_str(),
@@ -35,7 +37,8 @@ pub(super) fn admit(
                 admission.model,
                 attachments,
                 skills,
-                admission.submitted_at_unix_millis
+                admission.submitted_at_unix_millis,
+                deliver_as
             ],
             |row| row.get(0),
         )?;

@@ -24,12 +24,15 @@
 
 ## 线上的两类帧
 
-上行（Rust → 边车）：`new_session`、`load_session`、`prompt`、`cancel`、`steer`、
-`answer_permission`、`answer_dialog`、`selectors`、`select`、`goal`、`transcript`、
-`transcript_ops`、`browser_settings`、`set_browser_settings`、`settings_catalog`、
-`set_setting`、`skills`、`mcp_servers`、`capabilities`、`model_catalog`、`shutdown`。
+上行（Rust → 边车）：`new_session`、`load_session`、`prompt`（带 `deliverAs` 四档）、
+`cancel`、`queue`、`withdraw`、`delivery`、`answer_permission`、`answer_dialog`、
+`selectors`、`select`、`goal`、`transcript`、`transcript_ops`、`browser_settings`、
+`set_browser_settings`、`settings_catalog`、`set_setting`、`skills`、`mcp_servers`、
+`capabilities`、`model_catalog`、`shutdown`。
 每条带 `id`，应答原样回。**正本是 `protocol.ts` 的 `BridgeCommand`**，这里不重抄清单
-（§0）；`crates/agent-client/src/wire.rs` 的 `Command` 与它逐字对应。
+（§0）；`crates/agent-client/src/wire.rs` 的 `Command` 与它逐字对应。插话的三层
+（steer / followUp / aside）是同一个 `prompt` 命令的 `deliverAs`，不是三条命令；
+队列的三条读写（`queue`/`withdraw`/`delivery`）归 agent 自己的队列（ADR 0026）。
 
 下行（边车 → Rust）：`ready`、`response`、`failed`，以及这几类事件 ——
 
@@ -42,6 +45,10 @@
   `Approve`/`Deny`）由本层翻成产品的一问一答，其余原样交给宿主。
 - `questions_asked`：ask 工具的题组，**产品形状**（号由桥签发）。本层的提问桌收下它，
   人的答复经 `answer_dialog` 回去（ADR 0018）。
+- `queue`：待发队列此刻的样子（两层正文 + 三个模式）。队列的真相在 agent 里，这一帧
+  只是它此刻的快照，供屏幕画 chip（ADR 0026）。
+- `prompt_dropped`：这一句在入队前就被取消了，**没有落进会话文件**。本层靠它把那条
+  乐观记录收成失败 —— 不会有任何 transcript 帧来说明它怎么了。
 
 ## 本地事件管线
 

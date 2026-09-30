@@ -31,6 +31,56 @@ pub struct SkillSpec {
     pub args: Option<String>,
 }
 
+/// 这句话怎么交给 agent —— omp 的三层插话，打断程度递减。
+///
+/// 领域只认这个形状，不认识 omp 的方法名；把它翻成 `session.steer` / `session.followUp`
+/// / `sendUserMessage({deliverAs})` 是适配层的事（ADR 0001 的分层）。
+/// 缺省是 `Turn`：老行（这一格加进来之前落盘的准入）重放时还是开一轮。
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum DeliverAs {
+    /// 开一轮。回执是官方 prompt id。
+    #[default]
+    Turn,
+    /// 插进正在跑的那一轮：在工具批次之间被模型看到。
+    Steer,
+    /// 不打断：这一轮跑完后自动作为下一轮输入。
+    FollowUp,
+    /// 完全非中断：在 step 边界静默注入，绝不打断在跑的工具批。
+    Aside,
+}
+
+impl DeliverAs {
+    /// 插话（不开轮）与正常发送的分野。队列归 agent，本机只记这一句话出去了。
+    #[must_use]
+    pub const fn is_interjection(self) -> bool {
+        !matches!(self, Self::Turn)
+    }
+
+    /// 账本里的 deliver_as 列；改这里等于改已落盘数据的读法。
+    #[must_use]
+    pub const fn as_stored(self) -> &'static str {
+        match self {
+            Self::Turn => "turn",
+            Self::Steer => "steer",
+            Self::FollowUp => "followUp",
+            Self::Aside => "aside",
+        }
+    }
+
+    /// 认不出来的值读成 `Turn`：这一格加进来之前落盘的行就是它，
+    /// 而那时只有开轮这一种说法。
+    #[must_use]
+    pub fn from_stored(value: &str) -> Self {
+        match value {
+            "steer" => Self::Steer,
+            "followUp" => Self::FollowUp,
+            "aside" => Self::Aside,
+            _ => Self::Turn,
+        }
+    }
+}
+
 /// 被冻结的用户意图。turn 是幂等键，所以同一轮的重发是同一行。
 ///
 /// 冻结在准入时完成：之后无论重试多少次，投递的都是同一句话、同一批附件、
@@ -45,6 +95,9 @@ pub struct Admission {
     pub attachments: Vec<AttachmentRef>,
     pub skills: Vec<SkillSpec>,
     pub submitted_at_unix_millis: i64,
+    /// 这一句走哪一层。老行没有这一格，读成 `Turn`（那时只有开轮这一种）。
+    #[serde(default)]
+    pub deliver_as: DeliverAs,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

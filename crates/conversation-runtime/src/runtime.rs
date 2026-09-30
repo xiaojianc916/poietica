@@ -4,7 +4,7 @@ mod failure;
 mod prompt;
 mod queries;
 mod threads;
-pub use control::SessionAction;
+pub use control::{DeliveryModes, SessionAction};
 pub use failure::CommandError;
 pub use prompt::{Prompt, PromptReceipt};
 pub use threads::{

@@ -24,7 +24,8 @@ use crate::run_slot::RunSlot;
 use crate::session::book::SessionBook;
 use crate::session::client::{AgentClient, Command as ClientCommand};
 use crate::session::{
-    AgentConnection, AgentSpawn, Handshake, OpenedSession, SessionEvent, SessionEvents,
+    AgentConnection, AgentSpawn, Handshake, OpenedSession, QueuedState, SessionEvent,
+    SessionEvents, WithdrawnMessage,
 };
 use crate::trace::{open_trace, trace};
 use crate::wire::{self, Command, Event, Frame, Outcome};
@@ -450,6 +451,7 @@ async fn run_session(
                     text,
                     attachments,
                     skills,
+                    deliver_as,
                     idempotency,
                     frames,
                     reply,
@@ -493,6 +495,7 @@ async fn run_session(
                         id: id.clone(),
                         text,
                         prompt_id: idempotency.clone(),
+                        deliver_as,
                         attachments: attachments
                             .into_iter()
                             .map(|attachment| wire::WireAttachment {
@@ -762,27 +765,41 @@ where
     Ok(Some((encode(command)?, Some(slot))))
 }
 
-fn outgoing(command: ClientCommand, id: &str, session_id: Option<&str>) -> Result<Wire> {
-    let named = || -> Result<String> {
-        session_id
-            .map(str::to_owned)
-            .ok_or(AgentError::Refused(Refusal::UnknownSession))
-    };
-
+fn outgoing(command: ClientCommand, id: &str, _session_id: Option<&str>) -> Result<Wire> {
     match command {
-        ClientCommand::Steer { prompt_ids, reply } => {
-            let _session = named()?;
-
-            ask(
-                &Command::Steer {
-                    id: id.to_owned(),
-                    text: prompt_ids.join("\n"),
-                },
-                reply,
-                |_| Ok(()),
-            )
+        ClientCommand::Queue { reply } => {
+            ask(&Command::Queue { id: id.to_owned() }, reply, |data| {
+                Ok(queued_state_of(&data))
+            })
         }
 
+        ClientCommand::Withdraw { reply } => {
+            ask(&Command::Withdraw { id: id.to_owned() }, reply, |data| {
+                Ok(data
+                    .get("message")
+                    .and_then(|message| message.get("text"))
+                    .and_then(Value::as_str)
+                    .map(|text| WithdrawnMessage {
+                        text: text.to_owned(),
+                    }))
+            })
+        }
+
+        ClientCommand::Delivery {
+            steering_mode,
+            follow_up_mode,
+            interrupt_mode,
+            reply,
+        } => ask(
+            &Command::Delivery {
+                id: id.to_owned(),
+                steering_mode,
+                follow_up_mode,
+                interrupt_mode,
+            },
+            reply,
+            |data| Ok(queued_state_of(&data)),
+        ),
         ClientCommand::AnswerPermission {
             request_id,
             decision,
@@ -1003,6 +1020,46 @@ fn outgoing(command: ClientCommand, id: &str, session_id: Option<&str>) -> Resul
         | ClientCommand::ModelCatalog { .. }
         | ClientCommand::LoadSession { .. }
         | ClientCommand::ForkSession { .. } => Ok(None),
+    }
+}
+
+/// 桥报的队列 → 本层形状。字段与 packages/agent-bridge/src/protocol.ts 的
+/// QueuedState 逐字对应；缺一格就报缺，不猜默认值 —— 猜出来的 "one-at-a-time"
+/// 与真的 "one-at-a-time" 在屏幕上分不出来。
+fn queued_state_of(data: &Value) -> QueuedState {
+    let queue = data.get("queue").unwrap_or(data);
+    let list = |key: &str| -> Vec<String> {
+        queue
+            .get(key)
+            .and_then(Value::as_array)
+            .map(|items| {
+                items
+                    .iter()
+                    .filter_map(Value::as_str)
+                    .map(str::to_owned)
+                    .collect()
+            })
+            .unwrap_or_default()
+    };
+    let mode = |key: &str| -> String {
+        queue
+            .get(key)
+            .and_then(Value::as_str)
+            .unwrap_or_default()
+            .to_owned()
+    };
+
+    QueuedState {
+        session_id: queue
+            .get("sessionId")
+            .and_then(Value::as_str)
+            .unwrap_or_default()
+            .to_owned(),
+        steering: list("steering"),
+        follow_up: list("followUp"),
+        steering_mode: mode("steeringMode"),
+        follow_up_mode: mode("followUpMode"),
+        interrupt_mode: mode("interruptMode"),
     }
 }
 
@@ -1752,6 +1809,17 @@ fn dispatch(
                     breakdown: usage.get("breakdown").and_then(breakdown_of),
                 },
             });
+        }
+
+        Event::Queue { session_id, queue } => {
+            let _sent = events_tx.unbounded_send(SessionEvent::Queue {
+                session_id,
+                queue: queued_state_of(&queue),
+            });
+        }
+
+        Event::PromptDropped { session_id, text } => {
+            let _sent = events_tx.unbounded_send(SessionEvent::PromptDropped { session_id, text });
         }
     }
 }

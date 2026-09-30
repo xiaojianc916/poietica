@@ -3,7 +3,7 @@
 use std::path::PathBuf;
 
 use poietica_agent_client::{
-    AgentClient, AgentError, PromptAttachment, PromptAttachmentKind, PromptSkill,
+    AgentClient, AgentError, DeliverAs, PromptAttachment, PromptAttachmentKind, PromptSkill,
 };
 use poietica_conversation::error::GatewayFailure;
 use poietica_conversation::ports::{
@@ -62,6 +62,7 @@ impl AgentGateway for KapGateway {
                 admission.prompt.clone(),
                 carried,
                 skills,
+                deliver_as(admission.deliver_as),
                 admission.turn.as_str().to_owned(),
                 frames,
             )
@@ -76,6 +77,16 @@ impl AgentGateway for KapGateway {
                 },
             }
         }))
+    }
+}
+
+/// 领域的层名 → 桥的层名。两处枚举同形，转换只在这里做一次。
+fn deliver_as(mode: poietica_conversation::turn::DeliverAs) -> DeliverAs {
+    match mode {
+        poietica_conversation::turn::DeliverAs::Turn => DeliverAs::Turn,
+        poietica_conversation::turn::DeliverAs::Steer => DeliverAs::Steer,
+        poietica_conversation::turn::DeliverAs::FollowUp => DeliverAs::FollowUp,
+        poietica_conversation::turn::DeliverAs::Aside => DeliverAs::Aside,
     }
 }
 

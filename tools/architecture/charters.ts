@@ -649,9 +649,18 @@ const tokens = (source: string): string[] =>
     .split(/[\s'"()[\],;:<>|]+/)
     .filter((token) => token.length > 0)
 
-// ADRs record historical decisions rather than the current dependency manifest.
+/*
+ * 只读**说本仓自己**的那部分散文。
+ *
+ * - `docs/adr/`：ADR 记的是历史决策，不是当前的依赖清单。
+ * - `docs/omp/`：对第三方依赖 omp 的官方能力调研归档（见该目录 README 第一句），
+ *   里面点名的那些 `tool` + `s` 路径是**上游源码树**的，不是本仓的脚本 —— 拿本仓的
+ *   存在性去要求它们，等于用别人的目录结构判我们的架构。
+ */
 const prose = async (root: string): Promise<string[]> =>
-  (await walk(root, ['.'], ['.md'])).filter((file) => !file.startsWith('docs/adr/'))
+  (await walk(root, ['.'], ['.md'])).filter(
+    (file) => !file.startsWith('docs/adr/') && !file.startsWith('docs/omp/'),
+  )
 
 /** 文档点名的脚本必须存在，并且不许还指着已经不在的目录。 */
 export async function documentedScriptsExist(root: string): Promise<Violation[]> {

@@ -4,7 +4,9 @@
 )]
 use poietica_conversation::identity::{Seq, ThreadId, TurnId};
 use poietica_conversation::ports::{ConversationLedger, PromptDelivery};
-use poietica_conversation::turn::{Admission, AdmissionDecision, DeliveryOutcome, DeliveryState};
+use poietica_conversation::turn::{
+    Admission, AdmissionDecision, DeliverAs, DeliveryOutcome, DeliveryState,
+};
 use poietica_ledger::index::AgentStore;
 use poietica_time::test_clock::TestClock;
 
@@ -26,6 +28,7 @@ fn delivery() -> PromptDelivery {
             model: "kimi-k2".to_owned(),
             attachments: Vec::new(),
             skills: Vec::new(),
+            deliver_as: DeliverAs::default(),
             submitted_at_unix_millis: 1_700_000_000_000,
         },
         session: "session-1".to_owned(),

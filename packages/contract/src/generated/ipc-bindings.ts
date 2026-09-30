@@ -7,6 +7,9 @@
 export const commands = {
 /**
  * Returns the agent's submission receipt without waiting for model completion.
+ * 
+ * `deliverAs` 决定这句话走哪一层：`turn` 开一轮（回执带轮身份），三层插话不开轮
+ * （回执只是「agent 收下了」—— 上游的 steer/followUp 都返回 void，队列归它）。
  */
 async agentPrompt(request: AgentPromptRequest) : Promise<AgentPromptResult> {
     return await TAURI_INVOKE("agent_prompt", { request });
@@ -14,8 +17,23 @@ async agentPrompt(request: AgentPromptRequest) : Promise<AgentPromptResult> {
 async agentCancel(request: AgentCancelRequest) : Promise<null> {
     return await TAURI_INVOKE("agent_cancel", { request });
 },
-async agentSteer(request: AgentSteerRequest) : Promise<null> {
-    return await TAURI_INVOKE("agent_steer", { request });
+/**
+ * 待发队列此刻的样子。队列的真相在 agent 里，这条只是读回来。
+ */
+async agentQueue() : Promise<AgentQueuedState> {
+    return await TAURI_INVOKE("agent_queue");
+},
+/**
+ * 撤回最后一条还排着的插话（LIFO）；队列空着回 null，不是错。
+ */
+async agentWithdraw() : Promise<AgentWithdrawnMessage | null> {
+    return await TAURI_INVOKE("agent_withdraw");
+},
+/**
+ * 改队列模式；应答是改完之后那一份队列。
+ */
+async agentSetDeliveryModes(request: AgentDeliveryModesRequest) : Promise<AgentQueuedState> {
+    return await TAURI_INVOKE("agent_set_delivery_modes", { request });
 },
 async agentAbortPrompt(request: AgentAbortPromptRequest) : Promise<null> {
     return await TAURI_INVOKE("agent_abort_prompt", { request });
@@ -517,6 +535,33 @@ export type AgentConfigChoice = { value: string; label: string; detail: string |
 export type AgentConfigControl = { id: string; label: string; detail: string | null; purpose: AgentConfigPurpose; appliesOnSubmit: boolean; current: string; choices: AgentConfigChoice[] }
 export type AgentConfigPurpose = "permission" | "mode" | "model" | "thought" | "other"
 export type AgentConfigSnapshot = { agents: JsonValue[]; defaultAgentId: string; issues: string[] }
+/**
+ * 这句话怎么交给 agent：omp 的三层插话，打断程度递减。
+ * 
+ * 与 packages/agent-bridge/src/protocol.ts 的 `deliverAs` 以及
+ * crates/conversation 的 `DeliverAs` 三处同名同值，判别式只在各自的边界上翻一次。
+ */
+export type AgentDeliverAs = 
+/**
+ * 开一轮（空闲时的正常发送）。
+ */
+"turn" | 
+/**
+ * 插进正在跑的那一轮：在工具批次之间被模型看到。
+ */
+"steer" | 
+/**
+ * 不打断：这一轮跑完后自动作为下一轮输入。
+ */
+"followUp" | 
+/**
+ * 完全非中断：在 step 边界静默注入，绝不打断在跑的工具批。
+ */
+"aside"
+/**
+ * 改队列模式；缺席的格不改。
+ */
+export type AgentDeliveryModesRequest = { steeringMode?: string | null; followUpMode?: string | null; interruptMode?: string | null }
 export type AgentDismissQuestionsRequest = { questionId: string }
 export type AgentExportThreadRequest = { threadId: string; launch: AgentLaunch }
 export type AgentForkThreadRequest = { threadId: string; title: string; 
@@ -550,7 +595,11 @@ export type AgentPromptConfiguration = { id: string; value: string }
 /**
  * A prompt, and how to start the agent if it is not running yet.
  */
-export type AgentPromptRequest = { text: string; configuration: AgentPromptConfiguration[]; 
+export type AgentPromptRequest = { text: string; 
+/**
+ * 这一句走哪一层。缺席即开一轮：老调用方（自动化、恢复）不传这一格。
+ */
+deliverAs?: AgentDeliverAs; configuration: AgentPromptConfiguration[]; 
 /**
  * 与 text 是同一句话的两半：只挑了图、没打字也是一句完整的话，判空要一起判。
  */
@@ -566,6 +615,13 @@ export type AgentQuestionChoice = { kind: "single"; optionId: string } | { kind:
  * 取值即 kap 的 questionAnswerMethodSchema；官方把 click 丢掉，仍如实上报。
  */
 export type AgentQuestionMethod = "enter" | "space" | "number_key" | "click"
+/**
+ * 待发队列此刻的样子：两层正文 + 三个模式。
+ * 
+ * 队列的真相在 agent 里，这一层只搬。`steering` 与 `followUp` 都是已经交给 agent 的
+ * 用户消息正文；aside 不在其中（它走旁路，上游的 queuedMessageCount 也不算它）。
+ */
+export type AgentQueuedState = { sessionId: string; steering: string[]; followUp: string[]; steeringMode: string; followUpMode: string; interruptMode: string }
 export type AgentRenameThreadRequest = { threadId: string; title: string }
 export type AgentResolvePermissionRequest = { requestId: string; decision: AgentApprovalDecision; scope: AgentApprovalScope | null; selectedLabel: string | null; feedback: string | null }
 export type AgentSelectConfigRequest = { threadId: string | null; configId: string; value: string; input: string | null }
@@ -574,6 +630,20 @@ export type AgentSessionEvent = { kind: "selectors"; sessionId: string; selector
  * provider、模型或默认模型的真身以它为准：收到即作废缓存重问。
  */
 { kind: "modelCatalogChanged" } | 
+/**
+ * 待发队列变了：谁排了一句、谁撤回了一句、模型在哪一刻真的看见了它。
+ * 
+ * 队列的真相在 agent 里。这条只把此刻的样子推出去，`agent_queue` 是同一份事实的
+ * 另一个出口（断线重连、刚打开一条对话时读它）。
+ */
+{ kind: "queue"; sessionId: string; queue: AgentQueuedState } | 
+/**
+ * 这一句在入队前就被取消了（abort 或用量预检竞态），**没有落进会话文件**。
+ * 
+ * 收到它就要把屏幕上那条乐观记录收成失败：上游不会为它发任何 transcript 帧
+ * （它压根没进会话）。正文仍可由失败横幅取回输入框。
+ */
+{ kind: "promptDropped"; sessionId: string; text: string } | 
 /**
  * agent 要问一个对话框（confirm / input / editor）。
  * 
@@ -660,11 +730,6 @@ export type AgentShareThreadRequest = { threadId: string; launch: AgentLaunch }
  */
 export type AgentSharedThread = { url: string; truncated: boolean }
 export type AgentSkill = { id: string; name: string; description: string; source: string; path: string; project: string | null; projectPath: string | null; document: string | null; directory: string | null; enabled: boolean; loaded: boolean; kind: string | null; disableModelInvocation: boolean | null; supportingFiles: number | null; totalBytes: number | null; modifiedAt: number | null }
-export type AgentSteerRequest = { threadId: string; 
-/**
- * 号由 kap 签发（prompt.queued 的 promptId）：队列不在这一侧，收号不收话。
- */
-promptIds: string[] }
 export type AgentThread = { threadId: string; sessionId: string | null; title: string; titleSource: AgentTitleSource; updatedAt: string; pinned: boolean; 
 /**
  * 它是在哪个工作目录里开的；空表示默认那一个工作区。
@@ -690,6 +755,10 @@ export type AgentTranscriptRequest = { sessionId: string; agentId: string; befor
  * 上下文构成，与 agent 状态行里显示的那份逐格对应。
  */
 export type AgentUsageBreakdown = { systemPrompt: number; systemContext: number; systemTools: number; skills: number; messages: number; free: number; autoCompactBuffer: number }
+/**
+ * 撤回交回来的那一句；空队列时整格是 null。
+ */
+export type AgentWithdrawnMessage = { text: string }
 export type AppSettings = { theme: ThemePreference; language: string; general: GeneralSettings; appearance: AppearanceSettings; modelPicker: ModelPickerSettings; privacy: PrivacySettings }
 export type AppearanceSettings = { density: Density; reduceMotion: boolean; messageTimestamps: boolean }
 export type AssetImportRequest = { sessionToken: string; paths: string[] }

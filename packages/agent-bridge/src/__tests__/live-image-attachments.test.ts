@@ -20,23 +20,18 @@
  */
 
 import { afterAll, expect, test } from 'bun:test'
-import { mkdtempSync, rmSync, writeFileSync } from 'node:fs'
-import { tmpdir } from 'node:os'
+import { writeFileSync } from 'node:fs'
 import path from 'node:path'
+import { AgentSession, createBridge, home } from './sdk-home.ts'
 
 /* 一张 1×1 的 PNG。 */
 const PIXEL =
   'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg=='
 
 /*
- * 受控 home 必须在**任何 SDK import 之前**定下：SDK 的 agent 目录是模块加载时解析的
- * （pi-utils 的 dirs.ts），晚了它就还是用户自己的 ~/.omp —— createBridge 会拿它跟这里对账
- * 并拒绝开工。这也是这个文件用动态 import 起桥的原因。
+ * 受控 home 与 SDK 的入口都归 sdk-home.ts 一处（`bun test src` 是同一个进程，谁另造一个
+ * 临时目录都会让别人的 createBridge 对账失败）。图片源这一格不在那里，所以自己拿。
  */
-const home = mkdtempSync(path.join(tmpdir(), 'poietica-live-image-'))
-process.env['PI_CODING_AGENT_DIR'] = home
-
-const { AgentSession } = await import('@oh-my-pi/pi-coding-agent')
 const { imageAttachmentSource } = await import('@oh-my-pi/pi-tui/prompt/image-source')
 
 let original: typeof AgentSession.prototype.prompt
@@ -62,13 +57,9 @@ afterAll(() => {
   AgentSession.prototype.prompt = original
   /*
    * 临时 home 里的 agent.db 还开着（SQLite 句柄），Windows 上删不动。删不掉不是测试的
-   * 事实，交给系统清临时目录 —— 为此让整个文件红掉是假警报。
+   * 事实，交给系统清临时目录 —— 为此让整个文件红掉是假警报。归属在 sdk-home.ts 一处，
+   * 别的文件还在用它，所以这里也不收。
    */
-  try {
-    rmSync(home, { recursive: true, force: true })
-  } catch {
-    // 句柄未释放：临时目录由系统回收。
-  }
 })
 
 /*
@@ -87,7 +78,6 @@ async function send(
   call: { text: string; images: readonly unknown[] }
   ops: readonly { op: string; attachment?: unknown; turn?: unknown }[]
 }> {
-  const { createBridge } = await import('../bridge.ts')
   const bridge = createBridge({
     agentDir: home,
     cwd: process.cwd(),
@@ -112,6 +102,7 @@ async function send(
     type: 'prompt',
     text: '这是什么',
     promptId: 'p1',
+    deliverAs: 'turn',
     attachments,
     skills: [],
   })

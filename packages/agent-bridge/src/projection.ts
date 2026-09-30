@@ -1,4 +1,4 @@
-﻿/*
+/*
  * omp 的会话事件 → transcript 的 ops。
  *
  * 投影器持有流式累加状态，因为 transcript 的 append 认 offset（ops/apply.ts 的
@@ -119,6 +119,49 @@ export class TranscriptProjector {
           role: 'user',
           frameId: id,
           text,
+          ...(attachmentIds.length > 0 ? { attachmentIds } : {}),
+        },
+      },
+    ]
+  }
+
+  /**
+   * 一句插话（steer / followUp / aside 落到上下文里的那一下）。
+   *
+   * 与 `userTurn` 的分野是**开不开新轮**：开着一轮时这句话是那一轮里的一句（模型在
+   * 工具批次之间看见它，然后接着干同一轮的活），所以它进当前 step；没开着一轮时
+   * （followUp 在轮终之后被排成下一轮）这句话就是开场白，退回 `userTurn`。
+   *
+   * 正文帧必须先封掉正在流的那一帧：不封，插话会夹在 assistant 同一帧的字符之间，
+   * 屏幕上就是一句话被劈成两半。`origin.kind = 'user'` 是投影层认「这是人说的话」
+   * 的唯一判据（transcript-projector.ts 的 sourceOfFrame）。
+   */
+  steeredFrame(
+    text: string,
+    attachmentIds: readonly string[] = [],
+    at: string = now(),
+  ): TranscriptOperation[] {
+    if (!this.#turnOpen) {
+      return this.userTurn(text, attachmentIds, undefined, at)
+    }
+
+    this.#streaming = null
+
+    const step = stepId(turnId(this.#turn), this.#step)
+    const id = frameId(step, this.#frame)
+    this.#frame += 1
+
+    return [
+      {
+        op: 'frame.upsert',
+        turnId: turnId(this.#turn),
+        stepId: step,
+        frame: {
+          kind: 'text',
+          role: 'user',
+          frameId: id,
+          text,
+          origin: { kind: 'user' },
           ...(attachmentIds.length > 0 ? { attachmentIds } : {}),
         },
       },

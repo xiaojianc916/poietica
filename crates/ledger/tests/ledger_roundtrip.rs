@@ -7,7 +7,7 @@
 use poietica_conversation::event::ConversationEvent;
 use poietica_conversation::identity::{Seq, ThreadId, TurnId};
 use poietica_conversation::ports::{ConversationLedger, PromptDelivery};
-use poietica_conversation::turn::{Admission, AdmissionDecision};
+use poietica_conversation::turn::{Admission, AdmissionDecision, DeliverAs};
 use poietica_ledger::index::AgentStore;
 use poietica_time::test_clock::TestClock;
 
@@ -29,6 +29,7 @@ fn admission(thread: &ThreadId, turn: &TurnId) -> Admission {
         model: "kimi-k2".to_owned(),
         attachments: Vec::new(),
         skills: Vec::new(),
+        deliver_as: DeliverAs::default(),
         submitted_at_unix_millis: 1_700_000_000_000,
     }
 }

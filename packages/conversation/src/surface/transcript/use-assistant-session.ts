@@ -6,10 +6,11 @@ import type {
   AgentSessionPort,
   PromptAsset,
   PromptConfiguration,
+  PromptDelivery,
   PromptSkill,
 } from '../../agent/session'
 import type { TurnMark } from '../../agent/thread'
-import type { InterjectionOutbox } from '../../interjection/interjection-outbox'
+import type { MessageQueue, MessageQueueState } from '../../interjection/message-queue'
 import type {
   BackgroundTaskItem,
   SubagentItem,
@@ -19,7 +20,7 @@ import type {
 import type { PendingInteractions } from '../../timeline/timeline-queries'
 import { activeScope, currentTodos, pendingInteractions } from '../../timeline/timeline-queries'
 import type { Transcript } from '../../transcript/transcript-store'
-import { deliveryUnknown } from '../../transcript/transcript-store'
+import { canCancel, deliveryUnknown } from '../../transcript/transcript-store'
 import { useTranscripts } from './transcripts-context'
 
 /* 每个消费者只订阅最窄的稳定投影；完整 timeline 仅供 TranscriptView。
@@ -57,15 +58,21 @@ export interface AssistantSession {
   /** 这一格现在的键：真对话 id，或入口那一格的草稿键。 */
   readonly key: string
   readonly status: ChatStatus
-  readonly send: (submission: AssistantSubmission) => void
+  /**
+   * 发一句话。
+   *
+   * `deliverAs` 缺省时按这一刻的状态选：空闲开一轮，正在跑就插话（omp 自己的 TUI
+   * 就是这一条：流式中回车 = steer）。显式传就是调用方点名要那一层。
+   */
+  readonly send: (submission: AssistantSubmission, deliverAs?: PromptDelivery) => void
   readonly cancel: () => void
   readonly resolvePermission: (requestId: string, answer: ApprovalAnswer) => void
   /** 答掉一整组题。答复形状就是协议自己的 QuestionResponse，不经权限请求。 */
   readonly answerQuestions: (response: QuestionResponse) => Promise<void>
   /** 撤下一整组题。 */
   readonly dismissQuestions: (questionId: string) => Promise<void>
-  /** 待插话消息的出账簿：顺序、编辑与释放时机都归它。 */
-  readonly outbox: InterjectionOutbox
+  /** agent 那条待发队列的看法：两层正文、撤回与队列模式。 */
+  readonly queue: MessageQueue
   /** True while a conversation is still being fetched. */
   readonly isRestoring: boolean
   readonly notice: string | null
@@ -178,7 +185,7 @@ export function useAssistantSession({
   session,
 }: AssistantSessionOptions): AssistantSession {
   const transcripts = useTranscripts()
-  const outbox = transcripts.outbox(key)
+  const queue = transcripts.queue(key)
   const running = useSlice(key, readStatus)
   const isRestoring = useSlice(key, readRestoring)
   const notice = useSlice(key, readNotice)
@@ -188,15 +195,35 @@ export function useAssistantSession({
       transcripts.ensure(session)
     }
   }, [session, transcripts])
-  const queued = useSyncExternalStore(outbox.subscribe, outbox.read).queue.length
+  const queued = useSyncExternalStore(
+    queue.subscribe,
+    useCallback((): number => {
+      const state: MessageQueueState = queue.read()
+      return state.steering.length + state.followUp.length
+    }, [queue]),
+  )
   const send = useCallback(
-    (submission: AssistantSubmission) => {
+    (submission: AssistantSubmission, deliverAs?: PromptDelivery) => {
       if (session !== undefined) {
         transcripts.ensure(session)
       }
-      outbox.say(submission, { prepare, onUserMessage })
+      /*
+       * 缺省按这一刻的状态选层：空闲开一轮（那才是「一句话」），正在跑就插话。
+       * 判据取的是**在飞**而不是 `running`：`submitted` 那一档（回执还没回来）
+       * 也是一轮正在起，拿不准时插话不会丢话 —— 上游对插话永远不抛忙碌错。
+       */
+      const delivery: PromptDelivery =
+        deliverAs ?? (canCancel(transcripts.read(key)) ? 'steer' : 'turn')
+      void transcripts.send({
+        ...submission,
+        deliverAs: delivery,
+        onUserMessage,
+        port: session,
+        prepare,
+        threadId: key,
+      })
     },
-    [onUserMessage, outbox, prepare, session, transcripts],
+    [key, onUserMessage, prepare, session, transcripts],
   )
   const cancel = useCallback(() => transcripts.cancel(key), [key, transcripts])
   const resolvePermission = useCallback(
@@ -221,7 +248,7 @@ export function useAssistantSession({
     resolvePermission,
     answerQuestions,
     dismissQuestions,
-    outbox,
+    queue,
     isRestoring,
     notice,
     submissions,

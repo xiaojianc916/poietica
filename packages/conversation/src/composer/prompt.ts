@@ -10,6 +10,13 @@ export interface PromptInputMessage {
   readonly configuration: readonly PromptConfiguration[]
   readonly assets: readonly ComposerAsset[]
   readonly skills: readonly PromptSkill[]
+  /**
+   * 人点名「排队」而不是「现在插话」（Ctrl/Cmd + Enter）。
+   *
+   * 只有正在跑的时候才有分别：空闲时两种都是开一轮。排队走 followUp 那一层 ——
+   * 不打断，这一轮跑完接着做。
+   */
+  readonly queued?: boolean
 }
 
 export interface PromptInputDraft {
