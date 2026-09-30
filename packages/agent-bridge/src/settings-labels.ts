@@ -644,9 +644,9 @@ const IRRELEVANT: readonly { readonly why: string; readonly test: (path: string)
   /*
    * `colorBlindMode` 改的是**终端主题**：它的 setter 调 pi-tui 的
    * `setColorBlindMode`（`@oh-my-pi/pi-tui/theme/theme`，settings.ts:3429）。我们界面的
-   * diff 用自己那份令牌画（`--cp-timeline-diff-new` / `--cp-timeline-diff-old`，
-   * packages/conversation 的 tool-call-panels.tsx），拿不到 pi-tui 的主题，所以在这里
-   * 改了看不出任何变化。色觉无障碍要做也该做在我们自己那份令牌上。
+   * diff 用自己那份实色画（packages/review/src/surface/diff-body.css 的 --diff-*），
+   * 拿不到 pi-tui 的主题，所以在这里改了看不出任何变化。色觉无障碍要做也该做在我们
+   * 自己那份取色上。
    */
   { why: '终端主题（我们的 diff 用自己的令牌画）', test: (p) => p === 'colorBlindMode' },
   /*

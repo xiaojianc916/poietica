@@ -13,14 +13,11 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from '@poietica/design-system'
-import { useVirtualizer } from '@tanstack/react-virtual'
 import {
   ArrowUp,
   Check,
   ChevronDown,
   ChevronRight,
-  ChevronsUpDown,
-  ChevronUp,
   Copy,
   FileText,
   Folders,
@@ -40,15 +37,12 @@ import {
 import {
   type CSSProperties,
   Fragment,
-  memo,
   type ReactNode,
   type RefObject,
   useCallback,
   useEffect,
-  useLayoutEffect,
   useMemo,
   useRef,
-  useState,
   useSyncExternalStore,
 } from 'react'
 import {
@@ -57,8 +51,6 @@ import {
   changeTreeRows,
   createReviewStore,
   type DiffFile,
-  type DiffPiece,
-  type DiffRow,
   type DiffStat,
   type ReviewDerive,
   type ReviewFailureReport,
@@ -72,6 +64,7 @@ import {
   WORKTREE_BASE,
 } from '../index'
 import { createDeriver, type ReviewDeriver } from './derive'
+import { DiffBody, renderedRowsOf } from './diff-body'
 
 import './review-pane.css'
 
@@ -82,13 +75,6 @@ const TROUBLE: Readonly<Record<'asking' | 'unreadable', string>> = {
 }
 /* 列宽走注册过的自定义属性，与外壳那一份同构。 */
 type ReviewStyle = CSSProperties & Record<`--${string}`, string>
-/* 种类由行模型说，不由行首字符说：所以正文里不留 +/- 那一列。取色在 review-pane.css。 */
-function toneOf(kind: DiffRow['kind']): string {
-  if (kind === 'added') {
-    return 'review-line review-line--added'
-  }
-  return kind === 'removed' ? 'review-line review-line--removed' : 'review-line'
-}
 const SWITCHES: readonly {
   readonly name: ReviewSwitch
   readonly icon: LucideIcon
@@ -130,23 +116,8 @@ export function ReviewPane({ root, gateway, report }: ReviewPaneProps) {
     [derive, gateway, report, root],
   )
   useEffect(() => store.start(), [store])
+  /* 行带的折叠带宽度锚归 DiffBody（它量这个盒子的可视宽）；这里只交出这个盒子。 */
   const scroller = useRef<HTMLDivElement | null>(null)
-  const resizeObserver = useRef<ResizeObserver | null>(null)
-  /* 折叠带的宽度锚：滚动口可视宽写在自带的变量上（后代继承）。cqw 在真实 DOM 里
-   * 会被降级/覆盖成内容宽，JS 量测是对两种失效都免疫的唯一产地。 */
-  const attachScroller = useCallback((el: HTMLDivElement | null) => {
-    resizeObserver.current?.disconnect()
-    resizeObserver.current = null
-    scroller.current = el
-    if (el === null) {
-      return
-    }
-    const observer = new ResizeObserver(() => {
-      el.style.setProperty('--review-main-inline-size', `${String(el.clientWidth)}px`)
-    })
-    observer.observe(el)
-    resizeObserver.current = observer
-  }, [])
   const state = useSyncExternalStore(store.subscribe, store.getSnapshot, store.getSnapshot)
   const reading = state.reading
   if (reading.phase === 'notARepository') {
@@ -179,7 +150,7 @@ export function ReviewPane({ root, gateway, report }: ReviewPaneProps) {
     >
       <Toolbar reading={reading} state={state} store={store} />
       <div className="flex min-h-0 flex-1">
-        <div className="review-scroll min-h-0 flex-1 overflow-y-auto" ref={attachScroller}>
+        <div className="review-scroll min-h-0 flex-1 overflow-y-auto" ref={scroller}>
           <Cards reading={reading} scroller={scroller} shown={shown} state={state} store={store} />
         </div>
         <Tree docked={treeColumn > 0} shown={shown} state={state} store={store} />
@@ -512,30 +483,6 @@ function Card({
   )
 }
 
-const VIRTUAL_AFTER = 500
-/* 折叠带的身份：路径 + 它在行带里的位置。Gap、虚拟带与卡估高共用这一个产地。 */
-function gapKeyOf(path: string, at: number): string {
-  return `${path}#${String(at)}`
-}
-/* 潜在行幅：可见行加折叠带里可展开的那些 —— 判据与估高都从这一个数出发。 */
-function spanOf(file: DiffFile): number {
-  let span = file.rows.length
-  for (const row of file.rows) {
-    span += row.hidden.length
-  }
-  return span
-}
-/* 此刻要渲染的行数：展开的折叠带把 hidden 计入，收着的算一条。屏外卡的估高报它，
- * 直渲与虚拟化两条路的真值都与它对齐，滚动条不随视口推进跳动。 */
-function renderedRowsOf(file: DiffFile, openGaps: ReadonlySet<string>): number {
-  let count = file.rows.length
-  for (const row of file.rows) {
-    if (row.kind === 'gap' && openGaps.has(gapKeyOf(file.path, row.at))) {
-      count += row.hidden.length
-    }
-  }
-  return count
-}
 function Body({
   file,
   scroller,
@@ -557,361 +504,15 @@ function Body({
       </div>
     )
   }
-  /* 不换行时这一格自己横滚：代码的缩进不能被折行改写。 */
-  const wide = spanOf(file) > VIRTUAL_AFTER
+  /* 行带只有一份实现（diff-body.tsx）：这一格只交出折叠带的开合与滚动口。 */
   return (
-    <div
-      className={cn(
-        'font-mono text-[12px] leading-5',
-        state.presentation.wrap ? null : 'overflow-x-auto',
-      )}
-    >
-      {wide ? (
-        <VirtualRows file={file} scroller={scroller} state={state} store={store} />
-      ) : (
-        <Rows path={file.path} rows={file.rows} scroller={scroller} state={state} store={store} />
-      )}
-    </div>
-  )
-}
-/* 折叠带的展开方向：首条藏着上面的行，末条藏着下面的行，中间的双向。 */
-type GapEdge = 'both' | 'down' | 'up'
-function gapEdgeOf(index: number, length: number): GapEdge {
-  if (length <= 1) {
-    return 'both'
-  }
-  if (index === 0) {
-    return 'up'
-  }
-  return index === length - 1 ? 'down' : 'both'
-}
-function gapChevronOf(edge: GapEdge): LucideIcon {
-  return edge === 'up' ? ChevronUp : edge === 'down' ? ChevronDown : ChevronsUpDown
-}
-/* rows 为空的带子展不开：那些行确实没取回来，按下去也无可显示。 */
-function GapBar({
-  barRef,
-  chevron: Chevron,
-  label,
-  onClick,
-}: {
-  readonly barRef?: RefObject<HTMLDivElement | null>
-  readonly chevron: LucideIcon
-  readonly label: string
-  readonly onClick?: () => void
-}) {
-  /* 悬浮药丸：无上下边框，左右留白不贴边，相邻两条之间由外层的 py 隔开。
-   * 外层另带 review-gap-row：宽度取主区（见 review-pane.css），不跟最宽行走。 */
-  return (
-    <div className="review-gap-row px-1.5 py-1" ref={barRef}>
-      <button
-        className="review-gap flex h-7 w-full items-center gap-1.5 rounded-md px-2.5 text-left text-xs text-current/50 enabled:hover:text-current/90"
-        disabled={onClick === undefined}
-        onClick={onClick}
-        type="button"
-      >
-        <Chevron aria-hidden className="size-3.5 shrink-0" />
-        {label}
-      </button>
-    </div>
-  )
-}
-/* 一串行：折叠带就地展开，展开出来的行与上下同在一条流里，列宽因此一致。 */
-function Rows({
-  path,
-  rows,
-  scroller,
-  state,
-  store,
-}: {
-  readonly path: string
-  readonly rows: readonly DiffRow[]
-  readonly scroller: RefObject<HTMLDivElement | null>
-  readonly state: ReviewState
-  readonly store: ReviewStore
-}) {
-  const wrap = state.presentation.wrap
-  return (
-    <div className={wrap ? undefined : 'w-max min-w-full'}>
-      {rows.map((row, index) =>
-        row.kind === 'gap' ? (
-          <Gap
-            edge={gapEdgeOf(index, rows.length)}
-            key={row.at}
-            path={path}
-            row={row}
-            scroller={scroller}
-            state={state}
-            store={store}
-          />
-        ) : (
-          <Line key={row.at} row={row} wrap={wrap} />
-        ),
-      )}
-    </div>
-  )
-}
-/* 折叠带：补丁没带回来的行展不开，按钮就不给点。上面的行展开在条带上方，
- * 条带钉住不动：记住点按时条带的位置，画完把滚动差补回去，想看上面自己滑上去。 */
-function Gap({
-  edge,
-  path,
-  row,
-  scroller,
-  state,
-  store,
-}: {
-  readonly edge: GapEdge
-  readonly path: string
-  readonly row: DiffRow
-  readonly scroller: RefObject<HTMLDivElement | null>
-  readonly state: ReviewState
-  readonly store: ReviewStore
-}) {
-  const key = gapKeyOf(path, row.at)
-  const open = state.openGaps.has(key)
-  const barRef = useRef<HTMLDivElement | null>(null)
-  const anchor = useRef<number | null>(null)
-  useLayoutEffect(() => {
-    const bar = barRef.current
-    const scrollEl = scroller.current
-    if (anchor.current === null || bar === null || scrollEl === null) {
-      return
-    }
-    scrollEl.scrollTop += bar.getBoundingClientRect().top - anchor.current
-    anchor.current = null
-  })
-  const label = `${String(row.lines)} unmodified lines`
-  const held = open
-    ? row.hidden.map((heldRow) => (
-        <Line key={heldRow.at} row={heldRow} wrap={state.presentation.wrap} />
-      ))
-    : null
-  return (
-    <>
-      {edge === 'up' ? held : null}
-      <GapBar
-        barRef={barRef}
-        chevron={gapChevronOf(edge)}
-        label={open ? `折叠 ${label}` : label}
-        {...(row.hidden.length === 0
-          ? {}
-          : {
-              onClick: () => {
-                anchor.current = barRef.current?.getBoundingClientRect().top ?? null
-                store.toggleGap(key)
-              },
-            })}
-      />
-      {edge === 'up' ? null : held}
-    </>
-  )
-}
-/* 大文件的行带虚拟化：只挂视口附近的行，代价随可见范围走、不随变更集走；折叠带
- * 展开的行也摊平成条目，展开一条万行折叠带不再是一次性挂万行 DOM。 */
-interface VirtualRowItem {
-  readonly bar: boolean
-  readonly edge: GapEdge
-  readonly key: string
-  readonly row: DiffRow
-}
-function spreadRows(
-  rows: readonly DiffRow[],
-  path: string,
-  openGaps: ReadonlySet<string>,
-): readonly VirtualRowItem[] {
-  const items: VirtualRowItem[] = []
-  rows.forEach((row, index) => {
-    if (row.kind !== 'gap') {
-      items.push({ bar: false, edge: 'both', key: gapKeyOf(path, row.at), row })
-      return
-    }
-    const gapKey = gapKeyOf(path, row.at)
-    items.push({ bar: true, edge: gapEdgeOf(index, rows.length), key: `${gapKey}#bar`, row })
-    if (openGaps.has(gapKey)) {
-      for (const held of row.hidden) {
-        items.push({ bar: false, edge: 'both', key: `${gapKey}!${String(held.at)}`, row: held })
-      }
-    }
-  })
-  return items
-}
-/* 等宽字体里行宽只看字符数：不渲染也能算准横向滚动该给的宽度。 */
-function widestOf(rows: readonly DiffRow[]): number {
-  let width = 0
-  for (const row of rows) {
-    width = Math.max(width, row.text.length)
-    for (const held of row.hidden) {
-      width = Math.max(width, held.text.length)
-    }
-  }
-  return width
-}
-/* 虚拟带里的折叠带：只画那一条带，展开的行是它下面的独立条目；
- * 条目绝对定位，条带自己的偏移开展前后不变，所以天然钉在原地。 */
-function VirtualGap({
-  edge,
-  path,
-  row,
-  state,
-  store,
-}: {
-  readonly edge: GapEdge
-  readonly path: string
-  readonly row: DiffRow
-  readonly state: ReviewState
-  readonly store: ReviewStore
-}) {
-  const key = gapKeyOf(path, row.at)
-  const open = state.openGaps.has(key)
-  const label = `${String(row.lines)} unmodified lines`
-  return (
-    <GapBar
-      chevron={gapChevronOf(edge)}
-      label={open ? `折叠 ${label}` : label}
-      {...(row.hidden.length === 0 ? {} : { onClick: () => store.toggleGap(key) })}
+    <DiffBody
+      file={file}
+      onToggleGap={store.toggleGap}
+      openGaps={state.openGaps}
+      scroller={scroller}
+      wrap={state.presentation.wrap}
     />
-  )
-}
-/* 列表相对滚动内容的原点：上方内容的开合与滚动口自身的盒子，最后都只落在这一个数上。 */
-function originOf(hostEl: HTMLElement, scrollEl: HTMLElement): number {
-  return (
-    hostEl.getBoundingClientRect().top - scrollEl.getBoundingClientRect().top + scrollEl.scrollTop
-  )
-}
-function VirtualRows({
-  file,
-  scroller,
-  state,
-  store,
-}: {
-  readonly file: DiffFile
-  readonly scroller: RefObject<HTMLDivElement | null>
-  readonly state: ReviewState
-  readonly store: ReviewStore
-}) {
-  const wrap = state.presentation.wrap
-  const host = useRef<HTMLDivElement | null>(null)
-  const items = useMemo(
-    () => spreadRows(file.rows, file.path, state.openGaps),
-    [file.path, file.rows, state.openGaps],
-  )
-  const widest = useMemo(() => widestOf(file.rows), [file.rows])
-  /*
-   * 这份列表的原点，两个触发源各走各的路：上方内容的开合改的是布局（items 换了
-   * 就是它），量一次比观察谁都准，每次提交后重量一次；面板拖宽改的是滚动口自己的
-   * 盒子，那条路上浏览器不发 resize（见 packages/browser/src/viewport-alignment.ts），
-   * 观察滚动口与列表本身接住它，观察者只装卸一次。
-   */
-  const [origin, setOrigin] = useState(0)
-  useLayoutEffect(() => {
-    const hostEl = host.current
-    const scrollEl = scroller.current
-    if (hostEl === null || scrollEl === null) {
-      return
-    }
-    setOrigin(originOf(hostEl, scrollEl))
-  })
-  useLayoutEffect(() => {
-    const hostEl = host.current
-    const scrollEl = scroller.current
-    if (hostEl === null || scrollEl === null) {
-      return
-    }
-    const observer = new ResizeObserver(() => {
-      setOrigin(originOf(hostEl, scrollEl))
-    })
-    observer.observe(scrollEl)
-    observer.observe(hostEl)
-    return () => {
-      observer.disconnect()
-    }
-  }, [scroller])
-  const virtualizer = useVirtualizer({
-    count: items.length,
-    estimateSize: () => 20,
-    getScrollElement: () => scroller.current,
-    getItemKey: (index: number) => items[index]?.key ?? index,
-    overscan: 12,
-    scrollMargin: origin,
-  })
-  return (
-    <div
-      className="review-rows--virtual"
-      ref={host}
-      style={{
-        height: virtualizer.getTotalSize(),
-        ...(wrap ? {} : { minWidth: `calc(${String(widest)}ch + 3.375rem)` }),
-      }}
-    >
-      {virtualizer.getVirtualItems().map((item) => {
-        const held = items[item.index]
-        if (held === undefined) {
-          return null
-        }
-        return (
-          <div
-            className="absolute inset-x-0 top-0"
-            data-index={item.index}
-            key={item.key}
-            ref={virtualizer.measureElement}
-            style={{ transform: `translateY(${String(item.start - origin)}px)` }}
-          >
-            {held.bar ? (
-              <VirtualGap
-                edge={held.edge}
-                path={file.path}
-                row={held.row}
-                state={state}
-                store={store}
-              />
-            ) : (
-              <Line row={held.row} wrap={wrap} />
-            )}
-          </div>
-        )
-      })}
-    </div>
-  )
-}
-/*
- * 单一行号槽 —— 统一视图里两列行号只有一列是答案。字体、取色与右缘细线在
- * review-pane.css 的 .review-line__number；self-stretch 让槽长满行高，折行的行上
- * 竖线才不在行中断开。memo：筛选输入与分隔条拖动每帧都换快照，行不变就不重渲。
- */
-const Line = memo(function Line({ row, wrap }: { readonly row: DiffRow; readonly wrap: boolean }) {
-  return (
-    <div className={cn('flex items-start pr-2.5', toneOf(row.kind))}>
-      <span className="review-line__number w-11 shrink-0 self-stretch select-none pr-2 text-right">
-        {row.number}
-      </span>
-      <span
-        className={cn(
-          'review-line__code',
-          wrap ? 'min-w-0 whitespace-pre-wrap [overflow-wrap:anywhere]' : 'whitespace-pre',
-        )}
-      >
-        {row.pieces.map((piece) => (
-          <Piece key={piece.at} piece={piece} />
-        ))}
-      </span>
-    </div>
-  )
-})
-/* 一段正文：颜色来自语法着色，底色来自词级差异，两者可以落在同一段上。 */
-function Piece({ piece }: { readonly piece: DiffPiece }) {
-  const style: ReviewStyle | undefined =
-    piece.color === null
-      ? undefined
-      : { '--review-syntax-dark': piece.color.dark, '--review-syntax-light': piece.color.light }
-  const tone = cn(
-    piece.color === null ? null : 'review-code',
-    piece.emphasis ? 'review-line__emphasis' : null,
-  )
-  return (
-    <span className={tone === '' ? undefined : tone} style={style}>
-      {piece.text}
-    </span>
   )
 }
 /* 右侧：变更文件树。筛选在顶，行按目录归并，左边缘拖着调宽。 */

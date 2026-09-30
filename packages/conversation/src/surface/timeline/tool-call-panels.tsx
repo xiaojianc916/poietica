@@ -1,19 +1,13 @@
 import { FileTypeMark } from '@poietica/design-system'
-import type { DiffFile, DiffRow, DiffRowKind } from '@poietica/review'
-import {
-  type CSSProperties,
-  type ReactNode,
-  useCallback,
-  useId,
-  useLayoutEffect,
-  useRef,
-  useState,
-} from 'react'
+import type { DiffFile } from '@poietica/review'
+import { DiffBody } from '@poietica/review/surface'
+import { useId, useRef, useState } from 'react'
 import type { ToolCallTimelineItem } from '../../timeline/timeline-contract'
 import { ImageLightbox } from '../media/image-lightbox'
 import { panelId, TabList, type TabOption, tabId } from '../primitives/tabs'
 import { basename } from '../semantics/file-diff'
 import { fencedBodyOf, type ToolImage, toToolCallFacets } from '../semantics/tool-call-facets'
+import { usePaintedDiff } from './diff-painting'
 import { Prose } from './prose'
 import { VIRTUAL_ABOVE_LINES, VirtualLines } from './virtual-lines'
 
@@ -122,154 +116,10 @@ function ToolShots({ images }: { readonly images: readonly ToolImage[] }) {
   )
 }
 
-const TINT: Readonly<Record<DiffRowKind, string>> = {
-  added: 'var(--cp-timeline-diff-new)',
-  context: 'transparent',
-  gap: 'transparent',
-  removed: 'var(--cp-timeline-diff-old)',
-}
-
-// 增删底色折成竖直渐变交给滚动容器铺（理由见 tool-call.css __diff）；一行 diff 一个行盒。
-function fieldOf(rows: readonly DiffRow[]): string {
-  const stops: string[] = []
-  let kind: DiffRowKind | null = null
-  let from = 0
-
-  for (const row of rows) {
-    if (row.kind === kind) {
-      continue
-    }
-
-    if (kind !== null) {
-      stops.push(`${TINT[kind]} ${from}lh ${row.at}lh`)
-    }
-
-    kind = row.kind
-    from = row.at
-  }
-
-  if (kind !== null) {
-    stops.push(`${TINT[kind]} ${from}lh ${rows.length}lh`)
-  }
-
-  return `linear-gradient(${stops.join(',')})`
-}
-
-const MIN_THUMB_PX = 24
-
-function syncAxis(
-  control: HTMLInputElement,
-  client: number,
-  total: number,
-  position: number,
-): void {
-  const max = Math.max(0, total - client)
-
-  control.hidden = max === 0
-  control.max = String(max)
-  control.value = String(Math.min(max, Math.max(0, position)))
-
-  const thumb =
-    client === 0 ? 0 : Math.min(client, Math.max(MIN_THUMB_PX, (client * client) / total))
-
-  control.style.setProperty('--timeline-tool-thumb', `${String(thumb)}px`)
-}
-
-function DiffViewport({
-  children,
-  field,
-}: {
-  readonly children: ReactNode
-  readonly field: CSSProperties
-}) {
-  const viewport = useRef<HTMLDivElement>(null)
-  const horizontal = useRef<HTMLInputElement>(null)
-  const vertical = useRef<HTMLInputElement>(null)
-  const viewportId = useId()
-
-  const sync = useCallback(() => {
-    const view = viewport.current
-    const x = horizontal.current
-    const y = vertical.current
-
-    if (view === null || x === null || y === null) {
-      return
-    }
-
-    syncAxis(x, view.clientWidth, view.scrollWidth, view.scrollLeft)
-    syncAxis(y, view.clientHeight, view.scrollHeight, view.scrollTop)
-  }, [])
-
-  useLayoutEffect(sync)
-
-  useLayoutEffect(() => {
-    const view = viewport.current
-
-    if (view === null) {
-      return
-    }
-
-    const observer = new ResizeObserver(sync)
-    observer.observe(view)
-
-    return () => {
-      observer.disconnect()
-    }
-  }, [sync])
-
-  return (
-    <div className="timeline-tool__diff-frame">
-      <section
-        aria-label="文件差异"
-        className="timeline-tool__diff"
-        data-scrollable=""
-        id={viewportId}
-        onScroll={sync}
-        ref={viewport}
-        style={field}
-      >
-        {children}
-      </section>
-
-      <input
-        aria-controls={viewportId}
-        aria-label="横向滚动文件差异"
-        className="timeline-tool__diff-scrollbar timeline-tool__diff-scrollbar--x"
-        defaultValue={0}
-        min={0}
-        onInput={(event) => {
-          if (viewport.current !== null) {
-            viewport.current.scrollLeft = event.currentTarget.valueAsNumber
-          }
-        }}
-        ref={horizontal}
-        type="range"
-      />
-
-      <input
-        aria-controls={viewportId}
-        aria-label="纵向滚动文件差异"
-        className="timeline-tool__diff-scrollbar timeline-tool__diff-scrollbar--y"
-        defaultValue={0}
-        min={0}
-        onInput={(event) => {
-          if (viewport.current !== null) {
-            viewport.current.scrollTop = event.currentTarget.valueAsNumber
-          }
-        }}
-        ref={vertical}
-        type="range"
-      />
-    </div>
-  )
-}
-
 function FileDiff({ file }: { readonly file: DiffFile }) {
   const name = basename(file.path)
-  const field = {
-    '--cp-timeline-diff-field': fieldOf(file.rows),
-    '--cp-timeline-diff-rows': String(file.rows.length),
-  } as CSSProperties
+  const scroller = useRef<HTMLDivElement | null>(null)
+  const shown = usePaintedDiff(file)
 
   return (
     <div className="timeline-tool__file">
@@ -278,14 +128,27 @@ function FileDiff({ file }: { readonly file: DiffFile }) {
         <span className="timeline-tool__path-name">{name}</span>
       </div>
 
-      <DiffViewport field={field}>
-        {file.rows.map((row) => (
-          <div className="timeline-tool__diff-row" data-kind={row.kind} key={row.at}>
-            <span className="timeline-tool__diff-line">{row.number ?? '⋯'}</span>
-            <code className="timeline-tool__diff-code">{row.text}</code>
-          </div>
-        ))}
-      </DiffViewport>
+      {/*
+       * 一处改动就是审查面板画的那一份行带（@poietica/review/surface 的 DiffBody），
+       * 不再自己排一套：行号槽、增删底色、语法色、大文件的虚拟化全仓一份。
+       *
+       * 语法色要自己跑着色器（diff-painting.ts）：computeFile 只切行、不认语法，
+       * 不跑就整片是黑的 —— 审查面板有 worker 替它跑，这里没有。
+       *
+       * 两处只差横向出口归谁：这里归这一格 —— 它是唯一的双轴滚动容器，行带自己不再
+       * 横滚（scrollX 关掉），否则同一件事会在屏幕上并排出现两条横条。
+       *
+       * 折叠带也关掉（gaps）：这一处改动只取三行上下文，跳过的行根本没进这份模型，
+       * 那条带子既展不开也说不明什么，就只是在两行之间插一句废话。
+       */}
+      <section
+        aria-label="文件差异"
+        className="timeline-tool__diff"
+        data-scrollable=""
+        ref={scroller}
+      >
+        <DiffBody file={shown} gaps={false} scroller={scroller} scrollX={false} wrap={false} />
+      </section>
     </div>
   )
 }

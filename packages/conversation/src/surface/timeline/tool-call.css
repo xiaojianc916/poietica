@@ -246,117 +246,23 @@
 /*
  * 一处改动。
  *
- * 底还是 __body 那张纸，diff 只是画在它上面 —— 增删两行各自兑一层色，左沿一道记号。
- * 行号槽等宽，代码列吃掉剩下的宽度。
+ * 行带本身来自 @poietica/review/surface 的 DiffBody —— 行号槽、增删底色、增删行的文字
+ * 色与大文件的虚拟化全仓一份，与审查面板画的是同一份（取色在 review 包的 diff-body.css）。
+ * 这一条只管属于抽屉的那件事：它是这一格里唯一的双轴滚动容器。
  *
- * 它自己是一个双轴滚动容器：diff 比正文更需要横向滚动（长行不折），而面板那一个滚动
- * 容器在这里不够用 —— 一套行号槽必须与代码列同时移动，横条贴在面板上时两者会错开。
- * 自定义滚动条因此是 JS 画的 range（见 DiffViewport）。
+ * 为什么横向出口必须在这里、不能留给行带自己：行带一旦自己横滚，屏幕上就并排出现
+ * 两条横条（一条在行带上、一条在这一格底边），两条都只说同一件事；而纵向出口也只能
+ * 在这里，否则同一个盒子两个轴分属两层，滚起来互相错位。所以 DiffBody 传 scrollX={false}。
+ *
+ * 这里也不做容器查询：抽屉关掉了折叠带（DiffBody 的 gaps={false}），没有那条要按
+ * 可视宽对齐的东西。条的样子归 packages/design-system/src/scrollbar.css 一处所有，
+ * 此前这里用 range input 自绘过一对，已随这次收敛删除。
  */
-.timeline-tool__diff-frame {
-  position: relative;
-  border-radius: var(--cp-radius-item);
-  overflow: hidden;
-}
-
 .timeline-tool__diff {
   position: relative;
   max-block-size: 60vh;
   padding-block: 0.375rem;
   overflow: auto;
-  /* 增删底色折成竖直渐变铺在滚动容器上（理由见 tool-call-panels.tsx 的 fieldOf）。 */
-  background: var(--cp-timeline-diff-field);
-  background-size: 100% calc(var(--cp-timeline-diff-rows) * 1lh);
-  background-repeat: repeat-y;
-}
-
-/* 自定义滚动条：range input 伪装，thumb 长度由 JS 按可视/内容比算。 */
-.timeline-tool__diff-scrollbar {
-  position: absolute;
-  appearance: none;
-  background: transparent;
-  cursor: pointer;
-  outline: none;
-}
-
-.timeline-tool__diff-scrollbar::-webkit-slider-runnable-track {
-  background: transparent;
-}
-
-.timeline-tool__diff-scrollbar::-webkit-slider-thumb {
-  appearance: none;
-  width: var(--timeline-tool-thumb, 24px);
-  height: var(--timeline-tool-thumb, 24px);
-  border-radius: var(--ui-radius-sm);
-  background: var(--ui-scrollbar-thumb);
-}
-
-.timeline-tool__diff-scrollbar--x {
-  left: 0;
-  right: 12px;
-  bottom: 0;
-  height: 12px;
-}
-
-.timeline-tool__diff-scrollbar--x::-webkit-slider-thumb {
-  width: var(--timeline-tool-thumb, 24px);
-  height: 10px;
-}
-
-.timeline-tool__diff-scrollbar--y {
-  top: 0;
-  right: 0;
-  bottom: 12px;
-  width: 12px;
-  writing-mode: vertical-lr;
-}
-
-.timeline-tool__diff-scrollbar--y::-webkit-slider-thumb {
-  width: 10px;
-  height: var(--timeline-tool-thumb, 24px);
-}
-
-/*
- * 行高必须与代码一致：渐变的 lh 刻度就落在这些行盒上，差一像素色带就会错行。
- * 这一对令牌与 timeline.css 的 code-block-body 是同一对。
- */
-.timeline-tool__diff-row {
-  display: grid;
-  grid-template-columns: 3rem minmax(0, 1fr);
-  min-block-size: 1lh;
-  font-family: var(--cp-font-mono);
-  font-size: var(--ui-prose-size-aux);
-  line-height: var(--ui-line-height-normal);
-  white-space: pre;
-}
-
-.timeline-tool__diff-line {
-  padding-inline: 0.75rem 0.5rem;
-  color: var(--cp-timeline-quiet-text);
-  font-variant-numeric: tabular-nums;
-  text-align: end;
-  user-select: none;
-}
-
-.timeline-tool__diff-code {
-  padding-inline-end: 0.75rem;
-  overflow-wrap: normal;
-}
-
-/* 增删行的文字色（底色由渐变铺）。 */
-.timeline-tool__diff-row[data-kind="added"] .timeline-tool__diff-code {
-  color: var(--cp-diff-added-text);
-}
-
-.timeline-tool__diff-row[data-kind="removed"] .timeline-tool__diff-code {
-  color: var(--cp-diff-removed-text);
-}
-
-/* 断点：一根发丝线说明这里不连续。内阴影不撑高行，色带的 lh 刻度才对得上。 */
-.timeline-tool__diff-row[data-kind="gap"] {
-  box-shadow:
-    inset 0 1px 0 var(--cp-hairline),
-    inset 0 -1px 0 var(--cp-hairline);
 }
 
 /*

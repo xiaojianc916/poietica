@@ -1,0 +1,216 @@
+/*
+ * 一份 diff 的行带。
+ *
+ * 审查面板与工具抽屉画的是同一个行模型，所以取色与列几何只有这一份。差异底色、
+ * 竖线与词级强调是产品取值，除这里没有第二个消费点，所以不进设计系统。深色下底色
+ * 是产品直接给的两个实色（压在地色上的一格）；词级强调仍走半透明 —— 它要压在底色
+ * 之上再叠一层。
+ */
+.diff-body {
+  --diff-added-fill: #e7f4e7;
+  --diff-added-edge: #00a240;
+  --diff-added-emphasis: #c6e4ca;
+  --diff-removed-fill: #fbe6e2;
+  --diff-removed-edge: #ba2623;
+  --diff-removed-emphasis: #f3caca;
+  /* 行号槽底色：比正文浅一档。 */
+  --diff-added-gutter: #edf7ed;
+  --diff-removed-gutter: #fdece9;
+  /* 行高：行号槽与正文列共用，两处差一像素行就错位。 */
+  font-family: var(--ui-font-mono);
+  font-size: 12px;
+  line-height: 20px;
+}
+
+:root[data-theme="dark"] .diff-body {
+  --diff-added-fill: #1f3124;
+  --diff-added-emphasis: color-mix(in srgb, #4fa356 30%, transparent);
+  --diff-removed-fill: #3b1f1a;
+  --diff-removed-emphasis: color-mix(in srgb, #e0674f 30%, transparent);
+  /* dark 下 fill 已重赋值，gutter 另给一套浅一档。 */
+  --diff-added-gutter: #132017;
+  --diff-removed-gutter: #28130e;
+}
+
+/*
+ * 上下文行留同宽的透明边：行首不因种类错位。
+ *
+ * 宽度是产品在 150% 缩放下量出来的 6 个设备像素，折成 CSS 4px；写 6px 会画成
+ * 9 个，宽出一半。
+ */
+.diff-line {
+  position: relative;
+  /* w-max 父级里 flex 容器默认收缩到内容宽，显式铺满才能让增删底色到行尾。 */
+  inline-size: 100%;
+  border-inline-start: 4px solid transparent;
+}
+
+.diff-line--added {
+  --diff-line-emphasis: var(--diff-added-emphasis);
+
+  border-inline-start-color: var(--diff-added-edge);
+}
+
+.diff-line--removed {
+  --diff-line-emphasis: var(--diff-removed-emphasis);
+
+  /* 左边那道 4px 红竖线：2 设备 px 亮 + 1 设备 px 暗，垂直循环。
+   * 150% 缩放下 1 CSS px = 1.5 设备 px，直接写 2px/1px 会出 1.5 设备 px 的亚
+   * 像素模糊。折成 CSS px：亮 4/3 ≈ 1.333，暗 2/3 ≈ 0.667，正好落在整数设备
+   * 像素上。伪元素绝对定位在左边 4px，不参与 flex。 */
+  border-inline-start-color: transparent;
+}
+
+.diff-line--removed::before {
+  content: "";
+  position: absolute;
+  inset-block: 0;
+  /* left:0 落在 padding-box，被 4px 透明 border 顶右；负偏移补回 border 宽度。 */
+  inset-inline-start: -4px;
+  inline-size: 4px;
+  pointer-events: none;
+  background: repeating-linear-gradient(
+    to bottom,
+    #ba2522 0,
+    #ba2522 1.333px,
+    #f3cfcb 1.333px,
+    #f3cfcb 2px
+  );
+}
+
+/*
+ * 行号槽：正文那套等宽字体不跟过来（数字用正文字体），字号比正文大一档。
+ *
+ * 取色随种类走：增绿删红，上下文行留淡灰。用前景半透明而不是 #ededed —— 它压在
+ * 增删底色上，中性灰在浅底上比底色还浅，半透明前景自己会跟着底色深浅走，深色
+ * 主题下不用另写一套。
+ */
+.diff-line__number {
+  color: color-mix(in srgb, var(--color-foreground) 30%, transparent);
+  font-family: var(--font-sans);
+  font-size: 12px;
+}
+
+/*
+ * 增删行另读 gutter（浅一档）；margin-right 推开正文 3px，这道缝落在行容器的
+ * 透明底上，不红不绿。正文的 fill 底色由行容器 ::after 铺（见下）。普通行
+ * 没有这两套类，背景与间距都不变。
+ */
+.diff-line--added .diff-line__number,
+.diff-line--removed .diff-line__number {
+  margin-right: 3px;
+}
+
+.diff-line--added .diff-line__number {
+  background: var(--diff-added-gutter);
+  color: var(--diff-added-edge);
+}
+
+.diff-line--removed .diff-line__number {
+  background: var(--diff-removed-gutter);
+  color: var(--diff-removed-edge);
+}
+
+/* 正文区占满行号槽右侧：flex 只管文字布局，底色交给行容器 ::after。 */
+.diff-line__code {
+  flex: 1;
+  min-width: 0;
+}
+
+/*
+ * 增删行的正文底色：绝对定位背景层，从行号槽右侧 3px 起铺到行尾。
+ *
+ * 底色不能挂在 code 上：code 是 flex item，在 w-max（max-content）父级里
+ * flex:1 不会增长到视口宽，短代码行的底色就只到文字末尾。行容器作为 block
+ * 必然铺满父级，::after 的 right:0 一定到行尾，与代码长短无关。行号槽宽
+ * 2.75rem（w-11），再加 3px 无色间隙。
+ */
+.diff-line--added::after,
+.diff-line--removed::after {
+  content: "";
+  position: absolute;
+  inset-block: 0;
+  inset-inline-start: calc(2.75rem + 3px);
+  inset-inline-end: 0;
+  pointer-events: none;
+}
+
+.diff-line--added::after {
+  background: var(--diff-added-fill);
+}
+
+.diff-line--removed::after {
+  background: var(--diff-removed-fill);
+}
+
+/* 行号槽与正文文字压在 ::after 背景层之上。 */
+.diff-line--added .diff-line__number,
+.diff-line--removed .diff-line__number,
+.diff-line--added .diff-line__code,
+.diff-line--removed .diff-line__code {
+  position: relative;
+  z-index: 1;
+}
+
+/* 深色模式下的红竖线条纹色。 */
+:root[data-theme="dark"] .diff-body .diff-line--removed::before {
+  background: repeating-linear-gradient(
+    to bottom,
+    #fa423e 0,
+    #fa423e 1.333px,
+    #51231e 1.333px,
+    #51231e 2px
+  );
+}
+
+/* 语法色由 shiki 给出，两套主题各一个值；选哪一套是样式的事，组件不问主题。 */
+.diff-code {
+  color: var(--diff-syntax-light);
+}
+
+:root[data-theme="dark"] .diff-code {
+  color: var(--diff-syntax-dark);
+}
+
+.diff-line__emphasis {
+  background: var(--diff-line-emphasis, transparent);
+}
+
+/*
+ * 折叠带的底色：悬浮药丸只这一处取色，不跟随上面的增删色。
+ * 这一格是差异视图自己的产品取值，不借 --ui-chrome（那是窗口家具的底色）。
+ */
+.diff-gap {
+  background: #f3f3f3;
+  border-radius: 6px;
+}
+
+:root[data-theme="dark"] .diff-gap {
+  background: #2f2f2f;
+}
+
+/*
+ * 折叠带的宽度参照，是滚动口的可视宽，不是「最宽的那一行」。
+ *
+ * 不换行时行容器取 w-max（见 diff-body.tsx 的 Rows）：那是为了让增删底色铺满
+ * 整条横向滚动区，可折叠带 `w-full` 跟着它一起被撑到最宽行那么宽，右端就跑到滚动
+ * 口外面，被 overflow 裁掉 —— 右圆角于是永远看不见（文件树一开、主区一窄更明显）。
+ *
+ * 宽度由 DiffBody 量滚动口写进 --diff-row-inline-size；100cqw 只是量测落地前的回退，
+ * 所以消费点的滚动口要声明 container-type: inline-size（审查面板的 .review-scroll、
+ * 抽屉的 .timeline-tool__diff 各一处）。sticky 再把它钉在滚动口左缘，横向滚动时它
+ * 不跟着跑（否则往右滚一点，折叠带整条滑出视野）。
+ */
+.diff-gap-row {
+  position: sticky;
+  inset-inline-start: 0;
+  inline-size: var(--diff-row-inline-size, 100cqw);
+}
+
+/*
+ * 虚拟化的行带：行绝对定位落位，总高由虚拟器撑起；横向宽度按最宽一行的
+ * 字符数由组件写 min-width，不依赖把行渲染出来才能量。
+ */
+.diff-body__virtual {
+  position: relative;
+}

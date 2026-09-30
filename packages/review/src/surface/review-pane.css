@@ -1,175 +1,11 @@
 /*
  * 审查那一格的取色与列几何。
  *
- * 差异底色、竖线与词级强调是这一格的产品取值，除这里没有第二个消费点，所以不
- * 进设计系统。深色下底色是产品直接给的两个实色（压在地色上的一格）；词级强调
- * 仍走半透明 —— 它要压在底色之上再叠一层。
+ * 差异的底色、行号槽与折叠带不在这里：那是行带的取色，与工具抽屉共用同一份实现
+ * （见 diff-body.css）。这一格只剩下属于它自己的东西 —— 文件树、工具条与卡头。
  */
 .review-pane {
-  --review-added-fill: #e7f4e7;
-  --review-added-edge: #00a240;
-  --review-added-emphasis: #c6e4ca;
-  --review-removed-fill: #fbe6e2;
-  --review-removed-edge: #ba2623;
-  --review-removed-emphasis: #f3caca;
-  /* 行号槽底色：比正文浅一档。 */
-  --review-added-gutter: #edf7ed;
-  --review-removed-gutter: #fdece9;
   transition: --review-tree-width var(--workspace-layout-duration) var(--workspace-layout-ease);
-}
-
-:root[data-theme="dark"] .review-pane {
-  --review-added-fill: #1f3124;
-  --review-added-emphasis: color-mix(in srgb, #4fa356 30%, transparent);
-  --review-removed-fill: #3b1f1a;
-  --review-removed-emphasis: color-mix(in srgb, #e0674f 30%, transparent);
-  /* dark 下 fill 已重赋值，gutter 另给一套浅一档。 */
-  --review-added-gutter: #132017;
-  --review-removed-gutter: #28130e;
-}
-
-/*
- * 上下文行留同宽的透明边：行首不因种类错位。
- *
- * 宽度是产品在 150% 缩放下量出来的 6 个设备像素，折成 CSS 4px；写 6px 会画成
- * 9 个，宽出一半。
- */
-.review-line {
-  position: relative;
-  /* w-max 父级里 flex 容器默认收缩到内容宽，显式铺满才能让增删底色到行尾。 */
-  inline-size: 100%;
-  border-inline-start: 4px solid transparent;
-}
-
-.review-line--added {
-  --review-line-emphasis: var(--review-added-emphasis);
-
-  border-inline-start-color: var(--review-added-edge);
-}
-
-.review-line--removed {
-  --review-line-emphasis: var(--review-removed-emphasis);
-
-  /* 左边那道 4px 红竖线：2 设备 px 亮 + 1 设备 px 暗，垂直循环。
-   * 150% 缩放下 1 CSS px = 1.5 设备 px，直接写 2px/1px 会出 1.5 设备 px 的亚
-   * 像素模糊。折成 CSS px：亮 4/3 ≈ 1.333，暗 2/3 ≈ 0.667，正好落在整数设备
-   * 像素上。伪元素绝对定位在左边 4px，不参与 flex。 */
-  border-inline-start-color: transparent;
-}
-
-.review-line--removed::before {
-  content: "";
-  position: absolute;
-  inset-block: 0;
-  /* left:0 落在 padding-box，被 4px 透明 border 顶右；负偏移补回 border 宽度。 */
-  inset-inline-start: -4px;
-  inline-size: 4px;
-  pointer-events: none;
-  background: repeating-linear-gradient(
-    to bottom,
-    #ba2522 0,
-    #ba2522 1.333px,
-    #f3cfcb 1.333px,
-    #f3cfcb 2px
-  );
-}
-
-/*
- * 行号槽：正文那套等宽字体不跟过来（数字用正文字体），字号比正文大一档。
- *
- * 取色随种类走：增绿删红，上下文行留淡灰。用前景半透明而不是 #ededed —— 它压在
- * 增删底色上，中性灰在浅底上比底色还浅，半透明前景自己会跟着底色深浅走，深色
- * 主题下不用另写一套。
- */
-.review-line__number {
-  color: color-mix(in srgb, var(--color-foreground) 30%, transparent);
-  font-family: var(--font-sans);
-  font-size: 12px;
-}
-
-/*
- * 增删行另读 gutter（浅一档）；margin-right 推开正文 3px，这道缝落在行容器的
- * 透明底上，不红不绿。正文的 fill 底色由行容器 ::after 铺（见下）。普通行
- * 没有这两套类，背景与间距都不变。
- */
-.review-line--added .review-line__number,
-.review-line--removed .review-line__number {
-  margin-right: 3px;
-}
-
-.review-line--added .review-line__number {
-  background: var(--review-added-gutter);
-  color: var(--review-added-edge);
-}
-
-.review-line--removed .review-line__number {
-  background: var(--review-removed-gutter);
-  color: var(--review-removed-edge);
-}
-
-/* 正文区占满行号槽右侧：flex 只管文字布局，底色交给行容器 ::after。 */
-.review-line__code {
-  flex: 1;
-  min-width: 0;
-}
-
-/*
- * 增删行的正文底色：绝对定位背景层，从行号槽右侧 3px 起铺到行尾。
- *
- * 底色不能挂在 code 上：code 是 flex item，在 w-max（max-content）父级里
- * flex:1 不会增长到视口宽，短代码行的底色就只到文字末尾。行容器作为 block
- * 必然铺满父级，::after 的 right:0 一定到行尾，与代码长短无关。行号槽宽
- * 2.75rem（w-11），再加 3px 无色间隙。
- */
-.review-line--added::after,
-.review-line--removed::after {
-  content: "";
-  position: absolute;
-  inset-block: 0;
-  inset-inline-start: calc(2.75rem + 3px);
-  inset-inline-end: 0;
-  pointer-events: none;
-}
-
-.review-line--added::after {
-  background: var(--review-added-fill);
-}
-
-.review-line--removed::after {
-  background: var(--review-removed-fill);
-}
-
-/* 行号槽与正文文字压在 ::after 背景层之上。 */
-.review-line--added .review-line__number,
-.review-line--removed .review-line__number,
-.review-line--added .review-line__code,
-.review-line--removed .review-line__code {
-  position: relative;
-  z-index: 1;
-}
-
-/* 深色模式下的红竖线条纹色。 */
-:root[data-theme="dark"] .review-pane .review-line--removed::before {
-  background: repeating-linear-gradient(
-    to bottom,
-    #fa423e 0,
-    #fa423e 1.333px,
-    #51231e 1.333px,
-    #51231e 2px
-  );
-}
-
-/* 语法色由 shiki 给出，两套主题各一个值；选哪一套是样式的事，组件不问主题。 */
-.review-code {
-  color: var(--review-syntax-light);
-}
-
-:root[data-theme="dark"] .review-code {
-  color: var(--review-syntax-dark);
-}
-
-.review-line__emphasis {
-  background: var(--review-line-emphasis, transparent);
 }
 
 /* 提交菜单行的悬浮：产品指定的灰，只这一张菜单；深色沿用弹层高亮。 */
@@ -353,22 +189,6 @@
 }
 
 /*
- * 折叠带的底色：悬浮药丸只这一处取色，不跟随上面的增删色。
- */
-/*
- * 折叠带的底色：悬浮药丸只这一处取色，不跟随上面的增删色。
- * 这一格是审查面板自己的产品取值，不借 --ui-chrome（那是窗口家具的底色）。
- */
-.review-gap {
-  background: #f3f3f3;
-  border-radius: 6px;
-}
-
-:root[data-theme="dark"] .review-gap {
-  background: #2f2f2f;
-}
-
-/*
  * 没有文本改动的正文：整条与卡同宽的带子，一句话落在正中。
  *
  * 与 <Note> 那一句不是一回事 —— Note 是「这里有一句说明」，这条是「这一格空着」。
@@ -393,25 +213,11 @@
 }
 
 /*
- * 折叠带的宽度参照，是主区而不是「最宽的那一行」。
- *
- * 不换行时行容器取 w-max（见 review-pane.tsx 的 Rows）：那是为了让增删底色铺满
- * 整条横向滚动区，可折叠带 `w-full` 跟着它一起被撑到最宽行那么宽，右端就跑到主区
- * 外面，被主区的 overflow 裁掉 —— 右圆角于是永远看不见（文件树一开、主区一窄更明显）。
- *
- * 主区因此当容器查询的参照物，折叠带改读 cqw；sticky 再把它钉在主区左缘，横向
- * 滚动时它不跟着跑（否则往右滚一点，折叠带整条滑出视野）。
+ * 滚动口也是折叠带宽度的容器查询参照（--diff-row-inline-size 量测落地前的回退，
+ * 见 diff-body.css 的 .diff-gap-row）。横向不滚，所以这里只要 inline-size。
  */
 .review-scroll {
   container-type: inline-size;
-}
-
-.review-gap-row {
-  position: sticky;
-  inset-inline-start: 0;
-  /* 宽度 = 滚动口可视宽，由 review-pane.tsx 的 ResizeObserver 量测写变量；
-   * 100cqw 只是变量未就绪时的回退。 */
-  inline-size: var(--review-main-inline-size, 100cqw);
 }
 
 /*
@@ -528,12 +334,4 @@
 .review-card {
   content-visibility: auto;
   contain-intrinsic-size: auto calc(1.75rem + var(--review-card-rows, 0) * 1.25rem);
-}
-
-/*
- * 虚拟化的行带：行绝对定位落位，总高由虚拟器撑起；横向宽度按最宽一行的
- * 字符数由组件写 min-width，不依赖把行渲染出来才能量。
- */
-.review-rows--virtual {
-  position: relative;
 }

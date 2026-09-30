@@ -393,8 +393,6 @@
   --cp-error-rule-fade: 2.5rem;
   --cp-diff-added-text: var(--ui-success);
   --cp-diff-removed-text: var(--ui-destructive);
-  --cp-timeline-diff-old: color-mix(in srgb, var(--ui-destructive) 12%, transparent);
-  --cp-timeline-diff-new: color-mix(in srgb, var(--ui-success) 12%, transparent);
 
   /*
    * 时间线的几何。
