@@ -54,7 +54,8 @@ pub use session::{
     CapabilityReadiness, ConfigChoice, ConfigControl, ConfigPurpose, ConfigSelection, GoalSnapshot,
     Handshake, McpServer, McpStatus, MediaBytes, OpenedSession, PromptAttachment,
     PromptAttachmentKind, PromptSkill, SessionBook, SessionEntry, SessionEvent, SessionEvents,
-    SessionUsageSnapshot, ShareOutcome, Skill, apply_configurations, select_config,
+    SessionUsageSnapshot, ShareOutcome, Skill, UsageBreakdownSnapshot, apply_configurations,
+    select_config,
 };
 pub use settings::{SettingEntry, SettingOption, SettingValue, SettingsCatalog};
 

@@ -1,9 +1,17 @@
 /*
- * 上下文用量胶囊与它的悬浮卡。
+ * 上下文用量胶囊、它的悬浮卡与点开的面板。
  *
- * 触发器长在输入框工具条里，读 skin/metrics.css 那套 --cp-* 令牌；卡经
- * Portal 落在 body 下，[data-assistant-skin] 罩不到它，所以卡上每一个 var 都
+ * 触发器长在输入框工具条里，读 skin/metrics.css 那套 --cp-* 令牌；卡与面板都经
+ * Portal 落在 body 下，[data-assistant-skin] 罩不到它们，所以两者上每一个 var 都
  * 带兜底值，不赖任何作用域令牌。
+ *
+ * 面板每一项数值照抄 DeepSeek Harness 的 ContextMeter.module.css（正本：
+ * @deepseek-ai/dsh-client-ui-conversation，取 2026-09-30 的装机版本）：264 上限、
+ * 12 内边距、16 圆角、4 高的条、1 的段间距、8 的色块、12/20 的字、右缘贴齐触发器。
+ * 它的 --dsw-* 令牌本仓没有，所以按它浅深两套的静态值取准：
+ *   浅色 面板底 #f8f9fa(94%)、描边 #0000001a、条底 #2631480f、标题 #81858c、正文 #61666b、数字 #0f1115
+ *   深色 面板底 #43454a(73%)、描边 #ffffff29、条底 #ffffff14、标题 #adb2b8、正文 #cfd3d6、数字 #f9fafb
+ * 玻璃底（40px 模糊 + 150% 饱和）与那圈 box-shadow 也是它那一条，不改成实色。
  *
  * 阈值配色沿用 ACP 会话用量规范的建议档：75% 黄、90% 橙、95% 红。
  */
@@ -11,8 +19,70 @@
   --gauge-warn-ink: #b45309;
   --gauge-high-ink: #c2410c;
   --gauge-critical-ink: #dc2626;
+
+  /* 圆环两笔，取正本那两条令牌的浅色值：
+     track = border-l3 = #0000001f、环那一笔 = label-tertiary = #81858c。 */
+  --gauge-ring-track: #0000001f;
+  --gauge-ring-color: #81858c;
+
+  /* 正本那三个构成色，逐格对应它的 colorSystem / colorTools / colorMessages：
+     中性蓝灰 400、它写死的紫、蓝 450。多出来的四格按它同一套静态色补：
+     绿 400（系统上下文）、琥珀 400（技能）、中性蓝灰 500（空闲）、中性蓝灰 300（缓冲）。 */
+  --gauge-tint-system: #adb2b8;
+  --gauge-tint-tools: #a78bfa;
+  --gauge-tint-messages: #4d93f8;
+  --gauge-tint-context: #4ed17e;
+  --gauge-tint-skills: #f7ad31;
+  --gauge-tint-free: #979da6;
+  --gauge-tint-buffer: #cfd3d6;
+
+  /* 面板那套，浅色。值取自正本的令牌链，逐条落到字面量：
+     specific-menu = #f8f9fa94、条底 interactive-bg-hover = #2631480f、
+     外框 elevation-stroke-color = border-l1 = #0000000a。 */
+  --gauge-panel: rgb(248 249 250 / 58%);
+  --gauge-panel-frame: rgb(0 0 0 / 3.9%);
+  --gauge-bar-track: rgb(38 49 72 / 5.9%);
+  --gauge-headline: #81858c;
+  --gauge-label: #61666b;
+  --gauge-figure: #0f1115;
 }
 
+:root[data-theme="dark"] {
+  /* 圆环两笔的深色值：border-l3 = #ffffff29、label-tertiary = #adb2b8。 */
+  --gauge-ring-track: #ffffff29;
+  --gauge-ring-color: #adb2b8;
+
+  --gauge-tint-system: #adb2b8;
+  --gauge-tint-tools: #a78bfa;
+  --gauge-tint-messages: #4d93f8;
+  --gauge-tint-context: #4ed17e;
+  --gauge-tint-skills: #f7ad31;
+  --gauge-tint-free: #979da6;
+  --gauge-tint-buffer: #cfd3d6;
+
+  /* 面板那套，深色。specific-menu = #43454a73、条底 = #ffffff14、外框 = #ffffff0f。 */
+  --gauge-panel: rgb(67 69 74 / 45.1%);
+  --gauge-panel-frame: rgb(255 255 255 / 5.9%);
+  --gauge-bar-track: rgb(255 255 255 / 7.8%);
+  --gauge-headline: #adb2b8;
+  --gauge-label: #cfd3d6;
+  --gauge-figure: #f9fafb;
+}
+
+.context-gauge {
+  display: inline-flex;
+}
+
+/*
+ * 触发器与圆环，照抄 DeepSeek Harness 的 ContextMeter.module.css：
+ *   trigger  圆角 8、内边距 1px 8px、字 13、tabular-nums、透明底无边框、
+ *            悬停/展开时底 --dsw-alias-interactive-bg-hover、字 label-secondary
+ *   track    stroke border-l3，描边 2
+ *   fill     stroke label-tertiary，描边 2，linecap round
+ *
+ * 本仓只保留圆环这一格（正本还有一段读数文字，这里读数在悬浮卡里），所以
+ * trigger 收成正方形、字号不外显；环与描边那两条与正本逐字一致。
+ */
 [data-assistant-skin] .context-gauge__trigger {
   display: inline-flex;
   align-items: center;
@@ -20,67 +90,250 @@
   /* 悬浮贴着圆环：图标 16px 各留 4px，直径差 8 是偶数，居中不发虚。 */
   width: calc(var(--cp-icon) + 8px);
   height: calc(var(--cp-icon) + 8px);
+  padding: 0;
   border: none;
-  border-radius: 50%;
+  border-radius: 8px;
   background: transparent;
-  color: var(--cp-ink-muted);
-  cursor: default;
+  color: var(--gauge-ring-color);
+  cursor: pointer;
 }
 
-[data-assistant-skin] .context-gauge__trigger:hover {
+[data-assistant-skin] .context-gauge__trigger:hover,
+[data-assistant-skin] .context-gauge__trigger[aria-expanded="true"] {
   background: var(--cp-hover);
-  color: var(--cp-ink);
 }
 
-/* 临界色写在 hover 之后，同特异度靠顺序取胜：不因悬浮而被冲掉。 */
+/* 阈值色写在 hover 之后，同特异度靠顺序取胜：不因悬浮或展开而被冲掉。
+   只改环那一笔的颜色，与正本那条「fill 用固定令牌、不跟 currentColor」同构。 */
 [data-assistant-skin] .context-gauge__trigger[data-level="warn"] {
-  color: var(--gauge-warn-ink);
+  --gauge-ring-color: var(--gauge-warn-ink);
 }
 
 [data-assistant-skin] .context-gauge__trigger[data-level="high"] {
-  color: var(--gauge-high-ink);
+  --gauge-ring-color: var(--gauge-high-ink);
 }
 
 [data-assistant-skin] .context-gauge__trigger[data-level="critical"] {
-  color: var(--gauge-critical-ink);
+  --gauge-ring-color: var(--gauge-critical-ink);
 }
 
+/* 正本画的就是 14×14（svg 的 width/height 属性也是 14）。这里不再拉成 --cp-icon：
+   14 视窗配 2 的描边，拉大等于把描边一起放大，就和正本不一样了。 */
 [data-assistant-skin] .context-gauge__ring {
-  width: var(--cp-icon);
-  height: var(--cp-icon);
+  width: 14px;
+  height: 14px;
 }
 
+/* 正本逐条：track = fill:none + stroke border-l3 + 描边 2。 */
 [data-assistant-skin] .context-gauge__ring-track {
-  stroke: currentColor;
-  opacity: 0.25;
+  fill: none;
+  stroke: var(--gauge-ring-track);
+  stroke-width: 2px;
 }
 
+/* 正本逐条：fill = fill:none + stroke label-tertiary + 描边 2 + linecap round。
+   它那一笔不读 currentColor，所以悬停不改环色 —— 这里同构。 */
 [data-assistant-skin] .context-gauge__ring-fill {
-  stroke: currentColor;
-  opacity: 0.7;
+  fill: none;
+  stroke: var(--gauge-ring-color);
+  stroke-linecap: round;
+  stroke-width: 2px;
 }
 
-/* 类名叠写压过 TooltipContent 自带的深底浅字（bg-foreground text-background）：
-   0-2-0 的特异度赢过 0-1-0，与样式加载顺序无关。
-   卡经 Portal 落在 body 下，[data-assistant-skin] 罩不到，走 :root 上的 --ui-* 令牌。 */
+/* 悬浮卡（原来那一格，原样留着）。
+   样式照抄 DeepSeek Harness 的 Tooltip.module.css 的 .bubble（正本：
+   @deepseek-ai/dsh-client-ui-primitives，取 2026-09-30 的装机版本）：3px 7px 内边距、
+   8 圆角、无边框、max-content 上限半屏、150ms 淡入。它那边
+   --dsw-alias-tooltip-bg 浅色是中性蓝灰 850 #2c2c2e、深色是 750 #43454a。
+
+   字比正本收一格、留一点余地（用户指定）：12px、纯白收到 86% —— 正本是 13px 纯白，
+   压在这块深底上偏重。
+
+   类名叠写压过 TooltipContent 自带的深底浅字（bg-foreground text-background）：
+   0-2-0 的特异度赢过 0-1-0，与样式加载顺序无关。 */
 .context-gauge__card.context-gauge__card {
-  padding: 6px 10px;
-  border: 1px solid var(--ui-popover-frame, rgb(0 0 0 / 8%));
-  border-radius: 10px;
-  background: var(--ui-popover, #fff);
-  color: var(--ui-popover-foreground, #1f2328);
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  width: max-content;
+  max-width: 50vw;
+  padding: 3px 7px;
+  border: none;
+  border-radius: 8px;
+  background: #2c2c2e;
+  color: rgb(255 255 255 / 86%);
   font-size: 12px;
+  line-height: 20px;
+  white-space: pre-line;
+  overflow-wrap: break-word;
+  animation: context-gauge-tooltip-in 150ms cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* 深色下那一格换 750，其余不变。 */
+:root[data-theme="dark"] .context-gauge__card.context-gauge__card {
+  background: #43454a;
+}
+
+@keyframes context-gauge-tooltip-in {
+  from {
+    opacity: 0;
+  }
+}
+
+/* 关掉动画是系统级偏好，不是这一处的开关。 */
+@media (prefers-reduced-motion: reduce) {
+  .context-gauge__card.context-gauge__card {
+    animation: none;
+  }
+}
+
+/* 正本 .label：只保证能收缩，不给字重。 */
+.context-gauge__card-text {
+  min-width: 0;
+}
+
+/* 面板落在 body 下，[data-assistant-skin] 罩不到：尺寸与配色只走上面那套 --gauge-*。
+   位置由 JS 量出来写进行内 style（正本 useAnchoredPosition 同一条），所以这里只负责
+   长相与栈序。 */
+.context-gauge__panel {
+  position: fixed;
+  z-index: var(--ui-z-popover, 110);
+  box-sizing: border-box;
+  width: min(264px, 100vw - 24px);
+  padding: 12px;
+  border: 0;
+  border-radius: 16px;
+  background: var(--gauge-panel);
+  backdrop-filter: blur(40px) saturate(150%);
+  /* 正本的 elevation-prominent = 0 0 0 0.5px 描边 + 0 3px 8px + 0 0 20px。 */
+  box-shadow:
+    0 0 0 0.5px var(--gauge-panel-frame),
+    0 3px 8px 0 rgb(0 0 0 / 3.9%),
+    0 0 20px 0 rgb(0 0 0 / 5.1%);
+  color: var(--gauge-label);
+  cursor: default;
+  font-size: 12px;
+  line-height: 20px;
+}
+
+.context-gauge__header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.context-gauge__headline {
+  color: var(--gauge-headline);
+}
+
+.context-gauge__percent {
+  color: var(--gauge-figure);
+  font-weight: 500;
+}
+
+.context-gauge__figures {
+  margin-left: auto;
+  color: var(--gauge-figure);
+  font-variant-numeric: tabular-nums;
+  font-weight: 500;
+}
+
+.context-gauge__bar {
+  display: flex;
+  gap: 1px;
+  height: 4px;
+  margin: 10px 0 12px;
+  border-radius: 999px;
+  /* 正本还有这一条；认得的浏览器把两端的圆角画得更贴。 */
+  corner-shape: round;
+  background: var(--gauge-bar-track);
+  overflow: hidden;
+}
+
+.context-gauge__segment {
+  flex: none;
+  min-width: 2px;
+  height: 100%;
+  border-radius: 1px;
+  background: var(--gauge-tint-system);
+}
+
+.context-gauge__segment--tools {
+  background: var(--gauge-tint-tools);
+}
+
+.context-gauge__segment--context {
+  background: var(--gauge-tint-context);
+}
+
+.context-gauge__segment--skills {
+  background: var(--gauge-tint-skills);
+}
+
+.context-gauge__segment--messages {
+  background: var(--gauge-tint-messages);
+}
+
+.context-gauge__segment--free {
+  background: var(--gauge-tint-free);
+}
+
+.context-gauge__segment--buffer {
+  background: var(--gauge-tint-buffer);
+}
+
+.context-gauge__rows {
+  margin: 6px 0 0;
+}
+
+.context-gauge__row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 2px 0;
+}
+
+.context-gauge__row dt {
+  color: var(--gauge-label);
+}
+
+.context-gauge__row dd {
+  margin: 0;
+  color: var(--gauge-figure);
   font-variant-numeric: tabular-nums;
 }
 
-/* 深色弹窗底色用户指定 #43454a，配白字与半透明白边。 */
-:root[data-theme="dark"] .context-gauge__card.context-gauge__card {
-  background: #43454a;
-  border-color: rgb(255 255 255 / 10%);
-  color: #fff;
+.context-gauge__swatch {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  margin-right: 6px;
+  border-radius: 2px;
+  background: var(--gauge-tint-system);
+  vertical-align: baseline;
 }
 
-.context-gauge__card-text {
-  font-weight: 500;
-  white-space: nowrap;
+.context-gauge__swatch--tools {
+  background: var(--gauge-tint-tools);
+}
+
+.context-gauge__swatch--context {
+  background: var(--gauge-tint-context);
+}
+
+.context-gauge__swatch--skills {
+  background: var(--gauge-tint-skills);
+}
+
+.context-gauge__swatch--messages {
+  background: var(--gauge-tint-messages);
+}
+
+.context-gauge__swatch--free {
+  background: var(--gauge-tint-free);
+}
+
+.context-gauge__swatch--buffer {
+  background: var(--gauge-tint-buffer);
 }

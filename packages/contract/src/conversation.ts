@@ -7,4 +7,5 @@ export type {
   AgentSkill,
   AgentThread,
   AgentToolkit,
+  AgentUsageBreakdown,
 } from './generated/ipc-bindings'

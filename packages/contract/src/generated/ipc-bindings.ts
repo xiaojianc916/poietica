@@ -590,7 +590,11 @@ export type AgentSessionMediaResult = { contentType: string; base64: string }
 /**
  * kap 的 agent.status.updated 报的是仪表值：到达即替换，不是增量；按读数算增量的是账本。
  */
-export type AgentSessionUsage = { used: number; size: number; inputOther: number; inputCacheRead: number; inputCacheCreation: number }
+export type AgentSessionUsage = { used: number; size: number; inputOther: number; inputCacheRead: number; inputCacheCreation: number; 
+/**
+ * 此刻这份上下文的构成。缺席即这一份报数没带构成：屏幕退成只画总条。
+ */
+breakdown: AgentUsageBreakdown | null }
 /**
  * 目录里的一格设置。
  * 
@@ -682,6 +686,10 @@ export type AgentTranscriptOpsRequest = { sessionId: string; agentId: string; si
  * 载荷以 JSON 文本透传：契约钉在 vendored @poietica/transcript 的 schema，这里不重抄第二份形状。
  */
 export type AgentTranscriptRequest = { sessionId: string; agentId: string; beforeTurn: string | null }
+/**
+ * 上下文构成，与 agent 状态行里显示的那份逐格对应。
+ */
+export type AgentUsageBreakdown = { systemPrompt: number; systemContext: number; systemTools: number; skills: number; messages: number; free: number; autoCompactBuffer: number }
 export type AppSettings = { theme: ThemePreference; language: string; general: GeneralSettings; appearance: AppearanceSettings; modelPicker: ModelPickerSettings; privacy: PrivacySettings }
 export type AppearanceSettings = { density: Density; reduceMotion: boolean; messageTimestamps: boolean }
 export type AssetImportRequest = { sessionToken: string; paths: string[] }

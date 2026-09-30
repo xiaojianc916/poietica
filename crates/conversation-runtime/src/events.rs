@@ -1,7 +1,7 @@
 use crate::{RuntimeError, RuntimeFailure};
 use poietica_agent_client::{SessionBook, SessionEvent, SessionUsageSnapshot};
 use poietica_ledger::execution::{IndexError, LocalIndex, write_index};
-use poietica_ledger::index::SessionUsage;
+use poietica_ledger::index::{SessionUsage, UsageBreakdown};
 
 fn stored_usage(usage: SessionUsageSnapshot) -> SessionUsage {
     fn narrow(value: u64) -> i64 {
@@ -13,6 +13,15 @@ fn stored_usage(usage: SessionUsageSnapshot) -> SessionUsage {
         input_other: narrow(usage.input_other),
         input_cache_read: narrow(usage.input_cache_read),
         input_cache_creation: narrow(usage.input_cache_creation),
+        breakdown: usage.breakdown.map(|breakdown| UsageBreakdown {
+            system: narrow(breakdown.system),
+            system_context: narrow(breakdown.system_context),
+            tools: narrow(breakdown.tools),
+            skills: narrow(breakdown.skills),
+            messages: narrow(breakdown.messages),
+            free: narrow(breakdown.free),
+            buffer: narrow(breakdown.buffer),
+        }),
     }
 }
 
@@ -56,6 +65,7 @@ mod tests {
             input_other: 3,
             input_cache_read: 4,
             input_cache_creation: 5,
+            breakdown: None,
         });
         assert_eq!(usage.used, i64::from(u32::MAX) + 1);
         assert_eq!(usage.size, i64::MAX);

@@ -12,4 +12,4 @@ pub mod workbench;
 pub use attachments::ThreadAttachment;
 pub use store::AgentStore;
 pub use threads::{ThreadSummary, TitleSource};
-pub use usage::{SessionUsage, TokenDay};
+pub use usage::{SessionUsage, TokenDay, UsageBreakdown};

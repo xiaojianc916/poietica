@@ -146,11 +146,15 @@ export function composerComposeGroup(onAddFile: () => void): PaletteGroup {
  *
  * 两个 composer 共用一条规则。`inside` 交回此刻算「框内」的那个元素 ——
  * 主输入框的框是 form，辅助那一格是输入条本身。
+ *
+ * `portal` 是另一块也算框内的元素：面板经传送门落在 body 下，不在 `inside` 的子树里，
+ * 不带上它就会「点自己反而把自己关掉」。
  */
 export function useDismissOutside(
   open: boolean,
   inside: RefObject<Element | null>,
   close: () => void,
+  portal?: RefObject<Element | null>,
 ): void {
   useEffect(() => {
     if (!open) {
@@ -158,8 +162,14 @@ export function useDismissOutside(
     }
 
     const onPointerDown = (event: PointerEvent) => {
-      if (event.target instanceof Node && inside.current?.contains(event.target) === true) {
-        return
+      if (event.target instanceof Node) {
+        if (inside.current?.contains(event.target) === true) {
+          return
+        }
+
+        if (portal?.current?.contains(event.target) === true) {
+          return
+        }
       }
 
       close()
@@ -170,7 +180,7 @@ export function useDismissOutside(
     return () => {
       document.removeEventListener('pointerdown', onPointerDown, true)
     }
-  }, [close, inside, open])
+  }, [close, inside, open, portal])
 }
 
 export interface ComposerPaletteProps {

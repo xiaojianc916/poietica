@@ -387,6 +387,29 @@ export interface UsageSnapshot {
   readonly inputOther: number
   readonly inputCacheRead: number
   readonly inputCacheCreation: number
+  /**
+   * 此刻这份上下文由什么构成。缺席即这一份报数没带构成：屏幕退成只画总条，
+   * 不拿别的数字凑几行。
+   */
+  readonly breakdown?: UsageBreakdown
+}
+
+/**
+ * 上下文构成，与 omp 自己在状态行里显示的那份逐格对应。
+ *
+ * 七格全报，不按屏幕的行数折：缺哪一格由屏幕决定画不画，桥不替它做减法 ——
+ * 折过一次就会出现「屏幕上那一行的数不等于 agent 说的数」。
+ */
+export interface UsageBreakdown {
+  readonly systemPrompt: number
+  readonly systemContext: number
+  readonly systemTools: number
+  readonly skills: number
+  readonly messages: number
+  /** 还没用上的量。 */
+  readonly free: number
+  /** 为自动压缩留的缓冲。 */
+  readonly autoCompactBuffer: number
 }
 
 /**

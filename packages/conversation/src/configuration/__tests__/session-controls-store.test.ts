@@ -100,6 +100,7 @@ const snapshot = (): ThreadSnapshot => ({
     inputOther: 10,
     inputCacheRead: 20,
     inputCacheCreation: 5,
+    breakdown: null,
   },
 })
 

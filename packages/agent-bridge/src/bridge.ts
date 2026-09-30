@@ -33,6 +33,9 @@ import { exportFromFile } from '@oh-my-pi/pi-coding-agent/export/html'
 import { shareSession as uploadSession } from '@oh-my-pi/pi-coding-agent/export/share'
 import { initializeExtensions } from '@oh-my-pi/pi-coding-agent/modes/runtime-init'
 import { buildSecretObfuscator } from '@oh-my-pi/pi-coding-agent/secrets'
+/* 构成的唯一产地是 omp 自己的状态行口径：它把技能从系统提示词里减出去，还算出空闲
+   与自动压缩缓冲。自己折一份就会与它显示的那个分布对不上，所以调它自己读设置的那一支。 */
+import { computeSessionContextBreakdown } from '@oh-my-pi/pi-coding-agent/session/context-usage-runtime'
 /* 图片的落盘路径要交给 agent 自己认：SDK 靠这个符号注入隐藏的 image-attachment 伴生消息
  * （agent-session.ts:6291-6311 的 `#createAttachmentSourceNotices`）。 */
 import {
@@ -1269,9 +1272,23 @@ export function createBridge(host: BridgeHost): Bridge {
     }
   }
 
+  /*
+   * 上下文用量的报数。
+   *
+   * 构成取 omp 自己的 `computeContextBreakdown`（pi-tui 的 status-line/context-usage），
+   * 不自己按 `getContextBreakdown` 那五格折：正本把「技能」从系统提示词里减出去、
+   * 还算出空闲与自动压缩缓冲，自己折就会与它在屏幕上显示的那份不一致。
+   *
+   * 那一份的唯一产地是 omp 自己（`computeSessionContextBreakdown` 读它自己的设置），
+   * 所以这里连它的 compaction 设置一起读，不在我们这一侧重算阈值。
+   */
   function reportUsage(record: Session): void {
     const stats = record.agent.getSessionStats()
     const context = stats.contextUsage
+    const breakdown = computeSessionContextBreakdown(record.agent)
+
+    const tokensOf = (id: string): number =>
+      breakdown.categories.find((category) => category.id === id)?.tokens ?? 0
 
     const usage: UsageSnapshot = {
       used: context?.tokens ?? stats.tokens.input,
@@ -1279,6 +1296,15 @@ export function createBridge(host: BridgeHost): Bridge {
       inputOther: stats.tokens.input,
       inputCacheRead: stats.tokens.cacheRead,
       inputCacheCreation: stats.tokens.cacheWrite,
+      breakdown: {
+        systemPrompt: tokensOf('systemPrompt'),
+        systemContext: tokensOf('systemContext'),
+        systemTools: tokensOf('systemTools'),
+        skills: tokensOf('skills'),
+        messages: tokensOf('messages'),
+        free: breakdown.freeTokens,
+        autoCompactBuffer: breakdown.autoCompactBufferTokens,
+      },
     }
 
     emit({ kind: 'usage', sessionId: record.id, usage })

@@ -1749,10 +1749,24 @@ fn dispatch(
                     input_other: counter("inputOther"),
                     input_cache_read: counter("inputCacheRead"),
                     input_cache_creation: counter("inputCacheCreation"),
+                    breakdown: usage.get("breakdown").and_then(breakdown_of),
                 },
             });
         }
     }
+}
+
+/// 桥报的构成 → 产品的形状。缺一格就不报这一份构成：编出来的 0 与真的 0 在屏幕上分不出来。
+fn breakdown_of(value: &Value) -> Option<crate::UsageBreakdownSnapshot> {
+    Some(crate::UsageBreakdownSnapshot {
+        system: value.get("systemPrompt")?.as_u64()?,
+        system_context: value.get("systemContext")?.as_u64()?,
+        tools: value.get("systemTools")?.as_u64()?,
+        skills: value.get("skills")?.as_u64()?,
+        messages: value.get("messages")?.as_u64()?,
+        free: value.get("free")?.as_u64()?,
+        buffer: value.get("autoCompactBuffer")?.as_u64()?,
+    })
 }
 
 #[cfg(test)]

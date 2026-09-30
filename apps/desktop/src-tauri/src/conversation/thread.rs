@@ -101,6 +101,20 @@ fn reported(recorded: poietica_ledger::index::SessionUsage) -> Result<AgentSessi
             input_other: unsigned(recorded.input_other)?,
             input_cache_read: unsigned(recorded.input_cache_read)?,
             input_cache_creation: unsigned(recorded.input_cache_creation)?,
+            breakdown: recorded
+                .breakdown
+                .map(|breakdown| {
+                    Ok::<_, Error>(poietica_agent_client::UsageBreakdownSnapshot {
+                        system: unsigned(breakdown.system)?,
+                        system_context: unsigned(breakdown.system_context)?,
+                        tools: unsigned(breakdown.tools)?,
+                        skills: unsigned(breakdown.skills)?,
+                        messages: unsigned(breakdown.messages)?,
+                        free: unsigned(breakdown.free)?,
+                        buffer: unsigned(breakdown.buffer)?,
+                    })
+                })
+                .transpose()?,
         },
     ))
 }

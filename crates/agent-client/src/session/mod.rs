@@ -72,6 +72,22 @@ pub struct SessionUsageSnapshot {
     pub input_other: u64,
     pub input_cache_read: u64,
     pub input_cache_creation: u64,
+    /// 此刻这份上下文的构成。缺席即这一份报数没带构成：屏幕退成只画总条。
+    pub breakdown: Option<UsageBreakdownSnapshot>,
+}
+
+/// 此刻这份上下文的构成，与 agent 状态行里显示的那份逐格对应。
+///
+/// 七格全带，通用层不折：折过一次就会出现「屏幕上那一行的数不等于 agent 说的数」。
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct UsageBreakdownSnapshot {
+    pub system: u64,
+    pub system_context: u64,
+    pub tools: u64,
+    pub skills: u64,
+    pub messages: u64,
+    pub free: u64,
+    pub buffer: u64,
 }
 
 pub struct SessionEvents(mpsc::UnboundedReceiver<SessionEvent>);

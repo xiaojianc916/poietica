@@ -162,6 +162,21 @@ pub struct AgentSessionUsage {
     pub input_other: u32,
     pub input_cache_read: u32,
     pub input_cache_creation: u32,
+    /// 此刻这份上下文的构成。缺席即这一份报数没带构成：屏幕退成只画总条。
+    pub breakdown: Option<AgentUsageBreakdown>,
+}
+
+/// 上下文构成，与 agent 状态行里显示的那份逐格对应。
+#[derive(Clone, Copy, Debug, Deserialize, Serialize, Type)]
+#[serde(rename_all = "camelCase")]
+pub struct AgentUsageBreakdown {
+    pub system_prompt: u32,
+    pub system_context: u32,
+    pub system_tools: u32,
+    pub skills: u32,
+    pub messages: u32,
+    pub free: u32,
+    pub auto_compact_buffer: u32,
 }
 
 pub(super) fn reported_usage(usage: SessionUsageSnapshot) -> AgentSessionUsage {
@@ -173,6 +188,15 @@ pub(super) fn reported_usage(usage: SessionUsageSnapshot) -> AgentSessionUsage {
         input_other: narrow(usage.input_other),
         input_cache_read: narrow(usage.input_cache_read),
         input_cache_creation: narrow(usage.input_cache_creation),
+        breakdown: usage.breakdown.map(|breakdown| AgentUsageBreakdown {
+            system_prompt: narrow(breakdown.system),
+            system_context: narrow(breakdown.system_context),
+            system_tools: narrow(breakdown.tools),
+            skills: narrow(breakdown.skills),
+            messages: narrow(breakdown.messages),
+            free: narrow(breakdown.free),
+            auto_compact_buffer: narrow(breakdown.buffer),
+        }),
     }
 }
 
