@@ -360,7 +360,7 @@ export function DesktopWorkspace({
                 <ConversationTodoPopover
                   expanded={todoThread === workbench.activeSurface.threadId}
                   git={workspaceGit}
-                  gitPicker={workspaceGit.picker}
+                  gitPicker={workspaceGit?.picker}
                   onCollapse={() => {
                     workspaceLayoutStore.setTodoThread(null)
                   }}

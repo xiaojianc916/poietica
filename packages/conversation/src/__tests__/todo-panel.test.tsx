@@ -225,7 +225,13 @@ describe('status panel sections', () => {
     expect(markup).toContain('提交或推送')
   })
 
-  it('keeps the Git section out when the worktree is clean', () => {
+  it('keeps the Git section out when the host reports no git at all', () => {
+    const markup = renderToStaticMarkup(<TaskPanelContent backgroundTasks={[]} todos={[]} />)
+    expect(markup).not.toContain('Git 工具')
+  })
+
+  /* 干净仓库仍是 git 工作区：这一区恒画，+0 -0 如实报数，不因为「没改动」整格消失。 */
+  it('keeps the Git section on a clean worktree', () => {
     const markup = renderToStaticMarkup(
       <TaskPanelContent
         backgroundTasks={[]}
@@ -245,7 +251,11 @@ describe('status panel sections', () => {
         todos={[]}
       />,
     )
-    expect(markup).not.toContain('Git 工具')
+    expect(markup).toContain('Git 工具')
+    expect(markup).toContain('+0')
+    expect(markup).toContain('-0')
+    expect(markup).toContain('main')
+    expect(markup).toContain('提交或推送')
   })
 
   it('suppresses the goal section once the goal is complete', () => {

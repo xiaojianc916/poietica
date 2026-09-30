@@ -271,7 +271,8 @@ function Section({
 
 /*
  * 复刻 ZCode GitStatusSection：「更改 +N -M」→ 分支切换器 → 「提交或推送」。
- * 闸门同 ZCode 的 buildGitModel：没有改动就不开这一区，否则每条会话顶着一张空卡。
+ * 闸门在宿主：交来这份事实即代表当前目录是 git 工作区，干净仓库也照画（+0 -0），
+ * 交 undefined 才是「这一区不画」——不是 git 仓库、没装 git。
  */
 function GitStatusSection({
   git,
@@ -285,21 +286,28 @@ function GitStatusSection({
 }) {
   const added = git.added ?? 0
   const removed = git.removed ?? 0
-  if (added + removed <= 0) {
-    return null
-  }
+  /*
+   * 数字缺席（还没读到 / 读失败）就不报数：+0 -0 是把「不知道」说成「没改」。
+   * 这一格恒画的是 Git 工具本身，不是那两个数。
+   */
+  const stats =
+    git.added === null || git.removed === null ? null : (
+      <>
+        <span className="status-panel__added">+{added}</span>{' '}
+        <span className="status-panel__removed">-{removed}</span>
+      </>
+    )
   return (
     <Section
       /*
        * 收起态把 +N -M 留在标题右边（ZCode GitStatusSection 的 trailing 就是这个）；
        * 展开时正文里已经有一行「更改」在报同样的数，那一份由 CSS 撤掉，不重复造。
        */
-      summary={() => (
-        <span className="status-panel__git-stats status-panel__git-stats--summary">
-          <span className="status-panel__added">+{added}</span>{' '}
-          <span className="status-panel__removed">-{removed}</span>
-        </span>
-      )}
+      summary={() =>
+        stats === null ? null : (
+          <span className="status-panel__git-stats status-panel__git-stats--summary">{stats}</span>
+        )
+      }
       title="Git 工具"
       value="environment"
     >
@@ -307,10 +315,7 @@ function GitStatusSection({
         <div className="status-panel__git-row" data-git-row="changes">
           <FileDiff aria-hidden className="status-panel__item-icon" />
           <span className="status-panel__git-label">更改</span>
-          <span className="status-panel__git-stats">
-            <span className="status-panel__added">+{added}</span>{' '}
-            <span className="status-panel__removed">-{removed}</span>
-          </span>
+          <span className="status-panel__git-stats">{stats}</span>
         </div>
         {/* 分支那一行就是切换入口本身（ZCode 的 GitBranchSwitcher 也铺满这行）。 */}
         <div className="status-panel__git-row status-panel__git-row--branch" data-git-row="branch">
@@ -693,7 +698,8 @@ export function TaskPanelContent({
   const agents = runningAgents ?? []
   const showGoal = goal !== undefined && goal.status !== 'complete'
   const showAgents = agents.length > 0 || endedAgents > 0
-  const showGit = git !== undefined && (git.added ?? 0) + (git.removed ?? 0) > 0
+  /* Git 是工具而不是进展：只要目录是 git 工作区就恒画，没有增删也画（+0 -0）。 */
+  const showGit = git !== undefined
 
   /*
    * 每一格都是有事实才出现：空表连标题都不画（原来「待办事项 / 后台任务」常驻并各说
@@ -701,7 +707,7 @@ export function TaskPanelContent({
    *
    * 展开与否按同一条规则：**有内容的才默认展开，空的谈不上**。全展开会把一块面板
    * 铺成一屏空白；全收起则等于把「有待办在跑」这件事藏起来，都得点一下才知道。
-   * Git 是唯一例外 —— 它出现即意味着有改动，恒展开。
+   * Git 是唯一例外 —— 它是常驻工具区，出现即展开，与有没有改动无关。
    */
   const expanded = [
     ...(showGit ? ['environment'] : []),
@@ -718,7 +724,7 @@ export function TaskPanelContent({
       defaultValue={expanded}
       multiple
     >
-      {showGit && git !== undefined ? (
+      {git !== undefined ? (
         <GitStatusSection git={git} onOpenReview={onOpenReview} picker={gitPicker} />
       ) : null}
       {showGoal && goal !== undefined ? (
