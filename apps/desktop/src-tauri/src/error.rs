@@ -78,8 +78,7 @@ impl From<poietica_conversation_runtime::DeliveryError> for Error {
                 Self::AgentCli("消息未被代理接收，请检查会话后重试。".to_owned())
             }
             DeliveryError::Indeterminate(_) | DeliveryError::UnsafeReplay(_) => Self::AgentCli(
-                "投递结果未确认，请先核对会话；不要重复发送。仅支持幂等键的投递会自动恢复。"
-                    .to_owned(),
+                "投递结果未确认，请先核对会话；仅支持幂等键的投递会自动恢复。".to_owned(),
             ),
             DeliveryError::Ledger(_)
             | DeliveryError::MissingAdmission(_)

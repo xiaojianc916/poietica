@@ -18,6 +18,15 @@
 
 import type { AskedQuestion } from './protocol.ts'
 
+/**
+ * ask 工具在 omp 里的名字。
+ *
+ * 屏幕靠它把答复挂回发起它的**那一次调用**下面，而 omp 的 askDialog 只带题组、不带调用号
+ * （tools/ask.ts:800 的 `execute(_toolCallId, ...)` 收得到却没往下传），所以真实的调用号
+ * 由桥自己从 tool_execution_start 上取（bridge.ts 的 handleEvent）。
+ */
+export const ASK_TOOL = 'ask'
+
 /** 上游一道题的形状，只列我们读的格。 */
 interface UpstreamQuestion {
   readonly id?: unknown

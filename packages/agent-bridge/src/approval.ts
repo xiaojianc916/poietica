@@ -47,6 +47,14 @@ export interface UpstreamDialogResponse {
   readonly confirmed?: unknown
   readonly cancelled?: unknown
   readonly scope?: unknown
+  /**
+   * 我们自己加的第五格（同 `scope` 的第四格）：题组那一路把**产品形状的答复**挂在这里。
+   *
+   * 上游只认标签（selectedOptions / customInput），而屏幕要按题号读人答了什么，
+   * 所以产品那一份原样随这一格过去 —— 让投影层去读上游的字段名就是把 omp 的形状
+   * 放进通用层（AGENTS.md §4）。
+   */
+  readonly answers?: unknown
 }
 
 export function responseOf(payload: unknown): UpstreamDialogResponse {

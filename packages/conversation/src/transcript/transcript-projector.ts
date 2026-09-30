@@ -7,7 +7,7 @@ import type {
   TranscriptTask,
   TranscriptTurn,
 } from '@poietica/transcript'
-import type { QuestionItem } from '../agent/question'
+import type { QuestionChoice, QuestionItem } from '../agent/question'
 import type { TurnMark } from '../agent/thread'
 import type { ToolCallContent } from '../agent/tool-call'
 import type {
@@ -337,10 +337,128 @@ function interactionOf(
     questions,
     ...(resolved
       ? {
-          resolution: { outcome: questionOutcome(interaction.state), answers: {}, note: '' },
+          resolution: {
+            outcome: questionOutcome(interaction.state),
+            answers: answersOf(interaction.response),
+            note: noteOf(interaction.response),
+          },
         }
       : {}),
   }
+}
+
+/*
+ * 人答了什么，从答复里读回来。
+ *
+ * 答复有两个产地，形状不同，都得认：
+ * - 现场：桥把**产品形状**的答复挂在 `answers` 上（questions.ts 的 answerPayloadOf 的入参），
+ *   键是题号，值就是 QuestionChoice；
+ * - 回放：本机账本存的是 `[{questionId, answer}]`（question.rs 的 AnsweredQuestion）。
+ *
+ * 读不出来就给空表 —— 题面还在，答案那行缺席，比编一个「答过了」强。
+ */
+function answersOf(response: unknown): Readonly<Record<string, QuestionChoice>> {
+  if (typeof response !== 'object' || response === null) {
+    return {}
+  }
+
+  const value = Reflect.get(response, 'answers')
+  const answers: Record<string, QuestionChoice> = {}
+
+  if (Array.isArray(value)) {
+    for (const entry of value) {
+      const id = readId(entry)
+      const answer = readAnswer(entry)
+
+      if (id !== undefined && answer !== undefined) {
+        answers[id] = answer
+      }
+    }
+
+    return answers
+  }
+
+  if (typeof value !== 'object' || value === null) {
+    return {}
+  }
+
+  for (const [id, answer] of Object.entries(value)) {
+    const read = readAnswer({ answer })
+
+    if (read !== undefined) {
+      answers[id] = read
+    }
+  }
+
+  return answers
+}
+
+function readId(entry: unknown): string | undefined {
+  if (typeof entry !== 'object' || entry === null) {
+    return undefined
+  }
+
+  const id = Reflect.get(entry, 'questionId')
+
+  return typeof id === 'string' && id !== '' ? id : undefined
+}
+
+/** 一条答复：判别式与分支名是协议取值域（question.rs 的 QuestionAnswer）。 */
+function readAnswer(entry: unknown): QuestionChoice | undefined {
+  if (typeof entry !== 'object' || entry === null) {
+    return undefined
+  }
+
+  const answer: unknown = Reflect.get(entry, 'answer')
+
+  if (typeof answer !== 'object' || answer === null) {
+    return undefined
+  }
+
+  switch (Reflect.get(answer, 'kind')) {
+    case 'single': {
+      const optionId = Reflect.get(answer, 'optionId')
+
+      return typeof optionId === 'string' ? { kind: 'single', optionId } : undefined
+    }
+    case 'multi': {
+      const optionIds = stringsOf(Reflect.get(answer, 'optionIds'))
+
+      return optionIds === undefined ? undefined : { kind: 'multi', optionIds }
+    }
+    case 'other': {
+      const text = Reflect.get(answer, 'text')
+
+      return typeof text === 'string' ? { kind: 'other', text } : undefined
+    }
+    case 'multi_with_other': {
+      const optionIds = stringsOf(Reflect.get(answer, 'optionIds'))
+      const otherText = Reflect.get(answer, 'otherText')
+
+      return optionIds === undefined || typeof otherText !== 'string'
+        ? undefined
+        : { kind: 'multi_with_other', optionIds, otherText }
+    }
+    case 'skipped':
+      return { kind: 'skipped' }
+    default:
+      return undefined
+  }
+}
+
+function stringsOf(value: unknown): readonly string[] | undefined {
+  return Array.isArray(value) && value.every((item) => typeof item === 'string') ? value : undefined
+}
+
+/** 整组题的备注；上游每题一格，产品整组一格，所以取那一格。 */
+function noteOf(response: unknown): string {
+  if (typeof response !== 'object' || response === null) {
+    return ''
+  }
+
+  const note = Reflect.get(response, 'note')
+
+  return typeof note === 'string' ? note : ''
 }
 const backgroundOf = (task: TranscriptTask): BackgroundTaskItem | null => {
   if (!task.detached) {
@@ -382,12 +500,118 @@ function spanOf(turn: TranscriptTurn, index: number): TurnSpan {
 }
 
 /*
+ * 答完的题挂回发起它的**那次调用**下面。
+ *
+ * 判据是交互自己带的工具调用号（桥从 tool_execution_start 取的真号，不是工具名 ——
+ * 名字对不上任何一次具体调用）。号对不上任何一页时退回尾部：位置差一点，题还在。
+ *
+ * 待答的不在这里：它得留在活动段尾（timeline-queries 从 active.items 里找它，
+ * 输入框那张卡靠这一条挂出来），而且它本来就不上屏（renderable 的 question 分支）。
+ *
+ * 页按基础页身份记账：sealed 段一旦封口就不再改写，presentation 的 PREFIX/SEGMENTS
+ * 全靠页引用稳定（与 wrappedPage 同一条规矩）。命中判据是页身份 + 锚进来的那几条。
+ */
+const ANCHORED_PAGES = new WeakMap<
+  TurnPage,
+  { readonly held: readonly TranscriptInteraction[]; page: TurnPage }
+>()
+
+function anchoredPage(page: TurnPage, held: readonly TranscriptInteraction[]): TurnPage {
+  const kept = ANCHORED_PAGES.get(page)
+
+  if (
+    kept !== undefined &&
+    kept.held.length === held.length &&
+    kept.held.every((interaction, index) => interaction === held[index])
+  ) {
+    return kept.page
+  }
+
+  const items = [...page.items]
+
+  for (const interaction of held) {
+    const after = items.findIndex(
+      (item) => item.type === 'tool_call' && item.toolCallId === interaction.toolCallId,
+    )
+
+    if (after < 0) {
+      continue
+    }
+
+    items.splice(after + 1, 0, interactionOf(interaction, page.turn, 0))
+  }
+
+  const fresh = { ...page, items }
+  ANCHORED_PAGES.set(page, { held, page: fresh })
+
+  return fresh
+}
+
+/**
+ * 把已结的题插进它那一次调用后面，交出改过的页与「仍然要挂尾部」的那几条。
+ *
+ * 只认提问：审批恒不上屏（renderable 的 permission 分支），而它的 toolCallId 是工具名，
+ * 锚上去只会锚到别人的调用上。
+ */
+function anchorQuestions(
+  pages: readonly TurnPage[],
+  interactions: AgentTranscriptSnapshot['interactions'],
+): { readonly pages: readonly TurnPage[]; readonly tail: readonly TranscriptInteraction[] } {
+  const anchored = new Map<number, TranscriptInteraction[]>()
+  const tail: TranscriptInteraction[] = []
+
+  for (const interaction of interactions) {
+    if (interaction.interactionKind !== 'question' || interaction.state === 'pending') {
+      tail.push(interaction)
+
+      continue
+    }
+
+    const at = pages.findIndex((page) =>
+      page.items.some(
+        (item) => item.type === 'tool_call' && item.toolCallId === interaction.toolCallId,
+      ),
+    )
+
+    if (at < 0) {
+      tail.push(interaction)
+
+      continue
+    }
+
+    const held = anchored.get(at)
+
+    if (held === undefined) {
+      anchored.set(at, [interaction])
+    } else {
+      held.push(interaction)
+    }
+  }
+
+  if (anchored.size === 0) {
+    return { pages, tail }
+  }
+
+  const next = [...pages]
+
+  for (const [at, held] of anchored) {
+    const page = next[at]
+
+    if (page !== undefined) {
+      next[at] = anchoredPage(page, held)
+    }
+  }
+
+  return { pages: next, tail }
+}
+
+/*
  * 待答的审批与提问挂在活动段尾部；压缩那一条也在这里 —— 它不绑 turn
  * （agent 压缩的是上下文，不是某一轮），所以没有自己的页可挂。
  */
 const tailOf = (
   pages: readonly TurnPage[],
-  interactions: AgentTranscriptSnapshot['interactions'],
+  interactions: readonly TranscriptInteraction[],
   items: AgentTranscriptSnapshot['items'],
 ): TurnPage => {
   const held = pages.at(-1)
@@ -698,13 +922,14 @@ export function projectTranscript(
     spans.push(projected.span)
   }
   const marked = runBoundariesOf(pages, facts, snapshot.items, busy)
+  const placed = anchorQuestions(marked, snapshot.interactions)
   return {
     status,
     backgroundTasks: snapshot.tasks
       .map(backgroundOf)
       .filter((item): item is BackgroundTaskItem => item !== null),
-    sealed: stableSealed(marked),
-    active: tailOf(marked, snapshot.interactions, snapshot.items),
+    sealed: stableSealed(placed.pages),
+    active: tailOf(placed.pages, placed.tail, snapshot.items),
     lastSeq: 0,
     spans,
   }

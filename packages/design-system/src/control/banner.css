@@ -65,6 +65,14 @@
   color: var(--ui-success);
 }
 
+/*
+ * 失败那一档的红。卡面在两个主题下都是深色（见上），所以这里取 --ui-destructive ——
+ * 深色下是 red-400、浅色下是 red-500，两边在各自的卡面上都读得出来。
+ */
+.ui-banner__icon--error {
+  color: var(--ui-destructive);
+}
+
 .ui-banner__text {
   min-width: 0;
 }

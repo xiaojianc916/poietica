@@ -1,5 +1,6 @@
 import './skin/surface.css'
 
+import { Banner } from '@poietica/design-system'
 import { memo, type Ref, useCallback, useMemo, useRef, useState } from 'react'
 import type { SessionConfigControl } from '../agent/config'
 import type { AgentSessionPort } from '../agent/session'
@@ -64,6 +65,40 @@ export interface AssistantSurfaceProps {
 }
 
 /*
+ * 一句话横幅的「说完了」。
+ *
+ * 横幅自己走完之后不再挂回来；换一句（或那一句清掉）时重新开始 —— 渲染期直接改自己的
+ * state 是 React 官方「props 变了复位 state」的写法，本次渲染内重跑，无闪烁也不需要 effect。
+ *
+ * 独立成钩子是让 AssistantSurface 的主干不超复杂度闸门，与 deltaOps 同理。
+ */
+function useDismissed(message: string | null): readonly [boolean, () => void] {
+  const [dismissed, setDismissed] = useState<string | null>(null)
+
+  if (dismissed !== null && dismissed !== message) {
+    setDismissed(null)
+  }
+
+  return [
+    message !== null && dismissed === message,
+    useCallback(() => {
+      setDismissed(message)
+    }, [message]),
+  ]
+}
+
+/**
+ * 一次失败该停多久。
+ *
+ * **不走**：这句话后面挂着一件没做完的事（把正文取回来重发），横幅自己淡出等于把那
+ * 唯一的入口一起收走 —— 判据与 update-banner 的 `persistent` 同一条：有没有未了的事，
+ * 不是时间长短。人重发或取回之后 `failure` 就变了，整条随之换掉，不必自己去清定时器。
+ *
+ * `Banner` 只认毫秒数，没有「永久」这一档，所以报一个够长的数。
+ */
+const FAILURE_HOLD_MS = 60 * 60 * 1000
+
+/*
  * 两个静止态、两棵树、一个输入框。静止态由显式相位说了算，不由转录反推：把导航派生自
  * 内容，等于任何一帧内容变动都能搬动整块构成，且挂载与卸载不可补间、中间态无法表达。
  * 输入框始终是同一个 DOM 节点，两相位共用。这一层只订忙/历史/待答三样，模型吐字不动它；
@@ -114,6 +149,20 @@ export const AssistantSurface = memo(function AssistantSurface({
   }, [assistant.resolvePermission, blocked, waiting])
 
   const [phase, setPhase] = useState<'entry' | 'live'>(() => (isNew ? 'entry' : 'live'))
+
+  /*
+   * 一次失败说成一句话。
+   *
+   * 两个来源合成一句，因为它们对人是同一件事「刚才那一下没成」：`notice` 是原生侧给
+   * 的原因（投递没落地、这一轮没跑起来），failed 的提交是那一句话本身。分开画会变成
+   * 截图里那样 —— 一段没有格式的裸字加一个列表，读不出哪句是原因、哪句是内容。
+   *
+   * 补救动作只有一个：把正文取回输入框。附件取不回（字节已入库，但重新选择才是对的），
+   * 所以那句 title 只在这里说一次。
+   */
+  const failed = assistant.submissions.find((submission) => submission.phase === 'failed')
+  const failure = assistant.notice ?? (failed === undefined ? null : '提交未完成；请先核对会话。')
+  const [dismissed, dismissFailure] = useDismissed(failure)
 
   /*
    * 相位是派生的，不是记住的。标签页复用同一实例、换对话进来时 endpoint 已变而相位
@@ -177,30 +226,18 @@ export const AssistantSurface = memo(function AssistantSurface({
     <div className="assistant-surface__composer">
       {live ? <GoalBar threadId={endpoint} /> : null}
 
-      {assistant.notice !== null ? (
-        <p className="px-4 py-2 text-sm" role="alert">
-          {assistant.notice}
-        </p>
-      ) : null}
-      {assistant.submissions.some((submission) => submission.phase === 'failed') ? (
-        <ul aria-label="提交状态" className="space-y-2 px-4 py-2 text-sm">
-          {assistant.submissions
-            .filter((submission) => submission.phase === 'failed')
-            .map((submission) => (
-              <li key={submission.id}>
-                <p className="whitespace-pre-wrap">{submission.text || '附件消息'}</p>
-                <p role="status">提交未完成；请先核对会话。</p>
-                <button
-                  onClick={() => edit(submission.text)}
-                  title="仅取回文字；附件需重新选择。"
-                  type="button"
-                >
-                  取回文字
-                </button>
-              </li>
-            ))}
-        </ul>
-      ) : null}
+      {failure === null || dismissed ? null : (
+        <Banner
+          {...(failed === undefined
+            ? {}
+            : { actions: [{ label: '取回文字', onClick: () => edit(failed.text) }] })}
+          holdMs={FAILURE_HOLD_MS}
+          key={failure}
+          onDone={dismissFailure}
+          text={failure}
+          tone="error"
+        />
+      )}
       <PromptQueue onEdit={edit} outbox={assistant.outbox} />
 
       {/* 连不上 agent：卡上沿一条提示，不在工具栏里冒充模型选择器。 */}

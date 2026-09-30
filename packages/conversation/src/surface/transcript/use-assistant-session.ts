@@ -14,6 +14,7 @@ import type { BackgroundTaskItem, TimelineState, TodoItem } from '../../timeline
 import type { PendingInteractions } from '../../timeline/timeline-queries'
 import { activeScope, currentTodos, pendingInteractions } from '../../timeline/timeline-queries'
 import type { Transcript } from '../../transcript/transcript-store'
+import { deliveryUnknown } from '../../transcript/transcript-store'
 import { useTranscripts } from './transcripts-context'
 
 /* 每个消费者只订阅最窄的稳定投影；完整 timeline 仅供 TranscriptView。
@@ -121,7 +122,13 @@ function toChatStatus(status: TimelineState['status']): ChatStatus {
   }
 }
 
-const readStatus = (transcript: Transcript): ChatStatus => toChatStatus(transcript.status)
+/*
+ * 投递结果不明时状态仍是 `error`（「刚才那一下没成」是事实），但那一轮**可能还在跑** ——
+ * 回执正是没回来的那一样。停止键只认在飞的那几档（PromptInputSubmit 的 canCancel），
+ * 所以这里给它一档在飞：否则截图里那一刻键是灰的，而人正需要按下去。
+ */
+const readStatus = (transcript: Transcript): ChatStatus =>
+  deliveryUnknown(transcript) ? 'submitted' : toChatStatus(transcript.status)
 
 const readRestoring = (transcript: Transcript): boolean => transcript.restoring
 const readNotice = (transcript: Transcript): string | null =>

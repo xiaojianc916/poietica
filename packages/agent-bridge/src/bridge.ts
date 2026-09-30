@@ -61,7 +61,7 @@ import type {
   SelectorControl,
   UsageSnapshot,
 } from './protocol.ts'
-import { answerPayloadOf, askQuestionsOf } from './questions.ts'
+import { ASK_TOOL, answerPayloadOf, askQuestionsOf } from './questions.ts'
 import { readCatalog } from './settings.ts'
 import { settleThinking } from './thinking.ts'
 import { TranscriptMirror } from './transcript-mirror.ts'
@@ -140,6 +140,15 @@ interface Session {
   readonly pending: Map<string, PendingInteraction>
   /** ask 工具那组题的号 → 题组；答复翻译要用它把号换回标签。 */
   readonly asked: Map<string, readonly AskedQuestion[]>
+  /*
+   * 最近一次 ask 调用的**工具调用号**。
+   *
+   * 屏幕要把答完的题挂回发起它的那一次调用下面，而 omp 的 askDialog 只带题组、不带调用号
+   * （tools/ask.ts:800 的 `execute(_toolCallId, …)` 收得到却没往下传）。这个号桥自己看得到
+   * —— tool_execution_start 带着它。`ask` 在 omp 里是 exclusive（同时至多一个在飞），
+   * 所以「最近一次」没有歧义。
+   */
+  askCallId: string | null
   /** 本次会话已允许的工具（scope=session 的产物），免得重复写同一格设置。 */
   readonly allowed: Set<string>
   /*
@@ -158,6 +167,13 @@ interface PendingInteraction {
   /** 授权那一类用它做设置键（会话级放行）与屏幕上的说法；题组恒为 'ask'。 */
   readonly toolName: string
   readonly request: UpstreamDialogRequest
+  /**
+   * 发起这一次对话框的工具调用号（只有题组有）。
+   *
+   * 授权那一路拿不到：审批可以在多个工具之间并发，而对话框里没有调用号，
+   * 「最近一次」会对错人。题组没有这个问题 —— ask 是 exclusive 的。
+   */
+  readonly toolCallId?: string
 }
 
 /*
@@ -226,6 +242,19 @@ export function createBridge(host: BridgeHost): Bridge {
    * 官方 rpc/acp 模式也置它。
    */
   process.env['PI_NO_TITLE'] = '1'
+
+  /*
+   * 关掉终端通知 —— 它往 stdout 直接写 BEL / OSC 转义序列，而 stdout 是我们的
+   * NDJSON 协议通道：那串字节没有换行，会和下一条 JSON 行粘在一起，对端解不开。
+   * 触发点是 ask 工具（tools/ask.ts 的 `#sendAskNotification`，`ask.notify` 默认 on）
+   * 在等人答题时无条件发一次 —— 于是**每次提问都会毒掉一条协议行**。
+   *
+   * 这正是 omp 官方 RPC 模式的做法，理由逐字相同（modes/rpc/rpc-mode.ts:817-821：
+   * 「they write \x07 (BEL) or OSC sequences directly to process.stdout with no
+   * newline, which the reader merges with the next JSON line and breaks JSON.parse」）。
+   * 赋值在这里就够：上游读的 pi-utils $env 与 process.env 是同一个活对象。
+   */
+  process.env['PI_NOTIFICATIONS'] = 'off'
 
   // 诊断走 stderr：stdio 适配器那边 stdout 是协议通道，多一个字会毁掉那一行。
   const log = (...parts: readonly unknown[]): void => {
@@ -636,6 +665,7 @@ export function createBridge(host: BridgeHost): Bridge {
       planTools: undefined,
       pending: new Map(),
       asked: new Map(),
+      askCallId: null,
       allowed: new Set(),
       compacting: null,
       compactions: 0,
@@ -861,8 +891,11 @@ export function createBridge(host: BridgeHost): Bridge {
    * 由这里读盘转 base64，同官方 CLI（cli/file-processor.ts:104-133）。读盘失败必须抛：
    * 静默丢一张图正是这条命令原来的缺陷（图既不进上下文也不进记录，屏幕上什么都没有），
    * 抛出去至少落成一次 failed 轮终。独立成函数是让 dispatch 主干不超复杂度闸门，与 deltaOps 同理。
+   *
+   * 同步返回：这一轮**不在这里 await**（为什么见下）。读盘与落 upsert 仍是同步做完的，
+   * 所以「命令受理」时那几条 ops 已经发出去了。
    */
-  async function sendPrompt(command: Extract<BridgeCommand, { type: 'prompt' }>): Promise<unknown> {
+  function sendPrompt(command: Extract<BridgeCommand, { type: 'prompt' }>): unknown {
     const record = required()
     const images = readPromptImages(command.attachments)
     const imagePaths = command.attachments
@@ -895,17 +928,72 @@ export function createBridge(host: BridgeHost): Bridge {
       true,
     )
 
-    try {
-      await record.agent.prompt(command.text, images.length === 0 ? undefined : { images })
-    } catch (error) {
-      // 起不了一轮也要有轮终：Rust 侧靠它收账。
-      const message = error instanceof Error ? error.message : String(error)
-      pushTranscript(record, record.projector.turnEnd('failed', message), true)
-      emit({ kind: 'turn_end', sessionId: record.id, outcome: 'failed', message })
-      throw error
-    }
+    /* 这一轮的号：轮终迟到时靠它认出「这还是不是我当时那一轮」。 */
+    const ordinal = record.projector.turnOrdinal
+
+    /*
+     * **不 await 这一轮**：`AgentSession.prompt()` 要等整轮跑完才 resolve —— 它一路
+     * await 到 agent loop 的 `agent_end` 与 `#waitForPostPromptRecovery`
+     * （agent-session.ts:6373 → 7071 → 4140）。轮里只要有东西在等人，它就永远不 resolve：
+     * ask 工具把这一轮卡在 `askDialog` 上（tools/ask.ts:942），而 `ask` 不是 interruptible
+     * 工具，排队插话也砍不动它（agent-loop.ts:2900-2908）。
+     *
+     * 于是「等这一轮跑完再回应答」= 提问那一刻起回执永远不来，Rust 侧投递永远停在
+     * Pending/Unknown，界面报「投递结果未确认」，再发一句又被 UnsafeReplay 挡住。
+     *
+     * 官方 RPC 模式对同一件事的判词是 `// Don't await - events will stream`
+     * （modes/rpc/rpc-mode.ts:1234）：命令受理与轮次完成是两件事，回执只说前者，
+     * 后者由事件流报（agent_end → 本层的 `turn_end`）。本层照此办理。
+     *
+     * 起不了一轮（模型/钥匙缺失、AgentBusyError）时没有 agent_end 可等，所以在这里
+     * 就地补一条轮终 —— Rust 靠它收账，否则那一笔永远欠着。
+     */
+    void record.agent
+      .prompt(command.text, images.length === 0 ? undefined : { images })
+      .then((forwarded) => {
+        /* false = 上游把这句话就地处理掉了（斜杠命令），这一轮不会有 agent_end。 */
+        if (!forwarded) {
+          settleUnstartedTurn(record, ordinal, 'completed')
+        }
+      })
+      .catch((error: unknown) => {
+        const message = error instanceof Error ? error.message : String(error)
+        settleUnstartedTurn(record, ordinal, 'failed', message)
+      })
 
     return {}
+  }
+
+  /*
+   * 一轮没能起来：就地补轮终。
+   *
+   * 只认自己那一轮 —— 迟到的 catch 可能落在一个**新**轮上（取消之后人又发了一句），
+   * 那时把新轮收掉就是把别人的话掐了。轮号对不上就不动。
+   */
+  function settleUnstartedTurn(
+    record: Session,
+    ordinal: number,
+    outcome: 'completed' | 'failed',
+    message?: string,
+  ): void {
+    if (record.projector.turnOrdinal !== ordinal) {
+      return
+    }
+
+    const ops = record.projector.turnEnd(outcome, message)
+
+    /* 已经收过的轮返回空表（投影器自己判 #turnOpen）：真 agent_end 报过就不再报第二遍。 */
+    if (ops.length === 0) {
+      return
+    }
+
+    pushTranscript(record, ops, true)
+    emit({
+      kind: 'turn_end',
+      sessionId: record.id,
+      outcome,
+      ...(message === undefined ? {} : { message }),
+    })
   }
 
   /*
@@ -970,6 +1058,31 @@ export function createBridge(host: BridgeHost): Bridge {
     }
   }
 
+  /*
+   * 一次工具调用开始。记下 ask 的调用号：那组题要挂回它下面。
+   *
+   * omp 的 askDialog 不带这个号（tools/ask.ts:800 的 `execute(_toolCallId, …)` 收得到
+   * 却没往下传），而 `tool_execution_start` 带着。`ask` 在 omp 里是 exclusive
+   * （同时至多一个在飞），所以「最近一次」没有歧义。
+   *
+   * 独立成函数与 deltaOps 同理：那一句判断留在 handleEvent 里会让它的分支数超限。
+   */
+  function toolStartOps(
+    record: Session,
+    event: Extract<AgentSessionEvent, { type: 'tool_execution_start' }>,
+  ): ReturnType<TranscriptProjector['toolStart']> {
+    if (event.toolName === ASK_TOOL) {
+      record.askCallId = event.toolCallId
+    }
+
+    return record.projector.toolStart({
+      toolCallId: event.toolCallId,
+      toolName: event.toolName,
+      args: event.args,
+      ...(event.intent === undefined ? {} : { intent: event.intent }),
+    })
+  }
+
   function handleEvent(record: Session, event: AgentSessionEvent): void {
     const project = record.projector
     let ops: ReturnType<TranscriptProjector['turnEnd']> = []
@@ -986,12 +1099,7 @@ export function createBridge(host: BridgeHost): Bridge {
         break
 
       case 'tool_execution_start':
-        ops = project.toolStart({
-          toolCallId: event.toolCallId,
-          toolName: event.toolName,
-          args: event.args,
-          ...(event.intent === undefined ? {} : { intent: event.intent }),
-        })
+        ops = toolStartOps(record, event)
         break
 
       case 'tool_execution_end':
@@ -1428,7 +1536,12 @@ export function createBridge(host: BridgeHost): Bridge {
     }
 
     record.asked.set(requestId, questions)
-    record.pending.set(requestId, { kind: 'question', toolName: 'ask', request })
+    record.pending.set(requestId, {
+      kind: 'question',
+      toolName: ASK_TOOL,
+      request,
+      ...(record.askCallId === null ? {} : { toolCallId: record.askCallId }),
+    })
 
     // 原样交给 Rust 去挂提问桌：它按这份题组收答复，答复再经 answer_dialog 回来。
     emit({
@@ -1444,7 +1557,11 @@ export function createBridge(host: BridgeHost): Bridge {
         interactionId: requestId,
         kind: 'question',
         state: 'pending',
-        toolCallId: 'ask',
+        /*
+         * 真实的调用号，不是工具名：屏幕靠它把这一格挂回发起它的那次 `ask` 调用下面。
+         * 取不到（回放的历史会话）就退成工具名 —— 位置会差，但题本身仍然画得出来。
+         */
+        toolCallId: record.askCallId ?? ASK_TOOL,
         request: { questions },
       }),
       true,
@@ -1481,6 +1598,9 @@ export function createBridge(host: BridgeHost): Bridge {
     /*
      * 这条答复此刻已经是上游要的那份（dispatch 的 answer_dialog 折过了）：
      * `value` 在就是答了，`cancelled` 在就是撤下了。这里只做归类，不再翻译一次。
+     *
+     * `answers` 是**产品形状**的那一份（dispatch 与折好的 value 一起递过来）：
+     * 上游那份只认标签，屏幕要按题号读人答了什么，两者形状不同，各留各的。
      */
     const answer = responseOf(payload)
     const answered = answer.cancelled !== true && answer.value !== undefined
@@ -1491,9 +1611,9 @@ export function createBridge(host: BridgeHost): Bridge {
         interactionId: requestId,
         kind: 'question',
         state: answered ? 'answered' : 'dismissed',
-        toolCallId: 'ask',
+        toolCallId: held.toolCallId ?? ASK_TOOL,
         request: { questions: questions ?? [] },
-        ...(answered ? { response: answer.value } : {}),
+        ...(answered && answer.answers !== undefined ? { response: answer.answers } : {}),
       }),
       true,
     )
@@ -1982,7 +2102,7 @@ export function createBridge(host: BridgeHost): Bridge {
       }
 
       case 'prompt':
-        return await sendPrompt(command)
+        return sendPrompt(command)
 
       case 'cancel': {
         const record = required()
@@ -1995,7 +2115,21 @@ export function createBridge(host: BridgeHost): Bridge {
          * 也永远停在「等你批」。所以这里主动把它们收成取消。
          */
         record.desk.closeAll()
-        pushTranscript(record, record.projector.turnEnd('cancelled'), true)
+        /*
+         * 只在真有轮开着的时候报轮终。
+         *
+         * 报两次的后果不是崩溃而是账错：abort() 会把在飞的那一轮收掉，那时
+         * `prompt()` 的 settle 已经补过一条轮终了，这里再无条件报一条，Rust 侧就对着
+         * 同一个会话收两次账（第二次只能记一条日志）。而没有轮开着时（人在「投递结果
+         * 未确认」那一刻按停止），这里更不该凭空报一条 cancelled。
+         */
+        const ended = record.projector.turnEnd('cancelled')
+
+        if (ended.length === 0) {
+          return {}
+        }
+
+        pushTranscript(record, ended, true)
         emit({ kind: 'turn_end', sessionId: record.id, outcome: 'cancelled' })
         return {}
       }
@@ -2026,6 +2160,8 @@ export function createBridge(host: BridgeHost): Bridge {
           ? settleDialog(record, command.requestId, command.response)
           : settleDialog(record, command.requestId, {
               value: answerPayloadOf(questions, command.response),
+              /* 产品那一份原样带上：屏幕按题号读答案，上游那份只认标签。 */
+              answers: command.response,
             })
       }
       case 'selectors':

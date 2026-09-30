@@ -37,7 +37,33 @@ export interface PendingSubmission {
 type ConversationOperation =
   | { readonly kind: 'ready' }
   | { readonly kind: 'cancelling' }
-  | { readonly kind: 'failed'; readonly message: string; readonly blocks: boolean }
+  | {
+      readonly kind: 'failed'
+      readonly message: string
+      readonly blocks: boolean
+      /**
+       * 这一句已经离开本机，而回执没回来 —— 那一轮**可能还在跑**。
+       *
+       * 与 `blocks` 分开：`blocks` 说的是「这个失败还算不算数」，这里说的是「我们到底
+       * 知不知道它没在跑」。只有后者需要停止键，而它不能由错误文案反推。
+       */
+      readonly indeterminate: boolean
+    }
+
+/**
+ * 投递结果不明：这一轮**到底跑没跑起来我们并不知道** —— 回执正是没回来的那一样。
+ *
+ * 它不改这一格的状态（`failed` 是「刚才那一下没成」这个事实的正确答案），只多给出一条
+ * 「可能还有一轮在跑」：停止键认它。真正确认没跑起来时，取消是一次空转。
+ */
+export function deliveryUnknown(transcript: Transcript): boolean {
+  return transcript.operation.kind === 'failed' && transcript.operation.indeterminate
+}
+
+/** 现在能不能停：在飞，或者投递结果不明（可能还有一轮在跑）。 */
+export function canCancel(transcript: Transcript): boolean {
+  return selectIsBusy(transcript.timeline) || deliveryUnknown(transcript)
+}
 
 function activityOf(transcript: Transcript): RunStatus {
   const busy = selectIsBusy(transcript.timeline)
@@ -317,7 +343,12 @@ export class TranscriptStore implements TranscriptSink {
     this.#put(key, {
       ...this.read(key),
       restoring: false,
-      operation: { kind: 'failed', message: describeFailure(cause), blocks: endsTurn },
+      operation: {
+        kind: 'failed',
+        message: describeFailure(cause),
+        blocks: endsTurn,
+        indeterminate: false,
+      },
     })
   }
   forget = (threadId: string): void => {
@@ -405,11 +436,23 @@ export class TranscriptStore implements TranscriptSink {
       phase: 'submitting',
       promptId: null,
     }
+    /*
+     * 这一句到底有没有离开本机。它决定失败该报哪一种：**没出去**的失败是确定的
+     * （没有轮在跑），**出去了**的失败结果不明（回执可能只是没回来，那一轮也许正在跑）。
+     * 判据就是「有没有走到 port.prompt」这一步，不靠错误文案反推。
+     */
+    let leftTheMachine = false
+    const before = this.read(threadId)
     this.#put(threadId, {
-      ...this.read(threadId),
+      ...before,
       operation: { kind: 'ready' },
       promptId: null,
-      submissions: [...this.read(threadId).submissions, submission],
+      /*
+       * 上一次失败到此为止。它没有被 `#publish` 收走的可能（`promptId` 是 null，永远
+       * 留在表里），留着就等于把「提交未完成」那句话连同补救入口钉在屏幕上 —— 人已经
+       * 重发了，横幅还在说上一句。取消的提交另有去处（`#publish` 按号收），不在这里。
+       */
+      submissions: [...before.submissions.filter((entry) => entry.phase !== 'failed'), submission],
     })
     try {
       if (port === undefined) {
@@ -424,6 +467,7 @@ export class TranscriptStore implements TranscriptSink {
         throw new Error('无法开始新的对话。')
       }
       onUserMessage?.(threadId, text)
+      leftTheMachine = true
       const handle = await port.prompt({ threadId, text, assets, configuration, skills })
       if (lifetime.signal.aborted) {
         return null
@@ -455,7 +499,13 @@ export class TranscriptStore implements TranscriptSink {
         this.#put(threadId, {
           ...current,
           restoring: false,
-          operation: { kind: 'failed', message: describeFailure(cause), blocks: true },
+          operation: {
+            kind: 'failed',
+            message: describeFailure(cause),
+            blocks: true,
+            /* 没出去 = 确定没有轮在跑；出去了而回执没回来 = 结果不明，可能还在跑。 */
+            indeterminate: leftTheMachine,
+          },
           submissions: current.submissions.map(
             (entry): PendingSubmission =>
               entry.id === submission.id ? { ...entry, phase: 'failed' } : entry,
@@ -472,7 +522,7 @@ export class TranscriptStore implements TranscriptSink {
     if (port === null || current.operation.kind === 'cancelling') {
       return
     }
-    if (!selectIsBusy(current.timeline)) {
+    if (!selectIsBusy(current.timeline) && !deliveryUnknown(current)) {
       if (current.submissions.some((entry) => entry.phase !== 'failed')) {
         this.note(key, '消息仍在提交；确认接收后才能停止运行。')
       }

@@ -1,6 +1,6 @@
 import './banner.css'
 
-import { CheckCircle } from 'lucide-react'
+import { CheckCircle, TriangleAlert } from 'lucide-react'
 import type { CSSProperties, ReactNode } from 'react'
 import { Fragment, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
@@ -32,9 +32,9 @@ export interface BannerAction {
 export interface BannerProps {
   /** 已经定稿的一句话。文案由调用方给，组件不拼句子。 */
   readonly text: string
-  /** 语气。success 自带绿勾；不给她就自己带 icon。 */
-  readonly tone?: 'success'
-  /** 前面的字形；tone 为 success 时不画（绿勾在那时才是正主）。 */
+  /** 语气。success 自带绿勾、error 自带红警示；不给就自己带 icon。 */
+  readonly tone?: 'success' | 'error'
+  /** 前面的字形；给了 tone 时不画（那两档的字形才是正主）。 */
   readonly icon?: ReactNode
   /** 接着句子往下说的动作，各自渲染成蓝色可点文字。 */
   readonly actions?: readonly BannerAction[]
@@ -120,6 +120,11 @@ export function Banner({
         /* 绿勾是这一档语气自带的字形，此时调用方给的 icon 不画。 */
         <span aria-hidden="true" className="ui-banner__icon ui-banner__icon--success">
           <CheckCircle />
+        </span>
+      ) : tone === 'error' ? (
+        /* 失败同理：红警示是这一档自带的，与 success 的绿勾同一个位置、同一条规矩。 */
+        <span aria-hidden="true" className="ui-banner__icon ui-banner__icon--error">
+          <TriangleAlert />
         </span>
       ) : (
         icon !== undefined && (

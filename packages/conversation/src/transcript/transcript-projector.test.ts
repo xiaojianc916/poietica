@@ -5,6 +5,7 @@ import {
   foldWireRecordFacts,
   groupMessagesIntoSnapshot,
   type TranscriptFrame,
+  type TranscriptInteraction,
   type TranscriptTurn,
 } from '@poietica/transcript'
 import { selectPresentation } from '../timeline/presentation'
@@ -93,6 +94,121 @@ function repliesOf(snapshot: AgentTranscriptSnapshot) {
     (reply) => reply !== undefined,
   )
 }
+
+describe('answered questions', () => {
+  const askTurn = (ordinal: number): TranscriptTurn =>
+    runSample(ordinal, { kind: 'user' }, [
+      {
+        kind: 'tool',
+        frameId: `t${ordinal}.ask`,
+        toolCallId: `call-${ordinal}`,
+        name: 'ask',
+        state: 'done',
+        input: { questions: [{ id: 'q0', question: '选哪条路？', options: [{ label: '甲' }] }] },
+      },
+      { kind: 'text', frameId: `t${ordinal}.after`, role: 'assistant', text: '好，就按这个来。' },
+    ])
+
+  const answered = (toolCallId: string): TranscriptInteraction => ({
+    interactionId: `d-${toolCallId}`,
+    interactionKind: 'question',
+    state: 'answered',
+    toolCallId,
+    request: {
+      questions: [
+        {
+          id: 'q0',
+          question: '选哪条路？',
+          options: [{ id: 'o0', label: '甲' }],
+          multiSelect: false,
+          allowOther: false,
+        },
+      ],
+    },
+    response: { answers: { q0: { kind: 'single', optionId: 'o0' } } },
+  })
+
+  const withInteraction = (
+    interaction: TranscriptInteraction,
+    items = [askTurn(0)],
+  ): AgentTranscriptSnapshot => ({ ...snapshotOf(items), interactions: [interaction] })
+
+  /*
+   * 位置：答完的题跟在发起它的那次 ask 调用后面，而不是整条时间线的最底下。
+   * 缺陷的样子是它恒在末尾（tailOf 无条件追加），而它下面还有 agent 正文。
+   */
+  test('a settled question follows the call that asked it, not the timeline tail', () => {
+    const state = projectTranscript(withInteraction(answered('call-0')))
+    const items = [...state.sealed.flatMap((page) => page.items), ...state.active.items]
+
+    expect(items.map((item) => item.type)).toEqual([
+      'user_message',
+      'tool_call',
+      'question',
+      'agent_text',
+    ])
+  })
+
+  /* 答案：人答了什么必须真的画出来。缺陷的样子是题面在、答案那行永远缺席。 */
+  test('the answer the person gave reaches the record', () => {
+    const state = projectTranscript(withInteraction(answered('call-0')))
+    const record = [...state.sealed.flatMap((page) => page.items), ...state.active.items].find(
+      (item) => item.type === 'question',
+    )
+
+    expect(record?.type === 'question' && record.resolution?.outcome).toBe('answered')
+    expect(record?.type === 'question' && record.resolution?.answers['q0']).toEqual({
+      kind: 'single',
+      optionId: 'o0',
+    })
+  })
+
+  /* 回放那条路存的是 `[{questionId, answer}]`，与现场那份形状不同，一样要读得出来。 */
+  test('the ledger shape of an answer reads back too', () => {
+    const state = projectTranscript(
+      withInteraction({
+        ...answered('call-0'),
+        response: {
+          answers: [{ questionId: 'q0', answer: { kind: 'single', optionId: 'o0' } }],
+        },
+      }),
+    )
+    const record = [...state.sealed.flatMap((page) => page.items), ...state.active.items].find(
+      (item) => item.type === 'question',
+    )
+
+    expect(record?.type === 'question' && record.resolution?.answers['q0']).toEqual({
+      kind: 'single',
+      optionId: 'o0',
+    })
+  })
+
+  /* 待答的仍然挂尾部：输入框那张卡从 active.items 里找它（timeline-queries 的 scanPending）。 */
+  test('a pending question stays in the active tail for the composer card', () => {
+    const state = projectTranscript(
+      withInteraction({ ...answered('call-0'), state: 'pending', response: undefined }),
+    )
+
+    expect(state.active.items.some((item) => item.type === 'question')).toBe(true)
+    expect(state.status).toBe('awaiting_question')
+  })
+
+  /* 号对不上任何一次调用（回放的历史会话只有工具名）时退回尾部，题仍然画得出来。 */
+  test('a question whose call cannot be found still shows up', () => {
+    const state = projectTranscript(withInteraction(answered('no-such-call')))
+    const items = [...state.sealed.flatMap((page) => page.items), ...state.active.items]
+
+    expect(items.filter((item) => item.type === 'question')).toHaveLength(1)
+  })
+
+  /* 页引用稳定：presentation 的 PREFIX/SEGMENTS 以页为键，每次换新引用会让缓存永远不命中。 */
+  test('an anchored page keeps its identity while nothing about it changes', () => {
+    const first = projectTranscript(withInteraction(answered('call-0')))
+    const again = projectTranscript(withInteraction(answered('call-0')))
+
+    expect(again.sealed[0]).toBe(first.sealed[0])
+  })
+})
 
 describe('projection identity across deltas', () => {
   test('unchanged turns keep their page and outline identity while one turn streams', () => {

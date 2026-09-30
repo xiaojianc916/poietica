@@ -10,7 +10,7 @@ import type { TranscriptPage, TranscriptPort, TranscriptSignal } from '../../age
 import { delegateKey } from '../../timeline/delegate-channel'
 import { projectTranscript, promptOutcome } from '../transcript-projector'
 import { TranscriptReplica } from '../transcript-replica'
-import { TranscriptStore } from '../transcript-store'
+import { canCancel, TranscriptStore } from '../transcript-store'
 
 function page(agentId = 'main', seq = 0, patch: Partial<TranscriptPage> = {}): TranscriptPage {
   return {
@@ -295,6 +295,76 @@ describe('TranscriptStore lifecycle', () => {
     expect(store.read('thread').submissions[0]?.text).toBe('hello')
     expect(store.runningSnapshot().has('thread')).toBe(false)
     expect(store.read('thread').timeline.active.items).toEqual([])
+    store.dispose()
+  })
+
+  /*
+   * 投递结果未确认：这一轮**可能还在跑**（回执正是没回来的那一样），所以停止键必须给得出来。
+   * 这正是截图里的场景：omp 的 ask 工具把一轮卡在等人答题上，prompt 的应答永远不回来。
+   */
+  test('an indeterminate delivery still offers a stop, because the turn may be running', async () => {
+    const port = sessionPort(transcriptPort(), {
+      prompt: () => Promise.reject(new Error('投递结果未确认，请先核对会话；不要重复发送。')),
+    })
+    const store = new TranscriptStore()
+    store.ensure(port)
+    await store.send({
+      port,
+      threadId: 'thread',
+      text: 'hello',
+      assets: [],
+      configuration: [],
+      skills: [],
+    })
+
+    const read = store.read('thread')
+    expect(read.operation.kind === 'failed' && read.operation.indeterminate).toBe(true)
+    /* 状态仍是「没成」，但那一轮可能还在跑 —— 停止键认的正是后者。 */
+    expect(canCancel(read)).toBe(true)
+
+    store.cancel('thread')
+    expect(store.read('thread').operation.kind).toBe('cancelling')
+    store.dispose()
+  })
+
+  /* 压根没出去的那一种：确定没有轮在跑，就不该给一颗按不出东西的停止键。 */
+  test('a submission that never left the machine offers no stop', async () => {
+    const store = new TranscriptStore()
+    await store.send({
+      port: undefined,
+      threadId: 'thread',
+      text: 'hello',
+      assets: [],
+      configuration: [],
+      skills: [],
+    })
+
+    const read = store.read('thread')
+    expect(read.operation.kind === 'failed' && read.operation.indeterminate).toBe(false)
+    expect(canCancel(read)).toBe(false)
+
+    store.cancel('thread')
+    expect(store.read('thread').operation.kind).toBe('failed')
+    store.dispose()
+  })
+
+  /* 重发之后上一句失败必须走：它没有号（promptId 是 null），`#publish` 永远收不走它。 */
+  test('a new submission clears the previous failure it supersedes', async () => {
+    const store = new TranscriptStore()
+    const base = {
+      port: undefined,
+      threadId: 'thread',
+      assets: [],
+      configuration: [],
+      skills: [],
+    }
+    await store.send({ ...base, text: 'first' })
+    expect(store.read('thread').submissions.map((entry) => entry.phase)).toEqual(['failed'])
+
+    await store.send({ ...base, text: 'second' })
+    const kept = store.read('thread').submissions
+    expect(kept.map((entry) => entry.text)).toEqual(['second'])
+    expect(kept.map((entry) => entry.phase)).toEqual(['failed'])
     store.dispose()
   })
 
