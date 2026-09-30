@@ -25,7 +25,6 @@ export type AppUpdateState =
   | { readonly phase: 'idle' }
   | { readonly phase: 'checking' }
   | { readonly phase: 'latest' }
-  | { readonly phase: 'available'; readonly version: string }
   | {
       readonly phase: 'downloading'
       readonly version: string
@@ -101,8 +100,9 @@ export class AppUpdateStore {
       const phase = this.#state.phase
 
       /*
-       * 下载中与已下好这两个相位钉着一个具体版本，问了也不能动它。available 必须继
-       * 续问：否则提示过一次就再也不刷新，发布换了版本这枚胶囊会一直指着旧的那个。
+       * 下载中与已下好这两个相位钉着一个具体版本，问了也不能动它：下载已经在跑，
+       * 待重启那一份字节就在盘上，重新问只会拿到同一个版本。idle 与 latest 继续问，
+       * 否则发布换了版本这边永远不知道。
        */
       if (!active || phase === 'checking' || phase === 'downloading' || phase === 'ready') {
         return
@@ -124,7 +124,7 @@ export class AppUpdateStore {
         return
       }
 
-      this.#commit({ phase: 'available', version: release.version })
+      this.#download(release.version)
     }
 
     const first = globalThis.setTimeout(() => {
@@ -185,7 +185,7 @@ export class AppUpdateStore {
           return
         }
 
-        this.#commit({ phase: 'available', version: release.version })
+        this.#download(release.version)
       },
       (cause: unknown) => {
         if (!this.#disposed) {
@@ -196,18 +196,16 @@ export class AppUpdateStore {
     )
   }
 
-  /** 开始下载。相位本身就是那道闸：只有 available 能起步。 */
-  download = (): void => {
-    if (this.#disposed) {
+  /**
+   * 发现新版本就开始下载：这一步不要人按。
+   *
+   * 下载是幂等的（原生侧按版本对齐暂存态），所以后台检查与手动检查共用这一条路，
+   * 不另立第二个「谁先发现」的判据。
+   */
+  #download(version: string): void {
+    if (this.#disposed || this.#state.phase === 'downloading') {
       return
     }
-    const current = this.#state
-
-    if (current.phase !== 'available') {
-      return
-    }
-
-    const { version } = current
 
     this.#commit({ phase: 'downloading', version, percent: null })
 
@@ -224,8 +222,8 @@ export class AppUpdateStore {
             this.#onFailure('download-update', cause)
           }
 
-          /* 退回可点状态：这枚胶囊本身就是重试入口，下一轮检查会纠正版本。 */
-          this.#commit({ phase: 'available', version })
+          /* 退回可重试的状态：下一轮检查会重新发现并再下一遍，不必留一个卡住的相位。 */
+          this.#commit(IDLE)
         },
       )
   }

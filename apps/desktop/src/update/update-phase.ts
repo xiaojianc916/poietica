@@ -1,14 +1,17 @@
 import type { AppUpdateState, AppUpdateStore } from '@poietica/update'
 
+/*
+ * 发现新版本**自动下载**，只有「装上并重启」这一步要人按。
+ *
+ * 所以这里的 advance 只剩两条路：ready 就走安装，其余一律重新检查。下载由 store 在
+ * 发现新版本时自己起步，不经过这里 —— 没有任何一处调用方需要「请求下载」这个动作。
+ */
 export function advance(state: AppUpdateState, store: AppUpdateStore): void {
-  if (state.phase === 'available') {
-    store.download()
-    return
-  }
   if (state.phase === 'ready') {
     store.relaunch()
     return
   }
+
   store.check()
 }
 
@@ -24,8 +27,6 @@ export function hint(state: AppUpdateState): string {
       return '正在检查更新'
     case 'latest':
       return '已是最新版本'
-    case 'available':
-      return `更新 ${state.version} 可用`
     case 'downloading':
       return state.percent === null
         ? `正在下载 ${state.version}`
@@ -35,18 +36,54 @@ export function hint(state: AppUpdateState): string {
   }
 }
 
-export function note(state: AppUpdateState): string | null {
+export interface UpdateNotice {
+  /**
+   * 同一条结果只报一次。
+   *
+   * **下载中必须逐版本稳定**：进度每跳一个百分点都换键的话，横幅会被重新挂载、动画
+   * 从头开始 —— 一条一直停留的横幅不需要这种「重来一次」。
+   */
+  readonly key: string
+  /** 已经定稿的一句话。 */
+  readonly text: string
+  /** 接着句子往下说的动作名。下载中与「已是最新」都没有下一步，如实缺席。 */
+  readonly action?: string
+  /** 绿勾：这件事有结论了。下载中不在此列 —— 它还没结束。 */
+  readonly tone?: 'success'
+  /** 停在那儿不自己走：下载中与待重启都是「等人或等事」，淡出会把该按的按钮一起带走。 */
+  readonly persistent?: boolean
+}
+
+/**
+ * 更新这件事此刻该说的一句话；没有话可说的相位交回 null。
+ *
+ * `idle` / `checking` 还没有结果可说。其余三个相位**都上屏**，而且下载中与待重启是
+ * 常驻的：进度条淡出等于把人晾在「不知道下到哪了」，而待重启那一句带着唯一的安装
+ * 入口，它一走人就没法装了。
+ */
+export function updateNotice(state: AppUpdateState): UpdateNotice | null {
   switch (state.phase) {
+    case 'latest':
+      return { key: 'latest', text: '已是最新版本', tone: 'success' }
+    case 'downloading':
+      return {
+        key: `downloading:${state.version}`,
+        text:
+          state.percent === null
+            ? `正在下载 ${state.version}…`
+            : `正在下载 ${state.version} · ${String(state.percent)}%`,
+        persistent: true,
+      }
+    case 'ready':
+      return {
+        key: `ready:${state.version}`,
+        text: `${state.version} 已下载，可`,
+        action: '重启安装',
+        tone: 'success',
+        persistent: true,
+      }
     case 'idle':
     case 'checking':
       return null
-    case 'latest':
-      return '无更新'
-    case 'available':
-      return '发现更新项'
-    case 'downloading':
-      return state.percent === null ? '下载中' : `${state.percent}%`
-    case 'ready':
-      return '待重启'
   }
 }

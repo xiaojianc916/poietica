@@ -12,7 +12,7 @@ import {
   registerApplicationCommands,
 } from '../shell/commands/app-commands'
 import { CommandPalette, formatKeybinding, useCommandKeybindings } from '../shell/commands/index'
-import { UpdateCapsule } from '../update/update-capsule'
+import { UpdateBanner } from '../update/update-banner'
 import { UpdateRow } from '../update/update-row'
 import { useWindowChrome } from '../window/use-window-chrome'
 import type { ApplicationRuntime } from './runtime-contract'
@@ -162,7 +162,7 @@ export function AppShell({ runtime }: AppShellProps) {
             registry={runtime.commands}
           />
 
-          <UpdateCapsule store={updates} />
+          <UpdateBanner store={updates} />
 
           <NoticeRegion store={runtime.notices} />
         </ThreadsProvider>

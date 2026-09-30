@@ -2,7 +2,7 @@ import { DropdownMenuItem } from '@poietica/design-system'
 import type { AppUpdateStore } from '@poietica/update'
 import { Download, LoaderCircle } from 'lucide-react'
 import { useSyncExternalStore } from 'react'
-import { advance, hint, isBusy, note } from './update-phase'
+import { advance, hint, isBusy } from './update-phase'
 
 interface UpdateRowProps {
   readonly store: AppUpdateStore
@@ -10,12 +10,11 @@ interface UpdateRowProps {
 /**
  * 帮助菜单里那一行「检查更新」。
  *
- * 触发与回话在同一行上，所以这一行不关菜单；常驻胶囊读同一份相位，两处不会
- * 各说各话。
+ * 这一行只负责**发起**：结果由 UpdateBanner 报（菜单一关就卸载，结果留在这里等于没报）。
+ * 触发与回话因此不在一处，但状态是同一份，两处不会各说各话。
  */
 export function UpdateRow({ store }: UpdateRowProps) {
   const state = useSyncExternalStore(store.subscribe, store.getSnapshot, store.getSnapshot)
-  const said = note(state)
   return (
     <DropdownMenuItem
       aria-label={hint(state)}
@@ -33,11 +32,6 @@ export function UpdateRow({ store }: UpdateRowProps) {
           className="ml-auto size-3.5 animate-spin text-muted-foreground"
         />
       ) : null}
-      {said === null ? null : (
-        <span className="ml-auto text-muted-foreground text-xs" role="status">
-          {said}
-        </span>
-      )}
     </DropdownMenuItem>
   )
 }
