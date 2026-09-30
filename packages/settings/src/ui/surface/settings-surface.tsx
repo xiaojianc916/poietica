@@ -11,17 +11,16 @@ import { McpSettings } from '@poietica/extension/ui'
 import {
   Archive,
   ArrowLeft,
+  Brain,
   Settings as CogFour,
   Cpu,
   Info,
   Keyboard,
-  Library,
   Monitor,
   PackageOpen,
   Plug,
-  ShieldCheck,
-  Sparkles,
   Sun,
+  Wand,
   Zap,
 } from 'lucide-react'
 import {
@@ -63,8 +62,8 @@ import {
 import './settings-surface.css'
 
 /*
- * 设置界面外壳：分类导航与内容区两个格子、context 供应，外加通用/外观/隐私/
- * 关于四个内联面板，首屏即带分类。不拆：标签、图标与内容收在 SECTIONS 一张
+ * 设置界面外壳：分类导航与内容区两个格子、context 供应，外加通用/外观/
+ * 关于三个内联面板，首屏即带分类。不拆：标签、图标与内容收在 SECTIONS 一张
  * 表里缺列即编译错误，内联面板都是 SettingsPanelProps 的直接排列。
  */
 
@@ -80,7 +79,6 @@ export type SettingsSection =
   | 'keymap'
   | 'computer-use'
   | 'usage'
-  | 'privacy'
   | 'about'
 
 type GlyphComponent = ComponentType<{
@@ -180,14 +178,14 @@ const SECTIONS: Record<SettingsSection, SettingsSectionDescriptor> = {
   /* 记忆与个性化这两页画的是同一份目录里归属各自的那一段（entry.section），共用同一个 store。 */
   memory: {
     label: '记忆',
-    icon: Library,
+    icon: Brain,
     render: ({ agentSettingsCatalog }) => (
       <AgentSettingsSectionPage section="memory" store={agentSettingsCatalog} />
     ),
   },
   persona: {
     label: '个性化',
-    icon: Sparkles,
+    icon: Wand,
     render: ({ agentSettingsCatalog }) => (
       <AgentSettingsSectionPage section="persona" store={agentSettingsCatalog} />
     ),
@@ -215,18 +213,16 @@ const SECTIONS: Record<SettingsSection, SettingsSectionDescriptor> = {
       <UsageSettings readTokenDays={readTokenDays} threads={threads} />
     ),
   },
-  privacy: {
-    label: '隐私',
-    icon: ShieldCheck,
-    render: ({ controller, settings }) => (
-      <PrivacySettings controller={controller} settings={settings} />
-    ),
-  },
   about: {
     label: '关于',
     icon: Info,
-    render: ({ appVersion, dataDirectory }) => (
-      <AboutSettings readDataDirectory={dataDirectory} readVersion={appVersion} />
+    render: ({ appVersion, controller, dataDirectory, settings }) => (
+      <AboutSettings
+        controller={controller}
+        readDataDirectory={dataDirectory}
+        readVersion={appVersion}
+        settings={settings}
+      />
     ),
   },
 }
@@ -238,7 +234,7 @@ const SECTIONS: Record<SettingsSection, SettingsSectionDescriptor> = {
 const SECTION_GROUPS: readonly (readonly SettingsSection[])[] = [
   ['general', 'appearance'],
   ['models', 'memory', 'persona', 'skills', 'mcp', 'keymap', 'computer-use', 'usage', 'archived'],
-  ['privacy', 'about'],
+  ['about'],
 ]
 
 /*
@@ -754,60 +750,21 @@ const AppearanceSettings = memo(function AppearanceSettings({
   )
 })
 
-const PrivacySettings = memo(function PrivacySettings({
-  settings,
-  controller,
-}: SettingsPanelProps) {
-  return (
-    <SettingsPage>
-      <SettingsGroup title="诊断与更新">
-        <ToggleRow
-          checked={settings.privacy.telemetry}
-          description="上报不含文档内容的功能使用统计"
-          label="匿名使用数据"
-          onChange={(checked) => {
-            controller.update((current) => ({
-              ...current,
-              privacy: { ...current.privacy, telemetry: checked },
-            }))
-          }}
-        />
-        <ToggleRow
-          checked={settings.privacy.crashReporting}
-          description="崩溃时上报堆栈以便定位问题"
-          label="崩溃报告"
-          onChange={(checked) => {
-            controller.update((current) => ({
-              ...current,
-              privacy: { ...current.privacy, crashReporting: checked },
-            }))
-          }}
-        />
-
-        <ToggleRow
-          checked={settings.privacy.updateCheck}
-          description="启动时向更新服务查询新版本"
-          label="自动检查更新"
-          onChange={(checked) => {
-            controller.update((current) => ({
-              ...current,
-              privacy: { ...current.privacy, updateCheck: checked },
-            }))
-          }}
-        />
-      </SettingsGroup>
-    </SettingsPage>
-  )
-})
-
-interface AboutSettingsProps {
+/*
+ * 「关于」= 这台软件是什么 + 它怎么对待你。诊断与更新那三格住在这里：它们说的是
+ * 「这软件在背后做什么」，与版本号、数据目录同属一件事，原先独立成「隐私」一页时
+ * 整页只有三个开关。
+ */
+interface AboutSettingsProps extends SettingsPanelProps {
   readonly readDataDirectory: () => Promise<string>
   readonly readVersion: () => Promise<string>
 }
 
 const AboutSettings = memo(function AboutSettings({
+  controller,
   readDataDirectory,
   readVersion,
+  settings,
 }: AboutSettingsProps) {
   const [version, setVersion] = useState<string>()
   const [directory, setDirectory] = useState<string>()
@@ -903,6 +860,44 @@ const AboutSettings = memo(function AboutSettings({
           <dd className="settings-about-path">{directory ?? '…'}</dd>
         </div>
       </dl>
+
+      <SettingsGroup title="诊断与更新">
+        <ToggleRow
+          checked={settings.privacy.telemetry}
+          description="上报不含文档内容的功能使用统计"
+          label="匿名使用数据"
+          onChange={(checked) => {
+            controller.update((current) => ({
+              ...current,
+              privacy: { ...current.privacy, telemetry: checked },
+            }))
+          }}
+        />
+
+        <ToggleRow
+          checked={settings.privacy.crashReporting}
+          description="崩溃时上报堆栈以便定位问题"
+          label="崩溃报告"
+          onChange={(checked) => {
+            controller.update((current) => ({
+              ...current,
+              privacy: { ...current.privacy, crashReporting: checked },
+            }))
+          }}
+        />
+
+        <ToggleRow
+          checked={settings.privacy.updateCheck}
+          description="启动时向更新服务查询新版本"
+          label="自动检查更新"
+          onChange={(checked) => {
+            controller.update((current) => ({
+              ...current,
+              privacy: { ...current.privacy, updateCheck: checked },
+            }))
+          }}
+        />
+      </SettingsGroup>
     </SettingsPage>
   )
 })

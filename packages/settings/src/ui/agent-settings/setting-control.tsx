@@ -64,14 +64,16 @@ export function SettingControl({ entry, saving, onChange }: SettingControlProps)
   }
 }
 
-/** 选项表：agent 给的 `options` 优先，没有就退回 `enumValues`（只有取值没有说法）。 */
+/*
+ * 选项表：agent 给的 `options` 优先，没有就退回 `enumValues`（只有取值没有说法）。
+ *
+ * 只画 `label`：上游那一格 `description` 是**读设置的人**才需要的长句，塞进下拉每一行
+ * 会把清单撑成一堆半截话（面板宽 220px，触发器还要截断）。要看那一格的说明，行的
+ * 说明就在控件左边 —— 选项这一层只说「有哪几档」。
+ */
 function optionTable(entry: AgentSettingEntry): readonly SelectOption[] | undefined {
   if (entry.options !== undefined && entry.options.length > 0) {
-    return entry.options.map((option) => ({
-      value: option.value,
-      label:
-        option.description === undefined ? option.label : `${option.label} — ${option.description}`,
-    }))
+    return entry.options.map((option) => ({ value: option.value, label: option.label }))
   }
 
   if (entry.enumValues !== undefined && entry.enumValues.length > 0) {

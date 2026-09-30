@@ -501,6 +501,79 @@ export function hasSettingTranslation(path: string): boolean {
   return SETTING_LABELS[path as SettingPath] !== undefined
 }
 
+/*
+ * 选项的中文名。
+ *
+ * 键是 **path 再 value 两层**：同一个取值在不同格子上说的是不同的话（`none` 在
+ * `personality` 是「不使用」、在别处是「关闭」，`auto` 在 `defaultThinkingLevel` 是
+ * 档位名、在别处是「自动」），只按 value 索引会把两格合成一句话。与另外三张表同一条
+ * 安全属性：查不到就原样交出上游的英文 label。
+ *
+ * 只列**此刻画得出来的**：产品只有记忆与个性化两页画这份目录，别的格子翻了没人看。
+ * 思考档位名（`xhigh` / `max`）刻意不译 —— 它是 agent 报的原文，输入框那一排也照原样
+ * 画（packages/conversation 的 auxiliary-composer.tsx），这里译了同一件事就有两个名字。
+ */
+const OPTION_LABELS: Readonly<Record<string, Readonly<Record<string, string>>>> = {
+  /* ── 记忆页 ─────────────────────────────────────────────────────────────── */
+  /* 取值顺序与这一格自己的中文说明逐字对齐：说明里列的就是这几档。 */
+  'memory.backend': {
+    off: '关闭',
+    local: '本地摘要流水线',
+    mnemopi: 'Mnemopi SQLite',
+    hindsight: 'Hindsight 远程记忆',
+    sharpshooter: 'Sharpshooter',
+  },
+  'mnemopi.scoping': {
+    global: '全局',
+    'per-project': '按项目',
+    'per-project-tagged': '按项目（打标签）',
+  },
+  'mnemopi.embeddingVariant': {
+    en: '英文（bge-base-en-v1.5）',
+    multilingual: '多语言（multilingual-e5-large）',
+  },
+  'mnemopi.llmMode': {
+    none: '不使用',
+    smol: '在线微型模型',
+    remote: '远程',
+  },
+  'hindsight.scoping': {
+    global: '全局',
+    'per-project': '按项目',
+    'per-project-tagged': '按项目（打标签）',
+  },
+  'hindsight.retainMode': {
+    'full-session': '整段会话',
+    'last-turn': '最近一轮',
+  },
+
+  /* ── 个性化页 ───────────────────────────────────────────────────────────── */
+  personality: {
+    default: '默认',
+    friendly: '友好',
+    pragmatic: '务实',
+    none: '不使用',
+  },
+  inlineToolDescriptors: {
+    auto: '自动',
+    on: '总是内联',
+    off: '关闭',
+  },
+  modelRoleStorage: {
+    global: '全局',
+    project: '按项目',
+  },
+}
+
+/**
+ * 某一格某个取值的中文名；没有译文时原样交出上游的 label。
+ *
+ * `value` 是写回 agent 的那一格，**绝不参与翻译**：这里换的只是给人看的那一列。
+ */
+export function optionLabelOf(path: string, value: string, fallback: string): string {
+  return OPTION_LABELS[path]?.[value] ?? fallback
+}
+
 /**
  * 某一格的英文原文，给界面排在中文旁边当次要文字用。
  *
@@ -663,9 +736,14 @@ export function ownedElsewhereOf(path: string): boolean {
  * 「个性化」那一页的归属。
  *
  * 判据只能按 path 名单，**因为上游没有这一栏**：omp 的 tab 是它自己的导航结构，而
- * 「个性化」是产品的一个切面 —— personality（人设）与 temperature / topP 那几格
- * （风格）散在 model 栏的 Prompt / Thinking / Sampling 三个 group 里。拿 group 当判据
- * 会把整节搬走，而那些节里住着别的格子（Prompt 与 Sampling 各自都只有一部分属于这里）。
+ * 「个性化」是产品的一个切面 —— personality（人设）与思考那几格散在 model 栏的
+ * Prompt / Thinking 两个 group 里。拿 group 当判据会把整节搬走，而那些节里住着别的格子。
+ *
+ * **采样那一组刻意在名单外**：`temperature` / `topP` / `topK` / `minP` /
+ * `presencePenalty` / `repetitionPenalty` / `textVerbosity` 是逐供应商的调参旋钮，
+ * 产品不摆这个界面。它们**不是**「改了没效果」—— omp 的 sdk.ts 构造 Agent 时逐个读
+ * 它们（`settings.get("temperature") >= 0 ? … : undefined`），值照旧生效；只是没有
+ * 任何一页画它们的行（名单外即没有归属）。
  *
  * 名单短、每条指得到 omp 源码里的读取点，理由写在行上。
  */
@@ -686,14 +764,6 @@ const PERSONA: readonly string[] = [
   'externalThinking',
   'providers.autoThinkingMaxEffort',
   'defaultThinkingLevel',
-  /* 采样：这一组整组都是「模型怎么写」的风格旋钮。 */
-  'temperature',
-  'topP',
-  'topK',
-  'minP',
-  'presencePenalty',
-  'repetitionPenalty',
-  'textVerbosity',
 ]
 
 /**

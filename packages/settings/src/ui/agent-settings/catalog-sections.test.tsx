@@ -56,7 +56,7 @@ function mixedCatalog(): AgentSettingsCatalog {
       }),
       entry('mnemopi.model', { label: 'Mnemopi model', type: 'string', value: 'x' }),
       entry('personality', { label: 'Personality', type: 'string', value: 'default' }),
-      entry('temperature', { label: 'Temperature', type: 'number', value: 0.7 }),
+      entry('externalThinking', { label: 'External thinking', type: 'boolean', value: true }),
     ],
   }
 }
@@ -78,7 +78,7 @@ function separatedCatalog(): AgentSettingsCatalog {
     settings: catalog.settings.map((item) =>
       item.path.startsWith('memory.') || item.path.startsWith('mnemopi.')
         ? { ...item, section: 'memory' as const }
-        : item.path === 'personality' || item.path === 'temperature'
+        : item.path === 'personality' || item.path === 'externalThinking'
           ? { ...item, section: 'persona' as const }
           : item,
     ),
@@ -110,7 +110,7 @@ describe('记忆页与个性化页', () => {
     const markup = await render(separatedCatalog(), 'persona')
 
     expect(markup).toContain('Personality')
-    expect(markup).toContain('Temperature')
+    expect(markup).toContain('External thinking')
     expect(markup).not.toContain('Memory backend')
     expect(markup).not.toContain('Plain tool')
   })
@@ -123,7 +123,36 @@ describe('记忆页与个性化页', () => {
   })
 
   /*
-   * 空态是防御性的：上游此刻给这两栏 30 / 17 格，正常取不到空。这里造一份没有这一类的
+   * 选项那一行只画名字，不画上游那句说明。
+   *
+   * 触发器与弹层读的是同一份选项表（design-system 的 Select 只有一个产地），所以拿
+   * 选中的那一项来钉：说明一旦被拼进 label，它就会出现在触发器上。
+   */
+  it('选项行只画名字，不把说明拼进去', async () => {
+    const catalog: AgentSettingsCatalog = {
+      settings: [
+        entry('memory.backend', {
+          label: '记忆后端',
+          section: 'memory',
+          type: 'enum',
+          value: 'hindsight',
+          options: [
+            { value: 'hindsight', label: 'Hindsight 远程记忆', description: '一句很长的上游说明' },
+          ],
+        }),
+      ],
+    }
+
+    const markup = await render(catalog, 'memory')
+
+    expect(markup).toContain('Hindsight 远程记忆')
+    expect(markup).not.toContain('一句很长的上游说明')
+    /* 值那一格不进画面：它是写回 agent 的标识，不是给人看的字。 */
+    expect(markup).not.toContain('hindsight</span>')
+  })
+
+  /*
+   * 空态是防御性的：上游此刻给这两栏 30 / 10 格，正常取不到空。这里造一份没有这一类的
    * 目录来证明它确实有话可说 —— 一片空白会让人以为自己的设置丢了。
    */
   it('一条都没有时画空态，不是一片空白', async () => {

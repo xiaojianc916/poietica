@@ -146,8 +146,8 @@ test('the persona page takes the settings that shape how the model writes', () =
   const sectionOf = (path: string) => entries.find((entry) => entry.path === path)?.section
 
   /*
-   * 上游没有「个性化」这一栏，这些格子散在 model 栏的 Prompt / Thinking /
-   * Sampling 三个 group 里，所以判据只能是 path 名单。
+   * 上游没有「个性化」这一栏，这些格子散在 model 栏的 Prompt / Thinking 两个
+   * group 里，所以判据只能是 path 名单。
    */
   const persona = [
     'personality',
@@ -161,6 +161,21 @@ test('the persona page takes the settings that shape how the model writes', () =
     'providers.autoThinkingMaxEffort',
     /* 已被输入框那一排的档位选择器管着（owned），但人设归属仍是事实。 */
     'defaultThinkingLevel',
+  ]
+
+  for (const path of persona) {
+    expect(sectionOf(path)).toBe('persona')
+  }
+
+  /* 名单就是全部：一格不多一格不少，`tier.*` 与采样那一组都不在其中。 */
+  const actual = entries.filter((entry) => entry.section === 'persona').map((entry) => entry.path)
+  expect(actual.sort()).toEqual([...persona].sort())
+
+  /*
+   * 采样那一组没有归属：产品不摆这套逐供应商调参的旋钮。它们仍在目录里（值照报，
+   * omp 的 sdk.ts 逐个读它们），只是没有任何一页画它们的行。
+   */
+  for (const path of [
     'temperature',
     'topP',
     'topK',
@@ -168,15 +183,9 @@ test('the persona page takes the settings that shape how the model writes', () =
     'presencePenalty',
     'repetitionPenalty',
     'textVerbosity',
-  ]
-
-  for (const path of persona) {
-    expect(sectionOf(path)).toBe('persona')
+  ]) {
+    expect(sectionOf(path)).toBeUndefined()
   }
-
-  /* 名单就是全部：一格不多一格不少，`tier.*` 与同节的邻居都不在其中。 */
-  const actual = entries.filter((entry) => entry.section === 'persona').map((entry) => entry.path)
-  expect(actual.sort()).toEqual([...persona].sort())
 
   /*
    * `defaultThinkingLevel` 是唯一同时命中两个判据的格子：section 与 owned 正交，
@@ -208,12 +217,12 @@ test('the two sections are mutually exclusive and most settings have none', () =
 
   const owned = entries.filter((entry) => entry.section !== undefined)
   /*
-   * 剥离出来的是 47 格（记忆 30 + 个性化 17，18.3.0 实测）。条数钉住是有意的：
+   * 剥离出来的是 40 格（记忆 30 + 个性化 10，18.3.0 实测）。条数钉住是有意的：
    * 判据一边认 tab、一边认 path，条数变了就说明上游动了这两处结构，值得人看一眼。
    */
-  expect(owned.length).toBe(47)
+  expect(owned.length).toBe(40)
   expect(entries.filter((entry) => entry.section === 'memory')).toHaveLength(30)
-  expect(entries.filter((entry) => entry.section === 'persona')).toHaveLength(17)
+  expect(entries.filter((entry) => entry.section === 'persona')).toHaveLength(10)
   /* 绝大多数格子不属于任何剥离页：归属是例外，不是默认。 */
   expect(owned.length).toBeLessThan(entries.length / 2)
 
@@ -222,5 +231,83 @@ test('the two sections are mutually exclusive and most settings have none', () =
     expect(
       memorySettingOf(getUi(entry.path as SettingPath)?.tab ?? '') && personaSettingOf(entry.path),
     ).toBe(false)
+  }
+})
+
+/*
+ * 选项名那一列的中文。
+ *
+ * 判据是「`label` 换中文、`value` 一格不动」：写回 agent 的是 `value`，它被译了就等于
+ * 把用户选的档写成了另一个 —— 屏幕上看不出哪里错了。所以两条一起钉。
+ */
+test('an option label is Chinese while its value stays the identifier we write back', () => {
+  const entries = readCatalog(reader())
+  const backend = entries.find((entry) => entry.path === 'memory.backend')
+
+  const values = (backend?.options ?? []).map((option) => option.value)
+  expect(values).toEqual(['off', 'local', 'hindsight', 'mnemopi', 'sharpshooter'])
+
+  /* 上游那几行英文一个都不许留在 label 上（认得出的格子逐档都有译文）。 */
+  expect((backend?.options ?? []).map((option) => option.label)).toEqual([
+    '关闭',
+    '本地摘要流水线',
+    'Hindsight 远程记忆',
+    'Mnemopi SQLite',
+    'Sharpshooter',
+  ])
+
+  const personality = entries.find((entry) => entry.path === 'personality')
+  expect((personality?.options ?? []).map((option) => option.label)).toEqual([
+    '默认',
+    '友好',
+    '务实',
+    '不使用',
+  ])
+  /* `value` 仍是上游的词：`none` 不许因为译成「不使用」就跟着变。 */
+  expect(personality?.options?.map((option) => option.value)).toContain('none')
+})
+
+/*
+ * 同一个取值在不同格子上是不同的话：只按 value 索引会把两格合成一句。
+ * 判例是 `none` —— `personality` 是「不使用」，`mnemopi.llmMode` 也是「不使用」，
+ * 而 `auto` 在 `inlineToolDescriptors` 是「自动」。
+ */
+test('an option translation is keyed by path, not by value alone', () => {
+  const entries = readCatalog(reader())
+  const labelOf = (path: string, value: string) =>
+    entries.find((entry) => entry.path === path)?.options?.find((o) => o.value === value)?.label
+
+  expect(labelOf('mnemopi.llmMode', 'none')).toBe('不使用')
+  expect(labelOf('inlineToolDescriptors', 'auto')).toBe('自动')
+  /* `none` 在别处也是「不使用」，但这两格的键是 path —— 换一格仍各取各的。 */
+  expect(labelOf('hindsight.retainMode', 'last-turn')).toBe('最近一轮')
+  expect(labelOf('hindsight.retainMode', 'full-session')).toBe('整段会话')
+})
+
+/*
+ * 这一层只翻「给人看的那一列」，其余一个字段都不许动 —— 尤其是 `value`。
+ * 用一个假 reader 造出与线上同形的输入，逐档比一遍。
+ */
+test('translating an option label leaves the value, order and count untouched', () => {
+  const entries = readCatalog(reader())
+  const translated = entries.filter((entry) => entry.options !== undefined)
+
+  /* 防空转：这一批确实有格子。 */
+  expect(translated.length).toBeGreaterThan(0)
+
+  for (const entry of translated) {
+    const upstream = getUi(entry.path as SettingPath)?.options
+
+    if (!Array.isArray(upstream)) {
+      continue
+    }
+
+    const mine = entry.options ?? []
+
+    expect(mine.length).toBe(upstream.length)
+
+    for (const [index, option] of mine.entries()) {
+      expect(option.value).toBe(upstream[index]?.value)
+    }
   }
 })

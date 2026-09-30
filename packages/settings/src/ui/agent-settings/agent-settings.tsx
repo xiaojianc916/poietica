@@ -10,7 +10,7 @@ import { CatalogRows, sectionEntries } from './catalog-rows'
  * 整页由 agent 自报的元数据生成：节、文案、控件与选项表都从目录里读，这里没有一行
  * per-setting 的表单代码（ADR 0018 决定四）。
  *
- * 空态是防御性的：上游此刻给这两栏 30 / 17 格，正常取不到空。留着它是因为「取到空」与
+ * 空态是防御性的：上游此刻给这两栏 30 / 10 格，正常取不到空。留着它是因为「取到空」与
  * 「目录还没读到」是两件事，合成一个加载态会让人以为设置丢了。
  */
 export function AgentSettingsSectionPage({

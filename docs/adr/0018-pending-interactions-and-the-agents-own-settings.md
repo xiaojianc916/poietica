@@ -10,6 +10,14 @@
 配置文件」那条命令（`agent_open_config_file`）。目录本身保留：记忆与个性化两页仍按
 `section` 各取一段（后果 11、13、14 不再成立，其余决定不变）。
 
+同日稍后，「个性化」页不再画采样那一组（`temperature` / `topP` / `topK` / `minP` /
+`presencePenalty` / `repetitionPenalty` / `textVerbosity`）。这几格从 `PERSONA` 名单
+移出后**不属于任何一页**，而产品已没有第二张画目录的页面，所以屏幕上再没有它们的行。
+**它们不是「改了没效果」**：omp 的 `sdk.ts` 构造 Agent 时逐个读它们
+（`settings.get("temperature") >= 0 ? … : undefined`），值照旧生效、照旧在目录里报。
+判据不是 `irrelevantSettingOf`（那一条说的是「我们这条边车进程跑不跑得到读取点」），
+而是「产品不摆这套逐供应商调参的旋钮」。
+
 ## 背景
 
 两条能力在 SDK 里都在，在我们这条线上却是断的：

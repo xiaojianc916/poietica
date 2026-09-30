@@ -30,6 +30,7 @@ import {
   groupLabelOf,
   irrelevantSettingOf,
   memorySettingOf,
+  optionLabelOf,
   ownedElsewhereOf,
   personaSettingOf,
   settingLabelOf,
@@ -96,7 +97,7 @@ function entryOf(
    */
   const secret = isCredential(path)
   const value = settings.get(path)
-  const options = optionsOf(ui.options)
+  const options = optionsOf(path, ui.options)
   // 有 options 就不再报 enumValues：两张表说的是同一件事，报两份会让界面挑花眼。
   const enumValues = options === undefined ? getEnumValues(path) : undefined
 
@@ -163,7 +164,7 @@ function isConfigured(value: unknown): boolean {
 }
 
 /** `ui.options` 可能是 `'runtime'`（选项要现算）；那种我们这一层不编，如实缺席。 */
-function optionsOf(options: unknown): readonly SettingOption[] | undefined {
+function optionsOf(path: string, options: unknown): readonly SettingOption[] | undefined {
   if (!Array.isArray(options)) {
     return undefined
   }
@@ -183,7 +184,11 @@ function optionsOf(options: unknown): readonly SettingOption[] | undefined {
 
     mapped.push({
       value: option.value,
-      label: option.label,
+      /*
+       * 选项名取中文；**`value` 一格不译** —— 写回 agent 的就是它，译了等于改错设置。
+       * 认不出的格子由 optionLabelOf 原样交回上游 label。
+       */
+      label: optionLabelOf(path, option.value, option.label),
       ...(typeof option.description === 'string' && option.description !== ''
         ? { description: option.description }
         : {}),

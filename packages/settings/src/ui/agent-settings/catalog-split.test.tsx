@@ -18,7 +18,7 @@ import { AgentSettingsSectionPage as SectionPage } from './agent-settings'
  */
 
 /*
- * 记忆与个性化那两段的样本路径，条数取实测（omp 18.3.0）：记忆 30 格、个性化 16 格。
+ * 记忆与个性化那两段的样本路径，条数取实测（omp 18.3.0）：记忆 30 格、个性化 10 格。
  *
  * 只求**条数与归属正确**，不求逐个路径名与上游一致 —— 那是桥那一侧分类测试的活。
  */
@@ -40,13 +40,8 @@ const PERSONA_PATHS = [
   'omitThinking',
   'externalThinking',
   'providers.autoThinkingMaxEffort',
-  'temperature',
-  'topP',
-  'topK',
-  'minP',
-  'presencePenalty',
-  'repetitionPenalty',
-  'textVerbosity',
+  /* 真身被输入框那一排的档位选择器认领（owned）；这一份合成目录不标 owned，所以它照样画。 */
+  'defaultThinkingLevel',
 ]
 
 /** 服务档位：与人设同组，但属于成本/路由，**不归个性化页**。 */
@@ -67,7 +62,7 @@ function entry(path: string, section?: 'memory' | 'persona'): AgentSettingEntry 
   }
 }
 
-/** 合成目录：30 记忆 + 16 个性化 + 几个无归属的（含 tier）。 */
+/** 合成目录：30 记忆 + 10 个性化 + 几个无归属的（含 tier）。 */
 function syntheticCatalog(): AgentSettingsCatalog {
   const settings: AgentSettingEntry[] = []
 
@@ -105,7 +100,7 @@ async function renderSynthetic(section: 'memory' | 'persona'): Promise<string> {
 }
 
 describe('两页的条数关系', () => {
-  it('记忆页画 30 行、个性化页画 16 行', async () => {
+  it('记忆页画 30 行、个性化页画 10 行', async () => {
     const memory = rows(await renderSynthetic('memory'))
     const persona = rows(await renderSynthetic('persona'))
 
