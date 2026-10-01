@@ -34,13 +34,14 @@ function throughIpcVoid(operation: () => Promise<unknown>): Promise<void> {
 }
 
 export const terminalHostPort: TerminalHostPort = {
-  watch: (root, onSignal) =>
-    events.terminalStreamed.listen((event) => {
-      if (event.payload.root !== root) {
+  /* 端口要的是 Promise（它按异步清理写）；订阅本身是同步的，所以立刻兑现。 */
+  watch: async (root, onSignal) =>
+    events.terminalStreamed((payload) => {
+      if (payload.root !== root) {
         return
       }
 
-      const chunk = event.payload.chunk
+      const chunk = payload.chunk
 
       onSignal(
         chunk.kind === 'output'

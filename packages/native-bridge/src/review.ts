@@ -51,10 +51,10 @@ export const reviewGateway: ReviewGateway = {
   async watch(root, onChange) {
     let canonical: string | null = null
     let pending = false
-    const unlisten = await events.gitWorkingTreeChanged.listen((event) => {
+    const stop = events.gitWorkingTreeChanged((payload) => {
       if (canonical === null) {
         pending = true
-      } else if (event.payload.root === canonical) {
+      } else if (payload.root === canonical) {
         onChange()
       }
     })
@@ -65,11 +65,11 @@ export const reviewGateway: ReviewGateway = {
         onChange()
       }
       return async () => {
-        unlisten()
+        stop()
         await throughIpc(() => commands.gitWatchStop(lease.token))
       }
     } catch (cause) {
-      unlisten()
+      stop()
       throw cause
     }
   },

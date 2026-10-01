@@ -25,7 +25,8 @@ const ROOT = path.resolve(import.meta.dir, '../..')
 const PACKAGE = path.join(ROOT, 'packages/agent-bridge')
 /* SDK 装在包自己的 node_modules 里（Bun 的工作区提升不跨 optional 依赖）。 */
 const SDK = path.join(PACKAGE, 'node_modules/@oh-my-pi/pi-coding-agent')
-const OUT = path.join(ROOT, 'apps/desktop/src-tauri/binaries')
+/* 落点与 electron-builder.yml 的 extraResources(from: resources/agent) 是同一个目录。 */
+const OUT = path.join(ROOT, 'apps/desktop/resources/agent')
 
 /*
  * 桥的 bundle 名。正本是 packages/agent-catalog/src/omp/descriptor.ts 的 `entry` ——

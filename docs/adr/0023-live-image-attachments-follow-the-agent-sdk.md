@@ -108,6 +108,6 @@ omp 官方的每个入口都是**自己把文件读出来再传 base64**，没�
 - 桥：`packages/agent-bridge/src/{projection.ts,bridge.ts}`
 - 线上与原生侧：`crates/agent-client/src/session/client.rs`（`PromptAttachment`）、
   `crates/agent-client/src/session/bridge.rs`
-- 暂存与发送：`apps/desktop/src-tauri/src/{asset.rs,conversation/attachment.rs}`
+- 暂存与发送：`apps/desktop/native/src/{asset.rs,conversation/attachment.rs}`
 
 （omp 行为锚定 **18.3.0**，上述路径以本仓 vendored 源码树为准，日期 2026-09-29。）

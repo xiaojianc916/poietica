@@ -7,18 +7,20 @@
 | 怎么跑起来 | 数据根 | 谁决定的 |
 | --- | --- | --- |
 | 安装版 | 安装时在目录页选定的那个目录，程序本体也在里面 | 用户 |
-| `cd apps/desktop && bun run tauri dev` | `%LOCALAPPDATA%\\com.poietica.Poietica.dev` | `tauri.dev.conf.json` 里的 identifier |
+| 开发构建 | `%APPDATA%\Poietica` | Electron 的 `app.getPath('userData')` |
 
-唯一的声明处是 `apps/desktop/src-tauri/src/paths.rs`。没有第二个地方算路径，
-渲染层也不算 —— 关于页面显示的那一行来自 `storage_data_directory`。
+唯一的声明处是 `apps/desktop/native/src/paths.rs`：数据根由主进程经
+`NativeHost.start` 的 `dataRoot` 交进来，那里只在它下面拼各处的名字。没有第二个
+地方算路径，渲染层也不算。
 
-安装版把数据放在程序旁边，是因为用户在安装器上只做一次选择，那一次选择就该同时
-回答「程序装到哪」和「数据存到哪」。应用侧的判据是可执行文件在哪，所以安装期不
-需要写下任何声明 —— 用户把整个目录搬到别的盘，数据跟着一起走。
+两条安装规则各有它的硬约束：
 
-开发构建不适用这条：exe 在 `target/debug` 下，往那里写用户数据会被 cargo clean
-抹掉。开发落点固定在平台目录，identifier 由 `tauri.dev.conf.json` 覆盖成带
-`.dev` 后缀的形式。
+- **NSIS 安装版**：数据仍放在安装目录旁边。用户在安装器上只做一次选择，那一次选择
+  就该同时回答「程序装到哪」和「数据存到哪」；应用侧的判据是可执行文件在哪，所以
+  安装期不需要写下任何声明，用户把整个目录搬到别的盘，数据跟着一起走。
+- **开发构建**：exe 在 `node_modules` 里，往那里写用户数据会被依赖重装抹掉，所以
+  落点交给 Electron 的 `app.getPath('userData')`（平台目录）。
+
 开发与安装版因此不会同时打开同一个 WAL 库，也不会互相覆盖各自的 settings.json
 与 agent 凭据。
 
@@ -32,7 +34,7 @@
 | `threads.sqlite3` | 对话索引 | 对话列表清空 |
 | `attachments/` | 附件字节，内容寻址 | 历史对话里的附件打不开 |
 | `agents/<id>/home/` | 各 agent 自己的配置，含 API 密钥 | 需要重新配置 provider |
-| `browser/profile/` | 内置浏览器面板的 WebView2 用户数据（Cookie、站点存储） | 面板里的网站登录态消失 |
+| `browser/profile/` | 内置浏览器面板的站点数据（Cookie、站点存储） | 面板里的网站登录态消失 |
 | `plugins/<id>/` | 装进来的插件的托管副本 | 那个插件的本体消失 |
 | `plugins/installed.json` | 装了哪些插件、开没开、哪些 MCP 服务器被关掉 | 插件全部回到未安装 |
 | `plugins/marketplace.json` | 上一次拉到的市场目录 | 下次打开市场时重新拉 |
@@ -59,8 +61,7 @@
 
 两处，都是平台或插件的硬约束，不是选择：
 
-- **窗口位置与尺寸**。`tauri-plugin-window-state` 的落点写死在
-  `${dataDir}/${bundleIdentifier}/`，插件没有开放这个参数。
-- **WebView2 的缓存**（`EBWebView`）。它归 WebView2 运行时管，位置由宿主进程的
-  用户数据目录决定。这不是我们的数据，是浏览器内核的缓存。内置浏览器面板不在此列：它的
-  profile 显式钉在数据根的 `browser/profile/` 下，见上表。
+- **窗口位置与尺寸**。它归主进程写，落点就是 Electron 的 userData 目录。
+- **Chromium 的缓存**。它归 Electron 管，位置由各 session 的 `partition` 决定，
+  不是我们的数据。内置浏览器面板不在此列：它用 `persist:poietica-browser`，与主界面
+  的 session 分开。

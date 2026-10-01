@@ -1,4 +1,4 @@
-//! 标签页模型的唯一事实来源；宿主接线（渲染与导航）归 apps/desktop/src-tauri/src/webview/bridge.rs，本 crate 须能无窗口跑完全部单测。
+//! 标签页模型的唯一事实来源；宿主接线（渲染与导航）归 apps/desktop/electron/browser/host.ts，本 crate 须能无窗口跑完全部单测。
 
 mod picker;
 

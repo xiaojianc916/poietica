@@ -28,6 +28,19 @@ const FACADE = /(?:^|\/)index\.[cm]?[jt]sx?$/
 
 const scoped = (specifier: string): boolean => specifier.startsWith('@poietica/')
 
+/** 源码里出现某个记号的文件。读一次、比对一次，不整解析。 */
+async function holding(root: string, roots: readonly string[], needle: RegExp): Promise<string[]> {
+  const hits: string[] = []
+
+  for (const file of await walkFiles(root, roots, () => true)) {
+    if (needle.test(await readFile(path.join(root, file), 'utf8'))) {
+      hits.push(file)
+    }
+  }
+
+  return hits
+}
+
 const packageOf = (specifier: string): string => specifier.split('/').slice(0, 2).join('/')
 
 function ownerOf(file: string, workspaces: readonly Workspace[]): Workspace | undefined {
@@ -417,19 +430,32 @@ export function relativeImportsStayHome(
 }
 
 /** 只有登记过的包允许直接用 Tauri 客户端 API。 */
-export function nativeAccessIsDeclared(
-  imports: readonly ImportRecord[],
+/**
+ * 宿主端口只对登记过的包开放。
+ *
+ * Electron 里宿主 API 不是一个 import —— 渲染进程拿不到 require，唯一的门是 preload
+ * 暴露的 window.poietica。所以判据读的是**源码里用了它没有**：
+ *
+ * - window.poietica：只有 HOST_AWARE_PACKAGES 里的包可以用；apps/desktop 是壳层，
+ *   不在分层表里，本来就有权用。
+ * - ipcRenderer / require('electron')：那是绕过那扇门，任何 TS 包都不许 —— 主进程与
+ *   preload 是成因方，由 nativeEventsUseGeneratedSurface 单独放行。
+ */
+const HOST_PORT_PATTERN = /\bwindow\.poietica\b/
+const HOST_BYPASS_PATTERN =
+  /\bipcRenderer\b|require\(\s*['"]electron['"]\s*\)|from\s+['"]electron['"]/
+
+export async function nativeAccessIsDeclared(
+  root: string,
+  files: readonly string[],
   workspaces: readonly Workspace[],
-): Violation[] {
+): Promise<Violation[]> {
   const violations: Violation[] = []
 
-  for (const record of imports) {
-    if (!record.specifier.startsWith('@tauri-apps/')) {
-      continue
-    }
+  for (const file of await holding(root, files, HOST_PORT_PATTERN)) {
+    const owner = ownerOf(file, workspaces)
 
-    const owner = ownerOf(record.file, workspaces)
-
+    /* 壳层不在分层表里：它就是装这扇门的人。 */
     if (owner === undefined || UNLAYERED_DIRECTORIES.includes(owner.directory)) {
       continue
     }
@@ -437,10 +463,23 @@ export function nativeAccessIsDeclared(
     if (!HOST_AWARE_PACKAGES.includes(owner.name)) {
       violations.push({
         policy: 'native-access-is-declared',
-        where: record.file,
-        detail: `${owner.name} 未登记为允许触碰原生层的包`,
+        where: file,
+        detail: `${owner.name} 未登记为允许触碰宿主端口的包`,
       })
     }
+  }
+
+  for (const file of await holding(root, files, HOST_BYPASS_PATTERN)) {
+    /* 主进程与 preload 是这扇门的成因方；生成物里那句是注释。 */
+    if (file.startsWith('apps/desktop/electron/') || file === CONTRACT_BINDINGS) {
+      continue
+    }
+
+    violations.push({
+      policy: 'native-access-is-declared',
+      where: file,
+      detail: '绕过了 preload 暴露的宿主端口',
+    })
   }
 
   return violations
@@ -618,7 +657,7 @@ export async function singleGeneratedContract(
   if (!exportBindings.includes(CONTRACT_BINDINGS)) {
     violations.push({
       policy: 'single-generated-contract',
-      where: 'apps/desktop/src-tauri/src/ipc/export_bindings.rs',
+      where: 'apps/desktop/native/src/lib.rs',
       detail: '导出路径没指向契约包',
     })
   }
@@ -647,13 +686,17 @@ export async function manifestScriptsResolve(
   const violations: Violation[] = []
 
   for (const manifest of manifests) {
+    /* 脚本的 cwd 是它自己那个包：路径相对 manifest 所在目录解析，不相对仓库根。
+       按根解析会把 `src/x.ts` 判成不存在 —— 那是判据自己认错地方。 */
+    const base = path.join(root, path.dirname(manifest.where))
+
     for (const [name, command] of Object.entries(manifest.scripts)) {
       for (const token of command.split(/\s+/)) {
         if (!token.includes('/') || !/\.(ts|tsx|mjs|js)$/.test(token)) {
           continue
         }
 
-        if (await present(path.join(root, token))) {
+        if (await present(path.join(base, token))) {
           continue
         }
 

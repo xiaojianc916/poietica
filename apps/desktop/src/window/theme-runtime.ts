@@ -16,9 +16,9 @@ interface ThemeRuntimeOptions {
   readonly report: (cause: unknown) => void
 }
 
-/* 挂到原生窗口上的背景面：与工作区外壳同色（--ui-chrome），拖拽或还原时露出的
+/* 挂到宿主窗口上的背景面：与工作区外壳同色（--ui-chrome），拖拽或还原时露出的
    就是它。正本是 packages/design-system/src/tokens/palette.css 的两格，
-   tauri.conf.json 与 index.html 各持一份投影，window-surface-policy 核对三处相等。 */
+   apps/desktop/electron/main.ts 与 index.html 各持一份投影。 */
 const WINDOW_SURFACES = {
   light: [243, 243, 243],
   dark: [32, 32, 32],

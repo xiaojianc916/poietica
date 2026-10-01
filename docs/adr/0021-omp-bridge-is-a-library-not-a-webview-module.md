@@ -54,7 +54,7 @@ Webview2/WebKit 没有 Node API、不能 `dlopen .node`、没有 `createRequire`
 5. **`agent-client` 的落账逻辑留在 crate 里。** 幂等、准入、投递不需要
    `AppHandle`/`State`/`Emitter`，按 AGENTS.md §3「凡是不需要 AppHandle/State/Emitter
    就能写出的逻辑，必须住在 crate 里并有自己的单测」，它属于 crate。曾有过把它搬进
-   `apps/desktop/src-tauri/src/conversation/` 的提案，不采纳。
+   `apps/desktop/native/src/conversation/` 的提案，不采纳。
 
 6. **`pi-natives` 的 `.node` 随包发到运行时同目录。** 编出来的 exe 拿不到包内的
    `.node`（`embeddedAddon` 为 null + 加载器对编译态关闭 `node_modules` 那条路），

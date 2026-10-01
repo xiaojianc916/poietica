@@ -1,16 +1,18 @@
+import { hostBridge } from '../host-bridge'
+
 /*
- * 平台路径事实的唯一出口：主目录与文件名都问官方能力，不手写 %USERPROFILE%
- * / $HOME 猜测 —— 各自的边界情况是平台已经解决的问题。
+ * 平台路径事实的唯一出口。渲染层没有 fs 也没有 path，所以主目录问宿主，
+ * 文件名自己按分隔符切 —— 切最后一段不需要平台知识。
  */
 
-export async function homeDirectory(): Promise<string> {
-  const { homeDir } = await import('@tauri-apps/api/path')
-
-  return homeDir()
+/** 用户主目录。无项目工作区没有指定根时退到它。 */
+export function homeDirectory(): Promise<string> {
+  return hostBridge().host.homeDirectory()
 }
 
-export async function basename(path: string): Promise<string> {
-  const { basename } = await import('@tauri-apps/api/path')
+/** 路径最后一段。输入里没有分隔符时就是它自己。 */
+export function basename(path: string): string {
+  const separator = Math.max(path.lastIndexOf('/'), path.lastIndexOf('\\'))
 
-  return basename(path)
+  return separator === -1 ? path : path.slice(separator + 1)
 }

@@ -1,6 +1,5 @@
 import type { BrowserHostPort, BrowserViewportBounds } from '@poietica/browser'
-import type { ResolvedTheme } from '@poietica/contract'
-import { commands, events } from '@poietica/contract'
+import type { BrowserElementPicked, BrowserState, ResolvedTheme } from '@poietica/contract/browser'
 import { throughIpc } from './ipc-error'
 
 export type { BrowserViewportBounds } from '@poietica/browser'
@@ -11,13 +10,19 @@ export type {
   BrowserState,
   BrowserTab,
   ResolvedTheme,
-} from '@poietica/contract'
+} from '@poietica/contract/browser'
 
-import type { BrowserElementPicked, BrowserState } from '@poietica/contract'
+/*
+ * 内置浏览器：命令经 window.poietica.invoke 直达主进程自建的命令表（browser_state、
+ * browser_open_tab…），与原生命令走同一条通道 —— preload 不多开一层 host.browser，
+ * 多一层就是第二个事实。标签模型的类型归 @poietica/contract/browser（手写正本），
+ * 原生侧不再有 browser_* 命令，所以这里没有生成的 DTO 可用。
+ */
+async function invoke<T>(command: string, args: unknown): Promise<T> {
+  return throughIpc(async () => (await window.poietica.invoke(command, args)) as T)
+}
 
-export async function watchBrowserState(
-  onState: (state: BrowserState) => void,
-): Promise<() => void> {
+export function watchBrowserState(onState: (state: BrowserState) => void): Promise<() => void> {
   let latestRevision = -1
 
   const accept = (state: BrowserState): void => {
@@ -29,77 +34,74 @@ export async function watchBrowserState(
     onState(state)
   }
 
-  const unlisten = await events.browserState.listen((event) => {
-    accept(event.payload)
+  const stop = window.poietica.on('browser-state', (payload) => {
+    accept(payload as BrowserState)
   })
 
-  try {
-    accept(await throughIpc(() => commands.browserState()))
-    return unlisten
-  } catch (cause) {
-    unlisten()
-    throw cause
-  }
-}
-
-export function openBrowserTab(url: string | null): Promise<void> {
-  return throughIpc(() => commands.browserOpenTab(url)).then(() => undefined)
-}
-
-export function closeBrowserTab(id: number): Promise<void> {
-  return throughIpc(() => commands.browserCloseTab(id))
-}
-
-export function selectBrowserTab(id: number): Promise<void> {
-  return throughIpc(() => commands.browserSelectTab(id))
-}
-
-export function navigateBrowserTab(id: number, address: string): Promise<void> {
-  return throughIpc(() => commands.browserNavigate(id, address)).then(() => undefined)
-}
-
-export function browserTabBack(id: number): Promise<void> {
-  return throughIpc(() => commands.browserBack(id))
-}
-
-export function browserTabForward(id: number): Promise<void> {
-  return throughIpc(() => commands.browserForward(id))
-}
-
-export function browserTabReload(id: number): Promise<void> {
-  return throughIpc(() => commands.browserReload(id))
-}
-
-export async function printBrowserTab(id: number): Promise<void> {
-  await throughIpc(() => commands.browserPrint(id))
-}
-
-export function reopenClosedBrowserTab(index: number): Promise<void> {
-  return throughIpc(() => commands.browserReopenClosed(index))
-}
-
-export function setBrowserViewportBounds(bounds: BrowserViewportBounds): Promise<void> {
-  return throughIpc(() =>
-    commands.browserSetBounds(bounds.x, bounds.y, bounds.width, bounds.height),
+  return invoke<BrowserState>('browser_state', null).then(
+    (state) => {
+      accept(state)
+      return stop
+    },
+    (cause: unknown) => {
+      stop()
+      throw cause
+    },
   )
 }
 
+export function openBrowserTab(url: string | null): Promise<void> {
+  return invoke('browser_open_tab', { url })
+}
+
+export function closeBrowserTab(id: number): Promise<void> {
+  return invoke('browser_close_tab', { id })
+}
+
+export function selectBrowserTab(id: number): Promise<void> {
+  return invoke('browser_select_tab', { id })
+}
+
+export function navigateBrowserTab(id: number, address: string): Promise<void> {
+  return invoke('browser_navigate', { id, address })
+}
+
+export function browserTabBack(id: number): Promise<void> {
+  return invoke('browser_back', { id })
+}
+
+export function browserTabForward(id: number): Promise<void> {
+  return invoke('browser_forward', { id })
+}
+
+export function browserTabReload(id: number): Promise<void> {
+  return invoke('browser_reload', { id })
+}
+
+export function printBrowserTab(id: number): Promise<void> {
+  return invoke('browser_print', { id })
+}
+
+export function reopenClosedBrowserTab(index: number): Promise<void> {
+  return invoke('browser_reopen_closed', { index })
+}
+
+export function setBrowserViewportBounds(bounds: BrowserViewportBounds): Promise<void> {
+  return invoke('browser_set_bounds', {
+    x: bounds.x,
+    y: bounds.y,
+    width: bounds.width,
+    height: bounds.height,
+  })
+}
+
 export function setBrowserVisible(visible: boolean): Promise<void> {
-  return throughIpc(() => commands.browserSetVisible(visible))
+  return invoke('browser_set_visible', { visible })
 }
 
+/* 外链交给系统浏览器；这件事只有宿主做得成，主进程那一侧挂的是 shell.openExternal。 */
 export function openBrowserUrlExternally(url: string): Promise<void> {
-  return throughIpc(() => commands.windowOpenExternalUrl(url))
-}
-
-/* 这个 CDP 地址此刻还有没有人在听。用来分辨「应用上一趟发的死端点」与「用户自己选的现成
- * 浏览器」——两者在地址上完全一样，只有探活分得开。 */
-export function browserEndpointReachable(endpoint: string): Promise<boolean> {
-  return throughIpc(() => commands.browserEndpointReachable(endpoint))
-}
-
-export function browserDevtoolsEndpoint(): Promise<string | null> {
-  return throughIpc(() => commands.browserDevtoolsEndpoint())
+  return invoke('window_open_external_url', { url })
 }
 
 export function setBrowserElementPicker(
@@ -107,18 +109,20 @@ export function setBrowserElementPicker(
   enabled: boolean,
   theme: ResolvedTheme,
 ): Promise<void> {
-  return throughIpc(() => commands.browserSetElementPicker(id, enabled, theme))
+  return invoke('browser_set_element_picker', { id, enabled, theme })
 }
 
 export function watchBrowserElementPicked(
   onPicked: (picked: BrowserElementPicked) => void,
 ): Promise<() => void> {
-  return events.browserElementPicked.listen((event) => {
-    onPicked(event.payload)
-  })
+  return Promise.resolve(
+    window.poietica.on('browser-element-picked', (payload) => {
+      onPicked(payload as BrowserElementPicked)
+    }),
+  )
 }
 
-/* 端口的每一格就是一条 IPC 命令：请求与动作两边同一份生成类型。 */
+/* 端口的每一格就是一条命令：请求与动作两边同一份类型。 */
 export const browserHostPort: BrowserHostPort = {
   watch: watchBrowserState,
   openTab: openBrowserTab,

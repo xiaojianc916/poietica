@@ -1,8 +1,8 @@
 #!/usr/bin/env bun
 /**
- * 把发布版本一次写进四个声明处。Cargo workspace 仍是唯一真相，其余三处由它派生。
+ * 把发布版本一次写进三个声明处。Cargo workspace 仍是唯一真相，其余两处由它派生。
  *
- * 四个文件走同一条管线：定位那一个 version 键，逐字节替换它的值，别的一个字不动。
+ * 三个文件走同一条管线：定位那一个 version 键，逐字节替换它的值，别的一个字不动。
  *
  *   bun run version:set 0.2.0
  */
@@ -27,7 +27,6 @@ const PATTERN: Record<(typeof VERSION_FILES)[number], RegExp> = {
   'Cargo.toml': /(^\[workspace\.package\][\s\S]*?^version\s*=\s*")[^"]+(")/m,
   'package.json': /(^ {2}"version":\s*")[^"]+(")/m,
   'apps/desktop/package.json': /(^ {2}"version":\s*")[^"]+(")/m,
-  'apps/desktop/src-tauri/tauri.conf.json': /(^ {2}"version":\s*")[^"]+(")/m,
 }
 
 for (const file of VERSION_FILES) {

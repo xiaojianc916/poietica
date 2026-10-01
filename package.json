@@ -22,8 +22,8 @@
     "agent:prepare": "bun run tools/agent/prepare-runtime.ts",
     "bench:open": "bun run tests/benchmark/open-conversation.bench.ts",
     "bench:reads": "bun run tests/benchmark/reads.bench.ts",
-    "build:debug": "bun run agent:prepare && bun run --filter @poietica/desktop tauri:build:debug",
-    "build:release": "bun run agent:prepare && bun run --filter @poietica/desktop tauri:build:release",
+    "build:debug": "bun run agent:prepare && bun run --filter @poietica/desktop electron:build",
+    "build:release": "bun run agent:prepare && bun run --filter @poietica/desktop electron:build && bun run --filter @poietica/desktop electron:package",
     "build:web": "turbo run build",
     "check": "bun run check:web && bun run check:rust",
     "check:rust": "cargo fmt --all -- --check && bun run clippy && bun run test:rust && bun run ipc:check",
@@ -31,7 +31,7 @@
     "check:web": "biome ci . && bun tools/architecture/verify.ts && turbo run typecheck test --continue",
     "clean": "bun tools/dev/clean.ts",
     "clippy": "CARGO_INCREMENTAL=0 cargo clippy --workspace --all-targets --all-features -- -D warnings",
-    "dev": "bun run agent:prepare && bun run --filter @poietica/desktop tauri:dev",
+    "dev": "bun run agent:prepare && bun run --filter @poietica/desktop electron:dev",
     "format": "biome format --write .",
     "ipc:check": "bun tools/contract/check-generated.ts",
     "ipc:generate": "bun tools/contract/generate-ipc.ts",
@@ -51,6 +51,7 @@
     "@biomejs/biome": "catalog:",
     "@types/bun": "catalog:",
     "@typescript/typescript6": "catalog:",
+    "electron": "catalog:",
     "turbo": "catalog:",
     "typescript": "catalog:"
   },
@@ -81,6 +82,10 @@
       "@xterm/xterm": "^6.0.0",
       "clsx": "^2.1.1",
       "diff": "^9.0.0",
+      "electron": "^44.0.0",
+      "electron-builder": "^26.0.0",
+      "electron-updater": "^6.0.0",
+      "electron-vite": "^5.0.0",
       "katex": "^0.18.9",
       "@lexical/react": "^0.52.0",
       "lexical": "^0.52.0",
@@ -101,19 +106,6 @@
       "yet-another-react-lightbox": "^3.32.2",
       "zod": "^4.6.5"
     },
-    "catalogs": {
-      "tauri": {
-        "@tauri-apps/api": "^2.12.0",
-        "@tauri-apps/cli": "^2.12.0",
-        "@tauri-apps/plugin-clipboard-manager": "^2.3.2",
-        "@tauri-apps/plugin-dialog": "^2.8.0",
-        "@tauri-apps/plugin-fs": "^2.5.1",
-        "@tauri-apps/plugin-global-shortcut": "^2.3.2",
-        "@tauri-apps/plugin-notification": "^2.3.3",
-        "@tauri-apps/plugin-process": "^2.3.1",
-        "@tauri-apps/plugin-shell": "^2.3.5",
-        "@tauri-apps/plugin-updater": "^2.13.1"
-      }
-    }
+    "catalogs": {}
   }
 }

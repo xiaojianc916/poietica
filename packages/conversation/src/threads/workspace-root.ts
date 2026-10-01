@@ -3,7 +3,7 @@
  * 已是全局唯一的名字，D:\a 与 D:\a\b 是两个平级作用域。
  *
  * 归一化只管四件事：分隔符、重复分隔符、结尾分隔符、盘符大小写 —— 先消掉它们，
- * 分组才不会把 D:\a 和 d:/a/ 算成两个。NFC、. 与 ..、UNC 归 src-tauri/src/paths.rs。
+ * 分组才不会把 D:\a 和 d:/a/ 算成两个。NFC、. 与 ..、UNC 归 native/src/paths.rs。
  */
 export function normalizeWorkspaceRoot(rootPath: string): string {
   const unified = rootPath
@@ -34,7 +34,7 @@ export function workspaceRootName(rootPath: string): string {
 }
 
 /*
- * 与 apps/desktop/src-tauri/src/paths.rs 的 PROJECTLESS_DIRECTORY 同一条约定。
+ * 与 apps/desktop/native/src/paths.rs 的 PROJECTLESS_DIRECTORY 同一条约定。
  *
  * 原生层负责创建目录，这里只识别目录身份。识别的是父目录名加 UUID 子目录，
  * 不是一句显示文案，也不是模型输出。

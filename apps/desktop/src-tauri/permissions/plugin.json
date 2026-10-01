@@ -1,5 +1,0 @@
-{
-  "identifier": "plugin",
-  "description": "Plugin verification permissions",
-  "permissions": ["fs:allow-read", "fs:allow-exists"]
-}

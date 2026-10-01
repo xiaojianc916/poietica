@@ -232,7 +232,7 @@ async fn untracked_patches(
     ignore_whitespace: bool,
     changes: &[FileChange],
 ) -> Result<Vec<String>, GitError> {
-    /* future 只带自有数据：借用条目的 future 过不了 command 宏的高阶 lifetime 边界（见 apps/desktop/src-tauri/src/review.rs）。 */
+    /* future 只带自有数据：借用条目的 future 过不了 command 宏的高阶 lifetime 边界（见 apps/desktop/native/src/review.rs）。 */
     let pending: Vec<(PathBuf, String, String)> = changes
         .iter()
         .filter(|change| change.status == ChangeStatus::Untracked)

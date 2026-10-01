@@ -39,10 +39,10 @@ enum Failure {
     Runtime(#[from] RuntimeError),
 }
 
-/// 随包的三样在 `apps/desktop/src-tauri/binaries/`；缺席时跳过而不是失败 ——
+/// 随包的三样在 `apps/desktop/resources/agent/`；缺席时跳过而不是失败 ——
 /// 没跑 `bun run agent:prepare` 是构建前置条件，不是这条测试的判据。
 fn bundled() -> PathBuf {
-    PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../apps/desktop/src-tauri/binaries")
+    PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../apps/desktop/resources/agent")
 }
 
 #[tokio::test]

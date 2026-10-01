@@ -24,9 +24,9 @@
   `transcript_ops()` 返回 `serde_json::Value`（去掉 `.to_string()`）。
 - `crates/conversation-runtime/src/runtime/threads.rs`：`OpenedThread.transcript`
   类型从 `String` 改 `serde_json::Value`。
-- `apps/desktop/src-tauri/src/conversation/dto.rs`：`AgentTranscriptJson.json` 与
+- `apps/desktop/native/src/conversation/dto.rs`：`AgentTranscriptJson.json` 与
   `AgentTranscriptEvent.json` 类型从 `String` 改 `Value`。
-- `apps/desktop/src-tauri/src/conversation/composition.rs`：事件路径去掉
+- `apps/desktop/native/src/conversation/composition.rs`：事件路径去掉
   `payload.to_string()`，直接 move Value。
 - TS 侧 `transcript-decoding.ts`：`decodeTranscriptEvent` 不再 `JSON.parse(wire.json)`；
   `transcriptPageOf` 签名从 `(json: string)` 改 `(raw: unknown)`。

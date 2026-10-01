@@ -1,5 +1,5 @@
 //! 附件的账：哪条对话引用着哪几段字节。字节本身按摘要落磁盘，进附件根之后由
-//! agent 经 file part 的磁盘路径读取（apps/desktop/src-tauri/src/conversation/）；
+//! agent 经 file part 的磁盘路径读取（apps/desktop/native/src/conversation/）；
 //! 这里只回答某条对话引用着哪些字节、哪些字节没人要了。附件不是对话内容，是这
 //! 台机器上用户自己的文件。
 

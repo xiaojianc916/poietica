@@ -3,7 +3,15 @@ import react from '@vitejs/plugin-react'
 import { defineConfig } from 'vite'
 import { customErrorDiagnosticsPlugin } from './vite-plugins/custom-error-diagnostics.ts'
 
-const { TAURI_ENV_PLATFORM, TAURI_ENV_DEBUG } = process.env
+/*
+ * 渲染层的构建配置。宿主是 Electron 44，内嵌 Chromium 152 —— target 写死它，
+ * 不再按平台在 chrome105 / safari13 之间二选一：只有一个宿主，没有第二个浏览器要迁就。
+ *
+ * sourcemap 与压缩跟着 Electron 给的 dev/prod 信号走（electron-vite 注入），
+ * 开发构建留可读的 sourcemap，发行构建交给 oxc 压。
+ */
+const { ELECTRON_RENDERER_URL, NODE_ENV } = process.env
+const developing = Boolean(ELECTRON_RENDERER_URL) || NODE_ENV === 'development'
 
 export default defineConfig({
   plugins: [
@@ -23,6 +31,7 @@ export default defineConfig({
   },
 
   server: {
+    // 主进程按这个端口连 dev server（apps/desktop/electron/main.ts 的 ELECTRON_RENDERER_URL）。
     port: 1420,
     strictPort: true,
     hmr: {
@@ -30,7 +39,7 @@ export default defineConfig({
       overlay: false,
     },
   },
-  // envPrefix 只放行 VITE_ 前缀：TAURI_* 命名空间不得暴露给 WebView，构建期变量留在本文件的 process.env。
+  // envPrefix 只放行 VITE_ 前缀：构建期变量留在本文件的 process.env，不进渲染层的 import.meta.env。
   envPrefix: ['VITE_'],
   build: {
     rollupOptions: {
@@ -38,11 +47,10 @@ export default defineConfig({
         index: 'index.html',
       },
     },
-    // Tauri v2 改名：TAURI_PLATFORM/TAURI_DEBUG 是 v1 旧名，误用会静默降级 target 并毁掉调试 sourcemap。
-    target: TAURI_ENV_PLATFORM === 'windows' ? 'chrome105' : 'safari13',
+    target: 'chrome152',
     // 压缩器用 'oxc'：打包器已是 rolldown，Vite 8 下写 'esbuild' 会在 renderChunk 因找不到该包而崩。
-    minify: TAURI_ENV_DEBUG ? false : 'oxc',
+    minify: developing ? false : 'oxc',
     reportCompressedSize: false,
-    sourcemap: Boolean(TAURI_ENV_DEBUG),
+    sourcemap: developing,
   },
 })

@@ -1,32 +1,30 @@
 #!/usr/bin/env bun
-import { readFile } from 'node:fs/promises'
 import process from 'node:process'
+import { parse } from 'yaml'
 
-import { TAURI_CONF } from './version.ts'
+import { REPO_BASE } from './version.ts'
 
-const PLATFORM = 'windows-x86_64'
 const ATTEMPTS = 18
 const RETRY_MS = 5_000
 
-type Artifact = { readonly url?: string; readonly signature?: string }
-export type Manifest = { readonly version?: string; readonly platforms?: Record<string, Artifact> }
+/** electron-updater 认的 latest.yml：一个版本、一个路径、一份 sha512。 */
+export type Manifest = {
+  readonly version?: string
+  readonly path?: string
+  readonly sha512?: string
+  readonly files?: ReadonlyArray<{ readonly url?: string; readonly sha512?: string }>
+}
 
 export function channelFault(manifest: Manifest, tag: string): string | null {
   const version = tag.replace(/^v/, '')
   if (manifest.version !== version) {
     return `the published manifest is ${manifest.version}, expected ${version}`
   }
-  const artifact = manifest.platforms?.[PLATFORM]
-  if (!artifact?.url || !artifact.signature) {
-    return `${PLATFORM} is incomplete`
+  if (!manifest.path || !manifest.sha512) {
+    return 'the published manifest has no installer or no sha512'
   }
-  try {
-    const url = new URL(artifact.url)
-    if (url.protocol !== 'https:' || !url.pathname.includes(`/releases/download/${tag}/`)) {
-      return `${PLATFORM} points outside release ${tag}`
-    }
-  } catch {
-    return `${PLATFORM} has an invalid URL`
+  if (!manifest.path.endsWith('-setup.exe')) {
+    return `the published installer is not an NSIS setup: ${manifest.path}`
   }
   return null
 }
@@ -44,12 +42,12 @@ async function verify(endpoint: string, tag: string): Promise<Manifest> {
       if (!response.ok) {
         throw new Error(`${endpoint} 返回了 ${response.status}`)
       }
-      const manifest = (await response.json()) as Manifest
+      const manifest = parse(await response.text()) as Manifest
       const fault = channelFault(manifest, tag)
       if (fault) {
         throw new Error(fault)
       }
-      const url = manifest.platforms?.[PLATFORM]?.url as string
+      const url = `${REPO_BASE}/releases/download/${tag}/${encodeURIComponent(manifest.path ?? '')}`
       const artifact = await fetch(url, {
         method: 'HEAD',
         redirect: 'follow',
@@ -74,15 +72,10 @@ async function main(): Promise<void> {
   if (!tag) {
     throw new Error('用法：bun tools/release/verify-channel.ts <tag>')
   }
-  const config = JSON.parse(await readFile(TAURI_CONF, 'utf8')) as {
-    plugins?: { updater?: { endpoints?: string[] } }
-  }
-  const endpoint = config.plugins?.updater?.endpoints?.[0]
-  if (!endpoint) {
-    throw new Error('tauri.conf.json 里没有 updater endpoint')
-  }
+  /* electron-updater 的默认检查地址就是仓库 latest release 上的 latest.yml。 */
+  const endpoint = `${REPO_BASE}/releases/latest/download/latest.yml`
   const manifest = await verify(endpoint, tag)
-  console.log(`更新通道正常：${manifest.version}（${PLATFORM}）`)
+  console.log(`更新通道正常：${manifest.version}（${manifest.path}）`)
 }
 
 if (import.meta.main) {

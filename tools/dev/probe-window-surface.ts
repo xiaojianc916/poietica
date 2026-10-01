@@ -35,7 +35,7 @@ if (index.size === 0) {
 }
 
 /*
- * 衬底正本：apps/desktop/src-tauri/tauri.conf.json 与 theme-runtime.ts 的浅色表面。
+ * 衬底正本：apps/desktop/electron/main.ts 的创建底色与 theme-runtime.ts 的浅色表面。
  * 这里写字面值是有意的 —— 探针要能独立于源码说「屏幕上是这个色」，读源码再比
  * 就成了自证。
  */

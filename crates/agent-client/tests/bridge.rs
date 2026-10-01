@@ -1,7 +1,7 @@
 //! 端到端：Rust 客户端真的能驱动随包发的那个桥。
 //!
 //! 这条测试是 ADR 0021 的验收：不装 omp、不装 Bun、不装 node_modules，只有
-//! `apps/desktop/src-tauri/binaries/` 里那三样（Bun 运行时、桥 bundle、原生模块）。
+//! `apps/desktop/resources/agent/` 里那三样（Bun 运行时、桥 bundle、原生模块）。
 //! 它起进程、说 NDJSON、拿到会话号、问回选择器。
 //!
 //! 那三样不在（没跑 `bun run agent:prepare`）时跳过而不是失败：那不是这条测试的
@@ -18,12 +18,12 @@ use poietica_agent_client::{
     AgentSpawn, PermissionDesk, ProcessEnvironment, QuestionDesk, RunSlot, connect,
 };
 
-/// 随包的三样都在 `apps/desktop/src-tauri/binaries/`；生产里那是应用可执行文件的
+/// 随包的三样都在 `apps/desktop/resources/agent/`；生产里那是应用可执行文件的
 /// 目录（`bundled_directory()`），测试进程这一侧取构建产物目录。
 fn bundled() -> PathBuf {
     let root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../..");
 
-    root.join("apps/desktop/src-tauri/binaries")
+    root.join("apps/desktop/resources/agent")
 }
 
 /// 一个隔离的 agent 目录：不碰这台机器上真实的那一个。

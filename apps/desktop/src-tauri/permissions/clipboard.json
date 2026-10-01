@@ -1,5 +1,0 @@
-{
-  "identifier": "clipboard",
-  "description": "Clipboard permissions",
-  "permissions": ["clipboard-manager:allow-read-text", "clipboard-manager:allow-write-text"]
-}

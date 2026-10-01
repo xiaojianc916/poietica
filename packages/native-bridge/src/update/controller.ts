@@ -1,64 +1,60 @@
 import type { AppUpdateController } from '@poietica/update'
-import { check, type DownloadEvent, type Update } from '@tauri-apps/plugin-updater'
+import { hostBridge } from '../host-bridge'
+
+/*
+ * 出货更新。包在 electron-updater 上，而那是主进程的能力，所以这里只经 window.poietica
+ * 调四条宿主命令 —— 渲染层拿不到 fs，也不该拿。
+ *
+ * 下载进度没有通道：宿主报开始与结束两次，中间一律 percent: null。percent 为 null 是
+ * update 端口本来就认的形状（进度未知），编一个数字才是错的。
+ */
+
+interface UpdateCheck {
+  readonly version: string
+  readonly notes: string | null
+}
 
 export function createAppUpdateController(): AppUpdateController {
-  let selected: Update | null = null
+  let selected: string | null = null
 
-  const release = async (): Promise<void> => {
-    const owned = selected
-    selected = null
-    if (owned !== null) {
-      await owned.close()
-    }
-  }
+  const invoke = <T>(command: string, args: unknown = null): Promise<T> =>
+    hostBridge().invoke(command, args) as Promise<T>
 
   return {
     async check() {
-      await release()
-      selected = await check()
-      return selected === null ? null : { version: selected.version, notes: selected.body ?? null }
+      selected = null
+      const found = await invoke<UpdateCheck | null>('update_check')
+
+      if (found === null) {
+        return null
+      }
+
+      selected = found.version
+
+      return { version: found.version, notes: found.notes }
     },
 
     async download(version, onProgress) {
-      if (selected === null || selected.version !== version) {
-        throw new Error('the selected update is no longer available')
+      if (selected !== version) {
+        throw new Error('选中的更新已经不在手上了')
       }
-      let received = 0
-      let total: number | null = null
-      const progress = (event: DownloadEvent): void => {
-        if (event.event === 'Started') {
-          total = event.data.contentLength ?? null
-          onProgress({ percent: null })
-          return
-        }
-        if (event.event === 'Progress') {
-          received += event.data.chunkLength
-          onProgress({
-            percent:
-              total === null || total === 0
-                ? null
-                : Math.min(100, Math.floor((received / total) * 100)),
-          })
-          return
-        }
-        onProgress({ percent: 100 })
-      }
-      await selected.download(progress)
+
+      onProgress({ percent: null })
+      await invoke('update_download', { version })
+      onProgress({ percent: 100 })
     },
 
     async relaunch() {
       if (selected === null) {
-        throw new Error('no downloaded update is available')
+        throw new Error('没有已下载的更新可安装')
       }
-      const owned = selected
+
       selected = null
-      try {
-        await owned.install({ restartAfterInstall: true })
-      } finally {
-        await owned.close().catch(() => undefined)
-      }
+      await invoke('update_relaunch')
     },
 
-    dispose: release,
+    async dispose() {
+      selected = null
+    },
   }
 }

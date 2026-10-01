@@ -1,0 +1,39 @@
+# electron-builder 26。原生库与随包运行时都放在 asar 外：.node 从 asar 里 dlopen
+# 要先抽到临时文件（有开销，还会惊动杀软），agent/ 里的 bun.exe 也没法从 asar 里起。
+appId: com.poietica.Poietica
+productName: Poietica
+directories:
+  output: dist-release
+  buildResources: build
+# 产物名是发布脚本与 runbook 的稳定契约：换掉它，tools/release/release.ts 的收集
+# 与 verify-channel 的 -setup.exe 判据要一起改。
+artifactName: ${productName}_${version}_x64-setup.${ext}
+files:
+  - dist/**
+  - dist-electron/**
+  - package.json
+asar: true
+asarUnpack:
+  - '**/*.node'
+  - resources/**
+extraResources:
+  - from: native/target/release/poietica.node
+    to: native/poietica.node
+  - from: resources/agent
+    to: agent
+  - from: build/icon.png
+    to: icon.png
+win:
+  target:
+    - nsis
+  icon: build/icon.ico
+nsis:
+  oneClick: false
+  allowToChangeInstallationDirectory: true
+# electron-updater 的清单来源：latest.yml 里的 url 由它拼出来。
+# 这一处是仓库地址的唯一声明 —— tools/release 的 latest-json 与 verify-channel 都读它。
+publish:
+  provider: github
+  owner: xiaojianc916
+  repo: poietica
+  releaseType: release

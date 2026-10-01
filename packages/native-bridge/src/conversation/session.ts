@@ -80,7 +80,7 @@ export function createAgentSessionPort({
     transcript: {
       subscribeTranscript: (listener) =>
         subscribeToEvent<AgentTranscriptEvent>(
-          (receive) => events.agentTranscriptEvent.listen((event) => receive(event.payload)),
+          (receive) => events.agentTranscriptEvent(receive),
           (wire) => {
             const decoded = decodeTranscriptEvent(wire)
             if (decoded.ok) {

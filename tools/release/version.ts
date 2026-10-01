@@ -1,3 +1,23 @@
+import { readFileSync } from 'node:fs'
+
+/*
+ * 仓库地址的唯一声明处是 apps/desktop/electron-builder.yml 的 publish 段 ——
+ * 客户端真正会去拉的地址由它拼出来。发布脚本读同一份，两边不会各写各的。
+ */
+const BUILDER_CONFIG = 'apps/desktop/electron-builder.yml'
+
+function repositoryBase(): string {
+  const source = readFileSync(new URL(`../../${BUILDER_CONFIG}`, import.meta.url), 'utf8')
+  const owner = /^\s*owner:\s*(\S+)\s*$/m.exec(source)?.[1]
+  const repo = /^\s*repo:\s*(\S+)\s*$/m.exec(source)?.[1]
+  if (!owner || !repo) {
+    throw new Error(`${BUILDER_CONFIG}：publish 段缺 owner 或 repo，更新地址无从确定`)
+  }
+  return `https://github.com/${owner}/${repo}`
+}
+
+export const REPO_BASE = repositoryBase()
+
 export const SEMVER =
   /^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-((?:0|[1-9]\d*|\d*[A-Za-z-][0-9A-Za-z-]*)(?:\.(?:0|[1-9]\d*|\d*[A-Za-z-][0-9A-Za-z-]*))*))?(?:\+[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)?$/
 
@@ -81,18 +101,14 @@ export function compareVersions(left: string, right: string): number {
   return 0
 }
 
-export const TAURI_CONF = 'apps/desktop/src-tauri/tauri.conf.json'
-
 /**
- * 版本号必须同步的四个声明处；Cargo workspace 是唯一真相，其余三处由它派生。
+ * 版本号必须同步的三个声明处；Cargo workspace 是唯一真相，其余两处由它派生。
  * 发布脚本用它做失败签回与精确 add，set-version/check-versions 以它为键。
+ *
+ * 第三处（electron-builder 的产物名与 latest.yml）不再是手写文件：它由
+ * apps/desktop/package.json 的 version 派生，所以这里没有第四个键。
  */
-export const VERSION_FILES = [
-  'Cargo.toml',
-  'package.json',
-  'apps/desktop/package.json',
-  TAURI_CONF,
-] as const
+export const VERSION_FILES = ['Cargo.toml', 'package.json', 'apps/desktop/package.json'] as const
 
 export function workspaceVersion(text: string): string | undefined {
   return text.split(/^\[workspace\.package\]$/m)[1]?.match(/^version\s*=\s*"([^"]+)"/m)?.[1]

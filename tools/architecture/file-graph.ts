@@ -94,13 +94,14 @@ const metaUrlAssetOf = (node: ts.Node): string | null | undefined => {
   return target !== undefined && ts.isStringLiteralLike(target) ? target.text : null
 }
 
-/* 宿主框架绑定只属于壳层，workspace 代码一律不得触及。 */
+/* 宿主绑定只属于壳层，workspace 代码一律不得触及。
+ *
+ * 宿主换成 Electron 后，宿主 API 不再是一个 import：渲染进程拿不到 require，
+ * 它唯一能碰的是 preload 暴露的 window.poietica。所以判据分两半 —— 这一半管
+ * 「框架 import」（react 等），另一半（policies.ts 的 hostAccess）管 window.poietica。 */
 const forbiddenOf = (specifier: string): string[] => {
   const forbidden: string[] = []
-  if (
-    FRAMEWORK_SPECIFIERS.some((name) => specifier === name || specifier.startsWith(`${name}/`)) ||
-    specifier.startsWith('@tauri-apps/')
-  ) {
+  if (FRAMEWORK_SPECIFIERS.some((name) => specifier === name || specifier.startsWith(`${name}/`))) {
     forbidden.push(specifier)
   }
   return forbidden

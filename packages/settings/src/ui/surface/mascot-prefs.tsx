@@ -4,7 +4,7 @@ import { useSyncExternalStore } from 'react'
 import { SettingsGroup, ToggleRow } from '../settings-primitives'
 
 /*
- * 吉祥物的两个开关。刻意不进 AppSettings：那张表与 src-tauri 的 AppSettings
+ * 吉祥物的两个开关。刻意不进 AppSettings：那张表与原生侧 DTO 的 AppSettings
  * 逐字段镜像，Rust、默认值、迁移三处都要一起动，而这两项只属于渲染层。
  */
 

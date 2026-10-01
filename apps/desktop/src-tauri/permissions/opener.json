@@ -1,5 +1,0 @@
-{
-  "identifier": "opener",
-  "description": "File opener permissions",
-  "permissions": ["opener:allow-open-path", "opener:allow-show-item-in-folder"]
-}

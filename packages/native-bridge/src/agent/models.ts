@@ -34,9 +34,10 @@ export function createModelCatalogPort(): ModelCatalogPort {
         }),
       ),
 
-    subscribeInvalidation: (listener) =>
-      events.agentSessionEvent.listen((event) => {
-        if (event.payload.kind === 'modelCatalogChanged') {
+    /* 端口要的是 Promise（它按异步清理写）；订阅本身是同步的，所以立刻兑现。 */
+    subscribeInvalidation: async (listener) =>
+      events.agentSessionEvent((payload) => {
+        if (payload.kind === 'modelCatalogChanged') {
           listener()
         }
       }),

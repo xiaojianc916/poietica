@@ -1,6 +1,10 @@
 # 0005. Retain the DWM redirection surface
 
-- Status: Accepted
+> 已被 ADR 0028 取代：本决策的全部依据是 WebView2 的 DirectComposition surface 与
+> `additionalBrowserArgs`，宿主换成 Electron 后这两个东西都不存在。Chromium 自己管
+> 合成与遮挡节流，我们不再有可调的让步面。
+
+- Status: Superseded by [0028](0028-electron-with-napi-is-the-desktop-host.md)
 - Date: 2026-08-26
 - Owners: Desktop application composition root
 

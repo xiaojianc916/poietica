@@ -72,10 +72,9 @@ body {
  */
 
 /*
- * 崩溃屏 caption 条的填充区，与标题栏同一条拖拽机制：主窗口
- * additionalBrowserArgs 开启的 WebView2 原生可拖拽区域。该元素是叶子
- * 节点，没有子元素需要反挖；WindowControls 是它的兄弟节点，天然在
- * 拖拽区外。
+ * 崩溃屏 caption 条的填充区，与标题栏同一条拖拽机制：-webkit-app-region: drag
+ * 划出的宿主窗口拖拽区。该元素是叶子节点，没有子元素需要反挖；WindowControls
+ * 是它的兄弟节点，天然在拖拽区外。
  */
 .fatal-drag-region {
   -webkit-app-region: drag;
@@ -130,7 +129,7 @@ body {
 }
 
 /*
- * 滚动条交回浏览器（CSS Scrollbars Styling，WebView2 支持，无需回退分支）。
+ * 滚动条交回浏览器（CSS Scrollbars Styling，Electron 内嵌的 Chromium 全部支持，无需回退分支）。
  *
  * 挂在 * 上而不是 :root 上，这一条不能改：var() 在声明所在的元素上就解析完，
  * 继承出去的是算好的颜色；写在 :root 上，区域令牌的覆盖一个都不会生效。

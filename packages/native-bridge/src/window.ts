@@ -1,14 +1,13 @@
-import type { ResolvedTheme, ThemePreference } from '@poietica/contract'
-import { commands, events } from '@poietica/contract'
-import { isTauri } from '@tauri-apps/api/core'
-import { getCurrentWebviewWindow, type WebviewWindow } from '@tauri-apps/api/webviewWindow'
+import type { ThemePreference } from '@poietica/contract'
+import type { ResolvedTheme } from '@poietica/contract/browser'
+import { hostBridge } from './host-bridge'
 
 export type WindowSurfaceColor = readonly [red: number, green: number, blue: number]
 
 export interface MainWindowController {
   present(): Promise<void>
   setSurfaceColor(color: WindowSurfaceColor): Promise<void>
-  /** 按偏好落定原生主题，交回宿主解析出的那一档（跟随系统时就是系统此刻那一档）。 */
+  /** 按偏好落定宿主主题，交回宿主解析出的那一档（跟随系统时就是系统此刻那一档）。 */
   setTheme(preference: ThemePreference): Promise<ResolvedTheme>
   minimize(): Promise<void>
   toggleMaximize(): Promise<void>
@@ -20,75 +19,35 @@ export interface MainWindowController {
   onTerminationRequested(handler: () => void): Promise<() => void>
 }
 
-const MAIN_WINDOW_LABEL = 'main'
-
-function resolveMainWindow(): WebviewWindow | null {
-  if (!isTauri()) {
-    return null
-  }
-  const current = getCurrentWebviewWindow()
-  if (current.label !== MAIN_WINDOW_LABEL) {
-    throw new Error('The desktop runtime is bound to the "main" window only.')
-  }
-  return current
-}
-
-function requireMainWindow(mainWindow: WebviewWindow | null): WebviewWindow {
-  if (mainWindow === null) {
-    throw new Error('The native window API is unavailable outside Tauri.')
-  }
-  return mainWindow
-}
-
+/*
+ * 窗口与托盘面。窗口是宿主的一等对象（Electron 的 BrowserWindow），所以这一层不经过
+ * 原生命令，只调 preload 装好的 window.poietica.host —— 那些方法就是主进程的命令表。
+ *
+ * on* 那几个把 preload 的同步订阅包成 Promise：调用方（React 的 effect）按异步清理写，
+ * 统一成一种写法比让每一处自己分辨同步异步更不容易漏掉卸载。
+ */
 export function createMainWindowController(): MainWindowController {
-  const mainWindow = resolveMainWindow()
+  const host = hostBridge().host
 
   return {
-    async present() {
-      const window = requireMainWindow(mainWindow)
-      await window.show()
-      await window.setFocus()
-    },
+    present: () => host.present(),
 
-    async setSurfaceColor([red, green, blue]) {
-      requireMainWindow(mainWindow)
-      await commands.windowSetSurface(red, green, blue)
-    },
+    setSurfaceColor: (color) => host.setSurfaceColor(color),
 
-    async setTheme(preference) {
-      requireMainWindow(mainWindow)
-      return await commands.windowSetTheme(preference)
-    },
+    setTheme: (preference) => host.setTheme(preference),
 
-    minimize: () => requireMainWindow(mainWindow).minimize(),
-    toggleMaximize: () => requireMainWindow(mainWindow).toggleMaximize(),
-    isMaximized: () => requireMainWindow(mainWindow).isMaximized(),
+    minimize: () => host.minimize(),
+    toggleMaximize: () => host.toggleMaximize(),
+    isMaximized: () => host.isMaximized(),
 
-    onMaximizedChanged: (handler) =>
-      events.windowMaximized.listen((event) => {
-        handler(event.payload.isMaximized)
-      }),
+    onMaximizedChanged: (handler) => Promise.resolve(host.onMaximizedChanged(handler)),
 
-    openDeveloperTools: () => commands.windowOpenDevtools(MAIN_WINDOW_LABEL),
-    quit: () => commands.applicationQuit(),
+    openDeveloperTools: () => host.openDevtools(),
 
-    async onCloseRequested(handler) {
-      if (mainWindow === null) {
-        return () => {}
-      }
-      return await mainWindow.onCloseRequested((event) => {
-        event.preventDefault()
-        handler()
-      })
-    },
+    quit: () => host.close(),
 
-    async onTerminationRequested(handler) {
-      if (mainWindow === null) {
-        return () => {}
-      }
-      return await events.terminationRequested.listen(() => {
-        handler()
-      })
-    },
+    onCloseRequested: (handler) => Promise.resolve(host.onCloseRequested(handler)),
+
+    onTerminationRequested: (handler) => Promise.resolve(host.onTerminationRequested(handler)),
   }
 }

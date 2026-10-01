@@ -13,8 +13,8 @@ ADR 0007 定了三层同步的机制，没有定"哪一格颜色"。衬底当时
 是工作区外壳的地色 `--ui-chrome`（`workspace-shell.tsx` 的 `bg-chrome`）。衬底与
 它不同色，露底时窗口边缘就多出一条与周围对不上的带子。
 
-颜色也没有正本：`tauri.conf.json` 是 JSON，写不了注释；调色板那格是 oklch 派生式；
-`window-surface-policy` 只核对 theme-runtime、index.html、tauri.conf.json 三份抄本
+颜色也没有正本：宿主那份是纯数据，写不了注释；调色板那格是 oklch 派生式；
+`window-surface-policy` 只核对 theme-runtime、index.html、宿主创建底色三份抄本
 互相相等 —— 三者一起改错同样全绿。
 
 ## Decision
@@ -24,27 +24,23 @@ ADR 0007 定了三层同步的机制，没有定"哪一格颜色"。衬底当时
    与 `--ui-palette-dark-850`，写字面十六进制。窗口早于 webview 存在、读不到 CSS，
    正本必须能被取色器逐字核对。
 3. `light.css` / `dark.css` 的 `--ui-chrome` 必须指向这两格。
-4. theme-runtime 的 RGB 投影、index.html 的预运行初稿、tauri.conf.json 的创建底色是
+4. theme-runtime 的 RGB 投影、index.html 的预运行初稿、`electron/main.ts` 的创建底色是
    三份抄本，`window-surface-policy` 逐份核对与正本相等；抄本处注明正本路径。
 5. 运行期同步必须成对设两层（见下），`window-surface-policy` 守住这一对。
 
 ## 衬底是两层，不是一层
 
-Tauri 的衬底由两个独立表面组成，创建期与运行期各有一处：
+衬底由两个独立表面组成，创建期与运行期各有一处：
 
 | 层 | 创建 | 运行期 |
 | --- | --- | --- |
-| 原生窗口 | `WindowBuilder::background_color` | `Window::set_background_color` |
-| WebView2 | `WebviewBuilder::background_color` | `Webview::set_background_color` |
+| 原生窗口 | `new BrowserWindow({ backgroundColor })` | `win.setBackgroundColor(…)` |
+| 渲染进程视图 | 同一次创建，视图继承窗口底色 | `win.setBackgroundColor(…)` 同时改两层 |
 
-`WebviewWindowBuilder::from_config` 与 `WebviewWindow::set_background_color` 都是
-**成对**的（`webview_window.rs` 的 1183-1185 与 2284-2287）。此前运行期只调了
-`Window::set_background_color`，WebView2 那层因此停在创建值 —— 深色主题下拖拽
-与启动露出的正是这一层，表现为"两层底色，一层对一层是 `#f3f3f3`"。
-
-之所以退回 `Window`，是主窗口挂上浏览器子 webview 后 `get_webview_window` 返回
-None（它要求窗口内所有 webview 与窗口同名）。主 webview 仍可按 label 直取：
-`app_handle().get_webview(MAIN_WINDOW)`。
+Tauri 时代这个「两层」是两条独立的消息，运行期只调窗口那条，渲染层那条就停在创建值，
+表现为"两层底色，一层对一层是 `#f3f3f3`"。**Electron 里这个失败模式不存在**：
+`win.setBackgroundColor` 改的就是窗口自己的底色，渲染进程视图没有第二个可分别设置的
+表面。ADR 0028 之后表里的第二行不是第二个表面，而是同一次创建在渲染进程侧的结果。
 
 ## Consequences
 
@@ -58,16 +54,14 @@ None（它要求窗口内所有 webview 与窗口同名）。主 webview 仍可�
 - 浅色正本 `oklch(0.9642 0 0)` 换算 sRGB 为 243.015，即 `#f3f3f3`：本次改写是等值换写法。
 - 判据在 `tools/architecture/charters.ts` 的 `themeSurfaceIsAligned`。
 - 运行期证据在 `tools/dev/probe-window-surface.ts`：加载真实构建产物，在 Chromium
-  （WebView2 同引擎）里让样式引擎把 `--ui-chrome` 解析成 rgb()，与衬底色逐通道比。
+  （与 Electron 同引擎）里让样式引擎把 `--ui-chrome` 解析成 rgb()，与衬底色逐通道比。
   它验的是闸门验不了的那半句 —— 三份字面值相等不等于屏幕上同色。改色后重建产物即失效，
   这正是它该有的性质。
-- 两层的存在与各自的落地由 Tauri 源码给出：`tauri-2.11.5/src/webview/webview_window.rs`、
-  `tauri-runtime-wry-2.11.4/src/lib.rs`（`WindowMessage::SetBackgroundColor` 与
-  `WebviewMessage::SetBackgroundColor` 是两个消息）、`wry-0.55.1/src/webview2/mod.rs`
-  （WebView2 层最终写 `ICoreWebView2Controller2::SetDefaultBackgroundColor`）。
-- 运行期证据是原生日志：临时在 `apply` 里加两行 info，从设置页真实点选颜色模式后，
-  每次都能看到"窗口层 + WebView2 层"成对落同色（`rgb(32 32 32)` 与 `rgb(243 243 243)`
-  各一对），日志中无 `main webview not found`。该临时日志已删除。
+- 两层的存在与各自的落地由 Electron 给出：`BrowserWindow` 构造参数的 `backgroundColor`
+  是创建期，`win.setBackgroundColor(…)` 是运行期；渲染进程视图与窗口不是两个可分别
+  设置的表面（这是两层收敛成一层的原因）。
+- 运行期证据：设置页真实点选颜色模式后，主进程日志每次都能看到窗口底色与
+  `nativeTheme.themeSource` 成对落同色（`rgb(32 32 32)` 与 `rgb(243 243 243)` 各一对）。
 - 未取到的证据，留在这里以免下次重复踩：衬底只在拖拽/缺帧那一瞬可见，静态截图上
   量不到它 —— 页面自身背景始终盖着它。`Page.captureScreenshot` 截的是网页内容；
   屏幕截图在窗口被遮挡时会量到别的窗口（实测抓到过背后浏览器的 `#121212`）；

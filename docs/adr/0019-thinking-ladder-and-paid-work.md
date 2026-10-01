@@ -69,7 +69,7 @@ rpc/acp 模式也置它，见它 `src/main.ts`）。
 产品**用不上**这个能力：会话标题在我们这边是本地账本的 `threads` 表，而
 omp 生成的那个标题唯一的上屏出口是 `agent-client` 的会话清单读
 （`ClientCommand::Sessions` → `lifecycle::entries_of` 的 `title`），那条路在**本仓没有
-任何调用方**（`crates/` 与 `apps/desktop/src-tauri/` 全仓 grep 为空）。所以它花的钱换不
+任何调用方**（`crates/` 与 `apps/desktop/native/` 全仓 grep 为空）。所以它花的钱换不
 来任何屏幕上的东西。
 
 置法是运行时赋值 `process.env.PI_NO_TITLE`，不是档案的 `env` 格：档案的 `env` 是**用户

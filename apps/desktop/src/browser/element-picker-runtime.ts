@@ -5,8 +5,8 @@ import {
   isElementGrabbable,
 } from 'react-grab/primitives'
 
-/** 注入脚本自成一包，不引契约图：档位与 src-tauri webview/bridge.rs 的
-    ResolvedTheme（serde lowercase）一致，由它的 start 脚本注入。 */
+/** 注入脚本自成一包，不引契约图：档位与宿主调用 start 时给的 ResolvedTheme
+   一致（'light' | 'dark'），由宿主在注入的 start 脚本里写死。 */
 type ResolvedTheme = 'light' | 'dark'
 
 interface PickerController {

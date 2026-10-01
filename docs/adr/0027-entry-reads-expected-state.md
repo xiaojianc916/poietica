@@ -127,6 +127,6 @@ schema 默认而不是用户配的那一格，且上游认 `auto`、本产品不
 - `packages/agent-bridge/src/expected-state.ts`（期望态的读与写）
 - `packages/agent-bridge/src/__tests__/expected-state.test.ts`（两种寿命的判据）
 - `tools/agent/prepare-runtime.ts`（`splitting: true` 与它在产物里的形状）
-- `apps/desktop/src-tauri/tauri.conf.json`（`chunk-*.js` 的 glob）
+- `apps/desktop/electron-builder.yml`（`chunk-*.js` 的 `files` glob）
 - `docs/adr/0020-first-frame-hydration-and-launch-gate.md`（首帧水合与启动门禁）
 - `docs/adr/0021-omp-bridge-is-a-library-not-a-webview-module.md`（桥是库）

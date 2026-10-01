@@ -1,0 +1,19 @@
+//! 这个应用的数据落在哪 —— 说给用户听的那一句。
+//!
+//! 根由宿主给（crate::paths::data_root），这里只把它变成一个字符串交出去。关于面板要显示它，
+//! 而一个说不出自己数据在哪的桌面应用，用户没有办法备份，也没有办法搬走。
+
+use crate::error::Result;
+use crate::paths::data_root;
+use poietica_problem::Problem;
+
+/// 这台机器上，这个应用的数据根。
+///
+/// # Errors
+///
+/// 根目录无法解析或创建时返回错误。
+#[specta::specta]
+pub async fn storage_data_directory() -> std::result::Result<String, Problem> {
+    (|| -> Result<String> { Ok(data_root()?.to_string_lossy().into_owned()) })()
+        .map_err(Problem::from)
+}

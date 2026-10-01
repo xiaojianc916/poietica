@@ -8,7 +8,7 @@
 
 [![Quality](https://github.com/xiaojianc916/poietica/actions/workflows/quality.yml/badge.svg)](https://github.com/xiaojianc916/poietica/actions/workflows/quality.yml)
 [![License](https://img.shields.io/badge/license-see%20notices-2783DE?style=flat-square)](./THIRD_PARTY_NOTICES.md)
-[![Desktop](https://img.shields.io/badge/platform-desktop-46A171?style=flat-square)](https://v2.tauri.app/)
+[![Desktop](https://img.shields.io/badge/platform-desktop-46A171?style=flat-square)](https://www.electronjs.org/)
 [![Local first](https://img.shields.io/badge/data-local--first-D5803B?style=flat-square)](#why-local-first-matters)
 
 [Get started](#get-started) · [Architecture](#architecture) · [Documentation](#documentation)
@@ -120,7 +120,7 @@ The project is intentionally building reliability before broadening the product 
 
 | Interface | Agent transport | Desktop runtime | Tooling | Validation |
 | :---: | :---: | :---: | :---: | :---: |
-| React + TypeScript | embedded SDK over stdio | Tauri + Rust | Bun + Turborepo + Vite | Biome + bun test + Zod |
+| React + TypeScript | embedded SDK over stdio | Electron + Rust (NAPI) | Bun + Turborepo + Vite | Biome + bun test + Zod |
 
 </div>
 
@@ -129,7 +129,9 @@ The project is intentionally building reliability before broadening the product 
 - **React + TypeScript** — product interaction and interface composition.
 - **embedded SDK over stdio** — the agent ships inside the app: its SDK is compiled into a
   single sidecar binary, and the desktop client drives it over newline-delimited JSON.
-- **Tauri + Rust** — desktop integration, durable local state, system capabilities, security boundaries.
+- **Electron + Rust** — the main process owns windows, protocols and the built-in browser
+  (`WebContentsView`); Rust compiles to a NAPI module that runs in that same process and owns
+  durable local state, system capabilities and security boundaries.
 - **Bun + Turborepo** — workspace management and task orchestration.
 - **Biome** — formatting and static analysis.
 - **bun test** — unit and integration tests across the workspace.
@@ -143,7 +145,7 @@ The project is intentionally building reliability before broadening the product 
 | --- | --- |
 | Bun | See `packageManager` in [`package.json`](./package.json) |
 | Rust | See [`rust-toolchain.toml`](./rust-toolchain.toml) |
-| Tauri prerequisites | [Platform setup guide](https://v2.tauri.app/start/prerequisites/) |
+| Electron | Installed as a dev dependency; no system prerequisite. |
 
 ### Run Poietica locally
 
@@ -171,8 +173,9 @@ Poietica is a monorepo with deliberately strict ownership boundaries.
 
 ```text
 apps/desktop/src/        Product interface and application composition (TypeScript)
-apps/desktop/src-tauri/  The single composition root: windows, commands, DTO conversion
-crates/                  Native Rust crates — host-agnostic, testable without Tauri
+apps/desktop/electron/   Electron main process and preload: windows, protocols, WebContentsView
+apps/desktop/native/     The single Rust composition root (NAPI-RS .node): commands, DTOs
+crates/                  Native Rust crates — host-agnostic, testable without Electron
 packages/                TypeScript workspace packages, tiered, dependencies point downward
 docs/                    Architecture notes, decision records, proposals, runbooks
 tools/                   Repository tooling: architecture gates, release, contracts, dev
@@ -185,7 +188,7 @@ Three invariants hold everywhere:
    tool calls and permission records are projections of that log, never a second copy.
 2. **Dependencies point downward only.** Packages are tiered, and a package may import from
    its own tier and below. Only the transport, composition and application layers may touch
-   `@tauri-apps/*`; platform capability never leaks into domain or foundation packages.
+   `window.poietica`; platform capability never leaks into domain or foundation packages.
 3. **Every kind of state has one owner and one write path.**
 
 The tier table itself lives in [`tools/architecture/layering.ts`](./tools/architecture/layering.ts)

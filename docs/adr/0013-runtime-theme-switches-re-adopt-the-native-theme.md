@@ -14,7 +14,7 @@ ADR 0012 决策 2 定下「衬底颜色与原生主题是一件事的两半」�
 于是「跟随系统」在运行期是坏的，而症状与直觉相反：
 
 1. 偏好为 `dark` 启动，`set_theme(Some(Dark))` 把原生主题钉死；
-2. 这一钉同时决定 WebView2 的 preferred color scheme（ADR 0012 的 Evidence 已记
+2. 这一钉同时决定渲染进程的 preferred color scheme（ADR 0012 的 Evidence 已记
    这条链路），即文档层的 `prefers-color-scheme` 变成 dark；
 3. 用户切到「跟随系统」，渲染层 `applyThemePreference('system')` 就地读
    `matchMedia('(prefers-color-scheme: dark)')` —— 读到的是第 2 步钉住的那一层，
@@ -67,5 +67,5 @@ ADR 0012 决策 2 定下「衬底颜色与原生主题是一件事的两半」�
 - 回归测试在 `window/surface.rs` 的 `tests::system_unpins_the_native_theme`：把
   `System` 改回 `Some(Theme::Dark)` 即失败，反向验证过这条断言不是空转。
 - `prefers-color-scheme` 由原生主题推出的链路见 ADR 0012 的 Evidence
-  （`tao-0.35.3` 的 `set_theme` → `wry-0.55.1` 的 `ICoreWebView2_13::Profile().SetPreferredColorScheme`）。
+  （Electron 的 `nativeTheme.themeSource` 同时改窗口主题与 `prefers-color-scheme`）。
 - `ipc:check` 通过：`ResolvedTheme` 只剩一份定义，`windowSetTheme` 在生成绑定里。

@@ -74,7 +74,7 @@
 ## 相关代码
 
 - 分类：`crates/asset/src/{formats.rs,intake.rs}`
-- 暂存与发送：`apps/desktop/src-tauri/src/{paths.rs,asset.rs,conversation/attachment.rs}`、
+- 暂存与发送：`apps/desktop/native/src/{paths.rs,asset.rs,conversation/attachment.rs}`、
   `crates/conversation-runtime/src/gateway.rs`
 - 线上 part：`crates/agent-client/src/session/client.rs`
 - 投影：`packages/conversation/src/transcript/{transcript-projector.ts,transcript-store.ts,kimi-attachment.ts}`

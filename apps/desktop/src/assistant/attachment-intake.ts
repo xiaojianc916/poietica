@@ -100,7 +100,7 @@ export function createAttachmentIntake(): AttachmentIntake {
       let last = ''
       let reset: ReturnType<typeof setTimeout> | undefined
 
-      void watchDroppedPaths((paths) => {
+      stop = watchDroppedPaths((paths) => {
         if (cancelled) {
           return
         }
@@ -137,18 +137,11 @@ export function createAttachmentIntake(): AttachmentIntake {
           },
         )
       })
-        .then((unlisten) => {
-          if (cancelled) {
-            unlisten()
 
-            return
-          }
-
-          stop = unlisten
-        })
-        .catch((cause: unknown) => {
-          warn('拖放监听未能安装', { scope: 'attachment-intake', cause })
-        })
+      if (cancelled) {
+        stop()
+        stop = null
+      }
 
       return () => {
         cancelled = true

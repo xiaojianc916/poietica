@@ -15,8 +15,8 @@
 | 包内目录命名禁用清单 | 同上 `FORBIDDEN_DIRECTORY_NAMES` | 同上 |
 | 依赖版本 | `package.json` 的 catalog | Bun |
 | IPC 契约 | Rust 类型，生成到 `packages/contract/src/generated/` | `bun run ipc:check` |
-| IPC 命令清单 | `apps/desktop/src-tauri/src/ipc/mod.rs` 的 surface()，唯一一份 | 同上 |
-| 磁盘布局 | `apps/desktop/src-tauri/src/paths.rs` | 运行时 |
+| IPC 命令清单 | `apps/desktop/native/src/ipc/mod.rs` 的类型表、函数表与分发表，三处同文件 | 同上 |
+| 磁盘布局 | `apps/desktop/native/src/paths.rs` | 运行时 |
 | 帧的形状 | `crates/agent-client/src/frame.rs` | serde + 测试 |
 | 传输的线上形状 | `packages/agent-bridge/src/protocol.ts`（产地）与 `crates/agent-client/src/wire.rs`（读者） | 两侧同时改 + 测试 |
 
@@ -41,7 +41,7 @@ agent 是 oh-my-pi（omp，npm `@oh-my-pi/pi-coding-agent`，见 ADR 0016 与 00
 
 屏幕经过走 agent 自己的 transcript：随包发的边车（`packages/agent-bridge`，omp 的
 SDK 编在里面，用户不装任何 CLI）在 stdout 上推 `transcript.ops` / `transcript.reset`
-（session/bridge.rs 的 driver），经 router → SessionEvent::Transcript → Tauri
+（session/bridge.rs 的 driver），经 router → SessionEvent::Transcript → `transport::emit` 的
 agentTranscriptEvent（原样 JSON）→ native-bridge 的 transcript 端口（vendored
 schema 校验）→ transcript-store（增量 ops / reset 快照 / 追赶）→
 projectTranscript 投影 → React。本机帧日志（conversation_events）只记协议不
@@ -59,21 +59,22 @@ schema（packages/transcript）；传输线上形状 = agent-bridge 的 protocol
 
 ```text
 apps/desktop/src/        产品界面与应用编排（组合根：entry/compose-runtime.ts）
-apps/desktop/src-tauri/  唯一的 Rust 组合根：建窗、注册命令、DTO 互转
-crates/                  native crate：依赖向下且无环，不依赖 tauri，可独立测试
+apps/desktop/electron/   Electron 主进程与 preload：建窗、协议、WebContentsView、宿主命令
+apps/desktop/native/     唯一的 Rust 组合根（NAPI-RS 的 .node）：命令面与 DTO
+crates/                  能力 crate：依赖向下且无环，不认识宿主，可独立测试
 packages/                TS 工作区包：分层由 layering.ts 裁决，依赖单向向下
 tools/architecture/      机器执行的那部分架构（入口 verify.ts）
 ```
 
 三条 TS 不变量：依赖只指向更低层（判据落在 package.json 边上）；除生成物
-`@poietica/contract` 外只有 `@poietica/native-bridge` 可碰 `@tauri-apps/*`
+`@poietica/contract` 外只有 `@poietica/native-bridge` 可碰 `window.poietica`
 （判据是 layering.ts 的 HOST_AWARE_PACKAGES）；跨包只走公开 exports。新包
 先定层，否则架构检查失败。
 
-Rust 侧四元结构：每个 crate 拥有一块与宿主无关的能力；src-tauri 命令函数是
-薄封装。**薄的判据可执行：凡是不需要 AppHandle/State/Emitter 就能写出的逻辑，
-必须住在 crate 里并有自己的单测。** 组合根里只允许：解参、调 crate、DTO 互转、
-emit、宿主节拍（攒批、窗口、托盘）。
+Rust 侧四元结构：每个 crate 拥有一块与宿主无关的能力；native 的命令函数是
+薄封装。**薄的判据可执行：凡是不经宿主端口就能写出的逻辑，必须住在 crate 里并
+有自己的单测。** 组合根（`native/src/ipc/mod.rs` 与 `native/src/entry.rs`）里
+只允许：解参、调 crate、DTO 互转、emit、宿主节拍（攒批、窗口、托盘）。
 
 ## 4. 目录与文件的放置判据
 
@@ -143,7 +144,8 @@ FORMATS 把文件头判定与 Content-Type 收成一张表，加一种格式只�
 
 - **加一家 agent**：agent-catalog 加档案（program/args/homeVar/ownHomeDirectory/
   installSpec/方言）。验收：通用层零改动。专属行为走档案能力开关 + 专属模块。
-- **加一条 IPC 命令**：Rust 定类型与命令 → 挂进 ipc/mod.rs 的 surface() →
+- **加一条 IPC 命令**：Rust 定类型与命令（`#[specta::specta]`）→ 挂进
+  `native/src/ipc/mod.rs` 的 `types()` 与 `functions()` 两张表并补上分发臂 →
   `bun run ipc:generate` → TS 端口层适配。TS 侧先写形状即为缺陷。
 - **加一种帧**：frame.rs 加 variant，两侧由编译器与生成绑定兜底。
 - **加一个包**：先在分层表定层，再建目录。
@@ -181,6 +183,12 @@ turn 的准确关联以及跨进程取消。包级检查通过不能代替这些
 已收敛：完整文件依赖图。包内目录环与 crate 内模块环都进了闸门
 （`intra-package-cycles` / `rust-module-cycles`），全仓当前为零条 —— 判据可执行，
 不再靠人工审阅。
+
+尚存一条有意偏差，`domain-crates-are-reachable` 对 `poietica-browser-native`：
+它的标签模型、地址归一化、favicon 抓取与 picker token 仍是能力正本，但宿主换 Electron
+后由 `apps/desktop/electron/browser/host.ts` 以 TypeScript 重写承载（视图对象只有宿主
+有）。crate 本身因此没有生产调用方，判据会一直报「能力没有生产调用方」。**不摘
+`CARGO_RINGS` 的登记**：摘掉等于宣称这个能力消失，而它没有 —— 换的是承载语言。
 
 ## 11. 文档地图
 

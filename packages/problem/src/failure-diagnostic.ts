@@ -179,7 +179,7 @@ export function formatFailureDiagnostic(incident: {
 
 /*
  * 跨 IPC 回来的失败是一个信封，不是 Error：整封 stringify 会把 code 与
- * recoverable 一起当成消息推上屏幕。正本是 src-tauri/src/error.rs 的 Problem。
+ * recoverable 一起当成消息推上屏幕。正本是 native/src/error.rs 的 Problem。
  */
 function readEnvelopeMessage(cause: unknown): string | undefined {
   if (typeof cause !== 'object' || cause === null) {

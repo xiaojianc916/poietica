@@ -14,9 +14,7 @@
   "scripts": {
     "typecheck": "tsc --project tsconfig.json --noEmit"
   },
-  "dependencies": {
-    "@tauri-apps/api": "catalog:tauri"
-  },
+  "dependencies": {},
   "devDependencies": {
     "@types/bun": "catalog:",
     "typescript": "catalog:"

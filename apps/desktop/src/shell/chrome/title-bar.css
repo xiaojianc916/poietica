@@ -43,9 +43,9 @@
 }
 
 /*
- * 拖拽区由 WebView2 原生非客户区命中测试处理，拖动、双击最大化、系统菜单与触控
- * 不经 JavaScript/IPC。子元素必须显式 no-drag，因为命中区域按元素矩形计算。
- * 对应的运行时能力由 tauri.conf.json 独占声明。
+ * 拖拽区由宿主的非客户区命中测试处理，拖动、双击最大化、系统菜单与触控不经
+ * JavaScript/IPC。子元素必须显式 no-drag，因为命中区域按元素矩形计算。
+ * 这条能力由 Electron 的 -webkit-app-region 独占提供。
  */
 /* Interactive caption controls must never participate in native drag hit testing. */
 .desktop-window-controls {

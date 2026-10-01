@@ -13,6 +13,7 @@ export const automationGateway: AutomationGateway = {
   cancel: (runId) => throughIpc(() => commands.automationsCancel(runId)),
   preview: (schedule, timeZone) =>
     throughIpc(() => commands.automationsPreview(schedule, timeZone)),
-  watchCatalog: (receive) =>
-    events.automationCatalogChanged.listen((event) => receive(event.payload.catalog)),
+  /* 端口要的是 Promise（它按异步清理写）；订阅本身是同步的，所以立刻兑现。 */
+  watchCatalog: async (receive) =>
+    events.automationCatalogChanged((payload) => receive(payload.catalog)),
 }

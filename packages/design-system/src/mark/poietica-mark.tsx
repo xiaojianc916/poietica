@@ -3,7 +3,7 @@ import type { SVGProps } from 'react'
 /*
  * 产品自己的标记。
  *
- * 绿底那一版应用图标（apps/desktop/src-tauri/icons/icon.png）是栅格图，仓里没有矢量
+ * 绿底那一版应用图标（apps/desktop/build/icon.png）是栅格图，仓里没有矢量
  * 正本 —— 曾有一份 icon.svg，是改名前的蓝紫条形字形，与现在这个螺旋无关。所以这里的
  * 轮廓是从那张 512×512 里提出来的：按覆盖率取 0.5 等值线，RDP 化简后转三次贝塞尔。
  *

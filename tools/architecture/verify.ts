@@ -23,10 +23,8 @@ const imports = await readImports(ROOT, ['apps', 'packages'])
 const everyImport = [...imports, ...(await readImports(ROOT, ['tests', 'tools']))]
 const tree = await walkDirectories(ROOT, ['apps', 'packages'])
 const rootManifest = await readFile(path.join(ROOT, 'package.json'), 'utf8')
-const exportBindings = await readFile(
-  path.join(ROOT, 'apps/desktop/src-tauri/src/ipc/export_bindings.rs'),
-  'utf8',
-)
+/* 生成物的落点声明在 crate 根：渲染器只是实现，路径是那一份声明。 */
+const exportBindings = await readFile(path.join(ROOT, 'apps/desktop/native/src/lib.rs'), 'utf8')
 const codeSource = await readFile(path.join(ROOT, 'crates/problem/src/code.rs'), 'utf8')
 const categorySource = await readFile(path.join(ROOT, 'crates/problem/src/category.rs'), 'utf8')
 const retrySource = await readFile(path.join(ROOT, 'crates/problem/src/retry.rs'), 'utf8')
@@ -52,7 +50,7 @@ const violations: Violation[] = [
   ...(await fileGraph(ROOT, workspaces)),
   ...policy.publicEntryOnly(imports, workspaces),
   ...policy.relativeImportsStayHome(imports, workspaces),
-  ...policy.nativeAccessIsDeclared(imports, workspaces),
+  ...(await policy.nativeAccessIsDeclared(ROOT, ['apps/desktop/src', 'packages'], workspaces)),
   ...policy.transportContractIsAdapterPrivate(imports, workspaces),
   ...policy.frameworkFreeVocabulary(imports, workspaces),
   ...policy.crateDependencyDirection(crates),

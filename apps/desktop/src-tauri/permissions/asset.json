@@ -1,5 +1,0 @@
-{
-  "identifier": "asset",
-  "description": "Asset store permissions",
-  "permissions": ["fs:allow-read", "fs:allow-write", "fs:allow-exists"]
-}

@@ -13,31 +13,20 @@
 
 import { spawnSync } from 'node:child_process'
 import { createHash } from 'node:crypto'
-import { copyFile, mkdir, readdir, readFile, rm, stat, writeFile } from 'node:fs/promises'
-import { homedir } from 'node:os'
+import { copyFile, mkdir, readdir, readFile, rm, stat } from 'node:fs/promises'
 import path from 'node:path'
 import process from 'node:process'
 import { createInterface } from 'node:readline/promises'
 import { parseArgs } from 'node:util'
+import { parse } from 'yaml'
 
-import {
-  bumped,
-  compareVersions,
-  SEMVER,
-  TAURI_CONF,
-  VERSION_FILES,
-  workspaceVersion,
-} from './version.ts'
+import { bumped, compareVersions, SEMVER, VERSION_FILES, workspaceVersion } from './version.ts'
 
 const MAIN_BRANCH = 'main'
 const CARGO = 'Cargo.toml'
-const BUNDLE_DIR = 'target/x86_64-pc-windows-msvc/release/bundle/nsis'
+/* electron-builder 的产物落点（electron-builder.yml 的 directories.output）。 */
+const BUNDLE_DIR = 'apps/desktop/dist-release'
 const STAGE_DIR = 'dist-release'
-const PLACEHOLDER_PUBKEY = 'REPLACE_WITH_TAURI_SIGNER_PUBKEY'
-
-/* 私钥进仓库等于把整条更新通道交出去，所以住在用户目录；密码第一次问一遍后存盘自取。 */
-const KEY_PATH = path.join(homedir(), '.tauri', 'poietica.key')
-const PASS_PATH = path.join(homedir(), '.tauri', 'poietica.pass')
 
 /** 预期内的失败：打印一句人话就退场，不甩堆栈。 */
 class Abort extends Error {}
@@ -109,44 +98,16 @@ async function confirm(question: string, fallback = true): Promise<boolean> {
 }
 
 /**
- * 装载签名密钥：优先环境变量，否则读用户目录；密码缺失时问一次存一次 ——
- * 「每次发版前先设两个环境变量」的流程迟早在深夜被跳过，产出没有 .sig 的发布。
+ * 检查 Windows 代码签名证书是否就位。
+ *
+ * electron-builder 用环境变量里的证书签 NSIS 安装包；缺了它照样能构建，只是产物
+ * 没有签名 —— 而 SmartScreen 会对每个用户弹一次红框。这里提前说清楚，不等到装的时候。
  */
-async function loadSigningKey(): Promise<void> {
-  if (!process.env['TAURI_SIGNING_PRIVATE_KEY']) {
-    const key = await readFile(KEY_PATH, 'utf8').catch(() => null)
-    if (key === null) {
-      throw new Abort(
-        [
-          `找不到签名私钥：${KEY_PATH}`,
-          '',
-          '如果这是一台新机器，把旧机器上的这个文件拷过来；',
-          '如果密钥从未生成过（注意：换密钥意味着所有老客户端都收不到更新了）：',
-          '  cd apps/desktop && bun run tauri signer generate -w ~/.tauri/poietica.key',
-        ].join('\n'),
-      )
-    }
-    process.env['TAURI_SIGNING_PRIVATE_KEY'] = key.trim()
-    console.log(`    已读取私钥 ${KEY_PATH}`)
+function checkSigningCertificate(): void {
+  const hasCertificate = process.env['CSC_LINK'] !== undefined
+  if (!hasCertificate) {
+    console.log('    CSC_LINK 未设置：这次的安装包不会被签名（SmartScreen 会拦）')
   }
-
-  if (process.env['TAURI_SIGNING_PRIVATE_KEY_PASSWORD'] !== undefined) {
-    return
-  }
-  const saved = await readFile(PASS_PATH, 'utf8').catch(() => null)
-  if (saved !== null) {
-    process.env['TAURI_SIGNING_PRIVATE_KEY_PASSWORD'] = saved.trim()
-    console.log(`    已读取私钥密码 ${PASS_PATH}`)
-    return
-  }
-
-  console.log('')
-  console.log('    第一次运行，需要私钥密码。它会存进你的用户目录，以后不会再问。')
-  const entered = (await terminal.question('    私钥密码（没有密码就直接回车）：')).trim()
-  await mkdir(path.dirname(PASS_PATH), { recursive: true })
-  await writeFile(PASS_PATH, entered, 'utf8')
-  process.env['TAURI_SIGNING_PRIVATE_KEY_PASSWORD'] = entered
-  console.log(`    已记住，存在 ${PASS_PATH}`)
 }
 
 /* ── [1] 起飞前检查 ────────────────────────────────────────── */
@@ -200,18 +161,7 @@ async function preflight(): Promise<{ branch: string; current: string }> {
     throw new Abort('gh 尚未登录。请先运行：gh auth login')
   }
 
-  const conf = await readFile(TAURI_CONF, 'utf8')
-  if (conf.includes(PLACEHOLDER_PUBKEY)) {
-    throw new Abort(
-      [
-        'updater 公钥还是占位符。',
-        '发出去的后果是所有已安装客户端永远更新失败，而且不会有任何报错。',
-        '生成密钥对：cd apps/desktop && bun run tauri signer generate -w ~/.tauri/poietica.key',
-      ].join('\n'),
-    )
-  }
-
-  await loadSigningKey()
+  checkSigningCertificate()
   console.log('    通过。')
   return { branch, current }
 }
@@ -351,28 +301,22 @@ async function buildAndStage(target: string, tag: string): Promise<string> {
       `构建目录里混进了其它版本的安装包（${strays.join(', ')}），此刻发布的东西不可信。`,
     )
   }
-  if (!files.includes(`${installer}.sig`)) {
-    throw new Abort(`缺少 ${installer}.sig。签名没有生成，检查私钥与密码是否正确。`)
-  }
-
   await mkdir(STAGE_DIR, { recursive: true })
-  for (const name of [installer, `${installer}.sig`]) {
-    await copyFile(path.join(BUNDLE_DIR, name), path.join(STAGE_DIR, name))
-  }
+  await copyFile(path.join(BUNDLE_DIR, installer), path.join(STAGE_DIR, installer))
+
+  /* latest.yml 由 electron-builder 写、由 latest-json 校验并搬运；SHA256SUMS.txt 也在那一步落盘。 */
   run('bun', 'run', 'latest-json', BUNDLE_DIR, STAGE_DIR, tag)
 
-  /* 四个资产全部入账：只给 exe 出校验和，等于对 latest.json 和 .sig 这两个信任来源说「自己看着办」。 */
   const digests = new Map<string, string>()
   for (const name of (await readdir(STAGE_DIR)).sort()) {
     const bytes = await readFile(path.join(STAGE_DIR, name))
     digests.set(name, createHash('sha256').update(bytes).digest('hex'))
   }
-  const sums = [...digests].map(([name, digest]) => `${digest}  ${name}`).join('\n')
-  await writeFile(path.join(STAGE_DIR, 'SHA256SUMS.txt'), `${sums}\n`, 'utf8')
 
-  const manifest = JSON.parse(await readFile(path.join(STAGE_DIR, 'latest.json'), 'utf8')) as {
+  const manifest = parse(await readFile(path.join(STAGE_DIR, 'latest.yml'), 'utf8')) as {
     version?: string
-    platforms?: Record<string, { url?: string }>
+    path?: string
+    sha512?: string
   }
   const size = (await stat(path.join(STAGE_DIR, installer))).size / 1024 / 1024
   console.log('')
@@ -386,8 +330,7 @@ async function buildAndStage(target: string, tag: string): Promise<string> {
   if (manifest.version !== target) {
     throw new Abort(`清单里的版本是 ${manifest.version}，不是 ${target}。`)
   }
-  const url = manifest.platforms?.['windows-x86_64']?.url ?? ''
-  if (!url.includes(installer)) {
+  if (manifest.path !== installer || !manifest.sha512) {
     throw new Abort('清单指向的安装包和刚构建出来的这个对不上。')
   }
 
@@ -429,8 +372,7 @@ async function publish(options: {
       'create',
       tag,
       `${STAGE_DIR}/${installer}`,
-      `${STAGE_DIR}/${installer}.sig`,
-      `${STAGE_DIR}/latest.json`,
+      `${STAGE_DIR}/latest.yml`,
       `${STAGE_DIR}/SHA256SUMS.txt`,
       '--title',
       tag,

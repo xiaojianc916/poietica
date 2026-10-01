@@ -11,11 +11,12 @@
       "!**/node_modules",
       "!**/.turbo",
       "!**/dist",
+      "!**/dist-electron",
+      "!**/dist-release",
       "!**/dist-types",
       "!**/build",
       "!**/coverage",
       "!**/target",
-      "!**/src-tauri/gen",
       "!**/generated",
       "!**/playwright-report",
       "!**/test-results",
@@ -254,7 +255,7 @@
       }
     },
     {
-      "includes": ["apps/desktop/vite.config.ts"],
+      "includes": ["apps/desktop/vite.config.ts", "apps/desktop/electron.vite.config.ts"],
       "linter": {
         "rules": {
           "style": {

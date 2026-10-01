@@ -1,9 +1,9 @@
 #!/usr/bin/env bun
 /**
- * IPC 绑定的唯一生成入口：调 cargo bin，产物落 packages/contract。
+ * IPC 绑定的唯一生成入口：调原生侧的导出可执行文件，产物落 packages/contract。
  *
- * bin 名与输出路径写在 export_bindings.rs（OUTPUT_PATH 常量），这里只编排：
- * 跑成、验产物在且非空。静默失败会发布一份过时的 IPC 面，所以失败即停。
+ * 命令清单与类型清单都在 apps/desktop/native/src/ipc/mod.rs —— 原生侧生成，渲染层消费。
+ * 这个脚本只编排：跑成、验产物在且非空。静默失败会发布一份过时的 IPC 面，所以失败即停。
  *
  * 跑法：bun run ipc:generate（package.json）。产出禁手改。
  */

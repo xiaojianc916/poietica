@@ -11,7 +11,6 @@ const READERS: Record<(typeof VERSION_FILES)[number], (text: string) => string |
   'Cargo.toml': workspaceVersion,
   'package.json': versionOf,
   'apps/desktop/package.json': versionOf,
-  'apps/desktop/src-tauri/tauri.conf.json': versionOf,
 }
 
 const declared: Array<readonly [string, string | undefined]> = await Promise.all(

@@ -299,7 +299,7 @@ export interface SettingsProviderProps {
   readonly dataDirectory: () => Promise<string>
   /** 最近若干天的 token 日账，由组合根注入（同 appVersion：账本在原生侧）。 */
   readonly readTokenDays: ReadTokenDays
-  /** 这个可执行文件自己的版本号，由组合根注入。不直接问 Tauri（见 ports/settings-store.ts 记的那笔老账），这个包的依赖里没有 @tauri-apps/api。 */
+  /** 这个应用的版本号，由组合根注入：版本号只有宿主一个产地，这个包不自己读。 */
   readonly appVersion: () => Promise<string>
   /** 这一家 agent 公布的技能名册，由组合根下传：名册属于会话上下文，住在 assistant 环，环序禁止本包反向依赖。 */
   readonly skills: readonly AgentSkill[]

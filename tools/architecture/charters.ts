@@ -15,6 +15,7 @@ import type { Crate, Workspace } from './workspace.ts'
  * 已经不存在的本仓文件"，所以那些不参与。该目录也已在 .gitignore 里。
  */
 const SKIP = new Set([
+  'dist-electron',
   '.git',
   '.github',
   '.turbo',
@@ -85,16 +86,16 @@ async function holding(root: string, files: readonly string[], needle: string): 
 }
 
 /** 路径是路径，store 是 store：定义处不算持有。 */
-const PATHS = 'apps/desktop/src-tauri/src/paths.rs'
+const PATHS = 'apps/desktop/native/src/paths.rs'
 
-/** 组合根开库：三个偏好库都在 setup 里打开。 */
-const COMPOSITION_ROOT = 'apps/desktop/src-tauri/src/composition.rs'
+/** 组合根开库：三个偏好文档都在 install 里打开。 */
+const COMPOSITION_ROOT = 'apps/desktop/native/src/bootstrap.rs'
 
 /** 每个偏好库的命令面：开库归组合根，读写归它自己那一个文件。 */
 const STORE_FACES = [
-  { store: 'settings_store', face: 'apps/desktop/src-tauri/src/settings/storage.rs' },
-  { store: 'agents_store', face: 'apps/desktop/src-tauri/src/agent/profile.rs' },
-  { store: 'automations_store', face: 'apps/desktop/src-tauri/src/automation/host.rs' },
+  { store: 'settings_store', face: 'apps/desktop/native/src/settings/storage.rs' },
+  { store: 'agents_store', face: 'apps/desktop/native/src/agent/profile.rs' },
+  { store: 'automations_store', face: 'apps/desktop/native/src/automation/host.rs' },
 ] as const
 
 /** 每个偏好库只有一个持有者：组合根开它，它自己的命令面读写，别人不碰。 */
@@ -119,71 +120,78 @@ export async function preferencesHaveOneOwner(root: string): Promise<Violation[]
   return violations
 }
 
-/** 原生业务事件由 Rust surface 生成；应用代码只消费生成监听器。 */
+/**
+ * 原生业务事件由 Rust 侧发出，消费面由契约生成。
+ *
+ * 判据是两侧对得上：原生每发一个 kind（transport::emit 的第一参），生成物里就得有一条
+ * 同名订阅；生成面缺一条，渲染层就永远收不到那一类事件，而代码看上去一切正常。
+ */
 export async function nativeEventsUseGeneratedSurface(root: string): Promise<Violation[]> {
-  const surfacePath = 'apps/desktop/src-tauri/src/ipc/mod.rs'
+  const nativeSources = 'apps/desktop/native/src'
   const generated = 'packages/contract/src/generated/ipc-bindings.ts'
-  const surface = await readFile(path.join(root, surfacePath), 'utf8')
   const generatedSource = await readFile(path.join(root, generated), 'utf8')
-  const block = surface.match(/\.events\(tauri_specta::collect_events!\[([\s\S]*?)\]\)/)?.[1]
   const violations: Violation[] = []
+  const emitted = new Set<string>()
 
-  if (block === undefined) {
-    violations.push({
-      policy: 'native-events-use-generated-surface',
-      where: surfacePath,
-      detail: '没有唯一可读的 collect_events! 清单',
-    })
-  } else {
-    const events = [...block.matchAll(/(?:^|[,\s])([A-Z][A-Za-z0-9_]*)/g)].map((match) => match[1])
-    if (events.length === 0) {
-      violations.push({
-        policy: 'native-events-use-generated-surface',
-        where: surfacePath,
-        detail: 'collect_events! 为空',
-      })
-    }
-    for (const event of events) {
-      if (!generatedSource.includes(`export type ${event} =`)) {
-        violations.push({
-          policy: 'native-events-use-generated-surface',
-          where: generated,
-          detail: `${event} 没有生成类型`,
-        })
-      }
+  for (const file of await walk(root, [nativeSources], ['.rs'])) {
+    for (const match of (await readOnce(root, file)).matchAll(
+      /transport::emit\(\s*"([a-z0-9_]+)"/g,
+    )) {
+      emitted.add(match[1] ?? '')
     }
   }
 
+  if (emitted.size === 0) {
+    violations.push({
+      policy: 'native-events-use-generated-surface',
+      where: nativeSources,
+      detail: '原生侧一个事件都发不出来：事件面与实现脱节',
+    })
+  }
+
+  for (const kind of emitted) {
+    if (!generatedSource.includes(`'${kind}'`)) {
+      violations.push({
+        policy: 'native-events-use-generated-surface',
+        where: generated,
+        detail: `${kind} 没有生成订阅面`,
+      })
+    }
+  }
+
+  /* 渲染层只认 window.poietica 那一扇门：直接碰 ipcRenderer 就是绕过了宿主端口。 */
   const files = await walk(
     root,
     ['apps', 'packages'],
     ['.cjs', '.cts', '.js', '.jsx', '.mjs', '.mts', '.ts', '.tsx'],
   )
-  for (const file of await holding(root, files, '@tauri-apps/api/event')) {
-    if (file === generated) {
+  for (const file of await holding(root, files, 'ipcRenderer')) {
+    /* 主进程与 preload 是这条端口的成因方；生成物里那句只是注释。 */
+    if (file.startsWith('apps/desktop/electron/') || file === generated) {
       continue
     }
 
     violations.push({
       policy: 'native-events-use-generated-surface',
       where: file,
-      detail: '绕过了 Rust 生成的事件契约',
+      detail: '绕过宿主端口直接使用了 ipcRenderer',
     })
   }
 
   return violations
 }
-/** 能力在组合根接线，别处不许自己往 Builder 上挂东西。 */
+/**
+ * 命令面只在组合根接线。
+ *
+ * 判据从「谁往 Builder 上挂东西」换成「谁声明了命令面」：Rust 侧只有 ipc/mod.rs 的
+ * functions() 与 types() 两张表，别处出现注册就是第二份命令清单。
+ */
 export async function capabilitiesAreWiredAtTheRoot(root: string): Promise<Violation[]> {
-  const owner = 'apps/desktop/src-tauri/src/composition.rs'
+  const owner = 'apps/desktop/native/src/ipc/mod.rs'
   const files = await rust(root)
   const violations: Violation[] = []
 
-  for (const needle of [
-    'tauri::Builder::',
-    '.invoke_handler(',
-    'register_asynchronous_uri_scheme_protocol(',
-  ]) {
+  for (const needle of ['collect_functions![', 'specta::TypeCollection::default()']) {
     for (const file of await holding(root, files, needle)) {
       if (file !== owner) {
         violations.push({
@@ -259,8 +267,9 @@ function hostSurfaceColor(
   source: string,
   name: 'LIGHT' | 'DARK',
 ): readonly [number, number, number] | null {
+  /* 宿主那两份抄本是 TS 三元组：const LIGHT_SURFACE = [243, 243, 243] as const。 */
   const declaration = new RegExp(
-    ['const ', name, '_SURFACE: Color = Color\\(([0-9]+), ([0-9]+), ([0-9]+), '].join(''),
+    ['const ', name, '_SURFACE = \\[([0-9]+), ?([0-9]+), ?([0-9]+)\\]'].join(''),
   ).exec(source)
   const channels = declaration?.slice(1, 4).map(Number)
 
@@ -351,13 +360,13 @@ async function copiesMatchOrigin(
     }
   }
 
-  const configPath = 'apps/desktop/src-tauri/tauri.conf.json'
-  const config = JSON.parse(await readFile(path.join(root, configPath), 'utf8')) as {
-    app?: { windows?: Array<{ label?: string; backgroundColor?: string }> }
-  }
-  const configured = config.app?.windows?.find((window) => window.label === 'main')?.backgroundColor
+  /* 创建底色是窗口被看见之前的唯一值：它必须逐字等于浅色衬底正本。
+     Electron 用十六进制字符串（BrowserWindow 的 backgroundColor），与 CSS 同一种记法。 */
+  const configPath = 'apps/desktop/electron/main.ts'
+  const configSource = await readFile(path.join(root, configPath), 'utf8')
+  const creationColor = /backgroundColor:\s*'(#[0-9a-fA-F]{6})'/.exec(configSource)?.[1]
 
-  if (configured?.toLowerCase() !== toHex(origin.light)) {
+  if (creationColor?.toLowerCase() !== toHex(origin.light)) {
     violations.push({
       policy: 'window-surface-policy',
       where: configPath,
@@ -382,7 +391,7 @@ async function copiesMatchOrigin(
  * 启动衬底必须由宿主按持久化偏好落定，且必须与原生主题一起钉。
  *
  * 只留渲染层投影这一条路时，投影要等设置加载与 React 首帧，中间露出的是
- * tauri.conf.json 的创建值 —— 深色偏好配浅色创建值，启动那一瞬就是浅色底。
+ * 宿主创建底色 —— 深色偏好配浅色创建值，启动那一瞬就是浅色底。
  * 主题不钉则文档层的预运行初稿继续跟系统走，与偏好脱钩，页面自己刷成浅色。
  */
 async function startupSurfaceIsAdopted(
@@ -391,7 +400,7 @@ async function startupSurfaceIsAdopted(
   surfaceSource: string,
 ): Promise<Violation[]> {
   const violations: Violation[] = []
-  const owner = 'apps/desktop/src-tauri/src/window/surface.rs'
+  const owner = 'apps/desktop/electron/main.ts'
 
   /* 宿主启动落定用的那两格是第四份抄本，同样与正本逐通道相等。 */
   for (const [name, expected] of [
@@ -409,14 +418,14 @@ async function startupSurfaceIsAdopted(
     }
   }
 
+  /*
+   * 启动衬底与原生主题必须一起钉住，而且要在窗口露出来之前：只留渲染层投影时，
+   * 投影要等设置加载与 React 首帧，中间露出的是创建值 —— 深色偏好配浅色创建值，
+   * 启动那一瞬就是浅色底。
+   */
   for (const [file, needle, detail] of [
-    [owner, 'pub fn adopt(', '启动衬底必须由宿主按偏好落定'],
-    [owner, 'window.set_theme(', '启动落定必须同时钉住原生主题，否则文档层跟着系统走'],
-    [
-      'apps/desktop/src-tauri/src/composition.rs',
-      '.adopt(&main_window,',
-      '组合根必须在窗口被看见之前落定衬底',
-    ],
+    [owner, 'setBackgroundColor(', '启动衬底必须由宿主按偏好落定'],
+    [owner, 'nativeTheme.themeSource', '启动落定必须同时钉住宿主主题，否则文档层跟着系统走'],
   ] as const) {
     if (!(await readOnce(root, file)).includes(needle)) {
       violations.push({ policy: 'window-surface-policy', where: file, detail })
@@ -468,44 +477,33 @@ async function themeSurfaceIsAligned(root: string): Promise<Violation[]> {
     )),
   )
 
+  /* 衬底由宿主持有：渲染层只投影 CSS 变量，窗口那一层归主进程。 */
   const hostSurfaceProbes = [
-    ['apps/desktop/src-tauri/src/window/surface.rs', 'pub struct WindowSurface'],
-    ['apps/desktop/src-tauri/src/window/lifecycle.rs', 'state::<WindowSurface>().reapply(window)'],
-    ['apps/desktop/src-tauri/src/ipc/mod.rs', 'window::commands::window_set_surface'],
-    ['packages/native-bridge/src/window.ts', 'commands.windowSetSurface'],
+    ['apps/desktop/electron/main.ts', 'setBackgroundColor('],
+    ['apps/desktop/electron/main.ts', 'createWindowSurface('],
+    ['packages/native-bridge/src/window.ts', 'setSurfaceColor'],
   ] as const
   for (const [file, needle] of hostSurfaceProbes) {
     if (!(await readOnce(root, file)).includes(needle)) {
       violations.push({
         policy: 'window-surface-policy',
         where: file,
-        detail: '窗口底色必须由宿主状态持有，并在恢复前重应用',
+        detail: '窗口底色必须由宿主持有，渲染层只投影变量',
       })
     }
   }
 
-  /*
-   * 衬底是两层独立表面：原生窗口一层、WebView2 一层。创建期
-   * （WebviewWindowBuilder::background_color）两层一起设，运行期只设窗口层就会
-   * 留下一层停在创建值 —— 深色下拖拽与启动露出的正是那一层。
-   */
-  const surfaceSource = await readFile(path.join(root, hostSurfaceProbes[0][0]), 'utf8')
-  for (const [needle, detail] of [
-    ['window.set_background_color(', '衬底必须设原生窗口层'],
-    [
-      'get_webview(MAIN_WINDOW)',
-      '衬底必须设主 WebView2 层：按 label 直取，不走 get_webview_window',
-    ],
-  ] as const) {
-    if (!surfaceSource.includes(needle)) {
-      violations.push({ policy: 'window-surface-policy', where: hostSurfaceProbes[0][0], detail })
-    }
-  }
+  const surfaceSource = await readOnce(root, hostSurfaceProbes[0][0])
 
   violations.push(...(await startupSurfaceIsAdopted(root, { light, dark }, surfaceSource)))
 
   const typeScriptFiles = await walk(root, ['apps', 'packages'], ['.ts', '.tsx'])
   for (const file of await holding(root, typeScriptFiles, '.setBackgroundColor(')) {
+    /* 宿主自己就是这条命令的实现者；渲染层用它才是绕过。 */
+    if (file.startsWith('apps/desktop/electron/')) {
+      continue
+    }
+
     violations.push({
       policy: 'window-surface-policy',
       where: file,
@@ -539,9 +537,8 @@ async function themeSurfaceIsAligned(root: string): Promise<Violation[]> {
   return violations
 }
 
-/** 窗口标签是一处声明，不许在调用点写字面量。 */
+/** 主窗口那一份是宿主的对象，原生侧不留窗口概念。 */
 export async function windowSurfaceIsNamedOnce(root: string): Promise<Violation[]> {
-  const owner = 'apps/desktop/src-tauri/src/window/state.rs'
   const files = await rust(root)
   const violations: Violation[] = []
 
@@ -549,18 +546,7 @@ export async function windowSurfaceIsNamedOnce(root: string): Promise<Violation[
     violations.push({
       policy: 'window-surface-policy',
       where: file,
-      detail: '窗口标签写成了字面量，应当引用 MAIN_WINDOW',
-    })
-  }
-
-  const declared = await holding(root, files, 'pub const MAIN_WINDOW')
-
-  if (declared.length !== 1 || declared[0] !== owner) {
-    violations.push({
-      policy: 'window-surface-policy',
-      where: owner,
-      detail:
-        'MAIN_WINDOW 的声明处必须唯一且落在 window/state（组合根只消费，window 不得反向依赖组合根）',
+      detail: '原生侧重建了窗口标签：窗口是宿主的对象',
     })
   }
 
@@ -800,7 +786,16 @@ export async function noTaskScopedGuards(root: string): Promise<Violation[]> {
   return violations
 }
 
-/** 领域必须在 cargo 图上被应用可达：没有调用方的领域就是第二条管线。 */
+/**
+ * 领域必须在 cargo 图上被应用可达：没有调用方的领域就是第二条管线。
+ *
+ * `browser` 是登记在 AGENTS.md §10 的**有意偏差**：它的标签模型、地址归一化、
+ * favicon 抓取与 picker token 仍是能力正本，但宿主换成 Electron 后由
+ * `apps/desktop/electron/browser/host.ts` 以 TypeScript 重写承载（视图对象只有宿主有）。
+ * crate 因此没有生产调用方 —— 这不是漏接，是换承载语言；摘登记等于宣称能力消失。
+ */
+const INTENTIONALLY_UNREFERENCED = new Set(['poietica-browser-native'])
+
 export function domainCratesAreReachable(crates: readonly Crate[]): Violation[] {
   const edges = new Map(crates.map((crate) => [crate.name, crate.dependencies]))
   const seen = new Set<string>()
@@ -825,7 +820,7 @@ export function domainCratesAreReachable(crates: readonly Crate[]): Violation[] 
   ])
 
   return required
-    .filter((name) => !seen.has(name))
+    .filter((name) => !seen.has(name) && !INTENTIONALLY_UNREFERENCED.has(name))
     .map((name) => ({
       policy: 'domain-crates-are-reachable',
       where: name,
@@ -874,8 +869,8 @@ export async function processStateIsComposedAtRoot(root: string): Promise<Violat
 /** 运行帧不回到生成事件面：屏幕经过走官方 transcript 通道（JSON 透传 + vendored schema）。 */
 export async function runFrameWireStaysTyped(root: string): Promise<Violation[]> {
   const probes = [
-    ['apps/desktop/src-tauri/src/conversation/dto.rs', 'pub events: Vec<Value>'],
-    ['apps/desktop/src-tauri/src/conversation/dto.rs', '#[specta(type = Vec<Value>)]'],
+    ['apps/desktop/native/src/conversation/dto.rs', 'pub events: Vec<Value>'],
+    ['apps/desktop/native/src/conversation/dto.rs', '#[specta(type = Vec<Value>)]'],
     ['packages/native-bridge/src/conversation/session.ts', 'events.filter(isRunEvent)'],
     ['packages/native-bridge/src/conversation/session.ts', 'agentRunBatch'],
     ['packages/native-bridge/src/conversation/session.ts', 'AgentFramePage'],
@@ -895,16 +890,21 @@ export async function runFrameWireStaysTyped(root: string): Promise<Violation[]>
   return violations
 }
 
-/** 契约包的转发层只许转发。
+/**
+ * 契约包的转发层只许转发。
  *
  * 领域包经这些子路径拿到自己那一片线上类型，而不是整张生成面 —— 那是
  * transport-contract-is-adapter-private 的执行机构，所以文件本身必须保持透明：
  * 一旦能在这里声明新形状或引入运行时值，跨进程契约就有了第二个产地。
+ *
+ * 一个例外：命令与事件都不再经过原生侧的那些类型（内置浏览器、窗口），它们的产地
+ * 是宿主，生成物里没有它们可转发。这些类型只允许声明在 browser.ts，别处照旧。
  */
 export async function contractShimsStayGenerated(root: string): Promise<Violation[]> {
   const directory = 'packages/contract/src'
   const violations: Violation[] = []
   const forbidden = /^export\s+(interface|const|function|class|enum|let|var)\b/
+  const hostOwned = `${directory}/browser.ts`
 
   for (const entry of await readdir(path.join(root, directory), { withFileTypes: true })) {
     if (!entry.isFile() || !entry.name.endsWith('.ts')) {
@@ -917,7 +917,7 @@ export async function contractShimsStayGenerated(root: string): Promise<Violatio
     for (const line of source.split('\n')) {
       const trimmed = line.trim()
 
-      if (forbidden.test(trimmed)) {
+      if (forbidden.test(trimmed) && file !== hostOwned) {
         violations.push({
           policy: 'contract-shims-stay-generated',
           where: file,
@@ -943,7 +943,7 @@ export async function contractShimsStayGenerated(root: string): Promise<Violatio
 /** Review watcher 必须是有所有者的订阅，不得以超时命令伪装推送。 */
 export async function reviewWatcherHasLease(root: string): Promise<Violation[]> {
   const probes = [
-    ['apps/desktop/src-tauri/src/review.rs', 'git_await_change'],
+    ['apps/desktop/native/src/review.rs', 'git_await_change'],
     ['crates/git-adapter/src/watch.rs', 'const WINDOW:'],
     ['packages/review/src/review-gateway.ts', 'awaitChange(root: string)'],
   ] as const

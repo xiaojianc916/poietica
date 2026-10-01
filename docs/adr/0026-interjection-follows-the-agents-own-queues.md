@@ -141,7 +141,7 @@ omp 18.3.0 的真实契约（以下均为包内源码，非文档传闻；锚点
 - 领域层：`packages/conversation/src/interjection/message-queue.ts`、
   `.../transcript/transcript-store.ts`、`.../surface/prompt-queue.tsx`、
   `.../surface/transcript/use-assistant-session.ts`
-- 原生侧：`apps/desktop/src-tauri/src/conversation/{turn.rs,dto.rs}`、
+- 原生侧：`apps/desktop/native/src/conversation/{turn.rs,dto.rs}`、
   `crates/conversation/src/turn/admission.rs`、
   `crates/ledger/src/migrations/sql/0016_admission_delivery.sql`
 

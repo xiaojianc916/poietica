@@ -11,5 +11,8 @@
     "@types/bun": "catalog:",
     "typescript": "catalog:",
     "@typescript/typescript6": "catalog:"
+  },
+  "dependencies": {
+    "yaml": "catalog:"
   }
 }

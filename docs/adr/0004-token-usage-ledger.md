@@ -23,6 +23,6 @@ agent 报的用量读数是仪表值：这条会话此刻占了多少上下文�
   `input_other` / `input_cache_read` / `input_cache_creation` 三列，撤掉
   `threads.usage`。
 - IPC 面新增只读命令 `usage_token_days`（`crates/ledger/src/index/usage.rs`
-  是唯一写点，`apps/desktop/src-tauri/src/ipc/mod.rs` 转发）。
+  是唯一写点，`apps/desktop/native/src/ipc/mod.rs` 转发）。
 - `sessionUsageOf` 与 `SessionUsageCost` 已移除：前者是手写的线上校验，后者
   全链路没有产出方。

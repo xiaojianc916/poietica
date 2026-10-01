@@ -1,7 +1,10 @@
+import { hostBridge } from '../host-bridge'
+
 /*
- * 挑文件与收拖放：plugin-dialog 与 webview 事件的唯一出口。
+ * 挑文件与收拖放：宿主对话框与拖放事件的唯一出口。
  *
  * 这里只做运输：过滤器的组装、重复拖放的去重是调用方的语义，不在这里。
+ * 读盘发生在原生侧（附件走路径入库），所以这一层只递路径，不碰字节。
  */
 
 export interface FilePickerFilter {
@@ -14,36 +17,21 @@ export async function pickPaths(options: {
   readonly multiple: boolean
   readonly filters: readonly FilePickerFilter[]
 }): Promise<readonly string[] | null> {
-  const { open } = await import('@tauri-apps/plugin-dialog')
-
-  const picked = await open({
+  const picked = await hostBridge().host.pickPaths({
     multiple: options.multiple,
-    directory: false,
     filters: options.filters.map((filter) => ({
       name: filter.name,
       extensions: [...filter.extensions],
     })),
   })
 
-  if (picked === null) {
-    return null
-  }
-
-  return Array.isArray(picked) ? picked : [picked]
+  return picked
 }
 
 /**
  * 盯着本窗口的拖放。只递 drop 那一种；同一事件流里的 hover/leave 不出门。
  * 返回摘表函数。
  */
-export async function watchDroppedPaths(
-  onDrop: (paths: readonly string[]) => void,
-): Promise<() => void> {
-  const { getCurrentWebview } = await import('@tauri-apps/api/webview')
-
-  return await getCurrentWebview().onDragDropEvent((event) => {
-    if (event.payload.type === 'drop') {
-      onDrop(event.payload.paths)
-    }
-  })
+export function watchDroppedPaths(onDrop: (paths: readonly string[]) => void): () => void {
+  return hostBridge().host.watchDroppedPaths(onDrop)
 }

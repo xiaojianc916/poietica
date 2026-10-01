@@ -1,0 +1,645 @@
+/*
+ * 应用组合根：窗口、托盘、主题、退出屏障，以及渲染层到原生宿主的那一跳。
+ *
+ * 渲染层永远拿不到 require/ipcRenderer/fs：能力只从 preload.ts 的桥进来，
+ * 命令落到 ipc-router.ts（转原生）或 browser/host.ts（标签是宿主自己的状态）。
+ */
+import { mkdir, writeFile } from 'node:fs/promises'
+import { join } from 'node:path'
+import type { IpcMainInvokeEvent } from 'electron'
+import {
+  app,
+  BrowserWindow,
+  dialog,
+  ipcMain,
+  Menu,
+  nativeImage,
+  nativeTheme,
+  protocol,
+  session,
+  shell,
+  Tray,
+} from 'electron'
+
+import { createAssetProtocolHandler } from './asset-protocol'
+import type { BrowserHost } from './browser/host'
+import { applyBrowserCommand, BROWSER_PARTITION, createBrowserHost } from './browser/host'
+import type { Router } from './ipc-router'
+import { createRouter } from './ipc-router'
+import type { NativeHost } from './native'
+import { loadNative } from './native'
+
+/** 自定义协议的特权必须在 app ready 前登记，且只能登记一次。standard 给 origin，stream 给 <video> 的 Range。 */
+protocol.registerSchemesAsPrivileged([
+  {
+    scheme: 'poietica-asset',
+    privileges: {
+      standard: true,
+      secure: true,
+      stream: true,
+      supportFetchAPI: true,
+      corsEnabled: true,
+    },
+  },
+])
+
+const MAIN_WINDOW = 'main'
+
+type ThemePreference = 'light' | 'dark' | 'system'
+
+const DENIED = 'poietica: permissionDenied — 这条通道只对主界面开放'
+
+/** 主进程侧的传输：{ command, args } 进，{ ok } | { error } 出 —— 与原生侧的线上形状一字不差。 */
+type Reply =
+  | { ok: true; value: unknown }
+  | { ok: false; problem: unknown }
+  | { ok: false; message: string }
+
+const ok = (value: unknown): Reply => ({ ok: true, value })
+const refusal = (message: string): Reply => ({ ok: false, message })
+
+let mainWindow: BrowserWindow | null = null
+let browserHost: BrowserHost | null = null
+let nativeHost: NativeHost | null = null
+let router: Router | null = null
+let tray: Tray | null = null
+let quitting = false
+
+const single = app.requestSingleInstanceLock()
+
+if (single) {
+  app.on('second-instance', () => {
+    activate(mainWindow)
+  })
+
+  void app
+    .whenReady()
+    .then(main)
+    .catch((cause: unknown) => {
+      console.error(cause)
+      dialog.showErrorBox(
+        'Poietica 启动失败',
+        cause instanceof Error ? cause.message : String(cause),
+      )
+      app.exit(1)
+    })
+} else {
+  // 第二次启动：把活着的那个窗口叫到前面来，自己退场。
+  app.quit()
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value)
+}
+
+function send(channel: string, payload: unknown): void {
+  if (mainWindow !== null && !mainWindow.isDestroyed()) {
+    mainWindow.webContents.send(channel, payload)
+  }
+}
+
+function activate(win: BrowserWindow | null): void {
+  if (win === null || win.isDestroyed()) {
+    return
+  }
+
+  if (win.isMinimized()) {
+    win.restore()
+  }
+
+  win.show()
+  win.focus()
+}
+
+function presentBrowserState(): void {
+  send('poietica:event:browser-state', browserHost?.state() ?? null)
+}
+
+/** 原生侧的 kind 是 snake_case，渲染层认的是生成物里那几个 kebab-case 名字；归一只在这一处。 */
+function eventName(kind: string): string {
+  return kind.replaceAll('_', '-')
+}
+
+/** 原生侧送来的是已序列化的 { kind, payload }。 */
+function forwardFrame(frame: string): void {
+  let parsed: unknown
+
+  try {
+    parsed = JSON.parse(frame)
+  } catch (cause) {
+    console.error('原生事件不是 JSON', cause)
+    return
+  }
+
+  if (!isRecord(parsed) || typeof parsed['kind'] !== 'string') {
+    console.error('原生事件的形状不对', parsed)
+    return
+  }
+
+  send(`poietica:event:${eventName(parsed['kind'])}`, parsed['payload'] ?? null)
+}
+
+/** 交给系统浏览器的只有三种协议；判断走 URL 解析而不是 startsWith，'https://example.com.attacker.com' 骗不了它。 */
+async function openExternal(url: string): Promise<void> {
+  let scheme: string
+
+  try {
+    scheme = new URL(url).protocol
+  } catch {
+    console.warn('拒绝打开无法解析的地址', url)
+    return
+  }
+
+  if (scheme !== 'http:' && scheme !== 'https:' && scheme !== 'mailto:') {
+    console.warn('拒绝打开非 web 地址', url)
+    return
+  }
+
+  await shell.openExternal(url)
+}
+
+function iconPath(): string {
+  return app.isPackaged
+    ? join(process.resourcesPath, 'icon.png')
+    : join(app.getAppPath(), 'build', 'icon.png')
+}
+
+/*
+ * 窗口衬底的两份抄本。正本是 packages/design-system/src/tokens/palette.css 的
+ * --ui-palette-neutral-75 / --ui-palette-dark-850，逐通道相等由架构闸门核对
+ * （tools/architecture/charters.ts 的 themeSurfaceIsAligned）。
+ */
+const LIGHT_SURFACE = [243, 243, 243] as const
+const DARK_SURFACE = [32, 32, 32] as const
+
+/**
+ * 按偏好落定窗口衬底与原生主题，交回此刻真正生效的那一档。
+ *
+ * 两件事必须一起做、且要在窗口露出来之前：只留渲染层投影时，投影要等设置加载与 React 首帧，
+ * 中间露出的是创建值 —— 深色偏好配浅色创建值，启动那一瞬就是浅色底。
+ */
+function createWindowSurface(win: BrowserWindow, preference: ThemePreference): 'light' | 'dark' {
+  nativeTheme.themeSource = preference
+
+  const resolved = nativeTheme.shouldUseDarkColors ? 'dark' : 'light'
+  const [red, green, blue] = resolved === 'dark' ? DARK_SURFACE : LIGHT_SURFACE
+
+  win.setBackgroundColor(`rgb(${red}, ${green}, ${blue})`)
+
+  return resolved
+}
+
+function createWindow(): BrowserWindow {
+  const win = new BrowserWindow({
+    // name + windowStatePersistence：位置、尺寸、最大化由 Electron 自己存，不用再写一份 window-state.ts。
+    name: MAIN_WINDOW,
+    windowStatePersistence: true,
+    frame: false,
+    width: 1400,
+    height: 900,
+    minWidth: 800,
+    minHeight: 600,
+    show: false,
+    // 创建值就是浅色衬底正本：偏好是深色时下面立刻被 createWindowSurface 覆盖，露不出这一瞬。
+    backgroundColor: '#f3f3f3',
+    icon: iconPath(),
+    webPreferences: {
+      preload: join(__dirname, 'preload.cjs'),
+      contextIsolation: true,
+      sandbox: true,
+      nodeIntegration: false,
+    },
+  })
+
+  // 偏好由渲染层持久化在自己的设置里，主进程启动时先按系统那一档落定，等它同步过来再改。
+  createWindowSurface(win, 'system')
+
+  win.webContents.setWindowOpenHandler(({ url }) => {
+    void openExternal(url)
+
+    return { action: 'deny' }
+  })
+
+  win.webContents.on('will-navigate', (event, url) => {
+    // 主界面自己不导航；外链一律交给系统浏览器。
+    if (url !== win.webContents.getURL()) {
+      event.preventDefault()
+      void openExternal(url)
+    }
+  })
+
+  const devUrl = process.env['ELECTRON_RENDERER_URL']
+
+  if (devUrl === undefined || devUrl.length === 0) {
+    void win.loadFile(join(__dirname, '../dist/index.html'))
+  } else {
+    void win.loadURL(devUrl)
+  }
+
+  // 主界面没有露面就是没有可用界面：渲染层 8 秒还没 present 就直接显示，日志里留一句。
+  const watchdog = setTimeout(() => {
+    if (!quitting && !win.isDestroyed() && !win.isVisible()) {
+      console.warn('渲染层未在 8 秒内 present，直接显示窗口')
+      activate(win)
+    }
+  }, 8000)
+
+  win.on('closed', () => {
+    clearTimeout(watchdog)
+    mainWindow = null
+  })
+
+  // 界面上那个 × 是渲染层自己的按钮，它调 host.close() 走 app.quit()；系统关窗（Alt+F4）同样先问渲染层。
+  win.on('close', (event) => {
+    if (quitting) {
+      return
+    }
+
+    event.preventDefault()
+    send('poietica:close-requested', null)
+  })
+
+  win.on('resize', () => {
+    // 面板矩形是渲染层上报的 CSS 像素，窗口尺寸变了只需按同一个矩形重摆一次。
+    browserHost?.relayout()
+  })
+
+  win.on('maximize', () => {
+    send('poietica:window-maximized', true)
+  })
+
+  win.on('unmaximize', () => {
+    send('poietica:window-maximized', false)
+  })
+
+  return win
+}
+
+function installTray(win: BrowserWindow): void {
+  tray = new Tray(nativeImage.createFromPath(iconPath()))
+  tray.setToolTip('Poietica')
+  tray.setContextMenu(
+    Menu.buildFromTemplate([
+      { label: '显示窗口', click: () => activate(win) },
+      { label: '隐藏到托盘', click: () => win.hide() },
+      { type: 'separator' },
+      {
+        label: '退出程序',
+        click: () => {
+          // 先把窗口叫出来：确认对话框画在一个隐藏的窗口里等于没有对话框。
+          activate(win)
+          send('poietica:termination-requested', null)
+        },
+      },
+      { label: '强制退出（丢弃未保存的更改）', click: () => forceQuit() },
+    ]),
+  )
+  tray.on('click', () => {
+    if (win.isVisible() && win.isFocused()) {
+      win.hide()
+    } else {
+      activate(win)
+    }
+  })
+}
+
+function forceQuit(): void {
+  quitting = true
+  browserHost?.dispose()
+  void shutdownNative().finally(() => {
+    app.exit(0)
+  })
+}
+
+async function shutdownNative(): Promise<void> {
+  const host = nativeHost
+
+  nativeHost = null
+
+  if (host === null) {
+    return
+  }
+
+  try {
+    await host.shutdown()
+  } catch (cause) {
+    console.error('原生侧没有干净退出', cause)
+  }
+}
+
+/** Electron 把 IPC 的异常压成一句 message，成功那边的形状只能靠返回值得知。 */
+function failure(cause: unknown): Reply {
+  if (typeof cause === 'object' && cause !== null && 'problem' in cause) {
+    return { ok: false, problem: cause.problem }
+  }
+
+  return refusal(cause instanceof Error ? cause.message : String(cause))
+}
+
+/** 只有主窗口顶层帧能调宿主：外站视图、iframe 与别的 WebContents 一律在门口挡住。 */
+function fromMainWindow(event: IpcMainInvokeEvent, win: BrowserWindow): boolean {
+  if (event.sender !== win.webContents) {
+    return false
+  }
+
+  const frame = event.senderFrame
+
+  return frame !== null && frame.parent === null
+}
+
+interface PickOptions {
+  multiple: boolean
+  filters: { name: string; extensions: string[] }[]
+}
+
+function isPickOptions(value: unknown): value is PickOptions {
+  if (
+    !isRecord(value) ||
+    typeof value['multiple'] !== 'boolean' ||
+    !Array.isArray(value['filters'])
+  ) {
+    return false
+  }
+
+  return value['filters'].every(
+    (filter) =>
+      isRecord(filter) &&
+      typeof filter['name'] === 'string' &&
+      Array.isArray(filter['extensions']) &&
+      filter['extensions'].every((extension) => typeof extension === 'string'),
+  )
+}
+
+function isSurfaceColor(value: unknown): value is readonly [number, number, number] {
+  if (!Array.isArray(value) || value.length !== 3) {
+    return false
+  }
+
+  return value.every(
+    (part) => typeof part === 'number' && Number.isInteger(part) && part >= 0 && part <= 255,
+  )
+}
+
+function isExportRequest(value: unknown): value is { content: string; format: 'csv' | 'markdown' } {
+  if (!isRecord(value)) {
+    return false
+  }
+
+  return (
+    typeof value['content'] === 'string' &&
+    (value['format'] === 'csv' || value['format'] === 'markdown')
+  )
+}
+
+function installHandlers(win: BrowserWindow): void {
+  ipcMain.handle(
+    'poietica:invoke',
+    async (event, command: unknown, args: unknown): Promise<Reply> => {
+      if (!fromMainWindow(event, win)) {
+        return refusal(DENIED)
+      }
+
+      const local =
+        browserHost === null
+          ? { handled: false as const }
+          : applyBrowserCommand(browserHost, typeof command === 'string' ? command : '', args)
+
+      if (local.handled) {
+        return ok(local.value)
+      }
+
+      const host = router
+
+      if (host === null) {
+        return refusal('poietica: hostFailed — 原生宿主还没起来')
+      }
+
+      try {
+        return ok(await host.invoke(command, args))
+      } catch (cause) {
+        return failure(cause)
+      }
+    },
+  )
+
+  ipcMain.handle('poietica:window', (event, action: unknown): Reply => {
+    if (!fromMainWindow(event, win)) {
+      return refusal(DENIED)
+    }
+
+    switch (action) {
+      case 'minimize':
+        win.minimize()
+
+        return ok(null)
+
+      case 'toggleMaximize':
+        if (win.isMaximized()) {
+          win.unmaximize()
+        } else {
+          win.maximize()
+        }
+
+        return ok(null)
+
+      case 'isMaximized':
+        return ok(win.isMaximized())
+
+      case 'close':
+        // 标题栏的关闭按钮：走退出屏障，别绕过它。
+        app.quit()
+
+        return ok(null)
+
+      case 'openDevtools':
+        win.webContents.openDevTools()
+
+        return ok(null)
+
+      case 'present':
+        activate(win)
+
+        return ok(null)
+
+      default:
+        return refusal('poietica: requestInvalid — 未知的窗口动作')
+    }
+  })
+
+  ipcMain.handle('poietica:open-external', async (event, url: unknown): Promise<Reply> => {
+    if (!fromMainWindow(event, win)) {
+      return refusal(DENIED)
+    }
+
+    if (typeof url !== 'string' || url.length === 0) {
+      return refusal('poietica: requestInvalid — 打开的地址必须是非空字符串')
+    }
+
+    await openExternal(url)
+
+    return ok(null)
+  })
+
+  ipcMain.handle('poietica:pick-root', async (event): Promise<Reply> => {
+    if (!fromMainWindow(event, win)) {
+      return refusal(DENIED)
+    }
+
+    const picked = await dialog.showOpenDialog(win, {
+      properties: ['openDirectory', 'createDirectory'],
+    })
+
+    return ok(picked.canceled ? null : (picked.filePaths[0] ?? null))
+  })
+
+  ipcMain.handle('poietica:pick-paths', async (event, options: unknown): Promise<Reply> => {
+    if (!fromMainWindow(event, win)) {
+      return refusal(DENIED)
+    }
+
+    if (!isPickOptions(options)) {
+      return refusal(
+        'poietica: requestInvalid — 挑文件要说明能不能多选，过滤器要写成 { name, extensions[] }',
+      )
+    }
+
+    const picked = await dialog.showOpenDialog(win, {
+      properties: options.multiple ? ['openFile', 'multiSelections'] : ['openFile'],
+      filters: options.filters.map((filter) => ({
+        name: filter.name,
+        extensions: [...filter.extensions],
+      })),
+    })
+
+    // 取消是 null 而不是空数组：调用方要分得开「没选」与「选了零个」。
+    return ok(picked.canceled ? null : picked.filePaths)
+  })
+
+  ipcMain.handle('poietica:home-directory', (event): Reply => {
+    if (!fromMainWindow(event, win)) {
+      return refusal(DENIED)
+    }
+
+    return ok(app.getPath('home'))
+  })
+
+  ipcMain.handle('poietica:set-surface', (event, color: unknown): Reply => {
+    if (!fromMainWindow(event, win)) {
+      return refusal(DENIED)
+    }
+
+    if (!isSurfaceColor(color)) {
+      return refusal('poietica: requestInvalid — 底色是三个 0-255 的整数')
+    }
+
+    win.setBackgroundColor(`rgb(${color[0]}, ${color[1]}, ${color[2]})`)
+
+    return ok(null)
+  })
+
+  ipcMain.handle('poietica:save-export', async (event, request: unknown): Promise<Reply> => {
+    if (!fromMainWindow(event, win)) {
+      return refusal(DENIED)
+    }
+
+    if (!isExportRequest(request)) {
+      return refusal('poietica: requestInvalid — 导出请求要有 content 与 csv/markdown 格式')
+    }
+
+    const csv = request.format === 'csv'
+    const picked = await dialog.showSaveDialog(win, {
+      defaultPath: csv ? 'export.csv' : 'export.md',
+      filters: csv
+        ? [{ name: 'CSV', extensions: ['csv'] }]
+        : [{ name: 'Markdown', extensions: ['md'] }],
+    })
+
+    if (picked.canceled || picked.filePath === undefined || picked.filePath.length === 0) {
+      return ok(false)
+    }
+
+    await writeFile(picked.filePath, request.content, 'utf8')
+
+    return ok(true)
+  })
+
+  ipcMain.handle('poietica:set-theme', (event, preference: unknown): Reply => {
+    if (!fromMainWindow(event, win)) {
+      return refusal(DENIED)
+    }
+
+    if (preference !== 'light' && preference !== 'dark' && preference !== 'system') {
+      return refusal('poietica: requestInvalid — 主题偏好只有 light/dark/system')
+    }
+
+    // 跟随系统时此刻到底是哪一档，只有宿主答得出来；渲染层只消费返回值。
+    return ok(createWindowSurface(win, preference))
+  })
+}
+
+async function main(): Promise<void> {
+  const win = createWindow()
+
+  mainWindow = win
+
+  const dataRoot = app.getPath('userData')
+  const bundledDirectory = app.isPackaged
+    ? join(process.resourcesPath, 'agent')
+    : join(app.getAppPath(), 'resources', 'agent')
+
+  await mkdir(dataRoot, { recursive: true })
+  protocol.handle('poietica-asset', createAssetProtocolHandler(dataRoot))
+
+  // 外站视图与主界面共用一个持久会话，但权限一项都不给：要放行哪一种，将来在这里单独开口。
+  session
+    .fromPartition(BROWSER_PARTITION)
+    .setPermissionRequestHandler((_contents, _permission, callback) => {
+      callback(false)
+    })
+
+  browserHost = createBrowserHost(win, presentBrowserState, {
+    onElementPicked: (picked) => {
+      // 事件名与生成物的 events.browserElementPicked 一致。
+      send('poietica:event:browser-element-picked', picked)
+    },
+  })
+
+  const native = loadNative()
+
+  nativeHost = native
+  // attach 必须在 start 之前：start 会恢复现场，那时发出来的事件要有接收者。
+  native.attach({ emit: forwardFrame })
+
+  router = createRouter({
+    native: { invoke: (command, argsJson) => native.invoke(command, argsJson) },
+  })
+
+  installHandlers(win)
+  installTray(win)
+
+  // 路径只能由主进程算：原生侧不猜目录，也不读环境变量。
+  await native.start({
+    dataRoot,
+    homeDirectory: app.getPath('home'),
+    bundledDirectory,
+  })
+
+  app.on('window-all-closed', () => {
+    app.quit()
+  })
+
+  // 退出屏障：原生侧还没关干净就不许真退，第二次 before-quit 才放行。
+  app.on('before-quit', (event) => {
+    if (quitting) {
+      return
+    }
+
+    event.preventDefault()
+    quitting = true
+    browserHost?.dispose()
+
+    void shutdownNative().finally(() => {
+      app.quit()
+    })
+  })
+}

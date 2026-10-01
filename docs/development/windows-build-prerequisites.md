@@ -88,7 +88,7 @@ first; to prepare the runtime on its own:
 bun run agent:prepare
 ```
 
-It lands in `apps/desktop/src-tauri/binaries/` (gitignored). Every file lands beside
+It lands in `apps/desktop/resources/agent/` (gitignored). Every file lands beside
 the installed `poietica.exe` verbatim — the runtime is found there first and the
 bridge entry is only ever looked for there, because running a same-named script from
 `PATH` would be a different program.

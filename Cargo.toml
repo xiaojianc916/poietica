@@ -1,7 +1,7 @@
 [workspace]
 resolver = "3"
 members = [
-  "apps/desktop/src-tauri",
+  "apps/desktop/native",
   "crates/asset",
   "crates/automation",
   "crates/automation-runtime",
@@ -19,7 +19,7 @@ members = [
   "crates/time",
 ]
 default-members = [
-  "apps/desktop/src-tauri",
+  "apps/desktop/native",
 ]
 
 [workspace.package]
@@ -98,13 +98,8 @@ notify = "8.0.0"
 # Plugin signature and integrity verification
 base64 = "0.22.1"
 
-# 发布签名校验：与 Tauri 更新器同一套 minisign 格式、同一份实现。
-minisign-verify = "0.2"
-ed25519-dalek = { version = "2.1.1", features = [
-  "pkcs8", "rand_core", "serde",
-] }
-
 # Observability
+
 
 # HTTP 客户端，全仓一份：厂商密钥探测、插件目录抓取、更新清单与载荷下载都走它。
 #
@@ -113,36 +108,6 @@ reqwest = { version = "0.12", default-features = false, features = [
   "rustls-tls", "json", "multipart", "stream",
 ] }
 
-# Tauri composition root
-# devtools 显式常开，不靠构建种类。
-#
-# Tauri 只在 debug 构建里自动开这个 feature —— 不写它，发行构建里
-# WebviewWindow::open_devtools 这个方法根本不存在，源码那边的 #[cfg] 删了也
-# 编译不过。两道闸，缺一不可。
-#
-# 发行版带开发者工具是桌面应用的常规做法，不是破例：VS Code 的 Help ▸ Toggle
-# Developer Tools、Obsidian 的 Ctrl+Shift+I、Slack、Discord、Figma 桌面版都
-# 带。前端代码本来就原样躺在安装包里，何况这个仓库是公开的 —— 开发者工具不
-# 增加任何暴露，它只是一个查看器。
-# unstable 只为 multiwebview：内置浏览器面板是主窗口里的原生子 webview
-# （Window::add_child）。iframe 不是备选 —— X-Frame-Options/frame-ancestors
-# 会把大多数站点挡在外面。该 feature 门后的 API 一旦破坏性变更，编译期即暴露。
-tauri = { version = "2.5.1", features = ["tray-icon", "image-png", "devtools", "unstable"] }
-tauri-build = { version = "2.2.0", features = [] }
-tauri-plugin-clipboard-manager = "2.3.0"
-tauri-plugin-dialog = "2.3.0"
-tauri-plugin-fs = "2.4.0"
-tauri-plugin-log = "2.4.0"
-tauri-plugin-opener = "2.3.0"
-tauri-plugin-os = "2.3.0"
-tauri-plugin-process = "2.3.0"
-tauri-plugin-shell = "2.3.0"
-tauri-plugin-single-instance = "2.3.0"
-tauri-plugin-store = "2.3.0"
-tauri-plugin-global-shortcut = "2.3.0"
-tauri-plugin-notification = "2.3.0"
-tauri-plugin-window-state = "2.3.0"
-tauri-plugin-updater = "2.11.0"
 
 # IPC contract generation.
 #
@@ -158,10 +123,19 @@ specta = { version = "=2.0.0-rc.22", features = [
 
 specta-typescript = "=0.0.9"
 
-tauri-specta = { version = "=2.0.0-rc.21", features = [
-  "derive",
-  "typescript",
+
+# NAPI 绑定：Electron 主进程是唯一的宿主，原生能力以 Node 动态库形态交付。
+#
+# napi 与 napi-derive 必须同大版本：宏展开出的代码直接调运行时 API，错一颗就编译不过。
+napi = { version = "3", default-features = false, features = [
+  "napi9", "serde-json", "tokio_rt",
 ] }
+napi-derive = "3"
+napi-build = "2"
+
+# 大小写转换：契约导出要把 Rust 的 snake_case 命令名写成 TypeScript 的 lowerCamelCase。
+# 自己写一份就是第二份命名规则，而命名规则必须与渲染层看到的一致。
+heck = "0.5"
 
 # Testing
 proptest = "1.7.0"
@@ -225,7 +199,7 @@ wildcard_dependencies = "deny"
 # 这段此前写的是「#[cfg(test)] 模块内层统一放开」。没有任何配置实现过那句话，
 # 而它足以让人以为内联的 mod tests 不必自己写 —— src/recorder.rs 漏掉的那一句
 # 就是这么漏的，并且一直没被发现：bun run clippy 之外的手跑命令都不带 --workspace，
-# 而 default-members 只有 apps/desktop/src-tauri。
+# 而 default-members 只有 apps/desktop/native。
 expect_used = "warn"
 get_unwrap = "warn"
 indexing_slicing = "warn"

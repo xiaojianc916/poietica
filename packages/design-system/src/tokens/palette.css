@@ -13,7 +13,7 @@
    * #f3f3f3 —— 顶部栏与左侧侧边栏底色，同时是窗口衬底（拖拽或还原瞬间露出的
    * 那一层）的正本。窗口早于 webview 存在，读不到这里的 CSS，所以正本写字面
    * 十六进制、可被取色器核对，并由 window-surface-policy 核对三份抄本与之相等：
-   * tauri.conf.json 的创建底色、index.html 的预运行初稿、theme-runtime.ts 的
+   * electron/main.ts 的创建底色、index.html 的预运行初稿、theme-runtime.ts 的
    * RGB 投影。改这一格必须同时改那三处。
    */
   --ui-palette-neutral-75: #f3f3f3;
