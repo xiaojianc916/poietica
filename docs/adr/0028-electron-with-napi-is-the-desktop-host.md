@@ -36,7 +36,7 @@ Electron 把第一条边界**去掉**（同进程），把第二条换成宿主�
 | 内置浏览器 | 主窗口里的原生子 webview（`Window::add_child` + WebView2），profile 自己分 | 一个标签一个 `WebContentsView`：`contentView.addChildView` 挂载、`setBounds`/`setVisible` 摆位、`setWindowOpenHandler` 接管弹窗，`partition: 'persist:poietica-browser'` | 视图是宿主的一等对象；`<webview>` 已弃用且跑在渲染进程里 |
 | 资产协议 | `poietica-asset://`，`register_asynchronous_uri_scheme_protocol` | `protocol.handle('poietica-asset', ...)` | 同一条自定义协议、同一份字节产地（`crates/asset`），只换注册点 |
 | 终端流 | crate 的 sink 回调经 Tauri 事件推给渲染层 | 同一个 sink 经 `ThreadsafeFunction` 交给主进程推送 | 会话状态住 crate（AGENTS.md §3），宿主只负责搬运 |
-| 桥的生命周期 | 组合根用 `tokio::process` 起 `resources/bun.exe` + `poietica-bridge.js` | 主进程用 `child_process.spawn` 起同一个东西，stdio 一行一条 JSON 原样保留 | 保留 omp 的 Bun 运行时边界（ADR 0021）；它是库，不是 Electron 模块 |
+| 桥的生命周期 | 组合根用 `tokio::process` 起 `resources/bun.exe` + `poietica-bridge.js` | **同一个 crate 起同一对东西**，只是随包目录搬到 `resources/agent/`；stdio 一行一条 JSON 原样保留 | 保留 omp 的 Bun 运行时边界（ADR 0021）；它是库，不是 Electron 模块 |
 | 托盘与单实例 | `tauri-plugin-single-instance` + `TrayIconBuilder`；退出是请求，屏障归 shutdown | `requestSingleInstanceLock()` + Electron `Tray`；退出屏障与"强制退出"菜单项照搬 | 语义一模一样，只换 API |
 | 窗口状态 | `tauri-plugin-window-state`，`StateFlags` = SIZE/POSITION/MAXIMIZED/FULLSCREEN（刻意不含 VISIBLE） | 主进程自己读写同一组字段 | 少一个插件，判据（不含 VISIBLE）保留 |
 | 自动更新 | Tauri bundler + NSIS + `tauri-plugin-updater`（minisign） | electron-builder（NSIS）+ `electron-updater`；工具链迁到 `electron-vite` | 更新链路跟着打包链路一起走 |
@@ -83,11 +83,13 @@ Electron 把第一条边界**去掉**（同进程），把第二条换成宿主�
    读，URL 形状与错误信封不变，只换注册点。
 
 8. **oh-my-pi 的集成方式不变。** 仍是 SDK 直接集成（`packages/agent-bridge` 里
-   `createBridge`），仍跑在随包的 Bun 运行时里（`apps/desktop/resources/bun.exe` +
-   `poietica-bridge.js`），Electron 主进程用 `child_process.spawn` 起它，stdio 一行一条
-   JSON 的传输原样保留。**不**改成在 Electron 里直接 `import`：ADR 0021 的判据
-   （`bun:sqlite`、Bun API 与 `bun:*` 模块的广泛使用、只认 bun 的 `engines`）在
-   Electron 里逐条同样成立。
+   `createBridge`），仍跑在随包的 Bun 运行时里（`apps/desktop/resources/agent/` 下的
+   `bun.exe` + `poietica-bridge.js`），stdio 一行一条 JSON 的传输原样保留。
+   起进程的仍是原生侧（`crates/agent-client/src/session/bridge.rs` 的
+   `tokio::process::Command::new(&resolved).arg(&bridge)`），而不是主进程 —— 会话生命
+   周期归会话运行时，主进程不该在中间多插一手。**不**改成在 Electron 里直接 `import`：
+   ADR 0021 的判据（`bun:sqlite`、Bun API 与 `bun:*` 模块的广泛使用、只认 bun 的
+   `engines`）在 Electron 里逐条同样成立。
 
 9. **打包与更新整体换到 Electron 侧。** electron-builder（NSIS）出安装包，
    `electron-updater` 做出货更新，构建工具链迁到 `electron-vite`。Tauri bundler、
