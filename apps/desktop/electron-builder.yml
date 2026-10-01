@@ -5,6 +5,10 @@ productName: Poietica
 directories:
   output: dist-release
   buildResources: build
+# Electron 二进制取已安装的那一份（electron 包安装时已经下过并解压好），不让
+# electron-builder 再去 GitHub 下一遍 100MB+ 的 zip —— 同一份字节下两次是纯浪费，
+# 而那条下载在网络上不稳的机器上会让整条发布链在最后一步失败。
+electronDist: node_modules/electron/dist
 # 产物名是发布脚本与 runbook 的稳定契约：换掉它，tools/release/release.ts 的收集
 # 与 verify-channel 的 -setup.exe 判据要一起改。
 artifactName: ${productName}_${version}_x64-setup.${ext}
