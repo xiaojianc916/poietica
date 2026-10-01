@@ -4,7 +4,7 @@
  * 渲染层永远拿不到 require/ipcRenderer/fs：能力只从 preload.ts 的桥进来，
  * 命令落到 ipc-router.ts（转原生）或 browser/host.ts（标签是宿主自己的状态）。
  */
-import { mkdir, writeFile } from 'node:fs/promises'
+import { mkdir, readFile, writeFile } from 'node:fs/promises'
 import { dirname, join } from 'node:path'
 import type { IpcMainInvokeEvent } from 'electron'
 import {
@@ -44,6 +44,9 @@ protocol.registerSchemesAsPrivileged([
 ])
 
 const MAIN_WINDOW = 'main'
+
+/** Windows 通知区域的标准图标边长。 */
+const TRAY_ICON_SIZE = 16
 
 type ThemePreference = 'light' | 'dark' | 'system'
 
@@ -188,12 +191,45 @@ function createWindowSurface(win: BrowserWindow, preference: ThemePreference): '
   const resolved = nativeTheme.shouldUseDarkColors ? 'dark' : 'light'
   const [red, green, blue] = resolved === 'dark' ? DARK_SURFACE : LIGHT_SURFACE
 
-  win.setBackgroundColor(`rgb(${red}, ${green}, ${blue})`)
+  win.setBackgroundColor(cssColor([red, green, blue]))
 
   return resolved
 }
 
-function createWindow(): BrowserWindow {
+/**
+ * 启动时那一档主题偏好。
+ *
+ * 渲染层把它持久化在 settings.json 里（settings 包的 theme 一格），而窗口要在渲染层
+ * 起来**之前**就画出正确的衬底 —— 否则深色偏好会先露一瞬浅色创建值，看上去像白闪。
+ * 读失败就退回 'system'：那是没有设置时的语义，不是错误。
+ */
+async function startupThemePreference(): Promise<ThemePreference> {
+  try {
+    const text = await readFile(join(app.getPath('userData'), 'settings.json'), 'utf8')
+    const parsed: unknown = JSON.parse(text)
+    const theme = isRecord(parsed) ? parsed['theme'] : undefined
+
+    if (theme === 'light' || theme === 'dark' || theme === 'system') {
+      return theme
+    }
+  } catch {
+    // 首次启动还没有这个文件；按系统那一档走。
+  }
+
+  return 'system'
+}
+
+/**
+ * 衬底的线上记法。
+ *
+ * BrowserWindow 的创建值与 setBackgroundColor 收同一种字符串，而两档衬底的正本是
+ * 上面那两个 RGB 常量 —— 这里做唯一的转换，别处不再写第二份十六进制字面值。
+ */
+function cssColor([red, green, blue]: readonly [number, number, number]): string {
+  return `#${[red, green, blue].map((channel) => channel.toString(16).padStart(2, '0')).join('')}`
+}
+
+function createWindow(preference: ThemePreference): BrowserWindow {
   const win = new BrowserWindow({
     // name + windowStatePersistence：位置、尺寸、最大化由 Electron 自己存，不用再写一份 window-state.ts。
     name: MAIN_WINDOW,
@@ -204,8 +240,12 @@ function createWindow(): BrowserWindow {
     minWidth: 800,
     minHeight: 600,
     show: false,
-    // 创建值就是浅色衬底正本：偏好是深色时下面立刻被 createWindowSurface 覆盖，露不出这一瞬。
-    backgroundColor: '#f3f3f3',
+    /*
+     * 创建值取偏好那一档的衬底。窗口是 show:false 建的，露出来之前 createWindowSurface
+     * 还会再落定一次；这一行管的是「露出来那一刻」——留着浅色创建值，深色偏好启动
+     * 就会闪一下白。
+     */
+    backgroundColor: cssColor(preference === 'dark' ? DARK_SURFACE : LIGHT_SURFACE),
     icon: iconPath(),
     webPreferences: {
       preload: join(__dirname, 'preload.cjs'),
@@ -215,8 +255,8 @@ function createWindow(): BrowserWindow {
     },
   })
 
-  // 偏好由渲染层持久化在自己的设置里，主进程启动时先按系统那一档落定，等它同步过来再改。
-  createWindowSurface(win, 'system')
+  // 偏好已经读过（startupThemePreference），这里落定原生主题与衬底。
+  createWindowSurface(win, preference)
 
   win.webContents.setWindowOpenHandler(({ url }) => {
     void openExternal(url)
@@ -280,22 +320,35 @@ function createWindow(): BrowserWindow {
 }
 
 function installTray(win: BrowserWindow): void {
-  tray = new Tray(nativeImage.createFromPath(iconPath()))
+  /*
+   * 托盘图标按 Windows 的通知区域尺寸给：512×512 的窗口图标缩到 16px 会糊成一团。
+   * 打包产物里只带 icon.png，所以按目标尺寸重采样 —— 与其多发一张专门的小图，
+   * 不如让同一张正本缩出托盘要的那一档。
+   */
+  const icon = nativeImage
+    .createFromPath(iconPath())
+    .resize({ width: TRAY_ICON_SIZE, height: TRAY_ICON_SIZE, quality: 'best' })
+
+  tray = new Tray(icon)
   tray.setToolTip('Poietica')
+  /*
+   * 只留两项：打开与退出。
+   *
+   * 中间那几项（显示/隐藏/强制退出）都是「窗口本来就能做的事」在托盘里再抄一遍，
+   * 而托盘菜单的读者是「窗口不在眼前时」的人 —— 他只需要一个把它叫回来的入口，
+   * 与一个真的结束它的入口。
+   */
   tray.setContextMenu(
     Menu.buildFromTemplate([
-      { label: '显示窗口', click: () => activate(win) },
-      { label: '隐藏到托盘', click: () => win.hide() },
-      { type: 'separator' },
+      { label: '打开 Poietica', click: () => activate(win) },
       {
-        label: '退出程序',
+        label: '退出',
         click: () => {
           // 先把窗口叫出来：确认对话框画在一个隐藏的窗口里等于没有对话框。
           activate(win)
           send('poietica:termination-requested', null)
         },
       },
-      { label: '强制退出（丢弃未保存的更改）', click: () => forceQuit() },
     ]),
   )
   tray.on('click', () => {
@@ -304,14 +357,6 @@ function installTray(win: BrowserWindow): void {
     } else {
       activate(win)
     }
-  })
-}
-
-function forceQuit(): void {
-  quitting = true
-  browserHost?.dispose()
-  void shutdownNative().finally(() => {
-    app.exit(0)
   })
 }
 
@@ -640,6 +685,16 @@ const APPLICATION_NAME = 'Poietica'
 app.setName(APPLICATION_NAME)
 app.setPath('userData', join(app.getPath('appData'), APPLICATION_NAME))
 
+/*
+ * Windows 的 AppUserModelID。
+ *
+ * 任务管理器与开始菜单按它把进程归到一个应用名下，并按它去取图标与显示名 ——
+ * 不设的话，未打包时它们只认得 electron.exe 自带的身份，于是那一栏写着「Electron」。
+ * 这个字符串必须与 electron-builder.yml 的 appId 一致：安装版由打包器写进快捷方式，
+ * 两边不一致会把同一个应用劈成两个身份。
+ */
+app.setAppUserModelId('com.poietica.Poietica')
+
 /**
  * 数据根。两条规则各有硬约束（正本 docs/architecture/data-layout.md）：
  *
@@ -659,7 +714,7 @@ function resolveDataRoot(): string {
   return dirname(app.getPath('exe'))
 }
 async function main(): Promise<void> {
-  const win = createWindow()
+  const win = createWindow(await startupThemePreference())
 
   mainWindow = win
 

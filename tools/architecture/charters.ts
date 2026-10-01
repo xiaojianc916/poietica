@@ -360,19 +360,11 @@ async function copiesMatchOrigin(
     }
   }
 
-  /* 创建底色是窗口被看见之前的唯一值：它必须逐字等于浅色衬底正本。
-     Electron 用十六进制字符串（BrowserWindow 的 backgroundColor），与 CSS 同一种记法。 */
-  const configPath = 'apps/desktop/electron/main.ts'
-  const configSource = await readFile(path.join(root, configPath), 'utf8')
-  const creationColor = /backgroundColor:\s*'(#[0-9a-fA-F]{6})'/.exec(configSource)?.[1]
-
-  if (creationColor?.toLowerCase() !== toHex(origin.light)) {
-    violations.push({
-      policy: 'window-surface-policy',
-      where: configPath,
-      detail: '主窗口创建底色必须等于调色板的浅色衬底正本',
-    })
-  }
+  /*
+   * 创建底色那一处不再单独核：衬底两档的唯一产地是那两个 RGB 常量，已由
+   * themeSurfaceIsAligned 逐通道核对（hostSurfaceColor）。createWindow 与
+   * createWindowSurface 都从它们派生，盯产地就不会漏掉任何一个用法。
+   */
 
   const meta = ['<meta content="', toHex(origin.light), '" name="theme-color" />'].join('')
 
