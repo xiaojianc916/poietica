@@ -18,6 +18,11 @@ export interface PoieticaHostBridge {
     readonly multiple: boolean
     readonly filters: readonly { readonly name: string; readonly extensions: readonly string[] }[]
   }): Promise<string[] | null>
+  /** 会话导出：让用户挑一个 .zip 落点；取消即 null。 */
+  pickSavePath(options: {
+    readonly defaultPath: string
+    readonly filters: readonly { readonly name: string; readonly extensions: readonly string[] }[]
+  }): Promise<string | null>
   saveExport(request: unknown): Promise<boolean>
   setSurfaceColor(color: readonly [number, number, number]): Promise<void>
   setTheme(preference: 'light' | 'dark' | 'system'): Promise<'light' | 'dark'>

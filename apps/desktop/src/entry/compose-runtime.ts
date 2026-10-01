@@ -13,6 +13,7 @@ import { createAgentSettingsPort } from '@poietica/native-bridge/agent/settings'
 import { automationGateway } from '@poietica/native-bridge/automation'
 import { browserHostPort, watchBrowserElementPicked } from '@poietica/native-bridge/browser'
 import { capabilityGateway, extensionGateway } from '@poietica/native-bridge/extensions'
+import { hostBridge } from '@poietica/native-bridge/host'
 import { reviewGateway } from '@poietica/native-bridge/review'
 import { createSettingsPersistence } from '@poietica/native-bridge/settings'
 import { terminalHostPort } from '@poietica/native-bridge/terminal'
@@ -222,6 +223,8 @@ export function createApplicationRuntime(restored: string | null): ApplicationRu
     modelCatalog,
     cwd: workspaceRoots.readActive,
     mcpReady: ensureBackgroundServices,
+    // 落点对话框挂在窗口上：这是组合根才认识的宿主能力。
+    pickSavePath: (dialog) => hostBridge().host.pickSavePath(dialog),
   })
 
   const conversation = createConversationRuntime({

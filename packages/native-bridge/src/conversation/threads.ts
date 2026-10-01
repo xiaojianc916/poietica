@@ -1,11 +1,20 @@
 import { commands } from '@poietica/contract'
 import type { OpenedThread, ThreadPort, ThreadSnapshot } from '@poietica/conversation'
 import { throughIpc } from '../ipc-error'
-import type { AgentBridgeOptions } from './launch-contract'
+import type { AgentBridgeOptions, PickSavePath } from './launch-contract'
 import { controlOf, goalOf } from './selectors'
 import { transcriptPageOf } from './transcript-decoding'
 
-export function createAgentThreadBridge({ launch, cwd }: AgentBridgeOptions): ThreadPort {
+export interface AgentThreadBridgeOptions extends AgentBridgeOptions {
+  /** 会话导出的落点由宿主给；组合根注入。 */
+  readonly pickSavePath: PickSavePath
+}
+
+export function createAgentThreadBridge({
+  launch,
+  cwd,
+  pickSavePath,
+}: AgentThreadBridgeOptions): ThreadPort {
   const openTarget = async (
     target: { readonly kind: 'create' | 'existing'; readonly threadId: string },
     workspaceRoot?: string | null,
@@ -39,8 +48,26 @@ export function createAgentThreadBridge({ launch, cwd }: AgentBridgeOptions): Th
     },
     create: (threadId, workspaceRoot) => openTarget({ kind: 'create', threadId }, workspaceRoot),
     open: (threadId) => openTarget({ kind: 'existing', threadId }),
-    export: async (threadId) =>
-      throughIpc(async () => commands.agentExportThread({ threadId, launch: await launch() })),
+    export: async (threadId) => {
+      /*
+       * 落点先问宿主：对话框挂在窗口上，只有主进程开得出。用户取消就是 false ——
+       * 与「导出失败」分开，前者不是错误。
+       */
+      const destination = await pickSavePath({
+        defaultPath: 'session.zip',
+        filters: [{ name: 'ZIP', extensions: ['zip'] }],
+      })
+
+      if (destination === null) {
+        return false
+      }
+
+      const resolved = await launch()
+
+      return throughIpc(() =>
+        commands.agentExportThread({ threadId, launch: resolved, destination }),
+      )
+    },
     /*
      * 分享把对话传出本机，所以这一条**没有** `export` 那样的「用户取消了」中间态：
      * 它要么交回一条链接，要么如实抛错（会话找不到、上传被拒）。脱敏策略在桥那一侧

@@ -115,7 +115,6 @@ pub fn types() -> specta::TypeCollection {
     types.register::<crate::conversation::model_catalog::ModelCatalogSnapshotDto>();
     types.register::<crate::launcher::McpLauncher>();
     types.register::<crate::ledger::usage::UsageDay>();
-    types.register::<crate::workspace::table::TableExportRequest>();
     types.register::<crate::settings::SettingsWriteResult>();
     types.register::<crate::conversation::dto::AgentTranscriptEvent>();
     types
@@ -202,10 +201,8 @@ pub fn functions() -> Vec<specta::datatype::Function> {
         crate::agent::install::agent_install_run,
         crate::ledger::usage::usage_token_days,
         crate::workspace::storage::storage_data_directory,
-        crate::workspace::table::table_export,
         crate::ledger::workbench::workbench_session_load,
         crate::ledger::workbench::workbench_session_save,
-        crate::workspace::workspace_pick_root,
         crate::workspace::workspace_create_projectless_root,
         crate::review::git_branches,
         crate::review::git_switch_branch,
@@ -547,17 +544,11 @@ pub async fn submit(command: &str, args: Value) -> napi::Result<String> {
             crud(crate::ledger::usage::usage_token_days(span).await)
         }
         "storage_data_directory" => crud(crate::workspace::storage::storage_data_directory().await),
-        "table_export" => {
-            let request: crate::workspace::table::TableExportRequest =
-                argument(args.get("request").unwrap_or(&Value::Null))?;
-            crud(crate::workspace::table::table_export(request).await)
-        }
         "workbench_session_load" => crud(crate::ledger::workbench::workbench_session_load().await),
         "workbench_session_save" => {
             let document: String = argument(args.get("document").unwrap_or(&Value::Null))?;
             crud(crate::ledger::workbench::workbench_session_save(document).await)
         }
-        "workspace_pick_root" => crud(crate::workspace::workspace_pick_root().await),
         "workspace_create_projectless_root" => {
             crud(crate::workspace::workspace_create_projectless_root().await)
         }

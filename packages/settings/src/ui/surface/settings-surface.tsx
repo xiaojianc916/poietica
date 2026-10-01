@@ -847,7 +847,7 @@ const AboutSettings = memo(function AboutSettings({
       <dl className="settings-about-details">
         <div>
           <dt>桌面运行时</dt>
-          <dd>Tauri</dd>
+          <dd>Electron</dd>
         </div>
 
         <div>

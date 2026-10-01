@@ -401,6 +401,9 @@ pub struct AgentRenameThreadRequest {
 pub struct AgentExportThreadRequest {
     pub thread_id: String,
     pub launch: AgentLaunch,
+    /// 导出落点。由宿主的保存对话框给出 —— 原生侧没有窗口，开不出对话框。
+    /// `None` 就是用户在对话框里按了取消。
+    pub destination: Option<String>,
 }
 
 #[derive(Debug, Deserialize, Type)]

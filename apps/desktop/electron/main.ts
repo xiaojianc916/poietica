@@ -356,6 +356,19 @@ interface PickOptions {
   filters: { name: string; extensions: string[] }[]
 }
 
+interface PickSaveOptions {
+  defaultPath: string
+  filters: { name: string; extensions: string[] }[]
+}
+
+function isPickSaveOptions(value: unknown): value is PickSaveOptions {
+  if (!isRecord(value) || typeof value['defaultPath'] !== 'string') {
+    return false
+  }
+
+  return isPickOptions({ multiple: true, filters: value['filters'] })
+}
+
 function isPickOptions(value: unknown): value is PickOptions {
   if (
     !isRecord(value) ||
@@ -548,6 +561,27 @@ function installHandlers(win: BrowserWindow): void {
     win.setBackgroundColor(`rgb(${color[0]}, ${color[1]}, ${color[2]})`)
 
     return ok(null)
+  })
+
+  ipcMain.handle('poietica:pick-save-path', async (event, options: unknown): Promise<Reply> => {
+    if (!fromMainWindow(event, win)) {
+      return refusal(DENIED)
+    }
+
+    if (!isPickSaveOptions(options)) {
+      return refusal('poietica: requestInvalid — 保存对话框要说明默认文件名与过滤器')
+    }
+
+    const picked = await dialog.showSaveDialog(win, {
+      defaultPath: options.defaultPath,
+      filters: options.filters.map((filter) => ({
+        name: filter.name,
+        extensions: [...filter.extensions],
+      })),
+    })
+
+    // 取消是 null 而不是空串：调用方要分得开「没选」与「选了空路径」。
+    return ok(picked.canceled || !picked.filePath ? null : picked.filePath)
   })
 
   ipcMain.handle('poietica:save-export', async (event, request: unknown): Promise<Reply> => {

@@ -7,6 +7,7 @@ import {
   createAgentSessionPort,
   createAgentSessionUsageBridge,
   createAgentThreadBridge,
+  type PickSavePath,
 } from '@poietica/native-bridge/conversation'
 import { error as reportError } from '@poietica/problem'
 import type { ModelCatalogStore } from '@poietica/settings'
@@ -18,6 +19,8 @@ interface DesktopAgentRuntimeOptions {
   readonly modelCatalog: ModelCatalogStore
   readonly cwd: NonNullable<AgentBridgeOptions['cwd']>
   readonly mcpReady: () => Promise<void>
+  /** 会话导出的落点由宿主给；组合根注入，这一层不认识宿主端口。 */
+  readonly pickSavePath: PickSavePath
 }
 
 export function createDesktopAgentRuntime(
@@ -67,7 +70,12 @@ export function createDesktopAgentRuntime(
     report: reportError,
     connect: (prepareAgent) => {
       const launch: AgentBridgeOptions['launch'] = async () => ({ agentId: await prepareAgent() })
-      const bridge = { cwd: options.cwd, launch, onListenFailure }
+      const bridge = {
+        cwd: options.cwd,
+        launch,
+        onListenFailure,
+        pickSavePath: options.pickSavePath,
+      }
       return {
         session: createAgentSessionPort(bridge),
         threads: createAgentThreadBridge(bridge),

@@ -32,6 +32,10 @@ interface HostBridge {
     filters: readonly FilePickerFilter[]
   }): Promise<string[] | null>
   watchDroppedPaths(handler: (paths: readonly string[]) => void): Unsubscribe
+  pickSavePath(options: {
+    defaultPath: string
+    filters: readonly FilePickerFilter[]
+  }): Promise<string | null>
   saveExport(request: unknown): Promise<boolean>
   setTheme(preference: 'light' | 'dark' | 'system'): Promise<'light' | 'dark'>
   setSurfaceColor(color: readonly [number, number, number]): Promise<void>

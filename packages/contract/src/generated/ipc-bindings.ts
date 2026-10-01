@@ -85,7 +85,12 @@ export type AgentDeliverAs =
  */
 export type AgentDeliveryModesRequest = { steeringMode?: string | null; followUpMode?: string | null; interruptMode?: string | null }
 export type AgentDismissQuestionsRequest = { questionId: string }
-export type AgentExportThreadRequest = { threadId: string; launch: AgentLaunch }
+export type AgentExportThreadRequest = { threadId: string; launch: AgentLaunch; 
+/**
+ * 导出落点。由宿主的保存对话框给出 —— 原生侧没有窗口，开不出对话框。
+ * `None` 就是用户在对话框里按了取消。
+ */
+destination: string | null }
 export type AgentForkThreadRequest = { threadId: string; title: string; 
 /**
  * 分叉点：这一轮之后还有几轮，0 就是从最后一轮分叉；agent 侧回退上下文与本机日志截断用同一个数，屏幕与上下文止于同一处。
@@ -386,8 +391,6 @@ export type SettingsWriteResult = { settings: AppSettings; applicationProblem: P
 export type SkillCommitRequest = { stagingId: string; name: string; subdirectory: string | null }
 export type SkillRecord = { name: string; enabled: boolean; document: string; path: string; supportingFiles: number; totalBytes: number; modifiedAt: number | null }
 export type SkillStaged = { stagingId: string; skillMd: string }
-export type TableExportFormat = "csv" | "markdown"
-export type TableExportRequest = { content: string; format: TableExportFormat }
 export type TerminalChunk = { kind: "output"; value: string } | { kind: "exited" }
 export type TerminalStreamed = { root: string; chunk: TerminalChunk }
 export type ThemePreference = "light" | "dark" | "system"
@@ -491,8 +494,6 @@ export const commands = {
   async agentThreadSnapshot(request: AgentThreadRequest): Promise<AgentThreadSnapshot> {
     return call<AgentThreadSnapshot>('agent_thread_snapshot', { request: request })
   },
-/**
- *  导出要先有落点，落点只能由宿主的保存对话框产生 —— 宿主没给落点就交不出文件。 */
   async agentExportThread(request: AgentExportThreadRequest): Promise<boolean> {
     return call<boolean>('agent_export_thread', { request: request })
   },
@@ -676,27 +677,11 @@ export const commands = {
   async storageDataDirectory(): Promise<string> {
     return call<string>('storage_data_directory', {})
   },
-/**
- *  把一张 AI 回复里的表格保存到用户明确选择的位置。
- * 
- *  落点只能由宿主的保存对话框产生，渲染层不能指定任意磁盘位置。
- * 
- *  # Errors
- * 
- *  内容超过上限、宿主没有给出落点或文件写入失败时返回脱敏后的 IPC 错误。 */
-  async tableExport(request: TableExportRequest): Promise<boolean> {
-    return call<boolean>('table_export', { request: request })
-  },
   async workbenchSessionLoad(): Promise<string | null> {
     return call<string | null>('workbench_session_load', {})
   },
   async workbenchSessionSave(document: string): Promise<null> {
     return call<null>('workbench_session_save', { document: document })
-  },
-/**
- *  选目录是宿主能力：Electron 主进程有 dialog.showOpenDialog，原生侧没有窗口可挂对话框。 */
-  async workspacePickRoot(): Promise<string | null> {
-    return call<string | null>('workspace_pick_root', {})
   },
   async workspaceCreateProjectlessRoot(): Promise<string> {
     return call<string>('workspace_create_projectless_root', {})
