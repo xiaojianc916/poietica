@@ -523,7 +523,11 @@ function installHandlers(win: BrowserWindow): void {
         return ok(null)
 
       case 'openDevtools':
-        win.webContents.openDevTools()
+        /*
+         * 必须 detach：不带 mode 时 Electron 按「上次用过的停靠位」开，而主窗口是
+         * frame: false 的，工具一停靠就直接顶掉界面。detach 是独立窗口，也拖不回去。
+         */
+        win.webContents.openDevTools({ mode: 'detach' })
 
         return ok(null)
 
