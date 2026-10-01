@@ -18,7 +18,7 @@ export type {
  * 多一层就是第二个事实。标签模型的类型归 @poietica/contract/browser（手写正本），
  * 原生侧不再有 browser_* 命令，所以这里没有生成的 DTO 可用。
  */
-async function invoke<T>(command: string, args: unknown): Promise<T> {
+function invoke<T>(command: string, args: unknown): Promise<T> {
   return throughIpc(async () => (await window.poietica.invoke(command, args)) as T)
 }
 

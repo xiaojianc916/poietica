@@ -53,7 +53,9 @@ export function createAppUpdateController(): AppUpdateController {
       await invoke('update_relaunch')
     },
 
-    async dispose() {
+    async dispose(): Promise<void> {
+      // 端口契约要求 Promise；这里没有异步动作，但接口是它定的。
+      await Promise.resolve()
       selected = null
     },
   }
