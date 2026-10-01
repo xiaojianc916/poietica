@@ -53,5 +53,18 @@ if (!existsSync(dll)) {
   process.exit(1)
 }
 
-copyFileSync(dll, addon)
+try {
+  copyFileSync(dll, addon)
+} catch (cause) {
+  /* 上一次的 Electron 还开着就会锁住这个文件；这不是构建失败，是「先关掉它」。 */
+  if (cause !== null && typeof cause === 'object' && 'code' in cause && cause.code === 'EBUSY') {
+    process.stderr.write(
+      `native:build: ${addon} 正被占用 —— 先关掉正在运行的 Poietica/Electron，再重跑。\n`,
+    )
+    process.exit(1)
+  }
+
+  throw cause
+}
+
 console.log(`native:build: ${addon}`)

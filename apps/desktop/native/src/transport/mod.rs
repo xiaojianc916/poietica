@@ -13,7 +13,7 @@
 //! 载荷一律走 JSON 文本，不走 napi 的结构化转换：命令面有七十多条、参数有七十多个
 //! 已有 serde 定义的类型，为它们逐个补一份 napi 镜像类型就是给同一件事建第二个事实。
 
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex};
 
 use napi::Status;
@@ -38,7 +38,7 @@ impl std::fmt::Debug for HostPorts {
 /// 手写 Debug：`Ports` 里是一个跨线程函数引用，打出来没有意义。
 #[derive(Default)]
 pub struct Shared {
-    pub(crate) busy: AtomicBool,
+    pub(crate) busy: AtomicUsize,
     pub(crate) ports: Mutex<Option<Ports>>,
     pub(crate) started: AtomicBool,
 }
@@ -56,26 +56,6 @@ impl std::fmt::Debug for Shared {
 /// 进程里只有一个宿主，所以读的是一个槽，不是一张表。
 static CURRENT: Mutex<Option<Arc<Shared>>> = Mutex::new(None);
 
-/// 票据：拿到才准进原生侧，丢掉才准下一条进来。
-///
-/// 做成票据而不是一对 lock/unlock：中间任何一条提前返回、任何一次 panic 展开都会
-/// 把闸还回来，不会把整个应用卡死。
-pub struct Ticket {
-    shared: Arc<Shared>,
-}
-
-impl std::fmt::Debug for Ticket {
-    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        formatter.debug_struct("Ticket").finish_non_exhaustive()
-    }
-}
-
-impl Drop for Ticket {
-    fn drop(&mut self) {
-        self.shared.busy.store(false, Ordering::Release);
-    }
-}
-
 pub(crate) fn lock<T>(mutex: &Mutex<T>) -> std::sync::MutexGuard<'_, T> {
     mutex
         .lock()
@@ -92,18 +72,37 @@ fn current() -> napi::Result<Arc<Shared>> {
         .ok_or_else(|| napi::Error::from_reason("the native host is not constructed"))
 }
 
-/// 拿一次进原生侧的许可。忙就当场报错，不排队 —— 排队会让渲染层的一串请求全部挂
-/// 在超时上，而调用方此刻真正需要知道的是上一条还没跑完。
-pub fn enter() -> napi::Result<Ticket> {
+/// 记一次进原生侧的开始与结束。
+///
+/// **不拒绝并发的调用。** 早先这里是一道「一次只放一条」的闸，忙就当场报错；它把
+/// 渲染层启动时那十几条同时发出的读（设置、会话、控件表）全部打成失败，界面上表现为
+/// 「连不上 agent」。命令面的并发本来就是允许的 —— 账本那两个 actor 线程、会话运行
+/// 时自己那把锁，各自都在它该在的层次上裁决，宿主不该在这里替它们做串行化。
+///
+/// 保留的只是一个计数：`busy` 是给界面看的（有活在跑就显示忙），不是准入许可。
+pub struct Running {
+    shared: Arc<Shared>,
+}
+
+impl std::fmt::Debug for Running {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter.debug_struct("Running").finish_non_exhaustive()
+    }
+}
+
+impl Drop for Running {
+    fn drop(&mut self) {
+        self.shared.busy.fetch_sub(1, Ordering::AcqRel);
+    }
+}
+
+/// 记一次开始。返回值活着期间算「有活在跑」——`Running` 本身是 `#[must_use]`。
+pub fn running() -> napi::Result<Running> {
     let shared = current()?;
 
-    if shared.busy.swap(true, Ordering::AcqRel) {
-        return Err(napi::Error::from_reason(
-            "the native side is still finishing the previous command",
-        ));
-    }
+    shared.busy.fetch_add(1, Ordering::AcqRel);
 
-    Ok(Ticket { shared })
+    Ok(Running { shared })
 }
 
 /// 把一次命令的领域结果结算成线上应答。

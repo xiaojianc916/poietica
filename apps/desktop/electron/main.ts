@@ -5,7 +5,7 @@
  * 命令落到 ipc-router.ts（转原生）或 browser/host.ts（标签是宿主自己的状态）。
  */
 import { mkdir, writeFile } from 'node:fs/promises'
-import { join } from 'node:path'
+import { dirname, join } from 'node:path'
 import type { IpcMainInvokeEvent } from 'electron'
 import {
   app,
@@ -115,11 +115,15 @@ function presentBrowserState(): void {
   send('poietica:event:browser-state', browserHost?.state() ?? null)
 }
 
-/** 原生侧的 kind 是 snake_case，渲染层认的是生成物里那几个 kebab-case 名字；归一只在这一处。 */
-function eventName(kind: string): string {
-  return kind.replaceAll('_', '-')
-}
-
+/*
+ * 通道名的唯一规则：`poietica:event:` + 线上那个名字，一个字符都不改。
+ *
+ * 原生侧 `transport::emit("agent_session_event")` 发什么，生成物的
+ * `events.agentSessionEvent` 就订阅什么；主进程自己发的 browser-state /
+ * browser-element-picked / window-maximized 那几个同理。此前这里做了一次
+ * snake_case → kebab-case 的「归一」，结果是**每一条原生事件都发到了没人听的通道上**
+ * —— 屏幕永远不更新，而两侧代码各自看都对。
+ */
 /** 原生侧送来的是已序列化的 { kind, payload }。 */
 function forwardFrame(frame: string): void {
   let parsed: unknown
@@ -136,7 +140,7 @@ function forwardFrame(frame: string): void {
     return
   }
 
-  send(`poietica:event:${eventName(parsed['kind'])}`, parsed['payload'] ?? null)
+  send(`poietica:event:${parsed['kind']}`, parsed['payload'] ?? null)
 }
 
 /** 交给系统浏览器的只有三种协议；判断走 URL 解析而不是 startsWith，'https://example.com.attacker.com' 骗不了它。 */
@@ -523,6 +527,15 @@ function installHandlers(win: BrowserWindow): void {
     return ok(app.getPath('home'))
   })
 
+  ipcMain.handle('poietica:app-version', (event): Reply => {
+    if (!fromMainWindow(event, win)) {
+      return refusal(DENIED)
+    }
+
+    // 版本号的唯一产地：打包配置写进 app 的那一版。渲染层另写一份就是第二个真相。
+    return ok(app.getVersion())
+  })
+
   ipcMain.handle('poietica:set-surface', (event, color: unknown): Reply => {
     if (!fromMainWindow(event, win)) {
       return refusal(DENIED)
@@ -577,12 +590,46 @@ function installHandlers(win: BrowserWindow): void {
   })
 }
 
+/**
+ * 应用名与 userData 落点。必须在**模块顶层**钉住，早于 `whenReady` 与任何 `getPath`。
+ *
+ * 两件事要分开做，`setName` 单独不够：它只改 `app.getName()`，而 `userData` 在
+ * Electron 更早的启动阶段就已由 package.json 的 name 定下（实测 `setName` 之后
+ * 仍是 `%APPDATA%\Electron`）。
+ *
+ * 不钉的后果：数据根跟着包名跑（`%APPDATA%\@poietica\desktop`），换一次包名就等于
+ * 换一个数据根，用户的对话与设置全留在旧目录里 —— 表现为「连不上 agent」。
+ * 这个名字与 electron-builder.yml 的 productName 是同一个。
+ */
+const APPLICATION_NAME = 'Poietica'
+
+app.setName(APPLICATION_NAME)
+app.setPath('userData', join(app.getPath('appData'), APPLICATION_NAME))
+
+/**
+ * 数据根。两条规则各有硬约束（正本 docs/architecture/data-layout.md）：
+ *
+ * - **安装版**：放在程序旁边。用户在安装器上只做一次选择，那一次选择同时回答
+ *   「程序装到哪」与「数据存到哪」；判据是可执行文件在哪，所以安装期不需要写下
+ *   任何声明，用户把整个目录搬到别的盘，数据跟着走。
+ * - **开发构建**：exe 在 node_modules 里，往那儿写用户数据会被依赖重装抹掉，
+ *   所以交给 Electron 的 userData（平台目录）。
+ *
+ * 两者分开，开发版与安装版不会同时打开同一个 WAL 库，也不会互相覆盖凭据。
+ */
+function resolveDataRoot(): string {
+  if (!app.isPackaged) {
+    return app.getPath('userData')
+  }
+
+  return dirname(app.getPath('exe'))
+}
 async function main(): Promise<void> {
   const win = createWindow()
 
   mainWindow = win
 
-  const dataRoot = app.getPath('userData')
+  const dataRoot = resolveDataRoot()
   const bundledDirectory = app.isPackaged
     ? join(process.resourcesPath, 'agent')
     : join(app.getAppPath(), 'resources', 'agent')

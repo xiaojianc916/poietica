@@ -24,6 +24,8 @@ interface HostBridge {
   present(): Promise<void>
   openExternal(url: string): Promise<void>
   homeDirectory(): Promise<string>
+  /** 这个应用自己的版本号；唯一产地是宿主（app.getVersion()）。 */
+  appVersion(): Promise<string>
   pickRoot(): Promise<string | null>
   pickPaths(options: {
     multiple: boolean
@@ -156,6 +158,8 @@ const bridge: PoieticaBridge = {
     },
 
     homeDirectory: () => invoke('poietica:home-directory').then((value) => String(value)),
+
+    appVersion: () => invoke('poietica:app-version').then((value) => String(value)),
 
     pickRoot: () =>
       invoke('poietica:pick-root').then((value) => (typeof value === 'string' ? value : null)),

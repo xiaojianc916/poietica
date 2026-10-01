@@ -12,7 +12,7 @@ use serde_json::Value;
 use tokio::runtime::Handle;
 use tokio::task;
 
-use crate::transport::{HostPorts, Ports, Shared, enter, lock, remember};
+use crate::transport::{HostPorts, Ports, Shared, lock, remember, running};
 
 /// 进程里只有一个宿主，它持有的是「这个应用」。
 #[napi]
@@ -43,7 +43,7 @@ impl NativeHost {
     /// 原生侧此刻有没有命令在跑。主进程用它决定要不要提示用户稍等。
     #[napi(getter)]
     pub fn busy(&self) -> bool {
-        self.shared.busy.load(Ordering::Acquire)
+        self.shared.busy.load(Ordering::Acquire) > 0
     }
 
     /// 走完一次启动：开库、恢复上回的现场。幂等，第二次调用直接返回。
@@ -75,7 +75,7 @@ impl NativeHost {
     /// 一条命令：名字加参数的 JSON 文本，回结算后的信封。
     #[napi]
     pub async fn invoke(&self, command: String, args_json: String) -> napi::Result<String> {
-        let _ticket = enter()?;
+        let _running = running()?;
         let args: Value = serde_json::from_str(&args_json).map_err(|error| {
             napi::Error::from_reason(format!("arguments were not JSON: {error}"))
         })?;
