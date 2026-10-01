@@ -31,8 +31,6 @@ const STAGE_DIR = 'dist-release'
 /** 预期内的失败：打印一句人话就退场，不甩堆栈。 */
 class Abort extends Error {}
 
-const terminal = createInterface({ input: process.stdin, output: process.stdout })
-
 /** 版本号已写入、但还没提交。Ctrl+C 与异常路径都靠它决定要不要签回去。 */
 let versionFilesDirty = false
 
@@ -67,6 +65,37 @@ function capture(...argv: string[]): string | null {
 
 const tryRun = (...argv: string[]): void => spawn(argv, 'log')
 
+/**
+ * 问一句、拿一行答案。
+ *
+ * **一次提问开一个 readline，问完就关**，不常驻一个。两个理由：
+ *
+ * 1. gh auth login 这类命令要独占终端（问问题、开浏览器），而常驻的 readline 一直
+ *    占着 stdin：两个读者会互相吃键，gh 的提示也画不出来。
+ * 2. readline 一旦 close 就暂停了 stdin，再 createInterface 也收不到数据 ——
+ *    「关掉再重开」看起来对称，实际会让下一个问题永远等不到回车（实测卡死）。
+ *    每次都新建、用完即关，就不存在这个中间态。
+ */
+async function ask(question: string): Promise<string> {
+  const terminal = createInterface({ input: process.stdin, output: process.stdout })
+
+  try {
+    return (await terminal.question(question)).trim()
+  } finally {
+    terminal.close()
+  }
+}
+
+/** 跑一条要独占终端的交互式命令；此时没有任何 readline 活着，stdin 完整地归它。 */
+function interactive(...argv: string[]): void {
+  const [program, ...args] = argv
+  const result = spawnSync(program ?? '', args, { stdio: 'inherit' })
+
+  if (result.status !== 0) {
+    throw new Abort(`命令失败（退出码 ${result.status ?? '未知'}）：${line(argv)}`)
+  }
+}
+
 function restoreVersionFiles(): void {
   if (!versionFilesDirty) {
     return
@@ -81,16 +110,15 @@ function onInterrupt(): void {
   console.log('')
   console.log('已中断。')
   restoreVersionFiles()
-  terminal.close()
   process.exit(130)
 }
 
-terminal.on('SIGINT', onInterrupt)
 process.on('SIGINT', onInterrupt)
 
 async function confirm(question: string, fallback = true): Promise<boolean> {
   const hint = fallback ? 'Y/n' : 'y/N'
-  const answer = (await terminal.question(`    ${question} (${hint}) `)).trim().toLowerCase()
+  const answer = (await ask(`    ${question} (${hint}) `)).toLowerCase()
+
   if (answer === '') {
     return fallback
   }
@@ -157,8 +185,30 @@ async function preflight(): Promise<{ branch: string; current: string }> {
   if (capture('gh', '--version') === null) {
     throw new Abort('找不到 gh 命令。请先安装 GitHub CLI：https://cli.github.com')
   }
+
+  /*
+   * 没登录就地登录，不把人踢出去。
+   *
+   * 发布是一条十几分钟的链，前面已经跑过门禁与对表；因为一个可以当场做完的步骤退场，
+   * 整条链就得从头再跑一遍。所以这里直接开 gh 的登录流程，登录完接着往下走，
+   * 也不多问一句「要不要登录」—— 那一下同样是打断，想退出按 Ctrl+C。
+   * 非交互终端（CI、管道）下 gh 问不了问题，那时才如实报错让人手动跑。
+   */
   if (capture('gh', 'auth', 'status') === null) {
-    throw new Abort('gh 尚未登录。请先运行：gh auth login')
+    console.log('')
+    console.log('    gh 尚未登录，现在开始登录；登录完成后发布流程会自己继续。')
+
+    if (process.stdin.isTTY !== true) {
+      throw new Abort('当前不是交互终端，无法就地登录。请先运行：gh auth login')
+    }
+
+    interactive('gh', 'auth', 'login')
+
+    if (capture('gh', 'auth', 'status') === null) {
+      throw new Abort('gh 登录没有完成。请手动运行：gh auth login')
+    }
+
+    console.log('    登录完成，继续发布。')
   }
 
   checkSigningCertificate()
@@ -175,7 +225,7 @@ async function askPresetTarget(next: { patch: string; minor: string; major: stri
   console.log(`      3. 主版本  ${next.major}   （不兼容变更）`)
   console.log('      4. 手动输入')
   for (;;) {
-    const answer = (await terminal.question('    请输入序号：')).trim()
+    const answer = await ask('    请输入序号：')
     if (answer === '1') {
       return next.patch
     }
@@ -218,7 +268,7 @@ async function pickVersion(
     if (target !== undefined) {
       console.log(`    不是合法的版本号：${target}`)
     }
-    target = (await terminal.question(`    输入版本号（如 ${next.patch}-beta.1）：`)).trim()
+    target = await ask(`    输入版本号（如 ${next.patch}-beta.1）：`)
   }
   if (compareVersions(target, current) <= 0) {
     throw new Abort(`目标版本 ${target} 必须比当前版本 ${current} 新`)
@@ -506,10 +556,8 @@ async function main(): Promise<void> {
   console.log('')
 }
 
-main()
-  .catch((error: unknown) => {
-    console.error('')
-    console.error(error instanceof Abort ? error.message : String(error))
-    process.exitCode = 1
-  })
-  .finally(() => terminal.close())
+main().catch((error: unknown) => {
+  console.error('')
+  console.error(error instanceof Abort ? error.message : String(error))
+  process.exitCode = 1
+})
