@@ -70,7 +70,7 @@ export default defineConfig({
         overlay: false,
       },
     },
-    // envPrefix 只放行 VITE_ 前缀：TAURI_* 命名空间不得暴露给 WebView，构建期变量留在本文件的 process.env。
+    // envPrefix 只放行 VITE_ 前缀：构建期变量留在本文件的 process.env，不进渲染层的 import.meta.env。
     envPrefix: ['VITE_'],
     build: {
       outDir: 'dist',

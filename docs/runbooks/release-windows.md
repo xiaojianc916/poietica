@@ -25,16 +25,26 @@ Tauri 时代的 minisign 密钥对随宿主一起作废：electron-updater 认�
 ```bash
 bun release                # 交互选择，默认 patch
 bun release minor          # 也可用 patch / major / 具体版本号
-bun release 0.3.0 --yes    # 跳过确认（仍会交互问私钥密码，除非已记住）
+bun release 0.3.0 --yes    # 跳过确认
 ```
 
-命令分十步：起飞前检查（主分支、干净工作区、远端同步、gh 登录、更新公钥、
-签名密钥）→ 选版本 → 可选完整门禁（`bun run check`，跑在写版本号之前，失败
+命令分十步：起飞前检查（主分支、干净工作区、远端同步、gh 登录、
+签名证书）→ 选版本 → 可选完整门禁（`bun run check`，跑在写版本号之前，失败
 无需回滚）→ 统一写入三处版本号并一致性检查 → 清空构建目录 → 本地
 `build:release` 编译签名（十几分钟）→ 产物进 `dist-release` 并生成
 `latest.yml` 与 `SHA256SUMS.txt` → 确认 → 版本提交 + annotated tag +
 push → `gh release create` 上传三个资产 → 用客户端真实访问的更新地址验通道。
 预发布（版本号带 `-`）发为 prerelease，不进稳定通道、不验通道。
+
+客户端那一侧对得上，靠的是三件事：
+
+- `electron-builder.yml` 的 `publish` 段：它写进包里的 `app-update.yml`，
+  客户端真正会去拉的地址由它拼出来。`owner`/`repo` 就是仓库地址的唯一声明。
+- `latest.yml`：electron-updater 在 release 页面上按这个名字找清单，
+  `tools/release/latest-json.ts` 校验它指向的正是刚构建出来的那个安装包。
+- 主进程的更新命令（`apps/desktop/electron/update.ts`）：`update_check` 与
+  `update_download` 的相位按版本号对齐，`update_relaunch` 走
+  `quitAndInstall()` —— 退出屏障认 `before-quit-for-update` 并放行。
 
 ### 失败处理
 

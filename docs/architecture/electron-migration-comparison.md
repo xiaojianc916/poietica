@@ -62,7 +62,7 @@ oh-my-pi 的接入方式（SDK 直连 + 随包 Bun）**一个字没动**。
 | 主题 | `WindowSurface::adopt` → `Window::set_theme` + 两层底色 | `createWindowSurface` → `nativeTheme.themeSource` + `win.setBackgroundColor`（**两层收敛成一层**） |
 | 文件对话框 | `tauri-plugin-dialog`（Rust 侧 `app.dialog()`） | 主进程 `dialog.showOpenDialog`（原生侧不再有对话框命令） |
 | 打包 | Tauri bundler + NSIS | electron-builder 26 + NSIS（`asarUnpack: ['**/*.node']`） |
-| 自动更新 | `tauri-plugin-updater`（**minisign** 密钥对） | `electron-updater`（**sha512**，无需要保管的私钥） |
+| 自动更新 | `tauri-plugin-updater`（**minisign** 密钥对） | `electron-updater`（**sha512**，无需要保管的私钥）；三条命令归主进程（`electron/update.ts`），与 `browser_*` 同一张表 |
 | 构建工具链 | `tauri dev` / `tauri build` | `electron-vite` / `electron-builder` |
 
 ## 六、依赖

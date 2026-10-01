@@ -85,7 +85,6 @@
       "diff": "^9.0.0",
       "electron": "^44.0.0",
       "electron-builder": "^26.0.0",
-      "electron-updater": "^6.0.0",
       "electron-vite": "^5.0.0",
       "katex": "^0.18.9",
       "@lexical/react": "^0.52.0",

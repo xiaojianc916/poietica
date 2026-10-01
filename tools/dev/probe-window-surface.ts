@@ -3,7 +3,7 @@
  * 窗口衬底探针：在真 Chromium 里验「拖拽露底那一层与外壳同色」。
  *
  * 为什么需要它：衬底色分三处落地（index.html 的预运行初稿、theme-runtime 的 RGB
- * 投影、tauri.conf.json 的创建底色），而拖拽露底是原生合成 —— bun test 里没有
+ * 投影、主进程建窗时的创建值），而拖拽露底是原生合成 —— bun test 里没有
  * DOM，架构闸门只能核对三处**字面值**相等，核对不了「屏幕上量出来是不是同一个
  * 颜色」。这条探针补的就是后半句：加载真实构建产物，让样式引擎把 --ui-chrome
  * 解析成 rgb()，再与衬底逐通道比。
@@ -11,7 +11,7 @@
  * 页面用 dist 里的真产物，不手抄 CSS：手抄件会跟着正本一起腐烂，量出来的绿色
  * 只证明抄对了，不证明应用对了。
  *
- * 不进 CI —— 它要一个 Chromium 二进制（WebView2 跑的就是同一个引擎）。
+ * 不进 CI —— 它要一个 Chromium 二进制（Electron 内嵌的就是同一个引擎）。
  *
  * 跑法：bun tools/dev/probe-window-surface.ts [--browser <exe>]
  * 前置：bun run build:web（读 apps/desktop/dist）
@@ -46,8 +46,8 @@ const profile = `${process.env['TEMP'] ?? '/tmp'}/poietica-surface-probe-${Strin
 
 /*
  * 产物走 HTTP 伺服，不走 file://：构建产物的资源路径是绝对的（/assets/...），
- * file:// 下会解析到文件系统根，样式表全 404。Tauri 生产环境也是从 tauri://
- * 伺服同一份 dist，所以这里更接近真实。
+ * file:// 下会解析到文件系统根，样式表全 404。打包后由主进程从应用目录伺服同一份
+ * dist，所以这里更接近真实。
  */
 const MIME: Record<string, string> = {
   '.css': 'text/css',

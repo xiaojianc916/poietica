@@ -429,7 +429,6 @@ export function relativeImportsStayHome(
   return violations
 }
 
-/** 只有登记过的包允许直接用 Tauri 客户端 API。 */
 /**
  * 宿主端口只对登记过的包开放。
  *
@@ -583,6 +582,15 @@ export function crateDependencyDirection(crates: readonly Crate[]): Violation[] 
   return violations
 }
 
+/** 当前宿主与上一代宿主的依赖名：能力 crate 一律不许碰。 */
+const HOST_DEPENDENCIES: ReadonlySet<string> = new Set([
+  'napi',
+  'napi-derive',
+  'napi-build',
+  'electron',
+  'tauri',
+])
+
 export function cratesStayHostAgnostic(crates: readonly Crate[]): Violation[] {
   const violations: Violation[] = []
 
@@ -592,7 +600,8 @@ export function cratesStayHostAgnostic(crates: readonly Crate[]): Violation[] {
     }
 
     for (const dependency of crate.dependencies) {
-      if (dependency === 'tauri' || dependency.startsWith('tauri-')) {
+      /* 宿主换过一次（Tauri → Electron + NAPI），判据跟着换：旧宿主留着不删就是一条不再拦人的闸门。 */
+      if (HOST_DEPENDENCIES.has(dependency)) {
         violations.push({
           policy: 'crates-stay-host-agnostic',
           where: crate.name,

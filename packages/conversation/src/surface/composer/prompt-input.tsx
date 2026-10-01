@@ -562,7 +562,7 @@ function PromptInputShell({
     formRef.current?.requestSubmit()
   }, [])
 
-  /* 拖文件走原生那条：Tauri 的 dragDropEnabled 默认接管整个 webview，Windows 上 HTML5 拖放收不到事件（官方文档）。 */
+  /* 拖文件走原生那条：宿主（Electron）接管文件拖放，HTML5 那条在 Windows 上收不到事件。 */
   useEffect(() => {
     if (intake === null) {
       return undefined

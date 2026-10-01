@@ -3,7 +3,7 @@ import { hostBridge } from '../host-bridge'
 
 /*
  * 出货更新。包在 electron-updater 上，而那是主进程的能力，所以这里只经 window.poietica
- * 调四条宿主命令 —— 渲染层拿不到 fs，也不该拿。
+ * 调三条宿主命令 —— 渲染层拿不到 fs，也不该拿。
  *
  * 下载进度没有通道：宿主报开始与结束两次，中间一律 percent: null。percent 为 null 是
  * update 端口本来就认的形状（进度未知），编一个数字才是错的。

@@ -2,13 +2,15 @@
  * 应用组合根：窗口、托盘、主题、退出屏障，以及渲染层到原生宿主的那一跳。
  *
  * 渲染层永远拿不到 require/ipcRenderer/fs：能力只从 preload.ts 的桥进来，
- * 命令落到 ipc-router.ts（转原生）或 browser/host.ts（标签是宿主自己的状态）。
+ * 命令落到 ipc-router.ts（转原生）、browser/host.ts（标签是宿主自己的状态）或
+ * update.ts（更新同样是宿主的能力）。
  */
 import { mkdir, readFile, writeFile } from 'node:fs/promises'
 import { dirname, join } from 'node:path'
 import type { IpcMainInvokeEvent } from 'electron'
 import {
   app,
+  autoUpdater,
   BrowserWindow,
   dialog,
   ipcMain,
@@ -28,6 +30,8 @@ import type { Router } from './ipc-router'
 import { createRouter } from './ipc-router'
 import type { NativeHost } from './native'
 import { loadNative } from './native'
+import type { UpdateCommands } from './update'
+import { createUpdateCommands, loadUpdater } from './update'
 
 /** 自定义协议的特权必须在 app ready 前登记，且只能登记一次。standard 给 origin，stream 给 <video> 的 Range。 */
 protocol.registerSchemesAsPrivileged([
@@ -67,6 +71,9 @@ let nativeHost: NativeHost | null = null
 let router: Router | null = null
 let tray: Tray | null = null
 let quitting = false
+
+/* 更新的相位活在主进程里（update.ts）；electron-updater 到第一次调用才装载。 */
+const updateCommands: UpdateCommands = createUpdateCommands(loadUpdater)
 
 const single = app.requestSingleInstanceLock()
 
@@ -479,6 +486,15 @@ function installHandlers(win: BrowserWindow): void {
         return ok(local.value)
       }
 
+      /* 更新与标签同类：命令名由主进程自己认，认不出才转原生。 */
+      if (updateCommands.handles(command)) {
+        try {
+          return ok(await updateCommands.run(command as string, args))
+        } catch (cause) {
+          return failure(cause)
+        }
+      }
+
       const host = router
 
       if (host === null) {
@@ -777,9 +793,23 @@ async function main(): Promise<void> {
     app.quit()
   })
 
-  // 退出屏障：原生侧还没关干净就不许真退，第二次 before-quit 才放行。
+  /*
+   * 退出屏障：原生侧还没关干净就不许真退，第二次 before-quit 才放行。
+   *
+   * 例外只有一个 —— 更新装好之后 electron-updater 先发 before-quit-for-update 再
+   * app.quit()，那个 quit 必须立刻放行：拦下来只把窗口关掉，安装器已经起来等着接管
+   * 文件，等于永远装不上。
+   *
+   * 事件发在 electron 的 autoUpdater 上（electron-updater 就是这么发的），不在 app 上。
+   */
+  let installingUpdate = false
+
+  autoUpdater.on('before-quit-for-update', () => {
+    installingUpdate = true
+  })
+
   app.on('before-quit', (event) => {
-    if (quitting) {
+    if (quitting || installingUpdate) {
       return
     }
 

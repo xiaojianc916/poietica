@@ -852,7 +852,7 @@ const AboutSettings = memo(function AboutSettings({
 
         <div>
           <dt>设置存储</dt>
-          <dd>JSON（应用设置）与 Tauri Store（Agent 配置）</dd>
+          <dd>JSON（应用设置）与 agent 自己受控 home 下的配置（Agent 配置）</dd>
         </div>
 
         <div>

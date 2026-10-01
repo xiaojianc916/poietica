@@ -8,7 +8,7 @@
 # 由根 .gitignore 的 *.tmp 规则自动忽略，不产生 git 噪声。
 #
 # force 必需 —— 不写它 cargo 不会覆盖已继承的 TMP；relative 相对本文件所在目录
-# 解析，所以从 apps/desktop/src-tauri 构建也命中同一处。
+# 解析，所以从任意子目录构建也命中同一处。
 #
 # 来源：MSVC LNK1104 文档 "Problems in the TMP environment variable" 一节；
 # force/relative 语义、target/ 缺失与 CARGO_TARGET_DIR 改写两种情形均为 2026-09-24 实测。

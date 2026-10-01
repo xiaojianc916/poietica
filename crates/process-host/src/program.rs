@@ -48,7 +48,7 @@ pub fn resolve_program(program: &str) -> Result<PathBuf, ProgramNotFound> {
     })
 }
 
-/// 随包发的文件落在应用可执行文件旁边（Tauri 的 bundle.resources 摆在那儿），不在 PATH 上。
+/// 随包发的文件落在应用可执行文件旁边（打包器的 resources 目录摆在那儿），不在 PATH 上。
 ///
 /// 只认这个名字、不补后缀：同一个目录里既摆着可执行文件（`bun.exe`），也摆着脚本
 /// （`poietica-bridge.js`），补后缀会把后者找成不存在的 `*.js.exe`。

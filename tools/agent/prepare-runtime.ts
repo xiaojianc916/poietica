@@ -1,6 +1,6 @@
 #!/usr/bin/env bun
 /*
- * 摆好 agent 运行时的三样东西，交给 Tauri 的 bundle.resources 原样摆进安装目录
+ * 摆好 agent 运行时的三样东西，交给打包器的 extraResources 原样摆进安装目录
  * （与应用可执行文件同目录）：随包的 bun.exe、桥的 bundle、pi-natives 的 .node。
  *
  * 不产出自有编译产物：omp SDK 的宿主就是 Bun —— engines 只写 bun，官方 docs/sdk.md
@@ -144,8 +144,8 @@ async function main(): Promise<void> {
      * 按 `import()` 到用时才加载。实测 spawn→ready 从 ~800ms 掉到 ~615ms，
      * 「点开新对话 → 工具条有值」从 ~970ms 掉到 ~795ms。
      *
-     * 代价是产物从 1 个 JS 变成几百个 chunk-*.js（都落在同一层，Tauri 的资源 map
-     * 用 glob 收）。相对入口那一屏的启动钱，这个代价值得。
+     * 代价是产物从 1 个 JS 变成几百个 chunk-*.js（都落在同一层，extraResources
+     * 整目录收）。相对入口那一屏的启动钱，这个代价值得。
      */
     splitting: true,
     plugins: [

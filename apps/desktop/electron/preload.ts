@@ -223,6 +223,25 @@ const bridge: PoieticaBridge = {
       }
     },
 
+    pickSavePath(options) {
+      if (!isRecord(options) || typeof options['defaultPath'] !== 'string') {
+        return Promise.reject(new Error('poietica: requestInvalid — 保存对话框要说明默认文件名'))
+      }
+
+      const filters = pickerFilters(options['filters'])
+
+      if (filters === null) {
+        return Promise.reject(
+          new Error('poietica: requestInvalid — 过滤器要写成 { name, extensions[] }'),
+        )
+      }
+
+      return invoke('poietica:pick-save-path', {
+        defaultPath: options['defaultPath'],
+        filters,
+      }).then((value) => (typeof value === 'string' ? value : null))
+    },
+
     saveExport: (request) =>
       invoke('poietica:save-export', request).then((value) => value === true),
 

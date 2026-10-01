@@ -39,7 +39,7 @@ Electron 把第一条边界**去掉**（同进程），把第二条换成宿主�
 | 桥的生命周期 | 组合根用 `tokio::process` 起 `resources/bun.exe` + `poietica-bridge.js` | **同一个 crate 起同一对东西**，只是随包目录搬到 `resources/agent/`；stdio 一行一条 JSON 原样保留 | 保留 omp 的 Bun 运行时边界（ADR 0021）；它是库，不是 Electron 模块 |
 | 托盘与单实例 | `tauri-plugin-single-instance` + `TrayIconBuilder`；退出是请求，屏障归 shutdown | `requestSingleInstanceLock()` + Electron `Tray`；退出屏障与"强制退出"菜单项照搬 | 语义一模一样，只换 API |
 | 窗口状态 | `tauri-plugin-window-state`，`StateFlags` = SIZE/POSITION/MAXIMIZED/FULLSCREEN（刻意不含 VISIBLE） | 主进程自己读写同一组字段 | 少一个插件，判据（不含 VISIBLE）保留 |
-| 自动更新 | Tauri bundler + NSIS + `tauri-plugin-updater`（minisign） | electron-builder（NSIS）+ `electron-updater`；工具链迁到 `electron-vite` | 更新链路跟着打包链路一起走 |
+| 自动更新 | Tauri bundler + NSIS + `tauri-plugin-updater`（minisign） | electron-builder（NSIS）+ `electron-updater`；工具链迁到 `electron-vite`。三条命令（`update_check`/`update_download`/`update_relaunch`）与 `browser_*` 同类，归主进程自己的表（`electron/update.ts`），不进 Rust 命令清单 | 更新链路跟着打包链路一起走；electron-updater 要 app 与安装包，只有主进程有 |
 | 打包体积 | bundler 产物 + 系统 WebView2 | electron-builder 产物自带 Chromium + Node | 用体积换确定性与宿主 API，见代价一节 |
 
 ## 决定
@@ -94,6 +94,12 @@ Electron 把第一条边界**去掉**（同进程），把第二条换成宿主�
 9. **打包与更新整体换到 Electron 侧。** electron-builder（NSIS）出安装包，
    `electron-updater` 做出货更新，构建工具链迁到 `electron-vite`。Tauri bundler、
    `tauri-plugin-updater` 与 minisign 那套随之消失。
+
+   命令面按能力归属分侧：更新要 app、`process.resourcesPath` 与那个安装包，原生侧
+   一样都没有，所以三条命令由主进程自己答（`apps/desktop/electron/update.ts`），
+   与 `browser_*` 同一张表，不进 Rust 的命令清单 —— 进去就只是三条永远报错的空壳。
+   退出屏障放行 `before-quit-for-update`：装更新时拦下那个 quit，安装器就永远等不到
+   可以接管的文件。
 
 10. **架构闸门跟着换判据。** "除生成物外只有 `@poietica/native-bridge` 可碰宿主 API"
     这条不变量保留，判据里的 `@tauri-apps/*` 换成对 `window.poietica` 的直接使用

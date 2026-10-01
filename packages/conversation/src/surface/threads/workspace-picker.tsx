@@ -18,7 +18,7 @@ import { ChevronDownIcon, FolderPlusIcon, SearchIcon } from '../primitives/icons
  * 整行唯一的动作是右侧那枚图标。「最近」不是一份新名单：已有对话的工作区就是最近用过
  * 的，那份分组侧栏本来就在画（threads/thread-order 的 groupByWorkspace），从 props
  * 进来，不新开存储；当前那一个与名字缺席的那一组不出现在名单里 —— 行上写着的就是它，
- * 而后者不是一个可以切过去的地方。这一层不认识文件系统也不认识 Tauri：目录选择器是
+ * 而后者不是一个可以切过去的地方。这一层不认识文件系统也不认识宿主：目录选择器是
  * 宿主的能力，从 onBrowse 进来（架构规则 nativeAllowed 只放行 desktop / native-bridge
  * / ipc）。搜索词是这张弹层的草稿：关掉就清，不落盘，也不出这个组件。
  */

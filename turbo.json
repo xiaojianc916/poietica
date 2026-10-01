@@ -13,7 +13,7 @@
     "Cargo.lock",
     "deny.toml"
   ],
-  "globalEnv": ["CI", "NODE_ENV", "RUST_BACKTRACE", "TAURI_ENV_*", "VITE_*"],
+  "globalEnv": ["CI", "NODE_ENV", "RUST_BACKTRACE", "VITE_*"],
   "globalPassThroughEnv": [
     "CARGO_HOME",
     "CARGO_TARGET_DIR",
@@ -39,11 +39,16 @@
       "dependsOn": [
         "^typecheck",
         "@poietica/desktop#typecheck:browser",
+        "@poietica/desktop#typecheck:electron",
         "@poietica/desktop#typecheck:node"
       ],
       "outputs": []
     },
     "@poietica/desktop#typecheck:browser": {
+      "dependsOn": ["^typecheck"],
+      "outputs": []
+    },
+    "@poietica/desktop#typecheck:electron": {
       "dependsOn": ["^typecheck"],
       "outputs": []
     },
