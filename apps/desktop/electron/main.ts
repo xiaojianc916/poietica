@@ -207,7 +207,15 @@ async function startupThemePreference(): Promise<ThemePreference> {
   try {
     const text = await readFile(join(app.getPath('userData'), 'settings.json'), 'utf8')
     const parsed: unknown = JSON.parse(text)
-    const theme = isRecord(parsed) ? parsed['theme'] : undefined
+    /*
+     * 形状是 { settings: { theme } }，不是 { theme }。
+     *
+     * 正本是 apps/desktop/native/src/settings/storage.rs 的 SETTINGS_KEY = "settings" ——
+     * 整份文档是「键 → 各家设置」的映射，应用设置只是其中一个键。少剥这一层就永远
+     * 读到 undefined，每次都退回 'system'，于是窗口底色跟随系统主题而不是用户的偏好。
+     */
+    const settings = isRecord(parsed) ? parsed['settings'] : undefined
+    const theme = isRecord(settings) ? settings['theme'] : undefined
 
     if (theme === 'light' || theme === 'dark' || theme === 'system') {
       return theme
@@ -331,6 +339,7 @@ function installTray(win: BrowserWindow): void {
 
   tray = new Tray(icon)
   tray.setToolTip('Poietica')
+
   /*
    * 只留两项：打开与退出。
    *
