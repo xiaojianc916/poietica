@@ -22,7 +22,7 @@ const SKIP = new Set([
   '.workbuddy',
   'Architecture',
   // 随包发的运行时（产物，见 tools/architecture/imports.ts 的 SKIP 注释）。
-  'binaries',
+  'agent',
   'coverage',
   'dist',
   'dist-release',

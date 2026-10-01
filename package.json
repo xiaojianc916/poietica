@@ -23,7 +23,7 @@
     "bench:open": "bun run tests/benchmark/open-conversation.bench.ts",
     "bench:reads": "bun run tests/benchmark/reads.bench.ts",
     "build:debug": "bun run agent:prepare && bun run --filter @poietica/desktop electron:build",
-    "build:release": "bun run agent:prepare && bun run --filter @poietica/desktop electron:build && bun run --filter @poietica/desktop electron:package",
+    "build:release": "bun run agent:prepare && bun run native:build:release && bun run --filter @poietica/desktop electron:build && bun run --filter @poietica/desktop electron:package",
     "build:web": "turbo run build",
     "check": "bun run check:web && bun run check:rust",
     "check:rust": "cargo fmt --all -- --check && bun run clippy && bun run test:rust && bun run ipc:check",
@@ -45,7 +45,8 @@
     "test:rust": "cargo test --workspace --all-features",
     "typecheck": "turbo run typecheck --continue",
     "verify:channel": "bun tools/release/verify-channel.ts",
-    "version:set": "bun tools/release/set-version.ts"
+    "version:set": "bun tools/release/set-version.ts",
+    "native:build:release": "bun run tools/dev/build-native.ts --release"
   },
   "devDependencies": {
     "@biomejs/biome": "catalog:",

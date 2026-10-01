@@ -45,14 +45,8 @@ target/
 **/target/
 *.rs.bk
 
-# Tauri generated files
-apps/desktop/src-tauri/gen/
-apps/desktop/src-tauri/.tauri/
-**/src-tauri/gen/
-**/src-tauri/.tauri/
-
-# 随包发的 agent 运行时（Bun + 桥 bundle + 原生模块，约 300MB 量级）：由 tools/agent/prepare-runtime.ts 现备，不入库。
-apps/desktop/src-tauri/binaries/
+# 随包发的 agent 运行时（Bun + 桥 bundle + 拆块 chunk + 原生模块，约 300MB 量级）：由 tools/agent/prepare-runtime.ts 现备，不入库。
+apps/desktop/resources/agent/
 
 # Desktop installers and bundles
 *.app

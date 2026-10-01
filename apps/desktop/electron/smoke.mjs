@@ -2,13 +2,12 @@
  * 不启 GUI 的自检：只把原生库当普通 Node 插件加载，走一遍真实的 invoke 往返。
  * 它的产物就是 stdout 上那一行 smoke ok，console 在这里是输出而不是日志。
  *
- * 为什么把 poietica.dll 改名成 poietica.node：cargo 在 Windows 上把 cdylib 产出成 .dll，
- * 而 Node 只按 .node 认插件（require 一个 .dll 会走 JS 解析器）。改名是加载器的要求，
- * 不是编译产物的名字 —— 所以这一步由这里做，构建脚本里不重复一遍。
+ * 插件由 tools/dev/build-native.ts 备好（cargo 的 cdylib 改名成 .node，与该脚本同一处）。
+ * 这里只读，不再自己复制一遍 —— 两份复制逻辑必然分叉成两个不同的版本。
  *
- * POIETICA_NATIVE 覆盖候选路径，与 electron/native.ts 同一个变量。
+ * POIETICA_NATIVE 覆盖路径，与 electron/native.ts 同一个变量。
  */
-import { copyFileSync, existsSync, mkdirSync, mkdtempSync, rmSync } from 'node:fs'
+import { existsSync, mkdtempSync, rmSync } from 'node:fs'
 import { createRequire } from 'node:module'
 import { tmpdir } from 'node:os'
 import { dirname, join, resolve } from 'node:path'
@@ -25,7 +24,7 @@ function check(condition, message) {
   }
 }
 
-/** 源码树里的插件位置；仓库根的 target/ 是共享构建目录。 */
+/** 原生插件的开发期落点：tools/dev/build-native.ts 生成，与 .dll 同级。 */
 function resolveNative() {
   const override = process.env.POIETICA_NATIVE
 
@@ -33,31 +32,13 @@ function resolveNative() {
     return override
   }
 
-  const built = join(here, '..', 'native', 'target', 'debug', 'poietica.node')
-  const shared = join(repository, 'target', 'debug', 'poietica.node')
+  const addon = join(repository, 'target', 'debug', 'poietica.node')
 
-  if (existsSync(built)) {
-    return built
+  if (!existsSync(addon)) {
+    throw new Error(`没有找到原生库：先跑 bun run native:build（找的是 ${addon}）`)
   }
 
-  if (existsSync(shared)) {
-    return shared
-  }
-
-  const source = [
-    join(here, '..', 'native', 'target', 'debug', 'poietica.dll'),
-    join(repository, 'target', 'debug', 'poietica.dll'),
-  ].find((candidate) => existsSync(candidate))
-
-  if (source === undefined) {
-    throw new Error('没有找到原生库：先跑 cargo build -p poietica --lib，或设 POIETICA_NATIVE')
-  }
-
-  // 首次跑时 native/target/ 还不存在，cargo 也从来没往那儿写过东西。
-  mkdirSync(dirname(built), { recursive: true })
-  copyFileSync(source, built)
-
-  return built
+  return addon
 }
 
 const dataRoot = mkdtempSync(join(tmpdir(), 'poietica-smoke-'))

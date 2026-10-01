@@ -64,14 +64,17 @@ export function cyclesIn(graph: ReadonlyMap<string, ReadonlySet<string>>): Cycle
 
 const EXTENSIONS = ['.cjs', '.cts', '.js', '.jsx', '.mjs', '.mts', '.ts', '.tsx']
 /*
- * `binaries` 是 `agent:prepare` 现备的随包运行时（bun + 桥 bundle + 平台 `.node`，
- * 约 300MB，见 .gitignore）。它是**产物**，与 dist/target 同类，不是源码。
+ * `agent` 是 `agent:prepare` 现备的随包运行时（bun + 桥 bundle + 平台 `.node`，
+ * 约 300MB，见 .gitignore 与 apps/desktop/resources/agent/）。它是**产物**，与
+ * dist/target 同类，不是源码：那份 bundle 里几百个 chunk 互相 import，判据把它们
+ * 当源码就会报出成片的伪违规。
  *
- * 原先它被漏掉是因为本机把它做成了 junction（遍历器把 junction 当非目录，恰好跳过）；
- * 2026-09-29 那台机器还原成真实目录后，这份 36MB bundle 立刻被当成源码来判，
- * 报出 15 条伪违规。产物目录不该靠"恰好没被遍历到"来躲开判据。
+ * 这条判据问的是「这个目录名是不是产物」，不是「它叫什么」：旧落点叫 binaries、
+ * 现在叫 agent，改名时必须一起改的是这一行与 .gitignore —— 不靠"恰好没被遍历到"躲开。
+ * 判例：2026-09-29 那台机器上 binaries 从 junction 还原成真实目录，36MB bundle
+ * 立刻被当成源码来判，报出 15 条伪违规。
  */
-const SKIP = new Set(['.turbo', 'binaries', 'coverage', 'dist', 'gen', 'node_modules', 'target'])
+const SKIP = new Set(['.turbo', 'agent', 'coverage', 'dist', 'gen', 'node_modules', 'target'])
 
 const notSkipped = (name: string): boolean => !SKIP.has(name)
 

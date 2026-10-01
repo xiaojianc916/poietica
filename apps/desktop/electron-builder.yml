@@ -17,7 +17,9 @@ asarUnpack:
   - '**/*.node'
   - resources/**
 extraResources:
-  - from: native/target/release/poietica.node
+  # 从 cargo 自己的 target 取：bun run native:build --release 已把 .dll 改名成 .node 放在那里，
+  # 与开发期读的是同一处（唯一的落点，不存在陈旧副本）。
+  - from: ../../target/release/poietica.node
     to: native/poietica.node
   - from: resources/agent
     to: agent

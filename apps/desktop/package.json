@@ -10,12 +10,14 @@
     "preview": "vite preview",
     "typecheck:browser": "tsc --project tsconfig.json --noEmit",
     "typecheck:node": "tsc --project tsconfig.node.json --noEmit",
-    "electron:dev": "bun run electron:picker && electron-vite dev",
-    "electron:build": "bun run electron:picker && electron-vite build",
+    "electron:dev": "bun run native:build && electron-vite dev",
+    "electron:build": "electron-vite build && bun run electron:picker",
     "electron:picker": "bun build src/browser/element-picker-runtime.ts --outdir dist-electron --entry-naming element-picker.js --target=browser --format=iife --minify",
     "electron:smoke": "node electron/smoke.mjs",
     "typecheck": "bun run typecheck:browser && bun run typecheck:node",
-    "electron:package": "electron-builder --win nsis"
+    "electron:package": "electron-builder --win nsis",
+    "native:build": "bun run ../../tools/dev/build-native.ts",
+    "electron:dev:with-picker": "electron-vite dev"
   },
   "dependencies": {
     "@poietica/agent-catalog": "workspace:*",
@@ -52,5 +54,6 @@
     "tailwindcss": "catalog:",
     "typescript": "catalog:",
     "vite": "catalog:"
-  }
+  },
+  "main": "dist-electron/main.cjs"
 }

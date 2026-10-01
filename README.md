@@ -141,6 +141,14 @@ The project is intentionally building reliability before broadening the product 
 
 ### Prerequisites
 
+> **`bun install` 不会执行 Electron 的 postinstall**，所以 `node_modules/electron/dist/` 一开始是空的，
+> `bun run dev` 会报 `Electron uninstall`。装完依赖后补一次二进制：
+
+```bash
+node node_modules/electron/install.js
+```
+
+
 | Tool | Required version |
 | --- | --- |
 | Bun | See `packageManager` in [`package.json`](./package.json) |

@@ -18,7 +18,7 @@ export interface NativeHost {
 }
 
 interface NativeModule {
-  new (): NativeHost
+  readonly NativeHost: new () => NativeHost
 }
 
 /**
@@ -37,8 +37,18 @@ function nativeCandidates(): readonly string[] {
     return [join(process.resourcesPath, 'app.asar.unpacked', 'native', 'poietica.node')]
   }
 
-  // 开发期：cargo 把 cdylib 产出在仓库的 target/ 下，smoke.mjs 会改名复制成 .node。
-  return [join(app.getAppPath(), 'native', 'target', 'debug', 'poietica.node')]
+  // 开发期：tools/dev/build-native.ts 把 cdylib 改名成 .node 放在 cargo 自己的 target 下。
+  // 它与 .dll 同级，所以不会出现「.node 是上一次构建、.dll 是这一次」的陈旧副本。
+  //
+  // 两条候选而不是一条：`app.getAppPath()` 在开发期取决于谁把 Electron 拉起来的 ——
+  // electron-vite 从 dist-electron 起（三层到仓库根），直接 `electron .` 从 apps/desktop
+  // 起（两层）。写死一条就会在另一种跑法下找不到插件，而这里本来就是一个候选列表。
+  const addon = ['debug', 'release'].map((profile) => join('target', profile, 'poietica.node'))
+
+  return [
+    ...addon.map((relative) => join(app.getAppPath(), '..', '..', '..', relative)),
+    ...addon.map((relative) => join(app.getAppPath(), '..', '..', relative)),
+  ]
 }
 
 export function loadNative(): NativeHost {
@@ -47,14 +57,15 @@ export function loadNative(): NativeHost {
 
   for (const candidate of nativeCandidates()) {
     try {
-      const loaded: unknown = resolve(candidate)
+      const loaded = resolve(candidate) as Partial<NativeModule>
 
-      if (typeof loaded !== 'function') {
-        failures.push(`${candidate}: 模块没有导出宿主构造函数`)
+      /* napi 的导出面是 { NativeHost, echo, contractFunctionCount }，宿主是它的成员，不是模块本身。 */
+      if (typeof loaded?.NativeHost !== 'function') {
+        failures.push(`${candidate}: 模块没有导出 NativeHost`)
         continue
       }
 
-      return new (loaded as NativeModule)()
+      return new loaded.NativeHost()
     } catch (cause) {
       failures.push(`${candidate}: ${String(cause)}`)
     }
