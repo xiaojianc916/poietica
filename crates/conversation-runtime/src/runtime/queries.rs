@@ -7,26 +7,39 @@ use poietica_agent_client::{
 };
 
 impl<E: RuntimeFailure> Runtime<E> {
-    /// 进程级读的连接选择：有同 agent 的活连接就用它，没有才按兜底工作区起一条。
-    async fn or_live(&self, agent: String) -> Result<Handle, CommandError<E>> {
-        match self.connection.current().map_err(CommandError::Runtime)? {
-            Some(handle) if handle.agent_id == agent => Ok(handle),
-            _ => self
-                .ensure(agent, None, Takeover::Replace)
-                .await
-                .map_err(CommandError::Runtime),
-        }
+    /// 进程级读的连接选择。
+    ///
+    /// cwd 缺席时复用同 agent 的活连接：进程级事实不依赖连接锚在哪，而拿缺席去 `ensure`
+    /// 会解析成兜底工作区，把用户对话正用的连接拆掉重起——切模型那一趟正好紧跟在会话
+    /// 选择之后，拆掉就等于把刚改好的设置连人一起丢掉。
+    ///
+    /// cwd 在场时**必须**按它锚：连接的 cwd 定着会话桶与工具工作目录，复用一条锚在别处
+    /// 的连接，会被下一次按工作区的 `ensure` 拆掉——拆的正是正在服务这次读的那条（首次
+    /// 启动三条读并发时必现：目录读锚在兜底根上，选择器读复用了它，名册读按工作区重锚，
+    /// 于是选择器那趟死在半路）。
+    async fn or_live(&self, agent: String, cwd: Option<String>) -> Result<Handle, CommandError<E>> {
+        let Some(workspace) = cwd else {
+            return match self.connection.current().map_err(CommandError::Runtime)? {
+                Some(handle) if handle.agent_id == agent => Ok(handle),
+                _ => self
+                    .ensure(agent, None, Takeover::Replace)
+                    .await
+                    .map_err(CommandError::Runtime),
+            };
+        };
+
+        self.ensure(agent, Some(workspace), Takeover::Replace)
+            .await
+            .map_err(CommandError::Runtime)
     }
 
+    /// 选择器读的是活连接上那条锚会话，判据与其它进程级读同一条（见 `or_live`）。
     pub async fn configuration_for(
         &self,
         agent: String,
         cwd: Option<String>,
     ) -> Result<Vec<ConfigControl>, CommandError<E>> {
-        let live = self
-            .ensure(agent, cwd, Takeover::Replace)
-            .await
-            .map_err(CommandError::Runtime)?;
+        let live = self.or_live(agent, cwd).await?;
         live.client
             .selectors(live.anchor)
             .map_err(CommandError::Agent)?
@@ -78,7 +91,7 @@ impl<E: RuntimeFailure> Runtime<E> {
         &self,
         agent: String,
     ) -> Result<BrowserSettings, CommandError<E>> {
-        let live = self.or_live(agent).await?;
+        let live = self.or_live(agent, None).await?;
         live.client
             .browser_settings()
             .await
@@ -93,7 +106,7 @@ impl<E: RuntimeFailure> Runtime<E> {
         headless: Option<bool>,
         cdp_url: Option<String>,
     ) -> Result<BrowserSettings, CommandError<E>> {
-        let live = self.or_live(agent).await?;
+        let live = self.or_live(agent, None).await?;
         live.client
             .set_browser_settings(enabled, headless, cdp_url)
             .await
@@ -102,13 +115,12 @@ impl<E: RuntimeFailure> Runtime<E> {
 
     /// agent 自己那份设置目录。
     ///
-    /// 目录是进程级事实，与连接锚在哪个工作区无关：用活着的连接，别为这一问拆掉
-    /// 用户对话正用的连接。没有活连接才按兜底工作区起一条。
+    /// 目录是进程级事实，与连接锚在哪个工作区无关：用活着的连接。
     pub async fn settings_catalog(
         &self,
         agent: String,
     ) -> Result<SettingsCatalog, CommandError<E>> {
-        let live = self.or_live(agent).await?;
+        let live = self.or_live(agent, None).await?;
         live.client
             .settings_catalog()
             .await
@@ -125,22 +137,19 @@ impl<E: RuntimeFailure> Runtime<E> {
         path: String,
         value: SettingValue,
     ) -> Result<Vec<SettingEntry>, CommandError<E>> {
-        let live = self.or_live(agent).await?;
+        let live = self.or_live(agent, None).await?;
         live.client
             .set_setting(path, value)
             .await
             .map_err(CommandError::Agent)
     }
 
+    /// 能力清单是进程级事实，与连接锚在哪个工作区无关，见 `or_live`。
     pub async fn capability_report(
         &self,
         agent: String,
     ) -> Result<Vec<Capability>, CommandError<E>> {
-        /*
-         * 能力清单是进程级事实，与连接锚在哪个工作区无关：用活着的连接，别为这一问
-         * 拆掉用户对话正用的连接。没有活连接才按兜底工作区起一条。
-         */
-        let live = self.or_live(agent).await?;
+        let live = self.or_live(agent, None).await?;
         live.client
             .capabilities()
             .await
@@ -158,23 +167,26 @@ impl<E: RuntimeFailure> Runtime<E> {
         capability: String,
         enabled: bool,
     ) -> Result<Vec<Capability>, CommandError<E>> {
-        let live = self.or_live(agent).await?;
+        let live = self.or_live(agent, None).await?;
         live.client
             .install_capability(capability, enabled)
             .await
             .map_err(CommandError::Agent)
     }
 
+    /// 读或改模型目录。
+    ///
+    /// 目录是 agent 自己的进程级事实（它按 mtime 热重载），与连接锚在哪个工作区无关：
+    /// 用活着的连接。改成 `ensure` 会在 cwd 缺席时解析成兜底工作区，把用户对话正用的
+    /// 连接拆掉——切模型那一趟正好紧跟在会话选择之后，拆掉就等于把刚改好的设置连人一起
+    /// 丢掉（屏幕上是「设置没有改成」+「agent 已经退出」）。
     pub async fn model_catalog(
         &self,
         agent: String,
         cwd: Option<String>,
         operation: ModelCatalogOperation,
     ) -> Result<ModelCatalogSnapshot, CommandError<E>> {
-        let live = self
-            .ensure(agent, cwd, Takeover::Replace)
-            .await
-            .map_err(CommandError::Runtime)?;
+        let live = self.or_live(agent, cwd).await?;
         live.client
             .model_catalog(operation)
             .await
