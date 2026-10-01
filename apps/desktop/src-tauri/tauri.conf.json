@@ -37,7 +37,11 @@
     "resources": {
       "binaries/bun.exe": ".",
       "binaries/poietica-bridge.js": ".",
-      "binaries/pi_natives.*.node": "."
+      "binaries/chunk-*.js": ".",
+      "binaries/pi_natives.*.node": ".",
+      "binaries/template-*": ".",
+      "binaries/tool-views.generated-*.js": ".",
+      "binaries/CHANGELOG-*.md": "."
     },
     "icon": [
       "icons/32x32.png",

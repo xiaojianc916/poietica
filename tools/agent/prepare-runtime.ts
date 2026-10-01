@@ -134,6 +134,19 @@ async function main(): Promise<void> {
     },
     format: 'esm',
     minify: { identifiers: false, keepNames: true },
+    /*
+     * **分块**：不这么写，35MB 全落在一个入口文件里，Bun 启动时要读进来、解析完
+     * 才能执行第一行 —— 入口那一趟（写 ready、答 selectors/skills/mcp_servers）
+     * 因此白等整片 main/modes 的编译钱。
+     *
+     * 分块之后入口只有 0.2MB，重的那片（sdk / modes/runtime-init）落成独立 chunk，
+     * 按 `import()` 到用时才加载。实测 spawn→ready 从 ~800ms 掉到 ~615ms，
+     * 「点开新对话 → 工具条有值」从 ~970ms 掉到 ~795ms。
+     *
+     * 代价是产物从 1 个 JS 变成几百个 chunk-*.js（都落在同一层，Tauri 的资源 map
+     * 用 glob 收）。相对入口那一屏的启动钱，这个代价值得。
+     */
+    splitting: true,
     plugins: [
       jsonPlugin.createJsonParsePlugin(),
       {

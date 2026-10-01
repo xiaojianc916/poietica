@@ -15,6 +15,7 @@ import {
   type AuthStorage,
   createAgentSession,
   discoverAuthStorage,
+  discoverSkills,
   FileSessionStorage,
   getAgentDir,
   type MCPManager,
@@ -31,6 +32,10 @@ import {
 } from '@oh-my-pi/pi-coding-agent/discovery'
 import { exportFromFile } from '@oh-my-pi/pi-coding-agent/export/html'
 import { shareSession as uploadSession } from '@oh-my-pi/pi-coding-agent/export/share'
+/* MCP 的**配置层**：只读 .mcp.json 那几只文件，不 spawn 服务器。
+   discoverMCPServers 会连（loader.ts 的 discoverAndConnect），入口那一格要的只是
+   「配了哪几台」，连没连属于连接层，所以这里用配置层那一个。 */
+import { loadAllMCPConfigs } from '@oh-my-pi/pi-coding-agent/mcp/config'
 import { initializeExtensions } from '@oh-my-pi/pi-coding-agent/modes/runtime-init'
 import { buildSecretObfuscator } from '@oh-my-pi/pi-coding-agent/secrets'
 /* 构成的唯一产地是 omp 自己的状态行口径：它把技能从系统提示词里减出去，还算出空闲
@@ -57,6 +62,12 @@ import {
   type UpstreamDialogRequest,
 } from './approval.ts'
 import { aliasOf, executeCatalog } from './catalog.ts'
+import {
+  applyExpectedSelection,
+  buildExpectedState,
+  type ExpectedServer,
+  type ExpectedSkill,
+} from './expected-state.ts'
 import { removeProvider, writeProvider, writeProviderOverride } from './models-file.ts'
 import { outcomeOf, type TurnOutcome } from './outcome.ts'
 import { attachmentOp, interactionOp, markerOp, TranscriptProjector } from './projection.ts'
@@ -362,8 +373,142 @@ export function createBridge(host: BridgeHost): Bridge {
     return run
   }
 
-  function openSession(cwd: string): Promise<Session> {
-    return queueInit(() => adopt(SessionManager.create(cwd), cwd))
+  /*
+   * 在飞的水合。
+   *
+   * 开新对话时号由 `SessionManager.create` 当场签发（实测 3.5ms），而
+   * `createAgentSession` 要做的全量发现是这一段里最贵的一步。号既然先有了，就可以先把
+   * 号与「期望态」那张表交出去，把发现放后台 —— 屏幕上的工具条因此不必等水合。
+   *
+   * 失败要能被**之后**的命令看见（号已经交出去了，静默会变成「会话凭空消失」），所以
+   * 这个承诺一直挂着；同时挂一个 catch，免得没人等它时算成未处理拒绝。
+   */
+  let hydrating: Promise<unknown> | null = null
+
+  /*
+   * 正在水合的那条会话锚在哪个工作区。
+   *
+   * 号已经交出去、会话对象还没有，`workspaceOf()` 这会儿在 sessions 里找不到它，会退回
+   * 宿主启动时的 cwd —— 而新对话可能开在另一个目录上。这一格就是补那个缺口的：
+   * 水合期间读期望态（技能、MCP 配置、模型目录）要用它，不然会去错目录里扫技能。
+   */
+  let hydratingCwd: string | null = null
+
+  /* 号当场交出去，会话对象在后台建。返回的就是新号。 */
+  function mintSession(cwd: string): string {
+    const manager = SessionManager.create(cwd)
+    const id = manager.getSessionId()
+    const started = queueInit(() => adopt(manager, cwd))
+
+    void started.catch(() => {})
+    hydrating = started
+    hydratingCwd = cwd
+    active = id
+
+    return id
+  }
+
+  /* 需要会话对象的命令先等这一趟；没有在飞的就直接过。失败往上传（fail closed）。 */
+  async function settleHydration(): Promise<void> {
+    const pending = hydrating
+
+    if (pending === null) {
+      return
+    }
+
+    try {
+      await pending
+    } finally {
+      if (hydrating === pending) {
+        hydrating = null
+        hydratingCwd = null
+      }
+    }
+  }
+
+  /*
+   * 期望态那一份：进程级事实，**不建会话**。
+   *
+   * 入口那一屏要的是「用户配成什么样」（模型/权限/档位/技能/MCP 配置），这件事住在配置
+   * 与目录里，不住在会话对象里。此前它被 readSelectors 挡住 —— 那条要会话对象，于是
+   * 「点开新对话看到工具条」必须等整次水合（createAgentSession 的全量发现）。
+   *
+   * 三样并行取，谁都不依赖谁：`settingsFor()` 那一份可写设置、模型目录、盘上的技能与
+   * MCP 配置。模型身份由官方解析器从目录里算（见 expected-state.ts），不自己拼。
+   */
+  let registryPromise: Promise<ModelRegistry> | null = null
+
+  /*
+   * 模型目录：期望态那一趟读它，`adopt` 建会话也用它 —— 同一个注册表，两条路读到的是
+   * 同一份表，不会各补一遍目录。
+   *
+   * 与 SDK 自己的嵌入方引导同一次序（sdk.ts 的 hydrateCredentialScopedModelCaches +
+   * refreshInBackground）：先本地补目录，联网发现放后台。不能 await refresh()：它默认
+   * online-if-uncached，缓存过了 24h 就当场等网络 —— 实测 585ms（断网）对 10442ms（联网）。
+   */
+  function registryFor(): Promise<ModelRegistry> {
+    registryPromise ??= (async () => {
+      const authStorage = await discoverAuthStorage()
+      const registry = new ModelRegistry(authStorage)
+
+      await registry.hydrateCredentialScopedModelCaches()
+      registry.refreshInBackground()
+
+      return registry
+    })()
+
+    return registryPromise
+  }
+
+  /*
+   * 入口那一趟的读。三样并行取，谁都不依赖谁。
+   *
+   * 设置读的是 `settingsFor()`（`Settings.init` 那一份可写实例）：期望态那两格要在
+   * 入口就能改，而 `loadReadOnly` 拿到的实例 `#persist = false`（settings.ts:605），
+   * set 完 flush 不落盘 —— 用它读会出现「点了没反应」。
+   */
+  async function readExpectedState(
+    cwd: string,
+  ): Promise<{ controls: SelectorControl[]; skills: ExpectedSkill[]; servers: ExpectedServer[] }> {
+    const settings = await settingsFor()
+    const [registry, skills, mcp] = await Promise.all([
+      registryFor(),
+      discoverSkills(cwd),
+      loadAllMCPConfigs(cwd),
+    ])
+
+    const state = await buildExpectedState({
+      registry,
+      settings,
+      skills: skills.skills,
+      servers: Object.keys(mcp.configs),
+      skillSourceOf,
+      thinkingOptions: THINKING_OPTIONS,
+    })
+
+    return {
+      controls: [...state.controls],
+      skills: [...state.skills],
+      servers: [...state.mcpServers],
+    }
+  }
+
+  /*
+   * 改入口的格子：还没有会话时的那条写法。
+   *
+   * 只有模型与权限两格是**配置**，改了立刻落盘、omp 自己热重载；计划与目标两格是会话
+   * 状态，入口只作展示，改动由第一句随 prompt 生效（appliesOnSubmit）。四条纪律的
+   * 「会话前用配置、会话后只碰同步 getter」在这里落地：没有会话就走这一条。
+   */
+  async function writeExpectedState(configId: string, value: string): Promise<void> {
+    const settings = await settingsFor()
+    const outcome = await applyExpectedSelection({ settings, configId, value })
+
+    if (outcome === 'session') {
+      throw new Error(
+        `the ${configId} selector needs a session; it cannot be set before one exists`,
+      )
+    }
   }
 
   function loadSession(sessionId: string, cwd: string): Promise<Session | null> {
@@ -484,6 +629,10 @@ export function createBridge(host: BridgeHost): Bridge {
    * 范围是这条连接的工作区（一个连接一条会话、锚在一个工作区）。
    */
   async function listSessions(): Promise<unknown> {
+    /* 水合期间会话对象还没有，`currentSession()` 会退回宿主的 cwd —— 新对话可能开在
+       另一个目录上，清单就会列错工作区。先让它落定。 */
+    await settleHydration()
+
     const cwd = currentSession()?.agent.sessionManager.getCwd() ?? host.cwd
     const listed = await SessionManager.list(cwd)
 
@@ -505,6 +654,9 @@ export function createBridge(host: BridgeHost): Bridge {
    * 先 newSession() 再删）。删不掉（找不到）如实回失败：运行时把这笔删除当成还欠着，稍后重试。
    */
   async function deleteSession(sessionId: string): Promise<unknown> {
+    /* 会话文件要到水合时才落盘（`SessionManager.create` 只签发号），见 shareSessionFor。 */
+    await settleHydration()
+
     const held = sessions.get(sessionId)
     const manager = held?.agent.sessionManager
     const found = await findSessionFile(sessionId, manager)
@@ -540,6 +692,9 @@ export function createBridge(host: BridgeHost): Bridge {
    * 不必把它装载起来。
    */
   async function exportSession(sessionId: string, destination: string): Promise<unknown> {
+    /* 同上：文件还没落盘时按号找不到，导出会凭空说「没有这条会话」。 */
+    await settleHydration()
+
     const held = sessions.get(sessionId)
 
     if (held !== undefined && active === sessionId) {
@@ -582,6 +737,12 @@ export function createBridge(host: BridgeHost): Bridge {
    * `SessionManager.open` 按文件另开一个管理器 —— 与 `omp share <session>` 同路。
    */
   async function shareSessionFor(sessionId: string): Promise<unknown> {
+    /*
+     * 先等在飞的水合：新对话的号是当场签发的，而**会话文件要到水合时才落盘**
+     * （`SessionManager.create` 只签发号，实测文件此时还不存在），此时按号找文件必然找不到。
+     */
+    await settleHydration()
+
     const held = sessions.get(sessionId)
     const manager =
       held?.agent.sessionManager ??
@@ -629,17 +790,15 @@ export function createBridge(host: BridgeHost): Bridge {
 
   // 新建与重装共用这一条：差别只有「管理器从哪来」，其余必须逐字相同。
   async function adopt(manager: SessionManager, cwd: string): Promise<Session> {
-    const authStorage = await discoverAuthStorage()
-    const modelRegistry = new ModelRegistry(authStorage)
     /*
-     * 与 SDK 自己的嵌入方引导同一次序（sdk.ts 的 hydrateCredentialScopedModelCaches +
-     * refreshInBackground）：先本地补目录，联网发现放后台。不能 await refresh()：它默认
-     * online-if-uncached，缓存过了 24h 就当场等网络 —— 实测 585ms（断网）对 10442ms
-     * （联网），而这一段压在开窗之前。modelRegistry 传给 createAgentSession 后 SDK 自己
-     * 的后台分支会被跳过，这个责任由这里接过来。
+     * 用期望态那一个注册表（同一次补目录、同一次后台联网发现）：两条路各有各的注册表
+     * 就会补两遍目录，用户改过 models.yml 之后还可能读到两份不同的表。见 registryFor。
+     *
+     * 凭据页从它自己身上取（构造时就是它的第一格），不再 discoverAuthStorage 一遍 ——
+     * 那是一次盘读，两次读到的还是同一份。
      */
-    await modelRegistry.hydrateCredentialScopedModelCaches()
-    modelRegistry.refreshInBackground()
+    const modelRegistry = await registryFor()
+    const authStorage = modelRegistry.authStorage
 
     // 号由我们签发。sessionId 先占空串：闸门可能在会话对象拿到号之前就被调到。
     let id = ''
@@ -1655,6 +1814,108 @@ export function createBridge(host: BridgeHost): Bridge {
     return active === null ? null : (sessions.get(active) ?? null)
   }
 
+  /*
+   * 读期望态时用哪个工作区：会话在就说会话的，没有就用宿主启动时的那个。
+   *
+   * 两个候选都是「这条连接此刻锚在哪」的事实，不另存副本 —— 连接的 cwd 由 Rust 侧
+   * spawn 时定下（Command::current_dir），会话自己的 cwd 由 SessionManager 记着。
+   */
+  function workspaceOf(): string {
+    return currentSession()?.agent.sessionManager.getCwd() ?? hydratingCwd ?? host.cwd
+  }
+
+  /*
+   * 改一格选择器：会话已在手就落会话（`applySelection`，要通知会话），否则落期望态。
+   *
+   * 先等水合落定再判「有没有会话」：刚开的新对话可能还在水合，不等就会把一条真会话
+   * 当成入口态，把改动落到配置上而不是会话对象上。
+   *
+   * 两条寿命的映射也在这里：模型与权限两格两种寿命都有；计划与目标两格只住会话上，
+   * 还没有会话时如实拒绝（`applyExpectedSelection` 认得出，见 expected-state.ts）。
+   */
+  async function selectControl(
+    command: Extract<BridgeCommand, { type: 'select' }>,
+  ): Promise<unknown> {
+    await settleHydration()
+
+    const record = currentSession()
+
+    if (record !== null) {
+      await applySelection(record, command.configId, command.value, command.input ?? null)
+
+      return { controls: await readSelectors(record) }
+    }
+
+    await writeExpectedState(command.configId, command.value)
+
+    return { controls: (await readExpectedState(workspaceOf())).controls }
+  }
+
+  /*
+   * 入口那一屏的三格（选择器、技能、MCP）读一次。
+   *
+   * 两条寿命各有各的读法：会话已在手就读会话对象（轮次级事实），还没水合完就读期望态
+   * （进程级事实）。**刻意不等水合** —— 这三格正是入口要的，等它就等于把水合的钱付在
+   * 入口上；水合完成时 adopt 会推一次 selectors，屏幕因此先有值、后精确。
+   *
+   * 判据收在这里而不是分派里：三格共用同一条寿命规则，写在三处必然有一处先漂移
+   * （AGENTS.md §5「单一分发点」）。**不含 MCP 那次握手等待** —— 那一等只对名册有意义，
+   * 摊到这里会把选择器与技能一起拖住（见 mcpServersOf）。
+   */
+  async function entryReadOf(): Promise<{
+    controls: readonly SelectorControl[]
+    skills: readonly ExpectedSkill[]
+    servers: readonly ExpectedServer[]
+  }> {
+    const record = currentSession()
+
+    if (record === null) {
+      return await readExpectedState(workspaceOf())
+    }
+
+    return {
+      controls: readSelectors(record),
+      skills: record.agent.skills.map((skill) => ({
+        name: skill.name,
+        description: skill.description,
+        path: skill.filePath,
+        source: skillSourceOf(skill.source),
+        kind: null,
+        disableModelInvocation: skill.hide === true ? true : null,
+      })),
+      servers: readServers(record),
+    }
+  }
+
+  /*
+   * MCP 名册那一格。
+   *
+   * 会话在手时多等一次在飞的握手，但必须有截止时间 —— `waitForPendingConnections` 会
+   * drain 到所有 pending 握手 settle（omp manager.ts 最多 8 轮），一台连不上的服务器就能
+   * 挂住，实测 npx 拉 @playwright/mcp 时这一等是 181 秒。所以等一小会儿，超时就先报此刻
+   * 的事实，没连上的那台由下一趟读补齐（会话就绪推 selectors 时名册会重读，见
+   * conversation 的 capability-store）。
+   *
+   * 还没有会话（水合还没完）时读**配置层**：配了哪几台是即时事实，不花那 1.5 秒等一个
+   * 还没开始的握手。
+   */
+  async function mcpServersOf(): Promise<readonly ExpectedServer[]> {
+    const record = currentSession()
+
+    if (record === null) {
+      return (await readExpectedState(workspaceOf())).servers
+    }
+
+    await Promise.race([
+      record.mcp?.waitForPendingConnections(),
+      new Promise<void>((resolve) => {
+        setTimeout(resolve, MCP_HANDSHAKE_GRACE_MS).unref?.()
+      }),
+    ])
+
+    return readServers(record)
+  }
+
   function required(): Session {
     const record = currentSession()
 
@@ -1663,6 +1924,19 @@ export function createBridge(host: BridgeHost): Bridge {
     }
 
     return record
+  }
+
+  /*
+   * 要会话对象的那条路：先等在飞的水合再取。
+   *
+   * `required()` 是同步的（许多地方要用它取引用），而水合现在是异步的 —— 这一步是两者之间
+   * 的唯一接缝。调用方必须先 `await settleHydration()` 再调 `required()`，否则刚开的新对话
+   * 会读到「没有会话」。reviewable 判据：任何以 `required()` 开头的 case 前面都要有它。
+   */
+  async function requiredSettled(): Promise<Session> {
+    await settleHydration()
+
+    return required()
   }
 
   function settleDialog(record: Session, requestId: string, payload: unknown): unknown {
@@ -2538,10 +2812,9 @@ export function createBridge(host: BridgeHost): Bridge {
    * 这一侧留副本（Session 里那几格只是「投出去还没露面」的账，用来认领注入消息）。
    */
   function queueCommand(
+    record: Session,
     command: Extract<BridgeCommand, { type: 'queue' | 'withdraw' | 'delivery' }>,
   ): unknown {
-    const record = required()
-
     if (command.type === 'queue') {
       return { queue: queueOf(record) }
     }
@@ -2581,8 +2854,13 @@ export function createBridge(host: BridgeHost): Bridge {
   async function dispatch(command: BridgeCommand): Promise<unknown> {
     switch (command.type) {
       case 'new_session': {
-        const record = await openSession(command.cwd)
-        return { sessionId: record.id, controls: readSelectors(record) }
+        /* 号当先交出、期望态当场可读，水合放后台（见 mintSession）。 */
+        const id = mintSession(command.cwd)
+
+        return {
+          sessionId: id,
+          controls: (await readExpectedState(command.cwd)).controls,
+        }
       }
 
       case 'load_session': {
@@ -2594,15 +2872,15 @@ export function createBridge(host: BridgeHost): Bridge {
       }
 
       case 'prompt':
-        return await deliverPrompt(required(), command)
+        return await deliverPrompt(await requiredSettled(), command)
 
       case 'queue':
       case 'withdraw':
       case 'delivery':
-        return queueCommand(command)
+        return queueCommand(await requiredSettled(), command)
 
       case 'cancel': {
-        const record = required()
+        const record = await requiredSettled()
         await record.agent.abort()
         /*
          * 取消一轮，屏幕上等着人答的那些一起收掉。
@@ -2640,10 +2918,10 @@ export function createBridge(host: BridgeHost): Bridge {
       }
 
       case 'answer_permission':
-        return answerPermission(required(), command)
+        return answerPermission(await requiredSettled(), command)
 
       case 'answer_dialog': {
-        const record = required()
+        const record = await requiredSettled()
         const questions = record.asked.get(command.requestId)
 
         /*
@@ -2665,29 +2943,35 @@ export function createBridge(host: BridgeHost): Bridge {
               answers: command.response,
             })
       }
+      /*
+       * 选择器、技能、MCP 三格都是「入口那一屏」的读：会话在手读会话对象（轮次级事实），
+       * 还没建好就读期望态（进程级事实）。**刻意不等水合** —— 这三格正是入口要的，
+       * 等它就等于把水合的钱付在入口上。分派只转发，判据收在 entryReadOf 一处。
+       */
       case 'selectors':
-        return { controls: await readSelectors(required()) }
+        return { controls: (await entryReadOf()).controls }
+
+      case 'skills':
+        return { skills: (await entryReadOf()).skills }
+
+      case 'mcp_servers':
+        return { servers: await mcpServersOf() }
 
       case 'goal':
-        return { goal: readGoal(required()) }
+        return { goal: readGoal(await requiredSettled()) }
 
       // 屏幕经过两条读：打开会话要一页基线、断流后要一次追赶，都由镜像答。
       case 'transcript':
-        return required().mirror.page(command.agentId)
+        return (await requiredSettled()).mirror.page(command.agentId)
 
       case 'transcript_ops':
-        return required().mirror.catchUp(command.agentId, command.sinceSeq)
+        return (await requiredSettled()).mirror.catchUp(command.agentId, command.sinceSeq)
 
-      case 'select': {
-        const record = required()
-
-        await applySelection(record, command.configId, command.value, command.input ?? null)
-
-        return { controls: await readSelectors(record) }
-      }
+      case 'select':
+        return await selectControl(command)
 
       case 'fork_session':
-        return await forkSession(required(), command)
+        return await forkSession(await requiredSettled(), command)
 
       case 'sessions':
         return await listSessions()
@@ -2726,7 +3010,7 @@ export function createBridge(host: BridgeHost): Bridge {
        * 前奏时（比如平台没有 pi-natives 那一块），如实说它不支持。
        */
       case 'capabilities':
-        return { capabilities: readCapabilities(required()) }
+        return { capabilities: readCapabilities(await requiredSettled()) }
 
       /*
        * 打开/关上桌面控制。
@@ -2737,7 +3021,7 @@ export function createBridge(host: BridgeHost): Bridge {
        * 收成「切换」。
        */
       case 'install_capability': {
-        const record = required()
+        const record = await requiredSettled()
 
         if (command.capabilityId !== COMPUTER_USE_ID) {
           throw new Error(`this agent has no installable capability called ${command.capabilityId}`)
@@ -2746,42 +3030,8 @@ export function createBridge(host: BridgeHost): Bridge {
         return await toggleComputerUse(record, command.enabled)
       }
 
-      // 产地是会话已装载的技能（session.skills），不再去盘上扫。
-      case 'skills':
-        return {
-          skills: required().agent.skills.map((skill) => ({
-            name: skill.name,
-            description: skill.description,
-            path: skill.filePath,
-            source: skillSourceOf(skill.source),
-            kind: null,
-            disableModelInvocation: skill.hide === true ? true : null,
-          })),
-        }
-
-      /*
-       * hasUI:true 时上游把 MCP 发现推迟到建会话后异步做，刚开完名册可能空，所以等一次
-       * 在飞的握手再答 —— 但必须有截止时间：waitForPendingConnections 会 drain 到所有
-       * pending 握手 settle（omp manager.ts 最多 8 轮），一台连不上的服务器就能挂住，
-       * 实测 npx 拉 @playwright/mcp 时这一等是 181 秒；名册是同步读，一挂技能与 MCP 两格
-       * 同时停在「还没就绪」。所以等一小会儿，超时就先报此刻的事实，没连上的那台由
-       * 下一趟读补齐（会话就绪推 selectors 时名册会重读，见 conversation 的 capability-store）。
-       */
-      case 'mcp_servers': {
-        const record = required()
-
-        await Promise.race([
-          record.mcp?.waitForPendingConnections(),
-          new Promise<void>((resolve) => {
-            setTimeout(resolve, MCP_HANDSHAKE_GRACE_MS).unref?.()
-          }),
-        ])
-
-        return { servers: readServers(record) }
-      }
-
       case 'model_catalog': {
-        const record = required()
+        const record = await requiredSettled()
 
         return executeCatalog(
           command.operation,
