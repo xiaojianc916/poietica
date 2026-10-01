@@ -13,6 +13,7 @@
   "dependencies": {
     "@oh-my-pi/pi-coding-agent": "catalog:",
     "@oh-my-pi/pi-tui": "catalog:",
+    "@oh-my-pi/pi-utils": "catalog:",
     "@poietica/transcript": "workspace:*",
     "zod": "catalog:"
   },
