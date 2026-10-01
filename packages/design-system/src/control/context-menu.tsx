@@ -34,7 +34,7 @@ export function ContextMenuContent({ className, ...props }: ContextMenuContentPr
     <ContextMenu.Portal>
       <ContextMenu.Positioner className={popupPositionerClassName}>
         <ContextMenu.Popup
-          className={cn(popupSurfaceClassName, 'min-w-32 p-1', className)}
+          className={cn(popupSurfaceClassName, 'min-w-36 p-1', className)}
           {...props}
         />
       </ContextMenu.Positioner>

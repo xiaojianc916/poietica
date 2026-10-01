@@ -39,7 +39,7 @@ type DropdownMenuPopupProps = ComponentProps<typeof Menu.Popup> & {
   readonly align?: ComponentProps<typeof Menu.Positioner>['align']
 }
 
-const popupClassName = cn(popupSurfaceClassName, 'min-w-32 p-1')
+const popupClassName = cn(popupSurfaceClassName, 'min-w-36 p-1')
 
 export function DropdownMenuContent({
   align = 'start',

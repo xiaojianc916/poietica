@@ -10,8 +10,19 @@ use serde_json::Value;
 /// 桥自己的协议版本；对不上就拒绝这条连接，而不是猜字段。
 pub const PROTOCOL_VERSION: u32 = 2;
 
-/// 单行上限。桥侧的 MAX_FRAME_BYTES 同值；超了说明对端不是我们的桥。
-pub const MAX_LINE_BYTES: usize = 1024 * 1024;
+/// 单行上限：**对端的合理性检查**，不是载荷契约。
+///
+/// 正本在 packages/agent-bridge/src/protocol.ts 的 `MAX_FRAME_BYTES`，两侧同值。
+/// 超了说明对端不是我们的桥（或流已错位），所以判连接死掉 —— 判据是「这一行像不像
+/// 我们认识的那个对端」，不是「这一行是不是太大」。
+///
+/// 取值由**不可再切的最大单条载荷**推出来：一条 op 装不下时只能独占一行，而最大的那种
+/// 是内联图片（`attachment.upsert` 的 data URL）—— 桥按 `MAX_PROMPT_IMAGE_BYTES`
+/// 拦 25 MB 的原图，base64 后约 33.4 MB。取两倍留余量。
+///
+/// 旧值 1 MiB 是错的：一条 108 次工具调用的会话基线页就有 1.26 MB，正常对话被这个检查
+/// 判成了坏对端。真正保证不超限的是生产者收口（transcript-mirror 按字节预算切块/开窗）。
+pub const MAX_LINE_BYTES: usize = 50 * 1024 * 1024;
 
 /// 一句话怎么进 agent。判别式与 packages/agent-bridge/src/protocol.ts 的
 /// `deliverAs` 逐字对应：serde 按 camelCase 写出 `turn / steer / followUp / aside`。

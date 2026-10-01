@@ -96,18 +96,25 @@
 
   --ui-popover: #ffffff;
   --ui-popover-foreground: var(--ui-foreground);
-  --ui-popup-highlight: #f2f2f3;
+
   /*
-   * 浮层内部的分隔线。比浮层外框（border-divider）淡一档：外框是浮层的边界，
-   * 内线只是把两组菜单项隔开，同墨量会把一组菜单读成一叠等距平行线。
+   * 浮层材质，照抄 DeepSeek Harness 的 --dsw-specific-menu 与 --dsw-elevation-prominent
+   * （正本：@deepseek-ai/dsh-client-ui-primitives 的 MenuSurface.module.css，装机版本 2026-10-01）。
+   *
+   * 半透明玻璃底 + 模糊，所以浮层不写实色底：底下的东西透出来一点，浮层才不像贴纸。
+   * 边界由 elevation 里那圈 0 0 0 .5px 描边给（值是 --dsw-alias-border-l1），不走
+   * border —— 正本没有 border，玻璃底上 border 会沿圆角切出一道实边。
    */
-  --ui-popup-divider: #ededed;
-  /*
-   * 下拉族的两道框：收起态（触发器）跟卡片线同一档，展开的面板比它重一点，
-   * 收起与展开因此分得开。深色下两者都换成实色，见 dark.css。
-   */
+  --ui-popup-surface: rgb(248 249 250 / 58%);
+  --ui-popup-elevation:
+    0 0 0 0.5px #0000000a, 0 3px 8px 0 rgb(0 0 0 / 3.9%), 0 0 20px 0 rgb(0 0 0 / 5.1%);
+
+  /* 行的高亮底 = --dsw-alias-interactive-bg-hover。半透明，压在任何底色上都对。 */
+  --ui-popup-highlight: #2631480f;
+  /* 浮层内线 = --dsw-alias-border-l2。正本的分隔线是 0.5px 色块，不是 1px 边框。 */
+  --ui-popup-divider: #0000001a;
+  /* 触发器收起态的框：与卡片线同一档。 */
   --ui-popover-trigger-frame: var(--ui-card-divider);
-  --ui-popover-frame: #e2e4e4;
 
   /*
    * 划选高亮。浏览器那支默认蓝出自 UA 样式表，仓里对它没有任何定义，接管只有

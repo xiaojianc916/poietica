@@ -72,6 +72,7 @@
   --radius-md: var(--ui-radius-md);
   --radius-lg: var(--ui-radius-lg);
   --radius-xl: var(--ui-radius-xl);
+  --radius-2xl: var(--ui-radius-2xl);
 
   --shadow-sm: var(--ui-shadow-sm);
   --shadow-md: var(--ui-shadow-md);

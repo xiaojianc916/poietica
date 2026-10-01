@@ -3,4 +3,6 @@
   --ui-radius-md: 0.5rem;
   --ui-radius-lg: 0.625rem;
   --ui-radius-xl: 0.75rem;
+  /* 浮层卡那一档 = 正本的 --dsw-radius-lg。 */
+  --ui-radius-2xl: 1rem;
 }

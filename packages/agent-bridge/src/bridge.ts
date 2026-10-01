@@ -80,6 +80,7 @@ import type {
   SelectorControl,
   UsageSnapshot,
 } from './protocol.ts'
+import { MAX_PROMPT_IMAGE_BYTES } from './protocol.ts'
 import { ASK_TOOL, answerPayloadOf, askQuestionsOf } from './questions.ts'
 import { readCatalog } from './settings.ts'
 import { SubagentLedger } from './subagents.ts'
@@ -1367,8 +1368,8 @@ export function createBridge(host: BridgeHost): Bridge {
   /*
    * 盘上的附件 → omp 认的图片；分派判据与 mime 产地见 protocol.ts 的 `attachments`
    * （kind 与 mime 都以线上那一格为准，不嗅第二遍、不按扩展名反推）。`kind: 'file'`
-   * 的路径原样留给 agent 的 Read 工具。上限照抄上游 MAX_CLI_IMAGE_BYTES
-   * （cli/file-processor.ts:25）的 25MB：base64 后还要膨胀四分之三，再大是 OOM 不是报错。
+   * 的路径原样留给 agent 的 Read 工具。上限与 protocol.ts 的 MAX_FRAME_BYTES 同源：
+   * 这一格既是 agent 的输入，也是我们推出去的最大单条 op（内联图）。
    */
   function readPromptImages(
     attachments: Extract<BridgeCommand, { type: 'prompt' }>['attachments'],
@@ -1403,8 +1404,6 @@ export function createBridge(host: BridgeHost): Bridge {
 
     return images
   }
-
-  const MAX_PROMPT_IMAGE_BYTES = 25 * 1024 * 1024
 
   /*
    * 增量正文只有两种：说话的那一段与想的那一段。其余内部事件不上屏。
@@ -1965,11 +1964,17 @@ export function createBridge(host: BridgeHost): Bridge {
       return
     }
     pendingOps.delete(sessionId)
-    emit({
-      kind: 'transcript',
-      sessionId,
-      payload: record.mirror.accept(buffered),
-    })
+    pushEnvelopes(record, record.mirror.accept(buffered))
+  }
+
+  /*
+   * 一批 ops 可能被镜像切成好几行（见 transcript-mirror 的字节预算）：一行一条事件，
+   * 按顺序推出去。合成一行就是原来那个顶穿单行上限的缺陷。
+   */
+  function pushEnvelopes(record: Session, envelopes: readonly unknown[]): void {
+    for (const payload of envelopes) {
+      emit({ kind: 'transcript', sessionId: record.id, payload })
+    }
   }
 
   function pushTranscript(
@@ -1984,11 +1989,7 @@ export function createBridge(host: BridgeHost): Bridge {
     if (immediate) {
       // 先 flush 已攒的，再立即发这批，保序
       flushTranscript(record)
-      emit({
-        kind: 'transcript',
-        sessionId: record.id,
-        payload: record.mirror.accept(ops),
-      })
+      pushEnvelopes(record, record.mirror.accept(ops))
       return
     }
 
@@ -2960,9 +2961,16 @@ export function createBridge(host: BridgeHost): Bridge {
       case 'goal':
         return { goal: readGoal(await requiredSettled()) }
 
-      // 屏幕经过两条读：打开会话要一页基线、断流后要一次追赶，都由镜像答。
+      /*
+       * 屏幕经过两条读：打开会话要一页基线、断流后要一次追赶，都由镜像答。
+       * `beforeTurn` 是客户端翻更早那一页的游标（轮号）：一页装不下时镜像只交最新的
+       * 那一截，剩下的靠它再来一趟。
+       */
       case 'transcript':
-        return (await requiredSettled()).mirror.page(command.agentId)
+        return (await requiredSettled()).mirror.page(
+          command.agentId,
+          command.beforeTurn ?? undefined,
+        )
 
       case 'transcript_ops':
         return (await requiredSettled()).mirror.catchUp(command.agentId, command.sinceSeq)

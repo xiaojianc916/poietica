@@ -77,15 +77,18 @@
   --ui-popover: #2a2a2a;
   /* 与 light.css 同构：浮层上的字就是默认前景色，不另开一档白。 */
   --ui-popover-foreground: var(--ui-foreground);
-  --ui-popup-highlight: #3c3c3c;
+  /* 与 light.css 同构：材质、elevation、行高亮与内线都取正本那四条令牌的深色值。 */
+  --ui-popup-surface: rgb(67 69 74 / 45%);
+  --ui-popup-elevation:
+    0 0 0 0.5px #ffffff0f, 0 3px 8px 0 rgb(0 0 0 / 3.9%), 0 0 20px 0 rgb(0 0 0 / 5.1%);
+  --ui-popup-highlight: #ffffff14;
   /*
-   * 下拉族的两道框。这里写字面实色，不跟区域线那支半透明墨：半透明墨会跟着
+   * 触发器收起态的框。这里写字面实色，不跟区域线那支半透明墨：半透明墨会跟着
    * 底走，同一个控件收起与展开时会量出两个颜色。
    */
   --ui-popover-trigger-frame: #3b3b3b;
-  --ui-popover-frame: #3d3d3d;
-  /* 与浅色同构：浮层内线比浮层外框淡一档。 */
-  --ui-popup-divider: rgb(255 255 255 / 10%);
+  /* 与浅色同构：内线 = --dsw-alias-border-l2，正本画成 0.5px 色块。 */
+  --ui-popup-divider: #ffffff1f;
 
   /*
    * 划选高亮底：深色下是产品指定的深蓝，与浅色那支的浅蓝各一格；字取本主题的

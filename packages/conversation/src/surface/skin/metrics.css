@@ -317,9 +317,13 @@
   /*
    * 菜单卡面上「被指到的那一行」。
    *
-   * 几张菜单共用一个名字：浅色与 --ui-accent / --ui-popup-highlight 同值，深色由
-   * 产品定 #2e2e2e —— 它压在 #232323 的卡面上只抬一档，说的是「这里被指到了」，
-   * 不是「这里被选中了」。各读各的会让同一个动作在几个弹窗里有三种亮度。
+   * 工具条浮层族（.assistant-menu-surface）自己给实色卡面，所以这里要一个实色值：
+   * 浅色取 --ui-accent 同档，深色由产品定 #2e2e2e —— 它压在 #232323 的卡面上只抬
+   * 一档，说的是「这里被指到了」，不是「这里被选中了」。各读各的会让同一个动作在
+   * 几个弹窗里有三种亮度。
+   *
+   * 通用浮层（popup-surface）不读这个值：它的卡面是半透明玻璃，高亮走
+   * --ui-popup-highlight 那支半透明墨。
    */
   --cp-menu-hover: #f2f2f3;
 
@@ -380,6 +384,21 @@
    * timeline.css 里直写令牌，是为了将来要单独调只改一处。
    */
   --cp-error-rule: var(--ui-divider);
+
+  /*
+   * 推理正文左边那道竖线。
+   *
+   * 取 --ui-divider 与 --ui-divider-subtle 之间那一档：前者（--ui-divider）在阅读栏上
+   * 偏重，读起来像一条实心杠；后者（--cp-hairline）又几乎隐形。色阶里没有中间那格，
+   * 所以按 --cp-ink-subtle 同一条式子兑淡。
+   *
+   * 稀释兑 transparent 而不是兑地色：深色那档 --ui-divider 本身就是半透明墨
+   * （rgb(255 255 255 / 16%)），兑一个实色地色会把它的不透明度拉上去，深色下反而更明显。
+   * 兑 transparent 两个主题各淡一档，方向一致。
+   *
+   * 按用途自立一名，将来要单独调只改这一处。
+   */
+  --cp-timeline-thought-rule: color-mix(in srgb, var(--ui-divider) 55%, transparent);
 
   /*
    * 两端渐隐的长度。

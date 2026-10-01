@@ -45,9 +45,15 @@ describe('展开的推理', () => {
   it('竖线落在图标那一格，正文落在名字那一格', () => {
     const body = ruleFor('.timeline-thought {')
 
-    /* 线在行首占 2px，正文再让开「图标 + 间隙 - 2px」，加起来正好是名字的起点。 */
-    expect(body).toContain('border-inline-start: 2px solid var(--cp-hairline)')
-    expect(body).toContain('padding-inline-start: calc(var(--cp-timeline-tool-indent) - 2px)')
+    /* 线在行首占一个线宽，正文再让开「图标 + 间隙 - 线宽」，加起来正好是名字的起点。 */
+    expect(body).toContain(
+      'border-inline-start: var(--cp-px) solid var(--cp-timeline-thought-rule)',
+    )
+    expect(body).toContain(
+      'padding-inline-start: calc(var(--cp-timeline-tool-indent) - var(--cp-px))',
+    )
+    /* 线宽与让位必须是同一个令牌，写死像素会让换档时两处分叉。 */
+    expect(body).not.toMatch(/border-inline-start: \d+px/)
     /* 再给一次 margin 就是两层缩进叠加，正文会比名字还右。 */
     expect(body).not.toContain('margin-inline-start')
   })
@@ -57,6 +63,31 @@ describe('展开的推理', () => {
 
     expect(markup).toContain('先看目录，再读 README。')
     expect(markup).not.toContain('timeline-thought__lines')
+  })
+
+  /*
+   * 段间距是段与段之间的呼吸，不是行距。原文里段落之间那个空行必须自成一格，
+   * 样式才有一条能落上去的规则；整段当一个文本节点时，空行由 pre-wrap 画成一整行，
+   * 段间距等于行距。
+   *
+   * 空行里那枚 <br> 是复制用的：空盒子在选中时会被浏览器整个丢掉，选走的一段会少掉
+   * 所有分段。它同时让规则多一条 :has(br) 的选择器。
+   */
+  it('空行自成一格，段间距归样式', () => {
+    const markup = cardOf('第一段。\n\n第二段。')
+
+    expect(markup).toContain('>第一段。</div><div class="timeline-thought__line"><br/></div>')
+
+    const rule = ruleFor('.timeline-thought__line:empty,')
+
+    expect(rule).toContain('block-size: var(--ui-prose-flow)')
+    expect(CSS).toContain('.timeline-thought__line:has(br)')
+  })
+
+  /* 末尾换行在 pre-wrap 里不画行盒，拆成盒子后它会多占一格。 */
+  it('末尾换行不多出一格', () => {
+    expect(cardOf('一行。\n').match(/timeline-thought__line/g)).toHaveLength(1)
+    expect(cardOf('一行。').match(/timeline-thought__line/g)).toHaveLength(1)
   })
 
   it('收起就不在 DOM 里', () => {

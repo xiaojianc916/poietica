@@ -150,5 +150,5 @@
 
 .git-branch-picker__menu[data-assistant-skin] .git-branch-picker__separator {
   margin: var(--am-pad) 8px;
-  border-block-start-color: var(--cp-hairline);
+  background-color: var(--cp-hairline);
 }

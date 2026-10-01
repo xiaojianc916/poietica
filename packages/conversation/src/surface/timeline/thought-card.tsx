@@ -103,7 +103,21 @@ export function ThoughtCard({
   const line = readThoughtLine(text, isStreaming ? 'tail' : 'head')
   const name = isStreaming ? '正在思考' : '思考完毕'
   const [body, setBody] = useState<HTMLDivElement | null>(null)
-  const lines = useMemo(() => text.split('\n'), [text])
+
+  /*
+   * 逐行成盒，两条路径共用同一份行表：空行因此是一个空盒子（:empty），段间距归样式
+   * 说了算，而不是由 pre-wrap 里那一整行空行决定。末尾那个空串是换行符的产物 ——
+   * pre-wrap 不为它画行盒，拆成盒子后它会多占一格，所以去掉。
+   */
+  const lines = useMemo(() => {
+    const split = text.split('\n')
+
+    if (split.at(-1) === '') {
+      split.pop()
+    }
+
+    return split
+  }, [text])
 
   /*
    * 流式追加要把容器钉在末端 —— 不钉，新写的字落在容器外面，人只看到开头。
@@ -136,7 +150,11 @@ export function ThoughtCard({
               viewport={body}
             />
           ) : (
-            text
+            lines.map((content, at) => (
+              <div className="timeline-thought__line" key={`line:${String(at)}`}>
+                {content === '' ? <br /> : content}
+              </div>
+            ))
           )}
         </div>
       </DisclosureBody>

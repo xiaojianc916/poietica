@@ -111,13 +111,18 @@ button.timeline-row:focus-visible {
  * 对齐照上面那一行分两栏：竖线落在图标那一格，正文落在名字那一格 —— 上面是
  * 「思考完毕 · <原话>」，下面是它的正文，两行的左沿各自对齐。
  *
- * 数算清楚：竖线在行首（0），线宽 2px，正文于是要再让开
- * calc(--cp-timeline-tool-indent - 2px)（那正是图标 16px 加间隙 6px，与工具调用那张纸同
- * 一个数），加起来才是名字的起点 22px。所以不能再给 margin-inline-start —— 那会把正文
- * 推到 44px，两层缩进叠加，比名字还右。
+ * 数算清楚：竖线在行首（0），正文于是要再让开一个线宽
+ * calc(--cp-timeline-tool-indent - var(--cp-px))（22px 正是图标 16px 加间隙 6px，与工具
+ * 调用那张纸同一个数），加起来才是名字的起点 22px。所以不能再给 margin-inline-start ——
+ * 那会把正文推到 44px，两层缩进叠加，比名字还右。
+ *
+ * 线宽取发丝线那一档而不是 2px：非整数显示缩放下 2px 栅格化出的设备像素数不确定
+ * （150% 下量出来是 3 个），一条本该是发丝的边会读成一条实心杠。让位那半个数跟着
+ * 同一个令牌走，换档时两处一起动。
  *
  * 左边一道竖线代替背景与卡片：这一段是过程，不是一份产物，画成盒子就与回答同重了。
- * 引用（timeline.css 的 blockquote）用的是同一条边，理由相同。
+ * 引用（timeline.css 的 blockquote）用的是同一条边，理由相同。线的墨取阅读栏那一档
+ * 而不是 --cp-hairline 的浅灰：那个色在这块底色上几乎看不见，而它正是这一段与上下文的界。
  *
  * 封顶并自己滚：一段推理动辄几十行，全铺开会把下面的东西整片推走。滚动条在右边，
  * 于是上下有边、右边有轴，一眼看得出这只是一段，还能往下读。
@@ -131,8 +136,8 @@ button.timeline-row:focus-visible {
 .timeline-thought {
   margin-block-start: var(--cp-control-gap);
   max-block-size: var(--cp-timeline-thought-max);
-  padding-inline-start: calc(var(--cp-timeline-tool-indent) - 2px);
-  border-inline-start: 2px solid var(--cp-hairline);
+  padding-inline-start: calc(var(--cp-timeline-tool-indent) - var(--cp-px));
+  border-inline-start: var(--cp-px) solid var(--cp-timeline-thought-rule);
   color: var(--cp-timeline-quiet-text);
   font-size: var(--ui-prose-size);
   line-height: var(--ui-prose-line-height);
@@ -155,4 +160,21 @@ button.timeline-row:focus-visible {
 .timeline-thought__line {
   white-space: pre-wrap;
   overflow-wrap: anywhere;
+}
+
+/*
+ * 空行是段与段之间的呼吸，不是一行字。
+ *
+ * 原文里段落之间隔着一个空行，pre-wrap 下它占满一整行 —— 段间距于是和行距一样大，
+ * 一段自语的节奏读起来是散的。空行自成一格之后按段间距给，取正文排版那一档
+ * （--ui-prose-flow），与 markdown 正文的段落节奏同一个数。
+ *
+ * 行距本身不动：这里改的是段，不是行。带空白字符的行不算空行 —— 那是模型自己的缩进。
+ *
+ * 两个选择器是两条渲染路径：虚拟化那一档空行就是空盒子（:empty）；短的那一档空行
+ * 装一枚 <br>，因为空盒子在复制时会被浏览器整个丢掉，选走的一段会少掉所有分段。
+ */
+.timeline-thought__line:empty,
+.timeline-thought__line:has(br) {
+  block-size: var(--ui-prose-flow);
 }

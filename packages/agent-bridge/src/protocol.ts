@@ -595,5 +595,26 @@ export interface SettingsCatalog {
 
 export const BRIDGE_PROTOCOL_VERSION = 2
 
-/** 单行上限；与 omp RPC 的物理帧上限同量级，超了就换 reset 整发。 */
-export const MAX_FRAME_BYTES = 1024 * 1024
+/**
+ * 一张随话带上的图的上限（字节）。
+ *
+ * 与 omp 官方 CLI 同一条判据（cli/file-processor.ts:25 的 25MB）：base64 之后还要膨胀
+ * 四分之三，再大是 OOM 不是报错。正本在这里，桥读盘时按它拦。
+ */
+export const MAX_PROMPT_IMAGE_BYTES = 25 * 1024 * 1024
+
+/**
+ * 单行上限：**对端的合理性检查**，不是载荷契约。
+ *
+ * 与 crates/agent-client/src/wire.rs 的 `MAX_LINE_BYTES` 同值，两侧一起改。
+ * 超了说明对端不是我们的桥（或流已错位），判连接死掉。
+ *
+ * 取值由**不可再切的最大单条载荷**推出来，不是拍的：一条 op 装不下时只能独占一行，
+ * 而最大的那种 op 是内联图片（`attachment.upsert` 的 data URL）—— 上限 25 MB 的图
+ * base64 后约 33.4 MB。取它的两倍留一倍余量。
+ *
+ * 旧值 1 MiB 是错的：一条 108 次工具调用的会话，基线页就有 1.26 MB，正常对话被这个
+ * 检查判成了坏对端（症状：点进那条对话报「agent 已经退出」）。保证不超限的是生产者
+ * 自己收口 —— transcript-mirror 按字节预算切块与开窗，这里只兜底。
+ */
+export const MAX_FRAME_BYTES = 2 * MAX_PROMPT_IMAGE_BYTES

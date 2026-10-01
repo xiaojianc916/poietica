@@ -53,7 +53,7 @@ export function SearchableSelect<TValue extends string = string>({
         <Combobox.Positioner className={popupPositionerClassName} sideOffset={4}>
           <Combobox.Popup
             aria-label={`选择${type}`}
-            className={cn(popupSurfaceClassName, '[--color-divider:var(--ui-popover-frame)]')}
+            className={cn(popupSurfaceClassName, '[--color-divider:var(--ui-popup-divider)]')}
             style={{
               minInlineSize: `max(var(--anchor-width), 240px)`,
               maxInlineSize: '320px',
