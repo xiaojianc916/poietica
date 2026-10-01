@@ -9,7 +9,7 @@
     "build": "vite build",
     "preview": "vite preview",
     "typecheck:browser": "tsc --project tsconfig.json --noEmit",
-    "typecheck:electron": "tsc --project tsconfig.electron.json --noEmit",
+    "typecheck:electron": "tsc --project electron/tsconfig.json --noEmit",
     "typecheck:node": "tsc --project tsconfig.node.json --noEmit",
     "electron:dev": "bun run native:build && electron-vite dev",
     "electron:build": "electron-vite build && bun run electron:picker",
