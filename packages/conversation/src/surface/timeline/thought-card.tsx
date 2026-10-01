@@ -122,12 +122,16 @@ export function ThoughtCard({
   /*
    * 流式追加要把容器钉在末端 —— 不钉，新写的字落在容器外面，人只看到开头。
    * 落定之后不再动：那时这是读者的滚动位置，不是我们的。
+   *
+   * 重跑判据是「这一帧有新字」：正文一帧一变，同一次渲染里 lines 由 text 现算，
+   * 所以渲染本身就带着新字，不必把 text 写进依赖。写进去等于每帧重跑一次
+   * setState 链上的比较，而钉末端这件事本来就是每帧一次。
    */
   useEffect(() => {
     if (body !== null && isStreaming) {
       body.scrollTop = body.scrollHeight
     }
-  }, [body, isStreaming, text])
+  }, [body, isStreaming])
 
   return (
     <section className="timeline-tool">

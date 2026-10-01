@@ -23,10 +23,13 @@ export function useWorkspaceGitStatus(root: string | null): WorkspaceGitStatusVi
   const picker = useWorkspaceGit(root)
   const [review, setReview] = useState<GitReview | null>(null)
 
-  const refresh = picker?.onRefresh
-
   useEffect(() => {
-    if (root === null) {
+    /*
+     * 触发信号是 picker 的身份：分支面每重读一次就换一个新对象，而 HEAD 一动
+     * 「相对 HEAD 的改动统计」就该跟着重读（切分支、弹层刷新都走这条）。
+     * 分支面缺席（不是仓库、没装 git、还没读到）时连这次读也省掉。
+     */
+    if (root === null || picker === undefined) {
       setReview(null)
 
       return
@@ -54,7 +57,7 @@ export function useWorkspaceGitStatus(root: string | null): WorkspaceGitStatusVi
     return () => {
       held = false
     }
-  }, [refresh, root])
+  }, [picker, root])
 
   return useMemo(() => {
     /*

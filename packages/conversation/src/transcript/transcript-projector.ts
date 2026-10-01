@@ -203,30 +203,15 @@ function inputItem(
 const isSettled = (state: TranscriptTurn['state']): boolean =>
   state === 'completed' || state === 'cancelled' || state === 'failed'
 
-function frameOf(frame: TranscriptFrame, turn: number, stamp: number): TimelineItem | null {
-  if (frame.kind === 'text') {
-    if (frame.role === 'assistant') {
-      return {
-        type: 'agent_text',
-        id: frame.frameId,
-        turn,
-        at: stamp,
-        text: frame.text,
-        sealed: true,
-      }
-    }
-    return inputItem(
-      sourceOfFrame(frame),
-      frame.frameId,
-      turn,
-      stamp,
-      frame.text,
-      skillNamesOf(frame.origin),
-    )
-  }
-  if (frame.kind === 'thinking') {
+/** 文本帧：助手那句是已封口的正文，用户那句要过 sourceOfFrame 才认得出是不是真输入。 */
+function textFrameOf(
+  frame: Extract<TranscriptFrame, { kind: 'text' }>,
+  turn: number,
+  stamp: number,
+): TimelineItem | null {
+  if (frame.role === 'assistant') {
     return {
-      type: 'agent_thought',
+      type: 'agent_text',
       id: frame.frameId,
       turn,
       at: stamp,
@@ -234,9 +219,21 @@ function frameOf(frame: TranscriptFrame, turn: number, stamp: number): TimelineI
       sealed: true,
     }
   }
-  if (frame.kind === 'notice') {
-    return { type: 'error', id: frame.frameId, turn, at: stamp, message: frame.message }
-  }
+  return inputItem(
+    sourceOfFrame(frame),
+    frame.frameId,
+    turn,
+    stamp,
+    frame.text,
+    skillNamesOf(frame.origin),
+  )
+}
+
+function toolFrameOf(
+  frame: Extract<TranscriptFrame, { kind: 'tool' }>,
+  turn: number,
+  stamp: number,
+): ToolCallTimelineItem {
   const view = ompToolView(frame.name, frame.input, frame.output, frame.error, frame.intent)
   // describeTool 只在 view 不认识该工具或 subject 为空时才需要，避免 15k 次无用 Reflect.get
   const tool = view.known && view.subject ? undefined : describeTool(frame.input)
@@ -269,6 +266,27 @@ function frameOf(frame: TranscriptFrame, turn: number, stamp: number): TimelineI
     startedAt: stamp,
     ...(frame.state === 'running' ? {} : { endedAt: stamp }),
   } satisfies ToolCallTimelineItem
+}
+
+/** 一帧换一格：判别式只此一处，四种帧各交回自己那一格。 */
+function frameOf(frame: TranscriptFrame, turn: number, stamp: number): TimelineItem | null {
+  switch (frame.kind) {
+    case 'text':
+      return textFrameOf(frame, turn, stamp)
+    case 'thinking':
+      return {
+        type: 'agent_thought',
+        id: frame.frameId,
+        turn,
+        at: stamp,
+        text: frame.text,
+        sealed: true,
+      }
+    case 'notice':
+      return { type: 'error', id: frame.frameId, turn, at: stamp, message: frame.message }
+    case 'tool':
+      return toolFrameOf(frame, turn, stamp)
+  }
 }
 const approvalDecision = (state: TranscriptInteraction['state']) =>
   state === 'approved' ? 'approved' : state === 'rejected' ? 'rejected' : 'cancelled'
