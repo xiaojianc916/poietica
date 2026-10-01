@@ -27,15 +27,24 @@ function ThoughtHead({ isOpen, isStreaming, line, name, onToggle }: ThoughtHeadP
 
       <span className="timeline-row__name">{name}</span>
 
-      <span aria-hidden="true" className="timeline-row__dot" />
+      {/*
+        点是「名与内容之间」的分隔，没有内容就没有它。
+        正文为空时（推理刚开始、或整段只有空白）留一个 2px 的点孤零零挂在行尾，
+        读起来像一个坏掉的字符。
+      */}
+      {line === '' ? null : (
+        <>
+          <span aria-hidden="true" className="timeline-row__dot" />
 
-      <span
-        className={cx('timeline-row__label', isStreaming && 'timeline-shimmer')}
-        data-follow-end={isStreaming ? '' : undefined}
-        ref={label}
-      >
-        {line}
-      </span>
+          <span
+            className={cx('timeline-row__label', isStreaming && 'timeline-shimmer')}
+            data-follow-end={isStreaming ? '' : undefined}
+            ref={label}
+          >
+            {line}
+          </span>
+        </>
+      )}
     </>
   )
 

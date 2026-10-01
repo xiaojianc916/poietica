@@ -818,7 +818,7 @@ const AboutSettings = memo(function AboutSettings({
         <div className="settings-about-card__copy">
           <strong>Poietica</strong>
           <span>Version {version ?? '…'}</span>
-          <p>使用 React、Tauri 与 Rust 构建。</p>
+          <p>使用 React、Electron 与 Rust 构建。</p>
         </div>
       </div>
 

@@ -76,6 +76,19 @@ describe('展开的推理', () => {
     expect(markup).not.toContain(`thought-${String(count - 1)}`)
   })
 
+  /*
+   * 正文为空时那一行只剩图标、名字与一个 2px 的点。点是「名与内容之间」的分隔，
+   * 没有内容就没有它 —— 否则行尾挂着一颗孤立的白点，读起来像坏掉的字符。
+   */
+  it('正文为空就不画分隔点', () => {
+    expect(cardOf('')).not.toContain('timeline-row__dot')
+    expect(cardOf('   \n\n  ')).not.toContain('timeline-row__dot')
+  })
+
+  it('有正文时点照常是分隔符', () => {
+    expect(cardOf(SHORT)).toContain('timeline-row__dot')
+  })
+
   it('虚拟化的行盒高度交给虚拟器量，不由样式写死', () => {
     /* 散文会折行，写死高度会让折行的行叠在一起。 */
     expect(ruleFor('.timeline-thought__line {')).not.toContain('block-size')
