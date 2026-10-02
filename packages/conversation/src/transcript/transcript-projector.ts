@@ -479,6 +479,96 @@ function noteOf(response: unknown): string {
 
   return typeof note === 'string' ? note : ''
 }
+/** 一个选项 id 读回它的标签；对不上题时照原文，不编。 */
+function labelOf(item: QuestionItem, optionId: string): string {
+  const option = item.options.find((candidate) => candidate.id === optionId)
+
+  return option === undefined ? optionId : option.label
+}
+
+/** 一条答复读成一句话。 */
+function describeAnswer(item: QuestionItem, answer: QuestionChoice): string {
+  switch (answer.kind) {
+    case 'single':
+      return labelOf(item, answer.optionId)
+    case 'multi':
+      return answer.optionIds.map((optionId) => labelOf(item, optionId)).join('、')
+    case 'other':
+      return answer.text
+    case 'multi_with_other':
+      return [
+        ...answer.optionIds.map((optionId) => labelOf(item, optionId)),
+        answer.otherText,
+      ].join('、')
+    case 'skipped':
+      return '跳过'
+  }
+}
+
+/*
+ * 人答了什么，折成这次调用产出里的那一段。
+ *
+ * 题面在上、答复在下 —— 与当初那张落定卡同一套读法，只是它现在长在发起它的那次 ask
+ * 调用的产出里，不再另立一行。未答成的把由来写清，不装成答复。
+ *
+ * 一道答案都读不出（协议形状不认识）时交回 null：那句原始产出虽然朴素，但它是真的。
+ */
+const UNANSWERED = {
+  cancelled: '这一轮被取消，这组题没有等到答复。',
+  dismissed: '这组题被撤下了。',
+  undelivered: '答复没能送到 agent 手里。',
+} as const
+
+function answersBodyOf(interaction: TranscriptInteraction): string | null {
+  const request =
+    typeof interaction.request === 'object' && interaction.request !== null
+      ? interaction.request
+      : {}
+  const questions = (
+    Array.isArray(Reflect.get(request, 'questions')) ? Reflect.get(request, 'questions') : []
+  ) as readonly QuestionItem[]
+
+  if (questions.length === 0) {
+    return null
+  }
+
+  const outcome = questionOutcome(interaction.state)
+  const answers = answersOf(interaction.response)
+
+  if (outcome === 'answered' && questions.every((question) => answers[question.id] === undefined)) {
+    return null
+  }
+
+  const note = noteOf(interaction.response)
+  const last = questions.length - 1
+  const blocks: string[] = []
+
+  for (const [index, question] of questions.entries()) {
+    const answer = answers[question.id]
+    const notes: string[] = []
+
+    if (outcome !== 'answered') {
+      notes.push(UNANSWERED[outcome])
+    }
+    if (index === last && note.length > 0) {
+      notes.push(note)
+    }
+
+    blocks.push(question.question)
+
+    if (answer !== undefined) {
+      blocks.push('', `**${describeAnswer(question, answer)}**`)
+    }
+    if (notes.length > 0) {
+      blocks.push('', notes.join(' '))
+    }
+
+    blocks.push('')
+  }
+
+  return blocks.join('\n').trim()
+}
+
 const backgroundOf = (task: TranscriptTask): BackgroundTaskItem | null => {
   /*
    * 子代理不走这一格：它们是「智能体」那一节的，见 subagentOf。`detached` 只说明
@@ -546,10 +636,11 @@ function spanOf(turn: TranscriptTurn, index: number): TurnSpan {
 }
 
 /*
- * 答完的题挂回发起它的**那次调用**下面。
+ * 答完的题折回发起它的**那次调用**的产出里。
  *
  * 判据是交互自己带的工具调用号（桥从 tool_execution_start 取的真号，不是工具名 ——
- * 名字对不上任何一次具体调用）。号对不上任何一页时退回尾部：位置差一点，题还在。
+ * 名字对不上任何一次具体调用）。号对不上任何一页时这一组就不上屏：它已经不再是独立的
+ * 一行，而位置差一点比编一个位置强。
  *
  * 待答的不在这里：它得留在活动段尾（timeline-queries 从 active.items 里找它，
  * 输入框那张卡靠这一条挂出来），而且它本来就不上屏（renderable 的 question 分支）。
@@ -561,6 +652,42 @@ const ANCHORED_PAGES = new WeakMap<
   TurnPage,
   { readonly held: readonly TranscriptInteraction[]; page: TurnPage }
 >()
+
+/* 这一页里被问过的调用，按屏幕顺序。 */
+function askIndexes(items: readonly TimelineItem[], toolCallId: string): readonly number[] {
+  const exact: number[] = []
+  const byName: number[] = []
+
+  for (const [at, item] of items.entries()) {
+    if (item.type !== 'tool_call') {
+      continue
+    }
+    if (item.toolCallId === toolCallId) {
+      exact.push(at)
+    } else if (item.title === toolCallId) {
+      byName.push(at)
+    }
+  }
+
+  return exact.length > 0 ? exact : byName
+}
+
+/*
+ * 这次调用是哪一条，且没被上一组题认领过。
+ *
+ * 首选真调用号；回放的历史会话里号退成了工具名（桥取不到真号时写的就是 `ask`），
+ * 那就按工具名找**下一条还没被认领的** —— 一轮里问过两次时，两组答复因此各归各的
+ * 调用，而不是一起并到最近那一次上。
+ */
+function askAt(items: readonly TimelineItem[], toolCallId: string, used: Set<number>): number {
+  for (const at of askIndexes(items, toolCallId)) {
+    if (!used.has(at)) {
+      return at
+    }
+  }
+
+  return -1
+}
 
 function anchoredPage(page: TurnPage, held: readonly TranscriptInteraction[]): TurnPage {
   const kept = ANCHORED_PAGES.get(page)
@@ -574,17 +701,23 @@ function anchoredPage(page: TurnPage, held: readonly TranscriptInteraction[]): T
   }
 
   const items = [...page.items]
+  const used = new Set<number>()
 
   for (const interaction of held) {
-    const after = items.findIndex(
-      (item) => item.type === 'tool_call' && item.toolCallId === interaction.toolCallId,
-    )
+    const at = askAt(items, interaction.toolCallId ?? '', used)
+    const item = at < 0 ? undefined : items[at]
 
-    if (after < 0) {
+    if (item?.type !== 'tool_call') {
       continue
     }
 
-    items.splice(after + 1, 0, interactionOf(interaction, page.turn, 0))
+    used.add(at)
+
+    const body = answersBodyOf(interaction)
+
+    if (body !== null) {
+      items[at] = { ...item, content: [{ type: 'prose', text: body }] }
+    }
   }
 
   const fresh = { ...page, items }
@@ -594,7 +727,7 @@ function anchoredPage(page: TurnPage, held: readonly TranscriptInteraction[]): T
 }
 
 /**
- * 把已结的题插进它那一次调用后面，交出改过的页与「仍然要挂尾部」的那几条。
+ * 把已结的题的答复折进发起它的那一次调用，交出改过的页与「仍然要挂尾部」的那几条。
  *
  * 只认提问：审批恒不上屏（renderable 的 permission 分支），而它的 toolCallId 是工具名，
  * 锚上去只会锚到别人的调用上。
@@ -613,15 +746,11 @@ function anchorQuestions(
       continue
     }
 
-    const at = pages.findIndex((page) =>
-      page.items.some(
-        (item) => item.type === 'tool_call' && item.toolCallId === interaction.toolCallId,
-      ),
+    const at = pages.findIndex(
+      (page) => askIndexes(page.items, interaction.toolCallId ?? '').length > 0,
     )
 
     if (at < 0) {
-      tail.push(interaction)
-
       continue
     }
 

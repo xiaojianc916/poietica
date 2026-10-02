@@ -6,7 +6,6 @@ import { CompactionStatus } from './compaction-status'
 import { ErrorNotice } from './error-notice'
 import { LinkCard } from './link-card'
 import { Prose } from './prose'
-import { QuestionRecord } from './question-record'
 import { ThoughtCard } from './thought-card'
 import { ToolCallCard } from './tool-call-card'
 import { UserMessage } from './user-message'
@@ -80,13 +79,11 @@ export const TimelineRow = memo(function TimelineRow({ isOpen, onToggle, row }: 
         />
       )
 
-    case 'question':
-      return <QuestionRecord item={item} />
-
-    // 运行锚点只承载封条；审批与在飞身份不单独成行。
+    // 运行锚点只承载封条；提问的答复长在发起它的那次调用里，审批与在飞身份不单独成行。
     case 'run_anchor':
     case 'inflight_prompt':
     case 'permission':
+    case 'question':
       return null
 
     default:

@@ -12,9 +12,9 @@ export function isRenderable(item: TimelineItem): boolean {
     return item.text.length > 0 || (item.images?.length ?? 0) > 0 || (item.files?.length ?? 0) > 0
   }
 
-  // 还没结清的题不进转录，正长在输入框那张卡里。
+  // 提问一律不上屏：待答的长在输入框那张卡里，答完的长在发起它的那次调用产出里。
   if (item.type === 'question') {
-    return item.resolution !== undefined
+    return false
   }
 
   if (item.type === 'inflight_prompt') {

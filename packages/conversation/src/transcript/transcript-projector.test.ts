@@ -133,34 +133,33 @@ describe('answered questions', () => {
     items = [askTurn(0)],
   ): AgentTranscriptSnapshot => ({ ...snapshotOf(items), interactions: [interaction] })
 
+  const askItem = (state: ReturnType<typeof projectTranscript>) =>
+    [...state.sealed.flatMap((page) => page.items), ...state.active.items].find(
+      (item) => item.type === 'tool_call' && item.title === 'ask',
+    )
+
+  const said = (item: ReturnType<typeof askItem>): string =>
+    item?.type === 'tool_call'
+      ? item.content.map((part) => (part.type === 'prose' ? part.text : '')).join('\n')
+      : ''
+
   /*
-   * 位置：答完的题跟在发起它的那次 ask 调用后面，而不是整条时间线的最底下。
-   * 缺陷的样子是它恒在末尾（tailOf 无条件追加），而它下面还有 agent 正文。
+   * 位置：答复不再另立一行，它折进发起它的那次 ask 调用的产出里。
+   * 缺陷的样子是屏幕上多出一张带外框的卡，而那次调用本身只有一句 `User answers: …`。
    */
-  test('a settled question follows the call that asked it, not the timeline tail', () => {
+  test('the answer folds into the call that asked it instead of becoming its own row', () => {
     const state = projectTranscript(withInteraction(answered('call-0')))
     const items = [...state.sealed.flatMap((page) => page.items), ...state.active.items]
 
-    expect(items.map((item) => item.type)).toEqual([
-      'user_message',
-      'tool_call',
-      'question',
-      'agent_text',
-    ])
+    expect(items.map((item) => item.type)).toEqual(['user_message', 'tool_call', 'agent_text'])
   })
 
-  /* 答案：人答了什么必须真的画出来。缺陷的样子是题面在、答案那行永远缺席。 */
-  test('the answer the person gave reaches the record', () => {
+  /* 答案：题面在上、答复在下，两样都得在产出里。 */
+  test('the question and the answer both reach that call output', () => {
     const state = projectTranscript(withInteraction(answered('call-0')))
-    const record = [...state.sealed.flatMap((page) => page.items), ...state.active.items].find(
-      (item) => item.type === 'question',
-    )
 
-    expect(record?.type === 'question' && record.resolution?.outcome).toBe('answered')
-    expect(record?.type === 'question' && record.resolution?.answers['q0']).toEqual({
-      kind: 'single',
-      optionId: 'o0',
-    })
+    expect(said(askItem(state))).toContain('选哪条路？')
+    expect(said(askItem(state))).toContain('甲')
   })
 
   /* 回放那条路存的是 `[{questionId, answer}]`，与现场那份形状不同，一样要读得出来。 */
@@ -173,14 +172,17 @@ describe('answered questions', () => {
         },
       }),
     )
-    const record = [...state.sealed.flatMap((page) => page.items), ...state.active.items].find(
-      (item) => item.type === 'question',
-    )
 
-    expect(record?.type === 'question' && record.resolution?.answers['q0']).toEqual({
-      kind: 'single',
-      optionId: 'o0',
-    })
+    expect(said(askItem(state))).toContain('甲')
+  })
+
+  /* 回放的历史会话取不到真调用号，退成工具名；按最近一次 ask 调用锚定，不另立一行。 */
+  test('a question whose call id is only the tool name still folds into that call', () => {
+    const state = projectTranscript(withInteraction(answered('ask')))
+    const items = [...state.sealed.flatMap((page) => page.items), ...state.active.items]
+
+    expect(items.map((item) => item.type)).toEqual(['user_message', 'tool_call', 'agent_text'])
+    expect(said(askItem(state))).toContain('甲')
   })
 
   /* 待答的仍然挂尾部：输入框那张卡从 active.items 里找它（timeline-queries 的 scanPending）。 */
@@ -193,12 +195,70 @@ describe('answered questions', () => {
     expect(state.status).toBe('awaiting_question')
   })
 
-  /* 号对不上任何一次调用（回放的历史会话只有工具名）时退回尾部，题仍然画得出来。 */
-  test('a question whose call cannot be found still shows up', () => {
+  /*
+   * 一轮里问过两次时，两组答复各归各的调用。
+   * 回放里两组都只剩工具名，按「最近一次」认领会把两条并到最后那一次上。
+   */
+  test('two asks in one turn each take their own answer', () => {
+    const twoAsks = runSample(0, { kind: 'user' }, [
+      {
+        kind: 'tool',
+        frameId: 't0.first',
+        toolCallId: 'call-1',
+        name: 'ask',
+        state: 'done',
+        input: { questions: [{ id: 'q0', question: '第一问？', options: [{ label: '甲' }] }] },
+      },
+      {
+        kind: 'tool',
+        frameId: 't0.second',
+        toolCallId: 'call-2',
+        name: 'ask',
+        state: 'done',
+        input: { questions: [{ id: 'q0', question: '第二问？', options: [{ label: '乙' }] }] },
+      },
+    ])
+    const ask = (id: string, question: string, label: string): TranscriptInteraction => ({
+      interactionId: `d-${id}`,
+      interactionKind: 'question',
+      state: 'answered',
+      toolCallId: 'ask',
+      request: {
+        questions: [
+          {
+            id: 'q0',
+            question,
+            options: [{ id: 'o0', label }],
+            multiSelect: false,
+            allowOther: false,
+          },
+        ],
+      },
+      response: { answers: { q0: { kind: 'single', optionId: 'o0' } } },
+    })
+    const snapshot: AgentTranscriptSnapshot = {
+      ...snapshotOf([twoAsks]),
+      interactions: [ask('1', '第一问？', '甲'), ask('2', '第二问？', '乙')],
+    }
+    const state = projectTranscript(snapshot)
+    const asks = [...state.sealed.flatMap((page) => page.items), ...state.active.items].filter(
+      (item) => item.type === 'tool_call',
+    )
+
+    expect(asks).toHaveLength(2)
+    expect(said(asks[0])).toContain('甲')
+    expect(said(asks[0])).not.toContain('乙')
+    expect(said(asks[1])).toContain('乙')
+    expect(said(asks[1])).not.toContain('甲')
+  })
+
+  /* 号对不上任何一次调用时不留孤儿：答复不另立一行，那次调用的原始产出原样保留。 */
+  test('a question that matches no call leaves the raw output alone', () => {
     const state = projectTranscript(withInteraction(answered('no-such-call')))
     const items = [...state.sealed.flatMap((page) => page.items), ...state.active.items]
 
-    expect(items.filter((item) => item.type === 'question')).toHaveLength(1)
+    expect(items.filter((item) => item.type === 'question')).toHaveLength(0)
+    expect(said(askItem(state))).not.toContain('甲')
   })
 
   /* 页引用稳定：presentation 的 PREFIX/SEGMENTS 以页为键，每次换新引用会让缓存永远不命中。 */

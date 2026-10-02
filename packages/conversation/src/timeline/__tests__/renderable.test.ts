@@ -28,9 +28,9 @@ describe('isRenderable', () => {
     expect(isRenderable(item)).toBe(false)
   })
 
-  it('还没结清的题不进转录,结清了才留记录', () => {
+  it('题一律不进转录:待答的在输入框,答完的在发起它的那次调用里', () => {
     expect(isRenderable(question(false))).toBe(false)
-    expect(isRenderable(question(true))).toBe(true)
+    expect(isRenderable(question(true))).toBe(false)
   })
 
   it('推理与回答同一条判据', () => {

@@ -10,9 +10,11 @@ import type {
  * 面板上的一份草稿，怎么变成协议的一份答复。
  *
  * 这里全是纯函数：面板只管把点击与键盘记成草稿；草稿怎么折成一条
- * QuestionChoice、整组装进一份 QuestionResponse、一条答复怎么读回一句话，
- * 都在这一个文件里。协议形状的对账因此只有一个地方 —— 编译器看着
- * QuestionChoice，测试看着这个文件。
+ * QuestionChoice、整组装进一份 QuestionResponse，都在这一个文件里。
+ * 协议形状的对账因此只有一个地方 —— 编译器看着 QuestionChoice。
+ *
+ * 反方向（一条答复读回一句话）不在这里：它只给转录的产出用，住在
+ * transcript-projector.ts；这里反向 import 会造出包内环。
  */
 
 /** 一道题此刻的草稿。 */
@@ -93,31 +95,5 @@ export function responseOf(
     answers,
     ...(method === undefined ? {} : { method }),
     ...(trimmed.length === 0 ? {} : { note: trimmed }),
-  }
-}
-
-/** 一个选项 id 读回它的标签；对不上题时照原文，不编。 */
-export function labelOf(item: QuestionItem, optionId: string): string {
-  const option = item.options.find((candidate) => candidate.id === optionId)
-
-  return option === undefined ? optionId : option.label
-}
-
-/** 一条答复读成一句话，给落定卡用。 */
-export function describeAnswer(item: QuestionItem, answer: QuestionChoice): string {
-  switch (answer.kind) {
-    case 'single':
-      return labelOf(item, answer.optionId)
-    case 'multi':
-      return answer.optionIds.map((optionId) => labelOf(item, optionId)).join('、')
-    case 'other':
-      return answer.text
-    case 'multi_with_other':
-      return [
-        ...answer.optionIds.map((optionId) => labelOf(item, optionId)),
-        answer.otherText,
-      ].join('、')
-    case 'skipped':
-      return '跳过'
   }
 }
