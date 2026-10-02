@@ -1020,46 +1020,148 @@ export function createBridge(host: BridgeHost): Bridge {
       transcript: true,
       collapseCompactedHistory: record.settings.get('display.collapseCompacted') !== false,
     })
-    const results = new Map<string, ScreenResult>()
+    const turns = groupTurns(context.messages, resultsOf(context.messages))
+
+    /*
+     * 屏幕上最新那一轮此刻还在跑吗：在跑的话它是 running，屏幕上那行从「正在处理」走成
+     * 「已处理 + 真实耗时」。判据是**投影器手上还开着轮**（增量那条路正在写这一轮）——
+     * 显示经过里最后一格是不是助手消息不算数：刚收轮、还没落盘的那一瞬间两边会对不上。
+     */
+    const newest = turns.at(-1)
+
+    return newest !== undefined && record.projector.isTurnOpen
+      ? [...turns.slice(0, -1), { ...newest, state: 'running', endedAt: null }]
+      : turns
+  }
+
+  /*
+   * **一轮从「人说的话」开始，到下一句人话为止** —— 与增量那条路同一个判据。
+   *
+   * 一次 omp turn 里模型会跑好几趟（每趟一条 assistant 消息，外加一条 toolResult），
+   * 所以「一条消息一格」会把一次对话拆成好几行「已处理 0 秒」；这里按人话归拢，assistant
+   * 消息各占一个段，工具结果并回发起它的那一次调用。
+   *
+   * 时间给成**真实的一对**：开场那一刻（人那句）到这一轮最后一次说话那一刻。两头不能取自
+   * 同一条消息 —— 封条按 `endedAt - startedAt` 算「已处理多久」，那样每一行都是「0 秒」。
+   */
+  function groupTurns(
+    messages: readonly AgentMessage[],
+    results: ReadonlyMap<string, ScreenResult>,
+  ): ScreenTurn[] {
     const turns: ScreenTurn[] = []
+    let open: OpenTurn | null = null
 
-    for (const [at, message] of context.messages.entries()) {
-      /*
-       * 号就是**这一格在显示经过里的位置**，不是「第几个屏幕上画出来的轮」。
-       *
-       * 这样它跨进程稳定：重开一条会话，同一个号还是同一格（屏幕上那几行于是还能按号
-       * 认成同一件事）。按「画出来的第几行」编号会让号随压缩挪位，翻页游标一到下一帧就
-       * 认不出自己的位置 —— 屏幕会觉得「没推进」，把翻页当成缺陷抛掉。
-       */
-      const turn = at + 1
+    const seal = (): void => {
+      if (open === null) {
+        return
+      }
 
-      if (message.role === 'toolResult') {
-        /* 工具结果不发新格：它与发起它的那次调用是同一格的两个半面。 */
-        const callId = (message as { readonly toolCallId?: unknown }).toolCallId
+      const held = open
 
-        if (typeof callId === 'string' && callId !== '') {
-          results.set(callId, {
-            content: (message as { readonly content?: unknown }).content,
-            details: (message as { readonly details?: unknown }).details,
-            isError: (message as { readonly isError?: unknown }).isError === true,
-          })
+      open = null
+
+      const turn = turns.length + 1
+      const last = held.steps.at(-1) ?? null
+
+      turns.push({
+        turn,
+        /* 身份 = 轮号 + 开场那一刻：滚上去再回来看，还是同一格。 */
+        id: `t${String(turn)}@${messageKey(held.opening, 0)}`,
+        opening: held.opening,
+        prompt: held.prompt,
+        steps: held.steps,
+        openedAt: stampOf(held.prompt ?? held.opening),
+        endedAt: last === null ? null : stampOf(last),
+        state: 'completed',
+        results,
+      })
+    }
+
+    for (const message of messages) {
+      if (message.role === 'toolResult' || !isVisible(message)) {
+        continue
+      }
+
+      const starts = message.role === 'user' || message.role === 'compactionSummary'
+
+      if (starts || open === null) {
+        seal()
+        open = { opening: message, prompt: message.role === 'user' ? message : null, steps: [] }
+
+        /* 没有开场白的那种（会话从助手那一侧开始）：它自己就是这一轮的第一步。 */
+        if (!starts) {
+          open.steps.push(message)
         }
 
         continue
       }
 
-      turns.push({ turn, id: messageKey(message, at), message, results })
+      open.steps.push(message)
     }
+
+    seal()
 
     return turns
   }
 
+  /*
+   * 工具调用的结果：号是 toolCallId。
+   *
+   * 单独先收一趟：结果消息排在发起调用的那条消息**后面**，建轮时拿不到。
+   */
+  function resultsOf(messages: readonly AgentMessage[]): Map<string, ScreenResult> {
+    const results = new Map<string, ScreenResult>()
+
+    for (const message of messages) {
+      if (message.role !== 'toolResult') {
+        continue
+      }
+
+      const callId = (message as { readonly toolCallId?: unknown }).toolCallId
+
+      if (typeof callId === 'string' && callId !== '') {
+        results.set(callId, {
+          content: (message as { readonly content?: unknown }).content,
+          details: (message as { readonly details?: unknown }).details,
+          isError: (message as { readonly isError?: unknown }).isError === true,
+        })
+      }
+    }
+
+    return results
+  }
+
+  /*
+   * 这一条消息上不上屏。
+   *
+   * omp 自己给合成的横幅打了 `display: false`（目标模式那一条 `<goal_context>`，
+   * `#fo()` 里 `role:"custom", customType:"goal-mode-context", display:!1`）—— 它是给模型看的
+   * 上下文，不是用户说过的话。少判这一格，屏幕上就会多出一轮「已处理 0 秒」的空轮。
+   */
+  function isVisible(message: AgentMessage): boolean {
+    return (message as { readonly display?: unknown }).display !== false
+  }
+
+  interface OpenTurn {
+    readonly opening: AgentMessage
+    readonly prompt: AgentMessage | null
+    readonly steps: AgentMessage[]
+  }
+
   interface ScreenTurn {
-    /** 显示经过里这一格占的轮号：屏幕上每一条消息一轮。 */
+    /** 屏幕上的第几轮（1 起）。 */
     readonly turn: number
-    /** 这一格在显示经过里的身份（见 messageKey）。 */
+    /** 这一轮的身份：开场那条消息 + 轮号（见 messageKey）。 */
     readonly id: string
-    readonly message: AgentMessage
+    /** 开这一轮的那条消息（用户那句，或压缩那条）。 */
+    readonly opening: AgentMessage
+    /** 用户那句；没有开场白时缺席（会话从助手那一侧开始）。 */
+    readonly prompt: AgentMessage | null
+    /** 这一轮里模型的每一趟各占一条（正文、思维链、工具调用都在里面）。 */
+    readonly steps: readonly AgentMessage[]
+    readonly openedAt: string
+    readonly endedAt: string | null
+    readonly state: 'running' | 'completed'
     /** 这条会话里工具调用的结果：号是 toolCallId。 */
     readonly results: ReadonlyMap<string, ScreenResult>
   }
@@ -1217,9 +1319,9 @@ export function createBridge(host: BridgeHost): Bridge {
    * 全是纯构帧，不碰投影器的流式状态 —— 轮号由显示经过的位置给，不由流式累加器给。
    */
   function screenOps(record: Session, entry: ScreenTurn): TranscriptOperation[] {
-    return entry.message.role === 'compactionSummary'
+    return entry.opening.role === 'compactionSummary'
       ? compactionOps(record, entry)
-      : turnOps(record, entry)
+      : turnOps(entry)
   }
 
   /*
@@ -1235,7 +1337,7 @@ export function createBridge(host: BridgeHost): Bridge {
       .findLast((item) => item.type === 'compaction') as
       | { readonly tokensBefore?: unknown; readonly tokensAfter?: unknown }
       | undefined
-    const message = entry.message as { readonly summary?: unknown }
+    const message = entry.opening as { readonly summary?: unknown }
     const payload: Record<string, unknown> = {
       /* 正在压的那一次：开门事件已经报过 running，别把它说成成了。 */
       state: record.compacting === null ? 'completed' : 'running',
@@ -1256,101 +1358,122 @@ export function createBridge(host: BridgeHost): Bridge {
     return markerOp({
       markerId: `compaction-${String(entry.turn)}`,
       marker: 'compaction',
-      at: stampOf(entry.message),
+      at: entry.openedAt,
       payload,
     })
   }
 
   /*
-   * 一格显示经过 → 它的全部 ops。
+   * 一轮显示经过 → 它的全部 ops。
    *
-   * 段与帧的号沿用增量那条路的排法（正文一个段、每次工具调用各占一个段），所以两条路
-   * 落在屏幕上是同一副样子：同一个 `turnId`、同一串 `stepId`。
+   * 一轮 = 开场那句人话 + 模型跑过的每一趟（正文、思维链、工具调用）。每一趟各占一个段，
+   * 与增量那条路的排法一致；工具结果并回发起它的那一次调用（同一段同一帧）。
+   *
+   * 时间必须给成**真实的一对**（开场时刻 → 最后一步时刻）：封条按 `endedAt - startedAt`
+   * 算「已处理多久」，两头都填同一个时刻就是一行「已处理 0 秒」。
    */
-  function turnOps(record: Session, entry: ScreenTurn): TranscriptOperation[] {
-    const message = entry.message
-
-    if (message.role === 'user') {
-      return userOps(record, entry)
-    }
-
+  function turnOps(entry: ScreenTurn): TranscriptOperation[] {
     const turn = turnId(entry.turn)
-    const at = stampOf(message)
     const ops: TranscriptOperation[] = [
-      turnOp(turn, entry.turn, at),
-      stepOp(turn, 0, 'running', at),
+      turnOp(entry),
+      ...imagesOf(contentOfMessage(entry.prompt), entry.openedAt).flatMap((image) => image.ops),
     ]
     let step = 0
-    let frame = 0
 
-    for (const block of contentOf(message)) {
-      if (block.kind === 'tool') {
-        /*
-         * 一次工具调用占一个新段：入参与结果分成两段会被投影层认成两次调用
-         * （同一个 toolCallId 在两段里各出现一次）。
-         */
-        if (frame > 0) {
-          ops.push(stepOp(turn, step, 'completed', at))
-          step += 1
-          frame = 0
-          ops.push(stepOp(turn, step, 'running', at))
-        }
+    for (const message of entry.steps) {
+      const at = stampOf(message)
+      const blocks = contentOf(message)
+      let frame = 0
 
-        ops.push(toolOp(turn, step, block, entry.results.get(block.callId)))
+      if (blocks.length === 0) {
         continue
       }
 
-      ops.push(frameOp(turn, step, frame, block))
-      frame += 1
+      ops.push(stepOp(turn, step, 'completed', at, at))
+
+      for (const block of blocks) {
+        if (block.kind === 'tool') {
+          /*
+           * 一次工具调用占一个新段：入参与结果分成两段会被投影层认成两次调用
+           * （同一个 toolCallId 在两段里各出现一次）。
+           */
+          if (frame > 0) {
+            step += 1
+            frame = 0
+            ops.push(stepOp(turn, step, 'completed', at, at))
+          }
+
+          ops.push(toolOp(turn, step, block, entry.results.get(block.callId)))
+          continue
+        }
+
+        ops.push(frameOp(turn, step, frame, block))
+        frame += 1
+      }
+
+      step += 1
     }
 
-    ops.push(stepOp(turn, step, 'completed', at))
+    /*
+     * 只有**最后一个段**能在跑着的时候留 running（其余一律封口）：段永远停在进行中，
+     * 屏幕上那一行就一直转 —— 那正是「已处理 0 秒」旁边还挂着一个转圈的来源。
+     */
+    return entry.state === 'running' ? markLastStepRunning(ops, turn) : ops
+  }
 
-    return ops
+  /** 把最后那一条段 upsert 改成 running（收尾补一次，铺的时候还不知道谁最后）。 */
+  function markLastStepRunning(ops: TranscriptOperation[], turn: string): TranscriptOperation[] {
+    const at = ops.findLastIndex((op) => op.op === 'step.upsert' && op.turnId === turn)
+
+    if (at < 0) {
+      return ops
+    }
+
+    return ops.map((op, index): TranscriptOperation => {
+      if (index !== at || op.op !== 'step.upsert') {
+        return op
+      }
+
+      /* 在跑的段没有终点：留一个过去的时刻就是「已处理 0 秒」旁边还转着圈。 */
+      const { endedAt: _dropped, ...step } = op.step
+
+      return { ...op, step: { ...step, state: 'running' } }
+    })
   }
 
   /*
-   * 用户那一格：图片先落（投影层按号查附件），正文开一轮。
+   * 一轮的开场：人那句话说一遍，图片先落（投影层按号查附件）。
    *
-   * 轮号必须由这里写死：`userTurn` 自己按投影器的计数器连着排，而显示经过里的号是**位置**
-   * （中间隔着工具结果与摘要）。照它的号铺，翻一页老内容就会把新内容盖掉。
+   * 号与正文由这里写死：`userTurn` 自己按投影器的计数器连着排，而屏幕上的号是「第几轮」
+   * （中间隔着工具结果与摘要各占的趟）。照它的号铺，翻一页老内容就会把新内容盖掉。
    */
-  function userOps(record: Session, entry: ScreenTurn): TranscriptOperation[] {
-    const at = stampOf(entry.message)
-    const content = (entry.message as { readonly content?: unknown }).content
-    const images = imagesOf(content, at)
-    const turn = turnId(entry.turn)
-    const opened = record.projector.userTurn(
-      textOf(content),
-      images.map((image) => image.attachmentId),
-      undefined,
-      at,
-      { ordinal: entry.turn },
-    )
-
-    return [...images.flatMap((image) => image.ops), ...opened, stepOp(turn, 0, 'completed', at)]
-  }
-
-  function turnOp(turn: string, ordinal: number, at: string): TranscriptOperation {
+  function turnOp(entry: ScreenTurn): TranscriptOperation {
     return {
       op: 'turn.upsert',
       turn: {
         kind: 'turn',
-        turnId: turn,
-        ordinal,
-        state: 'completed',
+        turnId: turnId(entry.turn),
+        ordinal: entry.turn,
+        state: entry.state,
         origin: { kind: 'user' },
-        startedAt: at,
-        endedAt: at,
+        ...(entry.prompt === null ? {} : { prompt: textOf(contentOfMessage(entry.prompt)) }),
+        startedAt: entry.openedAt,
+        ...(entry.endedAt === null ? {} : { endedAt: entry.endedAt }),
       },
     }
+  }
+
+  /** 一条消息的正文内容（列表或字符串）。 */
+  function contentOfMessage(message: AgentMessage | null): unknown {
+    return message === null ? '' : (message as { readonly content?: unknown }).content
   }
 
   function stepOp(
     turn: string,
     ordinal: number,
     state: 'running' | 'completed',
-    at: string,
+    startedAt: string,
+    endedAt: string,
   ): TranscriptOperation {
     return {
       op: 'step.upsert',
@@ -1361,8 +1484,8 @@ export function createBridge(host: BridgeHost): Bridge {
         turnId: turn,
         ordinal,
         state,
-        startedAt: at,
-        endedAt: at,
+        startedAt,
+        endedAt,
       },
     }
   }
@@ -1936,26 +2059,6 @@ export function createBridge(host: BridgeHost): Bridge {
     ]
   }
 
-  /*
-   * 一条消息在屏幕上占哪一格。
-   *
-   * 号认的是「这一格在显示经过里的位置」，而流式那条路自己数不到那里（它看不见工具结果
-   * 与摘要各占一格）。syncScreen 铺过的每一格都在 record.screen 里，这里按消息的时刻反查
-   * 一次就够，不必再读一遍整条会话。
-   */
-  function seatOf(
-    record: Session,
-    message: AgentMessage | undefined,
-  ): { readonly ordinal: number } | undefined {
-    if (message === undefined) {
-      return undefined
-    }
-
-    const ordinal = record.screen.get(messageKey(message, 0))
-
-    return ordinal === undefined ? undefined : { ordinal }
-  }
-
   /* 一次重投影交回的两样：要推出去的 ops，以及显示经过最老那一格的号。 */
   interface ScreenFrame {
     readonly ops: readonly TranscriptOperation[]
@@ -2138,27 +2241,13 @@ export function createBridge(host: BridgeHost): Bridge {
     repaintScreen(record, repaint)
 
     /*
-     * 轮终那条 upsert 的重号：重投影已经把这一轮铺成权威形状（含它在显示经过里的位置），
-     * 这里按那个位置补一条，增量写下的那一格才不会被旧号留在屏上。
+     * 轮终那几条 ops 在这一批之后推（保序：先把重投影铺完，再把收尾补上）。
+     *
+     * 轮号不必在这里改：`syncScreen` 已经把累加器坐在屏幕上最新那一轮上（见 `seat`），
+     * 所以这一轮开的号与显示经过里它的位置本来就是同一个。
      */
     if (ended.length > 0) {
-      const seated = seatOf(record, record.agent.getLastAssistantMessage())
-
-      pushTranscript(
-        record,
-        seated === undefined
-          ? ended
-          : ended.map(
-              (op): TranscriptOperation =>
-                op.op === 'turn.upsert'
-                  ? {
-                      ...op,
-                      turn: { ...op.turn, turnId: turnId(seated.ordinal), ordinal: seated.ordinal },
-                    }
-                  : op,
-            ),
-        true,
-      )
+      pushTranscript(record, ended, true)
     }
 
     if (ending !== null) {
