@@ -4,8 +4,8 @@
 //! 「谁持有唯一真相」这句话有一个方向明确的落点 —— 单例的读写若散在上层，
 //! 模块图必然成环（命令层要调会话层，会话层又要回头问宿主状态）。
 //!
-//! 不读安装器写的声明文件——NSIS 的 FileWrite 输出 UTF-16LE 而这边按 UTF-8 读；卸载器
-//! RMDir 不带 /r，数据由用户勾「删除应用数据」清除（installer-hooks.nsh）。
+//! 数据根是宿主的 userData（apps/desktop/electron/main.ts），不在安装目录里：
+//! 安装器与卸载器只碰程序文件，升级换的是那个目录，碰不到这里。
 
 use std::collections::HashSet;
 use std::fs;

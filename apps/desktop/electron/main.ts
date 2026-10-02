@@ -5,7 +5,7 @@
  * 命令落到 ipc-router.ts（转原生）、browser/host.ts（标签是宿主自己的状态）或
  * update.ts（更新同样是宿主的能力）。
  */
-import { mkdir, readFile, writeFile } from 'node:fs/promises'
+import { readFile, writeFile } from 'node:fs/promises'
 import { dirname, join } from 'node:path'
 import type { IpcMainInvokeEvent } from 'electron'
 import {
@@ -26,6 +26,7 @@ import {
 import { createAssetProtocolHandler } from './asset-protocol'
 import type { BrowserHost } from './browser/host'
 import { applyBrowserCommand, BROWSER_PARTITION, createBrowserHost } from './browser/host'
+import { adoptDataRoot } from './data-root'
 import type { Router } from './ipc-router'
 import { createRouter } from './ipc-router'
 import type { NativeHost } from './native'
@@ -708,11 +709,18 @@ function installHandlers(win: BrowserWindow): void {
  * 不钉的后果：数据根跟着包名跑（`%APPDATA%\@poietica\desktop`），换一次包名就等于
  * 换一个数据根，用户的对话与设置全留在旧目录里 —— 表现为「连不上 agent」。
  * 这个名字与 electron-builder.yml 的 productName 是同一个。
+ *
+ * **开发构建另立一个目录**：数据根就是 userData（见下面的 `dataRootDirectory`），
+ * 两者共用会让开发版与安装版同时写同一份账本、同一个 agent 受控 home。Chromium 自己的
+ * 状态（缓存、分区存储）同样按这个目录分家。
  */
 const APPLICATION_NAME = 'Poietica'
 
 app.setName(APPLICATION_NAME)
-app.setPath('userData', join(app.getPath('appData'), APPLICATION_NAME))
+app.setPath(
+  'userData',
+  join(app.getPath('appData'), app.isPackaged ? APPLICATION_NAME : `${APPLICATION_NAME} Dev`),
+)
 
 /*
  * Windows 的 AppUserModelID。
@@ -725,34 +733,42 @@ app.setPath('userData', join(app.getPath('appData'), APPLICATION_NAME))
 app.setAppUserModelId('com.poietica.Poietica')
 
 /**
- * 数据根。两条规则各有硬约束（正本 docs/architecture/data-layout.md）：
+ * 数据根 —— Electron 的 userData，一处决定（正本 docs/architecture/data-layout.md）。
  *
- * - **安装版**：放在程序旁边。用户在安装器上只做一次选择，那一次选择同时回答
- *   「程序装到哪」与「数据存到哪」；判据是可执行文件在哪，所以安装期不需要写下
- *   任何声明，用户把整个目录搬到别的盘，数据跟着走。
- * - **开发构建**：exe 在 node_modules 里，往那儿写用户数据会被依赖重装抹掉，
- *   所以交给 Electron 的 userData（平台目录）。
+ * 安装版曾经把数据放在 exe 旁边（`dirname(app.getPath('exe'))`）。那条规则与 NSIS 的升级
+ * 流程直接冲突：装新版之前安装器先跑旧版的卸载器，模板在 `--updated` 那一支把 `$INSTDIR`
+ * 整个搬进 `$PLUGINSDIR` 再 `RMDir /r` —— 数据就在里面，于是每次更新都清空用户数据。
+ * 数据住 userData 里，安装器与卸载器都够不着，这条冲突从根上不存在。
  *
- * 两者分开，开发版与安装版不会同时打开同一个 WAL 库，也不会互相覆盖凭据。
+ * 落点由上面的 `app.setPath('userData', …)` 钉住，不跟安装目录走，也不跟包名走。
  */
-function resolveDataRoot(): string {
-  if (!app.isPackaged) {
-    return app.getPath('userData')
-  }
+async function dataRootDirectory(): Promise<string> {
+  const root = app.getPath('userData')
 
-  return dirname(app.getPath('exe'))
+  /*
+   * ≤0.4.3 的安装版把数据留在 exe 旁边；开发构建用的是 userData 自己，也就是
+   * `%APPDATA%\Poietica` —— 那个位置现在让给安装版（开发构建另立 `Poietica Dev`）。
+   */
+  const legacies = app.isPackaged
+    ? [dirname(app.getPath('exe'))]
+    : [join(app.getPath('appData'), APPLICATION_NAME)]
+
+  await adoptDataRoot(root, legacies)
+
+  return root
 }
+
 async function main(): Promise<void> {
+  /* 先安顿数据再开窗：窗口衬底要读 settings.json，而它可能还躺在老位置上。 */
+  const dataRoot = await dataRootDirectory()
   const win = createWindow(await startupThemePreference())
 
   mainWindow = win
 
-  const dataRoot = resolveDataRoot()
   const bundledDirectory = app.isPackaged
     ? join(process.resourcesPath, 'agent')
     : join(app.getAppPath(), 'resources', 'agent')
 
-  await mkdir(dataRoot, { recursive: true })
   /*
    * 图片的字节住在原生侧的内存注册表里（进门不落盘，发送那一刻才搬进附件根），
    * 所以这条协议问的是原生，不是磁盘 —— 见 asset-protocol.ts 的头注释。

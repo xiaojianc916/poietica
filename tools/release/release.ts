@@ -19,6 +19,7 @@ import path from 'node:path'
 import process from 'node:process'
 import { createInterface } from 'node:readline/promises'
 import { parseArgs } from 'node:util'
+import { gunzipSync } from 'node:zlib'
 import { parse } from 'yaml'
 
 import {
@@ -413,7 +414,12 @@ function assertLeanPackage(): void {
   console.log(`    包内依赖 ${found.length} 个，符合预期。`)
 }
 
-async function buildAndStage(target: string, tag: string): Promise<string> {
+async function buildAndStage(
+  target: string,
+  tag: string,
+  /* 这一版要从哪一版升上来：上一个 release 的块索引就是差分的基准。 */
+  current: string,
+): Promise<string> {
   console.log('\n[5] 清空构建目录')
   console.log('    残留产物会让清单指向旧版本的安装包，签名照样能过，客户端会陷入更新死循环。')
   await rm(BUNDLE_DIR, { recursive: true, force: true })
@@ -442,8 +448,20 @@ async function buildAndStage(target: string, tag: string): Promise<string> {
       `构建目录里混进了其它版本的安装包（${strays.join(', ')}），此刻发布的东西不可信。`,
     )
   }
+  const blockmap = `${installer}.blockmap`
+
+  if (!files.includes(blockmap)) {
+    throw new Abort(
+      `没有生成 ${blockmap}：electron-builder.yml 的 nsis.differentialPackage 被关掉了。`,
+    )
+  }
+
   await mkdir(STAGE_DIR, { recursive: true })
   await copyFile(path.join(BUNDLE_DIR, installer), path.join(STAGE_DIR, installer))
+  await copyFile(path.join(BUNDLE_DIR, blockmap), path.join(STAGE_DIR, blockmap))
+
+  /* 上一版那份从上一个 release 取回来 —— 差分要有基准才成立，见下面那个函数。 */
+  await stagePreviousBlockmap(current)
 
   /* latest.yml 由 electron-builder 写、由 latest-json 校验并搬运；SHA256SUMS.txt 也在那一步落盘。 */
   run('bun', 'run', 'latest-json', BUNDLE_DIR, STAGE_DIR, tag)
@@ -464,7 +482,11 @@ async function buildAndStage(target: string, tag: string): Promise<string> {
   console.log(`    安装包   ${installer}`)
   console.log(`    体积     ${size.toFixed(1)} MB`)
   console.log(`    SHA256   ${digests.get(installer)?.slice(0, 16)}…`)
+  /* 逐个数出来：确认之前看到的必须正是等下要传的那几个，差分基准也算资产。 */
   console.log(`    校验和   ${digests.size} 个资产`)
+  for (const name of [...digests.keys()].sort()) {
+    console.log(`             ${name}`)
+  }
   console.log(`    清单版本 ${manifest.version}`)
   console.log('')
 
@@ -480,6 +502,73 @@ async function buildAndStage(target: string, tag: string): Promise<string> {
     throw new Abort('已取消。产物留在 dist-release，未推送任何东西。')
   }
   return installer
+}
+
+/**
+ * 差分下载要两份块索引：这一版的，与**上一个版本**的那一份。
+ *
+ * 旧的那份从上一个 release 取回来，**按原名字**放进这一版的资产里。这不是随便挑的
+ * 位置：客户端按「新版本资产名里把版本号换成旧版本号」拼它的地址
+ * （electron-updater 的 providers/Provider.ts 的 getBlockMapFiles），拼出来仍在**这一版**
+ * 的 tag 目录下。旧安装包的字节不必跟着发 —— 客户端手里正在跑的那份就是基准。
+ *
+ * 它没法用这一版的块索引顶替：块索引是内容寻址的，跟那一版的实际字节绑定。顶替的后果
+ * 不是报错，是客户端照一份错的比对表拼出文件、末了 sha512 校验不过、退回整包下载 ——
+ * 白跑一趟，比不做差分还慢。所以宁可不带。
+ *
+ * 取不到不是失败：0.4.3 及以前没发过块索引，这里正是从 0 到 1 的那一版。如实说一句，
+ * 客户端整包下载一次，从下一版起差分才成立。
+ */
+async function stagePreviousBlockmap(previousVersion: string): Promise<void> {
+  const previousTag = `v${previousVersion}`
+  const listed = capture(
+    'gh',
+    'release',
+    'view',
+    previousTag,
+    '--json',
+    'assets',
+    '--jq',
+    '.assets[].name',
+  )
+  const name = (listed ?? '')
+    .split('\n')
+    .map((line) => line.trim())
+    .find(
+      (candidate) =>
+        candidate.endsWith('-setup.exe.blockmap') && candidate.includes(`_${previousVersion}_`),
+    )
+
+  if (name === undefined || name.length === 0) {
+    console.log(`    ${previousTag} 没有块索引：这一版不带差分基准，客户端整包下载一次`)
+    return
+  }
+
+  /* gh 直接把字节写进 stage：capture 按文本读，二进制会坏在半路。 */
+  if (
+    capture('gh', 'release', 'download', previousTag, '--pattern', name, '--dir', STAGE_DIR) ===
+    null
+  ) {
+    console.log(`    取不到 ${previousTag} 的 ${name}：这一版不带差分基准`)
+    return
+  }
+
+  /*
+   * 取回来的必须真是块索引。挡在这里，别让一份坏比对表跟着这一版发给所有客户端 ——
+   * 那时每台机器都会白跑一次差分再退回整包下载。
+   */
+  try {
+    const parsed = JSON.parse(
+      gunzipSync(await readFile(path.join(STAGE_DIR, name))).toString(),
+    ) as { files?: unknown }
+
+    if (!Array.isArray(parsed.files)) {
+      throw new Error('块索引里没有 files')
+    }
+  } catch (cause) {
+    console.warn(`    ${name} 不是一份能用的块索引，这一版不带差分基准`, cause)
+    await rm(path.join(STAGE_DIR, name), { force: true })
+  }
 }
 
 /* ── [8][9][10] 提交打标、发布、验通道 ──────────────────────── */
@@ -508,6 +597,8 @@ async function publish(options: {
 
     console.log('\n[9] 发布：上传安装包、签名、清单、校验和到 GitHub Release')
     const prerelease = tag.includes('-')
+    /* stage 目录里除了安装包、清单与校验和，就是给差分下载用的 blockmap。 */
+    const blockmaps = (await readdir(STAGE_DIR)).filter((name) => name.endsWith('.blockmap'))
     const createArgs = [
       'release',
       'create',
@@ -515,6 +606,7 @@ async function publish(options: {
       `${STAGE_DIR}/${installer}`,
       `${STAGE_DIR}/latest.yml`,
       `${STAGE_DIR}/SHA256SUMS.txt`,
+      ...blockmaps.map((name) => `${STAGE_DIR}/${name}`),
       '--title',
       tag,
       '--generate-notes',
@@ -626,7 +718,7 @@ async function main(): Promise<void> {
 
   try {
     applyVersion(target)
-    const installer = await buildAndStage(target, tag)
+    const installer = await buildAndStage(target, tag, current)
     await publish({ branch, tag, installer, yes: values.yes === true })
   } finally {
     restoreVersionFiles()

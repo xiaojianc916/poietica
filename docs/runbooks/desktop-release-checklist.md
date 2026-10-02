@@ -22,6 +22,12 @@ the browser-only Vite test environment.
 - [ ] Theme and language survive restart.
 - [ ] Reset restores Rust and TypeScript defaults consistently.
 
+## Update
+
+- [ ] An older build discovers the new release, downloads it and installs it after a restart.
+- [ ] Conversations, settings and the agent's own configuration survive the update.
+- [ ] The download only fetches the changed blocks, not the whole installer.
+
 ## Evidence
 
 Record the tested commit, operating system and result in the release PR.

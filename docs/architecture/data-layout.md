@@ -1,28 +1,27 @@
 # 磁盘布局
 
-这个应用在用户机器上占的位置只有一个根。
+这个应用在用户机器上占两个根：**程序装在安装目录，数据住在 Electron 的 userData**。
+两者分开是硬约束，不是选择 —— 理由见下面「根在哪」。
 
 ## 根在哪
 
 | 怎么跑起来 | 数据根 | 谁决定的 |
 | --- | --- | --- |
-| 安装版 | 安装时在目录页选定的那个目录，程序本体也在里面 | 用户 |
-| 开发构建 | `%APPDATA%\Poietica` | Electron 的 `app.getPath('userData')` |
+| 安装版 | `%APPDATA%\Poietica` | Electron 的 `app.getPath('userData')`，由 `app.setPath` 钉住 |
+| 开发构建 | `%APPDATA%\Poietica Dev` | 同上，未打包时名字多一个后缀 |
 
-唯一的声明处是 `apps/desktop/native/src/paths.rs`：数据根由主进程经
-`NativeHost.start` 的 `dataRoot` 交进来，那里只在它下面拼各处的名字。没有第二个
-地方算路径，渲染层也不算。
+唯一的声明处是 `apps/desktop/electron/main.ts` 的 `app.setPath('userData', …)`；
+`apps/desktop/native/src/paths.rs` 只在宿主交进来的 `dataRoot` 下面拼各处的名字 ——
+原生侧与渲染层都不算路径。
 
-两条安装规则各有它的硬约束：
+**数据不放在安装目录旁边。** 曾经是那样（判据是 exe 在哪），它与 NSIS 的升级流程直接
+冲突：装新版之前，安装器先跑**旧版**的卸载器，而模板在 `--updated` 那一支把 `$INSTDIR`
+整个搬进 `$PLUGINSDIR\old-install` 再 `RMDir /r` —— 数据在里面就会被每一次更新清掉。
+userData 不在安装器的射程内，这条冲突从根上不存在。
 
-- **NSIS 安装版**：数据仍放在安装目录旁边。用户在安装器上只做一次选择，那一次选择
-  就该同时回答「程序装到哪」和「数据存到哪」；应用侧的判据是可执行文件在哪，所以
-  安装期不需要写下任何声明，用户把整个目录搬到别的盘，数据跟着一起走。
-- **开发构建**：exe 在 `node_modules` 里，往那里写用户数据会被依赖重装抹掉，所以
-  落点交给 Electron 的 `app.getPath('userData')`（平台目录）。
-
-开发与安装版因此不会同时打开同一个 WAL 库，也不会互相覆盖各自的 settings.json
-与 agent 凭据。
+**开发构建另立一个目录。** 数据根就是 userData 之后，两者共用会让开发版与安装版同时
+打开同一份账本、同一个 agent 受控 home（0.4.3 之前正是如此）。Chromium 自己的状态
+（缓存、分区存储）也跟着这个目录分家。
 
 ## 根下面有什么
 
@@ -31,37 +30,49 @@
 | `settings.json` | 主题、语言、快捷键、隐私开关 | 回到默认设置 |
 | `agents.json` | agent 接入档案与安装状态缓存 | 内置档案下次启动重新落盘 |
 | `automations.json` | 自动化定义 | 自动化全部消失 |
-| `threads.sqlite3` | 对话索引 | 对话列表清空 |
+| `ledger.sqlite3` | 本机账本：对话索引、帧日志、附件索引、准入 | 对话列表清空 |
 | `attachments/` | 附件字节，内容寻址 | 历史对话里的附件打不开 |
 | `agents/<id>/home/` | 各 agent 自己的配置，含 API 密钥 | 需要重新配置 provider |
-| `browser/profile/` | 内置浏览器面板的站点数据（Cookie、站点存储） | 面板里的网站登录态消失 |
-| `plugins/<id>/` | 装进来的插件的托管副本 | 那个插件的本体消失 |
-| `plugins/installed.json` | 装了哪些插件、开没开、哪些 MCP 服务器被关掉 | 插件全部回到未安装 |
-| `plugins/marketplace.json` | 上一次拉到的市场目录 | 下次打开市场时重新拉 |
-| `plugins/.staging/` | 安装中途的解压暂存区 | 无影响：认领前的中间态 |
-| `logs/` | 运行日志与上一次原生崩溃报告 | 无影响 |
+| `plugins/` | 装进来的插件的托管副本与 `installed.json` | 插件全部回到未安装 |
+| `projectless/` | 无项目会话的工作目录根 | 那些会话的工作目录消失 |
+| `tools/` | 本应用自己装的工具（内置 Python 解释器） | 下次用到时重新下载 |
+| `logs/`、`tmp/`、`cache/` | 日志、暂存、可从上游重取的东西 | 无影响 |
 
-安装版的目录里还有程序本体（`Poietica.exe`、`uninstall.exe`、资源），名字与上面
-这些都不冲突。升级只覆写程序文件，不碰数据。
-
-`threads.sqlite3` 开在 WAL 模式下，磁盘上实际是三个文件：它，加上同名的 `-wal`
+`ledger.sqlite3` 开在 WAL 模式下，磁盘上实际是三个文件：它，加上同名的 `-wal`
 与 `-shm`。备份要带上 `-wal`，只拷主文件会丢掉最近一段还没并回去的写入；
 `-shm` 不必带，无连接时可安全删除并会被重建。
 
+同一个 userData 目录里还有 Chromium 自己写的东西（`Cache/`、`GPUCache/`、
+`Local Storage/`、`Partitions/`、`Preferences` 等）：那不是我们的数据，格式与
+生命周期归 Electron，备份时忽略它们。
+
+## 升级
+
+安装器只覆写程序文件，数据在另一个根里，升级碰不到它。升级结束后应用照常从原来的
+数据根起来 —— 换版本不换数据根。
+
+旧文件不会被留在安装目录里：模板在升级路径上把 `$INSTDIR` 整个搬走再删掉，
+安装器再写进新版的文件。
+
+## 从 ≤0.4.3 升上来
+
+≤0.4.3 的数据根有两处：安装版是 exe 所在目录，开发构建是 `%APPDATA%\Poietica`。
+新版第一次启动时会按 `apps/desktop/electron/data-root.ts` 的清单把**还在老位置上的**
+状态搬过来，冲突时新根赢，搬完删掉老位置里那一份。
+
+⚠️ **0.4.3 → 第一个修复版这一步，应用救不了自己**：清掉安装目录的是**旧版**的卸载器，
+它在新版启动之前就跑完了，那时新版还没有搬迁代码。所以从 ≤0.4.3 升级前要手工把
+`$(安装目录)` 里的 `ledger.sqlite3*`、`agents\`、`attachments\`、`settings.json`、
+`agents.json` 复制到别处，装完再放进 `%APPDATA%\Poietica`。往后不再需要这一步。
+
+搬迁是一次性的：老位置不会再有新数据，`logs` / `tmp` / `cache` 不搬（丢了能重新长出来），
+`tools` 也不搬（60MB 的解释器，用到时重装）。等不再有人从 0.4.3 升上来，那份清单与
+搬迁函数一起删。
+
 ## 卸载
 
-卸载器逐个 `Delete` 它自己装进去的文件，最后那句 `RMDir` 不带 `/r` —— 数据
-文件还在时它删不掉那个目录，所以普通卸载不会带走数据。
+卸载器只删它自己写进安装目录的文件，数据在 `%APPDATA%\Poietica` 里，普通卸载不会
+带走它 —— 程序目录被整体删掉也不会影响下次安装后的对话与设置。
 
-勾了「删除应用数据」才会清干净：`NSIS_HOOK_POSTUNINSTALL` 把整个安装目录递归
-删掉。模板自带的那一段清的是平台默认目录，对装到自定义位置的安装没有作用，钩子
-补上的正是这一块。升级走的也是卸载流程，`$UpdateMode` 为 1 时一个字节都不动。
-
-## 不在这个根里的东西
-
-两处，都是平台或插件的硬约束，不是选择：
-
-- **窗口位置与尺寸**。它归主进程写，落点就是 Electron 的 userData 目录。
-- **Chromium 的缓存**。它归 Electron 管，位置由各 session 的 `partition` 决定，
-  不是我们的数据。内置浏览器面板不在此列：它用 `persist:poietica-browser`，与主界面
-  的 session 分开。
+要连数据一起清掉，删掉 `%APPDATA%\Poietica` 这一个目录就是全部；开发构建的数据在
+`%APPDATA%\Poietica Dev`，卸载器不认识它。

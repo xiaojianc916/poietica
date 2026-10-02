@@ -31,6 +31,19 @@ export function channelFault(manifest: Manifest, tag: string): string | null {
 
 const wait = (milliseconds: number) => new Promise((resolve) => setTimeout(resolve, milliseconds))
 
+/** 资产必须在那个地址上真实可取；HEAD 足够，不下字节。 */
+async function requireAsset(url: string): Promise<void> {
+  const response = await fetch(url, {
+    method: 'HEAD',
+    redirect: 'follow',
+    signal: AbortSignal.timeout(15_000),
+  })
+
+  if (!response.ok) {
+    throw new Error(`${url} 返回了 ${response.status}`)
+  }
+}
+
 async function verify(endpoint: string, tag: string): Promise<Manifest> {
   let lastError: unknown
   for (let attempt = 1; attempt <= ATTEMPTS; attempt += 1) {
@@ -48,14 +61,12 @@ async function verify(endpoint: string, tag: string): Promise<Manifest> {
         throw new Error(fault)
       }
       const url = `${REPO_BASE}/releases/download/${tag}/${encodeURIComponent(manifest.path ?? '')}`
-      const artifact = await fetch(url, {
-        method: 'HEAD',
-        redirect: 'follow',
-        signal: AbortSignal.timeout(15_000),
-      })
-      if (!artifact.ok) {
-        throw new Error(`${url} 返回了 ${artifact.status}`)
-      }
+      await requireAsset(url)
+      /*
+       * 差分下载的那一份块索引。缺了它客户端不会报错 —— 它会安静地退回整包下载，
+       * 每次更新重下 177MB。静默的降级只能靠这里挡住。
+       */
+      await requireAsset(`${url}.blockmap`)
       return manifest
     } catch (error) {
       lastError = error

@@ -52,6 +52,17 @@ win:
 nsis:
   oneClick: false
   allowToChangeInstallationDirectory: true
+  # 升级时把整个安装目录搬走再删掉（模板的 ${isUpdated} 分支）—— 这是对的：安装目录里
+  # 只有程序文件，用户数据住在 userData 里（apps/desktop/electron/main.ts 的
+  # dataRootDirectory），安装器够不着。
+  #
+  # 别把数据放回安装目录。这条路径上的一切都会被每一次更新清掉，0.4.3 之前就是这么丢的。
+  #
+  # 差分下载的开关。true（默认）时 electron-builder 除安装包外还产出同名的 .blockmap
+  # （块索引），客户端的 electron-updater 用它跟盘上那份旧安装包比对、只下变化的块。
+  # 两份 blockmap 都要作为发布资产传上去（新的那份 + 上一个版本的那份），
+  # 见 tools/release/release.ts；少传一份客户端就整包重下。
+  differentialPackage: true
 # electron-updater 的清单来源：latest.yml 里的 url 由它拼出来。
 # 这一处是仓库地址的唯一声明 —— tools/release 的 latest-json 与 verify-channel 都读它。
 publish:
