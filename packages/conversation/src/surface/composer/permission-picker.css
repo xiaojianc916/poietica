@@ -57,12 +57,17 @@
 /*
  * 这一张的几何归它自己，边与面不写在这里 —— 它们已经是 .assistant-menu-surface
  * （工具条浮层族共用那张脸）的两格，与模型面板、项目与分支选择器同源。
+ *
+ * 唯一不跟那一族走的是影：工具条浮层族整族铺一档，这一张不要 —— 它压在输入卡上，
+ * 与输入卡自己是同一条取舍（见 metrics.css 里深色的 --cp-input-lift）。
+ * 两个选择器的特异性（本行高于 .assistant-menu-surface）决定胜负，与文件次序无关。
  */
 .assistant-posture-menu[data-assistant-skin] {
   inline-size: 21rem;
   min-inline-size: 0;
   max-inline-size: calc(100vw - 2 * var(--cp-gutter));
   padding: var(--am-pad);
+  box-shadow: none;
 }
 
 [data-assistant-skin] .assistant-posture-menu__item {
