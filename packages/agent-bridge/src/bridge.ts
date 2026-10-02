@@ -505,6 +505,32 @@ export function createBridge(host: BridgeHost): Bridge {
   }
 
   /*
+   * 设置里点名的那条模型，从**本地目录**解析。
+   *
+   * 比法是**整串**（`provider/id`，见 catalog.ts 的 aliasOf —— 界面上的名字就是它），
+   * 不是「按最后一个斜杠切两半」：id 自己带斜杠（`workbuddy-ai/deepseek-v4.1-flash`），
+   * 切错了就找不到那一条，于是白等一次联网兜底。目录里没有就如实回 undefined ——
+   * 让 SDK 走它自己那条兜底，而不是这里编一个。
+   *
+   * 拦两种情形：这条设置根本不在场（全新用户），或者它在场而本地目录里没有这一条
+   * （凭据过期、models.yml 被改过）。有凭据才交出去 —— 没凭据的那条起不了轮。
+   */
+  async function preferredModel(
+    registry: ModelRegistry,
+  ): Promise<ReturnType<ModelRegistry['find']> | undefined> {
+    const settings = await settingsFor()
+    const selector = settings.get('modelRoles')?.['default']
+
+    if (typeof selector !== 'string' || selector === '') {
+      return undefined
+    }
+
+    const model = registry.getAll().find((entry) => aliasOf(entry) === selector)
+
+    return model !== undefined && registry.hasConfiguredAuth(model) ? model : undefined
+  }
+
+  /*
    * 入口那一趟的读。三样并行取，谁都不依赖谁。
    *
    * 设置读的是 `settingsFor()`（`Settings.init` 那一份可写实例）：期望态那两格要在
@@ -876,6 +902,18 @@ export function createBridge(host: BridgeHost): Bridge {
       },
     )
 
+    /*
+     * 模型**显式交进去**，省掉 SDK 自己那次解析（`modelRoles.default` → 本地目录 → 联网兜底）。
+     *
+     * 这一次解析平时只要几百毫秒（真实 home 实测 371 ms），但**解析不出来时**它会退到联网
+     * 发现兜底，而那一趟要等几个连不上的端点各自超时：本机实测 10 554 ms。凑巧的是那条路
+     * 走完还常常给不出模型（`model: null`）—— 等了十秒，什么都没换到。
+     *
+     * 解析不出来时这里**不硬塞**别的模型（塞错比慢坏得多）：如实回 undefined，让 SDK 走它
+     * 自己那条兜底 —— 那时慢是应该的，因为用户确实需要那一次发现。
+     */
+    const preferred = await preferredModel(modelRegistry)
+
     const { session, setToolUIContext, mcpManager, subagentEventBus } = await createAgentSession({
       cwd,
       authStorage,
@@ -884,6 +922,7 @@ export function createBridge(host: BridgeHost): Bridge {
       sessionManager: manager,
       // hasUI 必须 true（为什么见下方 initializeExtensions 处的两步说明）。
       hasUI: true,
+      ...(preferred === undefined ? {} : { model: preferred }),
     })
 
     id = session.sessionId ?? crypto.randomUUID()
