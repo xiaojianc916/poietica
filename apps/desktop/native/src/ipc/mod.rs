@@ -92,8 +92,6 @@ pub fn types() -> specta::TypeCollection {
     types.register::<crate::settings::AppSettings>();
     types.register::<crate::settings::PrivacySettings>();
     types.register::<crate::agent::profile::AgentConfigSnapshot>();
-    types.register::<crate::agent::install::AgentInstallState>();
-    types.register::<crate::agent::install::AgentInstallStatus>();
     types.register::<crate::terminal::TerminalChunk>();
     types.register::<crate::terminal::TerminalStreamed>();
     types.register::<crate::review::GitBranches>();
@@ -203,8 +201,6 @@ pub fn functions() -> Vec<specta::datatype::Function> {
         crate::settings::commands::settings_reset,
         crate::agent::profile::agent_config_get,
         crate::agent::profile::agent_config_save_agents,
-        crate::agent::install::agent_install_status,
-        crate::agent::install::agent_install_run,
         crate::ledger::usage::usage_token_days,
         crate::workspace::storage::storage_data_directory,
         crate::ledger::workbench::workbench_session_load,
@@ -543,15 +539,6 @@ pub async fn submit(command: &str, args: Value) -> napi::Result<String> {
             let default_agent_id: String =
                 argument(args.get("defaultAgentId").unwrap_or(&Value::Null))?;
             crud(crate::agent::profile::agent_config_save_agents(agents, default_agent_id).await)
-        }
-        "agent_install_status" => {
-            let agent_id: String = argument(args.get("agentId").unwrap_or(&Value::Null))?;
-            let force: bool = argument(args.get("force").unwrap_or(&Value::Null))?;
-            crud(crate::agent::install::agent_install_status(agent_id, force).await)
-        }
-        "agent_install_run" => {
-            let agent_id: String = argument(args.get("agentId").unwrap_or(&Value::Null))?;
-            crud(crate::agent::install::agent_install_run(agent_id).await)
         }
         "usage_token_days" => {
             let span: u32 = argument(args.get("span").unwrap_or(&Value::Null))?;

@@ -1,4 +1,3 @@
-import { agent } from '@poietica/agent-catalog'
 import {
   Accordion,
   AccordionHeader,
@@ -25,7 +24,6 @@ import {
   useSyncExternalStore,
 } from 'react'
 import {
-  type AgentSettings,
   type CatalogProvider,
   type ModelCatalogData,
   type ModelCatalogOperation,
@@ -35,8 +33,7 @@ import {
   modelAlias,
   type ProviderModelInput,
 } from '../../index'
-import { describeAgentCliFailure } from '../agent-install/agent-cli-text'
-import { AgentInstallAction } from '../agent-install/agent-install-action'
+import { describeAgentCliFailure } from './agent-cli-text'
 import './models-settings.css'
 
 const COLLAPSED_MODEL_LIMIT = 8
@@ -54,7 +51,6 @@ type Mutation = Exclude<ModelCatalogOperation, { readonly kind: 'snapshot' }>
 type RunMutation = (operation: Mutation) => Promise<boolean>
 
 export interface ModelsSettingsProps {
-  readonly store: AgentSettings
   readonly modelCatalog: ModelCatalogStore
   readonly hiddenModelAliases: readonly string[]
   readonly providerOrder: readonly string[]
@@ -62,40 +58,13 @@ export interface ModelsSettingsProps {
 }
 
 export function ModelsSettings({
-  store,
   modelCatalog,
   hiddenModelAliases,
   providerOrder,
   onModelVisibilityChange,
 }: ModelsSettingsProps) {
-  const [agentError, setAgentError] = useState<string | null>(null)
-  useEffect(() => {
-    let active = true
-    void store.load().then(
-      (snapshot) =>
-        active && setAgentError(snapshot.issues.length > 0 ? snapshot.issues.join('；') : null),
-      (cause: unknown) =>
-        active && setAgentError(describeAgentCliFailure(cause, 'agent 配置读取失败，请重试。')),
-    )
-    return () => {
-      active = false
-    }
-  }, [store])
-
   return (
     <section className="models-page">
-      <div className="models-block">
-        <span className="models-block__label">智能体</span>
-        <div className="models-card">
-          <div className="models-row">
-            <div className="models-row__copy">
-              <strong>{agent.displayName}</strong>
-              <p>{agentError ?? '本软件的对话由它提供，可用模型与密钥都归它'}</p>
-            </div>
-            <AgentInstallAction agentId={agent.id} store={store} />
-          </div>
-        </div>
-      </div>
       <ModelCatalogPanel
         hiddenModelAliases={hiddenModelAliases}
         onModelVisibilityChange={onModelVisibilityChange}

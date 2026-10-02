@@ -38,7 +38,6 @@ import {
   useSyncExternalStore,
 } from 'react'
 import type {
-  AgentSettings,
   AgentSettingsStore,
   AppSettings,
   KeybindingCatalog,
@@ -98,7 +97,6 @@ type GlyphComponent = ComponentType<{
 interface SettingsSectionContext {
   readonly settings: AppSettings
   readonly controller: SettingsController
-  readonly agentSettings: AgentSettings
   /** agent 自己那份设置目录的持有者，由组合根注入。目录真身在 agent 进程里（它的 settings-schema），读写经它的官方写入面；这个包不认识桌面传输层。 */
   readonly agentSettingsCatalog: AgentSettingsStore
   readonly modelCatalog: ModelCatalogStore
@@ -148,7 +146,7 @@ const SECTIONS: Record<SettingsSection, SettingsSectionDescriptor> = {
   models: {
     label: '模型',
     icon: Cpu,
-    render: ({ agentSettings, controller, modelCatalog, settings }) => (
+    render: ({ controller, modelCatalog, settings }) => (
       <ModelsSettings
         hiddenModelAliases={settings.modelPicker.hiddenModelAliases}
         modelCatalog={modelCatalog}
@@ -170,7 +168,6 @@ const SECTIONS: Record<SettingsSection, SettingsSectionDescriptor> = {
           })
         }}
         providerOrder={settings.modelPicker.providerOrder}
-        store={agentSettings}
       />
     ),
   },
@@ -266,7 +263,6 @@ const SECTION_GROUPS: readonly (readonly SettingsSection[])[] = [
  */
 interface SettingsSurfaceContextValue {
   readonly controller: SettingsController
-  readonly agentSettings: AgentSettings
   readonly agentSettingsCatalog: AgentSettingsStore
   readonly modelCatalog: ModelCatalogStore
   readonly threads: ThreadsStore
@@ -307,7 +303,6 @@ function useSettingsSurface(): SettingsSurfaceContextValue {
 
 export interface SettingsProviderProps {
   readonly store: SettingsStore
-  readonly agentSettings: AgentSettings
   /** agent 自己那份设置目录的唯一持有者，由组合根注入：那一份也是 agent 自报的，读写都落在 agent 进程。 */
   readonly agentSettingsCatalog: AgentSettingsStore
   /** 模型目录的唯一持有者，由组合根注入：模型页读写经 kap REST 落在 agent 进程。 */
@@ -343,7 +338,6 @@ export interface SettingsProviderProps {
 
 export function SettingsProvider({
   store,
-  agentSettings,
   agentSettingsCatalog,
   modelCatalog,
   plugins,
@@ -403,7 +397,6 @@ export function SettingsProvider({
   const value = useMemo<SettingsSurfaceContextValue>(
     () => ({
       controller,
-      agentSettings,
       agentSettingsCatalog,
       modelCatalog,
       plugins,
@@ -420,7 +413,6 @@ export function SettingsProvider({
       onBack: controller.requestClose,
     }),
     [
-      agentSettings,
       agentSettingsCatalog,
       appVersion,
       controller,
@@ -465,7 +457,6 @@ export function SettingsNavigationRegion({ footer }: SettingsNavigationRegionPro
 export function SettingsContentRegion() {
   const {
     controller,
-    agentSettings,
     agentSettingsCatalog,
     appVersion,
     dataDirectory,
@@ -510,7 +501,6 @@ export function SettingsContentRegion() {
             ) : null}
 
             {SECTIONS[section].render({
-              agentSettings,
               agentSettingsCatalog,
               appVersion,
               controller,

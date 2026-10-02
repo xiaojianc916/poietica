@@ -4,8 +4,7 @@ use crate::error::{Error, Result};
 use crate::paths::{agent_home, agents_store};
 use poietica_agent_client::{
     AgentError, ProcessEnvironment, args_of as profile_args_of, declared_env_of, entry_of,
-    home_var_of, install_spec_of, launch_env as compose_launch_env, own_home_of, program_of,
-    unset_env_of,
+    home_var_of, launch_env as compose_launch_env, own_home_of, program_of, unset_env_of,
 };
 use poietica_problem::Problem;
 use serde::{Deserialize, Serialize};
@@ -202,12 +201,6 @@ fn launch_env_inner(agent_id: &str, controlled: bool) -> Result<ProcessEnvironme
         home.as_ref(),
         &unset_env_of(&profile),
     ))
-}
-
-pub use poietica_agent_client::InstallSpec as AgentInstallSpec;
-
-pub fn agent_install_spec(agent_id: &str) -> Result<Option<AgentInstallSpec>> {
-    Ok(install_spec_of(&profile_of(agent_id)?))
 }
 
 /// 程序名刻意不来自请求：白名单挡不住 `{ command: 任意程序 }` 这类请求，调用方须自行校验程序名。

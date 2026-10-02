@@ -1,9 +1,5 @@
 export type { AppSettings } from '@poietica/contract/settings'
-export type {
-  AgentConfigSnapshot,
-  AgentInstallStatus,
-  AgentSettings,
-} from './agent-runtime/model'
+export type { AgentConfigSnapshot, AgentSettings } from './agent-runtime/model'
 export type { AgentConfigurationRepository } from './agent-runtime/repository'
 export { createAgentSettings } from './agent-runtime/settings'
 export type {

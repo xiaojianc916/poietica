@@ -35,14 +35,9 @@ pub use interaction::question::{
 };
 pub use process::controlled_home::write_config_atomically;
 pub use process::daemon::{Daemon, DaemonIntent, Reaction};
-pub use process::install::{
-    InstallState, InstallStatus, PackageManager, first_semver, install_package, install_state_of,
-    latest_version, owner_of, preferred_manager, reported_version,
-};
 pub use process::profile::{
-    ControlledHome, InstallSpec, ProcessEnvironment, args_of, declared_env_of, entry_of,
-    home_var_of, install_spec_of, is_npm_package_name, is_plain_directory_name, launch_env,
-    own_home_of, program_of, unset_env_of,
+    ControlledHome, ProcessEnvironment, args_of, declared_env_of, entry_of, home_var_of,
+    is_plain_directory_name, launch_env, own_home_of, program_of, unset_env_of,
 };
 pub use process::program::{Launcher, hide_console, resolve_launcher, resolve_program};
 pub use recorder::{FrameSink, RecordedEvent, Recorder, SeqLine};

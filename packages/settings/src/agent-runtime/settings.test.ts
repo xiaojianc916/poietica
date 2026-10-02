@@ -1,80 +1,65 @@
 import { expect, test } from 'bun:test'
-import type { AgentInstallStatus } from '@poietica/contract/settings'
+import type { AgentConfigRecord } from '@poietica/contract/settings'
 import type { AgentConfigurationRepository } from './repository'
 import { createAgentSettings } from './settings'
 
-function pendingStatus() {
-  let resolve!: (status: AgentInstallStatus) => void
-  const promise = new Promise<AgentInstallStatus>((done) => {
+const record: AgentConfigRecord = { agents: [], defaultAgentId: 'omp', issues: [] }
+
+function repository(
+  load: AgentConfigurationRepository['load'],
+  saveAgents: AgentConfigurationRepository['saveAgents'] = async () => record,
+): AgentConfigurationRepository {
+  return { load, saveAgents }
+}
+
+test('读取在飞时不重复问 agent，落地后下一次才重来', async () => {
+  let calls = 0
+  let resolve!: (record: AgentConfigRecord) => void
+  const pending = new Promise<AgentConfigRecord>((done) => {
     resolve = done
   })
-  return { promise, resolve }
-}
-const installed: AgentInstallStatus = {
-  state: 'current',
-  installedVersion: '1',
-  latestVersion: '1',
-  packageName: 'agent-test',
-}
-function repository(
-  runInstall: AgentConfigurationRepository['runInstall'],
-): AgentConfigurationRepository {
-  return {
-    load: async () => {
-      throw new Error('Unexpected configuration read')
-    },
-    saveAgents: async () => {
-      throw new Error('Unexpected configuration write')
-    },
-    loadInstallStatus: async () => installed,
-    runInstall,
-  }
-}
-test('installation requests coalesce per instance, never across instances', async () => {
-  const one = pendingStatus()
-  const two = pendingStatus()
-  let calls = 0
-  const first = createAgentSettings(
+  const store = createAgentSettings(
     repository(() => {
       calls += 1
-      return one.promise
+      return pending
     }),
   )
-  const second = createAgentSettings(
-    repository(() => {
-      calls += 1
-      return two.promise
-    }),
-  )
-  const a = first.runInstall('agent')
-  expect(first.runInstall('agent')).toBe(a)
-  const b = second.runInstall('agent')
-  expect(b).not.toBe(a)
+
+  const first = store.load()
+  expect(store.load()).toBe(first)
+  expect(calls).toBe(1)
+
+  resolve(record)
+  await first
+  await store.load()
   expect(calls).toBe(2)
-  one.resolve(installed)
-  two.resolve(installed)
-  await Promise.all([a, b])
-  await first.runInstall('agent')
-  expect(calls).toBe(3)
-  first.dispose()
-  second.dispose()
-})
-test('configuration subscriptions belong to the factory lifecycle', () => {
-  const store = createAgentSettings(repository(async () => installed))
-  let changes = 0
-  const release = store.subscribeConfigChanged(() => {
-    changes += 1
-  })
-  store.notifyConfigChanged()
-  expect(changes).toBe(1)
-  release()
-  store.notifyConfigChanged()
-  expect(changes).toBe(1)
-  store.subscribeConfigChanged(() => {
-    changes += 1
-  })
+
   store.dispose()
-  store.notifyConfigChanged()
-  expect(changes).toBe(1)
-  expect(() => store.subscribeConfigChanged(() => {})).toThrow('disposed')
+})
+
+/* 落盘是启动门禁的那一步：磁盘上还没有档案时，读取要把它写下去。 */
+test('磁盘上还没有档案时，读取把它物化下去', async () => {
+  let writes = 0
+  const store = createAgentSettings(
+    repository(
+      async () => record,
+      async () => {
+        writes += 1
+        return record
+      },
+    ),
+  )
+
+  await store.load()
+
+  expect(writes).toBe(1)
+  store.dispose()
+})
+
+test('dispose 之后的读取当场被拒', () => {
+  const store = createAgentSettings(repository(async () => record))
+
+  store.dispose()
+
+  expect(() => store.load()).toThrow('disposed')
 })

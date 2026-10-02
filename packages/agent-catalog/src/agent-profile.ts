@@ -24,7 +24,6 @@ export interface AgentProfile {
   readonly unsetEnv?: readonly string[] | undefined
   readonly homeVar?: string | undefined
   readonly ownHomeDirectory?: string | undefined
-  readonly install?: Readonly<{ packageName: string; versionArgs: readonly string[] }> | undefined
 }
 
 export type AgentProfileParse =
@@ -66,7 +65,6 @@ const ProfileSchema = z.object({
   unsetEnv: z.array(processEnvName).optional(),
   homeVar: envName.optional(),
   ownHomeDirectory: text.optional(),
-  install: z.object({ packageName: text, versionArgs: z.array(text) }).optional(),
 })
 
 function idOf(entry: unknown): string | undefined {

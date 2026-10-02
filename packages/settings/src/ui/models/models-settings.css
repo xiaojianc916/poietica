@@ -71,7 +71,6 @@
   flex-direction: column;
   gap: 2px;
 }
-.models-row__copy strong,
 .models-row__name {
   color: var(--ui-foreground);
   font-size: 13px;

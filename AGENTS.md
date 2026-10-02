@@ -142,8 +142,7 @@ FORMATS 把文件头判定与 Content-Type 收成一张表，加一种格式只�
 
 ## 7. 扩展预留路线（加东西走这里，别发明新路）
 
-- **加一家 agent**：agent-catalog 加档案（program/args/homeVar/ownHomeDirectory/
-  installSpec/方言）。验收：通用层零改动。专属行为走档案能力开关 + 专属模块。
+- **加一家 agent**：agent-catalog 加档案（program/args/homeVar/ownHomeDirectory/方言）。验收：通用层零改动。专属行为走档案能力开关 + 专属模块。
 - **加一条 IPC 命令**：Rust 定类型与命令（`#[specta::specta]`）→ 挂进
   `native/src/ipc/mod.rs` 的 `types()` 与 `functions()` 两张表并补上分发臂 →
   `bun run ipc:generate` → TS 端口层适配。TS 侧先写形状即为缺陷。

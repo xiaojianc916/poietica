@@ -101,8 +101,6 @@ export type AgentGoal = { objective: string; completionCriterion: string | null;
  * Fresh 是本来就没有经过；Loaded 是这次把已有会话重装了回来。
  */
 export type AgentHistory = { state: "fresh" } | { state: "loaded" }
-export type AgentInstallState = "unmanaged" | "missing" | "outdated" | "current" | "external" | "unknown"
-export type AgentInstallStatus = { state: AgentInstallState; installedVersion: string | null; latestVersion: string | null; packageName: string | null }
 /**
  * 不带 argv：渲染层报程序路径过来，参数白名单就挡不住它，程序由原生侧解析。
  */
@@ -701,12 +699,6 @@ export const commands = {
   },
   async agentConfigSaveAgents(agents: JsonValue[], defaultAgentId: string): Promise<AgentConfigSnapshot> {
     return call<AgentConfigSnapshot>('agent_config_save_agents', { agents: agents, defaultAgentId: defaultAgentId })
-  },
-  async agentInstallStatus(agentId: string, force: boolean): Promise<AgentInstallStatus> {
-    return call<AgentInstallStatus>('agent_install_status', { agentId: agentId, force: force })
-  },
-  async agentInstallRun(agentId: string): Promise<AgentInstallStatus> {
-    return call<AgentInstallStatus>('agent_install_run', { agentId: agentId })
   },
 /**
  *  最近 span 天的日账，由早到晚。没有账的日子不占行。 */

@@ -12,10 +12,5 @@ export function createAgentConfigBridge(): AgentConfigurationRepository {
      */
     saveAgents: (agents, defaultAgentId) =>
       throughIpc(() => commands.agentConfigSaveAgents(agents as JsonValue[], defaultAgentId)),
-
-    loadInstallStatus: (agentId, force) =>
-      throughIpc(() => commands.agentInstallStatus(agentId, force)),
-
-    runInstall: (agentId) => throughIpc(() => commands.agentInstallRun(agentId)),
   }
 }

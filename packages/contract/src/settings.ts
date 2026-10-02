@@ -2,7 +2,6 @@ import type { commands } from './generated/ipc-bindings'
 
 export type {
   AgentConfigSnapshot as AgentConfigRecord,
-  AgentInstallStatus,
   AppSettings,
   Problem,
   SettingsWriteResult,

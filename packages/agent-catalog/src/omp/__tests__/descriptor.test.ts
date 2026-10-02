@@ -13,10 +13,6 @@ describe('omp 的接入档案', () => {
     expect(ohMyPi.ownHomeDirectory).toBe('.omp')
   })
 
-  it('没有 install 一格：agent 随包发，没有要用户去装的东西', () => {
-    expect('install' in ohMyPi).toBe(false)
-  })
-
   it('模块路径按版本重建，避免跨 PowerShell 版本遮蔽', () => {
     expect(ohMyPi.unsetEnv).toContain('PSModulePath')
   })

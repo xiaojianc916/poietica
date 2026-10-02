@@ -5,12 +5,6 @@ use std::path::PathBuf;
 
 use serde_json::Value;
 
-#[derive(Debug)]
-pub struct InstallSpec {
-    pub package_name: String,
-    pub version_args: Vec<String>,
-}
-
 /// 受控 home：变量名 + 宿主已创建好的目录；档案声明了 homeVar 才受控。
 #[derive(Debug)]
 pub struct ControlledHome {
@@ -143,96 +137,10 @@ pub fn args_of(agent: &Value) -> Vec<String> {
         .unwrap_or_default()
 }
 
-/// 包名在此判字符集：这一格交给全局安装，`--registry` 形态会被读成旗标。
-pub fn install_spec_of(agent: &Value) -> Option<InstallSpec> {
-    let install = agent.get("install").and_then(Value::as_object)?;
-
-    let package_name = install
-        .get("packageName")
-        .and_then(Value::as_str)
-        .filter(|name| is_npm_package_name(name))?;
-
-    let version_args = install
-        .get("versionArgs")
-        .and_then(Value::as_array)
-        .map(|items| {
-            items
-                .iter()
-                .filter_map(|item| item.as_str().map(str::to_owned))
-                .collect::<Vec<String>>()
-        })
-        .filter(|args| !args.is_empty())
-        .unwrap_or_else(|| vec!["--version".to_owned()]);
-
-    Some(InstallSpec {
-        package_name: package_name.to_owned(),
-        version_args,
-    })
-}
-
-fn is_npm_name_glyph(glyph: char) -> bool {
-    glyph.is_ascii_lowercase() || glyph.is_ascii_digit() || "._-".contains(glyph)
-}
-
-/// 非空、不以 `.`/`_`/`-` 开头、字符集之内（npm 命名规则；`-` 起头会被读成旗标）。
-fn is_npm_package_segment(segment: &str) -> bool {
-    !segment.is_empty()
-        && !segment.starts_with(['.', '_', '-'])
-        && segment.chars().all(is_npm_name_glyph)
-}
-
-/// npm 命名规则的包名：`name` 或 `@scope/name`，上限 214；逐段拦选项形态 token。
-pub fn is_npm_package_name(name: &str) -> bool {
-    if name.is_empty() || name.len() > 214 {
-        return false;
-    }
-
-    let body = name.strip_prefix('@').unwrap_or(name);
-    let expected = if name.starts_with('@') { 2 } else { 1 };
-
-    body.split('/').count() == expected && body.split('/').all(is_npm_package_segment)
-}
-
 #[cfg(test)]
 mod tests {
-    use super::{is_npm_package_name, is_plain_directory_name};
+    use super::is_plain_directory_name;
     use serde_json::json;
-
-    #[test]
-    fn real_package_names_pass_the_gate() {
-        assert!(is_npm_package_name("lodash"));
-        assert!(is_npm_package_name("@oh-my-pi/pi-coding-agent"));
-    }
-
-    #[test]
-    fn an_option_shaped_token_is_not_a_package_name() {
-        assert!(!is_npm_package_name("--registry"));
-        assert!(!is_npm_package_name("-g"));
-        assert!(!is_npm_package_name("@scope/-flag"));
-    }
-
-    #[test]
-    fn npm_forbids_leading_dots_and_underscores() {
-        assert!(!is_npm_package_name(".hidden"));
-        assert!(!is_npm_package_name("_private"));
-        assert!(!is_npm_package_name("@.scope/name"));
-    }
-
-    #[test]
-    fn the_charset_is_npm_lowercase() {
-        assert!(!is_npm_package_name("Lodash"));
-        assert!(!is_npm_package_name("pkg name"));
-        assert!(!is_npm_package_name("pkg;rm"));
-    }
-
-    #[test]
-    fn only_the_scoped_shape_may_contain_a_slash() {
-        assert!(!is_npm_package_name(""));
-        assert!(!is_npm_package_name("a/b"));
-        assert!(!is_npm_package_name("@a/b/c"));
-        assert!(!is_npm_package_name("@scope"));
-        assert!(!is_npm_package_name("@scope/"));
-    }
 
     #[test]
     fn a_directory_name_is_a_name_not_a_path() {

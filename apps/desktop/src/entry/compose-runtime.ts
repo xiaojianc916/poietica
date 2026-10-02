@@ -304,7 +304,6 @@ export function createApplicationRuntime(restored: string | null): ApplicationRu
         conversationEntry,
       }),
     )
-    own(agentConfig.subscribeConfigChanged(conversation.capabilities.refresh))
     let seen = pluginStore.getSnapshot().ownedSkills
     own(
       pluginStore.subscribe(() => {
