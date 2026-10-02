@@ -21,7 +21,14 @@ import { createInterface } from 'node:readline/promises'
 import { parseArgs } from 'node:util'
 import { parse } from 'yaml'
 
-import { bumped, compareVersions, SEMVER, VERSION_FILES, workspaceVersion } from './version.ts'
+import {
+  bumped,
+  compareVersions,
+  LOCK_FILES,
+  SEMVER,
+  VERSION_FILES,
+  workspaceVersion,
+} from './version.ts'
 
 const MAIN_BRANCH = 'main'
 const CARGO = 'Cargo.toml'
@@ -103,7 +110,7 @@ function restoreVersionFiles(): void {
   }
   console.log('')
   console.log('    正在把版本号改动签回去，仓库回到发布前的状态。')
-  tryRun('git', 'restore', '--', ...VERSION_FILES)
+  tryRun('git', 'restore', '--', ...VERSION_FILES, ...LOCK_FILES)
   versionFilesDirty = false
 }
 
@@ -490,7 +497,7 @@ async function publish(options: {
     console.log('\n[8] 提交并打标')
 
     /* 精确 add 不用 -A：发布提交要被打 tag，-A 会把构建留下的产物卷进内容不可预期的提交。 */
-    run('git', 'add', '--', ...VERSION_FILES)
+    run('git', 'add', '--', ...VERSION_FILES, ...LOCK_FILES)
     run('git', 'commit', '-m', `release: ${tag}`)
     state.committed = true
     versionFilesDirty = false

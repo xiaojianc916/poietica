@@ -1,5 +1,13 @@
 import { describe, expect, it } from 'bun:test'
-import { bumped, compareVersions, SEMVER, workspaceVersion } from '../version.ts'
+import {
+  bumped,
+  compareVersions,
+  LOCK_COMMANDS,
+  LOCK_FILES,
+  SEMVER,
+  VERSION_FILES,
+  workspaceVersion,
+} from '../version.ts'
 
 describe('bumped', () => {
   it('increments each segment independently', () => {
@@ -30,6 +38,18 @@ describe('compareVersions', () => {
     expect(compareVersions('1.0.0', '1.0.0-rc.1')).toBeGreaterThan(0)
     expect(compareVersions('1.0.0-rc.10', '1.0.0-rc.2')).toBeGreaterThan(0)
     expect(compareVersions('1.0.0+one', '1.0.0+two')).toBe(0)
+  })
+})
+
+describe('锁文件', () => {
+  it('两个锁文件都由包管理器重算，且不与手写声明处混在一起', () => {
+    expect([...LOCK_FILES]).toEqual(['Cargo.lock', 'bun.lock'])
+    expect(
+      LOCK_FILES.filter((file) => (VERSION_FILES as readonly string[]).includes(file)),
+    ).toEqual([])
+    for (const file of LOCK_FILES) {
+      expect(LOCK_COMMANDS[file][0]).toBeTruthy()
+    }
   })
 })
 

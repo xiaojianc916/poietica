@@ -110,6 +110,24 @@ export function compareVersions(left: string, right: string): number {
  */
 export const VERSION_FILES = ['Cargo.toml', 'package.json', 'apps/desktop/package.json'] as const
 
+/**
+ * 另有两个派生落点：两个锁文件各记一份仓内包的版本（Cargo.lock 记 17 个 crate，
+ * bun.lock 记 apps/desktop）。它们由各自的包管理器重算，不手改 —— 手写解析等于
+ * 给锁文件造第二个事实。
+ *
+ * 漏掉它们的代价是实测出来的：v0.4.3 的发布提交里留下一个旧版本的 Cargo.lock，
+ * 而签回与精确 add 都只认 VERSION_FILES —— 发布之后仓库一直带着一个改不完的改动。
+ */
+export const LOCK_FILES = ['Cargo.lock', 'bun.lock'] as const
+
+/** 重算某个锁文件的命令：交给它自己的包管理器写，我们只负责调用。 */
+export const LOCK_COMMANDS: Record<(typeof LOCK_FILES)[number], readonly [string, ...string[]]> = {
+  /* 只动 workspace 成员（仓内包）的版本，不升级任何第三方依赖。 */
+  'Cargo.lock': ['cargo', 'update', '--workspace'],
+  /* 只重写锁文件，不碰 node_modules，也不跑 prepare。 */
+  'bun.lock': ['bun', 'install', '--lockfile-only'],
+}
+
 export function workspaceVersion(text: string): string | undefined {
   return text.split(/^\[workspace\.package\]$/m)[1]?.match(/^version\s*=\s*"([^"]+)"/m)?.[1]
 }

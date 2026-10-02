@@ -7,10 +7,11 @@
  *   bun run version:set 0.2.0
  */
 
+import { spawnSync } from 'node:child_process'
 import { readFile, writeFile } from 'node:fs/promises'
 import process from 'node:process'
 
-import { SEMVER, VERSION_FILES } from './version.ts'
+import { LOCK_COMMANDS, LOCK_FILES, SEMVER, VERSION_FILES } from './version.ts'
 
 const version = process.argv[2]
 
@@ -40,6 +41,19 @@ for (const file of VERSION_FILES) {
   await writeFile(file, source.replace(PATTERN[file], `$1${version}$2`), 'utf8')
 }
 
+/*
+ * 两个锁文件跟着重算。它们不是第四、第五处手写声明，而是包管理器自己的产物：
+ * 跳过这一步，发布提交里就会留下一个旧版本的 Cargo.lock —— 那正是 v0.4.3 发布后
+ * 工作区里那个改不完的文件。命令失败即停：一个没跟上的锁文件不该被静悄悄放过。
+ */
+for (const file of LOCK_FILES) {
+  const [program, ...args] = LOCK_COMMANDS[file]
+  if (spawnSync(program, args, { stdio: 'inherit' }).status !== 0) {
+    console.error(`${file} 没能跟上 ${version}：先手动跑 ${[program, ...args].join(' ')}`)
+    process.exit(2)
+  }
+}
+
 console.log(
-  `已写入版本 ${version}（${String(VERSION_FILES.length)} 个文件），再跑 bun run check:versions 确认`,
+  `已写入版本 ${version}（${String(VERSION_FILES.length)} 个声明处 + ${String(LOCK_FILES.length)} 个锁文件），再跑 bun run check:versions 确认`,
 )
