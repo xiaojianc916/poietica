@@ -598,6 +598,73 @@ describe('tool identity and run presentation', () => {
     }
   })
 
+  test('a write xd:// device carries the invoked tool as its name', () => {
+    const frame: TranscriptFrame = {
+      kind: 'tool',
+      frameId: 'call',
+      toolCallId: 'call',
+      name: 'write',
+      state: 'done',
+      input: { path: 'xd://lsp', content: '{"action":"diagnostics","file":"a.ts"}' },
+      output: {
+        content: [{ type: 'text', text: 'no diagnostics' }],
+        details: {
+          xdev: { tool: 'lsp', mode: 'execute', args: { action: 'diagnostics', file: 'a.ts' } },
+        },
+      },
+    }
+    const state = projectTranscript(snapshotOf([runSample(0, undefined, [frame])]))
+    const tool = state.active.items.find((item) => item.type === 'tool_call')
+    // 字形按 invokedTool 取：认 write 会画成铅笔，而屏幕上写着「读取诊断」。
+    expect(tool?.invokedTool).toBe('lsp')
+    expect(tool?.title).toBe('write')
+    expect(tool?.kind).toBe('read')
+  })
+
+  test('a read of an internal URL carries its scheme, so the glyph is not the file one', () => {
+    const frame: TranscriptFrame = {
+      kind: 'tool',
+      frameId: 'call',
+      toolCallId: 'call',
+      name: 'read',
+      state: 'done',
+      input: { path: 'skill://ponytail' },
+      output: {
+        content: [{ type: 'text', text: 'name: ponytail' }],
+        details: {
+          resolvedPath: 'skill://ponytail',
+          meta: { source: { type: 'internal', value: 'skill://ponytail' } },
+        },
+      },
+    }
+    const state = projectTranscript(snapshotOf([runSample(0, undefined, [frame])]))
+    const tool = state.active.items.find((item) => item.type === 'tool_call')
+    // read 是传输工具：同一个名字，地址说这次碰的是技能。
+    expect(tool?.scheme).toBe('skill')
+    expect(tool?.invokedTool).toBe('read')
+  })
+
+  test('a plain file read has no scheme', () => {
+    const frame: TranscriptFrame = {
+      kind: 'tool',
+      frameId: 'call',
+      toolCallId: 'call',
+      name: 'read',
+      state: 'done',
+      input: { path: 'src/app.ts' },
+      output: {
+        content: [{ type: 'text', text: 'code' }],
+        details: {
+          resolvedPath: '/w/src/app.ts',
+          meta: { source: { type: 'path', value: '/w/src/app.ts' } },
+        },
+      },
+    }
+    const state = projectTranscript(snapshotOf([runSample(0, undefined, [frame])]))
+    const tool = state.active.items.find((item) => item.type === 'tool_call')
+    expect(tool?.scheme).toBe('')
+  })
+
   test('an unknown tool keeps its raw name and guesses its nature from the argument shape', () => {
     const frames: TranscriptFrame[] = [
       { kind: 'tool', frameId: 'a', toolCallId: 'a', name: 'bash', state: 'done' },
@@ -614,8 +681,8 @@ describe('tool identity and run presentation', () => {
     const state = projectTranscript(snapshotOf([runSample(0, undefined, frames)]))
     const tools = state.active.items.filter((item) => item.type === 'tool_call')
     expect(tools.map((item) => item.kind)).toEqual(['execute', 'read', 'other'])
-    // MCP 认前缀：服务器与工具名分开报，类别按入参形状猜。
-    expect(tools[1]?.headline).toBe('srv · run')
+    // MCP 没有那一对名字时只报名字本身，类别按入参形状猜。
+    expect(tools[1]?.headline).toBe('mcp__srv__run')
     // 完全不认得的名字没有 headline：折叠行退到工具名。
     expect(tools[2]?.headline).toBe('')
   })

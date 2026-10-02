@@ -244,6 +244,10 @@ function toolFrameOf(
     at: stamp,
     toolCallId: frame.toolCallId,
     title: frame.name,
+    // 认名字要认得的是「真正在跑的那一个」：write xd://<工具> 跑的是被挂载的设备。
+    // title 保持帧上的名字 —— 它是调用号退化成工具名时的身份（见 askIndexes）。
+    invokedTool: view.known && view.invokedTool !== '' ? view.invokedTool : frame.name,
+    scheme: view.known ? view.scheme : '',
     kind: view.known ? view.kind : (tool?.kind ?? 'other'),
     headline: view.headline,
     subject: view.subject || (tool?.subject ?? ''),
@@ -298,6 +302,7 @@ function approvalFields(request: unknown): { toolName: string; detail: string | 
   if (typeof request !== 'object' || request === null) {
     return { toolName: '', detail: null }
   }
+  /* 线上字段名就是 toolName（桥那边组的是 { method, toolName, detail }），别跟着改。 */
   const toolName = Reflect.get(request, 'toolName')
   const detail = Reflect.get(request, 'detail')
 

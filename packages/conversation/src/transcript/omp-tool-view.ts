@@ -9,6 +9,20 @@ export type { ToolDrawerShape }
 export interface OmpToolView {
   readonly known: boolean
   readonly kind: ToolKind
+  /*
+   * 真正在跑的那个工具的名字。
+   *
+   * 平时就是帧上的 name；只有 `write xd://<工具>` 例外 —— 帧上是 write，跑的是被挂载
+   * 的那个设备。字形按名字取，认 write 会画成铅笔而屏幕上写着「读取诊断」。
+   */
+  readonly invokedTool: string
+  /**
+   * 这次碰的是什么地址的内部资源（`skill` / `memory` / `xd` …），空串表示不是内部资源。
+   *
+   * 取 omp 自己盖的章 details.meta.source（OutputMetaBuilder 的 sourceInternal），
+   * 跑的时候还没有产出，退回入参 path 的 scheme。
+   */
+  readonly scheme: string
   readonly headline: string
   readonly subject: string
   readonly shape: ToolDrawerShape
@@ -212,6 +226,7 @@ const proseSaid = (ctx: Ctx): readonly ToolCallContent[] =>
 const failOr = (ctx: Ctx, body: readonly ToolCallContent[]): readonly ToolCallContent[] =>
   failed(ctx) ? [text(ctx.error ?? '这次调用失败了。')] : body
 
+// invokedTool 由出口填：处理器只管自己这一格，认名字那一步在 ompToolView 里做一次。
 function view(
   kind: ToolKind,
   headline: string,
@@ -220,7 +235,18 @@ function view(
   response: readonly ToolCallContent[],
   shape: ToolDrawerShape = 'flow',
 ): OmpToolView {
-  return { known: true, kind, headline, subject, shape, background: false, request, response }
+  return {
+    known: true,
+    kind,
+    invokedTool: '',
+    scheme: '',
+    headline,
+    subject,
+    shape,
+    background: false,
+    request,
+    response,
+  }
 }
 
 // 非零退出码与超时不在折叠行上报，落在产出那面。
@@ -282,8 +308,10 @@ const writeView: Handler = (ctx) => {
     const args = get(device, 'args')
     const invoked = ompToolView(tool, args, { content: blocksOf(ctx.output), details: inner })
 
+    /* 名字要跟着被调的工具走：字形按名字取，认 write 会画成铅笔而屏幕上写着「读取诊断」。 */
     return {
       ...invoked,
+      invokedTool: tool,
       headline: invoked.headline === '' ? `xd://${tool}` : `xd://${tool} · ${invoked.headline}`,
       subject: invoked.subject === '' ? tool : invoked.subject,
     }
@@ -530,6 +558,27 @@ const PRELUDE_NAMES: Readonly<Record<string, string>> = {
   computer: '桌面控制',
 }
 
+/** 这次 eval 调过的 prelude 名（原始 op，不是给人看的那句）。 */
+function preludeOpsOf(ctx: Ctx): readonly string[] {
+  const ops: string[] = []
+  /* 事件既可能挂在整次调用上，也可能挂在产生它的那个 cell 上。 */
+  const events = [...list(ctx.details, 'statusEvents')]
+
+  for (const cell of list(ctx.details, 'cells')) {
+    events.push(...list(cell, 'statusEvents'))
+  }
+
+  for (const event of events) {
+    const op = pick(event, 'op')
+
+    if (op !== undefined && PRELUDE_NAMES[op] !== undefined && !ops.includes(op)) {
+      ops.push(op)
+    }
+  }
+
+  return ops
+}
+
 /** 这次 eval 调了哪些 prelude，各做了什么。 */
 function preludesOf(ctx: Ctx): readonly string[] {
   const said: string[] = []
@@ -578,14 +627,22 @@ function evalCall(ctx: Ctx, language: string): OmpToolView {
   const preludes = preludesOf(ctx)
   const head =
     preludes.length > 0 ? preludes.join('；') : dot(`运行 ${named}`, title ?? oneLine(body))
+  /*
+   * 字形也跟着那件事走：一次 browser.open 实际跑的是浏览器，不是脚本。
+   * 用 invokedTool 这一格而不是另开一条路 —— 它就是「真正在跑的是谁」。
+   */
+  const ops = preludeOpsOf(ctx)
 
-  return view(
-    'execute',
-    head,
-    preludes[0] ?? title ?? oneLine(body),
-    request,
-    failOr(ctx, saidText(ctx)),
-  )
+  return {
+    ...view(
+      'execute',
+      head,
+      preludes[0] ?? title ?? oneLine(body),
+      request,
+      failOr(ctx, saidText(ctx)),
+    ),
+    ...(ops.length === 1 ? { invokedTool: ops[0] as string } : {}),
+  }
 }
 
 const BROWSER_ACTIONS: Readonly<Record<string, string>> = {
@@ -1188,19 +1245,39 @@ const deviceView = (said: string): Handler =>
     return view('other', said, '', NONE, failOr(ctx, proseSaid(ctx)), 'result')
   }
 
-// MCP 名字里没有可靠的分隔保证，只认前缀，剩下的原样报出来——猜错拆位比不拆更糟。
-function mcpView(name: string, input: unknown): OmpToolView {
-  const rest = name.slice(5)
-  const cut = rest.search(/__?/)
-  const server = cut <= 0 ? rest : rest.slice(0, cut)
-  const tool = cut <= 0 ? '' : rest.slice(cut).replace(/^_+/, '')
-  const subject = tool === '' ? server : `${server} · ${tool}`
+/** MCP 结果里那一对（tool-bridge.ts 的 { serverName, mcpToolName }）；拿不到就是空。 */
+const mcpServerOf = (output: unknown): string | undefined => mcpPairOf(output)?.[0]
+
+const mcpToolOf = (output: unknown): string | undefined => mcpPairOf(output)?.[1]
+
+function mcpPairOf(output: unknown): readonly [string, string] | undefined {
+  const details = detailsOf(output)
+  const server = pick(details, 'serverName')
+  const tool = pick(details, 'mcpToolName')
+
+  return server === undefined || tool === undefined ? undefined : [server, tool]
+}
+
+/*
+ * MCP 工具：拆名字是**猜**，omp 自己给的那一对才是答案。
+ *
+ * 名字由 createMCPToolName 铸成 `mcp__<server>_<tool>`（单下划线），但它会剥掉重复的
+ * 服务器前缀、按 64 字符上限加哈希后缀 —— `mcp__chrome_devtools_list_pages` 里那个
+ * 下划线不是分隔符，拆错就把服务器名说成 "chrome"。
+ *
+ * 真答案在产出的 details 里（tool-bridge.ts 的 { serverName, mcpToolName }）。拿不到
+ * （还在飞、或名字不是铸出来的）就退回前缀，只报名字本身，不猜边界。
+ */
+function mcpView(name: string, input: unknown, server?: string, tool?: string): OmpToolView {
+  const subject = server === undefined ? '' : tool === undefined ? server : `${server} · ${tool}`
   const guess = describeTool(input)
 
   return {
     known: true,
     kind: guess.kind,
-    headline: subject,
+    invokedTool: name,
+    scheme: '',
+    headline: subject === '' ? name : subject,
     subject: subject === '' ? guess.subject : subject,
     shape: 'result',
     background: false,
@@ -1280,6 +1357,8 @@ const HANDLERS: Readonly<Record<string, Handler>> = {
 const EMPTY: OmpToolView = {
   known: false,
   kind: 'other',
+  invokedTool: '',
+  scheme: '',
   headline: '',
   subject: '',
   shape: 'tabs',
@@ -1295,6 +1374,41 @@ const EMPTY: OmpToolView = {
  * 退回按参数算的那句。其余工具一律听 intent，按路径或模式拼的那句只是它的近似。
  */
 const INTENT_OVERRIDDEN: ReadonlySet<string> = new Set(['bash', 'eval', 'js', 'python', 'notebook'])
+
+/*
+ * 这次碰的是哪种内部资源。
+ *
+ * 首选 omp 自己盖的章（details.meta.source.type === 'internal'，由 read 的 sourceInternal 写下），
+ * 它是跑完之后的事实；调用还在飞的时候没有产出，退回入参 path 上的 scheme。
+ *
+ * 只看传输工具：别的工具名字已经说清楚了，不该被地址改写。
+ */
+function schemeOf(tool: string, input: unknown, output: unknown): string {
+  const lower = tool.toLowerCase()
+
+  if (lower !== 'read' && lower !== 'write') {
+    return ''
+  }
+
+  const source = bag(get(detailsOf(output), 'meta'))?.['source']
+
+  if (get(source, 'type') === 'internal') {
+    return schemeFrom(pick(source, 'value'))
+  }
+
+  return schemeFrom(pick(input, 'path'))
+}
+
+/** 地址上那个 scheme；不是内部 URL（http、盘符路径）就是空串。 */
+function schemeFrom(value: string | undefined): string {
+  if (value === undefined) {
+    return ''
+  }
+
+  const cut = value.indexOf('://')
+
+  return cut <= 0 ? '' : value.slice(0, cut).toLowerCase()
+}
 
 /** 这次调用最终印在折叠行上的那一句话。 */
 function headlineOf(name: string, derived: string, intent: string | undefined): string {
@@ -1316,12 +1430,13 @@ export function ompToolView(
   const base =
     handler === undefined
       ? name.startsWith('mcp__')
-        ? mcpView(name, input)
+        ? mcpView(name, input, mcpServerOf(output), mcpToolOf(output))
         : EMPTY
       : handler({ details: detailsOf(output), error, input, output, said: textOf(output) })
 
   if (!base.known) {
-    return EMPTY
+    /* 画不出来不等于不知道是谁在跑：委派过的设备名要留给字形那一格。 */
+    return base.invokedTool === '' ? EMPTY : { ...EMPTY, invokedTool: base.invokedTool }
   }
 
   const shots = imagesOf(output)
@@ -1331,6 +1446,9 @@ export function ompToolView(
   return {
     ...base,
     background,
+    /* 委派过的那一次由 writeView 填了被调工具的名字，这里只给没填的那些补。 */
+    invokedTool: base.invokedTool === '' ? name : base.invokedTool,
+    scheme: schemeOf(base.invokedTool === '' ? name : base.invokedTool, input, output),
     headline: headlineOf(name, base.headline, intent),
     ...(shots.length === 0 ? {} : { response: [...base.response, ...shots] }),
   }

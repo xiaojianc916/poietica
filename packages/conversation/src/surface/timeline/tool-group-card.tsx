@@ -9,7 +9,7 @@ import { ChevronDownIcon } from '../primitives/icons'
 import { toDiffFilesOf } from '../semantics/tool-call-facets'
 import { readToolLine, sayToolCount } from '../semantics/tool-intent'
 import { GroupTicker } from './group-ticker'
-import { ToolCallDiffStat, ToolKindIcon } from './tool-call-card'
+import { ToolCallDiffStat, ToolGlyphIcon } from './tool-call-card'
 
 /**
  * 一组连续的同类调用。
@@ -50,6 +50,15 @@ function statOf(plan: ToolGroupPlan): DiffStat | null {
   }
 
   return diffStatOf(files)
+}
+
+/** 组头那一枚字形取头一个成员：一组就是同类相邻，头一个说了算。 */
+function firstTool(plan: ToolGroupPlan): { readonly name: string; readonly scheme: string } {
+  const head = plan.members[0]?.item
+
+  return head?.type === 'tool_call'
+    ? { name: head.invokedTool, scheme: head.scheme }
+    : { name: '', scheme: '' }
 }
 
 export interface ToolGroupCardProps {
@@ -93,7 +102,7 @@ export function ToolGroupCard({ isOpen, onToggle, plan, renderRow }: ToolGroupCa
         onClick={onToggle}
         type="button"
       >
-        <ToolKindIcon kind={plan.kind} />
+        <ToolGlyphIcon {...firstTool(plan)} />
 
         <GroupTicker isRunning={isRunning} text={saying ?? summary} />
 

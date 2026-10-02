@@ -102,6 +102,19 @@ export interface ToolCallTimelineItem extends TimelineEntry {
   readonly type: 'tool_call'
   readonly toolCallId: string
   readonly title: string
+  /**
+   * 真正在跑的那个工具的名字。
+   *
+   * 平时与 title 同值；只有 `write xd://<工具>` 不同 —— 帧上是 write，跑的是被挂载的
+   * 那个设备，字形与身份都得按后者。title 留给「调用号退化成工具名」那条老路。
+   */
+  readonly invokedTool: string
+  /**
+   * 这次碰的是什么地址的内部资源（`skill` / `memory` / `xd` …），空串表示不是内部资源。
+   *
+   * read/write 是传输工具，名字回答不了「在读文件还是读技能」——地址回答得了。
+   */
+  readonly scheme: string
   readonly kind: ToolKind
   // 由工具视图按这个工具自己的性子写全，不在这里按类别拼。
   readonly headline: string

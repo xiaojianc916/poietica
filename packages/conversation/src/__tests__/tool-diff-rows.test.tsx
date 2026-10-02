@@ -44,6 +44,8 @@ function editItem(oldText: string, newText: string): ToolCallTimelineItem {
     at: 0,
     toolCallId: 'e1',
     title: 'edit',
+    invokedTool: 'edit',
+    scheme: '',
     kind: 'edit',
     headline: '编辑 bridge.ts',
     subject: 'bridge.ts',

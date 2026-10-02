@@ -39,6 +39,8 @@ function readItem(): ToolCallTimelineItem {
     at: 0,
     toolCallId: 'r1',
     title: 'read',
+    invokedTool: 'read',
+    scheme: '',
     kind: 'read',
     headline: '阅读 src/app.rs',
     subject: 'src/app.rs',

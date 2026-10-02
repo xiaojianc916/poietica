@@ -3,60 +3,112 @@ import './shimmer.css'
 import './tool-call.css'
 import './tool-group.css'
 
+import { GithubMark } from '@poietica/design-system'
 import { type DiffStat, diffStatOf } from '@poietica/review'
 import { isDelegation } from '../../timeline/delegate-channel'
 import type { ToolCallTimelineItem } from '../../timeline/timeline-contract'
+import { toolGlyphOf } from '../../transcript/omp-tool-glyphs'
 import { cx } from '../primitives/class-names'
 import { DisclosureBody } from '../primitives/disclosure'
 import {
+  BrainIcon,
+  BugIcon,
   ChevronDownIcon,
+  ClockIcon,
+  ComputerIcon,
+  DeviceIcon,
   FileIcon,
   GlobeIcon,
   GoalIcon,
+  ImageIcon,
+  LearningIcon,
+  LspIcon,
+  MicIcon,
   ModelIcon,
   PencilIcon,
   PlanIcon,
+  PluginIcon,
+  QuestionIcon,
   SearchIcon,
   SkillIcon,
   TerminalIcon,
   ToolIcon,
+  YieldIcon,
 } from '../primitives/icons'
 import { toDiffFilesOf } from '../semantics/tool-call-facets'
 import { clampToLine, readToolLine, sayToolCount } from '../semantics/tool-intent'
 import { useDelegateChannel } from './delegate-channel-context'
 import { ToolCallPanels } from './tool-call-panels'
 
-export function ToolKindIcon({ kind }: { readonly kind: ToolCallTimelineItem['kind'] }) {
+/*
+ * 字形只有这一处分发。名字认得出就按名字给，认不出才是「从外面来的工具」。
+ *
+ * GithubMark 是设计系统的品牌标记：实心、没有描边概念，与其余描边字形不是一类东西，
+ * 所以它单独一臂而不是混进某张表 —— 混进去就得先编一个共同形状出来。
+ */
+export function ToolGlyphIcon({
+  name,
+  scheme = '',
+}: {
+  readonly name: string
+  readonly scheme?: string
+}) {
+  const glyph = toolGlyphOf(name, scheme)
   const className = 'timeline-row__icon'
 
-  switch (kind) {
-    case 'read':
-      return <FileIcon aria-hidden="true" className={className} />
-    case 'write':
-    case 'edit':
-      return <PencilIcon aria-hidden="true" className={className} />
-    case 'search':
-      return <SearchIcon aria-hidden="true" className={className} />
-    case 'fetch':
-      return <GlobeIcon aria-hidden="true" className={className} />
-    case 'execute':
-      return <TerminalIcon aria-hidden="true" className={className} />
+  switch (glyph) {
+    case 'bug':
+      return <BugIcon aria-hidden="true" className={className} />
+    case 'clock':
+      return <ClockIcon aria-hidden="true" className={className} />
+    case 'code':
+      return <LspIcon aria-hidden="true" className={className} />
+    case 'computer':
+      return <ComputerIcon aria-hidden="true" className={className} />
     case 'delegate':
       return <ModelIcon aria-hidden="true" className={className} />
-    case 'skill':
-      return <SkillIcon aria-hidden="true" className={className} />
-    case 'todo':
-      return <PlanIcon aria-hidden="true" className={className} />
+    case 'device':
+      return <DeviceIcon aria-hidden="true" className={className} />
+    case 'execute':
+      return <TerminalIcon aria-hidden="true" className={className} />
+    case 'fetch':
+      return <GlobeIcon aria-hidden="true" className={className} />
+    case 'github':
+      return <GithubMark aria-hidden="true" className={className} />
     case 'goal':
       return <GoalIcon aria-hidden="true" className={className} />
+    case 'image':
+      return <ImageIcon aria-hidden="true" className={className} />
+    case 'learning':
+      return <LearningIcon aria-hidden="true" className={className} />
+    case 'memory':
+      return <BrainIcon aria-hidden="true" className={className} />
     case 'other':
       return <ToolIcon aria-hidden="true" className={className} />
+    case 'plugin':
+      return <PluginIcon aria-hidden="true" className={className} />
+    case 'question':
+      return <QuestionIcon aria-hidden="true" className={className} />
+    case 'read':
+      return <FileIcon aria-hidden="true" className={className} />
+    case 'search':
+      return <SearchIcon aria-hidden="true" className={className} />
+    case 'skill':
+      return <SkillIcon aria-hidden="true" className={className} />
+    case 'speech':
+      return <MicIcon aria-hidden="true" className={className} />
+    case 'todo':
+      return <PlanIcon aria-hidden="true" className={className} />
+    case 'write':
+      return <PencilIcon aria-hidden="true" className={className} />
+    case 'yield':
+      return <YieldIcon aria-hidden="true" className={className} />
     default:
-      return unreachable(kind)
+      return unreachable(glyph)
   }
 }
 
-function unreachable(_kind: never): null {
+function unreachable(_glyph: never): null {
   return null
 }
 
@@ -115,7 +167,7 @@ function ToolCallHeader({
       onClick={onToggle}
       type="button"
     >
-      <ToolKindIcon kind={item.kind} />
+      <ToolGlyphIcon name={item.invokedTool} scheme={item.scheme} />
 
       <span className={cx('timeline-row__label', isRunning && 'timeline-shimmer')}>{line}</span>
 
@@ -169,7 +221,7 @@ export function ToolCallCard({
     return (
       <section className="timeline-group">
         <button aria-expanded={isOpen} className="timeline-row" onClick={onToggle} type="button">
-          <ToolKindIcon kind={item.kind} />
+          <ToolGlyphIcon name={item.invokedTool} scheme={item.scheme} />
 
           <span className={cx('timeline-row__label', view.isRunning && 'timeline-shimmer')}>
             {sayToolCount(item.kind, item.channels.length)}
@@ -193,7 +245,7 @@ export function ToolCallCard({
                   title={channel.name}
                   type="button"
                 >
-                  <ToolKindIcon kind={item.kind} />
+                  <ToolGlyphIcon name={item.invokedTool} scheme={item.scheme} />
 
                   <span className="timeline-row__label">
                     {clampToLine(channel.name) ?? channel.name}

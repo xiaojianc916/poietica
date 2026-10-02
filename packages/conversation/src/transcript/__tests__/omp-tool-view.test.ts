@@ -394,6 +394,76 @@ describe('ompToolView eval 里的浏览器与桌面', () => {
   })
 })
 
+/*
+ * eval 里的 browser/computer 是注入内核的 prelude，不是顶层工具：真实会话里
+ * 字面工具名 browser 一次都没有，74 次浏览器动作全是 eval + statusEvents。
+ * 字形必须跟着那件事走，否则一次 browser.open 画成终端。
+ */
+describe('eval 调 prelude 时字形跟着走', () => {
+  const cell = (op: string, detail: string) => ({
+    content: [textBlock('ok')],
+    details: { cells: [{ code: 'x', statusEvents: [{ op, detail }] }] },
+  })
+
+  it('调 browser 的那一次认浏览器', () => {
+    const view = ompToolView(
+      'eval',
+      { language: 'js', code: 'browser.open()' },
+      cell('browser', 'open main https://x'),
+    )
+
+    expect(view.invokedTool).toBe('browser')
+    expect(view.headline).toBe('浏览器 open main https://x')
+  })
+
+  it('调 computer 的那一次认桌面', () => {
+    const view = ompToolView(
+      'eval',
+      { language: 'js', code: 'computer.click()' },
+      cell('computer', 'click 1,2'),
+    )
+
+    expect(view.invokedTool).toBe('computer')
+  })
+
+  it('纯脚本仍是 eval 自己', () => {
+    const view = ompToolView('eval', { language: 'js', code: '1 + 1' }, envelope(textBlock('2')))
+
+    expect(view.invokedTool).toBe('eval')
+  })
+})
+
+describe('read 走内部 URL 时带出 scheme', () => {
+  it('skill:// 带出 skill', () => {
+    const output = {
+      content: [textBlock('name: ponytail')],
+      details: {
+        resolvedPath: 'skill://ponytail',
+        meta: { source: { type: 'internal', value: 'skill://ponytail' } },
+      },
+    }
+    const view = ompToolView('read', { path: 'skill://ponytail' }, output)
+
+    expect(view.scheme).toBe('skill')
+  })
+
+  it('普通文件没有 scheme', () => {
+    const output = {
+      content: [textBlock('code')],
+      details: { resolvedPath: '/w/a.ts', meta: { source: { type: 'path', value: '/w/a.ts' } } },
+    }
+    const view = ompToolView('read', { path: 'src/a.ts' }, output)
+
+    expect(view.scheme).toBe('')
+  })
+
+  it('还没跑完时按入参的地址认', () => {
+    const view = ompToolView('read', { path: 'memory://root/MEMORY.md' }, undefined)
+
+    expect(view.scheme).toBe('memory')
+  })
+})
+
 describe('ompToolView 其余工具各自说自己的话', () => {
   const cases: readonly (readonly [string, unknown, ToolKind, string])[] = [
     ['web_search', { query: 'omp' }, 'fetch', '联网搜索 omp'],
@@ -503,17 +573,32 @@ describe('ompToolView 认不出的名字', () => {
     expect(view.shape).toBe('tabs')
   })
 
-  it('MCP 工具认前缀：服务器与工具名原样报出来，类别按入参形状猜', () => {
-    const view = ompToolView('mcp__srv__run', { path: 'a.ts' }, envelope(textBlock('x')))
+  it('MCP 工具用 omp 给的那一对名字，不自己拆', () => {
+    // 名字是 mcp__<server>_<tool>（单下划线），但 server 自己可以带下划线
+    // （chrome-devtools → chrome_devtools），拆错就把服务器名说成 "chrome"。
+    const output = {
+      content: [textBlock('x')],
+      details: { serverName: 'chrome-devtools', mcpToolName: 'list_pages' },
+    }
+    const view = ompToolView('mcp__chrome_devtools_list_pages', {}, output)
 
     expect(view.known).toBe(true)
-    expect(view.headline).toBe('srv · run')
-    expect(view.kind).toBe('read')
-    expect(view.subject).toBe('srv · run')
+    expect(view.headline).toBe('chrome-devtools · list_pages')
+    expect(view.subject).toBe('chrome-devtools · list_pages')
   })
 
-  it('MCP 名字里没有分隔符时整段报出来', () => {
-    expect(ompToolView('mcp__solo', {}, envelope()).headline).toBe('solo')
+  it('MCP 拿不到那一对时只报名字，不猜边界', () => {
+    const view = ompToolView('mcp__chrome_devtools_list_pages', {}, envelope(textBlock('x')))
+
+    expect(view.headline).toBe('mcp__chrome_devtools_list_pages')
+  })
+
+  it('MCP 类别仍按入参形状猜', () => {
+    const output = {
+      content: [textBlock('x')],
+      details: { serverName: 'srv', mcpToolName: 'run' },
+    }
+    expect(ompToolView('mcp__srv_run', { path: 'a.ts' }, output).kind).toBe('read')
   })
 })
 
