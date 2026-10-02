@@ -218,14 +218,22 @@ function ConfiguredModels({
           <p className="models-empty">还没有已配置的模型。</p>
         ) : (
           <div className="models-list">
-            {models.map((model) => (
-              <ConfiguredModel
-                key={model.model}
-                model={model}
-                onVisibleChange={(visible) => onModelVisibilityChange(model.model, visible)}
-                visible={!hidden.has(model.model)}
-              />
-            ))}
+            {models.map((model) => {
+              /*
+               * 可见性记的是别名 provider/id，与选择器 choices 的取值同一拼法：按裸 id 记，
+               * 开关写下的那一格与选择器过滤读的那一格永远对不上。
+               */
+              const alias = modelAlias(model.provider, model.model)
+
+              return (
+                <ConfiguredModel
+                  key={alias}
+                  model={model}
+                  onVisibleChange={(visible) => onModelVisibilityChange(alias, visible)}
+                  visible={!hidden.has(alias)}
+                />
+              )
+            })}
           </div>
         )}
       </div>
