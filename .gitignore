@@ -183,6 +183,8 @@ flamegraph.svg
 # Local reports
 biome-report.*
 eslint-report.*
+# 一次性的审计报告（谁写的都算）：它是某次排查的产物，不是仓库的事实。
+.audit/
 
 # Local development logs
 dev-err.txt
