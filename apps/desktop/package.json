@@ -20,6 +20,9 @@
     "native:build": "bun run ../../tools/dev/build-native.ts"
   },
   "dependencies": {
+    "electron-updater": "^6.8.9"
+  },
+  "devDependencies": {
     "@poietica/agent-catalog": "workspace:*",
     "@poietica/automation": "workspace:*",
     "@poietica/conversation": "workspace:*",
@@ -34,15 +37,6 @@
     "@poietica/update": "workspace:*",
     "@poietica/workspace": "workspace:*",
     "@streamdown/mermaid": "catalog:",
-    "electron-updater": "^6.8.9",
-    "lucide-react": "catalog:",
-    "react": "catalog:",
-    "react-dom": "catalog:",
-    "react-grab": "catalog:",
-    "uuid": "catalog:",
-    "zod": "catalog:"
-  },
-  "devDependencies": {
     "@tailwindcss/vite": "catalog:",
     "@types/bun": "catalog:",
     "@types/react": "catalog:",
@@ -51,9 +45,15 @@
     "electron": "catalog:",
     "electron-builder": "catalog:",
     "electron-vite": "catalog:",
+    "lucide-react": "catalog:",
+    "react": "catalog:",
+    "react-dom": "catalog:",
+    "react-grab": "catalog:",
     "tailwindcss": "catalog:",
     "typescript": "catalog:",
-    "vite": "catalog:"
+    "uuid": "catalog:",
+    "vite": "catalog:",
+    "zod": "catalog:"
   },
   "main": "dist-electron/main.cjs"
 }

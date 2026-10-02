@@ -13,6 +13,7 @@
 
 import { spawnSync } from 'node:child_process'
 import { createHash } from 'node:crypto'
+import { closeSync, openSync, readSync } from 'node:fs'
 import { copyFile, mkdir, readdir, readFile, rm, stat } from 'node:fs/promises'
 import path from 'node:path'
 import process from 'node:process'
@@ -323,6 +324,88 @@ function applyVersion(target: string): void {
 
 /* ── [5][6][7] 清空、构建、收集产物 ─────────────────────────── */
 
+/**
+ * 打出来的包里 node_modules 只该有运行时真正 import 的那几个。
+ *
+ * 打包器另有一个只认否定模式的 matcher，会把生产依赖树整棵塞进 asar：谁往
+ * apps/desktop 的 dependencies 里放一个渲染层依赖，安装包就悄悄胖几十 MB，
+ * 而构建照样绿。这个闸门让那次误加在打包后立刻现形，而不是等用户量体积。
+ */
+/* 运行时真正 import 的依赖：只有 electron/update.ts 的 import('electron-updater')。 */
+const RUNTIME_DEPENDENCIES = ['electron-updater']
+
+/* electron-updater 自己的闭包，由它带进来，不算误加。 */
+const RUNTIME_DEPENDENCY_CLOSURE = [
+  'builder-util-runtime',
+  'fs-extra',
+  'graceful-fs',
+  'jsonfile',
+  'universalify',
+  'js-yaml',
+  'argparse',
+  'semver',
+  'lazy-val',
+  'lodash.escaperegexp',
+  'lodash.isequal',
+  'tiny-typed-emitter',
+  'sax',
+  'debug',
+  'ms',
+]
+
+/**
+ * 直接读 asar 的头部清单，不依赖外部命令：发布链要能离线跑。
+ *
+ * asar 布局是 [16 字节头][JSON 目录][补齐到 4 字节][文件数据]，JSON 的字节数在
+ * 偏移 12。要 original-fs：Electron 之外的 Node 无所谓，但在 Electron 进程里
+ * node:fs 会把 .asar 当目录接管。
+ */
+function asarNodeModules(archive: string): string[] {
+  const fd = openSync(archive, 'r')
+
+  try {
+    const head = Buffer.alloc(16)
+
+    if (readSync(fd, head, 0, 16, 0) !== 16) {
+      throw new Abort(`${archive} 读不到 asar 头部。`)
+    }
+
+    const jsonBytes = head.readUInt32LE(12)
+    const directory = Buffer.alloc(jsonBytes)
+
+    readSync(fd, directory, 0, jsonBytes, 16)
+
+    const header = JSON.parse(directory.toString('utf8')) as {
+      files?: { node_modules?: { files?: Record<string, unknown> } }
+    }
+
+    return Object.keys(header.files?.node_modules?.files ?? {})
+  } finally {
+    closeSync(fd)
+  }
+}
+
+function assertLeanPackage(): void {
+  const archive = path.join(BUNDLE_DIR, 'win-unpacked', 'resources', 'app.asar')
+  const expected = new Set([...RUNTIME_DEPENDENCIES, ...RUNTIME_DEPENDENCY_CLOSURE])
+  const found = asarNodeModules(archive)
+  const unexpected = found.filter((name) => !expected.has(name))
+
+  if (unexpected.length > 0) {
+    throw new Abort(
+      [
+        `asar 里混进了 ${unexpected.length} 个不该随包发布的依赖：${unexpected.join(', ')}`,
+        '',
+        '多半是往 apps/desktop/package.json 的 dependencies 里加了东西。',
+        '渲染层依赖请放 devDependencies —— 它们已经由 Vite 打进 dist/**，',
+        `运行时不读 node_modules。唯一该留在 dependencies 的是 ${RUNTIME_DEPENDENCIES.join(', ')}。`,
+      ].join('\n'),
+    )
+  }
+
+  console.log(`    包内依赖 ${found.length} 个，符合预期。`)
+}
+
 async function buildAndStage(target: string, tag: string): Promise<string> {
   console.log('\n[5] 清空构建目录')
   console.log('    残留产物会让清单指向旧版本的安装包，签名照样能过，客户端会陷入更新死循环。')
@@ -331,6 +414,7 @@ async function buildAndStage(target: string, tag: string): Promise<string> {
 
   console.log('\n[6] 构建安装包：编译并用你的私钥签名（这一步最久，十几分钟起）')
   run('bun', 'run', 'build:release')
+  assertLeanPackage()
   /* 十几分钟没人会一直盯着终端。跑完敲一下铃，把人叫回来做后面的确认。 */
   process.stdout.write('')
 

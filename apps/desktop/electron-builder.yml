@@ -12,6 +12,18 @@ electronDist: node_modules/electron/dist
 # 产物名是发布脚本与 runbook 的稳定契约：换掉它，tools/release/release.ts 的收集
 # 与 verify-channel 的 -setup.exe 判据要一起改。
 artifactName: ${productName}_${version}_x64-setup.${ext}
+# 只随附这两种语言：应用没有 i18n 框架（界面文案是 zh-CN），en-US 是 Chromium 自己的
+# 回退语言。不写这一行，Electron 会把 55 个 locale 全量落盘（48 MB）。
+electronLanguages:
+  - zh-CN
+  - en-US
+# files 管不到 node_modules：electron-builder 另用一个只接受否定模式的 matcher 遍历
+# 生产依赖树。所以让包不进包的唯一手段是移出 dependencies —— 渲染层依赖已由 Vite 打进
+# dist/**，运行时不读 node_modules，故声明在 devDependencies；只有运行时 import 的
+# electron-updater 留在 dependencies。改回去，asar 会重新长回 229 MB。
+#
+# 这里的 devDependencies 读作「不随包单独发一份 node_modules」，不是「只在构建期用」：
+# zod 与 uuid 都是运行时依赖，只是同样已经被 Vite 打进了 dist/**。
 files:
   - dist/**
   - dist-electron/**
