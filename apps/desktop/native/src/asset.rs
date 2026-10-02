@@ -73,6 +73,27 @@ pub struct AssetRemoveRequest {
     pub asset_token: String,
 }
 
+#[derive(Clone, Debug, Deserialize, Type)]
+#[serde(rename_all = "camelCase")]
+pub struct AssetReadRequest {
+    pub session_token: String,
+    pub asset_token: String,
+}
+
+/// 一次读回的字节。
+///
+/// 图片在被投递之前**只在内存注册表里**（进门不落盘，发送时才搬进附件根），
+/// 所以宿主按磁盘路径找不到它。字节因此经这里交给主进程，由它按协议应答
+/// （见 apps/desktop/electron/asset-protocol.ts）。
+#[derive(Clone, Debug, Serialize, Type)]
+#[serde(rename_all = "camelCase")]
+pub struct AssetReadResult {
+    pub content_type: String,
+    pub byte_length: u32,
+    /// base64 原始字节，不带 `data:` 前缀；与 AssetUploadRequest 同一条线上形状的理由。
+    pub base64: String,
+}
+
 /// 图片注册表是进程级的：一张图从投递到被 agent 读取，跨很多条命令。
 static REGISTRY: OnceLock<AssetProtocolRegistry> = OnceLock::new();
 
@@ -152,6 +173,25 @@ fn map_intake_error(error: AssetIntakeError) -> Problem {
         }
         AssetIntakeError::Read(_) => Error::NotFound("file could not be read".into()).into(),
     }
+}
+
+/// 把注册表里那一份字节交给宿主。
+///
+/// 存在的理由只有一个：图片进门时不落盘，而 poietica-asset:// 的应答端在主进程里，
+/// 拿不到注册表。注册表按 (session, hash) 记账，取的是**单个资产**，不是整张表。
+#[specta::specta]
+pub async fn asset_read(request: AssetReadRequest) -> CommandResult<AssetReadResult> {
+    let delivered = shared_registry()
+        .deliver(&request.session_token, &request.asset_token)
+        .map_err(map_asset_error)?;
+    let byte_length = u32::try_from(delivered.bytes.len())
+        .map_err(|_| map_asset_error(AssetProtocolError::AssetTooLarge))?;
+
+    Ok(AssetReadResult {
+        content_type: delivered.content_type,
+        byte_length,
+        base64: BASE64.encode(delivered.bytes.as_slice()),
+    })
 }
 
 #[specta::specta]

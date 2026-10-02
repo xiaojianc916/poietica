@@ -78,8 +78,28 @@ async function openOnce(scenario: Scenario): Promise<Counted> {
     readMedia: async () => ({ mediaType: 'image/png', base64: '' }),
   } as unknown as TranscriptPort
 
+  /*
+   * 队列与「入队前就被取消」这两条订阅也要给：TranscriptStore.ensure 一绑上就把
+   * 三条订阅都挂上（transcript-store.ts 的 ensure），少一条这里当场 TypeError ——
+   * 这个 bench 量的不是队列，所以给空实现即可。
+   */
+  const emptyQueue = {
+    sessionId: 'session',
+    steering: [],
+    followUp: [],
+    steeringMode: 'one-at-a-time',
+    followUpMode: 'one-at-a-time',
+    interruptMode: 'immediate',
+  }
+  const portOfSession = {
+    transcript: port,
+    readQueue: async () => emptyQueue,
+    subscribeQueue: () => () => undefined,
+    subscribePromptDropped: () => () => undefined,
+  } as unknown as AgentSessionPort
+
   const store = new TranscriptStore()
-  store.ensure({ transcript: port } as unknown as AgentSessionPort)
+  store.ensure(portOfSession)
 
   if (scenario.live && scenario.reset === 'before') {
     listener?.({ kind: 'reset', sessionId: 'session', agentId: 'main', seq: 1 })

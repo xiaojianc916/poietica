@@ -67,6 +67,8 @@ pub fn types() -> specta::TypeCollection {
     types.register::<crate::asset::AssetImportRequest>();
     types.register::<crate::asset::AssetUploadRequest>();
     types.register::<crate::asset::AssetUploadResult>();
+    types.register::<crate::asset::AssetReadRequest>();
+    types.register::<crate::asset::AssetReadResult>();
     types.register::<crate::asset::AssetRemoveRequest>();
     types.register::<crate::automation::host::AutomationCatalogChanged>();
     types.register::<poietica_automation::AutomationCreation>();
@@ -160,6 +162,7 @@ pub fn functions() -> Vec<specta::datatype::Function> {
         crate::asset::asset_session_open,
         crate::asset::asset_import,
         crate::asset::asset_upload,
+        crate::asset::asset_read,
         crate::asset::asset_remove,
         crate::automation::commands::automations_create,
         crate::automation::commands::automations_update,
@@ -372,6 +375,11 @@ pub async fn submit(command: &str, args: Value) -> napi::Result<String> {
             let request: crate::asset::AssetUploadRequest =
                 argument(args.get("request").unwrap_or(&Value::Null))?;
             crud(crate::asset::asset_upload(request).await)
+        }
+        "asset_read" => {
+            let request: crate::asset::AssetReadRequest =
+                argument(args.get("request").unwrap_or(&Value::Null))?;
+            crud(crate::asset::asset_read(request).await)
         }
         "asset_remove" => {
             let request: crate::asset::AssetRemoveRequest =

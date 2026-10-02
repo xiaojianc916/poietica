@@ -766,6 +766,7 @@ export class TranscriptStore implements TranscriptSink {
           this.#fire(key)
         }
       }
+
       const current = this.read(thread)
       this.#put(thread, {
         ...EMPTY,
@@ -889,8 +890,24 @@ export class TranscriptStore implements TranscriptSink {
       return
     }
     const resolved = this.#media.get(sessionId)
+    /*
+     * 只扫这一页真的引用到的附件。
+     *
+     * 发布是每帧一次（流式 delta 也走这里），而附件表是整条会话累积的（每条消息的图都在
+     * 里面、永不删）。全量扫的代价与「这条会话发过多少张图」成正比，而真正待取的永远是
+     * 少数几张 —— 先按引用挑出候选，再在候选上判 needsMediaFetch。
+     */
+    const referenced = new Set<string>()
+    for (const item of snapshot.items) {
+      if (item.kind !== 'turn' || item.attachmentIds === undefined) {
+        continue
+      }
+      for (const id of item.attachmentIds) {
+        referenced.add(id)
+      }
+    }
     for (const attachment of snapshot.attachments) {
-      if (!needsMediaFetch(attachment)) {
+      if (!referenced.has(attachment.attachmentId) || !needsMediaFetch(attachment)) {
         continue
       }
       // needsMediaFetch 已经保证 source 存在且不是现成的 URL。

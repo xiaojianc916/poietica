@@ -751,26 +751,65 @@ const phaseOf = (snapshot: AgentTranscriptSnapshot, last: TranscriptTurn | undef
 
 type TurnFact = { opensWithAnchor: boolean; anchors: number | null }
 
+/*
+ * 段投影按 step 对象身份记账：上游 reducer 只把真改动的那一个 step 换成新对象，其余原样
+ * 复用，所以流式期间没动过的段整段复用 —— 段里的帧、工具入参 JSON、工具视图都不必每帧重算。
+ * 键是 step 自身，随它一起被回收，不跨对话累积。
+ *
+ * ordinal 与兜底时间戳必须在判据里：turn 对象每帧都换，而这里是按 step 复用，只有把
+ * 从 turn 读来的那两个数一起比过，复用才是真等价。
+ */
+interface StepFrames {
+  readonly ordinal: number
+  readonly fallback: number
+  readonly items: readonly TimelineItem[]
+  readonly userAnchors: number | null
+}
+
+const STEP_FRAMES = new WeakMap<TranscriptTurn['steps'][number], StepFrames>()
+
+/* 锚点数相加：null 是「说不清」，一沾就整轮说不清。 */
+const addAnchors = (left: number | null, right: number | null): number | null =>
+  left === null || right === null ? null : left + right
+
+function projectStep(
+  step: TranscriptTurn['steps'][number],
+  ordinal: number,
+  fallback: number,
+): StepFrames {
+  const held = STEP_FRAMES.get(step)
+  if (held !== undefined && held.ordinal === ordinal && held.fallback === fallback) {
+    return held
+  }
+  const items: TimelineItem[] = []
+  let userAnchors: number | null = 0
+  for (const frame of step.frames) {
+    const projected = frameOf(frame, ordinal, at(step.startedAt) || fallback)
+    if (projected !== null) {
+      items.push(projected)
+    }
+    if (frame.kind === 'text' && frame.role === 'user') {
+      userAnchors = addAnchors(userAnchors, sourceOfFrame(frame).anchors)
+    }
+  }
+  const fresh: StepFrames = { ordinal, fallback, items, userAnchors }
+  STEP_FRAMES.set(step, fresh)
+  return fresh
+}
+
 function framesOf(
   turn: TranscriptTurn,
   stamp: number,
 ): {
-  items: TimelineItem[]
+  items: readonly TimelineItem[]
   userAnchors: number | null
 } {
   const items: TimelineItem[] = []
   let userAnchors: number | null = 0
   for (const step of turn.steps) {
-    for (const frame of step.frames) {
-      const projected = frameOf(frame, turn.ordinal, at(step.startedAt) || stamp)
-      if (projected !== null) {
-        items.push(projected)
-      }
-      if (frame.kind === 'text' && frame.role === 'user') {
-        const count = sourceOfFrame(frame).anchors
-        userAnchors = userAnchors === null || count === null ? null : userAnchors + count
-      }
-    }
+    const projected = projectStep(step, turn.ordinal, stamp)
+    items.push(...projected.items)
+    userAnchors = addAnchors(userAnchors, projected.userAnchors)
   }
   return { items, userAnchors }
 }
@@ -1013,58 +1052,97 @@ function stableSealed(marked: readonly TurnPage[]): readonly TurnPage[] {
   return fresh
 }
 
-// 目录标记按 turnId 记账：流式期间 turn 对象每帧被替换，WeakMap 永远 miss。
-// 改用 turnId 键 + settled 守卫：未封口的轮复用上次 reply（minimap 不需要逐 token 刷新），
-// 封口时重算一次拿到最终文本。结果数组也做引用稳定化，避免 minimap memo 100% 失效。
-const OUTLINE_MARKS = new Map<string, TurnMark>()
+/*
+ * 目录标记按 turn 对象身份记账，与同文件的 TURN_PROJECTIONS / WRAPPED_PAGES 同一形态。
+ *
+ * 不能用模块级 turnId 强引用表：turnId 在每条对话、每个子代理频道里都从 t1 重新编，
+ * 按它记账会把 A 的标记发给 B（题面与回复一起串）；reset 换掉正文而号没换时同样会
+ * 认错。而且那张表永不释放 —— 开过的对话越多久占越大。turn 对象是每条对话各自持有
+ * 的，WeakMap 因此既认得出归属，也随对话一起被回收。
+ *
+ * 记账里还要存「算出这个 reply 时那一轮封口没有」：未封口时复用（minimap 不需要逐
+ * token 刷新），一变成封口就必须重算一次 —— 封口前看到的是半截正文，拿它当最终回复
+ * 是错的。数组也做引用稳定化，避免 minimap memo 100% 失效。
+ */
+const OUTLINE_MARKS = new WeakMap<
+  TranscriptTurn,
+  { readonly sealed: boolean; readonly mark: TurnMark }
+>()
 let outlineCache: readonly TurnMark[] = []
+
+/*
+ * 逐段算好的正文。判据是段自己的身份：流式期间上游只替换真动了的那一段，其余段按
+ * 引用留用，于是只有正在吐字的那一段要重新拼 —— 整轮重拼是「按 turn 记账」要付的那
+ * 笔钱，而它随轮长线性增长。
+ */
+const STEP_REPLIES = new WeakMap<TranscriptTurn['steps'][number], string>()
+
+function replyOfStep(step: TranscriptTurn['steps'][number]): string {
+  const held = STEP_REPLIES.get(step)
+  if (held !== undefined) {
+    return held
+  }
+  const joined = step.frames
+    .filter((frame) => frame.kind === 'text' && frame.role === 'assistant')
+    .map((frame) => frame.text)
+    .join('\n\n')
+  STEP_REPLIES.set(step, joined)
+  return joined
+}
+
+function replyOf(turn: TranscriptTurn): string | null {
+  const said: string[] = []
+  for (const step of turn.steps) {
+    const text = replyOfStep(step)
+    if (text !== '') {
+      said.push(text)
+    }
+  }
+  return said.length === 0 ? null : said.join('\n\n')
+}
+
+const sameMark = (left: TurnMark, right: TurnMark): boolean =>
+  left.turnId === right.turnId &&
+  left.admissionId === right.admissionId &&
+  left.prompt === right.prompt &&
+  left.reply === right.reply
+
+/* 一轮的标记：同一个 turn 对象上封口前后各算一次，之后原样交回。 */
+function markOf(turn: TranscriptTurn): TurnMark {
+  const held = OUTLINE_MARKS.get(turn)
+  const sealed = isSettled(turn.state)
+
+  // 已经按封口算过，或这一轮本来就还没封口 → 复用。
+  if (held !== undefined && (held.sealed || !sealed)) {
+    return held.mark
+  }
+
+  const computed: TurnMark = {
+    turnId: turn.turnId,
+    admissionId: turn.triggerPromptId ?? turn.turnId,
+    prompt: withoutKimiAttachmentNotices(turn.prompt ?? ''),
+    reply: replyOf(turn),
+  }
+  const mark = held !== undefined && sameMark(held.mark, computed) ? held.mark : computed
+  OUTLINE_MARKS.set(turn, { mark, sealed })
+  return mark
+}
+
+const sameOutline = (left: readonly TurnMark[], right: readonly TurnMark[]): boolean =>
+  left.length === right.length && left.every((mark, at) => mark === right[at])
 
 export const outlineOf = (snapshot: AgentTranscriptSnapshot): readonly TurnMark[] => {
   const marks: TurnMark[] = []
-  let changed = false
 
   for (const item of snapshot.items) {
-    if (item.kind !== 'turn' || !sourceOfTurn(item).isUser) {
-      continue
+    if (item.kind === 'turn' && sourceOfTurn(item).isUser) {
+      marks.push(markOf(item))
     }
-
-    const cached = OUTLINE_MARKS.get(item.turnId)
-    const settled = isSettled(item.state)
-
-    // 已有缓存且（轮未封口 或 reply 已算出）→ 复用
-    if (cached !== undefined && (!settled || cached.reply !== null)) {
-      marks.push(cached)
-      continue
-    }
-
-    const mark: TurnMark = {
-      turnId: item.turnId,
-      admissionId: item.triggerPromptId ?? item.turnId,
-      prompt: withoutKimiAttachmentNotices(item.prompt ?? ''),
-      reply:
-        item.steps
-          .flatMap((step) => step.frames)
-          .filter((frame) => frame.kind === 'text' && frame.role === 'assistant')
-          .map((frame) => frame.text)
-          .join('\n\n') || null,
-    }
-    OUTLINE_MARKS.set(item.turnId, mark)
-    marks.push(mark)
-    changed = true
   }
 
-  // 引用稳定化：元素全同则返回上次数组
-  if (!changed && marks.length === outlineCache.length) {
-    let same = true
-    for (let i = 0; i < marks.length; i += 1) {
-      if (marks[i] !== outlineCache[i]) {
-        same = false
-        break
-      }
-    }
-    if (same) {
-      return outlineCache
-    }
+  /* 引用稳定化：元素全同则交回上次那个数组，minimap 的 memo 才稳得住。 */
+  if (sameOutline(marks, outlineCache)) {
+    return outlineCache
   }
 
   outlineCache = marks

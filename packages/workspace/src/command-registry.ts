@@ -29,6 +29,15 @@ export interface RegisteredCommand {
  */
 export interface CommandRegistry {
   readonly register: (command: RegisteredCommand) => () => void
+  /**
+   * 一次登记一批，全程只换一次快照、只通知一次。
+   *
+   * 会话列表每变一次就要把 N 条「打开某条会话」命令整批换掉（connections.ts 的
+   * listChanged），逐条 register 会让每个订阅者被叫 2N 次：实测 1000 条会话
+   * 7.11 ms、2000 次回调，而订阅者里两个都要重建整张键位表。
+   * 登记同样的命令逐条做与批量做语义完全一样，区别只是中间态算不算数 —— 不算。
+   */
+  readonly registerAll: (commands: readonly RegisteredCommand[]) => () => void
   readonly execute: (commandId: string) => Promise<boolean>
   readonly getSnapshot: () => readonly RegisteredCommand[]
   readonly subscribe: (listener: () => void) => () => void
@@ -43,6 +52,36 @@ export function createCommandRegistry(): CommandRegistry {
     snapshot = Array.from(commands.values())
     for (const listener of listeners) {
       listener()
+    }
+  }
+
+  function registerAll(next: readonly RegisteredCommand[]): () => void {
+    const ids: string[] = []
+
+    for (const command of next) {
+      if (commands.has(command.id)) {
+        /* 半批已登记时回退，别把调用方留在半个状态上。 */
+        for (const id of ids) {
+          commands.delete(id)
+        }
+        throw new Error(`COMMAND_ALREADY_REGISTERED: ${command.id}`)
+      }
+      commands.set(command.id, command)
+      ids.push(command.id)
+    }
+
+    emit()
+
+    let live = true
+    return () => {
+      if (!live) {
+        return
+      }
+      live = false
+      for (const id of ids) {
+        commands.delete(id)
+      }
+      emit()
     }
   }
 
@@ -76,6 +115,7 @@ export function createCommandRegistry(): CommandRegistry {
 
   return {
     register,
+    registerAll,
     execute,
     getSnapshot() {
       return snapshot

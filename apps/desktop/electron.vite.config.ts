@@ -4,6 +4,7 @@ import react from '@vitejs/plugin-react'
 import { defineConfig, externalizeDepsPlugin } from 'electron-vite'
 
 import { customErrorDiagnosticsPlugin } from './vite-plugins/custom-error-diagnostics.ts'
+import { elementPickerScriptPlugin } from './vite-plugins/element-picker-script.ts'
 
 const { NODE_ENV: NODE_ENV_VALUE } = process.env
 
@@ -20,7 +21,8 @@ const RUNTIME_EXTERNALS = ['electron', 'electron-updater']
 /* electron-vite 只读配置的 default 导出；规则例外登记在 biome.json 的 includes 白名单里。 */
 export default defineConfig({
   main: {
-    plugins: [externalizeDepsPlugin()],
+    // elementPickerScriptPlugin 必须在 main 上：它跟的是「dist-electron 被清空」那次构建。
+    plugins: [externalizeDepsPlugin(), elementPickerScriptPlugin()],
     // 见 RUNTIME_EXTERNALS：留在外部是主进程能起来的前提。
     ssr: { external: RUNTIME_EXTERNALS },
     build: {

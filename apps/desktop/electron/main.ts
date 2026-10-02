@@ -753,7 +753,34 @@ async function main(): Promise<void> {
     : join(app.getAppPath(), 'resources', 'agent')
 
   await mkdir(dataRoot, { recursive: true })
-  protocol.handle('poietica-asset', createAssetProtocolHandler(dataRoot))
+  /*
+   * 图片的字节住在原生侧的内存注册表里（进门不落盘，发送那一刻才搬进附件根），
+   * 所以这条协议问的是原生，不是磁盘 —— 见 asset-protocol.ts 的头注释。
+   * 处理器收的是「怎么取」而不是数据根：原生那侧换成什么取法，这里都不用改。
+   *
+   * 一次请求一取：没有按 (session, hash) 缓存。上限是 crates/asset/src/identity.rs 的
+   * MAX_ASSET_BYTES（32 MiB，base64 后约 43 MiB），而 cache-control 是 immutable，
+   * 所以同一条地址浏览器自己只来取一次；再加一层缓存只是多一份要与 asset_remove 对齐的
+   * 生命周期。真要加，加在这里，别加到协议处理器里。
+   */
+  protocol.handle(
+    'poietica-asset',
+    createAssetProtocolHandler({
+      async read(sessionToken, assetToken) {
+        const host = router
+
+        if (host === null) {
+          return null
+        }
+
+        const read = (await host.invoke('asset_read', {
+          request: { sessionToken, assetToken },
+        })) as { contentType: string; base64: string }
+
+        return { contentType: read.contentType, bytes: Buffer.from(read.base64, 'base64') }
+      },
+    }),
+  )
 
   // 外站视图与主界面共用一个持久会话，但权限一项都不给：要放行哪一种，将来在这里单独开口。
   session

@@ -248,6 +248,36 @@ describe('摆放', () => {
     expect(host.state().tabs[1]?.url).toBeNull()
     expect(visibleViews()).toHaveLength(0)
   })
+
+  /*
+   * 面板拖动是每帧一次的通报（packages/browser/src/viewport-alignment.ts），
+   * 逐帧把同一个可见性重复下发给每个标签是白付的：实测 5 个标签 60 帧 = 300 次。
+   * 这里钉住「没翻转就不叫内核」，同时钉住真的翻转时一次都没漏。
+   */
+  test('可见性没翻转就不叫内核；翻转了就照旧下发', () => {
+    const { host } = harness()
+
+    host.setVisible(true)
+    host.openTab('https://a.example/')
+
+    const only = created[0] as FakeWebContentsView
+
+    // 建视图时先隐一次，挂上来由 layout 亮一次 —— 这就是开一个标签的两笔账。
+    expect(only.visible).toEqual([false, true])
+
+    // 拖动：可见性自始至终没变，内核不该再被叫。
+    for (let frame = 0; frame < 60; frame += 1) {
+      host.setBounds({ x: frame, y: 0, width: 300, height: 200 })
+    }
+
+    expect(only.visible).toEqual([false, true])
+
+    // 翻转两次就下发两次：省的是重复，不是真变化。
+    host.setVisible(false)
+    host.setVisible(true)
+
+    expect(only.visible).toEqual([false, true, false, true])
+  })
 })
 
 describe('关标签与最近关闭', () => {

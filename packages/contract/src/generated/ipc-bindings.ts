@@ -290,6 +290,19 @@ export type AppSettings = { theme: ThemePreference; language: string; general: G
 export type AppearanceSettings = { density: Density; reduceMotion: boolean; messageTimestamps: boolean }
 export type AssetImportRequest = { sessionToken: string; paths: string[] }
 export type AssetKind = "image" | "file"
+export type AssetReadRequest = { sessionToken: string; assetToken: string }
+/**
+ * 一次读回的字节。
+ * 
+ * 图片在被投递之前**只在内存注册表里**（进门不落盘，发送时才搬进附件根），
+ * 所以宿主按磁盘路径找不到它。字节因此经这里交给主进程，由它按协议应答
+ * （见 apps/desktop/electron/asset-protocol.ts）。
+ */
+export type AssetReadResult = { contentType: string; byteLength: number; 
+/**
+ * base64 原始字节，不带 `data:` 前缀；与 AssetUploadRequest 同一条线上形状的理由。
+ */
+base64: string }
 export type AssetRemoveRequest = { sessionToken: string; assetToken: string }
 export type AssetSessionResult = { sessionToken: string }
 export type AssetUploadRequest = { sessionToken: string; 
@@ -537,6 +550,14 @@ export const commands = {
   },
   async assetUpload(request: AssetUploadRequest): Promise<AssetUploadResult> {
     return call<AssetUploadResult>('asset_upload', { request: request })
+  },
+/**
+ *  把注册表里那一份字节交给宿主。
+ * 
+ *  存在的理由只有一个：图片进门时不落盘，而 poietica-asset:// 的应答端在主进程里，
+ *  拿不到注册表。注册表按 (session, hash) 记账，取的是**单个资产**，不是整张表。 */
+  async assetRead(request: AssetReadRequest): Promise<AssetReadResult> {
+    return call<AssetReadResult>('asset_read', { request: request })
   },
   async assetRemove(request: AssetRemoveRequest): Promise<null> {
     return call<null>('asset_remove', { request: request })

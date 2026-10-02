@@ -385,6 +385,120 @@ describe('run origin, completion and undo boundaries', () => {
     expect(reset.active.run?.undoCount).toBe(0)
   })
 })
+
+/*
+ * 目录标记按对话记账：turnId 在每条对话里都从 t1 重新编，按它记账会把 A 的标记发给 B；
+ * 而进程级强引用表还会把开过的每条对话永久扣住。判据是同一 turnId、不同 turn 对象必须
+ * 各自算出自己的标记。
+ */
+describe('outline marks belong to the conversation that owns the turn', () => {
+  test('the same turnId in another conversation never reuses its mark', () => {
+    const a = outlineOf(snapshotOf([{ ...runSample(1), prompt: 'A 的问题' }]))
+    const b = outlineOf(snapshotOf([{ ...runSample(1), prompt: 'B 的问题' }]))
+
+    expect(a[0]?.prompt).toBe('A 的问题')
+    expect(b[0]?.prompt).toBe('B 的问题')
+    expect(b[0]).not.toBe(a[0])
+  })
+
+  /* 封口前看到的是半截正文；拿它当最终回复，minimap 的卡片就永远停在半句上。 */
+  test('a reply first seen mid-stream is recomputed once the turn seals', () => {
+    const streaming = runSample(
+      1,
+      undefined,
+      [{ kind: 'text', frameId: 'half', role: 'assistant', text: '半段正文…' }],
+      'running',
+    )
+    const running = outlineOf(snapshotOf([streaming]))
+    /* 封口：上游换成新对象，正文补完；号（turnId）没变。 */
+    const sealed: TranscriptTurn = {
+      ...streaming,
+      state: 'completed',
+      steps: [
+        {
+          kind: 'step',
+          stepId: 't1.s',
+          turnId: 't1',
+          ordinal: 1,
+          state: 'completed',
+          frames: [
+            { kind: 'text', frameId: 'half', role: 'assistant', text: '半段正文… 最终正文。' },
+          ],
+        },
+      ],
+    }
+    const settled = outlineOf(snapshotOf([sealed]))
+
+    expect(running[0]?.reply).toBe('半段正文…')
+    expect(settled[0]?.reply).toBe('半段正文… 最终正文。')
+  })
+
+  /* 未封口期间照旧复用：流式每一帧重算 reply 是这条缓存要防的那件事。 */
+  test('an unsealed turn keeps its mark and its array while it streams', () => {
+    const turn = runSample(1, undefined, undefined, 'running')
+    const first = outlineOf(snapshotOf([turn]))
+    const second = outlineOf(snapshotOf([turn]))
+
+    expect(second[0]).toBe(first[0])
+    expect(second).toBe(first)
+  })
+})
+
+/*
+ * 段投影按 step 身份记账：上游 reducer 只换掉真改动的那一个 step，其余原样复用。
+ * 判据是没动过的段整段复用上次投影出来的条目对象（React 行 memo 吃这份引用）。
+ */
+describe('step projection is reused while one step streams', () => {
+  /* 一轮里两段：上游只把末段换成新对象，前一段原样复用。 */
+  function twoStepTurn(tailText: string): TranscriptTurn {
+    return {
+      ...runSample(0, undefined, undefined, 'running'),
+      steps: [
+        {
+          kind: 'step',
+          stepId: 't0.0',
+          turnId: 't0',
+          ordinal: 0,
+          state: 'completed',
+          frames: [
+            { kind: 'tool', frameId: 't0.0.call', toolCallId: 'call', name: 'bash', state: 'done' },
+          ],
+        },
+        {
+          kind: 'step',
+          stepId: 't0.1',
+          turnId: 't0',
+          ordinal: 1,
+          state: 'running',
+          frames: [{ kind: 'text', frameId: 't0.1.reply', role: 'assistant', text: tailText }],
+        },
+      ],
+    }
+  }
+
+  test('untouched steps keep their projected items while the tail step advances', () => {
+    const first = twoStepTurn('a')
+    const before = projectTranscript(snapshotOf([first]))
+    const untouched = first.steps[0] as (typeof first.steps)[number]
+    const tail = first.steps[1] as (typeof first.steps)[number]
+    const advanced: TranscriptTurn = {
+      ...first,
+      steps: [
+        untouched,
+        {
+          ...tail,
+          frames: [{ kind: 'text', frameId: 't0.1.reply', role: 'assistant', text: 'ab' }],
+        },
+      ],
+    }
+    const after = projectTranscript(snapshotOf([advanced]))
+
+    const toolOf = (state: ReturnType<typeof projectTranscript>) =>
+      state.active.items.find((item) => item.type === 'tool_call')
+    expect(toolOf(after)).toBe(toolOf(before))
+    expect(after.active.items.at(-1)).not.toBe(before.active.items.at(-1))
+  })
+})
 describe('tool identity and run presentation', () => {
   test('known tools keep their category and their own line before and after cold restoration', () => {
     const samples = [

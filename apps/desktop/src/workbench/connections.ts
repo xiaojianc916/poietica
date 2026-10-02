@@ -1,5 +1,5 @@
 import { type ConversationRuntime, groupByWorkspace } from '@poietica/conversation'
-import type { CommandRegistry, WorkbenchSessionStore } from '@poietica/workspace'
+import type { CommandRegistry, RegisteredCommand, WorkbenchSessionStore } from '@poietica/workspace'
 import type { AuxiliaryPanelStore } from '@poietica/workspace/panels'
 import type { ConversationEntry } from '../assistant/conversation-entry'
 import type { WorkspaceLayoutStore } from '../shell/layout/layout-store'
@@ -63,21 +63,26 @@ export function connectWorkbench(input: Connections): () => void {
     for (const stop of commandReleases.splice(0).reverse()) {
       stop()
     }
+    /*
+     * 一整批一起登记：逐条 register 会让每个订阅者被叫 2N 次，而订阅者里有键位表的
+     * 重建（app-shell.tsx 的 createKeybindingCatalog、keybinding.ts 的 chordIndex）。
+     * 一次列表变化要换掉所有「打开某条会话」，中间态不是任何人要看的快照。
+     */
+    const next: RegisteredCommand[] = []
     for (const group of groupByWorkspace(items)) {
       for (const item of group.items) {
-        commandReleases.push(
-          commands.register({
-            id: 'conversation.open:'.concat(item.id),
-            label: item.title,
-            category: '聊天',
-            ...(group.name === null ? {} : { detail: group.name }),
-            execute: () => {
-              workspace.openConversation({ threadId: item.id, title: item.title })
-            },
-          }),
-        )
+        next.push({
+          id: 'conversation.open:'.concat(item.id),
+          label: item.title,
+          category: '聊天',
+          ...(group.name === null ? {} : { detail: group.name }),
+          execute: () => {
+            workspace.openConversation({ threadId: item.id, title: item.title })
+          },
+        })
       }
     }
+    commandReleases.push(commands.registerAll(next))
   }
   const browserChanged = (): void => {
     if (stopped) {

@@ -152,6 +152,12 @@ impl Recorder {
             skills,
         });
         if accepted {
+            /*
+             * 新的一轮开始了，上一轮的丢帧账到此为止：轮与轮之间掉的那几帧不属
+             * 于任何一轮，把它们记到这一轮头上就是账在撒谎（上一轮该报的失败早已
+             * 成形在它自己的终帧里）。
+             */
+            self.lost = 0;
             self.in_flight.push_back(admission_id.to_owned());
         }
         accepted
@@ -480,5 +486,58 @@ mod tests {
 
         recorder.record_run_finished("end_turn");
         assert_eq!(recorder.current_prompt(), None);
+    }
+
+    /// 丢帧的账只算在「它发生的那一轮」上。
+    ///
+    /// 收摊（settle_pending_end）本来就会把计数清零，但那要等一轮落过终帧；轮与轮之间
+    /// 掉的那几帧（链路态之类）会溢到下一轮，把一轮跑得好好的对话报成 failed ——
+    /// 那是账在撒谎。准入成功即开新的一轮，旧账到此为止。
+    #[test]
+    fn frames_dropped_between_turns_are_not_charged_to_the_next_one() {
+        let refusing = Arc::new(Mutex::new(false));
+        let gate = Arc::clone(&refusing);
+        let seen: Arc<Mutex<Vec<RunFrame>>> = Arc::new(Mutex::new(Vec::new()));
+        let sink = Arc::clone(&seen);
+
+        let mut recorder = Recorder::new(
+            "sess_delta".to_owned(),
+            SeqLine::new(),
+            Box::new(move |event: RecordedEvent| {
+                if gate.lock().is_ok_and(|closed| *closed) {
+                    return false;
+                }
+
+                if let Ok(mut held) = sink.lock() {
+                    held.push(event.frame);
+                }
+
+                true
+            }),
+        );
+
+        /* 第一轮：正常跑完、正常落终帧。 */
+        assert!(recorder.record_prompt_admitted("first", "hi", Vec::new()));
+        recorder.record_run_finished("end_turn");
+        assert_eq!(recorder.ended(), 1);
+
+        /* 两轮之间掉了几帧：它们不属于任何一轮。 */
+        *refusing.lock().expect("the gate is writable") = true;
+        recorder.record_link(&LinkState::Recovered {
+            reason: "lost".to_owned(),
+        });
+        *refusing.lock().expect("the gate is writable") = false;
+
+        /* 第二轮：一路顺利，就不许把上一段掉的帧算到它头上。 */
+        assert!(recorder.record_prompt_admitted("second", "again", Vec::new()));
+        recorder.record_run_finished("end_turn");
+
+        assert_eq!(recorder.ended(), 2);
+        assert!(
+            seen.lock()
+                .is_ok_and(|held| matches!(held.last(), Some(RunFrame::RunFinished { .. }))),
+            "a turn that lost nothing must not be reported as failed: {:?}",
+            seen.lock().map(|held| held.clone())
+        );
     }
 }

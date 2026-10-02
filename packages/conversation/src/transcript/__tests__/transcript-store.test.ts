@@ -1207,6 +1207,70 @@ describe('transcript recovery ownership', () => {
   })
 })
 
+/*
+ * 历史图片的代取只认「这一页引用到的附件」。
+ *
+ * 发布是每帧一次（流式 delta 也走这条路），而附件表是整条会话累积的。全量扫的代价与
+ * 「这条会话发过多少张图」成正比 —— 判据是：没被任何一轮引用的附件一次都不该去取。
+ */
+describe('historical media is fetched only for attachments the page references', () => {
+  test('an unreferenced image is never fetched, a referenced one is fetched once', async () => {
+    const asked: string[] = []
+    let receive: (signal: TranscriptSignal) => void = () => {
+      throw new Error('Not subscribed.')
+    }
+    const store = new TranscriptStore()
+    store.ensure(
+      sessionPort(
+        transcriptPort({
+          subscribeTranscript: (listener) => {
+            receive = listener
+            return () => undefined
+          },
+          readMedia: async (_session, fileId) => {
+            asked.push(fileId)
+            return { mediaType: 'image/png', base64: 'AAAA' }
+          },
+        }),
+      ),
+    )
+    const referenced = (fileId: string) => ({
+      attachmentId: `img-${fileId}`,
+      mediaType: 'image/png',
+      name: 'shot.png',
+      size: 4,
+      source: { kind: 'session_media' as const, fileId },
+    })
+    const pageWith = (ids: readonly string[]) =>
+      page('main', 0, {
+        items: [{ ...officialTurn('t1', 'p1', 1), attachmentIds: ids.map((id) => `img-${id}`) }],
+        attachments: [
+          referenced('wanted'),
+          referenced('unreferenced'),
+          ...ids.map((id) => referenced(id)),
+        ],
+      })
+    store.route('session', 'thread', pageWith(['wanted']))
+    await new Promise((resolve) => setTimeout(resolve, 0))
+
+    expect(asked).toEqual(['wanted'])
+
+    /* 再发布几次（流式每帧都走这条路）：已取到的不重取，没引用的也不去取。 */
+    for (let seq = 1; seq <= 3; seq += 1) {
+      receive({
+        kind: 'ops',
+        sessionId: 'session',
+        agentId: 'main',
+        seq,
+        ops: [{ op: 'meta.merge', meta: { activity: seq % 2 === 0 ? 'turn' : 'idle' } }],
+      })
+    }
+    await new Promise((resolve) => setTimeout(resolve, 0))
+    expect(asked).toEqual(['wanted'])
+    store.dispose()
+  })
+})
+
 describe('turn attachments projection', () => {
   const turnWith = (attachmentIds: readonly string[], prompt?: string): TranscriptTurn => ({
     ...officialTurn('attach-turn', 'attach-prompt', 1),

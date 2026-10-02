@@ -44,6 +44,8 @@ interface Tab {
   url: string | null
   title: string
   loading: boolean
+  /** 上一次下发到内核的可见性；拖动面板时每帧都会来，同值不必再叫一次内核。 */
+  shown: boolean
   view: WebContentsView
 }
 
@@ -232,7 +234,12 @@ export function createBrowserHost(
     for (const tab of tabs) {
       const shown = visible && tab === target
 
-      tab.view.setVisible(shown)
+      /* 只在真的翻转时才叫内核：面板拖动是每帧一次的通报，逐帧对每个标签重复同一次
+         setVisible 是白付的（实测 5 个标签 60 帧 = 300 次，全是同一个值）。 */
+      if (shown !== tab.shown) {
+        tab.shown = shown
+        tab.view.setVisible(shown)
+      }
 
       if (shown) {
         tab.view.setBounds({
@@ -422,6 +429,7 @@ export function createBrowserHost(
       url: normalized,
       title: normalized === null ? '新标签页' : displayHost(normalized),
       loading: normalized !== null,
+      shown: false,
       view: createView(id),
     }
 

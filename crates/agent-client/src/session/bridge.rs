@@ -607,8 +607,22 @@ async fn run_session(
                     }
 
                     Frame::Response { id, data } => {
+                        /*
+                         * 指派那一格先摘出来。整份应答要原样交给调用方（transcript
+                         * 基线一页可达数 MB），交出去之后这一格就读不到了，而复制整份
+                         * 载荷只为读一个 sessionId 是把最贵的开销放在最热的路上。
+                         */
+                        let assigning_here = assigning.as_deref() == Some(id.as_str());
+                        let opened = if assigning_here {
+                            assigning = None;
+
+                            data.get("sessionId").and_then(Value::as_str).map(str::to_owned)
+                        } else {
+                            None
+                        };
+
                         if let Some(reply) = pending.remove(&id) {
-                            let _ = reply.send(Ok(data.clone()));
+                            let _ = reply.send(Ok(data));
                         }
 
                         /*
@@ -616,11 +630,8 @@ async fn run_session(
                          * active 指过去。握手那一次还要把 ready 槽打发掉；重装的 null
                          * （文件没了）不动连接，UnknownSession 已由应答槽交回。
                          */
-                        if assigning.as_deref() == Some(id.as_str()) {
-                            assigning = None;
-
-                            match data.get("sessionId").and_then(Value::as_str).map(str::to_owned)
-                            {
+                        if assigning_here {
+                            match opened {
                                 Some(opened) => {
                                     if book.adopt(&opened, slot.clone()).is_err() {
                                         if let Some(tx) = ready_tx.take() {
@@ -1713,8 +1724,9 @@ fn dispatch(
                 return;
             };
 
-            /* 先落账再等人：账上没有这一条时，人答了也没有东西可对。 */
-            if let Ok(Some(slot)) = book.slot(&session_id) {
+            /* 先落账再等人：账上没有这一条时，人答了也没有东西可对。答复那一帧也从这里回账。 */
+            let slot = book.slot(&session_id).ok().flatten();
+            if let Some(slot) = &slot {
                 slot.record(|recorder| {
                     recorder.record_permission_requested(
                         &request_id,
@@ -1734,6 +1746,7 @@ fn dispatch(
                 Ok(waiting) => {
                     let outbound = outbound.clone();
                     let request = request_id.clone();
+                    let slot = slot.clone();
 
                     tokio::spawn(async move {
                         let Ok(response) = waiting.await else {
@@ -1746,10 +1759,22 @@ fn dispatch(
                             .scope()
                             .map(|scope| scope.on_wire().to_owned());
 
-                        if let Err(error) =
-                            outbound.answer_permission(request, decision, scope).await
+                        if let Err(error) = outbound
+                            .answer_permission(request.clone(), decision, scope)
+                            .await
                         {
                             log::error!("could not hand an approval answer back: {error}");
+                        }
+
+                        /*
+                         * 答复这一帧必须回账，与提问那条路同形。少了它，permission_requested
+                         * 在账上就没有终局：人批准过的请求会在收摊时被记成 cancelled，
+                         * 那是账在撒谎（ADR 0002 说这份日志才是权威）。
+                         */
+                        if let Some(slot) = &slot {
+                            slot.record(|recorder| {
+                                recorder.record_permission_resolved(&request, response);
+                            });
                         }
                     });
                 }
@@ -1856,6 +1881,7 @@ mod tests {
     use super::{Event, StderrLog, control_of, dispatch};
     use crate::frame::RunFrame;
     use crate::interaction::desk::{PermissionDesk, QuestionDesk};
+    use crate::interaction::permission::{ApprovalResponse, Decision};
     use crate::interaction::question::{AnswerMethod, QuestionAnswer, QuestionResponse};
     use crate::recorder::{RecordedEvent, Recorder, SeqLine};
     use crate::session::SessionEvent;
@@ -2222,5 +2248,99 @@ mod tests {
             request.get("method").and_then(Value::as_str),
             Some("confirm")
         );
+    }
+
+    /// 人答过的授权必须回账：`permission_requested` 没有终局时，收摊会把批过的请求
+    /// 记成 cancelled —— 那是账在撒谎（ADR 0002 说这份日志才是权威）。
+    #[tokio::test]
+    async fn an_answered_approval_is_filed_as_resolved_with_the_decision_the_human_gave() {
+        let (book, seen) = recording();
+        let (commands_tx, mut commands) = mpsc::unbounded::<ClientCommand>();
+        let (events_tx, _events) = mpsc::unbounded::<SessionEvent>();
+        let desk = PermissionDesk::new();
+
+        /* 桥报上来的一次授权：method 是普通 select，靠选项正是那两颗认出来。 */
+        dispatch(
+            Event::DialogRequested {
+                session_id: SESSION.to_owned(),
+                request: json!({
+                    "id": REQUEST,
+                    "method": "select",
+                    "title": "Allow tool: Bash\nRun: ls",
+                    "options": ["Approve", "Deny"]
+                }),
+            },
+            &events_tx,
+            &book,
+            &desk,
+            &QuestionDesk::new(),
+            &AgentClient::new(commands_tx),
+            &StderrLog::new(),
+        );
+
+        /* 落账先于等人：账上没有这一条时，人答了也没有东西可对。 */
+        assert!(
+            seen.lock()
+                .is_ok_and(|held| held.first().is_some_and(|frame| matches!(
+                    frame,
+                    RunFrame::PermissionRequested { request_id, .. } if request_id == REQUEST
+                ))),
+            "an approval request must be filed before anyone can answer it"
+        );
+
+        desk.answer(
+            REQUEST,
+            ApprovalResponse {
+                decision: Decision::Approved { scope: None },
+                selected_label: None,
+                feedback: None,
+            },
+        )
+        .expect("a request on the desk must accept an answer");
+
+        /* 答复先回桥，再回账：两条都要发生。 */
+        let sent = tokio::time::timeout(Duration::from_secs(5), commands.next())
+            .await
+            .expect("the answer must reach the bridge without hanging")
+            .expect("an approval answer is sent as a command");
+
+        let ClientCommand::AnswerPermission {
+            request_id,
+            decision,
+            reply,
+            ..
+        } = sent
+        else {
+            unreachable!("an approval answer goes back as an answer_permission command");
+        };
+
+        assert_eq!(request_id, REQUEST);
+        assert_eq!(decision, "approved");
+        reply.send(Ok(())).expect("the driver answers the receipt");
+
+        let filed = async {
+            loop {
+                if seen
+                    .lock()
+                    .expect("the journal is readable")
+                    .iter()
+                    .any(|frame| {
+                        matches!(
+                            frame,
+                            RunFrame::PermissionResolved { request_id, decision, .. }
+                                if request_id == REQUEST && decision == "approved"
+                        )
+                    })
+                {
+                    return;
+                }
+
+                tokio::time::sleep(Duration::from_millis(5)).await;
+            }
+        };
+
+        tokio::time::timeout(Duration::from_secs(5), filed)
+            .await
+            .expect("an answered approval must be filed as resolved");
     }
 }
