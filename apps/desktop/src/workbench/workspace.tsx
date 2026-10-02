@@ -57,6 +57,8 @@ export interface DesktopWorkspaceProps {
   readonly appVersion: () => Promise<string>
   readonly dataDirectory: () => Promise<string>
   readonly readTokenDays: SettingsProviderProps['readTokenDays']
+  /** 内置 Python 内核的端口；与 readTokenDays 同一条路，由组合根下传。 */
+  readonly pythonKernel: SettingsProviderProps['pythonKernel']
   readonly workspace: WorkbenchSessionStore
   readonly commands: CommandRegistry
   readonly isSettingsOpen: boolean
@@ -150,6 +152,7 @@ export function DesktopWorkspace({
   composerDrafts,
   auxiliaryPanel,
   plugins,
+  pythonKernel,
   automationStore,
   keybindings,
   updateRow,
@@ -412,6 +415,7 @@ export function DesktopWorkspace({
       onThemeChange={onThemeChange}
       openSkillDocument={openSkillDocument}
       plugins={plugins}
+      pythonKernel={pythonKernel}
       readTokenDays={readTokenDays}
       skills={toolkit.skills}
       store={settingsStore}

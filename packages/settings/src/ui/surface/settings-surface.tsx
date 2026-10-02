@@ -20,6 +20,7 @@ import {
   PackageOpen,
   Plug,
   Sun,
+  Terminal,
   Wand,
   Zap,
 } from 'lucide-react'
@@ -48,6 +49,8 @@ import { AgentSettingsSectionPage } from '../agent-settings/agent-settings'
 import { ComputerUseSettings } from '../computer-use-settings'
 import { KeymapSettings } from '../keymap-settings'
 import { ModelsSettings } from '../models/models-settings'
+import type { PythonKernelGateway } from '../python-kernel/gateway'
+import { PythonKernelSettings } from '../python-kernel-settings'
 import { SettingRow, SettingsGroup, SettingsPage, ToggleRow } from '../settings-primitives'
 import { SkillsSettings } from '../skills-settings'
 import type { ReadTokenDays } from '../usage-activity'
@@ -78,6 +81,7 @@ export type SettingsSection =
   | 'mcp'
   | 'keymap'
   | 'computer-use'
+  | 'python-kernel'
   | 'usage'
   | 'about'
 
@@ -107,6 +111,8 @@ interface SettingsSectionContext {
   /** 技能名册，由组合根下传：名册属于会话上下文，住在更高的 assistant 环。 */
   readonly skills: readonly AgentSkill[]
   readonly plugins: PluginStore
+  /** 内置 Python 内核的三条命令，由组合根注入：装了没有、装到哪，真身都在原生侧。 */
+  readonly pythonKernel: PythonKernelGateway
   /** 看一个技能的 SKILL.md，落在哪一列由组合根决定：那一列是工作台的右侧栏，而这个包不认识工作台。 */
   readonly openSkillDocument: (skillId: string) => void
 }
@@ -206,6 +212,11 @@ const SECTIONS: Record<SettingsSection, SettingsSectionDescriptor> = {
     icon: Monitor,
     render: ({ plugins }) => <ComputerUseSettings store={plugins} />,
   },
+  'python-kernel': {
+    label: 'Python 内核',
+    icon: Terminal,
+    render: ({ pythonKernel }) => <PythonKernelSettings gateway={pythonKernel} />,
+  },
   usage: {
     label: '用量',
     icon: Zap,
@@ -233,7 +244,18 @@ const SECTIONS: Record<SettingsSection, SettingsSectionDescriptor> = {
  */
 const SECTION_GROUPS: readonly (readonly SettingsSection[])[] = [
   ['general', 'appearance'],
-  ['models', 'memory', 'persona', 'skills', 'mcp', 'keymap', 'computer-use', 'usage', 'archived'],
+  [
+    'models',
+    'memory',
+    'persona',
+    'skills',
+    'mcp',
+    'keymap',
+    'computer-use',
+    'python-kernel',
+    'usage',
+    'archived',
+  ],
   ['about'],
 ]
 
@@ -254,6 +276,7 @@ interface SettingsSurfaceContextValue {
   readonly readTokenDays: ReadTokenDays
   readonly skills: readonly AgentSkill[]
   readonly plugins: PluginStore
+  readonly pythonKernel: PythonKernelGateway
   readonly openSkillDocument: (skillId: string) => void
   readonly section: SettingsSection
   readonly onSelect: (section: SettingsSection) => void
@@ -291,6 +314,8 @@ export interface SettingsProviderProps {
   readonly modelCatalog: ModelCatalogStore
   /** 插件账本的唯一持有者，由组合根注入：这个包不认识桌面传输层。 */
   readonly plugins: PluginStore
+  /** 内置 Python 内核的端口，由组合根注入且引用稳定：这个包不认识桌面传输层。 */
+  readonly pythonKernel: PythonKernelGateway
   /** KAP 按当前会话报告的技能名册。 */
   readonly threads: ThreadsStore
   /** 当前生效的快捷键，由组合根注入。真相在命令注册表里，架构规则显式禁止 settings ✗→ workspace。 */
@@ -322,6 +347,7 @@ export function SettingsProvider({
   agentSettingsCatalog,
   modelCatalog,
   plugins,
+  pythonKernel,
   threads,
   keybindings,
   appVersion,
@@ -381,6 +407,7 @@ export function SettingsProvider({
       agentSettingsCatalog,
       modelCatalog,
       plugins,
+      pythonKernel,
       threads,
       keybindings,
       appVersion,
@@ -401,6 +428,7 @@ export function SettingsProvider({
       keybindings,
       modelCatalog,
       plugins,
+      pythonKernel,
       readTokenDays,
       section,
       skills,
@@ -444,6 +472,7 @@ export function SettingsContentRegion() {
     keybindings,
     modelCatalog,
     plugins,
+    pythonKernel,
     readTokenDays,
     openSkillDocument,
     section,
@@ -490,6 +519,7 @@ export function SettingsContentRegion() {
               modelCatalog,
               openSkillDocument,
               plugins,
+              pythonKernel,
               readTokenDays,
               settings: controller.settings,
               skills,

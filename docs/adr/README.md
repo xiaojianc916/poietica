@@ -40,3 +40,4 @@ ACP / kap / kimi-code / deepseek harness / 早期 fatal-incident 草案等已消
 | 0025 | 子代理的生死走 agent 自己的观测总线，能力开关如实报 |
 | 0026 | 插话走 agent 自己的三层队列，本机不留第二份出账簿 |
 | 0027 | 入口读期望态：不建会话就读出、就能改 |
+| 0029 | Python 内核按需下载，落在受管目录、经 agent 自己的设置指路 |

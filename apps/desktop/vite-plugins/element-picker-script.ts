@@ -33,10 +33,14 @@ export function elementPickerScriptPlugin(): Plugin {
     closeBundle() {
       /*
        * 调 package.json 里那条 electron:picker，而不是在这里抄一遍它的参数：命令只有一份正本。
-       * shell: true 是 Windows 上必须的 —— 这个插件跑在 node 里（electron-vite 的宿主），
-       * 而 node 的 spawn 不按 PATHEXT 解析，直接找 'bun' 会 ENOENT（真实命令名是 bun.cmd）。
+       *
+       * 整条命令写成一个字符串、交给 shell：这个插件跑在 node 里（electron-vite 的宿主），
+       * 而 node 的 spawn 不按 PATHEXT 解析 —— 直接找 'bun' 会 ENOENT（真实命令名是 bun.cmd），
+       * 找 'bun.cmd' 又会 EINVAL。但**不能**写成 "spawn('bun', [...args], { shell: true })"：
+       * 那种组合在 Node 24+ 触发 DEP0190（参数只拼接、不转义）。命令里没有空格与元字符，
+       * 一个字符串是等价且无警告的那一种。
        */
-      const result = spawnSync('bun', ['run', 'electron:picker'], {
+      const result = spawnSync('bun run electron:picker', {
         cwd: root,
         stdio: 'inherit',
         shell: true,

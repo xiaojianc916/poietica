@@ -13,6 +13,7 @@ members = [
   "crates/agent-client",
   "crates/ledger",
   "crates/problem",
+  "crates/python-runtime",
   "crates/process-host",
   "crates/review",
   "crates/terminal",

@@ -301,6 +301,20 @@ export function createBridge(host: BridgeHost): Bridge {
    */
   process.env['PI_NOTIFICATIONS'] = 'off'
 
+  /*
+   * 关掉交互式 PTY —— 我们这套 UIContext 只实现问得出人的那几个，其余是空壳，
+   * 终端呈现面那一格（approval.ts:371 的 custom）以 undefined 兑现。而 SDK 的闸门
+   * 只看 hasUI 与 ui 在不在场（tools/bash-pty-selection.ts:13），看不出宿主画不了
+   * overlay：pty:true 因此会选中 tools/bash.ts:1415 的交互分支，落到 ui.custom 上
+   * 立刻拿到 undefined，bash.ts:1440 读 result.cancelled 当场 TypeError。
+   *
+   * 置 1 走 SDK 自己的开关（同文件 :12），pty:true 于是落到 tools/bash.ts:1410-1412
+   * 已经写好的降级路径：命令照常跑，附一条「pty requested but unavailable」的 notice。
+   * 官方 rpc-ui 模式也置它（上游 src/main.ts:1787）。「宿主没有终端」是环境事实而非
+   * 用户配置，所以与上面两行同类：运行时赋值就够，不进档案的 env 格（ADR 0019）。
+   */
+  process.env['PI_NO_PTY'] = '1'
+
   // 诊断走 stderr：stdio 适配器那边 stdout 是协议通道，多一个字会毁掉那一行。
   const log = (...parts: readonly unknown[]): void => {
     process.stderr.write(`${parts.map(String).join(' ')}\n`)

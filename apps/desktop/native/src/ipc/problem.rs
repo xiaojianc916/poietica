@@ -43,6 +43,7 @@ fn code(error: &Error) -> Code {
         Error::Asset(_) => Code::AssetRejected,
         Error::Plugin(_) => Code::PluginRejected,
         Error::AgentCli(_) => Code::AgentRejected,
+        Error::Python(_) => Code::CapabilityMissing,
         Error::Git(_) => Code::GitRejected,
         Error::Internal(_) => Code::Internal,
     }
@@ -58,7 +59,8 @@ fn reason(error: &Error) -> Option<&str> {
         Error::AgentCli(reason)
         | Error::Git(reason)
         | Error::Persistence(reason)
-        | Error::Plugin(reason) => Some(reason),
+        | Error::Plugin(reason)
+        | Error::Python(reason) => Some(reason),
         Error::Automation(_)
         | Error::Asset(_)
         | Error::File(_)
@@ -68,6 +70,24 @@ fn reason(error: &Error) -> Option<&str> {
         | Error::SerdeJson(_)
         | Error::Store(_)
         | Error::Validation(_) => None,
+    }
+}
+
+#[cfg(test)]
+mod python_tests {
+    use super::{Code, Problem};
+    use crate::error::Error;
+
+    /// 内核那条线的失败走「能力还没有配置」这一码，理由是用户拿得去修正的那句话。
+    #[test]
+    fn python_failure_is_a_missing_capability_with_its_reason() {
+        let problem = Problem::from(Error::Python("下载失败：连接超时".to_owned()));
+
+        assert_eq!(problem.code, Code::CapabilityMissing);
+        assert_eq!(
+            problem.details.get("reason").map(String::as_str),
+            Some("下载失败：连接超时")
+        );
     }
 }
 

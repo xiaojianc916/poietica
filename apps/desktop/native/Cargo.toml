@@ -43,6 +43,7 @@ poietica-git-adapter-native = { path = "../../../crates/git-adapter" }
 poietica-ledger = { path = "../../../crates/ledger" }
 poietica-problem = { path = "../../../crates/problem" }
 poietica-process-host = { path = "../../../crates/process-host" }
+poietica-python-native = { path = "../../../crates/python-runtime" }
 poietica-review-native = { path = "../../../crates/review" }
 poietica-terminal-native = { path = "../../../crates/terminal" }
 poietica-time = { path = "../../../crates/time" }

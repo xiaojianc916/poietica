@@ -56,6 +56,10 @@ const CACHE_DIRECTORY: &str = "cache";
 const CRASH_REPORT_FILE: &str = "last-native-crash.json";
 const ATTACHMENTS_DIRECTORY: &str = "attachments";
 
+/// 本应用自己装的本机工具（解释器等），与 agent 的受控 home 分开。
+const TOOLS_DIRECTORY: &str = "tools";
+const PYTHON_DIRECTORY: &str = "python";
+
 const MARKETPLACE_CATALOG_FILE: &str = "marketplace.json";
 const AGENTS_DIRECTORY: &str = "agents";
 
@@ -181,6 +185,12 @@ pub fn agent_home(agent_id: &str) -> Result<PathBuf> {
     fs::create_dir_all(&directory)?;
 
     Ok(directory)
+}
+
+/// 内置 Python 内核的受管落点。不放 agent_home：那是 omp 的受控 home，配置由它自己
+/// 写、自己热重载；解释器是我们的资产，装在这里，路径再喂给它的设置。
+pub fn managed_python_directory() -> Result<PathBuf> {
+    Ok(data_root()?.join(TOOLS_DIRECTORY).join(PYTHON_DIRECTORY))
 }
 
 pub fn marketplace_catalog() -> Result<PathBuf> {

@@ -90,3 +90,18 @@
 ## 11. Cursor 桥（`CA/src/cursor.ts` + `cursor-bridge-tools.ts`）
 
 与 Cursor 编辑器的桥接：cursor-agent 传输（HTTP/2 + protobuf，pi-ai providers/cursor.ts）+ 桥接工具集——使 omp 能以 Cursor 订阅凭据作为 provider 运行，advisor 的 Cursor 资源帧（pi_grep/pi_edit、list_mcp_resources/read_mcp_resource）经 CursorMcpResourceAdapter 应答。
+
+## 12. 已知上游缺陷：URL 解析失败被谎报为 `twitter-blocked`（18.3.0）
+
+- **症状**（Poietica 侧可观察）：`read https://example.com:raw:1-6` 这类调用静默拿到 `Method: twitter-blocked` + `Notes: X.com blocks bots; Nitter instances unavailable`，正文是 Twitter 阻断文案而非目标页面——目标 URL 与 twitter 毫无关系（判据看 `Method:` 行，不看正文，正文本身就是错的那一段）。
+- **机制**（`CA/src/web/scrapers/twitter.ts`，共 94 行）：
+  - `:22` `const parsed = new URL(url);` —— 非法 URL 在这一行就抛 `TypeError: Invalid URL`。
+  - `:23` hostname 门（`["twitter.com","x.com","www.twitter.com","www.x.com"].includes(parsed.hostname)`）—— **在抛点之后**：解析失败时 `parsed` 根本不存在，这一行执行不到。
+  - `:72-76` 空 `catch` —— 只重抛 abort（`ToolAbortError`），其余异常全部吞掉，不留任何痕迹。
+  - `:82-93` 末尾无条件 `return`，`method: "twitter-blocked"` —— 异常路径与「Nitter 全部失败」路径在此合流，出口长得一模一样。
+  - 调用面：`CA/src/web/scrapers/index.ts:178` 注册 → `CA/src/tools/fetch.ts:1038` 对每个 URL 逐个调用（前面的 handler 未命中就轮到它）→ 位于 `:1095` 真正 fetch 之前，**连一次 HTTP 请求都不会发出**。
+- **为什么容易误判**：只看 `:23` 的四域门，必然推出「example.com 进不了这个 handler、机制不成立」；但门在抛点之后，等号右边先失败就直接跳进 `catch`，`parsed.hostname` 从未参与判断。误判源于可见性不对称——`:23` 是这条链上唯一的显式判别式（可读、可引），而 `:22` 的抛与 `:72` 的吞都是沉默的。核对这类缺陷时，判据是「异常从哪一行离开」，不是「正常路径在哪一行分流」。
+- **触发面**：凡令 `new URL()` 抛错、且 read 的 selector 剥离没救走它的 URL。`:raw:1-3` 直接黏在 host 后（`https://example.com:raw:1-3`）时，剥离器（`TUI/src/tools/fetch.ts:49`）从最右冒号往左走，要求 `:` 左侧自身仍是合法 URL，而 `https://example.com:raw` 同样非法，于是不剥离、整串进解析器。实测：`https://example.com:raw:1-3`、`https://example.com:99999999/x`（端口越界）→ `twitter-blocked`；`https://example.com/x`、`https://example.com/x:raw:1-6`（selector 落在 path 位，剥离成功）→ 正常回落后续管线。
+- **上游修法方向**：让 `:23` 的早退在解析失败时同样生效（先按字符串判 host，或解析失败直接 `return null`），管线即可回落到真实抓取、拿到 HTTP 错误；根治是收窄 `:72-76` 的 catch，并把 `:82-93` 的无条件 return 限制为只有 hostname 门通过后才可达。
+- **本仓纪律**：这是 vendored 上游缺陷，不改源码、也不打构建期补丁（AGENTS.md §8 禁兼容层）；升级 18.4.x 时复核此处是否修复。
+

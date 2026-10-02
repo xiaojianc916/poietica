@@ -10,6 +10,7 @@ import type {
   ModelCatalogStore,
   SettingsStore,
 } from '@poietica/settings'
+import type { SettingsProviderProps } from '@poietica/settings/ui'
 import type { TerminalHostPort } from '@poietica/terminal'
 import type { AppUpdateStore } from '@poietica/update'
 import type { CommandRegistry, WorkbenchSessionStore } from '@poietica/workspace'
@@ -67,6 +68,12 @@ export interface ApplicationRuntime {
   readonly dataDirectory: () => Promise<string>
   /** 最近若干天的 token 日账。与上面两个同源同层：账本只有原生侧那一份。 */
   readonly readTokenDays: typeof readTokenDays
+  /**
+   * 内置 Python 内核的三条命令。同上：装了没有、装到哪，真身都在原生侧。
+   *
+   * 类型取设置那一侧声明的端口：桥按结构满足它，这里就是那道编译期断言。
+   */
+  readonly pythonKernel: SettingsProviderProps['pythonKernel']
   /** Starts non-visual services once; agent launch awaits the same gate. */
   readonly startBackgroundServices: () => void
   readonly dispose: () => Promise<void>

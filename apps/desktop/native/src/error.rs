@@ -40,6 +40,11 @@ pub enum Error {
     #[error("Agent CLI error: {0}")]
     AgentCli(String),
 
+    /// 内置 Python 内核这条线上的失败：本机不支持、下不动、解不开、写不进设置。
+    /// 与 agent 自己的拒绝分开：它不是某次 agent 调用的裁决。
+    #[error("Python kernel error: {0}")]
+    Python(String),
+
     #[error("Git error: {0}")]
     Git(String),
 }
@@ -108,6 +113,14 @@ impl From<poietica_asset::blob::BlobError> for Error {
                 Self::Asset("attachment content could not be verified".to_owned())
             }
         }
+    }
+}
+
+/// 内置 Python 内核那条线的 typed error 折成一句人话。它自己的变体很多，但界面上要做的
+/// 决定只有一条：让用户看见原因（哪一步、哪个文件、上游答了什么）。
+impl From<poietica_python_native::PythonError> for Error {
+    fn from(error: poietica_python_native::PythonError) -> Self {
+        Self::Python(error.to_string())
     }
 }
 

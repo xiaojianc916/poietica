@@ -1359,6 +1359,7 @@ dependencies = [
  "poietica-ledger",
  "poietica-problem",
  "poietica-process-host",
+ "poietica-python-native",
  "poietica-review-native",
  "poietica-terminal-native",
  "poietica-time",
@@ -1538,6 +1539,18 @@ name = "poietica-process-host"
 version = "0.4.2"
 dependencies = [
  "which",
+]
+
+[[package]]
+name = "poietica-python-native"
+version = "0.4.2"
+dependencies = [
+ "reqwest",
+ "serde",
+ "sha2",
+ "tempfile",
+ "thiserror 2.0.21",
+ "tokio",
 ]
 
 [[package]]

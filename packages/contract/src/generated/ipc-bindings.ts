@@ -395,6 +395,30 @@ export type ProviderInputDto = { id: string; providerType: string; apiKey: strin
 export type ProviderModelInputDto = { model: string; maxContextSize: number; displayName: string | null; capabilities: string[] | null; maxOutputSize: number | null; supportEfforts: string[] | null; adaptiveThinking: boolean | null }
 export type ProviderReplacementDto = { newId: string | null; providerType: string; apiKey: string | null; baseUrl: string | null; defaultModel: string | null; models: ProviderModelInputDto[] }
 /**
+ * 后台装机进度。
+ * 
+ * percent 恒为 null：字节数不出 crate（那边是它自己的一条流），这里不编造百分比 ——
+ * 界面据此画不确定进度条，比一个匀速前进的假数字诚实。
+ */
+export type PythonKernelInstall = { running: boolean; step: string | null; percent: number | null; error: string | null }
+/**
+ * 盘上那份安装此刻的状态，五档原样投影。
+ */
+export type PythonKernelState = "notInstalled" | "installing" | "ready" | "broken" | "unsupported"
+export type PythonKernelStatus = { state: PythonKernelState; 
+/**
+ * 只有装好才报版本：一棵坏树上挂个版本号是假消息。
+ */
+version: string | null; 
+/**
+ * 受管目录；目录在就报，界面据此提供「打开所在位置」。
+ */
+path: string | null; 
+/**
+ * 要写进设置的那个解释器路径；与 ready 同进同退。
+ */
+interpreter: string | null; install: PythonKernelInstall }
+/**
  * 能不能再来一次，以及由谁发起。
  */
 export type Retryability = "no" | "afterDelay" | "afterUserAction"
@@ -734,6 +758,21 @@ export const commands = {
   },
   async gitWatchStop(token: string): Promise<null> {
     return call<null>('git_watch_stop', { token: token })
+  },
+/**
+ *  现在是什么状态。判据全在盘上，不查 agent，也不写任何第二份状态。 */
+  async pythonKernelStatus(): Promise<PythonKernelStatus> {
+    return call<PythonKernelStatus>('python_kernel_status', {})
+  },
+/**
+ *  装一份。装好再调是空操作；正在装再调汇报当前进度，不重入。 */
+  async pythonKernelInstall(): Promise<PythonKernelStatus> {
+    return call<PythonKernelStatus>('python_kernel_install', {})
+  },
+/**
+ *  删掉受管目录并清空设置。没装过时也是一次成功的空操作。 */
+  async pythonKernelRemove(): Promise<PythonKernelStatus> {
+    return call<PythonKernelStatus>('python_kernel_remove', {})
   }
 }
 

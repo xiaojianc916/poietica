@@ -119,6 +119,9 @@ pub fn types() -> specta::TypeCollection {
     types.register::<crate::ledger::usage::UsageDay>();
     types.register::<crate::settings::SettingsWriteResult>();
     types.register::<crate::conversation::dto::AgentTranscriptEvent>();
+    types.register::<crate::python::PythonKernelState>();
+    types.register::<crate::python::PythonKernelInstall>();
+    types.register::<crate::python::PythonKernelStatus>();
     types
 }
 
@@ -215,6 +218,9 @@ pub fn functions() -> Vec<specta::datatype::Function> {
         crate::review::git_commit,
         crate::review::git_watch_start,
         crate::review::git_watch_stop,
+        crate::python::python_kernel_status,
+        crate::python::python_kernel_install,
+        crate::python::python_kernel_remove,
     ](&mut types())
 }
 
@@ -603,6 +609,9 @@ pub async fn submit(command: &str, args: Value) -> napi::Result<String> {
             let token: String = argument(args.get("token").unwrap_or(&Value::Null))?;
             crud(crate::review::git_watch_stop(token).await)
         }
+        "python_kernel_status" => crud(crate::python::python_kernel_status().await),
+        "python_kernel_install" => crud(crate::python::python_kernel_install().await),
+        "python_kernel_remove" => crud(crate::python::python_kernel_remove().await),
         unknown => Err(Problem::from(crate::error::Error::NotFound(format!(
             "no such native command: {unknown}"
         )))),

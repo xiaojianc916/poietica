@@ -379,10 +379,19 @@ impl AutomationState {
                 }
             }
             Command::Remove { id } => {
-                if self.executions.contains_key(&id) {
+                /* 拦两种：结果不确定的，那一刻必须由人核对终端；还没有停止意图的，
+                删掉定义会让重开后的协调既查不到记录、也不会再发停止请求。
+                停止了却还没落终态的（排队、在跑、正在取消）随定义一起走：删除就是取消，
+                记录必须同一次删掉 —— AutomationState::validate 要求每条 execution
+                都有定义主人，留下它就是孤儿记录，整个事务都提交不了。 */
+                if self.executions.get(&id).is_some_and(|execution| {
+                    execution.run.outcome == AutomationRunOutcome::Uncertain
+                        || !execution.cancel_requested
+                }) {
                     return Err(AutomationError::Busy);
                 }
                 self.automations.retain(|row| row.id != id);
+                self.executions.remove(&id);
             }
             Command::Cancel { run_id } => {
                 let Some(execution) = self
@@ -590,13 +599,13 @@ impl AutomationState {
             execution.run.outcome = outcome;
             execution.run.message = message;
             execution.run.settled_at = Some(settled_at);
-            let definition = self
-                .automations
-                .iter_mut()
-                .find(|row| row.id == owner)
-                .ok_or(AutomationError::Missing)?;
-            definition.runs.insert(0, execution.run);
-            definition.runs.truncate(HISTORY_LIMIT);
+            /* 历史属于定义：没有定义就没有地方安放这条记录。Remove 已经连同执行记录
+            一起删掉，所以正常路径根本走不到这里 —— 这条守的是不变量本身，
+            不是某条已知路径；写成 Missing 会让一次合法结算回滚成卡住的中间态。 */
+            if let Some(definition) = self.automations.iter_mut().find(|row| row.id == owner) {
+                definition.runs.insert(0, execution.run);
+                definition.runs.truncate(HISTORY_LIMIT);
+            }
         } else {
             let execution = self
                 .executions
@@ -605,6 +614,171 @@ impl AutomationState {
             execution.run.outcome = outcome;
             execution.run.message = message;
         }
+        Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    #![allow(clippy::expect_used, reason = "fixture failures must fail the test")]
+    use super::*;
+
+    const NOW: i64 = 1_767_225_600_000;
+    const FIRST: &str = "018f2c1e-1111-7000-8000-000000000001";
+    const SECOND: &str = "018f2c1e-1111-7000-8000-000000000002";
+    const FIRST_RUN: &str = "018f2c1e-2222-7000-8000-000000000001";
+    const FIRST_THREAD: &str = "018f2c1e-3333-7000-8000-000000000001";
+    const SECOND_RUN: &str = "018f2c1e-2222-7000-8000-000000000002";
+    const SECOND_THREAD: &str = "018f2c1e-3333-7000-8000-000000000002";
+
+    /// 绝对路径的形式是平台的，两套写法只在各自平台上成立。
+    fn root() -> String {
+        if cfg!(windows) {
+            "C:\\automation-test".to_owned()
+        } else {
+            "/automation-test".to_owned()
+        }
+    }
+    fn creation() -> AutomationCreation {
+        AutomationCreation {
+            title: "Review".to_owned(),
+            prompt: "Inspect".to_owned(),
+            schedule: None,
+            session_config: BTreeMap::new(),
+            workspace_root: root(),
+            time_zone: "UTC".to_owned(),
+        }
+    }
+    /// 一条已进入 Running 的执行：创建、认领、准入。
+    fn running(
+        state: &mut AutomationState,
+        id: &str,
+        run: &str,
+        thread: &str,
+    ) -> Result<(), AutomationError> {
+        state.apply(Command::Create(creation()), NOW, id.to_owned())?;
+        state.claim(
+            id,
+            ClaimOrigin::Manual,
+            run.to_owned(),
+            thread.to_owned(),
+            "agent".to_owned(),
+            NOW,
+        )?;
+        assert!(state.dispatch(run).is_some());
+        state.transition(run, AutomationRunOutcome::Running, None, NOW)
+    }
+
+    #[test]
+    fn update_compares_the_row_revision_not_the_catalog_revision() -> Result<(), AutomationError> {
+        let mut state = AutomationState::default();
+        state.apply(Command::Create(creation()), NOW, FIRST.to_owned())?;
+        /* 目录级版本是提交序号，与某一条自动化的版本无关；这里手动推到 7 只为把两者分开。 */
+        state.revision = 7;
+        let row_revision = state.automations.first().expect("row").revision;
+        let mut update = AutomationUpdate {
+            id: FIRST.to_owned(),
+            expected_revision: state.catalog().revision,
+            creation: creation(),
+            enabled: true,
+        };
+        assert_eq!(state.catalog().revision, 7);
+        assert_ne!(state.catalog().revision, row_revision);
+        assert!(matches!(
+            state.apply(Command::Update(update.clone()), NOW, String::new()),
+            Err(AutomationError::Conflict)
+        ));
+        update.expected_revision = row_revision;
+        state.apply(Command::Update(update), NOW, String::new())?;
+        assert_eq!(
+            state.automations.first().expect("row").revision,
+            row_revision + 1
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn remove_needs_a_recorded_stop_intent_and_no_uncertain_outcome() -> Result<(), AutomationError>
+    {
+        let mut state = AutomationState::default();
+        /* 在跑而没有任何停止意图：不许删，否则这一轮会在无人知晓的情况下跑完。 */
+        running(&mut state, FIRST, FIRST_RUN, FIRST_THREAD)?;
+        let remove_first = || Command::Remove {
+            id: FIRST.to_owned(),
+        };
+        assert!(matches!(
+            state.apply(remove_first(), NOW, String::new()),
+            Err(AutomationError::Busy)
+        ));
+        assert!(state.executions.contains_key(FIRST));
+        /* 记下停止意图后就放行：删除即取消，记录与定义同一次消失。 */
+        state.apply(
+            Command::Cancel {
+                run_id: FIRST_RUN.to_owned(),
+            },
+            NOW,
+            String::new(),
+        )?;
+        state.apply(remove_first(), NOW, String::new())?;
+        state.validate()?;
+        assert!(state.executions.is_empty());
+        assert!(state.automations.is_empty());
+
+        /* 结果不确定：即便停止意图已记，也仍然不许删 —— 那是唯一还能核对终端的线索。 */
+        running(&mut state, SECOND, SECOND_RUN, SECOND_THREAD)?;
+        state.apply(
+            Command::Cancel {
+                run_id: SECOND_RUN.to_owned(),
+            },
+            NOW,
+            String::new(),
+        )?;
+        state.transition(SECOND_RUN, AutomationRunOutcome::Uncertain, None, NOW)?;
+        assert!(matches!(
+            state.apply(
+                Command::Remove {
+                    id: SECOND.to_owned(),
+                },
+                NOW,
+                String::new(),
+            ),
+            Err(AutomationError::Busy)
+        ));
+        assert!(state.executions.contains_key(SECOND));
+        assert!(state.automations.iter().any(|row| row.id == SECOND));
+        state.validate()
+    }
+
+    #[test]
+    fn a_cancelling_execution_leaves_with_its_definition_and_a_late_result_is_discarded()
+    -> Result<(), AutomationError> {
+        let mut state = AutomationState::default();
+        running(&mut state, FIRST, FIRST_RUN, FIRST_THREAD)?;
+        state.apply(
+            Command::Cancel {
+                run_id: FIRST_RUN.to_owned(),
+            },
+            NOW,
+            String::new(),
+        )?;
+        assert_eq!(
+            state.executions.get(FIRST).expect("execution").run.outcome,
+            AutomationRunOutcome::Cancelling
+        );
+        state.apply(
+            Command::Remove {
+                id: FIRST.to_owned(),
+            },
+            NOW,
+            String::new(),
+        )?;
+        state.validate()?;
+        assert!(state.executions.is_empty());
+        /* 迟到的官方终态没有定义可以安放它：丢掉，且不许把状态写成孤儿记录。 */
+        state.transition(FIRST_RUN, AutomationRunOutcome::Cancelled, None, NOW)?;
+        state.validate()?;
+        assert!(state.executions.is_empty());
+        assert!(state.automations.is_empty());
         Ok(())
     }
 }

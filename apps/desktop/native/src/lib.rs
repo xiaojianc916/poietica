@@ -18,6 +18,7 @@ pub use entry::NativeHost;
 pub mod launcher;
 pub mod ledger;
 pub mod paths;
+pub mod python;
 pub mod review;
 pub mod settings;
 pub mod shutdown;

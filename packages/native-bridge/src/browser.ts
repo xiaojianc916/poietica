@@ -1,5 +1,6 @@
 import type { BrowserHostPort, BrowserViewportBounds } from '@poietica/browser'
 import type { BrowserElementPicked, BrowserState, ResolvedTheme } from '@poietica/contract/browser'
+import { hostBridge } from './host-bridge'
 import { throughIpc } from './ipc-error'
 
 export type { BrowserViewportBounds } from '@poietica/browser'
@@ -99,9 +100,15 @@ export function setBrowserVisible(visible: boolean): Promise<void> {
   return invoke('browser_set_visible', { visible })
 }
 
-/* 外链交给系统浏览器；这件事只有宿主做得成，主进程那一侧挂的是 shell.openExternal。 */
+/* 外链交给系统浏览器；这件事只有宿主做得成，主进程那一侧挂的是 shell.openExternal。
+ *
+ * 走 preload 装的 host 桥，不走 invoke：这条命令在主进程自己的表里（poietica:open-external），
+ * 不在原生命令面上。此前写的是 invoke('window_open_external_url')，而那个名字原生侧没有 ——
+ * transport 的 `unknown =>` 分支会把它结算成 NotFound，点击因此必然失败，且失败只落在
+ * 控制台里，界面上什么都不会发生。
+ */
 export function openBrowserUrlExternally(url: string): Promise<void> {
-  return invoke('window_open_external_url', { url })
+  return hostBridge().host.openExternal(url)
 }
 
 export function setBrowserElementPicker(

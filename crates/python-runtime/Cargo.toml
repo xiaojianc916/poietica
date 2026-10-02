@@ -1,0 +1,26 @@
+[package]
+name = "poietica-python-native"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish = false
+
+[dependencies]
+# 资产清单与二进制都从 GitHub 的 release 接口取（见 src/release.rs 的模块注释：直连
+# github.com 在这一批机器上不通，API 那条路通）。
+reqwest.workspace = true
+# 下载途中流式校验上游给的 sha256，不用先把 22MB 攒进内存。
+sha2.workspace = true
+serde.workspace = true
+thiserror.workspace = true
+# 解包含超时，且要用 tokio::process 才能连进程树一起中止 —— 那条纪律的产地是
+# crates/conversation-runtime/src/submission/admission.rs 的 TokioChild。
+tokio.workspace = true
+
+[dev-dependencies]
+# 单测要造真的目录树来验状态判定与换入规则，不联网、不装解释器。
+tempfile.workspace = true
+
+[lints]
+workspace = true

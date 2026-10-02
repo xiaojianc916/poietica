@@ -14,6 +14,7 @@ import { automationGateway } from '@poietica/native-bridge/automation'
 import { browserHostPort, watchBrowserElementPicked } from '@poietica/native-bridge/browser'
 import { capabilityGateway, extensionGateway } from '@poietica/native-bridge/extensions'
 import { hostBridge } from '@poietica/native-bridge/host'
+import { pythonKernelGateway } from '@poietica/native-bridge/python-kernel'
 import { reviewGateway } from '@poietica/native-bridge/review'
 import { createSettingsPersistence } from '@poietica/native-bridge/settings'
 import { terminalHostPort } from '@poietica/native-bridge/terminal'
@@ -349,6 +350,7 @@ export function createApplicationRuntime(restored: string | null): ApplicationRu
     appVersion: readAppVersion,
     dataDirectory: readDataDirectory,
     readTokenDays,
+    pythonKernel: pythonKernelGateway,
     startBackgroundServices: () => {
       void ensureBackgroundServices().catch((cause: unknown) => {
         if (!disposed) {

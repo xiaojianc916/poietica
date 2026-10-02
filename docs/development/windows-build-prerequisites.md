@@ -72,6 +72,43 @@ from `static.rust-lang.org`, which no cargo registry mirror covers. The real
 lower bound is `rust-version` under `[workspace.package]` in the root
 `Cargo.toml`; Cargo enforces it natively and reports a readable error.
 
+## Editor code intelligence
+
+`rust-toolchain.toml` installs `clippy` and `rustfmt`; an editor additionally
+wants rust-analyzer, which is a separate rustup component. `~/.cargo/bin` holds a
+shim for it either way, so the failure reads as a broken toolchain when the real
+cause is a missing component:
+
+```
+rust-analyzer: failed to start (LSP server exited (code 1): error: Unknown binary 'rust-analyzer.exe' in official toolchain 'stable-x86_64-pc-windows-msvc'.)
+```
+
+Install the component once:
+
+```powershell
+rustup component add rust-analyzer
+```
+
+Two things bite here. `rustup component list` prints the **available** list, and an
+uninstalled rust-analyzer is on it; only `rustup component list --installed`
+answers what is actually present. And the component is per toolchain, so it lands
+inside the stable directory (38 MB) rather than being a standalone program.
+
+It is deliberately **not** in `rust-toolchain.toml`. A `components` entry would
+make CI and every clean checkout download it, and CI never runs a language server
+(`.github/workflows/quality.yml` only runs `rustup show`, which honours the
+file). Code intelligence is an editor-time capability, not a build input, and
+`components` states what the build chain needs — an editor tool would change what
+that file means.
+
+The converse also holds: omitting it does not get it removed. Running
+`rustup show` from the repository root leaves an installed rust-analyzer in
+place, and `rust-analyzer --version` keeps working afterwards.
+
+None of this gates `bun run check`: nothing in the build or the tests invokes a
+language server, so a missing rust-analyzer can never turn that command red. It
+only costs you editor features.
+
 ## Building the embedded agent
 
 The agent ships inside the app as **its own Bun runtime plus our bridge**, not as a

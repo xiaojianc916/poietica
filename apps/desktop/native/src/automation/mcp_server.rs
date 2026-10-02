@@ -155,7 +155,7 @@ fn answer(
 impl Ledger {
     #[tool(
         name = "automations_list",
-        description = "Read automation definitions, revisions and native run states. A submission receipt is not completion."
+        description = "Read automation definitions with their own revisions plus the catalog-level revision, and native run states. A submission receipt is not completion."
     )]
     async fn list(&self) -> std::result::Result<CallToolResult, String> {
         answer(super::host::load().await)
@@ -172,7 +172,7 @@ impl Ledger {
     }
     #[tool(
         name = "automations_update",
-        description = "Update a definition using its expectedRevision. An active execution retains its claimed input."
+        description = "Update a definition using its expectedRevision: the revision of that single automation in the automations_list result, not the catalog-level top-level revision. An active execution retains its claimed input."
     )]
     async fn update(
         &self,
@@ -182,7 +182,7 @@ impl Ledger {
     }
     #[tool(
         name = "automations_delete",
-        description = "Remove an automation definition and its bounded run list. Active or uncertain executions must first settle; conversation records are retained."
+        description = "Remove an automation definition and its bounded run list. A run must first be stopped with automations_cancel; removing then drops a not-yet-terminal run and its definition without keeping history, because the ledger cannot hold a run whose definition is gone. Refused while a run's outcome is uncertain. Conversation records are retained."
     )]
     async fn delete(
         &self,
