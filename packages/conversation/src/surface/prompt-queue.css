@@ -188,19 +188,14 @@
 }
 
 /*
- * 那一行、以及档位那三组的操作钮。
+ * 操作钮。
  *
- * 正本是编辑/删除/插话发送三枚 28 的圆钮，档位那三组是同样的圆钮换一枚字形 —— 屏幕上
- * 不出现按钮的名字，名字在 aria-label 与提示条里（正本每一枚都是这么给的）。
- * 本机的撤回是 LIFO 一条命令（没有按号取），所以只有最后一行画得出。
+ * 它们**长在行自己的 flex 里**（正文 flex:auto 把这一组顶到右缘），不是另起一列。正本每
+ * 一行右侧贴着的就是那几枚 28 的圆钮，行与按钮同一个盒子 —— 分成两列会让按钮游离在行
+ * 之外，跟它要操作的那句话对不上。
+ *
+ * 屏幕上不出现按钮的名字：名字在 aria-label 与悬停提示里（正本每一枚都是这么给的）。
  */
-.prompt-queue__actions {
-  display: flex;
-  flex: none;
-  align-items: center;
-  gap: 10px;
-}
-
 .prompt-queue__action {
   display: grid;
   flex: none;
@@ -230,50 +225,28 @@
 }
 
 /*
- * 三个队列模式那一行。
- *
- * 它不属于正本：本机的队列模式（插话与排队各是一条还是一次全喂、插话要不要截断正在等
- * 的工具）是 omp 自己的三档配置，正本没有对应的面。样式按正本同一套数字组装 —— 行高、
- * 圆角、悬停墨、13/20 的字、28 的圆钮、一条发丝线，正本有什么就用什么，不引第二个尺度。
- *
- * 三组各有一枚**记号**（不是字）领头：前两组的字形是同一对（一条一条 / 一次全喂），不先
- * 说明这一组管哪个队就读不出来。名字（插话 / 排队 / 打断）走那枚记号自己的提示条；分隔
- * 靠记号与两侧的间距，不画竖线。
+ * 弹层里的那三组。弹层经 Portal 落 body 之外，[data-assistant-skin] 罩不到 —— 这里每个数
+ * 只取设计系统与 --ui-* 的令牌，不赖任何作用域令牌。
  */
-.prompt-queue__modes {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 6px;
-  padding: 4px 5px 4px 12px;
-  border-radius: var(--cp-queue-row-radius);
-  box-shadow: inset 0 var(--cp-px) 0 var(--cp-queue-edge);
-  color: var(--cp-ink-muted);
-  font-size: var(--cp-queue-font);
-  line-height: 20px;
+.prompt-queue__tuning-label {
+  padding: 6px 8px 2px;
+  color: var(--ui-muted-foreground);
+  font-size: 12px;
+  line-height: 16px;
 }
 
-.prompt-queue__mode {
-  display: inline-flex;
-  align-items: center;
-  gap: 10px;
-}
-
-/* 记号自己是提示条的触发器，所以它要能接指针；两侧再让开一点，三组之间才读得出分隔。 */
-.prompt-queue__mode + .prompt-queue__mode {
-  margin-inline-start: 6px;
-}
-
-.prompt-queue__mode-mark {
-  display: grid;
-  flex: none;
+/* 单选那一枚圆点：与菜单行的字同高，不抢行首的位置。 */
+.prompt-queue__tuning-tick {
+  display: inline-grid;
   place-items: center;
-  color: var(--cp-ink-muted);
-  cursor: default;
+  inline-size: 16px;
+  block-size: 16px;
+  flex: none;
 }
 
-/* 按下的那一档着色并铺底：一眼看得出此刻喂的是哪一档。 */
-.prompt-queue__mode .prompt-queue__action[aria-pressed="true"] {
-  background: var(--cp-queue-hover);
-  color: var(--cp-ink);
+.prompt-queue__tuning-dot {
+  inline-size: 6px;
+  block-size: 6px;
+  border-radius: 9999px;
+  background: var(--ui-primary);
 }

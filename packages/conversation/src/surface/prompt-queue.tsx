@@ -1,6 +1,17 @@
 import './prompt-queue.css'
 
-import { Tooltip, TooltipContent, TooltipTrigger } from '@poietica/design-system'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuRadioGroup,
+  DropdownMenuRadioItem,
+  DropdownMenuRadioItemIndicator,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from '@poietica/design-system'
 import {
   memo,
   type ReactNode,
@@ -10,18 +21,7 @@ import {
   useSyncExternalStore,
 } from 'react'
 import type { MessageQueue, MessageQueueState } from '../interjection/message-queue'
-import {
-  AllAtOnceIcon,
-  ChevronDownIcon,
-  ChevronUpIcon,
-  CloseIcon,
-  FollowUpIcon,
-  HaltIcon,
-  InterruptIcon,
-  OneAtATimeIcon,
-  SteerIcon,
-  WaitIcon,
-} from './primitives/icons'
+import { ChevronDownIcon, ChevronUpIcon, CloseIcon, TuningIcon } from './primitives/icons'
 
 /*
  * 正本那条队列的记号（DSH 的 ChatLinesOutlineArtwork）：一个说话的气泡里两行字。
@@ -59,8 +59,8 @@ export interface PromptQueueProps {
  * 一行待发的正文，加上它排在第几、排在哪一层。
  *
  * `ordinal` 是屏幕上那个序号：队列**有序**（撤回只从最后一条起），连排几句时哪句先走
- * 必须一眼看得出。`tier` 不进屏幕的字面 —— 两个队的名字走提示条（见下面那一行），免得
- * 每行前面先出现一个词才开始正文。
+ * 必须一眼看得出。`tier` 不进屏幕的字面 —— 两个队的名字走提示条，免得每行前面先出现
+ * 一个词才开始正文。
  */
 export interface QueueRow {
   readonly text: string
@@ -84,68 +84,54 @@ export function queueRows(state: MessageQueueState): readonly QueueRow[] {
 }
 
 /*
- * 三个队列模式。改一次就落 agent 自己的 config.yml（`setSteeringMode(mode)` 那三个官方
- * 写入面的 persist 默认为真），所以退出重开仍在。
+ * 三个队列模式。
  *
- * 只在有东西排队时画：没有待发的话，这三档改的是什么就无从对照 —— 摆一排正闲着的行为
- * 开关，人只会以为它们管的是别的事。
+ * 它们不占屏幕：整条队列只画一行正文一行（见下面的组件）。正本每一行右侧那几枚按钮是
+ * 「编辑 / 删除 / 插话发送」三件对**这一行正文**的操作，而这三个模式是**整条队列**的
+ * 设置 —— 摆进行的按钮列里，人读到的是「这一句能一次全喂」，那是错的。
  *
- * 每组的名字（插话 / 排队 / 打断）不进屏幕：它做那一组记号钮的提示条。前两组的字形是
- * 同一对，所以各自还要一枚记号钮把「这一组管的是哪个队」说出来 —— 那枚记号自己也是一条
- * 提示，指着它才知道这一组是什么。
+ * 面板里每一档都带名字：面板是点开才出现的，一行一个词不会读成行的一部分。
  */
 const MODES = [
   {
     id: 'steeringMode',
-    label: '插话',
-    hint: '插进正在跑的那一轮：一次喂给模型几条',
-    Mark: SteerIcon,
+    label: '插话：一次喂几条',
     choices: [
-      { value: 'one-at-a-time', label: '插话一条一条喂', Icon: OneAtATimeIcon },
-      { value: 'all', label: '插话一次全喂', Icon: AllAtOnceIcon },
+      { value: 'one-at-a-time', label: '一条一条喂' },
+      { value: 'all', label: '一次全喂' },
     ],
   },
   {
     id: 'followUpMode',
-    label: '排队',
-    hint: '这一轮跑完接着做：一次做几条',
-    Mark: FollowUpIcon,
+    label: '排队：轮终后做几条',
     choices: [
-      { value: 'one-at-a-time', label: '排队一条一条做', Icon: OneAtATimeIcon },
-      { value: 'all', label: '排队一次全做', Icon: AllAtOnceIcon },
+      { value: 'one-at-a-time', label: '一条一条做' },
+      { value: 'all', label: '一次全做' },
     ],
   },
   {
     id: 'interruptMode',
-    label: '打断',
-    hint: '插话要不要截断正在等的工具',
-    Mark: HaltIcon,
+    label: '插话要不要打断工具',
     choices: [
-      { value: 'immediate', label: '插话立刻打断工具', Icon: InterruptIcon },
-      { value: 'wait', label: '插话等这批工具做完', Icon: WaitIcon },
+      { value: 'immediate', label: '立刻打断' },
+      { value: 'wait', label: '等这批做完' },
     ],
   },
 ] as const
 
 /*
- * 一枚按钮：28 的圆，一枚字形，话在提示条里。
+ * 一行右侧那枚按钮。它跟着行，不另起一列 —— 行的布局是「正文 flex:auto + 按钮 flex:none」，
+ * 所以按钮永远贴在这一行的右缘。
  *
- * 正本每一枚操作钮都是这样（`IconEditOutlineRegular` / `IconTrashOutlineRegular` /
- * `IconSendOutlineRegular` 各配一条 Tooltip 与一条 aria-label），本仓照办：屏幕上不出现
- * 按钮的名字，名字只在屏幕阅读器与悬停提示里。
- *
- * `active` 只有那三组档位用：它们在「此刻是哪一档」上必须自证，所以按下的那一枚着色。
+ * 名字只在屏幕阅读器与悬停提示里：正本每一枚操作钮都是这么给的（一枚字形配一条 Tooltip
+ * 与一条 aria-label）。
  */
-function QueueAction({
-  active,
+function RowAction({
   children,
-  disabled,
   label,
   onClick,
 }: {
-  readonly active?: boolean
   readonly children: ReactNode
-  readonly disabled?: boolean
   readonly label: string
   readonly onClick: () => void
 }) {
@@ -155,9 +141,7 @@ function QueueAction({
         render={
           <button
             aria-label={label}
-            aria-pressed={active}
             className="prompt-queue__action"
-            disabled={disabled === true}
             onClick={onClick}
             type="button"
           >
@@ -170,16 +154,75 @@ function QueueAction({
   )
 }
 
+/*
+ * 队列设置：末尾那条上的一枚「调整」。
+ *
+ * 三个模式都在这里，一条一行（正本的行是 34 高、13/20 的字、圆角 12 —— 设计系统的
+ * Menu 原样给）。写的是 `delivery` 命令，它同时改运行时与落 agent 自己的 config.yml。
+ */
+function QueueTuning({
+  queue,
+  state,
+}: {
+  readonly queue: MessageQueue
+  readonly state: MessageQueueState
+}) {
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger
+        render={
+          <button aria-label="队列设置" className="prompt-queue__action" type="button">
+            <TuningIcon aria-hidden size={14} />
+          </button>
+        }
+      />
+      {/* 弹层经 Portal 落 body，[data-assistant-skin] 罩不到，所以在这一层重新挂上。 */}
+      <DropdownMenuContent
+        align="end"
+        className="assistant-menu-surface"
+        data-assistant-skin
+        side="top"
+        sideOffset={6}
+      >
+        {MODES.map((mode, index) => (
+          <div key={mode.id}>
+            {index === 0 ? null : <DropdownMenuSeparator />}
+            <DropdownMenuRadioGroup
+              onValueChange={(value: string) => {
+                void queue.configure({ [mode.id]: value })
+              }}
+              value={state[mode.id]}
+            >
+              <div className="prompt-queue__tuning-label">{mode.label}</div>
+              {mode.choices.map((choice) => (
+                <DropdownMenuRadioItem key={choice.value} value={choice.value}>
+                  <DropdownMenuRadioItemIndicator className="prompt-queue__tuning-tick">
+                    <span className="prompt-queue__tuning-dot" />
+                  </DropdownMenuRadioItemIndicator>
+                  {choice.label}
+                </DropdownMenuRadioItem>
+              ))}
+            </DropdownMenuRadioGroup>
+          </div>
+        ))}
+      </DropdownMenuContent>
+    </DropdownMenu>
+  )
+}
+
 /**
  * 输入框上方那条待发队列。
  *
- * 画法是 DeepSeek Harness 的 QueueDock（逐条对应见 prompt-queue.css 的头注），两处与它
- * 不同、都在画法上留了痕：
+ * 画法是 DeepSeek Harness 的 QueueDock（逐条对照见 prompt-queue.css 的头注）。正本一条
+ * 队列只画一行（那是它的一层队列），本机三层所以要画三行；但**结构同形** —— 每一行是
+ * 「记号 + 正文 + 右缘的操作钮」，不另起一列，也没有横排的设置条。
  *
- *   1. 本机的撤回是 LIFO 一条 `withdraw` 命令（正本按号 remove），所以只有最后一行画得出
- *      撤回键 —— 不给按不动的行画一枚假键。
- *   2. 一行前面那枚记号：只有一行时是队列记号（正本如此），两行以上换成**序号** —— 那时
- *      才真的有「谁先走」要交代。两个队的名字在记号自己的提示条里。
+ * 两处按本机机制不同、都在画法上留了痕：
+ *
+ *   1. 本机的撤回是 LIFO 一条 `withdraw` 命令（正本按号 remove、另有编辑与单条插话发送），
+ *      所以**只有最后一行**画得出撤回键 —— 不给按不动的行画一枚假键。
+ *   2. 三个队列模式是整条队列的设置（正本没有这个概念），收在末尾那枚「队列设置」里；
+ *      摆成行的按钮列会被读成「这一句能一次全喂」。
  *
  * 顺序是 agent 的出队顺序，这一层不重排、不预演；改一句只能撤回来重发。
  */
@@ -187,12 +230,7 @@ export const PromptQueue = memo(function PromptQueue({ onEdit, queue }: PromptQu
   /* 三个实参：第三格是服务端快照。本仓的规矩与 session-controls-context 同形，测试里渲染
      静态标记时读的就是它 —— 缺了它，整棵子树在 markup 里是空的。 */
   const state: MessageQueueState = useSyncExternalStore(queue.subscribe, queue.read, queue.read)
-  /*
-   * 摊开是缺省态。
-   *
-   * 正本缺省折起（它的卡片上方还压着别的东西），本仓按产品口径翻过来：队列是在等发的话，
-   * 序号就是「谁先走」，折起来这两样都看不见；头仍然点得动，只是不替人先收一道。
-   */
+  /* 摊开是缺省态：队列是在等发的话，折起来连序号都看不见；头仍然点得动。 */
   const [collapsed, setCollapsed] = useState(false)
   const rows = queueRows(state)
 
@@ -246,16 +284,13 @@ export const PromptQueue = memo(function PromptQueue({ onEdit, queue }: PromptQu
                   <Tooltip>
                     <TooltipTrigger
                       render={
-                        <span
-                          className={many ? 'prompt-queue__ordinal' : 'prompt-queue__lead'}
-                          data-many={many ? '' : undefined}
-                        >
+                        <span className={many ? 'prompt-queue__ordinal' : 'prompt-queue__lead'}>
                           {many ? row.ordinal : <QueueGlyph />}
                         </span>
                       }
                     />
                     <TooltipContent side="bottom">
-                      {many ? `${row.tier} · 第 ${row.ordinal} 条` : row.tier}
+                      {many ? `${row.tier} · 第 ${String(row.ordinal)} 条` : row.tier}
                     </TooltipContent>
                   </Tooltip>
 
@@ -263,49 +298,24 @@ export const PromptQueue = memo(function PromptQueue({ onEdit, queue }: PromptQu
                     {row.text}
                   </span>
 
-                  <div className="prompt-queue__actions">
-                    {row.last ? (
-                      <QueueAction label="撤回这一句，正文回输入框" onClick={withdraw}>
+                  {/*
+                   * 右缘那几枚，就在这一行的 flex 里。
+                   *
+                   * 撤回只在最后一行（LIFO）；队列设置跟着最后一行一起 —— 它是整条队列唯一
+                   * 的设置入口，单独占一行就是「按钮自己一列」，而正本每一枚钮都贴在行右缘。
+                   */}
+                  {row.last ? (
+                    <>
+                      <QueueTuning queue={queue} state={state} />
+                      <RowAction label="撤回这一句，正文回输入框" onClick={withdraw}>
                         <CloseIcon aria-hidden size={14} />
-                      </QueueAction>
-                    ) : null}
-                  </div>
+                      </RowAction>
+                    </>
+                  ) : null}
                 </li>
               ))
             : null}
         </ul>
-
-        <div className="prompt-queue__modes">
-          {MODES.map((mode) => {
-            const current = state[mode.id]
-            return (
-              <span className="prompt-queue__mode" key={mode.id}>
-                <Tooltip>
-                  <TooltipTrigger
-                    render={
-                      <span aria-hidden className="prompt-queue__mode-mark">
-                        <mode.Mark size={14} />
-                      </span>
-                    }
-                  />
-                  <TooltipContent side="bottom">{mode.hint}</TooltipContent>
-                </Tooltip>
-                {mode.choices.map((choice) => (
-                  <QueueAction
-                    active={current === choice.value}
-                    key={choice.value}
-                    label={choice.label}
-                    onClick={() => {
-                      void queue.configure({ [mode.id]: choice.value })
-                    }}
-                  >
-                    <choice.Icon aria-hidden size={14} />
-                  </QueueAction>
-                ))}
-              </span>
-            )
-          })}
-        </div>
       </div>
     </div>
   )

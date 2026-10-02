@@ -129,61 +129,37 @@ describe('待发队列那一块', () => {
   })
 
   /*
-   * 队列模式那一行是本仓多出来的（正本没有队列模式这个概念），但它长在同一张卡里，就
-   * 得与那几行同档。三档的当前值都写进 aria-pressed，屏幕才读得出此刻喂的是哪一档。
-   */
-  test('队列模式那一行与待发的行同在一张卡里', () => {
-    const markup = render(['1111快点啊'], [])
-
-    expect(markup).toContain('prompt-queue__modes')
-    /* 两档 × 三组，各一个按下态。 */
-    expect(markup.match(/aria-pressed=/g) ?? []).toHaveLength(6)
-    expect(markup.match(/aria-pressed="true"/g) ?? []).toHaveLength(3)
-  })
-
-  /*
-   * 三组的记号两两不同，且都不与自己那两档的字形重样。
+   * 三个队列模式**不占屏幕**：它们收在末尾那枚「队列设置」的弹层里。
    *
-   * 前两组的两档字形是同一对（一条一条 / 一次全喂），记号是唯一说得出「这一组管哪个队」
-   * 的东西 —— 记号与档位撞脸时，屏幕上就是同形的图标挨着排，读不出哪一枚是标记。
-   * 第三组曾经正是这样：记号和「立刻打断」都用了闪电。
+   * 它们是整条队列的设置，而正本每一行右侧那几枚按钮是「对**这一行正文**的操作」——
+   * 摆进行的按钮列里，人读到的是「这一句能一次全喂」，那是错的。这一条钉的就是这件事：
+   * 屏幕上只有一枚触发器，三个模式一个都不许以按钮的样子出现。
    */
-  test('三组记号两两不同，也不与自己的档位字形重样', () => {
+  test('三个队列模式收在设置弹层里，不占屏幕', () => {
     const markup = render(['1111快点啊'], [])
-    const marks = [...markup.matchAll(/prompt-queue__mode-mark[^>]*>(<svg[\s\S]*?<\/svg>)/g)].map(
-      (match) => match[1],
-    )
 
-    /* 三组各一枚记号。 */
-    expect(marks).toHaveLength(3)
-    expect(new Set(marks).size).toBe(3)
-
-    /* 每一组：记号那枚字形不在它自己那两档按钮里。 */
-    for (const [index, mark] of marks.entries()) {
-      const group = (markup.match(
-        /<span class="prompt-queue__mode">[\s\S]*?(?=<span class="prompt-queue__mode">|$)/g,
-      ) ?? [])[index]
-      const buttons = group?.replace(/prompt-queue__mode-mark[^>]*>[\s\S]*?<\/svg>/, '') ?? ''
-      expect(buttons).not.toContain(mark)
-    }
+    expect(markup).toContain('aria-label="队列设置"')
+    expect(markup).not.toContain('prompt-queue__mode')
+    expect(markup).not.toContain('aria-pressed')
+    /* 它是那一行里的按钮，不是自己另起一条。 */
+    const rows = markup.match(/<li class="prompt-queue__row">[\s\S]*?<\/li>/g) ?? []
+    expect(rows).toHaveLength(1)
+    expect(rows[0]).toContain('aria-label="队列设置"')
   })
 
   /*
-   * 屏幕上那一排全是图标按钮：名字只在 aria-label 与提示条里，不落在按钮的字面上。
-   * 正本每一枚操作钮都是这么给的（一枚字形配一条 Tooltip 与一条 aria-label），带字的
-   * 按钮读起来是一排标签，与它旁边那枚撤回键也不是同一种东西。
+   * 按钮是**图标钮**：名字只在 aria-label 与提示条里，不落在按钮的字面上。正本每一枚
+   * 操作钮都是这么给的（一枚字形配一条 Tooltip 与一条 aria-label）。
    */
-  test('那一排按钮只有字形，名字在 aria-label 里', () => {
-    /* 只看档位那一行：同一行里那枚撤回键也带这个类，它另有各测。 */
-    const markup = render(['1111快点啊'], []).split('prompt-queue__modes')[1] ?? ''
+  test('按钮只有字形，名字在 aria-label 里', () => {
+    const markup = render(['1111快点啊'], [])
     const buttons =
-      markup.match(/<button[^>]*class="prompt-queue__action"[^>]*>([\s\S]*?)<\/button>/g) ?? []
+      markup.match(/<button[^>]*class="prompt-queue__action[ "][^>]*>([\s\S]*?)<\/button>/g) ?? []
 
-    /* 六枚档位钮，全都只有一枚字形。 */
-    expect(buttons).toHaveLength(6)
+    /* 一行一枚撤回键 + 末尾一枚队列设置。 */
+    expect(buttons).toHaveLength(2)
     for (const button of buttons) {
-      const label = /aria-label="([^"]+)"/.exec(button)?.[1] ?? ''
-      expect(label.length).toBeGreaterThan(0)
+      expect(/aria-label="[^"]+"/.test(button)).toBe(true)
       /* 按钮里除了那枚字形不该再有字。 */
       expect(
         button
@@ -192,7 +168,26 @@ describe('待发队列那一块', () => {
           .trim(),
       ).toBe('')
     }
-    /* 两组的字形两两不同，三组一共六枚名字。 */
-    expect(new Set(buttons.map((button) => /aria-label="([^"]+)"/.exec(button)?.[1])).size).toBe(6)
+    /* 两枚名字不同：一枚管这一句，一枚管整条队列。 */
+    expect(new Set(buttons.map((button) => /aria-label="([^"]+)"/.exec(button)?.[1])).size).toBe(2)
+  })
+
+  /*
+   * 按钮**长在行自己的 flex 里**，不是另起一列。
+   *
+   * 判据落在 DOM 结构上：撤回键是那一行 <li> 的孩子，而不是一个与 <ul> 平级的兄弟。分家会
+   * 让按钮游离在行之外 —— 屏幕上看就是一列悬在右边的钮，跟它要操作的那句话对不上。
+   */
+  test('按钮贴在它那一行的右缘，不是另起一列', () => {
+    const markup = render(['先说这句'], ['说完再做这句'])
+    const rows = markup.match(/<li class="prompt-queue__row">[\s\S]*?<\/li>/g) ?? []
+
+    expect(rows).toHaveLength(2)
+    /* 只有最后一行有按钮，且它在那一行自己的盒子里。 */
+    expect(rows[0]).not.toContain('prompt-queue__action')
+    expect(rows[1]).toContain('prompt-queue__action')
+    /* 列表里没有第二列：按钮总数 = 行内那一枚 + 末尾那一枚。
+       DropdownMenuTrigger 会往 class 后面追加它自己的类，所以按前缀匹配。 */
+    expect(markup.match(/class="prompt-queue__action[ "]/g) ?? []).toHaveLength(2)
   })
 })
