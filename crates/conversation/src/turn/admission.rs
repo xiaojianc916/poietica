@@ -34,7 +34,7 @@ pub struct SkillSpec {
 /// 这句话怎么交给 agent —— omp 的三层插话，打断程度递减。
 ///
 /// 领域只认这个形状，不认识 omp 的方法名；把它翻成 `session.steer` / `session.followUp`
-/// / `sendUserMessage({deliverAs})` 是适配层的事（ADR 0001 的分层）。
+/// 是适配层的事（ADR 0001 的分层）。
 /// 缺省是 `Turn`：老行（这一格加进来之前落盘的准入）重放时还是开一轮。
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -46,8 +46,6 @@ pub enum DeliverAs {
     Steer,
     /// 不打断：这一轮跑完后自动作为下一轮输入。
     FollowUp,
-    /// 完全非中断：在 step 边界静默注入，绝不打断在跑的工具批。
-    Aside,
 }
 
 impl DeliverAs {
@@ -64,20 +62,57 @@ impl DeliverAs {
             Self::Turn => "turn",
             Self::Steer => "steer",
             Self::FollowUp => "followUp",
-            Self::Aside => "aside",
         }
     }
 
     /// 认不出来的值读成 `Turn`：这一格加进来之前落盘的行就是它，
     /// 而那时只有开轮这一种说法。
+    ///
+    /// 已落盘的 `"aside"` 也落到这一支（本仓不再有这一档，见 ADR 0034）：那一笔按
+    /// **开一轮**重放，与它当年"空闲时退成一轮"的上游语义一致，不会静默丢掉那句话。
     #[must_use]
     pub fn from_stored(value: &str) -> Self {
         match value {
             "steer" => Self::Steer,
             "followUp" => Self::FollowUp,
-            "aside" => Self::Aside,
             _ => Self::Turn,
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    #![allow(
+        clippy::expect_used,
+        reason = "a test proves itself by panicking, so a broken mapping must fail the test"
+    )]
+
+    use super::DeliverAs;
+
+    /// 现役三档必须逐字往返：改 `as_stored` 等于改已落盘数据的读法。
+    #[test]
+    fn the_live_layers_round_trip() {
+        for layer in [DeliverAs::Turn, DeliverAs::Steer, DeliverAs::FollowUp] {
+            assert_eq!(DeliverAs::from_stored(layer.as_stored()), layer);
+        }
+    }
+
+    /*
+     * 已落盘的 `"aside"` 读成 `Turn`（ADR 0034）。
+     *
+     * 本仓不再有这一档，但账本里已经有这样的行 —— 读法必须明确，不能是"碰巧落到兜底"。
+     * 按开一轮重放，与它当年"空闲时退成一轮"的上游语义一致，不会静默丢掉那句话。
+     */
+    #[test]
+    fn a_persisted_aside_replays_as_a_turn() {
+        assert_eq!(DeliverAs::from_stored("aside"), DeliverAs::Turn);
+    }
+
+    /* 认不出来的值也读成 Turn：这一格加进来之前落盘的行就是它。 */
+    #[test]
+    fn an_unknown_layer_replays_as_a_turn() {
+        assert_eq!(DeliverAs::from_stored(""), DeliverAs::Turn);
+        assert_eq!(DeliverAs::from_stored("nonsense"), DeliverAs::Turn);
     }
 }
 

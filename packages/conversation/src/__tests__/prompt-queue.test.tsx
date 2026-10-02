@@ -2,7 +2,13 @@ import { describe, expect, test } from 'bun:test'
 import { readFileSync } from 'node:fs'
 import { renderToStaticMarkup } from 'react-dom/server'
 import { EMPTY_QUEUE, MessageQueue, type MessageQueueState } from '../interjection/message-queue'
-import { PromptQueue, queueRows } from '../surface/prompt-queue'
+import {
+  nextLayer,
+  PromptQueue,
+  type QueueRow,
+  queueRows,
+  queueView,
+} from '../surface/prompt-queue'
 
 /*
  * 画法照抄 DeepSeek Harness 的 QueueDock（正本与逐条对应见 prompt-queue.css 的头注），
@@ -11,8 +17,9 @@ import { PromptQueue, queueRows } from '../surface/prompt-queue'
  *   1. 行首只有一行时是队列记号，两行以上换成序号；
  *   2. 行与行之间不画分隔线；
  *   3. 屏幕上不出现「插话 / 排队」这些词 —— 它们走提示条；
- *   4. 三档投递里缺省是 followUp（这一轮跑完再送出去），它**不画图标**；另两档（steer /
- *      aside）各一枚，且都只有最后一行画得出（换层 = 撤回再重投，撤回是 LIFO）。
+ *   4. 投递档里缺省是 followUp（这一轮跑完再送出去），它**不画图标**；steer 那一档一枚，
+ *      且只有最后一行画得出（换层 = 撤回再重投，撤回是 LIFO）。
+ *   5. 上游的第三档 `aside` 整档不接（ADR 0034）：没有它的按钮，也没有它的行。
  *
  * 两半分开测：行的投影是纯函数（序号、署名、谁能撤），静态标记那一半验整块的骨架。
  * 折叠与提示条的内容不进 markup（本仓没有 DOM 测试环境），这里钉的是能看见的那部分。
@@ -41,8 +48,8 @@ const queue = (steering: readonly string[], followUp: readonly string[]): Messag
   return instance
 }
 
-/* 只挑那两枚换层图标：撤回键与它们同类，但不在这一组里。 */
-const DELIVERY_LABELS = ['插话：插进正在跑的这一轮', '旁注：不打断，找个空档悄悄说']
+/* 只挑那枚换层图标：撤回键与它同类，但不在这一组里。 */
+const DELIVERY_LABELS = ['插话：插进正在跑的这一轮']
 
 const deliveryButtons = (markup: string): readonly string[] =>
   (markup.match(/<button[^>]*class="prompt-queue__action[ "][^>]*>/g) ?? []).filter((button) =>
@@ -53,7 +60,7 @@ const render = (steering: readonly string[], followUp: readonly string[]): strin
   renderToStaticMarkup(
     <PromptQueue
       onEdit={() => undefined}
-      onRedeliver={() => undefined}
+      onRedeliver={async () => true}
       queue={queue(steering, followUp)}
     />,
   )
@@ -61,8 +68,8 @@ const render = (steering: readonly string[], followUp: readonly string[]): strin
 describe('待发队列的行', () => {
   test('两层的顺序照 agent 报来的那一份，署名随行', () => {
     expect(queueRows(state(['先说这句'], ['说完再做这句']))).toEqual([
-      { text: '先说这句', tier: '插话', ordinal: 1, last: false },
-      { text: '说完再做这句', tier: '排队', ordinal: 2, last: true },
+      { text: '先说这句', tier: '插话', layer: 'steer', ordinal: 1, last: false },
+      { text: '说完再做这句', tier: '排队', layer: 'followUp', ordinal: 2, last: true },
     ])
   })
 
@@ -80,6 +87,80 @@ describe('待发队列的行', () => {
    */
   test('最后一行才是可撤的那一行', () => {
     expect(queueRows(state(['a', 'b'], ['c'])).map((row) => row.last)).toEqual([false, false, true])
+  })
+})
+
+/*
+ * 换层那枚图标按下去该去哪一档。
+ *
+ * 缺省是 followUp，所以「再点一次已经按下的那一枚」必须**收回**、退回缺省 —— 上一版这里
+ * 直接 return，屏幕上毫无反应，人读到的是「这键只能开不能关」。缺省那一档不画图标，正是
+ * 同一个意思：屏幕上没有按下的图标就是它。
+ */
+describe('换层该去哪一档', () => {
+  test('点另一档就是换到那一档', () => {
+    expect(nextLayer('followUp', 'steer')).toBe('steer')
+    expect(nextLayer('steer', 'followUp')).toBe('followUp')
+  })
+
+  test('再点已经按下的那一枚就是收回，退回缺省 followUp', () => {
+    expect(nextLayer('steer', 'steer')).toBe('followUp')
+  })
+
+  /* 已经就是缺省了，无从再退 —— 那一下什么都不用做。 */
+  test('已经在缺省那一档时不动', () => {
+    expect(nextLayer('followUp', 'followUp')).toBeNull()
+  })
+
+  /* 队列空着（没有可操作的那一条）时不动。 */
+  test('没有可操作的那一条时不动', () => {
+    expect(nextLayer(undefined, 'steer')).toBeNull()
+  })
+})
+
+/*
+ * 换层中间那一帧画什么。
+ *
+ * 换层是「撤回再重投」两步，两步之间 agent 报来的快照里那一条真的不在。照快照画，面板就
+ * 会整块卸载、过一会儿再整块长回来 —— 人读到的是「闪一下」。
+ */
+describe('换层中间那一帧', () => {
+  const moving: QueueRow = {
+    text: '搬动的那句',
+    tier: '插话',
+    layer: 'steer',
+    ordinal: 9,
+    last: true,
+  }
+
+  test('快照里还没有它时，接着画在队尾并重算序号', () => {
+    const view = queueView(queueRows(state([], ['别的'])), moving)
+
+    expect(view.map((row) => row.text)).toEqual(['别的', '搬动的那句'])
+    expect(view.map((row) => row.ordinal)).toEqual([1, 2])
+    /* 快照里「别的」本来就占着可操作那一格，搬动的那一条不抢它 —— 这一格永远只有一行。 */
+    expect(view.filter((row) => row.last).map((row) => row.text)).toEqual(['别的'])
+  })
+
+  /* 队列空着时，搬动的那一条顶上可操作那一格。 */
+  test('快照空着时，搬动的那一条顶上', () => {
+    const view = queueView([], moving)
+
+    expect(view.filter((row) => row.last).map((row) => row.text)).toEqual(['搬动的那句'])
+  })
+
+  /* 快照把它还回来了就让位：判据是正文。不让位，同一句话会画成两行。 */
+  test('快照已经把它还回来时不再重复画', () => {
+    const rows = queueRows(state(['搬动的那句'], []))
+
+    expect(queueView(rows, moving)).toBe(rows)
+  })
+
+  /* 没有在搬动时原样交回快照 —— 这一层不替 agent 记队列。 */
+  test('没有在搬动时原样交回快照', () => {
+    const rows = queueRows(state([], ['别的']))
+
+    expect(queueView(rows, undefined)).toBe(rows)
   })
 })
 
@@ -145,44 +226,81 @@ describe('待发队列那一块', () => {
   })
 
   /*
-   * 两枚换层图标：一行时贴那一行的右缘，多行时贴折叠头的右缘。
+   * 换层那枚图标：一行时贴那一行的右缘，多行时贴折叠头的右缘。
    *
-   * 它们换的是**最后那一条**（撤回再重投，omp 没有按条改层的 API），所以只有最后一行
-   * 配得上这两枚键 —— 中间那几行画不了，不给按不动的行画假键。
+   * 它换的是**最后那一条**（撤回再重投，omp 没有按条改层的 API），所以只有最后一行配得上
+   * 这枚键 —— 中间那几行画不了，不给按不动的行画假键。
    */
-  test('两枚换层图标：一行时在行右缘，多行时在折叠头右缘', () => {
+  test('换层图标：一行时在行右缘，多行时在折叠头右缘', () => {
     const one = render(['1111快点啊'], [])
     const many = render(['先说这句'], ['说完再做这句'])
 
-    /* 一行：没有折叠头，两枚图标在那一行里。 */
+    /* 一行：没有折叠头，那枚图标在那一行里。 */
     expect(one).not.toContain('prompt-queue__header')
     const oneRow = one.match(/<li class="prompt-queue__row">[\s\S]*?<\/li>/)?.[0] ?? ''
-    expect(deliveryButtons(oneRow)).toHaveLength(2)
+    expect(deliveryButtons(oneRow)).toHaveLength(1)
 
-    /* 多行：两枚图标在折叠头里，且不在任何一行里。 */
+    /* 多行：那枚图标在折叠头里，且不在任何一行里。 */
     expect(many).toContain('prompt-queue__header')
     const head = many.match(/<div class="prompt-queue__header">[\s\S]*?<\/div><ul/)?.[0] ?? ''
-    expect(deliveryButtons(head)).toHaveLength(2)
+    expect(deliveryButtons(head)).toHaveLength(1)
     for (const row of many.match(/<li class="prompt-queue__row">[\s\S]*?<\/li>/g) ?? []) {
       expect(deliveryButtons(row)).toHaveLength(0)
     }
   })
 
   /*
-   * 三档投递里**缺省那一档不画图标**。
+   * 投递档里**缺省那一档不画图标**。
    *
    * 缺省是 followUp（这一轮跑完再送出去）：屏幕上没有图标就是它 —— 给缺省态也画一枚键，
-   * 人读到的是「要按一下才生效」。所以另两档各一枚，一共两枚，且都不是 followUp。
+   * 人读到的是「要按一下才生效」。所以只有 steer 一枚。
    */
-  test('缺省档 followUp 不画图标，另两档各一枚', () => {
+  test('缺省档 followUp 不画图标，只有 steer 一枚', () => {
     const markup = render(['1111快点啊'], [])
 
-    /* 两枚图标，名字是另两档。 */
-    expect(deliveryButtons(markup)).toHaveLength(2)
+    expect(deliveryButtons(markup)).toHaveLength(1)
     expect(markup).toContain('aria-label="插话：插进正在跑的这一轮"')
-    expect(markup).toContain('aria-label="旁注：不打断，找个空档悄悄说"')
     /* 缺省那一档不出现。 */
     expect(markup).not.toContain('排队：这一轮跑完再送出去')
+  })
+
+  /*
+   * `aside` 整档不接（ADR 0034）：没有它的按钮。
+   *
+   * 上游既不报它排在哪，也不报它何时被吃掉 —— 画出来的行会永远留在屏幕上。这条钉住它
+   * 不许被加回来。
+   */
+  test('没有 aside 那一档的按钮', () => {
+    const markup = render(['1111快点啊'], [])
+
+    expect(markup).not.toContain('旁注')
+    expect(markup).not.toContain('aside')
+    /* 一行只有换层 + 撤回两枚操作钮。 */
+    expect(markup.match(/class="prompt-queue__action/g) ?? []).toHaveLength(2)
+  })
+
+  /*
+   * 按下的那一枚要**看得出**：它说的是「这一条现在就在这一层」。
+   *
+   * 缺了它，点换层之后屏幕上什么都不动（正文与位置都没变），人读到的是「这键没反应」——
+   * 正是这条队列上一版的样子。所以那枚图标带 aria-pressed，只有当前那一层是真的。
+   */
+  test('当前那一层的那枚图标是按下的', () => {
+    const steerRow = render(['先说这句'], [])
+
+    /* steer 那一层：闪电按下。 */
+    expect(steerRow).toContain('aria-label="插话：插进正在跑的这一轮" aria-pressed="true"')
+
+    /*
+     * followUp 是缺省那一档、本来就没有图标，所以它不按下 —— 这正是「没有图标就是它」的
+     * 同一句话的另一种说法。
+     */
+    const followRow = render([], ['说完再做这句'])
+    expect(followRow).toContain('aria-label="插话：插进正在跑的这一轮" aria-pressed="false"')
+
+    /* 两行时控件在折叠头里，跟着的仍是**最后那一条**（那一行是 followUp，不按下）。 */
+    const many = render(['先说这句'], ['说完再做这句'])
+    expect(many).not.toContain('aria-pressed="true"')
   })
 
   /*
@@ -194,8 +312,8 @@ describe('待发队列那一块', () => {
     const buttons =
       markup.match(/<button[^>]*class="prompt-queue__action[ "][^>]*>([\s\S]*?)<\/button>/g) ?? []
 
-    /* 一行：两枚换层 + 一枚撤回。 */
-    expect(buttons).toHaveLength(3)
+    /* 一行：一枚换层 + 一枚撤回。 */
+    expect(buttons).toHaveLength(2)
     for (const button of buttons) {
       expect(/aria-label="[^"]+"/.test(button)).toBe(true)
       expect(
@@ -205,29 +323,27 @@ describe('待发队列那一块', () => {
           .trim(),
       ).toBe('')
     }
-    /* 三枚名字互不相同。 */
-    expect(new Set(buttons.map((button) => /aria-label="([^"]+)"/.exec(button)?.[1])).size).toBe(3)
+    /* 两枚名字互不相同。 */
+    expect(new Set(buttons.map((button) => /aria-label="([^"]+)"/.exec(button)?.[1])).size).toBe(2)
   })
 
   /*
-   * 三枚控件（换层两枚 + 撤回一枚）改的都是**最后那一条**，所以它们同在一处，不是散在
-   * 各行上。
+   * 两枚控件（换层 + 撤回）改的都是**最后那一条**，所以它们同在一处，不是散在各行上。
    *
-   * 多行时它们在折叠头里（连同最右那枚折角）；一行时没有折叠头，三枚都贴那一行的右缘。
+   * 多行时它们在折叠头里（连同最右那枚折角）；一行时没有折叠头，两枚都贴那一行的右缘。
    * 把撤回单独留在最后一行上，读起来就是「只有这一行能删」的一枚孤零零的键 —— 那不是
    * 它的语义。
    */
-  test('三枚控件跟着「最后一条」走：一行时在行内，多行时在折叠头里', () => {
+  test('两枚控件跟着「最后一条」走：一行时在行内，多行时在折叠头里', () => {
     const one = render(['先说这句'], [])
     const many = render(['先说这句'], ['说完再做这句'])
 
-    /* 一行：三枚都在那一行里，且行里没有折角钮（没有可折的东西）。 */
+    /* 一行：两枚都在那一行里，且行里没有折角钮（没有可折的东西）。 */
     const oneRow = one.match(/<li class="prompt-queue__row">[\s\S]*?<\/li>/)?.[0] ?? ''
     expect(oneRow).toContain('撤回最后一条')
     expect(oneRow).toContain('插话：插进正在跑的这一轮')
-    expect(oneRow).toContain('旁注：不打断，找个空档悄悄说')
 
-    /* 多行：三枚都在折叠头里，行里一枚都没有。 */
+    /* 多行：两枚都在折叠头里，行里一枚都没有。 */
     const head = many.match(/<div class="prompt-queue__header">[\s\S]*?<\/div><ul/)?.[0] ?? ''
     expect(head).toContain('撤回最后一条')
     expect(head).toContain('插话：插进正在跑的这一轮')
@@ -238,7 +354,7 @@ describe('待发队列那一块', () => {
   })
 
   /*
-   * 折角钮排在那一排的最右：它只说「这一块能收起来」，夹在操作钮中间会被当成第四枚操作。
+   * 折角钮排在那一排的最右：它只说「这一块能收起来」，夹在操作钮中间会被当成第三枚操作。
    */
   test('折角钮在控件组最右', () => {
     const head =
@@ -247,7 +363,7 @@ describe('待发队列那一块', () => {
       )?.[0] ?? ''
     const labels = [...head.matchAll(/aria-label="([^"]+)"/g)].map((match) => match[1])
 
-    /* 撤回 → 换层两枚 → 折角，折角最后。 */
+    /* 撤回 → 换层 → 折角，折角最后。 */
     expect(labels[labels.length - 1]).toBe('收起排队消息')
   })
 })

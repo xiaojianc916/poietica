@@ -3,6 +3,7 @@ import type { ApprovalAnswer } from '../../agent/permission'
 import type { QuestionResponse } from '../../agent/question'
 import type { ChatStatus } from '../../agent/run'
 import type {
+  AgentPromptHandle,
   AgentSessionPort,
   PromptAsset,
   PromptConfiguration,
@@ -63,8 +64,14 @@ export interface AssistantSession {
    *
    * `deliverAs` 缺省时按这一刻的状态选：空闲开一轮，正在跑就插话（omp 自己的 TUI
    * 就是这一条：流式中回车 = steer）。显式传就是调用方点名要那一层。
+   *
+   * 交回回执（没送出去就是 null）：正常发送不看它 —— 失败由横幅说；而**撤回再重投**
+   * 那条路必须看，因为撤回已经把那句话从队列里拿走了，重投没成时它得把正文还回去。
    */
-  readonly send: (submission: AssistantSubmission, deliverAs?: PromptDelivery) => void
+  readonly send: (
+    submission: AssistantSubmission,
+    deliverAs?: PromptDelivery,
+  ) => Promise<AgentPromptHandle | null>
   readonly cancel: () => void
   readonly resolvePermission: (requestId: string, answer: ApprovalAnswer) => void
   /** 答掉一整组题。答复形状就是协议自己的 QuestionResponse，不经权限请求。 */
@@ -218,7 +225,7 @@ export function useAssistantSession({
        */
       const delivery: PromptDelivery =
         deliverAs ?? (canCancel(transcripts.read(key)) ? 'followUp' : 'turn')
-      void transcripts.send({
+      return transcripts.send({
         ...submission,
         deliverAs: delivery,
         onUserMessage,

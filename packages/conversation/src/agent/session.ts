@@ -23,16 +23,18 @@ export interface PromptConfiguration {
 }
 
 /**
- * 这句话怎么交给 agent —— omp 的三层插话，打断程度递减。
+ * 这句话怎么交给 agent —— 打断程度递减。
  *
  * - `turn`：开一轮（空闲时的正常发送）。
  * - `steer`：插进正在跑的那一轮，在工具批次之间被模型看到。
  * - `followUp`：不打断，这一轮跑完后自动作为下一轮输入。
- * - `aside`：完全非中断，在 step 边界静默注入，绝不打断在跑的工具批。
  *
- * 后三层的**队列归 agent**：本机不留副本，只看它报回来的队列快照。
+ * 两层的**队列归 agent**：本机不留副本，只看它报回来的队列快照。
+ *
+ * 上游还有第四档 `aside`（step 边界静默注入），本仓**不接**：上游既不报它排在哪，也不报
+ * 它何时被吃掉 —— 屏幕上会留一行永远不消失的旁注。见 ADR 0034。
  */
-export type PromptDelivery = 'turn' | 'steer' | 'followUp' | 'aside'
+export type PromptDelivery = 'turn' | 'steer' | 'followUp'
 
 export interface AgentPromptRequest {
   readonly threadId: ThreadId

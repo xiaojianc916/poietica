@@ -2,9 +2,11 @@
 
 ## 状态
 
-已接受。取代本仓此前那条"本机出账簿"的做法（`packages/conversation/src/interjection/
-interjection-outbox.ts`，含它的 `queue`/`holding`/`release` 状态机），以及线上那条
-把 **prompt 号当正文**发进插话队列的 `steer` 命令。
+已接受，**决策 4 由 ADR 0034 取代**（aside 整档不接，见该文；本文编号与其余决策不改
+—— ADR 一改号就断了引用）。取代本仓此前那条"本机出账簿"的做法
+（`packages/conversation/src/interjection/interjection-outbox.ts`，含它的
+`queue`/`holding`/`release` 状态机），以及线上那条把 **prompt 号当正文**发进插话队列的
+`steer` 命令。
 
 ## 背景
 
@@ -51,8 +53,9 @@ omp 18.3.0 的真实契约（以下均为包内源码，非文档传闻；锚点
 
 ## 决策
 
-1. **三层插话就是线上的 `deliverAs` 四档，正文是那一句话本身。**
-   `prompt` 命令带 `deliverAs: "turn" | "steer" | "followUp" | "aside"`（必填），
+1. ~~**三层插话就是线上的 `deliverAs` 四档，正文是那一句话本身。**~~
+   **四档现为三档（ADR 0034 删掉 `aside`）：** `prompt` 命令带
+   `deliverAs: "turn" | "steer" | "followUp"`（必填），
    桥按档分派到上面三个 upstream 方法。把 prompt **号**当正文那条路彻底删掉
    （`agent_steer` 命令不再存在）。四档的字面量在 `wire.rs` 里有逐字的回归测试：
    对不上时桥会把 `deliverAs` 读成 `undefined`，而它是必填，整条命令会被静默丢掉。
@@ -79,10 +82,14 @@ omp 18.3.0 的真实契约（以下均为包内源码，非文档传闻；锚点
    看着空闲但事件还没到）就明着补一次 steer 并如实把那一轮收成失败 —— 话不丢，
    账也不假。
 
-4. **`aside` 不做本机入口，但留完整的投递面。** 它没有 UI 手势（omp 的 TUI 也没有），
+4. ~~**`aside` 不做本机入口，但留完整的投递面。** 它没有 UI 手势（omp 的 TUI 也没有），
    投递路径与图片支持仍然完整，谁要用谁点名 `deliverAs: "aside"`。它不进
    `getQueuedMessages` 那两个队列（走 IRC 那条旁路，`queuedMessageCount` 也不算它），
-   所以队列快照里没有它的位置 —— 编一格假的只会让屏幕说一句 agent 没说过的话。
+   所以队列快照里没有它的位置 —— 编一格假的只会让屏幕说一句 agent 没说过的话。~~
+   **已由 ADR 0034 取代：** 它加了本机手势之后两版都错 —— 不报它，那一行按下去就凭空
+   消失、过一会儿又从 transcript 冒出来；一直报它，认领之前它永远在、屏幕上一行永不消失。
+   根因是**上游不报 aside 的生死**（它不进 `getQueuedMessages`，也没有按条读它的 API），
+   所以这一档整档不接了。
 
 5. **插话画在哪一格由投影器判，不由这一层猜。** 注入消息的 `message_start` 到了以后，
    桥按**正文**认领自己投出去还没露面的那一条（开场白也走同一对事件，所以判据必须是

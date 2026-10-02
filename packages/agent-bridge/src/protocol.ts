@@ -33,13 +33,15 @@ export type BridgeCommand =
        *   在流式中**不会**被选（产品在流式里选下面三层）。
        * - `steer`：插进正在跑的那一轮，在工具批次之间被模型看到（`session.steer`）。
        * - `followUp`：不打断，本轮跑完后自动作为下一轮输入（`session.followUp`）。
-       * - `aside`：完全非中断，在 step 边界静默注入，绝不打断在跑的工具批
-       *   （`session.sendUserMessage(content, {deliverAs: 'aside'})`）。
        *
-       * 只有 `steer`/`followUp`/`aside` 是插话；后两者的存续期与队列都在 agent 里，
+       * 只有 `steer`/`followUp` 是插话；两者的存续期与队列都在 agent 里，
        * 这一侧不留副本（AGENTS.md §1「每一类状态有且只有一个所有者」）。
+       *
+       * 上游还有第四档 `aside`（step 边界静默注入），本仓**不接**：上游既不报它排在哪
+       * （`getQueuedMessages` 不含它），也不报它何时被吃掉，屏幕上画不出一个会自己消失的
+       * 行 —— 见 ADR 0034。
        */
-      readonly deliverAs: 'turn' | 'steer' | 'followUp' | 'aside'
+      readonly deliverAs: 'turn' | 'steer' | 'followUp'
       /**
        * 随这句话带上的附件；每一格交的是磁盘绝对路径 + kind + mime + 名字。
        * 对象而非裸路径：SDK 收图只有 base64 一条路（`PromptOptions.images:
@@ -451,8 +453,11 @@ export interface GoalSnapshot {
  * 待发队列此刻的样子，以及三个队列模式的取值。
  *
  * `steering` 与 `followUp` 都是**已经交给 agent 的**用户消息正文（上游
- * `getQueuedMessages()` 只挑可恢复的用户消息；aside 不进这两个队列，它在 IRC 那条
- * 旁路上，因此不在这里）。顺序就是出队顺序。
+ * `getQueuedMessages()` 只挑可恢复的用户消息）。顺序就是出队顺序。
+ *
+ * 上游的第三档 `aside` 不在这一份快照里，也不在本仓的产品面上：上游没有读它的 API
+ * （它走 IRC 旁路，`queuedMessageCount` 也不算它），本机无从知道它何时被吃掉 ——
+ * 画出来的行会永远留在屏幕上。见 ADR 0034。
  */
 export interface QueuedState {
   /** 这份队列属于哪条会话。队列是会话级的事实，屏幕按对话订阅，认领要用它。 */

@@ -24,14 +24,14 @@
 
 ## 线上的两类帧
 
-上行（Rust → 边车）：`new_session`、`load_session`、`prompt`（带 `deliverAs` 四档）、
+上行（Rust → 边车）：`new_session`、`load_session`、`prompt`（带 `deliverAs` 三档）、
 `cancel`、`queue`、`withdraw`、`delivery`、`answer_permission`、`answer_dialog`、
 `selectors`、`select`、`goal`、`transcript`、`transcript_ops`、`browser_settings`、
 `set_browser_settings`、`settings_catalog`、`set_setting`、`skills`、`mcp_servers`、
 `capabilities`、`model_catalog`、`shutdown`。
 每条带 `id`，应答原样回。**正本是 `protocol.ts` 的 `BridgeCommand`**，这里不重抄清单
-（§0）；`crates/agent-client/src/wire.rs` 的 `Command` 与它逐字对应。插话的三层
-（steer / followUp / aside）是同一个 `prompt` 命令的 `deliverAs`，不是三条命令；
+（§0）；`crates/agent-client/src/wire.rs` 的 `Command` 与它逐字对应。插话的两层
+（steer / followUp）是同一个 `prompt` 命令的 `deliverAs`，不是三条命令；
 队列的三条读写（`queue`/`withdraw`/`delivery`）归 agent 自己的队列（ADR 0026）。
 
 下行（边车 → Rust）：`ready`、`response`、`failed`，以及这几类事件 ——

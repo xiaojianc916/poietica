@@ -86,7 +86,6 @@ fn deliver_as(mode: poietica_conversation::turn::DeliverAs) -> DeliverAs {
         poietica_conversation::turn::DeliverAs::Turn => DeliverAs::Turn,
         poietica_conversation::turn::DeliverAs::Steer => DeliverAs::Steer,
         poietica_conversation::turn::DeliverAs::FollowUp => DeliverAs::FollowUp,
-        poietica_conversation::turn::DeliverAs::Aside => DeliverAs::Aside,
     }
 }
 

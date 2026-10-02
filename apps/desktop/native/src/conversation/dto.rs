@@ -47,8 +47,6 @@ pub enum AgentDeliverAs {
     Steer,
     /// 不打断：这一轮跑完后自动作为下一轮输入。
     FollowUp,
-    /// 完全非中断：在 step 边界静默注入，绝不打断在跑的工具批。
-    Aside,
 }
 
 impl From<AgentDeliverAs> for poietica_conversation::turn::DeliverAs {
@@ -57,7 +55,6 @@ impl From<AgentDeliverAs> for poietica_conversation::turn::DeliverAs {
             AgentDeliverAs::Turn => Self::Turn,
             AgentDeliverAs::Steer => Self::Steer,
             AgentDeliverAs::FollowUp => Self::FollowUp,
-            AgentDeliverAs::Aside => Self::Aside,
         }
     }
 }
@@ -134,7 +131,7 @@ pub struct AgentAbortPromptRequest {
 /// 待发队列此刻的样子：两层正文 + 三个模式。
 ///
 /// 队列的真相在 agent 里，这一层只搬。`steering` 与 `followUp` 都是已经交给 agent 的
-/// 用户消息正文；aside 不在其中（它走旁路，上游的 queuedMessageCount 也不算它）。
+/// 用户消息正文；上游的第三档 `aside` 不在其中（见 ADR 0034）。
 #[derive(Clone, Debug, Deserialize, Serialize, Type)]
 #[serde(rename_all = "camelCase")]
 pub struct AgentQueuedState {

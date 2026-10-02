@@ -46,7 +46,7 @@ agentTranscriptEvent（原样 JSON）→ native-bridge 的 transcript 端口（v
 schema 校验）→ transcript-store（增量 ops / reset 快照 / 追赶）→
 projectTranscript 投影 → React。本机帧日志（conversation_events）只记协议不
 建模而客户端必须记住的事实（准入、审批、提问、链路、轮终）。反向的命令路：
-prompt（`deliverAs` 四档：turn / steer / followUp / aside）/ cancel / queue /
+prompt（`deliverAs` 三档：turn / steer / followUp）/ cancel / queue /
 withdraw / delivery / resolvePermission / transcript 两条读（agentTranscript 与
 agentTranscriptOps）。待发队列归 agent 自己的双队列，本机只订阅它的快照（ADR 0026）。
 谁持有唯一真相：屏幕经过 = agent 的 transcript；模型上下文 = agent；对话索引 =

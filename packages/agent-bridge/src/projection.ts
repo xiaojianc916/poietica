@@ -145,7 +145,7 @@ export class TranscriptProjector {
   }
 
   /**
-   * 一句插话（steer / followUp / aside 落到上下文里的那一下）。
+   * 一句插话（steer / followUp 落到上下文里的那一下）。
    *
    * 与 `userTurn` 的分野是**开不开新轮**：开着一轮时这句话是那一轮里的一句（模型在
    * 工具批次之间看见它，然后接着干同一轮的活），所以它进当前 step；没开着一轮时

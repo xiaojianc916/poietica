@@ -7,9 +7,11 @@
  *
  *   1. `steer`   → `AgentSession.steer(text, images)`（工具批次之间被模型看到）；
  *   2. `followUp`→ `AgentSession.followUp(...)`（本轮跑完接着做）；
- *   3. `aside`   → `sendUserMessage(content, {deliverAs:'aside'})`（step 边界静默注入）；
- *   4. `turn`    → `prompt(...)`，一格都不带 `deliverAs` 那套；
- *   5. `queue` / `withdraw` / `delivery` 三条读改写都落到 agent 自己的读法上。
+ *   3. `turn`    → `prompt(...)`，一格都不带 `deliverAs` 那套；
+ *   4. `queue` / `withdraw` / `delivery` 三条读改写都落到 agent 自己的读法上。
+ *
+ * 上游的第四档 `aside` **不在本仓的产品面上**（见 ADR 0034）：它的去处在协议那一格被
+ * 挡掉，所以这里没有它的一路。
  *
  * 跑法：cd packages/agent-bridge && bun test src/__tests__/interjection-layers.test.ts
  *
@@ -55,10 +57,16 @@ override('prompt', {
 })
 override('steer', { value: record('steer') })
 override('followUp', { value: record('followUp') })
+/*
+ * 上游还有一条 `sendUserMessage`（aside 走它）。本仓不接那一档，所以这里把它钉成**失败**：
+ * 谁再把 `deliverAs: 'aside'` 放回产品面，这条当场炸，而不是悄悄投出去、在屏幕上留一行
+ * 永远不消失的旁注。
+ */
 override('sendUserMessage', {
   value: async function (this: unknown, content: unknown, options?: { deliverAs?: string }) {
-    const text = typeof content === 'string' ? content : String(Array.isArray(content) ? '' : '')
-    calls.push({ how: `aside:${options?.deliverAs ?? 'none'}`, text, images: [] })
+    throw new Error(
+      `本仓不投 aside：content=${String(content)} deliverAs=${String(options?.deliverAs)}`,
+    )
   },
 })
 override('getQueuedMessages', { value: () => queued })
@@ -159,9 +167,16 @@ test('followUp lands on the follow-up queue', async () => {
   expect(calls.map((call) => call.how)).toEqual(['followUp'])
 })
 
-test('aside goes through sendUserMessage with the non-interrupting behavior', async () => {
-  await dispatch(layer('aside'))
-  expect(calls.map((call) => call.how)).toEqual(['aside:aside'])
+/*
+ * 上游的第四档 `aside` 被挡在产品面之外（ADR 0034）。
+ *
+ * 它的去处就是这一条：桥不认这一档，所以没有哪条路会走到 `sendUserMessage`。上游既不报
+ * 它排在哪，也不报它何时被吃掉 —— 接上它，屏幕上就会留一行永远不消失的旁注。
+ */
+test('the aside layer is not reachable from this bridge', async () => {
+  await expect(dispatch(layer('aside'))).rejects.toThrow()
+  /* 那一格根本到不了上游：投递方法一次都没被调用。 */
+  expect(calls).toEqual([])
 })
 
 test('turn opens a real turn and never steals an interjection layer', async () => {

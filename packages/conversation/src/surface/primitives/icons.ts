@@ -36,7 +36,6 @@ export function asIcon(glyph: FunctionComponent<{ className?: string; size?: num
 export {
   Archive as ArchiveIcon,
   ArrowDown as ToLatestIcon,
-  ArrowUp as QueueAsideIcon,
   ArrowUp as SubmitIcon,
   Atom as ThinkingIcon,
   BookOpenText as FileIcon,

@@ -25,17 +25,19 @@ pub const PROTOCOL_VERSION: u32 = 2;
 pub const MAX_LINE_BYTES: usize = 50 * 1024 * 1024;
 
 /// 一句话怎么进 agent。判别式与 packages/agent-bridge/src/protocol.ts 的
-/// `deliverAs` 逐字对应：serde 按 camelCase 写出 `turn / steer / followUp / aside`。
+/// `deliverAs` 逐字对应：serde 按 camelCase 写出 `turn / steer / followUp`。
 ///
-/// 只有 `Turn` 会开一轮；另外三层都是插话，存续期与队列都在 agent 里
-/// （`AgentSession.steer/followUp/sendUserMessage`），本机不留副本。
+/// 只有 `Turn` 会开一轮；另外两层都是插话，存续期与队列都在 agent 里
+/// （`AgentSession.steer/followUp`），本机不留副本。
+///
+/// 上游还有第四档 `aside`，本仓不接（见 ADR 0034）：上游既不报它排在哪，也不报它何时被
+/// 吃掉，屏幕上会留一行永远不消失的旁注。
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub enum DeliverAs {
     Turn,
     Steer,
     FollowUp,
-    Aside,
 }
 
 impl DeliverAs {
@@ -46,7 +48,6 @@ impl DeliverAs {
             Self::Turn => "turn",
             Self::Steer => "steer",
             Self::FollowUp => "followUp",
-            Self::Aside => "aside",
         }
     }
 }
@@ -73,7 +74,7 @@ pub enum Command {
 
         #[serde(rename = "promptId")]
         prompt_id: String,
-        /// 这一句怎么进 agent：turn / steer / followUp / aside。见 protocol.ts 的注释。
+        /// 这一句怎么进 agent：turn / steer / followUp。见 protocol.ts 的注释。
         #[serde(rename = "deliverAs")]
         deliver_as: DeliverAs,
     },
@@ -423,9 +424,9 @@ mod tests {
     }
 
     /*
-     * 三层插话的字面量必须与 protocol.ts 那一格逐字相同：对不上时桥会把
+     * 两层插话的字面量必须与 protocol.ts 那一格逐字相同：对不上时桥会把
      * `deliverAs` 读成 undefined，而 `deliverAs` 是**必填**，整条命令会被静默丢成
-     * 解不开的载荷。四档一次全钉住。
+     * 解不开的载荷。三档一次全钉住。
      */
     #[test]
     fn every_delivery_layer_has_one_literal_name() {
@@ -433,7 +434,6 @@ mod tests {
             (DeliverAs::Turn, r#""deliverAs":"turn""#),
             (DeliverAs::Steer, r#""deliverAs":"steer""#),
             (DeliverAs::FollowUp, r#""deliverAs":"followUp""#),
-            (DeliverAs::Aside, r#""deliverAs":"aside""#),
         ] {
             let line = encode(&Command::Prompt {
                 id: "p".to_owned(),
@@ -484,7 +484,7 @@ mod tests {
             id: "p2".to_owned(),
             text: String::new(),
             prompt_id: "turn-2".to_owned(),
-            deliver_as: DeliverAs::Aside,
+            deliver_as: DeliverAs::Steer,
             attachments: vec![
                 WireAttachment {
                     path: "D:\\media\\pasted-7f3a".to_owned(),

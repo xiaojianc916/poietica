@@ -85,8 +85,10 @@ pub enum SessionEvent {
 /// 待发队列此刻的样子与三个队列模式。
 ///
 /// 字段与 packages/agent-bridge/src/protocol.ts 的 `QueuedState` 逐字对应（camelCase
-/// 在桥那一侧折），所以这里不加第二个命名。两层正文都只含**用户消息**：上游
-/// `getQueuedMessages()` 挑的就是可恢复的那一批（aside 不在其中，它走旁路）。
+/// 在桥那一侧折），所以这里不加第二个命名。`steering` 与 `follow_up` 只含**用户消息**：
+/// 上游 `getQueuedMessages()` 挑的就是可恢复的那一批。
+///
+/// 上游的第三档 `aside` 不在这一份快照里，也不在本仓的产品面上（见 ADR 0034）。
 #[derive(Clone, Debug, Default, Eq, PartialEq)]
 pub struct QueuedState {
     /// 这份队列属于哪条会话。

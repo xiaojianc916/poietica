@@ -239,7 +239,7 @@ interface Session {
 /** 一条投出去的插话：正文是认领判据，层决定它在不在 agent 的队列里。 */
 interface PendingInterjection {
   readonly text: string
-  readonly deliverAs: 'steer' | 'followUp' | 'aside'
+  readonly deliverAs: 'steer' | 'followUp'
 }
 
 interface PendingInteraction {
@@ -1847,32 +1847,15 @@ export function createBridge(host: BridgeHost): Bridge {
   async function deliverInterjection(
     record: Session,
     command: Extract<BridgeCommand, { type: 'prompt' }>,
-    deliverAs: 'steer' | 'followUp' | 'aside',
+    deliverAs: 'steer' | 'followUp',
   ): Promise<unknown> {
     const images = readPromptImages(command.attachments)
     const carried = images.length === 0 ? undefined : images
 
     if (deliverAs === 'steer') {
       await record.agent.steer(command.text, carried)
-    } else if (deliverAs === 'followUp') {
-      await record.agent.followUp(command.text, carried)
     } else {
-      /*
-       * aside 只有一条路：`sendUserMessage(content, {deliverAs})`（agent-session.ts:7850）。
-       * 空闲时它会退成一轮真的 turn（上游的既定语义：没有在跑的轮可注）；忙碌时它进
-       * 旁路队列，在 step 边界注入，绝不打断在跑的工具批。
-       *
-       * 无图时交**字符串**，不交 `[正文]`：数组分支按 `part.type` 分拣，裸字符串没有
-       * type，会被当成图片塞进 images；随后上游对每个元素调 `imageAttachmentSource`，
-       * 而它做的是 `symbol in image` —— 对字符串直接抛 TypeError（agent-session.ts:7370
-       * 的 `#createAttachmentSourceNotices`），aside 因此永远投不出去。
-       */
-      await record.agent.sendUserMessage(
-        images.length === 0 ? command.text : [{ type: 'text', text: command.text }, ...images],
-        {
-          deliverAs: 'aside',
-        },
-      )
+      await record.agent.followUp(command.text, carried)
     }
 
     record.injections.push({ text: command.text, deliverAs })
@@ -1885,8 +1868,8 @@ export function createBridge(host: BridgeHost): Bridge {
    * 队列此刻的事实。两层待发正文与三个模式都从 agent 自己的读法来（agent-session.ts
    * 的 getQueuedMessages / steeringMode / followUpMode / interruptMode），本层不记副本。
    *
-   * aside 不在这两个队列里（它走 IRC 那条旁路，`queuedMessageCount` 也不算它），
-   * 所以这里没有它的位置 —— 编一格假的只会让屏幕说一句 agent 没说过的话。
+   * 上游的第三档 `aside` 不在这一份快照里，本仓也不接它：上游没有读它的 API，本机
+   * 无从知道它何时被吃掉 —— 画出来的行会永远留在屏幕上（ADR 0034）。
    */
   function queueOf(record: Session): QueuedState {
     const queued = record.agent.getQueuedMessages()
@@ -1928,9 +1911,7 @@ export function createBridge(host: BridgeHost): Bridge {
   function forgetInjected(record: Session): void {
     const queued = record.agent.getQueuedMessages()
     const waiting: readonly string[] = [...queued.steering, ...queued.followUp]
-    const still = record.injections.filter(
-      (entry) => entry.deliverAs !== 'aside' && waiting.includes(entry.text),
-    )
+    const still = record.injections.filter((entry) => waiting.includes(entry.text))
 
     record.injections.length = 0
     record.injections.push(...still)
@@ -3548,13 +3529,21 @@ export function createBridge(host: BridgeHost): Bridge {
   }
 
   /*
-   * 一句话按它点名的层走。`turn` 开一轮（回执带轮身份），另外三层是插话
+   * 一句话按它点名的层走。`turn` 开一轮（回执带轮身份），另外两层是插话
    * （回执只是「agent 收下了」，队列归它）。
+   *
+   * 上游还有第四档 `aside`，本仓不接（ADR 0034）。线上形状里已经没有它（wire.rs 的
+   * `DeliverAs` 三档），这里守的是**别的写入方**：认不出来的档位必须当场报错，不能落进
+   * 下面那条 else —— 那会把一句旁注当成 followUp 排进队列，投出去的层与点名的层不一样。
    */
   function deliverPrompt(
     record: Session,
     command: Extract<BridgeCommand, { type: 'prompt' }>,
   ): Promise<unknown> | unknown {
+    if ((command.deliverAs as string) === 'aside') {
+      throw new Error('this bridge does not deliver asides')
+    }
+
     return command.deliverAs === 'turn'
       ? sendPrompt(command)
       : deliverInterjection(record, command, command.deliverAs)

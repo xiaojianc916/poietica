@@ -44,3 +44,4 @@ ACP / kap / kimi-code / deepseek harness / 早期 fatal-incident 草案等已消
 | 0031 | 应用数据住 Electron 的 userData，安装器够不着 |
 | 0032 | agent 运行时安装整条管线移除：omp 随包发，没有要装的东西 |
 | 0033 | 接入档案收敛成一份文档：删掉「默认 agent」与 AgentLaunch |
+| 0034 | 不接 omp 的 aside 档：上游不报它何时被吃掉（取代 0026 决策 4） |
