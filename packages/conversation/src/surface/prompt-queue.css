@@ -1,117 +1,279 @@
 /*
- * 输入框上方那条队列：一张卡，行长在卡里。
+ * 输入框上方那条待发队列：DeepSeek Harness 的 QueueDock，逐条照抄。
  *
- * 颜色与尺寸只取 skin/metrics.css 的令牌，所以它跟着主题走，不自己挑灰度。
- * 高度封在五行半：多出来的行由这一层自己滚，卡不会长到把输入框挤出视野。
+ * 正本 @deepseek-ai/dsh-client-ui-conversation 的 src/client/queue/QueueDock.module.css
+ * （装机版本 2026-10-02）；本仓的 --cp-queue-* 就是它那几条 --dsh-composer-* 的等价量，
+ * 数字在 skin/metrics.css 里逐条注明了出处。类名换成这一层的 BEM，其余声明连顺序都
+ * 尽量与正本一致 —— 差别只允许来自「本仓没有的令牌」与「两边机制不同」。
+ *
+ * 三处按正本改不了、各自成一条：
+ *
+ *   材质  正本的面是玻璃底 --dsw-specific-menu + 40px 模糊 + 150% 饱和，边界走 elevation
+ *         里那圈 0 0 0 .5px 描边（它没有 border）。本仓把这一整套收敛在浮层族里，
+ *         --ui-popup-surface 与 --ui-popup-elevation 正是同一条材质按本仓令牌取准的
+ *         结果（值与其出处见 tokens/light.css）。这一条读那两支，不自己再写一份玻璃底。
+ *   宽度  正本那一串 calc 里的 reading measure 是 DSH 自己的聊天列宽；本仓输入卡的上限
+ *         就是 --cp-input-max（= --cp-grid），队列按正本同一条关系比它窄 16。
+ *   折叠  正本两行以上才画折叠头，一行直接摊开；本仓照同一条判据。队列模式那一行是
+ *         本仓多出来的（见下）。
+ */
+
+/*
+ * 咬在输入卡上沿的那一栏。
+ *
+ * 三面各让 16（--cp-queue-clear），再各让 8（--cp-queue-inset）—— 输入卡自己长在那 16
+ * 的里面，所以这一条左右各比输入卡窄 8，面板窄 32。下沿咽进输入卡 3px
+ * （--cp-queue-tuck），两个圆角于是咬在一起，接缝由重叠给出：面板下沿是方的，被卡片
+ * 盖住那一截正是它该被盖住的地方。
  */
 .prompt-queue {
-  display: flex;
-  flex-direction: column;
-  inline-size: calc(100% - var(--cp-queue-inset) * 2);
-  max-block-size: calc(var(--cp-queue-row) * var(--cp-queue-rows) + var(--cp-queue-pad) * 2);
-  margin: 0 auto var(--cp-pad-mid);
-  padding: var(--cp-queue-pad);
-  overflow-y: auto;
-  overscroll-behavior: contain;
-  border: var(--cp-px) solid var(--cp-edge);
-  border-radius: var(--cp-radius);
-  background: var(--cp-surface);
-  box-shadow: var(--cp-lift);
-  list-style: none;
-  scrollbar-width: none;
+  box-sizing: border-box;
+  inline-size: calc(100% - var(--cp-queue-gutter) * 2);
+  max-inline-size: var(--cp-queue-card-max);
+  flex: none;
+  margin: 0 auto calc(0px - var(--cp-queue-tuck));
+  padding: 0 var(--cp-queue-inset);
 }
 
-/* 轨道不占位：这张卡只有五行半，一条滚动条会把行宽切掉一截。 */
-.prompt-queue::-webkit-scrollbar {
+/*
+ * 这张卡本身：只在上左右三面成框的浮层带。
+ *
+ * 下沿没有边界 —— 它压在输入卡底下，那条边由输入卡自己的上边框给。圆角因此是
+ * 「上圆下直」：正本 border-radius: lg lg 0 0 逐字如此。
+ */
+.prompt-queue__panel {
+  position: relative;
+  isolation: isolate;
+  inline-size: 100%;
+  padding: 2px 0;
+  overflow: hidden;
+  border-radius: var(--cp-queue-radius) var(--cp-queue-radius) 0 0;
+  box-shadow: var(--ui-popup-elevation);
+}
+
+/* 玻璃底画在内容之下：z-index:-1 配 isolation，把那层底关在这张卡自己的栈里。 */
+.prompt-queue__panel::before {
+  position: absolute;
+  z-index: -1;
+  inset: 0;
+  border-radius: inherit;
+  background: var(--ui-popup-surface);
+  backdrop-filter: blur(40px) saturate(150%);
+  content: "";
+  pointer-events: none;
+}
+
+/*
+ * 折叠头：两行以上才画，一行直接摊开（正本同一条判据）。
+ *
+ * 它是一颗按钮，却长在一条浮层带上：静息没有底，按下去也只有一层墨。
+ */
+.prompt-queue__header {
+  box-sizing: border-box;
+  display: flex;
+  inline-size: 100%;
+  block-size: var(--cp-queue-row);
+  align-items: center;
+  gap: 10px;
+  padding: 4px 12px;
+  border: 0;
+  border-radius: var(--cp-queue-row-radius);
+  background: none;
+  color: var(--cp-ink);
+  text-align: start;
+  cursor: pointer;
+}
+
+.prompt-queue__header:disabled {
+  cursor: default;
+}
+
+.prompt-queue__header:focus-visible {
+  outline: 2px solid var(--ui-ring);
+  outline-offset: -2px;
+}
+
+/* 前导与折角：都是居中一格字形，两处共用一条声明。 */
+.prompt-queue__lead,
+.prompt-queue__chevron {
+  display: grid;
+  flex: none;
+  place-items: center;
+  color: var(--cp-ink-muted);
+}
+
+.prompt-queue__chevron {
+  inline-size: 14px;
+  block-size: 14px;
+}
+
+.prompt-queue__count {
+  min-inline-size: 0;
+  flex: auto;
+  font-size: var(--cp-queue-font);
+  font-weight: 500;
+  line-height: 24px;
+}
+
+/*
+ * 那几行。装不下由它自己滚，卡不会长到把输入卡挤出视野 —— 上限 180 是正本的值。
+ */
+.prompt-queue__list {
+  max-block-size: var(--cp-queue-list-max);
+  margin: 0;
+  padding: 0;
+  overflow-y: auto;
+  list-style: none;
+}
+
+.prompt-queue__list[hidden] {
   display: none;
 }
 
 /*
- * 一行：正文让位，撤回键按内容宽。
+ * 一行。
  *
- * 只有最后一行有撤回键（上游的撤回是 LIFO），所以这一列必须能塌成 0 ——
- * 定宽会让不能撤的几行右边空出一格，看着像少画了一颗键。
+ * 行与行之间**没有**分隔线：几条待发的话是一串同类的行，横线会把它们读成一张表的几行。
+ * 分开它们的是行高与那枚序号（见下）。正本写了 .row + .row 的上边线，本仓按产品口径去掉。
  */
 .prompt-queue__row {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  flex: none;
+  box-sizing: border-box;
+  display: flex;
+  inline-size: 100%;
+  min-block-size: var(--cp-queue-row);
   align-items: center;
-  gap: var(--cp-control-gap);
-  block-size: var(--cp-queue-row);
-  padding-inline: var(--cp-queue-pad);
+  gap: 10px;
+  padding: 4px 5px 4px 12px;
   border-radius: var(--cp-queue-row-radius);
-  color: var(--cp-ink);
-  font-size: var(--cp-font-caption);
-}
-
-/* 正文只是正文：长了就省略，整句仍在 title 里。 */
-.prompt-queue__said {
-  min-inline-size: 0;
-  overflow: hidden;
-  white-space: nowrap;
-  text-overflow: ellipsis;
-}
-
-.prompt-queue__act {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: var(--cp-control-gap);
-  block-size: var(--cp-target-min);
-  padding-inline: var(--cp-control-gap);
-  border: 0;
-  border-radius: var(--cp-radius-item);
-  background: transparent;
-  color: var(--cp-ink-muted);
-  font: inherit;
-  white-space: nowrap;
-  cursor: pointer;
-  transition:
-    background-color var(--cp-motion-swift) var(--cp-motion-ease),
-    color var(--cp-motion-swift) var(--cp-motion-ease);
-}
-
-.prompt-queue__act:hover,
-.prompt-queue__act:focus-visible {
-  background: var(--cp-overlay-hover);
-  color: var(--cp-ink);
 }
 
 /*
- * 三个模式那一行：贴在队列底下，与待发的行用一条线分开 —— 上面是「排着哪些话」，
- * 这里是「排着的话怎么喂」。按下的那一档着色，一眼看得出此刻是哪一档。
+ * 行首那枚记号。
+ *
+ * 只有一行时是队列记号（正本如此，行列里只有一句，没有顺序可交代）；两行以上换成**序号**
+ * —— 那时才真的有「谁先走」要说，而数字比一个词更短也更准。序号占的格子与记号一样宽，
+ * 换行时正文的左缘因此不会动。
+ */
+.prompt-queue__lead {
+  display: grid;
+  inline-size: 16px;
+  block-size: 16px;
+  flex: none;
+  place-items: center;
+  color: var(--cp-ink-muted);
+}
+
+.prompt-queue__ordinal {
+  display: grid;
+  inline-size: 16px;
+  flex: none;
+  place-items: center;
+  color: var(--cp-ink-muted);
+  font-size: var(--cp-queue-font);
+  line-height: 20px;
+  font-variant-numeric: tabular-nums;
+  cursor: default;
+}
+
+/* 正文：这一行是「我说了什么」，与转录里那句话同一档墨，不是次要信息。 */
+.prompt-queue__said {
+  min-inline-size: 0;
+  flex: auto;
+  color: var(--cp-ink);
+  font-size: var(--cp-queue-font);
+  line-height: 20px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/*
+ * 那一行、以及档位那三组的操作钮。
+ *
+ * 正本是编辑/删除/插话发送三枚 28 的圆钮，档位那三组是同样的圆钮换一枚字形 —— 屏幕上
+ * 不出现按钮的名字，名字在 aria-label 与提示条里（正本每一枚都是这么给的）。
+ * 本机的撤回是 LIFO 一条命令（没有按号取），所以只有最后一行画得出。
+ */
+.prompt-queue__actions {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: 10px;
+}
+
+.prompt-queue__action {
+  display: grid;
+  flex: none;
+  inline-size: var(--cp-queue-action);
+  block-size: var(--cp-queue-action);
+  place-items: center;
+  padding: 0;
+  border: 0;
+  border-radius: 9999px;
+  background: none;
+  color: var(--cp-ink-muted);
+  cursor: pointer;
+}
+
+.prompt-queue__action:hover:not(:disabled) {
+  background: var(--cp-queue-hover);
+}
+
+.prompt-queue__action:focus-visible {
+  outline: 2px solid var(--ui-ring);
+  outline-offset: -2px;
+}
+
+.prompt-queue__action:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+/*
+ * 三个队列模式那一行。
+ *
+ * 它不属于正本：本机的队列模式（插话与排队各是一条还是一次全喂、插话要不要截断正在等
+ * 的工具）是 omp 自己的三档配置，正本没有对应的面。样式按正本同一套数字组装 —— 行高、
+ * 圆角、悬停墨、13/20 的字、28 的圆钮、一条发丝线，正本有什么就用什么，不引第二个尺度。
+ *
+ * 三组各有一枚**记号**（不是字）领头：前两组的字形是同一对（一条一条 / 一次全喂），不先
+ * 说明这一组管哪个队就读不出来。名字（插话 / 排队 / 打断）走那枚记号自己的提示条；分隔
+ * 靠记号与两侧的间距，不画竖线。
  */
 .prompt-queue__modes {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: var(--cp-control-gap);
-  flex: none;
-  padding: var(--cp-queue-pad) var(--cp-queue-pad) 0;
-  margin-block-start: var(--cp-queue-pad);
-  border-block-start: var(--cp-px) solid var(--cp-edge);
+  gap: 6px;
+  padding: 4px 5px 4px 12px;
+  border-radius: var(--cp-queue-row-radius);
+  box-shadow: inset 0 var(--cp-px) 0 var(--cp-queue-edge);
+  color: var(--cp-ink-muted);
+  font-size: var(--cp-queue-font);
+  line-height: 20px;
 }
 
 .prompt-queue__mode {
   display: inline-flex;
   align-items: center;
-  gap: var(--cp-control-gap);
-  font-size: var(--cp-font-caption);
+  gap: 10px;
+}
+
+/* 记号自己是提示条的触发器，所以它要能接指针；两侧再让开一点，三组之间才读得出分隔。 */
+.prompt-queue__mode + .prompt-queue__mode {
+  margin-inline-start: 6px;
+}
+
+.prompt-queue__mode-mark {
+  display: grid;
+  flex: none;
+  place-items: center;
   color: var(--cp-ink-muted);
+  cursor: default;
 }
 
-.prompt-queue__mode-label {
-  white-space: nowrap;
-}
-
-.prompt-queue__mode .prompt-queue__act[aria-pressed="true"] {
+/* 按下的那一档着色并铺底：一眼看得出此刻喂的是哪一档。 */
+.prompt-queue__mode .prompt-queue__action[aria-pressed="true"] {
+  background: var(--cp-queue-hover);
   color: var(--cp-ink);
-  box-shadow: inset 0 0 0 var(--cp-px) var(--cp-edge);
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .prompt-queue__act {
-    transition-duration: 1ms;
-  }
 }

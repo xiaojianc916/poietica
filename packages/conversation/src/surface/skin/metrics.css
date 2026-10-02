@@ -141,14 +141,50 @@
   --cp-radius-tile: calc(var(--cp-radius) - 4px);
   --cp-radius-item: 8px;
 
-  /* 队列那张卡：比输入框窄一档；行圆角 = 卡圆角 − 内边距，两层同心。 */
-  --cp-queue-inset: var(--cp-stack);
-  --cp-queue-pad: 6px;
-  --cp-queue-row-radius: calc(var(--cp-radius) - var(--cp-queue-pad));
+  /*
+   * 输入卡的宽度上限。
+   *
+   * 转录那一列的宽由排版读宽给出（surface.css 的 --cp-grid 与两侧留白解出来），输入
+   * 卡跟着它走。上限单独命名是因为它还有第二个读者：待发队列按它减两侧内缩算自己的
+   * 宽度，与正本「卡宽 = 输入卡宽 − 16」那条关系同形。
+   */
+  --cp-input-max: var(--cp-grid);
 
-  /* 五行半：装不下由这张卡自己滚，卡不会长到把输入框挤出视野。 */
-  --cp-queue-row: var(--cp-control);
-  --cp-queue-rows: 5.5;
+  /*
+   * 待发队列那一条（DeepSeek Harness 的 QueueDock）。
+   *
+   * 几何照抄正本 @deepseek-ai/dsh-client-ui-conversation 的 QueueDock.module.css
+   * （装机版本 2026-10-02），数字逐条对应：
+   *   栏  卡片两侧各让 8（--dsh-composer-dock-inset）、三面都让 16
+   *       （--dsh-composer-side-clearance）、下沿咬进输入卡 6 + 3
+   *       （--dsh-composer-stack-gap）、卡宽 = 输入卡宽 − 16
+   *   面  上圆角 16 下直角、上下各 2 内边距、.5 描边只画三边（底边留给输入卡）
+   *   头  36 高、行圆角 12、内边距 4/12、间距 10、字 13/24 中黑
+   *   列表 上限 180、行 36 高、内边距 4/5/4/12、行间距是一条 inset 发丝线
+   *   行  预览 13/20、操作钮 28 圆、字形 14、悬停铺一层 6% 墨、禁用 45%
+   * 队列归 agent，本机只画它报来的快照，所以这里没有一枚数字属于「本地排队」。
+   */
+  --cp-queue-inset: 8px;
+  --cp-queue-clear: 16px;
+  /*
+   * 下沿咽进输入卡的那 3px。
+   *
+   * 正本这条是 calc(0px - stack-gap - 3px)，它的卡片栈自带 6px 间距；本仓的
+   * .assistant-surface__composer 没有间距（每个孩子自己带外边距），所以这里只剩「咽进去」
+   * 的那 3px —— 照抄整串会把 11px 压到卡上，把档位那一行的下半截盖掉。
+   */
+  --cp-queue-tuck: 3px;
+  /* 三面各让 16 再加两侧的 8 —— 正本那一串 calc 抄成一条，省得每次读三遍源头。 */
+  --cp-queue-gutter: calc(var(--cp-queue-clear) + var(--cp-queue-inset));
+  --cp-queue-card-max: calc(var(--cp-input-max) - var(--cp-queue-inset) * 2);
+  --cp-queue-radius: var(--ui-radius-2xl);
+  --cp-queue-row-radius: var(--ui-radius-xl);
+  --cp-queue-row: 36px;
+  --cp-queue-list-max: 180px;
+  --cp-queue-action: 28px;
+  --cp-queue-font: 13px;
+  --cp-queue-edge: var(--ui-popup-divider);
+  --cp-queue-hover: var(--ui-popup-highlight);
 
   /* 输入框上沿那条提示（连不上 agent 时的那一句）：圆角比卡小一档，与 GoalBar 同档。 */
   --cp-notice-radius: 12px;
