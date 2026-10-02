@@ -129,7 +129,12 @@ export function Select<TValue extends string = string>({
           onValueChange(nextValue)
         }
       }}
-      value={value || null}
+      /*
+       * 只把 null / undefined 折成「没有选中」，'' 原样交下去：空串是**我们自己**的
+       * 一个合法取值（如 sharpshooter.model 的「自动」档，写回 agent 的就是 ''）。
+       * 写成 `value || null` 会把它一起吞掉，那一档永远显示成占位符。
+       */
+      value={value ?? null}
     >
       <BaseSelect.Trigger
         aria-label={type}

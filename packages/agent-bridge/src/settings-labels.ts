@@ -797,6 +797,21 @@ export function personaSettingOf(path: string): boolean {
 }
 
 /*
+ * 哪一格是**模型选择器**：取值是「模型目录里的某一条」或留空。
+ *
+ * 只认 sharpshooter.model。同名的邻居不是同一件事：mnemopi.embeddingModel 是
+ * **嵌入模型 id**（memnopi 自己那套变体，不是 omp 的模型目录条目），mnemopi.llmModel
+ * 是**远端服务的模型名**（发给对方 API 的字符串）。按「路径里有 model 字样」一刀切
+ * 会把那两格也画成目录选择器 —— 它们填的值根本不在目录里，下拉里一条都选不出来。
+ *
+ * 这一格的可选项**不在 schema 里**（上游只给了 string，选项要现算），所以它由调用方
+ * 用模型目录现填，见 settings.ts 的 SettingChoicesOf。
+ */
+export function modelSelectorSettingOf(path: string): boolean {
+  return path === 'sharpshooter.model'
+}
+
+/*
  * 「记忆」那一页的归属。
  *
  * 判据是 **omp 自己的 tab**，不是路径前缀名单：tab 是它自报的结构，我们照搬；

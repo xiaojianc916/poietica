@@ -24,6 +24,10 @@ import {
   Settings,
   VERSION,
 } from '@oh-my-pi/pi-coding-agent'
+import {
+  getModelMatchPreferences,
+  resolveAllowedModels,
+} from '@oh-my-pi/pi-coding-agent/config/model-resolver'
 import { getDefault, getUi } from '@oh-my-pi/pi-coding-agent/config/settings-schema'
 import {
   disableProvider,
@@ -78,11 +82,13 @@ import type {
   GoalSnapshot,
   QueuedState,
   SelectorControl,
+  SettingOption,
   UsageSnapshot,
 } from './protocol.ts'
 import { MAX_PROMPT_IMAGE_BYTES } from './protocol.ts'
 import { ASK_TOOL, answerPayloadOf, askQuestionsOf } from './questions.ts'
-import { readCatalog } from './settings.ts'
+import { readCatalog, type SettingChoicesOf } from './settings.ts'
+import { modelSelectorSettingOf } from './settings-labels.ts'
 import { SubagentLedger } from './subagents.ts'
 import { settleThinking } from './thinking.ts'
 import { TranscriptMirror } from './transcript-mirror.ts'
@@ -1855,11 +1861,14 @@ export function createBridge(host: BridgeHost): Bridge {
        * aside 只有一条路：`sendUserMessage(content, {deliverAs})`（agent-session.ts:7850）。
        * 空闲时它会退成一轮真的 turn（上游的既定语义：没有在跑的轮可注）；忙碌时它进
        * 旁路队列，在 step 边界注入，绝不打断在跑的工具批。
+       *
+       * 无图时交**字符串**，不交 `[正文]`：数组分支按 `part.type` 分拣，裸字符串没有
+       * type，会被当成图片塞进 images；随后上游对每个元素调 `imageAttachmentSource`，
+       * 而它做的是 `symbol in image` —— 对字符串直接抛 TypeError（agent-session.ts:7370
+       * 的 `#createAttachmentSourceNotices`），aside 因此永远投不出去。
        */
-      const content: readonly unknown[] =
-        images.length === 0 ? [command.text] : [{ type: 'text', text: command.text }, ...images]
       await record.agent.sendUserMessage(
-        content as Parameters<AgentSession['sendUserMessage']>[0],
+        images.length === 0 ? command.text : [{ type: 'text', text: command.text }, ...images],
         {
           deliverAs: 'aside',
         },
@@ -3439,12 +3448,43 @@ export function createBridge(host: BridgeHost): Bridge {
     }
   }
 
+  /*
+   * `sharpshooter.model` 的选项表：**此刻配好的那些模型**，外加「自动」。
+   *
+   * 这一格在 schema 里只是 string，上游不给选项（它自己的 TUI 用模型浏览器现选），
+   * 所以选项必须在这里算。用的是与会话/入口那一格**同一个产地**：`resolveAllowedModels`
+   * 读 `enabledModels` 范围与凭据后的注册表 —— 自己写一份「有钥匙的 provider 的模型」
+   * 就是第二个事实，两边必然分叉。
+   *
+   * 取值拼法 `provider/id` 与 aliasOf、与会话入口那一格逐字相同（见 expected-state.ts
+   * 的注释）：拼法不同，选完对不上。
+   *
+   * 「自动」那一档的值是**空串**，不是 null：这一格留空 = 用 smol 角色（上游
+   * sharpshooter/extract.ts 的 resolveSharpshooterModel 就是先读这一格、读不到才回退
+   * smol）。写回 agent 的也必须是空串 —— 这是它自己的「没配」表示。
+   */
+  async function settingChoicesOf(settings: Settings): Promise<SettingChoicesOf> {
+    const registry = await registryFor()
+    const allowed = await resolveAllowedModels(
+      registry,
+      settings,
+      getModelMatchPreferences(settings),
+    )
+    const choices: readonly SettingOption[] = [
+      { value: '', label: '自动（使用 smol 角色）' },
+      ...allowed.map((model) => ({ value: aliasOf(model), label: model.name ?? model.id })),
+    ]
+
+    /* 目录是同步读的（它是纯映射），所以模型那一份先在这里算完再交出去。 */
+    return (path) => (modelSelectorSettingOf(path) ? choices : undefined)
+  }
+
   // 目录与那一格此刻的值都是 agent 自报的（见 settings.ts），我们没有第二份。
   async function settingsCatalog(): Promise<unknown> {
     const settings = await settingsFor()
 
     return {
-      settings: readCatalog(settings),
+      settings: readCatalog(settings, await settingChoicesOf(settings)),
     }
   }
 
@@ -3460,7 +3500,7 @@ export function createBridge(host: BridgeHost): Bridge {
     settings.set(path as never, value as never)
     await settings.flush()
 
-    return { settings: readCatalog(settings) }
+    return { settings: readCatalog(settings, await settingChoicesOf(settings)) }
   }
 
   async function writeBrowserSettings(command: {

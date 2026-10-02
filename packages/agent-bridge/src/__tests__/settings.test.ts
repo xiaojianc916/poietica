@@ -68,6 +68,30 @@ test('the catalog is omp own schema, not a copy in our source', () => {
   }
 })
 
+/*
+ * 现算的选项表那一格：schema 里给不出选项（`sharpshooter.model` 只是 string），
+ * 选项由桥拿模型目录现填 —— 判据是「谁算得出」，不是「谁想画」。
+ *
+ * 两条一起钉：调用方交什么就填什么；且**只有**那一格拿到，别的格子不受影响
+ * （把选项表糊到所有 string 格子上，会让它们全都变成下拉框）。
+ */
+test('a setting with no schema options takes the ones the caller computes', () => {
+  const choices = [
+    { value: '', label: '自动（使用 smol 角色）' },
+    { value: 'p/m', label: 'M' },
+  ]
+  const entries = readCatalog(reader(), (path) =>
+    path === 'sharpshooter.model' ? choices : undefined,
+  )
+
+  expect(entries.find((entry) => entry.path === 'sharpshooter.model')?.options).toEqual(choices)
+  /* 没有判据的格子仍然没有选项表 —— 一格都不许被顺带填上。 */
+  expect(entries.find((entry) => entry.path === 'personality')?.options).not.toEqual(choices)
+  expect(
+    entries.find((entry) => entry.path === 'sharpshooter.intervalMinutes')?.options,
+  ).toBeUndefined()
+})
+
 test('a credential never carries its value, only whether it is set', () => {
   const secretPath = 'mnemopi.llmApiKey'
   const planted = 'sk-do-not-leak-this-key'

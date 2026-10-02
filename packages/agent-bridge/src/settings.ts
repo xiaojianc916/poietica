@@ -41,6 +41,17 @@ export interface SettingsReader {
   get(key: string): unknown
 }
 
+/*
+ * 现算的选项表：schema 里给不出的那几格。
+ *
+ * 上游的 `ui.options` 有两种给不出选项的情形：`'runtime'`（选项由运行时层算，
+ * 如主题表）与干脆没有（string 类型但取值有约束，如 `sharpshooter.model` 的
+ * 「模型目录里的某一条」）。后者的选项只有**调用方**知道怎么算 —— 那是模型目录，
+ * 住在桥里，不住在设置这一层。所以这里只留一个口子，判据（哪一格要现算）仍归
+ * settings-labels.ts，两边不各写一份路径名单。
+ */
+export type SettingChoicesOf = (path: string) => readonly SettingOption[] | undefined
+
 /**
  * 整份目录。
  *
@@ -52,7 +63,10 @@ export interface SettingsReader {
  * 见 `ownedElsewhereOf`）。它们必须留在目录里，因为别的格子按 `condition` 读它们的 value
  * 决定显不显示 —— 抽掉值，那几行会永远消失而没有迹象。
  */
-export function readCatalog(settings: SettingsReader): SettingEntry[] {
+export function readCatalog(
+  settings: SettingsReader,
+  choicesOf?: SettingChoicesOf,
+): SettingEntry[] {
   const entries: SettingEntry[] = []
 
   for (const path of Object.keys(SETTINGS_SCHEMA) as SettingPath[]) {
@@ -77,7 +91,7 @@ export function readCatalog(settings: SettingsReader): SettingEntry[] {
       continue
     }
 
-    entries.push(entryOf(path, ui, settings))
+    entries.push(entryOf(path, ui, settings, choicesOf))
   }
 
   return entries
@@ -87,6 +101,7 @@ function entryOf(
   path: SettingPath,
   ui: NonNullable<ReturnType<typeof getUi>>,
   settings: SettingsReader,
+  choicesOf: SettingChoicesOf | undefined,
 ): SettingEntry {
   /*
    * 钥匙那一格：只报有没有值。
@@ -97,7 +112,8 @@ function entryOf(
    */
   const secret = isCredential(path)
   const value = settings.get(path)
-  const options = optionsOf(path, ui.options)
+  /* schema 给得出就用手册那一份，给不出（'runtime' / 没有）才问调用方现算的。 */
+  const options = optionsOf(path, ui.options) ?? choicesOf?.(path)
   // 有 options 就不再报 enumValues：两张表说的是同一件事，报两份会让界面挑花眼。
   const enumValues = options === undefined ? getEnumValues(path) : undefined
 
