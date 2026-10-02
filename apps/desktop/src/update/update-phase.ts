@@ -48,18 +48,27 @@ export interface UpdateNotice {
   readonly text: string
   /** 接着句子往下说的动作名。下载中与「已是最新」都没有下一步，如实缺席。 */
   readonly action?: string
-  /** 绿勾：这件事有结论了。下载中不在此列 —— 它还没结束。 */
+  /**
+   * 语气。**它同时决定左边那个字形**：success 是绿勾（Banner 自带的），不给才是
+   * 调用方自己带字形那一档 —— 也就是下载中，那里要一枚转着的箭头。
+   */
   readonly tone?: 'success'
-  /** 停在那儿不自己走：下载中与待重启都是「等人或等事」，淡出会把该按的按钮一起带走。 */
+  /**
+   * 停在那儿不自己走。
+   *
+   * 下载中与待重启都是「等人或等事」：进度淡出等于把人晾在「不知道下到哪了」，而待重启
+   * 那一句带着唯一的安装入口，它一走人就没法装了。
+   */
   readonly persistent?: boolean
+  /** 有确数的进度才给：没有确数就不画轨，别假装在动。 */
+  readonly progress?: number
 }
 
 /**
  * 更新这件事此刻该说的一句话；没有话可说的相位交回 null。
  *
  * `idle` / `checking` 还没有结果可说。其余三个相位**都上屏**，而且下载中与待重启是
- * 常驻的：进度条淡出等于把人晾在「不知道下到哪了」，而待重启那一句带着唯一的安装
- * 入口，它一走人就没法装了。
+ * 常驻的（见 `persistent`）。
  */
 export function updateNotice(state: AppUpdateState): UpdateNotice | null {
   switch (state.phase) {
@@ -73,6 +82,8 @@ export function updateNotice(state: AppUpdateState): UpdateNotice | null {
             ? `正在下载 ${state.version}…`
             : `正在下载 ${state.version} · ${String(state.percent)}%`,
         persistent: true,
+        /* percent 为 null 时不带这一格：界面据此不画轨。 */
+        ...(state.percent === null ? {} : { progress: state.percent }),
       }
     case 'ready':
       return {

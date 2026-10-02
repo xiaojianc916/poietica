@@ -4,6 +4,8 @@ import {
   autoUpdaterOf,
   createUpdateCommands,
   createUpdateController,
+  progressOf,
+  type UpdaterEventSource,
   type UpdaterPort,
 } from './update'
 
@@ -20,11 +22,16 @@ interface Harness {
   readonly calls: string[]
   /** 换掉下一轮检查的答复：发布换版本时渲染层就是这么再问一次的。 */
   readonly answers: { found: Found; available: boolean }
+  /** 主进程在这一头收进度；下载中途推一帧就写进它。 */
+  readonly progress: number[]
+  readonly pushProgress: (payload: unknown) => void
 }
 
 function harness(found: Found, available = found !== null): Harness {
   const calls: string[] = []
   const answers = { found, available }
+  const progress: number[] = []
+  const listeners: ((payload: unknown) => void)[] = []
 
   const updater: UpdaterPort = {
     checkForUpdates: () => {
@@ -44,9 +51,36 @@ function harness(found: Found, available = found !== null): Harness {
     quitAndInstall: () => {
       calls.push('install')
     },
+    onDownloadProgress: (handler) => {
+      const listener = (payload: unknown): void => {
+        const shaped = progressOf(payload)
+
+        if (shaped !== null) {
+          handler(shaped)
+        }
+      }
+
+      listeners.push(listener)
+
+      return () => {
+        listeners.splice(listeners.indexOf(listener), 1)
+      }
+    },
   }
 
-  return { controller: createUpdateController(updater), calls, answers }
+  return {
+    controller: createUpdateController(updater, (value) => {
+      progress.push(value.percent)
+    }),
+    calls,
+    answers,
+    progress,
+    pushProgress: (payload) => {
+      for (const listener of listeners) {
+        listener(payload)
+      }
+    },
+  }
 }
 
 describe('更新的相位', () => {
@@ -111,18 +145,82 @@ describe('更新的相位', () => {
   })
 })
 
+/*
+ * 进度是这一段唯一的活口：不订阅就永远没有中间值，订阅不收干净就会在第二次下载里
+ * 报两遍。所以钉的是「订阅活在下载里」与「载荷校验」两件事。
+ */
+describe('下载进度', () => {
+  test('下载期间报出来的进度落到报告函数上', async () => {
+    const h = harness({ version: '1.2.3' })
+
+    await h.controller.check()
+    await h.controller.download('1.2.3')
+
+    /* downloadUpdate 已经返回，订阅也该摘掉了：此时再推一帧没人听。 */
+    h.pushProgress({ percent: 42 })
+    expect(h.progress).toEqual([])
+  })
+
+  test('订阅只活在下载里：收工时摘干净，不留第二个听众', async () => {
+    const h = harness({ version: '1.2.3' })
+    const during: number[] = []
+
+    /* 在下载途中推一帧：那时订阅还活着。 */
+    const original = h.controller.download
+    await h.controller.check()
+
+    const download = original('1.2.3').then(() => {
+      during.push(...h.progress)
+    })
+
+    h.pushProgress({ percent: 10 })
+    await download
+
+    expect(during).toEqual([10])
+
+    /* 第一次下载收工后，第二轮的推送不该再有人收。 */
+    await h.controller.download('1.2.3')
+    h.pushProgress({ percent: 99 })
+    expect(h.progress).toEqual([10])
+  })
+
+  /*
+   * 载荷来自跨库边界，是不可信输入。percent 不是 0-100 的数就不报 —— 界面上宁可
+   * 停在「进度未知」，也不画一个从别人字节里读出来的数字。
+   */
+  test('载荷校验：只有 0-100 的有限数才算进度', () => {
+    expect(progressOf({ percent: 0 })).toEqual({ percent: 0 })
+    expect(progressOf({ percent: 100 })).toEqual({ percent: 100 })
+    expect(progressOf({ percent: 42.5 })).toEqual({ percent: 42.5 })
+
+    expect(progressOf({ percent: 101 })).toBeNull()
+    expect(progressOf({ percent: -1 })).toBeNull()
+    expect(progressOf({ percent: Number.NaN })).toBeNull()
+    expect(progressOf({ percent: Number.POSITIVE_INFINITY })).toBeNull()
+    expect(progressOf({ percent: '42' })).toBeNull()
+    expect(progressOf({ percent: null })).toBeNull()
+    expect(progressOf({})).toBeNull()
+    expect(progressOf(null)).toBeNull()
+    expect(progressOf('42')).toBeNull()
+  })
+})
+
 describe('命令面', () => {
   const commands = (loads: { count: number }) =>
-    createUpdateCommands(() => {
-      loads.count += 1
+    createUpdateCommands(
+      () => {
+        loads.count += 1
 
-      return Promise.resolve({
-        checkForUpdates: () =>
-          Promise.resolve({ isUpdateAvailable: true, updateInfo: { version: '2.0.0' } }),
-        downloadUpdate: () => Promise.resolve([]),
-        quitAndInstall: () => undefined,
-      })
-    })
+        return Promise.resolve({
+          checkForUpdates: () =>
+            Promise.resolve({ isUpdateAvailable: true, updateInfo: { version: '2.0.0' } }),
+          downloadUpdate: () => Promise.resolve([]),
+          quitAndInstall: () => undefined,
+          onDownloadProgress: () => () => undefined,
+        })
+      },
+      () => undefined,
+    )
 
   test('只认这三条，别的命令交回主进程', () => {
     const c = commands({ count: 0 })
@@ -160,10 +258,12 @@ describe('命令面', () => {
  * 「Cannot read properties of undefined (reading 'checkForUpdates')」。
  */
 describe('装载 electron-updater', () => {
-  const updater: UpdaterPort = {
+  const updater: UpdaterEventSource = {
     checkForUpdates: () => Promise.resolve(null),
     downloadUpdate: () => Promise.resolve([]),
     quitAndInstall: () => undefined,
+    on: () => undefined,
+    off: () => undefined,
   }
 
   test('命名导出在就取命名导出', () => {

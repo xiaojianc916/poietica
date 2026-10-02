@@ -54,6 +54,48 @@
   --banner-label: var(--ui-foreground);
 }
 
+/*
+ * 常驻：只滑入，不淡出。收场由调用方卸载决定（组件那边 holdMs 为 null 时连计时器都不装）。
+ *
+ * 单独一条规则而不是改基础那条的时长 —— 基础那条是「一句话说完自己走」的默认形态，
+ * 大多数横幅要的就是它；只有没结束就不该消失的事才走这一档。
+ */
+.ui-banner--sticky {
+  animation: ui-banner-in 160ms ease-out;
+}
+
+/*
+ * 有确数的进度：卡面下缘一条细轨，宽度按百分比。
+ *
+ * 只在下缘画一条，不改卡面尺寸、也不改文字基线 —— 进度每跳一个百分点都会重渲，
+ * 一条会推动版式的进度条就是每秒几十次的抖动。不接无障碍树（组件那边 aria-hidden），
+ * 确数在文字里已经念过一遍。
+ */
+.ui-banner__progress {
+  position: absolute;
+  right: 16px;
+  bottom: 6px;
+  left: 16px;
+  height: 3px;
+  border-radius: 999px;
+  background: var(--banner-progress-track, rgb(255 255 255 / 18%));
+  overflow: hidden;
+}
+
+/* 深色下卡面是抬起来的那一档，轨道要跟着反过来。 */
+:root[data-theme="dark"] .ui-banner__progress {
+  --banner-progress-track: rgb(0 0 0 / 22%);
+}
+
+.ui-banner__progress-fill {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--ui-palette-blue-400);
+  /* 数字是宿主报来的离散值，补一段过渡让它连起来；时长短于两次上报的间隔。 */
+  transition: width 200ms ease;
+}
+
 .ui-banner__icon {
   display: grid;
   flex: none;
@@ -126,5 +168,14 @@
 @media (prefers-reduced-motion: reduce) {
   .ui-banner {
     animation: ui-banner-fade 1000ms ease var(--ui-banner-hold, 3000ms) forwards;
+  }
+
+  /* 常驻本来就不淡出，这里只把滑入也去掉；进度条不追动效。 */
+  .ui-banner--sticky {
+    animation: none;
+  }
+
+  .ui-banner__progress-fill {
+    transition: none;
   }
 }

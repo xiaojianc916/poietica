@@ -73,4 +73,30 @@ describe('更新横幅的文案', () => {
   it('待重启那句带上版本号', () => {
     expect(updateNotice(state('ready', '1.2.3'))?.text).toContain('1.2.3')
   })
+
+  /*
+   * 进度轨只在有确数时画。没有确数还给一个数，屏幕上就是一条从 0% 开始爬的假进度 ——
+   * 而「进度未知」本来就是这个端口认的形状（percent: null）。
+   */
+  it('有确数才给进度轨，未知进度不假装在动', () => {
+    expect(updateNotice({ phase: 'downloading', version: '1.2.3', percent: 42 })?.progress).toBe(42)
+    expect(
+      updateNotice({ phase: 'downloading', version: '1.2.3', percent: null })?.progress,
+    ).toBeUndefined()
+  })
+
+  /* 0 是一个合法的确数（刚开始），不能因为它是假值就被吞掉。 */
+  it('进度 0 也是确数', () => {
+    expect(updateNotice({ phase: 'downloading', version: '1.2.3', percent: 0 })?.progress).toBe(0)
+  })
+
+  /*
+   * 左边那枚字形由 tone 决定：有语气的两档 Banner 自己画绿勾，只有下载中需要调用方给
+   * 一枚转着的箭头。这条钉的是「哪一档需要外部字形」，横幅组件按它分支。
+   */
+  it('只有下载中这一档要调用方带字形', () => {
+    expect(updateNotice(state('downloading'))?.tone).toBeUndefined()
+    expect(updateNotice(state('ready'))?.tone).toBe('success')
+    expect(updateNotice(state('latest'))?.tone).toBe('success')
+  })
 })

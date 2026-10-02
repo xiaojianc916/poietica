@@ -67,4 +67,36 @@ describe('横幅的时间契约', () => {
     expect(component).toContain("'--ui-banner-hold'")
     expect(component).toContain('holdMs + FADE_MS')
   })
+
+  /*
+   * 常驻那一档（holdMs: null）不是「一个够长的毫秒数」—— 那只是把同一个错误推迟。
+   * 它必须真的没有计时器，而且样式表里不能有淡出：两处都断，才是「不完成就不消失」。
+   */
+  it('常驻档没有计时器:holdMs 为 null 时当场返回,不装 setTimeout', () => {
+    const sticky = /if \(holdMs === null\) \{\s*return\s*\}/u
+
+    expect(sticky.test(component), 'holdMs 为 null 的提前返回').toBe(true)
+  })
+
+  it('常驻档不设停留时长:不给样式表喂 --ui-banner-hold', () => {
+    /* 属性只在非 null 时展开；展开了就等于还留着那条延迟淡出。 */
+    expect(component).toContain('holdMs === null ? {} : {')
+  })
+
+  it('样式表给常驻档单独一条规则,且它不淡出', () => {
+    const stickyRule = /\.ui-banner--sticky \{[^}]*\}/u.exec(stylesheet)?.[0]
+
+    expect(stickyRule, '.ui-banner--sticky 规则').toBeDefined()
+    expect(stickyRule).not.toContain('ui-banner-fade')
+    expect(stickyRule).toContain('ui-banner-in')
+  })
+
+  /*
+   * 进度轨的宽度是行内算的（百分比是宿主报来的数），样式表只管它的位置与配色。
+   */
+  it('进度轨由调用方给确数,组件只画宽度', () => {
+    expect(component).toContain('ui-banner__progress-fill')
+    expect(component).toContain('width:')
+    expect(stylesheet).toContain('.ui-banner__progress-fill')
+  })
 })

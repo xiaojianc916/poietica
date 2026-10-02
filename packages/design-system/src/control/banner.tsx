@@ -38,8 +38,21 @@ export interface BannerProps {
   readonly icon?: ReactNode
   /** 接着句子往下说的动作，各自渲染成蓝色可点文字。 */
   readonly actions?: readonly BannerAction[]
-  /** 停满多久才开始淡。要读的字多就报长一点。 */
-  readonly holdMs?: number
+  /**
+   * 停满多久才开始淡。要读的字多就报长一点。
+   *
+   * **null = 不自己走**：没有计时器，也没有淡出，收场由调用方卸载决定。留给「没结束就
+   * 不该消失」的事（下载中、等一次点击），不给它一个够长的毫秒数 —— 报一小时只是把
+   * 同一个错误推迟一小时。
+   */
+  readonly holdMs?: number | null
+  /**
+   * 有确数的进度（0-100）：在卡面下缘画一条进度轨。
+   *
+   * 与文字里的百分比是同一件事的两种呈现，所以只给数字、不给句子 —— 句子仍由 text 定稿。
+   * 不知道进度时不给（不要画一条 0% 的轨假装在动）。
+   */
+  readonly progress?: number
   /** 横幅横向跟谁对齐中心。不给就居中于视口。 */
   readonly anchor?: HTMLElement | null
   /** 淡完时叫一次，调用方在这里卸载它。 */
@@ -61,6 +74,7 @@ export function Banner({
   tone,
   actions,
   holdMs = HOLD_MS,
+  progress,
   anchor,
   onDone,
 }: BannerProps) {
@@ -71,6 +85,11 @@ export function Banner({
   }, [onDone])
 
   useEffect(() => {
+    /* 常驻没有计时器：它只由调用方卸载。 */
+    if (holdMs === null) {
+      return
+    }
+
     const timer = setTimeout(() => {
       latestOnDone.current()
     }, holdMs + FADE_MS)
@@ -107,12 +126,13 @@ export function Banner({
 
   return createPortal(
     <div
-      className="ui-banner"
+      className={holdMs === null ? 'ui-banner ui-banner--sticky' : 'ui-banner'}
       role="alert"
       style={
         {
           ...(left === null ? {} : { left }),
-          '--ui-banner-hold': `${String(holdMs)}ms`,
+          /* 常驻不设停留时长：样式表那边没有要等的淡出。 */
+          ...(holdMs === null ? {} : { '--ui-banner-hold': `${String(holdMs)}ms` }),
         } as CSSProperties
       }
     >
@@ -147,6 +167,15 @@ export function Banner({
           </Fragment>
         ))}
       </span>
+
+      {progress === undefined ? null : (
+        /*
+         * 进度条不接无障碍树：同一件事的文字里已经有确数，这里再报一遍是重复播报。
+         */
+        <span aria-hidden="true" className="ui-banner__progress">
+          <span className="ui-banner__progress-fill" style={{ width: `${String(progress)}%` }} />
+        </span>
+      )}
     </div>,
     document.body,
   )

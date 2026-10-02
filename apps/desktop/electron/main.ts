@@ -73,8 +73,15 @@ let router: Router | null = null
 let tray: Tray | null = null
 let quitting = false
 
-/* 更新的相位活在主进程里（update.ts）；electron-updater 到第一次调用才装载。 */
-const updateCommands: UpdateCommands = createUpdateCommands(loadUpdater)
+/*
+ * 更新的相位活在主进程里（update.ts）；electron-updater 到第一次调用才装载。
+ *
+ * 下载进度从这里发出去：通道名与原生事件同一条规则（`poietica:event:` + 线上名），
+ * 渲染层按名字订阅，主进程不替它挑形状。
+ */
+const updateCommands: UpdateCommands = createUpdateCommands(loadUpdater, (progress) => {
+  send('poietica:event:update-progress', progress)
+})
 
 const single = app.requestSingleInstanceLock()
 
