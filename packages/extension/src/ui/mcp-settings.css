@@ -451,14 +451,12 @@
   min-inline-size: 0;
 }
 
-.mcp-field--narrow input,
-.mcp-field--narrow select {
+.mcp-field--narrow > input {
   max-inline-size: 280px;
 }
 
-.mcp-field input,
-.mcp-field select,
-.mcp-field textarea {
+.mcp-field > input,
+.mcp-field > textarea {
   box-sizing: border-box;
   inline-size: 100%;
   min-inline-size: 0;
@@ -474,11 +472,7 @@
   resize: vertical;
 }
 
-.mcp-field select:disabled {
-  opacity: 0.75;
-}
-
-.mcp-field :is(input, select, textarea):focus-visible {
+.mcp-field > :is(input, textarea):focus-visible {
   outline: 2px solid var(--ui-ring);
   outline-offset: 1px;
 }
@@ -575,8 +569,7 @@
     justify-content: flex-start;
   }
 
-  .mcp-field--narrow input,
-  .mcp-field--narrow select {
+  .mcp-field--narrow > input {
     max-inline-size: none;
   }
 }

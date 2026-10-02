@@ -36,6 +36,14 @@ const CREATE_MODES = [
   { value: 'json', label: 'JSON' },
 ] as const satisfies readonly SegmentedOption<CreateTab>[]
 
+type McpTransport = 'stdio' | 'http' | 'sse'
+
+const TRANSPORT_MODES = [
+  { value: 'stdio', label: 'stdio（本地命令）' },
+  { value: 'http', label: 'HTTP（远程）' },
+  { value: 'sse', label: 'SSE' },
+] as const satisfies readonly SegmentedOption<McpTransport>[]
+
 /*
  * 本应用自己托管的内置服务器：自动化引擎。
  * 它写进同一份 mcp.json，但删了就等于把应用的核心能力拆了，所以不允许删除。
@@ -541,9 +549,14 @@ function McpJsonPage({
 
 function McpFields({ entry }: { readonly entry: McpEntry }) {
   const { body } = entry
-  const [transport, setTransport] = useState(
-    String(body['transport'] ?? (body['command'] === undefined ? 'http' : 'stdio')),
-  )
+  const declared = body['transport']
+  const initialTransport: McpTransport =
+    declared === 'stdio' || declared === 'http' || declared === 'sse'
+      ? declared
+      : body['command'] === undefined
+        ? 'http'
+        : 'stdio'
+  const [transport, setTransport] = useState(initialTransport)
   const [envOpen, setEnvOpen] = useState(false)
   const text = (key: string) =>
     typeof body[key] === 'string' || typeof body[key] === 'number' ? String(body[key]) : ''
@@ -560,18 +573,16 @@ function McpFields({ entry }: { readonly entry: McpEntry }) {
           <ScopePill />
         </span>
       </div>
-      <label className="mcp-field mcp-field--narrow">
+      <div className="mcp-field mcp-field--narrow">
         <span className="mcp__muted">类型</span>
-        <select
+        <SegmentedControl
+          label="类型"
           name="transport"
-          onChange={(event) => setTransport(event.target.value)}
+          onValueChange={setTransport}
+          options={TRANSPORT_MODES}
           value={transport}
-        >
-          <option value="stdio">stdio（本地命令）</option>
-          <option value="http">HTTP（远程）</option>
-          <option value="sse">SSE</option>
-        </select>
-      </label>
+        />
+      </div>
       <label className="mcp-field mcp-field--narrow">
         <span className="mcp__muted">超时时间 MS</span>
         <input
@@ -583,17 +594,6 @@ function McpFields({ entry }: { readonly entry: McpEntry }) {
           step={1}
           type="number"
         />
-      </label>
-      <label className="mcp-field mcp-field--narrow">
-        <span className="mcp__muted">协议版本</span>
-        <select
-          aria-label="协议版本（由 Agent 自动协商）"
-          disabled
-          name="protocolVersion"
-          value="auto"
-        >
-          <option value="auto">自动（推荐）</option>
-        </select>
       </label>
       {transport === 'stdio' ? (
         <>
