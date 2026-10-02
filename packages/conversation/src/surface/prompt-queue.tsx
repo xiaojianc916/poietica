@@ -1,17 +1,6 @@
 import './prompt-queue.css'
 
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuRadioGroup,
-  DropdownMenuRadioItem,
-  DropdownMenuRadioItemIndicator,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from '@poietica/design-system'
+import { Tooltip, TooltipContent, TooltipTrigger } from '@poietica/design-system'
 import {
   memo,
   type ReactNode,
@@ -20,8 +9,15 @@ import {
   useState,
   useSyncExternalStore,
 } from 'react'
+import type { PromptDelivery } from '../agent/session'
 import type { MessageQueue, MessageQueueState } from '../interjection/message-queue'
-import { ChevronDownIcon, ChevronUpIcon, CloseIcon, TuningIcon } from './primitives/icons'
+import {
+  ChevronDownIcon,
+  ChevronUpIcon,
+  QueueAsideIcon,
+  QueueSteerIcon,
+  TrashIcon,
+} from './primitives/icons'
 
 /*
  * 正本那条队列的记号（DSH 的 ChatLinesOutlineArtwork）：一个说话的气泡里两行字。
@@ -53,14 +49,20 @@ export interface PromptQueueProps {
   readonly queue: MessageQueue
   /** 把撤回的那一句取回输入框改。 */
   readonly onEdit: (text: string) => void
+  /**
+   * 换一层再投出去。
+   *
+   * 队列里的正文与层级都在 agent 那一侧、且**没有按条改的 API**，所以「改这一条的层」
+   * 只有一条路：撤回它，再用新层重投。撤回是 LIFO，所以只有最后一条点得动。
+   */
+  readonly onRedeliver: (text: string, deliverAs: PromptDelivery) => void
 }
 
 /*
  * 一行待发的正文，加上它排在第几、排在哪一层。
  *
  * `ordinal` 是屏幕上那个序号：队列**有序**（撤回只从最后一条起），连排几句时哪句先走
- * 必须一眼看得出。`tier` 不进屏幕的字面 —— 两个队的名字走提示条，免得每行前面先出现
- * 一个词才开始正文。
+ * 必须一眼看得出。`tier` 是这一行的投递层，走提示条不进行里的字面。
  */
 export interface QueueRow {
   readonly text: string
@@ -84,54 +86,38 @@ export function queueRows(state: MessageQueueState): readonly QueueRow[] {
 }
 
 /*
- * 三个队列模式。
+ * 三档投递里**不是缺省**的那两档，各一枚图标。
  *
- * 它们不占屏幕：整条队列只画一行正文一行（见下面的组件）。正本每一行右侧那几枚按钮是
- * 「编辑 / 删除 / 插话发送」三件对**这一行正文**的操作，而这三个模式是**整条队列**的
- * 设置 —— 摆进行的按钮列里，人读到的是「这一句能一次全喂」，那是错的。
+ * 缺省是 `followUp`（这一轮跑完再送出去），它不画图标 —— 屏幕上没有图标就是它。
+ * 给缺省态也画一枚键，人读到的是「要按一下才生效」。
  *
- * 面板里每一档都带名字：面板是点开才出现的，一行一个词不会读成行的一部分。
+ * 另两档各是一枚：
+ *   steer  插进正在跑的那一轮，在下一批工具跑完的空档被模型看到（会打断模型手上那一步）
+ *   aside  完全非中断，在 step 边界静默注入，绝不打断正在跑的工具批
+ *
+ * 名字只在屏幕阅读器与悬停提示里：正本每一枚操作钮都是这么给的。
  */
-const MODES = [
-  {
-    id: 'steeringMode',
-    label: '插话：一次喂几条',
-    choices: [
-      { value: 'one-at-a-time', label: '一条一条喂' },
-      { value: 'all', label: '一次全喂' },
-    ],
-  },
-  {
-    id: 'followUpMode',
-    label: '排队：轮终后做几条',
-    choices: [
-      { value: 'one-at-a-time', label: '一条一条做' },
-      { value: 'all', label: '一次全做' },
-    ],
-  },
-  {
-    id: 'interruptMode',
-    label: '插话要不要打断工具',
-    choices: [
-      { value: 'immediate', label: '立刻打断' },
-      { value: 'wait', label: '等这批做完' },
-    ],
-  },
+const DELIVERIES = [
+  { deliverAs: 'steer', label: '插话：插进正在跑的这一轮', Icon: QueueSteerIcon },
+  { deliverAs: 'aside', label: '旁注：不打断，找个空档悄悄说', Icon: QueueAsideIcon },
 ] as const
 
 /*
- * 一行右侧那枚按钮。它跟着行，不另起一列 —— 行的布局是「正文 flex:auto + 按钮 flex:none」，
- * 所以按钮永远贴在这一行的右缘。
+ * 一枚操作钮：28 的圆，一枚字形，话在提示条里。
  *
- * 名字只在屏幕阅读器与悬停提示里：正本每一枚操作钮都是这么给的（一枚字形配一条 Tooltip
- * 与一条 aria-label）。
+ * `active` 是「这一条现在就在这一层」：按下的那一枚着色并铺底，与设计系统的分段控件
+ * 同一条口径。
  */
-function RowAction({
+function QueueAction({
+  active,
   children,
+  disabled,
   label,
   onClick,
 }: {
+  readonly active?: boolean
   readonly children: ReactNode
+  readonly disabled?: boolean
   readonly label: string
   readonly onClick: () => void
 }) {
@@ -141,7 +127,9 @@ function RowAction({
         render={
           <button
             aria-label={label}
+            aria-pressed={active}
             className="prompt-queue__action"
+            disabled={disabled === true}
             onClick={onClick}
             type="button"
           >
@@ -155,58 +143,33 @@ function RowAction({
 }
 
 /*
- * 队列设置：末尾那条上的一枚「调整」。
+ * 两枚换层的图标。
  *
- * 三个模式都在这里，一条一行（正本的行是 34 高、13/20 的字、圆角 12 —— 设计系统的
- * Menu 原样给）。写的是 `delivery` 命令，它同时改运行时与落 agent 自己的 config.yml。
+ * 它们改的是**最后那一条**（撤回再重投，见 onRedeliver），所以只有最后一行画得出。
+ * 其余行画不了 —— 不给按不动的行画一枚假键。
  */
-function QueueTuning({
-  queue,
-  state,
+function RowDeliveries({
+  disabled,
+  onPick,
 }: {
-  readonly queue: MessageQueue
-  readonly state: MessageQueueState
+  readonly disabled: boolean
+  readonly onPick: (deliverAs: PromptDelivery) => void
 }) {
   return (
-    <DropdownMenu>
-      <DropdownMenuTrigger
-        render={
-          <button aria-label="队列设置" className="prompt-queue__action" type="button">
-            <TuningIcon aria-hidden size={14} />
-          </button>
-        }
-      />
-      {/* 弹层经 Portal 落 body，[data-assistant-skin] 罩不到，所以在这一层重新挂上。 */}
-      <DropdownMenuContent
-        align="end"
-        className="assistant-menu-surface"
-        data-assistant-skin
-        side="top"
-        sideOffset={6}
-      >
-        {MODES.map((mode, index) => (
-          <div key={mode.id}>
-            {index === 0 ? null : <DropdownMenuSeparator />}
-            <DropdownMenuRadioGroup
-              onValueChange={(value: string) => {
-                void queue.configure({ [mode.id]: value })
-              }}
-              value={state[mode.id]}
-            >
-              <div className="prompt-queue__tuning-label">{mode.label}</div>
-              {mode.choices.map((choice) => (
-                <DropdownMenuRadioItem key={choice.value} value={choice.value}>
-                  <DropdownMenuRadioItemIndicator className="prompt-queue__tuning-tick">
-                    <span className="prompt-queue__tuning-dot" />
-                  </DropdownMenuRadioItemIndicator>
-                  {choice.label}
-                </DropdownMenuRadioItem>
-              ))}
-            </DropdownMenuRadioGroup>
-          </div>
-        ))}
-      </DropdownMenuContent>
-    </DropdownMenu>
+    <>
+      {DELIVERIES.map((delivery) => (
+        <QueueAction
+          disabled={disabled}
+          key={delivery.deliverAs}
+          label={delivery.label}
+          onClick={() => {
+            onPick(delivery.deliverAs)
+          }}
+        >
+          <delivery.Icon aria-hidden size={14} />
+        </QueueAction>
+      ))}
+    </>
   )
 }
 
@@ -214,25 +177,58 @@ function QueueTuning({
  * 输入框上方那条待发队列。
  *
  * 画法是 DeepSeek Harness 的 QueueDock（逐条对照见 prompt-queue.css 的头注）。正本一条
- * 队列只画一行（那是它的一层队列），本机三层所以要画三行；但**结构同形** —— 每一行是
- * 「记号 + 正文 + 右缘的操作钮」，不另起一列，也没有横排的设置条。
+ * 队列只画一行，本机两层所以要画两行；但**结构同形** —— 每一行是「记号 + 正文 + 右缘的
+ * 操作钮」，不另起一列，也没有横排的设置条。
  *
- * 两处按本机机制不同、都在画法上留了痕：
+ * 三处按本机机制不同、都在画法上留了痕：
  *
- *   1. 本机的撤回是 LIFO 一条 `withdraw` 命令（正本按号 remove、另有编辑与单条插话发送），
- *      所以**只有最后一行**画得出撤回键 —— 不给按不动的行画一枚假键。
- *   2. 三个队列模式是整条队列的设置（正本没有这个概念），收在末尾那枚「队列设置」里；
- *      摆成行的按钮列会被读成「这一句能一次全喂」。
+ *   1. 撤回是 LIFO 一条 `withdraw` 命令（正本按号 remove），所以**只有最后一行**画得出
+ *      撤回键。
+ *   2. 换层也落在最后一条上（撤回再重投，omp 没有按条改层的 API），所以两枚换层图标同样
+ *      只有最后一行有。
+ *   3. 一行时没有折叠头，两枚图标就贴那一行的右缘；多行时贴折叠头（「N 条排队消息」）的
+ *      右缘 —— 它们改的是**最后那一条**。
  *
- * 顺序是 agent 的出队顺序，这一层不重排、不预演；改一句只能撤回来重发。
+ * 顺序是 agent 的出队顺序，这一层不重排、不预演。
  */
-export const PromptQueue = memo(function PromptQueue({ onEdit, queue }: PromptQueueProps) {
+export const PromptQueue = memo(function PromptQueue({
+  onEdit,
+  onRedeliver,
+  queue,
+}: PromptQueueProps) {
   /* 三个实参：第三格是服务端快照。本仓的规矩与 session-controls-context 同形，测试里渲染
      静态标记时读的就是它 —— 缺了它，整棵子树在 markup 里是空的。 */
   const state: MessageQueueState = useSyncExternalStore(queue.subscribe, queue.read, queue.read)
   /* 摊开是缺省态：队列是在等发的话，折起来连序号都看不见；头仍然点得动。 */
   const [collapsed, setCollapsed] = useState(false)
+  const [pending, setPending] = useState(false)
   const rows = queueRows(state)
+
+  /*
+   * 换层：撤回最后一条，再按新层重投。
+   *
+   * 撤回是 LIFO，交回的正文就是要发的正文；重投走 onRedeliver（上层把它交给 send，
+   * 与正常发送同一条路）。撤回失败（队列空了、或已经被模型吃了）就什么都不做。
+   */
+  const redeliver = useCallback(
+    (deliverAs: PromptDelivery) => {
+      if (pending) {
+        return
+      }
+      setPending(true)
+      void queue
+        .withdraw()
+        .then((restored) => {
+          if (restored !== null) {
+            onRedeliver(restored.text, deliverAs)
+          }
+        })
+        .finally(() => {
+          setPending(false)
+        })
+    },
+    [onRedeliver, pending, queue],
+  )
 
   const withdraw = useCallback(() => {
     void queue.withdraw().then((restored) => {
@@ -241,6 +237,10 @@ export const PromptQueue = memo(function PromptQueue({ onEdit, queue }: PromptQu
       }
     })
   }, [onEdit, queue])
+
+  const toggle = useCallback(() => {
+    setCollapsed((value) => !value)
+  }, [])
 
   if (rows.length === 0) {
     return null
@@ -258,23 +258,43 @@ export const PromptQueue = memo(function PromptQueue({ onEdit, queue }: PromptQu
     <div className="prompt-queue" data-queue-dock>
       <div className="prompt-queue__panel">
         {many ? (
-          <button
-            aria-controls="prompt-queue-list"
-            aria-expanded={expanded}
-            className="prompt-queue__header"
-            onClick={() => {
-              setCollapsed((value) => !value)
-            }}
-            type="button"
-          >
-            <span aria-hidden className="prompt-queue__lead">
-              <QueueGlyph />
-            </span>
-            <span className="prompt-queue__count">{rows.length} 条排队消息</span>
-            <span aria-hidden className="prompt-queue__chevron">
+          <div className="prompt-queue__header">
+            <button
+              aria-controls="prompt-queue-list"
+              aria-expanded={expanded}
+              className="prompt-queue__summary"
+              onClick={toggle}
+              type="button"
+            >
+              <span aria-hidden className="prompt-queue__lead">
+                <QueueGlyph />
+              </span>
+              <span className="prompt-queue__count">{rows.length} 条排队消息</span>
+            </button>
+
+            {/*
+             * 三枚控件都改**最后那一条**（撤回是 LIFO、换层靠撤回再重投），所以它们同在一处。
+             * 把撤回单独留在最后一行上，读起来就是「只有这一行能删」的一枚孤零零的键 —— 那
+             * 不是它的语义，它的语义是「撤回最后一条」。
+             */}
+            <RowDeliveries disabled={pending} onPick={redeliver} />
+
+            <QueueAction disabled={pending} label="撤回最后一条，正文回输入框" onClick={withdraw}>
+              <TrashIcon aria-hidden size={14} />
+            </QueueAction>
+
+            {/* 折角放队尾：它只说「这一块能收起来」，夹在按钮中间会被当成第四枚操作。 */}
+            <button
+              aria-controls="prompt-queue-list"
+              aria-expanded={expanded}
+              aria-label={expanded ? '收起排队消息' : '展开排队消息'}
+              className="prompt-queue__chevron"
+              onClick={toggle}
+              type="button"
+            >
               {expanded ? <ChevronDownIcon size={14} /> : <ChevronUpIcon size={14} />}
-            </span>
-          </button>
+            </button>
+          </div>
         ) : null}
 
         <ul className="prompt-queue__list" hidden={!listVisible} id="prompt-queue-list">
@@ -299,19 +319,21 @@ export const PromptQueue = memo(function PromptQueue({ onEdit, queue }: PromptQu
                   </span>
 
                   {/*
-                   * 右缘那几枚，就在这一行的 flex 里。
-                   *
-                   * 撤回只在最后一行（LIFO）；队列设置跟着最后一行一起 —— 它是整条队列唯一
-                   * 的设置入口，单独占一行就是「按钮自己一列」，而正本每一枚钮都贴在行右缘。
+                   * 一行时没有折叠头，三枚控件（换层两枚 + 撤回一枚）都贴这一行的右缘。
+                   * 它们改的是最后一条，而这一行就是最后一条。
                    */}
-                  {row.last ? (
+                  {many ? null : (
                     <>
-                      <QueueTuning queue={queue} state={state} />
-                      <RowAction label="撤回这一句，正文回输入框" onClick={withdraw}>
-                        <CloseIcon aria-hidden size={14} />
-                      </RowAction>
+                      <RowDeliveries disabled={pending} onPick={redeliver} />
+                      <QueueAction
+                        disabled={pending}
+                        label="撤回最后一条，正文回输入框"
+                        onClick={withdraw}
+                      >
+                        <TrashIcon aria-hidden size={14} />
+                      </QueueAction>
                     </>
-                  ) : null}
+                  )}
                 </li>
               ))
             : null}

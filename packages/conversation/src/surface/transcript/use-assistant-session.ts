@@ -208,12 +208,16 @@ export function useAssistantSession({
         transcripts.ensure(session)
       }
       /*
-       * 缺省按这一刻的状态选层：空闲开一轮（那才是「一句话」），正在跑就插话。
-       * 判据取的是**在飞**而不是 `running`：`submitted` 那一档（回执还没回来）
-       * 也是一轮正在起，拿不准时插话不会丢话 —— 上游对插话永远不抛忙碌错。
+       * 缺省按这一刻的状态选层：空闲开一轮（那才是「一句话」），**正在跑就排队**。
+       *
+       * 排队（`followUp`）是流式下的缺省，不是插话：插话会打断模型手上那一步，而人多半
+       * 只是想「等它做完再说」。要打断得自己点名（队列条上那枚「插话」）。
+       *
+       * 判据取的是**在飞**而不是 `running`：`submitted` 那一档（回执还没回来）也是一轮
+       * 正在起，拿不准时排队不会丢话 —— 上游对排队永远不抛忙碌错。
        */
       const delivery: PromptDelivery =
-        deliverAs ?? (canCancel(transcripts.read(key)) ? 'steer' : 'turn')
+        deliverAs ?? (canCancel(transcripts.read(key)) ? 'followUp' : 'turn')
       void transcripts.send({
         ...submission,
         deliverAs: delivery,

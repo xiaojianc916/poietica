@@ -3,7 +3,7 @@ import './skin/surface.css'
 import { Banner } from '@poietica/design-system'
 import { memo, type Ref, useCallback, useMemo, useRef, useState } from 'react'
 import type { SessionConfigControl } from '../agent/config'
-import type { AgentSessionPort } from '../agent/session'
+import type { AgentSessionPort, PromptDelivery } from '../agent/session'
 import type { SessionUsage } from '../agent/usage'
 import type { PromptInputMessage } from '../composer/prompt'
 import { AssistantComposer } from './composer/assistant-composer'
@@ -219,6 +219,19 @@ export const AssistantSurface = memo(function AssistantSurface({
     draft.current?.focus()
   }, [])
 
+  /*
+   * 换一层再投出去：撤回最后一条，用点名的层重投。
+   *
+   * 走的就是正常发送那条路（assistant.send 带 deliverAs），所以准入、投递、失败横幅
+   * 全都与手打一句相同 —— 这一层不另开一条发送路径。
+   */
+  const redeliver = useCallback(
+    (text: string, deliverAs: PromptDelivery) => {
+      assistant.send({ assets: [], configuration: [], skills: [], text }, deliverAs)
+    },
+    [assistant.send],
+  )
+
   /* KAP 没有恢复同一轮的协议动作；这里发送一条可见新消息，不伪装成断流重建。 */
   const continueConversation = useCallback(() => {
     draft.current?.insertTextAndSubmit('Continue')
@@ -244,7 +257,7 @@ export const AssistantSurface = memo(function AssistantSurface({
           tone="error"
         />
       )}
-      <PromptQueue onEdit={edit} queue={assistant.queue} />
+      <PromptQueue onEdit={edit} onRedeliver={redeliver} queue={assistant.queue} />
 
       {/* 连不上 agent：卡上沿一条提示，不在工具栏里冒充模型选择器。 */}
       {controlsFailure === undefined ? null : (

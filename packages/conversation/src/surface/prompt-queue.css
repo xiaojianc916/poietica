@@ -64,9 +64,10 @@
 }
 
 /*
- * 折叠头：两行以上才画，一行直接摊开（正本同一条判据）。
+ * 折叠头那一格：两行以上才画，一行直接摊开（正本同一条判据）。
  *
- * 它是一颗按钮，却长在一条浮层带上：静息没有底，按下去也只有一层墨。
+ * 它是**一格**而不是一颗按钮：左边那颗按钮管折叠，右边贴着两枚模式图标（见下）。两枚图标
+ * 改的是整条队列，所以它们跟这一格走 —— 一行时没有这一格，它们就贴那一行的右缘。
  */
 .prompt-queue__header {
   box-sizing: border-box;
@@ -75,7 +76,19 @@
   block-size: var(--cp-queue-row);
   align-items: center;
   gap: 10px;
-  padding: 4px 12px;
+  padding: 4px 5px 4px 12px;
+}
+
+/* 折叠按钮：静息没有底，按下去也只有一层墨；它占满图标左边那一整段。 */
+.prompt-queue__summary {
+  box-sizing: border-box;
+  display: flex;
+  min-inline-size: 0;
+  flex: auto;
+  block-size: 100%;
+  align-items: center;
+  gap: 10px;
+  padding: 0;
   border: 0;
   border-radius: var(--cp-queue-row-radius);
   background: none;
@@ -84,27 +97,44 @@
   cursor: pointer;
 }
 
-.prompt-queue__header:disabled {
-  cursor: default;
-}
-
-.prompt-queue__header:focus-visible {
+.prompt-queue__summary:focus-visible {
   outline: 2px solid var(--ui-ring);
   outline-offset: -2px;
 }
 
-/* 前导与折角：都是居中一格字形，两处共用一条声明。 */
-.prompt-queue__lead,
-.prompt-queue__chevron {
+/* 前导：居中一格字形。 */
+.prompt-queue__lead {
   display: grid;
   flex: none;
   place-items: center;
   color: var(--cp-ink-muted);
 }
 
+/*
+ * 折角：它是一枚真的按钮（点得动），尺寸与悬停跟其他操作钮同一条口径 —— 它排在那一排的
+ * 最右，与它们并排，长得不一样就会被读成装饰。
+ */
 .prompt-queue__chevron {
-  inline-size: 14px;
-  block-size: 14px;
+  display: grid;
+  flex: none;
+  inline-size: var(--cp-queue-action);
+  block-size: var(--cp-queue-action);
+  place-items: center;
+  padding: 0;
+  border: 0;
+  border-radius: 9999px;
+  background: none;
+  color: var(--cp-ink-muted);
+  cursor: pointer;
+}
+
+.prompt-queue__chevron:hover {
+  background: var(--cp-queue-hover);
+}
+
+.prompt-queue__chevron:focus-visible {
+  outline: 2px solid var(--ui-ring);
+  outline-offset: -2px;
 }
 
 .prompt-queue__count {
@@ -224,29 +254,8 @@
   cursor: default;
 }
 
-/*
- * 弹层里的那三组。弹层经 Portal 落 body 之外，[data-assistant-skin] 罩不到 —— 这里每个数
- * 只取设计系统与 --ui-* 的令牌，不赖任何作用域令牌。
- */
-.prompt-queue__tuning-label {
-  padding: 6px 8px 2px;
-  color: var(--ui-muted-foreground);
-  font-size: 12px;
-  line-height: 16px;
-}
-
-/* 单选那一枚圆点：与菜单行的字同高，不抢行首的位置。 */
-.prompt-queue__tuning-tick {
-  display: inline-grid;
-  place-items: center;
-  inline-size: 16px;
-  block-size: 16px;
-  flex: none;
-}
-
-.prompt-queue__tuning-dot {
-  inline-size: 6px;
-  block-size: 6px;
-  border-radius: 9999px;
-  background: var(--ui-primary);
+/* 按下的那一枚模式图标着色并铺底：一眼看得出此刻是哪一档。 */
+.prompt-queue__action[aria-pressed="true"] {
+  background: var(--cp-queue-hover);
+  color: var(--cp-ink);
 }

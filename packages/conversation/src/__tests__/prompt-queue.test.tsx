@@ -10,7 +10,9 @@ import { PromptQueue, queueRows } from '../surface/prompt-queue'
  *
  *   1. 行首只有一行时是队列记号，两行以上换成序号；
  *   2. 行与行之间不画分隔线；
- *   3. 屏幕上不出现「插话 / 排队 / 打断」这些词 —— 它们走提示条。
+ *   3. 屏幕上不出现「插话 / 排队」这些词 —— 它们走提示条；
+ *   4. 三档投递里缺省是 followUp（这一轮跑完再送出去），它**不画图标**；另两档（steer /
+ *      aside）各一枚，且都只有最后一行画得出（换层 = 撤回再重投，撤回是 LIFO）。
  *
  * 两半分开测：行的投影是纯函数（序号、署名、谁能撤），静态标记那一半验整块的骨架。
  * 折叠与提示条的内容不进 markup（本仓没有 DOM 测试环境），这里钉的是能看见的那部分。
@@ -39,8 +41,22 @@ const queue = (steering: readonly string[], followUp: readonly string[]): Messag
   return instance
 }
 
+/* 只挑那两枚换层图标：撤回键与它们同类，但不在这一组里。 */
+const DELIVERY_LABELS = ['插话：插进正在跑的这一轮', '旁注：不打断，找个空档悄悄说']
+
+const deliveryButtons = (markup: string): readonly string[] =>
+  (markup.match(/<button[^>]*class="prompt-queue__action[ "][^>]*>/g) ?? []).filter((button) =>
+    DELIVERY_LABELS.some((label) => button.includes(`aria-label="${label}"`)),
+  )
+
 const render = (steering: readonly string[], followUp: readonly string[]): string =>
-  renderToStaticMarkup(<PromptQueue onEdit={() => undefined} queue={queue(steering, followUp)} />)
+  renderToStaticMarkup(
+    <PromptQueue
+      onEdit={() => undefined}
+      onRedeliver={() => undefined}
+      queue={queue(steering, followUp)}
+    />,
+  )
 
 describe('待发队列的行', () => {
   test('两层的顺序照 agent 报来的那一份，署名随行', () => {
@@ -129,22 +145,44 @@ describe('待发队列那一块', () => {
   })
 
   /*
-   * 三个队列模式**不占屏幕**：它们收在末尾那枚「队列设置」的弹层里。
+   * 两枚换层图标：一行时贴那一行的右缘，多行时贴折叠头的右缘。
    *
-   * 它们是整条队列的设置，而正本每一行右侧那几枚按钮是「对**这一行正文**的操作」——
-   * 摆进行的按钮列里，人读到的是「这一句能一次全喂」，那是错的。这一条钉的就是这件事：
-   * 屏幕上只有一枚触发器，三个模式一个都不许以按钮的样子出现。
+   * 它们换的是**最后那一条**（撤回再重投，omp 没有按条改层的 API），所以只有最后一行
+   * 配得上这两枚键 —— 中间那几行画不了，不给按不动的行画假键。
    */
-  test('三个队列模式收在设置弹层里，不占屏幕', () => {
+  test('两枚换层图标：一行时在行右缘，多行时在折叠头右缘', () => {
+    const one = render(['1111快点啊'], [])
+    const many = render(['先说这句'], ['说完再做这句'])
+
+    /* 一行：没有折叠头，两枚图标在那一行里。 */
+    expect(one).not.toContain('prompt-queue__header')
+    const oneRow = one.match(/<li class="prompt-queue__row">[\s\S]*?<\/li>/)?.[0] ?? ''
+    expect(deliveryButtons(oneRow)).toHaveLength(2)
+
+    /* 多行：两枚图标在折叠头里，且不在任何一行里。 */
+    expect(many).toContain('prompt-queue__header')
+    const head = many.match(/<div class="prompt-queue__header">[\s\S]*?<\/div><ul/)?.[0] ?? ''
+    expect(deliveryButtons(head)).toHaveLength(2)
+    for (const row of many.match(/<li class="prompt-queue__row">[\s\S]*?<\/li>/g) ?? []) {
+      expect(deliveryButtons(row)).toHaveLength(0)
+    }
+  })
+
+  /*
+   * 三档投递里**缺省那一档不画图标**。
+   *
+   * 缺省是 followUp（这一轮跑完再送出去）：屏幕上没有图标就是它 —— 给缺省态也画一枚键，
+   * 人读到的是「要按一下才生效」。所以另两档各一枚，一共两枚，且都不是 followUp。
+   */
+  test('缺省档 followUp 不画图标，另两档各一枚', () => {
     const markup = render(['1111快点啊'], [])
 
-    expect(markup).toContain('aria-label="队列设置"')
-    expect(markup).not.toContain('prompt-queue__mode')
-    expect(markup).not.toContain('aria-pressed')
-    /* 它是那一行里的按钮，不是自己另起一条。 */
-    const rows = markup.match(/<li class="prompt-queue__row">[\s\S]*?<\/li>/g) ?? []
-    expect(rows).toHaveLength(1)
-    expect(rows[0]).toContain('aria-label="队列设置"')
+    /* 两枚图标，名字是另两档。 */
+    expect(deliveryButtons(markup)).toHaveLength(2)
+    expect(markup).toContain('aria-label="插话：插进正在跑的这一轮"')
+    expect(markup).toContain('aria-label="旁注：不打断，找个空档悄悄说"')
+    /* 缺省那一档不出现。 */
+    expect(markup).not.toContain('排队：这一轮跑完再送出去')
   })
 
   /*
@@ -156,11 +194,10 @@ describe('待发队列那一块', () => {
     const buttons =
       markup.match(/<button[^>]*class="prompt-queue__action[ "][^>]*>([\s\S]*?)<\/button>/g) ?? []
 
-    /* 一行一枚撤回键 + 末尾一枚队列设置。 */
-    expect(buttons).toHaveLength(2)
+    /* 一行：两枚换层 + 一枚撤回。 */
+    expect(buttons).toHaveLength(3)
     for (const button of buttons) {
       expect(/aria-label="[^"]+"/.test(button)).toBe(true)
-      /* 按钮里除了那枚字形不该再有字。 */
       expect(
         button
           .replace(/<svg[\s\S]*?<\/svg>/g, '')
@@ -168,26 +205,49 @@ describe('待发队列那一块', () => {
           .trim(),
       ).toBe('')
     }
-    /* 两枚名字不同：一枚管这一句，一枚管整条队列。 */
-    expect(new Set(buttons.map((button) => /aria-label="([^"]+)"/.exec(button)?.[1])).size).toBe(2)
+    /* 三枚名字互不相同。 */
+    expect(new Set(buttons.map((button) => /aria-label="([^"]+)"/.exec(button)?.[1])).size).toBe(3)
   })
 
   /*
-   * 按钮**长在行自己的 flex 里**，不是另起一列。
+   * 三枚控件（换层两枚 + 撤回一枚）改的都是**最后那一条**，所以它们同在一处，不是散在
+   * 各行上。
    *
-   * 判据落在 DOM 结构上：撤回键是那一行 <li> 的孩子，而不是一个与 <ul> 平级的兄弟。分家会
-   * 让按钮游离在行之外 —— 屏幕上看就是一列悬在右边的钮，跟它要操作的那句话对不上。
+   * 多行时它们在折叠头里（连同最右那枚折角）；一行时没有折叠头，三枚都贴那一行的右缘。
+   * 把撤回单独留在最后一行上，读起来就是「只有这一行能删」的一枚孤零零的键 —— 那不是
+   * 它的语义。
    */
-  test('按钮贴在它那一行的右缘，不是另起一列', () => {
-    const markup = render(['先说这句'], ['说完再做这句'])
-    const rows = markup.match(/<li class="prompt-queue__row">[\s\S]*?<\/li>/g) ?? []
+  test('三枚控件跟着「最后一条」走：一行时在行内，多行时在折叠头里', () => {
+    const one = render(['先说这句'], [])
+    const many = render(['先说这句'], ['说完再做这句'])
 
-    expect(rows).toHaveLength(2)
-    /* 只有最后一行有按钮，且它在那一行自己的盒子里。 */
-    expect(rows[0]).not.toContain('prompt-queue__action')
-    expect(rows[1]).toContain('prompt-queue__action')
-    /* 列表里没有第二列：按钮总数 = 行内那一枚 + 末尾那一枚。
-       DropdownMenuTrigger 会往 class 后面追加它自己的类，所以按前缀匹配。 */
-    expect(markup.match(/class="prompt-queue__action[ "]/g) ?? []).toHaveLength(2)
+    /* 一行：三枚都在那一行里，且行里没有折角钮（没有可折的东西）。 */
+    const oneRow = one.match(/<li class="prompt-queue__row">[\s\S]*?<\/li>/)?.[0] ?? ''
+    expect(oneRow).toContain('撤回最后一条')
+    expect(oneRow).toContain('插话：插进正在跑的这一轮')
+    expect(oneRow).toContain('旁注：不打断，找个空档悄悄说')
+
+    /* 多行：三枚都在折叠头里，行里一枚都没有。 */
+    const head = many.match(/<div class="prompt-queue__header">[\s\S]*?<\/div><ul/)?.[0] ?? ''
+    expect(head).toContain('撤回最后一条')
+    expect(head).toContain('插话：插进正在跑的这一轮')
+    for (const row of many.match(/<li class="prompt-queue__row">[\s\S]*?<\/li>/g) ?? []) {
+      expect(row).not.toContain('撤回最后一条')
+      expect(deliveryButtons(row)).toHaveLength(0)
+    }
+  })
+
+  /*
+   * 折角钮排在那一排的最右：它只说「这一块能收起来」，夹在操作钮中间会被当成第四枚操作。
+   */
+  test('折角钮在控件组最右', () => {
+    const head =
+      render(['先说这句'], ['说完再做这句']).match(
+        /<div class="prompt-queue__header">[\s\S]*?<\/div><ul/,
+      )?.[0] ?? ''
+    const labels = [...head.matchAll(/aria-label="([^"]+)"/g)].map((match) => match[1])
+
+    /* 撤回 → 换层两枚 → 折角，折角最后。 */
+    expect(labels[labels.length - 1]).toBe('收起排队消息')
   })
 })
