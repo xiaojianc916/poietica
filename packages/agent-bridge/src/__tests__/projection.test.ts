@@ -264,3 +264,52 @@ describe('omp 事件投影成 transcript ops', () => {
     })
   })
 })
+/*
+ * 号是按**位置**算的：屏幕上一格一位置，而显示经过里工具结果是独立一格、摘要也是。
+ * 增量那条路自己数不到那里（它只看得见自己开过几轮），所以它必须接受"坐到某一格上"。
+ * 判据：坐位之后开的那一轮，号就是座位后面那一个 —— 不是它自己数出来的那一个。
+ */
+describe('投影器坐到屏幕的位置上', () => {
+  const ordinalsOf = (ops: readonly Op[]): number[] =>
+    ops.filter((op) => op.op === 'turn.upsert').map((op) => op.turn.ordinal)
+
+  it('坐位之后开的那一轮用座位后面的号', () => {
+    const projector = new TranscriptProjector()
+
+    projector.seat(7)
+
+    expect(ordinalsOf(projector.userTurn('继续'))).toEqual([8])
+  })
+
+  it('收尾把号停在座位上：下一轮接着排，不复用旧号', () => {
+    const projector = new TranscriptProjector()
+
+    projector.seat(7)
+    projector.userTurn('继续')
+    const ended = projector.turnEnd('completed')
+
+    expect(ordinalsOf(ended)).toEqual([8])
+    expect(ordinalsOf(projector.userTurn('再继续'))).toEqual([9])
+  })
+
+  it('开着轮时不改号：那一轮自己已经写在号上了', () => {
+    const projector = new TranscriptProjector()
+
+    projector.userTurn('第一句')
+    projector.seat(99)
+
+    expect(projector.turnOrdinal).toBe(1)
+    expect(ordinalsOf(projector.turnEnd('completed'))).toEqual([1])
+  })
+
+  it('指定座位开轮时以它为准，正文跟着走', () => {
+    const projector = new TranscriptProjector()
+
+    const opened = projector.userTurn('翻回来的一格', [], undefined, undefined, { ordinal: 42 })
+
+    expect(ordinalsOf(opened)).toEqual([42])
+    expect(opened.find((op) => op.op === 'turn.upsert')).toMatchObject({
+      turn: { turnId: 't42', prompt: '翻回来的一格' },
+    })
+  })
+})

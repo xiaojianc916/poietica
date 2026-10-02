@@ -143,10 +143,28 @@ function getTurn(state: AgentState, turnId: TurnId): TranscriptTurn | undefined 
   return item?.kind === 'turn' ? item : undefined
 }
 
+/*
+ * 位置表是 items 的派生，只在 items 真的动过时重建。
+ *
+ * **插进最后一个位置不必重建**：回放一条历史会话时轮按 ordinal 递增到达，
+ * 每轮都重建一次就是打开一条长对话要付的 O(n²)。乱序到达仍走全表 —— 那时才真的
+ * 需要找位置（判据：integration 的「乱序到达的 turn 仍能按 ordinal 归位」）。
+ */
 function insertTurn(
   state: AgentState,
   turn: TranscriptTurn,
 ): Pick<AgentState, 'items' | 'turnIndex'> {
+  const last = state.items[state.items.length - 1]
+
+  if (last === undefined || (last.kind === 'turn' && last.ordinal < turn.ordinal)) {
+    const items = [...state.items, turn]
+    const turnIndex = new Map(state.turnIndex)
+
+    turnIndex.set(turn.turnId, items.length - 1)
+
+    return { items, turnIndex }
+  }
+
   const items = [...state.items]
   let at = items.length
   for (let i = 0; i < items.length; i += 1) {
@@ -172,20 +190,29 @@ function replaceTurn(
   return { items, turnIndex: state.turnIndex }
 }
 
+/*
+ * 就地改一条轮：换掉那一格，位置表**不重建**（位置没变）。
+ *
+ * 这一个是打开一条长对话的主要开销：整表重建一张 1 万条的位置表，而回放里每一次
+ * 帧/段改写都要走一趟 —— 那就是 4.5 秒的来源。找不到这条轮时回退到插入（那时位置会变）。
+ */
+function sealTurn(state: AgentState, turnId: TurnId, turn: TranscriptTurn): AgentState {
+  return { ...state, ...replaceTurn(state, turnId, turn) }
+}
+
 function applyTurnUpsert(state: AgentState, header: TurnHeader): ApplyResult {
   const existing = getTurn(state, header.turnId)
-  if (existing) {
-    if (turnEquals(existing, header)) return { state, changed: false }
-    return {
-      state: {
-        ...state,
-        ...replaceTurn(state, header.turnId, turnHeaderToTurn(header, existing.steps)),
-      },
-      changed: true,
-    }
+
+  if (existing !== undefined && turnEquals(existing, header)) {
+    return { state, changed: false }
   }
+
   return {
-    state: { ...state, ...insertTurn(state, turnHeaderToTurn(header, [])) },
+    state: sealTurn(
+      state,
+      header.turnId,
+      turnHeaderToTurn(header, existing === undefined ? [] : existing.steps),
+    ),
     changed: true,
   }
 }
@@ -230,10 +257,7 @@ function applyStepUpsert(state: AgentState, turnId: TurnId, header: StepHeader):
     )
   }
   if (!changed) return { state, changed: false }
-  return {
-    state: { ...state, ...replaceTurn(state, turnId, { ...turn, steps: [...steps] }) },
-    changed: true,
-  }
+  return { state: sealTurn(state, turnId, { ...turn, steps: [...steps] }), changed: true }
 }
 
 function stepEquals(step: TranscriptStep, header: StepHeader): boolean {
@@ -273,10 +297,7 @@ function applyFrameUpsert(
   const steps = turn.steps.some((entry) => entry.stepId === op.stepId)
     ? turn.steps.map((entry) => (entry.stepId === op.stepId ? nextStep : entry))
     : [...turn.steps, nextStep].toSorted((a, b) => a.ordinal - b.ordinal)
-  return {
-    state: { ...state, ...replaceTurn(state, op.turnId, { ...turn, steps }) },
-    changed: true,
-  }
+  return { state: sealTurn(state, op.turnId, { ...turn, steps }), changed: true }
 }
 
 function frameEquals(a: TranscriptFrame, b: TranscriptFrame): boolean {
@@ -333,10 +354,7 @@ function applyAppend(state: AgentState, op: AppendOp): ApplyResult {
     ...turn,
     steps: turn.steps.map((entry) => (entry.stepId === stepId ? nextStep : entry)),
   }
-  return {
-    state: { ...state, ...replaceTurn(state, turnId, nextTurn) },
-    changed: true,
-  }
+  return { state: sealTurn(state, turnId, nextTurn), changed: true }
 }
 
 function applyTaskAppend(state: AgentState, op: AppendOp): ApplyResult {

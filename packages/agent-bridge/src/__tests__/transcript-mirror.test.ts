@@ -309,3 +309,69 @@ test('the page keeps the attachments its visible turns point at', () => {
 
   expect(page.attachments.map((attachment) => attachment.attachmentId)).toEqual(['kept'])
 })
+/*
+ * 屏幕窗口很小、历史很长时，页的两种行为各有一条判据（都是这次修缺陷时才有的形状）：
+ * 1. 往回翻到镜像手上没有再早的段时，页要当场把更早那一段补进来（warm），而不是回空页；
+ * 2. 「还有更早的」按 floor（显示经过的下界）判，不按这一页开出来的那一段判 —— 少了它，
+ *    客户端以为到底了，被压掉的历史就永远翻不回来。
+ */
+/** 带段的轮：真实那条路上每一轮都有段，按段才看得出「手上已有的是哪一段」。 */
+function stagedTurn(turnId: string, ordinal: number, text: string): TranscriptOperation[] {
+  return [
+    ...turnOf(turnId, ordinal, text),
+    {
+      op: 'step.upsert' as const,
+      turnId,
+      step: {
+        kind: 'step' as const,
+        stepId: `${turnId}.0`,
+        turnId,
+        ordinal: 0,
+        state: 'completed' as const,
+      },
+    },
+    {
+      op: 'frame.upsert' as const,
+      turnId,
+      stepId: `${turnId}.0`,
+      frame: { kind: 'text' as const, role: 'assistant' as const, frameId: `${turnId}.0.f0`, text },
+    },
+  ]
+}
+
+test('paging past the staged window warms an earlier stretch instead of answering empty', () => {
+  const mirror = new TranscriptMirror('session', 1024)
+  for (const [at, text] of ['一', '二', '三', '四'].entries()) {
+    push(mirror, stagedTurn(`t${String(at + 1)}`, at + 1, text.repeat(400)))
+  }
+
+  /* 游标指向镜像手上最老那一轮：光靠手上这一窗开不出更早的页，得现补一段。 */
+  const warmed: string[] = []
+  const earlier = transcriptResponseSchema.parse(
+    mirror.page('main', 't1', {
+      floor: 't1',
+      /* 补的那一段更早（真实那一条是从显示经过里现投影成 ops）。 */
+      warm: (beforeTurn, stagedFrom) => {
+        warmed.push(`${String(beforeTurn)}:${String(stagedFrom)}`)
+        push(mirror, stagedTurn('t0', 0, '零'.repeat(400)))
+      },
+    }),
+  )
+
+  expect(warmed).toEqual(['t1:1'])
+  expect(earlier.items.map((item) => (item.kind === 'turn' ? item.turnId : item.kind))).toEqual([
+    't0',
+  ])
+})
+
+test('a page that is not at the display floor still says there is more', () => {
+  const mirror = new TranscriptMirror('session', 1024)
+  for (const [at, text] of ['一', '二'].entries()) {
+    push(mirror, turnOf(`t${String(at + 1)}`, at + 1, text.repeat(400)))
+  }
+
+  /* 这一页只开得出最新那一轮，而显示经过的下界是第 1 轮：要如实说还有更早的。 */
+  const page = transcriptResponseSchema.parse(mirror.page('main', undefined, { floor: 't1' }))
+
+  expect(page.has_more).toBe(true)
+})

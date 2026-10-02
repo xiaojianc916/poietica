@@ -51,6 +51,23 @@ export class TranscriptProjector {
   }
 
   /**
+   * 把流式累加器摆到屏幕上已有的位置：下一轮从 `ordinal + 1` 起号。
+   *
+   * 屏幕上的号是**显示经过里的位置**（重开一条会话时重排过），而增量这条路的号是
+   * 它自己从头数下来的。两者不对齐，接着说话就会用旧号盖掉屏幕上已有的轮 ——
+   * 那正是「重开一条长对话，第一句话把屏幕顶掉一截」这件事。
+   *
+   * 只许在没开着轮时调（收尾那一段会断言这一点）：开着轮时改号，这一轮自己就对不上了。
+   */
+  seat(ordinal: number): void {
+    if (this.#turnOpen) {
+      return
+    }
+
+    this.#turn = ordinal
+  }
+
+  /**
    * 一条用户消息：开一个新 turn，正文落在它下面第一个 step 的第一帧。
    *
    * `promptId` 是提交时本机账本签的那个号，挂成 `triggerPromptId` —— 屏幕靠它把这
@@ -63,8 +80,10 @@ export class TranscriptProjector {
     attachmentIds: readonly string[] = [],
     promptId?: string,
     startedAt: string = now(),
+    /* 屏幕上已有位置时在这里指定（见 seat）；不指定就用流式累加器自己的下一个号。 */
+    at?: { readonly ordinal: number; readonly prompt?: string },
   ): TranscriptOperation[] {
-    const ordinal = this.#turn + 1
+    const ordinal = at?.ordinal ?? this.#turn + 1
     const turn = turnId(ordinal)
     const step = stepId(turn, 0)
     const id = frameId(step, 0)
@@ -345,12 +364,15 @@ export class TranscriptProjector {
     message?: string,
     endedAt: string = now(),
     usage?: { readonly input: number; readonly output: number; readonly cacheRead: number },
+    /* 屏幕上这一格占的位置（见 seat）。指定时以它为准：号是按位置算出来的。 */
+    seat?: { readonly ordinal: number; readonly prompt?: string },
   ): TranscriptOperation[] {
     if (!this.#turnOpen) {
       return []
     }
 
-    const turn = turnId(this.#turn)
+    const ordinal = seat?.ordinal ?? this.#turn
+    const turn = turnId(ordinal)
     const at = endedAt
     const ops: TranscriptOperation[] = []
 
@@ -375,11 +397,11 @@ export class TranscriptProjector {
       turn: {
         kind: 'turn',
         turnId: turn,
-        ordinal: this.#turn,
+        ordinal,
         state:
           outcome === 'failed' ? 'failed' : outcome === 'cancelled' ? 'cancelled' : 'completed',
         origin: { kind: 'user' },
-        prompt: this.#prompt,
+        prompt: seat?.prompt ?? this.#prompt,
         startedAt: this.#startedAt,
         endedAt: at,
         ...(this.#promptId === undefined ? {} : { triggerPromptId: this.#promptId }),
@@ -405,6 +427,8 @@ export class TranscriptProjector {
     this.#args.clear()
     this.#intents.clear()
     this.#promptId = undefined
+    /* 收在座位上：下一轮从它后面接着排，不与屏幕上已有的那一格撞号。 */
+    this.#turn = ordinal
 
     return ops
   }

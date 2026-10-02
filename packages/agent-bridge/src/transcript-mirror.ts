@@ -51,6 +51,25 @@ const ENVELOPE_RESERVE_BYTES = 64 * 1024
 /** 生产者自己的单帧预算。传输上限只兜底，收口在这里。 */
 const FRAME_BUDGET_BYTES = MAX_FRAME_BYTES - ENVELOPE_RESERVE_BYTES
 
+/*
+ * 基线页自己的预算，比传输上限小两个数量级。
+ *
+ * 传输上限（50 MiB）是「一行不许顶穿」的**安全阀**，不是页该有多大：一页 50 MB 意味着
+ * Rust 侧 read_line 分配 50 MB 字符串、TS 侧再 JSON.parse 一遍，而屏幕第一帧只画得下
+ * 几十行。历史本来就该由翻页一段段取（`beforeTurn`），所以页要有自己的、
+ * 小得多的界。
+ */
+const PAGE_BUDGET_BYTES = 16 * 1024 * 1024
+
+/*
+ * 批次日志的保留条数。
+ *
+ * 它是给「断线重连后追赶」用的：超过这个窗口的老批次谁也不会有，catchUp 如实回
+ * complete:false，客户端退回整页读法（那条路是开过窗的）。不设上限就是「进程活得
+ * 越久、内存越大、追赶越慢」，而追赶成本只该随**断线时长**变，不该随会话总长变。
+ */
+const MAX_BATCHES = 512
+
 const encoder = new TextEncoder()
 
 /** 一个值在线上占多少**字节**。Rust 侧量的就是它，不是字符数。 */
@@ -123,23 +142,27 @@ function windowItems(
   beforeTurn: string | undefined,
   budget: number,
 ): Window {
-  let pool = items
+  /*
+   * 上界而不是切片：翻页只该挪动「从哪开始」，不该把前面那一截整份复制一遍
+   * —— 一条 1 万轮的会话，每往回翻一页就复制 1 万条。
+   */
+  let end = items.length
 
   if (beforeTurn !== undefined) {
-    const at = pool.findIndex((item) => item.kind === 'turn' && item.turnId === beforeTurn)
+    const at = items.findIndex((item) => item.kind === 'turn' && item.turnId === beforeTurn)
 
     if (at < 0) {
       return { items: [], hasMore: false }
     }
 
-    pool = pool.slice(0, at)
+    end = at
   }
 
   let used = 0
-  let start = pool.length
+  let start = end
 
   while (start > 0) {
-    const item = pool[start - 1]
+    const item = items[start - 1]
 
     if (item === undefined) {
       break
@@ -156,8 +179,8 @@ function windowItems(
   }
 
   /* 最新那一条自己就超预算：是轮就把步骤裁到装得下，仍如实说还有更早的。 */
-  if (start === pool.length && pool.length > 0) {
-    const newest = pool[pool.length - 1]
+  if (start === end && end > 0) {
+    const newest = items[end - 1]
 
     if (newest === undefined) {
       return { items: [], hasMore: false }
@@ -169,7 +192,43 @@ function windowItems(
     }
   }
 
-  return { items: pool.slice(start), hasMore: start > 0 }
+  return { items: items.slice(start, end), hasMore: start > 0 }
+}
+
+/** 镜像手上有没有这一格。 */
+function holdsTurn(items: readonly TranscriptItem[], turnId: string): boolean {
+  return items.some((item) => item.kind === 'turn' && item.turnId === turnId)
+}
+
+/*
+ * 往回补的那一段从哪一轮开始。
+ *
+ * 判据是**段**（stepId 里那一截），不是那一格自己的号：铺一格至少带出两个轮号（它自己的轮
+ * 与给工具步骤用的那个），只看第一格会把上一次补过的那一段当成没补过，于是每翻一页都把
+ * 同一段重发一遍。段号是算出来的（turnId → stepId），不必另存一张表。
+ */
+function turnOfStep(step: string): number {
+  return Number(step.slice(1, step.indexOf('.')))
+}
+
+function stagedFrom(items: readonly TranscriptItem[]): number | undefined {
+  let lowest: number | undefined
+
+  for (const item of items) {
+    if (item.kind !== 'turn') {
+      continue
+    }
+
+    for (const step of item.steps) {
+      const ordinal = turnOfStep(step.stepId)
+
+      if (Number.isFinite(ordinal) && (lowest === undefined || ordinal < lowest)) {
+        lowest = ordinal
+      }
+    }
+  }
+
+  return lowest
 }
 
 /*
@@ -220,23 +279,51 @@ function takeWithinBudget<T>(values: readonly T[], budget: number): readonly T[]
   return kept
 }
 
+/** page 的可选判据：那一页缺的正文从哪来。 */
+export interface PageOptions {
+  /**
+   * 页要的那一轮镜像手上没有时，由调用方当场把它那一段投影进镜像。同步：它只是把一段
+   * 更早的显示经过投影成 ops 落进来，没有等待。
+   *
+   * `stagedFrom` 是镜像手上**已有的最老那一轮**（没有就是 undefined）：补的那一段从它
+   * 往前接，只补更早的，不把已有的再发一遍。
+   */
+  readonly warm?: (beforeTurn: string, stagedFrom: number | undefined) => void
+  /**
+   * 显示经过里**最老那一格**的号（见 bridge 的 screenTurns）。页里最老那一轮不是它，就说明
+   * 本机还持有更早的历史 —— 那是镜像自己看不出来的：它手上只有铺过的那些格。
+   */
+  readonly floor?: string
+}
+
 export class TranscriptMirror {
   readonly #store: TranscriptStore
   readonly #batches: TranscriptOperation[][] = []
   readonly #budget: number
+  readonly #pageBudget: number
+  #first = 0
   #seq = 0
 
   /**
    * `budgetBytes` 只为自检而可注入：切块与开窗都要拿「比预算大」的数据才验得出来，
    * 而按真预算造夹具得堆几 MB。生产只走默认值（组合根只 new 一次，不传第二个参数）。
+   *
+   * 页的预算跟着注入值走，但不超过 PAGE_BUDGET_BYTES：注进来的是**夹具**的尺度，
+   * 而页该多大由这里定。
    */
   constructor(sessionId: string, budgetBytes: number = FRAME_BUDGET_BYTES) {
     this.#store = new TranscriptStore(sessionId)
     this.#budget = budgetBytes
+    this.#pageBudget = Math.min(budgetBytes, PAGE_BUDGET_BYTES)
   }
 
   get seq(): number {
     return this.#seq
+  }
+
+  /** 镜像手上有没有这一格。屏幕据此决定哪些格子该重铺、哪些交给翻页现取。 */
+  holds(agentId: string, turnId: string): boolean {
+    return holdsTurn(this.#store.getAgent(agentId)?.snapshot().items ?? [], turnId)
   }
 
   /**
@@ -255,6 +342,10 @@ export class TranscriptMirror {
     for (const chunk of chunkOps(ops, this.#budget)) {
       this.#seq += 1
       this.#batches.push([...chunk])
+      if (this.#batches.length > MAX_BATCHES) {
+        this.#batches.shift()
+        this.#first += 1
+      }
       this.#store.ensureAgent(MAIN_AGENT).receive(chunk)
 
       envelopes.push({
@@ -277,8 +368,29 @@ export class TranscriptMirror {
    * 所以让可恢复的先占。附件只保留开出来的那些轮引用到的（引用关系只有开完窗才知道，
    * 这也是次序不能反过来的原因）。
    */
-  page(agentId: string, beforeTurn?: string): unknown {
-    const agent = this.#store.getAgent(agentId)
+  page(agentId: string, beforeTurn?: string, options: PageOptions = {}): unknown {
+    let agent = this.#store.getAgent(agentId)
+
+    /*
+     * 翻页要的那一轮不在手上：当场把更早那一段投影进来，再照常开窗。正文的产地在桥
+     * （显示经过），镜像只负责把它切成页。
+     */
+    if (beforeTurn !== undefined && options.warm !== undefined) {
+      const held = agent?.snapshot().items ?? []
+
+      /*
+       * 补的两种时机：游标那一格不在手上（翻页翻出了已有的一窗），或者游标就是手上最老
+       * 的那一轮（翻到了边界 —— 光靠手上这一窗开不出更早的页，得再往前接一段）。
+       */
+      const at = held.findIndex((item) => item.kind === 'turn' && item.turnId === beforeTurn)
+      const oldest = held.findIndex((item) => item.kind === 'turn')
+
+      if (at < 0 || at === oldest) {
+        options.warm(beforeTurn, stagedFrom(held))
+        agent = this.#store.getAgent(agentId)
+      }
+    }
+
     const snapshot = agent?.snapshot() ?? EMPTY
 
     /* 除轮与附件外的几格（任务、交互、题面、meta）先扣掉：它们小且不可裁。 */
@@ -291,10 +403,19 @@ export class TranscriptMirror {
       meta: snapshot.meta,
       pending_interactions: agent?.listPendingInteractions() ?? [],
     })
-    let remaining = Math.max(this.#budget - overhead, 0)
+    let remaining = Math.max(this.#pageBudget - overhead, 0)
 
     const window = windowItems(snapshot.items, beforeTurn, remaining)
     remaining = Math.max(remaining - bytesOf(window.items), 0)
+
+    /*
+     * 「还有更早的」按**整个镜像**判，不只按这一页开出来的那一段：一段正是翻页的基本单位
+     * （一次补一段），页里最老那一格前面还有东西，就说明还能往前翻。
+     */
+    const oldest = window.items.find((item) => item.kind === 'turn')
+    const moreOlder =
+      window.hasMore ||
+      (oldest !== undefined && options.floor !== undefined && oldest.turnId !== options.floor)
 
     /*
      * 只留开出来的那些轮引用到的图（投影层只按轮里的 attachmentIds 查附件），再按剩下的
@@ -311,7 +432,7 @@ export class TranscriptMirror {
     return {
       agent_id: agentId,
       items: window.items,
-      has_more: window.hasMore,
+      has_more: moreOlder,
       tasks: snapshot.tasks,
       interactions: snapshot.interactions,
       attachments: held,
@@ -328,16 +449,17 @@ export class TranscriptMirror {
   /**
    * 从 `sinceSeq` 起的增量。
    *
-   * 批次日志从 1 号起一条不少，所以任何 `sinceSeq >= 0` 都补得齐。装不下的那一趟只交
-   * 装得下的前缀，并把 `complete` 报假 —— 客户端据此退回整页读法（transcript-replica
-   * 的 `foldCatchUp` 只在 complete 时才折叠），那条路是开过窗的，不会再顶穿。
+   * 保留窗口（MAX_BATCHES）之内补得齐；比它还老的断点补不齐，如实回 `complete:false`
+   * —— 客户端据此退回整页读法（transcript-replica 的 `foldCatchUp` 只在 complete 时才
+   * 折叠），那条路是开过窗的，不会再顶穿。装不下的那一趟同理，只交前缀。
    */
   catchUp(agentId: string, sinceSeq: number): unknown {
     const batches: { seq: number; ops: readonly TranscriptOperation[] }[] = []
     let used = 0
 
-    for (const [at, ops] of this.#batches.entries()) {
-      const seq = at + 1
+    for (let at = 0; at < this.#batches.length; at += 1) {
+      const ops = this.#batches[at] as readonly TranscriptOperation[]
+      const seq = this.#first + at + 1
 
       if (seq <= sinceSeq) {
         continue
