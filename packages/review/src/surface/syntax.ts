@@ -1,5 +1,5 @@
-import { type BundledLanguage, codeToTokensWithThemes } from 'shiki'
 import type { DiffFile, DiffPiece, DiffRow, DiffRowKind, PieceColor } from '../index'
+import type { PaintedLanguage } from './highlighter'
 
 /*
  * 语法着色。
@@ -7,10 +7,12 @@ import type { DiffFile, DiffPiece, DiffRow, DiffRowKind, PieceColor } from '../i
  * 一行的语法不由这一行决定，所以按文件整侧分词：新侧是 context+added，旧侧是
  * context+removed，跨行的字符串与块注释因此不会断。分词与取色交给 shiki（TextMate
  * 语法，与 VS Code 同一套），这里只把词元切回行的片段。纯函数，能在 Node 里单测。
+ *
+ * 着色器那半（highlighter.ts）是懒加载的：抽屉在主线程跑这一路，静态引入会把整套
+ * 引擎与语法钉进入口 chunk；worker 那条路本来就要内联，晚一步没有代价。
  */
-const THEMES = { dark: 'github-dark', light: 'github-light' } as const
-/* 后缀到语法 id：id 由 BundledLanguage 约束，写错在 typecheck 就报。 */
-const LANGUAGES: Readonly<Record<string, BundledLanguage>> = {
+/* 后缀到语法 id：id 由 PaintedLanguage 约束，写错在 typecheck 就报。 */
+const LANGUAGES: Readonly<Record<string, PaintedLanguage>> = {
   cjs: 'javascript',
   css: 'css',
   html: 'html',
@@ -29,8 +31,19 @@ const LANGUAGES: Readonly<Record<string, BundledLanguage>> = {
   yaml: 'yaml',
   yml: 'yaml',
 }
-type Lines = Awaited<ReturnType<typeof codeToTokensWithThemes>>
+
+type Shader = typeof import('./highlighter')
+type Lines = Awaited<ReturnType<Shader['tokenize']>>
 type Token = Lines[number][number]
+
+let shading: Promise<Shader> | null = null
+
+function shader(): Promise<Shader> {
+  shading ??= import('./highlighter')
+
+  return shading
+}
+
 /** 给每一行的片段染色；语法不认识的文件原样交回。 */
 export async function paint(files: readonly DiffFile[]): Promise<readonly DiffFile[]> {
   return await Promise.all(files.map((file) => painted(file)))
@@ -40,10 +53,9 @@ async function painted(file: DiffFile): Promise<DiffFile> {
   if (lang === null || file.binary) {
     return file
   }
+  const { tokenize } = await shader()
   const sides = [sideOf(file, 'added'), sideOf(file, 'removed')]
-  const tokens = await Promise.all(
-    sides.map((side) => codeToTokensWithThemes(side.code, { lang, themes: THEMES })),
-  )
+  const tokens = await Promise.all(sides.map((side) => tokenize(side.code, lang)))
   const found = new Map<DiffRow, readonly DiffPiece[]>()
   for (const [index, side] of sides.entries()) {
     const lines = tokens[index] ?? []
@@ -53,7 +65,7 @@ async function painted(file: DiffFile): Promise<DiffFile> {
   }
   return { ...file, rows: repainted(file.rows, found) }
 }
-function languageOf(path: string): BundledLanguage | null {
+function languageOf(path: string): PaintedLanguage | null {
   const dot = path.lastIndexOf('.')
   const suffix = dot > path.lastIndexOf('/') + 1 ? path.slice(dot + 1).toLowerCase() : ''
   return LANGUAGES[suffix] ?? null

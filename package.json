@@ -56,6 +56,9 @@
     "turbo": "catalog:",
     "typescript": "catalog:"
   },
+  "overrides": {
+    "shiki": "^4.4.3"
+  },
   "workspaces": {
     "packages": [
       "apps/*",
