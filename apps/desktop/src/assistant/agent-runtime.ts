@@ -34,13 +34,12 @@ export interface AgentRuntimeChannels {
 }
 
 export interface AgentRuntimeDependencies {
-  readonly agentId: string
   readonly modelCatalog: ModelCatalogAccess
   readonly mcpReady: () => Promise<void>
   readonly controlsMemory: SessionConfigMemoryPort
   readonly permissionPosture: PermissionPosturePort
   readonly thinking: ThinkingPreference
-  readonly connect: (prepareAgent: () => Promise<string>) => AgentRuntimeChannels
+  readonly connect: (ready: () => Promise<void>) => AgentRuntimeChannels
   readonly report: (
     message: string,
     context: { scope: string; operation: string; cause: unknown },
@@ -55,13 +54,12 @@ export function createAgentRuntime(options: AgentRuntimeDependencies): DesktopAg
     }
   }
   // mcp.json 是 agent 进程启动时读一次的文件，必须排在 spawn 之前；模型目录由会话自己按需读，不挡会话。
-  const prepareAgent = async (): Promise<string> => {
+  const ready = async (): Promise<void> => {
     requireActive()
     await options.mcpReady()
     requireActive()
-    return options.agentId
   }
-  const channels = options.connect(prepareAgent)
+  const channels = options.connect(ready)
   const { config, capabilities: anchor } = channels
   const alignThinking = async (
     controls: readonly SessionConfigControl[],
@@ -71,7 +69,7 @@ export function createAgentRuntime(options: AgentRuntimeDependencies): DesktopAg
     ) => Promise<readonly SessionConfigControl[]>,
   ): Promise<readonly SessionConfigControl[]> => {
     requireActive()
-    const preferred = options.thinking.selection(options.agentId, controls)
+    const preferred = options.thinking.selection(controls)
     if (preferred === undefined || preferred.control.current === preferred.value) {
       return controls
     }
@@ -97,7 +95,7 @@ export function createAgentRuntime(options: AgentRuntimeDependencies): DesktopAg
       await options.modelCatalog.mutate({ kind: 'setDefault', modelId: value })
       requireActive()
     }
-    options.thinking.remember(options.agentId, controls, controlId, value)
+    options.thinking.remember(controls, controlId, value)
     return alignThinking(controls, select)
   }
   let seeded = false

@@ -4,12 +4,13 @@ import { throughIpc } from '../ipc-error'
 import type { AgentBridgeOptions } from './launch-contract'
 
 export function createAgentToolkitReader({
-  launch,
+  ready,
   cwd,
 }: AgentBridgeOptions): AgentCapabilityPort['readToolkit'] {
   return async (threadId) => {
+    await ready()
     const listed = await throughIpc(async () =>
-      commands.agentToolkit({ launch: await launch(), cwd: cwd?.() ?? null, threadId }),
+      commands.agentToolkit({ cwd: cwd?.() ?? null, threadId }),
     )
 
     return {

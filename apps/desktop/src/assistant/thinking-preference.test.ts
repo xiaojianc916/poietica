@@ -26,7 +26,7 @@ function controls(
 }
 
 describe('Thinking preference', () => {
-  it('restores an accepted value for the same agent and model', () => {
+  it('restores an accepted value for the same model', () => {
     let held: Readonly<Record<string, string>> = {}
     const preference = createThinkingPreferenceFromStorage({
       read: () => held,
@@ -35,16 +35,11 @@ describe('Thinking preference', () => {
       },
     })
 
-    preference.remember(
-      'kimi',
-      controls('deepseek', 'max', ['off', 'high', 'max']),
-      'thinking',
+    preference.remember(controls('deepseek', 'max', ['off', 'high', 'max']), 'thinking', 'max')
+
+    expect(preference.selection(controls('deepseek', 'high', ['off', 'high', 'max']))?.value).toBe(
       'max',
     )
-
-    expect(
-      preference.selection('kimi', controls('deepseek', 'high', ['off', 'high', 'max']))?.value,
-    ).toBe('max')
   })
 
   it('does not leak across models or select a value the model no longer offers', () => {
@@ -56,13 +51,9 @@ describe('Thinking preference', () => {
       },
     })
 
-    preference.remember('kimi', controls('deepseek', 'max', ['high', 'max']), 'thinking', 'max')
+    preference.remember(controls('deepseek', 'max', ['high', 'max']), 'thinking', 'max')
 
-    expect(
-      preference.selection('kimi', controls('kimi-k2', 'high', ['high', 'max'])),
-    ).toBeUndefined()
-    expect(
-      preference.selection('kimi', controls('deepseek', 'high', ['off', 'high'])),
-    ).toBeUndefined()
+    expect(preference.selection(controls('kimi-k2', 'high', ['high', 'max']))).toBeUndefined()
+    expect(preference.selection(controls('deepseek', 'high', ['off', 'high']))).toBeUndefined()
   })
 })

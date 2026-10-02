@@ -72,7 +72,7 @@ function questionChoiceOf(choice: QuestionChoice): AgentQuestionChoice {
   }
 }
 export function createAgentSessionPort({
-  launch,
+  ready,
   cwd,
   onListenFailure,
 }: AgentBridgeOptions & AgentEventSourceOptions): AgentSessionPort {
@@ -122,7 +122,7 @@ export function createAgentSessionPort({
       },
     },
     prompt: async (request) => {
-      const resolvedLaunch = await launch()
+      await ready()
       const started = await throughIpc(() =>
         commands.agentPrompt({
           text: request.text,
@@ -144,7 +144,6 @@ export function createAgentSessionPort({
             filename: asset.filename,
             kind: asset.kind,
           })),
-          launch: resolvedLaunch,
           cwd: cwd?.() ?? null,
         }),
       )

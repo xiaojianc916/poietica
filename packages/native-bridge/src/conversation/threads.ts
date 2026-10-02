@@ -11,7 +11,7 @@ export interface AgentThreadBridgeOptions extends AgentBridgeOptions {
 }
 
 export function createAgentThreadBridge({
-  launch,
+  ready,
   cwd,
   pickSavePath,
 }: AgentThreadBridgeOptions): ThreadPort {
@@ -19,11 +19,10 @@ export function createAgentThreadBridge({
     target: { readonly kind: 'create' | 'existing'; readonly threadId: string },
     workspaceRoot?: string | null,
   ): Promise<OpenedThread> => {
-    const resolvedLaunch = await launch()
+    await ready()
     const opened = await throughIpc(() =>
       commands.agentOpenThread({
         target,
-        launch: resolvedLaunch,
         cwd: workspaceRoot ?? cwd?.() ?? null,
       }),
     )
@@ -62,30 +61,26 @@ export function createAgentThreadBridge({
         return false
       }
 
-      const resolved = await launch()
+      await ready()
 
-      return throughIpc(() =>
-        commands.agentExportThread({ threadId, launch: resolved, destination }),
-      )
+      return throughIpc(() => commands.agentExportThread({ threadId, destination }))
     },
     /*
      * 分享把对话传出本机，所以这一条**没有** `export` 那样的「用户取消了」中间态：
      * 它要么交回一条链接，要么如实抛错（会话找不到、上传被拒）。脱敏策略在桥那一侧
      * 按 agent 自己的设置办，这一层只转发结果。
      */
-    share: async (threadId) =>
-      throughIpc(async () => commands.agentShareThread({ threadId, launch: await launch() })),
+    share: async (threadId) => throughIpc(async () => commands.agentShareThread({ threadId })),
     rename: async (threadId, title) => {
       await throughIpc(() => commands.agentRenameThread({ threadId, title }))
     },
     fork: async (threadId, title, undoCount) => {
-      const resolvedLaunch = await launch()
+      await ready()
       return throughIpc(() =>
         commands.agentForkThread({
           threadId,
           title,
           dropTurns: undoCount,
-          launch: resolvedLaunch,
           cwd: cwd?.() ?? null,
         }),
       )

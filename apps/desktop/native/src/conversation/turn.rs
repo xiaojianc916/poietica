@@ -36,7 +36,7 @@ pub async fn agent_prompt(request: AgentPromptRequest) -> AgentCommandResult<Age
     let receipt = state
         .prompt(
             Prompt {
-                agent_id: request.launch.agent_id,
+                agent_id: crate::agent::profile::agent_id()?,
                 cwd: request.cwd,
                 takeover: Takeover::Replace,
                 thread_id,

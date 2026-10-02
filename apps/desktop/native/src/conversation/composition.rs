@@ -34,15 +34,16 @@ pub(crate) fn compose(
                     )
                     .await?;
                 }
-                crate::workspace::environment::prepare_mcp(&request.agent_id).await?;
+                /* 唯一在册 agent：起哪一家不由请求说，档案在原生侧。 */
+                crate::workspace::environment::prepare_mcp().await?;
                 Ok(AgentSpawn {
-                    program: agent_program(&request.agent_id)?,
+                    program: agent_program()?,
                     bundled: bundled_directory()?,
-                    entry: agent_entry(&request.agent_id)?,
-                    args: agent_args(&request.agent_id)?,
+                    entry: agent_entry()?,
+                    args: agent_args()?,
                     cwd: request.cwd,
-                    env: launch_env(&request.agent_id)?,
-                    home: agent_data_home(&request.agent_id)?,
+                    env: launch_env()?,
+                    home: agent_data_home()?,
                 })
             })
         },

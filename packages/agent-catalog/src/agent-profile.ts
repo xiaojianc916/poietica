@@ -47,8 +47,6 @@ const MAX_ENTRIES = 32
 
 const ID_ISSUE = 'agent 标识只允许小写字母、数字与连字符，且以字母开头'
 const PROFILE_ISSUE = 'agent 档案无法解析'
-const FOREIGN_ISSUE = '配置里有不属于本软件的 agent 档案，已从 agents.json 移除'
-const DUPLICATE_ISSUE = '配置里有重复的 agent 档案，只保留了第一条'
 
 const text = z.string().min(1).max(MAX_TEXT)
 const envName = z.string().regex(ENV_NAME_PATTERN)
@@ -155,38 +153,25 @@ function projected(profile: AgentProfile): AgentProfile {
 }
 
 /**
- * 磁盘上那一份数组，收敛成这一家 agent 的档案。
+ * 磁盘上那一份文档，收敛成这一家 agent 的档案。
  *
- * 这里是「agents.json 该怎么算」的唯一一处规则：取自己那条、校验、投影、把别家的
- * 条目连原因一起交出去。谁来写盘不在这里决定 —— 这一层不认识 IPC。
+ * 这里是「agents.json 该怎么算」的唯一一处规则：就地校验、投影。没有第二家，也就没有
+ * 「挑一条」「别家的条目」这类规则。谁来写盘不在这里决定 —— 这一层不认识 IPC。
  */
-export function resolveAgentProfile(stored: readonly unknown[]): AgentProfileResolution {
-  const own = stored.filter((entry) => idOf(entry) === ohMyPi.id)
-  const issues: string[] = []
-
-  if (own.length !== stored.length) {
-    issues.push(FOREIGN_ISSUE)
-  }
-
-  if (own.length > 1) {
-    issues.push(DUPLICATE_ISSUE)
-  }
-
-  const first = own[0]
-
-  if (first === undefined) {
+export function resolveAgentProfile(stored: unknown): AgentProfileResolution {
+  if (stored === null || stored === undefined) {
     /* 第一次启动：文件还没写过，这不是配置有问题，所以不报 issue。 */
-    return { profile: blankProfile(), materialize: true, issues }
+    return { profile: blankProfile(), materialize: true, issues: [] }
   }
 
-  const parsed = parseAgentProfile(first)
+  const parsed = parseAgentProfile(stored)
 
   if (!parsed.ok) {
     /* 被手改坏了：内存里用内置档案让界面照常可用，但不写回 —— 那等于替用户删文件。 */
-    return { profile: blankProfile(), materialize: false, issues: [...issues, parsed.issue] }
+    return { profile: blankProfile(), materialize: false, issues: [parsed.issue] }
   }
 
   const aligned = projected(parsed.profile)
 
-  return { profile: aligned, materialize: issues.length > 0 || aligned !== parsed.profile, issues }
+  return { profile: aligned, materialize: aligned !== parsed.profile, issues: [] }
 }

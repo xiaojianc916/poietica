@@ -52,3 +52,6 @@ omp 随包发（ADR 0016、0021），它的档案从来没有 `install` 一格 �
 agents.json 里「多家」的形状还在：别家条目的过滤与 `FOREIGN_ISSUE`、`defaultAgentId`、
 `agentConfigSaveAgents`。那是接入档案这套机制本身，不是安装；把它收敛成 omp 常量
 （ADR 0016 已说 omp 是唯一的 agent）是另一件事，本次不做。
+
+**2026-10 补记（ADR 0033）：** 那一件事已经做了 —— `resolveAgentProfile` 现在收一份文档、
+native 的 `AgentLaunch` 与「默认 agent」都删了。本 ADR 记的是当时的边界，上面的形状已不存在。

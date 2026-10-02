@@ -6,7 +6,7 @@ import { ohMyPi } from '../omp/descriptor'
  * agents.json 是 ohMyPi 描述符的一份物化，不是第二个来源。
  *
  * 用户那几格原样保留；原生侧要读的那几格每次无条件盖回 —— 它读的是磁盘，而名单在
- * 这个进程里。
+ * 这个进程里。文件里只有这一份档案，所以这里没有「挑一条」这条规则。
  */
 const stored = {
   id: ohMyPi.id,
@@ -22,7 +22,7 @@ const stored = {
 
 describe('resolveAgentProfile', () => {
   it('磁盘为空时给出内置档案，并要求物化', () => {
-    const resolved = resolveAgentProfile([])
+    const resolved = resolveAgentProfile(null)
 
     expect(resolved.profile.id).toBe(ohMyPi.id)
     expect(resolved.materialize).toBe(true)
@@ -30,16 +30,19 @@ describe('resolveAgentProfile', () => {
   })
 
   it('与描述符一致时不写盘', () => {
-    const resolved = resolveAgentProfile([stored])
+    const resolved = resolveAgentProfile(stored)
 
     expect(resolved.materialize).toBe(false)
     expect(resolved.issues).toEqual([])
   })
 
   it('用户自己那几格原样保留', () => {
-    const resolved = resolveAgentProfile([
-      { ...stored, cwd: '/work', env: { EXTRA: '1' }, defaultConfigOptions: { brave_mode: true } },
-    ])
+    const resolved = resolveAgentProfile({
+      ...stored,
+      cwd: '/work',
+      env: { EXTRA: '1' },
+      defaultConfigOptions: { brave_mode: true },
+    })
 
     expect(resolved.profile.cwd).toBe('/work')
     expect(resolved.profile.env).toEqual({ EXTRA: '1' })
@@ -47,9 +50,12 @@ describe('resolveAgentProfile', () => {
   })
 
   it('手写进磁盘的启动命令活不过一次解析', () => {
-    const resolved = resolveAgentProfile([
-      { ...stored, entry: 'evil.js', command: 'rm', unsetEnv: [] },
-    ])
+    const resolved = resolveAgentProfile({
+      ...stored,
+      entry: 'evil.js',
+      command: 'rm',
+      unsetEnv: [],
+    })
 
     expect(resolved.profile.entry).toBe(ohMyPi.entry)
     expect(resolved.profile.command).toBe(ohMyPi.command)
@@ -57,19 +63,8 @@ describe('resolveAgentProfile', () => {
     expect(resolved.materialize).toBe(true)
   })
 
-  it('别家 agent 的档案被移除，并说出原因', () => {
-    const resolved = resolveAgentProfile([
-      stored,
-      { id: 'homemade', env: {}, defaultConfigOptions: {} },
-    ])
-
-    expect(resolved.profile.id).toBe(ohMyPi.id)
-    expect(resolved.materialize).toBe(true)
-    expect(resolved.issues).toHaveLength(1)
-  })
-
   it('档案被改坏时照常可用，但不写回磁盘', () => {
-    const resolved = resolveAgentProfile([{ ...stored, env: { 'not-an-env': '1' } }])
+    const resolved = resolveAgentProfile({ ...stored, env: { 'not-an-env': '1' } })
 
     expect(resolved.materialize).toBe(false)
     expect(resolved.issues).toHaveLength(1)
@@ -77,7 +72,7 @@ describe('resolveAgentProfile', () => {
   })
 
   it('物化出去的那一份自己能过校验，且原生侧要读的格子齐全', () => {
-    const materialized = resolveAgentProfile([]).profile
+    const materialized = resolveAgentProfile(null).profile
 
     expect(parseAgentProfile(materialized).ok).toBe(true)
     expect(Object.keys(materialized).sort()).toEqual([

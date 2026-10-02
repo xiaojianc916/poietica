@@ -112,7 +112,7 @@ fn initialize(
         index.clone(),
         poietica_automation_runtime::conversation::ConversationExecutor::new(
             conversations,
-            crate::agent::profile::default_agent_id,
+            crate::agent::profile::agent_id,
         ),
         SystemWallClock,
         publish,
@@ -159,7 +159,7 @@ pub(crate) async fn execute(command: Command) -> Result<AutomationCatalog> {
 pub(crate) async fn run(id: String, request_id: String) -> Result<AutomationCatalog> {
     let host = crate::automation::automation()?;
     let runtime = host.available()?;
-    let agent = crate::agent::profile::default_agent_id()?;
+    let agent = crate::agent::profile::agent_id()?;
     let catalog = catalog::run(&host.index, runtime, id, request_id, agent).await?;
     publish(catalog.clone());
     Ok(catalog)

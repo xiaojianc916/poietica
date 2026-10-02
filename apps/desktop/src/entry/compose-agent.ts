@@ -1,4 +1,3 @@
-import { agent } from '@poietica/agent-catalog'
 import { createPreference } from '@poietica/external-store'
 import {
   type AgentBridgeOptions,
@@ -61,18 +60,16 @@ export function createDesktopAgentRuntime(
     })
   }
   return createAgentRuntime({
-    agentId: agent.id,
     modelCatalog: options.modelCatalog,
     mcpReady: options.mcpReady,
     controlsMemory,
     permissionPosture: { read: posture.read, write: posture.write },
     thinking,
     report: reportError,
-    connect: (prepareAgent) => {
-      const launch: AgentBridgeOptions['launch'] = async () => ({ agentId: await prepareAgent() })
+    connect: (ready) => {
       const bridge = {
         cwd: options.cwd,
-        launch,
+        ready,
         onListenFailure,
         pickSavePath: options.pickSavePath,
       }

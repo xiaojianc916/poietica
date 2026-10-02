@@ -1,5 +1,4 @@
 use super::AgentCommandResult;
-use super::dto::AgentLaunch;
 use crate::agent::profile::agent_home_directory;
 use poietica_conversation_runtime::toolkit::{AgentToolkit, collect_toolkit};
 use serde::Deserialize;
@@ -8,7 +7,6 @@ use specta::Type;
 #[derive(Debug, Deserialize, Type)]
 #[serde(rename_all = "camelCase")]
 pub struct AgentToolkitRequest {
-    pub launch: AgentLaunch,
     pub cwd: Option<String>,
     pub thread_id: Option<String>,
 }
@@ -17,7 +15,11 @@ pub struct AgentToolkitRequest {
 pub async fn agent_toolkit(request: AgentToolkitRequest) -> AgentCommandResult<AgentToolkit> {
     let requested_cwd = request.cwd.clone();
     let (runtime, servers) = crate::conversation::runtime()?
-        .toolkit(request.launch.agent_id, request.cwd, request.thread_id)
+        .toolkit(
+            crate::agent::profile::agent_id()?,
+            request.cwd,
+            request.thread_id,
+        )
         .await
         .map_err(crate::error::Error::from)?;
     let root = agent_home_directory()

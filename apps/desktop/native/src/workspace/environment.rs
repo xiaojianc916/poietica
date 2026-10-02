@@ -44,11 +44,10 @@ fn read_file(path: &Path) -> Result<Option<String>> {
     }
 }
 
-pub(crate) async fn prepare_mcp(agent_id: &str) -> Result<()> {
-    let agent_id = agent_id.to_owned();
-    tokio::task::spawn_blocking(move || {
+pub(crate) async fn prepare_mcp() -> Result<()> {
+    tokio::task::spawn_blocking(|| {
         let _guard = hold()?;
-        let Some(path) = controlled_mcp_config(&agent_id)? else {
+        let Some(path) = controlled_mcp_config()? else {
             return Ok(());
         };
         let before = read_file(&path)?;

@@ -2,7 +2,7 @@
 //!
 //! 能力属于 agent 进程级服务；命令经统一运行时确保连接，不依赖某条用户对话。
 
-use crate::agent::profile::default_agent_id;
+use crate::agent::profile::agent_id;
 use poietica_agent_client::{BrowserSettings, Capability, CapabilityReadiness};
 use serde::{Deserialize, Serialize};
 use specta::Type;
@@ -73,7 +73,7 @@ fn reported(capability: Capability) -> AgentCapability {
 #[specta::specta]
 pub async fn agent_capability_report() -> AgentCommandResult<Vec<AgentCapability>> {
     let listed = crate::conversation::runtime()?
-        .capability_report(default_agent_id()?)
+        .capability_report(agent_id()?)
         .await
         .map_err(crate::error::Error::from)?;
 
@@ -89,7 +89,7 @@ pub async fn agent_capability_install(
     request: AgentCapabilityInstallRequest,
 ) -> AgentCommandResult<Vec<AgentCapability>> {
     let installed = crate::conversation::runtime()?
-        .capability_install(default_agent_id()?, request.capability_id, request.enabled)
+        .capability_install(agent_id()?, request.capability_id, request.enabled)
         .await
         .map_err(crate::error::Error::from)?;
 
@@ -126,7 +126,7 @@ fn reported_browser(settings: BrowserSettings) -> AgentBrowserSettings {
 #[specta::specta]
 pub async fn agent_browser_settings() -> AgentCommandResult<AgentBrowserSettings> {
     let settings = crate::conversation::runtime()?
-        .browser_settings(default_agent_id()?)
+        .browser_settings(agent_id()?)
         .await
         .map_err(crate::error::Error::from)?;
 
@@ -140,7 +140,7 @@ pub async fn agent_set_browser_settings(
 ) -> AgentCommandResult<AgentBrowserSettings> {
     let settings = crate::conversation::runtime()?
         .set_browser_settings(
-            default_agent_id()?,
+            agent_id()?,
             request.enabled,
             request.headless,
             request.cdp_url,

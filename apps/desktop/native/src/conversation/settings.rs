@@ -13,7 +13,7 @@ use serde::{Deserialize, Serialize};
 use specta::Type;
 
 use super::AgentCommandResult;
-use crate::agent::profile::default_agent_id;
+use crate::agent::profile::agent_id;
 
 /// 枚举/子菜单的一张选项表；原样投影。
 #[derive(Debug, Serialize, Type)]
@@ -94,7 +94,7 @@ pub struct AgentSettingWriteRequest {
 #[specta::specta]
 pub async fn agent_settings_catalog() -> AgentCommandResult<AgentSettingsCatalog> {
     let catalog = crate::conversation::runtime()?
-        .settings_catalog(default_agent_id()?)
+        .settings_catalog(agent_id()?)
         .await
         .map_err(crate::error::Error::from)?;
 
@@ -109,7 +109,7 @@ pub async fn agent_set_setting(
     request: AgentSettingWriteRequest,
 ) -> AgentCommandResult<Vec<AgentSettingEntry>> {
     let entries = crate::conversation::runtime()?
-        .set_setting(default_agent_id()?, request.path, request.value)
+        .set_setting(agent_id()?, request.path, request.value)
         .await
         .map_err(crate::error::Error::from)?;
 

@@ -24,16 +24,9 @@ const MCP_CONFIG_FILE: &str = "mcp.json";
 #[derive(Debug, Deserialize, Serialize, Type, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct AgentConfigSnapshot {
-    pub agents: Vec<Value>,
-    pub default_agent_id: String,
+    /// 磁盘上那一份接入档案；还没写过时是 null。
+    pub profile: Option<Value>,
     pub issues: Vec<String>,
-}
-
-#[derive(Debug, Deserialize, Serialize, Default)]
-#[serde(rename_all = "camelCase", default)]
-struct PersistedAgentConfig {
-    agents: Vec<Value>,
-    default_agent_id: String,
 }
 
 pub(super) fn surfaced(error: AgentError) -> Error {
@@ -119,37 +112,65 @@ pub(crate) fn documents() -> Result<std::sync::Arc<DocumentStore>> {
         .ok_or_else(|| Error::Internal("the agent store is not open".to_owned()))
 }
 
-fn read_config() -> Result<(PersistedAgentConfig, Vec<String>)> {
-    let store = documents()?;
-    let _reading = store.exclusive();
-    let mut issues = Vec::new();
+/// 旧盘上的形状（0.4.3 及以前）：`{agents: [...], defaultAgentId}` —— 能放多家的数组，
+/// 取用时按 id 挑一条。这一格现在就是档案本身，所以旧盘取第一条、顺手改写；别家条目本来就
+/// 会被下一次落盘抹掉。等不再有人从 ≤0.4.3 升上来，这个读法与它的测试一起删。
+fn lifted(stored: Value) -> Option<(Value, bool)> {
+    if !stored.is_object() {
+        return None;
+    }
 
-    let config = match store.read(STORE_KEY)? {
-        None => PersistedAgentConfig::default(),
-        Some(value) => match serde_json::from_value(value) {
-            Ok(parsed) => parsed,
-            Err(error) => {
-                issues.push(format!("agents.json 格式无效：{error}"));
-                PersistedAgentConfig::default()
-            }
-        },
+    if stored.get("agents").is_none() {
+        return Some((stored, false));
+    }
+
+    stored
+        .get("agents")
+        .and_then(Value::as_array)
+        .and_then(|agents| agents.first())
+        .filter(|entry| entry.is_object())
+        .cloned()
+        .map(|profile| (profile, true))
+}
+
+fn read_profile() -> Result<(Option<Value>, Vec<String>)> {
+    let store = documents()?;
+    let _holding = store.exclusive();
+
+    let Some(stored) = store.read(STORE_KEY)? else {
+        return Ok((None, Vec::new()));
     };
 
-    Ok((config, issues))
+    match lifted(stored) {
+        None => Ok((
+            None,
+            vec!["agents.json 里的接入档案不是一份对象".to_owned()],
+        )),
+        Some((profile, false)) => Ok((Some(profile), Vec::new())),
+        Some((profile, true)) => {
+            store.write(STORE_KEY, &profile)?;
+            Ok((Some(profile), Vec::new()))
+        }
+    }
 }
 
-fn save_config(config: &PersistedAgentConfig) -> Result<()> {
-    documents()?.write(STORE_KEY, &serde_json::to_value(config)?)
+fn save_profile(profile: &Value) -> Result<()> {
+    documents()?.write(STORE_KEY, profile)
 }
 
-fn profile_of(agent_id: &str) -> Result<Value> {
-    let (config, _issues) = read_config()?;
+fn profile() -> Result<Value> {
+    read_profile()?
+        .0
+        .ok_or_else(|| Error::AgentCli("agents.json 里还没有接入档案".to_owned()))
+}
 
-    config
-        .agents
-        .into_iter()
-        .find(|agent| agent.get("id").and_then(Value::as_str) == Some(agent_id))
-        .ok_or_else(|| Error::AgentCli(format!("agents.json 里没有 {agent_id} 的接入档案")))
+fn id_of(profile: &Value) -> Result<String> {
+    profile
+        .get("id")
+        .and_then(Value::as_str)
+        .filter(|id| !id.is_empty())
+        .map(str::to_owned)
+        .ok_or_else(|| Error::AgentCli("agents.json 里的接入档案没有 id".to_owned()))
 }
 
 fn controlled_home(
@@ -166,35 +187,27 @@ fn controlled_home(
     }))
 }
 
-fn own_home(agent_id: &str, profile: &Value) -> Result<PathBuf> {
+fn own_home(profile: &Value) -> Result<PathBuf> {
     let directory = own_home_of(profile)
-        .ok_or_else(|| Error::AgentCli(format!("{agent_id} 的档案没有说它自己把配置放在哪")))?;
+        .ok_or_else(|| Error::AgentCli("接入档案没有说它自己把配置放在哪".to_owned()))?;
 
     Ok(crate::paths::home_directory()?.join(directory))
 }
 
-pub fn agent_data_home(agent_id: &str) -> Result<PathBuf> {
-    let profile = profile_of(agent_id)?;
+pub fn agent_data_home() -> Result<PathBuf> {
+    let profile = profile()?;
 
-    match controlled_home(agent_id, &profile)? {
+    match controlled_home(&id_of(&profile)?, &profile)? {
         Some(home) => Ok(home.path),
-        None => own_home(agent_id, &profile),
+        None => own_home(&profile),
     }
 }
 
 /// 只设非密文项：密钥由 agent 自己的 CLI 写进受控 home，从不经过启动环境；档案缺失按错误处理，否则 homeVar 设不上、受控 home 静默失效。
-pub fn launch_env(agent_id: &str) -> Result<ProcessEnvironment> {
-    launch_env_inner(agent_id, true)
-}
+pub fn launch_env() -> Result<ProcessEnvironment> {
+    let profile = profile()?;
 
-fn launch_env_inner(agent_id: &str, controlled: bool) -> Result<ProcessEnvironment> {
-    let profile = profile_of(agent_id)?;
-
-    let home = if controlled {
-        controlled_home(agent_id, &profile)?
-    } else {
-        None
-    };
+    let home = controlled_home(&id_of(&profile)?, &profile)?;
 
     Ok(compose_launch_env(
         &declared_env_of(&profile),
@@ -204,15 +217,13 @@ fn launch_env_inner(agent_id: &str, controlled: bool) -> Result<ProcessEnvironme
 }
 
 /// 程序名刻意不来自请求：白名单挡不住 `{ command: 任意程序 }` 这类请求，调用方须自行校验程序名。
-pub fn agent_program(agent_id: &str) -> Result<String> {
-    program_of(&profile_of(agent_id)?)
-        .ok_or_else(|| Error::AgentCli(format!("{agent_id} 的接入档案里没有可执行文件")))
+pub fn agent_program() -> Result<String> {
+    program_of(&profile()?).ok_or_else(|| Error::AgentCli("接入档案里没有可执行文件".to_owned()))
 }
 
 /// 桥的入口文件名，与随包目录同处；随包发，用户机器上没有第二份。
-pub fn agent_entry(agent_id: &str) -> Result<String> {
-    entry_of(&profile_of(agent_id)?)
-        .ok_or_else(|| Error::AgentCli(format!("{agent_id} 的接入档案里没有桥的入口")))
+pub fn agent_entry() -> Result<String> {
+    entry_of(&profile()?).ok_or_else(|| Error::AgentCli("接入档案里没有桥的入口".to_owned()))
 }
 
 /// 随包发的 agent 文件所在目录；它由宿主给，原生侧不猜自己的可执行文件在哪。
@@ -220,8 +231,8 @@ pub fn bundled_directory() -> Result<PathBuf> {
     crate::paths::bundled_directory()
 }
 
-pub fn agent_args(agent_id: &str) -> Result<Vec<String>> {
-    Ok(profile_args_of(&profile_of(agent_id)?))
+pub fn agent_args() -> Result<Vec<String>> {
+    Ok(profile_args_of(&profile()?))
 }
 
 pub fn agent_mcp_config() -> Result<PathBuf> {
@@ -229,60 +240,44 @@ pub fn agent_mcp_config() -> Result<PathBuf> {
 }
 
 pub fn agent_mcp_config_for_write() -> Result<PathBuf> {
-    let agent_id = default_agent_id()?;
-    controlled_mcp_config(&agent_id)?.ok_or_else(|| {
+    let agent_id = agent_id()?;
+    controlled_mcp_config()?.ok_or_else(|| {
         Error::AgentCli(format!(
             "{agent_id} 没有受控 home；不会改写用户自己的 MCP 配置"
         ))
     })
 }
 
-pub(crate) fn controlled_mcp_config(agent_id: &str) -> Result<Option<PathBuf>> {
-    let profile = profile_of(agent_id)?;
-    Ok(controlled_home(agent_id, &profile)?.map(|home| home.path.join(MCP_CONFIG_FILE)))
+pub(crate) fn controlled_mcp_config() -> Result<Option<PathBuf>> {
+    let profile = profile()?;
+    Ok(controlled_home(&id_of(&profile)?, &profile)?.map(|home| home.path.join(MCP_CONFIG_FILE)))
 }
 
 pub fn agent_home_directory() -> Result<PathBuf> {
-    let agent_id = default_agent_id()?;
-
-    agent_data_home(&agent_id)
+    agent_data_home()
 }
 
 /// 只读用途：不应往这个家写任何东西；不受控时与受控 home 同目录，返回 None。
 pub fn own_home_directory() -> Result<Option<PathBuf>> {
-    let agent_id = default_agent_id()?;
-    let profile = profile_of(&agent_id)?;
+    let profile = profile()?;
 
-    if controlled_home(&agent_id, &profile)?.is_none() {
+    if controlled_home(&id_of(&profile)?, &profile)?.is_none() {
         return Ok(None);
     }
 
-    own_home(&agent_id, &profile).map(Some)
+    own_home(&profile).map(Some)
 }
 
-pub(crate) fn default_agent_id() -> Result<String> {
-    let (config, _issues) = read_config()?;
-
-    if config.default_agent_id.is_empty() {
-        return Err(Error::AgentCli("还没有选定默认 agent".to_owned()));
-    }
-
-    Ok(config.default_agent_id)
-}
-
-fn to_snapshot(config: PersistedAgentConfig, issues: Vec<String>) -> AgentConfigSnapshot {
-    AgentConfigSnapshot {
-        agents: config.agents,
-        default_agent_id: config.default_agent_id,
-        issues,
-    }
+/// 唯一在册 agent 自己的标识：受控 home 的目录名，也是会话与能力那几条命令要的身份。
+pub(crate) fn agent_id() -> Result<String> {
+    id_of(&profile()?)
 }
 
 #[specta::specta]
 pub async fn agent_config_get() -> AgentConfigCommandResult<AgentConfigSnapshot> {
     (|| -> Result<AgentConfigSnapshot> {
-        let (config, issues) = read_config()?;
-        Ok(to_snapshot(config, issues))
+        let (profile, issues) = read_profile()?;
+        Ok(AgentConfigSnapshot { profile, issues })
     })()
     .map_err(Problem::from)
 }
@@ -291,17 +286,20 @@ pub(crate) fn write_config_atomically(path: &Path, text: &str) -> Result<()> {
     poietica_agent_client::write_config_atomically(path, text).map_err(surfaced)
 }
 
+/// 渲染层交来的是描述符投影出来的那一份档案；形状在边界上再判一次，判据只有「是对象且有 id」。
 #[specta::specta]
-pub async fn agent_config_save_agents(
-    agents: Vec<Value>,
-    default_agent_id: String,
-) -> AgentConfigCommandResult<AgentConfigSnapshot> {
+pub async fn agent_config_save(profile: Value) -> AgentConfigCommandResult<AgentConfigSnapshot> {
     (|| -> Result<AgentConfigSnapshot> {
-        let (mut config, issues) = read_config()?;
-        config.agents = agents;
-        config.default_agent_id = default_agent_id;
-        save_config(&config)?;
-        Ok(to_snapshot(config, issues))
+        if !profile.is_object() {
+            return Err(Error::Validation("接入档案必须是一份对象".to_owned()));
+        }
+
+        id_of(&profile)?;
+        save_profile(&profile)?;
+        Ok(AgentConfigSnapshot {
+            profile: Some(profile),
+            issues: Vec::new(),
+        })
     })()
     .map_err(Problem::from)
 }
@@ -317,6 +315,68 @@ mod tests {
     use super::DocumentStore;
     use serde_json::json;
 
+    use super::lifted;
+
+    /// 旧盘那一份数组里的第一条就是这一家的档案，别家条目丢掉（旧判读本来也会滤掉它们）。
+    #[test]
+    fn a_multi_agent_document_is_lifted_to_its_first_profile() {
+        let profile = json!({"id": "omp", "env": {"NO_COLOR": "1"}});
+        let stored = json!({
+            "agents": [profile, {"id": "other"}],
+            "defaultAgentId": "omp"
+        });
+
+        assert!(matches!(lifted(stored), Some((value, true)) if value == profile));
+    }
+
+    /// 现在的形状本身就是档案：不需要抬升，也不许把它包起来。
+    #[test]
+    fn a_single_profile_document_is_taken_as_is() {
+        let profile = json!({"id": "omp", "cwd": "C:\\notes"});
+
+        assert!(matches!(lifted(profile.clone()), Some((value, false)) if value == profile));
+    }
+
+    /// 不是对象、或 agents 不是数组：既不是档案也不是旧形状，按无效读。
+    #[test]
+    fn anything_that_is_not_a_profile_is_refused() {
+        assert!(lifted(json!("omp")).is_none());
+        assert!(lifted(json!({"agents": "omp"})).is_none());
+        assert!(lifted(json!({"agents": []})).is_none());
+    }
+
+    /// 旧盘那一格整个被换成档案：抬升不是只读一次，落盘的就是新形状。
+    #[test]
+    fn lifting_rewrites_the_document_in_its_new_shape() {
+        let directory = tempfile::tempdir().expect("test directory");
+        let path = directory.path().join("agents.json");
+        let profile = json!({"id": "omp", "cwd": "C:\\notes"});
+        std::fs::write(
+            &path,
+            serde_json::to_vec(&json!({
+                "agentConfig": {"agents": [profile, {"id": "other"}], "defaultAgentId": "omp"}
+            }))
+            .expect("test JSON"),
+        )
+        .expect("test file");
+
+        let store = DocumentStore::new(path.clone());
+        let read = store
+            .read("agentConfig")
+            .expect("our document")
+            .expect("present");
+        let (lifted, rewritten) = lifted(read).expect("a legacy document lifts");
+
+        assert!(rewritten);
+        assert_eq!(lifted, profile);
+        store.write("agentConfig", &lifted).expect("carry it over");
+
+        let after: serde_json::Value =
+            serde_json::from_slice(&std::fs::read(&path).expect("stored document"))
+                .expect("stored JSON");
+        assert_eq!(after["agentConfig"], profile);
+    }
+
     /// 顶层别人的键必须原样活着：agents.json 是我们自己的账，但同一份文件里可能有别的键。
     #[test]
     fn saving_one_document_keeps_the_other_top_level_keys() {
@@ -330,7 +390,7 @@ mod tests {
 
         let store = DocumentStore::new(path.clone());
         store
-            .write("agentConfig", &json!({"agents": []}))
+            .write("agentConfig", &json!({"id": "omp"}))
             .expect("atomic write");
 
         let document: serde_json::Value =
@@ -341,8 +401,8 @@ mod tests {
             store
                 .read("agentConfig")
                 .expect("our document")
-                .expect("our document is present")["agents"],
-            json!([])
+                .expect("our document is present")["id"],
+            json!("omp")
         );
     }
 

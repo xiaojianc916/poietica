@@ -1,4 +1,3 @@
-import { agent as agentDescriptor } from '@poietica/agent-catalog'
 import { createAutomationStore } from '@poietica/automation'
 import {
   ComposerDrafts,
@@ -176,7 +175,7 @@ export function createApplicationRuntime(restored: string | null): ApplicationRu
 
     /*
      * 接入档案先落盘，排在其余前置之前：这条链上每一步都要读它 —— pluginStore.start()
-     * 的 environmentMcpConfig 与 alignBrowserEndpoint 都要 defaultAgentId，原生侧的
+     * 的 environmentMcpConfig 与 alignBrowserEndpoint 都要问「是哪个 agent」，原生侧的
      * launch_env / agent_program 认整条档案。此前这步只挂在设置→模型页上，全新安装因此
      * 起不了会话，而「重试」重跑的是同一条读路径、治不了。
      *
@@ -214,7 +213,7 @@ export function createApplicationRuntime(restored: string | null): ApplicationRu
     },
   })
 
-  const modelCatalog = new ModelCatalogStore(createModelCatalogPort(), agentDescriptor.id)
+  const modelCatalog = new ModelCatalogStore(createModelCatalogPort())
   /*
    * agent 自己那份设置目录：378 格的真身住在 agent 进程的 settings-schema 里，这一份是投影。
    * 写走它自己的 Settings.set + flush，它自己热重载（ADR 0018 决定四）。

@@ -14,7 +14,6 @@ const EMPTY: ModelCatalogSnapshot = Object.freeze({
 
 export class ModelCatalogStore {
   readonly #port: ModelCatalogPort
-  readonly #agentId: string
   readonly #listeners = new Set<() => void>()
   readonly #committed = new Set<() => void>()
   #snapshot = EMPTY
@@ -23,9 +22,8 @@ export class ModelCatalogStore {
   #dispose: (() => void) | null = null
   #disposed = false
 
-  constructor(port: ModelCatalogPort, agentId: string) {
+  constructor(port: ModelCatalogPort) {
     this.#port = port
-    this.#agentId = agentId
     void port
       .subscribeInvalidation(() => {
         if (!this.#disposed) {
@@ -101,7 +99,7 @@ export class ModelCatalogStore {
     const generation = ++this.#generation
     this.#publish({ ...this.#snapshot, loading: true, error: null })
     try {
-      const data = await this.#port.execute(this.#agentId, { kind: 'snapshot' })
+      const data = await this.#port.execute({ kind: 'snapshot' })
       this.#commit(generation, data)
     } catch (cause) {
       if (generation === this.#generation) {
@@ -117,7 +115,7 @@ export class ModelCatalogStore {
     const generation = ++this.#generation
     this.#publish({ ...this.#snapshot, mutating: true, error: null })
     try {
-      const data = await this.#port.execute(this.#agentId, operation)
+      const data = await this.#port.execute(operation)
       this.#commit(generation, data)
     } catch (cause) {
       if (generation === this.#generation) {

@@ -200,7 +200,7 @@ pub fn functions() -> Vec<specta::datatype::Function> {
         crate::settings::commands::settings_set,
         crate::settings::commands::settings_reset,
         crate::agent::profile::agent_config_get,
-        crate::agent::profile::agent_config_save_agents,
+        crate::agent::profile::agent_config_save,
         crate::ledger::usage::usage_token_days,
         crate::workspace::storage::storage_data_directory,
         crate::ledger::workbench::workbench_session_load,
@@ -534,11 +534,9 @@ pub async fn submit(command: &str, args: Value) -> napi::Result<String> {
         }
         "settings_reset" => crud(crate::settings::commands::settings_reset().await),
         "agent_config_get" => crud(crate::agent::profile::agent_config_get().await),
-        "agent_config_save_agents" => {
-            let agents: Vec<Value> = argument(args.get("agents").unwrap_or(&Value::Null))?;
-            let default_agent_id: String =
-                argument(args.get("defaultAgentId").unwrap_or(&Value::Null))?;
-            crud(crate::agent::profile::agent_config_save_agents(agents, default_agent_id).await)
+        "agent_config_save" => {
+            let profile: Value = argument(args.get("profile").unwrap_or(&Value::Null))?;
+            crud(crate::agent::profile::agent_config_save(profile).await)
         }
         "usage_token_days" => {
             let span: u32 = argument(args.get("span").unwrap_or(&Value::Null))?;

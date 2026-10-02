@@ -45,7 +45,7 @@ pub async fn agent_open_thread(
     };
     let opened = state
         .open_thread(OpenThread {
-            agent_id: request.launch.agent_id,
+            agent_id: crate::agent::profile::agent_id()?,
             cwd: request.cwd,
             target,
         })
@@ -173,7 +173,7 @@ pub async fn agent_delete_thread(request: AgentThreadRequest) -> AgentCommandRes
 pub async fn agent_fork_thread(request: AgentForkThreadRequest) -> AgentCommandResult<AgentThread> {
     let thread = crate::conversation::runtime()?
         .fork_thread(ForkThread {
-            agent_id: request.launch.agent_id,
+            agent_id: crate::agent::profile::agent_id()?,
             cwd: request.cwd,
             thread_id: request.thread_id,
             title: request.title,

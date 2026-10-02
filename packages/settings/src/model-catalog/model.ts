@@ -63,6 +63,6 @@ export type ModelCatalogOperation =
   | { readonly kind: 'setDefault'; readonly modelId: string }
 
 export interface ModelCatalogPort {
-  readonly execute: (agentId: string, operation: ModelCatalogOperation) => Promise<ModelCatalogData>
+  readonly execute: (operation: ModelCatalogOperation) => Promise<ModelCatalogData>
   readonly subscribeInvalidation: (listener: () => void) => Promise<() => void>
 }

@@ -58,18 +58,13 @@ export function createAgentSessionUsageBridge({
 }
 export function createAgentCapabilityBridge({
   cwd,
-  launch,
+  ready,
   onListenFailure,
 }: AgentBridgeOptions & AgentEventSourceOptions): AgentCapabilityPort {
   return {
     read: async () => {
-      const resolvedLaunch = await launch()
-      const offered = await throughIpc(() =>
-        commands.agentCapabilities({
-          launch: resolvedLaunch,
-          cwd: cwd?.() ?? null,
-        }),
-      )
+      await ready()
+      const offered = await throughIpc(() => commands.agentCapabilities({ cwd: cwd?.() ?? null }))
 
       return offered.map(controlOf)
     },
@@ -97,6 +92,6 @@ export function createAgentCapabilityBridge({
         onListenFailure,
       ),
 
-    readToolkit: createAgentToolkitReader(cwd === undefined ? { launch } : { launch, cwd }),
+    readToolkit: createAgentToolkitReader(cwd === undefined ? { ready } : { ready, cwd }),
   }
 }

@@ -10,13 +10,6 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use specta::Type;
 
-/// 不带 argv：渲染层报程序路径过来，参数白名单就挡不住它，程序由原生侧解析。
-#[derive(Debug, Deserialize, Type)]
-#[serde(rename_all = "camelCase")]
-pub struct AgentLaunch {
-    pub agent_id: String,
-}
-
 #[derive(Debug, Deserialize, Type)]
 #[serde(rename_all = "camelCase")]
 pub struct AgentPromptAsset {
@@ -82,7 +75,6 @@ pub struct AgentPromptRequest {
     pub assets: Vec<AgentPromptAsset>,
     pub skills: Vec<AgentPromptSkill>,
     pub thread_id: Option<String>,
-    pub launch: AgentLaunch,
     pub cwd: Option<String>,
 }
 
@@ -325,7 +317,6 @@ pub struct AgentSelectConfigRequest {
 #[derive(Debug, Deserialize, Type)]
 #[serde(rename_all = "camelCase")]
 pub struct AgentCapabilitiesRequest {
-    pub launch: AgentLaunch,
     pub cwd: Option<String>,
 }
 
@@ -368,7 +359,6 @@ pub enum AgentThreadTarget {
 #[serde(rename_all = "camelCase")]
 pub struct AgentOpenThreadRequest {
     pub target: AgentThreadTarget,
-    pub launch: AgentLaunch,
     pub cwd: Option<String>,
 }
 
@@ -400,7 +390,6 @@ pub struct AgentRenameThreadRequest {
 #[serde(rename_all = "camelCase")]
 pub struct AgentExportThreadRequest {
     pub thread_id: String,
-    pub launch: AgentLaunch,
     /// 导出落点。由宿主的保存对话框给出 —— 原生侧没有窗口，开不出对话框。
     /// `None` 就是用户在对话框里按了取消。
     pub destination: Option<String>,
@@ -410,7 +399,6 @@ pub struct AgentExportThreadRequest {
 #[serde(rename_all = "camelCase")]
 pub struct AgentShareThreadRequest {
     pub thread_id: String,
-    pub launch: AgentLaunch,
 }
 
 /// 一次分享的结果。
@@ -486,7 +474,6 @@ pub struct AgentForkThreadRequest {
     pub title: String,
     /// 分叉点：这一轮之后还有几轮，0 就是从最后一轮分叉；agent 侧回退上下文与本机日志截断用同一个数，屏幕与上下文止于同一处。
     pub drop_turns: u32,
-    pub launch: AgentLaunch,
     pub cwd: Option<String>,
 }
 

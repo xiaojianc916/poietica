@@ -2,7 +2,6 @@
 
 export interface AgentDescriptor {
   readonly id: string
-  readonly displayName: string
   readonly command?: string | undefined
   /** 随包发的桥入口文件名；与应用可执行文件同目录，`command` 拿它当脚本跑。 */
   readonly entry?: string | undefined

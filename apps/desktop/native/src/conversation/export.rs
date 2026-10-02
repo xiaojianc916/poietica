@@ -19,7 +19,7 @@ use crate::error::Error;
 pub async fn agent_export_thread(request: AgentExportThreadRequest) -> AgentCommandResult<bool> {
     let state = crate::conversation::runtime()?;
     let source = state
-        .prepare_export(request.launch.agent_id, &request.thread_id)
+        .prepare_export(crate::agent::profile::agent_id()?, &request.thread_id)
         .await
         .map_err(Error::from)?;
 

@@ -23,7 +23,7 @@ describe('ModelCatalogStore', () => {
       },
       subscribeInvalidation: async () => () => undefined,
     }
-    const store = new ModelCatalogStore(port, 'omp')
+    const store = new ModelCatalogStore(port)
 
     await Promise.all([store.load(), store.load()])
     await store.load()
@@ -54,13 +54,13 @@ describe('ModelCatalogStore', () => {
     }
     const received: ModelCatalogOperation[] = []
     const port: ModelCatalogPort = {
-      execute: (_agentId, operation) => {
+      execute: (operation) => {
         received.push(operation)
         return Promise.resolve(DATA)
       },
       subscribeInvalidation: async () => () => undefined,
     }
-    const store = new ModelCatalogStore(port, 'omp')
+    const store = new ModelCatalogStore(port)
     await store.load()
     await store.mutate(operation)
     expect(received).toEqual([{ kind: 'snapshot' }, operation])
@@ -74,7 +74,7 @@ describe('ModelCatalogStore', () => {
       execute: async () => DATA,
       subscribeInvalidation: () => registration.promise,
     }
-    const store = new ModelCatalogStore(port, 'omp')
+    const store = new ModelCatalogStore(port)
     store.dispose()
     registration.resolve(() => {
       disposed += 1
@@ -85,16 +85,13 @@ describe('ModelCatalogStore', () => {
 
   it('disposed catalog owners reject new work without touching the port', async () => {
     const calls: ModelCatalogOperation[] = []
-    const store = new ModelCatalogStore(
-      {
-        execute: (_agent, operation) => {
-          calls.push(operation)
-          return Promise.resolve(DATA)
-        },
-        subscribeInvalidation: () => Promise.resolve(() => undefined),
+    const store = new ModelCatalogStore({
+      execute: (operation) => {
+        calls.push(operation)
+        return Promise.resolve(DATA)
       },
-      'agent',
-    )
+      subscribeInvalidation: () => Promise.resolve(() => undefined),
+    })
     store.dispose()
     await expect(store.load()).rejects.toHaveProperty('name', 'AbortError')
     await expect(store.refresh()).rejects.toHaveProperty('name', 'AbortError')
@@ -110,16 +107,13 @@ describe('ModelCatalogStore', () => {
   it('a refresh in flight cannot publish after its owner is disposed', async () => {
     const reply = Promise.withResolvers<ModelCatalogData>()
     const calls: ModelCatalogOperation[] = []
-    const store = new ModelCatalogStore(
-      {
-        execute: (_agent, operation) => {
-          calls.push(operation)
-          return reply.promise
-        },
-        subscribeInvalidation: () => Promise.resolve(() => undefined),
+    const store = new ModelCatalogStore({
+      execute: (operation) => {
+        calls.push(operation)
+        return reply.promise
       },
-      'agent',
-    )
+      subscribeInvalidation: () => Promise.resolve(() => undefined),
+    })
     const pending = store.refresh()
     store.dispose()
     reply.resolve(DATA)
@@ -130,13 +124,10 @@ describe('ModelCatalogStore', () => {
 
   it('invalidation subscription errors reach the catalog snapshot', async () => {
     const failure = new Error('Subscription unavailable')
-    const store = new ModelCatalogStore(
-      {
-        execute: () => Promise.resolve(DATA),
-        subscribeInvalidation: () => Promise.reject(failure),
-      },
-      'agent',
-    )
+    const store = new ModelCatalogStore({
+      execute: () => Promise.resolve(DATA),
+      subscribeInvalidation: () => Promise.reject(failure),
+    })
     await settle()
     expect(store.getSnapshot().error).toBe(failure.message)
     store.dispose()
@@ -157,7 +148,7 @@ describe('ModelCatalogStore', () => {
         return registration.promise
       },
     }
-    const store = new ModelCatalogStore(port, 'agent')
+    const store = new ModelCatalogStore(port)
     const invalidate = await attached.promise
     store.dispose()
     invalidate()
@@ -173,17 +164,14 @@ describe('ModelCatalogStore', () => {
   it('a failing release still leaves the catalog permanently inactive', async () => {
     let releases = 0
     const failure = new Error('Release unavailable')
-    const store = new ModelCatalogStore(
-      {
-        execute: () => Promise.resolve(DATA),
-        subscribeInvalidation: () =>
-          Promise.resolve(() => {
-            releases += 1
-            throw failure
-          }),
-      },
-      'agent',
-    )
+    const store = new ModelCatalogStore({
+      execute: () => Promise.resolve(DATA),
+      subscribeInvalidation: () =>
+        Promise.resolve(() => {
+          releases += 1
+          throw failure
+        }),
+    })
     await settle()
     expect(() => store.dispose()).toThrow(failure)
     expect(() => store.dispose()).not.toThrow()

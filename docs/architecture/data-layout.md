@@ -28,11 +28,11 @@ userData 不在安装器的射程内，这条冲突从根上不存在。
 | 位置 | 是什么 | 删掉会怎样 |
 | --- | --- | --- |
 | `settings.json` | 主题、语言、快捷键、隐私开关 | 回到默认设置 |
-| `agents.json` | agent 接入档案与安装状态缓存 | 内置档案下次启动重新落盘 |
+| `agents.json` | agent 接入档案（一份文档） | 内置档案下次启动重新落盘 |
 | `automations.json` | 自动化定义 | 自动化全部消失 |
 | `ledger.sqlite3` | 本机账本：对话索引、帧日志、附件索引、准入 | 对话列表清空 |
 | `attachments/` | 附件字节，内容寻址 | 历史对话里的附件打不开 |
-| `agents/<id>/home/` | 各 agent 自己的配置，含 API 密钥 | 需要重新配置 provider |
+| `agents/<id>/home/` | agent 自己的配置，含 API 密钥 | 需要重新配置 provider |
 | `plugins/` | 装进来的插件的托管副本与 `installed.json` | 插件全部回到未安装 |
 | `projectless/` | 无项目会话的工作目录根 | 那些会话的工作目录消失 |
 | `tools/` | 本应用自己装的工具（内置 Python 解释器） | 下次用到时重新下载 |

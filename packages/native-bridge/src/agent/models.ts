@@ -25,10 +25,9 @@ import { throughIpc } from '../ipc-error'
  */
 export function createModelCatalogPort(): ModelCatalogPort {
   return {
-    execute: (agentId, operation) =>
+    execute: (operation) =>
       throughIpc(() =>
         commands.agentModelCatalog({
-          launch: { agentId },
           cwd: null,
           operation: intoDto(operation),
         }),

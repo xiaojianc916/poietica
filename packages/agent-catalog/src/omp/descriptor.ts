@@ -15,7 +15,6 @@ import type { AgentDescriptor } from '../agent-descriptor'
  */
 export const ohMyPi = {
   id: 'omp',
-  displayName: 'Oh My Pi',
   /*
    * 随包发的 Bun 运行时（electron-builder 的 extraResources 摆到 resources/agent/），
    * 解析顺序见 crates/process-host/src/program.rs 的 resolve_sidecar：先找同目录，

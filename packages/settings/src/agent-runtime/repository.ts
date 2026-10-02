@@ -1,8 +1,6 @@
-import type { AgentConfigRecord } from '@poietica/contract/settings'
+import type { AgentProfile } from '@poietica/agent-catalog'
+import type { StoredAgentProfile } from './model'
 export interface AgentConfigurationRepository {
-  readonly load: () => Promise<AgentConfigRecord>
-  readonly saveAgents: (
-    agents: readonly unknown[],
-    defaultAgentId: string,
-  ) => Promise<AgentConfigRecord>
+  readonly load: () => Promise<StoredAgentProfile>
+  readonly save: (profile: AgentProfile) => Promise<StoredAgentProfile>
 }

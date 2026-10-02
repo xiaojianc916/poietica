@@ -255,7 +255,7 @@ async fn run_install(target: PathBuf, stage: PathBuf) -> Result<()> {
 /// 不如说清「无处可写」—— 那也正是「装了也没人用」的判据。
 async fn write_interpreter(interpreter: &Path) -> Result<()> {
     let runtime = crate::conversation::runtime()?;
-    let agent = crate::agent::profile::default_agent_id()?;
+    let agent = crate::agent::profile::agent_id()?;
     let catalog = runtime
         .settings_catalog(agent.clone())
         .await
@@ -286,7 +286,7 @@ async fn write_interpreter(interpreter: &Path) -> Result<()> {
 /// 清空那一格。空串是「没配」；认不认这一格由 agent 自己裁决。
 async fn clear_interpreter() -> Result<()> {
     let runtime = crate::conversation::runtime()?;
-    let agent = crate::agent::profile::default_agent_id()?;
+    let agent = crate::agent::profile::agent_id()?;
 
     runtime
         .set_setting(

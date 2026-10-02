@@ -25,7 +25,7 @@ pub async fn agent_capabilities(
     request: AgentCapabilitiesRequest,
 ) -> AgentCommandResult<Vec<AgentConfigControl>> {
     let offered = crate::conversation::runtime()?
-        .configuration_for(request.launch.agent_id, request.cwd)
+        .configuration_for(crate::agent::profile::agent_id()?, request.cwd)
         .await
         .map_err(Error::from)?;
     Ok(offered.into_iter().map(restate).collect())

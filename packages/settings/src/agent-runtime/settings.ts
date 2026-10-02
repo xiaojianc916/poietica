@@ -1,4 +1,4 @@
-import { agent, resolveAgentProfile } from '@poietica/agent-catalog'
+import { resolveAgentProfile } from '@poietica/agent-catalog'
 import type { AgentConfigSnapshot, AgentSettings } from './model'
 import type { AgentConfigurationRepository } from './repository'
 export function createAgentSettings(
@@ -19,9 +19,9 @@ export function createAgentSettings(
       }
       const pending = repository.load().then(async (dto) => {
         requireActive()
-        const resolved = resolveAgentProfile(dto.agents)
+        const resolved = resolveAgentProfile(dto.profile)
         if (resolved.materialize) {
-          const written = await repository.saveAgents([resolved.profile], agent.id)
+          const written = await repository.save(resolved.profile)
           requireActive()
           return {
             profile: resolved.profile,

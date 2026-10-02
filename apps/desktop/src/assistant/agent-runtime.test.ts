@@ -22,10 +22,15 @@ function fixture() {
   const state: {
     select: SessionConfigPort['select']
     ready: () => Promise<void>
+    readyCalls: number
     mutation: () => Promise<void>
   } = {
     select: () => Promise.resolve(controls),
-    ready: () => Promise.resolve(),
+    ready: () => {
+      state.readyCalls += 1
+      return Promise.resolve()
+    },
+    readyCalls: 0,
     mutation: () => Promise.resolve(),
   }
   const channels: AgentRuntimeChannels = {
@@ -63,9 +68,8 @@ function fixture() {
       readToolkit: () => Promise.resolve({ skills: [], mcpServers: [] }),
     },
   }
-  let prepare: () => Promise<string> = unavailable
+  let prepare: () => Promise<void> = unavailable
   const dependencies: AgentRuntimeDependencies = {
-    agentId: 'agent',
     modelCatalog: {
       refresh: () => Promise.resolve(),
       getSnapshot: () => ({
@@ -87,7 +91,7 @@ function fixture() {
     permissionPosture: { read: () => undefined, write: () => undefined },
     thinking: {
       selection: () => undefined,
-      remember: (_agent, _controls, id, value) => {
+      remember: (_controls, id, value) => {
         effects.push(`remember:${id}:${value}`)
       },
     },
@@ -156,7 +160,8 @@ test('disposal while a model write completes stops subsequent preference effects
 
 test('launches share one readiness pass and capabilities retain their identity', async () => {
   const h = fixture()
-  expect(await Promise.all([h.prepare(), h.prepare()])).toEqual(['agent', 'agent'])
+  await Promise.all([h.prepare(), h.prepare()])
+  expect(h.state.readyCalls).toBe(2)
   expect(h.runtime.capabilities()).toBe(h.runtime.capabilities())
   await h.runtime.dispose()
 })

@@ -14,20 +14,17 @@ interface PreferredThinking {
 }
 
 export interface ThinkingPreference {
-  readonly selection: (
-    agentId: string,
-    controls: readonly SessionConfigControl[],
-  ) => PreferredThinking | undefined
+  readonly selection: (controls: readonly SessionConfigControl[]) => PreferredThinking | undefined
   readonly remember: (
-    agentId: string,
     controls: readonly SessionConfigControl[],
     controlId: string,
     value: string,
   ) => void
 }
 
-function storageKey(agentId: string, model: string): string {
-  return JSON.stringify([agentId, model])
+/* 只有一家 agent，所以键就是模型名；不再带 agent 身份。 */
+function storageKey(model: string): string {
+  return model
 }
 
 function decodeValues(raw: string): ThinkingValues {
@@ -40,7 +37,7 @@ function modelOf(controls: readonly SessionConfigControl[]): string | undefined 
 
 export function createThinkingPreferenceFromStorage(stored: ThinkingStorage): ThinkingPreference {
   return {
-    selection(agentId, controls) {
+    selection(controls) {
       const model = modelOf(controls)
       const control = controls.find((candidate) => candidate.purpose === 'thought')
 
@@ -48,14 +45,14 @@ export function createThinkingPreferenceFromStorage(stored: ThinkingStorage): Th
         return undefined
       }
 
-      const value = stored.read()[storageKey(agentId, model)]
+      const value = stored.read()[storageKey(model)]
 
       return value !== undefined && control.choices.some((choice) => choice.value === value)
         ? { control, value }
         : undefined
     },
 
-    remember(agentId, controls, controlId, value) {
+    remember(controls, controlId, value) {
       const model = modelOf(controls)
       const control = controls.find((candidate) => candidate.id === controlId)
 
@@ -68,7 +65,7 @@ export function createThinkingPreferenceFromStorage(stored: ThinkingStorage): Th
         return
       }
 
-      const key = storageKey(agentId, model)
+      const key = storageKey(model)
       const current = stored.read()
 
       if (current[key] !== value) {

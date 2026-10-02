@@ -38,7 +38,7 @@ export type AgentBrowserSettings = { enabled: boolean; headless: boolean; cdpUrl
  */
 export type AgentBrowserSettingsPatch = { enabled: boolean | null; headless: boolean | null; cdpUrl: string | null }
 export type AgentCancelRequest = { threadId: string }
-export type AgentCapabilitiesRequest = { launch: AgentLaunch; cwd: string | null }
+export type AgentCapabilitiesRequest = { cwd: string | null }
 export type AgentCapability = { id: string; pluginId: string | null; label: string; supported: boolean; state: AgentCapabilityState; install: AgentCapabilityInstall }
 /**
  * 后台安装进度，原样投影。
@@ -56,7 +56,11 @@ export type AgentCapabilityState = "notInstalled" | "partial" | "ready" | "unsup
 export type AgentConfigChoice = { value: string; label: string; detail: string | null }
 export type AgentConfigControl = { id: string; label: string; detail: string | null; purpose: AgentConfigPurpose; appliesOnSubmit: boolean; current: string; choices: AgentConfigChoice[] }
 export type AgentConfigPurpose = "permission" | "mode" | "model" | "thought" | "other"
-export type AgentConfigSnapshot = { agents: JsonValue[]; defaultAgentId: string; issues: string[] }
+export type AgentConfigSnapshot = { 
+/**
+ * 磁盘上那一份接入档案；还没写过时是 null。
+ */
+profile: JsonValue | null; issues: string[] }
 /**
  * 这句话怎么交给 agent：omp 的三层插话，打断程度递减。
  * 
@@ -85,7 +89,7 @@ export type AgentDeliverAs =
  */
 export type AgentDeliveryModesRequest = { steeringMode?: string | null; followUpMode?: string | null; interruptMode?: string | null }
 export type AgentDismissQuestionsRequest = { questionId: string }
-export type AgentExportThreadRequest = { threadId: string; launch: AgentLaunch; 
+export type AgentExportThreadRequest = { threadId: string; 
 /**
  * 导出落点。由宿主的保存对话框给出 —— 原生侧没有窗口，开不出对话框。
  * `None` 就是用户在对话框里按了取消。
@@ -95,20 +99,16 @@ export type AgentForkThreadRequest = { threadId: string; title: string;
 /**
  * 分叉点：这一轮之后还有几轮，0 就是从最后一轮分叉；agent 侧回退上下文与本机日志截断用同一个数，屏幕与上下文止于同一处。
  */
-dropTurns: number; launch: AgentLaunch; cwd: string | null }
+dropTurns: number; cwd: string | null }
 export type AgentGoal = { objective: string; completionCriterion: string | null; status: string; turnsUsed: number; tokensUsed: number; wallClockMs: number }
 /**
  * Fresh 是本来就没有经过；Loaded 是这次把已有会话重装了回来。
  */
 export type AgentHistory = { state: "fresh" } | { state: "loaded" }
-/**
- * 不带 argv：渲染层报程序路径过来，参数白名单就挡不住它，程序由原生侧解析。
- */
-export type AgentLaunch = { agentId: string }
 export type AgentMcpServer = { id: string; name: string; status: AgentMcpStatus; toolCount: number; lastError: string | null }
 export type AgentMcpStatus = "connected" | "connecting" | "disconnected" | "error"
-export type AgentModelCatalogRequest = { launch: AgentLaunch; cwd: string | null; operation: ModelCatalogOperationDto }
-export type AgentOpenThreadRequest = { target: AgentThreadTarget; launch: AgentLaunch; cwd: string | null }
+export type AgentModelCatalogRequest = { cwd: string | null; operation: ModelCatalogOperationDto }
+export type AgentOpenThreadRequest = { target: AgentThreadTarget; cwd: string | null }
 export type AgentOpenedThread = { thread: AgentThread; selectors: AgentConfigControl[]; goal: AgentGoal | null; history: AgentHistory; transcript: AgentTranscriptJson }
 export type AgentPinThreadRequest = { threadId: string; pinned: boolean }
 export type AgentPromptAsset = { sessionToken: string; assetToken: string; filename: string; 
@@ -128,7 +128,7 @@ deliverAs?: AgentDeliverAs; configuration: AgentPromptConfiguration[];
 /**
  * 与 text 是同一句话的两半：只挑了图、没打字也是一句完整的话，判空要一起判。
  */
-assets: AgentPromptAsset[]; skills: AgentPromptSkill[]; threadId: string | null; launch: AgentLaunch; cwd: string | null }
+assets: AgentPromptAsset[]; skills: AgentPromptSkill[]; threadId: string | null; cwd: string | null }
 export type AgentPromptResult = { sessionId: string; promptId: string }
 export type AgentPromptSkill = { name: string; args: string | null }
 export type AgentQuestionAnswer = { questionId: string; answer: AgentQuestionChoice }
@@ -242,7 +242,7 @@ export type AgentSettingWriteRequest = { path: string; value: JsonValue }
  * 一整份目录：栏里的格子。
  */
 export type AgentSettingsCatalog = { settings: AgentSettingEntry[] }
-export type AgentShareThreadRequest = { threadId: string; launch: AgentLaunch }
+export type AgentShareThreadRequest = { threadId: string }
 /**
  * 一次分享的结果。
  * 
@@ -268,7 +268,7 @@ export type AgentThreadTarget = { kind: "create"; threadId: string } | { kind: "
  */
 export type AgentTitleSource = "message" | "generated" | "fallback" | "manual"
 export type AgentToolkit = { skills: AgentSkill[]; mcpServers: AgentMcpServer[] }
-export type AgentToolkitRequest = { launch: AgentLaunch; cwd: string | null; threadId: string | null }
+export type AgentToolkitRequest = { cwd: string | null; threadId: string | null }
 export type AgentTranscriptEvent = { sessionId: string; json: JsonValue }
 export type AgentTranscriptJson = { json: JsonValue }
 export type AgentTranscriptOpsRequest = { sessionId: string; agentId: string; sinceSeq: number }
@@ -697,8 +697,10 @@ export const commands = {
   async agentConfigGet(): Promise<AgentConfigSnapshot> {
     return call<AgentConfigSnapshot>('agent_config_get', {})
   },
-  async agentConfigSaveAgents(agents: JsonValue[], defaultAgentId: string): Promise<AgentConfigSnapshot> {
-    return call<AgentConfigSnapshot>('agent_config_save_agents', { agents: agents, defaultAgentId: defaultAgentId })
+/**
+ *  渲染层交来的是描述符投影出来的那一份档案；形状在边界上再判一次，判据只有「是对象且有 id」。 */
+  async agentConfigSave(profile: JsonValue): Promise<AgentConfigSnapshot> {
+    return call<AgentConfigSnapshot>('agent_config_save', { profile: profile })
   },
 /**
  *  最近 span 天的日账，由早到晚。没有账的日子不占行。 */

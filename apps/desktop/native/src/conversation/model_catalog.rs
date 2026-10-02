@@ -12,7 +12,6 @@ use serde::{Deserialize, Serialize};
 use specta::Type;
 
 use super::AgentCommandResult;
-use super::dto::AgentLaunch;
 
 #[derive(Debug, Deserialize, Type)]
 #[serde(rename_all = "camelCase")]
@@ -142,7 +141,6 @@ pub struct ModelCatalogSnapshotDto {
 #[derive(Debug, Deserialize, Type)]
 #[serde(rename_all = "camelCase")]
 pub struct AgentModelCatalogRequest {
-    pub launch: AgentLaunch,
     pub cwd: Option<String>,
     pub operation: ModelCatalogOperationDto,
 }
@@ -154,7 +152,7 @@ pub async fn agent_model_catalog(
 ) -> AgentCommandResult<ModelCatalogSnapshotDto> {
     let snapshot = crate::conversation::runtime()?
         .model_catalog(
-            request.launch.agent_id,
+            crate::agent::profile::agent_id()?,
             request.cwd,
             into_operation(request.operation),
         )
