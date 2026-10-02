@@ -2,11 +2,12 @@ import { Button, InlineSpinner } from '@poietica/design-system'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import type { PythonKernelGateway, PythonKernelStatus } from './python-kernel/gateway'
 import { pythonKernelAction, pythonKernelCopy } from './python-kernel-view'
-import { SettingRow, SettingsGroup, SettingsPage } from './settings-primitives'
+import { SettingRow, SettingsGroup } from './settings-primitives'
 import './python-kernel-settings.css'
 
 /*
- * 内置 Python 内核这一页：状态、一步安装、删干净。
+ * 内置 Python 内核那一组：状态、一步安装、删干净。它没有自己的一页，住在通用页里 ——
+ * 装的是 agent 跑代码要用的东西，与「这台软件怎么陪你干活」同一件事。
  *
  * 状态是原生侧从盘上推出来的那一份，这里不缓存、不推断；安装是后台跑的一条命令，
  * 所以装机期间按秒重读，读完为止。没有事件推送 —— 一条一秒一次的读换来一个不需要
@@ -96,48 +97,46 @@ export function PythonKernelSettings({ gateway }: PythonKernelSettingsProps) {
   const action = pythonKernelAction(status)
 
   return (
-    <SettingsPage>
-      <SettingsGroup title="运行时">
-        <SettingRow
-          description={copy.description}
-          label="Python 内核"
-          warning={copy.failure ?? action.warning ?? failure ?? undefined}
-        >
-          {installing ? (
-            <span className="python-kernel__busy">
-              <InlineSpinner />
-              准备中
-            </span>
-          ) : null}
+    <SettingsGroup title="运行时">
+      <SettingRow
+        description={copy.description}
+        label="Python 内核"
+        warning={copy.failure ?? action.warning ?? failure ?? undefined}
+      >
+        {installing ? (
+          <span className="python-kernel__busy">
+            <InlineSpinner />
+            准备中
+          </span>
+        ) : null}
 
-          {action.kind === 'none' || installing ? null : (
-            <Button
-              disabled={busy}
-              onClick={() => {
-                void act(action.kind === 'remove' ? 'remove' : 'install')
-              }}
-              size="xs"
-              type="button"
-              variant={action.kind === 'remove' ? 'outline' : 'soft'}
-            >
-              {busy ? '处理中…' : action.label}
-            </Button>
-          )}
-        </SettingRow>
-
-        {installing ? <IndeterminateProgress label={copy.detail ?? '正在准备'} /> : null}
-
-        {copy.detail === null || copy.detailLabel === null ? null : (
-          <div className="settings-row">
-            <div className="settings-row__copy">
-              <strong>{copy.detailLabel}</strong>
-
-              <p className="python-kernel__detail">{copy.detail}</p>
-            </div>
-          </div>
+        {action.kind === 'none' || installing ? null : (
+          <Button
+            disabled={busy}
+            onClick={() => {
+              void act(action.kind === 'remove' ? 'remove' : 'install')
+            }}
+            size="xs"
+            type="button"
+            variant={action.kind === 'remove' ? 'outline' : 'soft'}
+          >
+            {busy ? '处理中…' : action.label}
+          </Button>
         )}
-      </SettingsGroup>
-    </SettingsPage>
+      </SettingRow>
+
+      {installing ? <IndeterminateProgress label={copy.detail ?? '正在准备'} /> : null}
+
+      {copy.detail === null || copy.detailLabel === null ? null : (
+        <div className="settings-row">
+          <div className="settings-row__copy">
+            <strong>{copy.detailLabel}</strong>
+
+            <p className="python-kernel__detail">{copy.detail}</p>
+          </div>
+        </div>
+      )}
+    </SettingsGroup>
   )
 }
 

@@ -20,7 +20,6 @@ import {
   PackageOpen,
   Plug,
   Sun,
-  Terminal,
   Wand,
   Zap,
 } from 'lucide-react'
@@ -80,7 +79,6 @@ export type SettingsSection =
   | 'mcp'
   | 'keymap'
   | 'computer-use'
-  | 'python-kernel'
   | 'usage'
   | 'about'
 
@@ -127,8 +125,8 @@ const SECTIONS: Record<SettingsSection, SettingsSectionDescriptor> = {
   general: {
     label: '通用',
     icon: CogFour,
-    render: ({ controller, settings }) => (
-      <GeneralSettings controller={controller} settings={settings} />
+    render: ({ controller, pythonKernel, settings }) => (
+      <GeneralSettings controller={controller} pythonKernel={pythonKernel} settings={settings} />
     ),
   },
   appearance: {
@@ -209,11 +207,6 @@ const SECTIONS: Record<SettingsSection, SettingsSectionDescriptor> = {
     icon: Monitor,
     render: ({ plugins }) => <ComputerUseSettings store={plugins} />,
   },
-  'python-kernel': {
-    label: 'Python 内核',
-    icon: Terminal,
-    render: ({ pythonKernel }) => <PythonKernelSettings gateway={pythonKernel} />,
-  },
   usage: {
     label: '用量',
     icon: Zap,
@@ -241,18 +234,7 @@ const SECTIONS: Record<SettingsSection, SettingsSectionDescriptor> = {
  */
 const SECTION_GROUPS: readonly (readonly SettingsSection[])[] = [
   ['general', 'appearance'],
-  [
-    'models',
-    'memory',
-    'persona',
-    'skills',
-    'mcp',
-    'keymap',
-    'computer-use',
-    'python-kernel',
-    'usage',
-    'archived',
-  ],
+  ['models', 'memory', 'persona', 'skills', 'mcp', 'keymap', 'computer-use', 'usage', 'archived'],
   ['about'],
 ]
 
@@ -581,14 +563,21 @@ interface SettingsPanelProps {
   readonly controller: SettingsController
 }
 
+/* 只有通用页画运行时那一组（Python 内核）：其余两页不装 agent 的运行时。 */
+interface GeneralSettingsProps extends SettingsPanelProps {
+  readonly pythonKernel: PythonKernelGateway
+}
+
 /*
  * 通用页放的是"这台软件怎么陪你干活"，不是杂物抽屉：说话、后悔、重来三组按用户
- * 心智排列（同 Codex / VS Code 的通用页形态）。
+ * 心智排列（同 Codex / VS Code 的通用页形态）。运行时那组（Python 内核）也在这里
+ * —— 它原先独立一页，整页只有一格。
  */
 const GeneralSettings = memo(function GeneralSettings({
   settings,
   controller,
-}: SettingsPanelProps) {
+  pythonKernel,
+}: GeneralSettingsProps) {
   return (
     <SettingsPage>
       <SettingsGroup title="对话">
@@ -644,6 +633,8 @@ const GeneralSettings = memo(function GeneralSettings({
           }}
         />
       </SettingsGroup>
+
+      <PythonKernelSettings gateway={pythonKernel} />
 
       <SettingsGroup title="重置">
         <SettingRow description="把全部设置项还原为初始值" label="恢复默认设置">
