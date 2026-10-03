@@ -85,3 +85,29 @@ test('a failing event consumer does not poison later events', () => {
   expect(delivered).toEqual([2])
   expect(released).toBe(1)
 })
+
+/*
+ * 处理函数抛异常与「订阅没装上」是两件事：前者是一条帧坏了，后者是这条线根本没接上。
+ * 合成一句话会把排障带偏 —— 实测宿主里 10 条「订阅失败」其实全是被拒的帧。
+ */
+test('a consumer failure is reported as a decode failure, not a subscription failure', () => {
+  const wire = receiver()
+  const stages: string[] = []
+
+  subscribeToEvent<number>(
+    (handler) => {
+      wire.remember(handler)
+      return () => undefined
+    },
+    () => {
+      throw new Error('Rejected fixture event')
+    },
+    (_cause, stage) => {
+      stages.push(stage)
+    },
+  )
+
+  wire.take()(1)
+
+  expect(stages).toEqual(['decode'])
+})

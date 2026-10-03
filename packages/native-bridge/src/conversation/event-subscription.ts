@@ -2,8 +2,13 @@ import type { AgentSessionEvent } from '@poietica/contract'
 import { events } from '@poietica/contract'
 
 export interface AgentEventSourceOptions {
-  /** 报告一次事件投递失败；监听本身是尽力而为的。 */
-  readonly onListenFailure?: (error: unknown) => void
+  /**
+   * 报告一次事件投递失败；监听本身是尽力而为的。
+   *
+   * stage 区分两件不同的事：'listen' 是订阅没装上，'decode' 是一条帧没过边界校验。
+   * 合成一句话会把排障带偏（一条被拒的帧看起来像「监听没起来」）。
+   */
+  readonly onListenFailure?: (error: unknown, stage: 'listen' | 'decode') => void
 }
 
 /**
@@ -17,7 +22,7 @@ export interface AgentEventSourceOptions {
 export function subscribeToEvent<TPayload>(
   listen: (handler: (payload: TPayload) => void) => () => void,
   handler: (payload: TPayload) => void,
-  onListenFailure?: (error: unknown) => void,
+  onListenFailure?: (error: unknown, stage: 'listen' | 'decode') => void,
 ): () => void {
   let cancelled = false
   let stop: (() => void) | null = listen((payload) => {
@@ -27,7 +32,8 @@ export function subscribeToEvent<TPayload>(
     try {
       handler(payload)
     } catch (cause) {
-      onListenFailure?.(cause)
+      /* 走到这里的是处理函数自己抛的：订阅本身是好的，坏的是这一条。 */
+      onListenFailure?.(cause, 'decode')
     }
   })
 
@@ -41,7 +47,7 @@ export function subscribeToEvent<TPayload>(
 export function subscribeToSessionEvent<TKind extends AgentSessionEvent['kind']>(
   kind: TKind,
   handler: (payload: Extract<AgentSessionEvent, { kind: TKind }>) => void,
-  onListenFailure?: (error: unknown) => void,
+  onListenFailure?: (error: unknown, stage: 'listen' | 'decode') => void,
 ): () => void {
   return subscribeToEvent<AgentSessionEvent>(
     (receive) => events.agentSessionEvent(receive),

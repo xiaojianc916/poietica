@@ -52,12 +52,25 @@ export function createDesktopAgentRuntime(
       cause: failure.cause,
     })
   })
-  const onListenFailure = (cause: unknown): void => {
-    reportError('agent event subscription failed', {
-      scope: 'agent-runtime',
-      operation: 'listen',
-      cause,
-    })
+  /*
+   * 这一条同时接两种失败：订阅本身没装上，以及**一条帧没过边界校验**（session.ts 的解码
+   * 失败分支会把它报到这里）。两者都叫「订阅失败」会把排障带偏 —— 一条被拒的帧不是
+   * 「监听没起来」。分开记：订阅那一条说 listen，帧那一条说 decode。
+   *
+   * cause 必须取 message：Error 的 message 不可枚举，整对象序列化出来是 {}，
+   * 真实原因一个字都不剩（实测宿主控制台就是这样）。
+   */
+  const onListenFailure = (cause: unknown, stage: 'listen' | 'decode' = 'listen'): void => {
+    reportError(
+      stage === 'decode'
+        ? 'agent transcript frame was rejected'
+        : 'agent event subscription failed',
+      {
+        scope: 'agent-runtime',
+        operation: stage,
+        cause: cause instanceof Error ? cause.message : cause,
+      },
+    )
   }
   return createAgentRuntime({
     modelCatalog: options.modelCatalog,

@@ -87,7 +87,7 @@ export function createAgentSessionPort({
               listener(decoded.signal)
               return
             }
-            onListenFailure?.(decoded.error)
+            onListenFailure?.(decoded.error, 'decode')
             listener({
               kind: 'resync',
               sessionId: wire.sessionId,
