@@ -11,7 +11,7 @@ use crate::error::Error;
 use crate::paths;
 use poietica_asset::{
     AssetIntakeError, AssetProtocolError, AssetProtocolRegistry, ImportedAsset, ImportedKind,
-    MAX_ASSET_BYTES, import_bytes, import_files,
+    MAX_ASSET_BYTES, Removal, import_bytes, import_files,
 };
 use poietica_problem::Problem;
 
@@ -78,6 +78,13 @@ pub struct AssetRemoveRequest {
 pub struct AssetReadRequest {
     pub session_token: String,
     pub asset_token: String,
+    /// 只要这一段字节；缺席即整份。
+    ///
+    /// 视频与音频的 seek 与缩略图都走 HTTP Range，而注册表里那份是整份 —— 不在这里切，
+    /// 就得把整份（上限 32 MiB）base64 过两遍 IPC，只为拿开头 1 KiB（实测 4 MiB 资产
+    /// 取 1 KiB 要 147 ms，取整份才 180 ms）。
+    pub offset: Option<u64>,
+    pub length: Option<u64>,
 }
 
 /// 一次读回的字节。
@@ -89,7 +96,10 @@ pub struct AssetReadRequest {
 #[serde(rename_all = "camelCase")]
 pub struct AssetReadResult {
     pub content_type: String,
+    /// 这一段自己的长度，不是整份的。
     pub byte_length: u32,
+    /// 整份资产的长度：Range 应答要拿它拼 `content-range: bytes a-b/total`。
+    pub total_length: u32,
     /// base64 原始字节，不带 `data:` 前缀；与 AssetUploadRequest 同一条线上形状的理由。
     pub base64: String,
 }
@@ -184,29 +194,49 @@ pub async fn asset_read(request: AssetReadRequest) -> CommandResult<AssetReadRes
     let delivered = shared_registry()
         .deliver(&request.session_token, &request.asset_token)
         .map_err(map_asset_error)?;
-    let byte_length = u32::try_from(delivered.bytes.len())
+    let total = delivered.bytes.len();
+    let total_length =
+        u32::try_from(total).map_err(|_| map_asset_error(AssetProtocolError::AssetTooLarge))?;
+
+    /*
+     * 切片在这里做，不把整份交上去：注册表那份是 Arc<Vec<u8>>，切它不复制字节，
+     * 但**编码**只编码要的那一段 —— 那一步才是这条路上真正随大小线性增长的成本。
+     */
+    let span = poietica_asset::read_span(total, request.offset, request.length);
+    /*
+     * `read_span` 保证落在总长以内（它的单测钉的就是这件事），取不出来才是不该发生的
+     * 事 —— 用 `get` 而不是下标：那条越界在 release 下是未定义行为。
+     */
+    let slice = delivered
+        .bytes
+        .get(span)
+        .ok_or_else(|| map_asset_error(AssetProtocolError::Internal))?;
+    let byte_length = u32::try_from(slice.len())
         .map_err(|_| map_asset_error(AssetProtocolError::AssetTooLarge))?;
 
     Ok(AssetReadResult {
         content_type: delivered.content_type,
         byte_length,
-        base64: BASE64.encode(delivered.bytes.as_slice()),
+        total_length,
+        base64: BASE64.encode(slice),
     })
 }
 
 #[specta::specta]
 pub async fn asset_remove(request: AssetRemoveRequest) -> CommandResult<()> {
-    let removed = shared_registry()
-        .remove(&request.session_token, &request.asset_token)
-        .map_err(map_asset_error)?;
-
-    // 通用文件不进内存注册表（在 tmp 暂存，启动对账清）：查无此项不是错误。
-    // 记 warn 而不是 debug：这一支同样接得住拼错的图片令牌，静默会把真错误埋掉。
-    if !removed {
-        log::warn!("asset {} is not held by the registry", request.asset_token);
+    match shared_registry().remove(&request.session_token, &request.asset_token) {
+        /* 会话不在册由注册表报 NotFound，直接落进下面那一臂。 */
+        Ok(Removal::Released) => Ok(()),
+        /*
+         * 通用文件不进内存注册表（在 tmp 暂存，启动对账清）：查无此项不是错误。
+         * 记 warn 而不是 debug：这一支同样接得住拼错的图片令牌，静默会把真错误埋掉。
+         */
+        Ok(Removal::NotRegistered) => {
+            log::warn!("asset {} is not held by the registry", request.asset_token);
+            Ok(())
+        }
+        Err(cause) => Err(map_asset_error(cause)),
     }
-
-    Ok(())
 }
 
 fn map_asset_error(error: AssetProtocolError) -> Problem {

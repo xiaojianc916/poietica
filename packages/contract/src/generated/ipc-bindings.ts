@@ -284,7 +284,15 @@ export type AppSettings = { theme: ThemePreference; language: string; general: G
 export type AppearanceSettings = { density: Density; reduceMotion: boolean; messageTimestamps: boolean }
 export type AssetImportRequest = { sessionToken: string; paths: string[] }
 export type AssetKind = "image" | "file"
-export type AssetReadRequest = { sessionToken: string; assetToken: string }
+export type AssetReadRequest = { sessionToken: string; assetToken: string; 
+/**
+ * 只要这一段字节；缺席即整份。
+ * 
+ * 视频与音频的 seek 与缩略图都走 HTTP Range，而注册表里那份是整份 —— 不在这里切，
+ * 就得把整份（上限 32 MiB）base64 过两遍 IPC，只为拿开头 1 KiB（实测 4 MiB 资产
+ * 取 1 KiB 要 147 ms，取整份才 180 ms）。
+ */
+offset: number | null; length: number | null }
 /**
  * 一次读回的字节。
  * 
@@ -292,7 +300,15 @@ export type AssetReadRequest = { sessionToken: string; assetToken: string }
  * 所以宿主按磁盘路径找不到它。字节因此经这里交给主进程，由它按协议应答
  * （见 apps/desktop/electron/asset-protocol.ts）。
  */
-export type AssetReadResult = { contentType: string; byteLength: number; 
+export type AssetReadResult = { contentType: string; 
+/**
+ * 这一段自己的长度，不是整份的。
+ */
+byteLength: number; 
+/**
+ * 整份资产的长度：Range 应答要拿它拼 `content-range: bytes a-b/total`。
+ */
+totalLength: number; 
 /**
  * base64 原始字节，不带 `data:` 前缀；与 AssetUploadRequest 同一条线上形状的理由。
  */

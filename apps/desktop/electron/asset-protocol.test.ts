@@ -13,21 +13,49 @@ import { type AssetByteSource, createAssetProtocolHandler } from './asset-protoc
 const SESSION = '01a0f884bf1375af9264547e6b8260b0'
 const HASH = 'a'.repeat(64)
 
-/** 一份可控的字节源：记下被问了什么，回答什么由每个用例自己定。 */
+/** 一次取字节的请求：令牌 + 被要的那一段（缺省即整份）。 */
+type Ask = readonly [
+  string,
+  string,
+  { readonly start: number; readonly length: number } | undefined,
+]
+
+/**
+ * 一份可控的字节源：记下被问了什么，回答什么由每个用例自己定。
+ *
+ * 它**自己按 range 切片**，与原生侧 asset_read 的行为同形 —— 处理器不再切片，
+ * 所以「Range 只付这一段的价」这条性质只有在这里模拟出来才测得到。
+ */
 function sourceOf(
   answer: (
     sessionToken: string,
     assetToken: string,
   ) => { contentType: string; bytes: Buffer } | null,
-): AssetByteSource & { readonly asked: readonly (readonly [string, string])[] } {
-  const asked: Array<readonly [string, string]> = []
+): AssetByteSource & { readonly asked: readonly Ask[] } {
+  const asked: Ask[] = []
 
   return {
     asked,
-    read(sessionToken, assetToken) {
-      asked.push([sessionToken, assetToken])
+    read(sessionToken, assetToken, range) {
+      asked.push([sessionToken, assetToken, range])
 
-      return Promise.resolve(answer(sessionToken, assetToken))
+      const full = answer(sessionToken, assetToken)
+
+      if (full === null) {
+        return Promise.resolve(null)
+      }
+
+      const totalLength = full.bytes.byteLength
+
+      if (range === undefined) {
+        return Promise.resolve({ ...full, totalLength })
+      }
+
+      return Promise.resolve({
+        contentType: full.contentType,
+        bytes: full.bytes.subarray(range.start, range.start + range.length),
+        totalLength,
+      })
     },
   }
 }
@@ -46,7 +74,7 @@ describe('asset protocol', () => {
     expect(response.headers.get('content-type')).toBe('image/png')
     expect(response.headers.get('content-length')).toBe(String(bytes.byteLength))
     expect(Buffer.from(await response.arrayBuffer())).toEqual(bytes)
-    expect(source.asked).toEqual([[SESSION, HASH]])
+    expect(source.asked).toEqual([[SESSION, HASH, undefined]])
   })
 
   test('a missing asset is a 404, not an empty body', async () => {
@@ -65,7 +93,7 @@ describe('asset protocol', () => {
     expect(response.status).toBe(500)
   })
 
-  test('cuts the range itself: the bytes arrive whole, so a seek needs a 206', async () => {
+  test('a range is asked for before the bytes are fetched, and answered with a 206', async () => {
     const bytes = Buffer.from('0123456789')
     const source = sourceOf(() => ({ contentType: 'image/png', bytes }))
 
@@ -77,9 +105,11 @@ describe('asset protocol', () => {
     expect(response.headers.get('content-range')).toBe('bytes 2-5/10')
     expect(response.headers.get('content-length')).toBe('4')
     expect(Buffer.from(await response.arrayBuffer()).toString()).toBe('2345')
+    /* 这一段就是「一次 seek 不付整份的价」：请求里带着区间，源只交回这一段。 */
+    expect(source.asked).toEqual([[SESSION, HASH, { start: 2, length: 4 }]])
   })
 
-  test('an open-ended range runs to the end', async () => {
+  test('an open-ended range asks for everything from the start', async () => {
     const bytes = Buffer.from('0123456789')
     const source = sourceOf(() => ({ contentType: 'image/png', bytes }))
 
@@ -88,7 +118,36 @@ describe('asset protocol', () => {
     })
 
     expect(response.status).toBe(206)
+    expect(response.headers.get('content-range')).toBe('bytes 7-9/10')
     expect(Buffer.from(await response.arrayBuffer()).toString()).toBe('789')
+  })
+
+  test('a suffix range still answers correctly, falling back to the whole asset', async () => {
+    const bytes = Buffer.from('0123456789')
+    const source = sourceOf(() => ({ contentType: 'image/png', bytes }))
+
+    const response = await serve(source, `poietica-asset://asset/${SESSION}/${HASH}`, {
+      range: 'bytes=-3',
+    })
+
+    expect(response.status).toBe(206)
+    expect(response.headers.get('content-range')).toBe('bytes 7-9/10')
+    expect(Buffer.from(await response.arrayBuffer()).toString()).toBe('789')
+    /* 后缀式算不出起点，只能取整份 —— 这是刻意的退化，钉在这里免得被当成回归。 */
+    expect(source.asked).toEqual([[SESSION, HASH, undefined]])
+  })
+
+  test('a range past the end yields an empty 206 rather than a broken image', async () => {
+    const bytes = Buffer.from('0123456789')
+    const source = sourceOf(() => ({ contentType: 'image/png', bytes }))
+
+    const response = await serve(source, `poietica-asset://asset/${SESSION}/${HASH}`, {
+      range: 'bytes=100-200',
+    })
+
+    expect(response.status).toBe(206)
+    expect(response.headers.get('content-range')).toBe('bytes 100-99/10')
+    expect(response.headers.get('content-length')).toBe('0')
   })
 
   test('a shape that is not the canonical address never reaches the registry', async () => {

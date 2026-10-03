@@ -60,6 +60,9 @@ export function uploadAsset(sessionToken: string, base64: string): Promise<Asset
 /**
  * 从会话里放掉一个附件。图片释放注册表预算；通用文件本就不在注册表里，
  * 原生侧查无此项时按成功处理（暂存字节随 tmp 对账清空）。
+ *
+ * 会话令牌不对则是失败（resourceMissing）：那说明这次调用走错了会话，
+ * 从前它与「通用文件不在册」共用一个成功，于是跨会话的删除静默通过、附件没被释放。
  */
 export function removeAsset(sessionToken: string, assetToken: string): Promise<void> {
   return throughIpc(async () => {

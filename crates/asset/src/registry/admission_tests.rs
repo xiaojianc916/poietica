@@ -101,3 +101,58 @@ fn a_batch_that_exceeds_the_registry_budget_is_refused_and_leaves_nothing_behind
         Err(AssetProtocolError::NotFound)
     ));
 }
+
+/*
+ * 会话不在册与资产不在册必须分开：前者是调用方走错了会话（拿 A 的令牌去 B 里删），
+ * 后者是通用文件的正常形态。共用一档会让跨会话的删除静默成功 —— 实测过的那个缺陷。
+ */
+#[test]
+fn removing_from_a_session_that_does_not_exist_is_an_error_not_a_silent_success() {
+    let registry = AssetProtocolRegistry::default();
+    registry.open_session("a").expect("session");
+    let held = content(b"held", "image/png");
+    registry
+        .register("a", vec![held.clone()])
+        .expect("register");
+    registry.open_session("b").expect("session");
+
+    /* B 拿 A 的令牌删：必须是查无此项，而不是成功。 */
+    assert!(matches!(
+        registry.remove("b", held.content_hash()),
+        Err(AssetProtocolError::NotFound)
+    ));
+    /* 资产还在 A 里 —— 这一条正是从前静默成功时被掩盖的事实。 */
+    assert!(registry.deliver("a", held.content_hash()).is_ok());
+
+    /* 谁都没有这份资产：通用文件那一档，仍是正常结果。 */
+    assert_eq!(
+        registry.remove("a", &"f".repeat(64)),
+        Ok(Removal::NotRegistered)
+    );
+    /* 真的放掉那一档。 */
+    assert_eq!(
+        registry.remove("a", held.content_hash()),
+        Ok(Removal::Released)
+    );
+}
+
+/*
+ * 切片算术。它的调用方是 native 的 asset_read —— 那里只该做「解参 → 调 crate → DTO」，
+ * 所以边界情况必须在这里被钉住：越界、饱和、空段、整份。
+ */
+#[test]
+fn a_read_span_covers_exactly_what_the_caller_asked_for() {
+    assert_eq!(read_span(100, None, None), 0..100);
+    assert_eq!(read_span(100, Some(10), Some(20)), 10..30);
+    /* 开放区间：从某处到末尾。 */
+    assert_eq!(read_span(100, Some(90), None), 90..100);
+    /* 越界的起点收敛成空段，不是 panic 也不是从头开始。 */
+    assert_eq!(read_span(100, Some(100), Some(10)), 100..100);
+    assert_eq!(read_span(100, Some(999), Some(10)), 100..100);
+    /* 长度越过末尾就截到末尾。 */
+    assert_eq!(read_span(100, Some(90), Some(999)), 90..100);
+    /* u64 上限不许溢出成 panic。 */
+    assert_eq!(read_span(100, Some(u64::MAX), Some(u64::MAX)), 100..100);
+    /* 空资产。 */
+    assert_eq!(read_span(0, Some(0), Some(10)), 0..0);
+}

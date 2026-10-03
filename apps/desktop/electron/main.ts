@@ -789,7 +789,7 @@ async function main(): Promise<void> {
   protocol.handle(
     'poietica-asset',
     createAssetProtocolHandler({
-      async read(sessionToken, assetToken) {
+      async read(sessionToken, assetToken, range) {
         const host = router
 
         if (host === null) {
@@ -797,10 +797,18 @@ async function main(): Promise<void> {
         }
 
         const read = (await host.invoke('asset_read', {
-          request: { sessionToken, assetToken },
-        })) as { contentType: string; base64: string }
+          request: {
+            sessionToken,
+            assetToken,
+            ...(range === undefined ? {} : { offset: range.start, length: range.length }),
+          },
+        })) as { contentType: string; base64: string; byteLength: number; totalLength: number }
 
-        return { contentType: read.contentType, bytes: Buffer.from(read.base64, 'base64') }
+        return {
+          contentType: read.contentType,
+          bytes: Buffer.from(read.base64, 'base64'),
+          totalLength: read.totalLength,
+        }
       },
     }),
   )
