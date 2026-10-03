@@ -213,7 +213,6 @@ export function ArchivedChatsSettings({ threads }: ArchivedChatsSettingsProps) {
           label="保留与恢复"
         >
           <Button
-            className="archived-chats__delete-all"
             disabled={
               pendingDeletion !== null ||
               deletingAll ||
@@ -225,7 +224,7 @@ export function ArchivedChatsSettings({ threads }: ArchivedChatsSettingsProps) {
             }}
             size="xs"
             type="button"
-            variant="ghost"
+            variant="dangerSoft"
           >
             <Trash2 aria-hidden="true" />
             {deletingAll ? '正在删除…' : '全部删除'}

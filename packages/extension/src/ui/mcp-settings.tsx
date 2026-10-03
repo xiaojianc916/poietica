@@ -276,14 +276,7 @@ function ServerCard({
       </div>
       <div className="mcp-card__actions">
         {removable === true ? (
-          <Button
-            className="bg-[#f3f3f4] hover:bg-[#e8e8e8]"
-            disabled={busy}
-            onClick={onRemove}
-            size="xs"
-            type="button"
-            variant="ghost"
-          >
+          <Button disabled={busy} onClick={onRemove} size="xs" type="button" variant="dangerSoft">
             删除
           </Button>
         ) : null}

@@ -6,16 +6,32 @@ import { cn } from '../class-names'
  * 写法与同目录其余组件一致（switch.tsx 的 ROOT_SIZE / THUMB_SIZE）。
  */
 
+import './danger-soft.css'
+
 const BASE =
   'inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50'
 
-export type ButtonVariant = 'default' | 'destructive' | 'outline' | 'secondary' | 'soft' | 'ghost'
+export type ButtonVariant =
+  | 'default'
+  | 'destructive'
+  | 'dangerSoft'
+  | 'outline'
+  | 'secondary'
+  | 'soft'
+  | 'ghost'
 
 export type ButtonSize = 'default' | 'xs' | 'sm' | 'lg' | 'icon'
 
 const VARIANT: Record<ButtonVariant, string> = {
   default: 'bg-primary text-primary-foreground shadow hover:bg-primary/90',
   destructive: 'bg-destructive text-destructive-foreground shadow-sm hover:bg-destructive/90',
+  /*
+   * dangerSoft：不可撤销、但不是当前这一步要执行的动作。无边框，红字，红墨压出的浅底。
+   *
+   * 红底那几档颜色住在 danger-soft.css：浅色是浅粉，深色是 12%/20% 的红墨，与确认对话框
+   * 那颗危险键同一档浓度。Tailwind 的工具类写不出主题相关的这一层。
+   */
+  dangerSoft: 'ui-button--danger-soft',
   outline:
     'border border-input bg-background shadow-sm hover:bg-accent hover:text-accent-foreground',
   secondary: 'bg-secondary text-secondary-foreground shadow-sm hover:bg-secondary/80',

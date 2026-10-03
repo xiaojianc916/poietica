@@ -1071,13 +1071,7 @@ function ModelListEditor({
       </span>
       <div className="models-model-footer">
         {onDelete === undefined ? null : (
-          <Button
-            className="archived-chats__delete-all"
-            onClick={onDelete}
-            size="xs"
-            type="button"
-            variant="ghost"
-          >
+          <Button onClick={onDelete} size="xs" type="button" variant="dangerSoft">
             删除供应商
           </Button>
         )}

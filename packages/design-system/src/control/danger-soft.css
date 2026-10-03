@@ -1,0 +1,25 @@
+/*
+ * 软性危险动作：无边框、红字、红墨压出的浅底。
+ *
+ * 底色与悬停色读 --ui-destructive-soft*（light.css / dark.css 各一格）—— 深色下那是
+ * 12% / 20% 的红墨，与确认对话框那颗危险键同一档浓度。两处说的是同一件事，
+ * 所以红只有一个产地，这个文件只管形状。
+ */
+
+.ui-button--danger-soft {
+  gap: 6px;
+  color: var(--ui-destructive);
+  background: var(--ui-destructive-soft);
+}
+
+.ui-button--danger-soft:hover:not(:disabled) {
+  background: var(--ui-destructive-soft-hover);
+  color: var(--ui-destructive);
+}
+
+/* 图标与文字同高：14px 是这一档按钮里字形的档位。 */
+.ui-button--danger-soft svg {
+  inline-size: 14px;
+  block-size: 14px;
+  flex: none;
+}

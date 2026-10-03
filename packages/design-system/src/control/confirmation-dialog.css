@@ -36,11 +36,12 @@
   background-color: #454545;
 }
 
+/* 与软性危险动作同一个「红墨压底」：浓度只在 --ui-destructive-soft* 里写一遍。 */
 :root[data-theme="dark"] .confirmation-dialog__destructive {
-  background-color: color-mix(in srgb, var(--ui-destructive) 12%, transparent);
+  background-color: var(--ui-destructive-soft);
   color: var(--ui-destructive);
 }
 
 :root[data-theme="dark"] .confirmation-dialog__destructive:hover:not(:disabled) {
-  background-color: color-mix(in srgb, var(--ui-destructive) 20%, transparent);
+  background-color: var(--ui-destructive-soft-hover);
 }

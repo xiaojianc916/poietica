@@ -131,6 +131,15 @@
   --ui-destructive: var(--ui-palette-red-500);
   --ui-destructive-foreground: oklch(0.99 0 0);
 
+  /*
+   * 软性危险动作的底：红字压浅粉，不是实色红。
+   *
+   * 与上面的实色红分工：实色红是「这一步就要执行」（确认框那颗确认键），这一档是
+   * 「这里有一个不可撤销的动作可点」，排在别的控件旁边时不抢视线。
+   */
+  --ui-destructive-soft: #fbeae9;
+  --ui-destructive-soft-hover: #f9d5d4;
+
   --ui-warning: var(--ui-palette-amber-500);
   --ui-warning-foreground: var(--ui-palette-amber-900);
 
