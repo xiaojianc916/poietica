@@ -1,7 +1,7 @@
-import { Button, InlineSpinner } from '@poietica/design-system'
+import { Banner, Button, ConfirmationDialog, InlineSpinner } from '@poietica/design-system'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import type { PythonKernelGateway, PythonKernelStatus } from './python-kernel/gateway'
-import { pythonKernelAction, pythonKernelCopy } from './python-kernel-view'
+import { pythonKernelAction, pythonKernelCopy, REMOVE_WARNING } from './python-kernel-view'
 import { SettingRow, SettingsGroup } from './settings-primitives'
 import './python-kernel-settings.css'
 
@@ -28,6 +28,11 @@ export function PythonKernelSettings({ gateway }: PythonKernelSettingsProps) {
   const [status, setStatus] = useState<PythonKernelStatus | null>(null)
   const [failure, setFailure] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
+  const [confirmingRemoval, setConfirmingRemoval] = useState(false)
+  const [installed, setInstalled] = useState(false)
+  /* 这一轮装机是用户自己点的吗。只有它才配在装好后报一声 —— 打开设置页时早装好了，
+   * 那不是一次「装好了」，报到人脸上就是假消息。 */
+  const asked = useRef(false)
   const live = useRef(true)
 
   useEffect(() => {
@@ -75,15 +80,19 @@ export function PythonKernelSettings({ gateway }: PythonKernelSettingsProps) {
   const act = async (kind: 'install' | 'repair' | 'remove'): Promise<void> => {
     setBusy(true)
     setFailure(null)
+    setConfirmingRemoval(false)
 
     try {
+      /* 装机是后台跑的，这条命令交回时状态还没变；装没装好由上面那次按秒重读认出来。 */
       const next = kind === 'remove' ? await gateway.remove() : await gateway.install()
 
       if (live.current) {
+        asked.current = kind !== 'remove'
         setStatus(next)
       }
     } catch (cause) {
       if (live.current) {
+        asked.current = false
         setFailure(reasonOf(cause))
       }
     } finally {
@@ -93,6 +102,16 @@ export function PythonKernelSettings({ gateway }: PythonKernelSettingsProps) {
     }
   }
 
+  /* 点过安装、如今就绪：报一声，并把这一轮标记清掉（重读不会再报第二次）。 */
+  const ready = status?.state === 'ready'
+
+  useEffect(() => {
+    if (ready && asked.current && live.current) {
+      asked.current = false
+      setInstalled(true)
+    }
+  }, [ready])
+
   const copy = pythonKernelCopy(status)
   const action = pythonKernelAction(status)
 
@@ -101,7 +120,7 @@ export function PythonKernelSettings({ gateway }: PythonKernelSettingsProps) {
       <SettingRow
         description={copy.description}
         label="Python 内核"
-        warning={copy.failure ?? action.warning ?? failure ?? undefined}
+        warning={copy.failure ?? failure ?? undefined}
       >
         {installing ? (
           <span className="python-kernel__busy">
@@ -114,11 +133,18 @@ export function PythonKernelSettings({ gateway }: PythonKernelSettingsProps) {
           <Button
             disabled={busy}
             onClick={() => {
-              void act(action.kind === 'remove' ? 'remove' : 'install')
+              /* 删除会连 agent 那格设置一起清空，先问一句再动手。 */
+              if (action.kind === 'remove') {
+                setConfirmingRemoval(true)
+
+                return
+              }
+
+              void act(action.kind === 'repair' ? 'repair' : 'install')
             }}
             size="xs"
             type="button"
-            variant={action.kind === 'remove' ? 'outline' : 'soft'}
+            variant={action.kind === 'remove' ? 'dangerSoft' : 'soft'}
           >
             {busy ? '处理中…' : action.label}
           </Button>
@@ -136,6 +162,31 @@ export function PythonKernelSettings({ gateway }: PythonKernelSettingsProps) {
           </div>
         </div>
       )}
+
+      {installed ? (
+        <Banner
+          onDone={() => {
+            setInstalled(false)
+          }}
+          text="Python 内核装好了，agent 现在可以直接跑 Python 代码。"
+          tone="success"
+        />
+      ) : null}
+
+      <ConfirmationDialog
+        busy={busy}
+        confirmLabel="删除"
+        description={REMOVE_WARNING}
+        destructive
+        onCancel={() => {
+          setConfirmingRemoval(false)
+        }}
+        onConfirm={() => {
+          void act('remove')
+        }}
+        open={confirmingRemoval}
+        title="删除内置 Python 内核？"
+      />
     </SettingsGroup>
   )
 }

@@ -12,7 +12,7 @@ use std::path::{Path, PathBuf};
 
 use tempfile::TempDir;
 
-use crate::release::{Asset, asset_name, select_asset};
+use crate::release::{Asset, asset_name, mirror_url, select_asset};
 use crate::*;
 
 /// 一条候选：只有名字参与选择，其余字段原样带走。
@@ -91,6 +91,19 @@ fn ambiguous_asset_is_typed() {
     ));
 }
 
+/// 镜像地址由 tag 与资产名拼出来，两个常量各只写一遍；它与上游资产名必须逐字对齐，
+/// 拼错了就是 404，而 404 会被当成「镜像没有」静默回落到 GitHub —— 那正是本次要修的那条慢路。
+#[test]
+fn mirror_url_is_the_upstream_asset_name_under_the_tag() {
+    assert_eq!(
+        mirror_url(),
+        format!(
+            "https://registry.npmmirror.com/-/binary/python-build-standalone/{RELEASE_TAG}/{}",
+            asset_name()
+        )
+    );
+}
+
 #[test]
 fn parses_sha256_prefix() {
     let digest = "sha256:52124CEE54126F3F360EAA378288F6F64C402C983A3C14C95EFF67F4AF986AAA";
@@ -160,27 +173,31 @@ mod windows {
     async fn states_are_read_off_the_disk() {
         let temp = TempDir::new().expect("临时目录");
         let target = target_in(&temp);
-        let stage = stage_directory(&target);
 
-        assert_eq!(
-            inspect(&stage, &target).await,
-            InstallationState::NotInstalled
-        );
+        assert_eq!(inspect(&target).await, InstallationState::NotInstalled);
 
         stub(&target);
-        assert_eq!(inspect(&stage, &target).await, InstallationState::Broken);
+        assert_eq!(inspect(&target).await, InstallationState::Broken);
 
         std::fs::remove_dir_all(&target).expect("删掉假安装");
-        std::fs::create_dir_all(&stage).expect("造暂存树");
-        assert_eq!(
-            inspect(&stage, &target).await,
-            InstallationState::Installing
-        );
+        assert_eq!(inspect(&target).await, InstallationState::NotInstalled);
+    }
 
-        std::fs::remove_dir_all(&stage).expect("删掉暂存树");
+    /// 中断留下的暂存目录**不等于**「正在装」：曾经拿它在不在当判据，于是一次断网
+    /// 之后界面永远停在「准备中」、连重试按钮都不给。判据只能是解释器在不在。
+    #[tokio::test]
+    async fn a_leftover_staging_tree_is_not_an_installation_in_progress() {
+        let temp = TempDir::new().expect("临时目录");
+        let target = target_in(&temp);
+        let stage = stage_directory(&target);
+
+        std::fs::create_dir_all(&stage).expect("造上一轮中断留下的暂存树");
+        std::fs::write(stage.join("python.tar.gz"), b"half a download").expect("写残档");
+
         assert_eq!(
-            inspect(&stage, &target).await,
-            InstallationState::NotInstalled
+            inspect(&target).await,
+            InstallationState::NotInstalled,
+            "残档不是一份安装，也不该冒充「正在装」"
         );
     }
 

@@ -1,6 +1,11 @@
 import { describe, expect, it } from 'bun:test'
 import type { PythonKernelStatus } from './python-kernel/gateway'
-import { failureText, pythonKernelAction, pythonKernelCopy } from './python-kernel-view'
+import {
+  failureText,
+  pythonKernelAction,
+  pythonKernelCopy,
+  REMOVE_WARNING,
+} from './python-kernel-view'
 
 function status(overrides: Partial<PythonKernelStatus> = {}): PythonKernelStatus {
   return {
@@ -25,14 +30,22 @@ describe('pythonKernelCopy', () => {
     expect(new Set(described).size).toBe(states.length)
   })
 
-  it('reports the version and the path only when the install is ready', () => {
+  it('stops repeating the version and the path once the install is ready', () => {
     const path = 'C:/data/tools/python'
     const ready = pythonKernelCopy(status({ state: 'ready', version: '3.12.15', path }))
+
+    /* 就绪不再往行下挂一行绝对路径：装好这件事由横幅说一声，版本与位置的真身在原生侧。 */
+    expect(ready.detail).toBeNull()
+    expect(ready.detailLabel).toBeNull()
+  })
+
+  it('still points at the directory when the install is broken', () => {
+    const path = 'C:/data/tools/python'
     const broken = pythonKernelCopy(status({ state: 'broken', version: '3.12.15', path }))
 
-    expect(ready.detail).toBe('Python 3.12.15 · C:/data/tools/python')
-    expect(ready.detailLabel).toBe('已安装')
+    /* 坏掉时要给人一条能自己去看的线索，所以这一档留着路径。 */
     expect(broken.detail).toBe(path)
+    expect(broken.detailLabel).toBe('安装位置')
   })
 
   it('translates the steps it knows and keeps the ones it does not', () => {
@@ -82,8 +95,11 @@ describe('pythonKernelAction', () => {
     expect(pythonKernelAction(status({ state: 'ready' })).kind).toBe('remove')
   })
 
-  it('names the cost of removing, because it also clears the agent setting', () => {
-    expect(pythonKernelAction(status({ state: 'ready' })).warning).toContain('python.interpreter')
+  it('keeps the cost of removing in the dialog instead of on the row', () => {
+    /* 行上那句是常驻的，人没要删任何东西也一直摆着 —— 一句总在那儿的警告等于没有警告。
+     * 代价只在动手那一下说，也就是确认弹窗。 */
+    expect(REMOVE_WARNING).toContain('python.interpreter')
+    expect(Object.hasOwn(pythonKernelAction(status({ state: 'ready' })), 'warning')).toBe(false)
   })
 
   it('offers nothing while the platform has no build or the answer is not in yet', () => {

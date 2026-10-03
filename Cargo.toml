@@ -104,9 +104,10 @@ base64 = "0.22.1"
 
 # HTTP 客户端，全仓一份：厂商密钥探测、插件目录抓取、更新清单与载荷下载都走它。
 #
-# rustls-tls 不带第二套 TLS。
+# rustls-tls 不带第二套 TLS。gzip 是给清单类正文用的：GitHub 的 release 清单未压缩
+# 1.6MB、压缩后 95KB，实测取一次 33s 对 1.3s（载荷本身已是 tar.gz，不受影响）。
 reqwest = { version = "0.12", default-features = false, features = [
-  "rustls-tls", "json", "multipart", "stream",
+  "rustls-tls", "json", "multipart", "stream", "gzip",
 ] }
 
 

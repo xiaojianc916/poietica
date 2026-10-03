@@ -45,11 +45,14 @@ impl InstallationFacts {
     }
 }
 
-/// 状态五档。判定要跑一次解释器才敢说 ready：解包成功不等于装好。
+/// 盘上那份安装此刻是什么样。判定要跑一次解释器才敢说 ready：解包成功不等于装好。
+///
+/// **没有「装机中」这一档**：这件事不是盘上事实。曾经拿暂存目录在不在当判据，
+/// 于是一次中断留下的残档让界面永远停在「准备中」，连重试按钮都不给。
+/// 「正在装」由宿主那份进程内的活说了算（apps/desktop/native/src/python.rs 的 INSTALL）。
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum InstallationState {
     NotInstalled,
-    Installing,
     Ready,
     Broken,
     Unsupported,
@@ -118,29 +121,28 @@ pub(crate) fn replaced_of(target: &Path) -> PathBuf {
     PathBuf::from(name)
 }
 
-/// 判定一份安装现在是什么状态：判据只有盘上有什么、以及里面的解释器跑不跑得起来。
-pub async fn inspect(stage: &Path, target: &Path) -> InstallationState {
+/// 判定一份安装现在是什么状态：判据只有解释器在不在、跑不跑得起来。
+///
+/// 暂存目录**不参与**判定：它是上一次的残档，不是一份安装，也不是「正在装」的证据。
+/// 它由下一次装机自己覆盖（`install` 收尾会把暂存目录整个删掉）。
+pub async fn inspect(target: &Path) -> InstallationState {
     if !SUPPORTED {
         return InstallationState::Unsupported;
     }
 
-    if target.is_dir() {
-        let Some(executable) = executable_of(target) else {
-            return InstallationState::Broken;
-        };
-
-        return if runs(&executable).await {
-            InstallationState::Ready
-        } else {
-            InstallationState::Broken
-        };
+    if !target.is_dir() {
+        return InstallationState::NotInstalled;
     }
 
-    if stage.is_dir() {
-        return InstallationState::Installing;
-    }
+    let Some(executable) = executable_of(target) else {
+        return InstallationState::Broken;
+    };
 
-    InstallationState::NotInstalled
+    if runs(&executable).await {
+        InstallationState::Ready
+    } else {
+        InstallationState::Broken
+    }
 }
 
 /// 一份安装里解释器在哪：`<root>/python.exe`。

@@ -22,13 +22,19 @@ export interface PythonKernelAction {
   readonly kind: PythonKernelActionKind
   /** 按钮上的字；kind 是 none 时为空串。 */
   readonly label: string
-  /** 按下去会付出什么代价；null 即没有代价要说。 */
-  readonly warning: string | null
 }
 
 const READ_FAILED = '读到的状态这一版界面认不出来；升级 Poietica 后再看这一页。'
-const REMOVE_WARNING = '删除会连同 agent 设置里的 python.interpreter 一起清空；下次要用得重新安装。'
 const UNKNOWN_STEP = '正在准备解释器'
+
+/**
+ * 删除的代价。**只在确认弹窗里说**，不挂在行上。
+ *
+ * 行上那句是常驻的：装好之后每看一眼这一页都摆着一句「会清空设置」的警告，而人并没有
+ * 要删任何东西 —— 一句总在那儿的警告等于没有警告。代价该在动手那一下说，也就是弹窗。
+ */
+export const REMOVE_WARNING =
+  '删除会连同 agent 设置里的 python.interpreter 一起清空；下次要用得重新安装。'
 
 const DESCRIPTIONS: Readonly<Record<PythonKernelState, string>> = {
   notInstalled: '让 agent 用它自带的 Python 跑代码，不必另装一个解释器',
@@ -49,18 +55,12 @@ const STEP_COPY: Readonly<Record<string, string>> = {
   setting: '正在把解释器路径写给 agent',
 }
 
-interface ActionCopy {
-  readonly kind: PythonKernelActionKind
-  readonly label: string
-  readonly warning: string | null
-}
-
-const ACTIONS: Readonly<Record<PythonKernelState, ActionCopy>> = {
-  notInstalled: { kind: 'install', label: '安装', warning: null },
-  installing: { kind: 'none', label: '', warning: null },
-  ready: { kind: 'remove', label: '删除', warning: REMOVE_WARNING },
-  broken: { kind: 'repair', label: '重新安装', warning: null },
-  unsupported: { kind: 'none', label: '', warning: null },
+const ACTIONS: Readonly<Record<PythonKernelState, PythonKernelAction>> = {
+  notInstalled: { kind: 'install', label: '安装' },
+  installing: { kind: 'none', label: '' },
+  ready: { kind: 'remove', label: '删除' },
+  broken: { kind: 'repair', label: '重新安装' },
+  unsupported: { kind: 'none', label: '' },
 }
 
 /**
@@ -109,16 +109,9 @@ function detailOf(status: PythonKernelStatus): Detail {
     return status.path === null ? EMPTY_DETAIL : { label: '安装位置', value: status.path }
   }
 
-  if (status.state !== 'ready') {
-    return EMPTY_DETAIL
-  }
-
-  /* 就绪才报版本：坏树上挂个版本号是把「装过」当成「能用」。 */
-  const parts = [status.version === null ? null : `Python ${status.version}`, status.path].filter(
-    (part): part is string => part !== null && part.length > 0,
-  )
-
-  return parts.length === 0 ? EMPTY_DETAIL : { label: '已安装', value: parts.join(' · ') }
+  /* 就绪不在这里报版本与路径：那串绝对路径只是一行难看的字，装好这件事由横幅说一声
+   * 就够了。装了哪个版本与装到哪，真身在原生侧（python_kernel_status），界面不必复述。 */
+  return EMPTY_DETAIL
 }
 
 const EMPTY_DETAIL: Detail = { label: null, value: null }
@@ -146,8 +139,8 @@ export function failureText(reason: string): string {
  */
 export function pythonKernelAction(status: PythonKernelStatus | null): PythonKernelAction {
   if (status === null || status.state === 'installing' || status.install.running) {
-    return { kind: 'none', label: '', warning: null }
+    return { kind: 'none', label: '' }
   }
 
-  return ACTIONS[status.state] ?? { kind: 'install', label: '安装', warning: null }
+  return ACTIONS[status.state] ?? { kind: 'install', label: '安装' }
 }

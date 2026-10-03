@@ -19,6 +19,7 @@ cargo test -p poietica-python-native --test install -- --ignored --nocapture
 )]
 
 use poietica_python_native as p;
+use tempfile::TempDir;
 
 #[tokio::test]
 #[ignore = "需要网络：下载约 22MB 的 CPython"]
@@ -42,10 +43,7 @@ async fn installs_a_runnable_cpython_and_reports_ready() {
     p::install(&archive, &stage, &target)
         .await
         .expect("解包、自检、换入");
-    assert_eq!(
-        p::inspect(&stage, &target).await,
-        p::InstallationState::Ready
-    );
+    assert_eq!(p::inspect(&target).await, p::InstallationState::Ready);
 
     let exe = target.join("python.exe");
     assert!(exe.is_file(), "解释器应当在受管目录根上：{}", exe.display());
@@ -57,4 +55,28 @@ async fn installs_a_runnable_cpython_and_reports_ready() {
         .expect("跑解释器");
     assert!(output.status.success());
     assert_eq!(String::from_utf8_lossy(&output.stdout).trim(), "(3, 12)");
+}
+
+/// 镜像那条路是**主路**：把清单给的 API 地址弄死，download 照样要成功。
+///
+/// 钉住的是「镜像先、GitHub 后」这个顺序 —— 两行对调过来写，这条测试当场失败。
+/// 它同时证明字节不经过 GitHub 也能拿到，且摘要照样对（校验在两条源共用的 stream 里）。
+#[tokio::test]
+#[ignore = "需要网络：真下一个 22MB 的归档"]
+async fn download_uses_the_mirror_even_when_the_api_url_is_dead() {
+    let mut asset = p::fetch_asset().await.expect("取清单");
+    asset.url = "http://127.0.0.1:1/dead.tar.gz".to_owned();
+
+    let temp = TempDir::new().expect("临时目录");
+    let destination = temp.path().join("from-mirror.tar.gz");
+
+    p::download(&asset, &destination)
+        .await
+        .expect("镜像那条路该独立走通，不该依赖 API 地址");
+
+    assert_eq!(
+        std::fs::metadata(&destination).map_or(0, |m| m.len()),
+        asset.size,
+        "下下来的字节数要与上游声明一致"
+    );
 }

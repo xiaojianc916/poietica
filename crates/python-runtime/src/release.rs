@@ -1,8 +1,14 @@
 //! 取 CPython 的那一版资产清单，并从里面选出唯一一条。
 //!
-//! 走 API 资产路（`GET <asset.url>` 带 `Accept: application/octet-stream`，302 到 CDN），
-//! 不用 release 的浏览器下载地址：github.com:443 在这批机器上连不上，API 与其重定向通。
+//! **字节走镜像**（npmmirror 的二进制镜像，与上游同一个文件）：本机实测同一份 22MB 归档，
+//! GitHub 284KB/s（78s）、镜像 3.9MB/s（5.7s）—— 直连那条路慢一个数量级。镜像认不出来时
+//! 回落到 API 资产地址，两条路都过同一份 sha256 校验。
+//!
+//! 清单只从 GitHub 的 release API 取：镜像那份目录页是另一套形状、**不带摘要**，
+//! 而摘要正是校验的根据；它未压缩时慢（33s），开 gzip 后 1.3s，够用。
 //! 取清单必须带 User-Agent，不带是 403。
+//!
+//! 不用 release 的浏览器下载地址：github.com:443 在这批机器上连不上，API 与其重定向通。
 
 use std::path::Path;
 use std::time::Duration;
@@ -27,6 +33,15 @@ pub const ARCHIVE: &str = "install_only_stripped.tar.gz";
 #[must_use]
 pub fn asset_name() -> String {
     format!("cpython-{PYTHON_VERSION}+{RELEASE_TAG}-{PLATFORM}-{ARCHIVE}")
+}
+
+/// 二进制镜像：与 registry.npmmirror.com 同一家，本仓的依赖也全从它的 npm 面装。
+/// 目录是 <tag>/<资产名>，与上游 release 的资产名逐字相同，所以两边只有主机名不一样。
+const ASSET_MIRROR: &str = "https://registry.npmmirror.com/-/binary/python-build-standalone";
+
+/// 镜像上那份归档的地址。目录层级与上游 release 的资产名逐字相同。
+pub(crate) fn mirror_url() -> String {
+    format!("{ASSET_MIRROR}/{RELEASE_TAG}/{}", asset_name())
 }
 
 /// 连上主机的时间上限：机器离线时快速失败，而不是把整个超时耗光。
@@ -139,15 +154,31 @@ pub async fn fetch_asset() -> Result<Asset, PythonError> {
 
 /// 流式下载并按上游摘要校验：22MB 不攒进内存，中途出错只留一个不完整的文件给调用方删。
 /// 先看 Content-Length 再看哈希 —— 被截断的响应更该报"少下了字节"，而不是报摘要不符。
+///
+/// 先走镜像、认不出来再走 `asset.url`（GitHub 302 到 CDN）：两边是同一个文件，摘要都按
+/// 清单里上游给的那一串校验。**镜像不被信任**，换源也不换校验。
 pub async fn download(asset: &Asset, destination: &Path) -> Result<(), PythonError> {
+    match stream(&mirror_url(), asset, destination).await {
+        Ok(()) => Ok(()),
+        /* 换源重试的理由要两句都在：只说一句就分不清是哪条路的问题。 */
+        Err(from_mirror) => stream(&asset.url, asset, destination)
+            .await
+            .map_err(|from_api| PythonError::Download {
+                asset: asset.name.clone(),
+                reason: format!("{from_mirror}；改用 GitHub 后：{from_api}"),
+            }),
+    }
+}
+
+/// 一个地址 → 盘上那份归档：长度、摘要、落盘都只在这里判一次，两条源共用它。
+async fn stream(url: &str, asset: &Asset, destination: &Path) -> Result<(), PythonError> {
     let failed = |reason: String| PythonError::Download {
         asset: asset.name.clone(),
         reason,
     };
 
-    let response = client()
-        .get(&asset.url)
-        .header(reqwest::header::ACCEPT, "application/octet-stream")
+    let mut response = client()
+        .get(url)
         .send()
         .await
         .map_err(|error| failed(error.to_string()))?;
@@ -157,7 +188,7 @@ pub async fn download(asset: &Asset, destination: &Path) -> Result<(), PythonErr
         return Err(failed(format!("HTTP {}", status.as_u16())));
     }
 
-    // 上游先给 302 的 Content-Length，跟着跳到 CDN 之后才是字节数，所以取跳转后的。
+    // 两个源都先给 302，跟着跳到 CDN 之后才是字节数，所以取跳转后的。
     let declared = response.content_length().unwrap_or(asset.size);
 
     if declared != asset.size {
@@ -172,7 +203,6 @@ pub async fn download(asset: &Asset, destination: &Path) -> Result<(), PythonErr
         tokio::fs::create_dir_all(parent).await?;
     }
 
-    let mut response = response;
     let mut file = tokio::fs::File::create(destination).await?;
     let mut hasher = Sha256::new();
     let mut written = 0_u64;
@@ -235,15 +265,13 @@ fn client() -> reqwest::Client {
 
 /// 一个请求的超时；清单与下载共用同一份 builder，超时按调用点给。
 ///
-/// **不要给这个请求加 `Accept: application/vnd.github+json`**：带上它 GitHub 会回压缩体，
-/// 而这份 client 没开 gzip/brotli 解码（reqwest 的压缩是一个 feature），
-/// 于是 `.json()` 报 "error decoding response body" —— 真网络才现形，喂内存 JSON 的单测看不见。
-/// 不带那个 Accept 时响应是明文，实测 1,610,838 字节可直接解析。
+/// **不要给这个请求加 `Accept: application/vnd.github+json`**：带上它 GitHub 回的一定是压缩体。
+/// 不带那个 Accept 时实测 1,610,838 字节、可直接解析。
 fn manifest_request() -> reqwest::RequestBuilder {
     client().get(release_url()).timeout(MANIFEST_TIMEOUT)
 }
 
-/// API 资产地址：清单与字节都从这里走。
+/// 清单的地址；资产地址在清单的每条里，字节默认走镜像、认不出来才用资产地址。
 fn release_url() -> String {
     format!(
         "https://api.github.com/repos/astral-sh/python-build-standalone/releases/tags/{RELEASE_TAG}"

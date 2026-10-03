@@ -412,7 +412,10 @@ export type ProviderReplacementDto = { newId: string | null; providerType: strin
  */
 export type PythonKernelInstall = { running: boolean; step: string | null; percent: number | null; error: string | null }
 /**
- * 盘上那份安装此刻的状态，五档原样投影。
+ * 界面那一格此刻是什么状态：盘上那份安装，外加宿主自己手上那份活。
+ * 
+ * `Installing` 只由**正在跑的装机**产生，不是从盘上推出来的：盘上认得出「装好了」
+ * 与「装坏了」，认不出「正在装」—— 那是进程内的事实（见 `INSTALL`）。
  */
 export type PythonKernelState = "notInstalled" | "installing" | "ready" | "broken" | "unsupported"
 export type PythonKernelStatus = { state: PythonKernelState; 
@@ -766,7 +769,7 @@ export const commands = {
     return call<null>('git_watch_stop', { token: token })
   },
 /**
- *  现在是什么状态。判据全在盘上，不查 agent，也不写任何第二份状态。 */
+ *  现在是什么状态。判据只有盘上那份安装与手上这份活，不查 agent，也不写任何第二份状态。 */
   async pythonKernelStatus(): Promise<PythonKernelStatus> {
     return call<PythonKernelStatus>('python_kernel_status', {})
   },

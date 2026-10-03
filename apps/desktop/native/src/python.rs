@@ -24,7 +24,10 @@ use crate::error::{Error, Result};
 /// agent 自己那份设置里解释器路径的键。
 const INTERPRETER_SETTING: &str = "python.interpreter";
 
-/// 盘上那份安装此刻的状态，五档原样投影。
+/// 界面那一格此刻是什么状态：盘上那份安装，外加宿主自己手上那份活。
+///
+/// `Installing` 只由**正在跑的装机**产生，不是从盘上推出来的：盘上认得出「装好了」
+/// 与「装坏了」，认不出「正在装」—— 那是进程内的事实（见 `INSTALL`）。
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Type)]
 #[serde(rename_all = "camelCase")]
 pub enum PythonKernelState {
@@ -39,7 +42,6 @@ impl From<InstallationState> for PythonKernelState {
     fn from(state: InstallationState) -> Self {
         match state {
             InstallationState::NotInstalled => Self::NotInstalled,
-            InstallationState::Installing => Self::Installing,
             InstallationState::Ready => Self::Ready,
             InstallationState::Broken => Self::Broken,
             InstallationState::Unsupported => Self::Unsupported,
@@ -150,9 +152,14 @@ fn locations() -> Result<(PathBuf, PathBuf)> {
 }
 
 async fn compose(target: &Path) -> Result<PythonKernelStatus> {
-    let staging = stage_directory(target);
-    let reported = install_reported();
+    compose_with(target, install_reported()).await
+}
 
+/// 状态合成：手上那份活作为入参传进来，于是它不读进程级的 INSTALL 槽。
+///
+/// 拆出来是为了让「残档 + 没有活在跑 ⇒ 不该报正在装」这条判据能被一条不碰全局状态的
+/// 测试钉住 —— 否则那条测试与「装机不重入」共用同一个槽，并行跑时互为对方的输入。
+async fn compose_with(target: &Path, reported: PythonKernelInstall) -> Result<PythonKernelStatus> {
     if !SUPPORTED {
         return Ok(PythonKernelStatus {
             state: PythonKernelState::Unsupported,
@@ -163,12 +170,7 @@ async fn compose(target: &Path) -> Result<PythonKernelStatus> {
         });
     }
 
-    /* 有活在跑就以它为准：盘上还没建出目录的那几秒，状态也不该报「未安装」。 */
-    let state = if reported.running {
-        PythonKernelState::Installing
-    } else {
-        inspect(&staging, target).await.into()
-    };
+    let state = state_of(reported.running, inspect(target).await);
     let ready = state == PythonKernelState::Ready;
 
     Ok(PythonKernelStatus {
@@ -180,7 +182,20 @@ async fn compose(target: &Path) -> Result<PythonKernelStatus> {
     })
 }
 
-/// 现在是什么状态。判据全在盘上，不查 agent，也不写任何第二份状态。
+/// 手上那份活与盘上那份安装合成这一格的状态。
+///
+/// 两个方向都要紧：装机那几秒盘上还没建出目录，不能报「未安装」；而盘上留着上一次的
+/// 残档时，没活在跑就不能报「正在装」—— 那正是让界面永远卡在「准备中」的那条错判据。
+/// 盘上那份（`InstallationState`）压根没有「正在装」这一档，所以这句话由类型保证。
+fn state_of(running: bool, on_disk: InstallationState) -> PythonKernelState {
+    if running {
+        PythonKernelState::Installing
+    } else {
+        on_disk.into()
+    }
+}
+
+/// 现在是什么状态。判据只有盘上那份安装与手上这份活，不查 agent，也不写任何第二份状态。
 #[specta::specta]
 pub async fn python_kernel_status() -> std::result::Result<PythonKernelStatus, Problem> {
     let (target, _stage) = locations()?;
@@ -188,12 +203,15 @@ pub async fn python_kernel_status() -> std::result::Result<PythonKernelStatus, P
     compose(&target).await.map_err(Problem::from)
 }
 
+/* 装机时暂存目录不需要预先清理：`install` 自己会覆盖它（`extract` 先清解出来的子树、
+ * 收尾把整个暂存目录删掉），而残档从此不再影响状态判定。 */
+
 /// 装一份。装好再调是空操作；正在装再调汇报当前进度，不重入。
 #[specta::specta]
 pub async fn python_kernel_install() -> std::result::Result<PythonKernelStatus, Problem> {
     let (target, stage) = locations()?;
 
-    if inspect(&stage, &target).await == InstallationState::Ready {
+    if inspect(&target).await == InstallationState::Ready {
         return compose(&target).await.map_err(Problem::from);
     }
 
@@ -330,7 +348,37 @@ mod tests {
 
     use super::*;
 
+    /// 两个方向都要紧：有活在跑时报「正在装」（哪怕盘上还什么都没有），
+    /// 没活在跑时**只看盘**——盘上那份状态压根没有「正在装」这一档。
+    #[test]
+    fn a_running_job_wins_over_the_disk_and_never_the_other_way_round() {
+        assert_eq!(
+            state_of(true, InstallationState::NotInstalled),
+            PythonKernelState::Installing,
+            "装机那几秒盘上还没建出目录，不能报「未安装」"
+        );
+
+        /* 残档留在盘上、手上却没有活在跑：这正是从前卡死界面的那一种输入。 */
+        assert_eq!(
+            state_of(false, InstallationState::NotInstalled),
+            PythonKernelState::NotInstalled,
+            "没活在跑就不许报「正在装」"
+        );
+
+        assert_eq!(
+            state_of(false, InstallationState::Ready),
+            PythonKernelState::Ready
+        );
+        assert_eq!(
+            state_of(false, InstallationState::Broken),
+            PythonKernelState::Broken
+        );
+    }
+
     /// 装机不重入：一份在跑时第二次调用领不到活；收工后失败那句话留着、下一次可以重来。
+    ///
+    /// 它动的是进程级的 INSTALL 槽，所以先收干净再断言、断言完再收干净 —— 与同模块
+    /// 其他用例并行跑时，留下的中间态会变成别人的输入。
     #[test]
     fn install_runs_one_at_a_time_and_keeps_the_last_failure() {
         finish_install(None);
@@ -352,6 +400,36 @@ mod tests {
         assert!(begin_install(), "失败之后要能重来");
         finish_install(None);
         assert!(install_reported().error.is_none(), "清干净了");
+    }
+
+    /// 盘上留着上一次中断的残档时，报的是「未安装」而不是「正在装」。
+    ///
+    /// 这条曾经是反的：暂存目录在不在被当成了「正在装」，于是一次断网之后界面永远停在
+    /// 「准备中」、连重试按钮都不给（`pythonKernelAction` 在 installing 档不给按钮）。
+    ///
+    /// 手上那份活作为**入参**明着给（不是去读进程级的 INSTALL 槽）：与同模块那条
+    /// 「装机不重入」的用例并行跑时，两边才不会互为对方的输入。
+    #[tokio::test]
+    async fn a_leftover_staging_tree_does_not_make_the_host_report_installing() {
+        let temp = std::env::temp_dir().join("poietica-native-leftover-staging");
+        let _ = std::fs::remove_dir_all(&temp);
+        let target = temp.join("python");
+        let stage = stage_directory(&target);
+        std::fs::create_dir_all(&stage).expect("造上一轮中断留下的暂存树");
+        std::fs::write(stage.join("python.tar.gz"), b"half a download").expect("写残档");
+
+        let reported = compose_with(&target, PythonKernelInstall::default())
+            .await
+            .expect("读状态");
+
+        assert_eq!(
+            reported.state,
+            PythonKernelState::NotInstalled,
+            "残档不是一份安装，也不该被说成正在装"
+        );
+        assert!(!reported.install.running);
+
+        let _ = std::fs::remove_dir_all(&temp);
     }
 
     /// 写给 agent 的那条路径必须**真是**解释器所在：这条曾经写成 `<root>/python/python.exe`，
