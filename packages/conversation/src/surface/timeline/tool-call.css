@@ -64,7 +64,7 @@
 
 /* 上下相接的第二面：与上面那条之间隔一条发丝线，说明这不是又一次调用。 */
 .timeline-tool__panel[data-seam] {
-  box-shadow: inset 0 1px 0 var(--cp-hairline);
+  box-shadow: inset 0 1px 0 var(--cp-timeline-seam);
 }
 
 /*

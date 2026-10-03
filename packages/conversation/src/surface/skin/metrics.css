@@ -340,6 +340,9 @@
   --cp-overlay-hover: color-mix(in srgb, var(--ui-foreground) 6%, var(--cp-surface));
   --cp-hairline: var(--ui-divider-subtle);
 
+  /* 抽屉里上下两面之间那条分割线。浅色沿用 --cp-hairline，深色产品指定 #3b3b3b（见文件末尾 dark 块）。 */
+  --cp-timeline-seam: var(--cp-hairline);
+
   /*
    * 菜单卡片的两级边界。
    *
@@ -613,6 +616,9 @@
 
   /* turn-seal 下沿分隔线：产品指定深灰，不随 quiet-text 走。 */
   --cp-turn-seal-rule: #2b2b2b;
+
+  /* 抽屉两面的分割线：产品指定 #3b3b3b。--cp-hairline（#1d1d1d）压在 #252525 的纸面上看不见。 */
+  --cp-timeline-seam: #3b3b3b;
 
   /*
    * 正文与气泡的字：深色下要的是白。
