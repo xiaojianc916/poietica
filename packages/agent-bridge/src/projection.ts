@@ -82,6 +82,14 @@ export class TranscriptProjector {
     startedAt: string = now(),
     /* 屏幕上已有位置时在这里指定（见 seat）；不指定就用流式累加器自己的下一个号。 */
     at?: { readonly ordinal: number; readonly prompt?: string },
+    /*
+     * 这一句挂了哪几个技能。写进 origin 是为了让**屏幕**画得出那几枚 chip ——
+     * 缺了它，「挂了技能」这件事在任何一帧里都不存在（transcript-projector 的
+     * skillNamesOf 只读 origin.payload.skillActivations，而它从前全仓无生产者）。
+     *
+     * 形状对齐 crates/agent-client/src/frame.rs 的 PromptAdmitted.skills：name + args。
+     */
+    skills: readonly { readonly name: string; readonly args?: string }[] = [],
   ): TranscriptOperation[] {
     const ordinal = at?.ordinal ?? this.#turn + 1
     const turn = turnId(ordinal)
@@ -110,7 +118,20 @@ export class TranscriptProjector {
           turnId: turn,
           ordinal,
           state: 'running',
-          origin: { kind: 'user' },
+          origin:
+            skills.length === 0
+              ? { kind: 'user' }
+              : {
+                  kind: 'user',
+                  payload: {
+                    kind: 'skill_activation',
+                    trigger: 'user-slash',
+                    skillActivations: skills.map((skill) => ({
+                      skillName: skill.name,
+                      ...(skill.args === undefined ? {} : { skillArgs: skill.args }),
+                    })),
+                  },
+                },
           prompt: text,
           startedAt: this.#startedAt,
           ...(promptId === undefined ? {} : { triggerPromptId: promptId }),
@@ -305,6 +326,49 @@ export class TranscriptProjector {
           state: 'running',
           input: call.args,
           ...(call.intent === undefined || call.intent === '' ? {} : { intent: call.intent }),
+        },
+      },
+    ]
+  }
+
+  /**
+   * 工具的中间结果：同一帧覆盖，state 仍是 running。
+   *
+   * 官方在 `tool_execution_update` 里发 partialResult（bash 的 tail 按 50ms 节流、
+   * edit 的实时 diff 走 openArgStream 的 tool_stream_update），从前这一帧被
+   * handleEvent 的 default 整条丢掉 —— 一条跑三分钟的 bash 屏幕上从「运行中」
+   * 直接跳到终态。接上它不改契约：frame.upsert 是整格替换，tool 帧本来就有 output。
+   *
+   * 入参与意图照旧要带回来（整格替换），否则中间态那一刻主语会消失。
+   */
+  toolUpdate(call: {
+    readonly toolCallId: string
+    readonly toolName: string
+    readonly partial: unknown
+  }): TranscriptOperation[] {
+    if (!this.#turnOpen) {
+      return []
+    }
+
+    const step = stepId(turnId(this.#turn), this.#step)
+    const id = this.#tools.get(call.toolCallId) ?? `tool.${call.toolCallId}`
+    const args = this.#args.get(call.toolCallId)
+    const intent = this.#intents.get(call.toolCallId)
+
+    return [
+      {
+        op: 'frame.upsert',
+        turnId: turnId(this.#turn),
+        stepId: step,
+        frame: {
+          kind: 'tool',
+          frameId: id,
+          toolCallId: call.toolCallId,
+          name: call.toolName,
+          state: 'running',
+          ...(args === undefined ? {} : { input: args }),
+          ...(intent === undefined ? {} : { intent }),
+          output: call.partial,
         },
       },
     ]

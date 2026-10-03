@@ -96,6 +96,93 @@ describe('omp 事件投影成 transcript ops', () => {
     expect(tool).toMatchObject({ state: 'done', input: { path: 'src/a.ts' } })
   })
 
+  /*
+   * 官方在 tool_execution_update 里发 partialResult（bash 的 tail 每 50ms 一次），
+   * 从前桥的 default 把它整条丢掉 —— 一条跑三分钟的 bash 屏幕上从「运行中」直接
+   * 跳终态。接上之后：同一帧被覆盖成中间输出，state 仍是 running，入参不丢。
+   */
+  it('工具的中间结果覆盖同一帧，状态仍是运行中且入参还在', () => {
+    const projector = new TranscriptProjector()
+    const ops: Op[] = [...projector.userTurn('跑一下')]
+
+    ops.push(
+      ...projector.toolStart({ toolCallId: 'c1', toolName: 'bash', args: { command: 'npm test' } }),
+    )
+    ops.push(
+      ...projector.toolUpdate({
+        toolCallId: 'c1',
+        toolName: 'bash',
+        partial: { stdout: '第一个用例过了' },
+      }),
+    )
+
+    const { turn } = settle(ops)
+    const tools = (turn('t1')?.steps[0]?.frames ?? []).filter((frame) => frame.kind === 'tool')
+
+    expect(tools).toHaveLength(1)
+    expect(tools[0]).toMatchObject({
+      kind: 'tool',
+      toolCallId: 'c1',
+      state: 'running',
+      input: { command: 'npm test' },
+      output: { stdout: '第一个用例过了' },
+    })
+  })
+
+  it('中间结果之后结果照旧覆盖同一帧，终态不被中间态挡住', () => {
+    const projector = new TranscriptProjector()
+    const ops: Op[] = [...projector.userTurn('跑一下')]
+
+    ops.push(...projector.toolStart({ toolCallId: 'c2', toolName: 'bash', args: {} }))
+    ops.push(...projector.toolUpdate({ toolCallId: 'c2', toolName: 'bash', partial: '半截' }))
+    ops.push(...projector.toolEnd({ toolCallId: 'c2', toolName: 'bash', result: '整段' }))
+
+    const { turn } = settle(ops)
+    const tools = (turn('t1')?.steps[0]?.frames ?? []).filter((frame) => frame.kind === 'tool')
+
+    expect(tools).toHaveLength(1)
+    expect(tools[0]).toMatchObject({ state: 'done', output: '整段' })
+  })
+
+  /*
+   * 挂了技能的那一句要把技能写进 origin：屏幕上的 chip 只认 origin.payload 的
+   * skillActivations（transcript-projector 的 skillNamesOf），而它从前全仓无生产者 ——
+   * 于是「这一句挂了技能」在任何一帧里都不存在，chip 永远画不出来。
+   */
+  it('挂技能的那一轮把技能写进 origin，屏幕据此画得出 chip', () => {
+    const projector = new TranscriptProjector()
+
+    const ops = projector.userTurn('看看这个', [], 'p1', undefined, undefined, [
+      { name: 'review' },
+      { name: 'ponytail', args: 'ultra' },
+    ])
+
+    const { turn } = settle(ops)
+    const origin = turn('t1')?.origin
+
+    expect(origin).toMatchObject({
+      kind: 'user',
+      payload: {
+        kind: 'skill_activation',
+        skillActivations: [{ skillName: 'review' }, { skillName: 'ponytail', skillArgs: 'ultra' }],
+      },
+    })
+  })
+
+  it('没挂技能时 origin 保持原样，不编一个空的技能表', () => {
+    const projector = new TranscriptProjector()
+
+    const { turn } = settle(projector.userTurn('没有技能'))
+
+    expect(turn('t1')?.origin).toEqual({ kind: 'user' })
+  })
+
+  it('没有开轮时的中间结果也被丢掉，不凭空造 turn', () => {
+    const projector = new TranscriptProjector()
+
+    expect(projector.toolUpdate({ toolCallId: 'x', toolName: 'bash', partial: '早' })).toEqual([])
+  })
+
   it('失败的工具调用落 error，并把结果写进 error 文案', () => {
     const projector = new TranscriptProjector()
     const ops: Op[] = [...projector.userTurn('跑一下')]

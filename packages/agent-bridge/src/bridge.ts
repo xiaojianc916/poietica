@@ -13,6 +13,7 @@ import path from 'node:path'
 import type { AgentSession, AgentSessionEvent } from '@oh-my-pi/pi-coding-agent'
 import {
   type AuthStorage,
+  buildSkillPromptMessage,
   createAgentSession,
   discoverAuthStorage,
   discoverSkills,
@@ -22,6 +23,7 @@ import {
   ModelRegistry,
   SessionManager,
   Settings,
+  SKILL_PROMPT_MESSAGE_TYPE,
   VERSION,
 } from '@oh-my-pi/pi-coding-agent'
 import {
@@ -104,6 +106,9 @@ type AgentMessage = ReturnType<SessionManager['buildSessionContext']>['messages'
  * 所以从 prompt 自己的入参上取 —— 它跟着 SDK 的签名走，不会与我们抄的一份分叉。
  */
 type PromptImage = NonNullable<NonNullable<Parameters<AgentSession['prompt']>[1]>['images']>[number]
+
+/* 上游展开一份 /skill: 交回的那一份（正文 + details），从它自己的函数上取，不抄第二份。 */
+type BuiltSkillPrompt = Awaited<ReturnType<typeof buildSkillPromptMessage>>
 
 /* 最后一条 assistant 消息 → 这一轮上报的 token 用量；没有消息或全零时缺席。 */
 function usageOf(
@@ -1739,7 +1744,7 @@ export function createBridge(host: BridgeHost): Bridge {
    * 同步返回：这一轮**不在这里 await**（为什么见下）。读盘与落 upsert 仍是同步做完的，
    * 所以「命令受理」时那几条 ops 已经发出去了。
    */
-  function sendPrompt(command: Extract<BridgeCommand, { type: 'prompt' }>): unknown {
+  async function sendPrompt(command: Extract<BridgeCommand, { type: 'prompt' }>): Promise<unknown> {
     const record = required()
     const images = readPromptImages(command.attachments)
     const imagePaths = command.attachments
@@ -1768,7 +1773,14 @@ export function createBridge(host: BridgeHost): Bridge {
 
     pushTranscript(
       record,
-      record.projector.userTurn(command.text, attachmentIds, command.promptId),
+      record.projector.userTurn(
+        command.text,
+        attachmentIds,
+        command.promptId,
+        undefined,
+        undefined,
+        command.skills,
+      ),
       true,
     )
 
@@ -1792,8 +1804,34 @@ export function createBridge(host: BridgeHost): Bridge {
      * 起不了一轮（模型/钥匙缺失、AgentBusyError）时没有 agent_end 可等，所以在这里
      * 就地补一条轮终 —— Rust 靠它收账，否则那一笔永远欠着。
      */
-    void record.agent
-      .prompt(command.text, images.length === 0 ? undefined : { images })
+    /*
+     * 挂了技能：走官方的展开路径，不是把字面命令丢给模型。
+     *
+     * 上游 `AgentSession.prompt()` **自己不解析** `/skill:` —— 全包只有 CLI、RPC、ACP、
+     * task 四处调 `parseSkillInvocation`，而它们都走 `promptCustomMessage`。所以我们
+     * 从前把 command.text 原样交出去时，模型收到的是字面 `/skill:review`，技能根本没跑。
+     *
+     * 照官方 RPC 宿主那 17 行写（modes/rpc/rpc-mode.ts:157-174）：查会话自己的技能表 →
+     * `buildSkillPromptMessage` 读出 SKILL.md 并渲染模板 → `promptCustomMessage` 带
+     * `SKILL_PROMPT_MESSAGE_TYPE` 投递。不自己发明格式、不自己读盘。
+     *
+     * 一次提交挂多枚 chip 时投一条消息、正文按顺序拼：`promptCustomMessage` 一次只投一条，
+     * 而多个技能本来就是「同一句话带上的几份上下文」，拆成几条会变成几轮。
+     */
+    const skills = command.skills ?? []
+    /*
+     * 展开要 await（要读 SKILL.md），投递不能 await（见下面那段注释）—— 所以先展开，
+     * 再拿结果去开轮。没有技能时这一步是空转。
+     */
+    const expanded = skills.length === 0 ? undefined : await expandSkills(record, skills)
+    const prompt =
+      expanded === undefined
+        ? record.agent.prompt(command.text, images.length === 0 ? undefined : { images })
+        : record.agent.promptCustomMessage(customSkillMessage(expanded, images), {
+            streamingBehavior: 'steer',
+          })
+
+    void prompt
       .then((forwarded) => {
         /* false = 上游把这句话就地处理掉了（斜杠命令），这一轮不会有 agent_end。 */
         if (!forwarded) {
@@ -1851,6 +1889,29 @@ export function createBridge(host: BridgeHost): Bridge {
   ): Promise<unknown> {
     const images = readPromptImages(command.attachments)
     const carried = images.length === 0 ? undefined : images
+
+    const skills = command.skills ?? []
+
+    if (skills.length > 0) {
+      /*
+       * 插话也挂了技能：同样走官方展开，不能把字面 /skill: 排进队列。
+       *
+       * 认领账本记的是**展开前**的正文（record.injections 按文本认领注入消息），
+       * 而注入进来的将是展开后的正文 —— 两者对不上。所以这里把**展开后**的正文
+       * 记进去：message_start 到的就是它（与 turn 那条路「投影写原文、投递写展开文」
+       * 不同，因为插话的正文完全由 agent 决定，我们只认它报回来的那一句）。
+       */
+      const expanded = await expandSkills(record, skills)
+
+      await record.agent.promptCustomMessage(customSkillMessage(expanded, images), {
+        streamingBehavior: deliverAs,
+        queueChipText: command.text,
+      })
+      record.injections.push({ text: expanded.text, deliverAs })
+      emitQueue(record)
+
+      return {}
+    }
 
     if (deliverAs === 'steer') {
       await record.agent.steer(command.text, carried)
@@ -2046,6 +2107,91 @@ export function createBridge(host: BridgeHost): Bridge {
   }
 
   /*
+   * 挂了技能的那一句话：走官方的展开路径。
+   *
+   * 上游把「技能 → 消息」这件事只做在一个地方（extensibility/skills.ts 的
+   * buildSkillPromptMessage：读 SKILL.md、剥 frontmatter、渲染 userInvocationTemplate），
+   * 四个宿主各自调它。我们自己读盘拼正文就是第二套格式，而模板是上游的、会变。
+   *
+   * 名字对不上会话自己的技能表时**不静默**：那一枚 chip 指着一个此刻不存在的技能，
+   * 报错比把字面命令送进模型好（后者是「看起来跑了其实没跑」）。
+   *
+   */
+  async function expandSkills(
+    record: Session,
+    skills: readonly { readonly name: string; readonly args?: string }[],
+  ): Promise<{
+    readonly first: BuiltSkillPrompt
+    readonly blocks: readonly BuiltSkillPrompt[]
+    readonly text: string
+  }> {
+    const known = new Map(record.agent.skills.map((skill) => [skill.name, skill]))
+    const blocks: BuiltSkillPrompt[] = []
+
+    for (const wanted of skills) {
+      const skill = known.get(wanted.name)
+
+      if (skill === undefined) {
+        throw new Error(`这个技能现在不在会话里：${wanted.name}`)
+      }
+
+      blocks.push(await buildSkillPromptMessage(skill, { args: wanted.args ?? '' }, 'user'))
+    }
+
+    /* 调用方只在 skills 非空时进来，所以第一份一定在；取它一次，省掉下游的断言。 */
+    const [first] = blocks
+
+    if (first === undefined) {
+      throw new Error('一次技能提交里没有任何技能')
+    }
+
+    /* 拼法与 textOf 同一条（text 块之间用 \n）：注入回来时认领账本按它比对。 */
+    return { first, blocks, text: blocks.map((block) => block.message).join('\n') }
+  }
+
+  /*
+   * 把展开好的技能交给 agent。正文块要写成 TextContent：customMessage 的 content 是
+   * 「文本块 + 图片」的联合数组，而 prompt() 的 content 收裸字符串（两条签名不一样）。
+   *
+   * details 原样带上游那一份（SkillPromptDetails）：自造一个形状会让渲染层认不出这是
+   * 技能消息。多个技能时取第一份 —— 上游一次只投一条消息，details 也只有一份的位置。
+   */
+  function customSkillMessage(
+    expanded: { readonly first: BuiltSkillPrompt; readonly blocks: readonly BuiltSkillPrompt[] },
+    images: readonly PromptImage[],
+  ) {
+    return {
+      customType: SKILL_PROMPT_MESSAGE_TYPE,
+      content: [
+        ...expanded.blocks.map((block) => ({ type: 'text' as const, text: block.message })),
+        ...images,
+      ],
+      display: true,
+      details: expanded.first.details,
+      attribution: 'user' as const,
+    }
+  }
+
+  /*
+   * 工具的中间结果。
+   *
+   * 官方为宿主专门发这一条：bash 的 tail 按 50ms 节流（bash-executor.ts:517）、
+   * edit 的实时 diff 走 openArgStream（agent-loop.ts:2101-2115）。从前它落进
+   * handleEvent 的 default 被整条丢掉 —— 长工具在屏幕上是「运行中」直接跳终态。
+   *
+   * partialResult 与 update 是两种形状，都当成 output 的中间值：投影层不解释它，
+   * 渲染层按工具自己的类别读（与终态的 output 同一条路）。
+   */
+  function toolUpdateOps(
+    record: Session,
+    toolCallId: string,
+    toolName: string,
+    partial: unknown,
+  ): ReturnType<TranscriptProjector['toolUpdate']> {
+    return record.projector.toolUpdate({ toolCallId, toolName, partial })
+  }
+
+  /*
    * 插话落地。
    *
    * 三层插话最终都走同一条上游事件：注入的消息被折进上下文时发
@@ -2220,6 +2366,21 @@ export function createBridge(host: BridgeHost): Bridge {
 
       case 'tool_execution_end':
         emitNow(record, toolEndOps(project, event))
+        break
+
+      /*
+       * 工具的中间结果。两条上游事件都接：execution_update 带 partialResult，
+       * stream_update 带 update（edit 的实时 diff）。从前它们落进 default 被丢掉。
+       */
+      case 'tool_execution_update':
+        emitNow(
+          record,
+          toolUpdateOps(record, event.toolCallId, event.toolName, event.partialResult),
+        )
+        break
+
+      case 'tool_stream_update':
+        emitNow(record, toolUpdateOps(record, event.toolCallId, event.toolName, event.update))
         break
 
       case 'notice':
