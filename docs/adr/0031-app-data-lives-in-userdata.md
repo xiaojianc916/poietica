@@ -2,8 +2,8 @@
 
 ## 状态
 
-已接受，已落地。改 `apps/desktop/electron/main.ts` 的数据根、新增
-`apps/desktop/electron/data-root.ts` 的一次性搬迁，并同步 `docs/architecture/data-layout.md`。
+已接受，已落地。改 `apps/desktop/electron/main.ts` 的数据根，并同步
+`docs/architecture/data-layout.md`。
 
 ## 背景
 
@@ -22,8 +22,9 @@
 安装目录里，`ledger.sqlite3` 是 4KB 的空库，`threads` 只有 1 行 —— 全部是更新后重建的。
 
 复核时同时看到另外两笔旧账：0.4.2 把安装版的数据根从 `%APPDATA%\Poietica` 改成 exe
-旁边，那次换根没有迁移，所以 0.4.2 用户的旧对话留在 `%APPDATA%\Poietica`（开发构建
-的位置）里；再往前 Tauri 时代的 `%APPDATA%\@poietica\desktop` 也还留着。
+旁边，那次换根没有迁移；再往前 Tauri 时代的 `%APPDATA%\@poietica\desktop` 也还留着。
+（当时补过一次「从老位置搬过来」的一次性代码；这个软件尚未发布，那份代码与它读的老
+位置后来一起删了 —— 盘上不再有需要兼容的数据。）
 
 ## 决定
 
@@ -49,22 +50,10 @@
 - 开发构建：`app.getPath('appData')/Poietica Dev`，与安装版分家（数据根就是 userData
   之后，共用会让两者同时打开同一份账本与同一个 agent 受控 home）。
 
-### 搬迁是应用自己的责任，而且有边界
+### 盘上不留第二份
 
-`data-root.ts` 在启动时把老位置上**还在的**状态搬进来（设置、档案、账本三件套、
-agent 受控 home、附件、插件、projectless），冲突时新根赢，搬完删源。
-
-**必须先说清楚它救不了什么**：0.4.3 → 第一个修复版这一步，删数据的是 0.4.3 那个
-卸载器，它在新版启动之前就跑完了，那时新版还没有搬迁代码。所以文档里写明这一步要
-用户手工把数据复制出来。往后不再需要。
-
-搬迁是**一次性**的：老位置不会再有新数据，等不再有人从 0.4.3 升上来，那份清单与函数
-一起删（AGENTS.md §8：一次性迁移代码要写明删除条件）。
-
-### 不放进去的东西
-
-`logs` / `tmp` / `cache`（丢了能重新长出来）与 `tools`（60MB 的解释器，用到时重装）
-不搬：搬迁只搬用户自己造不回来的东西。
+数据根只有一处（`app.setPath('userData', …)`），启动时只把目录建出来，不读也不搬
+任何别的位置 —— 未发布的软件，磁盘上不存在需要兼容的第二份形态。
 
 ## 后果
 

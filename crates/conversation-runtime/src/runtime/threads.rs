@@ -426,6 +426,11 @@ where
 
 #[cfg(test)]
 mod tests {
+    #![allow(
+        clippy::assert_is_empty,
+        reason = "an internal judgement on a collection must not gate the suite"
+    )]
+
     use super::{CommandError, ForkBinding, SessionError, bind_fork};
     use poietica_agent_client::{AgentError, Refusal};
     use poietica_ledger::execution::{IndexError, LocalIndex, read_index, write_index};

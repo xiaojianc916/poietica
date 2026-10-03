@@ -192,6 +192,11 @@ mod submission_tests {
         clippy::expect_used,
         reason = "transaction failures must fail their fixtures"
     )]
+    #![allow(
+        clippy::assert_is_empty,
+        reason = "an internal judgement on a collection must not gate the suite"
+    )]
+
     use super::*;
     use crate::index::ThreadAttachment;
     use poietica_conversation::turn::DeliverAs;

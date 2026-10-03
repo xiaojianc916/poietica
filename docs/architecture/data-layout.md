@@ -20,8 +20,8 @@
 userData 不在安装器的射程内，这条冲突从根上不存在。
 
 **开发构建另立一个目录。** 数据根就是 userData 之后，两者共用会让开发版与安装版同时
-打开同一份账本、同一个 agent 受控 home（0.4.3 之前正是如此）。Chromium 自己的状态
-（缓存、分区存储）也跟着这个目录分家。
+打开同一份账本、同一个 agent 受控 home。Chromium 自己的状态（缓存、分区存储）也跟着
+这个目录分家。
 
 ## 根下面有什么
 
@@ -29,26 +29,36 @@ userData 不在安装器的射程内，这条冲突从根上不存在。
 | --- | --- | --- |
 | `settings.json` | 主题、语言、快捷键、隐私开关 | 回到默认设置 |
 | `agents.json` | agent 接入档案（一份文档） | 内置档案下次启动重新落盘 |
-| `automations.json` | 自动化定义 | 自动化全部消失 |
-| `ledger.sqlite3` | 本机账本：对话索引、帧日志、附件索引、准入 | 对话列表清空 |
+| `ledger.sqlite3` | 本机账本：对话索引、帧日志、附件索引、准入、用量 | 对话列表与用量清空 |
 | `attachments/` | 附件字节，内容寻址 | 历史对话里的附件打不开 |
 | `agents/<id>/home/` | agent 自己的配置，含 API 密钥 | 需要重新配置 provider |
 | `plugins/` | 装进来的插件的托管副本与 `installed.json` | 插件全部回到未安装 |
 | `projectless/` | 无项目会话的工作目录根 | 那些会话的工作目录消失 |
 | `tools/` | 本应用自己装的工具（内置 Python 解释器） | 下次用到时重新下载 |
 | `logs/`、`tmp/`、`cache/` | 日志、暂存、可从上游重取的东西 | 无影响 |
+| `automation.lock` | 自动化执行权的排他锁 | 下次启动重新取得 |
 
 `ledger.sqlite3` 开在 WAL 模式下，磁盘上实际是三个文件：它，加上同名的 `-wal`
 与 `-shm`。备份要带上 `-wal`，只拷主文件会丢掉最近一段还没并回去的写入；
 `-shm` 不必带，无连接时可安全删除并会被重建。
 
+### 为什么只有一个库文件
+
+设置与接入档案是**可手改的文档**，它们留在 `settings.json` 与 `agents.json` 里，一处改一处看。
+其余全部是本机账：对话索引、帧账、准入、附件索引、用量、自动化目录 —— 它们同进同出、
+要跨表一致，所以住同一个 SQLite 文件。
+
+它的形状只有一份说明：`crates/ledger/src/schema.sql`。**没有版本号表，没有迁移链。**
+这个软件还没有发布过，磁盘上不存在别的形状，所以也没有「把旧的补齐」这件事：
+改形状 = 改那个文件 + 删掉用户盘上这一个库。真要发版之后再谈迁移。
+
 ## 内核那摊子
 
 Chromium 自己写的东西（`Cache/`、`Code Cache/`、`GPUCache/`、`Partitions/`、
 `Local State`、`Preferences` 等）不在数据根里，而在 `<数据根>/session/` —— 也就是
-Electron 的 `sessionData`，由 `apps/desktop/electron/session-directory.ts` 在 app ready
-之前钉住。那不是我们的数据，格式与生命周期归 Electron；单独放一层是为了让「这个应用
-占了多大地方」与「清理该清哪一处」各有单一答案。备份与搬迁都整个忽略 `session/`。
+Electron 的 `sessionData`，由 `apps/desktop/electron/main.ts` 在 app ready 之前钉住。
+那不是我们的数据，格式与生命周期归 Electron；单独放一层是为了让「这个应用占了多大地方」
+与「清理该清哪一处」各有单一答案。备份与搬迁都整个忽略 `session/`。
 
 设置页的「存储」一格读的就是这份布局：分类占用由主进程数出来
 （`apps/desktop/electron/storage.ts`），可清的两类是内核缓存与内置浏览器数据，
@@ -61,21 +71,6 @@ Electron 的 `sessionData`，由 `apps/desktop/electron/session-directory.ts` �
 
 旧文件不会被留在安装目录里：模板在升级路径上把 `$INSTDIR` 整个搬走再删掉，
 安装器再写进新版的文件。
-
-## 从 ≤0.4.3 升上来
-
-≤0.4.3 的数据根有两处：安装版是 exe 所在目录，开发构建是 `%APPDATA%\Poietica`。
-新版第一次启动时会按 `apps/desktop/electron/data-root.ts` 的清单把**还在老位置上的**
-状态搬过来，冲突时新根赢，搬完删掉老位置里那一份。
-
-⚠️ **0.4.3 → 第一个修复版这一步，应用救不了自己**：清掉安装目录的是**旧版**的卸载器，
-它在新版启动之前就跑完了，那时新版还没有搬迁代码。所以从 ≤0.4.3 升级前要手工把
-`$(安装目录)` 里的 `ledger.sqlite3*`、`agents\`、`attachments\`、`settings.json`、
-`agents.json` 复制到别处，装完再放进 `%APPDATA%\Poietica`。往后不再需要这一步。
-
-搬迁是一次性的：老位置不会再有新数据，`logs` / `tmp` / `cache` 不搬（丢了能重新长出来），
-`tools` 也不搬（60MB 的解释器，用到时重装）。等不再有人从 0.4.3 升上来，那份清单与
-搬迁函数一起删。
 
 ## 卸载
 

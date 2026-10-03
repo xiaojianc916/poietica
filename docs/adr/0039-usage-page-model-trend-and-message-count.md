@@ -12,8 +12,9 @@
   （它同样过准入）。窗口按**时刻**切，不按日历格 —— 今天这一格还没过完，按格数
   等于少算半天。命令 usage_message_count(span)。
 - **按模型的日账与合计同一次事务写**：token_model_days(day, model, tokens) 与
-  token_days 并列，同一笔 token 进两张表，一张给合计、一张给趋势图。没带模型的
-  那一笔只进合计 —— 编一个模型名比少画一条线更糟。命令 usage_model_days(span)。
+  日合计的唯一一份：合计是它的部分和，不再另存一张 token_days（两处数字迟早对不上）。
+  没带模型的那一笔落进 'unattributed' 行 —— 编一个模型名比少画一条线更糟，而丢掉它会让
+  合计悄悄小于真实花销。命令 usage_model_days(span)。
 - **模型名跟着用量报数走**：omp 的 session.model 在桥那一侧拼成 provider/id
   （与 selectors 那一格逐字相同），随 usage 帧上行，落进 token_model_days。
   这是**报表字段**，不是第二次统计：账本只按到达的那一份记，不自己反推模型。
@@ -22,9 +23,7 @@
 
 ## 影响
 
-- 迁移 0017 建 token_model_days；一条 shipped 的迁移永不修改。
+- `token_model_days` 在 `crates/ledger/src/schema.sql` 里，是日账的唯一一份。
 - IPC 面新增只读命令 usage_model_days 与 usage_message_count。
 - SessionUsageSnapshot / SessionUsage 各多一格 model：两处因此不再是 Copy。
-- 按模型的账**从这次升级起**才有得记：升级前的 token 只有合计，趋势图因此画不出
-  旧日子 —— 这是如实的缺席，不是 0。
-- 存量 session_usage 行没有模型那一格，打开旧对话时趋势图不画它，等下一份报数。
+- 没带模型的那一笔只进合计，趋势图因此画不出那一天的那条线 —— 这是如实的缺席，不是 0。

@@ -44,6 +44,8 @@ interface Tab {
   url: string | null
   title: string
   loading: boolean
+  /** 站点自己声明的那一枚图标；内核抓的，没声明就是 null。 */
+  favicon: string | null
   /** 上一次下发到内核的可见性；拖动面板时每帧都会来，同值不必再叫一次内核。 */
   shown: boolean
   view: WebContentsView
@@ -97,6 +99,10 @@ export interface BrowserHost {
   setBounds(rect: Rectangle): void
   /** 窗口尺寸变了但面板矩形没变时重摆一次；矩形本身归渲染层上报。 */
   relayout(): void
+  /** 标签的缩放；0 表示恢复内核默认那一档。 */
+  setZoom(id: number, level: number): void
+  /** 内核此刻的缩放档；标签不在就是 0（默认那一档）。 */
+  zoom(id: number): number
   setVisible(visible: boolean): void
   setElementPicker(id: number, enabled: boolean, theme: 'light' | 'dark'): void
   dispose(): void
@@ -214,8 +220,7 @@ export function createBrowserHost(
         url: tab.url,
         title: tab.title,
         loading: tab.loading,
-        // 图标原来由 reqwest 取回压成 data:；渲染层还没有消费者，先不假装有。
-        favicon: null,
+        favicon: tab.favicon,
       })),
       activeTabId,
       pickingTabId: picker.activeTabId(),
@@ -357,6 +362,9 @@ export function createBrowserHost(
 
     const contents = view.webContents
 
+    /* 缩放按标签隔离，不按 origin 共享：面板给每一格发了自己的缩放键（见 setZoom）。 */
+    contents.setZoomMode('isolated')
+
     // 外站不许开自己的窗口：http(s) 交给宿主开一个新标签（原来的 on_new_window），其余直接丢。
     contents.setWindowOpenHandler(({ url }) => {
       if (isWebAddress(url)) {
@@ -409,6 +417,18 @@ export function createBrowserHost(
       }
     })
 
+    /* 图标由内核按页面声明的 <link rel="icon"> 取回（crates/browser 那套 reqwest 抓取的
+       对应物）。候选按优先级给，取第一个能用的；站点没声明时 Electron 交回空数组。 */
+    contents.on('page-favicon-updated', (_event, favicons) => {
+      const tab = find(id)
+      const icon = favicons.find((candidate) => candidate.length > 0) ?? null
+
+      if (tab !== undefined && tab.favicon !== icon) {
+        tab.favicon = icon
+        publish()
+      }
+    })
+
     contents.on('did-start-loading', () => {
       setLoading(id, true)
     })
@@ -443,6 +463,7 @@ export function createBrowserHost(
       url: normalized,
       title: normalized === null ? '新标签页' : displayHost(normalized),
       loading: normalized !== null,
+      favicon: null,
       shown: false,
       view: createView(id),
     }
@@ -639,6 +660,20 @@ export function createBrowserHost(
       layout()
     },
 
+    /*
+     * 缩放归内核：setZoomLevel / getZoomLevel 是 Electron 自己那条路，0 是默认那一档。
+     *
+     * 内核默认按 origin 记缩放（同源的所有视图共用一个档），而面板上每一格标签各有自己的
+     * 缩放键 —— 所以视图建成时把模式点成 isolated，让「一格一档」真的成立。
+     */
+    setZoom(id, level) {
+      find(id)?.view.webContents.setZoomLevel(level)
+    },
+
+    zoom(id) {
+      return find(id)?.view.webContents.getZoomLevel() ?? 0
+    },
+
     setVisible(next) {
       if (!next) {
         stopPicker(null)
@@ -712,14 +747,18 @@ function asArgs(args: unknown): Record<string, unknown> {
 
 export type BrowserCommandResult = { handled: true; value: unknown } | { handled: false }
 
-/** 只要一个标签 id 的那几条：一张表比十四个 case 短，也不会漏掉「id 不是数字就不动手」。 */
-const TAB_COMMANDS: Record<string, (host: BrowserHost, id: number) => void> = {
+/**
+ * 只要一个标签 id 的那几条：一张表比十四个 case 短，也不会漏掉「id 不是数字就不动手」。
+ * 返回值原样上屏 —— 不返回的几条就是 null，读的那一条（browser_zoom）交回内核的档。
+ */
+const TAB_COMMANDS: Record<string, (host: BrowserHost, id: number) => unknown> = {
   browser_close_tab: (host, id) => host.closeTab(id),
   browser_select_tab: (host, id) => host.selectTab(id),
   browser_back: (host, id) => host.back(id),
   browser_forward: (host, id) => host.forward(id),
   browser_reload: (host, id) => host.reload(id),
   browser_print: (host, id) => host.print(id),
+  browser_zoom: (host, id) => host.zoom(id),
 }
 
 function rectangleOf(values: Record<string, unknown>): Rectangle | null {
@@ -777,6 +816,16 @@ export function applyBrowserCommand(
       return { handled: true, value: null }
     }
 
+    case 'browser_set_zoom': {
+      const level = asNumber(values['level'])
+
+      if (id !== null && level !== null) {
+        host.setZoom(id, level)
+      }
+
+      return { handled: true, value: null }
+    }
+
     case 'browser_set_bounds': {
       const rectangle = rectangleOf(values)
 
@@ -813,9 +862,5 @@ export function applyBrowserCommand(
     return { handled: false }
   }
 
-  if (id !== null) {
-    action(host, id)
-  }
-
-  return { handled: true, value: null }
+  return { handled: true, value: id === null ? null : action(host, id) }
 }

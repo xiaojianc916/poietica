@@ -78,6 +78,25 @@ export function createAttachmentIntake(): AttachmentIntake {
     })
   }
 
+  const pasteBytes = async (input: {
+    readonly bytes: Uint8Array
+    readonly filename: string
+  }): Promise<ComposerAsset> => {
+    const sessionToken = await composerSession()
+    const stored = await uploadAsset(sessionToken, input.bytes.toBase64())
+
+    return {
+      sessionToken,
+      assetToken: stored.assetToken,
+      url: stored.source,
+      filename: input.filename.length > 0 ? input.filename : `pasted-${crypto.randomUUID()}`,
+      mediaType: stored.contentType,
+      size: stored.byteLength,
+      // 剪贴板与拖放这两条路只可能是图片（截图没有路径，走 base64 上传）。
+      kind: 'image',
+    }
+  }
+
   return {
     import: intake,
 
@@ -100,8 +119,31 @@ export function createAttachmentIntake(): AttachmentIntake {
       let last = ''
       let reset: ReturnType<typeof setTimeout> | undefined
 
-      stop = watchDroppedPaths((paths) => {
+      stop = watchDroppedPaths((paths, files) => {
         if (cancelled) {
+          return
+        }
+
+        /* 没有路径的那些（截图、拖出来的临时物）：字节只在这一层过一手。 */
+        for (const file of files) {
+          void file
+            .arrayBuffer()
+            .then((buffer) => pasteBytes({ bytes: new Uint8Array(buffer), filename: file.name }))
+            .then(
+              (asset) => {
+                if (cancelled) {
+                  discard(asset)
+                  return
+                }
+                onDropped([asset])
+              },
+              (cause: unknown) => {
+                warn('拖放附件未能接收', { scope: 'attachment-intake', cause })
+              },
+            )
+        }
+
+        if (paths.length === 0) {
           return
         }
 
@@ -154,21 +196,7 @@ export function createAttachmentIntake(): AttachmentIntake {
       }
     },
 
-    async paste(input) {
-      const sessionToken = await composerSession()
-      const stored = await uploadAsset(sessionToken, input.bytes.toBase64())
-
-      return {
-        sessionToken,
-        assetToken: stored.assetToken,
-        url: stored.source,
-        filename: input.filename.length > 0 ? input.filename : `pasted-${crypto.randomUUID()}`,
-        mediaType: stored.contentType,
-        size: stored.byteLength,
-        // 剪贴板这条路只可能是图片（截图没有路径，走 base64 上传）。
-        kind: 'image',
-      }
-    },
+    paste: pasteBytes,
 
     discard,
   }

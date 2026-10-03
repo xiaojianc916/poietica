@@ -21,7 +21,7 @@ import {
   Loader2,
   SquareTerminal,
 } from 'lucide-react'
-import { type ReactNode, useEffect, useMemo, useState } from 'react'
+import { type ReactNode, useMemo } from 'react'
 import type { SessionGoal } from '../../agent/goal'
 import type {
   BackgroundTaskItem,
@@ -33,6 +33,7 @@ import type {
 import { useOptionalThreadGoal } from '../configuration/session-controls-context'
 import { GOAL_CONTROL_ID, GOAL_PAUSED, GOAL_RESUMED } from '../goal/goal-control'
 import type { WorkspaceGitStatus } from '../goal/workspace-git-status'
+import { useSecond } from '../primitives/clock'
 import { GitBranchPicker, type GitBranchPickerProps } from '../threads/git-branch-picker'
 import {
   useAssistantBackgroundTasks,
@@ -52,20 +53,6 @@ const SECTION_SCROLL_CLASS: Record<SectionKind, string | null> = {
   todo: 'status-panel__scroll--todo',
   agents: 'status-panel__scroll--agents',
   terminals: 'status-panel__scroll--terminals',
-}
-
-/* 秒针：有任一运行中的行才每秒推一次 now；静止时组件不重渲染。 */
-function useNowTicker(active: boolean): number {
-  const [now, setNow] = useState(() => Date.now())
-  useEffect(() => {
-    if (!active) {
-      return undefined
-    }
-    setNow(Date.now())
-    const timer = setInterval(() => setNow(Date.now()), 1000)
-    return () => clearInterval(timer)
-  }, [active])
-  return now
 }
 
 /* 同 ZCode formatBackgroundTaskElapsedLabel：分钟档「已运行 M 分 S 秒」，秒档「已运行 S 秒」。 */
@@ -357,7 +344,7 @@ function GoalSection({
   readonly separated: boolean
 }) {
   const ticking = goal.status === 'active'
-  const now = useNowTicker(ticking)
+  const now = useSecond(ticking)
   const elapsed = formatDuration(goalElapsedSeconds(goal, now))
 
   return (
@@ -550,7 +537,7 @@ function AgentsSection({
    * 早退写在 hook 之前会让同一组件的 hook 顺序随数据变化，是 React 的硬错。
    */
   const ticking = agents.length > 0
-  const now = useNowTicker(ticking)
+  const now = useSecond(ticking)
   /* 与 ZCode 同：子代理按启动先后排，投影本身无序。 */
   const ordered = useMemo(
     () => [...agents].sort((left, right) => left.startedAt - right.startedAt),
@@ -630,7 +617,7 @@ function TerminalsSection({
 }) {
   /* hook 先于闸门：早退写在 hook 之前会让同一组件的 hook 顺序随数据变化，是 React 的硬错。 */
   const running = tasks.filter((task) => task.status === 'running' && task.startedAt !== undefined)
-  const now = useNowTicker(running.length > 0)
+  const now = useSecond(running.length > 0)
   /* 没有后台任务就整格不提，同待办事项：空表画一行「暂无」是废话。 */
   if (tasks.length === 0) {
     return null

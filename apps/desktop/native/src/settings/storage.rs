@@ -1,13 +1,9 @@
 use super::model::AppSettings;
 use super::repository::SettingsRepository;
-use crate::error::{Error, Result};
+use crate::error::Result;
 use poietica_problem::Problem;
-use serde_json::{Map, Value};
-use std::{
-    fs,
-    io::{ErrorKind, Write},
-    path::PathBuf,
-};
+use std::path::PathBuf;
+
 const SETTINGS_KEY: &str = "settings";
 #[derive(Debug)]
 pub(crate) struct FileSettingsRepository {
@@ -17,35 +13,18 @@ impl FileSettingsRepository {
     pub(crate) fn new(path: PathBuf) -> Self {
         Self { path }
     }
-    fn document(&self) -> Result<Map<String, Value>> {
-        match fs::read(&self.path) {
-            Ok(bytes) => Ok(serde_json::from_slice(&bytes)?),
-            Err(error) if error.kind() == ErrorKind::NotFound => Ok(Map::new()),
-            Err(error) => Err(Error::Io(error)),
-        }
-    }
     fn write(&self, settings: &AppSettings) -> Result<()> {
-        let mut document = self.document()?;
-        document.insert(SETTINGS_KEY.into(), serde_json::to_value(settings)?);
-        let directory = self
-            .path
-            .parent()
-            .ok_or_else(|| Error::Validation("Settings path has no parent".into()))?;
-        fs::create_dir_all(directory)?;
-        let mut temporary = tempfile::NamedTempFile::new_in(directory)?;
-        serde_json::to_writer_pretty(&mut temporary, &document)?;
-        temporary.write_all(b"\n")?;
-        temporary.as_file().sync_all()?;
-        let _file = temporary
-            .persist(&self.path)
-            .map_err(|failure| Error::Io(failure.error))?;
-        Ok(())
+        crate::json_document::write_document(
+            &self.path,
+            SETTINGS_KEY,
+            &serde_json::to_value(settings)?,
+        )
     }
 }
 impl SettingsRepository for FileSettingsRepository {
     fn load(&self) -> std::result::Result<AppSettings, Problem> {
         let result = (|| -> Result<AppSettings> {
-            let document = self.document()?;
+            let document = crate::json_document::read_document(&self.path)?;
             match document.get(SETTINGS_KEY) {
                 Some(value) => Ok(serde_json::from_value(value.clone())?),
                 None => Ok(AppSettings::default()),

@@ -19,8 +19,8 @@ ADR 0016 说 omp 是唯一的 agent，但 agents.json 一直是**接入档案的
 档案就是那一份文档，全链路不再有 agent 身份：
 
 - **落盘**：agents.json 里 `agentConfig` 那一格从 `{agents: [...], defaultAgentId}` 变成
-  档案本身（`{id, command, entry, ...}`），不再包一层数组。native 的 `read_profile` 认旧形状
-  就取第一条并顺手改写；那个读法与它的单测留在 `profile.rs`，注明等没人从 ≤0.4.3 升上来就删。
+  档案本身（`{id, command, entry, ...}`），不再包一层数组。native 的 `read_profile` 只认
+  新形状 —— 当时留过一个「认旧形状就取第一条并顺手改写」的读法，随未发布约束一起删了。
 - **TS**：`resolveAgentProfile(stored: unknown)` 就地校验 + 投影；`FOREIGN_ISSUE` /
   `DUPLICATE_ISSUE` 随名单一起删。线上快照是 `{profile: JsonValue | null, issues}` ——
   `issues` 就是原有的「问题」那一列，没有改名。
@@ -45,9 +45,8 @@ ADR 0016 说 omp 是唯一的 agent，但 agents.json 一直是**接入档案的
 - `bun run typecheck`、`bun test`、`cargo clippy -- -D warnings`、`ipc:check` 全绿。
 - 全仓不再有 `AgentLaunch`/`agentConfigSaveAgents`/`defaultAgentId`/`displayName`（agent
   描述符那一格）的引用。
-- 旧盘 `agentConfig` 里的 `{agents: [...]}` 第一次读时抬升成档案，抬升后落盘的就是新形状。
+- `agentConfig` 那一格就是档案本身；旧形状不再被认。
 
 ## 影响
 
-`agents.json` 里 `agentConfig` 那一格的形状变了。手改过那一份文件的用户：旧形状仍被读一次
-并改写。档案里各键的名字与含义都没变。
+`agents.json` 里 `agentConfig` 那一格的形状变了。档案里各键的名字与含义都没变。

@@ -1,5 +1,3 @@
-import { Readable } from 'node:stream'
-
 /*
  * poietica-asset:// 的应答端：渲染层 <img> 的预览字节从这里出。
  *
@@ -186,9 +184,18 @@ export function createAssetProtocolHandler(
       return new Response(null, { status: 404 })
     }
 
-    /* ReadableStream 在 node:stream 与 DOM 里各有一份类型声明，运行时是同一个对象：
-       Response 直接收得下，断言只是让编译器相信这件事。 */
-    const body = (bytes: Buffer): BodyInit => Readable.toWeb(Readable.from(bytes)) as BodyInit
+    /*
+     * 字节直接当 body：不必先折成 Node 可读流再转 Web 流。
+     *
+     * 零拷贝的 Uint8Array 视图，不是复制 —— 32 MiB 的资产不该为了换个类型多拷一遍。
+     *
+     * 那个 cast 只是为了让类型过关：Buffer.buffer 声明成 ArrayBufferLike。运行期这条
+     * 路线要求字节真的是 ArrayBuffer 支撑的（SAB 支撑的视图在 Node 这一侧会被当字符串
+     * 处理，实测交回 "1,2,3..." 而不是字节）—— 生产上这个 Buffer 来自
+     * main.ts 的 Buffer.from(base64)，正是 ArrayBuffer 支撑的。
+     */
+    const body = (bytes: Buffer): BodyInit =>
+      new Uint8Array(bytes.buffer as ArrayBuffer, bytes.byteOffset, bytes.byteLength)
     const total = asset.totalLength
 
     if (wanted === null) {

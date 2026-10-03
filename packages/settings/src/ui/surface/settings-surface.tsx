@@ -638,7 +638,7 @@ const GeneralSettings = memo(function GeneralSettings({
 
         <ToggleRow
           checked={settings.general.notifyOnCompletion}
-          description="长任务结束时发一条系统通知，窗口在前台时不打扰"
+          description="长任务结束时发一条系统通知；窗口在前台时只留屏幕上那一条"
           label="完成时通知"
           onChange={(checked) => {
             controller.update((current) => ({

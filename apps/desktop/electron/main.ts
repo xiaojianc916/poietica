@@ -6,7 +6,7 @@
  * update.ts（更新同样是宿主的能力）。
  */
 import { readFile, writeFile } from 'node:fs/promises'
-import { dirname, join } from 'node:path'
+import { join } from 'node:path'
 import type { IpcMainInvokeEvent, Session } from 'electron'
 import {
   app,
@@ -15,6 +15,7 @@ import {
   dialog,
   ipcMain,
   Menu,
+  Notification,
   nativeImage,
   nativeTheme,
   protocol,
@@ -27,12 +28,12 @@ import { createAssetProtocolHandler } from './asset-protocol'
 import type { BrowserHost } from './browser/host'
 import { applyBrowserCommand, BROWSER_PARTITION, createBrowserHost } from './browser/host'
 import { type BrowserRelay, createBrowserRelay, DEFAULT_RELAY_URL } from './browser/relay'
-import { adoptDataRoot } from './data-root'
+import { prepareDataRoot } from './data-root'
 import type { Router } from './ipc-router'
 import { createRouter } from './ipc-router'
 import type { NativeHost } from './native'
 import { loadNative } from './native'
-import { installSessionDirectory } from './session-directory'
+import { SESSION_DIRECTORY } from './session-directory'
 import { createStorageCommands, type StorageCommands, type StorageSessionPort } from './storage'
 import type { UpdateCommands } from './update'
 import { createUpdateCommands, loadUpdater } from './update'
@@ -115,9 +116,22 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
 }
 
+/*
+ * 窗口清单归 Electron 自己持有：广播就是遍历 BrowserWindow.getAllWindows()。
+ *
+ * 不用一个「唯一窗口」的指针当闸门 —— 那个指针在窗口重建、托盘唤起与「关掉再打开」
+ * 这三条路上都要人工跟着改，而框架本来就知道现在有哪几个窗口。窗口销毁后 getAllWindows
+ * 里就没有它，isDestroyed 只是防同一拍里的竞态。
+ *
+ * 今天这个应用只建一个窗口（devtools 与内置浏览器都是 WebContentsView / 独立 devtools
+ * 目标，不是 BrowserWindow），所以这条广播的收件人恰好是一个 —— 但收件人由框架数，不由
+ * 这份代码假定。
+ */
 function send(channel: string, payload: unknown): void {
-  if (mainWindow !== null && !mainWindow.isDestroyed()) {
-    mainWindow.webContents.send(channel, payload)
+  for (const win of BrowserWindow.getAllWindows()) {
+    if (!win.isDestroyed()) {
+      win.webContents.send(channel, payload)
+    }
   }
 }
 
@@ -461,6 +475,14 @@ function isPickOptions(value: unknown): value is PickOptions {
   )
 }
 
+function isNotificationRequest(value: unknown): value is { title: string; body: string } {
+  if (!isRecord(value)) {
+    return false
+  }
+
+  return typeof value['title'] === 'string' && typeof value['body'] === 'string'
+}
+
 function isSurfaceColor(value: unknown): value is readonly [number, number, number] {
   if (!Array.isArray(value) || value.length !== 3) {
     return false
@@ -566,6 +588,7 @@ function installHandlers(win: BrowserWindow): void {
 
         return ok(null)
 
+      /* 初值那一格：Electron 只在变化时推事件，没有「此刻是不是最大化」的推送快照。 */
       case 'isMaximized':
         return ok(win.isMaximized())
 
@@ -660,6 +683,26 @@ function installHandlers(win: BrowserWindow): void {
     return ok(app.getVersion())
   })
 
+  /*
+   * 长任务跑完时的一声：只有窗口不在前台才发 —— 人正看着屏幕的时候弹一条系统通知，
+   * 是把「已经看见的事」再说一遍。前台判定归宿主（Electron 自己知道窗口有没有焦点）。
+   */
+  ipcMain.handle('poietica:notify', (event, request: unknown): Reply => {
+    if (!fromMainWindow(event, win)) {
+      return refusal(DENIED)
+    }
+
+    if (!isNotificationRequest(request)) {
+      return refusal('poietica: requestInvalid — 通知要有 title 与 body 两个字符串')
+    }
+
+    if (!win.isFocused() && Notification.isSupported()) {
+      new Notification({ title: request.title, body: request.body, icon: iconPath() }).show()
+    }
+
+    return ok(null)
+  })
+
   ipcMain.handle('poietica:set-surface', (event, color: unknown): Reply => {
     if (!fromMainWindow(event, win)) {
       return refusal(DENIED)
@@ -743,10 +786,10 @@ function installHandlers(win: BrowserWindow): void {
  * 仍是 `%APPDATA%\Electron`）。
  *
  * 不钉的后果：数据根跟着包名跑（`%APPDATA%\@poietica\desktop`），换一次包名就等于
- * 换一个数据根，用户的对话与设置全留在旧目录里 —— 表现为「连不上 agent」。
+ * 换一个数据根，对话与设置全留在旧目录里 —— 表现为「连不上 agent」。
  * 这个名字与 electron-builder.yml 的 productName 是同一个。
  *
- * **开发构建另立一个目录**：数据根就是 userData（见下面的 `dataRootDirectory`），
+ * **开发构建另立一个目录**：数据根就是 userData（正本 docs/architecture/data-layout.md），
  * 两者共用会让开发版与安装版同时写同一份账本、同一个 agent 受控 home。
  *
  * **内核那摊子再往下分一层**：Chromium 的缓存、代码缓存与分区存储归 sessionData，
@@ -762,7 +805,9 @@ const DATA_ROOT = join(
 
 app.setName(APPLICATION_NAME)
 app.setPath('userData', DATA_ROOT)
-app.setPath('sessionData', installSessionDirectory(DATA_ROOT))
+/* 内核那一摊也住在数据根下面的一层：Chromium 自己会在 <数据根>/session 里铺它要的一切，
+   所以这里只报落点，不预先建目录、不搬任何东西。 */
+app.setPath('sessionData', join(DATA_ROOT, SESSION_DIRECTORY))
 
 /*
  * Windows 的 AppUserModelID。
@@ -773,32 +818,6 @@ app.setPath('sessionData', installSessionDirectory(DATA_ROOT))
  * 两边不一致会把同一个应用劈成两个身份。
  */
 app.setAppUserModelId('com.poietica.Poietica')
-
-/**
- * 数据根 —— Electron 的 userData，一处决定（正本 docs/architecture/data-layout.md）。
- *
- * 安装版曾经把数据放在 exe 旁边（`dirname(app.getPath('exe'))`）。那条规则与 NSIS 的升级
- * 流程直接冲突：装新版之前安装器先跑旧版的卸载器，模板在 `--updated` 那一支把 `$INSTDIR`
- * 整个搬进 `$PLUGINSDIR` 再 `RMDir /r` —— 数据就在里面，于是每次更新都清空用户数据。
- * 数据住 userData 里，安装器与卸载器都够不着，这条冲突从根上不存在。
- *
- * 落点由上面的 `app.setPath('userData', …)` 钉住，不跟安装目录走，也不跟包名走。
- */
-async function dataRootDirectory(): Promise<string> {
-  const root = app.getPath('userData')
-
-  /*
-   * ≤0.4.3 的安装版把数据留在 exe 旁边；开发构建用的是 userData 自己，也就是
-   * `%APPDATA%\Poietica` —— 那个位置现在让给安装版（开发构建另立 `Poietica Dev`）。
-   */
-  const legacies = app.isPackaged
-    ? [dirname(app.getPath('exe'))]
-    : [join(app.getPath('appData'), APPLICATION_NAME)]
-
-  await adoptDataRoot(root, legacies)
-
-  return root
-}
 
 /**
  * 会话能力到存储那一格的两个动作。
@@ -814,8 +833,10 @@ function storagePort(target: Session): StorageSessionPort {
 }
 
 async function main(): Promise<void> {
-  /* 先安顿数据再开窗：窗口衬底要读 settings.json，而它可能还躺在老位置上。 */
-  const dataRoot = await dataRootDirectory()
+  /* 先把数据根建出来再开窗：窗口衬底要在渲染层起来之前读它下面的 settings.json。 */
+  await prepareDataRoot(DATA_ROOT)
+
+  const dataRoot = DATA_ROOT
   const win = createWindow(await startupThemePreference())
 
   mainWindow = win
@@ -861,12 +882,19 @@ async function main(): Promise<void> {
     }),
   )
 
-  // 外站视图与主界面共用一个持久会话，但权限一项都不给：要放行哪一种，将来在这里单独开口。
-  session
-    .fromPartition(BROWSER_PARTITION)
-    .setPermissionRequestHandler((_contents, _permission, callback) => {
-      callback(false)
-    })
+  /*
+   * 外站视图与主界面共用一个持久会话，但权限一项都不给：要放行哪一种，将来在这里单独开口。
+   *
+   * 两半都要装：request 管的是「现在能不能用」，check 管的是同步查询
+   * （navigator.permissions.query、Permissions-Policy 的判定）。只装一半，页面同步问到的
+   * 答案与真要用的结果不一致。
+   */
+  const browserSession = session.fromPartition(BROWSER_PARTITION)
+
+  browserSession.setPermissionRequestHandler((_contents, _permission, callback) => {
+    callback(false)
+  })
+  browserSession.setPermissionCheckHandler(() => false)
 
   /* 存储那一格要清的两个会话。适配写在这里：storage.ts 只认那两条动作，不认识 electron。 */
   storageCommands = createStorageCommands({

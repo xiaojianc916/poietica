@@ -31,12 +31,16 @@ interface HostBridge {
     multiple: boolean
     filters: readonly FilePickerFilter[]
   }): Promise<string[] | null>
-  watchDroppedPaths(handler: (paths: readonly string[]) => void): Unsubscribe
+  watchDroppedPaths(
+    handler: (paths: readonly string[], files: readonly File[]) => void,
+  ): Unsubscribe
   pickSavePath(options: {
     defaultPath: string
     filters: readonly FilePickerFilter[]
   }): Promise<string | null>
   saveExport(request: unknown): Promise<boolean>
+  /** 长任务跑完时的一声；窗口在前台时宿主什么也不做。 */
+  notify(request: { title: string; body: string }): Promise<void>
   setTheme(preference: 'light' | 'dark' | 'system'): Promise<'light' | 'dark'>
   setSurfaceColor(color: readonly [number, number, number]): Promise<void>
   onMaximizedChanged(handler: (isMaximized: boolean) => void): Unsubscribe
@@ -194,19 +198,37 @@ const bridge: PoieticaBridge = {
         throw new Error('poietica: requestInvalid — 拖放要有个处理函数')
       }
 
-      // 这条只能在 preload：File.path 在 Electron 32 之后没了，路径只有 webUtils.getPathForFile 拿得到，
-      // 而 File 对象过不了 contextBridge。所以事件在这里听，路径在这里换，渲染层只收字符串。
+      /*
+       * 这条只能在 preload：File.path 在 Electron 32 之后没了，路径只有
+       * webUtils.getPathForFile 拿得到。
+       *
+       * 没有路径的那些也一起交出去：截图、剪贴板拖出来的临时物、任何不在盘上的字节，
+       * 平台只给 File 本身。它是可克隆的，过得了 contextBridge —— 渲染层按字节收下，
+       * 别处已经在走同一条路（粘贴）。
+       */
       const onDrop = (event: DragEvent): void => {
         event.preventDefault()
 
-        const paths = [...(event.dataTransfer?.files ?? [])].flatMap((file) => {
+        const files = [...(event.dataTransfer?.files ?? [])]
+        const paths: string[] = []
+        const loose: File[] = []
+
+        for (const file of files) {
           const path = webUtils.getPathForFile(file)
 
-          return path.length > 0 ? [path] : []
-        })
+          if (path.length > 0) {
+            paths.push(path)
+          } else {
+            loose.push(file)
+          }
+        }
 
         if (paths.length > 0) {
-          handler(paths)
+          handler(paths, [])
+        }
+
+        if (loose.length > 0) {
+          handler([], loose)
         }
       }
 
@@ -244,6 +266,16 @@ const bridge: PoieticaBridge = {
 
     saveExport: (request) =>
       invoke('poietica:save-export', request).then((value) => value === true),
+
+    notify(request) {
+      if (!isRecord(request) || typeof request['title'] !== 'string') {
+        return Promise.reject(new Error('poietica: requestInvalid — 通知要有 title 与 body'))
+      }
+
+      return invoke('poietica:notify', { title: request['title'], body: request['body'] }).then(
+        () => undefined,
+      )
+    },
 
     setTheme(preference) {
       if (preference !== 'light' && preference !== 'dark' && preference !== 'system') {

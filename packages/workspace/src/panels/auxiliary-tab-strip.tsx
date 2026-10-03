@@ -241,13 +241,25 @@ export function AuxiliaryTabStrip({
 
 /* 标签的脸：装载中转圈，有站点图标就画它，否则地球。 */
 function BrowserTabIcon({ tab }: { readonly tab: BrowserTab }) {
+  /* 取不回来的图标退回地球：一行裂图比没有图标更难看，而它同样是「没有图标」。 */
+  const [broken, setBroken] = useState<string | null>(null)
+
   if (tab.loading) {
     return <LoaderCircle aria-hidden className="size-3.5 shrink-0 animate-spin opacity-60" />
   }
 
-  if (tab.favicon === null) {
+  if (tab.favicon === null || tab.favicon === broken) {
     return <Globe aria-hidden className="size-3.5 shrink-0 opacity-60" />
   }
 
-  return <img alt="" className="size-3.5 shrink-0 rounded-sm" src={tab.favicon} />
+  return (
+    <img
+      alt=""
+      className="size-3.5 shrink-0 rounded-sm"
+      onError={() => {
+        setBroken(tab.favicon)
+      }}
+      src={tab.favicon}
+    />
+  )
 }

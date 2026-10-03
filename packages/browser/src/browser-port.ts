@@ -20,6 +20,8 @@ export interface BrowserHostPort {
   readonly forward: (id: number) => Promise<void>
   readonly reload: (id: number) => Promise<void>
   readonly print: (id: number) => Promise<void>
+  readonly setZoom: (id: number, level: number) => Promise<void>
+  readonly zoom: (id: number) => Promise<number>
   readonly setElementPicker: (id: number, enabled: boolean, theme: ResolvedTheme) => Promise<void>
   readonly reopenClosed: (index: number) => Promise<void>
   readonly setViewportBounds: (bounds: BrowserViewportBounds) => Promise<void>

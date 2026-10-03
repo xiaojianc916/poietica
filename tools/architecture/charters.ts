@@ -19,17 +19,11 @@ const SKIP = new Set([
   '.git',
   '.github',
   '.turbo',
-  '.workbuddy',
-  'Architecture',
   // 随包发的运行时（产物，见 tools/architecture/imports.ts 的 SKIP 注释）。
   'agent',
-  'coverage',
   'dist',
   'dist-release',
-  'dist-types',
-  'gen',
   'node_modules',
-  'oh-my-pi',
   'target',
 ])
 
@@ -95,7 +89,6 @@ const COMPOSITION_ROOT = 'apps/desktop/native/src/bootstrap.rs'
 const STORE_FACES = [
   { store: 'settings_store', face: 'apps/desktop/native/src/settings/storage.rs' },
   { store: 'agents_store', face: 'apps/desktop/native/src/agent/profile.rs' },
-  { store: 'automations_store', face: 'apps/desktop/native/src/automation/host.rs' },
 ] as const
 
 /** 每个偏好库只有一个持有者：组合根开它，它自己的命令面读写，别人不碰。 */

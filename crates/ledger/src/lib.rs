@@ -8,6 +8,6 @@ pub mod conversation;
 pub mod error;
 pub mod execution;
 pub mod index;
-pub mod migrations;
+mod schema;
 
 pub use error::LedgerError;

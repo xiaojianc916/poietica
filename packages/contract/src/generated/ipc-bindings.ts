@@ -122,9 +122,9 @@ export type AgentPromptConfiguration = { id: string; value: string }
  */
 export type AgentPromptRequest = { text: string; 
 /**
- * 这一句走哪一层。缺席即开一轮：老调用方（自动化、恢复）不传这一格。
+ * 这一句走哪一层。渲染层每条 prompt 都带它。
  */
-deliverAs?: AgentDeliverAs; configuration: AgentPromptConfiguration[]; 
+deliverAs: AgentDeliverAs; configuration: AgentPromptConfiguration[]; 
 /**
  * 与 text 是同一句话的两半：只挑了图、没打字也是一句完整的话，判空要一起判。
  */

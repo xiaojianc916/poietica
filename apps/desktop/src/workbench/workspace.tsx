@@ -27,7 +27,14 @@ import type {
   WorkbenchTabViewModel,
 } from '@poietica/workspace'
 import type { AuxiliaryPane, AuxiliaryPanelStore } from '@poietica/workspace/panels'
-import { type ReactNode, useCallback, useMemo, useRef, useSyncExternalStore } from 'react'
+import {
+  type ReactNode,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useSyncExternalStore,
+} from 'react'
 import { AssistantSidebarPanel } from '../assistant/assistant-sidebar-panel'
 import {
   AuxiliaryToggle,
@@ -38,7 +45,7 @@ import {
   CONVERSATION_TODO_LAYOUT_STYLE,
   ConversationTodoPopover,
 } from '../assistant/conversation-todo-popover'
-import { useThreadsActions } from '../assistant/threads-context'
+import { useThreadsActions, useThreadsList } from '../assistant/threads-context'
 import { useWorkspaceGitStatus } from '../assistant/workspace-git-status'
 import { type ActiveTabSequence, DesktopTitleBar } from '../shell/chrome/title-bar'
 import { TOGGLE_COMMAND_PALETTE_COMMAND_ID, tabNeighbors } from '../shell/commands/app-commands'
@@ -177,7 +184,19 @@ export function DesktopWorkspace({
   )
 
   const threads = useThreadsActions()
+  const threadGroups = useThreadsList()
   const { toolkit } = useAgentControls()
+
+  /*
+   * 标签上的名字归对话索引所有，不归那份恢复文档：改名之后两边分叉，屏幕上的旧名字
+   * 会一直挂到下次开窗。所以恢复出来的标签先是空的，索引一到就补齐；列表刷新时
+   * retitle 发现同名即原地返回，不会多一次通知。
+   */
+  useEffect(() => {
+    for (const item of threadGroups.groups.flatMap((group) => group.items)) {
+      workspace.retitle(item.id, item.title)
+    }
+  }, [threadGroups.groups, workspace])
 
   const runningThreadIds = useRunningThreads()
 

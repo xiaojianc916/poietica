@@ -31,10 +31,7 @@ fn code(error: &Error) -> Code {
         Error::Automation(poietica_automation::AutomationError::Missing) | Error::NotFound(_) => {
             Code::ResourceMissing
         }
-        Error::Automation(
-            poietica_automation::AutomationError::Uninitialized
-            | poietica_automation::AutomationError::Data(_),
-        )
+        Error::Automation(poietica_automation::AutomationError::Data(_))
         | Error::Persistence(_) => Code::LedgerAppendFailed,
         Error::Automation(_) | Error::Validation(_) => Code::RequestInvalid,
         Error::Io(_) | Error::File(_) => Code::FileUnavailable,

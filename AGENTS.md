@@ -152,7 +152,11 @@ FORMATS 把文件头判定与 Content-Type 收成一张表，加一种格式只�
   `/openapi.json`），所以版本锁死（`packages/agent-bridge/package.json` 里精确
   版本，无 `^`），升级时同一次改完 protocol.ts 与 wire.rs 两侧并重跑测试。
   禁手抄协议类型（判例：protocol.ts 记录的 8/13 variant 落后事故）。
-- **加持久化**：迁移只追加，一条 shipped 的迁移永不修改。
+- **加持久化**：先问这一格是不是「本机账」。是，就进 `crates/ledger` 的
+  `src/schema.sql` —— **未发布的库没有版本号表、没有迁移链**，改形状就是改那个
+  文件加删掉用户盘上那个库；不是，就留在它自己那份 JSON 文档里（`settings.json` /
+  `agents.json`，经 `apps/desktop/native/src/json_document.rs` 那一份原子写）。
+  发版之后才需要迁移，届时按当时的情况重新决定。
 
 ## 8. 变更纪律
 

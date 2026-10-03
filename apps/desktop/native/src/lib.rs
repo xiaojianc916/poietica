@@ -12,6 +12,7 @@ mod entry;
 pub mod error;
 pub mod extension;
 pub mod ipc;
+mod json_document;
 pub mod transport;
 
 pub use entry::NativeHost;

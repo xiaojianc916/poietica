@@ -175,6 +175,35 @@ function BrowserToolbar({
 }: BrowserToolbarProps) {
   const canDrive = activeTab !== null && activeTab.url !== null
   const [menuHeight, setMenuHeight] = useState(0)
+  /*
+   * 缩放档的所有者是内核（setZoomLevel / getZoomLevel 都在它那里，宿主把缩放模式点成
+   * isolated，所以是「一格标签一档」），这里不留副本：每开一次菜单、每换一个标签都问它
+   * 一次。菜单是点开才渲染的，这一次往返摊在人的一次点击上。
+   */
+  const [zoomLevel, setZoomLevel] = useState(0)
+  const activeTabId = activeTab === null ? null : activeTab.id
+
+  useEffect(() => {
+    /* 菜单关着的时候不读：档位只在那一格里显示，多一次往返没有读者。 */
+    if (activeTabId === null || !menuOpen) {
+      return undefined
+    }
+
+    let live = true
+
+    void actions.readZoom(activeTabId).then(
+      (level) => {
+        if (live) {
+          setZoomLevel(level)
+        }
+      },
+      () => undefined,
+    )
+
+    return () => {
+      live = false
+    }
+  }, [actions, activeTabId, menuOpen])
 
   return (
     <div className="shrink-0">
@@ -238,7 +267,16 @@ function BrowserToolbar({
         <BrowserOverflowMenu
           onHeightChange={setMenuHeight}
           onOpenChange={onMenuOpenChange}
+          onZoom={(level) => {
+            if (activeTab === null) {
+              return
+            }
+
+            setZoomLevel(level)
+            actions.setZoom(activeTab.id, level)
+          }}
           open={menuOpen}
+          zoomLevel={zoomLevel}
         />
       </div>
       {menuOpen ? (

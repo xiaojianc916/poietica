@@ -473,15 +473,19 @@ export function foldWireRecordFacts(
                 (turnId) => turnPromptIds.get(turnId) === message.id,
               )
             : -1
-        const legacyIndex =
+        /*
+         * 认领不上的第二判据：agent 报的用户消息有时不带 id，而锚点必须落到某一轮上。
+         * 落回「还没有 id 的那一轮」—— 按到达顺序认领，不是按内容猜。
+         */
+        const unclaimedIndex =
           matchingIndex < 0 && typeof message.id === 'string'
             ? pendingUndoAnchorTurnIds.findIndex((turnId) => !turnPromptIds.has(turnId))
             : -1
         const matchedTurnId =
           matchingIndex >= 0
             ? pendingUndoAnchorTurnIds.splice(matchingIndex, 1)[0]
-            : legacyIndex >= 0
-              ? pendingUndoAnchorTurnIds.splice(legacyIndex, 1)[0]
+            : unclaimedIndex >= 0
+              ? pendingUndoAnchorTurnIds.splice(unclaimedIndex, 1)[0]
               : typeof message.id !== 'string'
                 ? pendingUndoAnchorTurnIds.shift()
                 : undefined

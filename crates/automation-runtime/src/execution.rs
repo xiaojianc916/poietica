@@ -232,7 +232,6 @@ mod tests {
         let run = Uuid::new_v4().to_string();
         let request = run.clone();
         write_index(index, move |store| {
-            store.import_automations(None, "UTC")?;
             let catalog = store.automation_command(Command::Create(AutomationCreation {
                 title: "Run".to_owned(),
                 prompt: "Work".to_owned(),

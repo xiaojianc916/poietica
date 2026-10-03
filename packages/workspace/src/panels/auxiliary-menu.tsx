@@ -144,13 +144,28 @@ const OVERFLOW_ROWS: readonly OverflowRow[] = [
   { kind: 'command', id: 'settings', label: '浏览器设置' },
 ]
 
-/* 缩放的三个键只画不做事：面板还没有缩放这条命令。 */
-function ZoomStep({ children, label }: { readonly children: ReactNode; readonly label: string }) {
+/*
+ * 缩放：三个键都走内核自己的 setZoomLevel，所以这里的「一档」就是内核的一档 ——
+ * scale = 1.2 ^ level，一格 = 20%（Electron 文档原文），范围与它一样夹在 -7..8 之内。
+ */
+const ZOOM_STEP = 1
+const ZOOM_MIN = -7
+const ZOOM_MAX = 8
+
+function ZoomStep({
+  children,
+  label,
+  onClick,
+}: {
+  readonly children: ReactNode
+  readonly label: string
+  readonly onClick: () => void
+}) {
   return (
     <button
       aria-label={label}
-      className="flex size-6 shrink-0 items-center justify-center rounded-md opacity-50"
-      disabled
+      className="flex size-6 shrink-0 items-center justify-center rounded-md hover:bg-current/10"
+      onClick={onClick}
       title={label}
       type="button"
     >
@@ -159,21 +174,29 @@ function ZoomStep({ children, label }: { readonly children: ReactNode; readonly 
   )
 }
 
-function ZoomRow() {
+function ZoomRow({
+  onZoom,
+  level,
+}: {
+  readonly onZoom: (level: number) => void
+  readonly level: number
+}) {
+  const percent = Math.round(1.2 ** level * 100)
+
   return (
     <fieldset
       aria-label="缩放"
       className="flex min-h-[var(--ui-control-height-sm)] items-center gap-1 px-2"
     >
       <span className={labelClassName}>缩放</span>
-      <ZoomStep label="缩小">
+      <ZoomStep label="缩小" onClick={() => onZoom(Math.max(ZOOM_MIN, level - ZOOM_STEP))}>
         <Minus aria-hidden className="size-3.5" />
       </ZoomStep>
-      <span className="w-10 shrink-0 text-center text-xs tabular-nums opacity-70">100%</span>
-      <ZoomStep label="放大">
+      <span className="w-10 shrink-0 text-center text-xs tabular-nums opacity-70">{percent}%</span>
+      <ZoomStep label="放大" onClick={() => onZoom(Math.min(ZOOM_MAX, level + ZOOM_STEP))}>
         <Plus aria-hidden className="size-3.5" />
       </ZoomStep>
-      <ZoomStep label="重置缩放">
+      <ZoomStep label="重置缩放" onClick={() => onZoom(0)}>
         <RotateCcw aria-hidden className="size-3.5" />
       </ZoomStep>
     </fieldset>
@@ -183,11 +206,15 @@ function ZoomRow() {
 export function BrowserOverflowMenu({
   onHeightChange,
   onOpenChange,
+  onZoom,
   open,
+  zoomLevel,
 }: {
   readonly onHeightChange: (height: number) => void
   readonly onOpenChange: (open: boolean) => void
+  readonly onZoom: (level: number) => void
   readonly open: boolean
+  readonly zoomLevel: number
 }) {
   return (
     <MenuShell
@@ -204,7 +231,7 @@ export function BrowserOverflowMenu({
         }
 
         if (row.kind === 'zoom') {
-          return <ZoomRow key={row.id} />
+          return <ZoomRow key={row.id} level={zoomLevel} onZoom={onZoom} />
         }
 
         return (

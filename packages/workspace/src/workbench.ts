@@ -79,4 +79,6 @@ export interface WorkbenchSessionStore {
   readonly closeTab: (tabId: WorkbenchTabId) => void
   readonly closeConversation: (threadId: ConversationId) => void
   readonly moveTab: (tabId: WorkbenchTabId, targetIndex: number) => void
+  /** 补上会话标签的名字。名字的正本是对话索引，不是那份恢复文档。 */
+  readonly retitle: (threadId: ConversationId, title: string) => void
 }

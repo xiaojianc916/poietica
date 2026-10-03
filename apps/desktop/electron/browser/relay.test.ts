@@ -13,7 +13,11 @@ import { beforeEach, describe, expect, mock, test } from 'bun:test'
 import type { BrowserState } from './host'
 
 mock.module('electron', () => ({
-  app: { userAgentFallback: 'fallback-ua' },
+  /*
+   * 同一个进程里 host.test.ts 也 mock 这个模块：两份工厂必须是并集，少一格就是
+   * 「Export named 'x' not found」。浏览器身份问的是分区会话 —— 它没有标签时也有答案。
+   */
+  session: { fromPartition: () => ({ getUserAgent: () => 'kernel-ua' }) },
   WebContentsView: class {},
 }))
 

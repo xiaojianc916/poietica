@@ -30,8 +30,13 @@ export async function pickPaths(options: {
 
 /**
  * 盯着本窗口的拖放。只递 drop 那一种；同一事件流里的 hover/leave 不出门。
+ *
+ * 两路一起给：盘上有路径的走 paths（原生按路径入库，字节不进渲染层），
+ * 没有路径的（截图、临时物）走 files —— 那点字节只在这里过一手。
  * 返回摘表函数。
  */
-export function watchDroppedPaths(onDrop: (paths: readonly string[]) => void): () => void {
+export function watchDroppedPaths(
+  onDrop: (paths: readonly string[], files: readonly File[]) => void,
+): () => void {
   return hostBridge().host.watchDroppedPaths(onDrop)
 }

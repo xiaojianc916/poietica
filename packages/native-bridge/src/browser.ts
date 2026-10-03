@@ -113,6 +113,18 @@ export function setBrowserVisible(visible: boolean): Promise<void> {
   return invoke('browser_set_visible', { visible })
 }
 
+/** 标签的缩放；0 是内核默认那一档。 */
+export function setBrowserZoom(id: number, level: number): Promise<void> {
+  return invoke('browser_set_zoom', { id, level })
+}
+
+/** 内核此刻的缩放档。档位的所有者是内核，这里只问它。 */
+export function readBrowserZoom(id: number): Promise<number> {
+  return invoke('browser_zoom', { id }).then((value) =>
+    typeof value === 'number' && Number.isFinite(value) ? value : 0,
+  )
+}
+
 /* 外链交给系统浏览器；这件事只有宿主做得成，主进程那一侧挂的是 shell.openExternal。
  *
  * 走 preload 装的 host 桥，不走 invoke：这条命令在主进程自己的表里（poietica:open-external），
@@ -153,6 +165,8 @@ export const browserHostPort: BrowserHostPort = {
   forward: browserTabForward,
   reload: browserTabReload,
   print: printBrowserTab,
+  setZoom: setBrowserZoom,
+  zoom: readBrowserZoom,
   setElementPicker: setBrowserElementPicker,
   reopenClosed: reopenClosedBrowserTab,
   setViewportBounds: setBrowserViewportBounds,

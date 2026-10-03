@@ -22,6 +22,7 @@ interface FakeContents {
   readonly injected: string[]
   readonly loaded: string[]
   readonly closed: { count: number }
+  readonly zoom: { mode: string | null; level: number }
   on(event: string, listener: Listener): void
   emit(event: string, ...args: readonly unknown[]): void
   setWindowOpenHandler(handler: (details: { url: string }) => { action: string }): void
@@ -30,6 +31,9 @@ interface FakeContents {
   reload(): void
   print(options: unknown, callback: (success: boolean, reason: string) => void): void
   executeJavaScriptInIsolatedWorld(world: number, scripts: { code: string }[]): Promise<void>
+  setZoomMode(mode: string): void
+  setZoomLevel(level: number): void
+  getZoomLevel(): number
   readonly navigationHistory: {
     canGoBack(): boolean
     canGoForward(): boolean
@@ -55,9 +59,12 @@ function fakeContents(): FakeContents {
   const closed = { count: 0 }
   const back = { count: 0 }
   const forward = { count: 0 }
+  /* 缩放归内核：这里照内核的三种调用记一份，好让「一格一档」可被断言。 */
+  const zoom = { mode: null as string | null, level: 0 }
 
   return {
     listeners,
+    zoom,
     openHandler: { current: null },
     injected,
     loaded,
@@ -89,6 +96,15 @@ function fakeContents(): FakeContents {
       injected.push(...scripts.map((script) => script.code))
 
       return Promise.resolve()
+    },
+    setZoomMode(mode) {
+      zoom.mode = mode
+    },
+    setZoomLevel(level) {
+      zoom.level = level
+    },
+    getZoomLevel() {
+      return zoom.level
     },
     navigationHistory: {
       // 内核的导航历史是「能不能退」在前、「退」在后：桩照这个顺序记账，退到头就不再执行。
@@ -124,7 +140,7 @@ const created: FakeWebContentsView[] = []
 
 mock.module('electron', () => ({
   // 同一个进程里 relay.test.ts 也 mock 这个模块：两份工厂必须是并集。
-  app: { userAgentFallback: 'fallback-ua' },
+  session: { fromPartition: () => ({ getUserAgent: () => 'kernel-ua' }) },
   WebContentsView: class extends FakeWebContentsView {
     constructor() {
       super()
@@ -183,6 +199,28 @@ const visibleViews = (): FakeWebContentsView[] =>
 
 beforeEach(() => {
   created.length = 0
+})
+
+describe('缩放', () => {
+  /*
+   * 面板给每一格标签发自己的缩放键，所以每个视图的缩放模式必须是 isolated ——
+   * 内核默认按 origin 共享，同源的两格会互相改档。
+   */
+  test('每个标签都点成 isolated，档位读写走内核', () => {
+    const { host } = harness()
+
+    host.openTab('https://a.example/')
+    host.openTab('https://b.example/')
+
+    expect(created).toHaveLength(2)
+    expect(created[0]?.webContents.zoom.mode).toBe('isolated')
+    expect(created[1]?.webContents.zoom.mode).toBe('isolated')
+    /* 默认那一档从内核读回来就是 0；设过之后两条命令落到同一个视图上。 */
+    expect(host.zoom(0)).toBe(0)
+    host.setZoom(1, 3)
+    expect(host.zoom(1)).toBe(3)
+    expect(host.zoom(0)).toBe(0)
+  })
 })
 
 describe('摆放', () => {

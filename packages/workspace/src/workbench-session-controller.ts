@@ -22,6 +22,12 @@ type Entry = ConversationEntry | SurfaceEntry
 interface ConversationEntry {
   readonly kind: 'conversation'
   readonly threadId: ConversationId
+  /**
+   * 标签上的那一行字，只活在这一趟进程里。
+   *
+   * 它不是落盘物：标题的正本是 threads 表那一列，这里存一份副本只会在改名之后
+   * 分叉。读回来的标签先没有名字，由会话列表到达时补齐（见 retitle）。
+   */
   readonly title: string
 }
 
@@ -174,6 +180,27 @@ function openSurface(state: WorkbenchState, surfaceId: SurfaceId): WorkbenchStat
  * 正在看的那一格本身就是会话形态（对话，或启动时的 ai 表面）时就地替换：
  * 侧栏是导航，不是标签工厂。其余形态插在活动标签右侧。
  */
+/**
+ * 给一格会话标签补上名字。
+ *
+ * 标题的正本是 threads 表那一列，所以恢复出来的标签一开始是空的：会话列表到达时
+ * 由调用方把名字交回来。找不到那一格、或名字没变，都返回同一个引用 —— 不唤醒订阅者。
+ */
+function retitle(state: WorkbenchState, threadId: ConversationId, title: string): WorkbenchState {
+  const index = indexOfThread(state, threadId)
+  const entry = index < 0 ? undefined : state.entries[index]
+
+  if (entry === undefined || entry.kind !== 'conversation' || entry.title === title) {
+    return state
+  }
+
+  const entries = [...state.entries]
+
+  entries[index] = { kind: 'conversation', threadId: entry.threadId, title }
+
+  return { entries, activeIndex: state.activeIndex }
+}
+
 function openConversation(state: WorkbenchState, request: OpenConversationRequest): WorkbenchState {
   const existing = indexOfThread(state, request.threadId)
 
@@ -288,8 +315,8 @@ function project(state: WorkbenchState): WorkbenchViewModel {
  * 结构，只会把「没人验」写成「看起来验过」。所以库那边存的是一列 TEXT，
  * 这份 schema 是它唯一的读者，也是它唯一的作者。
  *
- * 标题跟着存。它是 threads 表那一列的副本，而读回路径上没有第二条来源：
- * 不存的代价是恢复出来的第一帧全是没有名字的标签。
+ * 标题不进来：它是 threads 表那一列的副本，存下来就是给改名留一条分叉的路。
+ * 恢复出来的标签先没有名字，会话列表一到就由 retitle 补上。
  */
 const DOCUMENT = z.object({
   entries: z.array(
@@ -297,7 +324,6 @@ const DOCUMENT = z.object({
       z.object({
         kind: z.literal('conversation'),
         threadId: z.custom<ConversationId>((value) => typeof value === 'string' && value !== ''),
-        title: z.string(),
       }),
       z.object({
         kind: z.literal('surface'),
@@ -308,8 +334,14 @@ const DOCUMENT = z.object({
   activeIndex: z.number(),
 })
 
+/** 落的这一份里，会话标签只有身份，没有标题。 */
 function encode(state: WorkbenchState): string {
-  return JSON.stringify({ entries: state.entries, activeIndex: state.activeIndex })
+  return JSON.stringify({
+    entries: state.entries.map((entry) =>
+      entry.kind === 'conversation' ? { kind: entry.kind, threadId: entry.threadId } : entry,
+    ),
+    activeIndex: state.activeIndex,
+  })
 }
 
 /** Unregistered surfaces are not restorable; unrelated conversation tabs remain valid. */
@@ -343,7 +375,8 @@ function decode(document: string | null | undefined): WorkbenchState {
       }
       entries.push({ kind: 'surface', surfaceId: entry.surfaceId })
     } else {
-      entries.push(entry)
+      /* 名字等会话列表到了再补：这一趟先认身份。 */
+      entries.push({ kind: 'conversation', threadId: entry.threadId, title: '' })
     }
     if (index < restoredIndex) {
       activeIndex += 1
@@ -449,6 +482,9 @@ export function createWorkbenchSessionController(
     },
     moveTab: (tabId, targetIndex) => {
       commit(moveTab(state, tabId, targetIndex))
+    },
+    retitle: (threadId, title) => {
+      commit(retitle(state, threadId, title))
     },
   }
 }

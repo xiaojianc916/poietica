@@ -42,8 +42,9 @@ use uuid::Uuid;
 use crate::error::{Error, Result};
 
 const SETTINGS_FILE: &str = "settings.json";
+
+/// agent 接入档案。可手改，是 agent-catalog 描述符在本盘的物化，不是第二份真相。
 const AGENTS_FILE: &str = "agents.json";
-const AUTOMATIONS_FILE: &str = "automations.json";
 
 /// WAL 模式下磁盘上是三个文件（本文件加 -wal 与 -shm），备份必须三个一起。
 const LEDGER_DATABASE: &str = "ledger.sqlite3";
@@ -53,7 +54,6 @@ const LOG_DIRECTORY: &str = "logs";
 const TEMP_DIRECTORY: &str = "tmp";
 
 const CACHE_DIRECTORY: &str = "cache";
-const CRASH_REPORT_FILE: &str = "last-native-crash.json";
 const ATTACHMENTS_DIRECTORY: &str = "attachments";
 
 /// 本应用自己装的本机工具（解释器等），与 agent 的受控 home 分开。
@@ -108,13 +108,9 @@ pub fn settings_store() -> Result<PathBuf> {
     Ok(data_root()?.join(SETTINGS_FILE))
 }
 
-/// Agent 接入档案与安装状态缓存；密钥不在其中。
+/// Agent 接入档案与安装检查缓存；密钥不在其中。
 pub fn agents_store() -> Result<PathBuf> {
     Ok(data_root()?.join(AGENTS_FILE))
-}
-
-pub fn automations_store() -> Result<PathBuf> {
-    Ok(data_root()?.join(AUTOMATIONS_FILE))
 }
 
 pub fn ledger_database() -> Result<PathBuf> {
@@ -127,10 +123,6 @@ pub fn log_directory() -> Result<PathBuf> {
     fs::create_dir_all(&directory)?;
 
     Ok(directory)
-}
-
-pub fn crash_report() -> Result<PathBuf> {
-    Ok(log_directory()?.join(CRASH_REPORT_FILE))
 }
 
 pub fn temp_directory() -> Result<PathBuf> {

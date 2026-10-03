@@ -108,8 +108,8 @@ omp 18.3.0 的真实契约（以下均为包内源码，非文档传闻；锚点
    推一次。
 
 8. **准入冻结投递档。** `deliverAs` 是本机账本必须记住的事实（哪句话是怎么进去的），
-   所以进 `Admission` 并落一条迁移（0016）。Rust 侧 `PromptDelivery` 与
-   `Submission` 都带它，TS 侧同名。
+   所以进 `Admission` 的 `deliver_as` 一格（形状见 `crates/ledger/src/schema.sql`）。
+   Rust 侧 `PromptDelivery` 与 `Submission` 都带它，TS 侧同名。
 
 ## 后果
 
@@ -150,6 +150,6 @@ omp 18.3.0 的真实契约（以下均为包内源码，非文档传闻；锚点
   `.../surface/transcript/use-assistant-session.ts`
 - 原生侧：`apps/desktop/native/src/conversation/{turn.rs,dto.rs}`、
   `crates/conversation/src/turn/admission.rs`、
-  `crates/ledger/src/migrations/sql/0016_admission_delivery.sql`
+  `crates/ledger/src/schema.sql`（`turn_admissions.deliver_as`）
 
 （omp 行为锚定 **18.3.0**，路径以本仓 vendored 源码树为准，日期 2026-10-01。）

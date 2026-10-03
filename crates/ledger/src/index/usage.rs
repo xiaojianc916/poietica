@@ -109,23 +109,22 @@ impl AgentStore {
             ],
         )?;
         if spent > 0 {
-            transaction.execute(
-                "INSERT INTO token_days (day, tokens) VALUES (?1, ?2)
-                 ON CONFLICT (day) DO UPDATE SET tokens = tokens + excluded.tokens",
-                rusqlite::params![day.to_string(), spent],
-            )?;
             /*
-             * 按模型那一份是拆开记的，不是另一次统计：同一笔 token 进两张表，
-             * 一张给合计、一张给趋势图。没带模型的那一笔只进合计 —— 编一个模型名
-             * 比少画一条线更糟。
+             * 日账只有一份，按模型拆开的那一份就是它：合计是它的部分和，不另存一行。
+             *
+             * 没带模型的那一笔落进 UNATTRIBUTED 这一行 —— 编一个模型名比少画一条线更糟，
+             * 而把它扔掉会让合计悄悄小于真实花销。趋势图按「不等于 UNATTRIBUTED」滤掉它；
+             * 合计（token_days_through）与热力图照算它。
              */
-            if let Some(model) = usage.model.filter(|model| !model.is_empty()) {
-                transaction.execute(
-                    "INSERT INTO token_model_days (day, model, tokens) VALUES (?1, ?2, ?3)
-                     ON CONFLICT (day, model) DO UPDATE SET tokens = tokens + excluded.tokens",
-                    rusqlite::params![day.to_string(), model, spent],
-                )?;
-            }
+            let model = usage
+                .model
+                .filter(|model| !model.is_empty())
+                .unwrap_or_else(|| UNATTRIBUTED.to_owned());
+            transaction.execute(
+                "INSERT INTO token_model_days (day, model, tokens) VALUES (?1, ?2, ?3)
+                 ON CONFLICT (day, model) DO UPDATE SET tokens = tokens + excluded.tokens",
+                rusqlite::params![day.to_string(), model, spent],
+            )?;
         }
         transaction.commit()?;
         Ok(())
@@ -197,9 +196,9 @@ impl AgentStore {
         let earliest = today
             .checked_sub(TimeDuration::days(offset))
             .unwrap_or(Date::MIN);
-        let mut statement = self
-            .connection
-            .prepare_cached("SELECT day, tokens FROM token_days WHERE day >= ?1 ORDER BY day")?;
+        let mut statement = self.connection.prepare_cached(
+            "SELECT day, SUM(tokens) FROM token_model_days WHERE day >= ?1 GROUP BY day ORDER BY day",
+        )?;
         let found = statement
             .query_map(rusqlite::params![earliest.to_string()], |row| {
                 Ok(TokenDay {
@@ -219,16 +218,20 @@ impl AgentStore {
             .checked_sub(TimeDuration::days(offset))
             .unwrap_or(Date::MIN);
         let mut statement = self.connection.prepare_cached(
-            "SELECT day, model, tokens FROM token_model_days WHERE day >= ?1 ORDER BY day, model",
+            "SELECT day, model, tokens FROM token_model_days
+             WHERE day >= ?1 AND model <> ?2 ORDER BY day, model",
         )?;
         let found = statement
-            .query_map(rusqlite::params![earliest.to_string()], |row| {
-                Ok(ModelDay {
-                    day: row.get(0)?,
-                    model: row.get(1)?,
-                    tokens: row.get(2)?,
-                })
-            })?
+            .query_map(
+                rusqlite::params![earliest.to_string(), UNATTRIBUTED],
+                |row| {
+                    Ok(ModelDay {
+                        day: row.get(0)?,
+                        model: row.get(1)?,
+                        tokens: row.get(2)?,
+                    })
+                },
+            )?
             .collect::<std::result::Result<Vec<_>, _>>()?;
         Ok(found)
     }
@@ -251,6 +254,10 @@ impl AgentStore {
 }
 
 const MILLIS_PER_DAY: i64 = 86_400_000;
+
+/// 没带模型的那一笔在按模型的日账里占的那一格。它不是模型名，所以不会与真名相撞；
+/// 趋势图按它过滤，合计把它算进去。
+const UNATTRIBUTED: &str = "unattributed";
 
 #[cfg(test)]
 mod tests {
@@ -335,9 +342,9 @@ mod tests {
         assert_eq!(breakdown.buffer, 13);
     }
 
-    /* 按模型那一份是拆开记的：同一笔 token 进合计也进模型账，没带模型的那一笔只进合计。 */
+    /* 日账只有一份：合计是它的部分和，没带模型的那一笔落进 unattributed 行而不丢。 */
     #[test]
-    fn the_model_split_rides_along_with_the_daily_total() {
+    fn the_model_split_is_the_only_daily_ledger() {
         let root = TempDir::new().expect("temporary directory");
         let clock = TestClock::at_unix_millis(1_700_000_000_000);
         let mut store = AgentStore::open(&root.path().join("usage.sqlite3"), clock).expect("store");
@@ -358,6 +365,7 @@ mod tests {
 
         let totals = store.token_days_through(1, day).expect("days");
         assert_eq!(totals.first().expect("recorded day").tokens, 300);
+        /* 趋势图这一份不带 unattributed：它不是模型。 */
         let split = store
             .token_model_days(1)
             .expect("model days")

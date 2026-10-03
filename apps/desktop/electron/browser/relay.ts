@@ -18,9 +18,9 @@
  */
 import { randomUUID } from 'node:crypto'
 
-import { app, type WebContents } from 'electron'
+import { session, type WebContents } from 'electron'
 
-import { BLANK_PAGE, type BrowserHost, type BrowserState } from './host'
+import { BLANK_PAGE, BROWSER_PARTITION, type BrowserHost, type BrowserState } from './host'
 
 /** omp relay 的默认端点，与它的 tools/browser/relay/kind.ts 的 DEFAULT_RELAY_URL 同值。 */
 export const DEFAULT_RELAY_URL = 'http://127.0.0.1:9224'
@@ -290,7 +290,7 @@ export function createBrowserRelay(host: BrowserHost, options: BrowserRelayOptio
     post({
       t: 'hello',
       instanceId: INSTANCE_ID,
-      userAgent: userAgent(tabs),
+      userAgent: userAgent(),
       browserVersion: `Chrome/${process.versions.chrome ?? '0'}`,
       tabs,
       attachedTabIds: [],
@@ -301,14 +301,11 @@ export function createBrowserRelay(host: BrowserHost, options: BrowserRelayOptio
    * 报给 relay 的浏览器身份取内核自己的 UA。主进程的 navigator 是 Node 的
    * （userAgent 就是 "Node.js/24"），omp 拿它当浏览器 UA 去覆盖页面，站点看到的
    * 就是这个假身份，与它同时收到的 Chrome 版本自相矛盾。
+   *
+   * 问分区会话而不是某个标签：会话是浏览器身份的所有者，没有标签时也有答案。
    */
-  function userAgent(tabs: TabSnapshot[]): string {
-    const first = tabs[0]
-
-    return (
-      (first === undefined ? undefined : host.contentsOf(first.tabId)?.getUserAgent()) ??
-      app.userAgentFallback
-    )
+  function userAgent(): string {
+    return session.fromPartition(BROWSER_PARTITION).getUserAgent()
   }
 
   function scheduleReconnect(): void {

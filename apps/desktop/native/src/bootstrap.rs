@@ -20,9 +20,10 @@ pub(crate) fn install(
 ) -> Result<()> {
     crate::paths::install_host_facts(paths)?;
 
-    let database = crate::paths::ledger_database()?;
-    let opened =
-        crate::ledger::LocalIndex::open(&database, poietica_time::wall_clock::SystemWallClock)?;
+    let opened = crate::ledger::LocalIndex::open(
+        &crate::paths::ledger_database()?,
+        poietica_time::wall_clock::SystemWallClock,
+    )?;
     let index = Arc::new(opened);
     // journal 只负责落盘；屏幕经过走 transcript，不发第二套对话正文。
     let journal =

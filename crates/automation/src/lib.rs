@@ -97,8 +97,6 @@ pub enum AutomationError {
     Conflict,
     #[error("任务仍在执行或结果未确认，请先停止并核对终态")]
     Busy,
-    #[error("自动化目录尚未完成导入")]
-    Uninitialized,
     #[error("无法识别的自动化数据：{0}")]
     Data(String),
     #[error(transparent)]
@@ -620,7 +618,11 @@ impl AutomationState {
 
 #[cfg(test)]
 mod tests {
-    #![allow(clippy::expect_used, reason = "fixture failures must fail the test")]
+    #![allow(
+        clippy::expect_used,
+        clippy::assert_is_empty,
+        reason = "fixture failures must fail the test"
+    )]
     use super::*;
 
     const NOW: i64 = 1_767_225_600_000;

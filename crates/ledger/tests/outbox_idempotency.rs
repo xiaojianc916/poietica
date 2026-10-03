@@ -1,5 +1,6 @@
 #![allow(
     clippy::expect_used,
+    clippy::assert_is_empty,
     reason = "failed ledger fixtures must fail the test"
 )]
 use poietica_conversation::identity::{Seq, ThreadId, TurnId};

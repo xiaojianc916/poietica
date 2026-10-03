@@ -6,7 +6,6 @@ use crate::{
 use fs2::FileExt;
 use poietica_automation::{AutomationCatalog, AutomationError, Command};
 use poietica_automation_runtime::{Runtime, catalog};
-use poietica_ledger::execution::write_index_worker;
 use poietica_time::wall_clock::SystemWallClock;
 use serde::Serialize;
 use specta::Type;
@@ -75,39 +74,6 @@ fn initialize(
         .open(paths::automation_lock()?)?;
     FileExt::try_lock_exclusive(&ownership)
         .map_err(|error| AutomationError::Data(format!("无法取得自动化执行权：{error}")))?;
-    // Bootstrap import finishes before the scheduler and workspace reclamation start.
-    let initialized = write_index_worker(index, |store| {
-        store.automation_initialized().map_err(Error::from)
-    })?;
-    if !initialized {
-        let source = match std::fs::read_to_string(paths::automations_store()?) {
-            Ok(contents) => {
-                let document: serde_json::Value = serde_json::from_str(&contents)?;
-                let object = document.as_object().ok_or_else(|| {
-                    AutomationError::Data("automations.json 不是对象；原文件未修改".to_owned())
-                })?;
-                if !object.contains_key("automations") && object.contains_key("automations.corrupt")
-                {
-                    return Err(AutomationError::Data(
-                        "检测到保留的损坏目录；拒绝以空目录覆盖，原文件未修改".to_owned(),
-                    )
-                    .into());
-                }
-                object.get("automations").cloned()
-            }
-            Err(error) if error.kind() == std::io::ErrorKind::NotFound => None,
-            Err(error) => return Err(error.into()),
-        };
-        let zone = if source.is_some() {
-            iana_time_zone::get_timezone()
-                .map_err(|error| AutomationError::Data(format!("导入需要明确时区：{error}")))?
-        } else {
-            "UTC".to_owned()
-        };
-        write_index_worker(index, move |store| {
-            store.import_automations(source, &zone).map_err(Error::from)
-        })?;
-    }
     Runtime::start(
         index.clone(),
         poietica_automation_runtime::conversation::ConversationExecutor::new(

@@ -64,8 +64,7 @@ impl From<AgentDeliverAs> for poietica_conversation::turn::DeliverAs {
 #[serde(rename_all = "camelCase")]
 pub struct AgentPromptRequest {
     pub text: String,
-    /// 这一句走哪一层。缺席即开一轮：老调用方（自动化、恢复）不传这一格。
-    #[serde(default = "default_deliver_as")]
+    /// 这一句走哪一层。渲染层每条 prompt 都带它。
     pub deliver_as: AgentDeliverAs,
     pub configuration: Vec<AgentPromptConfiguration>,
     /// 与 text 是同一句话的两半：只挑了图、没打字也是一句完整的话，判空要一起判。
@@ -173,10 +172,6 @@ pub struct AgentDeliveryModesRequest {
     pub follow_up_mode: Option<String>,
     #[serde(default)]
     pub interrupt_mode: Option<String>,
-}
-
-const fn default_deliver_as() -> AgentDeliverAs {
-    AgentDeliverAs::Turn
 }
 
 #[derive(Debug, Deserialize, Type)]

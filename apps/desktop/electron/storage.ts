@@ -54,8 +54,8 @@ const STORAGE_COMMANDS: readonly string[] = [
 ]
 
 /*
- * 数据根里我们认得的条目。名字的正本在 apps/desktop/native/src/paths.rs（原生侧写什么）
- * 与 electron/data-root.ts（从老位置搬什么），这里只是它们的读者。
+ * 数据根里我们认得的条目。名字的正本是 apps/desktop/native/src/paths.rs（原生侧写什么），
+ * 这里只是它的读者。
  */
 const DATA_ENTRIES: readonly {
   readonly id: string
@@ -67,11 +67,7 @@ const DATA_ENTRIES: readonly {
     cleanable: 'none',
     names: ['ledger.sqlite3', 'ledger.sqlite3-wal', 'ledger.sqlite3-shm'],
   },
-  {
-    id: 'settings',
-    cleanable: 'none',
-    names: ['settings.json', 'agents.json', 'automations.json'],
-  },
+  { id: 'settings', cleanable: 'none', names: ['settings.json'] },
   { id: 'agents', cleanable: 'none', names: ['agents'] },
   { id: 'attachments', cleanable: 'none', names: ['attachments'] },
   { id: 'plugins', cleanable: 'none', names: ['plugins'] },

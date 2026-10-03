@@ -18,12 +18,6 @@ pub enum LedgerError {
     JournalMode { actual: String },
     #[error("{column} 存着无法识别的值 {value}")]
     UnknownStoredValue { column: &'static str, value: String },
-    #[error("迁移 {version} 的名字变了：账本记着 {recorded}，代码里是 {expected}")]
-    MigrationDrift {
-        version: i64,
-        recorded: String,
-        expected: String,
-    },
     #[error("本机时区偏移不可用：{0}")]
     LocalOffset(#[from] time::error::IndeterminateOffset),
     #[error("时间戳无法格式化：{0}")]

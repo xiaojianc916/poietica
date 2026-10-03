@@ -267,7 +267,6 @@ mod tests {
         )?;
         let root = directory.path().to_string_lossy().into_owned();
         write_index(&index, move |store| {
-            store.import_automations(None, "UTC")?;
             for _ in 0..6 {
                 let catalog = store.automation_command(Command::Create(AutomationCreation {
                     title: "Work".to_owned(), prompt: "Inspect".to_owned(), schedule: None,

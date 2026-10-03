@@ -561,6 +561,11 @@ impl FromSql for TitleSource {
 
 #[cfg(test)]
 mod deletion_tests {
+    #![allow(
+        clippy::assert_is_empty,
+        reason = "an internal judgement on a collection must not gate the suite"
+    )]
+
     use super::AgentStore;
     use poietica_time::wall_clock::SystemWallClock;
     use std::error::Error;

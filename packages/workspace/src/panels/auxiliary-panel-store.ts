@@ -127,6 +127,10 @@ export interface AuxiliaryPanelStore {
     readonly forward: (id: number) => void
     readonly reload: (id: number) => void
     readonly print: (id: number) => void
+    /** 缩放一档：±1 就是内核的一档（一档 = 1.2 倍），0 是默认。 */
+    readonly setZoom: (id: number, level: number) => void
+    /** 内核此刻的缩放档；读回来的是内核的答案，不是这里的副本。 */
+    readonly readZoom: (id: number) => Promise<number>
     readonly setElementPicker: (id: number, enabled: boolean) => void
     readonly reopenClosed: (index: number) => void
     readonly openExternally: (url: string) => void
@@ -407,6 +411,8 @@ export function createAuxiliaryPanelStore(port: BrowserHostPort): AuxiliaryPanel
       forward: (id) => run('forward', () => port.forward(id)),
       reload: (id) => run('reload', () => port.reload(id)),
       print: (id) => run('print', () => port.print(id)),
+      setZoom: (id, level) => run('set-zoom', () => port.setZoom(id, level)),
+      readZoom: (id) => port.zoom(id),
       setElementPicker: (id, enabled) =>
         run('set-element-picker', () =>
           port.setElementPicker(

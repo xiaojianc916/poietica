@@ -24,11 +24,13 @@ export interface PoieticaHostBridge {
     readonly filters: readonly { readonly name: string; readonly extensions: readonly string[] }[]
   }): Promise<string | null>
   saveExport(request: unknown): Promise<boolean>
+  /** 长任务跑完时的一声；窗口在前台时宿主什么也不做。 */
+  notify(request: { readonly title: string; readonly body: string }): Promise<void>
   setSurfaceColor(color: readonly [number, number, number]): Promise<void>
   setTheme(preference: 'light' | 'dark' | 'system'): Promise<'light' | 'dark'>
   present(): Promise<void>
   appVersion(): Promise<string>
-  watchDroppedPaths(handler: (paths: readonly string[]) => void): () => void
+  watchDroppedPaths(handler: (paths: readonly string[], files: readonly File[]) => void): () => void
   onMaximizedChanged(handler: (isMaximized: boolean) => void): () => void
   onCloseRequested(handler: () => void): () => void
   onTerminationRequested(handler: () => void): () => void

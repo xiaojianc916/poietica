@@ -1,5 +1,4 @@
 //! Atomic automation state, durable command deduplication and conversation ownership.
-mod import;
 
 use crate::{LedgerError, index::AgentStore};
 use poietica_automation::{
@@ -12,6 +11,7 @@ use uuid::Uuid;
 type Result<T> = std::result::Result<T, LedgerError>;
 
 impl AgentStore {
+    /// 目录的第一份文档：这一行随库一起建（schema.sql 的种子行），没有「还没导入」这一态。
     pub fn automation_initialized(&self) -> Result<bool> {
         Ok(self.connection.query_row(
             "SELECT document IS NOT NULL FROM automation_state WHERE singleton = 1",
@@ -20,14 +20,22 @@ impl AgentStore {
         )?)
     }
 
+    /// 目录文档。这一行是 JSON，所以这里都要经它一次序列化往返 —— 文档缺席只有一个意思：
+    /// 库不是这一版建的（这个软件未发布，磁盘上不该有别的形状），按默认目录往下走而不是
+    /// 报「尚未导入」：自动化是可有可无的一格，它不该拦住启动对账。
     pub fn automation_state(&self) -> Result<AutomationState> {
         let document: Option<String> = self.connection.query_row(
             "SELECT document FROM automation_state WHERE singleton = 1",
             [],
             |row| row.get(0),
         )?;
-        let state: AutomationState =
-            serde_json::from_str(&document.ok_or(AutomationError::Uninitialized)?)?;
+        let state: AutomationState = match document {
+            Some(document) => serde_json::from_str(&document)?,
+            None => AutomationState {
+                revision: 1,
+                ..AutomationState::default()
+            },
+        };
         state.validate()?;
         Ok(state)
     }
@@ -218,6 +226,7 @@ fn claim(
 mod tests {
     #![allow(
         clippy::expect_used,
+        clippy::assert_is_empty,
         reason = "failed persistence fixtures must fail the test"
     )]
     use super::*;
@@ -226,9 +235,7 @@ mod tests {
     use std::collections::BTreeMap;
 
     fn open(path: &std::path::Path) -> AgentStore {
-        let store = AgentStore::open(path, TestClock::at_unix_millis(0)).expect("store");
-        store.import_automations(None, "UTC").expect("initialize");
-        store
+        AgentStore::open(path, TestClock::at_unix_millis(0)).expect("store")
     }
     fn definition(store: &AgentStore, root: &std::path::Path) -> String {
         store

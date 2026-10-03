@@ -41,6 +41,7 @@ import { createAttachmentIntake } from '../assistant/attachment-intake'
 import { createConversationEntry } from '../assistant/conversation-entry'
 import { createWorkspaceCollapse } from '../assistant/workspace-collapse'
 import { createBrowserPickController } from '../browser/browser-pick'
+import { watchCompletionNotifications } from '../notice/completion-notification'
 import { NoticeStore } from '../notice/notices'
 import { reportFailure } from '../notice/problem-presentation'
 import { createWorkspaceLayoutPreference } from '../shell/layout/layout-preference'
@@ -282,6 +283,38 @@ export function createApplicationRuntime(restored: string | null): ApplicationRu
     started = true
     void workspaceRoots.start()
     conversation.start()
+    /*
+     * 设置里那一格「完成时通知」的读者就是这里：开着才订阅 —— 关掉时连这条订阅都不在，
+     * 不存在「发了但被丢掉」。开关改一次就重订一次，不必重启。
+     */
+    let watching: (() => void) | null = null
+    const followNotificationSetting = (): void => {
+      /* 还没加载出设置时先不发：那一格此刻的真身还不在这台机器上。 */
+      const wanted = settings.getSnapshot()?.general.notifyOnCompletion === true
+
+      if (wanted === (watching !== null)) {
+        return
+      }
+
+      if (!wanted) {
+        watching?.()
+        watching = null
+        return
+      }
+
+      watching = watchCompletionNotifications(
+        conversation,
+        mainWindow,
+        conversation.threads,
+        (cause) => {
+          warn('完成通知没能发出去', { scope: 'notice', cause })
+        },
+      )
+    }
+
+    followNotificationSetting()
+    own(settings.subscribe(followNotificationSetting))
+    own(() => watching?.())
     own(notices.start())
     own(auxiliaryPanel.start())
     own(browserPick.start())

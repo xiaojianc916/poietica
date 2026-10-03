@@ -8,7 +8,7 @@ agent 报的用量读数是仪表值：这条会话此刻占了多少上下文�
 
 ## 决定
 
-- 账落在 `crates/ledger`：`session_usage` 存每条会话的读数，`token_days` 存
+- 账落在 `crates/ledger`：`session_usage` 存每条会话的读数，`token_model_days` 存
   每一天的累计，增量在同一次事务里算出。读数只有这一份，它同时是打开对话时
   要显示的那一份，不再有第二处副本。
 - 回落按整笔计入：读数变小只可能来自上下文压缩，而压缩后整份上下文会被重新
@@ -19,9 +19,9 @@ agent 报的用量读数是仪表值：这条会话此刻占了多少上下文�
 
 ## 影响
 
-- 迁移 0006 建 `session_usage` 与 `token_days` 两张表；后续迁移补上
-  `input_other` / `input_cache_read` / `input_cache_creation` 三列，撤掉
-  `threads.usage`。
+- `session_usage` 与 `token_model_days` 两张表住在 `ledger.sqlite3` 里，形状见
+  `crates/ledger/src/schema.sql`（输入构成的三列与读数同行，撤掉了
+  `threads.usage`）。
 - IPC 面新增只读命令 `usage_token_days`（`crates/ledger/src/index/usage.rs`
   是唯一写点，`apps/desktop/native/src/ipc/mod.rs` 转发）。
 - `sessionUsageOf` 与 `SessionUsageCost` 已移除：前者是手写的线上校验，后者

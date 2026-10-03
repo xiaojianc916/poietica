@@ -23,9 +23,9 @@ impl AgentStore {
     /// Opens the store. `crate::connection::open` 写全名而非 import：本类型的
     /// 方法也叫 open，写全了读的人不用做消歧。
     pub fn open(path: &Path, clock: impl WallClock + 'static) -> Result<Self> {
-        let mut connection = crate::connection::open(path)?;
+        let connection = crate::connection::open(path)?;
 
-        crate::migrations::apply(&mut connection, &clock)?;
+        crate::schema::install(&connection)?;
 
         Ok(Self {
             connection,
@@ -33,7 +33,8 @@ impl AgentStore {
         })
     }
 
-    /// 打开独立的只读连接。迁移只归 writer；query_only 由连接层强制。
+    /// 打开独立的只读连接。建表只归 writer（schema 随可写连接装一次）；
+    /// query_only 由连接层强制。
     pub fn open_read_only(path: &Path, clock: impl WallClock + 'static) -> Result<Self> {
         Ok(Self {
             connection: crate::connection::open_read_only(path)?,

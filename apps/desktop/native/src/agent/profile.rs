@@ -8,11 +8,10 @@ use poietica_agent_client::{
 };
 use poietica_problem::Problem;
 use serde::{Deserialize, Serialize};
-use serde_json::{Map, Value};
+use serde_json::Value;
 use specta::Type;
 use std::path::{Path, PathBuf};
 use std::sync::{Mutex, MutexGuard};
-use tempfile::NamedTempFile;
 
 type AgentConfigCommandResult<T> = std::result::Result<T, Problem>;
 
@@ -62,36 +61,12 @@ impl DocumentStore {
             .unwrap_or_else(std::sync::PoisonError::into_inner)
     }
 
-    fn entries(&self) -> Result<Map<String, Value>> {
-        match std::fs::read(&self.path) {
-            Ok(bytes) => Ok(serde_json::from_slice(&bytes)?),
-            Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(Map::new()),
-            Err(error) => Err(Error::Io(error)),
-        }
-    }
-
     pub(crate) fn read(&self, key: &str) -> Result<Option<Value>> {
-        Ok(self.entries()?.remove(key))
+        Ok(crate::json_document::read_document(&self.path)?.remove(key))
     }
 
-    /// 临时文件 + 改名：半份文档不是合法状态，崩在中间只能看到上一版。
     pub(crate) fn write(&self, key: &str, value: &Value) -> Result<()> {
-        let mut document = self.entries()?;
-        document.insert(key.to_owned(), value.clone());
-        let directory = self
-            .path
-            .parent()
-            .ok_or_else(|| Error::Validation("agents.json has no parent directory".to_owned()))?;
-        std::fs::create_dir_all(directory)?;
-        let mut temporary = NamedTempFile::new_in(directory)?;
-        serde_json::to_writer_pretty(&mut temporary, &document)?;
-        std::io::Write::write_all(&mut temporary, b"\n")?;
-        temporary.as_file().sync_all()?;
-        temporary
-            .persist(&self.path)
-            .map_err(|failure| Error::Io(failure.error))?;
-
-        Ok(())
+        crate::json_document::write_document(&self.path, key, value)
     }
 }
 
@@ -112,27 +87,6 @@ pub(crate) fn documents() -> Result<std::sync::Arc<DocumentStore>> {
         .ok_or_else(|| Error::Internal("the agent store is not open".to_owned()))
 }
 
-/// 旧盘上的形状（0.4.3 及以前）：`{agents: [...], defaultAgentId}` —— 能放多家的数组，
-/// 取用时按 id 挑一条。这一格现在就是档案本身，所以旧盘取第一条、顺手改写；别家条目本来就
-/// 会被下一次落盘抹掉。等不再有人从 ≤0.4.3 升上来，这个读法与它的测试一起删。
-fn lifted(stored: Value) -> Option<(Value, bool)> {
-    if !stored.is_object() {
-        return None;
-    }
-
-    if stored.get("agents").is_none() {
-        return Some((stored, false));
-    }
-
-    stored
-        .get("agents")
-        .and_then(Value::as_array)
-        .and_then(|agents| agents.first())
-        .filter(|entry| entry.is_object())
-        .cloned()
-        .map(|profile| (profile, true))
-}
-
 fn read_profile() -> Result<(Option<Value>, Vec<String>)> {
     let store = documents()?;
     let _holding = store.exclusive();
@@ -141,17 +95,14 @@ fn read_profile() -> Result<(Option<Value>, Vec<String>)> {
         return Ok((None, Vec::new()));
     };
 
-    match lifted(stored) {
-        None => Ok((
-            None,
-            vec!["agents.json 里的接入档案不是一份对象".to_owned()],
-        )),
-        Some((profile, false)) => Ok((Some(profile), Vec::new())),
-        Some((profile, true)) => {
-            store.write(STORE_KEY, &profile)?;
-            Ok((Some(profile), Vec::new()))
-        }
+    if stored.is_object() {
+        return Ok((Some(stored), Vec::new()));
     }
+
+    Ok((
+        None,
+        vec!["agents.json 里的接入档案不是一份对象".to_owned()],
+    ))
 }
 
 fn save_profile(profile: &Value) -> Result<()> {
@@ -314,68 +265,6 @@ mod tests {
 
     use super::DocumentStore;
     use serde_json::json;
-
-    use super::lifted;
-
-    /// 旧盘那一份数组里的第一条就是这一家的档案，别家条目丢掉（旧判读本来也会滤掉它们）。
-    #[test]
-    fn a_multi_agent_document_is_lifted_to_its_first_profile() {
-        let profile = json!({"id": "omp", "env": {"NO_COLOR": "1"}});
-        let stored = json!({
-            "agents": [profile, {"id": "other"}],
-            "defaultAgentId": "omp"
-        });
-
-        assert!(matches!(lifted(stored), Some((value, true)) if value == profile));
-    }
-
-    /// 现在的形状本身就是档案：不需要抬升，也不许把它包起来。
-    #[test]
-    fn a_single_profile_document_is_taken_as_is() {
-        let profile = json!({"id": "omp", "cwd": "C:\\notes"});
-
-        assert!(matches!(lifted(profile.clone()), Some((value, false)) if value == profile));
-    }
-
-    /// 不是对象、或 agents 不是数组：既不是档案也不是旧形状，按无效读。
-    #[test]
-    fn anything_that_is_not_a_profile_is_refused() {
-        assert!(lifted(json!("omp")).is_none());
-        assert!(lifted(json!({"agents": "omp"})).is_none());
-        assert!(lifted(json!({"agents": []})).is_none());
-    }
-
-    /// 旧盘那一格整个被换成档案：抬升不是只读一次，落盘的就是新形状。
-    #[test]
-    fn lifting_rewrites_the_document_in_its_new_shape() {
-        let directory = tempfile::tempdir().expect("test directory");
-        let path = directory.path().join("agents.json");
-        let profile = json!({"id": "omp", "cwd": "C:\\notes"});
-        std::fs::write(
-            &path,
-            serde_json::to_vec(&json!({
-                "agentConfig": {"agents": [profile, {"id": "other"}], "defaultAgentId": "omp"}
-            }))
-            .expect("test JSON"),
-        )
-        .expect("test file");
-
-        let store = DocumentStore::new(path.clone());
-        let read = store
-            .read("agentConfig")
-            .expect("our document")
-            .expect("present");
-        let (lifted, rewritten) = lifted(read).expect("a legacy document lifts");
-
-        assert!(rewritten);
-        assert_eq!(lifted, profile);
-        store.write("agentConfig", &lifted).expect("carry it over");
-
-        let after: serde_json::Value =
-            serde_json::from_slice(&std::fs::read(&path).expect("stored document"))
-                .expect("stored JSON");
-        assert_eq!(after["agentConfig"], profile);
-    }
 
     /// 顶层别人的键必须原样活着：agents.json 是我们自己的账，但同一份文件里可能有别的键。
     #[test]

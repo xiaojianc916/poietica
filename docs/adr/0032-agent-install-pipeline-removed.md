@@ -49,7 +49,7 @@ omp 随包发（ADR 0016、0021），它的档案从来没有 `install` 一格 �
 
 ## 未做到 / 记录
 
-agents.json 里「多家」的形状还在：别家条目的过滤与 `FOREIGN_ISSUE`、`defaultAgentId`、
+agents.json 里「多家」的形状当时还在：别家条目的过滤与 `FOREIGN_ISSUE`、`defaultAgentId`、
 `agentConfigSaveAgents`。那是接入档案这套机制本身，不是安装；把它收敛成 omp 常量
 （ADR 0016 已说 omp 是唯一的 agent）是另一件事，本次不做。
 
