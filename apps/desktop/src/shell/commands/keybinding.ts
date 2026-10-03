@@ -75,11 +75,51 @@ export function formatKeybinding(shortcut: string): string {
     .join(APPLE ? '' : '+')
 }
 
-const TEXT_ENTRY_SELECTOR =
-  'input, textarea, select, [contenteditable=""], [contenteditable="true"]'
+/*
+ * 归属判据只有一条：**这个和弦在命令表里登没登记**。
+ *
+ * 从前还叠了一条「焦点在输入框里就整个不问」，于是**在消息框里按 Ctrl+K 打不开命令
+ * 面板** —— 而那正是最常用的位置（phase 2 实测：聚焦编辑器 → dialog 0 个；失焦 → 17 个）。
+ *
+ * 挑一条「带修饰键就放行」是第二份判据，它会把编辑器自己的组合（Shift+方向选字之类）
+ * 也一并抢走。登记表已经是「应用拥有哪些键」的唯一定义，这里读它就够了。
+ */
 
-function isTextEntry(target: EventTarget | null): boolean {
-  return target instanceof Element && target.closest(TEXT_ENTRY_SELECTOR) !== null
+/* 一份快照 → 和弦表。纯函数：只认声明，不认事件，也不认焦点。 */
+export function chordIndexOf(
+  commands: readonly { readonly id: string; readonly shortcut?: string }[],
+): ReadonlyMap<string, string> {
+  const chords = new Map<string, string>()
+
+  for (const command of commands) {
+    if (command.shortcut === undefined) {
+      continue
+    }
+
+    const chord = parseChord(command.shortcut)
+
+    if (chord !== null) {
+      chords.set(chord, command.id)
+    }
+  }
+
+  return chords
+}
+
+/* 这次按键落在哪个已登记的命令上；没登记就是 undefined。 */
+export function commandOfKey(
+  chords: ReadonlyMap<string, string>,
+  event: {
+    readonly code: string
+    readonly ctrlKey: boolean
+    readonly metaKey: boolean
+    readonly shiftKey: boolean
+    readonly altKey: boolean
+  },
+): string | undefined {
+  return chords.get(
+    chordOf(event.ctrlKey || event.metaKey, event.shiftKey, event.altKey, event.code),
+  )
 }
 
 export function useCommandKeybindings(registry: CommandRegistry): void {
@@ -87,7 +127,7 @@ export function useCommandKeybindings(registry: CommandRegistry): void {
     type Snapshot = ReturnType<CommandRegistry['getSnapshot']>
 
     let indexedSnapshot: Snapshot | null = null
-    let chords = new Map<string, string>()
+    let chords: ReadonlyMap<string, string> = new Map<string, string>()
 
     function chordIndex(): ReadonlyMap<string, string> {
       const snapshot = registry.getSnapshot()
@@ -96,34 +136,18 @@ export function useCommandKeybindings(registry: CommandRegistry): void {
         return chords
       }
 
-      const next = new Map<string, string>()
-
-      for (const command of snapshot) {
-        if (command.shortcut === undefined) {
-          continue
-        }
-
-        const chord = parseChord(command.shortcut)
-
-        if (chord !== null) {
-          next.set(chord, command.id)
-        }
-      }
-
       indexedSnapshot = snapshot
-      chords = next
+      chords = chordIndexOf(snapshot)
 
-      return next
+      return chords
     }
 
     function handleKeyDown(event: KeyboardEvent): void {
-      if (event.isComposing || event.repeat || isTextEntry(event.target)) {
+      if (event.isComposing || event.repeat) {
         return
       }
 
-      const commandId = chordIndex().get(
-        chordOf(event.ctrlKey || event.metaKey, event.shiftKey, event.altKey, event.code),
-      )
+      const commandId = commandOfKey(chordIndex(), event)
 
       if (commandId === undefined) {
         return

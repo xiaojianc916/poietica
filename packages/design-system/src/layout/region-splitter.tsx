@@ -61,6 +61,8 @@ export function RegionSplitter({
   onActivity,
 }: RegionSplitterProps) {
   const session = useRef<DragSession | null>(null)
+  /* 排期中那一帧的宽度上报（见 onPointerMove）。 */
+  const pending = useRef<number | null>(null)
 
   /* 贴 inline-start 的区域向右拖变宽，贴 inline-end 的向左拖变宽。 */
   const grow = edge === 'inline-start' ? 1 : -1
@@ -78,6 +80,12 @@ export function RegionSplitter({
    */
   const settle = (current: DragSession, finalWidth: number, activity: SplitterActivity): void => {
     session.current = null
+
+    /* 松手时排期中的那一帧作废：它读的是已经交出去的会话，落地会把最终宽度又改回去。 */
+    if (pending.current !== null) {
+      cancelAnimationFrame(pending.current)
+      pending.current = null
+    }
 
     /* lostpointercapture 时捕获已释放，此时 release 会抛 NotFoundError。 */
     if (current.element.hasPointerCapture(current.pointerId)) {
@@ -138,6 +146,10 @@ export function RegionSplitter({
   /* 条随区域收起而卸载：谁写的状态谁收回。 */
   useEffect(
     () => () => {
+      if (pending.current !== null) {
+        cancelAnimationFrame(pending.current)
+      }
+
       onActivity('idle')
     },
     [onActivity],
@@ -248,8 +260,29 @@ export function RegionSplitter({
           return
         }
 
+        /*
+         * 最后已知位置立刻记下（收尾判定要用），宽度**合到帧上**再报。
+         *
+         * 高轮询鼠标一帧能发好几次 pointermove，而每一次 onResize 都会把整个外壳重渲一遍
+         * （宽度住在布局 store 里，主区也要跟着重排）。合并到帧上不改变结果 —— 同一帧里
+         * 最后那一次本来就会盖掉前面几次 —— 只把重复的那几趟省掉。第一次移动不等帧：
+         * 拖动的第一下必须立刻跟手。
+         */
         current.point = { x: event.clientX, y: event.clientY }
-        onResize(widthAt(current, event.clientX))
+
+        if (pending.current !== null) {
+          return
+        }
+
+        pending.current = requestAnimationFrame(() => {
+          pending.current = null
+
+          const active = session.current
+
+          if (active !== null) {
+            onResize(widthAt(active, active.point.x))
+          }
+        })
       }}
       onPointerUp={end}
       tabIndex={0}

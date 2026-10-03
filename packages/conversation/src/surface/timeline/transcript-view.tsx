@@ -1,4 +1,4 @@
-import { type ReactNode, useCallback, useMemo, useState } from 'react'
+import { type ReactNode, useCallback, useMemo, useRef, useState } from 'react'
 import type { TurnMark } from '../../agent/thread'
 import type { FeedRow, Presentation } from '../../timeline/presentation'
 import { selectPresentation } from '../../timeline/presentation'
@@ -252,18 +252,37 @@ export function TranscriptView({
     [outline, seals, sessionKey, transcripts],
   )
 
+  /*
+   * 滚动区每渲染一次就交一份新的 port（它带着此刻的 activeRow），所以 onSelect 不能内联：
+   * 内联等于每帧换一个函数身份，而 ConversationMinimap 是 memo 的 —— 那一栏连同它下面
+   * 全部格子会跟着滚动逐帧重渲（实测 15/15 次 commit 都真重渲）。落点从 ref 读最新那份，
+   * 于是这一栏只在真的换轮次时才重画。
+   */
+  const feedPort = useRef<FeedPort | null>(null)
+  const selectMark = useCallback(
+    (mark: TurnMark) => {
+      const port = feedPort.current
+
+      if (port !== null) {
+        reveal(mark, port.scrollToRow)
+      }
+    },
+    [reveal],
+  )
   const overlay = useCallback(
-    (port: FeedPort) => (
-      <ConversationMinimap
-        activeId={feed.turnIdAt(port.activeRow)}
-        busyId={revealTarget}
-        marks={outline}
-        onSelect={(mark) => {
-          reveal(mark, port.scrollToRow)
-        }}
-      />
-    ),
-    [feed, outline, reveal, revealTarget],
+    (port: FeedPort) => {
+      feedPort.current = port
+
+      return (
+        <ConversationMinimap
+          activeId={feed.turnIdAt(port.activeRow)}
+          busyId={revealTarget}
+          marks={outline}
+          onSelect={selectMark}
+        />
+      )
+    },
+    [feed, outline, revealTarget, selectMark],
   )
 
   return (
