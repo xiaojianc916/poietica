@@ -145,6 +145,19 @@ async fn a_process_level_read_reuses_the_live_connection() {
     .expect("the catalog read must not hang")
     .expect("the catalog read must reuse the live connection");
 
+    /*
+     * 名册读（入口那一格开机就认领，cwd 缺席）。它与上面两条同属进程级读，判据必须
+     * 同一条：写成 ensure 会把 cwd 缺席解析成兜底根，把这条锚在用户工作区上的活连接
+     * 拆掉 —— 屏幕上是首启一次「agent 连接失败」，两秒后自愈。
+     */
+    tokio::time::timeout(
+        Duration::from_secs(60),
+        runtime.toolkit("omp".to_owned(), None, None),
+    )
+    .await
+    .expect("the roster read must not hang")
+    .expect("the roster read must reuse the live connection");
+
     assert_eq!(
         spawns.load(Ordering::SeqCst),
         1,
@@ -173,15 +186,15 @@ async fn a_process_level_read_reuses_the_live_connection() {
     runtime.shutdown().expect("shutdown");
 }
 
-/// 带了工作区的读必须按工作区锚，不能复用一条锚在别处的活连接。
+/// 带了工作区的读**也不许**重锚：它问的仍是进程级事实，而重锚会拆掉另一条读正在用的
+/// 连接。
 ///
-/// 首启那三条读并发就是这样撞上的：目录读传 `cwd: null`，先起一条锚在兜底根上的连接；
-/// 选择器读带着工作区紧随其后，若它复用那条兜底连接，随后按工作区锚的名册读就会把这条
-/// 连接拆掉 —— 拆的正是还在服务选择器读的那条，于是首启必现一次「agent 连接失败」。
-///
-/// 判据是这一读自己起没起进程：带工作区而活连接锚在兜底根上时，它必须重锚。
+/// 这一条是上面那条的补集，合起来就是唯一判据 —— 进程级读只复用，起进程的判据是
+/// 「没有同 agent 的活连接」。此前这里断言的是相反的行为（带工作区就必须重锚），
+/// 那正是首启一次「agent 连接失败」的产地：目录读先起一条锚在兜底根上的连接，选择器读
+/// 带着工作区把它拆掉重锚，目录读那趟死在半路。
 #[tokio::test]
-async fn a_read_that_carries_a_workspace_reanchors_the_connection() {
+async fn a_read_that_carries_a_workspace_reuses_the_live_connection() {
     let bundled = bundled();
 
     if !bundled.join("poietica-bridge.js").is_file() {
@@ -232,9 +245,30 @@ async fn a_read_that_carries_a_workspace_reanchors_the_connection() {
         |_| {},
     );
 
-    /* 首启第一条读：cwd 缺席，落一条锚在兜底根上的连接。 */
+    /*
+     * 首启只有一条读、且它带着工作区时：这一读自己起连接，锚必须落在**它请求的工作区**
+     * 上，不能落到兜底根。`Reuse` 管的是「有活连接时不重锚」，不是「起新的时锚在哪」。
+     */
     tokio::time::timeout(
         Duration::from_secs(180),
+        runtime.configuration_for(
+            "omp".to_owned(),
+            Some(workspace.to_string_lossy().into_owned()),
+        ),
+    )
+    .await
+    .expect("the selector read must not hang")
+    .expect("the selector read must answer");
+
+    assert_eq!(
+        spawns.load(Ordering::SeqCst),
+        1,
+        "a read that starts the connection must start exactly one"
+    );
+
+    /* 随后 cwd 缺席的读要复用那条锚在工作区上的连接，不重锚、不重起。 */
+    tokio::time::timeout(
+        Duration::from_secs(60),
         runtime.model_catalog(
             "omp".to_owned(),
             None,
@@ -248,31 +282,10 @@ async fn a_read_that_carries_a_workspace_reanchors_the_connection() {
     assert_eq!(
         spawns.load(Ordering::SeqCst),
         1,
-        "a cwd-less read must anchor on the fallback root"
+        "a cwd-less read must reuse a connection anchored on the workspace"
     );
 
-    /*
-     * 首启第二条读：带着工作区。它自己必须重锚 —— 复用兜底那条会让名册读把它拆掉，
-     * 而它正挂在上面。
-     */
-    tokio::time::timeout(
-        Duration::from_secs(60),
-        runtime.configuration_for(
-            "omp".to_owned(),
-            Some(workspace.to_string_lossy().into_owned()),
-        ),
-    )
-    .await
-    .expect("the selector read must not hang")
-    .expect("the selector read must answer");
-
-    assert_eq!(
-        spawns.load(Ordering::SeqCst),
-        2,
-        "a read carrying a workspace must re-anchor, not reuse a connection anchored elsewhere"
-    );
-
-    /* 随后按同一工作区的读要复用重锚后的那条，不再起进程。 */
+    /* 带工作区的读同理：复用，不重锚。 */
     tokio::time::timeout(
         Duration::from_secs(60),
         runtime.toolkit(
@@ -287,8 +300,167 @@ async fn a_read_that_carries_a_workspace_reanchors_the_connection() {
 
     assert_eq!(
         spawns.load(Ordering::SeqCst),
-        2,
-        "a read on the already-anchored workspace must reuse its connection"
+        1,
+        "the roster read must reuse the live connection too"
+    );
+
+    runtime.shutdown().expect("shutdown");
+}
+
+/// 首启那几条读是**并发**的，且都带着同一个工作区 —— 屏幕上的真实形状：模型目录、选择器、
+/// 名册三处读的 cwd 都取自当前工作区。判据是起进程次数恒为 1：谁先跑都得复用同一条，任何
+/// 一条拆掉另一条正在用的连接，屏幕上就是首启一次「agent 连接失败」，两秒后自愈。
+#[tokio::test]
+async fn concurrent_startup_reads_share_one_connection() {
+    let bundled = bundled();
+
+    if !bundled.join("poietica-bridge.js").is_file() {
+        return;
+    }
+
+    let directory = tempfile::tempdir().expect("directory");
+    let index = LocalIndex::<Failure>::open(&directory.path().join("ledger.db"), SystemWallClock)
+        .expect("index");
+    let journal = FrameJournal::new(index.clone(), |_, _| {}).expect("journal");
+    let home = directory.path().join("agent-home");
+    std::fs::create_dir_all(&home).expect("agent home");
+    let root = directory.path().join("fallback-root");
+    std::fs::create_dir_all(&root).expect("fallback root");
+    let workspace = directory.path().join("workspace");
+    std::fs::create_dir_all(&workspace).expect("workspace");
+
+    let spawns = Arc::new(AtomicUsize::new(0));
+    let counted = Arc::clone(&spawns);
+    let preparing = bundled.clone();
+    let agent_home = home.clone();
+    let runtime = Runtime::<Failure>::new(
+        root,
+        directory.path().join("attachments"),
+        index,
+        journal,
+        move |request| {
+            counted.fetch_add(1, Ordering::SeqCst);
+            let bundled = preparing.clone();
+            let home = agent_home.clone();
+            Box::pin(async move {
+                Ok(AgentSpawn {
+                    program: "bun".to_owned(),
+                    bundled,
+                    entry: "poietica-bridge.js".to_owned(),
+                    args: Vec::new(),
+                    cwd: request.cwd,
+                    env: ProcessEnvironment {
+                        set: Vec::new(),
+                        remove: Vec::new(),
+                    },
+                    home,
+                })
+            })
+        },
+        |_| {},
+    );
+
+    let workspace = workspace.to_string_lossy().into_owned();
+    let (catalog, selectors, roster) = tokio::time::timeout(Duration::from_secs(180), async {
+        tokio::join!(
+            runtime.model_catalog(
+                "omp".to_owned(),
+                Some(workspace.clone()),
+                poietica_agent_client::ModelCatalogOperation::Snapshot,
+            ),
+            runtime.configuration_for("omp".to_owned(), Some(workspace.clone())),
+            runtime.toolkit("omp".to_owned(), Some(workspace), None),
+        )
+    })
+    .await
+    .expect("the startup reads must not hang");
+
+    catalog.expect("the catalog read must survive the concurrent startup reads");
+    selectors.expect("the selector read must survive the concurrent startup reads");
+    roster.expect("the roster read must survive the concurrent startup reads");
+
+    assert_eq!(
+        spawns.load(Ordering::SeqCst),
+        1,
+        "concurrent startup reads must share one connection"
+    );
+
+    runtime.shutdown().expect("shutdown");
+}
+
+/// 残留竞态：cwd 缺席的进程级读**先**建起连接（锚在兜底根上），随后一条按工作区的读把它
+/// 重锚 —— 先建那条手里正在飞的请求会不会死。它与上面的用例是同一条判据的另一半。
+#[tokio::test]
+async fn a_workspace_read_does_not_tear_down_a_concurrent_process_read() {
+    let bundled = bundled();
+
+    if !bundled.join("poietica-bridge.js").is_file() {
+        return;
+    }
+
+    let directory = tempfile::tempdir().expect("directory");
+    let index = LocalIndex::<Failure>::open(&directory.path().join("ledger.db"), SystemWallClock)
+        .expect("index");
+    let journal = FrameJournal::new(index.clone(), |_, _| {}).expect("journal");
+    let home = directory.path().join("agent-home");
+    std::fs::create_dir_all(&home).expect("agent home");
+    let root = directory.path().join("fallback-root");
+    std::fs::create_dir_all(&root).expect("fallback root");
+    let workspace = directory.path().join("workspace");
+    std::fs::create_dir_all(&workspace).expect("workspace");
+
+    let spawns = Arc::new(AtomicUsize::new(0));
+    let counted = Arc::clone(&spawns);
+    let preparing = bundled.clone();
+    let agent_home = home.clone();
+    let runtime = Runtime::<Failure>::new(
+        root,
+        directory.path().join("attachments"),
+        index,
+        journal,
+        move |request| {
+            counted.fetch_add(1, Ordering::SeqCst);
+            let bundled = preparing.clone();
+            let home = agent_home.clone();
+            Box::pin(async move {
+                Ok(AgentSpawn {
+                    program: "bun".to_owned(),
+                    bundled,
+                    entry: "poietica-bridge.js".to_owned(),
+                    args: Vec::new(),
+                    cwd: request.cwd,
+                    env: ProcessEnvironment {
+                        set: Vec::new(),
+                        remove: Vec::new(),
+                    },
+                    home,
+                })
+            })
+        },
+        |_| {},
+    );
+
+    let workspace = workspace.to_string_lossy().into_owned();
+    let (process, selectors) = tokio::time::timeout(Duration::from_secs(180), async {
+        tokio::join!(
+            runtime.capability_report("omp".to_owned()),
+            runtime.configuration_for("omp".to_owned(), Some(workspace)),
+        )
+    })
+    .await
+    .expect("the startup reads must not hang");
+
+    process.expect("the cwd-less process read must survive a concurrent workspace read");
+    selectors.expect("the selector read must survive the concurrent startup reads");
+
+    /*
+     * 判据落在起进程次数上，不落在「谁先跑完」上：两种锚只允许有一条连接。写成断言顺序
+     * 是拿时序当判据 —— 谁先谁后由调度定，两种排法都合法，测出来的却是运气。
+     */
+    assert_eq!(
+        spawns.load(Ordering::SeqCst),
+        1,
+        "两种锚的进程级读必须共用一条连接，不许重锚重起"
     );
 
     runtime.shutdown().expect("shutdown");

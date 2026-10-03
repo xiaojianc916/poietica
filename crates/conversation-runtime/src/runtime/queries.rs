@@ -7,28 +7,21 @@ use poietica_agent_client::{
 };
 
 impl<E: RuntimeFailure> Runtime<E> {
-    /// 进程级读的连接选择。
+    /// 进程级读的连接选择：复用同 agent 的活连接，**不看工作区**。
     ///
-    /// cwd 缺席时复用同 agent 的活连接：进程级事实不依赖连接锚在哪，而拿缺席去 `ensure`
-    /// 会解析成兜底工作区，把用户对话正用的连接拆掉重起——切模型那一趟正好紧跟在会话
-    /// 选择之后，拆掉就等于把刚改好的设置连人一起丢掉。
+    /// 这些读问的是进程级事实（模型目录、能力清单、名册、设置），与连接锚在哪无关。
+    /// 传 cwd 进来按工作区重锚是有害的：首启那几条读是并发的，锚一旦不一致，后到的那条
+    /// 就把前一条**正在服务这次读**的连接拆掉，前一条手里在飞的请求当场
+    /// `Refused(Gone)` —— 屏幕上是首启一次「agent 连接失败」，两秒后自愈。
     ///
-    /// cwd 在场时**必须**按它锚：连接的 cwd 定着会话桶与工具工作目录，复用一条锚在别处
-    /// 的连接，会被下一次按工作区的 `ensure` 拆掉——拆的正是正在服务这次读的那条（首次
-    /// 启动三条读并发时必现：目录读锚在兜底根上，选择器读复用了它，名册读按工作区重锚，
-    /// 于是选择器那趟死在半路）。
+    /// 传 `Reuse` 而不是 `Replace`：`Replace` 在 cwd 缺席时会解析成兜底工作区，把用户
+    /// 对话正用的连接拆掉重起；cwd 在场时又会按工作区重锚，拆掉另一条读正在用的那条。
+    /// 两条路都拆，所以这里根本不该重锚 —— 重锚是开会话的事。
+    ///
+    /// cwd 照传：真到了「没有活连接、这一读自己起一条」那一步，锚仍该落在请求的工作区上，
+    /// 而不是一律落到兜底根。`Reuse` 只管「有活连接时不重锚」，不管「起新的时锚在哪」。
     async fn or_live(&self, agent: String, cwd: Option<String>) -> Result<Handle, CommandError<E>> {
-        let Some(workspace) = cwd else {
-            return match self.connection.current().map_err(CommandError::Runtime)? {
-                Some(handle) if handle.agent_id == agent => Ok(handle),
-                _ => self
-                    .ensure(agent, None, Takeover::Replace)
-                    .await
-                    .map_err(CommandError::Runtime),
-            };
-        };
-
-        self.ensure(agent, Some(workspace), Takeover::Replace)
+        self.ensure(agent, cwd, Takeover::Reuse)
             .await
             .map_err(CommandError::Runtime)
     }
@@ -48,16 +41,17 @@ impl<E: RuntimeFailure> Runtime<E> {
             .map_err(CommandError::Agent)
     }
 
+    /// 名册读与其它进程级读同一条连接判据（见 `or_live`）：复用同 agent 的活连接。
+    ///
+    /// cwd 在这里只用来给 project 技能标名（`collect_toolkit` 的 `fallback_cwd`），
+    /// **不**用来选连接 —— 它是读的一部分，不是锚的一部分。
     pub async fn toolkit(
         &self,
         agent: String,
         cwd: Option<String>,
         thread: Option<String>,
     ) -> Result<(Vec<Skill>, Vec<McpServer>), CommandError<E>> {
-        let live = self
-            .ensure(agent, cwd, Takeover::Replace)
-            .await
-            .map_err(CommandError::Runtime)?;
+        let live = self.or_live(agent, cwd).await?;
         let held = match thread.as_deref() {
             Some(named) => Some(
                 self.sessions()

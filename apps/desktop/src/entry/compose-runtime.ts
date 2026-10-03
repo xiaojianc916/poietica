@@ -204,8 +204,7 @@ export function createApplicationRuntime(restored: string | null): ApplicationRu
     },
   })
 
-  /* 与 capabilities 读同源同锚：锚不同就是首启那条竞态（见 models.ts 的注释）。 */
-  const modelCatalog = new ModelCatalogStore(createModelCatalogPort(workspaceRoots.readActive))
+  const modelCatalog = new ModelCatalogStore(createModelCatalogPort())
   /*
    * agent 自己那份设置目录：378 格的真身住在 agent 进程的 settings-schema 里，这一份是投影。
    * 写走它自己的 Settings.set + flush，它自己热重载（ADR 0018 决定四）。

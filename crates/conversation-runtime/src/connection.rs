@@ -37,6 +37,7 @@ type Acquisition<E> = Pin<Box<dyn Future<Output = Result<Handle, E>> + Send>>;
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Takeover {
     Replace,
+    Reuse,
     Preserve,
 }
 
@@ -300,8 +301,11 @@ impl<E: ConnectionFailure> ConnectionOwner<E> {
                      * 复用判据是 agent **加**工作区：连接的 cwd 锚着会话桶与工具的
                      * 工作目录，拿它去服务另一个工作区的对话，agent 就会在错的目录
                      * 里动手。同 agent 不同工作区一律按请求的工作区重建。
+                     *
+                     * `Reuse` 是进程级读那一档：那些事实与锚在哪无关，agent 对得上
+                     * 就复用 —— 重锚会拆掉另一条读正在用的连接。
                      */
-                    if live.agent_id == agent && live.cwd == cwd {
+                    if live.agent_id == agent && (takeover == Takeover::Reuse || live.cwd == cwd) {
                         return Ok(live);
                     }
                     if takeover == Takeover::Preserve {
