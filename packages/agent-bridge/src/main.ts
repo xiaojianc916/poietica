@@ -17,7 +17,7 @@ import {
 
 import { type BridgeHost, createBridge } from './bridge.ts'
 import { BRIDGE_PROTOCOL_VERSION, type BridgeCommand, type BridgeFrame } from './protocol.ts'
-import { runWorkerSelector } from './workers.ts'
+import { runCliCommand, runWorkerSelector } from './workers.ts'
 
 /*
  * 这个进程同时是 SDK 的 **worker host**，而不只是 stdio 服务。
@@ -53,6 +53,14 @@ if (isWorkerHostSelector(process.argv[2])) {
   }
 
   await runWorkerSelector(process.argv[2])
+} else if (process.argv[2] === 'browser-relay') {
+  /*
+   * omp 的 relay 服务端：它按 resolveWorkerSpawnCmd("browser-relay") 拉起来的就是这一支
+   * （形状 `[运行时, 本文件, "browser-relay", "--port", N]`，见 workers.ts）。
+   *
+   * 参数原样递给 CLI：端口、--token 这些是它自己的命令行面，我们再抄一份就是第二个事实。
+   */
+  await runCliCommand(process.argv.slice(2))
 } else {
   await serve()
 }

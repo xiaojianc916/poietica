@@ -168,7 +168,7 @@ export function PythonKernelSettings({ gateway }: PythonKernelSettingsProps) {
           onDone={() => {
             setInstalled(false)
           }}
-          text="Python 内核装好了，agent 现在可以直接跑 Python 代码。"
+          text="Python内核安装成功"
           tone="success"
         />
       ) : null}

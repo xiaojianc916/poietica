@@ -91,6 +91,7 @@ import { MAX_PROMPT_IMAGE_BYTES } from './protocol.ts'
 import { ASK_TOOL, answerPayloadOf, askQuestionsOf } from './questions.ts'
 import {
   globalThinkingDefault,
+  isConfiguredSetting,
   readCatalog,
   type SettingChoicesOf,
   settingsReaderOf,
@@ -414,6 +415,23 @@ export function createBridge(host: BridgeHost): Bridge {
         for (const provider of missing) {
           disableProvider(provider)
         }
+        await instance.flush()
+      }
+
+      /*
+       * 产品默认：agent 的浏览器控制指的是本机内置浏览器，不是它自己拉一个 Chromium。
+       *
+       * 用户要的是「AI 动浏览器时我能看见」，而独立窗口那一条既看不见又和面板里的
+       * 标签对不上。这里写的是**默认**不是**强制**：只有这一格从来没被谁配过
+       * （isConfigured 为假 —— 用户在设置页选过、或 omp 自己写过，都算配过）才落一次。
+       * 用 isConfigured 而不是读值：值和 schema 默认一样时读不出来「有没有人选过」，
+       * 那就会把用户特意选的托管启动一次次改回来。
+       *
+       * 写在 settingsFor 里、与会话无关：它是全局层的一格，与 FOREIGN_PROVIDERS 同一处
+       * 一次性收敛，不是每次开对话都写一遍。
+       */
+      if (!isConfiguredSetting(instance, 'browser.relay')) {
+        writeSettingValue(instance, 'browser.relay', true)
         await instance.flush()
       }
 
@@ -3659,6 +3677,7 @@ export function createBridge(host: BridgeHost): Bridge {
   function browserSettingsOf(settings: Settings): {
     enabled: boolean
     headless: boolean
+    relay: boolean
     cdpUrl: string | null
   } {
     const cdpUrl = settingValueOf(settings, 'browser.cdpUrl') as string | undefined
@@ -3666,6 +3685,8 @@ export function createBridge(host: BridgeHost): Bridge {
     return {
       enabled: settingValueOf(settings, 'browser.enabled') === true,
       headless: settingValueOf(settings, 'browser.headless') === true,
+      /* relay 是「驱动本机内置浏览器」那一档；它优先于 cdpUrl（见 omp 的 resolveBrowserKind）。 */
+      relay: settingValueOf(settings, 'browser.relay') === true,
       cdpUrl: typeof cdpUrl === 'string' && cdpUrl.trim() !== '' ? cdpUrl : null,
     }
   }
@@ -3728,6 +3749,7 @@ export function createBridge(host: BridgeHost): Bridge {
   async function writeBrowserSettings(command: {
     readonly enabled?: boolean
     readonly headless?: boolean
+    readonly relay?: boolean
     readonly cdpUrl?: string
   }): Promise<unknown> {
     const settings = await settingsFor()
@@ -3737,6 +3759,9 @@ export function createBridge(host: BridgeHost): Bridge {
     }
     if (command.headless !== undefined) {
       writeSettingValue(settings, 'browser.headless', command.headless)
+    }
+    if (command.relay !== undefined) {
+      writeSettingValue(settings, 'browser.relay', command.relay)
     }
     if (command.cdpUrl !== undefined) {
       writeSettingValue(settings, 'browser.cdpUrl', command.cdpUrl)

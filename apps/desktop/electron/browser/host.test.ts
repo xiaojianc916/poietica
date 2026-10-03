@@ -123,6 +123,8 @@ class FakeWebContentsView implements FakeView {
 const created: FakeWebContentsView[] = []
 
 mock.module('electron', () => ({
+  // 同一个进程里 relay.test.ts 也 mock 这个模块：两份工厂必须是并集。
+  app: { userAgentFallback: 'fallback-ua' },
   WebContentsView: class extends FakeWebContentsView {
     constructor() {
       super()
@@ -246,6 +248,35 @@ describe('摆放', () => {
     host.openTab(null)
 
     expect(host.state().tabs[1]?.url).toBeNull()
+    expect(visibleViews()).toHaveLength(0)
+  })
+
+  /*
+   * agent 经 CDP 导航（relay 那条线）不经过 host 的命令面：地址由内核报回来的
+   * did-navigate 落账。那张标签在导航前是空白的，不占面板；落账之后必须当场被摆上 ——
+   * 只 publish 不 layout 的写法会让画面停在隐藏状态：地址、标题都对，就是没内容，
+   * 要等用户拖一次分隔条才补上。
+   */
+  test('CDP 导航落账：空白标签当场摆上；退回空白页再收走', () => {
+    const { host } = harness()
+
+    host.setBounds({ x: 10, y: 20, width: 300, height: 200 })
+    host.setVisible(true)
+    host.openTab(null)
+
+    const only = created[0] as FakeWebContentsView
+
+    expect(visibleViews()).toHaveLength(0)
+
+    only.webContents.emit('did-navigate', {}, 'https://a.example/')
+
+    expect(host.state().tabs[0]?.url).toBe('https://a.example/')
+    expect(visibleViews()).toHaveLength(1)
+    expect(only.bounds.at(-1)).toEqual({ x: 10, y: 20, width: 300, height: 200 })
+
+    only.webContents.emit('did-navigate', {}, 'about:blank')
+
+    expect(host.state().tabs[0]?.url).toBeNull()
     expect(visibleViews()).toHaveLength(0)
   })
 

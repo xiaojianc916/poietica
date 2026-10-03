@@ -26,6 +26,7 @@ import {
 import { createAssetProtocolHandler } from './asset-protocol'
 import type { BrowserHost } from './browser/host'
 import { applyBrowserCommand, BROWSER_PARTITION, createBrowserHost } from './browser/host'
+import { type BrowserRelay, createBrowserRelay, DEFAULT_RELAY_URL } from './browser/relay'
 import { adoptDataRoot } from './data-root'
 import type { Router } from './ipc-router'
 import { createRouter } from './ipc-router'
@@ -68,6 +69,7 @@ const refusal = (message: string): Reply => ({ ok: false, message })
 
 let mainWindow: BrowserWindow | null = null
 let browserHost: BrowserHost | null = null
+let browserRelay: BrowserRelay | null = null
 let nativeHost: NativeHost | null = null
 let router: Router | null = null
 let tray: Tray | null = null
@@ -820,12 +822,33 @@ async function main(): Promise<void> {
       callback(false)
     })
 
-  browserHost = createBrowserHost(win, presentBrowserState, {
+  /* 标签面每一次变化都同时喂两条线：渲染层（屏幕）与 agent（relay）。 */
+  const browserState = (): void => {
+    presentBrowserState()
+    browserRelay?.publish(browserHost?.state() ?? null)
+  }
+
+  browserHost = createBrowserHost(win, browserState, {
     onElementPicked: (picked) => {
       // 事件名与生成物的 events.browserElementPicked 一致。
       send('poietica:event:browser-element-picked', picked)
     },
   })
+
+  /*
+   * agent 那条线：把面板里的标签当成一台现成的浏览器端出去（./browser/relay.ts）。
+   *
+   * onDriven 是「agent 正要动浏览器」的唯一信号：relay 服务端由 omp 自己的浏览器前奏
+   * 按需拉起，所以它活着就等于 agent 要用，而不是应用启动了。面板据此自己展开 ——
+   * 用户不必先去点一下浏览器那一格，AI 动的时候看得见。
+   */
+  browserRelay = createBrowserRelay(browserHost, {
+    url: DEFAULT_RELAY_URL,
+    onDriven: () => {
+      send('poietica:event:browser-driven', null)
+    },
+  })
+  browserRelay.start()
 
   const native = loadNative()
 

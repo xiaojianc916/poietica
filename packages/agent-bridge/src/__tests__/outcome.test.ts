@@ -20,6 +20,17 @@ describe('一轮的结局', () => {
     expect(outcomeOf({ stopReason: 'aborted' })).toEqual({ kind: 'cancelled' })
   })
 
+  /*
+   * 按停止键时上游在这条消息上留一句 AbortError 的默认正文（pi-ai 的
+   * error/abort.ts："Request was aborted"）。那句话说的是「人按了停」，不是
+   * 「哪里坏了」—— 带出去，屏幕上就会给一轮取消挂一条报错横幅。
+   */
+  it('被停掉时上游留的那句话不带上屏：取消不是报错', () => {
+    expect(outcomeOf({ stopReason: 'aborted', errorMessage: 'Request was aborted' })).toEqual({
+      kind: 'cancelled',
+    })
+  })
+
   it('正常收尾落 completed', () => {
     expect(outcomeOf({ stopReason: 'stop' })).toEqual({ kind: 'completed' })
     expect(outcomeOf({ stopReason: 'toolUse' })).toEqual({ kind: 'completed' })

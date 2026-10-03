@@ -1,4 +1,5 @@
 import { type ConversationRuntime, groupByWorkspace } from '@poietica/conversation'
+import { watchBrowserDriven } from '@poietica/native-bridge/browser'
 import type { CommandRegistry, RegisteredCommand, WorkbenchSessionStore } from '@poietica/workspace'
 import type { AuxiliaryPanelStore } from '@poietica/workspace/panels'
 import type { ConversationEntry } from '../assistant/conversation-entry'
@@ -84,6 +85,27 @@ export function connectWorkbench(input: Connections): () => void {
     }
     commandReleases.push(commands.registerAll(next))
   }
+  /*
+   * agent 要用浏览器了：把右栏开出来并停在浏览器那一段。
+   *
+   * 这是「用户看得见 AI 在动哪个页面」的那一步 —— 面板关着或停在别的通道上时，宿主
+   * 那边的视图是藏起来的（auxiliary-dock 的 setVisible 只认「停靠且焦点在浏览器」），
+   * 不自己开出来用户就什么都看不到。
+   *
+   * 走 claimAuxiliaryThread 而不是 setAuxiliaryThread：用户自己把右栏让给别的对话时
+   * （那是一条明确的选择）不许被抢走；而在当前对话上没开右栏时它才开。
+   */
+  const browserDriven = (): void => {
+    if (stopped) {
+      return
+    }
+    const surface = workspace.getSnapshot().activeSurface
+    if (surface.kind !== 'conversation' || !layout.claimAuxiliaryThread(surface.threadId)) {
+      return
+    }
+    auxiliaryPanel.selectBrowser()
+  }
+
   const browserChanged = (): void => {
     if (stopped) {
       return
@@ -112,6 +134,7 @@ export function connectWorkbench(input: Connections): () => void {
       }),
     )
     releases.push(auxiliaryPanel.subscribe(browserChanged))
+    releases.push(watchBrowserDriven(browserDriven))
     activeChanged()
     listChanged()
     browserChanged()

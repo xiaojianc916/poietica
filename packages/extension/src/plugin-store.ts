@@ -546,12 +546,7 @@ export function createPluginStore(options: PluginStoreOptions): PluginStore {
 
   async function readBrowserSettings(): Promise<void> {
     try {
-      const [browser, appEndpoint] = await Promise.all([
-        options.capability.readBrowserSettings(),
-        options.capability.readAppBrowserEndpoint(),
-      ])
-
-      publish({ browser: { kind: 'ready', appEndpoint, ...browser } })
+      publish({ browser: { kind: 'ready', ...(await options.capability.readBrowserSettings()) } })
     } catch (cause: unknown) {
       const reason = reasonOf(cause)
 
@@ -562,12 +557,9 @@ export function createPluginStore(options: PluginStoreOptions): PluginStore {
 
   async function writeBrowserSettings(patch: BrowserSettingsPatch): Promise<void> {
     try {
-      const [browser, appEndpoint] = await Promise.all([
-        options.capability.writeBrowserSettings(patch),
-        options.capability.readAppBrowserEndpoint(),
-      ])
-
-      publish({ browser: { kind: 'ready', appEndpoint, ...browser } })
+      publish({
+        browser: { kind: 'ready', ...(await options.capability.writeBrowserSettings(patch)) },
+      })
     } catch (cause: unknown) {
       const reason = reasonOf(cause)
 
@@ -1082,8 +1074,9 @@ function unreadableManifest(name: string): PluginManifest {
   }
 }
 
+/* 一句话说清这次失败：跨边界回来的原因多半是 Error（preload 把问题信封挂在异常上）。 */
 function reasonOf(cause: unknown): string {
-  return reasonOf(cause)
+  return cause instanceof Error ? cause.message : String(cause)
 }
 
 function decodeManifestJson(pluginId: string, contents: string) {

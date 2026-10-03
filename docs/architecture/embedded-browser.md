@@ -39,19 +39,23 @@ X-Frame-Options/frame-ancestors 会把大多数站点挡在 iframe 外面。
 
 ## agent 操控
 
-数据从哪来、经过谁、到哪去：BrowserHost::new 在启动时于 127.0.0.1 上抽一个
-空闲端口，第一个标签 webview 创建时把 --remote-debugging-port 写进 WebView2
-的环境参数（环境级参数：同 profile 的所有标签共用一个 CDP 端点，各自是端点
-下的一个 target）。会话拉起时 ensure_live_kernel 先把内核预热出来（一个带地
-址的标签都没有就预热一页空白页），端点上才有页面可听。前端启动时
-alignBrowserEndpoint（apps/desktop/src/browser/browser-endpoint.ts）把 agent
-的 browser.cdpUrl 对齐到当前端点（端口每次启动都抽，所以每次启动都对账）。
-agent 用它自己的原生浏览器能力经这个 CDP 端点驱动面板里的标签。唯一真相不变：
-标签模型在 crates/browser 的 Tabs 里，CDP 只是伸进内核的手。
+数据从哪来、经过谁、到哪去：agent 走 omp 自己的浏览器 relay 通道
+（`browser.relay`，默认端点 `http://127.0.0.1:9224`）。relay 服务端由 omp 的浏览器
+前奏按需拉起，它冒充 Chrome 的 CDP 发现端点，另一侧本该由浏览器扩展拨进来 ——
+应用不用扩展：主进程手上有 `webContents.debugger`，与扩展用的 `chrome.debugger`
+是同一套东西，于是这一侧由 `apps/desktop/electron/browser/relay.ts` 扮演。omp 看到
+的是一台普通浏览器，实际动的是面板里的 WebContentsView，一个标签一个 target。
 
-判据是探活不是地址形状：上一趟留下的端点与用户自选的现成浏览器在地址上完全
-一样（都是本机回环加端口），区别只在「那个端口还有没有人在听」。所以死端点才
-对齐，活着的用户选择一概不碰（apps/desktop/src/browser/browser-endpoint-probe.ts）。
+为什么不开应用级 `remote-debugging-port` 再把 cdpUrl 指过去：那个端点上主界面自己
+也是一个 page target，而 omp 挑 target 的判据是「可见的、或枚举到的第一个」
+（omp 的 `src/tools/browser/attach.ts` 的 `pickElectronTarget`），agent 会一头钻进主界面；而且
+整个应用的调试面就此开在回环上，本机任何进程都能连。relay 那条路上没有别的
+target，「挑错页面」从根上不成立，也不用把主界面端出去。
+
+面板不必用户先打开：relay 一接上就是「agent 正要动浏览器」的信号
+（`browser-driven` 事件），`connectWorkbench` 据此把右栏开出来并切到浏览器那一段；
+一个标签都没有时宿主先开一个空白标签，CDP 端点上才有页面可听。唯一真相不变：
+标签模型在 Electron 侧 `browser/host.ts` 里。
 
 原先挂的那台 playwright MCP 已删：omp 侧自带浏览器能力，而它会按浏览器类服务器
 把 `@playwright/mcp` 过滤掉（node_modules/.../mcp/config.ts 的 filterBrowserMCPServers），

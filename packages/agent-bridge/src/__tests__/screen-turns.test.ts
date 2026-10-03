@@ -16,6 +16,7 @@
 import { expect, test } from 'bun:test'
 import { applyOperation, EMPTY_AGENT_STATE } from '@poietica/transcript'
 
+import { outcomeOf } from '../outcome.ts'
 import { TranscriptProjector } from '../projection.ts'
 
 const FRAME = 'f1'
@@ -134,4 +135,33 @@ test('落进 reducer 之后，屏幕上那一轮的终局是 completed 且两头
       start: '2026-01-01T00:00:00.000Z',
     })
   }
+})
+
+/*
+ * 按停止键那一趟的整条链：上游落在最后一条 assistant 消息上的那一句，经结局判据与
+ * 投影器落到 reducer，屏幕上**不长出** error 那一格。
+ *
+ * 缺陷正是从这条链上漏出来的：`aborted` 那一档把 `Request was aborted` 当成了给人看
+ * 的报错带走，errorItemOf 于是照它建一格，屏幕上就给一轮取消挂一条报错横幅。
+ */
+test('取消那一轮收尾之后，屏幕上没有 error 这一格', () => {
+  const projector = new TranscriptProjector()
+
+  projector.userTurn('一句')
+  const outcome = outcomeOf({ stopReason: 'aborted', errorMessage: 'Request was aborted' })
+  const closed = projector.turnEnd(outcome.kind, outcome.message)
+
+  let state = EMPTY_AGENT_STATE
+
+  for (const op of closed) {
+    state = applyOperation(state, op).state
+  }
+
+  expect(outcome).toEqual({ kind: 'cancelled' })
+
+  /* 那一轮自己仍然在屏幕上，只是状态是取消而不是失败，且没有报错那一格。 */
+  const turn = state.items[0]
+
+  expect(turn?.kind === 'turn' && turn.state).toBe('cancelled')
+  expect(turn?.kind === 'turn' && turn.error).toBeUndefined()
 })

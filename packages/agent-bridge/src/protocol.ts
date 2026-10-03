@@ -200,12 +200,14 @@ export type BridgeCommand =
   /**
    * 写 agent 的浏览器控制设置；缺席的格不改。`cdpUrl` 给空串即清掉
    * （回到托管启动），给了地址就是附着到那个 CDP 端点而不是自己拉浏览器。
+   * `relay` 是「驱动本机内置浏览器」那一档，在 omp 里优先于 cdpUrl。
    */
   | {
       readonly id: string
       readonly type: 'set_browser_settings'
       readonly enabled?: boolean
       readonly headless?: boolean
+      readonly relay?: boolean
       readonly cdpUrl?: string
     }
   | { readonly id: string; readonly type: 'skills' }

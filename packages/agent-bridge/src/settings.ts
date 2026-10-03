@@ -69,6 +69,20 @@ export function writeSettingValue(scope: ScopeLike, path: string, value: unknown
   settingAt(path).set(scope, value)
 }
 
+/*
+ * 这一格有没有被**谁显式配过**（全局、项目、或运行时覆盖），而不是回落到 schema 默认。
+ *
+ * 判「有没有人选过」只能问它，不能读值：值与 schema 默认相同时读不出来，于是「出厂默认
+ * 落一次」会被做成「每次启动都推一遍」，把用户特意选的相反档位一次次改回来。
+ * 收句柄而不是路径，所以 settingAt 仍是这里唯一的路径解析点。
+ */
+export function isConfiguredSetting(
+  settings: { isConfigured(setting: AnySetting): boolean },
+  path: string,
+): boolean {
+  return settings.isConfigured(settingAt(path))
+}
+
 /**
  * 全局那一档思考深度的**默认值**（不是用户配的那一格）。
  *

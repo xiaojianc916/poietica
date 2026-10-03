@@ -203,6 +203,7 @@ pub(crate) enum Command {
     SetBrowserSettings {
         enabled: Option<bool>,
         headless: Option<bool>,
+        relay: Option<bool>,
         cdp_url: Option<String>,
         reply: oneshot::Sender<Result<BrowserSettings>>,
     },
@@ -700,6 +701,7 @@ impl AgentClient {
         &self,
         enabled: Option<bool>,
         headless: Option<bool>,
+        relay: Option<bool>,
         cdp_url: Option<String>,
     ) -> Result<BrowserSettings> {
         let (reply, answer) = oneshot::channel();
@@ -707,6 +709,7 @@ impl AgentClient {
         self.send(Command::SetBrowserSettings {
             enabled,
             headless,
+            relay,
             cdp_url,
             reply,
         })?;

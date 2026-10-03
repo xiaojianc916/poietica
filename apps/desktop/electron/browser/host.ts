@@ -11,7 +11,7 @@
  * 元素拾取的注入脚本与 token 语义在 ./element-picker.ts；这里只负责什么时候租、什么时候收。
  */
 
-import type { BrowserWindow, Rectangle } from 'electron'
+import type { BrowserWindow, Rectangle, WebContents } from 'electron'
 import { WebContentsView } from 'electron'
 
 import {
@@ -27,7 +27,7 @@ import {
 } from './element-picker'
 
 /** 空白页写法的唯一产地，与 crates/browser 的 BLANK_PAGE 同一个值。 */
-const BLANK_PAGE = 'about:blank'
+export const BLANK_PAGE = 'about:blank'
 const RECENTLY_CLOSED_CAP = 10
 
 /**
@@ -79,7 +79,13 @@ export interface BrowserElementPicked {
 
 export interface BrowserHost {
   state(): BrowserState
-  openTab(url?: string | null): void
+  /** 开一个标签；地址归一不了时不动手并回 null。 */
+  openTab(url?: string | null): number | null
+  /**
+   * 某个标签的内核对象。agent 那条线（./relay.ts）要拿它附着调试器 —— 与 Chrome
+   * 扩展用的 chrome.debugger 是同一套东西，所以宿主交出对象、不代跑 CDP 命令。
+   */
+  contentsOf(id: number): WebContents | null
   closeTab(id: number): void
   selectTab(id: number): void
   navigate(id: number, address: string): void
@@ -234,13 +240,8 @@ export function createBrowserHost(
     for (const tab of tabs) {
       const shown = visible && tab === target
 
-      /* 只在真的翻转时才叫内核：面板拖动是每帧一次的通报，逐帧对每个标签重复同一次
-         setVisible 是白付的（实测 5 个标签 60 帧 = 300 次，全是同一个值）。 */
-      if (shown !== tab.shown) {
-        tab.shown = shown
-        tab.view.setVisible(shown)
-      }
-
+      /* 几何先于可见性：点亮的那一帧必须已经有真实矩形，否则视图会先按上一次的矩形
+         （没上报过时就是 1×1）亮一下。 */
       if (shown) {
         tab.view.setBounds({
           x: Math.round(bounds.x),
@@ -249,6 +250,13 @@ export function createBrowserHost(
           width: Math.max(1, Math.round(bounds.width)),
           height: Math.max(1, Math.round(bounds.height)),
         })
+      }
+
+      /* 只在真的翻转时才叫内核：面板拖动是每帧一次的通报，逐帧对每个标签重复同一次
+         setVisible 是白付的（实测 5 个标签 60 帧 = 300 次，全是同一个值）。 */
+      if (shown !== tab.shown) {
+        tab.shown = shown
+        tab.view.setVisible(shown)
       }
     }
   }
@@ -260,7 +268,13 @@ export function createBrowserHost(
       return
     }
 
+    /*
+     * 地址是「这一页有没有东西可摆」的判据（showing），所以它与几何、可见性同批结算。
+     * 只 publish 不 layout：agent 经 CDP 导航过来的页面（空白标签 → 真站点）永远不会
+     * 被摆上，面板里地址、标题都有，就是没画面 —— 要等用户拖一次分隔条才补上。
+     */
     tab.url = url === BLANK_PAGE ? null : url
+    layout()
     publish()
   }
 
@@ -409,7 +423,7 @@ export function createBrowserHost(
     return view
   }
 
-  function openTab(url?: string | null): void {
+  function openTab(url?: string | null): number | null {
     stopPicker(null)
 
     const normalized = url === undefined || url === null ? null : normalizeAddress(url)
@@ -417,7 +431,7 @@ export function createBrowserHost(
     if (url !== undefined && url !== null && normalized === null) {
       console.warn(`browser: 拒绝打开无法归一化的地址 ${url}`)
 
-      return
+      return null
     }
 
     const id = nextId
@@ -444,6 +458,8 @@ export function createBrowserHost(
 
     layout()
     publish()
+
+    return id
   }
 
   function closeTab(id: number): void {
@@ -514,6 +530,10 @@ export function createBrowserHost(
 
   return {
     state: read,
+
+    contentsOf(id) {
+      return find(id)?.view.webContents ?? null
+    },
 
     openTab,
 

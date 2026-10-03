@@ -33,6 +33,14 @@ const build = spawnSync(
   },
 )
 
+/* 起不来与跑失败是两回事：status 为 null 时原因只在 error 里，别报成「退出 undefined」。 */
+if (build.error !== undefined) {
+  process.stderr.write(
+    `native:build: 起不了 cargo（${build.error.message}）—— 装好 rustup 工具链，并确认它的 shim 在 PATH 上。\n`,
+  )
+  process.exit(1)
+}
+
 if (build.status !== 0) {
   process.stderr.write(`native:build: cargo 退出 ${String(build.status)}\n`)
   process.exit(build.status ?? 1)
@@ -43,6 +51,13 @@ const metadata = spawnSync('cargo', ['metadata', '--format-version', '1', '--no-
   cwd: repository,
   encoding: 'utf8',
 })
+if (metadata.error !== undefined || metadata.status !== 0) {
+  process.stderr.write(
+    `native:build: cargo metadata 失败（${metadata.error?.message ?? `退出 ${String(metadata.status)}`}）\n`,
+  )
+  process.exit(1)
+}
+
 const targetDirectory = JSON.parse(metadata.stdout).target_directory
 
 const dll = join(targetDirectory, profile, 'poietica.dll')

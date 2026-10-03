@@ -32,11 +32,15 @@ export type AgentArchiveThreadRequest = { threadId: string; archived: boolean }
 /**
  * agent 的浏览器控制设置，原样投影。
  */
-export type AgentBrowserSettings = { enabled: boolean; headless: boolean; cdpUrl: string | null }
+export type AgentBrowserSettings = { enabled: boolean; headless: boolean; 
+/**
+ * 驱动本机内置浏览器那一档；它优先于 cdp_url。
+ */
+relay: boolean; cdpUrl: string | null }
 /**
  * 一次浏览器控制设置的改动；缺席的格不改。
  */
-export type AgentBrowserSettingsPatch = { enabled: boolean | null; headless: boolean | null; cdpUrl: string | null }
+export type AgentBrowserSettingsPatch = { enabled: boolean | null; headless: boolean | null; relay: boolean | null; cdpUrl: string | null }
 export type AgentCancelRequest = { threadId: string }
 export type AgentCapabilitiesRequest = { cwd: string | null }
 export type AgentCapability = { id: string; pluginId: string | null; label: string; supported: boolean; state: AgentCapabilityState; install: AgentCapabilityInstall }

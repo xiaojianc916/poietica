@@ -24,7 +24,7 @@ const FAILURE_PREFIX = '安装失败：'
 
 const BROWSER_READING = '正在读取 agent 的浏览器控制设置…'
 const BROWSER_MANAGED = 'agent 自己启动一个浏览器来操作网页'
-const BROWSER_APP = 'agent 直接操控 Poietica 的内置浏览器'
+const BROWSER_APP = 'agent 直接操控右侧栏的内置浏览器，页面就在你眼前'
 const BROWSER_CDP = '附着到一个已经在跑的浏览器（CDP）'
 const CDP_DEFAULT = 'http://127.0.0.1:9222'
 const APP_MODE = 'app'
@@ -98,13 +98,18 @@ function BrowserSection({
     )
   }
 
+  /*
+   * 三档：内置浏览器（relay，默认）/ 托管启动 / 附着到现成的 CDP。
+   *
+   * 顺序与 omp 的判档一致 —— relay 它就是优先于 cdpUrl 的（它的 resolveBrowserKind 先问
+   * relay 再问 cdpUrl），所以这里也先看 relay。
+   */
   const modes: readonly SelectOption<string>[] = [
+    { value: APP_MODE, label: '内置浏览器' },
     { value: 'managed', label: '托管启动' },
-    ...(browser.appEndpoint === null ? [] : [{ value: APP_MODE, label: '内置浏览器' }]),
     { value: 'cdp', label: '附着到现成浏览器' },
   ]
-  const mode =
-    browser.cdpUrl === null ? 'managed' : browser.cdpUrl === browser.appEndpoint ? APP_MODE : 'cdp'
+  const mode = browser.relay ? APP_MODE : browser.cdpUrl === null ? 'managed' : 'cdp'
 
   return (
     <SettingsGroup title="浏览器">
@@ -136,11 +141,12 @@ function BrowserSection({
           data={modes}
           onValueChange={(next) => {
             if (next === 'managed') {
-              store.setBrowserSettings({ cdpUrl: '' })
+              store.setBrowserSettings({ relay: false, cdpUrl: '' })
             } else if (next === APP_MODE) {
-              store.setBrowserSettings({ cdpUrl: browser.appEndpoint ?? '' })
+              /* 内置那一档只认 relay；cdpUrl 留着不动，切回来时用户原来的地址还在。 */
+              store.setBrowserSettings({ relay: true })
             } else {
-              store.setBrowserSettings({ cdpUrl: CDP_DEFAULT })
+              store.setBrowserSettings({ relay: false, cdpUrl: CDP_DEFAULT })
             }
           }}
           type="连接方式"

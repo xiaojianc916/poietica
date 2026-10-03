@@ -104,11 +104,12 @@ impl<E: RuntimeFailure> Runtime<E> {
         agent: String,
         enabled: Option<bool>,
         headless: Option<bool>,
+        relay: Option<bool>,
         cdp_url: Option<String>,
     ) -> Result<BrowserSettings, CommandError<E>> {
         let live = self.or_live(agent, None).await?;
         live.client
-            .set_browser_settings(enabled, headless, cdp_url)
+            .set_browser_settings(enabled, headless, relay, cdp_url)
             .await
             .map_err(CommandError::Agent)
     }

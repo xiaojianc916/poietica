@@ -33,6 +33,9 @@ interface TerminalMessage {
  *
  * - 没有消息，或是上游的静默中止：这一轮没有失败可言，按完成算。
  * - `aborted`：这一轮被停掉（人按了取消，或上游主动中止），不是它自己坏了。
+ *   上游在这条消息的 `errorMessage` 上留了一句（pi-ai 的 AbortError 默认就是
+ *   `Request was aborted`），但那句说的是「谁按了停」，不是「哪里坏了」——
+ *   交给屏幕就是给一轮取消凭空添一条报错，所以这一档不带话。
  * - `error`：厂商或链路报错，`errorMessage` 就是给人看的那一句。
  */
 export function outcomeOf(last: TerminalMessage | undefined): TurnOutcome {
@@ -43,7 +46,7 @@ export function outcomeOf(last: TerminalMessage | undefined): TurnOutcome {
   const message = last.errorMessage
 
   if (last.stopReason === 'aborted') {
-    return { kind: 'cancelled', ...(message === undefined ? {} : { message }) }
+    return { kind: 'cancelled' }
   }
 
   if (last.stopReason === 'error') {

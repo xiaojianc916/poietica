@@ -119,7 +119,13 @@ function settled(
   return { kind: 'installable' }
 }
 
-/** agent 的浏览器控制设置；cdpUrl 为 null 即托管启动（agent 自己拉 Chromium）。 */
+/**
+ * agent 的浏览器控制设置。
+ *
+ * 三档由两份事实决定：`relay` 为真即「驱动本机内置浏览器」（agent 经本机的 relay 端点
+ * 动右侧栏那些标签）；否则 cdpUrl 为 null 是托管启动（agent 自己拉 Chromium），
+ * 有地址是附着到那个现成端点。relay 在 omp 里优先于 cdpUrl。
+ */
 export type BrowserControl =
   | { readonly kind: 'unread' }
   | { readonly kind: 'failed'; readonly reason: string }
@@ -127,13 +133,13 @@ export type BrowserControl =
       readonly kind: 'ready'
       readonly enabled: boolean
       readonly headless: boolean
+      readonly relay: boolean
       readonly cdpUrl: string | null
-      /** 本机内置浏览器的 CDP 端点；非 Windows 或未分配端口时为 null。 */
-      readonly appEndpoint: string | null
     }
 
 export interface BrowserSettingsPatch {
   readonly enabled?: boolean
   readonly headless?: boolean
+  readonly relay?: boolean
   readonly cdpUrl?: string
 }

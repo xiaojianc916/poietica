@@ -104,17 +104,13 @@ export const capabilityGateway: CapabilityGateway = {
   installCapability: (capabilityId, enabled) =>
     throughIpc(() => commands.agentCapabilityInstall({ capabilityId, enabled })),
   readBrowserSettings: () => throughIpc(() => commands.agentBrowserSettings()),
-  /*
-   * 应用自己那台浏览器的 CDP 端点。Electron 侧的对应物还没定（端口与它的环境参数一起没了），
-   * 所以这里如实答「没有」：设置页据此把内置那一档收起来，而不是让 agent 去连一个不存在的地址。
-   */
-  readAppBrowserEndpoint: () => Promise.resolve(null),
   writeBrowserSettings: (patch) =>
     throughIpc(() =>
       commands.agentSetBrowserSettings({
         /* 缺席的格发 null：生成的契约是可空必填（serde Option 的投影）。 */
         enabled: patch.enabled ?? null,
         headless: patch.headless ?? null,
+        relay: patch.relay ?? null,
         cdpUrl: patch.cdpUrl ?? null,
       }),
     ),

@@ -102,6 +102,8 @@ pub async fn agent_capability_install(
 pub struct AgentBrowserSettings {
     pub enabled: bool,
     pub headless: bool,
+    /// 驱动本机内置浏览器那一档；它优先于 cdp_url。
+    pub relay: bool,
     pub cdp_url: Option<String>,
 }
 
@@ -111,6 +113,7 @@ pub struct AgentBrowserSettings {
 pub struct AgentBrowserSettingsPatch {
     pub enabled: Option<bool>,
     pub headless: Option<bool>,
+    pub relay: Option<bool>,
     pub cdp_url: Option<String>,
 }
 
@@ -118,6 +121,7 @@ fn reported_browser(settings: BrowserSettings) -> AgentBrowserSettings {
     AgentBrowserSettings {
         enabled: settings.enabled,
         headless: settings.headless,
+        relay: settings.relay,
         cdp_url: settings.cdp_url,
     }
 }
@@ -143,6 +147,7 @@ pub async fn agent_set_browser_settings(
             agent_id()?,
             request.enabled,
             request.headless,
+            request.relay,
             request.cdp_url,
         )
         .await

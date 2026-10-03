@@ -1010,6 +1010,7 @@ fn outgoing(command: ClientCommand, id: &str, _session_id: Option<&str>) -> Resu
         ClientCommand::SetBrowserSettings {
             enabled,
             headless,
+            relay,
             cdp_url,
             reply,
         } => ask(
@@ -1017,6 +1018,7 @@ fn outgoing(command: ClientCommand, id: &str, _session_id: Option<&str>) -> Resu
                 id: id.to_owned(),
                 enabled,
                 headless,
+                relay,
                 cdp_url,
             },
             reply,
@@ -1205,6 +1207,10 @@ fn browser_settings_of(data: &Value) -> crate::BrowserSettings {
             .and_then(|browser| browser.get("headless"))
             .and_then(Value::as_bool)
             .unwrap_or(true),
+        relay: browser
+            .and_then(|browser| browser.get("relay"))
+            .and_then(Value::as_bool)
+            .unwrap_or(false),
         cdp_url: text("cdpUrl").filter(|url| !url.trim().is_empty()),
     }
 }

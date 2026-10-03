@@ -51,7 +51,9 @@
    「没有这一格」与「这一格是空表」在 Rust 侧也不许混（`strings` 帮手）。
 3. 轮终的结局由 `stopReason` 判（新 `outcome.ts`）：`error`→failed、
    `aborted`→cancelled、静默中止不算失败。一律报 completed 会把厂商报错说成一轮
-   成功 —— 屏幕上既没有正文也没有错误。
+   成功 —— 屏幕上既没有正文也没有错误。只有 `error` 那一档带话：按停止键时上游在
+   那条消息的 `errorMessage` 上留的是 AbortError 的默认正文（`Request was aborted`），
+   它说的是「谁按了停」而不是「哪里坏了」—— 带出去就是给一轮取消凭空添一条报错横幅。
 4. `model_changed` / `thinking_level_changed` 两个上游事件触发选择器重报，
    不再靠人切页才刷新。
 5. 界面一个控件都不删（与 0052 第 5 条同一条纪律）。

@@ -23,6 +23,19 @@ function invoke<T>(command: string, args: unknown): Promise<T> {
   return throughIpc(async () => (await window.poietica.invoke(command, args)) as T)
 }
 
+/*
+ * agent 正要动内置浏览器。面板据此自己开出来 —— 用户不必先去点一下那一格，
+ * 而 AI 动的时候页面就在眼前。
+ *
+ * 判据是宿主侧的 relay 连上了（main.ts 的 browserRelay.onDriven）：relay 服务端由 omp
+ * 自己的浏览器前奏按需拉起，所以这个信号说的是「agent 现在要用」而不是「应用起来了」。
+ */
+export function watchBrowserDriven(onDriven: () => void): () => void {
+  return window.poietica.on('browser-driven', () => {
+    onDriven()
+  })
+}
+
 export function watchBrowserState(onState: (state: BrowserState) => void): Promise<() => void> {
   let latestRevision = -1
 

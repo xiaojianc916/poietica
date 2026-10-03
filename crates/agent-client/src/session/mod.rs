@@ -217,6 +217,8 @@ pub struct Capability {
 pub struct BrowserSettings {
     pub enabled: bool,
     pub headless: bool,
+    /// 驱动本机内置浏览器那一档（omp 的 browser.relay）；它优先于 cdp_url。
+    pub relay: bool,
     pub cdp_url: Option<String>,
 }
 

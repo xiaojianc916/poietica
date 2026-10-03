@@ -213,6 +213,8 @@ pub enum Command {
         enabled: Option<bool>,
         #[serde(skip_serializing_if = "Option::is_none")]
         headless: Option<bool>,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        relay: Option<bool>,
         #[serde(rename = "cdpUrl", skip_serializing_if = "Option::is_none")]
         cdp_url: Option<String>,
     },
