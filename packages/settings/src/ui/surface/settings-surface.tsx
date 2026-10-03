@@ -51,7 +51,7 @@ import type { PythonKernelGateway } from '../python-kernel/gateway'
 import { PythonKernelSettings } from '../python-kernel-settings'
 import { SettingRow, SettingsGroup, SettingsPage, ToggleRow } from '../settings-primitives'
 import { SkillsSettings } from '../skills-settings'
-import type { ReadTokenDays } from '../usage-activity'
+import type { ReadMessageCount, ReadModelDays, ReadTokenDays } from '../usage-activity'
 import { UsageSettings } from '../usage-settings'
 import { ArchivedChatsSettings } from './archived-chats-settings'
 import { MascotPrefsGroup } from './mascot-prefs'
@@ -104,6 +104,8 @@ interface SettingsSectionContext {
   readonly dataDirectory: () => Promise<string>
   /** Token 日账的读，由组合根注入：账本只有原生侧那一份。 */
   readonly readTokenDays: ReadTokenDays
+  readonly readModelDays: ReadModelDays
+  readonly readMessageCount: ReadMessageCount
   /** 技能名册，由组合根下传：名册属于会话上下文，住在更高的 assistant 环。 */
   readonly skills: readonly AgentSkill[]
   readonly plugins: PluginStore
@@ -210,8 +212,14 @@ const SECTIONS: Record<SettingsSection, SettingsSectionDescriptor> = {
   usage: {
     label: '用量',
     icon: Zap,
-    render: ({ readTokenDays, threads }) => (
-      <UsageSettings readTokenDays={readTokenDays} threads={threads} />
+    render: ({ modelCatalog, readMessageCount, readModelDays, readTokenDays, threads }) => (
+      <UsageSettings
+        modelCatalog={modelCatalog}
+        readMessageCount={readMessageCount}
+        readModelDays={readModelDays}
+        readTokenDays={readTokenDays}
+        threads={threads}
+      />
     ),
   },
   about: {
@@ -252,6 +260,8 @@ interface SettingsSurfaceContextValue {
   readonly appVersion: () => Promise<string>
   readonly dataDirectory: () => Promise<string>
   readonly readTokenDays: ReadTokenDays
+  readonly readModelDays: ReadModelDays
+  readonly readMessageCount: ReadMessageCount
   readonly skills: readonly AgentSkill[]
   readonly plugins: PluginStore
   readonly pythonKernel: PythonKernelGateway
@@ -301,6 +311,10 @@ export interface SettingsProviderProps {
   readonly dataDirectory: () => Promise<string>
   /** 最近若干天的 token 日账，由组合根注入（同 appVersion：账本在原生侧）。 */
   readonly readTokenDays: ReadTokenDays
+  /** 按模型拆开的日账，与 readTokenDays 同一本账。 */
+  readonly readModelDays: ReadModelDays
+  /** 最近若干天的句子数，同上：只有原生侧那份准入账数得出来。 */
+  readonly readMessageCount: ReadMessageCount
   /** 这个应用的版本号，由组合根注入：版本号只有宿主一个产地，这个包不自己读。 */
   readonly appVersion: () => Promise<string>
   /** 这一家 agent 公布的技能名册，由组合根下传：名册属于会话上下文，住在 assistant 环，环序禁止本包反向依赖。 */
@@ -329,6 +343,8 @@ export function SettingsProvider({
   appVersion,
   dataDirectory,
   readTokenDays,
+  readModelDays,
+  readMessageCount,
   skills,
   openSkillDocument,
   onDismiss,
@@ -388,6 +404,8 @@ export function SettingsProvider({
       appVersion,
       dataDirectory,
       readTokenDays,
+      readModelDays,
+      readMessageCount,
       skills,
       openSkillDocument,
       section,
@@ -404,6 +422,8 @@ export function SettingsProvider({
       plugins,
       pythonKernel,
       readTokenDays,
+      readModelDays,
+      readMessageCount,
       section,
       skills,
       openSkillDocument,
@@ -447,6 +467,8 @@ export function SettingsContentRegion() {
     plugins,
     pythonKernel,
     readTokenDays,
+    readModelDays,
+    readMessageCount,
     openSkillDocument,
     section,
     skills,
@@ -493,6 +515,8 @@ export function SettingsContentRegion() {
               plugins,
               pythonKernel,
               readTokenDays,
+              readModelDays,
+              readMessageCount,
               settings: controller.settings,
               skills,
               threads,
@@ -863,7 +887,7 @@ const AboutSettings = memo(function AboutSettings({
 
         <div>
           <dt>设置存储</dt>
-          <dd>JSON（应用设置）与 agent 自己受控 home 下的配置（Agent 配置）</dd>
+          <dd>JSON（应用设置）</dd>
         </div>
 
         <div>
@@ -875,7 +899,7 @@ const AboutSettings = memo(function AboutSettings({
       <SettingsGroup title="诊断与更新">
         <ToggleRow
           checked={settings.privacy.telemetry}
-          description="上报不含文档内容的功能使用统计"
+          description="上报不含具体对话内容的功能性使用统计"
           label="匿名使用数据"
           onChange={(checked) => {
             controller.update((current) => ({

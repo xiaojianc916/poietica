@@ -149,6 +149,8 @@ export function AppShell({ runtime }: AppShellProps) {
             onWindowMinimize={minimizeWindow}
             plugins={runtime.pluginStore}
             pythonKernel={runtime.pythonKernel}
+            readMessageCount={runtime.readMessageCount}
+            readModelDays={runtime.readModelDays}
             readTokenDays={runtime.readTokenDays}
             settingsSection={settingsSection}
             settingsStore={runtime.settings}

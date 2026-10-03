@@ -449,6 +449,10 @@ export type TerminalChunk = { kind: "output"; value: string } | { kind: "exited"
 export type TerminalStreamed = { root: string; chunk: TerminalChunk }
 export type ThemePreference = "light" | "dark" | "system"
 export type UsageDay = { day: string; tokens: number }
+/**
+ * 一天里一个模型花掉的 token。趋势图按它分线。
+ */
+export type UsageModelDay = { day: string; model: string; tokens: number }
 export const commands = {
 /**
  *  Returns the agent's submission receipt without waiting for model completion.
@@ -725,6 +729,16 @@ export const commands = {
  *  最近 span 天的日账，由早到晚。没有账的日子不占行。 */
   async usageTokenDays(span: number): Promise<UsageDay[]> {
     return call<UsageDay[]>('usage_token_days', { span: span })
+  },
+/**
+ *  最近 span 天里每个模型各自的日账，由早到晚。没有账的日子与模型不占行。 */
+  async usageModelDays(span: number): Promise<UsageModelDay[]> {
+    return call<UsageModelDay[]>('usage_model_days', { span: span })
+  },
+/**
+ *  最近 span 天里发出去的句子数。准入那一行就是「用户说了一句话」，插话也照算。 */
+  async usageMessageCount(span: number): Promise<number> {
+    return call<number>('usage_message_count', { span: span })
   },
 /**
  *  这台机器上，这个应用的数据根。

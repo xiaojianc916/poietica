@@ -75,7 +75,7 @@ pub(crate) fn compose(
                     "agent_session_event",
                     serde_json::to_value(AgentSessionEvent::Usage {
                         session_id,
-                        usage: reported_usage(usage),
+                        usage: reported_usage(&usage),
                     }),
                 ),
                 SessionEvent::Queue { session_id, queue } => (

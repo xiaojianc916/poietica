@@ -19,7 +19,7 @@ import { createSettingsPersistence } from '@poietica/native-bridge/settings'
 import { terminalHostPort } from '@poietica/native-bridge/terminal'
 import { createAppUpdateController } from '@poietica/native-bridge/update'
 import { readAppVersion } from '@poietica/native-bridge/update/version'
-import { readTokenDays } from '@poietica/native-bridge/usage'
+import { readMessageCount, readModelDays, readTokenDays } from '@poietica/native-bridge/usage'
 import { createMainWindowController } from '@poietica/native-bridge/window'
 import { createProjectlessWorkspace, pickWorkspaceRoot } from '@poietica/native-bridge/workspace'
 import { readDataDirectory } from '@poietica/native-bridge/workspace/data-directory'
@@ -204,7 +204,8 @@ export function createApplicationRuntime(restored: string | null): ApplicationRu
     },
   })
 
-  const modelCatalog = new ModelCatalogStore(createModelCatalogPort())
+  /* 与 capabilities 读同源同锚：锚不同就是首启那条竞态（见 models.ts 的注释）。 */
+  const modelCatalog = new ModelCatalogStore(createModelCatalogPort(workspaceRoots.readActive))
   /*
    * agent 自己那份设置目录：378 格的真身住在 agent 进程的 settings-schema 里，这一份是投影。
    * 写走它自己的 Settings.set + flush，它自己热重载（ADR 0018 决定四）。
@@ -339,6 +340,8 @@ export function createApplicationRuntime(restored: string | null): ApplicationRu
     appVersion: readAppVersion,
     dataDirectory: readDataDirectory,
     readTokenDays,
+    readModelDays,
+    readMessageCount,
     pythonKernel: pythonKernelGateway,
     startBackgroundServices: () => {
       void ensureBackgroundServices().catch((cause: unknown) => {

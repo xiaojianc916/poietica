@@ -289,11 +289,26 @@
   font-size: 11px;
 }
 
+/*
+ * 读数是数字与短词，字号给大；但「最常用模型」那一格是一整条 provider/id 折成的
+ * 名字，同一个字号会把卡片撑破、把三列栅格顶宽。所以那一格自带 data-long 降一档，
+ * 并在两行处截断 —— 名字完整的一份在趋势图图例与气泡里。
+ */
 .settings-metric__value {
   font-size: 22px;
   font-weight: 550;
   font-variant-numeric: tabular-nums;
   line-height: 1.3;
+  overflow-wrap: anywhere;
+}
+
+.settings-metric__value[data-long="true"] {
+  display: -webkit-box;
+  overflow: hidden;
+  font-size: 14px;
+  line-height: 1.4;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
 }
 
 /*
@@ -334,11 +349,18 @@
   --settings-heat-0: var(--ui-divider);
 }
 
-/* 列宽按卡片均分，方形由 aspect-ratio 保住。 */
+/*
+ * 一列一周、一行一天。列宽按卡片均分，方形由 aspect-ratio 保住。
+ *
+ * **grid-auto-flow: column 是这张图的语义本身，不是排版偏好**：默认是行优先，
+ * 格子会先横着铺满 26 列再换行 —— 那样「列」是一段连续的日子，「行」反而跨了
+ * 26 天，一周一列的读法整个错位（最新一天也会落到别处）。列优先时格子按
+ * floor(i / 7) 列、i % 7 行落位，第 i 天因此正好落在它自己那个星期几上。
+ */
 .settings-heatmap__grid {
   display: grid;
-  grid-auto-columns: minmax(8px, 1fr);
   grid-auto-flow: column;
+  grid-template-columns: repeat(26, minmax(0, 1fr));
   grid-template-rows: repeat(7, auto);
   gap: 3px;
 }
@@ -369,6 +391,7 @@
   display: flex;
   align-items: center;
   gap: 4px;
+  padding-inline-start: 3px;
   margin: 0;
   color: var(--ui-muted-foreground);
   font-size: 11px;
@@ -377,6 +400,306 @@
 /* 图例里的方块不在栅格里，得自己给一个宽度，高度仍由 aspect-ratio 跟上。 */
 .settings-heatmap__legend .settings-heatmap__cell {
   inline-size: var(--settings-heat-swatch);
+}
+
+/* ---------------- 每日 Token 趋势图 ---------------- */
+
+/*
+ * 折线自己画，不引图表库（正本 zcode 用 recharts，本仓不为此装一个库）：这里只有
+ * 网格与折线两样。六档色轮转，取自正本 zcode 的 usage chart 色板
+ * （packages/ui/src/styles.css 的 --color-usage-chart-1..6）—— 它自己那套
+ * 蓝/绿/紫/红/橙/青，不是本页的语义色：语义色只有四档，且红与橙在图上读起来
+ * 像「出错了」，而用量图里没有对错。
+ */
+.settings-trend {
+  /*
+   * 折线上下留的那一截，与 model-trend.tsx 的 PAD_Y / HEIGHT 同一格（16 / 240）。
+   * 网格线、竖虚线都按它定位，改一处两边一起走。
+   */
+  --settings-trend-pad: 6.667%;
+
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  --settings-series-0: #4099ff;
+  --settings-series-1: #46bf72;
+  --settings-series-2: #7b5ce5;
+  --settings-series-3: #ff5c5c;
+  --settings-series-4: #ff8a30;
+  --settings-series-5: #42c8c8;
+}
+
+.settings-trend__legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 12px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: 12px;
+}
+
+.settings-trend__model {
+  display: flex;
+  min-inline-size: 0;
+  align-items: center;
+  gap: 8px;
+}
+
+/*
+ * 图例的小方块是圆角方形，不是圆点：正本 zcode 的图例（AppUsageDailyModelTrendChart
+ * 的 size-2.5 rounded-sm、CodingPlanUsageLineChart 的 size-2 rounded-full）两处并存，
+ * 而**热力图那一支**用的是 rounded-[4px] 的方块，本页因此取方块，与上面那张图同形。
+ */
+.settings-trend__swatch,
+.settings-trend__dot {
+  flex: none;
+  inline-size: 10px;
+  block-size: 10px;
+  border-radius: 3px;
+  background: var(--settings-series-0);
+}
+
+.settings-trend__dot {
+  inline-size: 8px;
+  block-size: 8px;
+  border-radius: 2px;
+}
+
+.settings-trend__swatch[data-series="1"],
+.settings-trend__dot[data-series="1"] {
+  background: var(--settings-series-1);
+}
+
+.settings-trend__swatch[data-series="2"],
+.settings-trend__dot[data-series="2"] {
+  background: var(--settings-series-2);
+}
+
+.settings-trend__swatch[data-series="3"],
+.settings-trend__dot[data-series="3"] {
+  background: var(--settings-series-3);
+}
+
+.settings-trend__swatch[data-series="4"],
+.settings-trend__dot[data-series="4"] {
+  background: var(--settings-series-4);
+}
+
+.settings-trend__swatch[data-series="5"],
+.settings-trend__dot[data-series="5"] {
+  background: var(--settings-series-5);
+}
+
+/* 图与横轴共用同一段宽度：纵轴那一栏留白因此由两边一起让出来。 */
+.settings-trend__plot {
+  display: block;
+  inline-size: 100%;
+  block-size: 180px;
+}
+
+/*
+ * 横网格：正本 zcode 的 CartesianGrid 是 vertical={false} + strokeDasharray="3 3"
+ * （见 AppUsageDailyModelTrendChart / CodingPlanUsageLineChart）—— 只有横线，1px
+ * 虚线。实线网格会把图切成一块块，虚线才是背景。
+ */
+.settings-trend__grid {
+  stroke: var(--ui-divider);
+  stroke-dasharray: 3 3;
+  stroke-width: 1;
+  vector-effect: non-scaling-stroke;
+}
+
+/*
+ * 折线取正本 zcode 的 strokeWidth={2}（AppUsageDailyModelTrendChart 的 <Line>）。
+ *
+ * vector-effect: non-scaling-stroke 让它按屏幕像素而不是 viewBox 单位落笔 —— 没有
+ * 这一条，viewBox 是 1000 宽再横向拉伸的图会把 2 放大成一条粗带。
+ */
+.settings-trend__line {
+  fill: none;
+  stroke: var(--settings-series-0);
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 2;
+  vector-effect: non-scaling-stroke;
+}
+
+.settings-trend__line[data-series="1"] {
+  stroke: var(--settings-series-1);
+}
+
+.settings-trend__line[data-series="2"] {
+  stroke: var(--settings-series-2);
+}
+
+.settings-trend__line[data-series="3"] {
+  stroke: var(--settings-series-3);
+}
+
+.settings-trend__line[data-series="4"] {
+  stroke: var(--settings-series-4);
+}
+
+.settings-trend__line[data-series="5"] {
+  stroke: var(--settings-series-5);
+}
+
+/*
+ * 横轴：每个日期按**折线上那一点的横坐标**落位，与图共用同一套映射。
+ *
+ * 不用等宽格子再居中：格心与数据点差半格，而半格随天数变（7 天占 6.8%、30 天只占
+ * 1.6%），于是 7 天的七个日期全挤在中间、30 天的却铺得开 —— 两档看着不像同一张图。
+ * 绝对定位加 translateX(-50%) 让刻度与点逐一对齐，正本 zcode 的 recharts 分类轴
+ * 就是这个行为（首末贴边）。
+ *
+ * 两端那 2.5% 留白正是给首尾两个字让出来的位置：不裁、也不会溢出卡片。
+ */
+.settings-trend__axis {
+  position: relative;
+  block-size: 16px;
+  margin: 0;
+  color: var(--ui-muted-foreground);
+  font-size: 11px;
+  line-height: 16px;
+}
+
+.settings-trend__axis span {
+  position: absolute;
+  inset-block-start: 0;
+  transform: translateX(-50%);
+  white-space: nowrap;
+}
+
+/* 图与悬浮那三样叠在同一格：百分比定位因此正对着折线的坐标。 */
+.settings-trend__frame {
+  position: relative;
+}
+
+/*
+ * 悬浮层压在折线之上（折线是后面那个兄弟节点），但**自己不吃指针事件**。
+ *
+ * 这一条是必须的，不是优化：它盖在图上，吃事件的话指针一进到悬浮层，SVG 就收到
+ * mouseleave、悬浮态被清掉、这一层随之卸载、指针又落回 SVG —— 于是「显示一下就没、
+ * 还剧烈抖动」。整层 pointer-events: none，事件一路落到 SVG，悬浮态才是稳的。
+ */
+.settings-trend__overlay {
+  position: absolute;
+  z-index: 1;
+  inset: 0;
+  pointer-events: none;
+}
+
+/*
+ * 悬浮那三样都走 HTML，不走 SVG：SVG 被 preserveAspectRatio="none" 横向拉伸，
+ * 画在里面的圆会变成椭圆、虚线间距也会跟着变形。这里按百分比定位，与拉伸后的
+ * 坐标系是同一套线性映射。
+ *
+ * 竖虚线只画在**绘图区**里（上下各让出 --settings-trend-pad）：折线上下本来留了一截
+ * 空白，铺满整块容器的话它会越过最下面那条网格线往下多出一截，看着像漏出去了。
+ */
+.settings-trend__guide {
+  position: absolute;
+  inset-block: var(--settings-trend-pad);
+  inline-size: 0;
+  border-inline-start: 1px dashed var(--ui-divider);
+  transform: translateX(-50%);
+  pointer-events: none;
+}
+
+.settings-trend__point {
+  position: absolute;
+  inline-size: 9px;
+  block-size: 9px;
+  border-radius: 50%;
+  background: var(--settings-series-0);
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+}
+
+.settings-trend__point[data-series="1"] {
+  background: var(--settings-series-1);
+}
+
+.settings-trend__point[data-series="2"] {
+  background: var(--settings-series-2);
+}
+
+.settings-trend__point[data-series="3"] {
+  background: var(--settings-series-3);
+}
+
+.settings-trend__point[data-series="4"] {
+  background: var(--settings-series-4);
+}
+
+.settings-trend__point[data-series="5"] {
+  background: var(--settings-series-5);
+}
+
+/*
+ * 数值气泡：与设计系统的气泡同一张脸（同色、同圆角、同字号），位置由这里给 ——
+ * 它跟着指针所在的列走，不是挂在某个触发器上的浮层。
+ *
+ * **横向夹紧要按气泡自己的宽度算，不能只夹中心**：气泡是以锚点为中心画的，只把中心
+ * 限制在两端留白之内的话，靠边那一列仍会有一半伸到卡片外，被卡面的 overflow: hidden
+ * 切掉（屏幕上就是最后一天的气泡缺了右半边）。所以中心的下界/上界各让出「半个最大
+ * 宽度」，而那一格与 max-inline-size 用同一个式子，改一处两边一起走。
+ *
+ * 底色写字面值而不只借 .ui-tooltip：那条规则只在深色下改色，浅色那份在组件类里
+ * （bg-foreground），这里没有那个类。深浅两支都写全，就不依赖样式表的先后。
+ */
+.settings-trend__hint {
+  position: absolute;
+  inset-block-start: 0;
+  left: clamp(min(11rem, 35%), var(--settings-trend-anchor, 50%), calc(100% - min(11rem, 35%)));
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  max-inline-size: min(22rem, 70%);
+  padding: 6px 10px;
+  border-radius: 6px;
+  background: var(--ui-foreground);
+  color: var(--ui-background);
+  font-size: 12px;
+  transform: translateX(-50%);
+  pointer-events: none;
+}
+
+:root[data-theme="dark"] .settings-trend__hint {
+  background: #121212;
+  color: var(--ui-foreground);
+}
+
+/*
+ * 一行不设 nowrap：气泡有最大宽度，模型名比它还长时 nowrap 会把字顶到气泡底色
+ * 之外（屏幕上就是名字冲出那块深色背景）。名字让位换行，数值保持整块。
+ */
+.settings-trend__hint-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+}
+
+/* 数值靠右对齐成一列：几个模型并排时好对。 */
+.settings-trend__hint-total {
+  flex: none;
+  margin-inline-start: auto;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+/* 名字可以在图例与气泡里换行，但不许把卡片顶宽。 */
+.settings-trend__name {
+  min-inline-size: 0;
+  overflow-wrap: anywhere;
+}
+
+.settings-usage__empty {
+  margin: 0;
+  color: var(--ui-muted-foreground);
+  font-size: 12px;
 }
 
 /* ---------------- 说明与筛选 ---------------- */

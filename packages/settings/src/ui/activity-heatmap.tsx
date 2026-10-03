@@ -7,19 +7,20 @@ import {
   formatTokens,
   HEAT_LEVELS,
   levelOf,
-  weekdayOf,
 } from './usage-activity'
 
 /*
  * 热力图：一格一天，一列一周，周一在最上面。形制取自 GitHub 贡献图 / kibo-ui
- * Contribution Graph：进来的是已铺好的日历，出去的是格子，分档交给 data 属性由
- * CSS 决定。依赖一个不装（kibo 按 shadcn registry 分发，装它拷进一整套外来排版）。
- * 提示走设计系统 Tooltip，不用原生 title：同页不能有两种气泡。
+ * Contribution Graph：进来的是已铺好的**整周**日历（spreadWeeks），出去的是格子，
+ * 分档交给 data 属性由 CSS 决定。依赖一个不装（kibo 按 shadcn registry 分发，
+ * 装它拷进一整套外来排版）。
+ *
+ * 提示走设计系统 Tooltip，不用原生 title：同页不能有两种气泡。没有账的日子不弹
+ * 提示 —— 写「0 token」是在替一本空账下结论。
  */
 
 const CELL_DATE = new Intl.DateTimeFormat('zh-CN', { month: 'long', day: 'numeric' })
 
-/** 没有账可记的日子不弹提示：写「0 token」是在替一本空账下结论。 */
 function tooltipOf(day: ActivityDay): string | undefined {
   if (day.count <= 0) {
     return undefined
@@ -38,14 +39,10 @@ export function ActivityHeatmap({ days }: ActivityHeatmapProps) {
   return (
     <div className="settings-heatmap">
       <div className="settings-heatmap__grid">
-        {days.map((day, index) => {
+        {days.map((day) => {
           const hint = tooltipOf(day)
           const cell = (
-            <span
-              className="settings-heatmap__cell"
-              data-level={levelOf(day.count, busiest)}
-              style={index === 0 ? { gridRowStart: weekdayOf(day.date) + 1 } : undefined}
-            />
+            <span className="settings-heatmap__cell" data-level={levelOf(day.count, busiest)} />
           )
 
           /*

@@ -1,7 +1,7 @@
 import type { AutomationStore } from '@poietica/automation'
 import type { AttachmentIntake, ComposerDrafts, ConversationRuntime } from '@poietica/conversation'
 import type { PluginStore } from '@poietica/extension'
-import type { readTokenDays } from '@poietica/native-bridge/usage'
+import type { readMessageCount, readModelDays, readTokenDays } from '@poietica/native-bridge/usage'
 import type { MainWindowController } from '@poietica/native-bridge/window'
 import type { ReviewGateway } from '@poietica/review'
 import type {
@@ -68,6 +68,10 @@ export interface ApplicationRuntime {
   readonly dataDirectory: () => Promise<string>
   /** 最近若干天的 token 日账。与上面两个同源同层：账本只有原生侧那一份。 */
   readonly readTokenDays: typeof readTokenDays
+  /** 按模型拆开的日账，与 readTokenDays 同一本账。 */
+  readonly readModelDays: typeof readModelDays
+  /** 最近若干天的句子数，同上：准入账只有原生侧那一份。 */
+  readonly readMessageCount: typeof readMessageCount
   /**
    * 内置 Python 内核的三条命令。同上：装了没有、装到哪，真身都在原生侧。
    *

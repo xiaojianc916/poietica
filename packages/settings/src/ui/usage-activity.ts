@@ -17,12 +17,25 @@ export interface UsageLedgerDay {
   readonly tokens: number
 }
 
+/** 按模型拆开的日账的一行。 */
+export interface UsageModelDay {
+  readonly day: string
+  readonly model: string
+  readonly tokens: number
+}
+
 /**
  * 读最近 span 天的日账，由组合根注入。
  *
  * 与 appVersion / dataDirectory 同一条理由：账本只有原生侧那一份，而这一层不认识桌面传输层。
  */
 export type ReadTokenDays = (span: number) => Promise<readonly UsageLedgerDay[]>
+
+/** 读最近 span 天按模型拆开的日账。 */
+export type ReadModelDays = (span: number) => Promise<readonly UsageModelDay[]>
+
+/** 读最近 span 天发出去的句子数。 */
+export type ReadMessageCount = (span: number) => Promise<number>
 
 /** 概览的三项。它们全部出自对话列表本身，与 token 无关。 */
 export interface ThreadActivity {
@@ -52,9 +65,15 @@ export function shiftDays(from: Date, delta: number): Date {
   return new Date(from.getFullYear(), from.getMonth(), from.getDate() + delta)
 }
 
-/** 这一天是周几，周一记 0：中文界面的一周从周一起算，而 getDay 把周日记作 0。 */
+/**
+ * 这一天是周几，**周日记 0**，与 Date.getDay 同序。
+ *
+ * 热力图的第一行是周日（正本 zcode 的自然周对齐：buildDisplayHeatmapWeeks 用
+ * getUtcWeekday 起算，注释写明「保证所有范围的第一行都是周日」）。周一记 0 的话
+ * 每一格都要错开一行 —— 周六会落到倒数第二行，而它本该在最下面。
+ */
 export function weekdayOf(key: string): number {
-  return (dateOf(key).getDay() + 6) % 7
+  return dateOf(key).getDay()
 }
 
 /**
@@ -71,6 +90,76 @@ export function spread(
 
   for (let index = span - 1; index >= 0; index -= 1) {
     const date = dayKeyOf(shiftDays(now, -index))
+
+    days.push({ date, count: amounts.get(date) ?? 0 })
+  }
+
+  return days
+}
+
+/** 一条线：一个模型，以及它在这段日子里的逐日量。 */
+export interface ModelSeries {
+  /** 账上的名字（provider/id）。取值与选择器那一格同一拼法。 */
+  readonly model: string
+  /** 屏幕上的名字。由调用方从 agent 自己的模型目录取，取不到就退回 model。 */
+  readonly label: string
+  readonly days: readonly ActivityDay[]
+}
+
+/**
+ * 把按模型拆开的日账铺成一条条线，每条都对齐到同一段日历。
+ *
+ * 线与线的日子必须等长同序：图是按横轴对齐画的，缺的日子由 spread 补 0，
+ * 各自只铺自己有账的那几天就会把两条线错开。
+ *
+ * 排序是「这段日子里的总量」，不是单日最高：趋势图要的是主力模型在最上面，
+ * 而一个只在某一天冲高的模型不该压过天天在用的那个。
+ */
+export function modelSeries(
+  rows: readonly UsageModelDay[],
+  now: Date,
+  span: number,
+): readonly ModelSeries[] {
+  const byModel = new Map<string, Map<string, number>>()
+
+  for (const row of rows) {
+    const ledger = byModel.get(row.model) ?? new Map<string, number>()
+    ledger.set(row.day, (ledger.get(row.day) ?? 0) + row.tokens)
+    byModel.set(row.model, ledger)
+  }
+
+  return [...byModel]
+    .map(([model, ledger]) => ({
+      model,
+      label: model,
+      days: spread(ledger, now, span),
+      total: [...ledger.values()].reduce((sum, tokens) => sum + tokens, 0),
+    }))
+    .sort((left, right) => right.total - left.total)
+    .map(({ model, label, days }) => ({ model, label, days }))
+}
+
+/**
+ * 把一本按天的账铺成**整周**：周一开头、周日结尾，不多不少 weeks 列。
+ *
+ * 热力图一列一周、周一在最上面，直接铺 N 天的话第一列从半空开始、最后一列半截
+ * 收尾，两端各缺一块。正本 zcode 的 UsageHeatmap 就是把日历按自然周对齐后补齐
+ * 0 格（buildDisplayHeatmapWeeks），两端因此都是满的。
+ *
+ * 补出来的格子是「这段日历里没有账」，与「这天没花」画的是同一格 —— 热力图看的
+ * 是形状，不是账目明细。
+ */
+export function spreadWeeks(
+  amounts: ReadonlyMap<string, number>,
+  now: Date,
+  weeks: number,
+): readonly ActivityDay[] {
+  /* 末列是本周（含今天往后到周日）：右端因此也是满的，不会半截收尾。 */
+  const end = shiftDays(now, 6 - weekdayOf(dayKeyOf(now)))
+  const days: ActivityDay[] = []
+
+  for (let index = weeks * 7 - 1; index >= 0; index -= 1) {
+    const date = dayKeyOf(shiftDays(end, -index))
 
     days.push({ date, count: amounts.get(date) ?? 0 })
   }

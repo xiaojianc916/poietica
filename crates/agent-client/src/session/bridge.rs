@@ -1837,6 +1837,11 @@ fn dispatch(
                     input_other: counter("inputOther"),
                     input_cache_read: counter("inputCacheRead"),
                     input_cache_creation: counter("inputCacheCreation"),
+                    model: usage
+                        .get("model")
+                        .and_then(Value::as_str)
+                        .filter(|model| !model.is_empty())
+                        .map(str::to_owned),
                     breakdown: usage.get("breakdown").and_then(breakdown_of),
                 },
             });

@@ -115,6 +115,7 @@ pub fn types() -> specta::TypeCollection {
     types.register::<crate::conversation::model_catalog::ModelCatalogSnapshotDto>();
     types.register::<crate::launcher::McpLauncher>();
     types.register::<crate::ledger::usage::UsageDay>();
+    types.register::<crate::ledger::usage::UsageModelDay>();
     types.register::<crate::settings::SettingsWriteResult>();
     types.register::<crate::conversation::dto::AgentTranscriptEvent>();
     types.register::<crate::python::PythonKernelState>();
@@ -202,6 +203,8 @@ pub fn functions() -> Vec<specta::datatype::Function> {
         crate::agent::profile::agent_config_get,
         crate::agent::profile::agent_config_save,
         crate::ledger::usage::usage_token_days,
+        crate::ledger::usage::usage_model_days,
+        crate::ledger::usage::usage_message_count,
         crate::workspace::storage::storage_data_directory,
         crate::ledger::workbench::workbench_session_load,
         crate::ledger::workbench::workbench_session_save,
@@ -541,6 +544,14 @@ pub async fn submit(command: &str, args: Value) -> napi::Result<String> {
         "usage_token_days" => {
             let span: u32 = argument(args.get("span").unwrap_or(&Value::Null))?;
             crud(crate::ledger::usage::usage_token_days(span).await)
+        }
+        "usage_model_days" => {
+            let span: u32 = argument(args.get("span").unwrap_or(&Value::Null))?;
+            crud(crate::ledger::usage::usage_model_days(span).await)
+        }
+        "usage_message_count" => {
+            let span: u32 = argument(args.get("span").unwrap_or(&Value::Null))?;
+            crud(crate::ledger::usage::usage_message_count(span).await)
         }
         "storage_data_directory" => crud(crate::workspace::storage::storage_data_directory().await),
         "workbench_session_load" => crud(crate::ledger::workbench::workbench_session_load().await),

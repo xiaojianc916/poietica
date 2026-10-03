@@ -30,7 +30,7 @@ pub async fn agent_thread_snapshot(
     let (thread, usage) = catalog::snapshot(&index, &request.thread_id).await?;
     Ok(AgentThreadSnapshot {
         thread: retitle(thread),
-        usage: usage.map(reported).transpose()?,
+        usage: usage.map(|recorded| reported(&recorded)).transpose()?,
     })
 }
 
@@ -85,20 +85,23 @@ fn retitle(thread: poietica_ledger::index::ThreadSummary) -> AgentThread {
 }
 
 /// 账本里那份读数与计数，收进线上那一格的宽度。
-fn reported(recorded: poietica_ledger::index::SessionUsage) -> Result<AgentSessionUsage> {
+fn reported(recorded: &poietica_ledger::index::SessionUsage) -> Result<AgentSessionUsage> {
     fn unsigned(value: i64) -> Result<u64> {
         u64::try_from(value)
             .map_err(|_| Error::Persistence("a stored usage counter is negative".to_owned()))
     }
     Ok(super::dto::reported_usage(
-        poietica_agent_client::SessionUsageSnapshot {
+        &poietica_agent_client::SessionUsageSnapshot {
             used: unsigned(recorded.used)?,
             size: unsigned(recorded.size)?,
             input_other: unsigned(recorded.input_other)?,
             input_cache_read: unsigned(recorded.input_cache_read)?,
             input_cache_creation: unsigned(recorded.input_cache_creation)?,
+            /* 存量读数没有模型这一格：打开旧对话时趋势图不画它，等下一份报数。 */
+            model: None,
             breakdown: recorded
                 .breakdown
+                .as_ref()
                 .map(|breakdown| {
                     Ok::<_, Error>(poietica_agent_client::UsageBreakdownSnapshot {
                         system: unsigned(breakdown.system)?,

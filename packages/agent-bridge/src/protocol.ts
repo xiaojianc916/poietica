@@ -482,6 +482,8 @@ export interface UsageSnapshot {
   readonly inputOther: number
   readonly inputCacheRead: number
   readonly inputCacheCreation: number
+  /** 花掉这一笔的是哪个模型（provider/id）。缺席即没带上，那一笔只进合计。 */
+  readonly model?: string
   /**
    * 此刻这份上下文由什么构成。缺席即这一份报数没带构成：屏幕退成只画总条，
    * 不拿别的数字凑几行。

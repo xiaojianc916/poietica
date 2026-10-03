@@ -56,6 +56,10 @@ export interface DesktopWorkspaceProps {
   readonly appVersion: () => Promise<string>
   readonly dataDirectory: () => Promise<string>
   readonly readTokenDays: SettingsProviderProps['readTokenDays']
+  /** 按模型拆开的日账；与 readTokenDays 同一本账，同一条路。 */
+  readonly readModelDays: SettingsProviderProps['readModelDays']
+  /** 最近若干天的句子数；同上。 */
+  readonly readMessageCount: SettingsProviderProps['readMessageCount']
   /** 内置 Python 内核的端口；与 readTokenDays 同一条路，由组合根下传。 */
   readonly pythonKernel: SettingsProviderProps['pythonKernel']
   readonly workspace: WorkbenchSessionStore
@@ -137,6 +141,8 @@ export function DesktopWorkspace({
   appVersion,
   dataDirectory,
   readTokenDays,
+  readModelDays,
+  readMessageCount,
   workspace,
   commands,
   isSettingsOpen,
@@ -437,6 +443,8 @@ export function DesktopWorkspace({
       openSkillDocument={openSkillDocument}
       plugins={plugins}
       pythonKernel={pythonKernel}
+      readMessageCount={readMessageCount}
+      readModelDays={readModelDays}
       readTokenDays={readTokenDays}
       skills={toolkit.skills}
       store={settingsStore}

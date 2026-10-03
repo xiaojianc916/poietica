@@ -2629,6 +2629,8 @@ export function createBridge(host: BridgeHost): Bridge {
       inputOther: stats.tokens.input,
       inputCacheRead: stats.tokens.cacheRead,
       inputCacheCreation: stats.tokens.cacheWrite,
+      /* 拼法与 selectors 那一格逐字相同：屏幕上显示的名字就是账上的名字。 */
+      ...(record.agent.model === undefined ? {} : { model: aliasOf(record.agent.model) }),
       breakdown: {
         systemPrompt: tokensOf('systemPrompt'),
         systemContext: tokensOf('systemContext'),

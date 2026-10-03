@@ -108,13 +108,16 @@ pub struct WithdrawnMessage {
     pub text: String,
 }
 
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub struct SessionUsageSnapshot {
     pub used: u64,
     pub size: u64,
     pub input_other: u64,
     pub input_cache_read: u64,
     pub input_cache_creation: u64,
+    /// 这一刻在用的是哪个模型（provider/id）。缺席即这一份报数没带模型，
+    /// 那一笔只进合计、不进按模型的日账。
+    pub model: Option<String>,
     /// 此刻这份上下文的构成。缺席即这一份报数没带构成：屏幕退成只画总条。
     pub breakdown: Option<UsageBreakdownSnapshot>,
 }

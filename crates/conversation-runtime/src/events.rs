@@ -13,6 +13,7 @@ fn stored_usage(usage: SessionUsageSnapshot) -> SessionUsage {
         input_other: narrow(usage.input_other),
         input_cache_read: narrow(usage.input_cache_read),
         input_cache_creation: narrow(usage.input_cache_creation),
+        model: usage.model,
         breakdown: usage.breakdown.map(|breakdown| UsageBreakdown {
             system: narrow(breakdown.system),
             system_context: narrow(breakdown.system_context),
@@ -33,7 +34,7 @@ pub(crate) async fn record<E: RuntimeFailure>(
     match event {
         SessionEvent::Usage { session_id, usage } => {
             let session = session_id.clone();
-            let usage = stored_usage(*usage);
+            let usage = stored_usage(usage.clone());
             write_index(index, move |store| {
                 store
                     .record_usage(&session, usage)
@@ -67,6 +68,7 @@ mod tests {
             input_other: 3,
             input_cache_read: 4,
             input_cache_creation: 5,
+            model: Some("kimi/k2".to_owned()),
             breakdown: None,
         });
         assert_eq!(usage.used, i64::from(u32::MAX) + 1);

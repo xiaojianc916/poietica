@@ -241,7 +241,7 @@ pub struct AgentUsageBreakdown {
     pub auto_compact_buffer: u32,
 }
 
-pub(super) fn reported_usage(usage: SessionUsageSnapshot) -> AgentSessionUsage {
+pub(super) fn reported_usage(usage: &SessionUsageSnapshot) -> AgentSessionUsage {
     let narrow = |value: u64| u32::try_from(value).unwrap_or(u32::MAX);
 
     AgentSessionUsage {
@@ -250,15 +250,18 @@ pub(super) fn reported_usage(usage: SessionUsageSnapshot) -> AgentSessionUsage {
         input_other: narrow(usage.input_other),
         input_cache_read: narrow(usage.input_cache_read),
         input_cache_creation: narrow(usage.input_cache_creation),
-        breakdown: usage.breakdown.map(|breakdown| AgentUsageBreakdown {
-            system_prompt: narrow(breakdown.system),
-            system_context: narrow(breakdown.system_context),
-            system_tools: narrow(breakdown.tools),
-            skills: narrow(breakdown.skills),
-            messages: narrow(breakdown.messages),
-            free: narrow(breakdown.free),
-            auto_compact_buffer: narrow(breakdown.buffer),
-        }),
+        breakdown: usage
+            .breakdown
+            .as_ref()
+            .map(|breakdown| AgentUsageBreakdown {
+                system_prompt: narrow(breakdown.system),
+                system_context: narrow(breakdown.system_context),
+                system_tools: narrow(breakdown.tools),
+                skills: narrow(breakdown.skills),
+                messages: narrow(breakdown.messages),
+                free: narrow(breakdown.free),
+                auto_compact_buffer: narrow(breakdown.buffer),
+            }),
     }
 }
 
