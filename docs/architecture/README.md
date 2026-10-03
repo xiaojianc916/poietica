@@ -36,3 +36,4 @@ Rust IPC 类型与共享命令面生成 renderer 绑定。**没有第二个协�
 - [Data layout](./data-layout.md)
 - [Embedded browser](./embedded-browser.md)
 - [Agent activity feed](./agent-activity-feed.md)
+- [Tool glyph mapping](./tool-glyph-mapping.md)
