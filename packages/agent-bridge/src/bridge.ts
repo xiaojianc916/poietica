@@ -2819,24 +2819,16 @@ export function createBridge(host: BridgeHost): Bridge {
   /*
    * 一批 ops 可能被镜像切成好几行（见 transcript-mirror 的字节预算）：一行一条事件，
    * 按顺序推出去。合成一行就是原来那个顶穿单行上限的缺陷。
+   *
+   * 不在这里补 transcript.reset：reset 的契约（packages/transcript 的
+   * transcriptResetPayloadSchema）要求整份 snapshot 与 has_more_older，而这里手上只有
+   * 一个水位，发出去的信封 100% 过不了边界校验 —— 每批一次白白换来一次「帧被拒」+
+   * 一次虚假 resync（下游 transcript-replica 的 #resync 会整页重读）。水位前进由
+   * transcript.ops 自己的 seq 表达，真需要重建时走 resync 与 catchUp 两条既有路径。
    */
   function pushEnvelopes(record: Session, envelopes: readonly unknown[]): void {
     for (const payload of envelopes) {
       emit({ kind: 'transcript', sessionId: record.id, payload })
-    }
-
-    const first = envelopes[0] as { readonly payload?: { readonly seq?: number } } | undefined
-
-    /* 断线重连的会合点：先整页重建，再接在这里之后的增量。 */
-    if (first?.payload?.seq !== undefined) {
-      emit({
-        kind: 'transcript',
-        sessionId: record.id,
-        payload: {
-          type: 'transcript.reset',
-          payload: { agent_id: MAIN_AGENT_ID, seq: first.payload.seq },
-        },
-      })
     }
   }
 

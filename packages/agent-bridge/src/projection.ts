@@ -22,6 +22,13 @@ type Streaming = {
   readonly step: string
   /** 已经发出的字符数，也就是下一条 append 的 offset。 */
   readonly emitted: number
+  /**
+   * 这一档相位是从哪一刻开始的；0 表示「还没报过」。
+   *
+   * 冻结而不是每帧取新时刻：下游按引用比对判「有没有变」，every-delta 的新时刻会让
+   * 每一条相位都算变化（见 #advance）。
+   */
+  readonly since: number
 }
 
 export class TranscriptProjector {
@@ -228,7 +235,7 @@ export class TranscriptProjector {
     /* 换了一种流（正文↔思维链）就另起一帧：一帧只装一种东西。 */
     if (open === null || open.kind !== kind) {
       const step = stepId(turnId(this.#turn), this.#step)
-      open = { id: frameId(step, this.#frame), kind, step, emitted: 0 }
+      open = { id: frameId(step, this.#frame), kind, step, emitted: 0, since: 0 }
       this.#frame += 1
       this.#streaming = open
 
@@ -254,36 +261,55 @@ export class TranscriptProjector {
       return [
         ...created,
         appendOp(this.#turn, open.step, open.id, 0, delta),
-        this.#advance(open, delta),
+        ...this.#advance(open, delta),
       ]
     }
 
     return [
       appendOp(this.#turn, open.step, open.id, open.emitted, delta),
-      this.#advance(open, delta),
+      ...this.#advance(open, delta),
     ]
   }
 
-  #advance(open: Streaming, delta: string): TranscriptOperation {
-    const next: Streaming = { ...open, emitted: open.emitted + delta.length }
-    this.#streaming = next
+  /*
+   * 推进流式累加器，并只在相位真的变了的时候补一条 meta.merge。
+   *
+   * `since` 是「这一档相位从哪一刻开始」，不是「这一帧是什么时候」：进入 streaming 时
+   * 取一次就冻结，于是同一相位的每个增量算出来逐字相同，下游 applyMetaMerge 的引用比对
+   * 因此能判成「没变」。
+   *
+   * 此前这里写 Date.now()：每条增量都造一个全新相位对象，一帧里 append 与 meta.merge
+   * 严格交替（实测 meta.merge 占 55% 的字节、47% 的 op 数），而它一个字的正文都没带；
+   * 下游每次都得合并、每次都被判成有变化，于是每批 ops 必然叫醒一次 React。
+   */
+  #advance(open: Streaming, delta: string): TranscriptOperation[] {
+    const emitted = open.emitted + delta.length
+    const opened = open.since === 0
+    const since = opened ? Date.now() : open.since
+    this.#streaming = { ...open, emitted, since }
 
-    return {
-      op: 'meta.merge',
-      meta: {
-        activity: 'turn',
-        agent: {
-          phase: {
-            kind: 'streaming',
-            turnId: this.#turn,
-            step: this.#step,
-            stepId: open.step,
-            stream: open.kind === 'text' ? 'assistant' : 'thinking',
-            since: Date.now(),
+    if (!opened) {
+      return []
+    }
+
+    return [
+      {
+        op: 'meta.merge',
+        meta: {
+          activity: 'turn',
+          agent: {
+            phase: {
+              kind: 'streaming',
+              turnId: this.#turn,
+              step: this.#step,
+              stepId: open.step,
+              stream: open.kind === 'text' ? 'assistant' : 'thinking',
+              since,
+            },
           },
         },
       },
-    }
+    ]
   }
 
   /**

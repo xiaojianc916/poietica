@@ -4,7 +4,12 @@ import type { AttachmentId, InteractionId, PromptId, TaskId, TodoId, TurnId } fr
 import { turnOrdinal } from '../model/ids'
 import type { TranscriptInteraction } from '../model/interaction'
 import type { TranscriptItem } from '../model/item'
-import type { TranscriptMeta, TranscriptMetaMerge } from '../model/meta'
+import type {
+  AgentPhaseMeta,
+  AgentStatusMeta,
+  TranscriptMeta,
+  TranscriptMetaMerge,
+} from '../model/meta'
 import type { TranscriptPrompt } from '../model/prompt'
 import type { TranscriptTask } from '../model/task'
 import type { TranscriptTodo } from '../model/todo'
@@ -584,6 +589,38 @@ function taskEquals(a: TranscriptTask, b: TranscriptTask): boolean {
   )
 }
 
+/*
+ * 相位是「这一档从哪一刻起」的读数，不是内容：同一个四元组的两次读数算相等。
+ *
+ * 比法只能逐格来：meta.merge 的载荷是**按格覆盖**（未提的格保持原值），所以两个对象
+ * 相等与否要看每一格，不能看引用 —— `{...state.meta.agent, ...meta.agent}` 每次都造新
+ * 对象，引用比较恒为 false，于是每一条相位都被判成「变了」，下游一整批 ops 因此每次都
+ * 叫醒 React（即使屏幕上没有任何可见变化）。
+ */
+function agentMetaEquals(a: AgentStatusMeta, b: AgentStatusMeta): boolean {
+  return (
+    a.model === b.model &&
+    a.thinkingEffort === b.thinkingEffort &&
+    a.usage === b.usage &&
+    a.contextTokens === b.contextTokens &&
+    a.maxContextTokens === b.maxContextTokens &&
+    a.contextUsage === b.contextUsage &&
+    a.permission === b.permission &&
+    phaseEquals(a.phase, b.phase)
+  )
+}
+
+function phaseEquals(a: AgentPhaseMeta | undefined, b: AgentPhaseMeta | undefined): boolean {
+  if (a === b) {
+    return true
+  }
+  if (a === undefined || b === undefined || a.kind !== b.kind) {
+    return false
+  }
+  /* 同一档相位：其余格逐字比过即可，轮号/段号就是这一档的身份。 */
+  return JSON.stringify(a) === JSON.stringify(b)
+}
+
 function applyMetaMerge(state: AgentState, meta: TranscriptMetaMerge): ApplyResult {
   const modes =
     meta.modes !== undefined
@@ -612,7 +649,7 @@ function applyMetaMerge(state: AgentState, meta: TranscriptMetaMerge): ApplyResu
     next.goal === state.meta.goal &&
     next.activity === state.meta.activity &&
     next.modes === state.meta.modes &&
-    next.agent === state.meta.agent
+    agentMetaEquals(next.agent ?? {}, state.meta.agent ?? {})
   ) {
     return { state, changed: false }
   }

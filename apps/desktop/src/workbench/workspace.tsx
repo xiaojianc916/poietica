@@ -27,7 +27,7 @@ import type {
   WorkbenchTabViewModel,
 } from '@poietica/workspace'
 import type { AuxiliaryPane, AuxiliaryPanelStore } from '@poietica/workspace/panels'
-import { type ReactNode, useCallback, useMemo, useSyncExternalStore } from 'react'
+import { type ReactNode, useCallback, useMemo, useRef, useSyncExternalStore } from 'react'
 import { AssistantSidebarPanel } from '../assistant/assistant-sidebar-panel'
 import {
   AuxiliaryToggle,
@@ -272,6 +272,39 @@ export function DesktopWorkspace({
     [auxiliaryPanel],
   )
 
+  /*
+   * 两枚开关要递进 WorkspaceFrame 的格位里，而那是**每次渲染现造的对象**：回调若每帧换
+   * 身份，整棵外壳（顶栏、侧栏、辅助栏）都会跟着重渲一遍 —— 实测一次对话切换单帧 305 个
+   * 组件、165ms，而同榜里全是与这次切换无关的东西。所以回调身份必须终生稳定，读的
+   * 是最新值就走 ref（判据是「点它的那一刻」，不是「渲染它的那一刻」）。
+   */
+  const switches = useRef({ activeConversationId, auxiliaryThread, todoThread })
+  switches.current = { activeConversationId, auxiliaryThread, todoThread }
+
+  const toggleAuxiliary = useCallback(() => {
+    const now = switches.current
+
+    if (now.activeConversationId === null) {
+      return
+    }
+
+    workspaceLayoutStore.setAuxiliaryThread(
+      now.auxiliaryThread === now.activeConversationId ? null : now.activeConversationId,
+    )
+  }, [workspaceLayoutStore])
+
+  const toggleTodo = useCallback(() => {
+    const now = switches.current
+
+    if (now.activeConversationId === null) {
+      return
+    }
+
+    workspaceLayoutStore.setTodoThread(
+      now.todoThread === now.activeConversationId ? null : now.activeConversationId,
+    )
+  }, [workspaceLayoutStore])
+
   const parts: WorkspaceParts = {
     chrome: {
       content: (
@@ -332,16 +365,8 @@ export function DesktopWorkspace({
       ) : activeConversationId === null ? null : (
         <ConversationControls
           auxiliaryOpen={auxiliaryThread === activeConversationId}
-          onToggleAuxiliary={() =>
-            workspaceLayoutStore.setAuxiliaryThread(
-              auxiliaryThread === activeConversationId ? null : activeConversationId,
-            )
-          }
-          onToggleTodo={() =>
-            workspaceLayoutStore.setTodoThread(
-              todoThread === activeConversationId ? null : activeConversationId,
-            )
-          }
+          onToggleAuxiliary={toggleAuxiliary}
+          onToggleTodo={toggleTodo}
           todoOpen={todoThread === activeConversationId}
         />
       ),
