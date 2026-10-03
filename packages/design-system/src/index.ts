@@ -35,7 +35,6 @@ export {
 } from './control/dropdown-menu'
 export { ErrorState, InlineSpinner, LoadingState } from './control/feedback'
 export { popupPositionerClassName, popupSurfaceClassName } from './control/popup-surface'
-
 export { SearchableSelect } from './control/searchable-select'
 export { SegmentedControl, type SegmentedOption } from './control/segmented-control'
 export { Select, type SelectOption } from './control/select'
@@ -47,6 +46,7 @@ export {
   TooltipProvider,
   TooltipTrigger,
 } from './control/tooltip'
+export { formatBytes } from './format-bytes'
 export {
   RegionSplitter,
   type SplitterActivity,

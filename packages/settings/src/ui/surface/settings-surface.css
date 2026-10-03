@@ -240,6 +240,13 @@
   justify-content: flex-end;
 }
 
+/* 只读取值（如占用字节数）：与说明同一档字号，等宽数字让一列数值对齐。 */
+.settings-row__value {
+  color: var(--ui-muted-foreground);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+
 /*
  * 触发器高度与字号来自 select.tsx 固定的 TRIGGER 常量（h-[26px]、text-xs），这里只限宽度。
  * 弹出面板一条都不写：面板经 BaseSelect.Portal 渲染在 body 下，本表的 --settings-*

@@ -8,14 +8,25 @@ import type { Violation } from './policies.ts'
  * `entry` 是包的公开边，`ui` 是界面；两者都要能读到各域，方向是单向的。
  */
 const groups: Readonly<Record<string, readonly string[]>> = {
-  entry: ['preferences', 'agent-runtime', 'model-catalog', 'keymap', 'agent-settings'],
+  entry: ['preferences', 'agent-runtime', 'model-catalog', 'keymap', 'agent-settings', 'storage'],
   preferences: ['preferences'],
   'agent-runtime': ['agent-runtime'],
   'model-catalog': ['model-catalog'],
   keymap: ['keymap'],
   /* agent 自己那份设置：读它的 schema，改它自己的持久层（ADR 0018 决定四）。只依赖本域。 */
   'agent-settings': ['agent-settings'],
-  ui: ['ui', 'entry', 'preferences', 'agent-runtime', 'model-catalog', 'keymap', 'agent-settings'],
+  /* 存储那一页的一份外部事实：占用与两条清理命令的真身在宿主（native-bridge）。只依赖本域。 */
+  storage: ['storage'],
+  ui: [
+    'ui',
+    'entry',
+    'preferences',
+    'agent-runtime',
+    'model-catalog',
+    'keymap',
+    'agent-settings',
+    'storage',
+  ],
 }
 const ranks: Readonly<Record<string, number>> = {
   'preferences/store.ts': 0,

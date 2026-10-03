@@ -78,6 +78,8 @@ export interface ApplicationRuntime {
    * 类型取设置那一侧声明的端口：桥按结构满足它，这里就是那道编译期断言。
    */
   readonly pythonKernel: SettingsProviderProps['pythonKernel']
+  /** 存储占用与两条清理命令。同上：字节数是宿主数出来的。 */
+  readonly storage: SettingsProviderProps['storage']
   /** Starts non-visual services once; agent launch awaits the same gate. */
   readonly startBackgroundServices: () => void
   readonly dispose: () => Promise<void>

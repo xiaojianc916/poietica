@@ -1,4 +1,5 @@
 import { Prose } from '@poietica/conversation/prose'
+import { formatBytes } from '@poietica/design-system'
 import type { SkillRow } from '@poietica/extension'
 import { AlertTriangle } from 'lucide-react'
 import { useState } from 'react'
@@ -169,17 +170,4 @@ function pathCrumbs(path: string): readonly { readonly key: string; readonly lab
 
       return { key: prefix, label }
     })
-}
-
-function formatBytes(value: number): string {
-  const format = (amount: number) =>
-    new Intl.NumberFormat('zh-CN', { maximumFractionDigits: 1 }).format(amount)
-
-  if (value < 1024) {
-    return `${format(value)} B`
-  }
-  if (value < 1024 * 1024) {
-    return `${format(value / 1024)} KB`
-  }
-  return `${format(value / (1024 * 1024))} MB`
 }

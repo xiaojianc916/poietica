@@ -154,6 +154,7 @@ export function AppShell({ runtime }: AppShellProps) {
             readTokenDays={runtime.readTokenDays}
             settingsSection={settingsSection}
             settingsStore={runtime.settings}
+            storage={runtime.storage}
             updateRow={<UpdateRow store={updates} />}
             workspace={runtime.workspace}
           />

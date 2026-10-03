@@ -29,3 +29,10 @@ export { ModelCatalogStore } from './model-catalog/store'
 export { createSettingsSession, type SettingsOperation } from './preferences/session'
 export type { ManagedSettingsStore, SettingsPersistence, SettingsStore } from './preferences/store'
 export { createSettingsStore } from './preferences/store'
+export { createStorageMeasurement, type StorageMeasurement } from './storage/cache'
+export type {
+  StorageCleanability,
+  StorageEntry,
+  StorageGateway,
+  StorageReport,
+} from './storage/port'

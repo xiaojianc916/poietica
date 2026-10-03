@@ -62,6 +62,8 @@ export interface DesktopWorkspaceProps {
   readonly readMessageCount: SettingsProviderProps['readMessageCount']
   /** 内置 Python 内核的端口；与 readTokenDays 同一条路，由组合根下传。 */
   readonly pythonKernel: SettingsProviderProps['pythonKernel']
+  /** 存储那一页的两条清理命令与一次测量；同上，由组合根下传。 */
+  readonly storage: SettingsProviderProps['storage']
   readonly workspace: WorkbenchSessionStore
   readonly commands: CommandRegistry
   readonly isSettingsOpen: boolean
@@ -156,6 +158,7 @@ export function DesktopWorkspace({
   auxiliaryPanel,
   plugins,
   pythonKernel,
+  storage,
   automationStore,
   keybindings,
   updateRow,
@@ -447,6 +450,7 @@ export function DesktopWorkspace({
       readModelDays={readModelDays}
       readTokenDays={readTokenDays}
       skills={toolkit.skills}
+      storage={storage}
       store={settingsStore}
       threads={threads}
     >

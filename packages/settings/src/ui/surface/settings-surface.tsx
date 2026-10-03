@@ -14,6 +14,7 @@ import {
   Brain,
   Settings as CogFour,
   Cpu,
+  HardDrive,
   Info,
   Keyboard,
   Monitor,
@@ -43,6 +44,7 @@ import type {
   ModelCatalogStore,
   SettingsStore,
 } from '../../index'
+import type { StorageGateway } from '../../storage/port'
 import { AgentSettingsSectionPage } from '../agent-settings/agent-settings'
 import { ComputerUseSettings } from '../computer-use-settings'
 import { KeymapSettings } from '../keymap-settings'
@@ -51,6 +53,7 @@ import type { PythonKernelGateway } from '../python-kernel/gateway'
 import { PythonKernelSettings } from '../python-kernel-settings'
 import { SettingRow, SettingsGroup, SettingsPage, ToggleRow } from '../settings-primitives'
 import { SkillsSettings } from '../skills-settings'
+import { StorageSettings } from '../storage-settings'
 import type { ReadMessageCount, ReadModelDays, ReadTokenDays } from '../usage-activity'
 import { UsageSettings } from '../usage-settings'
 import { ArchivedChatsSettings } from './archived-chats-settings'
@@ -80,6 +83,7 @@ export type SettingsSection =
   | 'keymap'
   | 'computer-use'
   | 'usage'
+  | 'storage'
   | 'about'
 
 type GlyphComponent = ComponentType<{
@@ -111,6 +115,8 @@ interface SettingsSectionContext {
   readonly plugins: PluginStore
   /** 内置 Python 内核的三条命令，由组合根注入：装了没有、装到哪，真身都在原生侧。 */
   readonly pythonKernel: PythonKernelGateway
+  /** 存储占用与两条清理命令，由组合根注入：缓存与分区存储是 Electron 的能力。 */
+  readonly storage: StorageGateway
   /** 看一个技能的 SKILL.md，落在哪一列由组合根决定：那一列是工作台的右侧栏，而这个包不认识工作台。 */
   readonly openSkillDocument: (skillId: string) => void
 }
@@ -222,6 +228,11 @@ const SECTIONS: Record<SettingsSection, SettingsSectionDescriptor> = {
       />
     ),
   },
+  storage: {
+    label: '存储',
+    icon: HardDrive,
+    render: ({ storage }) => <StorageSettings gateway={storage} />,
+  },
   about: {
     label: '关于',
     icon: Info,
@@ -243,7 +254,7 @@ const SECTIONS: Record<SettingsSection, SettingsSectionDescriptor> = {
 const SECTION_GROUPS: readonly (readonly SettingsSection[])[] = [
   ['general', 'appearance'],
   ['models', 'memory', 'persona', 'skills', 'mcp', 'keymap', 'computer-use', 'usage', 'archived'],
-  ['about'],
+  ['storage', 'about'],
 ]
 
 /*
@@ -265,6 +276,7 @@ interface SettingsSurfaceContextValue {
   readonly skills: readonly AgentSkill[]
   readonly plugins: PluginStore
   readonly pythonKernel: PythonKernelGateway
+  readonly storage: StorageGateway
   readonly openSkillDocument: (skillId: string) => void
   readonly section: SettingsSection
   readonly onSelect: (section: SettingsSection) => void
@@ -303,6 +315,8 @@ export interface SettingsProviderProps {
   readonly plugins: PluginStore
   /** 内置 Python 内核的端口，由组合根注入且引用稳定：这个包不认识桌面传输层。 */
   readonly pythonKernel: PythonKernelGateway
+  /** 存储占用与两条清理命令，同上：宿主数出来多少字节，这一页只画。 */
+  readonly storage: StorageGateway
   /** KAP 按当前会话报告的技能名册。 */
   readonly threads: ThreadsStore
   /** 当前生效的快捷键，由组合根注入。真相在命令注册表里，架构规则显式禁止 settings ✗→ workspace。 */
@@ -338,6 +352,7 @@ export function SettingsProvider({
   modelCatalog,
   plugins,
   pythonKernel,
+  storage,
   threads,
   keybindings,
   appVersion,
@@ -399,6 +414,7 @@ export function SettingsProvider({
       modelCatalog,
       plugins,
       pythonKernel,
+      storage,
       threads,
       keybindings,
       appVersion,
@@ -421,6 +437,7 @@ export function SettingsProvider({
       modelCatalog,
       plugins,
       pythonKernel,
+      storage,
       readTokenDays,
       readModelDays,
       readMessageCount,
@@ -466,6 +483,7 @@ export function SettingsContentRegion() {
     modelCatalog,
     plugins,
     pythonKernel,
+    storage,
     readTokenDays,
     readModelDays,
     readMessageCount,
@@ -514,6 +532,7 @@ export function SettingsContentRegion() {
               openSkillDocument,
               plugins,
               pythonKernel,
+              storage,
               readTokenDays,
               readModelDays,
               readMessageCount,

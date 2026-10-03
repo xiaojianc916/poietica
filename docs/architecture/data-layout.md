@@ -42,9 +42,17 @@ userData 不在安装器的射程内，这条冲突从根上不存在。
 与 `-shm`。备份要带上 `-wal`，只拷主文件会丢掉最近一段还没并回去的写入；
 `-shm` 不必带，无连接时可安全删除并会被重建。
 
-同一个 userData 目录里还有 Chromium 自己写的东西（`Cache/`、`GPUCache/`、
-`Local Storage/`、`Partitions/`、`Preferences` 等）：那不是我们的数据，格式与
-生命周期归 Electron，备份时忽略它们。
+## 内核那摊子
+
+Chromium 自己写的东西（`Cache/`、`Code Cache/`、`GPUCache/`、`Partitions/`、
+`Local State`、`Preferences` 等）不在数据根里，而在 `<数据根>/session/` —— 也就是
+Electron 的 `sessionData`，由 `apps/desktop/electron/session-directory.ts` 在 app ready
+之前钉住。那不是我们的数据，格式与生命周期归 Electron；单独放一层是为了让「这个应用
+占了多大地方」与「清理该清哪一处」各有单一答案。备份与搬迁都整个忽略 `session/`。
+
+设置页的「存储」一格读的就是这份布局：分类占用由主进程数出来
+（`apps/desktop/electron/storage.ts`），可清的两类是内核缓存与内置浏览器数据，
+其余只报占用、不开入口 —— 不能清的东西就让它可见。
 
 ## 升级
 

@@ -17,6 +17,7 @@
     "./review": "./src/review.ts",
     "./terminal": "./src/terminal.ts",
     "./settings": "./src/settings.ts",
+    "./storage": "./src/storage.ts",
     "./update": "./src/update/controller.ts",
     "./usage": "./src/usage.ts",
     "./workspace/session": "./src/workspace/session.ts",

@@ -7,7 +7,7 @@
  */
 import { readFile, writeFile } from 'node:fs/promises'
 import { dirname, join } from 'node:path'
-import type { IpcMainInvokeEvent } from 'electron'
+import type { IpcMainInvokeEvent, Session } from 'electron'
 import {
   app,
   autoUpdater,
@@ -32,6 +32,8 @@ import type { Router } from './ipc-router'
 import { createRouter } from './ipc-router'
 import type { NativeHost } from './native'
 import { loadNative } from './native'
+import { installSessionDirectory } from './session-directory'
+import { createStorageCommands, type StorageCommands, type StorageSessionPort } from './storage'
 import type { UpdateCommands } from './update'
 import { createUpdateCommands, loadUpdater } from './update'
 
@@ -72,6 +74,7 @@ let browserHost: BrowserHost | null = null
 let browserRelay: BrowserRelay | null = null
 let nativeHost: NativeHost | null = null
 let router: Router | null = null
+let storageCommands: StorageCommands | null = null
 let tray: Tray | null = null
 let quitting = false
 
@@ -479,6 +482,32 @@ function isExportRequest(value: unknown): value is { content: string; format: 'c
   )
 }
 
+/**
+ * 宿主自己的两张命令表：更新（update.ts）与存储（storage.ts）。
+ *
+ * 两者都是宿主能力 —— electron-updater 与 Chromium 的缓存、分区存储，原生侧一样没有；
+ * 写成 Rust 命令只会多出几个永远报错的空壳。认不出就交回 null，由原生那条路接手。
+ */
+async function runHostCommands(command: unknown, args: unknown): Promise<Reply | null> {
+  if (updateCommands.handles(command)) {
+    try {
+      return ok(await updateCommands.run(command as string, args))
+    } catch (cause) {
+      return failure(cause)
+    }
+  }
+
+  if (storageCommands?.handles(command) === true) {
+    try {
+      return ok(await storageCommands.run(command as string, args))
+    } catch (cause) {
+      return failure(cause)
+    }
+  }
+
+  return null
+}
+
 function installHandlers(win: BrowserWindow): void {
   ipcMain.handle(
     'poietica:invoke',
@@ -496,13 +525,11 @@ function installHandlers(win: BrowserWindow): void {
         return ok(local.value)
       }
 
-      /* 更新与标签同类：命令名由主进程自己认，认不出才转原生。 */
-      if (updateCommands.handles(command)) {
-        try {
-          return ok(await updateCommands.run(command as string, args))
-        } catch (cause) {
-          return failure(cause)
-        }
+      /* 更新与存储都是宿主自己的能力：认得出就在这里答，认不出才转原生。 */
+      const hosted = await runHostCommands(command, args)
+
+      if (hosted !== null) {
+        return hosted
       }
 
       const host = router
@@ -720,16 +747,22 @@ function installHandlers(win: BrowserWindow): void {
  * 这个名字与 electron-builder.yml 的 productName 是同一个。
  *
  * **开发构建另立一个目录**：数据根就是 userData（见下面的 `dataRootDirectory`），
- * 两者共用会让开发版与安装版同时写同一份账本、同一个 agent 受控 home。Chromium 自己的
- * 状态（缓存、分区存储）同样按这个目录分家。
+ * 两者共用会让开发版与安装版同时写同一份账本、同一个 agent 受控 home。
+ *
+ * **内核那摊子再往下分一层**：Chromium 的缓存、代码缓存与分区存储归 sessionData，
+ * 落在 <数据根>/session（./session-directory.ts）。数据根里只剩我们的数据，
+ * 「这个应用占了多大地方」「清理该清哪一处」才有单一答案。
  */
 const APPLICATION_NAME = 'Poietica'
 
-app.setName(APPLICATION_NAME)
-app.setPath(
-  'userData',
-  join(app.getPath('appData'), app.isPackaged ? APPLICATION_NAME : `${APPLICATION_NAME} Dev`),
+const DATA_ROOT = join(
+  app.getPath('appData'),
+  app.isPackaged ? APPLICATION_NAME : `${APPLICATION_NAME} Dev`,
 )
+
+app.setName(APPLICATION_NAME)
+app.setPath('userData', DATA_ROOT)
+app.setPath('sessionData', installSessionDirectory(DATA_ROOT))
 
 /*
  * Windows 的 AppUserModelID。
@@ -765,6 +798,19 @@ async function dataRootDirectory(): Promise<string> {
   await adoptDataRoot(root, legacies)
 
   return root
+}
+
+/**
+ * 会话能力到存储那一格的两个动作。
+ *
+ * clearData 的 'cache' 一档就是 Chromium 的「缓存与文件」—— 实测（Electron 44.5.1）
+ * 灌进 8MB 再清，HTTP 磁盘缓存只剩索引。
+ */
+function storagePort(target: Session): StorageSessionPort {
+  return {
+    clearKernelCache: () => target.clearData({ dataTypes: ['cache'] }),
+    clearSiteData: () => target.clearStorageData(),
+  }
 }
 
 async function main(): Promise<void> {
@@ -821,6 +867,15 @@ async function main(): Promise<void> {
     .setPermissionRequestHandler((_contents, _permission, callback) => {
       callback(false)
     })
+
+  /* 存储那一格要清的两个会话。适配写在这里：storage.ts 只认那两条动作，不认识 electron。 */
+  storageCommands = createStorageCommands({
+    root: dataRoot,
+    sessions: {
+      app: storagePort(session.defaultSession),
+      browser: storagePort(session.fromPartition(BROWSER_PARTITION)),
+    },
+  })
 
   /* 标签面每一次变化都同时喂两条线：渲染层（屏幕）与 agent（relay）。 */
   const browserState = (): void => {

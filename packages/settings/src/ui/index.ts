@@ -4,6 +4,7 @@ export type {
   PythonKernelState,
   PythonKernelStatus,
 } from './python-kernel/gateway'
+export { StorageSettings } from './storage-settings'
 export {
   SettingsContentRegion,
   SettingsNavigationRegion,

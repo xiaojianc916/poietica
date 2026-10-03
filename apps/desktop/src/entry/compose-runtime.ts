@@ -16,6 +16,7 @@ import { hostBridge } from '@poietica/native-bridge/host'
 import { pythonKernelGateway } from '@poietica/native-bridge/python-kernel'
 import { reviewGateway } from '@poietica/native-bridge/review'
 import { createSettingsPersistence } from '@poietica/native-bridge/settings'
+import { storageGateway } from '@poietica/native-bridge/storage'
 import { terminalHostPort } from '@poietica/native-bridge/terminal'
 import { createAppUpdateController } from '@poietica/native-bridge/update'
 import { readAppVersion } from '@poietica/native-bridge/update/version'
@@ -342,6 +343,7 @@ export function createApplicationRuntime(restored: string | null): ApplicationRu
     readModelDays,
     readMessageCount,
     pythonKernel: pythonKernelGateway,
+    storage: storageGateway,
     startBackgroundServices: () => {
       void ensureBackgroundServices().catch((cause: unknown) => {
         if (!disposed) {
