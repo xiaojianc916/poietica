@@ -213,7 +213,7 @@ export type BridgeCommand =
   /**
    * agent 自己的设置目录。
    *
-   * 逐格从 omp 的 settings-schema 读出来（label / description / 类型 / 选项 / 默认值
+   * 逐格从 omp 的设置注册表读出来（label / description / 类型 / 选项 / 默认值
    * 都是它自报的），我们不抄一份 —— 抄一份就是第二个事实，升级即分叉。
    *
    * `secret` 为真的那几格**只报有没有值**，绝不报值本身：那是钥匙，
@@ -532,7 +532,7 @@ export interface AskedQuestionOption {
 /**
  * agent 自己那一格设置的说明书。
  *
- * 全部字段都是 omp 的 settings-schema 自报的，不是我们抄的：`label` / `description`
+ * 全部字段都是 omp 的设置注册表自报的，不是我们抄的：`label` / `description`
  * 由它给（我们只负责画），`options` 是它自己那张选项表。升级 omp 时这一份跟着变，
  * 我们没有需要同步的第二份。
  */

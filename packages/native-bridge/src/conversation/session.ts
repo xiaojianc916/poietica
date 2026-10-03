@@ -35,7 +35,7 @@ function queuedOf(queue: AgentQueuedState): QueuedMessages {
 }
 
 /*
- * 模式取值域是 omp 自己的两个枚举（settings-schema.ts 的 steeringMode / followUpMode /
+ * 模式取值域是 omp 自己的两个枚举（设置注册表里的 steeringMode / followUpMode /
  * interruptMode）。线上是自由字符串（原生侧不替上游把关），认不出来就**报错**：
  * 猜一个默认值等于把「它说 A 我当 B」按下去，屏幕上会静默换了行为。
  */

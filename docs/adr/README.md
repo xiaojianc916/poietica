@@ -47,3 +47,4 @@ ACP / kap / kimi-code / deepseek harness / 早期 fatal-incident 草案等已消
 | 0034 | 不接 omp 的 aside 档：上游不报它何时被吃掉（取代 0026 决策 4） |
 | 0035 | 接上 omp 的工具流与技能展开：官方给的两条通道，从前被静默丢掉 |
 | 0036 | Python 内核的字节走镜像，清单仍以 GitHub 为正本 |
+| 0037 | omp 18.5.0 的设置走注册表，技能轮按官方判据上屏 |

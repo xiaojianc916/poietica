@@ -1085,6 +1085,41 @@ const memoryEditView: Handler = (ctx) => {
   return view('other', join(head, id) || head, id, NONE, failOr(ctx, saidText(ctx)), 'result')
 }
 
+/*
+ * IDA Pro：一个工具十种动作（list/open/save/close/exec/rename/comment/set_type/make_function）。
+ * 折叠行上先说是哪一个动作，再说是对哪一个库/符号 —— 十种动作合成一句「使用 ida」就什么都看不出来。
+ * 判据取自上游自己那张表（tools/ida.ts 的 idaSchema.action）。
+ */
+const IDA_ACTIONS: Readonly<Record<string, string>> = {
+  list: '列出数据库',
+  open: '打开数据库',
+  save: '保存数据库',
+  close: '关闭数据库',
+  exec: '执行 IDA 脚本',
+  rename: '重命名符号',
+  comment: '添加注释',
+  set_type: '设置类型',
+  make_function: '标记为函数',
+}
+
+const idaView: Handler = (ctx) => {
+  const action = pick(ctx.input, 'action') ?? ''
+  const head = IDA_ACTIONS[action] ?? action
+  const db = pick(ctx.input, 'db') ?? ''
+  const target = pick(ctx.input, 'target') ?? ''
+  const subject = target === '' ? db : target
+
+  /* 类别取 other：十种动作横跨读、改、执行三档，归任何一档都是替上游猜。 */
+  return view(
+    'other',
+    join(head, subject) || 'IDA',
+    subject,
+    NONE,
+    failOr(ctx, saidText(ctx)),
+    'result',
+  )
+}
+
 const retainView: Handler = (ctx) => {
   const body = list(ctx.input, 'items')
     .map((entry) => pick(entry, 'content'))
@@ -1316,6 +1351,7 @@ const HANDLERS: Readonly<Record<string, Handler>> = {
   github: githubView,
   glob: globView,
   goal: goalView,
+  ida: idaView,
   grep: grepView,
   hub: hubView,
   js: evalAlias('js'),

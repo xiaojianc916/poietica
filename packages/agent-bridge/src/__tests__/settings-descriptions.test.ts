@@ -14,7 +14,7 @@
  */
 
 import { expect, test } from 'bun:test'
-import { getUi } from '@oh-my-pi/pi-coding-agent/config/settings-schema'
+import { lookup } from '@oh-my-pi/pi-coding-agent/config/registry'
 import { readCatalog } from '../settings.ts'
 import {
   DESCRIPTIONS,
@@ -63,7 +63,7 @@ test('every table key is a setting omp actually publishes on screen', () => {
    * 判据取自 omp 的 schema（正本），而不是我们那份过滤后的目录：过滤规则会随判断改，
    * 上游那张表不会。认得出 ui 元数据的才算上屏的格子。
    */
-  const invented = Object.keys(DESCRIPTIONS).filter((path) => getUi(path as never) === undefined)
+  const invented = Object.keys(DESCRIPTIONS).filter((path) => lookup(path)?.ui === undefined)
 
   expect(invented).toEqual([])
 })

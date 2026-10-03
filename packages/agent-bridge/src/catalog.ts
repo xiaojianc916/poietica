@@ -20,6 +20,7 @@
 import type { AuthStorage, ModelRegistry, Settings } from '@oh-my-pi/pi-coding-agent'
 
 import type { ModelCatalogOperation } from './protocol.ts'
+import { settingValueOf } from './settings.ts'
 
 /** 界面那一页读的四格，与 crates/agent-client 的 ModelCatalogSnapshot 对应。 */
 export interface CatalogSnapshot {
@@ -163,7 +164,9 @@ export function snapshotOf(
    * 停用的 provider 不进 providers，也不进 catalog —— 它此刻两栏都不该出现，人想
    * 再用就去「添加供应商」里重新配一次。
    */
-  const disabled = new Set(settings.get('disabledProviders') ?? [])
+  const disabled = new Set(
+    (settingValueOf(settings, 'disabledProviders') as readonly string[] | undefined) ?? [],
+  )
   const keyed = new Set<string>()
   for (const model of every) {
     const available =

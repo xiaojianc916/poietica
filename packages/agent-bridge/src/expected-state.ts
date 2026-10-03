@@ -24,9 +24,9 @@ import {
   resolveAllowedModels,
   resolveModelRoleValue,
 } from '@oh-my-pi/pi-coding-agent/config/model-resolver'
-/* 全局默认档取 schema 默认：与会话收敛（bridge.ts 的 settleThinking）取的是同一个产地。 */
-import { getDefault } from '@oh-my-pi/pi-coding-agent/config/settings-schema'
 import type { SelectorControl } from './protocol.ts'
+/* 全局默认档与读写的唯一产地：与会话收敛（bridge.ts 的 settleThinking）同一处。 */
+import { globalThinkingDefault, settingValueOf, writeSettingValue } from './settings.ts'
 /* 档位判据单一产地：与收敛会话用的是同一条规则，两份就会分叉（thinking.ts 头部）。 */
 import { thinkingToSettle } from './thinking.ts'
 
@@ -102,7 +102,7 @@ const aliasOf = (model: { readonly provider: string; readonly id: string }): str
  * 一致 —— 一致不是形式要求：屏幕靠顺序稳定来避免每帧重排。
  *
  * `thinkingOptions` 与 `skillSourceOf` 由调用方传入：两者的正本都住在 bridge.ts
- * （settings-schema 的 defaultThinkingLevel.ui.options、五词来源折叠），本层再读一次
+ * （设置注册表里 defaultThinkingLevel 那格的 ui.options、五词来源折叠），本层再读一次
  * 就是第二份标签表。
  */
 export async function buildExpectedState(input: {
@@ -142,7 +142,7 @@ export async function buildExpectedState(input: {
      （session/model-controls.ts:9 从同一处取）；pi-catalog 是 pi-coding-agent 的传递依赖，
      从本包解析不到它的子路径，所以那几行字段读法照抄在这里，正本升级时跟着改。 */
   const levels = model === undefined ? [] : supportedEfforts(model)
-  const configured = settings.get('defaultThinkingLevel')
+  const configured = settingValueOf(settings, 'defaultThinkingLevel')
   const modelDefault = model?.thinking?.defaultLevel
 
   if (levels.length > 0) {
@@ -160,12 +160,7 @@ export async function buildExpectedState(input: {
      * 被夹掉的另一个值 —— 屏幕上一个永远不会到来的档位。
      */
     const start = modelDefault ?? (typeof configured === 'string' ? configured : undefined)
-    const settled = thinkingToSettle(
-      start,
-      levels,
-      modelDefault,
-      getDefault('defaultThinkingLevel'),
-    )
+    const settled = thinkingToSettle(start, levels, modelDefault, globalThinkingDefault())
     /* `settled === undefined` 表示 start 本身就在梯子上；两者都没有时退最深一档兜底。 */
     const current = settled ?? start ?? (levels[levels.length - 1] as string)
 
@@ -186,7 +181,7 @@ export async function buildExpectedState(input: {
   }
 
   const posture = EXPECTED_POSTURES.find(
-    (entry) => entry.mode === settings.get('tools.approvalMode'),
+    (entry) => entry.mode === settingValueOf(settings, 'tools.approvalMode'),
   )
 
   if (posture !== undefined) {
@@ -209,7 +204,7 @@ export async function buildExpectedState(input: {
    * 入口行为；桥走的是 `createAgentSession`，它一个字都不读这个开关（sdk.ts 里 plan 只有
    * 工具门那三处）。照配置报 on 会报出一个永远不会到来的状态，与权威态分叉。
    */
-  if (settings.get('plan.enabled')) {
+  if (settingValueOf(settings, 'plan.enabled') === true) {
     controls.push({
       id: 'plan',
       label: '计划',
@@ -222,7 +217,7 @@ export async function buildExpectedState(input: {
     })
   }
 
-  if (settings.get('goal.enabled')) {
+  if (settingValueOf(settings, 'goal.enabled') === true) {
     controls.push({
       id: 'goal',
       label: '目标',
@@ -287,7 +282,7 @@ export async function applyExpectedSelection(input: {
         throw new Error(`no approval posture is called ${value}`)
       }
 
-      settings.set('tools.approvalMode', posture.mode)
+      writeSettingValue(settings, 'tools.approvalMode', posture.mode)
       await settings.flush()
 
       return 'config'

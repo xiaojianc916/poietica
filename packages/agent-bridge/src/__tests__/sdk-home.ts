@@ -23,5 +23,5 @@ const sdk = await import('@oh-my-pi/pi-coding-agent')
 
 /** SDK 实际解析到的那个 home：起桥时必须原样交给它，否则就是对账失败。 */
 export const home = sdk.getAgentDir()
-export const { AgentSession } = sdk
+export const { AgentSession, SessionManager } = sdk
 export { createBridge } from '../bridge.ts'

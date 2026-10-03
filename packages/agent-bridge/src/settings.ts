@@ -1,10 +1,14 @@
 /*
  * agent 自己那份设置目录的读法。
  *
- * 逐格从 omp 的 settings-schema 读出来，一格都不抄：`label` / `description` / 类型 /
- * 选项表都是它自报的（config/settings-schema.ts 的 getUi / getType / getDefault /
- * getEnumValues / isCredential），我们只负责画。抄一份就是第二个事实 —— 升级 omp
+ * 逐格从 omp 的设置注册表读出来，一格都不抄：`label` / `description` / 类型 /
+ * 选项表都是它自报的（config/registry.ts 的 `Setting` 句柄：ui / type / default /
+ * enumValues / isCredential），我们只负责画。抄一份就是第二个事实 —— 升级 omp
  * 时两份必然分叉（AGENTS.md §0）。
+ *
+ * 18.5.0 起上游把设置改成**注册**出来的：`SETTINGS_SCHEMA` / `getUi` / `getDefault` 那一套
+ * 整支删掉，换成各域自己 `register()` + `config/all-settings.ts` 汇总。所以这一层要先
+ * import all-settings（见下），否则注册表是空的 —— 目录会静默变成 0 格。
  *
  * 中文只有**给我们看的那一列**换成译文（settings-labels.ts）：`label` 换成中文，
  * 认不出的路径原文返回。`path` / `group` **一律是 omp 自己的标识符** —— 界面按
@@ -14,16 +18,10 @@
  * **只有有没有值**这一件出得去：值本身出了 agent 的进程就不再是我们的盘。
  */
 
-import {
-  getDefault,
-  getEnumValues,
-  getType,
-  getUi,
-  hasUi,
-  isCredential,
-  SETTINGS_SCHEMA,
-  type SettingPath,
-} from '@oh-my-pi/pi-coding-agent/config/settings-schema'
+/* 副作用 import：设置是**注册**出来的（register 模式），这一支把每个域都加载一遍。
+   没有它 registry 是空的 —— 目录会变成 0 格而不是报错。 */
+import { orderedSettings } from '@oh-my-pi/pi-coding-agent/config/all-settings'
+import { type AnySetting, lookup, type ScopeLike } from '@oh-my-pi/pi-coding-agent/config/registry'
 import type { SettingEntry, SettingOption } from './protocol.ts'
 import { settingDescriptionOf } from './settings-descriptions.ts'
 import {
@@ -39,6 +37,54 @@ import {
 /** 读设置的那一面：只有 `get`，写不在这里（写走调用方自己的持久层）。 */
 export interface SettingsReader {
   get(key: string): unknown
+}
+
+/*
+ * 按 **path** 寻址一格设置。
+ *
+ * 18.5.0 把设置改成注册表 + 类型化句柄（`Setting`）：`Settings.get(path)` / `set(path, v)` 那一对
+ * 整支删掉，句柄才是官方门面。而本仓按 path 寻址是有意的 —— 目录要逐格走完上游那张表
+ * （settings 命令把 path 当线上标识符交给界面），不可能为几百格各绑一个 import。
+ *
+ * 所以 `lookup` 是这里唯一的路径解析点：认不出的路径**如实报错**，不静默。
+ * 从前 `Settings.get` 对认不出的路径也抛（它直接对空定义取 `.default`），语义照旧。
+ */
+function settingAt(path: string): AnySetting {
+  const setting = lookup(path)
+
+  if (setting === undefined) {
+    throw new Error(`agent 那边没有叫这个名字的设置：${path}`)
+  }
+
+  return setting
+}
+
+/** 读一格：各层合并后的值，谁都没配就是它自己的默认（与老 `Settings.get` 同义）。 */
+export function settingValueOf(scope: ScopeLike, path: string): unknown {
+  return settingAt(path).get(scope)
+}
+
+/** 写一格：落全局层、后台保存（与老 `Settings.set` 同义）。 */
+export function writeSettingValue(scope: ScopeLike, path: string, value: unknown): void {
+  settingAt(path).set(scope, value)
+}
+
+/**
+ * 全局那一档思考深度的**默认值**（不是用户配的那一格）。
+ *
+ * 建会话时上游先按 pickInitialThinkingLevel 选一档，随后本产品把会话收敛一次，收敛用的
+ * 就是这个默认值 —— 所以它必须与会话侧同源（bridge.ts 的 settleThinking 与
+ * expected-state.ts 的入口「此刻」都读这里）。
+ */
+export function globalThinkingDefault(): string | undefined {
+  const value = lookup('defaultThinkingLevel')?.default
+
+  return typeof value === 'string' ? value : undefined
+}
+
+/** 把真实设置实例接成目录要的那一面（`readCatalog` 的入参）。 */
+export function settingsReaderOf(scope: ScopeLike): SettingsReader {
+  return { get: (path) => lookup(path)?.get(scope) }
 }
 
 /*
@@ -69,16 +115,14 @@ export function readCatalog(
 ): SettingEntry[] {
   const entries: SettingEntry[] = []
 
-  for (const path of Object.keys(SETTINGS_SCHEMA) as SettingPath[]) {
-    if (!hasUi(path)) {
-      continue
-    }
-
-    const ui = getUi(path)
+  for (const setting of orderedSettings()) {
+    const ui = setting.ui
 
     if (ui === undefined) {
       continue
     }
+
+    const path = setting.id
 
     /*
      * 跟这台桌面软件无关的格子**整格不报**。
@@ -91,18 +135,20 @@ export function readCatalog(
       continue
     }
 
-    entries.push(entryOf(path, ui, settings, choicesOf))
+    entries.push(entryOf(setting, settings, choicesOf))
   }
 
   return entries
 }
 
 function entryOf(
-  path: SettingPath,
-  ui: NonNullable<ReturnType<typeof getUi>>,
+  setting: AnySetting,
   settings: SettingsReader,
   choicesOf: SettingChoicesOf | undefined,
 ): SettingEntry {
+  const path = setting.id
+  /* 调用方只把带 ui 的那几格交进来（readCatalog 的闸门），所以这里它一定在。 */
+  const ui = setting.ui as NonNullable<AnySetting['ui']>
   /*
    * 钥匙那一格：只报有没有值。
    *
@@ -110,22 +156,22 @@ function entryOf(
    * isConfigured 里折成一个布尔，中间不落任何会被序列化出去的格（AGENTS.md §1
    * 「密钥永不落我们的盘」）。这不是顺手写的一行，是这一层唯一的隐私边界。
    */
-  const secret = isCredential(path)
+  const secret = setting.isCredential
   const value = settings.get(path)
   /* schema 给得出就用手册那一份，给不出（'runtime' / 没有）才问调用方现算的。 */
   const options = optionsOf(path, ui.options) ?? choicesOf?.(path)
   // 有 options 就不再报 enumValues：两张表说的是同一件事，报两份会让界面挑花眼。
-  const enumValues = options === undefined ? getEnumValues(path) : undefined
+  const enumValues = options === undefined ? setting.enumValues : undefined
 
   return {
     path,
-    type: getType(path),
+    type: setting.type,
     /* 标题取中文，认不出的路径原文返回（settings-labels.ts 的兜底）。 */
     label: settingLabelOf(path, ui.label),
     /* 说明同样取中文；它是人拿来决定要不要改这一格的东西，英文留在原地等于没做。 */
     description: settingDescriptionOf(path, ui.description),
     ...(ui.group === undefined ? {} : { group: ui.group }),
-    default: getDefault(path),
+    default: setting.default,
     value: secret ? null : (value ?? null),
     secret,
     hasValue: secret && isConfigured(value),

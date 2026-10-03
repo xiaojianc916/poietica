@@ -95,7 +95,7 @@ type GlyphComponent = ComponentType<{
 interface SettingsSectionContext {
   readonly settings: AppSettings
   readonly controller: SettingsController
-  /** agent 自己那份设置目录的持有者，由组合根注入。目录真身在 agent 进程里（它的 settings-schema），读写经它的官方写入面；这个包不认识桌面传输层。 */
+  /** agent 自己那份设置目录的持有者，由组合根注入。目录真身在 agent 进程里（它的设置注册表），读写经它的官方写入面；这个包不认识桌面传输层。 */
   readonly agentSettingsCatalog: AgentSettingsStore
   readonly modelCatalog: ModelCatalogStore
   readonly threads: ThreadsStore

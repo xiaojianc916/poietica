@@ -30,7 +30,7 @@ import {
   getModelMatchPreferences,
   resolveAllowedModels,
 } from '@oh-my-pi/pi-coding-agent/config/model-resolver'
-import { getDefault, getUi } from '@oh-my-pi/pi-coding-agent/config/settings-schema'
+import { lookup } from '@oh-my-pi/pi-coding-agent/config/registry'
 import {
   disableProvider,
   enableProvider,
@@ -89,7 +89,14 @@ import type {
 } from './protocol.ts'
 import { MAX_PROMPT_IMAGE_BYTES } from './protocol.ts'
 import { ASK_TOOL, answerPayloadOf, askQuestionsOf } from './questions.ts'
-import { readCatalog, type SettingChoicesOf } from './settings.ts'
+import {
+  globalThinkingDefault,
+  readCatalog,
+  type SettingChoicesOf,
+  settingsReaderOf,
+  settingValueOf,
+  writeSettingValue,
+} from './settings.ts'
 import { modelSelectorSettingOf } from './settings-labels.ts'
 import { SubagentLedger } from './subagents.ts'
 import { settleThinking } from './thinking.ts'
@@ -400,7 +407,7 @@ export function createBridge(host: BridgeHost): Bridge {
       initializeWithSettings(instance)
 
       // 已在表里的不重复写。
-      const disabled = new Set(instance.get('disabledProviders'))
+      const disabled = new Set(settingValueOf(instance, 'disabledProviders') as readonly string[])
       const missing = FOREIGN_PROVIDERS.filter((provider) => !disabled.has(provider))
 
       if (missing.length > 0) {
@@ -530,7 +537,9 @@ export function createBridge(host: BridgeHost): Bridge {
     registry: ModelRegistry,
   ): Promise<ReturnType<ModelRegistry['find']> | undefined> {
     const settings = await settingsFor()
-    const selector = settings.get('modelRoles')?.['default']
+    const selector = (
+      settingValueOf(settings, 'modelRoles') as Record<string, string> | undefined
+    )?.['default']
 
     if (typeof selector !== 'string' || selector === '') {
       return undefined
@@ -837,7 +846,8 @@ export function createBridge(host: BridgeHost): Bridge {
 
     const settings = await Settings.loadReadOnly({ cwd: manager.getCwd() })
     const obfuscator =
-      settings.get('share.redactSecrets') && settings.get('secrets.enabled')
+      settingValueOf(settings, 'share.redactSecrets') === true &&
+      settingValueOf(settings, 'secrets.enabled') === true
         ? await buildSecretObfuscator(manager.getCwd(), getAgentDir())
         : undefined
 
@@ -1028,7 +1038,7 @@ export function createBridge(host: BridgeHost): Bridge {
      * （settings-labels.ts 的 CONTROLLED_ELSEWHERE 把设置页那一行收了），所以盘上那份
      * 基本就是 schema 默认。
      */
-    settleThinking(adopted, getDefault('defaultThinkingLevel'))
+    settleThinking(adopted, globalThinkingDefault())
 
     /*
      * 会话交回给调用方之后，它那几个「在等人答」的表由取消与收摊负责清：
@@ -1068,7 +1078,8 @@ export function createBridge(host: BridgeHost): Bridge {
   function screenTurns(record: Session): readonly ScreenTurn[] {
     const context = record.agent.sessionManager.buildSessionContext({
       transcript: true,
-      collapseCompactedHistory: record.settings.get('display.collapseCompacted') !== false,
+      collapseCompactedHistory:
+        settingValueOf(record.settings, 'display.collapseCompacted') !== false,
     })
     const turns = groupTurns(context.messages, resultsOf(context.messages))
 
@@ -1132,11 +1143,12 @@ export function createBridge(host: BridgeHost): Bridge {
         continue
       }
 
-      const starts = message.role === 'user' || message.role === 'compactionSummary'
+      const opens = message.role === 'user' || isSkillTurn(message)
+      const starts = opens || message.role === 'compactionSummary'
 
       if (starts || open === null) {
         seal()
-        open = { opening: message, prompt: message.role === 'user' ? message : null, steps: [] }
+        open = { opening: message, prompt: opens ? message : null, steps: [] }
 
         /* 没有开场白的那种（会话从助手那一侧开始）：它自己就是这一轮的第一步。 */
         if (!starts) {
@@ -1190,6 +1202,56 @@ export function createBridge(host: BridgeHost): Bridge {
    */
   function isVisible(message: AgentMessage): boolean {
     return (message as { readonly display?: unknown }).display !== false
+  }
+
+  /*
+   * 用户自己发起的技能轮。判据是官方那一条（pi-tui 的 isUserTurnInitiator →
+   * isUserInvokedSkillPrompt）：类型 + 归属两格都对才算 —— 自动加载的技能是 agent
+   * 自己塞的上下文，不能冒充人说的话。
+   *
+   * 技能以 `role: 'custom'` 进显示经过，不是 `role: 'user'`。少判这一格，那一整份
+   * SKILL.md 就会被当成这一轮里的助手正文铺上屏幕（它是 skills.ts 渲染好的消息）。
+   */
+  function isSkillTurn(message: AgentMessage): boolean {
+    const candidate = message as { readonly customType?: unknown; readonly attribution?: unknown }
+
+    return candidate.customType === SKILL_PROMPT_MESSAGE_TYPE && candidate.attribution === 'user'
+  }
+
+  /*
+   * 技能轮的两个读法，都读官方那一条消息自己的 `details`（SkillPromptDetails：
+   * name / path / args / prompt / lineCount）—— 屏幕上的 chip 与人那句原话从它来。
+   *
+   * `prompt` 是人提交时原样那一句、`args` 是喂进模板的那一份（本轮改成同一个值），
+   * 缺席时退回正文：老会话里那种没有 details 的形状也得画得出东西。
+   */
+  function skillActivationsOf(
+    message: AgentMessage,
+  ): readonly { readonly skillName: string; readonly skillArgs?: string }[] {
+    const name = detailsField(message, 'name')
+
+    return typeof name === 'string' && name !== '' ? [{ skillName: name }] : []
+  }
+
+  function promptTextOf(message: AgentMessage): string {
+    const prompt = detailsField(message, 'prompt')
+    const args = detailsField(message, 'args')
+
+    if (typeof prompt === 'string' && prompt !== '') {
+      return prompt
+    }
+
+    if (typeof args === 'string' && args !== '') {
+      return args
+    }
+
+    return textOf(contentOfMessage(message))
+  }
+
+  function detailsField(message: AgentMessage, key: string): unknown {
+    const details = (message as { readonly details?: unknown }).details
+
+    return typeof details === 'object' && details !== null ? Reflect.get(details, key) : undefined
   }
 
   interface OpenTurn {
@@ -1498,6 +1560,8 @@ export function createBridge(host: BridgeHost): Bridge {
    * （中间隔着工具结果与摘要各占的趟）。照它的号铺，翻一页老内容就会把新内容盖掉。
    */
   function turnOp(entry: ScreenTurn): TranscriptOperation {
+    const skills = entry.prompt === null ? [] : skillActivationsOf(entry.prompt)
+
     return {
       op: 'turn.upsert',
       turn: {
@@ -1505,8 +1569,19 @@ export function createBridge(host: BridgeHost): Bridge {
         turnId: turnId(entry.turn),
         ordinal: entry.turn,
         state: entry.state,
-        origin: { kind: 'user' },
-        ...(entry.prompt === null ? {} : { prompt: textOf(contentOfMessage(entry.prompt)) }),
+        /* 与增量那条路（projection.userTurn）同一个形状：chip 才在重投影之后还在。 */
+        origin:
+          skills.length === 0
+            ? { kind: 'user' }
+            : {
+                kind: 'user',
+                payload: {
+                  kind: 'skill_activation',
+                  trigger: 'user-slash',
+                  skillActivations: skills,
+                },
+              },
+        ...(entry.prompt === null ? {} : { prompt: promptTextOf(entry.prompt) }),
         startedAt: entry.openedAt,
         ...(entry.endedAt === null ? {} : { endedAt: entry.endedAt }),
       },
@@ -1823,7 +1898,8 @@ export function createBridge(host: BridgeHost): Bridge {
      * 展开要 await（要读 SKILL.md），投递不能 await（见下面那段注释）—— 所以先展开，
      * 再拿结果去开轮。没有技能时这一步是空转。
      */
-    const expanded = skills.length === 0 ? undefined : await expandSkills(record, skills)
+    const expanded =
+      skills.length === 0 ? undefined : await expandSkills(record, skills, command.text)
     const prompt =
       expanded === undefined
         ? record.agent.prompt(command.text, images.length === 0 ? undefined : { images })
@@ -1901,7 +1977,7 @@ export function createBridge(host: BridgeHost): Bridge {
        * 记进去：message_start 到的就是它（与 turn 那条路「投影写原文、投递写展开文」
        * 不同，因为插话的正文完全由 agent 决定，我们只认它报回来的那一句）。
        */
-      const expanded = await expandSkills(record, skills)
+      const expanded = await expandSkills(record, skills, command.text)
 
       await record.agent.promptCustomMessage(customSkillMessage(expanded, images), {
         streamingBehavior: deliverAs,
@@ -2120,6 +2196,7 @@ export function createBridge(host: BridgeHost): Bridge {
   async function expandSkills(
     record: Session,
     skills: readonly { readonly name: string; readonly args?: string }[],
+    spoken: string,
   ): Promise<{
     readonly first: BuiltSkillPrompt
     readonly blocks: readonly BuiltSkillPrompt[]
@@ -2135,7 +2212,16 @@ export function createBridge(host: BridgeHost): Bridge {
         throw new Error(`这个技能现在不在会话里：${wanted.name}`)
       }
 
-      blocks.push(await buildSkillPromptMessage(skill, { args: wanted.args ?? '' }, 'user'))
+      /*
+       * 人那句话就是官方的 args —— chip 是 DecoratorNode，getTextContent() 交回空串
+       * （prompt-chip.tsx:158），所以 `command.text` 正是 `/skill:<name>` 记号周围的那圈正文，
+       * 与官方 `parseSkillInvocation` 收的 mid-prompt 形式同一份（extensibility/skills.ts:450-475）。
+       *
+       * 从前这里只传 chip 上那格 args（调色板插进来的 chip 没有 args，永远是缺席），
+       * 模板里的 `{{#if userArgs}}User: {{userArgs}}{{/if}}` 整段被省掉，模型收到的只有技能正文
+       * ——「人明明说了话，模型说没收到」就是这么来的。chip 自带 args 时仍以它为准。
+       */
+      blocks.push(await buildSkillPromptMessage(skill, { args: wanted.args ?? spoken }, 'user'))
     }
 
     /* 调用方只在 skills 非空时进来，所以第一份一定在；取它一次，省掉下游的断言。 */
@@ -2580,7 +2666,7 @@ export function createBridge(host: BridgeHost): Bridge {
       })
     }
 
-    const approval = record.settings.get('tools.approvalMode')
+    const approval = settingValueOf(record.settings, 'tools.approvalMode') as string | undefined
     const posture = POSTURES.find((entry) => entry.mode === approval)
 
     if (posture !== undefined) {
@@ -2596,7 +2682,7 @@ export function createBridge(host: BridgeHost): Bridge {
     // goal 由 goalRuntime 建/收，且必须把 goal 工具塞回活动集（SDK 建会话时无条件摘掉它）。
     const plan = record.agent.getPlanModeState()
 
-    if (record.settings.get('plan.enabled')) {
+    if (settingValueOf(record.settings, 'plan.enabled') === true) {
       controls.push({
         id: 'plan',
         label: '计划',
@@ -2609,7 +2695,7 @@ export function createBridge(host: BridgeHost): Bridge {
       })
     }
 
-    if (record.settings.get('goal.enabled')) {
+    if (settingValueOf(record.settings, 'goal.enabled') === true) {
       const goal = record.agent.getGoalModeState()
 
       controls.push({
@@ -2644,10 +2730,10 @@ export function createBridge(host: BridgeHost): Bridge {
     { value: 'auto', label: '完全访问权限', mode: 'yolo' },
   ]
 
-  // 上游给的档位说法从 settings-schema 的 defaultThinkingLevel.ui.options 取，不在代码里抄。
+  // 上游给的档位说法从注册表里 defaultThinkingLevel 那一格的 ui.options 取，不在代码里抄。
   const THINKING_OPTIONS: ReadonlyMap<string, { label: string; description?: string }> = new Map(
     ((): readonly { value: string; label: string; description?: string }[] => {
-      const options = getUi('defaultThinkingLevel')?.options
+      const options = lookup('defaultThinkingLevel')?.ui?.options
       return Array.isArray(options) ? options : []
     })().map((option) => [
       option.value,
@@ -3115,13 +3201,15 @@ export function createBridge(host: BridgeHost): Bridge {
 
     record.allowed.add(toolName)
 
-    const current = record.settings.get('tools.approval')
+    const current = settingValueOf(record.settings, 'tools.approval') as
+      | Record<string, string>
+      | undefined
     const policies =
       typeof current === 'object' && current !== null && !Array.isArray(current)
         ? (current as Record<string, unknown>)
         : {}
 
-    record.settings.set('tools.approval', { ...policies, [toolName]: 'allow' })
+    writeSettingValue(record.settings, 'tools.approval', { ...policies, [toolName]: 'allow' })
 
     void record.settings.flush().catch((error: unknown) => {
       log('could not persist a session-wide approval', String(error))
@@ -3276,7 +3364,7 @@ export function createBridge(host: BridgeHost): Bridge {
 
   // 进计划模式把活动工具收成只读组 + write（写计划文件要用）；出去时按进之前记下的还原。
   async function selectPlan(record: Session, value: string): Promise<void> {
-    if (!record.settings.get('plan.enabled')) {
+    if (settingValueOf(record.settings, 'plan.enabled') !== true) {
       throw new Error('plan mode is disabled in this agent settings')
     }
 
@@ -3473,7 +3561,7 @@ export function createBridge(host: BridgeHost): Bridge {
      * 真去开它才验得出来（pi-natives 的 DesktopSession），而那一步在
      * `toggleComputerUse` 里按 omp 官方的做法当场验、验不过就回滚。
      */
-    const enabled = record.settings.get('computer.enabled') === true
+    const enabled = settingValueOf(record.settings, 'computer.enabled') === true
 
     return [
       {
@@ -3502,7 +3590,7 @@ export function createBridge(host: BridgeHost): Bridge {
    * 开之前先验前奏在不在：不在就回滚并把话说清楚，而不是留一个「开着的」假象。
    */
   async function toggleComputerUse(record: Session, enabled: boolean): Promise<unknown> {
-    const previous = record.settings.get('computer.enabled')
+    const previous = settingValueOf(record.settings, 'computer.enabled')
 
     /*
      * 走它自己的持久层（与 browser.* 那三格同一条路）：这一格是设置页上的开关，
@@ -3512,7 +3600,7 @@ export function createBridge(host: BridgeHost): Bridge {
      * 「never persisted to settings.json」）；我们这一格是设置页的持久控件，所以
      * 取它的持久写入面，而把官方那一步 `refreshBaseSystemPrompt` 一起做掉。
      */
-    record.settings.set('computer.enabled', enabled)
+    writeSettingValue(record.settings, 'computer.enabled', enabled)
 
     try {
       await record.settings.flush()
@@ -3536,7 +3624,7 @@ export function createBridge(host: BridgeHost): Bridge {
       await record.agent.refreshBaseSystemPrompt()
     } catch (error) {
       /* 改到一半失败要把设置还原：留着它等于报了一件没发生的事。 */
-      record.settings.set('computer.enabled', previous as never)
+      writeSettingValue(record.settings, 'computer.enabled', previous)
       await record.settings.flush().catch(() => undefined)
       throw error
     }
@@ -3557,7 +3645,7 @@ export function createBridge(host: BridgeHost): Bridge {
       throw new Error(`no approval posture is called ${value}`)
     }
 
-    record.settings.set('tools.approvalMode', posture.mode)
+    writeSettingValue(record.settings, 'tools.approvalMode', posture.mode)
     await record.settings.flush()
   }
 
@@ -3573,11 +3661,11 @@ export function createBridge(host: BridgeHost): Bridge {
     headless: boolean
     cdpUrl: string | null
   } {
-    const cdpUrl = settings.get('browser.cdpUrl')
+    const cdpUrl = settingValueOf(settings, 'browser.cdpUrl') as string | undefined
 
     return {
-      enabled: settings.get('browser.enabled') === true,
-      headless: settings.get('browser.headless') === true,
+      enabled: settingValueOf(settings, 'browser.enabled') === true,
+      headless: settingValueOf(settings, 'browser.headless') === true,
       cdpUrl: typeof cdpUrl === 'string' && cdpUrl.trim() !== '' ? cdpUrl : null,
     }
   }
@@ -3618,7 +3706,7 @@ export function createBridge(host: BridgeHost): Bridge {
     const settings = await settingsFor()
 
     return {
-      settings: readCatalog(settings, await settingChoicesOf(settings)),
+      settings: readCatalog(settingsReaderOf(settings), await settingChoicesOf(settings)),
     }
   }
 
@@ -3631,10 +3719,10 @@ export function createBridge(host: BridgeHost): Bridge {
   async function writeSetting(path: string, value: unknown): Promise<unknown> {
     const settings = await settingsFor()
 
-    settings.set(path as never, value as never)
+    writeSettingValue(settings, path, value)
     await settings.flush()
 
-    return { settings: readCatalog(settings, await settingChoicesOf(settings)) }
+    return { settings: readCatalog(settingsReaderOf(settings), await settingChoicesOf(settings)) }
   }
 
   async function writeBrowserSettings(command: {
@@ -3645,13 +3733,13 @@ export function createBridge(host: BridgeHost): Bridge {
     const settings = await settingsFor()
 
     if (command.enabled !== undefined) {
-      settings.set('browser.enabled', command.enabled)
+      writeSettingValue(settings, 'browser.enabled', command.enabled)
     }
     if (command.headless !== undefined) {
-      settings.set('browser.headless', command.headless)
+      writeSettingValue(settings, 'browser.headless', command.headless)
     }
     if (command.cdpUrl !== undefined) {
-      settings.set('browser.cdpUrl', command.cdpUrl)
+      writeSettingValue(settings, 'browser.cdpUrl', command.cdpUrl)
     }
 
     await settings.flush()
@@ -3917,7 +4005,7 @@ export function createBridge(host: BridgeHost): Bridge {
        * 桌面控制这一项：如实报它此刻开没开。
        *
        * 此前这里恒报 `state: 'ready'`，而 omp 的 `computer.enabled` 默认是 **false**
-       * （settings-schema.ts:4375-4384）—— 屏幕因此说「已就绪」，而模型手上根本没有那个
+       * （注册表里那一格的 definition.default）—— 屏幕因此说「已就绪」，而模型手上根本没有那个
        * 前奏。判据取它自己的两格，一格都不抄：`computer.enabled` 说人开没开，
        * `getEvalPreludes()` 说这条会话里前奏真的装上了没有（omp 自己的 `/computer`
        * 命令正是这么判的，slash-commands/builtin-modes.ts:103-116）。

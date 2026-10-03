@@ -461,6 +461,43 @@ export const DESCRIPTIONS: Readonly<Record<string, string>> = {
   'eval.autoBackground.enabled': '自动把长时间运行的 eval cell 转为后台，稍后再交付结果',
   'python.kernelMode': '让 IPython 内核在多次 eval 调用间保持存活，或每次都重新启动',
   'python.interpreter': '可选的精确 Python 可执行文件路径。设置后跳过 Python 运行时的自动探测。',
+
+  // ── 18.5.0 新增的 19 格（升级时对着上游 ui.description 逐条补） ────────────────
+  'display.subagentLivePreview': '在每一行子代理下面显示它当前（或最近一次）的工具调用',
+  'input.bareExitOnEmptySession':
+    '第一条消息之前，提交恰好是 `exit`、`quit` 或 `q`（不分大小写）就退出，而不是去问模型',
+  'input.bareSlashCommands':
+    '提交一个不带前导 `/` 的命令名（如 `model`、`compact`）就执行那条斜杠命令；会话里已经有消息之后要按两次回车确认',
+  'providers.openaiLiveSteering':
+    'GPT-6 响应流式输出期间打进去的消息，经 Codex WebSocket 直接送进那次响应，而不是等下一个工具边界',
+  'providers.cacheWarming':
+    '在提示词缓存条目快过期之前，用 1 个 token 的输出预算把上一次请求重发一遍',
+  'telemetry.otlpExportEnabled':
+    '允许 OMP 经 OTEL_* 端点导出 trace、日志与指标。改动下次启动生效。',
+  'advisor.reviewMode':
+    '没有 WATCHDOG.yml 名单时的默认顾问节奏。turn 每轮主轮都审查；agent-end 只在最终交付时审查。',
+  'advisor.reviewInterval':
+    '没有 WATCHDOG.yml 名单时的默认顾问节奏：每第 N 次合格的主更新审查一次，1 表示每次都审。被跳过的更新会随下一次审查一起送出。',
+  'advisor.evictStaleResults':
+    '每次审查之前，把顾问在更早几轮里产出的 read/grep/glob 结果换成一句简短占位。最近一次审查保留。',
+  'tools.artifactMaxBytes':
+    '流式工具输出（bash、python、js eval）落盘为产物时的文件大小上限。超出后保留开头（最多 3 MB）与最近的尾部，中间插一条截断说明。0 表示不限。',
+  'ratchet.enabled': '启用 ratchet 的 eval/爬坡前奏；/ratchet 可为当前会话临时打开',
+  'task.speculativeLaunch':
+    '每个批量子代理在它的 tasks[] 项流式输出完就立刻启动，而不是等整个 task 调用结束。若这次调用最终校验失败、被拦下或入参变了，已启动的代理会被中止。需要任务审批为自动放行，且扩展没有挂工具生命周期钩子。',
+  'task.completionProbe':
+    '通过一次缓存旁路请求（类似 /btw）问正在干活的子代理：任务大概完成多少了 —— 在再过 2、5、10、30 分钟时各问一次，之后每小时一次。估算值显示在 wait 与 task 视图里该子代理旁边。只问交互式会话的主代理派出的子代理；print、RPC、ACP 与 SDK 那几条路不探测。',
+  'browser.tern':
+    '在 Tern 面板里，浏览器标签页以画中画形式开在 omp 面板之上（原生 web view），而不是用无头 Chromium；没有 Tern 窗口能承载时退回 Chromium。显式的 app 选项、relay 与 Browser CDP URL 优先；headed:false 或 app.tern:false 可让单次打开退出这条路。可用 PI_BROWSER_TERN=0 / =1 覆盖。',
+  'ida.enabled':
+    '把 `read` 打开的可行执行文件送进 IDA Pro（idalib），并启用 `ida` 工具；找不到 IDA 安装时这一格不起作用',
+  'ida.python': '能 import ida_domain 与 idapro 的 Python 解释器；留空自动探测',
+  'ida.installDir':
+    '含有 libidalib 的目录，会作为 IDADIR 导出；留空自动探测（$IDADIR、ida-config.json、标准安装路径）',
+  'ida.maxOpen':
+    '每个项目同时打开的 IDA 数据库上限（omp ps 里的 omp.ida.* 守护进程）；再开一个会保存并关掉最久未用的那个空闲库',
+  'ida.idleCloseSec':
+    '空闲超过这么多秒的 IDA 数据库会被保存并关闭（0 表示永不）；重开时 exec 命名空间会重置',
 }
 
 /**

@@ -1,5 +1,5 @@
 /*
- * omp 那 378 格设置的中文文案。
+ * omp 那几百格设置的中文文案（18.5.0 实测 397 格带 ui 元数据）。
  *
  * omp 不带 i18n（整棵依赖树里没有一个 locale 文件），它的 label 与 group 只有英文。
  * 这一份表就是补上的那一层：**以 omp 自己的标识符为键** —— 栏目用它的 tab key，
@@ -12,11 +12,7 @@
  * 也正因为是「查不到就返回原文」，这一份表不需要与 omp 版本同步：它只会少，不会错。
  */
 
-import {
-  getUi,
-  SETTINGS_SCHEMA,
-  type SettingPath,
-} from '@oh-my-pi/pi-coding-agent/config/settings-schema'
+import { lookup } from '@oh-my-pi/pi-coding-agent/config/registry'
 
 /** 分节名：键是 omp 的英文 group 原文（会随它改词，查不到就退回英文）。 */
 const GROUP_LABELS: Readonly<Record<string, string>> = {
@@ -82,7 +78,7 @@ const GROUP_LABELS: Readonly<Record<string, string>> = {
  *
  * 同一件事的译法在全表里只出现一次：面板、预设、分隔符、阈值…每一步都取同一个词。
  */
-const SETTING_LABELS: Partial<Record<SettingPath, string>> = {
+const SETTING_LABELS: Readonly<Record<string, string>> = {
   // ── appearance ──────────────────────────────────────────────────────────
   'theme.dark': '深色主题',
   'theme.light': '浅色主题',
@@ -480,6 +476,27 @@ const SETTING_LABELS: Partial<Record<SettingPath, string>> = {
   'exa.enabled': 'Exa',
   'exa.searchDelayMs': 'Exa 搜索间隔',
   'searxng.endpoint': 'SearXNG 地址',
+
+  // ── 18.5.0 新增的 19 格（升级时对着上游 ui.label 逐条补） ────────────────────
+  'display.subagentLivePreview': '子代理实时预览',
+  'input.bareExitOnEmptySession': '空会话直接退出',
+  'input.bareSlashCommands': '免斜杠命令',
+  'providers.openaiLiveSteering': 'OpenAI 实时插话',
+  'providers.cacheWarming': '提示词缓存预热',
+  'telemetry.otlpExportEnabled': 'OTLP 遥测导出',
+  'advisor.reviewMode': '顾问审查节奏',
+  'advisor.reviewInterval': '顾问审查间隔',
+  'advisor.evictStaleResults': '顾问清理过期结果',
+  'tools.artifactMaxBytes': '产物文件上限（MB）',
+  'ratchet.enabled': 'Ratchet',
+  'task.speculativeLaunch': '子任务提前启动',
+  'task.completionProbe': '子代理完成度探测',
+  'browser.tern': 'Tern 浏览器',
+  'ida.enabled': 'IDA Pro',
+  'ida.python': 'IDA Python',
+  'ida.installDir': 'IDA 安装目录',
+  'ida.maxOpen': 'IDA 同时打开上限',
+  'ida.idleCloseSec': 'IDA 空闲关闭超时',
 }
 
 /**
@@ -488,7 +505,7 @@ const SETTING_LABELS: Partial<Record<SettingPath, string>> = {
  * `fallback` 是 omp 自报的 label，查不到表就返回它 —— 表只可能少不会错。
  */
 export function settingLabelOf(path: string, fallback: string): string {
-  return SETTING_LABELS[path as SettingPath] ?? fallback
+  return SETTING_LABELS[path] ?? fallback
 }
 
 /** 某一节的中文名；没有译文时原样交出 omp 的英文 group。 */
@@ -498,7 +515,7 @@ export function groupLabelOf(group: string): string {
 
 /** 这一格有没有中文标题。界面用它决定要不要把英文原文排在次要位置。 */
 export function hasSettingTranslation(path: string): boolean {
-  return SETTING_LABELS[path as SettingPath] !== undefined
+  return SETTING_LABELS[path] !== undefined
 }
 
 /*
@@ -580,13 +597,13 @@ export function optionLabelOf(path: string, value: string, fallback: string): st
  * 从 agent 自己的 schema 现读，不在本文件抄第二份：抄一遍就与「上游改了词」分不出来，
  * 而这一份的用处正是让人能拿它去搜 omp 的文档。
  *
- * 判据是 `SETTINGS_SCHEMA` 的成员检查，不是 `hasUi` / `getUi`：那两个对认不出的路径
- * 不是返回 undefined 而是**抛**（它们直接对空定义做 `in`，18.3.0 实测），而这里的调用方
- * 是「拿一个可能过时的路径来查原文」，抛出去正好砸在最不该出错的降级路径上。
+ * 判据是注册表的 `lookup`：18.3.0 那套 `getUi` 对认不出的路径不是返回 undefined 而是
+ * **抛**（它们直接对空定义做 `in`，实测），而这里的调用方是「拿一个可能过时的路径来查
+ * 原文」，抛出去正好砸在最不该出错的降级路径上。18.5.0 的 `lookup` 认不出交回 undefined。
  * 认不出就交回空串，界面据此不画那一行。
  */
 export function settingLabelSource(path: string): string {
-  return path in SETTINGS_SCHEMA ? (getUi(path as SettingPath)?.label ?? '') : ''
+  return lookup(path)?.ui?.label ?? ''
 }
 
 /**

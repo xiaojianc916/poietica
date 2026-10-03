@@ -11,12 +11,8 @@
  */
 
 import { expect, test } from 'bun:test'
-import {
-  getUi,
-  hasUi,
-  SETTINGS_SCHEMA,
-  type SettingPath,
-} from '@oh-my-pi/pi-coding-agent/config/settings-schema'
+import { orderedSettings } from '@oh-my-pi/pi-coding-agent/config/all-settings'
+import { lookup } from '@oh-my-pi/pi-coding-agent/config/registry'
 import { readCatalog } from '../settings.ts'
 import {
   irrelevantSettingOf,
@@ -38,9 +34,10 @@ test('the catalog is omp own schema, not a copy in our source', () => {
    * 「无关」的判据在 settings-labels.ts 的 `irrelevantSettingOf`，由 settings-labels.test.ts
    * 逐格钉住。这里只确认两件事：留下来的每一格都出自上游，且一条不多一条不少。
    */
-  const expected = (Object.keys(SETTINGS_SCHEMA) as SettingPath[]).filter(
-    (path) => hasUi(path) && !irrelevantSettingOf(path, getUi(path)?.group),
-  )
+  const expected = orderedSettings()
+    .filter((setting) => setting.ui !== undefined)
+    .map((setting) => setting.id)
+    .filter((path) => !irrelevantSettingOf(path, lookup(path)?.ui?.group))
 
   // 条数必须等于上游自报的那几格减去不上屏的。差一条就说明两边分叉了。
   expect(all.length).toBe(expected.length)
@@ -53,7 +50,7 @@ test('the catalog is omp own schema, not a copy in our source', () => {
    * settings-labels.test.ts 逐格钉住（它是我们补的，无法与上游相等）。
    */
   for (const entry of all) {
-    const ui = getUi(entry.path as SettingPath)
+    const ui = lookup(entry.path)?.ui
 
     if (ui === undefined) {
       throw new Error(`catalog carries ${entry.path}, which has no ui metadata upstream`)
@@ -64,7 +61,7 @@ test('the catalog is omp own schema, not a copy in our source', () => {
 
   /* 每一格都出自上游那张表：没有一格是我们自己造的。 */
   for (const entry of all) {
-    expect(entry.path in SETTINGS_SCHEMA).toBe(true)
+    expect(lookup(entry.path)).toBeDefined()
   }
 })
 
@@ -142,7 +139,7 @@ test('a normal setting carries its current value, and a runtime-option enum carr
 
 test('every setting on the agent own memory tab belongs to the memory page', () => {
   const entries = readCatalog(reader())
-  const tabOf = (path: string) => getUi(path as SettingPath)?.tab
+  const tabOf = (path: string) => lookup(path)?.ui?.tab
 
   /*
    * 上游那一栏此刻 30 格（18.3.0 实测）。条数钉住是有意的：归属的判据是 tab，
@@ -252,9 +249,9 @@ test('the two sections are mutually exclusive and most settings have none', () =
 
   /* 两个判据在全部格子上逐一互斥：memory 的 tab 判据与 persona 的 path 判据不相交。 */
   for (const entry of entries) {
-    expect(
-      memorySettingOf(getUi(entry.path as SettingPath)?.tab ?? '') && personaSettingOf(entry.path),
-    ).toBe(false)
+    expect(memorySettingOf(lookup(entry.path)?.ui?.tab ?? '') && personaSettingOf(entry.path)).toBe(
+      false,
+    )
   }
 })
 
@@ -320,7 +317,7 @@ test('translating an option label leaves the value, order and count untouched', 
   expect(translated.length).toBeGreaterThan(0)
 
   for (const entry of translated) {
-    const upstream = getUi(entry.path as SettingPath)?.options
+    const upstream = lookup(entry.path)?.ui?.options
 
     if (!Array.isArray(upstream)) {
       continue

@@ -34,6 +34,7 @@ const GLYPHS: Readonly<Record<string, ToolGlyph>> = {
   goal: 'goal',
   grep: 'search',
   hub: 'delegate',
+  ida: 'code',
   js: 'execute',
   learn: 'learning',
   lsp: 'code',

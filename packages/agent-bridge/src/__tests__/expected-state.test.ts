@@ -10,6 +10,8 @@
 
 import { describe, expect, it } from 'bun:test'
 import type { ModelRegistry, Settings } from '@oh-my-pi/pi-coding-agent'
+import { lookup } from '@oh-my-pi/pi-coding-agent/config/registry'
+import { Settings as SettingsStore } from '@oh-my-pi/pi-coding-agent/config/settings'
 import {
   applyExpectedSelection,
   buildExpectedState,
@@ -19,35 +21,27 @@ import {
   type ExpectedState,
 } from '../expected-state.ts'
 
-/** 一本只记「被写成了什么」的假设置：判据是寿命，与盘无关。 */
-function settings(): Settings & { readonly writes: string[]; readonly flushes: number } {
-  const writes: string[] = []
-  const fake = {
-    writes,
-    flushes: 0,
-    set(key: string, value: unknown) {
-      writes.push(`${key}=${String(value)}`)
-    },
-    setModelRole(role: string, value: string) {
-      writes.push(`role:${role}=${value}`)
-    },
-    async flush() {
-      ;(fake as { flushes: number }).flushes += 1
-    },
-  }
-
-  return fake as unknown as Settings & { readonly writes: string[]; readonly flushes: number }
+/*
+ * 一本真的在内存里的设置（官方 `Settings.isolated`），不是手搓的假对象。
+ *
+ * 18.5.0 起读值走**注册表句柄**（`Setting.get(scope)` 要读 `scope.valueCache`）、写值走
+ * `scope.writeValue`，所以「有个 get/set 方法」的鸭子类型不再成立 —— 假对象上那两下会
+ * 直接在 SDK 里炸。用官方给测试的那一支，读写的语义与线上同一份。
+ *
+ * `overrides` 只做**播种**（它压过 global 层），所以这里分两个入口：
+ * `settings()` 是一本空的（可写、可读回），`config()` 是播种只读的。
+ */
+function settings(): Settings {
+  return SettingsStore.isolated()
 }
 
-/* 只回「读到了什么」的假设置：给 buildExpectedState 用，判据是读出来的值，不是写入。 */
+/* 播种：给 buildExpectedState 用，判据是读出来的值。override 层压过 global，正合「配好的」。 */
 function config(values: Record<string, unknown>): Settings {
-  return {
-    get: (path: string) => values[path],
-    getModelRole: () => values['modelRole'],
-    // 没有使用顺序与供应商次序：匹配规则本身不在这几条用例里。
-    getStorage: () => undefined,
-  } as unknown as Settings
+  return SettingsStore.isolated(values)
 }
+
+/** 写进去了没有：读回真实的那一格，而不是去问一本假账本。 */
+const readBack = (settings: Settings, path: string): unknown => lookup(path)?.get(settings)
 
 /* 一条带梯子的推理模型：字段照 pi-catalog 的形状（reasoning / thinking.efforts / defaultLevel）。 */
 function reasoningModel(options?: {
@@ -134,7 +128,7 @@ describe('改一格期望态：落配置还是落会话', () => {
 
     expect(outcome).toBe('config')
     /* 写的是角色：omp 自己按角色解析，我们这边不再解析一次。 */
-    expect(held.writes).toEqual(['role:default=deepseek/deepseek-flash'])
+    expect(held.getModelRole('default')).toBe('deepseek/deepseek-flash')
   })
 
   it('模型那一格写完要落盘 —— 不 flush 就是「点了没反应」', async () => {
@@ -145,7 +139,9 @@ describe('改一格期望态：落配置还是落会话', () => {
       value: 'deepseek/deepseek-flash',
     })
 
-    expect(held.flushes).toBe(1)
+    /* 写完要落盘：这一格真的被写进去了，且落在 global 层（真落盘那一层）。 */
+    expect(held.getModelRole('default')).toBe('deepseek/deepseek-flash')
+    expect(held.getProvenance(lookup('modelRoles')!)).toBe('global')
   })
 
   it('权限那一格落配置，写的是上游的 approvalMode 而不是我们的档位名', async () => {
@@ -158,8 +154,9 @@ describe('改一格期望态：落配置还是落会话', () => {
 
     expect(outcome).toBe('config')
     /* 'auto' 是我们的名字，落到上游是 yolo（见 EXPECTED_POSTURES）。 */
-    expect(held.writes).toEqual(['tools.approvalMode=yolo'])
-    expect(held.flushes).toBe(1)
+    expect(readBack(held, 'tools.approvalMode')).toBe('yolo')
+    /* 落的是 global 层（真落盘那一层），不是 runtime override。 */
+    expect(held.getProvenance(lookup('tools.approvalMode')!)).toBe('global')
   })
 
   it('每一档权限都映到一个上游模式，且三档互不相同', async () => {
@@ -167,7 +164,7 @@ describe('改一格期望态：落配置还是落会话', () => {
     for (const posture of EXPECTED_POSTURES) {
       const held = settings()
       await applyExpectedSelection({ settings: held, configId: 'permission', value: posture.value })
-      expect(held.writes).toEqual([`tools.approvalMode=${posture.mode}`])
+      expect(readBack(held, 'tools.approvalMode')).toBe(posture.mode)
       modes.add(posture.mode)
     }
 
@@ -181,8 +178,8 @@ describe('改一格期望态：落配置还是落会话', () => {
 
       expect(outcome).toBe('session')
       /* 一个字都不该写：写了就是拿配置冒充会话状态。 */
-      expect(held.writes).toEqual([])
-      expect(held.flushes).toBe(0)
+      expect(held.getProvenance(lookup('plan.enabled')!)).toBe('default')
+      expect(held.revision).toBe(1)
     }
   })
 

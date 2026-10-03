@@ -73,8 +73,9 @@
 
 ## 决定四 · omp 的设置由它的元数据生成，不抄一份
 
-`settings-schema.ts` 导出 `getUi` / `getType` / `getDefault` / `getEnumValues` /
-`isCredential` / `hasUi`。桥逐格读出来交给屏幕，**一格文案都不抄**：
+设置由 **omp 自己的注册表**供给元数据（18.5.0 起是 `config/registry.ts` 的类型化句柄 +
+`config/all-settings.ts` 的汇总；18.3.0 那套 `SETTINGS_SCHEMA` / `getUi` / `getDefault` 已随
+上游删除，迁移见 ADR 0037）。桥逐格读出来交给屏幕，**一格文案都不抄**：
 
 - 抄一份就是第二个事实（§0）：上游加一格、改一句说明，我们静默落后；
 - 界面按 `type` 与 `options` 选控件（boolean→开关、enum→下拉、number/string→输入），

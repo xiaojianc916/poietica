@@ -1,7 +1,7 @@
 /*
  * 中文文案的两条判据，一条都不许松：
  *
- * 1. **378 格一格都不许静默落回英文。** 逐格走 omp 此刻的 schema（不比条数，逐条查），
+ * 1. **上屏的每一格都不许静默落回英文。** 逐格走 omp 此刻的注册表（不比条数，逐条查），
  *    少一条就说明我们那张表的键打错了字 —— 而打错字的症状与「上游新加了设置」一模一样，
  *    屏幕上都是英文。只有这条判据能把两者分开。
  * 2. **查不到就原文返回**，且永不返回空。这是这一层的安全属性：表跟不上 omp 时，
@@ -11,12 +11,8 @@
  */
 
 import { expect, test } from 'bun:test'
-import {
-  getUi,
-  hasUi,
-  SETTINGS_SCHEMA,
-  type SettingPath,
-} from '@oh-my-pi/pi-coding-agent/config/settings-schema'
+import { orderedSettings } from '@oh-my-pi/pi-coding-agent/config/all-settings'
+import { lookup } from '@oh-my-pi/pi-coding-agent/config/registry'
 import { readCatalog } from '../settings.ts'
 import { settingDescriptionOf } from '../settings-descriptions.ts'
 import {
@@ -28,27 +24,31 @@ import {
 } from '../settings-labels.ts'
 
 /** 上屏那一批格子：omp 自报带 ui 元数据的。与 settings.test.ts 同一份判据。 */
-function uiPaths(): SettingPath[] {
-  return (Object.keys(SETTINGS_SCHEMA) as SettingPath[]).filter((path) => hasUi(path))
+function uiPaths(): string[] {
+  return orderedSettings()
+    .filter((setting) => setting.ui !== undefined)
+    .map((setting) => setting.id)
 }
 
 test('every setting omp puts on screen resolves to Chinese, not to the English fallback', () => {
   const paths = uiPaths()
 
-  expect(paths.length).toBe(378)
+  /* 18.5.0 实测 397 格带 ui 元数据（18.3.0 是 378，新增 19 格）。 */
+  expect(paths.length).toBe(397)
 
   /*
    * 只查真正会上屏的那些：跟这台桌面软件无关的 84 格由桥挡在目录外
    * （settings.ts 的 irrelevantSettingOf），它们的译名不必维护。
    */
-  const shown = paths.filter((path) => !irrelevantSettingOf(path, getUi(path)?.group))
+  const shown = paths.filter((path) => !irrelevantSettingOf(path, lookup(path)?.ui?.group))
 
-  expect(shown.length).toBe(294)
+  /* 去掉与桌面端无关的 84 格之后：18.3.0 是 294，18.5.0 新增的 19 格全都在屏幕上。 */
+  expect(shown.length).toBe(313)
 
   const untranslated = shown.filter((path) => !hasSettingTranslation(path))
 
   /* 报出具体是哪些格：只报条数的话，修的时候还得自己再找一遍。 */
-  expect(untranslated.map((path) => `${path} :: ${getUi(path)?.label ?? ''}`)).toEqual([])
+  expect(untranslated.map((path) => `${path} :: ${lookup(path)?.ui?.label ?? ''}`)).toEqual([])
 })
 
 test('a path we do not know falls back to the original English, never to a blank', () => {
@@ -74,6 +74,7 @@ const UNTRANSLATED_GROUPS: readonly string[] = [
   'Git',
   'GitHub',
   'Hindsight',
+  'IDA Pro',
   'LSP',
   'Mnemopi',
   'Prewalk',
@@ -84,14 +85,15 @@ test('every group omp reports carries a Chinese name', () => {
   const groups = new Set<string>()
 
   for (const path of uiPaths()) {
-    const group = getUi(path)?.group
+    const group = lookup(path)?.ui?.group
 
     if (group !== undefined) {
       groups.add(group)
     }
   }
 
-  expect(groups.size).toBe(58)
+  /* 18.5.0 新增一节 IDA Pro（产品名，刻意不译，见上面的 UNTRANSLATED_GROUPS）。 */
+  expect(groups.size).toBe(59)
 
   /* 只有那份产品名名单可以保持英文原文；多一条就说明上游加了节而没人管它。 */
   const untranslated = [...groups].filter((group) => groupLabelOf(group) === group).sort()
@@ -109,7 +111,7 @@ test('the catalog translates the copy but keeps omp identifiers for group and pa
   const entries = readCatalog({ get: () => undefined })
 
   for (const entry of entries) {
-    const ui = getUi(entry.path as SettingPath)
+    const ui = lookup(entry.path)?.ui
 
     expect(entry.label).toBe(settingLabelOf(entry.path, ui?.label ?? ''))
     expect(entry.group).toBe(ui?.group)
@@ -130,7 +132,7 @@ test('settings that cannot affect this desktop app are left out of the catalog e
    * 加上补漏的 18 格（终端聊天区的显示开关 7 格 + 协作/分享/直播/技能市场/语音 11 格，
    * 判据逐条写在 settings-labels.ts 的 IRRELEVANT 里）。
    */
-  expect(entries.length).toBe(294)
+  expect(entries.length).toBe(313)
 
   for (const gone of [
     'theme.dark',
@@ -267,7 +269,7 @@ test('every setting a condition reads is still in the catalog', () => {
   const dangling: string[] = []
 
   for (const path of uiPaths()) {
-    const condition = getUi(path)?.condition
+    const condition = lookup(path)?.ui?.condition
 
     if (condition === undefined) {
       continue
