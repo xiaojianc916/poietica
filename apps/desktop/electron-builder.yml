@@ -23,7 +23,8 @@ electronLanguages:
 # electron-updater 留在 dependencies。改回去，asar 会重新长回 229 MB。
 #
 # 这里的 devDependencies 读作「不随包单独发一份 node_modules」，不是「只在构建期用」：
-# zod 与 uuid 都是运行时依赖，只是同样已经被 Vite 打进了 dist/**。
+# zod 与 uuid 都是运行时依赖，只是同样已经被 Vite 打进了 dist/**；electron-log 也只在
+# 运行时用，它同样被内联（进 dist-electron/main.cjs）。
 files:
   - dist/**
   - dist-electron/**

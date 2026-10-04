@@ -15,6 +15,10 @@ const { NODE_ENV: NODE_ENV_VALUE } = process.env
  * 而 electron 是 devDependency（它本来就是开发期依赖 runtime 的包）。不显式写出来，
  * 打包器会把整个 electron 包内联进 main.cjs —— 内联后 __dirname 变成 dist-electron，
  * electron 包自己那句「二进制没装好就去跑 install.js」就指向不存在的路径，启动即炸。
+ *
+ * 反过来，不在这张表里的依赖会被内联进 dist-electron/**：electron-log 就是这条路上的，
+ * 所以它住在 devDependencies 并随 main.cjs 发货。往这张表里加东西等于要求包里多一份
+ * node_modules —— electron-builder 只装生产依赖，加错一个就是启动即报「模块找不到」。
  */
 const RUNTIME_EXTERNALS = ['electron', 'electron-updater']
 

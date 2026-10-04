@@ -339,7 +339,11 @@ function applyVersion(target: string): void {
  * apps/desktop 的 dependencies 里放一个渲染层依赖，安装包就悄悄胖几十 MB，
  * 而构建照样绿。这个闸门让那次误加在打包后立刻现形，而不是等用户量体积。
  */
-/* 运行时真正 import 的依赖：只有 electron/update.ts 的 import('electron-updater')。 */
+/*
+ * 运行时真正从 node_modules 读的依赖：只有 electron/update.ts 的 import('electron-updater')。
+ * electron/logging.ts 也 import electron-log，但那句是静态 import，已被 Vite 内联进
+ * dist-electron/**，包内不需要第二份 —— 运行时依赖与 import 语句不是一回事。
+ */
 const RUNTIME_DEPENDENCIES = ['electron-updater']
 
 /* electron-updater 自己的闭包，由它带进来，不算误加。 */
@@ -405,8 +409,8 @@ function assertLeanPackage(): void {
         `asar 里混进了 ${unexpected.length} 个不该随包发布的依赖：${unexpected.join(', ')}`,
         '',
         '多半是往 apps/desktop/package.json 的 dependencies 里加了东西。',
-        '渲染层依赖请放 devDependencies —— 它们已经由 Vite 打进 dist/**，',
-        `运行时不读 node_modules。唯一该留在 dependencies 的是 ${RUNTIME_DEPENDENCIES.join(', ')}。`,
+        '渲染层依赖（进 dist/**）与主进程依赖（进 dist-electron/**）请放 devDependencies：',
+        `两边都已由 Vite 打进产物，运行时不读 node_modules。唯一该留在 dependencies 的是 ${RUNTIME_DEPENDENCIES.join(', ')}。`,
       ].join('\n'),
     )
   }
