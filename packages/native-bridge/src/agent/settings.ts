@@ -12,14 +12,18 @@ import { throughIpc } from '../ipc-error'
  *
  * 值那一格原样搬运：`secret` 为真的格子读到的是 null，那是契约 —— agent 的值出了它的
  * 进程就不再是我们的盘（AGENTS.md §1）。这一层不往回填，也没有第二份值可填。
+ *
+ * `cwd` 是当前活动工作区（见 models.ts 的同名说明）：目录是进程级事实，与锚无关，
+ * 但这条读可能起出第一条连接 —— 那一刻它就是锚。
  */
-export function createAgentSettingsPort(): AgentSettingsPort {
+export function createAgentSettingsPort(cwd: () => string | null): AgentSettingsPort {
   return {
-    read: () => throughIpc(() => commands.agentSettingsCatalog()).then(catalogOf),
+    read: () => throughIpc(() => commands.agentSettingsCatalog({ cwd: cwd() })).then(catalogOf),
 
     write: (path, value) =>
       throughIpc(() =>
         commands.agentSetSetting({
+          cwd: cwd(),
           path,
           /* 生成绑定要它自己的 JsonValue；领域侧是 unknown，交叉点只有这一次收窄。 */
           value: value as AgentSettingEntryWire['value'],

@@ -1,6 +1,6 @@
 use super::AgentCommandResult;
 use super::configuration::restate;
-use super::dto::{AgentCapabilitiesRequest, AgentConfigControl, AgentSelectConfigRequest};
+use super::dto::{AgentConfigControl, AgentSelectConfigRequest, AgentWorkspaceRequest};
 use crate::error::Error;
 
 #[specta::specta]
@@ -22,7 +22,7 @@ pub async fn agent_set_config_option(
 /// Reads the anchor without creating a conversation.
 #[specta::specta]
 pub async fn agent_capabilities(
-    request: AgentCapabilitiesRequest,
+    request: AgentWorkspaceRequest,
 ) -> AgentCommandResult<Vec<AgentConfigControl>> {
     let offered = crate::conversation::runtime()?
         .configuration_for(crate::agent::profile::agent_id()?, request.cwd)

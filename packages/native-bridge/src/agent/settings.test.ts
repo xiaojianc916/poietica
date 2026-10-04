@@ -37,6 +37,12 @@ mock.module('@poietica/contract', () => ({
 const { createAgentSettingsPort } = await import('./settings')
 const { catalogOf } = await import('@poietica/settings')
 
+/*
+ * 活动工作区取值器。这几条命令问的是进程级事实，但它们可能替整条进程起出第一条连接 ——
+ * 锚就是它（见 agent/models.ts 的同名说明）。桩里给一个真值，好证明它原样到了命令上。
+ */
+const workspace = (): string => 'D:/workspace'
+
 /** 一格线上元数据：可缺席的格一律 null（Rust 的 Option::None 到这边就是 null）。 */
 const wire: AgentSettingsCatalogWire = {
   settings: [
@@ -111,7 +117,7 @@ describe('agent 设置目录的传输口', () => {
   it('null 译成 undefined：可缺席的格在领域侧就是缺席，不是「有个 null 值」', async () => {
     agentSettingsCatalog.mockImplementation(() => Promise.resolve(wire))
 
-    const catalog = await createAgentSettingsPort().read()
+    const catalog = await createAgentSettingsPort(workspace).read()
 
     const headless = catalog.settings[0]
 
@@ -134,7 +140,7 @@ describe('agent 设置目录的传输口', () => {
   it('归属原样过线：写着哪一页就译成那一页', async () => {
     agentSettingsCatalog.mockImplementation(() => Promise.resolve(wire))
 
-    const catalog = await createAgentSettingsPort().read()
+    const catalog = await createAgentSettingsPort(workspace).read()
     const recalled = catalog.settings.find((entry) => entry.path === 'mnemopi.llmApiKey')
 
     expect(recalled?.section).toBe('memory')
@@ -143,7 +149,7 @@ describe('agent 设置目录的传输口', () => {
   it('选项表带着说法原样搬，缺席的说法不编一个空串', async () => {
     agentSettingsCatalog.mockImplementation(() => Promise.resolve(wire))
 
-    const catalog = await createAgentSettingsPort().read()
+    const catalog = await createAgentSettingsPort(workspace).read()
     const offered = catalog.settings[2]?.options
 
     expect(offered).toHaveLength(2)
@@ -158,7 +164,7 @@ describe('agent 设置目录的传输口', () => {
   it('钥匙那一格：只有 is 与 hasValue 过线，值仍然是空', async () => {
     agentSettingsCatalog.mockImplementation(() => Promise.resolve(wire))
 
-    const secret = (await createAgentSettingsPort().read()).settings.find(
+    const secret = (await createAgentSettingsPort(workspace).read()).settings.find(
       (candidate) => candidate.path === 'mnemopi.llmApiKey',
     )
 
@@ -177,9 +183,14 @@ describe('agent 设置目录的传输口', () => {
       return Promise.resolve(credential === undefined ? [] : [credential])
     })
 
-    const settings = await createAgentSettingsPort().write('mnemopi.llmApiKey', 'sk-new')
+    const settings = await createAgentSettingsPort(workspace).write('mnemopi.llmApiKey', 'sk-new')
 
-    expect(agentSetSetting).toHaveBeenCalledWith({ path: 'mnemopi.llmApiKey', value: 'sk-new' })
+    /* 锚（活动工作区）与载荷一起出去：写这一格可能替整条进程起出第一条连接。 */
+    expect(agentSetSetting).toHaveBeenCalledWith({
+      cwd: workspace(),
+      path: 'mnemopi.llmApiKey',
+      value: 'sk-new',
+    })
     expect(settings[0]?.path).toBe('mnemopi.llmApiKey')
     expect(settings[0]?.secret).toBe(true)
     expect(settings[0]?.hasValue).toBe(true)
@@ -188,9 +199,13 @@ describe('agent 设置目录的传输口', () => {
   it('非字符串的值也原样出去：类型由 agent 自己的 schema 说了算，这一层不折算', async () => {
     agentSetSetting.mockImplementation(() => Promise.resolve([]))
 
-    await createAgentSettingsPort().write('compaction.thresholdPercent', 75)
+    await createAgentSettingsPort(workspace).write('compaction.thresholdPercent', 75)
 
-    expect(agentSetSetting).toHaveBeenCalledWith({ path: 'compaction.thresholdPercent', value: 75 })
+    expect(agentSetSetting).toHaveBeenCalledWith({
+      cwd: workspace(),
+      path: 'compaction.thresholdPercent',
+      value: 75,
+    })
   })
 })
 

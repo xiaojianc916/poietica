@@ -220,10 +220,51 @@ async fn run_session(
     /* 握手的总期限：边车起不来时这里兜住，而不是让界面永远等。 */
     let handshake_deadline = tokio::time::sleep(HANDSHAKE_TIMEOUT);
     tokio::pin!(handshake_deadline);
+    /*
+     * 退休中：**照旧服务**，但已经受理、还没应答的那些必须先结清再走。
+     *
+     * 从前这里直接 `shutdown` + return，`pending` 随栈一起消失 —— 每个还没轮到应答
+     * 的调用方拿到的是 `Err(_dropped)` → `Refused(Gone)`。那不是「这条命令失败了」，
+     * 是「受理了却不给答复」：上层把它上屏成一次「agent 连接失败」，用户看到一次
+     * 假故障（实测每次冷启动都有一次）。
+     *
+     * 「已受理」的全集是两半：已经发上线的（`pending`）与还排在通道里的（`queued`）。
+     */
+    let mut retiring = false;
+    let mut settle_deadline: Option<tokio::time::Instant> = None;
 
     loop {
         tokio::select! {
-            () = cancellation.cancelled() => {
+            () = cancellation.cancelled(), if !retiring => {
+                retiring = true;
+                settle_deadline = Some(tokio::time::Instant::now() + crate::policy::RETIRE_SETTLE);
+
+                /*
+                 * 没有还没服务的就当场收摊，不必空等一个期限。
+                 *
+                 * 期间**照旧收命令**：已经排进通道的那些还没被读到的，若在这里停读，
+                 * 只会换个位置丢掉（照样是 `Gone`）。进程还活着，把它们服务完再走。
+                 *
+                 * 「还没服务」把**通道里排着的**也算上：`pending` 只记已经发上线的，
+                 * 而收摊令可能抢在命令被读出来之前落下 —— 那一条同样是「已受理、未应答」，
+                 * 只看 `pending` 会把它当成「没事了」当场丢掉（实机那次首启弹窗正是这样）。
+                 */
+                if pending.is_empty() && assigning.is_none() && outbound.queued() == 0 {
+                    let _ = stdin.shutdown().await;
+                    return Ok(());
+                }
+            }
+
+            /*
+             * 结清的兜底期限：对面不回（桥卡死）时不能让一次换锚永远悬着。
+             * 到点还没结清的只剩如实说「没接上」——那是真的没接上。
+             */
+            () = async {
+                match settle_deadline {
+                    Some(deadline) => tokio::time::sleep_until(deadline).await,
+                    None => std::future::pending::<()>().await,
+                }
+            }, if retiring => {
                 let _ = stdin.shutdown().await;
                 return Ok(());
             }
@@ -678,6 +719,12 @@ async fn run_session(
                             );
                         }
                     }
+                }
+
+                /* 退休中：在飞的都答完了、通道里也没人排着了，收摊。 */
+                if retiring && pending.is_empty() && assigning.is_none() && outbound.queued() == 0 {
+                    let _ = stdin.shutdown().await;
+                    return Ok(());
                 }
             }
         }

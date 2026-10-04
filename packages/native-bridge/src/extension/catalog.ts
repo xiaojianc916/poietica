@@ -98,20 +98,28 @@ export const extensionGateway: ExtensionGateway = {
   resolveLauncher,
 }
 
-/* 本机能力账本这一路：读一次清单，或者开关一项。 */
-export const capabilityGateway: CapabilityGateway = {
-  readCapabilities: () => throughIpc(() => commands.agentCapabilityReport()),
-  installCapability: (capabilityId, enabled) =>
-    throughIpc(() => commands.agentCapabilityInstall({ capabilityId, enabled })),
-  readBrowserSettings: () => throughIpc(() => commands.agentBrowserSettings()),
-  writeBrowserSettings: (patch) =>
-    throughIpc(() =>
-      commands.agentSetBrowserSettings({
-        /* 缺席的格发 null：生成的契约是可空必填（serde Option 的投影）。 */
-        enabled: patch.enabled ?? null,
-        headless: patch.headless ?? null,
-        relay: patch.relay ?? null,
-        cdpUrl: patch.cdpUrl ?? null,
-      }),
-    ),
+/*
+ * 本机能力账本这一路：读一次清单，或者开关一项。
+ *
+ * `cwd` 是当前活动工作区：这几条问的都是与工作区无关的进程级事实，但它们都可能替
+ * 整条进程起出第一条连接 —— 那一刻它就是锚（见 agent/models.ts 的同名说明）。
+ */
+export function createCapabilityGateway(cwd: () => string | null): CapabilityGateway {
+  return {
+    readCapabilities: () => throughIpc(() => commands.agentCapabilityReport({ cwd: cwd() })),
+    installCapability: (capabilityId, enabled) =>
+      throughIpc(() => commands.agentCapabilityInstall({ cwd: cwd(), capabilityId, enabled })),
+    readBrowserSettings: () => throughIpc(() => commands.agentBrowserSettings({ cwd: cwd() })),
+    writeBrowserSettings: (patch) =>
+      throughIpc(() =>
+        commands.agentSetBrowserSettings({
+          cwd: cwd(),
+          /* 缺席的格发 null：生成的契约是可空必填（serde Option 的投影）。 */
+          enabled: patch.enabled ?? null,
+          headless: patch.headless ?? null,
+          relay: patch.relay ?? null,
+          cdpUrl: patch.cdpUrl ?? null,
+        }),
+      ),
+  }
 }

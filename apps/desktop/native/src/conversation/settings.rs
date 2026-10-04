@@ -13,6 +13,7 @@ use serde::{Deserialize, Serialize};
 use specta::Type;
 
 use super::AgentCommandResult;
+use super::dto::AgentWorkspaceRequest;
 use crate::agent::profile::agent_id;
 
 /// 枚举/子菜单的一张选项表；原样投影。
@@ -83,6 +84,8 @@ pub struct AgentSettingsCatalog {
 #[derive(Debug, Deserialize, Type)]
 #[serde(rename_all = "camelCase")]
 pub struct AgentSettingWriteRequest {
+    /// 当前活动工作区；见 `AgentWorkspaceRequest`。
+    pub cwd: Option<String>,
     pub path: String,
     pub value: SettingValue,
 }
@@ -91,10 +94,15 @@ pub struct AgentSettingWriteRequest {
 ///
 /// 目录是进程级事实（与连接锚在哪个工作区无关），整份一次交回：界面自己按归属切，
 /// 不为了切页再问一遍 —— 那一问会多出一个到达时刻，跨格子的条件求值就对不齐了。
+///
+/// `cwd` 是当前活动工作区（见 `AgentWorkspaceRequest`）：这条读与工作区无关，但它可能
+/// 替整条进程起出第一条连接 —— 那一刻它就是锚。
 #[specta::specta]
-pub async fn agent_settings_catalog() -> AgentCommandResult<AgentSettingsCatalog> {
+pub async fn agent_settings_catalog(
+    request: AgentWorkspaceRequest,
+) -> AgentCommandResult<AgentSettingsCatalog> {
     let catalog = crate::conversation::runtime()?
-        .settings_catalog(agent_id()?)
+        .settings_catalog(agent_id()?, request.cwd)
         .await
         .map_err(crate::error::Error::from)?;
 
@@ -109,7 +117,7 @@ pub async fn agent_set_setting(
     request: AgentSettingWriteRequest,
 ) -> AgentCommandResult<Vec<AgentSettingEntry>> {
     let entries = crate::conversation::runtime()?
-        .set_setting(agent_id()?, request.path, request.value)
+        .set_setting(agent_id()?, request.cwd, request.path, request.value)
         .await
         .map_err(crate::error::Error::from)?;
 

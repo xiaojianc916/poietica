@@ -443,7 +443,7 @@ async fn a_workspace_read_does_not_tear_down_a_concurrent_process_read() {
     let workspace = workspace.to_string_lossy().into_owned();
     let (process, selectors) = tokio::time::timeout(Duration::from_secs(180), async {
         tokio::join!(
-            runtime.capability_report("omp".to_owned()),
+            runtime.capability_report("omp".to_owned(), None),
             runtime.configuration_for("omp".to_owned(), Some(workspace)),
         )
     })
@@ -462,6 +462,213 @@ async fn a_workspace_read_does_not_tear_down_a_concurrent_process_read() {
         1,
         "两种锚的进程级读必须共用一条连接，不许重锚重起"
     );
+
+    runtime.shutdown().expect("shutdown");
+}
+/// 首启那一刻的真实形状（日志里那三条请求），判据是**谁都不许失败**。
+///
+/// 实测序列：
+///   ① 一条 cwd 缺席的进程级读先建出整条进程第一条连接（锚在兜底根上）
+///   ② 另一条进程级读复用①（`Reuse` 不看工作区）
+///   ③ 「恢复上次对话」带着账本里的真工作区用 `Replace` 把①那条拆掉重锚
+///
+/// 拆是对的（不同工作区确实该重锚）。错的是③拆的时候，②手里那趟请求**还没等到应答**：
+/// 应答槽随连接一起没了 → `Refused(Gone)` → 屏幕上一次「agent 连接失败」。
+///
+/// 所以这条测试的判据不是起进程次数（③合法地重锚了，起两次是对的），而是
+/// **每一条都答得上话**：受理了就必须给答复，哪怕答复在收摊的路上才到。
+#[tokio::test]
+async fn the_first_startup_sequence_never_swallows_an_accepted_request() {
+    let bundled = bundled();
+
+    if !bundled.join("poietica-bridge.js").is_file() {
+        return;
+    }
+
+    let directory = tempfile::tempdir().expect("directory");
+    let index = LocalIndex::<Failure>::open(&directory.path().join("ledger.db"), SystemWallClock)
+        .expect("index");
+    let journal = FrameJournal::new(index.clone(), |_, _| {}).expect("journal");
+    let home = directory.path().join("agent-home");
+    std::fs::create_dir_all(&home).expect("agent home");
+    let root = directory.path().join("fallback-root");
+    std::fs::create_dir_all(&root).expect("fallback root");
+    let workspace = directory.path().join("workspace");
+    std::fs::create_dir_all(&workspace).expect("workspace");
+
+    let spawns = Arc::new(AtomicUsize::new(0));
+    let counted = Arc::clone(&spawns);
+    let preparing = bundled.clone();
+    let agent_home = home.clone();
+    let runtime = Runtime::<Failure>::new(
+        root,
+        directory.path().join("attachments"),
+        index,
+        journal,
+        move |request| {
+            counted.fetch_add(1, Ordering::SeqCst);
+            let bundled = preparing.clone();
+            let home = agent_home.clone();
+            Box::pin(async move {
+                Ok(AgentSpawn {
+                    program: "bun".to_owned(),
+                    bundled,
+                    entry: "poietica-bridge.js".to_owned(),
+                    args: Vec::new(),
+                    cwd: request.cwd,
+                    env: ProcessEnvironment {
+                        set: Vec::new(),
+                        remove: Vec::new(),
+                    },
+                    home,
+                })
+            })
+        },
+        |_| {},
+    );
+
+    let workspace = workspace.to_string_lossy().into_owned();
+    let thread = uuid::Uuid::new_v4().to_string();
+
+    /*
+     * 三条并发，**都带活动工作区** —— 这是修好之后界面真实的调用形状：
+     * 进程级读的锚与开会话的锚同源（都取自活动工作区），于是③的 `Replace` 命中
+     * `live.cwd == cwd`，复用而不重锚：一次起进程、没有人手里还攥着旧连接。
+     */
+    let (process, selectors, opened) = tokio::time::timeout(Duration::from_secs(240), async {
+        tokio::join!(
+            runtime.capability_report("omp".to_owned(), Some(workspace.clone())),
+            runtime.configuration_for("omp".to_owned(), Some(workspace.clone())),
+            runtime.open_thread(OpenThread {
+                agent_id: "omp".to_owned(),
+                cwd: Some(workspace.clone()),
+                target: ThreadTarget::Create(thread),
+            }),
+        )
+    })
+    .await
+    .expect("the startup sequence must not hang");
+
+    /*
+     * 判据：每一条都给得起答复。任何一条折成 `Gone`，屏幕上就是一次「agent 连接失败」。
+     */
+    process.expect("the cwd-less process read must not be swallowed by the re-anchor");
+    selectors.expect("the workspace read must not be swallowed by the re-anchor");
+    opened.expect("opening the conversation must not be swallowed either");
+
+    /* 锚同源就不该重锚：一次起进程，一次都不许多。 */
+    assert_eq!(
+        spawns.load(Ordering::SeqCst),
+        1,
+        "reads and the conversation must share one anchor and start exactly one connection"
+    );
+
+    runtime.shutdown().expect("shutdown");
+}
+/// 真的换工作区时（用户在另一个工作区恢复对话），在飞的那趟读也必须拿到答复。
+///
+/// 这是 `Replace` 重锚的**唯一合法场合**：cwd 确实不同，连接确实该重建。判据不是
+/// 「别重锚」——那是错的，不同工作区就该重建 —— 而是**重建之前把已受理的结清**：
+/// 谁都不许因为「连接换掉了」而收到一个假的失败。
+///
+/// 与首启那条的区别：首启那一趟锚本来就该一样（所以一次进程都不该多起），
+/// 这一趟两个工作区真的不同（所以重起是对的，两次正当）。
+#[tokio::test]
+async fn a_workspace_switch_settles_the_read_that_was_already_in_flight() {
+    let bundled = bundled();
+
+    if !bundled.join("poietica-bridge.js").is_file() {
+        return;
+    }
+
+    let directory = tempfile::tempdir().expect("directory");
+    let index = LocalIndex::<Failure>::open(&directory.path().join("ledger.db"), SystemWallClock)
+        .expect("index");
+    let journal = FrameJournal::new(index.clone(), |_, _| {}).expect("journal");
+    let home = directory.path().join("agent-home");
+    std::fs::create_dir_all(&home).expect("agent home");
+    let root = directory.path().join("fallback-root");
+    std::fs::create_dir_all(&root).expect("fallback root");
+    let first = directory.path().join("first-workspace");
+    std::fs::create_dir_all(&first).expect("first workspace");
+    let second = directory.path().join("second-workspace");
+    std::fs::create_dir_all(&second).expect("second workspace");
+
+    let spawns = Arc::new(AtomicUsize::new(0));
+    let counted = Arc::clone(&spawns);
+    let preparing = bundled.clone();
+    let agent_home = home.clone();
+    let runtime = Runtime::<Failure>::new(
+        root,
+        directory.path().join("attachments"),
+        index,
+        journal,
+        move |request| {
+            counted.fetch_add(1, Ordering::SeqCst);
+            let bundled = preparing.clone();
+            let home = agent_home.clone();
+            Box::pin(async move {
+                Ok(AgentSpawn {
+                    program: "bun".to_owned(),
+                    bundled,
+                    entry: "poietica-bridge.js".to_owned(),
+                    args: Vec::new(),
+                    cwd: request.cwd,
+                    env: ProcessEnvironment {
+                        set: Vec::new(),
+                        remove: Vec::new(),
+                    },
+                    home,
+                })
+            })
+        },
+        |_| {},
+    );
+
+    let first = first.to_string_lossy().into_owned();
+    let second = second.to_string_lossy().into_owned();
+
+    /* 先在那个工作区上开好一条对话：这条连接锚在 first 上。 */
+    tokio::time::timeout(
+        Duration::from_secs(240),
+        runtime.open_thread(OpenThread {
+            agent_id: "omp".to_owned(),
+            cwd: Some(first.clone()),
+            target: ThreadTarget::Create(uuid::Uuid::new_v4().to_string()),
+        }),
+    )
+    .await
+    .expect("opening must not hang")
+    .expect("the conversation must open");
+
+    assert_eq!(
+        spawns.load(Ordering::SeqCst),
+        1,
+        "the first conversation starts one connection"
+    );
+
+    /*
+     * 并发：一趟钉在 first 上的进程级读 + 一次按 second 的恢复。
+     * 后者合法地重锚（cwd 真的不同），前者正挂在被换掉的那条连接上。
+     */
+    let (read, moved) = tokio::time::timeout(Duration::from_secs(240), async {
+        tokio::join!(
+            runtime.capability_report("omp".to_owned(), Some(first.clone())),
+            runtime.open_thread(OpenThread {
+                agent_id: "omp".to_owned(),
+                cwd: Some(second.clone()),
+                target: ThreadTarget::Create(uuid::Uuid::new_v4().to_string()),
+            }),
+        )
+    })
+    .await
+    .expect("the workspace switch must not hang");
+
+    /*
+     * 判据：换工作区可以重起连接（那是对的），但不许把已经受理的读变成假失败。
+     */
+    read.expect("the in-flight read must be answered, not swallowed by the switch");
+    moved.expect("the conversation must open on the new workspace");
 
     runtime.shutdown().expect("shutdown");
 }

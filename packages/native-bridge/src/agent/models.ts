@@ -22,13 +22,18 @@ import { throughIpc } from '../ipc-error'
  * （可缺席的格一律 null）。两种形状说的是同一件事，差别只在「缺席怎么写」，
  * 所以翻译只有 null 与 undefined 的对齐，没有第二张字段表。回方向逐格同名
  * 同义，直接按端口类型交出去。
+ *
+ * `cwd` 是**当前活动工作区**，不是这条读的上下文：这条读与工作区无关，但它可能替
+ * 整条进程起出第一条连接，那一刻它就是锚。从前这里写死 null，于是锚落在兜底根上，
+ * 随后「恢复上次对话」按真工作区重锚就把这条读正在用的连接拆了 —— 首启一次
+ * 「agent 连接失败」。锚只有一个产地：活动工作区（与开新对话同一个值）。
  */
-export function createModelCatalogPort(): ModelCatalogPort {
+export function createModelCatalogPort(cwd: () => string | null): ModelCatalogPort {
   return {
     execute: (operation) =>
       throughIpc(() =>
         commands.agentModelCatalog({
-          cwd: null,
+          cwd: cwd(),
           operation: intoDto(operation),
         }),
       ),

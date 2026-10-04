@@ -772,6 +772,15 @@ impl AgentClient {
             .map_err(|_dropped| AgentError::Refused(Refusal::Gone))?
     }
 
+    /// 已经交进通道、还没被驱动器读出来的命令条数。
+    ///
+    /// 收摊时它和「已发上线、未应答」一起构成「已受理、未应答」的全集：收摊令可能抢在
+    /// 命令被读出来之前落下，只看后者会把排着的那条当成「没事了」丢掉 —— 而它的应答槽
+    /// 就攥在命令里，丢掉就是受理了却不给答复。
+    pub(crate) fn queued(&self) -> usize {
+        self.commands.len()
+    }
+
     fn send(&self, command: Command) -> Result<()> {
         self.commands
             .unbounded_send(command)

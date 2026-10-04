@@ -18,8 +18,12 @@ impl<E: RuntimeFailure> Runtime<E> {
     /// 对话正用的连接拆掉重起；cwd 在场时又会按工作区重锚，拆掉另一条读正在用的那条。
     /// 两条路都拆，所以这里根本不该重锚 —— 重锚是开会话的事。
     ///
-    /// cwd 照传：真到了「没有活连接、这一读自己起一条」那一步，锚仍该落在请求的工作区上，
-    /// 而不是一律落到兜底根。`Reuse` 只管「有活连接时不重锚」，不管「起新的时锚在哪」。
+    /// cwd 必须由调用方给，而且必须是**活动工作区**：真到了「没有活连接、这一读自己起一条」
+    /// 那一步，锚就落在它上面。给了 `None` 就会落到兜底根，于是这一读**替整条进程选了锚** ——
+    /// 而那个锚注定被「恢复上次对话」按真工作区用 `Replace` 换掉，换掉的一刻这一读还挂在
+    /// 旧连接上，应答槽随连接一起没 → 首启一次「agent 连接失败」。所以缺席不再代表「随便」，
+    /// 它只剩「调用方真的不知道活动工作区」这一种意思（见 `ensure` 的缺席分支：先复用活连接
+    /// 的锚，实在没有才退兜底根）。`Reuse` 只管「有活连接时不重锚」，不管「起新的时锚在哪」。
     async fn or_live(&self, agent: String, cwd: Option<String>) -> Result<Handle, CommandError<E>> {
         self.ensure(agent, cwd, Takeover::Reuse)
             .await
@@ -84,8 +88,9 @@ impl<E: RuntimeFailure> Runtime<E> {
     pub async fn browser_settings(
         &self,
         agent: String,
+        cwd: Option<String>,
     ) -> Result<BrowserSettings, CommandError<E>> {
-        let live = self.or_live(agent, None).await?;
+        let live = self.or_live(agent, cwd).await?;
         live.client
             .browser_settings()
             .await
@@ -96,12 +101,13 @@ impl<E: RuntimeFailure> Runtime<E> {
     pub async fn set_browser_settings(
         &self,
         agent: String,
+        cwd: Option<String>,
         enabled: Option<bool>,
         headless: Option<bool>,
         relay: Option<bool>,
         cdp_url: Option<String>,
     ) -> Result<BrowserSettings, CommandError<E>> {
-        let live = self.or_live(agent, None).await?;
+        let live = self.or_live(agent, cwd).await?;
         live.client
             .set_browser_settings(enabled, headless, relay, cdp_url)
             .await
@@ -114,8 +120,9 @@ impl<E: RuntimeFailure> Runtime<E> {
     pub async fn settings_catalog(
         &self,
         agent: String,
+        cwd: Option<String>,
     ) -> Result<SettingsCatalog, CommandError<E>> {
-        let live = self.or_live(agent, None).await?;
+        let live = self.or_live(agent, cwd).await?;
         live.client
             .settings_catalog()
             .await
@@ -129,10 +136,11 @@ impl<E: RuntimeFailure> Runtime<E> {
     pub async fn set_setting(
         &self,
         agent: String,
+        cwd: Option<String>,
         path: String,
         value: SettingValue,
     ) -> Result<Vec<SettingEntry>, CommandError<E>> {
-        let live = self.or_live(agent, None).await?;
+        let live = self.or_live(agent, cwd).await?;
         live.client
             .set_setting(path, value)
             .await
@@ -143,8 +151,9 @@ impl<E: RuntimeFailure> Runtime<E> {
     pub async fn capability_report(
         &self,
         agent: String,
+        cwd: Option<String>,
     ) -> Result<Vec<Capability>, CommandError<E>> {
-        let live = self.or_live(agent, None).await?;
+        let live = self.or_live(agent, cwd).await?;
         live.client
             .capabilities()
             .await
@@ -159,10 +168,11 @@ impl<E: RuntimeFailure> Runtime<E> {
     pub async fn capability_install(
         &self,
         agent: String,
+        cwd: Option<String>,
         capability: String,
         enabled: bool,
     ) -> Result<Vec<Capability>, CommandError<E>> {
-        let live = self.or_live(agent, None).await?;
+        let live = self.or_live(agent, cwd).await?;
         live.client
             .install_capability(capability, enabled)
             .await

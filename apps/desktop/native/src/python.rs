@@ -274,8 +274,13 @@ async fn run_install(target: PathBuf, stage: PathBuf) -> Result<()> {
 async fn write_interpreter(interpreter: &Path) -> Result<()> {
     let runtime = crate::conversation::runtime()?;
     let agent = crate::agent::profile::agent_id()?;
+    /*
+     * 装内核这一趟不是「界面在读」，没有活动工作区可带；`None` 会让这条读优先复用
+     * 活连接（见 `Runtime::ensure`），只有连活连接都没有时才会落到兜底根 —— 而那时
+     * 也没有谁的对话正挂在上面，不会打断任何人。
+     */
     let catalog = runtime
-        .settings_catalog(agent.clone())
+        .settings_catalog(agent.clone(), None)
         .await
         .map_err(Error::from)?;
 
@@ -292,6 +297,7 @@ async fn write_interpreter(interpreter: &Path) -> Result<()> {
     runtime
         .set_setting(
             agent,
+            None,
             INTERPRETER_SETTING.to_owned(),
             SettingValue::String(interpreter.display().to_string()),
         )
@@ -309,6 +315,7 @@ async fn clear_interpreter() -> Result<()> {
     runtime
         .set_setting(
             agent,
+            None,
             INTERPRETER_SETTING.to_owned(),
             SettingValue::String(String::new()),
         )

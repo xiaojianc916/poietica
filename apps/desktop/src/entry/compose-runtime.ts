@@ -11,7 +11,7 @@ import { createModelCatalogPort } from '@poietica/native-bridge/agent/models'
 import { createAgentSettingsPort } from '@poietica/native-bridge/agent/settings'
 import { automationGateway } from '@poietica/native-bridge/automation'
 import { browserHostPort, watchBrowserElementPicked } from '@poietica/native-bridge/browser'
-import { capabilityGateway, extensionGateway } from '@poietica/native-bridge/extensions'
+import { createCapabilityGateway, extensionGateway } from '@poietica/native-bridge/extensions'
 import { hostBridge } from '@poietica/native-bridge/host'
 import { pythonKernelGateway } from '@poietica/native-bridge/python-kernel'
 import { reviewGateway } from '@poietica/native-bridge/review'
@@ -157,8 +157,15 @@ export function createApplicationRuntime(restored: string | null): ApplicationRu
     },
   })
 
+  /*
+   * 会替整条进程起连接的那几条读，全部带**同一个**锚：当前活动工作区。
+   *
+   * 与「开新对话」用的是同一个值（readActive），出处只有这一个 —— 从前模型目录端口
+   * 写死 null，于是首启第一条连接锚在兜底根上，随后「恢复上次对话」按真工作区重锚
+   * 就把它拆了：屏幕上一次「agent 连接失败」。
+   */
   const pluginStore = createPluginStore({
-    capability: capabilityGateway,
+    capability: createCapabilityGateway(workspaceRoots.readActive),
     gateway: extensionGateway,
     marketplaceUrl: MARKETPLACE_URL,
     now: () => new Date().toISOString(),
@@ -206,12 +213,14 @@ export function createApplicationRuntime(restored: string | null): ApplicationRu
     },
   })
 
-  const modelCatalog = new ModelCatalogStore(createModelCatalogPort())
+  const modelCatalog = new ModelCatalogStore(createModelCatalogPort(workspaceRoots.readActive))
   /*
    * agent 自己那份设置目录：378 格的真身住在 agent 进程的 settings-schema 里，这一份是投影。
    * 写走它自己的 Settings.set + flush，它自己热重载（ADR 0018 决定四）。
    */
-  const agentSettingsCatalog = new AgentSettingsStore(createAgentSettingsPort())
+  const agentSettingsCatalog = new AgentSettingsStore(
+    createAgentSettingsPort(workspaceRoots.readActive),
+  )
   const agent = createDesktopAgentRuntime({
     modelCatalog,
     cwd: workspaceRoots.readActive,

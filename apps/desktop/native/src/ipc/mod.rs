@@ -34,7 +34,7 @@ pub fn types() -> specta::TypeCollection {
     types.register::<crate::conversation::dto::AgentConfigControl>();
     types.register::<crate::conversation::dto::AgentGoal>();
     types.register::<crate::conversation::dto::AgentSessionEvent>();
-    types.register::<crate::conversation::dto::AgentCapabilitiesRequest>();
+    types.register::<crate::conversation::dto::AgentWorkspaceRequest>();
     types.register::<crate::conversation::dto::AgentSelectConfigRequest>();
     types.register::<poietica_conversation_runtime::toolkit::AgentSkill>();
     types.register::<poietica_conversation_runtime::toolkit::AgentMcpServer>();
@@ -271,7 +271,7 @@ pub async fn submit(command: &str, args: Value) -> napi::Result<String> {
             crud(crate::conversation::config::agent_set_config_option(request).await)
         }
         "agent_capabilities" => {
-            let request: crate::conversation::dto::AgentCapabilitiesRequest =
+            let request: crate::conversation::dto::AgentWorkspaceRequest =
                 argument(args.get("request").unwrap_or(&Value::Null))?;
             crud(crate::conversation::config::agent_capabilities(request).await)
         }
@@ -286,7 +286,9 @@ pub async fn submit(command: &str, args: Value) -> napi::Result<String> {
             crud(crate::conversation::model_catalog::agent_model_catalog(request).await)
         }
         "agent_capability_report" => {
-            crud(crate::conversation::capability::agent_capability_report().await)
+            let request: crate::conversation::dto::AgentWorkspaceRequest =
+                argument(args.get("request").unwrap_or(&Value::Null))?;
+            crud(crate::conversation::capability::agent_capability_report(request).await)
         }
         "agent_capability_install" => {
             let request: crate::conversation::capability::AgentCapabilityInstallRequest =
@@ -294,7 +296,9 @@ pub async fn submit(command: &str, args: Value) -> napi::Result<String> {
             crud(crate::conversation::capability::agent_capability_install(request).await)
         }
         "agent_browser_settings" => {
-            crud(crate::conversation::capability::agent_browser_settings().await)
+            let request: crate::conversation::dto::AgentWorkspaceRequest =
+                argument(args.get("request").unwrap_or(&Value::Null))?;
+            crud(crate::conversation::capability::agent_browser_settings(request).await)
         }
         "agent_set_browser_settings" => {
             let request: crate::conversation::capability::AgentBrowserSettingsPatch =
@@ -302,7 +306,9 @@ pub async fn submit(command: &str, args: Value) -> napi::Result<String> {
             crud(crate::conversation::capability::agent_set_browser_settings(request).await)
         }
         "agent_settings_catalog" => {
-            crud(crate::conversation::settings::agent_settings_catalog().await)
+            let request: crate::conversation::dto::AgentWorkspaceRequest =
+                argument(args.get("request").unwrap_or(&Value::Null))?;
+            crud(crate::conversation::settings::agent_settings_catalog(request).await)
         }
         "agent_set_setting" => {
             let request: crate::conversation::settings::AgentSettingWriteRequest =

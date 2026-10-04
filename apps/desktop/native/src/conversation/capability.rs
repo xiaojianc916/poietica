@@ -8,6 +8,7 @@ use serde::{Deserialize, Serialize};
 use specta::Type;
 
 use super::AgentCommandResult;
+use super::dto::AgentWorkspaceRequest;
 
 /// agent 对一项能力的就绪裁决，原样投影。
 #[derive(Debug, Serialize, Type)]
@@ -43,6 +44,8 @@ pub struct AgentCapability {
 #[derive(Debug, Deserialize, Type)]
 #[serde(rename_all = "camelCase")]
 pub struct AgentCapabilityInstallRequest {
+    /// 当前活动工作区；见 `AgentWorkspaceRequest`。
+    pub cwd: Option<String>,
     pub capability_id: String,
     /// 打开还是关上。omp 里这一项没有「安装」这一步，只有开关。
     pub enabled: bool,
@@ -70,10 +73,16 @@ fn reported(capability: Capability) -> AgentCapability {
 }
 
 /// 读取 agent 的应用级能力清单；连接不存在时按统一启动管线建立。
+///
+/// `cwd` 是当前活动工作区（见 `AgentWorkspaceRequest`）：这条读与工作区无关，但它可能
+/// 替整条进程起出第一条连接 —— 那一刻它就是锚。传 `None` 会把锚定在兜底根上，
+/// 随后「恢复上次对话」按真工作区换掉它时，这条读还挂在旧连接上。
 #[specta::specta]
-pub async fn agent_capability_report() -> AgentCommandResult<Vec<AgentCapability>> {
+pub async fn agent_capability_report(
+    request: AgentWorkspaceRequest,
+) -> AgentCommandResult<Vec<AgentCapability>> {
     let listed = crate::conversation::runtime()?
-        .capability_report(agent_id()?)
+        .capability_report(agent_id()?, request.cwd)
         .await
         .map_err(crate::error::Error::from)?;
 
@@ -89,7 +98,12 @@ pub async fn agent_capability_install(
     request: AgentCapabilityInstallRequest,
 ) -> AgentCommandResult<Vec<AgentCapability>> {
     let installed = crate::conversation::runtime()?
-        .capability_install(agent_id()?, request.capability_id, request.enabled)
+        .capability_install(
+            agent_id()?,
+            request.cwd,
+            request.capability_id,
+            request.enabled,
+        )
         .await
         .map_err(crate::error::Error::from)?;
 
@@ -111,6 +125,8 @@ pub struct AgentBrowserSettings {
 #[derive(Debug, Deserialize, Type)]
 #[serde(rename_all = "camelCase")]
 pub struct AgentBrowserSettingsPatch {
+    /// 当前活动工作区；见 `AgentWorkspaceRequest`。
+    pub cwd: Option<String>,
     pub enabled: Option<bool>,
     pub headless: Option<bool>,
     pub relay: Option<bool>,
@@ -127,10 +143,14 @@ fn reported_browser(settings: BrowserSettings) -> AgentBrowserSettings {
 }
 
 /// 读取 agent 的浏览器控制设置；连接不存在时按统一启动管线建立。
+///
+/// `cwd` 同 `agent_capability_report`：这条读与工作区无关，但它可能起出第一条连接。
 #[specta::specta]
-pub async fn agent_browser_settings() -> AgentCommandResult<AgentBrowserSettings> {
+pub async fn agent_browser_settings(
+    request: AgentWorkspaceRequest,
+) -> AgentCommandResult<AgentBrowserSettings> {
     let settings = crate::conversation::runtime()?
-        .browser_settings(agent_id()?)
+        .browser_settings(agent_id()?, request.cwd)
         .await
         .map_err(crate::error::Error::from)?;
 
@@ -145,6 +165,7 @@ pub async fn agent_set_browser_settings(
     let settings = crate::conversation::runtime()?
         .set_browser_settings(
             agent_id()?,
+            request.cwd,
             request.enabled,
             request.headless,
             request.relay,

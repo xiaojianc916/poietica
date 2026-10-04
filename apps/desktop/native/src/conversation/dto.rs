@@ -324,9 +324,17 @@ pub struct AgentSelectConfigRequest {
     pub input: Option<String>,
 }
 
+/// 一条**问进程级事实**的请求：它要问的东西与工作区无关，但它可能替整条进程
+/// 起出第一条连接 —— 那一刻 `cwd` 就是连接的锚。
+///
+/// 所以这个字段不是「顺带的上下文」，是**这条读对锚的表态**：给它真工作区，锚就
+/// 落在真工作区上；给它 `None`，就只剩运行时兜底根可退 —— 而兜底根不属于任何人，
+/// 用它起出来的连接注定被「恢复上次对话」按真工作区换掉，换掉的一刻还挂在它上面的
+/// 那趟读连应答槽一起没（首启一次「agent 连接失败」）。界面那一侧只有一个产地：
+/// 当前活动工作区（与开新对话用的是同一个值）。
 #[derive(Debug, Deserialize, Type)]
 #[serde(rename_all = "camelCase")]
-pub struct AgentCapabilitiesRequest {
+pub struct AgentWorkspaceRequest {
     pub cwd: Option<String>,
 }
 

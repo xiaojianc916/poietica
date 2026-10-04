@@ -40,15 +40,22 @@ relay: boolean; cdpUrl: string | null }
 /**
  * 一次浏览器控制设置的改动；缺席的格不改。
  */
-export type AgentBrowserSettingsPatch = { enabled: boolean | null; headless: boolean | null; relay: boolean | null; cdpUrl: string | null }
+export type AgentBrowserSettingsPatch = { 
+/**
+ * 当前活动工作区；见 `AgentWorkspaceRequest`。
+ */
+cwd: string | null; enabled: boolean | null; headless: boolean | null; relay: boolean | null; cdpUrl: string | null }
 export type AgentCancelRequest = { threadId: string }
-export type AgentCapabilitiesRequest = { cwd: string | null }
 export type AgentCapability = { id: string; pluginId: string | null; label: string; supported: boolean; state: AgentCapabilityState; install: AgentCapabilityInstall }
 /**
  * 后台安装进度，原样投影。
  */
 export type AgentCapabilityInstall = { running: boolean; step: string | null; percent: number | null; error: string | null }
-export type AgentCapabilityInstallRequest = { capabilityId: string; 
+export type AgentCapabilityInstallRequest = { 
+/**
+ * 当前活动工作区；见 `AgentWorkspaceRequest`。
+ */
+cwd: string | null; capabilityId: string; 
 /**
  * 打开还是关上。omp 里这一项没有「安装」这一步，只有开关。
  */
@@ -248,7 +255,11 @@ export type AgentSettingOption = { value: string; label: string; description: st
 /**
  * 改一格设置。`value` 的类型由 agent 自己的 schema 说了算，本层不折算。
  */
-export type AgentSettingWriteRequest = { path: string; value: JsonValue }
+export type AgentSettingWriteRequest = { 
+/**
+ * 当前活动工作区；见 `AgentWorkspaceRequest`。
+ */
+cwd: string | null; path: string; value: JsonValue }
 /**
  * 一整份目录：栏里的格子。
  */
@@ -295,6 +306,17 @@ export type AgentUsageBreakdown = { systemPrompt: number; systemContext: number;
  * 撤回交回来的那一句；空队列时整格是 null。
  */
 export type AgentWithdrawnMessage = { text: string }
+/**
+ * 一条**问进程级事实**的请求：它要问的东西与工作区无关，但它可能替整条进程
+ * 起出第一条连接 —— 那一刻 `cwd` 就是连接的锚。
+ * 
+ * 所以这个字段不是「顺带的上下文」，是**这条读对锚的表态**：给它真工作区，锚就
+ * 落在真工作区上；给它 `None`，就只剩运行时兜底根可退 —— 而兜底根不属于任何人，
+ * 用它起出来的连接注定被「恢复上次对话」按真工作区换掉，换掉的一刻还挂在它上面的
+ * 那趟读连应答槽一起没（首启一次「agent 连接失败」）。界面那一侧只有一个产地：
+ * 当前活动工作区（与开新对话用的是同一个值）。
+ */
+export type AgentWorkspaceRequest = { cwd: string | null }
 export type AppSettings = { theme: ThemePreference; language: string; general: GeneralSettings; appearance: AppearanceSettings; modelPicker: ModelPickerSettings; privacy: PrivacySettings; logging: LoggingSettings }
 export type AppearanceSettings = { density: Density; reduceMotion: boolean; messageTimestamps: boolean }
 export type AssetImportRequest = { sessionToken: string; paths: string[] }
@@ -516,7 +538,7 @@ export const commands = {
   },
 /**
  *  Reads the anchor without creating a conversation. */
-  async agentCapabilities(request: AgentCapabilitiesRequest): Promise<AgentConfigControl[]> {
+  async agentCapabilities(request: AgentWorkspaceRequest): Promise<AgentConfigControl[]> {
     return call<AgentConfigControl[]>('agent_capabilities', { request: request })
   },
   async agentToolkit(request: AgentToolkitRequest): Promise<AgentToolkit> {
@@ -528,9 +550,13 @@ export const commands = {
     return call<ModelCatalogSnapshotDto>('agent_model_catalog', { request: request })
   },
 /**
- *  读取 agent 的应用级能力清单；连接不存在时按统一启动管线建立。 */
-  async agentCapabilityReport(): Promise<AgentCapability[]> {
-    return call<AgentCapability[]>('agent_capability_report', {})
+ *  读取 agent 的应用级能力清单；连接不存在时按统一启动管线建立。
+ * 
+ *  `cwd` 是当前活动工作区（见 `AgentWorkspaceRequest`）：这条读与工作区无关，但它可能
+ *  替整条进程起出第一条连接 —— 那一刻它就是锚。传 `None` 会把锚定在兜底根上，
+ *  随后「恢复上次对话」按真工作区换掉它时，这条读还挂在旧连接上。 */
+  async agentCapabilityReport(request: AgentWorkspaceRequest): Promise<AgentCapability[]> {
+    return call<AgentCapability[]>('agent_capability_report', { request: request })
   },
 /**
  *  开关一项本机能力，交回改完之后的整份清单。
@@ -541,9 +567,11 @@ export const commands = {
     return call<AgentCapability[]>('agent_capability_install', { request: request })
   },
 /**
- *  读取 agent 的浏览器控制设置；连接不存在时按统一启动管线建立。 */
-  async agentBrowserSettings(): Promise<AgentBrowserSettings> {
-    return call<AgentBrowserSettings>('agent_browser_settings', {})
+ *  读取 agent 的浏览器控制设置；连接不存在时按统一启动管线建立。
+ * 
+ *  `cwd` 同 `agent_capability_report`：这条读与工作区无关，但它可能起出第一条连接。 */
+  async agentBrowserSettings(request: AgentWorkspaceRequest): Promise<AgentBrowserSettings> {
+    return call<AgentBrowserSettings>('agent_browser_settings', { request: request })
   },
 /**
  *  写 agent 的浏览器控制设置；缺席的格不改，交回写完的整份。 */
@@ -554,9 +582,12 @@ export const commands = {
  *  读取 agent 自己那份设置目录；连接不存在时按统一启动管线建立。
  * 
  *  目录是进程级事实（与连接锚在哪个工作区无关），整份一次交回：界面自己按归属切，
- *  不为了切页再问一遍 —— 那一问会多出一个到达时刻，跨格子的条件求值就对不齐了。 */
-  async agentSettingsCatalog(): Promise<AgentSettingsCatalog> {
-    return call<AgentSettingsCatalog>('agent_settings_catalog', {})
+ *  不为了切页再问一遍 —— 那一问会多出一个到达时刻，跨格子的条件求值就对不齐了。
+ * 
+ *  `cwd` 是当前活动工作区（见 `AgentWorkspaceRequest`）：这条读与工作区无关，但它可能
+ *  替整条进程起出第一条连接 —— 那一刻它就是锚。 */
+  async agentSettingsCatalog(request: AgentWorkspaceRequest): Promise<AgentSettingsCatalog> {
+    return call<AgentSettingsCatalog>('agent_settings_catalog', { request: request })
   },
 /**
  *  改一格设置，交回**改完之后**整份目录的 settings 那一格。
