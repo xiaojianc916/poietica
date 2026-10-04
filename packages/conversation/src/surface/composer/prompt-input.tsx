@@ -450,7 +450,7 @@ function PromptInputShell({
         },
         COMMAND_PRIORITY_HIGH,
       ),
-    [editor],
+    [editor, requestFormSubmit],
   )
 
   const setText = useCallback(
@@ -479,7 +479,7 @@ function PromptInputShell({
       insertText(incoming)
       queueMicrotask(requestFormSubmit)
     },
-    [insertText],
+    [insertText, requestFormSubmit],
   )
 
   /*
@@ -528,7 +528,7 @@ function PromptInputShell({
         requestFormSubmit()
       }
     },
-    [addAssets, focusEditor, insertText],
+    [addAssets, focusEditor, insertText, requestFormSubmit],
   )
 
   useImperativeHandle(
@@ -603,7 +603,7 @@ function PromptInputShell({
 
   const requestSubmit = useCallback(() => {
     requestFormSubmit()
-  }, [])
+  }, [requestFormSubmit])
 
   /* 拖文件走原生那条：宿主（Electron）接管文件拖放，HTML5 那条在 Windows 上收不到事件。 */
   useEffect(() => {
