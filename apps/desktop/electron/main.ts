@@ -16,7 +16,6 @@ import {
   ipcMain,
   Menu,
   Notification,
-  nativeImage,
   nativeTheme,
   protocol,
   session,
@@ -54,9 +53,6 @@ protocol.registerSchemesAsPrivileged([
 ])
 
 const MAIN_WINDOW = 'main'
-
-/** Windows 通知区域的标准图标边长。 */
-const TRAY_ICON_SIZE = 16
 
 type ThemePreference = 'light' | 'dark' | 'system'
 
@@ -216,10 +212,12 @@ async function openExternal(url: string): Promise<void> {
   await shell.openExternal(url)
 }
 
-function iconPath(): string {
-  return app.isPackaged
-    ? join(process.resourcesPath, 'icon.png')
-    : join(app.getAppPath(), 'build', 'icon.png')
+/**
+ * 图标正本所在的目录：打包产物是 resources/，开发期是 apps/desktop/build/。
+ * extraResources 把 build/icon.png 与 build/icon.ico 都放在 resources 根下。
+ */
+function iconPath(name: 'icon.png' | 'icon.ico'): string {
+  return app.isPackaged ? join(process.resourcesPath, name) : join(app.getAppPath(), 'build', name)
 }
 
 /*
@@ -315,7 +313,7 @@ function createWindow(preference: ThemePreference): BrowserWindow {
      * 就会闪一下白。
      */
     backgroundColor: cssColor(preference === 'dark' ? DARK_SURFACE : LIGHT_SURFACE),
-    icon: iconPath(),
+    icon: iconPath('icon.ico'),
     webPreferences: {
       preload: join(__dirname, 'preload.cjs'),
       contextIsolation: true,
@@ -390,15 +388,11 @@ function createWindow(preference: ThemePreference): BrowserWindow {
 
 function installTray(win: BrowserWindow): void {
   /*
-   * 托盘图标按 Windows 的通知区域尺寸给：512×512 的窗口图标缩到 16px 会糊成一团。
-   * 打包产物里只带 icon.png，所以按目标尺寸重采样 —— 与其多发一张专门的小图，
-   * 不如让同一张正本缩出托盘要的那一档。
+   * 托盘图标给 .ico，不给缩过的 PNG：.ico 里是 16/24/32/48/64/256 各一档，由 Windows
+   * 按自己的 DPI 挑那一档（100% 取 16、200% 取 32），一位像素都不用重采样。
+   * 换成 PNG 就只剩一次缩放 —— 512 的满幅绿方块缩到 16，白圈只有一像素宽，必糊。
    */
-  const icon = nativeImage
-    .createFromPath(iconPath())
-    .resize({ width: TRAY_ICON_SIZE, height: TRAY_ICON_SIZE, quality: 'best' })
-
-  tray = new Tray(icon)
+  tray = new Tray(iconPath('icon.ico'))
   tray.setToolTip('Poietica')
 
   /*
@@ -737,7 +731,11 @@ function installHandlers(win: BrowserWindow): void {
     }
 
     if (!win.isFocused() && Notification.isSupported()) {
-      new Notification({ title: request.title, body: request.body, icon: iconPath() }).show()
+      new Notification({
+        title: request.title,
+        body: request.body,
+        icon: iconPath('icon.png'),
+      }).show()
     }
 
     return ok(null)
@@ -878,12 +876,19 @@ app.setPath('sessionData', join(DATA_ROOT, SESSION_DIRECTORY))
 /*
  * Windows 的 AppUserModelID。
  *
- * 任务管理器与开始菜单按它把进程归到一个应用名下，并按它去取图标与显示名 ——
- * 不设的话，未打包时它们只认得 electron.exe 自带的身份，于是那一栏写着「Electron」。
- * 这个字符串必须与 electron-builder.yml 的 appId 一致：安装版由打包器写进快捷方式，
+ * 任务栏按键按它归档，**图标也按它取**：按键画的是该身份对应快捷方式的那张图，
+ * 窗口自己的 WM_SETICON 图标在这里不作数 —— 这就是「窗口图标是对的、任务栏却是
+ * electron.exe 那张原子图」的原因。
+ *
+ * 开发构建必须另立一个身份。身份与图标在系统里按 AUMID 缓存一份，开发版
+ * （electron.exe）与安装版共用 com.poietica.Poietica 时，谁先跑谁把那张图标写进缓存，
+ * 安装版之后按同一个 AUMID 取到的还是它 —— 换掉 exe 内嵌的图标也不动，因为取的不是它。
+ * 数据根已按同一理由分了家（DATA_ROOT），身份跟着分，别共用一个。
+ *
+ * 安装版这个字符串必须与 electron-builder.yml 的 appId 一致：打包器按它写进快捷方式，
  * 两边不一致会把同一个应用劈成两个身份。
  */
-app.setAppUserModelId('com.poietica.Poietica')
+app.setAppUserModelId(app.isPackaged ? 'com.poietica.Poietica' : 'com.poietica.Poietica.Dev')
 
 /**
  * 会话能力到存储那一格的两个动作。

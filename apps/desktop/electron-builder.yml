@@ -40,8 +40,13 @@ extraResources:
     to: native/poietica.node
   - from: resources/agent
     to: agent
+  # 托盘与窗口图标用 .ico：里面是 16/24/32/48/64/256 各一档，Windows 按自己的 DPI 挑，
+  # 一位都不用重采样。只发 PNG 的话，200% 缩放的屏上托盘取 16 逻辑像素，只能把
+  # 512 的图硬缩到那一档再被系统放大回来，两趟重采样叠在一起就是糊的。
   - from: build/icon.png
     to: icon.png
+  - from: build/icon.ico
+    to: icon.ico
 win:
   target:
     - nsis
