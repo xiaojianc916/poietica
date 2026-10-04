@@ -24,7 +24,7 @@ use rmcp::{
     },
 };
 use schemars::JsonSchema;
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use std::future::IntoFuture;
 use std::net::TcpListener;
 use std::sync::{
@@ -137,6 +137,36 @@ struct RunRequest {
 struct CancelRequest {
     run_id: String,
 }
+#[derive(Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct PublishRequest {
+    /// 图片在本机的绝对路径：截图、图表、导出的图片都行。
+    path: String,
+}
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct Published {
+    /// 写进回复正文的图片地址。
+    url: String,
+}
+
+/// 读一张要发布的图片。
+///
+/// 大小先按元数据挡一次：读进内存再判，等于让一条超大文件把宿主拖垮。
+async fn read_publishable(path: &str) -> std::result::Result<Vec<u8>, String> {
+    let metadata = tokio::fs::metadata(path)
+        .await
+        .map_err(|error| format!("图片读不到：{error}"))?;
+    if !metadata.is_file() {
+        return Err("这个路径不是文件".to_owned());
+    }
+    if metadata.len() > poietica_asset::MAX_ASSET_BYTES as u64 {
+        return Err("图片超过 32 MiB 上限".to_owned());
+    }
+    tokio::fs::read(path)
+        .await
+        .map_err(|error| format!("图片读不到：{error}"))
+}
 
 fn answer(
     result: crate::error::Result<AutomationCatalog>,
@@ -214,6 +244,32 @@ impl Ledger {
             })
             .await,
         )
+    }
+    /// 发布一张图片，交回写进回复正文的地址。
+    ///
+    /// 字节落进发布根、按摘要去重，所以同一张图反复发布只占一份，地址也不变；
+    /// 地址由宿主自己的 poietica-asset:// 应答，重启后仍然取得到字节。
+    #[tool(
+        name = "publish_image",
+        description = "Publish a local image file so it can be shown in the reply body as markdown: ![alt](url). Returns a poietica-asset:// url that stays valid across restarts. Use this instead of hosting the file yourself."
+    )]
+    async fn publish(
+        &self,
+        Parameters(request): Parameters<PublishRequest>,
+    ) -> std::result::Result<CallToolResult, String> {
+        let bytes = read_publishable(&request.path).await?;
+        let root =
+            crate::paths::published_root().map_err(|error| format!("图片发布失败：{error}"))?;
+
+        /* 落盘是阻塞的：在阻塞执行器上做，别占着这条 MCP 的运行线程。 */
+        let url = tokio::task::spawn_blocking(move || poietica_asset::publish_image(&root, &bytes))
+            .await
+            .map_err(|error| format!("图片发布失败：{error}"))?
+            .map_err(|error| format!("图片发布失败：{error}"))?;
+
+        serde_json::to_value(Published { url })
+            .map(CallToolResult::structured)
+            .map_err(|error| error.to_string())
     }
 }
 

@@ -63,12 +63,8 @@
   pointer-events: none;
 }
 
-/*
- * 深色下这一块不读浮层那张玻璃脸：产品指定实色 #28292a。玻璃底是半透明的，压在
- * 近黑的地色上算出来偏灰，与周围（输入卡、面板）拉不开。
- */
 :root[data-theme="dark"] .prompt-queue__panel::before {
-  background: #28292a;
+  background: #292929;
   backdrop-filter: none;
 }
 

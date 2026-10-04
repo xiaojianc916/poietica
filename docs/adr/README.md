@@ -57,3 +57,4 @@ ACP / kap / kimi-code / deepseek harness / 早期 fatal-incident 草案等已消
 | 0041 | 日志级别是设置里的一格，默认 warn |
 | 0042 | agent 受控 home 就是 `agents/`，不再多一层 |
 | 0043 | 连接的锚只有一个产地，且换锚先把已受理的结清 |
+| 0044 | 助手在正文里发图：资产协议补进净化白名单，应答端回落磁盘，新增发布面 |

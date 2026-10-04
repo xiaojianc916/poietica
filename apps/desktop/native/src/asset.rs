@@ -4,7 +4,7 @@ use base64::Engine as _;
 use base64::engine::general_purpose::STANDARD as BASE64;
 use serde::{Deserialize, Serialize};
 use specta::Type;
-use std::sync::OnceLock;
+use std::sync::{Arc, OnceLock};
 use uuid::Uuid;
 
 use crate::error::Error;
@@ -189,12 +189,23 @@ fn map_intake_error(error: AssetIntakeError) -> Problem {
 ///
 /// 存在的理由只有一个：图片进门时不落盘，而 poietica-asset:// 的应答端在主进程里，
 /// 拿不到注册表。注册表按 (session, hash) 记账，取的是**单个资产**，不是整张表。
+///
+/// 注册表是**进程内**的，重启后一定空，而地址里的摘要就是附件的磁盘路径 —— 所以
+/// 未命中时按摘要回读附件根。没有这一步，重启后每一条历史 <img> 都是 404；有了它，
+/// 投递过的字节与浏览器缓存的地址都还作数（cache-control 是 immutable，地址不变）。
 #[specta::specta]
 pub async fn asset_read(request: AssetReadRequest) -> CommandResult<AssetReadResult> {
-    let delivered = shared_registry()
-        .deliver(&request.session_token, &request.asset_token)
-        .map_err(map_asset_error)?;
-    let total = delivered.bytes.len();
+    let (content_type, bytes) =
+        match shared_registry().deliver(&request.session_token, &request.asset_token) {
+            Ok(delivered) => (delivered.content_type, delivered.bytes),
+            Err(AssetProtocolError::NotFound) => {
+                let bytes = read_attachment(&request.session_token, &request.asset_token)?;
+                let content_type = poietica_asset::classify(&bytes).to_owned();
+                (content_type, bytes)
+            }
+            Err(cause) => return Err(map_asset_error(cause)),
+        };
+    let total = bytes.len();
     let total_length =
         u32::try_from(total).map_err(|_| map_asset_error(AssetProtocolError::AssetTooLarge))?;
 
@@ -207,19 +218,46 @@ pub async fn asset_read(request: AssetReadRequest) -> CommandResult<AssetReadRes
      * `read_span` 保证落在总长以内（它的单测钉的就是这件事），取不出来才是不该发生的
      * 事 —— 用 `get` 而不是下标：那条越界在 release 下是未定义行为。
      */
-    let slice = delivered
-        .bytes
+    let slice = bytes
         .get(span)
         .ok_or_else(|| map_asset_error(AssetProtocolError::Internal))?;
     let byte_length = u32::try_from(slice.len())
         .map_err(|_| map_asset_error(AssetProtocolError::AssetTooLarge))?;
 
     Ok(AssetReadResult {
-        content_type: delivered.content_type,
+        content_type,
         byte_length,
         total_length,
         base64: BASE64.encode(slice),
     })
+}
+
+/// 摘要 → 盘上的字节。注册表缺席时唯一的去处。
+///
+/// 摘要是内容寻址的键，`read_blob` 自己核对字节与摘要相符：这条兜底路也不接受一份
+/// 对不上的文件。
+///
+/// 两个根按令牌分派，因为它们各有各的账：附件根的那一份归账本（删对话会回收），
+/// 发布根的那一份归助手产物（不随任何一条对话消失）。
+#[allow(
+    clippy::rc_buffer,
+    reason = "shares the allocation shape of the registry path it falls back from"
+)]
+fn read_attachment(session_token: &str, asset_token: &str) -> CommandResult<Arc<Vec<u8>>> {
+    let root = if session_token == poietica_asset::PUBLISHED_TOKEN {
+        paths::published_root()
+    } else {
+        paths::attachments_root()
+    }
+    .map_err(Problem::from)?;
+
+    poietica_asset::blob::read_blob(&root, asset_token)
+        .map(Arc::new)
+        .map_err(|cause| match cause {
+            /* 没投递过、或已被回收：与注册表缺席是同一件事，都按 404 回。 */
+            poietica_asset::blob::BlobError::Io(_) => map_asset_error(AssetProtocolError::NotFound),
+            other => Problem::from(Error::from(other)),
+        })
 }
 
 #[specta::specta]

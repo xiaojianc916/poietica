@@ -58,6 +58,7 @@ const TEMP_DIRECTORY: &str = "tmp";
 
 const CACHE_DIRECTORY: &str = "cache";
 const ATTACHMENTS_DIRECTORY: &str = "attachments";
+const PUBLISHED_DIRECTORY: &str = "published";
 
 /// 本应用自己装的本机工具（解释器等），与 agent 的受控 home 分开。
 const TOOLS_DIRECTORY: &str = "tools";
@@ -165,6 +166,18 @@ pub fn cache_directory() -> Result<PathBuf> {
 /// 字节不跟着对话删：删对话只解开索引链接，引用归零才由 thread.rs 的清扫回收字节。
 pub fn attachments_root() -> Result<PathBuf> {
     let directory = data_root()?.join(ATTACHMENTS_DIRECTORY);
+
+    fs::create_dir_all(&directory)?;
+
+    Ok(directory)
+}
+
+/// 助手发布产物的落点。
+///
+/// 与附件根分开：那边归账本（thread_attachments），删一条对话就回收没人引用的字节；
+/// 发布根没有第二条引用账，混进会被回收的目录里迟早被一条无关的删除带走。
+pub fn published_root() -> Result<PathBuf> {
+    let directory = data_root()?.join(PUBLISHED_DIRECTORY);
 
     fs::create_dir_all(&directory)?;
 

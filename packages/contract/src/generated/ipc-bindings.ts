@@ -650,7 +650,11 @@ export const commands = {
  *  把注册表里那一份字节交给宿主。
  * 
  *  存在的理由只有一个：图片进门时不落盘，而 poietica-asset:// 的应答端在主进程里，
- *  拿不到注册表。注册表按 (session, hash) 记账，取的是**单个资产**，不是整张表。 */
+ *  拿不到注册表。注册表按 (session, hash) 记账，取的是**单个资产**，不是整张表。
+ * 
+ *  注册表是**进程内**的，重启后一定空，而地址里的摘要就是附件的磁盘路径 —— 所以
+ *  未命中时按摘要回读附件根。没有这一步，重启后每一条历史 <img> 都是 404；有了它，
+ *  投递过的字节与浏览器缓存的地址都还作数（cache-control 是 immutable，地址不变）。 */
   async assetRead(request: AssetReadRequest): Promise<AssetReadResult> {
     return call<AssetReadResult>('asset_read', { request: request })
   },
