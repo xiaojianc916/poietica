@@ -64,13 +64,13 @@ const TOOLS_DIRECTORY: &str = "tools";
 const PYTHON_DIRECTORY: &str = "python";
 
 const MARKETPLACE_CATALOG_FILE: &str = "marketplace.json";
-const AGENTS_DIRECTORY: &str = "agents";
+
+/// 受控 home 的目录名：配置由 agent 自己写、自己热重载，我们只经它的官方 CLI 写入。
+/// 名字同时由 apps/desktop/electron/storage.ts 读，改名须两侧同步。
+const AGENT_HOME_DIRECTORY: &str = "agents";
 
 /// 无项目会话的工作目录根；名字同时由 packages/conversation/src/threads/workspace-root.ts 识别，改名须两侧同步。
 const PROJECTLESS_DIRECTORY: &str = "projectless";
-
-/// 受控 home：配置由 agent 自己写、自己热重载，我们只经它的官方 CLI 写入。
-const AGENT_HOME_DIRECTORY: &str = "home";
 
 const SYSTEM_TEMP_DIRECTORY: &str = "poietica";
 
@@ -172,11 +172,12 @@ pub fn attachments_root() -> Result<PathBuf> {
 }
 
 /// 路径由 Rust 算、不由渲染层传：写配置的 CLI 与起会话的连接必须落在同一个 home。
-pub fn agent_home(agent_id: &str) -> Result<PathBuf> {
-    let directory = data_root()?
-        .join(AGENTS_DIRECTORY)
-        .join(agent_id)
-        .join(AGENT_HOME_DIRECTORY);
+///
+/// 它自己就是那个 home，没有「按 agent 分一层」的 `<id>/` 与「home 这一层」：这个软件
+/// 只接一家 agent（ADR 0016、0042），两层目录只是把同一件事实重说两遍。agent 的配置、
+/// 会话、技能与插件都直接住在它下面。
+pub fn agent_home() -> Result<PathBuf> {
+    let directory = data_root()?.join(AGENT_HOME_DIRECTORY);
 
     fs::create_dir_all(&directory)?;
 

@@ -25,7 +25,7 @@ const MEASURED_AT = new Intl.DateTimeFormat('zh-CN', { hour: '2-digit', minute: 
 const LABELS: Record<string, { readonly label: string; readonly description: string }> = {
   ledger: { label: '对话账本', description: '对话索引、帧日志与附件索引。' },
   settings: { label: '设置', description: '主题、语言、快捷键与 agent 接入档案。' },
-  agents: { label: 'agent 配置', description: 'agent 自己的配置与凭据。' },
+  agents: { label: 'agent 数据', description: 'agent 自己的配置、凭据、会话与技能。' },
   attachments: { label: '附件', description: '历史对话里的附件字节。' },
   plugins: { label: '插件', description: '装进来的插件副本。' },
   workspace: { label: '无项目工作目录', description: '无项目会话的工作目录。' },

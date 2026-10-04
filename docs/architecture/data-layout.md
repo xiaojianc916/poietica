@@ -31,7 +31,7 @@ userData 不在安装器的射程内，这条冲突从根上不存在。
 | `agents.json` | agent 接入档案（一份文档） | 内置档案下次启动重新落盘 |
 | `ledger.sqlite3` | 本机账本：对话索引、帧日志、附件索引、准入、用量 | 对话列表与用量清空 |
 | `attachments/` | 附件字节，内容寻址 | 历史对话里的附件打不开 |
-| `agents/<id>/home/` | agent 自己的配置，含 API 密钥 | 需要重新配置 provider |
+| `agents/` | agent 自己的 home：配置、会话、技能与插件，含 API 密钥。它自己就是那个 home，没有按 agent 分的第二层（ADR 0042） | 需要重新配置 provider，历史会话读不回来 |
 | `plugins/` | 装进来的插件的托管副本与 `installed.json` | 插件全部回到未安装 |
 | `projectless/` | 无项目会话的工作目录根 | 那些会话的工作目录消失 |
 | `tools/` | 本应用自己装的工具（内置 Python 解释器） | 下次用到时重新下载 |

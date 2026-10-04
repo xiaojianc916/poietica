@@ -124,18 +124,65 @@ fn id_of(profile: &Value) -> Result<String> {
         .ok_or_else(|| Error::AgentCli("agents.json 里的接入档案没有 id".to_owned()))
 }
 
-fn controlled_home(
-    agent_id: &str,
-    profile: &Value,
-) -> Result<Option<poietica_agent_client::ControlledHome>> {
+fn controlled_home(profile: &Value) -> Result<Option<poietica_agent_client::ControlledHome>> {
     let Some(variable) = home_var_of(profile) else {
         return Ok(None);
     };
 
+    let path = agent_home()?;
+
+    move_agent_home_up(&id_of(profile)?, &path);
+
     Ok(Some(poietica_agent_client::ControlledHome {
         variable,
-        path: agent_home(agent_id)?,
+        path,
     }))
+}
+
+/// 受控 home 在旧形状里埋在 `agents/<id>/home/` 底下；现在它就是 `agents/`。
+///
+/// 凭据、会话、技能与插件都在这里面，是用户造不回来的东西 —— 路径换了它们得跟着上来。
+/// 只搬，不删，且每一步都搬不动就跳过：同名的那一份不动（那是正在用的），搬不过去的
+/// 原样留在旧处，人还能自己捡回来。整趟失败也不拦会话 —— 数据都还在盘上，路径没搬上来
+/// 比起不了会话可恢复。
+///
+/// ponytail: 一次性迁移。那层旧目录只存在于本版之前，发过一轮之后整段删掉 ——
+/// 判据是盘上再也找不到 `<home>/<id>/home/` 这种形状。
+fn move_agent_home_up(agent_id: &str, home: &Path) {
+    let parent = home.join(agent_id);
+    let buried = parent.join("home");
+
+    if !buried.is_dir() {
+        return;
+    }
+
+    let Ok(entries) = std::fs::read_dir(&buried) else {
+        tracing::warn!("could not read the old agent home at {}", buried.display());
+
+        return;
+    };
+
+    for entry in entries.flatten() {
+        let destination = home.join(entry.file_name());
+
+        if destination.exists() {
+            continue;
+        }
+
+        if let Err(error) = std::fs::rename(entry.path(), &destination) {
+            tracing::warn!(
+                "could not move {} out of the old agent home: {error}",
+                entry.path().display()
+            );
+        }
+    }
+
+    if std::fs::read_dir(&buried).is_ok_and(|left| left.count() == 0) {
+        /* 两层的空壳顺手收走；哪一层还有东西就停在哪一层。 */
+        let _ = std::fs::remove_dir(&buried);
+    }
+
+    let _ = std::fs::remove_dir(&parent);
 }
 
 fn own_home(profile: &Value) -> Result<PathBuf> {
@@ -148,7 +195,7 @@ fn own_home(profile: &Value) -> Result<PathBuf> {
 pub fn agent_data_home() -> Result<PathBuf> {
     let profile = profile()?;
 
-    match controlled_home(&id_of(&profile)?, &profile)? {
+    match controlled_home(&profile)? {
         Some(home) => Ok(home.path),
         None => own_home(&profile),
     }
@@ -158,7 +205,7 @@ pub fn agent_data_home() -> Result<PathBuf> {
 pub fn launch_env() -> Result<ProcessEnvironment> {
     let profile = profile()?;
 
-    let home = controlled_home(&id_of(&profile)?, &profile)?;
+    let home = controlled_home(&profile)?;
 
     Ok(compose_launch_env(
         &declared_env_of(&profile),
@@ -201,7 +248,7 @@ pub fn agent_mcp_config_for_write() -> Result<PathBuf> {
 
 pub(crate) fn controlled_mcp_config() -> Result<Option<PathBuf>> {
     let profile = profile()?;
-    Ok(controlled_home(&id_of(&profile)?, &profile)?.map(|home| home.path.join(MCP_CONFIG_FILE)))
+    Ok(controlled_home(&profile)?.map(|home| home.path.join(MCP_CONFIG_FILE)))
 }
 
 pub fn agent_home_directory() -> Result<PathBuf> {
@@ -212,14 +259,15 @@ pub fn agent_home_directory() -> Result<PathBuf> {
 pub fn own_home_directory() -> Result<Option<PathBuf>> {
     let profile = profile()?;
 
-    if controlled_home(&id_of(&profile)?, &profile)?.is_none() {
+    if controlled_home(&profile)?.is_none() {
         return Ok(None);
     }
 
     own_home(&profile).map(Some)
 }
 
-/// 唯一在册 agent 自己的标识：受控 home 的目录名，也是会话与能力那几条命令要的身份。
+/// 唯一在册 agent 自己的标识：会话与能力那几条命令要的身份。它不再是任何目录名 ——
+/// 受控 home 只有一层（paths::agent_home），身份只用来对账本里的行做归属判断。
 pub(crate) fn agent_id() -> Result<String> {
     id_of(&profile()?)
 }
@@ -263,8 +311,60 @@ mod tests {
         reason = "a failing fixture or unexpected document shape must fail the test loudly"
     )]
 
-    use super::DocumentStore;
+    use super::{DocumentStore, move_agent_home_up};
     use serde_json::json;
+
+    /// 旧 home 在 `agents/<id>/home/` 底下：里面的东西要上来，空壳要收走，凭据不丢。
+    #[test]
+    fn the_old_buried_home_moves_up_and_leaves_nothing_behind() {
+        let directory = tempfile::tempdir().expect("test directory");
+        let home = directory.path().join("agents");
+        let buried = home.join("omp").join("home");
+        std::fs::create_dir_all(buried.join("sessions")).expect("old sessions");
+        std::fs::create_dir_all(buried.join("plugins")).expect("old plugins");
+        std::fs::write(buried.join("config.yml"), b"model: x").expect("old config");
+        std::fs::write(buried.join("sessions").join("a.jsonl"), b"{}").expect("old session");
+
+        move_agent_home_up("omp", &home);
+
+        assert_eq!(
+            std::fs::read(home.join("config.yml")).expect("config came up"),
+            b"model: x"
+        );
+        assert!(home.join("sessions").join("a.jsonl").is_file());
+        assert!(home.join("plugins").is_dir());
+        assert!(!home.join("omp").exists());
+    }
+
+    /// 新 home 里已经有同名的一份时不动它：就地覆盖会把已经在用的那份换掉。
+    #[test]
+    fn an_entry_that_is_already_home_stays_put() {
+        let directory = tempfile::tempdir().expect("test directory");
+        let home = directory.path().join("agents");
+        let buried = home.join("omp").join("home");
+        std::fs::create_dir_all(&buried).expect("old home");
+        std::fs::create_dir_all(&home).expect("new home");
+        std::fs::write(home.join("config.yml"), b"new").expect("new config");
+        std::fs::write(buried.join("config.yml"), b"stale").expect("old config");
+        std::fs::write(buried.join("leftover"), b"x").expect("unmoved file");
+
+        move_agent_home_up("omp", &home);
+
+        assert_eq!(
+            std::fs::read(home.join("config.yml")).expect("the resident config"),
+            b"new"
+        );
+        /* 没有同名冲突的那一份照样上来；挡住的那一份留在原处，不删。 */
+        assert_eq!(
+            std::fs::read(home.join("leftover")).expect("the unblocked entry"),
+            b"x"
+        );
+        assert_eq!(
+            std::fs::read(buried.join("config.yml")).expect("the blocked entry stays"),
+            b"stale"
+        );
+        assert!(buried.is_dir());
+    }
 
     /// 顶层别人的键必须原样活着：agents.json 是我们自己的账，但同一份文件里可能有别的键。
     #[test]
