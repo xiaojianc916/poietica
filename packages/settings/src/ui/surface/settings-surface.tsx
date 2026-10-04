@@ -506,6 +506,12 @@ export function SettingsContentRegion() {
           </div>
         ) : null}
 
+        {/*
+         * 三支合起来覆盖全部状态：加载中 / 读失败且没有可用设置 / 有设置（此时带缓存的失败
+         * 由下面的错误横幅说，见 517 那一支）。判据里的 `!controller.settings` 不能改成
+         * `=== null`：这一格的类型是 `AppSettings | undefined`，写 null 永远为假，
+         * 「读失败又没有缓存」会落进空白页 —— 那正是最需要重试键的状态。
+         */}
         {!controller.loading && controller.error && !controller.settings ? (
           <div className="settings-state">
             <ErrorState message={controller.error} onRetry={controller.retry} />
@@ -715,6 +721,17 @@ const LANGUAGES: readonly SelectOption<AppSettings['language']>[] = [
 const DENSITIES: readonly SelectOption<AppSettings['appearance']['density']>[] = [
   { value: 'comfortable', label: '宽松' },
   { value: 'compact', label: '紧凑' },
+]
+
+/*
+ * 日志闸门。档位是「这个级别及以上」，与 tracing 的级别名同名 —— 界面上的中文只是
+ * 投影，写回设置的是那个标识符。
+ */
+const LOG_LEVELS: readonly SelectOption<AppSettings['logging']['level']>[] = [
+  { value: 'error', label: '仅错误' },
+  { value: 'warn', label: '警告及以上（默认）' },
+  { value: 'info', label: '信息及以上' },
+  { value: 'debug', label: '调试及以上' },
 ]
 
 const AppearanceSettings = memo(function AppearanceSettings({
@@ -951,6 +968,24 @@ const AboutSettings = memo(function AboutSettings({
             }))
           }}
         />
+      </SettingsGroup>
+
+      <SettingsGroup title="日志">
+        <SettingRow description="低于这一档的日志不落盘；改完立即生效，不必重启" label="记录级别">
+          <Select
+            align="end"
+            className="settings-select-trigger"
+            data={LOG_LEVELS}
+            onValueChange={(level) => {
+              controller.update((current) => ({
+                ...current,
+                logging: { ...current.logging, level },
+              }))
+            }}
+            type="日志记录级别"
+            value={settings.logging.level}
+          />
+        </SettingRow>
       </SettingsGroup>
     </SettingsPage>
   )

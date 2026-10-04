@@ -315,6 +315,30 @@ export function createApplicationRuntime(restored: string | null): ApplicationRu
     followNotificationSetting()
     own(settings.subscribe(followNotificationSetting))
     own(() => watching?.())
+
+    /*
+     * 设置里那一格「日志级别」的读者是宿主的两份 logger：原生侧由 settings_set 自己
+     * 套用（它就在那条命令里），主进程那一份走这里。改一次推一次，不必重启。
+     *
+     * 只在**变了**的时候推：订阅在每次设置写入后都会响，而这是条跨进程往返。
+     * 推的是设置里那一格，不是派生的中文标签 —— 宿主拿它去比对 tracing 的级别名。
+     */
+    let pushedLogLevel: string | undefined
+    const followLogLevelSetting = (): void => {
+      const level = settings.getSnapshot()?.logging.level
+
+      if (level === undefined || level === pushedLogLevel) {
+        return
+      }
+
+      pushedLogLevel = level
+      void mainWindow.setLogLevel(level).catch((cause: unknown) => {
+        warn('日志级别没能推给主进程', { scope: 'logging', cause })
+      })
+    }
+
+    followLogLevelSetting()
+    own(settings.subscribe(followLogLevelSetting))
     own(notices.start())
     own(auxiliaryPanel.start())
     own(browserPick.start())

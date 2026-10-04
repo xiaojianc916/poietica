@@ -114,7 +114,7 @@ impl AutomationMcpServer {
 impl Drop for AutomationMcpServer {
     fn drop(&mut self) {
         if let Err(error) = self.shut_down() {
-            log::error!("automation MCP shutdown failed: {error}");
+            tracing::error!("automation MCP shutdown failed: {error}");
         }
     }
 }
@@ -252,7 +252,7 @@ pub(crate) fn serve() -> crate::error::Result<AutomationMcpServer> {
             }
         });
         worker_alive.store(false, Ordering::Release);
-        if let Err(error) = &result { log::error!("automation MCP stopped: {error}"); }
+        if let Err(error) = &result { tracing::error!("automation MCP stopped: {error}"); }
         result
     })?;
     Ok(AutomationMcpServer {

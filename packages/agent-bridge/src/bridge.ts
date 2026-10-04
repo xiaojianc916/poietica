@@ -896,6 +896,25 @@ export function createBridge(host: BridgeHost): Bridge {
     sessions.set(newId, rebound)
     active = newId
 
+    /*
+     * 订阅必须跟着换号。
+     *
+     * 会话级订阅（下面 adopt 里那一条）绑的是**当时的那个 Session 对象**：回调闭包里
+     * 抓着 record，而 `handleEvent(record, event)` 把帧写进 record.projector 与
+     * record.mirror。重记号时新对象带的是全新的投影器与镜像，旧对象就此被扔掉 ——
+     * 可上游还在往旧对象里灌事件。结果是分叉之后每一条帧都落在**已经没人读的**那条
+     * 序列上：新号的镜像永远是空的，界面按新号读基线，于是分叉出来的对话再也收不到
+     * 增量（`fork_session` 自己那段注释就写着「历史由调用方重新拉一次」，可拉完之后
+     * 新的帧一条都不来）。
+     *
+     * 先解开再按新对象订一遍：解开必须在前面，否则同一条总线上会挂两份回调，
+     * 每一条帧被处理两次。
+     */
+    record.unsubscribe?.()
+    record.unsubscribe = record.agent.subscribe((event) => {
+      handleEvent(rebound, event)
+    })
+
     return { sessionId: newId, controls: readSelectors(rebound) }
   }
 
@@ -1026,8 +1045,16 @@ export function createBridge(host: BridgeHost): Bridge {
      * 6600），那时这句话**没有落进会话文件**，transcript 里也就永远不会有它。不接
      * 就等于用户那句话凭空消失 —— 屏幕上那条乐观记录还挂着，agent 永远不回应答。
      */
+    /*
+     * 号从**活的那条记录**读，不从闭包里的 adopted 读。
+     *
+     * 分叉（rebind）之后这条连接上的号已经换了，而回调闭包抓的还是分叉前那个对象：
+     * 发出去的 prompt_dropped 会带着一个**已经退役的号**。渲染层按号找归属，找不到就
+     * 静静丢掉 —— 被丢掉的正是「你这句话没了」这个唯一的通知，那条乐观记录于是永远
+     * 停在 submitting，连取消都会被拒（「消息仍在提交」）。
+     */
     session.setPromptDropped((prompt) => {
-      emit({ kind: 'prompt_dropped', sessionId: adopted.id, text: prompt.text })
+      emit({ kind: 'prompt_dropped', sessionId: record.id, text: prompt.text })
     })
 
     /*
@@ -1041,9 +1068,7 @@ export function createBridge(host: BridgeHost): Bridge {
      * 每一条都推成 transcript 的 task.upsert：后台任务面板与它的秒针早就在等这个
      * （packages/conversation 的 backgroundOf），此前没有任何生产者。
      */
-    adopted.unsubscribeSubagents = subagentEventBus
-      ? subscribeSubagents(adopted, subagentEventBus)
-      : null
+    adopted.unsubscribeSubagents = subagentEventBus ? subscribeSubagents(subagentEventBus) : null
 
     /*
      * 开工前把思考档位收敛到这条模型自己的梯子上（见 thinking.ts）。放在订阅之前：
@@ -1912,18 +1937,34 @@ export function createBridge(host: BridgeHost): Bridge {
      * 而多个技能本来就是「同一句话带上的几份上下文」，拆成几条会变成几轮。
      */
     const skills = command.skills ?? []
+
     /*
      * 展开要 await（要读 SKILL.md），投递不能 await（见下面那段注释）—— 所以先展开，
      * 再拿结果去开轮。没有技能时这一步是空转。
+     *
+     * **这一段必须兜住异常**：乐观帧（userTurn）上面已经发出去了，而此刻还没有任何一轮
+     * 存在。展开失败（技能被删、SKILL.md 读不动）或投递同步抛出时，只有 `.catch` 是接不住
+     * 的 —— 它挂在 promise 上，而这几个语句在拿到 promise 之前就抛了。漏出去的后果不是
+     * 「这一句发不出去」，而是屏幕上那一轮**永远转下去**：投影里 isTurnOpen 一直为真，
+     * 之后没有任何一条帧会来关掉它。
      */
-    const expanded =
-      skills.length === 0 ? undefined : await expandSkills(record, skills, command.text)
-    const prompt =
-      expanded === undefined
-        ? record.agent.prompt(command.text, images.length === 0 ? undefined : { images })
-        : record.agent.promptCustomMessage(customSkillMessage(expanded, images), {
-            streamingBehavior: 'steer',
-          })
+    let expanded: Awaited<ReturnType<typeof expandSkills>> | undefined
+    let prompt: ReturnType<typeof record.agent.prompt>
+
+    try {
+      expanded = skills.length === 0 ? undefined : await expandSkills(record, skills, command.text)
+      prompt =
+        expanded === undefined
+          ? record.agent.prompt(command.text, images.length === 0 ? undefined : { images })
+          : record.agent.promptCustomMessage(customSkillMessage(expanded, images), {
+              streamingBehavior: 'steer',
+            })
+    } catch (error: unknown) {
+      /* 轮已经画上去了，但没有轮可以收：当场如实收成失败，别让它挂着转。 */
+      settleUnstartedTurn(record, ordinal, 'failed', messageOf(error))
+
+      throw error
+    }
 
     void prompt
       .then((forwarded) => {
@@ -1944,10 +1985,26 @@ export function createBridge(host: BridgeHost): Bridge {
          * 明着补一次插话，并把那一轮如实收成失败 —— 话不丢，账也不假。
          */
         if (isBusy(error)) {
-          void record.agent
-            .steer(command.text, images.length === 0 ? undefined : images)
+          /*
+           * 补的这一次插话必须与技能那条路**同形**：挂了技能就还投展开后的正文。
+           *
+           * 走 steer(command.text) 等于把字面 `/skill:xxx` 交给模型 —— 技能静默不跑，
+           * 而屏幕上那一轮已经收成失败、界面看起来一切正常，没人会发现上下文少了什么。
+           * 展开文已经拿到手（上面那一步就是），这里没有理由再退回去用原文。
+           */
+          const carried = expanded === undefined ? undefined : customSkillMessage(expanded, images)
+          const steer =
+            carried === undefined
+              ? record.agent.steer(command.text, images.length === 0 ? undefined : images)
+              : record.agent.promptCustomMessage(carried, { streamingBehavior: 'steer' })
+
+          void steer
             .then(() => {
-              record.injections.push({ text: command.text, deliverAs: 'steer' })
+              /* 认领账本记的是**真正投出去的那一句**（同下面的插话那条路）。 */
+              record.injections.push({
+                text: expanded === undefined ? command.text : expanded.text,
+                deliverAs: 'steer',
+              })
               settleUnstartedTurn(
                 record,
                 ordinal,
@@ -2984,11 +3041,23 @@ export function createBridge(host: BridgeHost): Bridge {
    * 帧形状按结构收窄（subagents.ts 的入参是可选字段），总线上的载荷是 unknown ——
    * 认不出的帧在账里变成空 ops，不猜。
    */
-  function subscribeSubagents(record: Session, bus: EventBusLike): () => void {
+  /*
+   * 帧写到**此刻活着的那条记录**上，不写进订阅时抓到的那个对象。
+   *
+   * 分叉换号（rebind）之后旧对象上那个镜像已经没人读了；回调里抓着它，子代理的行就
+   * 会全部写进一条退役的序列。与订阅同一条理由（见 rebind），只是这条总线是子代理的。
+   */
+  function subscribeSubagents(bus: EventBusLike): () => void {
+    const live = (): Session => required()
+
     const lifecycle = bus.on(TASK_SUBAGENT_LIFECYCLE_CHANNEL, (data) => {
+      const record = live()
+
       projectSubagents(record, record.subagents.lifecycle(data))
     })
     const progress = bus.on(TASK_SUBAGENT_PROGRESS_CHANNEL, (data) => {
+      const record = live()
+
       projectSubagents(record, record.subagents.progress(data))
     })
 

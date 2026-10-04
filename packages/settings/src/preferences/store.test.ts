@@ -16,6 +16,7 @@ function settings(theme: AppSettings['theme'] = 'system'): AppSettings {
     appearance: { density: 'comfortable', reduceMotion: false, messageTimestamps: true },
     modelPicker: { hiddenModelAliases: [], providerOrder: [] },
     privacy: { telemetry: false, crashReporting: true, updateCheck: true },
+    logging: { level: 'warn' },
   }
 }
 const receipt = (value: AppSettings): SettingsWriteResult => ({

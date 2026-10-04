@@ -7,6 +7,8 @@ export type WindowSurfaceColor = readonly [red: number, green: number, blue: num
 export interface MainWindowController {
   present(): Promise<void>
   setSurfaceColor(color: WindowSurfaceColor): Promise<void>
+  /** 日志闸门：改一次就重开一次，不必重启应用。 */
+  setLogLevel(level: string): Promise<void>
   /** 长任务跑完时的一声；窗口在前台时宿主什么也不做。 */
   notify(request: { readonly title: string; readonly body: string }): Promise<void>
   /** 按偏好落定宿主主题，交回宿主解析出的那一档（跟随系统时就是系统此刻那一档）。 */
@@ -35,6 +37,8 @@ export function createMainWindowController(): MainWindowController {
     present: () => host.present(),
 
     setSurfaceColor: (color) => host.setSurfaceColor(color),
+
+    setLogLevel: (level) => host.setLogLevel(level),
 
     notify: (request) => host.notify(request),
 

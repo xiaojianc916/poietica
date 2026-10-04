@@ -56,9 +56,6 @@
     "turbo": "catalog:",
     "typescript": "catalog:"
   },
-  "overrides": {
-    "shiki": "^4.4.3"
-  },
   "workspaces": {
     "packages": [
       "apps/*",
@@ -89,6 +86,7 @@
       "diff": "^9.0.0",
       "electron": "^44.5.1",
       "electron-builder": "^26.15.3",
+      "electron-log": "^5.4.4",
       "electron-vite": "^5.0.0",
       "katex": "^0.19.0",
       "@lexical/react": "^0.52.0",

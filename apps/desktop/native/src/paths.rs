@@ -23,6 +23,10 @@ pub struct HostPaths {
     pub home_directory: String,
     /// 随包发的运行时目录（bun.exe、桥的入口、pi-natives 的 .node）。
     pub bundled_directory: String,
+    /// 应用日志目录。**由宿主定** —— Electron 的 `app.getPath('logs')` 是它的官方产地，
+    /// 主进程自己也往这里写（electron-log），两侧必须落在同一个目录，所以它像数据根一样
+    /// 是交进来的事实，不是原生侧拼出来的名字。
+    pub log_directory: String,
 }
 
 /// 手写 Debug：`#[napi(object)]` 不生成它，而这三个字段里没有一样是秘密。
@@ -33,6 +37,7 @@ impl std::fmt::Debug for HostPaths {
             .field("data_root", &self.data_root)
             .field("home_directory", &self.home_directory)
             .field("bundled_directory", &self.bundled_directory)
+            .field("log_directory", &self.log_directory)
             .finish()
     }
 }
@@ -48,8 +53,6 @@ const AGENTS_FILE: &str = "agents.json";
 
 /// WAL 模式下磁盘上是三个文件（本文件加 -wal 与 -shm），备份必须三个一起。
 const LEDGER_DATABASE: &str = "ledger.sqlite3";
-
-const LOG_DIRECTORY: &str = "logs";
 
 const TEMP_DIRECTORY: &str = "tmp";
 
@@ -117,8 +120,9 @@ pub fn ledger_database() -> Result<PathBuf> {
     Ok(data_root()?.join(LEDGER_DATABASE))
 }
 
+/// 应用日志目录。宿主交进来（Electron 的 `app.getPath('logs')`），主进程与原生侧落同一处。
 pub fn log_directory() -> Result<PathBuf> {
-    let directory = data_root()?.join(LOG_DIRECTORY);
+    let directory = PathBuf::from(&host()?.log_directory);
 
     fs::create_dir_all(&directory)?;
 
@@ -269,7 +273,7 @@ pub fn sweep_projectless_workspaces(snapshot: Vec<PathBuf>, referenced: &[String
         match fs::remove_dir_all(&path) {
             Ok(()) => swept = swept.saturating_add(1),
             Err(error) => {
-                log::warn!("could not remove an orphaned projectless directory: {error}");
+                tracing::warn!("could not remove an orphaned projectless directory: {error}");
             }
         }
     }

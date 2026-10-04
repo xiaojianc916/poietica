@@ -83,7 +83,7 @@ pub struct ForeignPluginInventory {
 }
 
 pub(crate) fn plugin_failure(cause: impl std::fmt::Display) -> Error {
-    log::warn!("extension operation failed: {cause}");
+    tracing::warn!("extension operation failed: {cause}");
 
     Error::Plugin(cause.to_string())
 }
@@ -149,7 +149,7 @@ pub(crate) async fn download(url: &str) -> Result<Vec<u8>> {
 
 pub(crate) fn discard_failed(staging: extension::Staging) {
     if let Err(cleanup) = staging.discard() {
-        log::warn!("could not discard a failed staging directory: {cleanup}");
+        tracing::warn!("could not discard a failed staging directory: {cleanup}");
     }
 }
 

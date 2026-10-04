@@ -50,10 +50,12 @@ poietica-time = { path = "../../../crates/time" }
 
 # 渲染层送来的图片是 base64；字节要落盘就得解出来。手写解码器只会多一处边界条件。
 base64.workspace = true
-fs2.workspace = true
 hex.workspace = true
 iana-time-zone.workspace = true
-log.workspace = true
+tracing.workspace = true
+# 落盘只有组合根做：能力 crate 只管发事件，不认识文件。
+tracing-subscriber.workspace = true
+tracing-appender.workspace = true
 axum.workspace = true
 rmcp.workspace = true
 schemars.workspace = true

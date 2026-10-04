@@ -262,7 +262,7 @@ async fn run_session(
                         .map(|state| state.unwrap_or(PromptObservation::Missing));
 
                     if let Err(error) = &observed {
-                        log::error!("could not read the prompt state: {error}");
+                        tracing::error!("could not read the prompt state: {error}");
                     }
 
                     let _ = reply.send(observed);
@@ -326,11 +326,11 @@ async fn run_session(
                         };
 
                         match closer.finish_turn_since(&sid, "cancelled", since) {
-                            Ok(true) => log::warn!(
+                            Ok(true) => tracing::warn!(
                                 "the agent bridge took the abort of {sid} but never ended the turn; closed locally"
                             ),
                             Ok(false) => {}
-                            Err(error) => log::error!("could not close an aborted turn: {error}"),
+                            Err(error) => tracing::error!("could not close an aborted turn: {error}"),
                         }
                     });
 
@@ -547,7 +547,7 @@ async fn run_session(
                     Ok(None) => {}
                     Err(error) => {
                         /* 桥不认的命令：如实报错，不假装成功。 */
-                        log::debug!("the agent bridge cannot do this: {error}");
+                        tracing::debug!("the agent bridge cannot do this: {error}");
                     }
                 }
             }
@@ -633,7 +633,7 @@ async fn run_session(
                         if assigning_here {
                             match opened {
                                 Some(opened) => {
-                                    if book.adopt(&opened, slot.clone()).is_err() {
+                                    if book.adopt_first(&opened, slot.clone()).is_err() {
                                         if let Some(tx) = ready_tx.take() {
                                             let _ = tx.send(Err(AgentError::Poisoned));
                                         }
@@ -661,7 +661,7 @@ async fn run_session(
                         if let Some(reply) = pending.remove(&id) {
                             let _ = reply.send(Err(AgentError::Envelope { code: 0, message }));
                         } else {
-                            log::warn!("the agent bridge reported a failure for an unknown command: {message}");
+                            tracing::warn!("the agent bridge reported a failure for an unknown command: {message}");
                         }
                     }
 
@@ -1650,7 +1650,7 @@ fn dispatch(
         } => {
             let Some(group) = QuestionGroup::from_questions(&session_id, &request_id, &asked)
             else {
-                log::error!(
+                tracing::error!(
                     "the agent bridge asked {} questions that this build cannot read",
                     asked.as_array().map_or(0, Vec::len)
                 );
@@ -1664,7 +1664,7 @@ fn dispatch(
             }
 
             let Ok(waiting) = questions.wait(group.clone()) else {
-                log::error!("could not put a question group on the desk");
+                tracing::error!("could not put a question group on the desk");
 
                 return;
             };
@@ -1695,7 +1695,7 @@ fn dispatch(
                 }
 
                 if !delivered {
-                    log::error!("could not hand a question answer back to the agent bridge");
+                    tracing::error!("could not hand a question answer back to the agent bridge");
                 }
             });
         }
@@ -1769,7 +1769,7 @@ fn dispatch(
                             .answer_permission(request.clone(), decision, scope)
                             .await
                         {
-                            log::error!("could not hand an approval answer back: {error}");
+                            tracing::error!("could not hand an approval answer back: {error}");
                         }
 
                         /*
@@ -1784,7 +1784,7 @@ fn dispatch(
                         }
                     });
                 }
-                Err(error) => log::error!("could not put the approval on the desk: {error}"),
+                Err(error) => tracing::error!("could not put the approval on the desk: {error}"),
             }
         }
 
@@ -1801,11 +1801,11 @@ fn dispatch(
             };
 
             if let Err(error) = closed {
-                log::error!("could not close the turn the bridge ended: {error}");
+                tracing::error!("could not close the turn the bridge ended: {error}");
             }
 
             if outcome == Outcome::Failed {
-                log::warn!(
+                tracing::warn!(
                     "the agent bridge failed a turn: {}; stderr: {}",
                     message.as_deref().unwrap_or("no message"),
                     diagnostics.tail()

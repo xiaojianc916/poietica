@@ -91,7 +91,7 @@ impl Connection {
             .book
             .fail_active("agent 连接已断开，本轮已终止，请重试")
         {
-            log::error!("could not terminate turns owned by a dead connection: {error}");
+            tracing::error!("could not terminate turns owned by a dead connection: {error}");
         }
         self.desk.clear();
         self.questions.clear();
@@ -206,7 +206,7 @@ impl<E: ConnectionFailure> Drop for Attempt<E> {
                 }
             }
             Err(error) => {
-                log::error!("could not release an abandoned launch: {error}");
+                tracing::error!("could not release an abandoned launch: {error}");
                 None
             }
         };
@@ -490,7 +490,7 @@ impl<E: ConnectionFailure> ConnectionOwner<E> {
             let mut state = match self.state() {
                 Ok(state) => state,
                 Err(error) => {
-                    log::error!("could not retire an ended connection: {error}");
+                    tracing::error!("could not retire an ended connection: {error}");
                     return;
                 }
             };
@@ -522,7 +522,7 @@ impl<E: ConnectionFailure> ConnectionOwner<E> {
         tokio::select! {
             () = scope.cancelled() => {},
             result = restarting => if let Err(error) = result {
-                log::warn!("the agent daemon could not restart: {error}");
+                tracing::warn!("the agent daemon could not restart: {error}");
             },
         }
     }

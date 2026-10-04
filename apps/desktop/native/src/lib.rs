@@ -18,6 +18,7 @@ pub mod transport;
 pub use entry::NativeHost;
 pub mod launcher;
 pub mod ledger;
+mod log_file;
 pub mod paths;
 pub mod python;
 pub mod review;

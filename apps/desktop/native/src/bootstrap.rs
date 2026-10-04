@@ -20,14 +20,65 @@ pub(crate) fn install(
 ) -> Result<()> {
     crate::paths::install_host_facts(paths)?;
 
+    // 日志先于一切：从这里往下每一步都可能报错，而报错的第一现场必须留得下来。
+    //
+    // 级别那一格此刻还没有设置服务可问（它建在下面），所以直接读那一份文档 ——
+    // 读不到就是默认 warn，与「文件还没写出来」是同一件事。
+    let level = crate::settings::read_log_level(&crate::paths::settings_store()?);
+
+    if let Err(error) = crate::log_file::install(&crate::paths::log_directory()?, &level) {
+        #[allow(
+            clippy::print_stderr,
+            reason = "日志装不上时它自己还没有出口，stderr 是唯一还剩的那一个"
+        )]
+        {
+            eprintln!("poietica: application log could not be opened: {error}");
+        }
+    }
+
     let opened = crate::ledger::LocalIndex::open(
         &crate::paths::ledger_database()?,
         poietica_time::wall_clock::SystemWallClock,
     )?;
     let index = Arc::new(opened);
-    // journal 只负责落盘；屏幕经过走 transcript，不发第二套对话正文。
-    let journal =
-        poietica_conversation_runtime::journal::FrameJournal::new((*index).clone(), |_, _| {})?;
+    /*
+     * journal 落盘，并把**本机判定、屏幕必须知道**的那几条顺路送出去。
+     *
+     * 屏幕经过照旧走 transcript，不发第二套对话正文 —— 但有一类事实不是正文，
+     * 而且只有我们知道：『这一轮因为连接断了而终止』。它由 `book.fail_active` 判定，
+     * 落进账本的是 `RunFailed`。从前这里是一个空回调（`|_, _| {}`），于是那句话只进
+     * 账本、不回屏幕；而屏幕上的轮终只认 agent 的 transcript —— agent 都死了，
+     * 那条通道再也不会有帧，那一轮就永远转下去（没有错误、没有发送键、只能重启）。
+     *
+     * 只挑 `RunFailed` 转出去：其余本机帧（准入、审批、提问、链路、终帧）要么已经由
+     * 别的通道送到屏幕，要么是正文的一部分、由 transcript 负责。
+     */
+    let journal = poietica_conversation_runtime::journal::FrameJournal::new(
+        (*index).clone(),
+        |session_id, envelopes| {
+            for envelope in envelopes {
+                let poietica_conversation::event::ConversationEvent::RunFailed {
+                    message,
+                    degraded,
+                    ..
+                } = &envelope.event
+                else {
+                    continue;
+                };
+
+                match serde_json::to_value(crate::conversation::dto::AgentSessionEvent::RunFailed {
+                    session_id: session_id.clone(),
+                    message: message.clone(),
+                    degraded: *degraded,
+                }) {
+                    Ok(payload) => crate::transport::emit("agent_session_event", &payload),
+                    Err(error) => {
+                        tracing::warn!("could not encode a local run failure: {error}");
+                    }
+                }
+            }
+        },
+    )?;
 
     let runtime = crate::conversation::composition::compose(
         crate::paths::projectless_root()?,
@@ -70,7 +121,7 @@ pub(crate) fn install(
     let reclaim = automation.available().is_ok();
     handle.spawn(async move {
         if !reclaim {
-            log::warn!(
+            tracing::warn!(
                 "workspace reclamation skipped because automation ownership could not be initialized"
             );
             return;
@@ -78,14 +129,14 @@ pub(crate) fn install(
 
         match crate::workspace::reconcile::run((*index).clone(), uuid::Uuid::now_v7()).await {
             Ok(()) => {}
-            Err(error) => log::warn!("could not reconcile leftover conversation state: {error}"),
+            Err(error) => tracing::warn!("could not reconcile leftover conversation state: {error}"),
         }
     });
 
     // 设置里那些要落到活会话上的项：读失败不拦启动，退回默认值。
     handle.spawn(async move {
         if let Err(problem) = settings.apply_startup().await {
-            log::warn!("could not apply persisted runtime settings: {problem:?}");
+            tracing::warn!("could not apply persisted runtime settings: {problem:?}");
         }
     });
 

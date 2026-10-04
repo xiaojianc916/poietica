@@ -35,7 +35,8 @@ userData 不在安装器的射程内，这条冲突从根上不存在。
 | `plugins/` | 装进来的插件的托管副本与 `installed.json` | 插件全部回到未安装 |
 | `projectless/` | 无项目会话的工作目录根 | 那些会话的工作目录消失 |
 | `tools/` | 本应用自己装的工具（内置 Python 解释器） | 下次用到时重新下载 |
-| `logs/`、`tmp/`、`cache/` | 日志、暂存、可从上游重取的东西 | 无影响 |
+| `logs/` | 日志。目录由 Electron 的 `app.getPath('logs')` 定（已钉进数据根），两个写入器各一份文件：`poietica.log`（原生侧，tracing-appender 按日轮转留 7 份）与 `main.log`（主进程，electron-log 按 4MB 轮转）。级别由设置里「关于 → 日志 → 记录级别」定，默认 warn、改完即生效。见 ADR 0040、0041 | 无影响 |
+| `tmp/`、`cache/` | 暂存、可从上游重取的东西 | 无影响 |
 | `automation.lock` | 自动化执行权的排他锁 | 下次启动重新取得 |
 
 `ledger.sqlite3` 开在 WAL 模式下，磁盘上实际是三个文件：它，加上同名的 `-wal`

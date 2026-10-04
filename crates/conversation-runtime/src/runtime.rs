@@ -102,7 +102,7 @@ impl<E: RuntimeFailure> Runtime<E> {
                     if let Err(error) =
                         crate::events::record(&event_index, &event_book, &event).await
                     {
-                        log::warn!("could not persist an agent session event: {error}");
+                        tracing::warn!("could not persist an agent session event: {error}");
                     }
                     publish(event);
                 })
@@ -124,14 +124,16 @@ impl<E: RuntimeFailure> Runtime<E> {
                     {
                         Ok(failures) => {
                             for failure in failures {
-                                log::warn!(
+                                tracing::warn!(
                                     "session {} remains pending archive: {}",
                                     failure.session_id,
                                     failure.cause
                                 );
                             }
                         }
-                        Err(error) => log::warn!("could not update the disposal ledger: {error}"),
+                        Err(error) => {
+                            tracing::warn!("could not update the disposal ledger: {error}");
+                        }
                     }
                     let gateway = KapGateway {
                         client: live.client.clone(),
@@ -148,14 +150,14 @@ impl<E: RuntimeFailure> Runtime<E> {
                     {
                         Ok(failures) => {
                             for failure in failures {
-                                log::warn!(
+                                tracing::warn!(
                                     "delivery {} remains unresolved: {}",
                                     failure.turn,
                                     failure.failure
                                 );
                             }
                         }
-                        Err(error) => log::warn!("could not read pending deliveries: {error}"),
+                        Err(error) => tracing::warn!("could not read pending deliveries: {error}"),
                     }
                 })
             },
@@ -220,7 +222,7 @@ impl<E: RuntimeFailure> Runtime<E> {
 impl<E: RuntimeFailure> Drop for Runtime<E> {
     fn drop(&mut self) {
         if let Err(error) = self.shutdown() {
-            log::error!("conversation runtime could not shut down cleanly: {error}");
+            tracing::error!("conversation runtime could not shut down cleanly: {error}");
         }
     }
 }

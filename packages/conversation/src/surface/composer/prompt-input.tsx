@@ -349,9 +349,36 @@ function PromptInputShell({
   submit.current = onSubmit
 
   const listboxId = useId()
+  /*
+   * 没有收信人时这层壳不是 form，是 div。
+   *
+   * 字段用法（自动化编辑器那一格）把它嵌在**自己的 form 里**，而 HTML 不允许 form 嵌套：
+   * 浏览器会把内层丢掉、React 报「<form> cannot be a descendant of <form>」并警告 hydration
+   * 会出错。这里没有提交可言（没有 onSubmit、没有发送键、Enter 只换行），所以 form 那一套
+   * 语义本来就是多余的 —— 换成 div 既去掉嵌套，也不改任何行为。
+   */
+  /*
+   * 断言成 'form' 只是为了让这一层的 props 类型保持一套（div 与 form 的联合类型
+   * 在 JSX 上无法统一）。运行时那个 div 由 requestFormSubmit 的 instanceof 兜住 ——
+   * 字段用法压根没有提交这条路，所以那条分支永远不会被走到。
+   */
+  const Shell = (onSubmit === undefined ? 'div' : 'form') as 'form'
   const formRef = useRef<HTMLFormElement>(null)
   /* Enter 与 Ctrl/Cmd+Enter 只差这一格：命令先写它，提交时读它。 */
   const queued = useRef(false)
+
+  /*
+   * 提交这一句。字段用法（不是 form）没有提交可言：那条路上这一次调用整个不存在。
+   *
+   * `requestSubmit` 只长在 form 上，所以这里先问壳是不是 form —— 直接调会 TypeError。
+   */
+  const requestFormSubmit = useCallback(() => {
+    const shell = formRef.current
+
+    if (shell instanceof HTMLFormElement) {
+      shell.requestSubmit()
+    }
+  }, [])
 
   const focusEditor = useCallback(() => {
     editor.focus()
@@ -417,7 +444,7 @@ function PromptInputShell({
 
           event.preventDefault()
           queued.current = event.ctrlKey || event.metaKey
-          formRef.current?.requestSubmit()
+          requestFormSubmit()
 
           return true
         },
@@ -450,7 +477,7 @@ function PromptInputShell({
   const insertTextAndSubmit = useCallback(
     (incoming: string) => {
       insertText(incoming)
-      queueMicrotask(() => formRef.current?.requestSubmit())
+      queueMicrotask(requestFormSubmit)
     },
     [insertText],
   )
@@ -498,7 +525,7 @@ function PromptInputShell({
       }
 
       if (options.submit === true) {
-        formRef.current?.requestSubmit()
+        requestFormSubmit()
       }
     },
     [addAssets, focusEditor, insertText],
@@ -512,16 +539,32 @@ function PromptInputShell({
 
   const removeAttachment = useCallback(
     (assetToken: string) => {
-      setAttachments((current) => {
-        const going = current.find((attachment) => attachment.assetToken === assetToken)
+      /*
+       * **释放字节这件事必须在 updater 之外做。**
+       *
+       * `setAttachments` 的那个函数是 React 的更新器，它必须是纯的：StrictMode 下 React
+       * 会**故意调用两次**，于是 `discard` 也跑两次 —— 第二次释放的是一份已经放掉的资产，
+       * 原生侧如实回 `resourceMissing`，日志里就留下一条「暂存附件未能释放」。
+       *
+       * 实测过：字节其实**释放成功了**（`asset_read` 从 held 变成 resourceMissing），
+       * 所以那不是泄漏，而是一条**假警报** —— 而假警报会让人不再相信真警报。
+       *
+       * 判据读 `handoff`（那个 ref 就是「此刻册子里有哪几份」的权威）：闭包里的 `attachments`
+       * 可能是旧的那一份 —— `addAssets` 用 `flushSync` 收下新的一份时，本次渲染的闭包还没有它。
+       * 用旧列表的后果实测过：找不到这一份 → 不释放 → **字节真的漏了**（`asset_read` 仍是 held）。
+       */
+      const going = handoff.current.attachments.find(
+        (attachment) => attachment.assetToken === assetToken,
+      )
 
-        /* 移掉一张卡片就是放掉那一份字节：注册表的预算是整个进程共用的。 */
-        if (going !== undefined) {
-          intake?.discard(going)
-        }
+      /* 移掉一张卡片就是放掉那一份字节：注册表的预算是整个进程共用的。 */
+      if (going !== undefined) {
+        intake?.discard(going)
+      }
 
-        return current.filter((attachment) => attachment.assetToken !== assetToken)
-      })
+      setAttachments((current) =>
+        current.filter((attachment) => attachment.assetToken !== assetToken),
+      )
     },
     [intake],
   )
@@ -559,7 +602,7 @@ function PromptInputShell({
   }, [])
 
   const requestSubmit = useCallback(() => {
-    formRef.current?.requestSubmit()
+    requestFormSubmit()
   }, [])
 
   /* 拖文件走原生那条：宿主（Electron）接管文件拖放，HTML5 那条在 Windows 上收不到事件。 */
@@ -711,7 +754,7 @@ function PromptInputShell({
     <ActionsContext value={actions}>
       <AttachmentsContext value={attachments}>
         <DraftContext value={draft}>
-          <form
+          <Shell
             className={cx('assistant-prompt-input', className)}
             data-slot="prompt-input"
             onKeyDown={onFormKeyDown}
@@ -775,13 +818,17 @@ function PromptInputShell({
                 return
               }
 
-              if (intake !== null) {
-                for (const attachment of attachments) {
-                  if (isInlineAttachment(attachment) && !tokens.has(attachment.assetToken)) {
-                    intake.discard(attachment)
-                  }
-                }
-              }
+              /*
+               * 记号被删掉的那几份先**退出正文**，字节留到这一句真的交出去之后再放。
+               *
+               * 从前这里在组装消息时就 discard 了 —— 那时还不知道这一句发不发得出去。
+               * 发送失败时横幅只给「取回文字」，字节已经放掉、卡片也早就没了，附件救不回来。
+               * 现在把顺序倒过来：先摘卡片（屏幕上不再挂着它），提交回执到达时再放字节。
+               */
+              const detached = attachments.filter(
+                (attachment) =>
+                  isInlineAttachment(attachment) && !tokens.has(attachment.assetToken),
+              )
 
               const message: PromptInputMessage = {
                 text: said,
@@ -795,15 +842,44 @@ function PromptInputShell({
               }
               queued.current = false
 
+              /*
+               * 先把这一句交出去，再清现场。
+               *
+               * 顺序不能反：`submit.current` 要是抛了（这一句压根没交出去），那几份被摘下来的
+               * 附件必须还在册子里，用户才能原样重发。从前 discard 排在提交之前，一次失败就
+               * 连字节一起收走了 —— 而失败横幅只给「取回文字」，附件救不回来。
+               */
+              const handedOver = ((): boolean => {
+                try {
+                  submit.current(message)
+
+                  return true
+                } catch (cause) {
+                  /* 留在册子里等下一次：正文与附件一起还给用户。 */
+                  setAttachments((current) => [...current, ...detached])
+                  setText(said)
+
+                  throw cause
+                }
+              })()
+
+              if (!handedOver) {
+                return
+              }
+
+              /* 交出去了：正文、草稿与附件一起让位（不 discard —— 那些字节已随准入交给这条对话）。 */
               clearDraft(editor)
               handoff.current = { attachments: NO_ATTACHMENTS, configuration: [] }
               drafts.keep(draftKey, undefined)
               setPendingConfiguration([])
               rewindPalette()
-
-              /* 不 discard：这些字节已随准入交给这条对话，注册表里那一份由原生侧放掉。 */
               setAttachments([])
-              submit.current(message)
+
+              if (intake !== null) {
+                for (const attachment of detached) {
+                  intake.discard(attachment)
+                }
+              }
             }}
             ref={formRef}
           >
@@ -817,7 +893,7 @@ function PromptInputShell({
             />
 
             <PaletteAriaContext value={paletteAria}>{children}</PaletteAriaContext>
-          </form>
+          </Shell>
         </DraftContext>
       </AttachmentsContext>
     </ActionsContext>

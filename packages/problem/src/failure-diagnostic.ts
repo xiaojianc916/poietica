@@ -22,6 +22,8 @@ export interface FailureDiagnostic {
   readonly errorName: string
   readonly stack?: string
   readonly componentStack?: string
+  /** 异常上挂着的问题信封（原生侧的原因就在它的 details 里）。 */
+  readonly problem?: string
 
   readonly source?: string
   readonly line?: number
@@ -41,6 +43,18 @@ interface NormalizedCause {
 
 const MAX_MESSAGE_LENGTH = 4_000
 const MAX_STACK_LENGTH = 32_000
+
+/** 异常上挂的问题信封，序列化成一句话；没有就是 undefined。 */
+function problemOf(cause: unknown): string | undefined {
+  const attached =
+    typeof cause === 'object' && cause !== null && 'problem' in cause
+      ? (cause as { readonly problem?: unknown }).problem
+      : undefined
+
+  return attached === undefined
+    ? undefined
+    : normalizeText(safeStringify(attached), MAX_MESSAGE_LENGTH)
+}
 
 export function normalizeFailureCause(cause: unknown): NormalizedCause {
   if (cause instanceof Error) {
@@ -83,6 +97,14 @@ export function createFailureDiagnostic(
     errorName: normalized.name,
 
     ...optionalProperty('stack', normalized.stack),
+
+    /*
+     * 挂在异常上的 problem 是**唯一**说得出原因的那一格：message 只是一句码
+     * （`poietica: agentRejected`），而 details.reason 才是原生侧真正拒了什么。
+     * 不带它，崩溃屏与「复制诊断信息」交出来的东西读不出问题在哪 —— ipc-error.ts 的
+     * 头注释（「真正说明原因的 details.reason 与文案目录键全被丢掉」）就是这条。
+     */
+    ...optionalProperty('problem', problemOf(cause)),
 
     ...optionalProperty(
       'componentStack',
@@ -158,6 +180,9 @@ export function formatFailureDiagnostic(incident: {
     `页面: ${diagnostic.pageUrl}`,
 
     `User Agent: ${diagnostic.userAgent}`,
+
+    /* 原因信封排在上下文之前：它就是「为什么失败」，比现场细节更该先被读到。 */
+    diagnostic.problem ? `\n问题信封:\n${diagnostic.problem}` : undefined,
 
     contextEntries.length > 0
       ? `\n上下文:\n${contextEntries.map(([key, value]) => `${key}: ${String(value)}`).join('\n')}`

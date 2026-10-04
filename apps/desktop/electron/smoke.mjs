@@ -7,7 +7,7 @@
  *
  * POIETICA_NATIVE 覆盖路径，与 electron/native.ts 同一个变量。
  */
-import { existsSync, mkdtempSync, rmSync } from 'node:fs'
+import { existsSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { createRequire } from 'node:module'
 import { tmpdir } from 'node:os'
 import { dirname, join, resolve } from 'node:path'
@@ -45,6 +45,15 @@ const dataRoot = mkdtempSync(join(tmpdir(), 'poietica-smoke-'))
 const bundled = mkdtempSync(join(tmpdir(), 'poietica-smoke-bundled-'))
 const frames = []
 
+/*
+ * 设置文档先写下去：日志闸门（logging.level）在 start 里被读出来决定收哪些事件。
+ * 写成 debug 才能证明「启动时读得到用户选的那一档」—— 默认那档与不读是同一个结果。
+ */
+writeFileSync(
+  join(dataRoot, 'settings.json'),
+  JSON.stringify({ settings: { logging: { level: 'debug' } } }),
+)
+
 async function run() {
   const native = createRequire(import.meta.url)(resolveNative())
 
@@ -58,6 +67,7 @@ async function run() {
     dataRoot,
     homeDirectory: process.env.USERPROFILE ?? tmpdir(),
     bundledDirectory: bundled,
+    logDirectory: join(dataRoot, 'logs'),
   })
 
   // busy 是 getter 不是方法：写错成 host.busy() 会当场炸 TypeError。
@@ -74,6 +84,13 @@ async function run() {
   )
   check(directory.ok === dataRoot, '数据根就是 start 传进来的那个字符串')
 
+  /* 日志闸门是设置文档里的一格，经 settings_get 读回来形状不变。 */
+  const settings = await call('settings_get')
+  check(
+    settings.ok?.logging?.level === 'debug',
+    `settings_get 该报出设定档：${JSON.stringify(settings.ok?.logging)}`,
+  )
+
   const unknown = await call('no_such_command')
   check('error' in unknown, '未知命令该回 { error } 而不是成功')
   check(
@@ -82,20 +99,22 @@ async function run() {
   )
   check(typeof unknown.error?.userMessageKey === 'string', 'Problem 要带 userMessageKey')
 
-  // 忙闸：第一条还没跑完时再进一条，必须当场拒绝而不是排队 —— 拒绝是抛，不是回一个 error 信封。
+  /*
+   * 并发是允许的：这里从前断言「忙就当场拒绝」，而那道闸在 c9f1083c 被有意拆掉了 ——
+   * 它把渲染层启动时并发发出的十几条读全部打成失败，界面上表现为「连不上 agent」。
+   * 命令面的并发由各层自己的锁裁决（账本 actor、会话运行时），宿主不替它们串行化。
+   * 所以这里验的正好相反：两条并发都跑完，且 busy 计数归零。
+   */
   const gates = await Promise.allSettled([
     host.invoke('settings_get', '{}'),
     host.invoke('settings_get', '{}'),
   ])
-  const rejected = gates.filter(
-    (gate) => gate.status === 'rejected' && String(gate.reason).includes('still finishing'),
-  )
 
-  check(rejected.length === 1, `忙闸要挡住并发的那一条，实际挡了 ${rejected.length} 条`)
   check(
-    gates.some((gate) => gate.status === 'fulfilled'),
-    '两条里至少有一条该正常跑完',
+    gates.every((gate) => gate.status === 'fulfilled'),
+    `并发的两条都该正常跑完：${JSON.stringify(gates.map((gate) => gate.status))}`,
   )
+  check(host.busy === false, '命令跑完之后 busy 计数该归零')
 
   // 事件帧的形状：原生侧推上来的是 { kind, payload } 的 JSON 文本，主进程按 kind 直接转发。
   for (const frame of frames) {
@@ -104,6 +123,12 @@ async function run() {
     check(typeof parsed.kind === 'string', `事件帧没有 kind：${frame.slice(0, 120)}`)
     check('payload' in parsed, `事件帧没有 payload：${frame.slice(0, 120)}`)
   }
+
+  /*
+   * 日志目录是宿主交进去的事实（HostPaths.logDirectory），不是原生侧拼的名字。
+   * 原生侧在 start 里对它 create_dir_all，所以它存在就证明这条链是通的。
+   */
+  check(existsSync(join(dataRoot, 'logs')), '宿主交的日志目录该被原生侧用上并建出来')
 
   await host.shutdown()
 

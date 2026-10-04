@@ -37,10 +37,13 @@ ACP / kap / kimi-code / deepseek harness / 早期 fatal-incident 草案等已消
 | 0021 | omp 桥是一个库，不是一个 Webview 模块 |
 | 0022 | 写入被拒是完整性标签，不是 ACL |
 | 0023 | 图片实时投递走 agent 的 SDK 契约，不是磁盘路径 |
+| 0024 | Transcript IPC 去双重序列化、桥侧攒批 |
 | 0025 | 子代理的生死走 agent 自己的观测总线，能力开关如实报 |
 | 0026 | 插话走 agent 自己的三层队列，本机不留第二份出账簿 |
 | 0027 | 入口读期望态：不建会话就读出、就能改 |
+| 0028 | Electron 是宿主，原生能力经 NAPI 同进程直达 |
 | 0029 | Python 内核按需下载，落在受管目录、经 agent 自己的设置指路 |
+| 0030 | 屏幕正文改用 omp 的显示经过 |
 | 0031 | 应用数据住 Electron 的 userData，安装器够不着 |
 | 0032 | agent 运行时安装整条管线移除：omp 随包发，没有要装的东西 |
 | 0033 | 接入档案收敛成一份文档：删掉「默认 agent」与 AgentLaunch |
@@ -48,4 +51,7 @@ ACP / kap / kimi-code / deepseek harness / 早期 fatal-incident 草案等已消
 | 0035 | 接上 omp 的工具流与技能展开：官方给的两条通道，从前被静默丢掉 |
 | 0036 | Python 内核的字节走镜像，清单仍以 GitHub 为正本 |
 | 0037 | omp 18.5.0 的设置走注册表，技能轮按官方判据上屏 |
+| 0038 | 内置浏览器经 omp 的 relay 交给 agent |
 | 0039 | 用量页的按模型日账与句子数：两格真数从哪来 |
+| 0040 | 日志改用事实标准：electron-log 与 tracing 栈 |
+| 0041 | 日志级别是设置里的一格，默认 warn |

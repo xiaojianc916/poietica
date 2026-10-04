@@ -130,6 +130,26 @@ impl AssetProtocolRegistry {
         state.total_bytes = next_total;
         Ok(())
     }
+    /// 问一句「这个会话成立吗」：形状合法**且**真的开过。
+    ///
+    /// 与 `open_session` 分开：那个是**开**一个新会话（已存在就报重复），
+    /// 这个是**认**一个已经开过的会话。导入那条路要的是后者 —— 它不该顺手开会话，
+    /// 也不该只验形状就放行。
+    pub fn open_existing(&self, session_token: &str) -> Result<(), AssetProtocolError> {
+        validate_token(session_token)?;
+
+        let state = self
+            .state
+            .read()
+            .map_err(|_| AssetProtocolError::Internal)?;
+
+        if state.sessions.contains_key(session_token) {
+            return Ok(());
+        }
+
+        Err(AssetProtocolError::NotFound)
+    }
+
     pub fn open_session(&self, session_token: &str) -> Result<(), AssetProtocolError> {
         validate_token(session_token)?;
 

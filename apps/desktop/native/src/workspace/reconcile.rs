@@ -34,7 +34,7 @@ pub(crate) async fn run(index: LocalIndex, boundary: Uuid) -> Result<()> {
         0
     };
     if harvested > 0 || swept > 0 {
-        log::info!(
+        tracing::info!(
             "start-up reconciliation: harvested {harvested} ghost conversations, reclaimed {swept} projectless directories"
         );
     }
@@ -44,6 +44,6 @@ pub(crate) async fn run(index: LocalIndex, boundary: Uuid) -> Result<()> {
 /// 删一条对话留下的无项目工作区；「归不归我们管」的判定只有 paths 一处，这里只记失败。
 pub(crate) fn remove_workspace(root: &str) {
     if let Err(error) = paths::remove_projectless_workspace(root) {
-        log::warn!("could not remove the projectless workspace: {error}");
+        tracing::warn!("could not remove the projectless workspace: {error}");
     }
 }

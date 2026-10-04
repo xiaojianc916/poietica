@@ -74,5 +74,12 @@ pub enum RunFrame {
     /// 这一轮按 agent 自己的说法结束了。
     RunFinished { stop_reason: String },
     /// 这一轮以失败结束。
-    RunFailed { message: String },
+    RunFailed {
+        message: String,
+        /// 这一轮**跑完了**，只是本机的帧记录掉了帧（`lost`）。
+        ///
+        /// 账要说实话（掉过帧的一轮不报正常结束），但这不是「这一轮失败了」：
+        /// 屏幕该照常收尾，不该把一句内部诊断当失败横幅弹给人。
+        degraded: bool,
+    },
 }

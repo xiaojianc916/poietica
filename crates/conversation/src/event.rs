@@ -69,6 +69,12 @@ pub enum ConversationEvent {
         #[serde(skip_serializing_if = "Option::is_none")]
         turn: Option<TurnId>,
         message: String,
+        /// 这一轮**其实跑完了**，只是我们自己的帧记录掉了帧（`recorder` 的 `lost`）。
+        ///
+        /// 与「这一轮失败了」分开：两者都要收尾（那一轮都不会再有帧了），但只有后者
+        /// 该对人报错。`message` 在后者是人话，在这里是内部诊断，不该当横幅弹出去。
+        #[serde(default)]
+        degraded: bool,
     },
 }
 

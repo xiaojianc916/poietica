@@ -6,10 +6,19 @@ use poietica_agent_client::{AgentError, Refusal};
 use poietica_conversation_runtime::RuntimeError;
 
 /// 全是本仓的字面量常量，不拼任何 agent 回话、外部输入或系统错误，故可原样上屏。
+///
+/// `Refusal::Gone` 说的是**这次请求没等到应答**（应答槽没了：连接被换掉、被取消，
+/// 或进程没了），**不是**「agent 退出了」。桥那侧 `Err(_dropped)` 一律折成它
+/// （agent-client/src/session/bridge.rs 的 ask/assign），而首启那几条并发读必然踩到：
+/// 「恢复上次那条对话」按工作区重锚会把它们正在用的连接 retire 掉。
+///
+/// 从前这里写「agent 已经退出，请重新发起对话」—— 那句话说了一件没发生的事（进程活得好
+/// 好的），还把用户支使去做一件没必要做的事（重开对话）。实测每次冷启动都会弹它一次。
+/// 如实说「没接上、可以重试」才对：那正是真实情况，也是唯一有用的下一步。
 const fn refusal(reason: Refusal) -> &'static str {
     match reason {
         Refusal::UnknownSession => "这条对话的会话已经失效，请重新打开它",
-        Refusal::Gone => "agent 已经退出，请重新发起对话",
+        Refusal::Gone => "这次请求没接上 agent 连接（连接正在切换或被取消），请重试",
     }
 }
 
@@ -19,7 +28,7 @@ pub(super) fn translate(error: AgentError) -> Error {
         AgentError::Io(cause) => Error::Io(cause),
         AgentError::Refused(reason) => Error::AgentCli(refusal(reason).to_owned()),
         other => {
-            log::error!("the agent request failed: {other}");
+            tracing::error!("the agent request failed: {other}");
 
             Error::AgentCli(other.to_string())
         }
@@ -41,11 +50,11 @@ impl From<poietica_conversation_runtime::SessionError<Error>> for Error {
             ),
             SessionError::Agent(cause) => translate(cause),
             SessionError::RestoreCleanup { cause, cleanup } => {
-                log::error!("failed to release a failed session subscription: {cleanup}");
+                tracing::error!("failed to release a failed session subscription: {cleanup}");
                 translate(cause)
             }
             SessionError::AttachCleanup { cause, cleanup } => {
-                log::error!("failed to archive an unbound newly created session: {cleanup}");
+                tracing::error!("failed to archive an unbound newly created session: {cleanup}");
                 cause
             }
         }
@@ -73,7 +82,7 @@ impl From<poietica_conversation_runtime::CommandError<Error>> for Error {
                 cause,
                 verification,
             } => {
-                log::error!(
+                tracing::error!(
                     "fork binding was not confirmed: {cause}; verification failed: {verification}"
                 );
                 Self::Persistence(
@@ -113,13 +122,17 @@ impl From<RuntimeError> for Error {
     fn from(error: RuntimeError) -> Self {
         match error {
             RuntimeError::Agent(error) => translate(error),
+            /*
+             * 与 `Refusal::Gone` 同一件事的另一种说法：这一次启动被取消了（换会话、退出，
+             * 或握手被后到的那次重锚顶掉）。折成同一句话，用户看到的原因才一致。
+             */
             RuntimeError::Gone => translate(AgentError::Refused(Refusal::Gone)),
             RuntimeError::Busy => Self::Automation(poietica_automation::AutomationError::Data(
                 "另一代理正在使用连接；后台任务不会中断它".to_owned(),
             )),
             RuntimeError::Poisoned => Self::Internal(POISONED.to_owned()),
             error => {
-                log::error!("conversation lifecycle failed: {error}");
+                tracing::error!("conversation lifecycle failed: {error}");
                 Self::Internal(
                     "the conversation connection could not complete its lifecycle".to_owned(),
                 )

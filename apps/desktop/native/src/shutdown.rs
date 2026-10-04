@@ -35,7 +35,7 @@ pub fn drain() {
         if let Ok(runtime) = crate::conversation::runtime()
             && let Err(error) = runtime.shutdown()
         {
-            log::error!("shutdown: the agent connection did not retire: {error}");
+            tracing::error!("shutdown: the agent connection did not retire: {error}");
         }
     });
 }
@@ -50,7 +50,7 @@ where
     };
 
     if let Err(error) = holder.stop() {
-        log::error!("shutdown: {what} did not stop: {error}");
+        tracing::error!("shutdown: {what} did not stop: {error}");
     }
 }
 

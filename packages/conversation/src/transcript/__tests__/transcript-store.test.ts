@@ -10,6 +10,7 @@ import type {
   AgentSessionPort,
   DroppedPrompt,
   QueuedMessages,
+  RunFailed,
 } from '../../agent/session'
 import type { TranscriptPage, TranscriptPort, TranscriptSignal } from '../../agent/transcript'
 import { delegateKey } from '../../timeline/delegate-channel'
@@ -83,6 +84,7 @@ function sessionPort(
     }),
     subscribeQueue: () => () => undefined,
     subscribePromptDropped: () => () => undefined,
+    subscribeRunFailed: () => () => undefined,
     abortPrompt: async () => undefined,
     resolvePermission: async () => undefined,
     answerQuestions: async () => undefined,
@@ -720,6 +722,272 @@ describe('the agent-owned message queue', () => {
     dropped({ sessionId: 'session', text: '被取消的一句' })
     expect(store.read('thread').submissions.map((entry) => entry.phase)).toEqual(['failed'])
     expect(store.read('thread').operation.kind).toBe('failed')
+    store.dispose()
+  })
+
+  /*
+   * agent 中途死掉：屏幕上的轮终只认 agent 的 transcript，而 agent 已经死了。
+   *
+   * 那条通道再也不会有帧，所以本机必须自己把这一轮收掉 —— 不收的实测后果是：
+   * 那一轮永远转下去，提交键变成「正在停止」然后消失，连发送键都没有，只能重启。
+   */
+  test('a locally detected run failure settles the turn instead of leaving it spinning', async () => {
+    let failed: (run: RunFailed) => void = () => {
+      throw new Error('Not subscribed.')
+    }
+    const store = new TranscriptStore()
+    const port = sessionPort(transcriptPort(), {
+      subscribeRunFailed: (listener) => {
+        failed = listener
+        return () => undefined
+      },
+      prompt: () => new Promise(() => undefined),
+    })
+    store.ensure(port)
+    /* 页面里得真有一轮在跑：封条读的是 `active.run`，没有它这一格本来就是空的。 */
+    store.route(
+      'session',
+      'thread',
+      page('main', 0, { items: [officialTurn('running-turn', 'running-prompt', 1, 'running')] }),
+    )
+    void store.send({
+      deliverAs: 'turn',
+      port,
+      threadId: 'thread',
+      text: '还有一句在等回执',
+      assets: [],
+      configuration: [],
+      skills: [],
+    })
+    await Promise.resolve()
+
+    failed({
+      sessionId: 'session',
+      message: 'agent 连接已断开，本轮已终止，请重试',
+      /* 真的失败了，不是掉帧那种。 */
+      degraded: false,
+    })
+
+    /*
+     * 屏幕必须真的**停下来**：`status` 不再是在飞的那几档。
+     *
+     * 这一条是本次修复的要害 —— 只收 `operation` 的话，转圈由 timeline 说了算，
+     * 屏幕上照旧永远「正在处理」（实测过：提交键变成「正在停止」然后消失，只能重启）。
+     */
+    expect(canCancel(store.read('thread'))).toBe(false)
+    expect(['submitted', 'running', 'cancelling']).not.toContain(store.read('thread').status)
+
+    /*
+     * 封条那一行也认这一格：它读的是 `active.run.settled`（timeline-contract 的
+     * TurnPage.run）。不改的话屏幕上照旧「正在处理」，只有输入框那一栏知道出了事。
+     */
+    expect(store.read('thread').timeline.active.run?.settled).toBe(true)
+
+    /* 提交收成失败（不再挂着「提交中」），并且原生侧那句话原样上屏。 */
+    expect(store.read('thread').submissions.map((entry) => entry.phase)).toEqual(['failed'])
+    expect(store.read('thread').operation).toEqual({
+      kind: 'failed',
+      message: 'agent 连接已断开，本轮已终止，请重试',
+      blocks: false,
+      indeterminate: false,
+    })
+    store.dispose()
+  })
+
+  /*
+   * **本轮修复的要害**：本机那条「这一轮终止了」必须熬得过下一次投影。
+   *
+   * `timeline` 是 agent 快照的纯投影，`#publish` 每来一次快照就整块重算。把本机事实
+   * 写进上一份 `timeline` 是**假修复**：下一次投影把它冲掉，屏幕退回「正在处理」。
+   * 所以这条判据住在自己的一格里，并在投影之后就地补上。
+   */
+  test('a locally settled turn survives the next projection', async () => {
+    let failed: (run: RunFailed) => void = () => {
+      throw new Error('Not subscribed.')
+    }
+    let publish: (signal: TranscriptSignal) => void = () => {
+      throw new Error('Not subscribed.')
+    }
+    /* reset 之后紧跟一条 ops：投影会被整块重算，本机那条事实必须还在。 */
+    const store = new TranscriptStore()
+    const replicaSettle = () => new Promise((resolve) => setTimeout(resolve, 20))
+    /* `subscribeTranscript` 在 transcript 端口上，`subscribeRunFailed` 在会话端口上。 */
+    const port = sessionPort(
+      transcriptPort({
+        subscribeTranscript: (listener) => {
+          publish = listener
+          return () => undefined
+        },
+        readTranscript: async (_session, agent) =>
+          page(agent, 0, { items: [officialTurn('run-turn', 'run-prompt', 1, 'running')] }),
+      }),
+      {
+        subscribeRunFailed: (listener) => {
+          failed = listener
+          return () => undefined
+        },
+      },
+    )
+    store.ensure(port)
+    store.route(
+      'session',
+      'thread',
+      page('main', 0, { items: [officialTurn('run-turn', 'run-prompt', 1, 'running')] }),
+    )
+    await Promise.resolve()
+
+    expect(store.read('thread').status).toBe('running')
+
+    failed({
+      sessionId: 'session',
+      message: 'agent 连接已断开，本轮已终止，请重试',
+      /* 真的失败了，不是掉帧那种。 */
+      degraded: false,
+    })
+    expect(store.read('thread').timeline.active.run?.settled).toBe(true)
+
+    /* 再来一次投影（agent 已经死了，快照还是老样子）—— 收口必须还在。 */
+    publish({ kind: 'reset', sessionId: 'session', agentId: 'main', seq: undefined })
+    await replicaSettle()
+    await Promise.resolve()
+    expect(store.read('thread').timeline.active.run?.settled).toBe(true)
+    expect(store.read('thread').status).toBe('failed')
+    store.dispose()
+  })
+
+  /*
+   * 收口只能管**那一次**失败，不能管这条会话的余生。
+   *
+   * 判据住在会话名下、不放掉，于是它会对这条会话**之后每一次投影**都生效 ——
+   * 新一轮真的在跑（agent 又活了，快照里它就是 running）也会被强行收成「已处理」：
+   * 转圈不出现、封条说已完成，而那一轮其实还在跑。
+   */
+  test('a later genuinely running turn is not mistaken for the failed one', async () => {
+    let failed: (run: RunFailed) => void = () => {
+      throw new Error('Not subscribed.')
+    }
+    let publish: (signal: TranscriptSignal) => void = () => {
+      throw new Error('Not subscribed.')
+    }
+    const store = new TranscriptStore()
+    const settle = () => new Promise((resolve) => setTimeout(resolve, 20))
+    const port = sessionPort(
+      transcriptPort({
+        subscribeTranscript: (listener) => {
+          publish = listener
+          return () => undefined
+        },
+        /* 第二轮是**另一轮**：编号也必须不同，否则它本来就是同一轮。 */
+        readTranscript: async (_session, agent) =>
+          page(agent, 0, {
+            items: [
+              officialTurn('old-turn', 'old-prompt', 1, 'running'),
+              officialTurn('new-turn', 'new-prompt', 2, 'running'),
+            ],
+          }),
+      }),
+      {
+        subscribeRunFailed: (listener) => {
+          failed = listener
+          return () => undefined
+        },
+      },
+    )
+    store.ensure(port)
+    store.route(
+      'session',
+      'thread',
+      page('main', 0, { items: [officialTurn('old-turn', 'old-prompt', 1, 'running')] }),
+    )
+    await settle()
+    failed({
+      sessionId: 'session',
+      message: 'agent 连接已断开，本轮已终止，请重试',
+      /* 真的失败了，不是掉帧那种。 */
+      degraded: false,
+    })
+    expect(store.read('thread').timeline.active.run?.settled).toBe(true)
+
+    /* agent 回来了，**下一轮**真的在跑（另一轮，另一个编号）。 */
+    publish({ kind: 'reset', sessionId: 'session', agentId: 'main', seq: undefined })
+    await settle()
+    expect(store.read('thread').timeline.active.run?.settled).toBe(false)
+    expect(store.read('thread').status).toBe('running')
+    store.dispose()
+  })
+
+  /*
+   * 掉帧的那种「失败」不是失败：那一轮**跑完了**，只是我们自己的帧记录有损。
+   *
+   * 两者都要收尾（都不会再有帧了），但只有真失败该报错 —— 把内部诊断当横幅弹出去，
+   * 跑完的一轮看起来就像崩了。
+   */
+  test('a lossy capture settles the turn without reporting a failure', async () => {
+    let failed: (run: RunFailed) => void = () => {
+      throw new Error('Not subscribed.')
+    }
+    const store = new TranscriptStore()
+    const port = sessionPort(transcriptPort(), {
+      subscribeRunFailed: (listener) => {
+        failed = listener
+        return () => undefined
+      },
+      prompt: () => new Promise(() => undefined),
+    })
+    store.ensure(port)
+    store.route(
+      'session',
+      'thread',
+      page('main', 0, { items: [officialTurn('lossy-turn', 'lossy-prompt', 1, 'running')] }),
+    )
+    const before = store.read('thread').operation
+
+    failed({
+      sessionId: 'session',
+      message: 'the frame journal dropped 3 frames of this turn',
+      degraded: true,
+    })
+
+    /* 收尾照做：那一轮结束了，转圈要停。 */
+    expect(store.read('thread').timeline.active.run?.settled).toBe(true)
+    /* 但不报错：内部诊断不该变成失败横幅。 */
+    expect(store.read('thread').operation).toEqual(before)
+    store.dispose()
+  })
+
+  /* 不属于这条对话的会话号不该动它：与掉单同一条理由（按号认领）。 */
+  test('a run failure for another session leaves this conversation alone', async () => {
+    let failed: (run: RunFailed) => void = () => {
+      throw new Error('Not subscribed.')
+    }
+    const store = new TranscriptStore()
+    const port = sessionPort(transcriptPort(), {
+      subscribeRunFailed: (listener) => {
+        failed = listener
+        return () => undefined
+      },
+      prompt: () => new Promise(() => undefined),
+    })
+    store.ensure(port)
+    store.route('session', 'thread', page())
+    void store.send({
+      deliverAs: 'turn',
+      port,
+      threadId: 'thread',
+      text: '等着',
+      assets: [],
+      configuration: [],
+      skills: [],
+    })
+    await Promise.resolve()
+
+    failed({
+      sessionId: 'another-session',
+      message: 'agent 连接已断开，本轮已终止，请重试',
+      degraded: false,
+    })
+
+    expect(store.read('thread').submissions.map((entry) => entry.phase)).toEqual(['submitting'])
     store.dispose()
   })
 

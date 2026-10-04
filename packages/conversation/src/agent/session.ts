@@ -69,6 +69,24 @@ export interface DroppedPrompt {
   readonly text: string
 }
 
+/**
+ * 本机判定的一轮失败（agent 连接断开、进程没了）。
+ *
+ * `message` 是原生侧写好的那句人话（`book.fail_active` 给的那一条），原样上屏：
+ * 它是这条事实唯一说得清「为什么」的地方，这一层不再编第二句。
+ */
+export interface RunFailed {
+  readonly sessionId: string
+  readonly message: string
+  /**
+   * 这一轮**跑完了**，只是本机的帧记录掉了帧。
+   *
+   * 与「这一轮失败了」分开：两者都要收尾（那一轮都不会再有帧了），
+   * 但只有后者该报错 —— 这里的 `message` 是内部诊断，不是给人看的话。
+   */
+  readonly degraded: boolean
+}
+
 /** 改队列模式；缺席的格不改。 */
 export interface DeliveryModePatch {
   readonly steeringMode?: MessageQueueMode
@@ -106,6 +124,16 @@ export interface AgentSessionPort {
    * 按正文在全部对话里找，等于让两条打了同一句话的对话互相认领。
    */
   readonly subscribePromptDropped: (listener: (dropped: DroppedPrompt) => void) => () => void
+  /**
+   * 本机判定的轮终失败：agent 连接断开、进程没了。
+   *
+   * **这不是 agent 说的，是我们自己发现的**。屏幕上的轮终只认 agent 的 transcript，
+   * 而 agent 已经死了 —— 那条通道再也不会有帧。不收这一条，那一轮就永远转下去：
+   * 没有错误、没有发送键、只能重启应用。
+   *
+   * 带 `sessionId`：按会话认领（与 `subscribePromptDropped` 同一条理由）。
+   */
+  readonly subscribeRunFailed: (listener: (failed: RunFailed) => void) => () => void
   readonly abortPrompt: (threadId: ThreadId, promptId: string) => Promise<void>
   readonly resolvePermission: (requestId: string, answer: ApprovalAnswer) => Promise<void>
   readonly answerQuestions: (response: QuestionResponse) => Promise<void>

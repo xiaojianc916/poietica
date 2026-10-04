@@ -12,6 +12,7 @@ import type {
   PromptDelivery,
   PromptSkill,
   QueuedMessages,
+  RunFailed,
 } from '../agent/session'
 import type { TurnMark } from '../agent/thread'
 import type { TranscriptPage, TranscriptSignal } from '../agent/transcript'
@@ -69,8 +70,29 @@ export function canCancel(transcript: Transcript): boolean {
   return selectIsBusy(transcript.timeline) || deliveryUnknown(transcript)
 }
 
+/**
+ * 把时间线上那一轮标成已结束（本机判定它再也不会动了）。
+ *
+ * 只动 `active.run.settled`：其余（items、usage、spans）是 agent 说过的事实，
+ * 我们无权改写。`run` 缺席时什么都不做 —— 那一轮本来就没在跑。
+ */
+function settleActiveRun(timeline: TimelineState): TimelineState {
+  const run = timeline.active.run
+
+  if (run === undefined || run.settled) {
+    return timeline
+  }
+
+  return {
+    ...timeline,
+    status: 'failed',
+    active: { ...timeline.active, run: { ...run, settled: true } },
+  }
+}
+
 function activityOf(transcript: Transcript): RunStatus {
   const busy = selectIsBusy(transcript.timeline)
+
   if (busy && transcript.operation.kind === 'cancelling') {
     return 'cancelling'
   }
@@ -164,6 +186,7 @@ export class TranscriptStore implements TranscriptSink {
   #off: (() => void) | null = null
   #offQueue: (() => void) | null = null
   #offDropped: (() => void) | null = null
+  #offRunFailed: (() => void) | null = null
   #disposed = false
   #serial = 0
 
@@ -305,6 +328,7 @@ export class TranscriptStore implements TranscriptSink {
     this.#off = port.transcript.subscribeTranscript((signal) => this.#accept(signal))
     this.#offQueue = port.subscribeQueue((queue) => this.#acceptQueue(queue))
     this.#offDropped = port.subscribePromptDropped((dropped) => this.#acceptDropped(dropped))
+    this.#offRunFailed = port.subscribeRunFailed((failed) => this.#acceptRunFailed(failed))
     this.#port = port
   }
 
@@ -317,10 +341,12 @@ export class TranscriptStore implements TranscriptSink {
       this.#off?.()
       this.#offQueue?.()
       this.#offDropped?.()
+      this.#offRunFailed?.()
     } finally {
       this.#off = null
       this.#offQueue = null
       this.#offDropped = null
+      this.#offRunFailed = null
       this.#port = null
       for (const queue of this.#queues.values()) {
         queue.dispose()
@@ -404,6 +430,109 @@ export class TranscriptStore implements TranscriptSink {
       submissions: transcript.submissions.map((entry, index) =>
         index === hit ? { ...entry, phase: 'failed' as const } : entry,
       ),
+    })
+  }
+
+  /**
+   * 本机说这一轮失败了（agent 连接断开、进程没了）。
+   *
+   * 与 `#acceptDropped` 同一件事的**更大一号**：那一条收的是「这一句没送出去」，
+   * 这一条收的是「整轮终止了」。两者都必须收，因为屏幕上的轮终只认 agent 的
+   * transcript —— 而 agent 已经死了，那条通道再也不会有帧。
+   *
+   * 不收的后果实测过：那一轮永远转下去，提交键变成「正在停止」然后消失，
+   * 连发送键都没有了，只能重启应用。
+   *
+   * 判据是**会话号**（与 dropped 同一条理由）：这条事件按会话到，得先认出它属于哪条对话。
+   */
+  /*
+   * 本机判定「这一轮终止了」的那条事实。
+   *
+   * **它是本机的事实，不是 agent 快照的投影** —— 所以它必须住在自己的一格里，
+   * 不能写进 `timeline`：`#publish` 每来一次快照就把 `timeline` 整块重算并覆盖，
+   * 写进去的判据会被下一次投影冲掉，屏幕退回「正在处理」。
+   *
+   * 生效点在 `#publish`：投影之后就地收口，投影本身保持是纯函数。
+   */
+  /*
+   * 会话号 → **被本机收掉的那一轮的编号**。
+   *
+   * 存编号而不是一个布尔：这条事实管的是「那一轮已经终止」，不是「这条会话废了」。
+   * 后来的轮次是**另一轮**，它该怎么显示由 agent 的投影说了算 —— 不存编号就会把
+   * 之后每一轮都强行收成已结束（转圈不出现、封条说已完成，而那一轮其实还在跑）。
+   * 编号一变这条事实就自然失效，不必另设清理时机。
+   */
+  #runFailed = new Map<string, number>()
+
+  /**
+   * 把本机那条「这一轮终止了」贴到时间线上。
+   *
+   * **唯一的实现**，两个调用点：`#acceptRunFailed`（事实刚到的这一刻）与 `#publish`
+   * （每一次投影之后）。后者不能省：`timeline` 是快照的重算产物，只贴一次会被下一次
+   * 投影冲掉，屏幕退回「正在处理」。
+   *
+   * 只贴给**被收掉的那一轮**（按编号认）。后来的轮次是另一轮，由 agent 的投影说了算。
+   */
+  #withRunFailed(sessionId: string | undefined, timeline: TimelineState): TimelineState {
+    if (sessionId === undefined) {
+      return timeline
+    }
+
+    /* 编号对不上就是另一轮了：那条事实与它无关，让它按 agent 的投影显示。 */
+    if (this.#runFailed.get(sessionId) !== timeline.active.turn) {
+      return timeline
+    }
+
+    return settleActiveRun(timeline)
+  }
+
+  #acceptRunFailed = ({ sessionId, message, degraded }: RunFailed): void => {
+    if (this.#disposed) {
+      return
+    }
+    const key = this.ownerOf(sessionId)
+    if (key === undefined) {
+      return
+    }
+    const transcript = this.#held.get(key)
+    if (transcript === undefined) {
+      return
+    }
+
+    /* 记在会话名下：下一次投影（以及任何一次投影）都会把它重新应用上去。 */
+    this.#runFailed.set(sessionId, transcript.timeline.active.turn)
+
+    /*
+     * 把还在等回执的那几条提交一并收成失败：这一轮已经没有回执可等了。
+     * 已经定了性的（failed / delivered）不动 —— 收第二次会让屏幕上那条记录改口。
+     */
+    const settled = transcript.submissions.map((entry) =>
+      entry.phase === 'submitting' ? { ...entry, phase: 'failed' as const } : entry,
+    )
+
+    this.#put(key, {
+      ...transcript,
+      restoring: false,
+      /* 事实刚到：立刻贴上（这一刻还没有下一次投影）。 */
+      timeline: this.#withRunFailed(sessionId, transcript.timeline),
+      /*
+       * 收尾对两种都做（那一轮都不会再有帧了），报错只对真失败做。
+       *
+       * `degraded` 是「这一轮跑完了，只是我们自己的帧记录掉了帧」—— 那种时候
+       * `message` 是一句内部诊断（英文、带帧数），弹成失败横幅会让跑完的一轮看起来
+       * 像崩了。原样留着 `operation`，屏幕照常显示这一轮已完成。
+       */
+      ...(degraded
+        ? {}
+        : {
+            operation: {
+              kind: 'failed' as const,
+              message,
+              blocks: false,
+              indeterminate: false,
+            },
+          }),
+      submissions: settled,
     })
   }
 
@@ -841,7 +970,21 @@ export class TranscriptStore implements TranscriptSink {
     const turns = snapshot.items.filter((item) => item.kind === 'turn')
     const owner = this.#owners.get(thread)
     const media = owner === undefined ? undefined : this.#media.get(owner.sessionId)
-    const timeline = projectTranscript(snapshot, media)
+    /*
+     * 投影是纯的；本机那条「这一轮已经终止」在这里补上。
+     *
+     * 补在这里而不是写进上一份 `timeline`：`timeline` 每次都由快照重算，
+     * 上一份连同写进去的判据一起被丢掉 —— 屏幕会退回「正在处理」。
+     */
+    const projected = projectTranscript(snapshot, media)
+    /*
+     * 投影是纯的；本机那条「这一轮已经终止」在这里补上。
+     *
+     * **这是唯一的收口点。** 写进上一份 `timeline` 是假修复：`timeline` 每次都由快照
+     * 重算，那一份连同写进去的判据一起被丢掉，屏幕退回「正在处理」。
+     * 收在一处，这条不变量才可证 —— 两处都写就分不清是谁生效。
+     */
+    const timeline = this.#withRunFailed(owner?.sessionId, projected)
     if (owner !== undefined) {
       this.#requestMedia(thread, agentId, owner.sessionId, snapshot)
     }

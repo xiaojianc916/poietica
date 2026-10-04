@@ -41,7 +41,15 @@ async function reportPreviousNativeCrash(): Promise<void> {
   try {
     report = await takePreviousNativeCrashReport()
   } catch (error: unknown) {
-    /* 旧崩溃报告读不出来不能拦住一次健康启动；当前失败在原生日志里仍有记录。 */
+    /*
+     * 宿主还没提供这条能力是**当前已知状态**（crash-report.ts 头注释），不是失败。
+     * 它每次启动都会缺席 —— 记成 error 的结果是日志里每次开机多一条假错误，
+     * 真正的失败被埋在它后面。读的时候真出错才记。
+     */
+    if (error instanceof Error && error.name === 'NativeCrashReportUnavailable') {
+      return
+    }
+
     console.error('[Poietica] Failed to inspect previous native crash report', error)
 
     return

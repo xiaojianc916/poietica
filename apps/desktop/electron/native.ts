@@ -10,6 +10,8 @@ export interface NativeHostPaths {
   readonly dataRoot: string
   readonly homeDirectory: string
   readonly bundledDirectory: string
+  /** Electron 的 app.getPath('logs')；主进程与原生侧写的是同一个目录。 */
+  readonly logDirectory: string
 }
 
 export interface NativeHost {

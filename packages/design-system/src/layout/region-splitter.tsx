@@ -232,6 +232,21 @@ export function RegionSplitter({
 
         const element = event.currentTarget
 
+        /*
+         * 先拿捕获，再登记会话。
+         *
+         * 反过来的话，`setPointerCapture` 一抛（指针已经不在了 —— 这个调用按规范会抛
+         * NotFoundError）就会把 `session.current` 留在一个非空的值上，而上面那道
+         * `session.current !== null` 闸门从此永远为真：这条分隔线**再也拖不动**。
+         * 一次平台调用失败不该让面板宽度永久锁死。
+         */
+        try {
+          element.setPointerCapture(event.pointerId)
+        } catch {
+          /* 拿不到捕获就不开始这次拖拽：按一下没反应，好过之后再也按不动。 */
+          return
+        }
+
         session.current = {
           pointerId: event.pointerId,
           element,
@@ -241,7 +256,6 @@ export function RegionSplitter({
         }
 
         onActivity('drag')
-        element.setPointerCapture(event.pointerId)
       }}
       onPointerEnter={() => {
         if (session.current === null) {

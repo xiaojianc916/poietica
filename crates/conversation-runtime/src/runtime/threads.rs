@@ -234,13 +234,13 @@ impl<E: RuntimeFailure> Runtime<E> {
                     })
                     .await
                     {
-                        log::warn!(
+                        tracing::warn!(
                             "confirmed archive remains due because acknowledgement failed: {error}"
                         );
                     }
                 }
                 Err(error) => {
-                    log::warn!("archive intent remains durable after remote failure: {error}");
+                    tracing::warn!("archive intent remains durable after remote failure: {error}");
                 }
             }
         }
@@ -276,7 +276,7 @@ impl<E: RuntimeFailure> Runtime<E> {
         match reclaimed {
             Ok(reclaimed) => Ok(reclaimed),
             Err(error) => {
-                log::warn!("conversation deleted; resource cleanup failed: {error}");
+                tracing::warn!("conversation deleted; resource cleanup failed: {error}");
                 Ok(DeletedThread {
                     attachments: Vec::new(),
                     workspace: None,

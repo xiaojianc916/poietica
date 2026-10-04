@@ -23,6 +23,7 @@ const INITIAL: AppSettings = {
     crashReporting: true,
     updateCheck: true,
   },
+  logging: { level: 'warn' },
 }
 
 function manualScheduler() {

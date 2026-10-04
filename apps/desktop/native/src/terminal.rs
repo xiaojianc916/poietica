@@ -60,7 +60,7 @@ fn sink() -> TerminalSink {
 
         match serde_json::to_value(&streamed) {
             Ok(payload) => crate::transport::emit("terminal_streamed", &payload),
-            Err(error) => log::warn!("terminal output could not be encoded: {error}"),
+            Err(error) => tracing::warn!("terminal output could not be encoded: {error}"),
         }
     })
 }

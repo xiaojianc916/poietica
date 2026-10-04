@@ -226,7 +226,9 @@ pub async fn git_watch_start(root: String) -> Result<GitWatchLease, Problem> {
                     Ok(payload) => {
                         crate::transport::emit("git_working_tree_changed", &payload);
                     }
-                    Err(error) => log::warn!("could not announce a working-tree change: {error}"),
+                    Err(error) => {
+                        tracing::warn!("could not announce a working-tree change: {error}");
+                    }
                 }
             }),
         )

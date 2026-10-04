@@ -33,16 +33,14 @@ repository = "https://github.com/xiaojianc916/poietica"
 publish = false
 
 [workspace.dependencies]
-croner = "=4.0.0"
+croner = "4.0.1"
 chrono = "0.4.42"
 chrono-tz = "0.10.4"
-iana-time-zone = "0.1.64"
+iana-time-zone = "0.1.65"
 schemars = "1.2.2"
 axum = "0.8.9"
 rmcp = { version = "3.1.2", features = ["server", "macros", "schemars", "transport-streamable-http-server"] }
 # Error handling
-anyhow = "1.0.98"
-log = "0.4.27"
 thiserror = "2.0.12"
 
 # Async runtime
@@ -56,51 +54,37 @@ tokio-util = { version = "0.7.15", features = ["rt"] }
 # Serialization and validation
 serde = { version = "1.0.219", features = ["derive"] }
 serde_json = "1.0.140"
-serde_with = "3.13.0"
-toml = "0.8.23"
-
-# 保留格式的原地 TOML 编辑。
-#
-# 与上面的 toml 不是重复：toml 是「反序列化成结构体」，往回写会重排键序、丢掉注释
-# 与空行。我们要改的是 agent 自己的 config.toml —— 那是用户和 agent 自己都在写的
-# 文件，把它重排一遍等于把别人的东西弄乱。
-#
-# 业界标杆同款：Zed 根 Cargo.toml 逐字 toml_edit = { version = "0.22", ... }，
-# tooling/xtask/src/tasks/publish_gpui.rs 逐字
-# toml_contents.parse::<toml_edit::DocumentMut>() 之后 package.insert(...)。
-#
-# 不开 serde feature：我们不做结构体映射，只按名字改一个标量键。
-toml_edit = { version = "0.22.27", default-features = false, features = [
-  "display", "parse",
-] }
 url = { version = "2.5.4", features = ["serde"] }
 
 # Stable identifiers and time
 time = { version = "0.3.41", features = [
   "formatting", "local-offset", "macros", "parsing", "serde",
 ] }
-uuid = { version = "1.16.0", features = ["serde", "v4", "v7"] }
+uuid = { version = "1.27.0", features = ["serde", "v4", "v7"] }
 
 # File, archive and content-addressed storage
 hex = "0.4.3"
-sha2 = "0.10.9"
+sha2 = "0.11.0"
 tempfile = "3.20.0"
 trash = "5.2.6"
 walkdir = "2.5.0"
-zip = { version = "4.0.0", default-features = false, features = [
+zip = { version = "8.6.0", default-features = false, features = [
   "deflate", "time", "zstd",
 ] }
-zstd = "0.13.3"
 
-# Native file locking and watching
-fs2 = "0.4.3"
-notify = "8.0.0"
+# File watching
+notify = "8.2.0"
 
 # Plugin signature and integrity verification
-base64 = "0.22.1"
+base64 = "0.23.1"
 
-# Observability
-
+# 观测：事件面是 tracing 的（tokio.rs 那一份），落盘是 tracing-subscriber + tracing-appender。
+#
+# 以前这里是空的，落盘由 apps/desktop/native/src/log_file.rs 手写：JSON 拼接、4MB 轮转、
+# 级别闸门、脱敏各一份。换成这一套之后那 595 行只剩「装订阅器」与「一条脱敏闸门」。
+tracing = "0.1.44"
+tracing-subscriber = { version = "0.3.23", features = ["env-filter"] }
+tracing-appender = "0.2.5"
 
 # HTTP 客户端，全仓一份：厂商密钥探测、插件目录抓取、更新清单与载荷下载都走它。
 #
@@ -138,10 +122,6 @@ napi-build = "2"
 # 大小写转换：契约导出要把 Rust 的 snake_case 命令名写成 TypeScript 的 lowerCamelCase。
 # 自己写一份就是第二份命名规则，而命名规则必须与渲染层看到的一致。
 heck = "0.5"
-
-# Testing
-proptest = "1.7.0"
-rstest = "0.25.0"
 
 # Local storage
 #

@@ -190,6 +190,20 @@ export function createAgentSessionPort({
         onListenFailure,
       ),
 
+    /* 与上游那条同形：本机判定的一轮失败，带会话号交回上层认领。 */
+    subscribeRunFailed: (listener) =>
+      subscribeToSessionEvent(
+        'runFailed',
+        (payload) => {
+          listener({
+            sessionId: payload.sessionId,
+            message: payload.message,
+            degraded: payload.degraded,
+          })
+        },
+        onListenFailure,
+      ),
+
     abortPrompt: async (threadId, promptId) => {
       await throughIpc(() => commands.agentAbortPrompt({ threadId, promptId }))
     },

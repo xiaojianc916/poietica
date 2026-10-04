@@ -14,7 +14,7 @@ poietica-automation = { path = "../automation" }
 poietica-conversation = { path = "../conversation" }
 poietica-ledger = { path = "../ledger" }
 poietica-time = { path = "../time" }
-log.workspace = true
+tracing.workspace = true
 tokio.workspace = true
 tokio-util.workspace = true
 

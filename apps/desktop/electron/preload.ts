@@ -43,6 +43,8 @@ interface HostBridge {
   notify(request: { title: string; body: string }): Promise<void>
   setTheme(preference: 'light' | 'dark' | 'system'): Promise<'light' | 'dark'>
   setSurfaceColor(color: readonly [number, number, number]): Promise<void>
+  /** 日志闸门。改一次就重开一次，不必重启应用。 */
+  setLogLevel(level: string): Promise<void>
   onMaximizedChanged(handler: (isMaximized: boolean) => void): Unsubscribe
   onCloseRequested(handler: () => void): Unsubscribe
   onTerminationRequested(handler: () => void): Unsubscribe
@@ -72,8 +74,18 @@ async function invoke(channel: string, ...args: readonly unknown[]): Promise<unk
   const problem = reply['problem']
 
   if (isRecord(problem)) {
-    // 裸对象照原样上抛：packages/problem 的 isProblem 只按形状认。
-    throw Object.assign(new Error(`poietica: ${String(problem['code'])}`), { problem })
+    /*
+     * 抛的是**裸对象**，不是挂着 problem 的 Error。
+     *
+     * contextBridge 只搬运结构化克隆得动的东西，而 Error 的自定义属性过不去：实测
+     * `Object.getOwnPropertyNames(thrown)` 只剩 `['stack','message']`，`problem` 整格丢失。
+     * 于是 throughIpc 那两处 `isProblem` 都认不出来（packages/native-bridge/src/ipc-error.ts），
+     * 屏幕上是 `Error: poietica: agentRejected` 这样一句码 —— 而 details.reason 才是原因。
+     *
+     * 裸对象是结构化克隆的原生支持，过桥后形状不变（`isProblem` 本来就按形状认）。
+     * 代价只有一个：它带得出码，带不出栈 —— 而栈在原生侧与日志里都有，码在渲染层没有替身。
+     */
+    throw problem
   }
 
   throw new Error(typeof reply['message'] === 'string' ? reply['message'] : 'poietica: internal')
@@ -295,6 +307,14 @@ const bridge: PoieticaBridge = {
       }
 
       return invoke('poietica:set-surface', color).then(() => undefined)
+    },
+
+    setLogLevel(level) {
+      if (typeof level !== 'string' || level.length === 0) {
+        return Promise.reject(new Error('poietica: requestInvalid — 日志级别必须是非空字符串'))
+      }
+
+      return invoke('poietica:set-log-level', level).then(() => undefined)
     },
 
     onMaximizedChanged(handler) {

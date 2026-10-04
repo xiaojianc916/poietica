@@ -90,7 +90,7 @@ impl Runtime {
 impl Drop for Runtime {
     fn drop(&mut self) {
         if let Err(error) = self.stop() {
-            log::error!("automation shutdown failed: {error}");
+            tracing::error!("automation shutdown failed: {error}");
         }
     }
 }
@@ -113,7 +113,7 @@ where
             })
             .await
             {
-                log::error!("automation schedule could not commit: {error}");
+                tracing::error!("automation schedule could not commit: {error}");
             }
         }
         Err(error) => {
@@ -154,11 +154,11 @@ async fn drive<E, X, C, P>(
                 if let Some(joined) = joined {
                     let id = match joined {
                         Ok((id, result)) => {
-                            if let Err(error) = result { log::error!("automation execution could not commit: {error}"); }
+                            if let Err(error) = result { tracing::error!("automation execution could not commit: {error}"); }
                             id
                         }
                         Err(error) => {
-                            log::error!("automation operation stopped without a terminal observation: {error}");
+                            tracing::error!("automation operation stopped without a terminal observation: {error}");
                             error.id()
                         }
                     };
@@ -176,7 +176,7 @@ async fn drive<E, X, C, P>(
         let state = match state {
             Ok(state) => state,
             Err(error) => {
-                log::error!("automation catalog could not be reconciled: {error}");
+                tracing::error!("automation catalog could not be reconciled: {error}");
                 continue;
             }
         };
@@ -222,7 +222,7 @@ async fn drive<E, X, C, P>(
         if let Err(error) = result
             && !error.is_cancelled()
         {
-            log::error!("automation operation shutdown failed: {error}");
+            tracing::error!("automation operation shutdown failed: {error}");
         }
     }
 }

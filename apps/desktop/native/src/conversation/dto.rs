@@ -298,6 +298,21 @@ pub enum AgentSessionEvent {
     /// 这里（它走 questions_asked，产品形状，由提问桌收答复）。
     #[serde(rename_all = "camelCase")]
     Dialog { session_id: String, request: Value },
+    /// 本机判定的轮终失败（agent 连接断开、进程没了）。
+    ///
+    /// 这不是 agent 说的，是**我们自己发现的**：连接被 retire 时 `book.fail_active` 已经
+    /// 把这一轮收成失败并落了账，但那条事实从前只进账本、不回屏幕 —— 屏幕上的轮终只认
+    /// agent 的 transcript，而 agent 已经死了，那条通道再也不会有帧。
+    ///
+    /// 于是「agent 中途被杀」会留下一个永远转下去的轮：没有错误、没有发送键、只能重启。
+    /// 这条事件就是把账本里那句已经写好的话交到屏幕上。
+    #[serde(rename_all = "camelCase")]
+    RunFailed {
+        session_id: String,
+        message: String,
+        /// 这一轮跑完了，只是本机的帧记录掉了帧：屏幕该收尾，但不该报错。
+        degraded: bool,
+    },
 }
 
 #[derive(Debug, Deserialize, Type)]

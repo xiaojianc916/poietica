@@ -166,6 +166,17 @@ fn commit(
     staging_root: Option<&Path>,
     prepared: &[Prepared],
 ) -> Result<Vec<ImportedAsset>, AssetIntakeError> {
+    /*
+     * 会话必须先认下来 —— **整批都认，不只是图片那一批**。
+     *
+     * 从前这里只在 `image_entries` 非空时才 `register`，而 `register` 正是唯一检查
+     * 「这个会话号存在吗」的地方（registry.rs 的 `sessions.get(...).ok_or(NotFound)`）。
+     * 于是通用文件那条路**根本不校验会话号**：随便一个形状合法的串都能把文件写进
+     * 暂存根并拿到回执，而 `asset_upload` 对同一个假会话号是如实拒绝的。
+     *
+     * 空批也不例外：`asset_import` 收一个空路径表时同样要问一句「这个会话成立吗」。
+     */
+    registry.open_existing(session)?;
     let image_entries: Vec<AssetSessionSnapshotEntry> = prepared
         .iter()
         .filter_map(|item| item.entry.clone())
@@ -235,6 +246,35 @@ mod tests {
             0,
             "失败的整批不许在暂存根留下字节"
         );
+    }
+
+    /// 通用文件那条路也要认会话号。
+    ///
+    /// 判例：从前只有图片那批会走 `registry.register`，而那正是唯一检查「会话开过没有」
+    /// 的地方 —— 于是随便一个形状合法的假会话号都能把文件写进暂存根、拿到回执，
+    /// 而 `asset_upload` 对同一个假号是如实拒绝的。
+    #[test]
+    fn a_file_import_needs_a_session_that_was_really_opened() {
+        let directory = TempDir::new().expect("directory");
+        let staging = TempDir::new().expect("staging");
+        let file = directory.path().join("attachment.txt");
+        fs::write(&file, "attachment body").expect("fixture");
+        let paths = [file.to_string_lossy().into_owned()];
+
+        /* 没开过的号：形状完全合法，但这一批必须整批拒绝、且不留字节。 */
+        let registry = AssetProtocolRegistry::default();
+        let refused = import_files(&registry, "neveropened", staging.path(), &paths);
+        assert!(refused.is_err(), "没开过的会话号不许收下文件");
+        assert_eq!(
+            fs::read_dir(staging.path()).expect("dir").count(),
+            0,
+            "被拒的那一批不许在暂存根留下字节"
+        );
+
+        /* 开过的号照常收下。 */
+        registry.open_session("composer").expect("session");
+        let accepted = import_files(&registry, "composer", staging.path(), &paths);
+        assert!(accepted.is_ok(), "开过的会话号该照常收下");
     }
 
     #[test]

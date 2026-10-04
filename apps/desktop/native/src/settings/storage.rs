@@ -4,7 +4,9 @@ use crate::error::Result;
 use poietica_problem::Problem;
 use std::path::PathBuf;
 
-const SETTINGS_KEY: &str = "settings";
+/// 整份文档是「键 → 各家设置」的映射，应用设置只是其中一个键。
+/// `read_log_level` 在设置服务建起来之前也用它，所以是 pub(crate)。
+pub(crate) const SETTINGS_KEY: &str = "settings";
 #[derive(Debug)]
 pub(crate) struct FileSettingsRepository {
     path: PathBuf,

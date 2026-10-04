@@ -29,6 +29,8 @@ impl SettingsService {
     pub(crate) async fn save(&self, settings: AppSettings) -> Result<SettingsWriteResult, Problem> {
         let _write = self.write.lock().await;
         self.repository.save(&settings)?;
+        /* 日志闸门是进程内的一格设置：落了盘就当场生效，不必重启。 */
+        crate::log_file::set_level(settings.logging.level.as_filter());
         let application_problem = (self.apply)(settings.general.daemon).await.err();
         Ok(SettingsWriteResult {
             settings,
@@ -41,6 +43,7 @@ impl SettingsService {
     pub(crate) async fn apply_startup(&self) -> Result<(), Problem> {
         let _write = self.write.lock().await;
         let settings = self.repository.load()?;
+        crate::log_file::set_level(settings.logging.level.as_filter());
         (self.apply)(settings.general.daemon).await
     }
 }

@@ -24,5 +24,13 @@ export interface NativeCrashReport {
  * 「宿主没提供」，不兜底造一份假报告：编出来的崩溃现场比没有更坏。
  */
 export function takePreviousNativeCrashReport(): Promise<NativeCrashReport | null> {
-  return Promise.reject(new Error('poietica: 宿主还没有提供上一次原生崩溃报告'))
+  const absent = new Error('poietica: 宿主还没有提供上一次原生崩溃报告')
+
+  /*
+   * 名字是给调用方分「能力还没做」与「读的时候真出错了」用的。两者都是抛，但处置相反：
+   * 前者是当前已知状态，记进日志只会把真正的失败淹掉（见 apps/desktop/src/entry/main.tsx）。
+   */
+  absent.name = 'NativeCrashReportUnavailable'
+
+  return Promise.reject(absent)
 }

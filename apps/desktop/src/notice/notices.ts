@@ -138,14 +138,17 @@ export class NoticeStore {
       this.#publish()
     }, CLOSING_MS)
   }
+  /*
+   * 只销掉自己那一张。
+   *
+   * 从前这里是「从队首销到它为止」：早先那条失败的记录被顺手清掉，连带它的重试入口
+   * 一起消失 —— 而用户从没说过不要它。时间到只说明这一条看够了，不说明别条也看够了。
+   */
   #retire = (noticeId: string): void => {
     const operations = this.#coordinator.getSnapshot().operations
-    const index = operations.findIndex((entry) => entry.incident.id === noticeId)
-    if (index < 0) {
-      return
-    }
-    for (const entry of operations.slice(0, index + 1)) {
-      this.#coordinator.dismiss(entry.incident.id)
+
+    if (operations.some((entry) => entry.incident.id === noticeId)) {
+      this.#coordinator.dismiss(noticeId)
     }
   }
   /* 唯一写点：引用没变就不通知，useSyncExternalStore 的前提。 */

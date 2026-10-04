@@ -61,7 +61,7 @@ impl<E: RuntimeFailure> Runtime<E> {
             }),
             Err(error) => {
                 // Reporting failure does not undo an already accepted configuration.
-                log::warn!(
+                tracing::warn!(
                     "could not report the session goal after a configuration change: {error}"
                 );
             }

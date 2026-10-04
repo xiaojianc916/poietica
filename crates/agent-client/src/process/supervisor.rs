@@ -43,12 +43,12 @@ impl Drop for Spawned {
             hide_console(&mut reaper);
             match reaper.status() {
                 Ok(status) if status.success() => {}
-                Ok(status) => log::error!("emergency agent tree cleanup exited with {status}"),
-                Err(error) => log::error!("emergency agent tree cleanup failed: {error}"),
+                Ok(status) => tracing::error!("emergency agent tree cleanup exited with {status}"),
+                Err(error) => tracing::error!("emergency agent tree cleanup failed: {error}"),
             }
         }
         if let Err(error) = self.0.start_kill() {
-            log::error!("emergency agent cleanup failed: {error}");
+            tracing::error!("emergency agent cleanup failed: {error}");
         }
     }
 }

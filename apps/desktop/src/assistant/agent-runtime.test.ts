@@ -48,6 +48,7 @@ function fixture() {
       setDeliveryModes: unavailable,
       subscribeQueue: () => () => undefined,
       subscribePromptDropped: () => () => undefined,
+      subscribeRunFailed: () => () => undefined,
       abortPrompt: unavailable,
       resolvePermission: unavailable,
       answerQuestions: unavailable,

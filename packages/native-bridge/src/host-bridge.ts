@@ -27,6 +27,8 @@ export interface PoieticaHostBridge {
   /** 长任务跑完时的一声；窗口在前台时宿主什么也不做。 */
   notify(request: { readonly title: string; readonly body: string }): Promise<void>
   setSurfaceColor(color: readonly [number, number, number]): Promise<void>
+  /** 日志闸门：改一次就重开一次，不必重启应用。 */
+  setLogLevel(level: string): Promise<void>
   setTheme(preference: 'light' | 'dark' | 'system'): Promise<'light' | 'dark'>
   present(): Promise<void>
   appVersion(): Promise<string>

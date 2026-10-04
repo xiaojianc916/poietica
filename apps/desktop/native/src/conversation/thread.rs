@@ -162,7 +162,7 @@ pub async fn agent_delete_thread(request: AgentThreadRequest) -> AgentCommandRes
     let _cleanup = tokio::task::spawn_blocking(move || {
         for hash in deleted.attachments {
             if let Err(error) = forget_blob(&root, &hash) {
-                log::warn!("could not remove an unreferenced attachment: {error}");
+                tracing::warn!("could not remove an unreferenced attachment: {error}");
             }
         }
         if let Some(root) = deleted.workspace {

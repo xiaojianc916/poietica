@@ -87,12 +87,49 @@ function leafAddon(leaf: string): { source: string; name: string } {
  * 上一次跑的产物必须清掉：bundle 带出的静态资源是内容哈希命名的
  * （template-<hash>.css 等），不清就越积越多。只删条目不删 OUT 自己 ——
  * 本机它是一个 junction，删掉等于拆掉既定构建布局。
+ *
+ * **bun.exe 要重试**：上一次跑起来的 agent 边车没退干净时，Windows 还映射着那个
+ * 镜像，删除会以 EFAULT（Windows 下即 ERROR_SHARING_VIOLATION 那一类）失败 ——
+ * 而它不是构建错误，是「等一下就好」。与 tools/dev/clean.ts 同一条 MaxRetries 处置：
+ * 那个文件为同一件事（刚退出的进程仍持有文件）已经这么写了。
  */
+/* 与 tools/dev/clean.ts 同一条取值：把 fs 错误的码取出来做人话。 */
+function codeOf(value: unknown): string | undefined {
+  if (typeof value === 'object' && value !== null && 'code' in value) {
+    const code = (value as { code?: unknown }).code
+
+    if (typeof code === 'string') {
+      return code
+    }
+  }
+
+  return undefined
+}
+
 async function cleanOutputs(): Promise<void> {
   const entries = await readdir(OUT, { withFileTypes: true }).catch(() => [])
 
   for (const entry of entries) {
-    await rm(path.join(OUT, entry.name), { recursive: entry.isDirectory(), force: true })
+    const target = path.join(OUT, entry.name)
+
+    try {
+      await rm(target, {
+        force: true,
+        maxRetries: 10,
+        recursive: entry.isDirectory(),
+        retryDelay: 100,
+      })
+    } catch (error) {
+      /*
+       * 重试十次还删不掉，说明那个进程**还活着**（不是刚退出）—— 那就不是等一下的事
+       * 了，得让人知道该关掉谁。EFAULT/EPERM/EBUSY 都是这一个原因。
+       */
+      throw new Error(
+        `清了旧运行时却删不掉 ${path.relative(ROOT, target)}：${codeOf(error) ?? String(error)}\n` +
+          '它正被一个进程持有 —— 多半是上一次跑起来的 agent 边车或开发中的 Poietica。' +
+          '关掉它们再跑一次（任务管理器里找 bun.exe / electron.exe）。',
+      )
+    }
   }
 }
 

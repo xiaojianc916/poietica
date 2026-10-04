@@ -72,7 +72,7 @@ impl Drop for JournalOwner {
             && worker.thread().id() != std::thread::current().id()
             && worker.join().is_err()
         {
-            log::error!("the frame journal panicked while releasing its owner");
+            tracing::error!("the frame journal panicked while releasing its owner");
         }
     }
 }
@@ -164,7 +164,7 @@ impl FrameJournal {
             match journal.submit(JournalCommand::Frame(PendingFrame { thread, recorded })) {
                 Ok(()) => true,
                 Err(error) => {
-                    log::error!("frame admission failed: {error}");
+                    tracing::error!("frame admission failed: {error}");
                     false
                 }
             }
@@ -309,7 +309,7 @@ where
     for PendingFrame { thread, recorded } in pending {
         let index = batch_index(&mut batches, &mut indexes, thread, &recorded.session_id);
         let Some(batch) = batches.get_mut(index) else {
-            log::error!("the frame journal lost its batch index");
+            tracing::error!("the frame journal lost its batch index");
             return false;
         };
         batch
@@ -339,7 +339,7 @@ where
         let (returned, outcome) = match attempt {
             Ok(attempt) => attempt,
             Err(error) => {
-                log::error!("the ledger writer stopped: {error}");
+                tracing::error!("the ledger writer stopped: {error}");
                 return false;
             }
         };
@@ -347,19 +347,19 @@ where
         match outcome {
             Ok(envelopes) => break envelopes,
             Err(error) if delay <= Duration::from_millis(400) => {
-                log::warn!("persist agent event batch failed; retrying: {error}");
+                tracing::warn!("persist agent event batch failed; retrying: {error}");
                 std::thread::sleep(delay);
                 delay = delay.saturating_mul(2);
             }
             Err(error) => {
-                log::error!("persist agent event batch failed permanently: {error}");
+                tracing::error!("persist agent event batch failed permanently: {error}");
                 return false;
             }
         }
     };
 
     if envelopes.len() != batches.len() {
-        log::error!("the ledger returned a different number of frame batches");
+        tracing::error!("the ledger returned a different number of frame batches");
         return false;
     }
     for (batch, envelopes) in batches.into_iter().zip(envelopes) {

@@ -73,9 +73,10 @@ pub fn conversation_event(frame: RunFrame) -> ConversationEvent {
             turn: None,
             stop_reason,
         },
-        RunFrame::RunFailed { message } => ConversationEvent::RunFailed {
+        RunFrame::RunFailed { message, degraded } => ConversationEvent::RunFailed {
             turn: None,
             message,
+            degraded,
         },
     }
 }

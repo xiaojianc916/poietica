@@ -266,6 +266,7 @@ impl Recorder {
             },
             lost => RunFrame::RunFailed {
                 message: format!("the frame journal dropped {lost} frames of this turn"),
+                degraded: true,
             },
         };
 
@@ -286,6 +287,7 @@ impl Recorder {
 
         self.end_with(RunFrame::RunFailed {
             message: message.to_owned(),
+            degraded: false,
         });
     }
 

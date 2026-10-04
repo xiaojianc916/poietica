@@ -108,7 +108,7 @@ pub(crate) fn compose(
 
             match payload {
                 Ok(payload) => crate::transport::emit(kind, &payload),
-                Err(error) => log::warn!("could not encode the session state: {error}"),
+                Err(error) => tracing::warn!("could not encode the session state: {error}"),
             }
         },
     ))

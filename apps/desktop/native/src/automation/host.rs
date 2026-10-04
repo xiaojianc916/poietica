@@ -3,7 +3,6 @@ use crate::{
     ledger::LocalIndex,
     paths,
 };
-use fs2::FileExt;
 use poietica_automation::{AutomationCatalog, AutomationError, Command};
 use poietica_automation_runtime::{Runtime, catalog};
 use poietica_time::wall_clock::SystemWallClock;
@@ -56,7 +55,7 @@ fn publish(catalog: AutomationCatalog) -> bool {
             true
         }
         Err(error) => {
-            log::warn!("automation catalog notification failed after commit: {error}");
+            tracing::warn!("automation catalog notification failed after commit: {error}");
             false
         }
     }
@@ -72,7 +71,8 @@ fn initialize(
         .read(true)
         .write(true)
         .open(paths::automation_lock()?)?;
-    FileExt::try_lock_exclusive(&ownership)
+    ownership
+        .try_lock()
         .map_err(|error| AutomationError::Data(format!("无法取得自动化执行权：{error}")))?;
     Runtime::start(
         index.clone(),
@@ -94,7 +94,7 @@ pub(crate) fn start(
     let (runtime, failure) = match initialize(&index, conversations) {
         Ok(runtime) => (Some(runtime), None),
         Err(error) => {
-            log::error!(
+            tracing::error!(
                 "automation initialization failed without modifying the import source: {error}"
             );
             (None, Some(error.to_string()))

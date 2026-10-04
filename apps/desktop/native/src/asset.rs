@@ -139,7 +139,7 @@ pub async fn asset_upload(request: AssetUploadRequest) -> CommandResult<AssetUpl
     })
     .await
     .map_err(|cause| {
-        log::warn!("asset ingestion task failed: {cause}");
+        tracing::warn!("asset ingestion task failed: {cause}");
         Problem::from(Error::Internal("asset ingestion task failed".into()))
     })?
 }
@@ -155,7 +155,7 @@ pub async fn asset_import(request: AssetImportRequest) -> CommandResult<Vec<Asse
     })
     .await
     .map_err(|cause| {
-        log::warn!("asset ingestion task failed: {cause}");
+        tracing::warn!("asset ingestion task failed: {cause}");
         Problem::from(Error::Internal("asset ingestion task failed".into()))
     })?
 }
@@ -174,11 +174,11 @@ impl From<ImportedAsset> for AssetUploadResult {
 }
 
 fn map_intake_error(error: AssetIntakeError) -> Problem {
-    log::warn!("asset ingestion failed: {error}");
+    tracing::warn!("asset ingestion failed: {error}");
     match error {
         AssetIntakeError::Protocol(cause) => map_asset_error(cause),
         AssetIntakeError::Blob(cause) => {
-            log::error!("an attachment could not be staged: {cause}");
+            tracing::error!("an attachment could not be staged: {cause}");
             Error::Asset("an attachment could not be stored".into()).into()
         }
         AssetIntakeError::Read(_) => Error::NotFound("file could not be read".into()).into(),
@@ -232,7 +232,7 @@ pub async fn asset_remove(request: AssetRemoveRequest) -> CommandResult<()> {
          * 记 warn 而不是 debug：这一支同样接得住拼错的图片令牌，静默会把真错误埋掉。
          */
         Ok(Removal::NotRegistered) => {
-            log::warn!("asset {} is not held by the registry", request.asset_token);
+            tracing::warn!("asset {} is not held by the registry", request.asset_token);
             Ok(())
         }
         Err(cause) => Err(map_asset_error(cause)),

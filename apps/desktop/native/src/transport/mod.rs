@@ -140,7 +140,7 @@ pub fn emit(kind: &str, payload: &Value) {
         let frame = json!({ "kind": kind, "payload": payload }).to_string();
 
         if call.call(frame, ThreadsafeFunctionCallMode::NonBlocking) != Status::Ok {
-            log::warn!("event {kind} was not delivered");
+            tracing::warn!("event {kind} was not delivered");
         }
     }
 }

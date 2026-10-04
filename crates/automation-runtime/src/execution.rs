@@ -81,13 +81,13 @@ where
                 return record(index, id, Outcome::Running, None).await;
             }
             Ok(Ok(prompt)) => {
-                log::error!("automation {id} received a different prompt identity: {prompt}");
+                tracing::error!("automation {id} received a different prompt identity: {prompt}");
             }
             Ok(Err(error)) => {
-                log::warn!("automation {id} submission failed: {error}");
+                tracing::warn!("automation {id} submission failed: {error}");
             }
             Err(error) => {
-                log::warn!("automation {id} submission receipt timed out: {error}");
+                tracing::warn!("automation {id} submission receipt timed out: {error}");
             }
         }
         return unresolved(index, id).await;
@@ -96,7 +96,7 @@ where
     let observation = match observed {
         Ok(Ok(observation)) => observation,
         Ok(Err(error)) => {
-            log::warn!("automation {id} completion read failed: {error}");
+            tracing::warn!("automation {id} completion read failed: {error}");
             return record(
                 index,
                 id,
@@ -106,7 +106,7 @@ where
             .await;
         }
         Err(error) => {
-            log::warn!("automation {id} completion read timed out: {error}");
+            tracing::warn!("automation {id} completion read timed out: {error}");
             return record(
                 index,
                 id,
@@ -137,14 +137,14 @@ where
             match tokio::time::timeout(CALL_LIMIT, executor.cancel(&execution)).await {
                 Ok(Ok(())) => (Outcome::Cancelling, "停止请求已送达，等待官方终态确认"),
                 Ok(Err(error)) => {
-                    log::warn!("automation {id} stop request failed: {error}");
+                    tracing::warn!("automation {id} stop request failed: {error}");
                     (
                         Outcome::Uncertain,
                         "停止请求未确认，仍保留取消意图；稍后继续核对",
                     )
                 }
                 Err(error) => {
-                    log::warn!("automation {id} stop request timed out: {error}");
+                    tracing::warn!("automation {id} stop request timed out: {error}");
                     (
                         Outcome::Uncertain,
                         "停止请求超时，不能宣称已取消；稍后继续核对",

@@ -166,12 +166,27 @@ impl SessionBook {
         Ok(self.book()?.keys().cloned().collect())
     }
 
-    /// Files an existing slot under a session name: the driver's first session gets its slot before any id exists.
-    pub fn adopt(&self, session_id: &str, slot: RunSlot) -> Result<()> {
+    /// Files the driver's slot under the first session name it learns.
+    ///
+    /// The driver mints one slot before any id exists (there is no name to file it under yet).
+    /// That slot may be filed exactly once: it holds the recorder of **one** run, and a recorder
+    /// is bound to one session id (`Recorder::new(id, …)`). Filing the same slot under a second
+    /// id is what makes every later session share the first session's recorder — later frames
+    /// are then shaped with the wrong id and `attach` (idempotent by design) never replaces it.
+    ///
+    /// Every session after the first therefore gets its own slot, which is the whole premise of
+    /// this book (“one slot per protocol session id”) and the reason `open` exists.
+    pub fn adopt_first(&self, session_id: &str, driver: RunSlot) -> Result<RunSlot> {
         let mut ledger = self.book()?;
-        let _replaced = ledger.insert(session_id.to_owned(), slot);
 
-        Ok(())
+        if ledger.is_empty() {
+            let _filed = ledger.insert(session_id.to_owned(), driver);
+        }
+
+        Ok(ledger
+            .entry(session_id.to_owned())
+            .or_insert_with(RunSlot::new)
+            .clone())
     }
 
     fn book(&self) -> Result<MutexGuard<'_, HashMap<String, RunSlot>>> {
@@ -222,7 +237,7 @@ mod tests {
     fn an_adopted_slot_answers_under_its_session_name() {
         let book = SessionBook::new();
 
-        assert!(book.adopt(NAME, RunSlot::new()).is_ok());
+        assert!(book.adopt_first(NAME, RunSlot::new()).is_ok());
         assert!(matches!(book.slot(NAME), Ok(Some(_))));
     }
 
@@ -231,8 +246,46 @@ mod tests {
         let book = SessionBook::new();
 
         assert!(book.open(NAME).is_ok());
-        assert!(book.adopt(NAME, RunSlot::new()).is_ok());
+        assert!(book.adopt_first(NAME, RunSlot::new()).is_ok());
         assert!(matches!(book.open_count(), Ok(1)));
+    }
+
+    /// 第二个会话必须拿到**自己**的槽。
+    ///
+    /// 判据是每号一槽（本模块的头一行）。把连接那个唯一的槽按号重复归档，会让两个会话
+    /// 共用同一个记录器：第二个号的帧带着第一个号的 id 落进账本，审批、提问、轮终也跟着
+    /// 串线 —— 而 `attach` 是幂等的，一开始装错就再也换不回来。
+    #[test]
+    fn a_second_session_gets_its_own_slot() {
+        const OTHER: &str = "session_44444444-4444-4444-8444-444444444444";
+        let book = SessionBook::new();
+        let driver = RunSlot::new();
+
+        let first = book.adopt_first(NAME, driver.clone());
+        let second = book.adopt_first(OTHER, driver.clone());
+
+        assert!(first.is_ok() && second.is_ok());
+        let (Ok(first), Ok(second)) = (first, second) else {
+            return;
+        };
+
+        assert!(first.attach(|| unreachable_test_recorder(NAME)).is_ok());
+
+        /* 第二个号没装记录器：帧还不该被它收下，装得上就说明它与第一个共用了一个槽。 */
+        assert!(
+            !second.record(|_| {}),
+            "第二个会话必须有自己的槽，不能与第一个共用记录器"
+        );
+        assert!(matches!(book.open_count(), Ok(2)));
+    }
+
+    /// 只在真被调用时炸：辅助函数的用途是证明「这条路上不该有人来」，不是构造帧。
+    fn unreachable_test_recorder(session: &str) -> Recorder {
+        Recorder::new(
+            session.to_owned(),
+            crate::recorder::SeqLine::default(),
+            Box::new(|_| true),
+        )
     }
 
     #[test]

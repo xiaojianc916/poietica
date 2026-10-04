@@ -362,9 +362,15 @@ class ElementPicker implements PickerController {
     if (this.isUiEvent(event) || this.selected !== null) {
       return
     }
-    this.hovered = getElementAtPoint(event.clientX, event.clientY, {
+    /*
+     * 只认量得出外框的候选：`getElementAtPoint` 的命中集里有文本、注释、片段这些
+     * 不是元素的节点，它们量不出矩形，后续任何一次测量都会抛 TypeError。
+     */
+    const hit = getElementAtPoint(event.clientX, event.clientY, {
       filter: (candidate) => candidate !== this.host && isElementGrabbable(candidate),
     })
+
+    this.hovered = this.boundsOf(hit) === null ? null : hit
     this.draw(this.hovered)
   }
 
@@ -375,7 +381,13 @@ class ElementPicker implements PickerController {
     event.preventDefault()
     event.stopImmediatePropagation()
     const candidate = this.hovered ?? getElementAtPoint(event.clientX, event.clientY)
-    if (candidate === null || candidate === this.host || !isElementGrabbable(candidate)) {
+
+    if (
+      candidate === null ||
+      candidate === this.host ||
+      !isElementGrabbable(candidate) ||
+      this.boundsOf(candidate) === null
+    ) {
       return
     }
     this.select(candidate)
@@ -406,6 +418,37 @@ class ElementPicker implements PickerController {
     return this.host !== null && event.composedPath().includes(this.host)
   }
 
+  /*
+   * 量一个元素的外框。
+   *
+   * `getElementBounds` 只对**元素**成立：悬停命中的可能是文本节点、注释、
+   * DocumentFragment —— 它们没有 getBoundingClientRect，取外框会当场抛
+   * TypeError。悬浮只是预览，为一个量不到的节点把异常抛进宿主页面（触发 window.error、
+   * 记一条「Script error」）与「这是选择器的一部分」完全不成比例。
+   */
+  private boundsOf(
+    element: Element | null,
+  ): { x: number; y: number; width: number; height: number } | null {
+    if (element === null || typeof element.getBoundingClientRect !== 'function') {
+      return null
+    }
+
+    try {
+      return getElementBounds(element)
+    } catch {
+      return null
+    }
+  }
+
+  /** 读上下文；react-grab 那一条同样可能抛，失败按「读不到」处理，不打断选择器。 */
+  private contextOf(element: Element): Promise<Context> {
+    try {
+      return getElementContext(element)
+    } catch {
+      return Promise.resolve({} as Context)
+    }
+  }
+
   private draw(element: Element | null): void {
     if (this.outline === null || this.badge === null || element === null) {
       if (this.outline !== null) {
@@ -413,7 +456,13 @@ class ElementPicker implements PickerController {
       }
       return
     }
-    const bounds = getElementBounds(element)
+    const bounds = this.boundsOf(element)
+
+    if (bounds === null) {
+      this.outline.hidden = true
+
+      return
+    }
     Object.assign(this.outline.style, {
       left: `${bounds.x}px`,
       top: `${bounds.y}px`,
@@ -430,7 +479,15 @@ class ElementPicker implements PickerController {
     this.changes.clear()
     this.selected = element
     this.hovered = element
-    this.context = getElementContext(element)
+    /*
+     * `getElementContext` 与量外框走同一条路（它要算元素矩形），所以同样不能喂给它
+     * 一个量不出来的节点 —— 那会在宿主页面里抛出 TypeError。选中之前先确认量得出来。
+     */
+    if (this.boundsOf(element) === null) {
+      return
+    }
+
+    this.context = this.contextOf(element)
     this.draw(element)
     this.panel?.setAttribute('data-open', 'true')
     this.note('')
@@ -463,7 +520,12 @@ class ElementPicker implements PickerController {
     if (panel === null || this.selected === null) {
       return
     }
-    const anchor = getElementBounds(this.selected)
+    const anchor = this.boundsOf(this.selected)
+
+    if (anchor === null) {
+      return
+    }
+
     const rect = panel.getBoundingClientRect()
     const below = anchor.y + anchor.height + gap
     const room = window.innerHeight - below

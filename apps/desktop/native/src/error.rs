@@ -66,7 +66,7 @@ impl From<poietica_ledger::LedgerError> for Error {
         match error {
             poietica_ledger::LedgerError::Automation(cause) => Self::Automation(cause),
             cause => {
-                log::error!("the local index rejected a statement: {cause}");
+                tracing::error!("the local index rejected a statement: {cause}");
                 Self::Persistence(cause.to_string())
             }
         }
@@ -85,7 +85,7 @@ impl From<poietica_ledger::execution::IndexError> for Error {
 impl From<poietica_conversation_runtime::DeliveryError> for Error {
     fn from(failure: poietica_conversation_runtime::DeliveryError) -> Self {
         use poietica_conversation_runtime::DeliveryError;
-        log::error!("conversation delivery failed: {failure}");
+        tracing::error!("conversation delivery failed: {failure}");
         match failure {
             DeliveryError::Index(error) => Self::from(error),
             DeliveryError::Rejected(_) => {
@@ -126,7 +126,7 @@ impl From<poietica_python_native::PythonError> for Error {
 
 impl From<poietica_conversation_runtime::journal::JournalError> for Error {
     fn from(error: poietica_conversation_runtime::journal::JournalError) -> Self {
-        log::error!("conversation journal failed: {error}");
+        tracing::error!("conversation journal failed: {error}");
         Self::Internal("the conversation journal is unavailable".to_owned())
     }
 }

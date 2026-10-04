@@ -31,6 +31,7 @@ import { type BrowserRelay, createBrowserRelay, DEFAULT_RELAY_URL } from './brow
 import { prepareDataRoot } from './data-root'
 import type { Router } from './ipc-router'
 import { createRouter } from './ipc-router'
+import { installLogging, setLogLevel } from './logging'
 import type { NativeHost } from './native'
 import { loadNative } from './native'
 import { SESSION_DIRECTORY } from './session-directory'
@@ -78,6 +79,22 @@ let router: Router | null = null
 let storageCommands: StorageCommands | null = null
 let tray: Tray | null = null
 let quitting = false
+
+/**
+ * 原生侧启动完成的那一拍。
+ *
+ * 命令面要等它：窗口比 `native.start()` 早建好，渲染层首帧那十几条读会赶在运行时
+ * 接好之前落进原生侧，撞出一批假的「连不上 agent」（见 installHandlers 里的说明）。
+ * 成功与失败都算「跑完了」—— 失败由那一次命令自己如实报回来。
+ *
+ * **必须在模块顶层就把这个 promise 建出来**：装上处理器（installHandlers）到 start 之间
+ * 还有好几百毫秒，渲染层正是那一段发起首帧的读。先在 start 那里建，那段窗口里读到的
+ * 还是一个已经兑现的 promise —— 门形同虚设，假故障照旧。
+ */
+let settleNativeReady: () => void = () => undefined
+const nativeReady: Promise<void> = new Promise<void>((resolve) => {
+  settleNativeReady = resolve
+})
 
 /*
  * 更新的相位活在主进程里（update.ts）；electron-updater 到第一次调用才装载。
@@ -238,27 +255,37 @@ function createWindowSurface(win: BrowserWindow, preference: ThemePreference): '
  * 读失败就退回 'system'：那是没有设置时的语义，不是错误。
  */
 async function startupThemePreference(): Promise<ThemePreference> {
-  try {
-    const text = await readFile(join(app.getPath('userData'), 'settings.json'), 'utf8')
-    const parsed: unknown = JSON.parse(text)
-    /*
-     * 形状是 { settings: { theme } }，不是 { theme }。
-     *
-     * 正本是 apps/desktop/native/src/settings/storage.rs 的 SETTINGS_KEY = "settings" ——
-     * 整份文档是「键 → 各家设置」的映射，应用设置只是其中一个键。少剥这一层就永远
-     * 读到 undefined，每次都退回 'system'，于是窗口底色跟随系统主题而不是用户的偏好。
-     */
-    const settings = isRecord(parsed) ? parsed['settings'] : undefined
-    const theme = isRecord(settings) ? settings['theme'] : undefined
+  const settings = await readPersistedSettings()
+  const theme = settings?.['theme']
 
-    if (theme === 'light' || theme === 'dark' || theme === 'system') {
-      return theme
-    }
-  } catch {
-    // 首次启动还没有这个文件；按系统那一档走。
+  if (theme === 'light' || theme === 'dark' || theme === 'system') {
+    return theme
   }
 
   return 'system'
+}
+
+/**
+ * 落盘那一格应用设置（settings.json 的 `settings` 键），读不出来就是 undefined。
+ *
+ * 形状是 `{ settings: { … } }`，不是平的。正本是 apps/desktop/native/src/settings/storage.rs
+ * 的 SETTINGS_KEY = "settings" —— 整份文档是「键 → 各家设置」的映射，应用设置只是其中
+ * 一个键。少剥这一层就永远读到 undefined，两边都会退回默认值。
+ *
+ * 主进程要在**渲染层起来之前**拿到两格：窗口衬底（theme）与日志闸门（logging.level）。
+ * 它们同读一份文件，所以共用这一处解析。
+ */
+async function readPersistedSettings(): Promise<Record<string, unknown> | undefined> {
+  try {
+    const text = await readFile(join(app.getPath('userData'), 'settings.json'), 'utf8')
+    const parsed: unknown = JSON.parse(text)
+    const settings = isRecord(parsed) ? parsed['settings'] : undefined
+
+    return isRecord(settings) ? settings : undefined
+  } catch {
+    /* 首次启动还没有这个文件；两格都按默认走。 */
+    return undefined
+  }
 }
 
 /**
@@ -560,7 +587,20 @@ function installHandlers(win: BrowserWindow): void {
         return refusal('poietica: hostFailed — 原生宿主还没起来')
       }
 
+      /*
+       * 等启动跑完再放行。
+       *
+       * 窗口在 `native.start()` 之前就建好了，渲染层的首帧会**同时**发出十几条读
+       * （设置、控件表、能力清单）。原生侧在这条命令落进去的时候可能还没把运行时接好：
+       * 那些读于是撞上一个「内部还没准备好」，被折成 agentRejected，界面上就是首启那一次
+       * 「agent 连接失败」—— 一次纯粹由我们自己的启动顺序造成的假故障。
+       *
+       * 命令本来就是并发允许的，缺的只是「别早于 start」。这里等的是一次已经开始的启动，
+       * 不是加一道闸：start 失败时把那次失败如实交回，不吞。
+       */
       try {
+        await nativeReady
+
         return ok(await host.invoke(command, args))
       } catch (cause) {
         return failure(cause)
@@ -703,6 +743,24 @@ function installHandlers(win: BrowserWindow): void {
     return ok(null)
   })
 
+  /*
+   * 日志闸门。渲染层是设置的持有者，主进程只接它的结论 —— 与主题同一分工：
+   * 原生侧那一份由 settings_set 自己套用，这里套用的是 electron-log 这一份。
+   */
+  ipcMain.handle('poietica:set-log-level', (event, level: unknown): Reply => {
+    if (!fromMainWindow(event, win)) {
+      return refusal(DENIED)
+    }
+
+    if (typeof level !== 'string' || level.length === 0) {
+      return refusal('poietica: requestInvalid — 日志级别必须是非空字符串')
+    }
+
+    setLogLevel(level)
+
+    return ok(null)
+  })
+
   ipcMain.handle('poietica:set-surface', (event, color: unknown): Reply => {
     if (!fromMainWindow(event, win)) {
       return refusal(DENIED)
@@ -805,6 +863,14 @@ const DATA_ROOT = join(
 
 app.setName(APPLICATION_NAME)
 app.setPath('userData', DATA_ROOT)
+/*
+ * 日志目录也钉进数据根。
+ *
+ * 不钉的话 `app.getPath('logs')` 在 macOS 上是 `~/Library/Logs/Poietica` —— 数据跑到
+ * 数据根外面去了，而 ADR 0031 与 data-layout.md 说的是「应用数据只在 userData 一处」。
+ * Windows/Linux 恰好落在 userData 下面，所以这个洞只在 macOS 上露出来：同一份代码两种布局。
+ */
+app.setAppLogsPath(join(DATA_ROOT, 'logs'))
 /* 内核那一摊也住在数据根下面的一层：Chromium 自己会在 <数据根>/session 里铺它要的一切，
    所以这里只报落点，不预先建目录、不搬任何东西。 */
 app.setPath('sessionData', join(DATA_ROOT, SESSION_DIRECTORY))
@@ -835,6 +901,16 @@ function storagePort(target: Session): StorageSessionPort {
 async function main(): Promise<void> {
   /* 先把数据根建出来再开窗：窗口衬底要在渲染层起来之前读它下面的 settings.json。 */
   await prepareDataRoot(DATA_ROOT)
+
+  /*
+   * 日志出口要在**建窗之前**装上：它之后发生的每一次 console 异常、渲染层崩溃与
+   * 进程级未捕获异常才会留在盘上。electron-log 自己解析 app.getPath('logs')，
+   * 而那个目录就在数据根下面（是数据根，不是默认的 %APPDATA%\electron）。
+   */
+  const persisted = await readPersistedSettings()
+  const logging = persisted?.['logging']
+
+  installLogging(isRecord(logging) ? logging['level'] : undefined)
 
   const dataRoot = DATA_ROOT
   const win = createWindow(await startupThemePreference())
@@ -947,11 +1023,21 @@ async function main(): Promise<void> {
   installTray(win)
 
   // 路径只能由主进程算：原生侧不猜目录，也不读环境变量。
-  await native.start({
-    dataRoot,
-    homeDirectory: app.getPath('home'),
-    bundledDirectory,
-  })
+  try {
+    await native.start({
+      dataRoot,
+      homeDirectory: app.getPath('home'),
+      bundledDirectory,
+      // 日志目录由宿主定：Electron 的 app.getPath('logs') 是它的官方产地，主进程与原生侧写同一处。
+      logDirectory: app.getPath('logs'),
+    })
+  } finally {
+    /*
+     * 失败也要放行：那道门等的是「启动跑完了」，不是「启动成功了」。
+     * 卡在这儿不放，会把一次可诊断的启动失败变成界面永远转圈。
+     */
+    settleNativeReady()
+  }
 
   app.on('window-all-closed', () => {
     app.quit()

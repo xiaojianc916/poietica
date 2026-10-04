@@ -176,7 +176,18 @@ export type AgentSessionEvent = { kind: "selectors"; sessionId: string; selector
  * 授权那一类不走这里（它走 permission_requested 那帧）；ask 工具的题组也不走
  * 这里（它走 questions_asked，产品形状，由提问桌收答复）。
  */
-{ kind: "dialog"; sessionId: string; request: JsonValue }
+{ kind: "dialog"; sessionId: string; request: JsonValue } | 
+/**
+ * 本机判定的轮终失败（agent 连接断开、进程没了）。
+ * 
+ * 这不是 agent 说的，是**我们自己发现的**：连接被 retire 时 `book.fail_active` 已经
+ * 把这一轮收成失败并落了账，但那条事实从前只进账本、不回屏幕 —— 屏幕上的轮终只认
+ * agent 的 transcript，而 agent 已经死了，那条通道再也不会有帧。
+ * 
+ * 于是「agent 中途被杀」会留下一个永远转下去的轮：没有错误、没有发送键、只能重启。
+ * 这条事件就是把账本里那句已经写好的话交到屏幕上。
+ */
+{ kind: "runFailed"; sessionId: string; message: string; degraded: boolean }
 /**
  * 取一张 agent 会话媒体（历史图片）：webview 无法带 Bearer 直连，原生侧代取回 base64。
  */
@@ -284,7 +295,7 @@ export type AgentUsageBreakdown = { systemPrompt: number; systemContext: number;
  * 撤回交回来的那一句；空队列时整格是 null。
  */
 export type AgentWithdrawnMessage = { text: string }
-export type AppSettings = { theme: ThemePreference; language: string; general: GeneralSettings; appearance: AppearanceSettings; modelPicker: ModelPickerSettings; privacy: PrivacySettings }
+export type AppSettings = { theme: ThemePreference; language: string; general: GeneralSettings; appearance: AppearanceSettings; modelPicker: ModelPickerSettings; privacy: PrivacySettings; logging: LoggingSettings }
 export type AppearanceSettings = { density: Density; reduceMotion: boolean; messageTimestamps: boolean }
 export type AssetImportRequest = { sessionToken: string; paths: string[] }
 export type AssetKind = "image" | "file"
@@ -380,6 +391,14 @@ export type GitReview = { branch: string | null; detachedAt: string | null; upst
 export type GitWatchLease = { token: string; root: string }
 export type GitWorkingTreeChanged = { root: string }
 export type JsonValue = null | boolean | number | string | JsonValue[] | Partial<{ [key in string]: JsonValue }>
+/**
+ * 日志闸门：这个级别**及以上**才落盘。默认 warn。
+ * 
+ * 档位与 tracing 的级别同名，所以转 EnvFilter 是直译，没有第二张映射表。
+ * 不设 trace：全仓没有一处 trace 事件，留一格永远收不到东西的选项是假选择。
+ */
+export type LogLevel = "error" | "warn" | "info" | "debug"
+export type LoggingSettings = { level: LogLevel }
 export type McpLauncher = { program: string; prefixArgs: string[] }
 /**
  * 一次目录操作。判别式与 @poietica/settings 的 ModelCatalogOperation 一一对应。

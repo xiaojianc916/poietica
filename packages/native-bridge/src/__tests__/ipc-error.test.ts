@@ -1,11 +1,11 @@
 /*
  * 跨边界的那句人话。
  *
- * Electron 的 IPC 会把异常压成一句 message，所以 preload 抛的是
- * \`Error('poietica: <code>')\` 挂着 \`problem\` 裸对象（apps/desktop/electron/preload.ts:72）。
- * throughIpc 只认裸对象的话，它落进「认不出来」那一支，屏幕上是
- * \`Error: poietica: agentRejected\` 这样一句码 —— 真正说明原因的 details.reason 与
- * 文案目录键全丢。这一条钉住：**挂在异常上的那一份也要认**，且折出来的 message 是人话。
+ * 两条来源各钉一条：
+ * - **裸对象**：preload 走的就是这一条（apps/desktop/electron/preload.ts 的 throw problem）。
+ *   contextBridge 过不去 Error 的自定义属性，所以那一层只能抛对象本身；
+ * - **挂在异常上的那一份**：进程内调用方按 Object.assign(new Error(...), { problem }) 交过来。
+ *   少了这一支，它们拿到的就是一句 \`poietica: agentRejected\` 的码，details.reason 全丢。
  *
  * 自检跑法：bun test src/__tests__/ipc-error.test.ts
  */

@@ -83,12 +83,12 @@ fn release(assets: &AssetProtocolRegistry, reference: &AgentPromptAsset) {
     }
 
     if let Err(error) = assets.remove(&reference.session_token, &reference.asset_token) {
-        log::warn!("a sent attachment stayed registered: {error:?}");
+        tracing::warn!("a sent attachment stayed registered: {error:?}");
     }
 }
 
 fn asset(error: AssetProtocolError) -> Error {
-    log::error!("an attachment could not be read: {error:?}");
+    tracing::error!("an attachment could not be read: {error:?}");
 
     Error::Asset("an attachment could not be read".to_owned())
 }

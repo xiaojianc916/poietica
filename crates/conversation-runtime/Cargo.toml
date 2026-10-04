@@ -15,7 +15,7 @@ specta.workspace = true
 poietica-extension-native = { path = "../extension" }
 tokio-util.workspace = true
 base64.workspace = true
-log.workspace = true
+tracing.workspace = true
 poietica-asset = { path = "../asset" }
 poietica-agent-client = { path = "../agent-client" }
 poietica-conversation = { path = "../conversation" }

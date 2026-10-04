@@ -109,7 +109,7 @@ impl Drop for IndexActor {
             return;
         }
         if worker.join().is_err() {
-            log::error!("{} panicked while stopping", self.label);
+            tracing::error!("{} panicked while stopping", self.label);
         }
     }
 }
