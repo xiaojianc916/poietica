@@ -1391,7 +1391,7 @@ checksum = "f6b464fbc74e149a392436b17d523f769e057cb6877f6a5c4618bc6f11800548"
 
 [[package]]
 name = "poietica"
-version = "0.4.3"
+version = "0.4.4"
 dependencies = [
  "axum",
  "base64 0.23.1",
@@ -1437,7 +1437,7 @@ dependencies = [
 
 [[package]]
 name = "poietica-agent-client"
-version = "0.4.3"
+version = "0.4.4"
 dependencies = [
  "futures",
  "poietica-conversation",
@@ -1455,7 +1455,7 @@ dependencies = [
 
 [[package]]
 name = "poietica-asset"
-version = "0.4.3"
+version = "0.4.4"
 dependencies = [
  "hex",
  "sha2",
@@ -1465,7 +1465,7 @@ dependencies = [
 
 [[package]]
 name = "poietica-automation"
-version = "0.4.3"
+version = "0.4.4"
 dependencies = [
  "chrono",
  "chrono-tz",
@@ -1479,7 +1479,7 @@ dependencies = [
 
 [[package]]
 name = "poietica-automation-runtime"
-version = "0.4.3"
+version = "0.4.4"
 dependencies = [
  "poietica-automation",
  "poietica-conversation",
@@ -1496,7 +1496,7 @@ dependencies = [
 
 [[package]]
 name = "poietica-browser-native"
-version = "0.4.3"
+version = "0.4.4"
 dependencies = [
  "base64 0.23.1",
  "reqwest",
@@ -1505,7 +1505,7 @@ dependencies = [
 
 [[package]]
 name = "poietica-conversation"
-version = "0.4.3"
+version = "0.4.4"
 dependencies = [
  "poietica-time",
  "serde",
@@ -1515,7 +1515,7 @@ dependencies = [
 
 [[package]]
 name = "poietica-conversation-runtime"
-version = "0.4.3"
+version = "0.4.4"
 dependencies = [
  "base64 0.23.1",
  "hex",
@@ -1539,7 +1539,7 @@ dependencies = [
 
 [[package]]
 name = "poietica-extension-native"
-version = "0.4.3"
+version = "0.4.4"
 dependencies = [
  "serde_json",
  "tempfile",
@@ -1552,7 +1552,7 @@ dependencies = [
 
 [[package]]
 name = "poietica-git-adapter-native"
-version = "0.4.3"
+version = "0.4.4"
 dependencies = [
  "futures",
  "notify",
@@ -1565,7 +1565,7 @@ dependencies = [
 
 [[package]]
 name = "poietica-ledger"
-version = "0.4.3"
+version = "0.4.4"
 dependencies = [
  "poietica-automation",
  "poietica-conversation",
@@ -1583,7 +1583,7 @@ dependencies = [
 
 [[package]]
 name = "poietica-problem"
-version = "0.4.3"
+version = "0.4.4"
 dependencies = [
  "serde",
  "specta",
@@ -1592,14 +1592,14 @@ dependencies = [
 
 [[package]]
 name = "poietica-process-host"
-version = "0.4.3"
+version = "0.4.4"
 dependencies = [
  "which",
 ]
 
 [[package]]
 name = "poietica-python-native"
-version = "0.4.3"
+version = "0.4.4"
 dependencies = [
  "reqwest",
  "serde",
@@ -1611,11 +1611,11 @@ dependencies = [
 
 [[package]]
 name = "poietica-review-native"
-version = "0.4.3"
+version = "0.4.4"
 
 [[package]]
 name = "poietica-terminal-native"
-version = "0.4.3"
+version = "0.4.4"
 dependencies = [
  "portable-pty",
  "thiserror 2.0.21",
@@ -1624,7 +1624,7 @@ dependencies = [
 
 [[package]]
 name = "poietica-time"
-version = "0.4.3"
+version = "0.4.4"
 dependencies = [
  "time",
 ]
