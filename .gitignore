@@ -214,3 +214,5 @@ dist-release/
 !.cargo/link-tmp/.gitkeep
 
 oh-my-pi/
+
+Project Refactoring Plan/
