@@ -2521,6 +2521,21 @@ export function createBridge(host: BridgeHost): Bridge {
         emitNow(record, deltaOps(project, event.assistantMessageEvent))
         break
 
+      case 'message_end':
+        /*
+         * 一条消息落地即报一次用量：面板不等轮终。
+         *
+         * `message_end` 是拿到新数的唯一可靠点：assistant 的 provider usage 此刻已挂在
+         * 消息上，toolResult 也才刚被 append 进 `agent.state.messages`（`tool_execution_end`
+         * 时它还没进去，早报一格就是旧数）。轮终那一次报数（见 `agent_end`）保持不变。
+         *
+         * 次数与工具调用数同阶；`reportUsage` 里贵的那部分（非消息四项）omp 自己按
+         * settings revision 与数组身份记忆化，所以按事件重算不贵。不接 `message_update`：
+         * 流式 delta 既不落库也不改变分类。
+         */
+        reportUsage(record)
+        break
+
       case 'tool_execution_start':
         emitNow(record, toolStartOps(record, event))
         break
