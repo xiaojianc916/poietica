@@ -96,12 +96,15 @@ export class ConversationCore {
       logger: d.logger,
       sessionState: (threadId) => this.pool.peek(threadId)?.state() ?? 'idle',
       peekSession: (threadId) => this.pool.peek(threadId),
+      isOpening: (threadId) => this.pool.isOpening(threadId),
       releaseSession: (threadId) => this.pool.release(threadId),
-      onSessionReleased: (threadId) => {
-        this.threads.onReleased(threadId)
-      },
       emitThreadUpdated: d.emitThreadUpdated,
       emitThreadRemoved: d.emitThreadRemoved,
+      /* R-03 §2.3：线程删除的统一遗忘钩子 —— 按线程索引的进程内状态都在这里清理 */
+      onThreadRemoved: (threadId) => {
+        this.router.forget(threadId)
+        this.submissions.forget(threadId)
+      },
     })
 
     this.pool = new SessionPool({
@@ -252,8 +255,9 @@ export class ConversationCore {
   async close(threadId: string): Promise<void> {
     await this.turns.close(threadId)
   }
-  async releaseIdle(): Promise<void> {
-    await this.turns.releaseIdle()
+  /** 设置 / 模型目录变化：会话池换代（空闲的立刻释放，忙的在第一次空闲时释放） */
+  async invalidateSessions(): Promise<void> {
+    await this.turns.invalidateSessions()
   }
   async dispose(): Promise<void> {
     await this.pool.dispose()
@@ -329,5 +333,10 @@ export class ConversationCore {
   /** 事件路由（会话池之外手动投递时用；单测可直接喂事件） */
   onEvent(threadId: string, event: EngineSessionEvent): void {
     this.router.onEvent(threadId, event)
+  }
+
+  /** 测试用：这条线程是否还有按线程索引的进程内状态（router + submissions） */
+  hasThreadState(threadId: string): boolean {
+    return this.router.has(threadId) || this.submissions.has(threadId)
   }
 }

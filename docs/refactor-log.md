@@ -132,3 +132,72 @@
 | 编号 | 日期 | 问题 | 阻塞的步骤 | 状态 |
 |---|---|---|---|---|
 | Q33 | 2026-10-09 | `auto_compaction_end` 的 `timelineReset('main')` 会在开着轮时整页重取，与增量投影的编号规则打架（R-02 §2.2 的刷新风暴）。需要先读 omp 源码确认它是否可能在 `agent_end` 之前发出，再决定改成行级更新还是保留重取 | 无（本项按报告 §2.8 明确不处理） | 记录：按守则 11 不再猜，等产品负责人/方案方裁决 |
+
+## R-03 会话池生命周期：打开中的会话无人管、配置变更漏网、删除后残留、冷打开双倍整读（2026-10-09）
+
+**来源**：产品负责人交办的缺陷报告 `R-03 会话池生命周期：打开中的会话无人管、配置变更漏网、删除后残留、冷打开双倍整读`
+（外部输入，不入库）。六个缺陷 A–F 共用一条根因：会话池把「已打开」与「正在打开」放在两张表里，
+所有释放类操作只看得到前者，而冷打开一条 omp 会话要几秒 —— 打开窗口里发生的事全部漏掉。
+
+**改法**（严格按报告 §2 的设计，**无契约变更**）：
+
+1. **`session-pool.ts` 重写成槽位状态机**（§2.2）：`slots: Map<string, Slot>`，槽位
+   `opening → live →（释放后消失）`，带 `generation` 代号。对外接口保留
+   `peek / acquire / release / dispose`，新增 `isOpening`；`releaseIdle` 按语义改名 `invalidate`
+   （配置变了 +1 换代：空闲的立刻释放，忙的与打开中的在第一次空闲时释放）。
+   `acquire` 的兜底：旧代且空闲 → 先释放再按新配置重开。`dispose` 并发释放所有槽位，且
+   打开中的槽位在落地时发现 `disposed` 也走丢弃路径。
+2. **释放打开中的槽位 = 取消**：`release` 置 `cancelled` 并等 `open()` 收尾（dispose 完才返回）；
+   被取消的打开拒绝为 `kernel.cancelled`，不进 `live`、不调 `onOpened`。`acquire` 落在
+   取消中的槽位上时先等它收尾再开新的（拿到的一定不是被取消的那条）。
+3. **`onOpened` 抛异常不再漏**：订阅先挂、`onOpened` 放在 try 里，失败就退订、删槽位、
+   dispose —— 半绑定的会话不会留在池里被下一次 acquire 命中。
+4. **换代靠状态事件收口**：`onSessionEvent` 把事件原样转给路由后，旧代槽位收到 `state=idle`
+   就 `queueMicrotask` 释放（microtask 让同一条事件的其它处理先跑完；释放前再核对槽位身份
+   与忙碌状态）。`sweep()` 除了 TTL 也把「旧代且空闲」一并释放。
+5. **线程删除的统一遗忘钩子**：`ThreadServiceDeps.onThreadRemoved` → 组合根接到
+   `router.forget`（新增同时清 `claimed`）与 `submissions.forget`（清 `lanes` / `pendingTurn` /
+   `handed` 里的那一个）。`cleanup(row)` 顺序改为「释放会话 → **重读行**拿 sessionFile
+   → 删会话文件 → 释放附件 → 删行 → `hub.disposeThread` → `onThreadRemoved`」：打开期间
+   `onOpened` 可能刚把 sessionFile 写上，旧 `row` 上的值是 null，不改就会留下孤儿文件。
+6. **`#isBusy` 明确「打开中不算忙」**（删除 / fork 允许穿过，由取消语义保证干净）；
+   `ThreadServiceDeps` 删掉从来没被调用的 `onSessionReleased` 一格（死接线，R-03 §2.3 未点名，
+   但与本项的文件清单一致，且删掉它正好让 `isOpening` 顶上去）。
+7. **`SubmissionService.enqueue` 的车道尾巴自收口**：`tail` 结束时核对自己还是不是当前尾巴，
+   是就删表 —— 原先每跑过一条线程就永久留一项。新增只读的 `has(threadId)`（router / 池 / 核心
+   各一个）供断言。
+8. **`handlers.ts` 的 `timeline.subscribe` 先拿会话再取位置**（§2.4）：冷打开会在 `onOpened`
+   里换 epoch，必须先发生；`onOpened` 里「已有通道就 resetThread」的逻辑保留（驱逐后重开时，
+   其它已订阅的窗口确实要重取）。
+
+**执行步骤 1 的反向验证**（按报告 §3）：新用例在旧代码上跑 —— 会话池 P1/P2/P3/P4/P5/P7 六条全红
+（`controlledPool` 的 `openSession` 停在 deferred 上，旧代码的 `opening` 表与 `live` 表分家，
+release/dispose 看不见它）；T2 红（旧代码先 `hub.position()` 建通道，冷打开落地时 reset → 发出
+`timeline.reset`，实测 `Expected 0, Received 1`）；T3 红。P6 与既有 CV-7 / CV-8 在新旧代码上都绿
+（回归判据）。T1 在旧代码上「通过」的形状变了：旧代码 `delete` 不会等打开，断言「被 dispose」
+会超时 —— 它验的正是新语义（删除等取消收尾）。
+
+**测试**：
+
+- `core/__tests__/session-pool.test.ts`：P1–P7 七条（打开中 release / dispose / 忙会话换代 /
+  打开中换代 / onOpened 抛异常 / 并发与溢出回归 / 取消后立刻 acquire）。
+- `core/__tests__/conversation-core.test.ts`：T1（打开中删除：会话被 dispose、无孤儿会话文件）、
+  T3（删除后 router 与 submissions 的该线程状态清空）。测试缝 `deferredOpenEngine()` 加在
+  `core/__tests__/helpers.ts`（`openSession` 停在手动 resolve 的 deferred 上）。
+- `core/__tests__/module.test.ts`：T2（fork 出的历史对话冷订阅：不发 reset，返回 epoch 与
+  之后的 `timeline.ops` 一致）。
+
+**验收**：`bun run check` 全绿（1558 pass / 0 fail，201 文件 / 5105 断言）。
+
+**未能核实、记入待决**：报告 §5 的三条真机验收（DevTools 里 subscribe 只出现一次且无 reset、
+运行中改 MCP 后这一轮结束新会话生效、删对话后 `%APPDATA%\Poietica\omp\agent\sessions` 不残留）
+需要打包后的桌面应用与真实 omp，本轮没有跑真机，留给产品负责人按 §5 复核。
+
+**本轮偏差**：无契约变更、未动 `PROTOCOL_VERSION`；文件清单与报告一致，加了两处测试缝
+（`helpers.ts` 的 `deferredOpenEngine` 与三个 `has(threadId)` 只读断言口）。
+
+### 审查执行待决（R-03 新增）
+
+| 编号 | 日期 | 问题 | 阻塞的步骤 | 状态 |
+|---|---|---|---|---|
+| Q34 | 2026-10-09 | R-03 §5 的三条真机验收未跑（需要安装包 + 真 omp）：① 打开旧对话时 `timeline.subscribe` 只出现一次、无 `timeline.reset`；② 运行中启用 MCP，这一轮结束后再发一句能用上新 MCP；③ 发第一句后立刻删对话，会话目录不残留 | 无（代码与单测已按报告落地） | 记录：等产品负责人真机复核 |

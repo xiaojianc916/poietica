@@ -73,7 +73,12 @@ export function registerHandlers(ctx: Ctx, core: ConversationCore, hub: Timeline
       const page = await core.emptyPage()
       return wireSnapshot(page, pos.epoch, pos.seq, core.submissionsOf(threadId, turnIdsOf(page)))
     }
-    // 先取位置、再取整页：两步之间到达的增量会被 UI 缓存（05 页 §12.2）
+    /*
+     * 先把会话拿到手：冷打开会在 onOpened 里换 epoch，必须发生在取位置之前 ——
+     * 否则这次订阅拿到的是旧 epoch，UI 还会收到一条 reset 再整读一次（R-03 §2.4）。
+     * 再取位置、最后取整页：后两步之间到达的增量会被 UI 缓存（05 页 §12.2）。
+     */
+    await core.acquire(threadId)
     const pos = hub.position(threadId, agentId)
     const page = core.stampSubmissions(threadId, await core.page(threadId, agentId, null))
     return wireSnapshot(page, pos.epoch, pos.seq, core.submissionsOf(threadId, turnIdsOf(page)))

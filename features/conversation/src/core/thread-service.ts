@@ -29,12 +29,14 @@ export interface ThreadServiceDeps {
   readonly sessionState: (threadId: string) => TurnState['state']
   /** 会话池里这一条线程此刻的会话（没有就是 undefined） */
   readonly peekSession: (threadId: string) => EngineSession | undefined
+  /** 这一条线程的会话正在打开（打开中的不算忙，见 #isBusy） */
+  readonly isOpening: (threadId: string) => boolean
   /** 释放这个线程的会话（delete / 工作区级联用） */
   readonly releaseSession: (threadId: string) => Promise<void>
-  /** 会话被驱逐（空闲）后把线程行再报一次 */
-  readonly onSessionReleased: (threadId: string) => void
   readonly emitThreadUpdated: (thread: Thread) => void
   readonly emitThreadRemoved: (threadId: string) => void
+  /** 线程行删除后的统一遗忘钩子：清理按线程索引的进程内状态（router / submissions） */
+  readonly onThreadRemoved: (threadId: string) => void
 }
 
 export class ThreadService {
@@ -238,16 +240,27 @@ export class ThreadService {
     }
   }
 
-  /** delete 的清理部分：会话文件 → 附件引用 → 删行 → hub.disposeThread */
+  /**
+   * delete 的清理部分（R-03 §2.3）：释放会话（打开中的取消也会等到收尾）→ 重读行拿
+   * sessionFile（打开期间可能已被 onOpened 写上，传进来的 row 是旧的）→ 删会话文件 →
+   * 释放附件 → 删行 → hub.disposeThread → 遗忘进程内状态。
+   */
   private async cleanup(row: ThreadRow): Promise<void> {
     await this.d.releaseSession(row.id)
-    if (row.sessionFile !== null) await this.d.engine.sessionFiles.delete(row.sessionFile)
+    const current = this.d.repo.get(row.id) ?? row
+    if (current.sessionFile !== null) await this.d.engine.sessionFiles.delete(current.sessionFile)
     this.d.attachments.releaseOwner(OWNER_KEY(row.id))
     this.d.repo.delete(row.id)
     this.d.hub.disposeThread(row.id)
+    this.d.onThreadRemoved(row.id)
   }
 
+  /**
+   * 活会话在忙才算忙。打开中的**不算忙**：删除 / fork 允许继续，删除由 `release` 的取消
+   * 语义保证打开完成后立刻丢弃（R-03 §2.3）。
+   */
   async #isBusy(threadId: string): Promise<boolean> {
+    if (this.d.isOpening(threadId)) return false
     return this.d.peekSession(threadId)?.isBusy() === true
   }
 

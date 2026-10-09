@@ -75,6 +75,12 @@ export class EventRouter {
   /** 线程被删：运行时一并丢掉 */
   forget(threadId: string): void {
     this.runtime.delete(threadId)
+    this.claimed.delete(threadId)
+  }
+
+  /** 测试用：这条线程是否还有按线程索引的状态（回合运行时 / 认领表） */
+  has(threadId: string): boolean {
+    return this.runtime.has(threadId) || this.claimed.has(threadId)
   }
 
   // ── 路由（07 页 §5C 的行为表）─────────────────────────────────────────────

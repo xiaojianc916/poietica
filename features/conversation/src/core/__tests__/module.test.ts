@@ -177,6 +177,49 @@ describe('conversation core 模块', () => {
     await finish()
   })
 
+  /*
+   * R-03 缺陷 F（T2）：冷打开一条历史对话 = 两次整页读 + 一次 reset 通知。
+   *
+   * fork 出来的线程正好是「有会话文件、池里没有会话、进程内还没有通道」那一档：旧代码
+   * 先 `hub.position()`（顺手建了通道，epoch E1），再 acquire 冷打开；`onOpened` 一看
+   * 通道已经有了就 resetThread（epoch E2）并发出 `timeline.reset`，这一份快照（E1）当场作废，
+   * UI 收到 reset 后会再整读一次。新代码先把会话拿到手：reset 该发生在取位置之前，
+   * 这一次订阅不该看到任何 reset，返回的 epoch 与之后的增量一致。
+   */
+  test('R-03 T2 冷打开的历史对话：subscribe 不发 reset，epoch 与之后的 ops 一致', async () => {
+    const { api, thread, h, finish } = await started()
+    await api.call('turns.submit', {
+      threadId: thread.id,
+      clientTurnId: 'A1',
+      text: '第一句',
+      attachmentIds: [],
+      skills: [],
+      deliverAs: 'turn',
+    })
+    await runToIdle(h, api, thread.id)
+    const forked = await api.call('threads.fork', { threadId: thread.id, undoTurns: 0 })
+
+    const resetsBefore = h.notifications(conversationContract, 'timeline.reset').length
+    const snap = await api.call('timeline.subscribe', { threadId: forked.id, agentId: 'main' })
+    expect(h.notifications(conversationContract, 'timeline.reset').length).toBe(resetsBefore)
+
+    // 订阅之后到来的增量必须落在同一个 epoch 上（否则 UI 会把这一份快照作废）
+    await api.call('turns.submit', {
+      threadId: forked.id,
+      clientTurnId: 'F1',
+      text: '再来一句',
+      attachmentIds: [],
+      skills: [],
+      deliverAs: 'turn',
+    })
+    await runOneBeat(h)
+    await h.clock.advanceAsync(20)
+    const ops = h.notifications(conversationContract, 'timeline.ops').filter((n) => n.threadId === forked.id)
+    expect(ops.length).toBeGreaterThan(0)
+    expect(ops.every((n) => n.epoch === snap.epoch)).toBe(true)
+    await finish()
+  })
+
   test('工作区被移除：该工作区的线程被级联删除', async () => {
     const { api, thread, h, ws, finish } = await started()
     await api.call('turns.submit', {

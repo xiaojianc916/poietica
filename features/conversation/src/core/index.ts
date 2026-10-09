@@ -55,12 +55,12 @@ export default defineCoreModule({
     registerHandlers(ctx, core, hub)
     ctx.services.provide(ConversationServiceToken, conversationService(core))
 
-    // 引擎配置变化：空闲会话全部释放，下次使用时以新配置重建（运行中的会话不动）
-    const releaseIdle = (): void => {
-      void core.releaseIdle()
+    // 引擎配置变化：会话池换代 —— 空闲的立刻释放；变更时正在跑的会话这一轮结束后释放（R-03）
+    const invalidateSessions = (): void => {
+      void core.invalidateSessions()
     }
-    ctx.disposables.add(ctx.engine.settings.onDidChange(releaseIdle))
-    ctx.disposables.add(ctx.engine.models.onDidChange(releaseIdle))
+    ctx.disposables.add(ctx.engine.settings.onDidChange(invalidateSessions))
+    ctx.disposables.add(ctx.engine.models.onDidChange(invalidateSessions))
 
     /*
      * 模型列表变了 → 通知入口页重读**草稿**表（方案 §05 的 controls.draftChanged）。

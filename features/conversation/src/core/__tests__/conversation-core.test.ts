@@ -5,11 +5,12 @@ import type { Workspace } from '@poietica/feature-workspaces/contract'
 import type { WorkspacesService } from '@poietica/feature-workspaces/core-api'
 import { createId, systemClock } from '@poietica/foundation'
 import { openDatabase } from '@poietica/storage-sqlite'
-import { createTestLogger, tempDir } from '@poietica/test-kit'
+import { createTestLogger, tempDir, waitFor } from '@poietica/test-kit'
 import type { WireTranscriptOperation } from '../../contract/wire'
 import { ConversationCore } from '../conversation'
 import { migrations } from '../migrations'
 import { TimelineHub } from '../timeline-hub'
+import { deferredOpenEngine } from './helpers'
 
 /** 直接构造 ConversationCore：注入内存库、假工作区与假附件服务，比装整个内核更快也更聚焦 */
 async function makeCore(overrides: { engine?: FakeEngine; workspaces?: WorkspacesService } = {}) {
@@ -552,7 +553,7 @@ describe('conversation core（不经内核的直连测试）', () => {
     await new Promise((r) => setTimeout(r, 10))
     expect(core.peek(idle.id)).toBeDefined()
     expect(core.peek(busy.id)!.isBusy()).toBe(true)
-    await core.releaseIdle()
+    await core.invalidateSessions()
     expect(core.peek(idle.id)).toBeUndefined()
     expect(core.peek(busy.id)).toBeDefined()
     await core.cancel(busy.id).catch(() => undefined)
@@ -569,6 +570,56 @@ describe('conversation core（不经内核的直连测试）', () => {
     await new Promise((r) => setTimeout(r, 60))
     expect(settled.length).toBeGreaterThan(0)
     expect(settled[0]!.outcome).toBe('completed')
+    await core.dispose()
+    db.close()
+    await dir.dispose()
+  })
+
+  /*
+   * R-03 缺陷 A（T1）：新线程的第一句话正在冷打开时被删 —— 打开中的会话 peek 不到，
+   * 旧代码允许删除、cleanup 什么也没做，几秒后会话落进池里挂着、omp 为它新建的会话
+   * 文件成了孤儿。新语义：删除成功，打开被取消，落地即 dispose，且不绑定会话文件。
+   */
+  test('R-03 T1 打开中删除线程：会话被 dispose，不属于该线程的活会话不存在', async () => {
+    const controlled = deferredOpenEngine()
+    const { core, engine, dir, db } = await makeCore({ engine: controlled.engine })
+    const row = core.create({ workspaceId: 'ws1' })
+    await submit(core, row.id, '第一句')
+
+    // 打开停在中途：等待窗口里删除这一条
+    await waitFor(() => controlled.pending.length === 1, { message: 'openSession 没有被调用' })
+    expect(core.peek(row.id)).toBeUndefined()
+    // 删除会等这次打开收尾（release 的取消语义），所以先发起、再让打开落地
+    const deleting = core.delete(row.id)
+    await new Promise((r) => setTimeout(r, 1))
+    const session = await controlled.resolveOpen(0)
+    await deleting
+    expect(core.row(row.id)).toBeNull()
+
+    // 打开落地：被取消的那条一定被 dispose，且从未绑行为会话文件
+    await waitFor(() => controlled.disposed.includes(session), { message: '打开中的会话没有被 dispose' })
+    expect(engine.sessionFiles.exists(session.sessionFile)).resolves.toBe(false)
+    expect(controlled.pending[0]!.sessionFile).toBeNull()
+
+    await core.dispose()
+    db.close()
+    await dir.dispose()
+  })
+
+  /*
+   * R-03 缺陷 E（T3）：线程删除后，按线程索引的进程内状态必须一起清掉
+   * （router 的 runtime / claimed 与 submissions 的 lanes / pendingTurn）。
+   */
+  test('R-03 T3 删除线程后 router 与 submissions 的该线程状态都被清理', async () => {
+    const { core, dir, db } = await makeCore()
+    const row = core.create({ workspaceId: 'ws1' })
+    await submit(core, row.id, 'hi')
+    await new Promise((r) => setTimeout(r, 40))
+    expect(core.hasThreadState(row.id)).toBe(true)
+
+    await core.delete(row.id)
+    expect(core.hasThreadState(row.id)).toBe(false)
+
     await core.dispose()
     db.close()
     await dir.dispose()

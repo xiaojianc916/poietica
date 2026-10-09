@@ -72,8 +72,9 @@ export class TurnService {
     await this.d.pool.release(threadId)
   }
 
-  async releaseIdle(): Promise<void> {
-    await this.d.pool.releaseIdle()
+  /** 配置变更 → 会话池换代（R-03；调用方同步改名） */
+  async invalidateSessions(): Promise<void> {
+    await this.d.pool.invalidate()
   }
 
   // ── 回合（07 页 §5C 服务行为表）──────────────────────────────────────────

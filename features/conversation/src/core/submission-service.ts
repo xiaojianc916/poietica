@@ -210,6 +210,23 @@ export class SubmissionService {
     this.d.repo.deleteStaleTerminal(at - 7 * 24 * 60 * 60 * 1000)
   }
 
+  /**
+   * 线程已删：丢掉这条线程的交接车道与待认领号（库里的行已经随线程级联删除）。
+   * 这是 R-03 的统一遗忘钩子的提交服务这一半 —— 少了它，Core 这个长期运行的进程
+   * 会随自动化不断建线程而永久积累 lanes / pendingTurn / handed。
+   */
+  forget(threadId: string): void {
+    this.lanes.delete(threadId)
+    const pending = this.pendingTurn.get(threadId)
+    if (pending !== undefined) this.handed.delete(pending)
+    this.pendingTurn.delete(threadId)
+  }
+
+  /** 测试用：这条线程是否还有按线程索引的状态（交接车道 / 待认领号） */
+  has(threadId: string): boolean {
+    return this.lanes.has(threadId) || this.pendingTurn.has(threadId)
+  }
+
   // ── 内部 ─────────────────────────────────────────────────────────────────
   private enqueue(threadId: string, work: () => Promise<void>): void {
     const previous = this.lanes.get(threadId)?.tail ?? Promise.resolve()
@@ -217,6 +234,10 @@ export class SubmissionService {
       this.d.logger.warn('submission hand-over failed', { threadId, error: String(cause) })
     })
     this.lanes.set(threadId, { tail })
+    // 车道的尾巴自己收口：不收的话每跑一条线程就永久留一项（R-03 §2.3 顺带修）
+    void tail.finally(() => {
+      if (this.lanes.get(threadId)?.tail === tail) this.lanes.delete(threadId)
+    })
   }
 
   private async handOver(clientTurnId: string): Promise<void> {
