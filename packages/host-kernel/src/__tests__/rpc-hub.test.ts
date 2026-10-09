@@ -341,15 +341,13 @@ describe('RpcHub', () => {
   test('R-08-10 signal 已经 aborted 时请求立刻被取消（不再挂监听）', async () => {
     const { hub, sup } = makeHub()
     sup.setStatus({ state: 'ready', reason: null, attempt: 0 })
-    sup.setForwardImpl(
-      (_m, _p, opts) => {
-        /* 与 RpcPeer.request 同形：已经中止的 signal 直接拒绝 */
-        if (opts.signal.aborted) return Promise.reject(new AppError(SystemErrorCode.cancelled, '取消'))
-        return new Promise((_resolve, reject) => {
-          opts.signal.addEventListener('abort', () => reject(new AppError(SystemErrorCode.cancelled, '取消')))
-        })
-      },
-    )
+    sup.setForwardImpl((_m, _p, opts) => {
+      /* 与 RpcPeer.request 同形：已经中止的 signal 直接拒绝 */
+      if (opts.signal.aborted) return Promise.reject(new AppError(SystemErrorCode.cancelled, '取消'))
+      return new Promise((_resolve, reject) => {
+        opts.signal.addEventListener('abort', () => reject(new AppError(SystemErrorCode.cancelled, '取消')))
+      })
+    })
     const caller = hub.coreCaller()
     const ac = new AbortController()
     ac.abort()

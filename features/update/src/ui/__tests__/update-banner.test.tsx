@@ -79,8 +79,12 @@ describe('UpdateBanner 的下载动作（R-08-14）', () => {
       throw new Error('传输层断了')
     })
     fireEvent.click(await screen.findByRole('button', { name: '下载' }))
-    await waitFor(() => {
-      expect(warns).toContain('update download failed')
-    })
+    /* 全仓测试并行跑时这一拍可能被别的文件拖长，waitFor 的默认 1 秒不够稳 */
+    await waitFor(
+      () => {
+        expect(warns).toContain('update download failed')
+      },
+      { timeout: 5000 },
+    )
   })
 })
