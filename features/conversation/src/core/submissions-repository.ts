@@ -90,9 +90,14 @@ export interface SubmissionsRepository {
   findByTurnId(threadId: string, turnId: string): SubmissionRow | null
   update(clientTurnId: string, patch: Partial<Pick<SubmissionRow, 'status' | 'turnId' | 'error'>>): SubmissionRow | null
   delete(clientTurnId: string): void
-  /** Core 启动：`pending` 一律收成 `core_restarted`（上一次进程没把它们交出去）。 */
-  failPending(error: { code: string; message: string }): SubmissionRow[]
-  /** Core 启动：`started` / `queued` 太旧的清掉（7 天）。 */
+  /**
+   * Core 启动：`pending` / `queued` 一律收成 `core_restarted`。
+   *
+   * pending 是上一次进程没来得及交出去的；queued 是交给了 omp、排在它**内存里**的
+   * 那一队 —— 队列随进程一起消失（R-08-5），留在库里只会让界面画一个永远不动的排队行。
+   */
+  failUndelivered(error: { code: string; message: string }): SubmissionRow[]
+  /** Core 启动：`started` 太旧的清掉（7 天；真实轮次在会话文件里，这里清的只是账）。 */
   deleteStaleTerminal(cutoff: number): void
 }
 
@@ -175,17 +180,17 @@ export function createSubmissionsRepository(db: ModuleDatabase): SubmissionsRepo
     delete(clientTurnId) {
       run(`DELETE FROM conversation_submissions WHERE client_turn_id = ?`, clientTurnId)
     },
-    failPending(error) {
-      const pending = db
-        .prepare<Raw>(`SELECT ${COLUMNS} FROM conversation_submissions WHERE status = 'pending'`)
+    failUndelivered(error) {
+      const undelivered = db
+        .prepare<Raw>(`SELECT ${COLUMNS} FROM conversation_submissions WHERE status IN ('pending', 'queued')`)
         .all()
         .map(toRow)
-      return pending.map((row) => this.update(row.clientTurnId, { status: 'failed', error }) ?? row)
+      return undelivered.map((row) => this.update(row.clientTurnId, { status: 'failed', error }) ?? row)
     },
     deleteStaleTerminal(cutoff) {
       run(
         `DELETE FROM conversation_submissions
-          WHERE status IN ('started', 'queued') AND updated_at < ?`,
+          WHERE status = 'started' AND updated_at < ?`,
         cutoff,
       )
     },

@@ -46,7 +46,15 @@ export const TimelineRow = memo(function TimelineRow({ isOpen, onToggle, row, th
 
   switch (item.type) {
     case 'user_message':
-      return <UserMessage files={item.files} images={item.images} skills={item.skills} text={item.text} />
+      return (
+        <UserMessage
+          files={item.files}
+          images={item.images}
+          skills={item.skills}
+          text={item.text}
+          undelivered={item.undelivered}
+        />
+      )
 
     case 'agent_text':
       return <Prose className="timeline-message" streaming={row.isStreamingTail} text={item.text} />

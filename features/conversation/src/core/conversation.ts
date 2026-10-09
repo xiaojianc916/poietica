@@ -202,8 +202,10 @@ export class ConversationCore {
     })
 
     /*
-     * Core 启动时的提交恢复（方案第 4 节）：`pending` 一律收成 `core_restarted`
-     * （上一次进程没来得及交出去），`started` / `queued` 里太旧的清掉。
+     * Core 启动时的提交恢复（方案第 4 节）：`pending` 与 `queued` 一律收成
+     * `core_restarted` —— 前者是上一次进程没来得及交出去的，后者排在 omp 的内存队列里、
+     * 跟着进程一起消失了（R-08-5）；`started` 里太旧的清掉（真实轮次在会话文件里，
+     * 这里清的只是账）。
      */
     this.submissions.recoverOnStart()
   }

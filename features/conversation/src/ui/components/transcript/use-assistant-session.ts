@@ -82,6 +82,15 @@ export interface AssistantSession {
   readonly isRestoring: boolean
   readonly notice: string | null
   readonly submissions: Transcript['submissions']
+  /**
+   * 最近一条提交**没送到**时的正文（R-08-5）。
+   *
+   * 与 `submissions` 分开：那一份是**本机**的乐观记录（只覆盖界面自己发起的那一次提交），
+   * 而排队 / 插话的失败是 Core 库里的事实 —— 重开界面、Core 重启之后本机什么都不记得，
+   * 只有库里那一条 failed 还在。判据取**最后一条**：人重新发了一句之后，旧的那条失败
+   * 不该再顶在横幅上（那是已经翻篇的一件事）。
+   */
+  readonly failedSubmissionText: string | null
 }
 
 /*
@@ -153,6 +162,17 @@ const readNotice = (transcript: Transcript): string | null =>
   transcript.operation.kind === 'failed' ? transcript.operation.message : null
 const readSubmissions = (transcript: Transcript): Transcript['submissions'] => transcript.submissions
 
+/**
+ * 最后一条提交的正文，且它必须是 failed；否则 null。
+ *
+ * 只看最后一条：Core 的提交行全部留着（重试要按号找回那一行、附件引用还挂在它身上），
+ * 往前扫会把人已经重发过的旧失败一遍遍翻出来。
+ */
+export const readFailedSubmissionText = (transcript: Transcript): string | null => {
+  const last = transcript.submissionRows[transcript.submissionRows.length - 1]
+  return last !== undefined && last.status === 'failed' ? last.text : null
+}
+
 const readTimeline = (transcript: Transcript): TimelineState => transcript.timeline
 const EMPTY_LIST: readonly TodoItem[] = []
 const readTodos = (transcript: Transcript): readonly TodoItem[] => currentTodos(transcript.timeline) ?? EMPTY_LIST
@@ -193,6 +213,7 @@ export function useAssistantSession({
   const isRestoring = useSlice(key, readRestoring)
   const notice = useSlice(key, readNotice)
   const submissions = useSlice(key, readSubmissions)
+  const failedSubmissionText = useSlice(key, readFailedSubmissionText)
   /*
    * 打开一条已经存在的对话：接上端口、把这一格整读一遍。
    *
@@ -268,6 +289,7 @@ export function useAssistantSession({
     isRestoring,
     notice,
     submissions,
+    failedSubmissionText,
   }
 }
 

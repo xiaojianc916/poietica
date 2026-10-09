@@ -2,6 +2,7 @@ import { describe, expect, test } from 'bun:test'
 import type { Thread } from '../../../contract'
 import type { AgentPromptHandle, AgentPromptRequest, AgentSessionPort, QueuedMessages } from '../../agent/session'
 import type { TranscriptPage } from '../../agent/transcript'
+import { readFailedSubmissionText } from '../../components/transcript/use-assistant-session'
 import { createSessionRegistry } from '../../stores/session-registry'
 import { createThreadEntry } from '../../stores/thread-entry'
 import { TranscriptStore } from '../transcript-store'
@@ -475,5 +476,88 @@ describe('Core 换代后的重新同步（R-04 §3.6）', () => {
 
     expect(store.resyncVisible()).toEqual([])
     expect(a.state.reads).toBe(1)
+  })
+})
+
+/*
+ * R-08-5：排过队 / 插过话的那一句，Core 重启后是「未送达」。
+ *
+ * omp 的插话 / 排队队列住进程内存里，Core 一崩就没了；对应提交行留在库里收成 failed。
+ * 界面从前只画 `deliverAs === 'turn'` 的提交行，于是那句话在屏幕上一个字都不剩 ——
+ * 没有队列（队列不存在了）、没有气泡（这条不画）、也没有真实轮（从来没有过）。
+ */
+describe('R-08-5 未送达的插话 / 排队也画成气泡', () => {
+  const submission = (over: Partial<import('../../../contract').SubmissionView>) => ({
+    clientTurnId: 'c1',
+    threadId: 't1',
+    text: '排了一句',
+    attachments: [],
+    skills: [],
+    deliverAs: 'followUp' as const,
+    status: 'failed' as const,
+    turnId: null,
+    error: { code: 'conversation.core_restarted', message: 'Core 已重启' },
+    rev: 2,
+    createdAt: 10,
+    ...over,
+  })
+
+  function rowsOf(store: TranscriptStore, key: string) {
+    return store
+      .read(key)
+      .timeline.active.items.filter((item) => item.type === 'user_message')
+      .map((item) => item as { id: string; text: string; undelivered?: boolean })
+  }
+
+  test('failed 的 followUp 画进时间线，并标成未送达', () => {
+    const store = new TranscriptStore({ sessions: () => fakePort('t1').port })
+    store.open('t1')
+
+    store.upsertSubmission('t1', submission({}))
+
+    expect(rowsOf(store, 't1').map((row) => [row.text, row.undelivered])).toEqual([['排了一句', true]])
+  })
+
+  test('failed 的 steer 同样画出来；queued 与 pending 的插话 / 排队照旧不画', () => {
+    const store = new TranscriptStore({ sessions: () => fakePort('t1').port })
+    store.open('t1')
+    store.upsertSubmission('t1', submission({ clientTurnId: 'c1', deliverAs: 'steer', text: '插了一句' }))
+    store.upsertSubmission(
+      't1',
+      submission({ clientTurnId: 'c2', deliverAs: 'followUp', status: 'queued', text: '还在排队' }),
+    )
+    store.upsertSubmission(
+      't1',
+      submission({ clientTurnId: 'c3', deliverAs: 'steer', status: 'pending', text: '还没交出去' }),
+    )
+
+    /* 排队中的那些由队列区显示（`queue.changed`），时间线里不该多一份 */
+    expect(rowsOf(store, 't1').map((row) => row.text)).toEqual(['插了一句'])
+  })
+
+  test('正常走过的 turn 行不带未送达标记', () => {
+    const store = new TranscriptStore({ sessions: () => fakePort('t1').port })
+    store.open('t1')
+
+    store.upsertSubmission('t1', submission({ status: 'pending', deliverAs: 'turn', text: '正常的一句' }))
+
+    expect(rowsOf(store, 't1').map((row) => [row.text, row.undelivered])).toEqual([['正常的一句', undefined]])
+  })
+
+  /*
+   * 「取回文字」那颗键的正文来源（R-08-5）：Core 库里的失败行是排队 / 插话那一路唯一的
+   * 来源 —— 本机从不登记它们（没有乐观轮可收）。只认**最后一条**，否则人重发之后旧失败
+   * 还会顶在横幅上。
+   */
+  test('失败行的正文按最后一条取；成功的那些不算', () => {
+    const store = new TranscriptStore({ sessions: () => fakePort('t1').port })
+    store.open('t1')
+
+    store.upsertSubmission('t1', submission({ clientTurnId: 'c1', text: '旧的一句' }))
+    expect(readFailedSubmissionText(store.read('t1'))).toBe('旧的一句')
+
+    /* 之后又成功发出了一句：失败这件事已经翻篇，横幅与那颗键都不该再出现 */
+    store.upsertSubmission('t1', submission({ clientTurnId: 'c2', text: '新的一句', status: 'started', turnId: 't1' }))
+    expect(readFailedSubmissionText(store.read('t1'))).toBeNull()
   })
 })

@@ -72,6 +72,14 @@ export interface UserMessageItem extends TimelineEntry {
    * （同一 key、同一组件，DOM 原地更新）。历史回放里没有提交号的轮没有这一格。
    */
   readonly clientTurnId?: string
+  /**
+   * 这句话**没有被 agent 收到**（R-08-5）。
+   *
+   * 排过队 / 插过话的那些没有真实轮次可换（omp 的队列住进程内存里，Core 崩溃就没了），
+   * 所以它们在这里按「未送达」画成一个用户气泡 —— 正文还看得见，也能取回来重发。
+   * 正常走过的用户消息没有这一格。
+   */
+  readonly undelivered?: boolean
   readonly images?: readonly MessageImage[]
   readonly files?: readonly MessageFile[]
   readonly skills?: readonly string[]

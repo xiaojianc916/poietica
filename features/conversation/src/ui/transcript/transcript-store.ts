@@ -204,6 +204,10 @@ function stampedTurns(timeline: TimelineState): ReadonlySet<string> {
  * 只画 `deliverAs === 'turn'` 且还没被真实 turn 换掉的那些 —— 插话与排队不进时间线，
  * 它们由队列区显示（`queue.changed`）。真实 turn 到达后 Core 不再返回这条记录，
  * 这里自然就少了一行。
+ *
+ * 例外是**失败的插话 / 排队**（R-08-5）：它们没有真实 turn 可换，队列也已经没有它们
+ * （Core 重启把 omp 的内存队列带走了），不画就等于那句话无声无息地消失。按「未送达」
+ * 画成一条用户消息 —— 正文还看得见，也能取回来重发。
  */
 function withSubmissionRows(next: Transcript, seen: ReadonlySet<string> = new Set()): Transcript {
   /*
@@ -221,7 +225,9 @@ function withSubmissionRows(next: Transcript, seen: ReadonlySet<string> = new Se
         },
       }
     : next.timeline
-  const rows = next.submissionRows.filter((row) => row.deliverAs === 'turn' && row.status !== 'queued')
+  const rows = next.submissionRows.filter((row) =>
+    row.deliverAs === 'turn' ? row.status !== 'queued' : row.status === 'failed',
+  )
   if (rows.length === 0) {
     return stripped === next.timeline ? next : { ...next, timeline: stripped }
   }
@@ -237,6 +243,7 @@ function withSubmissionRows(next: Transcript, seen: ReadonlySet<string> = new Se
     turn: stripped.active.turn,
     at: row.createdAt,
     text: row.text,
+    ...(row.status === 'failed' ? { undelivered: true } : {}),
     ...(row.skills.length === 0 ? {} : { skills: row.skills }),
   }))
   /*

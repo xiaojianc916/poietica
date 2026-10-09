@@ -230,14 +230,21 @@ export class SubmissionService {
     })
   }
 
-  /** Core 启动：pending → failed / core_restarted；太旧的 started / queued 删除。 */
+  /**
+   * Core 启动：`pending` / `queued` → failed / core_restarted；太旧的 `started` 删除。
+   *
+   * 两档都必须在这里收掉，因为它们是**进程内**的两样东西：`pending` 是还没交接的提交，
+   * `queued` 是交给了 omp、排在它内存队列里的那一句 —— 队列随进程一起消失（R-08-5）。
+   * 从前只收 pending，排队的那些就永远停在 `queued`，界面既不画队列（队列已经没了）
+   * 也不画这条提交（`queued` 不进时间线），用户根本不知道那句话没了。
+   */
   recoverOnStart(): void {
     const at = this.d.clock.now()
     const error = {
       code: conversationErrors.core_restarted,
       message: conversationErrors.core_restarted,
     }
-    for (const row of this.d.repo.failPending(error)) {
+    for (const row of this.d.repo.failUndelivered(error)) {
       this.d.emitChanged(submissionOf(row))
       /*
        * 仓储已经改过库，这里只补事件：automations 的订阅那时还没建立（拓扑序 conversation 在前），
@@ -308,7 +315,15 @@ export class SubmissionService {
     const current = this.d.repo.get(row.clientTurnId)
     if (current === null || current.status !== 'pending') return
 
-    const deliveredAs = row.requestedAs === 'turn' && session.state() !== 'idle' ? 'followUp' : row.requestedAs
+    /*
+     * 真正按什么交出去（R-08-5）。两档都由**这一刻的会话状态**说了算，不由当初的意图说了算：
+     *
+     * - 会话在忙：开一轮的请求落进队列（`turn` → `followUp`）；插话与排队照旧。
+     * - 会话空闲：引擎对任何投递都是开一轮（`OmpSession.submit` 只看忙不忙）。所以
+     *   `retry` 一条 failed 的插话 / 排队在这里自然变回新一轮 —— 记成 `queued` 就等于
+     *   把一条已经开跑的真实轮标成还在排队，界面既画不出它、也不会拿号把提交行换掉。
+     */
+    const deliveredAs = session.state() === 'idle' ? 'turn' : row.requestedAs === 'turn' ? 'followUp' : row.requestedAs
     this.handed.add(row.clientTurnId)
     if (deliveredAs === 'turn') this.pendingTurn.set(row.threadId, row.clientTurnId)
 

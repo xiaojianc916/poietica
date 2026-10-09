@@ -28,7 +28,11 @@ import { EmotionBall, ENTRY_EMOTION_GROUPS } from './mascot/emotion-ball'
 import { PromptQueue } from './prompt-queue'
 import { TranscriptView } from './timeline/transcript-view'
 import { CONVERSATION_TODO_LAYOUT_STYLE, ConversationTodoPopover } from './todo/conversation-todo-popover'
-import { useAssistantInteractions, useAssistantSession } from './transcript/use-assistant-session'
+import {
+  type AssistantSession,
+  useAssistantInteractions,
+  useAssistantSession,
+} from './transcript/use-assistant-session'
 
 /* 连不上 agent 时输入区上沿那一句；原文（controlsFailure）只做 title。 */
 const DISCONNECTED = '没连上 agent，点击重试'
@@ -200,6 +204,19 @@ function useDismissed(message: string | null): readonly [boolean, () => void] {
  */
 const FAILURE_HOLD_MS = 60 * 60 * 1000
 
+/**
+ * 失败的那句话取自两个来源（R-08-5）：本机的乐观记录（界面自己发起的那一次提交）
+ * 优先，其次才是 Core 库里的失败行。后者是排队 / 插话那一路唯一的来源 —— 那些提交
+ * 本机从不登记（没有乐观轮可收），界面重开之后更是只剩库里这一条。
+ *
+ * 交回 null 表示没有可取回的正文（那时横幅只报原因，不给补救动作）。独立成函数是让
+ * 主干的复杂度落在闸门内，与 useDismissed 同一条理由。
+ */
+function recoverableTextOf(assistant: AssistantSession): string | null {
+  const failed = assistant.submissions.find((submission) => submission.phase === 'failed')
+  return failed?.text ?? assistant.failedSubmissionText
+}
+
 /*
  * 两个静止态、两棵树、一个输入框。静止态由显式相位说了算，不由转录反推：把导航派生自
  * 内容，等于任何一帧内容变动都能搬动整块构成，且挂载与卸载不可补间、中间态无法表达。
@@ -267,8 +284,8 @@ export const AssistantSurface = memo(function AssistantSurface({
    * 补救动作只有一个：把正文取回输入框。附件取不回（字节已入库，但重新选择才是对的），
    * 所以那句 title 只在这里说一次。
    */
-  const failed = assistant.submissions.find((submission) => submission.phase === 'failed')
-  const failure = assistant.notice ?? (failed === undefined ? null : '提交未完成；请先核对会话。')
+  const recoverable = recoverableTextOf(assistant)
+  const failure = assistant.notice ?? (recoverable === null ? null : '提交未完成；请先核对会话。')
   const [dismissed, dismissFailure] = useDismissed(failure)
 
   /*
@@ -342,7 +359,7 @@ export const AssistantSurface = memo(function AssistantSurface({
 
       {failure === null || dismissed ? null : (
         <Banner
-          {...(failed === undefined ? {} : { actions: [{ label: '取回文字', onClick: () => edit(failed.text) }] })}
+          {...(recoverable === null ? {} : { actions: [{ label: '取回文字', onClick: () => edit(recoverable) }] })}
           holdMs={FAILURE_HOLD_MS}
           key={failure}
           onDone={dismissFailure}

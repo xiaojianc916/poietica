@@ -42,6 +42,16 @@
 }
 
 /*
+ * 没送达的那一句（R-08-5）：虚线框说「它在，但没到 agent 手里」。
+ *
+ * 只换描边不换底色，也不把字染成失败色：说出口的话还是那句话，错的是投递。虚线在
+ * 深浅两套主题下都读得出（--cp-hairline 是分割线那一档，压得住底色的同时不抢眼）。
+ */
+.timeline-user[data-undelivered="true"] {
+  border: 1px dashed var(--cp-hairline);
+}
+
+/*
  * Clipped, never scrolled: overflow is clip, so this box cannot become a
  * second scroller inside the one the transcript already has. The fade is a
  * mask rather than an overlay, so it works on any bubble colour.
