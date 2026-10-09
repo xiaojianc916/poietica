@@ -49,6 +49,16 @@ export class SubmissionService {
   /** 已经交给 omp 的提交号：`turns.cancel` 不把这些人算成「还没交出去」。 */
   private readonly handed = new Set<string>()
   private readonly lanes = new Map<string, Lane>()
+  /**
+   * 进程内的 `turnId → clientTurnId` 缓存（R-08-2）。
+   *
+   * 流式期间每条 `turn.upsert` 都要问一次号（事件路由每条 upsert 补号）：先前每次都同步
+   * 查一次库。命中就直接答；没命中查一次库，把结果（**包括 null**）写回 —— null 也要缓存，
+   * 否则认不出号的 turn 会每条 upsert 都再查一次。
+   *
+   * `markTurn` 必须覆盖 null（先查后认领是真实顺序），线程删除时随 `forget` 一起清掉。
+   */
+  private readonly turnIds = new Map<string, Map<string, string | null>>()
 
   constructor(private readonly d: SubmissionServiceDeps) {}
 
@@ -162,8 +172,14 @@ export class SubmissionService {
    * 这一条线程里某个 turnId 对应的提交号（事件路由每条 upsert 补号用；没有就是 null）。
    */
   clientTurnIdOf(threadId: string, turnId: string): string | null {
+    const cache = this.turnIds.get(threadId) ?? new Map<string, string | null>()
+    if (cache.has(turnId)) return cache.get(turnId) ?? null
     const row = this.d.repo.findByTurnId(threadId, turnId)
-    return row === null ? null : row.clientTurnId
+    const clientTurnId = row === null ? null : row.clientTurnId
+    /* 把「查过、没有」也记住：认不出号的 turn 不再每条 upsert 都去问库一次 */
+    cache.set(turnId, clientTurnId)
+    this.turnIds.set(threadId, cache)
+    return clientTurnId
   }
 
   /** 这一轮的 `clientTurnId`（待交的那条）；没有就是 null。事件路由只问一次。 */
@@ -181,11 +197,14 @@ export class SubmissionService {
 
   /** 记下这一轮的真实 turnId（事件路由拿到 turn.upsert 时）。 */
   markTurn(threadId: string, clientTurnId: string, turnId: string): void {
+    /* 覆盖缓存里的 null：先查后认领是真实顺序（R-08-2），这里必须把号补上 */
+    const cache = this.turnIds.get(threadId) ?? new Map<string, string | null>()
+    cache.set(turnId, clientTurnId)
+    this.turnIds.set(threadId, cache)
     const row = this.d.repo.get(clientTurnId)
     if (row === null) return
     const next = this.d.repo.update(clientTurnId, { status: 'started', turnId })
     if (next !== null) this.d.emitChanged(submissionOf(next))
-    void threadId
   }
 
   /** `turns.state` 回到 idle 而这一轮没开出来：收成 failed。 */
@@ -244,11 +263,13 @@ export class SubmissionService {
     const pending = this.pendingTurn.get(threadId)
     if (pending !== undefined) this.handed.delete(pending)
     this.pendingTurn.delete(threadId)
+    /* R-08-2：按线程索引的号表跟线程一起走（只增不减就是内存泄漏） */
+    this.turnIds.delete(threadId)
   }
 
   /** 测试用：这条线程是否还有按线程索引的状态（交接车道 / 待认领号） */
   has(threadId: string): boolean {
-    return this.lanes.has(threadId) || this.pendingTurn.has(threadId)
+    return this.lanes.has(threadId) || this.pendingTurn.has(threadId) || this.turnIds.has(threadId)
   }
 
   // ── 内部 ─────────────────────────────────────────────────────────────────
