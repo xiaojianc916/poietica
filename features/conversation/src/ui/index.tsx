@@ -307,7 +307,10 @@ export default defineUiFeature({
     // ── 订阅：所有增量都进各自的副本（UI 自己按 threadId 过滤）───────────────
     ctx.lifecycle.onDispose(
       api.onTimelineOps((p) => {
-        stores.timelines.replicas.get(p.threadId)?.receive({ epoch: p.epoch, seq: p.seq, ops: p.ops })
+        /*
+         * 时间线的增量由端口层（stores/session-port.ts）翻译成副本信号；这里只剩
+         * 「真实那一轮到达 → 提交行销账」这一条与转录无关的副作用。
+         */
         const stamped = p.ops.flatMap((op) => {
           const turn = (op as { op: string; turn?: { clientTurnId?: string } }).turn
           return op.op === 'turn.upsert' && turn?.clientTurnId !== undefined ? [turn.clientTurnId] : []
@@ -316,11 +319,6 @@ export default defineUiFeature({
           /* 待发提交表在真实那一轮到达时销账：提交行换成真实 turn。 */
           transcripts.settleSubmissions(p.threadId, stamped)
         }
-      }).dispose,
-    )
-    ctx.lifecycle.onDispose(
-      api.onTimelineReset((p) => {
-        stores.timelines.replicas.get(p.threadId)?.onReset(p.epoch)
       }).dispose,
     )
     /* 「Core 即时回显」的两条通知：提交行的存续与消失都由 Core 说了算。 */
@@ -338,7 +336,6 @@ export default defineUiFeature({
     ctx.lifecycle.onDispose(
       api.onThreadRemoved((p) => {
         stores.threads.remove(p.threadId)
-        stores.timelines.close(p.threadId)
         stores.turnStates.clear(p.threadId)
         /*
          * 时间线副本与端口注册表都要跟着这条对话一起收掉。
@@ -365,22 +362,19 @@ export default defineUiFeature({
         if (isTurnSettled(previous, s.state)) notify(s.threadId, completionBody(s.error), 'completion')
       }).dispose,
     )
-    ctx.lifecycle.onDispose(api.onQueueChanged((p) => stores.queue.set(p.threadId, p.queue)).dispose)
     ctx.lifecycle.onDispose(api.onControlsChanged((p) => stores.controls.set(p.threadId, p.controls)).dispose)
     /*
      * 上下文用量单独一条（契约里 controls.contextChanged 的头注说明为什么不合进 controls.changed）：
      * 它每轮都在变，而控件表只在模型 / 档位 / 模式变了才变。
      */
     ctx.lifecycle.onDispose(api.onContextUsage((p) => stores.controls.setUsage(p.threadId, p.usage)).dispose)
+    /*
+     * 需要确认的通知只发一次系统通知 —— 待答卡片本身来自时间线的 interactions 表
+     * （转录副本订阅的那条路），这里不再另存一份。
+     */
     ctx.lifecycle.onDispose(
       api.onInteractionRequested((p) => {
-        stores.interactions.upsert(p.threadId, p.interaction)
         notify(p.threadId, '需要你的确认', 'needs-confirm')
-      }).dispose,
-    )
-    ctx.lifecycle.onDispose(
-      api.onInteractionResolved((p) => {
-        stores.interactions.resolve(p.threadId, p.interactionId)
       }).dispose,
     )
 
@@ -397,22 +391,30 @@ export default defineUiFeature({
       }).dispose,
     )
 
-    // ── core ready：整体重新同步（14 页 §9.5f）───────────────────────────────
+    // ── core ready / lost：整体重新同步（14 页 §9.5f、R-04 §3.7）────────────
     ctx.lifecycle.onDispose(() => {
       transcripts.dispose()
     })
 
-    ctx.lifecycle.onCoreReady(async () => {
-      await stores.threads.refresh()
-      /*
-       * 批准方式的持久意图开机读一次盘（盘上那份回来了，入口页与会话页才画得出
-       * 用户上次按下的那一档）。失败不上报理由，只留 warn —— 它只影响记忆。
-       */
-      await posture.load()
-      /*
-       * 草稿开机读一次盘（07 页 §5E：`conversation.drafts`）。这一条是「入口页的模型 /
-       * 思考档位重开软件还在」的全部内容 —— 少读这一条，盘上有值也画不出来。
-       */
+    /*
+     * Core 换代：运行态与已绑定对话全部不可信。
+     *
+     * 只做同步的内存清理（这是 onCoreLost 的硬要求：此刻 Core 不可用，RPC 会排队到超时）；
+     * 真正重读放在随后的 onCoreReady 里。
+     */
+    ctx.lifecycle.onCoreLost(() => {
+      stores.turnStates.resetAll()
+      transcripts.markAllStale()
+    })
+
+    /*
+     * 草稿读盘**只做一次**。
+     *
+     * `hydrate` 是 `{...当前, ...盘上}` 的合并：Core 每次重启都重读一遍，会把重启那一刻
+     * 输入框里最近 300ms（UI 去抖）+ 500ms（Host 去抖）内敲的字用盘上的旧版本盖回去
+     * （R-04 §1.5）。`posture.load()` 与它同一条理由。
+     */
+    const loadDraftsOnce = async (): Promise<void> => {
       const storedDrafts = await preferences
         .call('uiState.get', { key: 'conversation.drafts' })
         .then((r) => r.value)
@@ -420,11 +422,39 @@ export default defineUiFeature({
       if (storedDrafts !== null && typeof storedDrafts === 'object') {
         stores.composer.hydrate(storedDrafts as Record<string, import('./stores/composer').Draft>)
       }
-      stores.timelines.resubscribeAll()
-      for (const threadId of [...stores.timelines.replicas.keys()]) {
-        await stores.controls.refresh(threadId)
-        await stores.queue.refresh(threadId)
-        await stores.interactions.refresh(threadId)
+    }
+
+    let readyCount = 0
+    ctx.lifecycle.onCoreReady(async () => {
+      readyCount += 1
+      const first = readyCount === 1
+      const steps: Array<readonly [string, () => unknown]> = [
+        ['threads', () => stores.threads.refresh()],
+        ...(first
+          ? ([
+              ['posture', () => posture.load()],
+              ['drafts', () => loadDraftsOnce()],
+            ] as const)
+          : []),
+        [
+          'transcripts',
+          () => {
+            for (const threadId of transcripts.resyncVisible()) {
+              void stores.controls.refresh(threadId)
+            }
+          },
+        ],
+      ]
+      /*
+       * 每一步各自兜底：某一格抛错（例如盘上那份草稿读不回来）不该把后面的恢复步骤跳过
+       * —— 原先整段共用一次 await，第一步失败就等于「重启之后什么都不再同步」。
+       */
+      for (const [name, run] of steps) {
+        try {
+          await run()
+        } catch (e) {
+          ctx.logger.warn('core ready step failed', { step: name, error: String(e) })
+        }
       }
     })
 

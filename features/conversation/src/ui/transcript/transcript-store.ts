@@ -329,6 +329,15 @@ export class TranscriptStore implements TranscriptSink {
   readonly #submissions = new Map<string, SubmissionView[]>()
   /** 端口的工厂；由功能的组装点注入（ui/index.tsx）。缺席即没有会话可接。 */
   readonly #factory: SessionPortFactory | null
+  /**
+   * 已经绑过会话、而 Core 换代之后还没重读过的对话。
+   *
+   * Core 重启会丢掉进程内的一切（会话池、时间线副本的游标），已绑定的对话都不可信了；
+   * 但重启之后**不能**对所有访问过的对话立刻整读 —— R-03 之后整读会 acquire 会话，
+   * 那会一口气冷启动 N 个 AgentSession（R-04 §3.1）。所以只打标记，
+   * 屏幕上正显示的那条立即重读，其余等下次 `open`。
+   */
+  readonly #stale = new Set<string>()
   #disposed = false
   #serial = 0
 
@@ -673,6 +682,7 @@ export class TranscriptStore implements TranscriptSink {
       this.#pending.clear()
       this.#held.clear()
       this.#listeners.clear()
+      this.#stale.clear()
       this.#running = new Set()
       this.#runningListeners.clear()
     }
@@ -891,6 +901,13 @@ export class TranscriptStore implements TranscriptSink {
     }
     try {
       /*
+       * 换代后第一次再打开这条对话：先重读一遍（resync 之后 `loaded` 仍为 true，
+       * 下面的整读分支不会再发一次请求）。
+       */
+      if (this.#stale.has(threadId)) {
+        this.#resync(threadId)
+      }
+      /*
        * 已经绑过会话的对话不重绑：`route` 那条路（控件表报回来时）用的会话号是引擎
        * 签的，重绑会把已经建好的副本连同正文一起作废。
        */
@@ -978,6 +995,7 @@ export class TranscriptStore implements TranscriptSink {
     /* 提交行也随这条对话一起收掉（它独立于格子存）。 */
     this.#submissions.delete(threadId)
     this.#stamped.delete(threadId)
+    this.#stale.delete(threadId)
     /*
      * 别名也要一并清掉：这条对话已经不存在了，把旧键再解析到它上面等于给幽灵续命
      * （新对话拿到同一个 id、或者旧回调晚到一步时，都会写进一个不存在的格）。
@@ -989,6 +1007,59 @@ export class TranscriptStore implements TranscriptSink {
       }
     }
     this.#publishRunning()
+  }
+
+  /**
+   * Core 丢失：所有已绑定的对话都不可信了。
+   *
+   * 只打标记、不发请求 —— 此刻 Core 不可用，RPC 只会排队到超时（R-04 §7）。
+   */
+  markAllStale = (): void => {
+    for (const thread of this.#owners.keys()) {
+      this.#stale.add(thread)
+    }
+  }
+
+  /**
+   * Core 恢复：正在显示的对话立即重读，其余的留到下次 `open`。
+   *
+   * 交回立即重读的线程号，调用方据此刷新控件表（它们也是 Core 进程内的状态）。
+   */
+  resyncVisible = (): readonly string[] => {
+    const now: string[] = []
+    for (const thread of [...this.#stale]) {
+      if (!this.#isMounted(thread)) {
+        continue
+      }
+      this.#resync(thread)
+      now.push(thread)
+    }
+    return now
+  }
+
+  /** `#listeners` 的键是通道键（对话号或 `对话号#子代理号`）：任何属于这条对话的键有监听者即视为在屏幕上。 */
+  #isMounted(thread: string): boolean {
+    for (const [key, listeners] of this.#listeners) {
+      if (listeners.size > 0 && addressOf(key).conversation === thread) {
+        return true
+      }
+    }
+    return false
+  }
+
+  /** 重读一条已经绑定的对话：换掉所有副本、读一次队列（正文与队列都是 Core 进程内的事实）。 */
+  #resync(thread: string): void {
+    this.#stale.delete(thread)
+    const owner = this.#owners.get(thread)
+    if (owner === undefined) {
+      return
+    }
+    this.#observe(
+      thread,
+      owner,
+      owner.receive({ kind: 'resync', sessionId: owner.sessionId, reason: 'core restarted' }),
+    )
+    this.refreshQueue(thread)
   }
 
   readEarlier = async (key: string): Promise<void> => {

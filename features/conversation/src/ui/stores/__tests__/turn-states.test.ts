@@ -46,3 +46,84 @@ describe('turnStates 的 byThread 引用（订阅式选择器的前提）', () =
     expect(store.store.getState()).toBe(before)
   })
 })
+
+/*
+ * R-04 §3.5：运行态 = 快照打底 + 之后的通知。
+ *
+ * 只靠 turns.state 通知的话：Core 在运行中崩溃重启之后最后一条通知停在 running，
+ * 侧栏永远转圈、退出确认一直问（R-04 §1.4）；渲染进程重载后更是什么都不知道，
+ * 正在跑的对话显示为空闲。修法是把 `threads.list` 的 `state` 喂回来打底，
+ * 并用版本号保护「请求期间到达的通知」不被出发时的旧快照盖掉。
+ */
+describe('运行态快照打底与换代清零（R-04 §3.5）', () => {
+  test('R-04 S7 通知比快照新：快照不覆盖它', () => {
+    const store = createTurnStatesStore()
+    const mark = store.mark()
+    store.set({ threadId: 't1', state: 'running', error: null, startedAt: 1 })
+
+    store.hydrate(
+      [
+        { id: 't1', state: 'idle' },
+        { id: 't2', state: 'running' },
+      ],
+      mark,
+    )
+
+    /* t1 的通知在 mark 之后到过：出发时的旧快照（idle）不许盖回去。 */
+    expect(store.get('t1')?.state).toBe('running')
+    expect(store.isRunning('t1')).toBe(true)
+    /* t2 没有通知，按快照说它正在跑。 */
+    expect(store.isRunning('t2')).toBe(true)
+  })
+
+  test('R-04 S7b mark 之前的旧通知可以被快照更新（快照才是这一趟的真相）', () => {
+    const store = createTurnStatesStore()
+    store.set({ threadId: 't1', state: 'running', error: null, startedAt: 1 })
+    const mark = store.mark()
+
+    store.hydrate([{ id: 't1', state: 'idle' }], mark)
+
+    expect(store.isRunning('t1')).toBe(false)
+  })
+
+  test('R-04 S7c 内容没变时不换引用（订阅者不白重画）', () => {
+    const store = createTurnStatesStore()
+    store.hydrate([{ id: 't1', state: 'idle' }], store.mark())
+    const first = store.store.getState().byThread
+
+    store.hydrate([{ id: 't1', state: 'idle' }], store.mark())
+
+    expect(store.store.getState().byThread).toBe(first)
+  })
+
+  test('R-04 S8 resetAll 之后全部回到 idle、计数归零', () => {
+    const store = createTurnStatesStore()
+    store.set({ threadId: 't1', state: 'running', error: null, startedAt: 1 })
+    store.set({ threadId: 't2', state: 'awaiting', error: null, startedAt: 2 })
+
+    store.resetAll()
+
+    expect(store.isRunning('t1')).toBe(false)
+    expect(store.isRunning('t2')).toBe(false)
+    expect(store.runningCount()).toBe(0)
+  })
+
+  /*
+   * `version` 不归零：换代后发出的 mark 仍然大于换代前所有已发出的 mark，
+   * 「重置之后到达的通知」与「重置之前取的 mark」因此不会撞号。
+   */
+  test('R-04 S8b resetAll 不把版本归零：换代后到达的通知仍比旧 mark 新', () => {
+    const store = createTurnStatesStore()
+    store.set({ threadId: 't1', state: 'running', error: null, startedAt: 1 })
+    const before = store.mark()
+
+    store.resetAll()
+    const after = store.mark()
+
+    expect(after).toBe(before)
+    /* 换代后新 Core 推来一条通知：它仍然比换代前取的 mark 新，快照不覆盖它。 */
+    store.set({ threadId: 't1', state: 'running', error: null, startedAt: 2 })
+    store.hydrate([{ id: 't1', state: 'idle' }], before)
+    expect(store.isRunning('t1')).toBe(true)
+  })
+})

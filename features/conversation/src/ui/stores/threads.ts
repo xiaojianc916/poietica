@@ -1,6 +1,7 @@
 import { createFeatureStore, type FeatureStore } from '@poietica/ui-kernel'
 import type { Thread } from '../../contract'
 import type { ConversationApi } from '../api'
+import type { TurnStatesStore } from './turn-states'
 
 export interface ThreadsState {
   readonly items: readonly Thread[]
@@ -29,7 +30,14 @@ export function orderThreads(items: readonly Thread[]): readonly Thread[] {
   })
 }
 
-export function createThreadsStore(api: ConversationApi): ThreadsStore {
+/**
+ * 线程列表。
+ *
+ * `refresh()` 拿到的 `Thread.state` 是运行态的**快照兜底**：只靠 `turns.state` 通知的话，
+ * Core 在运行中崩溃重启之后最后一条通知停在 running，侧栏会一直转圈（R-04 §1.4）；
+ * 渲染进程重载后更是没有任何通知，正在跑的对话会显示为空闲。
+ */
+export function createThreadsStore(api: ConversationApi, turnStates: TurnStatesStore): ThreadsStore {
   const store = createFeatureStore<ThreadsState>(() => ({
     items: [],
     workspaceId: null,
@@ -58,12 +66,21 @@ export function createThreadsStore(api: ConversationApi): ThreadsStore {
     async refresh() {
       const { workspaceId, includeArchived } = store.getState()
       store.setState({ isLoading: true })
+      /*
+       * 版本在**发请求之前**取：往返期间到达的通知版本更高，hydrate 会跳过那些线程，
+       * 不让出发时的旧快照把新状态盖回去。
+       */
+      const mark = turnStates.mark()
       try {
         const items = await api.listThreads({
           ...(workspaceId === null ? {} : { workspaceId }),
           includeArchived,
         })
         store.setState({ items: orderThreads(items), isLoading: false, failure: null })
+        turnStates.hydrate(
+          items.map((thread) => ({ id: thread.id, state: thread.state })),
+          mark,
+        )
       } catch (e) {
         store.setState({ isLoading: false, failure: e instanceof Error ? e.message : String(e) })
       }

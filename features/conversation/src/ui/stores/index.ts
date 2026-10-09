@@ -3,10 +3,7 @@ import { createId } from '@poietica/foundation'
 import type { ConversationApi } from '../api'
 import { type ComposerStore, createComposerStore } from './composer'
 import { type ControlsStore, createControlsStore } from './controls'
-import { createInteractionsStore, type InteractionsStore } from './interactions'
-import { createQueueStore, type QueueStore } from './queue'
 import { createThreadsStore, type ThreadsStore } from './threads'
-import { createTimelinesStore, type TimelinesStore } from './timelines'
 import { createTurnStatesStore, type TurnStatesStore } from './turn-states'
 
 export type { TurnStatesStore }
@@ -29,12 +26,9 @@ export interface ComposerApi {
 export interface ConversationStores {
   readonly api: ConversationApi
   readonly threads: ThreadsStore
-  readonly timelines: TimelinesStore
   readonly composer: ComposerStore
   readonly turnStates: TurnStatesStore
   readonly controls: ControlsStore
-  readonly queue: QueueStore
-  readonly interactions: InteractionsStore
   /** 某个线程（或 home）的输入框句柄 */
   composerFor(threadId: string | null): ComposerApi
 }
@@ -43,23 +37,21 @@ export function createStores(
   api: ConversationApi,
   initialDrafts: Readonly<Record<string, import('./composer').Draft>> = {},
 ): ConversationStores {
-  const threads = createThreadsStore(api)
-  const timelines = createTimelinesStore(api)
-  const composer = createComposerStore(initialDrafts)
+  /*
+   * turnStates 先建：threads.refresh() 要用它把 `Thread.state` 打底（R-04 §3.5），
+   * 构造顺序就是这条依赖的事实。
+   */
   const turnStates = createTurnStatesStore()
+  const threads = createThreadsStore(api, turnStates)
+  const composer = createComposerStore(initialDrafts)
   const controls = createControlsStore(api)
-  const queue = createQueueStore(api)
-  const interactions = createInteractionsStore(api)
 
   const stores: ConversationStores = {
     api,
     threads,
-    timelines,
     composer,
     turnStates,
     controls,
-    queue,
-    interactions,
     composerFor(threadId) {
       const submit = (deliverAs: 'turn' | 'steer' | 'followUp'): void => {
         if (threadId === null) return

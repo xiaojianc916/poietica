@@ -276,3 +276,81 @@ M8 在新旧代码上都是绿的 —— 与报告标注一致（回归用例）
 | 编号 | 日期 | 问题 | 阻塞的步骤 | 状态 |
 |---|---|---|---|---|
 | Q35 | 2026-10-09 | R-05 §6 的两条手工验收未跑（需要安装包 + 真 omp）：① 依次打开 10 条历史对话并重复，Core 内存不再线性上涨；② 运行中退出应用，`core.log` 各阶段齐全且无 `core did not exit in time, killing` | 无（代码与单测已按报告落地） | 记录：等产品负责人真机复核 |
+
+## R-04 Core 重启 / 页面重载后 UI 不重新同步：时间线冻结、运行态卡死、死 store 掩盖缺口（2026-10-09）
+
+**来源**：产品负责人交办的缺陷报告 `R-04 Core 重启 页面重载后 UI 不重新同步：时间线冻结、运行态卡死、死 store 掩盖.md`
+（外部输入，不入库）。按报告 §3 的设计执行，未改契约、未动 `PROTOCOL_VERSION`。
+
+**根因四条**：迁移期新旧两套 UI 时间线副本并存（新 `TimelineReplica` 从未被生产路径打开，
+恢复逻辑却挂在它上面）；适配层 `session-port` 把 epoch+seq 压成「只有 seq」，换代信息在端口层丢掉；
+epoch 是进程内计数器，两个先后启动的 Core 都从 1 开始；运行态只由通知积分，没有快照兜底。
+
+**改法**：
+
+1. **删死代码**（§3.1）：删掉 `ui/stores/timelines.ts`、`timeline-replica.ts`（含 CV-11 测试）、
+   `queue.ts`、`interactions.ts`；`ConversationStores` 去掉三个字段，`stores/index.ts` 与
+   `ui/index.tsx` 的引用一并清掉；`ui/api.ts` 删掉随之没有调用方的 `unsubscribeTimeline` /
+   `listInteractions`（契约方法保留，Core 侧仍实现）。恢复逻辑全部改挂在真正在用的
+   `TranscriptStore` 上。
+2. **Core：epoch 跨进程唯一**（§3.2）。`TimelineHub` 的起点从 `1` 改为随机
+   `randomEpochBase()`（`1 + floor(random * 2^40)`），`TimelineHubDeps` 新增可注入的 `epochBase`；
+   现有断言固定 epoch 的用例统一传 `epochBase: 1`，并新增 S1（两个 hub 的首个 epoch 不等）。
+   契约里 epoch 仍是 `int().positive()`，无需提升版本。
+3. **端口：换代发 reset、旧页带真实 seq**（§3.3）。`session-port.ts` 的 `epochs` 表换成
+   `positions`（`agentId → {epoch, seq}`）：`timeline.ops` 发现 epoch 变化就交 `reset`
+   （丢掉这一批不丢数据 —— 整读位置在这批之后），同代照常交增量；`timeline.reset` 把位置换到
+   `{epoch, 0}`；整读写回快照的 epoch+seq；**旧页（`beforeTurn`）交回真实 seq**（原先误填 epoch，
+   翻页后触发副本的游标倒走不变式，对话进 failed 横幅）。
+4. **UI 内核：`onCoreLost`**（§3.4）。`packages/ui-kernel` 的 `lifecycle` 新增 `onCoreLost(fn)`，
+   `kernel.ts` 在 `wasReady && !ready` 时**同步**逐个调用（try/catch + `logger.error`），
+   与 `onCoreReady` 一样跳过 `failures` 里的功能。放在内核而不是 conversation 里自己订阅
+   `CoreStatusToken`：terminal / automations / browser 将来也要同一个时机。
+5. **turnStates：快照打底 + 版本**（§3.5）。新增 `mark()` / `hydrate(threads, mark)` / `resetAll()`：
+   非响应式 `version` + `touched` 记账，通知到过（即使内容没变）的那条线程不被出发时的旧快照覆盖；
+   `resetAll` 清表但**不归零版本**；不走 `onTurnState` 回调，崩溃因此不会弹「已完成」。
+   `threads.refresh()` 出发前 `mark()`，落地后 `hydrate(List.state)`；`stores/index.ts` 先建
+   turnStates 再建 threads。
+6. **TranscriptStore：陈旧标记与 resync**（§3.6）。新增 `#stale`、`markAllStale()`（只标记、不发请求）、
+   `resyncVisible()`（只重读有监听者的对话，交回线程号给调用方刷控件表）、`#resync()`（清副本重读 +
+   读一次队列）、`#isMounted()`（按 `#listeners` 的通道键判归属）；`open()` 开头先消化陈旧标记，
+   `forget()` / `dispose()` 清理标记。`TranscriptReplica` 未改（它已有 resync）。
+7. **装配**（§3.7）。`onCoreLost`：`turnStates.resetAll()` + `transcripts.markAllStale()`（全同步）；
+   `onCoreReady`：逐步各自兜底 —— `threads.refresh`（每次都做）→ `posture.load` / 草稿读盘
+   （**只有第一次**，否则重启会把输入框里尚未落盘的字用盘上旧版本盖回去）→ `resyncVisible()` 并刷
+   对应控件表；任一步抛错只 warn，不再截断后续步骤。删除 `timelines.resubscribeAll()` 与基于空
+   副本表的循环、`onTimelineReset` 订阅、`queue.changed` → `stores.queue` 的订阅、`interactions.*`
+   → `stores.interactions` 的订阅（保留 `needs-confirm` 系统通知）。
+
+**测试**（报告 §5 的 S1–S12）：
+
+- `core/__tests__/timeline-channel.test.ts`：S1（20 次新建 hub，首个 epoch 两两不等）。
+- `ui/stores/__tests__/session-port.test.ts`：S2（epoch 变化交 reset 而非 ops）、S2b（同代不误伤）、
+  S2c（reset 后同代增量正常）、S3（旧页 seq 是真实水位 40 而不是 epoch）。
+- `ui/transcript/__tests__/transcript-store.test.ts`：S4（reset 后同号 seq=1 的 ops 被应用，状态变 running）、
+  S5（`markAllStale → resyncVisible` 只重读有订阅者的那条；另一条等 `open`）、S6（`forget` 后不抛错）。
+- `ui/stores/__tests__/turn-states.test.ts`：S7（通知比快照新）、S7b/S7c（mark 之前可覆盖 / 内容不变不换引用）、
+  S8（`resetAll` 后计数为零）、S8b（版本不归零）。
+- `ui/__tests__/threads-store.test.ts`：S9（`refresh` 后 running 被认出来）、S9b（往返期间的通知不被旧快照盖回）、
+  失败时不打底。
+- `packages/ui-kernel/src/__tests__/kernel.test.tsx`：S10（ready → restarting → ready 时 lost 恰一次且早于下一次
+  ready；starting → ready 不触发）、S11（一个功能的 lost 抛错不影响其它功能，错误进 logger）。
+- `apps/desktop/src/renderer/__tests__/core-recovery.test.tsx`：S12（第一次 ready 读一次
+  `conversation.drafts` / `conversation.permissionPosture`；重启后的 ready 不再读，`threads.list` 每次 ready 都发）。
+
+**验收**：`bun run check` 全绿（1582 pass / 0 fail，202 文件 / 5173 断言；较 R-05 的 1569 多 13 条，
+含新增装配级用例文件 `core-recovery.test.tsx`）。
+
+**本轮偏差**：无契约形状变化、未动 `PROTOCOL_VERSION` 与协议快照。§3.4 里「`restarting` 一定早于新进程启动」
+这一前提没有在本仓文档里单独成文（`CoreSupervisor` 的实现保证「先广播状态、再拉起子进程」），
+`onCoreLost` 的同步语义依赖它；若将来看护人改成并行启动，需要重新核对这一条。
+
+**未能核实、记入待决**：报告 §6 的四条手工验收需要安装包 + 真 omp（结束 `poietica-core.exe` 后
+侧栏无残留运行态、当前对话自动重读一次且无 failed 横幅、续聊正常流式、切到旧对话时重读一次；
+F5 重载后运行中对话仍显示运行中且关窗确认；重启后输入框内容不被回滚）。
+
+### 审查执行待决（R-04 新增）
+
+| 编号 | 日期 | 问题 | 阻塞的步骤 | 状态 |
+|---|---|---|---|---|
+| Q36 | 2026-10-09 | R-04 §6 的四条手工验收未跑（需要安装包 + 真 omp）：① Core 崩溃重启后时间线自动重读、运行态无残留；② F5 重载后运行中标记与关窗确认；③ 重启后输入框内容不回滚；④ 切到旧对话时才重读 | 无（代码与单测已按报告落地） | 记录：等产品负责人真机复核 |

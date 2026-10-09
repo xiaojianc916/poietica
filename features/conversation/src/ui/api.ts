@@ -70,8 +70,6 @@ export function createConversationApi(ctx: UiFeatureContext) {
     // 时间线
     subscribeTimeline: (threadId: string, agentId: string): Promise<TimelineSnapshot> =>
       rpc.call('timeline.subscribe', { threadId, agentId }),
-    unsubscribeTimeline: (threadId: string, agentId: string): Promise<void> =>
-      rpc.call('timeline.unsubscribe', { threadId, agentId }).then(() => undefined),
     timelinePage: (threadId: string, agentId: string, beforeTurnId: string | null): Promise<TranscriptPage> =>
       rpc.call('timeline.page', { threadId, agentId, beforeTurnId }),
     catchUp: (
@@ -113,8 +111,6 @@ export function createConversationApi(ctx: UiFeatureContext) {
       rpc.call('controls.setPlanMode', { threadId, enabled }),
     setGoal: (threadId: string, goal: string | null): Promise<Controls> =>
       rpc.call('controls.setGoal', { threadId, goal }),
-    listInteractions: (threadId: string): Promise<Interaction[]> =>
-      rpc.call('interactions.list', { threadId }).then((r) => r.interactions),
     respond: (threadId: string, interactionId: string, answer: InteractionAnswer): Promise<void> =>
       rpc.call('interactions.respond', { threadId, interactionId, answer }).then(() => undefined),
 

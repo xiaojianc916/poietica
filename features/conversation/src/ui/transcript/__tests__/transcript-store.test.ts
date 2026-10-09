@@ -349,3 +349,131 @@ describe('待发提交按 clientTurnId 收口（发送键不再空转）', () =>
     expect(store.read('t-absent').submissions).toEqual([])
   })
 })
+
+/*
+ * R-04 §3.6：Core 换代之后，已绑定的对话要能重读；正在显示的立即读，其余等下次打开。
+ *
+ * 旧实现没有这两口：重启之后 UI 侧没有任何路径知道「副本的游标属于旧进程」，
+ * 时间线于是冻结（新进程的 seq 从 1 重新开始，副本按旧水位判成重复）。
+ */
+describe('Core 换代后的重新同步（R-04 §3.6）', () => {
+  /** 一根可记账、可主动推信号的假端口。 */
+  function recordingPort(threadId: string) {
+    let listener: ((signal: import('../../agent/transcript').TranscriptSignal) => void) | null = null
+    const state = { reads: 0, queues: 0, nextSeq: 100 }
+    const page = (): TranscriptPage => ({ ...EMPTY_PAGE, seq: state.nextSeq })
+    const port: AgentSessionPort = {
+      transcript: {
+        subscribeTranscript: (l) => {
+          listener = l
+          return () => {
+            listener = null
+          }
+        },
+        readTranscript: async () => {
+          state.reads += 1
+          return page()
+        },
+        catchUpTranscript: async (_sessionId, agentId, sinceSeq) => ({
+          agentId,
+          batches: [],
+          latestSeq: sinceSeq,
+          complete: true,
+        }),
+      },
+      prompt: async () => ({ sessionId: threadId, promptId: 'p1' }),
+      cancel: async () => undefined,
+      readQueue: async () => {
+        state.queues += 1
+        return { ...EMPTY_QUEUE, threadId }
+      },
+      withdraw: async () => null,
+      move: async () => ({ ...EMPTY_QUEUE, threadId }),
+      setDeliveryModes: async () => ({ ...EMPTY_QUEUE, threadId }),
+      subscribeQueue: () => () => undefined,
+      subscribePromptDropped: () => () => undefined,
+      subscribeRunFailed: () => () => undefined,
+      abortPrompt: async () => undefined,
+      resolvePermission: async () => undefined,
+      resolvePlan: async () => undefined,
+      answerQuestions: async () => undefined,
+      dismissQuestions: async () => undefined,
+    }
+    return {
+      port,
+      state,
+      emit: (signal: import('../../agent/transcript').TranscriptSignal) => listener?.(signal),
+    }
+  }
+
+  test('R-04 S4 reset 之后同号 seq=1 的 ops 被应用（快照里看得到）', async () => {
+    const held = recordingPort('t1')
+    const store = new TranscriptStore({ sessions: () => held.port })
+    store.open('t1')
+    await Bun.sleep(0)
+    expect(held.state.reads).toBe(1)
+
+    /*
+     * 模拟端口层的换代输出：一条 reset，随后新进程 seq=1 的 op。
+     *
+     * 换代后的整读交回**新进程的水位 0**（旧进程留在副本里的水位是 100）——
+     * 这正是旧代码丢掉整批新数据的那种相位。
+     */
+    held.state.nextSeq = 0
+    held.emit({ kind: 'reset', sessionId: 't1', agentId: 'main', seq: undefined })
+    await Bun.sleep(0)
+    expect(held.state.reads).toBe(2)
+
+    held.emit({
+      kind: 'ops',
+      sessionId: 't1',
+      agentId: 'main',
+      seq: 1,
+      ops: [
+        {
+          op: 'turn.upsert',
+          turn: { kind: 'turn', turnId: 't1', ordinal: 1, state: 'running', origin: { kind: 'other' } },
+        } as never,
+      ],
+    })
+    await Bun.sleep(0)
+    /* seq=1 被真的应用：这一轮画进了时间线（状态跟着 running）。 */
+    expect(store.read('t1').loaded).toBe(true)
+    expect(store.read('t1').status).toBe('running')
+  })
+
+  test('R-04 S5 markAllStale → resyncVisible 只重读有监听者的那条', async () => {
+    const a = recordingPort('A')
+    const b = recordingPort('B')
+    const store = new TranscriptStore({ sessions: (id) => (id === 'A' ? a.port : b.port) })
+    store.open('A')
+    store.open('B')
+    await Bun.sleep(0)
+    expect([a.state.reads, b.state.reads]).toEqual([1, 1])
+
+    /* A 在屏幕上（有订阅者），B 没人在看。 */
+    store.subscribe('A', () => undefined)
+    store.markAllStale()
+    expect(store.resyncVisible()).toEqual(['A'])
+    await Bun.sleep(0)
+    expect([a.state.reads, b.state.reads]).toEqual([2, 1])
+
+    /* 之后真的打开 B：它按「换代后的第一次」重读一次。 */
+    store.open('B')
+    await Bun.sleep(0)
+    expect(b.state.reads).toBe(2)
+  })
+
+  test('R-04 S6 forget 之后 resyncVisible 不报错、也不再处理那条', async () => {
+    const a = recordingPort('A')
+    const store = new TranscriptStore({ sessions: () => a.port })
+    store.open('A')
+    await Bun.sleep(0)
+    store.subscribe('A', () => undefined)
+    store.markAllStale()
+    store.forget('A')
+
+    expect(store.resyncVisible()).toEqual([])
+    expect(a.state.reads).toBe(1)
+  })
+})

@@ -52,9 +52,21 @@ export function createUiKernel(opts: UiKernelOptions): UiKernel {
   channel = createUiChannel(peer, logger.child({ scope: 'ui-notifications' }))
   const failures = new Map<string, Error>()
   const coreReadyHooks: Array<{ featureId: string; fn: () => void | Promise<void> }> = []
+  const coreLostHooks: Array<{ featureId: string; fn: () => void }> = []
   const disposeHooks: Array<() => void> = []
   const disposables: Disposable[] = []
   const dependsOf = new Map<string, readonly string[]>()
+
+  function runCoreLost(): void {
+    for (const h of coreLostHooks) {
+      if (failures.has(h.featureId)) continue
+      try {
+        h.fn()
+      } catch (e) {
+        logger.error('onCoreLost failed', { feature: h.featureId, error: String(e) })
+      }
+    }
+  }
 
   async function runCoreReady(): Promise<void> {
     for (const h of coreReadyHooks) {
@@ -102,6 +114,9 @@ export function createUiKernel(opts: UiKernelOptions): UiKernel {
             onCoreReady: (fn) => {
               coreReadyHooks.push({ featureId: f.id, fn })
             },
+            onCoreLost: (fn) => {
+              coreLostHooks.push({ featureId: f.id, fn })
+            },
             onDispose: (fn) => {
               disposeHooks.push(fn)
             },
@@ -120,6 +135,8 @@ export function createUiKernel(opts: UiKernelOptions): UiKernel {
       const apply = (s: CoreStatus): void => {
         const wasReady = kernelServices.coreStatus.current().state === 'ready'
         kernelServices.coreStatus.set(s)
+        /* 丢掉 Core：同步清掉依赖进程内状态的 UI 缓存，必须早于新 Core 的任何通知。 */
+        if (wasReady && s.state !== 'ready') runCoreLost()
         if (s.state === 'ready' && !wasReady) void runCoreReady()
       }
       disposables.push(

@@ -66,14 +66,34 @@ export interface SessionPortOptions {
 }
 
 export function createSessionPort({ api, threadId, onSubmissions }: SessionPortOptions): AgentSessionPort {
-  /** agentId → 最近一次见到的 epoch（第 1 条映射） */
-  const epochs = new Map<string, number>()
+  /**
+   * agentId → 端口最近一次见到的 (epoch, seq)（第 1 条映射）。
+   *
+   * 两个位置缺一不可：
+   * - **epoch** 是换代判据：Core 重启后新进程的 epoch 与旧的不同（R-04 §3.2 的随机起点），
+   *   端口一旦发现变化就必须把这一批当成「换代」交给副本整读，而不是当增量交下去
+   *   （新进程的 seq 从 1 重新开始，当增量只会被旧水位判成重复）。
+   * - **seq** 是这一代的水位：旧页整读（`beforeTurn`）要带**真实水位**回来，
+   *   副本拿它做「历史游标不倒走」的不变式（原先这里填的是 epoch，翻页后必崩）。
+   */
+  const positions = new Map<string, { readonly epoch: number; readonly seq: number }>()
 
   const transcript = {
     subscribeTranscript(listener: (signal: TranscriptSignal) => void): () => void {
       const offOps = api.onTimelineOps((p) => {
         if (p.threadId !== threadId) return
-        epochs.set(p.agentId, p.epoch)
+        const known = positions.get(p.agentId)
+        positions.set(p.agentId, { epoch: p.epoch, seq: p.seq })
+        if (known !== undefined && known.epoch !== p.epoch) {
+          /*
+           * 换代（Core 重启、或我们错过了 reset）：这一批不能当增量用，让副本整读。
+           *
+           * 丢掉这一批不丢数据 —— 整读的快照位置在这批之后（timeline.subscribe 先
+           * acquire 再取 position，订阅那一刻的 flush 保证 position 不小于这批）。
+           */
+          listener({ kind: 'reset', sessionId: p.threadId, agentId: p.agentId, seq: undefined })
+          return
+        }
         listener({
           kind: 'ops',
           sessionId: p.threadId,
@@ -84,7 +104,7 @@ export function createSessionPort({ api, threadId, onSubmissions }: SessionPortO
       })
       const offReset = api.onTimelineReset((p) => {
         if (p.threadId !== threadId) return
-        epochs.set(p.agentId, p.epoch)
+        positions.set(p.agentId, { epoch: p.epoch, seq: 0 })
         listener({ kind: 'reset', sessionId: p.threadId, agentId: p.agentId, seq: undefined })
       })
       return () => {
@@ -102,12 +122,13 @@ export function createSessionPort({ api, threadId, onSubmissions }: SessionPortO
           agentId,
           agents: rosterOf(older.tasks),
           pendingInteractions: older.interactions.filter((i) => i.state === 'pending').map((i) => i.interactionId),
-          seq: epochs.get(agentId) ?? 0,
+          /* 旧页带**真实 seq**：副本的游标不变式认的是水位，不是 epoch（R-04 §1.3）。 */
+          seq: positions.get(agentId)?.seq ?? 0,
         }
       }
       // 整读：先取位置、再取整页（05 页 §12.2 的快照约定），所以 seq 用它交回的那个
       const snap = await api.subscribeTimeline(target, agentId)
-      epochs.set(agentId, snap.epoch)
+      positions.set(agentId, { epoch: snap.epoch, seq: snap.seq })
       onSubmissions?.(snap.submissions)
       return {
         ...snap.page,
@@ -120,12 +141,12 @@ export function createSessionPort({ api, threadId, onSubmissions }: SessionPortO
 
     async catchUpTranscript(sessionId: string, agentId: string, sinceSeq: number): Promise<TranscriptCatchUp> {
       const target = sessionId === '' ? threadId : sessionId
-      const epoch = epochs.get(agentId)
+      const position = positions.get(agentId)
       // epoch 没记住：交回不完整，下游整读重建（第 1 条映射）
-      if (epoch === undefined) {
+      if (position === undefined) {
         return { agentId, batches: [], latestSeq: sinceSeq, complete: false }
       }
-      const r = await api.catchUp(target, agentId, epoch, sinceSeq)
+      const r = await api.catchUp(target, agentId, position.epoch, sinceSeq)
       return { agentId, batches: r.batches, latestSeq: r.latestSeq, complete: r.complete }
     },
   }

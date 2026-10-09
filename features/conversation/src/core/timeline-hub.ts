@@ -20,14 +20,33 @@ export interface TimelineHubDeps {
   readonly clock: Clock
   readonly emitOps: (p: TimelineOpsNotice) => void
   readonly emitReset: (p: TimelineResetNotice) => void
+  /**
+   * 本进程 epoch 的起点；默认随机（见 `randomEpochBase`）。测试注入固定值。
+   *
+   * epoch 是「换代」的判据（UI 端口按它给副本发 reset），进程内自增只能保证
+   * **本进程**不重复；两个先后启动的 Core 都会从 1 开始，UI 就认不出换代（R-04 §3.2）。
+   */
+  readonly epochBase?: number
 }
 
-/** (threadId, agentId) → TimelineChannel；epoch 是 Core 进程内的一个全局计数器 */
+/**
+ * 2^40 以内的随机正整数：与之后的自增合起来仍远小于 Number.MAX_SAFE_INTEGER。
+ *
+ * 不用 `Date.now()`：同一毫秒附近启动的两个进程、以及时钟回拨都会撞号；
+ * 随机起点让「两个 Core 进程的第一个 epoch 相等」的概率低到可以忽略。
+ */
+export function randomEpochBase(): number {
+  return 1 + Math.floor(Math.random() * 2 ** 40)
+}
+
+/** (threadId, agentId) → TimelineChannel；epoch 从随机起点自增，跨进程不重复 */
 export class TimelineHub implements Disposable {
   private readonly channels = new Map<string, TimelineChannel>()
-  private next = 1
+  private next: number
 
-  constructor(private readonly d: TimelineHubDeps) {}
+  constructor(private readonly d: TimelineHubDeps) {
+    this.next = d.epochBase ?? randomEpochBase()
+  }
 
   private key(threadId: string, agentId: string): string {
     return `${threadId}\u0000${agentId}`

@@ -1,4 +1,4 @@
-import { describe, expect, test } from 'bun:test'
+import { describe, expect, spyOn, test } from 'bun:test'
 import { AppError } from '@poietica/foundation'
 import { render, screen } from '@testing-library/react'
 import { builtinPoints } from '../builtin-points'
@@ -226,6 +226,101 @@ describe('ui-kernel', () => {
     await new Promise((r) => setTimeout(r, 5))
     expect(kernel.kernelServices.toasts.current().length).toBe(1)
     expect(kernel.kernelServices.toasts.current()[0]!.title).toContain('alpha')
+  })
+
+  /*
+   * R-04 S10：Core 丢失是一等生命周期事件。
+   *
+   * ready → restarting → ready 这一趟里，onCoreLost 必须恰恰调用一次、且早于第二次
+   * onCoreReady —— 后者才会重新拉数据，前者负责把依赖 Core 进程内状态的 UI 缓存清掉。
+   * `starting → ready`（首次启动）不是丢失，不触发。
+   */
+  test('R-04 S10 onCoreLost 在 ready → 非 ready 时同步执行，早于下一次 onCoreReady', async () => {
+    const order: string[] = []
+    const f = defineUiFeature({
+      id: 'alpha',
+      setup: (ctx) => {
+        ctx.lifecycle.onCoreLost(() => {
+          order.push('lost')
+        })
+        ctx.lifecycle.onCoreReady(() => {
+          order.push('ready')
+        })
+      },
+    })
+    const { bridge } = await startKernel({ features: [f] })
+
+    /* 首次进入 ready：只有 ready，没有 lost。 */
+    bridge.emit({ jsonrpc: '2.0', method: 'core.status', params: { state: 'ready', reason: null, attempt: 0 } })
+    await new Promise((r) => setTimeout(r, 5))
+    expect(order).toEqual(['ready'])
+
+    bridge.emit({
+      jsonrpc: '2.0',
+      method: 'core.status',
+      params: { state: 'restarting', reason: 'crashed', attempt: 1 },
+    })
+    /* 同步执行：不 awaiting 也已经在表里。 */
+    expect(order).toEqual(['ready', 'lost'])
+    bridge.emit({ jsonrpc: '2.0', method: 'core.status', params: { state: 'ready', reason: null, attempt: 1 } })
+    await new Promise((r) => setTimeout(r, 5))
+    expect(order).toEqual(['ready', 'lost', 'ready'])
+  })
+
+  test('R-04 S10b starting → ready 不触发 onCoreLost；重复的 ready 通知也不触发', async () => {
+    const lost: number[] = []
+    const f = defineUiFeature({
+      id: 'alpha',
+      setup: (ctx) => {
+        ctx.lifecycle.onCoreLost(() => {
+          lost.push(1)
+        })
+      },
+    })
+    const { bridge } = await startKernel({ features: [f] })
+    bridge.emit({ jsonrpc: '2.0', method: 'core.status', params: { state: 'ready', reason: null, attempt: 0 } })
+    bridge.emit({ jsonrpc: '2.0', method: 'core.status', params: { state: 'ready', reason: null, attempt: 0 } })
+    expect(lost).toEqual([])
+  })
+
+  /*
+   * R-04 S11：一个功能的 onCoreLost 抛错不能连累别人 —— 清缓存漏掉一格就是「一片界面
+   * 停在旧进程状态上」，比日志里多一条 error 严重得多。
+   */
+  test('R-04 S11 某个 onCoreLost 抛错：其它功能仍被调用，错误写进 logger', async () => {
+    const called: string[] = []
+    const bad = defineUiFeature({
+      id: 'alpha',
+      setup: (ctx) => {
+        ctx.lifecycle.onCoreLost(() => {
+          called.push('alpha')
+          throw new Error('清理失败')
+        })
+      },
+    })
+    const good = defineUiFeature({
+      id: 'beta',
+      setup: (ctx) => {
+        ctx.lifecycle.onCoreLost(() => {
+          called.push('beta')
+        })
+      },
+    })
+    const spy = spyOn(console, 'error').mockImplementation(() => {})
+    try {
+      const { bridge } = await startKernel({ features: [bad, good] })
+      bridge.emit({ jsonrpc: '2.0', method: 'core.status', params: { state: 'ready', reason: null, attempt: 0 } })
+      bridge.emit({
+        jsonrpc: '2.0',
+        method: 'core.status',
+        params: { state: 'restarting', reason: 'crashed', attempt: 1 },
+      })
+
+      expect(called).toEqual(['alpha', 'beta'])
+      expect(spy).toHaveBeenCalled()
+    } finally {
+      spy.mockRestore()
+    }
   })
 
   test('dispose 逆序执行 onDispose 并回收贡献', async () => {

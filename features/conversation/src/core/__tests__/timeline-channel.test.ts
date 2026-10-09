@@ -121,7 +121,7 @@ describe('CV-9 TimelineChannel', () => {
 describe('TimelineHub', () => {
   test('epoch 是全局递增的，不同通道不重复', () => {
     const clock = fakeClock()
-    const hub = new TimelineHub({ clock, emitOps: () => undefined, emitReset: () => undefined })
+    const hub = new TimelineHub({ clock, emitOps: () => undefined, emitReset: () => undefined, epochBase: 1 })
     const a = hub.position('t1', 'main')
     const b = hub.position('t2', 'main')
     expect(a.epoch).toBe(1)
@@ -129,9 +129,26 @@ describe('TimelineHub', () => {
     hub.dispose()
   })
 
+  /*
+   * R-04 S1：两个先后启动的进程（两个 hub）各自的**第一个** epoch 不能相等。
+   *
+   * 旧代码 next = 1，两个进程里第一个被打开的线程都拿到 epoch 1 —— UI 侧「比较 epoch」
+   * 这条防线在最常见的重启场景下失效。默认起点必须是随机的。
+   */
+  test('R-04 S1 两个进程的首个 epoch 不相等（随机起点）', () => {
+    const clock = fakeClock()
+    const epochs: number[] = []
+    for (let i = 0; i < 20; i += 1) {
+      const hub = new TimelineHub({ clock, emitOps: () => undefined, emitReset: () => undefined })
+      epochs.push(hub.position('t1', 'main').epoch)
+      hub.dispose()
+    }
+    expect(new Set(epochs).size).toBe(epochs.length)
+  })
+
   test('通道不存在时 catchUp 返回 complete:false、latestSeq 0', () => {
     const clock = fakeClock()
-    const hub = new TimelineHub({ clock, emitOps: () => undefined, emitReset: () => undefined })
+    const hub = new TimelineHub({ clock, emitOps: () => undefined, emitReset: () => undefined, epochBase: 1 })
     expect(hub.catchUp('nope', 'main', 1, 0)).toEqual({ batches: [], latestSeq: 0, complete: false })
     hub.dispose()
   })
@@ -143,6 +160,7 @@ describe('TimelineHub', () => {
       clock,
       emitOps: (p) => seen.push({ threadId: p.threadId, agentId: p.agentId, seq: p.seq, count: p.ops.length }),
       emitReset: () => undefined,
+      epochBase: 1,
     })
     hub.push('t1', 'main', [op(1), op(2)])
     clock.advance(BATCH_WINDOW_MS)
@@ -152,7 +170,7 @@ describe('TimelineHub', () => {
 
   test('disposeThread 之后 position 会新建通道（新的 epoch）', () => {
     const clock = fakeClock()
-    const hub = new TimelineHub({ clock, emitOps: () => undefined, emitReset: () => undefined })
+    const hub = new TimelineHub({ clock, emitOps: () => undefined, emitReset: () => undefined, epochBase: 1 })
     const first = hub.position('t1', 'main')
     hub.disposeThread('t1')
     const second = hub.position('t1', 'main')
@@ -168,6 +186,7 @@ describe('TimelineHub', () => {
       clock,
       emitOps: () => undefined,
       emitReset: (p) => resets.push({ threadId: p.threadId, epoch: p.epoch }),
+      epochBase: 1,
     })
     hub.position('t1', 'main')
     hub.position('t2', 'main')
@@ -180,7 +199,7 @@ describe('TimelineHub', () => {
   /* R-05 §3.2：hub 的 dropHistory 按线程清补发历史，不动别的线程 */
   test('R-05 dropHistory 只清该线程的缓存', () => {
     const clock = fakeClock()
-    const hub = new TimelineHub({ clock, emitOps: () => undefined, emitReset: () => undefined })
+    const hub = new TimelineHub({ clock, emitOps: () => undefined, emitReset: () => undefined, epochBase: 1 })
     hub.push('t1', 'main', [op(1)])
     const t1 = hub.position('t1', 'main')
     hub.push('t2', 'main', [op(1)])
