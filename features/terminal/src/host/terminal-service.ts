@@ -1,11 +1,14 @@
 import { existsSync, statSync } from 'node:fs'
 import os from 'node:os'
-import { AppError, type Logger } from '@poietica/foundation'
+import { AppError, type Clock, type Logger, systemClock } from '@poietica/foundation'
 import { MAX_TERMINALS, REPLAY_BYTES, type TerminalInfo } from '../contract/entities'
 import { terminalErrors } from '../contract/errors'
 import { createOutputBatcher } from './output-batcher'
 import { RingBuffer } from './ring-buffer'
 import { resolveShell, type ShellSpec, terminalEnv } from './shell'
+
+/** 已退出的终端在表里最多留这么久，等 UI 自己来 close（R-08-16） */
+const EXITED_TTL_MS = 10 * 60_000
 
 /** node-pty 的最小形状；index.ts 用 @lydell/node-pty 的 spawn 实现它，测试用假实现 */
 export interface Pty {
@@ -28,6 +31,8 @@ interface Entry {
   batcher: ReturnType<typeof createOutputBatcher>
   /** 累计输出长度：replay 的末尾与输出通知的起点都按它算（R-08-15） */
   offset: number
+  /** 退出时刻；还在跑时为 null（R-08-16） */
+  exitedAt: number | null
 }
 
 export interface TerminalServiceDeps {
@@ -38,10 +43,12 @@ export interface TerminalServiceDeps {
   readonly emitExited: (terminalId: string, exitCode: number | null) => void
   readonly env?: NodeJS.ProcessEnv
   readonly killTree?: (pid: number) => Promise<void>
+  readonly clock?: Clock
 }
 
 export function createTerminalService(d: TerminalServiceDeps) {
   const env = d.env ?? process.env
+  const clock = d.clock ?? systemClock
   const entries = new Map<string, Entry>()
   let seq = 0
   let shellCache: Promise<ShellSpec> | undefined
@@ -61,8 +68,23 @@ export function createTerminalService(d: TerminalServiceDeps) {
     }
   }
 
+  /* R-08-16：UI 崩了或漏调 close 时把退出已久的条目顺手收掉，不让重放缓存一直涨。 */
+  function sweepExited(): void {
+    const now = clock.now()
+    for (const [id, e] of entries) {
+      const exitedAt = e.exitedAt
+      if (exitedAt === null || now - exitedAt <= EXITED_TTL_MS) {
+        continue
+      }
+      entries.delete(id)
+      e.batcher.dispose()
+      d.logger.info('terminal entry reaped', { terminalId: id })
+    }
+  }
+
   return {
     async open(p: { cwd: string | null; cols: number; rows: number }): Promise<TerminalInfo> {
+      sweepExited()
       const live = [...entries.values()].filter((e) => !e.info.exited).length
       if (live >= MAX_TERMINALS) {
         throw new AppError(terminalErrors.too_many, '最多同时打开 10 个终端')
@@ -87,6 +109,7 @@ export function createTerminalService(d: TerminalServiceDeps) {
         replay: new RingBuffer(REPLAY_BYTES),
         batcher: createOutputBatcher((data, offset) => d.emitOutput(terminalId, data, offset)),
         offset: 0,
+        exitedAt: null,
       }
       entries.set(terminalId, entry)
       pty.onData((data) => {
@@ -97,6 +120,7 @@ export function createTerminalService(d: TerminalServiceDeps) {
       pty.onExit(({ exitCode }) => {
         entry.batcher.drain()
         entry.info = { ...entry.info, exited: true, exitCode }
+        entry.exitedAt = clock.now()
         d.emitExited(terminalId, exitCode)
       })
       d.logger.info('terminal opened', { terminalId, shell: shell.file, pid: pty.pid })

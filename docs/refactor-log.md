@@ -752,6 +752,19 @@ rejection（还有一条误导性的超时日志）。
 不卡住、关闭时丢掉缓存）。把 `writeChunk` 的去重换成直接写，前两条即红（实测画面变成
 `abcdefefgh`）。
 
+#### R-08-16 已退出的终端一直留在表里（2026-10-10）
+
+**根因**：shell 自己退出后条目保留（带整个重放缓存），直到 UI 显式 close。UI 崩溃或漏调
+close 时这些条目只增不减。
+
+**改法**：`Entry` 记 `exitedAt`（注入的 `Clock`，默认 `systemClock`），`open` 开头顺手
+`sweepExited()` 掉「退出超过 10 分钟且未被 close」的条目（不加定时器）。清理只放弃条目与
+它的重放缓存，不再补杀进程（已经退出的 PTY 没有可杀的树）。
+
+**测试**：`terminal-service.test.ts` 加 3 条：退出 10 分钟零 1 毫秒后下一次 open 把它清掉
+（`list` 里没有、`replay` 报 `terminal.not_found`）、退出不到 10 分钟与还在跑的都不动、
+清理不触发 `killTree`。
+
 ### 审查执行待决（R-08 新增）
 
 | 编号 | 日期 | 问题 | 阻塞的步骤 | 状态 |

@@ -3,7 +3,7 @@ import { mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 import { AppError } from '@poietica/foundation'
-import { createTestLogger } from '@poietica/test-kit'
+import { createTestLogger, fakeClock } from '@poietica/test-kit'
 import { MAX_TERMINALS, REPLAY_BYTES } from '../../contract/entities'
 import { terminalErrors } from '../../contract/errors'
 import { createTerminalService, type Pty, type PtyFactory } from '../terminal-service'
@@ -53,6 +53,7 @@ class FakePty implements Pty {
 
 function make(options: { readonly env?: NodeJS.ProcessEnv; readonly killTree?: (pid: number) => Promise<void> } = {}) {
   const logger = createTestLogger()
+  const clock = fakeClock()
   const ptys: FakePty[] = []
   const output: Array<{ terminalId: string; data: string; offset: number }> = []
   const exited: Array<{ terminalId: string; exitCode: number | null }> = []
@@ -70,12 +71,13 @@ function make(options: { readonly env?: NodeJS.ProcessEnv; readonly killTree?: (
   const service = createTerminalService({
     spawn,
     logger,
+    clock,
     emitOutput: (terminalId, data, offset) => output.push({ terminalId, data, offset }),
     emitExited: (terminalId, exitCode) => exited.push({ terminalId, exitCode }),
     ...options,
   })
 
-  return { service, ptys, output, exited, logger }
+  return { service, ptys, output, exited, logger, clock }
 }
 
 const tempDir = (): string => mkdtempSync(path.join(os.tmpdir(), 'poietica-terminal-'))
@@ -349,6 +351,66 @@ describe('R-08-15: 输出序号', () => {
       /* 重放末尾与这一段通知的起点对齐：offset + len 就是重放的 endOffset */
       expect(emitted.offset).toBe(0)
       expect(emitted.offset + emitted.data.length).toBe(replay.endOffset)
+    } finally {
+      rmSync(cwd, { recursive: true, force: true })
+    }
+  })
+})
+
+describe('R-08-16: 已退出终端的清理', () => {
+  test('退出超过 10 分钟且没人 close 的条目在下次 open 时被清掉', async () => {
+    const { service, ptys, clock } = make()
+    const cwd = tempDir()
+    try {
+      const stale = await service.open({ cwd, cols: 80, rows: 24 })
+      ptys[0]!.emitData('一堆没人看的历史')
+      ptys[0]!.emitExit(0)
+
+      clock.advance(10 * 60_000 + 1)
+      await service.open({ cwd, cols: 80, rows: 24 })
+
+      expect(service.list().map((t) => t.terminalId)).toEqual(['t2'])
+      /* 已经收掉了：重放也跟着没了 */
+      expect(() => service.replay(stale.terminalId)).toThrow(AppError)
+    } finally {
+      rmSync(cwd, { recursive: true, force: true })
+    }
+  })
+
+  test('退出不到 10 分钟、以及还在跑的条目都不动', async () => {
+    const { service, ptys, clock } = make()
+    const cwd = tempDir()
+    try {
+      const justExited = await service.open({ cwd, cols: 80, rows: 24 })
+      const running = await service.open({ cwd, cols: 80, rows: 24 })
+      ptys[0]!.emitExit(0)
+
+      clock.advance(9 * 60_000)
+      await service.open({ cwd, cols: 80, rows: 24 })
+
+      expect(service.list().map((t) => t.terminalId)).toEqual(['t1', 't2', 't3'])
+      expect(service.replay(justExited.terminalId).data).toBe('')
+      expect(service.replay(running.terminalId).endOffset).toBe(0)
+    } finally {
+      rmSync(cwd, { recursive: true, force: true })
+    }
+  })
+
+  test('清理只是放弃条目，已经退出的 PTY 不再补杀', async () => {
+    const killed: number[] = []
+    const { service, ptys, clock } = make({
+      killTree: async (pid) => {
+        killed.push(pid)
+      },
+    })
+    const cwd = tempDir()
+    try {
+      await service.open({ cwd, cols: 80, rows: 24 })
+      ptys[0]!.emitExit(0)
+
+      clock.advance(11 * 60_000)
+      await service.open({ cwd, cols: 80, rows: 24 })
+      expect(killed).toEqual([])
     } finally {
       rmSync(cwd, { recursive: true, force: true })
     }
