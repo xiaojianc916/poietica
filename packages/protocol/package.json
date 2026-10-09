@@ -1,0 +1,28 @@
+{
+  "name": "@poietica/protocol",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "dependencies": {
+    "@poietica/contract-kit": "workspace:*",
+    "@poietica/feature-agent-settings": "workspace:*",
+    "@poietica/feature-attachments": "workspace:*",
+    "@poietica/feature-automations": "workspace:*",
+    "@poietica/feature-browser": "workspace:*",
+    "@poietica/feature-conversation": "workspace:*",
+    "@poietica/feature-extensions": "workspace:*",
+    "@poietica/feature-models": "workspace:*",
+    "@poietica/feature-platform": "workspace:*",
+    "@poietica/feature-preferences": "workspace:*",
+    "@poietica/feature-python": "workspace:*",
+    "@poietica/feature-review": "workspace:*",
+    "@poietica/feature-terminal": "workspace:*",
+    "@poietica/feature-update": "workspace:*",
+    "@poietica/feature-usage": "workspace:*",
+    "@poietica/feature-workspaces": "workspace:*"
+  },
+  "devDependencies": {}
+}

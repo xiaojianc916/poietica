@@ -1,78 +1,67 @@
-# electron-builder 26。原生库与随包运行时都放在 asar 外：.node 从 asar 里 dlopen
-# 要先抽到临时文件（有开销，还会惊动杀软），agent/ 里的 bun.exe 也没法从 asar 里起。
+# 打包配置（15 页 §10.4 的完整内容；P3 的最小骨架到此补齐）。
+#
+# appId 与 legacy 保持一致：NSIS 用它生成安装标识，相同 appId 的新版本会作为升级
+# 覆盖安装 0.4.4，legacy 用户也能通过自动更新收到 0.5.0（15 页 §10.4 第一行）。
 appId: com.poietica.Poietica
 productName: Poietica
+
 directories:
-  output: dist-release
-  buildResources: build
-# Electron 二进制取已安装的那一份（electron 包安装时已经下过并解压好），不让
-# electron-builder 再去 GitHub 下一遍 100MB+ 的 zip —— 同一份字节下两次是纯浪费，
-# 而那条下载在网络上不稳的机器上会让整条发布链在最后一步失败。
-electronDist: node_modules/electron/dist
-# 产物名是发布脚本与 runbook 的稳定契约：换掉它，tools/release/release.ts 的收集
-# 与 verify-channel 的 -setup.exe 判据要一起改。
+  output: release
+  buildResources: resources
+
+# 用已经装好的 Electron，不从网络再下一遍 100 MB 的 zip（发布链上最容易在这里失败）。
+electronDist: ../../node_modules/electron/dist
+# 与 legacy 相同的产物名：差分更新按文件名推算旧版本的 blockmap 地址，
+# 名字格式不变才能从 0.4.4 差分升级。
 artifactName: ${productName}_${version}_x64-setup.${ext}
-# 只随附这两种语言：应用没有 i18n 框架（界面文案是 zh-CN），en-US 是 Chromium 自己的
-# 回退语言。不写这一行，Electron 会把 55 个 locale 全量落盘（48 MB）。
+
+# 只打包 electron-vite 的产物：src 与工作区包的 TS 源码都不进安装包。
+files:
+  - out/**
+  - package.json
+
+asar: true
+# 原生模块不能从 asar 内加载；node-pty 还要执行同目录下的 conpty.dll 与 OpenConsole.exe。
+asarUnpack:
+  - "**/*.node"
+  - "**/node_modules/@lydell/node-pty*/**"
+
+# Core 是独立的 exe，不能放进 asar；桌面侧的 coreExe 路径读的就是 resources/core（06 页 §7）。
+extraResources:
+  - from: ../core/dist
+    to: core
+    filter:
+      - poietica-core.exe
+      - pi_natives.*.node
+      - core-manifest.json
+  - from: resources/icon.ico
+    to: icon.ico
+
+# 界面只有中文，en-US 是 Chromium 的回退语言；不写会多出 48 MB 的 locale 文件。
 electronLanguages:
   - zh-CN
   - en-US
-# files 管不到 node_modules：electron-builder 另用一个只接受否定模式的 matcher 遍历
-# 生产依赖树。所以让包不进包的唯一手段是移出 dependencies —— 渲染层依赖已由 Vite 打进
-# dist/**，运行时不读 node_modules，故声明在 devDependencies；只有运行时 import 的
-# electron-updater 留在 dependencies。改回去，asar 会重新长回 229 MB。
-#
-# 这里的 devDependencies 读作「不随包单独发一份 node_modules」，不是「只在构建期用」：
-# zod 与 uuid 都是运行时依赖，只是同样已经被 Vite 打进了 dist/**；electron-log 也只在
-# 运行时用，它同样被内联（进 dist-electron/main.cjs）。
-files:
-  - dist/**
-  - dist-electron/**
-  - package.json
-asar: true
-asarUnpack:
-  - '**/*.node'
-  - resources/**
-extraResources:
-  # 从 cargo 自己的 target 取：bun run native:build --release 已把 .dll 改名成 .node 放在那里，
-  # 与开发期读的是同一处（唯一的落点，不存在陈旧副本）。
-  - from: ../../target/release/poietica.node
-    to: native/poietica.node
-  - from: resources/agent
-    to: agent
-  # 托盘与窗口图标用 .ico：里面是 16/24/32/48/64/256 各一档，Windows 按自己的 DPI 挑，
-  # 一位都不用重采样。只发 PNG 的话，200% 缩放的屏上托盘取 16 逻辑像素，只能把
-  # 512 的图硬缩到那一档再被系统放大回来，两趟重采样叠在一起就是糊的。
-  - from: build/icon.png
-    to: icon.png
-  - from: build/icon.ico
-    to: icon.ico
+
 win:
   target:
-    - nsis
-  icon: build/icon.ico
-  # 可执行文件叫 Poietica.exe。任务管理器那一栏读两处：进程的可执行文件名，
-  # 以及 resedit 写进版本资源的产品名（取自顶层 productName）。两个都对上，
-  # 那一栏才不是 Electron。
+    - target: nsis
+      arch:
+        - x64
   executableName: Poietica
+
 nsis:
+  # 显示安装向导（可改安装目录），安装到用户目录、不需要管理员权限，
+  # 卸载时保留数据根（对话、设置、API key 都在里面）。
   oneClick: false
   allowToChangeInstallationDirectory: true
-  # 升级时把整个安装目录搬走再删掉（模板的 ${isUpdated} 分支）—— 这是对的：安装目录里
-  # 只有程序文件，用户数据住在 userData 里（apps/desktop/electron/main.ts 的
-  # dataRootDirectory），安装器够不着。
-  #
-  # 别把数据放回安装目录。这条路径上的一切都会被每一次更新清掉，0.4.3 之前就是这么丢的。
-  #
-  # 差分下载的开关。true（默认）时 electron-builder 除安装包外还产出同名的 .blockmap
-  # （块索引），客户端的 electron-updater 用它跟盘上那份旧安装包比对、只下变化的块。
-  # 两份 blockmap 都要作为发布资产传上去（新的那份 + 上一个版本的那份），
-  # 见 tools/release/release.ts；少传一份客户端就整包重下。
+  perMachine: false
+  deleteAppDataOnUninstall: false
+  # 生成 .blockmap，自动更新只下载变化的块。
   differentialPackage: true
-# electron-updater 的清单来源：latest.yml 里的 url 由它拼出来。
-# 这一处是仓库地址的唯一声明 —— tools/release 的 latest-json 与 verify-channel 都读它。
+
 publish:
   provider: github
   owner: xiaojianc916
   repo: poietica
-  releaseType: release
+  # 草稿对客户端不可见：人工验收后才发布（15 页 §10.5）。
+  releaseType: draft

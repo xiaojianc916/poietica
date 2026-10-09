@@ -1,0 +1,126 @@
+import './automation-composer.css'
+
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuRadioGroup,
+  DropdownMenuRadioItem,
+  DropdownMenuRadioItemIndicator,
+  DropdownMenuTrigger,
+} from '@poietica/design-system'
+import type { Posture } from '@poietica/engine'
+import { Check, Hand, ShieldAlert, ShieldCheck } from 'lucide-react'
+import { useState } from 'react'
+
+/*
+ * 自动化编辑器的指令输入框。
+ *
+ * legacy 这一格直接把 conversation 的 `AssistantComposer` 摆进编辑页
+ * （`packages/automation/src/ui/automation-editor.tsx` 的「指令」一栏）。新架构里
+ * conversation 的输入框没有经 ui-api 导出，而铁律禁止功能之间直接 import 别的功能的
+ * ui —— 所以这里按同一份度量复刻它可见的那几格：
+ *
+ *   [data-slot="prompt-input"]        卡片框体（边、圆角、底、影，读 --cp-* 令牌）
+ *   [data-slot="prompt-input-editor"] 正文，占位文案由调用方给
+ *   [data-slot="prompt-input-toolbar"] 工具条：姿态胶囊 + 模型胶囊
+ *
+ * 与 legacy 的差别只有「工具条里能点的东西」：
+ *   - 姿态由契约的 Posture（ask / auto-edit / full-access）驱动，三档与对话页那三颗
+ *     胶囊同一份说法；
+ *   - 模型在契约里可以为 null（「默认模型」），而模型目录属于 models 功能、没有
+ *     ui-api，本功能读不到，所以这一格只显示默认值、不提供换模型的入口（见进度报告）。
+ *
+ * conversation 把这张卡（或它的 ui-api 资产）导出来之后，这个文件应当整份删除、
+ * 改回引用同一份 —— 到那时两者不会再有漂移的可能。
+ */
+
+const POSTURES: readonly { readonly value: Posture; readonly label: string; readonly detail: string }[] = [
+  { value: 'ask', label: '每次询问', detail: '编辑外部文件和使用互联网时始终询问' },
+  { value: 'auto-edit', label: '自动编辑', detail: '仅对检测到的风险操作请求批准' },
+  { value: 'full-access', label: '完全放行', detail: '可不受限制地访问互联网和您电脑上的任何文件' },
+]
+
+const GLYPH: Readonly<Record<Posture, typeof Hand>> = {
+  ask: Hand,
+  'auto-edit': ShieldCheck,
+  'full-access': ShieldAlert,
+}
+
+export interface AutomationComposerProps {
+  readonly prompt: string
+  readonly onPromptChange: (prompt: string) => void
+  readonly posture: Posture
+  readonly onPostureChange: (posture: Posture) => void
+  readonly modelLabel: string
+  readonly placeholder: string
+}
+
+export function AutomationComposer({
+  modelLabel,
+  onPostureChange,
+  onPromptChange,
+  placeholder,
+  posture,
+  prompt,
+}: AutomationComposerProps) {
+  const [open, setOpen] = useState(false)
+  const current = POSTURES.find((row) => row.value === posture) ?? POSTURES[1]!
+  const Mark = GLYPH[posture]
+
+  return (
+    <div className="automation-composer" data-slot="prompt-input">
+      <div data-slot="prompt-input-body">
+        <textarea
+          aria-label="指令"
+          className="assistant-prompt-editor"
+          data-slot="prompt-input-editor"
+          onChange={(event) => onPromptChange(event.currentTarget.value)}
+          placeholder={placeholder}
+          rows={1}
+          spellCheck={false}
+          value={prompt}
+        />
+      </div>
+
+      <div data-slot="prompt-input-toolbar">
+        <div data-slot="prompt-input-tools">
+          <DropdownMenu onOpenChange={setOpen} open={open}>
+            <DropdownMenuTrigger
+              aria-label="姿态"
+              className="assistant-posture"
+              data-alert={posture === 'full-access' ? 'true' : undefined}
+            >
+              <Mark aria-hidden="true" />
+              <span className="assistant-posture__label">{current.label}</span>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="start" className="assistant-posture-menu w-72" data-assistant-skin>
+              <DropdownMenuRadioGroup
+                onValueChange={(next) => {
+                  onPostureChange(next as Posture)
+                }}
+                value={posture}
+              >
+                {POSTURES.map((row) => (
+                  <DropdownMenuRadioItem key={row.value} value={row.value}>
+                    <span className="flex min-w-0 flex-1 flex-col gap-0.5">
+                      <span>{row.label}</span>
+                      <span className="text-xs text-muted-foreground">{row.detail}</span>
+                    </span>
+                    <DropdownMenuRadioItemIndicator>
+                      <Check aria-hidden className="size-3.5" />
+                    </DropdownMenuRadioItemIndicator>
+                  </DropdownMenuRadioItem>
+                ))}
+              </DropdownMenuRadioGroup>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
+
+        <span className="assistant-toolbar__spacer" />
+
+        {/* 模型这一格今天只有默认值：模型目录属于 models 功能，本功能没有它的 ui-api。 */}
+        <span className="automation-composer__model">{modelLabel}</span>
+      </div>
+    </div>
+  )
+}

@@ -5,8 +5,7 @@
  * 两份实现必然分叉，而「1.5 MB」这种写法是排版，不是业务。
  */
 export function formatBytes(value: number): string {
-  const format = (amount: number) =>
-    new Intl.NumberFormat('zh-CN', { maximumFractionDigits: 1 }).format(amount)
+  const format = (amount: number) => new Intl.NumberFormat('zh-CN', { maximumFractionDigits: 1 }).format(amount)
 
   if (value < 1024) {
     return `${format(value)} B`

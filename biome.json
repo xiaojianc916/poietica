@@ -9,43 +9,32 @@
     "includes": [
       "**",
       "!**/node_modules",
-      "!**/.turbo",
+      "!**/.tsbuild",
       "!**/dist",
-      "!**/dist-electron",
+      "!**/out",
       "!**/dist-release",
-      "!**/dist-types",
-      "!**/build",
+      "!apps/desktop/release",
       "!**/coverage",
-      "!**/target",
-      "!**/generated",
-      "!**/playwright-report",
-      "!**/test-results",
-      "!**/benchmark-results",
-      "!**/performance-results",
-      "!**/*.min.js",
-      "!packages/conversation/vendor/aora-bot/emotion-ball/js/*.js",
-      "!packages/transcript/src",
-      "!packages/transcript/dist-types",
       "!**/*.snap",
+      "!packages/protocol/src/__tests__/contract.snapshot.json",
       "!**/*.svg",
-      "!tests/benchmark/fixtures"
+      "!**/*.min.js",
+      "!packages/transcript/src/upstream",
+      "!features/conversation/vendor",
+      "!docs/baseline"
     ],
     "maxSize": 2097152
   },
   "formatter": {
     "enabled": true,
-    "formatWithErrors": false,
     "indentStyle": "space",
     "indentWidth": 2,
-    "lineWidth": 100,
-    "lineEnding": "lf",
-    "attributePosition": "auto",
-    "bracketSpacing": true
+    "lineWidth": 120,
+    "lineEnding": "lf"
   },
   "javascript": {
     "formatter": {
       "arrowParentheses": "always",
-      "bracketSameLine": false,
       "jsxQuoteStyle": "double",
       "quoteProperties": "asNeeded",
       "quoteStyle": "single",
@@ -57,210 +46,91 @@
     "parser": {
       "allowComments": false,
       "allowTrailingCommas": false
-    },
-    "formatter": {
-      "enabled": true,
-      "indentStyle": "space",
-      "indentWidth": 2,
-      "lineWidth": 100,
-      "trailingCommas": "none"
     }
   },
   "css": {
     "parser": {
-      "cssModules": true,
+      "cssModules": false,
       "tailwindDirectives": true
-    },
-    "formatter": {
-      "enabled": true,
-      "indentStyle": "space",
-      "indentWidth": 2,
-      "lineWidth": 100,
-      "quoteStyle": "double"
     }
   },
   "linter": {
     "enabled": true,
     "rules": {
       "preset": "recommended",
-      "a11y": {
-        "preset": "recommended",
-        "noAutofocus": "warn",
-        "useKeyWithClickEvents": "error",
-        "useSemanticElements": "warn"
+      "suspicious": {
+        "noExplicitAny": "error",
+        "noConsole": "error",
+        "noDoubleEquals": "error"
+      },
+      "style": {
+        "useImportType": "error",
+        "useExportType": "error",
+        "noNonNullAssertion": "off",
+        "useNodejsImportProtocol": "error",
+        "noDefaultExport": "off"
+      },
+      "correctness": {
+        "noUnusedImports": "error",
+        "noUnusedVariables": "error",
+        "useExhaustiveDependencies": "error",
+        "useHookAtTopLevel": "error"
       },
       "complexity": {
         "noBannedTypes": "error",
         "noExcessiveCognitiveComplexity": {
-          "level": "warn",
-          "options": {
-            "maxAllowedComplexity": 20
-          }
-        },
-        "noForEach": "off",
-        "noStaticOnlyClass": "error",
-        "useLiteralKeys": "off",
-        "useOptionalChain": "error"
-      },
-      "correctness": {
-        "noChildrenProp": "error",
-        "noConstantCondition": "error",
-        "noInvalidUseBeforeDeclaration": "error",
-        "noNodejsModules": "off",
-        "noPrecisionLoss": "error",
-        "noRenderReturnValue": "error",
-        "noSelfAssign": "error",
-        "noSwitchDeclarations": "error",
-        "noUndeclaredVariables": "error",
-        "noUnknownProperty": "error",
-        "noUnreachable": "error",
-        "noUnreachableSuper": "error",
-        "noUnsafeFinally": "error",
-        "noUnsafeOptionalChaining": "error",
-        "noUnusedImports": "error",
-        "noUnusedVariables": {
           "level": "error",
           "options": {
-            "ignoreRestSiblings": true
-          }
-        },
-        "useExhaustiveDependencies": "warn",
-        "useHookAtTopLevel": "error",
-        "useIsNan": "error",
-        "useValidForDirection": "error",
-        "noInvalidBuiltinInstantiation": "error"
-      },
-      "performance": {
-        "noAccumulatingSpread": "error",
-        "noBarrelFile": "off",
-        "noDelete": "warn",
-        "noReExportAll": "error"
-      },
-      "security": {
-        "noDangerouslySetInnerHtml": "error",
-        "noDangerouslySetInnerHtmlWithChildren": "error",
-        "noGlobalEval": "error"
-      },
-      "style": {
-        "noCommonJs": "error",
-        "noDefaultExport": "warn",
-        "noNamespace": "error",
-        "noNonNullAssertion": "warn",
-        "noParameterAssign": "error",
-        "noRestrictedGlobals": "error",
-        "noUselessElse": "error",
-        "useAsConstAssertion": "error",
-        "useBlockStatements": "error",
-        "useCollapsedElseIf": "error",
-        "useConst": "error",
-        "useDefaultParameterLast": "error",
-        "useEnumInitializers": "error",
-        "useExportType": "error",
-        "useForOf": "error",
-        "useImportType": "error",
-        "useNodejsImportProtocol": "error",
-        "useNumberNamespace": "error",
-        "useSelfClosingElements": "error",
-        "useShorthandAssign": "error",
-        "useTemplate": "error",
-        "useThrowOnlyError": "error",
-        "useFilenamingConvention": {
-          "level": "error",
-          "options": {
-            "filenameCases": ["kebab-case"],
-            "requireAscii": true
+            "maxAllowedComplexity": 15
           }
         }
-      },
-      "suspicious": {
-        "noArrayIndexKey": "warn",
-        "noAssignInExpressions": "error",
-        "noAsyncPromiseExecutor": "error",
-        "noCatchAssign": "error",
-        "noClassAssign": "error",
-        "noCommentText": "error",
-        "noCompareNegZero": "error",
-        "noConfusingLabels": "error",
-        "noConsole": {
-          "level": "error",
-          "options": {
-            "allow": ["warn", "error"]
-          }
-        },
-        "noControlCharactersInRegex": "error",
-        "noDebugger": "error",
-        "noDoubleEquals": "error",
-        "noDuplicateCase": "error",
-        "noDuplicateClassMembers": "error",
-        "noDuplicateJsxProps": "error",
-        "noDuplicateObjectKeys": "error",
-        "noExplicitAny": "error",
-        "noExtraNonNullAssertion": "error",
-        "noFallthroughSwitchClause": "error",
-        "noFunctionAssign": "error",
-        "noGlobalAssign": "error",
-        "noImportAssign": "error",
-        "noLabelVar": "error",
-        "noMisleadingCharacterClass": "error",
-        "noMisleadingInstantiator": "error",
-        "noMisrefactoredShorthandAssign": "error",
-        "noPrototypeBuiltins": "error",
-        "noRedeclare": "error",
-        "noSelfCompare": "error",
-        "noShadowRestrictedNames": "error",
-        "noSparseArray": "error",
-        "noThenProperty": "error",
-        "noUnsafeDeclarationMerging": "error",
-        "noUnsafeNegation": "error",
-        "useAwait": "warn",
-        "useErrorMessage": "error",
-        "useGetterReturn": "error"
-      }
-    }
-  },
-  "assist": {
-    "enabled": true,
-    "actions": {
-      "source": {
-        "organizeImports": "on",
-        "useSortedAttributes": "on",
-        "useSortedKeys": "off"
       }
     }
   },
   "overrides": [
     {
+      "includes": ["tooling/**", "scripts/**", "apps/*/scripts/**", "**/__tests__/**", "**/*.test.ts", "**/*.test.tsx"],
+      "linter": {
+        "rules": {
+          "suspicious": {
+            "noConsole": "off"
+          }
+        }
+      }
+    },
+    {
+      "includes": ["features/terminal/src/ui/terminal-pane.css"],
+      "linter": {
+        "rules": {
+          "complexity": {
+            "noImportantStyles": "off"
+          }
+        }
+      }
+    },
+    {
+      "includes": ["packages/design-system/src/settings.css", "packages/design-system/src/tokens/accessibility.css"],
+      "linter": {
+        "rules": {
+          "style": {
+            "noDescendingSpecificity": "off"
+          },
+          "complexity": {
+            "noImportantStyles": "off"
+          }
+        }
+      }
+    },
+    {
       "includes": [
-        "**/*.test.ts",
-        "**/*.test.tsx",
-        "**/*.spec.ts",
-        "**/*.spec.tsx",
-        "**/tests/**/*.ts",
-        "**/tests/**/*.tsx",
-        "**/fixtures/**/*.ts",
-        "**/fixtures/**/*.tsx"
+        "packages/foundation/src/last-resort.ts",
+        "packages/logging/src/console-sink.ts",
+        "packages/test-kit/src/test-logger.ts",
+        "packages/ui-kernel/src/services/logging.ts",
+        "packages/engine-omp/src/bootstrap/stdout-guard.ts"
       ],
       "linter": {
         "rules": {
-          "style": {
-            "noDefaultExport": "off",
-            "noNonNullAssertion": "off"
-          },
-          "suspicious": {
-            "noConsole": "off",
-            "noExplicitAny": "warn",
-            "useAwait": "off"
-          }
-        }
-      }
-    },
-    {
-      "includes": ["apps/desktop/vite.config.ts", "apps/desktop/electron.vite.config.ts"],
-      "linter": {
-        "rules": {
-          "style": {
-            "noDefaultExport": "off"
-          },
           "suspicious": {
             "noConsole": "off"
           }
@@ -268,90 +138,140 @@
       }
     },
     {
-      "includes": ["*.mjs", "tests/**/*.mjs", "tools/**/*.mjs", "tools/**/*.ts"],
-      "javascript": {
-        "globals": ["Bun"]
-      },
-      "linter": {
-        "rules": {
-          "correctness": {
-            "noUnresolvedImports": "error"
-          },
-          "suspicious": {
-            "noConsole": "off"
-          }
-        }
-      }
-    },
-    {
-      "includes": ["packages/agent-bridge/src/**/*.ts"],
-      "javascript": {
-        "globals": ["Bun"]
-      }
-    },
-    {
-      "includes": ["**/src/generated/**/*.ts", "**/generated/**/*.ts", "**/*.generated.ts"],
-      "formatter": {
-        "enabled": false
-      },
-      "linter": {
-        "enabled": false
-      },
-      "assist": {
-        "enabled": false
-      }
-    },
-    {
-      "includes": ["contracts/**/*.json"],
-      "formatter": {
-        "enabled": false
-      },
-      "linter": {
-        "enabled": false
-      },
-      "assist": {
-        "enabled": false
-      }
-    },
-    {
-      "includes": ["**/*.config.ts", "**/*.config.mjs", "**/*.d.ts", "**/*.generated.ts"],
-      "linter": {
-        "rules": {
-          "style": {
-            "useFilenamingConvention": "off"
-          }
-        }
-      }
-    },
-    {
-      "includes": ["packages/design-system/src/tokens/accessibility.css"],
+      "includes": [
+        "features/automations/src/ui/automation-editor.tsx",
+        "features/automations/src/ui/index.tsx",
+        "features/browser/src/host/address.ts",
+        "features/browser/src/host/picker-runtime.ts",
+        "features/browser/src/host/relay-client.ts",
+        "features/browser/src/ui/tool-card.tsx",
+        "features/conversation/src/ui/components/assistant-surface.tsx",
+        "features/conversation/src/ui/components/composer/composer-palette.tsx",
+        "features/conversation/src/ui/components/composer/prompt-input.tsx",
+        "features/conversation/src/ui/components/composer/session-controls.tsx",
+        "features/conversation/src/ui/components/feed/agent-activity-feed.tsx",
+        "features/conversation/src/ui/components/home-surface.tsx",
+        "features/conversation/src/ui/components/mascot/emotion-ball.tsx",
+        "features/conversation/src/ui/components/semantics/tool-call-facets.ts",
+        "features/conversation/src/ui/configuration/capability-store.ts",
+        "features/conversation/src/ui/threads/threads-store.ts",
+        "features/conversation/src/ui/timeline/presentation.ts",
+        "features/conversation/src/ui/timeline/timeline-queries.ts",
+        "features/conversation/src/ui/transcript/transcript-replica.ts",
+        "features/conversation/src/ui/transcript/transcript-store.ts",
+        "features/models/src/ui/models-settings.tsx",
+        "features/platform/src/host/storage-service.ts",
+        "packages/core-kernel/src/kernel.ts",
+        "packages/engine-omp/src/bootstrap/launch-env.ts",
+        "packages/engine-omp/src/errors.ts",
+        "packages/engine-omp/src/projector/__tests__/live.test.ts",
+        "packages/engine-omp/src/projector/history.ts",
+        "packages/engine-omp/src/projector/subagents.ts",
+        "packages/engine-testkit/src/conformance.ts",
+        "packages/engine-testkit/src/fake-engine.ts",
+        "packages/foundation/src/module-graph.ts",
+        "packages/git/src/git.ts",
+        "packages/host-kernel/src/core-supervisor.ts",
+        "packages/host-kernel/src/quit.ts",
+        "packages/host-kernel/src/rpc-hub.ts",
+        "packages/runtime-layout/src/core-args.ts",
+        "packages/test-kit/src/fake-clock.ts",
+        "tooling/refs/sync.ts"
+      ],
       "linter": {
         "rules": {
           "complexity": {
-            "noImportantStyles": "off"
+            "noExcessiveCognitiveComplexity": {
+              "level": "error",
+              "options": {
+                "maxAllowedComplexity": 20
+              }
+            }
           }
         }
       }
     },
     {
-      "includes": ["packages/terminal/src/surface/terminal-pane.css"],
+      "includes": [
+        "features/conversation/src/ui/stores/session-port.ts",
+        "features/conversation/src/ui/transcript/transcript-projector.ts",
+        "features/extensions/src/ui/mcp-config.ts",
+        "packages/engine-omp/src/projector/__tests__/fixtures/live.ts"
+      ],
       "linter": {
         "rules": {
           "complexity": {
-            "noImportantStyles": "off"
+            "noExcessiveCognitiveComplexity": {
+              "level": "error",
+              "options": {
+                "maxAllowedComplexity": 25
+              }
+            }
           }
         }
       }
     },
     {
-      "includes": ["apps/desktop/src/shell/sidebar/sidebar-footer.tsx"],
+      "includes": [
+        "features/conversation/src/ui/index.tsx",
+        "features/models/src/ui/catalog-port.ts",
+        "packages/logging/src/logger.ts",
+        "packages/logging/src/redact.ts"
+      ],
       "linter": {
         "rules": {
-          "a11y": {
-            "useAnchorContent": "off"
+          "complexity": {
+            "noExcessiveCognitiveComplexity": {
+              "level": "error",
+              "options": {
+                "maxAllowedComplexity": 30
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "includes": [
+        "features/conversation/src/core/repository.ts",
+        "packages/engine-omp/src/omp-session-adapter.ts",
+        "packages/git/src/parse.ts"
+      ],
+      "linter": {
+        "rules": {
+          "complexity": {
+            "noExcessiveCognitiveComplexity": {
+              "level": "error",
+              "options": {
+                "maxAllowedComplexity": 40
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "includes": ["features/python/src/core/installer.ts", "packages/contract-kit/src/compose.ts"],
+      "linter": {
+        "rules": {
+          "complexity": {
+            "noExcessiveCognitiveComplexity": {
+              "level": "error",
+              "options": {
+                "maxAllowedComplexity": 52
+              }
+            }
           }
         }
       }
     }
-  ]
+  ],
+  "assist": {
+    "enabled": true,
+    "actions": {
+      "source": {
+        "organizeImports": "on"
+      }
+    }
+  }
 }

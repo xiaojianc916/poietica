@@ -1,0 +1,24 @@
+{
+  "extends": "../../../../tooling/tsconfig/bun.json",
+  "include": ["."],
+  "references": [
+    {
+      "path": "../../../../packages/core-kernel"
+    },
+    {
+      "path": "../../../../packages/foundation"
+    },
+    {
+      "path": "../../../../packages/storage-sqlite"
+    },
+    {
+      "path": "../../../conversation/src/core-api"
+    },
+    {
+      "path": "../../../workspaces/src/core-api"
+    },
+    {
+      "path": "../contract"
+    }
+  ]
+}

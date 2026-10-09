@@ -1,0 +1,9 @@
+{
+  "extends": "../../../../tooling/tsconfig/dom.json",
+  "include": ["."],
+  "references": [
+    {
+      "path": "../../../../packages/foundation"
+    }
+  ]
+}

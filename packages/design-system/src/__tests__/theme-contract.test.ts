@@ -37,8 +37,7 @@ const stripComments = (css: string) => css.replace(/\/\*[\s\S]*?\*\//g, '')
  */
 const BACKGROUND_DECL = /(?:^|[{;])\s*background(?:-[a-z]+)?\s*:/m
 
-const declaredTokens = (css: string) =>
-  new Set([...css.matchAll(/^\s*(--ui-[a-z0-9-]+):/gm)].map((m) => m[1]))
+const declaredTokens = (css: string) => new Set([...css.matchAll(/^\s*(--ui-[a-z0-9-]+):/gm)].map((m) => m[1]))
 
 /* 取第一个捕获组，取不到就当场失败并说清是什么取不到。 */
 const captureOf = (source: string, pattern: RegExp, what: string) => {
@@ -51,8 +50,7 @@ const captureOf = (source: string, pattern: RegExp, what: string) => {
   return captured
 }
 
-const declOf = (css: string, name: string) =>
-  captureOf(css, new RegExp(`^\\s*${name}:\\s*([^;]+);$`, 'm'), name).trim()
+const declOf = (css: string, name: string) => captureOf(css, new RegExp(`^\\s*${name}:\\s*([^;]+);$`, 'm'), name).trim()
 
 /* 只接受 #rrggbb：能被取色器一比一核对的那种值。 */
 const grayOf = (value: string) =>
@@ -64,8 +62,7 @@ const grayOf = (value: string) =>
  * 断言的对象是声明,不是文件文本。此前 stripComments 只在 declaredTokens /
  * declOf 里用,另外几条断言直接读原文:同一个文件两套读法。
  */
-const declarationsIn = (...segments: string[]) =>
-  stripComments(readFileSync(join(...segments), 'utf8'))
+const declarationsIn = (...segments: string[]) => stripComments(readFileSync(join(...segments), 'utf8'))
 
 const light = declarationsIn(tokensDir, 'light.css')
 const dark = declarationsIn(tokensDir, 'dark.css')
@@ -138,9 +135,7 @@ describe('two-tier border scale', () => {
   it('外框墨量不过重，卡内线不彻底消失', () => {
     for (const [name, css] of THEMES) {
       expect(inkOf(name, css, '--ui-surface-frame'), `${name}: 外框墨量`).toBeLessThanOrEqual(42)
-      expect(inkOf(name, css, '--ui-divider-subtle'), `${name}: 卡内线墨量`).toBeGreaterThanOrEqual(
-        3,
-      )
+      expect(inkOf(name, css, '--ui-divider-subtle'), `${name}: 卡内线墨量`).toBeGreaterThanOrEqual(3)
     }
   })
 
@@ -154,9 +149,7 @@ describe('two-tier border scale', () => {
 
   it('宽度只有全局那一档 1px', () => {
     /* 整值相等,不是"包含这段文字":加个 !important 也该判红,且不受折行影响。 */
-    expect(declOf(surface, 'border')).toBe(
-      'var(--ui-region-divider-width) solid var(--surface-line)',
-    )
+    expect(declOf(surface, 'border')).toBe('var(--ui-region-divider-width) solid var(--surface-line)')
     expect(surface).not.toContain('--ui-surface-frame-width')
   })
 

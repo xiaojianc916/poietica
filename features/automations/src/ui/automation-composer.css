@@ -1,0 +1,111 @@
+/*
+ * 自动化编辑器里那张输入框的框体。
+ *
+ * 这张卡与对话输入框是**同一张脸**：legacy 直接复用 conversation 的
+ * `composer/frame.css`（`[data-slot="prompt-input"]` / `.composer-context` 那一族），
+ * 新架构里那份样式随 conversation 的 UI 子入口走，跨功能 import 别的功能的 ui 是
+ * 铁律禁止的。因此这里按同一份度量把卡片的几何**逐条抄下来**，只认 design-system
+ * 的 --cp-* 令牌（`packages/design-system/src/tokens/assistant.css`），不写第二个数字。
+ *
+ * 将来 conversation 把这张卡（或它的样式入口）作为 ui-api 资产导出时，这份样式
+ * 应当整份删除、改回引用同一份 —— 到那时两者不会再有漂移的可能。
+ */
+
+.automation-composer [data-slot="prompt-input"] {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  inline-size: 100%;
+  min-inline-size: 0;
+  flex-direction: column;
+  border: var(--cp-px) solid var(--cp-edge);
+  border-radius: var(--cp-radius);
+  background: var(--cp-input-surface);
+  box-shadow: var(--cp-input-lift);
+  cursor: text;
+}
+
+.automation-composer [data-slot="prompt-input-body"] {
+  display: flex;
+  inline-size: 100%;
+  min-inline-size: 0;
+  flex-direction: column;
+}
+
+.automation-composer textarea[data-slot="prompt-input-editor"] {
+  display: block;
+  inline-size: 100%;
+  min-inline-size: 0;
+  min-block-size: var(--cp-editor-idle);
+  max-block-size: var(--cp-editor-max);
+  overflow-y: auto;
+  border: 0;
+  resize: none;
+  padding: var(--cp-pad-top) var(--cp-pad-x) 0;
+  background: transparent;
+  field-sizing: content;
+  font-family: inherit;
+  font-size: var(--cp-font-editor);
+  line-height: var(--cp-line-ratio);
+  color: var(--cp-ink);
+  outline: none;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  box-sizing: border-box;
+}
+
+.automation-composer textarea[data-slot="prompt-input-editor"]::placeholder {
+  color: var(--cp-placeholder);
+  opacity: 1;
+}
+
+.automation-composer [data-slot="prompt-input-toolbar"] {
+  display: flex;
+  inline-size: 100%;
+  min-inline-size: 0;
+  align-items: center;
+  gap: var(--cp-control-gap);
+  padding: var(--cp-pad-mid) var(--cp-inset) var(--cp-inset);
+}
+
+.automation-composer [data-slot="prompt-input-tools"] {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.automation-composer .assistant-toolbar__spacer {
+  flex: 1;
+}
+
+/*
+ * 卡下面那条灰色上下文栏：与 composer-frame.css 的 .composer-context 同一条几何，
+ * 向上探进卡里一个圆角的量，接缝由重叠给出。
+ */
+.automation-composer .composer-context {
+  position: relative;
+  z-index: 0;
+  display: flex;
+  align-items: center;
+  gap: var(--cp-control-gap);
+  min-block-size: calc(var(--cp-control) + var(--cp-pad-mid) + var(--cp-radius));
+  margin-block-start: calc(-1 * var(--cp-radius));
+  border-radius: 0 0 var(--cp-radius) var(--cp-radius);
+  padding-block-start: calc(var(--cp-radius) + var(--cp-pad-mid) / 2);
+  padding-block-end: calc(var(--cp-pad-mid) / 2);
+  padding-inline: var(--cp-inset);
+  background: var(--cp-shelf);
+}
+
+/* 「默认模型」那一格：与对话工具条的胶囊同一档形状，只是这一格不可换。 */
+.automation-composer__model {
+  display: inline-flex;
+  block-size: var(--cp-control-sm);
+  align-items: center;
+  border-radius: var(--cp-pill);
+  padding-inline: var(--cp-pill-lead);
+  background: var(--cp-chip);
+  color: var(--cp-ink-muted);
+  font-size: var(--cp-font-label);
+  white-space: nowrap;
+}

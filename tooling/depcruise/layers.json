@@ -1,0 +1,22 @@
+{
+  "foundation": 0,
+  "contract-kit": 1,
+  "rpc": 1,
+  "transcript": 1,
+  "engine": 1,
+  "runtime-layout": 2,
+  "process-kit": 2,
+  "fs-kit": 2,
+  "logging": 2,
+  "storage-sqlite": 2,
+  "git": 2,
+  "test-kit": 2,
+  "engine-omp": 3,
+  "engine-testkit": 3,
+  "core-kernel": 3,
+  "host-kernel": 3,
+  "ui-kernel": 3,
+  "design-system": 3,
+  "workbench": 5,
+  "protocol": 5
+}

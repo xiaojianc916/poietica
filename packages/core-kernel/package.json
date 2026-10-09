@@ -1,0 +1,25 @@
+{
+  "name": "@poietica/core-kernel",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./events": "./src/events-def.ts",
+    "./testing": "./src/testing/index.ts"
+  },
+  "dependencies": {
+    "@poietica/contract-kit": "workspace:*",
+    "@poietica/engine": "workspace:*",
+    "@poietica/foundation": "workspace:*",
+    "@poietica/rpc": "workspace:*",
+    "@poietica/runtime-layout": "workspace:*",
+    "@poietica/storage-sqlite": "workspace:*",
+    "@poietica/test-kit": "workspace:*",
+    "zod": "catalog:"
+  },
+  "devDependencies": {
+    "@poietica/engine-testkit": "workspace:*",
+    "@types/bun": "catalog:"
+  }
+}

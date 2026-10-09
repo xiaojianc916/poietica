@@ -1,0 +1,30 @@
+{
+  "name": "@poietica/feature-python",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    "./contract": "./src/contract/index.ts",
+    "./core": "./src/core/index.ts",
+    "./ui": "./src/ui/index.tsx"
+  },
+  "dependencies": {
+    "@poietica/contract-kit": "workspace:*",
+    "@poietica/core-kernel": "workspace:*",
+    "@poietica/design-system": "workspace:*",
+    "@poietica/foundation": "workspace:*",
+    "@poietica/rpc": "workspace:*",
+    "@poietica/ui-kernel": "workspace:*",
+    "lucide-react": "catalog:",
+    "react": "catalog:",
+    "zod": "catalog:",
+    "zustand": "catalog:"
+  },
+  "devDependencies": {
+    "@poietica/engine-testkit": "workspace:*",
+    "@poietica/test-kit": "workspace:*",
+    "@testing-library/react": "catalog:",
+    "@types/bun": "catalog:",
+    "@types/react": "catalog:"
+  }
+}

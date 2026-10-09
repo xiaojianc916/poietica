@@ -50,12 +50,7 @@ export function DropdownMenuContent({
 }: DropdownMenuPopupProps) {
   return (
     <Menu.Portal>
-      <Menu.Positioner
-        align={align}
-        className={popupPositionerClassName}
-        side={side}
-        sideOffset={sideOffset}
-      >
+      <Menu.Positioner align={align} className={popupPositionerClassName} side={side} sideOffset={sideOffset}>
         <Menu.Popup className={cn(popupClassName, className)} {...props} />
       </Menu.Positioner>
     </Menu.Portal>
@@ -68,10 +63,7 @@ export function DropdownMenuContent({
  * default. onSelect is a DOM event about text selection, and passing it here
  * type-checks, builds, and never fires.
  */
-export function DropdownMenuItem({
-  className,
-  ...props
-}: Omit<ComponentProps<typeof Menu.Item>, 'onSelect'>) {
+export function DropdownMenuItem({ className, ...props }: Omit<ComponentProps<typeof Menu.Item>, 'onSelect'>) {
   return <Menu.Item className={cn(menuItemClassName, className)} {...props} />
 }
 
@@ -90,9 +82,6 @@ export function DropdownMenuRadioItem({
 }
 
 /* 各组自己的皮肤规则按选择器权重覆盖这一份的分隔线颜色。 */
-export function DropdownMenuSeparator({
-  className,
-  ...props
-}: ComponentProps<typeof Menu.Separator>) {
+export function DropdownMenuSeparator({ className, ...props }: ComponentProps<typeof Menu.Separator>) {
   return <Menu.Separator className={cn(menuSeparatorClassName, className)} {...props} />
 }

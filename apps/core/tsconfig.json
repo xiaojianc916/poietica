@@ -1,0 +1,66 @@
+{
+  "extends": "../../tooling/tsconfig/bun.json",
+  "compilerOptions": {
+    "types": ["bun", "node"]
+  },
+  "include": ["src", "scripts"],
+  "references": [
+    {
+      "path": "../../features/agent-settings/src/core"
+    },
+    {
+      "path": "../../features/attachments/src/core"
+    },
+    {
+      "path": "../../features/automations/src/core"
+    },
+    {
+      "path": "../../features/conversation/src/core"
+    },
+    {
+      "path": "../../features/extensions/src/core"
+    },
+    {
+      "path": "../../features/models/src/core"
+    },
+    {
+      "path": "../../features/platform/src/core"
+    },
+    {
+      "path": "../../features/python/src/core"
+    },
+    {
+      "path": "../../features/review/src/core"
+    },
+    {
+      "path": "../../features/usage/src/core"
+    },
+    {
+      "path": "../../features/workspaces/src/core"
+    },
+    {
+      "path": "../../packages/core-kernel"
+    },
+    {
+      "path": "../../packages/engine-omp"
+    },
+    {
+      "path": "../../packages/foundation"
+    },
+    {
+      "path": "../../packages/logging"
+    },
+    {
+      "path": "../../packages/process-kit"
+    },
+    {
+      "path": "../../packages/protocol"
+    },
+    {
+      "path": "../../packages/rpc"
+    },
+    {
+      "path": "../../packages/runtime-layout"
+    }
+  ]
+}

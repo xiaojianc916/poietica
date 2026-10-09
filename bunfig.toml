@@ -1,7 +1,10 @@
 [install]
-# 架构规则的前提是「没声明的包 import 不到」。isolated 只做到一半：Bun 默认还会建
-# node_modules/.bun/node_modules 兜底目录，未声明的依赖从那里照样解析得到，所以 hoist 必须关。
+# 依赖隔离的前提：没声明的包 import 不到。关闭 hoist，否则 node_modules/.bun/node_modules 兜底目录会让未声明依赖照样可解析。
 linker = "isolated"
 hoist = false
-# 依赖版本只写在 catalog 里，一律范围声明，不锁死到具体版本；可复现性由 bun.lock 负责。
 exact = false
+
+[test]
+preload = ["./tooling/test/preload.ts", "./tooling/test/react-setup.ts"]
+# 不扫描参考目录与构建产物
+pathIgnorePatterns = ["**/node_modules/**", "**/out/**", "**/dist/**", "**/.tsbuild/**"]

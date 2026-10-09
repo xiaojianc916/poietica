@@ -1,6 +1,6 @@
 {
   "name": "@poietica/design-system",
-  "version": "0.1.0",
+  "version": "0.0.0",
   "private": true,
   "type": "module",
   "sideEffects": [
@@ -10,10 +10,6 @@
     ".": "./src/index.ts",
     "./styles.css": "./src/styles.css"
   },
-  "scripts": {
-    "test": "bun test src",
-    "typecheck": "tsc --project tsconfig.json --noEmit"
-  },
   "dependencies": {
     "@base-ui/react": "catalog:",
     "clsx": "catalog:",
@@ -21,16 +17,13 @@
     "tailwind-merge": "catalog:"
   },
   "devDependencies": {
-    "@types/bun": "catalog:",
+    "@happy-dom/global-registrator": "catalog:",
+    "@poietica/test-kit": "workspace:*",
     "@types/react": "catalog:",
     "@types/react-dom": "catalog:",
+    "@testing-library/react": "catalog:",
     "react": "catalog:",
     "react-dom": "catalog:",
-    "tailwindcss": "catalog:",
-    "typescript": "catalog:"
-  },
-  "peerDependencies": {
-    "react": "catalog:",
-    "react-dom": "catalog:"
+    "tailwindcss": "catalog:"
   }
 }

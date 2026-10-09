@@ -15,10 +15,7 @@ export function InlineSpinner() {
 
 export function LoadingState({ label = '正在加载…' }: { readonly label?: string }) {
   return (
-    <div
-      className="grid h-full min-h-32 place-items-center text-sm text-muted-foreground"
-      role="status"
-    >
+    <div className="grid h-full min-h-32 place-items-center text-sm text-muted-foreground" role="status">
       <span className="flex items-center gap-2">
         <InlineSpinner />
         {label}

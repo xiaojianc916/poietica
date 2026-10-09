@@ -1,0 +1,12 @@
+{
+  "extends": "../../tooling/tsconfig/dom.json",
+  "include": ["src"],
+  "references": [
+    {
+      "path": "../design-system"
+    },
+    {
+      "path": "../ui-kernel"
+    }
+  ]
+}

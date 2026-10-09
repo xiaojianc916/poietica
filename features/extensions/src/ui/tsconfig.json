@@ -1,0 +1,27 @@
+{
+  "extends": "../../../../tooling/tsconfig/dom.json",
+  "include": ["."],
+  "references": [
+    {
+      "path": "../../../../packages/design-system"
+    },
+    {
+      "path": "../../../../packages/foundation"
+    },
+    {
+      "path": "../../../../packages/rpc"
+    },
+    {
+      "path": "../../../../packages/ui-kernel"
+    },
+    {
+      "path": "../../../conversation/src/ui-api"
+    },
+    {
+      "path": "../../../platform/src/contract"
+    },
+    {
+      "path": "../contract"
+    }
+  ]
+}

@@ -1,0 +1,24 @@
+{
+  "extends": "../../tooling/tsconfig/electron-main.json",
+  "include": ["src"],
+  "references": [
+    {
+      "path": "../contract-kit"
+    },
+    {
+      "path": "../foundation"
+    },
+    {
+      "path": "../logging"
+    },
+    {
+      "path": "../process-kit"
+    },
+    {
+      "path": "../rpc"
+    },
+    {
+      "path": "../runtime-layout"
+    }
+  ]
+}

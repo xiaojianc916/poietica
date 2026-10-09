@@ -1,0 +1,26 @@
+{
+  "name": "@poietica/host-kernel",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "dependencies": {
+    "@poietica/contract-kit": "workspace:*",
+    "@poietica/fs-kit": "workspace:*",
+    "@poietica/foundation": "workspace:*",
+    "@poietica/logging": "workspace:*",
+    "@poietica/process-kit": "workspace:*",
+    "@poietica/rpc": "workspace:*",
+    "@poietica/runtime-layout": "workspace:*"
+  },
+  "devDependencies": {
+    "@poietica/test-kit": "workspace:*",
+    "zod": "catalog:",
+    "@types/node": "catalog:"
+  },
+  "peerDependencies": {
+    "electron": "catalog:"
+  }
+}

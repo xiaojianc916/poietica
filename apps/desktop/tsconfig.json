@@ -1,7 +1,90 @@
 {
-  "extends": "../../tsconfig.base.json",
-  "compilerOptions": {
-    "tsBuildInfoFile": "./node_modules/.cache/typescript/desktop.tsbuildinfo"
-  },
-  "include": ["src"]
+  "extends": "../../tooling/tsconfig/dom.json",
+  "include": ["src"],
+  "references": [
+    {
+      "path": "../../features/agent-settings/src/ui"
+    },
+    {
+      "path": "../../features/attachments/src/host"
+    },
+    {
+      "path": "../../features/attachments/src/ui"
+    },
+    {
+      "path": "../../features/automations/src/ui"
+    },
+    {
+      "path": "../../features/browser/src/host"
+    },
+    {
+      "path": "../../features/browser/src/ui"
+    },
+    {
+      "path": "../../features/conversation/src/ui"
+    },
+    {
+      "path": "../../features/extensions/src/ui"
+    },
+    {
+      "path": "../../features/models/src/ui"
+    },
+    {
+      "path": "../../features/platform/src/host"
+    },
+    {
+      "path": "../../features/platform/src/ui"
+    },
+    {
+      "path": "../../features/preferences/src/host"
+    },
+    {
+      "path": "../../features/preferences/src/ui"
+    },
+    {
+      "path": "../../features/python/src/ui"
+    },
+    {
+      "path": "../../features/review/src/ui"
+    },
+    {
+      "path": "../../features/terminal/src/host"
+    },
+    {
+      "path": "../../features/terminal/src/ui"
+    },
+    {
+      "path": "../../features/update/src/host"
+    },
+    {
+      "path": "../../features/update/src/ui"
+    },
+    {
+      "path": "../../features/usage/src/ui"
+    },
+    {
+      "path": "../../features/workspaces/src/ui"
+    },
+    {
+      "path": "../../packages/design-system"
+    },
+    {
+      "path": "../../packages/engine"
+    },
+    {
+      "path": "../../packages/host-kernel"
+    },
+    {
+      "path": "../../packages/protocol"
+    },
+    {
+      "path": "../../packages/rpc"
+    },
+    {
+      "path": "../../packages/ui-kernel"
+    },
+    {
+      "path": "../../packages/workbench"
+    }
+  ]
 }

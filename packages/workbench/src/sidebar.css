@@ -1,0 +1,63 @@
+/*
+ * 侧边栏行的绘制。
+ *
+ * **迁移自** legacy `shell/sidebar/sidebar-rows.css`：类名、几何读法一字未改。
+ * 行的形状本身不在这里 —— 它由 design-system 的 --ui-row-* 一族持有
+ * （tokens/rows.css）；中线由 WorkspaceFrame 挂成 --ui-row-icon-center。
+ *
+ * 这里读令牌一律不写兜底值：兜底值就是第二份真相，链子断掉应当显形。
+ */
+
+.workspace-sidebar {
+  display: flex;
+  flex-direction: column;
+  block-size: 100%;
+  min-block-size: 0;
+  min-inline-size: 0;
+}
+
+.workspace-sidebar__nav {
+  padding-inline: var(--ui-row-inset);
+  flex-shrink: 0;
+  padding-block: 8px 4px;
+}
+
+.sidebar-nav-row {
+  display: flex;
+  block-size: var(--ui-row-height);
+  inline-size: 100%;
+  align-items: center;
+  gap: var(--ui-row-gap);
+  border-radius: var(--ui-row-radius);
+  padding-inline-start: var(--ui-row-lead);
+  padding-inline-end: var(--ui-row-trail);
+  border: 0;
+  background: transparent;
+  color: var(--ui-muted-foreground);
+  font-size: 12px;
+  text-align: start;
+  cursor: pointer;
+  transition: color 120ms ease;
+}
+
+.sidebar-nav-row:hover {
+  background: var(--ui-sidebar-accent);
+}
+
+.sidebar-nav-row[aria-current="page"] {
+  background: var(--ui-sidebar-accent);
+  color: var(--ui-foreground);
+}
+
+.sidebar-nav-row__icon {
+  block-size: var(--ui-row-icon-size);
+  inline-size: var(--ui-row-icon-size);
+  flex: none;
+}
+
+.sidebar-nav-row__label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: 500;
+}

@@ -108,9 +108,7 @@ export function CommandMenu({
       >
         {groups.map((group) => (
           <BaseCombobox.Group className="mb-1 last:mb-0" key={group.id}>
-            <BaseCombobox.GroupLabel
-              className={cn('px-3 py-1.5', 'text-sm', 'text-muted-foreground')}
-            >
+            <BaseCombobox.GroupLabel className={cn('px-3 py-1.5', 'text-sm', 'text-muted-foreground')}>
               {group.title}
             </BaseCombobox.GroupLabel>
 
@@ -136,9 +134,7 @@ export function CommandMenu({
                 <span className={cn('min-w-0 flex-1', 'truncate')}>{item.label}</span>
 
                 {item.detail === undefined ? null : (
-                  <span
-                    className={cn('max-w-40 shrink-0 truncate', 'text-xs', 'text-muted-foreground')}
-                  >
+                  <span className={cn('max-w-40 shrink-0 truncate', 'text-xs', 'text-muted-foreground')}>
                     {item.detail}
                   </span>
                 )}
@@ -164,9 +160,7 @@ export function CommandMenu({
          * 占位尺寸必须写在子节点上 —— 写在根上会在有结果时留下一块空白。
          */}
         <BaseCombobox.Empty className={cn('outline-none')}>
-          <span
-            className={cn('grid min-h-28', 'place-content-center', 'gap-1 px-4', 'text-center')}
-          >
+          <span className={cn('grid min-h-28', 'place-content-center', 'gap-1 px-4', 'text-center')}>
             <span className={cn('text-sm font-medium', 'text-foreground')}>{emptyTitle}</span>
 
             <span className={cn('text-xs', 'text-muted-foreground')}>{emptyDescription}</span>

@@ -1,0 +1,12 @@
+/*
+ * agent 设置目录的画法自己的那一格样式。
+ *
+ * **逐字迁移**自 legacy \`packages/settings/src/ui/agent-settings/agent-settings.css\`：
+ * 排版词汇（行、组、页、输入框外观）全部来自 design-system 的 settings-primitives，
+ * 这里只放控件那一格 —— 数值一字未改。
+ */
+
+/* 行右端的控件格定宽：一行里既有开关也有输入框，不固定宽度会让每一行的右边缘参差。 */
+.agent-setting__input {
+  inline-size: 190px;
+}

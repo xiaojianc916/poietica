@@ -15,6 +15,7 @@
 @import "./tokens/radii.css";
 @import "./tokens/shadows.css";
 @import "./tokens/controls.css";
+@import "./tokens/assistant.css";
 @import "./tokens/rows.css";
 @import "./tokens/motion.css";
 @import "./tokens/layers.css";
@@ -25,6 +26,7 @@
 @import "./tokens/accessibility.css";
 @import "./scrollbar.css";
 @import "./selection.css";
+@import "./settings.css";
 
 /*
  * 图标盒。

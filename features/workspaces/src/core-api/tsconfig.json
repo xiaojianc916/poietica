@@ -1,0 +1,15 @@
+{
+  "extends": "../../../../tooling/tsconfig/neutral.json",
+  "include": ["."],
+  "references": [
+    {
+      "path": "../../../../packages/core-kernel"
+    },
+    {
+      "path": "../../../../packages/foundation"
+    },
+    {
+      "path": "../contract"
+    }
+  ]
+}

@@ -1,0 +1,305 @@
+/* 工具调用条目：一行记事 + 抽屉。外框圆角归 [data-surface]，这里不加。 */
+
+/*
+ * 一行一格，列宽恒等于行宽。
+ *
+ * 列必须写出来：隐式的 auto 轨道按内容的 max-content 定宽，而展开的那一面是一段散文
+ * —— 它的 max-content 是整段不换行的长度，轨道于是越过阅读列，段落一行印到屏幕外。
+ * 量度归这一格所有，不归内容。
+ */
+.timeline-tool {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+}
+
+/*
+ * 展开之后的那张纸：一个实色块。
+ *
+ * 没有边框也没有投影 —— 它不是浮起来的一张卡，是这一行摊开之后的内容。圆角要能剪掉
+ * 里面那一面的滚动条，所以收边在这一层。
+ *
+ * 左边缘从那句话的第一个字起，不从图标起（缩进为什么是那两个量的和，见
+ * --cp-timeline-tool-indent）。右边缘仍与那一行齐平，所以上限是同一个数减掉缩进：只把
+ * 纸右移而不收上限，它会整块探出一枚图标的宽度，右侧于是参差。
+ *
+ * 长内容不折行，横向由面板那唯一一个滚动容器接住 —— 封顶不会吃掉任何字符。
+ */
+.timeline-tool__body {
+  display: grid;
+  gap: 0;
+  max-inline-size: min(100%, var(--cp-timeline-tool-max) - var(--cp-timeline-tool-indent));
+  margin-block-start: var(--cp-control-gap);
+  margin-inline-start: var(--cp-timeline-tool-indent);
+  border-radius: var(--cp-radius-item);
+  background: var(--cp-timeline-drawer-surface);
+  overflow: hidden;
+}
+
+/* 抽屉内部：切换带、那一面，以及那一面上围栏与行内代码的改写。 */
+
+/*
+ * 抽屉里唯一的滚动容器。
+ *
+ * 上限挂在整个面上，不挂在每一段产出自己身上 —— 一次改三个文件就是三份上限叠起来，
+ * 同屏冒出三个互不相干的滚动容器。一个面板一个滚动容器，是 DevTools 的 Response 面板
+ * 与 VS Code 输出面板的做法；内容不满就不撑高。
+ *
+ * 两个轴归同一个盒子，横条才钉得住：横轴留给围栏自己时，那根横条会贴在围栏的底边
+ * —— 而围栏是内容流里的一个盒子，内容一滚横条跟着上下跑。滚动条是滚动容器的边缘，
+ * 不是内容的边缘。
+ *
+ * 滚动条的样子归 packages/design-system/src/scrollbar.css 一处所有，这里不再声明。
+ */
+.timeline-tool__panel {
+  max-block-size: var(--cp-timeline-output-max);
+  padding: 0.625rem 0.75rem;
+  overflow: auto;
+}
+
+/*
+ * 不写 overscroll-behavior：它按轴阻断滚动链，不问这个轴上有没有可滚的距离，
+ * 内容不满的面板会把滚轮困在卡片里。到边界顿一下再带走外层，本来就是
+ * Chromium 滚动闩锁的行为。
+ */
+
+/* 上下相接的第二面：与上面那条之间隔一条发丝线，说明这不是又一次调用。 */
+.timeline-tool__panel[data-seam] {
+  box-shadow: inset 0 1px 0 var(--cp-timeline-seam);
+}
+
+/*
+ * 卡片里的 markdown。
+ *
+ * 排版本身全部来自 .timeline-prose —— 标题级差、围栏、表格与回答里的完全同款，这里不再
+ * 写第二套。盒子的那几条（底色、上限、滚动、留白）归 __panel，也就是抽屉里唯一那个滚动
+ * 容器。这一条只剩下属于「这一面的内容」自己的事：它比回答小一档。
+ */
+.timeline-prose.timeline-tool__prose {
+  margin: 0;
+  font-size: var(--ui-prose-size-aux);
+}
+
+/*
+ * 抽屉里的围栏没有外壳。
+ *
+ * 一段围栏出现在回答里，它是文章引用的一段代码：报一下语言、给一个复制按钮、用边框把
+ * 自己和正文隔开。出现在抽屉里，它**就是**这一面的全部内容 —— 再挂一枚语言胶囊是同一
+ * 句话说两遍，再套一圈边框就是卡中卡，而抽屉本身已经是那张纸了。
+ *
+ * 最要紧的是 code-block-body 那个 max-block-size 加 overflow：它会让围栏成为面板里
+ * 第二个滚动容器，而「一个面板一个滚动容器」是上面那条规则的全部内容。围栏在这里不滚，
+ * 它只是长，长出来的部分由面板去滚。
+ *
+ * 判据是「围栏在哪」，不是「围栏是什么」：这几条与全局那几条特异性相同，靠书写顺序
+ * 决定胜负，而这里在后面。
+ */
+.timeline-prose.timeline-tool__prose [data-streamdown="code-block"] {
+  display: block;
+  overflow: visible;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  margin: 0;
+  padding: 0;
+}
+
+.timeline-prose.timeline-tool__prose [data-streamdown="code-block-header"],
+.timeline-prose.timeline-tool__prose [data-streamdown="code-block"] > :has(> [data-streamdown="code-block-actions"]) {
+  display: none;
+}
+
+.timeline-prose.timeline-tool__prose [data-streamdown="code-block-body"] {
+  max-block-size: none;
+  overflow: visible;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  padding: 0;
+}
+
+/*
+ * 代码不折行。
+ *
+ * 代码视图默认不折行，是 DevTools、VS Code、GitHub、Sublime 的一致行为：等宽排版的全部
+ * 价值就在于列是对齐的，而折行按定义会破坏列。一条十几行的命令或一份深层嵌套的 JSON 折
+ * 下来之后层级全平，那不是把字符还给读者，是把结构拿走了。出口给横向滚动，字符一个不少。
+ *
+ * 出口在面板上，不在这里：这个盒子 overflow 是 visible，长行照直伸出去，由面板那唯一
+ * 一个滚动容器接住。横条因此钉在面板底边，不随内容上下跑。
+ */
+.timeline-prose.timeline-tool__prose [data-streamdown="code-block-body"] pre {
+  white-space: pre;
+}
+
+/*
+ * 行内代码在这张卡里要再退一档。
+ *
+ * 它平时的底色就是 --cp-timeline-inline-code-surface —— 那在回答里是对的，因为回答铺在
+ * 卡面上。可这个块自己已经是那个颜色了，同色叠同色，胶囊直接消失。所以在这个作用域里
+ * 往上挪一档：仍是同一套灰阶，只是不再和自己的背景撞在一起。
+ */
+.timeline-prose.timeline-tool__prose :not(pre) > code {
+  background: var(--cp-hover);
+}
+
+/*
+ * 这一面里的截图（浏览器每一帧、桌面快照、read 一张图、生成的图）。
+ *
+ * 竖排、限宽：一张全屏截图按原始尺寸铺开会把抽屉撑到几屏高，把同一面上那些字挤出去。
+ * 图走 <img> 不走 markdown —— data URL 会被 Streamdown 当可疑来源拦掉。
+ */
+.timeline-tool__shots {
+  display: flex;
+  flex-direction: column;
+  gap: 0.375rem;
+  margin-block-start: 0.5rem;
+}
+
+.timeline-tool__shot {
+  align-self: flex-start;
+  max-inline-size: 100%;
+  padding: 0;
+  border: 0;
+  border-radius: var(--cp-radius-item);
+  background: transparent;
+  cursor: zoom-in;
+  overflow: hidden;
+}
+
+.timeline-tool__shot img {
+  display: block;
+  max-inline-size: 100%;
+  max-block-size: var(--cp-timeline-output-max);
+  object-fit: contain;
+}
+
+/* 这一面只有图：第一张图不该再顶一层留白。 */
+.timeline-tool__shots:only-child {
+  margin-block-start: 0;
+}
+
+/* 产出为空时的占位说明，与正常产出同字号同颜色。 */
+.timeline-tool__empty {
+  margin: 0;
+  color: var(--cp-timeline-quiet-text);
+  font-size: var(--ui-prose-size-aux);
+  line-height: var(--ui-line-height-normal);
+}
+
+/*
+ * 切换条自占一条窄带，它和下面那一面之间没有边界。
+ *
+ * 底色不在这里给 —— 带和面是同一张纸，纸色归 __body 一处声明。这一条只管留白。
+ *
+ * 选中态在这里重新给一次，不改 tabs.css：那一层是全局原语，别处的标签仍要它原来的那一
+ * 档。底色一旦落到纸上，原语给的半透明墨叠上去只解出约 12% 的对比，偏弱；换成实色的上
+ * 一档，两者的差正是设计系统在菜单那两级边界上定下的量。
+ */
+.timeline-tool__tabs {
+  padding: 0.375rem 0.75rem;
+}
+
+.timeline-tool__tabs .tabs__tab[aria-selected="true"] {
+  background: var(--cp-timeline-tabs-active);
+}
+
+/*
+ * 后台派发的记号。
+ *
+ * 一个词，不染色：它不是警告，只是说明这次派发不占前台，答复会晚一些回来。
+ */
+.timeline-tool__background {
+  flex: none;
+  color: var(--cp-ink-subtle);
+  font-size: var(--cp-font-micro);
+  line-height: 1;
+  white-space: nowrap;
+}
+
+/* ── 改动规模 ───────────────────────────────────────────────────────
+ *
+ * 只有带 diff 的调用才有这一对数字，所以它是标题旁的一处事实，而不是每张卡片都要预留
+ * 的一个槽位。等宽且表格数字对齐：连续几次编辑读下来是一列，不是一堆。
+ */
+
+.timeline-tool__diffstat {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 0.375rem;
+  font-family: var(--cp-font-mono);
+  /* 行高跟着行走：一行里只有一个行高，两侧才落在同一条基线上。字号小一档，它是注脚。 */
+  font-size: calc(var(--ui-prose-size) - 2px);
+  font-variant-numeric: tabular-nums;
+}
+
+.timeline-tool__diffstat-added {
+  color: var(--cp-diff-added-text);
+}
+
+.timeline-tool__diffstat-removed {
+  color: var(--cp-diff-removed-text);
+}
+
+/*
+ * 一处改动。
+ *
+ * 行带本身来自 @poietica/review/surface 的 DiffBody —— 行号槽、增删底色、增删行的文字
+ * 色与大文件的虚拟化全仓一份，与审查面板画的是同一份（取色在 review 包的 diff-body.css）。
+ * 这一条只管属于抽屉的那件事：它是这一格里唯一的双轴滚动容器。
+ *
+ * 为什么横向出口必须在这里、不能留给行带自己：行带一旦自己横滚，屏幕上就并排出现
+ * 两条横条（一条在行带上、一条在这一格底边），两条都只说同一件事；而纵向出口也只能
+ * 在这里，否则同一个盒子两个轴分属两层，滚起来互相错位。所以 DiffBody 传 scrollX={false}。
+ *
+ * 这里也不做容器查询：抽屉关掉了折叠带（DiffBody 的 gaps={false}），没有那条要按
+ * 可视宽对齐的东西。条的样子归 packages/design-system/src/scrollbar.css 一处所有，
+ * 此前这里用 range input 自绘过一对，已随这次收敛删除。
+ */
+.timeline-tool__diff {
+  position: relative;
+  max-block-size: 60vh;
+  padding-block: 0.375rem;
+  overflow: auto;
+}
+
+/*
+ * 多文件改动：每一处之间隔一条发丝线，各自带自己的路径。
+ * 面板已经给了左右留白，这里只分上下。
+ */
+.timeline-tool__file + .timeline-tool__file {
+  border-block-start: 1px solid var(--cp-hairline);
+}
+
+.timeline-tool__path {
+  display: flex;
+  align-items: center;
+  gap: 0.375rem;
+  padding: 0.375rem 0.75rem;
+  color: var(--cp-timeline-quiet-text);
+  font-size: calc(var(--ui-prose-size) - 2px);
+}
+
+.timeline-tool__path-icon {
+  display: inline-flex;
+  flex: none;
+  color: var(--cp-ink-subtle);
+}
+
+.timeline-tool__path-name {
+  font-family: var(--cp-font-mono);
+  overflow-wrap: anywhere;
+}
+
+/* 长产出：按行虚拟化的那一串行盒与围栏里的行一字不差，交界处看不出接缝。 */
+.timeline-tool__output {
+  min-inline-size: min-content;
+}
+
+.timeline-tool__output-line {
+  min-block-size: calc(var(--ui-prose-size-aux) * var(--ui-line-height-normal));
+  font-family: var(--cp-font-mono);
+  font-size: var(--ui-prose-size-aux);
+  line-height: var(--ui-line-height-normal);
+  white-space: pre;
+}

@@ -3,8 +3,15 @@ import { type KeyboardEvent, type PointerEvent, useEffect, useRef } from 'react'
 /** 分隔条的交互态。写入方只有本文件的指针处理器。 */
 export type SplitterActivity = 'idle' | 'hover' | 'drag'
 
-/** 被调整的区域贴窗口哪一侧。决定指针位移到宽度的符号。 */
-export type RegionEdge = 'inline-start' | 'inline-end'
+/**
+ * 被调整的区域贴窗口哪一侧。决定指针位移到尺寸的符号。
+ *
+ * inline-* 是竖条（左右分栏，拖 X），block-* 是横条（上下分栏，拖 Y）。
+ * 底部面板坞用 block-start：条在面板上缘，往上拖面板变高。
+ */
+export type RegionEdge = 'inline-start' | 'inline-end' | 'block-start' | 'block-end'
+
+const isBlockEdge = (edge: RegionEdge): boolean => edge === 'block-start' || edge === 'block-end'
 
 export interface RegionSplitterProps {
   readonly label: string
@@ -22,6 +29,7 @@ interface DragSession {
   readonly pointerId: number
   readonly element: HTMLHRElement
   readonly startX: number
+  readonly startY: number
   readonly startWidth: number
   /* 最后已知的指针位置：收尾时用它判定指针是否还在条上。 */
   point: { readonly x: number; readonly y: number }
@@ -34,9 +42,7 @@ interface DragSession {
 function isPointerOver(element: HTMLHRElement, point: { x: number; y: number }): boolean {
   const rect = element.getBoundingClientRect()
 
-  return (
-    point.x >= rect.left && point.x <= rect.right && point.y >= rect.top && point.y <= rect.bottom
-  )
+  return point.x >= rect.left && point.x <= rect.right && point.y >= rect.top && point.y <= rect.bottom
 }
 
 /**
@@ -64,13 +70,20 @@ export function RegionSplitter({
   /* 排期中那一帧的宽度上报（见 onPointerMove）。 */
   const pending = useRef<number | null>(null)
 
-  /* 贴 inline-start 的区域向右拖变宽，贴 inline-end 的向左拖变宽。 */
-  const grow = edge === 'inline-start' ? 1 : -1
+  /*
+   * 尺寸随指针位移的符号：贴 inline-start 的区域向右拖变宽，贴 inline-end 的向左拖变宽；
+   * 贴 block-start 的区域（底坞）向上拖变高，贴 block-end 的向下拖变高。
+   */
+  const grow = edge === 'inline-start' ? 1 : edge === 'inline-end' ? -1 : edge === 'block-start' ? -1 : 1
+  /* 位移取的是哪一轴：横条读 clientY，竖条读 clientX。 */
+  const axis = isBlockEdge(edge) ? 'block' : 'inline'
 
   const clamp = (next: number): number => Math.max(min, Math.min(max, Math.round(next)))
 
-  const widthAt = (current: DragSession, clientX: number): number =>
-    clamp(current.startWidth + grow * (clientX - current.startX))
+  const widthAt = (current: DragSession, delta: number): number => clamp(current.startWidth + grow * delta)
+  /* 指针这一位置对应的位移：竖条取 X、横条取 Y，起点在会话里同轴记着。 */
+  const deltaAt = (current: DragSession, point: { readonly x: number; readonly y: number }): number =>
+    axis === 'block' ? point.y - current.startY : point.x - current.startX
 
   /*
    * 收尾只有一个出口：放捕获、把最终宽度交回、把交互态归位。
@@ -107,7 +120,7 @@ export function RegionSplitter({
       return
     }
 
-    settle(current, widthAt(current, event.clientX), restActivity(current))
+    settle(current, widthAt(current, deltaAt(current, { x: event.clientX, y: event.clientY })), restActivity(current))
   }
 
   /*
@@ -130,7 +143,7 @@ export function RegionSplitter({
       return
     }
 
-    settle(current, widthAt(current, current.point.x), 'idle')
+    settle(current, widthAt(current, deltaAt(current, current.point)), 'idle')
   }
 
   useEffect(() => {
@@ -168,17 +181,23 @@ export function RegionSplitter({
       return
     }
 
-    const step = (event.shiftKey ? 64 : 16) * grow
+    /*
+     * 键盘步进：竖条左右键调宽，横条上下键调高。两个方向键按语义分派（右 / 上 = 变大），
+     * 步进与 grow 无关 —— grow 只管指针位移，键盘这条路径不经过它。
+     */
+    const step = event.shiftKey ? 64 : 16
+    const forwardKey = axis === 'block' ? 'ArrowUp' : 'ArrowRight'
+    const backwardKey = axis === 'block' ? 'ArrowDown' : 'ArrowLeft'
 
     switch (event.key) {
-      case 'ArrowLeft':
-        event.preventDefault()
-        onResize(clamp(width - step))
-        break
-
-      case 'ArrowRight':
+      case forwardKey:
         event.preventDefault()
         onResize(clamp(width + step))
+        break
+
+      case backwardKey:
+        event.preventDefault()
+        onResize(clamp(width - step))
         break
 
       case 'Home':
@@ -196,16 +215,19 @@ export function RegionSplitter({
   return (
     <hr
       aria-label={label}
-      aria-orientation="vertical"
+      aria-orientation={axis === 'block' ? 'horizontal' : 'vertical'}
       aria-valuemax={max}
       aria-valuemin={min}
       aria-valuenow={Math.round(width)}
       className={
-        'workspace-region-splitter absolute top-0 z-[var(--ui-z-floating)] h-full ' +
-        'cursor-col-resize touch-none select-none border-0 bg-transparent outline-none ' +
+        'workspace-region-splitter absolute z-[var(--ui-z-floating)] ' +
+        'touch-none select-none border-0 bg-transparent outline-none ' +
         /* 命中区是分隔线的 8 倍宽，跨在线的两侧各一半：线宽改一处，命中区跟着走。 */
-        '[inline-size:calc(var(--ui-region-divider-width)*8)] ' +
-        (edge === 'inline-start' ? 'right-0 translate-x-1/2' : 'left-0 -translate-x-1/2')
+        (isBlockEdge(edge)
+          ? 'cursor-row-resize left-0 right-0 [block-size:calc(var(--ui-region-divider-width)*8)] ' +
+            (edge === 'block-start' ? 'top-0 -translate-y-1/2' : 'bottom-0 translate-y-1/2')
+          : 'cursor-col-resize top-0 h-full [inline-size:calc(var(--ui-region-divider-width)*8)] ' +
+            (edge === 'inline-start' ? 'right-0 translate-x-1/2' : 'left-0 -translate-x-1/2'))
       }
       data-edge={edge}
       onDoubleClick={(event) => {
@@ -251,6 +273,7 @@ export function RegionSplitter({
           pointerId: event.pointerId,
           element,
           startX: event.clientX,
+          startY: event.clientY,
           startWidth: width,
           point: { x: event.clientX, y: event.clientY },
         }
@@ -294,7 +317,7 @@ export function RegionSplitter({
           const active = session.current
 
           if (active !== null) {
-            onResize(widthAt(active, active.point.x))
+            onResize(widthAt(active, deltaAt(active, active.point)))
           }
         })
       }}

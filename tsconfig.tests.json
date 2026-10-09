@@ -1,0 +1,31 @@
+{
+  "compilerOptions": {
+    "target": "ES2023",
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "lib": ["ES2023", "DOM", "DOM.Iterable"],
+    "types": ["bun"],
+    "jsx": "react-jsx",
+    "strict": true,
+    "exactOptionalPropertyTypes": false,
+    "noUncheckedIndexedAccess": true,
+    "verbatimModuleSyntax": true,
+    "isolatedModules": true,
+    "resolveJsonModule": true,
+    "skipLibCheck": true,
+    "noEmit": true
+  },
+  "include": [
+    "tooling/**/*.test.ts",
+    "packages/*/src/**/__tests__/**/*",
+    "packages/*/src/**/*.test.ts",
+    "packages/*/src/**/*.test.tsx",
+    "features/*/src/**/__tests__/**/*",
+    "features/*/src/**/*.test.ts",
+    "features/*/src/**/*.test.tsx",
+    "apps/*/src/**/__tests__/**/*",
+    "apps/*/src/**/*.test.ts",
+    "apps/*/src/**/*.test.tsx",
+    "apps/*/scripts/**/*.test.ts"
+  ]
+}

@@ -1,0 +1,46 @@
+/*
+ * agent 那条线的定时任务工具卡片（07 页 §9E 的 `toolCallRenderers`）。
+ *
+ * 折叠行读对话时间线的行类名（.timeline-tool / .timeline-row /
+ * .timeline-row__icon / .timeline-row__label），字号、墨色与量度都与别的工具行
+ * 同源；这里只补两件时间线没有的东西：计划那一句与「打开」那枚按钮。取色一律走
+ * 同一套令牌，不另立视觉语言。
+ */
+
+.automation-tool {
+  display: grid;
+  gap: var(--cp-control-gap);
+}
+
+.automation-tool__status {
+  flex: none;
+  border-radius: var(--ui-radius-sm);
+  background: color-mix(in srgb, currentColor 8%, transparent);
+  padding: 0.125rem 0.375rem;
+  font-size: 11px;
+  opacity: 0.7;
+}
+
+.automation-tool__status--failed {
+  color: var(--ui-destructive);
+  opacity: 1;
+}
+
+.automation-tool__actions {
+  display: flex;
+  gap: var(--cp-control-gap);
+  margin-inline-start: var(--cp-timeline-tool-indent);
+}
+
+.automation-tool__open {
+  min-height: var(--ui-control-height-sm);
+  border-radius: var(--ui-radius-md);
+  background: var(--ui-launcher);
+  padding-inline: 0.625rem;
+  font-size: 12px;
+  opacity: 0.85;
+}
+
+.automation-tool__open:hover {
+  opacity: 1;
+}

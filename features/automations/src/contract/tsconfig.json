@@ -1,0 +1,12 @@
+{
+  "extends": "../../../../tooling/tsconfig/neutral.json",
+  "include": ["."],
+  "references": [
+    {
+      "path": "../../../../packages/contract-kit"
+    },
+    {
+      "path": "../../../../packages/engine"
+    }
+  ]
+}

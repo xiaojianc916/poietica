@@ -1,248 +1,43 @@
-<div align="center">
-
 # Poietica
 
-### Make space for unfinished ideas.
+本地 AI agent 桌面应用（Windows）。内置 Oh My Pi 引擎，开箱即用，与全局 omp 完全隔离。
 
-**A local-first, AI-agent desktop environment for thinking, exploring, and creating.**
+## 安装
 
-[![Quality](https://github.com/xiaojianc916/poietica/actions/workflows/quality.yml/badge.svg)](https://github.com/xiaojianc916/poietica/actions/workflows/quality.yml)
-[![License](https://img.shields.io/badge/license-see%20notices-2783DE?style=flat-square)](./THIRD_PARTY_NOTICES.md)
-[![Desktop](https://img.shields.io/badge/platform-desktop-46A171?style=flat-square)](https://www.electronjs.org/)
-[![Local first](https://img.shields.io/badge/data-local--first-D5803B?style=flat-square)](#why-local-first-matters)
+下载 `Poietica_<版本>_x64-setup.exe` 并运行。安装包**没有代码签名**，Windows SmartScreen 会提示
+「未知发布者」—— 点「更多信息」→「仍要运行」即可。
 
-[Get started](#get-started) · [Architecture](#architecture) · [Documentation](#documentation)
+> **0.5.0 起的历史对话与设置不从 0.4.x 迁移**：新版本用新的数据布局
+> （`%APPDATA%\Poietica\`），装完请重新填一次 API key。卸载会保留数据根。
 
-</div>
+## 开发
 
----
-
-> **Poietica does not try to create instead of you.**  
-> It helps you keep creating while your thoughts are still incomplete.
-
-Creative work rarely begins with a polished plan. It starts with an unfinished sentence, a
-question, a reference, or a direction that has not become clear yet.
-
-Poietica brings those fragments into one place: a conversation. You describe where you are
-stuck, the agent works with tools, skills and MCP servers, and every step stays inspectable
-and reversible.
-
-<br>
-
-<div align="center">
-
-`Describe` &nbsp;→&nbsp; `Converse` &nbsp;→&nbsp; `Delegate` &nbsp;→&nbsp; `Review` &nbsp;→&nbsp; `Create`
-
-</div>
-
-<br>
-
-## ✦ What it is for
-
-<table>
-  <tr>
-    <td width="50%" valign="top">
-
-### Start anywhere
-
-Begin with a sentence, a question, or an unfinished thought. A conversation is the workspace.
-
-</td>
-    <td width="50%" valign="top">
-
-### Explore without surrendering control
-
-The agent offers questions, perspectives, and editable proposals.
-
-It never silently decides what your work should become.
-
-</td>
-  </tr>
-  <tr>
-    <td width="50%" valign="top">
-
-### Delegate with boundaries
-
-Tools, skills and MCP servers act only inside explicit, inspectable runs.
-
-Every tool call is recorded and can be replayed.
-
-</td>
-    <td width="50%" valign="top">
-
-### Keep work close
-
-Runs are local-first. The event log is written before anything is rendered, so an
-interrupted run can always resume.
-
-</td>
-  </tr>
-</table>
-
-## ◌ The agent environment
-
-| Surface | What it helps with |
-| --- | --- |
-| **Converse** | Work with an agent in a first-class conversation. |
-| **Tools** | Manage built-in tools, skills and MCP servers. |
-| **Automations** | Arrange background flows that run on their own. |
-| **Hooks** | Attach programmable extension points at key moments. |
-| **Search** | Find conversations, tools and content across the workspace. |
-
-<details>
-<summary><strong>Why local-first matters</strong></summary>
-
-<br>
-
-Your work belongs to you. Poietica is designed around predictable local behavior:
-
-- runs are persisted before they are rendered;
-- application-owned state is persisted locally;
-- network and AI requests happen only through explicit product flows;
-- external AI services receive only the context intentionally selected for them.
-
-Where each file lands on disk — and what a backup has to carry — is documented in
-[`docs/architecture/data-layout.md`](./docs/architecture/data-layout.md).
-
-</details>
-
-## ⚑ Current status
-
-> **Active development**  
-> The current focus is the reliable agent foundation: typed IPC, durable local run
-> persistence, tool and MCP execution, and bounded AI workflows.
-
-The project is intentionally building reliability before broadening the product surface.
-
-## ◈ Technology
-
-<div align="center">
-
-| Interface | Agent transport | Desktop runtime | Tooling | Validation |
-| :---: | :---: | :---: | :---: | :---: |
-| React + TypeScript | embedded SDK over stdio | Electron + Rust (NAPI) | Bun + Turborepo + Vite | Biome + bun test + Zod |
-
-</div>
-
-<br>
-
-- **React + TypeScript** — product interaction and interface composition.
-- **embedded SDK over stdio** — the agent ships inside the app: its SDK is compiled into a
-  single sidecar binary, and the desktop client drives it over newline-delimited JSON.
-- **Electron + Rust** — the main process owns windows, protocols and the built-in browser
-  (`WebContentsView`); Rust compiles to a NAPI module that runs in that same process and owns
-  durable local state, system capabilities and security boundaries.
-- **Bun + Turborepo** — workspace management and task orchestration.
-- **Biome** — formatting and static analysis.
-- **bun test** — unit and integration tests across the workspace.
-- **Zod** — runtime validation at file, IPC, AI, and application boundaries.
-
-## Get started
-
-### Prerequisites
-
-> **`bun install` 不会执行 Electron 的 postinstall**，所以 `node_modules/electron/dist/` 一开始是空的，
-> `bun run dev` 会报 `Electron uninstall`。装完依赖后补一次二进制：
+需要 [Bun](https://bun.sh) 1.4+ 与 Node 20+（Electron 与部分工具链用）。
 
 ```bash
-node node_modules/electron/install.js
-```
-
-
-| Tool | Required version |
-| --- | --- |
-| Bun | See `packageManager` in [`package.json`](./package.json) |
-| Rust | See [`rust-toolchain.toml`](./rust-toolchain.toml) |
-| Electron | Installed as a dev dependency; no system prerequisite. |
-
-### Run Poietica locally
-
-```bash
-git clone https://github.com/xiaojianc916/poietica.git
-cd poietica
-
 bun install
-bun run dev
+bun run dev          # 构建 Core 并启动 electron-vite 开发模式
 ```
 
-### The only two commands you need
-
-| Command | Purpose |
+| 命令 | 作用 |
 | --- | --- |
-| `bun run dev` | Run the desktop application in development. |
-| `bun run check` | Repository checks: Biome, architecture rules, types, tests, Rust, and generated IPC. |
+| `bun run check` | 类型检查 + lint（含依赖规则）+ 全部测试 —— 唯一的准入闸门 |
+| `bun run core:build` / `core:probe` | 构建 `poietica-core.exe` 并做隔离自检 |
+| `bun run core:verify-dist` | 校验 Core 产物与 manifest 一致，且不是探针版 |
+| `bun run desktop:build` | 只构建 Electron 三端产物（不出安装包） |
+| `bun run dist` | 构建并打安装包（产物在 `apps/desktop/release/`） |
+| `bun run version:set <x.y.z>` | 版本号的唯一入口（同时改 desktop 与 core） |
+| `bun run desktop:smoke <安装包>` | 安装包冒烟测试 |
+| `bun run refs` | 按 package.json 依赖同步 tsconfig references |
+| `bun run protocol:snapshot` | 重新生成契约快照（契约改了必须跑） |
+| `bun run python:pin` | 升级内置 Python 时钉住新的校验和 |
 
-Run `bun run` to list every script. This file deliberately does not mirror that list — a command table copied out
-of `package.json` rots silently, and this one already had an entry that no longer existed.
+## 文档
 
-## Architecture
+- 架构（现状）：`docs/ARCHITECTURE.md`
+- 工作守则与铁律：`AGENTS.md`
+- 重构过程、偏差与待决问题：`docs/refactor-log.md`
 
-Poietica is a monorepo with deliberately strict ownership boundaries.
+## 许可
 
-```text
-apps/desktop/src/        Product interface and application composition (TypeScript)
-apps/desktop/electron/   Electron main process and preload: windows, protocols, WebContentsView
-apps/desktop/native/     The single Rust composition root (NAPI-RS .node): commands, DTOs
-crates/                  Native Rust crates — host-agnostic, testable without Electron
-packages/                TypeScript workspace packages, tiered, dependencies point downward
-docs/                    Architecture notes, decision records, proposals, runbooks
-tools/                   Repository tooling: architecture gates, release, contracts, dev
-```
-
-Three invariants hold everywhere:
-
-1. **The event log is the source of truth for every run.** Session updates are persisted
-   before they are rendered, so an interrupted run can always be replayed. Threads, runs,
-   tool calls and permission records are projections of that log, never a second copy.
-2. **Dependencies point downward only.** Packages are tiered, and a package may import from
-   its own tier and below. Only the transport, composition and application layers may touch
-   `window.poietica`; platform capability never leaks into domain or foundation packages.
-3. **Every kind of state has one owner and one write path.**
-
-The tier table itself lives in [`tools/architecture/layering.ts`](./tools/architecture/layering.ts)
-and is reconciled against the packages on disk every time the checks run. No document
-restates it — four hand-copied copies once disagreed with each other, and only the
-configuration was ever executed.
-
-## Documentation
-
-| Document | Purpose |
-| --- | --- |
-| [Engineering guide](./AGENTS.md) | Product invariants, architectural boundaries, and the rules a change must satisfy. Start here. |
-| [Architecture notes](./docs/architecture/README.md) | System boundaries, native layering, disk layout, UI authority. |
-
-## Contributing
-
-Contributions should preserve the guarantees that make Poietica trustworthy:
-
-- **one source of truth** for each kind of state;
-- **one normal write path** for every conversation and run;
-- **no silent AI edits** to user work;
-- **explicit and minimal AI context** for external requests;
-- **validated boundaries** for files, paths, images, clipboard data, AI output, plugins, IPC;
-- **no platform capability leakage** into product-domain or foundation packages;
-- **no permanent parallel implementations** created as shortcuts.
-
-Before opening a pull request:
-
-```bash
-bun run check
-```
-
-## License
-
-Except for the third-party components identified in
-[THIRD_PARTY_NOTICES.md](./THIRD_PARTY_NOTICES.md), Poietica is released under the
-[Apache License 2.0](./LICENSE).
-
-The vendored Aora Emotion Ball is governed by its upstream Community License, not Apache-2.0.
-It is limited to non-commercial use; its ball-character visual design may never be used
-commercially. Distribution must retain the upstream license and notice.
-
-<div align="center">
-
-<br>
-
-**Build a place where unfinished ideas can keep becoming.**
-
-</div>
+AGPL-3.0-or-later，见 `LICENSE`。

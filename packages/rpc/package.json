@@ -1,0 +1,18 @@
+{
+  "name": "@poietica/rpc",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./stdio": "./src/stdio.ts"
+  },
+  "dependencies": {
+    "@poietica/contract-kit": "workspace:*",
+    "@poietica/foundation": "workspace:*",
+    "zod": "catalog:"
+  },
+  "devDependencies": {
+    "@poietica/test-kit": "workspace:*"
+  }
+}

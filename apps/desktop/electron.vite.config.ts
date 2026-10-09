@@ -1,94 +1,136 @@
-import { resolve } from 'node:path'
+import path from 'node:path'
 import tailwindcss from '@tailwindcss/vite'
 import react from '@vitejs/plugin-react'
 import { defineConfig, externalizeDepsPlugin } from 'electron-vite'
+import type { Plugin } from 'vite'
 
-import { customErrorDiagnosticsPlugin } from './vite-plugins/custom-error-diagnostics.ts'
-import { elementPickerScriptPlugin } from './vite-plugins/element-picker-script.ts'
-
-const { NODE_ENV: NODE_ENV_VALUE } = process.env
-
-/*
- * 必须留在外部的运行时依赖。
+/**
+ * electron-vite 会分别构建 main、preload、renderer 三份产物，每份的要求不同：
  *
- * electron-vite 自带的 externalizeDepsPlugin 只读 package.json 的 dependencies，
- * 而 electron 是 devDependency（它本来就是开发期依赖 runtime 的包）。不显式写出来，
- * 打包器会把整个 electron 包内联进 main.cjs —— 内联后 __dirname 变成 dist-electron，
- * electron 包自己那句「二进制没装好就去跑 install.js」就指向不存在的路径，启动即炸。
+ * - main 用 externalizeDepsPlugin()（默认参数）：它只外部化 dependencies 里的包
+ *   （最终只有 @lydell/node-pty 与 electron-updater），再加上 electron 本身；其余依赖都在
+ *   devDependencies，会被打进 bundle。工作区包的 exports 指向 TS 源码，正因为如此它们必须
+ *   放 devDependencies 被打包，不能外部化。
  *
- * 反过来，不在这张表里的依赖会被内联进 dist-electron/**：electron-log 就是这条路上的，
- * 所以它住在 devDependencies 并随 main.cjs 发货。往这张表里加东西等于要求包里多一份
- * node_modules —— electron-builder 只装生产依赖，加错一个就是启动即报「模块找不到」。
+ *   **实测补丁**：只靠 externalizeDepsPlugin 时 @lydell/node-pty 仍被内联进
+ *   out/main/index.cjs（它从 features/terminal 的源码进来，插件按「离构建根最近的那个
+ *   package.json」判依赖，工作区包的依赖不在那张表里）。内联之后它的 requireBinary() 变成
+ *   「从 out/main 找 @lydell/node-pty-win32-x64」—— 那个二进制包不在 apps/desktop/node_modules
+ *   下，于是 terminal.open 每次都以 terminal.spawn_failed 失败（真机日志：
+ *   "could not find the binary package for it: @lydell/node-pty-win32-x64/conpty.node"）。
+ *   所以原生 PTY 这两个包显式写进 ssr.external —— 与 electron 同一条理由：留在外部的包
+ *   必须真的能在运行时被 require 到（它们在 apps/desktop 的 dependencies 里，随包发货）。
+ * - preload 不用 externalizeDepsPlugin，输出 cjs 单文件：sandbox 模式下的 preload 只能是
+ *   CommonJS，而且除了 electron 的少数模块不能 require 任何东西。
+ * - renderer 用 React 插件，加上 cspPlugin 把 index.html 的 %POIETICA_CSP% 换成对应环境的 CSP。
  */
-const RUNTIME_EXTERNALS = ['electron', 'electron-updater']
 
-/* electron-vite 只读配置的 default 导出；规则例外登记在 biome.json 的 includes 白名单里。 */
-export default defineConfig({
-  main: {
-    // elementPickerScriptPlugin 必须在 main 上：它跟的是「dist-electron 被清空」那次构建。
-    plugins: [externalizeDepsPlugin(), elementPickerScriptPlugin()],
-    // 见 RUNTIME_EXTERNALS：留在外部是主进程能起来的前提。
-    ssr: { external: RUNTIME_EXTERNALS },
-    build: {
-      outDir: 'dist-electron',
-      // Electron 44 内嵌 Node 24；不写就落到 electron-vite 那张只认到 39 的表上（未知版本会取到最老的一档）。
-      target: 'node24',
-      // 仓库是 "type": "module"，.js 会被当成 ESM；Electron 主进程与 sandbox preload 要的是 CJS。
-      rollupOptions: {
-        input: resolve(__dirname, 'electron/main.ts'),
-        output: { format: 'cjs', entryFileNames: '[name].cjs', chunkFileNames: '[name].cjs' },
+/**
+ * 开发版：与安装版同一张策略表（06 页 §4.8），只额外放开 Vite HMR 需要的两处 ——
+ * `script-src` 的 'unsafe-inline'（React 刷新前导脚本）与 `connect-src` 的 localhost websocket。
+ */
+const DEV_CSP = [
+  "default-src 'self'",
+  "script-src 'self' 'unsafe-inline'",
+  "connect-src 'self' ws://localhost:* http://localhost:*",
+  "img-src 'self' data: blob: poietica-asset:",
+  "media-src 'self' blob: poietica-asset:",
+  "style-src 'self' 'unsafe-inline'",
+  "font-src 'self' data:",
+  "worker-src 'self' blob:",
+  "object-src 'none'",
+  "frame-src 'none'",
+  "base-uri 'none'",
+  "form-action 'none'",
+].join('; ')
+
+/** 安装版：file: 协议下没有响应头，只能靠 meta；style-src 保留 unsafe-inline（内联样式来自组件库） */
+const PROD_CSP = [
+  "default-src 'self'",
+  "script-src 'self'",
+  "connect-src 'self'",
+  "img-src 'self' data: blob: poietica-asset:",
+  "media-src 'self' blob: poietica-asset:",
+  "style-src 'self' 'unsafe-inline'",
+  "font-src 'self' data:",
+  "worker-src 'self' blob:",
+  "object-src 'none'",
+  "frame-src 'none'",
+  "base-uri 'none'",
+  "form-action 'none'",
+].join('; ')
+
+function cspPlugin(isDev: boolean): Plugin {
+  return {
+    name: 'poietica:csp',
+    transformIndexHtml(html) {
+      return html.replace('%POIETICA_CSP%', isDev ? DEV_CSP : PROD_CSP)
+    },
+  }
+}
+
+export default defineConfig(({ mode }) => {
+  const isDev = mode !== 'production'
+  return {
+    main: {
+      plugins: [externalizeDepsPlugin()],
+      /*
+       * 原生 PTY 必须留在外部：@lydell/node-pty 的 requireBinary() 是按**包的相对位置**
+       * require('@lydell/node-pty-<platform>-<arch>/conpty.node') 的，只有包本体留在
+       * node_modules 里、且平台二进制包与它相邻时这条解析才成立。内联进 bundle 之后
+       * 解析起点变成 out/main，二进制包找不到 —— 终端一开就 spawn_failed。
+       */
+      ssr: { external: ['@lydell/node-pty', '@lydell/node-pty-win32-x64'] },
+      build: {
+        // electron 必须外部化：它在 devDependencies 里（由 vite 打进 bundle 的都是 devDependencies），
+        // 而 externalizeDepsPlugin 只外部化 dependencies。少了这一条，打包器会把 npm 上的 electron
+        // **安装器** 打进来，它在 require 时就去 spawn install.js 并抛
+        // "Electron failed to install correctly"（真实故障：bun run dev 以退出码 3 结束）。
+        outDir: path.join(__dirname, 'out/main'),
+        lib: { entry: path.join(__dirname, 'src/main/index.ts'), formats: ['cjs'], fileName: () => 'index.cjs' },
+        rollupOptions: {
+          external: ['electron', /^electron\/.+/],
+          output: { entryFileNames: 'index.cjs' },
+        },
       },
     },
-  },
-  preload: {
-    plugins: [externalizeDepsPlugin()],
-    ssr: { external: RUNTIME_EXTERNALS },
-    build: {
-      outDir: 'dist-electron',
-      // main 先构建并清了目录；preload 与随后的 element-picker 都往同一个目录里加。
-      // 不关掉这个，preload 一构建就把 main.cjs 删掉（Vite 的 outDir 相对 root 时默认清空）。
-      emptyOutDir: false,
-      target: 'node24',
-      rollupOptions: {
-        input: resolve(__dirname, 'electron/preload.ts'),
-        output: { format: 'cjs', entryFileNames: '[name].cjs', chunkFileNames: '[name].cjs' },
+    preload: {
+      build: {
+        outDir: path.join(__dirname, 'out/preload'),
+        lib: { entry: path.join(__dirname, 'src/preload/index.ts'), formats: ['cjs'], fileName: () => 'index.cjs' },
+        rollupOptions: {
+          // 业务依赖全部打进这一个文件（sandbox 下的 preload 只能是自包含的单文件 CJS），
+          // 但 electron 本身必须外部化：它在 devDependencies 里，不外部化就会把 npm 上的
+          // electron **安装器** 打进来，它在顶层 require("child_process") —— sandbox 里没有这个模块，
+          // preload 直接报 "module not found: child_process"，bridge 不会挂上，
+          // 渲染进程随后抛 "preload 没有暴露 bridge"，整个外壳渲染不出来（真实故障）。
+          external: ['electron', /^electron\/.+/],
+          output: { entryFileNames: 'index.cjs' },
+        },
       },
     },
-  },
-  // 渲染层沿用 vite.config.ts 的那一套：根就是 apps/desktop，index.html 在它下面。
-  renderer: {
-    root: __dirname,
-    plugins: [
-      // 必须最先注册，确保捕获后续插件及 import-analysis 错误。
-      customErrorDiagnosticsPlugin(),
-      react(),
-      tailwindcss(),
-    ],
-    clearScreen: false,
-    optimizeDeps: {
-      include: ['@streamdown/mermaid'],
-    },
-    server: {
-      port: 1420,
-      strictPort: true,
-      hmr: {
-        // 使用 Poietica 自己的错误界面，禁止显示 Vite 默认 Overlay。
-        overlay: false,
+    renderer: {
+      root: path.join(__dirname, 'src/renderer'),
+      /*
+       * 开发期不要 Vite 自带的那个红色错误浮层。
+       *
+       * 它是 vite 的默认行为（全屏遮罩 + 栈），不属于本产品的界面语言：本仓的错误面有三层，
+       * 各管各的 —— 内核把功能装载失败收进 `kernel.failures` 并由外壳画成横幅里的「N 个功能
+       * 加载失败」；UI 内核的 FeatureErrorBoundary 把某个功能渲染期的异常收在它自己的格子里
+       * （06 页 §5.3）；Core 侧的问题走平台横幅。这层遮罩一盖，那三处全都看不见了。
+       */
+      server: { hmr: { overlay: false } },
+      // tailwindcss() 必须注册：`@import "tailwindcss"` 靠这个插件扫描源码、生成工具类。
+      // 少了它，styles.css 只剩 tokens 与手写 CSS —— 界面上所有 .flex / .items-center /
+      // .bg-sidebar 这类类名全部失效，整屏退化成没有样式的裸 HTML（真实故障）。
+      // legacy 的 apps/desktop/electron.vite.config.ts 里同样是 react() + tailwindcss() 两个。
+      plugins: [react(), tailwindcss(), cspPlugin(isDev)],
+      // 不加 alias：工作区包的 exports 直接指向 TS 源码，vite 通过 node_modules 软链解析即可；
+      // 加 alias 会把 `@poietica/design-system/styles.css` 这类子路径也重写成 index.ts。
+      build: {
+        outDir: path.join(__dirname, 'out/renderer'),
+        rollupOptions: { input: path.join(__dirname, 'src/renderer/index.html') },
       },
     },
-    // envPrefix 只放行 VITE_ 前缀：构建期变量留在本文件的 process.env，不进渲染层的 import.meta.env。
-    envPrefix: ['VITE_'],
-    build: {
-      outDir: 'dist',
-      rollupOptions: {
-        input: { index: resolve(__dirname, 'index.html') },
-      },
-      // Electron 的渲染层就是 Chromium：语法不需要为浏览器降级，写 esnext 比每年追 chrome 版本号稳。
-      target: 'esnext',
-      // 压缩器用 'oxc'：打包器已是 rolldown，Vite 8 下写 'esbuild' 会在 renderChunk 因找不到该包而崩。
-      minify: NODE_ENV_VALUE !== 'production' ? false : 'oxc',
-      reportCompressedSize: false,
-      sourcemap: Boolean(NODE_ENV_VALUE !== 'production'),
-    },
-  },
+  }
 })

@@ -1,0 +1,12 @@
+# 开发版的更新源（产品负责人 2026-10-08：开发版也能检查更新）。
+#
+# electron-updater 关闭打包检查（`forceDevUpdateConfig`）时读**这个文件**，而不是
+# 安装版从 resources/ 里读的 app-update.yml —— 字段两处同形。文件放在 app 根
+# （electron-vite dev 的 cwd = apps/desktop），随源码进仓库。
+#
+# updaterCacheDirName 与安装版（@poieticadesktop-updater）**故意不同**：开发版下载的
+# 待装字节不给安装版用，两边的缓存互不污染。
+provider: github
+owner: xiaojianc916
+repo: poietica
+updaterCacheDirName: '@poieticadesktop-updater-dev'

@@ -1,0 +1,98 @@
+/*
+ * 渲染层的样式入口。**迁移自** legacy `apps/desktop/src/styles/app.css`。
+ *
+ * 三件事各是一层：
+ *   1. @import：Tailwind + design-system + workbench 三份样式表；
+ *   2. @source：声明扫描范围（不声明，工具类一个都生成不出来，整屏退化成裸 HTML）；
+ *   3. 应用级规则：桌面平台令牌、body 不滚动、「哪些地方不要条」、致命屏那几个类。
+ *
+ * 路径相对本文件（apps/desktop/src/renderer/styles.css）算。
+ */
+/* 顺序照 legacy app.css：design-system 在前、tailwindcss 在后 —— @import 是层叠顺序，
+   tailwind 的 preflight 因此盖在 design-system 的 base 之上。 */
+@import "@poietica/design-system/styles.css";
+@import "@poietica/workbench/styles.css";
+@import "tailwindcss" source("../../../../");
+
+@source "../../../../packages/*/src/**/*.{ts,tsx}";
+@source "../../../../features/*/src/**/*.{ts,tsx}";
+@source "../../../../apps/desktop/src/**/*.{ts,tsx}";
+
+/*
+ * Desktop platform tokens.
+ *
+ * Platform-specific tokens may derive from the shared design system, but they are
+ * not part of the shared design-system API. The theme runtime owns the window
+ * backing surface.
+ */
+:root {
+  --desktop-window-control-hover: color-mix(in srgb, var(--color-foreground) 5%, transparent);
+  --desktop-window-control-active: color-mix(in srgb, var(--color-foreground) 9%, transparent);
+
+  /* Native Windows destructive window-control color. */
+  --desktop-window-close-hover: #c42b1c;
+  --desktop-window-close-active: #b3251a;
+  --desktop-window-close-foreground: #ffffff;
+
+  /*
+   * 窗口底衬 —— 拖拽或还原窗口时露出的那一层。两层必须同色：真身由宿主写
+   * （host 侧 beforeWindow 设窗口 backgroundColor），这里给 renderer 侧兜底。
+   *
+   * 深色取 #202020：那是调色板里深色衬底的正本（palette.css 的
+   * --ui-palette-dark-850，即 --ui-chrome），也是 host 侧两份抄本的字面值。
+   * 与深色页面底色（--ui-background 的 #181818）不同是**有意的** —— 露出的这层
+   * 读的是外壳色，与顶部栏、侧栏连成一片，不跟主区页面底色走。
+   */
+  --window-backing-surface: var(--ui-background);
+}
+
+:root[data-theme="dark"] {
+  --window-backing-surface: #202020;
+}
+
+/*
+ * 这里只保留 border-color。box-sizing 由 Tailwind preflight 设过；字体平滑两条
+ * macOS 补偿在 Windows 上只关闭 ClearType，净损失，不留。
+ *
+ * border-color 必须留：Tailwind v4 把默认边框色改成了 currentColor，这条是有意的
+ * 行为覆盖，不是重复。
+ */
+* {
+  border-color: var(--color-divider);
+}
+
+/*
+ * 整窗高度、**不滚动**。
+ *
+ * overflow: hidden 是关键的一条：外壳自己排满视口，页面级滚动条一旦出现，
+ * 整个界面会跟着上下滚（滚动条本身还会占掉右缘那一圈留白 —— 表现为右侧漏底色）。
+ * legacy app.css 同此。
+ */
+html,
+body,
+#root {
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  background: var(--window-backing-surface);
+}
+
+body {
+  overflow: hidden;
+  font-family: var(--ui-font-sans);
+  color: var(--color-foreground);
+}
+
+/*
+ * 滚动条的样子（轨道、滑块、悬停、四角的取色与几何）全在
+ * packages/design-system/src/scrollbar.css 一处，是对 DeepSeek Harness 的复刻。
+ *
+ * 这一层不再声明它：那些 scrollbar-color / scrollbar-width 与 ::-webkit-scrollbar
+ * 在 Chromium 里互斥，标准属性在场时::-webkit-scrollbar 整套被忽略 —— 复刻样式会
+ * 一条都不生效。要改滚动条，改那一份，不在这里加覆盖。
+ *
+ * 本文件只剩「哪些地方不要条」：那必须逐处说出来。滑块宽度在正本里是 5px。
+ */
+[role="tablist"] {
+  scrollbar-width: none;
+}

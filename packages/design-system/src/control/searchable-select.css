@@ -1,6 +1,0 @@
-.searchable-select__list {
-  scrollbar-width: none;
-}
-.searchable-select__list::-webkit-scrollbar {
-  display: none;
-}

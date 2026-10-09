@@ -1,0 +1,54 @@
+{
+  "extends": "../../tooling/tsconfig/neutral.json",
+  "include": ["src"],
+  "references": [
+    {
+      "path": "../../features/agent-settings/src/contract"
+    },
+    {
+      "path": "../../features/attachments/src/contract"
+    },
+    {
+      "path": "../../features/automations/src/contract"
+    },
+    {
+      "path": "../../features/browser/src/contract"
+    },
+    {
+      "path": "../../features/conversation/src/contract"
+    },
+    {
+      "path": "../../features/extensions/src/contract"
+    },
+    {
+      "path": "../../features/models/src/contract"
+    },
+    {
+      "path": "../../features/platform/src/contract"
+    },
+    {
+      "path": "../../features/preferences/src/contract"
+    },
+    {
+      "path": "../../features/python/src/contract"
+    },
+    {
+      "path": "../../features/review/src/contract"
+    },
+    {
+      "path": "../../features/terminal/src/contract"
+    },
+    {
+      "path": "../../features/update/src/contract"
+    },
+    {
+      "path": "../../features/usage/src/contract"
+    },
+    {
+      "path": "../../features/workspaces/src/contract"
+    },
+    {
+      "path": "../contract-kit"
+    }
+  ]
+}

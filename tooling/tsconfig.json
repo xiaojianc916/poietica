@@ -1,0 +1,22 @@
+{
+  "extends": "./tsconfig/bun.json",
+  "compilerOptions": {
+    "types": ["bun", "node"]
+  },
+  "include": ["scaffold", "refs", "test", "checks", "release", "**/__tests__/**/*", "**/*.test.ts"],
+  "exclude": ["${configDir}/.tsbuild"],
+  "references": [
+    {
+      "path": "../packages/contract-kit"
+    },
+    {
+      "path": "../packages/core-kernel"
+    },
+    {
+      "path": "../packages/host-kernel"
+    },
+    {
+      "path": "../packages/ui-kernel"
+    }
+  ]
+}

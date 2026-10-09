@@ -110,21 +110,12 @@ export function Dialog({
             initialFocus={showHeader && showCloseButton ? closeButtonRef : undefined}
           >
             {showHeader ? (
-              <header
-                className={cn(
-                  'flex min-h-14',
-                  'shrink-0 items-start',
-                  'justify-between gap-4',
-                  'px-5 py-4',
-                )}
-              >
+              <header className={cn('flex min-h-14', 'shrink-0 items-start', 'justify-between gap-4', 'px-5 py-4')}>
                 <div className="min-w-0">
                   <BaseDialog.Title className="text-base font-semibold">{title}</BaseDialog.Title>
 
                   {description ? (
-                    <BaseDialog.Description
-                      className={cn('mt-1 text-sm', 'leading-5', 'text-muted-foreground')}
-                    >
+                    <BaseDialog.Description className={cn('mt-1 text-sm', 'leading-5', 'text-muted-foreground')}>
                       {description}
                     </BaseDialog.Description>
                   ) : null}
@@ -133,15 +124,7 @@ export function Dialog({
                 {showCloseButton ? (
                   <BaseDialog.Close
                     disabled={busy}
-                    render={
-                      <Button
-                        aria-label="关闭"
-                        ref={closeButtonRef}
-                        size="icon"
-                        type="button"
-                        variant="ghost"
-                      />
-                    }
+                    render={<Button aria-label="关闭" ref={closeButtonRef} size="icon" type="button" variant="ghost" />}
                   >
                     <X aria-hidden="true" className="size-4" />
                   </BaseDialog.Close>
@@ -157,9 +140,7 @@ export function Dialog({
             )}
 
             {children !== undefined && children !== null ? (
-              <div className={cn('min-h-0 flex-1', 'overflow-auto', contentClassName)}>
-                {children}
-              </div>
+              <div className={cn('min-h-0 flex-1', 'overflow-auto', contentClassName)}>{children}</div>
             ) : null}
 
             {footer ? <footer className={cn('shrink-0', 'px-5 py-3')}>{footer}</footer> : null}

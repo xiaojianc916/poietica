@@ -1,0 +1,120 @@
+/* Shared composer action controls. */
+.assistant-plus {
+  display: inline-flex;
+  block-size: var(--cp-pill);
+  inline-size: var(--cp-pill);
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  border: 0;
+  border-radius: 9999px;
+  padding: 0;
+  background: transparent;
+  color: var(--cp-ink-muted);
+  cursor: pointer;
+}
+
+/* 悬停底与工具条上另外两枚胶囊同一个名字（--cp-input-hover）：三处是同一块底压在
+   同一张输入卡上，各写各的迟早会分叉。不读 --cp-menu-hover：那是弹层卡面上的悬停，
+   压在输入框这张实色卡上要再兑一次底。 */
+.assistant-plus:hover,
+.assistant-plus[aria-expanded="true"] {
+  background: var(--cp-input-hover);
+  color: var(--cp-ink);
+}
+
+[data-assistant-skin] .assistant-plus > svg {
+  block-size: var(--cp-icon);
+  inline-size: var(--cp-icon);
+  flex: none;
+}
+
+.assistant-mode-chip {
+  display: inline-flex;
+  block-size: var(--cp-pill);
+  flex: none;
+  align-items: center;
+  gap: var(--cp-pill-gap);
+  border: 0;
+  border-radius: 9999px;
+  padding-inline: var(--cp-pill-lead) var(--cp-pill-trail);
+  background: transparent;
+  color: var(--cp-ink-muted);
+  font: inherit;
+  font-size: var(--cp-font-caption);
+  line-height: 1;
+  cursor: pointer;
+  user-select: none;
+}
+
+.assistant-mode-chip:hover {
+  background: var(--cp-hover);
+  color: var(--cp-ink);
+}
+
+/*
+ * 竖线的宽度按设备像素给，不按 CSS 像素：2px 在 150% 缩放下栅格化出来是 3 个设备
+ * 像素（design-system 的 light.css 记过这条），而这里要的是屏幕上的两格。
+ * 4/3 = 2 ÷ 1.5。要动这个数，先量再改。
+ */
+.assistant-mode-chip__divider {
+  inline-size: calc(var(--cp-px) * 4 / 3);
+  block-size: var(--cp-icon);
+  flex: none;
+  align-self: center;
+  background: var(--cp-hairline);
+}
+
+/*
+ * 深色下这条竖线是实色 #373737。
+ *
+ * --cp-hairline 在深色下是 #1d1d1d，压在 #2a2a2a 的输入卡上比卡面还暗，读出来是
+ * 一道凹槽而不是一条分隔线。定稿要的是比卡面亮一档的那条线，所以按用途给实色。
+ * 只写这一处，不动 --cp-hairline —— 那个令牌还归时间线那类地方。
+ */
+:root[data-theme="dark"] .assistant-mode-chip__divider {
+  background: #373737;
+}
+
+.assistant-mode-chip__icon {
+  display: grid;
+  flex: none;
+}
+
+.assistant-mode-chip__icon > * {
+  grid-area: 1 / 1;
+}
+
+[data-assistant-skin] .assistant-mode-chip__icon svg {
+  block-size: var(--cp-icon);
+  inline-size: var(--cp-icon);
+}
+
+[data-assistant-skin] .assistant-mode-chip__remove {
+  display: grid;
+  place-items: center;
+  border-radius: 9999px;
+  background: var(--cp-ink-subtle);
+  color: var(--cp-surface);
+  visibility: hidden;
+}
+
+[data-assistant-skin] .assistant-mode-chip__remove svg {
+  block-size: calc(var(--cp-icon) - 6px);
+  inline-size: calc(var(--cp-icon) - 6px);
+}
+
+.assistant-mode-chip:hover .assistant-mode-chip__glyph {
+  visibility: hidden;
+}
+
+.assistant-mode-chip:hover .assistant-mode-chip__remove {
+  visibility: visible;
+}
+
+.assistant-mode-chip__label {
+  max-inline-size: var(--cp-pill-label-max);
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}

@@ -1,0 +1,45 @@
+{
+  "extends": "../../../../tooling/tsconfig/dom.json",
+  "include": ["."],
+  "references": [
+    {
+      "path": "../../../../packages/design-system"
+    },
+    {
+      "path": "../../../../packages/engine"
+    },
+    {
+      "path": "../../../../packages/foundation"
+    },
+    {
+      "path": "../../../../packages/rpc"
+    },
+    {
+      "path": "../../../../packages/transcript"
+    },
+    {
+      "path": "../../../../packages/ui-kernel"
+    },
+    {
+      "path": "../../../platform/src/contract"
+    },
+    {
+      "path": "../../../platform/src/ui-api"
+    },
+    {
+      "path": "../../../preferences/src/contract"
+    },
+    {
+      "path": "../../../preferences/src/ui-api"
+    },
+    {
+      "path": "../../../workspaces/src/ui-api"
+    },
+    {
+      "path": "../contract"
+    },
+    {
+      "path": "../ui-api"
+    }
+  ]
+}

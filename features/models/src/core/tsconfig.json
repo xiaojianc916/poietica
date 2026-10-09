@@ -1,0 +1,18 @@
+{
+  "extends": "../../../../tooling/tsconfig/bun.json",
+  "include": ["."],
+  "references": [
+    {
+      "path": "../../../../packages/core-kernel"
+    },
+    {
+      "path": "../../../../packages/engine"
+    },
+    {
+      "path": "../../../../packages/foundation"
+    },
+    {
+      "path": "../contract"
+    }
+  ]
+}

@@ -1,0 +1,116 @@
+// Bun Snapshot v1, https://bun.sh/docs/test/snapshots
+
+exports[`一页的代表性形状（12 页 §9.5 的快照） 两轮：带图的第一轮 + 带工具的第二轮，整页快照一次看全 1`] = `
+{
+  "attachments": [
+    {
+      "attachmentId": "2023-11-14T22:13:20.000Z#1",
+      "mediaType": "image/png",
+      "source": {
+        "kind": "url",
+        "url": "data:image/png;base64,AAAA",
+      },
+    },
+  ],
+  "hasMoreOlder": false,
+  "interactions": [],
+  "items": [
+    {
+      "endedAt": "2023-11-14T22:13:20.010Z",
+      "kind": "turn",
+      "ordinal": 1,
+      "origin": {
+        "kind": "user",
+      },
+      "prompt": "看图",
+      "startedAt": "2023-11-14T22:13:20.000Z",
+      "state": "completed",
+      "steps": [
+        {
+          "endedAt": "2023-11-14T22:13:20.010Z",
+          "frames": [
+            {
+              "frameId": "t1.0.f0",
+              "kind": "text",
+              "role": "assistant",
+              "text": "看到了",
+            },
+          ],
+          "kind": "step",
+          "ordinal": 0,
+          "startedAt": "2023-11-14T22:13:20.010Z",
+          "state": "completed",
+          "stepId": "t1.0",
+          "turnId": "t1",
+        },
+      ],
+      "turnId": "t1",
+    },
+    {
+      "endedAt": "2023-11-14T22:13:20.040Z",
+      "kind": "turn",
+      "ordinal": 2,
+      "origin": {
+        "kind": "user",
+      },
+      "prompt": "跑一下",
+      "startedAt": "2023-11-14T22:13:20.020Z",
+      "state": "completed",
+      "steps": [
+        {
+          "endedAt": "2023-11-14T22:13:20.030Z",
+          "frames": [
+            {
+              "frameId": "tool.c1",
+              "input": {
+                "command": "npm test",
+              },
+              "kind": "tool",
+              "name": "bash",
+              "output": {
+                "content": [
+                  {
+                    "text": "全绿",
+                    "type": "text",
+                  },
+                ],
+                "details": undefined,
+              },
+              "state": "done",
+              "toolCallId": "c1",
+            },
+          ],
+          "kind": "step",
+          "ordinal": 0,
+          "startedAt": "2023-11-14T22:13:20.030Z",
+          "state": "completed",
+          "stepId": "t2.0",
+          "turnId": "t2",
+        },
+        {
+          "endedAt": "2023-11-14T22:13:20.040Z",
+          "frames": [
+            {
+              "frameId": "t2.1.f0",
+              "kind": "text",
+              "role": "assistant",
+              "text": "做完了",
+            },
+          ],
+          "kind": "step",
+          "ordinal": 1,
+          "startedAt": "2023-11-14T22:13:20.040Z",
+          "state": "completed",
+          "stepId": "t2.1",
+          "turnId": "t2",
+        },
+      ],
+      "turnId": "t2",
+    },
+  ],
+  "meta": {},
+  "prompts": [],
+  "tasks": [],
+  "todos": [],
+}
+`;

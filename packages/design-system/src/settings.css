@@ -1,0 +1,1135 @@
+/*
+ * 设置页的排版。**迁移自** legacy `packages/settings/src/ui/surface/settings-surface.css`
+ * 的内容区部分（settings-content / settings-page / settings-group / settings-row）。
+ *
+ * 归 design-system 的理由见 settings-primitives.tsx：这些词汇由多个平级功能共用，
+ * 而功能包不得依赖 workbench。
+ */
+/* ---------------- 内容（占主区那一格）---------------- */
+
+.settings-content {
+  --settings-surface: var(--ui-card);
+  --settings-frame: var(--ui-card-frame);
+  --settings-divider: var(--ui-card-divider);
+  --settings-field: var(--ui-sunken);
+  --settings-divider-inset: 14px;
+
+  position: relative;
+  block-size: 100%;
+  min-block-size: 0;
+  overflow-y: auto;
+  background: var(--ui-background);
+  scrollbar-width: none;
+}
+
+/* 深色下分隔线写字面实色（legacy 的产品指定），不跟卡片线那支半透明墨。 */
+:root[data-theme="dark"] .settings-content {
+  --settings-divider: #353535;
+}
+
+.settings-content::-webkit-scrollbar {
+  display: none;
+}
+
+.settings-content__inner {
+  inline-size: min(100%, 720px);
+  margin-inline: auto;
+  padding: 28px 32px 56px;
+}
+
+.settings-content__title {
+  margin: 0 0 22px;
+  color: var(--ui-foreground);
+  font-size: 19px;
+  font-weight: 640;
+  line-height: 1.25;
+}
+
+.settings-state {
+  padding-block: 40px;
+}
+
+.settings-page {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+.settings-group {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.settings-group__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.settings-group__header h3 {
+  margin: 0;
+  color: var(--ui-muted-foreground);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.settings-group__surface {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  border: 1px solid var(--settings-frame);
+  border-radius: 10px;
+  background: var(--settings-surface);
+}
+
+.settings-row {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 11px 14px;
+}
+
+/* 卡内分隔线用伪元素实现两侧内缩，避免整行边框接到卡片边缘。 */
+.settings-row + .settings-row::before {
+  content: "";
+  position: absolute;
+  inset-inline: var(--settings-divider-inset);
+  inset-block-start: 0;
+  block-size: 0;
+  border-block-start: 1px solid var(--settings-divider);
+}
+
+.settings-row__copy {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-inline-size: 0;
+}
+
+.settings-row__warning {
+  margin: 0;
+  color: var(--ui-destructive);
+  font-size: 11px;
+  line-height: 1.4;
+}
+
+.settings-row__copy strong {
+  color: var(--ui-foreground);
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 1.35;
+}
+
+.settings-row__copy p {
+  margin: 0;
+  color: var(--ui-muted-foreground);
+  font-size: 11px;
+  line-height: 1.4;
+}
+
+/* 行右端的控件格：开关自持尺寸，只右对齐；下拉占满 190px，右边缘才齐。 */
+.settings-row__control {
+  display: flex;
+  flex: none;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.settings-select-trigger {
+  inline-size: 190px;
+}
+/* ---------------- 关于页的卡片族（迁移自 legacy settings-surface.css）---------------- */
+
+.settings-about-card {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 16px 14px;
+  border: 1px solid var(--settings-frame);
+  border-radius: 10px;
+  background: var(--settings-surface);
+}
+
+.settings-about-card__copy {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.settings-about-card__copy strong {
+  color: var(--ui-foreground);
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.settings-about-card__copy span,
+.settings-about-card__copy p {
+  margin: 0;
+  color: var(--ui-muted-foreground);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.settings-principles {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.settings-principle {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 12px 14px;
+  border: 1px solid var(--settings-frame);
+  border-radius: 10px;
+  background: var(--settings-surface);
+}
+
+.settings-principle span {
+  color: var(--ui-muted-foreground);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+}
+
+.settings-principle strong {
+  color: var(--ui-foreground);
+  font-size: 13px;
+  font-weight: 550;
+}
+
+.settings-principle p {
+  margin: 0;
+  color: var(--ui-muted-foreground);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.settings-about-details {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  margin: 0;
+  overflow: hidden;
+  border: 1px solid var(--settings-frame);
+  border-radius: 10px;
+  background: var(--settings-surface);
+}
+
+.settings-about-details > div {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 10px 14px;
+}
+
+.settings-about-details > div + div::before {
+  content: "";
+  position: absolute;
+  inset-inline: var(--settings-divider-inset);
+  inset-block-start: 0;
+  block-size: 0;
+  border-block-start: 1px solid var(--settings-divider);
+}
+
+.settings-about-details dt {
+  color: var(--ui-muted-foreground);
+  font-size: 12px;
+}
+
+.settings-about-details dd {
+  margin: 0;
+  color: var(--ui-foreground);
+  font-size: 12px;
+}
+
+/* 错误态需要与普通卡片区分开，保留边框。 */
+.settings-error {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-block-end: 18px;
+  padding: 10px 12px;
+  border: 1px solid var(--ui-destructive);
+  border-radius: 10px;
+}
+
+.settings-error strong {
+  color: var(--ui-destructive);
+  font-size: 13px;
+  font-weight: 550;
+}
+
+.settings-error p {
+  margin: 2px 0 0;
+  color: var(--ui-muted-foreground);
+  font-size: 12px;
+}
+/* 行右端的路径这类长文本：与 legacy settings-about-path 同一档，右对齐且可换行。 */
+.settings-row__path {
+  color: var(--ui-muted-foreground);
+  font-size: 12px;
+  text-align: end;
+  overflow-wrap: anywhere;
+}
+
+/*
+ * 设置表单的通用词汇（`.settings-input` 一族）。
+ *
+ * **逐字迁移**自 legacy \`packages/settings/src/ui/surface/settings-surface.css\`：
+ * 输入框本体、占位符、聚焦环、禁用态，以及随它一起定义的那几格。P4 迁设置词汇时带来了
+ * 页/组/行，表单一层漏了 —— 症状是所有 \`className="settings-input"\` 退回浏览器默认样式（真实故障）。
+ *
+ * 判据：源码里用到 + 全仓没有主样式 + legacy 那份表里有定义。所以不会重复定义已有的。
+ */
+.settings-row__control {
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+}
+
+/*
+ * 输入框本体。**逐字迁移**自 legacy `settings-surface.css:719`：P4 迁设置词汇时只带来了
+ * `::placeholder` / `:disabled` / `--with-icon` 三支，主类漏了 —— 症状是所有
+ * `className="settings-input"` 退回浏览器默认样式（没有框、没有内边距）。
+ */
+.settings-input {
+  /*
+   * 框色自持一格，不读卡片线：深色下卡片线是半透明墨，压在输入格那层底上
+   * 兑出的灰与卡框同色，输入格就没有边界了。
+   */
+  --settings-input-border: #e4e4e5;
+
+  inline-size: 100%;
+  min-block-size: 32px;
+  padding: 7px 10px;
+  border: 1px solid var(--settings-input-border);
+  border-radius: 8px;
+  background: var(--ui-popover);
+  color: var(--ui-foreground);
+  font-size: 12px;
+  line-height: 1.3;
+  outline: none;
+}
+
+.settings-input::placeholder {
+  color: var(--ui-placeholder);
+}
+
+/* 焦点态直接给 border-color，压过上面那条 border 里的框色。 */
+.settings-input:focus-visible {
+  border-color: #339cff;
+  outline: none;
+}
+
+.settings-input:disabled {
+  cursor: not-allowed;
+  opacity: 0.45;
+}
+
+/* 深色下白底会连字一起吃掉：输入格比卡面再抬一档，框色也另给一格。 */
+:root[data-theme="dark"] .settings-input {
+  --settings-input-border: #4d4d4d;
+  background: #2c2c2c;
+}
+
+.settings-input--with-icon {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding-inline: 10px;
+}
+
+/*
+ * 深色那一支（第 364 行）由特异性更高的选择器在更早处声明 —— 两条都必须在，且次序不能倒。
+ * 本文件的豁免登记在 biome.json 的精确路径 overrides 里（noDescendingSpecificity）。
+ */
+.settings-input--with-icon:focus-within {
+  border-color: #339cff;
+}
+
+/*
+ * 深色下焦点蓝改用 --ui-ring（#6e9ecc）：浅色那支 #339cff 压在深底上过亮，
+ * 而环与框本来就该是同一个蓝。两条焦点规则都得跟着走 —— 带图标的那个焦点
+ * 落在容器上，不是 input 自己。
+ */
+:root[data-theme="dark"] .settings-input:focus-visible,
+:root[data-theme="dark"] .settings-input--with-icon:focus-within {
+  border-color: var(--ui-ring);
+}
+
+.settings-about-card {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 16px 14px;
+  border: 1px solid var(--settings-frame);
+  border-radius: 10px;
+  background: var(--settings-surface);
+}
+
+/*
+ * 设置页与设置表单的其余词汇（第二批）。
+ *
+ * **逐字迁移**自 legacy \`packages/settings/src/ui/surface/settings-surface.css\` 里
+ * 我们还没有定义的那一批：表单、字段、开关行、卡片、页头、分组……
+ * 判据是「该主类名在全仓还没有定义」，所以不会覆盖已有的写法。
+ */
+.settings-content__inner {
+  inline-size: min(100%, 720px);
+  margin-inline: auto;
+  padding: 28px 32px 56px;
+}
+
+.settings-content__title {
+  margin: 0 0 22px;
+  color: var(--ui-foreground);
+  font-size: 19px;
+  font-weight: 640;
+  line-height: 1.25;
+}
+
+.settings-group__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.settings-group__header h3 {
+  margin: 0;
+  color: var(--ui-muted-foreground);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.settings-group__surface {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  border: 1px solid var(--settings-frame);
+  border-radius: 10px;
+  background: var(--settings-surface);
+}
+
+.settings-row__copy {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-inline-size: 0;
+}
+
+.settings-row__copy strong {
+  color: var(--ui-foreground);
+  font-size: 13px;
+  font-weight: 550;
+  line-height: 1.3;
+}
+
+.settings-row__copy p {
+  margin: 0;
+  color: var(--ui-muted-foreground);
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.settings-row__control {
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+}
+
+.settings-trend__legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 12px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: 12px;
+}
+
+.settings-trend__model {
+  display: flex;
+  min-inline-size: 0;
+  align-items: center;
+  gap: 8px;
+}
+
+/*
+ * 图例的小方块是圆角方形，不是圆点：正本 zcode 的图例（AppUsageDailyModelTrendChart
+ * 的 size-2.5 rounded-sm、CodingPlanUsageLineChart 的 size-2 rounded-full）两处并存，
+ * 而**热力图那一支**用的是 rounded-[4px] 的方块，本页因此取方块，与上面那张图同形。
+ *
+ * 漏迁的后果比看上去大：下面只定义了 [data-series="1".."5"] 的底色，0 档那一条
+ * 与色块的**尺寸**都落在这条里 —— 漏掉它，第一个模型的图例色块没有尺寸也底色，
+ * 屏幕上就是一条空行。
+ */
+.settings-trend__swatch,
+.settings-trend__dot {
+  flex: none;
+  inline-size: 10px;
+  block-size: 10px;
+  border-radius: 3px;
+  background: var(--settings-series-0);
+}
+
+.settings-trend__dot {
+  inline-size: 8px;
+  block-size: 8px;
+  border-radius: 2px;
+}
+
+.settings-trend__swatch[data-series="1"],
+.settings-trend__dot[data-series="1"] {
+  background: var(--settings-series-1);
+}
+
+.settings-trend__swatch[data-series="2"],
+.settings-trend__dot[data-series="2"] {
+  background: var(--settings-series-2);
+}
+
+.settings-trend__swatch[data-series="3"],
+.settings-trend__dot[data-series="3"] {
+  background: var(--settings-series-3);
+}
+
+.settings-trend__swatch[data-series="4"],
+.settings-trend__dot[data-series="4"] {
+  background: var(--settings-series-4);
+}
+
+.settings-trend__swatch[data-series="5"],
+.settings-trend__dot[data-series="5"] {
+  background: var(--settings-series-5);
+}
+
+.settings-trend__line[data-series="1"] {
+  stroke: var(--settings-series-1);
+}
+
+.settings-trend__line[data-series="2"] {
+  stroke: var(--settings-series-2);
+}
+
+.settings-trend__line[data-series="3"] {
+  stroke: var(--settings-series-3);
+}
+
+.settings-trend__line[data-series="4"] {
+  stroke: var(--settings-series-4);
+}
+
+.settings-trend__line[data-series="5"] {
+  stroke: var(--settings-series-5);
+}
+
+/*
+ * 横轴：每个日期按**折线上那一点的横坐标**落位，与图共用同一套映射。
+ *
+ * 不用等宽格子再居中：格心与数据点差半格，而半格随天数变（7 天占 6.8%、30 天只占
+ * 1.6%），于是 7 天的七个日期全挤在中间、30 天的却铺得开 —— 两档看着不像同一张图。
+ * 绝对定位加 translateX(-50%) 让刻度与点逐一对齐，正本 zcode 的 recharts 分类轴
+ * 就是这个行为（首末贴边）。
+ *
+ * **position: relative 是这一格的锚**：下面每个 span 都是绝对定位的，容器不定位，
+ * 它们就一路往上找到 .settings-content（它也 relative）—— 屏幕上就是七个日期飘到
+ * 设置页最顶上、图底下空着一行（2026-10-07 报障的第二处）。
+ *
+ * 两端那 2.5% 留白正是给首尾两个字让出来的位置：不裁、也不会溢出卡片。
+ */
+.settings-trend__axis {
+  position: relative;
+  block-size: 16px;
+  margin: 0;
+  color: var(--ui-muted-foreground);
+  font-size: 11px;
+  line-height: 16px;
+}
+
+.settings-trend__axis span {
+  position: absolute;
+  inset-block-start: 0;
+  transform: translateX(-50%);
+  white-space: nowrap;
+}
+
+.settings-trend__point {
+  position: absolute;
+  inline-size: 9px;
+  block-size: 9px;
+  border-radius: 50%;
+  background: var(--settings-series-0);
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+}
+
+.settings-trend__point[data-series="1"] {
+  background: var(--settings-series-1);
+}
+
+.settings-trend__point[data-series="2"] {
+  background: var(--settings-series-2);
+}
+
+.settings-trend__point[data-series="3"] {
+  background: var(--settings-series-3);
+}
+
+.settings-trend__point[data-series="4"] {
+  background: var(--settings-series-4);
+}
+
+.settings-trend__point[data-series="5"] {
+  background: var(--settings-series-5);
+}
+
+/*
+ * 折线取正本 zcode 的 strokeWidth={2}（AppUsageDailyModelTrendChart 的 <Line>）。
+ *
+ * vector-effect: non-scaling-stroke 让它按屏幕像素而不是 viewBox 单位落笔 —— 没有
+ * 这一条，viewBox 是 1000 宽再横向拉伸的图会把 2 放大成一条粗带。
+ *
+ * **fill: none 是这张图不变成一块黑斑的唯一一条**：<path> 的默认填充是黑色，
+ * 而本图的 d 是一条从左到右再「回程」闭合的曲线轮廓 —— 不写这条，浏览器把它
+ * 当成闭合多边形涂满，屏幕上就是那条黑带（2026-10-07 产品负责人报障的正是它）。
+ */
+.settings-trend__line {
+  fill: none;
+  stroke: var(--settings-series-0);
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 2;
+  vector-effect: non-scaling-stroke;
+}
+
+.settings-input--with-icon > svg {
+  flex: none;
+  color: var(--ui-muted-foreground);
+}
+
+.settings-input--with-icon > input {
+  min-inline-size: 0;
+  inline-size: 100%;
+  border: 0;
+  padding: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  outline: none;
+}
+
+.settings-input--with-icon:focus-within {
+  border-color: #339cff;
+}
+
+.settings-about-card__copy {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.settings-about-card__copy strong {
+  color: var(--ui-foreground);
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.settings-about-card__copy span,
+.settings-about-card__copy p {
+  margin: 0;
+  color: var(--ui-muted-foreground);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.settings-keymap-row {
+  position: relative;
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 11px 14px;
+}
+
+.settings-keymap-row + .settings-keymap-row::before {
+  content: "";
+  position: absolute;
+  inset-inline: var(--settings-divider-inset);
+  inset-block-start: 0;
+  block-size: 0;
+  border-block-start: 1px solid var(--settings-divider);
+}
+
+.settings-keymap-row__copy {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-inline-size: 0;
+}
+
+.settings-keymap-row__copy strong {
+  color: var(--ui-foreground);
+  font-size: 13px;
+  font-weight: 550;
+  line-height: 1.3;
+}
+
+.settings-keymap-row__copy p {
+  margin: 0;
+  color: var(--ui-muted-foreground);
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.settings-keymap-row__bindings {
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 6px;
+}
+
+.settings-keymap-binding {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.settings-keymap-binding__key {
+  padding: 2px 8px;
+  border-radius: 6px;
+  background: color-mix(in oklab, var(--ui-divider) 35%, var(--settings-surface));
+  color: var(--ui-foreground);
+  font-family: inherit;
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.5;
+}
+
+.settings-keymap-binding__unassigned {
+  color: var(--ui-muted-foreground);
+  font-size: 12px;
+}
+
+.settings-keymap-binding__icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 4px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--ui-muted-foreground);
+  cursor: pointer;
+  transition:
+    background-color 120ms ease,
+    color 120ms ease;
+}
+
+.settings-keymap-binding__icon:hover {
+  background: color-mix(in oklab, var(--ui-divider) 40%, var(--settings-surface));
+  color: var(--ui-foreground);
+}
+
+.settings-keymap-binding__icon:focus-visible {
+  outline: 2px solid var(--ui-ring);
+  outline-offset: -2px;
+}
+
+.settings-keymap-binding__input {
+  min-inline-size: 120px;
+  padding: 3px 10px;
+  border: 1px solid var(--ui-ring);
+  border-radius: 6px;
+  background: var(--settings-surface);
+  color: var(--ui-foreground);
+  font-size: 12px;
+  line-height: 1.5;
+  outline: none;
+}
+
+.settings-keymap-binding__input::placeholder {
+  color: var(--ui-muted-foreground);
+}
+
+.settings-keymap-binding__cancel {
+  padding: 2px 4px;
+  border: 0;
+  background: transparent;
+  color: var(--ui-muted-foreground);
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.settings-keymap-binding__cancel:hover {
+  color: var(--ui-foreground);
+}
+
+/*
+ * 设置词汇（余下全部）。
+ *
+ * **逐字迁移**自 legacy \`packages/settings/src/ui/surface/settings-surface.css\`。
+ * 这份表是设置页外观的正本：页/组/行/字段/输入框/开关行/卡片/度量/热力图/趋势图/键位绑定……
+ * 全部迁入 —— 新架构里这些页面分属不同功能（P5 五页 + P6 的用量、快捷键、扩展等），
+ * 词汇是它们共用的一层，所以住在 design-system（features-no-shell 不允许功能依赖 workbench）。
+ * 导航那一批属外壳，在 \`packages/workbench/src/settings-nav.css\`。
+ */
+.settings-metric {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 12px 14px;
+}
+
+.settings-metric:not(:nth-child(3n + 1))::before {
+  position: absolute;
+  content: "";
+  inset-block: var(--settings-divider-inset);
+  inset-inline-start: 0;
+  inline-size: 0;
+  border-inline-start: 1px solid var(--settings-divider);
+}
+
+.settings-metric:nth-child(n + 4)::after {
+  position: absolute;
+  content: "";
+  inset-inline: var(--settings-divider-inset);
+  inset-block-start: 0;
+  block-size: 0;
+  border-block-start: 1px solid var(--settings-divider);
+}
+
+.settings-metric__label {
+  margin: 0;
+  color: var(--ui-muted-foreground);
+  font-size: 11px;
+}
+
+/*
+ * 读数是数字与短词，字号给大；但「最常用模型」那一格是一整条 provider/id 折成的
+ * 名字，同一个字号会把卡片撑破、把三列栅格顶宽。所以那一格自带 data-long 降一档，
+ * 并在两行处截断 —— 名字完整的一份在趋势图图例与气泡里。
+ *
+ * 漏迁的后果：概览六个读数与正文同一档字号、且全是粗体，六格挤成一片小字。
+ */
+.settings-metric__value {
+  font-size: 22px;
+  font-weight: 550;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.3;
+  overflow-wrap: anywhere;
+}
+
+/*
+ * 无读数格是占位符：placeholder 语义就是「还没有内容」；字重退回常规，
+ * 避免与真实读数同重而分不出空格，字号不动以免行高跳动。
+ */
+.settings-metric__value[data-unrecorded="true"] {
+  color: var(--ui-placeholder);
+  font-weight: 400;
+}
+
+.settings-metric__value[data-long="true"] {
+  display: -webkit-box;
+  overflow: hidden;
+  font-size: 14px;
+  line-height: 1.4;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+
+.settings-usage__panel {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 14px;
+}
+
+.settings-heatmap__cell {
+  aspect-ratio: 1;
+  border-radius: 2px;
+  background: var(--settings-heat-0);
+}
+
+.settings-heatmap__cell[data-level="1"] {
+  background: var(--settings-heat-1);
+}
+
+.settings-heatmap__cell[data-level="2"] {
+  background: var(--settings-heat-2);
+}
+
+.settings-heatmap__cell[data-level="3"] {
+  background: var(--settings-heat-3);
+}
+
+.settings-heatmap__cell[data-level="4"] {
+  background: var(--settings-heat-4);
+}
+
+.settings-heatmap__legend {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding-inline-start: 3px;
+  margin: 0;
+  color: var(--ui-muted-foreground);
+  font-size: 11px;
+}
+
+/* 图例里的方块不在栅格里，得自己给一个宽度，高度仍由 aspect-ratio 跟上。 */
+.settings-heatmap__legend .settings-heatmap__cell {
+  inline-size: var(--settings-heat-swatch);
+}
+
+.settings-usage__empty {
+  margin: 0;
+  color: var(--ui-muted-foreground);
+  font-size: 12px;
+}
+
+/*
+ * 设置词汇（补全）：legacy 设置表里以「后代 / 组合选择器」写的那几条（度量、热力图、趋势图、
+ * 过滤、键位列表、关于页路径行……）。它们的主类名不是选择器开头，按主类名迁的那一批漏了它们。
+ *
+ * 2026-10-07 复查：用量页另有 6 条整条漏掉（读数、热力图图例方块、趋势图图例色块、
+ * 折线、横轴），其中 `.settings-trend__line` 与 `.settings-trend__axis` 漏掉的后果最重 ——
+ * 见各自那条的头注。判据仍是「legacy 有 + 本表没有」，逐条照抄，不改值。
+ */
+/* 只读取值（如占用字节数）：与说明同一档字号，等宽数字让一列数值对齐。 */
+.settings-row__value {
+  color: var(--ui-muted-foreground);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+
+/* 用量指标共用一张卡，时间范围放在组标题，避免占用指标格。 */
+
+.settings-metrics {
+  position: relative;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+/*
+ * 五个离散档：底色浅灰、满档 --ui-info，中间三档由两端经 --settings-heat-0
+ * 调和，改底色时三档跟着走。空格比卡面深一档，格子必须看得见。
+ */
+.settings-heatmap {
+  --settings-heat-swatch: 10px;
+  --settings-heat-0: #f5f5f5;
+  --settings-heat-1: color-mix(in oklch, var(--ui-info) 30%, var(--settings-heat-0));
+  --settings-heat-2: color-mix(in oklch, var(--ui-info) 55%, var(--settings-heat-0));
+  --settings-heat-3: color-mix(in oklch, var(--ui-info) 78%, var(--settings-heat-0));
+  --settings-heat-4: var(--ui-info);
+
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+/* 深色主题下 #f5f5f5 亮过满档，底色那一侧回到分隔线。 */
+:root[data-theme="dark"] .settings-heatmap {
+  --settings-heat-0: var(--ui-divider);
+}
+
+/*
+ * 一列一周、一行一天。列宽按卡片均分，方形由 aspect-ratio 保住。
+ *
+ * **grid-auto-flow: column 是这张图的语义本身，不是排版偏好**：默认是行优先，
+ * 格子会先横着铺满 26 列再换行 —— 那样「列」是一段连续的日子，「行」反而跨了
+ * 26 天，一周一列的读法整个错位（最新一天也会落到别处）。列优先时格子按
+ * floor(i / 7) 列、i % 7 行落位，第 i 天因此正好落在它自己那个星期几上。
+ */
+.settings-heatmap__grid {
+  display: grid;
+  grid-auto-flow: column;
+  grid-template-columns: repeat(26, minmax(0, 1fr));
+  grid-template-rows: repeat(7, auto);
+  gap: 3px;
+}
+
+/* ---------------- 每日 Token 趋势图 ---------------- */
+
+/*
+ * 折线自己画，不引图表库（正本 zcode 用 recharts，本仓不为此装一个库）：这里只有
+ * 网格与折线两样。六档色轮转，取自正本 zcode 的 usage chart 色板
+ * （packages/ui/src/styles.css 的 --color-usage-chart-1..6）—— 它自己那套
+ * 蓝/绿/紫/红/橙/青，不是本页的语义色：语义色只有四档，且红与橙在图上读起来
+ * 像「出错了」，而用量图里没有对错。
+ */
+.settings-trend {
+  /*
+   * 折线上下留的那一截，与 model-trend.tsx 的 PAD_Y / HEIGHT 同一格（16 / 240）。
+   * 网格线、竖虚线都按它定位，改一处两边一起走。
+   */
+  --settings-trend-pad: 6.667%;
+
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  --settings-series-0: #4099ff;
+  --settings-series-1: #46bf72;
+  --settings-series-2: #7b5ce5;
+  --settings-series-3: #ff5c5c;
+  --settings-series-4: #ff8a30;
+  --settings-series-5: #42c8c8;
+}
+
+/* 图与横轴共用同一段宽度：纵轴那一栏留白因此由两边一起让出来。 */
+.settings-trend__plot {
+  display: block;
+  inline-size: 100%;
+  block-size: 180px;
+}
+
+/*
+ * 横网格：正本 zcode 的 CartesianGrid 是 vertical={false} + strokeDasharray="3 3"
+ * （见 AppUsageDailyModelTrendChart / CodingPlanUsageLineChart）—— 只有横线，1px
+ * 虚线。实线网格会把图切成一块块，虚线才是背景。
+ */
+.settings-trend__grid {
+  stroke: var(--ui-divider);
+  stroke-dasharray: 3 3;
+  stroke-width: 1;
+  vector-effect: non-scaling-stroke;
+}
+
+/* 图与悬浮那三样叠在同一格：百分比定位因此正对着折线的坐标。 */
+.settings-trend__frame {
+  position: relative;
+}
+
+/*
+ * 悬浮层压在折线之上（折线是后面那个兄弟节点），但**自己不吃指针事件**。
+ *
+ * 这一条是必须的，不是优化：它盖在图上，吃事件的话指针一进到悬浮层，SVG 就收到
+ * mouseleave、悬浮态被清掉、这一层随之卸载、指针又落回 SVG —— 于是「显示一下就没、
+ * 还剧烈抖动」。整层 pointer-events: none，事件一路落到 SVG，悬浮态才是稳的。
+ */
+.settings-trend__overlay {
+  position: absolute;
+  z-index: 1;
+  inset: 0;
+  pointer-events: none;
+}
+
+/*
+ * 悬浮那三样都走 HTML，不走 SVG：SVG 被 preserveAspectRatio="none" 横向拉伸，
+ * 画在里面的圆会变成椭圆、虚线间距也会跟着变形。这里按百分比定位，与拉伸后的
+ * 坐标系是同一套线性映射。
+ *
+ * 竖虚线只画在**绘图区**里（上下各让出 --settings-trend-pad）：折线上下本来留了一截
+ * 空白，铺满整块容器的话它会越过最下面那条网格线往下多出一截，看着像漏出去了。
+ */
+.settings-trend__guide {
+  position: absolute;
+  inset-block: var(--settings-trend-pad);
+  inline-size: 0;
+  border-inline-start: 1px dashed var(--ui-divider);
+  transform: translateX(-50%);
+  pointer-events: none;
+}
+
+/*
+ * 数值气泡：与设计系统的气泡同一张脸（同色、同圆角、同字号），位置由这里给 ——
+ * 它跟着指针所在的列走，不是挂在某个触发器上的浮层。
+ *
+ * **横向夹紧要按气泡自己的宽度算，不能只夹中心**：气泡是以锚点为中心画的，只把中心
+ * 限制在两端留白之内的话，靠边那一列仍会有一半伸到卡片外，被卡面的 overflow: hidden
+ * 切掉（屏幕上就是最后一天的气泡缺了右半边）。所以中心的下界/上界各让出「半个最大
+ * 宽度」，而那一格与 max-inline-size 用同一个式子，改一处两边一起走。
+ *
+ * 底色写字面值而不只借 .ui-tooltip：那条规则只在深色下改色，浅色那份在组件类里
+ * （bg-foreground），这里没有那个类。深浅两支都写全，就不依赖样式表的先后。
+ */
+.settings-trend__hint {
+  position: absolute;
+  inset-block-start: 0;
+  left: clamp(min(11rem, 35%), var(--settings-trend-anchor, 50%), calc(100% - min(11rem, 35%)));
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  max-inline-size: min(22rem, 70%);
+  padding: 6px 10px;
+  border-radius: 6px;
+  background: var(--ui-foreground);
+  color: var(--ui-background);
+  font-size: 12px;
+  transform: translateX(-50%);
+  pointer-events: none;
+}
+
+:root[data-theme="dark"] .settings-trend__hint {
+  background: #121212;
+  color: var(--ui-foreground);
+}
+
+/*
+ * 一行不设 nowrap：气泡有最大宽度，模型名比它还长时 nowrap 会把字顶到气泡底色
+ * 之外（屏幕上就是名字冲出那块深色背景）。名字让位换行，数值保持整块。
+ */
+.settings-trend__hint-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+}
+
+/* 数值靠右对齐成一列：几个模型并排时好对。 */
+.settings-trend__hint-total {
+  flex: none;
+  margin-inline-start: auto;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+/* 名字可以在图例与气泡里换行，但不许把卡片顶宽。 */
+.settings-trend__name {
+  min-inline-size: 0;
+  overflow-wrap: anywhere;
+}
+
+/* ---------------- 说明与筛选 ---------------- */
+
+.settings-filter {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+/* ---------------- 快捷键列表 ---------------- */
+
+/* 快捷键行左命令右绑定列表，结构与 SettingsRow 不同，不复用 SettingsGroup。 */
+.settings-keymap-list {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  border: 1px solid var(--settings-frame);
+  border-radius: 10px;
+  background: var(--settings-surface);
+}
+
+/* 绝对路径须完整可读，故换行而不是省略号。 */
+.settings-about-path {
+  word-break: break-all;
+  text-align: right;
+}

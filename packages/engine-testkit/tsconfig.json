@@ -1,0 +1,15 @@
+{
+  "extends": "../../tooling/tsconfig/bun.json",
+  "include": ["src"],
+  "references": [
+    {
+      "path": "../engine"
+    },
+    {
+      "path": "../foundation"
+    },
+    {
+      "path": "../transcript"
+    }
+  ]
+}

@@ -1,0 +1,242 @@
+{
+  "files": [],
+  "references": [
+    {
+      "path": "apps/core"
+    },
+    {
+      "path": "apps/desktop"
+    },
+    {
+      "path": "apps/desktop/scripts"
+    },
+    {
+      "path": "features/agent-settings/src/contract"
+    },
+    {
+      "path": "features/agent-settings/src/core"
+    },
+    {
+      "path": "features/agent-settings/src/ui"
+    },
+    {
+      "path": "features/attachments/src/contract"
+    },
+    {
+      "path": "features/attachments/src/core"
+    },
+    {
+      "path": "features/attachments/src/core-api"
+    },
+    {
+      "path": "features/attachments/src/host"
+    },
+    {
+      "path": "features/attachments/src/ui"
+    },
+    {
+      "path": "features/automations/src/contract"
+    },
+    {
+      "path": "features/automations/src/core"
+    },
+    {
+      "path": "features/automations/src/ui"
+    },
+    {
+      "path": "features/browser/src/contract"
+    },
+    {
+      "path": "features/browser/src/host"
+    },
+    {
+      "path": "features/browser/src/ui"
+    },
+    {
+      "path": "features/conversation/src/contract"
+    },
+    {
+      "path": "features/conversation/src/core"
+    },
+    {
+      "path": "features/conversation/src/core-api"
+    },
+    {
+      "path": "features/conversation/src/ui"
+    },
+    {
+      "path": "features/conversation/src/ui-api"
+    },
+    {
+      "path": "features/extensions/src/contract"
+    },
+    {
+      "path": "features/extensions/src/core"
+    },
+    {
+      "path": "features/extensions/src/ui"
+    },
+    {
+      "path": "features/models/src/contract"
+    },
+    {
+      "path": "features/models/src/core"
+    },
+    {
+      "path": "features/models/src/ui"
+    },
+    {
+      "path": "features/platform/src/contract"
+    },
+    {
+      "path": "features/platform/src/core"
+    },
+    {
+      "path": "features/platform/src/host"
+    },
+    {
+      "path": "features/platform/src/ui"
+    },
+    {
+      "path": "features/platform/src/ui-api"
+    },
+    {
+      "path": "features/preferences/src/contract"
+    },
+    {
+      "path": "features/preferences/src/host"
+    },
+    {
+      "path": "features/preferences/src/ui"
+    },
+    {
+      "path": "features/preferences/src/ui-api"
+    },
+    {
+      "path": "features/python/src/contract"
+    },
+    {
+      "path": "features/python/src/core"
+    },
+    {
+      "path": "features/python/src/ui"
+    },
+    {
+      "path": "features/review/src/contract"
+    },
+    {
+      "path": "features/review/src/core"
+    },
+    {
+      "path": "features/review/src/ui"
+    },
+    {
+      "path": "features/terminal/src/contract"
+    },
+    {
+      "path": "features/terminal/src/host"
+    },
+    {
+      "path": "features/terminal/src/ui"
+    },
+    {
+      "path": "features/update/src/contract"
+    },
+    {
+      "path": "features/update/src/host"
+    },
+    {
+      "path": "features/update/src/ui"
+    },
+    {
+      "path": "features/usage/src/contract"
+    },
+    {
+      "path": "features/usage/src/core"
+    },
+    {
+      "path": "features/usage/src/ui"
+    },
+    {
+      "path": "features/workspaces/src/contract"
+    },
+    {
+      "path": "features/workspaces/src/core"
+    },
+    {
+      "path": "features/workspaces/src/core-api"
+    },
+    {
+      "path": "features/workspaces/src/ui"
+    },
+    {
+      "path": "features/workspaces/src/ui-api"
+    },
+    {
+      "path": "packages/contract-kit"
+    },
+    {
+      "path": "packages/core-kernel"
+    },
+    {
+      "path": "packages/design-system"
+    },
+    {
+      "path": "packages/engine"
+    },
+    {
+      "path": "packages/engine-omp"
+    },
+    {
+      "path": "packages/engine-testkit"
+    },
+    {
+      "path": "packages/foundation"
+    },
+    {
+      "path": "packages/fs-kit"
+    },
+    {
+      "path": "packages/git"
+    },
+    {
+      "path": "packages/host-kernel"
+    },
+    {
+      "path": "packages/logging"
+    },
+    {
+      "path": "packages/process-kit"
+    },
+    {
+      "path": "packages/protocol"
+    },
+    {
+      "path": "packages/rpc"
+    },
+    {
+      "path": "packages/runtime-layout"
+    },
+    {
+      "path": "packages/storage-sqlite"
+    },
+    {
+      "path": "packages/test-kit"
+    },
+    {
+      "path": "packages/transcript"
+    },
+    {
+      "path": "packages/ui-kernel"
+    },
+    {
+      "path": "packages/workbench"
+    },
+    {
+      "path": "scripts"
+    },
+    {
+      "path": "tooling"
+    }
+  ]
+}

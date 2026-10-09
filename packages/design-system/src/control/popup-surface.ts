@@ -64,5 +64,4 @@ export const menuItemClassName = [
  * 颜色走背景不走 border-color：app.css 里那条 `* { border-color: var(--color-divider) }`
  * 是无层规则，压得过 @layer utilities 里的任何边框色类。
  */
-export const menuSeparatorClassName =
-  'mx-0.5 my-[3px] h-[0.5px] shrink-0 bg-[var(--ui-popup-divider)]'
+export const menuSeparatorClassName = 'mx-0.5 my-[3px] h-[0.5px] shrink-0 bg-[var(--ui-popup-divider)]'

@@ -1,0 +1,420 @@
+/*
+ * 工作区选择器的样式。
+ *
+ * **逐字迁移**自 legacy conversation 的 `surface/threads/assistant-threads.css` 里
+ * `.workspace-picker*` 的那几条规则（选择器与数值一个字未改）。legacy 把选择器与线程列表
+ * 放在同一份样式表里；新架构里选择器属于 workspaces 功能（07 页 §3E 的 sidebarSections
+ * order 10），线程列表属于 conversation，所以按归属把这一段切出来。
+ */
+/*
+ * 侧栏会话列表：会话行、行尾菜单、工作区选择器，以及它们共用的行几何。
+ *
+ * 归本目录而不是归共享皮肤：这些类名只有这里的组件画得出来，别处一个都不读。
+ * 令牌与皮从 skin 来 —— 侧栏是这层皮上的一格，不是另一层皮。
+ */
+
+.workspace-picker__field svg,
+.workspace-picker__context-trigger svg {
+  flex: none;
+}
+
+.workspace-picker__context-trigger svg {
+  color: var(--cp-ink-muted);
+}
+
+/*
+ * Cursor 风格的 Repositories 区域标题。
+ *
+ * 左侧标题仍然是实际的工作区切换入口；右侧筛选按钮打开同一张选择菜单，
+ * 添加按钮继续调用宿主提供的系统文件夹选择器。
+ */
+.workspace-picker[data-placement="sidebar"] {
+  display: flex;
+  block-size: var(--ui-row-height);
+  flex: none;
+  align-items: center;
+  gap: var(--ui-row-gap);
+  margin-block-start: var(--cp-mast-gap);
+  padding-inline-start: calc(var(--ui-row-inset) + var(--ui-row-lead));
+  padding-inline-end: calc(var(--ui-row-inset) + var(--ui-row-trail));
+}
+
+/* repositories disclosure controls: hover arrow and whole-list collapse */
+.workspace-picker__repositories-title {
+  display: inline-flex;
+  min-inline-size: 0;
+  flex: 0 1 auto;
+  align-items: center;
+  gap: var(--ui-row-gap);
+  border: 0;
+  border-radius: var(--ui-row-radius);
+  padding: 0;
+  background: transparent;
+  color: var(--cp-ink);
+  font: inherit;
+  font-size: var(--cp-font-caption);
+  cursor: pointer;
+}
+
+.workspace-picker__repositories-title:hover {
+  color: var(--ui-foreground);
+}
+
+.workspace-picker__repositories-chevron {
+  block-size: var(--cp-icon);
+  inline-size: var(--cp-icon);
+  flex: none;
+  opacity: 0;
+  color: var(--cp-ink-muted);
+  pointer-events: none;
+  transform: rotate(-90deg);
+  transition:
+    opacity var(--cp-motion-swift) var(--cp-motion-ease),
+    transform var(--cp-motion-swift) var(--cp-motion-ease);
+}
+
+.workspace-picker__repositories-title[aria-expanded="true"] .workspace-picker__repositories-chevron {
+  transform: rotate(0deg);
+}
+
+.workspace-picker__repositories-title:hover .workspace-picker__repositories-chevron,
+.workspace-picker__repositories-title:focus-visible .workspace-picker__repositories-chevron {
+  opacity: 1;
+}
+
+.workspace-picker__repositories-title:focus-visible {
+  outline: var(--cp-px) solid var(--cp-accent);
+  outline-offset: var(--cp-px);
+}
+
+.workspace-picker__repositories-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: calc(var(--ui-hairline) * 2);
+  margin-inline-start: auto;
+}
+
+.workspace-picker__repositories-action {
+  display: grid;
+  block-size: var(--assistant-threads-action-size);
+  inline-size: var(--assistant-threads-action-size);
+  place-items: center;
+  border: 0;
+  border-radius: var(--cp-optical);
+  padding: 0;
+  background: transparent;
+  color: var(--cp-ink-muted);
+  cursor: pointer;
+  transition:
+    background-color var(--cp-motion-swift) var(--cp-motion-ease),
+    color var(--cp-motion-swift) var(--cp-motion-ease),
+    transform var(--cp-motion-swift) var(--cp-motion-ease);
+}
+
+.workspace-picker__repositories-action:hover,
+.workspace-picker__repositories-action[data-popup-open],
+.workspace-picker__repositories-action[aria-expanded="true"] {
+  background: var(--cp-hover);
+  color: var(--cp-ink);
+}
+
+.workspace-picker__repositories-action:active {
+  transform: scale(0.94);
+}
+
+/*
+ * Repositories 工具栏与会话列表是相邻兄弟。
+ *
+ * 列表原本使用 --cp-mast-gap 作为顶部内边距，导致第一行工作区离工具栏过远。
+ * 这里直接约束这两个相邻区域，只保留一道最小的视觉间隔，不影响列表底部留白。
+ */
+.workspace-picker[data-placement="sidebar"] + .assistant-threads {
+  padding-block-start: calc(var(--ui-hairline) * 2);
+}
+
+/*
+ * WorkspacePicker 与 AssistantThreadList 是 assistant-panel 中的相邻兄弟。
+ * 收起时只隐藏下面整张会话导航，Repositories 工具栏本身继续保留。
+ */
+.workspace-picker[data-placement="sidebar"]:has(.workspace-picker__repositories-title[aria-expanded="false"])
++ .assistant-threads {
+  display: none;
+}
+
+.workspace-picker__menu[data-assistant-skin] {
+  min-inline-size: 216px;
+  font-size: var(--cp-font-caption);
+  box-shadow: none;
+}
+
+/* 搜索是弹层的标题栏：图标在左，与名单隔一条线。 */
+.workspace-picker__field {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 2px 4px var(--am-pad);
+  border-block-end: var(--cp-px) solid var(--cp-hairline);
+  padding: 4px 4px 8px;
+  color: var(--cp-ink-subtle);
+}
+
+.workspace-picker__search {
+  min-inline-size: 0;
+  flex: 1;
+  border: 0;
+  padding: 0;
+  background: transparent;
+  color: var(--cp-ink);
+  font: inherit;
+  font-size: var(--cp-font-caption);
+  outline: none;
+}
+
+.workspace-picker__search::placeholder {
+  color: var(--cp-placeholder);
+}
+
+.workspace-picker__menu[data-assistant-skin] .workspace-picker__item {
+  display: flex;
+  min-block-size: 28px;
+  align-items: center;
+  gap: 8px;
+  border-radius: var(--am-item);
+  padding: 0 8px;
+  color: var(--cp-ink);
+  cursor: pointer;
+}
+
+/* 条目图标与会话行菜单同一尺寸、同一墨色；悬停不换色，它不是状态。 */
+.workspace-picker__menu[data-assistant-skin] .workspace-picker__item svg {
+  block-size: var(--cp-icon);
+  inline-size: var(--cp-icon);
+  flex: none;
+  color: var(--cp-ink-muted);
+}
+
+.workspace-picker__menu[data-assistant-skin] .workspace-picker__item[data-highlighted] {
+  outline: none;
+  background: var(--cp-menu-hover);
+}
+
+.workspace-picker__item-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.workspace-picker__none {
+  margin: 0;
+  padding: 4px 8px 8px;
+  color: var(--cp-ink-subtle);
+  font-size: var(--cp-font-micro);
+}
+
+.workspace-picker__menu[data-assistant-skin] .workspace-picker__separator {
+  margin: var(--am-pad) 8px;
+  background-color: var(--cp-hairline);
+}
+
+/* composer workspace context bar */
+
+/*
+ * 灰色基座属于 .composer-context（见 composer-frame.css）：项目与分支是它里面的两枚
+ * 平级 chip，条不归任何一枚 chip 所有。这里只剩项目胶囊自己的盒子。
+ */
+.workspace-picker[data-placement="composer"] {
+  display: inline-flex;
+  min-inline-size: 0;
+  align-items: center;
+}
+
+/* 灰色栏内部只有轻量工作区控件，不再出现第三层卡片。 */
+.workspace-picker__context-trigger {
+  display: inline-flex;
+  block-size: var(--cp-control);
+  min-inline-size: 0;
+  max-inline-size: 100%;
+  align-items: center;
+  gap: var(--cp-control-gap);
+  border: 0;
+  /*
+   * Hover 底色使用与外层 Context Bar 相同的圆角尺度。
+   *
+   * 控件高度会自然限制实际圆角，既保持柔和的 Apple 风格轮廓，
+   * 又让内部高亮与外层容器形成对应关系。
+   */
+  border-radius: var(--cp-radius);
+  padding-inline: var(--cp-inset);
+  background: transparent;
+  color: var(--cp-ink);
+  font: inherit;
+  font-size: var(--cp-font-caption);
+  cursor: pointer;
+  transition:
+    background-color var(--cp-motion-swift) var(--cp-motion-ease),
+    color var(--cp-motion-swift) var(--cp-motion-ease);
+}
+
+.workspace-picker__context-trigger:hover,
+.workspace-picker__context-trigger[data-popup-open] {
+  background: var(--cp-hover);
+}
+
+.workspace-picker__context-trigger:focus-visible {
+  outline: calc(var(--cp-px) * 2) solid var(--cp-accent);
+  outline-offset: var(--cp-px);
+}
+
+.workspace-picker__context-name {
+  min-inline-size: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* composer workspace context bar end */
+
+/* projectless workspace picker refinements */
+
+/*
+ * Composer 里的项目控件是一颗完整胶囊。
+ *
+ * data-projectless 是稳定的业务状态，不依赖 DropdownMenu 打开时内部是否插入
+ * 额外节点，因此“选择项目”在菜单打开、关闭期间不会发生横向位移。
+ */
+.workspace-picker__context-control {
+  display: inline-flex;
+  block-size: var(--cp-control);
+  min-inline-size: 0;
+  max-inline-size: 100%;
+  align-items: center;
+  border-radius: var(--cp-radius);
+  background: transparent;
+  color: var(--cp-ink);
+  transition:
+    background-color var(--cp-motion-swift) var(--cp-motion-ease),
+    color var(--cp-motion-swift) var(--cp-motion-ease);
+}
+
+.workspace-picker__context-control:hover,
+.workspace-picker__context-control:has(.workspace-picker__context-trigger[data-popup-open]) {
+  background: var(--cp-hover);
+}
+
+/*
+ * 已选择项目时，文件夹/叉号按钮占据左侧固定的一格，文字触发器不再重复左边距。
+ */
+.workspace-picker__context-control .workspace-picker__context-trigger {
+  min-inline-size: 0;
+  border-radius: 0 var(--cp-radius) var(--cp-radius) 0;
+  padding-inline-start: 0;
+  background: transparent;
+}
+
+/*
+ * 无项目状态没有左侧清除按钮，所以触发器自己恢复完整圆角和左右内边距。
+ *
+ * 这条规则不使用 :first-child。Base UI 打开弹窗时可能改变触发器附近的辅助
+ * DOM，使用结构伪类会让 padding 突然失效，造成图标和文字一起向左跳。
+ */
+.workspace-picker__context-control[data-projectless="true"] .workspace-picker__context-trigger {
+  border-radius: var(--cp-radius);
+  padding-inline-start: var(--cp-inset);
+  color: var(--cp-ink-subtle);
+}
+
+.workspace-picker__context-control[data-projectless="true"] .workspace-picker__context-trigger svg {
+  color: currentcolor;
+}
+
+.workspace-picker__context-control .workspace-picker__context-trigger:hover,
+.workspace-picker__context-control .workspace-picker__context-trigger[data-popup-open] {
+  background: transparent;
+}
+
+/*
+ * 文件夹切换成叉号时，叉号拥有自己的一圈深色圆形底。
+ *
+ * 外层胶囊仍然使用普通 hover 色；内层圆形只属于清除按钮，不会延伸到项目文字。
+ */
+.workspace-picker__context-clear {
+  position: relative;
+  display: grid;
+  block-size: calc(var(--cp-icon) + var(--cp-optical));
+  inline-size: calc(var(--cp-icon) + var(--cp-optical));
+  flex: none;
+  place-items: center;
+  margin-inline-start: var(--cp-optical);
+  margin-inline-end: var(--cp-control-gap);
+  border: 0;
+  border-radius: 9999px;
+  padding: 0;
+  background: transparent;
+  color: var(--cp-ink-muted);
+  cursor: pointer;
+  transition:
+    background-color var(--cp-motion-swift) var(--cp-motion-ease),
+    color var(--cp-motion-swift) var(--cp-motion-ease);
+}
+
+.workspace-picker__context-folder,
+.workspace-picker__context-x {
+  grid-area: 1 / 1;
+  block-size: var(--cp-icon);
+  inline-size: var(--cp-icon);
+  transition: opacity var(--cp-motion-swift) var(--cp-motion-ease);
+}
+
+.workspace-picker__context-x {
+  opacity: 0;
+}
+
+.workspace-picker__context-clear:hover,
+.workspace-picker__context-clear:focus-visible {
+  background: color-mix(in srgb, var(--cp-ink) 13%, transparent);
+  color: var(--cp-ink);
+}
+
+.workspace-picker__context-clear:hover .workspace-picker__context-folder,
+.workspace-picker__context-clear:focus-visible .workspace-picker__context-folder {
+  opacity: 0;
+}
+
+.workspace-picker__context-clear:hover .workspace-picker__context-x,
+.workspace-picker__context-clear:focus-visible .workspace-picker__context-x {
+  opacity: 1;
+}
+
+.workspace-picker__context-clear:focus-visible {
+  outline: calc(var(--cp-px) * 2) solid var(--cp-accent);
+  outline-offset: var(--cp-px);
+}
+
+.workspace-picker__check {
+  margin-inline-start: auto;
+}
+
+/*
+ * 工作区项目不直接使用 Base UI 短暂的 data-highlighted 底色。
+ *
+ * data-persisted-highlight 由组件维护：菜单打开时自动落在当前项目或第一项，
+ * 指针/键盘移动时只替换为一个新 id，指针离开菜单后不清除。
+ * 当前项目的 data-current 只负责右侧勾号，不额外绘制第二块背景。
+ *
+ * 高亮底色读菜单卡面那一档悬停（--cp-menu-hover），不读 --cp-hover：后者是半透明
+ * 墨，压在这张实色浮层上还要再兑一次底。
+ */
+.workspace-picker__menu[data-assistant-skin] .workspace-picker__item[data-workspace-choice="true"][data-highlighted],
+.workspace-picker__menu[data-assistant-skin]
+  .workspace-picker__item[data-workspace-choice="true"][data-current="true"] {
+  background: transparent;
+}
+
+.workspace-picker__menu[data-assistant-skin]
+  .workspace-picker__item[data-workspace-choice="true"][data-persisted-highlight="true"],
+.workspace-picker__menu[data-assistant-skin]
+  .workspace-picker__item[data-workspace-choice="true"][data-persisted-highlight="true"][data-highlighted],
+.workspace-picker__menu[data-assistant-skin]
+  .workspace-picker__item[data-workspace-choice="true"][data-persisted-highlight="true"][data-current="true"] {
+  background: var(--cp-menu-hover);
+}

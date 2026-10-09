@@ -79,8 +79,7 @@
   --ui-popover-foreground: var(--ui-foreground);
   /* 与 light.css 同构：材质、elevation、行高亮与内线都取正本那四条令牌的深色值。 */
   --ui-popup-surface: rgb(67 69 74 / 45%);
-  --ui-popup-elevation:
-    0 0 0 0.5px #ffffff0f, 0 3px 8px 0 rgb(0 0 0 / 3.9%), 0 0 20px 0 rgb(0 0 0 / 5.1%);
+  --ui-popup-elevation: 0 0 0 0.5px #ffffff0f, 0 3px 8px 0 rgb(0 0 0 / 3.9%), 0 0 20px 0 rgb(0 0 0 / 5.1%);
   --ui-popup-highlight: #ffffff14;
   /*
    * 触发器收起态的框。这里写字面实色，不跟区域线那支半透明墨：半透明墨会跟着

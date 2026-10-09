@@ -1,0 +1,12 @@
+{
+  "extends": "../tooling/tsconfig/bun.json",
+  "compilerOptions": {
+    "types": ["bun", "node"]
+  },
+  "include": ["."],
+  "references": [
+    {
+      "path": "../features/python/src/core"
+    }
+  ]
+}

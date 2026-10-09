@@ -54,9 +54,7 @@ export function ToastRegion({ notices, onDismiss, onHoverChange }: ToastRegionPr
           <span className="flex min-w-0 flex-col gap-1">
             <span className="line-clamp-2 font-medium text-sm leading-5">{notice.title}</span>
             {notice.detail === undefined ? null : (
-              <span className="line-clamp-3 break-words text-muted-foreground text-xs leading-5">
-                {notice.detail}
-              </span>
+              <span className="line-clamp-3 break-words text-muted-foreground text-xs leading-5">{notice.detail}</span>
             )}
           </span>
         </button>

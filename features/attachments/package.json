@@ -1,0 +1,41 @@
+{
+  "name": "@poietica/feature-attachments",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    "./contract": "./src/contract/index.ts",
+    "./core": "./src/core/index.ts",
+    "./core-api": "./src/core-api/index.ts",
+    "./host": "./src/host/index.ts",
+    "./ui": "./src/ui/index.tsx"
+  },
+  "dependencies": {
+    "@poietica/contract-kit": "workspace:*",
+    "@poietica/core-kernel": "workspace:*",
+    "@poietica/design-system": "workspace:*",
+    "@poietica/engine": "workspace:*",
+    "@poietica/feature-conversation": "workspace:*",
+    "@poietica/feature-platform": "workspace:*",
+    "@poietica/foundation": "workspace:*",
+    "@poietica/fs-kit": "workspace:*",
+    "@poietica/host-kernel": "workspace:*",
+    "@poietica/rpc": "workspace:*",
+    "@poietica/runtime-layout": "workspace:*",
+    "@poietica/storage-sqlite": "workspace:*",
+    "@poietica/ui-kernel": "workspace:*",
+    "lucide-react": "catalog:",
+    "react": "catalog:",
+    "zod": "catalog:",
+    "zustand": "catalog:"
+  },
+  "devDependencies": {
+    "@poietica/engine-testkit": "workspace:*",
+    "@poietica/test-kit": "workspace:*",
+    "@testing-library/react": "catalog:",
+    "@types/bun": "catalog:",
+    "@types/node": "catalog:",
+    "@types/react": "catalog:",
+    "electron": "catalog:"
+  }
+}

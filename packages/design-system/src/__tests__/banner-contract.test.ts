@@ -52,9 +52,7 @@ describe('横幅的时间契约', () => {
      * 回退是「没传时用什么」，不是「另一份默认值」，两者一旦分叉，属性没设上时
      * 就会用错的那一个。
      */
-    const fallbacks = [...stylesheet.matchAll(/var\(--ui-banner-hold,\s*(\d+)ms\)/gu)].map((m) =>
-      Number(m[1]),
-    )
+    const fallbacks = [...stylesheet.matchAll(/var\(--ui-banner-hold,\s*(\d+)ms\)/gu)].map((m) => Number(m[1]))
 
     expect(fallbacks.length, '读 --ui-banner-hold 的处数').toBeGreaterThanOrEqual(2)
 

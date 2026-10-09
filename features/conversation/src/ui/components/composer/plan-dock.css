@@ -1,0 +1,114 @@
+/*
+ * 待批准的计划卡片。
+ *
+ * 外框、按钮与撑开动画整条沿用授权带子（permission-dock.css 的 .assistant-approval*）——
+ * 计划与审批是同一道闸的两种形态，屏幕上不该长出第二套控件。这里只补授权带子没有的
+ * 四样东西：
+ *
+ *   1. 竖向排布：授权带子是一行到底（序号 / 将做什么 / 三颗钮），计划要先把标题、计划
+ *      文件、正文入口排出来，再排按钮；
+ *   2. 正文那一块：Markdown 默认折叠（<details>），点开才铺开且限高滚动 —— 一篇计划
+ *      直接铺开会把输入框顶出屏幕；
+ *   3. 「修改…」展开的反馈输入框；
+ *   4. 答复之后那句终态（已批准 / 已要求修改：… / 已否决）。
+ *
+ * 左右内缩仍是卡片已有的两条沟（--cp-pad-x / --cp-inset，见 permission-dock.css）：这一格
+ * 咬在输入框卡的上沿，两边对不齐时接缝就露出来了。
+ */
+
+/* 单列：标题、路径、正文入口、按钮自上而下，行距用卡片自己的控制间距。 */
+.assistant-approval--plan .assistant-approval__bar {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  align-items: center;
+  row-gap: var(--cp-control-gap);
+}
+
+/*
+ * 标题是人写的一句话，不是一条命令：授权带子那边是等宽单行截断（要核对的是命令），
+ * 这里换成比例字体、允许换行 —— 计划标题本来就可能是完整的一句话。
+ */
+.assistant-approval--plan .assistant-approval__intent {
+  overflow: visible;
+  font-family: inherit;
+  font-size: var(--cp-font-caption);
+  text-overflow: clip;
+  white-space: normal;
+}
+
+/* 副行：计划文件落在哪。等宽且可选中 —— 人要照它去读全文，或者复制出去。 */
+.assistant-plan__path {
+  overflow: hidden;
+  font-family: var(--cp-font-mono);
+  font-size: var(--cp-font-micro);
+  line-height: 1.45;
+  color: var(--cp-ink-subtle);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  user-select: text;
+}
+
+.assistant-plan__details {
+  min-inline-size: 0;
+}
+
+.assistant-plan__summary {
+  font-size: var(--cp-font-caption);
+  color: var(--cp-ink-muted);
+  cursor: pointer;
+}
+
+.assistant-plan__summary:hover {
+  color: var(--cp-ink);
+}
+
+/*
+ * 正文是一整篇 Markdown，限高滚动：它展开之后的高度不参与这张卡的版式决定 ——
+ * 无限长的一篇会把输入框推出可视区，而人此刻正要按那三颗按钮。
+ */
+.assistant-plan__body {
+  max-block-size: 40vh;
+  overflow: auto;
+  margin-block-start: var(--cp-control-gap);
+  border-radius: var(--cp-radius-item);
+  padding: var(--cp-pad-mid);
+  background: color-mix(in srgb, var(--ui-foreground) 4%, transparent);
+}
+
+/* 反馈框：与「目标」那条输入框同一副脸，但这里要写的是几句话，所以是多行。 */
+.assistant-plan__feedback {
+  border: 1px solid var(--cp-edge);
+  border-radius: var(--cp-radius-item);
+  padding: var(--cp-pad-mid);
+  background: var(--cp-surface);
+  font: inherit;
+  font-size: var(--cp-font-caption);
+  line-height: 1.5;
+  color: var(--cp-ink);
+  outline: none;
+  resize: none;
+}
+
+.assistant-plan__feedback:focus-visible {
+  border-color: var(--cp-accent);
+  outline: 1px solid var(--cp-accent);
+}
+
+/* 说了要改却一个字没给：提示留在原地，按钮照旧可按（人可以改主意去点否决）。 */
+.assistant-plan__hint {
+  font-size: var(--cp-font-micro);
+  color: var(--cp-ink-subtle);
+}
+
+/* 按钮那一行靠右，与授权带子同一处落点（发送键那一列）。 */
+.assistant-approval--plan .assistant-approval__options {
+  justify-content: flex-end;
+  margin-inline-start: 0;
+}
+
+/* 答复之后：三颗按钮让位给一句话 —— 这张卡随即消失，那句话是它最后要说的事。 */
+.assistant-plan__outcome {
+  justify-self: end;
+  font-size: var(--cp-font-caption);
+  color: var(--cp-ink-muted);
+}

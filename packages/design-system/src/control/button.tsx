@@ -11,14 +11,7 @@ import './danger-soft.css'
 const BASE =
   'inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50'
 
-export type ButtonVariant =
-  | 'default'
-  | 'destructive'
-  | 'dangerSoft'
-  | 'outline'
-  | 'secondary'
-  | 'soft'
-  | 'ghost'
+export type ButtonVariant = 'default' | 'destructive' | 'dangerSoft' | 'outline' | 'secondary' | 'soft' | 'ghost'
 
 export type ButtonSize = 'default' | 'xs' | 'sm' | 'lg' | 'icon'
 
@@ -32,8 +25,7 @@ const VARIANT: Record<ButtonVariant, string> = {
    * 那颗危险键同一档浓度。Tailwind 的工具类写不出主题相关的这一层。
    */
   dangerSoft: 'ui-button--danger-soft',
-  outline:
-    'border border-input bg-background shadow-sm hover:bg-accent hover:text-accent-foreground',
+  outline: 'border border-input bg-background shadow-sm hover:bg-accent hover:text-accent-foreground',
   secondary: 'bg-secondary text-secondary-foreground shadow-sm hover:bg-secondary/80',
   /* soft：无边框无投影，填充跟着 divider token 走，所以它和分割线永远同一个灰阶。 */
   soft: 'bg-divider text-foreground hover:bg-divider/70',
@@ -55,12 +47,7 @@ export interface ButtonProps extends ComponentPropsWithRef<'button'> {
 }
 
 function Button({ className, size, variant, ...props }: ButtonProps) {
-  return (
-    <button
-      className={cn(BASE, VARIANT[variant ?? 'default'], SIZE[size ?? 'default'], className)}
-      {...props}
-    />
-  )
+  return <button className={cn(BASE, VARIANT[variant ?? 'default'], SIZE[size ?? 'default'], className)} {...props} />
 }
 
 export { Button }

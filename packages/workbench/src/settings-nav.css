@@ -1,0 +1,103 @@
+/*
+ * 设置左侧导航的样式。
+ *
+ * **逐字迁移**自 legacy `packages/settings/src/ui/surface/settings-surface.css` 里
+ * `.settings-navigation*` 那一批（含 hover / 选中 / 滚动条 / 图标）。此前这里是一份重写的
+ * 近似实现，hover 与选中态因此与迁移前不一样（真实故障：产品负责人一眼看出）。
+ */
+
+/* ---------------- 导航（占侧栏那一格）---------------- */
+
+.settings-navigation {
+  /*
+   * 导航与主侧栏共用选中底色；导航和内容互不嵌套，变量须声明在导航自身。
+   */
+  --settings-nav-hover: var(--ui-sidebar-accent);
+
+  display: flex;
+  flex-direction: column;
+  block-size: 100%;
+  min-block-size: 0;
+  padding-block: 8px 0;
+  background: var(--ui-sidebar);
+}
+
+/*
+ * 共用 --ui-row-* 保持与主侧栏图标对齐；导航须留在 [data-ui-rows] 子树内，
+ * 否则取不到 --ui-row-lead，padding 会因 var() 解析失败退成 0。
+ */
+.settings-navigation__back,
+.settings-navigation__item {
+  display: flex;
+  align-items: center;
+  gap: var(--ui-row-gap);
+  inline-size: 100%;
+  min-block-size: var(--ui-row-height);
+  padding-inline: var(--ui-row-lead) var(--ui-row-trail);
+  border: 0;
+  border-radius: var(--ui-row-radius);
+  background: transparent;
+  color: var(--ui-muted-foreground);
+  font-size: 12px;
+  line-height: 1.2;
+  text-align: start;
+  cursor: pointer;
+  transition:
+    background-color 120ms ease,
+    color 120ms ease;
+}
+
+.settings-navigation__back {
+  margin-inline: var(--ui-row-inset);
+  inline-size: calc(100% - 2 * var(--ui-row-inset));
+}
+
+.settings-navigation__back:hover,
+.settings-navigation__item:hover {
+  background: var(--settings-nav-hover);
+  color: var(--ui-foreground);
+}
+
+.settings-navigation__item[data-active="true"] {
+  background: var(--settings-nav-hover);
+  color: var(--ui-foreground);
+}
+
+.settings-navigation__back:focus-visible,
+.settings-navigation__item:focus-visible {
+  outline: 2px solid var(--ui-ring);
+  outline-offset: -2px;
+}
+
+.settings-navigation__icon {
+  flex: none;
+  inline-size: var(--ui-row-icon-size);
+  block-size: var(--ui-row-icon-size);
+}
+
+.settings-navigation__scroll {
+  flex: 1;
+  min-block-size: 0;
+  overflow-y: auto;
+  padding-block-start: 8px;
+  scrollbar-width: none;
+}
+
+.settings-navigation__scroll::-webkit-scrollbar {
+  display: none;
+}
+
+.settings-navigation__items {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  padding-inline: var(--ui-row-inset);
+}
+
+.settings-navigation__items + .settings-navigation__items {
+  margin-block-start: 14px;
+}
+
+.settings-navigation__footer {
+  flex: none;
+}

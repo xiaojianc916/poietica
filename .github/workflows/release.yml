@@ -1,0 +1,74 @@
+name: Release
+
+# 触发：推送 tag `v*`（15 页 §10.5）。草稿对客户端不可见，人工验收后才发布。
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    name: Build & draft release
+    runs-on: windows-latest
+    timeout-minutes: 90
+    env:
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.4.0
+
+      - name: Install
+        run: bun install --frozen-lockfile
+
+      - name: 校验 tag 与 apps/desktop 的 version 一致
+        shell: pwsh
+        run: |
+          $tag = "${{ github.ref_name }}"
+          $version = (Get-Content apps/desktop/package.json -Raw | ConvertFrom-Json).version
+          if ($tag -ne "v$version") {
+            Write-Error "tag $tag 与 apps/desktop 的 version $version 不一致"
+            exit 1
+          }
+          Write-Output "tag 与 version 一致：$tag"
+
+      - name: Check
+        run: bun run check
+
+      - name: Build Core
+        run: bun run core:build
+
+      - name: Probe Core
+        run: bun run core:probe
+
+      - name: Verify Core dist
+        run: bun apps/core/scripts/verify-dist.ts
+
+      - name: Build desktop
+        run: bun run desktop:build
+
+      - name: Package installer
+        working-directory: apps/desktop
+        run: bunx electron-builder --win --publish never
+
+      - name: Smoke test installer
+        shell: pwsh
+        run: |
+          $version = (Get-Content apps/desktop/package.json -Raw | ConvertFrom-Json).version
+          bun apps/desktop/scripts/smoke.ts "apps/desktop/release/Poietica_${version}_x64-setup.exe"
+
+      - name: Create draft release
+        shell: pwsh
+        run: |
+          $tag = "${{ github.ref_name }}"
+          $version = $tag.Substring(1)
+          gh release create $tag --draft --title "Poietica $version" --notes-file "docs/release-notes/$version.md" `
+            "apps/desktop/release/Poietica_${version}_x64-setup.exe" `
+            "apps/desktop/release/Poietica_${version}_x64-setup.exe.blockmap" `
+            "apps/desktop/release/latest.yml"

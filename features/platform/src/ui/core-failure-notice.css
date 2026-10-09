@@ -1,0 +1,14 @@
+/*
+ * 「Agent 引擎起不来」这一条。**与 models-banner 同形**（产品负责人 2026-10-06 要求
+ * 两处长得一模一样）：一行内容、若干动作，容器由入口提示那一列给
+ * （conversation 的 .entry-notices，样式同理见 entry-notices.css）。
+ */
+.core-failure-notice {
+  display: inline-flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.core-failure-notice__text {
+  color: var(--ui-muted-foreground);
+}

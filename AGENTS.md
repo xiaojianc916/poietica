@@ -1,263 +1,58 @@
-# Poietica 架构宪法
+# Poietica 工作守则（给 AI 与人类贡献者）
 
-读者是修改这个仓库的 AI 代理与人。它的目标只有一个：无论谁来写代码，架构不偏移。
-本文按"裁决权 → 不变量 → 数据流 → 宏观架构 → 目录与文件 → 微型架构 → 扩展路线 →
-变更纪律 → 验证"的顺序展开，每一条都可执行或指向可执行物，没有一条是愿望。
-稳定架构约束见 docs/architecture/；源码与可执行规则的实际覆盖范围必须分别核对。
+## 这是什么
+Windows 桌面应用。三个进程：UI（React，Electron 渲染进程）↔ Host（Electron 主进程）↔ Core（`poietica-core.exe`，Bun 编译，内嵌 Oh My Pi 引擎）。
+架构文档：`docs/ARCHITECTURE.md`。重构进度与偏差：`docs/refactor-log.md`。
 
-## 0. 裁决权
+## 目录
+- `packages/`：20 个平台包，按 L0–L5 分层，只能依赖更低层（`tooling/depcruise/layers.json`）。
+- `features/<id>/src/{contract,core,core-api,host,ui,ui-api}`：15 个功能包，每个功能一个垂直切片。
+- `apps/core`、`apps/desktop`：组装层，只做清单与入口。
+- `scripts/`：一次性维护脚本（例如 `pin-python.ts` 钉住内置 Python 的校验和）。
+- `tooling/`：工具链（tsconfig 预设、depcruise 规则、refs 同步、脚手架、发布脚本）。
 
-本文**解释**架构。可执行的定义只在下表，与本文冲突时以下表为准，并回来修本文：
+## 铁律
+1. `bun run check` 不绿不提交。
+2. 只有 `packages/engine-omp` 可以 import `@oh-my-pi/*`。
+3. 功能之间只能经 `contract`、`core-api`、`ui-api` 协作；绝不 import 别的功能的 `core`/`host`/`ui`。
+4. 新方法先写进功能的 `contract`（zod），再在 `core` 或 `host` 实现；内核启动时会检查遗漏。
+5. 所有错误用 `AppError` + 本功能 `defineErrors` 的错误码。
+6. 数据路径只来自 `DataLayout`；SQL 只写在功能的 `core/repository.ts`，表名以功能 id（`-` 换 `_`）为前缀。
+7. 日志只用 `ctx.logger`，产品代码禁止 `console.*`。
+8. 界面文案与视觉以基准截图为准（`docs/baseline/`，由维护者提供），不得擅自改动。
+9. 第三方版本只写在根 `package.json` 的 catalog；子包写 `catalog:`。
+10. 创建包或功能只能用 `bun run new:package` / `bun run new:feature`；tsconfig 的 references 只能由 `bun run refs` 生成。
+11. 遇到架构文档没有覆盖的情况：写进 `docs/refactor-log.md` 的“待决问题”，停下这一项，不要猜。
 
-| 事实 | 定义在 | 由谁执行 |
-| --- | --- | --- |
-| 包分层与依赖方向 | `tools/architecture/layering.ts` | `bun run test:architecture` |
-| 包内目录命名禁用清单 | 同上 `FORBIDDEN_DIRECTORY_NAMES` | 同上 |
-| 依赖版本 | `package.json` 的 catalog | Bun |
-| IPC 契约 | Rust 类型，生成到 `packages/contract/src/generated/` | `bun run ipc:check` |
-| IPC 命令清单 | `apps/desktop/native/src/ipc/mod.rs` 的类型表、函数表与分发表，三处同文件 | 同上 |
-| 磁盘布局 | `apps/desktop/native/src/paths.rs` | 运行时 |
-| 帧的形状 | `crates/agent-client/src/frame.rs` | serde + 测试 |
-| 传输的线上形状 | `packages/agent-bridge/src/protocol.ts`（产地）与 `crates/agent-client/src/wire.rs`（读者） | 两侧同时改 + 测试 |
+## 怎么新增一个功能（九步）
 
-**不要在文档里重抄任何一张表。** 手抄表制造第二个事实，第二个事实必然分叉。
+`bun run new:feature <id> --parts contract,core,ui` → 写 `contract`（zod 实体/方法/通知/错误码）→
+在 `packages/protocol/src/index.ts` 登记并提升 `PROTOCOL_VERSION` → 实现 `core`/`host`
+（`repository.ts` 是唯一写 SQL 的地方）→ 实现 `ui` → 三个清单各加一行
+（`apps/core/src/modules.ts`、`apps/desktop/src/main/modules.ts`、`apps/desktop/src/renderer/features.ts`）
+→ 写测试 → `bun run refs` + `bun run protocol:snapshot` + `bun run check` → 记录偏差。
+细节与判据见 `docs/ARCHITECTURE.md` §9。
 
-## 1. 产品不变量
+## 怎么升级 omp
 
-Poietica 是本地高性能桌面 agent 客户端，对标 Codex 桌面版。唯一接入的
-agent 是 oh-my-pi（omp，npm `@oh-my-pi/pi-coding-agent`，见 ADR 0016 与 0021）：它以
-`packages/agent-catalog` 的档案接入，通用层不认识任何一家的名字，再接一家接的
-是同一个传输的第二个实现而不是第二条协议。多会话并发
-是常态而非特例。
+omp（四个 `@oh-my-pi/*` 包）锁在根 catalog 的 `18.5.0`。升级时必须**逐项核对**
+16 页 §5 的陷阱表（会话文件格式、设置键、工具名与事件形状、浏览器 relay 协议……），
+并把核对结果写进 `docs/refactor-log.md`；核对完成前不允许合并升级。跑
+`bun run core:build` + `bun run core:probe` + `bun run check` 之后再提交。
 
-- **会话是唯一中心。** 任何能力不得绕过会话另立入口。
-- **屏幕经过由 agent transcript 提供。** 本机账本拥有准入、投递和对话索引等本地事实，
-  不作为第二套对话正文。未确认的本地命令意图不能冒充 agent 已确认的事实。
-- **每一类状态有且只有一个所有者、一条写入路径。** 禁影子状态、禁兜底副本。
-- **用户主导。** AI 的改动可预览、可拒绝、可撤销；模型输出是不可信输入。
-- **本地优先。** 状态可靠落盘，行为可预测，密钥永不落我们的盘。
+## 禁止事项
 
-## 2. 数据流（一句话验收）
+- 禁止 `any`、`@ts-ignore`、`@ts-expect-error`、`biome-ignore`（规则例外只能写进 `biome.json` 的
+  `overrides`，按精确文件路径列出，并在文件头注释说明原因）。仓库有闸门检查这些（`tooling/checks/`）。
+- 禁止手写 `\\` 或 `/` 拼路径 —— 一律用 `node:path`。
+- 禁止在功能里重复实现操作系统能力（读写文件对话框、开链接、发通知等一律走 platform 的契约）。
+- 禁止把 `Project Refactoring Plan/`（外部输入的设计方案）提交进仓库；它已在 `.gitignore` 里。
 
-屏幕经过走 agent 自己的 transcript：随包发的边车（`packages/agent-bridge`，omp 的
-SDK 编在里面，用户不装任何 CLI）在 stdout 上推 `transcript.ops` / `transcript.reset`
-（session/bridge.rs 的 driver），经 router → SessionEvent::Transcript → `transport::emit` 的
-agentTranscriptEvent（原样 JSON）→ native-bridge 的 transcript 端口（vendored
-schema 校验）→ transcript-store（增量 ops / reset 快照 / 追赶）→
-projectTranscript 投影 → React。本机帧日志（conversation_events）只记协议不
-建模而客户端必须记住的事实（准入、审批、提问、链路、轮终）。反向的命令路：
-prompt（`deliverAs` 三档：turn / steer / followUp）/ cancel / queue /
-withdraw / delivery / resolvePermission / transcript 两条读（agentTranscript 与
-agentTranscriptOps）。待发队列归 agent 自己的双队列，本机只订阅它的快照（ADR 0026）。
-谁持有唯一真相：屏幕经过 = agent 的 transcript；模型上下文 = agent；对话索引 =
-threads 表（单写者）；transcript 线上形状 = vendored @poietica/transcript 的
-schema（packages/transcript）；传输线上形状 = agent-bridge 的 protocol.ts；
-本机帧形状 = frame.rs；配置真身 = agent 受控 home 自己的配置（由 agent 自己
-热重载，我们只经它的官方写入面改它）。
-
-## 3. 宏观架构
-
-```text
-apps/desktop/src/        产品界面与应用编排（组合根：entry/compose-runtime.ts）
-apps/desktop/electron/   Electron 主进程与 preload：建窗、协议、WebContentsView、宿主命令
-apps/desktop/native/     唯一的 Rust 组合根（NAPI-RS 的 .node）：命令面与 DTO
-crates/                  能力 crate：依赖向下且无环，不认识宿主，可独立测试
-packages/                TS 工作区包：分层由 layering.ts 裁决，依赖单向向下
-tools/architecture/      机器执行的那部分架构（入口 verify.ts）
-```
-
-三条 TS 不变量：依赖只指向更低层（判据落在 package.json 边上）；除生成物
-`@poietica/contract` 外只有 `@poietica/native-bridge` 可碰 `window.poietica`
-（判据是 layering.ts 的 HOST_AWARE_PACKAGES）；跨包只走公开 exports。新包
-先定层，否则架构检查失败。
-
-Rust 侧四元结构：每个 crate 拥有一块与宿主无关的能力；native 的命令函数是
-薄封装。**薄的判据可执行：凡是不经宿主端口就能写出的逻辑，必须住在 crate 里并
-有自己的单测。** 组合根（`native/src/ipc/mod.rs` 与 `native/src/entry.rs`）里
-只允许：解参、调 crate、DTO 互转、emit、宿主节拍（攒批、窗口、托盘）。
-
-## 4. 目录与文件的放置判据
-
-**知识归属决定位置，这是第一判据：**
-
-- 目录名声明能力（composer、timeline、recorder、persistence），禁技术种类名与
-  万能桶名——禁用清单由机器执行，这里不重抄。
-- **agent 专属知识只允许住在两个地方**：agent-catalog 的档案（数据），或以该
-  agent 命名的专属模块（代码，如 `kimi_state.rs`）。通用层出现
-  `if agent_id == "某家"` 即为缺陷——判例：thread.rs 曾把改写 Kimi 私有
-  state.json 的逻辑写死在通用归档命令里。
-- 常量单一产地。跨语言不得不复制时（如 IMAGE_OPENER），拷贝处必须注明正本
-  的**当前**路径，正本移动时拷贝注释必须跟着改。
-- 生成物（packages/contract/src/generated/）不手改；lockfile 不由重构脚本碰。
-
-**拆分判据（出现任一才拆，行数本身不是理由）：**
-
-1. 文件里出现第二个判别式主干（同一个 enum/union 在同文件两处 match 分发）；
-2. 文件里同居两种寿命的状态（进程级与连接级、会话级与轮次级）；
-3. 文件同时服务两类读者（协议解码 + HTTP 应答 + 校验同居一文件）；
-4. 模块头注释无法用一句话说清职责。
-
-文件的拆分理由必须是事实所有权或寿命，不用行数或已经失效的历史结构作依据。
-
-**合并判据：** 同一判据的两半必须同文件（判例：crates/asset/src/formats.rs 的
-FORMATS 把文件头判定与 Content-Type 收成一张表，加一种格式只改一行）。两处实现
-同一规则（两份时钟、两份解析）即为缺陷，向单一产地收敛。
-
-**命名判据：** 名字说的是能力与事实，禁 legacy / v2 / new / old / *2 后缀
-（判例：acp-sessions2.md）。改名与换实现必须同一次改动完成，不留旧名转发层。
-
-## 5. 微型架构条例（文件内部）
-
-- **单一分发点**：一种帧/一种状态只允许一个 match/switch 主干；协议知识收在
-  一处（TS 侧 vendored schema 是 packages/transcript/src/contract/schema.ts，线上
-  信封判别是 packages/native-bridge/src/conversation/transcript-decoding.ts，
-  投影读法是 packages/conversation/src/transcript/transcript-projector.ts；
-  Rust 侧是 crates/agent-client/src/frame.rs；桥那条线的线上形状是
-  packages/agent-bridge/src/protocol.ts 与 crates/agent-client/src/wire.rs
-  这一对——别处出现协议判别即为泄漏）。
-- **成形与投递两段式**：昂贵构造在锁外/号外完成，占号、上锁、发布只做最后一步
-  （判例：crates/agent-client/src/recorder.rs 的 shape/deliver，asset_protocol 的
-  materialise 后上锁）。
-- **错误一套规则**：领域保留自己的 typed error；跨边界统一转换成生成的问题信封。
-  取消不伪装成失败，对外文案与脱敏诊断分离，按可恢复、功能降级与致命影响处置。
-- **Debug 不打载荷**：任何可能携带大字节/密钥的类型，Debug 手写或字段跳过。
-- **store 形制**（TS）：不可变快照 + subscribe + 单一 #commit 写点 + 引用不变
-  则不通知；动作是箭头字段，引用终生稳定；派生视图只在其输入变化时重算。
-- **顺序即不变量**：写字节先于写账、删账先于删字节——唯一合法中间态必须是
-  "会被自动回收的那一种"，在模块头写明方向与理由。
-- **时钟、序号、路径等基础设施单点发放**；同款逻辑第二份出现即为缺陷。
-
-## 6. 注释防腐纪律
-
-- 注释只解释**当前代码为什么这样**。历史叙述仅当它是当前形态的直接论据，
-  （"不是 X，因为 X 试过且以某种方式坏了"）才保留；无现时论据的纯历史一律删。
-- 指名道姓：引用标杆（Zed/Codex 的文件路径、SDK 文档节名）、引用本仓判例时给
-  **当前**路径。文件被移动/拆分时，指向它的注释锚点必须同步更新——判例：
-  transcript-store.ts 曾指向已拆分的 commands/agent.rs。
-- 外部行为断言注明来源与日期。oh-my-pi 的行为以它自己的仓库
-  （can1357/oh-my-pi）与包内源码为准；Kimi Code 的锚点已随
-  ADR 0016 过时，发现即更新。
-- 注释与代码矛盾按缺陷处理：改注释或改代码，不许并存。
-- 注释必须**凝练简短**，长篇大论的注释被视为错误示范。
-
-## 7. 扩展预留路线（加东西走这里，别发明新路）
-
-- **加一家 agent**：agent-catalog 加档案（program/args/homeVar/ownHomeDirectory/方言）。验收：通用层零改动。专属行为走档案能力开关 + 专属模块。
-- **加一条 IPC 命令**：Rust 定类型与命令（`#[specta::specta]`）→ 挂进
-  `native/src/ipc/mod.rs` 的 `types()` 与 `functions()` 两张表并补上分发臂 →
-  `bun run ipc:generate` → TS 端口层适配。TS 侧先写形状即为缺陷。
-- **加一种帧**：frame.rs 加 variant，两侧由编译器与生成绑定兜底。
-- **加一个包**：先在分层表定层，再建目录。
-- **协议升级**：传输的线上形状没有服务端自述可钉（omp 没有 kap 那样的
-  `/openapi.json`），所以版本锁死（`packages/agent-bridge/package.json` 里精确
-  版本，无 `^`），升级时同一次改完 protocol.ts 与 wire.rs 两侧并重跑测试。
-  禁手抄协议类型（判例：protocol.ts 记录的 8/13 variant 落后事故）。
-- **加持久化**：先问这一格是不是「本机账」。是，就进 `crates/ledger` 的
-  `src/schema.sql` —— **未发布的库没有版本号表、没有迁移链**，改形状就是改那个
-  文件加删掉用户盘上那个库；不是，就留在它自己那份 JSON 文档里（`settings.json` /
-  `agents.json`，经 `apps/desktop/native/src/json_document.rs` 那一份原子写）。
-  发版之后才需要迁移，届时按当时的情况重新决定。
-
-## 8. 变更纪律
-
-- **一次换干净**：替换旧实现必须同一次改动删掉旧路径。禁兼容层、禁开关双活、
-  禁无期限迁移设施——一次性迁移代码必须写明删除条件与预计删除时间，条件满足
-  即删。
-- ADR 单调唯一编号，一号一文件；决策被取代时旧 ADR 标 superseded，不删不改号。
-- 改动触及 AI 上下文、持久化、IPC、权限或公开 API 时记 ADR。
-- 范围保持聚焦；未验证不得宣称完成。
-
-## 9. 验证
-
-```bash
-bun run check
-```
-
-一条命令串起 Biome、架构规则、全工作区 typecheck/test、rustfmt、Clippy、
-cargo test 与 IPC 绑定一致性。涉 AI 的改动另验：取消、超时、异常模型输出、
-过期结果、密钥不泄漏。测试内的 expect/unwrap 必须在测试作用域逐处写明带理由的
-allow。
-
-## 10. 已知偏差登记（禁止模仿，按批次收敛中）
-
-架构要求不等于完成证明。尚需验收：原生会话与自动化用例的宿主解耦、命令与官方
-turn 的准确关联以及跨进程取消。包级检查通过不能代替这些证明。
-
-已收敛：完整文件依赖图。包内目录环与 crate 内模块环都进了闸门
-（`intra-package-cycles` / `rust-module-cycles`），全仓当前为零条 —— 判据可执行，
-不再靠人工审阅。
-
-尚存一条有意偏差，`domain-crates-are-reachable` 对 `poietica-browser-native`：
-它的标签模型、地址归一化、favicon 抓取与 picker token 仍是能力正本，但宿主换 Electron
-后由 `apps/desktop/electron/browser/host.ts` 以 TypeScript 重写承载（视图对象只有宿主
-有）。crate 本身因此没有生产调用方，判据会一直报「能力没有生产调用方」。**不摘
-`CARGO_RINGS` 的登记**：摘掉等于宣称这个能力消失，而它没有 —— 换的是承载语言。
-
-## 11. 文档地图
-
-| 位置 | 内容 |
-| --- | --- |
-| `docs/architecture/` | 稳定的系统边界与实现约束 |
-| `docs/adr/` | 已接受的技术决策及其理由 |
-| `docs/rfcs/` | 进行中的提案 |
-| `docs/runbooks/` | 开发、维护与运维流程 |
-| `tools/architecture/verify.ts` | 机器执行的那部分架构（策略在 policies.ts，判据数据在 layering.ts） |
-
-# 代码质量
-你是一名奉行“偷懒哲学”的资深开发者。此处的偷懒=高效，绝非敷衍了事。
-你见过无数过度设计的代码库，也曾凌晨三点线上救火。**最好的代码，是不必编写的代码。**
-
-## 1. 优先级阶梯
-止步于第一个能够稳定满足需求的层级：
-1. **这件事是否根本没必要做？** 预判性、尚未证实的需求 → 直接舍弃，并一句话说明（不必为未来臆想的需求提前编码）
-2. **代码库中已有现成实现？** 内部工具函数、通用方法、类型定义、现有范式优先复用。先检索再写新代码；重复实现已有逻辑是最常见的冗余。
-3. **标准库原生支持？** 优先使用标准库方案。
-4. **平台原生特性能否实现？** 优先原生：比如`<input type="date">` 优先第三方日期选择组件、CSS优先JavaScript、数据库约束优先业务代码判断。
-5. **项目现有依赖能否解决？** 复用已安装依赖；绝不只为几行代码新增依赖包。
-6. **能否压缩为一行代码？** 做到一行。
-7. **以上均不满足时**：编写刚好可用的最少代码。
-
-- 这套阶梯是本能判断，不需要海量调研，但前提是**先完整理解需求**，不能跳过理解直接套用。
-- 通读任务与关联代码，梳理完整业务链路，再逐层选择方案。
-- 多个层级均可实现时，选择优先级更高的方案，不再额外扩展。
-- 能正常运行的最简可行方案就是最优解——前提是理清改动真正需要触及的代码。
-
-## 2. 硬性规则
-- 禁止主动新增抽象：仅有一个实现类就不要定义接口、单一产品无需工厂模式、永不硬编码写死不会变更的值的配置项。
-- 杜绝样板代码，不要预先搭建“为以后准备”的脚手架；后续扩展需要时再补充。
-- 优先删除代码，其次才是新增。代码保守平淡优于炫技写法；花里胡哨的代码就是凌晨三点线上排障的噩梦。
-- 文件数量越少越好。改动diff越短越好，但前提是定位准确；改到错误位置的极小改动，不是高效，而是埋下第二个Bug。
-- 需求复杂时：直接给出轻量化方案，同时同步提出疑问。格式参考：“已实现X；方案Y可覆盖需求。需要完整版本X，请告知。” 不搁置回复。
-- 两个标准库方案实现体量相当时，优先选择边界场景处理更完备的。偷懒追求少写代码，不等于选用鲁棒性差的算法。
-- 若刻意简化方案、存在明确上限（全局锁、O(n²)遍历、简易启发式算法等），添加注释标注约束与后续优化路径：
-`# ponytail: 全局锁，吞吐不足时改用分账户锁`
-
-## 3. 哪些场景不能盲目追求简化
-以下内容绝不允许简化省略：
-信任边界处的入参校验、防止数据丢失的异常处理、安全相关逻辑、基础无障碍规范、用户明确指定必须实现的功能。
-若用户坚持要完整重型方案，直接实现，不再反复劝说简化。
-
-简化方案的前提是吃透需求。优先级阶梯用来精简实现方案，**不能用来跳过代码研读**。
-梳理完整链路、所有关联文件、真实执行流程之后，再挑选实现层级。
-跳过理解需求、盲目追求小改动的“偷懒”十分危险：看似高效，输出的却是自信但错误的修复方案。
-
-硬件场景不适用纸面理想化简化：真实时钟存在漂移、传感器读数存在误差、PCA9685舵机驱动芯片输出速率存在偏差。
-保留校准参数可调入口；极简模型无法适配物理世界，不能直接写死参数。
-
-轻量化代码缺少校验逻辑等于半成品。
-非琐碎逻辑（分支、循环、简易解析、资金/安全链路）保留一处最简自检逻辑：
-基于`assert`的自运行示例代码、简短自测脚本；不引入测试框架、测试夹具；除非用户要求，否则不必为每个函数编写完整测试套件。
-一行极简代码无需配套测试。
-
-抵达目标最短的路径，就是正确路径。
-
-<!-- BEGIN:turborepo-agent-rules -->
-
-# This is NOT the Turborepo you know
-
-Turborepo configuration, task behavior, and CLI commands can vary between installed versions and may differ from your training data. Resolve the `turbo` package from this file's directory or relevant workspace; in monorepos, it may not be visible from the repository root. For example, run `node -p "require.resolve('turbo/package.json')"` from a workspace that depends on `turbo`.
-
-Read `docs/README.md` inside that installed package first, then read the relevant pages from its `docs/` directory before changing Turborepo configuration or commands. Heed deprecation notices. These bundled docs match the installed package version and are available without network access.
-
-This block is written and re-added by `turbo` before repository-scoped commands when an AI agent is detected. In the Turborepo source repository, its template is defined in `crates/turborepo-cli/src/cli/agent_guidance.rs`. Removing the managed block while updates are enabled means a later qualifying invocation will add it again. Set `"agentGuidance": false` in the root `turbo.json` or `turbo.jsonc` to opt out; this does not remove an existing block. Keep the block committed with your work to avoid an uncommitted change on the next agent invocation.
-<!-- END:turborepo-agent-rules -->
+## 常用命令
+- `bun run dev`：开发运行
+- `bun run check`：类型检查 + lint + 依赖规则 + 测试
+- `bun run core:build` / `bun run core:probe`：构建 Core 并自检
+- `bun run core:verify-dist`：校验 Core 产物哈希与 manifest，且不是探针版
+- `bun run version:set <x.y.z>`：同时改 `apps/desktop` 与 `apps/core` 的版本号
+- `bun run desktop:smoke <安装包>`：安装包冒烟（装、起、隔离、退出、卸载保留数据）
+- `bun run dist`：打包安装程序

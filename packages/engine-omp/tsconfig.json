@@ -1,0 +1,24 @@
+{
+  "extends": "../../tooling/tsconfig/bun.json",
+  "include": ["src"],
+  "references": [
+    {
+      "path": "../engine"
+    },
+    {
+      "path": "../engine-testkit"
+    },
+    {
+      "path": "../foundation"
+    },
+    {
+      "path": "../fs-kit"
+    },
+    {
+      "path": "../runtime-layout"
+    },
+    {
+      "path": "../transcript"
+    }
+  ]
+}

@@ -1,0 +1,31 @@
+{
+  "name": "@poietica/feature-browser",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    "./contract": "./src/contract/index.ts",
+    "./host": "./src/host/index.ts",
+    "./ui": "./src/ui/index.tsx"
+  },
+  "dependencies": {
+    "@poietica/contract-kit": "workspace:*",
+    "@poietica/design-system": "workspace:*",
+    "@poietica/feature-attachments": "workspace:*",
+    "@poietica/feature-conversation": "workspace:*",
+    "@poietica/foundation": "workspace:*",
+    "@poietica/host-kernel": "workspace:*",
+    "@poietica/ui-kernel": "workspace:*",
+    "lucide-react": "catalog:",
+    "react": "catalog:",
+    "zod": "catalog:"
+  },
+  "devDependencies": {
+    "@poietica/test-kit": "workspace:*",
+    "@testing-library/react": "catalog:",
+    "@types/bun": "catalog:",
+    "@types/node": "catalog:",
+    "@types/react": "catalog:",
+    "electron": "catalog:"
+  }
+}

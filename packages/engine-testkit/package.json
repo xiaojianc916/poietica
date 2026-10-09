@@ -1,0 +1,18 @@
+{
+  "name": "@poietica/engine-testkit",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "dependencies": {
+    "@poietica/engine": "workspace:*",
+    "@poietica/foundation": "workspace:*",
+    "@poietica/transcript": "workspace:*",
+    "zod": "catalog:"
+  },
+  "devDependencies": {
+    "@types/bun": "catalog:"
+  }
+}

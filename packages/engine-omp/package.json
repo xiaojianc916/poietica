@@ -1,0 +1,28 @@
+{
+  "name": "@poietica/engine-omp",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./bootstrap": "./src/bootstrap/index.ts",
+    "./testing": "./src/testing/index.ts"
+  },
+  "dependencies": {
+    "@oh-my-pi/pi-ai": "catalog:",
+    "@oh-my-pi/pi-coding-agent": "catalog:",
+    "@oh-my-pi/pi-tui": "catalog:",
+    "@oh-my-pi/pi-utils": "catalog:",
+    "@poietica/engine": "workspace:*",
+    "@poietica/engine-testkit": "workspace:*",
+    "@poietica/foundation": "workspace:*",
+    "@poietica/fs-kit": "workspace:*",
+    "@poietica/logging": "workspace:*",
+    "@poietica/runtime-layout": "workspace:*",
+    "@poietica/transcript": "workspace:*",
+    "zod": "catalog:"
+  },
+  "devDependencies": {
+    "@types/bun": "catalog:"
+  }
+}

@@ -1,0 +1,13 @@
+export type RunStatus =
+  | 'idle'
+  | 'submitted'
+  | 'running'
+  | 'cancelling'
+  | 'awaiting_permission'
+  | 'awaiting_plan'
+  | 'awaiting_question'
+  | 'completed'
+  | 'cancelled'
+  | 'failed'
+export type QuestionOutcome = 'answered' | 'dismissed' | 'cancelled' | 'undelivered'
+export type ChatStatus = 'ready' | 'submitted' | 'streaming' | 'queued' | 'cancelling' | 'interrupted' | 'error'

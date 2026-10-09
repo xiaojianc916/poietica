@@ -1,0 +1,68 @@
+import { integrationMarkFor } from '@poietica/design-system'
+import { useState } from 'react'
+
+/*
+ * 插件 / MCP 服务器的那枚字形。**迁移自** legacy `packages/extension/src/ui/plugin-glyph.tsx`：
+ * DOM 与类名一字未改，认得出的条目用集成标记，认不出的与坏掉的资源退回彩色首字母。
+ */
+
+function pluginHue(id: string): number {
+  let hash = 7
+
+  for (const character of id) {
+    hash = (hash * 31 + (character.codePointAt(0) ?? 0)) % 360
+  }
+
+  return hash
+}
+
+function initialsOf(displayName: string): string {
+  const words = displayName.split(/[\s_-]+/u).filter((word) => word !== '')
+
+  const initials = words
+    .slice(0, 2)
+    .map((word) => [...word][0] ?? '')
+    .join('')
+    .toUpperCase()
+
+  return initials === '' ? '?' : initials
+}
+
+export interface PluginGlyphProps {
+  readonly displayName: string
+  readonly id: string
+}
+
+export function PluginGlyph({ displayName, id }: PluginGlyphProps) {
+  const [failedSource, setFailedSource] = useState<string | undefined>()
+  const icon = integrationMarkFor(id, displayName)
+  const renderedIcon = icon !== undefined && icon.src !== failedSource ? icon : undefined
+
+  const hue = pluginHue(id)
+  const backgroundColor = renderedIcon?.background ?? `oklch(0.94 0.045 ${hue})`
+  const foregroundColor = `oklch(0.46 0.13 ${hue})`
+
+  return (
+    <span
+      aria-hidden="true"
+      className="flex shrink-0 select-none items-center justify-center overflow-hidden font-semibold size-10 rounded-[10px] text-xs"
+      style={{
+        backgroundColor,
+        color: foregroundColor,
+      }}
+    >
+      {renderedIcon === undefined ? (
+        initialsOf(displayName)
+      ) : (
+        <img
+          alt=""
+          className="pointer-events-none object-contain size-6"
+          decoding="async"
+          draggable={false}
+          onError={() => setFailedSource(renderedIcon.src)}
+          src={renderedIcon.src}
+        />
+      )}
+    </span>
+  )
+}

@@ -1,0 +1,27 @@
+{
+  "extends": "../../tooling/tsconfig/bun.json",
+  "include": ["src"],
+  "references": [
+    {
+      "path": "../contract-kit"
+    },
+    {
+      "path": "../engine"
+    },
+    {
+      "path": "../foundation"
+    },
+    {
+      "path": "../rpc"
+    },
+    {
+      "path": "../runtime-layout"
+    },
+    {
+      "path": "../storage-sqlite"
+    },
+    {
+      "path": "../test-kit"
+    }
+  ]
+}

@@ -1,0 +1,35 @@
+{
+  "name": "@poietica/feature-review",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    "./contract": "./src/contract/index.ts",
+    "./core": "./src/core/index.ts",
+    "./ui": "./src/ui/index.tsx"
+  },
+  "dependencies": {
+    "@poietica/contract-kit": "workspace:*",
+    "@poietica/core-kernel": "workspace:*",
+    "@poietica/design-system": "workspace:*",
+    "@poietica/feature-conversation": "workspace:*",
+    "@poietica/feature-workspaces": "workspace:*",
+    "@poietica/foundation": "workspace:*",
+    "@poietica/git": "workspace:*",
+    "@poietica/rpc": "workspace:*",
+    "@poietica/ui-kernel": "workspace:*",
+    "@tanstack/react-virtual": "catalog:",
+    "diff": "catalog:",
+    "lucide-react": "catalog:",
+    "shiki": "catalog:",
+    "react": "catalog:",
+    "zod": "catalog:",
+    "zustand": "catalog:"
+  },
+  "devDependencies": {
+    "@poietica/test-kit": "workspace:*",
+    "@testing-library/react": "catalog:",
+    "@types/bun": "catalog:",
+    "@types/react": "catalog:"
+  }
+}

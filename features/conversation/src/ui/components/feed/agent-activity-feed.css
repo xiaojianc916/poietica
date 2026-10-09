@@ -1,0 +1,182 @@
+/*
+ * 会话态的滚动区,一枚回到末端的按钮,外加一层不随滚动移动的浮层。这一层只有这三样。
+ */
+.agent-activity-feed {
+  position: relative;
+  display: flex;
+  min-block-size: 0;
+  min-inline-size: 0;
+  flex: 1;
+  flex-direction: column;
+}
+
+/*
+ * 唯一会溢出的盒子。
+ *
+ * position: relative 不是为了层叠,是为了让它成为转录的 offsetParent ——
+ * 虚拟器需要的那段偏移因此是一次 offsetTop,不必用两次 getBoundingClientRect
+ * 再减去 scrollTop 去凑。
+ *
+ * overflow-anchor 显式关闭:这个盒子的滚动位置有两个写入者 —— 虚拟器补偿视口上方的
+ * 估高误差,scroll-authority 按意图拨末端。浏览器原生的滚动锚定是第三个,而它不知道另外两个的
+ * 存在:同一次尺寸变化被补两次,叠加出来就是那一下跳变。
+ *
+ */
+.agent-activity-feed__viewport {
+  position: relative;
+  display: flex;
+  min-block-size: 0;
+  min-inline-size: 0;
+  flex: 1 1 auto;
+  flex-direction: column;
+  /*
+   * 只在纵向滚。横向留 visible 会被 CSS Overflow 3 提升成 auto,这个盒子于是悄悄
+   * 变成横向滚动容器 —— 而 contain: paint 已经把超出的部分裁掉,那条横条能滚出来的
+   * 只有空白。宽内容(表格、代码、公式)各自在块内滚。
+   */
+  overflow: clip auto;
+  overflow-anchor: none;
+  /*
+   * 滚动位置是代码写的,所以平滑滚动在这里不是一个体验选项。
+   *
+    * scroll-behavior: smooth 会把 scrollTop 的赋值变成一段动画,而 scroll-authority 每次
+   * 提交都要拨一次 —— 动画会把每一帧的新目标都当成新起点,于是永远追不上。这一句把这条
+   * 约束写在盒子上,而不是留给下一个人换主题时踩。
+   */
+  /*
+   * 必须留在 auto。
+   *
+   * scrollTop 的 setter 用的是这里的计算值,而末端跟随每次提交都写一次它 —— 改成 smooth,
+   * 那一路会变成动画,跟「人亲手要求回到末端」那一段位移当场互掐。要动画的那一次自己在
+   * scrollTo 里点名 smooth,那是逐次的声明,不是整个盒子的默认。
+   */
+  scroll-behavior: auto;
+  overscroll-behavior: contain;
+  contain: layout paint;
+  padding-block-start: var(--cp-gutter);
+  --assistant-feed-inline-padding: max(
+    var(--cp-gutter),
+    calc((100% - var(--assistant-surface-inline-end-clearance, 0px) - var(--cp-grid)) / 2)
+  );
+  padding-inline-start: var(--assistant-feed-inline-padding);
+  padding-inline-end: calc(var(--assistant-feed-inline-padding) + var(--assistant-surface-inline-end-clearance, 0px));
+  /*
+   * 给条留一条恒定的沟。
+   *
+   * 条是常驻的，所以这一句此刻不改变任何一帧；它防的是将来某个人把它改回
+   * 自动隐藏 —— 那一刻内容宽度会随条的出现与消失横向跳动，而这正是当初
+   * 自绘浮层的理由。官方给了这条沟，就不该再手搓一层去绕开它。
+   */
+  scrollbar-gutter: stable;
+}
+
+/* 转录之前那一块。不参与伸缩:高度就是内容,偏移由 scrollMargin 读回。 */
+.agent-activity-feed__lead {
+  flex: none;
+}
+
+/*
+ * 虚拟转录。
+ *
+ * 高度由虚拟器给出,是行内样式;这里只声明它不参与 flex 的伸缩,否则高度会有
+ * 第二个来源,而两个来源必然对不上。
+ */
+.agent-activity-feed__transcript {
+  position: relative;
+  inline-size: 100%;
+  flex: none;
+}
+
+/*
+ * 一行。位置由虚拟器给出,尺寸由自身内容决定并被 measureElement 读回。
+ *
+ * contain 只取 style。
+ *
+ * size 会让盒子不再按内容定高,measureElement 读回的就是零,虚拟器永远只知道
+ * 估值 —— 这半句原本就写在这里,是对的。
+ *
+ * layout 不阻断高度上报:布局containment 只隔离内部布局,元素本身照样按内容
+ * 定高。不取它的真实理由是另一个 —— 它会把每一行变成绝对定位后代的包含块并
+ * 新开层叠上下文,行内的浮层、工具提示、代码块的悬浮按钮都会因此换锚点。
+ * 理由写错会让下一个人以为"加上就崩",从而错过一个本来可以评估的选项。
+ */
+/*
+ * 行由虚拟器定位。
+ *
+ * 绝对定位不是「每行一个 transform」的配套负担，它就是官方 Chat 指南给的形状：
+ * 行不参与文档流，位置只有一个来源。走文档流看起来更省，代价是除首行外每一行的
+ * 位置改由前面各行的真实高度决定 —— 那是第二个来源，而它和虚拟器的表在流式输出
+ * 期间永远差着一次异步测量。
+ *
+ * 静态位置就是转录框的上内容边，所有行因此从同一个原点起算，位移全部交给 transform。
+ */
+.agent-activity-feed__row {
+  position: absolute;
+  inset-block-start: 0;
+  inset-inline: 0;
+  contain: style;
+  padding-block: var(--cp-feed-prose-row-gap);
+}
+
+/*
+ * 行距是每行自己的上下内边距，不是容器的 gap：行绝对定位、高度由 measureElement 量回，
+ * 而虚拟窗口只挂载看得见的那几行 —— 容器 gap 与相邻兄弟选择器都无从成立。
+ *
+ * 于是一行只出自己那半格，两行之间的距离是两半之和：三种距离由两个令牌解出。这一层不
+ * 认识条目类型，节奏由转录那一侧按下标给（rowRhythm）。
+ */
+.agent-activity-feed__row[data-rhythm="glyph"] {
+  padding-block: var(--cp-feed-glyph-row-gap);
+}
+
+/*
+ * 回到最新。
+ *
+ * 它不在滚动区里 —— 一枚把视口带回末端的控件不该跟着视口一起走。居中不用 transform:
+ * inset-inline: 0 加 margin-inline: auto 是不动变换的居中写法,而变换要留给下面那段进出。
+ *
+ * 落点在带子之上、溶解带之外:压进渐变里它自己会是淡的,而它是一个控件,不是内容。
+ *
+ * 圆形白面加一圈发丝边,没有阴影:它按设计给的定稿走,不从别的浮层借高度。
+ */
+.agent-activity-feed__to-latest {
+  position: absolute;
+  inset-block-end: calc(var(--cp-dock-clearance) + var(--cp-dock-dissolve));
+  inset-inline-start: 0;
+  inset-inline-end: var(--assistant-surface-inline-end-clearance, 0px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  inline-size: var(--cp-control);
+  block-size: var(--cp-control);
+  margin-inline: auto;
+  appearance: none;
+  border: var(--cp-px) solid var(--cp-to-latest-edge);
+  border-radius: 50%;
+  background: var(--cp-surface);
+  color: var(--cp-ink);
+  cursor: pointer;
+  opacity: 0;
+  transform: translateY(var(--cp-motion-rise));
+  transition:
+    opacity var(--cp-motion-swift) var(--cp-motion-ease),
+    transform var(--cp-motion-swift) var(--cp-motion-ease),
+    background-color var(--cp-motion-swift) var(--cp-motion-ease);
+}
+
+.agent-activity-feed__to-latest[data-shown="true"] {
+  opacity: 1;
+  transform: none;
+}
+
+.agent-activity-feed__to-latest:hover {
+  background: var(--cp-overlay-hover);
+}
+
+/* 焦点圈不自己画:没有 outline: none,浏览器的 :focus-visible 因此照常生效。 */
+
+@media (prefers-reduced-motion: reduce) {
+  .agent-activity-feed__to-latest {
+    transition: none;
+  }
+}

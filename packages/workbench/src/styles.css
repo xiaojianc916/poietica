@@ -1,0 +1,303 @@
+/*
+ * 外壳的样式入口。@import 必须在最前（CSS 规定，biome 也会报位置）。
+ *   - sidebar.css：侧栏与导航行（迁移自 legacy sidebar-rows.css）
+ *   - auxiliary.css：辅助面板取色（迁移自 legacy auxiliary-panel.css）
+ *   - parts.css：各贡献点区域的排版（标题栏、横幅、命令面板、状态栏、浮层…）
+ *   - settings-layout.css：设置界面（迁移自 legacy settings-surface.css）
+ */
+@import "./sidebar.css";
+@import "./auxiliary.css";
+@import "./parts.css";
+@import "./settings-nav.css";
+
+/*
+ * 应用外壳的栅格。
+ *
+ * **迁移自** legacy `apps/desktop/src/shell/layout/workspace-shell.css`（13 页 §5 的
+ * 「迁移来源」）。栅格形状、类名、留缝与圆角的画法一字未改，只把两处数据来源换掉：
+ *   - 列宽从 legacy 的 workspace-layout store 换成 ui-kernel 的 LayoutService；
+ *   - 区域的**内容**从 legacy 的插槽换成贡献点（functional 的部分留给 P4–P6）。
+ *
+ * 栅格的唯一真相是命名区域与列宽：区域组件只声明占哪一格，列宽由 WorkspaceFrame
+ * 写成内联自定义属性。注册成 <length> 才能被 CSS 过渡插值。
+ */
+@property --workspace-sidebar-column-width {
+  syntax: "<length>";
+  inherits: true;
+  initial-value: 0px;
+}
+
+@property --workspace-auxiliary-column-width {
+  syntax: "<length>";
+  inherits: true;
+  initial-value: 0px;
+}
+
+/*
+ * 外壳家具不可选：页头与侧栏是控件。判据是「这是哪一格」不是底色 —— 按底色判会把
+ * 主区也一起关掉划选，而主区装的是文档。
+ */
+.workspace-shell__chrome,
+.workspace-shell__sidebar {
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+.workspace-shell {
+  grid-template-columns:
+    var(--workspace-sidebar-column-width)
+    minmax(0, 1fr)
+    var(--workspace-auxiliary-column-width);
+  /*
+   * 两行：页头 / 三列主体。主体那一行 minmax(0, 1fr) 收下全部剩余高度，因此永不溢出
+   * —— 与 legacy 的栅格同形（legacy 也只有这两行，本设计不设状态栏）。
+   *
+   * 这里原先多一行 `banners`。它已按产品负责人 2026-10-06 的要求删除：横幅一律是
+   * design-system 通用 Banner 的 portal 浮层，不占栅格；那条空行退出时会闪出一条没有
+   * 字的 `--ui-accent` 色块（见 parts/overlays.tsx）。
+   */
+  grid-template-rows: var(--chrome-height) minmax(0, 1fr);
+  grid-template-areas:
+    "chrome chrome chrome"
+    "sidebar main auxiliary";
+  transition:
+    --workspace-sidebar-column-width var(--workspace-layout-duration) var(--workspace-layout-ease),
+    --workspace-auxiliary-column-width var(--workspace-layout-duration) var(--workspace-layout-ease);
+}
+
+/* 拖拽中不插值：宽度每帧都在变，补间只会让列追不上指针。 */
+.workspace-shell[data-splitter="drag"] {
+  transition: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .workspace-shell {
+    transition: none;
+  }
+}
+
+/*
+ * 会话控件是栅格家具：辅助开关贴窗口右边、任务开关贴主区右边，开合只移边界，DOM 不搬家。
+ * 右边距 = 留白 + 圆角半径，按钮右缘正落在圆角竖切点上、不压弧（贴窗口边写 12px 会只剩
+ * 4px、压在弧上）。
+ *
+ * **迁移自** legacy workspace-shell.css 的 .workspace-shell__conversation-control /
+ * .workspace-shell__todo-control / .workspace-shell__auxiliary-toggle，只把两枚控件各自的
+ * 后缀类名换成包装层的 data-slot（控件的定位由外壳负责，组件不再自带定位类）。
+ */
+.workspace-shell__conversation-control {
+  z-index: 3;
+  display: flex;
+  grid-row: 2;
+  align-self: start;
+  justify-self: end;
+  margin-block-start: 0.5rem;
+  margin-inline-end: calc(var(--workspace-card-gap) + var(--workspace-card-radius));
+}
+
+/* 任务开关钉在主区（第 2 列），右栏开着时它就在主区右缘、不进右栏。 */
+.workspace-shell__conversation-control[data-slot="main"] {
+  grid-column: 2;
+  transition: margin-inline-end var(--workspace-layout-duration) var(--workspace-layout-ease);
+}
+
+/* 辅助面板收起时让开右栏开关：再退它一个控件宽。 */
+.workspace-shell[data-auxiliary-docked="false"] .workspace-shell__conversation-control[data-slot="main"] {
+  margin-inline-end: calc(var(--workspace-card-gap) + var(--workspace-card-radius) + var(--workspace-card-control));
+}
+
+/* 辅助开关横跨三列贴窗口右缘。 */
+.workspace-shell__conversation-control[data-slot="window"] {
+  grid-column: 1 / -1;
+}
+
+/* 全屏占满主列 + 右栏，浮在面板上的会话开关一起让位。 */
+.workspace-shell[data-auxiliary-fullscreen="true"] .workspace-shell__conversation-control {
+  display: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .workspace-shell__conversation-control[data-slot="main"] {
+    transition: none;
+  }
+}
+
+/*
+ * 区域分隔线：格位即列边界，没有第二份坐标。常态不画线，唯一画者是交互态的抓手
+ * （::after）。强调态读根节点的 data-splitter 不读 :hover —— 拖拽经 setPointerCapture，
+ * 捕获期间的 hover 记在捕获元素上。
+ */
+.workspace-shell__divider {
+  --workspace-divider-hover-delay: 50ms;
+
+  position: relative;
+  z-index: 2;
+  /*
+   * 第 2 行 = 主体那一行（栅格只有「页头 / 主体」两行）。这里写行号而不是命名区域，
+   * 因为这条线不在任何一格**里**：它骑在列边界上，格位就是坐标。
+   *
+   * 行号曾随旧的三行栅格写 3 —— 删掉横幅行之后 line 3 就是末线，起点与终点同为 3，
+   * 跨度归零，分隔线整条消失。两行制下主体是第 2 行。
+   */
+  grid-area: 2 / 1 / -1 / 2;
+  justify-self: end;
+  inline-size: 0;
+  pointer-events: none;
+  transition: opacity var(--workspace-layout-duration) ease;
+}
+
+/*
+ * 抓手：交互态出现在列边界上的唯一墨迹，尺寸自持 —— 1.5px 骑在边界两侧各 0.75px，
+ * 上下各收 6% 不顶满整窗高，两端渐隐。
+ */
+.workspace-shell__divider::after {
+  --workspace-divider-grip: color-mix(
+    in oklab,
+    var(--color-foreground) 22%,
+    var(--workspace-divider-line, var(--color-divider))
+  );
+
+  content: "";
+  position: absolute;
+  inset-block: 6%;
+  inset-inline-start: calc(-0.75 * var(--ui-region-divider-width));
+  inline-size: calc(var(--ui-region-divider-width) * 1.5);
+  background: linear-gradient(to bottom, transparent, var(--workspace-divider-grip), transparent);
+  opacity: 0;
+  transition: opacity var(--workspace-layout-duration) ease;
+}
+
+/* 浏览器侧同一根家具，画在主列末像素。 */
+.workspace-shell__divider--auxiliary {
+  /* 与上面那条同理：主体是第 2 行，主列末像素（第 2 列右缘）。 */
+  grid-area: 2 / 2 / -1 / 3;
+  margin-inline-end: calc(var(--workspace-card-gap) / 2);
+}
+
+:root:not([data-theme="dark"]) .workspace-shell__divider--auxiliary {
+  --workspace-divider-line: var(--ui-card-divider);
+}
+
+:root:not([data-theme="dark"]) .workspace-shell__divider--auxiliary::after {
+  --workspace-divider-grip: color-mix(in oklab, var(--color-foreground) 14%, var(--workspace-divider-line));
+}
+
+/* :not 隔离两侧开关；辅助面板全屏时主列消失，其末像素上的分隔线也须隐藏。 */
+.workspace-shell[data-sidebar-docked="false"] .workspace-shell__divider:not(.workspace-shell__divider--auxiliary),
+.workspace-shell[data-auxiliary-docked="false"] .workspace-shell__divider--auxiliary,
+.workspace-shell[data-auxiliary-fullscreen="true"] .workspace-shell__divider--auxiliary {
+  opacity: 0;
+}
+
+/* 悬停要够 50ms 才浮现，擦边划过不闪。 */
+.workspace-shell[data-splitter="hover"][data-splitter-region="sidebar"]
+.workspace-shell__divider:not(.workspace-shell__divider--auxiliary)::after,
+.workspace-shell[data-splitter="hover"][data-splitter-region="auxiliary"] .workspace-shell__divider--auxiliary::after {
+  opacity: 1;
+  transition-delay: var(--workspace-divider-hover-delay);
+}
+
+/* 拖拽中立刻浮现。 */
+.workspace-shell[data-splitter="drag"][data-splitter-region="sidebar"]
+.workspace-shell__divider:not(.workspace-shell__divider--auxiliary)::after,
+.workspace-shell[data-splitter="drag"][data-splitter-region="auxiliary"] .workspace-shell__divider--auxiliary::after {
+  opacity: 1;
+}
+
+/* 键盘焦点：不留延迟。 */
+.workspace-shell:has(.workspace-region-splitter[data-edge="inline-start"]:focus-visible)
+.workspace-shell__divider:not(.workspace-shell__divider--auxiliary)::after,
+.workspace-shell:has(.workspace-region-splitter[data-edge="inline-end"]:focus-visible)
+  .workspace-shell__divider--auxiliary::after {
+  opacity: 1;
+}
+
+/* chrome 行不画横线：顶栏、侧栏与主区在圆角外连成一片。 */
+.workspace-shell__chrome {
+  grid-area: chrome;
+}
+
+/*
+ * 收起 = 内容被自己那一列裁掉（裁剪只改绘制，子树不重排不卸载）。内容 flex: none
+ * 定宽，列变窄时被裁掉的是远离主区的一端，方向由裁剪层 justify-content 定。
+ */
+.workspace-shell__region {
+  position: relative;
+  min-inline-size: 0;
+  min-block-size: 0;
+}
+
+.workspace-shell__region-clip {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  overflow: clip;
+}
+
+.workspace-shell__region-content {
+  flex: none;
+  min-block-size: 0;
+  overflow: hidden;
+}
+
+.workspace-shell__sidebar {
+  grid-area: sidebar;
+}
+
+.workspace-shell__main {
+  position: relative;
+  grid-area: main;
+  /* 不贴右、下两边：这一圈与圆角缺口同色，面板读成浮在 chrome 地色上的卡片。 */
+  padding-block-end: var(--workspace-card-gap);
+  padding-inline-end: var(--workspace-card-gap);
+}
+
+/*
+ * 主格就是那张卡片：栅格里只有侧栏 / 主区 / 辅助列三列，主区自己不再切上下两格
+ * （**与 legacy 同形** —— legacy 的栅格也只有 chrome 与主体两行，从来没有底坞）。
+ * display:flex + flex-direction:column 保留，主面板仍是它唯一的孩子。
+ */
+.workspace-shell__main {
+  display: flex;
+  flex-direction: column;
+}
+
+/* 侧栏收起时补左缝：主区贴窗口左缘，不留就三面有缝。 */
+.workspace-shell[data-sidebar-docked="false"] .workspace-shell__main {
+  padding-inline-start: var(--workspace-card-gap);
+}
+
+/* 面板圆角：地色铺在格位上、面板只管圆角与页面底色，缺一不可。 */
+.workspace-shell__main-panel {
+  border-radius: var(--workspace-card-radius);
+}
+
+.workspace-shell__auxiliary {
+  grid-area: auxiliary;
+}
+
+.workspace-shell__auxiliary .workspace-shell__region-clip {
+  justify-content: flex-end;
+}
+
+/* 留白写内容的 margin：padding 推不动溢出。 */
+.workspace-shell__auxiliary-content {
+  margin-block-end: var(--workspace-card-gap);
+  margin-inline-end: var(--workspace-card-gap);
+  border-radius: var(--workspace-card-radius);
+}
+
+/* 全屏：内容铺满，让出右缘留白。 */
+.workspace-shell[data-auxiliary-fullscreen="true"] .workspace-shell__auxiliary-content {
+  max-inline-size: calc(100% - var(--workspace-card-gap));
+}
+
+.workspace-shell[data-auxiliary-fullscreen="true"][data-sidebar-docked="false"] .workspace-shell__auxiliary-content {
+  max-inline-size: calc(100% - 2 * var(--workspace-card-gap));
+  margin-inline-start: var(--workspace-card-gap);
+}
+
+/* 全屏时隐藏残留的主区。 */
+.workspace-shell[data-auxiliary-fullscreen="true"] .workspace-shell__main {
+  display: none;
+}

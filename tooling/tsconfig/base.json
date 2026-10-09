@@ -1,0 +1,34 @@
+{
+  "$schema": "https://json.schemastore.org/tsconfig",
+  "compilerOptions": {
+    "target": "ES2023",
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "moduleDetection": "force",
+    "strict": true,
+    "exactOptionalPropertyTypes": true,
+    "noUncheckedIndexedAccess": true,
+    "noImplicitOverride": true,
+    "noImplicitReturns": true,
+    "noFallthroughCasesInSwitch": true,
+    "noPropertyAccessFromIndexSignature": false,
+    "verbatimModuleSyntax": true,
+    "isolatedModules": true,
+    "resolveJsonModule": true,
+    "skipLibCheck": true,
+    "forceConsistentCasingInFileNames": true,
+    "composite": true,
+    "declaration": true,
+    "declarationMap": true,
+    "emitDeclarationOnly": true,
+    "rootDir": "${configDir}",
+    "outDir": "${configDir}/.tsbuild",
+    "tsBuildInfoFile": "${configDir}/.tsbuild/tsconfig.tsbuildinfo"
+  },
+  "exclude": [
+    "${configDir}/**/__tests__/**",
+    "${configDir}/**/*.test.ts",
+    "${configDir}/**/*.test.tsx",
+    "${configDir}/.tsbuild"
+  ]
+}

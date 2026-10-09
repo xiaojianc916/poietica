@@ -1,0 +1,332 @@
+/*
+ * 审查那一格的取色与列几何。
+ *
+ * 差异的底色、行号槽与折叠带不在这里：那是行带的取色，与工具抽屉共用同一份实现
+ * （见 diff-body.css）。这一格只剩下属于它自己的东西 —— 文件树、工具条与卡头。
+ */
+.review-pane {
+  transition: --review-tree-width var(--workspace-layout-duration) var(--workspace-layout-ease);
+}
+
+/* 提交菜单行的悬浮：产品指定的灰，只这一张菜单；深色沿用弹层高亮。 */
+.review-commit-menu [role="menuitem"][data-highlighted],
+.review-commit-menu [role="menuitem"]:focus {
+  background-color: #f2f3f3;
+}
+
+:root[data-theme="dark"] .review-commit-menu [role="menuitem"][data-highlighted],
+:root[data-theme="dark"] .review-commit-menu [role="menuitem"]:focus {
+  background-color: var(--ui-popup-highlight);
+}
+
+/* 快捷键药丸：只这一张菜单用，不进设计系统。 */
+.review-commit-kbd {
+  flex-shrink: 0;
+  border-radius: 6px;
+  background: color-mix(in srgb, currentColor 8%, transparent);
+  padding: 2px 6px;
+  font-family: var(--font-mono, monospace);
+  font-size: 11px;
+  opacity: 0.6;
+}
+
+/* 横线：工具条与筛选行下缘，浅色读卡片线，深色沿用前景半透明。 */
+.review-rule {
+  border-bottom: 1px solid var(--ui-card-divider);
+}
+
+:root[data-theme="dark"] .review-rule {
+  border-bottom-color: color-mix(in srgb, currentColor 10%, transparent);
+}
+
+/*
+ * 筛选药丸的外框：浅色是产品指定的 #ededed（--ui-card-divider 的正身），
+ * 深色随令牌转成前景半透明，不用另写一套。
+ * 色写在类里而非 Tailwind 工具类 —— app.css 的无层级通配规则压过 utilities 层。
+ */
+.review-filter {
+  border: 1px solid var(--ui-card-divider);
+}
+
+/* 引导线：抄 OpenCode file-tree-v2.css —— 1px 绝对线盖满行高并上下各探 2px 过缝，
+ * 平时藏起，整个树悬浮才显形（选择器挂在 .review-tree 上）。 */
+.tree-guide {
+  position: absolute;
+  top: 0;
+  margin-top: -2px;
+  height: calc(100% + 2px);
+  width: 1px;
+  pointer-events: none;
+  background: #f1f1f1;
+  opacity: 0;
+}
+
+.review-tree:hover .tree-guide {
+  opacity: 1;
+}
+
+/*
+ * 深色下必须给实色。
+ *
+ * 引导线每行一根，上下各探 2px 过缝，相邻两行的线因此在行缝处叠 2px。半透明的墨
+ * 叠起来会加倍（14% + 14% ≈ 26%），那条缝上就出现一串比线本身亮的 2px 小点 ——
+ * 看上去像线中间撒了芝麻。实色叠加仍是同一个颜色，缝照样过。
+ */
+:root[data-theme="dark"] .tree-guide {
+  background: #383838;
+}
+
+/* 树行的悬浮：左右留白不贴边的小圆角药丸，与折叠带同一条语言。 */
+.review-tree-row:hover {
+  background: var(--ui-sunken);
+}
+
+/*
+ * 变更徽章：新增是 U、删除是 D，两个都是裸字母（不要框）；改写仍是方框里一个点。
+ *
+ * 外框用 box-shadow 画，不用 border：Chromium 对 border-width 另有一套吸附，量出来的
+ * 宽度与写进去的值对不上（1px 与 1.3333px 画出来一样宽，跨到 2px 又直接跳一档）；
+ * box-shadow 是照写的值画的，1.3333px 在 150% 缩放下就是屏幕上的 2 个设备像素
+ * （4/3 = 2 ÷ 1.5）。要动这个数，先量再改。
+ *
+ * 色必须写在这里，不能写成 Tailwind 的边框色与文字色工具类：app.css 有一条
+ * 无层级的通配规则（把 border-color 钉到 --color-divider），无层级声明压过
+ * utilities 层，边框色在组件里根本改不动。本仓带颜色的边框一律走这条无层级的路。
+ *
+ * 颜色按处境分：新增绿、删除红、改写橙。
+ */
+.review-mark {
+  box-shadow: 0 0 0 1.3333px currentColor;
+  color: #923b0f;
+}
+
+/* 裸字母那两支不要框：U 与 D 的字形自己就是记号，加一圈等于给字母描边。 */
+.review-mark[data-status="added"],
+.review-mark[data-status="untracked"],
+.review-mark[data-status="deleted"] {
+  box-shadow: none;
+}
+
+.review-mark[data-status="added"],
+.review-mark[data-status="untracked"] {
+  color: #00a240;
+}
+
+.review-mark[data-status="deleted"] {
+  color: #ba2724;
+}
+
+/* 深色下那支深棕压在 #181818 上读不出来，换成产品给的亮橙；框跟字同色。 */
+:root[data-theme="dark"] .review-mark {
+  color: #ff8549;
+}
+
+/* 新增与删除另给一对：深色 #40c977 / #f9423e，浅色 #00a240 / #ba2724，都是指定值。 */
+:root[data-theme="dark"] .review-mark[data-status="added"],
+:root[data-theme="dark"] .review-mark[data-status="untracked"] {
+  color: #40c977;
+}
+
+:root[data-theme="dark"] .review-mark[data-status="deleted"] {
+  color: #f9423e;
+}
+
+:root[data-theme="dark"] .review-tree-row:hover {
+  background: color-mix(in srgb, #ffffff 5%, transparent);
+}
+
+/*
+ * 工具条按钮的悬浮：产品指定的灰；深色沿用前景半透明。
+ * 菜单触发器打开时也取这一档（data-popup-open）—— 弹窗盖住的正是按钮本身，
+ * 不补这一档，指针移开按钮就一点反馈都不剩。
+ */
+.review-toolbar-action:hover,
+.review-toolbar-action[data-popup-open] {
+  background-color: #f2f3f3;
+}
+
+:root[data-theme="dark"] .review-toolbar-action:hover,
+:root[data-theme="dark"] .review-toolbar-action[data-popup-open] {
+  background-color: color-mix(in srgb, #ffffff 10%, transparent);
+}
+
+/* 卡头的悬浮底：浅色是产品指定的灰；深色沿用原来的前景半透明。 */
+.review-card__head-row:hover {
+  background: #f1f2f2;
+}
+
+:root[data-theme="dark"] .review-card__head-row:hover {
+  background: color-mix(in srgb, #ffffff 5%, transparent);
+}
+
+/*
+ * 卡头钉在滚动口上缘：滚到哪张卡，哪张卡的文件名就停在工具条下面 —— 长差异里
+ * 不必回头认自己在看哪个文件。底色必须给且必须不透明，否则行会从标题底下滚过去。
+ *
+ * 铺满整宽的只有这一层底色，药丸的内缩落在里面那层：底色若跟着 mx 缩进，两侧
+ * 6px 会漏出滚过去的增删底色。底色取 --ui-background，与外壳铺给这一列的是同一个
+ * （判例：apps/desktop/src/workbench/skill-document-pane.css 的 .skill-doc__gutter）。
+ */
+.review-card__head {
+  position: sticky;
+  inset-block-start: 0;
+  z-index: 1;
+  background: var(--ui-background);
+}
+
+/*
+ * 卡头两段式：文件名在前（tsx 侧 shrink-0，永不裁），目录在后并淡化（tsx 的
+ * opacity-50），空间不足时目录向前截断 —— 靠近文件的段比远段更能定位。
+ * 省略号落到行首只有一条路 —— rtl 把行末缘翻到左边；text-align 用物理值补回对齐。
+ * 文本必须裹 <bdi>：否则 rtl 段落会把 .github 的首个点当行末中性字符甩到右边。
+ */
+.review-card__dir {
+  direction: rtl;
+  text-align: left;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/*
+ * 没有文本改动的正文：整条与卡同宽的带子，一句话落在正中。
+ *
+ * 与 <Note> 那一句不是一回事 —— Note 是「这里有一句说明」，这条是「这一格空着」。
+ * 形状上只有铺满整宽、自己给底色这一条路：一句贴着左缘的灰字与「卡画到一半」
+ * 分不开，而空的是正文这件事只有一条占满的带子说得清。
+ *
+ * 深色那一对（#282828 的带子、#9f9f9f 的字）对着产品给的截图量过，它压在卡头
+ * 的 #181818 上；浅色按同一条关系取。
+ */
+.review-empty {
+  /* 上下各留一条地色缝：卡头的悬浮药丸是 #242424，这条带子是 #282828，两者只差
+   * 4 格灰，贴在一起会读成一整块 —— 上面那张卡的卡头会贴，下面那张卡的卡头也会贴。
+   * 缝落在带子这一侧，正文是真差异的那些卡不跟着动。 */
+  margin-block: 4px;
+  background: var(--ui-sunken);
+  color: #8c8c8c;
+}
+
+:root[data-theme="dark"] .review-empty {
+  background: #282828;
+  color: #9f9f9f;
+}
+
+/*
+ * 滚动口也是折叠带宽度的容器查询参照（--diff-row-inline-size 量测落地前的回退，
+ * 见 diff-body.css 的 .diff-gap-row）。横向不滚，所以这里只要 inline-size。
+ */
+.review-scroll {
+  container-type: inline-size;
+}
+
+/*
+ * 文件树列的开合，与外壳侧栏同一条机制：列宽是注册过的 <length> 自定义属性，
+ * 插值归 CSS 引擎；收起是列宽归零、定宽底面被自己那一列裁掉，子树不卸载。
+ * 时长与曲线读外壳挂在根上的那一份，不另立一套。
+ */
+@property --review-tree-width {
+  syntax: "<length>";
+  inherits: true;
+  initial-value: 0px;
+}
+
+/* 拖动分隔条时不插值：指针给的是最终值，插值只会让列追着指针跑。 */
+.review-pane[data-splitter="drag"] {
+  transition: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .review-pane {
+    transition: none;
+  }
+}
+
+.review-tree {
+  position: relative;
+  flex: 0 0 var(--review-tree-width);
+  min-width: 0;
+}
+
+.review-tree__clip {
+  position: absolute;
+  inset: 0;
+  overflow: clip;
+}
+
+/* 底面贴列的 inline-end：列收窄时从左侧被裁，内容不位移。
+ * 起始缘是与主区的那根线：浅色 #ededed，深色沿用前景半透明。 */
+.review-tree__surface {
+  position: absolute;
+  inset-block: 0;
+  inset-inline-end: 0;
+  border-inline-start: 1px solid var(--ui-card-divider);
+  transition: border-inline-start-color var(--workspace-layout-duration) ease;
+}
+
+:root[data-theme="dark"] .review-tree__surface {
+  border-inline-start-color: color-mix(in srgb, currentColor 10%, transparent);
+}
+
+/*
+ * 左缘的抓手：与外壳 .workspace-shell__divider::after 同形 —— 一道上下渐隐、
+ * 中间 1.5px 的竖条。底色取本格 #ededed，所以比外壳那道（以全局分隔线为底）
+ * 更浅一档。hover 要够 50ms 才浮现，擦边划过不闪；drag 按下立刻浮现。
+ *
+ * 本元素带 1px inline-start 边框，padding-box 被它向右顶出 1px：inset 要多减
+ * 一个边框宽，抓手才压在线中心，否则线与抓手错开、在 150% 缩放下量成 3px。
+ */
+.review-tree__surface::after {
+  content: "";
+  position: absolute;
+  inset-block: 0;
+  inset-inline-start: calc(-1.25 * var(--ui-region-divider-width));
+  inline-size: calc(var(--ui-region-divider-width) * 1.5);
+  background: linear-gradient(
+    to bottom,
+    transparent,
+    color-mix(in oklab, var(--color-foreground) 14%, #ededed),
+    transparent
+  );
+  opacity: 0;
+  transition: opacity var(--workspace-layout-duration) ease;
+  pointer-events: none;
+}
+
+:root[data-theme="dark"] .review-tree__surface::after {
+  background: linear-gradient(to bottom, transparent, color-mix(in srgb, #ffffff 12%, transparent), transparent);
+}
+
+/* 悬停与拖拽同档线色；抓手 hover 等 50ms 再浮现，drag 按下即现。 */
+.review-pane[data-splitter="hover"] .review-tree__surface,
+.review-pane[data-splitter="drag"] .review-tree__surface {
+  border-inline-start-color: color-mix(in oklab, var(--color-foreground) 8%, #ededed);
+}
+
+.review-pane[data-splitter="hover"] .review-tree__surface::after {
+  opacity: 1;
+  transition-delay: 50ms;
+}
+
+.review-pane[data-splitter="drag"] .review-tree__surface::after {
+  opacity: 1;
+}
+
+:root[data-theme="dark"] .review-pane[data-splitter="hover"] .review-tree__surface,
+:root[data-theme="dark"] .review-pane[data-splitter="drag"] .review-tree__surface {
+  border-inline-start-color: color-mix(in srgb, #ffffff 12%, transparent);
+}
+
+/* 文件树的滚动条不要：列本来就窄，条一出现就压住行尾的增删数。 */
+.review-tree__scroll {
+  scrollbar-width: none;
+}
+
+/*
+ * 视口外的卡跳过内部布局与绘制：代价随可见范围走，不随变更集走。
+ * 行高与行头高度在这里，所以估高也在这里；量到真值后 auto 换成记住的那一份。
+ */
+.review-card {
+  content-visibility: auto;
+  contain-intrinsic-size: auto calc(1.75rem + var(--review-card-rows, 0) * 1.25rem);
+}

@@ -1,0 +1,40 @@
+/*
+ * 浏览器面板的取色。**迁移自** legacy `packages/workspace/src/panels/auxiliary-panel.css`。
+ *
+ * 只留浏览器自己那三条规则（标签页图标↔叉叉、标签条右缘的让位时间轴、深色下的悬浮）：
+ * 工具栏下缘线、启动器底色、标签条让位这三条已经在 workbench 的 auxiliary.css 里
+ * （同一份 legacy 文件迁过去的），这里不写第二遍 —— 两份同特异性的声明谁赢取决于打包
+ * 顺序，那是不可预测的。
+ */
+
+/*
+ * 标签页图标↔叉叉：只听图标那 14px 的悬浮，整行悬浮不触发。
+ * 关叉平时不收指针事件不行：点按目标得是它，onClick 才认得出要关标签。
+ */
+.auxiliary-tab-icon:hover .auxiliary-tab-icon__glyph {
+  opacity: 0;
+}
+
+.auxiliary-tab-icon:hover .auxiliary-tab-icon__close {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+/*
+ * agent 操控提示那条信息带（07 页 §12E）：与工具栏同一套取色 —— 下缘线读同一份卡片
+ * 分隔色，底是同一档 muted。深色下那条线照 legacy 的写法用前景半透明。
+ */
+[data-browser-driven] {
+  border-bottom: 1px solid var(--ui-card-divider);
+}
+
+:root[data-theme="dark"] [data-browser-driven] {
+  border-bottom-color: color-mix(in srgb, currentColor 10%, transparent);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .auxiliary-tab-icon__glyph,
+  .auxiliary-tab-icon__close {
+    transition: none;
+  }
+}

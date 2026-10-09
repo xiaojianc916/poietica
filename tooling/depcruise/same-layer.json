@@ -1,0 +1,8 @@
+{
+  "core-kernel": ["runtime-layout", "logging", "storage-sqlite"],
+  "engine": ["transcript"],
+  "engine-omp": ["engine-testkit"],
+  "git": ["process-kit"],
+  "host-kernel": ["logging", "fs-kit"],
+  "rpc": ["contract-kit"]
+}

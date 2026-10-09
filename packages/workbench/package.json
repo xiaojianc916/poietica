@@ -1,0 +1,29 @@
+{
+  "name": "@poietica/workbench",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "sideEffects": [
+    "**/*.css"
+  ],
+  "exports": {
+    ".": "./src/index.ts",
+    "./styles.css": "./src/styles.css"
+  },
+  "dependencies": {
+    "@poietica/design-system": "workspace:*",
+    "@poietica/foundation": "workspace:*",
+    "@poietica/ui-kernel": "workspace:*",
+    "lucide-react": "catalog:",
+    "react": "catalog:"
+  },
+  "devDependencies": {
+    "@poietica/rpc": "workspace:*",
+    "@poietica/test-kit": "workspace:*",
+    "@testing-library/react": "catalog:",
+    "@types/react": "catalog:",
+    "@types/react-dom": "catalog:",
+    "react-dom": "catalog:",
+    "zod": "catalog:"
+  }
+}

@@ -53,10 +53,5 @@
  */
 [data-ui-rows] {
   /* 图标格前的留白：中线 − 行背景内缩 − 图标半宽。 */
-  --ui-row-lead: calc(
-    var(--ui-row-icon-center) -
-    var(--ui-row-inset) -
-    var(--ui-row-icon-size) /
-    2
-  );
+  --ui-row-lead: calc(var(--ui-row-icon-center) - var(--ui-row-inset) - var(--ui-row-icon-size) / 2);
 }

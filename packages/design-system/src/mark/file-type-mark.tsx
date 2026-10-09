@@ -16,9 +16,7 @@ interface Mark {
 const DOCUMENT: Mark = {
   box: '0 0 24 24',
   fill: '#42a5f5',
-  path: [
-    'M8 16h8v2H8zm0-4h8v2H8zm6-10H6c-1.1 0-2 .9-2 2v16c0 1.1.89 2 1.99 2H18c1.1 0 2-.9 2-2V8zm4 18H6V4h7v5h5z',
-  ],
+  path: ['M8 16h8v2H8zm0-4h8v2H8zm6-10H6c-1.1 0-2 .9-2 2v16c0 1.1.89 2 1.99 2H18c1.1 0 2-.9 2-2V8zm4 18H6V4h7v5h5z'],
 }
 
 const REACT: readonly string[] = [
@@ -111,13 +109,7 @@ function markOf(name: string): Mark {
   return DOCUMENT
 }
 
-export function FileTypeMark({
-  className,
-  name,
-}: {
-  readonly className: string
-  readonly name: string
-}) {
+export function FileTypeMark({ className, name }: { readonly className: string; readonly name: string }) {
   const mark = markOf(name)
 
   return (

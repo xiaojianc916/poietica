@@ -1,0 +1,57 @@
+name: CI
+
+on:
+  push:
+    branches: [main, rebuild]
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    name: Check
+    runs-on: windows-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.4.0
+      - name: Install
+        run: bun install --frozen-lockfile
+      - name: Check
+        run: bun run check
+
+  # P3.9：构建 Core 可执行文件并跑探针。check 绿了才做，因为探针本身就要求全仓类型与依赖规则成立。
+  core-build:
+    name: Core build & probe
+    runs-on: windows-latest
+    needs: check
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.4.0
+      - name: Install
+        run: bun install --frozen-lockfile
+      - name: Build Core
+        run: bun run core:build
+      - name: Probe Core
+        run: bun run core:probe
+      - name: Upload Core artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: poietica-core-${{ github.sha }}
+          path: apps/core/dist/
+          retention-days: 7

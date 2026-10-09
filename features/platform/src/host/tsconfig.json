@@ -1,0 +1,24 @@
+{
+  "extends": "../../../../tooling/tsconfig/electron-main.json",
+  "include": ["."],
+  "references": [
+    {
+      "path": "../../../../packages/foundation"
+    },
+    {
+      "path": "../../../../packages/fs-kit"
+    },
+    {
+      "path": "../../../../packages/host-kernel"
+    },
+    {
+      "path": "../../../../packages/runtime-layout"
+    },
+    {
+      "path": "../../../browser/src/contract"
+    },
+    {
+      "path": "../contract"
+    }
+  ]
+}

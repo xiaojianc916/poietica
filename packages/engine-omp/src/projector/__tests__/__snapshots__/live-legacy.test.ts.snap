@@ -1,0 +1,95 @@
+// Bun Snapshot v1, https://bun.sh/docs/test/snapshots
+
+exports[`一轮的代表性形状（12 页 §9.5 的快照） 正文 + 思考 + 工具中间结果 + 轮终：整页快照一次看全 1`] = `
+{
+  "attachments": [],
+  "hasMoreOlder": false,
+  "interactions": [],
+  "items": [
+    {
+      "endedAt": "2023-11-14T22:13:20.000Z",
+      "kind": "turn",
+      "ordinal": 1,
+      "origin": {
+        "kind": "user",
+      },
+      "prompt": "跑一下测试",
+      "startedAt": "2023-11-14T22:13:20.000Z",
+      "state": "completed",
+      "steps": [
+        {
+          "endedAt": "2023-11-14T22:13:20.000Z",
+          "frames": [
+            {
+              "frameId": "t1.0.f0",
+              "kind": "text",
+              "role": "user",
+              "text": "跑一下测试",
+            },
+            {
+              "frameId": "t1.0.f1",
+              "kind": "thinking",
+              "text": "先想一下",
+            },
+            {
+              "frameId": "tool.c1",
+              "input": {
+                "command": "npm test",
+              },
+              "intent": "跑测试",
+              "kind": "tool",
+              "name": "bash",
+              "output": {
+                "content": [
+                  {
+                    "text": "全绿",
+                    "type": "text",
+                  },
+                ],
+              },
+              "state": "done",
+              "toolCallId": "c1",
+            },
+            {
+              "frameId": "t1.0.f2",
+              "kind": "text",
+              "role": "assistant",
+              "text": "做完了",
+            },
+          ],
+          "kind": "step",
+          "ordinal": 0,
+          "state": "completed",
+          "stepId": "t1.0",
+          "turnId": "t1",
+        },
+      ],
+      "triggerPromptId": "p-1",
+      "turnId": "t1",
+      "usage": {
+        "cachedTokens": 3,
+        "inputTokens": 10,
+        "outputTokens": 20,
+      },
+    },
+  ],
+  "meta": {
+    "activity": "idle",
+    "agent": {
+      "phase": {
+        "kind": "streaming",
+        "since": 1700000000000,
+        "step": 0,
+        "stepId": "t1.0",
+        "stream": "assistant",
+        "turnId": 1,
+      },
+    },
+    "goal": undefined,
+    "modes": undefined,
+  },
+  "prompts": [],
+  "tasks": [],
+  "todos": [],
+}
+`;

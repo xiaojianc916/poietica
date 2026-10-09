@@ -1,0 +1,111 @@
+/*
+ * 任务与后台任务浮层。**逐字迁移自** legacy
+ * apps/desktop/src/assistant/conversation-todo-popover.css：基础两条
+ * （.conversation-body / .conversation-canvas）已经与新架构正文列同住在
+ * skin/surface.css，这里只留浮层自己的壳、卡片与收起钮。几何常量
+ * （--conversation-todo-width 320px / --conversation-todo-gap 12px）由宿主的
+ * CONVERSATION_TODO_LAYOUT_STYLE 写在 .conversation-body 上，原样继承下来。
+ */
+@property --assistant-surface-inline-end-clearance {
+  syntax: "<length>";
+  inherits: true;
+  initial-value: 0px;
+}
+
+/*
+ * 状态面板的浮层壳：铺满 canvas，只做定位，自己不接受指针事件；
+ * 胶囊与卡片各自再把自己那一块指针事件收回来。
+ */
+.conversation-todo-popover {
+  position: absolute;
+  z-index: 2;
+  inset: 0;
+  min-block-size: 0;
+  pointer-events: none;
+}
+
+/* 面板展开时给正文列让出右侧空间。 */
+@container conversation-body (min-width: 900px) {
+  .conversation-canvas:has(> .conversation-todo-popover[data-open="true"]) {
+    --assistant-surface-inline-end-clearance: calc(
+      var(--conversation-todo-width) +
+      var(--conversation-todo-gap) +
+      var(--conversation-todo-gap)
+    );
+  }
+}
+
+/* ZCode aside: transition-[border-radius,padding,background-color,box-shadow] 300ms ease-in-out */
+.conversation-todo-popover__surface {
+  transition:
+    border-radius 300ms ease-in-out,
+    padding 300ms ease-in-out,
+    background-color 300ms ease-in-out,
+    box-shadow 300ms ease-in-out;
+}
+
+/*
+ * 展开态：右上浮卡片。ZCode 的 aside 是 flex max-h-[min(64dvh,32rem)] w-80 flex-col，
+ * 卡片外观（边/圆角/阴影）画在壳上，滚动交给里面的 __scroll —— 收起钮才不会跟着内容滚走。
+ * max-block-size 用**视口**高度而不是百分比：百分比挂在 canvas 上，正文越长它越怪。
+ */
+.conversation-todo-popover__surface {
+  position: absolute;
+  inset-block-start: var(--conversation-todo-gap);
+  inset-inline-end: var(--conversation-todo-gap);
+  overflow: hidden;
+  border: 1px solid #363636;
+  border-radius: 16px;
+  background: var(--cp-ground);
+  color: var(--cp-ink);
+  box-shadow:
+    0 4px 6px -1px rgb(0 0 0 / 10%),
+    0 2px 4px -2px rgb(0 0 0 / 10%);
+  display: flex;
+  inline-size: var(--conversation-todo-width);
+  max-inline-size: calc(100% - var(--conversation-todo-gap) - var(--conversation-todo-gap));
+  max-block-size: min(64dvh, 32rem);
+  flex-direction: column;
+  pointer-events: auto;
+}
+
+/* 面板与胶囊共用的一层：给出高度上限后，里面那块才滚得动。 */
+.conversation-todo-popover__scroll {
+  min-block-size: 0;
+  overflow-y: auto;
+}
+
+/* 面板右上角的收起钮：与 ZCode 的 Minimize2 同位置同尺寸。 */
+.conversation-todo-popover__collapse {
+  position: absolute;
+  z-index: 1;
+  inset-block-start: 12px;
+  inset-inline-end: 12px;
+  display: inline-flex;
+  block-size: 24px;
+  inline-size: 24px;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: 0;
+  border-radius: 9999px;
+  background: transparent;
+  color: var(--cp-ink-subtle);
+  cursor: pointer;
+}
+
+.conversation-todo-popover__collapse:hover {
+  background: var(--cp-hover);
+  color: var(--cp-ink);
+}
+
+.conversation-todo-popover__collapse-icon {
+  block-size: 14px;
+  inline-size: 14px;
+}
+
+/* 深色下 --cp-ground 与地色齐平，只剩一圈边线；抬一档。产品指定 #202020（不是
+ * ZCode 的 #2b2b2b），外框 #363636。 */
+:root[data-theme="dark"] .conversation-todo-popover__surface {
+  background: #202020;
+}

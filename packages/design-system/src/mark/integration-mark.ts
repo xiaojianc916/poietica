@@ -200,12 +200,7 @@ function normalise(value: string): string {
 }
 
 function containsAlias(value: string, alias: string): boolean {
-  return (
-    value === alias ||
-    value.startsWith(`${alias}-`) ||
-    value.endsWith(`-${alias}`) ||
-    value.includes(`-${alias}-`)
-  )
+  return value === alias || value.startsWith(`${alias}-`) || value.endsWith(`-${alias}`) || value.includes(`-${alias}-`)
 }
 
 /** 认得出就给那家的标记；认不出交回 undefined，兜底由调用点自己决定。 */
@@ -213,9 +208,7 @@ export function integrationMarkFor(...names: readonly string[]): IntegrationMark
   const candidates = names.map(normalise).filter((candidate) => candidate !== '')
 
   for (const rule of ALIASES) {
-    if (
-      candidates.some((candidate) => rule.names.some((alias) => containsAlias(candidate, alias)))
-    ) {
+    if (candidates.some((candidate) => rule.names.some((alias) => containsAlias(candidate, alias)))) {
       return ICONS[rule.icon]
     }
   }

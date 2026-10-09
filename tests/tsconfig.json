@@ -1,8 +1,0 @@
-{
-  "extends": "../tsconfig.base.json",
-  "compilerOptions": {
-    "tsBuildInfoFile": "./node_modules/.cache/typescript/tests.tsbuildinfo"
-  },
-  "include": ["integration/**/*.ts", "benchmark/**/*.ts"],
-  "exclude": ["node_modules", "coverage", "dist"]
-}

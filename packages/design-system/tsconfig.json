@@ -1,8 +1,5 @@
 {
-  "extends": "../../tsconfig.base.json",
-  "compilerOptions": {
-    "tsBuildInfoFile": "./node_modules/.cache/typescript/design-system.tsbuildinfo",
-    "types": ["bun", "react", "react-dom"]
-  },
-  "include": ["src/**/*.ts", "src/**/*.tsx"]
+  "extends": "../../tooling/tsconfig/dom.json",
+  "include": ["src"],
+  "references": []
 }

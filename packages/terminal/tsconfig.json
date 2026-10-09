@@ -1,9 +1,0 @@
-{
-  "extends": "../../tsconfig.base.json",
-  "compilerOptions": {
-    "tsBuildInfoFile": "./node_modules/.cache/typescript/terminal.tsbuildinfo",
-    "noUncheckedSideEffectImports": false,
-    "types": ["bun", "react", "react-dom"]
-  },
-  "include": ["src/**/*.ts", "src/**/*.tsx", "src/**/*.d.ts"]
-}

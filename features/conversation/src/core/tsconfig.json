@@ -1,0 +1,39 @@
+{
+  "extends": "../../../../tooling/tsconfig/bun.json",
+  "include": ["."],
+  "references": [
+    {
+      "path": "../../../../packages/contract-kit"
+    },
+    {
+      "path": "../../../../packages/core-kernel"
+    },
+    {
+      "path": "../../../../packages/engine"
+    },
+    {
+      "path": "../../../../packages/foundation"
+    },
+    {
+      "path": "../../../../packages/fs-kit"
+    },
+    {
+      "path": "../../../../packages/storage-sqlite"
+    },
+    {
+      "path": "../../../../packages/transcript"
+    },
+    {
+      "path": "../../../attachments/src/core-api"
+    },
+    {
+      "path": "../../../workspaces/src/core-api"
+    },
+    {
+      "path": "../contract"
+    },
+    {
+      "path": "../core-api"
+    }
+  ]
+}

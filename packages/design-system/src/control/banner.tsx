@@ -68,16 +68,7 @@ export interface BannerProps {
  * 停留时长由一条自定义属性同时喂给卸载定时器和样式表的淡出延迟，两边因此不会各说
  * 各话、把横幅卸在淡出一半的地方。重渲不会延长寿命：定时器只认 holdMs。
  */
-export function Banner({
-  text,
-  icon,
-  tone,
-  actions,
-  holdMs = HOLD_MS,
-  progress,
-  anchor,
-  onDone,
-}: BannerProps) {
+export function Banner({ text, icon, tone, actions, holdMs = HOLD_MS, progress, anchor, onDone }: BannerProps) {
   const latestOnDone = useRef(onDone)
 
   useLayoutEffect(() => {

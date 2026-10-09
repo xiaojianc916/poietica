@@ -36,9 +36,8 @@ export function useCopy(): CopyAction {
 
         restore.current = setTimeout(() => setCopied(false), RESTORE_MS)
       })
-      .catch((cause: unknown) => {
-        console.error('[Poietica] Clipboard write failed', cause)
-      })
+      /* 复制失败不切对勾，也不写日志：design-system 不依赖日志系统；失败的表现就是没有对勾。 */
+      .catch(() => undefined)
   }, [])
 
   return { copied, copy }

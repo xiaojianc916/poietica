@@ -1,218 +1,33 @@
-# Dependencies
+# 依赖（模式不含前导斜杠时在任意层级都匹配，无需再写 **/node_modules/）
 node_modules/
-**/node_modules/
 
-models-dev.catalog.json
-
-# Turborepo
-.turbo/
-**/.turbo/
-
-# Vite / Rolldown
-.vite/
-**/.vite/
-.rolldown/
-**/.rolldown/
-vite.config.*.timestamp-*
-**/vite.config.*.timestamp-*
-
-# TypeScript
-*.tsbuildinfo
-**/*.tsbuildinfo
-.tsbuild/
-**/.tsbuild/
-
-# Build outputs
+# 构建产物
 dist/
-**/dist/
-dist-electron/
-**/dist-electron/
-dist-types/
-**/dist-types/
-build/
-**/build/
+dist-probe/
 out/
-**/out/
+dist-release/
+.tsbuild/
+*.tsbuildinfo
+.vite/
 
-# Test outputs
+# 测试
 coverage/
-**/coverage/
-test-results/
-**/test-results/
 
-# Rust / Cargo
-target/
-**/target/
-*.rs.bk
+# 缓存：bun 运行时下载缓存，单文件 80MB+，禁止入库
+.bun-cache/
 
-# 随包发的 agent 运行时（Bun + 桥 bundle + 拆块 chunk + 原生模块，约 300MB 量级）：由 tools/agent/prepare-runtime.ts 现备，不入库。
-apps/desktop/resources/agent/
-
-# Desktop installers and bundles
-*.app
-*.app/
-*.dmg
-*.pkg
-*.msi
-*.msix
-*.deb
-*.rpm
-*.AppImage
-*.appimage
-*.pdb
-*.dSYM
-*.dSYM/
-
-# Environment variables and secrets
+# 本地运行数据与环境变量
+.probe-home/
 .env
 .env.*
-**/.env
-**/.env.*
 
-!.env.example
-!**/.env.example
-!.env.template
-!**/.env.template
-!.env.schema
-!**/.env.schema
+# 打包输出（只限桌面应用；tooling/release/ 是源码，不可忽略）
+apps/desktop/release/
 
-# Certificates and private keys
-*.pem
-*.key
-*.p12
-*.pfx
-*.jks
-*.keystore
-
-# Local databases
-*.db
-*.db-shm
-*.db-wal
-*.sqlite
-*.sqlite-shm
-*.sqlite-wal
-*.sqlite3
-*.sqlite3-shm
-*.sqlite3-wal
-
-# Logs
+# 编辑器 / 系统
 *.log
-*.log.*
-logs/
-**/logs/
-npm-debug.log*
-yarn-debug.log*
-yarn-error.log*
-
-# Temporary files
-tmp/
-**/tmp/
-temp/
-**/temp/
-.cache/
-**/.cache/
-*.tmp
-*.temp
-*.swp
-*.swo
-*.orig
-*.bak
-*~
-
-# Poietica temporary documents
-*.draw~
-*.draw.tmp
-*.draw.temp
-
-# VS Code
-.vscode/*
-!.vscode/extensions.json
-!.vscode/settings.json
-!.vscode/tasks.json
-!.vscode/launch.json
-
-# JetBrains
-.idea/
-**/.idea/
-*.iml
-*.ipr
-*.iws
-
-# Visual Studio
-.vs/
-**/.vs/
-*.suo
-*.user
-*.userosscache
-*.sln.docstates
-
-# macOS
 .DS_Store
-**/.DS_Store
-.AppleDouble
-.LSOverride
-._*
-.Spotlight-V100
-.Trashes
-
-# Windows
 Thumbs.db
-Thumbs.db:encryptable
-ehthumbs.db
-ehthumbs_vista.db
-Desktop.ini
-$RECYCLE.BIN/
-*.lnk
-*.stackdump
 
-# Linux
-.directory
-.Trash-*
-.nfs*
-
-# Profiling and diagnostics output
-*.cpuprofile
-*.heapprofile
-*.heapsnapshot
-*.trace
-*.trace.json
-perf.data
-perf.data.old
-flamegraph.svg
-
-# Local reports
-biome-report.*
-eslint-report.*
-# 一次性的审计报告（谁写的都算）：它是某次排查的产物，不是仓库的事实。
-.audit/
-
-# Local development logs
-dev-err.txt
-dev-output.txt
-
-# local env files hold licence keys and secrets
-*.env.local
-.env.local
-trace.txt
-
-refactor.mjs
-
-dist-release/
-
-# performance profiles
-.perf
-
-.playwright-mcp
-
-.workbuddy/
-.workbuddy/memory
-.workbuddy-ai/
-.zcodeignore
-
-# 集成测试把受控 home 建在这里；.gitkeep 之外的内容不入库。
-.cargo/link-tmp/*
-!.cargo/link-tmp/.gitkeep
-
-oh-my-pi/
-
+# 用户的架构重构方案（仓库输入，不入库）
 Project Refactoring Plan/

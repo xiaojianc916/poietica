@@ -1,0 +1,37 @@
+/*
+ * 辅助面板的取色与交互。**迁移自** legacy `packages/workspace/src/panels/auxiliary-panel.css`。
+ */
+
+.auxiliary-toolbar {
+  border-bottom: 1px solid var(--ui-card-divider);
+}
+
+:root[data-theme="dark"] .auxiliary-toolbar {
+  border-bottom-color: color-mix(in srgb, currentColor 10%, transparent);
+}
+
+/*
+ * 启动器四枚按钮的底与悬浮。
+ * 底是 --ui-launcher；深色下压在 #1f1f1f 上的悬浮要单独给，浅色那支不动。
+ */
+:root[data-theme="dark"] .auxiliary-launcher {
+  background-color: var(--ui-launcher);
+}
+
+:root[data-theme="dark"] .auxiliary-launcher:hover:not(:disabled) {
+  background-color: #2a2a2a;
+}
+
+/*
+ * 标签条右缘那份让位在全屏进出时的收回与归还；时间轴读外壳写下的那一份。
+ * 令牌缺席时整条声明失效、退化成瞬时切换，不是错误。
+ */
+.auxiliary-tab-strip__row {
+  transition: padding-inline-end var(--workspace-layout-duration) var(--workspace-layout-ease);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .auxiliary-tab-strip__row {
+    transition: none;
+  }
+}

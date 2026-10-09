@@ -67,13 +67,7 @@ const MARK = cn('flex shrink-0', 'items-center', 'text-muted-foreground')
 const ICON = cn('size-3.5', 'shrink-0', 'text-muted-foreground/60')
 
 /* 无分组标题，间距由列表承担，无需额外分组层。 */
-const LIST = cn(
-  'max-h-64',
-  'overflow-y-auto',
-  'overscroll-contain',
-  'p-1 outline-none',
-  'grid gap-0.5',
-)
+const LIST = cn('max-h-64', 'overflow-y-auto', 'overscroll-contain', 'p-1 outline-none', 'grid gap-0.5')
 
 /*
  * 行高比触发器高 2px，字号与触发器同档：菜单是控件的展开，不是新界面。
@@ -136,12 +130,7 @@ export function Select<TValue extends string = string>({
        */
       value={value ?? null}
     >
-      <BaseSelect.Trigger
-        aria-label={type}
-        className={cn(TRIGGER, className)}
-        id={id}
-        type="button"
-      >
+      <BaseSelect.Trigger aria-label={type} className={cn(TRIGGER, className)} id={id} type="button">
         {/*
          * 触发器自己渲染选中的那一项，不用 Value 的 placeholder：icon 与文案要一起
          * 画，而 placeholder 只认一段文字。占位走同一个盒子，因此与选中的样子同宽。

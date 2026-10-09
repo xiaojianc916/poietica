@@ -1,0 +1,189 @@
+/* One visual frame shared by conversation and automation composers. */
+[data-slot="prompt-input"] {
+  position: relative;
+  /*
+   * 卡片的绘制层。
+   *
+   * 它下面那条上下文栏向上探进卡里一个圆角的量（见 .composer-context），所以卡
+   * 必须压在栏之上，否则栏的底色会把卡片下沿那两个圆角吃掉。栏自己也是定位元素，
+   * 树序又排在后面 —— 不显式抬一层，赢的是它。
+   */
+  z-index: 1;
+  display: flex;
+  inline-size: 100%;
+  min-inline-size: 0;
+  flex-direction: column;
+  border: var(--cp-px) solid var(--cp-edge);
+  border-radius: var(--cp-radius);
+  background: var(--cp-input-surface);
+  box-shadow: var(--cp-input-lift);
+  cursor: text;
+}
+
+[data-slot="prompt-input-body"] {
+  display: flex;
+  inline-size: 100%;
+  min-inline-size: 0;
+  flex-direction: column;
+}
+
+.assistant-prompt-editor {
+  position: relative;
+  display: block;
+  inline-size: 100%;
+  min-inline-size: 0;
+}
+
+[data-slot="prompt-input-editor"] {
+  display: block;
+  min-block-size: var(--cp-editor-idle);
+  max-block-size: var(--cp-editor-max);
+  overflow-y: auto;
+  padding: var(--cp-pad-top) var(--cp-pad-x) 0;
+  font-family: inherit;
+  font-size: var(--cp-font-editor);
+  line-height: var(--cp-line-ratio);
+  color: var(--cp-ink);
+  outline: none;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  box-sizing: border-box;
+}
+
+.assistant-prompt-editor__placeholder {
+  position: absolute;
+  inset-block-start: var(--cp-pad-top);
+  inset-inline-start: var(--cp-pad-x);
+  color: var(--cp-placeholder);
+  pointer-events: none;
+  user-select: none;
+}
+
+/*
+ * 工具条自己当容器查询的参照物：判据是这一行还剩多宽，不是窗口多宽 —— 展开右栏
+ * 也会把它挤窄，窗口宽度答不出那一种。它下面没有 fixed 定位的后代（弹层都 portal
+ * 到 body），所以这一层包含不关住谁。
+ */
+[data-slot="prompt-input-toolbar"] {
+  display: flex;
+  inline-size: 100%;
+  min-inline-size: 0;
+  align-items: center;
+  gap: var(--cp-control-gap);
+  padding: var(--cp-pad-mid) var(--cp-inset) var(--cp-inset);
+  container-type: inline-size;
+}
+
+[data-slot="prompt-input-tools"] {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.assistant-toolbar__spacer {
+  flex: 1;
+}
+
+/*
+ * 工具条窄到 360 时，批准方式的档位名与模型胶囊右侧的思考档位让位，只留字形。
+ *
+ * 360 是这一行装不下的大致位置，再窄整行就从卡片右边溢出去，溢出的是发送键那一头。这一
+ * 行没有可压缩的东西（各控件 flex: none，模式 chip 也收不动），能腾的只有这两段字；值在
+ * 弹层里都逐档写全，省掉的只是胶囊上那一行字。
+ *
+ * 数字只能是字面量（容器查询的条件不认 var()），所以这一份不住 metrics.css。内边距那条
+ * 带 [data-assistant-skin] 前缀是为了压过 permission-picker.css 里同名的静息那一对：
+ * 两个文件的加载次序由打包器决定，胜负不该押在次序上。
+ */
+@container (max-width: 360px) {
+  [data-assistant-skin] .assistant-posture {
+    padding-inline: var(--cp-pill-lead);
+  }
+
+  .assistant-posture__label,
+  .assistant-model-select__band {
+    display: none;
+  }
+}
+
+textarea[data-slot="prompt-input-editor"] {
+  inline-size: 100%;
+  border: 0;
+  resize: none;
+  background: transparent;
+  field-sizing: content;
+}
+
+textarea[data-slot="prompt-input-editor"]::placeholder {
+  color: var(--cp-placeholder);
+  opacity: 1;
+}
+
+/*
+ * 输入框下方那条上下文栏：这次执行「在哪跑」的两枚 chip 的灰色基座。
+ *
+ * 归这里而不是归对话表面，因为它不是对话的：新对话的入口、自动化编辑器，两处
+ * 的输入框下面挂的是同一条栏，栏里的 chip 也来自同一份选择器。
+ *
+ * 栏向上藏到输入框后面一个圆角的距离，接缝由重叠给出 —— 卡片压在上面（见
+ * [data-slot="prompt-input"] 的 z-index），所以完整的圆角、边框和阴影原样覆盖接缝，
+ * 两边没有哪个数需要与对方保持同步。
+ */
+.composer-context {
+  position: relative;
+  z-index: 0;
+  display: flex;
+  align-items: center;
+  gap: var(--cp-control-gap);
+  min-block-size: calc(var(--cp-control) + var(--cp-pad-mid) + var(--cp-radius));
+  margin-block-start: calc(-1 * var(--cp-radius));
+  border-radius: 0 0 var(--cp-radius) var(--cp-radius);
+  padding-block-start: calc(var(--cp-radius) + var(--cp-pad-mid) / 2);
+  padding-block-end: calc(var(--cp-pad-mid) / 2);
+  padding-inline: var(--cp-inset);
+  background: var(--cp-shelf);
+}
+
+[data-slot="prompt-input-submit"] {
+  display: inline-grid;
+  block-size: var(--cp-control);
+  inline-size: var(--cp-control);
+  flex: none;
+  place-items: center;
+  border: 0;
+  border-radius: 9999px;
+  padding: 0;
+  background: var(--cp-accent);
+  color: var(--cp-accent-foreground);
+  box-shadow:
+    inset 0 1px 0 color-mix(in srgb, var(--cp-accent-foreground) 28%, transparent),
+    0 1px 2px color-mix(in srgb, var(--cp-accent) 32%, transparent);
+  cursor: pointer;
+  transition:
+    background-color var(--cp-motion-swift) var(--cp-motion-ease),
+    transform var(--cp-motion-swift) var(--cp-motion-ease);
+}
+
+[data-slot="prompt-input-submit"]:hover:not(:disabled) {
+  background: var(--cp-accent-hover);
+}
+
+[data-slot="prompt-input-submit"]:active:not(:disabled) {
+  transform: scale(0.96);
+}
+
+[data-slot="prompt-input-submit"]:disabled {
+  background: var(--cp-accent-idle);
+  box-shadow: none;
+  cursor: default;
+}
+
+[data-slot="prompt-input-submit"][data-status="submitted"] svg {
+  animation: assistant-spin 900ms linear infinite;
+}
+
+@keyframes assistant-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}

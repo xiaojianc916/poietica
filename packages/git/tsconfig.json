@@ -1,0 +1,12 @@
+{
+  "extends": "../../tooling/tsconfig/node.json",
+  "include": ["src"],
+  "references": [
+    {
+      "path": "../foundation"
+    },
+    {
+      "path": "../process-kit"
+    }
+  ]
+}

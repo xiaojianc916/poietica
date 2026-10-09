@@ -1,0 +1,15 @@
+{
+  "extends": "../../tooling/tsconfig/dom.json",
+  "include": ["src"],
+  "references": [
+    {
+      "path": "../contract-kit"
+    },
+    {
+      "path": "../foundation"
+    },
+    {
+      "path": "../rpc"
+    }
+  ]
+}

@@ -1,29 +1,13 @@
 {
   "name": "@poietica/transcript",
-  "version": "0.0.2-poietica.1",
+  "version": "0.0.0",
   "private": true,
   "type": "module",
-  "sideEffects": false,
   "exports": {
-    ".": {
-      "types": "./dist-types/index.d.ts",
-      "default": "./src/index.ts"
-    }
-  },
-  "scripts": {
-    "build:types": "tsc --project tsconfig.types.json",
-    "typecheck": "tsc --project tsconfig.json --noEmit"
+    ".": "./src/index.ts"
   },
   "dependencies": {
     "zod": "catalog:"
   },
-  "devDependencies": {
-    "@types/bun": "catalog:",
-    "typescript": "catalog:"
-  },
-  "poietica": {
-    "headless": [
-      "."
-    ]
-  }
+  "devDependencies": {}
 }

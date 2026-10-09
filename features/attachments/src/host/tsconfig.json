@@ -1,0 +1,9 @@
+{
+  "extends": "../../../../tooling/tsconfig/electron-main.json",
+  "include": ["."],
+  "references": [
+    {
+      "path": "../../../../packages/host-kernel"
+    }
+  ]
+}

@@ -30,13 +30,7 @@ export type PoieticaMarkProps = SVGProps<SVGSVGElement>
  */
 export function PoieticaMark(props: PoieticaMarkProps) {
   return (
-    <svg
-      aria-hidden="true"
-      fill="currentColor"
-      viewBox="0 0 24 24"
-      xmlns="http://www.w3.org/2000/svg"
-      {...props}
-    >
+    <svg aria-hidden="true" fill="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" {...props}>
       <path d={POIETICA_MARK_PATH} fillRule="evenodd" />
     </svg>
   )
