@@ -71,6 +71,41 @@ describe('Emitter', () => {
     expect(count).toBe(0)
     expect(emitter.hasListeners).toBe(false)
   })
+
+  /*
+   * R-08-4：给了 onListenerError 就交给它（调用方在这里带上 logger 与上下文），
+   * 其余监听器照常收到，异常也不外抛给 fire 的调用方。
+   */
+  test('onListenerError 接住监听者异常，其它监听器仍然收到', () => {
+    const seen: number[] = []
+    const errors: unknown[] = []
+    const emitter = new Emitter<number>({ onListenerError: (error) => errors.push(error) })
+    const boom = new Error('boom')
+    emitter.event(() => {
+      throw boom
+    })
+    emitter.event((v) => seen.push(v))
+
+    expect(() => emitter.fire(1)).not.toThrow()
+    expect(errors).toEqual([boom])
+    expect(seen).toEqual([1])
+  })
+
+  test('onListenerError 自己抛错也照旧不冲出去', () => {
+    const spy = spyOn(console, 'error').mockImplementation(() => {})
+    const emitter = new Emitter<number>({
+      onListenerError: () => {
+        throw new Error('handler 也炸了')
+      },
+    })
+    emitter.event(() => {
+      throw new Error('boom')
+    })
+
+    expect(() => emitter.fire(1)).not.toThrow()
+    expect(spy).toHaveBeenCalled()
+    spy.mockRestore()
+  })
 })
 
 describe('onceEvent', () => {

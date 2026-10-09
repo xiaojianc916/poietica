@@ -8,9 +8,19 @@ export type Event<T> = (listener: (value: T) => void) => Disposable
  * 事件发射器。监听器抛错时经 `lastResort` 兜底并继续通知其余监听器
  * （foundation 没有 logger，这一处只能交给日志系统不可用时的最后通道）。
  * 通知时对监听器集合做快照：在回调中新增的监听器本次不会收到，在回调中移除的监听器本次仍会收到。
+ *
+ * 调用方（已经拿着 logger 的模块，比如 OmpSession、InteractionBroker）可以给一份
+ * `onListenerError`：异常照旧不外抛、其余监听器照旧收到，只是改成记在有上下文的那条日志上
+ * （R-08-4）。不给就仍是 `lastResort`。
  */
+export interface EmitterOptions {
+  readonly onListenerError?: (error: unknown) => void
+}
+
 export class Emitter<T> implements Disposable {
   private listeners: Set<(value: T) => void> | undefined = new Set()
+
+  constructor(private readonly options: EmitterOptions = {}) {}
 
   readonly event: Event<T> = (listener) => {
     const set = this.listeners
@@ -34,7 +44,13 @@ export class Emitter<T> implements Disposable {
       try {
         listener(value)
       } catch (e) {
-        lastResort('[Emitter] listener threw', e)
+        /* 兜底通道自己抛错也不能冲出去：fire 的调用方不该被监听器的事故连累 */
+        try {
+          if (this.options.onListenerError === undefined) lastResort('[Emitter] listener threw', e)
+          else this.options.onListenerError(e)
+        } catch {
+          lastResort('[Emitter] listener error handler threw', e)
+        }
       }
     }
   }
