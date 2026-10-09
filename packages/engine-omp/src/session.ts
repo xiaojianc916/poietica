@@ -16,7 +16,8 @@ import {
 } from '@poietica/engine'
 import { AppError, createId, Emitter, type Logger, SystemErrorCode } from '@poietica/foundation'
 import type { TranscriptOperation, TranscriptPage } from '@poietica/transcript'
-import { outcomeOf, toEngineError } from './errors'
+import { outcomeOf, type TurnOutcome, toEngineError } from './errors'
+import { describeError } from './event-faults'
 import type { InteractionBroker } from './interactions/broker'
 import type { LiveProjector } from './projector/live'
 import { type SkillPromptMessage, wireTextOf } from './prompt'
@@ -190,6 +191,13 @@ export class OmpSession implements EngineSession {
   private readonly modes: QueueSnapshot['modes'] = { steer: 'all', followUp: 'all' }
   private readonly subscriptions: { dispose(): void }[] = []
   private stateValue: SessionState = 'idle'
+  /**
+   * `agent_end` 到达时还有待答交互：记下结局，等交互全部答完再收成 idle（R-02 §2.7 第 3 条）。
+   *
+   * 不记的话那一轮永远收不了尾：等用户答完，`onPendingCountChanged` 把它切回 running，
+   * 然后再也没有人把它变成 idle —— 屏幕上就是「答完了还在转、停止也没用」。
+   */
+  private endedWithPending: { readonly error: { code: string; message: string } | null } | null = null
   private postureValue: Posture
   private modelRef: ModelRef | null
   private thinkingValue: string | null
@@ -246,6 +254,16 @@ export class OmpSession implements EngineSession {
 
   /** broker 变化：待答交互数决定 running 与 awaiting 的来回切（12 页 §7.2） */
   onPendingCountChanged(pendingCount: number): void {
+    /*
+     * 这一轮在 `agent_end` 时还挂着交互（R-02 §2.7 第 3 条）：交互答完这一格就该收成 idle。
+     * 顺序上必须**先于**切回 running 那一支 —— 切回 running 之后就再也没人把它变回 idle 了。
+     */
+    if (pendingCount === 0 && this.endedWithPending !== null) {
+      const { error } = this.endedWithPending
+      this.endedWithPending = null
+      this.setState('idle', error)
+      return
+    }
     if (pendingCount > 0 && this.stateValue === 'running') this.setState('awaiting')
     else if (pendingCount === 0 && this.stateValue === 'awaiting') this.setState('running')
   }
@@ -278,6 +296,8 @@ export class OmpSession implements EngineSession {
         ...(images.length === 0 ? {} : { attachmentIds: images.map((i) => i.attachmentId) }),
       }),
     )
+    // 新的一轮开始：上一轮留下的「等交互答完再收尾」标记作废
+    this.endedWithPending = null
     this.setState('running')
     // 不 await：一轮会挂在交互上，submit 必须立即返回（C-SUBMIT-RETURNS-EARLY）
     void this.runTurn(input)
@@ -291,13 +311,51 @@ export class OmpSession implements EngineSession {
       const delivered = await this.o.prompt(input, skillMessage)
       if (!delivered) {
         // omp 没有把这条输入交给模型（例如被扩展拦截）：以 completed 收掉这个空轮
-        this.timeline(this.o.projector.turnEnd('completed', null))
-        this.setState('idle')
+        this.closeTurnAfterRun('completed', null, null)
       }
     } catch (error) {
       const mapped = toEngineError(error)
-      this.timeline(this.o.projector.turnEnd('failed', mapped.message))
-      this.setState('idle', { code: mapped.code, message: mapped.message })
+      this.closeTurnAfterRun('failed', mapped.message, { code: mapped.code, message: mapped.message })
+    }
+  }
+
+  /**
+   * `runTurn` 里的收尾：投影异常**只记日志再吞掉**。
+   *
+   * `runTurn` 是 `void` 调用的，收尾再往外抛就成了未处理的 rejection；而 `settleTurn` 的
+   * `finally` 已经把累加器复位、状态也收成 idle，所以丢掉这一个异常是安全的。
+   */
+  private closeTurnAfterRun(
+    outcome: TurnOutcome['outcome'],
+    message: string | null,
+    error: { code: string; message: string } | null,
+  ): void {
+    try {
+      this.settleTurn(outcome, message, error)
+    } catch (projectionError) {
+      this.o.logger.warn('turn end projection failed', { error: describeError(projectionError) })
+    }
+  }
+
+  /**
+   * 一轮的收口（R-02 §2.7 原则 3）：① 轮头已关（尽力而为）→ ② 累加器已复位 → ③ 状态回到 idle。
+   *
+   * 顺序不能换：idle 事件一发出，订阅方就可能在同一个调用栈里投递下一条排队消息 ——
+   * 复位必须在 `setState` 之前完成，轮头也要在 idle 之前发出（否则 UI 先看到空闲、再看到轮头关闭）。
+   * `turnEnd` 抛出的异常会等 `finally` 跑完继续往外抛，由调用方记日志。
+   */
+  private settleTurn(
+    outcome: TurnOutcome['outcome'],
+    message: string | null,
+    error: { code: string; message: string } | null,
+  ): void {
+    try {
+      this.timeline(this.o.projector.turnEnd(outcome, message))
+    } finally {
+      // 投影成不成功都要复位：否则下一句话（或插话）会落进已经结束的那一轮
+      this.o.projector.abandonTurn()
+      if (this.o.broker.pendingCount() === 0) this.setState('idle', error)
+      else this.endedWithPending = { error }
     }
   }
 
@@ -375,6 +433,8 @@ export class OmpSession implements EngineSession {
 
   async cancel(): Promise<void> {
     this.assertLive()
+    // 用户点了停止：这一轮由 abort 收口，等待交互答完再收尾的标记作废
+    this.endedWithPending = null
     this.o.broker.cancelAll()
     await this.o.abort()
     if (this.stateValue !== 'idle') this.setState('idle')
@@ -676,14 +736,27 @@ export class OmpSession implements EngineSession {
 
   /** 一轮结束（omp 的 agent_end）：结局由最后一条 assistant 消息决出 */
   finishTurn(): void {
-    const outcome = outcomeOf(this.o.lastAssistant())
-    this.timeline(this.o.projector.turnEnd(outcome.outcome, outcome.message))
-    if (this.o.broker.pendingCount() === 0) {
-      this.setState(
-        'idle',
-        outcome.message === null ? null : { code: EngineErrorCode.upstream, message: outcome.message },
-      )
+    // 重复的 agent_end：轮已关、状态已空闲，再走一遍只会重复发 state 事件
+    if (!this.o.projector.isTurnOpen && this.stateValue === 'idle') return
+    let outcome: TurnOutcome
+    try {
+      outcome = outcomeOf(this.o.lastAssistant())
+    } catch (error) {
+      /*
+       * 读不到结局：`agent_end` 本身就是 omp 的正常结束信号，按 completed 收并记日志（R-02 §2.7）。
+       *
+       * 不按 failed 收的理由：失败的只是我们这边读取结局的那一步，omp 自己已经正常结束了这一轮；
+       * 标成 failed 会让定时任务记一次假失败、屏幕上也会出现一个红色的轮。真正的模型错误
+       * 还有其它路径会报出来（runTurn 的 catch、auto_retry_end 的失败 notice）。
+       */
+      this.o.logger.warn('turn outcome unavailable', { error: describeError(error) })
+      outcome = { outcome: 'completed', message: null }
     }
+    this.settleTurn(
+      outcome.outcome,
+      outcome.message,
+      outcome.message === null ? null : { code: EngineErrorCode.upstream, message: outcome.message },
+    )
   }
 
   /** 每一条 assistant 消息的用量（12 页 §11.3） */

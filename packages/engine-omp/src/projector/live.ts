@@ -1,5 +1,8 @@
 import { frameId, stepId, type TranscriptOperation, turnId } from '@poietica/transcript'
 
+/** 工具帧降级时显示的正文（状态照实，正文换成这句；R-02 §2.5） */
+export const TOOL_FALLBACK_TEXT = '这一步的内容无法显示（详情已写入日志）'
+
 interface Streaming {
   readonly id: string
   readonly kind: 'text' | 'thinking'
@@ -395,6 +398,60 @@ export class LiveProjector {
       },
     })
     ops.push({ op: 'meta.merge', meta: { activity: 'idle' } })
+    this.abandonTurn()
+    return ops
+  }
+
+  /**
+   * 工具事件投影失败时的降级帧（R-02 §2.5）：只改这一格，其余什么都不动。
+   *
+   * 本方法不得抛异常：入参全是已经确认过类型的字符串和布尔值，不读任何 unknown 值的内部。
+   * 状态照实写（`ended` 三态），因为工具本身可能成功了，只是我们展示失败 —— 一律标成 error 是撒谎。
+   */
+  toolFallback(call: {
+    readonly toolCallId: string
+    readonly toolName: string
+    /** null = 还没结束（start / update 失败）；true / false = 结束且是否出错 */
+    readonly ended: boolean | null
+  }): TranscriptOperation[] {
+    if (!this.turnOpen) return []
+    const turn = turnId(this.turn)
+    const step = stepId(turn, this.step)
+    const known = this.tools.get(call.toolCallId)
+    const id = known ?? `tool.${call.toolCallId}`
+    if (known === undefined) {
+      // start 失败：照 toolStart 的规矩先封掉正在流的正文，再登记这一格
+      this.streaming = null
+      this.tools.set(call.toolCallId, id)
+    }
+    const args = this.args.get(call.toolCallId)
+    const state = call.ended === null ? 'running' : call.ended ? 'error' : 'done'
+    return [
+      {
+        op: 'frame.upsert',
+        turnId: turn,
+        stepId: step,
+        frame: {
+          kind: 'tool',
+          frameId: id,
+          toolCallId: call.toolCallId,
+          name: call.toolName,
+          state,
+          ...(args === undefined ? {} : { input: args }),
+          output: { content: [{ type: 'text', text: TOOL_FALLBACK_TEXT }] },
+          ...(state === 'error' ? { error: TOOL_FALLBACK_TEXT } : {}),
+        },
+      },
+    ]
+  }
+
+  /**
+   * 放弃当前轮：只复位累加器，不产出 op（R-02 §2.5）。
+   *
+   * 收尾时 `turnEnd` 没能执行完（投影成不成功）走它兜底；对已关闭的轮是空操作。
+   * 字段清单与 `turnEnd` 末尾的复位段是同一份 —— 两处各写一遍就会漂移，所以只有这一个产地。
+   */
+  abandonTurn(): void {
     this.turnOpen = false
     this.stepOpen = false
     this.streaming = null
@@ -402,7 +459,6 @@ export class LiveProjector {
     this.args.clear()
     this.intents.clear()
     this.promptId = undefined
-    return ops
   }
 
   /** 一个错误通知帧：不绑 turn，掉在哪就是哪 */

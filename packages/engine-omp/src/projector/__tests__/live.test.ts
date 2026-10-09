@@ -1,6 +1,7 @@
 import { describe, expect, test } from 'bun:test'
 import { applyOps, emptyTimeline, pageFromState, type TranscriptFrame } from '@poietica/transcript'
-import { projector, snapshot } from './fixtures/live'
+import { TOOL_FALLBACK_TEXT } from '../live'
+import { framesOf, projector, snapshot } from './fixtures/live'
 
 describe('LiveProjector', () => {
   test('纯文本：分两段 append 拼成完整正文', () => {
@@ -130,5 +131,80 @@ describe('LiveProjector', () => {
     expect(second.some((op) => op.op === 'meta.merge')).toBe(false)
     const state = applyOps(emptyTimeline(), [...first, ...second])
     expect(pageFromState(state).items.length).toBe(1)
+  })
+
+  /*
+   * 工具事件投影失败时的降级帧（R-02 §2.5、§4 的 P1–P4）。它不得抛异常 —— 事件泵已经
+   * 在异常路径上了，兜底再抛就没人接。
+   */
+  test('toolFallback：已经 start 过的格沿用同一个 frameId，并带回 input', () => {
+    const p = projector()
+    p.userTurn({ text: 'q' })
+    p.toolStart({ toolCallId: 'c1', toolName: 'read', args: { path: 'a.ts' } })
+    const ops = p.toolFallback({ toolCallId: 'c1', toolName: 'read', ended: true })
+    const state = applyOps(emptyTimeline(), ops)
+    const turn = state.items[0]
+    const frame = turn?.kind === 'turn' ? turn.steps[0]?.frames.at(-1) : undefined
+    expect(frame?.kind === 'tool' && frame.frameId).toBe('tool.c1')
+    expect(frame?.kind === 'tool' && frame.state).toBe('error')
+    expect(frame?.kind === 'tool' && frame.error).toBe(TOOL_FALLBACK_TEXT)
+    expect(frame?.kind === 'tool' && frame.input).toEqual({ path: 'a.ts' })
+  })
+
+  test('toolFallback：没 start 过的格会封掉正在流的正文，之后另起一帧', () => {
+    const p = projector()
+    p.userTurn({ text: 'q' })
+    const before = p.textDelta('前半')
+    const fallback = p.toolFallback({ toolCallId: 'c9', toolName: 'bash', ended: null })
+    const after = p.textDelta('后半')
+
+    const state = applyOps(emptyTimeline(), [...before, ...fallback, ...after])
+    // 降级帧把正文封死，后半段因此另起一帧（顺序：前半、降级工具格、后半）
+    expect(snapshot(state).texts).toEqual(['前半', '后半'])
+    const tools = framesOf(state).filter((frame) => frame.kind === 'tool')
+    expect(tools).toHaveLength(1)
+    expect(tools[0]?.kind === 'tool' && tools[0].frameId).toBe('tool.c9')
+    expect(tools[0]?.kind === 'tool' && tools[0].state).toBe('running')
+  })
+
+  test('toolFallback 在没开着轮时返回空', () => {
+    const p = projector()
+    expect(p.toolFallback({ toolCallId: 'c1', toolName: 'read', ended: true })).toEqual([])
+  })
+
+  test('abandonTurn：轮关掉之后插话退回成新的一轮', () => {
+    const p = projector()
+    p.userTurn({ text: 'q' })
+    p.abandonTurn()
+    expect(p.isTurnOpen).toBe(false)
+    const ops = p.steeredFrame('下一句')
+    const state = applyOps(emptyTimeline(), ops)
+    const turns = state.items.filter((item) => item.kind === 'turn')
+    const latest = turns.at(-1)
+    expect(latest?.kind === 'turn' && latest.prompt).toBe('下一句')
+  })
+
+  test('turnEnd 之后的累加器状态与 abandonTurn 完全一致', () => {
+    // 同样的操作序列跑两遍：一遍正常收轮（turnEnd），一遍只复位（abandonTurn）。
+    // 收轮之后从同一个位置再开一轮，两边的产出必须逐字段相同 —— 这是「两处复位不会漂移」的判据。
+    const closed = projector()
+    closed.userTurn({ text: 'q' })
+    closed.toolStart({ toolCallId: 'c1', toolName: 'read', args: {} })
+    closed.turnEnd('completed', null)
+
+    const abandoned = projector()
+    abandoned.userTurn({ text: 'q' })
+    abandoned.toolStart({ toolCallId: 'c1', toolName: 'read', args: {} })
+    abandoned.abandonTurn()
+
+    expect(closed.isTurnOpen).toBe(abandoned.isTurnOpen)
+    expect(closed.turnOrdinal).toBe(abandoned.turnOrdinal)
+    expect(closed.toolFallback({ toolCallId: 'c1', toolName: 'read', ended: true })).toEqual(
+      abandoned.toolFallback({ toolCallId: 'c1', toolName: 'read', ended: true }),
+    )
+
+    const first = applyOps(emptyTimeline(), closed.userTurn({ text: '下一句' }))
+    const second = applyOps(emptyTimeline(), abandoned.userTurn({ text: '下一句' }))
+    expect(JSON.stringify(first)).toBe(JSON.stringify(second))
   })
 })

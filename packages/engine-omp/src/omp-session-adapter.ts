@@ -17,6 +17,7 @@ import {
 } from '@poietica/engine'
 import { AppError, type Logger, SystemErrorCode, systemClock } from '@poietica/foundation'
 import { toContextUsage } from './context-usage'
+import { EventFaults } from './event-faults'
 import { InteractionBroker } from './interactions/broker'
 import { planInteraction, planOutcomeOf } from './interactions/plan'
 import { createUiContext } from './interactions/ui-context'
@@ -330,10 +331,19 @@ export async function wrapOmpSession(input: WrapOmpSessionInput): Promise<Engine
   // omp 在某些情况下会丢弃用户输入（例如压缩期间），不接这个回调用户消息就会凭空消失。
   // omp 知识 #8：必须接上 setPromptDropped —— omp 在某些情况下会丢弃用户输入（例如压缩期间），
   session.setPromptDropped((prompt) => ompSession.emitPromptDropped(prompt.text))
+  /*
+   * 事件泵的上下文（R-02 §2.6）：`faults` 是这次修复的要害 —— 先前整个 switch 包在
+   * 一个吞掉一切的 catch 里，异常被完全咽下（不记日志、不上屏、也没有兜底）。
+   */
+  const pump: EventPump = {
+    session: ompSession,
+    projector,
+    faults: new EventFaults(input.logger, () => projector.turnOrdinal),
+  }
   const subscriptions = [
     ompSession.attachBroker(),
     // omp 的 subscribe 直接返回退订函数：包一层再存，dispose 时真的退订
-    toSub(session.subscribe((event) => handleOmpEvent(event, ompSession, projector, ledger))),
+    toSub(session.subscribe((event) => handleOmpEvent(event, pump))),
   ]
   if (input.subagentBus !== null) {
     subscriptions.push(
@@ -771,153 +781,215 @@ async function autosaveApprovedPlanOf(
   }
 }
 
-/** omp 会话事件 → 时间线 ops / 状态 / 用量（12 页 §7.3、§9.1） */
-function handleOmpEvent(
-  event: Record<string, unknown>,
-  session: OmpSession,
-  projector: LiveProjector,
-  ledger: SubagentLedger,
-): void {
-  const type = event.type
-  try {
-    switch (type) {
-      case 'message_update': {
-        const assistant = event.assistantMessageEvent as Record<string, unknown> | undefined
-        const deltaType = assistant?.type
-        const delta = assistant?.delta
-        if (typeof delta !== 'string') break
-        if (deltaType === 'text_delta') session.requestTimeline(projector.textDelta(delta))
-        else if (deltaType === 'thinking_delta') session.requestTimeline(projector.thinkingDelta(delta))
-        break
-      }
-      case 'tool_execution_start':
-        session.requestTimeline(
-          projector.toolStart({
-            toolCallId: String(event.toolCallId),
-            toolName: String(event.toolName),
-            args: event.args,
-            ...(typeof event.intent === 'string' ? { intent: event.intent } : {}),
-          }),
-        )
-        break
-      case 'tool_execution_update':
-        session.requestTimeline(
-          projector.toolUpdate({
-            toolCallId: String(event.toolCallId),
-            toolName: String(event.toolName),
-            partial: event.partialResult,
-          }),
-        )
-        break
-      case 'tool_execution_end':
-        session.requestTimeline(
-          projector.toolEnd({
-            toolCallId: String(event.toolCallId),
-            toolName: String(event.toolName),
-            result: event.result,
-            ...(event.isError === true ? { isError: true } : {}),
-          }),
-        )
-        break
-      case 'message_start': {
-        /*
-         * 插话落地：omp 把注入的消息折进上下文时发这一条。
-         *
-         * user 消息按投递正文认领（本轮自己的 prompt 由会话那边按同一份正文排除）；
-         * 用户技能消息走 promptCustomMessage，omp 发的是 custom 消息（不是 user），
-         * 只有这一支才画得出来。
-         */
-        claimStartedMessage(event.message, session)
-        break
-      }
-      case 'message_end': {
-        const message = event.message as Parameters<OmpSession['emitUsageFrom']>[0] | undefined
-        if (message !== undefined) session.emitUsageFrom(message)
-        /*
-         * 上下文那一格跟着每一条落地消息重报（legacy bridge.ts 在同一事件里 reportUsage）。
-         * 放在样本之后：两者都是「这一条消息带来的新数」，屏幕先拿到账、再拿到占用。
-         */
-        session.reportContextUsage()
-        break
-      }
-      case 'queue_update':
-        session.reconcileQueue(
-          Array.isArray(event.steering) ? (event.steering as string[]) : [],
-          Array.isArray(event.followUp) ? (event.followUp as string[]) : [],
-        )
-        break
-      case 'model_changed':
-      case 'thinking_level_changed':
-      case 'goal_updated':
-        session.controlsChanged()
-        break
-      case 'notice':
-        session.requestTimeline(
-          projector.notice(
-            event.level === 'error' || event.level === 'warning' ? event.level : 'info',
-            String(event.message),
-            typeof event.source === 'string' ? event.source : undefined,
-          ),
-        )
-        break
-      case 'auto_compaction_start':
-        // 12 页 §9.1 的表：压缩起止各产出一条 marker（开门这条状态是 running）
-        session.requestTimeline(
-          projector.marker({
-            markerId: `compaction-${String(projector.turnOrdinal)}`,
-            marker: 'compaction',
-            payload: { state: 'running', reason: event.reason },
-          }),
-        )
-        break
-      case 'auto_compaction_end':
-        // 压缩后副本已不可信：让 UI 整页重取；同时把那一格标成已收口
-        session.requestTimeline(
-          projector.marker({
-            markerId: `compaction-${String(projector.turnOrdinal)}`,
-            marker: 'compaction',
-            payload: {
-              state: event.aborted === true ? 'cancelled' : 'completed',
-              ...(typeof event.errorMessage === 'string' ? { error: event.errorMessage } : {}),
-            },
-          }),
-        )
-        if (event.aborted !== true) session.timelineReset('main')
-        break
-      /*
-       * 自动重试（12 页 §9.1 的表）：起止各上一条 notice 帧。
-       * 不接它的话，模型服务商抖动的那几十秒在屏幕上是「卡住了」——人只会看到没有输出。
-       */
-      case 'auto_retry_start':
-        session.requestTimeline(
-          projector.notice(
-            'warning',
-            `请求失败，第 ${String(event.attempt)}/${String(event.maxAttempts)} 次重试：${String(event.errorMessage ?? '')}`,
-            'auto_retry',
-          ),
-        )
-        break
-      case 'auto_retry_end':
-        session.requestTimeline(
-          projector.notice(
-            event.success === true ? 'info' : 'error',
-            event.success === true
-              ? `重试成功（第 ${String(event.attempt)} 次）`
-              : `重试失败：${String(event.finalError ?? '')}`,
-            'auto_retry',
-          ),
-        )
-        break
-      case 'agent_end':
-        session.finishTurn()
-        /* 轮终再报一次：收尾（压缩标记、最后一条消息之后的变动）也要落到屏幕上的读数里。 */
-        session.reportContextUsage()
-        break
-      default:
-        break
+/**
+ * 事件泵的上下文（R-02 §2.6）：三个东西每一条事件都要用，绑成一份传。
+ *
+ * 先前这里是「session + projector + ledger」三个位置参数，而 ledger 在函数里根本没用到
+ * （函数尾部用一句丢弃它的空语句压 lint）—— 收进对象后，`faults` 才是泵真正需要的第三格。
+ */
+interface EventPump {
+  readonly session: OmpSession
+  readonly projector: LiveProjector
+  readonly faults: EventFaults
+}
+
+/** 能用 omp 给的稳定 id 定位到某一格的事件（R-02 §2.1 原则 2 的补充规则 1） */
+const TOOL_EVENTS = new Set(['tool_execution_start', 'tool_execution_update', 'tool_execution_end'])
+
+/**
+ * 一条事件的翻译（12 页 §7.3、§9.1）。
+ *
+ * 这里只做事、不管异常：抛出去交给 `handleOmpEvent` 按事件类别处置（R-02 §2.6）。
+ * `agent_end` 不在这一支 —— 它是收尾类，走 `endTurn`。
+ */
+function dispatchOmpEvent(event: Record<string, unknown>, pump: EventPump): void {
+  const { session, projector } = pump
+  switch (event.type) {
+    case 'message_update': {
+      const assistant = event.assistantMessageEvent as Record<string, unknown> | undefined
+      const deltaType = assistant?.type
+      const delta = assistant?.delta
+      if (typeof delta !== 'string') break
+      if (deltaType === 'text_delta') session.requestTimeline(projector.textDelta(delta))
+      else if (deltaType === 'thinking_delta') session.requestTimeline(projector.thinkingDelta(delta))
+      break
     }
-  } catch (error) {
-    void error
+    case 'tool_execution_start':
+      session.requestTimeline(
+        projector.toolStart({
+          toolCallId: String(event.toolCallId),
+          toolName: String(event.toolName),
+          args: event.args,
+          ...(typeof event.intent === 'string' ? { intent: event.intent } : {}),
+        }),
+      )
+      break
+    case 'tool_execution_update':
+      session.requestTimeline(
+        projector.toolUpdate({
+          toolCallId: String(event.toolCallId),
+          toolName: String(event.toolName),
+          partial: event.partialResult,
+        }),
+      )
+      break
+    case 'tool_execution_end':
+      session.requestTimeline(
+        projector.toolEnd({
+          toolCallId: String(event.toolCallId),
+          toolName: String(event.toolName),
+          result: event.result,
+          ...(event.isError === true ? { isError: true } : {}),
+        }),
+      )
+      break
+    case 'message_start': {
+      /*
+       * 插话落地：omp 把注入的消息折进上下文时发这一条。
+       *
+       * user 消息按投递正文认领（本轮自己的 prompt 由会话那边按同一份正文排除）；
+       * 用户技能消息走 promptCustomMessage，omp 发的是 custom 消息（不是 user），
+       * 只有这一支才画得出来。
+       */
+      claimStartedMessage(event.message, session)
+      break
+    }
+    case 'message_end': {
+      const message = event.message as Parameters<OmpSession['emitUsageFrom']>[0] | undefined
+      if (message !== undefined) session.emitUsageFrom(message)
+      /*
+       * 上下文那一格跟着每一条落地消息重报（legacy bridge.ts 在同一事件里 reportUsage）。
+       * 放在样本之后：两者都是「这一条消息带来的新数」，屏幕先拿到账、再拿到占用。
+       */
+      session.reportContextUsage()
+      break
+    }
+    case 'queue_update':
+      session.reconcileQueue(
+        Array.isArray(event.steering) ? (event.steering as string[]) : [],
+        Array.isArray(event.followUp) ? (event.followUp as string[]) : [],
+      )
+      break
+    case 'model_changed':
+    case 'thinking_level_changed':
+    case 'goal_updated':
+      session.controlsChanged()
+      break
+    case 'notice':
+      session.requestTimeline(
+        projector.notice(
+          event.level === 'error' || event.level === 'warning' ? event.level : 'info',
+          String(event.message),
+          typeof event.source === 'string' ? event.source : undefined,
+        ),
+      )
+      break
+    case 'auto_compaction_start':
+      // 12 页 §9.1 的表：压缩起止各产出一条 marker（开门这条状态是 running）
+      session.requestTimeline(
+        projector.marker({
+          markerId: `compaction-${String(projector.turnOrdinal)}`,
+          marker: 'compaction',
+          payload: { state: 'running', reason: event.reason },
+        }),
+      )
+      break
+    case 'auto_compaction_end':
+      // 压缩后副本已不可信：让 UI 整页重取；同时把那一格标成已收口
+      session.requestTimeline(
+        projector.marker({
+          markerId: `compaction-${String(projector.turnOrdinal)}`,
+          marker: 'compaction',
+          payload: {
+            state: event.aborted === true ? 'cancelled' : 'completed',
+            ...(typeof event.errorMessage === 'string' ? { error: event.errorMessage } : {}),
+          },
+        }),
+      )
+      if (event.aborted !== true) session.timelineReset('main')
+      break
+    /*
+     * 自动重试（12 页 §9.1 的表）：起止各上一条 notice 帧。
+     * 不接它的话，模型服务商抖动的那几十秒在屏幕上是「卡住了」——人只会看到没有输出。
+     */
+    case 'auto_retry_start':
+      session.requestTimeline(
+        projector.notice(
+          'warning',
+          `请求失败，第 ${String(event.attempt)}/${String(event.maxAttempts)} 次重试：${String(event.errorMessage ?? '')}`,
+          'auto_retry',
+        ),
+      )
+      break
+    case 'auto_retry_end':
+      session.requestTimeline(
+        projector.notice(
+          event.success === true ? 'info' : 'error',
+          event.success === true
+            ? `重试成功（第 ${String(event.attempt)} 次）`
+            : `重试失败：${String(event.finalError ?? '')}`,
+          'auto_retry',
+        ),
+      )
+      break
+    default:
+      break
   }
-  void ledger
+}
+
+/**
+ * 事件泵的分流与异常处理（R-02 §2.6）。
+ *
+ * 分类只看 `event.type` 字符串：`agent_end` 特判，工具类在失败时就地降级那一格，
+ * 其余一律只记日志。这样以后新接一个 omp 事件不用改泵就已经是安全的（最坏只丢它自己的产出）。
+ */
+function handleOmpEvent(event: Record<string, unknown>, pump: EventPump): void {
+  const eventType = typeof event.type === 'string' ? event.type : 'unknown'
+  if (eventType === 'agent_end') {
+    endTurn(pump)
+    return
+  }
+  try {
+    dispatchOmpEvent(event, pump)
+  } catch (error) {
+    const toolCallId = typeof event.toolCallId === 'string' ? event.toolCallId : null
+    pump.faults.report(eventType, error, toolCallId === null ? {} : { toolCallId })
+    if (TOOL_EVENTS.has(eventType) && toolCallId !== null) degradeTool(eventType, event, toolCallId, pump)
+  }
+}
+
+/**
+ * 工具事件投影失败时就地降级这一格（R-02 §2.3）：`frame.upsert` 是同 id 整格替换，
+ * 覆盖一次就重新一致；后续成功的 update / end 还会再覆盖回真实内容。
+ *
+ * 拿不到字符串类型的 `toolCallId` 时定位不到那一格，调用方只记日志。
+ */
+function degradeTool(eventType: string, event: Record<string, unknown>, toolCallId: string, pump: EventPump): void {
+  const toolName = typeof event.toolName === 'string' ? event.toolName : 'tool'
+  const ended = eventType === 'tool_execution_end' ? event.isError === true : null
+  try {
+    pump.session.requestTimeline(pump.projector.toolFallback({ toolCallId, toolName, ended }))
+  } catch (error) {
+    pump.faults.report(`${eventType}.fallback`, error, { toolCallId })
+  }
+}
+
+/**
+ * `agent_end`：收口与上下文读数各自兜住，互不连累；最后结清这一轮的异常账。
+ *
+ * `finishTurn()` 自己保证收口（R-02 §2.7），所以第一个 catch 只是为了记日志。
+ */
+function endTurn(pump: EventPump): void {
+  try {
+    pump.session.finishTurn()
+  } catch (error) {
+    pump.faults.report('agent_end', error)
+  }
+  try {
+    /* 轮终再报一次：收尾（压缩标记、最后一条消息之后的变动）也要落到屏幕上的读数里。 */
+    pump.session.reportContextUsage()
+  } catch (error) {
+    pump.faults.report('agent_end.contextUsage', error)
+  }
+  pump.faults.settle()
 }
