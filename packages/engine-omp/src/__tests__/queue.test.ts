@@ -43,6 +43,8 @@ interface Fixture {
   readonly steering: string[]
   readonly followUp: string[]
   readonly calls: Call[]
+  /** R-08-1：图片读盘次数（每张图一次） */
+  readonly imageReads: { readonly count: number }
   /** 发一帧 queue_update（把两个队列当前的样子报出去） */
   syncQueue(): void
   /** 发一帧 message_start */
@@ -66,6 +68,7 @@ async function fixture(): Promise<Fixture> {
   const steering: string[] = []
   const followUp: string[] = []
   const calls: Call[] = []
+  const imageReads = { count: 0 }
   let gate: Promise<void> | null = null
   let openGate: (() => void) | null = null
 
@@ -155,6 +158,11 @@ async function fixture(): Promise<Fixture> {
     modelCatalog: () => null,
     model: null,
     thinking: null,
+    /* R-08-1：读盘计数交给用例断言「每张图只读一次」 */
+    loadImageFiles: async (images) => {
+      imageReads.count += images.length
+      return images.map((image) => ({ path: image.path, mime: image.mime, base64: 'QUJD' }))
+    },
   })
   const events: EngineSessionEvent[] = []
   session.subscribe((event) => events.push(event))
@@ -165,6 +173,7 @@ async function fixture(): Promise<Fixture> {
     steering,
     followUp,
     calls,
+    imageReads,
     syncQueue: emitQueue,
     messageStart: (message) => {
       for (const listener of listeners) listener({ type: 'message_start', message })
@@ -396,6 +405,33 @@ describe('排队 / 插话链路（R-01 §5.1）', () => {
     f.messageStart({ role: 'user', content: '丢弃的一句', timestamp: NOW + 3 })
 
     expect(textsOf(textFrames(f.events), '丢弃的一句')).toBe(1)
+    await f.session.cancel()
+  })
+
+  test('R-08-1 带图的 turn：每张图只读一次（时间线与 prompt 共用同一份像素）', async () => {
+    const f = await fixture()
+    f.calls.length = 0
+    await f.session.submit(
+      submit('看这两张', 'turn', {
+        images: [
+          { path: 'C:\\a.png', mime: 'image/png' },
+          { path: 'C:\\b.png', mime: 'image/jpeg' },
+        ],
+      }),
+    )
+    await Bun.sleep(10)
+
+    expect(f.imageReads.count).toBe(2)
+    /* 两张图各一条 attachment.upsert，且 userTurn 引用的号与它们一一对应 */
+    const ops = f.events.flatMap((event) => (event.type === 'timeline' ? event.ops : []))
+    const upserts = ops.flatMap((op) => (op.op === 'attachment.upsert' ? [op.attachment] : []))
+    const turns = ops.flatMap((op) => (op.op === 'turn.upsert' ? [op.turn] : []))
+    expect(upserts).toHaveLength(2)
+    expect(upserts.map((attachment) => attachment.source)).toEqual([
+      { kind: 'url', url: 'data:image/png;base64,QUJD' },
+      { kind: 'url', url: 'data:image/jpeg;base64,QUJD' },
+    ])
+    expect(turns[0]?.attachmentIds).toEqual(upserts.map((attachment) => attachment.attachmentId))
     await f.session.cancel()
   })
 })

@@ -27,7 +27,15 @@ import { applyPosture, grantToolForSession } from './posture'
 import { lastTurnOrdinal, type OmpMessage, projectHistoryPage } from './projector/history'
 import { LiveProjector } from './projector/live'
 import { SubagentLedger } from './projector/subagents'
-import { expandSkillMessage, isUserSkillMessage, preparePrompt, type SkillPromptMessage } from './prompt'
+import {
+  expandSkillMessage,
+  imageContentsOf,
+  isUserSkillMessage,
+  type LoadedImage,
+  loadImages,
+  preparePrompt,
+  type SkillPromptMessage,
+} from './prompt'
 import { OmpSession } from './session'
 import type { SettingsScope } from './settings-access'
 
@@ -150,12 +158,26 @@ export interface WrapOmpSessionInput {
     readonly efforts: readonly string[]
     readonly defaultLevel: string | null
   } | null
+  /**
+   * 测试缝（R-08-1）：替换图片读盘，用来数「每张图只读一次」。生产不传，走真实 fs。
+   */
+  readonly loadImageFiles?: (
+    images: readonly { readonly path: string; readonly mime: string }[],
+  ) => Promise<readonly LoadedImage[]>
 }
 
 /** 把 omp 的 AgentSession 组装成 EngineSession（12 页 §6.3 第 7 步 / §7） */
 export async function wrapOmpSession(input: WrapOmpSessionInput): Promise<EngineSession> {
   const session = input.agentSession as OmpAgentSessionLike
-  const broker = new InteractionBroker(() => systemClock.now())
+  const broker = new InteractionBroker(
+    () => systemClock.now(),
+    (error) =>
+      input.logger.error('interaction listener threw', {
+        sessionId: session.sessionId,
+        error: error instanceof Error ? error.message : String(error),
+        ...(error instanceof Error && error.stack !== undefined ? { stack: error.stack } : {}),
+      }),
+  )
   const projector = new LiveProjector({ now: () => systemClock.now() })
   const sessionKey = input.spec.key
   const ledger = new SubagentLedger({ now: () => systemClock.now() })
@@ -207,7 +229,13 @@ export async function wrapOmpSession(input: WrapOmpSessionInput): Promise<Engine
       logger: input.logger,
       broker,
       projector,
-      prompt: async (submit, skillMessage) => await deliverPrompt(session, submit, skillMessage),
+      /*
+       * R-08-1：图片在 OmpSession.runTurn 里异步读一次，结果既画时间线又交给 prompt，
+       * 两处共用同一份 base64（不再同步读两遍）。
+       */
+      loadImages: async (images) => await (input.loadImageFiles ?? loadImages)(images),
+      promptWithImages: async (submit, images, skillMessage) =>
+        await deliverPrompt(session, submit, skillMessage, images),
       /*
        * 排队 / 插话的投递。
        *
@@ -300,9 +328,10 @@ export async function wrapOmpSession(input: WrapOmpSessionInput): Promise<Engine
        * 算不出构成只是没有明细 —— 屏幕退成只画总条，不把整张控件表拖垮，所以这里吞掉并留痕。
        */
       contextUsage: readContextUsage,
-      skillMessage: async (submit) => {
-        const prepared = preparePrompt(submit, {})
-        return await expandSkillMessage(submit, prepared.imageContents, {
+      skillMessage: async (submit, images) => {
+        /* R-08-1：turn 那条路把已读好的图传进来，这里就不再读第二遍 */
+        const imageContents = images === undefined ? preparePrompt(submit, {}).imageContents : imageContentsOf(images)
+        return await expandSkillMessage(submit, imageContents, {
           availableSkills: session.skills.map((skill) => skill.name),
           skillMessage: (name, args) => skillPromptOf(session, name, args),
         })
@@ -601,12 +630,14 @@ async function deliverPrompt(
     readonly skills: readonly string[]
   },
   skillMessage: SkillPromptMessage | null,
+  /** R-08-1：已经读好的一份（turn 那条路给；缺席即自己同步读，排队 / 插话那条路） */
+  images?: readonly { readonly path: string; readonly mime: string; readonly base64: string }[],
 ): Promise<boolean> {
   /*
    * 准备是**同步**的（图片读盘与正文拼接都不 await），所以下面那句 prompt 在同一个刻度里发出 ——
    * 投递晚一个刻度，屏幕上那一轮就要多等一帧才真的开始。
    */
-  const prepared = prepareFor(session, submit, 'turn')
+  const prepared = prepareFor(session, submit, 'turn', images)
   // 技能消息由 OmpSession 那边先展开（它要读 SKILL.md），这里只负责投递
   if (skillMessage !== null) {
     return await session.promptCustomMessage(skillMessage as unknown as Record<string, unknown>)
@@ -627,6 +658,7 @@ function prepareFor(
     readonly skills: readonly string[]
   },
   deliverAs: SubmitInput['deliverAs'],
+  images?: readonly { readonly path: string; readonly mime: string; readonly base64: string }[],
 ) {
   return preparePrompt(
     {
@@ -636,7 +668,7 @@ function prepareFor(
       skills: submit.skills,
       deliverAs,
     },
-    {},
+    images === undefined ? {} : { loadedImages: images },
   )
 }
 

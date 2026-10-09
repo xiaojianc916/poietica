@@ -1,4 +1,5 @@
 import { readFileSync, statSync } from 'node:fs'
+import { readFile } from 'node:fs/promises'
 import { tagImageAttachmentSource } from '@oh-my-pi/pi-tui/prompt/image-source'
 import type { SubmitInput } from '@poietica/engine'
 import { AppError, SystemErrorCode } from '@poietica/foundation'
@@ -10,6 +11,13 @@ export interface PreparedImage {
   readonly mediaType: string
   readonly base64: string
   readonly path: string
+}
+
+/** 已经读进内存的一张图：时间线那一帧与交给 omp 的像素共用同一份 */
+export interface LoadedImage {
+  readonly path: string
+  readonly mime: string
+  readonly base64: string
 }
 
 export interface PreparedPrompt {
@@ -56,10 +64,50 @@ export function isUserSkillMessage(message: {
   return message.customType === SKILL_MESSAGE_TYPE && message.attribution === 'user'
 }
 
+/**
+ * 一次读盘的图片加载（R-08-1）：`submit` 只调它一次，结果同时交给时间线那一帧与
+ * omp prompt —— 一张图不再同步读两遍，Core 主线程也不会被大图阻塞。
+ *
+ * 超过 20 MB 抛 kernel.invalid_params（先看 stat，不读大文件）；读不到原样抛错。
+ */
+export interface LoadImagesOptions {
+  readonly readFile?: (path: string) => Promise<Buffer>
+  readonly statSize?: (path: string) => number
+}
+
+export async function loadImages(
+  images: readonly { readonly path: string; readonly mime: string }[],
+  o: LoadImagesOptions = {},
+): Promise<LoadedImage[]> {
+  const statSize = o.statSize ?? ((p: string) => statSync(p).size)
+  const read = o.readFile ?? ((p: string) => readFile(p))
+  const out: LoadedImage[] = []
+  for (const image of images) {
+    const size = statSize(image.path)
+    if (size > MAX_IMAGE_BYTES) {
+      throw new AppError(SystemErrorCode.invalidParams, `图片超过 20 MB：${image.path}`)
+    }
+    out.push({ path: image.path, mime: image.mime, base64: (await read(image.path)).toString('base64') })
+  }
+  return out
+}
+
+/** 已读好的图 → omp 的图片内容块（带落盘路径标记，SDK 靠它注入伴生消息） */
+export function imageContentsOf(images: readonly LoadedImage[]): unknown[] {
+  return images.map((image) =>
+    tagImageAttachmentSource({ type: 'image', data: image.base64, mimeType: image.mime }, image.path, 'image'),
+  )
+}
+
 /** preparePrompt 的可注入面（测试用：不起进程、不碰磁盘） */
 export interface PreparePromptOptions {
   readonly readFile?: (path: string) => Buffer
   readonly statSize?: (path: string) => number
+  /**
+   * 已经读好的图片（submit 那条路只读一次）。给了就不再碰盘；按 `input.images`
+   * 的顺序一一对应（调用方保证同一批）。
+   */
+  readonly loadedImages?: readonly LoadedImage[]
 }
 
 /** expandSkillMessage 的可注入面 */
@@ -84,24 +132,32 @@ export interface ExpandSkillOptions {
  * `expandSkillMessage`。
  */
 export function preparePrompt(input: SubmitInput, o: PreparePromptOptions): PreparedPrompt {
+  const loaded = o.loadedImages ?? readImagesSync(input.images, o)
+  const images: PreparedImage[] = loaded.map((image) => ({
+    mediaType: image.mime,
+    base64: image.base64,
+    path: image.path,
+  }))
+  const imageContents = imageContentsOf(loaded)
+  const text = wireTextOf(input)
+  const skillNames = [...input.skills]
+  return { text, images, imageContents, skillNames }
+}
+
+/** 同步读一组图（steer / followUp 那条路；turn 那条路走 loadImages 只读一次） */
+function readImagesSync(
+  images: readonly { readonly path: string; readonly mime: string }[],
+  o: PreparePromptOptions,
+): LoadedImage[] {
   const statSize = o.statSize ?? ((p: string) => statSync(p).size)
   const read = o.readFile ?? ((p: string) => readFileSync(p))
-  const images: PreparedImage[] = []
-  const imageContents: unknown[] = []
-  for (const image of input.images) {
+  return images.map((image) => {
     const size = statSize(image.path)
     if (size > MAX_IMAGE_BYTES) {
       throw new AppError(SystemErrorCode.invalidParams, `图片超过 20 MB：${image.path}`)
     }
-    const base64 = read(image.path).toString('base64')
-    images.push({ mediaType: image.mime, base64, path: image.path })
-    imageContents.push(
-      tagImageAttachmentSource({ type: 'image', data: base64, mimeType: image.mime }, image.path, 'image'),
-    )
-  }
-  const text = wireTextOf(input)
-  const skillNames = [...input.skills]
-  return { text, images, imageContents, skillNames }
+    return { path: image.path, mime: image.mime, base64: read(image.path).toString('base64') }
+  })
 }
 
 /**

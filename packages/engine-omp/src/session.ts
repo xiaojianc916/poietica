@@ -1,4 +1,3 @@
-import { readFileSync } from 'node:fs'
 import {
   type ContextUsage,
   type Controls,
@@ -20,31 +19,9 @@ import { outcomeOf, type TurnOutcome, toEngineError } from './errors'
 import { describeError } from './event-faults'
 import type { InteractionBroker } from './interactions/broker'
 import type { LiveProjector } from './projector/live'
+import type { LoadedImage } from './prompt'
 import { type SkillPromptMessage, wireTextOf } from './prompt'
 import { usageOf } from './usage'
-
-/**
- * 把 SubmitInput 的图片读成 data URL（附件条目要的就是它）。
- * 读不出来的图片跳过：它仍然会随正文送进模型（prompt.ts 那条路），只是这一帧画不出预览。
- */
-function readImageDataUrls(
-  images: readonly { readonly path: string; readonly mime: string }[],
-): { attachmentId: string; mediaType: string; dataUrl: string }[] {
-  const out: { attachmentId: string; mediaType: string; dataUrl: string }[] = []
-  for (const [index, image] of images.entries()) {
-    try {
-      const bytes = readFileSync(image.path)
-      out.push({
-        attachmentId: `${createId()}#${String(index)}`,
-        mediaType: image.mime,
-        dataUrl: `data:${image.mime};base64,${bytes.toString('base64')}`,
-      })
-    } catch {
-      // 读不到就只画正文：投递那条路会如实报错
-    }
-  }
-  return out
-}
 
 /**
  * transcript 的 `interactionKind` 三档。上游只认 approval / question，`plan` 是线上形状
@@ -78,7 +55,19 @@ export interface OmpSessionHost {
   readonly logger: Logger
   readonly broker: InteractionBroker
   readonly projector: LiveProjector
-  readonly prompt: (input: SubmitInput, skillMessage: SkillPromptMessage | null) => Promise<boolean>
+  /**
+   * 把 submit 的图片读进内存（R-08-1）：只读一次，结果同时给时间线那一帧与 omp prompt。
+   * 读失败原样抛错（这一轮照旧走 failed 那条路）。
+   */
+  readonly loadImages: (
+    images: readonly { readonly path: string; readonly mime: string }[],
+  ) => Promise<readonly { readonly path: string; readonly mime: string; readonly base64: string }[]>
+  /** 已读好的图片交给 omp 的 prompt 那条路（不再读盘） */
+  readonly promptWithImages: (
+    input: SubmitInput,
+    images: readonly { readonly path: string; readonly mime: string; readonly base64: string }[],
+    skillMessage: SkillPromptMessage | null,
+  ) => Promise<boolean>
   /** 排队 / 插话投递。返回 omp 队列里这一项的正文（对账与 removeQueued 都认它） */
   readonly steer: (
     input: SubmitInput,
@@ -134,8 +123,13 @@ export interface OmpSessionHost {
   readonly setModelOnSession: (model: ModelRef) => Promise<void>
   /** 把思考档位切到这一档（omp 的 setThinkingLevel） */
   readonly setThinkingOnSession: (level: string) => void
-  /** 展开这一句挂的技能为 omp 的自定义消息（omp 的 buildSkillPromptMessage；要读 SKILL.md，所以是异步） */
-  readonly skillMessage: (input: SubmitInput) => Promise<SkillPromptMessage | null>
+  /**
+   * 展开这一句挂的技能为 omp 的自定义消息（omp 的 buildSkillPromptMessage；要读 SKILL.md，所以是异步）。
+   *
+   * `images` 是已经读好的那一份（R-08-1 的 turn 那条路给了它，图片不再读第二遍）；
+   * 省略即由适配器自己读（排队 / 插话那条路）。
+   */
+  readonly skillMessage: (input: SubmitInput, images?: readonly LoadedImage[]) => Promise<SkillPromptMessage | null>
   /**
    * 计划模式与目标模式的真实接线（04 §2.4 / 12 §7.7）。
    *
@@ -180,7 +174,11 @@ interface QueueEntry {
 export class OmpSession implements EngineSession {
   readonly sessionId: string
   readonly sessionFile: string
-  private readonly events = new Emitter<EngineSessionEvent>()
+  /*
+   * 监听者异常带上下文记一条 error（R-08-4）：Core 的 stderr 会被 Host 收进 core.log，
+   * 裸文本看不出是哪条会话、哪种事件。异常不外抛给 fire 的调用方（Emitter 的既定语义）。
+   */
+  private readonly events: Emitter<EngineSessionEvent>
   private readonly ledger: QueueEntry[] = []
   /** 已被 omp 从队列里取走、还没等到 message_start 的项（只在这一次运行内有效） */
   private readonly consumed: QueueEntry[] = []
@@ -209,6 +207,14 @@ export class OmpSession implements EngineSession {
   ) {
     this.sessionId = ids.sessionId
     this.sessionFile = ids.sessionFile
+    this.events = new Emitter<EngineSessionEvent>({
+      onListenerError: (error) =>
+        o.logger.error('session listener threw', {
+          sessionId: ids.sessionId,
+          error: error instanceof Error ? error.message : String(error),
+          ...(error instanceof Error && error.stack !== undefined ? { stack: error.stack } : {}),
+        }),
+    })
     this.postureValue = o.spec.posture
     this.modelRef = o.spec.model
     this.thinkingValue = o.spec.thinking
@@ -275,28 +281,8 @@ export class OmpSession implements EngineSession {
       await this.enqueue(input, input.deliverAs)
       return
     }
-    // 12 页 §7.4 第 3 步：每张图片先落一条 attachment.upsert，再开轮（投影层按号查附件）。
-    // SubmitInput.images 只给磁盘路径，像素在这里读成 data URL（与 prompt.ts 读的是同一批文件）。
-    const images = readImageDataUrls(input.images)
-    if (images.length > 0) {
-      this.timeline(
-        images.flatMap((image) =>
-          this.o.projector.attachmentOp({
-            attachmentId: image.attachmentId,
-            mediaType: image.mediaType,
-            dataUrl: image.dataUrl,
-          }),
-        ),
-      )
-    }
-    this.timeline(
-      this.o.projector.userTurn({
-        text: input.text,
-        skills: input.skills,
-        ...(images.length === 0 ? {} : { attachmentIds: images.map((i) => i.attachmentId) }),
-      }),
-    )
-    // 新的一轮开始：上一轮留下的「等交互答完再收尾」标记作废
+    // 12 页 §7.4 第 3 步：每张图片先读一次（R-08-1），同一份像素既画 attachment.upsert
+    // 又交给 omp prompt —— 不再同步读两遍。读盘是异步的，轮子先开起来再补那两条帧。
     this.endedWithPending = null
     this.setState('running')
     // 不 await：一轮会挂在交互上，submit 必须立即返回（C-SUBMIT-RETURNS-EARLY）
@@ -305,10 +291,36 @@ export class OmpSession implements EngineSession {
 
   private async runTurn(input: SubmitInput): Promise<void> {
     try {
+      // 没图时一根微任务也不等：正文那条路保持「submit 之后第一个同步刻度就发出 prompt」的旧时序。
+      const images = input.images.length === 0 ? [] : await this.o.loadImages(input.images)
+      // 号只签一次：attachment.upsert 与 userTurn 引用同一批（投影按号查附件）
+      const imageIds = images.map((_image, index) => `${createId()}#${String(index)}`)
+      if (images.length > 0) {
+        this.timeline(
+          images.flatMap((image, index) =>
+            this.o.projector.attachmentOp({
+              attachmentId: imageIds[index]!,
+              mediaType: image.mime,
+              dataUrl: `data:${image.mime};base64,${image.base64}`,
+            }),
+          ),
+        )
+      }
+      this.timeline(
+        this.o.projector.userTurn({
+          text: input.text,
+          skills: input.skills,
+          ...(images.length === 0
+            ? {}
+            : {
+                attachmentIds: imageIds,
+              }),
+        }),
+      )
       // 没挂技能时不 await（保持同步投递）：submit 之后的第一个同步刻度就该看到 prompt 已经发出
       const skillMessage = input.skills.length === 0 ? null : await this.skillTextFor(input)
       this.ownPrompt = skillMessage === null ? { kind: 'user', wireText: wireTextOf(input) } : { kind: 'skill' }
-      const delivered = await this.o.prompt(input, skillMessage)
+      const delivered = await this.o.promptWithImages(input, images, skillMessage)
       if (!delivered) {
         // omp 没有把这条输入交给模型（例如被扩展拦截）：以 completed 收掉这个空轮
         this.closeTurnAfterRun('completed', null, null)
@@ -365,8 +377,8 @@ export class OmpSession implements EngineSession {
    * 展开失败**必须让这一轮收成 failed**：乐观帧（userTurn）已经上屏了，而这一轮还没有
    * 任何东西能关掉它 —— 吞掉异常就是屏幕上那一轮永远转下去（legacy 同一处也是这么兜的）。
    */
-  private async skillTextFor(input: SubmitInput): Promise<SkillPromptMessage | null> {
-    return await this.o.skillMessage(input)
+  private async skillTextFor(input: SubmitInput, images?: readonly LoadedImage[]): Promise<SkillPromptMessage | null> {
+    return await this.o.skillMessage(input, images)
   }
 
   /**
