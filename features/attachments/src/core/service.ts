@@ -21,6 +21,8 @@ export interface AttachmentsServiceDeps {
   readonly dir: string
   readonly clock: Clock
   readonly logger: Logger
+  /** 测试注入：删文件（R-08-13 的交接缝）；生产走 node:fs/promises 的 rm */
+  readonly removeFile?: (file: string) => Promise<void>
 }
 
 export interface AttachmentsApi extends AttachmentsServiceDeps {
@@ -64,6 +66,23 @@ export function attachmentOf(row: ItemRow): Attachment {
 }
 
 export function createAttachmentsService(d: AttachmentsServiceDeps): AttachmentsApi {
+  /*
+   * 一把异步互斥（R-08-13）。
+   *
+   * sweep 先删 items 行、再 `await rm(文件)`；恰好在这个 await 之间导入同一内容时，
+   * store 看到 `existsSync(target)` 为真就走**去重**分支（只补一行 file / item，不碰盘），
+   * 随后 sweep 的 rm 把文件删掉 —— 新 item 指向一个不存在的文件，从此永远读不到。
+   * 导入是用户操作、sweep 每 6 小时一次，串行化没有任何体感成本。
+   *
+   * 只用 promise 链：上一步失败不能让链子断掉（失败也要把下一个排上来）。
+   */
+  let queue: Promise<unknown> = Promise.resolve()
+  const serial = <T>(fn: () => Promise<T>): Promise<T> => {
+    const run = queue.then(fn, fn)
+    queue = run.catch(() => undefined)
+    return run
+  }
+  const removeFile = d.removeFile ?? ((file: string) => rm(file, { force: true }))
   const sha = (id: string): ItemRow => {
     const row = d.repo.getItem(id)
     if (row === null) {
@@ -112,47 +131,51 @@ export function createAttachmentsService(d: AttachmentsServiceDeps): Attachments
 
   return {
     ...d,
-    async importPaths(paths) {
-      const out: Attachment[] = []
-      for (const p of paths) {
-        let size: number
-        try {
-          const stat = statSync(p)
-          if (!stat.isFile()) throw new AppError(attachmentsErrors.unreadable, '不是文件')
-          size = stat.size
-        } catch (e) {
-          throw new AppError(attachmentsErrors.unreadable, `无法读取文件：${p}`, { cause: String(e) })
+    importPaths(paths) {
+      return serial(async () => {
+        const out: Attachment[] = []
+        for (const p of paths) {
+          let size: number
+          try {
+            const stat = statSync(p)
+            if (!stat.isFile()) throw new AppError(attachmentsErrors.unreadable, '不是文件')
+            size = stat.size
+          } catch (e) {
+            throw new AppError(attachmentsErrors.unreadable, `无法读取文件：${p}`, { cause: String(e) })
+          }
+          // 大小检查在复制之前（07 页 §4C 坑 1）：stat 一看就知道，不必读完再判断
+          if (size > MAX_ATTACHMENT_BYTES) {
+            throw new AppError(attachmentsErrors.too_large, '附件超过 50 MB')
+          }
+          const sha256 = await sha256File(p)
+          await store({ kind: 'file', path: p }, sha256, size)
+          const name = path.basename(p)
+          out.push(record(sha256, size, name, mimeOf(name)))
         }
-        // 大小检查在复制之前（07 页 §4C 坑 1）：stat 一看就知道，不必读完再判断
-        if (size > MAX_ATTACHMENT_BYTES) {
+        return out
+      })
+    },
+    importData(name, mime, base64) {
+      return serial(async () => {
+        // base64 长度估算先判一次（不要解完再判断）
+        const estimated = Math.floor((base64.length * 3) / 4)
+        if (estimated > MAX_ATTACHMENT_BYTES) {
           throw new AppError(attachmentsErrors.too_large, '附件超过 50 MB')
         }
-        const sha256 = await sha256File(p)
-        await store({ kind: 'file', path: p }, sha256, size)
-        const name = path.basename(p)
-        out.push(record(sha256, size, name, mimeOf(name)))
-      }
-      return out
-    },
-    async importData(name, mime, base64) {
-      // base64 长度估算先判一次（不要解完再判断）
-      const estimated = Math.floor((base64.length * 3) / 4)
-      if (estimated > MAX_ATTACHMENT_BYTES) {
-        throw new AppError(attachmentsErrors.too_large, '附件超过 50 MB')
-      }
-      let bytes: Uint8Array
-      try {
-        bytes = new Uint8Array(Buffer.from(base64, 'base64'))
-      } catch (e) {
-        throw new AppError(attachmentsErrors.unreadable, '无法解码附件内容', { cause: String(e) })
-      }
-      if (bytes.byteLength > MAX_ATTACHMENT_BYTES) {
-        throw new AppError(attachmentsErrors.too_large, '附件超过 50 MB')
-      }
-      const { createHash } = await import('node:crypto')
-      const sha256 = createHash('sha256').update(bytes).digest('hex')
-      await store({ kind: 'data', bytes }, sha256, bytes.byteLength)
-      return record(sha256, bytes.byteLength, name, mime === '' ? mimeOf(name) : mime)
+        let bytes: Uint8Array
+        try {
+          bytes = new Uint8Array(Buffer.from(base64, 'base64'))
+        } catch (e) {
+          throw new AppError(attachmentsErrors.unreadable, '无法解码附件内容', { cause: String(e) })
+        }
+        if (bytes.byteLength > MAX_ATTACHMENT_BYTES) {
+          throw new AppError(attachmentsErrors.too_large, '附件超过 50 MB')
+        }
+        const { createHash } = await import('node:crypto')
+        const sha256 = createHash('sha256').update(bytes).digest('hex')
+        await store({ kind: 'data', bytes }, sha256, bytes.byteLength)
+        return record(sha256, bytes.byteLength, name, mime === '' ? mimeOf(name) : mime)
+      })
     },
     get(id) {
       const row = sha(id)
@@ -199,24 +222,26 @@ export function createAttachmentsService(d: AttachmentsServiceDeps): Attachments
     copyOwner(from, to) {
       d.repo.copyOwner(from, to, d.clock.now())
     },
-    async sweep() {
-      const cutoff = d.clock.now() - SWEEP_GRACE_MS
-      // 顺序：先删 items 行，再删没有 item 指向的 files 行，最后删磁盘文件（07 页 §4C 坑 6）
-      let items = 0
-      for (const id of d.repo.unreferencedItems(cutoff)) {
-        d.repo.deleteItem(id)
-        items++
-      }
-      let files = 0
-      for (const sha256 of d.repo.orphanFiles()) {
-        d.repo.deleteFile(sha256)
-        files++
-        await rm(contentPath(d.dir, sha256), { force: true }).catch((e: unknown) => {
-          // 删文件失败只记 warn：文件可能被杀毒软件占用，下次回收会再试一次
-          d.logger.warn('attachment file remove failed', { sha256, error: String(e) })
-        })
-      }
-      return { items, files }
+    sweep() {
+      return serial(async () => {
+        const cutoff = d.clock.now() - SWEEP_GRACE_MS
+        // 顺序：先删 items 行，再删没有 item 指向的 files 行，最后删磁盘文件（07 页 §4C 坑 6）
+        let items = 0
+        for (const id of d.repo.unreferencedItems(cutoff)) {
+          d.repo.deleteItem(id)
+          items++
+        }
+        let files = 0
+        for (const sha256 of d.repo.orphanFiles()) {
+          d.repo.deleteFile(sha256)
+          files++
+          await removeFile(contentPath(d.dir, sha256)).catch((e: unknown) => {
+            // 删文件失败只记 warn：文件可能被杀毒软件占用，下次回收会再试一次
+            d.logger.warn('attachment file remove failed', { sha256, error: String(e) })
+          })
+        }
+        return { items, files }
+      })
     },
   }
 }

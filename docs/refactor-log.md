@@ -683,6 +683,24 @@ Windows Search 索引器短暂打开时，NTFS 的改名抛 `EPERM` / `EACCES` /
 EACCES / EBUSY 同样重试、`ENOENT` 立刻抛出；一直拒绝时封顶后抛最后一个错误；
 `writeFileAtomic` 走重试路径且临时文件不残留。
 
+#### R-08-13 附件回收与同内容导入的竞态（2026-10-10）
+
+**根因**：`sweep` 先 `deleteFile(行)` 再 `await rm(文件)`；恰好在这个 await 之间导入同一内容，
+`store` 看到 `existsSync(target)` 为真就走去重分支（重新插 file / item 行，不碰盘），
+随后 sweep 的 `rm` 把文件删掉 —— item 指向不存在的文件，从此永远读不到。
+
+**改法**：服务内加一把 promise 链互斥 `serial()`，`importPaths` / `importData` / `sweep`
+全部排在同一条链上（导入是用户操作、sweep 每 6 小时一次，串行化没有体感成本）。
+链子用 `.then(fn, fn)` 起步、失败用 `.catch(() => undefined)` 吞在自己那一格，
+所以一步失败不会卡住后面排队的人。同时给 `sweep` 的删文件加了测试注入点
+`removeFile`（默认仍是 `rm(file, { force: true })`）。
+
+**测试**：`features/attachments/src/core/__tests__/service.test.ts` 加 R-08-13 用例：假 `rm`
+用手动 resolve 的 Promise 把「表已删、文件还没删」这一刻钉住，此刻发起同内容导入 ——
+导入在 sweep 结束前**不能完成**（旧实现里它几拍之内就走完并从 Promise 里出来），
+放行后文件必须仍在且内容完整。把 `serial` 换成空壳重跑，该用例红（`importedEarly` 为真、
+断言文件存在时已不存在）。
+
 ### 审查执行待决（R-08 新增）
 
 | 编号 | 日期 | 问题 | 阻塞的步骤 | 状态 |
