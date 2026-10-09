@@ -45,6 +45,12 @@ export interface ComposerStore {
   selectionOf(threadId: string | null): EntrySelection
   clear(threadId: string | null): void
   restore(threadId: string | null, draft: Draft): void
+  /**
+   * 从所有草稿里移除这些附件 id（R-07 §3.4：Core 回报 missing 时清理）。
+   *
+   * 内容没变不换引用；返回实际移除的条数。
+   */
+  dropAttachments(ids: readonly string[]): number
   setSubmitting(v: boolean): void
   /** 启动时把 uiState 里那份草稿读回来（持久化用）。 */
   hydrate(drafts: Readonly<Record<string, Draft>>): void
@@ -91,6 +97,21 @@ export function createComposerStore(initial: Readonly<Record<string, Draft>> = {
     restore: (threadId, draft) => {
       /* 迁移到线程名下的草稿不再带入口页的选择器：那是入口那一格的事。 */
       patch(threadId, () => ({ text: draft.text, attachments: draft.attachments, skills: draft.skills }))
+    },
+    dropAttachments: (ids) => {
+      if (ids.length === 0) return 0
+      const drop = new Set(ids)
+      const drafts = store.getState().drafts
+      const next: Record<string, Draft> = {}
+      let removed = 0
+      for (const [key, draft] of Object.entries(drafts)) {
+        const kept = draft.attachments.filter((a) => !drop.has(a.id))
+        removed += draft.attachments.length - kept.length
+        next[key] = kept.length === draft.attachments.length ? draft : { ...draft, attachments: kept }
+      }
+      if (removed === 0) return 0
+      store.setState({ drafts: next })
+      return removed
     },
     setSubmitting: (submitting) => {
       store.setState({ submitting })

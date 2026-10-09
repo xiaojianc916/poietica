@@ -49,6 +49,7 @@ async function makeCore(overrides: { engine?: FakeEngine; workspaces?: Workspace
     } as WorkspacesService)
 
   const retained: { ids: readonly string[]; ownerKey: string }[] = []
+  const copied: { from: string; to: string }[] = []
   const released: string[] = []
   const attachments: AttachmentsService = {
     resolve: (ids) => ids.map((id) => ({ id, name: id, mime: 'image/png', kind: 'image' as const, path: `/x/${id}` })),
@@ -63,6 +64,9 @@ async function makeCore(overrides: { engine?: FakeEngine; workspaces?: Workspace
       })),
     retain: (ids, ownerKey) => {
       retained.push({ ids, ownerKey })
+    },
+    copyOwner: (from, to) => {
+      copied.push({ from, to })
     },
     releaseOwner: (ownerKey) => {
       released.push(ownerKey)
@@ -138,6 +142,7 @@ async function makeCore(overrides: { engine?: FakeEngine; workspaces?: Workspace
     dir,
     db,
     retained,
+    copied,
     released,
     settled,
     sampled,
@@ -254,6 +259,7 @@ describe('conversation core（不经内核的直连测试）', () => {
           previewUrl: null,
         })),
       retain: () => undefined,
+      copyOwner: () => undefined,
       releaseOwner: () => undefined,
     }
     const engine = createFakeEngine()
@@ -905,6 +911,7 @@ describe('conversation core（不经内核的直连测试）', () => {
           resolve: () => [],
           describe: () => [],
           retain: () => undefined,
+          copyOwner: () => undefined,
           releaseOwner: () => undefined,
         } as unknown as AttachmentsService,
         clock: systemClock,

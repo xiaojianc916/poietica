@@ -35,6 +35,14 @@ export interface AttachmentsRepository {
   // refs（谁在用）
   retain(ownerKey: string, itemId: string, at: number): void
   releaseOwner(ownerKey: string): void
+  /**
+   * 把 ownerKey 的引用集合整体替换为 itemIds（事务内先删后插）；不存在的 item 被忽略并返回。
+   *
+   * 整体替换而不是逐个增减：调用方（UI 草稿）丢一次、重发一次都不会漂移（R-07 §3.2）。
+   */
+  replaceOwner(ownerKey: string, itemIds: readonly string[], at: number): { missing: string[] }
+  /** 把 from 的全部引用复制给 to（fork 的分支继承）；幂等 */
+  copyOwner(from: string, to: string, at: number): void
   countRefs(itemId: string): number
 }
 
@@ -119,6 +127,38 @@ export function createAttachmentsRepository(db: ModuleDatabase): AttachmentsRepo
     },
     releaseOwner(ownerKey) {
       db.prepare('DELETE FROM attachments_refs WHERE owner_key = ?').run(ownerKey)
+    },
+    replaceOwner(ownerKey, itemIds, at) {
+      return db.transaction(() => {
+        db.prepare('DELETE FROM attachments_refs WHERE owner_key = ?').run(ownerKey)
+        /*
+         * 先查存在性再插入：外键开着（PRAGMA foreign_keys = ON），直接插不存在的 item
+         * 会抛约束错误；缺的 id 交回调用方去清理来源（R-07 §3.2）。
+         */
+        const present = db.prepare<{ id: string }>('SELECT id FROM attachments_items WHERE id = ?')
+        const insert = db.prepare(
+          'INSERT OR IGNORE INTO attachments_refs (owner_key, item_id, created_at) VALUES (?, ?, ?)',
+        )
+        const missing: string[] = []
+        const seen = new Set<string>()
+        for (const id of itemIds) {
+          if (seen.has(id)) continue
+          seen.add(id)
+          if (present.get(id) === null || present.get(id) === undefined) {
+            missing.push(id)
+            continue
+          }
+          insert.run(ownerKey, id, at)
+        }
+        return { missing }
+      })
+    },
+    copyOwner(from, to, at) {
+      db.transaction(() => {
+        db.prepare(
+          'INSERT OR IGNORE INTO attachments_refs (owner_key, item_id, created_at) SELECT ?, item_id, ? FROM attachments_refs WHERE owner_key = ?',
+        ).run(to, at, from)
+      })
     },
     countRefs(itemId) {
       const r = db.prepare<{ n: number }>('SELECT COUNT(*) AS n FROM attachments_refs WHERE item_id = ?').get(itemId)

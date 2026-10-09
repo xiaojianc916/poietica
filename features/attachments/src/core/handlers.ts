@@ -9,4 +9,7 @@ export function registerHandlers(ctx: Ctx, service: AttachmentsApi): void {
   ctx.rpc.handle('attachments.importPaths', async ({ paths }) => ({ attachments: await service.importPaths(paths) }))
   ctx.rpc.handle('attachments.importData', ({ name, mime, base64 }) => service.importData(name, mime, base64))
   ctx.rpc.handle('attachments.get', ({ attachmentId }) => service.get(attachmentId))
+  ctx.rpc.handle('attachments.setOwnerRefs', ({ ownerKey, attachmentIds }) =>
+    service.replaceOwner(ownerKey, attachmentIds),
+  )
 }

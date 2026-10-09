@@ -33,6 +33,10 @@ export interface AttachmentsApi extends AttachmentsServiceDeps {
   describe(ids: readonly string[]): readonly DescribedAttachment[]
   retain(ids: readonly string[], ownerKey: string): void
   releaseOwner(ownerKey: string): void
+  /** UI 持有的附件（草稿）：把 ownerKey 的引用集合整体替换为 ids，不存在的 id 交回调用方 */
+  replaceOwner(ownerKey: string, ids: readonly string[]): { missing: string[] }
+  /** 分支对话继承源线程的引用（R-07 §3.3） */
+  copyOwner(from: string, to: string): void
   sweep(): Promise<{ items: number; files: number }>
 }
 
@@ -188,6 +192,12 @@ export function createAttachmentsService(d: AttachmentsServiceDeps): Attachments
     },
     releaseOwner(ownerKey) {
       d.repo.releaseOwner(ownerKey)
+    },
+    replaceOwner(ownerKey, ids) {
+      return d.repo.replaceOwner(ownerKey, ids, d.clock.now())
+    },
+    copyOwner(from, to) {
+      d.repo.copyOwner(from, to, d.clock.now())
     },
     async sweep() {
       const cutoff = d.clock.now() - SWEEP_GRACE_MS

@@ -23,5 +23,12 @@ export interface AttachmentsService {
   /** ownerKey 约定：'<功能 id>:<实体>:<id>'，例如 'conversation:thread:01J…' */
   retain(ids: readonly string[], ownerKey: string): void
   releaseOwner(ownerKey: string): void
+  /**
+   * 分支对话继承源线程的附件引用（R-07 §3.3）。
+   *
+   * 分支的历史里，文件类附件是以路径交给 omp 的；没有这一步，删掉原对话后
+   * 24 小时的回收会把分支还要用的文件删掉。
+   */
+  copyOwner(from: string, to: string): void
 }
 export const AttachmentsServiceToken = defineServiceToken<AttachmentsService>('attachments', 'AttachmentsService')

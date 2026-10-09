@@ -150,6 +150,26 @@ export interface ThreadHeaderItem {
 }
 export const threadHeaderItems = defineContributionPoint<ThreadHeaderItem>('conversation.threadHeaderItems')
 
+/**
+ * 草稿引用的附件：给 attachments 的 UI 做引用登记（R-07 §3.4）。
+ *
+ * conversation 不认识 attachments，只交出这份只读视图；整体替换的登记由 attachments
+ * 那一侧调自己的契约完成。
+ */
+export interface DraftAttachments {
+  /**
+   * 全部草稿（每条线程 + 入口页）引用的附件 id，去重、升序。
+   *
+   * **草稿还没从盘上恢复时为 null**：attachments 的 onCoreReady 可能先于草稿读盘，
+   * 那一刻拿空集合去整体替换会把盘上草稿的引用全部清掉。
+   */
+  ids(): readonly string[] | null
+  /** id 集合变化时回调（打字不触发）；恢复完成时也回调一次 */
+  subscribe(listener: () => void): () => void
+  /** 从所有草稿里移除这些附件，返回实际移除的条数 */
+  drop(ids: readonly string[]): number
+}
+
 export interface ConversationUi {
   activeThreadId(): string | null
   subscribeActive(listener: () => void): () => void
@@ -157,6 +177,7 @@ export interface ConversationUi {
   openThread(threadId: string): void
   /** 当前页面上的输入框（home 页或线程页）；没有输入框的页面（例如设置页）返回 null */
   activeComposer(): ComposerDraft | null
+  readonly draftAttachments: DraftAttachments
 }
 export const ConversationUiToken = defineServiceToken<ConversationUi>('conversation', 'ConversationUi')
 

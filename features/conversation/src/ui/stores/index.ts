@@ -6,6 +6,7 @@ import { type ControlsStore, createControlsStore } from './controls'
 import { createThreadsStore, type ThreadsStore } from './threads'
 import { createTurnStatesStore, type TurnStatesStore } from './turn-states'
 
+export { createDraftPin } from './draft-pin'
 export type { TurnStatesStore }
 
 /** 一个线程的输入框句柄：组件拿它读草稿、发消息、改控件 */

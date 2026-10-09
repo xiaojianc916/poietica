@@ -162,6 +162,74 @@ describe('attachments 服务（07 页 §4G、14 页 §8.6）', () => {
     await root.dispose()
   })
 
+  /*
+   * R-07 T1–T4：整体替换与复制引用（草稿 / 分支两条路的底盘）。
+   *
+   * 这四条判据全部落在「回收」这个观察点上：引用登记得对不对，最终只由
+   * 「25 小时后的 sweep 里它还在不在」说话。
+   */
+  test('R-07 T1 replaceOwner 之后只留点名的那些；25 小时后其余被回收', async () => {
+    const { service, clock, root, dir, db } = await make()
+    const src = path.join(root.path, 'a.txt')
+    fs.writeFileSync(src, 'a')
+    const [a] = await service.importPaths([src])
+    const srcB = path.join(root.path, 'b.txt')
+    fs.writeFileSync(srcB, 'b')
+    const [b] = await service.importPaths([srcB])
+
+    expect(service.replaceOwner('ui:x', [a!.id])).toEqual({ missing: [] })
+    clock.advance(SWEEP_GRACE_MS + 3_600_000)
+    const swept = await service.sweep()
+    expect(swept.items).toBe(1)
+    expect(fs.existsSync(contentPath(dir, a!.sha256))).toBe(true)
+    expect(fs.existsSync(contentPath(dir, b!.sha256))).toBe(false)
+    db.close()
+    await root.dispose()
+  })
+
+  test('R-07 T2 replaceOwner 换成空集合：引用被清掉，25 小时后可回收', async () => {
+    const { service, clock, root, dir, db } = await make()
+    const src = path.join(root.path, 'a.txt')
+    fs.writeFileSync(src, 'a')
+    const [a] = await service.importPaths([src])
+    service.replaceOwner('ui:x', [a!.id])
+    service.replaceOwner('ui:x', [])
+    clock.advance(SWEEP_GRACE_MS + 3_600_000)
+    expect((await service.sweep()).items).toBe(1)
+    expect(fs.existsSync(contentPath(dir, a!.sha256))).toBe(false)
+    db.close()
+    await root.dispose()
+  })
+
+  test('R-07 T3 replaceOwner 里的不存在 id：不抛错、报 missing、存在的照常登记', async () => {
+    const { service, clock, root, dir, db } = await make()
+    const src = path.join(root.path, 'a.txt')
+    fs.writeFileSync(src, 'a')
+    const [a] = await service.importPaths([src])
+
+    expect(service.replaceOwner('ui:x', [a!.id, 'nope'])).toEqual({ missing: ['nope'] })
+    clock.advance(SWEEP_GRACE_MS + 3_600_000)
+    expect((await service.sweep()).items).toBe(0)
+    expect(fs.existsSync(contentPath(dir, a!.sha256))).toBe(true)
+    db.close()
+    await root.dispose()
+  })
+
+  test('R-07 T4 copyOwner：分支继承引用，原线程释放后文件仍被保住', async () => {
+    const { service, clock, root, dir, db } = await make()
+    const src = path.join(root.path, 'a.txt')
+    fs.writeFileSync(src, 'a')
+    const [a] = await service.importPaths([src])
+    service.retain([a!.id], 't1')
+    service.copyOwner('t1', 't2')
+    service.releaseOwner('t1')
+    clock.advance(SWEEP_GRACE_MS + 3_600_000)
+    expect((await service.sweep()).items).toBe(0)
+    expect(fs.existsSync(contentPath(dir, a!.sha256))).toBe(true)
+    db.close()
+    await root.dispose()
+  })
+
   test('未知扩展名 → application/octet-stream 且 kind 是 file、previewUrl 为 null', async () => {
     const { service, root, db } = await make()
     const src = path.join(root.path, 'weird.zzz')

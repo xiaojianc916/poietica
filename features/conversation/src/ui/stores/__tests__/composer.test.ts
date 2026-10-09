@@ -45,4 +45,28 @@ describe('草稿 store（07 页 §5E：草稿持久化到 uiState 的 conversati
     const store = createComposerStore({ t9: { text: '恢复的草稿', attachments: [], skills: [] } })
     expect(store.draft('t9').text).toBe('恢复的草稿')
   })
+
+  /*
+   * R-07 T8：Core 回报哪些附件已经不存在时，从**所有**草稿里一并清掉它们。
+   * 判据两条：命中的都删、其它内容原样；一个都没命中时不换引用（订阅者不白重画）。
+   */
+  test('R-07 T8 dropAttachments 跨草稿移除，正文与其它附件不动', () => {
+    const store = createComposerStore()
+    store.setText('t1', '第一格')
+    store.addAttachments('t1', [
+      { id: 'x', name: 'x.png', kind: 'image', previewUrl: null },
+      { id: 'y', name: 'y.png', kind: 'image', previewUrl: null },
+    ])
+    store.addAttachments(null, [{ id: 'x', name: 'x.png', kind: 'image', previewUrl: null }])
+
+    expect(store.dropAttachments(['x'])).toBe(2)
+    expect(store.draft('t1').attachments.map((a) => a.id)).toEqual(['y'])
+    expect(store.draft('t1').text).toBe('第一格')
+    expect(store.draft(null).attachments).toEqual([])
+
+    /* 没有命中：返回 0，而且不换引用（同一份 drafts 对象） */
+    const before = store.store.getState().drafts
+    expect(store.dropAttachments(['nope'])).toBe(0)
+    expect(store.store.getState().drafts).toBe(before)
+  })
 })

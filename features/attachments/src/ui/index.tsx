@@ -1,10 +1,16 @@
 /// <reference path="../../../../packages/design-system/src/css.d.ts" />
 
-import { type ComposerDraft, composerInputHandlers, composerProviders } from '@poietica/feature-conversation/ui-api'
+import {
+  type ComposerDraft,
+  ConversationUiToken,
+  composerInputHandlers,
+  composerProviders,
+} from '@poietica/feature-conversation/ui-api'
 import { platformContract } from '@poietica/feature-platform/contract'
 import { defineUiFeature, ToastsToken } from '@poietica/ui-kernel'
 import type { ReactNode } from 'react'
 import { createAttachmentsApi } from './api'
+import { createDraftRefSync } from './draft-refs'
 import { AttachmentIntakeProvider, createAttachmentIntake } from './intake-provider'
 import { imageFromClipboard, importClipboardImage, pathsFromDrop } from './paste'
 
@@ -29,6 +35,33 @@ export default defineUiFeature({
     const api = createAttachmentsApi(ctx)
     const platform = ctx.rpc(platformContract)
     const toasts = ctx.services.get(ToastsToken)
+
+    /*
+     * 草稿附件的引用登记（R-07 §3.4 的方案 1）：依赖方向本来就是 attachments → conversation，
+     * 所以这一侧持有同步逻辑，读 conversation 交出的草稿视图、调自己的契约。
+     */
+    const draftAttachments = ctx.services.get(ConversationUiToken).draftAttachments
+    const draftRefs = createDraftRefSync({
+      drafts: draftAttachments,
+      setOwnerRefs: (ownerKey, attachmentIds) => api.setOwnerRefs(ownerKey, attachmentIds),
+      warn: (message, data) => {
+        ctx.logger.warn(message, data)
+      },
+      reportMissing: (count) => {
+        toasts.show({ severity: 'warning', title: `有 ${count} 个草稿附件已失效，已从草稿中移除` })
+      },
+    })
+    ctx.lifecycle.onDispose(
+      draftAttachments.subscribe(() => {
+        draftRefs.schedule()
+      }),
+    )
+    ctx.lifecycle.onDispose(() => {
+      draftRefs.dispose()
+    })
+    ctx.lifecycle.onCoreReady(() => {
+      draftRefs.onCoreReady()
+    })
 
     const addPaths = async (draft: ComposerDraft, paths: readonly string[]): Promise<boolean> => {
       if (paths.length === 0) return false

@@ -805,6 +805,50 @@
       }
     },
     {
+      "name": "attachments.setOwnerRefs",
+      "owner": "core",
+      "timeoutMs": 30000,
+      "description": "UI 持有的附件（如草稿）的引用登记：整体替换；返回已不存在的 id",
+      "params": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "ownerKey": {
+            "type": "string",
+            "pattern": "^ui:[a-z0-9.:-]+$"
+          },
+          "attachmentIds": {
+            "maxItems": 10000,
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1
+            }
+          }
+        },
+        "required": [
+          "ownerKey",
+          "attachmentIds"
+        ]
+      },
+      "result": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "missing": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "required": [
+          "missing"
+        ],
+        "additionalProperties": false
+      }
+    },
+    {
       "name": "automations.cancelRun",
       "owner": "core",
       "timeoutMs": 30000,

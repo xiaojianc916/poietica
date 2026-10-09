@@ -1,7 +1,11 @@
 import { describe, expect, test } from 'bun:test'
+import fs from 'node:fs'
+import path from 'node:path'
 import type { ScenarioScript } from '@poietica/engine-testkit'
+import { attachmentsContract } from '@poietica/feature-attachments/contract'
 import { workspacesContract } from '@poietica/feature-workspaces/contract'
-import { tempDir } from '@poietica/test-kit'
+import type { TypedRpcClient } from '@poietica/rpc'
+import { tempDir, waitFor } from '@poietica/test-kit'
 import { conversationContract } from '../../contract'
 import { BUSY_SCRIPT, harness } from './helpers'
 
@@ -237,5 +241,107 @@ describe('conversation core 模块', () => {
     await new Promise((r) => setTimeout(r, 20))
     expect(h.notifications(conversationContract, 'threads.removed').some((n) => n.threadId === thread.id)).toBe(true)
     await finish()
+  })
+
+  /*
+   * R-07 §3.3 的模块级判据：引用登记的三个时机（接受 / 分支）在**真实内核 + 真回收**下成立。
+   *
+   * 观察点取两条：unreferenced 的 item 会被 sweep 删掉（canary），而要点名的 item 必须还在。
+   * 回收自己走 attachments 模块的定时器（onReady 后 60 秒第一次），所以推时钟即可触发，
+   * 不需要去摸模块内部。
+   */
+  describe('R-07 附件引用登记', () => {
+    const SWEEP_PUSH_MS = 25 * 60 * 60 * 1000
+    type AttachmentsClient = TypedRpcClient<typeof attachmentsContract>
+
+    /** 导入一个附件并顺带种一条无人引用的 canary（用来证明回收真的跑过） */
+    const importWithCanary = async (attachments: AttachmentsClient, dirPath: string, name: string) => {
+      const source = path.join(dirPath, name)
+      fs.writeFileSync(source, name)
+      const used = (await attachments.call('attachments.importPaths', { paths: [source] })).attachments[0]!
+      const canarySource = path.join(dirPath, `canary-${name}`)
+      fs.writeFileSync(canarySource, 'canary')
+      const canary = (await attachments.call('attachments.importPaths', { paths: [canarySource] })).attachments[0]!
+      return { used, canary }
+    }
+
+    /** 推过回收的第一次触发点，并等 canary 真的消失（证明这一趟 sweep 跑到过） */
+    const sweepAndAwaitCanary = async (
+      h: Awaited<ReturnType<typeof started>>['h'],
+      attachments: AttachmentsClient,
+      canaryId: string,
+    ): Promise<void> => {
+      h.clock.advance(SWEEP_PUSH_MS)
+      await waitFor(
+        async () => (await attachments.call('attachments.get', { attachmentId: canaryId }).catch(() => null)) === null,
+        { message: 'canary 没有被回收，这一趟 sweep 没跑起来' },
+      )
+    }
+
+    test('T6 交接失败的提交：附件仍被引用，25 小时回收后重试不再报 not_found', async () => {
+      const { h, engine, api, dir, finish } = await started()
+      const attachments = h.client(attachmentsContract)
+      const { used, canary } = await importWithCanary(attachments, dir.path, 'note.txt')
+      const thread = await api.call('threads.create', {
+        workspaceId: (await h.client(workspacesContract).call('workspaces.list', {})).workspaces[0]!.id,
+      })
+
+      const realOpen = engine.openSession.bind(engine)
+      engine.openSession = () => Promise.reject(new Error('工作区目录已改名'))
+      await api.call('turns.submit', {
+        threadId: thread.id,
+        clientTurnId: 'R-07-T6',
+        text: '带附件的一句',
+        attachmentIds: [used.id],
+        skills: [],
+        deliverAs: 'turn',
+      })
+      await new Promise((r) => setTimeout(r, 30))
+
+      const failed = await api.call('timeline.subscribe', { threadId: thread.id, agentId: 'main' })
+      expect(failed.submissions.some((s) => s.status === 'failed')).toBe(true)
+
+      await sweepAndAwaitCanary(h, attachments, canary.id)
+      /* 关键判据：还在用的附件没被回收 */
+      expect((await attachments.call('attachments.get', { attachmentId: used.id })).id).toBe(used.id)
+
+      /* 重试：这次引擎能开了，提交必须能交出去（旧代码在这里报 attachments.not_found） */
+      engine.openSession = realOpen
+      await api.call('submissions.retry', { clientTurnId: 'R-07-T6' })
+      await runOneBeat(h)
+      await waitFor(async () => {
+        const snap = await api.call('timeline.subscribe', { threadId: thread.id, agentId: 'main' })
+        return snap.submissions.every((s) => s.status !== 'failed')
+      })
+      await finish()
+    })
+
+    test('T7 分支继承引用：删掉原线程后附件文件仍在', async () => {
+      const { h, api, dir, finish } = await started()
+      const attachments = h.client(attachmentsContract)
+      const { used, canary } = await importWithCanary(attachments, dir.path, 'branch.txt')
+      const thread = await api.call('threads.create', {
+        workspaceId: (await h.client(workspacesContract).call('workspaces.list', {})).workspaces[0]!.id,
+      })
+
+      await api.call('turns.submit', {
+        threadId: thread.id,
+        clientTurnId: 'R-07-T7',
+        text: '第一句',
+        attachmentIds: [used.id],
+        skills: [],
+        deliverAs: 'turn',
+      })
+      await runToIdle(h, api, thread.id)
+
+      const forked = await api.call('threads.fork', { threadId: thread.id, undoTurns: 0 })
+      await api.call('threads.delete', { threadId: thread.id })
+
+      await sweepAndAwaitCanary(h, attachments, canary.id)
+      /* 分支还要用这个文件：它必须还在盘上（旧代码在这里被删掉） */
+      expect((await attachments.call('attachments.get', { attachmentId: used.id })).id).toBe(used.id)
+      void forked
+      await finish()
+    })
   })
 })

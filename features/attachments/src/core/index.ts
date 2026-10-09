@@ -24,6 +24,7 @@ export default defineCoreModule({
       describe: service.describe,
       retain: service.retain,
       releaseOwner: service.releaseOwner,
+      copyOwner: service.copyOwner,
     })
 
     // 回收：onReady 后 60 秒第一次，此后每 6 小时一次（定时器一律走 ctx.clock）

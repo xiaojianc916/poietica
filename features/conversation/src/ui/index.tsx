@@ -53,7 +53,7 @@ import {
   sessionGoalOf,
 } from './control-shapes'
 import { ArchivedChatsPage } from './settings/archived-page'
-import { type ConversationStores, createStores, type TurnStatesStore } from './stores'
+import { type ConversationStores, createDraftPin, createStores, type TurnStatesStore } from './stores'
 import { completionBody, confirmDeleteThread, confirmQuit, isTurnSettled, shouldNotify } from './stores/notify'
 import { createSessionRegistry } from './stores/session-registry'
 import { useThreadSessionLifecycle } from './thread-lifecycle'
@@ -129,6 +129,8 @@ export default defineUiFeature({
      * 这一层只把「一串变更」并成一次提交。
      */
     let draftWrite: ReturnType<typeof setTimeout> | null = null
+    /* 草稿附件的只读视图（R-07 §3.4）：attachments 的 UI 拿它做引用登记 */
+    const draftPin = createDraftPin(stores.composer)
     const persistDrafts = (): void => {
       if (draftWrite !== null) clearTimeout(draftWrite)
       draftWrite = setTimeout(() => {
@@ -142,6 +144,7 @@ export default defineUiFeature({
     ctx.lifecycle.onDispose(
       stores.composer.store.subscribe(() => {
         persistDrafts()
+        draftPin.onChange()
       }),
     )
 
@@ -414,14 +417,23 @@ export default defineUiFeature({
      * 输入框里最近 300ms（UI 去抖）+ 500ms（Host 去抖）内敲的字用盘上的旧版本盖回去
      * （R-04 §1.5）。`posture.load()` 与它同一条理由。
      */
+    /*
+     * 「读失败」与「盘上没有值」必须分开（R-07 §3.4）：前者要保持「草稿没恢复」，
+     * 下一次 ready 再读；混在一起会让 attachments 那一侧在一个空集合上做整体替换，
+     * 把盘上草稿的引用全清掉。读成功（哪怕是 null）才算恢复完成。
+     */
     const loadDraftsOnce = async (): Promise<void> => {
-      const storedDrafts = await preferences
-        .call('uiState.get', { key: 'conversation.drafts' })
-        .then((r) => r.value)
-        .catch(() => null)
+      let storedDrafts: unknown
+      try {
+        storedDrafts = (await preferences.call('uiState.get', { key: 'conversation.drafts' })).value
+      } catch (cause) {
+        ctx.logger.warn('drafts load failed', { error: String(cause) })
+        return
+      }
       if (storedDrafts !== null && typeof storedDrafts === 'object') {
         stores.composer.hydrate(storedDrafts as Record<string, import('./stores/composer').Draft>)
       }
+      draftPin.markRestored()
     }
 
     let readyCount = 0
@@ -430,12 +442,9 @@ export default defineUiFeature({
       const first = readyCount === 1
       const steps: Array<readonly [string, () => unknown]> = [
         ['threads', () => stores.threads.refresh()],
-        ...(first
-          ? ([
-              ['posture', () => posture.load()],
-              ['drafts', () => loadDraftsOnce()],
-            ] as const)
-          : []),
+        ...(first ? ([['posture', () => posture.load()]] as const) : []),
+        /* 读失败时保持「没恢复」，所以不是「只有第一次」——恢复到之前每次 ready 都试。 */
+        ...(draftPin.restored() ? [] : ([['drafts', () => loadDraftsOnce()]] as const)),
         [
           'transcripts',
           () => {
@@ -914,6 +923,13 @@ export default defineUiFeature({
             handle.submit('turn')
           },
         }
+      },
+      draftAttachments: {
+        ids: draftPin.view.ids,
+        subscribe: (listener) => {
+          return draftPin.view.subscribe(listener)
+        },
+        drop: draftPin.view.drop,
       },
     })
   },

@@ -421,3 +421,94 @@ conversation 侧五条新用例在旧代码上全红（事件不存在）。恢�
 | 编号 | 日期 | 问题 | 阻塞的步骤 | 状态 |
 |---|---|---|---|---|
 | Q37 | 2026-10-09 | R-06 §6 的手工验收未跑（需要安装包 + 真 omp）：① 每分钟任务在「冷打开失败 / 服务商凭据被删」时那次运行显示失败与原因；② 恢复后下一分钟任务正常再跑 | 无（代码与单测已按报告落地） | 记录：等产品负责人真机复核 |
+
+## R-07 附件引用登记的三个缺口：草稿过夜即失效、未送达的提交不受保护、分支不继承引用（2026-10-09）
+
+**来源**：产品负责人交办的缺陷报告 `R-07 附件引用登记的三个缺口：草稿过夜即失效、未送达的提交不受保护、分支不继承引用.md`
+（外部输入，不入库）。契约形状有变化：新增 `attachments.setOwnerRefs`，
+`PROTOCOL_VERSION` 8 → 9，已重跑 `bun run protocol:snapshot`（快照只多这一个方法，参数 `ownerKey` 正则
+`^ui:[a-z0-9.:-]+$`、`attachmentIds` 上限 10 000，结果 `{ missing: string[] }`）。
+
+**根因**：引用登记只在「附件真的被交给模型」那一刻做（`submission-service.deliver` 里唯一的 `retain`），
+而「谁还需要这个附件」的真实集合更大 —— 草稿（UI 持有，随 `conversation.drafts` 落盘）、
+已接受但未送达 / 交接失败的提交（Core 库里，`retry` 会再用）、继承了历史的**分支**。
+回收（sweep，24 小时宽限）不认这三类，于是「明天发不出去的草稿」「隔天重试永远 `attachments.not_found`」
+「删了原对话后分支里的文件不见了」。
+
+**改法**：
+
+1. **谁持有谁登记**（§3.3）。`submission-service.submit()` 把 `retain` 挪到 `repo.insert(row)` 之后、
+   **同一同步段内**（写库与登记之间不会被 sweep 插进来）；`deliver()` 里的那一句删除（`resolve` 保留）。
+   `thread-service.fork` 在 `repo.insert(next)` 之后 `copyOwner(源线程, 分支)`。
+2. **attachments 侧新增两件能力**（§3.2）。仓储 `replaceOwner(ownerKey, itemIds, at)`（事务内先删后插，
+   先查存在性再插 —— 外键开着，缺的 id 收集成 `missing` 交回调用方）与 `copyOwner(from, to, at)`
+   （`INSERT OR IGNORE ... SELECT`）。服务 / `core-api` / 契约 / handler 一路透出，
+   `attachments.setOwnerRefs` 只认 `ui:` 前缀的 ownerKey（UI 不得误释放 Core 的引用）。
+3. **草稿由 UI 整体替换**（§3.1 的幂等原则）：丢一次、重发一次都不漂移；逐个 retain/release 在离线、
+   重启、丢包下都会漂移。
+
+**本轮偏差（重要，与报告 §3.4 原文不一致，已与产品负责人确认）**：草稿引用的同步**放在 attachments 的 UI**，
+不是 conversation 的 UI。原因：报告原文让 conversation 的 UI `dependsOn: ['attachments']`，
+而 attachments 的 UI 本来就 `dependsOn: ['conversation', 'platform']`（附件入库口要往输入框树里注入
+`composerProviders`）—— 两边一合就是环，`sortModules` 会在内核 `start()` 时抛
+`kernel.module_graph_invalid`。定稿（方案 1）：
+
+- conversation 的 `ui-api` 只多交一份只读视图 `ConversationUi.draftAttachments`：
+  `ids()`（未恢复读盘时**返回 null**）、`subscribe()`（集合真的变了才回调，打字不触发）、
+  `drop(ids)`（跨所有草稿移除，返回实际移除条数）。conversation 因此**不认识** attachments，
+  也不调 `attachmentsContract`；未新增回调注册这类协作方式。
+- attachments 的 UI 持有同步逻辑（`ui/draft-refs.ts`）：读 `draftAttachments.ids()` → 调自己的
+  `attachments.setOwnerRefs`，整体替换、按集合键去重、500ms 去抖、**请求串行**
+  （整体替换是后写覆盖，交错会互相盖掉）、集合没变不重发、Core 每次 `onCoreReady` 无条件重发一次。
+  返回的 `missing` 经 `drop()` 清掉草稿里的失效附件，并按实际移除条数弹一条
+  `ToastsToken` 的 warning：「有 N 个草稿附件已失效，已从草稿中移除」。
+- 契约上限由报告 §3.2 的 `.max(500)` 放宽到 `.max(10_000)`：整体替换被拒或截断等于把超出的部分
+  全部释放，宁可放宽。
+
+**`ids()` 返回 null 是本条的关键**：attachments 的 `onCoreReady` 可能先于草稿从盘上恢复。
+conversation 的草稿读盘因此把「读失败」与「盘上没有值」分开（读失败只 warn、保持未恢复，
+下一次 ready 再读；恢复成功才 `markRestored()` 并通知一次）。此前 `.catch(() => null)` 把两者混在一起。
+同理，`onCoreReady` 的存在使草稿读盘不是「只在首次 ready」——未恢复时每次 ready 都重试（R-04 §1.5
+的「hydrate 只做一次」约束仍然成立：恢复完成后不再重读）。
+
+**反向验证**（守则 10：先写一个在旧代码上失败的测试）：T6 / T7 在临时还原两处修复的旧行为下全红，
+报 `attachments.not_found`；恢复实现后 9 pass / 0 fail。D2（打字不通知）第一版实现是红的
+（`lastKey` 初始为 null，第一下打字就被当成「集合变了」），已修。
+
+**测试**：
+
+- `features/attachments/src/core/__tests__/service.test.ts`：T1（`replaceOwner` 只留点名的，其余 25 小时后
+  被回收）、T2（换成空集合 → 可回收）、T3（不存在的 id 不抛错、报 `missing`、存在的照常登记）、
+  T4（`copyOwner` 后释放源 owner，文件仍被保住）。
+- `features/attachments/src/core/__tests__/module.test.ts`（新建）：T5（`ownerKey: 'conversation:thread:x'`
+  → `kernel.invalid_params`；`ui:` 前缀正常往返并返回 `{ missing: ['ghost'] }`）。
+- `features/conversation/src/core/__tests__/module.test.ts`：T6（带附件提交、`engine.openSession` 抛错 →
+  落 failed → 推时钟触发 attachments 模块的真 sweep（canary 消失为证）→ 恢复引擎 → `submissions.retry`
+  后提交不再是 failed）、T7（带附件跑完 → fork → 删原线程 → 真 sweep 后附件仍在）。
+- `features/conversation/src/ui/stores/__tests__/draft-pin.test.ts`（新建）：D1（恢复前 `ids()` 为 null；
+  恢复后跨草稿去重升序）、D2（打字不通知；增删附件各通知一次；恢复完成通知一次）、
+  D3（hydrate 之后 `markRestored`，`ids()` 是恢复进来的那一份）、D4（`drop` 从所有草稿移除并返回条数；
+  没有命中时不换引用）。
+- `features/conversation/src/ui/stores/__tests__/composer.test.ts`：T8（`dropAttachments` 跨草稿移除，
+  正文与其它附件不动）。
+- `features/attachments/src/ui/__tests__/draft-refs.test.ts`（新建）：U1（`ids()` 为 null 时不发请求）、
+  U2（去抖后只发一次、参数是排好序的 id）、U3（集合不变不重发；`onCoreReady` 后不变也重发）、
+  U4（返回 `missing` 时调 `drop` 并提示实际移除条数）、U5（失败记 warn、下一次变化重发）、
+  U6（连续两次变化：请求串行、按顺序到达、`maxInFlight === 1`）。
+  另加 U6b（守则 8.1：视图读草稿自己抛错也只记 warn、链子上不留未处理的 rejection ——
+  `schedule()` 是用 `void flush()` 起那一段的，所以整段都在 `try` 里）。
+- `apps/desktop/src/renderer/__tests__/r07-draft-refs-assembly.test.tsx`（新建）：U7（conversation 与
+  attachments 两个 UI 功能一起装载不抛 `kernel.module_graph_invalid`，两边 setup 都成功）。
+  这条在**故意恢复成环**（给 conversation 的 `dependsOn` 加 `'attachments'`）时实测变红。
+
+**验收**：`bun run check` 全绿（1614 pass / 0 fail，207 文件 / 5269 断言；较 R-06 的 1593 多 21 条）。
+
+**未能核实、记入待决**：报告 §6 的两条手工验收需要安装包 + 真 sweep（贴一张图不发送、过一夜 /
+临时推 `created_at` 之后图仍在且能发送；fork 一条带文件附件的对话、删原对话、强制 sweep 后
+在分支里让 agent 读那个文件）。
+
+### 审查执行待决（R-07 新增）
+
+| 编号 | 日期 | 问题 | 阻塞的步骤 | 状态 |
+|---|---|---|---|---|
+| Q38 | 2026-10-09 | R-07 §6 的两条手工验收未跑（需要安装包 + 真 sweep）：① 输入框贴一张图不发送，等一次 sweep 后图仍在、能发送；② fork 带文件附件的对话、删原对话、强制 sweep 后分支里 agent 仍能读到该文件 | 无（代码与单测已按报告落地） | 记录：等产品负责人真机复核 |

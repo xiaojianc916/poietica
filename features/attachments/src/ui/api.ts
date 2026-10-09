@@ -13,6 +13,8 @@ export function createAttachmentsApi(ctx: UiFeatureContext) {
     importData: (name: string, mime: string, base64: string): Promise<Attachment> =>
       rpc.call('attachments.importData', { name, mime, base64 }),
     get: (attachmentId: string): Promise<Attachment> => rpc.call('attachments.get', { attachmentId }),
+    setOwnerRefs: (ownerKey: string, attachmentIds: readonly string[]): Promise<{ missing: string[] }> =>
+      rpc.call('attachments.setOwnerRefs', { ownerKey, attachmentIds: [...attachmentIds] }),
   }
 }
 

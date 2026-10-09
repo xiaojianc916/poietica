@@ -86,6 +86,14 @@ export class SubmissionService {
       updatedAt: at,
     }
     this.d.repo.insert(row)
+    /*
+     * R-07 §3.3：引用在「被接受」（写库）时就登记，不等 `deliver`。
+     *
+     * 旧位置在交接时（`resolve` 之后）：写库到交接之间、以及交接失败的 failed 行，
+     * 它们的附件都没有引用，24 小时回收会连文件一起删掉，隔天重试永远报 not_found。
+     * 这一句与 insert 同一同步段，中间不会被回收插进来。
+     */
+    this.d.attachments.retain(input.attachmentIds, OWNER_KEY(input.threadId))
     const view = submissionOf(row)
     this.d.emitChanged(view)
 
@@ -272,7 +280,6 @@ export class SubmissionService {
   private async deliver(row: SubmissionRow): Promise<void> {
     const ids = row.attachments.map((a) => a.id)
     const resolved = this.d.attachments.resolve(ids)
-    this.d.attachments.retain(ids, OWNER_KEY(row.threadId))
 
     /* 冷启动可能要很久，但气泡早就在了（方案第 6 节）。 */
     const session = await this.d.acquireSession(row.threadId)

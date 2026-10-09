@@ -216,6 +216,12 @@ export class ThreadService {
       updatedAt: now,
     }
     this.d.repo.insert(next)
+    /*
+     * R-07 §3.3：分支继承了历史，也就要继承历史里那些附件的引用。
+     * 少了这一句，删掉原对话（releaseOwner）后 24 小时的回收会把文件删掉，
+     * 分支里的 agent 再按路径去读就读不到了。
+     */
+    this.d.attachments.copyOwner(OWNER_KEY(row.id), OWNER_KEY(next.id))
     this.emitUpdated(next)
     return next
   }
