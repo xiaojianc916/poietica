@@ -66,7 +66,7 @@ export default defineCoreModule({
 
     // 引擎配置变化：会话池换代 —— 空闲的立刻释放；变更时正在跑的会话这一轮结束后释放（R-03）
     const invalidateSessions = (): void => {
-      void core.invalidateSessions()
+      void core.turns.invalidateSessions()
     }
     ctx.disposables.add(ctx.engine.settings.onDidChange(invalidateSessions))
     ctx.disposables.add(ctx.engine.models.onDidChange(invalidateSessions))
@@ -88,7 +88,7 @@ export default defineCoreModule({
     // 工作区被移除：其中所有线程被删除（运行中的先取消）
     ctx.disposables.add(
       ctx.events.on<WorkspaceRemoved>(workspaceRemoved, (e) => {
-        void core.removeWorkspaceThreads(e.workspaceId).catch((err: unknown) => {
+        void core.threads.removeWorkspaceThreads(e.workspaceId).catch((err: unknown) => {
           ctx.logger.warn('workspace cascade failed', { workspaceId: e.workspaceId, error: String(err) })
         })
       }),

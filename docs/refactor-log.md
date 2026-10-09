@@ -597,6 +597,24 @@ dismiss 抛错 → `cancelAll()` 后 ask 的 Promise 以该错误 reject（旧�
 `transcript-store.test.ts` 加 4 条（failed 的 followUp / steer 画气泡、queued / pending
 不画、正常 turn 不带标记、失败正文只认最后一条）。
 
+#### R-08-7 `ConversationCore` 是约 40 个纯转发方法的门面（2026-10-10）
+
+**根因**：每加一个能力都要在门面上再写一遍转发；R-01 / R-03 / R-06 都给它添过方法。
+报告要求**在 R-01、R-03、R-06 全部合入之后再做** —— 三者都已合入，本项因此可做。
+
+**改法**：`threads` / `turns` / `submissions` 改成 `readonly` 属性（构造期就装好的实例），
+`handlers.ts` 与 `conversation-service.ts` 直接调它们，门面上只剩真正跨服务的编排
+（`dispose`、线程删除的遗忘钩子仍在构造器里接）与两个测试观察口（`onEvent`、
+`hasThreadState`）。跨服务的惰性闭包一条都没动 —— 它们本来就只认实例字段。
+
+**偏差**：报告写的是「只读属性公开」，实际保留的三个方法里 `onEvent` / `hasThreadState`
+是单测用的观察口（报告 §5C 没点名）。删掉它们要改写 `conversation-core.test.ts` 里
+喂事件的那几条用例，属于任务点名的范围之外，故保留。
+
+**测试**：`conversation-core.test.ts` 加两条：三份服务取到的是同一批实例（`threads`
+认得出 `turns` 开出来的会话、`submissions` 读得出同一次提交）；门面原型上的方法名
+**恰好**是 `dispose` / `hasThreadState` / `onEvent`（再往门面上加纯转发就会红）。
+
 #### R-08-8 数据库来自更新版本时要等约 15 秒重启才报错，且报成 `crash_loop`（2026-10-10）
 
 **根因**：`runMigrations` 抛 `MigrationError` → `apps/core/src/main.ts` 一律退出码 1 →

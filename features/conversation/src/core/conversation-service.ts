@@ -6,7 +6,7 @@ import type { ConversationCore } from './conversation'
 export function conversationService(core: ConversationCore): ConversationService {
   return {
     createThread(init) {
-      const row = core.create({
+      const row = core.threads.create({
         workspaceId: init.workspaceId,
         title: init.title,
         origin: init.origin,
@@ -14,7 +14,7 @@ export function conversationService(core: ConversationCore): ConversationService
         model: init.model ?? undefined,
         thinking: init.thinking ?? undefined,
       })
-      return core.threadOf(row)
+      return core.threads.threadOf(row)
     },
     async submit(input) {
       /*
@@ -22,7 +22,7 @@ export function conversationService(core: ConversationCore): ConversationService
        * 调用方（automations 等）不关心这个号 —— 原来是空串，strict 校验会当场拒掉，
        * 整条提交与自动起标题都跟着失败（真实故障：定时任务线程标题/提交都被判不合契约）。
        */
-      await core.submit({
+      await core.turns.submit({
         threadId: input.threadId,
         clientTurnId: createId(),
         text: input.text,
@@ -32,11 +32,11 @@ export function conversationService(core: ConversationCore): ConversationService
       })
     },
     async cancel(threadId) {
-      await core.cancel(threadId)
+      await core.turns.cancel(threadId)
     },
     get(threadId) {
-      const row = core.row(threadId)
-      return row === null ? null : core.threadOf(row)
+      const row = core.threads.row(threadId)
+      return row === null ? null : core.threads.threadOf(row)
     },
   }
 }
