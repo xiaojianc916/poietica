@@ -106,7 +106,9 @@ export default defineUiFeature({
     ctx.contribute(builtinPoints.overlays, {
       id: 'update.available',
       order: 50,
-      component: () => <UpdateBanner api={api} conversation={conversation} dialogs={dialogs} store={store} />,
+      component: () => (
+        <UpdateBanner api={api} conversation={conversation} dialogs={dialogs} logger={ctx.logger} store={store} />
+      ),
       useVisible: () => useUpdateBannerVisible(store),
     })
 

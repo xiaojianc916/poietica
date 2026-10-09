@@ -31,6 +31,9 @@ describe('T-05-TIMEOUT 超时默认值（05 §10）', () => {
     ['core.shutdown', 15_000],
     ['core.restart', 60_000],
     ['core.getStatus', 30_000],
+    /* R-08-14：下载安装包通常超过 30 秒，这一档不设超时（结果由 update.stateChanged 说话） */
+    ['update.download', 0],
+    ['update.check', 60_000],
   ]
   for (const [name, ms] of rows) {
     test(`${name} = ${ms}`, () => {

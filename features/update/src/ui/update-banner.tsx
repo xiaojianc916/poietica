@@ -1,5 +1,6 @@
 import { Banner } from '@poietica/design-system'
 import type { ConversationUi } from '@poietica/feature-conversation/ui-api'
+import type { Logger } from '@poietica/foundation'
 import { type DialogService, useFeatureStore } from '@poietica/ui-kernel'
 import { LoaderCircle } from 'lucide-react'
 import type { ReactElement } from 'react'
@@ -25,11 +26,14 @@ export function UpdateBanner({
   api,
   conversation,
   dialogs,
+  logger,
   store,
 }: {
   readonly api: UpdateApi
   readonly conversation: ConversationUi
   readonly dialogs: DialogService
+  /** 下载请求失败只记日志：横幅的真相来源是 update.stateChanged */
+  readonly logger: Logger
   readonly store: UpdateUiStore
 }): ReactElement | null {
   const state = useFeatureStore(store.store, (held) => held.state)
@@ -44,7 +48,12 @@ export function UpdateBanner({
       return
     }
     if (action === 'download') {
-      void api.download()
+      /*
+       * `timeoutMs: 0`（R-08-14）之后这条请求不会超时，但传输层断开、Core/Host 换代
+       * 仍可能让它以错误拒绝 —— `void` 会留下一条未处理的 rejection。界面的真相来源
+       * 是 update.stateChanged，这里只需要记一条日志。
+       */
+      void api.download().catch((e: unknown) => logger.warn('update download failed', { error: String(e) }))
       return
     }
     /* 运行中的对话数 > 0 时先确认：判据与文案都在 installUpdate 一处（菜单行同此）。 */

@@ -18673,7 +18673,7 @@
     {
       "name": "update.check",
       "owner": "host",
-      "timeoutMs": 30000,
+      "timeoutMs": 60000,
       "description": "检查新版本（没有新版本时回到 idle 并记 lastCheckedAt）",
       "params": {
         "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -18757,7 +18757,7 @@
     {
       "name": "update.download",
       "owner": "host",
-      "timeoutMs": 30000,
+      "timeoutMs": 0,
       "description": "下载已发现的新版本（仅 available 相位可用）",
       "params": {
         "$schema": "https://json-schema.org/draft/2020-12/schema",

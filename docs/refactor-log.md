@@ -701,6 +701,24 @@ EACCES / EBUSY 同样重试、`ENOENT` 立刻抛出；一直拒绝时封顶后�
 放行后文件必须仍在且内容完整。把 `serial` 换成空壳重跑，该用例红（`importedEarly` 为真、
 断言文件存在时已不存在）。
 
+#### R-08-14 `update.download` 用了默认 30 秒超时（2026-10-10）
+
+**根因**：下载安装包通常超过 30 秒。UI 请求超时并发 `$/cancelRequest`，而 Host 的处理函数
+忽略取消、下载继续 —— 界面状态靠 `update.stateChanged` 仍然正确，但调用方拿到一个假的
+超时拒绝，且 `update-banner.tsx` 用的是裸 `void api.download()`，于是那是一条未处理的
+rejection（还有一条误导性的超时日志）。
+
+**改法**：契约里 `update.download` 声明 `timeoutMs: 0`（结果由通知说话）、
+`update.check` 声明 `timeoutMs: 60_000`（一次网络往返，30 秒偏紧）；横幅的下载动作改成
+`.catch(logger.warn)`，组件多收一个 `logger`（`ctx.logger`）参数。
+
+**契约变更**：`PROTOCOL_VERSION` 10 → 11，已重跑 `bun run protocol:snapshot`
+（快照 diff 只有这两个方法的 `timeoutMs`）。
+
+**测试**：`packages/protocol/src/__tests__/contract-05.test.ts` 的超时表加两行；
+新建 `features/update/src/ui/__tests__/update-banner.test.tsx`：点「下载」会发起请求；
+请求拒绝只留一条 warn（旧实现下这条用例因未处理的 rejection 直接红）。
+
 ### 审查执行待决（R-08 新增）
 
 | 编号 | 日期 | 问题 | 阻塞的步骤 | 状态 |
