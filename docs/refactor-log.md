@@ -669,6 +669,20 @@ windows.destroyAll → exit`）。旧顺序下第一个断言即失败（实测 
 **注意**：`quit.ts` 顶层 import electron，测试用 `mock.module('electron', …)` 注册后才动态
 import —— 静态 import 会在 mock 之前求值而直接抛错。
 
+#### R-08-12 Windows 上原子写的 rename 会被杀软 / 索引器偶发拒绝（2026-10-10）
+
+**根因**：`writeFileAtomic` 写临时文件后直接 `rename`。目标文件被 Defender 的实时扫描或
+Windows Search 索引器短暂打开时，NTFS 的改名抛 `EPERM` / `EACCES` / `EBUSY`，这次写入
+直接失败（`JsonDocument` 只记一条 error），偏好 / 草稿 / 窗口状态就悄悄丢了。
+
+**改法**：抽出 `renameWithRetry(renameFile, from, to)`：对这三个错误码退避重试
+（10→20→40…，总等待封顶 2 秒），仍然失败才抛最后一个错误；其它错误码立刻抛，不白等。
+`writeFileAtomic` 通过新的可选注入点 `{ rename, sleep }` 调它，失败时照旧删临时文件。
+
+**测试**：`packages/fs-kit/src/__tests__/atomic.test.ts` 加 4 条：前两次 EPERM 第三次成功；
+EACCES / EBUSY 同样重试、`ENOENT` 立刻抛出；一直拒绝时封顶后抛最后一个错误；
+`writeFileAtomic` 走重试路径且临时文件不残留。
+
 ### 审查执行待决（R-08 新增）
 
 | 编号 | 日期 | 问题 | 阻塞的步骤 | 状态 |
