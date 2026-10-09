@@ -788,3 +788,20 @@ close 时这些条目只增不减。
 | 编号 | 日期 | 问题 | 阻塞的步骤 | 状态 |
 |---|---|---|---|---|
 | Q39 | 2026-10-10 | R-08-6：只是想「看一眼」历史对话也要冷启动完整 AgentSession —— `threads.open` 预热、`timeline.subscribe` / `controls.get` 都 acquire 会话（拉起工具与 MCP 连接），既慢又占内存，还会把真正在用的空闲会话挤出 `MAX_IDLE_SESSIONS` | 无（R-08-6 本身就是待决项，报告明确要求先登记、不自行决定）。可选的采纳路径：引擎端口加只读的 `sessionFiles.readPage(file, agentId, beforeTurnId)`，会话不在池子里时 `timeline.subscribe` 走它，第一次发送 / 改控件才 acquire；若采纳需重新审视 R-03「先 acquire 再 position」的前提（只读路径不产生 reset，反而更简单） | 记录：等产品负责人 / 主开发裁决 |
+
+#### R-08 收尾：未能核实的两条手工验收（2026-10-10）
+
+16 条里 15 条已落地（R-08-6 按报告要求只登记待决），每条一个提交。协议快照随
+R-08-8（9 → 10）、R-08-14（10 → 11）、R-08-15（11 → 12）各提升一次。
+`bun run check` 全绿（1668 pass / 0 fail，211 文件 / 5585 断言）。
+
+两条验收需要**打包应用 + 真机**，与 R-03 §5 / R-05 §6 / R-06 §6 同例，代码侧已由单测覆盖：
+
+| 条目 | 手工验收 | 阻塞 |
+|---|---|---|
+| R-08-15 | 终端里跑 `ping -t 127.0.0.1`，反复 F5，输出不重复、不缺行（单测已钉住 offset 去重的四条路径） | 安装包 + 真 PTY |
+| R-08-16 | 退出终端后放 10 分钟，再开新终端 → `terminal.list` 里不再有它 | 安装包（要跨越 10 分钟的真实时间） |
+
+另：R-08-1 的 `rg readFileSync packages/engine-omp/src/session.ts`、R-08-14 的
+「快照 diff 只有 timeoutMs」两条已随各自提交核过；R-08-2 的「100 次 upsert 只查一次库」
+由 `submission-service` 的查询计数用例钉住。
