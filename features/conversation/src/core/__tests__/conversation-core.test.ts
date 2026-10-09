@@ -75,6 +75,8 @@ async function makeCore(overrides: { engine?: FakeEngine; workspaces?: Workspace
   const messages: { threadId: string; at: number }[] = []
   const updated: string[] = []
   const removed: string[] = []
+  const submissionFailures: { threadId: string; clientTurnId: string; deliverAs: string; code: string }[] = []
+  const threadRemovedEvents: string[] = []
   const states: { threadId: string; state: string }[] = []
 
   const engine: FakeEngine = overrides.engine ?? createFakeEngine()
@@ -107,6 +109,17 @@ async function makeCore(overrides: { engine?: FakeEngine; workspaces?: Workspace
     emitInteractionResolved: () => undefined,
     emitSubmissionChanged: () => undefined,
     emitSubmissionRemoved: () => undefined,
+    emitSubmissionFailed: (p) => {
+      submissionFailures.push({
+        threadId: p.threadId,
+        clientTurnId: p.clientTurnId,
+        deliverAs: p.deliverAs,
+        code: p.error.code,
+      })
+    },
+    emitThreadRemovedEvent: (p) => {
+      threadRemovedEvents.push(p.threadId)
+    },
     emitTurnSettled: (p) => {
       settled.push({ threadId: p.threadId, outcome: p.outcome })
     },
@@ -132,6 +145,8 @@ async function makeCore(overrides: { engine?: FakeEngine; workspaces?: Workspace
     messages,
     updated,
     removed,
+    submissionFailures,
+    threadRemovedEvents,
     states,
     hub,
   }
@@ -148,6 +163,26 @@ const BUSY_SCRIPT: ScenarioScript = () => [
 
 const submit = (core: ConversationCore, threadId: string, text: string) =>
   core.submit({ threadId, clientTurnId: createId(), text, attachmentIds: [], skills: [], deliverAs: 'turn' })
+
+/**
+ * 「收下了、但一个 turn.upsert 都没产出」的会话桩（R-06 的 settleUnstarted 档）：
+ * `submit` 只把状态推到 running，不推任何时间线 op —— 于是提交的 pendingTurn 还在，
+ * 随后 `state = idle` 的事件就要负责把它收成 failed。
+ */
+function stalledTurnEngine(engine: FakeEngine): FakeEngine {
+  const open = engine.openSession.bind(engine)
+  return Object.assign(engine, {
+    async openSession(spec: Parameters<FakeEngine['openSession']>[0]) {
+      const session = await open(spec)
+      let running = false
+      session.state = () => (running ? 'running' : 'idle')
+      session.submit = async () => {
+        running = true
+      }
+      return session
+    },
+  })
+}
 
 describe('conversation core（不经内核的直连测试）', () => {
   test('threads.create 不打开会话；submit 之后绑定会话文件', async () => {
@@ -241,6 +276,8 @@ describe('conversation core（不经内核的直连测试）', () => {
       emitInteractionResolved: () => undefined,
       emitSubmissionChanged: () => undefined,
       emitSubmissionRemoved: () => undefined,
+      emitSubmissionFailed: () => undefined,
+      emitThreadRemovedEvent: () => undefined,
       emitTurnSettled: () => undefined,
       emitUsageSampled: () => undefined,
       emitContextUsage: () => undefined,
@@ -757,5 +794,165 @@ describe('conversation core（不经内核的直连测试）', () => {
     await core.dispose()
     db.close()
     await dir.dispose()
+  })
+
+  /*
+   * R-06 §5 的 conversation 侧：所有「没送达」的结局都必须广播一次 submissionFailed。
+   *
+   * 少了它，automations 那边把运行记录收成 failed 的唯一机会只有重启 ——
+   * 一条 open run 就能让这个任务此后不再被调度。
+   */
+  describe('R-06 submissionFailed / threadRemoved', () => {
+    test('冷打开失败：恰好发一次，字段是提交行上的那一份', async () => {
+      const engine = createFakeEngine()
+      const { core, submissionFailures, dir, db } = await makeCore({ engine })
+      engine.openSession = () => Promise.reject(new Error('工作区目录已改名'))
+
+      const row = core.create({ workspaceId: 'ws1' })
+      await submit(core, row.id, '跑不起来的一句')
+      await new Promise((r) => setTimeout(r, 40))
+
+      expect(submissionFailures).toHaveLength(1)
+      expect(submissionFailures[0]!.threadId).toBe(row.id)
+      expect(submissionFailures[0]!.deliverAs).toBe('turn')
+      expect(submissionFailures[0]!.code).toBe('kernel.internal')
+      expect(submissionFailures[0]!.clientTurnId.length).toBeGreaterThan(0)
+
+      await core.dispose()
+      db.close()
+      await dir.dispose()
+    })
+
+    test('settleUnstarted（引擎开轮前拒收）：发一次失败事件', async () => {
+      /* 交给了 omp、但 omp 一个 turn.upsert 都没产出：这正是 settleUnstarted 管的那一档 */
+      const { core, submissionFailures, dir, db } = await makeCore({ engine: stalledTurnEngine(createFakeEngine()) })
+      const row = core.create({ workspaceId: 'ws1' })
+      await submit(core, row.id, '被拒的一句')
+      await new Promise((r) => setTimeout(r, 30))
+
+      core.onEvent(row.id, { type: 'state', state: 'running', error: null })
+      core.onEvent(row.id, {
+        type: 'state',
+        state: 'idle',
+        error: { code: 'engine.upstream_error', message: '模型不可用' },
+      })
+
+      expect(submissionFailures).toHaveLength(1)
+      expect(submissionFailures[0]!.threadId).toBe(row.id)
+      expect(submissionFailures[0]!.code).toBe('engine.upstream_error')
+
+      await core.dispose()
+      db.close()
+      await dir.dispose()
+    })
+
+    test('cancelUnhanded（取消还没交出去的提交）：发一次失败事件', async () => {
+      const { core, submissionFailures, dir, db } = await makeCore({ engine: stalledTurnEngine(createFakeEngine()) })
+      const row = core.create({ workspaceId: 'ws1' })
+      await submit(core, row.id, '取消的一句')
+      await new Promise((r) => setTimeout(r, 30))
+
+      await core.cancel(row.id)
+
+      expect(submissionFailures).toHaveLength(1)
+      expect(submissionFailures[0]!.code).toBe('conversation.submit_cancelled')
+
+      await core.dispose()
+      db.close()
+      await dir.dispose()
+    })
+
+    test('recoverOnStart（Core 重启留下 pending）：发一次失败事件，库与推 UI 同步', async () => {
+      const db = openDatabase(':memory:')
+      const moduleDb = db.forModule('conversation')
+      for (const m of migrations) moduleDb.exec(m.sql!)
+      const dir = await tempDir('conv-core-')
+      const hub = new TimelineHub({ clock: systemClock, emitOps: () => undefined, emitReset: () => undefined })
+      const engine = createFakeEngine()
+      engine.freezeTools()
+
+      /* 上一代进程留下的行直接写进库（正常路径写不出来：构造期就 recoverOnStart 了） */
+      moduleDb
+        .prepare(
+          `INSERT INTO conversation_threads
+             (id, workspace_id, title, title_source, posture, origin, created_at, updated_at)
+           VALUES ('T-old', 'ws1', '上一代', 'user', 'auto-edit', 'user', 1, 1)`,
+        )
+        .run()
+      moduleDb
+        .prepare(
+          `INSERT INTO conversation_submissions
+             (client_turn_id, thread_id, text, attachments, skills, requested_as, status, turn_id,
+              error_code, error_message, rev, created_at, updated_at)
+           VALUES ('C-old', 'T-old', '没来得及发出', '[]', '[]', 'turn', 'pending', NULL, NULL, NULL, 1, 1, 1)`,
+        )
+        .run()
+
+      const failures: { clientTurnId: string; code: string }[] = []
+      const submissions: { status: string }[] = []
+      const core = new ConversationCore({
+        db: moduleDb,
+        engine,
+        hub,
+        workspaces: {
+          get: () => null,
+          requireUsable() {
+            throw new Error('workspaces.not_found')
+          },
+          list: () => [],
+        } as unknown as WorkspacesService,
+        attachments: {
+          resolve: () => [],
+          describe: () => [],
+          retain: () => undefined,
+          releaseOwner: () => undefined,
+        } as unknown as AttachmentsService,
+        clock: systemClock,
+        logger: createTestLogger(),
+        emitThreadUpdated: () => undefined,
+        emitThreadRemoved: () => undefined,
+        emitTurnState: () => undefined,
+        emitTurnDropped: () => undefined,
+        emitQueue: () => undefined,
+        emitControls: () => undefined,
+        emitContextUsage: () => undefined,
+        emitInteractionRequested: () => undefined,
+        emitInteractionResolved: () => undefined,
+        emitSubmissionChanged: (s) => submissions.push({ status: s.status }),
+        emitSubmissionRemoved: () => undefined,
+        emitSubmissionFailed: (p) => failures.push({ clientTurnId: p.clientTurnId, code: p.error.code }),
+        emitThreadRemovedEvent: () => undefined,
+        emitTurnSettled: () => undefined,
+        emitUsageSampled: () => undefined,
+        emitUserMessage: () => undefined,
+      })
+
+      expect(failures).toEqual([{ clientTurnId: 'C-old', code: 'conversation.core_restarted' }])
+      /* 库、推 UI、事件三样都要，缺一样界面就还画着那条 pending 气泡 */
+      expect(submissions).toEqual([{ status: 'failed' }])
+      expect(
+        moduleDb.prepare(`SELECT status FROM conversation_submissions WHERE client_turn_id = 'C-old'`).get(),
+      ).toEqual({ status: 'failed' })
+
+      await core.dispose()
+      db.close()
+      await dir.dispose()
+    })
+
+    test('删除线程：threadRemoved 事件与 RPC 通知同时发出（钩子只有一个发出点）', async () => {
+      const { core, removed, threadRemovedEvents, dir, db } = await makeCore()
+      const row = core.create({ workspaceId: 'ws1' })
+      await submit(core, row.id, 'hi')
+      await new Promise((r) => setTimeout(r, 40))
+
+      await core.delete(row.id)
+
+      expect(removed).toEqual([row.id])
+      expect(threadRemovedEvents).toEqual([row.id])
+
+      await core.dispose()
+      db.close()
+      await dir.dispose()
+    })
   })
 })

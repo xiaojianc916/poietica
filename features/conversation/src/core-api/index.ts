@@ -26,6 +26,30 @@ export interface TurnSettled {
 }
 export const turnSettled: CoreEvent<TurnSettled> = defineCoreEvent<TurnSettled>('conversation', 'turnSettled')
 
+/**
+ * 一句话没能交给 omp（冷打开失败、引擎在开轮前拒收、被判 dropped、Core 重启）。
+ *
+ * 「Core 即时回显」之后，提交有独立于轮次的生命周期：`failed` 这个结局**不经过任何一轮**，
+ * 所以不会有 turnSettled。这条事件就是那个结局的广播 —— automations 靠它把「永远运行中」
+ * 的运行记录收口（R-06）。
+ */
+export interface SubmissionFailed {
+  readonly threadId: string
+  readonly clientTurnId: string
+  readonly deliverAs: 'turn' | 'steer' | 'followUp'
+  readonly error: { readonly code: string; readonly message: string }
+}
+export const submissionFailed: CoreEvent<SubmissionFailed> = defineCoreEvent<SubmissionFailed>(
+  'conversation',
+  'submissionFailed',
+)
+
+/** 线程被删除（用户删除 / 工作区级联）：按线程索引的订阅方靠它清账 */
+export interface ThreadRemoved {
+  readonly threadId: string
+}
+export const threadRemoved: CoreEvent<ThreadRemoved> = defineCoreEvent<ThreadRemoved>('conversation', 'threadRemoved')
+
 export interface UsageSampled {
   readonly threadId: string
   readonly sample: UsageSample

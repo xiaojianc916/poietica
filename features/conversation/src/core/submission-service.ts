@@ -25,6 +25,13 @@ export interface SubmissionServiceDeps {
   readonly autoTitle: (threadId: string, text: string) => void
   readonly emitChanged: (submission: SubmissionView) => void
   readonly emitRemoved: (p: { threadId: string; clientTurnId: string }) => void
+  /** 「这句话没送达」→ Core 事件（automations 靠它收掉永远运行中的记录，R-06） */
+  readonly emitFailed: (p: {
+    threadId: string
+    clientTurnId: string
+    deliverAs: 'turn' | 'steer' | 'followUp'
+    error: { code: string; message: string }
+  }) => void
   /** 会话池：冷启动可能要很久，但气泡早就在了。 */
   readonly acquireSession: (threadId: string) => Promise<EngineSession>
   /** 用户发出去一句话（准入）→ usage 的日账 */
@@ -180,8 +187,7 @@ export class SubmissionService {
     this.pendingTurn.delete(threadId)
     const row = this.d.repo.get(id)
     if (row === null || row.status !== 'pending') return
-    const next = this.d.repo.update(id, { status: 'failed', error })
-    if (next !== null) this.d.emitChanged(submissionOf(next))
+    this.markFailed(row, error)
   }
 
   /** 取消：还没交给 omp 的 pending 直接收成 failed（交给 omp 的照旧走 session.cancel）。 */
@@ -191,21 +197,31 @@ export class SubmissionService {
     this.pendingTurn.delete(threadId)
     const row = this.d.repo.get(id)
     if (row === null || row.status !== 'pending') return
-    const next = this.d.repo.update(id, {
-      status: 'failed',
-      error: { code: conversationErrors.submit_cancelled, message: conversationErrors.submit_cancelled },
+    this.markFailed(row, {
+      code: conversationErrors.submit_cancelled,
+      message: conversationErrors.submit_cancelled,
     })
-    if (next !== null) this.d.emitChanged(submissionOf(next))
   }
 
   /** Core 启动：pending → failed / core_restarted；太旧的 started / queued 删除。 */
   recoverOnStart(): void {
     const at = this.d.clock.now()
-    for (const row of this.d.repo.failPending({
+    const error = {
       code: conversationErrors.core_restarted,
       message: conversationErrors.core_restarted,
-    })) {
+    }
+    for (const row of this.d.repo.failPending(error)) {
       this.d.emitChanged(submissionOf(row))
+      /*
+       * 仓储已经改过库，这里只补事件：automations 的订阅那时还没建立（拓扑序 conversation 在前），
+       * 它自己的 repairOnStartup 会把全部 open run 收成 failed —— 两处各管各的那一半。
+       */
+      this.d.emitFailed({
+        threadId: row.threadId,
+        clientTurnId: row.clientTurnId,
+        deliverAs: row.requestedAs,
+        error,
+      })
     }
     this.d.repo.deleteStaleTerminal(at - 7 * 24 * 60 * 60 * 1000)
   }
@@ -286,10 +302,22 @@ export class SubmissionService {
   /** 失败结局（方案第 2 节的状态表：没送达 → failed，错误码原样存下）。 */
   private fail(clientTurnId: string, threadId: string, cause: unknown): void {
     if (this.pendingTurn.get(threadId) === clientTurnId) this.pendingTurn.delete(threadId)
+    const row = this.d.repo.get(clientTurnId)
+    if (row === null) return
     const mapped = toAppError(cause)
-    this.update(clientTurnId, {
-      status: 'failed',
-      error: { code: mapped.code, message: mapped.message },
+    this.markFailed(row, { code: mapped.code, message: mapped.message })
+  }
+
+  /** 唯一的「变为 failed」出口：写库、推 UI、发 Core 事件（R-06 §3.2） */
+  private markFailed(row: SubmissionRow, error: { code: string; message: string }): void {
+    const next = this.d.repo.update(row.clientTurnId, { status: 'failed', error })
+    if (next === null) return
+    this.d.emitChanged(submissionOf(next))
+    this.d.emitFailed({
+      threadId: next.threadId,
+      clientTurnId: next.clientTurnId,
+      deliverAs: next.requestedAs,
+      error,
     })
   }
 

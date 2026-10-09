@@ -2,7 +2,11 @@ import { defineCoreModule } from '@poietica/core-kernel'
 import {
   type ConversationService,
   ConversationServiceToken,
+  type SubmissionFailed,
+  submissionFailed,
+  type ThreadRemoved,
   type TurnSettled,
+  threadRemoved,
   turnSettled,
 } from '@poietica/feature-conversation/core-api'
 import {
@@ -48,6 +52,21 @@ export default defineCoreModule({
     ctx.disposables.add(
       ctx.events.on<TurnSettled>(turnSettled, (e) => {
         runner.onTurnSettled(e)
+      }),
+    )
+
+    /*
+     * R-06：「一句话没送达」与「对话被删」都不会有回合结束事件，靠这两条 Core 事件收口，
+     * 否则 open run 永远收不掉，调度器会一直跳过这个任务。
+     */
+    ctx.disposables.add(
+      ctx.events.on<SubmissionFailed>(submissionFailed, (e) => {
+        runner.onSubmissionFailed(e)
+      }),
+    )
+    ctx.disposables.add(
+      ctx.events.on<ThreadRemoved>(threadRemoved, (e) => {
+        runner.onThreadRemoved(e)
       }),
     )
 

@@ -55,6 +55,15 @@ export interface ConversationCoreDeps {
     outcome: 'completed' | 'cancelled' | 'failed'
     error: { code: string; message: string } | null
   }) => void
+  /** 一句话变成 failed 的广播（R-06）：automations 靠它收掉永远运行中的记录 */
+  readonly emitSubmissionFailed: (p: {
+    threadId: string
+    clientTurnId: string
+    deliverAs: 'turn' | 'steer' | 'followUp'
+    error: { code: string; message: string }
+  }) => void
+  /** 线程被删除（R-06）：按线程索引的订阅方清账 */
+  readonly emitThreadRemovedEvent: (p: { threadId: string }) => void
   readonly emitUsageSampled: (p: { threadId: string; sample: UsageSample; at: number }) => void
   /** 用户发出去一句话（准入）→ usage 的「消息数量」日账（ADR 0039） */
   readonly emitUserMessage: (p: { threadId: string; at: number }) => void
@@ -104,6 +113,8 @@ export class ConversationCore {
       onThreadRemoved: (threadId) => {
         this.router.forget(threadId)
         this.submissions.forget(threadId)
+        /* R-06：Core 事件版与 RPC 通知同源（钩子只有这一个发出点） */
+        d.emitThreadRemovedEvent({ threadId })
       },
     })
 
@@ -140,6 +151,7 @@ export class ConversationCore {
       },
       emitChanged: d.emitSubmissionChanged,
       emitRemoved: d.emitSubmissionRemoved,
+      emitFailed: d.emitSubmissionFailed,
       acquireSession: (threadId) => this.pool.acquire(threadId),
       emitUserMessage: d.emitUserMessage,
     })

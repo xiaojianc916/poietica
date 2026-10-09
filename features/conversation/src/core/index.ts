@@ -7,7 +7,14 @@ import {
   workspaceRemoved,
 } from '@poietica/feature-workspaces/core-api'
 import { conversationContract } from '../contract'
-import { ConversationServiceToken, turnSettled, usageSampled, userMessageSubmitted } from '../core-api'
+import {
+  ConversationServiceToken,
+  submissionFailed,
+  threadRemoved,
+  turnSettled,
+  usageSampled,
+  userMessageSubmitted,
+} from '../core-api'
 import { ConversationCore } from './conversation'
 import { conversationService } from './conversation-service'
 import { registerHandlers } from './handlers'
@@ -48,6 +55,8 @@ export default defineCoreModule({
         ctx.rpc.emit('submissions.changed', { threadId: submission.threadId, submission }),
       emitSubmissionRemoved: (p) => ctx.rpc.emit('submissions.removed', p),
       emitTurnSettled: (p) => ctx.events.emit(turnSettled, p),
+      emitSubmissionFailed: (p) => ctx.events.emit(submissionFailed, p),
+      emitThreadRemovedEvent: (p) => ctx.events.emit(threadRemoved, p),
       emitUsageSampled: (p) => ctx.events.emit(usageSampled, p),
       emitUserMessage: (p) => ctx.events.emit(userMessageSubmitted, p),
     })

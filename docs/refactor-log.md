@@ -354,3 +354,70 @@ F5 重载后运行中对话仍显示运行中且关窗确认；重启后输入�
 | 编号 | 日期 | 问题 | 阻塞的步骤 | 状态 |
 |---|---|---|---|---|
 | Q36 | 2026-10-09 | R-04 §6 的四条手工验收未跑（需要安装包 + 真 omp）：① Core 崩溃重启后时间线自动重读、运行态无残留；② F5 重载后运行中标记与关窗确认；③ 重启后输入框内容不回滚；④ 切到旧对话时才重读 | 无（代码与单测已按报告落地） | 记录：等产品负责人真机复核 |
+
+## R-06 定时任务：提交未送达时运行永不结束，任务从此不再被调度（2026-10-09）
+
+**来源**：产品负责人交办的缺陷报告 `R-06 定时任务：提交未送达时运行永不结束，任务从此不再被调度`
+（外部输入，不入库）。严格按报告 §3 的设计执行，**无契约变更、未动 `PROTOCOL_VERSION`**。
+
+**根因**：运行记录的结束只绑定在「一轮结束」（`turnSettled`）这一个事件上。而「Core 即时回显」之后
+提交有了独立生命周期（pending → started / queued / failed），`failed` 这个结局**不经过任何一轮**，
+Core 内部又没有把这个结局广播给别的模块 —— 于是 `Runner.start` 的 `await conversation.submit` 成功
+返回、`outcome: 'running'` 被 publish，然后永远等不到 `onTurnSettled`。轮询还把 idle 也映射成 running，
+反而一直替它「确认」；调度器见 `runner.isRunning` 为真就跳过，直到重启才由 `repairOnStartup → failOpenRuns`
+解开。用户删掉那条自动化线程时，运行记录同样永远 open。
+
+**改法**：
+
+1. **conversation 侧广播两个结局**（§3.2）。`core-api/index.ts` 新增 `SubmissionFailed`（threadId /
+   clientTurnId / deliverAs / error）与 `ThreadRemoved`（threadId）两条 `defineCoreEvent`。
+   `submission-service.ts` 的 deps 加 `emitFailed`，并把**所有**「变为 failed」的路径收敛到一个私有
+   `markFailed(row, error)`（写库、推 UI、发事件三件事只此一处）：`fail()`、`settleUnstarted()`、
+   `cancelUnhanded()` 全部改走它；`recoverOnStart()` 的 `failPending` 已经改过库，只补发事件
+   （那段发生在 conversation 的 setup 里，automations 的订阅还没建立 —— 它自己的 `repairOnStartup`
+   会把全部 open run 收成 failed，两处各管各的那一半，正好接得上，无需调整模块顺序）。
+   `rg "status: 'failed'" submission-service.ts` 改完后只剩 `markFailed` 里那一处。
+2. **删除也进事件**：`threadRemoved` 挂在既有的 `onThreadRemoved` 统一遗忘钩子里发（与 RPC 通知同源），
+   没有再开第二个发出点。
+3. **runner 按 threadId 收口**（§3.3）。新增 `onSubmissionFailed` / `onThreadRemoved` 两个入口：
+   前者只认 `deliverAs === 'turn'`（用户在运行中插的话失败不该让这次运行失败），复用现成的 `fail()`
+   （含 `setIssue`）；后者**不**走 `fail()`，就地写 `cancelled` + 「运行所在的对话已被删除」——
+   对话被删不是任务出问题，不该在任务卡片上挂 issue。`watchAwaiting` 的映射删掉「idle → running」
+   这一档（idle 不是「运行中」的证据，轮询只搬 running ↔ awaiting）。
+4. **`start()` 不覆盖结局**：`await conversation.submit` 之后不再直接 `publish(run)`，而是重读库 ——
+   交接失败的**事件可能早于 submit 的 await 返回**，直接 publish 会把刚收好的 failed 覆盖回 running。
+   只有还开着的运行才接着 `publish` + `watchAwaiting`。
+5. **装配**（§3.4）：automations 的 setup 里与 `turnSettled` 并列订阅这两条事件。
+
+**反向验证**（守则 10：先写一个在旧代码上失败的测试）：新用例在 HEAD 的 runner 上
+A1/A3/A4/A5 全红（A5 连方法都不存在；A4 正是 idle→running 那一条，实测 `Expected "awaiting",
+Received "running"`），A6 红（运行记录停在 `running`，恢复后第二次手动运行被判 `already_running`）；
+conversation 侧五条新用例在旧代码上全红（事件不存在）。恢复实现后全绿。
+
+**测试**：
+
+- `features/automations/src/core/__tests__/runner.test.ts`（新建）：A1（提交未送达 → failed、isRunning
+  变假、下一次能起来）、A2（失败事件早于 submit 返回：结局不被覆盖回 running）、A3（followUp 失败被忽略）、
+  A4（idle 不把 awaiting 改回 running，也不白推一次 runUpdated）、A5（删对话 → cancelled 且不挂 issue）。
+- `features/automations/src/core/__tests__/module.test.ts`：A6（fake engine 的 `openSession` 抛错 → 运行
+  落成 failed；恢复后下一次手动运行不抛 `already_running`）。测试缝是替换 `FakeEngine.openSession`
+  与新增的 `stalledTurnEngine()`（收下提交但不产 turn.upsert，用来落到 `settleUnstarted` 那一档）。
+- `features/conversation/src/core/__tests__/conversation-core.test.ts`：A7 四条（冷打开失败 /
+  `settleUnstarted` / `cancelUnhanded` / `recoverOnStart` 各恰好发一次、字段正确，recoverOnStart
+  那条同时断言库与 `submissions.changed` 都对得上）、A8（删线程：RPC 通知与 Core 事件各一次）。
+
+**验收**：`bun run check` 全绿（1593 pass / 0 fail，203 文件 / 5213 断言；较 R-04 的 1582 多 11 条）。
+
+**本轮偏差**：无契约形状变化、未动 `PROTOCOL_VERSION` 与协议快照。文件清单与报告 §1 一致；
+额外一处是 `runner.test.ts` 的 `build()` 里加了个 `stalledTurnEngine()` 测试缝（报告 §5 的 A6 要求
+「openSession 抛错」的那一档之外，A7 的 settleUnstarted 需要「收下但不产 op」的桩，报告未点名测试缝，
+按 R-03/R-05 的先例记在这里）。
+
+**未能核实、记入待决**：报告 §6 的手工验收需要安装包 + 真 omp（建一个每分钟运行的任务、删掉所用
+模型的服务商凭据或把工作区目录改名、等一次运行 → 列表里显示失败与原因；恢复凭据后下一分钟正常再跑）。
+
+### 审查执行待决（R-06 新增）
+
+| 编号 | 日期 | 问题 | 阻塞的步骤 | 状态 |
+|---|---|---|---|---|
+| Q37 | 2026-10-09 | R-06 §6 的手工验收未跑（需要安装包 + 真 omp）：① 每分钟任务在「冷打开失败 / 服务商凭据被删」时那次运行显示失败与原因；② 恢复后下一分钟任务正常再跑 | 无（代码与单测已按报告落地） | 记录：等产品负责人真机复核 |

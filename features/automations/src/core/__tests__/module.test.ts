@@ -149,4 +149,43 @@ describe('automations core 模块', () => {
     await h.dispose()
     await dir.dispose()
   })
+
+  /*
+   * R-06 §5 A6：句子没送达时，运行记录必须自己收口 —— 一条永远 running 的记录会让
+   * `runner.isRunning` 从此为真，之后每一次调度与手动运行都被跳过（旧代码就是这样）。
+   */
+  test('R-06 A6 冷打开失败：运行收成 failed，恢复后下一次手动运行照常起来', async () => {
+    const { h, engine, dir, ws, clock } = await harness()
+    const api = h.client(automationsContract)
+    const automation = await api.call('automations.create', {
+      title: '打不开工作区',
+      prompt: '看一眼',
+      schedule: { cron: null, timeZone: 'UTC' },
+      workspaceId: ws.id,
+      posture: 'auto-edit',
+      model: null,
+      thinking: null,
+    })
+
+    const healthy = engine.openSession.bind(engine)
+    engine.openSession = () => Promise.reject(new Error('工作区目录已改名'))
+
+    const first = await api.call('automations.runNow', { automationId: automation.id })
+    await runBeats(clock, 4)
+
+    const settled = (await api.call('automations.runs', { automationId: automation.id, limit: 10 })).runs.find(
+      (r) => r.id === first.id,
+    )!
+    expect(settled.outcome).toBe('failed')
+    expect(settled.message).toContain('工作区目录已改名')
+
+    /* 恢复之后：这一次必须真的能起来，而不是 already_running */
+    engine.openSession = healthy
+    const second = await api.call('automations.runNow', { automationId: automation.id })
+    expect(second.id).not.toBe(first.id)
+    await ignoreKnownTimelineStrictness(() => runBeats(clock, 12))
+
+    await h.dispose()
+    await dir.dispose()
+  })
 })
