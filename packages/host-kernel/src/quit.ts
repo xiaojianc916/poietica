@@ -46,6 +46,14 @@ export function createQuitCoordinator(o: QuitDeps): QuitCoordinator {
       if (running !== undefined) return running
       running = (async () => {
         o.logger.info('quitting', { reason })
+        /*
+         * 先停 Core，再跑 Host 钩子与 disposables（R-08-11）。
+         *
+         * Core 关停期间（会话中止、工具收尾）仍可能调用 owner='host' 的方法（浏览器、终端
+         * 类工具），那时 Host 的服务必须还活着；反过来的顾虑不存在 —— Host 钩子里
+         * （terminal、browser、preferences、platform）全是本地动作，没有需要 Core 活着的。
+         */
+        await o.supervisor.stop()
         for (const h of [...hooks].reverse()) {
           await withTimeout(Promise.resolve().then(h.fn), 5_000, () => new Error('timeout')).catch((e: unknown) =>
             o.logger.warn('onShutdown hook failed', { module: h.moduleId, error: String(e) }),
@@ -58,7 +66,6 @@ export function createQuitCoordinator(o: QuitDeps): QuitCoordinator {
             o.logger.warn('dispose failed', { error: String(e) })
           }
         }
-        await o.supervisor.stop()
         o.windows.destroyAll()
         o.logger.info('bye')
         if (opts?.finalize === undefined) {

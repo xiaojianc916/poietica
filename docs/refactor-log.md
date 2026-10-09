@@ -651,6 +651,24 @@ dismiss 抛错 → `cancelAll()` 后 ask 的 Promise 以该错误 reject（旧�
 **测试**：`rpc-hub.test.ts` 加两条：包装过的 signal 连续调用 100 次，add/remove 净增 0；
 已 aborted 的 signal 发起调用 → `kernel.cancelled`。
 
+#### R-08-11 退出顺序：Host 模块先关，Core 后停（2026-10-10）
+
+**根因**：`quit.ts` 里 Host 的 `onShutdown`（终端 `disposeAll`、浏览器、偏好 flush）先跑，
+`supervisor.stop()` 最后。Core 关停期间（会话中止、工具收尾）仍可能调用 owner='host' 的
+方法，那时对应服务已经释放，只剩一串噪音错误。
+
+**改法**：顺序改为「先 `supervisor.stop()`，再 Host 钩子（倒序），再 disposables（倒序），
+最后销毁窗口」。反方向的顾虑不存在：Host 钩子（terminal、browser、preferences、platform）
+全是本地动作，没有一样需要 Core 活着。
+
+**测试**：新建 `packages/host-kernel/src/__tests__/quit.test.ts` 断言完整调用顺序
+（`supervisor.stop → hook:browser → hook:terminal → dispose:second → dispose:first →
+windows.destroyAll → exit`）。旧顺序下第一个断言即失败（实测 2 条全红）。
+另加一条：`quit` 只跑一次；钩子抛错只记 warn，不拦住后面的清理。
+
+**注意**：`quit.ts` 顶层 import electron，测试用 `mock.module('electron', …)` 注册后才动态
+import —— 静态 import 会在 mock 之前求值而直接抛错。
+
 ### 审查执行待决（R-08 新增）
 
 | 编号 | 日期 | 问题 | 阻塞的步骤 | 状态 |
