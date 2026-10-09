@@ -42,6 +42,25 @@ function resolved(changes: readonly InteractionChange[]): InteractionChange[] {
 const SELECT: InteractionDraft = { kind: 'select', title: '选一个', options: ['a', 'b'] }
 
 describe('InteractionBroker 的生命周期', () => {
+  /* R-08-4：onChange 的监听者抛错时交给注入的那条日志通道，且不打断其余监听者 */
+  test('R-08-4 监听者异常交给 onListenerError，其余监听者照常收到', () => {
+    const errors: unknown[] = []
+    const seen: InteractionChange[] = []
+    const broker = new InteractionBroker(
+      () => 1_000,
+      (error) => errors.push(error),
+    )
+    const boom = new Error('监听者炸了')
+    broker.onChange(() => {
+      throw boom
+    })
+    broker.onChange((change) => seen.push(change))
+
+    expect(() => void broker.ask(SELECT)).not.toThrow()
+    expect(errors).toEqual([boom])
+    expect(seen).toHaveLength(1)
+  })
+
   test('没人答的交互一直挂着 —— 这正是每次开门都必须有人关门的原因', async () => {
     const { broker, changes } = brokerWithRecorder()
 
@@ -263,6 +282,22 @@ describe('取消一轮时的清场（迁移自 cancel-drains-dialogs）', () => 
     expect(await settled).toEqual({ kind: 'select', value: 'Approve' })
     // 已经答过的那一个不该被再结一次，也不该被算进「还有几个在等」
     expect(broker.cancelAll()).toBe(0)
+  })
+
+  /*
+   * R-08-3：`toUpstream` 是在 settlement 里跑的。它抛错时若让异常冲到 answer() 的调用方，
+   * 工具那边 await 的 Promise 就永远不兑现 —— 这次工具调用卡死，卡片却已经从待答表里出去了。
+   */
+  test('R-08-3 toUpstream 抛错时 ask 的 Promise 以该错误 reject，而不是挂着', async () => {
+    const { broker } = brokerWithRecorder()
+    const boom = new Error('翻不上游')
+    const pending = broker.ask(SELECT, () => {
+      throw boom
+    })
+
+    expect(() => broker.cancelAll()).not.toThrow()
+    await expect(pending).rejects.toBe(boom)
+    expect(broker.pendingCount()).toBe(0)
   })
 })
 

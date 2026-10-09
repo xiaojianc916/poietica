@@ -42,12 +42,22 @@ export const DISMISS: InteractionAnswer = Object.freeze({ kind: 'dismiss' })
  */
 export class InteractionBroker {
   private readonly waiting = new Map<string, Waiting>()
-  private readonly changes = new Emitter<InteractionChange>()
+  /*
+   * 监听者异常带上下文记一条 error（R-08-4）：这张桌子的变化订阅者有好几家（OmpSession、
+   * 会话工厂），裸文本的 lastResort 看不出是谁的哪一种变化出的错。异常照旧不外抛。
+   */
+  private readonly changes: Emitter<InteractionChange>
 
-  /** 变化订阅。omp 在自己的事件循环里调它，监听器异常由 Emitter 吞掉并记 console.error（12 页 §0.3） */
-  readonly onChange: Event<InteractionChange> = this.changes.event
+  /** 变化订阅。omp 在自己的事件循环里调它；监听器异常由 Emitter 吞掉并交给注入的那条日志（12 页 §0.3） */
+  readonly onChange: Event<InteractionChange>
 
-  constructor(private readonly now: () => number) {}
+  constructor(
+    private readonly now: () => number,
+    onListenerError?: (error: unknown) => void,
+  ) {
+    this.changes = new Emitter<InteractionChange>(onListenerError === undefined ? {} : { onListenerError })
+    this.onChange = this.changes.event
+  }
 
   /** 登记一次交互并等答复（04 页 §3.12 的原签名） */
   ask(draft: InteractionDraft, options?: AskOptions): Promise<InteractionAnswer>
@@ -78,7 +88,12 @@ export class InteractionBroker {
         if (timer !== undefined) clearTimeout(timer)
         opts?.signal?.removeEventListener('abort', onAbort)
         this.changes.fire({ type: 'resolved', resolved: true, id, interaction, answer })
-        resolve(toUpstream === undefined ? answer : toUpstream(answer))
+        /* R-08-3：`toUpstream` 抛错时把 Promise 拒掉，而不是让它永远挂着（工具卡死） */
+        try {
+          resolve(toUpstream === undefined ? answer : toUpstream(answer))
+        } catch (error) {
+          reject(error)
+        }
       }
 
       /* 中止与超时都是「没人答」：以 dismiss 兑现，发 resolved，不编一个答复 */
