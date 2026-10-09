@@ -229,6 +229,52 @@ describe('ui-kernel', () => {
   })
 
   /*
+   * R-08-9：功能之间没有顺序依赖（依赖顺序只在 setup 阶段有意义），所以 onCoreReady
+   * 必须并行跑 —— 从前是逐个 await，一个功能的慢请求把后面所有功能的首屏数据都压住。
+   *
+   * 但**同一个功能**注册的多个钩子仍按注册顺序串行：功能内部的前后关系只有它自己知道。
+   */
+  test('R-08-9 onCoreReady 跨功能并行、同功能内串行', async () => {
+    const order: string[] = []
+    let openA: () => void = () => undefined
+    const gateA = new Promise<void>((r) => {
+      openA = r
+    })
+    const alpha = defineUiFeature({
+      id: 'alpha',
+      setup: (ctx) => {
+        ctx.lifecycle.onCoreReady(async () => {
+          order.push('alpha:1:start')
+          await gateA
+          order.push('alpha:1:end')
+        })
+        ctx.lifecycle.onCoreReady(() => {
+          order.push('alpha:2')
+        })
+      },
+    })
+    const beta = defineUiFeature({
+      id: 'beta',
+      setup: (ctx) => {
+        ctx.lifecycle.onCoreReady(() => {
+          order.push('beta:1')
+        })
+      },
+    })
+    const { bridge } = await startKernel({ features: [alpha, beta] })
+
+    bridge.emit({ jsonrpc: '2.0', method: 'core.status', params: { state: 'ready', reason: null, attempt: 0 } })
+    await new Promise((r) => setTimeout(r, 5))
+    /* alpha 的第一条还挂在门上，beta 已经跑完了 —— 并行 */
+    expect(order).toEqual(['alpha:1:start', 'beta:1'])
+
+    openA()
+    await new Promise((r) => setTimeout(r, 5))
+    /* alpha 的第二条在第一条结束之后才跑 —— 同功能内串行且保序 */
+    expect(order).toEqual(['alpha:1:start', 'beta:1', 'alpha:1:end', 'alpha:2'])
+  })
+
+  /*
    * R-04 S10：Core 丢失是一等生命周期事件。
    *
    * ready → restarting → ready 这一趟里，onCoreLost 必须恰恰调用一次、且早于第二次

@@ -625,6 +625,19 @@ dismiss 抛错 → `cancelAll()` 后 ask 的 Promise 以该错误 reject（旧�
 `runtime-layout` 的 `CORE_EXIT_CODES` 期望值同步；`core-failure-notice.test.ts` 覆盖
 八个 reason 的文案与全表。
 
+#### R-08-9 UI 内核串行执行所有功能的 `onCoreReady`（2026-10-10）
+
+**根因**：`runCoreReady` 逐个 `await`，一个功能的慢请求（如 conversation 的 `threads.refresh`）
+把后面所有功能的首屏数据都压住；功能之间并没有顺序依赖（依赖顺序只在 setup 阶段有意义）。
+
+**改法**：按 `featureId` 把钩子分组 —— 组内仍按注册顺序串行（功能内部的前后关系只有它自己
+知道），组间 `Promise.all` 并行。错误处理不变：每个钩子仍各自 catch、记 error、弹一条 toast，
+一个功能失败不影响其它功能。
+
+**测试**：`packages/ui-kernel/src/__tests__/kernel.test.tsx` 加 R-08-9 用例：alpha 的第一个钩子
+挂在门上，beta 已经跑完（并行）；放行后 alpha 的第二个钩子在第一個之后才跑（同功能内串行）。
+旧实现下第一条断言就是红的（beta 还没起步）。
+
 ### 审查执行待决（R-08 新增）
 
 | 编号 | 日期 | 问题 | 阻塞的步骤 | 状态 |

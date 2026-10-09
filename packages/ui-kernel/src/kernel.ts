@@ -68,16 +68,33 @@ export function createUiKernel(opts: UiKernelOptions): UiKernel {
     }
   }
 
+  /**
+   * 每个功能的多个 onCoreReady 钩子**按注册顺序串行**（功能内部的前后关系只有它自己知道），
+   * 功能之间**并行**（R-08-9）—— 依赖顺序只在 setup 阶段有意义，一个功能的慢请求不该把
+   * 后面所有功能的首屏数据都压住。
+   *
+   * 分组按钩子的注册顺序做，所以“先注册的功能”只是先起步，不保证先完成。
+   */
   async function runCoreReady(): Promise<void> {
+    const groups = new Map<string, Array<(typeof coreReadyHooks)[number]>>()
     for (const h of coreReadyHooks) {
-      if (failures.has(h.featureId)) continue
-      try {
-        await h.fn()
-      } catch (e) {
-        logger.error('onCoreReady failed', { feature: h.featureId, error: String(e) })
-        kernelServices.toasts.error(e, `${h.featureId} 数据加载失败`)
-      }
+      const list = groups.get(h.featureId)
+      if (list === undefined) groups.set(h.featureId, [h])
+      else list.push(h)
     }
+    await Promise.all(
+      [...groups.values()].map(async (hooks) => {
+        for (const h of hooks) {
+          if (failures.has(h.featureId)) continue
+          try {
+            await h.fn()
+          } catch (e) {
+            logger.error('onCoreReady failed', { feature: h.featureId, error: String(e) })
+            kernelServices.toasts.error(e, `${h.featureId} 数据加载失败`)
+          }
+        }
+      }),
+    )
   }
 
   return {
