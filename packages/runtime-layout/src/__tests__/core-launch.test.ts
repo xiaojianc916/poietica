@@ -117,7 +117,14 @@ describe('buildCoreLaunch', () => {
   })
 
   test('RL-5 CORE_EXIT_CODES', () => {
-    expect(CORE_EXIT_CODES).toEqual({ ok: 0, crashed: 1, badArguments: 2, isolationViolated: 3 })
+    expect(CORE_EXIT_CODES).toEqual({
+      ok: 0,
+      crashed: 1,
+      badArguments: 2,
+      isolationViolated: 3,
+      dataTooNew: 4,
+      startFailed: 5,
+    })
   })
 
   /* R-05 §3.3：Host 与 Core 共用这一份预算，Host 的宽限期必须比它长（+2 秒） */

@@ -29,7 +29,21 @@ const DROP_NAMES = new Set([
   'GIT_COMMON_DIR',
 ])
 
-export const CORE_EXIT_CODES = { ok: 0, crashed: 1, badArguments: 2, isolationViolated: 3 } as const
+/**
+ * Core 退出码（06 页 §2.7）。后两个是**确定性失败**的专属码：Host 见到它们不再退避重启
+ * （重试不会改变结果，只会把一句实话拖成五轮重启后的 `crash_loop`，R-08-8）。
+ *
+ * - `dataTooNew`：数据库版本高于本程序已知的迁移（降级安装），必须换回新版本才能读；
+ * - `startFailed`：内核装配期就失败（模块图不合法、有方法没实现……），日志里已有具体原因。
+ */
+export const CORE_EXIT_CODES = {
+  ok: 0,
+  crashed: 1,
+  badArguments: 2,
+  isolationViolated: 3,
+  dataTooNew: 4,
+  startFailed: 5,
+} as const
 
 /**
  * Core 从收到 core.shutdown 到进程退出的总预算（R-05 §3.3）。

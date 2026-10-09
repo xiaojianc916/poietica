@@ -10,6 +10,8 @@ export const FAILURE_TEXT: Readonly<Record<string, string>> = Object.freeze({
   core_missing: '找不到 Agent 引擎程序，请重新安装',
   bad_arguments: 'Agent 引擎启动参数错误',
   start_timeout: 'Agent 引擎启动超时',
+  data_too_new: '数据来自更新的 Poietica，请安装新版本',
+  start_failed: 'Agent 引擎启动失败，请查看日志',
 })
 
 /*

@@ -10,6 +10,8 @@ export interface CoreStatus {
     | 'bad_arguments'
     | 'protocol_mismatch'
     | 'core_missing'
+    | 'data_too_new'
+    | 'start_failed'
     | null
   readonly attempt: number
 }

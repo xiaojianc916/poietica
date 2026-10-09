@@ -519,6 +519,112 @@ conversation 的草稿读盘因此把「读失败」与「盘上没有值」分�
 （外部输入，不入库）。十六条彼此独立的小问题，逐条一个小提交；其中改变契约形状的条目
 各自提升一次 `PROTOCOL_VERSION` 并重跑 `bun run protocol:snapshot`。
 
+### 逐条进度
+
+#### R-08-1 图片在提交时被同步读两次（2026-10-10）
+
+**根因**：`OmpSession.submit` 先 `readFileSync` 读一遍把图 base64 塞进 `attachment.upsert`，
+随后 `preparePrompt` 又读一遍交给 omp prompt。20 MB 的图在 Core 主线程上同步读两次，
+多图时把整条事件循环压住（别的对话的流式输出一起卡）。
+
+**改法**：Q28「图片只走内联」的裁决不变，只改读法。`prompt.ts` 新增 `loadImages()` /
+`LoadedImage`（`readFile` + `statSync` 限 20 MB，可注入读盘与 stat 供测试计数），
+`runTurn` 里只调用一次，得到的同一批像素既画时间线那一帧又交给 omp prompt；
+`session.ts` 删掉 `readImageDataUrls`，attachmentId 只签一次；adapter 接线 `loadImages`
+与 `promptWithImages`。
+
+**测试**：`packages/engine-omp/src/__tests__/queue.test.ts` 加计数假读盘的用例（每张图恰好
+读一次）；`controls.test.ts` 的既有用例随签名调整。
+
+**验收**：`rg readFileSync packages/engine-omp/src/session.ts` 零命中；`bun run check` 全绿。
+
+#### R-08-2 每条 `turn.upsert` 都查一次 SQLite（2026-10-10）
+
+**根因**：`EventRouter.attributeClientTurn` → `submissions.clientTurnIdOf` → `repo.findByTurnId`。
+流式期间 `turn.upsert` 很频繁，每次一次同步查询。
+
+**改法**：`SubmissionService` 内维护 `Map<threadId, Map<turnId, clientTurnId>>`；`markTurn`
+写入（覆盖之前缓存的 null）；`clientTurnIdOf` 先查缓存，未命中再查库并把结果（含 null）
+写回；`forget` 随线程删除清掉整格。
+
+**测试**：`features/conversation/src/core/__tests__/submission-service.test.ts`：同一 turn
+连续 100 次 upsert，`findByTurnId` 调用 ≤ 1 次；null 缓存被 `markTurn` 覆盖；`forget` 后
+缓存不再命中。
+
+#### R-08-3 交互代理在 `toUpstream` 抛错时会悬挂（2026-10-10）
+
+**根因**：`InteractionBroker.settle` 里 `resolve(toUpstream(answer))` 一抛，异常冲向
+`answer()` 的调用方，而工具那边 await 的 Promise 永不兑现 —— 这次工具调用卡死，
+卡片却已经从待答表里出去了。
+
+**改法**：`try { resolve(toUpstream ? toUpstream(answer) : answer) } catch (e) { reject(e) }`。
+
+**测试**：`packages/engine-omp/src/__tests__/interactions.test.ts` 加用例：`toUpstream` 对
+dismiss 抛错 → `cancelAll()` 后 ask 的 Promise 以该错误 reject（旧代码上该用例超时）。
+
+#### R-08-4 `Emitter` 监听者异常只有 `console.error`，没有上下文（2026-10-10）
+
+**根因**：`Emitter.fire` → `lastResort` 只写一行裸文本，Host 收进 `core.log` 后看不出是
+哪个线程、哪种事件。
+
+**改法**：`Emitter` 新增可选 `EmitterOptions.onListenerError`，缺省仍走 `lastResort`；
+`OmpSession` 与 `InteractionBroker` 接线成 `logger.error('listener threw', { error, stack })`。
+异常依旧不向 `fire` 的调用方重抛（与 R-02 的事件泵记 warn 同一风格）。
+
+**测试**：`packages/foundation/src/__tests__/emitter.test.ts`：监听者抛错时
+`onListenerError` 被调用、其它监听者仍被调用、`fire` 本身不抛。
+
+#### R-08-5 Core 崩溃时排队的话被静默丢弃（2026-10-10）
+
+**根因**：omp 的插话 / 排队队列住进程内存里，Core 一崩就没了；对应提交行停在 `queued`，
+而 UI 只画 `deliverAs === 'turn'` 且 `status !== 'queued'` 的行 —— 用户完全不知道自己
+排的话没了。
+
+**改法**：
+
+1. `submissions-repository` 的 `failPending` 扩成 `failUndelivered`（`status IN ('pending','queued')`）；
+   `deleteStaleTerminal` 只清 `started`。`recoverOnStart` 走新方法，两条路都落
+   `failed(core_restarted)` 并补发 `submissionFailed`（automations 对非 turn 忽略）。
+2. `deliver()` 的 `deliveredAs` 改由**这一刻的会话状态**决定：会话空闲时 retry 一条
+   failed 的 followUp / steer 自然按新一轮交出去（记 `queued` 等于把已经开跑的真实轮
+   标成还在排队）。
+3. UI：`withSubmissionRows` 让 failed 的 steer / followUp 也进时间线并标 `undelivered`，
+   气泡画虚线框；失败横幅与「取回文字」的正文改从 `readFailedSubmissionText`（最后一条
+   failed 提交行）取，本机乐观记录优先。
+
+**测试**：`submission-service.test.ts` 加 4 条（recoverOnStart 收 queued、空闲 retry → turn
+且留 pending、忙时 retry followUp → queued、忙时 steer → queued）；
+`transcript-store.test.ts` 加 4 条（failed 的 followUp / steer 画气泡、queued / pending
+不画、正常 turn 不带标记、失败正文只认最后一条）。
+
+#### R-08-8 数据库来自更新版本时要等约 15 秒重启才报错，且报成 `crash_loop`（2026-10-10）
+
+**根因**：`runMigrations` 抛 `MigrationError` → `apps/core/src/main.ts` 一律退出码 1 →
+`core-supervisor` 当崩溃退避重启五轮。降级安装是确定性失败，重试没有意义，
+界面最后只说「Agent 引擎反复崩溃」。
+
+**改法**：
+
+1. `storage-sqlite` 把「数据库版本高于程序已知迁移」单独抛 `DataTooNewError`
+   （`MigrationError` 的子类），其余迁移错误仍是 `MigrationError`。
+2. `CORE_EXIT_CODES` 加 `dataTooNew: 4`、`startFailed: 5`；`core-kernel` 新增
+   `coreStartFailureExitCode(error)` 做分类（`DataTooNewError` → 4；迁移错误 /
+   `kernel.module_graph_invalid` / `kernel.unhandled_method` / `kernel.contract_invalid`
+   / `kernel.table_access_denied` → 5；其余 → 1 继续按崩溃重试）。
+   `apps/core/src/main.ts` 的 serve catch 用它选退出码。
+3. `CoreFailureReason` 与 `CORE_FAILURE_REASONS` 加 `'data_too_new' | 'start_failed'`；
+   `onExit` 见到 4 / 5 直接 `fail()`，不再排重启。UI 的 `CoreStatus.reason` 联合类型与
+   `FAILURE_TEXT` 同步（「数据来自更新的 Poietica，请安装新版本」/「Agent 引擎启动失败，请查看日志」）。
+
+**契约变更**：`core.status` / `core.getStatus` 的 `reason` 枚举加两个值，
+`PROTOCOL_VERSION` 9 → 10，已重跑 `bun run protocol:snapshot`（快照只有这两处枚举变长）。
+
+**测试**：`core-supervisor.test.ts` 加两条：退出码 4 → 立刻 failed/data_too_new、推进
+60 秒也只 spawn 过一次；退出码 5 → failed/start_failed 同理。
+`core-kernel/src/__tests__/start-failure.test.ts`（新建）钉住退出码分类；
+`runtime-layout` 的 `CORE_EXIT_CODES` 期望值同步；`core-failure-notice.test.ts` 覆盖
+八个 reason 的文案与全表。
+
 ### 审查执行待决（R-08 新增）
 
 | 编号 | 日期 | 问题 | 阻塞的步骤 | 状态 |

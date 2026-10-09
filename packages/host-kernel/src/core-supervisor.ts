@@ -27,6 +27,8 @@ export type CoreFailureReason =
   | 'bad_arguments'
   | 'protocol_mismatch'
   | 'core_missing'
+  | 'data_too_new'
+  | 'start_failed'
 export interface CoreStatus {
   readonly state: CoreStatusState
   readonly reason: CoreFailureReason | null
@@ -326,6 +328,15 @@ export class CoreSupervisor {
     }
     if (code === CORE_EXIT_CODES.badArguments) {
       this.fail('bad_arguments')
+      return
+    }
+    /* 确定性失败（R-08-8）：降级安装 / 装配期就失败，重试不会改变结果 */
+    if (code === CORE_EXIT_CODES.dataTooNew) {
+      this.fail('data_too_new')
+      return
+    }
+    if (code === CORE_EXIT_CODES.startFailed) {
+      this.fail('start_failed')
       return
     }
     const now = this.clock.now()

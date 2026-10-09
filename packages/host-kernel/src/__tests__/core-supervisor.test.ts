@@ -198,6 +198,38 @@ describe('CoreSupervisor', () => {
     expect(s.spawned.length).toBe(1)
   })
 
+  /*
+   * R-08-8：数据库来自更新的版本（退出码 4）是确定性失败，退避重启没有意义 ——
+   * 从前它会走五轮退避，最后把「数据库太新」报成 crash_loop，用户看到的是一句
+   * 误导人的「反复崩溃」。现在见到 4 直接 failed/data_too_new，一次 spawn 都不重试。
+   */
+  test('R-08-8 退出码 4 → 立即 failed/data_too_new，不 spawn 第二次', async () => {
+    const s = await setup()
+    const started = s.sup.start()
+    await tick()
+    ready(s.spawned[0]!.child)
+    await started
+    exitChild(s.spawned[0]!.child, 4)
+    expect(s.sup.status.state).toBe('failed')
+    expect(s.sup.status.reason).toBe('data_too_new')
+    s.clock.advance(60_000)
+    expect(s.spawned.length).toBe(1)
+  })
+
+  /* R-08-8：退出码 5（启动自检/装配失败）同理：重试不会改变结果。 */
+  test('R-08-8 退出码 5 → 立即 failed/start_failed，不 spawn 第二次', async () => {
+    const s = await setup()
+    const started = s.sup.start()
+    await tick()
+    ready(s.spawned[0]!.child)
+    await started
+    exitChild(s.spawned[0]!.child, 5)
+    expect(s.sup.status.state).toBe('failed')
+    expect(s.sup.status.reason).toBe('start_failed')
+    s.clock.advance(60_000)
+    expect(s.spawned.length).toBe(1)
+  })
+
   test('S-6 45 秒不发 ready → 杀进程并按崩溃退避', async () => {
     const s = await setup()
     const started = s.sup.start()

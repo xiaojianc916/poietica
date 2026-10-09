@@ -3,3 +3,4 @@ export { type CoreEvent, type CoreEventBus, createEventHub, defineCoreEvent, typ
 export { type CoreKernel, type CoreKernelOptions, createCoreKernel } from './kernel'
 export { type CoreModule, type CoreModuleContext, type CoreRuntimeInfo, defineCoreModule } from './module'
 export { type CoreRpcBinding, createCoreRpcBinding, createHostCaller, type HostCaller } from './rpc-binding'
+export { coreStartFailureExitCode } from './start-failure'

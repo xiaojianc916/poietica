@@ -10,6 +10,8 @@ export const CORE_FAILURE_REASONS = [
   'bad_arguments',
   'protocol_mismatch',
   'core_missing',
+  'data_too_new',
+  'start_failed',
 ] as const
 
 export const coreStatusSchema = z.object({

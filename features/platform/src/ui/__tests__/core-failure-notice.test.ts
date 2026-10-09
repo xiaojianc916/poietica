@@ -29,22 +29,26 @@ describe('入口提示：Core 起不来', () => {
     expect(coreFailureVisible(status('failed', null))).toBe(true)
   })
 
-  test('六个 reason 的文案表与 07 页 §1E 一致', () => {
+  test('八个 reason 的文案表与 07 页 §1E 一致', () => {
     expect(FAILURE_TEXT.crash_loop).toBe('Agent 引擎反复崩溃，已停止自动重启')
     expect(FAILURE_TEXT.isolation_violated).toBe('隔离检查失败：Agent 数据目录可能被外部配置改写')
     expect(FAILURE_TEXT.protocol_mismatch).toBe('安装文件不一致，请重新安装')
     expect(FAILURE_TEXT.core_missing).toBe('找不到 Agent 引擎程序，请重新安装')
     expect(FAILURE_TEXT.bad_arguments).toBe('Agent 引擎启动参数错误')
     expect(FAILURE_TEXT.start_timeout).toBe('Agent 引擎启动超时')
+    expect(FAILURE_TEXT.data_too_new).toBe('数据来自更新的 Poietica，请安装新版本')
+    expect(FAILURE_TEXT.start_failed).toBe('Agent 引擎启动失败，请查看日志')
   })
 
-  test('六个 reason 全覆盖', () => {
+  test('八个 reason 全覆盖', () => {
     expect(Object.keys(FAILURE_TEXT).sort()).toEqual([
       'bad_arguments',
       'core_missing',
       'crash_loop',
+      'data_too_new',
       'isolation_violated',
       'protocol_mismatch',
+      'start_failed',
       'start_timeout',
     ])
   })

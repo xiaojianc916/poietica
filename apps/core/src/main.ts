@@ -2,7 +2,8 @@ import { captureLaunchEnv, dispatchProcessMode } from '@poietica/engine-omp/boot
 
 /**
  * 顶层致命错误的最后通道（06 页 §2.7）：日志系统可能还没有建立，先按 Core 的
- * stderr JSONL 约定写一条 fatal 记录，再以退出码 1 退出 —— Host 会把它当崩溃退避重启。
+ * stderr JSONL 约定写一条 fatal 记录，再以退出码退出 —— Host 见到 1 当崩溃退避重启，
+ * 见到 4 / 5 当确定性失败直接进 failed（R-08-8）。
  */
 function fatal(scope: string, error: unknown): void {
   // code 必须带上：06 页 A-K6 的判据是 core.log 里能看到 kernel.unhandled_method
@@ -41,12 +42,20 @@ process.on('unhandledRejection', (error) => {
 })
 const mode = await dispatchProcessMode() // ② 顶层同步 declareWorkerHostEntry；worker / browser-relay 模式在这里被 omp 接管，永不返回
 if (mode === 'serve') {
-  const { serve } = await import('./serve') // ③ serve 的全部依赖都动态导入，worker 子进程不会加载它们
+  // ③ serve 的全部依赖都动态导入，worker 子进程不会加载它们
+  const { serve } = await import('./serve')
+  const { coreStartFailureExitCode } = await import('@poietica/core-kernel')
   try {
     await serve(launchEnv)
   } catch (error) {
-    // 06 页 §2.7：start() 抛出的任何错误由 serve 的外层捕获 → 写一条 fatal 日志 → 退出码 1
+    /*
+     * 06 页 §2.7：start() 抛出的任何错误由 serve 的外层捕获 → 写一条 fatal 日志 → 进程退出。
+     *
+     * 退出码按错误类型分（R-08-8）：数据库比程序新、迁移/装配期失败是**确定性失败**，
+     * Host 见到对应的码直接进 failed（不再退避重启五轮后报成 crash_loop）；其余仍按
+     * 崩溃处理，让看护人有机会自愈。
+     */
     fatal('serve', error)
-    process.exit(1)
+    process.exit(coreStartFailureExitCode(error))
   }
 }

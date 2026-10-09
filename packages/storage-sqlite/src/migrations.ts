@@ -16,7 +16,15 @@ export interface ModuleMigrations {
 }
 
 export class MigrationError extends Error {
-  override readonly name = 'MigrationError'
+  override readonly name: string = 'MigrationError'
+}
+
+/**
+ * 数据库版本高于本程序已知的迁移（降级安装）。单独一类是因为它该走**退出码 4**：
+ * Host 见到 4 直接进 failed/data_too_new，不再退避重启五轮后报成 crash_loop（R-08-8）。
+ */
+export class DataTooNewError extends MigrationError {
+  override readonly name = 'DataTooNewError'
 }
 
 const KERNEL_DDL = `CREATE TABLE IF NOT EXISTS kernel_migrations (
@@ -42,7 +50,7 @@ export function runMigrations(db: Database, modules: readonly ModuleMigrations[]
     const row = getVersion.get(moduleId) as { version: number } | null
     const current = row?.version ?? 0
     if (current > migrations.length) {
-      throw new MigrationError(
+      throw new DataTooNewError(
         `数据库中模块 ${moduleId} 的版本 ${current} 高于程序已知的 ${migrations.length}：数据库来自更新的 Poietica 版本`,
       )
     }
