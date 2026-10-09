@@ -26,7 +26,12 @@ function collectingLogger(): { logger: Logger; warns: string[] } {
  *
  * 契约把这一档的超时改成 0（结果由 update.stateChanged 说话），但连接换代、窗口关闭
  * 仍可能让请求以错误拒绝；从前是裸 `void api.download()`，那就是一条未处理的 rejection。
+ *
+ * 两条用例都显式放宽等元素的时限：testing-library 的默认 1 秒是给单独一个文件跑的，
+ * 全仓并行时横幅的首帧常被别的文件挤到 1 秒之外（实测偶发，与本条要验的行为无关）。
  */
+const SLOW = { timeout: 5000 }
+
 describe('UpdateBanner 的下载动作（R-08-14）', () => {
   const state = UpdateStateSchema.parse({
     phase: 'available',
@@ -68,23 +73,19 @@ describe('UpdateBanner 的下载动作（R-08-14）', () => {
       calls += 1
       return state
     })
-    fireEvent.click(await screen.findByRole('button', { name: '下载' }))
+    fireEvent.click(await screen.findByRole('button', { name: '下载' }, SLOW))
     await waitFor(() => {
       expect(calls).toBe(1)
-    })
+    }, SLOW)
   })
 
   test('请求拒绝只记 warn，不作为未处理异常冲出去', async () => {
     const { warns } = renderBanner(async () => {
       throw new Error('传输层断了')
     })
-    fireEvent.click(await screen.findByRole('button', { name: '下载' }))
-    /* 全仓测试并行跑时这一拍可能被别的文件拖长，waitFor 的默认 1 秒不够稳 */
-    await waitFor(
-      () => {
-        expect(warns).toContain('update download failed')
-      },
-      { timeout: 5000 },
-    )
+    fireEvent.click(await screen.findByRole('button', { name: '下载' }, SLOW))
+    await waitFor(() => {
+      expect(warns).toContain('update download failed')
+    }, SLOW)
   })
 })
