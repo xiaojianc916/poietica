@@ -306,6 +306,57 @@ describe('RpcHub', () => {
     expect((err as AppError).code).toBe(SystemErrorCode.timeout)
   })
 
+  /*
+   * R-08-10：调用方可能拿一个长寿 signal（模块生命周期的 AbortController）反复调用，
+   * 从前每次都在它上面挂一个 'abort' 监听且从不摘 —— 监听器与闭包（含每次的 ac）
+   * 单调累积。现在监听器在 finally 里摘掉，净增量必须是 0。
+   */
+  test('R-08-10 用同一个长寿 signal 调用 100 次：abort 监听器净增 0', async () => {
+    const { hub, sup } = makeHub()
+    sup.setStatus({ state: 'ready', reason: null, attempt: 0 })
+    sup.setForwardImpl(async () => ({ items: [] }))
+    const caller = hub.coreCaller()
+
+    /* 包装一个真 signal，只为数一数宿主上的监听器（Bun 的 EventTarget 不暴露计数） */
+    const controller = new AbortController()
+    let listeners = 0
+    const signal = {
+      get aborted() {
+        return controller.signal.aborted
+      },
+      addEventListener: (_type: string, _fn: unknown) => {
+        listeners += 1
+      },
+      removeEventListener: (_type: string, _fn: unknown) => {
+        listeners -= 1
+      },
+    } as unknown as AbortSignal
+
+    for (let i = 0; i < 100; i += 1) {
+      await caller.call(coreContract, 'conversation.list', {}, { signal })
+    }
+    expect(listeners).toBe(0)
+  })
+
+  test('R-08-10 signal 已经 aborted 时请求立刻被取消（不再挂监听）', async () => {
+    const { hub, sup } = makeHub()
+    sup.setStatus({ state: 'ready', reason: null, attempt: 0 })
+    sup.setForwardImpl(
+      (_m, _p, opts) => {
+        /* 与 RpcPeer.request 同形：已经中止的 signal 直接拒绝 */
+        if (opts.signal.aborted) return Promise.reject(new AppError(SystemErrorCode.cancelled, '取消'))
+        return new Promise((_resolve, reject) => {
+          opts.signal.addEventListener('abort', () => reject(new AppError(SystemErrorCode.cancelled, '取消')))
+        })
+      },
+    )
+    const caller = hub.coreCaller()
+    const ac = new AbortController()
+    ac.abort()
+    const err = await caller.call(coreContract, 'conversation.list', {}, { signal: ac.signal }).catch((e: unknown) => e)
+    expect((err as AppError).code).toBe(SystemErrorCode.cancelled)
+  })
+
   test('coreCaller().onStatus 转发 supervisor 的状态变化', () => {
     const { hub, sup } = makeHub()
     const caller = hub.coreCaller()

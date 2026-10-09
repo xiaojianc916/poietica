@@ -638,6 +638,19 @@ dismiss 抛错 → `cancelAll()` 后 ask 的 Promise 以该错误 reject（旧�
 挂在门上，beta 已经跑完（并行）；放行后 alpha 的第二个钩子在第一個之后才跑（同功能内串行）。
 旧实现下第一条断言就是红的（beta 还没起步）。
 
+#### R-08-10 `coreCaller.call` 在调用方的 signal 上挂监听不摘（2026-10-10）
+
+**根因**：`opts.signal.addEventListener('abort', …)` 从不 `removeEventListener`。调用方若用
+一个长寿 signal（模块生命周期的 AbortController）反复调用，监听器与闭包（含每次的 `ac`）
+单调累积。
+
+**改法**：监听器存成变量，`finally` 里 `removeEventListener`；`opts.signal` 已 aborted 时
+不挂监听、直接 `ac.abort()`，让 forward 侧按取消处理（超时判定仍只认自己的 timer，
+调用方主动取消不会被误报成 `kernel.timeout`）。
+
+**测试**：`rpc-hub.test.ts` 加两条：包装过的 signal 连续调用 100 次，add/remove 净增 0；
+已 aborted 的 signal 发起调用 → `kernel.cancelled`。
+
 ### 审查执行待决（R-08 新增）
 
 | 编号 | 日期 | 问题 | 阻塞的步骤 | 状态 |

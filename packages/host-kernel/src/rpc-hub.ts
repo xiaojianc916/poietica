@@ -102,7 +102,14 @@ export class RpcHub {
         const ac = new AbortController()
         const timeoutMs = opts?.timeoutMs ?? def.timeoutMs
         const timer = timeoutMs > 0 ? setTimeout(() => ac.abort(), timeoutMs) : undefined
-        opts?.signal?.addEventListener('abort', () => ac.abort(), { once: true })
+        /*
+         * 调用方可能拿一个**长寿** signal（模块生命周期的 AbortController）反复调用
+         * （R-08-10）：监听器必须摘掉，否则监听器与闭包（含每次的 ac）单调累积。
+         * 已经中止的 signal 直接落下去，让 forward 侧按取消处理。
+         */
+        const onAbort = (): void => ac.abort()
+        if (opts?.signal?.aborted === true) ac.abort()
+        else opts?.signal?.addEventListener('abort', onAbort, { once: true })
         try {
           const raw = await this.o.supervisor.forward(def.name, def.params.parse(params), {
             signal: ac.signal,
@@ -116,6 +123,7 @@ export class RpcHub {
           throw e
         } finally {
           if (timer !== undefined) clearTimeout(timer)
+          opts?.signal?.removeEventListener('abort', onAbort)
         }
       },
       on: <C extends Contract, N extends NotificationName<C>>(
