@@ -24,8 +24,9 @@ import { GOAL_CONTROL_ID, GOAL_ENABLED } from '../components/goal/goal-control'
  *   2. **promptId**：legacy 的 prompt 交回 agent 签的 promptId；新协议里 UI 自己生成
  *      \`clientTurnId\`（05 页 §12.2），Core 把它写进 \`turn.upsert\`。所以这里交回 clientTurnId：
  *      它是「这一句」的身份，与 legacy 的 promptId 同用。
- *   3. **撤回**：legacy 的 \`withdraw()\` 不带号（由它决定撤哪一条）；契约的 \`queue.withdraw\`
- *      要 itemId。这里按 legacy 的语义撤**队首**（先插话后排队），并在快照里如实交回撤走的那句。
+ *   3. **撤回 / 换层**：契约按 itemId 点名（R-01 §3.8）。这里先从最新快照里找到那一项
+ *      （找不到返回 null），再把号交给 \`queue.withdraw\`；换层走 \`queue.move\`，附件与
+ *      技能由 Core 用账本里的原始输入重投，UI 不再「撤回 + 重新提交」。
  */
 
 /** 花名册：task 表里有号的那些（子 agent 的号由 omp 签，transcript 的 task 带着它） */
@@ -46,8 +47,8 @@ function rosterOf(
 function toQueued(threadId: string, snapshot: QueueSnapshot): QueuedMessages {
   return {
     threadId,
-    steering: snapshot.items.filter((i) => i.deliverAs === 'steer').map((i) => i.text),
-    followUp: snapshot.items.filter((i) => i.deliverAs === 'followUp').map((i) => i.text),
+    steering: snapshot.items.filter((i) => i.deliverAs === 'steer').map((i) => ({ id: i.id, text: i.text })),
+    followUp: snapshot.items.filter((i) => i.deliverAs === 'followUp').map((i) => ({ id: i.id, text: i.text })),
     steeringMode: snapshot.modes.steer,
     followUpMode: snapshot.modes.followUp,
     interruptMode: 'immediate',
@@ -174,13 +175,16 @@ export function createSessionPort({ api, threadId, onSubmissions }: SessionPortO
       return toQueued(threadId, await queue())
     },
 
-    async withdraw(): Promise<WithdrawnMessage | null> {
-      // 第 3 条映射：撤队首（先插话后排队）
+    async withdraw(itemId: string): Promise<WithdrawnMessage | null> {
       const snapshot = await queue()
-      const head = snapshot.items.find((i) => i.deliverAs === 'steer') ?? snapshot.items[0]
-      if (head === undefined) return null
-      await api.withdraw(threadId, head.id)
-      return { text: head.text }
+      const item = snapshot.items.find((i) => i.id === itemId)
+      if (item === undefined) return null
+      await api.withdraw(threadId, itemId)
+      return { text: item.text }
+    },
+
+    async move(itemId: string, deliverAs: 'steer' | 'followUp'): Promise<QueuedMessages> {
+      return toQueued(threadId, await api.move(threadId, itemId, deliverAs))
     },
 
     async setDeliveryModes(patch: DeliveryModePatch) {

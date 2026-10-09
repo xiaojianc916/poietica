@@ -10,6 +10,7 @@ export const EngineErrorCode = {
   upstream: 'engine.upstream_error', // 模型服务商返回的错误；message 为服务商原文
   planUnavailable: 'engine.plan_unavailable', // 计划模式在 agent 设置里被关掉了
   goalUnavailable: 'engine.goal_unavailable', // 目标模式在 agent 设置里被关掉了
+  queueItemConsumed: 'engine.queue_item_consumed', // 这条排队项已经被 agent 取走，撤不回来了
 } as const
 export type EngineErrorCode = (typeof EngineErrorCode)[keyof typeof EngineErrorCode]
 
@@ -24,4 +25,5 @@ export const engineErrorMessages: Readonly<Record<EngineErrorCode, string>> = Ob
   'engine.upstream_error': '模型服务返回错误',
   'engine.plan_unavailable': '计划模式已在 Agent 设置里关闭',
   'engine.goal_unavailable': '目标模式已在 Agent 设置里关闭',
+  'engine.queue_item_consumed': '这条消息已经交给 agent，撤不回来了',
 })

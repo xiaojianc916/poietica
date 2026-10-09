@@ -462,6 +462,19 @@ class FakeSession implements EngineSession {
     this.emit({ type: 'queue', queue: this.queue() })
   }
 
+  /**
+   * 换层：从账本里取出该项、改层、换新 id、放到队尾（与真引擎同一条语义 —— 排队的
+   * 唯一主人在账本里，换层不重新展开输入）。不存在时抛 kernel.not_found。
+   */
+  async moveQueued(queueItemId: string, deliverAs: 'steer' | 'followUp'): Promise<void> {
+    const at = this.ledger.findIndex((e) => e.id === queueItemId)
+    if (at < 0) throw new AppError(SystemErrorCode.notFound, '队列里没有这一项')
+    const [entry] = this.ledger.splice(at, 1)
+    if (entry === undefined) throw new AppError(SystemErrorCode.notFound, '队列里没有这一项')
+    this.ledger.push({ ...entry, id: createId(), deliverAs })
+    this.emit({ type: 'queue', queue: this.queue() })
+  }
+
   setQueueModes(modes: Partial<QueueSnapshot['modes']>): void {
     Object.assign(this.modes, modes)
     this.emit({ type: 'queue', queue: this.queue() })

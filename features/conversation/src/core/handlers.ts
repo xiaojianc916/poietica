@@ -87,6 +87,7 @@ export function registerHandlers(ctx: Ctx, core: ConversationCore, hub: Timeline
   })
   ctx.rpc.handle('queue.get', ({ threadId }) => core.queue(threadId))
   ctx.rpc.handle('queue.withdraw', ({ threadId, itemId }) => core.withdraw(threadId, itemId))
+  ctx.rpc.handle('queue.move', ({ threadId, itemId, deliverAs }) => core.move(threadId, itemId, deliverAs))
   ctx.rpc.handle('queue.setModes', ({ threadId, steer, followUp }) =>
     core.setQueueModes(threadId, {
       ...(steer === undefined ? {} : { steer }),

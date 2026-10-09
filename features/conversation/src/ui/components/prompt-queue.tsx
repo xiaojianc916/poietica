@@ -2,7 +2,7 @@ import './prompt-queue.css'
 
 import { Tooltip, TooltipContent, TooltipTrigger } from '@poietica/design-system'
 import { memo, type ReactNode, type SVGProps, useCallback, useState, useSyncExternalStore } from 'react'
-import type { PromptDelivery } from '../agent/session'
+import type { PromptDelivery, QueuedDelivery } from '../agent/session'
 import type { MessageQueue, MessageQueueState } from '../interjection/message-queue'
 import { ChevronDownIcon, ChevronUpIcon, QueueSteerIcon, TrashIcon } from './primitives/icons'
 
@@ -36,16 +36,6 @@ export interface PromptQueueProps {
   readonly queue: MessageQueue
   /** 把撤回的那一句取回输入框改。 */
   readonly onEdit: (text: string) => void
-  /**
-   * 换一层再投出去。
-   *
-   * 队列里的正文与层级都在 agent 那一侧、且**没有按条改的 API**，所以「改这一条的层」
-   * 只有一条路：撤回它，再用新层重投。撤回是 LIFO，所以只有最后一条点得动。
-   *
-   * 交回它有没有落地：撤回已经把这句话从队列里拿走了，重投没成时调用方得把它还回输入框
-   * —— 否则这一句就凭空消失。
-   */
-  readonly onRedeliver: (text: string, deliverAs: PromptDelivery) => Promise<boolean>
 }
 
 /*
@@ -56,6 +46,8 @@ export interface PromptQueueProps {
  * 事实的机器那一面 —— 那枚换层图标靠它知道「现在这一条就在哪一层」。
  */
 export interface QueueRow {
+  /** 队列项在引擎账本里的号：撤回与换层都按它点名（R-01 §3.8）。 */
+  readonly id: string
   readonly text: string
   readonly tier: string
   readonly layer: PromptDelivery
@@ -71,8 +63,8 @@ export interface QueueRow {
  */
 export function queueRows(state: MessageQueueState): readonly QueueRow[] {
   const rows = [
-    ...state.steering.map((text) => ({ text, tier: '插话', layer: 'steer' as const })),
-    ...state.followUp.map((text) => ({ text, tier: '排队', layer: 'followUp' as const })),
+    ...state.steering.map((item) => ({ id: item.id, text: item.text, tier: '插话', layer: 'steer' as const })),
+    ...state.followUp.map((item) => ({ id: item.id, text: item.text, tier: '排队', layer: 'followUp' as const })),
   ]
 
   return rows.map((row, index) => ({
@@ -88,7 +80,7 @@ export function queueRows(state: MessageQueueState): readonly QueueRow[] {
  * 缺省是 `followUp`（这一轮跑完再送出去），所以**再点一次已经按下的那一枚就是收回**，
  * 退回缺省 —— 这正是缺省那一档不画图标的意思：屏幕上没有按下的图标就是它。
  */
-export function nextLayer(current: PromptDelivery | undefined, clicked: PromptDelivery): PromptDelivery | null {
+export function nextLayer(current: PromptDelivery | undefined, clicked: QueuedDelivery): QueuedDelivery | null {
   if (current === undefined) {
     return null
   }
@@ -184,7 +176,7 @@ function RowDeliveries({
 }: {
   readonly current: PromptDelivery | undefined
   readonly disabled: boolean
-  readonly onPick: (deliverAs: PromptDelivery) => void
+  readonly onPick: (deliverAs: QueuedDelivery) => void
 }) {
   return (
     <>
@@ -214,16 +206,14 @@ function RowDeliveries({
  *
  * 四处按本机机制不同、都在画法上留了痕：
  *
- *   1. 撤回是 LIFO 一条 `withdraw` 命令（正本按号 remove），所以**只有最后一行**画得出
- *      撤回键。
- *   2. 换层也落在最后一条上（撤回再重投，omp 没有按条改层的 API），所以那枚换层图标同样
- *      只有最后一行有。
- *   3. 一行时没有折叠头，两枚图标就贴那一行的右缘；多行时贴折叠头（「N 条排队消息」）的
+ *   1. 撤回与换层都**按号点名**（`queue.withdraw` / `queue.move`），底层支持任意一行；
+ *      但按钮的位置与样式不在本页范围（R-01 §3.8），所以仍然只画在最后一行。
+ *   2. 一行时没有折叠头，两枚图标就贴那一行的右缘；多行时贴折叠头（「N 条排队消息」）的
  *      右缘 —— 它们改的是**最后那一条**。
  *
  * 顺序是 agent 的出队顺序，这一层不重排、不预演。
  */
-export const PromptQueue = memo(function PromptQueue({ onEdit, onRedeliver, queue }: PromptQueueProps) {
+export const PromptQueue = memo(function PromptQueue({ onEdit, queue }: PromptQueueProps) {
   /* 三个实参：第三格是服务端快照。本仓的规矩与 session-controls-context 同形，测试里渲染
      静态标记时读的就是它 —— 缺了它，整棵子树在 markup 里是空的。 */
   const state: MessageQueueState = useSyncExternalStore(queue.subscribe, queue.read, queue.read)
@@ -242,47 +232,37 @@ export const PromptQueue = memo(function PromptQueue({ onEdit, onRedeliver, queu
   const rows = queueRows(state)
   const visible = queueView(rows, moving)
 
-  /* 两枚控件改的都是**那一条**（撤回是 LIFO），它的层就是「当前那一层」。 */
+  /* 两枚控件改的都是**最后那一条**（按钮位置的产品选择），它的层就是「当前那一层」。 */
   const last = visible.find((row) => row.last)
 
   /*
-   * 换层：撤回那一条，再按新层重投。
-   *
-   * 撤回是 LIFO，交回的正文就是要发的正文；重投走 onRedeliver（上层把它交给 send，
-   * 与正常发送同一条路）。撤回失败（队列空了、或已经被模型吃了）就什么都不做。
+   * 换层：服务端的 `queue.move` 按号把这一条换到另一层，用账本里的原始输入重新入队
+   * （图片 / 文件 / 技能都保留，R-01 §3.5）。不再「撤回 + 重新提交」。
    */
   const redeliver = useCallback(
-    (deliverAs: PromptDelivery) => {
+    (deliverAs: QueuedDelivery) => {
       const target = nextLayer(last?.layer, deliverAs)
       if (pending || last === undefined || target === null) {
         return
       }
       setMoving(last)
-      void queue
-        .withdraw()
-        .then(async (restored) => {
-          if (restored === null) {
-            return
-          }
-          /* 重投没落地就把正文交回输入框：撤回已经把它从队列里拿走了，不还就是丢话。 */
-          if (!(await onRedeliver(restored.text, target))) {
-            onEdit(restored.text)
-          }
-        })
-        .finally(() => {
-          setMoving(undefined)
-        })
+      void queue.move(last.id, target).finally(() => {
+        setMoving(undefined)
+      })
     },
-    [last, onEdit, onRedeliver, pending, queue],
+    [last, pending, queue],
   )
 
   const withdraw = useCallback(() => {
-    void queue.withdraw().then((restored) => {
+    if (last === undefined) {
+      return
+    }
+    void queue.withdraw(last.id).then((restored) => {
       if (restored !== null) {
         onEdit(restored.text)
       }
     })
-  }, [onEdit, queue])
+  }, [last, onEdit, queue])
 
   const toggle = useCallback(() => {
     setCollapsed((value) => !value)
@@ -319,9 +299,9 @@ export const PromptQueue = memo(function PromptQueue({ onEdit, onRedeliver, queu
             </button>
 
             {/*
-             * 两枚控件都改**最后那一条**（撤回是 LIFO、换层靠撤回再重投），所以它们同在一处。
-             * 把撤回单独留在最后一行上，读起来就是「只有这一行能删」的一枚孤零零的键 —— 那
-             * 不是它的语义，它的语义是「撤回最后一条」。
+             * 两枚控件都改**最后那一条**（位置的产品选择；底层已支持任意一行），所以它们同
+             * 在一处。把撤回单独留在最后一行上，读起来就是「只有这一行能删」的一枚孤零零
+             * 的键 —— 那不是它的语义，它的语义是「撤回最后一条」。
              */}
             {last === undefined ? null : (
               <>
@@ -349,7 +329,7 @@ export const PromptQueue = memo(function PromptQueue({ onEdit, onRedeliver, queu
         <ul className="prompt-queue__list" hidden={!listVisible} id="prompt-queue-list">
           {listVisible
             ? visible.map((row) => (
-                <li className="prompt-queue__row" key={`${row.tier}:${String(row.ordinal)}`}>
+                <li className="prompt-queue__row" key={row.id}>
                   <Tooltip>
                     <TooltipTrigger
                       render={

@@ -26,7 +26,7 @@ import { applyPosture, grantToolForSession } from './posture'
 import { lastTurnOrdinal, type OmpMessage, projectHistoryPage } from './projector/history'
 import { LiveProjector } from './projector/live'
 import { SubagentLedger } from './projector/subagents'
-import { expandSkillMessage, preparePrompt, type SkillPromptMessage } from './prompt'
+import { expandSkillMessage, isUserSkillMessage, preparePrompt, type SkillPromptMessage } from './prompt'
 import { OmpSession } from './session'
 import type { SettingsScope } from './settings-access'
 
@@ -78,8 +78,7 @@ interface OmpAgentSessionLike {
   setSteeringMode(mode: 'all' | 'one-at-a-time', persist?: boolean): void
   setFollowUpMode(mode: 'all' | 'one-at-a-time', persist?: boolean): void
   getQueuedMessages(): { readonly steering: readonly string[]; readonly followUp: readonly string[] }
-  popLastQueuedMessage(): unknown
-  clearQueue(options?: Record<string, unknown>): unknown
+  removeQueuedMessage(text: string, queue: 'steering' | 'followUp'): boolean
   /**
    * 上下文用量。字段名是 omp 的 `{ tokens, contextWindow, percent }`（pi-tui 的
    * status-line/types），**不是** `{ usedTokens, windowTokens }`。
@@ -208,29 +207,38 @@ export async function wrapOmpSession(input: WrapOmpSessionInput): Promise<Engine
       broker,
       projector,
       prompt: async (submit, skillMessage) => await deliverPrompt(session, submit, skillMessage),
-      steer: async (text, submit, deliverAs, skillMessage) => {
-        /*
-         * 插话与排队也要带上图片（12 页 §7.4 的三种投递同一份输入）：走 prompt() 那条路
-         * 不带 images，图片就整条丢掉 —— 与「turn 丢图」是同一类缺陷。
-         */
-        const images = await imageContentsOf(submit)
+      /*
+       * 排队 / 插话的投递。
+       *
+       * 三种投递共用同一份 preparePrompt：`text` 是**投递正文**（用户原文 + 每个文件一行
+       * `@<绝对路径>`，见 prompt.ts 的 wireTextOf）。先前这里发的是 `submit.text`，文件
+       * 在排队 / 插话这条路上被静默丢掉（turn 那条路会拼 @路径，两边不对称）—— 队列正文
+       * 与 omp 队列对账、removeQueuedMessage、message_start 认领都必须认这一份。
+       */
+      steer: async (submit, deliverAs, skillMessage) => {
+        const prepared = preparePrompt(submit, {})
         if (skillMessage !== null) {
           await session.promptCustomMessage(skillMessage as unknown as Record<string, unknown>, {
             streamingBehavior: deliverAs,
-            queueChipText: text,
+            /*
+             * omp 的队列 chip 与 removeQueuedMessage 都认 `queueChipText`（实测：
+             * agent-session.ts 的 #queueCustomMessage 把它写进 details.__queueChipText，
+             * getQueuedMessages → queueChipText(message) 先读它）。所以技能分支的
+             * wireText 就是用户原文，对账与撤回两边同一份字符串。
+             */
+            queueChipText: submit.text,
           })
-          return
+          return { wireText: submit.text }
         }
-        if (deliverAs === 'steer') await session.steer(text, images)
-        else await session.followUp(text, images)
+        if (deliverAs === 'steer') await session.steer(prepared.text, [...prepared.imageContents])
+        else await session.followUp(prepared.text, [...prepared.imageContents])
+        return { wireText: prepared.text }
       },
       abort: async () => await session.abort(),
       disposeSession: async () => await session.dispose(),
       queueOf: () => session.getQueuedMessages(),
-      popLastQueued: () => session.popLastQueuedMessage() !== undefined,
-      clearQueue: () => {
-        session.clearQueue()
-      },
+      removeQueued: (wireText, deliverAs) =>
+        session.removeQueuedMessage(wireText, deliverAs === 'steer' ? 'steering' : 'followUp'),
       setQueueMode: (kind, value) => {
         // persist 一律 false：只影响本会话
         if (kind === 'steer') session.setSteeringMode(value, false)
@@ -408,6 +416,32 @@ function userTextOf(content: unknown): string {
 /** 把 omp 的「退订函数」包成 Disposable 形状 */
 function toSub(unsubscribe: () => void): { dispose(): void } {
   return { dispose: unsubscribe }
+}
+
+/**
+ * 一条 message_start 落到「是不是插话」上的判定（R-01 §3.4）。
+ *
+ * 两支：user 消息按投递正文认领（本轮自己的 prompt 由 OmpSession 那边按同一份正文排除）；
+ * 用户技能消息走 promptCustomMessage，omp 发的是 custom 消息（`role: 'custom'`），
+ * 认它要类型 + 归属两格都对 —— 自动加载的技能是 agent 自己塞的上下文，不算用户插话。
+ * 单独一处是为了不把 handleOmpEvent 的分支复杂度再推高一档（lint 的上限 40）。
+ */
+function claimStartedMessage(raw: unknown, session: OmpSession): void {
+  const message = raw as
+    | {
+        readonly role?: string
+        readonly content?: unknown
+        readonly customType?: unknown
+        readonly attribution?: unknown
+      }
+    | undefined
+  if (message === undefined) return
+  if (message.role === 'user') {
+    const text = userTextOf(message.content)
+    if (text !== '') session.onUserMessageStart(text)
+    return
+  }
+  if (isUserSkillMessage(message)) session.onSkillMessageStart()
 }
 
 /**
@@ -737,30 +771,6 @@ async function autosaveApprovedPlanOf(
   }
 }
 
-/**
- * 一次插话/排队的图片转成 omp 的 ImageContent（与 turn 那条路同一个产地：preparePrompt，
- * 所以 20 MB 上限、来源标记、base64 只有一份实现）。没有图片就是空表。
- */
-async function imageContentsOf(submit: {
-  readonly text: string
-  readonly images: readonly { readonly path: string; readonly mime: string }[]
-  readonly files: readonly { readonly path: string; readonly name: string }[]
-  readonly skills: readonly string[]
-}): Promise<readonly unknown[]> {
-  if (submit.images.length === 0) return []
-  const prepared = preparePrompt(
-    {
-      text: submit.text,
-      images: submit.images,
-      files: [],
-      skills: [],
-      deliverAs: 'steer',
-    },
-    {},
-  )
-  return prepared.imageContents
-}
-
 /** omp 会话事件 → 时间线 ops / 状态 / 用量（12 页 §7.3、§9.1） */
 function handleOmpEvent(
   event: Record<string, unknown>,
@@ -810,12 +820,14 @@ function handleOmpEvent(
         )
         break
       case 'message_start': {
-        // 插话落地：omp 把注入的消息折进上下文时发这一条，正文对上就画成一句人话
-        const message = event.message as { readonly role?: string; readonly content?: unknown } | undefined
-        if (message?.role === 'user') {
-          const text = userTextOf(message.content)
-          if (text !== '') session.claimInjection(text)
-        }
+        /*
+         * 插话落地：omp 把注入的消息折进上下文时发这一条。
+         *
+         * user 消息按投递正文认领（本轮自己的 prompt 由会话那边按同一份正文排除）；
+         * 用户技能消息走 promptCustomMessage，omp 发的是 custom 消息（不是 user），
+         * 只有这一支才画得出来。
+         */
+        claimStartedMessage(event.message, session)
         break
       }
       case 'message_end': {

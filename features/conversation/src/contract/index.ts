@@ -216,7 +216,18 @@ export const conversationContract = defineContract({
       owner: 'core',
       params: z.object({ threadId: z.string().min(1), itemId: z.string().min(1) }),
       result: QueueSnapshot,
-      description: '撤回一条排队中的输入',
+      description: '撤回一条排队中的输入；已被 agent 消费时抛 engine.queue_item_consumed',
+    }),
+    defineMethod({
+      name: 'queue.move',
+      owner: 'core',
+      params: z.object({
+        threadId: z.string().min(1),
+        itemId: z.string().min(1),
+        deliverAs: z.enum(['steer', 'followUp']),
+      }),
+      result: QueueSnapshot,
+      description: '把一条排队中的输入换到另一层（保留附件与技能）',
     }),
     defineMethod({
       name: 'queue.setModes',

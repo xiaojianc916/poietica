@@ -10,7 +10,7 @@ import type {
 } from '@poietica/engine'
 import type { AttachmentsService } from '@poietica/feature-attachments/core-api'
 import type { WorkspacesService } from '@poietica/feature-workspaces/core-api'
-import { AppError, type Clock, type Logger } from '@poietica/foundation'
+import { AppError, type Clock, type Logger, SystemErrorCode } from '@poietica/foundation'
 import type { TranscriptPage } from '@poietica/transcript'
 import { DEFAULT_POSTURE, type Thread, type TurnState } from '../contract/entities'
 import { conversationErrors } from '../contract/errors'
@@ -133,8 +133,25 @@ export class TurnService {
   }
 
   async withdraw(threadId: string, itemId: string): Promise<QueueSnapshot> {
-    const session = await this.d.pool.acquire(threadId)
+    /*
+     * 队列只存在于活会话里（peek 不 acquire）：为撤回一条排队项去冷启动一条会话没有意义，
+     * 冷启动出来的队列一定是空的。没有活会话就是「队列里没有这一项」。
+     */
+    const session = this.d.pool.peek(threadId)
+    if (session === undefined) throw new AppError(SystemErrorCode.notFound, '队列里没有这一项')
     session.withdraw(itemId)
+    return session.queue()
+  }
+
+  /**
+   * 换层（steer ⇄ followUp）：同样只对活会话操作，用账本里的原始输入重新入队，
+   * 附件与技能一样不丢（R-01 §3.8）。已被 agent 消费的项由引擎抛
+   * `engine.queue_item_consumed`，这里原样放行。
+   */
+  async move(threadId: string, itemId: string, deliverAs: 'steer' | 'followUp'): Promise<QueueSnapshot> {
+    const session = this.d.pool.peek(threadId)
+    if (session === undefined) throw new AppError(SystemErrorCode.notFound, '队列里没有这一项')
+    await session.moveQueued(itemId, deliverAs)
     return session.queue()
   }
 

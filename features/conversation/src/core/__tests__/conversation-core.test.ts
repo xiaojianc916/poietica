@@ -589,6 +589,56 @@ describe('conversation core（不经内核的直连测试）', () => {
     await dir.dispose()
   })
 
+  /*
+   * R-01 §5.2：队列的写操作只动**活会话**（peek 不 acquire）。
+   *
+   * 没有活会话时，冷启动一条会话去撤回 / 换层没有意义（新会话的队列一定是空的），
+   * 而冷启动本身要开 omp 会话（磁盘 + 模型解析）—— 所以这两条必须抛 kernel.not_found，
+   * 且 opened 计数保持 0。
+   */
+  test('R-01 队列写操作不开新会话：withdraw / move 抛 kernel.not_found 且 opened=0', async () => {
+    const { core, engine, dir, db } = await makeCore()
+    const row = core.create({ workspaceId: 'ws1' })
+
+    const withdrawError = await core.withdraw(row.id, 'no-such-item').catch((e: unknown) => e)
+    expect((withdrawError as { code?: string }).code).toBe('kernel.not_found')
+    const moveError = await core.move(row.id, 'no-such-item', 'steer').catch((e: unknown) => e)
+    expect((moveError as { code?: string }).code).toBe('kernel.not_found')
+    expect(engine.opened).toHaveLength(0)
+
+    await core.dispose()
+    db.close()
+    await dir.dispose()
+  })
+
+  test('R-01 queue.move 把一条 followUp 换到 steer：快照里那一项换了层', async () => {
+    const { core, dir, db } = await makeCore({ engine: createFakeEngine({ script: BUSY_SCRIPT }) })
+    const row = core.create({ workspaceId: 'ws1' })
+    await submit(core, row.id, '第一句')
+    await new Promise((r) => setTimeout(r, 5))
+    await core.submit({
+      threadId: row.id,
+      clientTurnId: createId(),
+      text: '排队的一句',
+      attachmentIds: [],
+      skills: [],
+      deliverAs: 'followUp',
+    })
+    await new Promise((r) => setTimeout(r, 30))
+
+    const before = await core.queue(row.id)
+    const item = before.items.find((entry) => entry.text === '排队的一句')!
+    expect(item.deliverAs).toBe('followUp')
+
+    const after = await core.move(row.id, item.id, 'steer')
+    const moved = after.items.find((entry) => entry.text === '排队的一句')!
+    expect(moved.deliverAs).toBe('steer')
+
+    await core.dispose()
+    db.close()
+    await dir.dispose()
+  })
+
   test('interactions.respond 会话不在池中 → interaction_not_found', async () => {
     const { core, dir, db } = await makeCore()
     const row = core.create({ workspaceId: 'ws1' })

@@ -274,6 +274,65 @@ export function runEngineConformance(name: string, make: () => Promise<Conforman
       record.subscription.dispose()
     })
 
+    /** 换层：一条 followUp 搬到 steer，deliverAs 变了、拿到新 id、其余项顺序不动 */
+    test('C-QUEUE-MOVE', async () => {
+      const session = await openNew()
+      const record = recorder(session)
+      target.script([[{ kind: 'interaction', interaction: { kind: 'confirm', title: '停一下', message: '继续？' } }]])
+      await session.submit(submit('first'))
+      await record.waitFor((events) => events.some((e) => e.type === 'interactionRequested'), '没有等到交互')
+
+      await session.submit(submit('one', 'followUp'))
+      await session.submit(submit('two', 'followUp'))
+      await record.waitFor(
+        (events) => events.some((e) => e.type === 'queue' && e.queue.items.length === 2),
+        '两条排队项没进队列',
+      )
+      const before = session.queue().items
+      const moving = before.find((i) => i.text === 'one')!
+      expect(moving.deliverAs).toBe('followUp')
+
+      await session.moveQueued(moving.id, 'steer')
+
+      const after = session.queue().items
+      expect(after).toHaveLength(2)
+      // 该正文的层变了、id 也换了；另一条原地不动
+      const moved = after.find((i) => i.text === 'one')!
+      expect(moved.deliverAs).toBe('steer')
+      expect(moved.id).not.toBe(moving.id)
+      expect(after.find((i) => i.text === 'two')).toEqual(before.find((i) => i.text === 'two'))
+      await session.cancel()
+      record.subscription.dispose()
+    })
+
+    /** 撤回一个不存在的 id：kernel.not_found，队列照旧 */
+    test('C-QUEUE-WITHDRAW-MISSING', async () => {
+      const session = await openNew()
+      const record = recorder(session)
+      target.script([[{ kind: 'interaction', interaction: { kind: 'confirm', title: '停一下', message: '继续？' } }]])
+      await session.submit(submit('first'))
+      await record.waitFor((events) => events.some((e) => e.type === 'interactionRequested'), '没有等到交互')
+      await session.submit(submit('later', 'followUp'))
+      await record.waitFor(
+        (events) => events.some((e) => e.type === 'queue' && e.queue.items.length === 1),
+        '队列里没有 later',
+      )
+
+      const error = (() => {
+        try {
+          session.withdraw('does-not-exist')
+        } catch (e) {
+          return e
+        }
+        return undefined
+      })()
+      expect(error).toBeInstanceOf(AppError)
+      expect((error as AppError).code).toBe('kernel.not_found')
+      expect(session.queue().items).toHaveLength(1)
+      await session.cancel()
+      record.subscription.dispose()
+    })
+
     test('C-POSTURE-ISOLATION', async () => {
       const a = await openNew('ask')
       const b = await openNew('full-access')

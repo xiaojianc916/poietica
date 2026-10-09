@@ -68,6 +68,7 @@ function fakePort(threadId: string) {
     cancel: async () => undefined,
     readQueue: async () => ({ ...EMPTY_QUEUE, threadId }),
     withdraw: async () => null,
+    move: async () => ({ ...EMPTY_QUEUE, threadId }),
     setDeliveryModes: async () => ({ ...EMPTY_QUEUE, threadId }),
     subscribeQueue: () => track(),
     subscribePromptDropped: () => track(),

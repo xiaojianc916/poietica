@@ -9535,6 +9535,106 @@
       }
     },
     {
+      "name": "queue.move",
+      "owner": "core",
+      "timeoutMs": 30000,
+      "description": "把一条排队中的输入换到另一层（保留附件与技能）",
+      "params": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "threadId": {
+            "type": "string",
+            "minLength": 1
+          },
+          "itemId": {
+            "type": "string",
+            "minLength": 1
+          },
+          "deliverAs": {
+            "type": "string",
+            "enum": [
+              "steer",
+              "followUp"
+            ]
+          }
+        },
+        "required": [
+          "threadId",
+          "itemId",
+          "deliverAs"
+        ]
+      },
+      "result": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string"
+                },
+                "text": {
+                  "type": "string"
+                },
+                "deliverAs": {
+                  "type": "string",
+                  "enum": [
+                    "steer",
+                    "followUp"
+                  ]
+                },
+                "createdAt": {
+                  "type": "integer",
+                  "minimum": -9007199254740991,
+                  "maximum": 9007199254740991
+                }
+              },
+              "required": [
+                "id",
+                "text",
+                "deliverAs",
+                "createdAt"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "modes": {
+            "type": "object",
+            "properties": {
+              "steer": {
+                "type": "string",
+                "enum": [
+                  "all",
+                  "one-at-a-time"
+                ]
+              },
+              "followUp": {
+                "type": "string",
+                "enum": [
+                  "all",
+                  "one-at-a-time"
+                ]
+              }
+            },
+            "required": [
+              "steer",
+              "followUp"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "required": [
+          "items",
+          "modes"
+        ],
+        "additionalProperties": false
+      }
+    },
+    {
       "name": "queue.setModes",
       "owner": "core",
       "timeoutMs": 30000,
@@ -9639,7 +9739,7 @@
       "name": "queue.withdraw",
       "owner": "core",
       "timeoutMs": 30000,
-      "description": "撤回一条排队中的输入",
+      "description": "撤回一条排队中的输入；已被 agent 消费时抛 engine.queue_item_consumed",
       "params": {
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "type": "object",

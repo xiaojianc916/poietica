@@ -16,6 +16,7 @@ function stubSession(): EngineSession {
     cancel: async () => undefined,
     queue: () => ({ items: [], modes: { steer: 'all', followUp: 'all' } }),
     withdraw: () => undefined,
+    moveQueued: async () => undefined,
     setQueueModes: () => undefined,
     controls: () => ({
       model: { current: null, choices: [] },

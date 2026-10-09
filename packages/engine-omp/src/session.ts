@@ -19,7 +19,7 @@ import type { TranscriptOperation, TranscriptPage } from '@poietica/transcript'
 import { outcomeOf, toEngineError } from './errors'
 import type { InteractionBroker } from './interactions/broker'
 import type { LiveProjector } from './projector/live'
-import type { SkillPromptMessage } from './prompt'
+import { type SkillPromptMessage, wireTextOf } from './prompt'
 import { usageOf } from './usage'
 
 /**
@@ -78,17 +78,17 @@ export interface OmpSessionHost {
   readonly broker: InteractionBroker
   readonly projector: LiveProjector
   readonly prompt: (input: SubmitInput, skillMessage: SkillPromptMessage | null) => Promise<boolean>
+  /** 排队 / 插话投递。返回 omp 队列里这一项的正文（对账与 removeQueued 都认它） */
   readonly steer: (
-    text: string,
     input: SubmitInput,
     deliverAs: 'steer' | 'followUp',
     skillMessage: SkillPromptMessage | null,
-  ) => Promise<void>
+  ) => Promise<{ readonly wireText: string }>
   readonly abort: () => Promise<void>
   readonly disposeSession: () => Promise<void>
   readonly queueOf: () => { readonly steering: readonly string[]; readonly followUp: readonly string[] }
-  readonly popLastQueued: () => boolean
-  readonly clearQueue: () => void
+  /** 按正文从 omp 的某一个队列里移除一项；返回 false 表示 omp 里已经没有它（已被消费） */
+  readonly removeQueued: (wireText: string, deliverAs: 'steer' | 'followUp') => boolean
   readonly setQueueMode: (kind: 'steer' | 'followUp', value: 'all' | 'one-at-a-time') => void
   readonly setApprovalMode: (posture: Posture) => void
   readonly grantTool: (tool: string) => void
@@ -158,10 +158,15 @@ export interface OmpSessionHost {
 
 interface QueueEntry {
   readonly id: string
+  /** 显示正文：用户原话（队列行、插话帧都画它） */
   readonly text: string
+  /** 投递正文：与 omp 队列对账、removeQueued、message_start 认领都用它 */
+  readonly wireText: string
+  /** 以技能消息投递（omp 发的是 custom 消息，不是 user 消息） */
+  readonly skill: boolean
   readonly deliverAs: 'steer' | 'followUp'
   readonly createdAt: number
-  /** 原始输入：撤回其余项时要按「原顺序、原图片、原技能」重投（12 页 §7.5） */
+  /** 原始输入：换层时原样重新入队 */
   readonly input: SubmitInput
 }
 
@@ -176,6 +181,12 @@ export class OmpSession implements EngineSession {
   readonly sessionFile: string
   private readonly events = new Emitter<EngineSessionEvent>()
   private readonly ledger: QueueEntry[] = []
+  /** 已被 omp 从队列里取走、还没等到 message_start 的项（只在这一次运行内有效） */
+  private readonly consumed: QueueEntry[] = []
+  /** 本轮自己的 prompt：第一条对上的 message_start 不是插话 */
+  private ownPrompt: { readonly kind: 'user'; readonly wireText: string } | { readonly kind: 'skill' } | null = null
+  /** 队列变更串行链：enqueue / moveQueued 都挂在它后面 */
+  private mutation: Promise<void> = Promise.resolve()
   private readonly modes: QueueSnapshot['modes'] = { steer: 'all', followUp: 'all' }
   private readonly subscriptions: { dispose(): void }[] = []
   private stateValue: SessionState = 'idle'
@@ -220,6 +231,12 @@ export class OmpSession implements EngineSession {
   private setState(next: SessionState, error: { code: string; message: string } | null = null): void {
     if (this.stateValue === next && error === null) return
     this.stateValue = next
+    /* 转为 idle：这一次运行结束了，不会再有属于它的 message_start —— 等认领的项（含
+     * abort 时被 omp 丢弃的队列项）在这里作废，否则它们会在下一轮里认领出重复气泡。 */
+    if (next === 'idle') {
+      this.consumed.length = 0
+      this.ownPrompt = null
+    }
     this.emit({ type: 'state', state: next, error })
   }
 
@@ -270,6 +287,7 @@ export class OmpSession implements EngineSession {
     try {
       // 没挂技能时不 await（保持同步投递）：submit 之后的第一个同步刻度就该看到 prompt 已经发出
       const skillMessage = input.skills.length === 0 ? null : await this.skillTextFor(input)
+      this.ownPrompt = skillMessage === null ? { kind: 'user', wireText: wireTextOf(input) } : { kind: 'skill' }
       const delivered = await this.o.prompt(input, skillMessage)
       if (!delivered) {
         // omp 没有把这条输入交给模型（例如被扩展拦截）：以 completed 收掉这个空轮
@@ -293,13 +311,36 @@ export class OmpSession implements EngineSession {
     return await this.o.skillMessage(input)
   }
 
-  private async enqueue(input: SubmitInput, deliverAs: 'steer' | 'followUp'): Promise<void> {
-    const skillMessage = input.skills.length === 0 ? null : await this.skillTextFor(input)
-    await this.o.steer(input.text, input, deliverAs, skillMessage)
-    // 登记待认领：omp 把这条折进上下文时会发 message_start，那时把它画成一句人话
-    this.rememberInjection(input.text)
-    this.ledger.push({ id: createId(), text: input.text, deliverAs, createdAt: this.o.now(), input })
-    this.emitQueue()
+  /**
+   * 入队一条排队 / 插话。串行：技能展开是异步的，两条同时展开时先发出的那条必须先进账本，
+   * 否则账本顺序与 omp 队列顺序会错位。
+   */
+  private enqueue(input: SubmitInput, deliverAs: 'steer' | 'followUp'): Promise<void> {
+    return this.serial(async () => {
+      this.assertLive()
+      const skillMessage = input.skills.length === 0 ? null : await this.skillTextFor(input)
+      const { wireText } = await this.o.steer(input, deliverAs, skillMessage)
+      this.ledger.push({
+        id: createId(),
+        text: input.text,
+        wireText,
+        skill: skillMessage !== null,
+        deliverAs,
+        createdAt: this.o.now(),
+        input,
+      })
+      this.emitQueue()
+    })
+  }
+
+  /** 队列变更的串行链（enqueue / moveQueued 挂在它后面；一次失败不阻断下一次） */
+  private serial<T>(work: () => Promise<T>): Promise<T> {
+    const run = this.mutation.then(work)
+    this.mutation = run.then(
+      () => undefined,
+      () => undefined,
+    )
+    return run
   }
 
   private emitQueue(): void {
@@ -308,7 +349,8 @@ export class OmpSession implements EngineSession {
 
   /**
    * 与 omp 的队列对账：两类分别按账本顺序做多重集匹配（同样的文本可以出现多次）。
-   * 账本里有、omp 里已没有的项说明已经投递，从账本移除。
+   * 账本里有、omp 里已没有的项说明已经投递 —— 搬进 `consumed`（等 message_start 认领），
+   * 不直接丢弃：丢弃会让「已折进上下文」的那一句永远画不出来（12 页 §7.5）。
    */
   reconcileQueue(steering: readonly string[], followUp: readonly string[]): void {
     const pools = new Map<'steer' | 'followUp', string[]>([
@@ -318,10 +360,12 @@ export class OmpSession implements EngineSession {
     const keep: QueueEntry[] = []
     for (const entry of this.ledger) {
       const pool = pools.get(entry.deliverAs) ?? []
-      const at = pool.indexOf(entry.text)
+      const at = pool.indexOf(entry.wireText)
       if (at >= 0) {
         pool.splice(at, 1)
         keep.push(entry)
+      } else {
+        this.consumed.push(entry)
       }
     }
     this.ledger.length = 0
@@ -341,22 +385,25 @@ export class OmpSession implements EngineSession {
   }
 
   withdraw(queueItemId: string): void {
+    this.assertLive()
     const at = this.ledger.findIndex((entry) => entry.id === queueItemId)
     if (at < 0) throw new AppError(SystemErrorCode.notFound, '队列里没有这一项')
-    const entry = this.ledger[at]!
-    const sameKind = this.ledger.filter((e) => e.deliverAs === entry.deliverAs)
-    const isLast = sameKind.at(-1)?.id === entry.id
-    if (isLast) {
-      this.o.popLastQueued()
-    } else {
-      // omp 只提供“弹出最后一项”与“全部清空”两个操作；任意撤回要靠清空后重投其余项
-      const others = this.ledger.filter((e) => e.id !== entry.id)
-      this.o.clearQueue()
-      // 重投连同原图片与原技能（12 页 §7.5）：丢掉它们等于用户那句话少了一半
-      for (const other of others) void this.o.steer(other.text, other.input, other.deliverAs, null)
-    }
-    this.ledger.splice(at, 1)
+    const [entry] = this.ledger.splice(at, 1)
+    const removed = this.o.removeQueued(entry!.wireText, entry!.deliverAs)
+    // omp 已经取走：它即将（或已经）上屏，留在 consumed 里等 message_start 认领
+    if (!removed) this.consumed.push(entry!)
     this.emitQueue()
+    if (!removed) throw new AppError(EngineErrorCode.queueItemConsumed, '这条消息已经交给 agent，撤不回来了')
+  }
+
+  async moveQueued(queueItemId: string, deliverAs: 'steer' | 'followUp'): Promise<void> {
+    this.assertLive()
+    const entry = this.ledger.find((e) => e.id === queueItemId)
+    if (entry === undefined) throw new AppError(SystemErrorCode.notFound, '队列里没有这一项')
+    if (entry.deliverAs === deliverAs) return
+    // 已被消费会在 withdraw 里抛出，不会重复入队
+    this.withdraw(queueItemId)
+    await this.enqueue(entry.input, deliverAs)
   }
 
   setQueueModes(modes: Partial<QueueSnapshot['modes']>): void {
@@ -544,24 +591,41 @@ export class OmpSession implements EngineSession {
   }
 
   /**
-   * 插话落地（迁移自 legacy bridge 的 claimedInjection）：omp 把注入的消息折进上下文时发 message_start，
-   * 正文与我投出去还没认领的那一条对上，就把它画成一句人话（开着一轮进当前 step，没开着就自己开一轮）。
-   * 返回 false 表示认不出 —— 场面上什么都没发生（开场白也走 message_start，不能误认）。
+   * 插话落地：omp 把一条 user 消息折进上下文（message_start）。本轮自己的 prompt 不画
+   * （userTurn 已经画了），对得上队列项就画成一句人话；认不出（开场白、系统注入）什么也不画。
    */
-  claimInjection(text: string): boolean {
-    const at = this.injected.indexOf(text)
-    if (at < 0) return false
-    this.injected.splice(at, 1)
-    this.timeline(this.o.projector.steeredFrame(text))
-    return true
+  onUserMessageStart(wireText: string): void {
+    const own = this.ownPrompt
+    if (own !== null && own.kind === 'user' && own.wireText === wireText) {
+      this.ownPrompt = null
+      return
+    }
+    const entry = this.takeConsumed((e) => !e.skill && e.wireText === wireText)
+    if (entry !== null) this.timeline(this.o.projector.steeredFrame(entry.text))
   }
 
-  /** 投出去还没被认领的插话正文 */
-  private readonly injected: string[] = []
+  /** omp 把一条用户技能消息折进上下文。技能消息没有可靠的正文可对，按 FIFO 认领最早的技能项 */
+  onSkillMessageStart(): void {
+    if (this.ownPrompt?.kind === 'skill') {
+      this.ownPrompt = null
+      return
+    }
+    const entry = this.takeConsumed((e) => e.skill)
+    if (entry !== null) this.timeline(this.o.projector.steeredFrame(entry.text))
+  }
 
-  /** 投递一条插话时登记（adapter 在 steer / followUp 成功后调用） */
-  rememberInjection(text: string): void {
-    this.injected.push(text)
+  /**
+   * 先在 consumed 里找（queue_update 先到），再在 ledger 里找（message_start 先到）。
+   * 从 ledger 里取走时要 emitQueue。都找不到返回 null。
+   */
+  private takeConsumed(match: (entry: QueueEntry) => boolean): QueueEntry | null {
+    const c = this.consumed.findIndex(match)
+    if (c >= 0) return this.consumed.splice(c, 1)[0] ?? null
+    const l = this.ledger.findIndex(match)
+    if (l < 0) return null
+    const [entry] = this.ledger.splice(l, 1)
+    this.emitQueue()
+    return entry ?? null
   }
 
   /**

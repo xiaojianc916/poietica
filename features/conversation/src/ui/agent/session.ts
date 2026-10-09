@@ -37,6 +37,9 @@ export interface PromptConfiguration {
  */
 export type PromptDelivery = 'turn' | 'steer' | 'followUp'
 
+/** 排队层的两档（`turn` 不是「层」：它开一轮，队列里没有它的位置）。 */
+export type QueuedDelivery = 'steer' | 'followUp'
+
 export interface AgentPromptRequest {
   readonly threadId: ThreadId
   readonly text: string
@@ -51,6 +54,18 @@ export interface AgentPromptRequest {
   readonly clientTurnId?: string
 }
 
+/**
+ * 排队项：**号与正文一起在 UI 里走**。
+ *
+ * 号是它在引擎账本里的身份（撤回 / 换层都按号点名），正文只用来画；
+ * 早先 UI 把队列压成 `string[]`，撤回只能靠「猜队首」——屏幕上画在最后一行、
+ * 实际撤掉第一条（R-01 §1 缺陷 D）。
+ */
+export interface QueuedItem {
+  readonly id: string
+  readonly text: string
+}
+
 /** 待发队列此刻的样子，以及三个队列模式的取值。 */
 export interface QueuedMessages {
   /**
@@ -61,8 +76,8 @@ export interface QueuedMessages {
    * 不当作会话文件的号用（那个号是引擎侧的 `sessionFile`）。
    */
   readonly threadId: string
-  readonly steering: readonly string[]
-  readonly followUp: readonly string[]
+  readonly steering: readonly QueuedItem[]
+  readonly followUp: readonly QueuedItem[]
   readonly steeringMode: MessageQueueMode
   readonly followUpMode: MessageQueueMode
   readonly interruptMode: 'immediate' | 'wait'
@@ -117,7 +132,10 @@ export interface AgentSessionPort {
    * 号在这一层是多余的（与 selectors / goal 那两条同一形态）。
    */
   readonly readQueue: () => Promise<QueuedMessages>
-  readonly withdraw: () => Promise<WithdrawnMessage | null>
+  /** 按号撤回一条排队项；号不在最新快照里（已被 agent 消费或 UI 落后）返回 null。 */
+  readonly withdraw: (itemId: string) => Promise<WithdrawnMessage | null>
+  /** 换层：服务端用原始输入重新入队，附件 / 文件 / 技能都保留，返回新快照。 */
+  readonly move: (itemId: string, deliverAs: QueuedDelivery) => Promise<QueuedMessages>
   readonly setDeliveryModes: (patch: DeliveryModePatch) => Promise<QueuedMessages>
   /**
    * 队列变了（谁排了一句、谁撤回了一句、模型在哪一刻真的看见了它）。

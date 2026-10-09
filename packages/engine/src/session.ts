@@ -66,7 +66,19 @@ export interface EngineSession {
   submit(input: SubmitInput): Promise<void> // turn：开始一轮后立即返回；steer / followUp：入队后返回
   cancel(): Promise<void>
   queue(): QueueSnapshot
+  /**
+   * 撤回一条还排着的输入。
+   *
+   * 该项已经被 agent 消费时抛 `engine.queue_item_consumed`；不存在时抛 `kernel.not_found`。
+   */
   withdraw(queueItemId: string): void
+  /**
+   * 把一条排队项换到另一层（steer ⇄ followUp）。用该项的原始输入重新入队：
+   * 图片、文件、技能都保留；重新入队的项排在目标层的队尾，并拿到新的 id。
+   * 该项已经被 agent 消费时抛 `engine.queue_item_consumed`。
+   * 目标层与当前层相同时什么都不做。
+   */
+  moveQueued(queueItemId: string, deliverAs: 'steer' | 'followUp'): Promise<void>
   setQueueModes(modes: Partial<QueueSnapshot['modes']>): void
   controls(): Controls
   setModel(model: ModelRef): Promise<void>

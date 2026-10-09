@@ -13,7 +13,7 @@ import { fakeOmpSession } from './fixtures/omp-session'
  *
  *   1. 运行中的 steer / followUp 落在 omp 自己的队列（session.steer / followUp）；
  *   2. 空闲时的 steer / followUp 按 turn 处理（语义就是开始一轮）；
- *   3. 轮终之后折进上下文的那一句**认得出来**（claimInjection 画成一句人话）；
+ *   3. 轮终之后折进上下文的那一句**认得出来**（onUserMessageStart 画成一句人话）；
  *   4. 认不出来的话（撤回过的、没投过的）宁可少画一条，也不把开场白错认成插话；
  *   5. 取消之后仍然认得出 —— 上游 abort 刻意不动 steering 队列（agent-loop.ts:1637-1643），
  *      取消这一刻把它从账本里摘掉，就等于那句人已经写好的话再也画不出来。

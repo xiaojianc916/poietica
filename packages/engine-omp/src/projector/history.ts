@@ -8,6 +8,7 @@ import {
   type TranscriptPage,
   turnId,
 } from '@poietica/transcript'
+import { isUserSkillMessage } from '../prompt'
 
 /** omp 的消息形状（只取投影要读的那几格，避免绑到 omp 的深层类型） */
 export interface OmpMessage {
@@ -125,7 +126,7 @@ function screenTurns(messages: readonly OmpMessage[], isTurnOpen: boolean): Scre
   }
   for (const message of messages) {
     if (message.role === 'toolResult' || !isVisible(message)) continue
-    const opens = message.role === 'user' || isSkillTurn(message)
+    const opens = message.role === 'user' || isUserSkillMessage(message)
     const starts = opens || message.role === 'compactionSummary'
     if (starts || open === null) {
       seal()
@@ -158,13 +159,6 @@ function resultsOf(messages: readonly OmpMessage[]): Map<string, ScreenResult> {
 /** omp 给合成的横幅打了 display: false（目标模式的 <goal_context>）——它是给模型看的上下文，不是用户说过的话 */
 function isVisible(message: OmpMessage): boolean {
   return message.display !== false
-}
-
-const SKILL_PROMPT_MESSAGE_TYPE = 'skill-prompt'
-
-/** 用户自己发起的技能轮：类型 + 归属两格都对才算（自动加载的技能是 agent 自己塞的上下文） */
-function isSkillTurn(message: OmpMessage): boolean {
-  return message.customType === SKILL_PROMPT_MESSAGE_TYPE && message.attribution === 'user'
 }
 
 function screenOps(entry: ScreenTurn): TranscriptOperation[] {

@@ -85,6 +85,8 @@ export function createConversationApi(ctx: UiFeatureContext) {
     getQueue: (threadId: string): Promise<QueueSnapshot> => rpc.call('queue.get', { threadId }),
     withdraw: (threadId: string, itemId: string): Promise<QueueSnapshot> =>
       rpc.call('queue.withdraw', { threadId, itemId }),
+    move: (threadId: string, itemId: string, deliverAs: 'steer' | 'followUp'): Promise<QueueSnapshot> =>
+      rpc.call('queue.move', { threadId, itemId, deliverAs }),
     setQueueModes: (
       threadId: string,
       modes: { steer?: QueueSnapshot['modes']['steer']; followUp?: QueueSnapshot['modes']['followUp'] },

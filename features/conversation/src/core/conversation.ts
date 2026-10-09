@@ -292,6 +292,9 @@ export class ConversationCore {
   async withdraw(threadId: string, itemId: string): Promise<QueueSnapshot> {
     return this.turns.withdraw(threadId, itemId)
   }
+  async move(threadId: string, itemId: string, deliverAs: 'steer' | 'followUp'): Promise<QueueSnapshot> {
+    return this.turns.move(threadId, itemId, deliverAs)
+  }
   async setQueueModes(threadId: string, modes: Partial<QueueSnapshot['modes']>): Promise<QueueSnapshot> {
     return this.turns.setQueueModes(threadId, modes)
   }

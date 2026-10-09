@@ -1517,3 +1517,65 @@ setPlanReferencePath / sendPlanModeContext …）在适配器里本来就是成�
 顺带：`bun x biome check --write .`（即 `bun run format`）修掉 4 个**已提交**文件里的格式与 import 排序
 （`features/conversation/src/ui/index.tsx`、`ui/control-shapes.ts`、`ui/components/skill-document-store.ts`、
 `packages/engine-omp/src/__tests__/controls.test.ts`）—— 纯排版、无语义变化；这 4 条在改之前也让 `lint` 红着。
+
+## R-01 排队 / 插话链路：附件丢失、撤回错条、换层丢内容、认领表泄漏（2026-10-09）
+
+**来源**：产品负责人交办的缺陷报告 `R-01 排队 插话链路：附件丢失、撤回错条、换层丢内容、认领表泄漏.md`
+（外部输入，不入库）。六个缺陷 A–F 共用一条根因：队列项的**身份**与**完整内容**只在
+`OmpSession.ledger` 里，而端口没有按项操作、UI 又把 id 丢了。
+
+**改法**（严格按报告 §3 的设计）：
+
+1. **投递正文唯一产地**：`prompt.ts` 新增 `wireTextOf()`（原文 + 每个文件一行 `@绝对路径`），
+   `preparePrompt` 与 adapter 的 `host.steer` 共用它。排队 / 插话从此**不再丢文件**（缺陷 A）。
+2. **按项操作**：`OmpSessionHost` 删掉 `popLastQueued` / `clearQueue`（清空 + 重投的兜底路径
+   **一并删除**，不留），换成 `removeQueued(text, deliverAs)` → omp 的
+   `removeQueuedMessage(text, queue)`。撤回不再依赖「最后一条」的假设（缺陷 B、C）。
+3. **账本带 id 与完整输入**：`QueueEntry` 扩成 `{id, text, wireText, skill, deliverAs, createdAt, input}`，
+   `reconcileQueue` 按 `wireText` 匹配、对不上不丢弃而是搬进 `consumed`；`enqueue` / `moveQueued`
+   走同一条 `serial()` 串行链，账本顺序 = omp 队列顺序（缺陷 B 的顺序 / 漏账）。
+4. **换层落到服务端**：`EngineSession.moveQueued(queueItemId, deliverAs)` + 契约新增
+   `queue.move`（`PROTOCOL_VERSION` 7 → 8）。用账本里的原始输入重新入队，图片 / 文件 / 技能
+   全保留；Core 用 `pool.peek`（不开冷会话），`queue.withdraw` 同样改成 `peek`。
+5. **认领有生命周期**：`injected: string[]` → `consumed: QueueEntry[]` + `ownPrompt`。
+   本轮自己的 prompt 按 `wireText` 排除；会话回到 idle 时两格全清（abort 丢弃的队列项也在
+   这里作废）；`message_start` 与 `queue_update` 两种到达顺序都只画一次（缺陷 F 的重复气泡）。
+6. **技能插话上屏**：`isUserSkillMessage()` 从 `projector/history.ts` 搬到 `prompt.ts`（只有一份），
+   `handleOmpEvent` 的 `message_start` 同时认 `role === 'user'` 与用户技能消息（缺陷 F 的后半）。
+7. **UI 保留 id**：`QueuedMessages.steering/followUp` 从 `string[]` 改成 `QueuedItem[]`，
+   `AgentSessionPort.withdraw(itemId)` 按号点名，新增 `move(itemId, deliverAs)`；
+   `prompt-queue` 换层改调 `queue.move`，**不再撤回 + 重新提交**（缺陷 D、E）。
+
+**必须实测的一条（报告 §3.4 的 aside）**：技能插话在 omp 的 `getQueuedMessages()` /
+`queue_update` 里报的是不是 `queueChipText`。结论：**是**。依据 `@oh-my-pi/pi-coding-agent@18.5.0`
+的源码（`packages/engine-omp/node_modules/.../src/session/agent-session.ts`）：
+
+- `#queueCustomMessage` 在 `options.queueChipText !== undefined` 时把它写进
+  `details.__queueChipText`（第 8213 行附近）；
+- `getQueuedMessages()` → `.map(queueChipText)`（第 8591 行），而
+  `queued-messages.ts` 的 `queueChipText(message)` 对 `role === "custom"` **先读**
+  `readQueueChipText(message.details)`、读不到才退回正文（第 100 行附近）；
+- `removeQueuedMessage(text, queue)` 的匹配器 `#findQueuedUserMessage` 先比「原始提交正文」
+  再比 `queueChipText`（第 8634 / 8672 行附近），两条都能命中。
+
+因此技能分支的 `wireText` 取 `submit.text`（= 我们传的 `queueChipText`）：对账、撤回、
+认领三处同一份字符串。普通 steer / followUp 的 `message_start` 正文也等于 `prepared.text`
+（omp 只在有 prompt template 时改写；`@路径` 原样保留，`expandPromptTemplate` 对非 `/` 开头的
+文本是恒等函数）—— 这一点由新的 `queue.test.ts` 用真适配器钉住。
+
+**测试**：
+
+- `packages/engine-omp/src/__tests__/queue.test.ts`：Q1–Q10 十条（文件附件、撤回中间项、
+  撤回 steer 不动 followUp、技能换层、撤回后重发只画一次、技能插话上屏、两种事件顺序、
+  已消费项抛 `engine.queue_item_consumed` 且仍上屏、串行顺序、abort 后同文不重画），
+  外加 Q1b：带文件的插话按 `wireText`（含 `@路径`）认领、屏幕上画的是用户原文。
+- `packages/engine-testkit/src/conformance.ts`：`C-QUEUE-MOVE`、`C-QUEUE-WITHDRAW-MISSING`
+  （FakeEngine 与 OmpEngine 两个实现都要过）。
+- `features/conversation/src/core/__tests__/conversation-core.test.ts`：`queue.move` 换层，
+  以及无活会话时 `withdraw` / `move` 抛 `kernel.not_found` 且 `engine.opened` 长度为 0。
+- `features/conversation/src/ui/components/__tests__/prompt-queue.test.tsx`、
+  `ui/stores/__tests__/session-port.test.ts`：UI 按号撤回 / 换层。
+
+**本轮偏差**（记入偏差表）：`prompt-queue` 的撤回 / 换层两枚按钮仍然只画在**最后一行**。
+底层现在支持任意一行，但「每行都加按钮」是产品选择、报告 §3.8 明确不在本页范围
+（“按钮的位置与样式不动”），所以保持原样，只把语义改成「操作它所在的那一行」。

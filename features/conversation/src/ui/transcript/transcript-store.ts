@@ -356,9 +356,13 @@ export class TranscriptStore implements TranscriptSink {
     }
     const created = new MessageQueue({
       /* 抛在同步段里也安全：MessageQueue 那两头都在 try 里 await 它。 */
-      withdraw: () => {
+      withdraw: (itemId) => {
         lifetime.signal.throwIfAborted()
-        return this.#requirePort(target).withdraw()
+        return this.#requirePort(target).withdraw(itemId)
+      },
+      move: (itemId, deliverAs) => {
+        lifetime.signal.throwIfAborted()
+        return this.#requirePort(target).move(itemId, deliverAs)
       },
       setModes: (patch: DeliveryModePatch) => {
         lifetime.signal.throwIfAborted()

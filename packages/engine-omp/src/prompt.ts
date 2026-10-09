@@ -37,6 +37,25 @@ export interface SkillPromptMessage {
 /** omp 的技能消息类型（与官方 SKILL_PROMPT_MESSAGE_TYPE 同一个值） */
 export const SKILL_MESSAGE_TYPE = 'skill-prompt'
 
+/**
+ * 一句话交给 omp 时的正文：用户原文 + 每个文件一行 `@<绝对路径>`。
+ *
+ * turn / steer / followUp 三种投递与队列对账、插话认领都必须用这一份 —— 投递正文
+ * 与显示正文（用户原话）是两件事：屏幕上画原文，与 omp 的一切匹配用投递正文。
+ */
+export function wireTextOf(input: Pick<SubmitInput, 'text' | 'files'>): string {
+  const referenced = input.files.map((file) => `@${file.path}`).join('\n')
+  return referenced === '' ? input.text : `${input.text}\n${referenced}`
+}
+
+/** 用户自己发起的技能消息：类型 + 归属两格都对才算（自动加载的技能是 agent 自己塞的上下文） */
+export function isUserSkillMessage(message: {
+  readonly customType?: unknown
+  readonly attribution?: unknown
+}): boolean {
+  return message.customType === SKILL_MESSAGE_TYPE && message.attribution === 'user'
+}
+
 /** preparePrompt 的可注入面（测试用：不起进程、不碰磁盘） */
 export interface PreparePromptOptions {
   readonly readFile?: (path: string) => Buffer
@@ -80,8 +99,7 @@ export function preparePrompt(input: SubmitInput, o: PreparePromptOptions): Prep
       tagImageAttachmentSource({ type: 'image', data: base64, mimeType: image.mime }, image.path, 'image'),
     )
   }
-  const referenced = input.files.map((file) => `@${file.path}`).join('\n')
-  const text = referenced === '' ? input.text : `${input.text}\n${referenced}`
+  const text = wireTextOf(input)
   const skillNames = [...input.skills]
   return { text, images, imageContents, skillNames }
 }
