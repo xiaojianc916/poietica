@@ -31,6 +31,15 @@ const DROP_NAMES = new Set([
 
 export const CORE_EXIT_CODES = { ok: 0, crashed: 1, badArguments: 2, isolationViolated: 3 } as const
 
+/**
+ * Core 从收到 core.shutdown 到进程退出的总预算（R-05 §3.3）。
+ *
+ * Host 的宽限期必须大于它（core-supervisor 的 STOP_GRACE_MS 加 2 秒），否则 Core 自己的
+ * 预算还没花完，Host 就先把进程树杀了 —— 那时可能还在逐条关会话、flush 设置，
+ * 数据库也没来得及 close。
+ */
+export const CORE_SHUTDOWN_BUDGET_MS = 8_000
+
 export interface CoreLaunchInput {
   readonly coreExe: string // <resources>/core/poietica-core.exe
   readonly dataRoot: string

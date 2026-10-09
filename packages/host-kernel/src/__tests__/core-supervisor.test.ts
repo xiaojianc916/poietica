@@ -1,15 +1,16 @@
 import { describe, expect, test } from 'bun:test'
 import { EventEmitter } from 'node:events'
 import { PassThrough } from 'node:stream'
-import { type AppError, SystemErrorCode } from '@poietica/foundation'
+import { type AppError, Deferred, SystemErrorCode } from '@poietica/foundation'
 import { encodeFrame } from '@poietica/rpc'
-import { type DataLayout, dataLayout } from '@poietica/runtime-layout'
-import { createTestLogger, type FakeClock, fakeClock, type TempDir, tempDir } from '@poietica/test-kit'
+import { CORE_SHUTDOWN_BUDGET_MS, type DataLayout, dataLayout } from '@poietica/runtime-layout'
+import { createTestLogger, type FakeClock, fakeClock, type TempDir, tempDir, waitFor } from '@poietica/test-kit'
 import type { CoreLogSink } from '../core-log-sink'
-import { CoreSupervisor, type CoreSupervisorOptions } from '../core-supervisor'
+import { CoreSupervisor, type CoreSupervisorOptions, STOP_GRACE_MS } from '../core-supervisor'
 
 interface FakeChild extends EventEmitter {
   pid: number
+  exitCode: number | null
   stdin: PassThrough
   stdout: PassThrough
   stderr: PassThrough
@@ -29,6 +30,7 @@ function makeSpawn(): { spawn: unknown; spawned: Spawned[]; killed: number[] } {
   const spawn = (command: string, args: readonly string[]): FakeChild => {
     const child = new EventEmitter() as FakeChild
     child.pid = nextPid++
+    child.exitCode = null
     child.stdin = new PassThrough()
     child.stdout = new PassThrough()
     child.stderr = new PassThrough()
@@ -51,6 +53,7 @@ function ready(child: FakeChild, protocolVersion = 1, coreVersion = 'c', engineV
 }
 
 function exitChild(child: FakeChild, code: number | null): void {
+  child.exitCode = code
   child.emit('exit', code, null)
 }
 
@@ -225,7 +228,7 @@ describe('CoreSupervisor', () => {
     expect(requests.join('')).toContain('core.shutdown')
   })
 
-  test('S-8 stop()：子进程不退出 → 5 秒后 kill', async () => {
+  test('S-8 stop()：子进程不退出 → 宽限期（CORE_SHUTDOWN_BUDGET_MS + 2s）后 kill', async () => {
     const s = await setup()
     const started = s.sup.start()
     await tick()
@@ -234,11 +237,11 @@ describe('CoreSupervisor', () => {
     await started
     const stopping = s.sup.stop()
     await Promise.resolve()
-    // STOP_GRACE_MS 用的是真实时钟：真的等 5 秒
+    // STOP_GRACE_MS 用的是真实时钟：CORE_SHUTDOWN_BUDGET_MS + 2 秒（R-05 §3.3）
     await stopping
     expect(s.killed).toContain(child.pid)
     expect(s.sup.status.state).toBe('stopped')
-  }, 20_000)
+  }, 30_000)
 
   test('S-9 failed 后 restart()：崩溃记录清空，重新 starting', async () => {
     const s = await setup()
@@ -354,6 +357,84 @@ describe('CoreSupervisor', () => {
     expect(s.sup.status.state).toBe('starting')
     expect(s.sup.relayPort()).toBeNull()
   })
+
+  /*
+   * R-05 §3.3：Host 的宽限期必须大于 Core 自己的总预算（共享常量 + 2 秒），
+   * 否则 Core 还在关会话 / flush 设置时就被 killTree 杀了。
+   */
+  test('R-05 STOP_GRACE_MS = CORE_SHUTDOWN_BUDGET_MS + 2000', () => {
+    expect(STOP_GRACE_MS).toBe(CORE_SHUTDOWN_BUDGET_MS + 2_000)
+  })
+
+  /*
+   * R-05 §3.4（M6）：stop() 恰好落在 pickPort 期间 —— 旧代码 child 还是 undefined，
+   * 直接进 stopped，随后 launch 继续 spawn，就绪时把状态又变回 ready（幽灵进程）。
+   */
+  test('R-05 M6 pickPort 期间 stop()：不 spawn、最终 stopped', async () => {
+    const port = new Deferred<number>()
+    const s = await setup({ pickPort: () => port.promise })
+    const started = s.sup.start()
+    await tick()
+    expect(s.spawned.length).toBe(0)
+    const stopping = s.sup.stop()
+    port.resolve(12345)
+    await Promise.all([started, stopping])
+    expect(s.spawned.length).toBe(0)
+    expect(s.sup.status.state).toBe('stopped')
+  })
+
+  /*
+   * R-05 §3.4（M7）：restart() 恰好落在 pickPort 期间 —— 旧代码第一代继续 spawn 另一个
+   * Core 并覆盖 this.child，第一代就绪时因代际过期直接 return（不杀子进程），
+   * 两个 Core 同时打开同一个 SQLite 与 omp 会话目录。
+   */
+  test('R-05 M7 pickPort 期间 restart()：过期一代不 spawn', async () => {
+    const first = new Deferred<number>()
+    const second = new Deferred<number>()
+    let calls = 0
+    const s = await setup({
+      pickPort: () => {
+        calls += 1
+        return calls === 1 ? first.promise : second.promise
+      },
+    })
+    const started = s.sup.start()
+    await tick()
+    const restarting = s.sup.restart()
+    await tick()
+    // 第二代的 pickPort 立即落地；第一代随后落地时必须自己收手
+    second.resolve(23456)
+    first.resolve(12345)
+    await tick(20)
+    ready(s.spawned[0]!.child)
+    await Promise.all([started, restarting])
+    expect(s.spawned.length).toBe(1)
+    expect(s.sup.status.state).toBe('ready')
+    expect(s.sup.relayPort()).toBe(23456)
+  })
+
+  /*
+   * R-05 §3.4（M8）：第一代已 spawn、等待 ready 时 restart()。旧代码在第一代就绪时
+   * `gen !== this.generation` 直接 return，**不杀子进程** —— 两个 Core 并存。
+   * 新语义：代际过期时杀掉自己创建的那个 child。
+   */
+  test('R-05 M8 第一代 spawn 后、等 ready 时 restart()：第一代 child 被 kill', async () => {
+    const s = await setup()
+    const started = s.sup.start()
+    await tick()
+    const stale = s.spawned[0]!.child
+    expect(stale.exitCode).toBeNull()
+    const restarting = s.sup.restart()
+    // stop() 满宽限期（STOP_GRACE_MS）后 kill 第一代；kill 桩让子进程退出，restart 才继续
+    await waitFor(() => s.spawned.length === 2, { timeoutMs: 20_000, intervalMs: 10 })
+    ready(s.spawned[1]!.child)
+    await restarting
+    expect(s.killed).toContain(stale.pid)
+    expect(s.sup.status.state).toBe('ready')
+    expect(s.spawned.length).toBe(2)
+    // 第一代自己的 launch 结束时会清掉它那代的残留（它就绪得太晚，代际已过期）
+    void started
+  }, 30_000)
 
   test('启动参数按 buildCoreLaunch 生成（含 --strict 与 relay 端口）', async () => {
     const s = await setup()

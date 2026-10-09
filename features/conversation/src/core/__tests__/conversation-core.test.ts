@@ -563,6 +563,29 @@ describe('conversation core（不经内核的直连测试）', () => {
     await dir.dispose()
   })
 
+  /*
+   * R-05 §3.2（M4）：会话被释放（空闲驱逐 / 配置换代 / 删除）后，环形缓存里的补发历史
+   * 必须一起丢掉 —— 里面可能躺着 base64 图片与长工具输出，而这份缓存随线程活到进程结束。
+   * 旧代码的 onReleased 只重报一次行，缓存原样留着。
+   */
+  test('R-05 M4 会话释放后该线程的补发历史被丢弃，UI 将整读', async () => {
+    const { core, hub, dir, db } = await makeCore()
+    const row = core.create({ workspaceId: 'ws1' })
+    await submit(core, row.id, '你好')
+    await new Promise((r) => setTimeout(r, 40))
+    const epoch = hub.position(row.id, 'main').epoch
+    expect(hub.catchUp(row.id, 'main', epoch, 0).complete).toBe(true)
+
+    await core.invalidateSessions()
+    expect(core.peek(row.id)).toBeUndefined()
+    const caught = hub.catchUp(row.id, 'main', epoch, 0)
+    expect(caught.complete).toBe(false)
+
+    await core.dispose()
+    db.close()
+    await dir.dispose()
+  })
+
   test('turnSettled 每轮结束都发（含正常完成）', async () => {
     const { core, settled, dir, db } = await makeCore()
     const row = core.create({ workspaceId: 'ws1' })

@@ -87,6 +87,35 @@ describe('CV-9 TimelineChannel', () => {
     expect(channel.position()).toEqual({ epoch: 7, seq: 0 })
     channel.dispose()
   })
+
+  /*
+   * R-05 §3.2（M3）：dropHistory 只丢补发历史 —— epoch 与 seq 原地不动、不发 reset，
+   * 之后的 catchUp 因为缓存为空而报 complete:false，UI 自然走整读。
+   * 旧代码根本没有这个方法。
+   */
+  test('R-05 M3 dropHistory 丢历史但不换 epoch / 不重置 seq / 不通知 UI', () => {
+    const clock = fakeClock()
+    const resets: number[] = []
+    const channel = new TimelineChannel(1, () => 7, clock, {
+      ops: () => undefined,
+      reset: (p) => resets.push(p.epoch),
+    })
+    channel.push([op(1)])
+    channel.flush()
+    channel.push([op(2)])
+    channel.flush()
+    channel.push([op(3)])
+    channel.flush()
+
+    channel.dropHistory()
+    expect(resets).toEqual([])
+    expect(channel.position()).toEqual({ epoch: 1, seq: 3 })
+    const caught = channel.catchUp(1, 1)
+    expect(caught.complete).toBe(false)
+    expect(caught.latestSeq).toBe(3)
+    expect(caught.batches).toEqual([])
+    channel.dispose()
+  })
 })
 
 describe('TimelineHub', () => {
@@ -145,6 +174,23 @@ describe('TimelineHub', () => {
     hub.resetThread('t1')
     expect(resets.length).toBe(1)
     expect(resets[0]!.threadId).toBe('t1')
+    hub.dispose()
+  })
+
+  /* R-05 §3.2：hub 的 dropHistory 按线程清补发历史，不动别的线程 */
+  test('R-05 dropHistory 只清该线程的缓存', () => {
+    const clock = fakeClock()
+    const hub = new TimelineHub({ clock, emitOps: () => undefined, emitReset: () => undefined })
+    hub.push('t1', 'main', [op(1)])
+    const t1 = hub.position('t1', 'main')
+    hub.push('t2', 'main', [op(1)])
+    const t2 = hub.position('t2', 'main')
+    expect(hub.catchUp('t1', 'main', t1.epoch, 0).complete).toBe(true)
+    expect(hub.catchUp('t2', 'main', t2.epoch, 0).complete).toBe(true)
+
+    hub.dropHistory('t1')
+    expect(hub.catchUp('t1', 'main', t1.epoch, 0).complete).toBe(false)
+    expect(hub.catchUp('t2', 'main', t2.epoch, 0).complete).toBe(true)
     hub.dispose()
   })
 })

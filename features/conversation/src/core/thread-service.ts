@@ -170,8 +170,15 @@ export class ThreadService {
     }
   }
 
-  /** 会话释放（空闲驱逐 / 关闭）后把行再报一次，让 state 从 running 回到 idle */
+  /**
+   * 会话释放（空闲驱逐 / 关闭）后：丢掉该线程的补发历史，并把行再报一次，
+   * 让 state 从 running 回到 idle（R-05 §3.2）。
+   *
+   * 历史不能留：op 里可能有内联图片（base64 data URL）与长工具输出，会话释放后
+   * 这份缓存随线程活到进程结束。不动 epoch、不发 reset —— 那会立刻触发整读。
+   */
   onReleased(threadId: string): void {
+    this.d.hub.dropHistory(threadId)
     const row = this.d.repo.get(threadId)
     if (row !== null) this.emitUpdated(row)
   }

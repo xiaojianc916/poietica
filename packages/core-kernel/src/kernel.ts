@@ -9,10 +9,9 @@ import {
   type Logger,
   SystemErrorCode,
   sortModules,
-  withTimeout,
 } from '@poietica/foundation'
 import { type InboundContext, Router, RpcPeer, type Transport } from '@poietica/rpc'
-import type { DataLayout } from '@poietica/runtime-layout'
+import { CORE_SHUTDOWN_BUDGET_MS, type DataLayout } from '@poietica/runtime-layout'
 import { type Database, openDatabase, runMigrations } from '@poietica/storage-sqlite'
 import { createAgentToolRegistry } from './agent-tools'
 import { createEventHub } from './events'
@@ -51,7 +50,32 @@ export interface CoreKernel {
 type KernelState = 'created' | 'starting' | 'ready' | 'stopping' | 'stopped'
 
 const SHUTDOWN_HOOK_TIMEOUT_MS = 5_000
-const INFLIGHT_DRAIN_MS = 3_000
+const INFLIGHT_DRAIN_MS = 1_500
+/** engine.dispose 至少要拿到的时间：即使前面把预算花光了，也要给它一个下限 */
+const ENGINE_DISPOSE_FLOOR_MS = 1_000
+
+/**
+ * 与 foundation 的 withTimeout 同义，但计时走**注入的 Clock**（R-05 §3.3）。
+ *
+ * 关停预算的截止时间是 opts.clock.now() 算的；若等待用真实 setTimeout，测试注入的
+ * 假时钟推不动它们，这条路径就没法确定地验收。生产里 clock 就是 systemClock，
+ * 两者是同一个东西。
+ */
+function withClockTimeout<T>(clock: Clock, promise: Promise<T>, ms: number, onTimeout: () => Error): Promise<T> {
+  return new Promise<T>((resolve, reject) => {
+    const timer = clock.setTimeout(() => reject(onTimeout()), ms)
+    promise.then(
+      (value) => {
+        timer.dispose()
+        resolve(value)
+      },
+      (error: unknown) => {
+        timer.dispose()
+        reject(error)
+      },
+    )
+  })
+}
 
 export function createCoreKernel(opts: CoreKernelOptions): CoreKernel {
   const log = opts.logger.child({ scope: 'kernel' })
@@ -202,29 +226,53 @@ export function createCoreKernel(opts: CoreKernelOptions): CoreKernel {
     const wasStarted = state !== 'created'
     state = 'stopping'
     log.info('shutting down', { reason })
-    if (inflight > 0) {
-      drained = new Deferred<void>()
-      await withTimeout(drained.promise, INFLIGHT_DRAIN_MS, () => new Error('drain timeout')).catch(() =>
-        log.warn('in-flight requests did not finish', { inflight }),
-      )
-    }
-    for (const h of [...shutdownHooks].reverse()) {
-      await withTimeout(Promise.resolve().then(h.fn), SHUTDOWN_HOOK_TIMEOUT_MS, () => new Error('timeout')).catch(
-        (e: unknown) => log.warn('onShutdown hook failed', { module: h.moduleId, error: String(e) }),
-      )
-    }
-    for (const d of [...moduleDisposables].reverse()) {
-      try {
-        d.dispose()
-      } catch (e) {
-        log.warn('dispose failed', { error: String(e) })
+    // 总截止时间：所有分阶段预算都必须从这里算，Host 的宽限期比它更长（R-05 §3.3）
+    const deadline = opts.clock.now() + CORE_SHUTDOWN_BUDGET_MS
+    const remaining = (cap: number): number => Math.max(0, Math.min(cap, deadline - opts.clock.now()))
+    try {
+      if (inflight > 0) {
+        const budget = remaining(INFLIGHT_DRAIN_MS)
+        if (budget > 0) {
+          drained = new Deferred<void>()
+          await withClockTimeout(opts.clock, drained.promise, budget, () => new Error('drain timeout')).catch(() =>
+            log.warn('in-flight requests did not finish', { inflight }),
+          )
+        } else {
+          log.warn('shutdown budget exhausted, skipping inflight drain', { inflight })
+        }
       }
+      // 逆拓扑序串行：依赖顺序有意义，不能并发（R-05 §7）
+      for (const h of [...shutdownHooks].reverse()) {
+        const budget = remaining(SHUTDOWN_HOOK_TIMEOUT_MS)
+        if (budget === 0) {
+          log.warn('shutdown budget exhausted, skipping hook', { module: h.moduleId })
+          continue
+        }
+        await withClockTimeout(opts.clock, Promise.resolve().then(h.fn), budget, () => new Error('timeout')).catch(
+          (e: unknown) => log.warn('onShutdown hook failed', { module: h.moduleId, error: String(e) }),
+        )
+      }
+      for (const d of [...moduleDisposables].reverse()) {
+        try {
+          d.dispose()
+        } catch (e) {
+          log.warn('dispose failed', { error: String(e) })
+        }
+      }
+      if (wasStarted) {
+        const budget = Math.max(ENGINE_DISPOSE_FLOOR_MS, remaining(Number.POSITIVE_INFINITY))
+        await withClockTimeout(
+          opts.clock,
+          opts.engine.dispose(),
+          budget,
+          () => new Error('engine dispose timeout'),
+        ).catch((e: unknown) => log.warn('engine dispose failed', { error: String(e) }))
+      }
+    } finally {
+      // 数据库与 RPC 对端无论上面成败都要收掉：留着就是「进程不退出」或「库被两个进程打开」
+      db?.close()
+      peer?.dispose()
     }
-    if (wasStarted) {
-      await opts.engine.dispose().catch((e: unknown) => log.warn('engine dispose failed', { error: String(e) }))
-    }
-    db?.close()
-    peer?.dispose()
     state = 'stopped'
     for (const fn of exitListeners) fn(0)
   }

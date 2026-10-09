@@ -663,8 +663,21 @@ export function createFakeEngine(opts: FakeEngineOptions = {}): FakeEngine {
         /* 没给就是 undefined：一次都不报，与真引擎「还没水合」同义。 */
         contextUsage: () => opts.contextUsage ?? null,
       })
+      /*
+       * 与 OmpEngine 同一条登记规矩（R-05 §3.1）：会话池释放一条会话直接调它的 dispose()，
+       * 不经过引擎 —— 这里不包一层，替身自己也会只增不减，测试就可能替真实现遮错。
+       */
       sessions.add(session)
-      return session
+      const original = session.dispose.bind(session)
+      let disposing: Promise<void> | undefined
+      return Object.assign(session, {
+        dispose(): Promise<void> {
+          disposing ??= original().finally(() => {
+            sessions.delete(session)
+          })
+          return disposing
+        },
+      })
     },
     sessionFiles: {
       async exists(file) {
@@ -826,7 +839,7 @@ export function createFakeEngine(opts: FakeEngineOptions = {}): FakeEngine {
       },
     },
     async dispose() {
-      for (const session of sessions) await session.dispose()
+      await Promise.all([...sessions].map((session) => session.dispose()))
       sessions.clear()
       change.dispose()
     },

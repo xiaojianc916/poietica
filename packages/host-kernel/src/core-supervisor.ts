@@ -14,7 +14,7 @@ import {
 import { killTree, LineSplitter } from '@poietica/process-kit'
 import { type InboundContext, type RpcMeta, RpcPeer } from '@poietica/rpc'
 import { createChildProcessTransport } from '@poietica/rpc/stdio'
-import { buildCoreLaunch, CORE_EXIT_CODES, type DataLayout } from '@poietica/runtime-layout'
+import { buildCoreLaunch, CORE_EXIT_CODES, CORE_SHUTDOWN_BUDGET_MS, type DataLayout } from '@poietica/runtime-layout'
 import type { CoreLogSink } from './core-log-sink'
 import { pickFreePort } from './relay-port'
 
@@ -39,7 +39,11 @@ export const BACKOFF_MS = [500, 1_000, 2_000, 4_000, 8_000] as const
 export const CRASH_WINDOW_MS = 60_000
 export const MAX_CRASHES_IN_WINDOW = 5
 export const READY_TIMEOUT_MS = 45_000
-export const STOP_GRACE_MS = 5_000
+/**
+ * Host 等 Core 自己退出的宽限期（R-05 §3.3）：必须比 Core 的关停总预算更长，
+ * 否则 Core 还在逐条关会话 / flush 设置时就被 killTree 杀掉，数据库也没来得及 close。
+ */
+export const STOP_GRACE_MS = CORE_SHUTDOWN_BUDGET_MS + 2_000
 export const QUEUE_WAIT_MS = 30_000
 
 export interface CoreSupervisorOptions {
@@ -115,11 +119,13 @@ export class CoreSupervisor {
   async restart(): Promise<void> {
     this.crashes = []
     if (this.child !== undefined) await this.stop()
+    this.restartTimer?.dispose()
+    this.restartTimer = undefined
     this.state = 'idle'
     await this.start()
   }
 
-  /** 优雅停止：core.shutdown → 最多等 5 秒 → killTree */
+  /** 优雅停止：core.shutdown → 最多等 STOP_GRACE_MS → killTree */
   async stop(): Promise<void> {
     this.restartTimer?.dispose()
     this.restartTimer = undefined
@@ -214,12 +220,14 @@ export class CoreSupervisor {
       this.fail('core_missing')
       return
     }
-    this.port = await (this.o.pickPort ?? pickFreePort)()
+    const port = await (this.o.pickPort ?? pickFreePort)()
+    if (this.stale(gen)) return
+    this.port = port
     const launch = buildCoreLaunch({
       coreExe: this.o.coreExe,
       dataRoot: this.o.layout.root,
       homeDir: this.o.homeDir,
-      relayPort: this.port,
+      relayPort: port,
       logLevel: this.o.logLevel(),
       strict: this.o.strict,
       baseEnv: this.o.baseEnv(),
@@ -260,13 +268,20 @@ export class CoreSupervisor {
     try {
       payload = await withTimeout(ready.promise, READY_TIMEOUT_MS, () => new Error('ready timeout'))
     } catch (e) {
-      if (gen !== this.generation || this.state === 'stopping') return
+      // 代际过期也要清掉自己这一代 spawn 出来的进程（R-05 §3.4）
+      if (this.stale(gen)) {
+        await this.killChild(child)
+        return
+      }
       this.o.logger.error('core did not become ready', { error: String(e) })
       this.reason = 'start_timeout'
-      if (child.pid !== undefined) await (this.o.kill ?? killTree)(child.pid)
+      await this.killChild(child)
       return // 由 onExit 进入退避重启
     }
-    if (gen !== this.generation || this.state === 'stopping') return
+    if (this.stale(gen)) {
+      await this.killChild(child)
+      return
+    }
     if (payload.protocolVersion !== this.o.protocolVersion) {
       this.o.logger.error('protocol mismatch', { core: payload.protocolVersion, host: this.o.protocolVersion })
       this.fail('protocol_mismatch')
@@ -277,6 +292,21 @@ export class CoreSupervisor {
     this.reason = null
     this.setState('ready')
     this.readyEmitter.fire()
+  }
+
+  /**
+   * 代际是否已过期（R-05 §3.4）。
+   *
+   * `idle` 也算：restart() 先置 idle 再 start()，而 start() 立刻 setState('starting')
+   * 并在 launch 里 ++generation —— 新一代不会被误判，落在中间的旧一代一律收手。
+   */
+  private stale(gen: number): boolean {
+    return gen !== this.generation || this.state === 'stopping' || this.state === 'stopped' || this.state === 'idle'
+  }
+
+  /** 只杀自己这一代、还没退出的 child（已经退出的 pid 不能再杀） */
+  private async killChild(child: ChildProcess): Promise<void> {
+    if (child.pid !== undefined && child.exitCode === null) await (this.o.kill ?? killTree)(child.pid)
   }
 
   private onExit(gen: number, code: number | null, signal: NodeJS.Signals | null): void {

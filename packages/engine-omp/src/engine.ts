@@ -114,23 +114,51 @@ export class OmpEngine implements AgentEngine {
     if (!this.frozen) throw new AppError(EngineErrorCode.toolsFrozen, '工具注册尚未冻结')
     if (this.disposed) throw new AppError(SystemErrorCode.cancelled, '引擎已关闭')
     const session = await this.o.createSession(spec, this.tools)
-    this.sessions.add(session)
+    if (this.disposed) {
+      // dispose() 已经跑过：这个会话出生即晚点，当场关掉，绝不能留在外面
+      await session.dispose().catch(() => undefined)
+      throw new AppError(SystemErrorCode.cancelled, '引擎已关闭')
+    }
+    this.track(session)
     this.o.logger.info('session opened', { key: spec.key, sessionFile: session.sessionFile })
     return session
+  }
+
+  /** 仅测试使用：当前登记在册（已打开且未 dispose）的会话数 */
+  liveSessionCount(): number {
+    return this.sessions.size
+  }
+
+  /**
+   * 登记会话，并包一层 dispose：无论谁关闭它（会话池、线程删除、引擎自己），
+   * 都从登记表里移除；同一会话重复 dispose 只走一次原实现（R-05 §3.1）。
+   */
+  private track(session: EngineSession): void {
+    this.sessions.add(session)
+    const original = session.dispose.bind(session)
+    let disposing: Promise<void> | undefined
+    Object.assign(session, {
+      dispose: (): Promise<void> => {
+        disposing ??= original().finally(() => {
+          this.sessions.delete(session)
+        })
+        return disposing
+      },
+    })
   }
 
   async dispose(): Promise<void> {
     if (this.disposed) return
     this.disposed = true
-    for (const session of this.sessions) {
-      try {
-        await session.dispose()
-      } catch (error) {
-        this.o.logger.warn('session dispose failed', {
-          error: error instanceof Error ? error.message : String(error),
-        })
-      }
-    }
+    await Promise.all(
+      [...this.sessions].map((session) =>
+        session.dispose().catch((error: unknown) => {
+          this.o.logger.warn('session dispose failed', {
+            error: error instanceof Error ? error.message : String(error),
+          })
+        }),
+      ),
+    )
     this.sessions.clear()
     await this.o.disposeRuntime()
   }

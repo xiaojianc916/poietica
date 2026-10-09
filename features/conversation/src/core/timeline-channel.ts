@@ -58,6 +58,18 @@ export class TimelineChannel {
     this.sink.reset({ epoch: this.epoch })
   }
 
+  /**
+   * 只丢弃补发用的历史：不换 epoch、不重置 seq、不通知 UI（R-05 §3.2）。
+   *
+   * 会话被池子释放后这段环形缓存没有用处 —— 下次真的打开时会走 resetThread 换 epoch。
+   * 之后的 catchUp 因缓存为空返回 complete:false，UI 整读；这里不能 reset，
+   * 那会让 UI 立刻整读并 acquire 会话，刚驱逐就被重新打开。
+   */
+  dropHistory(): void {
+    this.flush()
+    this.ring.length = 0
+  }
+
   /** 订阅时调用：先冲刷，返回当前位置；快照之后的批次 seq 一定大于这个值 */
   position(): { epoch: number; seq: number } {
     this.flush()

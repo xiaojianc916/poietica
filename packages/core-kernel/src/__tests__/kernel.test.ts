@@ -571,7 +571,7 @@ describe('core-kernel 启动', () => {
     await h.dispose()
   })
 
-  test('K-7 onShutdown 钩子永不返回：超时后继续并记 warn（真实时钟 5 秒）', async () => {
+  test('K-7 onShutdown 钩子永不返回：超时后继续并记 warn', async () => {
     const h = await makeKernel([
       defineCoreModule({
         id: 'alpha',
@@ -581,11 +581,100 @@ describe('core-kernel 启动', () => {
       }),
     ])
     const done = h.kernel.shutdown('stuck')
-    // 5 秒超时后必须收尾：这里给 8 秒余量
-    await Promise.race([done, new Promise((r) => setTimeout(r, 8_000))])
+    // 5 秒超时后必须收尾（关停预算走注入的假时钟）
+    await h.clock.advanceAsync(5_000)
+    await done
     expect(h.log.at('warn').some((r) => r.msg === 'onShutdown hook failed')).toBe(true)
     await h.dispose()
-  }, 15_000)
+  })
+
+  /*
+   * R-05 §3.3（M5）：关停有**总预算**。旧代码每个钩子各给 5 秒且没有总上限，
+   * N 个卡住的模块就是 N×5 秒，远超 Host 的宽限期 —— 结果是被 killTree 半途杀掉。
+   *
+   * 新语义：8 秒总预算；第一个钩子吃掉 5 秒，第二个只剩 3 秒；engine.dispose
+   * 之后 `db.close()` 与 `peer.dispose()` 在 finally 里照常执行。
+   * 判据用假时钟推进，总耗时按 clock.now() 算。
+   */
+  test('R-05 M5 关停总预算：钩子按剩余预算放弃，db 与 engine 仍收尾', async () => {
+    const { RpcPeer } = await import('@poietica/rpc')
+    const { composeContracts } = await import('@poietica/contract-kit')
+    const { createFakeEngine } = await import('@poietica/engine-testkit')
+    const { createTestLogger, fakeClock, tempDir, transportPair } = await import('@poietica/test-kit')
+    const { rmSync } = await import('node:fs')
+    const path = await import('node:path')
+    const { createCoreKernel } = await import('../kernel')
+    const { memoryLayout } = await import('../testing/memory-layout')
+    const { CORE_SHUTDOWN_BUDGET_MS } = await import('@poietica/runtime-layout')
+
+    const dir = await tempDir('core-kernel-shutdown-')
+    const dbFile = path.join(dir.path, 'core.db')
+    const [coreSide, hostSide] = transportPair()
+    const clock = fakeClock()
+    const log = createTestLogger()
+    const engine = createFakeEngine()
+    let engineDisposed = false
+    const realDispose = engine.dispose.bind(engine)
+    engine.dispose = async () => {
+      engineDisposed = true
+      await realDispose()
+    }
+    const abandoned: string[] = []
+    const kernel = createCoreKernel({
+      modules: ['alpha', 'beta', 'gamma'].map((id, at) =>
+        defineCoreModule({
+          id,
+          // 三个模块的钩子都永不返回；beta 依赖 alpha，避免只做无依赖的并列图
+          dependsOn: at === 2 ? ['alpha'] : undefined,
+          setup: (ctx) => {
+            ctx.lifecycle.onShutdown(() => {
+              abandoned.push(id)
+              return new Promise<void>(() => undefined)
+            })
+          },
+        }),
+      ),
+      engine,
+      databaseFile: dbFile,
+      layout: memoryLayout(dir.path),
+      logger: log,
+      clock,
+      transport: coreSide,
+      // 三个模块都没有契约：只要 system 契约，owner='core' 的 core.shutdown 由内核自己答
+      appContract: composeContracts(),
+      protocolVersion: 1,
+      coreVersion: 'x',
+      engineVersion: 'y',
+      strict: true,
+      runtime: { scrubbedEnvKeys: [], setLogLevel: () => undefined },
+    })
+    await kernel.start()
+    const hostPeer = new RpcPeer({ name: 'probe', transport: hostSide, logger: createTestLogger() })
+    const exits: number[] = []
+    kernel.onExit((c) => exits.push(c))
+
+    const t0 = clock.now()
+    const done = kernel.shutdown('stuck')
+    // 两个 5 秒级别的等待，中间还要让微任务跑：推进一次总预算再多 1 秒，超了就是实现没按预算收
+    await clock.advanceAsync(CORE_SHUTDOWN_BUDGET_MS + 1_000)
+    await done
+    const elapsed = clock.now() - t0
+    expect(elapsed).toBeLessThanOrEqual(CORE_SHUTDOWN_BUDGET_MS + 1_000)
+    expect(exits).toEqual([0])
+    expect(engineDisposed).toBe(true)
+    /*
+     * 三个钩子的预算账（逆拓扑序）：gamma 吃满 5 秒被放弃；beta 只剩 3 秒也被放弃；
+     * 到 alpha 时预算耗尽 —— 直接跳过（不执行），不是「执行了然后超时」。
+     */
+    expect(abandoned).toEqual(['gamma', 'beta'])
+    expect(log.at('warn').filter((r) => r.msg === 'onShutdown hook failed').length).toBe(2)
+    expect(log.at('warn').filter((r) => r.msg === 'shutdown budget exhausted, skipping hook').length).toBe(1)
+
+    // db.close() 真的执行过：Windows 上没关的 SQLite 文件删不掉（EBUSY）
+    expect(() => rmSync(dbFile)).not.toThrow()
+    hostPeer.dispose()
+    await dir.dispose()
+  })
 
   test('transport 关闭触发 shutdown', async () => {
     const h = await makeKernel([])

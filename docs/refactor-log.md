@@ -201,3 +201,78 @@ release/dispose 看不见它）；T2 红（旧代码先 `hub.position()` 建通�
 | 编号 | 日期 | 问题 | 阻塞的步骤 | 状态 |
 |---|---|---|---|---|
 | Q34 | 2026-10-09 | R-03 §5 的三条真机验收未跑（需要安装包 + 真 omp）：① 打开旧对话时 `timeline.subscribe` 只出现一次、无 `timeline.reset`；② 运行中启用 MCP，这一轮结束后再发一句能用上新 MCP；③ 发第一句后立刻删对话，会话目录不残留 | 无（代码与单测已按报告落地） | 记录：等产品负责人真机复核 |
+
+## R-05 Core 进程内存与关停：引擎会话登记只增不减、关停预算不一致、看护人启动竞态（2026-10-09）
+
+**来源**：产品负责人交办的缺陷报告 `R-05 Core 进程内存与关停：引擎会话登记只增不减、关停预算不一致、看护人启动竞态`
+（外部输入，不入库）。三项共用一条主线：谁释放资源、什么时候算过点，散在四个位置各写各的。
+
+**改法**（严格按报告 §3 的设计，**无契约变更**）：
+
+1. **引擎：释放即注销**（§3.1）。`OmpEngine.openSession` 在 `createSession` 落地后复查
+   `disposed`：已关就当场 `dispose()` 并以 `kernel.cancelled` 拒绝。新增私有 `track(session)`：
+   登记进 `sessions` 的同时包一层 `dispose`（`Object.assign`，与 `create-engine.ts` 包 MCP
+   存活表的风格一致），幂等且无论谁调用都从登记表摘除。`dispose()` 改并发
+   （`Promise.all`）并对已经关过的会话不重复关。只读断言口 `liveSessionCount()` 标了
+   「仅测试使用」。**同一处顺手核对 `engine-testkit/src/fake-engine.ts`**：它有同样的
+   「只增」集合（报告 §3.1 要求检查），按同一规矩包了一层 —— 不修的话替身会替真实现遮错。
+2. **时间线缓存随会话释放清空**（§3.2）。`TimelineChannel.dropHistory()`：`flush()` 后
+   `ring.length = 0`，**不换 epoch、不重置 seq、不发 reset**；`TimelineHub.dropHistory(threadId)`
+   遍历该线程所有通道；`ThreadService.onReleased` 先清缓存再重报行。
+   为什么不能 `reset`：那会让 UI 立刻整读，而 R-03 之后整读会 acquire 会话 —— 刚驱逐就被
+   重新打开。缓存空时 `catchUp` 本来就返回 `complete:false`，`catchUp` 一行未动。
+3. **关停预算：共享常量 + 总截止时间**（§3.3）。`@poietica/runtime-layout` 新增
+   `CORE_SHUTDOWN_BUDGET_MS = 8_000`（Host 与 Core 都依赖它）。`core-kernel/kernel.ts`
+   的 `shutdown` 先算 `deadline`，每个阶段用 `remaining(cap)` 取「剩余预算和这一阶段上限
+   的较小值」：排空 3 秒 → **1.5 秒**；模块钩子仍按逆拓扑序串行，每个 `min(5s, 剩余)`，
+   剩余为 0 时**跳过并 warn**；`engine.dispose` 给 `max(1s, 剩余)`；`db.close()` 与
+   `peer.dispose()` 移进 `finally`，无论上面成败都执行。计时改走**注入的 Clock**（新加
+   文件内私有 `withClockTimeout`）：生产里它就是 `systemClock`，而测试注入假时钟后再
+   不受真实 5 秒/10 秒约束 —— 旧代码那条「真实时钟 5 秒」的 K-7 用例改成推假钟。
+   `core-supervisor` 的 `STOP_GRACE_MS = CORE_SHUTDOWN_BUDGET_MS + 2_000`（10 秒）。
+4. **看护人：每个 await 之后复查代际**（§3.4）。新增 `private stale(gen)`（`idle` 也算过期：
+   `restart()` 先置 idle 再 `start()`，而 `start()` 立刻 `starting` 并在 `launch` 里
+   `++generation`，新一代不会被误判）；`launch()` 在 `pickPort` 落地后先 `stale` 复查再
+   spawn；ready 超时分支与成功分支都改成「过期也先 `killChild` 自己那一代」。新增
+   `killChild`：只杀「pid 有、`exitCode === null`」的 child。`restart()` 在置 idle 之前
+   先收掉 `restartTimer`。`onExit` 的代际检查原样保留。
+
+**执行步骤 1–4 的反向验证**（按报告「先写失败测试」的守则逐项实测）：把实现临时换回 `HEAD`
+版本跑新用例 —— M1/M2 全红（`liveSessionCount` 不存在；M2 的 `openSession` 拿到了
+**永不关闭**的会话而不是 `cancelled`）；M3/M4 全红（方法不存在 / `complete` 仍为 true）；
+M5 与 K-7 全红且**各自真的等了 5 秒**（旧代码没有总预算、且计时挂真实时钟）；M6/M7 全红
+且各自 **5 秒超时**（幽灵 spawn / 双 Core 就这么来的）；`STOP_GRACE_MS` 断言红。
+M8 在新旧代码上都是绿的 —— 与报告标注一致（回归用例）。恢复实现后 24/24 全绿。
+
+**测试**：
+
+- `packages/engine-omp/src/__tests__/engine.test.ts`：M1（open 3 → dispose 2 → 中间态 1、
+  原始 dispose 各恰一次）、M2（`openSession` 与 `dispose` 赛跑）。
+- `features/conversation/src/core/__tests__/timeline-channel.test.ts`：M3（`dropHistory` 的
+  三不：不换 epoch、不重置 seq、不通知）+ hub 按线程清；`conversation-core.test.ts`：M4
+  （真走一次 release，`catchUp.complete === false`）。
+- `packages/core-kernel/src/__tests__/kernel.test.ts`：M5（假时钟推进；断言总耗时 ≤ 预算+1s、
+  gamma/beta 被放弃而 alpha 被**跳过**、engine.dispose 被调、`db.close()` 用「Windows 上
+  没关的 SQLite 文件删不掉（EBUSY）」实证）。
+- `packages/host-kernel/src/__tests__/core-supervisor.test.ts`：M6、M7、M8 与
+  `STOP_GRACE_MS = CORE_SHUTDOWN_BUDGET_MS + 2000`。
+- `packages/runtime-layout/src/__tests__/core-launch.test.ts`：`CORE_SHUTDOWN_BUDGET_MS` 的值。
+
+**验收**：`bun run check` 全绿（1569 pass / 0 fail，201 文件 / 5143 断言；较 R-03 的 1558
+多 11 条）。
+
+**未能核实、记入待决**：报告 §6 的两条手工验收需要打包应用 + 真实 omp（任务管理器里
+`poietica-core.exe` 内存不再随翻历史线性上涨；一轮正在跑时退出应用，`core.log` 里
+`shutting down` 之后各阶段齐全、没有 `core did not exit in time, killing`）。
+
+**本轮偏差**：无契约变更、未动 `PROTOCOL_VERSION`；文件清单与报告 §1 一致（
+`engine.ts`、`timeline-{channel,hub}.ts`、`thread-service.ts`、`runtime-layout/*`、
+`core-kernel/kernel.ts`、`core-supervisor.ts`）。额外两处按报告授权：
+`fake-engine.ts` 的同一处登记（§3.1 明说「顺便检查」）与 `kernel.ts` 的私有
+`withClockTimeout`（§3.3 的判据要假时钟推得动；行为与 foundation 的 `withTimeout` 相同）。
+
+### 审查执行待决（R-05 新增）
+
+| 编号 | 日期 | 问题 | 阻塞的步骤 | 状态 |
+|---|---|---|---|---|
+| Q35 | 2026-10-09 | R-05 §6 的两条手工验收未跑（需要安装包 + 真 omp）：① 依次打开 10 条历史对话并重复，Core 内存不再线性上涨；② 运行中退出应用，`core.log` 各阶段齐全且无 `core did not exit in time, killing` | 无（代码与单测已按报告落地） | 记录：等产品负责人真机复核 |

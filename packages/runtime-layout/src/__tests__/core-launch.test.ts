@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'bun:test'
 import { AppError } from '@poietica/foundation'
-import { buildCoreLaunch, CORE_EXIT_CODES, isolatedConfigDir } from '../core-launch'
+import { buildCoreLaunch, CORE_EXIT_CODES, CORE_SHUTDOWN_BUDGET_MS, isolatedConfigDir } from '../core-launch'
 
 const HOME = 'C:\\Users\\a'
 const DATA_ROOT = 'C:\\Users\\a\\AppData\\Roaming\\Poietica Dev'
@@ -118,5 +118,10 @@ describe('buildCoreLaunch', () => {
 
   test('RL-5 CORE_EXIT_CODES', () => {
     expect(CORE_EXIT_CODES).toEqual({ ok: 0, crashed: 1, badArguments: 2, isolationViolated: 3 })
+  })
+
+  /* R-05 §3.3：Host 与 Core 共用这一份预算，Host 的宽限期必须比它长（+2 秒） */
+  test('R-05 CORE_SHUTDOWN_BUDGET_MS 是 8 秒', () => {
+    expect(CORE_SHUTDOWN_BUDGET_MS).toBe(8_000)
   })
 })

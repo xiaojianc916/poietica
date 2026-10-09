@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'bun:test'
 import { EngineErrorCode, type EngineSession, type EngineToolSpec } from '@poietica/engine'
-import { AppError, noopLogger } from '@poietica/foundation'
+import { AppError, Deferred, noopLogger } from '@poietica/foundation'
 import type { TranscriptOperation } from '@poietica/transcript'
 import { z } from 'zod'
 import { OmpEngine } from '../engine'
@@ -218,5 +218,67 @@ describe('OmpEngine', () => {
     await engine.dispose()
     const error = await engine.openSession(spec('a')).catch((e: unknown) => e)
     expect((error as AppError).code).toBe('kernel.cancelled')
+  })
+
+  /*
+   * R-05 §3.1（M1）：会话池释放一条空闲会话走的是 session.dispose()，不经过引擎；
+   * 旧代码只在 engine.dispose() 里清空登记表，于是每释放一条就多抱一个已关闭的
+   * AgentSession（含消息历史、投影器、工具实例）。释放即注销：谁关的都要摘掉。
+   */
+  test('R-05 M1 会话被 dispose 就从登记表移除；engine.dispose 不重复关', async () => {
+    const sessions: EngineSession[] = []
+    const disposed: string[] = []
+    const { engine } = makeEngine({
+      createSession: async (sessionSpec) => {
+        const session = stubSession()
+        const original = session.dispose.bind(session)
+        session.dispose = async () => {
+          disposed.push(sessionSpec.key)
+          await original()
+        }
+        sessions.push(session)
+        return session
+      },
+    })
+    engine.freezeTools()
+    await engine.openSession(spec('a'))
+    await engine.openSession(spec('b'))
+    await engine.openSession(spec('c'))
+    expect(engine.liveSessionCount()).toBe(3)
+
+    await sessions[0]!.dispose()
+    await sessions[1]!.dispose()
+    expect(engine.liveSessionCount()).toBe(1)
+
+    await engine.dispose()
+    expect(engine.liveSessionCount()).toBe(0)
+    expect(disposed).toEqual(['a', 'b', 'c'])
+  })
+
+  /*
+   * R-05 §3.1 的附带竞态（M2）：openSession 的 await 期间 dispose 已经开始 —— 旧代码
+   * 会在遍历结束后才 add，新会话永远不被关闭，调用方还拿到一个活的句柄。
+   */
+  test('R-05 M2 打开与关闭赛跑：落地的会话当场关闭，openSession 以 cancelled 拒绝', async () => {
+    const opening = new Deferred<EngineSession>()
+    const session = stubSession()
+    let disposed = 0
+    const original = session.dispose.bind(session)
+    session.dispose = async () => {
+      disposed += 1
+      await original()
+    }
+    const { engine } = makeEngine({ createSession: () => opening.promise })
+    engine.freezeTools()
+
+    const pending = engine.openSession(spec('a'))
+    const closing = engine.dispose()
+    opening.resolve(session)
+
+    const error = await pending.catch((e: unknown) => e)
+    await closing
+    expect((error as AppError).code).toBe('kernel.cancelled')
+    expect(disposed).toBe(1)
+    expect(engine.liveSessionCount()).toBe(0)
   })
 })

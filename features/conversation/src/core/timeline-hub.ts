@@ -80,6 +80,13 @@ export class TimelineHub implements Disposable {
     }
   }
 
+  /** 会话释放（空闲驱逐 / 配置换代）：丢掉该线程所有通道的补发历史，不通知 UI（R-05 §3.2） */
+  dropHistory(threadId: string): void {
+    for (const [k, c] of this.channels) {
+      if (k.startsWith(`${threadId}\u0000`)) c.dropHistory()
+    }
+  }
+
   disposeThread(threadId: string): void {
     for (const [k, c] of [...this.channels]) {
       if (k.startsWith(`${threadId}\u0000`)) {
