@@ -58,3 +58,43 @@ describe('TM-3: output-batcher', () => {
     expect(sent).toEqual([])
   })
 })
+
+describe('R-08-15: output-batcher 的 offset', () => {
+  test('每段 flush 带自己的起点，起点是累计位置（含被丢弃的合批窗口）', async () => {
+    const sent: Array<{ data: string; offset: number }> = []
+    const batcher = createOutputBatcher((data, offset) => {
+      sent.push({ data, offset })
+    }, 8)
+
+    batcher.push('abc')
+    batcher.push('de')
+    batcher.drain()
+    batcher.push('f')
+    batcher.push('g')
+    batcher.drain()
+    batcher.dispose()
+
+    expect(sent).toEqual([
+      { data: 'abcde', offset: 0 },
+      { data: 'fg', offset: 5 },
+    ])
+  })
+
+  test('起点不随定时器到期或 drain 重置', async () => {
+    const sent: Array<{ data: string; offset: number }> = []
+    const batcher = createOutputBatcher((data, offset) => {
+      sent.push({ data, offset })
+    }, 8)
+
+    batcher.push('xxxx')
+    await new Promise((resolve) => setTimeout(resolve, 30))
+    batcher.push('yy')
+    batcher.drain()
+    batcher.dispose()
+
+    expect(sent).toEqual([
+      { data: 'xxxx', offset: 0 },
+      { data: 'yy', offset: 4 },
+    ])
+  })
+})

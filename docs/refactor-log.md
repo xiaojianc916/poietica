@@ -719,6 +719,39 @@ rejection（还有一条误导性的超时日志）。
 新建 `features/update/src/ui/__tests__/update-banner.test.tsx`：点「下载」会发起请求；
 请求拒绝只留一条 warn（旧实现下这条用例因未处理的 rejection 直接红）。
 
+#### R-08-15 终端重放与实时输出之间没有序号（2026-10-10）
+
+**根因**：渲染进程重载时先订阅输出、再请求 replay，两段之间到达的输出既在 replay 里又在
+通知里（或反过来漏掉），没有序号就分不清谁覆盖了谁 —— 反复 F5 会看见重复或缺行。
+另外 `RingBuffer` 按 UTF-16 码元裁剪，可能从 ANSI 转义序列 / 宽字符中间切断，重放的第一行
+是乱码。
+
+**改法**：
+
+1. 服务端每个终端维护累计输出长度 `offset`：`pty.onData` 只加不减（环缓冲裁掉也不回退），
+   `createOutputBatcher` 的 `flush(data, offset)` 带上这一段的起点，`terminal.output`
+   通知加 `offset`、`terminal.replay` 返回 `{ data, endOffset }`。
+2. UI 侧按「已经写进画面的末尾位置」cursor 去重：`replaying` 期间到达的通知先进 `pending`；
+   replay 回来后 `cursors.set(terminalId, replay.endOffset)` 再按序放行 —— 整段落在 cursor
+   之前的丢掉，只有部分重叠的裁掉前缀，起点在 cursor 之后的照原样写。攒下的输出有 1 MB
+   上限（超了丢最老的并记 warn），避免一个配不上会话的 terminalId 无限攒。
+3. `RingBuffer` 的切点往后找到第一个 `\n` 再从它之后留（整块都没有换行时仍按码元切，
+   否则重放会被清空）。
+4. 标签在 `adopt` 之后立刻推上 store（不等 replay），replay 失败只记 warn 并把攒下的
+   通知原样写下去；`restore()` 在 `list` / `replay` 两个 await 之后重新检查 `disposed`
+   与「用户是否已经关掉了它」。
+
+**契约变更**：`terminal.output` 加 `offset`、`terminal.replay` 的结果加 `endOffset`，
+`PROTOCOL_VERSION` 11 → 12，已重跑 `bun run protocol:snapshot`（快照 diff 只有这两处形状）。
+
+**测试**：host `terminal-service.test.ts` 加 3 条（合批段的 offset 是累计位置、`endOffset`
+不随 256 KB 环裁剪回退、重放末尾与随后通知的起点对齐）；`output-batcher.test.ts` 加 2 条
+（每段 flush 带自己的起点、起点不随定时器到期重置）；`ring-buffer.test.ts` 加 2 条
+（跨块与单块都从行首切）；ui `terminal-store.test.ts` 加 7 条（重放覆盖的整段不写第二遍、
+部分重叠只写尾巴、没覆盖的原样写、攒下的按到达顺序放行、replay 之后不再攒、replay 失败
+不卡住、关闭时丢掉缓存）。把 `writeChunk` 的去重换成直接写，前两条即红（实测画面变成
+`abcdefefgh`）。
+
 ### 审查执行待决（R-08 新增）
 
 | 编号 | 日期 | 问题 | 阻塞的步骤 | 状态 |

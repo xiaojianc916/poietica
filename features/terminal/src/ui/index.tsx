@@ -70,7 +70,7 @@ export default defineUiFeature({
     /* 通知按 terminalId 分发到各自的常驻画面上（07 页 §11E 的「输出」一行）。 */
     ctx.lifecycle.onDispose(
       api.onOutput((p) => {
-        runtime.writeToHost(p.terminalId, p.data)
+        runtime.writeToHost(p.terminalId, p.data, p.offset)
       }).dispose,
     )
     ctx.lifecycle.onDispose(

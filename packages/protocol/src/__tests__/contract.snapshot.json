@@ -10698,7 +10698,7 @@
       "name": "terminal.replay",
       "owner": "host",
       "timeoutMs": 30000,
-      "description": "最近 256 KB 输出（重放）",
+      "description": "最近 256 KB 输出（重放）；endOffset = data 末尾对应的累计输出位置",
       "params": {
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "type": "object",
@@ -10718,10 +10718,16 @@
         "properties": {
           "data": {
             "type": "string"
+          },
+          "endOffset": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991
           }
         },
         "required": [
-          "data"
+          "data",
+          "endOffset"
         ],
         "additionalProperties": false
       }
@@ -21478,11 +21484,17 @@
           },
           "data": {
             "type": "string"
+          },
+          "offset": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991
           }
         },
         "required": [
           "terminalId",
-          "data"
+          "data",
+          "offset"
         ],
         "additionalProperties": false
       }

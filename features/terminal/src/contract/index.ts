@@ -52,15 +52,17 @@ export const terminalContract = defineContract({
       name: 'terminal.replay',
       owner: 'host',
       params: terminalRef,
-      result: z.object({ data: z.string() }),
-      description: '最近 256 KB 输出（重放）',
+      /* R-08-15：endOffset 是本段末尾在终端累计输出里的位置，UI 靠它裁掉重叠的实时通知 */
+      result: z.object({ data: z.string(), endOffset: z.number().int().nonnegative() }),
+      description: '最近 256 KB 输出（重放）；endOffset = data 末尾对应的累计输出位置',
     }),
   ],
   notifications: [
     defineNotification({
       name: 'terminal.output',
       owner: 'host',
-      params: z.object({ terminalId: TerminalId, data: z.string() }),
+      /* R-08-15：offset 是本段首个码元在终端累计输出里的位置（重放与实时输出靠它对齐） */
+      params: z.object({ terminalId: TerminalId, data: z.string(), offset: z.number().int().nonnegative() }),
       description: 'PTY 输出（8ms 合批）',
     }),
     defineNotification({

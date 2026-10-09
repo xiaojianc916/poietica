@@ -19,8 +19,11 @@ export function createTerminalApi(ctx: UiFeatureContext) {
       rpc.call('terminal.resize', { terminalId, cols, rows }).then(() => undefined),
     close: (terminalId: string): Promise<void> => rpc.call('terminal.close', { terminalId }).then(() => undefined),
     list: (): Promise<readonly TerminalInfo[]> => rpc.call('terminal.list', {}).then((r) => r.terminals),
-    replay: (terminalId: string): Promise<string> => rpc.call('terminal.replay', { terminalId }).then((r) => r.data),
-    onOutput: (listener: (p: { terminalId: string; data: string }) => void) => rpc.on('terminal.output', listener),
+    /* R-08-15：endOffset 是这段数据末尾在终端累计输出里的位置，重放与实时通知靠它对齐 */
+    replay: (terminalId: string): Promise<{ data: string; endOffset: number }> =>
+      rpc.call('terminal.replay', { terminalId }),
+    onOutput: (listener: (p: { terminalId: string; data: string; offset: number }) => void) =>
+      rpc.on('terminal.output', listener),
     onExited: (listener: (p: { terminalId: string; exitCode: number | null }) => void) =>
       rpc.on('terminal.exited', listener),
   }

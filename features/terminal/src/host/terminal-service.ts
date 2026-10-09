@@ -26,12 +26,15 @@ interface Entry {
   pty: Pty
   replay: RingBuffer
   batcher: ReturnType<typeof createOutputBatcher>
+  /** 累计输出长度：replay 的末尾与输出通知的起点都按它算（R-08-15） */
+  offset: number
 }
 
 export interface TerminalServiceDeps {
   readonly spawn: PtyFactory
   readonly logger: Logger
-  readonly emitOutput: (terminalId: string, data: string) => void
+  /** offset = data 首码元在累计输出里的位置（R-08-15） */
+  readonly emitOutput: (terminalId: string, data: string, offset: number) => void
   readonly emitExited: (terminalId: string, exitCode: number | null) => void
   readonly env?: NodeJS.ProcessEnv
   readonly killTree?: (pid: number) => Promise<void>
@@ -82,11 +85,13 @@ export function createTerminalService(d: TerminalServiceDeps) {
         info: { terminalId, cwd, shell: shell.file, title: shell.title, exited: false, exitCode: null },
         pty,
         replay: new RingBuffer(REPLAY_BYTES),
-        batcher: createOutputBatcher((data) => d.emitOutput(terminalId, data)),
+        batcher: createOutputBatcher((data, offset) => d.emitOutput(terminalId, data, offset)),
+        offset: 0,
       }
       entries.set(terminalId, entry)
       pty.onData((data) => {
         entry.replay.push(data)
+        entry.offset += data.length
         entry.batcher.push(data)
       })
       pty.onExit(({ exitCode }) => {
@@ -114,8 +119,10 @@ export function createTerminalService(d: TerminalServiceDeps) {
     list(): TerminalInfo[] {
       return [...entries.values()].map((e) => e.info)
     },
-    replay(id: string): string {
-      return get(id).replay.read()
+    /** 重放数据 + 它在累计输出里的末尾位置（R-08-15） */
+    replay(id: string): { data: string; endOffset: number } {
+      const e = get(id)
+      return { data: e.replay.read(), endOffset: e.offset }
     },
     /** 退出时调用：杀掉全部 PTY 及其子进程树 */
     async disposeAll(): Promise<void> {
