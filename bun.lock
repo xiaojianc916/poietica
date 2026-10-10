@@ -22,7 +22,7 @@
     },
     "apps/core": {
       "name": "@poietica/app-core",
-      "version": "0.5.0",
+      "version": "0.5.1",
       "dependencies": {
         "@oh-my-pi/pi-coding-agent": "catalog:",
         "@oh-my-pi/pi-utils": "catalog:",
@@ -54,7 +54,7 @@
     },
     "apps/desktop": {
       "name": "@poietica/desktop",
-      "version": "0.5.0",
+      "version": "0.5.1",
       "dependencies": {
         "@lydell/node-pty": "catalog:",
         "electron-updater": "^6.8.9",
