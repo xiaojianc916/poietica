@@ -184,7 +184,7 @@
  * （迁移自 legacy command-palette.tsx 的同一条用法），此处不再画一套。
  */
 
-/* ── 浮层：通知 / 模态 ─────────────────────────────────────────── */
+/* ── 浮层：通知 / 确认框 ───────────────────────────────────────── */
 .workbench__toasts {
   position: fixed;
   inset-block-end: 3rem;
@@ -219,41 +219,10 @@
   font-size: var(--text-micro);
 }
 
-.workbench__modal-backdrop {
-  position: fixed;
-  inset: 0;
-  z-index: var(--ui-z-dialog);
-  display: grid;
-  place-items: center;
-  background: rgb(0 0 0 / 8%);
-}
-
-.workbench__modal {
-  width: 100%;
-  max-width: 26rem;
-  padding: 1.25rem;
-  border: 1px solid var(--ui-divider);
-  border-radius: var(--radius-xl);
-  background: var(--ui-popover);
-  box-shadow: var(--ui-popup-elevation);
-}
-
-.workbench__modal-title {
-  margin: 0 0 0.5rem;
-  font-size: var(--ui-prose-size);
-  font-weight: var(--ui-font-weight-semibold);
-}
-
-.workbench__modal-body {
-  margin: 0 0 1rem;
-  color: var(--ui-muted-foreground);
-}
-
-.workbench__modal-actions {
-  display: flex;
-  justify-content: flex-end;
-  gap: 0.5rem;
-}
+/*
+ * 内核确认框的自绘样式（.workbench__modal*）已删除：外观交给 design-system 的
+ * ConfirmationDialog，与功能里的二次确认同一个组件、同一套危险色与主题适配。
+ */
 
 /* 功能错误边界（ui-kernel 的 FeatureErrorBoundary 用 data-* 属性，不用类名） */
 [data-feature-error] {

@@ -440,7 +440,9 @@ describe('workbench 外壳', () => {
     await new Promise((r) => setTimeout(r, 5))
     expect(screen.getByText('确定吗')).toBeDefined()
     const { fireEvent } = await import('@testing-library/react')
-    fireEvent.click(document.querySelector('[data-confirm="cancel"]')!)
+    // 外观归 design-system 的 ConfirmationDialog（见 parts/confirm-host.tsx 的头注），
+    // 取消键按可访问名称找，不认实现细节的类名。
+    fireEvent.click(screen.getByRole('button', { name: '取消' }))
     expect(await answer).toBe(false)
     kernel.dispose()
   })
