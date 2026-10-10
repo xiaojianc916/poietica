@@ -153,6 +153,12 @@ function fakeApi(): FakeApi {
         },
       }
     },
+    onAttention() {
+      return { dispose: () => undefined }
+    },
+    async draftControls() {
+      throw new Error('store 不读控件表')
+    },
   }
   return api
 }

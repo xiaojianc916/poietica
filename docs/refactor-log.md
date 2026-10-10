@@ -1310,3 +1310,39 @@ engine 引用由 `bun run refs` 生成。`bun run all` 全绿（1802 pass / 0 fa
 **偏差**：无（文件清单与报告 §3 一致，结果字段名与 §3.3 一致）。真机验收按 R-15 §6 七步走
 （问可用模型、跨工作区建任务、只改名、明早一次性、立即跑、运行中禁止再建、坏模型报错列
 可选值），与 R-03 / R-05 / R-14 同例，**待真机复核**。
+
+## R-16 自动化界面：工具卡重做、模型与思考选择、一次性计划、运行方式、系统通知（2026-10-11）
+
+**来源**：审查页 R-16（外部输入，不入库）。R-14 / R-15 给 Core 与 agent 工具的能力在界面上
+看不见、改不了；对话里的工具卡只有一行字；运行需要人时没有系统通知，而 conversation 自己
+那一对通知会对定时任务的对话重复发。
+
+**改法**（不改契约，`PROTOCOL_VERSION` 不动）：
+
+- **工具卡**：新增 `ui/tool-card-model.ts` 的纯函数 `toolCardOf(toolName, args, result, status)`
+  读 R-15 §3.3 的结果字段（`nextRunAt / workspace / model / upcoming / lastRun` 等），
+  `automation-tool-card.tsx` 只画它的结果；折叠行与摊开的纸全部借时间线的
+  `.timeline-row` / `.timeline-tool__body` 与令牌，颜色只给状态点、失败、「需要你关注」。
+  卡片动作（打开任务 / 立即运行 / 打开对话）经 `ToolCardDeps` 由 `ui/index.tsx` 装配。
+- **编辑器**：`AutomationComposer` 补模型与思考强度两颗胶囊，可选项读 conversation 的
+  `controls.draft`（`api.draftControls`，只读 RPC）；`AutomationScheduleField` 的值由
+  `string | null` 换成 `{cron, at}` 并加「一次」档（原生 `datetime-local`，默认明天 09:00）；
+  新增「运行方式」一栏（对话 / 通知 / 错过补跑）与 `threadId` 语义；编辑已有任务保留任务
+  自己的时区（只有缺省才落本机）。
+- **列表与历史**：卡片底行写整份计划（一次性写「一次 · MM-DD HH:mm」，跑完写「已结束」），
+  指令下方显示上次运行的结论（attention 浅黄底）；历史行加「手动 / 补跑」标签与「需要
+  关注」，结论在前、系统消息在后。
+- **系统通知**：automations 的 UI 订阅 `automations.attention` 并原样转给 platform 的
+  `notify.show`（判规则仍在 Core 的 `notice.ts`）；`dependsOn` 加 `'platform'`，
+  新增 `@poietica/feature-platform` 依赖。conversation 的 `notify()` 对
+  `origin === 'automation'` 的对话直接返回，避免同一件事响两次、「从不通知」的任务也响。
+- **侧栏**：定时任务开的对话行首放一枚淡色 `AlarmClock`（运行中让给加载指示）。
+
+**测试**：新建 `ui/__tests__/tool-card-model.test.ts`（C1–C11，工具卡读法与
+`datetime-local` 往返、默认时刻、`describePlan`）；`automations-store.test.ts` 的假 api
+补 `onAttention` / `draftControls`。`bun run all` 全绿（1813 pass / 0 fail）。
+
+**偏差**：无（文件清单与报告 §3 一致，工具卡字段名按 R-15 §3.3）。真机验收按 R-16 §6
+八步走（建用非默认模型与深度思考的任务、改名、列任务看记录、汇报与通知、从不通知、
+编辑器模型 / 一次性 / 运行方式、侧栏闹钟、坏模型报错），与 R-03 / R-05 / R-14 / R-15 同例，
+**待真机复核**。

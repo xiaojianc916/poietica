@@ -1,46 +1,398 @@
 /*
- * agent 那条线的定时任务工具卡片（07 页 §9E 的 `toolCallRenderers`）。
+ * 对话里「定时任务」工具卡（审查 R-16）。
  *
- * 折叠行读对话时间线的行类名（.timeline-tool / .timeline-row /
- * .timeline-row__icon / .timeline-row__label），字号、墨色与量度都与别的工具行
- * 同源；这里只补两件时间线没有的东西：计划那一句与「打开」那枚按钮。取色一律走
- * 同一套令牌，不另立视觉语言。
+ * 行与纸都是时间线的（.timeline-row / .timeline-tool__body，见 conversation 的
+ * flow-row.css 与 tool-call.css）；这里只排纸上的内容。规矩：
+ *   - 一种字号给正文（--ui-prose-size-aux），一种给标注（--cp-font-micro）；
+ *   - 分隔只用发丝线（--cp-hairline），不用边框、阴影、渐变；
+ *   - 颜色只给状态点、失败、需要关注（--ui-success / --ui-warning / --ui-destructive），
+ *     其余都是墨色的深浅（--cp-ink / --cp-timeline-quiet-text）；
+ *   - 数字一律等宽（tabular-nums），时间在一列里才对得齐。
  */
 
 .automation-tool {
-  display: grid;
-  gap: var(--cp-control-gap);
+  gap: 0;
 }
 
-.automation-tool__status {
+.automation-tool__row {
+  max-inline-size: min(100%, var(--cp-timeline-tool-max));
+}
+
+.automation-tool__spin {
+  animation: automation-tool-spin 1.2s linear infinite;
+}
+
+@keyframes automation-tool-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .automation-tool__spin {
+    animation: none;
+  }
+}
+
+.automation-tool__hint {
   flex: none;
-  border-radius: var(--ui-radius-sm);
+  color: var(--cp-timeline-quiet-text);
+  font-size: var(--ui-prose-size-aux);
+  font-variant-numeric: tabular-nums;
+  opacity: 0.75;
+}
+
+.automation-tool__chip {
+  flex: none;
+  border-radius: 999px;
+  padding: 0 0.5rem;
   background: color-mix(in srgb, currentColor 8%, transparent);
-  padding: 0.125rem 0.375rem;
-  font-size: 11px;
-  opacity: 0.7;
+  font-size: var(--cp-font-micro);
+  line-height: 1.6;
 }
 
-.automation-tool__status--failed {
+.automation-tool__chip[data-tone="danger"] {
   color: var(--ui-destructive);
-  opacity: 1;
+  background: color-mix(in srgb, var(--ui-destructive) 10%, transparent);
 }
 
-.automation-tool__actions {
-  display: flex;
-  gap: var(--cp-control-gap);
+.automation-tool__error {
+  margin: 0.125rem 0 0;
   margin-inline-start: var(--cp-timeline-tool-indent);
+  max-inline-size: calc(var(--cp-timeline-tool-max) - var(--cp-timeline-tool-indent));
+  color: var(--ui-destructive);
+  font-size: var(--ui-prose-size-aux);
+  line-height: 1.5;
 }
 
-.automation-tool__open {
-  min-height: var(--ui-control-height-sm);
-  border-radius: var(--ui-radius-md);
-  background: var(--ui-launcher);
-  padding-inline: 0.625rem;
-  font-size: 12px;
-  opacity: 0.85;
+.automation-tool__empty {
+  margin: 0.25rem 0 0;
+  margin-inline-start: var(--cp-timeline-tool-indent);
+  color: var(--cp-timeline-quiet-text);
+  font-size: var(--ui-prose-size-aux);
 }
 
-.automation-tool__open:hover {
-  opacity: 1;
+.automation-tool__glyph {
+  flex: none;
+  inline-size: 0.875rem;
+  block-size: 0.875rem;
+}
+
+/* ── 一条任务（创建 / 修改）──────────────────────────────────────────── */
+
+.automation-tool__card,
+.automation-tool__list,
+.automation-tool__report {
+  box-sizing: border-box;
+}
+
+.automation-tool__card {
+  gap: 0.375rem;
+  padding: 0.75rem 0.875rem 0.625rem;
+  color: var(--cp-ink);
+  font-size: var(--ui-prose-size-aux);
+  line-height: 1.5;
+}
+
+.automation-tool__head {
+  display: flex;
+  align-items: baseline;
+  gap: 0.75rem;
+  min-inline-size: 0;
+}
+
+.automation-tool__title {
+  flex: 1 1 auto;
+  min-inline-size: 0;
+  overflow: hidden;
+  font-size: var(--ui-prose-size);
+  font-weight: 560;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.automation-tool__state {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  gap: 0.375rem;
+  color: var(--cp-timeline-quiet-text);
+  font-size: var(--cp-font-micro);
+}
+
+.automation-tool__dot {
+  flex: none;
+  inline-size: 6px;
+  block-size: 6px;
+  border-radius: 50%;
+  background: color-mix(in srgb, currentColor 45%, transparent);
+}
+
+[data-tone="success"] > .automation-tool__dot,
+.automation-tool__dot[data-tone="success"] {
+  background: var(--ui-success);
+}
+
+[data-tone="warning"] > .automation-tool__dot,
+.automation-tool__dot[data-tone="warning"] {
+  background: var(--ui-warning);
+}
+
+[data-tone="danger"] > .automation-tool__dot,
+.automation-tool__dot[data-tone="danger"] {
+  background: var(--ui-destructive);
+}
+
+.automation-tool__plan {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0 0.375rem;
+  margin: 0;
+  font-variant-numeric: tabular-nums;
+}
+
+.automation-tool__sep,
+.automation-tool__quiet {
+  color: var(--cp-timeline-quiet-text);
+}
+
+.automation-tool__changed {
+  margin: 0;
+  color: var(--cp-timeline-quiet-text);
+}
+
+/* 指令只露两行：卡片说的是「建了哪条」，不是把指令再念一遍；全文在「打开任务」里。 */
+.automation-tool__prompt {
+  display: -webkit-box;
+  margin: 0.125rem 0 0;
+  overflow: hidden;
+  color: var(--cp-timeline-quiet-text);
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  white-space: pre-line;
+}
+
+.automation-tool__issue {
+  display: flex;
+  align-items: center;
+  gap: 0.375rem;
+  margin: 0;
+  color: var(--ui-warning);
+}
+
+/* 元信息：两列网格，标签小一号、淡一档；窄了自动收成一列。 */
+.automation-tool__meta {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.25rem 1rem;
+  margin: 0.375rem 0 0;
+  padding-block-start: 0.5rem;
+  box-shadow: inset 0 1px 0 var(--cp-hairline);
+}
+
+.automation-tool__meta-row {
+  display: flex;
+  align-items: baseline;
+  gap: 0.5rem;
+  min-inline-size: 0;
+}
+
+.automation-tool__meta-row dt {
+  flex: none;
+  inline-size: 3em;
+  color: var(--cp-timeline-quiet-text);
+  font-size: var(--cp-font-micro);
+}
+
+.automation-tool__meta-row dd {
+  min-inline-size: 0;
+  margin: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.automation-tool__foot {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.375rem 0.75rem;
+  margin-block-start: 0.25rem;
+  padding-block-start: 0.5rem;
+  box-shadow: inset 0 1px 0 var(--cp-hairline);
+}
+
+.automation-tool__upcoming {
+  color: var(--cp-timeline-quiet-text);
+  font-size: var(--cp-font-micro);
+  font-variant-numeric: tabular-nums;
+}
+
+.automation-tool__actions,
+.automation-tool__inline-actions {
+  display: inline-flex;
+  gap: 0.25rem;
+}
+
+.automation-tool__inline-actions {
+  margin-block-start: 0.125rem;
+  margin-inline-start: calc(var(--cp-timeline-tool-indent) - 0.5rem);
+}
+
+/* 动作是安静的文字键：静息只有墨色，指到才有一层底。 */
+.automation-tool__button {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  min-block-size: 1.625rem;
+  border: 0;
+  border-radius: calc(var(--cp-radius-item) - 2px);
+  padding: 0 0.5rem;
+  background: transparent;
+  color: var(--cp-ink);
+  font: inherit;
+  font-size: var(--ui-prose-size-aux);
+  cursor: pointer;
+  transition: background-color var(--cp-motion-swift, 120ms) ease;
+}
+
+.automation-tool__button:hover,
+.automation-tool__button:focus-visible {
+  background: color-mix(in srgb, currentColor 7%, transparent);
+}
+
+/* ── 列表与运行记录：一行一条，整行可点 ─────────────────────────────── */
+
+.automation-tool__list {
+  margin-block-start: var(--cp-control-gap);
+  padding: 0.25rem;
+  list-style: none;
+}
+
+.automation-tool__item {
+  display: flex;
+  align-items: center;
+  gap: 0.625rem;
+  inline-size: 100%;
+  min-block-size: 2rem;
+  border: 0;
+  border-radius: calc(var(--cp-radius-item) - 2px);
+  padding: 0 0.625rem;
+  background: transparent;
+  color: var(--cp-ink);
+  font: inherit;
+  font-size: var(--ui-prose-size-aux);
+  text-align: start;
+  cursor: pointer;
+}
+
+.automation-tool__item[data-static] {
+  cursor: default;
+}
+
+button.automation-tool__item:hover,
+button.automation-tool__item:focus-visible {
+  background: color-mix(in srgb, currentColor 6%, transparent);
+}
+
+.automation-tool__item-title {
+  flex: 0 1 auto;
+  min-inline-size: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.automation-tool__item-plan,
+.automation-tool__item-last,
+.automation-tool__run-when {
+  flex: none;
+  color: var(--cp-timeline-quiet-text);
+  font-variant-numeric: tabular-nums;
+}
+
+.automation-tool__item-last {
+  margin-inline-start: auto;
+  font-size: var(--cp-font-micro);
+}
+
+.automation-tool__item-last[data-tone="danger"] {
+  color: var(--ui-destructive);
+}
+
+.automation-tool__item-last[data-tone="warning"] {
+  color: var(--ui-warning);
+}
+
+.automation-tool__more {
+  padding: 0.25rem 0.625rem 0.375rem;
+  color: var(--cp-timeline-quiet-text);
+  font-size: var(--cp-font-micro);
+}
+
+.automation-tool__run-glyph {
+  display: inline-flex;
+  flex: none;
+  color: var(--cp-timeline-quiet-text);
+}
+
+.automation-tool__run-glyph[data-glyph="succeeded"] {
+  color: var(--ui-success);
+}
+
+.automation-tool__run-glyph[data-glyph="failed"] {
+  color: var(--ui-destructive);
+}
+
+.automation-tool__run-glyph[data-glyph="awaiting"] {
+  color: var(--ui-warning);
+}
+
+.automation-tool__tag {
+  flex: none;
+  border-radius: 4px;
+  padding: 0 0.3125rem;
+  background: color-mix(in srgb, currentColor 7%, transparent);
+  color: var(--cp-timeline-quiet-text);
+  font-size: var(--cp-font-micro);
+  line-height: 1.6;
+}
+
+.automation-tool__run-text {
+  flex: 1 1 auto;
+  min-inline-size: 0;
+  overflow: hidden;
+  color: var(--cp-timeline-quiet-text);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* ── 汇报：一段结论；要人看的那一份左边一道警示色 ─────────────────── */
+
+.automation-tool__report {
+  gap: 0.25rem;
+  padding: 0.625rem 0.875rem;
+  font-size: var(--ui-prose-size-aux);
+  line-height: 1.55;
+}
+
+.automation-tool__report[data-attention] {
+  box-shadow: inset 2px 0 0 var(--ui-warning);
+}
+
+.automation-tool__flag {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+  color: var(--ui-warning);
+  font-size: var(--cp-font-micro);
+  font-weight: 560;
+}
+
+.automation-tool__summary {
+  margin: 0;
+  color: var(--cp-ink);
+  white-space: pre-line;
 }

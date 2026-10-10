@@ -1,3 +1,4 @@
+import type { Controls, ModelRef } from '@poietica/engine'
 import { invariant, type Logger } from '@poietica/foundation'
 import { createFeatureStore, type FeatureStore } from '@poietica/ui-kernel'
 import type { Automation, AutomationDraft, AutomationRun, Schedule, ScheduleProblem } from '../contract'
@@ -47,6 +48,8 @@ export interface AutomationsStore {
   readonly runNow: (id: string) => Promise<boolean>
   readonly cancel: (runId: string) => Promise<boolean>
   readonly preview: (schedule: Schedule, count: number) => Promise<{ times: number[]; problem: ScheduleProblem | null }>
+  /** 编辑器的模型 / 思考强度可选项（审查 R-16）：直通 api，不进 store 的状态 */
+  readonly draftControls: (model: ModelRef | null) => Promise<Controls>
   readonly refresh: () => Promise<boolean>
   readonly start: () => () => void
 }
@@ -210,6 +213,7 @@ export function createAutomationsStore(d: { readonly api: AutomationsApi; readon
         await api.cancelRun(runId)
       }),
     preview: (schedule, count) => api.previewSchedule(schedule, count),
+    draftControls: (model) => api.draftControls(model),
     refresh,
     start() {
       if (started) {

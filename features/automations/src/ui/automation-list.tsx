@@ -11,7 +11,7 @@ import {
 import { CirclePlay, Clock, Ellipsis, Info, Pause, Pencil, Play, RefreshCw, Square, Trash } from 'lucide-react'
 import { useState } from 'react'
 import type { Automation, AutomationRun } from '../contract'
-import { activeRun, describeMoment, describeSchedule, latestRun } from './automation'
+import { activeRun, describeMoment, describePlan, hasPlan, latestRun } from './automation'
 import type { AutomationsStore } from './automations-store'
 
 /*
@@ -144,6 +144,37 @@ export function AutomationList({ automations, pending, runsOf, onCreateBlank, on
   )
 }
 
+/** 卡片底部那一句：计划 + 下次 / 已暂停 / 已结束（一次性跑完） */
+function planLine(automation: Automation): string {
+  const schedule = describePlan(automation.schedule)
+  if (automation.schedule.at !== null && !automation.enabled && automation.nextRunAt === null) {
+    return `${schedule} · 已结束`
+  }
+  if (hasPlan(automation.schedule) && !automation.enabled) {
+    return `${schedule} · 已暂停`
+  }
+  return automation.nextRunAt === null ? schedule : `${schedule} · 下次运行 ${describeMoment(automation.nextRunAt)}`
+}
+
+/* 上一次运行的结论（agent 用 automation_report 交的那一句，审查 R-16）：列表上就能看到「跑得怎么样」 */
+function Conclusion({ run }: { readonly run: AutomationRun | null }) {
+  const summary = run?.summary ?? null
+  if (summary === null) return null
+  const attention = run?.attention === true
+  return (
+    <p
+      className={cn(
+        'mt-2 line-clamp-2 rounded-lg px-2.5 py-1.5 text-xs leading-5',
+        attention ? 'bg-warning/10 text-foreground' : 'bg-sidebar-accent/60 text-muted-foreground',
+      )}
+      title={summary}
+    >
+      {attention ? <span className="mr-1 font-medium text-warning">需要关注</span> : null}
+      {summary}
+    </p>
+  )
+}
+
 function TaskCard({
   automation,
   onDelete,
@@ -161,13 +192,8 @@ function TaskCard({
 }) {
   const active = activeRun(runs)
   const busy = pending.some((key) => key.endsWith(`:${automation.id}`) || key === `cancel:${active?.id}`)
-  const paused = automation.schedule.cron !== null && !automation.enabled
-  const schedule = describeSchedule(automation.schedule.cron)
-  const line = paused
-    ? `${schedule} · 已暂停`
-    : automation.nextRunAt === null
-      ? schedule
-      : `${schedule} · 下次运行 ${describeMoment(automation.nextRunAt)}`
+  const paused = hasPlan(automation.schedule) && !automation.enabled
+  const line = planLine(automation)
   return (
     <li className="flex">
       <article className="flex w-full flex-col rounded-xl border border-divider bg-[var(--ui-card)] px-4 py-3.5">
@@ -186,6 +212,8 @@ function TaskCard({
         <p className="mt-1.5 line-clamp-2 text-xs leading-5 text-muted-foreground">{automation.prompt}</p>
 
         {automation.issue ? <p className="mt-1.5 text-xs text-destructive">{automation.issue}</p> : null}
+
+        <Conclusion run={automation.lastRun} />
 
         <div className="mt-auto flex items-center gap-2 pt-3 text-xs">
           <span className={cn('flex min-w-0 items-center gap-1.5', paused ? 'text-muted-foreground' : 'text-success')}>
@@ -258,7 +286,7 @@ function TaskMenu({
           </DropdownMenuItem>
         )}
 
-        {automation.schedule.cron === null ? null : (
+        {!hasPlan(automation.schedule) ? null : (
           <DropdownMenuItem
             disabled={busy}
             onClick={() => {

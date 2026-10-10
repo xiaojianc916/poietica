@@ -1,5 +1,5 @@
 import type { AutomationRun } from '../contract'
-import { describeMoment, isTerminal, RUN_LABELS } from './automation'
+import { describeMoment, isTerminal, RUN_LABELS, TRIGGER_LABELS } from './automation'
 
 /*
  * 照 legacy `packages/automation/src/ui/automation-run-history.tsx` 逐字搬迁。
@@ -29,48 +29,74 @@ export function AutomationRunHistory({ runs, title, onOpenThread, onCancel }: Au
       <p className="mb-3 text-xs text-muted-foreground">这里只显示保留的最近运行记录；对话正文单独保留。</p>
       <ul className="divide-y divide-divider/60 overflow-hidden rounded-xl border border-divider bg-background">
         {runs.map((run) => (
-          <li className="flex flex-wrap items-center gap-3 px-4 py-3 text-xs" key={run.id}>
-            <span className={run.outcome === 'failed' ? 'text-destructive' : 'text-foreground'}>
-              {RUN_LABELS[run.outcome]}
-            </span>
-            {run.threadId === null ? (
-              <span className="text-muted-foreground">没有关联对话</span>
-            ) : (
-              <button
-                className="hover:underline"
-                onClick={() => {
-                  if (run.threadId !== null) {
-                    onOpenThread(run.threadId, title)
-                  }
-                }}
-                type="button"
-              >
-                打开对话
-              </button>
-            )}
-            <time
-              className="ml-auto text-muted-foreground"
-              dateTime={new Date(run.startedAt).toISOString()}
-              title={new Date(run.startedAt).toLocaleString()}
-            >
-              {describeMoment(run.startedAt)}
-            </time>
-            {!isTerminal(run.outcome) ? (
-              <button
-                className="rounded px-2 py-1 hover:bg-sidebar-accent"
-                onClick={() => onCancel(run.id)}
-                type="button"
-              >
-                停止
-              </button>
-            ) : null}
-            {run.message ? <p className="w-full break-words text-muted-foreground">{run.message}</p> : null}
-            {run.settledAt ? (
-              <p className="w-full text-muted-foreground">结束于 {new Date(run.settledAt).toLocaleString()}</p>
-            ) : null}
-          </li>
+          <RunRow key={run.id} onCancel={onCancel} onOpenThread={onOpenThread} run={run} title={title} />
         ))}
       </ul>
     </div>
+  )
+}
+
+function outcomeClass(outcome: AutomationRun['outcome']): string {
+  if (outcome === 'failed') return 'text-destructive'
+  if (outcome === 'skipped' || outcome === 'cancelled') return 'text-muted-foreground'
+  return 'text-foreground'
+}
+
+/* 一次运行一行：结局、来由（手动 / 补跑）、要不要关注、对话、时刻；下面是结论与系统的话 */
+function RunRow({
+  onCancel,
+  onOpenThread,
+  run,
+  title,
+}: {
+  readonly run: AutomationRun
+  readonly title: string
+  readonly onOpenThread: (threadId: string, title: string) => void
+  readonly onCancel: (runId: string) => void
+}) {
+  const trigger = TRIGGER_LABELS[run.trigger]
+  return (
+    <li className="flex flex-wrap items-center gap-3 px-4 py-3 text-xs">
+      <span className={outcomeClass(run.outcome)}>{RUN_LABELS[run.outcome]}</span>
+      {trigger === null ? null : (
+        <span className="rounded bg-sidebar-accent px-1.5 py-0.5 text-[11px] text-muted-foreground">{trigger}</span>
+      )}
+      {run.attention ? (
+        <span className="rounded bg-warning/10 px-1.5 py-0.5 text-[11px] text-warning">需要关注</span>
+      ) : null}
+      {run.threadId === null ? (
+        <span className="text-muted-foreground">没有关联对话</span>
+      ) : (
+        <button
+          className="hover:underline"
+          onClick={() => {
+            if (run.threadId !== null) {
+              onOpenThread(run.threadId, title)
+            }
+          }}
+          type="button"
+        >
+          打开对话
+        </button>
+      )}
+      <time
+        className="ml-auto text-muted-foreground"
+        dateTime={new Date(run.startedAt).toISOString()}
+        title={new Date(run.startedAt).toLocaleString()}
+      >
+        {describeMoment(run.startedAt)}
+      </time>
+      {!isTerminal(run.outcome) ? (
+        <button className="rounded px-2 py-1 hover:bg-sidebar-accent" onClick={() => onCancel(run.id)} type="button">
+          停止
+        </button>
+      ) : null}
+      {/* agent 汇报的结论在前（审查 R-16）；系统的话（跳过原因、错误、超时）在后 */}
+      {run.summary ? <p className="w-full break-words text-foreground">{run.summary}</p> : null}
+      {run.message ? <p className="w-full break-words text-muted-foreground">{run.message}</p> : null}
+      {run.settledAt ? (
+        <p className="w-full text-muted-foreground">结束于 {new Date(run.settledAt).toLocaleString()}</p>
+      ) : null}
+    </li>
   )
 }

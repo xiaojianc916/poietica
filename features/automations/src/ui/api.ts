@@ -1,5 +1,14 @@
+import type { Controls, ModelRef } from '@poietica/engine'
+import { conversationContract } from '@poietica/feature-conversation/contract'
 import type { UiFeatureContext } from '@poietica/ui-kernel'
-import type { Automation, AutomationDraft, AutomationRun, Schedule, ScheduleProblem } from '../contract'
+import type {
+  Automation,
+  AutomationAttention,
+  AutomationDraft,
+  AutomationRun,
+  Schedule,
+  ScheduleProblem,
+} from '../contract'
 import { automationsContract } from '../contract'
 
 /*
@@ -24,10 +33,18 @@ export interface AutomationsApi {
   previewSchedule(schedule: Schedule, count: number): Promise<{ times: number[]; problem: ScheduleProblem | null }>
   onChanged(listener: () => void): { dispose(): void }
   onRunUpdated(listener: (run: AutomationRun) => void): { dispose(): void }
+  /** 一次运行需要告诉用户（审查 R-16：Core 判，这里只转成系统通知） */
+  onAttention(listener: (attention: AutomationAttention) => void): { dispose(): void }
+  /**
+   * 模型与思考强度的可选项（审查 R-16）：conversation 的 `controls.draft`（只读、不开会话）。
+   * 给了 model 时 thinking.choices 是那个模型的档位。
+   */
+  draftControls(model: ModelRef | null): Promise<Controls>
 }
 
 export function createAutomationsApi(ctx: UiFeatureContext): AutomationsApi {
   const rpc = ctx.rpc(automationsContract)
+  const conversation = ctx.rpc(conversationContract)
 
   return {
     list: () => rpc.call('automations.list', {}).then((r) => [...r.automations]),
@@ -42,5 +59,7 @@ export function createAutomationsApi(ctx: UiFeatureContext): AutomationsApi {
     previewSchedule: (schedule, count) => rpc.call('automations.previewSchedule', { schedule, count }),
     onChanged: (listener) => rpc.on('automations.changed', () => listener()),
     onRunUpdated: (listener) => rpc.on('automations.runUpdated', listener),
+    onAttention: (listener) => rpc.on('automations.attention', listener),
+    draftControls: (model) => conversation.call('controls.draft', { model, thinking: null, posture: null }),
   }
 }

@@ -1,5 +1,5 @@
 import { invariant } from '@poietica/foundation'
-import type { Automation, AutomationDraft, AutomationRun, RunOutcome } from '../contract'
+import type { Automation, AutomationDraft, AutomationRun, RunOutcome, RunTrigger, Schedule } from '../contract'
 
 /*
  * 照 legacy `packages/automation/src/automation.ts` 逐字搬迁的纯逻辑：日程的
@@ -186,6 +186,34 @@ export function describeSchedule(schedule: string | null): string {
     return `每${WEEKDAY_LABELS[common.weekday ?? 1]} ${time}`
   }
   return `${SCHEDULE_LABEL[common.kind]} ${time}`
+}
+
+const pad2 = (n: number): string => String(n).padStart(2, '0')
+
+/** 毫秒 → 「MM-DD HH:mm」（本机时间）：列表、历史里的时刻都这样写，一列里对得齐。 */
+export function clockOf(at: number): string {
+  const d = new Date(at)
+  return `${pad2(d.getMonth() + 1)}-${pad2(d.getDate())} ${pad2(d.getHours())}:${pad2(d.getMinutes())}`
+}
+
+/** 整份计划的人话（审查 R-16）：一次性写「一次 · MM-DD HH:mm」，其余同 describeSchedule。 */
+export function describePlan(schedule: Pick<Schedule, 'cron' | 'at'>): string {
+  if (schedule.at !== null) {
+    return `一次 · ${clockOf(schedule.at)}`
+  }
+  return describeSchedule(schedule.cron)
+}
+
+/** 有没有计划（周期或一次性）；都没有是「只手动」 */
+export function hasPlan(schedule: Pick<Schedule, 'cron' | 'at'>): boolean {
+  return schedule.cron !== null || schedule.at !== null
+}
+
+/** 这次运行是怎么来的：按计划的不写，手动与补跑写一个小标签（审查 R-16） */
+export const TRIGGER_LABELS: Readonly<Record<RunTrigger, string | null>> = {
+  schedule: null,
+  manual: '手动',
+  catch_up: '补跑',
 }
 
 /* 新建任务的空草稿：时区与工作区由调用方按当时的上下文补上。 */

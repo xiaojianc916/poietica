@@ -223,7 +223,9 @@ function AutomationEditorHost({
     if (automation === null) {
       return { ...BLANK_DRAFT, schedule: { cron: null, at: null, timeZone: defaultTimeZone } }
     }
-    return { ...draftOf(automation), schedule: { ...automation.schedule, timeZone: defaultTimeZone } }
+    /* 任务记着的时区原样保留（agent 可能按别的时区建）：只有缺省时才落本机时区（审查 R-16） */
+    const timeZone = automation.schedule.timeZone === '' ? defaultTimeZone : automation.schedule.timeZone
+    return { ...draftOf(automation), schedule: { ...automation.schedule, timeZone } }
   })
 
   useEffect(() => {

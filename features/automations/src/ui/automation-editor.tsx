@@ -14,15 +14,16 @@ import {
   type SegmentedOption,
   Switch,
 } from '@poietica/design-system'
+import type { Controls, ModelRef } from '@poietica/engine'
 import { type WorkspaceChoice, WorkspacePicker } from '@poietica/feature-workspaces/ui-api'
 import { useFeatureStore } from '@poietica/ui-kernel'
 import { ChevronRight, CirclePause, CirclePlay, Ellipsis, Trash } from 'lucide-react'
 import { type ReactNode, useEffect, useMemo, useState } from 'react'
-import type { Automation, AutomationDraft, AutomationRun, ScheduleProblem } from '../contract'
+import type { Automation, AutomationDraft, AutomationRun, NotifyPolicy, ScheduleProblem, ThreadMode } from '../contract'
 import { activeRun, sameDraft } from './automation'
-import { AutomationComposer } from './automation-composer'
+import { AutomationComposer, type ModelChoices } from './automation-composer'
 import { AutomationRunHistory } from './automation-run-history'
-import { AutomationScheduleField } from './automation-schedule-field'
+import { AutomationScheduleField, type ScheduleValue } from './automation-schedule-field'
 import type { AutomationsStore } from './automations-store'
 
 /*
@@ -32,7 +33,9 @@ import type { AutomationsStore } from './automations-store'
  *   - 新契约没有 revision / 乐观并发，也就没有「版本冲突」那一条警报与「保留草稿并重新
  *     确认」那一次确认；
  *   - 会话配置由 legacy 的不透明 sessionConfig 字典换成 posture / model / thinking 三格，
- *     所以工具条上只剩姿态那一格（AutomationComposer），模型只显示契约里的值；
+ *     工具条上是姿态、思考强度、模型三格（AutomationComposer；后两格的可选项读
+ *     conversation 的 controls.draft，审查 R-16）；
+ *   - 审查 R-16 加了「一次」计划（Schedule.at）与「运行方式」一栏（对话 / 通知 / 错过补跑）；
  *   - 工作区选择器换成 workspaces 的同一枚组件（ui-api 的公开资产），choices 由 surface
  *     从 WorkspacesUiToken 派生；
  *   - 预览按 07 页 §9E 的要求在输入停止 300ms 后请求（legacy 是 250ms），读 times[0]；
@@ -365,8 +368,157 @@ function EditorDialogs({
   )
 }
 
+/* ── 运行方式（审查 R-16）：对话、通知、错过补跑 ─────────────────────────── */
+
+const THREAD_OPTIONS = [
+  { value: 'new', label: '每次新开对话' },
+  { value: 'continue', label: '续用同一条对话' },
+] as const satisfies readonly SegmentedOption<ThreadMode>[]
+
+const NOTIFY_OPTIONS = [
+  { value: 'attention', label: '需要关注时' },
+  { value: 'always', label: '每次' },
+  { value: 'never', label: '从不' },
+] as const satisfies readonly SegmentedOption<NotifyPolicy>[]
+
+const THREAD_HELP: Readonly<Record<ThreadMode, string>> = {
+  new: '每次运行开一条新对话，互不影响。',
+  continue:
+    '第一次运行新建一条对话，之后每次都回到这条对话里接着跑，带着之前的上下文。模型与权限跟随那条对话；那条对话正忙时，这一次会跳过并记一笔。',
+}
+
+const NOTIFY_HELP: Readonly<Record<NotifyPolicy, string>> = {
+  attention: '失败、等待你批准、超时，或 agent 汇报需要你看时，发系统通知。',
+  always: '每次运行结束都发系统通知。',
+  never: '不发系统通知；结果只记在历史里。',
+}
+
+function OptionRow({
+  children,
+  help,
+  label,
+}: {
+  readonly children: ReactNode
+  readonly help: ReactNode
+  readonly label: string
+}) {
+  return (
+    <div className="flex flex-col gap-1.5 px-4 py-3">
+      <div className="flex items-center gap-3">
+        <span className="text-xs text-foreground">{label}</span>
+        <div className="ml-auto">{children}</div>
+      </div>
+      <p className="text-xs leading-5 text-muted-foreground">{help}</p>
+    </div>
+  )
+}
+
+function RunOptionsField({
+  catchUp,
+  hasSchedule,
+  notify,
+  onCatchUpChange,
+  onNotifyChange,
+  onOpenThread,
+  onThreadModeChange,
+  threadId,
+  threadMode,
+}: {
+  readonly catchUp: boolean
+  readonly hasSchedule: boolean
+  readonly notify: NotifyPolicy
+  readonly onCatchUpChange: (catchUp: boolean) => void
+  readonly onNotifyChange: (notify: NotifyPolicy) => void
+  readonly onOpenThread: (threadId: string) => void
+  readonly onThreadModeChange: (mode: ThreadMode) => void
+  readonly threadId: string | null
+  readonly threadMode: ThreadMode
+}) {
+  return (
+    <Field label="运行方式">
+      <div className="divide-y divide-divider/60 rounded-xl border border-divider bg-popover">
+        <OptionRow
+          help={
+            <>
+              {THREAD_HELP[threadMode]}
+              {threadMode === 'continue' && threadId !== null ? (
+                <button
+                  className="ml-1 text-foreground hover:underline"
+                  onClick={() => onOpenThread(threadId)}
+                  type="button"
+                >
+                  打开这条对话
+                </button>
+              ) : null}
+            </>
+          }
+          label="对话"
+        >
+          <SegmentedControl
+            label="对话方式"
+            name="automation-thread-mode"
+            onValueChange={onThreadModeChange}
+            options={THREAD_OPTIONS}
+            value={threadMode}
+          />
+        </OptionRow>
+        <OptionRow help={NOTIFY_HELP[notify]} label="通知">
+          <SegmentedControl
+            label="通知"
+            name="automation-notify"
+            onValueChange={onNotifyChange}
+            options={NOTIFY_OPTIONS}
+            value={notify}
+          />
+        </OptionRow>
+        {hasSchedule ? (
+          <OptionRow help="应用没开着时错过的那一次，下次启动后补跑一次（错过多次也只补一次）。" label="错过补跑">
+            <Switch aria-label="错过补跑" checked={catchUp} onCheckedChange={onCatchUpChange} />
+          </OptionRow>
+        ) : null}
+      </div>
+    </Field>
+  )
+}
+
+/** 控件表 → 编辑器要的可选项：模型表与默认模型读不带模型的那份，档位读选中模型那份 */
+function choicesOf(base: Controls, picked: Controls | null): ModelChoices {
+  const models = base.model.choices.map((c) => ({ ref: c.ref, label: c.label }))
+  const current = base.model.current
+  const defaultLabel =
+    current === null
+      ? null
+      : (models.find((m) => m.ref.provider === current.provider && m.ref.id === current.id)?.label ?? current.id)
+  return { models, defaultLabel, thinking: (picked ?? base).thinking.choices }
+}
+
+/* 读可选项：模型一变就重读档位。读失败给空表（控件仍可用，只是只剩「默认」）。 */
+function useModelChoices(store: AutomationsStore, model: ModelRef | null): ModelChoices | null {
+  const [choices, setChoices] = useState<ModelChoices | null>(null)
+  const provider = model?.provider ?? null
+  const id = model?.id ?? null
+  useEffect(() => {
+    let disposed = false
+    const picked = provider === null || id === null ? null : { provider, id }
+    void Promise.all([store.draftControls(null), picked === null ? null : store.draftControls(picked)]).then(
+      ([base, forModel]) => {
+        if (!disposed) setChoices(choicesOf(base, forModel))
+      },
+      () => {
+        if (!disposed) setChoices({ models: [], defaultLabel: null, thinking: [] })
+      },
+    )
+    return () => {
+      disposed = true
+    }
+  }, [store, provider, id])
+  return choices
+}
+
+const scheduleKey = (schedule: ScheduleValue): string => `${schedule.cron ?? ''}|${schedule.at ?? ''}`
+
 interface PreviewState {
-  readonly cron: string | null
+  readonly key: string
   readonly preview: { readonly times: readonly number[]; readonly problem: ScheduleProblem | null } | null
   readonly error: string | null
 }
@@ -385,8 +537,13 @@ export function AutomationEditor({
   const [enabled, setEnabled] = useState(automation?.enabled ?? true)
   const [title, setTitle] = useState(draft.title)
   const [prompt, setPrompt] = useState(draft.prompt)
-  const [cron, setCron] = useState(draft.schedule.cron)
+  const [schedule, setSchedule] = useState<ScheduleValue>({ cron: draft.schedule.cron, at: draft.schedule.at })
   const [posture, setPosture] = useState(draft.posture)
+  const [model, setModel] = useState(draft.model)
+  const [thinking, setThinking] = useState(draft.thinking)
+  const [threadMode, setThreadMode] = useState(draft.threadMode)
+  const [notify, setNotify] = useState(draft.notify)
+  const [catchUp, setCatchUp] = useState(draft.catchUp)
   const [workspaceId, setWorkspaceId] = useState(draft.workspaceId)
   const [saving, setSaving] = useState(false)
   const [confirmingDelete, setConfirmingDelete] = useState(false)
@@ -395,6 +552,9 @@ export function AutomationEditor({
   const [previewState, setPreviewState] = useState<PreviewState | null>(null)
   const [view, setView] = useState<EditorView>('settings')
   const storeError = useFeatureStore(store.store, (held) => held.error)
+  const choices = useModelChoices(store, model)
+  const { cron, at } = schedule
+  const hasSchedule = cron !== null || at !== null
 
   /* 时区不由界面给：任务一律按系统时区跑，编辑器只读草稿里那一份。 */
   const timeZone = draft.schedule.timeZone
@@ -402,21 +562,36 @@ export function AutomationEditor({
     () => ({
       title: title.trim(),
       prompt: prompt.trim(),
-      schedule: { cron, at: null, timeZone },
+      schedule: { cron, at, timeZone },
       workspaceId,
       posture,
-      model: baselineDraft.model,
-      thinking: baselineDraft.thinking,
-      /* 审查 R-14：新字段界面暂不编辑（R-16 补控件），原样带回，免得保存一次就冲掉 agent 设的值 */
-      threadMode: baselineDraft.threadMode,
-      threadId: baselineDraft.threadId,
-      notify: baselineDraft.notify,
-      catchUp: baselineDraft.catchUp,
+      model,
+      thinking,
+      threadMode,
+      /* 续用的那条对话由 Core 记；改成「每次新开」就忘掉它，切回续用时第一次运行再新建 */
+      threadId: threadMode === 'new' ? null : baselineDraft.threadId,
+      notify,
+      catchUp,
     }),
-    [baselineDraft, cron, posture, prompt, timeZone, title, workspaceId],
+    [
+      baselineDraft,
+      at,
+      catchUp,
+      cron,
+      model,
+      notify,
+      posture,
+      prompt,
+      thinking,
+      threadMode,
+      timeZone,
+      title,
+      workspaceId,
+    ],
   )
   const dirty = automation === null || !sameDraft(next, baselineDraft)
-  const previewMatches = previewState?.cron === cron
+  const key = scheduleKey(schedule)
+  const previewMatches = previewState?.key === key
   const preview = previewMatches ? previewState.preview : null
   const previewError = previewMatches ? previewState.error : null
   const ready =
@@ -432,16 +607,16 @@ export function AutomationEditor({
   useEffect(() => {
     let disposed = false
     const timer = setTimeout(() => {
-      void store.preview({ cron, at: null, timeZone }, 5).then(
+      void store.preview({ cron, at, timeZone }, 5).then(
         (result) => {
           if (!disposed) {
-            setPreviewState({ cron, preview: result, error: null })
+            setPreviewState({ key: scheduleKey({ cron, at }), preview: result, error: null })
           }
         },
         (cause: unknown) => {
           if (!disposed) {
             setPreviewState({
-              cron,
+              key: scheduleKey({ cron, at }),
               preview: null,
               error: cause instanceof Error ? cause.message : String(cause),
             })
@@ -453,7 +628,7 @@ export function AutomationEditor({
       disposed = true
       clearTimeout(timer)
     }
-  }, [store, cron, timeZone])
+  }, [store, cron, at, timeZone])
 
   async function chooseWorkspace(): Promise<void> {
     try {
@@ -505,7 +680,7 @@ export function AutomationEditor({
           automation={automation}
           dirty={dirty}
           enabled={enabled}
-          hasSchedule={cron !== null}
+          hasSchedule={hasSchedule}
           onDelete={() => {
             setConfirmingDelete(true)
           }}
@@ -529,7 +704,7 @@ export function AutomationEditor({
               }}
             >
               {automation === null ? null : (
-                <StatusField enabled={enabled} hasSchedule={cron !== null} onToggleEnabled={setEnabled} />
+                <StatusField enabled={enabled} hasSchedule={hasSchedule} onToggleEnabled={setEnabled} />
               )}
               <Field htmlFor="automation-title" label="任务标题">
                 {/* 底与「添加计划」同读 --ui-popover；焦点不换框色、不画环。 */}
@@ -542,8 +717,13 @@ export function AutomationEditor({
                   value={title}
                 />
               </Field>
-              <Field aside={cron === null ? undefined : statusText(preview)} label="调度">
-                <AutomationScheduleField error={previewError} onChange={setCron} preview={preview} schedule={cron} />
+              <Field aside={hasSchedule ? statusText(preview) : undefined} label="调度">
+                <AutomationScheduleField
+                  error={previewError}
+                  onChange={setSchedule}
+                  preview={preview}
+                  schedule={schedule}
+                />
               </Field>
               <Field label="指令">
                 {/*
@@ -556,12 +736,16 @@ export function AutomationEditor({
                 */}
                 <div className="flex flex-col" data-assistant-skin>
                   <AutomationComposer
-                    modelLabel={
-                      baselineDraft.model === null
-                        ? '默认模型'
-                        : `${baselineDraft.model.provider}/${baselineDraft.model.id}`
-                    }
+                    choices={choices}
+                    model={model}
+                    onModelChange={(picked) => {
+                      setModel(picked)
+                      /* 档位是模型的：换了模型，原来那一档不一定还在，回到「默认」 */
+                      setThinking(null)
+                    }}
                     onPostureChange={setPosture}
+                    onThinkingChange={setThinking}
+                    thinking={thinking}
                     onPromptChange={setPrompt}
                     placeholder="到期时发给 agent 的指令"
                     posture={posture}
@@ -581,6 +765,17 @@ export function AutomationEditor({
                   </div>
                 </div>
               </Field>
+              <RunOptionsField
+                catchUp={catchUp}
+                hasSchedule={hasSchedule}
+                notify={notify}
+                onCatchUpChange={setCatchUp}
+                onNotifyChange={setNotify}
+                onOpenThread={onOpenThread}
+                onThreadModeChange={setThreadMode}
+                threadId={baselineDraft.threadId}
+                threadMode={threadMode}
+              />
             </form>
           ) : null}
           {view === 'runs' ? (

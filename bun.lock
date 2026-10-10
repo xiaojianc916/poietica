@@ -161,6 +161,7 @@
         "@poietica/design-system": "workspace:*",
         "@poietica/engine": "workspace:*",
         "@poietica/feature-conversation": "workspace:*",
+        "@poietica/feature-platform": "workspace:*",
         "@poietica/feature-workspaces": "workspace:*",
         "@poietica/foundation": "workspace:*",
         "@poietica/rpc": "workspace:*",

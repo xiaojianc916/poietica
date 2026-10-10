@@ -97,15 +97,52 @@
   background: var(--cp-shelf);
 }
 
-/* 「默认模型」那一格：与对话工具条的胶囊同一档形状，只是这一格不可换。 */
-.automation-composer__model {
+/*
+ * 模型 / 思考强度两颗胶囊（审查 R-16）：与姿态那颗同高同圆角，静息是一层 chip 底、
+ * 指到加深一档；禁用（可选项还没读到）时只降透明度，不换形状。
+ */
+.automation-composer__picker {
   display: inline-flex;
   block-size: var(--cp-control-sm);
+  max-inline-size: 14rem;
   align-items: center;
+  gap: 0.25rem;
+  border: 0;
   border-radius: var(--cp-pill);
   padding-inline: var(--cp-pill-lead);
   background: var(--cp-chip);
   color: var(--cp-ink-muted);
+  font: inherit;
   font-size: var(--cp-font-label);
   white-space: nowrap;
+  cursor: pointer;
+  transition: color var(--cp-motion-swift) var(--cp-motion-ease);
+}
+
+.automation-composer__picker:hover,
+.automation-composer__picker[data-popup-open],
+.automation-composer__picker:focus-visible {
+  color: var(--cp-ink);
+}
+
+.automation-composer__picker:disabled {
+  cursor: default;
+  opacity: 0.6;
+}
+
+.automation-composer__picker-label {
+  min-inline-size: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.automation-composer__picker-glyph,
+.automation-composer__picker-chevron {
+  flex: none;
+  inline-size: 0.75rem;
+  block-size: 0.75rem;
+}
+
+.automation-composer__picker-chevron {
+  opacity: 0.6;
 }

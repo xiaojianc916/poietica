@@ -248,6 +248,17 @@
   transform: translateY(-50%);
 }
 
+/* 定时任务开的对话：与运行中指示同一格，墨色淡一档 —— 它是来历，不是状态（审查 R-16）。 */
+.assistant-thread__origin {
+  position: absolute;
+  inset-block-start: 50%;
+  inset-inline-start: var(--ui-row-lead);
+  block-size: var(--ui-row-icon-size);
+  inline-size: var(--ui-row-icon-size);
+  color: var(--cp-ink-subtle);
+  transform: translateY(-50%);
+}
+
 /*
  * 行尾只有一格。
  *

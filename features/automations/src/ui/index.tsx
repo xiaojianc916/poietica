@@ -7,6 +7,7 @@ import {
   threadActions,
   toolCallRenderers,
 } from '@poietica/feature-conversation/ui-api'
+import { platformContract } from '@poietica/feature-platform/contract'
 import {
   builtinPoints,
   defineUiFeature,
@@ -20,7 +21,7 @@ import type { ReactNode } from 'react'
 import type { AutomationDraft } from '../contract'
 import { createAutomationsApi } from './api'
 import { DEFAULT_SCHEDULE } from './automation'
-import { AutomationToolCard } from './automation-tool-card'
+import { createAutomationToolCard } from './automation-tool-card'
 import { type AutomationsStore, createAutomationsStore } from './automations-store'
 import { AutomationsEditSurface, AutomationsListSurface } from './automations-surface'
 
@@ -80,7 +81,7 @@ function oldestTurnId(items: readonly unknown[]): string | null {
 
 export default defineUiFeature({
   id: 'automations',
-  dependsOn: ['conversation', 'workspaces'],
+  dependsOn: ['conversation', 'workspaces', 'platform'],
   setup(ctx) {
     const navigation = ctx.services.get(NavigationToken) as NavigationService
     const conversation = ctx.services.get(ConversationUiToken) as ConversationUi
@@ -99,6 +100,27 @@ export default defineUiFeature({
       stopStore?.()
       stopStore = null
     })
+
+    /*
+     * ── 系统通知（审查 R-16）────────────────────────────────────────────────
+     *
+     * 该不该通知只在 Core 的 notice.ts 判（任务的通知策略 × 这次运行的结局）；这里原样
+     * 转给 platform 的 notify.show。带 threadId：点通知由 conversation 的 notify.clicked
+     * 那一条打开对话（conversation/ui/index.tsx），这里不再接点击。主窗口聚焦时 platform
+     * 本来就不弹。conversation 自己那两条（一轮结束 / 需要确认）对定时任务的对话不再发
+     * （见 conversation/ui/index.tsx 的 notify 头注），所以同一件事只响一次。
+     */
+    const platform = ctx.rpc(platformContract)
+    ctx.lifecycle.onDispose(
+      api.onAttention((attention) => {
+        const target = attention.threadId === null ? {} : { threadId: attention.threadId }
+        void platform
+          .call('notify.show', { title: attention.title, body: attention.body, ...target })
+          .catch((cause: unknown) => {
+            ctx.logger.warn('定时任务通知发送失败', { error: String(cause) })
+          })
+      }).dispose,
+    )
 
     /* ── 表面：列表与编辑（legacy 的单页在路由上拆成两格）──────────────────── */
     ctx.contribute(builtinPoints.surfaces, {
@@ -155,7 +177,17 @@ export default defineUiFeature({
     })
     ctx.contribute(toolCallRenderers, {
       toolName: /^automation_/,
-      component: AutomationToolCard,
+      component: createAutomationToolCard({
+        useExists: (automationId) =>
+          useFeatureStore(store.store, (held) => held.automations.some((row) => row.id === automationId)),
+        openAutomation: (automationId) => {
+          navigation.navigate({ surface: 'automations.edit', params: { automationId } })
+        },
+        runNow: (automationId) => {
+          void store.runNow(automationId)
+        },
+        openThread: conversation.openThread,
+      }),
     })
 
     /** 线程没有可读消息时只预填工作区；标题沿用线程标题。 */

@@ -9,7 +9,7 @@ import {
   PixelLoader,
 } from '@poietica/design-system'
 import { useContributions } from '@poietica/ui-kernel'
-import { Download, Pencil as Edit, FolderClosed, FolderOpen, PinOff } from 'lucide-react'
+import { AlarmClock, Download, Pencil as Edit, FolderClosed, FolderOpen, PinOff } from 'lucide-react'
 import { Fragment, memo, useCallback, useMemo, useRef, useState } from 'react'
 import type { Thread } from '../../../contract'
 import { threadActions } from '../../../ui-api'
@@ -241,6 +241,16 @@ function ThreadTitle({ title }: { readonly title: string }) {
   )
 }
 
+/*
+ * 行首那一格：运行中是加载指示；定时任务开的对话（本来空着的这一格）放一枚闹钟 ——
+ * 它是来历，不是状态，所以运行中让给加载指示（审查 R-16）。
+ */
+function ThreadLead({ fromAutomation, isRunning }: { readonly fromAutomation: boolean; readonly isRunning: boolean }) {
+  if (isRunning) return <PixelLoader className="assistant-thread__running" />
+  if (fromAutomation) return <AlarmClock aria-label="定时任务" className="assistant-thread__origin" role="img" />
+  return null
+}
+
 interface ThreadRowProps {
   readonly thread: AssistantThreadSummary
   /** 已经算好的相对文案；无法解析的时刻是 null。 */
@@ -345,7 +355,7 @@ const ThreadRow = memo(function ThreadRow({
       data-muted={thread.isMuted === true ? 'true' : undefined}
       data-renaming={isRenaming ? 'true' : undefined}
     >
-      {isRunning ? <PixelLoader className="assistant-thread__running" /> : null}
+      <ThreadLead fromAutomation={thread.record?.origin === 'automation'} isRunning={isRunning} />
 
       {isRenaming ? (
         <RenameField

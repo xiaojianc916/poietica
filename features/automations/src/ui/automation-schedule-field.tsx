@@ -42,7 +42,11 @@ const PROBLEMS: Record<ScheduleProblem, string> = {
   conflict: '周期计划与一次性时间只能二选一。',
 }
 
-const LABELS: Record<ScheduleKind, string> = {
+/* 「一次」不是 cron 的形状（审查 R-16）：它读 Schedule.at，所以只在这一格里与 cron 的几种并列。 */
+type FieldKind = ScheduleKind | 'once'
+
+const LABELS: Record<FieldKind, string> = {
+  once: '一次',
   hourly: '每小时',
   daily: '每天',
   weekdays: '每工作日',
@@ -51,7 +55,37 @@ const LABELS: Record<ScheduleKind, string> = {
   custom: '自定义',
 }
 
-const OPTIONS: readonly ScheduleKind[] = ['hourly', 'daily', 'weekdays', 'weekly', 'monthly', 'custom']
+const OPTIONS: readonly FieldKind[] = ['once', 'hourly', 'daily', 'weekdays', 'weekly', 'monthly', 'custom']
+
+/** 计划这一格的值：周期（cron）与一次性（at，毫秒）至多一个非 null；都为 null 是「只手动」。 */
+export interface ScheduleValue {
+  readonly cron: string | null
+  readonly at: number | null
+}
+
+const pad2 = (n: number): string => String(n).padStart(2, '0')
+
+/** 毫秒 → `<input type="datetime-local">` 的值（本机时间）。 */
+export function localInputOf(at: number): string {
+  const d = new Date(at)
+  return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}T${pad2(d.getHours())}:${pad2(d.getMinutes())}`
+}
+
+/** `<input type="datetime-local">` 的值 → 毫秒（本机时间）；读不懂返回 null。 */
+export function atOfLocalInput(value: string): number | null {
+  if (!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(value)) return null
+  const at = new Date(value).getTime()
+  return Number.isFinite(at) ? at : null
+}
+
+/** 选「一次」时的起始值：明天的默认时刻（09:00，本机时间）。 */
+export function defaultOnceAt(now = Date.now()): number {
+  const d = new Date(now)
+  d.setDate(d.getDate() + 1)
+  const [hour = 9, minute = 0] = DEFAULT_SCHEDULE_TIME.split(':').map(Number)
+  d.setHours(hour, minute, 0, 0)
+  return d.getTime()
+}
 
 /* 「每周」必须连着说是周几，否则那颗下拉名不副实：它底下只能是周一。 */
 const WEEKDAYS: readonly SelectOption[] = ([0, 1, 2, 3, 4, 5, 6] as const).map((day) => ({
@@ -65,8 +99,8 @@ function ScheduleMenu({
   selected,
 }: {
   readonly empty: boolean
-  readonly onPick: (kind: ScheduleKind) => void
-  readonly selected: ScheduleKind | null
+  readonly onPick: (kind: FieldKind) => void
+  readonly selected: FieldKind | null
 }) {
   return (
     <DropdownMenu>
@@ -198,10 +232,36 @@ function TimePicker({ onChange, time }: { readonly onChange: (time: string) => v
 }
 
 export interface AutomationScheduleFieldProps {
-  readonly schedule: string | null
+  readonly schedule: ScheduleValue
   readonly preview: { readonly times: readonly number[]; readonly problem: ScheduleProblem | null } | null
   readonly error: string | null
-  readonly onChange: (schedule: string | null) => void
+  readonly onChange: (schedule: ScheduleValue) => void
+}
+
+/* 一次性的那一格：原生日期时间框（日期必须能挑，两列数字挑不了日子）。 */
+function OnceInput({
+  at,
+  feedback,
+  onChange,
+}: {
+  readonly at: number
+  readonly feedback: string | null
+  readonly onChange: (schedule: ScheduleValue) => void
+}) {
+  return (
+    <input
+      aria-describedby="automation-schedule-feedback"
+      aria-invalid={feedback !== null}
+      aria-label="运行时间"
+      className="h-8 rounded-lg bg-sidebar-accent/60 px-3 text-sm tabular-nums outline-none focus-visible:ring-2 focus-visible:ring-ring"
+      onChange={(event) => {
+        const next = atOfLocalInput(event.currentTarget.value)
+        if (next !== null) onChange({ cron: null, at: next })
+      }}
+      type="datetime-local"
+      value={localInputOf(at)}
+    />
+  )
 }
 
 /*
@@ -219,19 +279,22 @@ function ScheduleRow({
   weekday,
 }: {
   readonly feedback: string | null
-  readonly kind: ScheduleKind
+  readonly kind: FieldKind
   readonly onClear: () => void
-  readonly onChange: (schedule: string | null) => void
-  readonly onPick: (kind: ScheduleKind) => void
-  readonly schedule: string | null
+  readonly onChange: (schedule: ScheduleValue) => void
+  readonly onPick: (kind: FieldKind) => void
+  readonly schedule: ScheduleValue
   readonly time: string
   readonly weekday: Weekday
 }) {
-  if (schedule === null) {
+  const cron = schedule.cron
+  if (cron === null && schedule.at === null) {
     return <ScheduleMenu empty onPick={onPick} selected={null} />
   }
   let detail: ReactNode = null
-  if (kind === 'custom') {
+  if (schedule.at !== null) {
+    detail = <OnceInput at={schedule.at} feedback={feedback} onChange={onChange} />
+  } else if (kind === 'custom') {
     detail = (
       <input
         aria-describedby="automation-schedule-feedback"
@@ -239,9 +302,9 @@ function ScheduleRow({
         aria-label="crontab 表达式"
         autoComplete="off"
         className="h-8 min-w-44 flex-1 rounded-lg bg-sidebar-accent/60 px-3 font-mono text-xs outline-none focus-visible:ring-2 focus-visible:ring-ring"
-        onChange={(event) => onChange(event.currentTarget.value)}
+        onChange={(event) => onChange({ cron: event.currentTarget.value, at: null })}
         spellCheck={false}
-        value={schedule}
+        value={cron ?? ''}
       />
     )
   } else if (kind === 'weekly') {
@@ -250,17 +313,17 @@ function ScheduleRow({
         className="h-8"
         data={WEEKDAYS}
         onValueChange={(next) => {
-          onChange(scheduleFor('weekly', time, Number(next) as Weekday))
+          onChange({ cron: scheduleFor('weekly', time, Number(next) as Weekday), at: null })
         }}
         type="星期"
         value={String(weekday)}
       />
     )
-  } else if (kind !== 'hourly') {
+  } else if (kind !== 'hourly' && kind !== 'once') {
     detail = (
       <TimePicker
         onChange={(next) => {
-          onChange(scheduleFor(kind, next, weekday))
+          onChange({ cron: scheduleFor(kind, next, weekday), at: null })
         }}
         time={time}
       />
@@ -284,14 +347,21 @@ function ScheduleRow({
 
 export function AutomationScheduleField({ schedule, preview, error, onChange }: AutomationScheduleFieldProps) {
   const [forceCustom, setForceCustom] = useState(false)
-  const kind: ScheduleKind = forceCustom ? 'custom' : (scheduleKindOf(schedule) ?? 'custom')
-  const time = scheduleTimeOf(schedule) ?? DEFAULT_SCHEDULE_TIME
-  const weekday = scheduleWeekdayOf(schedule) ?? 1
+  const cron = schedule.cron
+  const kind: FieldKind = schedule.at !== null ? 'once' : forceCustom ? 'custom' : (scheduleKindOf(cron) ?? 'custom')
+  const time = scheduleTimeOf(cron) ?? DEFAULT_SCHEDULE_TIME
+  const weekday = scheduleWeekdayOf(cron) ?? 1
   const problem = preview?.problem ?? null
   const feedback = error ?? (problem === null ? null : PROBLEMS[problem])
-  function pick(next: ScheduleKind): void {
+  function pick(next: FieldKind): void {
     setForceCustom(next === 'custom')
-    onChange(next === 'custom' ? (schedule ?? DEFAULT_SCHEDULE) : scheduleFor(next, time, weekday))
+    if (next === 'once') {
+      onChange({ cron: null, at: schedule.at ?? defaultOnceAt() })
+    } else if (next === 'custom') {
+      onChange({ cron: cron ?? DEFAULT_SCHEDULE, at: null })
+    } else {
+      onChange({ cron: scheduleFor(next, time, weekday), at: null })
+    }
   }
   return (
     <div className="space-y-3">
@@ -301,7 +371,7 @@ export function AutomationScheduleField({ schedule, preview, error, onChange }: 
         onChange={onChange}
         onClear={() => {
           setForceCustom(false)
-          onChange(null)
+          onChange({ cron: null, at: null })
         }}
         onPick={pick}
         schedule={schedule}

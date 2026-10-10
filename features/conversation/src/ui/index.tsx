@@ -244,6 +244,12 @@ export default defineUiFeature({
      * 回应是另一件事，压掉它用户就永远不知道 agent 卡在那里等（legacy 同此）。
      */
     const notify = (threadId: string, body: string, kind: 'completion' | 'needs-confirm'): void => {
+      /*
+       * 定时任务开的对话由 automations 自己通知（审查 R-16：按任务的通知策略，在
+       * automations/core/notice.ts 判）。这里再发一遍，用户会对同一件事收到两条、
+       * 而且「从不通知」的任务也会响。
+       */
+      if (stores.threads.byId(threadId)?.origin === 'automation') return
       if (kind === 'completion') {
         if (!shouldNotify(!document.hasFocus(), prefs.current().general.notifyOnCompletion)) return
       }
