@@ -28,10 +28,15 @@ import type { Plugin } from 'vite'
 /**
  * 开发版：与安装版同一张策略表（06 页 §4.8），只额外放开 Vite HMR 需要的两处 ——
  * `script-src` 的 'unsafe-inline'（React 刷新前导脚本）与 `connect-src` 的 localhost websocket。
+ *
+ * 'wasm-unsafe-eval' 是产品需要，不是开发版特权：diff 的语法着色走 shiki，它的
+ * oniguruma 引擎是 WebAssembly；不给这条，Chromium 直接拒绝编译 WASM，着色静默
+ * 退化成一堆没有颜色的正文（真机上就是这么冒出来的）。它只放行 WASM 编译，不等于
+ * 'unsafe-eval'，两者别混。审查面板的 worker 与工具抽屉的主线程都吃这张表。
  */
 const DEV_CSP = [
   "default-src 'self'",
-  "script-src 'self' 'unsafe-inline'",
+  "script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval'",
   "connect-src 'self' ws://localhost:* http://localhost:*",
   "img-src 'self' data: blob: poietica-asset:",
   "media-src 'self' blob: poietica-asset:",
@@ -47,7 +52,7 @@ const DEV_CSP = [
 /** 安装版：file: 协议下没有响应头，只能靠 meta；style-src 保留 unsafe-inline（内联样式来自组件库） */
 const PROD_CSP = [
   "default-src 'self'",
-  "script-src 'self'",
+  "script-src 'self' 'wasm-unsafe-eval'",
   "connect-src 'self'",
   "img-src 'self' data: blob: poietica-asset:",
   "media-src 'self' blob: poietica-asset:",
