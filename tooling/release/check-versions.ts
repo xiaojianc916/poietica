@@ -4,8 +4,8 @@
  * apps/core 由它派生 —— 一个安装包里两半版本不一致，只会意味着装坏了。
  *
  * 用法：
- *   bun run check:versions          只检查
- *   bun run check:versions v0.5.0   连带核对 tag（发布链在打标前调用）
+ *   bun run  all:versions          只检查
+ *   bun run  all:versions v0.5.0   连带核对 tag（发布链在打标前调用）
  */
 
 import { readFile } from 'node:fs/promises'

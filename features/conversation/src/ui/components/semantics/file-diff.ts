@@ -1,4 +1,4 @@
-import { basename, computeFile, type DiffFile, toDisplayPath } from './review-port'
+import { basename, computeFile, type DiffFile, toDisplayPath } from '@poietica/design-system/diff'
 
 export { basename, toDisplayPath }
 
@@ -7,8 +7,8 @@ import type { ToolContentPart } from './tool-call-content'
 /**
  * 工具调用的载荷 → 一处改动。
  *
- * 行怎么切、行号怎么编、折叠怎么算都在 @poietica/review，全仓一条管线；这一层只做
- * 「协议片段 → 那条管线的入参」这一次投影，并按片段数组记一次账。
+ * 行怎么切、行号怎么编、折叠怎么算都在 @poietica/design-system/diff，全仓一条管线；
+ * 这一层只做「协议片段 → 那条管线的入参」这一次投影，并按片段数组记一次账。
  */
 
 const NONE: readonly DiffFile[] = []

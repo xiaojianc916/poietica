@@ -4,6 +4,7 @@ import './tool-call.css'
 import './tool-group.css'
 
 import { GithubMark } from '@poietica/design-system'
+import { type DiffStat, diffStatOf } from '@poietica/design-system/diff'
 import { isDelegation } from '../../timeline/delegate-channel'
 import type { ToolCallTimelineItem } from '../../timeline/timeline-contract'
 import { cx } from '../primitives/class-names'
@@ -33,7 +34,6 @@ import {
   ToolIcon,
   YieldIcon,
 } from '../primitives/icons'
-import { type DiffStat, diffStatOf } from '../semantics/review-port'
 import { toDiffFilesOf } from '../semantics/tool-call-facets'
 import { clampToLine, readToolLine, sayToolCount } from '../semantics/tool-intent'
 import { useDelegateChannel } from './delegate-channel-context'

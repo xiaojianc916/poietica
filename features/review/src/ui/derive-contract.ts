@@ -1,4 +1,4 @@
-import type { DiffFile } from './unified-diff'
+import type { DiffFile } from '@poietica/design-system/diff'
 
 export interface DeriveRequest {
   readonly id: number

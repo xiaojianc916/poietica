@@ -4,7 +4,7 @@ import path from 'node:path'
 
 /*
  * 15 页 §10.1：版本号的唯一来源是 apps/desktop 的 version，apps/core 必须与它相同，
- * 且必须是合法 semver。这条测试属于 `bun run check`，版本不一致时 CI 直接失败 ——
+ * 且必须是合法 semver。这条测试属于 `bun run  all`，版本不一致时 CI 直接失败 ——
  * 没有它，「改了一处忘了另一处」要等安装包装完才被发现。
  */
 

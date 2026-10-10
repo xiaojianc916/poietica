@@ -8,9 +8,9 @@
     "type": "git",
     "url": "git+https://github.com/xiaojianc916/poietica.git"
   },
-  "packageManager": "bun@1.4.0",
+  "packageManager": "bun@1.4.3",
   "engines": {
-    "bun": ">=1.4.0"
+    "bun": ">=1.4.3"
   },
   "type": "module",
   "workspaces": {
@@ -72,11 +72,11 @@
     }
   },
   "scripts": {
-    "typecheck": "bun run tooling/refs/sync.ts --check && tsc -b && tsc -p tsconfig.tests.json",
+    "typecheck": "bun run tooling/refs/sync.ts --check && bun check -b && bun check -p tsconfig.tests.json",
     "refs": "bun run tooling/refs/sync.ts",
     "lint": "biome check . && bun run tooling/checks/no-raw-errors.ts && bun run tooling/checks/no-biome-ignore.ts && bun run tooling/checks/editor-project-map.ts && depcruise --config tooling/depcruise/config.cjs tooling packages features apps",
     "test": "bun test",
-    "check": "bun run typecheck && bun run lint && bun run test",
+    "all": "bun run typecheck && bun run lint && bun run test",
     "format": "biome check --write .",
     "dev": "bun run core:build && bun run --filter @poietica/desktop dev",
     "core:build": "bun run apps/core/scripts/build.ts",

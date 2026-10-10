@@ -12,7 +12,7 @@
 
 ## 开发
 
-需要 [Bun](https://bun.sh) 1.4+ 与 Node 20+（Electron 与部分工具链用）。
+需要 [Bun](https://bun.sh) 1.4.3+ 与 Node 20+（Electron 与部分工具链用）。
 
 ```bash
 bun install
@@ -21,7 +21,7 @@ bun run dev          # 构建 Core 并启动 electron-vite 开发模式
 
 | 命令 | 作用 |
 | --- | --- |
-| `bun run check` | 类型检查 + lint（含依赖规则）+ 全部测试 —— 唯一的准入闸门 |
+| `bun run  all` | 类型检查 + lint（含依赖规则）+ 全部测试 —— 唯一的准入闸门 |
 | `bun run core:build` / `core:probe` | 构建 `poietica-core.exe` 并做隔离自检 |
 | `bun run core:verify-dist` | 校验 Core 产物与 manifest 一致，且不是探针版 |
 | `bun run desktop:build` | 只构建 Electron 三端产物（不出安装包） |

@@ -24,11 +24,11 @@ jobs:
           persist-credentials: false
       - uses: oven-sh/setup-bun@v2
         with:
-          bun-version: 1.4.0
+          bun-version: 1.4.3
       - name: Install
         run: bun install --frozen-lockfile
       - name: Check
-        run: bun run check
+        run: bun run  all
 
   # P3.9：构建 Core 可执行文件并跑探针。check 绿了才做，因为探针本身就要求全仓类型与依赖规则成立。
   core-build:
@@ -42,7 +42,7 @@ jobs:
           persist-credentials: false
       - uses: oven-sh/setup-bun@v2
         with:
-          bun-version: 1.4.0
+          bun-version: 1.4.3
       - name: Install
         run: bun install --frozen-lockfile
       - name: Build Core

@@ -1,6 +1,5 @@
+import { paint, parseUnifiedPatch } from '@poietica/design-system/diff'
 import type { DeriveReply, DeriveRequest } from './derive-contract'
-import { paint } from './syntax'
-import { parseUnifiedPatch } from './unified-diff'
 
 const port = self as unknown as {
   addEventListener(kind: 'message', listener: (event: MessageEvent<DeriveRequest>) => void): void

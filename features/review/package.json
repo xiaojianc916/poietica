@@ -18,10 +18,7 @@
     "@poietica/git": "workspace:*",
     "@poietica/rpc": "workspace:*",
     "@poietica/ui-kernel": "workspace:*",
-    "@tanstack/react-virtual": "catalog:",
-    "diff": "catalog:",
     "lucide-react": "catalog:",
-    "shiki": "catalog:",
     "react": "catalog:",
     "zod": "catalog:",
     "zustand": "catalog:"

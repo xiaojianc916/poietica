@@ -1,7 +1,7 @@
+import type { DiffFile } from '@poietica/design-system/diff'
 import { InvariantError } from '@poietica/foundation'
 import type { DeriveReply, DeriveRequest } from './derive-contract'
 import type { ReviewDerive } from './review-store'
-import type { DiffFile } from './unified-diff'
 
 interface Waiting {
   readonly reject: (cause: unknown) => void

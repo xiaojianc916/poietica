@@ -2,7 +2,7 @@
  * 审查那一格的取色与列几何。
  *
  * 差异的底色、行号槽与折叠带不在这里：那是行带的取色，与工具抽屉共用同一份实现
- * （见 diff-body.css）。这一格只剩下属于它自己的东西 —— 文件树、工具条与卡头。
+ * （见 design-system 的 diff/surface.css）。这一格只剩下属于它自己的东西 —— 文件树、工具条与卡头。
  */
 .review-pane {
   transition: --review-tree-width var(--workspace-layout-duration) var(--workspace-layout-ease);
@@ -214,7 +214,7 @@
 
 /*
  * 滚动口也是折叠带宽度的容器查询参照（--diff-row-inline-size 量测落地前的回退，
- * 见 diff-body.css 的 .diff-gap-row）。横向不滚，所以这里只要 inline-size。
+ * 见 design-system diff/surface.css 的 .diff-gap-row）。横向不滚，所以这里只要 inline-size。
  */
 .review-scroll {
   container-type: inline-size;

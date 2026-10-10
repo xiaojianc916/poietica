@@ -244,8 +244,9 @@
 /*
  * 一处改动。
  *
- * 行带本身来自 @poietica/review/surface 的 DiffBody —— 行号槽、增删底色、增删行的文字
- * 色与大文件的虚拟化全仓一份，与审查面板画的是同一份（取色在 review 包的 diff-body.css）。
+ * 行带本身来自 @poietica/design-system/diff/surface 的 DiffBody —— 行号槽、增删底色、
+ * 增删行的文字色与大文件的虚拟化全仓一份，与审查面板画的是同一份（取色在 design-system
+ * 的 diff/surface.css）。
  * 这一条只管属于抽屉的那件事：它是这一格里唯一的双轴滚动容器。
  *
  * 为什么横向出口必须在这里、不能留给行带自己：行带一旦自己横滚，屏幕上就并排出现

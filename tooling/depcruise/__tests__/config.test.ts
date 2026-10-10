@@ -8,7 +8,7 @@ import path from 'node:path'
  * 背景（真实故障）：`exclude` 与 `doNotFollow` 的分工写错会让规则**静默失效** ——
  * 早先把 `dist` 放进 `exclude`，而 `@oh-my-pi/*` 的 types 指向它自己的 `dist/types/`，
  * 于是 `omp-confined`（「只有 engine-omp 可以 import @oh-my-pi/*」这条铁律）永远不触发，
- * 全仓 0 条 @oh-my-pi 边，`bun run check` 照样全绿。
+ * 全仓 0 条 @oh-my-pi 边，`bun run  all` 照样全绿。
  *
  * 这条用例把那个类别钉死：`exclude` 只能收我们自己的产物，外部包必须走 `doNotFollow`
  * （只声明不往里走，节点本身仍在图里，针对它的规则照常判定）。

@@ -8,12 +8,17 @@
   ],
   "exports": {
     ".": "./src/index.ts",
+    "./diff": "./src/diff/index.ts",
+    "./diff/surface": "./src/diff/surface.tsx",
     "./styles.css": "./src/styles.css"
   },
   "dependencies": {
     "@base-ui/react": "catalog:",
+    "@tanstack/react-virtual": "catalog:",
     "clsx": "catalog:",
+    "diff": "catalog:",
     "lucide-react": "catalog:",
+    "shiki": "catalog:",
     "tailwind-merge": "catalog:"
   },
   "devDependencies": {

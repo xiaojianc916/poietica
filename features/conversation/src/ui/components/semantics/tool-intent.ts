@@ -1,5 +1,5 @@
+import { basename } from '@poietica/design-system/diff'
 import type { ToolCallTimelineItem } from '../../timeline/timeline-contract'
-import { basename } from './review-port'
 
 // 首选投影层的 headline（认得工具的视图写全），认不出才退回按类别拼动词。
 

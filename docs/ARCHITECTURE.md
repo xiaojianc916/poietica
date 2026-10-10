@@ -159,12 +159,12 @@ omp 锁在 `18.5.0`（根 `package.json` 的 catalog）。升级前必须逐项�
 | 隔离 | `packages/engine-omp/src/__tests__/isolation.test.ts` + `bun run core:probe` | 进程级自检与假用户目录零写入 |
 | 端到端 | `bun run dev`（真机） | 界面流程；发布前另有安装包冒烟（`bun run desktop:smoke`） |
 
-`bun run check` = `typecheck` + `lint` + `test`，是唯一的准入闸门（CI 跑的就是它）。
+`bun run  all` = `typecheck` + `lint` + `test`，是唯一的准入闸门（CI 跑的就是它）。
 
 ## 9. 扩展配方
 
 **加一个平台包**：`bun run new:package <name> --runtime <preset>` → 在 `tooling/depcruise/layers.json`
-登记层级 → `bun run refs` → `bun run check`。
+登记层级 → `bun run refs` → `bun run  all`。
 
 **加一个功能**（九个步骤）：
 
@@ -176,12 +176,12 @@ omp 锁在 `18.5.0`（根 `package.json` 的 catalog）。升级前必须逐项�
 6. 在三个清单里各加一行：`apps/core/src/modules.ts`、`apps/desktop/src/main/modules.ts`、
    `apps/desktop/src/renderer/features.ts`。
 7. 写测试（必测项见 07 页对应小节的 §xG）。
-8. `bun run refs` → `bun run protocol:snapshot` → `bun run check`。
+8. `bun run refs` → `bun run protocol:snapshot` → `bun run  all`。
 9. 在 `docs/refactor-log.md` 记录偏差或待决问题（如果有）。
 
 **升级 omp**：改根 `package.json` catalog 的四个 `@oh-my-pi/*` 版本 → 按 16 页 §5 的陷阱表逐项核对
 （会话文件、设置键、工具名、事件形状、浏览器 relay 协议……）→ 记录到 `docs/refactor-log.md` →
-`bun run core:build` + `core:probe` + `bun run check`。
+`bun run core:build` + `core:probe` + `bun run  all`。
 
 **发布**：`bun run version:set <x.y.z>`（唯一入口，同时改 desktop 与 core）→ 提交 →
 `git tag v<x.y.z>` → 推送 tag → release 工作流构建、冒烟、创建草稿 → 人工在干净虚拟机上验收 →

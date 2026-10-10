@@ -117,7 +117,7 @@
   封流后另起一帧、没开轮时返回空、`abandonTurn` 之后 `steeredFrame` 退回 `userTurn`、
   `turnEnd` 与 `abandonTurn` 的复位逐字段一致）。
 
-**验收**：`bun run check` 全绿（1548 pass / 0 fail，201 文件 / 5057 断言）。报告 §5 的四条 grep 全过：
+**验收**：`bun run  all` 全绿（1548 pass / 0 fail，201 文件 / 5057 断言）。报告 §5 的四条 grep 全过：
 `rg "void error" packages features apps` 无命中；`rg "timelineReset\(" packages/engine-omp/src` 只剩
 `auto_compaction_end` 那一处加 `session.ts` 的定义；`recoverFromProjectionFailure|recoveredThisRun` 无命中。
 
@@ -187,7 +187,7 @@ release/dispose 看不见它）；T2 红（旧代码先 `hub.position()` 建通�
 - `core/__tests__/module.test.ts`：T2（fork 出的历史对话冷订阅：不发 reset，返回 epoch 与
   之后的 `timeline.ops` 一致）。
 
-**验收**：`bun run check` 全绿（1558 pass / 0 fail，201 文件 / 5105 断言）。
+**验收**：`bun run  all` 全绿（1558 pass / 0 fail，201 文件 / 5105 断言）。
 
 **未能核实、记入待决**：报告 §5 的三条真机验收（DevTools 里 subscribe 只出现一次且无 reset、
 运行中改 MCP 后这一轮结束新会话生效、删对话后 `%APPDATA%\Poietica\omp\agent\sessions` 不残留）
@@ -258,7 +258,7 @@ M8 在新旧代码上都是绿的 —— 与报告标注一致（回归用例）
   `STOP_GRACE_MS = CORE_SHUTDOWN_BUDGET_MS + 2000`。
 - `packages/runtime-layout/src/__tests__/core-launch.test.ts`：`CORE_SHUTDOWN_BUDGET_MS` 的值。
 
-**验收**：`bun run check` 全绿（1569 pass / 0 fail，201 文件 / 5143 断言；较 R-03 的 1558
+**验收**：`bun run  all` 全绿（1569 pass / 0 fail，201 文件 / 5143 断言；较 R-03 的 1558
 多 11 条）。
 
 **未能核实、记入待决**：报告 §6 的两条手工验收需要打包应用 + 真实 omp（任务管理器里
@@ -338,7 +338,7 @@ epoch 是进程内计数器，两个先后启动的 Core 都从 1 开始；运�
 - `apps/desktop/src/renderer/__tests__/core-recovery.test.tsx`：S12（第一次 ready 读一次
   `conversation.drafts` / `conversation.permissionPosture`；重启后的 ready 不再读，`threads.list` 每次 ready 都发）。
 
-**验收**：`bun run check` 全绿（1582 pass / 0 fail，202 文件 / 5173 断言；较 R-05 的 1569 多 13 条，
+**验收**：`bun run  all` 全绿（1582 pass / 0 fail，202 文件 / 5173 断言；较 R-05 的 1569 多 13 条，
 含新增装配级用例文件 `core-recovery.test.tsx`）。
 
 **本轮偏差**：无契约形状变化、未动 `PROTOCOL_VERSION` 与协议快照。§3.4 里「`restarting` 一定早于新进程启动」
@@ -406,7 +406,7 @@ conversation 侧五条新用例在旧代码上全红（事件不存在）。恢�
   `settleUnstarted` / `cancelUnhanded` / `recoverOnStart` 各恰好发一次、字段正确，recoverOnStart
   那条同时断言库与 `submissions.changed` 都对得上）、A8（删线程：RPC 通知与 Core 事件各一次）。
 
-**验收**：`bun run check` 全绿（1593 pass / 0 fail，203 文件 / 5213 断言；较 R-04 的 1582 多 11 条）。
+**验收**：`bun run  all` 全绿（1593 pass / 0 fail，203 文件 / 5213 断言；较 R-04 的 1582 多 11 条）。
 
 **本轮偏差**：无契约形状变化、未动 `PROTOCOL_VERSION` 与协议快照。文件清单与报告 §1 一致；
 额外一处是 `runner.test.ts` 的 `build()` 里加了个 `stalledTurnEngine()` 测试缝（报告 §5 的 A6 要求
@@ -501,7 +501,7 @@ conversation 的草稿读盘因此把「读失败」与「盘上没有值」分�
   attachments 两个 UI 功能一起装载不抛 `kernel.module_graph_invalid`，两边 setup 都成功）。
   这条在**故意恢复成环**（给 conversation 的 `dependsOn` 加 `'attachments'`）时实测变红。
 
-**验收**：`bun run check` 全绿（1614 pass / 0 fail，207 文件 / 5269 断言；较 R-06 的 1593 多 21 条）。
+**验收**：`bun run  all` 全绿（1614 pass / 0 fail，207 文件 / 5269 断言；较 R-06 的 1593 多 21 条）。
 
 **未能核实、记入待决**：报告 §6 的两条手工验收需要安装包 + 真 sweep（贴一张图不发送、过一夜 /
 临时推 `created_at` 之后图仍在且能发送；fork 一条带文件附件的对话、删原对话、强制 sweep 后
@@ -536,7 +536,7 @@ conversation 的草稿读盘因此把「读失败」与「盘上没有值」分�
 **测试**：`packages/engine-omp/src/__tests__/queue.test.ts` 加计数假读盘的用例（每张图恰好
 读一次）；`controls.test.ts` 的既有用例随签名调整。
 
-**验收**：`rg readFileSync packages/engine-omp/src/session.ts` 零命中；`bun run check` 全绿。
+**验收**：`rg readFileSync packages/engine-omp/src/session.ts` 零命中；`bun run  all` 全绿。
 
 #### R-08-2 每条 `turn.upsert` 都查一次 SQLite（2026-10-10）
 
@@ -793,7 +793,7 @@ close 时这些条目只增不减。
 
 16 条里 15 条已落地（R-08-6 按报告要求只登记待决），每条一个提交。协议快照随
 R-08-8（9 → 10）、R-08-14（10 → 11）、R-08-15（11 → 12）各提升一次。
-`bun run check` 全绿（1668 pass / 0 fail，211 文件 / 5585 断言）。
+`bun run  all` 全绿（1668 pass / 0 fail，211 文件 / 5585 断言）。
 
 两条验收需要**打包应用 + 真机**，与 R-03 §5 / R-05 §6 / R-06 §6 同例，代码侧已由单测覆盖：
 
@@ -848,7 +848,7 @@ omp 的 info 级 notice 只落 debug 日志，排查时把 Core 日志级别调�
   E1–E2：error 是 `data-level="error"` + `role=alert`，warning 是 `data-level="warning"` +
   `role=status`，复制按钮文案各说各的。
 
-**验收**：`bun run check` 全绿；`bun run protocol:snapshot` 无差异。真机验收（启用 chrome-devtools
+**验收**：`bun run  all` 全绿；`bun run protocol:snapshot` 无差异。真机验收（启用 chrome-devtools
 MCP 后新建对话不再出现 `xd://: mounted …`；断网触发自动重试时 warning 画灰色三角、最终失败画红色
 感叹号、重试成功不出现那一行）与 R-03 / R-05 / R-06 / R-07 / R-08 同例，待真机复核。
 
@@ -896,3 +896,56 @@ MCP 后新建对话不再出现 `xd://: mounted …`；断网触发自动重试�
 快轮不再算成 `<1秒`。原有 106 条投影用例（含两条快照）不破。
 
 **验收**：`bun test packages/engine-omp/src/projector` 109 pass / 0 fail；真机复算见上表。
+
+## R-11 工具卡片的 diff 退化成裸行：没有行号槽、没有增删底色、没有语法色（2026-10-10）
+
+**来源**：产品负责人交办的截图与缺陷报告 —— 工具调用的 diff 视图里每一行只是光秃秃的
+正文，行号与增删混作一团，分不出哪一行是删、哪一行是增。
+
+**根因**：P5 迁移时 conversation 不能 import review（功能之间只能经 contract / ui-api /
+贡献点协作），于是 conversation 就地留了一份**兜底**行带：`semantics/diff-body.tsx`
+只把 `row.text` 逐行印出来（`timeline-tool__diff-row` / `__diff-number` / `__diff-text`），
+而这三个类名在全仓**没有任何 CSS**；`semantics/review-port.ts` 的 `paint()` 也是空实现
+（原样交回行模型）。于是行号槽、增删底色、词级强调与 shiki 语法色四处全丢 ——
+「P6 的 review 经 toolCallRenderers 接真后这一层退成兜底」这一步当时没落地，兜底成了正本。
+
+**改法**：把这条**全仓唯一**的 diff 管线整体提升到 design-system（两个消费者都已经依赖
+它，是它们唯一合法的共同低层），conversation 与 review 都从那里取：
+
+1. 文件搬到 `packages/design-system/src/diff/`：`unified-diff.ts`（行模型）、
+   `syntax.ts` + `highlighter.ts`（shiki 着色）、`surface.tsx` + `surface.css`（行带
+   DiffBody）。两个新子入口：`./diff`（无头、不引 React 与样式，worker 也走它）与
+   `./diff/surface`（画的那一半）。
+2. review 的五个文件与 conversation 的七个文件改成从 `@poietica/design-system/diff`
+   取；conversation 的残骸（`semantics/diff-body.tsx`、`semantics/review-port.ts`、
+   `semantics/unified-diff.ts`）删除。
+3. 依赖搬家：`diff` / `shiki` / `@tanstack/react-virtual` 从两个 feature 的
+   `package.json` 移到 design-system；`bun install` 后 lockfile 只有声明变化。
+
+**为什么进 design-system 正确**：行带的取色与列几何本来就是「产品取值、全仓一份」，
+它的 CSS 直接读 design-system 的 token；审查面板与工具抽屉要求的是同一份实现。
+放进任一 feature 都会逼出「另一个 feature import 它的 ui」这种越界。无头子路径
+（`./diff`）是给 review 的 worker 留的：那里没有 DOM、没有 React，不能吃
+`surface.tsx` 的样式副作用。
+
+**测试**：
+
+- `features/conversation/src/ui/components/timeline/__tests__/tool-diff-rows.test.tsx`（新建，
+  迁自 legacy）：抽屉画的是 design-system 的行带（`diff-body` / `diff-line`），
+  不再有 `timeline-tool__diff-row`；横滚出口只有抽屉那一处；抽屉不画折叠带；
+  `tool-call.css` 不重抄增删底色与行号槽。
+- `packages/design-system/src/diff/__tests__/paint.test.ts`（新建，迁自 legacy 的
+  「diff 一片黑」回归判据）：`computeFile → paint` 之后同一行切出多个带色片段、
+  颜色不止一种、拼回来与原文一字不差。
+- `packages/design-system/src/diff/__tests__/unified-diff.test.ts`（随迁）：行模型本身
+  的四条断言不变。
+
+反向验证：新用例在旧代码上按预期红（抽屉渲染的是 `timeline-tool__diff-row`、
+没有 `diff-line`）。真机数据复算（R-10 那次提交的 `history.ts` 改动，34 增 / 8 删）：
+97 行、669 个带色片段，DOM 里 `diff-line--added` / `diff-line--removed` 与
+`--diff-syntax-light/dark` 都在。
+
+**验收**：`bun run  all` 全绿（1688 pass / 0 fail，216 文件 / 5634 断言）；
+`bun run desktop:build` 通过（worker 与主 chunk 都吃到新的子入口）。真机验收
+（工具卡片里的编辑调用画出带行号槽、增删底色与语法色的行带）与 R-03 / R-05 / … / R-10
+同例，待真机复核。

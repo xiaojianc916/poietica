@@ -1,6 +1,6 @@
 # AGENTS.md — Poietica 工作守则
 ​
-给 AI 与人类贡献者。先读这一页，细节以 `docs/ARCHITECTURE.md` 为准；两者冲突时以代码与 `bun run check` 为准，并把冲突记进 `docs/refactor-log.md`。
+给 AI 与人类贡献者。先读这一页，细节以 `docs/ARCHITECTURE.md` 为准；两者冲突时以代码与 `bun run  all` 为准，并把冲突记进 `docs/refactor-log.md`。
 ​
 ## 1. 项目速览
 ​
@@ -20,13 +20,13 @@
 ​
 ## 2. 环境与命令
 ​
-需要 Bun 1.4+（`packageManager` 锁 `bun@1.4.0`）和 Node 20+。CI 跑在 `windows-latest`。
+需要 Bun 1.4.3+（`packageManager` 锁 `bun@1.4.3`，`bun check` 做类型检查）和 Node 20+。CI 跑在 `windows-latest`。
 ​
 | 命令 | 作用 |
 | --- | --- |
 | `bun install` | 安装依赖（isolated linker，不 hoist） |
 | `bun run dev` | 构建 Core 后启动桌面端 |
-| `bun run check` | **唯一的准入闸门**：typecheck + lint（biome、自定义闸门、depcruise）+ test |
+| `bun run  all` | **唯一的准入闸门**：typecheck + lint（biome、自定义闸门、depcruise）+ test |
 | `bun test <路径>` | 只跑某一部分测试 |
 | `bun run format` | biome 自动格式化 |
 | `bun run refs` | 重新生成 tsconfig 项目引用（禁止手改 references） |
@@ -175,7 +175,7 @@ L0  foundation
 ​
 ## 11. 常见任务
 ​
-- **加平台包**：`bun run new:package <name> --layer <0|1|2|3|5> --runtime <neutral|dom|node|bun|electron-main>`（会自动登记到 `layers.json`）→ `bun run refs` → `bun run check`。
+- **加平台包**：`bun run new:package <name> --layer <0|1|2|3|5> --runtime <neutral|dom|node|bun|electron-main>`（会自动登记到 `layers.json`）→ `bun run refs` → `bun run  all`。
 - **加功能**：`bun run new:feature <id> --parts …` → 写 contract → 在 protocol 登记并提升版本 → 实现 core / host（服务、仓储、迁移、handlers）→ 实现 ui → 三个清单各加一行 → 写测试 → `refs` + `protocol:snapshot` + `check`。完整步骤见 ARCHITECTURE §9。
 - **加或删一个 RPC 方法**：改 contract → 实现 handler → 提升 `PROTOCOL_VERSION` → `protocol:snapshot`。
 - **升级 omp**：改 catalog 里四个 `@oh-my-pi/*` 的版本 → 对照 `docs/omp-sdk-reference.md` 和代码里的「omp 知识 #N」注释（`rg "omp 知识 #" packages/engine-omp`）逐项核对会话文件格式、设置键、工具名、事件形状、浏览器 relay 协议 → 核对结果写进 refactor-log → `core:build` + `core:probe` + `check`。核对完成前不合并。
@@ -184,4 +184,4 @@ L0  foundation
 ## 12. 工作方式
 ​
 - 改动只覆盖任务点名的范围，不顺手重构。遇到文档没覆盖、拿不准的情况，在 `docs/refactor-log.md` 的「待决问题」记一条，**停下这一项，不要猜**。与架构不一致又必须这样做的，记进「偏差」并写明原因。
-- 提交信息用 `<type>(<scope>): <中文说明>`（type 取 feat / fix / refactor / test / docs / chore）。`bun run check` 不绿不提交。
+- 提交信息用 `<type>(<scope>): <中文说明>`（type 取 feat / fix / refactor / test / docs / chore）。`bun run  all` 不绿不提交。

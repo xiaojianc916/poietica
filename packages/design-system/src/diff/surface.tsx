@@ -1,10 +1,10 @@
-import { cn } from '@poietica/design-system'
 import { useVirtualizer } from '@tanstack/react-virtual'
 import { ChevronDown, ChevronsUpDown, ChevronUp, type LucideIcon } from 'lucide-react'
 import { type CSSProperties, memo, type RefObject, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
-import type { DiffFile, DiffPiece, DiffRow } from '../unified-diff'
+import { cn } from '../class-names'
+import type { DiffFile, DiffPiece, DiffRow } from './unified-diff'
 
-import './diff-body.css'
+import './surface.css'
 
 /*
  * 一份 diff 的行带。
@@ -87,7 +87,7 @@ function GapBar({
   readonly onClick?: (() => void) | undefined
 }) {
   /* 悬浮药丸：无上下边框，左右留白不贴边，相邻两条之间由外层的 py 隔开。
-   * 外层另带 diff-gap-row：宽度取滚动口（见 diff-body.css），不跟最宽行走。 */
+   * 外层另带 diff-gap-row：宽度取滚动口（见 surface.css），不跟最宽行走。 */
   return (
     <div className="diff-gap-row px-1.5 py-1" ref={barRef}>
       <button
@@ -370,7 +370,7 @@ function VirtualRows({
   )
 }
 
-/* 种类由行模型说，不由行首字符说：所以正文里不留 +/- 那一列。取色在 diff-body.css。 */
+/* 种类由行模型说，不由行首字符说：所以正文里不留 +/- 那一列。取色在 surface.css。 */
 function toneOf(kind: DiffRow['kind']): string {
   if (kind === 'added') {
     return 'diff-line diff-line--added'
@@ -381,7 +381,7 @@ function toneOf(kind: DiffRow['kind']): string {
 
 /*
  * 单一行号槽 —— 统一视图里两列行号只有一列是答案。字体、取色与右缘细线在
- * diff-body.css 的 .diff-line__number；self-stretch 让槽长满行高，折行的行上
+ * surface.css 的 .diff-line__number；self-stretch 让槽长满行高，折行的行上
  * 竖线才不在行中断开。memo：筛选输入与分隔条拖动每帧都换快照，行不变就不重渲。
  */
 const Line = memo(function Line({ row, wrap }: { readonly row: DiffRow; readonly wrap: boolean }) {

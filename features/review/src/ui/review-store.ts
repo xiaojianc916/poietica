@@ -1,9 +1,9 @@
+import type { DiffFile, DiffStat } from '@poietica/design-system/diff'
+import { diffStatOf } from '@poietica/design-system/diff'
 import { InvariantError, invariant } from '@poietica/foundation'
 import type { FeatureStore } from '@poietica/ui-kernel'
 import { createFeatureStore } from '@poietica/ui-kernel'
 import type { GitStatus, ReviewFile } from '../contract'
-import type { DiffFile, DiffStat } from './unified-diff'
-import { diffStatOf } from './unified-diff'
 
 /*
  * 审查面的状态机（07 页 §10）。

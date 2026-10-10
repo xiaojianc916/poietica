@@ -1,11 +1,11 @@
 import './flow-row.css'
 import './tool-group.css'
 
+import { type DiffFile, type DiffStat, diffStatOf } from '@poietica/design-system/diff'
 import type { ReactNode } from 'react'
 import { type FeedRow, liveMemberOf, type ToolGroupPlan } from '../../timeline/presentation'
 import { DisclosureBody } from '../primitives/disclosure'
 import { ChevronDownIcon } from '../primitives/icons'
-import { type DiffFile, type DiffStat, diffStatOf } from '../semantics/review-port'
 import { toDiffFilesOf } from '../semantics/tool-call-facets'
 import { readToolLine, sayToolCount } from '../semantics/tool-intent'
 import { GroupTicker } from './group-ticker'

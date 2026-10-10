@@ -22,7 +22,7 @@ jobs:
 
       - uses: oven-sh/setup-bun@v2
         with:
-          bun-version: 1.4.0
+          bun-version: 1.4.3
 
       - name: Install
         run: bun install --frozen-lockfile
@@ -39,7 +39,7 @@ jobs:
           Write-Output "tag 与 version 一致：$tag"
 
       - name: Check
-        run: bun run check
+        run: bun run  all
 
       - name: Build Core
         run: bun run core:build

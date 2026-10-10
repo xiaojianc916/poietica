@@ -57,5 +57,5 @@ for (const file of LOCK_FILES) {
 }
 
 console.log(
-  `已写入版本 ${version}（${String(VERSION_FILES.length)} 个声明处 + ${String(LOCK_FILES.length)} 个锁文件），再跑 bun run check:versions 确认`,
+  `已写入版本 ${version}（${String(VERSION_FILES.length)} 个声明处 + ${String(LOCK_FILES.length)} 个锁文件），再跑 bun run  all:versions 确认`,
 )

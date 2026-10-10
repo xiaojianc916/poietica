@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'bun:test'
 
-import { computeFile, diffStatOf, parseUnifiedPatch } from './unified-diff'
+import { computeFile, diffStatOf, parseUnifiedPatch } from '../unified-diff'
 
 /* 两个渲染器照同一份行模型画，所以这里钉住的是模型本身，不是某一处 UI。 */
 

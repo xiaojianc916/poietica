@@ -4,7 +4,7 @@
  * 纯函数：吃路径与折叠集合，交回一串带缩进深度的行。只有一个子目录且没有直属文件的
  * 目录段并成一行（src/review/…）—— 变更集是稀疏的，不并就会出现一长串单孩子目录。
  */
-import { basename } from './unified-diff'
+import { basename } from '@poietica/design-system/diff'
 
 export interface ChangeTreeFile {
   readonly kind: 'file'

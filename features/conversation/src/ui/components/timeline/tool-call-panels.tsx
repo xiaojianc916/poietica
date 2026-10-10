@@ -1,11 +1,11 @@
 import { FileTypeMark } from '@poietica/design-system'
+import type { DiffFile } from '@poietica/design-system/diff'
+import { DiffBody } from '@poietica/design-system/diff/surface'
 import { useId, useRef, useState } from 'react'
 import type { ToolCallTimelineItem } from '../../timeline/timeline-contract'
 import { ImageLightbox } from '../media/image-lightbox'
 import { panelId, TabList, type TabOption, tabId } from '../primitives/tabs'
-import { DiffBody } from '../semantics/diff-body'
 import { basename } from '../semantics/file-diff'
-import type { DiffFile } from '../semantics/review-port'
 import { fencedBodyOf, type ToolImage, toToolCallFacets } from '../semantics/tool-call-facets'
 import { usePaintedDiff } from './diff-painting'
 import { Prose } from './prose'
@@ -127,7 +127,7 @@ function FileDiff({ file }: { readonly file: DiffFile }) {
       </div>
 
       {/*
-       * 一处改动就是审查面板画的那一份行带（@poietica/review/surface 的 DiffBody），
+       * 一处改动就是审查面板画的那一份行带（@poietica/design-system/diff/surface 的 DiffBody），
        * 不再自己排一套：行号槽、增删底色、语法色、大文件的虚拟化全仓一份。
        *
        * 语法色要自己跑着色器（diff-painting.ts）：computeFile 只切行、不认语法，

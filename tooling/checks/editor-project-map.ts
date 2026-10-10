@@ -3,10 +3,10 @@
  * 且该工程解析后的 types 里有 "bun"。
  *
  * 背景（refactor-log 偏差 #17 与 2026-10-09 那条）：tooling/tsconfig/base.json 一律 exclude 测试文件
- * （测试的规则更松，也不进 tsc -b），于是测试文件不属于任何 project —— VS Code / Trae 按
+ * （测试的规则更松，也不进 bun check -b），于是测试文件不属于任何 project —— VS Code / Trae 按
  * 「最近的、且包含它的 tsconfig」往上找，找不到就回落到没有类型定义的推断工程：
- * 第一行 import { … } from 'bun:test' 报 TS2307、Bun 报 TS2868。仓库自己的 bun run check
- * （tsc -p tsconfig.tests.json）一直是绿的，红的是编辑器。
+ * 第一行 import { … } from 'bun:test' 报 TS2307、Bun 报 TS2868。仓库自己的 bun run  all
+ * （bun check -p tsconfig.tests.json）一直是绿的，红的是编辑器。
  *
  * 判据（两种写法，看工程与容器目录是否同名）：
  *   • 容器目录（packages/、features/、apps/）放一个 extends 根 tsconfig.tests.json 的

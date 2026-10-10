@@ -12,6 +12,8 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from '@poietica/design-system'
+import type { DiffFile, DiffStat } from '@poietica/design-system/diff'
+import { DiffBody, renderedRowsOf } from '@poietica/design-system/diff/surface'
 import { useFeatureStore } from '@poietica/ui-kernel'
 import {
   ArrowUp,
@@ -49,8 +51,6 @@ import {
   WORKTREE_BASE,
 } from '../review-store'
 import { useReviewStore } from '../review-store-holder'
-import type { DiffFile, DiffStat } from '../unified-diff'
-import { DiffBody, renderedRowsOf } from './diff-body'
 
 import './review-pane.css'
 
@@ -470,7 +470,7 @@ function Body({
       </div>
     )
   }
-  /* 行带只有一份实现（diff-body.tsx）：这一格只交出折叠带的开合与滚动口。 */
+  /* 行带只有一份实现（design-system/diff/surface）：这一格只交出折叠带的开合与滚动口。 */
   return (
     <DiffBody
       file={file}

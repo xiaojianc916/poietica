@@ -1,6 +1,6 @@
+import { type DiffFile, type DiffStat, diffStatOf } from '@poietica/design-system/diff'
 import type { ToolCallContent } from '../../agent/tool-call'
 import { toDiffFiles, toDisplayPath } from './file-diff'
-import { type DiffFile, type DiffStat, diffStatOf } from './review-port'
 import { type ToolContentPart, toToolContentParts } from './tool-call-content'
 
 // 一次工具调用的两个面（送出/交回），都交 markdown 给同一条渲染管线。

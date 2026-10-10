@@ -1,11 +1,10 @@
+import { type DiffFile, paint } from '@poietica/design-system/diff'
 import { useEffect, useState } from 'react'
-import type { DiffFile } from '../semantics/review-port'
-import { paint } from '../semantics/review-port'
 
 /*
  * 一处改动上色。
  *
- * 行模型里的片段带不带色，取决于着色器跑没跑：审查面板在 worker 里跑（review 包的
+ * 行模型里的片段带不带色，取决于着色器跑没跑：审查面板在 worker 里跑（review 的
  * derive.worker.ts），抽屉这一路没有 worker，就地跑同一份 paint() —— 同一个 shiki、
  * 同一套主题，两处画出来才是同一份颜色。各自实现一套分词即为缺陷。
  *
