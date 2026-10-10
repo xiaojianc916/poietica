@@ -2,6 +2,7 @@ import { describe, expect, test } from 'bun:test'
 import { applyOps, emptyTimeline, pageFromState } from '@poietica/transcript'
 import { lastTurnOrdinal, projectHistoryPage } from '../history'
 import { LiveProjector } from '../live'
+import { GOAL_CONTINUATION_ORIGIN } from '../origin'
 
 import {
   assistant,
@@ -128,6 +129,29 @@ describe('projectHistoryPage', () => {
   test('lastTurnOrdinal 给出最后一轮的号', () => {
     expect(lastTurnOrdinal([user('一', 0), assistant('a', 1)])).toBe(1)
     expect(lastTurnOrdinal([])).toBe(0)
+  })
+
+  test('目标续跑那一条自开一轮：来源 goal_continuation、不带人话（审查 R-11）', () => {
+    const page = projectHistoryPage(
+      [
+        user('把测试迁完', 0),
+        assistant('第一轮', 10),
+        {
+          role: 'custom',
+          customType: 'goal-continuation',
+          timestamp: T0 + 20,
+          content: '继续推进目标',
+          display: false,
+        },
+        assistant('第二轮', 30),
+      ],
+      null,
+    )
+    expect(page.items.length).toBe(2)
+    const second = page.items[1]
+    expect(second?.kind === 'turn' && second.origin).toEqual(GOAL_CONTINUATION_ORIGIN)
+    expect(second?.kind === 'turn' && second.prompt).toBeUndefined()
+    expect(assistantTexts(page)).toEqual(['第一轮', '第二轮'])
   })
 
   test('轮的终点取「答完那一刻」，不是请求发起那一刻', () => {

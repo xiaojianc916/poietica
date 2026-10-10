@@ -101,6 +101,8 @@ async function fixture(): Promise<Fixture> {
       getArtifactsDir: () => 'C:\\work\\artifacts',
       getSessionId: () => 'session-pump',
       getCwd: () => 'C:\\work',
+      /* 目标宿主（RpcGoalController）接回目标时要读的格（审查 R-11） */
+      buildSessionContext: () => ({ mode: 'none', modeData: undefined }),
     },
     subscribe(listener: (event: Record<string, unknown>) => void): () => void {
       listeners.push(listener)
@@ -134,6 +136,20 @@ async function fixture(): Promise<Fixture> {
     getContextUsage: (): ContextUsage => contextUsageOf(),
     getLastAssistantMessage: (): AssistantMessage | undefined => lastAssistantOf(),
     getAvailableThinkingLevels: () => [],
+    /*
+     * 目标宿主（RpcGoalController）要读的那几格（审查 R-11）：事件泵里的会话事件都会先过
+     * 控制器，缺一格它就整条 observe 抛错、E8 的「不产生 warn」当场破功。
+     */
+    getGoalModeState: () => undefined,
+    setGoalModeState: (): void => undefined,
+    getPlanModeState: () => undefined,
+    getTodoPhases: () => [],
+    waitForIdle: async (): Promise<void> => undefined,
+    isDisposed: false,
+    isSessionTransitioning: false,
+    hasAdmittedSubmission: false,
+    queuedMessageCount: 0,
+    goalRuntime: { clearAccounting: (): void => undefined },
   }
 
   const session = await wrapOmpSession({

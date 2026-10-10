@@ -1,6 +1,7 @@
 import { describe, expect, test } from 'bun:test'
 import { applyOps, emptyTimeline, pageFromState, type TranscriptFrame } from '@poietica/transcript'
 import { TOOL_FALLBACK_TEXT } from '../live'
+import { GOAL_CONTINUATION_ORIGIN } from '../origin'
 import { framesOf, projector, snapshot } from './fixtures/live'
 
 describe('LiveProjector', () => {
@@ -206,5 +207,34 @@ describe('LiveProjector', () => {
     const first = applyOps(emptyTimeline(), closed.userTurn({ text: '下一句' }))
     const second = applyOps(emptyTimeline(), abandoned.userTurn({ text: '下一句' }))
     expect(JSON.stringify(first)).toBe(JSON.stringify(second))
+  })
+
+  test('技能那一句跑完之后轮头仍带技能：turnEnd 不冲掉来源（审查 R-11）', () => {
+    const p = projector()
+    const ops = [
+      ...p.userTurn({ text: '看看这段', skills: ['review'] }),
+      ...p.textDelta('好'),
+      ...p.turnEnd('completed', null),
+    ]
+    const heads = ops.flatMap((op) => (op.op === 'turn.upsert' ? [op.turn] : []))
+    expect(heads).toHaveLength(2)
+    expect(heads[1]?.origin).toEqual(heads[0]?.origin)
+    expect(heads[1]?.origin.payload).toMatchObject({ kind: 'skill_activation' })
+    expect(heads[1]?.prompt).toBe('看看这段')
+  })
+
+  test('目标续跑开的一轮：来源 goal_continuation、不带 prompt，收尾也不变（审查 R-11）', () => {
+    const p = projector()
+    p.userTurn({ text: '把测试迁完' })
+    p.turnEnd('completed', null)
+    const ops = [...p.goalContinuationTurn(), ...p.textDelta('接着干'), ...p.turnEnd('completed', null)]
+    const heads = ops.flatMap((op) => (op.op === 'turn.upsert' ? [op.turn] : []))
+    expect(heads).toHaveLength(2)
+    for (const head of heads) {
+      expect(head.origin).toEqual(GOAL_CONTINUATION_ORIGIN)
+      expect(head.prompt).toBeUndefined()
+      expect(head.ordinal).toBe(2)
+    }
+    expect(snapshot(applyOps(emptyTimeline(), ops)).texts).toEqual(['接着干'])
   })
 })

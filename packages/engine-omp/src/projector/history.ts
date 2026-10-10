@@ -8,7 +8,8 @@ import {
   type TranscriptPage,
   turnId,
 } from '@poietica/transcript'
-import { isUserSkillMessage } from '../prompt'
+import { isGoalContinuationMessage, isUserSkillMessage } from '../prompt'
+import { GOAL_CONTINUATION_ORIGIN, type TurnOrigin } from './origin'
 
 /** omp 的消息形状（只取投影要读的那几格，避免绑到 omp 的深层类型） */
 export interface OmpMessage {
@@ -128,12 +129,17 @@ function screenTurns(messages: readonly OmpMessage[], isTurnOpen: boolean): Scre
     })
   }
   for (const message of messages) {
-    if (message.role === 'toolResult' || !isVisible(message)) continue
-    const opens = message.role === 'user' || isUserSkillMessage(message)
-    const starts = opens || message.role === 'compactionSummary'
-    if (starts) {
+    const opener = openerOf(message)
+    if (opener === 'skip') continue
+    if (opener !== null) {
       seal()
-      open = { opening: message, prompt: opens ? message : null, steps: [], closedAt: null }
+      const next: OpenTurn = {
+        opening: message,
+        prompt: opener === 'prompt' ? message : null,
+        steps: [],
+        closedAt: null,
+      }
+      open = next
       continue
     }
     if (open === null) {
@@ -147,6 +153,21 @@ function screenTurns(messages: readonly OmpMessage[], isTurnOpen: boolean): Scre
   return newest !== undefined && isTurnOpen
     ? [...turns.slice(0, -1), { ...newest, state: 'running', endedAt: null }]
     : turns
+}
+
+/**
+ * 一条消息在分轮上的角色：开一轮的三种（人话 / 目标续跑 / 压缩摘要）、不进屏幕的（skip）、
+ * 其余的（null，落进当前这一轮）。
+ *
+ * 目标续跑的开场消息是 display:false 的 custom 消息，但它**开一轮**（审查 R-11）——
+ * 增量那条路在同一处开轮（LiveProjector.goalContinuationTurn）；这里不认它，续跑的输出就会
+ * 并进上一句人话那一轮，重开之后屏幕上的轮数、轮号都与刚才跑的时候对不上。
+ */
+function openerOf(message: OmpMessage): 'prompt' | 'continuation' | 'compaction' | 'skip' | null {
+  if (isGoalContinuationMessage(message)) return 'continuation'
+  if (message.role === 'toolResult' || !isVisible(message)) return 'skip'
+  if (message.role === 'user' || isUserSkillMessage(message)) return 'prompt'
+  return message.role === 'compactionSummary' ? 'compaction' : null
 }
 
 function resultsOf(messages: readonly OmpMessage[]): Map<string, ScreenResult> {
@@ -241,15 +262,20 @@ function turnOp(entry: ScreenTurn): TranscriptOperation {
       turnId: turnId(entry.turn),
       ordinal: entry.turn,
       state: entry.state,
-      origin:
-        skills.length === 0
-          ? { kind: 'user' }
-          : { kind: 'user', payload: { kind: 'skill_activation', trigger: 'user-slash', skillActivations: skills } },
+      origin: originOf(entry, skills),
       ...(entry.prompt === null ? {} : { prompt: promptTextOf(entry.prompt) }),
       startedAt: entry.openedAt,
       ...(entry.endedAt === null ? {} : { endedAt: entry.endedAt }),
     },
   }
+}
+
+/** 这一轮的来源：续跑那一轮是 GOAL_CONTINUATION_ORIGIN（与 live 同一个形状），其余都是人话 */
+function originOf(entry: ScreenTurn, skills: readonly { skillName: string }[]): TurnOrigin {
+  if (isGoalContinuationMessage(entry.opening)) return GOAL_CONTINUATION_ORIGIN
+  return skills.length === 0
+    ? { kind: 'user' }
+    : { kind: 'user', payload: { kind: 'skill_activation', trigger: 'user-slash', skillActivations: skills } }
 }
 
 function skillActivationsOf(message: OmpMessage): readonly { skillName: string }[] {

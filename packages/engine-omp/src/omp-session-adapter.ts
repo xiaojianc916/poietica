@@ -1,6 +1,7 @@
 import type { Settings } from '@oh-my-pi/pi-coding-agent/config/settings'
 import { buildSkillPromptMessage } from '@oh-my-pi/pi-coding-agent/extensibility/skills'
 import type { LocalProtocolOptions } from '@oh-my-pi/pi-coding-agent/internal-urls/local-protocol'
+import type { RpcGoalSession } from '@oh-my-pi/pi-coding-agent/modes/rpc/rpc-goal'
 import { computeSessionContextBreakdown } from '@oh-my-pi/pi-coding-agent/session/context-usage-runtime'
 import {
   TASK_SUBAGENT_LIFECYCLE_CHANNEL,
@@ -18,6 +19,7 @@ import {
 import { AppError, type Logger, SystemErrorCode, systemClock } from '@poietica/foundation'
 import { toContextUsage } from './context-usage'
 import { EventFaults } from './event-faults'
+import { createGoalHost, type GoalHost } from './goal-host'
 import { InteractionBroker } from './interactions/broker'
 import { planInteraction, planOutcomeOf } from './interactions/plan'
 import { createUiContext } from './interactions/ui-context'
@@ -38,6 +40,7 @@ import { SubagentLedger } from './projector/subagents'
 import {
   expandSkillMessage,
   imageContentsOf,
+  isGoalContinuationMessage,
   isUserSkillMessage,
   type LoadedImage,
   loadImages,
@@ -232,6 +235,19 @@ export async function wrapOmpSession(input: WrapOmpSessionInput): Promise<Engine
      */
     emitControls: () => ompSession.controlsChanged(),
   })
+  /*
+   * 目标模式的宿主职责（审查 R-11）：omp 的 RpcGoalController，一条会话一个（goal-host.ts）。
+   * 与 planner 同一个接法：钩子里的 ompSession 在调用时才求值。
+   */
+  const goal = createGoalHost({
+    session: input.agentSession as RpcGoalSession,
+    logger: input.logger,
+    hooks: {
+      reserveContinuation: () => ompSession.reserveGoalContinuation(),
+      releaseContinuation: (error) => ompSession.releaseGoalContinuation(error),
+      continuationDropped: () => ompSession.goalContinuationDropped(),
+    },
+  })
   const ompSession = new OmpSession(
     {
       spec: input.spec,
@@ -351,15 +367,17 @@ export async function wrapOmpSession(input: WrapOmpSessionInput): Promise<Engine
        * 退出或批准之后按它原样还原。
        */
       applyPlanMode: (enabled) => planner.setPlanMode(enabled),
-      applyGoal: async (goal) => {
-        await applyGoal({ session: goalSessionOf(session), root: input.settings, goal })
+      applyGoal: async (objective) => {
+        await applyGoal({ session: goalSessionOf(session), host: goal, root: input.settings, goal: objective })
       },
       pauseGoal: async () => {
-        await pauseGoalMode({ session: goalSessionOf(session) })
+        await pauseGoalMode({ session: goalSessionOf(session), host: goal })
       },
       resumeGoal: async () => {
-        await resumeGoalMode({ session: goalSessionOf(session), root: input.settings })
+        await resumeGoalMode({ session: goalSessionOf(session), host: goal, root: input.settings })
       },
+      goalContinuationPending: () => goal.continuationPending(),
+      stopGoalContinuation: () => goal.stopForHostAbort(),
       planAvailable: () => availabilityOf(input.settings).plan,
       goalAvailable: () => availabilityOf(input.settings).goal,
       livePlanMode: () => planner.isPlanModeOn(),
@@ -382,6 +400,7 @@ export async function wrapOmpSession(input: WrapOmpSessionInput): Promise<Engine
   const pump: EventPump = {
     session: ompSession,
     projector,
+    goal,
     faults: new EventFaults(input.logger, () => projector.turnOrdinal),
     logger: input.logger,
   }
@@ -410,6 +429,12 @@ export async function wrapOmpSession(input: WrapOmpSessionInput): Promise<Engine
   // omp 知识 #6：hasUI + setToolUIContext + initializeExtensions 三者缺一不可
   input.setToolUIContext(ui, true)
   await input.initializeExtensions(session, ui)
+  /*
+   * 把会话文件里记着的目标接回来（审查 R-11）。必须在订阅接上之后：接回时 omp 会发
+   * goal_updated，控制器与控件重报都要看到它。进行中的目标一律以「已暂停」接回 ——
+   * 刚打开的会话没有任何东西在推进它，报「进行中」是假话（omp 的 RPC 宿主启动时同此）。
+   */
+  await goal.reconcile()
   /*
    * 控件初值：模型与档位解析的结果要让 UI 立刻看得到。
    *
@@ -497,6 +522,8 @@ function claimStartedMessage(raw: unknown, session: OmpSession): void {
     return
   }
   if (isUserSkillMessage(message)) session.onSkillMessageStart()
+  // 目标续跑那一轮真的开跑了（审查 R-11）：时间线在这里开一轮
+  else if (isGoalContinuationMessage(message)) session.startGoalContinuationTurn()
 }
 
 /**
@@ -539,27 +566,15 @@ function planSessionOf(session: OmpAgentSessionLike): PlanCapableSession {
   }
 }
 
-/** 同上，目标模式那一面 */
+/** 同上，目标模式那一面（审查 R-11：工具集归目标宿主管，这一面不再碰它） */
 function goalSessionOf(session: OmpAgentSessionLike): GoalCapableSession {
   /* 同上：显式类型标注是 TS 的 never-返回控制流分析的判据。 */
   const missing: () => never = () => {
     throw new AppError(SystemErrorCode.internal, '这条会话不支持目标模式')
   }
   return {
-    getEnabledToolNames: () => session.getEnabledToolNames?.() ?? missing(),
     hasBuiltInTool: (name) => session.hasBuiltInTool?.(name) ?? missing(),
-    /*
-     * 缺席判据要落在**方法本身**上：`await` 一个 void 方法的产物恒是 undefined，
-     * 用 `(await …) ?? missing()` 会把「方法在、正常返回」也判成不支持 —— 真人路径上
-     * 就是进模式当场抛内部错（回归用例 plan-proposal.test.ts 钉住这一条）。
-     *
-     * 同样别把方法从会话上摘下来：接收者一丢，omp 类的私有字段访问（`this.#tools`）
-     * 当场抛错。
-     */
-    setActiveToolsByName: async (names) => {
-      if (session.setActiveToolsByName === undefined) missing()
-      await session.setActiveToolsByName(names)
-    },
+    getPlanModeState: () => session.getPlanModeState?.(),
     getGoalModeState: () =>
       session.getGoalModeState?.() as GoalCapableSession['getGoalModeState'] extends () => infer R ? R : never,
     setGoalModeState: (state) => session.setGoalModeState?.(state),
@@ -843,6 +858,8 @@ async function autosaveApprovedPlanOf(
 interface EventPump {
   readonly session: OmpSession
   readonly projector: LiveProjector
+  /** 目标模式的宿主职责（审查 R-11）：每一条事件都先过它 */
+  readonly goal: GoalHost
   readonly faults: EventFaults
   /** info 级 notice 与「重试成功」只落日志，不上屏（R-09） */
   readonly logger: Logger
@@ -1005,6 +1022,16 @@ function dispatchOmpEvent(event: Record<string, unknown>, pump: EventPump): void
  */
 function handleOmpEvent(event: Record<string, unknown>, pump: EventPump): void {
   const eventType = typeof event.type === 'string' ? event.type : 'unknown'
+  /*
+   * 目标控制器**先**看这一条（审查 R-11；omp 的 RPC 宿主同一个次序）：agent_end 时它要先决定
+   * 续不续跑，OmpSession 的收尾（finishTurn → settleIdle）才知道该收成 idle 还是 held。
+   * 它抛错只记账，不连累这一条事件自己的处理。
+   */
+  try {
+    pump.goal.observe(event)
+  } catch (error) {
+    pump.faults.report(`${eventType}.goal`, error)
+  }
   if (eventType === 'agent_end') {
     endTurn(pump)
     return

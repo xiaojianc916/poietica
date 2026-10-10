@@ -4,8 +4,10 @@ import { describe, expect, test } from 'bun:test'
 import { Settings } from '@oh-my-pi/pi-coding-agent/config/settings'
 import { GoalRuntime } from '@oh-my-pi/pi-coding-agent/goals/runtime'
 import type { GoalModeState } from '@oh-my-pi/pi-coding-agent/goals/state'
+import type { RpcGoalSession } from '@oh-my-pi/pi-coding-agent/modes/rpc/rpc-goal'
 import { EngineErrorCode, type EngineSession, type EngineSessionEvent, type OpenSessionSpec } from '@poietica/engine'
 import { type AppError, noopLogger, SystemErrorCode } from '@poietica/foundation'
+import { createGoalHost, type GoalHost } from '../goal-host'
 import { wrapOmpSession } from '../omp-session-adapter'
 import { type Availability, applyGoal, type GoalCapableSession, pauseGoalMode, resumeGoalMode } from '../plan-goal'
 import { overrideSetting } from '../settings-access'
@@ -13,9 +15,11 @@ import { overrideSetting } from '../settings-access'
 /*
  * 目标的暂停 / 继续 / 改正文（审查 R-10）。
  *
- * 用的是 **omp 真实的 GoalRuntime**（不是手写的假 runtime）：哪些状态转移 omp 收、哪些会抛
- * （例如「暂停的目标不能 replace」「完成之后不能 replace」），只有真 runtime 说了算。
- * 宿主那一面（状态格、工具集、事件）按 omp AgentSession 的接线自己搭。
+ * 用的是 **omp 真实的 GoalRuntime 与 RpcGoalController**（审查 R-11 起，目标宿主就是后者）：
+ * 哪些状态转移 omp 收、哪些会抛、goal 工具什么时候进出活动集，只有 omp 自己的代码说了算。
+ * 会话那一面（状态格、工具集、事件）按 omp AgentSession 的接线自己搭：runtime 的 goal_updated
+ * 同步交给目标宿主（与适配器的事件泵同一个次序）。续跑在这里不开（设置里没有 'rpc'），
+ * 续跑由 goal-continuation.test.ts 用真 SDK 测。
  */
 
 const ON: () => Availability = () => ({ plan: true, goal: true })
@@ -24,6 +28,7 @@ const ROOT = Settings.isolated()
 
 interface RealGoal {
   readonly session: GoalCapableSession
+  readonly host: GoalHost
   readonly runtime: GoalRuntime
   state(): GoalModeState | undefined
   tools(): readonly string[]
@@ -39,20 +44,25 @@ function realGoal(): RealGoal {
   let tools: string[] = ['read', 'write']
   let steers = 0
   const updates: string[] = []
+  let host: GoalHost | null = null
   const runtime = new GoalRuntime({
     getState: () => state,
     setState: (next) => {
       state = next
     },
     getCurrentUsage: () => ({ input: 0, output: 0, cacheRead: 0, cacheWrite: 0 }),
+    /* 与 omp AgentSession 同：goal_updated 同步交给订阅者 —— 这里的订阅者就是目标宿主 */
     emit: (event) => {
-      if (event.type === 'goal_updated') updates.push(`${event.goal?.status ?? 'null'}:${event.goal?.objective ?? ''}`)
+      if (event.type !== 'goal_updated') return
+      updates.push(`${event.goal?.status ?? 'null'}:${event.goal?.objective ?? ''}`)
+      host?.observe({ ...event })
     },
     persist: () => undefined,
     sendHiddenMessage: async () => undefined,
   })
   const h: RealGoal = {
     session: undefined as never,
+    host: undefined as never,
     runtime,
     state: () => state,
     tools: () => tools,
@@ -60,12 +70,52 @@ function realGoal(): RealGoal {
     steered: () => steers,
     streaming: false,
   }
-  const session: GoalCapableSession = {
+  /* 控制器要的那十几格（RpcGoalSession）：只搭它真会读的；会话文件那几格记账即可 */
+  const agent = {
+    settings: ROOT,
+    sessionManager: {
+      getSessionId: () => 'goal-actions',
+      buildSessionContext: () => ({ mode: 'none', modeData: undefined }),
+      appendModeChange: () => undefined,
+      appendCustomEntry: () => undefined,
+    },
+    goalRuntime: runtime,
+    getGoalModeState: () => state,
+    setGoalModeState: (next: GoalModeState | undefined) => {
+      state = next
+    },
+    getPlanModeState: () => undefined,
     getEnabledToolNames: () => [...tools],
-    hasBuiltInTool: (name) => name === 'goal',
-    setActiveToolsByName: async (names) => {
+    setActiveToolsByName: async (names: string[]) => {
       tools = [...names]
     },
+    sendGoalModeContext: async () => {
+      steers += 1
+    },
+    getTodoPhases: () => [],
+    promptCustomMessage: async () => false,
+    waitForIdle: async () => undefined,
+    get isStreaming() {
+      return h.streaming
+    },
+    isDisposed: false,
+    isSessionTransitioning: false,
+    hasAdmittedSubmission: false,
+    queuedMessageCount: 0,
+  }
+  host = createGoalHost({
+    /* 测试替身只实现控制器真会碰的那几格；omp 的 AgentSession 类型太宽，这里只能整体断言一次 */
+    session: agent as unknown as RpcGoalSession,
+    logger: noopLogger,
+    hooks: {
+      reserveContinuation: () => false,
+      releaseContinuation: () => undefined,
+      continuationDropped: () => undefined,
+    },
+  })
+  const session: GoalCapableSession = {
+    hasBuiltInTool: (name) => name === 'goal',
+    getPlanModeState: () => undefined,
     getGoalModeState: () => state as never,
     setGoalModeState: (next) => {
       state = next as GoalModeState | undefined
@@ -78,12 +128,12 @@ function realGoal(): RealGoal {
       steers += 1
     },
   }
-  return Object.assign(h, { session })
+  return Object.assign(h, { session, host })
 }
 
 async function started(objective = '把测试迁完'): Promise<RealGoal> {
   const h = realGoal()
-  await applyGoal({ session: h.session, root: ROOT, availability: ON, goal: objective })
+  await applyGoal({ session: h.session, host: h.host, root: ROOT, availability: ON, goal: objective })
   h.updates.length = 0
   return h
 }
@@ -99,7 +149,7 @@ describe('暂停 / 继续（R-10）', () => {
   test('G1 暂停进行中的目标：状态 paused、goal 工具摘掉、不 steer、不打断', async () => {
     const h = await started()
     h.streaming = true
-    await pauseGoalMode({ session: h.session })
+    await pauseGoalMode({ session: h.session, host: h.host })
     expect(h.state()?.goal.status).toBe('paused')
     expect(h.state()?.enabled).toBe(false)
     expect(h.tools()).not.toContain('goal')
@@ -108,23 +158,23 @@ describe('暂停 / 继续（R-10）', () => {
 
   test('G2 暂停已暂停的目标：什么都不做', async () => {
     const h = await started()
-    await pauseGoalMode({ session: h.session })
+    await pauseGoalMode({ session: h.session, host: h.host })
     h.updates.length = 0
-    await pauseGoalMode({ session: h.session })
+    await pauseGoalMode({ session: h.session, host: h.host })
     expect(h.updates).toEqual([])
     expect(h.state()?.goal.status).toBe('paused')
   })
 
   test('G3 没有目标时暂停：kernel.not_found', async () => {
     const h = realGoal()
-    expect(await codeOf(pauseGoalMode({ session: h.session }))).toBe(SystemErrorCode.notFound)
+    expect(await codeOf(pauseGoalMode({ session: h.session, host: h.host }))).toBe(SystemErrorCode.notFound)
   })
 
   test('G4 继续已暂停的目标：回到 active、goal 工具回来；正在跑时 steer 一次', async () => {
     const h = await started()
-    await pauseGoalMode({ session: h.session })
+    await pauseGoalMode({ session: h.session, host: h.host })
     h.streaming = true
-    await resumeGoalMode({ session: h.session, root: ROOT, availability: ON })
+    await resumeGoalMode({ session: h.session, host: h.host, root: ROOT, availability: ON })
     expect(h.state()?.goal.status).toBe('active')
     expect(h.state()?.enabled).toBe(true)
     expect(h.tools()).toContain('goal')
@@ -133,27 +183,29 @@ describe('暂停 / 继续（R-10）', () => {
 
   test('G5 继续进行中的目标：什么都不做', async () => {
     const h = await started()
-    await resumeGoalMode({ session: h.session, root: ROOT, availability: ON })
+    await resumeGoalMode({ session: h.session, host: h.host, root: ROOT, availability: ON })
     expect(h.updates).toEqual([])
   })
 
   test('G6 没有已暂停的目标时继续：kernel.not_found', async () => {
     const h = realGoal()
-    expect(await codeOf(resumeGoalMode({ session: h.session, root: ROOT, availability: ON }))).toBe(
+    expect(await codeOf(resumeGoalMode({ session: h.session, host: h.host, root: ROOT, availability: ON }))).toBe(
       SystemErrorCode.notFound,
     )
   })
 
   test('G7 设置里关掉目标模式：继续抛 engine.goal_unavailable；暂停与清除照常', async () => {
     const h = await started()
-    await pauseGoalMode({ session: h.session })
-    expect(await codeOf(resumeGoalMode({ session: h.session, root: ROOT, availability: GOAL_OFF }))).toBe(
+    await pauseGoalMode({ session: h.session, host: h.host })
+    expect(await codeOf(resumeGoalMode({ session: h.session, host: h.host, root: ROOT, availability: GOAL_OFF }))).toBe(
       EngineErrorCode.goalUnavailable,
     )
     const other = await started()
-    expect(await codeOf(pauseGoalMode({ session: other.session }))).toBeNull()
+    expect(await codeOf(pauseGoalMode({ session: other.session, host: other.host }))).toBeNull()
     expect(
-      await codeOf(applyGoal({ session: other.session, root: ROOT, availability: GOAL_OFF, goal: null })),
+      await codeOf(
+        applyGoal({ session: other.session, host: other.host, root: ROOT, availability: GOAL_OFF, goal: null }),
+      ),
     ).toBeNull()
     expect(other.state()).toBeUndefined()
   })
@@ -162,8 +214,8 @@ describe('暂停 / 继续（R-10）', () => {
 describe('改正文 / 清除（R-10）', () => {
   test('E1 改已暂停目标的正文：换成新正文、仍是暂停、goal 工具不回来', async () => {
     const h = await started('甲')
-    await pauseGoalMode({ session: h.session })
-    await applyGoal({ session: h.session, root: ROOT, availability: ON, goal: '乙' })
+    await pauseGoalMode({ session: h.session, host: h.host })
+    await applyGoal({ session: h.session, host: h.host, root: ROOT, availability: ON, goal: '乙' })
     expect(h.state()?.goal.objective).toBe('乙')
     expect(h.state()?.goal.status).toBe('paused')
     expect(h.tools()).not.toContain('goal')
@@ -172,7 +224,7 @@ describe('改正文 / 清除（R-10）', () => {
   test('E2 改进行中目标的正文：replace，仍进行中', async () => {
     const h = await started('甲')
     const before = h.state()?.goal.id
-    await applyGoal({ session: h.session, root: ROOT, availability: ON, goal: '乙' })
+    await applyGoal({ session: h.session, host: h.host, root: ROOT, availability: ON, goal: '乙' })
     expect(h.state()?.goal.objective).toBe('乙')
     expect(h.state()?.goal.status).toBe('active')
     expect(h.state()?.goal.id).not.toBe(before)
@@ -181,7 +233,7 @@ describe('改正文 / 清除（R-10）', () => {
   test('E3 正文没变：什么都不做（不重建，目标 id 不变）', async () => {
     const h = await started('甲')
     const before = h.state()?.goal.id
-    await applyGoal({ session: h.session, root: ROOT, availability: ON, goal: '  甲 ' })
+    await applyGoal({ session: h.session, host: h.host, root: ROOT, availability: ON, goal: '  甲 ' })
     expect(h.updates).toEqual([])
     expect(h.state()?.goal.id).toBe(before)
   })
@@ -189,21 +241,23 @@ describe('改正文 / 清除（R-10）', () => {
   test('E4 上一个目标已完成：再设就新建一个进行中的目标', async () => {
     const h = await started('甲')
     await h.runtime.completeGoalFromTool()
-    await applyGoal({ session: h.session, root: ROOT, availability: ON, goal: '乙' })
+    await applyGoal({ session: h.session, host: h.host, root: ROOT, availability: ON, goal: '乙' })
     expect(h.state()?.goal.objective).toBe('乙')
     expect(h.state()?.goal.status).toBe('active')
   })
 
   test('E5 清除：状态清掉，goal 工具摘掉', async () => {
     const h = await started('甲')
-    await applyGoal({ session: h.session, root: ROOT, availability: ON, goal: null })
+    await applyGoal({ session: h.session, host: h.host, root: ROOT, availability: ON, goal: null })
     expect(h.state()).toBeUndefined()
     expect(h.tools()).not.toContain('goal')
   })
 
   test('E6 设置里关掉目标模式之后：仍能清除挂着的目标', async () => {
     const h = await started('甲')
-    expect(await codeOf(applyGoal({ session: h.session, root: ROOT, availability: GOAL_OFF, goal: null }))).toBeNull()
+    expect(
+      await codeOf(applyGoal({ session: h.session, host: h.host, root: ROOT, availability: GOAL_OFF, goal: null })),
+    ).toBeNull()
     expect(h.state()).toBeUndefined()
   })
 })
@@ -241,7 +295,14 @@ async function wrapped(): Promise<Wrapped> {
     settings,
     messages: [],
     skills: [],
-    sessionManager: { getArtifactsDir: () => null, getSessionId: () => 'session-goal', getCwd: () => '/' },
+    sessionManager: {
+      getArtifactsDir: () => null,
+      getSessionId: () => 'session-goal',
+      getCwd: () => '/',
+      buildSessionContext: () => ({ mode: 'none', modeData: undefined }),
+      appendModeChange: () => undefined,
+      appendCustomEntry: () => undefined,
+    },
     subscribe: (listener: (event: Record<string, unknown>) => void) => {
       listeners.add(listener)
       return () => listeners.delete(listener)
@@ -273,6 +334,14 @@ async function wrapped(): Promise<Wrapped> {
     goalRuntime: runtime,
     isStreaming: false,
     sendGoalModeContext: async () => undefined,
+    /* 目标宿主（RpcGoalController）要读的那几格（审查 R-11） */
+    getPlanModeState: () => undefined,
+    getTodoPhases: () => [],
+    waitForIdle: async () => undefined,
+    isDisposed: false,
+    isSessionTransitioning: false,
+    hasAdmittedSubmission: false,
+    queuedMessageCount: 0,
   }
   const spec: OpenSessionSpec = {
     key: 'goal-actions',

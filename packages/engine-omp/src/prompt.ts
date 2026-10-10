@@ -46,6 +46,20 @@ export interface SkillPromptMessage {
 export const SKILL_MESSAGE_TYPE = 'skill-prompt'
 
 /**
+ * omp 目标续跑那条隐藏消息的类型（审查 R-11）：RpcGoalController 的 #scheduleContinuation
+ * 写死的值。goal-host 靠它认出「这是续跑」，history 靠它给续跑开一轮。
+ */
+export const GOAL_CONTINUATION_TYPE = 'goal-continuation'
+
+/** 目标续跑那一轮的开场消息：custom、display:false —— 它不是人话，但它开一轮（审查 R-11） */
+export function isGoalContinuationMessage(message: {
+  readonly role?: unknown
+  readonly customType?: unknown
+}): boolean {
+  return message.role === 'custom' && message.customType === GOAL_CONTINUATION_TYPE
+}
+
+/**
  * 一句话交给 omp 时的正文：用户原文 + 每个文件一行 `@<绝对路径>`。
  *
  * turn / steer / followUp 三种投递与队列对账、插话认领都必须用这一份 —— 投递正文

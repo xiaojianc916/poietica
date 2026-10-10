@@ -1,4 +1,5 @@
 import { frameId, stepId, type TranscriptOperation, turnId } from '@poietica/transcript'
+import { GOAL_CONTINUATION_ORIGIN, type TurnOrigin } from './origin'
 
 /** 工具帧降级时显示的正文（状态照实，正文换成这句；R-02 §2.5） */
 export const TOOL_FALLBACK_TEXT = '这一步的内容无法显示（详情已写入日志）'
@@ -36,7 +37,14 @@ export class LiveProjector {
   private readonly tools = new Map<string, string>()
   private readonly args = new Map<string, unknown>()
   private readonly intents = new Map<string, string>()
-  private prompt = ''
+  /**
+   * 这一轮开头那份轮头的 origin 与 prompt（审查 R-11）：turnEnd 要原样带回去。
+   * turn.upsert 是整头替换（transcript 的 applyTurnUpsert），收尾时现造一份 `{ kind: 'user' }`
+   * 会把开头的来源冲掉 —— 挂技能那一句的技能标签在这一轮跑完就消失，续跑那一轮会变回「人话」。
+   */
+  private origin: TurnOrigin = { kind: 'user' }
+  /** undefined = 这一轮没有人话（目标续跑）：轮头不带 prompt */
+  private prompt: string | undefined = undefined
   private promptId: string | undefined
   private startedAt = ''
   private attachmentIds: readonly string[] = []
@@ -97,22 +105,24 @@ export class LiveProjector {
   }): TranscriptOperation[] {
     const attachmentIds = input.attachmentIds ?? []
     const skills = input.skills ?? []
-    const ordinal = this.turn + 1
-    const turn = turnId(ordinal)
-    const at = this.now()
-    this.turn = ordinal
-    this.step = 0
-    this.frame = 1
-    this.turnOpen = true
-    this.stepOpen = true
-    this.streaming = null
-    this.tools.clear()
-    this.args.clear()
-    this.intents.clear()
-    this.prompt = input.text
-    this.promptId = input.promptId
-    this.startedAt = at
-    this.attachmentIds = attachmentIds
+    const origin: TurnOrigin =
+      skills.length === 0
+        ? { kind: 'user' }
+        : {
+            kind: 'user',
+            payload: {
+              kind: 'skill_activation',
+              trigger: 'user-slash',
+              skillActivations: skills.map((name) => ({ skillName: name })),
+            },
+          }
+    const { ordinal, turn, at } = this.openTurn({
+      firstFrame: 1,
+      origin,
+      prompt: input.text,
+      promptId: input.promptId,
+      attachmentIds,
+    })
     return [
       {
         op: 'turn.upsert',
@@ -121,17 +131,7 @@ export class LiveProjector {
           turnId: turn,
           ordinal,
           state: 'running',
-          origin:
-            skills.length === 0
-              ? { kind: 'user' }
-              : {
-                  kind: 'user',
-                  payload: {
-                    kind: 'skill_activation',
-                    trigger: 'user-slash',
-                    skillActivations: skills.map((name) => ({ skillName: name })),
-                  },
-                },
+          origin,
           prompt: input.text,
           startedAt: at,
           ...(input.promptId === undefined ? {} : { triggerPromptId: input.promptId }),
@@ -156,6 +156,65 @@ export class LiveProjector {
         },
       },
     ]
+  }
+
+  /**
+   * 目标续跑开的一轮（审查 R-11）：omp 的控制器塞进来的是一条 display:false 的续跑提示，
+   * 它不是人说的话 —— 轮头不带 prompt、不画用户气泡；段从 0 号起，第一帧就是模型自己的输出。
+   */
+  goalContinuationTurn(): TranscriptOperation[] {
+    const { ordinal, turn, at } = this.openTurn({
+      firstFrame: 0,
+      origin: GOAL_CONTINUATION_ORIGIN,
+      prompt: undefined,
+      promptId: undefined,
+      attachmentIds: [],
+    })
+    return [
+      {
+        op: 'turn.upsert',
+        turn: {
+          kind: 'turn',
+          turnId: turn,
+          ordinal,
+          state: 'running',
+          origin: GOAL_CONTINUATION_ORIGIN,
+          startedAt: at,
+        },
+      },
+      {
+        op: 'step.upsert',
+        turnId: turn,
+        step: { kind: 'step', stepId: stepId(turn, 0), turnId: turn, ordinal: 0, state: 'running', startedAt: at },
+      },
+    ]
+  }
+
+  /** 开一轮的累加器复位（userTurn 与 goalContinuationTurn 共用这一份，两处各写一遍就会漂移） */
+  private openTurn(input: {
+    readonly firstFrame: number
+    readonly origin: TurnOrigin
+    readonly prompt: string | undefined
+    readonly promptId: string | undefined
+    readonly attachmentIds: readonly string[]
+  }): { readonly ordinal: number; readonly turn: string; readonly at: string } {
+    const ordinal = this.turn + 1
+    const at = this.now()
+    this.turn = ordinal
+    this.step = 0
+    this.frame = input.firstFrame
+    this.turnOpen = true
+    this.stepOpen = true
+    this.streaming = null
+    this.tools.clear()
+    this.args.clear()
+    this.intents.clear()
+    this.origin = input.origin
+    this.prompt = input.prompt
+    this.promptId = input.promptId
+    this.startedAt = at
+    this.attachmentIds = input.attachmentIds
+    return { ordinal, turn: turnId(ordinal), at }
   }
 
   /** 一句插话：开着一轮时进当前 step 并封掉正在流的那一帧；没开着就退回 userTurn */
@@ -379,8 +438,8 @@ export class LiveProjector {
         turnId: turn,
         ordinal: this.turn,
         state: outcome === 'failed' ? 'failed' : outcome === 'cancelled' ? 'cancelled' : 'completed',
-        origin: { kind: 'user' },
-        prompt: this.prompt,
+        origin: this.origin,
+        ...(this.prompt === undefined ? {} : { prompt: this.prompt }),
         startedAt: this.startedAt,
         endedAt: at,
         ...(this.promptId === undefined ? {} : { triggerPromptId: this.promptId }),

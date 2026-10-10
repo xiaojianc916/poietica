@@ -1119,3 +1119,70 @@ description 收窄成「设置只改正文，进行中 / 已暂停保持不变�
 
 **验收**：`bun run  all` 全绿。真机验收按 R10 §6 的九步走（暂停不打断、浮层同步、
 关掉目标模式后的三条行为、完成之后开关能重新打开），与 R-03 / R-05 / … 同例，待真机复核。
+
+## R-11（审查页）目标模式的宿主职责：续跑、重开接回、完成收尾（2026-10-10）
+
+**来源**：审查页 R-11 `R11.md`（外部输入，不入库）。目标模式在 Poietica 上只做到「R-10 的
+建 / 续 / 停 / 弃真正下发」，缺了宿主本职：一轮跑完不会自己接着跑（不设目标以外的话，看起来
+和普通对话没有区别）；关掉应用再打开，进行中的目标在屏幕上仍报「进行中」（没有任何东西在
+推进它）；agent 用 `goal` 工具报完成之后，会话状态里的残留与 `goal` 工具没有收尾；停止键按下
+之后被中断那一轮的 `agent_end` 还会排一次续跑。另外，挂技能那一句跑完之后轮头的技能标签会
+消失（收尾时 `turnEnd` 现造了一份 `{ kind: 'user' }` 把开轮来源冲掉）。
+
+**根因**：omp 把目标的「持久生命周期」（建 / 续 / 停 / 弃、计量、落盘）放在 `GoalRuntime` 里，
+三个宿主共用；而「宿主职责」——`goal` 工具在活动集里的去留、完成 / 放弃之后的收尾、重开会话
+时把目标接回来、两轮之间自动续跑——TUI 写在 `InteractiveMode` 里，RPC 宿主写在导出的
+`RpcGoalController` 里。Poietica 是第四个宿主，先前一件都没做（R-10 只补了生命周期那半）。
+
+**改法**（不自己实现续跑判断，直接用 omp 导出的 `RpcGoalController`，只做两处接线）：
+
+1. **新 `goal-host.ts`**：一条会话一个 `RpcGoalController`；`controllerSessionOf()` 交给控制器
+   的会话除 `promptCustomMessage` 外一律现读现调真会话（getter 不能拷值、类方法不能摘下来裸调）。
+   续跑的消息（`customType: 'goal-continuation'`）先问 `OmpSession` 能不能开
+   （`reserveContinuation`）；刚由 Poietica 建好、还没跑过一轮时（`awaitingFirstTurn`）让位给
+   人的那一句。`allowGoalContinuation()` 只在本会话 override 层加 `goal.continuationModes` 的
+   `rpc` 一档（用户删掉 `interactive` 就尊重它），不落盘、不进设置页。
+2. **会话层状态机（`session.ts`）**：`goalRun: none / held / reserved / running` —— 控制器决定
+   续跑后 `settleIdle` 收进 `held`（状态留在 running，两个续跑轮之间不报 idle），
+   `message_start` 认出续跑消息时 `startGoalContinuationTurn()` 开一轮，`finishTurn` 的重复
+   `agent_end` 守卫加上 `held`。`cancel()` 先 `stopGoalContinuation()` 再 abort；`resumeGoal()`
+   之后 `holdForGoalContinuation()` 立刻把状态切回 running。
+3. **事件泵（`omp-session-adapter.ts`）**：每条 omp 事件先过 `pump.goal.observe`（必须先于
+   OmpSession 自己的收尾，`agent_end` 时控制器先决定续不续跑）；异常只记 `${type}.goal`。
+   打开会话、订阅接上之后再 `goal.reconcile()` —— 会话文件里记着的目标接回来，进行中的一律
+   以「已暂停」接回。建 / 续 / 停 / 弃都改走宿主的 `create / resume / pause / drop`。
+4. **`plan-goal.ts`**：清除 → `host.drop()`（不查可用性）；没有目标 / 上一个已完成 → 先清残留
+   再 `host.create()`；进行中换正文仍走 `runtime.replaceGoal`（正在跑时 steer）；已暂停换正文
+   仍走 runtime 的 resume → replace → pause（**不经宿主**，经宿主会排一轮续跑）；
+   `pauseGoalMode` / `resumeGoalMode` → `host.pause()` / `host.resume()`；建 / 续预检三道闸
+   （设置开着、会话有 `goal` 工具、不在计划模式），计划模式的拒绝文案是中文。
+5. **投影（`origin.ts` / `prompt.ts` / `live.ts` / `history.ts`）**：续跑的隐藏消息自开一轮
+   （`GOAL_CONTINUATION_ORIGIN`，`{ kind: 'other', payload: { kind: 'system_trigger', name:
+   'goal_continuation' } }`，与 transcript upstream 的 `opensOwnTurn` + `mapOrigin` 同一约定），
+   轮头不带人话、不画用户气泡；实时与历史共用同一个常量，重开前后轮头一致。`live.ts` 的轮头
+   记住开轮时的 origin / prompt，`turnEnd` 原样带回 —— **顺带修好技能标签在轮收尾时丢失**。
+
+**契约**：无变化，`PROTOCOL_VERSION` 保持 13；UI / Core 一行未改。
+
+**测试**：
+
+- `packages/engine-omp/src/__tests__/goal-continuation.test.ts`（新建，omp 真 SDK + mock
+  provider）：C1 两轮之间自动续跑（续跑轮上屏、不带人话、状态全程 running、最后只报一次
+  idle）、C2 建目标不抢第一轮、C3 暂停（当前轮跑完、之后不续）、C4 停止（中断、回 idle、目标
+  已暂停、不再续）；R1 重开接回为「已暂停」、R2 重开后继续立刻续跑、R3 完成收尾写进会话文件
+  且重开无目标、R4 重开历史与刚才的时间线一致（轮数 / 来源 / 人话）。
+- `goal-actions.test.ts`：夹具换成真 `GoalRuntime` + 真 `RpcGoalController`（经
+  `createGoalHost`）；G1–G7 / E1–E6 / S1–S4 全过。
+- `plan-goal.test.ts`：目标用例组整块换成 P1–P9（假 session + 假 host 记账）。
+- `projector/__tests__/live.test.ts` / `history.test.ts`：加续跑开轮与技能标签保留三条用例；
+  `live-legacy` 快照随之更新（技能 origin 现在保留）。
+- 既有夹具补齐控制器要读的格（`controls.test.ts`、`event-pump.test.ts`、
+  `plan-goal-e2e.test.ts`）；e2e 的假 `goalRuntime.dropGoal` 按 omp 的真相改：先发
+  `goal_updated(dropped)` 再清状态（清除的收尾归 runtime，不在 `plan-goal` 里另清一遍）。
+
+**验收**：`bun run  all` 全绿（1762 pass / 0 fail，224 文件 / 5858 断言）。
+真机验收（第 6 节七步：自动续跑、暂停、停止、重开接回、完成收尾、计划模式里报中文、
+技能标签保留）与 R-03 / R-05 / … 同例，**待真机复核**。
+
+**已知边角**（第 7 节最后一条，本页不修）：会话空闲或 held 时，omp 自动 drain 排队消息
+开出的那一轮，Poietica 不会把状态切成 running —— 落地前就有的窄边角，与续跑无关。

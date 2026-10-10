@@ -1,12 +1,15 @@
 import { describe, expect, test } from 'bun:test'
 import { EngineErrorCode } from '@poietica/engine'
-import type { AppError } from '@poietica/foundation'
+import { type AppError, SystemErrorCode } from '@poietica/foundation'
 import { planApprovedText, planRejectedText, planRevisionText } from '../interactions/plan'
 import {
   applyGoal,
   applyPlanMode,
   type GoalCapableSession,
+  type GoalHostActions,
   type PlanCapableSession,
+  pauseGoalMode,
+  resumeGoalMode,
   settlePlanProposal,
 } from '../plan-goal'
 import type { SettingsScope } from '../settings-access'
@@ -263,118 +266,180 @@ describe('计划提交：四档答复', () => {
 
 interface GoalHarness {
   readonly session: GoalCapableSession
+  readonly host: GoalHostActions
+  /** 宿主动作与 runtime 调用，按发生次序；setGoalModeState(undefined) 记成 'clear' */
   readonly calls: string[]
   goalState: unknown
-  readonly tools: string[]
+  planMode: boolean
   streaming: boolean
 }
 
+/**
+ * 目标那一面的假会话 + 假宿主（审查 R-11）。宿主四个动作只记账、照 omp 的样子改状态 ——
+ * 它们背后的真逻辑（RpcGoalController）由 goal-actions.test.ts / goal-continuation.test.ts 用 omp 真代码覆盖；
+ * 这里只钉 plan-goal 自己的判断：预检、走哪一条路、残留先清。
+ */
 function goalHarness(): GoalHarness {
   const calls: string[] = []
   const h: GoalHarness = {
     calls,
     goalState: undefined,
-    tools: ['read', 'write'],
+    planMode: false,
     streaming: false,
     session: undefined as never,
+    host: undefined as never,
   }
+  const put = (objective: string, status: string): unknown => {
+    h.goalState = { goal: { objective, status } }
+    return h.goalState
+  }
+  const objectiveNow = (): string => (h.goalState as { goal: { objective: string } }).goal.objective
   const session: GoalCapableSession = {
-    getEnabledToolNames: () => [...h.tools],
     hasBuiltInTool: (name) => name === 'goal',
-    setActiveToolsByName: async (names) => {
-      h.tools.length = 0
-      h.tools.push(...names)
-    },
+    getPlanModeState: () => (h.planMode ? { enabled: true } : undefined),
     getGoalModeState: () => h.goalState as never,
     setGoalModeState: (state) => {
+      if (state === undefined) calls.push('clear')
       h.goalState = state
     },
     goalRuntime: {
-      createGoal: async ({ objective }) => {
-        calls.push(`create:${objective}`)
-        return { goal: { objective, status: 'active' } }
-      },
       replaceGoal: async ({ objective }) => {
-        calls.push(`replace:${objective}`)
-        return { goal: { objective, status: 'active' } }
+        calls.push(`runtime.replace:${objective}`)
+        return put(objective, 'active')
       },
       resumeGoal: async () => {
-        calls.push('resume')
-        return { goal: { objective: '旧目标', status: 'active' } }
+        calls.push('runtime.resume')
+        return put(objectiveNow(), 'active')
       },
       pauseGoal: async () => {
-        calls.push('pause')
-        return { goal: { objective: '旧目标', status: 'paused' } }
-      },
-      dropGoal: async () => {
-        calls.push('drop')
-        return undefined
+        calls.push('runtime.pause')
+        return put(objectiveNow(), 'paused')
       },
     },
     get isStreaming() {
       return h.streaming
     },
     sendGoalModeContext: async () => {
-      calls.push('sendGoalModeContext')
+      calls.push('steer')
     },
   }
-  return Object.assign(h, { session })
+  const host: GoalHostActions = {
+    create: async (objective) => {
+      calls.push(`host.create:${objective}`)
+      put(objective, 'active')
+    },
+    resume: async () => {
+      calls.push('host.resume')
+      put(objectiveNow(), 'active')
+    },
+    pause: async () => {
+      calls.push('host.pause')
+      put(objectiveNow(), 'paused')
+    },
+    drop: async () => {
+      calls.push('host.drop')
+      h.goalState = undefined
+    },
+  }
+  return Object.assign(h, { session, host })
 }
 
-describe('目标模式：设置 / 清除 + 不可用（R-10：设置只改正文，不改状态）', () => {
-  test('新建：把 goal 工具塞回活动集，再落状态', async () => {
+const GOAL_ON = availabilityOf(true, true)
+
+async function errorOf(promise: Promise<unknown>): Promise<AppError | null> {
+  return await promise.then(
+    () => null,
+    (error: unknown) => error as AppError,
+  )
+}
+
+describe('目标模式：四条路径 + 预检（R-11：建 / 续 / 停 / 弃走目标宿主）', () => {
+  test('P1 新建：没有目标时交给宿主建，不自己碰 runtime', async () => {
     const h = goalHarness()
-    await applyGoal({ session: h.session, root: ROOT, availability: availabilityOf(true, true), goal: '把测试迁完' })
-    expect(h.calls).toEqual(['create:把测试迁完'])
-    expect(h.tools).toContain('goal')
-    expect(h.goalState).toMatchObject({ goal: { objective: '把测试迁完', status: 'active' } })
+    await applyGoal({ session: h.session, host: h.host, root: ROOT, availability: GOAL_ON, goal: '把测试迁完' })
+    expect(h.calls).toEqual(['host.create:把测试迁完'])
   })
 
-  test('替换：已有别的目标时走 replaceGoal', async () => {
+  test('P2 上一个目标已完成却还挂在状态里：先清残留再建', async () => {
     const h = goalHarness()
-    h.goalState = { goal: { objective: '旧目标', status: 'active' } }
-    await applyGoal({ session: h.session, root: ROOT, availability: availabilityOf(true, true), goal: '新目标' })
-    expect(h.calls).toEqual(['replace:新目标'])
-    expect(h.goalState).toMatchObject({ goal: { objective: '新目标' } })
+    h.goalState = { enabled: true, goal: { objective: '旧目标', status: 'complete' } }
+    await applyGoal({ session: h.session, host: h.host, root: ROOT, availability: GOAL_ON, goal: '新目标' })
+    expect(h.calls).toEqual(['clear', 'host.create:新目标'])
   })
 
-  /*
-   * R-10：设置只改正文、不改状态。以前同正文落在暂停的目标上会被当成「继续」——
-   * 继续现在有自己的入口（resumeGoalMode），这里什么都不做，进度与用量都留着。
-   */
-  test('同正文落在暂停的目标上：什么都不做（不 resume、不重建），仍是暂停', async () => {
+  test('P3 正文没变：什么都不做', async () => {
     const h = goalHarness()
-    h.goalState = { goal: { objective: '旧目标', status: 'paused' } }
-    await applyGoal({ session: h.session, root: ROOT, availability: availabilityOf(true, true), goal: '旧目标' })
+    h.goalState = { goal: { objective: '甲', status: 'active' } }
+    await applyGoal({ session: h.session, host: h.host, root: ROOT, availability: GOAL_ON, goal: '  甲 ' })
     expect(h.calls).toEqual([])
-    expect(h.goalState).toMatchObject({ goal: { status: 'paused' } })
   })
 
-  test('删除：goal 为 null 时 dropGoal 并清状态', async () => {
+  test('P4 进行中换正文：runtime.replaceGoal；正在跑时把新目标 steer 进去', async () => {
     const h = goalHarness()
-    h.goalState = { goal: { objective: '旧目标', status: 'active' } }
-    await applyGoal({ session: h.session, root: ROOT, availability: availabilityOf(true, true), goal: null })
-    expect(h.calls).toEqual(['drop'])
-    expect(h.goalState).toBeUndefined()
-  })
-
-  test('正在流式输出时改目标要把目标上下文 steer 进去', async () => {
-    const h = goalHarness()
+    h.goalState = { goal: { objective: '甲', status: 'active' } }
     h.streaming = true
-    await applyGoal({ session: h.session, root: ROOT, availability: availabilityOf(true, true), goal: '把测试迁完' })
-    expect(h.calls).toContain('sendGoalModeContext')
+    await applyGoal({ session: h.session, host: h.host, root: ROOT, availability: GOAL_ON, goal: '乙' })
+    expect(h.calls).toEqual(['runtime.replace:乙', 'steer'])
   })
 
-  test('设置里关掉目标模式时抛 engine.goal_unavailable', async () => {
+  test('P5 已暂停换正文：resume → replace → pause 直接走 runtime，不经宿主（不排续跑）', async () => {
     const h = goalHarness()
-    const error = await applyGoal({
+    h.goalState = { goal: { objective: '甲', status: 'paused' } }
+    await applyGoal({ session: h.session, host: h.host, root: ROOT, availability: GOAL_ON, goal: '乙' })
+    expect(h.calls).toEqual(['runtime.resume', 'runtime.replace:乙', 'runtime.pause'])
+    expect(h.goalState).toMatchObject({ goal: { objective: '乙', status: 'paused' } })
+  })
+
+  test('P6 清除：交给宿主 drop，不查可用性', async () => {
+    const h = goalHarness()
+    h.goalState = { goal: { objective: '甲', status: 'active' } }
+    await applyGoal({
       session: h.session,
+      host: h.host,
       root: ROOT,
       availability: availabilityOf(true, false),
-      goal: '随便',
-    }).catch((e: unknown) => e)
-    expect((error as AppError).code).toBe(EngineErrorCode.goalUnavailable)
+      goal: null,
+    })
+    expect(h.calls).toEqual(['host.drop'])
+  })
+
+  test('P7 设置里关掉目标模式：建 / 继续抛 engine.goal_unavailable，宿主一下都没碰', async () => {
+    const h = goalHarness()
+    const off = availabilityOf(true, false)
+    const created = await errorOf(
+      applyGoal({ session: h.session, host: h.host, root: ROOT, availability: off, goal: '甲' }),
+    )
+    expect(created?.code).toBe(EngineErrorCode.goalUnavailable)
+    h.goalState = { goal: { objective: '甲', status: 'paused' } }
+    const resumed = await errorOf(resumeGoalMode({ session: h.session, host: h.host, root: ROOT, availability: off }))
+    expect(resumed?.code).toBe(EngineErrorCode.goalUnavailable)
     expect(h.calls).toEqual([])
+  })
+
+  test('P8 计划模式中：建 / 继续抛 kernel.conflict，报中文', async () => {
+    const h = goalHarness()
+    h.planMode = true
+    const created = await errorOf(
+      applyGoal({ session: h.session, host: h.host, root: ROOT, availability: GOAL_ON, goal: '甲' }),
+    )
+    expect(created?.code).toBe(SystemErrorCode.conflict)
+    expect(created?.message).toBe('先退出计划模式，再设定目标')
+    h.goalState = { goal: { objective: '甲', status: 'paused' } }
+    const resumed = await errorOf(
+      resumeGoalMode({ session: h.session, host: h.host, root: ROOT, availability: GOAL_ON }),
+    )
+    expect(resumed?.message).toBe('先退出计划模式，再继续目标')
+    expect(h.calls).toEqual([])
+  })
+
+  test('P9 暂停 / 继续经宿主；已经是那一档时什么都不做', async () => {
+    const h = goalHarness()
+    h.goalState = { goal: { objective: '甲', status: 'active' } }
+    await pauseGoalMode({ session: h.session, host: h.host })
+    await pauseGoalMode({ session: h.session, host: h.host })
+    await resumeGoalMode({ session: h.session, host: h.host, root: ROOT, availability: GOAL_ON })
+    await resumeGoalMode({ session: h.session, host: h.host, root: ROOT, availability: GOAL_ON })
+    expect(h.calls).toEqual(['host.pause', 'host.resume'])
   })
 })
 

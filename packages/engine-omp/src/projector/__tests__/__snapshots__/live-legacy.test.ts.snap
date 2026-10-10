@@ -12,6 +12,15 @@ exports[`一轮的代表性形状（12 页 §9.5 的快照） 正文 + 思考 + 
       "ordinal": 1,
       "origin": {
         "kind": "user",
+        "payload": {
+          "kind": "skill_activation",
+          "skillActivations": [
+            {
+              "skillName": "review",
+            },
+          ],
+          "trigger": "user-slash",
+        },
       },
       "prompt": "跑一下测试",
       "startedAt": "2023-11-14T22:13:20.000Z",

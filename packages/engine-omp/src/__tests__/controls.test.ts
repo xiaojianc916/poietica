@@ -90,6 +90,8 @@ function hostOf(over: Partial<OmpSessionHost> = {}): OmpSessionHost {
     },
     pauseGoal: async () => undefined,
     resumeGoal: async () => undefined,
+    goalContinuationPending: () => false,
+    stopGoalContinuation: () => undefined,
     planAvailable: () => true,
     goalAvailable: () => true,
     livePlanMode: () => planMode,

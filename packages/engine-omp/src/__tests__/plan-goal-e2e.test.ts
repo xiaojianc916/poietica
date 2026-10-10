@@ -62,6 +62,7 @@ async function harness(): Promise<Harness> {
   let handler: ((title: string) => Promise<unknown>) | null = null
   const referencePaths: string[] = []
   const goalCalls: string[] = []
+  const listeners: ((event: Record<string, unknown>) => void)[] = []
 
   const agentSession = {
     sessionId: 'session-plan',
@@ -74,8 +75,15 @@ async function harness(): Promise<Harness> {
       getArtifactsDir: () => artifactsDir,
       getSessionId: () => 'session-plan',
       getCwd: () => cwd,
+      /* 目标宿主接回目标时要读的格（审查 R-11） */
+      buildSessionContext: () => ({ mode: 'none', modeData: undefined }),
+      appendModeChange: () => undefined,
+      appendCustomEntry: () => undefined,
     },
-    subscribe: () => () => undefined,
+    subscribe: (listener: (event: Record<string, unknown>) => void) => {
+      listeners.push(listener)
+      return () => undefined
+    },
     prompt: async () => true,
     promptCustomMessage: async () => true,
     steer: async () => undefined,
@@ -139,12 +147,34 @@ async function harness(): Promise<Harness> {
         goalCalls.push('pause')
         return { goal: { objective: '旧目标', status: 'paused' } }
       },
+      /*
+       * 与 omp 的 GoalRuntime.dropGoal 同形（审查 R-11）：先发 goal_updated(dropped)
+       * —— 控制器据此排队还工具集 —— 再把状态清掉。清除目标的收尾归 runtime，
+       * 不在 plan-goal 里另清一遍。
+       */
       dropGoal: async () => {
         goalCalls.push('drop')
+        const dropped = goalState === undefined ? undefined : { ...goalState.goal, status: 'dropped' }
+        for (const listener of listeners) {
+          listener({
+            type: 'goal_updated',
+            goal: dropped ?? null,
+            state: dropped === undefined ? undefined : { goal: dropped },
+          })
+        }
+        goalState = undefined
         return undefined
       },
+      clearAccounting: () => undefined,
     },
     sendGoalModeContext: async () => undefined,
+    /* 目标宿主（RpcGoalController）要读的那几格（审查 R-11） */
+    getTodoPhases: () => [],
+    waitForIdle: async () => undefined,
+    isDisposed: false,
+    isSessionTransitioning: false,
+    hasAdmittedSubmission: false,
+    queuedMessageCount: 0,
   }
 
   const spec: OpenSessionSpec = {

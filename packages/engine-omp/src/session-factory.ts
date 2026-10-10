@@ -1,6 +1,7 @@
 import { EngineErrorCode, type EngineSession, type EngineToolSpec, type OpenSessionSpec } from '@poietica/engine'
 import { AppError, type Logger, SystemErrorCode } from '@poietica/foundation'
 import { type DataLayout, dataLayout } from '@poietica/runtime-layout'
+import { allowGoalContinuation } from './goal-host'
 import { applyPosture } from './posture'
 import { type SettingsScope, settingAt } from './settings-access'
 import { createToolsExtension } from './tools-extension'
@@ -73,6 +74,8 @@ export class SessionFactory {
       (this.o.root as { overlay?: (overrides?: Readonly<Record<string, unknown>>) => SettingsScope }).overlay?.() ??
       this.o.root
     applyPosture(settings, spec.posture)
+    // 目标续跑：omp 的控制器只认 'rpc' 这一档，Poietica 按交互式宿主的设置放行（审查 R-11，goal-host.ts）
+    allowGoalContinuation(settings)
     const manager = await this.openManager(spec)
     const model = this.resolveModelFor(spec)
     // omp 知识 #15：内置工具用 extensions 注册（customTools 会替换掉 omp 的默认工具）；

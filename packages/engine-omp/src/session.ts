@@ -141,6 +141,13 @@ export interface OmpSessionHost {
   /** 暂停 / 继续目标（R-10；实现在 plan-goal.ts 的 pauseGoalMode / resumeGoalMode） */
   readonly pauseGoal: () => Promise<void>
   readonly resumeGoal: () => Promise<void>
+  /**
+   * 目标续跑（审查 R-11；实现在 goal-host.ts，背后是 omp 的 RpcGoalController）。
+   * pending：有一次续跑已经决定、还没开出来 —— 此刻会话不能报 idle。
+   */
+  readonly goalContinuationPending: () => boolean
+  /** 人按了停止：必须在 abort 之前调，被中断那一轮自己的 agent_end 才不会再排一次续跑 */
+  readonly stopGoalContinuation: () => void
   /** 这两档此刻能不能用（现读 agent 设置；UI 据此隐藏选择器） */
   readonly planAvailable: () => boolean
   readonly goalAvailable: () => boolean
@@ -209,6 +216,19 @@ export class OmpSession implements EngineSession {
    * 屏幕闪一下「进行中」。改动收尾时统一报一次（读的是会话此刻的真相，什么都不丢）。
    */
   private goalBatch = 0
+  /**
+   * 目标续跑在这条会话上走到哪一步（审查 R-11）。状态机（只在这几个方法里改）：
+   *
+   *   none ──settleIdle(控制器已决定续跑)──▶ held ──reserveGoalContinuation──▶ reserved
+   *   reserved ──startGoalContinuationTurn(omp 的 message_start)──▶ running ──finishTurn──▶ settleIdle
+   *   held ──goalContinuationDropped / reserved ──releaseGoalContinuation──▶ settleIdle（多半回到 none + idle）
+   *
+   * held / reserved 期间状态留在 running：两轮续跑之间不报 idle —— 否则输入框的停止键会闪、
+   * Core 的 turnSettled 每一轮各发一次（自动化当成跑完了）、会话池会把它当空闲会话回收。
+   */
+  private goalRun: 'none' | 'held' | 'reserved' | 'running' = 'none'
+  /** held 期间留着的上一轮错误：最后真收成 idle 时原样报出（Core 据此判 failed） */
+  private heldError: { code: string; message: string } | null = null
 
   constructor(
     private readonly o: OmpSessionHost,
@@ -276,7 +296,7 @@ export class OmpSession implements EngineSession {
     if (pendingCount === 0 && this.endedWithPending !== null) {
       const { error } = this.endedWithPending
       this.endedWithPending = null
-      this.setState('idle', error)
+      this.settleIdle(error)
       return
     }
     if (pendingCount > 0 && this.stateValue === 'running') this.setState('awaiting')
@@ -375,9 +395,92 @@ export class OmpSession implements EngineSession {
     } finally {
       // 投影成不成功都要复位：否则下一句话（或插话）会落进已经结束的那一轮
       this.o.projector.abandonTurn()
-      if (this.o.broker.pendingCount() === 0) this.setState('idle', error)
-      else this.endedWithPending = { error }
+      this.settleIdle(error)
     }
+  }
+
+  /**
+   * 一次运行收尾之后会话落到哪一格（R-02 §2.7 + 审查 R-11），三选一：
+   * 还挂着交互 → 等交互答完再来一次；控制器已决定续跑 → held（状态留在 running）；否则 → idle。
+   */
+  private settleIdle(error: { code: string; message: string } | null): void {
+    if (this.o.broker.pendingCount() > 0) {
+      this.endedWithPending = { error }
+      return
+    }
+    if (!this.disposed && this.o.goalContinuationPending()) {
+      this.goalRun = 'held'
+      this.heldError = error
+      if (this.stateValue !== 'running') this.setState('running')
+      return
+    }
+    this.goalRun = 'none'
+    this.heldError = null
+    this.setState('idle', error)
+  }
+
+  /**
+   * 控制器要开一次续跑（审查 R-11；goal-host 在把续跑交给 omp 之前**同步**调它）。
+   *
+   * 只在「会话空着」或「正 held 着等这一轮」时答应；Poietica 自己有一轮正在起步
+   * （submit 刚把状态切成 running、或者时间线上开着一轮）就让位 —— 返回 false，控制器
+   * 会把这次续跑作废，等那一轮跑完再决定。
+   */
+  reserveGoalContinuation(): boolean {
+    if (this.disposed || this.o.projector.isTurnOpen) return false
+    const free = this.goalRun === 'held' || (this.goalRun === 'none' && this.stateValue === 'idle')
+    if (!free) return false
+    this.goalRun = 'reserved'
+    this.endedWithPending = null
+    if (this.stateValue !== 'running') this.setState('running')
+    return true
+  }
+
+  /** omp 开始跑续跑那一轮（message_start 认出续跑消息）：时间线开一轮（审查 R-11） */
+  startGoalContinuationTurn(): void {
+    if (this.o.projector.isTurnOpen) return
+    this.goalRun = 'running'
+    if (this.stateValue !== 'running') this.setState('running')
+    this.timeline(this.o.projector.goalContinuationTurn())
+  }
+
+  /**
+   * 预留的续跑没开出来（审查 R-11）：omp 没收下（error 为 null），或交给 omp 时抛了错。
+   * 还没开轮 → 按 settleIdle 收；已经开了轮又抛错 → 这一轮按 failed 收。
+   */
+  releaseGoalContinuation(error: unknown): void {
+    if (this.goalRun === 'reserved') {
+      if (error !== null) this.o.logger.warn('goal continuation failed', { error: describeError(error) })
+      this.settleIdle(null)
+      return
+    }
+    if (this.goalRun === 'running' && error !== null && this.o.projector.isTurnOpen) {
+      const mapped = toEngineError(error)
+      this.closeTurnAfterRun('failed', mapped.message, { code: mapped.code, message: mapped.message })
+    }
+  }
+
+  /**
+   * 控制器放弃了一次待开的续跑（审查 R-11；等待期间某道闸关上了：人按了暂停、目标没了……）。
+   * 只有还 held 着、没有别的一轮开着、控制器也没有新的待开续跑时，才真的收成 idle。
+   */
+  goalContinuationDropped(): void {
+    if (this.goalRun !== 'held' || this.o.projector.isTurnOpen || this.o.goalContinuationPending()) return
+    const error = this.heldError
+    this.goalRun = 'none'
+    this.heldError = null
+    this.setState('idle', error)
+  }
+
+  /**
+   * 人按了「继续」之后，控制器可能已经排好一次续跑：立刻把状态切成 running（held），
+   * 不要让 UI 在续跑开出来之前那几毫秒里以为还空着。
+   */
+  private holdForGoalContinuation(): void {
+    if (this.disposed || this.stateValue !== 'idle' || !this.o.goalContinuationPending()) return
+    this.goalRun = 'held'
+    this.heldError = null
+    this.setState('running')
   }
 
   /**
@@ -454,10 +557,17 @@ export class OmpSession implements EngineSession {
 
   async cancel(): Promise<void> {
     this.assertLive()
+    /*
+     * 先停续跑、再 abort（审查 R-11；omp 的 RPC 宿主同一个次序）：被中断那一轮自己的
+     * agent_end 也会过控制器，不先停它就会在 abort 收尾时再排一次续跑 —— 停止键按了等于没按。
+     */
+    this.o.stopGoalContinuation()
     // 用户点了停止：这一轮由 abort 收口，等待交互答完再收尾的标记作废
     this.endedWithPending = null
     this.o.broker.cancelAll()
     await this.o.abort()
+    this.goalRun = 'none'
+    this.heldError = null
     if (this.stateValue !== 'idle') this.setState('idle')
   }
 
@@ -631,6 +741,8 @@ export class OmpSession implements EngineSession {
 
   async resumeGoal(): Promise<void> {
     await this.changeGoal(() => this.o.resumeGoal())
+    // 继续 = 接着推进：空闲时控制器已经排好一次续跑（审查 R-11）
+    this.holdForGoalContinuation()
   }
 
   /** 目标改动的统一外壳：期间压住逐条重报，收尾（成功或失败）只报一次真相（R-10） */
@@ -777,7 +889,7 @@ export class OmpSession implements EngineSession {
   /** 一轮结束（omp 的 agent_end）：结局由最后一条 assistant 消息决出 */
   finishTurn(): void {
     // 重复的 agent_end：轮已关、状态已空闲，再走一遍只会重复发 state 事件
-    if (!this.o.projector.isTurnOpen && this.stateValue === 'idle') return
+    if (!this.o.projector.isTurnOpen && (this.stateValue === 'idle' || this.goalRun === 'held')) return
     let outcome: TurnOutcome
     try {
       outcome = outcomeOf(this.o.lastAssistant())
