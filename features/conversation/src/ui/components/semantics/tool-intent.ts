@@ -98,6 +98,19 @@ export function sayToolCount(kind: ToolKind, count: number): string {
   }
 }
 
+/**
+ * 过程组（read / execute 混在一起）落定后的账目。
+ *
+ * 文案取基准截图的说法：「已读取文件运行了命令」；只有一半时就只说那一半。
+ */
+export function sayProcessSummary(reads: number, executes: number): string {
+  if (reads > 0 && executes > 0) {
+    return '已读取文件运行了命令'
+  }
+
+  return executes > 0 ? '运行了命令' : '已读取文件'
+}
+
 // ToolKind 长出新档时这里是编译错误。
 function unhandled(_kind: never): string {
   return ''

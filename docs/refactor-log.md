@@ -949,3 +949,88 @@ MCP 后新建对话不再出现 `xd://: mounted …`；断网触发自动重试�
 `bun run desktop:build` 通过（worker 与主 chunk 都吃到新的子入口）。真机验收
 （工具卡片里的编辑调用画出带行号槽、增删底色与语法色的行带）与 R-03 / R-05 / … / R-10
 同例，待真机复核。
+
+## R-12 时间线的过程分组：read / execute / 思考合成一条记事，思考整条退成组头一闪（2026-10-10）
+
+**来源**：产品负责人交办的基准截图与口头要求。在此之前，并组只在**同类相邻**的工具调用
+之间发生（`groupIn` 按 `ToolKind` 分档），思考（`agent_thought`）是独立的一行：
+运行中印末行、落定后可以点开读全文（`thought-card.tsx`）。
+
+**要求与改法**：
+
+1. **read + execute + 思考聚成一条「过程」组**：投影里新增 `process` 档（`PROCESS = {read,
+   execute}`），三者相邻且同轮就连成一组；其余类别（edit / write / search …）行为一个字
+   没动，思考对它们仍是隔断。
+2. **思考从头到尾不落成行**：`TimelineRow` 对 `agent_thought` 直接交白卷。流式中它只借
+   过程组的**组头**一闪（末尾非空行，`readThoughtLine(text, 'tail')`，与 `GroupTicker`
+   同一套换字动效）；落定之后**整段消失**，历史回放也不出现。
+3. **组头文案**（基准截图口径）：两类都有 `已读取文件运行了命令`、只有 read
+   `已读取文件`、只有 execute `运行了命令` —— `sayProcessSummary()`。
+4. **成员列表封顶**：`.timeline-group__members` 加 `max-block-size:
+   var(--cp-timeline-group-max)` 与 `overflow: hidden auto`，戴 `data-scrollable`，
+   滚轮仲裁照 `feed/nested-scroll.ts` 的嵌套滚动走（初值 20rem，后由产品调整为 15rem）。
+5. **常亮的光只归工具调用**：组头此刻印的是思考时不戴 `timeline-shimmer`（思考靠换字
+   刷过，闪完就没），印的是在飞的工具调用时才亮。
+6. **成员列表两端那道雾**（产品第二遍追加，参考 `zcode-ref` 的
+   `mentions/components/scrollMask.ts`）：还藏着行的那一端用 `mask-image` 线性渐变化开，
+   滚到那一端雾就消失 —— 记号说的是「这一端还有没露出来的内容」，不是「这是个滚动盒」。
+   判据在 `primitives/use-scroll-mask.ts`（`resolveScrollMaskState` 给 `both / top /
+   bottom / none` 四态），画法在 `tool-group.css`，跑道是 `--cp-timeline-group-fade`
+   （一行半正文）。只挂两端、中间一律纯黑：一道常驻的整盒渐变会把正常内容也读成雾。
+   观测四条来路（滚、盒变形、内容长高、行增删），尺寸变化缺一条雾就会停在错的状态上。
+7. **组头换字重做成 zcode 那一套**（产品第三遍追加："动画效果写很糟糕，完全复刻"）：
+   先前那版是「把每个变化都当成一次换格来播」—— 模型一个 token 一个 token 地吐字，
+   屏幕上却每个变化都翻一次页，眼睛追的是动画不是字。重做之后逐条照 `zcode-ref` 的
+   `ToolCallBlocks/QueuedSummaryContent.tsx` + `components/ai-elements/reasoning.tsx`：
+   - **按行分格**：`readThoughtLine()` 交出末尾非空行**和它的行号**，行号当这一格的身份。
+     同一行继续写 = 原地刷新（不播任何动画，这才是「刷刷刷」）；换行 = 换格，才滚一次。
+   - **纵向滚一格**：新句从下方 `0.8em` 升起、旧句往上走掉，`300ms`、`(0.4, 0, 0.2, 1)`，
+     随后停 `500ms`。排队上限两格，定时器迟到超过 `250ms` 只播最后一格 —— 中间那几格
+     是过去的事，补播会让人在卡顿恢复后看一段过期的排队。
+   - **在写的那一格不收省略号**：内容保持自然宽度（`inline-size: max-content`），盒子滚到
+     末尾，两端各 16px 化开（`--cp-rolling-line-fade`）。先前用 `layout` 把宽度过渡也
+     补间，两条字同时在场时布局每帧重排 —— 那正是这个产品在虚拟器行里最不能碰的东西
+     （改写见 `rolling-line.css` 头注：宽度归内容，省略号归落定态）。
+   `group-ticker.tsx / .css` 与 `useHeldValue` 整条删除，`RollingLine` 接位。
+8. **组头印思考时不要图标**：这一行自己在换字，左边再挂一枚不动的字形是两套说法，
+   读起来是「这行在动」而不是「模型在想」。印工具调用时图标照旧（`thinking ? null : …`）。
+
+**偏差（与既有设计的出入，按产品要求执行）**：原先「推理是一行现场、落定后可展开读
+全文」的设计（`thought-card.tsx` + `flow-row.css` 的 `.timeline-thought*` +
+`use-follow-end.ts` + `--cp-timeline-thought-rule/-max`）**整条移除**：产品明确要求思考
+不产生任何可展开 UI，历史回放也不显示。相应地，`virtual-lines.tsx` 的 `measured` 档
+只剩 `tool-call-panels` 一个消费者（能力保留，注释更新）。
+
+**测试**：`features/conversation/src/ui/components/timeline/__tests__/process-group.test.tsx`
+（新建，14 条）钉住：三类相邻成一条 process 组且 `tools` 里没有思考；单条 read + 一条思考
+成组、单条 read 自己不成组；落定纯思考不出现（不落行也不进组内列表）；流式纯思考只出
+一条组头且不可展开；两条 edit 仍合组、edit + 思考 + edit 不跨思考合并；组头文案三档；
+成员列表封顶与自动滚动；两端那道雾只按四态画（`none` 不挂渐变）；组头印思考时没有
+`timeline-row__icon`、印工具时图标仍在。另有
+`features/conversation/src/ui/components/primitives/__tests__/scroll-mask.test.ts`（4 条）
+钉住四态判据：装得下时两端都没有雾、停在顶端只有下端有雾、停在底端只有上端有雾、
+端头那半个像素也算到头；
+`features/conversation/src/ui/components/semantics/__tests__/thought-line.test.ts`（6 条）
+钉住换字的身份：同一行继续写 key 不变、换行才换 key、末尾空行不挪 key、整段空白给空 key、
+CRLF 按同一套行号数。
+
+**验收**：`bun run  all` 全绿（1711 pass / 0 fail，219 文件 / 5695 断言）。
+真机验收点（待产品复核）：思考时组头无图标、同一句在原位长字（不翻页）、换行才向上滚
+一格、超宽时最后几个字不被省略号吃掉、成员列表到顶出现内部滚动条与两端那道雾、
+滚到端头雾消失、历史会话里不再出现思考行。
+
+**修订（2026-10-10，真机复核「宽度还是超出去了」）**：思考那一行铺满整屏，越过了
+768px 的阅读栏。根因在两层几何叠出来的：`.timeline-group` 是 `display: grid` 却没定轨道，
+隐式 `auto` 轨道按内容的**最大宽度**定；而思考在写的时候内层是 `inline-size: max-content`
+（见 `rolling-line.css`），量度又写着 `100%` —— 百分比在固有尺寸计算里当 `auto` 用，
+于是轨道被那句话的自然宽度反过来撑开，行自己的 `max-inline-size: min(100%, …)` 没有
+确定的 `100%` 可解，拦不住，溢出的字最后只被滚动盒的 `overflow: clip` 截在右缘。
+先前量度是 `38rem` 的固定值时轨道撑不开，这个坑才没暴露。
+
+改法两条，各堵一层：`.timeline-group` 加 `grid-template-columns: minmax(0, 1fr)`
+把轨道先钉成可用宽，行这时才解得出 `100%`；`[data-measure="prose"]` 的量度从
+`100%` 换成 `var(--cp-input-max)`（与 `--cp-grid` 同值，就是阅读栏的宽），给出确定的
+上限。测试补两条（量度不再含 `100%`、轨道是 `minmax(0, 1fr)`）。
+
+**验收（修订后）**：`bun run  all` 全绿（1715 pass / 0 fail，219 文件 / 5700 断言）。
+真机验收点：思考那一句话右端收在输入框同一条线上，超出的部分在行内滚动、两端化开。

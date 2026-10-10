@@ -28,12 +28,22 @@ export interface FeedRow {
 
 type ToolGroupKind = ToolCallTimelineItem['kind']
 
+/**
+ * 组头的说法：read 与 execute 合成一条「过程」，思考搭这条过程的顺风车
+ * （它只在组头一闪而过，从不单独上屏）；其余类别按自己的 kind 各自成组。
+ *
+ * process 之外的那几档就是原来的 ToolKind。
+ */
+type ToolGroupFlavor = ToolGroupKind | 'process'
+
 export interface ToolGroupPlan {
   /** 这一组自己的开合身份：成员的 id 归成员，组不借用其中任何一个。 */
   readonly id: string
-  readonly kind: ToolGroupKind
-  /** 按屏幕顺序，第一条就是挂着这一组的那一行。 */
+  readonly kind: ToolGroupFlavor
+  /** 按屏幕顺序的全部成员：过程组里混着思考，第一条是挂着这一组的那一行。 */
   readonly members: readonly FeedRow[]
+  /** 会画进展开列表的工具成员；思考一个都不在里面。 */
+  readonly tools: readonly FeedRow[]
 }
 
 /** 封条属于一次运行；身份直接使用 TurnPage 的权威段号。 */
@@ -74,13 +84,31 @@ export interface Presentation {
   readonly replyAt: (index: number) => ReplyActionPlan | undefined
 }
 
-/** 旁白不是助手正文；过程折叠按运行计算。 */
+/* 旁白不是助手正文；过程折叠按运行计算。 */
 const ASIDE: ReadonlySet<FeedRow['item']['type']> = new Set(['error', 'link', 'permission', 'question'])
 /* 字面量而不是 TimelineItem['type']：注解成联合后 === 不再收窄。 */
 const SAID = 'user_message'
 
-/** 同类相邻才并组。类别表就是 ToolKind，这里不抄第二份。 */
+/** 两个以上成员才并组。过程组里「单条 read 加上一条思考」也够两个。 */
 const LEAST = 2
+
+/** 过程组的两类工具：read / execute 换着来也还是同一条过程。 */
+const PROCESS: ReadonlySet<ToolGroupKind> = new Set(['execute', 'read'])
+
+/** 行的分组归属：思考不算工具，但和 read / execute 同走一条过程。 */
+type RunFlavor = ToolGroupFlavor | 'thought'
+
+function runFlavorOf(item: FeedRow['item']): RunFlavor | undefined {
+  if (item.type === 'agent_thought') {
+    return 'thought'
+  }
+
+  if (item.type !== 'tool_call') {
+    return undefined
+  }
+
+  return PROCESS.has(item.kind) ? 'process' : item.kind
+}
 
 const NO_GROUPS: ReadonlyMap<string, ToolGroupPlan> = new Map()
 const NO_SEALS: ReadonlyMap<number, TurnSealPlan> = new Map()
@@ -269,6 +297,43 @@ function speechFrom(rows: readonly FeedRow[], from: number, until: number): stri
   return said.join('\n\n')
 }
 
+/**
+ * 一条过程里能并进下一行吗。
+ *
+ * 思考是透明的：它和 read / execute 组成同一条过程，读文件、跑命令、想一会儿换着来都
+ * 还是同一件事。别的工具类别各成一档，思考在它们那里仍是隔断（行为不变）。
+ */
+function continuesGroup(next: FeedRow['item'], flavor: RunFlavor): boolean {
+  const nextFlavor = runFlavorOf(next)
+
+  if (nextFlavor === undefined) {
+    return false
+  }
+
+  if (flavor !== 'process' && flavor !== 'thought') {
+    return nextFlavor === flavor
+  }
+
+  return nextFlavor === 'process' || nextFlavor === 'thought'
+}
+
+/** 从 start 那条开始，同轮同过程一直并到哪一行为止（不含）。 */
+function runEnd(rows: readonly FeedRow[], start: number, flavor: RunFlavor, turn: number): number {
+  let end = start + 1
+
+  while (end < rows.length) {
+    const next = rows[end]?.item
+
+    if (next === undefined || next.turn !== turn || !continuesGroup(next, flavor)) {
+      break
+    }
+
+    end += 1
+  }
+
+  return end
+}
+
 function groupIn(rows: readonly FeedRow[]): {
   readonly rows: readonly FeedRow[]
   readonly groups: ReadonlyMap<string, ToolGroupPlan>
@@ -276,6 +341,16 @@ function groupIn(rows: readonly FeedRow[]): {
   let kept: FeedRow[] | undefined
   let groups: Map<string, ToolGroupPlan> | undefined
   let cursor = 0
+
+  /*
+   * 到「第一处改动」为止的副本。这条投影每帧都跑，一行都没动过时交回原数组 ——
+   * 没并组没丢行时不该凭空多一份复制。
+   */
+  const materialize = (upTo: number): FeedRow[] => {
+    kept ??= rows.slice(0, upTo)
+
+    return kept
+  }
 
   while (cursor < rows.length) {
     const row = rows[cursor]
@@ -286,49 +361,60 @@ function groupIn(rows: readonly FeedRow[]): {
       continue
     }
 
-    const kind = row.item.type === 'tool_call' ? row.item.kind : undefined
+    const start = cursor
+    const flavor = runFlavorOf(row.item)
 
-    if (kind === undefined) {
+    if (flavor === undefined) {
       kept?.push(row)
       cursor += 1
 
       continue
     }
 
-    let end = cursor + 1
+    const end = runEnd(rows, cursor, flavor, row.item.turn)
 
-    while (end < rows.length) {
-      const next = rows[end]?.item
+    const members = rows.slice(cursor, end)
+    const tools = members.filter((member) => member.item.type === 'tool_call')
 
-      if (next?.type !== 'tool_call' || next.turn !== row.item.turn || next.kind !== kind) {
-        break
+    /*
+     * 一整段纯思考：还在流才留一枚组头（就是它那一闪），流完整段消失 ——
+     * 既不留行，也不进任何组内列表。
+     */
+    if (tools.length === 0) {
+      if (members.some((member) => member.isStreamingTail)) {
+        materialize(start).push(row)
+        groups ??= new Map()
+        groups.set(row.item.id, { id: `group:${row.item.id}`, kind: 'process', members, tools })
+      } else {
+        /* 落定的思考整段丢掉：为了把它从结果里剔出去，前面那份前缀必须真的复制出来。 */
+        materialize(start)
       }
 
-      end += 1
-    }
-
-    if (end - cursor < LEAST) {
-      kept?.push(row)
-      cursor += 1
+      cursor = end
 
       continue
     }
 
-    if (kept === undefined || groups === undefined) {
-      kept = rows.slice(0, cursor)
-      groups = new Map()
+    /* 孤零零一条工具还是单行；旁边陪了一条思考就是一组（单条 read + 一条思考算组）。 */
+    if (members.length < LEAST) {
+      kept?.push(row)
+      cursor = end
+
+      continue
     }
 
-    kept.push(row)
+    materialize(start).push(row)
+    groups ??= new Map()
     groups.set(row.item.id, {
       id: `group:${row.item.id}`,
-      kind,
-      members: rows.slice(cursor, end),
+      kind: flavor === 'process' || flavor === 'thought' ? 'process' : flavor,
+      members,
+      tools,
     })
     cursor = end
   }
 
-  return kept === undefined || groups === undefined ? { groups: NO_GROUPS, rows } : { groups, rows: kept }
+  return kept === undefined ? { groups: NO_GROUPS, rows } : { groups: groups ?? NO_GROUPS, rows: kept }
 }
 
 /** 段内每一问的落点。升序由 saidIn 保证。 */
@@ -662,7 +748,11 @@ export function selectPresentation(state: TimelineState, chosen: ReadonlyMap<num
   return result
 }
 
-/** 这一组里还在跑的那一条，倒着找：卡片只报最后一条的状态。 */
+/**
+ * 这一组里还在动的那一条，倒着找：卡片只报最后一条的状态。
+ *
+ * 工具看终态，思考看是不是还挂在流式尾巴上 —— 思考没有终态可等，字还在来就是还在。
+ */
 export function liveMemberOf(plan: ToolGroupPlan): FeedRow | undefined {
-  return plan.members.findLast((member) => member.isInFlight === true)
+  return plan.members.findLast((member) => member.isInFlight === true || member.isStreamingTail === true)
 }

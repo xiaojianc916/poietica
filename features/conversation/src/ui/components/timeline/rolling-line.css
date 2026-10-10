@@ -1,0 +1,80 @@
+/*
+ * 组头那一格字：两句话落在同一个格子里，高度恒定一行。
+ *
+ * 几何照抄 zcode-ref（reasoning.tsx 的流式摘要格）：外面这一层是视口，窄了会滚；
+ * 里面那一层保持自己的自然宽度（inline-size: max-content），于是超宽时 scrollWidth 真的
+ * 大于 clientWidth —— 这一格才滚得动。若让里层跟着视口收缩，超出部分会被裁在盒子里、
+ * scrollWidth 与 clientWidth 相等，滚轮与 mask 都判不出「还藏着字」。
+ *
+ * 必须裁：滚动是纵向的（换一句话 = 往上翻一格），不裁的话旧句退场的那 0.8em 会盖到
+ * 组头上面那一行去。裁了之后退场那条也顺势被截在格子里。
+ *
+ * 高度钉死一行不是讲究，是硬约束：这些行挂着虚拟器的 measureElement，高度一变就触发
+ * 一次滚动补偿，那正是「贴底时开合会抽」的那条链。宽度反而是自由的 —— 行自己的盒子撑满
+ * 整列，这一格横向怎么变都不改那个外框，行上的 ResizeObserver 根本不会响。
+ *
+ * 位移与透明度归 motion（rolling-line.tsx），这张表只管几何与收尾。
+ */
+
+.rolling-line {
+  /* popLayout 把退场那一条摘成绝对定位，得有个定位祖先接住它。 */
+  position: relative;
+
+  display: block;
+  flex: 0 1 auto;
+  min-inline-size: 0;
+  block-size: 1lh;
+  overflow: hidden;
+}
+
+/*
+ * 真正印字的那一层。
+ *
+ * 这里不给 color：运行时戴的 .timeline-shimmer 是这行字颜色的唯一所有者，理由写在
+ * shimmer.css 里 —— 这一层若也声明 color，谁赢就取决于打包顺序了。
+ */
+.rolling-line__text {
+  display: block;
+  min-inline-size: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/*
+ * 落定：这句话成了结论，从头读起才对。
+ *
+ * 宽度回到视口（inline-size: auto），收尾是省略号 —— 全文在展开后的那一面里，这一行
+ * 只负责认出是哪一句。
+ */
+.rolling-line:not([data-following]) .rolling-line__text {
+  max-inline-size: 100%;
+}
+
+/*
+ * 还在写：这一格不封顶，盒子滚到末尾。
+ *
+ * 不给省略号 —— 单行省略号吃掉的是最右边那几个字，而那正是模型刚写下、人正在等的字。
+ * 让位给 mask（下面那条），两端的字淡出去，读起来是「这句话还在长」。
+ */
+.rolling-line[data-following] .rolling-line__text {
+  inline-size: max-content;
+  text-overflow: clip;
+}
+
+/*
+ * 在写、又超宽：两端各化开一段（zcode 的 REASONING_SUMMARY_MASK 宽度）。
+ *
+ * 化开而不裁断：断口会让它读成排版坏了，渐隐才读成「这句话还在长」。中间那一段一律
+ * 纯黑，只有两端让位 —— 整条渐变会把正常的字也读成雾。
+ */
+.rolling-line[data-overflow] .rolling-line__text {
+  text-overflow: clip;
+  mask-image: linear-gradient(
+    to right,
+    transparent 0,
+    #000 var(--cp-rolling-line-fade),
+    #000 calc(100% - var(--cp-rolling-line-fade)),
+    transparent 100%
+  );
+}

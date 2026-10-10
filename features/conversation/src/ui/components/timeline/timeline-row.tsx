@@ -8,7 +8,6 @@ import { CompactionStatus } from './compaction-status'
 import { ErrorNotice } from './error-notice'
 import { LinkCard } from './link-card'
 import { Prose } from './prose'
-import { ThoughtCard } from './thought-card'
 import { ToolCallCard } from './tool-call-card'
 import { UserMessage } from './user-message'
 
@@ -59,18 +58,9 @@ export const TimelineRow = memo(function TimelineRow({ isOpen, onToggle, row, th
     case 'agent_text':
       return <Prose className="timeline-message" streaming={row.isStreamingTail} text={item.text} />
 
-    // 推理是一行现场：运行中不是控件，落定之后才交出开合。
+    // 推理从不落成一行：它只在它那条过程组头上一闪（tool-group-card），这里没有它的位置。
     case 'agent_thought':
-      return (
-        <ThoughtCard
-          isOpen={isOpen}
-          isStreaming={row.isStreamingTail}
-          onToggle={() => {
-            onToggle(item.id)
-          }}
-          text={item.text}
-        />
-      )
+      return null
 
     case 'tool_call': {
       const contributed = renderers.find((candidate) => matchesToolName(candidate.item.toolName, item.invokedTool))

@@ -1,15 +1,29 @@
 /*
- * 一组连续同类调用。
+ * 一组连续的过程：read / execute 与夹在它们中间的思考。
  *
  * 与 .timeline-tool 同一个音量、同一个字号、同一套缩进 —— 组头是活动流里的一条记事，
  * 不因为它汇总了几条就变大一档。
  */
 
+/*
+ * 列宽由这一层先钉死，不许内容反过来撑。
+ *
+ * 默认的 auto 轨道按内容的最大宽度定：思考在写的时候内层是 inline-size: max-content
+ * （见 rolling-line.css），而它的量度写的是 100% —— 百分比在固有尺寸计算里当 auto 用，
+ * 于是轨道一路长到那句话的自然宽度。行自己的 max-inline-size 这时没有确定的 100% 可解，
+ * 拦不住，文字溢出转录栏，最后只被滚动盒的 overflow: clip 截在右缘 —— 屏幕上就是
+ * 「思考这一行铺满整屏」。
+ *
+ * minmax(0, 1fr) 先把轨道定成可用宽：行这时才解得出 100%，超出的字交给 rolling-line
+ * 自己滚（两端化开），而不是把这一列撑出去。成员各自的量度不受影响，仍是工具那一档；
+ * 只有那个滚动区跟着占满整列。
+ */
 .timeline-group {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
 }
 
-/* 那一格现在是 GroupTicker，几何搬去了 group-ticker.css：会缩的那两条归外面那一格，
+/* 那一格现在是 RollingLine，几何搬去了 rolling-line.css：会缩的那两条归外面那一格，
    省略号归里面印字的那一层 —— 换字期间外面那一格里有两句话，截断只能落在单句上。 */
 
 /*
@@ -20,9 +34,46 @@
  *
  * 行距比转录级窄：展开之后这几行是同一件事的几个部分，松成转录的间距会让「它们属于
  * 上面那一行」读不出来。
+ *
+ * 高度封顶并自己滚：一次探索动辄几十条调用，全铺开会把下面的东西整片推走；到顶之后
+ * 这一格自己滚（戴 data-scrollable，滚轮仲裁按嵌套滚动走，见 feed/nested-scroll.ts），
+ * 右侧那条轴说明下面还有。
+ *
+ * 两端那道雾（data-scroll-mask，四态由 primitives/use-scroll-mask 算出）说的比滚动条
+ * 更准：条只说明「这个盒子能滚」，雾说的是「这一端还藏着一行没露出来」。滚到那一端
+ * 雾就没有了 —— 记号跟着事实走，不留一个常驻的渐隐。所以渐变挂在这两端，且只挂两端：
+ * 每一端要么被雾盖住，要么原样露出，中间那段一律不准变淡。
+ *
+ * 渐变用 mask 而不是盖一层地色：这一格底下可能是任何东西（工具行、代码块、抽屉），
+ * 叠一层实色会在换主题、换底色时露出接缝；mask 直接削这盒子自己的像素，与底色无关。
+ * 渐隐长度取 --cp-line 的一行半，与「我」说的话那处收尾同一档 —— 短了断口读成硬边，
+ * 长了整行字都在雾里。
  */
 .timeline-group__members {
   display: grid;
   gap: var(--cp-timeline-group-gap);
   padding-block-start: var(--cp-timeline-group-gap);
+  max-block-size: var(--cp-timeline-group-max);
+  overflow: hidden auto;
+}
+
+/* 两端都还藏着：上下各一段雾。 */
+.timeline-group__members[data-scroll-mask="both"] {
+  mask-image: linear-gradient(
+    to bottom,
+    transparent,
+    #000 var(--cp-timeline-group-fade),
+    #000 calc(100% - var(--cp-timeline-group-fade)),
+    transparent
+  );
+}
+
+/* 只藏住上端：顶端化开，底端原样。 */
+.timeline-group__members[data-scroll-mask="top"] {
+  mask-image: linear-gradient(to bottom, transparent, #000 var(--cp-timeline-group-fade));
+}
+
+/* 只藏住下端：底端化开，顶端原样。 */
+.timeline-group__members[data-scroll-mask="bottom"] {
+  mask-image: linear-gradient(to bottom, #000 calc(100% - var(--cp-timeline-group-fade)), transparent);
 }

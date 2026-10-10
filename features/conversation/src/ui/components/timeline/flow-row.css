@@ -1,7 +1,7 @@
 /*
  * 活动流里一条可点的记事：一枚图标、一句话、指到才出现的箭头。
  *
- * 工具调用、一组同类调用与一段推理共用它：同一个音量、同一套缩进，只此一份。
+ * 工具调用与一组调用共用它：同一个音量、同一套缩进，只此一份。
  */
 
 .timeline-row {
@@ -29,10 +29,14 @@
 
 /*
  * 推理摘要是模型的原话，量度归阅读栏而不是工具那一档：收得比正文早，被省略号吃掉的正是
- * 这句话的开头。deepseek-harness 的 ReasoningRow.module.css 里 .summary 同样不封顶。
+ * 这句话的开头。
+ *
+ * 上限显式取输入框那一档（--cp-input-max 与 --cp-grid 同值，就是阅读栏的宽）：这一行在写
+ * 的时候内层不收省略号、保持自然宽度（见 rolling-line.css），量度因此是它唯一的刹车。
+ * 上面那层 min(100%, …) 负责窗口窄时不让它溢出去，两个一起才闭合。
  */
 .timeline-row[data-measure="prose"] {
-  --cp-row-measure: 100%;
+  --cp-row-measure: var(--cp-input-max);
 }
 
 /* 可点的那几处才有指针与悬停反馈：现场那一行是状态，不是控件。 */
@@ -70,20 +74,6 @@ button.timeline-row:focus-visible {
   opacity: 1;
 }
 
-/* 固定的那个名不参与截断：会变的是它后面那一格。 */
-.timeline-row__name {
-  flex: none;
-}
-
-/* 名与内容之间的那个点。 */
-.timeline-row__dot {
-  flex: none;
-  inline-size: 2px;
-  block-size: 2px;
-  border-radius: 1px;
-  background: currentcolor;
-}
-
 /* 会变的那一格：一行，不长、会缩，长了收省略号。 */
 .timeline-row__label {
   flex: 0 1 auto;
@@ -91,90 +81,4 @@ button.timeline-row:focus-visible {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-}
-
-/* 跟着末尾走的时候不收省略号：省略号正好盖住最新那几个字。 */
-.timeline-row__label[data-follow-end] {
-  text-overflow: clip;
-}
-
-/* 跟随末端的位移由渲染器插值：滚到末端因此读成从右往左的滑动，不是一格一格地跳。 */
-@media (prefers-reduced-motion: no-preference) {
-  .timeline-row__label[data-follow-end] {
-    scroll-behavior: smooth;
-  }
-}
-
-/*
- * 点开之后的那段推理：原文本身，只按行断。
- *
- * 对齐照上面那一行分两栏：竖线落在图标那一格，正文落在名字那一格 —— 上面是
- * 「思考完毕 · <原话>」，下面是它的正文，两行的左沿各自对齐。
- *
- * 数算清楚：竖线在行首（0），正文于是要再让开一个线宽
- * calc(--cp-timeline-tool-indent - var(--cp-px))（22px 正是图标 16px 加间隙 6px，与工具
- * 调用那张纸同一个数），加起来才是名字的起点 22px。所以不能再给 margin-inline-start ——
- * 那会把正文推到 44px，两层缩进叠加，比名字还右。
- *
- * 线宽取发丝线那一档而不是 2px：非整数显示缩放下 2px 栅格化出的设备像素数不确定
- * （150% 下量出来是 3 个），一条本该是发丝的边会读成一条实心杠。让位那半个数跟着
- * 同一个令牌走，换档时两处一起动。
- *
- * 左边一道竖线代替背景与卡片：这一段是过程，不是一份产物，画成盒子就与回答同重了。
- * 引用（timeline.css 的 blockquote）用的是同一条边，理由相同。线的墨取阅读栏那一档
- * 而不是 --cp-hairline 的浅灰：那个色在这块底色上几乎看不见，而它正是这一段与上下文的界。
- *
- * 封顶并自己滚：一段推理动辄几十行，全铺开会把下面的东西整片推走。滚动条在右边，
- * 于是上下有边、右边有轴，一眼看得出这只是一段，还能往下读。
- *
- * 与回答同一个量度、淡一档；推理不过 markdown（thought-card），所以换行归 pre-wrap，
- * 字号行高在这里自己声明，不再借 .timeline-prose 那一档。
- *
- * overflow-wrap 只能是 anywhere：推理里满是不含空格的标识符，它们的 min-content 就是
- * 全长，而 break-word 不参与内在尺寸计算，格子会被撑破。
- */
-.timeline-thought {
-  margin-block-start: var(--cp-control-gap);
-  max-block-size: var(--cp-timeline-thought-max);
-  padding-inline-start: calc(var(--cp-timeline-tool-indent) - var(--cp-px));
-  border-inline-start: var(--cp-px) solid var(--cp-timeline-thought-rule);
-  color: var(--cp-timeline-quiet-text);
-  font-size: var(--ui-prose-size);
-  line-height: var(--ui-prose-line-height);
-  overflow: auto;
-  white-space: pre-wrap;
-  overflow-wrap: anywhere;
-}
-
-/*
- * 虚拟化那一档：一行一个盒子，没画的两头由组件留白占住。
- *
- * 行盒不写高度 —— 散文会折行，高度归虚拟器量（virtual-lines 的 measured）。这一档
- * 只管把 pre-wrap 与 anywhere 交下去，量出来的行高与上面那一档一字不差。
- */
-.timeline-thought__lines {
-  white-space: pre-wrap;
-  overflow-wrap: anywhere;
-}
-
-.timeline-thought__line {
-  white-space: pre-wrap;
-  overflow-wrap: anywhere;
-}
-
-/*
- * 空行是段与段之间的呼吸，不是一行字。
- *
- * 原文里段落之间隔着一个空行，pre-wrap 下它占满一整行 —— 段间距于是和行距一样大，
- * 一段自语的节奏读起来是散的。空行自成一格之后按段间距给，取正文排版那一档
- * （--ui-prose-flow），与 markdown 正文的段落节奏同一个数。
- *
- * 行距本身不动：这里改的是段，不是行。带空白字符的行不算空行 —— 那是模型自己的缩进。
- *
- * 两个选择器是两条渲染路径：虚拟化那一档空行就是空盒子（:empty）；短的那一档空行
- * 装一枚 <br>，因为空盒子在复制时会被浏览器整个丢掉，选走的一段会少掉所有分段。
- */
-.timeline-thought__line:empty,
-.timeline-thought__line:has(br) {
-  block-size: var(--ui-prose-flow);
 }
