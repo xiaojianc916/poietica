@@ -1346,3 +1346,40 @@ engine 引用由 `bun run refs` 生成。`bun run all` 全绿（1802 pass / 0 fa
 八步走（建用非默认模型与深度思考的任务、改名、列任务看记录、汇报与通知、从不通知、
 编辑器模型 / 一次性 / 运行方式、侧栏闹钟、坏模型报错），与 R-03 / R-05 / R-14 / R-15 同例，
 **待真机复核**。
+
+## R-17 Mermaid 图：从固定画布改成随栏宽的自适应图（2026-10-11）
+
+**来源**：产品负责人口头交办（不入库）。原来的图是一块固定 26rem 高的画布，带平移、
+缩放、适应页面三组控件，以及 `neutral` 主题的固定配色 —— 深色对话底（`#181818`）上
+图自带浅色底与近黑连线，观感像贴了一块木板。
+
+**改法**：
+
+1. **面板**：`timeline.css` 去掉底色、圆角、裁剪与固定高度；舞台只留「宽度 100%」。
+   图按栏宽适配、高度随 viewBox 比例，窄图不被拉大（svg 自带的 `max-width` 是自然宽）。
+2. **交互**：删掉拖拽、滚轮缩放、放大 / 缩小 / 适应页面三枚按钮与 `useCanvas` /
+   `useWheelZoom`。`ground()` 只摘掉引擎写的 `width` / `height` 两个属性并置
+   `width:100%; height:auto`；源码视图自己保留 26rem 上限并在内部滚动。
+3. **主题**：`neutral` → `base`（五个内置主题里唯一把颜色交给 `themeVariables` 的），
+   颜色由新增的 `diagram-theme.ts` 从设计令牌解析：节点面 `--ui-secondary`、节点框
+   `--ui-popover-trigger-frame`、连线与箭头 `--cp-ink-muted`、文字
+   `--cp-timeline-body-ink`、分支标签底 `--ui-background`。全部不用主色，一张流程图
+   在对话里不读成「重点」。
+4. **归一两次**：mermaid 只认具体颜色（喂 `var(--x)` 抛 Unsupported color format），
+   而 `getComputedStyle` 在浅色下交回 `oklch()` / `color()`（mermaid 也不认）—— 所以
+   先经探针元素求值、再用 1×1 画布读回像素，交出去的永远是 `rgb()`/`rgba()`。
+5. **跟随主题**：`useInks` 用 `MutationObserver` 盯 `documentElement` 的 `data-theme`，
+   变了就重新解析并重画；引擎每次渲染前重设一次 `themeVariables`（它是模块级单例）。
+   注意这一步必须把整份 `CONFIG` 一起递进去：上游插件的 `initialize` 会用自己的默认配置
+   （`theme: 'default'`）重新铺一遍，只递 `themeVariables` 会把 `base` 顶掉，画出来仍是
+   `default` 那套写死的紫。
+6. **圆角**：mermaid 把节点 `rx` 写死成 0，CSS 用 `.node rect` / `.cluster rect` 补
+   `--ui-radius-lg`。这一条走 CSS 不走 themeVariables，因为官方没开这个口子。
+
+**测试**：无新增单测（纯 UI 外观与交互删减；`diagram-theme.ts` 依赖真实样式引擎，
+happy-dom 不解析设计令牌与 oklch）。改动经 Chromium 实渲染核对深浅两套主题的取色与
+可读性，`bun run all` 全绿（1813 pass / 0 fail）。
+
+**偏差**：无。真机验收：浅色 / 深色主题各看一张流程图（节点面、框线、连线、分支标签
+可读），切主题当场变色，长宽比不同的图都只按宽度适配、不加滚动条、不可拖拽，看图 /
+看源码两个视图来回切时下方内容不跳。**待真机复核**。

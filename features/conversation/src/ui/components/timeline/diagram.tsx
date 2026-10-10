@@ -1,12 +1,13 @@
 import { invariant } from '@poietica/foundation'
 import { code as painter } from '@streamdown/code'
-import { type CSSProperties, type PointerEvent, useCallback, useEffect, useId, useMemo, useRef, useState } from 'react'
+import { type CSSProperties, useCallback, useEffect, useId, useMemo, useRef, useState } from 'react'
 import { CodeBlockCopyButton } from 'streamdown'
 
-import { CodeIcon, PreviewIcon, ResetIcon, ZoomInIcon, ZoomOutIcon } from '../primitives/icons'
+import { CodeIcon, PreviewIcon } from '../primitives/icons'
+import { type DiagramInks, diagramInks } from './diagram-theme'
 
 /*
- * 一张图，一块画布。自定义渲染器排在上游自带的 mermaid 分支之前，接管 mermaid 围栏；
+ * 一张图，直接长在正文里。自定义渲染器排在上游自带的 mermaid 分支之前，接管 mermaid 围栏；
  * 面板长什么样归 timeline.css。
  *
  * isIncomplete 由上游给：流式进行中、最后一块、围栏未闭合 —— 官方 Streaming Considerations
@@ -18,11 +19,6 @@ type Engine = ReturnType<typeof import('@streamdown/mermaid')['mermaid']['getMer
 /* 官方高亮插件交回的整份结果。类型从它自己身上取，不为一个类型多引一个包。 */
 type Painted = NonNullable<ReturnType<typeof painter.highlight>>
 
-type Size = { readonly height: number; readonly width: number }
-
-/* 视口：图在画布上的位移与倍率。这三个数是「现在看到的是哪一块」的唯一真相。 */
-type View = { readonly x: number; readonly y: number; readonly zoom: number }
-
 type Ink = {
   readonly dark: string | undefined
   readonly id: string
@@ -33,28 +29,20 @@ type Ink = {
 type Row = { readonly id: string; readonly inks: readonly Ink[]; readonly tail: string }
 
 /*
- * 配置只说一次：getMermaid 初始化的是模块级单例，两份配置轮流生效会让同一段源码画出两种
- * 样子。securityLevel strict 让标签里的 HTML 不被执行；suppressErrorRendering 让失败不往
- * 文档上挂官方错误图 —— 失败该说什么由下面的状态决定。
+ * 主题走 base：它是五个内置主题里唯一把每个部位的颜色交给 themeVariables 的（default /
+ * neutral / dark / forest 的配色写死在主题里）。颜色由 diagram-theme.ts 从设计令牌解析，
+ * 深浅两套主题共用同一份配置 —— 换主题时重新解析、重画。
+ *
+ * securityLevel strict 让标签里的 HTML 不被执行；suppressErrorRendering 让失败不往文档上
+ * 挂官方错误图 —— 失败该说什么由下面的状态决定。
  */
 const CONFIG = {
   fontFamily: 'inherit',
   securityLevel: 'strict',
   startOnLoad: false,
   suppressErrorRendering: true,
-  theme: 'neutral',
+  theme: 'base',
 } as const
-
-/*
- * 倍率按等比走不按等差：等比每一档都是 25%，加法步长在两头手感不一。适配不封顶 ——
- * 「适应页面」的含义是恰好铺满，不是「最多原尺寸」。
- */
-const ZOOM_MIN = 0.1
-const ZOOM_MAX = 4
-const ZOOM_RATE = 1.25
-
-/* 适配后四周留出来的空气，让图不贴着框边。 */
-const INSET = 16
 
 /* 布局引擎按需取，取回来整个进程共用一台：它在首屏 chunk 里是纯负担。 */
 let engine: Promise<Engine> | undefined
@@ -72,52 +60,35 @@ function diagramEngine(): Promise<Engine> {
   return engine
 }
 
-function clampZoom(zoom: number): number {
-  return Math.min(ZOOM_MAX, Math.max(ZOOM_MIN, zoom))
-}
-
 /*
- * 打开时的倍率：整张图刚好露出来，宽高各算一次取小的。量不出来（框没尺寸、图没
- * viewBox）交回 undefined 由调用方保持原样，别拿一个 0 把图缩没。
+ * 尺寸只按宽度算，高度随比例。
+ *
+ * 引擎写下的 width="100%" 与 style="max-width: Npx" 说的是「最多长到自然宽」，配不出
+ * 「一栏宽就铺满、更高就跟着长」；所以把它自己的 width / height 属性摘掉，让宽高回到
+ * CSS 与 viewBox 固有比例。max-width 保留自然宽：窄图不被拉大，宽图缩到一栏。
  */
-function fitZoom(host: HTMLElement, of: Size): number | undefined {
-  if (of.width === 0 || of.height === 0) {
-    return undefined
-  }
-
-  const across = (host.clientWidth - INSET * 2) / of.width
-  const down = (host.clientHeight - INSET * 2) / of.height
-
-  if (!Number.isFinite(across) || !Number.isFinite(down) || across <= 0 || down <= 0) {
-    return undefined
-  }
-
-  return clampZoom(Math.min(across, down))
-}
-
-/*
- * 引擎交回的 svg 自带 width="100%" 与 max-width，在画布上意味着图永远只有一栏宽。viewBox
- * 是图自己的坐标尺寸（viewBox.baseVal 是 SVG DOM 官方读法），按它写死像素才有真实大小；
- * 缩放是外层 transform 的事。
- */
-function ground(node: SVGSVGElement): Size {
+function ground(node: SVGSVGElement): void {
   const box = node.viewBox.baseVal
 
+  /* 没有 viewBox 就没有固有比例，宽度铺满、高度 auto 会算不出高度 —— 原样留着。 */
   if (box.width === 0 || box.height === 0) {
-    return { height: 0, width: 0 }
+    return
   }
 
   node.removeAttribute('width')
   node.removeAttribute('height')
-  node.style.maxWidth = 'none'
-  node.style.width = `${box.width}px`
-  node.style.height = `${box.height}px`
-
-  return { height: box.height, width: box.width }
+  node.style.width = '100%'
+  node.style.height = 'auto'
 }
 
-/* 画图这件事本身：一段源码进去，一个 svg 元素或者一句失败原因出来。 */
-function useDiagramSvg(code: string, isIncomplete: boolean) {
+/*
+ * 画图这件事本身：一段源码进去，一个 svg 元素或者一句失败原因出来。
+ *
+ * inks 是画这一张要用的那套颜色。引擎是模块级单例、配置按进程生效，所以每次画之前把
+ * 颜色重新初始化一遍 —— 主题换了、或者同一进程里前后两张图所属的主题不同，画出来才会
+ * 跟着变。
+ */
+function useDiagramSvg(code: string, isIncomplete: boolean, inks: DiagramInks | undefined) {
   const seed = useId().replace(/[^a-z0-9]/gi, '')
   const pass = useRef(0)
   const [graphic, setGraphic] = useState<SVGSVGElement | undefined>(undefined)
@@ -127,7 +98,7 @@ function useDiagramSvg(code: string, isIncomplete: boolean) {
     /* 上一张还在画，下一段源码已经到了：迟到的那张不许再贴上去。 */
     let live = true
 
-    if (!isIncomplete) {
+    if (!isIncomplete && inks !== undefined) {
       /*
        * 每画一次换一个 id：引擎按 id 造临时节点、画完摘掉，画出的 svg 也带着它 —— id 复用
        * 会让下一次渲染按 id 找到上一张图。HTML 也要求 id 文档内唯一。
@@ -137,7 +108,16 @@ function useDiagramSvg(code: string, isIncomplete: boolean) {
       const id = `diagram-${seed}-${pass.current}`
 
       void diagramEngine()
-        .then((instance) => instance.render(id, code))
+        .then((instance) => {
+          /*
+           * 上游的 initialize 会把它自己的默认配置重新摊在最外层（`{...默认, ...插件配置, ...这一份}`），
+           * 而它默认是 theme: 'default' —— 只递 themeVariables 的话，上面 CONFIG 里的
+           * theme: 'base' 会被顶掉，画出来又是 default 那套写死的紫。所以整份 CONFIG 每次都带上。
+           */
+          instance.initialize({ ...CONFIG, themeVariables: inks })
+
+          return instance.render(id, code)
+        })
         .then((drawn) => {
           /*
            * DOMParser 解析失败不抛异常，交回一份装着 parsererror 的文档（官方
@@ -166,7 +146,7 @@ function useDiagramSvg(code: string, isIncomplete: boolean) {
     return () => {
       live = false
     }
-  }, [code, isIncomplete, seed])
+  }, [code, inks, isIncomplete, seed])
 
   return { failure, graphic }
 }
@@ -286,98 +266,14 @@ function Source({ source }: { readonly source: string }) {
 }
 
 /*
- * Ctrl/⌘+滚轮缩放。只能自己挂监听：React 把 wheel 等一律注册成被动监听器，被动监听里
- * preventDefault 无效，浏览器照样缩放整页。不带修饰键的滚轮一概不接 —— 面板长在会话流里，
- * 不能让读者在图上划不动页面（上游 pan-zoom 无条件 preventDefault，这条不抄）。
+ * 上屏走 ref 回调不走 effect：effect 只在依赖变化时跑，而节点是否已挂载与依赖无关；ref
+ * 回调在挂载那一刻调用，数据与节点谁先到都成立。这片 DOM 归回调独有，不放 React 子节点。
+ *
+ * 图不做画布：没有缩放、没有位移、没有拖拽。宽度按栏宽适配、高度随比例，框一变浏览器
+ * 自己重排，这里没有需要重算的状态，也就没有要监听的东西。
  */
-function useWheelZoom(
-  stage: React.RefObject<HTMLDivElement | null>,
-  zoomAt: (rate: number, at: { x: number; y: number }) => void,
-) {
-  useEffect(() => {
-    const host = stage.current
-
-    if (host === null) {
-      return
-    }
-
-    const onWheel = (event: WheelEvent) => {
-      if (!event.ctrlKey && !event.metaKey) {
-        return
-      }
-
-      event.preventDefault()
-
-      const box = host.getBoundingClientRect()
-
-      zoomAt(event.deltaY < 0 ? ZOOM_RATE : 1 / ZOOM_RATE, {
-        x: event.clientX - box.left - box.width / 2,
-        y: event.clientY - box.top - box.height / 2,
-      })
-    }
-
-    host.addEventListener('wheel', onWheel, { passive: false })
-
-    return () => {
-      host.removeEventListener('wheel', onWheel)
-    }
-  }, [stage, zoomAt])
-}
-
-/*
- * 画布的视口。不用滚动容器（只两条轴、拖到头就停、图上压两根灰杠）：位移与倍率合成一条
- * transform，按住往哪都能拖 —— 专业绘图工具一律是这个模型。
- */
-function useCanvas(graphic: SVGSVGElement | undefined) {
-  const stage = useRef<HTMLDivElement | null>(null)
-  const natural = useRef<Size>({ height: 0, width: 0 })
-  const grip = useRef<{ x: number; y: number } | null>(null)
-  /* 用户还没动过手 —— 只有这种时候，框的尺寸一变才允许替他重新适配。 */
-  const untouched = useRef(true)
-  const [view, setView] = useState<View>({ x: 0, y: 0, zoom: 1 })
-
-  /*
-   * 回到「适应页面」：位移归零（画布中心对准舞台中心，靠 transform 第一段居中，任何倍率
-   * 都成立），倍率取刚好装得下的那一档。
-   */
-  const home = useCallback(() => {
-    const host = stage.current
-
-    if (host === null) {
-      return
-    }
-
-    const zoom = fitZoom(host, natural.current)
-
-    if (zoom === undefined) {
-      return
-    }
-
-    untouched.current = true
-    setView({ x: 0, y: 0, zoom })
-  }, [])
-
-  /* at 是指针相对框中心的位置：缩放前后让它底下那个点原地不动即「以指针为锚」；不给 at 就围绕视野中心（按钮）。 */
-  const zoomAt = useCallback((rate: number, at?: { x: number; y: number }) => {
-    untouched.current = false
-    setView((last) => {
-      const zoom = clampZoom(last.zoom * rate)
-
-      if (at === undefined) {
-        return { ...last, zoom }
-      }
-
-      const ratio = zoom / last.zoom
-
-      return { x: at.x - (at.x - last.x) * ratio, y: at.y - (at.y - last.y) * ratio, zoom }
-    })
-  }, [])
-
-  /*
-   * 上屏走 ref 回调不走 effect：effect 只在依赖变化时跑，而节点是否已挂载与依赖无关；ref
-   * 回调在挂载那一刻调用，数据与节点谁先到都成立。这片 DOM 归回调独有，不放 React 子节点。
-   */
-  const mount = useCallback(
+function useGraphic(graphic: SVGSVGElement | undefined) {
+  return useCallback(
     (host: HTMLDivElement | null) => {
       if (host === null || graphic === undefined) {
         return
@@ -385,80 +281,11 @@ function useCanvas(graphic: SVGSVGElement | undefined) {
 
       const node = host.ownerDocument.importNode(graphic, true)
 
-      natural.current = ground(node)
+      ground(node)
       host.replaceChildren(node)
-
-      /*
-       * 换图就在这里重新适配，不绕 effect：graphic 是 hook 入参，当依赖会被 biome 的
-       * useExhaustiveDependencies 判为外层作用域变量，删掉依赖则换图后无物触发适配。
-       * 尺寸是上一行 ground() 刚量出的，节点上屏与按新尺寸铺满是同一件事。
-       */
-      home()
     },
-    [graphic, home],
+    [graphic],
   )
-
-  /*
-   * 框的尺寸不是一开始就知道（源码视图下 display:none 量出零，切回才有真实值）。
-   * ResizeObserver 开始观察时先报一次当前尺寸，首屏适配一并兜住。
-   */
-  useEffect(() => {
-    const host = stage.current
-
-    if (host === null) {
-      return
-    }
-
-    const watch = new ResizeObserver(() => {
-      if (untouched.current) {
-        home()
-      }
-    })
-
-    watch.observe(host)
-
-    return () => {
-      watch.disconnect()
-    }
-  }, [home])
-
-  useWheelZoom(stage, zoomAt)
-
-  /* 按住拖。setPointerCapture 后指针滑出面板、窗口都还算数，松手才结束（指针事件规范的能力）。 */
-  const onPointerDown = (event: PointerEvent<HTMLDivElement>) => {
-    if (event.button !== 0) {
-      return
-    }
-
-    event.currentTarget.setPointerCapture(event.pointerId)
-    grip.current = { x: event.clientX, y: event.clientY }
-  }
-
-  const onPointerMove = (event: PointerEvent<HTMLDivElement>) => {
-    const last = grip.current
-
-    if (last === null) {
-      return
-    }
-
-    const dx = event.clientX - last.x
-    const dy = event.clientY - last.y
-
-    grip.current = { x: event.clientX, y: event.clientY }
-    untouched.current = false
-    setView((now) => ({ ...now, x: now.x + dx, y: now.y + dy }))
-  }
-
-  const onPointerUp = (event: PointerEvent<HTMLDivElement>) => {
-    if (grip.current === null) {
-      return
-    }
-
-    event.currentTarget.releasePointerCapture(event.pointerId)
-    grip.current = null
-  }
-
-  return { home, mount, onPointerDown, onPointerMove, onPointerUp, stage, view, zoomAt }
 }
 
 export interface DiagramProps {
@@ -466,17 +293,57 @@ export interface DiagramProps {
   readonly isIncomplete: boolean
 }
 
+/*
+ * 画这张图要用的颜色，跟着 data-theme 走。
+ *
+ * 取色的探针得挂在真实的祖先里才读得到令牌，而祖先要等节点上屏 —— 所以这段解析不能放在
+ * 渲染期。第一帧 inks 还是 undefined，useDiagramSvg 不动；拿到节点、读到颜色之后补上。
+ *
+ * 探针挂在最外层的面板上，不挂画布：画布的内容每次换图都被整片换掉，探针留在那里会被
+ * 顺手清走。
+ */
+function useInks() {
+  const [host, setHost] = useState<HTMLDivElement | null>(null)
+  const [inks, setInks] = useState<DiagramInks | undefined>(undefined)
+  const attach = useCallback((node: HTMLDivElement | null) => {
+    setHost(node)
+  }, [])
+
+  useEffect(() => {
+    if (host === null) {
+      return
+    }
+
+    const read = () => {
+      setInks(diagramInks(host))
+    }
+
+    read()
+
+    /* 换主题只换属性：观察它比轮询样式表省事，也不必猜是谁改的。 */
+    const watch = new MutationObserver(read)
+
+    watch.observe(document.documentElement, { attributeFilter: ['data-theme'], attributes: true })
+
+    return () => {
+      watch.disconnect()
+    }
+  }, [host])
+
+  return { attach, inks }
+}
+
 export function Diagram({ code, isIncomplete }: DiagramProps) {
-  const { failure, graphic } = useDiagramSvg(code, isIncomplete)
-  const canvas = useCanvas(graphic)
+  const { attach, inks } = useInks()
+  const { failure, graphic } = useDiagramSvg(code, isIncomplete, inks)
+  const mount = useGraphic(graphic)
   const [asCode, setAsCode] = useState(false)
   const showCode = asCode || graphic === undefined
   const Toggle = showCode ? PreviewIcon : CodeIcon
   const toggle = showCode ? '看图' : '看源码'
-  const { x, y, zoom } = canvas.view
 
   return (
-    <div className="timeline-prose__diagram" data-view={showCode ? 'code' : 'diagram'}>
+    <div className="timeline-prose__diagram" data-view={showCode ? 'code' : 'diagram'} ref={attach}>
       <div className="timeline-prose__diagram-tools">
         <CodeBlockCopyButton className="timeline-prose__diagram-tool" code={code} />
         <button
@@ -490,52 +357,9 @@ export function Diagram({ code, isIncomplete }: DiagramProps) {
         >
           <Toggle aria-hidden="true" />
         </button>
-        {!showCode && (
-          <>
-            <span className="timeline-prose__diagram-split" />
-            <button
-              aria-label="缩小"
-              className="timeline-prose__diagram-tool"
-              disabled={zoom <= ZOOM_MIN}
-              onClick={() => {
-                canvas.zoomAt(1 / ZOOM_RATE)
-              }}
-              type="button"
-            >
-              <ZoomOutIcon aria-hidden="true" />
-            </button>
-            <button
-              aria-label="放大"
-              className="timeline-prose__diagram-tool"
-              disabled={zoom >= ZOOM_MAX}
-              onClick={() => {
-                canvas.zoomAt(ZOOM_RATE)
-              }}
-              type="button"
-            >
-              <ZoomInIcon aria-hidden="true" />
-            </button>
-            <button aria-label="适应页面" className="timeline-prose__diagram-tool" onClick={canvas.home} type="button">
-              <ResetIcon aria-hidden="true" />
-            </button>
-          </>
-        )}
       </div>
       {failure !== undefined && <p className="timeline-prose__diagram-alert">这段 mermaid 没能画出来：{failure}</p>}
-      <div
-        className="timeline-prose__diagram-stage"
-        onPointerCancel={canvas.onPointerUp}
-        onPointerDown={canvas.onPointerDown}
-        onPointerMove={canvas.onPointerMove}
-        onPointerUp={canvas.onPointerUp}
-        ref={canvas.stage}
-      >
-        <div
-          className="timeline-prose__diagram-canvas"
-          ref={canvas.mount}
-          style={{ transform: `translate(-50%, -50%) translate(${x}px, ${y}px) scale(${zoom})` }}
-        />
-      </div>
+      <div className="timeline-prose__diagram-stage" ref={mount} />
       {showCode && <Source source={code} />}
     </div>
   )

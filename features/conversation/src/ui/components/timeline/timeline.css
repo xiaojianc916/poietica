@@ -759,63 +759,47 @@
 /*
  * 图面板。
  *
- * 一块单色底，一片画布，右上角一枚浮层。看图和看源码共用这一块底、共用同一个高度：一条流里
- * 两个视图来回切时，它下面的内容不该跟着跳。
+ * 图直接长在正文里：没有底色、没有边框、没有固定高度，宽度跟着栏宽走，高度由 viewBox
+ * 比例决定。右上角仍留一枚浮层，鼠标进来才出现，它自己带纸面与阴影，不需要面板垫底。
  */
 .timeline-prose__diagram {
   --cp-diagram-pad: 0.75rem;
-  --cp-diagram-height: 26rem;
   --cp-diagram-icon: 1rem;
   --cp-diagram-hit: 1.75rem;
 
   position: relative;
   margin-block: var(--cp-prose-flow);
-  border-radius: var(--ui-radius-xl);
-  background: var(--cp-timeline-output-surface);
-  overflow: clip;
 }
 
 /*
- * 舞台负责裁剪，不负责滚动。
+ * 舞台就是图本身的位置。
  *
- * 滚动条只能沿两条轴走、拖到头就停、还在图上压出两根灰杠。这里要的是一张摊开的画布：按住往
- * 哪都能拖。Figma、draw.io、Excalidraw 一律是这个模型。整块 26rem 都能抓。
+ * 只按宽度适配：宽度吃满栏宽，高度交给 svg 固有比例。不裁剪、不滚动，图多高就多高 ——
+ * 一栏里塞不下的宽图整体缩小，高图顺着正文往下长，不另开出口。
  */
 .timeline-prose__diagram-stage {
-  position: relative;
-  block-size: var(--cp-diagram-height);
-  overflow: hidden;
-  cursor: grab;
-  touch-action: none;
-  user-select: none;
-}
-
-.timeline-prose__diagram-stage:active {
-  cursor: grabbing;
+  inline-size: 100%;
 }
 
 /*
- * 画布裹住图本身，钉在舞台正中。
+ * 行内元素的基线间隙会在图下方垫出几个像素。宽高由 diagram.tsx 的 ground() 定：宽度
+ * 100%、高度 auto。svg 自带的 max-width（自然宽）在窄图上原样生效，两边留白由
+ * margin-inline: auto 摊平 —— 位置仍居中，只是不再靠画布的 transform 挪。
  *
- * 三段 transform 从左到右：先把自己的中心挪到舞台中心（百分比按自身边框盒解析，与倍率无
- * 关），再按拖拽位移平移，最后绕自身中心缩放 —— 绕中心缩放，中心因此不动。位移为零时，任何
- * 倍率下图都正正落在舞台中央，「适应页面」算出来的那一档于是刚好铺满、四周一圈等宽的空气。
- *
- * 尺寸交给内容，不铺满舞台：一个被拉满的格子会把超出的项按起点对齐（居中在溢出方向上不成
- * 立），那正是图偏向右下、左上空出一片的来处。
+ * 下面几条压的是 mermaid 自己写进 svg 的那份样式表（它在 <style> 里，选择器是 #id）：
+ * 节点圆角在那边是写死的 0。颜色都走 themeVariables 了（见 diagram-theme.ts），这里
+ * 只补形状 —— 圆角一档与卡片、输入框同刻度。
  */
-.timeline-prose__diagram-canvas {
-  position: absolute;
-  inset-block-start: 50%;
-  inset-inline-start: 50%;
-  inline-size: max-content;
-  transform-origin: center center;
-  will-change: transform;
+.timeline-prose__diagram-stage svg {
+  display: block;
+  max-inline-size: 100%;
+  margin-inline: auto;
 }
 
-/* 行内元素的基线间隙会在图下方垫出几个像素，居中就差这几个像素。 */
-.timeline-prose__diagram-canvas svg {
-  display: block;
+.timeline-prose__diagram-stage .node rect,
+.timeline-prose__diagram-stage .cluster rect {
+  rx: var(--ui-radius-lg);
+  ry: var(--ui-radius-lg);
 }
 
 .timeline-prose__diagram[data-view="code"] .timeline-prose__diagram-stage {
@@ -823,15 +807,12 @@
 }
 
 /*
- * 源码视图与画布同高，长了在自己身上滚。
- *
- * 高度是 block-size 不是 max-block-size：上限只管封顶，内容短的时候这一面会塌下去，两个视图
- * 就不是一块底了。顶上也不为浮层预留高度 —— 浮层鼠标不进来根本不在屏幕上，预留出来的那条空
- * 白却是常驻的。
+ * 源码视图：图没有固定高度了，这一面也不再有可对齐的高。给它自己的高度上限，长了在自己
+ * 身上滚 —— 也就是原来那条 26rem 从「共享的底」变成「只给源码的上限」。
  */
 .timeline-prose__diagram-source {
   margin: 0;
-  block-size: var(--cp-diagram-height);
+  max-block-size: 26rem;
   padding: var(--cp-diagram-pad);
   overflow: auto;
   font-family: var(--cp-font-mono);
@@ -920,13 +901,6 @@
   display: block;
   inline-size: var(--cp-diagram-icon);
   block-size: var(--cp-diagram-icon);
-}
-
-.timeline-prose__diagram-split {
-  inline-size: 1px;
-  block-size: 1rem;
-  margin-inline: 0.125rem;
-  background: color-mix(in oklab, var(--cp-ink) 14%, transparent);
 }
 
 .timeline-prose__diagram-alert {
