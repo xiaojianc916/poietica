@@ -52,6 +52,7 @@ async function makeCore(overrides: { engine?: FakeEngine; workspaces?: Workspace
   const copied: { from: string; to: string }[] = []
   const released: string[] = []
   const attachments: AttachmentsService = {
+    importPaths: async () => [],
     resolve: (ids) => ids.map((id) => ({ id, name: id, mime: 'image/png', kind: 'image' as const, path: `/x/${id}` })),
     describe: (ids) =>
       ids.map((id) => ({
@@ -247,6 +248,7 @@ describe('conversation core（不经内核的直连测试）', () => {
       list: () => [],
     } as WorkspacesService
     const attachments: AttachmentsService = {
+      importPaths: async () => [],
       resolve: (ids) =>
         ids.map((id) => ({ id, name: id, mime: 'image/png', kind: 'image' as const, path: `/x/${id}` })),
       describe: (ids) =>

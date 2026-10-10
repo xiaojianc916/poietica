@@ -1186,3 +1186,41 @@ description 收窄成「设置只改正文，进行中 / 已暂停保持不变�
 
 **已知边角**（第 7 节最后一条，本页不修）：会话空闲或 held 时，omp 自动 drain 排队消息
 开出的那一轮，Poietica 不会把状态切成 running —— 落地前就有的窄边角，与续跑无关。
+
+## R-13 agent 展示图片走正式工具 show_image（2026-10-10）
+
+**来源**：审查页 R-13 `R-13.md`（外部输入，不入库）。让 agent「画一张 sin 曲线发给我」时，
+它会试 file://、data:、本地 http 三条路（净化链与 CSP 全拦）、再翻源码找数据目录、自己算
+sha256 往附件目录里复制文件；手工暗路复制进去的文件没有 DB 行（不随对话回收 / 分支，sweep
+还会清成裂图），且要求 agent 有数据目录写权限。界面的安全边界（只认
+`poietica-asset://attachment/<sha256>`、净化链只放行该 scheme、CSP 不放宽）是对的，缺的是正式入口。
+
+**改法**：
+
+- `features/attachments/src/core-api/index.ts`：`AttachmentsService` 加 `importPaths(paths)` —— 与
+  输入框添加附件同一条导入管线，只建 item 行、不挂引用。
+- `features/attachments/src/core/index.ts`：provide 时把 `service.importPaths` 一起交出去。
+- `features/conversation/src/core/image-tool.ts`（新建）：`show_image(path, caption?)` 工具。
+  扩展名白名单与 `INLINE_MIME` 的图片部分同一张；导入前先判类型（`.tiff` / 无扩展名报中文
+  错误让模型先转 PNG）；`path.resolve(ctx.cwd, …)` 解析相对路径；导入成功后 retain 到
+  `OWNER_KEY(ctx.sessionKey)`（对话名下：删对话 / 分支 / 回收跟着对话走）；交回
+  markdown 图片一行（`![alt](previewUrl)`），模型原样放进回复，工具卡同样经 `Prose` 渲染。
+- `features/conversation/src/core/index.ts`：setup 里同步注册（工具集在全部 setup 后冻结）。
+- `features/conversation/src/ui/components/timeline/prose.tsx`：注释里的资产协议路径改为
+  `packages/host-kernel/src/asset-protocol.ts` 与 `features/attachments/src/host/asset-handler.ts`。
+
+**契约**：无变化（`core-api` 是进程内服务接口），`PROTOCOL_VERSION` 不变，界面未改。
+
+**测试**：`features/conversation/src/core/__tests__/image-tool.test.ts`（新建）I1–I6 + M1
+（真内核：脚本化引擎调 show_image → sessionKey = threadId、结果是附件协议那一行、文件真的
+落在 `attachmentsDir/<sha前2位>/<sha>`）。旧代码上 7 条按预期红（模块不存在）。
+
+**验收**：`bun run  all` 全绿（1769 pass / 0 fail）。真机验收按 R-13 §6 六步走（发图一次成、
+重开后仍在、只能写工作区时仍可显示、.tiff 报中文错误、删对话后回收、分支后仍显示），
+与 R-03 / R-05 / … 同例，**待真机复核**。
+
+**偏差**：审查页 R-13 的代码块在导出时被破坏 —— 部分模板插值与 markdown 图片结构被
+渲染器吃掉（如第 143 行只剩 `!${altOf(...)}`、缺 `[alt](url)` 结构，第 302 / 367 行断言丢了地址段，测试里定义好的
+`URL_OF` 夹具却没被用到）。按第 41 行设计说明与 `imported.previewUrl` 的存在复原为：
+工具交回 `` `![${altOf(params.caption, imported.name)}](${imported.previewUrl})` ``，
+断言相应写成附件协议那一行。

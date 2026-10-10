@@ -20,6 +20,7 @@ export default defineCoreModule({
 
     registerHandlers(ctx, service)
     ctx.services.provide(AttachmentsServiceToken, {
+      importPaths: service.importPaths,
       resolve: service.resolve,
       describe: service.describe,
       retain: service.retain,

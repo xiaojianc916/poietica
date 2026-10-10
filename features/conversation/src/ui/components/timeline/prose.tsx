@@ -54,7 +54,7 @@ const COMPONENTS = { a: ProseLink, table: ExportableTable }
 
 /*
  * 助手产物里的图片走资产协议：地址形状与投递端都是 poietica-asset://（见
- * apps/desktop/electron/asset-protocol.ts）。streamdown 的默认净化链只放行
+ * packages/host-kernel/src/asset-protocol.ts 与 features/attachments/src/host/asset-handler.ts）。streamdown 的默认净化链只放行
  * http/https 的 src，所以这里把协议的 scheme 补进它的 schema —— 补的是**协议名**，
  * 不是放行任意地址：file://、data:、javascript: 仍在默认白名单之外。
  *
