@@ -108,7 +108,7 @@ export function AutomationsListSurface({ store }: AutomationsSurfaceProps) {
             onCreateBlank={() => {
               start({
                 ...BLANK_DRAFT,
-                schedule: { cron: null, timeZone: defaultTimeZone },
+                schedule: { cron: null, at: null, timeZone: defaultTimeZone },
                 workspaceId: activeWorkspace ?? '',
               })
             }}
@@ -130,7 +130,7 @@ export function AutomationsListSurface({ store }: AutomationsSurfaceProps) {
             onPick={(template: AutomationTemplate) => {
               start(
                 draftOfTemplate(template, {
-                  schedule: { cron: null, timeZone: defaultTimeZone },
+                  schedule: { cron: null, at: null, timeZone: defaultTimeZone },
                   workspaceId: activeWorkspace ?? '',
                 }),
               )
@@ -221,7 +221,7 @@ function AutomationEditorHost({
       return store.pendingDraft
     }
     if (automation === null) {
-      return { ...BLANK_DRAFT, schedule: { cron: null, timeZone: defaultTimeZone } }
+      return { ...BLANK_DRAFT, schedule: { cron: null, at: null, timeZone: defaultTimeZone } }
     }
     return { ...draftOf(automation), schedule: { ...automation.schedule, timeZone: defaultTimeZone } }
   })

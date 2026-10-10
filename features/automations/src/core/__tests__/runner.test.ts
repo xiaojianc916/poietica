@@ -15,11 +15,15 @@ function draftOf(overrides: Partial<AutomationDraft> = {}): AutomationDraft {
   return {
     title: '晨会动态',
     prompt: '汇总进展',
-    schedule: { cron: '*/1 * * * *', timeZone: 'UTC' },
+    schedule: { cron: '*/1 * * * *', at: null, timeZone: 'UTC' },
     workspaceId: 'ws1',
     posture: 'auto-edit',
     model: null,
     thinking: null,
+    threadMode: 'new',
+    threadId: null,
+    notify: 'attention',
+    catchUp: true,
     ...overrides,
   }
 }
@@ -35,8 +39,16 @@ function build() {
     clock: d.clock,
     logger,
     emitRunUpdated: (run) => runs.push(run),
+    emitAttention: () => undefined,
+    emitChanged: () => undefined,
   })
-  const service = createAutomationsService({ repo: d.repo, runner, clock: d.clock, logger })
+  const service = createAutomationsService({
+    repo: d.repo,
+    runner,
+    conversation: d.conversation,
+    clock: d.clock,
+    logger,
+  })
   return { ...d, logger, runner, service, runs }
 }
 
@@ -62,7 +74,8 @@ describe('automations runner（R-06）', () => {
     expect(settled.settledAt).not.toBeNull()
     expect(runner.isRunning(automation.id)).toBe(false)
     expect(runs.length).toBe(before + 1)
-    expect(repo.get(automation.id)!.issue).toContain('凭据不存在')
+    /* 审查 R-14：运行失败只记在运行记录里，不再挂 issue —— 挂了 issue 的任务 due() 不挑，从此不再被调度 */
+    expect(repo.get(automation.id)!.issue).toBeNull()
 
     /* 收口之后下一次照常能起来（旧代码在这里抛 already_running） */
     const next = await service.runNow(automation.id)
@@ -96,8 +109,16 @@ describe('automations runner（R-06）', () => {
       clock: d.clock,
       logger,
       emitRunUpdated: (run) => runs.push(run),
+      emitAttention: () => undefined,
+      emitChanged: () => undefined,
     })
-    const service = createAutomationsService({ repo: d.repo, runner, clock: d.clock, logger })
+    const service = createAutomationsService({
+      repo: d.repo,
+      runner,
+      conversation: d.conversation,
+      clock: d.clock,
+      logger,
+    })
     const automation = service.create(draftOf())
 
     const run = await service.runNow(automation.id)

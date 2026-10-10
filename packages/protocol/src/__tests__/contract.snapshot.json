@@ -906,6 +906,19 @@
                   }
                 ]
               },
+              "at": {
+                "default": null,
+                "anyOf": [
+                  {
+                    "type": "integer",
+                    "minimum": -9007199254740991,
+                    "maximum": 9007199254740991
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
               "timeZone": {
                 "type": "string",
                 "minLength": 1
@@ -959,6 +972,39 @@
               "string",
               "null"
             ]
+          },
+          "threadMode": {
+            "default": "new",
+            "type": "string",
+            "enum": [
+              "new",
+              "continue"
+            ]
+          },
+          "threadId": {
+            "default": null,
+            "anyOf": [
+              {
+                "type": "string",
+                "minLength": 1
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "notify": {
+            "default": "attention",
+            "type": "string",
+            "enum": [
+              "always",
+              "attention",
+              "never"
+            ]
+          },
+          "catchUp": {
+            "default": true,
+            "type": "boolean"
           }
         },
         "required": [
@@ -996,6 +1042,19 @@
                   }
                 ]
               },
+              "at": {
+                "default": null,
+                "anyOf": [
+                  {
+                    "type": "integer",
+                    "minimum": -9007199254740991,
+                    "maximum": 9007199254740991
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
               "timeZone": {
                 "type": "string",
                 "minLength": 1
@@ -1003,6 +1062,7 @@
             },
             "required": [
               "cron",
+              "at",
               "timeZone"
             ],
             "additionalProperties": false
@@ -1051,6 +1111,39 @@
               "string",
               "null"
             ]
+          },
+          "threadMode": {
+            "default": "new",
+            "type": "string",
+            "enum": [
+              "new",
+              "continue"
+            ]
+          },
+          "threadId": {
+            "default": null,
+            "anyOf": [
+              {
+                "type": "string",
+                "minLength": 1
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "notify": {
+            "default": "attention",
+            "type": "string",
+            "enum": [
+              "always",
+              "attention",
+              "never"
+            ]
+          },
+          "catchUp": {
+            "default": true,
+            "type": "boolean"
           },
           "id": {
             "type": "string"
@@ -1107,7 +1200,8 @@
                     "type": "string",
                     "enum": [
                       "schedule",
-                      "manual"
+                      "manual",
+                      "catch_up"
                     ]
                   },
                   "scheduledFor": {
@@ -1146,7 +1240,8 @@
                       "awaiting",
                       "succeeded",
                       "failed",
-                      "cancelled"
+                      "cancelled",
+                      "skipped"
                     ]
                   },
                   "message": {
@@ -1154,6 +1249,15 @@
                       "string",
                       "null"
                     ]
+                  },
+                  "summary": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  },
+                  "attention": {
+                    "type": "boolean"
                   }
                 },
                 "required": [
@@ -1165,7 +1269,9 @@
                   "startedAt",
                   "settledAt",
                   "outcome",
-                  "message"
+                  "message",
+                  "summary",
+                  "attention"
                 ],
                 "additionalProperties": false
               },
@@ -1183,6 +1289,10 @@
           "posture",
           "model",
           "thinking",
+          "threadMode",
+          "threadId",
+          "notify",
+          "catchUp",
           "id",
           "enabled",
           "createdAt",
@@ -1240,6 +1350,19 @@
                   }
                 ]
               },
+              "at": {
+                "default": null,
+                "anyOf": [
+                  {
+                    "type": "integer",
+                    "minimum": -9007199254740991,
+                    "maximum": 9007199254740991
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
               "timeZone": {
                 "type": "string",
                 "minLength": 1
@@ -1247,6 +1370,7 @@
             },
             "required": [
               "cron",
+              "at",
               "timeZone"
             ],
             "additionalProperties": false
@@ -1295,6 +1419,39 @@
               "string",
               "null"
             ]
+          },
+          "threadMode": {
+            "default": "new",
+            "type": "string",
+            "enum": [
+              "new",
+              "continue"
+            ]
+          },
+          "threadId": {
+            "default": null,
+            "anyOf": [
+              {
+                "type": "string",
+                "minLength": 1
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "notify": {
+            "default": "attention",
+            "type": "string",
+            "enum": [
+              "always",
+              "attention",
+              "never"
+            ]
+          },
+          "catchUp": {
+            "default": true,
+            "type": "boolean"
           },
           "id": {
             "type": "string"
@@ -1351,7 +1508,8 @@
                     "type": "string",
                     "enum": [
                       "schedule",
-                      "manual"
+                      "manual",
+                      "catch_up"
                     ]
                   },
                   "scheduledFor": {
@@ -1390,7 +1548,8 @@
                       "awaiting",
                       "succeeded",
                       "failed",
-                      "cancelled"
+                      "cancelled",
+                      "skipped"
                     ]
                   },
                   "message": {
@@ -1398,6 +1557,15 @@
                       "string",
                       "null"
                     ]
+                  },
+                  "summary": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  },
+                  "attention": {
+                    "type": "boolean"
                   }
                 },
                 "required": [
@@ -1409,7 +1577,9 @@
                   "startedAt",
                   "settledAt",
                   "outcome",
-                  "message"
+                  "message",
+                  "summary",
+                  "attention"
                 ],
                 "additionalProperties": false
               },
@@ -1427,6 +1597,10 @@
           "posture",
           "model",
           "thinking",
+          "threadMode",
+          "threadId",
+          "notify",
+          "catchUp",
           "id",
           "enabled",
           "createdAt",
@@ -1481,6 +1655,19 @@
                         }
                       ]
                     },
+                    "at": {
+                      "default": null,
+                      "anyOf": [
+                        {
+                          "type": "integer",
+                          "minimum": -9007199254740991,
+                          "maximum": 9007199254740991
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
                     "timeZone": {
                       "type": "string",
                       "minLength": 1
@@ -1488,6 +1675,7 @@
                   },
                   "required": [
                     "cron",
+                    "at",
                     "timeZone"
                   ],
                   "additionalProperties": false
@@ -1536,6 +1724,39 @@
                     "string",
                     "null"
                   ]
+                },
+                "threadMode": {
+                  "default": "new",
+                  "type": "string",
+                  "enum": [
+                    "new",
+                    "continue"
+                  ]
+                },
+                "threadId": {
+                  "default": null,
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "notify": {
+                  "default": "attention",
+                  "type": "string",
+                  "enum": [
+                    "always",
+                    "attention",
+                    "never"
+                  ]
+                },
+                "catchUp": {
+                  "default": true,
+                  "type": "boolean"
                 },
                 "id": {
                   "type": "string"
@@ -1592,7 +1813,8 @@
                           "type": "string",
                           "enum": [
                             "schedule",
-                            "manual"
+                            "manual",
+                            "catch_up"
                           ]
                         },
                         "scheduledFor": {
@@ -1631,7 +1853,8 @@
                             "awaiting",
                             "succeeded",
                             "failed",
-                            "cancelled"
+                            "cancelled",
+                            "skipped"
                           ]
                         },
                         "message": {
@@ -1639,6 +1862,15 @@
                             "string",
                             "null"
                           ]
+                        },
+                        "summary": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "attention": {
+                          "type": "boolean"
                         }
                       },
                       "required": [
@@ -1650,7 +1882,9 @@
                         "startedAt",
                         "settledAt",
                         "outcome",
-                        "message"
+                        "message",
+                        "summary",
+                        "attention"
                       ],
                       "additionalProperties": false
                     },
@@ -1668,6 +1902,10 @@
                 "posture",
                 "model",
                 "thinking",
+                "threadMode",
+                "threadId",
+                "notify",
+                "catchUp",
                 "id",
                 "enabled",
                 "createdAt",
@@ -1703,6 +1941,19 @@
                   {
                     "type": "string",
                     "minLength": 1
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "at": {
+                "default": null,
+                "anyOf": [
+                  {
+                    "type": "integer",
+                    "minimum": -9007199254740991,
+                    "maximum": 9007199254740991
                   },
                   {
                     "type": "null"
@@ -1750,7 +2001,9 @@
                   "unreadable",
                   "never_runs",
                   "too_frequent",
-                  "time_zone"
+                  "time_zone",
+                  "in_past",
+                  "conflict"
                 ]
               },
               {
@@ -1829,7 +2082,8 @@
             "type": "string",
             "enum": [
               "schedule",
-              "manual"
+              "manual",
+              "catch_up"
             ]
           },
           "scheduledFor": {
@@ -1868,7 +2122,8 @@
               "awaiting",
               "succeeded",
               "failed",
-              "cancelled"
+              "cancelled",
+              "skipped"
             ]
           },
           "message": {
@@ -1876,6 +2131,15 @@
               "string",
               "null"
             ]
+          },
+          "summary": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "attention": {
+            "type": "boolean"
           }
         },
         "required": [
@@ -1887,7 +2151,9 @@
           "startedAt",
           "settledAt",
           "outcome",
-          "message"
+          "message",
+          "summary",
+          "attention"
         ],
         "additionalProperties": false
       }
@@ -1941,7 +2207,8 @@
                   "type": "string",
                   "enum": [
                     "schedule",
-                    "manual"
+                    "manual",
+                    "catch_up"
                   ]
                 },
                 "scheduledFor": {
@@ -1980,7 +2247,8 @@
                     "awaiting",
                     "succeeded",
                     "failed",
-                    "cancelled"
+                    "cancelled",
+                    "skipped"
                   ]
                 },
                 "message": {
@@ -1988,6 +2256,15 @@
                     "string",
                     "null"
                   ]
+                },
+                "summary": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "attention": {
+                  "type": "boolean"
                 }
               },
               "required": [
@@ -1999,7 +2276,9 @@
                 "startedAt",
                 "settledAt",
                 "outcome",
-                "message"
+                "message",
+                "summary",
+                "attention"
               ],
               "additionalProperties": false
             }
@@ -2061,6 +2340,19 @@
                   }
                 ]
               },
+              "at": {
+                "default": null,
+                "anyOf": [
+                  {
+                    "type": "integer",
+                    "minimum": -9007199254740991,
+                    "maximum": 9007199254740991
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
               "timeZone": {
                 "type": "string",
                 "minLength": 1
@@ -2068,6 +2360,7 @@
             },
             "required": [
               "cron",
+              "at",
               "timeZone"
             ],
             "additionalProperties": false
@@ -2116,6 +2409,39 @@
               "string",
               "null"
             ]
+          },
+          "threadMode": {
+            "default": "new",
+            "type": "string",
+            "enum": [
+              "new",
+              "continue"
+            ]
+          },
+          "threadId": {
+            "default": null,
+            "anyOf": [
+              {
+                "type": "string",
+                "minLength": 1
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "notify": {
+            "default": "attention",
+            "type": "string",
+            "enum": [
+              "always",
+              "attention",
+              "never"
+            ]
+          },
+          "catchUp": {
+            "default": true,
+            "type": "boolean"
           },
           "id": {
             "type": "string"
@@ -2172,7 +2498,8 @@
                     "type": "string",
                     "enum": [
                       "schedule",
-                      "manual"
+                      "manual",
+                      "catch_up"
                     ]
                   },
                   "scheduledFor": {
@@ -2211,7 +2538,8 @@
                       "awaiting",
                       "succeeded",
                       "failed",
-                      "cancelled"
+                      "cancelled",
+                      "skipped"
                     ]
                   },
                   "message": {
@@ -2219,6 +2547,15 @@
                       "string",
                       "null"
                     ]
+                  },
+                  "summary": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  },
+                  "attention": {
+                    "type": "boolean"
                   }
                 },
                 "required": [
@@ -2230,7 +2567,9 @@
                   "startedAt",
                   "settledAt",
                   "outcome",
-                  "message"
+                  "message",
+                  "summary",
+                  "attention"
                 ],
                 "additionalProperties": false
               },
@@ -2248,6 +2587,10 @@
           "posture",
           "model",
           "thinking",
+          "threadMode",
+          "threadId",
+          "notify",
+          "catchUp",
           "id",
           "enabled",
           "createdAt",
@@ -2299,6 +2642,19 @@
                       }
                     ]
                   },
+                  "at": {
+                    "default": null,
+                    "anyOf": [
+                      {
+                        "type": "integer",
+                        "minimum": -9007199254740991,
+                        "maximum": 9007199254740991
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
                   "timeZone": {
                     "type": "string",
                     "minLength": 1
@@ -2313,7 +2669,6 @@
                 "type": "string"
               },
               "posture": {
-                "default": "auto-edit",
                 "type": "string",
                 "enum": [
                   "ask",
@@ -2322,7 +2677,6 @@
                 ]
               },
               "model": {
-                "default": null,
                 "anyOf": [
                   {
                     "type": "object",
@@ -2347,11 +2701,39 @@
                 ]
               },
               "thinking": {
-                "default": null,
                 "type": [
                   "string",
                   "null"
                 ]
+              },
+              "threadMode": {
+                "type": "string",
+                "enum": [
+                  "new",
+                  "continue"
+                ]
+              },
+              "threadId": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "notify": {
+                "type": "string",
+                "enum": [
+                  "always",
+                  "attention",
+                  "never"
+                ]
+              },
+              "catchUp": {
+                "type": "boolean"
               }
             }
           }
@@ -2389,6 +2771,19 @@
                   }
                 ]
               },
+              "at": {
+                "default": null,
+                "anyOf": [
+                  {
+                    "type": "integer",
+                    "minimum": -9007199254740991,
+                    "maximum": 9007199254740991
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
               "timeZone": {
                 "type": "string",
                 "minLength": 1
@@ -2396,6 +2791,7 @@
             },
             "required": [
               "cron",
+              "at",
               "timeZone"
             ],
             "additionalProperties": false
@@ -2444,6 +2840,39 @@
               "string",
               "null"
             ]
+          },
+          "threadMode": {
+            "default": "new",
+            "type": "string",
+            "enum": [
+              "new",
+              "continue"
+            ]
+          },
+          "threadId": {
+            "default": null,
+            "anyOf": [
+              {
+                "type": "string",
+                "minLength": 1
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "notify": {
+            "default": "attention",
+            "type": "string",
+            "enum": [
+              "always",
+              "attention",
+              "never"
+            ]
+          },
+          "catchUp": {
+            "default": true,
+            "type": "boolean"
           },
           "id": {
             "type": "string"
@@ -2500,7 +2929,8 @@
                     "type": "string",
                     "enum": [
                       "schedule",
-                      "manual"
+                      "manual",
+                      "catch_up"
                     ]
                   },
                   "scheduledFor": {
@@ -2539,7 +2969,8 @@
                       "awaiting",
                       "succeeded",
                       "failed",
-                      "cancelled"
+                      "cancelled",
+                      "skipped"
                     ]
                   },
                   "message": {
@@ -2547,6 +2978,15 @@
                       "string",
                       "null"
                     ]
+                  },
+                  "summary": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  },
+                  "attention": {
+                    "type": "boolean"
                   }
                 },
                 "required": [
@@ -2558,7 +2998,9 @@
                   "startedAt",
                   "settledAt",
                   "outcome",
-                  "message"
+                  "message",
+                  "summary",
+                  "attention"
                 ],
                 "additionalProperties": false
               },
@@ -2576,6 +3018,10 @@
           "posture",
           "model",
           "thinking",
+          "threadMode",
+          "threadId",
+          "notify",
+          "catchUp",
           "id",
           "enabled",
           "createdAt",
@@ -20244,6 +20690,43 @@
       }
     },
     {
+      "name": "automations.attention",
+      "owner": "core",
+      "description": "一次运行需要告诉用户（按任务的通知策略判定）：UI 转成系统通知",
+      "params": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "automationId": {
+            "type": "string"
+          },
+          "runId": {
+            "type": "string"
+          },
+          "threadId": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "title": {
+            "type": "string"
+          },
+          "body": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "automationId",
+          "runId",
+          "threadId",
+          "title",
+          "body"
+        ],
+        "additionalProperties": false
+      }
+    },
+    {
       "name": "automations.changed",
       "owner": "core",
       "description": "任务定义变化",
@@ -20278,7 +20761,8 @@
             "type": "string",
             "enum": [
               "schedule",
-              "manual"
+              "manual",
+              "catch_up"
             ]
           },
           "scheduledFor": {
@@ -20317,7 +20801,8 @@
               "awaiting",
               "succeeded",
               "failed",
-              "cancelled"
+              "cancelled",
+              "skipped"
             ]
           },
           "message": {
@@ -20325,6 +20810,15 @@
               "string",
               "null"
             ]
+          },
+          "summary": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "attention": {
+            "type": "boolean"
           }
         },
         "required": [
@@ -20336,7 +20830,9 @@
           "startedAt",
           "settledAt",
           "outcome",
-          "message"
+          "message",
+          "summary",
+          "attention"
         ],
         "additionalProperties": false
       }
@@ -25849,12 +26345,24 @@
       "message": "这个任务正在运行"
     },
     {
+      "code": "automations.forbidden_in_run",
+      "message": "定时任务运行中不能管理定时任务"
+    },
+    {
       "code": "automations.invalid_schedule",
       "message": "计划表达式无效"
     },
     {
+      "code": "automations.invalid_thread",
+      "message": "续用的对话不可用"
+    },
+    {
       "code": "automations.not_found",
       "message": "定时任务不存在"
+    },
+    {
+      "code": "automations.not_in_run",
+      "message": "这条对话当前没有在运行的定时任务"
     },
     {
       "code": "automations.run_not_found",

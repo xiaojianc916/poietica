@@ -1224,3 +1224,54 @@ sha256 往附件目录里复制文件；手工暗路复制进去的文件没有 
 `URL_OF` 夹具却没被用到）。按第 41 行设计说明与 `imported.previewUrl` 的存在复原为：
 工具交回 `` `![${altOf(params.caption, imported.name)}](${imported.previewUrl})` ``，
 断言相应写成附件协议那一行。
+
+## R-14 自动化 Core：一次性计划、续用对话、超时、通知判定、错过补跑（2026-10-10）
+
+**来源**：审查页 R-14（外部输入，不入库）。自动化是「无人值守」功能，四个现存缺陷会让任务
+静默停摆或跑偏：只改标题冲掉模型 / 思考强度 / 姿态；一次送达失败就因 issue 停摆；卡审批
+永久占位且不留痕；自动化线程标题被首句覆盖。另有五项能力缺失：一次性计划、错过补跑、
+续用同一条对话、运行超时（跑 60 分钟 / 等批准 2 小时）、通知判定与 agent 汇报结论。
+
+**契约变化**：`Schedule` 加 `at`；`AutomationDraft` 加 `threadMode / threadId / notify / catchUp`；
+新增 `AutomationPatch`（不带默认值）；`AutomationRun` 加 `trigger: 'catch_up'`、`outcome: 'skipped'`、
+`summary / attention`；`ScheduleProblem` 加 `in_past / conflict`；新增错误码
+`invalid_thread / not_in_run / forbidden_in_run`；新增通知 `automations.attention`。
+`PROTOCOL_VERSION` 13 → 14，已重跑 `bun run protocol:snapshot`。
+
+**改法**：
+
+- **契约**（`features/automations/src/contract/entities.ts` 整文件重写）：字段表只写一次、
+  不带默认值，`AutomationPatch` 由它 `.partial()` 得来 —— 修掉 zod 4 在 `.partial()` 里照样套
+  `.default()`、只改标题就把 posture / model / thinking 冲回默认的缺陷。agent 工具的
+  `automation_update` 参数改用 `AutomationPatch`（此前同样从 `createParams.partial()` 派生）。
+- **迁移 v2**：任务表加 `run_at / thread_mode / thread_id / notify / catch_up`；运行表整张重建
+  （SQLite 改不了已有列的 CHECK），加 `catch_up / skipped / summary / attention` 与
+  `by_thread` 索引，旧行原样搬过去。
+- **调度**（`scheduler.ts`）：`repairOnStartup` 对错过的任务 —— 要补跑的记进 `catchUps`、
+  不动 `next_run_at`（第一次 tick 以 `catch_up` 跑一次，宁少不多）；不补跑的记一条
+  `skipped`「错过」再推进。`tick` 遇到同一任务已在跑时记一条 `skipped` 再推进，不再静默
+  跳过；跑完或跳过之后一次性任务自动停用。
+- **运行**（`runner.ts`）：`settle()` 是唯一收口点，**不再** `setIssue`（issue 只表示计划本身
+  有问题；一次运行失败不再让任务从此不被调度）。轮询搬 `running ↔ awaiting` 之外还累计
+  真在跑的时间（60 分钟 → failed）与一段等批准的时间（进入时按策略通知一次，2 小时 → failed）；
+  超时先收口再停会话，之后的 `turnSettled(cancelled)` 不会改写结局。续用模式按「对话还在、
+  在同一工作区、空闲」才复用，正忙时记一条 `skipped`（不往用户那一轮后面塞话），对话没了
+  就新建并重新记下；投给 agent 的话加抬头（任务名 + 为什么此刻在跑）与 `automation_report` 交代。
+- **通知判定**：`notice.ts` 的 `noticeOf()` 一个纯函数定规则（never / attention / always，
+  cancelled 与 skipped 不通知）；Core 发 `automations.attention`，UI 只在 R-16 转系统通知。
+- **服务**（`service.ts`）：`mergePatch` 缺席的键不改，`assertSchedule(…, allowPast)` 让
+  「一次性时间已过」在新建 / 改计划 / 重新启用时算错、只改别的字段时不算；新增 `inRun / report`。
+- **标题**：`conversation/src/core/thread-service.ts` 建线程时 `titleSource` 改为
+  给了标题就是 `user`（此前一律 `pending`，首句提交时按指令摘录改名，盖掉
+  「定时任务：<标题> <MM-DD HH:mm>」）。automations 界面只做类型适配：新字段原样带回，
+  保存一次不会冲掉 agent 设的值；`skipped` 结局与 `in_past / conflict` 文案补上。
+- **时间**：新文件 `time.ts`（`wallTime / isoIn / parseIsoWithOffset / localTimeZone`），
+  抬头与线程标题按任务自己的时区读。
+
+**测试**：新建 `r14-model.test.ts`（D1–D8）与 `r14-runs.test.ts`（S1–S12）；`helpers.ts` 加
+`fullDraft / buildCore`；老测试按新行为改（`issue` 不再由运行失败写入、并发到点记 `skipped`、
+草稿补新字段、标题不再被首句覆盖）。`bun run  all` 全绿（1790 pass / 0 fail）。
+
+**偏差**：无（文件清单与报告 §0 / §3 一致；`docs/refactor-log.md` 之外的文档未动）。真机验收
+按 R-14 §6 五步走（旧数据升级、每分钟任务抬头、卡审批留痕、关应用补跑、凭据修好照常运行），
+与 R-03 / R-05 / R-13 同例，**待真机复核**。

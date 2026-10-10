@@ -5,9 +5,13 @@ import type { Workspace } from '@poietica/feature-workspaces/contract'
 import type { WorkspacesService } from '@poietica/feature-workspaces/core-api'
 import { createId } from '@poietica/foundation'
 import { type Database, openDatabase } from '@poietica/storage-sqlite'
-import { type FakeClock, fakeClock } from '@poietica/test-kit'
+import { createTestLogger, type FakeClock, fakeClock } from '@poietica/test-kit'
+import type { AutomationAttention, AutomationDraft, AutomationRun } from '../../contract/entities'
 import { migrations } from '../migrations'
 import { type AutomationsRepository, createAutomationsRepository } from '../repository'
+import { createRunner } from '../runner'
+import { createScheduler } from '../scheduler'
+import { createAutomationsService } from '../service'
 
 /** 内存库 + automations 迁移：仓库/服务/调度器的单测共用 */
 export function createTestDatabase(): { db: Database; repo: AutomationsRepository } {
@@ -116,3 +120,53 @@ export function testClock(): FakeClock {
 }
 
 export { createFakeEngine, type FakeEngine, type ScenarioScript }
+
+/* ── 审查 R-14 / R-15 的新用例共用 ─────────────────────────────── */
+
+/** 一份完整草稿：默认每分钟一次、UTC、工作区 ws1，按需覆盖 */
+export function fullDraft(overrides: Partial<AutomationDraft> = {}): AutomationDraft {
+  return {
+    title: '晨会动态',
+    prompt: '汇总进展',
+    schedule: { cron: '*/1 * * * *', at: null, timeZone: 'UTC' },
+    workspaceId: 'ws1',
+    posture: 'auto-edit',
+    model: null,
+    thinking: null,
+    threadMode: 'new',
+    threadId: null,
+    notify: 'attention',
+    catchUp: true,
+    ...overrides,
+  }
+}
+
+/** runner + service + scheduler 全套，外加记下发出去的运行更新与通知 */
+export function buildCore(o: { readonly workspaces?: WorkspacesService } = {}) {
+  const d = unitDeps(o)
+  const logger = createTestLogger()
+  const updates: AutomationRun[] = []
+  const attentions: AutomationAttention[] = []
+  let changed = 0
+  const runner = createRunner({
+    repo: d.repo,
+    conversation: d.conversation,
+    workspaces: d.workspaces,
+    clock: d.clock,
+    logger,
+    emitRunUpdated: (run) => updates.push(run),
+    emitAttention: (a) => attentions.push(a),
+    emitChanged: () => {
+      changed++
+    },
+  })
+  const service = createAutomationsService({
+    repo: d.repo,
+    runner,
+    conversation: d.conversation,
+    clock: d.clock,
+    logger,
+  })
+  const scheduler = createScheduler({ repo: d.repo, runner, clock: d.clock, logger })
+  return { ...d, logger, runner, service, scheduler, updates, attentions, changed: () => changed }
+}

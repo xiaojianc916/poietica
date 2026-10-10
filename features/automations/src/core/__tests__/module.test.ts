@@ -54,7 +54,7 @@ describe('automations core 模块', () => {
         args: {
           title: '晨会动态',
           prompt: '汇总进展',
-          schedule: { cron: '0 9 * * 1-5', timeZone: 'Asia/Shanghai' },
+          schedule: { cron: '0 9 * * 1-5', at: null, timeZone: 'Asia/Shanghai' },
           posture: 'auto-edit',
           model: null,
           thinking: null,
@@ -103,7 +103,7 @@ describe('automations core 模块', () => {
     const automation = await api.call('automations.create', {
       title: '每分钟一次',
       prompt: '看一眼',
-      schedule: { cron: '* * * * *', timeZone: 'UTC' },
+      schedule: { cron: '* * * * *', at: null, timeZone: 'UTC' },
       workspaceId: ws.id,
       posture: 'auto-edit',
       model: null,
@@ -123,20 +123,38 @@ describe('automations core 模块', () => {
     expect(runs.runs[0]!.scheduledFor).toBe(automation.nextRunAt)
     expect(runs.runs[0]!.threadId).not.toBeNull()
 
-    /*
-     * 线程标题按 07 页 §9C 应为「定时任务：<标题> <MM-DD HH:mm>」。
-     * 但 conversation 的 `threads.create` 一律把 titleSource 记成 'pending'，
-     * 首次 `turns.submit` 又按首句自动改名（conversation 的 CV-2 行为），于是把
-     * automations 传进去的标题覆盖成 prompt 的摘录。这属于 conversation 侧的接口歧义
-     * （init.title 给了却被当成未命名线程），本功能不能改别的 feature，先断言 origin
-     * 与线程存在，标题差异记在进度报告里交给主代理接线时处理。
-     */
+    /* 线程标题按 07 页 §9C：「定时任务：<标题> <MM-DD HH:mm>」—— 不再被首句自动改名覆盖（审查 R-14） */
     const threads = await h.client(conversationContract).call('threads.list', {
       workspaceId: ws.id,
       includeArchived: false,
     })
-    expect(threads.threads[0]!.title).toBe('看一眼')
+    expect(threads.threads[0]!.title).toMatch(/^定时任务：每分钟一次 \d{2}-\d{2} \d{2}:\d{2}$/)
     expect(threads.threads[0]!.origin).toBe('automation')
+    await h.dispose()
+    await dir.dispose()
+  })
+
+  test('R-14 D1b 经 RPC 只改标题：模型、思考强度、姿态、通知都不被冲回默认', async () => {
+    const { h, dir, ws } = await harness()
+    const api = h.client(automationsContract)
+    const created = await api.call('automations.create', {
+      title: '巡检',
+      prompt: '看一眼 CI',
+      schedule: { cron: '0 9 * * *', at: null, timeZone: 'UTC' },
+      workspaceId: ws.id,
+      posture: 'full-access',
+      model: { provider: 'p', id: 'm' },
+      thinking: 'high',
+      notify: 'always',
+    })
+    const updated = await api.call('automations.update', { automationId: created.id, patch: { title: '每日巡检' } })
+    expect(updated).toMatchObject({
+      title: '每日巡检',
+      posture: 'full-access',
+      model: { provider: 'p', id: 'm' },
+      thinking: 'high',
+      notify: 'always',
+    })
     await h.dispose()
     await dir.dispose()
   })
@@ -160,7 +178,7 @@ describe('automations core 模块', () => {
     const automation = await api.call('automations.create', {
       title: '打不开工作区',
       prompt: '看一眼',
-      schedule: { cron: null, timeZone: 'UTC' },
+      schedule: { cron: null, at: null, timeZone: 'UTC' },
       workspaceId: ws.id,
       posture: 'auto-edit',
       model: null,

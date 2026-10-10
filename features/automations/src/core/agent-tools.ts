@@ -3,7 +3,7 @@ import type { ConversationService } from '@poietica/feature-conversation/core-ap
 import type { WorkspacesService } from '@poietica/feature-workspaces/core-api'
 import { AppError, SystemErrorCode } from '@poietica/foundation'
 import { z } from 'zod'
-import { AutomationDraft } from '../contract/entities'
+import { AutomationDraft, AutomationPatch } from '../contract/entities'
 import type { AutomationsService } from './service'
 
 const json = (value: unknown): { text: string } => ({ text: JSON.stringify(value) })
@@ -19,7 +19,8 @@ const json = (value: unknown): { text: string } => ({ text: JSON.stringify(value
 const createParams = AutomationDraft.omit({ workspaceId: true })
 const updateParams = z.object({
   id: z.string().min(1).describe('任务 id'),
-  patch: createParams.partial(),
+  /* AutomationPatch 的键都不带默认值：只改标题的调用不会把模型 / 姿态冲回默认（审查 R-14） */
+  patch: AutomationPatch,
 })
 const deleteParams = z.object({ id: z.string().min(1).describe('任务 id') })
 

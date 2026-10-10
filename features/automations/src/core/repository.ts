@@ -9,12 +9,17 @@ interface AutomationRow {
   readonly title: string
   readonly prompt: string
   readonly cron: string | null
+  readonly runAt: number | null
   readonly timeZone: string
   readonly workspaceId: string
   readonly posture: string
   readonly modelProvider: string | null
   readonly modelId: string | null
   readonly thinking: string | null
+  readonly threadMode: string
+  readonly threadId: string | null
+  readonly notify: string
+  readonly catchUp: number
   readonly enabled: number
   readonly nextRunAt: number | null
   readonly issue: string | null
@@ -26,31 +31,39 @@ interface RunRow {
   readonly id: string
   readonly automationId: string
   readonly threadId: string | null
-  readonly trigger: 'schedule' | 'manual'
+  readonly trigger: AutomationRun['trigger']
   readonly scheduledFor: number | null
   readonly startedAt: number
   readonly settledAt: number | null
   readonly outcome: AutomationRun['outcome']
   readonly message: string | null
+  readonly summary: string | null
+  readonly attention: number
 }
 
-const AUTOMATION_COLUMNS = `id, title, prompt, cron, time_zone AS timeZone, workspace_id AS workspaceId,
+const AUTOMATION_COLUMNS = `id, title, prompt, cron, run_at AS runAt, time_zone AS timeZone, workspace_id AS workspaceId,
   posture, model_provider AS modelProvider, model_id AS modelId, thinking,
+  thread_mode AS threadMode, thread_id AS threadId, notify, catch_up AS catchUp,
   enabled, next_run_at AS nextRunAt, issue, created_at AS createdAt, updated_at AS updatedAt`
 
 const RUN_COLUMNS = `id, automation_id AS automationId, thread_id AS threadId, triggered_by AS trigger,
-  scheduled_for AS scheduledFor, started_at AS startedAt, settled_at AS settledAt, outcome, message`
+  scheduled_for AS scheduledFor, started_at AS startedAt, settled_at AS settledAt, outcome, message,
+  summary, attention`
 
 function toAutomation(row: AutomationRow, lastRun: AutomationRun | null): Automation {
   return {
     id: row.id,
     title: row.title,
     prompt: row.prompt,
-    schedule: { cron: row.cron, timeZone: row.timeZone },
+    schedule: { cron: row.cron, at: row.runAt, timeZone: row.timeZone },
     workspaceId: row.workspaceId,
     posture: row.posture as Automation['posture'],
     model: row.modelProvider === null || row.modelId === null ? null : { provider: row.modelProvider, id: row.modelId },
     thinking: row.thinking,
+    threadMode: row.threadMode as Automation['threadMode'],
+    threadId: row.threadId,
+    notify: row.notify as Automation['notify'],
+    catchUp: row.catchUp === 1,
     enabled: row.enabled === 1,
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,
@@ -71,6 +84,8 @@ function toRun(row: RunRow): AutomationRun {
     settledAt: row.settledAt,
     outcome: row.outcome,
     message: row.message,
+    summary: row.summary,
+    attention: row.attention === 1,
   }
 }
 
@@ -82,6 +97,10 @@ export interface AutomationsRepository {
   setNextRun(id: string, nextRunAt: number | null, now: number): void
   setIssue(id: string, issue: string | null, now: number): void
   setEnabled(id: string, enabled: boolean, now: number): void
+  /** 续用模式第一次运行（或续用的对话没了）新建对话后记下来 */
+  setThread(id: string, threadId: string | null, now: number): void
+  /** 续用的对话被删：清掉所有指向它的任务，返回清了几个 */
+  clearThread(threadId: string, now: number): number
   remove(id: string): void
   removeByWorkspace(workspaceId: string): void
   insertRun(run: AutomationRun): void
@@ -126,20 +145,25 @@ export function createAutomationsRepository(db: ModuleDatabase): AutomationsRepo
     create(id, draft, now) {
       db.prepare(
         `INSERT INTO automations_automations
-          (id, title, prompt, cron, time_zone, workspace_id, posture, model_provider, model_id, thinking,
-           enabled, next_run_at, issue, created_at, updated_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, NULL, NULL, ?, ?)`,
+          (id, title, prompt, cron, run_at, time_zone, workspace_id, posture, model_provider, model_id, thinking,
+           thread_mode, thread_id, notify, catch_up, enabled, next_run_at, issue, created_at, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, NULL, NULL, ?, ?)`,
       ).run(
         id,
         draft.title,
         draft.prompt,
         draft.schedule.cron,
+        draft.schedule.at,
         draft.schedule.timeZone,
         draft.workspaceId,
         draft.posture,
         draft.model?.provider ?? null,
         draft.model?.id ?? null,
         draft.thinking,
+        draft.threadMode,
+        draft.threadId,
+        draft.notify,
+        draft.catchUp ? 1 : 0,
         now,
         now,
       )
@@ -149,20 +173,26 @@ export function createAutomationsRepository(db: ModuleDatabase): AutomationsRepo
       const result = db
         .prepare(
           `UPDATE automations_automations SET
-             title = ?, prompt = ?, cron = ?, time_zone = ?, workspace_id = ?, posture = ?,
-             model_provider = ?, model_id = ?, thinking = ?, updated_at = ?
+             title = ?, prompt = ?, cron = ?, run_at = ?, time_zone = ?, workspace_id = ?, posture = ?,
+             model_provider = ?, model_id = ?, thinking = ?, thread_mode = ?, thread_id = ?, notify = ?,
+             catch_up = ?, updated_at = ?
            WHERE id = ?`,
         )
         .run(
           draft.title,
           draft.prompt,
           draft.schedule.cron,
+          draft.schedule.at,
           draft.schedule.timeZone,
           draft.workspaceId,
           draft.posture,
           draft.model?.provider ?? null,
           draft.model?.id ?? null,
           draft.thinking,
+          draft.threadMode,
+          draft.threadId,
+          draft.notify,
+          draft.catchUp ? 1 : 0,
           now,
           id,
         )
@@ -186,6 +216,14 @@ export function createAutomationsRepository(db: ModuleDatabase): AutomationsRepo
         id,
       )
     },
+    setThread(id, threadId, now) {
+      db.prepare('UPDATE automations_automations SET thread_id = ?, updated_at = ? WHERE id = ?').run(threadId, now, id)
+    },
+    clearThread(threadId, now) {
+      return db
+        .prepare('UPDATE automations_automations SET thread_id = NULL, updated_at = ? WHERE thread_id = ?')
+        .run(now, threadId).changes
+    },
     remove(id) {
       db.prepare('DELETE FROM automations_automations WHERE id = ?').run(id)
     },
@@ -195,8 +233,9 @@ export function createAutomationsRepository(db: ModuleDatabase): AutomationsRepo
     insertRun(run) {
       db.prepare(
         `INSERT INTO automations_runs
-          (id, automation_id, thread_id, triggered_by, scheduled_for, started_at, settled_at, outcome, message)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          (id, automation_id, thread_id, triggered_by, scheduled_for, started_at, settled_at, outcome, message,
+           summary, attention)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       ).run(
         run.id,
         run.automationId,
@@ -207,13 +246,25 @@ export function createAutomationsRepository(db: ModuleDatabase): AutomationsRepo
         run.settledAt,
         run.outcome,
         run.message,
+        run.summary,
+        run.attention ? 1 : 0,
       )
     },
     updateRun(run) {
       db.prepare(
-        `UPDATE automations_runs SET thread_id = ?, scheduled_for = ?, settled_at = ?, outcome = ?, message = ?
+        `UPDATE automations_runs SET thread_id = ?, scheduled_for = ?, settled_at = ?, outcome = ?, message = ?,
+           summary = ?, attention = ?
          WHERE id = ?`,
-      ).run(run.threadId, run.scheduledFor, run.settledAt, run.outcome, run.message, run.id)
+      ).run(
+        run.threadId,
+        run.scheduledFor,
+        run.settledAt,
+        run.outcome,
+        run.message,
+        run.summary,
+        run.attention ? 1 : 0,
+        run.id,
+      )
     },
     getRun(runId) {
       const row = db

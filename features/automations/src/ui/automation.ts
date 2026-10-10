@@ -39,7 +39,7 @@ export function summarize(
 }
 
 export function isTerminal(outcome: RunOutcome): boolean {
-  return outcome === 'succeeded' || outcome === 'failed' || outcome === 'cancelled'
+  return outcome === 'succeeded' || outcome === 'failed' || outcome === 'cancelled' || outcome === 'skipped'
 }
 
 export const RUN_LABELS: Readonly<Record<RunOutcome, string>> = {
@@ -48,6 +48,7 @@ export const RUN_LABELS: Readonly<Record<RunOutcome, string>> = {
   succeeded: '成功',
   failed: '失败',
   cancelled: '已取消',
+  skipped: '已跳过',
 }
 
 export function activeRun(runs: readonly AutomationRun[]): AutomationRun | null {
@@ -191,11 +192,15 @@ export function describeSchedule(schedule: string | null): string {
 export const BLANK_DRAFT: AutomationDraft = {
   title: '',
   prompt: '',
-  schedule: { cron: null, timeZone: '' },
+  schedule: { cron: null, at: null, timeZone: '' },
   workspaceId: '',
   posture: 'auto-edit',
   model: null,
   thinking: null,
+  threadMode: 'new',
+  threadId: null,
+  notify: 'attention',
+  catchUp: true,
 }
 
 export function draftOf(automation: Automation): AutomationDraft {
@@ -207,6 +212,10 @@ export function draftOf(automation: Automation): AutomationDraft {
     posture: automation.posture,
     model: automation.model,
     thinking: automation.thinking,
+    threadMode: automation.threadMode,
+    threadId: automation.threadId,
+    notify: automation.notify,
+    catchUp: automation.catchUp,
   }
 }
 
@@ -216,12 +225,17 @@ export function sameDraft(left: AutomationDraft, right: AutomationDraft): boolea
     left.title === right.title &&
     left.prompt === right.prompt &&
     left.schedule.cron === right.schedule.cron &&
+    left.schedule.at === right.schedule.at &&
     left.schedule.timeZone === right.schedule.timeZone &&
     left.workspaceId === right.workspaceId &&
     left.posture === right.posture &&
     (left.model?.provider ?? null) === (right.model?.provider ?? null) &&
     (left.model?.id ?? null) === (right.model?.id ?? null) &&
-    left.thinking === right.thinking
+    left.thinking === right.thinking &&
+    left.threadMode === right.threadMode &&
+    left.threadId === right.threadId &&
+    left.notify === right.notify &&
+    left.catchUp === right.catchUp
   )
 }
 

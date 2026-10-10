@@ -41,9 +41,11 @@ export default defineCoreModule({
       clock: ctx.clock,
       logger: ctx.logger,
       emitRunUpdated: (run) => ctx.rpc.emit('automations.runUpdated', run),
+      emitAttention: (attention) => ctx.rpc.emit('automations.attention', attention),
+      emitChanged: () => ctx.rpc.emit('automations.changed', {}),
     })
     const scheduler = createScheduler({ repo, runner, clock: ctx.clock, logger: ctx.logger })
-    const service = createAutomationsService({ repo, runner, clock: ctx.clock, logger: ctx.logger })
+    const service = createAutomationsService({ repo, runner, conversation, clock: ctx.clock, logger: ctx.logger })
 
     registerHandlers(ctx, service)
     registerAgentTools({ tools: ctx.agentTools, service, conversation, workspaces })
@@ -67,6 +69,8 @@ export default defineCoreModule({
     ctx.disposables.add(
       ctx.events.on<ThreadRemoved>(threadRemoved, (e) => {
         runner.onThreadRemoved(e)
+        /* 续用的那条对话被删：任务忘掉它，下次运行新建一条（审查 R-14） */
+        if (repo.clearThread(e.threadId, ctx.clock.now()) > 0) ctx.rpc.emit('automations.changed', {})
       }),
     )
 

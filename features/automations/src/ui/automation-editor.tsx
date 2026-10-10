@@ -402,13 +402,18 @@ export function AutomationEditor({
     () => ({
       title: title.trim(),
       prompt: prompt.trim(),
-      schedule: { cron, timeZone },
+      schedule: { cron, at: null, timeZone },
       workspaceId,
       posture,
       model: baselineDraft.model,
       thinking: baselineDraft.thinking,
+      /* 审查 R-14：新字段界面暂不编辑（R-16 补控件），原样带回，免得保存一次就冲掉 agent 设的值 */
+      threadMode: baselineDraft.threadMode,
+      threadId: baselineDraft.threadId,
+      notify: baselineDraft.notify,
+      catchUp: baselineDraft.catchUp,
     }),
-    [baselineDraft.model, baselineDraft.thinking, cron, posture, prompt, timeZone, title, workspaceId],
+    [baselineDraft, cron, posture, prompt, timeZone, title, workspaceId],
   )
   const dirty = automation === null || !sameDraft(next, baselineDraft)
   const previewMatches = previewState?.cron === cron
@@ -427,7 +432,7 @@ export function AutomationEditor({
   useEffect(() => {
     let disposed = false
     const timer = setTimeout(() => {
-      void store.preview({ cron, timeZone }, 5).then(
+      void store.preview({ cron, at: null, timeZone }, 5).then(
         (result) => {
           if (!disposed) {
             setPreviewState({ cron, preview: result, error: null })

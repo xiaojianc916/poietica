@@ -28,6 +28,10 @@ export function draftOfTemplate(
     posture: 'auto-edit',
     model: null,
     thinking: null,
+    threadMode: 'new',
+    threadId: null,
+    notify: 'attention',
+    catchUp: true,
   }
 }
 

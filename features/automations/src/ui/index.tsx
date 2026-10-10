@@ -193,11 +193,15 @@ export default defineUiFeature({
       return {
         title,
         prompt: prompt ?? '',
-        schedule: { cron: DEFAULT_SCHEDULE, timeZone: defaultTimeZone() },
+        schedule: { cron: DEFAULT_SCHEDULE, at: null, timeZone: defaultTimeZone() },
         workspaceId: thread.workspaceId,
         posture: thread.posture,
         model: null,
         thinking: null,
+        threadMode: 'new',
+        threadId: null,
+        notify: 'attention',
+        catchUp: true,
       }
     }
   },

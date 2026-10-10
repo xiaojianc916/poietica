@@ -12,11 +12,15 @@ function draftOf(overrides: Partial<AutomationDraft> = {}): AutomationDraft {
   return {
     title: '晨会动态',
     prompt: '汇总进展',
-    schedule: { cron: '*/1 * * * *', timeZone: 'UTC' },
+    schedule: { cron: '*/1 * * * *', at: null, timeZone: 'UTC' },
     workspaceId: 'ws1',
     posture: 'auto-edit',
     model: null,
     thinking: null,
+    threadMode: 'new',
+    threadId: null,
+    notify: 'attention',
+    catchUp: true,
     ...overrides,
   }
 }
@@ -33,14 +37,22 @@ function build(overrides: { readonly workspaces?: UnitDeps['workspaces'] } = {})
     clock: d.clock,
     logger,
     emitRunUpdated: (run) => runs.push(run.id),
+    emitAttention: () => undefined,
+    emitChanged: () => undefined,
   })
   const scheduler = createScheduler({ repo: d.repo, runner, clock: d.clock, logger })
-  const service = createAutomationsService({ repo: d.repo, runner, clock: d.clock, logger })
+  const service = createAutomationsService({
+    repo: d.repo,
+    runner,
+    conversation: d.conversation,
+    clock: d.clock,
+    logger,
+  })
   return { ...d, logger, runner, scheduler, service, runs }
 }
 
 describe('scheduler', () => {
-  test('同一任务不并发运行：到期时已有运行中记录，只推进 next_run_at', async () => {
+  test('同一任务不并发运行：到期时已有运行中记录，记一条 skipped 并推进 next_run_at（审查 R-14）', async () => {
     const { repo, scheduler, service, clock, conversation, db } = build()
     const automation = service.create(draftOf())
     expect(automation.nextRunAt).not.toBeNull()
@@ -53,10 +65,14 @@ describe('scheduler', () => {
     const first = repo.get(automation.id)!
     expect(first.nextRunAt).not.toBeNull()
 
-    /* 第二轮到期：上一个运行还没结束（stub 会话不会自己 settle），不得再启动 */
+    /* 第二轮到期：上一个运行还没结束（stub 会话不会自己 settle），不得再启动 —— 但要留一条「跳过」 */
     clock.advance(MINUTE)
     await scheduler.tick()
-    expect(repo.runs(automation.id, 10).length).toBe(1)
+    const runs = repo.runs(automation.id, 10)
+    expect(runs.length).toBe(2)
+    expect(runs[0]!.outcome).toBe('skipped')
+    expect(runs[0]!.message).toBe('上一次运行还没结束，跳过这一次')
+    expect(conversation.created.length).toBe(1)
     const second = repo.get(automation.id)!
     expect(second.nextRunAt).not.toBe(first.nextRunAt)
     db.close()
@@ -99,7 +115,7 @@ describe('scheduler', () => {
     db.close()
   })
 
-  test('工作区不可用：运行直接 failed 且任务写 issue', async () => {
+  test('工作区不可用：运行直接 failed，任务不挂 issue（下一次到点照常再试，审查 R-14）', async () => {
     const { repo, service, db, runs } = build({
       workspaces: {
         get: () => null,
@@ -115,7 +131,7 @@ describe('scheduler', () => {
     expect(run.message).toBe('工作区文件夹已不存在')
     expect(run.settledAt).not.toBeNull()
     expect(runs).toContain(run.id)
-    expect(repo.get(automation.id)!.issue).toBe('工作区文件夹已不存在')
+    expect(repo.get(automation.id)!.issue).toBeNull()
     db.close()
   })
 })

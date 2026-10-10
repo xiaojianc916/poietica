@@ -82,7 +82,8 @@ export class ThreadService {
       id: createId(),
       workspaceId: init.workspaceId,
       title: init.title ?? PENDING_TITLE,
-      titleSource: 'pending',
+      /* 调用方给了标题（定时任务的「定时任务：<标题> <时间>」）就是定名：首句不再自动改名（审查 R-14） */
+      titleSource: init.title === undefined ? 'pending' : 'user',
       posture: init.posture ?? 'auto-edit',
       origin: init.origin ?? 'user',
       sessionId: null,

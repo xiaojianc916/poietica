@@ -27,7 +27,7 @@ import {
 /*
  * 照 legacy `packages/automation/src/ui/automation-schedule-field.tsx` 逐字搬迁。
  * 三处随新契约变：ScheduleProblem 的键换成契约里的 snake_case（unreadable /
- * never_runs / too_frequent / time_zone），文案仍是 legacy 那四句；
+ * never_runs / too_frequent / time_zone，审查 R-14 再加 in_past / conflict），文案仍是 legacy 那四句；
  * preview 的形状由 {nextRunAt, problem} 换成 {times, problem}（05 页 §11.9），
  * 「下一次」取 times[0]；时区不再由界面给（任务一律落系统时区）。
  */
@@ -38,6 +38,8 @@ const PROBLEMS: Record<ScheduleProblem, string> = {
   unreadable: '无法识别这段 crontab 表达式。',
   /* 时区不再由界面给：任务一律落系统时区。这一条只为契约里的枚举键有着落。 */
   time_zone: '任务记着的时区无效。',
+  in_past: '这个时间已经过去了。',
+  conflict: '周期计划与一次性时间只能二选一。',
 }
 
 const LABELS: Record<ScheduleKind, string> = {

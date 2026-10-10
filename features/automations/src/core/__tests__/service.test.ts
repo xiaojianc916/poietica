@@ -9,11 +9,15 @@ function draftOf(overrides: Partial<AutomationDraft> = {}): AutomationDraft {
   return {
     title: '风险扫描',
     prompt: '检查最近 24 小时',
-    schedule: { cron: '0 10 * * *', timeZone: 'Asia/Shanghai' },
+    schedule: { cron: '0 10 * * *', at: null, timeZone: 'Asia/Shanghai' },
     workspaceId: 'ws1',
     posture: 'auto-edit',
     model: null,
     thinking: null,
+    threadMode: 'new',
+    threadId: null,
+    notify: 'attention',
+    catchUp: true,
     ...overrides,
   }
 }
@@ -28,8 +32,14 @@ function build() {
     clock: d.clock,
     logger,
     emitRunUpdated: () => undefined,
+    emitAttention: () => undefined,
+    emitChanged: () => undefined,
   })
-  return { ...d, service: createAutomationsService({ repo: d.repo, runner, clock: d.clock, logger }), runner }
+  return {
+    ...d,
+    service: createAutomationsService({ repo: d.repo, runner, conversation: d.conversation, clock: d.clock, logger }),
+    runner,
+  }
 }
 
 describe('automations service', () => {
@@ -40,7 +50,7 @@ describe('automations service', () => {
     expect(scheduled.issue).toBeNull()
     expect(scheduled.enabled).toBe(true)
 
-    const manual = service.create(draftOf({ schedule: { cron: null, timeZone: 'UTC' } }))
+    const manual = service.create(draftOf({ schedule: { cron: null, at: null, timeZone: 'UTC' } }))
     expect(manual.nextRunAt).toBeNull()
     expect(manual.issue).toBeNull()
     db.close()
@@ -50,7 +60,7 @@ describe('automations service', () => {
     const { service, db } = build()
     const err = (() => {
       try {
-        service.create(draftOf({ schedule: { cron: '0 0 * *', timeZone: 'UTC' } }))
+        service.create(draftOf({ schedule: { cron: '0 0 * *', at: null, timeZone: 'UTC' } }))
         return null
       } catch (e) {
         return e as { code?: string }
@@ -121,10 +131,10 @@ describe('automations service', () => {
 
   test('预览返回未来若干次与问题', () => {
     const { service, db } = build()
-    const result = service.previewSchedule({ cron: '0 9 * * *', timeZone: 'Asia/Shanghai' }, 5)
+    const result = service.previewSchedule({ cron: '0 9 * * *', at: null, timeZone: 'Asia/Shanghai' }, 5)
     expect(result.times.length).toBe(5)
     expect(result.problem).toBeNull()
-    const bad = service.previewSchedule({ cron: '0 0 * *', timeZone: 'Asia/Shanghai' }, 5)
+    const bad = service.previewSchedule({ cron: '0 0 * *', at: null, timeZone: 'Asia/Shanghai' }, 5)
     expect(bad.problem).toBe('unreadable')
     expect(bad.times).toEqual([])
     db.close()

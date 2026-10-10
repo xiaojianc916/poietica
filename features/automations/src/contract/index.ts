@@ -1,6 +1,14 @@
 import { defineContract, defineMethod, defineNotification } from '@poietica/contract-kit'
 import { z } from 'zod'
-import { Automation, AutomationDraft, AutomationRun, Schedule, ScheduleProblem } from './entities'
+import {
+  Automation,
+  AutomationAttention,
+  AutomationDraft,
+  AutomationPatch,
+  AutomationRun,
+  Schedule,
+  ScheduleProblem,
+} from './entities'
 import { automationsErrors } from './errors'
 
 export * from './entities'
@@ -36,7 +44,7 @@ export const automationsContract = defineContract({
     defineMethod({
       name: 'automations.update',
       owner: 'core',
-      params: z.object({ automationId: z.string().min(1), patch: AutomationDraft.partial() }),
+      params: z.object({ automationId: z.string().min(1), patch: AutomationPatch }),
       result: Automation,
       description: '更新定时任务',
     }),
@@ -95,6 +103,12 @@ export const automationsContract = defineContract({
       owner: 'core',
       params: AutomationRun,
       description: '一次运行的状态变化',
+    }),
+    defineNotification({
+      name: 'automations.attention',
+      owner: 'core',
+      params: AutomationAttention,
+      description: '一次运行需要告诉用户（按任务的通知策略判定）：UI 转成系统通知',
     }),
   ],
   errors: automationsErrors,
