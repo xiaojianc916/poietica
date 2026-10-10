@@ -88,6 +88,10 @@ export const Controls = z.object({
   }),
   posture: Posture,
   planMode: z.boolean(),
+  /**
+   * 目标正文：进行中 / 已暂停 / 受阻的目标报正文；没有目标、或目标已完成报 null（R-10：
+   * 它驱动输入框下方那颗「目标」开关，完成之后开关要能重新打开）。完成那一档由 goalSnapshot 如实报。
+   */
   goal: z.string().nullable(),
   /**
    * 目标面板要画的那一份（状态 / 用量 / 秒针）；没有目标是 null。
@@ -101,6 +105,7 @@ export const Controls = z.object({
    *
    * 不可用时 UI 隐藏对应选择器；引擎侧调用分别抛 `engine.plan_unavailable` /
    * `engine.goal_unavailable`（04 页 §3.10 附近的口径：不可见的东西也点不动）。
+   * 例外（R-10）：清除目标与暂停目标不查这一格 —— 设置里关掉之后，挂着的目标仍要收得掉、停得下。
    */
   available: z.object({ plan: z.boolean(), goal: z.boolean() }),
   context: ContextUsage.nullable(),

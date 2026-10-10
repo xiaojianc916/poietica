@@ -22,8 +22,8 @@ import type { PermissionDockProps } from './composer/permission-dock'
 import type { PromptInputHandle } from './composer/prompt-input'
 import { SwarmToggle } from './composer/swarm-toggle'
 import { EntryNotices } from './entry-notices'
-import { GoalBar } from './goal/goal-bar'
-import { GOAL_CONTROL_ID, GOAL_PAUSED, GOAL_RESUMED } from './goal/goal-control'
+import { type GoalActions, GoalBar, useGoalActions } from './goal/goal-bar'
+import type { GoalActionHandler } from './goal/goal-control'
 import { EmotionBall, ENTRY_EMOTION_GROUPS } from './mascot/emotion-ball'
 import { PromptQueue } from './prompt-queue'
 import { TranscriptView } from './timeline/transcript-view'
@@ -74,6 +74,11 @@ export interface AssistantSurfaceProps {
    * 这条会话此刻的目标（从 Core 的控件通道来）。缺席整条不画 —— 与目标选择器同一份事实。
    */
   readonly goal?: SessionGoal | undefined
+  /**
+   * 目标栏与任务浮层上那几个目标动作（暂停 / 继续 / 改正文 / 清除）的出口（审查 R-10）。
+   * 缺席（入口相位、单测夹具）时点了只会亮一句「这条对话还没有会话」。
+   */
+  readonly onGoalAction?: GoalActionHandler | undefined
   /** 草稿的 ref 通道（浏览器拾取是第一个调用方）。所有者仍是 PromptInput，这层只铺通道不碰内容。 */
   readonly composer?: Ref<PromptInputHandle> | undefined
   /** 这条线程在平台上的整条记录；贡献点（threadHeaderItems）收的就是它。 */
@@ -87,6 +92,9 @@ export interface AssistantSurfaceProps {
   readonly todoThread?: (Observable<string | null> & { set(next: string | null): void }) | undefined
 }
 
+/** 没有接目标出口时（入口相位、单测夹具）的兜底：不下发，亮一句话。 */
+const NO_GOAL_ACTIONS: GoalActionHandler = () => Promise.resolve({ ok: false, error: '这条对话还没有会话' })
+
 /*
  * 任务浮层的订阅层。
  *
@@ -96,12 +104,13 @@ export interface AssistantSurfaceProps {
 function TodoPopoverLayer({
   endpoint,
   goal,
-  onSelectControl,
+  goalActions,
   todoThread,
 }: {
   readonly endpoint: string
   readonly goal: SessionGoal | undefined
-  readonly onSelectControl: (controlId: string, value: string, input?: string) => void
+  /** 与目标栏同一份（失败的那句话显示在目标栏上） */
+  readonly goalActions: GoalActions
   readonly todoThread: Observable<string | null> & { set(next: string | null): void }
 }): ReactNode {
   const open = useObservable(todoThread)
@@ -113,8 +122,12 @@ function TodoPopoverLayer({
       onCollapse={() => {
         todoThread.set(null)
       }}
-      onPauseGoal={() => onSelectControl(GOAL_CONTROL_ID, GOAL_PAUSED)}
-      onResumeGoal={() => onSelectControl(GOAL_CONTROL_ID, GOAL_RESUMED)}
+      onPauseGoal={() => {
+        void goalActions.run({ kind: 'pause' })
+      }}
+      onResumeGoal={() => {
+        void goalActions.run({ kind: 'resume' })
+      }}
       threadId={endpoint}
     />
   )
@@ -232,6 +245,7 @@ export const AssistantSurface = memo(function AssistantSurface({
   goal,
   isNew,
   onFork,
+  onGoalAction = NO_GOAL_ACTIONS,
   onRetryControls,
   onSelectControl,
   onUserMessage,
@@ -256,6 +270,9 @@ export const AssistantSurface = memo(function AssistantSurface({
    * 也把经过交给转录（#transcripts?.failed）—— 它和帧流里的失败长同一个样子。
    */
   const { permission: blocked, permissionCount: waiting, plan, question } = useAssistantInteractions(assistant.key)
+
+  /* 目标动作的在途与失败：目标栏与任务浮层共用这一份（审查 R-10） */
+  const goalActions = useGoalActions(onGoalAction, goal?.objective)
 
   /*
    * 待答的那一次审批。交出去的是那一格的整副入参而非三个各走各的 prop：引用只随
@@ -355,7 +372,7 @@ export const AssistantSurface = memo(function AssistantSurface({
    */
   const dock = (
     <div className="assistant-surface__composer">
-      {live && goal !== undefined ? <GoalBar goal={goal} onSelect={onSelectControl} /> : null}
+      {live && goal !== undefined ? <GoalBar actions={goalActions} goal={goal} /> : null}
 
       {failure === null || dismissed ? null : (
         <Banner
@@ -469,12 +486,7 @@ export const AssistantSurface = memo(function AssistantSurface({
             容器查询）。开合由页头那枚开关写 todoThread，这里只读 —— 同一件事只有一条写入路径。
           */}
           {todoThread === undefined ? null : (
-            <TodoPopoverLayer
-              endpoint={endpoint}
-              goal={goal}
-              onSelectControl={onSelectControl}
-              todoThread={todoThread}
-            />
+            <TodoPopoverLayer endpoint={endpoint} goal={goal} goalActions={goalActions} todoThread={todoThread} />
           )}
 
           <div className="assistant-surface__dock" ref={clearance.ref}>

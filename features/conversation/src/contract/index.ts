@@ -303,7 +303,21 @@ export const conversationContract = defineContract({
        */
       params: z.object({ threadId: z.string().min(1), goal: z.string().trim().min(1).nullable() }),
       result: Controls,
-      description: '设置或清除本轮目标',
+      description: '设置或清除目标；设置只改正文，进行中 / 已暂停保持不变（R-10）',
+    }),
+    defineMethod({
+      name: 'controls.pauseGoal',
+      owner: 'core',
+      params: z.object({ threadId: z.string().min(1) }),
+      result: Controls,
+      description: '暂停目标：这一轮照常跑完，之后不再计用量、不再给提示词注入目标上下文（R-10）',
+    }),
+    defineMethod({
+      name: 'controls.resumeGoal',
+      owner: 'core',
+      params: z.object({ threadId: z.string().min(1) }),
+      result: Controls,
+      description: '继续已暂停的目标（R-10）',
     }),
 
     defineMethod({

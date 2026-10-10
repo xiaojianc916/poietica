@@ -4337,10 +4337,644 @@
       }
     },
     {
+      "name": "controls.pauseGoal",
+      "owner": "core",
+      "timeoutMs": 30000,
+      "description": "暂停目标：这一轮照常跑完，之后不再计用量、不再给提示词注入目标上下文（R-10）",
+      "params": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "threadId": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "required": [
+          "threadId"
+        ]
+      },
+      "result": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "model": {
+            "type": "object",
+            "properties": {
+              "current": {
+                "anyOf": [
+                  {
+                    "type": "object",
+                    "properties": {
+                      "provider": {
+                        "type": "string",
+                        "minLength": 1
+                      },
+                      "id": {
+                        "type": "string",
+                        "minLength": 1
+                      }
+                    },
+                    "required": [
+                      "provider",
+                      "id"
+                    ],
+                    "additionalProperties": false
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "choices": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "ref": {
+                      "type": "object",
+                      "properties": {
+                        "provider": {
+                          "type": "string",
+                          "minLength": 1
+                        },
+                        "id": {
+                          "type": "string",
+                          "minLength": 1
+                        }
+                      },
+                      "required": [
+                        "provider",
+                        "id"
+                      ],
+                      "additionalProperties": false
+                    },
+                    "label": {
+                      "type": "string"
+                    },
+                    "reasoning": {
+                      "type": "boolean"
+                    },
+                    "images": {
+                      "type": "boolean"
+                    }
+                  },
+                  "required": [
+                    "ref",
+                    "label",
+                    "reasoning",
+                    "images"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            },
+            "required": [
+              "current",
+              "choices"
+            ],
+            "additionalProperties": false
+          },
+          "thinking": {
+            "type": "object",
+            "properties": {
+              "current": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "choices": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "label": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "label"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            },
+            "required": [
+              "current",
+              "choices"
+            ],
+            "additionalProperties": false
+          },
+          "posture": {
+            "type": "string",
+            "enum": [
+              "ask",
+              "auto-edit",
+              "full-access"
+            ]
+          },
+          "planMode": {
+            "type": "boolean"
+          },
+          "goal": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "goalSnapshot": {
+            "anyOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "objective": {
+                    "type": "string"
+                  },
+                  "completionCriterion": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  },
+                  "status": {
+                    "type": "string",
+                    "enum": [
+                      "active",
+                      "paused",
+                      "blocked",
+                      "complete"
+                    ]
+                  },
+                  "turnsUsed": {
+                    "type": "integer",
+                    "minimum": -9007199254740991,
+                    "maximum": 9007199254740991
+                  },
+                  "tokensUsed": {
+                    "type": "integer",
+                    "minimum": -9007199254740991,
+                    "maximum": 9007199254740991
+                  },
+                  "wallClockMs": {
+                    "type": "number"
+                  }
+                },
+                "required": [
+                  "objective",
+                  "completionCriterion",
+                  "status",
+                  "turnsUsed",
+                  "tokensUsed",
+                  "wallClockMs"
+                ],
+                "additionalProperties": false
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "available": {
+            "type": "object",
+            "properties": {
+              "plan": {
+                "type": "boolean"
+              },
+              "goal": {
+                "type": "boolean"
+              }
+            },
+            "required": [
+              "plan",
+              "goal"
+            ],
+            "additionalProperties": false
+          },
+          "context": {
+            "anyOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "usedTokens": {
+                    "type": "integer",
+                    "minimum": -9007199254740991,
+                    "maximum": 9007199254740991
+                  },
+                  "windowTokens": {
+                    "type": "integer",
+                    "minimum": -9007199254740991,
+                    "maximum": 9007199254740991
+                  },
+                  "breakdown": {
+                    "anyOf": [
+                      {
+                        "type": "object",
+                        "properties": {
+                          "systemPrompt": {
+                            "type": "integer",
+                            "minimum": -9007199254740991,
+                            "maximum": 9007199254740991
+                          },
+                          "systemContext": {
+                            "type": "integer",
+                            "minimum": -9007199254740991,
+                            "maximum": 9007199254740991
+                          },
+                          "systemTools": {
+                            "type": "integer",
+                            "minimum": -9007199254740991,
+                            "maximum": 9007199254740991
+                          },
+                          "skills": {
+                            "type": "integer",
+                            "minimum": -9007199254740991,
+                            "maximum": 9007199254740991
+                          },
+                          "messages": {
+                            "type": "integer",
+                            "minimum": -9007199254740991,
+                            "maximum": 9007199254740991
+                          },
+                          "free": {
+                            "type": "integer",
+                            "minimum": -9007199254740991,
+                            "maximum": 9007199254740991
+                          },
+                          "autoCompactBuffer": {
+                            "type": "integer",
+                            "minimum": -9007199254740991,
+                            "maximum": 9007199254740991
+                          }
+                        },
+                        "required": [
+                          "systemPrompt",
+                          "systemContext",
+                          "systemTools",
+                          "skills",
+                          "messages",
+                          "free",
+                          "autoCompactBuffer"
+                        ],
+                        "additionalProperties": false
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  }
+                },
+                "required": [
+                  "usedTokens",
+                  "windowTokens",
+                  "breakdown"
+                ],
+                "additionalProperties": false
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "model",
+          "thinking",
+          "posture",
+          "planMode",
+          "goal",
+          "available",
+          "context"
+        ],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "controls.resumeGoal",
+      "owner": "core",
+      "timeoutMs": 30000,
+      "description": "继续已暂停的目标（R-10）",
+      "params": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "threadId": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "required": [
+          "threadId"
+        ]
+      },
+      "result": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "model": {
+            "type": "object",
+            "properties": {
+              "current": {
+                "anyOf": [
+                  {
+                    "type": "object",
+                    "properties": {
+                      "provider": {
+                        "type": "string",
+                        "minLength": 1
+                      },
+                      "id": {
+                        "type": "string",
+                        "minLength": 1
+                      }
+                    },
+                    "required": [
+                      "provider",
+                      "id"
+                    ],
+                    "additionalProperties": false
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "choices": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "ref": {
+                      "type": "object",
+                      "properties": {
+                        "provider": {
+                          "type": "string",
+                          "minLength": 1
+                        },
+                        "id": {
+                          "type": "string",
+                          "minLength": 1
+                        }
+                      },
+                      "required": [
+                        "provider",
+                        "id"
+                      ],
+                      "additionalProperties": false
+                    },
+                    "label": {
+                      "type": "string"
+                    },
+                    "reasoning": {
+                      "type": "boolean"
+                    },
+                    "images": {
+                      "type": "boolean"
+                    }
+                  },
+                  "required": [
+                    "ref",
+                    "label",
+                    "reasoning",
+                    "images"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            },
+            "required": [
+              "current",
+              "choices"
+            ],
+            "additionalProperties": false
+          },
+          "thinking": {
+            "type": "object",
+            "properties": {
+              "current": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "choices": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "label": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "label"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            },
+            "required": [
+              "current",
+              "choices"
+            ],
+            "additionalProperties": false
+          },
+          "posture": {
+            "type": "string",
+            "enum": [
+              "ask",
+              "auto-edit",
+              "full-access"
+            ]
+          },
+          "planMode": {
+            "type": "boolean"
+          },
+          "goal": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "goalSnapshot": {
+            "anyOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "objective": {
+                    "type": "string"
+                  },
+                  "completionCriterion": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  },
+                  "status": {
+                    "type": "string",
+                    "enum": [
+                      "active",
+                      "paused",
+                      "blocked",
+                      "complete"
+                    ]
+                  },
+                  "turnsUsed": {
+                    "type": "integer",
+                    "minimum": -9007199254740991,
+                    "maximum": 9007199254740991
+                  },
+                  "tokensUsed": {
+                    "type": "integer",
+                    "minimum": -9007199254740991,
+                    "maximum": 9007199254740991
+                  },
+                  "wallClockMs": {
+                    "type": "number"
+                  }
+                },
+                "required": [
+                  "objective",
+                  "completionCriterion",
+                  "status",
+                  "turnsUsed",
+                  "tokensUsed",
+                  "wallClockMs"
+                ],
+                "additionalProperties": false
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "available": {
+            "type": "object",
+            "properties": {
+              "plan": {
+                "type": "boolean"
+              },
+              "goal": {
+                "type": "boolean"
+              }
+            },
+            "required": [
+              "plan",
+              "goal"
+            ],
+            "additionalProperties": false
+          },
+          "context": {
+            "anyOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "usedTokens": {
+                    "type": "integer",
+                    "minimum": -9007199254740991,
+                    "maximum": 9007199254740991
+                  },
+                  "windowTokens": {
+                    "type": "integer",
+                    "minimum": -9007199254740991,
+                    "maximum": 9007199254740991
+                  },
+                  "breakdown": {
+                    "anyOf": [
+                      {
+                        "type": "object",
+                        "properties": {
+                          "systemPrompt": {
+                            "type": "integer",
+                            "minimum": -9007199254740991,
+                            "maximum": 9007199254740991
+                          },
+                          "systemContext": {
+                            "type": "integer",
+                            "minimum": -9007199254740991,
+                            "maximum": 9007199254740991
+                          },
+                          "systemTools": {
+                            "type": "integer",
+                            "minimum": -9007199254740991,
+                            "maximum": 9007199254740991
+                          },
+                          "skills": {
+                            "type": "integer",
+                            "minimum": -9007199254740991,
+                            "maximum": 9007199254740991
+                          },
+                          "messages": {
+                            "type": "integer",
+                            "minimum": -9007199254740991,
+                            "maximum": 9007199254740991
+                          },
+                          "free": {
+                            "type": "integer",
+                            "minimum": -9007199254740991,
+                            "maximum": 9007199254740991
+                          },
+                          "autoCompactBuffer": {
+                            "type": "integer",
+                            "minimum": -9007199254740991,
+                            "maximum": 9007199254740991
+                          }
+                        },
+                        "required": [
+                          "systemPrompt",
+                          "systemContext",
+                          "systemTools",
+                          "skills",
+                          "messages",
+                          "free",
+                          "autoCompactBuffer"
+                        ],
+                        "additionalProperties": false
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  }
+                },
+                "required": [
+                  "usedTokens",
+                  "windowTokens",
+                  "breakdown"
+                ],
+                "additionalProperties": false
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "model",
+          "thinking",
+          "posture",
+          "planMode",
+          "goal",
+          "available",
+          "context"
+        ],
+        "additionalProperties": false
+      }
+    },
+    {
       "name": "controls.setGoal",
       "owner": "core",
       "timeoutMs": 30000,
-      "description": "设置或清除本轮目标",
+      "description": "设置或清除目标；设置只改正文，进行中 / 已暂停保持不变（R-10）",
       "params": {
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "type": "object",

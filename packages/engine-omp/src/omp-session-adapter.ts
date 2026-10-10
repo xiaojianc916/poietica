@@ -22,7 +22,15 @@ import { InteractionBroker } from './interactions/broker'
 import { planInteraction, planOutcomeOf } from './interactions/plan'
 import { createUiContext } from './interactions/ui-context'
 import type { GoalCapableSession, PlanArtifactSession, PlanCapableSession } from './plan-goal'
-import { applyGoal, applyPlanMode, availabilityOf, DEFAULT_PLAN_FILE, settlePlanProposal } from './plan-goal'
+import {
+  applyGoal,
+  applyPlanMode,
+  availabilityOf,
+  DEFAULT_PLAN_FILE,
+  pauseGoalMode,
+  resumeGoalMode,
+  settlePlanProposal,
+} from './plan-goal'
 import { applyPosture, grantToolForSession } from './posture'
 import { lastTurnOrdinal, type OmpMessage, projectHistoryPage } from './projector/history'
 import { LiveProjector } from './projector/live'
@@ -124,6 +132,7 @@ interface OmpAgentSessionLike {
     createGoal(input: { objective: string }): Promise<unknown>
     replaceGoal(input: { objective: string }): Promise<unknown>
     resumeGoal(): Promise<unknown>
+    pauseGoal(): Promise<unknown>
     dropGoal(): Promise<unknown>
   }
   readonly isStreaming?: boolean
@@ -344,6 +353,12 @@ export async function wrapOmpSession(input: WrapOmpSessionInput): Promise<Engine
       applyPlanMode: (enabled) => planner.setPlanMode(enabled),
       applyGoal: async (goal) => {
         await applyGoal({ session: goalSessionOf(session), root: input.settings, goal })
+      },
+      pauseGoal: async () => {
+        await pauseGoalMode({ session: goalSessionOf(session) })
+      },
+      resumeGoal: async () => {
+        await resumeGoalMode({ session: goalSessionOf(session), root: input.settings })
       },
       planAvailable: () => availabilityOf(input.settings).plan,
       goalAvailable: () => availabilityOf(input.settings).goal,
@@ -583,9 +598,14 @@ function goalSnapshotOf(session: OmpAgentSessionLike): SessionGoalSnapshot | nul
   }
 }
 
-/** 会话此刻的目标正文；dropped 的那一档按「没有目标」报（legacy goalSnapshotOf 同此） */
+/**
+ * 会话此刻的目标正文。dropped 与 complete 都按「没有目标」报（R-10）：这一格驱动输入框下方
+ * 那颗「目标」开关，目标完成之后它要能重新打开（再发一句就建新目标）；完成那一档的面板
+ * 仍由 goalSnapshot 如实报 complete。
+ */
 function goalOf(session: OmpAgentSessionLike): string | null {
-  return goalSnapshotOf(session)?.objective ?? null
+  const snapshot = goalSnapshotOf(session)
+  return snapshot === null || snapshot.status === 'complete' ? null : snapshot.objective
 }
 
 /**

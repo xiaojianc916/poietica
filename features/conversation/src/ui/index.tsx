@@ -52,6 +52,7 @@ import {
   sessionConfigControlsOf,
   sessionGoalOf,
 } from './control-shapes'
+import { runGoalAction } from './goal-actions'
 import { ArchivedChatsPage } from './settings/archived-page'
 import { type ConversationStores, createDraftPin, createStores, type TurnStatesStore } from './stores'
 import { completionBody, confirmDeleteThread, confirmQuit, isTurnSettled, shouldNotify } from './stores/notify'
@@ -718,6 +719,7 @@ export default defineUiFeature({
                   openThread(t.id)
                 })
               }}
+              onGoalAction={(action) => runGoalAction(api, threadId, action)}
               onSelectControl={(controlId, value) => {
                 if (controlId === 'model') {
                   const at = value.indexOf('/')
@@ -725,18 +727,16 @@ export default defineUiFeature({
                   return
                 }
                 if (controlId === 'thought') void api.setThinking(threadId, value)
-                /*
-                 * 计划：点了就立刻下发给会话（07 页 §5E）。目标不走这里 —— 它 `appliesOnSubmit`，
-                 * 由发送那一步连同正文一起交（见下面的 onSetGoal）。
-                 */
+                /* 计划：点了就立刻下发给会话（07 页 §5E）。 */
                 if (controlId === PLAN_CONTROL_ID) void api.setPlanMode(threadId, value === PLAN_ENABLED)
                 /*
-                 * 目标：**打开**那一档走「发送时生效」（正文就是 objective，只有发送那一步
-                 * 拿得到，面板往草稿写一格待提交的配置，见 session-port 的 prompt）；**关掉**
-                 * 必须当场生效 —— 人点的是「不收这个目标了」，等下一句才收等于开关失灵。
+                 * 目标（输入框下方那颗开关）：**打开**那一档走「发送时生效」（正文就是 objective，
+                 * 只有发送那一步拿得到，面板往草稿写一格待提交的配置，见 session-port 的 prompt）；
+                 * **关掉**必须当场生效 —— 人点的是「不收这个目标了」，等下一句才收等于开关失灵。
+                 * 暂停 / 继续 / 改正文不走这里：它们是目标栏与任务浮层的动作，走 onGoalAction（审查 R-10）。
                  */
                 if (controlId === GOAL_CONTROL_ID) {
-                  if (value === GOAL_DISABLED) void api.setGoal(threadId, null)
+                  if (value === GOAL_DISABLED) void runGoalAction(api, threadId, { kind: 'clear' })
                   return
                 }
                 if (controlId === 'permission') {

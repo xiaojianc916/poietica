@@ -135,6 +135,10 @@ async function harness(): Promise<Harness> {
         goalCalls.push('resume')
         return { goal: { objective: '旧目标', status: 'active' } }
       },
+      pauseGoal: async () => {
+        goalCalls.push('pause')
+        return { goal: { objective: '旧目标', status: 'paused' } }
+      },
       dropGoal: async () => {
         goalCalls.push('drop')
         return undefined

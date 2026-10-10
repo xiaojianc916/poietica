@@ -138,6 +138,9 @@ export interface OmpSessionHost {
    */
   readonly applyPlanMode: (enabled: boolean) => Promise<void>
   readonly applyGoal: (goal: string | null) => Promise<void>
+  /** 暂停 / 继续目标（R-10；实现在 plan-goal.ts 的 pauseGoalMode / resumeGoalMode） */
+  readonly pauseGoal: () => Promise<void>
+  readonly resumeGoal: () => Promise<void>
   /** 这两档此刻能不能用（现读 agent 设置；UI 据此隐藏选择器） */
   readonly planAvailable: () => boolean
   readonly goalAvailable: () => boolean
@@ -200,6 +203,12 @@ export class OmpSession implements EngineSession {
   private modelRef: ModelRef | null
   private thinkingValue: string | null
   private disposed = false
+  /**
+   * 正在执行的目标改动数（R-10）。大于 0 时 omp 的 goal_updated 不各自重报控件：
+   * 一次「换暂停目标的正文」在 omp 里是 resume → replace → pause 三步，逐条重报会让
+   * 屏幕闪一下「进行中」。改动收尾时统一报一次（读的是会话此刻的真相，什么都不丢）。
+   */
+  private goalBatch = 0
 
   constructor(
     private readonly o: OmpSessionHost,
@@ -562,8 +571,9 @@ export class OmpSession implements EngineSession {
     this.emit({ type: 'controls', controls: this.controls() })
   }
 
-  /** omp 自己改的模型/档位/目标也要让 UI 知道（事件订阅里调用） */
+  /** omp 自己改的模型/档位/目标也要让 UI 知道（事件订阅里调用）；目标改动进行中先不报（见 goalBatch） */
   controlsChanged(): void {
+    if (this.goalBatch > 0) return
     this.emitControls()
   }
 
@@ -612,9 +622,27 @@ export class OmpSession implements EngineSession {
   }
 
   async setGoal(goal: string | null): Promise<void> {
+    await this.changeGoal(() => this.o.applyGoal(goal))
+  }
+
+  async pauseGoal(): Promise<void> {
+    await this.changeGoal(() => this.o.pauseGoal())
+  }
+
+  async resumeGoal(): Promise<void> {
+    await this.changeGoal(() => this.o.resumeGoal())
+  }
+
+  /** 目标改动的统一外壳：期间压住逐条重报，收尾（成功或失败）只报一次真相（R-10） */
+  private async changeGoal(change: () => Promise<void>): Promise<void> {
     this.assertLive()
-    await this.o.applyGoal(goal)
-    this.emitControls()
+    this.goalBatch += 1
+    try {
+      await change()
+    } finally {
+      this.goalBatch -= 1
+      this.emitControls()
+    }
   }
 
   interactions(): readonly Interaction[] {

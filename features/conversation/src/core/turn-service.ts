@@ -218,6 +218,18 @@ export class TurnService {
     return session.controls()
   }
 
+  async pauseGoal(threadId: string): Promise<Controls> {
+    const session = await this.d.pool.acquire(threadId)
+    await session.pauseGoal()
+    return session.controls()
+  }
+
+  async resumeGoal(threadId: string): Promise<Controls> {
+    const session = await this.d.pool.acquire(threadId)
+    await session.resumeGoal()
+    return session.controls()
+  }
+
   // ── 交互（07 页 §5C 的 interactions 两方法）───────────────────────────────
   interactions(threadId: string): readonly Interaction[] {
     return this.d.pool.peek(threadId)?.interactions() ?? []

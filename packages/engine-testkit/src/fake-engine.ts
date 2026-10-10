@@ -127,7 +127,8 @@ class FakeSession implements EngineSession {
   private model: ModelRef | null
   private thinking: string | null
   private planMode = false
-  private goal: string | null = null
+  /** 目标：正文 + 进行中 / 已暂停（R-10）；没有目标是 null */
+  private goal: { objective: string; status: 'active' | 'paused' } | null = null
   private ordinal = 0
   private step = 0
   private turnCount = 0
@@ -495,7 +496,18 @@ class FakeSession implements EngineSession {
       },
       posture: this.posture,
       planMode: this.planMode,
-      goal: this.goal,
+      goal: this.goal?.objective ?? null,
+      goalSnapshot:
+        this.goal === null
+          ? null
+          : {
+              objective: this.goal.objective,
+              completionCriterion: null,
+              status: this.goal.status,
+              turnsUsed: 0,
+              tokensUsed: 0,
+              wallClockMs: 0,
+            },
       /** 替身没有 agent 设置文件，两档一律可用（真实现现读 plan.enabled / goal.enabled） */
       available: { plan: true, goal: true },
       context: null,
@@ -537,7 +549,30 @@ class FakeSession implements EngineSession {
 
   async setGoal(goal: string | null): Promise<void> {
     this.assertLive()
-    this.goal = goal
+    if (goal === null) {
+      this.goal = null
+    } else if (this.goal === null) {
+      this.goal = { objective: goal, status: 'active' }
+    } else {
+      /* 只换正文，不动状态（与真引擎同一条，R-10） */
+      this.goal = { objective: goal, status: this.goal.status }
+    }
+    this.controlsChanged()
+  }
+
+  async pauseGoal(): Promise<void> {
+    this.assertLive()
+    if (this.goal === null) throw new AppError(SystemErrorCode.notFound, '这条对话没有进行中的目标')
+    if (this.goal.status === 'paused') return
+    this.goal = { objective: this.goal.objective, status: 'paused' }
+    this.controlsChanged()
+  }
+
+  async resumeGoal(): Promise<void> {
+    this.assertLive()
+    if (this.goal === null) throw new AppError(SystemErrorCode.notFound, '这条对话没有已暂停的目标')
+    if (this.goal.status === 'active') return
+    this.goal = { objective: this.goal.objective, status: 'active' }
     this.controlsChanged()
   }
 

@@ -1047,3 +1047,75 @@ CRLF 按同一套行号数。
 **验收（修订二）**：`bun run  all` 全绿（1717 pass / 0 fail，219 文件 / 5712 断言）。
 新增三条投影用例：edit + 思考 + edit 连成一条（原「思考是隔断」用例按新规则改写）；
 思考打头由第一件工具定档、同档继续并；换档就断（思考并入左边那一组，不跨到另一种工具）。
+
+## R-10（审查页）目标栏的暂停 / 继续 / 改正文真正下到引擎（2026-10-10）
+
+**来源**：审查页 R-10 `R10.md`（外部输入，不入库）。目标栏上四个按钮只有「清除」真的生效：
+暂停、恢复、编辑点了既没有变化也没有报错，任务浮层里的暂停 / 继续同样无效。
+
+**契约变化**：新增 `controls.pauseGoal` / `controls.resumeGoal`，`controls.setGoal` 的
+description 收窄成「设置只改正文，进行中 / 已暂停保持不变」；`PROTOCOL_VERSION` 12 → 13，
+已重跑 `bun run protocol:snapshot`（快照里只有这两处差异）。
+
+**根因**（四个缺陷叠在一起）：
+
+1. **缺陷 A**：`GoalBar` 的 `mutate` 把动作交给 `onSelect` 之后立刻
+   `Promise.resolve({ ok: true })` —— `GoalBarView` 里写好的在途禁用与失败提示永远不会出现。
+2. **缺陷 B**：组合根 `onSelectControl` 只认「关掉」那一档，pause / resume / 编辑进来直接
+   `return`；任务浮层的暂停 / 继续走同一个出口，一样被丢。
+3. **缺陷 C**：契约、`EngineSession` 端口、engine-omp 的会话面都没有暂停 / 继续这两个入口。
+4. **缺陷 D**：`applyGoal` 的状态机与 omp 不符 —— 清除也查可用性、清除不摘 `goal` 工具、
+   同正文被当成「继续」、完成之后走 `replaceGoal` 会抛。
+
+**改法**（§3.1 的九条原则落成下面这些点）：
+
+1. **每个动作一条自己的路**：暂停 / 继续 / 改正文 / 清除分别对应
+   `pauseGoal` / `resumeGoal` / `setGoal(正文)` / `setGoal(null)`，不再借输入框选择器那条
+   只表达「开 / 关」的出口。
+2. **`setGoal` 只改正文、不改状态**：没有目标或上一个已完成就新建；正文不同就换成新正文
+   （omp 的 replace，用量从零记），进行中的仍进行中、已暂停的仍暂停；同正文什么都不做。
+   旧的「同正文 = 继续」隐式语义取消，继续有自己的入口。
+3. **暂停 = 只停之后，不打断这一轮**（与 omp TUI 的 `#pauseGoalAction` 同口径）：
+   `pauseGoal` + 摘掉 `goal` 工具（它自带 `op:'resume'`，留着模型能自己续上）。
+   **继续**与 omp RPC 宿主的 `#resume` 同口径：加回 `goal` 工具 + `resumeGoal` +
+   正在跑时 steer 一次目标上下文。
+4. **幂等**：已暂停再暂停、进行中再继续 → 什么都不做、不发事件；没有可暂停 / 可继续的目标
+   → `kernel.not_found`，message 是给人看的中文。
+5. **关掉目标模式之后挂着的目标仍停得下、收得掉**：清除与暂停不查 `goal.enabled`；
+   设置与继续仍查，关掉时抛 `engine.goal_unavailable`。
+6. **`goal` 工具的去留跟着状态走**：只在成员关系真的变了时才调 `setActiveToolsByName`。
+7. **UI 不猜状态**：按钮等 RPC 答复，期间 disabled；失败的那句话亮在目标栏的 role=alert 上；
+   状态变化只认 `controls.changed` 推回来的快照。
+8. **一次改动只报一次控件**：「换暂停目标的正文」在 omp 里是 resume → replace → pause 三步，
+   中间不能让屏幕闪一下「进行中」，由 `OmpSession.goalBatch` 压住。
+9. **完成之后 `controls.goal` 报 null**：输入框的「目标」开关回到关，可以直接再开；
+   `goalSnapshot` 仍如实报 `complete`。
+
+**本轮偏差**：
+
+1. `setGoal` 不再隐含「同正文 = 继续」（同正文落在暂停的目标上什么都不做）。
+2. 清除 / 暂停不查 `goal.enabled`（与 `Controls.available` 原注释的口径不同，已把例外写进注释）。
+3. 完成之后 `controls.goal` 报 null（原实现完成之后仍报正文，输入框开关收不回来）。
+
+**待决**：Poietica 没有目标续跑驱动 —— 暂停目前只停用量、目标上下文与模型自续，
+「一轮结束自动继续」是 R-11 的范围。
+
+**测试**：
+
+- `packages/engine-omp/src/__tests__/goal-actions.test.ts`（新建）：用 omp 真实的 `GoalRuntime`
+  钉状态转移 —— G1–G7（暂停 / 继续 / 幂等 / `kernel.not_found` / 关掉模式时的三种行为）、
+  E1–E6（改暂停目标的正文、同正文不动、完成后再设、清除摘工具、关掉模式仍能清除）、
+  S1–S4（换暂停正文只报一次控件、完成之后 `controls.goal` 为 null、失败也报一次）。
+  旧代码上 E1、E3、E4、E5、E6、S3 按预期红（已复核）。
+- `packages/engine-testkit/src/conformance.ts`：新增 `C-GOAL-LIFECYCLE`，FakeEngine 与
+  OmpEngine 都过。
+- `features/conversation/src/core/__tests__/goal-controls.test.ts`（新建）：两条用例在旧代码上
+  都红；现在钉住 RPC → handlers → TurnService → FakeEngine，以及 `controls.changed` 通知。
+- `features/conversation/src/ui/components/__tests__/goal-bar.test.tsx`（新建）GB1–GB7：
+  每个按钮交出的动作、在途禁用、失败提示按目标记账、同正文不发请求、一次只走一个、
+  出口违约也不卡 pending。
+- `features/conversation/src/ui/__tests__/goal-actions.test.ts`（新建）RA1–RA3：
+  四个动作各走各的 RPC、AppError 原样、其余走 `describeFailure` 且永不 reject。
+
+**验收**：`bun run  all` 全绿。真机验收按 R10 §6 的九步走（暂停不打断、浮层同步、
+关掉目标模式后的三条行为、完成之后开关能重新打开），与 R-03 / R-05 / … 同例，待真机复核。

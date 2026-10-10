@@ -1,5 +1,5 @@
 import { EngineErrorCode } from '@poietica/engine'
-import { AppError } from '@poietica/foundation'
+import { AppError, SystemErrorCode } from '@poietica/foundation'
 import { type PlanOutcome, planApprovedText, planRejectedText, planRevisionText } from './interactions/plan'
 import type { SettingsScope } from './settings-access'
 import { readSetting } from './settings-access'
@@ -71,6 +71,7 @@ export interface GoalCapableSession {
     createGoal(input: { objective: string }): Promise<unknown>
     replaceGoal(input: { objective: string }): Promise<unknown>
     resumeGoal(): Promise<unknown>
+    pauseGoal(): Promise<unknown>
     dropGoal(): Promise<unknown>
   }
   get isStreaming(): boolean
@@ -220,11 +221,19 @@ export async function settlePlanProposal(input: {
 }
 
 /**
- * 设置 / 清除目标（迁移 legacy `selectGoal`）。
+ * 设置 / 清除目标（迁移 legacy `selectGoal`；R-10 改成「只改正文、不改状态」）。
  *
- * 三件事缺一不可：goalRuntime 建/收目标；把 `goal` 工具塞回活动集（SDK 建会话时
+ * 三件事缺一不可：goalRuntime 建/收目标；`goal` 工具在活动集里的去留（SDK 建会话时
  * 无条件摘掉它）；setGoalModeState。正在跑的时候还要把目标上下文 steer 进去，
  * 否则模型要等下一轮才知道目标变了。
+ *
+ * 设置一支按现状分四种（R-10）：
+ *   没有目标 / 上一个已完成 → createGoal（omp 只在这两种情况下允许 create）；
+ *   正文没变               → 什么都不做（重建会清掉进度与用量）；
+ *   已暂停、正文变了       → 换正文，仍是暂停（replacePausedGoal）；
+ *   进行中 / 受阻、正文变了 → replaceGoal。
+ *
+ * 清除不查可用性：设置里关掉目标模式之后，人仍然要能把挂着的目标收掉。
  */
 export async function applyGoal(input: {
   readonly session: GoalCapableSession
@@ -233,38 +242,110 @@ export async function applyGoal(input: {
   /** 可用性读数（缺省=现读设置；测试可注入） */
   readonly availability?: AvailabilityReader
 }): Promise<void> {
-  requireAvailable(input.availability ?? (() => availabilityOf(input.root)), 'goal')
   const { session } = input
 
   if (input.goal === null) {
     await session.goalRuntime.dropGoal()
     session.setGoalModeState(undefined)
+    await setGoalTool(session, false)
     return
   }
 
+  requireAvailable(input.availability ?? (() => availabilityOf(input.root)), 'goal')
+  requireGoalTool(session)
   const objective = input.goal.trim()
-  const existing = session.getGoalModeState()
+  const current = goalOf(session.getGoalModeState())
+
+  if (current === undefined || current.status === 'complete' || current.status === 'dropped') {
+    await setGoalTool(session, true)
+    session.setGoalModeState(await session.goalRuntime.createGoal({ objective }))
+  } else if (current.objective === objective) {
+    return
+  } else if (current.status === 'paused') {
+    await replacePausedGoal(session, objective)
+    return
+  } else {
+    await setGoalTool(session, true)
+    session.setGoalModeState(await session.goalRuntime.replaceGoal({ objective }))
+  }
+
+  if (session.isStreaming) await session.sendGoalModeContext({ deliverAs: 'steer' })
+}
+
+/**
+ * 暂停目标（R-10；与官方 TUI 的 #pauseGoalAction 同口径）：**不打断这一轮**，只停之后 ——
+ * 不再计用量、不再给之后的提示词注入目标上下文，`goal` 工具从活动集摘掉
+ * （它自带 op:'resume'，留着它，模型能在人按了暂停之后自己把目标续上）。
+ *
+ * 已暂停时什么都不做；不查可用性（设置里关掉目标模式之后，人仍然要能停下挂着的目标）。
+ */
+export async function pauseGoalMode(input: { readonly session: GoalCapableSession }): Promise<void> {
+  const { session } = input
+  const status = goalOf(session.getGoalModeState())?.status
+  if (status === 'paused') return
+  if (!isRunning(status)) throw new AppError(SystemErrorCode.notFound, '这条对话没有进行中的目标')
+  session.setGoalModeState(await session.goalRuntime.pauseGoal())
+  await setGoalTool(session, false)
+}
+
+/**
+ * 继续已暂停的目标（R-10；与官方 RPC 宿主的 #resume 同口径）：`goal` 工具加回活动集、
+ * 状态回到进行中；正在跑的时候把目标上下文 steer 进去。已在进行中（或受阻）时什么都不做。
+ */
+export async function resumeGoalMode(input: {
+  readonly session: GoalCapableSession
+  readonly root: SettingsScope
+  /** 可用性读数（缺省=现读设置；测试可注入） */
+  readonly availability?: AvailabilityReader
+}): Promise<void> {
+  const { session } = input
+  const status = goalOf(session.getGoalModeState())?.status
+  if (isRunning(status)) return
+  if (status !== 'paused') throw new AppError(SystemErrorCode.notFound, '这条对话没有已暂停的目标')
+  requireAvailable(input.availability ?? (() => availabilityOf(input.root)), 'goal')
+  requireGoalTool(session)
+  await setGoalTool(session, true)
+  session.setGoalModeState(await session.goalRuntime.resumeGoal())
+  if (session.isStreaming) await session.sendGoalModeContext({ deliverAs: 'steer' })
+}
+
+/**
+ * 换掉一个**已暂停**目标的正文，换完仍是暂停（R-10）。
+ *
+ * omp 的 replaceGoal 只认进行中的目标（暂停的会抛 cannot replace goal because no goal is active），
+ * 所以走 omp 自己的三步：resume → replace → pause。replace 失败也要停回暂停，再把原错抛出去。
+ * 中间两次 goal_updated 由 OmpSession 的控件批处理吞掉（session.ts 的 goalBatch），屏幕上不闪「进行中」。
+ * goal 工具不动：暂停时它本来就不在活动集里。
+ */
+async function replacePausedGoal(session: GoalCapableSession, objective: string): Promise<void> {
+  await session.goalRuntime.resumeGoal()
+  try {
+    await session.goalRuntime.replaceGoal({ objective })
+  } finally {
+    session.setGoalModeState(await session.goalRuntime.pauseGoal())
+  }
+}
+
+/** omp 计用量的那两档（runtime 的 isAccountingStatus）：受阻（budget-limited）也算在跑 */
+function isRunning(status: string | undefined): boolean {
+  return status === 'active' || status === 'budget-limited'
+}
+
+function requireGoalTool(session: GoalCapableSession): void {
   if (!session.hasBuiltInTool('goal')) {
     throw new AppError(EngineErrorCode.goalUnavailable, '这条会话没有 goal 工具')
   }
-  // 先算活动工具集再落状态（与官方 TUI 同次序）
-  const previous = session.getEnabledToolNames().filter((name) => name !== 'goal')
-  await session.setActiveToolsByName([...new Set([...previous, 'goal'])])
+}
 
-  /*
-   * 三个分支：同一目标且已暂停 → **继续**（不是重建，重建会清掉进度与用量）；
-   * 没有目标 → 新建；有别的目标 → 替换。
-   */
-  const current = goalOf(existing)
-  const next =
-    current?.status === 'paused' && current.objective === objective
-      ? await session.goalRuntime.resumeGoal()
-      : existing === undefined
-        ? await session.goalRuntime.createGoal({ objective })
-        : await session.goalRuntime.replaceGoal({ objective })
-  session.setGoalModeState(next)
-
-  if (session.isStreaming) await session.sendGoalModeContext({ deliverAs: 'steer' })
+/**
+ * 让 `goal` 工具在 / 不在活动集里；本来就是那样时不碰工具集（R-10）。
+ * 其余工具的次序原样保留，goal 加在最后（与官方 TUI 的 [...previous, "goal"] 同）。
+ */
+async function setGoalTool(session: GoalCapableSession, present: boolean): Promise<void> {
+  const enabled = session.getEnabledToolNames()
+  if (enabled.includes('goal') === present) return
+  const others = enabled.filter((name) => name !== 'goal')
+  await session.setActiveToolsByName(present ? [...others, 'goal'] : others)
 }
 
 /** 会话状态里那条目标的可判据（omp 的 GoalModeState.goal） */

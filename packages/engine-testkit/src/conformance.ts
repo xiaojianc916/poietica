@@ -333,6 +333,42 @@ export function runEngineConformance(name: string, make: () => Promise<Conforman
       record.subscription.dispose()
     })
 
+    /**
+     * 目标的一生（审查 R-10）：设 → 暂停 → 改正文（仍暂停）→ 继续 → 清除；控件快照每一步都跟着走。
+     * 暂停 / 继续是幂等的；没有目标时暂停抛 kernel.not_found。
+     */
+    test('C-GOAL-LIFECYCLE', async () => {
+      const session = await openNew()
+      const snapshot = () => session.controls().goalSnapshot ?? null
+
+      await session.setGoal('把测试迁完')
+      expect(snapshot()).toMatchObject({ objective: '把测试迁完', status: 'active' })
+
+      await session.pauseGoal()
+      expect(snapshot()?.status).toBe('paused')
+      await session.pauseGoal()
+      expect(snapshot()?.status).toBe('paused')
+
+      await session.setGoal('把测试迁完并补文档')
+      expect(snapshot()).toMatchObject({ objective: '把测试迁完并补文档', status: 'paused' })
+
+      await session.resumeGoal()
+      expect(snapshot()?.status).toBe('active')
+      await session.resumeGoal()
+      expect(snapshot()?.status).toBe('active')
+
+      await session.setGoal(null)
+      expect(snapshot()).toBeNull()
+      expect(session.controls().goal).toBeNull()
+
+      const error = await session.pauseGoal().then(
+        () => undefined,
+        (e: unknown) => e,
+      )
+      expect(error).toBeInstanceOf(AppError)
+      expect((error as AppError).code).toBe('kernel.not_found')
+    })
+
     test('C-POSTURE-ISOLATION', async () => {
       const a = await openNew('ask')
       const b = await openNew('full-access')

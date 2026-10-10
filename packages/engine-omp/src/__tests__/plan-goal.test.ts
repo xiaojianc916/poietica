@@ -302,6 +302,10 @@ function goalHarness(): GoalHarness {
         calls.push('resume')
         return { goal: { objective: '旧目标', status: 'active' } }
       },
+      pauseGoal: async () => {
+        calls.push('pause')
+        return { goal: { objective: '旧目标', status: 'paused' } }
+      },
       dropGoal: async () => {
         calls.push('drop')
         return undefined
@@ -317,7 +321,7 @@ function goalHarness(): GoalHarness {
   return Object.assign(h, { session })
 }
 
-describe('目标模式：四条路径 + 不可用', () => {
+describe('目标模式：设置 / 清除 + 不可用（R-10：设置只改正文，不改状态）', () => {
   test('新建：把 goal 工具塞回活动集，再落状态', async () => {
     const h = goalHarness()
     await applyGoal({ session: h.session, root: ROOT, availability: availabilityOf(true, true), goal: '把测试迁完' })
@@ -334,12 +338,16 @@ describe('目标模式：四条路径 + 不可用', () => {
     expect(h.goalState).toMatchObject({ goal: { objective: '新目标' } })
   })
 
-  test('继续：同一个目标处于暂停时走 resumeGoal，不重建（进度与用量都留着）', async () => {
+  /*
+   * R-10：设置只改正文、不改状态。以前同正文落在暂停的目标上会被当成「继续」——
+   * 继续现在有自己的入口（resumeGoalMode），这里什么都不做，进度与用量都留着。
+   */
+  test('同正文落在暂停的目标上：什么都不做（不 resume、不重建），仍是暂停', async () => {
     const h = goalHarness()
     h.goalState = { goal: { objective: '旧目标', status: 'paused' } }
     await applyGoal({ session: h.session, root: ROOT, availability: availabilityOf(true, true), goal: '旧目标' })
-    expect(h.calls).toEqual(['resume'])
-    expect(h.goalState).toMatchObject({ goal: { status: 'active' } })
+    expect(h.calls).toEqual([])
+    expect(h.goalState).toMatchObject({ goal: { status: 'paused' } })
   })
 
   test('删除：goal 为 null 时 dropGoal 并清状态', async () => {

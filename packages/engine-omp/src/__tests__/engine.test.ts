@@ -32,6 +32,8 @@ function stubSession(): EngineSession {
     setPosture: () => undefined,
     setPlanMode: async () => undefined,
     setGoal: async () => undefined,
+    pauseGoal: async () => undefined,
+    resumeGoal: async () => undefined,
     interactions: () => [],
     respond: () => undefined,
     page: async () => ({

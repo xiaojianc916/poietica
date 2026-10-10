@@ -112,6 +112,8 @@ export function registerHandlers(ctx: Ctx, core: ConversationCore, hub: Timeline
   ctx.rpc.handle('controls.setPosture', ({ threadId, posture }) => turns.setPostureAction(threadId, posture))
   ctx.rpc.handle('controls.setPlanMode', ({ threadId, enabled }) => turns.setPlanMode(threadId, enabled))
   ctx.rpc.handle('controls.setGoal', ({ threadId, goal }) => turns.setGoal(threadId, goal))
+  ctx.rpc.handle('controls.pauseGoal', ({ threadId }) => turns.pauseGoal(threadId))
+  ctx.rpc.handle('controls.resumeGoal', ({ threadId }) => turns.resumeGoal(threadId))
 
   ctx.rpc.handle('interactions.list', ({ threadId }) => ({ interactions: [...turns.interactions(threadId)] }))
   ctx.rpc.handle('interactions.respond', async ({ threadId, interactionId, answer }) => {

@@ -111,6 +111,8 @@ export function createConversationApi(ctx: UiFeatureContext) {
       rpc.call('controls.setPlanMode', { threadId, enabled }),
     setGoal: (threadId: string, goal: string | null): Promise<Controls> =>
       rpc.call('controls.setGoal', { threadId, goal }),
+    pauseGoal: (threadId: string): Promise<Controls> => rpc.call('controls.pauseGoal', { threadId }),
+    resumeGoal: (threadId: string): Promise<Controls> => rpc.call('controls.resumeGoal', { threadId }),
     respond: (threadId: string, interactionId: string, answer: InteractionAnswer): Promise<void> =>
       rpc.call('interactions.respond', { threadId, interactionId, answer }).then(() => undefined),
 

@@ -85,7 +85,25 @@ export interface EngineSession {
   setThinking(level: string): void
   setPosture(posture: Posture): void
   setPlanMode(enabled: boolean): Promise<void>
+  /**
+   * 设置 / 清除目标（null = 清除）。
+   *
+   * 设置**只改正文、不改状态**（R-10）：没有目标（或上一个已完成）就新建一个进行中的目标；
+   * 已有目标且正文不同就换成新正文（omp 的 replace：用量从零记），进行中的仍进行中、
+   * 已暂停的仍暂停；正文相同什么都不做。
+   */
   setGoal(goal: string | null): Promise<void>
+  /**
+   * 暂停目标：本轮照常跑完（不打断），之后不再计用量、不再给提示词注入目标上下文（R-10）。
+   *
+   * 已暂停时什么都不做；没有进行中（或受阻）的目标时抛 `kernel.not_found`。
+   */
+  pauseGoal(): Promise<void>
+  /**
+   * 继续已暂停的目标（R-10）。已在进行中时什么都不做；没有已暂停的目标时抛 `kernel.not_found`；
+   * 目标模式在 agent 设置里关掉时抛 `engine.goal_unavailable`。
+   */
+  resumeGoal(): Promise<void>
   interactions(): readonly Interaction[]
   respond(interactionId: string, answer: InteractionAnswer): void
   page(agentId: string, beforeTurnId: string | null): Promise<TranscriptPage>
