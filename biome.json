@@ -89,6 +89,16 @@
   },
   "overrides": [
     {
+      "includes": ["features/automations/src/core/__tests__/agent-tools.test.ts"],
+      "linter": {
+        "rules": {
+          "suspicious": {
+            "noExplicitAny": "off"
+          }
+        }
+      }
+    },
+    {
       "includes": ["tooling/**", "scripts/**", "apps/*/scripts/**", "**/__tests__/**", "**/*.test.ts", "**/*.test.tsx"],
       "linter": {
         "rules": {

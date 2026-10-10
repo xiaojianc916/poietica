@@ -1275,3 +1275,38 @@ sha256 往附件目录里复制文件；手工暗路复制进去的文件没有 
 **偏差**：无（文件清单与报告 §0 / §3 一致；`docs/refactor-log.md` 之外的文档未动）。真机验收
 按 R-14 §6 五步走（旧数据升级、每分钟任务抬头、卡审批留痕、关应用补跑、凭据修好照常运行），
 与 R-03 / R-05 / R-13 同例，**待真机复核**。
+
+## R-15 自动化 agent 工具：8 张工具、选工作区与模型、一次性计划、运行中禁止自我繁殖（2026-10-10）
+
+**来源**：审查页 R-15（外部输入，不入库）。定时任务是 agent 的建 / 改入口，但旧工具只能
+在当前工作区建、选不了模型与思考档位、猜时区，`automation_update` 还会冲掉设置；没有运行
+记录与手动运行工具，且任务运行中的 agent 能再建任务、无人值守地自我繁殖。
+
+**改法**（不改契约，`PROTOCOL_VERSION` 不动）：
+
+- `agent-tools.ts` 整文件重写为 8 张：`automation_options / list / runs / create / update /
+  run / delete / report`。参数表**自己定义**（不从 `AutomationDraft` / `AutomationPatch`
+  派生，不带 `.default()`，全部 `.describe()` 英文说明），默认值在 `execute` 里补；每个
+  `execute` 用 `chinese()` 把非 AppError 转成 `kernel.invalid_params`。
+- 可选项一次给全：`now` 是**带时差**的 ISO（用户本机时区）、`timeZone`、当前工作区、
+  可用工作区、模型（含显示名）与默认模型、思考档位、权限姿态（每档一句说明）。模型 /
+  思考强度经 `engine.draftControls()` 校验，传错时报中文错误并**列出全部可选值**。
+- 跨工作区：`workspaceId` 可指定，经 `workspaces.requireUsable` 校验；不传时取当前对话的。
+  `thread: 'this'` 要求任务就在这条对话的工作区里，`'continue'` 保住原来的续用对话。
+- 修改只带给了的字段（`patchOf` 逐项判 `undefined`），`enabled` 暂停 / 恢复；新建与修改的
+  结果带 `upcoming`（接下来 3 次，按任务时区、带时差）。
+- 运行中（`service.inRun(ctx.sessionKey)`）拦下 create / update / run / delete
+  （`automations.forbidden_in_run`），只放行 options / list / runs / report；
+  `automation_report` 只认 `ctx.sessionKey` 上开着的那次运行（`not_in_run`）。
+- 结果字段名按 R-16 的工具卡规格（`workspace{id,name}`、`model{provider,id,label}`、
+  `lastRun{...}` 等），**不改名**。
+
+**测试**：新建 `features/automations/src/core/__tests__/agent-tools.test.ts`（T1–T12，直接
+调 `execute`，引擎只替 `draftControls`）；`module.test.ts` 第一条改成新参数并断言视图与
+`upcoming`。旧代码上 13 条按预期红。`biome.json` 的 overrides 只对该测试文件关
+`noExplicitAny`（测试按 JSON 字段断言），`features/automations/src/core/tsconfig.json` 的
+engine 引用由 `bun run refs` 生成。`bun run all` 全绿（1802 pass / 0 fail）。
+
+**偏差**：无（文件清单与报告 §3 一致，结果字段名与 §3.3 一致）。真机验收按 R-15 §6 七步走
+（问可用模型、跨工作区建任务、只改名、明早一次性、立即跑、运行中禁止再建、坏模型报错列
+可选值），与 R-03 / R-05 / R-14 同例，**待真机复核**。

@@ -23,6 +23,7 @@ import { createAutomationsRepository } from './repository'
 import { createRunner } from './runner'
 import { createScheduler } from './scheduler'
 import { createAutomationsService } from './service'
+import { localTimeZone } from './time'
 
 export default defineCoreModule({
   id: 'automations',
@@ -48,7 +49,15 @@ export default defineCoreModule({
     const service = createAutomationsService({ repo, runner, conversation, clock: ctx.clock, logger: ctx.logger })
 
     registerHandlers(ctx, service)
-    registerAgentTools({ tools: ctx.agentTools, service, conversation, workspaces })
+    registerAgentTools({
+      tools: ctx.agentTools,
+      service,
+      conversation,
+      workspaces,
+      engine: ctx.engine,
+      clock: ctx.clock,
+      localTimeZone,
+    })
 
     /* 结束：conversation 的 turnSettled 按 threadId 落到本次运行 */
     ctx.disposables.add(

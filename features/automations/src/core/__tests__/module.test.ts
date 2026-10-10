@@ -46,7 +46,7 @@ const ignoreKnownTimelineStrictness = async (run: () => Promise<void>): Promise<
 }
 
 describe('automations core 模块', () => {
-  test('agent 工具：automation_create 不接受 workspaceId，工作区取调用线程所在的工作区', async () => {
+  test('agent 工具：automation_create 不传 workspaceId 时取调用线程所在的工作区；结果带接下来三次运行时间', async () => {
     const script: ScenarioScript = () => [
       {
         kind: 'tool',
@@ -54,10 +54,8 @@ describe('automations core 模块', () => {
         args: {
           title: '晨会动态',
           prompt: '汇总进展',
-          schedule: { cron: '0 9 * * 1-5', at: null, timeZone: 'Asia/Shanghai' },
-          posture: 'auto-edit',
-          model: null,
-          thinking: null,
+          schedule: { type: 'cron', cron: '0 9 * * 1-5' },
+          timeZone: 'Asia/Shanghai',
         },
         result: '',
       },
@@ -92,7 +90,16 @@ describe('automations core 模块', () => {
     /* 工具结果以 JSON 文本返回 */
     const createCall = engine.toolCalls.find((c) => c.name === 'automation_create')!
     expect(createCall.sessionKey).toBe(thread.id)
-    expect(JSON.parse(createCall.result)).toMatchObject({ title: '晨会动态', workspaceId: ws.id })
+    const view = JSON.parse(createCall.result)
+    expect(view).toMatchObject({
+      title: '晨会动态',
+      workspace: { id: ws.id },
+      schedule: { type: 'cron', cron: '0 9 * * 1-5', timeZone: 'Asia/Shanghai' },
+      thread: 'new',
+      notify: 'attention',
+    })
+    expect(view.upcoming).toHaveLength(3)
+    expect(view.upcoming[0]).toMatch(/T09:00:00\+08:00$/)
     await h.dispose()
     await dir.dispose()
   })
