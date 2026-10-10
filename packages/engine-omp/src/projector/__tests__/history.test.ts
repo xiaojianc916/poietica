@@ -129,6 +129,45 @@ describe('projectHistoryPage', () => {
     expect(lastTurnOrdinal([user('一', 0), assistant('a', 1)])).toBe(1)
     expect(lastTurnOrdinal([])).toBe(0)
   })
+
+  test('轮的终点取「答完那一刻」，不是请求发起那一刻', () => {
+    const page = projectHistoryPage(
+      [
+        user('你好', 0),
+        {
+          role: 'assistant',
+          timestamp: T0 + 144,
+          duration: 1_450,
+          completedAt: T0 + 1_594,
+          content: [{ type: 'text', text: '你好' }],
+        },
+      ],
+      null,
+    )
+    const turn = page.items[0]
+    expect(turn?.kind === 'turn' && turn.endedAt).toBe(iso(1_594))
+    expect(turn?.kind === 'turn' && turn.steps[0]?.endedAt).toBe(iso(1_594))
+  })
+
+  test('只有 duration 时用 timestamp + duration 兜底', () => {
+    const page = projectHistoryPage(
+      [user('问', 0), { role: 'assistant', timestamp: T0 + 10, duration: 990, content: '答' }],
+      null,
+    )
+    const turn = page.items[0]
+    expect(turn?.kind === 'turn' && turn.endedAt).toBe(iso(1_000))
+  })
+
+  test('快轮不再算成 <1秒：144 毫秒的段也按真实 1594 毫秒收', () => {
+    const page = projectHistoryPage(
+      [user('你好', 0), { role: 'assistant', timestamp: T0 + 144, completedAt: T0 + 1_594, content: '你好' }],
+      null,
+    )
+    const turn = page.items[0]
+    const startedAt = turn?.kind === 'turn' ? Date.parse(turn.startedAt ?? '') : Number.NaN
+    const endedAt = turn?.kind === 'turn' ? Date.parse(turn.endedAt ?? '') : Number.NaN
+    expect(endedAt - startedAt).toBeGreaterThan(1_000)
+  })
 })
 
 describe('历史与实时的一致性', () => {

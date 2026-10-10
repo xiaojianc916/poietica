@@ -851,3 +851,48 @@ omp 的 info 级 notice 只落 debug 日志，排查时把 Core 日志级别调�
 **验收**：`bun run check` 全绿；`bun run protocol:snapshot` 无差异。真机验收（启用 chrome-devtools
 MCP 后新建对话不再出现 `xd://: mounted …`；断网触发自动重试时 warning 画灰色三角、最终失败画红色
 感叹号、重试成功不出现那一行）与 R-03 / R-05 / R-06 / R-07 / R-08 同例，待真机复核。
+
+## R-10 封条「已处理 N」算错：重启后每轮都不一样，还冒出「<1秒」（2026-10-10）
+
+**来源**：产品负责人交办的截图与缺陷报告 —— 封条那行显示「已处理 <1秒」，
+且重启后同几轮的时间每次都不一样。
+
+**根因**（在真机上按 omp 18.5.0 的会话文件复算过）：历史这一条路把
+`OmpMessage.timestamp` 当成了**轮的终点**，而 assistant 消息的那一格是这次请求
+**发起**的时刻（`AssistantMessage.timestamp` 的定义如此，答完那一刻在
+`completedAt` / `timestamp + duration`，见 `pi-ai/src/types.ts`）。于是：
+
+- 「你好 → 你好」这种快轮：终点落在请求发起那一刻，起点是用户消息的提交时刻，
+  两个时刻只差 144 毫秒 → 屏幕上就是「已处理 <1秒」（真实 1594 毫秒）；
+- 每一轮的终点都少掉最后一次请求的**全部**耗时 —— 重开后与实时看到的数对不上，
+  而少掉的那一段随最后一次请求的长短而变，看起来就是「每次都不一样」；
+- 段的 `endedAt` 同样写成请求发起时刻，段长恒为 0。
+
+真机复算（`%APPDATA%\Poietica\omp\agent\sessions\...\*.jsonl`，就是报告里那次会话，
+取两轮已封口的）：
+
+| 轮 | 旧（`timestamp`） | 新（`completedAt`） | 真值 |
+| --- | --- | --- | --- |
+| 1「你好」 | 144ms → `<1秒` | 1594ms | 1594ms |
+| 2 报告那轮 | 86283ms | 86794ms | 86794ms |
+
+**改法**（`packages/engine-omp/src/projector/history.ts`）：
+
+1. `OmpMessage` 补 `duration` / `completedAt` 两格（只读投影要读的那几个字段，照旧不绑 omp 深层类型）。
+2. 新增 `closedAtOf()`：落地时刻优先 `completedAt`，次选 `timestamp + duration`，都没有
+   （用户消息、工具结果）才是 `timestamp` 本身。另加 `laterOf()` 归并、`closedIsoOf()` 出串。
+3. `screenTurns` 每轮记 `closedAt`（可见段里最晚的落地时刻），封口时用它写 `endedAt`；
+   `turnOps` 的 `stepOp` 结束那一头也从 `at` 换成 `closedIsoOf(message)`。
+4. 起点不变（用户消息的 `timestamp` 就是真实提交时刻），`isTurnOpen` 那一轮照旧没有终点。
+
+**本轮偏差**：轮终点只由**上屏的段**决定，不把工具结果的落地时刻算进来。
+理由：omp 重开会话时会合成工具结果（`createInterruptedToolResults`，`timestamp: Date.now()`，
+见 `session/exit-diagnostics.ts`），拿它当终点会把一轮算到「重启那一刻」；
+不正常退出那一轮的终点由 omp 合成的 abort assistant 消息承担（`timestamp` = `session_exit` 的
+`recordedAt`），同样落在这个口径里。
+
+**测试**：`packages/engine-omp/src/projector/__tests__/history.test.ts` 增三条 ——
+终点取「答完那一刻」且段与轮一致、只有 `duration` 时用 `timestamp + duration` 兜底、
+快轮不再算成 `<1秒`。原有 106 条投影用例（含两条快照）不破。
+
+**验收**：`bun test packages/engine-omp/src/projector` 109 pass / 0 fail；真机复算见上表。

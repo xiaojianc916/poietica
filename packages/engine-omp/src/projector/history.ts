@@ -14,6 +14,8 @@ import { isUserSkillMessage } from '../prompt'
 export interface OmpMessage {
   readonly role?: string
   readonly timestamp?: number
+  readonly duration?: number
+  readonly completedAt?: number
   readonly content?: unknown
   readonly customType?: string
   readonly attribution?: string
@@ -41,6 +43,8 @@ interface OpenTurn {
   readonly opening: OmpMessage
   readonly prompt: OmpMessage | null
   readonly steps: OmpMessage[]
+  /** 这一轮的终点（毫秒）：段与工具结果里最晚的「答完那一刻」，还没落地就是 null。 */
+  closedAt: number | null
 }
 
 interface ScreenTurn {
@@ -112,14 +116,13 @@ function screenTurns(messages: readonly OmpMessage[], isTurnOpen: boolean): Scre
     const held = open
     open = null
     const turn = turns.length + 1
-    const last = held.steps.at(-1) ?? null
     turns.push({
       turn,
       opening: held.opening,
       prompt: held.prompt,
       steps: held.steps,
       openedAt: stampOf(held.prompt ?? held.opening),
-      endedAt: last === null ? null : stampOf(last),
+      endedAt: held.closedAt === null ? null : new Date(held.closedAt).toISOString(),
       state: 'completed',
       results,
     })
@@ -128,14 +131,16 @@ function screenTurns(messages: readonly OmpMessage[], isTurnOpen: boolean): Scre
     if (message.role === 'toolResult' || !isVisible(message)) continue
     const opens = message.role === 'user' || isUserSkillMessage(message)
     const starts = opens || message.role === 'compactionSummary'
-    if (starts || open === null) {
+    if (starts) {
       seal()
-      const next: OpenTurn = { opening: message, prompt: opens ? message : null, steps: [] }
-      open = next
-      if (!starts) next.steps.push(message)
+      open = { opening: message, prompt: opens ? message : null, steps: [], closedAt: null }
       continue
     }
+    if (open === null) {
+      open = { opening: message, prompt: null, steps: [], closedAt: null }
+    }
     open.steps.push(message)
+    open.closedAt = laterOf(open.closedAt, closedAtOf(message))
   }
   seal()
   const newest = turns.at(-1)
@@ -192,17 +197,18 @@ function turnOps(entry: ScreenTurn): TranscriptOperation[] {
   let step = 0
   for (const message of entry.steps) {
     const at = stampOf(message)
+    const done = closedIsoOf(message)
     const blocks = contentOf(message)
     let frame = 0
     if (blocks.length === 0) continue
-    ops.push(stepOp(turn, step, 'completed', at, at))
+    ops.push(stepOp(turn, step, 'completed', at, done))
     for (const block of blocks) {
       if (block.kind === 'tool') {
         // 一次工具调用占一个新段：入参与结果分成两段会被投影层认成两次调用
         if (frame > 0) {
           step += 1
           frame = 0
-          ops.push(stepOp(turn, step, 'completed', at, at))
+          ops.push(stepOp(turn, step, 'completed', at, done))
         }
         ops.push(toolOp(turn, step, block, entry.results.get(block.callId)))
         continue
@@ -396,6 +402,26 @@ function stampOf(message: OmpMessage): string {
   return typeof message.timestamp === 'number' && Number.isFinite(message.timestamp)
     ? new Date(message.timestamp).toISOString()
     : new Date(0).toISOString()
+}
+
+function closedAtOf(message: OmpMessage): number | undefined {
+  const start = message.timestamp
+  if (typeof start !== 'number' || !Number.isFinite(start)) return undefined
+  const completed = message.completedAt
+  if (typeof completed === 'number' && Number.isFinite(completed)) return Math.max(completed, start)
+  const duration = message.duration
+  return typeof duration === 'number' && Number.isFinite(duration) && duration >= 0 ? start + duration : start
+}
+
+function laterOf(held: number | null, stamp: number | undefined): number | null {
+  if (stamp === undefined) return held
+  return held === null ? stamp : Math.max(held, stamp)
+}
+
+/** 与 `stampOf` 同一个回退口径的落地时刻；`stampOf` 负责开始，它负责结束。 */
+function closedIsoOf(message: OmpMessage): string {
+  const closed = closedAtOf(message)
+  return closed === undefined ? stampOf(message) : new Date(closed).toISOString()
 }
 
 /** 用 transcript 的折叠器把 ops 变成 items：step/frame 的嵌套与覆盖由它负责，这里不写第二份 */
