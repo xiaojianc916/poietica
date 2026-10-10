@@ -89,13 +89,13 @@ const ASIDE: ReadonlySet<FeedRow['item']['type']> = new Set(['error', 'link', 'p
 /* 字面量而不是 TimelineItem['type']：注解成联合后 === 不再收窄。 */
 const SAID = 'user_message'
 
-/** 两个以上成员才并组。过程组里「单条 read 加上一条思考」也够两个。 */
+/** 两个以上成员才并组。任意一档里「单条工具加上一条思考」也够两个。 */
 const LEAST = 2
 
 /** 过程组的两类工具：read / execute 换着来也还是同一条过程。 */
 const PROCESS: ReadonlySet<ToolGroupKind> = new Set(['execute', 'read'])
 
-/** 行的分组归属：思考不算工具，但和 read / execute 同走一条过程。 */
+/** 行的分组归属：思考不算工具，它对每一档都是透明成员。 */
 type RunFlavor = ToolGroupFlavor | 'thought'
 
 function runFlavorOf(item: FeedRow['item']): RunFlavor | undefined {
@@ -298,10 +298,11 @@ function speechFrom(rows: readonly FeedRow[], from: number, until: number): stri
 }
 
 /**
- * 一条过程里能并进下一行吗。
+ * 一行能并进这一组吗。
  *
- * 思考是透明的：它和 read / execute 组成同一条过程，读文件、跑命令、想一会儿换着来都
- * 还是同一件事。别的工具类别各成一档，思考在它们那里仍是隔断（行为不变）。
+ * 思考对每一档都是透明的：read / execute 的过程收它，edit / fetch / search … 也收它 ——
+ * 「想了一会儿」不是断点，它只借组头一闪，从不占成员列表。真正决定分组的还是工具自己：
+ * 同一档相邻（中间的思考不算）就连成一条，换档才断。
  */
 function continuesGroup(next: FeedRow['item'], flavor: RunFlavor): boolean {
   const nextFlavor = runFlavorOf(next)
@@ -310,28 +311,49 @@ function continuesGroup(next: FeedRow['item'], flavor: RunFlavor): boolean {
     return false
   }
 
-  if (flavor !== 'process' && flavor !== 'thought') {
-    return nextFlavor === flavor
+  if (nextFlavor === 'thought' || flavor === 'thought') {
+    return true
   }
 
-  return nextFlavor === 'process' || nextFlavor === 'thought'
+  return flavor === 'process' ? nextFlavor === 'process' : nextFlavor === flavor
 }
 
-/** 从 start 那条开始，同轮同过程一直并到哪一行为止（不含）。 */
+/**
+ * 从 start 那条开始，同轮同过程一直并到哪一行为止（不含）。
+ *
+ * 一组由思考打头时，第一件工具负责定档，之后的工具照这一档比 —— 「想一会儿再改、
+ * 改完接着想」是同一条，想完却换了另一档工具则从这里断开。
+ */
 function runEnd(rows: readonly FeedRow[], start: number, flavor: RunFlavor, turn: number): number {
+  let held = flavor
   let end = start + 1
 
   while (end < rows.length) {
     const next = rows[end]?.item
 
-    if (next === undefined || next.turn !== turn || !continuesGroup(next, flavor)) {
+    if (next === undefined || next.turn !== turn || !continuesGroup(next, held)) {
       break
+    }
+
+    if (held === 'thought') {
+      const adopted = runFlavorOf(next)
+
+      if (adopted !== undefined && adopted !== 'thought') {
+        held = adopted
+      }
     }
 
     end += 1
   }
 
   return end
+}
+
+/** 一组工具的档位：read / execute 合成一条过程，其余照各自的 kind。 */
+function flavorOfTools(tools: readonly FeedRow[]): ToolGroupFlavor {
+  const head = tools[0]?.item
+
+  return head?.type === 'tool_call' && !PROCESS.has(head.kind) ? head.kind : 'process'
 }
 
 function groupIn(rows: readonly FeedRow[]): {
@@ -407,7 +429,7 @@ function groupIn(rows: readonly FeedRow[]): {
     groups ??= new Map()
     groups.set(row.item.id, {
       id: `group:${row.item.id}`,
-      kind: flavor === 'process' || flavor === 'thought' ? 'process' : flavor,
+      kind: flavorOfTools(tools),
       members,
       tools,
     })

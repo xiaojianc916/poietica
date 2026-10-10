@@ -13,7 +13,7 @@ import { ToolGroupCard } from '../tool-group-card'
  *
  * 两条要求钉在投影那一层，不靠渲染结果反推：
  *   • 思考从头到尾不落成行，只在组头一闪；落定之后整段消失，历史回放也不出现；
- *   • 别的工具类别（edit 等）分组一点没动，思考对它们仍是隔断。
+ *   • 思考对每一档都透明：edit / fetch 等同档相邻即使中间夹着思考也连成一条。
  */
 
 const CSS = readFileSync(fileURLToPath(new URL('../tool-group.css', import.meta.url)), 'utf8')
@@ -136,21 +136,59 @@ describe('过程组的投影', () => {
     expect(plan.tools).toEqual([])
   })
 
-  it('edit 那种旧分组一点没动：相邻仍合组，中间隔一条思考就不跨过去', () => {
+  it('edit 相邻仍合组，中间夹一条思考也连成一条', () => {
     const merged = selectPresentation(stateOf([ask(), tool('a', 'edit'), tool('b', 'edit')]), new Map())
 
     expect(merged.count).toBe(2)
     expect(planAt(merged, 1).kind).toBe('edit')
     expect(planAt(merged, 1).tools).toHaveLength(2)
 
-    const separated = selectPresentation(
+    const crossed = selectPresentation(
       stateOf([ask(), tool('a', 'edit'), thought('t', '想想怎么改'), tool('b', 'edit')]),
       new Map(),
     )
 
-    expect(separated.count).toBe(3)
-    expect(separated.groupAt(1)).toBeUndefined()
-    expect(separated.groupAt(2)).toBeUndefined()
+    expect(crossed.count).toBe(2)
+
+    const plan = planAt(crossed, 1)
+
+    expect(plan.kind).toBe('edit')
+    expect(plan.members.map((row) => row.item.id)).toEqual(['a', 't', 'b'])
+    expect(plan.tools.map((row) => row.item.id)).toEqual(['a', 'b'])
+  })
+
+  it('思考打头时由第一件工具定档：同档继续并，换档就断开', () => {
+    const adopted = selectPresentation(
+      stateOf([ask(), thought('t', '先抓一下'), tool('a', 'fetch'), tool('b', 'fetch')]),
+      new Map(),
+    )
+
+    expect(adopted.count).toBe(2)
+    expect(planAt(adopted, 1).kind).toBe('fetch')
+    expect(planAt(adopted, 1).tools.map((row) => row.item.id)).toEqual(['a', 'b'])
+
+    const broken = selectPresentation(
+      stateOf([ask(), thought('t', '先抓一下'), tool('a', 'fetch'), tool('b', 'edit')]),
+      new Map(),
+    )
+
+    /* 思考与它后面第一条 fetch 成组（单条工具加一条思考算组），edit 换了档，自己一行。 */
+    expect(broken.count).toBe(3)
+    expect(planAt(broken, 1).kind).toBe('fetch')
+    expect(planAt(broken, 1).tools.map((row) => row.item.id)).toEqual(['a'])
+    expect(broken.groupAt(2)).toBeUndefined()
+  })
+
+  it('换档就断：思考并入左边那一组，不跨到另一种工具上', () => {
+    const feed = selectPresentation(
+      stateOf([ask(), tool('a', 'edit'), thought('t', '想想'), tool('b', 'fetch')]),
+      new Map(),
+    )
+
+    expect(feed.count).toBe(3)
+    expect(planAt(feed, 1).kind).toBe('edit')
+    expect(planAt(feed, 1).tools.map((row) => row.item.id)).toEqual(['a'])
+    expect(feed.groupAt(2)).toBeUndefined()
   })
 })
 
