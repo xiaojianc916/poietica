@@ -80,6 +80,7 @@ export {
   SquareTerminal as TerminalIcon,
   Target as GoalIcon,
   Trash2 as TrashIcon,
+  TriangleAlert as WarningIcon,
   Unplug as PluginIcon,
   Wifi as LinkIcon,
   X as CloseIcon,

@@ -461,8 +461,8 @@ export class LiveProjector {
     this.promptId = undefined
   }
 
-  /** 一个错误通知帧：不绑 turn，掉在哪就是哪 */
-  notice(level: 'error' | 'warning' | 'info', message: string, source?: string): TranscriptOperation[] {
+  /** 一个上屏的提示帧（只有 warning / error；info 不上屏，见 R-09）：掉在当前 step 里，掉在哪就是哪 */
+  notice(level: 'error' | 'warning', message: string, source?: string): TranscriptOperation[] {
     if (!this.turnOpen) return []
     const turn = turnId(this.turn)
     const step = stepId(turn, this.step)

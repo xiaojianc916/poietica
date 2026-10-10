@@ -44,11 +44,11 @@ describe('自动重试上屏', () => {
     expect(notices[0]?.message).toContain('rate limited')
   })
 
-  test('retry_end 成功是 info、失败是 error', async () => {
+  test('retry_end 成功不上屏、失败是 error', async () => {
     const ok = await fakeOmpSession()
     await ok.session.submit({ text: '发一句', images: [], files: [], skills: [], deliverAs: 'turn' })
     ok.feed({ type: 'auto_retry_end', success: true, attempt: 2 })
-    expect(noticesOf(ok.events).at(-1)?.level).toBe('info')
+    expect(noticesOf(ok.events).length).toBe(0)
 
     const bad = await fakeOmpSession()
     await bad.session.submit({ text: '发一句', images: [], files: [], skills: [], deliverAs: 'turn' })

@@ -504,6 +504,11 @@
   color: var(--cp-timeline-danger-text);
 }
 
+/* warning 不是失败：图标退回正文的安静色，线与字都不变（R-09）。 */
+.timeline-error[data-level="warning"] .timeline-error__mark {
+  color: var(--cp-timeline-quiet-text);
+}
+
 /*
  * 摘要只占一行，装不下就以省略号收尾。
  *

@@ -107,7 +107,7 @@ export const TimelineRow = memo(function TimelineRow({ isOpen, onToggle, row, th
       return <CompactionStatus item={item} />
 
     case 'error':
-      return <ErrorNotice message={item.message} />
+      return <ErrorNotice level={item.level} message={item.message} />
 
     case 'link':
       return (

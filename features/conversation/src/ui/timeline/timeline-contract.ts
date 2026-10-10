@@ -271,6 +271,8 @@ export interface CompactionTimelineItem extends TimelineEntry {
 interface ErrorItem extends TimelineEntry {
   readonly type: 'error'
   readonly message: string
+  /** 画成哪一档：error = 红色感叹号；warning = 三角、安静色（R-09）。info 不进时间线 */
+  readonly level: 'error' | 'warning'
 }
 
 export type TimelineItem =

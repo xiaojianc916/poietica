@@ -805,3 +805,49 @@ R-08-8（9 → 10）、R-08-14（10 → 11）、R-08-15（11 → 12）各提升�
 另：R-08-1 的 `rg readFileSync packages/engine-omp/src/session.ts`、R-08-14 的
 「快照 diff 只有 timeoutMs」两条已随各自提交核过；R-08-2 的「100 次 upsert 只查一次库」
 由 `submission-service` 的查询计数用例钉住。
+
+## R-09 omp 提示按级别上屏：info 不再画成报错（2026-10-10）
+
+**来源**：产品负责人交办的审查报告 `R-09 …`（外部输入，不入库；对应问题 3「每开一段新对话都会冒出
+一条假报错」）。**不改契约**：`NoticeFrame` 本来就带 `level` / `source`，未提升 `PROTOCOL_VERSION`，
+协议快照不应变化。
+
+**根因**（链路已在 omp 18.5.0 源码里核实）：
+
+1. **缺陷 A（engine-omp）**：`dispatchOmpEvent` 不看级别，把 omp 给 TUI 状态栏的带外提示
+   （`xd://` 挂载 / 卸载、协作者进出、慢速模式……）一律送进时间线；未知级别也被归成 info 上屏。
+2. **缺陷 B（conversation UI）**：`transcript-projector.ts` 的 `frameOf` 把任何级别的 notice
+   都投影成 `type: 'error'`，级别在投影层丢掉，warning 与自己的「重试成功」也画成红色报错。
+
+**改法**：
+
+1. **上不上屏只在 engine-omp 判一次**：`noticeLevelOf()` 只认 warning / error，未知值按 info 处理；
+   info 级 notice 只记 `logger.debug('omp notice', { source, message })`，不产出时间线 op。
+   `auto_retry_end` 成功那一支同样只记 `info` 日志（不再上屏），失败仍是 error notice；
+   `auto_retry_start` 与 `auto_retry_end` 失败的形状不变。
+2. **投影器收窄**：`LiveProjector.notice()` 的级别参数收成 `'error' | 'warning'`，
+   「info 上屏」在类型层面写不出来；`frameOf` 的 `notice` 分支对 info 返回 `null`（兜底，
+   正常情况下到不了 UI），warning / error 把级别带进条目；turn 自带 error 也补 `level: 'error'`。
+3. **组件按级别选样子**：`ErrorNotice` 新增可选 `level`（缺省 error 保持原样）；warning 换
+   `TriangleAlert`、图标颜色降为 `--cp-timeline-quiet-text`，`role=status`，按钮文案说「提示信息」；
+   error 保持红色感叹号与 `role=alert`。线与字都不动。
+
+**本轮偏差**：`auto_retry_end` 成功不再上屏（12 页 §9.1 原表为起止各一条 notice）。
+理由：info 级提示一律不上屏；上一条 warning 后面紧跟正常回复，已经说明重试成功。
+omp 的 info 级 notice 只落 debug 日志，排查时把 Core 日志级别调到 debug 即可看到
+（`omp notice`，带 `source`）。
+
+**测试**：
+
+- `packages/engine-omp/src/__tests__/notice.test.ts`（新建）N1–N5：info 只落 debug 日志
+  （带 `source`）、warning / error 照常上屏、未知级别不上屏、info 不占帧号（两会话正文帧号完全一致）。
+- `packages/engine-omp/src/__tests__/auto-retry.test.ts` N6：`retry_end` 成功不上屏、失败是 error。
+- `features/conversation/src/ui/transcript/__tests__/transcript-projector-notice.test.ts`（新建）
+  U1–U3：info 不产生条目、warning / error 各带自己的级别。
+- `features/conversation/src/ui/components/timeline/__tests__/error-notice.test.tsx`（新建）
+  E1–E2：error 是 `data-level="error"` + `role=alert`，warning 是 `data-level="warning"` +
+  `role=status`，复制按钮文案各说各的。
+
+**验收**：`bun run check` 全绿；`bun run protocol:snapshot` 无差异。真机验收（启用 chrome-devtools
+MCP 后新建对话不再出现 `xd://: mounted …`；断网触发自动重试时 warning 画灰色三角、最终失败画红色
+感叹号、重试成功不出现那一行）与 R-03 / R-05 / R-06 / R-07 / R-08 同例，待真机复核。

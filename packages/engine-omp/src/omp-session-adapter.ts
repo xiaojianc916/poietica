@@ -368,6 +368,7 @@ export async function wrapOmpSession(input: WrapOmpSessionInput): Promise<Engine
     session: ompSession,
     projector,
     faults: new EventFaults(input.logger, () => projector.turnOrdinal),
+    logger: input.logger,
   }
   const subscriptions = [
     ompSession.attachBroker(),
@@ -823,10 +824,17 @@ interface EventPump {
   readonly session: OmpSession
   readonly projector: LiveProjector
   readonly faults: EventFaults
+  /** info 级 notice 与「重试成功」只落日志，不上屏（R-09） */
+  readonly logger: Logger
 }
 
 /** 能用 omp 给的稳定 id 定位到某一格的事件（R-02 §2.1 原则 2 的补充规则 1） */
 const TOOL_EVENTS = new Set(['tool_execution_start', 'tool_execution_update', 'tool_execution_end'])
+
+/** omp notice 的级别；不认识的值按 info 处理：宁可不上屏，也不把不认识的东西画成报错（R-09） */
+function noticeLevelOf(value: unknown): 'error' | 'warning' | 'info' {
+  return value === 'error' || value === 'warning' ? value : 'info'
+}
 
 /**
  * 一条事件的翻译（12 页 §7.3、§9.1）。
@@ -907,15 +915,18 @@ function dispatchOmpEvent(event: Record<string, unknown>, pump: EventPump): void
     case 'goal_updated':
       session.controlsChanged()
       break
-    case 'notice':
-      session.requestTimeline(
-        projector.notice(
-          event.level === 'error' || event.level === 'warning' ? event.level : 'info',
-          String(event.message),
-          typeof event.source === 'string' ? event.source : undefined,
-        ),
-      )
+    case 'notice': {
+      const level = noticeLevelOf(event.level)
+      const message = String(event.message)
+      const source = typeof event.source === 'string' ? event.source : undefined
+      if (level === 'info') {
+        /* info 是 omp 给 TUI 状态栏的（xd:// 挂载、协作者进出、慢速模式……），不是对话内容（R-09） */
+        pump.logger.debug('omp notice', { source: source ?? null, message })
+        break
+      }
+      session.requestTimeline(projector.notice(level, message, source))
       break
+    }
     case 'auto_compaction_start':
       // 12 页 §9.1 的表：压缩起止各产出一条 marker（开门这条状态是 running）
       session.requestTimeline(
@@ -954,15 +965,12 @@ function dispatchOmpEvent(event: Record<string, unknown>, pump: EventPump): void
       )
       break
     case 'auto_retry_end':
-      session.requestTimeline(
-        projector.notice(
-          event.success === true ? 'info' : 'error',
-          event.success === true
-            ? `重试成功（第 ${String(event.attempt)} 次）`
-            : `重试失败：${String(event.finalError ?? '')}`,
-          'auto_retry',
-        ),
-      )
+      if (event.success === true) {
+        /* 成功只落日志：上一条 warning 后面紧跟正常回复，已经说明了结局（R-09，偏差见 refactor-log） */
+        pump.logger.info('omp auto retry succeeded', { attempt: event.attempt ?? null })
+        break
+      }
+      session.requestTimeline(projector.notice('error', `重试失败：${String(event.finalError ?? '')}`, 'auto_retry'))
       break
     default:
       break

@@ -5,7 +5,7 @@ import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { Settings } from '@oh-my-pi/pi-coding-agent/config/settings'
 import type { EngineSession, EngineSessionEvent, OpenSessionSpec } from '@poietica/engine'
-import { noopLogger } from '@poietica/foundation'
+import { type Logger, noopLogger } from '@poietica/foundation'
 import { wrapOmpSession } from '../../../omp-session-adapter'
 
 /*
@@ -36,6 +36,7 @@ export interface FakeSessionOptions {
   readonly thinking?: string | null
   readonly thinkingLevels?: readonly string[]
   readonly skills?: readonly { readonly name: string }[]
+  readonly logger?: Logger
 }
 
 /**
@@ -108,7 +109,7 @@ export async function fakeOmpSession(o: FakeSessionOptions = {}): Promise<FakeSe
     setToolUIContext: () => undefined,
     mcpManager: null,
     tools: new Map(),
-    logger: noopLogger,
+    logger: o.logger ?? noopLogger,
     subagentBus: null,
     initializeExtensions: async () => undefined,
     /* 这套夹具只证「桥读了哪一格」，模型目录一律空表：退回 provider/id 与空梯子 */

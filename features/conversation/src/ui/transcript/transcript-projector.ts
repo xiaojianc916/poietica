@@ -266,7 +266,10 @@ function frameOf(frame: TranscriptFrame, turn: number, stamp: number): TimelineI
         sealed: true,
       }
     case 'notice':
-      return { type: 'error', id: frame.frameId, turn, at: stamp, message: frame.message }
+      /* info 在本产品里没有样子：引擎侧已经不发，这里只是不让漏网的那条画成报错（R-09） */
+      return frame.level === 'info'
+        ? null
+        : { type: 'error', id: frame.frameId, turn, at: stamp, message: frame.message, level: frame.level }
     case 'tool':
       return toolFrameOf(frame, turn, stamp)
   }
@@ -990,6 +993,7 @@ function errorItemOf(turn: TranscriptTurn, items: TimelineItem[], stamp: number)
     turn: turn.ordinal,
     at: timeOf(turn.endedAt) ?? stamp,
     message: turn.error,
+    level: 'error',
   })
 }
 
