@@ -25,14 +25,28 @@ export interface FakeSession {
   readonly session: EngineSession
   /** 把一帧交给适配器（真实那一份由 omp 的 agent loop 推） */
   feed(event: Record<string, unknown>): void
+  /**
+   * 模拟 omp 的自动总结标题落地（omp 知识 #17）：写进会话名并通知一次。
+   *
+   * 真实那一侧是 `SessionManager.setSessionName(title, 'auto')`，它在写完标题槽后
+   * 调 `onSessionNameChanged` 的回调 —— 而那个回调**不带名字**，所以这里必须把名字
+   * 先写进 nameOf 再通知，才与 omp 的真实顺序一致。
+   */
+  setSessionName(title: string): void
   /** 投递出去的那几次调用，按顺序 */
   readonly calls: DeliveredCall[]
+  /** 适配器代 omp 触发的自动总结请求（omp 知识 #17），按顺序 */
+  readonly titleRequests: string[]
+  /** deferSubscribe 时的订阅动作：把前面攒下的会话名补发出来 */
+  listen(): void
   /** 适配器收到的全部事件，按顺序（判断 timelineReset 之类的副作用） */
   readonly events: EngineSessionEvent[]
 }
 
 export interface FakeSessionOptions {
   readonly spec?: Partial<OpenSessionSpec>
+  /** 打开之后先不订阅：用来复现「名字在订阅之前就有了」（会话池的真实顺序） */
+  readonly deferSubscribe?: boolean
   readonly thinking?: string | null
   readonly thinkingLevels?: readonly string[]
   readonly skills?: readonly { readonly name: string }[]
@@ -63,6 +77,10 @@ const BASE_SPEC: OpenSessionSpec = {
 
 export async function fakeOmpSession(o: FakeSessionOptions = {}): Promise<FakeSession> {
   const listeners: ((event: Record<string, unknown>) => void)[] = []
+  const titleRequests: string[] = []
+  /** 会话名的唯一真相 + 名字变化的订阅者（omp 的 SessionManager 那两格的替身） */
+  let sessionName: string | undefined
+  const nameListeners = new Set<() => void>()
   const calls: DeliveredCall[] = []
   const events: EngineSessionEvent[] = []
   const session = {
@@ -72,6 +90,16 @@ export async function fakeOmpSession(o: FakeSessionOptions = {}): Promise<FakeSe
     messages: [],
     // 技能表带上 filePath / baseDir：官方那条展开路径要读 SKILL.md
     skills: (o.skills ?? []).map((skill) => ({ ...skill, filePath: SKILL_FILE, baseDir: SKILL_DIR })),
+    sessionManager: {
+      getArtifactsDir: () => null,
+      getSessionId: () => 'session-1',
+      getCwd: () => o.spec?.cwd ?? BASE_SPEC.cwd,
+      getSessionName: () => sessionName,
+      onSessionNameChanged: (cb: () => void): (() => void) => {
+        nameListeners.add(cb)
+        return () => nameListeners.delete(cb)
+      },
+    },
     subscribe(listener: (event: Record<string, unknown>) => void): () => void {
       listeners.push(listener)
       return () => undefined
@@ -93,6 +121,9 @@ export async function fakeOmpSession(o: FakeSessionOptions = {}): Promise<FakeSe
     abort: async (): Promise<void> => undefined,
     dispose: async (): Promise<void> => undefined,
     setPromptDropped: (): void => undefined,
+    maybeStartTitleGeneration: (text: string): void => {
+      titleRequests.push(text)
+    },
     setThinkingLevel: (): void => undefined,
     setSteeringMode: (): void => undefined,
     setFollowUpMode: (): void => undefined,
@@ -117,9 +148,18 @@ export async function fakeOmpSession(o: FakeSessionOptions = {}): Promise<FakeSe
     model: null,
     thinking: o.thinking ?? null,
   })
-  engineSession.subscribe((event) => events.push(event))
+  const listen = (): void => {
+    engineSession.subscribe((event) => events.push(event))
+  }
+  if (o.deferSubscribe !== true) listen()
   return {
     session: engineSession,
+    titleRequests,
+    listen,
+    setSessionName(title) {
+      sessionName = title
+      for (const cb of [...nameListeners]) cb()
+    },
     feed: (event) => {
       for (const listener of listeners) listener(event)
     },

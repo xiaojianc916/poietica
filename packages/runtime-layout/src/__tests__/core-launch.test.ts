@@ -75,7 +75,6 @@ describe('buildCoreLaunch', () => {
     expect(launch.cwd).toBe(`${DATA_ROOT}\\core\\cwd`)
     expect(launch.env.PI_CODING_AGENT_DIR).toBe(`${DATA_ROOT}\\omp\\agent`)
     expect(launch.env.XDG_DATA_HOME).toBe(`${DATA_ROOT}\\native-home`)
-    expect(launch.env.PI_NO_TITLE).toBe('1')
     expect(launch.env.PI_NOTIFICATIONS).toBe('off')
     expect(launch.env.PI_NO_PTY).toBe('1')
   })

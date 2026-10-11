@@ -18,6 +18,9 @@ export interface ModelsService {
   catalog(): Promise<ModelInfo[]>
   setEnabled(model: ModelRef, enabled: boolean): Promise<void>
   defaults(): Promise<{ model: ModelRef | null; thinking: string | null }>
+  /** 标题模型（null = 跟随对话自己的模型）与可选项（引擎此刻可用的模型） */
+  titleModel(): Promise<{ model: ModelRef | null; choices: readonly { ref: ModelRef; label: string }[] }>
+  setTitleModel(model: ModelRef | null): Promise<void>
   setDefaults(input: { model?: ModelRef; thinking?: string | null }): Promise<void>
 }
 
@@ -85,6 +88,20 @@ export function createModelsService(d: ModelsServiceDeps): ModelsService {
     async setDefaults(input) {
       if (input.model !== undefined) await d.models.setDefaultModel(input.model)
       if (input.thinking !== undefined) await d.models.setDefaultThinking(input.thinking)
+      d.emitChanged()
+    },
+
+    /*
+     * 标题模型：null 一路透传（= 跟随对话自己的模型），端口那一层负责把 null 落成「删掉这一格」。
+     * 可选项现读引擎的可用模型 —— 与输入框选择器同一份事实（见 ModelsPort.availableModels）。
+     */
+    async titleModel() {
+      const [model, choices] = await Promise.all([d.models.titleModel(), d.models.availableModels()])
+      return { model, choices }
+    },
+    async setTitleModel(model) {
+      await d.models.setTitleModel(model)
+      d.logger.info('title model set', { model: model === null ? null : `${model.provider}/${model.id}` })
       d.emitChanged()
     },
   }

@@ -20,6 +20,7 @@ export interface OpenSessionSpec {
   readonly posture: Posture
   readonly model: ModelRef | null // null = 使用默认模型
   readonly thinking: string | null
+  readonly autoTitle?: boolean
 }
 
 export interface SubmitInput {
@@ -56,6 +57,14 @@ export type EngineSessionEvent =
   | { readonly type: 'contextUsage'; readonly usage: ContextUsage | null }
   | { readonly type: 'usage'; readonly usage: UsageSample }
   | { readonly type: 'promptDropped'; readonly text: string } // omp 丢弃了一条用户输入，必须告诉用户
+  /*
+   * omp 自动总结出的会话标题（omp 知识 #17）。会话文件里的标题槽与 Core 的线程行是两份事实，
+   * 这一条就是两者之间的桥：**首句兜底**已经先写进行里，这里是之后的一次替换。
+   *
+   * 带 sessionFile 是为了让 Core 认出「这是哪条会话的名」——线程被释放重开后，迟到的事件
+   * 不许改现在的标题。
+   */
+  | { readonly type: 'sessionTitle'; readonly title: string; readonly sessionFile: string }
 
 export interface EngineSession {
   readonly sessionId: string

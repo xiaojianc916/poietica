@@ -48,7 +48,8 @@ export async function createOmpEngineForTest(o: CreateOmpEngineForTestOptions): 
       engineVersion: o.engineVersion ?? '18.5.0',
     },
     // omp 的 getApiKey 签名是 (model) => ApiKey；mock provider 不需要真 key，给一个常量串
-    { model: mock, getApiKey: () => 'mock' },
+    // disableAutoTitle：mock 也是 tiny 角色的候选，标题请求会吃掉一条脚本回复（见测试缝的注释）
+    { model: mock, getApiKey: () => 'mock', disableAutoTitle: true },
   )
   // mock provider 也要一份凭据：omp 的凭据解析在读模型之前跑，缺 key 会直接拒掉这一轮。
   // 走端口自己的写入面（credentials.set），不旁路内部的 authStorage。

@@ -12,11 +12,19 @@ import conversation from '../index'
  * attachments，所以三个模块一起启动，engine 用 FakeEngine。
  */
 export async function harness(
-  opts: { readonly script?: ScenarioScript } = {},
+  opts: {
+    readonly script?: ScenarioScript
+    /** 自动总结标题的替身（omp 知识 #17）：给了就按它回标题，回 null 表示生成失败 */
+    readonly autoTitle?: (text: string) => string | null | undefined
+  } = {},
 ): Promise<{ h: CoreHarness; engine: FakeEngine }> {
   // 同一个 fakeClock 交给双方（见 CoreHarnessOptions.clock 的注释）
   const clock = fakeClock()
-  const engine = createFakeEngine({ clock, ...(opts.script === undefined ? {} : { script: opts.script }) })
+  const engine = createFakeEngine({
+    clock,
+    ...(opts.script === undefined ? {} : { script: opts.script }),
+    ...(opts.autoTitle === undefined ? {} : { autoTitle: opts.autoTitle }),
+  })
   const h = await createCoreHarness({ modules: [attachments, workspaces, conversation], engine, clock })
   return { h, engine }
 }

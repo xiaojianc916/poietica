@@ -91,6 +91,7 @@ export interface OmpSessionHost {
    * 契约当场退回）。同理 thinking 读 `session.thinkingLevel`。
    */
   readonly liveModel: () => ModelRef | null
+  readonly maybeAutoTitle: (text: string) => void
   readonly liveThinking: () => string | null
   readonly lastAssistant: () => { readonly stopReason?: string; readonly errorMessage?: string } | undefined
   /**
@@ -210,6 +211,11 @@ export class OmpSession implements EngineSession {
   private modelRef: ModelRef | null
   private thinkingValue: string | null
   private disposed = false
+  /** 本会话是否已经代 omp 触发过自动总结标题（只触发一次，见 submit） */
+  private titleRequested = false
+  /** 外部订阅者数量：为零时收到的会话名先存着（见 subscribe 的补发） */
+  private listeners = 0
+  private seededTitle: string | null = null
   /**
    * 正在执行的目标改动数（R-10）。大于 0 时 omp 的 goal_updated 不各自重报控件：
    * 一次「换暂停目标的正文」在 omp 里是 resume → replace → pause 三步，逐条重报会让
@@ -263,7 +269,30 @@ export class OmpSession implements EngineSession {
   }
 
   subscribe(listener: (event: EngineSessionEvent) => void): { dispose(): void } {
-    return this.events.event(listener)
+    const subscription = this.events.event(listener)
+    this.listeners += 1
+    /*
+     * 打开会话时 omp 里**已经有的名字**要补发一次：`onSessionNameChanged` 没有回放，
+     * 而那一刻还没有任何订阅者（会话池要等 openSession 返回才订阅）。先存着，等订阅者
+     * 接上再由 emit 发出去 —— 走 emit 而不是直接调 listener，监听者抛异常才不会从
+     * openSession 里冒出去（Emitter 的既定语义）。
+     */
+    if (this.seededTitle !== null) {
+      const title = this.seededTitle
+      this.seededTitle = null
+      this.emit({ type: 'sessionTitle', title, sessionFile: this.sessionFile })
+    }
+    /* 退订要把计数减回去：否则「还有没有订阅者」这条判据会被已经走掉的订阅者永久占住 */
+    const dispose = subscription.dispose.bind(subscription)
+    let disposed = false
+    return {
+      dispose: () => {
+        if (disposed) return
+        disposed = true
+        this.listeners -= 1
+        dispose()
+      },
+    }
   }
 
   private emit(event: EngineSessionEvent): void {
@@ -314,6 +343,17 @@ export class OmpSession implements EngineSession {
     // 又交给 omp prompt —— 不再同步读两遍。读盘是异步的，轮子先开起来再补那两条帧。
     this.endedWithPending = null
     this.setState('running')
+    /*
+     * 自动总结标题（omp 知识 #17）：**只在本会话第一条真轮**代 omp 触发一次。
+     *
+     * 这是产品定的语义：标题要么由第一句话总结出来，要么就留在首句兜底上；
+     * 之后不再补问（首句没总结出标题时不重试，也不因此多花模型调用）。
+     * `autoTitle === false` 的线程（用户 / 自动化已经定过名）一次都不触发。
+     */
+    if (!this.titleRequested) {
+      this.titleRequested = true
+      if (this.o.spec.autoTitle !== false) this.o.maybeAutoTitle(input.text)
+    }
     // 不 await：一轮会挂在交互上，submit 必须立即返回（C-SUBMIT-RETURNS-EARLY）
     void this.runTurn(input)
   }
@@ -876,6 +916,20 @@ export class OmpSession implements EngineSession {
 
   requestTimeline(ops: readonly TranscriptOperation[]): void {
     this.timeline(ops)
+  }
+
+  /**
+   * omp 自动总结出的会话标题（omp 知识 #17）。
+   *
+   * 只有适配器知道名字来自哪份会话文件，所以 `sessionFile` 由它填进来；`emit` 是 private，
+   * 这里给它留一个出口（与 emitPromptDropped 同一条规矩）。
+   */
+  emitSessionTitle(title: string): void {
+    if (this.listeners === 0) {
+      this.seededTitle = title
+      return
+    }
+    this.emit({ type: 'sessionTitle', title, sessionFile: this.sessionFile })
   }
 
   emitPromptDropped(text: string): void {

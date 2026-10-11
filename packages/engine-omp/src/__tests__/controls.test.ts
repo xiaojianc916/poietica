@@ -60,6 +60,8 @@ function hostOf(over: Partial<OmpSessionHost> = {}): OmpSessionHost {
     broker: new InteractionBroker(() => NOW),
     projector: new LiveProjector({ now: () => NOW }),
     loadImages: async () => [],
+    /* 自动总结标题：这一档用例不测它，给一个什么都不做的实现（omp 知识 #17） */
+    maybeAutoTitle: () => undefined,
     promptWithImages: async () => true,
     steer: async () => ({ wireText: '' }),
     abort: async () => undefined,

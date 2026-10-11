@@ -143,6 +143,30 @@ export class ThreadService {
     this.emitUpdated({ ...row, title, titleSource: 'auto', updatedAt: now })
   }
 
+  /**
+   * omp 自动总结出的标题（omp 知识 #17）：总结成功之后替换**首句兜底**。
+   *
+   * 这是「总结成功才换、失败保留兜底」里那一半的落地：omp 生成失败 / 超时 / 低信号时
+   * 根本不发事件，行里留着 `autoTitle` 写的首句，屏幕上不会出现空标题或「新对话」。
+   *
+   * 四条守卫，缺一条都会写错：
+   * - 行没了（线程已删）→ 无事可做；
+   * - `user`（用户或自动化定过名）→ 绝不覆盖；omp 那边的 `titleSource` 与我们这份是两份
+   *   事实，所以这里必须自己挡；
+   * - `sessionFile` 对不上（线程被驱逐重开 / 换过分支）→ 这是旧会话的迟到事件；
+   * - 空标题或与当前相同 → 不产生一次假更新。
+   */
+  setTitleFromSession(threadId: string, title: string, sessionFile: string): void {
+    const row = this.d.repo.get(threadId)
+    if (row === null || row.titleSource === 'user') return
+    if (row.sessionFile !== sessionFile) return
+    const next = normalizeTitle(title)
+    if (next === '' || next === row.title) return
+    const now = this.d.clock.now()
+    this.d.repo.update(threadId, { title: next, titleSource: 'auto', updatedAt: now })
+    this.emitUpdated({ ...row, title: next, titleSource: 'auto', updatedAt: now })
+  }
+
   /** 会话池问路：这一条线程的 cwd、会话文件、姿态、初始模型（07 页 §5C 的 describe） */
   describe(threadId: string): import('@poietica/engine').OpenSessionSpec {
     const row = this.requireRow(threadId)
@@ -154,6 +178,15 @@ export class ThreadService {
       posture: row.posture,
       model: row.initialModel,
       thinking: row.initialThinking,
+      /*
+       * 谁可以再被 omp 总结一次（omp 知识 #17）：**只有用户定过名的不许**。
+       *
+       * 判据不能用 `=== 'pending'`：describe 是在兜底标题写进之后才被调用的
+       * （提交存下 → autoTitle 写首句 → 交接时开会话），那一刻 titleSource 已经是 `auto`，
+       * 用 pending 判会让 omp 一次都不被触发（实测：总结永远不生效）。`auto` 表示「这行
+       * 的标题是可被总结替换的兜底/自动值」，`user` 才是用户的定名。
+       */
+      autoTitle: row.titleSource !== 'user',
     }
   }
 

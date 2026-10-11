@@ -5,6 +5,7 @@ import { Cpu } from 'lucide-react'
 import { createModelsApi } from './api'
 import { ModelsPage } from './models-page'
 import './models-settings.css'
+import { TitleModelGroup } from './title-model-group'
 import { ModelsBanner, useUnconfiguredVisible } from './unconfigured-banner'
 
 export default defineUiFeature({
@@ -21,6 +22,17 @@ export default defineUiFeature({
       title: '模型',
       icon: Cpu,
       component: () => <ModelsPage api={api} />,
+    })
+
+    /*
+     * 「生成标题的模型」落在**通用页**里（omp 知识 #17）：标题生成用的是模型目录，
+     * 所以这一格归 models 功能，而不是往 preferences 里塞一份模型知识。
+     */
+    ctx.contribute(builtinPoints.settingsSections, {
+      id: 'models.titleModel',
+      order: 400,
+      page: 'preferences.general',
+      component: () => <TitleModelGroup api={api} />,
     })
 
     /*

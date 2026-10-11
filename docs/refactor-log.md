@@ -2005,3 +2005,66 @@ Performance 录 10 秒对比提交耗时；结束后约 0.7 秒标记归零且�
 嵌套浮层逐层关闭的时机与旧版一致；收起右坞让对话流式输出，DevTools Performance 里不再出现
 来自 `browser/src/ui/index.tsx` 的 MutationObserver 回调；浏览器面板的拾取、地址栏聚焦
 （Ctrl+Shift+L）行为不变。
+
+
+## P-08 自动总结对话标题：打开 omp 的能力并接到线程行上（2026-10-11）
+
+**来源**：产品负责人交办（「omp 不是有自动总结成对话标题的能力吗，开启，并且接线」）。要求：
+新对话标题**先**用现有的首句兜底（`deriveTitle`），omp 总结成功后**替换**，失败则保留兜底。
+
+**根因**：omp 18.5.0 确实自带这个能力（`AgentSession.maybeStartTitleGeneration` →
+`utils/title-generator.ts` 的 `generateSessionTitle`），但本仓库在两处主动关掉了它
+（`bootstrap/isolation-env.ts` 的 `PI_NO_TITLE: '1'` 与 `runtime-layout/src/core-launch.ts` 的同一个键，
+omp 的 `maybeStartTitleGeneration` 见到它就 return）。而且即使打开，omp 只把标题写进**会话文件的
+固定 256 字节标题槽**，与 Core 的 `conversation_threads.title` 是两份事实 —— 所以「开启」必须
+配套「接线」。
+
+**改法**（方案 A：产品语义干净；先经子代理审查过，四条硬伤已采纳）：
+
+1. **删开关**：`ISOLATION_ENV_KEYS` 与 `isolationEnv()` 的 `PI_NO_TITLE`、
+   `buildCoreLaunch` 的同名键、测试夹具 `omp-home.ts` 的两处、`core-launch.test.ts` 的断言。
+2. **端口**（`packages/engine/src/session.ts`）：`EngineSessionEvent` 新增
+   `{ type: 'sessionTitle'; title: string; sessionFile: string }`；`OpenSessionSpec` 新增可选
+   `autoTitle?: boolean`（缺席 = 允许）。
+3. **engine-omp**：
+   - `session.ts` 加公共出口 `emitSessionTitle(title)`（`emit` 是 private），并在**无订阅者**时先存着
+     —— `onSessionNameChanged` **没有回放**，而会话池要等 `openSession` 返回才订阅；
+   - 首条真轮代 omp 触发一次：它的触发点在 omp 的 input-controller 里，而 Poietica 直接调
+     `session.prompt`，那条路永远不会发生（实测：不显式调用就永远没有标题）；
+   - 适配器订阅 `sessionManager.onSessionNameChanged`（**回调不带名字**，要自己读
+     `getSessionName`），退订进 `subscriptions`；打开已有名字的会话时补报一次；
+   - 引导侧两条配套（`create-engine.ts`）：`title.refreshOnReplan=false`（否则 todo 重规划会
+     **二次换名**）、`retry.modelFallback=false`；
+   - **标题模型门禁**：`title-generator` 在候选表为空时会**把当前会话模型追加进候选**
+     （`utils/title-generator.ts:134`，与 `retry.modelFallback` 无关），那是一次真实计费请求。
+     新增 `hasTitleRoleModel()`：tiny → commit → smol 里解析不出模型就**不触发**，标题留在兜底上。
+     测试入口用 `disableAutoTitle` 关掉（mock 也是 tiny 候选，否则标题请求会吃掉一条脚本回复）。
+4. **conversation**：`thread-service.ts` 新增 `setTitleFromSession(threadId, title, sessionFile)`
+   （守卫：行没了 / `user` 定过名 / `sessionFile` 对不上 / 空或同值，四条都不改）；
+   `describe()` 里 `autoTitle: row.titleSource !== 'user'`；`event-router.ts` 加
+   `case 'sessionTitle'`，`conversation.ts` 装配。
+5. **engine-testkit**：FakeEngine 按同一语义发事件（只首条真轮、`autoTitle === false` 不触发、
+   「生成失败」= 什么都不发），供一致性用例与 conversation 用例驱动。
+
+**契约**：`titleSource` 仍是 `pending|auto|user`，**RPC 形状不变**，故 `PROTOCOL_VERSION` 不动、
+`protocol:snapshot` 跑完无 diff（已实测）。
+
+**测试**：`packages/engine-omp/src/__tests__/auto-title.test.ts`（4 条：事件带 sessionFile、
+首条真轮触发一次、订阅晚于打开时的补发、`autoTitle=false` 不触发）；
+`features/conversation/src/core/__tests__/auto-title.test.ts`（5 条：兜底→替换、失败留兜底、
+user 不被覆盖、已定名线程不触发、迟到事件 / 用户改名两条守卫）。
+
+**验收**：`bun run all` 全绿（1956 pass / 0 fail，较 P-07 的 1947 新增 9）；
+`bun run protocol:snapshot` 无 diff；`bun run core:probe` 全过（隔离自检仍成立、
+假用户目录零泄漏 —— 删掉 `PI_NO_TITLE` 不影响隔离）。
+
+**偏差 / 待决**：
+1. 标题的**成本**与产品默认值：门外汉用户没配 tiny/commit/smol 角色时，本实现**不生成**标题
+   （保留首句兜底），而不是拿主模型烧一次额度。若产品要「没配 tiny 也用主模型」，把
+   `hasTitleRoleModel` 的门禁去掉即可 —— 这是一条产品取舍，已按「后台小事不烧正文模型」定。
+2. omp 的标题写进**会话文件**（它自己的槽），Core 的行是另一份；两边由 `sessionTitle` 事件对齐。
+   用户在 Poietica 里改名**不会**回写 omp 的会话文件 —— 下次重开该会话时，omp 侧的名字仍是旧的，
+   但 Core 的 `user` 守卫会挡住它（不会覆盖用户的定名）。要彻底一致需在开会话时反向
+   `setSessionName(row.title,'user')`，代价是每次开会话多写一次会话文件，**未做**，记此待决。
+3. 真机复核：配好 tiny 角色的机器上，新对话首条消息后应看到标题由首句变成总结标题；
+   未配 tiny 的机器上标题保持首句。**待真机确认**。

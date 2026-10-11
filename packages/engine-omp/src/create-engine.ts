@@ -9,6 +9,7 @@ import { wrapOmpSession } from './omp-session-adapter'
 import { draftControlsOf } from './ports/draft-controls'
 import { registryPortOf } from './ports/model-helpers'
 import { ompPorts } from './ports/omp-ports'
+import { readRecordEntry } from './ports/settings-writes'
 import { SessionFactory } from './session-factory'
 import { isConfiguredSetting, overrideSetting, readSetting, writeGlobalSetting } from './settings-access'
 
@@ -28,6 +29,14 @@ export interface CreateEngineOptions {
 export interface EngineTestSeams {
   readonly model?: unknown
   readonly getApiKey?: (model: unknown) => string
+  /**
+   * 关掉自动总结标题（omp 知识 #17）。
+   *
+   * 为什么测试入口需要它：mock provider 同时也是 `tiny` 角色的候选（`acceptsTinyOrChat`），
+   * 于是标题请求会**吃掉一条脚本回复** —— 那测的是脚本被谁消费，不是引擎语义。
+   * 生产入口不传（seams 恒为 null），所以产品行为不受影响。
+   */
+  readonly disableAutoTitle?: boolean
 }
 
 /** omp 的模块入口：集中在这里动态 import，便于测试替换与阅读创建顺序 */
@@ -89,10 +98,36 @@ export async function createOmpEngineWith(o: CreateEngineOptions, seams: EngineT
   }
   // 只写运行时覆盖层：端口每次启动都不同
   overrideSetting(root, 'browser.relayUrl', `http://127.0.0.1:${String(o.relayPort)}`)
+  /*
+   * 自动总结标题的两条配套（omp 知识 #17）。产品的语义是「首句兜底 → 总结成功替换**一次**」，
+   * 而 omp 默认会在两处越界：
+   *
+   * 1. `title.refreshOnReplan`（默认 true）：agent 做完 todo 重规划会**再换一次**标题；
+   * 2. `retry.modelFallback`（默认 true）：tiny 角色池有候选时，标题请求会沿回退链落到
+   *    **当前会话模型**上 —— 那是一次真实计费的请求。关掉它，标题只在 tiny/smol 角色里跑，
+   *    拿不到就如实失败（标题留在首句兜底上）。
+   *
+   * 两条都只写运行时覆盖层：这是产品语义，不是用户设置（设置页里那两格仍然可改，
+   * 用户显式改过的值优先）。
+   */
+  overrideSetting(root, 'title.refreshOnReplan', false)
+  overrideSetting(root, 'retry.modelFallback', false)
+  /*
+   * 自动总结标题的可用性门禁（omp 知识 #17）。
+   *
+   * 为什么不是「打开开关就完事」：`title-generator` 在候选表为空时会**把当前会话模型
+   * 追加进候选**（`utils/title-generator.ts:134`，与 `retry.modelFallback` 无关），于是
+   * 标题请求会按会话主模型真实计费一次 —— 那不是本产品要的行为（标题是后台小事，
+   * 不该烧正文模型的额度）。
+   *
+   * 所以这里先算一遍：用户配的 tiny / commit / smol 角色里，有没有真的解析得出来、
+   * 且在目录里的模型。没有就**不触发**，标题留在 conversation 写的首句兜底上。
+   */
   const authStorage = await omp.discoverAuthStorage()
   const registry = new omp.ModelRegistry(authStorage)
   await registry.hydrateCredentialScopedModelCaches()
   registry.refreshInBackground()
+
   /*
    * 活会话表：端口与引擎共用同一份（12 页 §3.14：MCP 的状态要按名汇总各活会话的 mcpManager）。
    * 以前这里给端口另建了一个空 Set，结果 mcp.status() 永远报不出任何一台服务器。
@@ -157,6 +192,16 @@ export async function createOmpEngineWith(o: CreateEngineOptions, seams: EngineT
     tools,
     testSeams: seams,
     /*
+     * 设置页的「生成标题用的模型」（omp 的 modelRoles.title）。
+     *
+     * null（没设）= 不覆盖任何角色 → omp 的 getTitleModels 在三档角色都没配上时追加
+     * **当前会话模型**，于是标题就用这条对话自己的模型 —— 正是产品要的默认。
+     */
+    titleModel: () => {
+      const value = readRecordEntry(root, 'modelRoles', 'title')
+      return typeof value === 'string' && value !== '' ? value : null
+    },
+    /*
      * 12 页 §6.3 第 3 步：解析出**注册表里那一条实例**（不是精简对 —— SDK 要读
      * identity / api / baseUrl）；还要求 provider 真的配过凭据，否则交给 SDK 兜底。
      */
@@ -197,6 +242,7 @@ export async function createOmpEngineWith(o: CreateEngineOptions, seams: EngineT
         },
         model: sessionInput.model,
         thinking: sessionInput.spec.thinking,
+        disableAutoTitle: seams?.disableAutoTitle === true,
         /*
          * 静态目录：模型名字与思考梯子烤在 omp 的注册表里，开会话之前就查得到。
          *

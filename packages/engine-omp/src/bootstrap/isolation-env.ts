@@ -15,7 +15,6 @@ export const ISOLATION_ENV_KEYS: readonly string[] = Object.freeze([
   'PI_CONFIG_DIR',
   'PI_CODING_AGENT_DIR',
   'XDG_DATA_HOME',
-  'PI_NO_TITLE',
   'PI_NOTIFICATIONS',
   'PI_NO_PTY',
 ])
@@ -26,7 +25,6 @@ export function isolationEnv(layout: DataLayout, home = homedir()): Record<strin
     PI_CONFIG_DIR: isolatedConfigDir(home, layout.ompRoot), // omp 知识 #5
     PI_CODING_AGENT_DIR: layout.ompAgentDir,
     XDG_DATA_HOME: layout.nativeHomeDir,
-    PI_NO_TITLE: '1', // omp 知识 #4
     PI_NOTIFICATIONS: 'off',
     PI_NO_PTY: '1',
   }

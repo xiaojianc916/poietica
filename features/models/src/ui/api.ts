@@ -23,6 +23,10 @@ export function createModelsApi(ctx: UiFeatureContext) {
     defaults: (): Promise<{ model: ModelRef | null; thinking: string | null }> => rpc.call('models.defaults', {}),
     setDefaults: (patch: { model?: ModelRef; thinking?: string | null }): Promise<void> =>
       rpc.call('models.setDefaults', patch).then(() => undefined),
+    titleModel: (): Promise<{ model: ModelRef | null; choices: readonly { ref: ModelRef; label: string }[] }> =>
+      rpc.call('models.titleModel', {}),
+    setTitleModel: (model: ModelRef | null): Promise<void> =>
+      rpc.call('models.setTitleModel', { model }).then(() => undefined),
     onChanged: (l: () => void) => rpc.on('models.changed', l),
   }
 }

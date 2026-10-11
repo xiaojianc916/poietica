@@ -80,6 +80,7 @@ export interface FakeEngineOptions {
    * 与真引擎「还没水合」同义；给了值就按真引擎的时机报（每条 assistant 消息落地、轮终）。
    */
   readonly contextUsage?: ContextUsage | null
+  readonly autoTitle?: (text: string) => string | null | undefined
 }
 
 export interface FakeToolCall {
@@ -130,6 +131,8 @@ class FakeSession implements EngineSession {
   /** 目标：正文 + 进行中 / 已暂停（R-10）；没有目标是 null */
   private goal: { objective: string; status: 'active' | 'paused' } | null = null
   private ordinal = 0
+  /** 本会话是否已经代 omp 触发过自动标题（只触发一次，与真引擎同一口径） */
+  private titleRequested = false
   private step = 0
   private turnCount = 0
   private disposed = false
@@ -144,6 +147,8 @@ class FakeSession implements EngineSession {
       readonly store: SessionLedger
       readonly posture: Posture
       readonly contextUsage: () => ContextUsage | null
+      /** 自动总结标题的替身：给文本回一个标题；回 null / undefined = 生成失败（不发事件） */
+      readonly autoTitle?: (text: string) => string | null | undefined
     },
   ) {
     this.sessionFile = o.spec.sessionFile ?? `fake-${createId()}.jsonl`
@@ -175,6 +180,21 @@ class FakeSession implements EngineSession {
       } catch {
         // 监听器不抛异常（12 页 §0.3）
       }
+    }
+  }
+
+  /**
+   * omp 自动总结出的标题（omp 知识 #17）：替身按端口语义发一条同样的 `sessionTitle`。
+   *
+   * 与真引擎逐条对齐的三件事：只在本会话**第一条真轮**触发一次；`spec.autoTitle === false`
+   * 不触发；生成「失败」就是什么都不发（标题留在首句兜底上）。
+   */
+  private maybeAutoTitle(input: SubmitInput): void {
+    if (this.titleRequested || this.o.spec.autoTitle === false) return
+    this.titleRequested = true
+    const title = this.o.autoTitle?.(input.text)
+    if (title !== undefined && title !== null) {
+      this.emit({ type: 'sessionTitle', title, sessionFile: this.sessionFile })
     }
   }
 
@@ -238,6 +258,7 @@ class FakeSession implements EngineSession {
         frame: { kind: 'text', frameId: frameId(userStep, 1), text: input.text, role: 'user' },
       },
     ])
+    this.maybeAutoTitle(input)
     this.setState('running')
     const steps = this.o.script(input, ordinal - 1)
     // 立即返回：真正的执行在下一拍（C-SUBMIT-RETURNS-EARLY）
@@ -630,6 +651,8 @@ export function createFakeEngine(opts: FakeEngineOptions = {}): FakeEngine {
   let capabilities: CapabilitiesValue = { computerUse: false, browserControl: false }
   let defaultModelRef: ModelRef | null = null
   let defaultThinkingLevel: string | null = null
+  /** 「生成标题用的模型」这一格（omp 知识 #17 的设置项）；null = 跟随对话自己的模型 */
+  let titleModelRef: ModelRef | null = null
   /** 当前设置的 Python 解释器（07 页 §13C 的 onReady 判据；PY-1 断言写入的那一格）。 */
   let pythonInterpreter: string | null = null
   /** `setPythonInterpreter` 收到的每一次调用（含传 null 的解除），供断言。 */
@@ -697,6 +720,7 @@ export function createFakeEngine(opts: FakeEngineOptions = {}): FakeEngine {
         posture: spec.posture ?? opts.posture ?? 'ask',
         /* 没给就是 undefined：一次都不报，与真引擎「还没水合」同义。 */
         contextUsage: () => opts.contextUsage ?? null,
+        ...(opts.autoTitle === undefined ? {} : { autoTitle: opts.autoTitle }),
       })
       /*
        * 与 OmpEngine 同一条登记规矩（R-05 §3.1）：会话池释放一条会话直接调它的 dispose()，
@@ -765,6 +789,18 @@ export function createFakeEngine(opts: FakeEngineOptions = {}): FakeEngine {
       },
       async setDefaultThinking(level) {
         defaultThinkingLevel = level
+        change.fire()
+      },
+      /* 标题模型：null = 跟随对话自己的模型（与真引擎同一语义） */
+      async titleModel() {
+        return titleModelRef
+      },
+      /* 可用模型：替身报目录里 enabled 的那些（真引擎读 omp 的 getAvailable） */
+      async availableModels() {
+        return models.filter((m) => m.enabled).map((m) => ({ ref: { provider: m.provider, id: m.id }, label: m.name }))
+      },
+      async setTitleModel(ref) {
+        titleModelRef = ref
         change.fire()
       },
       async upsertCustomProvider(def: CustomProviderDef) {

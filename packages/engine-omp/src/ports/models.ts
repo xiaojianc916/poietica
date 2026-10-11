@@ -13,11 +13,13 @@ import {
   stringArrayOf,
 } from './model-helpers'
 import type { CustomProvidersFile } from './models-file'
-import { flushOf, readRecordEntry, writeRecordEntry } from './settings-writes'
+import { flushOf, readRecordEntry, removeRecordEntry, writeRecordEntry } from './settings-writes'
 
 /** 默认模型那一格：`modelRoles` 是 record 设置，`default` 是里面的键，值是整串 provider/id。 */
 const MODEL_ROLES_PATH = 'modelRoles'
 const DEFAULT_ROLE_KEY = 'default'
+/** 标题模型那一格：`modelRoles.title`（产品语义见 ModelsPort.titleModel 的头注）。 */
+const TITLE_ROLE_KEY = 'title'
 /** 全局那一档思考深度（session/settings.ts 的 cfgDefaultThinkingLevel）。 */
 const DEFAULT_THINKING_PATH = 'defaultThinkingLevel'
 
@@ -153,6 +155,45 @@ export class OmpModelsPort implements ModelsPort {
       writeRecordEntry(this.d.root, MODEL_ROLES_PATH, DEFAULT_ROLE_KEY, aliasOf(ref))
       await this.#flush()
       this.#change.fire()
+    } catch (error) {
+      throw toEngineError(error)
+    }
+  }
+
+  /**
+   * 「生成对话标题用的模型」：omp 的 `modelRoles.title`。
+   *
+   * null = 没设 → 标题用这条对话自己的模型（产品默认，见 create-engine 的说明）。
+   * 单开一个键而不是复用 tiny：omp 的 tiny 是它自己给一堆后台小事（记忆整理、技能摘要）
+   * 挑轻量模型的角色，用户在这里选的只该管标题这一件事。
+   */
+  async titleModel(): Promise<ModelRef | null> {
+    try {
+      const value = readRecordEntry(this.d.root, MODEL_ROLES_PATH, TITLE_ROLE_KEY)
+      return typeof value === 'string' && value !== '' ? splitAlias(value) : null
+    } catch (error) {
+      throw toEngineError(error)
+    }
+  }
+
+  async setTitleModel(ref: ModelRef | null): Promise<void> {
+    try {
+      if (ref === null) removeRecordEntry(this.d.root, MODEL_ROLES_PATH, TITLE_ROLE_KEY)
+      else writeRecordEntry(this.d.root, MODEL_ROLES_PATH, TITLE_ROLE_KEY, aliasOf(ref))
+      await this.#flush()
+      this.#change.fire()
+    } catch (error) {
+      throw toEngineError(error)
+    }
+  }
+
+  /** 此刻真正可用的模型（omp 的 getAvailable，与它自己的模型选择器同一份事实） */
+  async availableModels(): Promise<readonly { readonly ref: ModelRef; readonly label: string }[]> {
+    try {
+      return this.d.registry.available().map((model) => ({
+        ref: { provider: model.provider, id: model.id },
+        label: model.name ?? model.id,
+      }))
     } catch (error) {
       throw toEngineError(error)
     }

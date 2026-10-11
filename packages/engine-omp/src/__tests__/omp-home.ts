@@ -22,7 +22,6 @@ const ISOLATION_KEYS = [
   'PI_CONFIG_DIR',
   'PI_CODING_AGENT_DIR',
   'XDG_DATA_HOME',
-  'PI_NO_TITLE',
   'PI_NOTIFICATIONS',
   'PI_NO_PTY',
 ] as const
@@ -41,7 +40,6 @@ function setup(): TestOmpHome {
     PI_CONFIG_DIR: isolatedConfigDir(home, layout.ompRoot),
     PI_CODING_AGENT_DIR: layout.ompAgentDir,
     XDG_DATA_HOME: layout.nativeHomeDir,
-    PI_NO_TITLE: '1',
     PI_NOTIFICATIONS: 'off',
     PI_NO_PTY: '1',
   }

@@ -35,6 +35,15 @@ export default defineCoreModule({
       return {}
     })
     ctx.rpc.handle('models.defaults', () => service.defaults())
+    ctx.rpc.handle('models.titleModel', async () => {
+      const { model, choices } = await service.titleModel()
+      /* 契约那一格收可变数组，这里按值拷一份（只读是服务内部的约定，不该漏到线上） */
+      return { model, choices: [...choices] }
+    })
+    ctx.rpc.handle('models.setTitleModel', async ({ model }) => {
+      await service.setTitleModel(model)
+      return {}
+    })
     ctx.rpc.handle('models.setDefaults', async (patch) => {
       await service.setDefaults({
         ...(patch.model === undefined ? {} : { model: patch.model }),

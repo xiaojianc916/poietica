@@ -35,6 +35,22 @@ const PROVIDERS: ProviderInfo[] = [
 ]
 
 describe('models 服务（14 页 §6.5）', () => {
+  test('标题模型：默认 null（= 跟随对话自己的模型），设了能读回，清掉又变回 null；可选项来自引擎', async () => {
+    const { service, changed } = make(PROVIDERS)
+    /* 默认：没设过就是 null —— 这一格的口径是「不设置就用对话自己的模型」（omp 知识 #17） */
+    expect((await service.titleModel()).model).toBeNull()
+
+    await service.setTitleModel({ provider: 'anthropic', id: 'claude-haiku' })
+    expect((await service.titleModel()).model).toEqual({ provider: 'anthropic', id: 'claude-haiku' })
+
+    /* 选回「跟随对话模型」= 传 null：读回来必须是 null，而不是一条空串 */
+    await service.setTitleModel(null)
+    expect((await service.titleModel()).model).toBeNull()
+    expect(changed()).toBeGreaterThanOrEqual(2)
+    /* 可选项是引擎此刻可用的那批（替身读 enabled 目录），UI 不自己过滤 */
+    expect(Array.isArray((await service.titleModel()).choices)).toBe(true)
+  })
+
   test('setApiKey 之后测试 logger 收到的全部字段中都不含 sk-ant——…', async () => {
     const { service, records } = make(PROVIDERS)
     await service.setApiKey('anthropic', 'sk-ant-xxxxxxxx')

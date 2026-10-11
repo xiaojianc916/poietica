@@ -167,6 +167,9 @@ export class ConversationCore {
         setPosture: (threadId, posture) => {
           this.threads.setPosture(threadId, posture)
         },
+        setTitleFromSession: (threadId, title, sessionFile) => {
+          this.threads.setTitleFromSession(threadId, title, sessionFile)
+        },
       },
       emitThreadUpdated: d.emitThreadUpdated,
       emitTurnState: d.emitTurnState,

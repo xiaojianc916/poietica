@@ -18,7 +18,7 @@ import {
 } from '@poietica/engine'
 import { AppError, type Logger, SystemErrorCode, systemClock } from '@poietica/foundation'
 import { toContextUsage } from './context-usage'
-import { EventFaults } from './event-faults'
+import { describeError, EventFaults } from './event-faults'
 import { createGoalHost, type GoalHost } from './goal-host'
 import { InteractionBroker } from './interactions/broker'
 import { planInteraction, planOutcomeOf } from './interactions/plan'
@@ -79,6 +79,8 @@ interface OmpAgentSessionLike {
     getArtifactsDir(): string | null
     getSessionId(): string
     getCwd(): string
+    getSessionName?(): string | undefined
+    onSessionNameChanged?(cb: () => void): () => void
   }
   /** 会话此刻的技能表；`filePath` / `baseDir` 是官方 buildSkillPromptMessage 要的两格 */
   readonly skills: readonly {
@@ -94,6 +96,8 @@ interface OmpAgentSessionLike {
   abort(options?: Record<string, unknown>): Promise<void>
   dispose(options?: Record<string, unknown>): Promise<void>
   setPromptDropped(handler: ((prompt: { readonly text: string }) => void) | undefined): void
+  /** 首条输入触发 omp 的自动总结标题（omp 知识 #17）；实现只做门禁，生成由 omp 自己跑 */
+  maybeStartTitleGeneration?(firstMessage: string): void
   setThinkingLevel(level: unknown, persist?: boolean): void
   setSteeringMode(mode: 'all' | 'one-at-a-time', persist?: boolean): void
   setFollowUpMode(mode: 'all' | 'one-at-a-time', persist?: boolean): void
@@ -165,6 +169,27 @@ export interface WrapOmpSessionInput {
    * 控件初值要在那一刻也答得出来，所以入口页与这一层共用同一个产地：注册表。
    * 查不到（下架的 id、目录里没有）就交 null，不编一条。
    */
+  /**
+   * 关掉自动总结标题（omp 知识 #17）。只有测试入口会传（mock provider 同时是 tiny 候选，
+   * 标题请求会吃掉一条脚本回复）；生产入口不传，标题该跑就跑。
+   */
+  readonly disableAutoTitle?: boolean
+  /**
+   * 「生成标题用的模型」：换成 omp 的 `modelRoles.tiny` 里那一格，`maybeStartTitleGeneration`
+   * 就会用它来起名；**null = 不换**，标题用这条对话自己的模型（用户没设置时的默认）。
+   *
+   * 为什么临时改角色而不是直接传模型：标题模型是 omp 自己从 `modelRoles.tiny` 挑的
+   * （`title-generator.ts:127` 的 getTitleModels 只认那个角色），端口层没有「换标题模型」
+   * 这个入口。这里改的是**本会话 overlay 上的运行时覆盖**（settings-factory 给每个会话一份
+   * overlay），所以只影响这条会话，不落盘、不动用户的全局角色配置。
+   */
+  readonly titleModelAlias?: string | null
+  /**
+   * 把 titleModelAlias 落到本条会话的 settings 上（缺席 = 不换）。
+   *
+   * 由组合根提供（它持有 overlay 与 modelRoles）；这里只负责在**触发标题之前**调一次。
+   */
+  readonly applyTitleModel?: () => void
   readonly modelCatalog: (ref: { readonly provider: string; readonly id: string }) => {
     readonly label: string
     readonly efforts: readonly string[]
@@ -385,6 +410,21 @@ export async function wrapOmpSession(input: WrapOmpSessionInput): Promise<Engine
       liveGoalSnapshot: () => goalSnapshotOf(session),
       page: async (_agentId, beforeTurnId) =>
         projectHistoryPage(session.messages, beforeTurnId, { isTurnOpen: projector.isTurnOpen }),
+      /*
+       * omp 的自动总结标题只由它自己的 input-controller 触发，而 Poietica 直接调 session.prompt，
+       * 所以这里代它触发一次（omp 知识 #17）。omp 内部自己会做低信号过滤与 in-flight 去重；
+       * 生成失败/超时都不发事件，标题留在 conversation 写的首句兜底上。
+       */
+      maybeAutoTitle: (text) => {
+        if (input.disableAutoTitle === true) return
+        try {
+          /* 用户指定了标题模型就按它起名（只影响本条会话的 overlay）；没设置就不动角色 */
+          input.applyTitleModel?.()
+          session.maybeStartTitleGeneration?.(text)
+        } catch (error) {
+          input.logger.warn('auto title kickoff failed', { error: describeError(error) })
+        }
+      },
       now: () => systemClock.now(),
     },
     { sessionId: session.sessionId, sessionFile: session.sessionFile ?? '' },
@@ -406,6 +446,18 @@ export async function wrapOmpSession(input: WrapOmpSessionInput): Promise<Engine
   }
   const subscriptions = [
     ompSession.attachBroker(),
+    /*
+     * omp 的自动总结标题（omp 知识 #17）：名字写进会话文件后通知一次，由这里转成端口事件。
+     *
+     * 两个坑：回调**不带名字**（要自己读 getSessionName），订阅**没有回放**（打开已命名的
+     * 会话时那一刻的名字要在订阅时补读一次）。退订与其它订阅同一归宿（ompSession 的 dispose）。
+     */
+    toSubSub(
+      session.sessionManager?.onSessionNameChanged?.(() => {
+        const name = session.sessionManager?.getSessionName?.()
+        if (typeof name === 'string' && name !== '') ompSession.emitSessionTitle(name)
+      }),
+    ),
     // omp 的 subscribe 直接返回退订函数：包一层再存，dispose 时真的退订
     toSub(session.subscribe((event) => handleOmpEvent(event, pump))),
   ]
@@ -447,6 +499,12 @@ export async function wrapOmpSession(input: WrapOmpSessionInput): Promise<Engine
    */
   if (input.model !== null) await ompSession.setModel(input.model)
   if (input.thinking !== null) ompSession.setThinking(input.thinking)
+  /*
+   * 打开一条**已经有名字**的会话（重开对话 / 分支）：把那一刻的名字补报一次 ——
+   * onSessionNameChanged 没有回放，而会话池在我们的返回值之后才订阅。
+   */
+  const seededName = session.sessionManager?.getSessionName?.()
+  if (typeof seededName === 'string' && seededName !== '') ompSession.emitSessionTitle(seededName)
   return ompSession
 }
 
@@ -496,6 +554,16 @@ function userTextOf(content: unknown): string {
 /** 把 omp 的「退订函数」包成 Disposable 形状 */
 function toSub(unsubscribe: () => void): { dispose(): void } {
   return { dispose: unsubscribe }
+}
+
+/**
+ * 同 toSub，但收的是**可选**的订阅（omp 的 onSessionNameChanged 在假会话上没有）。
+ *
+ * 没有订阅时给一个什么都不做的 Disposable：`OmpSession.attach` 收的是数组，混着 undefined
+ * 会让 dispose 时炸掉。
+ */
+function toSubSub(unsubscribe: (() => void) | undefined): { dispose(): void } {
+  return unsubscribe === undefined ? { dispose: () => undefined } : toSub(unsubscribe)
 }
 
 /**

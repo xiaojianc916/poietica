@@ -34,6 +34,8 @@ export interface EventRouterDeps {
     threadOf(row: ThreadRow): Thread
     /** controls 事件里的姿态与线程行不一致时把行改掉（07 页 §5C 的行为表） */
     setPosture(threadId: string, posture: Posture): void
+    /** omp 自动总结出的标题（omp 知识 #17）；守卫住在 thread-service 里 */
+    setTitleFromSession(threadId: string, title: string, sessionFile: string): void
   }
   readonly emitThreadUpdated: (thread: Thread) => void
   readonly emitTurnState: (state: TurnState) => void
@@ -119,6 +121,13 @@ export class EventRouter {
         break
       case 'promptDropped':
         this.d.emitTurnDropped({ threadId, clientTurnId: null, text: event.text })
+        break
+      case 'sessionTitle':
+        /*
+         * omp 的自动总结标题替换首句兜底（omp 知识 #17）。**不**改 epoch、不整页重取：
+         * 这只是一格标题，线程行原地改写就够了（与 setPosture 同一条规矩）。
+         */
+        this.d.threads.setTitleFromSession(threadId, event.title, event.sessionFile)
         break
     }
   }

@@ -26,6 +26,11 @@ export function writeRecordEntry(scope: SettingsScope, path: string, key: string
   entryOf(path).setEntry(scope, key, value as never)
 }
 
+/** 删 record 设置里的一格（值为 undefined 就是删除，omp 的 setEntry 同此语义）。 */
+export function removeRecordEntry(scope: SettingsScope, path: string, key: string): void {
+  entryOf(path).setEntry(scope, key, undefined as never)
+}
+
 /** 读 record 设置里的一格；那一格不存在就是 undefined。 */
 export function readRecordEntry(scope: SettingsScope, path: string, key: string): unknown {
   const record: unknown = readSetting(scope, path)

@@ -69,6 +69,29 @@ export const modelsContract = defineContract({
       description: '默认模型与默认思考强度',
     }),
     defineMethod({
+      name: 'models.titleModel',
+      owner: 'core',
+      params: empty,
+      result: z.object({
+        model: ModelRef.nullable(),
+        /*
+         * 可选项：**omp 此刻真正可用的模型**（引擎 getAvailable，与输入框的模型选择器同源）。
+         *
+         * 不给 UI 自己按 providers.configured 过滤的机会：那个判据只认凭据表，而 models.yml
+         * 里定义的自定义服务商（key 写在 yml 里）会报 false —— 真机实测下拉里全是选不了的模型。
+         */
+        choices: z.array(z.object({ ref: ModelRef, label: z.string() })),
+      }),
+      description: '读取「生成对话标题用的模型」与可选项；null 表示跟随对话自己的模型',
+    }),
+    defineMethod({
+      name: 'models.setTitleModel',
+      owner: 'core',
+      params: z.object({ model: ModelRef.nullable() }),
+      result: empty,
+      description: '设置「生成对话标题用的模型」；null 表示跟随对话自己的模型',
+    }),
+    defineMethod({
       name: 'models.setDefaults',
       owner: 'core',
       params: z.object({ model: ModelRef.optional(), thinking: z.string().nullable().optional() }),

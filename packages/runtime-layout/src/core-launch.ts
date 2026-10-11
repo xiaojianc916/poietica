@@ -94,7 +94,6 @@ export function buildCoreLaunch(input: CoreLaunchInput): CoreLaunch {
     PI_CONFIG_DIR: isolatedConfigDir(input.homeDir, layout.ompRoot),
     PI_CODING_AGENT_DIR: layout.ompAgentDir,
     XDG_DATA_HOME: layout.nativeHomeDir,
-    PI_NO_TITLE: '1',
     PI_NOTIFICATIONS: 'off',
     PI_NO_PTY: '1',
   })
