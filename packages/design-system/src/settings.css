@@ -66,6 +66,8 @@
   align-items: center;
   justify-content: space-between;
   gap: 12px;
+  /* 卡内行的控件右缘距卡面外缘是 1px 边框 + 14px 内边距，组头补上同一档，头按钮才和行按钮同一列。 */
+  padding-inline-end: 15px;
 }
 
 .settings-group__header h3 {
