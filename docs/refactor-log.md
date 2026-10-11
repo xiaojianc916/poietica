@@ -1789,3 +1789,85 @@ packages/transcript` **356 pass / 0 fail**；`bun run all` 全绿（1896 pass / 
 -n 3000`）—— 工具卡片立刻出现、滚动无肉眼可见卡顿、完成不闪回「运行中」；运行中最小化
 5 秒再还原应即时；DevTools Performance 录 5 秒对比 `MessagePort` 处理与 apply 时长下降、
 Core 内存在长命令期间不再持续上涨；运行中断开重连（或刷新窗口）时间线完整无重复无缺口。
+
+## P-06 首屏入口闭包：公式 / 终端 / 灯箱按需加载 + 安装版走 poietica-app://（2026-10-11）
+
+**来源**：`Project Refactoring Plan/P-06.md`（外部输入，不入库）。分两笔提交：**A** 按需加载
+与构建期守卫（14 个文件）；**B** 安装版改经 `poietica-app://` 加载以启用 V8 代码缓存（5 个文件）。
+
+**现状复核**（与方案 §2 逐条对过）：
+
+1. `prose.tsx:4-5` 静态导入 `@streamdown/math` 与 `katex/dist/katex.min.css`，模块顶层
+   `createMathPlugin` —— katex 整块（497KB）在入口闭包里。
+2. `terminal/src/ui/index.tsx` 静态导入 `TerminalPanel` / `createTerminalRuntime` 与 xterm.css；
+   `terminal-sessions.ts` 再静态导入 `@xterm/xterm` 与两个插件（412KB 在入口分块里）。
+3. `image-lightbox.tsx` 静态导入灯箱库、插件与 CSS，被三处调用方（`attachment-tray.tsx:6`、
+   `message-attachments.tsx:5`、`tool-call-panels.tsx:6`）静态引用。
+4. `windows.ts:70/116` 用 `loadFile` 从 `file://` 加载；Chromium 默认只给 http(s) 开 V8 代码缓存。
+
+**改法**（严格按方案 §5 / §6；与旧版方案的差别见其 §4 复核表）：
+
+1. **A-1 公式按需 `math-plugin.ts`**：模块级单例 `loadMath()` 用
+   `Promise.all([import('@streamdown/math'), import('katex/dist/katex.min.css')])` 加载并缓存；
+   失败清 pending 供重试；`currentMath` / `subscribeMath` 给 `useSyncExternalStore`；`prose.tsx`
+   换成稳定引用的 `BASE_PLUGINS` / `pluginsWithMath`（Streamdown 按引用做 memo），发现 `$`
+   时在 effect 里触发加载；会话功能第一次 `onCoreReady` 预取。
+2. **A-2 终端按需 `terminal-loader.ts`**：`createLazyTerminalRuntime` 返回与原运行时同名方法的
+   代理（`count` 未加载为 0，通知类方法未加载是空操作）；`restore()` 先 `list()`，Host 里没有
+   终端就不加载；面板改成 `lazy(() => Promise.all([runtime.load(), import('./terminal-panel')]))`；
+   xterm.css 移进 `terminal-sessions.ts`，terminal-pane.css 移进 `terminal-panel.tsx`。
+3. **A-3 灯箱按需**：`image-lightbox.tsx` 拆成轻壳 + `image-lightbox-impl.tsx`，类型单独成
+   `image-lightbox-types.ts`（避免壳与实现成环）；壳只在 `open` 时挂载实现，有缩略图时
+   `requestIdleCallback` 预取；`plugins={[Zoom, Counter]}` 提成模块常量。
+4. **A-4 构建守卫**：`electron.vite.config.ts` 的 `poietica:entry-budget` 插件沿入口静态
+   `import` 走闭包，命中 katex / @xterm / yet-another-react-lightbox 即 `this.error`；闭包超
+   5.4MB 只 `this.warn`。
+5. **B 自定义协议**：新 `packages/host-kernel/src/app-protocol.ts` 的
+   `createAppProtocolHandler(rendererDir, fetchFile)`（只接受 GET + host `shell`、逐段
+   `decodeURIComponent`、拒绝 `.` / `..` / 斜杠 / 反斜杠 / NUL / 坏编码，再用 `path.relative`
+   兜一层）；`kernel.ts` 注册 `poietica-app` 特权（`standard/secure/supportFetchAPI/corsEnabled/codeCache`）
+   并在 ready 后 `protocol.handle`（安装版 `net.fetch(pathToFileURL(file))`，能读 asar）；
+   `windows.ts` 的 `createMain` 删掉 `rendererFile`，统一 `loadURL(appUrl)`，导航守卫与加载
+   用同一个 `appUrl`。
+
+**测试**（先写、在旧代码上确认红，再实现）：
+
+- 新用例 21 条：`prose-math.test.tsx` M1–M3、`image-lightbox.test.tsx` B1–B3、
+  `terminal-loader.test.ts` L1–L8、`app-protocol.test.ts` A1–A7。旧代码上
+  `prose-math` / `terminal-loader` / `app-protocol` 三个文件因模块不存在而直接失败
+  （实跑 `3 pass / 3 fail / 3 errors`），`image-lightbox` 三条是行为护栏（旧代码上也过）。
+- 构建守卫反向验证：临时把 `prose.tsx` 换回静态 `createMathPlugin` + katex.css，构建以
+  `[plugin poietica:entry-budget] 这些按需加载的包被静态带进了首屏入口` 失败（报出
+  `/node_modules/katex/ ← …`）；改回后构建通过。
+- 既有终端 33 个用例一行未改原样通过（`bun test features/terminal` 74 pass）。
+
+**体积**（`electron-vite build --mode production` + 等价 closure 脚本实测）：
+
+| 指标 | 改前 | 改后 |
+| --- | --- | --- |
+| 首屏入口静态闭包 JS | 6.18MB / 10 files | **5.11MB / 17 files** |
+| 首屏 CSS | 497.7KB | **451.9KB** |
+| xterm / katex / 灯箱 | 入口分块内 | 独立分块（`terminal-store-*.js` 431KB、`katex-*.js` 497KB、灯箱分块） |
+
+**偏差**：
+
+1. **公式测试需要复位口**（方案未写）：`bun test` 单进程跑完全仓，多个测试文件共享同一份
+   模块实例；`apps/desktop/src/renderer/__tests__/core-recovery.test.tsx` 会真的启动一次功能、
+   触发首次 `onCoreReady` 预取，M1「没有 `$` 就不加载」于是看见脏状态。加
+   `resetMathForTests()`（代号作废在途加载，不让晚到的结果或失败写回新一代状态），
+   测试在 `beforeAll` 调用 —— 与既有 `resetDiagramCacheForTests` 同一手法。
+2. **闭包实测 17 files / 5.11MB**：方案 §6 第 6 步写「约 17 files 5.11MB」，与实测一致；
+   方案 §5.4 表格里的「闭包小 17%」按 6.18 → 5.11 计算为 −17.3%，一致。
+3. 其余落位文件与方案 §6 的代码块逐字一致；`terminal-store.ts` / `terminal-sessions.ts` 的
+   会话层逻辑一行未改（CSS 导入按方案搬家）。
+
+**验收**：`bun run typecheck` 通过（711 files / 80 projects + 909 tests files）；
+`bun run lint` 通过（biome + no-raw-errors + no-biome-ignore + editor-project-map + depcruise）；
+`bun test features/conversation features/terminal/src/ui packages/transcript packages/host-kernel`
+**456 pass / 0 fail**；`bun run all` 全绿（1917 pass / 0 fail，较 P-05 的 1896 新增 21）。
+
+**待真机复核**（方案 §8 第 8 步，需 Windows 安装版实例）：`location.origin` 为
+`poietica-app://shell`、无 CSP 报错；公式（KaTeX 字体）、diff 着色（shiki WASM）、审查面板
+worker、`poietica-asset://` 图片、widget iframe、拖文件、外链、渲染进程崩溃 reload 各一条；
+第 3 次启动后 `%APPDATA%\Poietica\Code Cache\js` 有数 MB 文件；打包后 asar 内文件经
+`net.fetch(file://)` 能读到。
