@@ -1574,3 +1574,56 @@ React Profiler 里回滚阶段 `Streamdown` 不出现 mount、200 轮对话来�
 **环境事实**（记下来给后来者）：GitHub Actions 的 Windows runner 上
 `os.tmpdir()` 返回 8.3 短名而 `os.homedir()` 返回长名 —— 任何「临时目录在用户目录之下」
 这类字符串比较在 runner 上都会翻车；跨这两者的路径判断一律先 `realpathSync.native`。
+
+## P-02 对话在跑时最小化、切回卡死：视图通知按帧合并、不可见时不渲染（2026-10-11）
+
+**来源**：`Project Refactoring Plan/P-02.md`（外部输入，不入库）。
+
+**现状复核**（方案 §2 的证据链逐条对过，行号已漂移、结论不变）：Core 按 16ms 合批发
+`timeline.ops`；每批经 `TranscriptReplica.#apply`（每批先拍一张回滚快照）→ `#publish`
+（投影 + 目录）→ `#fire` 同步叫醒订阅者；`useSlice` 的 `useSyncExternalStore` 被
+React 强制走同步车道，来一批就完整渲染一次；提交后的 layout effect 还调
+`virtualizer.scrollToEnd()` 强制布局。窗口最小化时 rAF 停跑，但 IPC 照收、渲染照做，
+切回时把积压逐条重放 —— 与「最小化再点回来卡死」「长回复后半段黏」吻合。
+
+**改法**（严格按方案 §4 / §5，与旧版方案的差别见其 §4 复核表）：
+
+1. **新增 `ui/transcript/view-frames.ts`**：`createViewFrames(frame)` 返回
+   `{ schedule, forget }`，脏集合 + 一帧一次；`animationFrame` 在**调用时**查全局
+   `requestAnimationFrame`（测试可临时替换），没有就退到 16ms 定时器。
+   全应用共用一个 `VIEW_FRAMES`。
+2. **`useSlice` 接上闸门**：`transcripts.subscribe(key, () => VIEW_FRAMES.schedule(onChange))`，
+   退订时 `off()` + `VIEW_FRAMES.forget(onChange)`；`read` 不动 —— 帧来时读到的就是
+   最新快照。事实订阅（`waitForTerminal` 在 store 内部、`subscribeRunning`、系统通知）
+   保持同步，不受闸门影响。改后 React 侧 `transcripts.subscribe(` 只剩 `useSlice` 一处。
+3. **删掉每批的回滚快照**（`transcript-replica.ts` `#apply`）：`applyOps` 不修改输入状态、
+   `AgentReducer.receive` 在缺口时根本没给 `#state` 赋值，回滚是白拷五张侧表。
+   `packages/transcript` 的 TL-5b 钉住这条前提。
+
+**明确不做**（方案 §5）：不改 `TranscriptStore` 的订阅 / 迁移 / 释放逻辑；不用
+`startTransition` / `useDeferredValue`；不设 `backgroundThrottling: false`；不在 Host/Core
+侧「窗口隐藏就暂停推送」；本页不改投影时机（留 P-04）。
+
+**测试**（先写、在旧代码上确认红，再实现）：
+
+- `components/transcript/__tests__/use-slice-frames.test.tsx`（新，3 例 ❗）：F1 帧不来时
+  50 批数据 0 次提交、来一帧恰好 1 次且是最新（旧代码 `Received: 50`）；F2 同帧 3 批
+  只提交 1 次（旧代码 `Received: 3`）；F3 等帧期间卸载订阅退干净、帧来了不出错。
+- `ui/transcript/__tests__/view-frames.test.ts`（新，5 例）：V1 重复 schedule 只请求一帧
+  只叫一次；V2 多订阅者共用一帧；V3 forget 后不再叫、全撤时取消帧；V4 回调里再 schedule
+  排到下一帧不递归；V5 帧不来就一直不叫。
+- `packages/transcript/src/__tests__/timeline.test.ts` TL-5b（新，旧代码上也通过，是删
+  快照的前提保护网）：半批合法半批缺口时整批作废、输入状态原样不动。
+
+**验收**：`bun run typecheck` / `bun run lint` 各自通过；`bun test features/conversation
+packages/transcript` **324 pass / 0 fail**（基线 315，新增 9）；`bun run  all` 全绿
+（1864 pass / 0 fail，较 P-01 的 1855 新增 9）。
+
+**偏差**：无契约、无依赖、无协议变更，无数据迁移；回滚即整笔 revert。
+方案 §6 的 diff 中 `transcript-replica.ts` 的缩进/注释按仓库现状落位，其余一字不差。
+
+**待真机复核**（方案 §8，需 Windows 桌面实例）：≥50 轮对话发长回复后立即最小化
+2 分钟再还原 —— 第一帧即最新内容、1 秒内可交互、Host 日志无 `renderer unresponsive`；
+前台长回复 React commit 次数 ≤ 帧数且都落在 Animation Frame 之后；最小化期间渲染
+进程 CPU 明显下降、系统通知照常、`waitForTerminal` 自动化任务正常落定；入口页新开
+一条对话发第一句屏幕正常跟着走（别名迁移未受影响）。

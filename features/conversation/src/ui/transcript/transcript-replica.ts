@@ -34,6 +34,7 @@ class AgentReducer {
       return { accepted: operations }
     } catch (error) {
       if (error instanceof TranscriptGapError) {
+        /* #state 没被赋值 —— 调用方（#apply）依赖这一点，不做回滚 */
         return { accepted: [], gap: { expected: error.expected, got: error.got } }
       }
       throw error
@@ -381,10 +382,13 @@ export class TranscriptReplica {
       return true
     }
     const reducer = this.#transcript.ensureAgent(agentId)
-    const checkpoint = reducer.snapshot()
+    /*
+     * 缺口时不必回滚：applyOps 不修改输入状态、整批作废时 AgentReducer 根本没赋值
+     * （packages/transcript 的 TL-5b 钉着这一条）。以前每批先拍一张快照留作回滚，
+     * 白拷五张侧表（P-02）。
+     */
     const result = reducer.receive(operations)
     if (result.gap !== undefined) {
-      reducer.receive([{ op: 'reset', agentId, snapshot: checkpoint }])
       feed.valid = false
       return false
     }

@@ -18,6 +18,7 @@ import type { PendingInteractions } from '../../timeline/timeline-queries'
 import { activeScope, currentTodos, pendingInteractions } from '../../timeline/timeline-queries'
 import type { PreparedThread, Transcript } from '../../transcript/transcript-store'
 import { canCancel, deliveryUnknown } from '../../transcript/transcript-store'
+import { VIEW_FRAMES } from '../../transcript/view-frames'
 import { useTranscripts } from './transcripts-context'
 
 /* 每个消费者只订阅最窄的稳定投影；完整 timeline 仅供 TranscriptView。
@@ -122,10 +123,22 @@ function useSlice<TValue>(
     return next
   }, [equal, key, project, transcripts])
 
-  return useSyncExternalStore(
-    useCallback((onChange: () => void) => transcripts.subscribe(key, onChange), [transcripts, key]),
-    read,
+  /*
+   * 事实的通知是同步的，视图的通知按帧合并（transcript/view-frames.ts，P-02）：
+   * 一帧最多渲染一次、窗口不可见时不渲染。退订时把还没等到帧的那一次一并撤掉。
+   */
+  const subscribe = useCallback(
+    (onChange: () => void) => {
+      const off = transcripts.subscribe(key, () => VIEW_FRAMES.schedule(onChange))
+      return () => {
+        off()
+        VIEW_FRAMES.forget(onChange)
+      }
+    },
+    [transcripts, key],
   )
+
+  return useSyncExternalStore(subscribe, read)
 }
 
 /* 纯 switch，返回字符串字面量：依赖数组的分配与比较比它本身贵。 */

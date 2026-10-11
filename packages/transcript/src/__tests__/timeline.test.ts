@@ -106,6 +106,14 @@ describe('timeline', () => {
     expect(() => applyOps(state, [appendTo(1, 2, 'Xyz')])).toThrow(TranscriptGapError)
   })
 
+  test('TL-5b 前半批合法、后半批缺口：整批作废，输入状态原样不动（副本据此不做回滚，P-02）', () => {
+    const state = applyOps(emptyTimeline(), [...skeleton(1), appendTo(1, 0, 'Hel')])
+    const before = pageFromState(state)
+    expect(() => applyOps(state, [appendTo(1, 3, 'lo'), appendTo(1, 99, 'x')])).toThrow(TranscriptGapError)
+    expect(pageFromState(state)).toEqual(before)
+    expect(textOf(state, 1)).toBe('Hel')
+  })
+
   test('TL-6 同一批 op 应用两次，状态幂等', () => {
     const ops: TranscriptOperation[] = [...skeleton(1), appendTo(1, 0, 'Hel'), appendTo(1, 3, 'lo')]
     const once = applyOps(emptyTimeline(), ops)
