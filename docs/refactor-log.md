@@ -1481,3 +1481,65 @@ MessageQueue **原对象**挪到 `'t-new'` 下（屏幕订阅的是它，不能�
 
 **偏差**：无。第 7 节真机验收（Windows `bun run dev`，含首页开对话后撤回 / 插话、
 已取走的条目失败横幅落在对话里、旧对话回归、第二条新对话不串）留待人工执行。
+
+## P-01 长对话来回滚动：离屏行被卸载，回来时整段正文重新解析、图表重新画（2026-10-11）
+
+**来源**：`Project Refactoring Plan/P-01 长对话来回滚动…md`（外部输入，不入库）。
+
+**现状复核**（方案 §2 的证据表逐条对过，行号已随 R-17 / R-18 漂移，结论不变）：
+`useVirtualizer` 没有自定义 `rangeExtractor`，渲染集合就是「视口 ± overscan」的连续区间；
+不在集合里的行由 `items.map` 卸掉整棵子树，行内的 `Streamdown` 解析缓存与
+`useDiagramSvg` 的画图结果一起丢；`diagram.tsx` 里 `showCode = asCode || graphic === undefined`
+决定「先源码面板、再换图」的一帧，行高因此变两次；`shouldAdjustScrollPositionOnItemSizeChange`
+又把视口之上那次长高补进 `scrollTop`，屏幕上是往回滚时被推一下。
+
+**改法**（严格按方案 §4 / §5，两个提交的量）：
+
+1. **A 渲染集合 = 默认区间 ∪ 最近看过的行**：新增 `feed/keep-alive.ts`（`KeepAlive` 按
+   条目 id 记 LRU + 纯函数 `mergeRange`）。滚动区加 `KEEP_ALIVE_ROWS = 80` 与
+   `rangeExtractor`：`defaultRangeExtractor(range)` 先 touch 一遍、再把常驻集合按
+   `feed.rowOf(id)` 换回下标，并集去重后**升序**交回（`rowAtAnchor` 的二分与虚拟器
+   自己的遍历都假定起点单调）。`spansRef.current = items` 的写入逻辑一个字没动 ——
+   常驻行要么远在上方、要么远在下方，视口所在的连续区间一定盖住锚点，二分结果不变
+   （已在 `rowAtAnchor` 调用处写清这条前提）。
+2. **B Mermaid 产物出模块级缓存**：新增 `timeline/diagram-cache.ts`（`svgKey` = 颜色 +
+   源码；SVG 字符串 LRU，64 条 / 400 万字符双上限；`inksByTheme` 按主题留一套颜色）。
+   `diagram.tsx` 把「DOMParser 解析 + 找 svg 根 + invariant」抽成 `parseSvg`；
+   `useInks` 的初值改成 `cachedInks(currentTheme())`；`useDiagramSvg` 的 state 从
+   `SVGSVGElement | undefined` 换成 `{key, svg} | undefined`，初值走**只读**的 `peekSvg`
+   （渲染期不许有副作用），effect 里命中就 `setFailure(undefined)` 并补记一次使用
+   （`cachedSvg`），**不再调 `diagramEngine()`**；未命中才走原路径，画成后 `keepSvg`。
+   失败不缓存。`Diagram` 组件的 JSX、类名与文案一字未改。
+
+**明确不做**（方案 §4.3）：不改 `Prose` 的 `mode`、不加 `content-visibility`、不调大
+`OVERSCAN_SETTLED`、不动 `TimelineSeat` / `TimelineRow` 的 memo 结构。
+
+**测试**（先写、在旧代码上确认红，再实现）：
+
+- `feed/__tests__/keep-alive.test.ts`（新，7 例）：淘汰顺序、touch 刷新最近使用、
+  `size ≤ capacity`、`mergeRange` 的升序 / 去重 / 越界丢弃 / 非字符串 key 不常驻。
+- `timeline/__tests__/diagram-cache.test.ts`（新，7 例）：条数上限、字符上限、
+  命中刷新最近使用、同键重写不挤掉邻居、`inksKey` 键序无关、颜色 / 源码任一不同即不命中、
+  按主题各留一份颜色。
+- `timeline/__tests__/diagram-remount.test.tsx`（新，3 例 ❗）：引擎换替身计数、取色换固定色。
+  D1 首挂载画一次（首帧仍是源码面板）、卸载后重挂载**首帧就是图**且引擎仍只画一次、
+  `initialize` 也只跑一次；D2 换源码照常重画且结果进缓存；D3 `isIncomplete` 期间不画。
+  旧代码上 D1、D2 红（首帧 `data-view="code"`、`render` 被调用 2 次），D3 绿（回归）。
+- 滚动区本身**没有**写依赖真实几何的测试（happy-dom 没有布局），逻辑由上面两条纯函数覆盖
+  （方案 §6.4 的推荐做法），`extractRange` 的接线由类型与上面这条重挂载用例兜。
+
+**验收**：`bun run all` 全绿（1855 pass / 0 fail，236 文件，较 R-12 的 1838 新增 17）。
+`bun run typecheck` / `bun run lint`（biome + 三条自定义闸门 + depcruise）各自通过。
+
+**偏差**：无契约、无依赖、无协议变更（`defaultRangeExtractor` 与 `Range` 由
+`@tanstack/react-virtual` 自身再导出，未新增 `@tanstack/virtual-core` 依赖）。
+方案 §6.3 提到的「happy-dom 读不到令牌」确实成立：`getComputedStyle` 交回空串、
+Canvas 2d 上下文为 `null`，所以那条用例把 `diagram-theme` 换成固定色 —— 方案原文允许。
+另记一条测试环境事实：happy-dom 只按命名空间把 `DOMParser` 的内容建成 SVG 元素，
+替身交回的 svg 必须带 `xmlns`，否则 `ground()` 读不到 `viewBox`（只关测试，不关产品）。
+
+**待真机复核**（方案 §7，需 Windows 桌面实例与真实 Mermaid）：60 轮以上的长对话里
+从底部上滚 5 屏再滚回底部 —— 回滚阶段 `parseMarkdownIntoBlocks` / unified / Mermaid
+`render` 的调用次数接近 0、无 >50ms 长任务、图表行不再出现「先源码后图」的一帧、
+React Profiler 里回滚阶段 `Streamdown` 不出现 mount、200 轮对话来回滚 1 分钟 DOM 节点数
+稳定在平台期。若 DOM 节点数过高，按方案 §8 把 `KEEP_ALIVE_ROWS` 降到 40（不要改成按像素算）。

@@ -1,11 +1,12 @@
 import './agent-activity-feed.css'
 
-import { useVirtualizer, type VirtualItem } from '@tanstack/react-virtual'
+import { defaultRangeExtractor, type Range, useVirtualizer, type VirtualItem } from '@tanstack/react-virtual'
 import { type CSSProperties, type ReactNode, useCallback, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import type { Presentation } from '../../timeline/presentation'
 import { ToLatestIcon } from '../primitives/icons'
 import { useDevicePixels } from '../primitives/use-device-pixels'
 import { geometryOf, keepGeometry } from './conversation-geometry'
+import { KeepAlive, mergeRange } from './keep-alive'
 import { rowAtAnchor } from './reading-position'
 import { useScrollAuthority } from './scroll-authority'
 
@@ -15,6 +16,9 @@ import { useScrollAuthority } from './scroll-authority'
  */
 const OVERSCAN_COLD = 6
 const OVERSCAN_SETTLED = 20
+
+/** 视口之外还留着的「最近看过的行」上限。上去看一眼再回来不该重新解析正文。 */
+const KEEP_ALIVE_ROWS = 80
 
 /** 视线在视口里的位置（自上而下）：上沿一条边，上一轮的残留一个像素就占住；三分之一处才是人在看的地方。 */
 const READING_ANCHOR_RATIO = 1 / 3
@@ -113,6 +117,34 @@ export function AgentActivityFeed({
   const getItemKey = useCallback((index: number) => rowAccess.current.feed.rowAt(index)?.item.id ?? index, [])
   const estimateItem = useCallback((index: number) => rowAccess.current.estimateRow(index), [])
 
+  /*
+   * 最近被铺出来过的行。一步都没有 id 的条目（不该有）不常驻，所以键就是条目 id。
+   *
+   * 一份盒子一条对话：换对话时这个组件整个换掉（外层按对话号给了 key），常驻集合跟着换，
+   * 不会把上一条对话的行留在这儿。
+   */
+  const [keepAlive] = useState(() => new KeepAlive(KEEP_ALIVE_ROWS))
+
+  /*
+   * 渲染集合 = 默认区间 ∪ 最近看过的行。
+   *
+   * 这一层只铺行：常驻行照常由虚拟器摆位置、照常被 measureElement 观察，它在视口之外，
+   * ResizeObserver 不会为它触发，测量成本不涨。行的下标要从 key 换回来 —— 向上续读会
+   * 在前面插行、下标整体位移，而 key 不变。
+   */
+  const extractRange = useCallback(
+    (range: Range) => {
+      const base = defaultRangeExtractor(range)
+      const current = rowAccess.current.feed
+      const keyAt = (index: number) => current.rowAt(index)?.item.id ?? index
+
+      keepAlive.touch(base.map(keyAt))
+
+      return mergeRange(base, keepAlive.keys(), (id) => current.rowOf(id), range.count)
+    },
+    [keepAlive],
+  )
+
   /* 几何只在挂载那一次被收走，所以只取一次。 */
   const [restored] = useState(() => geometryOf(conversation))
 
@@ -161,6 +193,7 @@ export function AgentActivityFeed({
     scrollMargin: scrollMargin ?? 0,
     paddingEnd,
     overscan: settled ? OVERSCAN_SETTLED : OVERSCAN_COLD,
+    rangeExtractor: extractRange,
     /* 尾部锚定：前插不动眼前那一行，末端跟随只在人本来就在末端时发生。 */
     anchorTo: holding ? 'start' : 'end',
     followOnAppend: !holding,
@@ -270,6 +303,10 @@ export function AgentActivityFeed({
         frame = null
 
         const spans = spansRef.current
+        /*
+         * 常驻行不改变这次二分：它找的是「最后一个起点不晚于锚点的行」，而视口所在的
+         * 连续区间一定盖住锚点；常驻行要么远在上方、要么远在下方，都不越过它。
+         */
         const reading = rowAtAnchor(spans, viewport.scrollTop + viewport.clientHeight * READING_ANCHOR_RATIO)
 
         if (reading !== null) {

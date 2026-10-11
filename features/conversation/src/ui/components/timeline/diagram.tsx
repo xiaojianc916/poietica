@@ -4,6 +4,7 @@ import { type CSSProperties, useCallback, useEffect, useId, useMemo, useRef, use
 import { CodeBlockCopyButton } from 'streamdown'
 
 import { CodeIcon, PreviewIcon } from '../primitives/icons'
+import { cachedInks, cachedSvg, currentTheme, keepInks, keepSvg, peekSvg, svgKey } from './diagram-cache'
 import { type DiagramInks, diagramInks } from './diagram-theme'
 
 /*
@@ -82,6 +83,23 @@ function ground(node: SVGSVGElement): void {
 }
 
 /*
+ * 引擎交回的字符串 → 一个可挂的 svg 元素。
+ *
+ * DOMParser 解析失败不抛异常，交回一份装着 parsererror 的文档（官方 DOMParser 的
+ * Error handling 一节），所以这里问的是「有没有一个 svg 根」。
+ */
+function parseSvg(svg: string): SVGSVGElement {
+  const parsed = new DOMParser().parseFromString(svg, 'image/svg+xml')
+  const root = parsed.querySelector('svg')
+
+  if (root === null) {
+    invariant(false, '引擎交回的不是一份可解析的 SVG')
+  }
+
+  return root
+}
+
+/*
  * 画图这件事本身：一段源码进去，一个 svg 元素或者一句失败原因出来。
  *
  * inks 是画这一张要用的那套颜色。引擎是模块级单例、配置按进程生效，所以每次画之前把
@@ -91,7 +109,23 @@ function ground(node: SVGSVGElement): void {
 function useDiagramSvg(code: string, isIncomplete: boolean, inks: DiagramInks | undefined) {
   const seed = useId().replace(/[^a-z0-9]/gi, '')
   const pass = useRef(0)
-  const [graphic, setGraphic] = useState<SVGSVGElement | undefined>(undefined)
+  /*
+   * 首帧就问缓存：这批行原本被虚拟器卸载过，重挂载时如果先交 undefined，屏幕上会闪一帧
+   * 源码面板，行高跟着变两次（源码高 → 图高），虚拟器收到假尺寸就把位置推走。
+   *
+   * 键跟着节点走而不是另记一份：渲染期读缓存必须是纯的（它会被重播、被丢弃），
+   * 使用顺序与「此刻贴的是哪一格」都归这份 state 的持有者，在 effect 里落定。
+   */
+  const [shown, setShown] = useState<{ readonly key: string; readonly svg: SVGSVGElement } | undefined>(() => {
+    if (isIncomplete || inks === undefined) {
+      return undefined
+    }
+
+    const key = svgKey(inks, code)
+    const hit = peekSvg(key)
+
+    return hit === undefined ? undefined : { key, svg: parseSvg(hit) }
+  })
   const [failure, setFailure] = useState<string | undefined>(undefined)
 
   useEffect(() => {
@@ -99,6 +133,24 @@ function useDiagramSvg(code: string, isIncomplete: boolean, inks: DiagramInks | 
     let live = true
 
     if (!isIncomplete && inks !== undefined) {
+      const key = svgKey(inks, code)
+      const hit = cachedSvg(key)
+
+      /*
+       * 命中：这一帧就该是图，不再动引擎。初值已经贴上去的那一份不重设，免一次
+       * 无意义的重渲。
+       */
+      if (hit !== undefined) {
+        if (shown?.key !== key) {
+          setFailure(undefined)
+          setShown({ key, svg: parseSvg(hit) })
+        }
+
+        return () => {
+          live = false
+        }
+      }
+
       /*
        * 每画一次换一个 id：引擎按 id 造临时节点、画完摘掉，画出的 svg 也带着它 —— id 复用
        * 会让下一次渲染按 id 找到上一张图。HTML 也要求 id 文档内唯一。
@@ -119,25 +171,17 @@ function useDiagramSvg(code: string, isIncomplete: boolean, inks: DiagramInks | 
           return instance.render(id, code)
         })
         .then((drawn) => {
-          /*
-           * DOMParser 解析失败不抛异常，交回一份装着 parsererror 的文档（官方
-           * DOMParser 的 Error handling 一节），所以这里问的是「有没有一个 svg 根」。
-           */
-          const parsed = new DOMParser().parseFromString(drawn.svg, 'image/svg+xml')
-          const root = parsed.querySelector('svg')
-
-          if (root === null) {
-            invariant(false, '引擎交回的不是一份可解析的 SVG')
-          }
+          const root = parseSvg(drawn.svg)
 
           if (live) {
+            keepSvg(key, drawn.svg)
             setFailure(undefined)
-            setGraphic(root)
+            setShown({ key, svg: root })
           }
         })
         .catch((cause: unknown) => {
           if (live) {
-            setGraphic(undefined)
+            setShown(undefined)
             setFailure(cause instanceof Error ? cause.message : String(cause))
           }
         })
@@ -146,9 +190,9 @@ function useDiagramSvg(code: string, isIncomplete: boolean, inks: DiagramInks | 
     return () => {
       live = false
     }
-  }, [code, inks, isIncomplete, seed])
+  }, [code, inks, isIncomplete, seed, shown])
 
-  return { failure, graphic }
+  return { failure, graphic: shown?.svg }
 }
 
 /* 双主题里暗色那一档写在 token 的 htmlStyle 上。这里只认字符串，形状不对就当没有。 */
@@ -304,7 +348,11 @@ export interface DiagramProps {
  */
 function useInks() {
   const [host, setHost] = useState<HTMLDivElement | null>(null)
-  const [inks, setInks] = useState<DiagramInks | undefined>(undefined)
+  /*
+   * 首帧就问缓存：取色探针要挂在真实祖先里才读得到令牌，而祖先要等节点上屏 ——
+   * 没这一份，重挂载后第一帧永远是「没有颜色」，也就永远画不出图（那张图刚被卸载）。
+   */
+  const [inks, setInks] = useState<DiagramInks | undefined>(() => cachedInks(currentTheme()))
   const attach = useCallback((node: HTMLDivElement | null) => {
     setHost(node)
   }, [])
@@ -315,7 +363,10 @@ function useInks() {
     }
 
     const read = () => {
-      setInks(diagramInks(host))
+      const next = diagramInks(host)
+
+      keepInks(currentTheme(), next)
+      setInks(next)
     }
 
     read()
