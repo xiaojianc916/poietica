@@ -259,8 +259,11 @@
   cursor: default;
 }
 
-/* 按下的那一枚模式图标着色并铺底：一眼看得出此刻是哪一档。 */
+/* 按下的那一枚模式图标填成实心：状态只由字形报，不铺底（铺底是悬停的读法）。 */
 .prompt-queue__action[aria-pressed="true"] {
-  background: var(--cp-queue-hover);
   color: var(--cp-ink);
+}
+
+.prompt-queue__action[aria-pressed="true"] svg {
+  fill: currentColor;
 }

@@ -12,7 +12,6 @@ import {
   useAssistantRevealTarget,
   useAssistantTimeline,
 } from '../transcript/use-assistant-session'
-import { RestoreSpinner } from './restore-spinner'
 import { createRowEstimator } from './row-estimate'
 import { TimelineSeat } from './timeline-seat'
 
@@ -75,7 +74,6 @@ function nearestLandingRow(
 export interface TranscriptViewProps {
   readonly sessionKey: string
   readonly dockClearance: number | null
-  readonly isRestoring: boolean
   /** 转录之前那一块常驻内容,交给滚动盒。 */
   readonly lead?: ReactNode
   /** 参数是协议用户撤销锚点数，不是运行数。缺席表示平台不提供分叉。 */
@@ -104,7 +102,7 @@ function rowRhythmOf(row: FeedRow | undefined): RowRhythm {
   return item === undefined ? 'prose' : RHYTHM[item.type]
 }
 
-export function TranscriptView({ dockClearance, isRestoring, lead, onFork, sessionKey }: TranscriptViewProps) {
+export function TranscriptView({ dockClearance, lead, onFork, sessionKey }: TranscriptViewProps) {
   const timeline = useAssistantTimeline(sessionKey)
   const hasEarlier = useAssistantHasEarlier(sessionKey)
   const outline = useAssistantOutline(sessionKey)
@@ -282,26 +280,19 @@ export function TranscriptView({ dockClearance, isRestoring, lead, onFork, sessi
   )
 
   return (
-    <>
-      {/*
-       * 判据里带 count === 0 不是防抖，是归属：这个图标属于「空白」，不属于「忙碌」。
-       */}
-      <RestoreSpinner active={isRestoring && feed.count === 0} dockClearance={dockClearance} />
-
-      <AgentActivityFeed
-        conversation={sessionKey}
-        disclosed={disclosure}
-        dockClearance={dockClearance}
-        estimateRow={estimateRowAt}
-        feed={feed}
-        hasEarlier={hasEarlier}
-        isBusy={selectIsBusy(timeline)}
-        lead={lead}
-        onReachStart={readEarlier}
-        overlay={overlay}
-        renderRow={renderRowAt}
-        rowRhythm={rowRhythmAt}
-      />
-    </>
+    <AgentActivityFeed
+      conversation={sessionKey}
+      disclosed={disclosure}
+      dockClearance={dockClearance}
+      estimateRow={estimateRowAt}
+      feed={feed}
+      hasEarlier={hasEarlier}
+      isBusy={selectIsBusy(timeline)}
+      lead={lead}
+      onReachStart={readEarlier}
+      overlay={overlay}
+      renderRow={renderRowAt}
+      rowRhythm={rowRhythmAt}
+    />
   )
 }

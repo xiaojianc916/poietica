@@ -53,7 +53,6 @@ export function DelegateChannelPane({ agentId, conversationId }: DelegateChannel
       ) : (
         <TranscriptView
           dockClearance={null}
-          isRestoring={false}
           lead={<UserMessage text={call.subject === '' ? call.title : call.subject} />}
           sessionKey={delegateKey(conversationId, agentId)}
         />

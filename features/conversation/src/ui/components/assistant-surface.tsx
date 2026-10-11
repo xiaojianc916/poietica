@@ -447,12 +447,7 @@ export const AssistantSurface = memo(function AssistantSurface({
           <div className="conversation-veil" data-assistant-skin />
 
           {live ? (
-            <TranscriptView
-              dockClearance={clearance.value}
-              isRestoring={assistant.isRestoring}
-              onFork={onFork}
-              sessionKey={assistant.key}
-            />
+            <TranscriptView dockClearance={clearance.value} onFork={onFork} sessionKey={assistant.key} />
           ) : (
             <div className="assistant-surface__entry">
               {/*
