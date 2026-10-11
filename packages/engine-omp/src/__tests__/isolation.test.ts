@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, test } from 'bun:test'
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
+import { mkdirSync, mkdtempSync, realpathSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { dataLayout } from '@poietica/runtime-layout'
@@ -33,7 +33,9 @@ describe('P2.3 引导与隔离', () => {
   })
 
   test('T-ISO-2 prepareIsolation 改正 PI_CODING_AGENT_DIR、删除 OMP_PROFILE、切换 cwd', async () => {
-    const root = mkdtempSync(path.join(tmpdir(), 'poietica-iso-'))
+    // 与 omp-home.ts 同因：CI runner 上 tmpdir() 是 8.3 短名、夹具里的 homedir() 是长名，
+    // prepareIsolation 的「数据根必须在用户目录之下」会误判成越界；先归一到长名再交给夹具。
+    const root = mkdtempSync(path.join(realpathSync.native(tmpdir()), 'poietica-iso-'))
     made.push(root)
     const result = await runFixture('isolation.ts', { POIETICA_TEST_ROOT: root })
     expect(result.code).toBe(0)

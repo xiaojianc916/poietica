@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, test } from 'bun:test'
+import { afterEach, beforeEach, describe, expect, test, vi } from 'bun:test'
 import { mkdtemp, readdir, readFile, rm, writeFile } from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
@@ -52,10 +52,21 @@ describe('createJsonDocument', () => {
   test('saveDebounced 连续 3 次只落盘最后一次', async () => {
     const doc = makeDocument({ debounceMs: 20 })
     await doc.load()
-    doc.saveDebounced({ a: 1, b: 'one' })
-    doc.saveDebounced({ a: 2, b: 'two' })
-    doc.saveDebounced({ a: 3, b: 'three' })
-    await Bun.sleep(50)
+    /*
+     * 时间用假钟推进、用代码自己暴露的 flush() 收口，不赌真实磁盘速度：去抖窗口到点后
+     * 那次写入是异步的（临时文件 → fsync → 改名），CI 冷盘上可能远超任何固定 sleep
+     * （老写法赌 Bun.sleep(50)，偶发还没落盘就断言 → ENOENT 假红）。
+     */
+    vi.useFakeTimers()
+    try {
+      doc.saveDebounced({ a: 1, b: 'one' })
+      doc.saveDebounced({ a: 2, b: 'two' })
+      doc.saveDebounced({ a: 3, b: 'three' })
+      vi.advanceTimersByTime(30) // 去抖窗口到点：只有最后一次进入写入
+    } finally {
+      vi.useRealTimers()
+    }
+    await doc.flush()
     expect(JSON.parse(await readFile(file, 'utf8'))).toEqual({ a: 3, b: 'three' })
   })
 
