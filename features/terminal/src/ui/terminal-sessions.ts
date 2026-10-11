@@ -6,6 +6,8 @@ import type { TerminalInfo } from '../contract'
 import type { TerminalApi } from './api'
 import { terminalTheme } from './xterm-theme'
 
+import '@xterm/xterm/css/xterm.css'
+
 /*
  * 终端画面与 Host 会话之间的那一层：每个终端一个**常驻**的 xterm Terminal 对象，
  * 存在 store 之外的 Map 里（07 页 §11E）。切换标签只换哪一块 DOM 可见，对象不动 ——

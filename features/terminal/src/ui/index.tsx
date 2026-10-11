@@ -4,12 +4,9 @@ import { platformContract } from '@poietica/feature-platform/contract'
 import { WorkspacesUiToken } from '@poietica/feature-workspaces/ui-api'
 import { builtinPoints, defineUiFeature, type KeybindingItem, LayoutToken, ToastsToken } from '@poietica/ui-kernel'
 import { SquareTerminal } from 'lucide-react'
+import { lazy } from 'react'
 import { createTerminalApi } from './api'
-import { TerminalPanel } from './terminal-panel'
-import { createTerminalRuntime } from './terminal-store'
-
-import '@xterm/xterm/css/xterm.css'
-import './terminal-pane.css'
+import { createLazyTerminalRuntime } from './terminal-loader'
 
 const PANEL_ID = 'terminal.panel'
 
@@ -44,7 +41,8 @@ export default defineUiFeature({
     const api = createTerminalApi(ctx)
     const platform = ctx.rpc(platformContract)
 
-    const runtime = createTerminalRuntime({
+    /* xterm 不进入口闭包：运行时与面板都按需加载（P-06，见 terminal-loader.ts） */
+    const runtime = createLazyTerminalRuntime({
       api,
       logger: ctx.logger,
       cwd: () => workspaces.active()?.path ?? null,
@@ -58,13 +56,19 @@ export default defineUiFeature({
       },
     })
 
+    /* 右坞的面板主体外层已有 Suspense（auxiliary-dock.tsx）与功能错误边界（FeatureScope） */
+    const TerminalPanelLazy = lazy(async () => {
+      const [loaded, { TerminalPanel }] = await Promise.all([runtime.load(), import('./terminal-panel')])
+      return { default: () => <TerminalPanel runtime={loaded} /> }
+    })
+
     ctx.contribute(builtinPoints.panels, {
       id: PANEL_ID,
       location: 'right',
       order: 15,
       title: '终端',
       icon: SquareTerminal,
-      component: () => <TerminalPanel runtime={runtime} />,
+      component: TerminalPanelLazy,
     })
 
     /* 通知按 terminalId 分发到各自的常驻画面上（07 页 §11E 的「输出」一行）。 */

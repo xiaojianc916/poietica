@@ -42,6 +42,7 @@ import { HomeSurface } from './components/home-surface'
 import { SkillDocumentPane } from './components/skill-document-pane'
 import { createSkillDocumentStore, SKILL_DOCUMENT_PANEL, toggleSkillDocument } from './components/skill-document-store'
 import { AssistantThreadList } from './components/threads/assistant-thread-list'
+import { loadMath } from './components/timeline/math-plugin'
 import { createWidgetCard } from './components/timeline/widget-card'
 import { ConversationProviders } from './composition'
 import { createPostureIntent } from './configuration/posture-intent'
@@ -448,6 +449,12 @@ export default defineUiFeature({
     ctx.lifecycle.onCoreReady(async () => {
       readyCount += 1
       const first = readyCount === 1
+      if (first) {
+        /* 首屏画完、开始拉历史时顺手预取公式模块（P-06）：不阻塞这里的恢复步骤 */
+        void loadMath().catch((cause: unknown) => {
+          ctx.logger.warn('公式渲染模块没能加载，公式将按源码显示', { error: String(cause) })
+        })
+      }
       const steps: Array<readonly [string, () => unknown]> = [
         ['threads', () => stores.threads.refresh()],
         ...(first ? ([['posture', () => posture.load()]] as const) : []),

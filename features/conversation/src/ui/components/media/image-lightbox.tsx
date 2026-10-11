@@ -1,89 +1,53 @@
-import Lightbox, { type Slide, type SlideImage } from 'yet-another-react-lightbox'
-import Counter from 'yet-another-react-lightbox/plugins/counter'
-import Zoom from 'yet-another-react-lightbox/plugins/zoom'
-import 'yet-another-react-lightbox/plugins/counter.css'
-import 'yet-another-react-lightbox/styles.css'
-import { useCallback, useMemo } from 'react'
-import './image-lightbox.css'
+import { lazy, Suspense, useEffect } from 'react'
+import type { ImageLightboxProps } from './image-lightbox-types'
 
-/** A previewable image, typically produced from a composer attachment. */
-export type PreviewableImage = {
-  /** Stable identity; falls back to `src` when omitted. */
-  id?: string
-  /** `asset://`, `blob:`, `data:` and `https:` sources are all supported. */
-  src: string
-  alt?: string
-  width?: number
-  height?: number
-  caption?: string
-}
+export type { ImageLightboxProps, PreviewableImage } from './image-lightbox-types'
 
-export type ImageLightboxProps = {
-  images: readonly PreviewableImage[]
-  /** Index of the open slide; `null` (or `-1`) keeps the lightbox closed. */
-  index: number | null
-  onIndexChange: (index: number | null) => void
-}
-
-/**
- * Build lightbox slides from attachments.
+/*
+ * 灯箱的轻壳（性能审查 P-06）。
  *
- * `SlideImage` declares `width?: number` (without `| undefined`), and this
- * workspace compiles with `exactOptionalPropertyTypes`. An absent dimension must
- * therefore be an absent *key*, not a key holding `undefined` — hence the
- * conditional spreads instead of a cast or a widened local type.
+ * 灯箱库连同插件与样式约 100KB，以前被三处调用方静态带进入口闭包，每次启动都要解析；
+ * 而且每条带图消息都常驻一个关着的实例。现在：
+ *   - 库在独立的分块里，壳只在打开时挂载实现。关上时直接卸掉不影响淡出：库在自己的
+ *     关闭动画放完之后才回调 onIndexChange(null)（yarl Portal 的 handleClose），旧代码里关着的
+ *     实例同样什么都不画；
+ *   - 画面上一出现缩略图就在空闲时预取分块，点开时通常已经就绪，不会多等一拍。
  */
-const toSlides = (images: readonly PreviewableImage[]): Slide[] =>
-  images.map((image): SlideImage => {
-    const { width, height, caption } = image
+const loadImpl = () => import('./image-lightbox-impl')
+const Impl = lazy(() => loadImpl().then((m) => ({ default: m.ImageLightboxImpl })))
 
-    return {
-      src: image.src,
-      alt: image.alt ?? '',
-      ...(width !== undefined && { width }),
-      ...(height !== undefined && { height }),
-      ...(caption !== undefined && { description: caption }),
-    }
-  })
+/** 空闲时预取一次；只为把点开那一下的等待挪走，失败了点开时会再试 */
+let prefetched = false
+function prefetchWhenIdle(): void {
+  if (prefetched) return
+  prefetched = true
+  const run = (): void => {
+    void loadImpl().catch(() => {
+      prefetched = false
+    })
+  }
+  if (typeof requestIdleCallback === 'function') requestIdleCallback(run, { timeout: 2_000 })
+  else setTimeout(run, 0)
+}
 
 /**
  * Fullscreen image preview. Controlled: the caller owns the open index, so the
  * same overlay can be driven from a thumbnail grid, a keyboard shortcut, or a
  * transcript message without duplicating state.
- *
- * carousel.padding 是显式给的，因为库的默认值是 "16px"：配上默认的
- * imageFit: "contain"，一张图会被放大到离窗口边缘只剩 16px，打开的第一眼是「顶
- * 满」而不是「看清」。取百分比而不是像素，是因为 computeSlideRect 按容器宽度折
- * 算它 —— 窗口拉大留白同比例跟随，一个数管所有窗口尺寸。
- *
- * 缩略图那两档尺寸不在这里：它们是列表里的物件，与打开后的观看尺度无关。
  */
-export function ImageLightbox({ images, index, onIndexChange }: ImageLightboxProps) {
-  const slides = useMemo(() => toSlides(images), [images])
-  const open = index !== null && index >= 0 && index < slides.length
+export function ImageLightbox(props: ImageLightboxProps) {
+  const { images, index } = props
+  const open = index !== null && index >= 0 && index < images.length
 
-  const handleClose = useCallback(() => {
-    onIndexChange(null)
-  }, [onIndexChange])
+  const hasImages = images.length > 0
+  useEffect(() => {
+    if (hasImages) prefetchWhenIdle()
+  }, [hasImages])
 
-  if (slides.length === 0) {
-    return null
-  }
-
+  if (!open) return null
   return (
-    <Lightbox
-      animation={{ fade: 160, swipe: 260 }}
-      carousel={{ finite: true, padding: '8%', preload: 1 }}
-      className="poietica-lightbox"
-      close={handleClose}
-      controller={{ closeOnBackdropClick: true, closeOnPullDown: true }}
-      index={open ? index : 0}
-      on={{ view: ({ index: next }) => onIndexChange(next) }}
-      open={open}
-      plugins={[Zoom, Counter]}
-      slides={slides}
-      styles={{ container: { backdropFilter: 'blur(2px)' } }}
-      zoom={{ maxZoomPixelRatio: 4, scrollToZoom: true }}
-    />
+    <Suspense fallback={null}>
+      <Impl {...props} />
+    </Suspense>
   )
 }

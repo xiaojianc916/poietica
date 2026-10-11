@@ -2,7 +2,9 @@ import path from 'node:path'
 import tailwindcss from '@tailwindcss/vite'
 import react from '@vitejs/plugin-react'
 import { defineConfig, externalizeDepsPlugin } from 'electron-vite'
-import type { Plugin } from 'vite'
+import type { Plugin, Rollup } from 'vite'
+
+type OutputChunk = Rollup.OutputChunk
 
 /**
  * electron-vite 会分别构建 main、preload、renderer 三份产物，每份的要求不同：
@@ -74,6 +76,71 @@ function cspPlugin(isDev: boolean): Plugin {
   }
 }
 
+/*
+ * 首屏入口闭包的守卫（性能审查 P-06）。
+ *
+ * 入口分块及其静态 import 链上的所有分块，渲染进程都要下载、解析、编译、求值完才能画第一帧。
+ * 下面这些包只在交互之后才用得到（公式、终端、看大图），已经改成动态 import；谁再把它们
+ * 静态带回入口，构建直接失败 —— 而不是等用户觉得启动又慢了。
+ *
+ * 体积只告警不失败：功能正常增长不该卡住构建，但每次越线都应该有人看一眼是谁涨的。
+ */
+const DEFERRED_PACKAGES = ['/node_modules/katex/', '/node_modules/@xterm/', '/node_modules/yet-another-react-lightbox/']
+/** 入口静态闭包的体积告警线：P-06 之后约 5.11MB，留约 5% 余量 */
+const ENTRY_BUDGET_BYTES = 5_400_000
+
+/** 从入口出发沿静态 import 走一遍（动态 import 不算：那是按需加载） */
+function staticClosure(chunks: ReadonlyMap<string, OutputChunk>): OutputChunk[] {
+  const entry = [...chunks.values()].find((chunk) => chunk.isEntry)
+  const seen = new Map<string, OutputChunk>()
+  const stack = entry === undefined ? [] : [entry]
+  for (let chunk = stack.pop(); chunk !== undefined; chunk = stack.pop()) {
+    if (seen.has(chunk.fileName)) continue
+    seen.set(chunk.fileName, chunk)
+    for (const name of chunk.imports) {
+      const next = chunks.get(name)
+      if (next !== undefined) stack.push(next)
+    }
+  }
+  return [...seen.values()]
+}
+
+/** 闭包里出现了哪些「应当按需」的包：每个包一行，带上它落在哪些分块里 */
+function deferredIn(closure: readonly OutputChunk[]): string[] {
+  const hits = new Map<string, Set<string>>()
+  for (const chunk of closure) {
+    for (const id of chunk.moduleIds) {
+      const pkg = DEFERRED_PACKAGES.find((name) => id.replaceAll('\\', '/').includes(name))
+      if (pkg !== undefined) hits.set(pkg, (hits.get(pkg) ?? new Set()).add(chunk.fileName))
+    }
+  }
+  return [...hits].map(([pkg, files]) => `  ${pkg} ← ${[...files].join(', ')}`)
+}
+
+function entryBudgetPlugin(): Plugin {
+  return {
+    name: 'poietica:entry-budget',
+    apply: 'build',
+    generateBundle(_options, bundle) {
+      const chunks = new Map<string, OutputChunk>()
+      for (const item of Object.values(bundle)) {
+        if (item.type === 'chunk') chunks.set(item.fileName, item)
+      }
+      const closure = staticClosure(chunks)
+      const offenders = deferredIn(closure)
+      if (offenders.length > 0) {
+        this.error(`这些按需加载的包被静态带进了首屏入口（见 P-06）：\n${offenders.join('\n')}`)
+      }
+      const bytes = closure.reduce((sum, chunk) => sum + Buffer.byteLength(chunk.code), 0)
+      if (bytes > ENTRY_BUDGET_BYTES) {
+        this.warn(
+          `首屏入口静态闭包 ${(bytes / 1e6).toFixed(2)}MB，超过告警线 ${(ENTRY_BUDGET_BYTES / 1e6).toFixed(2)}MB`,
+        )
+      }
+    },
+  }
+}
+
 export default defineConfig(({ mode }) => {
   const isDev = mode !== 'production'
   return {
@@ -129,7 +196,7 @@ export default defineConfig(({ mode }) => {
       // 少了它，styles.css 只剩 tokens 与手写 CSS —— 界面上所有 .flex / .items-center /
       // .bg-sidebar 这类类名全部失效，整屏退化成没有样式的裸 HTML（真实故障）。
       // legacy 的 apps/desktop/electron.vite.config.ts 里同样是 react() + tailwindcss() 两个。
-      plugins: [react(), tailwindcss(), cspPlugin(isDev)],
+      plugins: [react(), tailwindcss(), cspPlugin(isDev), entryBudgetPlugin()],
       // 不加 alias：工作区包的 exports 直接指向 TS 源码，vite 通过 node_modules 软链解析即可；
       // 加 alias 会把 `@poietica/design-system/styles.css` 这类子路径也重写成 index.ts。
       build: {

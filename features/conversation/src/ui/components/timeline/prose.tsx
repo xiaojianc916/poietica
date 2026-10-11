@@ -1,9 +1,7 @@
 import { invariant } from '@poietica/foundation'
 import { cjk } from '@streamdown/cjk'
 import { code } from '@streamdown/code'
-import { createMathPlugin } from '@streamdown/math'
-import 'katex/dist/katex.min.css'
-import { memo } from 'react'
+import { memo, useEffect, useSyncExternalStore } from 'react'
 import {
   type AnimateOptions,
   type ControlsConfig,
@@ -21,12 +19,29 @@ import './timeline.css'
 import { cx } from '../primitives/class-names'
 import { asIcon, CheckIcon, CopyIcon } from '../primitives/icons'
 import { DIAGRAM_RENDERER } from './diagram'
+import { currentMath, loadMath, mayContainMath, subscribeMath } from './math-plugin'
 import { ProseLink } from './prose-link'
 import { ExportableTable } from './table-export'
 
-/* 单美元号按公式处理；成对货币符号也可能被识别为公式。 */
-const MATH = createMathPlugin({ singleDollarTextMath: true })
-const PLUGINS: PluginConfig = { cjk, code, math: MATH, renderers: [DIAGRAM_RENDERER] }
+/*
+ * 插件表必须是稳定引用：Streamdown 按 plugins.math / plugins.cjk 的引用做 useMemo，
+ * 每次给新对象就会重建处理链。公式模块到达前用 BASE_PLUGINS，到达后所有 Prose 共用同一份
+ * 带 math 的表（P-06：katex 按需加载，见 math-plugin.ts）。
+ */
+const BASE_PLUGINS: PluginConfig = { cjk, code, renderers: [DIAGRAM_RENDERER] }
+let pluginsWithMath: PluginConfig | undefined
+
+function useProsePlugins(text: string): PluginConfig {
+  const math = useSyncExternalStore(subscribeMath, currentMath)
+  const wanted = math === undefined && mayContainMath(text)
+  useEffect(() => {
+    /* 失败时正文保持源码显示；预取那一处（index.tsx）会记日志，这里不重复报 */
+    if (wanted) void loadMath().catch(() => undefined)
+  }, [wanted])
+  if (math === undefined) return BASE_PLUGINS
+  pluginsWithMath ??= { ...BASE_PLUGINS, math }
+  return pluginsWithMath
+}
 
 /* 表格使用产品自己的导出控件，图片交互由媒体视图接管。 */
 const CONTROLS: ControlsConfig = {
@@ -122,6 +137,7 @@ export const Prose = memo(function Prose({
   streaming = false,
   text,
 }: ProseProps) {
+  const plugins = useProsePlugins(text)
   return (
     <Streamdown
       animated={REVEAL}
@@ -134,7 +150,7 @@ export const Prose = memo(function Prose({
       lineNumbers={false}
       linkSafety={LINK_SAFETY}
       mode={mode}
-      plugins={PLUGINS}
+      plugins={plugins}
       rehypePlugins={REHYPE_PLUGINS}
       tableMaxHeight={TABLE_CAP}
       translations={TRANSLATIONS}

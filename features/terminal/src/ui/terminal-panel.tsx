@@ -5,6 +5,8 @@ import { type ReactNode, useEffect } from 'react'
 import { type TerminalEntry, type TerminalRuntime, terminalTabLabel } from './terminal-store'
 import { TerminalView } from './terminal-view'
 
+import './terminal-pane.css'
+
 /**
  * 终端面板（07 页 §11E）：标签条（`title • 序号`、已退出变灰、`+` 新建、每个标签
  * 的 `×` 关闭）＋ 主体 xterm 视图。
