@@ -124,12 +124,12 @@
   text-wrap: pretty;
 }
 
-/* 流式渐进呈现是视觉增强；系统请求减少动态时，正文必须立即稳定。 */
-@media (prefers-reduced-motion: reduce) {
-  .timeline-prose [data-sd-animate],
-  .timeline-prose [data-sd-animate-marker]::marker {
-    animation: none;
-  }
+/*
+ * 包住正文的那层只给波浪淡入（use-wave-reveal.ts）一个扫描范围，不参与布局。
+ * 系统请求减少动态时 use-wave-reveal 根本不挂插件，正文立即稳定，这里不需要额外规则。
+ */
+.timeline-prose-host {
+  display: contents;
 }
 
 .timeline-prose :is(p, ul, ol, blockquote, hr, h1, h2, h3, h4, h5, h6) {

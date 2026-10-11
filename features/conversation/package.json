@@ -51,6 +51,7 @@
     "@poietica/test-kit": "workspace:*",
     "@testing-library/react": "catalog:",
     "@types/bun": "catalog:",
+    "@types/hast": "catalog:",
     "@types/react": "catalog:",
     "@types/react-dom": "catalog:",
     "electron": "catalog:"

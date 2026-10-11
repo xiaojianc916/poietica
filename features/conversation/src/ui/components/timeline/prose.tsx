@@ -3,7 +3,6 @@ import { cjk } from '@streamdown/cjk'
 import { code } from '@streamdown/code'
 import { memo, useEffect, useSyncExternalStore } from 'react'
 import {
-  type AnimateOptions,
   type ControlsConfig,
   defaultRehypePlugins,
   type IconMap,
@@ -22,6 +21,7 @@ import { DIAGRAM_RENDERER } from './diagram'
 import { currentMath, loadMath, mayContainMath, subscribeMath } from './math-plugin'
 import { ProseLink } from './prose-link'
 import { ExportableTable } from './table-export'
+import { useWaveReveal } from './use-wave-reveal'
 
 /*
  * 插件表必须是稳定引用：Streamdown 按 plugins.math / plugins.cjk 的引用做 useMemo，
@@ -113,15 +113,6 @@ const REHYPE_PLUGINS: RehypeChain = [
   withAssetImages(defaultRehypePlugins.harden),
 ]
 
-/* 中文没有词间空格；按字揭示，并限制积压动画的时长。 */
-const REVEAL: AnimateOptions = {
-  duration: 120,
-  easing: 'ease-out',
-  maxBacklogMs: 160,
-  sep: 'char',
-  stagger: 12,
-}
-
 export interface ProseProps {
   readonly text: string
   readonly streaming?: boolean
@@ -138,24 +129,27 @@ export const Prose = memo(function Prose({
   text,
 }: ProseProps) {
   const plugins = useProsePlugins(text)
+  /* 流式淡入是批次波浪（use-wave-reveal.ts，P-03），不用 Streamdown 自带的逐字 animated */
+  const wave = useWaveReveal(REHYPE_PLUGINS, streaming)
   return (
-    <Streamdown
-      animated={REVEAL}
-      className={cx('timeline-prose', className)}
-      codeBlockMaxHeight={codeBlockMaxHeight}
-      components={COMPONENTS}
-      controls={CONTROLS}
-      icons={ICONS}
-      isAnimating={streaming}
-      lineNumbers={false}
-      linkSafety={LINK_SAFETY}
-      mode={mode}
-      plugins={plugins}
-      rehypePlugins={REHYPE_PLUGINS}
-      tableMaxHeight={TABLE_CAP}
-      translations={TRANSLATIONS}
-    >
-      {text}
-    </Streamdown>
+    <div className="timeline-prose-host" ref={wave.hostRef}>
+      <Streamdown
+        className={cx('timeline-prose', wave.active && 'timeline-prose--wave', className)}
+        codeBlockMaxHeight={codeBlockMaxHeight}
+        components={COMPONENTS}
+        controls={CONTROLS}
+        icons={ICONS}
+        isAnimating={streaming}
+        lineNumbers={false}
+        linkSafety={LINK_SAFETY}
+        mode={mode}
+        plugins={plugins}
+        rehypePlugins={wave.rehypePlugins}
+        tableMaxHeight={TABLE_CAP}
+        translations={TRANSLATIONS}
+      >
+        {text}
+      </Streamdown>
+    </div>
   )
 })

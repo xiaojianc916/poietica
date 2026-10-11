@@ -1871,3 +1871,75 @@ Core 内存在长命令期间不再持续上涨；运行中断开重连（或刷
 worker、`poietica-asset://` 图片、widget iframe、拖文件、外链、渲染进程崩溃 reload 各一条；
 第 3 次启动后 `%APPDATA%\Poietica\Code Cache\js` 有数 MB 文件；打包后 asar 内文件经
 `net.fetch(file://)` 能读到。
+
+## P-03 流式正文的「批次波浪淡入」：逐字 span 动画换成 Web Animations 钉时刻（2026-10-11）
+
+**来源**：`Project Refactoring Plan/P-03.md`（外部输入，不入库）。P-02 / P-04 / P-05 / P-06
+均已在本页之前合入，故按方案 §5 第 7 步末尾「已合入 P-06 时」的合并版本落位。
+
+**现状复核**（方案 §2 的证据链逐条对过，行号已漂移、结论不变）：
+
+1. `prose.tsx` 用 `REVEAL = { sep:'char', duration:120, stagger:12, maxBacklogMs:160 }` 交给
+   Streamdown 的 `animated`；`timeline.css` 的 reduced-motion 规则只针对 `[data-sd-animate]`。
+2. streamdown 2.7.0 的动画插件给**每个字**包一个 `[data-sd-animate]` span，且上一次渲染已
+   出现的字被改成 `--sd-duration: 0ms`、无 delay —— 动画生命周期 ≤ 一次提交间隔，连续流式中
+   就是在开始前被截断成「直接显示」（实验 1：任意时刻只有最新约 6 个 span 在播，其余全跳变）。
+3. 外层 `Streamdown` memo 不比较 `rehypePlugins`，只换插件链不会重渲，必须同时改 className；
+   块组件 memo 比较 `rehypePlugins` 身份，链必须只建一次。
+4. 处理器缓存按「插件函数名 + 选项 JSON」做键，自定义插件必须有唯一函数名。
+5. 数学插件的 rehype 排在用户 `rehypePlugins` **之后**，KaTeX 会把 `code.math-inline` 整个
+   换掉 —— 标记必须打在外层 span 上才留得住。
+
+**改法**（严格按方案 §4 / §5 / §6，与旧版方案的差别见其 §4 复核表）：
+
+1. **`wave-reveal.ts`（新，纯函数 rehype 插件）**：每次块渲染与最近 8 个块的账本比对出
+   「新到的字」，按字素切成小段（每段 ≥ 6 字素、一批 ≤ 24 段），相邻小段错开
+   `min(stepMs=30, spreadMs/(段数−1))` 启动；下一批接在上一波尾巴后（全局游标）但积压 ≤ 240ms。
+   只把**仍在淡入中**的小段包成 `<span data-wave-start="绝对启动时刻">`，淡完的并回普通文本。
+   超大批只动画末尾 `hugeTail=600`；`pre/svg/math/annotation` 不拆；`img/hr` 整体算一个字；
+   行内 `code` 外包一层 span。末尾改写（未闭合的强调 / 链接补全）按「公共前缀 ≥ 8 且只改末尾
+   ≤ 16 字」认作同一块。插件名唯一（`rehypeWaveReveal$序号`）；`now` 可注入，单测用假时钟。
+2. **`wave-dom.ts`（新，`syncWave(host)`）**：`useLayoutEffect` 里扫正文子树的
+   `[data-wave-start] / [data-wave-marker]`，用 `el.animate()` 挂淡入，并把 `animation.startTime`
+   **钉在标记的绝对时刻**（`performance.now()` 与 `document.timeline` 同源）。同一元素同一时刻
+   不重复挂；React 复用节点导致时刻变化时改钉同一条 → 不重播、不截断。`fill:'backwards'`：
+   启动前透明、播完不留样式；一次提交新起动画超过 `maxFreshPerCommit=64` 时，靠前的直接实显。
+3. **`use-wave-reveal.ts`（新，Hook）**：`streaming` 期间挂插件链，结束后再「逗留」到
+   `busyUntil()` 才摘（否则最后一波会被截断）；`useSyncExternalStore` 订阅
+   `prefers-reduced-motion`，开启时或没有 `Element.prototype.animate` 时根本不挂插件。
+   链只建一次（身份稳定）；首个挂链的提交只记账，`arm()` 之后才排程。
+4. **`prose.tsx`**：删掉 `animated={REVEAL}`、`REVEAL` 常量和 `AnimateOptions` 导入；改用
+   `useWaveReveal(...)` 的链，外包一层 `display: contents` 的 `.timeline-prose-host` 作为扫描
+   范围，插件链切换时同时切 `timeline-prose--wave` 修饰类。**P-06 的按需公式插件保留**：
+   `const plugins = useProsePlugins(text)` + `plugins={plugins}` 一字未动。
+5. **`timeline.css`**：删掉只认 `[data-sd-animate]` 的 reduced-motion 规则（现在由 Hook 决定
+   挂不挂），换成 `.timeline-prose-host { display: contents }`。
+
+**测试**（先写、在旧代码上确认红，再实现）：
+
+- `__tests__/prose-wave.test.tsx`（新，4 例）：P1 流式中不产生逐字 span 且在飞波浪 span ≤ 40、
+  P2 结束后 DOM 无残留标记、P3 非流式从不挂插件、P4 首帧已有的字不做动画。旧代码上
+  **P1 失败（`Expected length: 0, Received length: 3`，逐字 span）**，P2–P4 也过（防回归）。
+- `__tests__/wave-reveal.test.ts`（新，15 例）：W1–W15 覆盖未 arm 只记账、不重播、分段与
+  错开启动、跨批首尾相接与积压上限、淡完并回、3000 字在飞 span ≤ 16、字素边界、
+  末尾改写、结构（pre / 行内 code / li marker / img）、超大批、插件名唯一、busyUntil。
+- `__tests__/wave-dom.test.ts`（新，3 例）：D1 startTime 钉在标记时刻、D2 重复 sync 不新建
+  动画且改时刻只重钉同一条、D3 一次提交超上限时靠前的直接实显。
+
+**验收**：`bun run typecheck` 通过（714 files / 80 projects + 915 test files）；
+`bun run lint` 通过（biome + no-raw-errors + no-biome-ignore + editor-project-map + depcruise）；
+`bun test features/conversation` **365 pass / 0 fail**（基线 343，新增 22 = 4 + 15 + 3）；
+`bun run all` 全绿（1939 pass / 0 fail，较 P-06 的 1917 新增 22）；
+`cd apps/desktop && bun x electron-vite build --mode production` 通过（P-06 的入口守卫未触发）。
+
+**偏差**：无契约、无协议、无持久化数据变化，业务代码未动引擎与数据；回滚即整笔 revert。
+落位文件与方案 §5 / §7 的代码块逐字一致（唯按 P-06 已合入后的合并版本写 `prose.tsx`）。
+新增依赖：`@types/hast@^3.0.4`（写进根 `catalog` 与 `features/conversation` 的
+`devDependencies`），已跑 `bun install`。
+
+**待真机复核**（方案 §7，需 Windows 桌面实例）：2000 字以上含列表 / 行内代码 / 行内公式 /
+代码块的长回复，末尾应有「前实后淡」的渐变带、无逐字跳、停顿后突发是「一道波扫过去」；
+DevTools 里流式中 `data-sd-animate` 为 0、`data-wave-start` 只有几十个且随输出替换；
+Performance 录 10 秒对比提交耗时；结束后约 0.7 秒标记归零且复制内容与旧版一致；
+流式中最小化 10 秒再切回只淡末尾一截；系统「减少动态」开关运行时切换立即生效；
+切会话 / 滚出视口再回来已显示的字不重播；历史消息、计划面板、技能文档、工具结果面板外观不变。
