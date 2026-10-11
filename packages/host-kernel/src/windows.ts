@@ -1,6 +1,6 @@
-import { pathToFileURL } from 'node:url'
 import { AppError, type Logger, SystemErrorCode } from '@poietica/foundation'
 import { BrowserWindow, session, shell } from 'electron'
+import { APP_ENTRY_URL } from './app-protocol'
 
 export interface MainWindowConfig {
   readonly bounds?: { readonly x?: number; readonly y?: number; readonly width: number; readonly height: number }
@@ -45,7 +45,7 @@ export class WindowRegistry {
     for (const w of BrowserWindow.getAllWindows()) if (!w.isDestroyed()) w.destroy()
   }
 
-  createMain(p: { preload: string; rendererFile: string; rendererDevUrl: string | undefined }): BrowserWindow {
+  createMain(p: { preload: string; rendererDevUrl: string | undefined }): BrowserWindow {
     const win = new BrowserWindow({
       width: 1280,
       height: 800,
@@ -67,7 +67,8 @@ export class WindowRegistry {
       },
     })
     this.win = win
-    const appUrl = p.rendererDevUrl ?? pathToFileURL(p.rendererFile).href
+    /* 安装版走 poietica-app://shell（P-06：file:// 没有 V8 代码缓存）；导航守卫与加载用同一个地址 */
+    const appUrl = p.rendererDevUrl ?? APP_ENTRY_URL
     const isAppUrl = (url: string): boolean =>
       p.rendererDevUrl !== undefined ? url.startsWith(new URL(p.rendererDevUrl).origin) : url.split('#')[0] === appUrl
     const isExternal = (url: string): boolean => /^(https?:|mailto:)/i.test(url)
@@ -112,8 +113,7 @@ export class WindowRegistry {
     )
     session.defaultSession.setPermissionCheckHandler((_wc, permission) => ALLOWED_PERMISSIONS.has(permission))
 
-    if (p.rendererDevUrl !== undefined) void win.loadURL(p.rendererDevUrl)
-    else void win.loadFile(p.rendererFile)
+    void win.loadURL(appUrl)
     return win
   }
 }

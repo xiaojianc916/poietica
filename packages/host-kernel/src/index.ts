@@ -1,4 +1,5 @@
 export { type AppIdentity, configureAppIdentity } from './app-identity'
+export { APP_ENTRY_URL, APP_SCHEME, createAppProtocolHandler, type FetchFile } from './app-protocol'
 export { ASSET_SCHEME, type AssetDispatcher, type AssetHandler, createAssetDispatcher } from './asset-protocol'
 export { type CoreLogSink, createCoreLogSink } from './core-log-sink'
 export {

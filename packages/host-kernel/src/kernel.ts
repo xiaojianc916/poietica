@@ -1,5 +1,7 @@
 import { mkdirSync } from 'node:fs'
 import os from 'node:os'
+import path from 'node:path'
+import { pathToFileURL } from 'node:url'
 import type { AppContract } from '@poietica/contract-kit'
 import {
   AppError,
@@ -11,8 +13,9 @@ import {
 } from '@poietica/foundation'
 import { consoleSink, createLogger, jsonlFileSink } from '@poietica/logging'
 import { Router } from '@poietica/rpc'
-import { app, dialog, protocol, type WebContents } from 'electron'
+import { app, dialog, net, protocol, type WebContents } from 'electron'
 import { type AppIdentity, configureAppIdentity } from './app-identity'
+import { APP_SCHEME, APP_SCHEME_PRIVILEGES, createAppProtocolHandler } from './app-protocol'
 import { ASSET_SCHEME, createAssetDispatcher } from './asset-protocol'
 import { createCoreLogSink } from './core-log-sink'
 import { CoreSupervisor } from './core-supervisor'
@@ -81,6 +84,8 @@ export function runHostKernel(opts: HostKernelOptions): void {
   // ④ 自定义协议的特权声明（ready 之前，只能调用一次）
   protocol.registerSchemesAsPrivileged([
     { scheme: ASSET_SCHEME, privileges: { standard: true, secure: true, supportFetchAPI: true, stream: true } },
+    /* 应用外壳：安装版从这里加载渲染进程，才有 V8 代码缓存（P-06，见 app-protocol.ts） */
+    { scheme: APP_SCHEME, privileges: APP_SCHEME_PRIVILEGES },
   ])
   void app
     .whenReady()
@@ -208,9 +213,12 @@ async function boot(
   // ⑧ beforeWindow → 协议 → 窗口
   for (const fn of beforeWindow) await fn()
   protocol.handle(ASSET_SCHEME, (request) => assets.dispatch(request))
+  protocol.handle(
+    APP_SCHEME,
+    createAppProtocolHandler(path.dirname(opts.paths.rendererFile), (file) => net.fetch(pathToFileURL(file).href)),
+  )
   const win = windows.createMain({
     preload: opts.paths.preload,
-    rendererFile: opts.paths.rendererFile,
     rendererDevUrl: opts.paths.rendererDevUrl,
   })
   hub.attachWindow(win.webContents)
