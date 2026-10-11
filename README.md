@@ -1,7 +1,5 @@
 # Poietica
 
-<img src="apps/desktop/resources/icon.png" width="96" alt="Poietica 图标">
-
 **本地 AI agent 桌面应用（Windows）**，内置 [Oh My Pi](https://github.com/can1357/oh-my-pi)（omp）引擎，
 开箱即用。omp 随包发布（锁定 18.5.0）、数据只落在应用自己的数据根，与用户机器上的全局 omp 完全隔离。
 
