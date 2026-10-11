@@ -1,4 +1,5 @@
-import { readSetting, type SettingsScope, settingAt } from '../settings-access'
+import type { Settings } from '@oh-my-pi/pi-coding-agent/config/settings'
+import { type SettingsScope, settingAt } from '../settings-access'
 
 /*
  * 端口要用到、而 settings-access.ts（P2.4，别人的线）没导出的那几件设置操作。
@@ -21,21 +22,19 @@ export function removeArrayMember(scope: SettingsScope, path: string, item: stri
   setMember(scope, path, item, false)
 }
 
-/** record 设置里的一格（omp 的 Setting.setEntry）。 */
-export function writeRecordEntry(scope: SettingsScope, path: string, key: string, value: unknown): void {
-  entryOf(path).setEntry(scope, key, value as never)
+/** 读一格模型角色（omp 的 Settings.getModelRole）；没配就是 undefined。 */
+export function modelRoleOf(scope: SettingsScope, role: string): string | undefined {
+  return settingsInstanceOf(scope).getModelRole(role)
 }
 
-/** 删 record 设置里的一格（值为 undefined 就是删除，omp 的 setEntry 同此语义）。 */
-export function removeRecordEntry(scope: SettingsScope, path: string, key: string): void {
-  entryOf(path).setEntry(scope, key, undefined as never)
+/** 写/删一格模型角色（omp 的 Settings.setModelRole；undefined 是删除）。 */
+export function setModelRoleOf(scope: SettingsScope, role: string, value: string | undefined): void {
+  settingsInstanceOf(scope).setModelRole(role, value)
 }
 
-/** 读 record 设置里的一格；那一格不存在就是 undefined。 */
-export function readRecordEntry(scope: SettingsScope, path: string, key: string): unknown {
-  const record: unknown = readSetting(scope, path)
-  if (record === null || typeof record !== 'object' || Array.isArray(record)) return undefined
-  return (record as Record<string, unknown>)[key]
+/** 覆盖整份模型角色表（omp 的 Settings.overrideModelRoles，只写运行时覆盖层）。 */
+export function overrideModelRolesOf(scope: SettingsScope, roles: Readonly<Record<string, string>>): void {
+  settingsInstanceOf(scope).overrideModelRoles(roles)
 }
 
 /**
@@ -46,14 +45,13 @@ export async function flushOf(scope: SettingsScope): Promise<void> {
   await settingsInstanceOf(scope).flush()
 }
 
-function settingsInstanceOf(scope: SettingsScope): { flush(): Promise<void> } {
+function settingsInstanceOf(scope: SettingsScope): Settings {
   return 'settings' in scope ? scope.settings : scope
 }
 
-/** omp 的数组/record 句柄那几格（Setting.setMember / Setting.setEntry）。 */
+/** omp 的数组句柄那一格（Setting.setMember）。 */
 interface MemberHandle {
   setMember(scope: SettingsScope, item: string, options: { member: boolean }): void
-  setEntry(scope: SettingsScope, key: string, value: never): void
 }
 
 function entryOf(path: string): MemberHandle {

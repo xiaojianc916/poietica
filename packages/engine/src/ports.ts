@@ -31,19 +31,13 @@ export interface ModelsPort {
   defaultThinking(): Promise<string | null>
   setDefaultThinking(level: string | null): Promise<void>
   /**
-   * 「生成对话标题用的模型」（omp 的 `modelRoles.title`）。
-   *
-   * null = 没设：标题用**这条对话自己的模型**（产品默认）。设置页那一项就是这里。
-   * 注意 omp 的标题角色（tiny/commit/smol）是另一套：那个是它自己挑的轻量模型，
-   * 这一格是用户显式指定的「就用它来起名」。
+   * 「生成对话标题用的模型」（omp 的 `modelRoles.title`）；null = 没设，用这条对话自己的模型。
    */
   titleModel(): Promise<ModelRef | null>
   setTitleModel(ref: ModelRef | null): Promise<void>
   /**
-   * 此刻**真正可用**的模型（omp 的 `getAvailable()`，与它自己的模型选择器、草稿控件同一份事实）。
-   *
-   * 设置页的「生成标题的模型」按它列候选：`providers.configured` 只认凭据表，把
-   * models.yml 里定义的自定义服务商（key 写在 yml 里）误判成没配置（真机实测）。
+   * 此刻真正可用的模型（omp 的 `getAvailable()`）——「生成标题的模型」的候选表用它，
+   * 不用 `providers.configured`（那个只认凭据表，会漏掉 models.yml 里写死 key 的服务商）。
    */
   availableModels(): Promise<readonly { readonly ref: ModelRef; readonly label: string }[]>
   upsertCustomProvider(def: CustomProviderDef): Promise<void>

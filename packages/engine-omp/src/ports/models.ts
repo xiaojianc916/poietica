@@ -13,10 +13,9 @@ import {
   stringArrayOf,
 } from './model-helpers'
 import type { CustomProvidersFile } from './models-file'
-import { flushOf, readRecordEntry, removeRecordEntry, writeRecordEntry } from './settings-writes'
+import { flushOf, modelRoleOf, setModelRoleOf } from './settings-writes'
 
-/** 默认模型那一格：`modelRoles` 是 record 设置，`default` 是里面的键，值是整串 provider/id。 */
-const MODEL_ROLES_PATH = 'modelRoles'
+/** 默认模型那一格：`modelRoles.default`，值是整串 provider/id。 */
 const DEFAULT_ROLE_KEY = 'default'
 /** 标题模型那一格：`modelRoles.title`（产品语义见 ModelsPort.titleModel 的头注）。 */
 const TITLE_ROLE_KEY = 'title'
@@ -143,8 +142,7 @@ export class OmpModelsPort implements ModelsPort {
   /** 默认模型：modelRoles.default，值是整串 provider/id。 */
   async defaultModel(): Promise<ModelRef | null> {
     try {
-      const value = readRecordEntry(this.d.root, MODEL_ROLES_PATH, DEFAULT_ROLE_KEY)
-      return typeof value === 'string' && value !== '' ? splitAlias(value) : null
+      return modelOf(this.d.root, DEFAULT_ROLE_KEY)
     } catch (error) {
       throw toEngineError(error)
     }
@@ -152,7 +150,7 @@ export class OmpModelsPort implements ModelsPort {
 
   async setDefaultModel(ref: ModelRef): Promise<void> {
     try {
-      writeRecordEntry(this.d.root, MODEL_ROLES_PATH, DEFAULT_ROLE_KEY, aliasOf(ref))
+      setModelRoleOf(this.d.root, DEFAULT_ROLE_KEY, aliasOf(ref))
       await this.#flush()
       this.#change.fire()
     } catch (error) {
@@ -169,8 +167,7 @@ export class OmpModelsPort implements ModelsPort {
    */
   async titleModel(): Promise<ModelRef | null> {
     try {
-      const value = readRecordEntry(this.d.root, MODEL_ROLES_PATH, TITLE_ROLE_KEY)
-      return typeof value === 'string' && value !== '' ? splitAlias(value) : null
+      return modelOf(this.d.root, TITLE_ROLE_KEY)
     } catch (error) {
       throw toEngineError(error)
     }
@@ -178,8 +175,7 @@ export class OmpModelsPort implements ModelsPort {
 
   async setTitleModel(ref: ModelRef | null): Promise<void> {
     try {
-      if (ref === null) removeRecordEntry(this.d.root, MODEL_ROLES_PATH, TITLE_ROLE_KEY)
-      else writeRecordEntry(this.d.root, MODEL_ROLES_PATH, TITLE_ROLE_KEY, aliasOf(ref))
+      setModelRoleOf(this.d.root, TITLE_ROLE_KEY, ref === null ? undefined : aliasOf(ref))
       await this.#flush()
       this.#change.fire()
     } catch (error) {
@@ -267,6 +263,12 @@ function splitAlias(alias: string): ModelRef {
   const cut = alias.indexOf('/')
   if (cut <= 0 || cut === alias.length - 1) return { provider: alias, id: alias }
   return { provider: alias.slice(0, cut), id: alias.slice(cut + 1) }
+}
+
+/** modelRoles 里那一格 → ModelRef；没配或空串就是 null。 */
+function modelOf(scope: SettingsScope, role: string): ModelRef | null {
+  const value = modelRoleOf(scope, role)
+  return value === undefined || value === '' ? null : splitAlias(value)
 }
 
 /** 让 biome 知道 OmpModelLike 在这里被用作形状约束（RegistryPort 的成员）。 */

@@ -58,11 +58,8 @@ export type EngineSessionEvent =
   | { readonly type: 'usage'; readonly usage: UsageSample }
   | { readonly type: 'promptDropped'; readonly text: string } // omp 丢弃了一条用户输入，必须告诉用户
   /*
-   * omp 自动总结出的会话标题（omp 知识 #17）。会话文件里的标题槽与 Core 的线程行是两份事实，
-   * 这一条就是两者之间的桥：**首句兜底**已经先写进行里，这里是之后的一次替换。
-   *
-   * 带 sessionFile 是为了让 Core 认出「这是哪条会话的名」——线程被释放重开后，迟到的事件
-   * 不许改现在的标题。
+   * omp 自动总结出的会话标题（omp 知识 #17）：**首句兜底**先写进 Core 的线程行，这一条是之后的替换。
+   * 带 sessionFile 让 Core 认出「这是哪条会话的名」——线程释放重开后，迟到的事件不许改现在的标题。
    */
   | { readonly type: 'sessionTitle'; readonly title: string; readonly sessionFile: string }
 

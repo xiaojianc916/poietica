@@ -213,8 +213,7 @@ export class OmpSession implements EngineSession {
   private disposed = false
   /** 本会话是否已经代 omp 触发过自动总结标题（只触发一次，见 submit） */
   private titleRequested = false
-  /** 外部订阅者数量：为零时收到的会话名先存着（见 subscribe 的补发） */
-  private listeners = 0
+  /** 还没有订阅者时收到的会话名先存着（见 subscribe 的补发） */
   private seededTitle: string | null = null
   /**
    * 正在执行的目标改动数（R-10）。大于 0 时 omp 的 goal_updated 不各自重报控件：
@@ -270,7 +269,6 @@ export class OmpSession implements EngineSession {
 
   subscribe(listener: (event: EngineSessionEvent) => void): { dispose(): void } {
     const subscription = this.events.event(listener)
-    this.listeners += 1
     /*
      * 打开会话时 omp 里**已经有的名字**要补发一次：`onSessionNameChanged` 没有回放，
      * 而那一刻还没有任何订阅者（会话池要等 openSession 返回才订阅）。先存着，等订阅者
@@ -282,17 +280,7 @@ export class OmpSession implements EngineSession {
       this.seededTitle = null
       this.emit({ type: 'sessionTitle', title, sessionFile: this.sessionFile })
     }
-    /* 退订要把计数减回去：否则「还有没有订阅者」这条判据会被已经走掉的订阅者永久占住 */
-    const dispose = subscription.dispose.bind(subscription)
-    let disposed = false
-    return {
-      dispose: () => {
-        if (disposed) return
-        disposed = true
-        this.listeners -= 1
-        dispose()
-      },
-    }
+    return subscription
   }
 
   private emit(event: EngineSessionEvent): void {
@@ -343,13 +331,8 @@ export class OmpSession implements EngineSession {
     // 又交给 omp prompt —— 不再同步读两遍。读盘是异步的，轮子先开起来再补那两条帧。
     this.endedWithPending = null
     this.setState('running')
-    /*
-     * 自动总结标题（omp 知识 #17）：**只在本会话第一条真轮**代 omp 触发一次。
-     *
-     * 这是产品定的语义：标题要么由第一句话总结出来，要么就留在首句兜底上；
-     * 之后不再补问（首句没总结出标题时不重试，也不因此多花模型调用）。
-     * `autoTitle === false` 的线程（用户 / 自动化已经定过名）一次都不触发。
-     */
+    // 自动总结标题（omp 知识 #17）：只在第一条真轮代 omp 触发一次（失败也不重试，标题留在首句兜底上）；
+    // `autoTitle === false` 的线程（用户 / 自动化已定名）一次都不触发。
     if (!this.titleRequested) {
       this.titleRequested = true
       if (this.o.spec.autoTitle !== false) this.o.maybeAutoTitle(input.text)
@@ -918,14 +901,9 @@ export class OmpSession implements EngineSession {
     this.timeline(ops)
   }
 
-  /**
-   * omp 自动总结出的会话标题（omp 知识 #17）。
-   *
-   * 只有适配器知道名字来自哪份会话文件，所以 `sessionFile` 由它填进来；`emit` 是 private，
-   * 这里给它留一个出口（与 emitPromptDropped 同一条规矩）。
-   */
+  /** omp 自动总结出的会话标题（omp 知识 #17）：`emit` 是 private，这里留的出口同 emitPromptDropped */
   emitSessionTitle(title: string): void {
-    if (this.listeners === 0) {
+    if (!this.events.hasListeners) {
       this.seededTitle = title
       return
     }

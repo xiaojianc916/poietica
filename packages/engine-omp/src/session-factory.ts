@@ -2,8 +2,9 @@ import { EngineErrorCode, type EngineSession, type EngineToolSpec, type OpenSess
 import { AppError, type Logger, SystemErrorCode } from '@poietica/foundation'
 import { type DataLayout, dataLayout } from '@poietica/runtime-layout'
 import { allowGoalContinuation } from './goal-host'
+import { overrideModelRolesOf } from './ports/settings-writes'
 import { applyPosture } from './posture'
-import { overrideSetting, type SettingsScope, settingAt } from './settings-access'
+import { type SettingsScope, settingAt } from './settings-access'
 import { createToolsExtension } from './tools-extension'
 
 export interface SessionFactoryOptions {
@@ -26,8 +27,8 @@ export interface SessionFactoryOptions {
   /** 本会话的模型解析（12 页 §6.3 第 3 步） */
   readonly resolveModel: (selector: string | null) => { provider: string; id: string } | null
   readonly modelRoles: () => Readonly<Record<string, string>>
-  /** 用户在设置页选的「生成标题用的模型」（provider/id）；null = 跟随对话自己的模型 */
-  readonly titleModel: () => string | null
+  /** 用户在设置页选的「生成标题用的模型」（已解析成整串 provider/id）；null = 跟随对话自己的模型 */
+  readonly titleModelAlias: () => string | null
   /** 把 omp 的会话对象包成 OmpSession（由 omp-session-factory 的调用方提供，避免这里绑死形状） */
   readonly wrapSession: (input: {
     readonly spec: OpenSessionSpec
@@ -77,17 +78,13 @@ export class SessionFactory {
       this.o.root
     applyPosture(settings, spec.posture)
     /*
-     * 「生成标题用的模型」（omp 知识 #17）：写进**本会话 overlay 的运行时覆盖层**。
+     * 「生成标题用的模型」（omp 知识 #17）：写进本会话 overlay 的运行时覆盖层。
      *
-     * 标题模型是 omp 自己从 `modelRoles.tiny` 挑的，所以用户选了哪条就把它覆盖成那一格 ——
-     * 只影响这条会话（overlay 是每会话一份），不落盘、不动全局角色配置。
-     * 没选（null）就一个字都不写：omp 的 getTitleModels 在 tiny 角色为空时会用
-     * **当前会话模型**，那正是「不设置就默认跟对话模型」这条产品语义。
+     * omp 的标题候选只认 tiny → commit → smol；用户选的那条写进 tiny 这一格。
+     * 没选就一个字都不写：候选表空着时 omp 会追加**当前会话模型**，正是产品要的默认。
      */
-    const titleModel = this.o.titleModel()
-    if (titleModel !== null) {
-      overrideSetting(settings, 'modelRoles', { ...this.o.modelRoles(), tiny: titleModel })
-    }
+    const titleModel = this.o.titleModelAlias()
+    if (titleModel !== null) overrideModelRolesOf(settings, { tiny: titleModel })
     // 目标续跑：omp 的控制器只认 'rpc' 这一档，Poietica 按交互式宿主的设置放行（审查 R-11，goal-host.ts）
     allowGoalContinuation(settings)
     const manager = await this.openManager(spec)

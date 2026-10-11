@@ -171,6 +171,17 @@ describe('ModelsPort', () => {
     expect(await harness.port.defaultThinking()).toBe(typeof schemaDefault === 'string' ? schemaDefault : null)
   })
 
+  test('标题模型读写 modelRoles.title；null = 删掉这一格', async () => {
+    const harness = makePort()
+    expect(await harness.port.titleModel()).toBeNull()
+    await harness.port.setTitleModel({ provider: 'openai', id: 'gpt-5' })
+    expect(await harness.port.titleModel()).toEqual({ provider: 'openai', id: 'gpt-5' })
+    await harness.port.setTitleModel(null)
+    expect(await harness.port.titleModel()).toBeNull()
+    const roles = harness.settings.getGlobalSettings().modelRoles as Record<string, unknown> | undefined
+    expect(roles?.title).toBeUndefined()
+  })
+
   test('upsertCustomProvider 写进 models.yml、让 registry 重读，并把 provider 认成自定义', async () => {
     const harness = makePort()
     await harness.port.upsertCustomProvider({
