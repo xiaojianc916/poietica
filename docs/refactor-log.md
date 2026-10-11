@@ -1458,3 +1458,26 @@ server** —— UI 发现同源直接拒绝显示。工具侧只收 `localhost /
    涉及 R-18 的 Core 产物与隔离自检（`core:probe`）留待关闭 `bun run dev` 后补跑。
 3. 方案正文提到 registry 里 `tools.register` 的既有形态未变；`show_widget` 与
    `show_image` 同点注册，不涉及 `PROTOCOL_VERSION` 与协议快照。
+
+## R-12（审查页）排队条的插话 / 撤回点了没反应：入口页建的队列把键 `''` 关在闭包里（2026-10-11）
+
+**现象**：从首页（入口那一格）发第一句话开出新对话，AI 回复时再发一句进入排队，
+排队条上「插话」「撤回」两枚键点了都没反应，也没有横幅；从侧栏打开的旧对话正常。
+
+**根因**：输入框只挂一处，排队条跟着它，所以首页渲染时 `useAssistantSession` 就调了
+`transcripts.queue('')`。`queue()` 建 `MessageQueue` 时把 `target = ''` 关进了四个闭包
+（withdraw / move / setModes / failed）。第一句话发出后 `#migrate('', 't-new')` 把这份
+MessageQueue **原对象**挪到 `'t-new'` 下（屏幕订阅的是它，不能换对象），快照照收、排队条
+照画；但写动作仍拿闭包里的 `''` 去 `#requirePort('')` —— 入口那一格**故意不记别名**，于是
+抛「这个界面还没有接上助手会话。」，失败又被 `failed('')` 记在入口那一格上，对话里看不见。
+
+**改法**：不换对象，只让队列的归属可迁移。`TranscriptStore` 新增
+`#queueHomes = new WeakMap<MessageQueue, { key: string }>()`，写动作与失败横幅**在调用时**
+按 `home.key` 找端口；`#migrate` 挪队列时顺手把 `home.key` 改成新号。
+
+**测试**：`transcript-store.test.ts` 新增 Q1–Q3（入口页开的对话）。旧代码 Q1、Q3 失败；
+修后 `bun test features/conversation` 280 pass / 0 fail，`bun run all` 全绿
+（1838 pass / 0 fail，较 R-18 的 1835 新增 3）。
+
+**偏差**：无。第 7 节真机验收（Windows `bun run dev`，含首页开对话后撤回 / 插话、
+已取走的条目失败横幅落在对话里、旧对话回归、第二条新对话不串）留待人工执行。

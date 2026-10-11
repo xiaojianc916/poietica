@@ -561,3 +561,90 @@ describe('R-08-5 未送达的插话 / 排队也画成气泡', () => {
     expect(readFailedSubmissionText(store.read('t1'))).toBeNull()
   })
 })
+
+describe('入口页开的对话：队列的撤回 / 换层落到真对话的端口上', () => {
+  /*
+   * 真实故障：从入口页发第一句开出的对话，AI 回复时再发一句进了队列，队列条上
+   * 「插话」「撤回」两枚键点了都没反应。
+   *
+   * 队列条在入口页就挂上了，`queue('')` 那一刻建出的 MessageQueue 把键 `''` 关进了
+   * 闭包；第一句话把它迁到真对话号下（`#migrate`）—— 快照照收，屏幕照画，但写动作
+   * 仍拿 `''` 找端口，入口那一格没有端口（也不记别名），于是抛「这个界面还没有接上
+   * 助手会话。」，失败又记在 `''` 那一格上，对话里什么都看不见。
+   */
+  function entryStore(writes: Pick<AgentSessionPort, 'withdraw' | 'move'>) {
+    const ports = new Map<string, AgentSessionPort>()
+    const portOf = (id: string): AgentSessionPort => {
+      const held = ports.get(id) ?? { ...fakePort(id).port, ...writes }
+      ports.set(id, held)
+      return held
+    }
+    const store = new TranscriptStore({ sessions: portOf })
+    const entry = createThreadEntry()
+    const request = {
+      init: { workspaceId: 'w1' },
+      create: async () => thread('t-new'),
+      created: () => undefined,
+      sessions: {
+        port: portOf,
+        peek: (id: string) => ports.get(id),
+        release: () => undefined,
+        releaseAll: () => undefined,
+        size: () => ports.size,
+      },
+    }
+    return { store, prepare: () => entry.prepare(request) }
+  }
+
+  test('Q1 入口页挂上的队列迁到新对话后，撤回与换层都走新对话的端口', async () => {
+    const calls: string[] = []
+    const { store, prepare } = entryStore({
+      withdraw: async (itemId) => {
+        calls.push(`withdraw ${itemId}`)
+        return { text: '排队的一句' }
+      },
+      move: async (itemId, deliverAs) => {
+        calls.push(`move ${itemId} ${deliverAs}`)
+        return { ...EMPTY_QUEUE, threadId: 't-new' }
+      },
+    })
+    /* 入口页渲染时就取了这一格的队列（输入框只挂一处，队列条跟着它） */
+    const early = store.queue('')
+    await store.send({ ...submit('你好'), threadId: '', prepare })
+    expect(store.queue('t-new')).toBe(early)
+
+    expect(await early.withdraw('q1')).toEqual({ text: '排队的一句' })
+    await early.move('q2', 'followUp')
+    expect(calls).toEqual(['withdraw q1', 'move q2 followUp'])
+    expect(store.read('t-new').operation.kind).not.toBe('failed')
+    expect(store.read('').operation.kind).not.toBe('failed')
+  })
+
+  test('Q2 迁走之后入口那一格重新取到的是一份新队列，写动作不串到上一条对话', async () => {
+    const { store, prepare } = entryStore({
+      withdraw: async () => ({ text: '不该走到这里' }),
+      move: async () => ({ ...EMPTY_QUEUE, threadId: 't-new' }),
+    })
+    const early = store.queue('')
+    await store.send({ ...submit('你好'), threadId: '', prepare })
+    const fresh = store.queue('')
+    expect(fresh).not.toBe(early)
+    /* 入口那一格还没有号：撤回拿不到端口，失败记在入口那一格，不碰 t-new */
+    expect(await fresh.withdraw('q1')).toBeNull()
+    expect(store.read('t-new').operation.kind).not.toBe('failed')
+  })
+
+  test('Q3 写动作失败时，横幅落在迁过去的那条对话上（不是看不见的入口那一格）', async () => {
+    const { store, prepare } = entryStore({
+      withdraw: async () => {
+        throw new Error('这条消息已经交给 agent，撤不回来了')
+      },
+      move: async () => ({ ...EMPTY_QUEUE, threadId: 't-new' }),
+    })
+    const early = store.queue('')
+    await store.send({ ...submit('你好'), threadId: '', prepare })
+    expect(await early.withdraw('q1')).toBeNull()
+    expect(store.read('t-new').operation.kind).toBe('failed')
+    expect(store.read('').operation.kind).not.toBe('failed')
+  })
+})

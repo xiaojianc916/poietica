@@ -292,6 +292,13 @@ const addressOf = (key: string): { readonly conversation: string; readonly agent
 
 export class TranscriptStore implements TranscriptSink {
   readonly #queues = new Map<string, MessageQueue>()
+  /*
+   * 每份队列此刻归哪条对话。写动作（撤回、换层、改模式）与失败横幅都按它现找端口：
+   * 入口那一格（`''`）建出的队列会在第一句话时迁到真对话号下，而 `''` 不记别名 ——
+   * 键关在闭包里就会一直拿 `''` 找端口，点了没反应（真机故障，见 transcript-store.test.ts
+   * 的「入口页开的对话」）。
+   */
+  readonly #queueHomes = new WeakMap<MessageQueue, { key: string }>()
   readonly #held = new Map<string, Transcript>()
   readonly #owners = new Map<string, TranscriptReplica>()
   readonly #routes = new Map<string, string>()
@@ -370,26 +377,28 @@ export class TranscriptStore implements TranscriptSink {
     if (held !== undefined) {
       return held
     }
+    const home = { key: target }
     const created = new MessageQueue({
       /* 抛在同步段里也安全：MessageQueue 那两头都在 try 里 await 它。 */
       withdraw: (itemId) => {
         lifetime.signal.throwIfAborted()
-        return this.#requirePort(target).withdraw(itemId)
+        return this.#requirePort(home.key).withdraw(itemId)
       },
       move: (itemId, deliverAs) => {
         lifetime.signal.throwIfAborted()
-        return this.#requirePort(target).move(itemId, deliverAs)
+        return this.#requirePort(home.key).move(itemId, deliverAs)
       },
       setModes: (patch: DeliveryModePatch) => {
         lifetime.signal.throwIfAborted()
-        return this.#requirePort(target).setDeliveryModes(patch)
+        return this.#requirePort(home.key).setDeliveryModes(patch)
       },
       failed: (cause) => {
         if (!lifetime.signal.aborted) {
-          this.failed(target, cause)
+          this.failed(home.key, cause)
         }
       },
     })
+    this.#queueHomes.set(created, home)
     this.#queues.set(target, created)
     return created
   }
@@ -633,6 +642,9 @@ export class TranscriptStore implements TranscriptSink {
     if (queue !== undefined) {
       this.#queues.delete(from)
       this.#queues.set(to, queue)
+      /* 屏幕订阅的还是这一份（不换对象），只把它的归属改过去 */
+      const home = this.#queueHomes.get(queue)
+      if (home !== undefined) home.key = to
     }
     const lifetime = this.#lifetimes.get(from)
     if (lifetime !== undefined) {
