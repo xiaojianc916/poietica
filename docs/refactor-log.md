@@ -1543,3 +1543,34 @@ Canvas 2d 上下文为 `null`，所以那条用例把 `diagram-theme` 换成固�
 `render` 的调用次数接近 0、无 >50ms 长任务、图表行不再出现「先源码后图」的一帧、
 React Profiler 里回滚阶段 `Streamdown` 不出现 mount、200 轮对话来回滚 1 分钟 DOM 节点数
 稳定在平台期。若 DOM 节点数过高，按方案 §8 把 `KEEP_ALIVE_ROWS` 降到 40（不要改成按像素算）。
+
+## CI-01 GitHub Actions 持续全红：短名比较的环境折叠 + 去抖测试赌真实时钟（2026-10-11）
+
+**来源**：产品负责人询问「能不能看 GitHub CI 的结果」时发现，自 2026-10-10 起每次 push
+的 `Check` 全红（`core-build` 因 `needs: check` 从未跑起来），22 fail / 18 error。
+
+**根因**（两处，均只在 runner 上成立，本地永远绿）：
+
+1. **8.3 短名 vs 长名的字符串前缀比较**（主因，18 个 unhandled error 的真正来源）。
+   `omp-home.ts` 的守卫用 `path.resolve(root).toLowerCase().startsWith(path.resolve(home).toLowerCase())`
+   判断「临时目录位于用户目录之下」；runner 上 `tmpdir()` 是 8.3 短名
+   `C:\Users\RUNNER~1\AppData\Local\Temp`、`homedir()` 是长名 `C:\Users\runneradmin`，
+   前缀必然对不上 → 在模块求值时 throw → 每个 `import './omp-home'` 的测试文件全员躺枪
+   （压缩标记那两条经夹具动态 import 也落进同一格）。本地用户名「陈小建」无短名，复现不了。
+   修复：两侧先 `realpathSync.native` 归一到长名再比（`omp-home.ts`；判定改用仓库现成的
+   `isInside`）。T-ISO-2 同因：`isolation.test.ts` 里 `mkdtempSync` 的 `POIETICA_TEST_ROOT`
+   也先归一，否则夹具里 `prepareIsolation` 的 `isolatedConfigDir` 同样误判越界。
+2. **`saveDebounced` 测试赌 20ms 去抖 + 固定 `Bun.sleep(50)`**：CI 冷盘上原子写
+   （临时文件 → fsync → 改名）没跑完就断言，偶发 ENOENT（同一条在旧 run 绿、新 run 红，
+   典型 flake）。修复：假钟 `vi.advanceTimersByTime` 推进去抖窗口 + `await doc.flush()`
+   等写入链收口，不再赌真实磁盘速度。
+
+**未改**：`.github/workflows` 里 `bun run  all` 的双空格是仓库一贯写法（`package.json` 的
+`all` 脚本、AGENTS.md 均如此，bun 照常执行），非笔误。
+
+**验证**：local `bun run all` 全绿（1855 pass / 0 fail）；短名病根用本机真实短名
+（`C:\PROGRA~1` / `C:\Users\ADMINI~1`）复现，旧逻辑 false、归一后 true；push 后 CI 绿。
+
+**环境事实**（记下来给后来者）：GitHub Actions 的 Windows runner 上
+`os.tmpdir()` 返回 8.3 短名而 `os.homedir()` 返回长名 —— 任何「临时目录在用户目录之下」
+这类字符串比较在 runner 上都会翻车；跨这两者的路径判断一律先 `realpathSync.native`。
