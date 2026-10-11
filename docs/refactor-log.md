@@ -1627,3 +1627,91 @@ packages/transcript` **324 pass / 0 fail**（基线 315，新增 9）；`bun run
 前台长回复 React commit 次数 ≤ 帧数且都落在 Animation Frame 之后；最小化期间渲染
 进程 CPU 明显下降、系统通知照常、`waitForTerminal` 自动化任务正常落定；入口页新开
 一条对话发第一句屏幕正常跟着走（别名迁移未受影响）。
+
+## P-04 长对话流式：投影的「引用稳定」按通道记账、不可变页只扫一次（2026-10-11）
+
+**来源**：`Project Refactoring Plan/P-04.md`（外部输入，不入库）。
+
+**现状复核**（方案 §2 的证据链逐条对过，行号已漂移、结论不变）：
+
+1. `transcript-projector.ts` 的 `stableSealed` / `outlineOf` 各只有一个**模块级**槽位
+   （`sealedCache` / `outlineCache`）。主对话、每个子代理、后台在跑的对话都走同一个
+   `projectTranscript` / `outlineOf`（`transcript-store.ts` `#publish`），两条通道交替
+   发布就互相覆盖。presentation 的 `PREFIX` WeakMap 以 `sealed` 数组为键、minimap 以
+   `outline` 数组为键做 memo，引用一换就整段前缀重建、整列按钮重渲。
+2. 旧版方案没发现的第二种情况：`OUTLINE_MARKS` 按 turn **对象身份**记账，而流式每批都会
+   把在跑那一轮换成新对象（上游结构共享），于是单通道下 `outline` 也每批换新 —— 注释里
+   「未封口时复用」的意图从来没生效过。
+3. 三条每批 / 每帧的全量扫描：store 的 `stampedTurns`（`#put` 每批，`withSubmissionRows`
+   里还多扫一遍）、`timeline-queries.currentTodos`、`todo-panel.delegateCalls`。已封口页
+   不可变、身份稳定，扫一遍的结果按页记账即可。
+
+**改法**（严格按方案 §5 / §6，与旧版方案的差别见其 §4 复核表）：
+
+1. **`ProjectionMemo` 按通道持有**（`transcript-projector.ts`）：`projectTranscript(snapshot, memo)`、
+   `outlineOf(snapshot, memo)` 的 memo 改为**必填**（不给默认值，否则旧 bug 留给下一个调用者）；
+   删掉模块级 `let sealedCache` / `let outlineCache`。
+2. **在跑那一轮的标记跨批沿用**：`carriedMark(turn, previous)` —— 只在这个 turn 对象没见过
+   且这一轮未封口时，沿用它在这条通道上一份目录同一位置、号 / admissionId / 题面都对得上的
+   标记；封口那一批一定重算（M4 钉住），题面变了（reset）不认（M5）。
+3. **store 的备忘录挂在副本对象上**：`#memos = new WeakMap<TranscriptReplica, Map<agentId, ProjectionMemo>>`
+   （`#memoOf(owner, agentId)`）。副本被换掉或释放后备忘录随它回收，**不需要任何删除路径**；
+   别名迁移不用搬（迁的是键，副本还是那一个）。
+4. **新增 `ui/timeline/page-memo.ts` 的 `sealedPageMemo(compute)`**：已封口页按对象身份记一次，
+   值包一层 `{ value }` 让 `null` 也能被记住；`T extends object | null` 挡住原始值。
+   只给 `sealed` 里的页用 —— `active` 每批都是新对象，记它只会白填 WeakMap。
+5. **时间线查询改造**（`timeline-queries.ts`）：`latestTodosIn` + `settledTodosOf` 重写
+   `currentTodos`（判据与旧实现逐条等价；页号撞上 active 时不走缓存、照原样现算）；
+   `stampedTurns` 从 store 搬来改名 `clientTurnIdsOf`；任务面板的 `delegateCalls` 搬来改名
+   `delegateCallsOf`（纯时间线查询，本就该在这里，也才测得到）。
+6. **收口**：`withSubmissionRows` 里那第二遍扫描直接删掉 —— 唯一调用方 `#put` 刚把这一份
+   时间线里带号的真实轮并进 `seen`（`stampedTurns` 判的是 `stripped`，剔掉的提交条目本身
+   不带号），`seen` 因此改为必填参数；`knownPromptIds` 的调用抽成 `remainingSubmissions`，
+   「没有任何一条带 promptId」时连号表都不建。
+
+**行为变化**（方案 §5 表）：minimap 悬停卡片看**正在跑的那一轮**不再逐字刷新，显示这一轮
+第一次被看到时的回复，封口那一批立刻换成完整回复 —— 这是 `OUTLINE_MARKS` 注释里写明的既定
+行为；正在跑的那一轮主视图本来就在实时显示，没有信息损失。待办面板、任务面板「智能体」一节、
+提交气泡的替换判据与结果完全不变。
+
+**测试**（先写、在旧代码上确认红，再实现）：
+
+- `ui/transcript/__tests__/transcript-projector-memo.test.ts`（新，7 例）：M1 / M2 两通道交替
+  各自稳定、M3 单通道流式 outline 稳定（旧代码上这 3 例失败，`Received: serializes to the
+  same string`）；M4 封口重算拿到完整回复、M5 reset 不沿用、M6 又封口一轮换新、M7 边界。
+- `ui/timeline/__tests__/current-todos-memo.test.ts`（新，2 例）：Q1 已封口页 `items` 问两次
+  只读一次（旧代码 `[2, 2, 2]`，红）；Q2 判据防回归。
+- `ui/timeline/__tests__/timeline-scans-memo.test.ts`（新，2 例）：Q3 `clientTurnIdsOf` 收齐
+  两处、封口页只读一次；Q4 `delegateCallsOf` 计数与顺序、封口页只读一次。
+- `transcript-projector-notice.test.ts`：既有调用补 `createProjectionMemo()`。
+
+**微基准**（方案 §8 脚本，量完删除、未提交；同一台机器，300 批）：
+
+| 场景 | 指标 | 改前 | 改后 |
+| --- | --- | --- | --- |
+| 1000 轮，双通道交替 | `sealed` 命中 | 0/300 | 299/300 |
+|  | `outline` 命中 | 0/300 | 299/300 |
+|  | 提交号扫描 | 174µs | 13µs |
+|  | `currentTodos` | 113µs | 8µs |
+|  | `selectPresentation` | 305µs | 86µs |
+| 1000 轮，单通道 | `outline` 命中 | 0/300 | 299/300 |
+|  | 提交号扫描 / `currentTodos` | 121µs / 82µs | 12µs / 6µs |
+| 200 轮，双通道交替 | `sealed` / `outline` 命中 | 0/300 / 0/300 | 299/300 / 299/300 |
+|  | `selectPresentation` | 86µs | 30µs |
+
+`projectTranscript` 本身（O(轮次) 的对象查表）改前改后都在 37–186µs 之间波动，本页不动它。
+（minimap 每批少一次 N 个按钮的 React 协调未计入上表。）
+
+**验收**：`bun run typecheck` / `bun run lint` 各自通过；`bun test features/conversation`
+**316 pass / 0 fail**（P-02 基线 305，新增 11）；`bun run all` 全绿
+（1875 pass / 0 fail，较 P-02 的 1864 新增 11）。
+
+**偏差**：无契约、无依赖、无协议、无持久化数据变化；回滚即整笔 revert。
+方案 §6 的 diff 落位与仓库现状一致，唯 `transcript-projector.ts` 里 `EMPTY_SEALED` 的注释
+按新位置（`ProjectionMemo` 工厂上方）写；`#memoOf` 的插入位置紧跟 `#publish` 之后。
+
+**待真机复核**（方案 §8，需 Windows 桌面实例）：一条 ≥100 轮、会派子代理的对话，
+React DevTools Profiler 录 5 秒流式 —— `TickList` 只在新增一轮 / 某轮封口时出现在提交里
+（改前每批都有）；Performance 面板里 `prefixOf` 自身耗时接近 0；发消息后提交气泡被真实轮次
+替换时只有一个气泡；待办面板、任务面板「智能体」一节显示与改前一致；minimap 悬停已完成的
+轮次显示完整回复。

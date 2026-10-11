@@ -24,8 +24,15 @@ import { describeFailure } from '../failure'
 import { MessageQueue } from '../interjection/message-queue'
 import { delegateAddress, delegateKey } from '../timeline/delegate-channel'
 import { createTimelineState, isInFlight, type TimelineItem, type TimelineState } from '../timeline/timeline-contract'
-import { selectIsBusy } from '../timeline/timeline-queries'
-import { knownPromptIds, outlineOf, projectTranscript, promptOutcome } from './transcript-projector'
+import { clientTurnIdsOf, selectIsBusy } from '../timeline/timeline-queries'
+import {
+  createProjectionMemo,
+  knownPromptIds,
+  outlineOf,
+  type ProjectionMemo,
+  projectTranscript,
+  promptOutcome,
+} from './transcript-projector'
 import { TranscriptReplica } from './transcript-replica'
 import type { TranscriptSink } from './transcript-sink'
 
@@ -181,24 +188,6 @@ export interface PreparedThread {
 const SUBMISSION_ITEM_PREFIX = 'submission:'
 
 /**
- * 时间线里此刻已有的真实 turn 号（`clientTurnId`）。
- *
- * 判据是**真实 turn 已经画得出来**：投影里那一轮带上了提交号，才算「换过了」。
- */
-function stampedTurns(timeline: TimelineState): ReadonlySet<string> {
-  const stamped = new Set<string>()
-  const pages = [...timeline.sealed, timeline.active]
-  for (const page of pages) {
-    for (const item of page.items) {
-      if (item.type !== 'user_message') continue
-      const id = (item as { readonly clientTurnId?: unknown }).clientTurnId
-      if (typeof id === 'string' && id !== '') stamped.add(id)
-    }
-  }
-  return stamped
-}
-
-/**
  * 把 Core 的提交行并进时间线（方案第 5 节）。
  *
  * 只画 `deliverAs === 'turn'` 且还没被真实 turn 换掉的那些 —— 插话与排队不进时间线，
@@ -209,7 +198,7 @@ function stampedTurns(timeline: TimelineState): ReadonlySet<string> {
  * （Core 重启把 omp 的内存队列带走了），不画就等于那句话无声无息地消失。按「未送达」
  * 画成一条用户消息 —— 正文还看得见，也能取回来重发。
  */
-function withSubmissionRows(next: Transcript, seen: ReadonlySet<string> = new Set()): Transcript {
+function withSubmissionRows(next: Transcript, seen: ReadonlySet<string>): Transcript {
   /*
    * 先剔掉上一轮贴进来的提交条目，再贴当前应有的那一份。
    *
@@ -231,9 +220,12 @@ function withSubmissionRows(next: Transcript, seen: ReadonlySet<string> = new Se
   if (rows.length === 0) {
     return stripped === next.timeline ? next : { ...next, timeline: stripped }
   }
-  /* 本机见过的提交号 + 投影里带号的真实轮，两处合起来才算「真轮已经换过这条提交」。 */
-  const stamped = new Set([...stampedTurns(stripped), ...seen])
-  const pending = rows.filter((row) => !stamped.has(row.clientTurnId))
+  /*
+   * 「真轮已经换过这条提交」的判据是 `seen`：本机见过的提交号。唯一的调用方 `#put` 刚把
+   * 这一份时间线里带号的真实轮并进去 —— 剔掉的提交条目本身不带号，`stripped` 里的号因此
+   * 全在 `seen` 里，不必再扫一遍整条时间线。
+   */
+  const pending = rows.filter((row) => !seen.has(row.clientTurnId))
   if (pending.length === 0) {
     return { ...next, timeline: stripped }
   }
@@ -290,6 +282,24 @@ const channelKey = (threadId: string, agentId: string): string =>
 const addressOf = (key: string): { readonly conversation: string; readonly agentId: string } =>
   delegateAddress(key) ?? { conversation: key, agentId: MAIN_AGENT_ID }
 
+/**
+ * 还没在快照里露面的那几条本机提交（按 agent 的 promptId 收口）。
+ *
+ * 绝大多数批次里一条待收口的都没有 —— 那时不建号表：它要扫一遍快照的全部轮次与 prompt。
+ * 什么都没收掉就交回原数组，调用方据此判「没变」。
+ */
+function remainingSubmissions(
+  submissions: readonly PendingSubmission[],
+  snapshot: AgentTranscriptSnapshot,
+): readonly PendingSubmission[] {
+  if (submissions.every((entry) => entry.promptId === null)) {
+    return submissions
+  }
+  const known = knownPromptIds(snapshot)
+  const remaining = submissions.filter((entry) => entry.promptId === null || !known.has(entry.promptId))
+  return remaining.length === submissions.length ? submissions : remaining
+}
+
 export class TranscriptStore implements TranscriptSink {
   readonly #queues = new Map<string, MessageQueue>()
   /*
@@ -332,6 +342,14 @@ export class TranscriptStore implements TranscriptSink {
    * 提交行又会被贴回来（实测：AI 回复跑完后出现两个用户气泡）。
    */
   readonly #stamped = new Map<string, Set<string>>()
+  /**
+   * 每条通道的投影备忘录（P-04）：按端口副本 + agentId 各一份。
+   *
+   * 挂在副本（`#owners` 的值）上，而不是按对话号另开一张表：副本被换掉或释放后备忘录随它
+   * 一起被回收，不需要再维护一条删除路径（AGENTS §8.4）；别名迁移也不用搬 —— 迁的是键，
+   * 副本还是那一个。内层按 agentId 的表与副本自己的 agent 表同生同灭。
+   */
+  readonly #memos = new WeakMap<TranscriptReplica, Map<string, ProjectionMemo>>()
   /**
    * 每条对话的提交行（方案第 5 节「每个线程一个 submissions 存储」）。
    *
@@ -1491,7 +1509,8 @@ export class TranscriptStore implements TranscriptSink {
      * 补在这里而不是写进上一份 `timeline`：`timeline` 每次都由快照重算，
      * 上一份连同写进去的判据一起被丢掉 —— 屏幕会退回「正在处理」。
      */
-    const projected = projectTranscript(snapshot)
+    const memo = this.#memoOf(owner, agentId)
+    const projected = projectTranscript(snapshot, memo)
     /*
      * 投影是纯的；本机那条「这一轮已经终止」在这里补上。
      *
@@ -1500,8 +1519,7 @@ export class TranscriptStore implements TranscriptSink {
      * 收在一处，这条不变量才可证 —— 两处都写就分不清是谁生效。
      */
     const timeline = this.#withRunFailed(owner?.sessionId, projected)
-    const known = knownPromptIds(snapshot)
-    const remaining = current.submissions.filter((entry) => entry.promptId === null || !known.has(entry.promptId))
+    const remaining = remainingSubmissions(current.submissions, snapshot)
     this.#put(key, {
       ...current,
       timeline,
@@ -1509,11 +1527,22 @@ export class TranscriptStore implements TranscriptSink {
       loaded: true,
       owned: true,
       earlier: snapshot.hasMoreOlder ? (turns[0]?.turnId ?? null) : null,
-      outline: outlineOf(snapshot),
+      outline: outlineOf(snapshot, memo),
       operation:
         current.operation.kind === 'cancelling' && !selectIsBusy(timeline) ? { kind: 'ready' } : current.operation,
-      submissions: remaining.length === current.submissions.length ? current.submissions : remaining,
+      submissions: remaining,
     })
+  }
+  /** 这条通道的投影备忘录；没有副本（不该发生）就给一份一次性的，只是不复用。 */
+  #memoOf(owner: TranscriptReplica | undefined, agentId: string): ProjectionMemo {
+    if (owner === undefined) {
+      return createProjectionMemo()
+    }
+    const byAgent = this.#memos.get(owner) ?? new Map<string, ProjectionMemo>()
+    this.#memos.set(owner, byAgent)
+    const memo = byAgent.get(agentId) ?? createProjectionMemo()
+    byAgent.set(agentId, memo)
+    return memo
   }
   #put(key: string, next: Transcript): void {
     const target = this.#resolveKey(key)
@@ -1531,7 +1560,7 @@ export class TranscriptStore implements TranscriptSink {
      * 写完再合并提交行 —— 判据与记录在同一次写里对齐。
      */
     const seen = this.#stamped.get(target) ?? new Set<string>()
-    for (const id of stampedTurns(withRows.timeline)) seen.add(id)
+    for (const id of clientTurnIdsOf(withRows.timeline)) seen.add(id)
     this.#stamped.set(target, seen)
     /*
      * 提交行合进时间线（方案第 5 节）：Core 还没把真实 turn 画出来之前，

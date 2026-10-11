@@ -1115,7 +1115,26 @@ function runBoundariesOf(
   return result
 }
 
-export function projectTranscript(snapshot: AgentTranscriptSnapshot): TimelineState {
+/**
+ * 一条通道上一次投影交出去的那几份数组：只为把引用稳住。
+ *
+ * 必须按通道各一份（由调用方持有、随通道一起丢）：主对话、每个子代理、后台在跑的每条对话
+ * 都调同一个 `projectTranscript` / `outlineOf`，模块级只放一份的话，两条通道交替发布就
+ * 互相覆盖 —— 前台那条每批都换新数组，presentation 的前缀缓存与 minimap 的 memo 全部落空。
+ */
+export interface ProjectionMemo {
+  sealed: readonly TurnPage[]
+  outline: readonly TurnMark[]
+}
+
+const EMPTY_SEALED: readonly TurnPage[] = []
+const EMPTY_OUTLINE: readonly TurnMark[] = []
+
+export function createProjectionMemo(): ProjectionMemo {
+  return { sealed: EMPTY_SEALED, outline: EMPTY_OUTLINE }
+}
+
+export function projectTranscript(snapshot: AgentTranscriptSnapshot, memo: ProjectionMemo): TimelineState {
   const turns = snapshot.items.filter((item): item is TranscriptTurn => item.kind === 'turn')
   const status = phaseOf(snapshot, turns.at(-1))
   const busy =
@@ -1141,7 +1160,7 @@ export function projectTranscript(snapshot: AgentTranscriptSnapshot): TimelineSt
     status,
     backgroundTasks: snapshot.tasks.map(backgroundOf).filter((item): item is BackgroundTaskItem => item !== null),
     subagents: snapshot.tasks.map(subagentOf).filter((item): item is SubagentItem => item !== null),
-    sealed: stableSealed(placed.pages),
+    sealed: stableSealed(placed.pages, memo),
     active: tailOf(placed.pages, placed.tail, snapshot.items),
     lastSeq: 0,
     spans,
@@ -1151,31 +1170,20 @@ export function projectTranscript(snapshot: AgentTranscriptSnapshot): TimelineSt
 /*
  * sealed 引用稳定化：presentation 层的 PREFIX WeakMap 以 sealed 数组为键，
  * 每次 slice 都换新引用会让缓存永远不命中。元素引用已由 TURN_PROJECTIONS +
- * WRAPPED_PAGES 保证稳定，所以只需比较长度与逐元素引用即可复用上一次数组。
+ * WRAPPED_PAGES 保证稳定，所以只需比较长度与逐元素引用即可复用这条通道上一次的数组。
  */
-const EMPTY_SEALED: readonly TurnPage[] = []
-let sealedCache: readonly TurnPage[] = EMPTY_SEALED
-
-function stableSealed(marked: readonly TurnPage[]): readonly TurnPage[] {
+function stableSealed(marked: readonly TurnPage[], memo: ProjectionMemo): readonly TurnPage[] {
   const len = marked.length - 1
   if (len <= 0) {
-    sealedCache = EMPTY_SEALED
+    memo.sealed = EMPTY_SEALED
     return EMPTY_SEALED
   }
-  if (sealedCache.length === len) {
-    let same = true
-    for (let i = 0; i < len; i += 1) {
-      if (sealedCache[i] !== marked[i]) {
-        same = false
-        break
-      }
-    }
-    if (same) {
-      return sealedCache
-    }
+  const held = memo.sealed
+  if (held.length === len && held.every((page, at) => page === marked[at])) {
+    return held
   }
   const fresh = marked.slice(0, len)
-  sealedCache = fresh
+  memo.sealed = fresh
   return fresh
 }
 
@@ -1189,10 +1197,9 @@ function stableSealed(marked: readonly TurnPage[]): readonly TurnPage[] {
  *
  * 记账里还要存「算出这个 reply 时那一轮封口没有」：未封口时复用（minimap 不需要逐
  * token 刷新），一变成封口就必须重算一次 —— 封口前看到的是半截正文，拿它当最终回复
- * 是错的。数组也做引用稳定化，避免 minimap memo 100% 失效。
+ * 是错的。数组也做引用稳定化（按通道记在 `ProjectionMemo` 里），避免 minimap memo 100% 失效。
  */
 const OUTLINE_MARKS = new WeakMap<TranscriptTurn, { readonly sealed: boolean; readonly mark: TurnMark }>()
-let outlineCache: readonly TurnMark[] = []
 
 /*
  * 逐段算好的正文。判据是段自己的身份：流式期间上游只替换真动了的那一段，其余段按
@@ -1231,8 +1238,27 @@ const sameMark = (left: TurnMark, right: TurnMark): boolean =>
   left.prompt === right.prompt &&
   left.reply === right.reply
 
-/* 一轮的标记：同一个 turn 对象上封口前后各算一次，之后原样交回。 */
-function markOf(turn: TranscriptTurn): TurnMark {
+/*
+ * 在跑那一轮在上一份目录里的标记，可以原样留用吗。
+ *
+ * 流式每来一批，上游都会把在跑的那一轮换成新的 turn 对象（结构共享只留没动的部分），
+ * 按对象身份的 OUTLINE_MARKS 因此每批都落空。上一份目录是**这条通道自己的**（memo 按通道
+ * 各一份），同一个位置上号、题面都对得上，就是同一轮 —— 不会像模块级 turnId 表那样认错别的
+ * 对话。题面变了（reset 换掉正文而号没换）就不认。
+ */
+function carriedMark(turn: TranscriptTurn, previous: TurnMark | undefined): TurnMark | undefined {
+  if (previous === undefined || isSettled(turn.state)) {
+    return undefined
+  }
+  const same =
+    previous.turnId === turn.turnId &&
+    previous.admissionId === (turn.triggerPromptId ?? turn.turnId) &&
+    previous.prompt === (turn.prompt ?? '')
+  return same ? previous : undefined
+}
+
+/* 一轮的标记：封口前算一次（之后跨批留用），封口时再算一次，之后原样交回。 */
+function markOf(turn: TranscriptTurn, previous: TurnMark | undefined): TurnMark {
   const held = OUTLINE_MARKS.get(turn)
   const sealed = isSettled(turn.state)
 
@@ -1241,13 +1267,20 @@ function markOf(turn: TranscriptTurn): TurnMark {
     return held.mark
   }
 
+  const carried = held === undefined ? carriedMark(turn, previous) : undefined
+  if (carried !== undefined) {
+    OUTLINE_MARKS.set(turn, { mark: carried, sealed: false })
+    return carried
+  }
+
   const computed: TurnMark = {
     turnId: turn.turnId,
     admissionId: turn.triggerPromptId ?? turn.turnId,
     prompt: turn.prompt ?? '',
     reply: replyOf(turn),
   }
-  const mark = held !== undefined && sameMark(held.mark, computed) ? held.mark : computed
+  const base = held?.mark ?? previous
+  const mark = base !== undefined && sameMark(base, computed) ? base : computed
   OUTLINE_MARKS.set(turn, { mark, sealed })
   return mark
 }
@@ -1255,21 +1288,22 @@ function markOf(turn: TranscriptTurn): TurnMark {
 const sameOutline = (left: readonly TurnMark[], right: readonly TurnMark[]): boolean =>
   left.length === right.length && left.every((mark, at) => mark === right[at])
 
-export const outlineOf = (snapshot: AgentTranscriptSnapshot): readonly TurnMark[] => {
+export const outlineOf = (snapshot: AgentTranscriptSnapshot, memo: ProjectionMemo): readonly TurnMark[] => {
+  const previous = memo.outline
   const marks: TurnMark[] = []
 
   for (const item of snapshot.items) {
     if (item.kind === 'turn' && sourceOfTurn(item).isUser) {
-      marks.push(markOf(item))
+      marks.push(markOf(item, previous[marks.length]))
     }
   }
 
-  /* 引用稳定化：元素全同则交回上次那个数组，minimap 的 memo 才稳得住。 */
-  if (sameOutline(marks, outlineCache)) {
-    return outlineCache
+  /* 引用稳定化：元素全同则交回这条通道上次那个数组，minimap 的 memo 才稳得住。 */
+  if (sameOutline(marks, previous)) {
+    return previous
   }
 
-  outlineCache = marks
+  memo.outline = marks
   return marks
 }
 

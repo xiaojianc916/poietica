@@ -1,7 +1,7 @@
 import { expect, test } from 'bun:test'
 import { applyOps, emptyTimeline, type TranscriptOperation } from '@poietica/transcript'
 import type { TranscriptPage } from '../../agent/transcript'
-import { projectTranscript } from '../transcript-projector'
+import { createProjectionMemo, projectTranscript } from '../transcript-projector'
 
 /*
  * notice 帧的级别要一路带到时间线条目（R-09）。
@@ -57,7 +57,7 @@ function pageWith(level: 'info' | 'warning' | 'error'): TranscriptPage {
 }
 
 function errorItemsOf(level: 'info' | 'warning' | 'error') {
-  return projectTranscript(pageWith(level)).active.items.filter((item) => item.type === 'error')
+  return projectTranscript(pageWith(level), createProjectionMemo()).active.items.filter((item) => item.type === 'error')
 }
 
 test('U1 info 不进时间线（不画成报错）', () => {

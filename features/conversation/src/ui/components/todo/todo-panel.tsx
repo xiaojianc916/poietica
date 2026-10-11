@@ -30,6 +30,7 @@ import type {
   TodoItem,
   ToolCallTimelineItem,
 } from '../../timeline/timeline-contract'
+import { delegateCallsOf } from '../../timeline/timeline-queries'
 import { useOptionalThreadGoal } from '../configuration/session-controls-context'
 import { GOAL_CONTROL_ID, GOAL_PAUSED, GOAL_RESUMED } from '../goal/goal-control'
 import { useSecond } from '../primitives/clock'
@@ -176,29 +177,6 @@ function agentRows(
     }
   }
 
-  return { ended, running }
-}
-
-/** 这条时间轴上全部 delegate 工具调用，按结清与否分两拨。 */
-function delegateCalls(timeline: {
-  readonly sealed: readonly { readonly items: readonly unknown[] }[]
-  readonly active: { readonly items: readonly unknown[] }
-}): { readonly ended: number; readonly running: ToolCallTimelineItem[] } {
-  const running: ToolCallTimelineItem[] = []
-  let ended = 0
-  for (const page of [...timeline.sealed, timeline.active]) {
-    for (const item of page.items) {
-      const call = item as ToolCallTimelineItem
-      if (call === null || typeof call !== 'object' || call.type !== 'tool_call' || call.kind !== 'delegate') {
-        continue
-      }
-      if (call.status === 'in_progress' || call.status === 'pending') {
-        running.push(call)
-      } else {
-        ended += 1
-      }
-    }
-  }
   return { ended, running }
 }
 
@@ -718,7 +696,7 @@ export function TodoPanel({
   const timeline = useAssistantTimeline(threadId)
   const { controls, goal: heldGoal } = useOptionalThreadGoal(threadId)
   const goal = goalProp ?? heldGoal
-  const agents = useMemo(() => agentRows(subagents, delegateCalls(timeline)), [subagents, timeline])
+  const agents = useMemo(() => agentRows(subagents, delegateCallsOf(timeline)), [subagents, timeline])
   /*
    * Git 那一格的事实从 Context 读，不从 props 读：它由 review 贡献的 Provider 投下来
    * （见 ui-api/git-status.ts 的头注）。这样这一格与右侧「审查」面板读的是同一份快照，

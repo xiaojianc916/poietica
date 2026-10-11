@@ -1,3 +1,4 @@
+import { sealedPageMemo } from './page-memo'
 import {
   isInFlight,
   type PermissionItem,
@@ -6,6 +7,7 @@ import {
   type TimelineItem,
   type TimelineState,
   type TodoItem,
+  type ToolCallTimelineItem,
 } from './timeline-contract'
 
 /** 未结交互以条目为事实；status 只能从条目单向投影，不能反向参与判定。 */
@@ -93,29 +95,129 @@ export function pendingPermission(scope: WaitingScope): PermissionItem | undefin
   return pendingInteractions(scope).permission
 }
 
-export function currentTodos(state: TimelineState): readonly TodoItem[] | null {
-  const pages = [...state.sealed, state.active]
-  for (let pageIndex = pages.length - 1; pageIndex >= 0; pageIndex -= 1) {
-    const page = pages[pageIndex]
-    if (page === undefined) {
+/*
+ * 一页里最新的那份清单，倒着找。`live` 判一条还没完成的清单算不算数（在跑那一轮的实时预览）。
+ * 失败的不算；没完成又不是实时预览的不算。
+ */
+function latestTodosIn(
+  items: readonly TimelineItem[],
+  live: (item: TimelineItem) => boolean,
+): readonly TodoItem[] | null {
+  for (let itemIndex = items.length - 1; itemIndex >= 0; itemIndex -= 1) {
+    const item = items[itemIndex]
+    if (item?.type !== 'tool_call' || item.kind !== 'todo' || item.status === 'failed') {
       continue
     }
-    for (let itemIndex = page.items.length - 1; itemIndex >= 0; itemIndex -= 1) {
-      const item = page.items[itemIndex]
-      if (item?.type !== 'tool_call' || item.kind !== 'todo' || item.status === 'failed') {
-        continue
-      }
-      const isLivePreview = item.turn === state.active.turn && selectIsBusy(state)
-      if (item.status !== 'completed' && !isLivePreview) {
-        continue
-      }
-      const snapshot = item.requestContent.find((content) => content.type === 'todo')
-      if (snapshot !== undefined) {
-        return snapshot.items
-      }
+    if (item.status !== 'completed' && !live(item)) {
+      continue
+    }
+    const snapshot = item.requestContent.find((content) => content.type === 'todo')
+    if (snapshot !== undefined) {
+      return snapshot.items
     }
   }
   return null
+}
+
+const NOT_LIVE = (): boolean => false
+
+/*
+ * 已封口页里只认完成的清单：实时预览只属于在跑那一轮（`item.turn === active.turn`），
+ * 而页里条目的 turn 就是页的 turn（投影按 turn.ordinal 打号）。页号撞上 active 的那种
+ * 不走缓存，照原样现算 —— 判据因此与逐条判完全一致。
+ */
+const settledTodosOf = sealedPageMemo((page) => latestTodosIn(page.items, NOT_LIVE))
+
+export function currentTodos(state: TimelineState): readonly TodoItem[] | null {
+  const live = (item: TimelineItem): boolean => item.turn === state.active.turn && selectIsBusy(state)
+  const fromActive = latestTodosIn(state.active.items, live)
+  if (fromActive !== null) {
+    return fromActive
+  }
+  for (let pageIndex = state.sealed.length - 1; pageIndex >= 0; pageIndex -= 1) {
+    const page = state.sealed[pageIndex]
+    if (page === undefined) {
+      continue
+    }
+    const found = page.turn === state.active.turn ? latestTodosIn(page.items, live) : settledTodosOf(page)
+    if (found !== null) {
+      return found
+    }
+  }
+  return null
+}
+
+const NO_STAMPS: readonly string[] = []
+
+/* 一页里带提交号（`clientTurnId`）的用户消息，按出现顺序。 */
+function clientTurnIdsIn(items: readonly TimelineItem[]): readonly string[] {
+  let stamps: string[] | undefined
+  for (const item of items) {
+    if (item.type === 'user_message' && item.clientTurnId !== undefined && item.clientTurnId !== '') {
+      stamps ??= []
+      stamps.push(item.clientTurnId)
+    }
+  }
+  return stamps ?? NO_STAMPS
+}
+
+const sealedStampsOf = sealedPageMemo((page) => clientTurnIdsIn(page.items))
+
+/**
+ * 时间线里此刻已有的真实 turn 号（`clientTurnId`）。
+ *
+ * 判据是**真实 turn 已经画得出来**：投影里那一轮带上了提交号，才算「换过了」。
+ * 每次写格子都要问一遍，所以已封口的页按页记账，只有在跑那一页现扫。
+ */
+export function clientTurnIdsOf(state: Pick<TimelineState, 'sealed' | 'active'>): ReadonlySet<string> {
+  const stamped = new Set<string>()
+  for (const page of state.sealed) {
+    for (const id of sealedStampsOf(page)) stamped.add(id)
+  }
+  for (const id of clientTurnIdsIn(state.active.items)) stamped.add(id)
+  return stamped
+}
+
+/** 时间线上的 delegate 调用：结清的只计数，还在跑的按出现顺序交回。 */
+export interface DelegateCalls {
+  readonly ended: number
+  readonly running: readonly ToolCallTimelineItem[]
+}
+
+const NO_DELEGATES: DelegateCalls = { ended: 0, running: [] }
+
+function delegateCallsIn(items: readonly TimelineItem[]): DelegateCalls {
+  let ended = 0
+  let running: ToolCallTimelineItem[] | undefined
+  for (const item of items) {
+    if (item.type !== 'tool_call' || item.kind !== 'delegate') {
+      continue
+    }
+    if (item.status === 'in_progress' || item.status === 'pending') {
+      running ??= []
+      running.push(item)
+    } else {
+      ended += 1
+    }
+  }
+  return ended === 0 && running === undefined ? NO_DELEGATES : { ended, running: running ?? [] }
+}
+
+const sealedDelegatesOf = sealedPageMemo((page) => delegateCallsIn(page.items))
+
+/**
+ * 这条时间轴上全部 delegate 调用（任务面板「智能体」那一节）。
+ *
+ * 面板随时间线每帧重算，长对话里逐条扫一遍全部条目是每帧的固定开销；已封口页按页记账。
+ */
+export function delegateCallsOf(state: Pick<TimelineState, 'sealed' | 'active'>): DelegateCalls {
+  let ended = 0
+  const running: ToolCallTimelineItem[] = []
+  for (const part of [...state.sealed.map(sealedDelegatesOf), delegateCallsIn(state.active.items)]) {
+    ended += part.ended
+    running.push(...part.running)
+  }
+  return { ended, running }
 }
 
 export function selectIsBusy(state: TimelineState): boolean {
