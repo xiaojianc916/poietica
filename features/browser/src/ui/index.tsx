@@ -20,6 +20,7 @@ import { type ReactNode, useEffect, useMemo, useState } from 'react'
 import type { BrowserState, PickedElement } from '../contract'
 import { createBrowserApi } from './api'
 import { createBrowserDockTabs } from './dock-tabs'
+import { overlayPresent, watchOverlays } from './overlay-watch'
 import { BrowserPanel } from './panel'
 import { cancelPick, createPickDelivery } from './pick-delivery'
 import { createBrowserPanelStore } from './store'
@@ -49,10 +50,11 @@ const PANEL_ID = 'browser.panel'
  * 内部模块，功能不许 import。它渲染出来的浮层倒是一条稳定的 DOM 契约：design-system 的
  * Dialog 建在 Base UI 上，打开时 Popup 带 `role="dialog"` 与 Base UI 自己发的 `data-open`。
  * 认这一对属性，命令面板与其他所有走 Dialog 的浮层都在里面；内核的确认框另有
- * DialogsToken 这一条路（见 overlayOpen）。
+ * DialogsToken 这一条路（见 overlayOpen）。这些浮层都经 Base UI 的传送门挂在应用根之外，
+ * 查询与观察都只看那里（overlay-watch.ts，P-07）。
  */
 function dialogOpen(): boolean {
-  return document.querySelector('[role="dialog"][data-open]') !== null
+  return overlayPresent(document)
 }
 
 /** 覆盖层（对话框、命令面板）：原生视图永远盖在 DOM 之上，有它们时浏览器必须收起来。 */
@@ -280,18 +282,12 @@ function BrowserPanelHost({
 
     update()
     const stopDialogs = dialogs.subscribe(update)
-    const observer = new MutationObserver(update)
-
-    observer.observe(document.body, {
-      childList: true,
-      subtree: true,
-      attributes: true,
-      attributeFilter: ['data-open'],
-    })
+    /* 只看应用根之外的传送门：对话流式输出时 #root 里的变动不会叫醒这里（P-07） */
+    const stopOverlays = watchOverlays(document, update)
 
     return () => {
       stopDialogs()
-      observer.disconnect()
+      stopOverlays()
     }
   }, [dialogs])
 

@@ -1943,3 +1943,65 @@ DevTools 里流式中 `data-sd-animate` 为 0、`data-wave-start` 只有几十�
 Performance 录 10 秒对比提交耗时；结束后约 0.7 秒标记归零且复制内容与旧版一致；
 流式中最小化 10 秒再切回只淡末尾一截；系统「减少动态」开关运行时切换立即生效；
 切会话 / 滚出视口再回来已显示的字不重播；历史消息、计划面板、技能文档、工具结果面板外观不变。
+
+## P-07 浏览器面板的浮层观察：只看应用根之外的传送门（2026-10-11）
+
+**来源**：`Project Refactoring Plan/P-07.md`（外部输入，不入库）。P-02～P-06 均已合入，
+本页与它们不同文件、无冲突；按方案 §5 的分步执行。
+
+**现状复核**（方案 §2 的证据链逐条对过，行号漂移 1 行、结论不变）：
+
+1. `index.tsx` 的 `dialogOpen()` = `document.querySelector('[role="dialog"][data-open]')`，整份文档查询。
+2. `BrowserPanelHost` 的 effect 用 `MutationObserver` 观察 `document.body`（`subtree + attributes`），
+   `update` = `setCovered(overlayOpen(dialogs))`；右坞收起不卸载（`regions.tsx` 只加 `inert`），
+   `auxiliary-dock.tsx` 的 `fallbackGroup` 让有标签页的浏览器面板常驻 —— 对话每提交一帧 DOM
+   变动都叫醒它一次。
+3. 全仓 `role="dialog"` 只有两处自建：本页这处查询，与 `context-gauge.tsx`（不带 `data-open`）。
+   design-system 的浮层都建在 Base UI 上，FloatingPortal 不传 `container` 时传送门 div 挂在
+   `document.body` 的直接子节点；应用根是 `<div id="root">`。
+
+**改法**（严格按方案 §4 的 `overlay-watch.ts` 逐字落位）：
+
+1. **`features/browser/src/ui/overlay-watch.ts`（新）**：两个纯 DOM 函数。
+   `overlayPresent(doc, appRootId='root')` 只遍历 `body` 的直接子节点、跳过应用根，在每个
+   传送门子树里查 `[role="dialog"][data-open]`；`watchOverlays(doc, onChange, appRootId='root')`
+   同一个 observer 观察两处 —— `body` 只看 `childList`（传送门来去），每个非应用根的直接子节点
+   看 `subtree + childList + attributes(data-open)`（新加入的子节点在回调里补挂，`WeakSet` 防重复）。
+   观察者注册在闭包里的 `observer` 引用其后声明，合法（`watch` 只在 observer 创建后才调用）。
+2. **兜底**：`appRootOf()` 要求 `#root` 是 `body` 的直接子节点；找不到时 `overlayPresent` 退回整份
+   文档查询、`watchOverlays` 退回整树观察，行为与旧逻辑一致。
+3. **`index.tsx` 只改两处**：`dialogOpen()` 调 `overlayPresent(document)`；effect 里
+   `watchOverlays(document, update)` 替掉手写的 observer，清理换成 `stopOverlays()`。
+
+**不做**（方案 §4 明确）：不建 design-system 的浮层注册表；不动右坞「收起仍挂载」的设计。
+
+**测试**（先写、在旧逻辑上确认红，再实现）：新文件 `overlay-watch.test.ts` 8 条，
+旧逻辑上 **O1、O5 失败（6 pass / 2 fail）**，与方案 §5 第 2 步的实测一致；换成新实现后
+`bun test features/browser/src/ui/__tests__/overlay-watch.test.ts` **8 pass / 0 fail**。
+
+| 编号 | 断言 | 防的是什么 |
+| --- | --- | --- |
+| O1 | #root 里增 200 个带 data-open 的元素、再去掉一个 data-open → 回调 0 次 | 流式输出叫醒浏览器面板（旧逻辑失败） |
+| O2 | 传送门出现 → 回调且判为有浮层；移除 → 回调且判为无 | 命令面板 / 对话框开关漏判 |
+| O3 | 已有传送门里 data-open 开合各回调一次 | keepMounted 浮层开合漏判 |
+| O4 | 新传送门先挂空壳、弹层晚一步挂上 → 仍能看到 | Base UI 先建传送门、后渲染弹层的时序 |
+| O5 | #root 里的 role=dialog 不算浮层 | 查询范围收窄（旧逻辑失败） |
+| O6 | 不带 data-open 的自建 role=dialog（上下文仪表）不算 | 与旧行为一致 |
+| O7 | 停止后不再回调 | 卸载泄漏 |
+| O8 | 找不到 #root 时退回整树观察 | 挂载点改名时不静默失效 |
+
+**验收**：`bun run typecheck` 通过（715 files / 80 projects + 917 test files）；
+`bun run lint` 通过（biome + no-raw-errors + no-biome-ignore + editor-project-map + depcruise）；
+`bun test features/browser` **112 pass / 0 fail**（基线 104，新增 8）；
+`bun run all` 全绿（1947 pass / 0 fail，较 P-03 的 1939 新增 8）。
+
+**偏差**：无契约、无协议、无持久化数据变化；落位文件与方案 §5 的代码块逐字一致。
+方案 §8 的风险表照录：将来有人把浮层渲染进 #root（传 `container`）时不会再让浏览器收起
+（契约写在 `overlay-watch.ts` 头注）；渲染进程挂载点改名走 O8 兜底；第三方往 body 挂节点
+只会多报不会漏报。回滚即整笔 revert。
+
+**待真机复核**（方案 §7，需 Windows 桌面实例，与 P-02～P-06 同例）：右坞打开浏览器并加载
+页面后 —— 打开命令面板 / 确认框 / design-system Dialog，原生视图立即收起、关闭立即恢复；
+嵌套浮层逐层关闭的时机与旧版一致；收起右坞让对话流式输出，DevTools Performance 里不再出现
+来自 `browser/src/ui/index.tsx` 的 MutationObserver 回调；浏览器面板的拾取、地址栏聚焦
+（Ctrl+Shift+L）行为不变。
