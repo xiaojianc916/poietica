@@ -16,6 +16,7 @@ import { pageSchema, timelineOperationSchema } from './wire'
 
 export * from './entities'
 export { conversationErrors } from './errors'
+export * from './widget'
 export type { WireTranscriptOperation } from './wire'
 
 const empty = z.object({})

@@ -89,6 +89,16 @@ const ASIDE: ReadonlySet<FeedRow['item']['type']> = new Set(['error', 'link', 'p
 /* 字面量而不是 TimelineItem['type']：注解成联合后 === 不再收窄。 */
 const SAID = 'user_message'
 
+/*
+ * 自己就是内容的工具（审查 R-18 的 show_widget）：组件是给人看、给人点的，
+ * 不并进过程组，轮次落定后也不折进「过程」里。失败的那次照常归过程（错误留在组里）。
+ */
+const SHOWN_INLINE: ReadonlySet<string> = new Set(['show_widget'])
+
+function isShownInline(item: FeedRow['item']): boolean {
+  return item.type === 'tool_call' && item.status !== 'failed' && SHOWN_INLINE.has(item.invokedTool)
+}
+
 /** 两个以上成员才并组。任意一档里「单条工具加上一条思考」也够两个。 */
 const LEAST = 2
 
@@ -103,7 +113,7 @@ function runFlavorOf(item: FeedRow['item']): RunFlavor | undefined {
     return 'thought'
   }
 
-  if (item.type !== 'tool_call') {
+  if (item.type !== 'tool_call' || isShownInline(item)) {
     return undefined
   }
 
@@ -247,14 +257,20 @@ function answerStart(rows: readonly FeedRow[], from: number, until: number): num
   return tail + 1
 }
 
-/** 输入、运行锚点与诊断保留可见，其余前缀是过程。 */
+/** 输入、运行锚点、诊断与组件保留可见，其余前缀是过程。 */
 function foldFrom(rows: readonly FeedRow[], frontier: number): readonly number[] {
   const out: number[] = []
 
   for (let i = 0; i < frontier; i += 1) {
-    const type = rows[i]?.item.type
+    const item = rows[i]?.item
 
-    if (type === undefined || type === SAID || type === 'run_anchor' || ASIDE.has(type)) {
+    if (
+      item === undefined ||
+      item.type === SAID ||
+      item.type === 'run_anchor' ||
+      ASIDE.has(item.type) ||
+      isShownInline(item)
+    ) {
       continue
     }
 

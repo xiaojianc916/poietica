@@ -221,6 +221,7 @@
         "@poietica/feature-workspaces": "workspace:*",
         "@poietica/foundation": "workspace:*",
         "@poietica/fs-kit": "workspace:*",
+        "@poietica/host-kernel": "workspace:*",
         "@poietica/rpc": "workspace:*",
         "@poietica/runtime-layout": "workspace:*",
         "@poietica/storage-sqlite": "workspace:*",
@@ -250,6 +251,7 @@
         "@types/bun": "catalog:",
         "@types/react": "catalog:",
         "@types/react-dom": "catalog:",
+        "electron": "catalog:",
       },
     },
     "features/extensions": {

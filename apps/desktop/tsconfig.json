@@ -21,6 +21,9 @@
       "path": "../../features/browser/src/ui"
     },
     {
+      "path": "../../features/conversation/src/host"
+    },
+    {
       "path": "../../features/conversation/src/ui"
     },
     {

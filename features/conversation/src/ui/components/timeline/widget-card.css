@@ -1,0 +1,164 @@
+/*
+ * 对话内组件（审查 R-18）。
+ *
+ * html 组件没有外框、没有底色：它就是回复的一部分，宽度占满正文栏，高度跟内容走（封顶 80vh，
+ * 超出在组件里滚）。底下一行安静的标题与「重新运行」，悬停整块才显现，透明时不挡点击。
+ * url 组件是用户项目的真页面，自带底色，所以给一圈发丝框和一条地址条，和正文区分开。
+ */
+
+.timeline-widget {
+  position: relative;
+  min-inline-size: 0;
+  margin-block: 0.25rem;
+}
+
+.timeline-widget__frame {
+  display: block;
+  inline-size: 100%;
+  max-block-size: 80vh;
+  border: 0;
+  background: transparent;
+  /*
+   * 不写 color-scheme，从 :root 继承（主题令牌按 data-theme 设 light/dark）。iframe 元素与组件文档的
+   * color-scheme 不一致时，浏览器会给组件垫一块不透明的 Canvas 底色——深色下就是一块比正文更黑的方块。
+   */
+}
+
+.timeline-widget[data-source="html"] .timeline-widget__frame {
+  transition: height 160ms var(--cp-motion-ease);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .timeline-widget[data-source="html"] .timeline-widget__frame {
+    transition: none;
+  }
+}
+
+.timeline-widget[data-source="url"] .timeline-widget__frame {
+  background: var(--ui-background);
+}
+
+/*
+ * 第一次报高度之前不露面（外壳是空白页，先占位会闪一下）。用 opacity 而不是 visibility、
+ * 高度留 1px 而不是 0：Chromium 会停掉不可见、零面积的跨源 iframe 的渲染，组件就永远量不出高度。
+ */
+.timeline-widget[data-source="html"][data-ready="false"] .timeline-widget__frame {
+  opacity: 0;
+}
+
+.timeline-widget__foot {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+  min-block-size: 1.75rem;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 120ms var(--cp-motion-ease);
+}
+
+.timeline-widget:hover .timeline-widget__foot,
+.timeline-widget:focus-within .timeline-widget__foot {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.timeline-widget__title {
+  min-inline-size: 0;
+  overflow: hidden;
+  color: var(--cp-timeline-quiet-text);
+  font-size: var(--cp-font-micro);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.timeline-widget__button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  inline-size: 1.75rem;
+  block-size: 1.75rem;
+  padding: 0;
+  border: 0;
+  border-radius: var(--ui-radius-sm);
+  background: transparent;
+  color: var(--cp-timeline-quiet-text);
+  cursor: pointer;
+  line-height: 0;
+  transition:
+    color 100ms var(--cp-motion-ease),
+    background-color 100ms var(--cp-motion-ease);
+}
+
+.timeline-widget__button:hover,
+.timeline-widget__button:focus-visible {
+  background: var(--cp-hover);
+  color: var(--cp-ink);
+}
+
+/* url：细框 + 地址条 */
+.timeline-widget[data-source="url"] {
+  overflow: hidden;
+  border: 1px solid var(--cp-edge);
+  border-radius: var(--ui-radius-lg);
+}
+
+.timeline-widget__bar {
+  display: flex;
+  align-items: center;
+  gap: 0.125rem;
+  block-size: 2rem;
+  padding-inline: 0.75rem 0.25rem;
+  border-block-end: 1px solid var(--cp-hairline);
+  background: var(--cp-timeline-output-surface);
+}
+
+.timeline-widget__address {
+  flex: 1;
+  min-inline-size: 0;
+  overflow: hidden;
+  color: var(--cp-timeline-quiet-text);
+  font-family: var(--cp-font-mono);
+  font-size: var(--cp-font-micro);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.timeline-widget__pending,
+.timeline-widget__failure {
+  display: inline-block;
+  font-size: var(--ui-prose-size-aux);
+  line-height: 1.75rem;
+}
+
+.timeline-widget__failure {
+  color: var(--cp-timeline-danger-text);
+}
+
+.timeline-widget__error {
+  display: flex;
+  align-items: baseline;
+  gap: 0.5rem;
+  margin-block-start: 0.25rem;
+  color: var(--cp-timeline-danger-text);
+  font-size: var(--ui-prose-size-aux);
+}
+
+.timeline-widget__error-text {
+  min-inline-size: 0;
+  overflow-wrap: anywhere;
+}
+
+.timeline-widget__link {
+  flex: none;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--cp-timeline-link-ink);
+  font: inherit;
+  cursor: pointer;
+}
+
+.timeline-widget__link:hover {
+  text-decoration: underline;
+}

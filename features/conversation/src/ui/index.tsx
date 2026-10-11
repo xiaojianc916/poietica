@@ -6,7 +6,7 @@ import { type WindowCloseGuard, WindowCloseToken } from '@poietica/feature-platf
 import { preferencesContract } from '@poietica/feature-preferences/contract'
 import { PreferencesToken } from '@poietica/feature-preferences/ui-api'
 import { useWorkspacesView, type WorkspacesUi, WorkspacesUiToken } from '@poietica/feature-workspaces/ui-api'
-import type { Disposable } from '@poietica/foundation'
+import { createId, type Disposable } from '@poietica/foundation'
 import {
   builtinPoints,
   type CommandItem,
@@ -28,7 +28,7 @@ import {
 } from '@poietica/ui-kernel'
 import { Archive, FileText, MessageSquareText, SquarePen } from 'lucide-react'
 import { type ReactNode, useEffect, useMemo } from 'react'
-import { ConversationUiToken, SkillDocumentToken } from '../ui-api'
+import { ConversationUiToken, SkillDocumentToken, toolCallRenderers } from '../ui-api'
 import { createConversationApi } from './api'
 import { AssistantSurface } from './components/assistant-surface'
 import { AuxiliaryComposer } from './components/composer/auxiliary-composer'
@@ -42,6 +42,7 @@ import { HomeSurface } from './components/home-surface'
 import { SkillDocumentPane } from './components/skill-document-pane'
 import { createSkillDocumentStore, SKILL_DOCUMENT_PANEL, toggleSkillDocument } from './components/skill-document-store'
 import { AssistantThreadList } from './components/threads/assistant-thread-list'
+import { createWidgetCard } from './components/timeline/widget-card'
 import { ConversationProviders } from './composition'
 import { createPostureIntent } from './configuration/posture-intent'
 import {
@@ -907,6 +908,30 @@ export default defineUiFeature({
           <AuxiliaryComposer />
         </ConversationProviders>
       ),
+    })
+
+    /*
+     * 对话内组件（审查 R-18）：show_widget 是 conversation 自己的工具，卡片也由自己贡献。
+     * send 直接按用户消息提交，不经输入框 —— 用户正在输入框里打的字不受影响；
+     * 提交失败就把那句话放回输入框，不丢。
+     */
+    ctx.contribute(toolCallRenderers, {
+      toolName: 'show_widget',
+      component: createWidgetCard({
+        send: (threadId, text) => {
+          void stores.api
+            .submit({ threadId, clientTurnId: createId(), text, attachmentIds: [], skills: [], deliverAs: 'turn' })
+            .catch(() => {
+              stores.composerFor(threadId).insertText(text)
+            })
+        },
+        draft: (threadId, text) => {
+          stores.composerFor(threadId).insertText(text)
+        },
+        openExternal: (url) => {
+          void platform.call('shell.openExternal', { url })
+        },
+      }),
     })
 
     ctx.services.provide(ConversationUiToken, {

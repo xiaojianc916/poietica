@@ -7,6 +7,7 @@
     "./contract": "./src/contract/index.ts",
     "./core": "./src/core/index.ts",
     "./core-api": "./src/core-api/index.ts",
+    "./host": "./src/host/index.ts",
     "./ui": "./src/ui/index.tsx",
     "./ui-api": "./src/ui-api/index.ts"
   },
@@ -22,6 +23,7 @@
     "@poietica/feature-workspaces": "workspace:*",
     "@poietica/foundation": "workspace:*",
     "@poietica/fs-kit": "workspace:*",
+    "@poietica/host-kernel": "workspace:*",
     "@poietica/rpc": "workspace:*",
     "@poietica/runtime-layout": "workspace:*",
     "@poietica/storage-sqlite": "workspace:*",
@@ -50,6 +52,7 @@
     "@testing-library/react": "catalog:",
     "@types/bun": "catalog:",
     "@types/react": "catalog:",
-    "@types/react-dom": "catalog:"
+    "@types/react-dom": "catalog:",
+    "electron": "catalog:"
   }
 }

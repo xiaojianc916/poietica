@@ -1383,3 +1383,78 @@ happy-dom 不解析设计令牌与 oklch）。改动经 Chromium 实渲染核对
 **偏差**：无。真机验收：浅色 / 深色主题各看一张流程图（节点面、框线、连线、分支标签
 可读），切主题当场变色，长宽比不同的图都只按宽度适配、不加滚动条、不可拖拽，看图 /
 看源码两个视图来回切时下方内容不跳。**待真机复核**。
+
+## R-18 对话内组件 show_widget：现写 HTML 或嵌本机开发页，沙箱隔离、跟随主题、回传操作（2026-10-11）
+
+**来源**：产品负责人交办（不入库）。agent 原来只能在对话里写文字、贴图、画 mermaid，
+给不出能点、能拖、能比较的东西。R-18 给 agent 加一个 `show_widget` 工具：现写一份
+HTML/CSS/JS（可从公共 npm CDN 载 d3 / chart.js / three），或嵌本机开发服务器的真页面
+（`http://localhost:5173/…`）。
+
+**为什么不用 `srcdoc`**：主窗口 CSP 是 `script-src 'self'`。`srcdoc`、`about:blank`、
+`blob:` 的 iframe **继承父文档的 CSP**，模型写的内联脚本一行都跑不了；为它放开主窗口的
+CSP 等于给整个渲染进程开口子。所以组件跑在一个独立来源的外壳文档里：
+`poietica-asset://widget/shell-1.html`，由 conversation 新增的 host 模块经资源协议返回，
+**自带自己的 CSP 响应头**。外壳加载后发 `poietica:ready`，UI 回
+`poietica:render {html, css, theme, bare}`，外壳把令牌、预置样式、小桥脚本拼到组件 HTML
+前面，`document.open/write` 成组件文档（CSP 头仍然生效）。外壳文件名带版本号：
+资源协议统一回 `immutable` 缓存头，外壳一改就换名字。
+
+**三层隔离**：
+
+1. **iframe sandbox**：html 来源只给 `allow-scripts allow-forms`，**没有
+   `allow-same-origin`** —— 组件是不透明来源，拿不到 `parent.document`（SecurityError）、
+   Cookie、主窗口存储与 preload API，不能弹窗、不能顶层跳转。
+2. **外壳 CSP**：`default-src 'none'`；脚本 / 样式 / 字体 / connect 只多放 4 个公共
+   CDN；图片与媒体只认 `data: blob:`；`frame-src / object-src / base-uri / form-action`
+   全 `'none'`。组件能用库，但 fetch、外链图片、WebSocket、表单外提都被拦，数据出不去。
+3. **小桥**：UI 只收来自这个 iframe 的 6 种消息（ready / height / send / draft / open /
+   error），字段类型不对当没收到；send / draft / open 要求
+   `document.activeElement === iframe`（用户刚在组件里点过或按过键）；send 一秒节流；
+   文本截 4000 字；open 只放 http(s) 与 mailto，走 `shell.openExternal`。
+
+url 来源给 `allow-scripts allow-same-origin allow-forms allow-modals`（用户自己的开发页
+需要存储和 HMR），它与 Poietica 不同源所以安全；**唯一的例外是 Poietica 自己的 dev
+server** —— UI 发现同源直接拒绝显示。工具侧只收 `localhost / 127.0.0.1` 的 http(s)、
+不收带口令的地址，并先探活一次（4 秒超时；连不上 / ≥400 当场把错误交还模型）。
+
+**其余改动**：
+
+1. **主题**：24 个令牌变量（`WIDGET_TOKEN_NAMES` / `WIDGET_TOKEN_SOURCES` 一一对应，
+   有单测钉住），UI 在 iframe 元素上 `getComputedStyle` 求值后拼 `:root{…}`；值里含
+   `; { } <` 这类能拆开样式表的字符整格丢掉。MutationObserver 盯 `html[data-theme]`
+   （切主题只重推令牌，组件不重跑，输入内容不丢）。
+2. **预置样式**全部包在 `:where()` 里（特异性为 0），模型自己写样式都压得过；
+   `bare: true` 时只留令牌与小桥。组件文档背景透明，iframe 不写 `color-scheme`。
+3. **尺寸**：高度靠 ResizeObserver + `DOMContentLoaded / load` 直报（不用 rAF：
+   Chromium 会停掉不可见跨源 iframe 的渲染循环）；首次报高前高 1px、`opacity: 0`；
+   最小 24px、封顶 80vh；模型给 `height`（80–2000）就固定；url 来源默认 560px。
+4. **时间线**：`show_widget` 不并进「过程」组、落定后不折叠（它是答复的一部分）；
+   失败的那次照常归过程。
+5. **主窗口 CSP** 只改 `frame-src`：加 `poietica-asset://widget` 与本机开发服务器，
+   `script-src` 一个字没动。
+
+**契约**：只新增常量文件 `contract/widget.ts`，不加 RPC 方法、不改已有形状，
+**不提升** `PROTOCOL_VERSION`。
+
+**测试**：新增 4 个文件共 22 例（W1–W8 + M1 真内核、S1–S3 外壳与 CSP、B1–B6 小桥纯
+逻辑、时间线 4 例）；先写测试在旧代码上失败再实现。`bun run all` 全绿
+（1835 pass / 0 fail，较 R-17 的 1813 新增 22）。
+
+**偏差**：无。第 6 节真机验收（浅色 / 深色各一遍，Windows `bun run dev`）**尚未执行**，
+留待人工逐条走。沙箱侧已在 Chromium 用真 `WIDGET_SHELL_HTML` + `WIDGET_CSP` 验收过
+高度自适应、程序化 send 被拦、点击后生效与节流、localStorage 垫片、切主题不重跑、
+`parent.document` SecurityError、fetch 被 CSP 拦、Chart.js 从 jsdelivr 加载。
+
+### R-18 执行偏差（2026-10-11）
+
+1. **闸门脚本名**：R-18 第 4 节的第 7 步写 `bun run check`，但本仓 `package.json` 里没有
+   `check` 脚本，唯一的准入闸门是 `bun run all`（= typecheck + lint + test）。按后者执行。
+2. **`core:build` 未在本机重跑**：执行时本机已有一个 9:44 启动的 `bun run dev` 实例，
+   `poietica-core.exe` 正锁着 `apps/core/dist`，构建脚本删旧产物时报
+   `EPERM: operation not permitted, rm 'apps/core/dist'`。本次改动只触及 Core 侧一个
+   工具注册（`registerWidgetTool`）与既有包，未改构建配置 / 依赖装配 / 环境或路径，故
+   未停掉用户的运行实例；`bun run all`（含 Core 相关单测，含走真内核的 M1 用例）全绿。
+   涉及 R-18 的 Core 产物与隔离自检（`core:probe`）留待关闭 `bun run dev` 后补跑。
+3. 方案正文提到 registry 里 `tools.register` 的既有形态未变；`show_widget` 与
+   `show_image` 同点注册，不涉及 `PROTOCOL_VERSION` 与协议快照。

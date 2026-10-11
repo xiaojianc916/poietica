@@ -62,6 +62,9 @@
       "path": "features/conversation/src/core-api"
     },
     {
+      "path": "features/conversation/src/host"
+    },
+    {
       "path": "features/conversation/src/ui"
     },
     {
