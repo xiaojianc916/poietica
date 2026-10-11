@@ -1715,3 +1715,77 @@ React DevTools Profiler 录 5 秒流式 —— `TickList` 只在新增一轮 / �
 （改前每批都有）；Performance 面板里 `prefixOf` 自身耗时接近 0；发消息后提交气泡被真实轮次
 替换时只有一个气泡；待办面板、任务面板「智能体」一节显示与改前一致；minimap 悬停已完成的
 轮次显示完整回复。
+
+## P-05 工具输出与文本流的通道压缩：批内合并、运行中节流、环形缓存字符预算（2026-10-11）
+
+**来源**：`Project Refactoring Plan/P-05.md`（外部输入，不入库）。
+
+**现状复核**（方案 §2 的证据链逐条对过，行号已漂移、结论不变）：
+
+1. omp 每收到一块输出就把 `tool_execution_update` 连同「到目前为止的尾部输出（≤50KB）」
+   整份报一次（`pi-tui` 的 `streamTailUpdates`）；`projector.toolUpdate` 每块输出吐一条带
+   完整 `output` 的 `frame.upsert`（`state:'running'`），文本流每个 delta 一条 `append`，
+   子代理每帧进度一条带整份 `outputTail` 的 `task.upsert`。
+2. Core 通道 `push()` 只是缓冲，`flush()` 把 pending 原样作为一批发出并入环 —— 16ms 内同一
+   格的多份整格替换全部发出，同一帧的多个 `append` 不拼接；`RING_CAPACITY = 2000` 只按
+   **批数**限，每批可带多份 50KB 输出。
+3. 下游每一跳都按「份」付费：Core `JSON.stringify` → Host 主进程 `JSON.parse` →
+   MessagePort 结构化克隆（每窗口一次）→ 渲染进程逐条 `applyFrameUpsert` / `applyAppend`。
+
+**改法**（严格按方案 §5 / §6，与旧版方案的差别见其 §4 复核表）：
+
+1. **新增 `features/conversation/src/core/timeline-compact.ts`**：纯函数 `compactOps` 只做两种
+   可证明等价的合并 —— 规则 A 把紧邻、同目标、offset 首尾相接的 `append` 拼成一条；规则 B
+   把同键整格替换（`frame.upsert` 按 turn/step/frame、`task.upsert` 按 taskId）的新内容放进
+   旧槽位（帧 / 任务顺序由第一次插入决定），往回最多看 `COMPACT_LOOKBACK = 64` 条，遇到
+   `reset` / `items.remove` 或写同一格的 `append` 停手。`commutes` 用穷尽 switch +
+   `assertNever`，上游新增 op 类型时编译不过。未合并时返回原数组（引用相同）。另含
+   `frameKey` / `replaceKey` / `estimateChars`（字符串直接取长度，其余才序列化）。
+2. **改 `timeline-channel.ts`**：`push()` 逐条走 `accept()`。运行中工具帧的**中间结果**
+   （已发出过首帧的 `frame.upsert`、`kind:'tool'`、`state:'running'`）压进 `held`
+   （每格只留最新一份），`TOOL_UPDATE_INTERVAL_MS = 100` 到点 `releaseHeld()` + `emit()`；
+   首帧与终态立即放行，终态作废压着的那份，`reset` / `items.remove` 前先放出；公开
+   `flush()`（position / catchUp / dropHistory / 订阅快照用）先放压着的再发；`reset()` /
+   `dispose()` 共用 `discard()` 清两个定时器、`held`、`running`、环与 `ringChars`。
+   `emit()` 发出前 `compactOps`，入环时按批数与 `RING_MAX_CHARS = 8_000_000`（约 16MB
+   UTF-16）双限裁旧（至少留最新一批），`catchUp` 去掉内部 `chars` 字段、对外形状不变。
+3. **协议形状不变**：op 的类型与字段都没动，只是少发、合并发；不改 engine-omp、不改 UI。
+
+**行为变化**（方案 §5.4）：工具卡片照样立刻出现（首帧不节流）；运行中输出最多 10 次/秒、
+总是最新一份；完成 / 失败立即且不会被晚到的中间结果盖回「运行中」；文本流与子代理进度在
+16ms 批内合并（视觉无差别）；断线重连补发变成「最近 2000 批且 ≤ 800 万字符」，超了走原有
+整读路径。
+
+**测试**（先写、在旧代码上确认红，再实现）：
+
+- `timeline-compact.test.ts`（新，13 例）：C1–C11 手写规则（拼接、屏障、槽位、回看上限、
+  不修改输入、计费规则）；C12 / C13 随机序列对拍（500 × 60 / 300 × 40 条），判据是真实
+  `applyOps` 折叠结果 `toEqual`。旧代码上模块不存在，直接红。
+- `timeline-channel-gate.test.ts`（新，8 例）：K1 批内 30 token → 1 条 append（旧 30 条）；
+  K3 1 秒 200 份 50KB → ≤ 12 份且最后一份最新（旧 201 份）；K4 终态作废压着的中间结果
+  （旧多发一份 partial）；K7 300 批 × 100K 字符后从头补发判为不完整（旧按批数不裁）；
+  K2 / K5 / K6 / K8 是护栏（旧代码上也过）。实测旧代码 **4 pass / 4 fail**，红的是
+  K1 / K3 / K4 / K7，与方案完全一致。
+- 变异检验（量完即改回，`git hash-object` 确认与方案代码一致）：`items.remove` 改为可交换
+  ⇒ C5、C13 失败；`append` 改为总可交换 ⇒ C6、C8、C12 失败。
+- `timeline-channel.test.ts`（既有 215 行）与其它既有用例一行未改，原样通过。
+
+**微基准**（方案 §8 脚本，同一台机器，量完删除、未提交）：
+
+| 场景 | 旧代码 | 新代码 | 变化 |
+| --- | --- | --- | --- |
+| bash 每 5ms 一块、尾部 50KB、持续 10 秒后完成 | 501 批，JSON 共 **102.7MB**，pushCost 82.9ms | 101 批，JSON 共 **5.1MB**，pushCost 34.7ms | 发送量 ÷20 |
+| 文本流每 2ms 一个 token、持续 10 秒 | 625 批，**5000** 条 op | 625 批，**625** 条 op | op 条数 ÷8 |
+
+**验收**：`bun run typecheck` / `bun run lint` 各自通过；`bun test features/conversation
+packages/transcript` **356 pass / 0 fail**；`bun run all` 全绿（1896 pass / 0 fail，
+较 P-04 的 1875 新增 21 = C1–C13 + K1–K8）。
+
+**偏差**：无契约、无依赖、无协议、无持久化数据变化；回滚即整笔 revert。
+四个落位文件与方案 §6 的代码块逐字一致（逐文件字符串比对 True），旧 `timeline-channel.test.ts`
+未动。
+
+**待真机复核**（方案 §8，需 Windows 桌面实例）：让 agent 跑大输出命令（如 `git log --stat
+-n 3000`）—— 工具卡片立刻出现、滚动无肉眼可见卡顿、完成不闪回「运行中」；运行中最小化
+5 秒再还原应即时；DevTools Performance 录 5 秒对比 `MessagePort` 处理与 apply 时长下降、
+Core 内存在长命令期间不再持续上涨；运行中断开重连（或刷新窗口）时间线完整无重复无缺口。
