@@ -24,7 +24,7 @@ import { overlayPresent, watchOverlays } from './overlay-watch'
 import { BrowserPanel } from './panel'
 import { cancelPick, createPickDelivery } from './pick-delivery'
 import { createBrowserPanelStore } from './store'
-import { BrowserToolCard } from './tool-card'
+import { createBrowserToolCard } from './tool-card'
 
 import './browser-panel.css'
 
@@ -165,7 +165,11 @@ export default defineUiFeature({
 
     ctx.contribute(toolCallRenderers, {
       toolName: 'browser',
-      component: BrowserToolCard,
+      component: createBrowserToolCard({
+        openPanel: () => {
+          layout.openPanel('right', PANEL_ID)
+        },
+      }),
     })
 
     const visible = (): boolean => {
