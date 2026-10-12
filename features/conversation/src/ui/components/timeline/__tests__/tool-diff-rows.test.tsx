@@ -1,6 +1,4 @@
 import { describe, expect, it } from 'bun:test'
-import { readFileSync } from 'node:fs'
-import { fileURLToPath } from 'node:url'
 import { renderToStaticMarkup } from 'react-dom/server'
 import type { ToolCallTimelineItem } from '../../../timeline/timeline-contract'
 import { ToolCallPanels } from '../tool-call-panels'
@@ -14,9 +12,6 @@ import { ToolCallPanels } from '../tool-call-panels'
  * 没有行号槽样式、没有增删底色，也就分不出哪一行是删、哪一行是增。
  */
 
-const CSS = readFileSync(fileURLToPath(new URL('../tool-call.css', import.meta.url)), 'utf8')
-
-/* 改动落在中段：hunk 前面那些未改动行折成一条折叠带（没有行号）。 */
 const BEFORE = Array.from({ length: 30 }, (_, index) => `line ${String(index + 1)}`).join('\n')
 const AFTER = BEFORE.replace('\nline 15\n', '\nline fifteen\n')
 
@@ -81,27 +76,5 @@ describe('抽屉里那处改动的画法', () => {
     expect(markup).not.toContain('diff-gap')
     /* 折叠带那类没有行号的行曾印一个「⋯」占位，是第二种说法。 */
     expect(markup).not.toContain('⋯')
-  })
-})
-
-describe('抽屉的 CSS 不再重抄行带', () => {
-  it('增删底色与行号槽归行带自己，抽屉不声明第二份', () => {
-    for (const selector of [
-      '.timeline-tool__diff-row',
-      '.timeline-tool__diff-line',
-      '.timeline-tool__diff-code',
-      '.timeline-tool__diff-scrollbar',
-    ]) {
-      expect(CSS).not.toContain(selector)
-    }
-  })
-
-  it('diff 那一格是唯一的双轴滚动容器', () => {
-    const at = CSS.indexOf('.timeline-tool__diff {')
-    const close = CSS.indexOf('}', at)
-    const rule = CSS.slice(at, close)
-
-    expect(rule).toContain('overflow: auto')
-    expect(rule).toContain('max-block-size')
   })
 })

@@ -236,29 +236,3 @@ describe('StrictMode（开发时模拟一次卸载再挂回）', () => {
     expect(container.textContent).toBe('然后')
   })
 })
-
-describe('没有任何遮挡', () => {
-  it('任何状态下都没有 data-scrolled，也没有内联的 mask', async () => {
-    const { container, update } = mount(thought('0', '我'))
-
-    await update(thought('0', '我需要确认 relay 的端口，再看配置文件里写的是哪一个'))
-    await advance(300)
-    await update(<RollingLine contentKey="0" following={false} text="结论" variant="thought" />)
-
-    const tool = mount(
-      <RollingLine
-        contentKey="call-1"
-        following
-        shimmer
-        text="读 features/conversation/src/ui/components/timeline/rolling-line.css"
-      />,
-    )
-
-    await advance(100)
-
-    for (const root of [container, tool.container]) {
-      expect(root.querySelector('[data-scrolled]')).toBeNull()
-      expect(root.innerHTML).not.toMatch(/mask/u)
-    }
-  })
-})

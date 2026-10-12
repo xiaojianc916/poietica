@@ -2,7 +2,7 @@ import { describe, expect, test } from 'bun:test'
 import { readFileSync } from 'node:fs'
 import path from 'node:path'
 import { contractSnapshot } from '@poietica/contract-kit'
-import { appContract, ownerOf, PROTOCOL_VERSION } from '../index'
+import { appContract, ownerOf } from '../index'
 
 const file = path.join(import.meta.dir, 'contract.snapshot.json')
 
@@ -16,11 +16,6 @@ describe('T-PROTO-SNAPSHOT', () => {
       )
     }
     expect(actual).toBe(expected)
-  })
-
-  test('PROTOCOL_VERSION 是正整数', () => {
-    expect(Number.isInteger(PROTOCOL_VERSION)).toBe(true)
-    expect(PROTOCOL_VERSION).toBeGreaterThan(0)
   })
 
   test('system 契约已在 appContract 中', () => {

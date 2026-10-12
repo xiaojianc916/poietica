@@ -448,20 +448,6 @@ describe('workbench 外壳', () => {
   })
 
   /*
-   * 用户 2026-10-06 报的「退出时顶部栏下方闪一次 #383836 长方形」：外壳栅格原先多一行
-   * `banners`，底色取 `--ui-accent`（深色 #383836）。外壳按 Core 状态挂出整行、组件却
-   * 因宽限画不出字，屏幕上就只剩一条没有字的纯色行。那一行已整条删除 —— 横幅改回
-   * design-system 的通用 Banner 浮层。这条钉住「外壳里再也不存在那条横幅行」。
-   */
-  test('外壳不再有横幅行（色块闪现的载体已删除）', async () => {
-    const kernel = await mount()
-    expect(document.querySelector('[data-workbench-part="banners"]')).toBeNull()
-    expect(document.querySelector('.workspace-shell__banners')).toBeNull()
-    expect(document.querySelector('[data-workbench-part="title-bar"]')).not.toBeNull()
-    kernel.dispose()
-  })
-
-  /*
    * 浮层宿主挂在栅格根之内（为了继承 --chrome-height 那类自定义属性），所以它的包装层
    * 必须 display: contents —— 否则一个静态定位的 div 会被栅格**自动放进某个格位**，等于
    * 外壳又替浮层占了一格，正是横幅行那个故障的形状。

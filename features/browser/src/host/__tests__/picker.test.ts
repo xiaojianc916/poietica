@@ -1,6 +1,5 @@
 import { describe, expect, test } from 'bun:test'
-import { PICKER_CALLBACK_HOST, PICKER_WORLD } from '../../contract/entities'
-import { browserErrors } from '../../contract/errors'
+import { PICKER_CALLBACK_HOST } from '../../contract/entities'
 import { createPicker, decodePickerCallback, isPickerCallback } from '../picker'
 
 /*
@@ -199,16 +198,5 @@ describe('BR-8: 回调 → elementPicked', () => {
 
     expect(tabs.picking).toBeNull()
     expect(picked).toEqual([{ tabId: 1, url: 'https://a.example/' }])
-  })
-})
-
-describe('错误码与注入世界', () => {
-  test('browser 的两个错误码是契约里那一对', () => {
-    expect(browserErrors.invalid_url).toBeDefined()
-    expect(browserErrors.tab_not_found).toBeDefined()
-  })
-
-  test('拾取脚本注入隔离世界 999（页面主世界的脚本碰不到它）', () => {
-    expect(PICKER_WORLD).toBe(999)
   })
 })

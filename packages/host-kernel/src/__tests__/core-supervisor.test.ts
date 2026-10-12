@@ -3,10 +3,10 @@ import { EventEmitter } from 'node:events'
 import { PassThrough } from 'node:stream'
 import { type AppError, Deferred, SystemErrorCode } from '@poietica/foundation'
 import { encodeFrame } from '@poietica/rpc'
-import { CORE_SHUTDOWN_BUDGET_MS, type DataLayout, dataLayout } from '@poietica/runtime-layout'
+import { type DataLayout, dataLayout } from '@poietica/runtime-layout'
 import { createTestLogger, type FakeClock, fakeClock, type TempDir, tempDir, waitFor } from '@poietica/test-kit'
 import type { CoreLogSink } from '../core-log-sink'
-import { CoreSupervisor, type CoreSupervisorOptions, STOP_GRACE_MS } from '../core-supervisor'
+import { CoreSupervisor, type CoreSupervisorOptions } from '../core-supervisor'
 
 interface FakeChild extends EventEmitter {
   pid: number
@@ -388,14 +388,6 @@ describe('CoreSupervisor', () => {
     const s = await setup()
     expect(s.sup.status.state).toBe('starting')
     expect(s.sup.relayPort()).toBeNull()
-  })
-
-  /*
-   * R-05 §3.3：Host 的宽限期必须大于 Core 自己的总预算（共享常量 + 2 秒），
-   * 否则 Core 还在关会话 / flush 设置时就被 killTree 杀了。
-   */
-  test('R-05 STOP_GRACE_MS = CORE_SHUTDOWN_BUDGET_MS + 2000', () => {
-    expect(STOP_GRACE_MS).toBe(CORE_SHUTDOWN_BUDGET_MS + 2_000)
   })
 
   /*

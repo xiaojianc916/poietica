@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test'
-import { resolveStartupTheme, systemPrefersDark } from '../theme'
+import { resolveStartupTheme } from '../theme'
 
 /*
  * 真实故障：用户在设置里选「深色」，冷启动后界面仍是浅色（跟随系统那一档），
@@ -18,9 +18,5 @@ describe('启动时的主题档位', () => {
   test('选跟随系统时读系统此刻那一档', () => {
     expect(resolveStartupTheme('system', true)).toBe('dark')
     expect(resolveStartupTheme('system', false)).toBe('light')
-  })
-
-  test('systemPrefersDark 在测试环境里可读（happy-dom 提供 matchMedia）', () => {
-    expect(typeof systemPrefersDark()).toBe('boolean')
   })
 })

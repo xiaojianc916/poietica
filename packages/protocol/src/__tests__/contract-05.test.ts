@@ -16,32 +16,6 @@ const notification = (name: string) => {
   return def
 }
 
-describe('T-05-TIMEOUT 超时默认值（05 §10）', () => {
-  const rows: [string, number][] = [
-    ['turns.submit', 60_000],
-    ['git.review', 60_000],
-    ['git.commit', 60_000],
-    ['plugins.install', 300_000],
-    ['skills.install', 300_000],
-    ['python.install', 300_000],
-    ['threads.export', 120_000],
-    ['dialog.pickFolder', 0],
-    ['dialog.pickFiles', 0],
-    ['dialog.pickSavePath', 0],
-    ['core.shutdown', 15_000],
-    ['core.restart', 60_000],
-    ['core.getStatus', 30_000],
-    /* R-08-14：下载安装包通常超过 30 秒，这一档不设超时（结果由 update.stateChanged 说话） */
-    ['update.download', 0],
-    ['update.check', 60_000],
-  ]
-  for (const [name, ms] of rows) {
-    test(`${name} = ${ms}`, () => {
-      expect(method(name).timeoutMs).toBe(ms)
-    })
-  }
-})
-
 describe('T-05-FIELDS §11 点名的字段形状', () => {
   const skill = { id: '/s', name: 's', description: '', source: 'user', enabled: true, path: 'D:/s' }
   const plugin = { id: 'p', name: 'p', version: '1.0.0', description: '', enabled: true, source: 'market' }

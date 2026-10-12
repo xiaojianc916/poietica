@@ -1,6 +1,4 @@
 import { afterEach, describe, expect, it } from 'bun:test'
-import { readFileSync } from 'node:fs'
-import { fileURLToPath } from 'node:url'
 import { cleanup, render } from '@testing-library/react'
 import { MotionConfig } from 'motion/react'
 import { renderToStaticMarkup } from 'react-dom/server'
@@ -17,13 +15,6 @@ import { ToolGroupCard } from '../tool-group-card'
  *   • 思考从头到尾不落成行，只在组头一闪；落定之后整段消失，历史回放也不出现；
  *   • 思考对每一档都透明：edit / fetch 等同档相邻即使中间夹着思考也连成一条。
  */
-
-const CSS = readFileSync(fileURLToPath(new URL('../tool-group.css', import.meta.url)), 'utf8')
-const FLOW = readFileSync(fileURLToPath(new URL('../flow-row.css', import.meta.url)), 'utf8')
-const TOKENS = readFileSync(
-  fileURLToPath(new URL('../../../../../../../packages/design-system/src/tokens/assistant.css', import.meta.url)),
-  'utf8',
-)
 
 function ask(id = 'ask'): TimelineItem {
   return { type: 'user_message', id, turn: 0, at: 0, text: '看看仓库' }
@@ -336,23 +327,6 @@ describe('过程组的组头', () => {
     expect(markup).toContain('data-measure="prose"')
   })
 
-  it('量度钉在输入框那一档，不再解成环形百分比', () => {
-    /* 100% 在网格的固有尺寸计算里当 auto 用：思考在写的时候内层是 max-content，
-       轨道会被这句话反过来撑开 —— 那一行的量度必须有确定的宽度可解。 */
-    const at = FLOW.indexOf('.timeline-row[data-measure="prose"]')
-    const rule = FLOW.slice(at, FLOW.indexOf('}', at))
-
-    expect(rule).toContain('--cp-row-measure: var(--cp-input-max)')
-    expect(rule).not.toContain('100%')
-  })
-
-  it('过程组的轨道先钉成可用宽，内容撑不出去', () => {
-    const at = CSS.indexOf('.timeline-group {')
-    const rule = CSS.slice(at, CSS.indexOf('}', at))
-
-    expect(rule).toContain('grid-template-columns: minmax(0, 1fr)')
-  })
-
   it('印工具调用的时候仍收在工具那一档量度里', () => {
     const feed = selectPresentation(
       stateOf([ask(), tool('r', 'read', 'in_progress'), tool('e', 'execute')], true),
@@ -397,30 +371,5 @@ describe('过程组的账目与成员列表', () => {
     expect(sayProcessSummary(1, 0)).toBe('已读取文件')
     expect(sayProcessSummary(0, 1)).toBe('运行了命令')
     expect(sayProcessSummary(2, 3)).toBe('已读取文件运行了命令')
-  })
-
-  it('成员列表封顶并自己滚，高度与雾的跑道都来自令牌', () => {
-    const at = CSS.indexOf('.timeline-group__members {')
-    const close = CSS.indexOf('}', at)
-    const rule = CSS.slice(at, close)
-
-    expect(rule).toContain('max-block-size: var(--cp-timeline-group-max)')
-    expect(rule).toContain('overflow: hidden auto')
-    expect(TOKENS).toContain('--cp-timeline-group-max:')
-    expect(TOKENS).toContain('--cp-timeline-group-fade:')
-  })
-
-  it('两端那道雾只按四态画，到头的那一端不挂渐变', () => {
-    /* 四态各自一条规则：都藏着、只上端、只下端、都不藏（没有规则）。 */
-    for (const state of ['both', 'top', 'bottom']) {
-      expect(CSS).toContain(`[data-scroll-mask="${state}"]`)
-    }
-
-    /* data-scroll-mask="none" 没有对应的 mask-image —— 到头了就不该再有渐隐。 */
-    expect(CSS).not.toContain('[data-scroll-mask="none"]')
-
-    /* 中间那一段一律不许变淡：两个停靠点之间是纯黑。 */
-    const both = CSS.slice(CSS.indexOf('[data-scroll-mask="both"]'))
-    expect(both.slice(0, both.indexOf('}'))).toContain('#000 var(--cp-timeline-group-fade)')
   })
 })

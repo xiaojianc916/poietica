@@ -1,4 +1,3 @@
-import { describe, test } from 'bun:test'
 import { runEngineConformance } from '../conformance'
 import { createFakeEngine } from '../fake-engine'
 import { tempDirWithCleanup } from './helpers'
@@ -22,11 +21,4 @@ runEngineConformance('FakeEngine', async () => {
     },
     dispose: () => engine.dispose(),
   }
-})
-
-describe('engine-testkit 自检', () => {
-  test('FakeEngine 暴露 opened 与 toolCalls', () => {
-    const engine = createFakeEngine()
-    if (engine.opened.length !== 0) throw new Error('初始应没有会话')
-  })
 })

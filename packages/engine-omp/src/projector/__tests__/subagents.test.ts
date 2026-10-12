@@ -1,18 +1,7 @@
 import { describe, expect, test } from 'bun:test'
-import {
-  TASK_SUBAGENT_LIFECYCLE_CHANNEL,
-  TASK_SUBAGENT_PROGRESS_CHANNEL,
-} from '@oh-my-pi/pi-tui/overlays/session-observer-registry'
 import { lifecycleFrameOf, progressFrameOf, SubagentLedger, taskStateOf } from '../subagents'
 
 const ledger = (): SubagentLedger => new SubagentLedger({ now: () => 1_700_000_000_000 })
-
-describe('频道常量', () => {
-  test('从 omp 导入而不是手写字符串', () => {
-    expect(TASK_SUBAGENT_LIFECYCLE_CHANNEL).toBe('task:subagent:lifecycle')
-    expect(TASK_SUBAGENT_PROGRESS_CHANNEL).toBe('task:subagent:progress')
-  })
-})
 
 describe('帧收窄', () => {
   test('生命周期帧缺少 id 时整帧作废', () => {

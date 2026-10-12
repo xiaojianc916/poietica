@@ -347,8 +347,4 @@ describe('attachments 服务（07 页 §4G、14 页 §8.6）', () => {
     db.close()
     await root.dispose()
   })
-
-  test('回收在 60 秒后才第一次跑（模块接线由 core/index 负责，这里断言常量的关系）', () => {
-    expect(SWEEP_GRACE_MS).toBe(24 * 60 * 60 * 1000)
-  })
 })

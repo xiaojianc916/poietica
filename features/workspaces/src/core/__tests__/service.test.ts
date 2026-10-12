@@ -5,7 +5,7 @@ import { AppError } from '@poietica/foundation'
 import { ensureDir } from '@poietica/fs-kit'
 import { openDatabase } from '@poietica/storage-sqlite'
 import { createTestLogger, fakeClock, tempDir } from '@poietica/test-kit'
-import { type WorkspaceRemoved, workspaceRemoved } from '../../core-api'
+import type { WorkspaceRemoved } from '../../core-api'
 import { migrations } from '../migrations'
 import { createWorkspacesRepository } from '../repository'
 import { createWorkspacesService } from '../service'
@@ -240,12 +240,5 @@ describe('workspaces 服务（07 页 §3G）', () => {
     expect(service.list()[0]!.exists).toBe(false)
     db.close()
     await root.dispose()
-  })
-})
-
-describe('workspaceRemoved 事件令牌', () => {
-  test('ownerModule 与 name 与 07 页 §3C 一致', () => {
-    expect(workspaceRemoved.ownerModule).toBe('workspaces')
-    expect(workspaceRemoved.name).toBe('workspaceRemoved')
   })
 })

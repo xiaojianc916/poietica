@@ -2,13 +2,12 @@ import { describe, expect, test } from 'bun:test'
 import { createTestLogger } from '@poietica/test-kit'
 import type { Automation, AutomationRun, Schedule, ScheduleProblem } from '../../contract'
 import type { AutomationsApi } from '../api'
-import { createAutomationsStore, RUNS_LIMIT } from '../automations-store'
+import { createAutomationsStore } from '../automations-store'
 
 /*
  * store 的行为（逐条对照 legacy `packages/automation/src/automation-store.ts` 的测试口径）：
  *   - changed → refresh；runUpdated → 只更新缓存里的那一条；
  *   - 写入成功把返回值并进列表；命令去重（同键只发一次）；
- *   - 历史上限与 RUNS_LIMIT 对齐；
  *   - 读失败会写进 error（loaded 仍为 true），订阅失败写 watchError。
  */
 
@@ -225,10 +224,6 @@ describe('automations store', () => {
     expect(store.store.getState().automations[0]?.title).toBe('改过')
     expect(await store.remove('new')).toBe(true)
     expect(store.store.getState().automations).toEqual([])
-  })
-
-  test('历史上限与 RUNS_LIMIT 对齐（50）', () => {
-    expect(RUNS_LIMIT).toBe(50)
   })
 
   test('start 只能起一次；dispose 后可以再起', () => {

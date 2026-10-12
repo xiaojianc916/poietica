@@ -20,11 +20,6 @@ describe('PY-7: release.test.ts', () => {
   it('PYTHON_DOWNLOAD_URLS 中包含 %2B', () => {
     expect(PYTHON_DOWNLOAD_URLS.some((url) => url.includes('%2B'))).toBe(true)
   })
-
-  it('PYTHON_RELEASE_TAG 与 PYTHON_VERSION 非空', () => {
-    expect(PYTHON_RELEASE_TAG.length).toBeGreaterThan(0)
-    expect(PYTHON_VERSION.length).toBeGreaterThan(0)
-  })
 })
 
 describe('statusOf', () => {

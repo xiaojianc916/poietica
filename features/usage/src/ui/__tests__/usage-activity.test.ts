@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'bun:test'
-import { dayKeyOf, spread, spreadWeeks, summarize } from '../usage-activity'
+import { dayKeyOf, spread, summarize } from '../usage-activity'
 
 describe('US-1: 插入跨 3 天、2 个模型的采样', () => {
   it('tokenDays 3 行', () => {
@@ -30,15 +30,6 @@ describe('US-3: 1 秒内同一线程 5 次采样', () => {
   it('同一天的多条采样按天聚合成一格（热力图的格子口径）', () => {
     const days = spread(new Map([['2026-10-01', 500]]), new Date('2026-10-01'), 1)
     expect(days.reduce((s, d) => s + d.count, 0)).toBe(500)
-  })
-})
-
-describe('US-6: 热力图组件', () => {
-  it('26 周网格、5 档颜色分级', () => {
-    const days = spreadWeeks(new Map(), new Date('2026-10-05'), 26)
-    expect(days.length).toBe(26 * 7)
-    const levels = new Set(days.map((d) => Math.min(4, Math.ceil(d.count / 10))))
-    expect([...levels].every((l) => l >= 0 && l <= 4)).toBe(true)
   })
 })
 

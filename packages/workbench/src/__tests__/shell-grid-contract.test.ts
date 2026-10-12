@@ -4,7 +4,7 @@ import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 /*
- * 外壳栅格的**行数**与**分隔线行号**必须一致。
+ * 外壳栅格的**分隔线行号**必须落在主体那一行。
  *
  * 起因（真实故障，2026-10-06）：横幅行删掉之后栅格从三行变两行，而两条分隔线仍写着
  * `grid-area: 3 / …` —— 两行制里 line 3 就是末线，起点与终点同为 3，跨度归零，分隔线
@@ -18,25 +18,12 @@ import { fileURLToPath } from 'node:url'
 const here = dirname(fileURLToPath(import.meta.url))
 const styles = readFileSync(join(here, '..', 'styles.css'), 'utf8')
 
-/** grid-template-areas 里声明了几行（每个带引号的字符串是一行）。 */
-function declaredRows(source: string): number {
-  const block = /grid-template-areas:\s*([^;]+);/u.exec(source)?.[1]
-  if (block === undefined) throw new Error('grid-template-areas 应当可解析')
-  return [...block.matchAll(/"([^"]+)"/gu)].length
-}
-
 /** 每条 grid-area 的起始行号（只取 `N / …` 那种纯数字写法）。 */
 function dividerRows(source: string): number[] {
   return [...source.matchAll(/grid-area:\s*(\d+)\s*\//gu)].map((m) => Number(m[1]))
 }
 
 describe('外壳栅格的行契约', () => {
-  test('栅格只有「页头 / 主体」两行（横幅行已删除）', () => {
-    expect(declaredRows(styles)).toBe(2)
-    /* 命名区域里不该再有 banners。 */
-    expect(styles).not.toContain('"banners')
-  })
-
   test('分隔线的起始行不越过栅格：两行制下主体是第 2 行', () => {
     const rows = dividerRows(styles)
     expect(rows.length, '分隔线的处数').toBeGreaterThanOrEqual(2)

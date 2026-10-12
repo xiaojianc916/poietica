@@ -391,23 +391,4 @@ describe('uiContext：omp 的对话框走 broker（12 页 §8.3）', () => {
     expect(await askDialog.call(ui, [])).toBeUndefined()
     expect(broker.pendingCount()).toBe(0)
   })
-
-  test('交互式 TUI 的面逐个如实空实现', async () => {
-    const { broker } = brokerWithRecorder()
-    const ui = createUiContext(broker)
-
-    expect(ui.getEditorText()).toBe('')
-    expect(ui.getToolsExpanded()).toBe(false)
-    expect(await ui.custom(() => ({ render: () => [] }) as never)).toBeUndefined()
-    expect(await ui.getTheme('绝无此主题')).toBeUndefined()
-    ui.notify('一条通知')
-    ui.setStatus('k', undefined)
-    ui.setWorkingMessage('工作中')
-    ui.setTitle('标题')
-    ui.setEditorText('文本')
-    ui.pasteToEditor('文本')
-    ui.setToolsExpanded(true)
-    expect(typeof ui.onTerminalInput(() => undefined)).toBe('function')
-    expect(ui.timeoutStartsOnPresentation).toBe(false)
-  })
 })

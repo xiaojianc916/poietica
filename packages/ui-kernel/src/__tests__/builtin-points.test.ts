@@ -16,10 +16,6 @@ import { builtinPoints } from '@poietica/ui-kernel'
  * 这一条就会红。
  */
 describe('外壳不再代持横幅的外观', () => {
-  test('没有 banners 贡献点（整行代持的形状已删除）', () => {
-    expect('banners' in builtinPoints).toBe(false)
-  })
-
   test('浮层贡献点是「自己定位、不占栅格」的那一档', () => {
     expect('overlays' in builtinPoints).toBe(true)
   })

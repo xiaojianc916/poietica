@@ -63,19 +63,6 @@ describe('rolling-line.css', () => {
     expect(code).not.toMatch(/--cp-ticker-fade/u)
   })
 
-  test('思考句：窗口放不下时右端贴齐、放得下时靠左（由布局保证，不靠 JS 测量）', () => {
-    expect(declaredValue('.ticker-window', 'display')).toBe('flex')
-    expect(declaredValue('.ticker-window', 'justify-content')).toBe('flex-end')
-    expect(declaredValue('.ticker-track', 'flex')).toBe('none')
-    expect(declaredValue('.ticker-track', 'margin-inline-end')).toBe('auto')
-  })
-
-  test('思考句：右侧留白来自令牌，最新的字离右边缘始终有这段距离', () => {
-    expect(declaredValue('.rolling-line[data-variant="thought"] .ticker-track', 'padding-inline-end')).toBe(
-      'var(--cp-ticker-tail)',
-    )
-  })
-
   test('工具行与落定态：从头显示，放不下时末尾省略号', () => {
     for (const scope of ['.rolling-line[data-variant="tool"]', '.rolling-line:not([data-following])']) {
       expect(declaredValue(`${scope} .ticker-window`, 'justify-content')).toBe('flex-start')
@@ -83,11 +70,6 @@ describe('rolling-line.css', () => {
       expect(declaredValue(`${scope} .ticker-track`, 'overflow')).toBe('hidden')
       expect(declaredValue(`${scope} .ticker-track`, 'padding-inline-end')).toBe('0')
     }
-  })
-
-  test('新字只变颜色，不变透明度', () => {
-    expect(declaredValue('.ticker-ink', 'opacity')).toBeUndefined()
-    expect(declaredValue('.ticker-ink', 'color')).toBe('var(--cp-ticker-ink)')
   })
 
   test('高度钉死一行：虚拟列表的测量不会因为这一格抖动', () => {

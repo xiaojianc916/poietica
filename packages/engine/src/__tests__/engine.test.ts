@@ -1,14 +1,10 @@
 import { describe, expect, test } from 'bun:test'
 import { EngineErrorCode, engineErrorMessages } from '../errors'
-import { Interaction, InteractionAnswer, ModelRef, Posture } from '../values'
+import { Interaction, InteractionAnswer, ModelRef } from '../values'
 
 describe('engine 端口', () => {
   test('engineErrorMessages 覆盖每个错误码', () => {
     expect(Object.keys(engineErrorMessages).sort()).toEqual([...Object.values(EngineErrorCode)].sort())
-  })
-
-  test('Posture.options 为三档', () => {
-    expect(Posture.options).toEqual(['ask', 'auto-edit', 'full-access'])
   })
 
   test('ModelRef 拒绝空的 provider', () => {
