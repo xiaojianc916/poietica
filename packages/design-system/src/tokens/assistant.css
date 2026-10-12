@@ -396,7 +396,8 @@
    *
    *   次要文字沿用 --cp-ink-subtle，和这张表其它地方的次要墨色同一个刻度；
    *   输出底是一层墨而不是一个固定的灰，深色下自动变亮；
-   *   增删与报错走 --ui-success / --ui-destructive，两套主题各有明度。
+   *   增删与报错走 --ui-success / --ui-destructive；增删那一对在深色下另取更艳的
+   *   一档（见文件末尾的 dark 块）。
    */
   --cp-timeline-quiet-text: var(--cp-ink-subtle);
   /* turn-seal 下沿的分隔线：浅色走 quiet-text 的 14% 墨，深色定稿 #2b2b2b。 */
@@ -617,6 +618,15 @@
 
   /* turn-seal 下沿分隔线：产品指定深灰，不随 quiet-text 走。 */
   --cp-turn-seal-rule: #2b2b2b;
+
+  /*
+   * 增删数字的深色那一支：状态面板那一对（ZCode 的 diff 色，见 todo-panel.css）。
+   *
+   * 不复用 --ui-success / --ui-destructive：那两个还要管按钮、横幅与焦点环，明度是照
+   * 大块面定的，压在这一对 13px 的小字上发灰。这一支只服务这对数字。
+   */
+  --cp-diff-added-text: #46bf72;
+  --cp-diff-removed-text: #ff5c5c;
 
   /* 抽屉两面的分割线：产品指定 #3b3b3b。--cp-hairline（#1d1d1d）压在 #252525 的纸面上看不见。 */
   --cp-timeline-seam: #3b3b3b;

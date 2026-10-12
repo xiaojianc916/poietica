@@ -26,6 +26,7 @@ import { type GoalActions, GoalBar, useGoalActions } from './goal/goal-bar'
 import type { GoalActionHandler } from './goal/goal-control'
 import { EmotionBall, ENTRY_EMOTION_GROUPS } from './mascot/emotion-ball'
 import { PromptQueue } from './prompt-queue'
+import { ThreadTitleMenu } from './threads/thread-title-menu'
 import { TranscriptView } from './timeline/transcript-view'
 import { CONVERSATION_TODO_LAYOUT_STYLE, ConversationTodoPopover } from './todo/conversation-todo-popover'
 import {
@@ -57,6 +58,12 @@ export interface AssistantSurfaceProps {
   readonly onUserMessage?: ((threadId: string, text: string) => void) | undefined
   /** 从某一轮分叉；dropTurns 是这一轮之后还有几轮。缺席 = 平台没有这个动作。 */
   readonly onFork?: ((dropTurns: number) => void) | undefined
+  /** 左上角标题菜单里的「固定 / 取消固定」；缺席（入口相位、单测夹具）就不画那一项。 */
+  readonly onPinThread?: ((threadId: string, pinned: boolean) => void) | undefined
+  /** 左上角标题菜单里的「重命名」；缺席就不画那一项。 */
+  readonly onRenameThread?: ((threadId: string, title: string) => void) | undefined
+  /** 左上角标题菜单里的「导出会话」；缺席就不画那一项。 */
+  readonly onExportThread?: ((threadId: string) => void) | undefined
   /** 这条对话的会话给出的选择器。它是被交进来的，不是在这里问出来的：选择器属于会话，会话由上层持有。 */
   readonly controls: readonly SessionConfigControl[]
   /** 这张表还没被 agent 确认过：画得出内容，但点不动，也不参与下发。 */
@@ -244,8 +251,11 @@ export const AssistantSurface = memo(function AssistantSurface({
   endpoint,
   goal,
   isNew,
+  onExportThread,
   onFork,
   onGoalAction = NO_GOAL_ACTIONS,
+  onPinThread,
+  onRenameThread,
   onRetryControls,
   onSelectControl,
   onUserMessage,
@@ -430,6 +440,12 @@ export const AssistantSurface = memo(function AssistantSurface({
         两个相位都在：legacy 的 showAssistantChrome 对 ai 入口表面同样为真。
       */}
       <div className="conversation-header" data-assistant-skin>
+        {/*
+          左上角那一格：机器图标 + 标题 + 下拉菜单（固定 / 重命名 / 导出会话 + 其它功能
+          贡献的动作）。标题跟着线程库走 —— omp 总结出新标题、用户改名都会换。
+        */}
+        <ThreadTitleMenu onExport={onExportThread} onPin={onPinThread} onRename={onRenameThread} thread={thread} />
+
         <ThreadHeaderItems thread={thread} />
       </div>
 

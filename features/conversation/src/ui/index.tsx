@@ -586,12 +586,8 @@ export default defineUiFeature({
                 })
               }}
               onCreate={newThread}
-              onExport={(threadId) => void exportThread(threadId)}
               onPin={(threadId, pinned) => {
                 void api.setPinned(threadId, pinned).then((t) => stores.threads.upsert(t))
-              }}
-              onRename={(threadId, title) => {
-                void api.renameThread(threadId, title).then((t) => stores.threads.upsert(t))
               }}
               onToggleWorkspace={(workspaceId) => {
                 /* 换一份新 Set 再 set：可订阅值按引用判变化，就地 mutate 不会通知任何人。 */
@@ -734,6 +730,13 @@ export default defineUiFeature({
                 })
               }}
               onGoalAction={(action) => runGoalAction(api, threadId, action)}
+              onExportThread={(id) => void exportThread(id)}
+              onPinThread={(id, pinned) => {
+                void api.setPinned(id, pinned).then((t) => stores.threads.upsert(t))
+              }}
+              onRenameThread={(id, title) => {
+                void api.renameThread(id, title).then((t) => stores.threads.upsert(t))
+              }}
               onSelectControl={(controlId, value) => {
                 if (controlId === 'model') {
                   const at = value.indexOf('/')

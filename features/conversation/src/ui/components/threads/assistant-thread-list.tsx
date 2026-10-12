@@ -1,21 +1,12 @@
 import './assistant-threads.css'
 
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-  PixelLoader,
-} from '@poietica/design-system'
-import { useContributions } from '@poietica/ui-kernel'
-import { AlarmClock, Download, Pencil as Edit, FolderClosed, FolderOpen, PinOff } from 'lucide-react'
-import { Fragment, memo, useCallback, useMemo, useRef, useState } from 'react'
+import { PixelLoader } from '@poietica/design-system'
+import { AlarmClock, FolderClosed, FolderOpen, PinOff } from 'lucide-react'
+import { memo, useCallback, useMemo, useState } from 'react'
 import type { Thread } from '../../../contract'
-import { threadActions } from '../../../ui-api'
 import { byIsoDescending } from '../../threads/thread-order'
 import { useHorizon, useNow } from '../primitives/clock'
-import { ArchiveIcon, ChevronDownIcon, MoreIcon, PinIcon, PlusIcon } from '../primitives/icons'
+import { ArchiveIcon, ChevronDownIcon, PinIcon, PlusIcon } from '../primitives/icons'
 import { datedGroupsOf, instantsOf, nextChangeIn, paintedGroupsOf } from './relative-time'
 import { ThreadDisclosure } from './thread-disclosure'
 
@@ -23,9 +14,9 @@ import { ThreadDisclosure } from './thread-disclosure'
  * 会话列表。一级索引是工作区，不是时间桶 —— 分组判据与算法在 threads/thread-order，这里只画。
  * 收起的工作区是跨窗口、跨重启的宿主偏好，从 props 进来：展示组件绑死模块级可变状态，同屏画
  * 两次会互相打断；本层只留「每组展开到第几条」。加号不是记录：把「新建会话」交给工作台去开
- * 或激活，不在库里先造一条没人说过话的会话。菜单开合由 isMenuOpen 显式上报，不靠 CSS 嗅探
- * aria-expanded —— 它在关闭动画第一帧就落回 false，比弹层早一拍。不拆：行是 memo 组件、
- * 重命名草稿住行里，否则时钟每跳一次、每敲一个字都重渲整张列表。
+ * 或激活，不在库里先造一条没人说过话的会话。行尾只留「固定」与「归档」两枚按钮：点开的那张
+ * 菜单（连同就地改名）已经搬去会话页左上角的标题格（ThreadTitleMenu），这里不再有第二入口。
+ * 不拆：行是 memo 组件，否则时钟每跳一次就重渲整张列表。
  */
 
 export interface AssistantThreadSummary {
@@ -36,8 +27,7 @@ export interface AssistantThreadSummary {
   readonly isMuted?: boolean
   readonly isPinned?: boolean
   /**
-   * 平台上的整条记录。贡献点的 threadActions 收的是它（07 页 §5E 的 Thread），
-   * 而列表自身只需上面那几格；缺席时不画贡献项。
+   * 平台上的整条记录。列表自身只需上面那几格，多要它一条只为行首那枚闹钟（origin）。
    */
   readonly record?: Thread
 }
@@ -68,44 +58,8 @@ export interface AssistantThreadListProps {
   /** 不点名工作区就是「当前那个」，由宿主决定。 */
   readonly onCreate: (workspaceId?: string) => void
   readonly onPin: (threadId: string, pinned: boolean) => void
-  readonly onRename?: (threadId: string, title: string) => void
-  readonly onExport?: (threadId: string) => void
-  /** 点了就上传到第三方并换回一条链接：结果的提示由宿主给，必须说清楚会上传。 */
+  /** 归档这一条对话。缺省（夹具、其它宿主）就不画那一枚按钮。 */
   readonly onArchive?: (threadId: string) => void
-  /** 正在上传的那条对话。上传要几秒，这一格必须给出「在跑」的样子。 */
-}
-
-/** 行尾菜单里的一项。菜单本身 Portal 到 body，所以「有哪几项」这个判据落在这里才测得动。 */
-export interface ThreadMenuEntry {
-  readonly id: 'pin' | 'rename' | 'export'
-  readonly label: string
-}
-
-/*
- * 这一行画得出来的菜单项，次序就是判据：上传第三方（分享）排在本地导出之上 ——
- * 本地优先，先给不离开这台机器的那个。固定的文案随状态变，所以这里也叫 label 而不只是 id。
- *
- * 归档不在这张表里：它是行尾的一枚按钮（与固定并列的常用动作），不是菜单项。它只有一条
- * 判据、一个落点，所以判据直接写在使用处，不在这里再建一列。
- *
- * 为什么必须是它而不是几条并列的 JSX：菜单 Portal 到 body，静态渲染里一个字都看不见，
- * 而本仓没有真 DOM 测试基建 —— 判据不落在这里，「给不出就不画」这条就无从证明。别合回去。
- */
-export function threadMenuEntries(input: {
-  readonly isPinned: boolean
-  readonly canRename: boolean
-  readonly canExport: boolean
-}): readonly ThreadMenuEntry[] {
-  const entries: ThreadMenuEntry[] = [{ id: 'pin', label: input.isPinned ? '取消固定' : '固定' }]
-
-  if (input.canRename) {
-    entries.push({ id: 'rename', label: '重命名' })
-  }
-  if (input.canExport) {
-    entries.push({ id: 'export', label: '导出会话' })
-  }
-
-  return entries
 }
 
 /** Widths that make the skeleton read as a list rather than as a bar. */
@@ -144,76 +98,6 @@ function PinGlyph({ isPinned }: { readonly isPinned: boolean }) {
     <span aria-hidden="true" className="assistant-thread__glyph" data-pinned={isPinned ? 'true' : undefined}>
       <Glyph aria-hidden="true" />
     </span>
-  )
-}
-
-interface RenameFieldProps {
-  readonly initial: string
-  readonly onCommit: (title: string) => void
-  readonly onCancel: () => void
-}
-
-/*
- * 重命名中的那一行。草稿住行里：此前住列表上，每敲一个字符整张列表重渲一次。
- * ref 用 useCallback 钉住标识：内联箭头每次渲染都是新函数，React 反复 detach 再 attach，
- * 每敲一个字符输入框就被全选一次，中间插不了字。挂载时只选中一次。
- */
-function RenameField({ initial, onCommit, onCancel }: RenameFieldProps) {
-  const [draft, setDraft] = useState(initial)
-
-  const selectOnMount = useCallback((node: HTMLInputElement | null) => {
-    node?.select()
-  }, [])
-
-  /*
-   * 一次重命名只了结一次，闩属于「了结」而不属于某个结局：Enter 或 Escape 都会让输入框
-   * 卸载、紧跟着派发一次 blur，而 blur 也接在这个出口上 —— 不闩就 rename 落两遍库（两次
-   * 标题都非空，上层 trim 拦不住）；闩若只装提交那一路，Escape 卸载后的 blur 会把草稿当
-   * 提交。两条出口共用，先到者说了算。去重放这层而非 store：只有这层知道出口通向同一次了结。
-   */
-  const settled = useRef(false)
-
-  const finish = (outcome: 'cancel' | 'commit') => {
-    if (settled.current) {
-      return
-    }
-
-    settled.current = true
-
-    if (outcome === 'commit') {
-      onCommit(draft)
-    } else {
-      onCancel()
-    }
-  }
-
-  return (
-    <form
-      className="assistant-thread__rename"
-      onSubmit={(event) => {
-        event.preventDefault()
-        finish('commit')
-      }}
-    >
-      <input
-        aria-label="重命名会话"
-        className="assistant-thread__rename-field"
-        onBlur={() => {
-          finish('commit')
-        }}
-        onChange={(event) => {
-          setDraft(event.target.value)
-        }}
-        onKeyDown={(event) => {
-          if (event.key === 'Escape') {
-            event.preventDefault()
-            finish('cancel')
-          }
-        }}
-        ref={selectOnMount}
-        value={draft}
-      />
-    </form>
   )
 }
 
@@ -259,24 +143,11 @@ interface ThreadRowProps {
   readonly absolute: string | null
   readonly isActive: boolean
   readonly isRunning: boolean
-  readonly isRenaming: boolean
-  /** 上层给不给重命名。给不了就不画那一项 —— 点了没反应的菜单项比不画更糟。 */
-  readonly canRename: boolean
   readonly onActivate: (threadId: string) => void
   readonly onPin: (threadId: string, pinned: boolean) => void
-  readonly onBeginRename: (threadId: string) => void
-  readonly onCommitRename: (threadId: string, title: string) => void
-  readonly onCancelRename: () => void
-  readonly onExport?: ((threadId: string) => void) | undefined
   readonly onArchive?: ((threadId: string) => void) | undefined
   /** 这一行正在上传，行尾给一个转圈。 */
 }
-
-/* 固定的字形随状态变，不住这张表；其余一项一枚字形。 */
-const MENU_GLYPHS = {
-  rename: Edit,
-  export: Download,
-} as const
 
 /*
  * 时间以两个字符串进来，不是对象：对象每次都是新引用，memo 次次落空；传字符串，
@@ -288,24 +159,10 @@ const ThreadRow = memo(function ThreadRow({
   absolute,
   isActive,
   isRunning,
-  isRenaming,
-  canRename,
   onActivate,
   onPin,
-  onBeginRename,
-  onCommitRename,
-  onCancelRename,
-  onExport,
   onArchive,
 }: ThreadRowProps) {
-  /*
-   * 菜单开合是这一行的状态，受控：弹层 Portal 到 body，行的 :hover/:focus-within 够不着
-   * 它，行尾那一格要在菜单打开期间保持显示操作。不靠 CSS 嗅探 aria-expanded —— 它在关闭
-   * 动画开始时就落回 false，菜单还在屏上、图标已经灭了。open/onOpenChange 是 Base UI
-   * Menu.Root 的一等能力（DropdownMenu 即其再导出），不是自造开关。
-   */
-  const [isMenuOpen, setIsMenuOpen] = useState(false)
-
   const isPinned = thread.isPinned === true
   const pinLabel = isPinned ? '取消固定' : '固定'
 
@@ -313,162 +170,54 @@ const ThreadRow = memo(function ThreadRow({
     onPin(thread.id, !isPinned)
   }
 
-  const entries = threadMenuEntries({
-    isPinned,
-    canRename,
-    /* 给不出就地发起的动作就不画那一项：点了没反应的菜单项比不画更糟。 */
-    canExport: onExport !== undefined,
-  })
-
-  /*
-   * 其它功能贡献的线程动作（07 页 §10E：automations 的「以此对话创建定时任务」）。
-   * 内置项之后追加，次序由贡献点的 order 定（registry.list 已排序）。visible 为假的不画；
-   * 列表项没有整条记录（record 缺席）时贡献项一律不画 —— 参数就是那条记录。
-   */
-  const record = thread.record
-  const all = useContributions(threadActions)
-  const contributed =
-    record === undefined
-      ? []
-      : all.filter((candidate) => candidate.item.visible === undefined || candidate.item.visible(record))
-
-  /*
-   * 逐项取出它自己的样子与动作。固定要读这一行的 pinned，重命名走行自己的内联编辑入口，
-   * 其余两项就是上层给的那两个回调 —— 都在这一处落定，别处不再判一次「有没有」。
-   */
-  const menuItemOf = (entry: ThreadMenuEntry) => {
-    switch (entry.id) {
-      case 'pin':
-        return { Glyph: () => <PinGlyph isPinned={isPinned} />, run: togglePin }
-      case 'rename':
-        return { Glyph: MENU_GLYPHS.rename, run: () => onBeginRename(thread.id) }
-      case 'export':
-        return { Glyph: MENU_GLYPHS.export, run: () => onExport?.(thread.id) }
-    }
-  }
-
   return (
     <li
       className="assistant-thread"
       data-active={isActive ? 'true' : undefined}
-      data-menu-open={isMenuOpen ? 'true' : undefined}
       data-muted={thread.isMuted === true ? 'true' : undefined}
-      data-renaming={isRenaming ? 'true' : undefined}
     >
       <ThreadLead fromAutomation={thread.record?.origin === 'automation'} isRunning={isRunning} />
 
-      {isRenaming ? (
-        <RenameField
-          initial={thread.title}
-          onCancel={onCancelRename}
-          onCommit={(title) => {
-            onCommitRename(thread.id, title)
-          }}
-        />
-      ) : (
-        <>
-          <button
-            aria-busy={isRunning}
-            className="assistant-thread__open"
-            onClick={() => {
-              onActivate(thread.id)
-            }}
-            type="button"
-          >
-            <ThreadTitle title={thread.title} />
+      <button
+        aria-busy={isRunning}
+        className="assistant-thread__open"
+        onClick={() => {
+          onActivate(thread.id)
+        }}
+        type="button"
+      >
+        <ThreadTitle title={thread.title} />
+      </button>
+
+      {/* 时间与操作共用这一个格子，谁可见由同一个判定决定。 */}
+      <span className="assistant-thread__trail">
+        {/* <time> 而非 <span>：读屏与悬停要拿得到准确时刻，相对文案只是它的近似说法。 */}
+        {elapsed === null ? null : (
+          <time className="assistant-thread__time" dateTime={thread.updatedAt} title={absolute ?? undefined}>
+            {elapsed}
+          </time>
+        )}
+
+        <span className="assistant-thread__actions">
+          <button aria-label={pinLabel} className="assistant-thread__action" onClick={togglePin} type="button">
+            <PinGlyph isPinned={isPinned} />
           </button>
 
-          {/* 时间与操作共用这一个格子，谁可见由同一个判定决定。 */}
-          <span className="assistant-thread__trail">
-            {/* <time> 而非 <span>：读屏与悬停要拿得到准确时刻，相对文案只是它的近似说法。 */}
-            {elapsed === null ? null : (
-              <time className="assistant-thread__time" dateTime={thread.updatedAt} title={absolute ?? undefined}>
-                {elapsed}
-              </time>
-            )}
-
-            <span className="assistant-thread__actions">
-              <button aria-label={pinLabel} className="assistant-thread__action" onClick={togglePin} type="button">
-                <PinGlyph isPinned={isPinned} />
-              </button>
-
-              {/* 归档与固定并列，不藏进菜单：给不出动作就不画。 */}
-              {onArchive === undefined ? null : (
-                <button
-                  aria-label="归档"
-                  className="assistant-thread__action"
-                  onClick={() => {
-                    onArchive(thread.id)
-                  }}
-                  type="button"
-                >
-                  <ArchiveIcon aria-hidden="true" />
-                </button>
-              )}
-
-              {/*
-                  Not modal: a modal menu locks pointer events outside itself, so the
-                  click that dismissed it was swallowed instead of landing on the
-                  row it was aimed at. 受控：开合状态上报给行，行底色与行尾格子据此保持。
-                */}
-              <DropdownMenu modal={false} onOpenChange={setIsMenuOpen} open={isMenuOpen}>
-                <DropdownMenuTrigger aria-label="更多操作" className="assistant-thread__action">
-                  <MoreIcon aria-hidden="true" />
-                </DropdownMenuTrigger>
-
-                {/*
-                    DropdownMenuContent renders through a Portal; reapply the AI skin
-                    at this DOM boundary so the --cp-* tokens survive leaving the
-                    sidebar subtree.
-                  */}
-                <DropdownMenuContent
-                  align="end"
-                  className="assistant-thread-menu assistant-menu-surface"
-                  data-assistant-skin
-                  side="bottom"
-                  sideOffset={4}
-                >
-                  {entries.map((entry) => {
-                    const { Glyph, run } = menuItemOf(entry)
-
-                    return (
-                      <Fragment key={entry.id}>
-                        <DropdownMenuItem className="assistant-thread-menu__item" onClick={run}>
-                          <Glyph aria-hidden="true" />
-                          <span>{entry.label}</span>
-                        </DropdownMenuItem>
-                      </Fragment>
-                    )
-                  })}
-
-                  {/* 贡献的动作（automations 的「以此对话创建定时任务」）接在内置项之后。 */}
-                  {contributed.length === 0 ? null : (
-                    <>
-                      <DropdownMenuSeparator />
-
-                      {contributed.map(({ featureId, item }) => (
-                        <DropdownMenuItem
-                          className="assistant-thread-menu__item"
-                          key={`${featureId}:${item.id}`}
-                          onClick={() => {
-                            if (record === undefined) {
-                              return
-                            }
-
-                            void item.run(record)
-                          }}
-                        >
-                          <span>{item.title}</span>
-                        </DropdownMenuItem>
-                      ))}
-                    </>
-                  )}
-                </DropdownMenuContent>
-              </DropdownMenu>
-            </span>
-          </span>
-        </>
-      )}
+          {/* 归档与固定并列，不再有「更多」：给不出动作就不画。 */}
+          {onArchive === undefined ? null : (
+            <button
+              aria-label="归档"
+              className="assistant-thread__action"
+              onClick={() => {
+                onArchive(thread.id)
+              }}
+              type="button"
+            >
+              <ArchiveIcon aria-hidden="true" />
+            </button>
+          )}
+        </span>
+      </span>
     </li>
   )
 })
@@ -550,8 +299,6 @@ export function AssistantThreadList({
   onActivate,
   onCreate,
   onPin,
-  onRename,
-  onExport,
   onArchive,
 }: AssistantThreadListProps) {
   /* 时钟进来一次整张列表共用，不各行读墙上时间；它睡到下一次会变的时刻，不轮询。 */
@@ -604,7 +351,6 @@ export function AssistantThreadList({
   const [isPinOpen, setPinOpen] = useState(true)
   const [isRecentOpen, setRecentOpen] = useState(true)
   const [isRepositoriesOpen, setRepositoriesOpen] = useState(true)
-  const [renamingId, setRenamingId] = useState<string | null>(null)
 
   /*
    * 每组展开到第几条。放这层而非组头：map 里开不了 hook，且组身份随数据增删变化，
@@ -621,45 +367,17 @@ export function AssistantThreadList({
 
   const notice = showPlaceholders ? null : noticeOf(failure, groups.length)
 
-  const beginRename = useCallback((threadId: string) => {
-    setRenamingId(threadId)
-  }, [])
-
-  const cancelRename = useCallback(() => {
-    setRenamingId(null)
-  }, [])
-
-  /* 提交只走这一条路：Enter 与失焦都到这里，空标题等于放弃。 */
-  const commitRename = useCallback(
-    (threadId: string, title: string) => {
-      setRenamingId(null)
-
-      const next = title.trim()
-
-      if (next.length > 0) {
-        onRename?.(threadId, next)
-      }
-    },
-    [onRename],
-  )
-
   type PaintedThread = (typeof pinned)[number]
 
   const renderThread = ({ absolute, elapsed, thread }: PaintedThread) => (
     <ThreadRow
       absolute={absolute}
-      canRename={onRename !== undefined}
       elapsed={elapsed}
       isActive={thread.id === activeThreadId}
-      isRenaming={thread.id === renamingId}
       isRunning={runningThreadIds.has(thread.id)}
       key={thread.id}
       onActivate={onActivate}
       onArchive={onArchive}
-      onBeginRename={beginRename}
-      onCancelRename={cancelRename}
-      onCommitRename={commitRename}
-      onExport={onExport}
       onPin={onPin}
       thread={thread}
     />

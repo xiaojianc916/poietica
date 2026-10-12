@@ -228,9 +228,20 @@
   align-items: center;
   gap: 0.375rem;
   font-family: var(--cp-font-mono);
-  /* 行高跟着行走：一行里只有一个行高，两侧才落在同一条基线上。字号小一档，它是注脚。 */
-  font-size: calc(var(--ui-prose-size) - 2px);
+  /*
+   * 只比正文小一号，不再小两号：它是行里的一处事实，不是注脚。
+   * 行高跟着行走 —— 一行里只有一个行高（--cp-row-line），两截的盒子才一样高。
+   */
+  font-size: var(--ui-prose-size-aux);
   font-variant-numeric: tabular-nums;
+  /*
+   * 数字偏上是真的，不是错觉，补在这一处。
+   *
+   * 两截字号不同，盒子等高但基线不重合：基线落在「行高的一半 + 半字高」上，而这半字高
+   * 随字体的上伸部走 —— 14px 的 Segoe UI 比 13px 的 Consolas 低 2px（真机量出来的数）。
+   * 不用 align-items: baseline 修：那一改会让整行按基线项重解行盒，其它几格一起跳。
+   */
+  translate: 0 2px;
 }
 
 .timeline-tool__diffstat-added {

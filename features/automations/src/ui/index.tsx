@@ -169,7 +169,7 @@ export default defineUiFeature({
     ctx.contribute(threadActions, {
       id: 'automations.createFromThread',
       order: 30,
-      title: '以此对话创建定时任务',
+      title: '创建定时任务',
       run: async (thread: Thread) => {
         store.pendingDraft = await prefillFromThread(thread)
         navigation.navigate({ surface: 'automations.edit', params: { automationId: 'new' } })

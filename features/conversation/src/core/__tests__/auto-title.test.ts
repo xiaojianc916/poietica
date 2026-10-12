@@ -97,6 +97,19 @@ describe('自动总结标题的接线（omp 知识 #17）', () => {
     await finish()
   })
 
+  test('T3b 改名不是活动：updatedAt 原样不动', async () => {
+    const { api, thread, finish, h } = await started()
+    const before = await api.call('threads.get', { threadId: thread.id })
+    /* 时钟走一段，确认 rename 之后读到的仍是旧时刻，而不是「现在」。 */
+    await h.clock.advanceAsync(60_000)
+    const renamed = await api.call('threads.rename', { threadId: thread.id, title: '只改名字' })
+    expect(renamed.updatedAt).toBe(before.updatedAt)
+    const after = await api.call('threads.get', { threadId: thread.id })
+    expect(after.updatedAt).toBe(before.updatedAt)
+    expect(after.titleSource).toBe('user')
+    await finish()
+  })
+
   test('T4 已定名的线程（自动化建的那种）不再触发 omp 总结', async () => {
     const seen: string[] = []
     const { h, api, thread, submit, finish, engine } = await started((text) => {

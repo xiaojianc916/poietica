@@ -192,11 +192,10 @@
  * 会话，那一行的按钮就此持有焦点，这一行的时间永远不再回来。:focus-visible 只在键盘
  * 导航时命中，正是这里要的语义。
  *
- * 菜单是否打开由 React 说了算（data-menu-open），不嗅探触发器的 aria-expanded。
+ * 这一行没有弹层：菜单已搬到会话页左上角的标题格，三个来源就是全部。
  */
 .assistant-thread:hover,
-.assistant-thread:has(:focus-visible),
-.assistant-thread[data-menu-open="true"] {
+.assistant-thread:has(:focus-visible) {
   background: var(--ui-sidebar-accent);
   --thread-trail-time: 0;
   --thread-trail-actions: 1;
@@ -476,33 +475,6 @@
   .assistant-thread__ghost {
     animation: none;
   }
-}
-
-/*
- * 内联重命名。
- *
- * 输入框与标题同字号、同一格，替换的是文字本身而不是行的形状：行高、行尾
- * 那一格、缩进都不变，所以进入和提交时界面不会弹一下。
- */
-.assistant-thread__rename {
-  display: flex;
-  min-inline-size: 0;
-  flex: 1;
-  align-items: center;
-}
-
-.assistant-thread__rename-field {
-  min-inline-size: 0;
-  flex: 1;
-  block-size: 100%;
-  border: 0;
-  border-radius: 4px;
-  padding: 0;
-  background: transparent;
-  font: inherit;
-  font-size: var(--cp-font-caption);
-  color: inherit;
-  outline: none;
 }
 
 /*

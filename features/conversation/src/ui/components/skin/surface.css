@@ -53,12 +53,20 @@
 .conversation-header {
   display: flex;
   flex: none;
-  block-size: var(--cp-control);
-  align-items: center;
+  /*
+   * 产品负责人 2026-10-12：左上角那一格贴着窗口上沿太紧，整条带子加高一点点、
+   * 内容贴着下沿 —— 标题整体下来 8px，右端的贡献部件跟着走。
+   */
+  block-size: calc(var(--cp-control) + 8px);
+  align-items: flex-end;
   justify-content: flex-end;
   gap: var(--cp-control-gap);
-  /* 右缘与正文列、输入卡同一条：读法与 .assistant-surface__dock 逐字相同。 */
-  padding-inline: max(
+  /*
+   * 右缘与正文列、输入卡同一条（读法与 .assistant-surface__dock 逐字相同）；左缘只留
+   * 一个 gutter —— 左上角那一格贴着内容区的最左侧，不再跟正文列对齐。
+   */
+  padding-inline-start: var(--cp-gutter);
+  padding-inline-end: max(
     var(--cp-gutter),
     round(calc((100% - var(--assistant-surface-inline-end-clearance, 0px) - var(--cp-grid)) / 2), var(--ui-hairline))
   );

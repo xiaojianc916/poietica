@@ -1,0 +1,131 @@
+/*
+ * 会话页左上角那一格。它住在 .conversation-header（右对齐的那条带子）里，所以
+ * margin-inline-end: auto 把它顶到最左，右端仍留给 threadHeaderItems。
+ *
+ * 三个部分各有各的悬停（产品负责人 2026-10-12 定稿）：机器图标不给反馈（它只是标记），
+ * 标题与下拉箭头各自一枚按钮、各自在自己身上铺底色 —— 不再有一颗包住整行的按钮。
+ */
+.conversation-title {
+  display: inline-flex;
+  block-size: var(--cp-control);
+  min-inline-size: 0;
+  max-inline-size: min(28rem, 55%);
+  align-items: center;
+  margin-inline-end: auto;
+  gap: 2px;
+}
+
+.conversation-title__icon {
+  flex: none;
+  block-size: var(--cp-icon);
+  inline-size: var(--cp-icon);
+  margin-inline-end: calc(var(--cp-control-gap) - 2px);
+  color: var(--cp-ink-muted);
+}
+
+/*
+ * 标题本体：点一下就地改名。悬停的底色与圆角止于文字本身。
+ *
+ * 这一格是 flex 容器，省略号不能写在这里：text-overflow 只对块级盒自己的行盒生效，
+ * 对 flex 项不生效 —— 写在这层的结果是超长标题被硬裁掉、看不到「…」（真机实测）。
+ * 省略号落在里面那层 .conversation-title__text 上（见下）。
+ */
+.conversation-title__label {
+  display: inline-flex;
+  block-size: var(--cp-control-sm);
+  min-inline-size: 0;
+  max-inline-size: 100%;
+  align-items: center;
+  overflow: hidden;
+  border: 0;
+  border-radius: var(--cp-radius-item);
+  padding-inline: var(--cp-pill-lead);
+  background: transparent;
+  font: inherit;
+  font-size: var(--cp-font-label);
+  color: var(--cp-ink);
+  cursor: pointer;
+  transition: background-color var(--cp-motion-swift) var(--cp-motion-ease);
+}
+
+/* 唯一一处说「放不下就用 … 收尾」：块级盒 + 单行 + 溢出隐藏，三样缺一不可。 */
+.conversation-title__text {
+  display: block;
+  min-inline-size: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.conversation-title__label:hover {
+  background: var(--cp-hover);
+}
+
+.conversation-title__label:focus-visible,
+.conversation-title__toggle:focus-visible {
+  outline: var(--cp-px) solid var(--cp-accent);
+  outline-offset: var(--cp-px);
+}
+
+/* 给不出改名动作时标题只是文字：不铺悬停底色，指针也不变成手。 */
+.conversation-title__label--static {
+  cursor: default;
+}
+
+.conversation-title__label--static:hover {
+  background: transparent;
+}
+
+/* 下拉箭头：自己一枚按钮，开菜单。 */
+.conversation-title__toggle {
+  display: grid;
+  block-size: var(--cp-control-sm);
+  inline-size: var(--cp-control-sm);
+  flex: none;
+  place-items: center;
+  border: 0;
+  border-radius: var(--cp-radius-item);
+  padding: 0;
+  background: transparent;
+  color: var(--cp-ink-subtle);
+  cursor: pointer;
+  transition: background-color var(--cp-motion-swift) var(--cp-motion-ease);
+}
+
+.conversation-title__toggle:hover,
+.conversation-title__toggle[data-popup-open] {
+  background: var(--cp-hover);
+}
+
+.conversation-title__toggle > svg {
+  flex: none;
+  block-size: var(--cp-icon);
+  inline-size: var(--cp-icon);
+}
+
+/* 就地改名：与标题同一行、同一字号，不加框不加底。 */
+.conversation-title__rename {
+  display: flex;
+  min-inline-size: 0;
+  align-items: center;
+}
+
+.conversation-title__field {
+  min-inline-size: 16rem;
+  block-size: var(--cp-control);
+  border: 0;
+  border-radius: var(--cp-radius-item);
+  padding-inline: var(--cp-pill-lead);
+  background: var(--cp-hover);
+  font: inherit;
+  font-size: var(--cp-font-label);
+  color: var(--cp-ink);
+  outline: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .conversation-title__label,
+  .conversation-title__toggle {
+    transition: none;
+  }
+}

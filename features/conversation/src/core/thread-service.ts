@@ -104,8 +104,13 @@ export class ThreadService {
   rename(id: string, title: string): ThreadRow {
     const row = this.requireRow(id)
     const next = normalizeTitle(title)
-    this.d.repo.update(id, { title: next, titleSource: 'user', updatedAt: this.d.clock.now() })
-    return this.emitUpdated({ ...row, title: next, titleSource: 'user', updatedAt: this.d.clock.now() })
+    /*
+     * 改名不是活动：**不碰 updatedAt**。侧栏那格「N 分钟前」与排序读的都是它，
+     * 改个名字就让对话跳到「现在」是把元数据编辑当成了对话活动（产品负责人
+     * 2026-10-12 报告的真实缺陷）。
+     */
+    this.d.repo.update(id, { title: next, titleSource: 'user' })
+    return this.emitUpdated({ ...row, title: next, titleSource: 'user' })
   }
 
   setPinned(id: string, pinned: boolean): ThreadRow {
