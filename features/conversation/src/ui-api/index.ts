@@ -1,5 +1,5 @@
 import { defineServiceToken } from '@poietica/foundation'
-import { defineContributionPoint, type SurfaceComponent } from '@poietica/ui-kernel'
+import { defineContributionPoint, type IconComponent, type SurfaceComponent } from '@poietica/ui-kernel'
 import type { ComponentType, ReactNode } from 'react'
 import type { Thread } from '../contract'
 
@@ -134,6 +134,8 @@ export interface ThreadAction {
   readonly id: string
   readonly order: number
   readonly title: string
+  /** 行首那枚字形；省略就不画（贡献方可以不认这一格）。 */
+  readonly icon?: IconComponent
   readonly run: (thread: Thread) => void | Promise<void>
   readonly visible?: (thread: Thread) => boolean
 }

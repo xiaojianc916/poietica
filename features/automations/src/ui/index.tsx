@@ -170,6 +170,7 @@ export default defineUiFeature({
       id: 'automations.createFromThread',
       order: 30,
       title: '创建定时任务',
+      icon: AlarmClock,
       run: async (thread: Thread) => {
         store.pendingDraft = await prefillFromThread(thread)
         navigation.navigate({ surface: 'automations.edit', params: { automationId: 'new' } })

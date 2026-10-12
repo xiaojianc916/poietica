@@ -403,7 +403,7 @@
  * Chrome and geometry are ours, and they are the same ones the selector uses.
  */
 .assistant-thread-menu[data-assistant-skin].assistant-thread-menu {
-  min-inline-size: 216px;
+  min-inline-size: 184px;
   font-size: var(--cp-font-caption);
 }
 

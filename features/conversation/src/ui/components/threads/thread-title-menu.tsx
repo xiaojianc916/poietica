@@ -215,17 +215,26 @@ function ThreadActionsMenu({
           <>
             <DropdownMenuSeparator />
 
-            {contributed.map(({ featureId, item }) => (
-              <DropdownMenuItem
-                className="assistant-thread-menu__item"
-                key={`${featureId}:${item.id}`}
-                onClick={() => {
-                  void item.run(thread)
-                }}
-              >
-                <span>{item.title}</span>
-              </DropdownMenuItem>
-            ))}
+            {contributed.map(({ featureId, item }) => {
+              /*
+               * 贡献项自报字形（automations 的创建定时任务是闹钟）；没给就只画字，
+               * 不塞占位图标 —— 一行里空一格比一个不是它的字形更容易读错。
+               */
+              const Icon = item.icon
+
+              return (
+                <DropdownMenuItem
+                  className="assistant-thread-menu__item"
+                  key={`${featureId}:${item.id}`}
+                  onClick={() => {
+                    void item.run(thread)
+                  }}
+                >
+                  {Icon === undefined ? null : <Icon aria-hidden="true" />}
+                  <span>{item.title}</span>
+                </DropdownMenuItem>
+              )
+            })}
           </>
         )}
       </DropdownMenuContent>

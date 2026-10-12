@@ -2,6 +2,7 @@ import { afterEach, describe, expect, test } from 'bun:test'
 import type { RpcMessage, WindowBridge } from '@poietica/rpc'
 import { createUiKernel, defineUiFeature, KernelProvider } from '@poietica/ui-kernel'
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/react'
+import { AlarmClock } from 'lucide-react'
 import type { ReactNode } from 'react'
 import type { Thread } from '../../../../contract'
 import { threadActions } from '../../../../ui-api'
@@ -69,6 +70,7 @@ async function mount(
           id: 'test.schedule',
           order: 30,
           title: '以此对话创建定时任务',
+          icon: AlarmClock,
           run: () => undefined,
         })
       }
@@ -132,6 +134,11 @@ describe('会话页左上角标题菜单', () => {
     expect(screen.getByText('重命名')).toBeDefined()
     expect(screen.getByText('导出会话')).toBeDefined()
     expect(screen.getByText('以此对话创建定时任务')).toBeDefined()
+    /*
+     * 贡献项自带字形，菜单里要跟着画：这一行若无图标，与另外三项排在一起时会被读成
+     * 另一种层级。钉住「贡献方的 icon 真的落到行里」。
+     */
+    expect(screen.getByText('以此对话创建定时任务').closest('button')?.querySelector('svg')).not.toBeNull()
   })
 
   test('点重命名换成就地输入框，提交时交回新标题', async () => {
