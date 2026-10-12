@@ -1,5 +1,8 @@
 import { afterEach, describe, expect, test } from 'bun:test'
 import { cleanup, fireEvent, render, screen } from '@testing-library/react'
+import type { BrowserState } from '../../contract'
+import type { BrowserApi } from '../api'
+import { createBrowserPanelStore } from '../store'
 import { createBrowserToolCard } from '../tool-card'
 
 /*
@@ -10,6 +13,57 @@ import { createBrowserToolCard } from '../tool-card'
  * 旧卡片读的是 `args.action / args.url` 与 `details.screenshots` —— 那是早期顶层 browser
  * 工具的形状，于是屏幕上只有一句「浏览器 main」和一枚按钮。这一组用例就是那个缺陷的钉子。
  */
+
+function fakeApi(): BrowserApi & { readonly selected: number[] } {
+  const selected: number[] = []
+  const state = stateOf()
+
+  return {
+    selected,
+    state: async () => state,
+    newTab: async () => state,
+    closeTab: async () => state,
+    selectTab: async (tabId) => {
+      selected.push(tabId)
+      return state
+    },
+    reopenClosed: async () => state,
+    navigate: async () => state,
+    back: async () => ({}),
+    forward: async () => ({}),
+    reload: async () => ({}),
+    stop: async () => ({}),
+    setZoom: async () => ({}),
+    setBounds: async () => ({}),
+    setVisible: async () => ({}),
+    pickElement: async () => ({}),
+    cancelPick: async () => ({}),
+    onStateChanged: () => ({ dispose: () => undefined }),
+    onElementPicked: () => ({ dispose: () => undefined }),
+  }
+}
+
+function stateOf(tabs: BrowserState['tabs'] = [], activeTabId: number | null = null): BrowserState {
+  return {
+    revision: 1,
+    tabs,
+    activeTabId,
+    pickingTabId: null,
+    recentlyClosed: [],
+    driven: false,
+  }
+}
+
+const tab = (id: number, url: string | null): BrowserState['tabs'][number] => ({
+  id,
+  url,
+  title: `标签 ${String(id)}`,
+  loading: false,
+  favicon: null,
+  canGoBack: false,
+  canGoForward: false,
+  zoom: 0,
+})
 
 const ARGS = {
   language: 'js',
@@ -31,11 +85,23 @@ function mount(
     readonly args?: unknown
     readonly result?: unknown
     readonly status?: 'running' | 'succeeded' | 'failed'
+    readonly state?: BrowserState
   } = {},
 ) {
+  const api = fakeApi()
+  const store = createBrowserPanelStore(api)
+  const state = over.state ?? stateOf([tab(1, 'https://a.com')], 1)
   const panel: string[] = []
+  const reported: string[] = []
+
+  store.apply(state)
 
   const Card = createBrowserToolCard({
+    api,
+    store,
+    report: (message) => {
+      reported.push(message)
+    },
     openPanel: () => {
       panel.push('browser.panel')
     },
@@ -52,7 +118,7 @@ function mount(
     />,
   )
 
-  return { panel }
+  return { api, reported, panel, store }
 }
 
 /** 展开卡片（折叠行就是那个按钮）。 */
@@ -184,12 +250,23 @@ describe('展开区', () => {
 })
 
 describe('在面板中查看', () => {
-  test('点一下开面板', () => {
-    const { panel } = mount()
+  test('开面板并切到那条地址所在的标签', () => {
+    const { api, panel } = mount({ state: stateOf([tab(1, 'https://other.com'), tab(2, 'https://a.com')], 1) })
 
     expand()
     fireEvent.click(screen.getByText('在面板中查看'))
 
     expect(panel).toEqual(['browser.panel'])
+    expect(api.selected).toEqual([2])
+  })
+
+  test('没有对应标签时只开面板，不乱切', () => {
+    const { api, panel } = mount({ state: stateOf([tab(1, 'https://other.com')], 1) })
+
+    expand()
+    fireEvent.click(screen.getByText('在面板中查看'))
+
+    expect(panel).toEqual(['browser.panel'])
+    expect(api.selected).toEqual([])
   })
 })

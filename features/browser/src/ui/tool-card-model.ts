@@ -9,6 +9,8 @@
  * 读到的永远是空的。
  */
 
+import type { BrowserState } from '../contract'
+
 export interface BrowserStep {
   readonly action: string // open / close / goto / click / run / tabs …
   readonly tab: string | null // 标签名（main…）；tabs / close all 没有
@@ -306,4 +308,42 @@ export function browserCallModel(args: unknown, result: unknown, failed: boolean
     error: failed ? (firstParagraph(text) ?? '浏览器操作失败') : null,
     lastUrl,
   }
+}
+
+/** 地址的同一性：hash 不算（`#a` 与 `#b` 是同一页的两次跳转，仍是那张标签）。 */
+function withoutHash(address: string): string | null {
+  try {
+    const url = new URL(address)
+
+    return `${url.origin}${url.pathname}${url.search}`
+  } catch {
+    return null
+  }
+}
+
+/** 卡片对应哪张标签：先按地址精确匹配（忽略 hash），再退到同源；都没有就不切，只开面板。 */
+export function revealTabFor(state: BrowserState, lastUrl: string | null): number | null {
+  const wanted = lastUrl === null ? null : withoutHash(lastUrl)
+
+  if (wanted === null) {
+    return null
+  }
+
+  const origin = wanted.slice(0, wanted.indexOf('/', wanted.indexOf('://') + 3))
+
+  for (const tab of state.tabs) {
+    if (tab.url !== null && withoutHash(tab.url) === wanted) {
+      return tab.id
+    }
+  }
+
+  for (const tab of state.tabs) {
+    const address = tab.url === null ? null : withoutHash(tab.url)
+
+    if (address !== null && origin !== '' && address.startsWith(`${origin}/`)) {
+      return tab.id
+    }
+  }
+
+  return null
 }

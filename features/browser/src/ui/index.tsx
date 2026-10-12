@@ -163,9 +163,16 @@ export default defineUiFeature({
       component: () => <BrowserPanelHost api={api} dialogs={dialogs} report={report} store={store} />,
     })
 
+    /*
+     * 工具卡片要 api 与 store：「在面板中查看」除了开那一格，还要切到卡片上那条地址
+     * 所在的标签（revealTabFor 认不出时就不切，只开面板）。
+     */
     ctx.contribute(toolCallRenderers, {
       toolName: 'browser',
       component: createBrowserToolCard({
+        api,
+        store,
+        report,
         openPanel: () => {
           layout.openPanel('right', PANEL_ID)
         },

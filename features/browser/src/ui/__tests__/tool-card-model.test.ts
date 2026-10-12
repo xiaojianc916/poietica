@@ -1,5 +1,6 @@
 import { describe, expect, test } from 'bun:test'
-import { browserCallModel, parseStep } from '../tool-card-model'
+import type { BrowserState } from '../../contract'
+import { browserCallModel, parseStep, revealTabFor } from '../tool-card-model'
 
 /*
  * 卡片的数据层。浏览器在 omp 18.5 里是 eval 的 prelude，产出形状是
@@ -233,5 +234,42 @@ describe('browserCallModel：正文、错误与末次地址', () => {
     )
 
     expect(model.lastUrl).toBeNull()
+  })
+})
+
+describe('revealTabFor：卡片对应哪张标签', () => {
+  const tabs = (...urls: readonly (string | null)[]): BrowserState => ({
+    revision: 1,
+    tabs: urls.map((url, index) => ({
+      id: index + 1,
+      url,
+      title: 't',
+      loading: false,
+      favicon: null,
+      canGoBack: false,
+      canGoForward: false,
+      zoom: 0,
+    })),
+    activeTabId: null,
+    pickingTabId: null,
+    recentlyClosed: [],
+    driven: false,
+  })
+
+  test('地址精确匹配时切到那一张（hash 不算）', () => {
+    const state = tabs('https://other.com/', 'https://a.com/page#top')
+
+    expect(revealTabFor(state, 'https://a.com/page')).toBe(2)
+    expect(revealTabFor(state, 'https://a.com/page#bottom')).toBe(2)
+  })
+
+  test('地址对不上时退到同源那一张', () => {
+    expect(revealTabFor(tabs('https://other.com/', 'https://a.com/elsewhere'), 'https://a.com/page')).toBe(2)
+  })
+
+  test('没有匹配就不切', () => {
+    expect(revealTabFor(tabs('https://other.com/', null), 'https://a.com/page')).toBeNull()
+    expect(revealTabFor(tabs('https://a.com/'), null)).toBeNull()
+    expect(revealTabFor(tabs('https://a.com/'), '不是地址')).toBeNull()
   })
 })

@@ -1,7 +1,9 @@
 import type { ToolCallRendererProps } from '@poietica/feature-conversation/ui-api'
 import { Globe } from 'lucide-react'
 import { type ReactNode, useState } from 'react'
-import { type BrowserCallModel, type BrowserStep, browserCallModel } from './tool-card-model'
+import type { BrowserApi } from './api'
+import type { BrowserPanelStore } from './store'
+import { type BrowserCallModel, type BrowserStep, browserCallModel, revealTabFor } from './tool-card-model'
 import './browser-tool-card.css'
 
 /*
@@ -12,8 +14,8 @@ import './browser-tool-card.css'
  * prelude（不是顶层工具），卡片这边一律读 `browserCallModel(...)`，不再碰 args.action
  * 或 details.screenshots 那套早期顶层工具的字段。
  *
- * 卡片要开面板（「在面板中查看」），所以它是工厂：依赖由 ui/index.tsx 的 setup 注入，
- * 与 widget-card 同一形制。
+ * 卡片要拿 api 与 store（「在面板中查看」要切标签），所以它是工厂：依赖由 ui/index.tsx
+ * 的 setup 注入，与 widget-card 同一形制。
  */
 
 const BROWSER_ACTIONS: Readonly<Record<string, string>> = {
@@ -240,8 +242,11 @@ function CardBody({ model, onReveal }: { readonly model: BrowserCallModel; reado
 }
 
 export interface BrowserToolCardDeps {
-  /** 打开右坞的浏览器那一格。 */
+  readonly api: BrowserApi
+  readonly store: BrowserPanelStore
+  /** 打开右坞的浏览器那一格；store 里有对应标签时卡片自己再切一次。 */
   readonly openPanel: () => void
+  readonly report: (message: string, cause?: unknown) => void
 }
 
 export function createBrowserToolCard(deps: BrowserToolCardDeps) {
@@ -251,6 +256,15 @@ export function createBrowserToolCard(deps: BrowserToolCardDeps) {
 
     const reveal = (): void => {
       deps.openPanel()
+
+      const state = deps.store.snapshot()
+      const tabId = state === null ? null : revealTabFor(state, model.lastUrl)
+
+      if (tabId !== null) {
+        void deps.api.selectTab(tabId).catch((cause: unknown) => {
+          deps.report('标签页没能切换', cause)
+        })
+      }
     }
 
     return (
