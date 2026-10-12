@@ -2138,3 +2138,55 @@ models 端口 1 条、omp-ports 2 条、一致性套件 C-CUSTOM-PROVIDER-CONFIG
    （与本次改动无关：改动前 `bun test packages/engine-omp/src/ports` 同样红；整目录单跑会
    互相干扰，单文件跑全过 —— 属 omp-home 夹具的进程级共享状态）。**待决**：给这几条找一条
    能整目录跑的隔离办法。
+
+## B-01/B-17/B-10/B-02/B-03/B-04/B-09/B-15 阶段 0：浏览器工具卡片与标签面（2026-10-12）
+
+**来源**：产品负责人交办的阶段 0 规格 `阶段 0.md`（八项，逐项单独提交，任何一项出问题
+`git revert` 该提交不影响其它项）。八项全在 `features/browser` 与
+`features/conversation` 的工具视图里，互不共享代码路径。
+
+**逐项**
+
+| 项 | 提交 | 内容 |
+| --- | --- | --- |
+| 0.1 B-01 | `fix(browser): 工具卡片改读 omp 18.5 的 eval 产出形状` | 新增纯数据层 `ui/tool-card-model.ts`；卡片重写为「折叠行 + 步骤 / 截图 / 代码 / 输出 / 错误」 |
+| 0.2 B-17 | `fix(conversation): 运行中的 eval 按代码预判是不是浏览器` | ops 为空时按代码文本预判，避免开头几百毫秒的跳变 |
+| 0.3 B-10 | `feat(browser): 「在面板中查看」切到那条地址所在的标签` | `revealTabFor`：精确匹配（忽略 hash）→ 同源 → 不切 |
+| 0.4 B-02 | `fix(browser): 每张标签都摆真实尺寸，后台标签不再按 1×1 排版` | 每张标签都 setBounds；`rectKey` 指纹去重 |
+| 0.5 B-03 | `fix(browser): AI 附着期间关掉那张标签的后台节流` | attach 后 `setBackgroundThrottling(false)`，detach 回执恢复 `true` |
+| 0.6 B-04 | `fix(browser): 「AI 正在使用」改成真的在驾驶，而不是连上了` | `attached` 集合 + `onAttachedChange`；`onConnectedChange` 留给日志 |
+| 0.7 B-09 | `fix(browser): 非用户原因的内核 detach 不再让 relay 拉黑标签` | `USER_DETACH` 正则；理由进 info 日志 |
+| 0.8 B-15 | `fix(browser): 溢出菜单不再有死按钮` | `commands` 属性决定行是否可点；本阶段传空对象 |
+
+每项都先写一条在旧代码上失败的测试（`git stash` 过实现再跑一次核对），八项各自
+独立提交。**不需要升 `PROTOCOL_VERSION`**：0.6 只改 `driven` 的语义与注释，形状
+（boolean）未动；其余各项都不碰契约形状。
+
+**验收**：`bun run all` 全绿（**2024 pass / 0 fail**，改动前基线 1963；本次新增 61 条用例）。
+`bun run protocol:snapshot` 无 diff。改动未碰隔离、未碰 omp 启动环境，故未跑 `core:probe`。
+
+**偏差**
+
+1. **0.2 的预判接受一个误判**（规格已写明，此处留档）：判据是「出现调用形状」而不是
+   「解析代码」，写在字符串里的 `browser.open(` 会被认成浏览器调用。卡片仍会照常显示
+   代码与输出，信息不丢，只是折叠行先说成浏览器动作。测试里把这条写成已知边界。
+2. **0.4 顺带修了「面板从没上报过矩形时也摆 1280×800」**：规格只点名 1×1 的初值，
+   但面板从未打开过时 `bounds` 就是那个 1×1，两者是同一条缺陷的两个入口。
+3. **0.5 的重复 attach 去重**：面板每次操作都会 attach 一遍，规格没写这一条；
+   不去重的话每次操作都下发一次 `setBackgroundThrottling(false)`（无害但白付）。
+   用 `Set<WebContentsLike>` 记账，与 B-03 的语义同一处。
+
+**需真机确认**（规格点名的两条，测试覆盖不到）
+
+1. **0.5**：面板收起（视图 `setVisible(false)`）时 `Page.captureScreenshot` 能否出图。
+   若不能出图或超时 —— 在下面追加一条记录，阶段 2 的「AI 操作时自动展开面板」会兜住
+   常见路径；**不要在本阶段自行发明离屏技巧**。
+2. **0.7**：在 dev 版里让 agent 附着一张标签，然后在 Host 调试时对它调用 Electron 的
+   `webContents.forcefullyCrashRenderer()` 制造一次崩溃，把日志里
+   `browser debugger detached` 的 `reason` 原样记到下面；若与 `USER_DETACH` 正则不符，
+   按真实字符串收紧正则并补一条测试。
+
+**真机核对记录**（执行人填写）
+
+- 0.5 面板收起时截图：
+- 0.7 崩溃时 Chromium 给的 reason：
