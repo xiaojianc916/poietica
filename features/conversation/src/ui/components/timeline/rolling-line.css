@@ -1,23 +1,18 @@
 /*
- * 组头那一格字：一句话，写到一半自己往前推。
+ * 组头那一格：一行字。思考时像显示屏一样往左滚，其余时候不动、末尾省略号。
  *
- * 高度钉死一行不是讲究，是硬约束：这些行挂着虚拟器的 measureElement，高度一变就触发一次
- * 滚动补偿，那正是「贴底时开合会抽」的那条链。宽度反而是自由的 —— 行自己的盒子撑满整列，
- * 这一格横向怎么变都不改那个外框，行上的 ResizeObserver 根本不会响。
+ * 全文没有一处 mask-image / 渐隐：被遮住的字就是被遮住了，淡一点也还是被遮住。左边缘直接
+ * 裁掉，和显示屏的边框一个道理；右边缘永远不裁到字（见 .ticker-track 的右侧留白）。
  *
- * 三层各管一件事：
- *   .rolling-line        只裁、只定位。一句话的总宽可以远超它，超出的部分裁在这里。
- *   .ticker-window       每一句自己的窗口：坐标系就是看得见的那一段，左侧淡出挂在这上面。
- *   .ticker-track        轨道：保持自然宽度（ResizeObserver 才量得到整句有多宽），承载位移。
+ * 高度钉死一行是硬约束：这些行挂着虚拟列表的 measureElement，高度一变就是一次滚动补偿。
  *
- * 位移与透明度归 motion（rolling-line.tsx）与逐帧引擎（use-marquee.ts），
- * 这张表只管几何与遮罩。
+ *   .rolling-line   只裁、只定位（popLayout 摘出的退场句要一个定位祖先）。
+ *   .ticker-window  一句话的窗口：flex 容器，负责「放得下靠左、放不下靠右」。
+ *   .ticker-track   轨道：保持自然宽度，承载逐帧的 transform（只有思考句会动）。
  */
 
 .rolling-line {
-  /* popLayout 把退场那一句摘成绝对定位，得有个定位祖先接住它。 */
   position: relative;
-
   display: block;
   flex: 0 1 auto;
   min-inline-size: 0;
@@ -25,78 +20,62 @@
   overflow: hidden;
 }
 
-/*
- * 每一句自己的窗口：块级、撑满一行宽。
- *
- * 一句话一套，见 marquee-track.tsx —— 左侧淡出因此跟着那一句一起退场，新句从 x=0 开始、
- * 没有淡出，两者互不干扰。
- */
-.ticker-window {
-  display: block;
-  min-inline-size: 0;
-}
-
-/*
- * 已经往左划过：左端化开约两个字。
- *
- * 遮罩必须挂在窗口上，不能挂在字上。字那一层是 inline-size: max-content 的自然宽度，
- * 而窗口又被推到了句末：渐隐若按字的坐标系解，右端那一段正好落在**最新的字**上（T-01），
- * 左端那一段落在早已划走的句首上，窗口左缘那个满墨的字反而被硬切成半个（T-02）。
- * 挂在窗口上，坐标系就是看得见的那一段，渐隐才落在该落的地方。
- *
- * 只有左边化开：右边是模型刚写下、人正在等的字，任何渐隐都是在遮它。左边那一段已经读过，
- * 化开它既是「这句话还在长」的记号，也交代了字的去向。
- */
-.ticker-window[data-scrolled] {
-  mask-image: linear-gradient(to right, transparent 0, #000 var(--cp-ticker-fade), #000 100%);
-}
-
 .rolling-line__slot {
   display: block;
-  white-space: nowrap;
 }
 
-/* 轨道保持自然宽度：ResizeObserver 才量得到整句有多宽。 */
-.ticker-track {
-  display: inline-block;
-  inline-size: max-content;
+/*
+ * 放得下：轨道右侧的自动外边距吃掉空余，字靠左；放不下：自动外边距归零（flexbox 规定负空余
+ * 不分给 auto 外边距），justify-content: flex-end 让轨道右端贴住窗口右端，多出来的落在左边。
+ *
+ * 这一条让「最新的字永远在右边缘以内」「放得下时句首不左移」成为布局本身的性质，而不是
+ * 逐帧算出来的结果 —— v1 的两个大问题（句首被吃两个字、写满后不动且右侧被硬裁）都出在
+ * 把这件事交给了 JS 的测量。
+ */
+.ticker-window {
+  display: flex;
+  justify-content: flex-end;
+  min-inline-size: 0;
   white-space: pre;
 }
 
-/* 思考句的颜色：它不戴 shimmer（那才是这行字颜色的所有者），所以安静色由这里给。 */
+.ticker-track {
+  flex: none;
+  margin-inline-end: auto;
+}
+
+/* 思考句：安静色；右侧留两字的空 —— 静止时最新的字离右边缘这么远，滑行时 o 不超过它。 */
 .rolling-line[data-variant="thought"] .ticker-track {
+  padding-inline-end: var(--cp-ticker-tail);
   color: var(--cp-timeline-quiet-text);
 }
 
-/*
- * 常驻 will-change 会让每一行都占一层合成层，而这些行是长期在列表里的。
- * 只在真正逐帧改 transform 的时候加（use-marquee 按需写这个属性）。
- */
+/* 只在真正逐帧改 transform 时提示合成层：常驻 will-change 会让每一行都占一层。 */
 .ticker-track[data-moving] {
   will-change: transform;
 }
 
-/*
- * 落定：这句话成了结论，从头读起才对。
- *
- * 轨道回到窗口宽度，收尾是省略号 —— 全文在展开后的那一面里，这一行只负责认出是哪一句。
- */
-.rolling-line:not([data-following]) .ticker-track {
-  display: block;
-  inline-size: auto;
-  max-inline-size: 100%;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+/* 刚写下的字：只变颜色，不变透明度。 */
+.ticker-ink {
+  color: var(--cp-ticker-ink);
 }
 
 /*
- * 刚写下的那几个字：颜色两态都由 ink-tail.ts 的 Web Animations 给（从 --cp-ticker-ink
- * 冷却到 --cp-timeline-quiet-text）。
+ * 工具行与落定态：从头显示，放不下时末尾省略号。
  *
- * 这里只写明基色，作用是动画还没挂上、或者少动效时不留一个「没有颜色」的空档 ——
- * 继承来的安静色就是它的归宿，闪一下再回来比什么都不给更糟。
+ * 写在最后、选择器与上面同权重：落定的思考句也走这里（去掉右侧留白，交给省略号）。
  */
-.ticker-ink {
-  color: inherit;
+.rolling-line[data-variant="tool"] .ticker-window,
+.rolling-line:not([data-following]) .ticker-window {
+  justify-content: flex-start;
+  white-space: nowrap;
+}
+
+.rolling-line[data-variant="tool"] .ticker-track,
+.rolling-line:not([data-following]) .ticker-track {
+  flex: 0 1 auto;
+  min-inline-size: 0;
+  overflow: hidden;
+  padding-inline-end: 0;
+  text-overflow: ellipsis;
 }

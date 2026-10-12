@@ -2210,6 +2210,10 @@ models 端口 1 条、omp-ports 2 条、一致性套件 C-CUSTOM-PROVIDER-CONFIG
 
 **改法与文件**
 
+> **这一节的模块表与参数表已被 R-21 取代**（v2 拆掉了 `marquee-model` / `use-marquee` /
+> `ink-tail`，换成 `ticker-pace` / `ticker-glide` / `ticker-engine`）。留在这里是为了让
+> 「v1 到底错在哪」可查；当下的实现与参数一律以 R-21 为准。
+
 | 模块 | 职责 |
 | --- | --- |
 | `semantics/thought-sentence.ts` | 取句：从文本尾部往回找**当前句**与**上一句**，交出去记号化之后的正文与「起始偏移」当身份（同句继续写 = 原地生长，异句 = 换格） |
@@ -2290,3 +2294,147 @@ models 端口 1 条、omp-ports 2 条、一致性套件 C-CUSTOM-PROVIDER-CONFIG
 - DevTools Performance 10 秒（逐帧只有 Composite/Paint、无逐帧 Layout）：
 - 划动停止后无持续 rAF：
 - 每秒 React 提交次数与改造前持平：
+
+## R-21 思考行动画 v2：无遮罩的显示屏式滚动（2026-10-12）
+
+**来源**：产品负责人交办的重构规格 `Project Refactoring Plan/思考行动画 v2：复盘与重构方案
+（无遮罩·显示屏式滚动）.md`（仓库输入，不入库）。对象仍是过程组组头那一行，但这次不是调参，
+是**换掉方向**：v1（R-20）把「最新的字落在哪」押在 JS 测量上，v2 把它交回给布局，JS 只管顺。
+
+### 复盘：v1 的七个问题（规格 §2 的 R-1…R-7）
+
+| # | 一句话 | 性质 |
+| --- | --- | --- |
+| R-1 | 左边缘用 `mask-image` 渐隐、工具行显示末尾：方向本身就不对，要的是显示屏边框式的硬裁 | 方案错（实现又放大） |
+| R-2 | 几何前提错：组头是收缩包裹的 `inline-flex`，窗口宽度约等于内容宽度，句首永远被吃掉 2em | 几何前提错 |
+| R-3 | 把「最新的字在不在窗口里」押在测量上：写满后目标冻结，整行不动、右端被硬裁（实测最多 236px / 约 17 个字） | 实现缺陷 |
+| R-4 | 换句握手自相矛盾：两条规则互相抵消，每次换句都等满 1200ms，模型快时截止时间还被不断后推 | 方案错 |
+| R-5 | 把滞后放在像素域：每批 token 一次台阶，追不平也追不稳，读起来一抽一抽 | 方案错 |
+| R-6 | 墨迹：新字带透明度淡入（右端读起来像被遮），中间的字没有「刚写下」的样子 | 方案 + 实现 |
+| R-7 | 验证方法错：只用 happy-dom 测，它没有布局，测试全绿而真机全错 | 验证方法错 |
+
+**v2 的一句话**：**「对」交给布局，「顺」交给 JS。**
+
+- **对交给 CSS**：窗口是 flex 容器，轨道 `margin-inline-end: auto` 吃掉正空余（放得下就靠左）；
+  负空余不分给 auto 外边距，`justify-content: flex-end` 让轨道右端贴齐、多出来的从左边裁掉。
+  于是「最新的字永远在右边缘以内」「放得下时句首不动」是布局每一帧直接给的性质，不靠测量。
+- **顺交给 JS**，只做两件平滑的事：**字符域**把成批 token 摊成匀速字流（`ticker-pace`），
+  **像素域**把每放出一个字带来的布局位移摊成连续滑行（`ticker-glide`，位移封顶 2.5em）。
+  JS 出错最坏只是「不顺」，不会遮字、不会卡死。
+- **换句只看时间**：`promoteAt = max(shownAt + 700, firstWaitingAt + 220)`，第一次算出来就定死。
+- **全组头没有一处 `mask-image`**；工具行与落定态从头显示、放不下时末尾省略号。
+
+### 改法与文件（规格 §5、§7 C1–C7）
+
+| 提交 | 内容 |
+| --- | --- |
+| C1 | 止血：删掉遮罩与 `--cp-ticker-fade`；工具行、落定态改成从头显示 + 末尾省略号（R-1） |
+| C2 | 新增 `ticker-pace.ts`：字符域放字（纯函数，11 条测试） |
+| C3 | 新增 `ticker-glide.ts`：像素域滑行（纯函数，4 条测试） |
+| C4 | `roll-scheduler.ts` 重写：只看时间，删掉 `settled` 握手，加 `waiting()` / `setImmediate()`（R-4，9 条测试） |
+| C5 | 显示屏式滚动：`rolling-line.css` 重写 + 新增 `ticker-engine.ts` + `marquee-track.tsx` / `rolling-line.tsx` 重写 + 令牌与注释（R-2、R-3、R-5、R-6） |
+| C6 | 删掉 `marquee-model` / `use-marquee` / `ink-tail` 与各自测试 |
+| C7 | 新增真实布局检查 `tooling/checks/ticker-layout`（R-7）：`bun run check:ticker` |
+| C8 | 本文档 |
+
+| 模块 | 职责 |
+| --- | --- |
+| `timeline/ticker-pace.ts` | 纯函数：字符域放字。成批 token 进缓冲，按估计来字速度摊匀放出 |
+| `timeline/ticker-glide.ts` | 纯函数：像素域滑行。把每放一个字的布局位移摊成连续运动，位移封顶 |
+| `timeline/ticker-engine.ts` | 逐帧引擎：**唯一**碰 rAF 与 ResizeObserver 的地方；直接写文本节点、transform、`data-moving`，不进 React |
+| `timeline/marquee-track.tsx` | `TickerLine`（React 只渲染窗口，里面的轨道归引擎）/ `StaticLine`（不动 + 省略号） |
+| `timeline/roll-scheduler.ts` | 换句时机：`max(露面 700ms, 新句出现后 220ms)`，只算一次；等待期间更新的句子顶掉排队那句 |
+| `timeline/rolling-line.tsx` | 容器：喂句、提升时换 key、按状态选格子；React 状态只有「换句」与「是否有句在等」 |
+| `timeline/rolling-line.css` | 「对」：放得下靠左 / 放不下右端贴齐 / 左边缘直接裁 / 工具行与落定态省略号；全文无 mask |
+| `tooling/checks/ticker-layout/` | 真实布局检查：Electron + 真实组件逐帧量「遮没遮字」，六场景 + 帧率自检 |
+
+### 参数表（规格 §6，值即实现；取代 R-20 那一张）
+
+| 常量 | 值 | 所在 | 为什么 |
+| --- | --- | --- | --- |
+| `TAIL_EM` / `--cp-ticker-tail` | 2.5 | ticker-glide / 令牌 | 静止时最新的字离右边缘的距离，也是 o 的上限。取 2em 时实测会顶到上限，顶到就是一跳 |
+| `SET_EM` | 1 | ticker-glide | 滑行中希望保持的 o，约一个字。取 0.5em 时锯齿谷底会碰到 0，碰到就停一帧 |
+| `SHIFT_WINDOW_MS` / `SHIFT_MIN_SPAN_MS` | 400 / 200 | ticker-glide | 估计布局推进速度的窗口与分母下限 |
+| glide `CORRECT_MS` / `SPEED_SMOOTH_MS` | 300 / 150 | ticker-glide | o 偏离设定值时多久纠正 / 速度本身的平滑 |
+| `MAX_PX_S` / `SETTLE_PX_S` / `MAX_DT_MS` | 1600 / 20 / 64 | ticker-glide | 滑行速度上限 / 停笔后最后一点的最低速度 / 单帧时间步上限 |
+| `RATE_WINDOW_MS` / `RATE_MIN_SPAN_MS` | 800 / 200 | ticker-pace | 估计来字速度的窗口与分母下限 |
+| `GAP_SMOOTHING` | 0.25 | ticker-pace | 到达间隔的滑动平均权重 |
+| `BUFFER_GAP_CAP_MS` | 400 | ticker-pace | 缓冲最多压这么久的字（组头因此最多落后约一批） |
+| pace `CORRECT_MS` / `SPEED_SMOOTH_MS` | 350 / 140 | ticker-pace | 积压偏离设定值时多久纠正 / 放字速度的平滑 |
+| `MAX_CPS` / `FLUSH_CPS` | 240 / 480 | ticker-pace | 平时 / 收尾时的放字上限（字/秒） |
+| `MAX_BACKLOG_CHARS` | 60 | ticker-pace | 积压超过就直接跳近（后台切回） |
+| `MIN_CPS` / `TAIL_CPS` | 15 / 6 | ticker-pace | 有积压时的最低速度（停顿后最迟约 66ms 见第一个字）/ 积压不足一个字时的最低速度 |
+| `INK_MS` | 450 | ticker-engine | 新字保持墨色的时长（只变颜色，不变透明度） |
+| `MIN_DWELL_MS` / `FINISH_MS` | 700 / 220 | roll-scheduler | 一句话至少露面这么久 / 下一句出现后至少再等这么久 |
+| `ROLL_MS` / `FAST_ROLL_MS` | 260 / 140 | roll-scheduler | 正常 / 跳过句子时的上下刷时长 |
+| `ROLL_DISTANCE` / `ROLL_EASE` | 0.6em / (0.4, 0, 0.2, 1) | rolling-line | 上下刷的距离与曲线（去掉 v1 的 blur：Windows 上发糊） |
+| `MAX_SENTENCE_CHARS` / `BACKSCAN_LIMIT` | 400 / 4000 | thought-sentence | 不动（本次没碰取句规则） |
+
+**删除的参数**：`MAX_WAIT_MS`、`END_HOLD_MS`、`MIN_VISIBLE_MS`（并入 `MIN_DWELL_MS`）、
+`LAG_SET_EM`、`--cp-ticker-fade`、`ROLL_BLUR_PX`、ink-tail 的 `INK_MS = 600`。
+
+### 真实布局检查（规格 §8.4，R-7 的落地）
+
+v1 栽在「happy-dom 没有布局」上，所以这一版把「最新的字有没有被裁」变成必须过的检查：
+
+- `bun run check:ticker` 起真实 Electron、加载**真实的** `RollingLine` / `readThoughtSentence`
+  与设计令牌，六个场景（匀速 / 成批 / 极快 / 慢速 / 拖窄 / 少动效）各一个进程；
+- 每帧在 rAF 之后、绘制之后取样：用 `Range` 取第一个字与最后一个非空白字的矩形，比窗口矩形；
+- 环境自检：每个场景先测 1 秒帧率，< 50fps 就报「环境不合格」并以退出码 2 退出，不给结论；
+- 截图（1.5s / 4.5s / 8s）与原始采样落在 `.ticker-layout/`（已进 `.gitignore`）。
+
+首次真跑记录（Windows 11，Electron 33 / Chromium，760px 列宽，14px 字号）：
+
+| 场景 | 右裁 | 句首被裁 | 延迟 p50 / p95 / max | 应动未动 | sJ90 |
+| --- | --- | --- | --- | --- | --- |
+| 匀速 30 字/秒 | 0 | 0 | 131 / 313 / 344 | 6% | 0.19 |
+| 成批 每 250ms 6 字 | 0 | 0 | 221 / 237 / 240 | 0% | 0.13 |
+| 极快 200 字/秒 | 0 | 0 | 185 / 530 / 660 | 41%（已知局限） | 1.43（已知局限） |
+| 慢速 11 字/秒 + 1.5s 停顿 | 0 | 0 | 107 / 204 / 339 | 5% | 0.12 |
+| 匀速 + 拖窄窗口 | 0 | 0 | 134 / 309 / 344 | 3% | 0.20 |
+| 成批 + 少动效 | 0 | 0 | 27 / 35 / 39 | 100%（预期：不滑） | 0.00 |
+
+阈值按 §8.4：右裁与句首被裁**所有场景 = 0**；延迟 p95 默认 ≤ 500ms、极快 ≤ 700ms、
+少动效 ≤ 100ms；应动未动 ≤ 10%、sJ90 ≤ 0.25 只对匀速 / 成批 / 慢速 / 拖窄四档判定，
+极快与少动效两档只报数（见下面的偏差 3）。
+
+### 逐条与规格的偏差（都是检查台自己的实现，产品代码逐字照 §5）
+
+1. **`run.ts` 允许只跑一个场景**（`bun run check:ticker fast`）：调参时不必等六场，全跑仍是不带参数。
+2. **采集的是「屏幕上那一句」的句首偏移**，不是当帧 prop 的偏移：延迟要量的是「这一批的字有没有
+   印出来」，而换句有 220ms 的等待窗，这段时间里 prop 已经指向新句、屏幕上还是旧句。采样里另记
+   `shownKey`（`data-line-key`）备查。这也是 `rolling-line.tsx` 要在那一格上写 `data-line-key` 的原因。
+3. **「应动未动」与 sJ90 对极快、少动效两档不判定**：§8.4 的阈值表只给这两项四个场景的阈值，
+   §10 又把极快档的顿挫明确列成已知局限 —— 给它定一个会失败的门槛，等于把「已知局限」变成
+   「永远红的检查」。检查台照旧把数报出来，判定归 `judge()` 的 `null`。
+4. **判定「正在出字」用的是「屏幕上印到的位置还没追上已经到达到的位置」**，不是「这个场景还在来字」：
+   慢速档第 70 批之后有 1.5s 停顿（§2.8），那段时间句首当然不动，算进「应动未动」会把正确行为
+   记成缺陷。为这一条给 `Sample` 加了 `arrived`（§8.4 本来就要求 recorder 记「已到达的源文本长度」）。
+5. **检查用的思考文本按「单句也要放不下」来写**（每句 80–120 字）：短句在 760px 上放得下，
+   放得下就没有滑行，抖动与应动未动两项会全 0 —— 检查看着全绿，其实什么都没查。这一条踩过一次：
+   第一版检查文本的句子只有 40 来字，六场里五场的滑行指标恒为 0。
+6. **`main.cjs` 等页面的 `window.__done`**（来字都印出来了、滑行也停了），不再干等固定时长；
+   硬上限 20s，页面卡住也一定会交回结论。
+
+### 测试
+
+| 文件 | 覆盖 |
+| --- | --- |
+| `timeline/__tests__/ticker-pace.test.ts` | 11 条：摊匀、设定值、收尾加速、积压跳近、停笔放干、代理对不拆 |
+| `timeline/__tests__/ticker-glide.test.ts` | 4 条：位移封顶、速度方向、静止归零、单帧步长上限 |
+| `timeline/__tests__/roll-scheduler.test.ts` | 9 条：时间规则、排队顶替、`waiting` / `setImmediate`、StrictMode 反复订阅、删除路径 |
+| `timeline/__tests__/rolling-line-css.test.ts` | 6 条护栏：全文无 mask / 渐隐、右端留白、工具行与落定态省略号、行高钉死、`will-change` 只按需 |
+| `timeline/__tests__/rolling-line.test.tsx` | 13 条结构与时序：成批不一批一下、写满后连续左移、换句只上下刷、新句从第一个字写、墨迹、少动效、StrictMode 只有一条轨道 |
+| `timeline/__tests__/process-group.test.tsx` | 接线：`data-variant` / `data-following`、当前句不是最后一行、代码块停在最后一句人话 |
+| `tooling/checks/ticker-layout/__tests__/ticker-layout.test.ts` | 13 条：指标的纯函数（手写采样序列），含「停笔静止不算应动未动」 |
+
+**验收**：`bun run all` 全绿（**2098 pass / 0 fail**）。未动契约形状，不需 `protocol:snapshot`；
+未碰 omp 隔离与环境，未跑 `core:probe`。真实布局检查 `bun run check:ticker` 六场全 ✔。
+
+### 审查执行待决（R-21 新增）
+
+| 编号 | 日期 | 问题 | 阻塞的步骤 | 状态 |
+| --- | --- | --- | --- | --- |
+| Q40 | 2026-10-12 | 极快模型（≥ 200 字/秒）这一档仍有可见顿挫：实测应动未动 41%、sJ90 1.43（规格 §10 记为已知局限，原因是一帧要放 3 个以上的字、o 会顶到 2.5em 上限）。正确性不受影响（0 遮字、0 卡死） | 无（不在本次范围内） | 记录：真机上若感觉明显，再考虑让设定值随速度变化 |
+| Q41 | 2026-10-12 | 换句的上下刷仍带 260ms 的透明度变化（§3.4 的既定点）。规格 §10 给了可选项：去掉 `initial` / `exit` 的 opacity 并把 `ROLL_DISTANCE` 改成 `1lh`，变成翻牌式 | 无 | 记录：等产品负责人看真机效果再定 |
+| Q42 | 2026-10-12 | §9 的真机验收清单（Windows、深浅两色各一遍，14 条）未跑：需要安装包与真实模型 | 无（单测与真实布局检查已按规格落地） | 记录：等产品负责人真机复核 |

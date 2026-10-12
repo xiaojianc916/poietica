@@ -1,6 +1,8 @@
-import { describe, expect, it } from 'bun:test'
+import { afterEach, describe, expect, it } from 'bun:test'
 import { readFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
+import { cleanup, render } from '@testing-library/react'
+import { MotionConfig } from 'motion/react'
 import { renderToStaticMarkup } from 'react-dom/server'
 import type { ToolCallStatus, ToolKind } from '../../../agent/tool-call'
 import { type Presentation, selectPresentation, type ToolGroupPlan } from '../../../timeline/presentation'
@@ -85,6 +87,25 @@ function planAt(feed: Presentation, index: number): ToolGroupPlan {
 }
 
 const nothing = (): void => undefined
+
+/*
+ * 思考句的文字归逐帧引擎（rolling-line.tsx 只渲染窗口那一层，见 marquee-track.tsx），
+ * 静态标记里看不到它，要断言「印出来的是哪一句」就得真挂一次。上下刷不建动画，理由与
+ * rolling-line.test.tsx 同一条。
+ */
+function renderHead(plan: ToolGroupPlan): HTMLElement {
+  const { container } = render(
+    <MotionConfig skipAnimations>
+      <ToolGroupCard isOpen={false} onToggle={nothing} plan={plan} renderRow={() => null} />
+    </MotionConfig>,
+  )
+
+  return container
+}
+
+afterEach(() => {
+  cleanup()
+})
 
 describe('过程组的投影', () => {
   it('read / execute / 思考连成一条过程，思考不在成员列表里', () => {
@@ -195,9 +216,8 @@ describe('过程组的投影', () => {
 describe('过程组的组头', () => {
   it('纯思考只有一闪，不是控件，也不戴工具那道常亮的光', () => {
     const feed = selectPresentation(stateOf([ask(), thought('t', '先看看仓库结构\n再读配置')], true), new Map())
-    const markup = renderToStaticMarkup(
-      <ToolGroupCard isOpen={false} onToggle={nothing} plan={planAt(feed, 1)} renderRow={() => null} />,
-    )
+    const container = renderHead(planAt(feed, 1))
+    const markup = container.innerHTML
 
     expect(markup).toContain('再读配置')
     expect(markup).not.toContain('aria-expanded')
@@ -223,9 +243,8 @@ describe('过程组的组头', () => {
       stateOf([ask(), tool('r', 'read', 'in_progress'), thought('t', '第一行\n还在想')], true),
       new Map(),
     )
-    const markup = renderToStaticMarkup(
-      <ToolGroupCard isOpen={false} onToggle={nothing} plan={planAt(feed, 1)} renderRow={() => null} />,
-    )
+    const container = renderHead(planAt(feed, 1))
+    const markup = container.innerHTML
 
     expect(markup).toContain('还在想')
     expect(markup).not.toContain('timeline-shimmer')
@@ -233,9 +252,9 @@ describe('过程组的组头', () => {
     expect(markup).not.toContain('timeline-row__icon')
   })
 
-  it('思考那一格走划动，工具那一格走右对齐', () => {
-    /* 两个 variant 的几何完全不同（见 rolling-line.css）：思考往左划、左端淡出；
-       工具行不横移，超宽时右对齐显示末尾。衔接在 tool-group-card 那一层。 */
+  it('思考那一格走滚动，工具那一格从头显示', () => {
+    /* 两个 variant 的几何完全不同（见 rolling-line.css）：思考往左滚、最新的字永远完整；
+       工具行不动，从头显示，放不下时末尾省略号。衔接在 tool-group-card 那一层。 */
     const thinking = selectPresentation(
       stateOf([ask(), tool('r', 'read', 'in_progress'), thought('t', '第一行\n还在想')], true),
       new Map(),
@@ -245,7 +264,9 @@ describe('过程组的组头', () => {
     )
 
     expect(thinkingMarkup).toContain('data-variant="thought"')
-    expect(thinkingMarkup).toContain('data-mode="glide"')
+    /* 还在写的思考句交给逐帧引擎：静态标记里那一格只有窗口，轨道由客户端建（从第一个字开始写）。 */
+    expect(thinkingMarkup).toContain('data-following')
+    expect(thinkingMarkup).not.toContain('ticker-track')
 
     const running = selectPresentation(
       stateOf([ask(), tool('r', 'read', 'in_progress'), tool('e', 'execute')], true),
@@ -256,7 +277,8 @@ describe('过程组的组头', () => {
     )
 
     expect(runningMarkup).toContain('data-variant="tool"')
-    expect(runningMarkup).toContain('data-mode="tail"')
+    /* 工具行不动：静态标记里就是窗口加轨道，整句从头显示。 */
+    expect(runningMarkup).toContain('ticker-track')
   })
 
   it('思考取的是当前那一句，不是最后一行：一整个长段落里也看得出换句', () => {
@@ -269,9 +291,7 @@ describe('过程组的组头', () => {
       stateOf([ask(), tool('r', 'read', 'in_progress'), thought('t', '先看看配置。然后读日志')], true),
       new Map(),
     )
-    const markup = renderToStaticMarkup(
-      <ToolGroupCard isOpen={false} onToggle={nothing} plan={planAt(feed, 1)} renderRow={() => null} />,
-    )
+    const markup = renderHead(planAt(feed, 1)).innerHTML
 
     expect(markup).toContain('然后读日志')
     expect(markup).not.toContain('先看看配置。然后读日志')
@@ -282,9 +302,7 @@ describe('过程组的组头', () => {
       stateOf([ask(), tool('r', 'read', 'in_progress'), thought('t', '先看看配置。\n```ts\nconst a = 1\n```')], true),
       new Map(),
     )
-    const markup = renderToStaticMarkup(
-      <ToolGroupCard isOpen={false} onToggle={nothing} plan={planAt(feed, 1)} renderRow={() => null} />,
-    )
+    const markup = renderHead(planAt(feed, 1)).innerHTML
 
     expect(markup).toContain('先看看配置。')
     expect(markup).not.toContain('const a = 1')

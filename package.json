@@ -90,6 +90,7 @@
     "build:release": "bun run core:build && bun run core:verify-dist && bun run desktop:build && bun run desktop:package",
     "desktop:package": "bun run --filter @poietica/desktop package",
     "check:versions": "bun run tooling/release/check-versions.ts",
+    "check:ticker": "bun run tooling/checks/ticker-layout/run.ts",
     "latest-json": "bun run tooling/release/latest-json.ts",
     "verify:channel": "bun run tooling/release/verify-channel.ts",
     "version:set": "bun run tooling/release/set-version.ts",
@@ -109,6 +110,8 @@
     "@swc/core": "catalog:",
     "@types/bun": "catalog:",
     "@types/node": "catalog:",
+    "@types/react": "catalog:",
+    "@types/react-dom": "catalog:",
     "dependency-cruiser": "catalog:",
     "typescript": "catalog:"
   }

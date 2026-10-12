@@ -13,6 +13,9 @@ dist-release/
 # 测试
 coverage/
 
+# 思考行真实布局检查的产物（截图与原始采样，每次重跑都变）
+.ticker-layout/
+
 # 缓存：bun 运行时下载缓存，单文件 80MB+，禁止入库
 .bun-cache/
 

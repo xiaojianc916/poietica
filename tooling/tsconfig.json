@@ -1,16 +1,24 @@
 {
   "extends": "./tsconfig/bun.json",
   "compilerOptions": {
+    "lib": ["ES2023", "DOM", "DOM.Iterable"],
+    "jsx": "react-jsx",
     "types": ["bun", "node"]
   },
   "include": ["scaffold", "refs", "test", "checks", "release", "**/__tests__/**/*", "**/*.test.ts"],
   "exclude": ["${configDir}/.tsbuild"],
   "references": [
     {
+      "path": "../features/conversation/src/ui"
+    },
+    {
       "path": "../packages/contract-kit"
     },
     {
       "path": "../packages/core-kernel"
+    },
+    {
+      "path": "../packages/design-system"
     },
     {
       "path": "../packages/host-kernel"

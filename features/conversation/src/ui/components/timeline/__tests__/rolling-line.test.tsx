@@ -1,33 +1,22 @@
 import { afterEach, describe, expect, it } from 'bun:test'
 import { act, cleanup, render } from '@testing-library/react'
 import { MotionConfig } from 'motion/react'
-import type { ReactElement } from 'react'
+import { type ReactElement, StrictMode } from 'react'
 import { RollingLine } from '../rolling-line'
 
 /*
- * 组头那一格的结构与接线。
+ * 组头那一格的结构与时序（思考行 v2）。
  *
- * happy-dom 没有真实布局：宽度一律量成 0，所以「划了多远」「淡出落在哪」量不出来 —— 那些
- * 归 marquee-model 的纯函数测。这里测的是**结构与属性**：轨道在不在、墨迹尾巴有没有重复、
- * 换句之后旧句有没有留下、落定态有没有把「还在写」的记号撤掉。
+ * happy-dom 没有布局：宽度一律 0、ResizeObserver 不回调，所以「滚到哪、裁没裁到字」量不出来 ——
+ * 那归 ticker-pace / ticker-glide 的纯函数测，和 tooling/checks/ticker-layout 的真实布局检查。
+ * 这里测的是：哪种状态用哪种格子、字是不是按顺序放出来、换句后旧句有没有留下、有没有任何「遮」的记号。
  *
- * 两组用例各自按住一件事：
- *
- *   • **上下刷**走 `MotionConfig skipAnimations` —— 与 `composer-submit.test.tsx` 同一条
- *     理由：happy-dom 的 `Element.animate` 不推进时间轴，动画停在中途被取消时 motion 会
- *     reject 一个没人接的 `finished` promise，一条这样的 rejection 就足以拖垮后面的用例，
- *     真机上不会发生。`skipAnimations` 让动画整条不建，换句因此是「立刻到位」。
- *
- *   • **横向划动与墨迹**不受 motion 管：它们读的是真实时间轴，所以照常跑。
- *
- * 不去改系统偏好：它在 motion 内部首次读取时就缓存（useReducedMotion 的惰性初始化），同一个
- * 测试进程里再改已经晚了。
- *
- * 时序用真实等待：调度器与逐帧引擎读的是 `performance.now()` 和系统定时器，不认 fakeClock。
- * 等的是真时间，所以每一步都留够余量。
+ * 上下刷走 MotionConfig skipAnimations（理由同 composer-submit.test.tsx：happy-dom 的 Element.animate
+ * 不推进时间轴）。放字读真实时间（performance.now / requestAnimationFrame），所以用真实等待、留够余量。
+ * 少动效分支不在这里测：motion 首次读取系统偏好后就缓存，同一进程里改不了。
  */
 
-function frame(ms: number): Promise<void> {
+function wait(ms: number): Promise<void> {
   return new Promise((resolve) => {
     setTimeout(resolve, ms)
   })
@@ -35,137 +24,241 @@ function frame(ms: number): Promise<void> {
 
 async function advance(ms: number): Promise<void> {
   await act(async () => {
-    await frame(ms)
+    await wait(ms)
   })
 }
 
 interface Mounted {
   readonly container: HTMLElement
-  /** 换一批 props：@testing-library 的 rerender 会把整棵树换成新的根，MotionConfig 那一层
-      因此要一起换 —— 不然组件被重新挂载，墨迹与调度器里的账全丢，测出来的是假象。 */
-  readonly update: (node: ReactElement) => void
+  readonly update: (node: ReactElement) => Promise<void>
 }
 
-/** 挂上一格。上下刷不建动画（立刻到位），横向划动与墨迹照常（见文件头注）。 */
 function mount(node: ReactElement): Mounted {
   const { container, rerender } = render(<MotionConfig skipAnimations>{node}</MotionConfig>)
 
   return {
     container,
-    update: (next) => {
-      rerender(<MotionConfig skipAnimations>{next}</MotionConfig>)
+    update: async (next) => {
+      await act(async () => {
+        rerender(<MotionConfig skipAnimations>{next}</MotionConfig>)
+      })
     },
   }
+}
+
+const thought = (contentKey: string, text: string, previous: { key: string; text: string } | null = null) => (
+  <RollingLine contentKey={contentKey} following previous={previous} text={text} variant="thought" />
+)
+
+/** 每隔 step 毫秒记一次 textContent，记 total 毫秒。 */
+async function sample(container: HTMLElement, total: number, step = 20): Promise<string[]> {
+  const seen: string[] = []
+
+  for (let elapsed = 0; elapsed < total; elapsed += step) {
+    await advance(step)
+    seen.push(container.textContent ?? '')
+  }
+
+  return seen
 }
 
 afterEach(() => {
   cleanup()
 })
 
-describe('思考句的轨道', () => {
-  it('渲染出轨道与窗口，窗口认这个 variant', () => {
-    const { container } = mount(
-      <RollingLine contentKey="0" following text="我需要确认 relay 的端口" variant="thought" />,
-    )
+describe('思考句（还在写）', () => {
+  it('首次挂载：整句直接摆好，不从第一个字重播', () => {
+    const { container } = mount(thought('0', '我需要确认 relay 的端口'))
 
-    expect(container.querySelector('.ticker-window')).not.toBeNull()
-    expect(container.querySelector('.ticker-track')).not.toBeNull()
-    expect(container.querySelector('.rolling-line')?.getAttribute('data-variant')).toBe('thought')
+    expect(container.querySelector('.ticker-window > .ticker-track')).not.toBeNull()
+    expect(container.textContent).toBe('我需要确认 relay 的端口')
   })
 
-  it('连续追加文字时只有一个墨迹尾巴：新字并进同一条', async () => {
-    const { container, update } = mount(<RollingLine contentKey="0" following text="我" variant="thought" />)
+  it('同一句继续长：按顺序放字，屏幕上永远是全文的前缀，停笔后写全', async () => {
+    const full = '我需要确认 relay 的端口，再看配置文件里写的是哪一个'
+    const { container, update } = mount(thought('0', '我'))
+    const seen: string[] = []
 
-    for (const text of ['我需要', '我需要确认', '我需要确认 relay 的端口']) {
-      await act(async () => {
-        update(<RollingLine contentKey="0" following text={text} variant="thought" />)
-      })
+    for (let end = 4; end < full.length; end += 4) {
+      await update(thought('0', full.slice(0, end)))
+      seen.push(...(await sample(container, 60)))
+    }
+    await update(thought('0', full))
+    await advance(1500)
 
-      expect(container.querySelectorAll('.ticker-ink')).toHaveLength(1)
-      expect(container.textContent).toBe(text)
+    for (const text of seen) expect(full.startsWith(text)).toBe(true)
+    expect(container.textContent).toBe(full)
+  })
+
+  it('成批到达时不是一批一下：两批之间屏幕上的字数至少变过一次', async () => {
+    const full = '先读一下 tooling 目录里的检查脚本，看它们怎么挂到 lint 上'
+    const { container, update } = mount(thought('0', full.slice(0, 2)))
+    let between = 0
+
+    for (let end = 10; end <= full.length; end += 8) {
+      const before = container.textContent ?? ''
+
+      await update(thought('0', full.slice(0, end)))
+      const seen = await sample(container, 240, 30)
+
+      if (new Set([before, ...seen]).size > 2) between += 1
+    }
+
+    expect(between).toBeGreaterThan(0)
+  })
+
+  it('前面的字被改写（Markdown 记号闭合）：从改写处重放，最后没有错字', async () => {
+    const { container, update } = mount(thought('0', '先看 **配置'))
+
+    await update(thought('0', '先看 配置文件'))
+    await advance(1500)
+
+    expect(container.textContent).toBe('先看 配置文件')
+  })
+
+  it('墨迹：刚写下的字在 .ticker-ink 里，过一会儿冷却并入正文', async () => {
+    const { container, update } = mount(thought('0', '我'))
+
+    await update(thought('0', '我需要确认端口'))
+    await advance(200)
+    expect((container.querySelector('.ticker-ink')?.textContent ?? '').length).toBeGreaterThan(0)
+
+    await advance(1800)
+    expect(container.querySelector('.ticker-ink')?.textContent).toBe('')
+    expect(container.textContent).toBe('我需要确认端口')
+  })
+
+  it('卸载：不留在跑的逐帧回调', async () => {
+    const original = window.requestAnimationFrame.bind(window)
+    let calls = 0
+
+    window.requestAnimationFrame = (callback) => {
+      calls += 1
+      return original(callback)
+    }
+
+    try {
+      const { update } = mount(thought('0', '我'))
+
+      await update(thought('0', '我需要确认 relay 的端口，再看配置'))
+      await advance(50)
+      expect(calls).toBeGreaterThan(0)
+      cleanup()
+
+      const before = calls
+
+      await wait(200)
+      expect(calls).toBe(before)
+    } finally {
+      window.requestAnimationFrame = original
     }
   })
+})
 
-  it('工具行与落定态不开墨迹：颜色归扫光，也归安静色', () => {
-    const tool = mount(<RollingLine contentKey="call-1" following shimmer text="读 config.ts" />)
+describe('不动的格子', () => {
+  it('工具行：从头显示整句，不建引擎（没有墨迹、没有位移）', () => {
+    const { container } = mount(<RollingLine contentKey="call-1" following shimmer text="读 config.ts" />)
+    const track = container.querySelector<HTMLElement>('.ticker-track')
 
-    expect(tool.container.querySelectorAll('.ticker-ink')).toHaveLength(0)
-    cleanup()
+    expect(container.querySelector('.rolling-line')?.getAttribute('data-variant')).toBe('tool')
+    expect(container.querySelector('.ticker-ink')).toBeNull()
+    expect(track?.textContent).toBe('读 config.ts')
+    expect(track?.style.transform).toBe('')
+  })
 
-    const settledLine = mount(<RollingLine contentKey="0" following={false} text="结论" variant="thought" />)
+  it('落定的思考句：不滚、没有 data-following，整句从头显示', () => {
+    const { container } = mount(
+      <RollingLine contentKey="0" following={false} text="结论：端口是 8123" variant="thought" />,
+    )
 
-    expect(settledLine.container.querySelectorAll('.ticker-ink')).toHaveLength(0)
+    expect(container.querySelector('.rolling-line')?.hasAttribute('data-following')).toBe(false)
+    expect(container.querySelector('.ticker-ink')).toBeNull()
+    expect(container.querySelector('.ticker-track')?.textContent).toBe('结论：端口是 8123')
+  })
+
+  it('「正在思考」占位：戴扫光、不滚', () => {
+    const { container } = mount(
+      <RollingLine contentKey="placeholder" following shimmer text="正在思考" variant="thought" />,
+    )
+
+    expect(container.querySelector('.timeline-shimmer')).not.toBeNull()
+    expect(container.querySelector('.ticker-ink')).toBeNull()
   })
 })
 
 describe('换句', () => {
-  it('换 contentKey 之后，最终 DOM 里只剩新句的文字', async () => {
-    const { container, update } = mount(<RollingLine contentKey="0" following text="第一句。然后" variant="thought" />)
+  it('新句出现：旧句先露面够久，再换成新句，新句从第一个字写起', async () => {
+    const { container, update } = mount(thought('0', '第一句。'))
 
-    await act(async () => {
-      update(
-        <RollingLine
-          contentKey="5"
-          following
-          previous={{ key: '0', text: '第一句。' }}
-          text="然后"
-          variant="thought"
-        />,
-      )
-    })
+    await update(thought('5', '然后看配置文件', { key: '0', text: '第一句。' }))
+    expect(container.textContent).toContain('第一句')
 
-    /* 旧句要等调度器放行（旧句没划到位时最多等 1200ms），再等上下刷走完。 */
-    await advance(1500)
+    const seen = await sample(container, 2000)
+    const fresh = seen.filter((text) => !text.includes('第一句'))
 
-    expect(container.textContent).toContain('然后')
-    expect(container.textContent).not.toContain('第一句')
+    /* 新句换上后经历过「只写了一部分」的样子，而不是整句一下子出现 */
+    expect(fresh.some((text) => text.length < '然后看配置文件'.length && '然后看配置文件'.startsWith(text))).toBe(true)
+    expect(container.textContent).toBe('然后看配置文件')
   })
 
-  it('落定之后把「还在写」的记号撤掉：那时这句话是结论', async () => {
-    const { container, update } = mount(
-      <RollingLine contentKey="0" following text="一长串还没写完的字" variant="thought" />,
-    )
+  it('等待期间又来更新的句子：直接换上最新那句，过期的那句不补播', async () => {
+    const { container, update } = mount(thought('0', '第一句。'))
 
-    expect(container.querySelector('.rolling-line')?.hasAttribute('data-following')).toBe(true)
+    await update(thought('5', '第二句。', { key: '0', text: '第一句。' }))
+    await advance(60)
+    await update(thought('10', '第三句', { key: '5', text: '第二句。' }))
 
-    await act(async () => {
-      update(<RollingLine contentKey="0" following={false} text="一长串还没写完的字" variant="thought" />)
-    })
+    const seen = await sample(container, 2000)
 
-    expect(container.querySelector('.rolling-line')?.hasAttribute('data-following')).toBe(false)
-  })
-
-  it('落定态不划：窗口上没有 data-scrolled', async () => {
-    const { container } = mount(<RollingLine contentKey="0" following={false} text="结论" variant="thought" />)
-
-    await advance(80)
-
-    expect(container.querySelector('.ticker-window')?.hasAttribute('data-scrolled')).toBe(false)
+    for (const text of seen) expect(text.includes('第二句')).toBe(false)
+    expect(container.textContent).toBe('第三句')
   })
 })
 
-describe('不改变 DOM 契约', () => {
-  it('容器只加一个 variant 属性，别名默认是工具行', () => {
-    const { container } = mount(<RollingLine contentKey="k" following={false} text="摘要" />)
-    const line = container.querySelector('.rolling-line')
+describe('StrictMode（开发时模拟一次卸载再挂回）', () => {
+  it('只有一条轨道，换句照常发生', async () => {
+    const wrap = (node: ReactElement) => (
+      <StrictMode>
+        <MotionConfig skipAnimations>{node}</MotionConfig>
+      </StrictMode>
+    )
+    const { container, rerender } = render(wrap(thought('0', '第一句。')))
 
-    expect(line?.getAttribute('data-variant')).toBe('tool')
-    expect(line?.hasAttribute('data-following')).toBe(false)
+    expect(container.querySelectorAll('.ticker-track')).toHaveLength(1)
+
+    await act(async () => {
+      rerender(wrap(thought('5', '然后', { key: '0', text: '第一句。' })))
+    })
+    /* 分小步等：一个长 act 里 React 会把换句那次渲染攒到 act 结束才做 */
+    await sample(container, 1600)
+
+    expect(container.querySelectorAll('.ticker-track')).toHaveLength(1)
+    expect(container.textContent).toBe('然后')
   })
+})
 
-  it('三种状态各自的 mode 落在一个属性上，样式与引擎都读它', () => {
-    const followingThought = mount(<RollingLine contentKey="0" following text="在想" variant="thought" />)
+describe('没有任何遮挡', () => {
+  it('任何状态下都没有 data-scrolled，也没有内联的 mask', async () => {
+    const { container, update } = mount(thought('0', '我'))
 
-    expect(followingThought.container.querySelector('.ticker-track')?.getAttribute('data-mode')).toBe('glide')
-    cleanup()
+    await update(thought('0', '我需要确认 relay 的端口，再看配置文件里写的是哪一个'))
+    await advance(300)
+    await update(<RollingLine contentKey="0" following={false} text="结论" variant="thought" />)
 
-    const runningTool = mount(<RollingLine contentKey="call-1" following text="读文件" />)
+    const tool = mount(
+      <RollingLine
+        contentKey="call-1"
+        following
+        shimmer
+        text="读 features/conversation/src/ui/components/timeline/rolling-line.css"
+      />,
+    )
 
-    expect(runningTool.container.querySelector('.ticker-track')?.getAttribute('data-mode')).toBe('tail')
-    cleanup()
+    await advance(100)
 
-    const settled = mount(<RollingLine contentKey="k" following={false} text="摘要" variant="thought" />)
-
-    expect(settled.container.querySelector('.ticker-track')?.getAttribute('data-mode')).toBe('start')
+    for (const root of [container, tool.container]) {
+      expect(root.querySelector('[data-scrolled]')).toBeNull()
+      expect(root.innerHTML).not.toMatch(/mask/u)
+    }
   })
 })

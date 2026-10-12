@@ -1,0 +1,267 @@
+import {
+  AT_REST,
+  type GlideState,
+  glideStep,
+  MAX_DT_MS,
+  noteShift,
+  type Shift,
+  shiftRate,
+  TAIL_EM,
+} from './ticker-glide'
+import {
+  type ArrivalLog,
+  EMPTY_LOG,
+  incomingRate,
+  noteArrival,
+  type PaceState,
+  paceStep,
+  visibleCount,
+} from './ticker-pace'
+
+/*
+ * 思考句的逐帧引擎：唯一碰 requestAnimationFrame 与 ResizeObserver 的地方。
+ *
+ * 分工（这是 v1 失败后的核心改动）：
+ *   • 「对」交给布局：轨道在窗口里右对齐、右侧留 tail 的空（rolling-line.css）。最新的字越不过
+ *     右边缘、放得下时句首不被吃掉，都由 CSS 保证，与这里算得准不准无关。
+ *   • 「顺」交给这里：放字（ticker-pace）把成批的 token 摊匀，滑行（ticker-glide）把每个字带来
+ *     的布局位移摊成连续运动。这里出了错，最坏是「不顺」，不会遮字、不会卡死。
+ *
+ * 逐帧不进 React：直接写文本节点、transform 与 data-moving。轨道及其子节点归引擎所有，
+ * React 只渲染外面那个窗口（见 marquee-track.tsx），两边不抢同一批 DOM。
+ */
+
+/** 新字保持「刚写下」颜色的时长。只变颜色、不变透明度：透明度一变，右端读起来就是被遮了。 */
+export const INK_MS = 450
+
+/** 小于这个宽度的溢出当作没溢出：亚像素误差不该引起滑行。 */
+const OVERFLOW_EPS_PX = 0.5
+
+export interface TickerOptions {
+  readonly text: string
+  /** 刚被换上来的新句：从第 0 个字开始写。否则（首次挂载、滚出视野再滚回来）整句直接摆好，不重播。 */
+  readonly fresh: boolean
+  readonly reduced: boolean
+  /** 新字用「刚写下」的颜色（--cp-ticker-ink） */
+  readonly ink: boolean
+}
+
+const commonPrefix = (a: string, b: string): number => {
+  let index = 0
+
+  while (index < a.length && index < b.length && a[index] === b[index]) index += 1
+
+  return index
+}
+
+export class TickerEngine {
+  private readonly track: HTMLSpanElement
+  private readonly cooled: Text
+  private readonly inked: HTMLSpanElement
+  private readonly observer: ResizeObserver | null
+  private readonly em: number
+  private readonly tail: number
+  private text: string
+  private log: ArrivalLog
+  private pace: PaceState
+  private glide: GlideState = AT_REST
+  private shifts: Shift[] = []
+  /** 每个字被放出来的时刻；首屏就有的字记为 -∞（不是刚写下的）。长度受句长上限约束。 */
+  private releasedAt: number[] = []
+  private rendered = -1
+  private inkFrom = 0
+  private trackWidth = 0
+  private windowWidth = 0
+  private overflow = 0
+  private measured = false
+  private flushing = false
+  private frame: number | null = null
+  private lastFrameAt = 0
+  private stopped = false
+
+  constructor(
+    host: HTMLElement,
+    private readonly options: TickerOptions,
+  ) {
+    this.track = document.createElement('span')
+    this.track.className = 'ticker-track'
+    this.cooled = document.createTextNode('')
+    this.inked = document.createElement('span')
+    this.inked.className = 'ticker-ink'
+    this.track.append(this.cooled, this.inked)
+    host.append(this.track)
+
+    this.text = options.text
+    this.log = noteArrival(EMPTY_LOG, performance.now(), options.text.length)
+    this.pace = { shown: options.fresh && !options.reduced ? 0 : options.text.length, speed: 0 }
+    /* 字号只在这里读一次：逐帧读 getComputedStyle 会强制样式计算。 */
+    this.em = Number.parseFloat(getComputedStyle(host).fontSize) || 14
+    this.tail = this.em * TAIL_EM
+    this.render(performance.now())
+
+    /* 一个观察者同时看轨道与窗口：同一次布局里的两处变化在同一个回调里到，算溢出时两个宽度永远同步。 */
+    this.observer =
+      typeof ResizeObserver === 'undefined'
+        ? null
+        : new ResizeObserver((entries) => {
+            this.onResize(entries)
+          })
+    this.observer?.observe(this.track)
+    this.observer?.observe(host)
+    this.kick()
+  }
+
+  /** 同一句又长了（或被改写）。 */
+  setText(text: string): void {
+    if (this.stopped || text === this.text) return
+
+    const keep = commonPrefix(this.text, text)
+
+    /* 前面已经显示的字被改写了（`**` 闭合之类）：从改写处重新放，不留下错字。 */
+    if (keep < visibleCount(this.text, this.pace.shown)) this.pace = { shown: keep, speed: this.pace.speed }
+
+    this.text = text
+    this.log = noteArrival(this.log, performance.now(), text.length)
+
+    if (this.options.reduced) this.pace = { shown: text.length, speed: 0 }
+
+    this.kick()
+  }
+
+  /** 下一句已经在等：加快把这一句写完。 */
+  setFlushing(flushing: boolean): void {
+    this.flushing = flushing
+    this.kick()
+  }
+
+  /** 开始退场：整句一次写完、停止一切逐帧工作。退场中的旧句保持此刻的位置。 */
+  finish(): void {
+    if (this.stopped) return
+
+    this.pace = { shown: this.text.length, speed: 0 }
+    this.render(performance.now())
+    this.stop()
+  }
+
+  /** 卸载：停下一切逐帧工作，并把自己建的轨道摘掉（StrictMode 挂回来时不会留下两条轨道）。 */
+  dispose(): void {
+    this.stop()
+    this.track.remove()
+  }
+
+  private stop(): void {
+    this.stopped = true
+
+    if (this.frame !== null) cancelAnimationFrame(this.frame)
+
+    this.frame = null
+    this.observer?.disconnect()
+  }
+
+  private kick(): void {
+    if (this.frame !== null || this.stopped) return
+
+    this.lastFrameAt = performance.now()
+    this.frame = requestAnimationFrame((now) => {
+      this.loop(now)
+    })
+  }
+
+  private loop(now: number): void {
+    this.frame = null
+
+    const dt = Math.min(MAX_DT_MS, Math.max(0, now - this.lastFrameAt))
+
+    this.lastFrameAt = now
+    this.pace = paceStep(this.pace, this.text.length, incomingRate(this.log, now), this.log.gapMs, dt, this.flushing)
+    this.render(now)
+
+    const pxRate = this.overflow > OVERFLOW_EPS_PX ? shiftRate(this.shifts, now) : 0
+
+    this.glide = this.options.reduced ? AT_REST : glideStep(this.glide, pxRate, this.em, this.tail, dt)
+    this.paint()
+
+    if (this.busy()) this.kick()
+  }
+
+  private busy(): boolean {
+    return this.pace.shown < this.text.length || this.glide.o > 0 || this.glide.v > 0 || this.inkFrom < this.rendered
+  }
+
+  /** 把「该显示几个字、其中哪几个算刚写下」写进两个节点。没变就不碰 DOM。 */
+  private render(now: number): void {
+    const count = visibleCount(this.text, this.pace.shown)
+
+    for (let index = this.releasedAt.length; index < count; index += 1) {
+      this.releasedAt.push(this.rendered < 0 ? Number.NEGATIVE_INFINITY : now)
+    }
+    this.releasedAt.length = count
+
+    const from = this.options.ink && !this.options.reduced ? this.coolUntil(count, now) : count
+
+    if (count === this.rendered && from === this.inkFrom) return
+
+    this.rendered = count
+    this.inkFrom = from
+    this.cooled.data = this.text.slice(0, from)
+    this.inked.textContent = this.text.slice(from, count)
+  }
+
+  /** 第一个还「刚写下」的字的位置：它之前的都已冷却。 */
+  private coolUntil(count: number, now: number): number {
+    let from = Math.min(this.inkFrom, count)
+
+    while (from < count && now - (this.releasedAt[from] ?? Number.NEGATIVE_INFINITY) > INK_MS) from += 1
+
+    return from
+  }
+
+  /**
+   * 尺寸变了。RO 在布局之后、绘制之前送达，所以在这里补上的 o 与布局位移落在同一帧：
+   * 画面上看不到「先跳一下再补回来」。
+   */
+  private onResize(entries: readonly ResizeObserverEntry[]): void {
+    const grew = this.readSizes(entries)
+    const overflow = Math.max(0, this.trackWidth - this.windowWidth)
+
+    if (grew > 0 && !this.options.reduced) {
+      this.shifts = noteShift(this.shifts, performance.now(), grew)
+      this.glide = { o: Math.min(this.tail, this.glide.o + Math.max(0, overflow - this.overflow)), v: this.glide.v }
+    } else {
+      /* 窗口变了（拖窄、拖宽）：布局已经把字摆对了，不演滑行，只把 o 收进上限。 */
+      this.glide = { o: Math.min(this.glide.o, this.tail), v: this.glide.v }
+    }
+
+    if (overflow <= OVERFLOW_EPS_PX) this.glide = AT_REST
+
+    this.overflow = overflow
+    this.measured = true
+    this.paint()
+    this.kick()
+  }
+
+  /** 更新两个宽度，返回轨道这次长了多少（首次量到不算「长」：那是挂载，不是新字）。 */
+  private readSizes(entries: readonly ResizeObserverEntry[]): number {
+    let grew = 0
+
+    for (const entry of entries) {
+      const width = entry.borderBoxSize[0]?.inlineSize ?? entry.contentRect.width
+
+      if (entry.target === this.track) {
+        if (this.measured && width > this.trackWidth) grew = width - this.trackWidth
+        this.trackWidth = width
+      } else {
+        this.windowWidth = width
+      }
+    }
+
+    return grew
+  }
+
+  private paint(): void {
+    const moving = this.glide.o > 0.01
+
+    this.track.style.transform = moving ? `translate3d(${String(this.glide.o)}px, 0, 0)` : ''
+    this.track.toggleAttribute('data-moving', moving)
+  }
+}

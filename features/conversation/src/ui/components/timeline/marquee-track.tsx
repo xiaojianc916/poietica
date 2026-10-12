@@ -1,64 +1,69 @@
+import { useIsPresent } from 'motion/react'
 import { useLayoutEffect, useRef } from 'react'
-import { INK_START_ATTRIBUTE, nextInk, syncInk } from './ink-tail'
-import { type MarqueeMode, useMarquee } from './use-marquee'
+import { TickerEngine } from './ticker-engine'
 
 /*
- * 一句话的横向轨道。
+ * 一句话的那一格。两种：
  *
- * 窗口与轨道都由它自己渲染 —— 一句话一套。左侧淡出因此挂在**每一句自己的窗口**上：换句时
- * 退场的旧句带着自己的淡出一起刷走，新句从 x=0 开始、没有淡出，两者互不干扰。挂在容器最外层
- * 的话，新句一出场就把淡出撤掉，正在退场的旧句左边会露出一个硬切口。
- *
- * 不做 memo：它每次都跟着 text 变（流式），而且只在换句时由容器重建。
+ *   • TickerLine —— 思考句还在写：像显示屏一样往左滚（引擎见 ticker-engine.ts）。
+ *     React 只渲染窗口这一层，里面的轨道和字归引擎所有：逐帧改字、改 transform 都不进 React。
+ *   • StaticLine —— 工具行、落定态、「正在思考」占位：不动，从头显示，放不下时末尾省略号。
+ *     这是所有软件的通用读法：动词和对象在开头，被截掉的只能是末尾。
  */
 
-export interface MarqueeTrackProps {
+export interface TickerLineProps {
   readonly text: string
-  readonly mode: MarqueeMode
-  /** 只有思考句开墨迹：戴 shimmer 的两处（占位、工具行）都不开，颜色归扫光。 */
-  readonly ink: boolean
+  /** 刚被换上来的新句：从第一个字开始写。首次挂载（含滚出视野再滚回来）为 false：直接摆好，不重播。 */
+  readonly fresh: boolean
+  /** 下一句在等：加快写完这一句。 */
+  readonly finishing: boolean
   readonly reduced: boolean
-  /** 划到位（或不需要划）时调用一次。 */
-  readonly onSettled: () => void
+  readonly ink: boolean
 }
 
-export function MarqueeTrack({ text, mode, ink, reduced, onSettled }: MarqueeTrackProps) {
-  const refs = useMarquee({ mode, reduced, onSettled })
-  /*
-   * 墨迹的账。`shown` 是上一轮渲染到了第几个字，尾巴从那里起。
-   *
-   * 初始值取「整句都算冷的」：这一句第一次出现时那几个字不是刚写下的，它们本来就长在那里
-   * （虚拟列表滚出去再滚回来、切回会话都走这条路），让它们一起亮一遍就成了重播。
-   */
-  const shown = useRef(text.length)
-  const tail = useRef({ from: text.length, at: 0 })
-
-  const enabled = ink && !reduced
-  /* 渲染期算账，但不写 DOM：算出来的时刻写在属性上，提交之后按它钉动画。 */
-  tail.current = enabled
-    ? nextInk(tail.current, shown.current, text.length, performance.now())
-    : { from: text.length, at: 0 }
-
-  const from = tail.current.from
-  const cooled = text.slice(0, from)
-  const fresh = text.slice(from)
-
-  shown.current = text.length
+export function TickerLine({ text, fresh, finishing, reduced, ink }: TickerLineProps) {
+  const host = useRef<HTMLSpanElement | null>(null)
+  const engine = useRef<TickerEngine | null>(null)
+  /* 只用挂载那一刻的取值建引擎：同一句的整个生命周期一个引擎，后续变化走下面几个副作用。 */
+  const initial = useRef({ text, fresh, reduced, ink })
+  /* motion 的退场信号：AnimatePresence 开始让这一句退场时为 false。 */
+  const present = useIsPresent()
 
   useLayoutEffect(() => {
-    if (enabled && refs.node() !== null) syncInk(refs.node() ?? document.body)
-  })
+    const node = host.current
 
+    if (node === null) return undefined
+
+    const created = new TickerEngine(node, initial.current)
+
+    engine.current = created
+
+    return () => {
+      created.dispose()
+      engine.current = null
+    }
+  }, [])
+
+  useLayoutEffect(() => {
+    engine.current?.setText(text)
+  }, [text])
+
+  useLayoutEffect(() => {
+    engine.current?.setFlushing(finishing)
+  }, [finishing])
+
+  /* 开始退场：一次写完、停住。退场中的旧句不再滚，保持此刻的样子刷走。 */
+  useLayoutEffect(() => {
+    if (!present) engine.current?.finish()
+  }, [present])
+
+  return <span className="ticker-window" ref={host} />
+}
+
+export function StaticLine({ text }: { readonly text: string }) {
   return (
-    <span className="ticker-window" ref={refs.viewport}>
-      <span className="ticker-track" data-mode={mode} ref={refs.track}>
-        {cooled}
-        {fresh === '' ? null : (
-          <span className="ticker-ink" {...{ [INK_START_ATTRIBUTE]: tail.current.at }}>
-            {fresh}
-          </span>
-        )}
-      </span>
+    <span className="ticker-window">
+      <span className="ticker-track">{text}</span>
     </span>
   )
 }

@@ -165,7 +165,10 @@ export function ToolGroupCard({ isOpen, onToggle, plan, renderRow }: ToolGroupCa
   const placeholder = thinking && saying === undefined
   const text = saying ?? (thinking ? '正在思考' : summary)
   const lineKey = live === undefined ? 'summary' : lineKeyOf(live, sentences)
-  /* 还有人动就跟着末尾走：这一格说的永远是「现在」那一句，被省略号吃掉最新几个字就白说了。 */
+  /*
+   * 还有成员在动：思考句像显示屏一样滚（最新的字永远在右边缘以内，左边缘直接裁）；
+   * 工具行仍从头显示、末尾省略号 —— 动词和对象在开头，能截掉的只有末尾。
+   */
   const following = live !== undefined
   /*
    * 思考按阅读栏的量度走（data-measure="prose" = 整列，与输入框同宽），工具调用仍收在

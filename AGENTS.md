@@ -31,6 +31,7 @@
 | `bun run format` | biome 自动格式化 |
 | `bun run refs` | 重新生成 tsconfig 项目引用（禁止手改 references） |
 | `bun run protocol:snapshot` | 契约形状变化后更新协议快照 |
+| `bun run check:ticker` | 思考行的**真实布局检查**（Electron + 真实组件，逐帧量「有没有遮字」）；改 `timeline/rolling-line*`、`ticker-*`、`roll-scheduler*`、`flow-row.css` 必须跑一次 |
 | `bun run core:build` / `core:probe` / `core:verify-dist` | 构建 Core、进程级隔离自检、校验产物 |
 | `bun run new:package` / `new:feature` | 脚手架（创建包或功能的唯一入口） |
 | `bun run version:set <x.y.z>` | 同时改 desktop 与 core 的版本号（唯一入口） |
@@ -171,6 +172,7 @@ L0  foundation
 - 内核级测试用 `@poietica/core-kernel/testing` 的 `createCoreHarness`（只装被测模块和它的依赖，加 FakeEngine）。引擎替身来自 `@poietica/engine-testkit`；改了引擎行为时，一致性用例要同时跑 FakeEngine 和 OmpEngine。测试用 logger 来自 `@poietica/test-kit`。
 - 修 bug 时**先写一个在旧代码上失败的测试**，再改实现。
 - 隔离相关的改动要过 `packages/engine-omp/src/__tests__/isolation.test.ts`，再跑 `bun run core:probe`。
+- 改 `timeline/rolling-line*`、`ticker-*`、`roll-scheduler*`、`flow-row.css` 必须跑 `bun run check:ticker`（真实 Electron + 真实组件，逐帧量「最新的字有没有被裁」「放得下时句首有没有被吃」——这两条 happy-dom 量不出来，v1 全绿而真机全错就栽在这里）。它需要真实 GPU 与窗口，不进 `bun run all`。
 - 测试文件可以用裸 `Error` 和 `console`，也不受子入口运行时规则约束；但测试文件也必须被某个带 `bun` types 的 tsconfig 收录（闸门 `editor-project-map`）。
 ​
 ## 11. 常见任务
