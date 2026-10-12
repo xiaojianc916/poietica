@@ -109,6 +109,11 @@ const RECENTLY_CLOSED_CAP = 10
 const STATE_BATCH_MS = 16
 const CRASH_WINDOW_MS = 60_000
 
+/** 面板从没上报过像样的矩形时，后台标签用的尺寸：常见桌面视口，AI 截图与排版都按它来。 */
+const FALLBACK_BOUNDS: RectangleLike = { x: 0, y: 0, width: 1280, height: 800 }
+/** 低于它的矩形是面板收起或拖得极窄，不拿来给后台标签排版。 */
+const MIN_USABLE_EDGE = 200
+
 interface Tab {
   readonly id: number
   url: string | null
@@ -119,6 +124,8 @@ interface Tab {
   canGoForward: boolean
   zoom: number
   shown: boolean
+  /** 上一次下发给内核的矩形指纹；面板拖动是每帧一次的通报，同一个值不重复叫内核。 */
+  rectKey: string | null
   crashedAt: number | null
   readonly view: WebContentsViewLike
 }
@@ -134,6 +141,8 @@ export function createBrowserTabs(host: ViewHost, opts: BrowserTabsOptions): Bro
   let nextId = 1
   let revision = 0
   let bounds: RectangleLike = { x: 0, y: 0, width: 1, height: 1 }
+  /* 最近一次像样的面板矩形：后台标签（非活动、或面板没显示时）拿它排版。 */
+  let usable: RectangleLike | null = null
   let visible = false
   let batchTimer: Disposable | null = null
   let disposed = false
@@ -203,31 +212,53 @@ export function createBrowserTabs(host: ViewHost, opts: BrowserTabsOptions): Bro
     return tab?.url === null ? undefined : tab
   }
 
-  /** 摆放只有这一处：活动标签贴着面板矩形，其余一律不画。窗口 resize 也走它。 */
+  /** CSS 像素的矩形 → 视图要的像素；内核不接受零尺寸，面板收起/极窄时至少留一像素。 */
+  function scaled(rect: RectangleLike, scale: number): RectangleLike {
+    return {
+      x: Math.round(rect.x * scale),
+      y: Math.round(rect.y * scale),
+      width: Math.max(1, Math.round(rect.width * scale)),
+      height: Math.max(1, Math.round(rect.height * scale)),
+    }
+  }
+
+  /*
+   * 摆放只有这一处。**每张标签都摆**，只是可见性只给目标那张：
+   *
+   *   - 当前显示的那张贴着面板矩形；
+   *   - 其余的（非活动、面板收起、面板从没打开过）用最近一次像样的面板矩形，
+   *     都没有时用 FALLBACK_BOUNDS。
+   *
+   * 只摆显示中那张的写法会让 relay 附着的后台标签按 1×1 排版 —— 截图 1×1、按坐标的
+   * 点击落空（B-02）。窗口 resize 也走它。
+   */
+  /** 摆一张标签。几何先于可见性：点亮的那一帧必须已经有真实矩形，否则会先按上一次的亮一下。 */
+  function place(tab: Tab, rect: RectangleLike, shown: boolean, scale: number): void {
+    const key = `${String(rect.x)},${String(rect.y)},${String(rect.width)},${String(rect.height)},${String(scale)}`
+
+    /* 面板拖动是每帧一次的通报，逐帧重复同一个值是白付的。 */
+    if (tab.rectKey !== key) {
+      tab.rectKey = key
+      tab.view.setBounds(scaled(rect, scale))
+    }
+
+    /* 只在真的翻转时才叫内核。 */
+    if (shown !== tab.shown) {
+      tab.shown = shown
+      tab.view.setVisible(shown)
+    }
+  }
+
   function layout(): void {
     const target = showing()
     const factor = host.zoomFactor()
     const scale = Number.isFinite(factor) && factor > 0 ? factor : 1
+    const aside = usable ?? FALLBACK_BOUNDS
 
     for (const tab of tabs) {
       const shown = visible && tab === target
 
-      /* 几何先于可见性：点亮的那一帧必须已经有真实矩形，否则视图会先按上一次的矩形
-         （没上报过时就是 1×1）亮一下。内核不接受零尺寸，面板收起/极窄时至少留一像素。 */
-      if (shown) {
-        tab.view.setBounds({
-          x: Math.round(bounds.x * scale),
-          y: Math.round(bounds.y * scale),
-          width: Math.max(1, Math.round(bounds.width * scale)),
-          height: Math.max(1, Math.round(bounds.height * scale)),
-        })
-      }
-
-      /* 只在真的翻转时才叫内核：面板拖动是每帧一次的通报，逐帧重复同一个值是白付的。 */
-      if (shown !== tab.shown) {
-        tab.shown = shown
-        tab.view.setVisible(shown)
-      }
+      place(tab, shown ? bounds : aside, shown, scale)
     }
   }
 
@@ -439,6 +470,7 @@ export function createBrowserTabs(host: ViewHost, opts: BrowserTabsOptions): Bro
       canGoForward: false,
       zoom: 0,
       shown: false,
+      rectKey: null,
       crashedAt: null,
       view,
     }
@@ -607,6 +639,11 @@ export function createBrowserTabs(host: ViewHost, opts: BrowserTabsOptions): Bro
 
     setBounds(rect) {
       bounds = rect
+
+      if (rect.width >= MIN_USABLE_EDGE && rect.height >= MIN_USABLE_EDGE) {
+        usable = rect
+      }
+
       layout()
     },
 

@@ -360,6 +360,82 @@ describe('摆放与可见性（迁移自 legacy host.test.ts）', () => {
   })
 })
 
+/*
+ * B-02：relay 可以附着任何一张标签，而被附着的标签未必是面板正在显示的那张 —— 非活动
+ * 标签、或面板从没打开过时，页面会按 1×1 排版、截图 1×1、按坐标的点击落空。
+ *
+ * 所以摆放改成「每张标签都摆，只是可见性只给目标那张」：当前显示的那张用面板矩形，
+ * 其余的用最近一次像样的面板矩形，都没有时用常见桌面视口。
+ */
+describe('所有标签都有真实尺寸（B-02）', () => {
+  const boundsOf = (view: FakeWebContentsView): RectangleLike | undefined => view.bounds.at(-1)
+
+  test('面板收起时开的标签也摆成真实尺寸，不是 1×1', () => {
+    h.tabs.setVisible(false)
+    h.tabs.openTab('https://a.example/')
+
+    expect(boundsOf(h.created[0] as FakeWebContentsView)).toEqual({ x: 0, y: 0, width: 1280, height: 800 })
+    expect(visibleViews(h)).toHaveLength(0)
+  })
+
+  test('面板从没上报过矩形时，后台标签用常见桌面视口', () => {
+    h.tabs.setVisible(true)
+    h.tabs.openTab('https://a.example/')
+    h.tabs.openTab('https://b.example/')
+
+    /* 后开的那张是活动的（贴着面板矩形），先前那张退到后台 —— 它也得有真实矩形。 */
+    expect(boundsOf(h.created[0] as FakeWebContentsView)).toEqual({ x: 0, y: 0, width: 1280, height: 800 })
+  })
+
+  test('上报过像样的矩形之后，后台标签跟着它走', () => {
+    h.tabs.setBounds({ x: 10, y: 20, width: 800, height: 600 })
+    h.tabs.setVisible(true)
+    h.tabs.openTab('https://a.example/')
+    h.tabs.openTab('https://b.example/')
+
+    // 两张都摆了：活动那张贴着面板，另一张也拿着同一个矩形（只是不画出来）。
+    expect(boundsOf(h.created[0] as FakeWebContentsView)).toEqual({ x: 10, y: 20, width: 800, height: 600 })
+    expect(boundsOf(h.created[1] as FakeWebContentsView)).toEqual({ x: 10, y: 20, width: 800, height: 600 })
+
+    h.tabs.selectTab(1)
+
+    expect(boundsOf(h.created[1] as FakeWebContentsView)).toEqual({ x: 10, y: 20, width: 800, height: 600 })
+  })
+
+  test('收起或极窄的矩形不算数：后台标签宁可沿用上一个像样的', () => {
+    h.tabs.setBounds({ x: 10, y: 20, width: 800, height: 600 })
+    h.tabs.setVisible(true)
+    h.tabs.openTab('https://a.example/')
+    h.tabs.openTab('https://b.example/')
+
+    /* 面板收起时宿主报的是 0×0 一类的矩形：它不能拿去给后台标签排版。 */
+    h.tabs.setBounds({ x: 0, y: 0, width: 0, height: 0 })
+    h.tabs.setVisible(false)
+
+    expect(boundsOf(h.created[0] as FakeWebContentsView)).toEqual({ x: 10, y: 20, width: 800, height: 600 })
+
+    h.tabs.selectTab(2)
+
+    expect(boundsOf(h.created[1] as FakeWebContentsView)).toEqual({ x: 10, y: 20, width: 800, height: 600 })
+  })
+
+  test('同一个矩形不逐帧重复叫内核', () => {
+    h.tabs.setBounds({ x: 0, y: 0, width: 1280, height: 800 })
+    h.tabs.setVisible(true)
+    h.tabs.openTab('https://a.example/')
+
+    const only = h.created[0] as FakeWebContentsView
+    const before = only.bounds.length
+
+    for (let frame = 0; frame < 60; frame += 1) {
+      /* 面板拖动：每帧一次通报，值一模一样。 */
+      h.tabs.setBounds({ x: 0, y: 0, width: 1280, height: 800 })
+    }
+
+    expect(only.bounds.length).toBe(before)
+  })
+})
+
 describe('BR-10: 关标签与最近关闭', () => {
   test('关掉活动标签：焦点落到右边那一页', () => {
     h.tabs.openTab('https://a.example/')
