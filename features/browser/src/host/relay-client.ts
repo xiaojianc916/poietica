@@ -106,6 +106,8 @@ export function createRelayClient(tabs: RelayTabsPort, opts: RelayClientOptions)
   const detaching = new Set<number>()
   /** 已经挂过监听的内核对象。监听按 WebContents 挂，多挂一条就多一条假回执。 */
   const wired = new WeakSet<WebContentsLike>()
+  /** 当前被我们关掉后台节流的标签（B-03）：重复 attach 不重复下发，分离时恢复一次。 */
+  const unthrottled = new Set<WebContentsLike>()
   const listeners = new Set<(connected: boolean) => void>()
 
   /*
@@ -162,6 +164,31 @@ export function createRelayClient(tabs: RelayTabsPort, opts: RelayClientOptions)
     post({ t: 'detached', tabId, reason, relayInitiated: detaching.has(tabId) })
   }
 
+  /*
+   * 附着期间关掉这张标签的后台节流（B-03）：面板收起时视图是 setVisible(false)，
+   * Chromium 会把这页当成后台标签降频 —— 计时器被拉长、渲染帧被跳过，
+   * Page.captureScreenshot 要么很久才回、要么根本不回。分离时恢复。
+   *
+   * 只动这一张标签：BROWSER_VIEW_PREFERENCES 里全局关节流会让用户自己开的后台标签
+   * 一直跑满 CPU。重复 attach 不重复下发（面板那边的 attach 是每次操作都来一遍）。
+   */
+  function unthrottle(contents: WebContentsLike): void {
+    if (unthrottled.has(contents)) {
+      return
+    }
+
+    unthrottled.add(contents)
+    contents.setBackgroundThrottling(false)
+  }
+
+  function restoreThrottling(contents: WebContentsLike): void {
+    if (!unthrottled.delete(contents)) {
+      return
+    }
+
+    contents.setBackgroundThrottling(true)
+  }
+
   async function attachDebugger(tabId: number): Promise<WebContentsLike> {
     const contents = tabs.contentsOf(tabId)
 
@@ -186,6 +213,7 @@ export function createRelayClient(tabs: RelayTabsPort, opts: RelayClientOptions)
         })
       })
       debugger_.on('detach', (_event: unknown, reason: unknown) => {
+        restoreThrottling(contents)
         reportDetach(tabId, String(reason))
       })
     }
@@ -193,6 +221,8 @@ export function createRelayClient(tabs: RelayTabsPort, opts: RelayClientOptions)
     if (!debugger_.isAttached()) {
       debugger_.attach('1.3')
     }
+
+    unthrottle(contents)
 
     return contents
   }

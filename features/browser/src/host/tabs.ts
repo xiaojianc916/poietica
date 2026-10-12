@@ -37,6 +37,8 @@ export interface WebContentsLike {
   setZoomLevel(level: number): void
   getZoomLevel(): number
   setZoomMode(mode: 'isolated' | 'proportional'): void
+  /** 后台标签会被 Chromium 降频；AI 附着期间要关掉它（B-03）。 */
+  setBackgroundThrottling(allowed: boolean): void
   executeJavaScriptInIsolatedWorld(worldId: number, scripts: readonly { code: string }[]): Promise<unknown>
   readonly navigationHistory: {
     canGoBack(): boolean

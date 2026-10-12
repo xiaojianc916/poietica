@@ -83,6 +83,8 @@ function fakeContents(): FakeContents {
     setZoomMode(mode) {
       zoom.mode = mode
     },
+    /* 节流归 relay 管（B-03），标签这一层只要求视图有这个口子。 */
+    setBackgroundThrottling: () => undefined,
     executeJavaScriptInIsolatedWorld(_world, scripts) {
       injected.push(...scripts.map((script) => script.code))
 

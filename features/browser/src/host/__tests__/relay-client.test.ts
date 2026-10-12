@@ -91,12 +91,15 @@ type FakeDebugger = {
 interface FakeContents extends WebContentsLike {
   readonly loaded: string[]
   readonly commands: string[]
+  /** 后台节流的每一次下发（B-03）；初值就是内核的默认值 true。 */
+  readonly throttled: boolean[]
   readonly debugger: FakeDebugger
 }
 
 function fakeContents(url: string): FakeContents {
   const loaded: string[] = []
   const commands: string[] = []
+  const throttled: boolean[] = []
   const listeners = new Map<string, ContentsListener[]>()
   let current = url
   let attached = false
@@ -110,6 +113,7 @@ function fakeContents(url: string): FakeContents {
   return {
     loaded,
     commands,
+    throttled,
     debugger: {
       isAttached: () => attached,
       attach: () => {
@@ -145,6 +149,9 @@ function fakeContents(url: string): FakeContents {
     setZoomLevel: () => undefined,
     getZoomLevel: () => 0,
     setZoomMode: () => undefined,
+    setBackgroundThrottling: (allowed) => {
+      throttled.push(allowed)
+    },
     executeJavaScriptInIsolatedWorld: () => Promise.resolve(undefined),
     navigationHistory: {
       canGoBack: () => false,
@@ -412,6 +419,48 @@ describe('BR-3 / BR-4: attach 与 detach', () => {
         .filter((message) => message.t === 'detached')
         .at(-1)?.relayInitiated,
     ).toBe(false)
+
+    h.client.dispose()
+  })
+
+  /*
+   * B-03：面板收起时视图是 setVisible(false)，Chromium 会把这页当成后台标签降频 ——
+   * 计时器被拉长、渲染帧被跳过，Page.captureScreenshot 要么很久才回、要么根本不回。
+   * 附着期间关掉这张标签的节流，分离时恢复。**只改这一张**：全局关节流会让用户自己
+   * 开的后台标签一直跑满 CPU。
+   */
+  test('B-03: 附着期间关掉这张标签的后台节流，分离时恢复', async () => {
+    const h = harness('https://a.example/')
+
+    await rpc(h.socket, { op: 'attach', tabId: 1 })
+
+    expect(h.contents.throttled).toEqual([false])
+
+    await rpc(h.socket, { op: 'detach', tabId: 1 })
+
+    expect(h.contents.throttled).toEqual([false, true])
+
+    h.client.dispose()
+  })
+
+  test('B-03: 内核自己发来的 detach 也把节流恢复回去', async () => {
+    const h = harness('https://a.example/')
+
+    await rpc(h.socket, { op: 'attach', tabId: 1 })
+    h.contents.debugger.emit('detach', {}, 'Render process gone.')
+
+    expect(h.contents.throttled).toEqual([false, true])
+
+    h.client.dispose()
+  })
+
+  test('B-03: 重复 attach 不重复下发', async () => {
+    const h = harness('https://a.example/')
+
+    await rpc(h.socket, { op: 'attach', tabId: 1 })
+    await rpc(h.socket, { op: 'attach', tabId: 1 })
+
+    expect(h.contents.throttled).toEqual([false])
 
     h.client.dispose()
   })
