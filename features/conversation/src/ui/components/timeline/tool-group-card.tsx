@@ -7,7 +7,7 @@ import { type FeedRow, liveMemberOf, type ToolGroupPlan } from '../../timeline/p
 import { DisclosureBody } from '../primitives/disclosure'
 import { ChevronDownIcon } from '../primitives/icons'
 import { useScrollMask } from '../primitives/use-scroll-mask'
-import { readThoughtLine } from '../semantics/thought-line'
+import { readThoughtSentence, type ThoughtSentences } from '../semantics/thought-sentence'
 import { toDiffFilesOf } from '../semantics/tool-call-facets'
 import { readToolLine, sayProcessSummary, sayToolCount } from '../semantics/tool-intent'
 import { RollingLine } from './rolling-line'
@@ -30,10 +30,12 @@ import { ToolCallDiffStat, ToolGlyphIcon } from './tool-call-card'
  * 正在跑的那一条要印的那句话。
  *
  * 用的是成员行自己那一句，与展开之后看到的完全同一串 —— 组头不另起一套说法。取不到就退
- * 回派发的标题；连标题都是空的就返回 undefined，那时候印账目比印一片空白强。思考印
- * 的是它此刻写到的那一行，与它自己流式时那一行同源。
+ * 回派发的标题；连标题都是空的就返回 undefined，那时候印账目比印一片空白强。
+ *
+ * 思考印的是它**此刻写到的那一句**（`sentences`，只在思考那一支传进来）：与它自己流式的
+ * 时候同源，只是从「最后一行」换成了「最后一句」。
  */
-function sayingOf(row: FeedRow): string | undefined {
+function sayingOf(row: FeedRow, sentences: ThoughtSentences | null): string | undefined {
   const item = row.item
 
   if (item.type === 'tool_call') {
@@ -43,7 +45,7 @@ function sayingOf(row: FeedRow): string | undefined {
   }
 
   if (item.type === 'agent_thought') {
-    const said = readThoughtLine(item.text).text
+    const said = sentences?.current.text ?? ''
 
     return said === '' ? undefined : said
   }
@@ -52,16 +54,16 @@ function sayingOf(row: FeedRow): string | undefined {
 }
 
 /**
- * 组头那一格此刻的身份：换格才翻页。
+ * 组头那一格此刻的身份：换句才上下刷一次。
  *
- * 推理给的是它在原文里的行号 —— 同一行继续写是原地刷新（这才是「刷刷刷」），换行才是
- * 换了一格；工具调用给调用号，一条调用从头到尾就那一句。
+ * 思考给的是这句话在原文里的起始偏移 —— 同一句继续写是原地生长（这才是「刷刷刷」），
+ * 出现下一句才换一格；工具调用给调用号，一条调用从头到尾就那一句。
  */
-function lineKeyOf(row: FeedRow): string {
+function lineKeyOf(row: FeedRow, sentences: ThoughtSentences | null): string {
   const item = row.item
 
   if (item.type === 'agent_thought') {
-    return `thought:${item.id}:${readThoughtLine(item.text).key}`
+    return `thought:${item.id}:${sentences?.current.key ?? ''}`
   }
 
   return item.type === 'tool_call' ? `call:${item.toolCallId}` : item.id
@@ -139,7 +141,12 @@ export function ToolGroupCard({ isOpen, onToggle, plan, renderRow }: ToolGroupCa
    * 报现场不只是更好看，它比报账目更诚实。
    */
   const live = liveMemberOf(plan)
-  const saying = live === undefined ? undefined : sayingOf(live)
+  /*
+   * 一次渲染只取一次句：`saying` 与 `lineKey` 都要它，两次调用会在同一段文本上各扫一遍。
+   * 只有此刻真的在印思考时才需要它。
+   */
+  const sentences = live?.item.type === 'agent_thought' ? readThoughtSentence(live.item.text) : null
+  const saying = live === undefined ? undefined : sayingOf(live, sentences)
   const summary = summaryOf(plan)
   /*
    * 那道扫过的光只归正在说话的工具调用：它说明「这次调用还没完」，一路亮到终态。
@@ -149,8 +156,15 @@ export function ToolGroupCard({ isOpen, onToggle, plan, renderRow }: ToolGroupCa
   const isRunning = live?.item.type === 'tool_call' && live.isInFlight
   /* 组头此刻印的是思考还是工具，决定两件事：要不要图标、这一格的身份是什么。 */
   const thinking = live?.item.type === 'agent_thought'
+  /*
+   * 还没有一个字可写的那一段（思考刚开始）：「正在思考」戴扫光。
+   *
+   * 这是扫光的唯一例外 —— 有了字之后思考就不戴它了（换字刷过本身就说明在动），但一个字
+   * 都还没有的时候，扫光是唯一能说明「正在进行」的东西。
+   */
+  const placeholder = thinking && saying === undefined
   const text = saying ?? (thinking ? '正在思考' : summary)
-  const lineKey = live === undefined ? 'summary' : lineKeyOf(live)
+  const lineKey = live === undefined ? 'summary' : lineKeyOf(live, sentences)
   /* 还有人动就跟着末尾走：这一格说的永远是「现在」那一句，被省略号吃掉最新几个字就白说了。 */
   const following = live !== undefined
   /*
@@ -170,7 +184,14 @@ export function ToolGroupCard({ isOpen, onToggle, plan, renderRow }: ToolGroupCa
         <div className="timeline-row" data-measure="prose">
           {/* 思考那一格不给图标：这一行的内容本身在换字，左边再挂一枚不动的字形，
               读起来是「这行在动」而不是「模型在想」。 */}
-          <RollingLine contentKey={lineKey} following={following} text={text} />
+          <RollingLine
+            contentKey={lineKey}
+            following={following}
+            previous={sentences?.previous ?? null}
+            shimmer={placeholder}
+            text={text}
+            variant="thought"
+          />
         </div>
       </section>
     )
@@ -192,7 +213,14 @@ export function ToolGroupCard({ isOpen, onToggle, plan, renderRow }: ToolGroupCa
       >
         {thinking ? null : <ToolGlyphIcon {...firstTool(plan)} />}
 
-        <RollingLine contentKey={lineKey} following={following} shimmer={isRunning} text={text} />
+        <RollingLine
+          contentKey={lineKey}
+          following={following}
+          previous={sentences?.previous ?? null}
+          shimmer={isRunning || placeholder}
+          text={text}
+          variant={thinking ? 'thought' : 'tool'}
+        />
 
         <ToolCallDiffStat diffStat={statOf(plan)} />
 

@@ -233,6 +233,65 @@ describe('过程组的组头', () => {
     expect(markup).not.toContain('timeline-row__icon')
   })
 
+  it('思考那一格走划动，工具那一格走右对齐', () => {
+    /* 两个 variant 的几何完全不同（见 rolling-line.css）：思考往左划、左端淡出；
+       工具行不横移，超宽时右对齐显示末尾。衔接在 tool-group-card 那一层。 */
+    const thinking = selectPresentation(
+      stateOf([ask(), tool('r', 'read', 'in_progress'), thought('t', '第一行\n还在想')], true),
+      new Map(),
+    )
+    const thinkingMarkup = renderToStaticMarkup(
+      <ToolGroupCard isOpen={false} onToggle={nothing} plan={planAt(thinking, 1)} renderRow={() => null} />,
+    )
+
+    expect(thinkingMarkup).toContain('data-variant="thought"')
+    expect(thinkingMarkup).toContain('data-mode="glide"')
+
+    const running = selectPresentation(
+      stateOf([ask(), tool('r', 'read', 'in_progress'), tool('e', 'execute')], true),
+      new Map(),
+    )
+    const runningMarkup = renderToStaticMarkup(
+      <ToolGroupCard isOpen={false} onToggle={nothing} plan={planAt(running, 1)} renderRow={() => null} />,
+    )
+
+    expect(runningMarkup).toContain('data-variant="tool"')
+    expect(runningMarkup).toContain('data-mode="tail"')
+  })
+
+  it('思考取的是当前那一句，不是最后一行：一整个长段落里也看得出换句', () => {
+    /*
+     * 按行号取句时这一整段只算一行，永远看不到换句（思考行 T-04）。身份（key）与「上一句」
+     * 都进不了 DOM —— 它们是 React 的 key 与 props，这里能看见的只有「印出来的是哪一句」，
+     * 而那一句必须已经切到句号之后。
+     */
+    const feed = selectPresentation(
+      stateOf([ask(), tool('r', 'read', 'in_progress'), thought('t', '先看看配置。然后读日志')], true),
+      new Map(),
+    )
+    const markup = renderToStaticMarkup(
+      <ToolGroupCard isOpen={false} onToggle={nothing} plan={planAt(feed, 1)} renderRow={() => null} />,
+    )
+
+    expect(markup).toContain('然后读日志')
+    expect(markup).not.toContain('先看看配置。然后读日志')
+  })
+
+  it('思考里写代码块时，组头停在代码块前最后一句人话上', () => {
+    const feed = selectPresentation(
+      stateOf([ask(), tool('r', 'read', 'in_progress'), thought('t', '先看看配置。\n```ts\nconst a = 1\n```')], true),
+      new Map(),
+    )
+    const markup = renderToStaticMarkup(
+      <ToolGroupCard isOpen={false} onToggle={nothing} plan={planAt(feed, 1)} renderRow={() => null} />,
+    )
+
+    expect(markup).toContain('先看看配置。')
+    expect(markup).not.toContain('const a = 1')
+    /* 围栏那三个反引号也不许印出来。 */
+    expect(markup).not.toContain('```')
+  })
+
   it('组头印工具调用的时候图标照旧在', () => {
     const feed = selectPresentation(
       stateOf([ask(), tool('r', 'read', 'in_progress'), tool('e', 'execute')], true),
