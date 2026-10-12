@@ -565,19 +565,16 @@
  * block-size。表头 padding-block 归零，行高不参与，栏高就是那个 token ——
  * 高度写两遍只能凭运气对齐，字号、行高、字体任何一处一动就错位。
  *
- * 末列让位宽度由按钮尺寸（--cp-table-control）、间距与 :has() 数出来的个数算出，
- * Prose 里的 CONTROLS 增删一个按钮，这里自动跟上。
+ * 复制键只有一枚、位置固定（产品负责人 2026-10-12 定稿：删掉下载键，复制挪到表外右上角），
+ * 所以末列让位不再数按钮个数：一个内边距 + 一枚按钮 + 一个内边距，改一处即两边同时准。
  *
- * 包裹层不能 overflow: hidden：复制菜单是 absolute top-full z-20，裁剪会把它剪断；
- * 圆角交给本来就带 overflow-auto 的滚动盒继承半径来收。
+ * 包裹层不能 overflow: hidden：复制键是 absolute，裁剪会把它剪断。
  */
 
 .timeline-prose [data-streamdown="table-wrapper"] {
   --cp-table-head: 2.25rem;
   --cp-table-pad: 0.75rem;
-  --cp-table-control: 1.5rem;
-  --cp-table-control-gap: 0.25rem;
-  --cp-table-controls: 0;
+  --cp-table-control: 1.75rem;
 
   position: relative;
   display: block;
@@ -589,44 +586,23 @@
 }
 
 /*
- * 控件有几个，由 DOM 回答，不由注释回答。三条规则特异性相同，靠书写顺序递进，
- * 命中最靠后的那条 —— 有第三个子元素就是 3，只有第二个就是 2，依此类推。
+ * 控件层压在表头那一行的右端、贴表外沿 —— 它绝对定位，不参与流、也不撑宽包裹层。
+ *
+ * 写在滚动盒**外面**是这张表的要求，不是偏好：表格横向滚得动，埋在滚动盒里的控件会
+ * 跟着表格一起滑出视野。表头行没有底色，除了一层压缩过的不透明窗口本身，不需要什么
+ * 垫在按钮下面。
  */
-.timeline-prose [data-streamdown="table-wrapper"]:has(> div:first-child:nth-last-child(2) > :first-child) {
-  --cp-table-controls: 1;
-}
-
-.timeline-prose [data-streamdown="table-wrapper"]:has(> div:first-child:nth-last-child(2) > :nth-child(2)) {
-  --cp-table-controls: 2;
-}
-
-.timeline-prose [data-streamdown="table-wrapper"]:has(> div:first-child:nth-last-child(2) > :nth-child(3)) {
-  --cp-table-controls: 3;
-}
-
-/*
- * 控件层坐在标题栏右端 —— 和代码块 actions 同一套做法。用结构选中而不是
- * "里面有没有 table"：全屏按钮持有同一批子节点，按内容判定会认错人。
- * 有控件时结构是 [控件, 滚动盒]，没有时只剩滚动盒。
- * flex 与居中在这里自己声明，不借上游的工具类 —— 位置是我们的主张。
- */
-.timeline-prose [data-streamdown="table-wrapper"] > div:first-child:nth-last-child(2) {
+.timeline-prose [data-streamdown="table-actions"] {
   position: absolute;
   z-index: 1;
   inset-block-start: 0;
-  inset-inline-end: var(--cp-table-pad);
+  inset-inline-end: 0;
   display: flex;
   align-items: center;
-  gap: var(--cp-table-control-gap);
   block-size: var(--cp-table-head);
 }
 
-/*
- * 只取两个触发按钮：全屏按钮是控件层的直接子元素，复制按钮在 div.relative 里
- * 差一层。复制菜单里的 md / csv / tsv 三个按钮再深一层，不会被压成方块。
- */
-.timeline-prose [data-streamdown="table-wrapper"] > div:first-child:nth-last-child(2) > button,
-.timeline-prose [data-streamdown="table-wrapper"] > div:first-child:nth-last-child(2) > div > button {
+.timeline-prose [data-streamdown="table-actions"] > button {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -640,8 +616,7 @@
     color 120ms var(--cp-motion-ease);
 }
 
-.timeline-prose [data-streamdown="table-wrapper"] > div:first-child:nth-last-child(2) > button:hover,
-.timeline-prose [data-streamdown="table-wrapper"] > div:first-child:nth-last-child(2) > div > button:hover {
+.timeline-prose [data-streamdown="table-actions"] > button:hover {
   background: var(--cp-hover);
   color: var(--cp-ink);
 }
@@ -699,29 +674,26 @@
 
 /*
  * 深色下这几根线改 #2a2a2a（产品负责人 2026-10-12 定稿）：这张表没有壳，行与行的分隔
- * 全靠它们，而 --cp-hairline 是 #1d1d1d、压在 #181818 的地色上只剩五格差，读不出来。
+ * 全靠它们，而屏幕上那一条是 border-collapse: collapse 把两条边塌成的一条。
+ *
+ * 改的是「行」的 border-color，不是某一条边：塌边取谁的颜色按「行 > 行组」裁定，
+ * 实际画出来的是上一行的 border-block-end（上游 divide-y / border-border 给的那条，
+ * 读 --ui-border），只改我们自己的 border-block-start 改不到屏幕上那一条。
+ * tbody 一并给上，让参与同一条塌边的第二来源同色。
+ *
  * 浅色那支不动 —— 同样的值铺在白纸上就是几道黑杠。
  */
-:where(:root[data-theme="dark"]) .timeline-prose [data-streamdown="table-header"] + [data-streamdown="table-body"],
-:where(:root[data-theme="dark"]) .timeline-prose [data-streamdown="table-body"] [data-streamdown="table-row"] + [data-streamdown="table-row"] {
-  border-block-start-color: #2a2a2a;
+:where(:root[data-theme="dark"]) .timeline-prose [data-streamdown="table-body"],
+:where(:root[data-theme="dark"]) .timeline-prose [data-streamdown="table-body"] [data-streamdown="table-row"] {
+  border-color: #2a2a2a;
 }
 
 /*
- * 末列让位：一个内边距 + 按钮总宽 + 一个内边距。按钮总宽 = 个数 × 尺寸 +
- * 间隙 ×（个数 − 1），个数为 0 时 max() 兜住负数。没有控件就不让位。
+ * 末列让位：一个内边距 + 一枚复制键 + 一个内边距 —— 与控件层同一组常量。
+ * 光标停在这一列的表头文字上时，复制键右缘与文字之间就不会压着一个字。
  */
-.timeline-prose
-  [data-streamdown="table-wrapper"]:has(> div:first-child:nth-last-child(2))
-  [data-streamdown="table-header-cell"]:last-child {
-  padding-inline-end: calc(
-    var(--cp-table-pad) *
-    2 +
-    var(--cp-table-controls) *
-    var(--cp-table-control) +
-    max(var(--cp-table-controls) - 1, 0) *
-    var(--cp-table-control-gap)
-  );
+.timeline-prose [data-streamdown="table-wrapper"] [data-streamdown="table-header-cell"]:last-child {
+  padding-inline-end: calc(var(--cp-table-pad) * 2 + var(--cp-table-control));
 }
 
 /*
