@@ -24,7 +24,7 @@ function emptyNoteOf(kind: ToolCallTimelineItem['kind'], isRunning: boolean): st
     return '这次调用没有返回内容。'
   }
 
-  return kind === 'delegate' ? '子代理在自己那边干活，这里只记结果。' : '还在运行，暂时没有输出。'
+  return kind === 'delegate' ? '子代理在自己那边干活，这里只记结果。' : 'Running...'
 }
 
 function ToolPanel({

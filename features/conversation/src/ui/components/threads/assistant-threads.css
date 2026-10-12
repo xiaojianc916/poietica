@@ -421,6 +421,35 @@
 }
 
 /*
+ * 深色下这一张菜单的面、边、行悬停与墨色（产品负责人 2026-10-12 定稿）：
+ *   面 #2a2a2a（与输入卡同一格，深色下它压在 #181818 的地色上已经有可见的高度）；
+ *   边 #343434；被指到的那一行 #3b3b3b；字与图标各提一档。
+ *
+ * 圆角比工具条浮层族默认的 8px 大一档，行内高亮跟着抬：外圆角减内边距（--am-pad）
+ * 才是那一行该用的半径，两者同一条曲线，高亮才不会从卡角里戳出来。
+ *
+ * 只覆盖深色：这一组是照深色底定的档，浅色下 #2a2a2a 的面就是一块黑斑。
+ * 墨色写在这一层而不是改全局令牌 —— --cp-ink 还铺在整块会话页上，全局提亮会把
+ * 正文一起抬起来，这一格只该抬它自己。
+ */
+:root[data-theme="dark"] .assistant-thread-menu[data-assistant-skin].assistant-thread-menu {
+  border-color: #343434;
+  border-radius: 12px;
+  background: #2a2a2a;
+  --cp-ink: #e6e6e6;
+  --cp-ink-muted: #cccccc;
+}
+
+:root[data-theme="dark"] .assistant-thread-menu .assistant-thread-menu__item {
+  border-radius: 8px;
+}
+
+:root[data-theme="dark"] .assistant-thread-menu .assistant-thread-menu__item[data-highlighted],
+:root[data-theme="dark"] .assistant-thread-menu .assistant-thread-menu__item:focus-visible {
+  background: #3b3b3b;
+}
+
+/*
  * 入场与退场。
  *
  * Base UI 在 Popup 上发 data-open 与 data-closed 两个布尔属性 —— 认成 Radix 的
