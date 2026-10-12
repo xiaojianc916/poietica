@@ -1,23 +1,21 @@
 /*
- * 组头那一格字：两句话落在同一个格子里，高度恒定一行。
+ * 组头那一格字：一句话，写到一半自己往前推。
  *
- * 几何照抄 zcode-ref（reasoning.tsx 的流式摘要格）：外面这一层是视口，窄了会滚；
- * 里面那一层保持自己的自然宽度（inline-size: max-content），于是超宽时 scrollWidth 真的
- * 大于 clientWidth —— 这一格才滚得动。若让里层跟着视口收缩，超出部分会被裁在盒子里、
- * scrollWidth 与 clientWidth 相等，滚轮与 mask 都判不出「还藏着字」。
+ * 高度钉死一行不是讲究，是硬约束：这些行挂着虚拟器的 measureElement，高度一变就触发一次
+ * 滚动补偿，那正是「贴底时开合会抽」的那条链。宽度反而是自由的 —— 行自己的盒子撑满整列，
+ * 这一格横向怎么变都不改那个外框，行上的 ResizeObserver 根本不会响。
  *
- * 必须裁：滚动是纵向的（换一句话 = 往上翻一格），不裁的话旧句退场的那 0.8em 会盖到
- * 组头上面那一行去。裁了之后退场那条也顺势被截在格子里。
+ * 三层各管一件事：
+ *   .rolling-line        只裁、只定位。一句话的总宽可以远超它，超出的部分裁在这里。
+ *   .ticker-window       每一句自己的窗口：坐标系就是看得见的那一段，左侧淡出挂在这上面。
+ *   .ticker-track        轨道：保持自然宽度（ResizeObserver 才量得到整句有多宽），承载位移。
  *
- * 高度钉死一行不是讲究，是硬约束：这些行挂着虚拟器的 measureElement，高度一变就触发
- * 一次滚动补偿，那正是「贴底时开合会抽」的那条链。宽度反而是自由的 —— 行自己的盒子撑满
- * 整列，这一格横向怎么变都不改那个外框，行上的 ResizeObserver 根本不会响。
- *
- * 位移与透明度归 motion（rolling-line.tsx），这张表只管几何与收尾。
+ * 位移与透明度归 motion（rolling-line.tsx）与逐帧引擎（use-marquee.ts），
+ * 这张表只管几何与遮罩。
  */
 
 .rolling-line {
-  /* popLayout 把退场那一条摘成绝对定位，得有个定位祖先接住它。 */
+  /* popLayout 把退场那一句摘成绝对定位，得有个定位祖先接住它。 */
   position: relative;
 
   display: block;
@@ -28,51 +26,77 @@
 }
 
 /*
- * 真正印字的那一层。
+ * 每一句自己的窗口：块级、撑满一行宽。
  *
- * 这里不给 color：运行时戴的 .timeline-shimmer 是这行字颜色的唯一所有者，理由写在
- * shimmer.css 里 —— 这一层若也声明 color，谁赢就取决于打包顺序了。
+ * 一句话一套，见 marquee-track.tsx —— 左侧淡出因此跟着那一句一起退场，新句从 x=0 开始、
+ * 没有淡出，两者互不干扰。
  */
-.rolling-line__text {
+.ticker-window {
   display: block;
   min-inline-size: 0;
+}
+
+/*
+ * 已经往左划过：左端化开约两个字。
+ *
+ * 遮罩必须挂在窗口上，不能挂在字上。字那一层是 inline-size: max-content 的自然宽度，
+ * 而窗口又被推到了句末：渐隐若按字的坐标系解，右端那一段正好落在**最新的字**上（T-01），
+ * 左端那一段落在早已划走的句首上，窗口左缘那个满墨的字反而被硬切成半个（T-02）。
+ * 挂在窗口上，坐标系就是看得见的那一段，渐隐才落在该落的地方。
+ *
+ * 只有左边化开：右边是模型刚写下、人正在等的字，任何渐隐都是在遮它。左边那一段已经读过，
+ * 化开它既是「这句话还在长」的记号，也交代了字的去向。
+ */
+.ticker-window[data-scrolled] {
+  mask-image: linear-gradient(to right, transparent 0, #000 var(--cp-ticker-fade), #000 100%);
+}
+
+.rolling-line__slot {
+  display: block;
+  white-space: nowrap;
+}
+
+/* 轨道保持自然宽度：ResizeObserver 才量得到整句有多宽。 */
+.ticker-track {
+  display: inline-block;
+  inline-size: max-content;
+  white-space: pre;
+}
+
+/* 思考句的颜色：它不戴 shimmer（那才是这行字颜色的所有者），所以安静色由这里给。 */
+.rolling-line[data-variant="thought"] .ticker-track {
+  color: var(--cp-timeline-quiet-text);
+}
+
+/*
+ * 常驻 will-change 会让每一行都占一层合成层，而这些行是长期在列表里的。
+ * 只在真正逐帧改 transform 的时候加（use-marquee 按需写这个属性）。
+ */
+.ticker-track[data-moving] {
+  will-change: transform;
+}
+
+/*
+ * 落定：这句话成了结论，从头读起才对。
+ *
+ * 轨道回到窗口宽度，收尾是省略号 —— 全文在展开后的那一面里，这一行只负责认出是哪一句。
+ */
+.rolling-line:not([data-following]) .ticker-track {
+  display: block;
+  inline-size: auto;
+  max-inline-size: 100%;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
 /*
- * 落定：这句话成了结论，从头读起才对。
+ * 刚写下的那几个字：颜色两态都由 ink-tail.ts 的 Web Animations 给（从 --cp-ticker-ink
+ * 冷却到 --cp-timeline-quiet-text）。
  *
- * 宽度回到视口（inline-size: auto），收尾是省略号 —— 全文在展开后的那一面里，这一行
- * 只负责认出是哪一句。
+ * 这里只写明基色，作用是动画还没挂上、或者少动效时不留一个「没有颜色」的空档 ——
+ * 继承来的安静色就是它的归宿，闪一下再回来比什么都不给更糟。
  */
-.rolling-line:not([data-following]) .rolling-line__text {
-  max-inline-size: 100%;
-}
-
-/*
- * 还在写：这一格不封顶，盒子滚到末尾。
- *
- * 不给省略号 —— 单行省略号吃掉的是最右边那几个字，而那正是模型刚写下、人正在等的字。
- * 让位给 mask（下面那条），左端那几个字淡出去，读起来是「这句话还在长」。
- */
-.rolling-line[data-following] .rolling-line__text {
-  inline-size: max-content;
-  text-overflow: clip;
-}
-
-/*
- * 在写、又超宽：左端化开一段，右端满墨。
- *
- * 遮罩必须挂在**窗口**上，不能挂在字上。字那一层是 inline-size: max-content 的自然宽度
- * （上面那条），而窗口又被滚到了句末：渐隐若按字的坐标系解，右端那一段正好落在**最新的
- * 字**上（T-01），左端那一段落在早已划走的句首上，窗口左缘那个满墨的字反而被硬切成半个
- * （T-02）。挂在窗口上，坐标系就是看得见的那一段，渐隐才落在该落的地方。
- *
- * 只有左边化开：右边是模型刚写下、人正在等的字，任何渐隐都是在遮它。左边那一段已经读过了，
- * 化开它既是「这句话还在长」的记号，也交代了字的去向。
- */
-.rolling-line[data-overflow] {
-  mask-image: linear-gradient(to right, transparent 0, #000 var(--cp-rolling-line-fade), #000 100%);
+.ticker-ink {
+  color: inherit;
 }

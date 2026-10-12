@@ -57,13 +57,7 @@ const PRINTING = RULES.filter(
 describe('组头那一格的遮罩', () => {
   it('挂在窗口上，不挂在字上', () => {
     expect(MASKED.length).toBeGreaterThan(0)
-    /* 第 1 步之后挂在外层窗口（.rolling-line），第 5 步之后挂在每一句自己的窗口
-       （.ticker-window[data-scrolled]）。两处都行，共同点是「窗口」而非「字」。 */
-    expect(
-      MASKED.filter(
-        (rule) => !rule.selector.startsWith('.rolling-line') && !rule.selector.startsWith('.ticker-window['),
-      ).map((rule) => rule.selector),
-    ).toEqual([])
+    expect(MASKED.map((rule) => rule.selector)).toEqual(['.ticker-window[data-scrolled]'])
   })
 
   it('印字那一层与轨道都不许自己戴遮罩', () => {
@@ -77,5 +71,25 @@ describe('组头那一格的遮罩', () => {
       expect(rule.body).toContain('#000 100%')
       expect(rule.body).not.toContain('transparent 100%')
     }
+  })
+
+  it('淡出只在「已经往左划过」时出现：静止的短句没有雾', () => {
+    /* 挂在 [data-scrolled] 上而不是无条件挂在窗口上 —— 短句没划过，左边不该化开。 */
+    expect(CSS).toContain('.ticker-window[data-scrolled]')
+    expect(CSS).not.toMatch(/\.ticker-window\s*\{[^}]*mask-image/u)
+  })
+
+  it('行高仍然钉死一行：这些行挂着虚拟器的 measureElement', () => {
+    const line = RULES.find((rule) => rule.selector === '.rolling-line')
+
+    expect(line?.body).toContain('block-size: 1lh')
+    expect(line?.body).toContain('overflow: hidden')
+  })
+
+  it('常驻的 will-change 不许有：每行一层合成层', () => {
+    const moving = RULES.filter((rule) => rule.body.includes('will-change'))
+
+    /* 只允许挂在那一个按需写的属性上。 */
+    expect(moving.map((rule) => rule.selector)).toEqual(['.ticker-track[data-moving]'])
   })
 })

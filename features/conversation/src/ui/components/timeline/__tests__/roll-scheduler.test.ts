@@ -181,7 +181,7 @@ describe('旧句的收尾', () => {
     const { scheduler } = harness()
 
     /* 这一批里旧句先长到这里，容器因此已经按它渲染过一轮。 */
-    scheduler.offer(line('a', '我先看看整个文件再动手'))
+    scheduler.offer(line('a', '我先看看整个文件再动手'), null)
     /* 同一批里后面又送来一份更短的旧句快照（新句已经开头的那个版本）。 */
     scheduler.offer(line('b', '然后'), line('a', '我先看看'))
 
