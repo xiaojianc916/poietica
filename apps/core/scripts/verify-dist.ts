@@ -1,4 +1,3 @@
-import { createHash } from 'node:crypto'
 import { existsSync, readdirSync, readFileSync } from 'node:fs'
 import path from 'node:path'
 
@@ -56,7 +55,7 @@ const distEntries = readdirSync(dist).filter((name) => name !== 'core-manifest.j
 
 for (const name of distEntries) {
   const file = path.join(dist, name)
-  const digest = createHash('sha256').update(readFileSync(file)).digest('hex')
+  const digest = Bun.SHA256.hash(readFileSync(file), 'hex')
   const want = expected[name]
   if (want === undefined) {
     problems.push(`${name}：manifest 里没有它的哈希（构建脚本漏记了？）`)

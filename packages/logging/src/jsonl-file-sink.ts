@@ -25,7 +25,7 @@ export function jsonlFileSink(o: JsonlFileSinkOptions): LogSink & { close(): voi
   const open = (): number => {
     mkdirSync(path.dirname(o.file), { recursive: true })
     const handle = openSync(o.file, 'a')
-    size = existsSync(o.file) ? statSync(o.file).size : 0
+    size = statSync(o.file, { throwIfNoEntry: false })?.size ?? 0
     fd = handle
     return handle
   }

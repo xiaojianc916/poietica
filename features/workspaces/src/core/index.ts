@@ -25,7 +25,7 @@ export default defineCoreModule({
         ctx.events.emit(workspaceRemoved, e)
       },
       fs: {
-        isDirectory: (p) => fs.existsSync(p) && fs.statSync(p).isDirectory(),
+        isDirectory: (p) => fs.statSync(p, { throwIfNoEntry: false })?.isDirectory() ?? false,
         mkdir: (p) => ensureDir(p),
         exists: (p) => fs.existsSync(p),
       },

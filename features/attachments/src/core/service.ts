@@ -164,15 +164,17 @@ export function createAttachmentsService(d: AttachmentsServiceDeps): Attachments
         }
         let bytes: Uint8Array
         try {
-          bytes = new Uint8Array(Buffer.from(base64, 'base64'))
+          /* 解码交给 Uint8Array.fromBase64：官方实现，且非法字符当场抛错，
+             不像 Buffer 那样宽松解码出一堆垃圾字节还照样落盘。 */
+          bytes = Uint8Array.fromBase64(base64)
         } catch (e) {
           throw new AppError(attachmentsErrors.unreadable, '无法解码附件内容', { cause: String(e) })
         }
         if (bytes.byteLength > MAX_ATTACHMENT_BYTES) {
           throw new AppError(attachmentsErrors.too_large, '附件超过 50 MB')
         }
-        const { createHash } = await import('node:crypto')
-        const sha256 = createHash('sha256').update(bytes).digest('hex')
+        // Bun 自带 SHA256，省掉一次动态 import
+        const sha256 = Bun.SHA256.hash(bytes, 'hex')
         await store({ kind: 'data', bytes }, sha256, bytes.byteLength)
         return record(sha256, bytes.byteLength, name, mime === '' ? mimeOf(name) : mime)
       })

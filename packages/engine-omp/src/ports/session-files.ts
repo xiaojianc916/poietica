@@ -1,6 +1,7 @@
 import { mkdir, stat } from 'node:fs/promises'
 import path from 'node:path'
 import { exportFromFile } from '@oh-my-pi/pi-coding-agent/export/html'
+import { formatSessionHistoryMarkdown } from '@oh-my-pi/pi-coding-agent/session/session-history-format'
 import { loadSessionMessagesReadOnly } from '@oh-my-pi/pi-coding-agent/session/session-loader'
 import { SessionManager } from '@oh-my-pi/pi-coding-agent/session/session-manager'
 import { FileSessionStorage } from '@oh-my-pi/pi-coding-agent/session/session-storage'
@@ -113,41 +114,10 @@ function truncateTurns(manager: SessionManager, undoTurns: number): void {
   manager.branch(anchor.parentId)
 }
 
-/** 一条消息里我们认得出的那几格。 */
-interface MessageLike {
-  readonly role?: string
-  readonly content?: unknown
-}
-
 /**
- * 会话正文 → markdown。legacy 没有这个函数的实现，按其会话形状补写：只处理纯文本与
- * 工具调用两种块 —— 图与附件是二进制，markdown 里放 data URL 既大又没人看。
+ * 会话正文 → markdown。用 omp 自己的 formatSessionHistoryMarkdown（`history://` 那份的产地）：
+ * 它把工具调用与结果收成单行、思考默认省略、图记成 `[image]`，不必我们维护第二套消息形状。
  */
 function markdownOf(messages: readonly unknown[]): string {
-  const lines: string[] = ['# 会话', '']
-  for (const raw of messages) {
-    const message = raw as MessageLike
-    const role = message.role
-    if (role !== 'user' && role !== 'assistant') continue
-    const text = textOf(message.content)
-    if (text === '') continue
-    lines.push(role === 'user' ? '## 用户' : '## 助手', '', text, '')
-  }
-  return lines.join(`n`)
-}
-
-function textOf(content: unknown): string {
-  if (typeof content === 'string') return content
-  if (!Array.isArray(content)) return ''
-  const parts: string[] = []
-  for (const block of content) {
-    if (typeof block !== 'object' || block === null) continue
-    const typed = block as { type?: string; text?: string; name?: string }
-    if (typed.type === 'text' && typeof typed.text === 'string') {
-      parts.push(typed.text)
-      continue
-    }
-    if (typed.type === 'toolCall') parts.push(`> 调用工具 ${typed.name ?? ''}`)
-  }
-  return parts.join(`n` + 'n')
+  return formatSessionHistoryMarkdown([...messages], { title: '会话' })
 }

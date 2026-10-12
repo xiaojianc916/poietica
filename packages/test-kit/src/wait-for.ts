@@ -23,6 +23,7 @@ export async function waitFor<T>(
         `${o.message ?? 'waitFor 超时'}（${timeoutMs}ms）：${last instanceof Error ? last.message : String(last)}`,
       )
     }
-    await new Promise((resolve) => setTimeout(resolve, intervalMs))
+    // 测试套件跑在 Bun 上，直接用官方 sleep
+    await Bun.sleep(intervalMs)
   }
 }

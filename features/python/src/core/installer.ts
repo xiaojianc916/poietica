@@ -233,13 +233,7 @@ export function createInstaller(deps: InstallerDeps, stagingDir: string, targetD
   }
 }
 
-/** 把下载分片拼成一整块（避免 `Uint8Array.concat` 逐块拷贝的平方开销）。 */
+/** 把下载分片拼成一整块：交给 Bun 的官方实现，不自己逐块拷贝。 */
 function joinChunks(chunks: readonly Uint8Array[], total: number): Uint8Array {
-  const out = new Uint8Array(total)
-  let at = 0
-  for (const chunk of chunks) {
-    out.set(chunk, at)
-    at += chunk.length
-  }
-  return out
+  return Bun.concatArrayBuffers([...chunks], total, true)
 }

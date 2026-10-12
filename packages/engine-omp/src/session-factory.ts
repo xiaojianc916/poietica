@@ -146,7 +146,8 @@ export class SessionFactory {
   }
 
   private exists(file: string): Promise<boolean> {
-    return import('node:fs').then((fs) => fs.existsSync(file))
+    // Bun 自带的存在性检查，省掉一次动态 import
+    return Bun.file(file).exists()
   }
 
   /**

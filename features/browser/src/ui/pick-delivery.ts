@@ -31,14 +31,7 @@ export interface PickDeliveryDeps {
 
 /** report 是 Markdown 正文：按 UTF-8 编成 base64 交给附件库。 */
 export function utf8ToBase64(text: string): string {
-  const bytes = new TextEncoder().encode(text)
-  let binary = ''
-
-  for (const byte of bytes) {
-    binary += String.fromCharCode(byte)
-  }
-
-  return btoa(binary)
+  return new TextEncoder().encode(text).toBase64()
 }
 
 /** `<elementType>.md`：legacy 的命名法，标签就是文件主名。 */

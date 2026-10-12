@@ -1,4 +1,4 @@
-import { existsSync, statSync } from 'node:fs'
+import { statSync } from 'node:fs'
 import os from 'node:os'
 import { AppError, type Clock, type Logger, systemClock } from '@poietica/foundation'
 import { MAX_TERMINALS, REPLAY_BYTES, type TerminalInfo } from '../contract/entities'
@@ -90,7 +90,7 @@ export function createTerminalService(d: TerminalServiceDeps) {
         throw new AppError(terminalErrors.too_many, '最多同时打开 10 个终端')
       }
       const cwd = p.cwd ?? os.homedir()
-      if (!existsSync(cwd) || !statSync(cwd).isDirectory()) {
+      if (statSync(cwd, { throwIfNoEntry: false })?.isDirectory() !== true) {
         throw new AppError(terminalErrors.cwd_not_found, '工作目录不存在')
       }
       shellCache ??= resolveShell(env)

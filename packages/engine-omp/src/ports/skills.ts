@@ -2,6 +2,7 @@ import { cp, mkdir, mkdtemp, readFile, rename, rm, stat } from 'node:fs/promises
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { discoverSkills } from '@oh-my-pi/pi-coding-agent'
+import { parseFrontmatter } from '@oh-my-pi/pi-utils'
 import type { SkillInfo, SkillsPort } from '@poietica/engine'
 import { AppError, type Logger, SystemErrorCode } from '@poietica/foundation'
 import type { z } from 'zod'
@@ -137,10 +138,11 @@ export class OmpSkillsPort implements SkillsPort {
   /** 装完之后的一格：名字与说明从装好的目录现读，不抄一份。 */
   async #infoOf(target: string, fallbackName: string): Promise<z.infer<typeof SkillInfo>> {
     const markdown = await readFile(path.join(target, 'SKILL.md'), 'utf8').catch(() => '')
+    const { frontmatter } = parseFrontmatter(markdown, { level: 'off' })
     return {
       id: fallbackName,
-      name: frontmatterOf(markdown, 'name') ?? fallbackName,
-      description: frontmatterOf(markdown, 'description') ?? '',
+      name: stringOf(frontmatter.name) ?? fallbackName,
+      description: stringOf(frontmatter.description) ?? '',
       source: 'user',
       enabled: !this.#disabledNames().includes(`skill:${fallbackName}`),
       path: target,
@@ -160,19 +162,9 @@ function sourceOf(source: string, level: string | undefined): 'builtin' | 'user'
   return 'user'
 }
 
-/** 极简 frontmatter 取值：只认单行的 `key: value`，技能说明没有多行 YAML 的写法。 */
-function frontmatterOf(markdown: string, key: string): string | undefined {
-  const match = /^---\r?\n([\s\S]*?)\r?\n---/.exec(markdown)
-  const block = match?.[1]
-  if (block === undefined) return undefined
-  for (const line of block.split(/\r?\n/)) {
-    const at = line.indexOf(':')
-    if (at <= 0) continue
-    if (line.slice(0, at).trim() !== key) continue
-    const value = line.slice(at + 1).trim()
-    return value === '' ? undefined : value.replace(/^["']|["']$/g, '')
-  }
-  return undefined
+/** frontmatter 里的一格非空字符串；别的形状（数字、表、空串）如实当没有。 */
+function stringOf(value: unknown): string | undefined {
+  return typeof value === 'string' && value !== '' ? value : undefined
 }
 
 /** zip → 一个目录。Bun.Archive 解压；先解到临时目录是「校验结构之后再改名」的前半步。 */

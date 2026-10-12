@@ -1,5 +1,4 @@
 import { spawnSync } from 'node:child_process'
-import { createHash } from 'node:crypto'
 import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs'
 import { homedir } from 'node:os'
 import path from 'node:path'
@@ -46,7 +45,7 @@ function dumpTail(file: string): void {
 
 /** 同步睡眠：整个冒烟脚本是顺序执行的，异步只会让读日志的时序更难判断 */
 function sleep(ms: number): void {
-  Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms)
+  Bun.sleepSync(ms)
 }
 
 function waitFor(check: () => boolean, timeoutMs: number, what: string): void {
@@ -116,9 +115,7 @@ waitFor(() => existsSync(exe), 30_000, `${exe} 没出现`)
     if (name === 'core-manifest.json') continue
     const want = expected[name]
     if (want === undefined) fail(`resources/core/${name} 在 manifest 里没有哈希`)
-    const digest = createHash('sha256')
-      .update(readFileSync(path.join(coreDir, name)))
-      .digest('hex')
+    const digest = Bun.SHA256.hash(readFileSync(path.join(coreDir, name)), 'hex')
     if (digest !== want) fail(`resources/core/${name} 哈希不一致`)
   }
 }

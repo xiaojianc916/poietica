@@ -23,25 +23,15 @@ export const SEMVER =
 
 export type Bump = { readonly patch: string; readonly minor: string; readonly major: string }
 
-type ParsedVersion = {
-  readonly core: readonly [bigint, bigint, bigint]
-  readonly prerelease: readonly string[] | null
-}
-
-function parseVersion(version: string): ParsedVersion {
+function coreOf(version: string): readonly [bigint, bigint, bigint] {
   const match = SEMVER.exec(version)
-  if (!match) {
-    throw new Error(`invalid semantic version: ${version}`)
-  }
-  const [, major = '0', minor = '0', patch = '0', prerelease] = match
-  return {
-    core: [BigInt(major), BigInt(minor), BigInt(patch)],
-    prerelease: prerelease?.split('.') ?? null,
-  }
+  if (!match) throw new Error(`invalid semantic version: ${version}`)
+  const [, major = '0', minor = '0', patch = '0'] = match
+  return [BigInt(major), BigInt(minor), BigInt(patch)]
 }
 
 export function bumped(version: string): Bump {
-  const [major, minor, patch] = parseVersion(version).core
+  const [major, minor, patch] = coreOf(version)
   return {
     patch: `${major}.${minor}.${patch + 1n}`,
     minor: `${major}.${minor + 1n}.0`,
@@ -49,73 +39,15 @@ export function bumped(version: string): Bump {
   }
 }
 
-function compareIdentifier(left: string, right: string): number {
-  if (left === right) {
-    return 0
-  }
-  const leftNumeric = /^\d+$/.test(left)
-  const rightNumeric = /^\d+$/.test(right)
-  if (leftNumeric && rightNumeric) {
-    return BigInt(left) < BigInt(right) ? -1 : 1
-  }
-  if (leftNumeric) {
-    return -1
-  }
-  if (rightNumeric) {
-    return 1
-  }
-  return left < right ? -1 : 1
-}
-
-/** 一段版本号：两个大整数直接比大小，其余按标识符规则比。 */
-function comparePart(left: bigint | string, right: bigint | string): number {
-  if (typeof left === 'bigint' && typeof right === 'bigint') {
-    return left === right ? 0 : left < right ? -1 : 1
-  }
-  return compareIdentifier(String(left), String(right))
-}
-
-/** 逐位比较两个序列，第一个不同就定胜负；前缀更短的那个更小（SemVer §11.4）。 */
-function compareSequences(left: readonly (bigint | string)[], right: readonly (bigint | string)[]): number {
-  const length = Math.max(left.length, right.length)
-
-  for (let index = 0; index < length; index += 1) {
-    const leftPart = left[index]
-    const rightPart = right[index]
-    if (leftPart === undefined) {
-      return -1
-    }
-    if (rightPart === undefined) {
-      return 1
-    }
-    const compared = comparePart(leftPart, rightPart)
-    if (compared !== 0) {
-      return compared
-    }
-  }
-  return 0
-}
-
-/** 主次版本号先比；相等时，有预发布标签的那个更小（SemVer §11）。 */
-function comparePrerelease(left: ParsedVersion, right: ParsedVersion): number {
-  if (left.prerelease === null && right.prerelease === null) {
-    return 0
-  }
-  if (left.prerelease === null) {
-    return 1
-  }
-  if (right.prerelease === null) {
-    return -1
-  }
-  return compareSequences(left.prerelease, right.prerelease)
-}
-
+/**
+ * 语义化版本的先后（SemVer §11）：交给 Bun 的官方实现（`Bun.semver.order`，
+ * 数字标识符按数值比、非数字按字典序、构建元数据不参与）。
+ *
+ * 只在比较这一刻放宽：发布链认不认这个版本号，仍由上面的 SEMVER 正则判
+ * （`v1.2.3`、`01.2.3` 这类会被 Bun 当合法收下，产品不接受）。
+ */
 export function compareVersions(left: string, right: string): number {
-  const leftVersion = parseVersion(left)
-  const rightVersion = parseVersion(right)
-  const core = compareSequences(leftVersion.core, rightVersion.core)
-
-  return core !== 0 ? core : comparePrerelease(leftVersion, rightVersion)
+  return Bun.semver.order(left, right)
 }
 
 /**

@@ -1,3 +1,4 @@
+import { mkdir, rename, rm } from 'node:fs/promises'
 import path from 'node:path'
 import { defineCoreModule } from '@poietica/core-kernel'
 import { AppError } from '@poietica/foundation'
@@ -26,26 +27,24 @@ export default defineCoreModule({
           return response
         },
         run: async (cmd, args, timeout) => {
-          const proc = Bun.spawn([cmd, ...args], { timeout })
-          const stdout = await (
-            new Response(proc.stdout as unknown as ReadableStream) as unknown as { text(): Promise<string> }
-          ).text()
-          const stderr = await (
-            new Response(proc.stderr as unknown as ReadableStream) as unknown as { text(): Promise<string> }
-          ).text()
+          /*
+           * stderr 显式 pipe：Bun.spawn 默认 inherit，流上是 undefined ——
+           * 从前那句 `new Response(proc.stderr)` 读到的永远是空串，失败详情全丢了。
+           */
+          const proc = Bun.spawn([cmd, ...args], { timeout, stderr: 'pipe' })
+          /* 读取交给 Bun 官方实现，不自己把流包进 Response 再取 text */
+          const stdout = await Bun.readableStreamToText(proc.stdout)
+          const stderr = await Bun.readableStreamToText(proc.stderr)
           const code = await proc.exited
           return { stdout, stderr, code }
         },
         fs: {
-          mkdir: async (path, _opts) => {
-            await Bun.$`mkdir -p ${path}`.quiet()
+          /* 文件操作走 node:fs 的官方实现，不经 shell 命令 */
+          mkdir: async (path, opts) => {
+            await mkdir(path, { recursive: opts?.recursive ?? false })
           },
-          rename: async (from, to) => {
-            await Bun.$`mv ${from} ${to}`.quiet()
-          },
-          remove: async (path, _opts) => {
-            await Bun.$`rm -rf ${path}`.quiet()
-          },
+          rename: (from, to) => rename(from, to),
+          remove: (path, opts) => rm(path, { recursive: opts?.recursive ?? false, force: true }),
           exists: async (path) => await Bun.file(path).exists(),
           readFile: async (path) => await Bun.file(path).text(),
           writeFile: async (path, data) => {
@@ -95,7 +94,7 @@ export default defineCoreModule({
     async function removeStagingLeftovers(): Promise<void> {
       try {
         for await (const entry of new Bun.Glob('python.{staging,old}-*').scan({ cwd: toolsDir, onlyFiles: false })) {
-          await Bun.$`rm -rf ${path.join(toolsDir, entry)}`.quiet()
+          await rm(path.join(toolsDir, entry), { recursive: true, force: true })
           ctx.logger.warn('清理 Python 残留目录', { target: path.join(toolsDir, entry) })
         }
       } catch (e) {
@@ -105,7 +104,8 @@ export default defineCoreModule({
 
     async function readMarker(): Promise<unknown> {
       try {
-        return JSON.parse(await Bun.file(markerPath).text()) as unknown
+        /* Bun 自带的 json() 解析，别在这里再手搓 text + JSON.parse */
+        return await Bun.file(markerPath).json()
       } catch {
         return null
       }
@@ -147,7 +147,7 @@ export default defineCoreModule({
 
       await ctx.engine.settings.setPythonInterpreter(null)
       try {
-        await Bun.$`rm -rf ${pythonDir}`.quiet()
+        await rm(pythonDir, { recursive: true, force: true })
       } catch {
         /* 忽略 */
       }

@@ -16,15 +16,12 @@
  */
 
 import { spawnSync } from 'node:child_process'
-import { createHash } from 'node:crypto'
 import { closeSync, openSync, readSync } from 'node:fs'
 import { copyFile, mkdir, readdir, readFile, rm, stat } from 'node:fs/promises'
 import path from 'node:path'
 import process from 'node:process'
 import { createInterface } from 'node:readline/promises'
 import { parseArgs } from 'node:util'
-import { gunzipSync } from 'node:zlib'
-import { parse } from 'yaml'
 
 import {
   type Bump,
@@ -527,10 +524,10 @@ async function reportAssets(installer: string): Promise<{
 
   for (const name of (await readdir(STAGE_DIR)).sort()) {
     const bytes = await readFile(path.join(STAGE_DIR, name))
-    digests.set(name, createHash('sha256').update(bytes).digest('hex'))
+    digests.set(name, Bun.SHA256.hash(bytes, 'hex'))
   }
 
-  const manifest = parse(await readFile(path.join(STAGE_DIR, 'latest.yml'), 'utf8')) as {
+  const manifest = Bun.YAML.parse(await readFile(path.join(STAGE_DIR, 'latest.yml'), 'utf8')) as {
     version?: string
     path?: string
     sha512?: string
@@ -625,7 +622,9 @@ async function stagePreviousBlockmap(previousVersion: string): Promise<void> {
    * 那时每台机器都会白跑一次差分再退回整包下载。
    */
   try {
-    const parsed = JSON.parse(gunzipSync(await readFile(path.join(STAGE_DIR, name))).toString()) as { files?: unknown }
+    const parsed = JSON.parse(Bun.gunzipSync(await readFile(path.join(STAGE_DIR, name))).toString()) as {
+      files?: unknown
+    }
 
     if (!Array.isArray(parsed.files)) {
       throw new Error('块索引里没有 files')

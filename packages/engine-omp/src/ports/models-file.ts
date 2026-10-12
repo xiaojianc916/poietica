@@ -1,5 +1,6 @@
 import { readFile } from 'node:fs/promises'
 import path from 'node:path'
+import { stringifyYamlConfig } from '@oh-my-pi/pi-utils'
 import type { CustomProviderDef } from '@poietica/engine'
 import { AppError, type Logger, SystemErrorCode } from '@poietica/foundation'
 import { writeFileAtomic } from '@poietica/fs-kit'
@@ -98,7 +99,9 @@ export class CustomProvidersFile {
 
   /** 规则 2 + 规则 3：原子写，然后让 registry 重读。 */
   private async write(document: ModelsFile): Promise<void> {
-    await writeFileAtomic(this.d.file, Bun.YAML.stringify(prune(document), null, 2) as string)
+    /* 序列化用 omp 自己的 stringifyYamlConfig：它就是在 Bun.YAML 之上替 omp 的配置文件
+       收掉块状映射行尾空格的那一层，输出与本仓手写的一致。 */
+    await writeFileAtomic(this.d.file, stringifyYamlConfig(prune(document)))
     await this.d.reload()
   }
 }

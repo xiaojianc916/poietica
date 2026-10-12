@@ -1,4 +1,3 @@
-import { createHash } from 'node:crypto'
 import { copyFileSync, existsSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import path from 'node:path'
 
@@ -161,10 +160,7 @@ for (const name of nativeFiles) {
 // core-manifest.json：每个产物文件的 sha256，供发布与排查使用
 const emitted = [path.basename(exe), ...nativeFiles].filter((n) => existsSync(path.join(outDir, n)))
 const sha256: Record<string, string> = {}
-for (const f of emitted)
-  sha256[f] = createHash('sha256')
-    .update(readFileSync(path.join(outDir, f)))
-    .digest('hex')
+for (const f of emitted) sha256[f] = Bun.SHA256.hash(readFileSync(path.join(outDir, f)), 'hex')
 const { PROTOCOL_VERSION } = (await import('@poietica/protocol')) as { PROTOCOL_VERSION: number }
 writeFileSync(
   path.join(outDir, 'core-manifest.json'),

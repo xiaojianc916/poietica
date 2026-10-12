@@ -10,7 +10,6 @@
  */
 
 import process from 'node:process'
-import { parse } from 'yaml'
 
 import { REPO_BASE } from './version'
 
@@ -50,8 +49,6 @@ export function channelFault(manifest: Manifest, tag: string): string | null {
   return null
 }
 
-const wait = (milliseconds: number) => new Promise((resolve) => setTimeout(resolve, milliseconds))
-
 /** 资产必须在那个地址上真实可取；HEAD 足够，不下字节。 */
 async function requireAsset(url: string): Promise<void> {
   const response = (await fetch(url, {
@@ -76,7 +73,7 @@ async function verify(endpoint: string, tag: string): Promise<Manifest> {
       if (!response.ok) {
         throw new Error(`${endpoint} 返回了 ${response.status}`)
       }
-      const manifest = parse(await response.text()) as Manifest
+      const manifest = Bun.YAML.parse(await response.text()) as Manifest
       const fault = channelFault(manifest, tag)
       if (fault) {
         throw new Error(fault)
@@ -92,7 +89,7 @@ async function verify(endpoint: string, tag: string): Promise<Manifest> {
     } catch (error) {
       lastError = error
       if (attempt < ATTEMPTS) {
-        await wait(RETRY_MS)
+        await Bun.sleep(RETRY_MS)
       }
     }
   }

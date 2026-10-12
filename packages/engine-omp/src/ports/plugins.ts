@@ -9,6 +9,7 @@ import {
   getMarketplacesRegistryPath,
   getPluginsCacheDir,
   MarketplaceManager,
+  parsePluginId,
 } from '@oh-my-pi/pi-coding-agent/extensibility/plugins/marketplace'
 import type { MarketplaceEntry, PluginInfo, PluginsPort } from '@poietica/engine'
 import { AppError, type Logger, SystemErrorCode } from '@poietica/foundation'
@@ -69,15 +70,14 @@ export class OmpPluginsPort implements PluginsPort {
   /** 装一个市场插件：id 形如 `name@marketplace`（omp 自己的 id 约定）。 */
   async install(id: string): Promise<z.infer<typeof PluginInfo>> {
     try {
-      const parsed = id.indexOf('@')
-      if (parsed <= 0) {
+      /* id 的切法与合法性都交给 omp 自己的 parsePluginId：它也做「名字段只许 [a-zA-Z0-9.-]」这一段校验。 */
+      const parsed = parsePluginId(id)
+      if (parsed === null) {
         throw new AppError(SystemErrorCode.invalidParams, `插件 id 必须是 name@marketplace：${id}`)
       }
-      const name = id.slice(0, parsed)
-      const marketplace = id.slice(parsed + 1)
       const manager = await this.#marketplace()
-      await manager.installPlugin(name, marketplace)
-      const installed = (await this.list()).find((plugin) => plugin.id === name)
+      await manager.installPlugin(parsed.name, parsed.marketplace)
+      const installed = (await this.list()).find((plugin) => plugin.id === parsed.name)
       if (installed === undefined) {
         throw new AppError(SystemErrorCode.internal, `插件装完却不在清单里：${id}`)
       }

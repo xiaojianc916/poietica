@@ -45,22 +45,24 @@ export function aliasOf(model: { readonly provider: string; readonly id: string 
 export function enabledMatcher(patterns: readonly string[]): (ref: ModelRef) => boolean {
   if (patterns.length === 0) return () => true
   const exact = new Set<string>()
-  const globs: RegExp[] = []
+  const globs: Bun.Glob[] = []
   for (const pattern of patterns) {
-    if (pattern.includes('*') || pattern.includes('?')) globs.push(globOf(pattern))
-    else exact.add(pattern)
+    if (pattern.includes('*') || pattern.includes('?') || pattern.includes('[')) globs.push(globOf(pattern))
+    else exact.add(pattern.toLowerCase())
   }
   return (ref) => {
     const alias = aliasOf(ref)
-    if (exact.has(alias) || exact.has(ref.id)) return true
-    return globs.some((glob) => glob.test(alias))
+    /* omp 的严格匹配本来就不分大小写（model-resolver 的 findExactModelReferenceMatch），照抄。 */
+    if (exact.has(alias.toLowerCase()) || exact.has(ref.id.toLowerCase())) return true
+    // 上游对 `provider/id` 与裸 id 两侧都 match，照抄：`gpt-5*` 这类裸 id 通配因此也认得。
+    const bare = ref.id.toLowerCase()
+    const full = alias.toLowerCase()
+    return globs.some((glob) => glob.match(full) || glob.match(bare))
   }
 }
 
-function globOf(pattern: string): RegExp {
-  const escaped = pattern.replace(/[.+^${}()|[\]\\]/g, '\\$&')
-  const body = escaped.split('*').join('.*').split('?').join('.')
-  return new RegExp(`^${body}$`)
+function globOf(pattern: string): Bun.Glob {
+  return new Bun.Glob(pattern.toLowerCase())
 }
 
 /** 读 omp 的设置并取出字符串数组（读不出来就是空表）。 */

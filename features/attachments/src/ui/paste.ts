@@ -20,11 +20,7 @@ export function imageFromClipboard(items: readonly DataTransferItem[]): File | n
 
 /** File → base64（不带 data URL 前缀，契约收的是裸 base64） */
 export async function fileToBase64(file: File): Promise<string> {
-  const buffer = await file.arrayBuffer()
-  let binary = ''
-  const bytes = new Uint8Array(buffer)
-  for (const byte of bytes) binary += String.fromCharCode(byte)
-  return btoa(binary)
+  return new Uint8Array(await file.arrayBuffer()).toBase64()
 }
 
 /** 粘贴的图片入库 */

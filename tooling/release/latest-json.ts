@@ -16,11 +16,9 @@
  *   bun run latest-json <bundleDir> <outDir> <tag>
  */
 
-import { createHash } from 'node:crypto'
 import { readdir, readFile, writeFile } from 'node:fs/promises'
 import path from 'node:path'
 import process from 'node:process'
-import { parse } from 'yaml'
 
 import { REPO_BASE } from './version'
 
@@ -76,7 +74,7 @@ async function main(): Promise<void> {
     fail(`${bundleDir} 下没有 latest.yml：electron-builder 的 publish 段没配，或构建没跑完`)
   }
 
-  const manifest = parse(raw) as UpdaterManifest
+  const manifest = Bun.YAML.parse(raw) as UpdaterManifest
   const installer = (await readdir(bundleDir)).find((name) => name.endsWith('-setup.exe'))
   if (!installer) {
     fail(`${bundleDir} 下没有 *-setup.exe`)
@@ -93,8 +91,8 @@ async function main(): Promise<void> {
 
   /* 校验和清单：latest.yml 的 sha512 与安装包逐字节算出来的一致才入账。 */
   const bytes = await readFile(path.join(bundleDir, installer))
-  const sha256 = createHash('sha256').update(bytes).digest('hex')
-  const sha512 = createHash('sha512').update(bytes).digest('base64')
+  const sha256 = Bun.SHA256.hash(bytes, 'hex')
+  const sha512 = new Bun.CryptoHasher('sha512').update(bytes).digest('base64')
   if (sha512 !== manifest.sha512) {
     fail(`${installer} 的 sha512 与 latest.yml 里的不一致：清单不可信`)
   }

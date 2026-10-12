@@ -101,7 +101,8 @@ export async function loadImages(
     if (size > MAX_IMAGE_BYTES) {
       throw new AppError(SystemErrorCode.invalidParams, `图片超过 20 MB：${image.path}`)
     }
-    out.push({ path: image.path, mime: image.mime, base64: (await read(image.path)).toString('base64') })
+    // 编码交给 Uint8Array.toBase64（Bun 的官方实现），不再走 Buffer 的老写法
+    out.push({ path: image.path, mime: image.mime, base64: (await read(image.path)).toBase64() })
   }
   return out
 }
@@ -170,7 +171,7 @@ function readImagesSync(
     if (size > MAX_IMAGE_BYTES) {
       throw new AppError(SystemErrorCode.invalidParams, `图片超过 20 MB：${image.path}`)
     }
-    return { path: image.path, mime: image.mime, base64: read(image.path).toString('base64') }
+    return { path: image.path, mime: image.mime, base64: read(image.path).toBase64() }
   })
 }
 

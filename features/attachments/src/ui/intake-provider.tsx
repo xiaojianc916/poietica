@@ -36,12 +36,6 @@ function assetOf(attachment: Attachment): ComposerAsset {
   }
 }
 
-function base64Of(bytes: Uint8Array): string {
-  let binary = ''
-  for (const byte of bytes) binary += String.fromCharCode(byte)
-  return btoa(binary)
-}
-
 export interface AttachmentIntakeOptions {
   readonly api: AttachmentsApi
   readonly pickFiles: (multiple: boolean) => Promise<readonly string[]>
@@ -67,7 +61,7 @@ export function createAttachmentIntake(options: AttachmentIntakeOptions): Attach
         await api.importData(
           input.filename.length > 0 ? input.filename : '粘贴的图片.png',
           'image/png',
-          base64Of(input.bytes),
+          input.bytes.toBase64(),
         ),
       ),
     discard: () => undefined,
