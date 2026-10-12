@@ -129,6 +129,8 @@ function ZoomRow({ onZoom, level }: { readonly onZoom: (level: number) => void; 
 }
 
 export interface BrowserOverflowMenuProps {
+  /** 已经接上命令面的行（键是 OVERFLOW_ROWS 的 id）；没给的画成灰行，不假装能用。 */
+  readonly commands: Readonly<Partial<Record<string, () => void>>>
   readonly onHeightChange: (height: number) => void
   readonly onOpenChange: (open: boolean) => void
   readonly onReopen: (index: number) => void
@@ -145,22 +147,22 @@ type OverflowRow =
       readonly kind: 'command'
       readonly id: string
       readonly label: string
-      readonly disabled?: true
       readonly submenu?: true
     }
 
 /*
- * 行清单只有这一份，**与 legacy 的 OVERFLOW_ROWS 一字不差**（07 页 §12E 只点名了缩放与
- * 最近关闭两张菜单，其余条目还没有命令面：照 legacy 画出灰行禁用，不假装它们能用）。
+ * 行清单只有这一份，**与 legacy 的 OVERFLOW_ROWS 一字不差**。哪些行能点不写死在这里，
+ * 由外面的 `commands` 决定（见 CommandRow）：07 页 §12E 只点名了缩放与最近关闭两张
+ * 菜单，其余条目的命令面要等阶段 5 逐个接上，在那之前它们只能是灰行。
  */
 const OVERFLOW_ROWS: readonly OverflowRow[] = [
   { kind: 'command', id: 'find-in-page', label: '在页面中查找' },
-  { kind: 'command', id: 'print', label: '打印', disabled: true },
+  { kind: 'command', id: 'print', label: '打印' },
   { kind: 'divider', id: 'after-print' },
   { kind: 'zoom', id: 'zoom' },
   { kind: 'divider', id: 'after-zoom' },
   { kind: 'command', id: 'device-toolbar', label: '显示设备工具栏' },
-  { kind: 'command', id: 'screenshot', label: '截取屏幕截图', disabled: true },
+  { kind: 'command', id: 'screenshot', label: '截取屏幕截图' },
   { kind: 'divider', id: 'after-capture' },
   { kind: 'command', id: 'import-credentials', label: '导入 Cookie 和密码…' },
   { kind: 'command', id: 'credentials', label: '密码和自动填充', submenu: true },
@@ -171,7 +173,31 @@ const OVERFLOW_ROWS: readonly OverflowRow[] = [
   { kind: 'command', id: 'settings', label: '浏览器设置' },
 ]
 
+/** 命令行的画法：可点 = 真有处理函数（B-15）。没有的就画成灰行，不假装能用。 */
+function CommandRow({
+  command,
+  label,
+  submenu,
+}: {
+  readonly command: (() => void) | undefined
+  readonly label: string
+  readonly submenu?: true
+}) {
+  return (
+    <DropdownMenuItem
+      disabled={command === undefined}
+      onClick={() => {
+        command?.()
+      }}
+    >
+      <span className={labelClassName}>{label}</span>
+      {submenu === true ? <ChevronRight aria-hidden className="size-3.5 shrink-0 opacity-50" /> : null}
+    </DropdownMenuItem>
+  )
+}
+
 export function BrowserOverflowMenu({
+  commands,
   onHeightChange,
   onOpenChange,
   onReopen,
@@ -199,10 +225,12 @@ export function BrowserOverflowMenu({
         }
 
         return (
-          <DropdownMenuItem disabled={row.disabled ?? false} key={row.id}>
-            <span className={labelClassName}>{row.label}</span>
-            {row.submenu === true ? <ChevronRight aria-hidden className="size-3.5 shrink-0 opacity-50" /> : null}
-          </DropdownMenuItem>
+          <CommandRow
+            command={commands[row.id]}
+            key={row.id}
+            label={row.label}
+            {...(row.submenu === true ? { submenu: true as const } : {})}
+          />
         )
       })}
 

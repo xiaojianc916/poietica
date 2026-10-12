@@ -207,6 +207,9 @@ function BrowserToolbar({
         </ToolbarButton>
 
         <BrowserOverflowMenu
+          /* 这一层还没有命令面（阶段 5 逐个接上）：空对象 = legacy 那张行清单里除缩放外的
+             条目全是灰行，不假装能用（B-15）。 */
+          commands={{}}
           onHeightChange={onMenuHeightChange}
           onOpenChange={onMenuOpenChange}
           onReopen={(index) => {
