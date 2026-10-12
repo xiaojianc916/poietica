@@ -4,10 +4,6 @@
  */
 import type { ModelCatalogData, ModelCatalogOperation, ModelCatalogPort, ModelCatalogSnapshot } from './model-catalog'
 
-/*
- * legacy 的 ModelCatalogStore：**逐字迁移**（代际守卫、load 去重、失效订阅、dispose 全在）。
- * 换掉的只有它依赖的 ModelCatalogPort 实现 —— 见 \`catalog-port.ts\`（新架构里那次折算）。
- */
 const EMPTY: ModelCatalogSnapshot = Object.freeze({
   data: null,
   loading: false,

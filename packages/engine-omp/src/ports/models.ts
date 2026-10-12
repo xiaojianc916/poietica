@@ -153,7 +153,6 @@ export class OmpModelsPort implements ModelsPort {
     }
   }
 
-  /** 默认模型：modelRoles.default，值是整串 provider/id。 */
   async defaultModel(): Promise<ModelRef | null> {
     try {
       return modelOf(this.d.root, DEFAULT_ROLE_KEY)

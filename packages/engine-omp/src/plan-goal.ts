@@ -123,7 +123,6 @@ export async function applyPlanMode(input: {
   readonly enabled: boolean
   readonly planTools: readonly string[] | undefined
   readonly onProposal: ((title: string) => Promise<unknown>) | null
-  /** 可用性读数（缺省=现读设置；测试可注入） */
   readonly availability?: AvailabilityReader
 }): Promise<{ readonly planTools: readonly string[] | undefined }> {
   const { session } = input
@@ -249,7 +248,6 @@ export async function applyGoal(input: {
   readonly host: GoalHostActions
   readonly root: SettingsScope
   readonly goal: string | null
-  /** 可用性读数（缺省=现读设置；测试可注入） */
   readonly availability?: AvailabilityReader
 }): Promise<void> {
   const { session, host } = input
@@ -305,7 +303,6 @@ export async function resumeGoalMode(input: {
   readonly session: GoalCapableSession
   readonly host: GoalHostActions
   readonly root: SettingsScope
-  /** 可用性读数（缺省=现读设置；测试可注入） */
   readonly availability?: AvailabilityReader
 }): Promise<void> {
   const status = goalOf(input.session.getGoalModeState())?.status

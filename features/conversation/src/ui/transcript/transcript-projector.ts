@@ -515,7 +515,6 @@ function labelOf(item: QuestionItem, optionId: string): string {
   return option === undefined ? optionId : option.label
 }
 
-/** 一条答复读成一句话。 */
 function describeAnswer(item: QuestionItem, answer: QuestionChoice): string {
   switch (answer.kind) {
     case 'single':

@@ -21,7 +21,6 @@ export interface WaveOptions {
   readonly spreadMs: number
   /** 一小段至少几个字素（太碎就退化成逐字，span 数也会涨） */
   readonly minSegment: number
-  /** 一批最多切几段 */
   readonly maxSegments: number
   /** 一批超过这么多字素（如从后台切回）：只给最后 hugeTail 个做动画，前面的直接实显 */
   readonly hugeBatch: number

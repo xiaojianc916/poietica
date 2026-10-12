@@ -544,7 +544,6 @@ function preludeOpsOf(ctx: Ctx): readonly string[] {
 /** 这次 eval 调了哪些 prelude，各做了什么。 */
 function preludesOf(ctx: Ctx): readonly string[] {
   const said: string[] = []
-  /* 事件既可能挂在整次调用上，也可能挂在产生它的那个 cell 上。 */
   const events = [...list(ctx.details, 'statusEvents')]
 
   for (const cell of list(ctx.details, 'cells')) {

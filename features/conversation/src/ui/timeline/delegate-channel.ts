@@ -65,7 +65,6 @@ export function delegationOf(state: TimelineState, agentId: string): ToolCallTim
   return undefined
 }
 
-/** 这条通道的名字。 */
 export function channelNameOf(call: ToolCallTimelineItem | undefined, agentId: string): string | undefined {
   return call?.channels.find((one) => one.agentId === agentId)?.name
 }

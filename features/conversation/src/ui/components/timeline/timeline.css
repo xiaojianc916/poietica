@@ -299,7 +299,10 @@
 
 /* 深色：抬头也是那一块面，抬头与正文之间那条线不要（同一条定稿）。 */
 :where(:root[data-theme="dark"]) .timeline-prose [data-streamdown="code-block-header"],
-:where(:root[data-theme="dark"]) .timeline-prose [data-streamdown="code-block"] > :has(> [data-streamdown="code-block-actions"]) {
+:where(:root[data-theme="dark"])
+  .timeline-prose
+  [data-streamdown="code-block"]
+  > :has(> [data-streamdown="code-block-actions"]) {
   border-block-end-color: transparent;
   background: #2a2a2a;
 }

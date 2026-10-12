@@ -17,7 +17,6 @@ export function addArrayMember(scope: SettingsScope, path: string, item: string)
   setMember(scope, path, item, true)
 }
 
-/** 数组设置删一项。 */
 export function removeArrayMember(scope: SettingsScope, path: string, item: string): void {
   setMember(scope, path, item, false)
 }

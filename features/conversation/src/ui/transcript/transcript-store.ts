@@ -1503,12 +1503,6 @@ export class TranscriptStore implements TranscriptSink {
     const current = this.read(key)
     const turns = snapshot.items.filter((item) => item.kind === 'turn')
     const owner = this.#owners.get(thread)
-    /*
-     * 投影是纯的；本机那条「这一轮已经终止」在这里补上。
-     *
-     * 补在这里而不是写进上一份 `timeline`：`timeline` 每次都由快照重算，
-     * 上一份连同写进去的判据一起被丢掉 —— 屏幕会退回「正在处理」。
-     */
     const memo = this.#memoOf(owner, agentId)
     const projected = projectTranscript(snapshot, memo)
     /*

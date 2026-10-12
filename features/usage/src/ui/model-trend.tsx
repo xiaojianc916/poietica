@@ -84,7 +84,6 @@ function spotsOf(series: ModelSeries, busiest: number): readonly Spot[] {
  * **不会在两点之间插出多余的峰谷**（普通样条会，屏幕上就是一条凭空冒出来的波动）。
  */
 
-/** 相邻两点的斜率。 */
 function segmentSlopes(spots: readonly Spot[]): readonly number[] {
   const deltas: number[] = []
 

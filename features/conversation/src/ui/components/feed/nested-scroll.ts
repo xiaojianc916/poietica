@@ -9,7 +9,6 @@
  * overflow —— 猜要读计算样式，而那是每一笔 wheel 都要付的一次布局。
  */
 
-/** 自己滚的盒子的标记。 */
 const NESTED_SCROLLER = '[data-scrollable]'
 
 /** 贴边容差。scrollTop 可以是小数，而另外两个量是整数。 */

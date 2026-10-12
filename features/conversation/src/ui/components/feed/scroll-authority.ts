@@ -19,9 +19,7 @@ export interface ScrollAuthority {
   readonly revealing: number | null
   /** 采一次末端判据。调用方在它每帧那一次布局读取里唤起，不额外问一次几何。 */
   readonly sample: (atEnd: boolean) => void
-  /** 回到最新。 */
   readonly travel: () => void
-  /** 去看某一行。 */
   readonly reveal: (row: number) => void
   /** 接管视口上的人机仲裁，交回卸载函数。 */
   readonly watch: (viewport: HTMLElement, atEnd: () => boolean) => () => void

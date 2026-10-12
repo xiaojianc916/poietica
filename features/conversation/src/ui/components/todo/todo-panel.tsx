@@ -119,7 +119,7 @@ function progressLabel(counts: readonly (readonly [number, string])[]): string {
 export function backgroundTaskProgressLabel(tasks: readonly BackgroundTaskItem[]): string {
   const running = tasks.filter((task) => task.status === 'running').length
   const completed = tasks.filter((task) => task.status === 'completed').length
-  /* 零档不提：进度那一格只说非零的桶。空表即空串，调用方据此整格不画。 */
+  /* 空表即空串，调用方据此整格不画。 */
   return progressLabel([
     [running, BACKGROUND_PROGRESS_LABEL.running],
     [completed, BACKGROUND_PROGRESS_LABEL.completed],

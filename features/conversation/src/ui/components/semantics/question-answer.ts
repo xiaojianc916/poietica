@@ -17,7 +17,6 @@ import type {
  * transcript-projector.ts；这里反向 import 会造出包内环。
  */
 
-/** 一道题此刻的草稿。 */
 export interface QuestionDraft {
   /** 已勾的选项 id，按勾选的先后。 */
   readonly picked: readonly string[]

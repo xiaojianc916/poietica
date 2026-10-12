@@ -345,19 +345,7 @@ export async function wrapOmpSession(input: WrapOmpSessionInput): Promise<Engine
         await session.setModel(target, undefined, { persist: false })
       },
       setThinkingOnSession: (level) => session.setThinkingLevel(level, false),
-      /*
-       * 上下文用量：读数 + 构成。
-       *
-       * 构成取 omp 自己的 `computeSessionContextBreakdown`（它 /context 面板印的就是这一份），
-       * 不自己按 `getContextBreakdown` 那五格折：正本把「技能」从系统提示词里减出去、还算出
-       * 空闲与自动压缩缓冲，自己折就会与它在屏幕上显示的那份对不上（legacy bridge.ts 同一条）。
-       *
-       * **每次现读**，不在这里存第二份：非消息四项 omp 自己按 settings revision 与数组身份
-       * 记忆化，所以按事件重算不贵（legacy 的 reportUsage 也是这么按事件调的）；存一份反而
-       * 会与「控件表现读会话真相」这条规矩打架（见下面 model / thinking 的头注）。
-       *
-       * 算不出构成只是没有明细 —— 屏幕退成只画总条，不把整张控件表拖垮，所以这里吞掉并留痕。
-       */
+      /* 每次现读、不存第二份（理由见 readContextUsage 的头注；存一份会与上方 liveModel 那条「控件表读会话真相」打架） */
       contextUsage: readContextUsage,
       skillMessage: async (submit, images) => {
         /* R-08-1：turn 那条路把已读好的图传进来，这里就不再读第二遍 */

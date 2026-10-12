@@ -797,7 +797,6 @@ function PromptInputShell({
     [closePalette, draftText.text, editor, focusEditor, toggleConfiguration],
   )
 
-  /* 点到卡外就收面板。 */
   useDismissOutside(paletteOpen, formRef, closePalette)
 
   /* 面板开着时这几个键归面板。捕获相先到，编辑器因此不需要知道面板存在。 */

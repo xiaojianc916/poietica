@@ -56,7 +56,6 @@ export interface AgentThread {
   readonly archived: boolean
 }
 
-/** 线程历史的一页 */
 export interface AgentHistory {
   readonly threads: readonly AgentThread[]
   readonly hasMore: boolean

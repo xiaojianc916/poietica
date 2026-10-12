@@ -23,7 +23,6 @@ export async function fileToBase64(file: File): Promise<string> {
   return new Uint8Array(await file.arrayBuffer()).toBase64()
 }
 
-/** 粘贴的图片入库 */
 export async function importClipboardImage(api: AttachmentsApi, file: File): Promise<Attachment> {
   const base64 = await fileToBase64(file)
   const name = file.name === '' ? '粘贴的图片.png' : file.name

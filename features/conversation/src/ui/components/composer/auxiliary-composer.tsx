@@ -131,7 +131,6 @@ export function AuxiliaryComposer() {
   const rows = useMemo(() => groups.flatMap((group) => group.rows), [groups])
   const open = paletteOpen && rows.length > 0
 
-  /* 点到条外就收面板。 */
   useDismissOutside(open, bar, () => setPaletteOpen(false))
 
   /*

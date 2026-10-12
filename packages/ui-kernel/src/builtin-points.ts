@@ -208,7 +208,6 @@ export interface OverlayItem {
   readonly id: string
   readonly order: number
   readonly component: SurfaceComponent
-  /** 由组件内部的状态决定是否显示：返回 false 时不渲染 */
   readonly useVisible: () => boolean
 }
 

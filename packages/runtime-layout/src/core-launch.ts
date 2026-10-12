@@ -1,4 +1,3 @@
-// packages/runtime-layout/src/core-launch.ts
 import path from 'node:path'
 import { AppError } from '@poietica/foundation'
 import { dataLayout } from './data-layout'

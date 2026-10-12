@@ -17,7 +17,6 @@ export interface Git {
   run(args: readonly string[], o?: GitRunOptions): Promise<RunResult>
   /** `status --porcelain=v2 --branch -z` 并解析；不是仓库时返回 null（不抛错） */
   status(signal?: AbortSignal): Promise<PorcelainStatus | null>
-  /** 本地分支列表 */
   branches(signal?: AbortSignal): Promise<BranchEntry[]>
 }
 
