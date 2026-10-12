@@ -55,7 +55,7 @@
  * 还在写：这一格不封顶，盒子滚到末尾。
  *
  * 不给省略号 —— 单行省略号吃掉的是最右边那几个字，而那正是模型刚写下、人正在等的字。
- * 让位给 mask（下面那条），两端的字淡出去，读起来是「这句话还在长」。
+ * 让位给 mask（下面那条），左端那几个字淡出去，读起来是「这句话还在长」。
  */
 .rolling-line[data-following] .rolling-line__text {
   inline-size: max-content;
@@ -63,18 +63,16 @@
 }
 
 /*
- * 在写、又超宽：两端各化开一段（zcode 的 REASONING_SUMMARY_MASK 宽度）。
+ * 在写、又超宽：左端化开一段，右端满墨。
  *
- * 化开而不裁断：断口会让它读成排版坏了，渐隐才读成「这句话还在长」。中间那一段一律
- * 纯黑，只有两端让位 —— 整条渐变会把正常的字也读成雾。
+ * 遮罩必须挂在**窗口**上，不能挂在字上。字那一层是 inline-size: max-content 的自然宽度
+ * （上面那条），而窗口又被滚到了句末：渐隐若按字的坐标系解，右端那一段正好落在**最新的
+ * 字**上（T-01），左端那一段落在早已划走的句首上，窗口左缘那个满墨的字反而被硬切成半个
+ * （T-02）。挂在窗口上，坐标系就是看得见的那一段，渐隐才落在该落的地方。
+ *
+ * 只有左边化开：右边是模型刚写下、人正在等的字，任何渐隐都是在遮它。左边那一段已经读过了，
+ * 化开它既是「这句话还在长」的记号，也交代了字的去向。
  */
-.rolling-line[data-overflow] .rolling-line__text {
-  text-overflow: clip;
-  mask-image: linear-gradient(
-    to right,
-    transparent 0,
-    #000 var(--cp-rolling-line-fade),
-    #000 calc(100% - var(--cp-rolling-line-fade)),
-    transparent 100%
-  );
+.rolling-line[data-overflow] {
+  mask-image: linear-gradient(to right, transparent 0, #000 var(--cp-rolling-line-fade), #000 100%);
 }
