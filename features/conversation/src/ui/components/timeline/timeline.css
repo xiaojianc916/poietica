@@ -271,6 +271,22 @@
   background: transparent;
 }
 
+/*
+ * 深色下这一整块的面与边（产品负责人 2026-10-12 定稿）：面 #2a2a2a、边 #333333，
+ * 抬头与正文同一张面、中间不画线 —— 图上整块只有一个色块。浅色那支不动：#2a2a2a
+ * 的面铺在白纸上是一块黑斑（与 assistant-threads.css 那张深色菜单同一条判据）。
+ *
+ * :where() 把主题前缀压成零权重，这几条仍是 0,2,0 —— 压得住同名基线，压不过抽屉里
+ * 那几条（tool-call.css 的 .timeline-prose.timeline-tool__prose，0,3,0）：围栏在抽屉里
+ * 没有外壳，这里不能给它长回来。
+ *
+ * 与基线同特异性的覆盖写在基线之后：那两条谁赢靠书写顺序，不靠先来后到。
+ */
+:where(:root[data-theme="dark"]) .timeline-prose [data-streamdown="code-block"] {
+  border-color: #333333;
+  background: #2a2a2a;
+}
+
 .timeline-prose > [data-streamdown="code-block"]:first-child {
   margin-block-start: 0;
 }
@@ -279,6 +295,13 @@
 .timeline-prose [data-streamdown="code-block"] > :has(> [data-streamdown="code-block-actions"]) {
   border-block-end: 1px solid var(--ui-border);
   background: var(--cp-timeline-output-surface);
+}
+
+/* 深色：抬头也是那一块面，抬头与正文之间那条线不要（同一条定稿）。 */
+:where(:root[data-theme="dark"]) .timeline-prose [data-streamdown="code-block-header"],
+:where(:root[data-theme="dark"]) .timeline-prose [data-streamdown="code-block"] > :has(> [data-streamdown="code-block-actions"]) {
+  border-block-end-color: transparent;
+  background: #2a2a2a;
 }
 
 .timeline-prose [data-streamdown="code-block-header"] {
