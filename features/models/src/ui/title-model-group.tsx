@@ -24,8 +24,8 @@ export function TitleModelGroup({ api }: { readonly api: ModelsApi }): React.Rea
    * 候选直接来自 Core 的 `models.titleModel`：那是引擎此刻**真正可用**的模型
    * （omp 的 getAvailable，与输入框的模型选择器、入口页草稿控件同一份事实）。
    *
-   * 不在这里自己过滤：真机实测按 `providers.configured` 会把 models.yml 里定义的自定义
-   * 服务商（key 写在 yml 里、凭据表里没有）判成没配置，下拉整列都是选不了的模型。
+   * 不在这里自己过滤：`providers.configured` 判的是「这家配过凭据没有」，与「这一条模型
+   * 此刻可不可用」是两件事 —— 停用的、还没被目录发现出来的，它都拦不住。
    */
   const load = useCallback((): void => {
     void api.titleModel().then(({ model, choices }) => {

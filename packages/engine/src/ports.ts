@@ -36,8 +36,10 @@ export interface ModelsPort {
   titleModel(): Promise<ModelRef | null>
   setTitleModel(ref: ModelRef | null): Promise<void>
   /**
-   * 此刻真正可用的模型（omp 的 `getAvailable()`）——「生成标题的模型」的候选表用它，
-   * 不用 `providers.configured`（那个只认凭据表，会漏掉 models.yml 里写死 key 的服务商）。
+   * 此刻真正可用的模型（omp 的 `getAvailable()`）——「生成标题的模型」的候选表用它。
+   *
+   * 与 `providers.configured` 的分工：那个判的是「这家**配过凭据**没有」（同样与 omp 的鉴权
+   * 判据同源），它判不了「这一条模型此刻在不在白名单 / 目录里」。候选表要的是后者，所以走这里。
    */
   availableModels(): Promise<readonly { readonly ref: ModelRef; readonly label: string }[]>
   upsertCustomProvider(def: CustomProviderDef): Promise<void>

@@ -413,6 +413,30 @@ export function runEngineConformance(name: string, make: () => Promise<Conforman
       expect(session.state()).toBe('idle')
     })
 
+    /*
+     * C-CUSTOM-PROVIDER-CONFIGURED：手动加的服务商必须**当场**算「已配置」。
+     *
+     * 真机上翻过车：写完 models.yml 之后 configured 仍报 false（判据只看凭据表），入口页于是挂着
+     * 「还没有配置任何模型服务商」，而用户在设置页里明明刚加好。两个引擎在这里比的是同一条语义：
+     * 定义写进去之后，providers() 里这一家要带着 custom 与 configured 一起出现。
+     */
+    test('C-CUSTOM-PROVIDER-CONFIGURED', async () => {
+      const before = await target.engine.models.providers()
+      await target.engine.models.upsertCustomProvider({
+        id: 'conformance-mine',
+        name: 'Mine',
+        api: 'openai-completions',
+        baseUrl: 'https://mine.test/v1',
+        models: [{ id: 'm1', name: 'M1', contextWindow: null, reasoning: false, vision: false }],
+      })
+      const after = await target.engine.models.providers()
+      expect(after.find((p) => p.id === 'conformance-mine')).toMatchObject({ custom: true, configured: true })
+      /* 没有凭据表里的钥匙也照样算配置好了 —— 这就是 models.yml 里写死 key 的那一类服务商。 */
+      expect(before.some((p) => p.id === 'conformance-mine')).toBe(false)
+      await target.engine.models.removeCustomProvider('conformance-mine')
+      expect((await target.engine.models.providers()).some((p) => p.id === 'conformance-mine')).toBe(false)
+    })
+
     test('C-CUSTOM-TOOL', async () => {
       const session = await openNew()
       const record = recorder(session)

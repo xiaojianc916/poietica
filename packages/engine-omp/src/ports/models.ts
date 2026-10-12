@@ -34,7 +34,7 @@ export interface ModelsPortDeps {
   readonly root: SettingsScope
   readonly customProviders: CustomProvidersFile
   readonly logger: Logger
-  /** 写完参数目录后让 omp 重新读取（OmpEngine 传 registry.reload 或 registry.refreshIfStale） */
+  /** 写完参数目录后让 omp 重新读取（组合根传 registry.refreshIfStale；omp 知识 #18 没有 reload） */
   readonly reload: () => Promise<void>
 }
 
@@ -49,19 +49,33 @@ export class OmpModelsPort implements ModelsPort {
 
   constructor(private readonly d: ModelsPortDeps) {}
 
-  /** provider 列表：registry 认得的全部 provider；configured 看凭据（或免密钥端点）。 */
+  /**
+   * provider 列表：registry 认得的全部 provider；`configured` 用 **omp 自己的鉴权判据**
+   * （`hasConfiguredAuth`，逐条模型问）—— 凭据表只是它认的四个来源之一。
+   */
   async providers(): Promise<z.infer<typeof ProviderInfo>[]> {
     try {
-      const ids = new Set<string>()
-      for (const model of this.d.registry.all()) ids.add(model.provider)
-      for (const model of this.d.registry.available()) ids.add(model.provider)
+      /* 全部模型按 provider 归并：判鉴权要拿得到「这家的一条模型」，目录里没有的 provider 无从判起。 */
+      const models = new Map<string, OmpModelLike>()
+      for (const model of this.d.registry.all()) models.set(model.provider, model)
+      for (const model of this.d.registry.available()) {
+        if (!models.has(model.provider)) models.set(model.provider, model)
+      }
       const out: z.infer<typeof ProviderInfo>[] = []
-      for (const id of [...ids].sort((left, right) => left.localeCompare(right))) {
+      for (const [id, model] of [...models].sort(([left], [right]) => left.localeCompare(right))) {
         out.push({
           id,
           /* omp 的内置目录没有单独的 provider 显示名，官方 TUI 画的也是 id。 */
           name: id,
-          configured: this.d.credentials.has(id),
+          /*
+           * omp 知识 #18：`configured` 必须与 omp 自己「这家能不能用」的判据同源，否则界面会把
+           * models.yml 里写死 apiKey、或声明 `auth: none` 的免密钥服务商误报成没配 —— 真机上
+           * 入口页因此挂着「还没有配置任何模型服务商」，而模型选择器一条不少地列着它们。
+           *
+           * hasConfiguredAuth 认四类来源：yml 里的 apiKey、免密钥 provider、凭据表、环境别名；
+           * 只查 credentials.has 就只认了第三类。
+           */
+          configured: this.d.registry.hasConfiguredAuth(model),
           custom: await this.d.customProviders.defined(id),
           /* 产品不支持 OAuth 登录，所以只可能是这两档。 */
           authKind: 'api_key',

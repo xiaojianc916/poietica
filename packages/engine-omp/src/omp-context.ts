@@ -39,6 +39,11 @@ export interface OmpModelRegistry {
   find(provider: string, modelId: string): OmpModel | undefined
   hasConfiguredAuth(model: OmpModel): boolean
   hydrateCredentialScopedModelCaches(): Promise<void>
+  /**
+   * 按 models.yml 的 mtime 决定要不要重读（omp 知识 #18：**没有** `reload()` 这个方法，
+   * 旧代码的 `registry.reload?.()` 每次都静默落到 undefined，写完的 provider 要等下次启动才被认到）。
+   */
+  refreshIfStale(): Promise<boolean>
   refreshInBackground(strategy?: string): void
 }
 

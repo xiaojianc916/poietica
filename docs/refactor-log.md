@@ -2068,3 +2068,73 @@ user 不被覆盖、已定名线程不触发、迟到事件 / 用户改名两条
    `setSessionName(row.title,'user')`，代价是每次开会话多写一次会话文件，**未做**，记此待决。
 3. 真机复核：配好 tiny 角色的机器上，新对话首条消息后应看到标题由首句变成总结标题；
    未配 tiny 的机器上标题保持首句。**待真机确认**。
+
+
+## R-19 手动添加的模型服务商不生效：入口页仍报「还没有配置任何模型服务商」，模型页要等重启才出现（2026-10-12）
+
+**来源**：产品负责人报告（「明明我已经配置了模型，却还是显示『还没有配置任何模型服务商』，
+是不是因为我是手动添加的，而不是使用内置服务商的原因？」），要求用**更彻底的做法**修。
+排查中发现这条路上并排着两个缺陷，第二个才是「手动添加不生效」的真正原因。
+
+**根因**（两条，都在 `packages/engine-omp`）：
+
+1. **`configured` 判据与 omp 自己的鉴权判据不同源**（`ports/models.ts` 的 `providers()`）。
+   端口原来只查 `credentials.has(id)`（agent.db 里的凭据行），而 omp 的
+   `ModelRegistry.hasConfiguredAuth` 认**四类**来源（model-registry.ts:2749-2757）：
+   models.yml 里写死的 `apiKey`（`#customProviderApiKeys`，411 行 `#installProviderApiKey` 写入）、
+   声明 `auth: none` 的免密钥 provider（`#keylessProviders`，1660-1663 行）、
+   凭据表（`authStorage.keys.source`）、环境变量别名。手动添加的服务商钥匙写在 yml 里，
+   凭据表里没有它 —— 于是模型选择器（走 `getAvailable`）一条不少地列着它，
+   而入口页的横幅（走 `providers.configured`）挂着「还没有配置」。
+   真机数据印证：`%APPDATA%\Poietica\omp\agent\models.yml` 里 `magpie-workbuddy` 带内联 apiKey、
+   `magpie` 是 `auth: none`，而 `agent.db` 里只剩一条被删掉的 deepseek 凭据。
+
+2. **写完 models.yml 之后的「重读」是空操作**（`ports/omp-ports.ts` 的 `reload` 回调）。
+   回调写的是 `registry.reload?.()`，而 omp 18.5.0 的 `ModelRegistry` **没有 `reload()`**
+   （官方成员表见 `docs/omp-sdk-reference.md` A.3）—— 可选链每次都静默落到 `undefined`，
+   函数返回、文件写盘、内存目录一动不动。后果：用户加完服务商，模型页与设置页全都不出现它，
+   **重启才生效**；而「自定义服务商」的判据 `customProviders.defined(id)` 直读文件，
+   所以 `providers()` 里连这一家都不在 —— 与报告的症状完全一致。
+
+**改法**：
+
+1. `ports/models.ts`：`providers()` 把全部模型按 provider 归并（`all()` 与 `available()` 两份都收，
+   后者补前者没有的），逐家拿一条模型问 `registry.hasConfiguredAuth(model)` 当 `configured`。
+   判据从此与 omp 自己「这家能不能用」同源，四类来源一并认。
+2. `ports/omp-ports.ts`：`reload` 改调 `registry.refreshIfStale()`（官方 API：按 models.yml 的
+   mtime 决定要不要重读，目录没变就不动）；`omp-context.ts` 的 `OmpModelRegistry` 补上这一格，
+   把「没有 `reload()`」写成 omp 知识 #18。
+3. 文档/注释同步：`packages/engine/src/ports.ts` 与 `features/models/src/contract/index.ts`、
+   `title-model-group.tsx` 里「providers.configured 只认凭据表」那三处免责说明按新语义改写
+   （旧文字描述的是一个已经不存在的缺陷，留着会误导）。
+
+**测试**（规矩：先写一条在旧代码上失败的用例）：
+
+- `packages/engine-omp/src/ports/__tests__/models.test.ts`：把夹具的 `hasConfiguredAuth` 从恒真
+  改成按 provider 记账，新增「providers 的 configured 跟 omp 的鉴权判据，不由凭据表说了算」——
+  旧实现下这条红（表里没有 openai 的凭据，但 omp 判它已配）。
+- `packages/engine-omp/src/ports/__tests__/omp-ports.test.ts`（新文件）：组合根的 `reload` 回调必须
+  调**真实存在**的方法 —— 旧实现下两条都红（`upsertCustomProvider` 与 `setApiKey` 之后谁都没被调）。
+- `packages/engine-testkit/src/conformance.ts`：新增 `C-CUSTOM-PROVIDER-CONFIGURED`，两个引擎同时跑
+  （手动加的服务商当场带 `custom` + `configured` 出现，删掉之后就没了），防替身与真实现再次分叉。
+
+**验收**：`bun run all` 全绿（**1963 pass / 0 fail**，改动前实测基线 1958，新增 5 条用例 ——
+models 端口 1 条、omp-ports 2 条、一致性套件 C-CUSTOM-PROVIDER-CONFIGURED 两个引擎各 1 条）；
+`bun run protocol:snapshot` 无 diff（`ProviderInfo` 形状未动，
+`PROTOCOL_VERSION` 保持 15）；改动未碰隔离、未碰 omp 的启动环境，故未跑 `core:probe`。
+真机（本机 `%APPDATA%\Poietica` 与 `Poietica Dev` 两份数据）复核：手动加的服务商在
+`providers()` 里现在是 `configured: true`，横幅不再出现；`upsertCustomProvider` 之后当场
+出现在 `models()` 与 `availableModels()` 里，不需要重启。
+
+**偏差 / 待决**：
+
+1. **顺带修了第 2 条**（reload 空操作），它不是报告点名的症状但同属「手动添加的服务商不生效」
+   这一条用户可感知的链路：只修判据的话，用户在设置页里加完服务商仍然看不到它，报告的问题只解决一半。
+   两条改动落在同一路径（模型的读与写），一并提交。
+2. `catalog-port.ts` 里 `provider.custom || provider.configured` 的兜底**保留未动**：修完判据之后它
+   已经多余，但它是界面侧的既有写法、行为等价，按「改动只覆盖任务点名的范围」不顺手重构。
+   留给下次碰这一页时删。
+3. `packages/engine-omp/src/ports` 目录里 `mcp` / `skills` / `draft-controls` 有几条**既存**失败
+   （与本次改动无关：改动前 `bun test packages/engine-omp/src/ports` 同样红；整目录单跑会
+   互相干扰，单文件跑全过 —— 属 omp-home 夹具的进程级共享状态）。**待决**：给这几条找一条
+   能整目录跑的隔离办法。

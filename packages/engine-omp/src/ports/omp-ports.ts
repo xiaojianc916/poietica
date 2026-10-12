@@ -38,10 +38,13 @@ export async function ompPorts(o: OmpPortsOptions): Promise<{
   // 会话目录：<ompAgentDir>/sessions（12 页 §10.1 / docs/omp-sdk-reference.md §N）
   const dirs = await import('@oh-my-pi/pi-utils/dirs')
   const sessionDir = dirs.getSessionsDir(o.layout.ompAgentDir)
-  // omp 的 ModelRegistry 有 reload：写完 models.yml 之后让它重读
+  /*
+   * omp 知识 #18：ModelRegistry **没有** `reload()` —— 旧代码的 `registry.reload?.()` 每次都
+   * 静默落到 undefined，写完 models.yml 之后内存目录保持旧样，用户新加的服务商要等下次启动才出现。
+   * 官方那条路是 refreshIfStale()（按 models.yml 的 mtime 决定要不要重读，目录没变就不动）。
+   */
   const reload = async (): Promise<void> => {
-    const registry = o.registry as { reload?: () => Promise<void> }
-    await registry.reload?.()
+    await o.registry.refreshIfStale()
   }
   const customProviders = new CustomProvidersFile({
     file: modelsFilePath(o.layout.ompAgentDir),

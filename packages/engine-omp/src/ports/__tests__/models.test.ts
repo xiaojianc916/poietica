@@ -38,7 +38,10 @@ const MODELS: readonly OmpModel[] = [
 interface Harness {
   readonly port: OmpModelsPort
   readonly settings: Settings
-  readonly configured: Set<string>
+  /** agent.db 里的凭据（credentials.has 的记账） */
+  readonly credentials: Set<string>
+  /** omp 自己的鉴权判据（hasConfiguredAuth 的记账）——写 key、写 models.yml、免密钥端点都会让它为真 */
+  readonly authorized: Set<string>
   readonly logged: string[]
   /** registry 重读的次数（models.yml 写完之后必须重读） */
   readonly reloads: number[]
@@ -47,7 +50,8 @@ interface Harness {
 function makePort(): Harness {
   const dir = tempDir()
   const settings = Settings.isolated()
-  const configured = new Set<string>(['anthropic'])
+  const credentials = new Set<string>(['anthropic'])
+  const authorized = new Set<string>(['anthropic'])
   const logged: string[] = []
   const logger: Logger = {
     debug: () => undefined,
@@ -65,18 +69,20 @@ function makePort(): Harness {
       all: () => MODELS,
       available: () => MODELS,
       find: (provider, id) => MODELS.find((model) => model.provider === provider && model.id === id),
-      hasConfiguredAuth: () => true,
+      hasConfiguredAuth: (model) => authorized.has(model.provider),
       hydrateCredentialScopedModelCaches: () => Promise.resolve(),
       refreshInBackground: () => undefined,
     },
     credentials: {
-      has: (provider) => configured.has(provider),
+      has: (provider) => credentials.has(provider),
       set: (provider) => {
-        configured.add(provider)
+        credentials.add(provider)
+        authorized.add(provider)
         return Promise.resolve()
       },
       remove: (provider) => {
-        configured.delete(provider)
+        credentials.delete(provider)
+        authorized.delete(provider)
         return Promise.resolve()
       },
     },
@@ -93,18 +99,38 @@ function makePort(): Harness {
       return Promise.resolve()
     },
   })
-  return { port, settings, configured, logged, reloads }
+  return { port, settings, credentials, authorized, logged, reloads }
 }
 
 describe('ModelsPort', () => {
-  test('providers 的 configured 来自凭据，custom 来自 models.yml', async () => {
+  test('providers 列出 registry 认得的全部 provider，custom 来自 models.yml', async () => {
     const harness = makePort()
     const providers = await harness.port.providers()
-    expect(providers.map((p) => [p.id, p.configured, p.custom])).toEqual([
-      ['anthropic', true, false],
-      ['openai', false, false],
+    expect(providers.map((p) => [p.id, p.custom])).toEqual([
+      ['anthropic', false],
+      ['openai', false],
     ])
     expect(providers.every((p) => p.authKind === 'api_key' && p.docsUrl === null)).toBe(true)
+  })
+
+  /*
+   * omp 知识 #18：configured 用 omp 自己的鉴权判据（hasConfiguredAuth），不是凭据表。
+   * models.yml 里写死 key 的服务商、auth: none 的免密钥端点都算「已配置」；只看
+   * credentials.has 会在真机上把它们误报成没配，入口页于是挂出「还没有配置任何模型服务商」。
+   */
+  test('providers 的 configured 跟 omp 的鉴权判据，不由凭据表说了算', async () => {
+    const harness = makePort()
+    expect((await harness.port.providers()).map((p) => [p.id, p.configured])).toEqual([
+      ['anthropic', true],
+      ['openai', false],
+    ])
+    /* 只把 openai 记进 omp 的判据：凭据表里没有它 —— 这正是 models.yml 里写死 key 的那种服务商 */
+    harness.authorized.add('openai')
+    expect((await harness.port.providers()).map((p) => [p.id, p.configured])).toEqual([
+      ['anthropic', true],
+      ['openai', true],
+    ])
+    expect(harness.credentials.has('openai')).toBe(false)
   })
 
   test('models 带上元数据；enabled 用 enabledModels 白名单，空表全放行', async () => {
@@ -127,7 +153,7 @@ describe('ModelsPort', () => {
   test('setApiKey 之后日志里没有 key，也没有回传', async () => {
     const harness = makePort()
     await harness.port.setApiKey('openai', 'sk-secret-value')
-    expect(harness.configured.has('openai')).toBe(true)
+    expect(harness.credentials.has('openai')).toBe(true)
     expect(harness.logged.join('\n')).not.toContain('sk-secret-value')
     expect(harness.logged.join('\n')).toContain('api key stored')
   })
@@ -139,7 +165,7 @@ describe('ModelsPort', () => {
       fired += 1
     })
     await harness.port.clearApiKey('anthropic')
-    expect(harness.configured.has('anthropic')).toBe(false)
+    expect(harness.credentials.has('anthropic')).toBe(false)
     expect(fired).toBe(1)
     sub.dispose()
   })
