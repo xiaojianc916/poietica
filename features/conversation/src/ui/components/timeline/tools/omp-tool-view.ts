@@ -567,6 +567,20 @@ function preludesOf(ctx: Ctx): readonly string[] {
   return said
 }
 
+/*
+ * 状态事件到达前先按代码预判：否则卡片会在运行中途从「运行 JavaScript」跳成浏览器卡片。
+ *
+ * 判据只认真正的调用形状（`browser.open(` 这一串），不认「提到过」——代码里出现
+ * `browser` 这个词的地方太多了，误判一次就是把脚本运行说成浏览器动作。
+ * 同时写着 computer 时不预判：那是两件事，认错比晚认更糟（产出到达后照旧按 op 认）。
+ */
+const BROWSER_CALL = /\bbrowser\s*\.\s*(?:open|tab|tabs|close)\s*\(/u
+const COMPUTER_CALL = /\bcomputer\s*\./u
+
+function guessedPreludeOf(code: string): string | null {
+  return BROWSER_CALL.test(code) && !COMPUTER_CALL.test(code) ? 'browser' : null
+}
+
 const evalView: Handler = (ctx) => evalCall(ctx, pick(ctx.input, 'language') ?? 'js')
 
 /* eval 别名：官方视图表把 js/python/notebook 指到同一渲染器，入参没 language 时按别名来，而非一律落回 JavaScript。 */
@@ -591,12 +605,15 @@ function evalCall(ctx: Ctx, language: string): OmpToolView {
   /*
    * 字形也跟着那件事走：一次 browser.open 实际跑的是浏览器，不是脚本。
    * 用 invokedTool 这一格而不是另开一条路 —— 它就是「真正在跑的是谁」。
+   *
+   * 还没有状态事件时（调用刚发出）按代码预判一次，否则这一行会在运行中途换一张卡片。
    */
   const ops = preludeOpsOf(ctx)
+  const running = ops.length === 1 ? (ops[0] as string) : ops.length === 0 ? guessedPreludeOf(body) : null
 
   return {
     ...view('execute', head, preludes[0] ?? title ?? oneLine(body), request, failOr(ctx, saidText(ctx))),
-    ...(ops.length === 1 ? { invokedTool: ops[0] as string } : {}),
+    ...(running === null ? {} : { invokedTool: running }),
   }
 }
 
