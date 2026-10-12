@@ -2190,3 +2190,103 @@ models 端口 1 条、omp-ports 2 条、一致性套件 C-CUSTOM-PROVIDER-CONFIG
 
 - 0.5 面板收起时截图：
 - 0.7 崩溃时 Chromium 给的 reason：
+
+## R-20 思考行的划动与换句：遮罩坐标错、按行取句、每批 token 一抽（2026-10-12）
+
+**来源**：产品负责人交办的重设计规格 `思考行动画重设计.md`（仓库输入，不入库）。对象是
+对话时间线里过程组**组头**那一行 —— AI 思考时「刷刷刷」的那一句话。七个问题（T-01…T-06）
+共用一条根因：这一格实现的是「一个会滚的盒子」，而它要的是**一条电子屏**。
+
+**根因（规格 §2）**
+
+| 现象 | 根因 |
+| --- | --- |
+| 最新的几个字被淡掉（T-01） | `mask-image` 挂在 `inline-size: max-content` 的字层上，遮罩坐标系是**整句**；窗口又滚到句末，右端那 16px 渐隐正好落在最新的字上 |
+| 最左的字被硬切成半个（T-02） | 同上：左端渐隐落在早已滚出窗口的句首上，窗口左缘那个满墨字被 `overflow: hidden` 硬裁 |
+| 一顿一顿地往左跳（T-03） | 每次 `revision` 变化在 layout effect 里直接写 `scrollLeft`，无过渡 |
+| 多数时候看不到换字（T-04） | 句子身份是**行号**，模型整段不换行就永不换格 |
+| 快慢模型都按固定节奏排队（T-05） | `ROLL_MS=300` / `HOLD_MS=500` / `MAX_PENDING=2` 与出字速度无关 |
+| 思考里漏出 `**`、`#`（T-06） | 逐字照抄，不认 Markdown |
+
+**改法与文件**
+
+| 模块 | 职责 |
+| --- | --- |
+| `semantics/thought-sentence.ts` | 取句：从文本尾部往回找**当前句**与**上一句**，交出去记号化之后的正文与「起始偏移」当身份（同句继续写 = 原地生长，异句 = 换格） |
+| `timeline/marquee-model.ts` | 纯数学：目标位移、出字速度估计（窗口平均）、逐帧推进、硬底线、到位判定 |
+| `timeline/roll-scheduler.ts` | 换句时机：至少露面 / 到位后再停 / 最多等多久；等待期间来的新句顶掉排队那句 |
+| `timeline/use-marquee.ts` | 唯一碰 rAF 与 ResizeObserver 的地方；逐帧只写 `transform` 与 `data-*`，不进 React |
+| `timeline/marquee-track.tsx` | 一句话的窗口 + 轨道，墨迹与划动挂在同一棵子树上 |
+| `timeline/ink-tail.ts` | 新字的墨迹：Web Animations，`startTime` 钉在尾巴开始的绝对时刻（重渲染不重播） |
+| `timeline/rolling-line.tsx` | 容器：喂句、提升时换 key、按状态定 mode |
+| `timeline/rolling-line.css` | 三层几何：外层只裁只定位，窗口按句各一套（遮罩挂这里），轨道保持自然宽度 |
+| `tool-group-card.tsx` | 接线：思考走 `readThoughtSentence` + `variant="thought"` |
+
+**参数表**（规格 §3.3，值即实现）
+
+| 名称 | 值 | 所在模块 |
+| --- | --- | --- |
+| `TAIL_EM` / `--cp-ticker-tail` | 2 | marquee-model / 令牌 |
+| `--cp-ticker-fade` | 2em | 令牌（左侧淡出宽） |
+| `--cp-ticker-ink` | `var(--cp-ink)` | 令牌（新字刚写下的颜色） |
+| `LAG_SET_EM` | 0.5 | marquee-model |
+| `RATE_WINDOW_MS` | 600 | marquee-model |
+| `CORRECT_MS` | 300 | marquee-model |
+| `VELOCITY_SMOOTH_MS` | 120 | marquee-model |
+| `MAX_CATCHUP_PX_S` | 900 | marquee-model |
+| `SNAP_LAG_RATIO` / `SNAP_KEEP_RATIO` | 0.6 / 0.15 | marquee-model |
+| `SETTLE_EPS_PX` / `SETTLE_SPEED_PX_S` | 0.5 / 4 | marquee-model |
+| `MAX_DT_MS` | 64 | marquee-model |
+| `ROLL_MS` / `FAST_ROLL_MS` | 260 / 140 | roll-scheduler |
+| `ROLL_EASE` | (0.4, 0, 0.2, 1) | rolling-line |
+| `ROLL_DISTANCE` / `ROLL_BLUR_PX` | 0.6em / 1.5 | rolling-line |
+| `MIN_VISIBLE_MS` / `END_HOLD_MS` / `MAX_WAIT_MS` | 450 / 250 / 1200 | roll-scheduler |
+| `INK_MS` | 600 | ink-tail |
+| `MAX_SENTENCE_CHARS` / `BACKSCAN_LIMIT` | 400 / 4000 | thought-sentence |
+
+**逐条与规格的偏差**（均为实现细节，行为与 §3.3 一致）
+
+1. **`roll-scheduler` 的 `offer` 加了「不许往回缩」**:`previous` 比手上这句短就不换
+   （`previous.text.length > shown.text.length`）。规格没写这一条，但同一批 token 里
+   「先按更长的旧句渲染过一轮、再收到更短的旧句快照」会让已经印出来的字被抹掉 ——
+   真机上看到的是 `第一句。然后然后`。补了一条在旧代码上失败的测试
+   （`previous 比手上的还短就不换`）。
+2. **`thought-sentence` 的软切与回溯上限合成一个常量**（`MAX_HOPS = 16`）：规格的伪代码
+   里是两个（普通分支 8、代码块分支 16），实际只有一处回溯循环，两个常量会让 biome 报
+   「未使用」。语义不变：退不到就交空身份。
+3. **`use-marquee` 导出 `node()` 而不是合并 ref**:容器要用同一个节点挂墨迹，`mergeRefs`
+   在严格类型下过不了；改成让 hook 自己给节点读取器，少一层转发。
+4. **组头的扫光只有一个例外**（规格 §5.9 已点名）：还没有一个字可写时（`placeholder`）
+   仍戴扫光 —— 那时它是唯一能说明「正在进行」的东西。思考有字之后不再戴。
+
+**测试**（规格 §7）
+
+| 文件 | 覆盖 |
+| --- | --- |
+| `timeline/__tests__/rolling-line-css.test.ts` | 遮罩只挂在 `.ticker-window[data-scrolled]`、右端满墨、行高钉死、`will-change` 只按需 |
+| `semantics/__tests__/thought-sentence.test.ts` | 中英句界、缩写（`e.g.` / `3.14` / `file.ts`）、省略号不断句、围栏内不取句、超长软切 |
+| `timeline/__tests__/marquee-model.test.ts` | 逐帧模拟三条核心性质（匀速不抽、停笔停稳、快模型不遮字）+ 边界 |
+| `timeline/__tests__/roll-scheduler.test.ts` | 三条时间规则、排队顶替、旧句收尾补完、少动效、删除路径（`fakeClock`） |
+| `timeline/__tests__/use-marquee.test.ts` | 源码断言：循环里不读强制布局属性、不进 React、只写 `transform`、卸载断开 |
+| `timeline/__tests__/ink-tail.test.ts` | 尾巴推进的账、`startTime` 钉时刻 |
+| `timeline/__tests__/rolling-line.test.tsx` | 结构、三种 mode、墨迹开关、换 key 后旧句不残留 |
+| `timeline/__tests__/process-group.test.tsx` | 接线：`data-variant` / `data-mode`、当前句不是最后一行、代码块停在最后一句人话 |
+
+**验收**：`bun run all` 全绿（**2109 pass / 0 fail**，改动前基线 2102）。未动契约形状，
+不需 `protocol:snapshot`；未碰 omp 隔离与环境，未跑 `core:probe`。
+
+**真机核对记录**（规格 §8.1 的九条，以及 §8.2 的性能录制 —— 执行人填写）
+
+- 长中文整段左划（匀速、右端不遮、左边柔和淡出）：
+- 多句号（划到位、停一下、往上刷、新句从最左开始）：
+- 快模型（刷得快不频闪、积压时跳到最新句）：
+- 慢模型 / 停顿（平滑减速、最新字停在离右缘约 2 字）：
+- 英文含 `e.g.` / `3.14` / `file.ts`（不误换句）：
+- 代码块（停在最后一句人话上，无 ```）：
+- `**重点**`（显示为「重点」）：
+- 转去工具调用（刷到工具句；工具句超宽右对齐显示末尾）：
+- 拖窄窗口 / 滚出视野再滚回（行高不变；不重播）：
+- 系统「减少动态效果」（不划不刷，直接显示最新部分）：
+- DevTools Performance 10 秒（逐帧只有 Composite/Paint、无逐帧 Layout）：
+- 划动停止后无持续 rAF：
+- 每秒 React 提交次数与改造前持平：
