@@ -28,6 +28,7 @@ apps/desktop/release/
 *.log
 .DS_Store
 Thumbs.db
+.claude/
 
 # 用户的架构重构方案（仓库输入，不入库）
 Project Refactoring Plan/
