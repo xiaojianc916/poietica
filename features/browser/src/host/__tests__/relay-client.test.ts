@@ -546,6 +546,61 @@ describe('BR-3 / BR-4: attach 与 detach', () => {
  * 「socket 连着」。relay 守护首次使用后就常驻，socket 一直连着 —— 按连接算的话这条
  * 提示永远亮着，Core 重启后重连还会把用户关掉的面板又顶出来。
  */
+/*
+ * B-09：omp bridge 把 `relayInitiated: false` 当作「用户拆掉了调试器」，把标签设为
+ * banned，直到地址变化才解除。内核自己拆的理由很多（渲染进程崩溃、目标关闭），都不是
+ * 用户的意思；而 tabs.ts 在渲染进程崩溃后按**原地址**重载，于是这张标签对 AI 永久
+ * 不可用。Poietica 的界面没有 DevTools 入口，用户主动拆的情况几乎不存在。
+ *
+ * 只有理由里写明是用户（canceled_by_user）或被 DevTools 抢占时才报 false。
+ */
+describe('B-09: 非用户原因的内核 detach 不拉黑标签', () => {
+  test('渲染进程崩溃：relayInitiated 为真', async () => {
+    const h = harness('https://a.example/')
+
+    await rpc(h.socket, { op: 'attach', tabId: 1 })
+    h.contents.debugger.emit('detach', {}, 'Render process gone.')
+
+    const report = h.socket
+      .messages()
+      .filter((message) => message.t === 'detached')
+      .at(-1)
+
+    expect(report?.reason).toBe('Render process gone.')
+    expect(report?.relayInitiated).toBe(true)
+
+    h.client.dispose()
+  })
+
+  test('用户主动拆（canceled_by_user）与被 DevTools 抢占：relayInitiated 为假', async () => {
+    const h = harness('https://a.example/')
+
+    await rpc(h.socket, { op: 'attach', tabId: 1 })
+    h.contents.debugger.emit('detach', {}, 'canceled_by_user')
+    h.contents.debugger.emit('detach', {}, 'Detached from DevTools')
+
+    const reports = h.socket.messages().filter((message) => message.t === 'detached')
+
+    expect(reports.map((message) => message.relayInitiated)).toEqual([false, false])
+
+    h.client.dispose()
+  })
+
+  test('目标关闭等其它理由也当真', async () => {
+    const h = harness('https://a.example/')
+
+    await rpc(h.socket, { op: 'attach', tabId: 1 })
+    h.contents.debugger.emit('detach', {}, 'target closed')
+    h.contents.debugger.emit('detach', {}, '')
+
+    const reports = h.socket.messages().filter((message) => message.t === 'detached')
+
+    expect(reports.map((message) => message.relayInitiated)).toEqual([true, true])
+
+    h.client.dispose()
+  })
+})
+
 describe('B-04: 附着集合的通报', () => {
   test('连上不算附着：onAttachedChange 一条通知都没有', () => {
     const h = harness('https://a.example/')

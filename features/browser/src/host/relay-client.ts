@@ -170,8 +170,21 @@ export function createRelayClient(tabs: RelayTabsPort, opts: RelayClientOptions)
     }
   }
 
+  /*
+   * 只有「用户主动拆」才该让 relay 拉黑标签：omp bridge 把 relayInitiated: false 当作
+   * 用户的意思，把这张标签设为 banned，直到地址变化才解除；而 tabs.ts 在渲染进程崩溃后
+   * 按**原地址**重载，于是这张标签对 AI 永久不可用（B-09）。
+   *
+   * Chromium 给用户主动拆的理由是 canceled_by_user，DevTools 抢占时理由里带 devtools。
+   * 崩溃、目标关闭等其它理由都不是用户的意思。Poietica 的界面没有 DevTools 入口，
+   * 用户主动拆的情况几乎不存在。
+   */
+  const USER_DETACH = /canceled_by_user|devtools/iu
+
   function reportDetach(tabId: number, reason: string): void {
-    post({ t: 'detached', tabId, reason, relayInitiated: detaching.has(tabId) })
+    /* 真机核对理由字符串用这一条日志（B-09 的「需真机确认」）。 */
+    opts.logger.info('browser debugger detached', { tabId, reason })
+    post({ t: 'detached', tabId, reason, relayInitiated: detaching.has(tabId) || !USER_DETACH.test(reason) })
   }
 
   function markAttached(tabId: number): void {
