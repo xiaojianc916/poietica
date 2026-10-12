@@ -21,7 +21,7 @@ export const BrowserState = z.object({
   activeTabId: z.number().int().nullable(),
   pickingTabId: z.number().int().nullable(),
   recentlyClosed: z.array(z.object({ url: z.string(), title: z.string() })).max(10),
-  driven: z.boolean(), // relay 已连接 = agent 正在使用浏览器
+  driven: z.boolean(), // 至少一张标签挂着 AI 的调试器
 })
 export type BrowserTab = z.infer<typeof BrowserTab>
 export type BrowserState = z.infer<typeof BrowserState>

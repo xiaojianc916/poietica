@@ -228,9 +228,20 @@ export default defineHostModule({
 
       ctx.disposables.add(ctx.core.onStatus(applyCoreStatus))
       applyCoreStatus(ctx.core.status())
+      /*
+       * driven 说的是「真的在驾驶」：至少有一张标签挂着 AI 的调试器（B-04）。
+       * 按 socket 连没连算是错的 —— relay 守护首次使用后就常驻，那条提示会一直亮着，
+       * Core 重启后重连还会把用户关掉的面板又顶出来。
+       */
       ctx.disposables.add(
-        relay.onConnectedChange((driven) => {
-          ensureTabs().setDriven(driven)
+        relay.onAttachedChange((attachedTabIds) => {
+          ensureTabs().setDriven(attachedTabIds.length > 0)
+        }),
+      )
+      /* 连接本身只留给日志：排查「agent 说浏览器没反应」时先看这里。 */
+      ctx.disposables.add(
+        relay.onConnectedChange((connected) => {
+          ctx.logger.debug('browser relay connection changed', { connected })
         }),
       )
       ctx.disposables.add(

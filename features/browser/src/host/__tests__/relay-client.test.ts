@@ -171,6 +171,8 @@ interface Harness {
   readonly closed: number[]
   readonly selected: number[]
   readonly connected: boolean[]
+  /** onAttachedChange 的每一次通报（B-04）：集合快照的数组，只记变化。 */
+  readonly attachedLog: (readonly number[])[]
   readonly clock: FakeClock
   readonly client: ReturnType<typeof createRelayClient>
   readonly state: BrowserState
@@ -184,6 +186,7 @@ function harness(url: string): Harness {
   const closed: number[] = []
   const selected: number[] = []
   const connected: boolean[] = []
+  const attachedLog: (readonly number[])[] = []
   const clock = fakeClock()
   const state: BrowserState = {
     revision: 1,
@@ -248,13 +251,16 @@ function harness(url: string): Harness {
   client.onConnectedChange((next) => {
     connected.push(next)
   })
+  client.onAttachedChange((ids) => {
+    attachedLog.push(ids)
+  })
   client.setUrl('http://127.0.0.1:9224')
 
   const socket = FakeSocket.instances[0] as FakeSocket
 
   socket.open()
 
-  return { socket, contents, opened, closed, selected, connected, clock, client, state }
+  return { socket, contents, opened, closed, selected, connected, attachedLog, clock, client, state }
 }
 
 /** 一问一答：假 socket 上没有事件循环，答案在同一批微任务里就位。 */
@@ -530,6 +536,72 @@ describe('BR-3 / BR-4: attach 与 detach', () => {
     expect(() => {
       h.socket.deliver({ t: 'rpc', id: 1, op: 'launch-missiles' })
     }).not.toThrow()
+
+    h.client.dispose()
+  })
+})
+
+/*
+ * B-04：「AI 正在使用这个浏览器」说的是「至少有一张标签挂着 AI 的调试器」，不是
+ * 「socket 连着」。relay 守护首次使用后就常驻，socket 一直连着 —— 按连接算的话这条
+ * 提示永远亮着，Core 重启后重连还会把用户关掉的面板又顶出来。
+ */
+describe('B-04: 附着集合的通报', () => {
+  test('连上不算附着：onAttachedChange 一条通知都没有', () => {
+    const h = harness('https://a.example/')
+
+    expect(h.attachedLog).toEqual([])
+
+    h.client.dispose()
+  })
+
+  test('attach 后收到 [1]，detach 后收到 []', async () => {
+    const h = harness('https://a.example/')
+
+    await rpc(h.socket, { op: 'attach', tabId: 1 })
+
+    expect(h.attachedLog).toEqual([[1]])
+
+    await rpc(h.socket, { op: 'detach', tabId: 1 })
+
+    expect(h.attachedLog).toEqual([[1], []])
+
+    h.client.dispose()
+  })
+
+  test('重复 attach 不重复通报，内核发来的 detach 也算数', async () => {
+    const h = harness('https://a.example/')
+
+    await rpc(h.socket, { op: 'attach', tabId: 1 })
+    await rpc(h.socket, { op: 'attach', tabId: 1 })
+
+    expect(h.attachedLog).toEqual([[1]])
+
+    h.contents.debugger.emit('detach', {}, 'Render process gone.')
+
+    expect(h.attachedLog).toEqual([[1], []])
+
+    h.client.dispose()
+  })
+
+  test('socket 断开时清空：非空才通报', async () => {
+    const h = harness('https://a.example/')
+
+    await rpc(h.socket, { op: 'attach', tabId: 1 })
+
+    h.socket.drop()
+
+    expect(h.attachedLog).toEqual([[1], []])
+
+    /* 已经空了：重连上来又断掉，不该再发一条空的。 */
+    h.clock.advance(1000)
+
+    const second = FakeSocket.instances.at(-1) as FakeSocket
+
+    second.open()
+    second.drop()
+
+    expect(h.attachedLog).toEqual([[1], []])
 
     h.client.dispose()
   })

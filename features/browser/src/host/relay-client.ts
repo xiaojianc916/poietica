@@ -56,6 +56,8 @@ export interface RelayClient {
   publish(state: BrowserState): void
   readonly connected: () => boolean
   onConnectedChange(listener: (connected: boolean) => void): Disposable
+  /** 挂着 AI 调试器的标签集合变了（B-04）；只报变化，不报初始值。 */
+  onAttachedChange(listener: (attachedTabIds: readonly number[]) => void): Disposable
   dispose(): void
 }
 
@@ -108,7 +110,15 @@ export function createRelayClient(tabs: RelayTabsPort, opts: RelayClientOptions)
   const wired = new WeakSet<WebContentsLike>()
   /** 当前被我们关掉后台节流的标签（B-03）：重复 attach 不重复下发，分离时恢复一次。 */
   const unthrottled = new Set<WebContentsLike>()
+  /*
+   * 挂着 AI 调试器的标签（B-04）：「AI 正在使用这个浏览器」说的是这个集合非空，不是
+   * socket 连着 —— relay 守护首次使用后就常驻，按连接算的话那条提示永远亮着。
+   *
+   * 三处删除路径：debugger 的 detach 回执、显式 detach 的那条 rpc、socket 关闭时清空。
+   */
+  const attached = new Set<number>()
   const listeners = new Set<(connected: boolean) => void>()
+  const attachedListeners = new Set<(attachedTabIds: readonly number[]) => void>()
 
   /*
    * 端点：`http://127.0.0.1:<port>` → `ws://127.0.0.1:<port>/ext`。
@@ -164,6 +174,39 @@ export function createRelayClient(tabs: RelayTabsPort, opts: RelayClientOptions)
     post({ t: 'detached', tabId, reason, relayInitiated: detaching.has(tabId) })
   }
 
+  function markAttached(tabId: number): void {
+    if (attached.has(tabId)) {
+      return
+    }
+
+    attached.add(tabId)
+
+    for (const listener of [...attachedListeners]) {
+      listener([...attached])
+    }
+  }
+
+  /** 连接没了就什么都附着不上了：非空才通报，免得反复发同一条空集合。 */
+  function clearAttached(): void {
+    if (attached.size === 0) {
+      return
+    }
+
+    attached.clear()
+
+    for (const listener of [...attachedListeners]) {
+      listener([])
+    }
+  }
+
+  function markDetached(tabId: number): void {
+    if (attached.delete(tabId)) {
+      for (const listener of [...attachedListeners]) {
+        listener([...attached])
+      }
+    }
+  }
+
   /*
    * 附着期间关掉这张标签的后台节流（B-03）：面板收起时视图是 setVisible(false)，
    * Chromium 会把这页当成后台标签降频 —— 计时器被拉长、渲染帧被跳过，
@@ -214,6 +257,7 @@ export function createRelayClient(tabs: RelayTabsPort, opts: RelayClientOptions)
       })
       debugger_.on('detach', (_event: unknown, reason: unknown) => {
         restoreThrottling(contents)
+        markDetached(tabId)
         reportDetach(tabId, String(reason))
       })
     }
@@ -223,6 +267,7 @@ export function createRelayClient(tabs: RelayTabsPort, opts: RelayClientOptions)
     }
 
     unthrottle(contents)
+    markAttached(tabId)
 
     return contents
   }
@@ -387,6 +432,7 @@ export function createRelayClient(tabs: RelayTabsPort, opts: RelayClientOptions)
       socket = null
       known.clear()
       setConnected(false)
+      clearAttached()
       pingTimer?.dispose()
       pingTimer = null
       scheduleReconnect()
@@ -440,6 +486,7 @@ export function createRelayClient(tabs: RelayTabsPort, opts: RelayClientOptions)
     socket = null
     known.clear()
     setConnected(false)
+    clearAttached()
   }
 
   return {
@@ -471,12 +518,21 @@ export function createRelayClient(tabs: RelayTabsPort, opts: RelayClientOptions)
       })
     },
 
+    onAttachedChange(listener) {
+      attachedListeners.add(listener)
+
+      return toDisposable(() => {
+        attachedListeners.delete(listener)
+      })
+    },
+
     dispose() {
       disposed = true
       reconnectTimer?.dispose()
       reconnectTimer = null
       closeSocket()
       listeners.clear()
+      attachedListeners.clear()
     },
   }
 }
