@@ -85,11 +85,18 @@ function ground(node: SVGSVGElement): void {
 /*
  * 引擎交回的字符串 → 一个可挂的 svg 元素。
  *
- * DOMParser 解析失败不抛异常，交回一份装着 parsererror 的文档（官方 DOMParser 的
- * Error handling 一节），所以这里问的是「有没有一个 svg 根」。
+ * 走 HTML 解析器，不走 `image/svg+xml`：mermaid 把标签写在 <foreignObject> 里，
+ * 标签里的 `<br>` 是 HTML 的 void 元素（没有自闭合斜杠）。XML 解析器到第一个 `<br>`
+ * 就停下，交回的文档只有它之前的内容 —— 而引擎的输出顺序是 cluster → 连线 →
+ * 分支标签 → 节点，于是屏幕上正好剩下一堆没有节点的箭头和框（节点面、节点文字全丢，
+ * 分支标签只有不跨行的那些活下来），而且 DOMParser 不抛异常，parseSvg 看不出错。
+ *
+ * HTML 解析器按 HTML 的规则收下这些标签，foreignObject 内外的命名空间不变，`<style>`
+ * 里的选择器也照常生效。仍然要问一句「有没有一个 svg 根」：真失败时交回的是解析错误页
+ * 而不是异常。
  */
 function parseSvg(svg: string): SVGSVGElement {
-  const parsed = new DOMParser().parseFromString(svg, 'image/svg+xml')
+  const parsed = new DOMParser().parseFromString(svg, 'text/html')
   const root = parsed.querySelector('svg')
 
   if (root === null) {
