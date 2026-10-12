@@ -558,7 +558,8 @@
  *
  * 上游把表格包成三层（外层 rounded-lg border bg-sidebar p-2、里层滚动盒
  * rounded-md border bg-background、最里面才是 <table>），正文里因此出现一个卡中卡。
- * 这里让外层退成纯定位容器，边框只保留一层，标题栏由表头自己充当。
+ * 2026-10-12 定稿再退一步：这张表**没有壳** —— 四周不画边框，表头也不铺底色，
+ * 上下分隔全由行线承担。上游那几个 border / bg 工具类靠这里的显式归零压掉。
  *
  * 这条栏的高度只有一个来源：--cp-table-head 同时是表头单元格与控件层的
  * block-size。表头 padding-block 归零，行高不参与，栏高就是那个 token ——
@@ -582,7 +583,7 @@
   display: block;
   margin-block: var(--cp-prose-flow) 0;
   padding: 0;
-  border: 1px solid var(--ui-border);
+  border: 0;
   border-radius: var(--ui-radius-md);
   background: transparent;
 }
@@ -665,8 +666,9 @@
   font-size: var(--ui-prose-size-aux);
 }
 
+/* 表头不铺底色（2026-10-12 定稿）：与正文同一张面，归零也压掉上游的 bg-muted/80。 */
 .timeline-prose [data-streamdown="table-header"] {
-  background: var(--cp-timeline-output-surface);
+  background: transparent;
 }
 
 /*
@@ -693,6 +695,16 @@
 .timeline-prose [data-streamdown="table-header"] + [data-streamdown="table-body"],
 .timeline-prose [data-streamdown="table-body"] [data-streamdown="table-row"] + [data-streamdown="table-row"] {
   border-block-start: 1px solid var(--cp-hairline);
+}
+
+/*
+ * 深色下这几根线改 #2a2a2a（产品负责人 2026-10-12 定稿）：这张表没有壳，行与行的分隔
+ * 全靠它们，而 --cp-hairline 是 #1d1d1d、压在 #181818 的地色上只剩五格差，读不出来。
+ * 浅色那支不动 —— 同样的值铺在白纸上就是几道黑杠。
+ */
+:where(:root[data-theme="dark"]) .timeline-prose [data-streamdown="table-header"] + [data-streamdown="table-body"],
+:where(:root[data-theme="dark"]) .timeline-prose [data-streamdown="table-body"] [data-streamdown="table-row"] + [data-streamdown="table-row"] {
+  border-block-start-color: #2a2a2a;
 }
 
 /*
