@@ -102,8 +102,10 @@ function AuxiliaryTab({
       aria-keyshortcuts="Delete"
       aria-selected={active}
       className={
-        'flex min-w-24 max-w-44 shrink-0 items-center gap-1.5 rounded-md py-1 pl-2 pr-2 ' +
-        (active ? 'bg-tab-active' : 'hover:bg-tab-hover')
+        'flex min-w-24 max-w-44 shrink-0 items-center rounded-sm text-xs leading-none ' +
+        (active
+          ? 'gap-0.5 border border-[#4c4c4c] bg-[#2a2a2a] py-1 pl-1.5 pr-1.5'
+          : 'gap-1.5 py-[5px] pl-2 pr-2 hover:bg-[#2a2a2a]')
       }
       id={id}
       onClick={(event) => {
@@ -138,7 +140,7 @@ function AuxiliaryTab({
           data-close-tab
         />
       </span>
-      <span className="min-w-0 truncate text-xs">{title}</span>
+      <span className="min-w-0 self-center truncate">{title}</span>
     </button>
   )
 }
