@@ -1,4 +1,4 @@
-import { ArrowLeft, ArrowRight, Globe, MousePointerClick, RotateCw, Square } from 'lucide-react'
+import { ArrowLeft, ArrowRight, Globe, RotateCw, Square, SquareDashedMousePointer } from 'lucide-react'
 import { type ReactNode, useEffect, useRef, useState, useSyncExternalStore } from 'react'
 import type { BrowserTab } from '../contract'
 import type { BrowserApi } from './api'
@@ -194,6 +194,7 @@ function BrowserToolbar({
         <AddressInput activeTab={activeTab} api={api} report={report} />
 
         <ToolbarButton
+          className="enabled:hover:text-primary aria-pressed:text-primary"
           disabled={!canDrive}
           label={picking ? '关闭元素选择' : '选择网页元素'}
           onClick={() => {
@@ -203,7 +204,7 @@ function BrowserToolbar({
           }}
           pressed={picking}
         >
-          <MousePointerClick aria-hidden className="size-4" />
+          <SquareDashedMousePointer aria-hidden className="size-4" />
         </ToolbarButton>
 
         <BrowserOverflowMenu
@@ -299,12 +300,14 @@ function AddressInput({
 
 function ToolbarButton({
   children,
+  className,
   disabled,
   label,
   onClick,
   pressed,
 }: {
   readonly children: ReactNode
+  readonly className?: string
   readonly disabled?: boolean
   readonly label: string
   readonly onClick: () => void
@@ -314,7 +317,7 @@ function ToolbarButton({
     <button
       aria-label={label}
       aria-pressed={pressed}
-      className="flex size-6 shrink-0 items-center justify-center rounded-md opacity-60 enabled:hover:bg-launcher enabled:hover:opacity-100 aria-pressed:bg-current/10 aria-pressed:opacity-100 disabled:opacity-30"
+      className={`${className ?? ''} flex size-6 shrink-0 items-center justify-center rounded-md opacity-60 enabled:hover:bg-launcher enabled:hover:opacity-100 aria-pressed:bg-current/10 aria-pressed:opacity-100 disabled:opacity-30`}
       disabled={disabled}
       onClick={onClick}
       type="button"

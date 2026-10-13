@@ -2,16 +2,21 @@
 
 /*
  * 注入页面的拾取脚本（07 页 §12D「元素拾取」第 6 条）。**迁移自** legacy
- * `apps/desktop/src/browser/element-picker-runtime.ts`：面板结构、类名、CSS 与交互
- * （悬浮高亮、点击选中、Esc 取消、两张字段表、附加/发送）逐条保留。
+ * `apps/desktop/src/browser/element-picker-runtime.ts`：悬浮高亮、点击选中、Esc 取消、
+ * 两张字段表、附加/发送的载荷逐条保留。
  *
- * 两处必须重构（新架构的硬要求，见 07 页 §12D）：
+ * 与 legacy 的三处差异（前者是新架构的硬要求，见 07 页 §12D）：
  *   1. 整个脚本是**一个自包含函数**：函数体内不引用任何外部变量，宿主注入时用的是
  *      `pickerRuntime.toString()`（打包压缩不改变自包含函数的结果）。
  *      因此 legacy 引的 `react-grab/primitives`（取元素上下文）改成本文件内的最小实现：
- *      量外框、拼选择器、截 HTML。字段表、文案、样式一个不动。
+ *      量外框、拼选择器、截 HTML。
  *   2. 回调地址与参数形状换成本架构的：`kind=submitted|cancelled`（07 页 §12D 第 3 条），
  *      token 是宿主给的 UUID。
+ *   3. 面板视觉按产品给的基准图重做：选中一个元素后先出现浮条（滑杆图标 +「添加评论...」+
+ *      对勾），点左侧图标在浮条与面板（顶栏 / `<span>` 标签带 / 可滚动属性表 /「取消」+ 对勾）
+ *      之间来回切。下拉菜单与
+ *      可展开的盒模型行都是自绘的 —— 面板长在外部页面里带不进设计系统的样式表，原生
+ *      `<select>` 也画不出基准图里那张深色圆角菜单。
  *
  * 文件长度按 P5 的逐字迁移先例接受（07/09 页的 400 行规则见 docs/refactor-log.md 的偏差记录）：
  * 自包含是这条脚本的硬约束，拆文件会让它引用外部变量、注入即失效。
@@ -26,207 +31,456 @@ export interface PickerRuntimeArgs {
 }
 
 export function pickerRuntime(args: PickerRuntimeArgs): void {
-  type Field = {
-    readonly label: string
-    readonly property: string
-    readonly options?: readonly string[]
-    readonly placeholder?: string
-  }
-  type Group = {
-    readonly title: string
-    readonly fields: readonly Field[]
-  }
+  type Option = { readonly label: string; readonly value: string }
+  type SubField = { readonly label: string; readonly property: string; readonly unit: string }
+  type Field =
+    | { readonly kind: 'text'; readonly label: string; readonly property: string; readonly placeholder?: string }
+    | { readonly kind: 'number'; readonly label: string; readonly property: string; readonly unit: string }
+    | {
+        readonly kind: 'select'
+        readonly label: string
+        readonly property: string
+        readonly options: readonly Option[]
+      }
+    | { readonly kind: 'color'; readonly label: string; readonly property: string }
+    | {
+        readonly kind: 'cells'
+        readonly label: string
+        readonly properties: readonly string[]
+        /** 展开后逐项输入的字段（上/右/下/左、水平/垂直…）；空数组表示这一行不展开。 */
+        readonly subs: readonly SubField[]
+      }
+  type Group = { readonly fields: readonly Field[] }
   type Baseline = { readonly value: string; readonly priority: string; readonly computed: string }
   type Change = { readonly previous: string; readonly value: string }
 
-  const styleGroups: readonly Group[] = [
-    {
-      title: '文字',
-      fields: [
-        { label: '字体', property: 'font-family' },
-        { label: '字号', property: 'font-size', placeholder: '16px' },
-        {
-          label: '字重',
-          property: 'font-weight',
-          options: ['100', '200', '300', '400', '500', '600', '700', '800', '900'],
-        },
-        { label: '行高', property: 'line-height' },
-        { label: '字距', property: 'letter-spacing' },
-        { label: '对齐', property: 'text-align', options: ['start', 'center', 'end', 'justify'] },
-        {
-          label: '转换',
-          property: 'text-transform',
-          options: ['none', 'uppercase', 'lowercase', 'capitalize'],
-        },
-        { label: '装饰', property: 'text-decoration' },
-      ],
-    },
-    {
-      title: '颜色与效果',
-      fields: [
-        { label: '文字颜色', property: 'color' },
-        { label: '背景', property: 'background-color' },
-        { label: '透明度', property: 'opacity' },
-        { label: '阴影', property: 'box-shadow' },
-        { label: '滤镜', property: 'filter' },
-        { label: '混合模式', property: 'mix-blend-mode' },
-      ],
-    },
-    {
-      title: '边框',
-      fields: [
-        { label: '宽度', property: 'border-width' },
-        {
-          label: '样式',
-          property: 'border-style',
-          options: ['none', 'solid', 'dashed', 'dotted', 'double'],
-        },
-        { label: '颜色', property: 'border-color' },
-        { label: '圆角', property: 'border-radius' },
-        { label: '轮廓', property: 'outline' },
-      ],
-    },
+  const length = (label: string, property: string): SubField => ({ label, property, unit: 'px' })
+
+  const weightOptions: readonly Option[] = [
+    { label: '100', value: '100' },
+    { label: '200', value: '200' },
+    { label: '300', value: '300' },
+    { label: '400', value: '400' },
+    { label: '500', value: '500' },
+    { label: '600', value: '600' },
+    { label: '700', value: '700' },
+    { label: '800', value: '800' },
+    { label: '900', value: '900' },
   ]
 
-  const layoutGroups: readonly Group[] = [
+  const fontOptions: readonly Option[] = [
+    { label: '系统默认', value: 'system-ui, sans-serif' },
+    { label: '苹方', value: '"PingFang SC", "Microsoft YaHei", sans-serif' },
+    { label: '微软雅黑', value: '"Microsoft YaHei", sans-serif' },
+    { label: '黑体', value: '"SimHei", sans-serif' },
+    { label: '宋体', value: '"SimSun", serif' },
+    { label: 'Arial', value: 'Arial, sans-serif' },
+    { label: 'Georgia', value: 'Georgia, serif' },
+    { label: '等宽', value: 'ui-monospace, SFMono-Regular, Consolas, monospace' },
+  ]
+
+  /* 行序与基准图一致：颜色 → 文字 → 效果 → 边框 → 盒模型 → 布局 → 尺寸 → Flex → Grid。 */
+  const groups: readonly Group[] = [
     {
-      title: '显示与定位',
+      fields: [
+        { kind: 'color', label: '文本颜色', property: 'color' },
+        { kind: 'color', label: '背景', property: 'background-color' },
+        { kind: 'number', label: 'Opacity', property: 'opacity', unit: '' },
+      ],
+    },
+    {
+      fields: [
+        { kind: 'select', label: '字体', property: 'font-family', options: fontOptions },
+        { kind: 'number', label: '字号', property: 'font-size', unit: 'px' },
+        { kind: 'select', label: '字重', property: 'font-weight', options: weightOptions },
+        { kind: 'number', label: '行高', property: 'line-height', unit: '' },
+        { kind: 'number', label: '字距', property: 'letter-spacing', unit: 'px' },
+        {
+          kind: 'select',
+          label: '文本对齐',
+          property: 'text-align',
+          options: [
+            { label: '左', value: 'start' },
+            { label: '居中', value: 'center' },
+            { label: '右', value: 'end' },
+            { label: '两端对齐', value: 'justify' },
+          ],
+        },
+        {
+          kind: 'select',
+          label: '转换',
+          property: 'text-transform',
+          options: [
+            { label: '无', value: 'none' },
+            { label: '大写', value: 'uppercase' },
+            { label: '小写', value: 'lowercase' },
+            { label: '首字母大写', value: 'capitalize' },
+          ],
+        },
+        { kind: 'text', label: '装饰', property: 'text-decoration' },
+      ],
+    },
+    {
+      fields: [
+        { kind: 'text', label: '阴影', property: 'box-shadow' },
+        { kind: 'text', label: '滤镜', property: 'filter' },
+        { kind: 'text', label: '混合模式', property: 'mix-blend-mode' },
+      ],
+    },
+    {
+      fields: [
+        { kind: 'number', label: '边框宽度', property: 'border-width', unit: 'px' },
+        {
+          kind: 'select',
+          label: '边框样式',
+          property: 'border-style',
+          options: [
+            { label: '无', value: 'none' },
+            { label: '实线', value: 'solid' },
+            { label: '虚线', value: 'dashed' },
+            { label: '点线', value: 'dotted' },
+            { label: '双线', value: 'double' },
+          ],
+        },
+        { kind: 'color', label: '边框颜色', property: 'border-color' },
+        { kind: 'number', label: '圆角', property: 'border-radius', unit: 'px' },
+        { kind: 'text', label: '轮廓', property: 'outline' },
+      ],
+    },
+    {
       fields: [
         {
+          kind: 'cells',
+          label: '内边距',
+          properties: ['padding-top', 'padding-right', 'padding-bottom', 'padding-left'],
+          subs: [
+            length('上', 'padding-top'),
+            length('右', 'padding-right'),
+            length('下', 'padding-bottom'),
+            length('左', 'padding-left'),
+          ],
+        },
+        {
+          kind: 'cells',
+          label: '外边距',
+          properties: ['margin-top', 'margin-right', 'margin-bottom', 'margin-left'],
+          subs: [
+            length('上', 'margin-top'),
+            length('右', 'margin-right'),
+            length('下', 'margin-bottom'),
+            length('左', 'margin-left'),
+          ],
+        },
+        {
+          kind: 'cells',
+          label: '间距',
+          properties: ['column-gap', 'row-gap'],
+          subs: [length('水平', 'column-gap'), length('垂直', 'row-gap')],
+        },
+      ],
+    },
+    {
+      fields: [
+        {
+          kind: 'select',
+          label: '布局方向',
+          property: 'flex-direction',
+          options: [
+            { label: '水平', value: 'row' },
+            { label: '水平反向', value: 'row-reverse' },
+            { label: '垂直', value: 'column' },
+            { label: '垂直反向', value: 'column-reverse' },
+          ],
+        },
+        {
+          kind: 'select',
+          label: '分布',
+          property: 'justify-content',
+          options: [
+            { label: '开始', value: 'flex-start' },
+            { label: '居中', value: 'center' },
+            { label: '结束', value: 'flex-end' },
+            { label: '两端对齐', value: 'space-between' },
+            { label: '环绕', value: 'space-around' },
+            { label: '均分', value: 'space-evenly' },
+          ],
+        },
+        {
+          kind: 'select',
+          label: '对齐',
+          property: 'align-items',
+          options: [
+            { label: '拉伸', value: 'stretch' },
+            { label: '开始', value: 'flex-start' },
+            { label: '居中', value: 'center' },
+            { label: '结束', value: 'flex-end' },
+            { label: '基线', value: 'baseline' },
+          ],
+        },
+        {
+          kind: 'select',
           label: '显示',
           property: 'display',
-          options: ['block', 'inline', 'inline-block', 'flex', 'inline-flex', 'grid', 'inline-grid', 'none'],
+          options: [
+            { label: '块级', value: 'block' },
+            { label: '行内', value: 'inline' },
+            { label: '行内块', value: 'inline-block' },
+            { label: '弹性', value: 'flex' },
+            { label: '行内弹性', value: 'inline-flex' },
+            { label: '网格', value: 'grid' },
+            { label: '行内网格', value: 'inline-grid' },
+            { label: '无', value: 'none' },
+          ],
         },
         {
+          kind: 'select',
           label: '定位',
           property: 'position',
-          options: ['static', 'relative', 'absolute', 'fixed', 'sticky'],
+          options: [
+            { label: '静态', value: 'static' },
+            { label: '相对', value: 'relative' },
+            { label: '绝对', value: 'absolute' },
+            { label: '固定', value: 'fixed' },
+            { label: '粘性', value: 'sticky' },
+          ],
         },
-        { label: '上', property: 'top' },
-        { label: '右', property: 'right' },
-        { label: '下', property: 'bottom' },
-        { label: '左', property: 'left' },
-        { label: '层级', property: 'z-index' },
+        { kind: 'number', label: '上', property: 'top', unit: 'px' },
+        { kind: 'number', label: '右', property: 'right', unit: 'px' },
+        { kind: 'number', label: '下', property: 'bottom', unit: 'px' },
+        { kind: 'number', label: '左', property: 'left', unit: 'px' },
+        { kind: 'number', label: '层级', property: 'z-index', unit: '' },
       ],
     },
     {
-      title: '尺寸',
       fields: [
-        { label: '宽度', property: 'width' },
-        { label: '最小宽', property: 'min-width' },
-        { label: '最大宽', property: 'max-width' },
-        { label: '高度', property: 'height' },
-        { label: '最小高', property: 'min-height' },
-        { label: '最大高', property: 'max-height' },
-        { label: '纵横比', property: 'aspect-ratio' },
+        { kind: 'number', label: '宽度', property: 'width', unit: 'px' },
+        { kind: 'number', label: '最小宽', property: 'min-width', unit: 'px' },
+        { kind: 'number', label: '最大宽', property: 'max-width', unit: 'px' },
+        { kind: 'number', label: '高度', property: 'height', unit: 'px' },
+        { kind: 'number', label: '最小高', property: 'min-height', unit: 'px' },
+        { kind: 'number', label: '最大高', property: 'max-height', unit: 'px' },
+        { kind: 'text', label: '纵横比', property: 'aspect-ratio' },
       ],
     },
     {
-      title: '间距',
-      fields: [
-        { label: '外边距', property: 'margin' },
-        { label: '内边距', property: 'padding' },
-        { label: '间隙', property: 'gap' },
-        { label: '行间隙', property: 'row-gap' },
-        { label: '列间隙', property: 'column-gap' },
-      ],
-    },
-    {
-      title: 'Flex',
       fields: [
         {
-          label: '方向',
-          property: 'flex-direction',
-          options: ['row', 'row-reverse', 'column', 'column-reverse'],
-        },
-        { label: '换行', property: 'flex-wrap', options: ['nowrap', 'wrap', 'wrap-reverse'] },
-        {
-          label: '主轴',
-          property: 'justify-content',
-          options: ['start', 'center', 'end', 'space-between', 'space-around', 'space-evenly'],
-        },
-        {
-          label: '交叉轴',
-          property: 'align-items',
-          options: ['stretch', 'start', 'center', 'end', 'baseline'],
+          kind: 'select',
+          label: '换行',
+          property: 'flex-wrap',
+          options: [
+            { label: '不换行', value: 'nowrap' },
+            { label: '换行', value: 'wrap' },
+            { label: '反向换行', value: 'wrap-reverse' },
+          ],
         },
         {
+          kind: 'select',
           label: '自身对齐',
           property: 'align-self',
-          options: ['auto', 'stretch', 'start', 'center', 'end', 'baseline'],
+          options: [
+            { label: '自动', value: 'auto' },
+            { label: '拉伸', value: 'stretch' },
+            { label: '开始', value: 'flex-start' },
+            { label: '居中', value: 'center' },
+            { label: '结束', value: 'flex-end' },
+            { label: '基线', value: 'baseline' },
+          ],
         },
-        { label: '伸展', property: 'flex-grow' },
-        { label: '收缩', property: 'flex-shrink' },
-        { label: '基准', property: 'flex-basis' },
-        { label: '顺序', property: 'order' },
+        { kind: 'number', label: '伸展', property: 'flex-grow', unit: '' },
+        { kind: 'number', label: '收缩', property: 'flex-shrink', unit: '' },
+        { kind: 'text', label: '基准', property: 'flex-basis' },
+        { kind: 'number', label: '顺序', property: 'order', unit: '' },
       ],
     },
     {
-      title: 'Grid 与溢出',
       fields: [
-        { label: '列模板', property: 'grid-template-columns' },
-        { label: '行模板', property: 'grid-template-rows' },
+        { kind: 'text', label: '列模板', property: 'grid-template-columns' },
+        { kind: 'text', label: '行模板', property: 'grid-template-rows' },
         {
+          kind: 'select',
           label: '自动流',
           property: 'grid-auto-flow',
-          options: ['row', 'column', 'dense', 'row dense', 'column dense'],
+          options: [
+            { label: '按行', value: 'row' },
+            { label: '按列', value: 'column' },
+            { label: '紧凑', value: 'dense' },
+            { label: '按行紧凑', value: 'row dense' },
+            { label: '按列紧凑', value: 'column dense' },
+          ],
         },
-        { label: '整体对齐', property: 'place-items' },
-        { label: '横向溢出', property: 'overflow-x', options: ['visible', 'hidden', 'clip', 'scroll', 'auto'] },
-        { label: '纵向溢出', property: 'overflow-y', options: ['visible', 'hidden', 'clip', 'scroll', 'auto'] },
-        { label: '变换', property: 'transform' },
-        { label: '变换原点', property: 'transform-origin' },
+        { kind: 'text', label: '整体对齐', property: 'place-items' },
+        {
+          kind: 'select',
+          label: '横向溢出',
+          property: 'overflow-x',
+          options: [
+            { label: '可见', value: 'visible' },
+            { label: '隐藏', value: 'hidden' },
+            { label: '裁剪', value: 'clip' },
+            { label: '滚动', value: 'scroll' },
+            { label: '自动', value: 'auto' },
+          ],
+        },
+        {
+          kind: 'select',
+          label: '纵向溢出',
+          property: 'overflow-y',
+          options: [
+            { label: '可见', value: 'visible' },
+            { label: '隐藏', value: 'hidden' },
+            { label: '裁剪', value: 'clip' },
+            { label: '滚动', value: 'scroll' },
+            { label: '自动', value: 'auto' },
+          ],
+        },
+        { kind: 'text', label: '变换', property: 'transform' },
+        { kind: 'text', label: '变换原点', property: 'transform-origin' },
       ],
     },
   ]
 
   const gap = 8
 
-  /* 面板长在外部页面里，带不进设计系统的样式表：下面的 --ui-* 值逐字抄自 legacy
-     packages/design-system/src/tokens/light.css 与 dark.css 的同名令牌。 */
+  /* 面板长在外部页面里，带不进设计系统的样式表：下面的取值逐像素取自基准图
+     （浮条 297×44、面板 344 宽圆角 16、面板 #2d2d2d、标签带 #363636、菜单 #2c2c2c、
+     描边 16% 白、对勾圆 #747474、输入框高 30 圆角 10、取消胶囊 #343434、
+     控件列 x 172→342、行距 35、底栏内边距 8、对勾圆 28）。 */
   const css = [
-    ':host{all:initial;color-scheme:light;font:13px/1.4 Inter,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;--ui-foreground:oklch(0.19 0.01 90);--ui-muted-foreground:oklch(0.47 0.012 90);--ui-placeholder:oklch(0.6 0.012 90);--ui-popover:#fff;--ui-popover-frame:#e2e4e4;--ui-divider:#e0e0e0;--ui-divider-subtle:#f8f8f8;--ui-input:oklch(0.84 0.006 90);--ui-ring:oklch(0.55 0.19 255);--ui-primary:oklch(0.55 0.19 255);--ui-primary-foreground:oklch(0.99 0 0);--ui-destructive:oklch(0.56 0.22 28);--ui-accent:#f2f2f3}',
-    ':host([data-theme=dark]){color-scheme:dark;--ui-foreground:#c3c3c3;--ui-muted-foreground:rgb(255 255 255 / 65%);--ui-placeholder:rgb(255 255 255 / 40%);--ui-popover:#2a2a2a;--ui-popover-frame:#3d3d3d;--ui-divider:rgb(255 255 255 / 16%);--ui-divider-subtle:#1d1d1d;--ui-input:rgb(255 255 255 / 24%);--ui-ring:#6e9ecc;--ui-primary:#5e9fe8;--ui-primary-foreground:#111;--ui-destructive:#e97366;--ui-accent:#383836}',
+    ':host{all:initial;color-scheme:light;font:13px/1.4 system-ui,-apple-system,"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif;--pk-bg:#fff;--pk-band:#f2f2f3;--pk-menu:#fff;--pk-menu-line:rgba(0,0,0,.14);--pk-text:rgba(0,0,0,.9);--pk-muted:rgba(0,0,0,.56);--pk-value:rgba(0,0,0,.5);--pk-faint:rgba(0,0,0,.38);--pk-placeholder:rgba(0,0,0,.26);--pk-line:rgba(0,0,0,.06);--pk-border:rgba(0,0,0,.14);--pk-hover:rgba(0,0,0,.05);--pk-glyph-hover:rgba(0,0,0,.1);--pk-glyph-active:rgba(0,0,0,.16);--pk-pill:#f2f2f3;--pk-pill-hover:#e8e8ea;--pk-circle:#bcbcbc;--pk-circle-fg:#555;--pk-accent:#3c82f7;--pk-danger:#dc2626}',
+    ':host([data-theme=dark]){color-scheme:dark;--pk-bg:#2d2d2d;--pk-band:#363636;--pk-menu:#2d2d2d;--pk-menu-line:#454545;--pk-text:rgba(255,255,255,.85);--pk-muted:rgba(255,255,255,.56);--pk-value:rgba(255,255,255,.5);--pk-faint:rgba(255,255,255,.38);--pk-placeholder:rgba(255,255,255,.26);--pk-line:rgba(255,255,255,.06);--pk-border:rgba(255,255,255,.16);--pk-hover:rgba(255,255,255,.08);--pk-glyph-hover:rgba(255,255,255,.12);--pk-glyph-active:rgba(255,255,255,.2);--pk-pill:#343434;--pk-pill-hover:#3d3d3d;--pk-circle:#747474;--pk-circle-fg:#2d2d2d;--pk-accent:#3c82f7;--pk-danger:#e97366}',
     '*{box-sizing:border-box}',
-    '.outline{position:fixed;z-index:2147483646;pointer-events:none;border:2px solid var(--ui-primary);background:color-mix(in srgb,var(--ui-primary) 8%,transparent);border-radius:3px}',
-    '.badge{position:absolute;left:-2px;bottom:100%;max-width:280px;padding:3px 7px;border-radius:5px 5px 0 0;background:var(--ui-primary);color:var(--ui-primary-foreground);font:600 11px/1.3 ui-monospace,monospace;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}',
-    '.panel{position:fixed;z-index:2147483647;width:min(380px,calc(100vw - 16px));max-height:min(520px,calc(100vh - 16px));display:none;flex-direction:column;border:1px solid var(--ui-popover-frame);border-radius:14px;background:var(--ui-popover);box-shadow:0 20px 60px rgba(15,23,42,.24);color:var(--ui-foreground);overflow:hidden}',
+    'button,input,textarea{font:inherit;color:inherit;margin:0}',
+    'button{border:0;background:transparent;cursor:pointer;padding:0;text-align:left}',
+    '.outline{position:fixed;z-index:2147483646;pointer-events:none;border:2px solid var(--pk-accent);background:color-mix(in srgb,var(--pk-accent) 10%,transparent);border-radius:4px}',
+    '.badge{position:absolute;left:-2px;bottom:100%;max-width:280px;padding:2px 7px;border-radius:6px 6px 0 0;background:var(--pk-accent);color:#fff;font:600 11px/1.4 ui-monospace,SFMono-Regular,Consolas,monospace;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}',
+    /* 浮条是面板的收起态：位置由脚本按选中元素算，别用居中，免得切换时跳一下。 */
+    '.bar{position:fixed;z-index:2147483647;width:min(294px,calc(100vw - 24px));height:44px;display:flex;align-items:center;gap:14px;padding:0 8px 0 14px;border-radius:22px;background:var(--pk-bg);color:var(--pk-text);box-shadow:0 10px 28px rgba(0,0,0,.35),0 0 0 1px rgba(0,0,0,.08)}',
+    '.bar[hidden]{display:none}',
+    /* 浮条图标 hover 是一枚圆：28×28、半径 50%，和右侧对勾圆同尺寸。 */
+    '.barGlyph{flex:0 0 28px;width:28px;height:28px;display:flex;align-items:center;justify-content:center;border:0;border-radius:50%;background:transparent;color:rgba(255,255,255,.7);cursor:pointer;transition:background .12s ease}',
+    '.barGlyph:hover{background:var(--pk-glyph-hover)}',
+    '.barGlyph:active{background:var(--pk-glyph-active)}',
+    '.barNote{flex:1;min-width:0;height:20px;padding:0;border:0;background:transparent;line-height:20px;resize:none;outline:none;overflow:hidden}',
+    '.barNote::placeholder{color:var(--pk-placeholder)}',
+    /* 上限宽高一致：面板最多长成正方形，再高的内容交给属性表自己滚。 */
+    /* 圆角与浮条同一个数（浮条高 44、半径 22）：两态切换时轮廓一致。 */
+    '.panel{position:fixed;z-index:2147483647;width:min(344px,calc(100vw - 16px));max-height:min(344px,calc(100vh - 16px));display:none;flex-direction:column;border-radius:22px;background:var(--pk-bg);color:var(--pk-text);box-shadow:0 16px 44px rgba(0,0,0,.42),0 0 0 1px rgba(0,0,0,.1);overflow:hidden}',
     '.panel[data-open=true]{display:flex}',
-    'button,input,select,textarea{font:inherit}',
-    'button{border:0;background:transparent;color:inherit;cursor:pointer}',
-    'textarea{width:calc(100% - 24px);min-height:74px;margin:12px 12px 8px;padding:10px 11px;resize:vertical;border:1px solid var(--ui-input);border-radius:9px;outline:none;color:var(--ui-foreground);background:var(--ui-popover)}',
-    'textarea::placeholder{color:var(--ui-placeholder)}',
-    'textarea:focus,input:focus,select:focus{border-color:var(--ui-ring);box-shadow:0 0 0 1px var(--ui-ring);outline:none}',
-    '.tabs{display:grid;grid-template-columns:1fr 1fr;margin:0 12px;border-bottom:1px solid var(--ui-divider)}',
-    '.tab{padding:9px;color:var(--ui-muted-foreground);font-weight:600;border-bottom:2px solid transparent}.tab[aria-selected=true]{border-color:var(--ui-primary);color:var(--ui-primary)}',
-    '.body{max-height:232px;overflow:auto;padding:4px 12px 12px;scrollbar-width:none}',
-    '.body::-webkit-scrollbar{width:0;height:0}',
-    '.group{padding:10px 0;border-bottom:1px solid var(--ui-divider-subtle)}.group:last-child{border-bottom:0}',
-    '.group h3{margin:0 0 8px;font-size:11px;letter-spacing:.04em;text-transform:uppercase;color:var(--ui-muted-foreground)}',
-    '.field{display:grid;grid-template-columns:92px minmax(0,1fr);align-items:center;gap:8px;margin:6px 0}',
-    '.field span{color:var(--ui-muted-foreground)}',
-    '.field input,.field select{width:100%;height:30px;border:1px solid var(--ui-input);border-radius:7px;padding:0 8px;color:var(--ui-foreground);background:var(--ui-popover)}',
-    '.status{min-height:18px;padding:0 12px;color:var(--ui-muted-foreground);font-size:12px}',
-    '.status[data-tone=error]{color:var(--ui-destructive)}',
-    '.foot{display:flex;align-items:center;justify-content:flex-end;gap:8px;padding:10px 12px;border-top:1px solid var(--ui-divider)}',
-    '.action{display:inline-flex;align-items:center;justify-content:center;height:34px;padding:0 16px;border-radius:9px;font-weight:600;transition:background .15s,border-color .15s,box-shadow .15s,transform .06s}',
-    '.action:active{transform:translateY(1px)}',
-    '.action:focus-visible{outline:none;box-shadow:0 0 0 1px var(--ui-ring)}',
-    '.action[disabled]{opacity:.55;cursor:default;transform:none}',
-    '.attach{border:1px solid var(--ui-input);background:transparent;color:var(--ui-foreground)}.attach:hover:not([disabled]){background:var(--ui-accent)}',
-    '.send{background:var(--ui-primary);color:var(--ui-primary-foreground);box-shadow:0 1px 2px rgba(16,24,40,.08)}.send:hover:not([disabled]){background:color-mix(in srgb,var(--ui-primary) 90%,transparent)}',
+    /* 三块固定带必须禁掉 flex 收缩：面板到顶后 body 会长，默认收缩会把标签带压回 12px。 */
+    '.head{flex:0 0 auto;display:flex;align-items:flex-start;gap:8px;padding:8px 14px 8px 12px}',
+    /* 面板顶栏这颗与浮条图标同款：28×28 圆、hover 提亮，两态切换不换手感。 */
+    '.glyph{flex:0 0 28px;width:28px;height:28px;display:flex;align-items:center;justify-content:center;border:0;border-radius:50%;background:var(--pk-band);color:var(--pk-text);cursor:pointer;transition:background .12s ease}',
+    '.glyph:hover{background:var(--pk-glyph-hover)}',
+    '.glyph:active{background:var(--pk-glyph-active)}',
+    '.note{flex:1;min-width:0;height:28px;max-height:76px;padding:6px 0;border:0;background:transparent;line-height:1.35;resize:none;outline:none;overflow:auto;scrollbar-width:none}',
+    '.note::-webkit-scrollbar{width:0;height:0}',
+    '.note::placeholder{color:var(--pk-placeholder)}',
+    /* 标签带是「这是什么元素」的唯一提示，比基准图再高一档，缩进面板里也一眼看得见。 */
+    '.band{flex:0 0 auto;display:flex;align-items:center;justify-content:space-between;gap:8px;height:34px;padding:0 16px;background:var(--pk-band);color:var(--pk-muted)}',
+    '.tag{overflow:hidden;white-space:nowrap;text-overflow:ellipsis;font:11px/1 ui-monospace,SFMono-Regular,Consolas,monospace}',
+    '.grip{display:flex;flex:0 0 auto;color:var(--pk-faint)}',
+    /* 右侧留出 12px 给浏览器原生滚动条：基准图里滚动条是系统样式（带上下箭头），内容右边缘落在 317。 */
+    '.body{flex:1;min-height:0;overflow:auto;padding:6px 16px 4px;scrollbar-width:thin;scrollbar-color:#6e6e6e transparent}',
+    '.body::-webkit-scrollbar{width:8px;height:8px}',
+    '.body::-webkit-scrollbar-track{background:transparent}',
+    '.body::-webkit-scrollbar-thumb{background:#6e6e6e;border-radius:4px}',
+    '.group+.group{margin-top:5px;padding-top:5px;border-top:1px solid var(--pk-line)}',
+    '.row{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:center;gap:12px;min-height:35px;padding:0}',
+    '.row[data-expanded=true]>.control{display:none}',
+    '.label{display:flex;align-items:center;gap:4px;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;color:var(--pk-muted)}',
+    '.label[data-action=true]{cursor:pointer}',
+    '.chev{flex:0 0 auto;display:flex;color:var(--pk-faint);transition:transform .16s ease}',
+    '.row[data-expanded=true] .chev{transform:rotate(90deg)}',
+    '.control{position:relative;display:flex;min-width:0}',
+    '.control[data-width=sm]{width:112px}',
+    '.control[data-width=md]{width:146px}',
+    '.control[data-width=lg]{width:194px}',
+    '.control[data-width=xl]{width:170px}',
+    '.box{display:flex;align-items:center;width:100%;height:30px;border:1px solid var(--pk-border);border-radius:10px;background:transparent;color:var(--pk-value);overflow:hidden}',
+    '.box:focus-within{border-color:var(--pk-muted)}',
+    '.box input{flex:1;min-width:0;height:100%;padding:0 12px;border:0;background:transparent;color:var(--pk-value);outline:none}',
+    '.box input::placeholder{color:var(--pk-placeholder)}',
+    '.unit{flex:0 0 auto;padding-right:12px;color:var(--pk-faint)}',
+    '.swatch{flex:0 0 auto;width:20px;height:20px;margin-left:5px;border:1px solid var(--pk-border);border-radius:7px}',
+    '.box[data-kind=color] input{padding-left:8px}',
+    '.select{justify-content:space-between;padding:0 12px;cursor:pointer}',
+    '.select .value{min-width:0;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}',
+    '.caret{flex:0 0 auto;margin-left:6px;color:var(--pk-faint)}',
+    '.cells{display:flex;width:100%;height:30px;border:1px solid var(--pk-border);border-radius:10px;overflow:hidden}',
+    '.cells:focus-within{border-color:var(--pk-muted)}',
+    '.cells input{flex:1;min-width:0;height:100%;padding:0 2px;border:0;border-left:1px solid var(--pk-border);border-radius:0;background:transparent;color:var(--pk-value);text-align:center;outline:none}',
+    '.cells input:first-child{border-left:0}',
+    /* 菜单挂在独立图层上：属性表是可滚动的，画在行里的菜单会被裁掉一半。 */
+    '.menus{position:fixed;z-index:2147483647;left:0;top:0;width:0;height:0}',
+    '.menu{position:fixed;display:flex;flex-direction:column;min-width:196px;max-height:min(264px,calc(100vh - 16px));padding:5px 4px;border:1px solid var(--pk-menu-line);border-radius:12px;background:var(--pk-menu);box-shadow:0 12px 30px rgba(0,0,0,.45);overflow:auto}',
+    '.menu::-webkit-scrollbar{width:8px;height:8px}',
+    '.menu::-webkit-scrollbar-thumb{background:#6e6e6e;border-radius:4px}',
+    '.menu button{flex:0 0 auto;display:flex;align-items:center;justify-content:space-between;gap:10px;width:100%;height:32px;padding:0 14px;border-radius:8px;font-size:14px;white-space:nowrap;color:var(--pk-text)}',
+    '.menu button:hover{background:var(--pk-hover)}',
+    '.tick{flex:0 0 auto;display:flex;opacity:0}',
+    '.menu button[data-selected=true] .tick{opacity:1}',
+    '.status{padding:0 16px 2px;color:var(--pk-faint);font-size:12px}',
+    '.status:empty{display:none}',
+    '.status[data-tone=error]{color:var(--pk-danger)}',
+    '.foot{flex:0 0 auto;display:flex;align-items:center;gap:8px;padding:10px 8px;border-top:1px solid var(--pk-line)}',
+    '.cancel{height:28px;padding:0 10px;border-radius:14px;background:var(--pk-pill);color:var(--pk-text);transition:background .12s ease}',
+    '.cancel:hover{background:var(--pk-pill-hover)}',
+    '.cancel:active{transform:scale(.96)}',
+    '.send{flex:0 0 28px;width:28px;height:28px;margin-left:auto;display:flex;align-items:center;justify-content:center;border-radius:50%;background:var(--pk-circle);color:var(--pk-circle-fg);transition:filter .12s ease}',
+    '.send:hover{filter:brightness(1.08)}',
+    '.send:active{transform:scale(.94)}',
+    '.cancel:focus-visible,.send:focus-visible,.box:focus-visible{outline:2px solid var(--pk-accent);outline-offset:2px}',
   ].join('\n')
 
+  const sliders =
+    '<svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M2.6 5.4h3.6M10.6 5.4h2.8M2.6 10.6h2.8M9.4 10.6h4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><circle cx="8" cy="5.4" r="1.7" stroke="currentColor" stroke-width="1.5"/><circle cx="7.8" cy="10.6" r="1.7" stroke="currentColor" stroke-width="1.5"/></svg>'
+  const grip =
+    '<svg width="12" height="12" viewBox="0 0 12 12" fill="currentColor" aria-hidden="true"><circle cx="2.4" cy="4.2" r="1.05"/><circle cx="6" cy="4.2" r="1.05"/><circle cx="9.6" cy="4.2" r="1.05"/><circle cx="2.4" cy="7.8" r="1.05"/><circle cx="6" cy="7.8" r="1.05"/><circle cx="9.6" cy="7.8" r="1.05"/></svg>'
+  const check =
+    '<svg width="15" height="15" viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M3.6 8.5l2.9 2.9 5.9-6.6" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>'
+  const caret =
+    '<svg width="10" height="10" viewBox="0 0 10 10" fill="none" aria-hidden="true"><path d="M2 3.8l3 3 3-3" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/></svg>'
+  const chevron =
+    '<svg width="12" height="12" viewBox="0 0 12 12" fill="none" aria-hidden="true"><path d="M4.6 3l3 3-3 3" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg>'
+
   const markup =
-    '<textarea aria-label="修改需求" placeholder="请描述你的修改需求"></textarea><div class="tabs" role="tablist" aria-label="编辑类别"><button class="tab" type="button" role="tab" data-tab="style" aria-selected="true">样式</button><button class="tab" type="button" role="tab" data-tab="layout" aria-selected="false">布局</button></div><div class="body"></div><div class="status" role="status"></div><div class="foot"><button class="action attach" type="button">附加</button><button class="action send" type="button">发送给 AI</button></div>'
+    `<div class="bar" hidden><button class="barGlyph" type="button" aria-label="打开元素样式面板">${sliders}</button><textarea class="barNote" rows="1" aria-label="评论" placeholder="添加评论..."></textarea><button class="send barSend" type="button" aria-label="发送">${check}</button></div>` +
+    '<section class="panel" data-open="false" role="dialog" aria-label="编辑所选元素">' +
+    `<div class="head"><span class="glyph">${sliders}</span><textarea class="note" rows="1" aria-label="修改需求" placeholder="描述这些更改..."></textarea></div>` +
+    `<div class="band"><span class="tag">&lt;a&gt;</span><span class="grip">${grip}</span></div>` +
+    '<div class="body" role="group" aria-label="元素属性"></div>' +
+    '<div class="status" role="status"></div>' +
+    `<div class="foot"><button class="cancel" type="button">取消</button><button class="send" type="button" aria-label="发送给 AI">${check}</button></div>` +
+    '</section>' +
+    '<div class="menus"></div>'
 
   function clamp(value: number, low: number, high: number): number {
     return Math.max(low, Math.min(value, Math.max(low, high)))
   }
 
+  /** 输入框里只留数字：基准图的盒模型格子写的是 `0`，不是 `0px`。 */
+  function bare(value: string): string {
+    return value.endsWith('px') ? value.slice(0, -2).trim() : value
+  }
+
+  /** 纯数字才补单位；用户自己写了 % / em / vw 就别动。 */
+  function sized(value: string, unit: string): string {
+    if (value === '' || unit === '') {
+      return value
+    }
+
+    return /^[+-]?[\d.]+$/u.test(value) ? `${value}${unit}` : value
+  }
+
+  /** 下拉按钮上显示的是中文标签；算出来的值不在表里（比如整串 font-family）就直接显示原值。 */
+  function labelOf(field: Extract<Field, { kind: 'select' }>, current: string): string {
+    return field.options.find((option) => option.value === current)?.label ?? current
+  }
+
   /*
-   * legacy 引的 react-grab/primitives 在这里的最小替代：命中、外框、选择器、HTML 预览、组件栈。
-   * 只保留这套面板真的会画出来的那几格；组件栈给不出（没有 React 树可读）时留空。
+   * legacy 引的 react-grab/primitives 在这里的最小替代：命中、外框、选择器、HTML 预览。
+   * 只保留这套面板真的会画出来的那几格。
    */
   function boundsOf(element: Element | null): { x: number; y: number; width: number; height: number } | null {
     if (element === null || typeof element.getBoundingClientRect !== 'function') {
@@ -284,19 +538,34 @@ export function pickerRuntime(args: PickerRuntimeArgs): void {
     return html.length > 4_000 ? `${html.slice(0, 4_000)}\n…（截断）` : html
   }
 
+  /** cells 字段每格的中文名：四格是盒模型方位，两格是水平 / 垂直。 */
+  function cellName(field: Extract<Field, { kind: 'cells' }>, index: number): string {
+    const names = field.properties.length === 2 ? ['水平', '垂直'] : ['上', '右', '下', '左']
+
+    return names[index] ?? ''
+  }
+
   class ElementPicker {
     private token: string | null = null
     private host: HTMLElement | null = null
     private outline: HTMLElement | null = null
     private badge: HTMLElement | null = null
+    private bar: HTMLElement | null = null
+    private barNote: HTMLTextAreaElement | null = null
     private panel: HTMLElement | null = null
+    private menus: HTMLElement | null = null
     private body: HTMLElement | null = null
+    private tag: HTMLElement | null = null
     private comment: HTMLTextAreaElement | null = null
     private status: HTMLElement | null = null
     private hovered: Element | null = null
+    /** 光标最近一次落在页面上的位置：浮条按钮长在宿主里，点它时取不到「刚才看着的那个元素」。 */
+    private lastPoint: { readonly x: number; readonly y: number } | null = null
     private selected: Element | null = null
-    private tab: 'style' | 'layout' = 'style'
     private busy = false
+    private openMenu: { readonly control: HTMLElement; readonly menu: HTMLElement } | null = null
+    /** 展开的盒模型行（按字段名记）：重画属性表之后仍然保持展开。 */
+    private readonly expanded = new Set<string>()
     private readonly baseline = new Map<string, Baseline>()
     private readonly changes = new Map<string, Change>()
 
@@ -304,6 +573,9 @@ export function pickerRuntime(args: PickerRuntimeArgs): void {
       this.cancel()
       this.token = token
       this.ensureUi(theme)
+      /* 还没选元素时不露面：浮条是「选中之后」的收起态，不是拾取模式的常驻工具条。 */
+      this.setBarVisible(false)
+      document.addEventListener('pointerdown', this.onPointerDown, true)
       document.addEventListener('pointermove', this.onPointerMove, true)
       document.addEventListener('click', this.onClick, true)
       document.addEventListener('keydown', this.onKeyDown, true)
@@ -316,20 +588,27 @@ export function pickerRuntime(args: PickerRuntimeArgs): void {
       this.host = null
       this.outline = null
       this.badge = null
+      this.bar = null
+      this.barNote = null
       this.panel = null
+      this.menus = null
       this.body = null
+      this.tag = null
       this.comment = null
       this.status = null
       this.hovered = null
       this.selected = null
+      this.openMenu = null
       this.token = null
       this.busy = false
+      this.expanded.clear()
       this.baseline.clear()
       this.changes.clear()
     }
 
     /** 唯一的监听清单。cancel 与提交前的拆台都走它。 */
     private unbind(): void {
+      document.removeEventListener('pointerdown', this.onPointerDown, true)
       document.removeEventListener('pointermove', this.onPointerMove, true)
       document.removeEventListener('click', this.onClick, true)
       document.removeEventListener('keydown', this.onKeyDown, true)
@@ -356,36 +635,89 @@ export function pickerRuntime(args: PickerRuntimeArgs): void {
       const badge = document.createElement('span')
       badge.className = 'badge'
       outline.append(badge)
+      const shell = document.createElement('div')
+      shell.innerHTML = markup
 
-      const panel = document.createElement('section')
-      panel.className = 'panel'
-      panel.dataset.open = 'false'
-      panel.setAttribute('role', 'dialog')
-      panel.setAttribute('aria-label', '编辑所选元素')
-      panel.innerHTML = markup
-
-      root.append(style, outline, panel)
+      root.append(style, outline, shell)
       document.documentElement.append(host)
+
       this.host = host
       this.outline = outline
       this.badge = badge
-      this.panel = panel
-      this.body = panel.querySelector('.body')
-      this.comment = panel.querySelector('textarea')
-      this.status = panel.querySelector('.status')
+      this.bar = shell.querySelector<HTMLElement>('.bar')
+      this.barNote = shell.querySelector<HTMLTextAreaElement>('.barNote')
+      this.panel = shell.querySelector<HTMLElement>('.panel')
+      this.menus = shell.querySelector<HTMLElement>('.menus')
+      this.body = shell.querySelector<HTMLElement>('.body')
+      this.tag = shell.querySelector<HTMLElement>('.tag')
+      this.comment = shell.querySelector<HTMLTextAreaElement>('.note')
+      this.status = shell.querySelector<HTMLElement>('.status')
 
-      panel.querySelector('.attach')?.addEventListener('click', () => void this.submit('attach'))
-      panel.querySelector('.send')?.addEventListener('click', () => void this.submit('send'))
-      for (const button of panel.querySelectorAll<HTMLButtonElement>('[role=tab]')) {
-        button.addEventListener('click', () => this.selectTab(button.dataset.tab === 'layout' ? 'layout' : 'style'))
-        button.addEventListener('keydown', (event) => {
-          if (event.key !== 'ArrowLeft' && event.key !== 'ArrowRight') {
-            return
-          }
-          event.preventDefault()
-          this.selectTab(this.tab === 'style' ? 'layout' : 'style')
-          panel.querySelector<HTMLButtonElement>(`[data-tab=${this.tab}]`)?.focus()
-        })
+      this.comment?.addEventListener('input', () => this.autosize())
+      // 浮条与面板共用同一句需求：在哪边写的都一样，切换时不能丢。
+      this.barNote?.addEventListener('input', () => {
+        if (this.comment !== null && this.barNote !== null) {
+          this.comment.value = this.barNote.value
+        }
+      })
+      shell.querySelector('.cancel')?.addEventListener('click', () => this.sendCancel())
+      shell.querySelector('.foot .send')?.addEventListener('click', () => void this.submit('send'))
+      // 只有左侧图标负责切换（用户明确要的「自由切换」）；对勾是提交，两态各管一件事。
+      shell.querySelector('.barGlyph')?.addEventListener('click', () => this.togglePanel())
+      shell.querySelector('.barSend')?.addEventListener('click', () => {
+        if (this.selected === null) {
+          this.sendCancel()
+        } else {
+          void this.submit('send')
+        }
+      })
+      shell.querySelector('.glyph')?.addEventListener('click', () => this.togglePanel())
+    }
+
+    /*
+     * 浮条与面板的切换口。还没选中元素时先按「光标最后落点 → 页面中心」选一个出来
+     * （点浮条图标就是「我要看这个元素的样式」）；已经选中了就在两态之间来回切。
+     */
+    private togglePanel(): void {
+      const panel = this.panel
+
+      if (this.selected !== null && panel !== null) {
+        if (panel.getAttribute('data-open') === 'true') {
+          panel.setAttribute('data-open', 'false')
+          this.setBarVisible(true)
+        } else {
+          panel.setAttribute('data-open', 'true')
+          this.setBarVisible(false)
+          this.position()
+          this.comment?.focus()
+        }
+
+        return
+      }
+
+      const point = this.lastPoint
+      const candidate =
+        this.hovered ??
+        (point === null ? null : document.elementFromPoint(point.x, point.y)) ??
+        document.elementFromPoint(window.innerWidth / 2, window.innerHeight / 2)
+
+      if (grabbable(candidate) && candidate !== this.host) {
+        this.select(candidate)
+      }
+    }
+
+    private setBarVisible(visible: boolean): void {
+      if (this.bar !== null) {
+        this.bar.hidden = !visible
+      }
+    }
+
+    /** 点到菜单与它的控件之外就收起：菜单挂在独立图层上，不会自己收到 blur。 */
+    private readonly onPointerDown = (event: PointerEvent): void => {
+      const open = this.openMenu
+
+      if (open !== null && !event.composedPath().includes(open.control) && !event.composedPath().includes(open.menu)) {
+        this.closeMenu()
       }
     }
 
@@ -393,6 +725,8 @@ export function pickerRuntime(args: PickerRuntimeArgs): void {
       if (this.isUiEvent(event) || this.selected !== null) {
         return
       }
+
+      this.lastPoint = { x: event.clientX, y: event.clientY }
 
       const hit = document.elementFromPoint(event.clientX, event.clientY)
 
@@ -418,7 +752,11 @@ export function pickerRuntime(args: PickerRuntimeArgs): void {
     }
 
     private readonly onKeyDown = (event: KeyboardEvent): void => {
-      if (this.isUiEvent(event) || event.key !== 'Escape') {
+      if (event.key !== 'Escape') {
+        return
+      }
+
+      if (this.isUiEvent(event)) {
         return
       }
 
@@ -476,13 +814,26 @@ export function pickerRuntime(args: PickerRuntimeArgs): void {
       this.restore()
       this.baseline.clear()
       this.changes.clear()
+      this.closeMenu()
       this.selected = element
       this.hovered = element
       this.draw(element)
-      this.panel?.setAttribute('data-open', 'true')
+      /* 选中之后的默认态是浮条：面板要用户点左侧图标才展开。 */
+      this.setBarVisible(true)
+      this.panel?.setAttribute('data-open', 'false')
+      this.position()
       this.note('')
-      this.selectTab('style')
-      this.comment?.focus()
+
+      // 浮条里先写的那句话跟着进面板：选中元素不该把它丢掉。
+      if (this.comment !== null && this.barNote !== null) {
+        this.comment.value = this.barNote.value
+      }
+
+      if (this.tag !== null) {
+        this.tag.textContent = `<${element.tagName.toLowerCase()}>`
+      }
+
+      this.renderGroups()
     }
 
     private clearSelection(): void {
@@ -490,15 +841,22 @@ export function pickerRuntime(args: PickerRuntimeArgs): void {
       this.selected = null
       this.changes.clear()
       this.baseline.clear()
+      this.closeMenu()
       this.panel?.setAttribute('data-open', 'false')
       this.note('')
+      /* 取消选中就整体退场：浮条只在「有选中的元素」时存在。 */
+      this.setBarVisible(false)
     }
 
-    /** 先量真实尺寸再摆：下方放不下就翻上方，横向溢出就贴右缘，最后夹进视口。 */
+    /**
+     * 浮条与面板是同一个东西的两态，位置都由选中元素算：默认贴在元素下方，
+     * 下方放不下就翻到上方，横向溢出就贴右缘，最后夹进视口。
+     */
     private position(): void {
       const panel = this.panel
+      const bar = this.bar
 
-      if (panel === null || this.selected === null) {
+      if (panel === null || bar === null || this.selected === null) {
         return
       }
 
@@ -508,93 +866,304 @@ export function pickerRuntime(args: PickerRuntimeArgs): void {
         return
       }
 
-      const rect = panel.getBoundingClientRect()
+      const open = panel.getAttribute('data-open') === 'true'
+      const target = open ? panel : bar
+      const rect = target.getBoundingClientRect()
       const below = anchor.y + anchor.height + gap
       const room = window.innerHeight - below
       const top = room >= rect.height || room >= anchor.y - gap ? below : anchor.y - rect.height - gap
       const left = anchor.x + rect.width > window.innerWidth - gap ? anchor.x + anchor.width - rect.width : anchor.x
+      const x = clamp(left, gap, window.innerWidth - rect.width - gap)
+      const y = clamp(top, gap, window.innerHeight - rect.height - gap)
 
-      panel.style.left = `${clamp(left, gap, window.innerWidth - rect.width - gap)}px`
-      panel.style.top = `${clamp(top, gap, window.innerHeight - rect.height - gap)}px`
-    }
-
-    private selectTab(tab: 'style' | 'layout'): void {
-      this.tab = tab
-
-      for (const button of this.panel?.querySelectorAll<HTMLButtonElement>('[role=tab]') ?? []) {
-        button.setAttribute('aria-selected', String(button.dataset.tab === tab))
+      // 两态共用同一个落点：切换时只在原地改高度，不会从屏幕一角跳过来。
+      for (const node of [bar, panel]) {
+        node.style.left = `${x}px`
+        node.style.top = `${y}px`
       }
-
-      this.renderFields(tab === 'style' ? styleGroups : layoutGroups)
     }
 
-    private renderFields(groups: readonly Group[]): void {
-      if (this.body === null || this.selected === null) {
+    /** 需求框随行数长高，封顶到 76px（再多就在框里滚）。 */
+    private autosize(): void {
+      const note = this.comment
+
+      if (note === null) {
         return
       }
 
-      this.body.replaceChildren()
+      note.style.height = 'auto'
+      note.style.height = `${String(Math.min(note.scrollHeight, 76))}px`
+    }
+
+    private renderGroups(): void {
+      const body = this.body
+
+      if (body === null || this.selected === null) {
+        return
+      }
+
+      const top = body.scrollTop
+
+      this.closeMenu()
+      body.replaceChildren()
 
       const computed = getComputedStyle(this.selected)
 
       for (const group of groups) {
-        this.body.append(this.renderGroup(group, computed))
+        const section = document.createElement('section')
+        section.className = 'group'
+
+        for (const field of group.fields) {
+          section.append(this.renderRow(field, computed))
+
+          if (field.kind === 'cells' && this.expanded.has(field.label)) {
+            for (const sub of field.subs) {
+              section.append(this.renderSubRow(sub, computed))
+            }
+          }
+        }
+
+        body.append(section)
       }
 
-      this.position()
+      // 展开/收起时留在原来的位置：重新渲染不该把人弹回表头。
+      body.scrollTop = top
     }
 
-    private renderGroup(group: Group, computed: CSSStyleDeclaration): HTMLElement {
-      const section = document.createElement('section')
-      section.className = 'group'
-      const heading = document.createElement('h3')
-      heading.textContent = group.title
-      section.append(heading)
+    private renderRow(field: Field, computed: CSSStyleDeclaration): HTMLElement {
+      const row = document.createElement('div')
+      row.className = 'row'
+      row.dataset.kind = field.kind
 
-      for (const field of group.fields) {
-        section.append(this.renderField(field, computed))
-      }
-
-      return section
-    }
-
-    private renderField(field: Field, computed: CSSStyleDeclaration): HTMLLabelElement {
-      const label = document.createElement('label')
-      label.className = 'field'
       const caption = document.createElement('span')
+      caption.className = 'label'
       caption.textContent = field.label
-      const control = this.createFieldControl(field, computed)
+      caption.title = field.label
+      row.append(caption, this.createControl(field, computed))
 
-      control.addEventListener('change', () => this.apply(field.property, control.value.trim()))
-      label.append(caption, control)
+      if (field.kind === 'cells' && field.subs.length > 0) {
+        const chev = document.createElement('span')
+        chev.className = 'chev'
+        chev.innerHTML = chevron
+        caption.dataset.action = 'true'
+        caption.append(chev)
+        row.dataset.expanded = this.expanded.has(field.label) ? 'true' : 'false'
+        caption.addEventListener('click', () => {
+          if (this.expanded.has(field.label)) {
+            this.expanded.delete(field.label)
+          } else {
+            this.expanded.add(field.label)
+          }
 
-      return label
+          this.renderGroups()
+        })
+      }
+
+      return row
     }
 
-    private createFieldControl(field: Field, computed: CSSStyleDeclaration): HTMLInputElement | HTMLSelectElement {
-      if (field.options === undefined) {
-        const input = document.createElement('input')
-        input.setAttribute('aria-label', field.label)
-        input.value = computed.getPropertyValue(field.property).trim()
+    private renderSubRow(sub: SubField, computed: CSSStyleDeclaration): HTMLElement {
+      const row = document.createElement('div')
+      row.className = 'row'
+      row.dataset.kind = 'number'
+      const caption = document.createElement('span')
+      caption.className = 'label'
+      caption.textContent = sub.label
+      row.append(caption, this.numberControl(sub.label, sub.property, sub.unit, computed))
+
+      return row
+    }
+
+    private createControl(field: Field, computed: CSSStyleDeclaration): HTMLElement {
+      if (field.kind === 'cells') {
+        return this.cellsControl(field, computed)
+      }
+
+      if (field.kind === 'select') {
+        return this.selectControl(field, computed)
+      }
+
+      if (field.kind === 'number') {
+        return this.numberControl(field.label, field.property, field.unit, computed)
+      }
+
+      if (field.kind === 'color') {
+        return this.colorControl(field, computed)
+      }
+
+      const control = this.box(field.label, 'md', computed.getPropertyValue(field.property).trim(), false)
+      const input = control.querySelector<HTMLInputElement>('input')
+
+      if (input !== null) {
         input.placeholder = field.placeholder ?? 'CSS 值'
-
-        return input
+        input.addEventListener('change', () => this.apply(field.property, input.value.trim()))
       }
 
-      const select = document.createElement('select')
-      select.setAttribute('aria-label', field.label)
+      return control
+    }
 
-      const current = computed.getPropertyValue(field.property).trim()
+    /** 文本框 / 数字框共用一副壳：高 30、圆角 10、描边 16% 白。 */
+    private box(label: string, width: 'sm' | 'md' | 'lg', value: string, numeric: boolean): HTMLElement {
+      const control = document.createElement('span')
+      control.className = 'control'
+      control.dataset.width = width
+      const shell = document.createElement('span')
+      shell.className = 'box'
+      const input = document.createElement('input')
+      input.setAttribute('aria-label', label)
+      input.value = numeric ? bare(value) : value
+      shell.append(input)
+      control.append(shell)
 
-      for (const value of ['', ...field.options]) {
-        const option = document.createElement('option')
-        option.value = value
-        option.textContent = value === '' ? '—' : value
-        option.selected = value === current
-        select.append(option)
+      return control
+    }
+
+    private numberControl(label: string, property: string, unit: string, computed: CSSStyleDeclaration): HTMLElement {
+      const control = this.box(label, 'sm', computed.getPropertyValue(property).trim(), true)
+      const input = control.querySelector<HTMLInputElement>('input')
+
+      if (input !== null) {
+        input.placeholder = '0'
+        input.addEventListener('change', () => this.apply(property, sized(input.value.trim(), unit)))
       }
 
-      return select
+      if (unit !== '') {
+        const suffix = document.createElement('span')
+        suffix.className = 'unit'
+        suffix.textContent = unit
+        control.querySelector('.box')?.append(suffix)
+      }
+
+      return control
+    }
+
+    private colorControl(field: Extract<Field, { kind: 'color' }>, computed: CSSStyleDeclaration): HTMLElement {
+      const control = this.box(field.label, 'md', computed.getPropertyValue(field.property).trim(), false)
+      const shell = control.querySelector<HTMLElement>('.box')
+      const input = control.querySelector<HTMLInputElement>('input')
+
+      if (shell === null || input === null) {
+        return control
+      }
+
+      shell.dataset.kind = 'color'
+      const swatch = document.createElement('span')
+      swatch.className = 'swatch'
+      swatch.dataset.property = field.property
+      swatch.style.background = computed.getPropertyValue(field.property).trim()
+      shell.prepend(swatch)
+      input.addEventListener('change', () => this.apply(field.property, input.value.trim()))
+
+      return control
+    }
+
+    private cellsControl(field: Extract<Field, { kind: 'cells' }>, computed: CSSStyleDeclaration): HTMLElement {
+      const control = document.createElement('span')
+      control.className = 'control'
+      control.dataset.width = 'lg'
+      const cells = document.createElement('span')
+      cells.className = 'cells'
+
+      for (const [index, property] of field.properties.entries()) {
+        const input = document.createElement('input')
+        input.setAttribute('aria-label', `${field.label}-${cellName(field, index)}`)
+        input.value = bare(computed.getPropertyValue(property).trim())
+        input.addEventListener('change', () => this.apply(property, sized(input.value.trim(), 'px')))
+        cells.append(input)
+      }
+
+      control.append(cells)
+
+      return control
+    }
+
+    private selectControl(field: Extract<Field, { kind: 'select' }>, computed: CSSStyleDeclaration): HTMLElement {
+      const control = document.createElement('span')
+      control.className = 'control'
+      control.dataset.width = 'md'
+      const button = document.createElement('button')
+      button.type = 'button'
+      button.className = 'box select'
+      button.setAttribute('aria-label', field.label)
+      const value = document.createElement('span')
+      value.className = 'value'
+      value.textContent = labelOf(field, computed.getPropertyValue(field.property).trim())
+      const icon = document.createElement('span')
+      icon.className = 'caret'
+      icon.innerHTML = caret
+      button.append(value, icon)
+      button.addEventListener('click', (event) => {
+        event.preventDefault()
+        event.stopPropagation()
+        this.toggleMenu(field, control, value)
+      })
+      control.append(button)
+
+      return control
+    }
+
+    /** 自绘的下拉：深色圆角菜单 + 选中项打勾（原生 select 画不出基准图这张菜单）。 */
+    private toggleMenu(field: Extract<Field, { kind: 'select' }>, control: HTMLElement, value: HTMLElement): void {
+      if (this.openMenu !== null && this.openMenu.control === control) {
+        this.closeMenu()
+
+        return
+      }
+
+      this.closeMenu()
+
+      if (this.selected === null) {
+        return
+      }
+
+      const current = getComputedStyle(this.selected).getPropertyValue(field.property).trim()
+      const menu = document.createElement('div')
+      menu.className = 'menu'
+      menu.setAttribute('role', 'listbox')
+
+      for (const option of field.options) {
+        const item = document.createElement('button')
+        item.type = 'button'
+        item.setAttribute('role', 'option')
+        item.dataset.selected = option.value === current ? 'true' : 'false'
+        const text = document.createElement('span')
+        text.textContent = option.label
+        const tick = document.createElement('span')
+        tick.className = 'tick'
+        tick.innerHTML = check
+        item.append(text, tick)
+        item.addEventListener('click', (event) => {
+          event.preventDefault()
+          event.stopPropagation()
+          value.textContent = option.label
+          this.closeMenu()
+          this.apply(field.property, option.value)
+        })
+        menu.append(item)
+      }
+
+      this.menus?.append(menu)
+      this.openMenu = { control, menu }
+      this.revealMenu(control, menu)
+    }
+
+    /** 菜单挂在独立图层上，所以每次开都要按控件的位置重新摆一次。 */
+    private revealMenu(control: HTMLElement, menu: HTMLElement): void {
+      const rect = control.getBoundingClientRect()
+      const size = menu.getBoundingClientRect()
+      const below = rect.bottom + 4
+      const above = rect.top - size.height - 4
+      const top = below + size.height <= window.innerHeight - 4 || above < 4 ? below : above
+      const left = clamp(rect.right - size.width, 4, window.innerWidth - size.width - 4)
+
+      menu.style.left = `${left}px`
+      menu.style.top = `${clamp(top, 4, window.innerHeight - size.height - 4)}px`
+      menu.style.minWidth = `${rect.width}px`
+    }
+
+    private closeMenu(): void {
+      this.openMenu?.menu.remove()
+      this.openMenu = null
     }
 
     private styleDeclaration(): CSSStyleDeclaration | null {
@@ -645,7 +1214,25 @@ export function pickerRuntime(args: PickerRuntimeArgs): void {
 
       this.note('')
       this.draw(this.selected)
+      this.syncSwatches()
       this.position()
+    }
+
+    /** 改完颜色后把色块拉回计算值：色块画的是「现在实际是什么色」。 */
+    private syncSwatches(): void {
+      if (this.selected === null) {
+        return
+      }
+
+      const computed = getComputedStyle(this.selected)
+
+      for (const swatch of this.panel?.querySelectorAll<HTMLElement>('.swatch') ?? []) {
+        const property = swatch.dataset.property
+
+        if (property !== undefined) {
+          swatch.style.background = computed.getPropertyValue(property).trim()
+        }
+      }
     }
 
     private restore(): void {
@@ -662,7 +1249,7 @@ export function pickerRuntime(args: PickerRuntimeArgs): void {
       }
     }
 
-    /** 面板上那两张表就是快照的定义：屏幕上看得见的每一项都进文件。 */
+    /** 面板上那条属性表就是快照的定义：屏幕上看得见的每一项都进文件。 */
     private snapshot(): string {
       const selected = this.selected
 
@@ -673,18 +1260,29 @@ export function pickerRuntime(args: PickerRuntimeArgs): void {
       const computed = getComputedStyle(selected)
       const lines: string[] = []
 
-      for (const group of [...styleGroups, ...layoutGroups]) {
-        lines.push(`## ${group.title}`)
-
+      for (const group of groups) {
         for (const field of group.fields) {
-          const value = computed.getPropertyValue(field.property).trim()
-          lines.push(`${field.label} (${field.property}): ${value}`)
+          lines.push(...this.fieldLines(field, computed))
         }
 
         lines.push('')
       }
 
       return lines.join('\n')
+    }
+
+    private fieldLines(field: Field, computed: CSSStyleDeclaration): string[] {
+      if (field.kind === 'cells') {
+        return field.properties.map((property, index) => {
+          const value = computed.getPropertyValue(property).trim()
+
+          return `${field.label}-${cellName(field, index)} (${property}): ${value}`
+        })
+      }
+
+      const value = computed.getPropertyValue(field.property).trim()
+
+      return [`${field.label} (${field.property}): ${value}`]
     }
 
     private edits(): string {
@@ -717,7 +1315,7 @@ export function pickerRuntime(args: PickerRuntimeArgs): void {
 
     /** 提交在途时按钮失效：一次拾取只该产生一条提示词。 */
     private arm(enabled: boolean): void {
-      for (const button of this.panel?.querySelectorAll<HTMLButtonElement>('.action') ?? []) {
+      for (const button of this.panel?.querySelectorAll<HTMLButtonElement>('button') ?? []) {
         button.disabled = !enabled
       }
     }
