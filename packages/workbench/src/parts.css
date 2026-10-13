@@ -41,8 +41,25 @@
   -webkit-app-region: no-drag;
 }
 
-.workbench__sidebar-section {
+/*
+ * 缺省 placement 的侧栏面板这一格。这两条规则合起来才是「框」：宿主那层必须是 flex 列，
+ * 面板格才是 flex 项、才吃得到剩余高度；块盒里子项的 flex 值不说话，高度会退回内容高度。
+ *
+ * 列表（.assistant-threads）的 block-size: 100% 要沿这条链一路有确定高度才算得出来，
+ * 断在哪一环，列表就长到内容高度、被宿主的 overflow: hidden 裁掉 —— 会话一多既不滚、也看不到下面那几条
+ * （真实故障：重构把 legacy 的 .assistant-panel 框随组件一起删了，用户截图 2026-10-13）。
+ */
+.workbench__sidebar-panels {
+  display: flex;
   min-height: 0;
+  flex-direction: column;
+}
+
+.workbench__sidebar-section {
+  display: flex;
+  min-height: 0;
+  flex: 1 1 0;
+  flex-direction: column;
 }
 
 .workbench__empty {

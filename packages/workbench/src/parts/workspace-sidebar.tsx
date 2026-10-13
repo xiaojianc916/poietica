@@ -29,7 +29,8 @@ export function WorkspaceSidebar(): ReactNode {
         </nav>
       )}
 
-      <div className="min-h-0 min-w-0 flex-1 overflow-hidden">
+      {/* 面板那一格：只有宿主先成了 flex 列，下面每个面板才有确定高度可滚（几何在 parts.css）。 */}
+      <div className="workbench__sidebar-panels min-h-0 min-w-0 flex-1 overflow-hidden">
         {panels.length === 0 ? (
           <p className="workbench__empty" data-empty="sidebar">
             还没有任何功能
