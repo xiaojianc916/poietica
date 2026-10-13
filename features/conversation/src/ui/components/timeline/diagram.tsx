@@ -5,7 +5,7 @@ import { CodeBlockCopyButton } from 'streamdown'
 
 import { CodeIcon, PreviewIcon } from '../primitives/icons'
 import { cachedInks, cachedSvg, currentTheme, keepInks, keepSvg, peekSvg, svgKey } from './diagram-cache'
-import { type DiagramInks, diagramInks } from './diagram-theme'
+import { DIAGRAM_CSS, type DiagramInks, diagramInks } from './diagram-theme'
 
 /*
  * 一张图，直接长在正文里。自定义渲染器排在上游自带的 mermaid 分支之前，接管 mermaid 围栏；
@@ -34,6 +34,9 @@ type Row = { readonly id: string; readonly inks: readonly Ink[]; readonly tail: 
  * neutral / dark / forest 的配色写死在主题里）。颜色由 diagram-theme.ts 从设计令牌解析，
  * 深浅两套主题共用同一份配置 —— 换主题时重新解析、重画。
  *
+ * themeCSS 是另一条出口，只给 mindmap 用：它的分支配色压的是图自己那份样式表（为什么
+ * 不能走 themeVariables，见 diagram-theme.ts 的头注）。
+ *
  * securityLevel strict 让标签里的 HTML 不被执行；suppressErrorRendering 让失败不往文档上
  * 挂官方错误图 —— 失败该说什么由下面的状态决定。
  */
@@ -43,6 +46,7 @@ const CONFIG = {
   startOnLoad: false,
   suppressErrorRendering: true,
   theme: 'base',
+  themeCSS: DIAGRAM_CSS,
 } as const
 
 /* 布局引擎按需取，取回来整个进程共用一台：它在首屏 chunk 里是纯负担。 */

@@ -1,23 +1,17 @@
 import { beforeEach, describe, expect, test } from 'bun:test'
 import { cachedInks, cachedSvg, inksKey, keepInks, keepSvg, resetDiagramCacheForTests, svgKey } from '../diagram-cache'
-import type { DiagramInks } from '../diagram-theme'
+import { DIAGRAM_INKS, type DiagramInks } from '../diagram-theme'
 
+/*
+ * 一张完整的颜色表：键集跟着真实的槽位走（少一个就不是这张图该有的那一套），值只要互不相同
+ * —— 这里量的是缓存键的算法，不是颜色。
+ */
 function inksWith(overrides: Partial<DiagramInks> = {}): DiagramInks {
-  return {
-    background: 'transparent',
-    clusterBkg: 'rgb(1, 1, 1)',
-    clusterBorder: 'rgb(2, 2, 2)',
-    edgeLabelBackground: 'rgb(3, 3, 3)',
-    lineColor: 'rgb(4, 4, 4)',
-    mainBkg: 'rgb(5, 5, 5)',
-    primaryBorderColor: 'rgb(6, 6, 6)',
-    primaryColor: 'rgb(7, 7, 7)',
-    primaryTextColor: 'rgb(8, 8, 8)',
-    secondaryColor: 'rgb(9, 9, 9)',
-    tertiaryColor: 'rgb(10, 10, 10)',
-    textColor: 'rgb(11, 11, 11)',
-    ...overrides,
-  }
+  const inks = Object.fromEntries(
+    Object.keys(DIAGRAM_INKS).map((slot, index) => [slot, `rgb(${String(index)}, ${String(index)}, ${String(index)})`]),
+  )
+
+  return { ...inks, ...overrides } as DiagramInks
 }
 
 beforeEach(() => {

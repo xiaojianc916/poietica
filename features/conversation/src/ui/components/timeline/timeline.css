@@ -797,8 +797,8 @@
  * margin-inline: auto 摊平 —— 位置仍居中，只是不再靠画布的 transform 挪。
  *
  * 下面几条压的是 mermaid 自己写进 svg 的那份样式表（它在 <style> 里，选择器是 #id）：
- * 节点圆角在那边是写死的 0。颜色都走 themeVariables 了（见 diagram-theme.ts），这里
- * 只补形状 —— 圆角一档与卡片、输入框同刻度。
+ * 节点圆角在那边是写死的 0。颜色不在这里 —— 流程图走 themeVariables、mindmap 走 themeCSS，
+ * 两份都在 diagram-theme.ts；这一份只补形状，圆角一档与卡片、输入框同刻度。
  */
 .timeline-prose__diagram-stage svg {
   display: block;
