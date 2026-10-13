@@ -65,6 +65,8 @@ export interface CoreSupervisorOptions {
   readonly clock?: Clock
   readonly pickPort?: () => Promise<number>
   readonly kill?: (pid: number) => Promise<void>
+  /** 测试注入用：默认 READY_TIMEOUT_MS，注入短值即可验证超时行为，不必真等 45 秒。 */
+  readonly readyTimeoutMs?: number
 }
 
 interface ReadyPayload {
@@ -267,7 +269,11 @@ export class CoreSupervisor {
 
     let payload: ReadyPayload
     try {
-      payload = await withTimeout(ready.promise, READY_TIMEOUT_MS, () => new Error('ready timeout'))
+      payload = await withTimeout(
+        ready.promise,
+        this.o.readyTimeoutMs ?? READY_TIMEOUT_MS,
+        () => new Error('ready timeout'),
+      )
     } catch (e) {
       // 代际过期也要清掉自己这一代 spawn 出来的进程（R-05 §3.4）
       if (this.stale(gen)) {

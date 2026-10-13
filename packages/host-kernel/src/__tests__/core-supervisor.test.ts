@@ -230,17 +230,18 @@ describe('CoreSupervisor', () => {
     expect(s.spawned.length).toBe(1)
   })
 
-  test('S-6 45 秒不发 ready → 杀进程并按崩溃退避', async () => {
-    const s = await setup()
+  test('S-6 ready 超时（READY_TIMEOUT_MS）→ 杀进程并按崩溃退避', async () => {
+    // READY_TIMEOUT_MS 走的是真实时钟（foundation 的 withTimeout），所以把超时注短：
+    // 走的是同一条分支，只是不真等 45 秒
+    const s = await setup({ readyTimeoutMs: 60 })
     const started = s.sup.start()
     await tick()
-    // READY_TIMEOUT_MS 走的是真实时钟（foundation 的 withTimeout），所以这里真的等 45 秒
     await started
     await new Promise((r) => setTimeout(r, 20)) // 等子进程的 exit 事件（kill 桩里 setTimeout 0）
     expect(s.killed).toContain(s.spawned[0]!.child.pid)
     expect(s.sup.status.state).toBe('restarting')
     expect(s.sup.status.reason).toBe('start_timeout')
-  }, 60_000)
+  }, 5_000)
 
   test('S-7 stop()：子进程 1 秒后退出 → 发送了 core.shutdown、状态 stopped、没有杀进程', async () => {
     const s = await setup()
