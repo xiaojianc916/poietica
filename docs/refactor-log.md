@@ -2535,5 +2535,11 @@ TS2307），与本项无关；那半边收尾后复跑即全绿。
 -2 条属于它的断言；+3 条是 `ui/transcript/__tests__/use-slice-frames.test.tsx`
 （移动 `components/transcript/` 时被误删，已按 HEAD 原文恢复并重定 import）。未动契约形状，
 不需 `protocol:snapshot`；未碰 omp 隔离与环境，未跑 `core:probe`。
-**待跑**：`bun run check:ticker`（改到了 `timeline/rolling-line*`、`ticker-*`、`roll-scheduler*`
-的路径，文件内容逐字未动；真实布局检查需要 GPU 与窗口）。
+**未跑 `bun run check:ticker`**（改到了 `timeline/rolling-line*`、`ticker-*`、`roll-scheduler*`
+的路径，但文件内容逐字未动：哈希比对 SAME，唯一改动是 `rolling-line.tsx` 里
+`cx` 的 import 相对深度）。本环境跑不起来 —— 检查台把 electron 可执行文件写死在
+`node_modules/electron/dist/electron.exe`，而 bun 的 isolated linker 下安装的 electron
+没有下载 `dist/`（`node_modules/electron` 是指向 `.bun/electron@44.7.0/...` 的软链，
+里面只有 `cli.js` / `index.js`）。临时挂上同版本的 electron 跑也无产出（无 GPU 与窗口，
+逐帧采样拿不到帧）。**待决**：`run.ts` 的 `ELECTRON` 常量改用 `electron` 包的解析结果，
+别写死路径。
