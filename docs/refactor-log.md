@@ -2438,3 +2438,24 @@ v1 栽在「happy-dom 没有布局」上，所以这一版把「最新的字有�
 | Q40 | 2026-10-12 | 极快模型（≥ 200 字/秒）这一档仍有可见顿挫：实测应动未动 41%、sJ90 1.43（规格 §10 记为已知局限，原因是一帧要放 3 个以上的字、o 会顶到 2.5em 上限）。正确性不受影响（0 遮字、0 卡死） | 无（不在本次范围内） | 记录：真机上若感觉明显，再考虑让设定值随速度变化 |
 | Q41 | 2026-10-12 | 换句的上下刷仍带 260ms 的透明度变化（§3.4 的既定点）。规格 §10 给了可选项：去掉 `initial` / `exit` 的 opacity 并把 `ROLL_DISTANCE` 改成 `1lh`，变成翻牌式 | 无 | 记录：等产品负责人看真机效果再定 |
 | Q42 | 2026-10-12 | §9 的真机验收清单（Windows、深浅两色各一遍，14 条）未跑：需要安装包与真实模型 | 无（单测与真实布局检查已按规格落地） | 记录：等产品负责人真机复核 |
+
+## R-16 追加：自动化列表卡片去掉「上次运行的结论」（2026-10-13）
+
+**来源**：产品负责人交办的截图（外部输入，不入库）。R-16 让列表卡片在指令下方画一条
+`run.summary`（`automation-list.tsx` 的 `Conclusion`），而 summary 正是 agent 用
+`automation_report` 交的那段正文 —— 在「报告当前时间与工作区状态」这类任务上，它就是那次
+运行里 agent 的整段回答，摆在任务卡片上读起来像卡片里夹了一条对话消息。
+
+**改法**（只动 UI，不改契约，`PROTOCOL_VERSION` 不动）：删掉 `Conclusion` 组件与它的挂载点，
+卡片只画任务定义 —— 标题、指令、计划、「已运行 N 次」。运行结论仍有四条出口，不受影响：
+编辑页的运行历史（`automation-run-history`，逐条列 `run.summary` 与系统消息）、对话里的
+`automation_report` 工具卡、系统通知的正文（`notice.ts`）、agent 的 `automation_runs` 工具。
+
+**测试**：新增 `features/automations/src/ui/__tests__/automation-list.test.tsx` 两条 —— 卡片画
+标题 / 指令 / 计划 / 次数；`lastRun.summary` 与「需要关注」不上卡片（旧代码上第二条红）。
+
+**验收**：`bun run all` 全绿（**2043 pass / 0 fail**，含新增两条）。未动契约形状，不需
+`protocol:snapshot`；未碰 omp 隔离与环境，未跑 `core:probe`。此前有一次整仓红是别处并行的改动
+删了 `features/browser/src/host/picker-runtime.ts` 还没收尾（typecheck 报 `host/index.ts` 的
+TS2307），与本项无关；那半边收尾后复跑即全绿。
+
