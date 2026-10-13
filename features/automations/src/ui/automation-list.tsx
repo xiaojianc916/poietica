@@ -20,6 +20,10 @@ import type { AutomationsStore } from './automations-store'
  *   - 运行记录不进 Automation 实体（实体只带 lastRun），「进行中」与「已运行 N 次」
  *     因此读 store 里按 id 缓存的 runs（`runsOf(id)`）；
  *   - `store.setEnabled` 不再要 revision（新契约没有乐观并发）。
+ *
+ * 卡片只画任务定义（标题、指令、计划、已运行次数），**不画上一次运行的结论**：那句结论是
+ * agent 用 `automation_report` 交的正文，放在卡片上读起来就是一条聊天记录（产品负责人
+ * 2026-10-13 交办）。结论去编辑页的运行历史看，那里逐条列着 `run.summary`。
  */
 
 export interface AutomationListProps {
@@ -156,25 +160,6 @@ function planLine(automation: Automation): string {
   return automation.nextRunAt === null ? schedule : `${schedule} · 下次运行 ${describeMoment(automation.nextRunAt)}`
 }
 
-/* 上一次运行的结论（agent 用 automation_report 交的那一句，审查 R-16）：列表上就能看到「跑得怎么样」 */
-function Conclusion({ run }: { readonly run: AutomationRun | null }) {
-  const summary = run?.summary ?? null
-  if (summary === null) return null
-  const attention = run?.attention === true
-  return (
-    <p
-      className={cn(
-        'mt-2 line-clamp-2 rounded-lg px-2.5 py-1.5 text-xs leading-5',
-        attention ? 'bg-warning/10 text-foreground' : 'bg-sidebar-accent/60 text-muted-foreground',
-      )}
-      title={summary}
-    >
-      {attention ? <span className="mr-1 font-medium text-warning">需要关注</span> : null}
-      {summary}
-    </p>
-  )
-}
-
 function TaskCard({
   automation,
   onDelete,
@@ -212,8 +197,6 @@ function TaskCard({
         <p className="mt-1.5 line-clamp-2 text-xs leading-5 text-muted-foreground">{automation.prompt}</p>
 
         {automation.issue ? <p className="mt-1.5 text-xs text-destructive">{automation.issue}</p> : null}
-
-        <Conclusion run={automation.lastRun} />
 
         <div className="mt-auto flex items-center gap-2 pt-3 text-xs">
           <span className={cn('flex min-w-0 items-center gap-1.5', paused ? 'text-muted-foreground' : 'text-success')}>
