@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'bun:test'
 import { renderToStaticMarkup } from 'react-dom/server'
 import type { ToolCallTimelineItem } from '../../../timeline/timeline-contract'
-import { ToolCallPanels } from '../tool-call-panels'
+import { ToolCallPanels } from '../tools/tool-call-panels'
 
 /*
  * 抽屉里那处改动的画法。

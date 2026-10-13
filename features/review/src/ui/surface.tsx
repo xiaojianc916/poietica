@@ -3,7 +3,7 @@ import { useFeatureStore } from '@poietica/ui-kernel'
 import { FileDiff } from 'lucide-react'
 import { type ReactNode, useEffect, useMemo, useState } from 'react'
 import { createReviewApi, createReviewGateway } from './api'
-import { ReviewPane } from './components/review-pane'
+import { ReviewPane } from './review-pane'
 import type { ReviewFailureReport } from './review-store'
 
 /*

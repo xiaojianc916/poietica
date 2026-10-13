@@ -3,7 +3,7 @@ import { memo } from 'react'
 import type { FeedRow, ToolGroupPlan, TurnSealPlan } from '../../timeline/presentation'
 import { ReplyActionHost } from './reply-actions'
 import { TimelineRow } from './timeline-row'
-import { ToolGroupCard } from './tool-group-card'
+import { ToolGroupCard } from './tools/tool-group-card'
 import { TurnSeal } from './turn-seal'
 
 export interface TimelineSeatProps {

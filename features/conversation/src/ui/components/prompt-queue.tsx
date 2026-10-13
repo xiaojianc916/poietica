@@ -3,7 +3,7 @@ import './prompt-queue.css'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@poietica/design-system'
 import { memo, type ReactNode, type SVGProps, useCallback, useState, useSyncExternalStore } from 'react'
 import type { PromptDelivery, QueuedDelivery } from '../agent/session'
-import type { MessageQueue, MessageQueueState } from '../interjection/message-queue'
+import type { MessageQueue, MessageQueueState } from '../composer/message-queue'
 import { ChevronDownIcon, ChevronUpIcon, QueueSteerIcon, TrashIcon } from './primitives/icons'
 
 /*

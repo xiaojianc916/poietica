@@ -3,19 +3,19 @@ import { useFeatureStore } from '@poietica/ui-kernel'
 import { type ReactElement, useCallback, useEffect, useRef, useState, useSyncExternalStore } from 'react'
 import type { SessionConfigControl } from '../agent/config'
 import type { ConversationApi } from '../api'
-import type { PostureIntent } from '../configuration/posture-intent'
+import { type EntrySelection, NEW_THREAD_KEY } from '../composer/composer-store'
 import {
   PLAN_CONTROL_ID,
   PLAN_DISABLED,
   PLAN_ENABLED,
   postureOfControl,
   sessionConfigControlsOf,
-} from '../control-shapes'
+} from '../configuration/control-shapes'
+import type { PostureIntent } from '../configuration/posture-intent'
 import { type DraftSelection, entryThreadInitOf } from '../entry-init'
-import type { ConversationStores } from '../stores'
-import { type EntrySelection, NEW_THREAD_KEY } from '../stores/composer'
-import type { SessionRegistry } from '../stores/session-registry'
-import { createThreadEntry, type ThreadEntry } from '../stores/thread-entry'
+import type { ConversationStores } from '../session'
+import type { SessionRegistry } from '../session/session-registry'
+import { createThreadEntry, type ThreadEntry } from '../threads/thread-entry'
 import type { PreparedThread } from '../transcript/transcript-store'
 import { GOAL_CONTROL_ID, GOAL_DISABLED, GOAL_ENABLED } from './goal/goal-control'
 

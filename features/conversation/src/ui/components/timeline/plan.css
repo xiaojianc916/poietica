@@ -1,0 +1,39 @@
+/*
+ * 页签与它自己的面板之间不画线。
+ *
+ * 选中的那一枚已经在宣告下面是什么，再加一条边界等于把同一句话说两遍；而这张纸本来
+ * 就是一整张，一条横贯的线会把它切成上下两块，读起来又变回两个部件。Chrome DevTools
+ * 的面板页签、VS Code 的编辑器分组页签，都不在这一处画线。
+ *
+ * 抽屉里唯一的那条线在 __body 的上边，分开的是标题栏与这张纸。
+ */
+
+/*
+ * 抽屉里的一个面就是一段 markdown：围栏由 Streamdown 上色（diff 走它自带的 diff
+ * 着色），排版全部来自 .timeline-prose，不再为「一段等宽的机器输出」各写一份底色、
+ * 留白与字号。
+ */
+
+.timeline-plan {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  gap: 0.25rem;
+}
+
+.timeline-plan__entry {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.timeline-plan__status {
+  flex: none;
+  color: var(--cp-timeline-quiet-text);
+  font-size: var(--ui-prose-size-aux);
+}
+
+.timeline-plan__entry[data-status="completed"] .timeline-plan__content {
+  text-decoration: line-through;
+  color: var(--cp-timeline-quiet-text);
+}

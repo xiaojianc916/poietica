@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'bun:test'
 
-import { DIAGRAM_CSS, DIAGRAM_INKS } from '../diagram-theme'
+import { DIAGRAM_CSS, DIAGRAM_INKS } from '../prose/diagram-theme'
 
 /*
  * 这一段压的是 mermaid 自己生成的那份样式表，两边同样带 #id 前缀：胜负全在选择器多出来的

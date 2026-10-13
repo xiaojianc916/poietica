@@ -1,6 +1,6 @@
 import { expect, test } from 'bun:test'
-import { syncWave } from '../wave-dom'
-import { WAVE } from '../wave-reveal'
+import { syncWave } from '../wave/wave-dom'
+import { WAVE } from '../wave/wave-reveal'
 
 function host(html: string): HTMLElement {
   const div = document.createElement('div')

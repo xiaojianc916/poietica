@@ -1,13 +1,12 @@
 import { statSync } from 'node:fs'
 import { BROWSER_PARTITION } from '@poietica/feature-browser/contract'
-import { defineHostModule } from '@poietica/host-kernel'
+import { defineHostModule, WINDOW_BACKGROUND } from '@poietica/host-kernel'
 import { type BrowserWindow, dialog, Notification, screen, session, shell } from 'electron'
 import { platformContract } from '../contract'
 import { createLogSink } from './log-sink'
 import { createNotifyService } from './notify-service'
 import { createShellService } from './shell-service'
 import { createStorageService } from './storage-service'
-import { WINDOW_BACKGROUND } from './window-colors'
 import { createWindowStateStore } from './window-state'
 
 /** 目标路径存在且是文件或目录 */

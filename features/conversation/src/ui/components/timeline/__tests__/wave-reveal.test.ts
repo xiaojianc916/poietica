@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'bun:test'
 import type { Element, ElementContent, Root, RootContent } from 'hast'
-import { createWaveReveal, WAVE, WAVE_MARKER_ATTRIBUTE, WAVE_START_ATTRIBUTE } from '../wave-reveal'
+import { createWaveReveal, WAVE, WAVE_MARKER_ATTRIBUTE, WAVE_START_ATTRIBUTE } from '../wave/wave-reveal'
 
 /*
  * 批次波浪淡入的纯函数部分（P-03）。时钟可注入：每个用例自己推进 t。

@@ -3,12 +3,12 @@
 
 import '../../../packages/design-system/src/styles.css'
 import '../../../features/conversation/src/ui/components/timeline/flow-row.css'
-import '../../../features/conversation/src/ui/components/timeline/rolling-line.css'
+import '../../../features/conversation/src/ui/components/timeline/ticker/rolling-line.css'
 
 import { useEffect, useRef, useState } from 'react'
 import { createRoot } from 'react-dom/client'
 import { readThoughtSentence } from '../../../features/conversation/src/ui/components/semantics/thought-sentence'
-import { RollingLine } from '../../../features/conversation/src/ui/components/timeline/rolling-line'
+import { RollingLine } from '../../../features/conversation/src/ui/components/timeline/ticker/rolling-line'
 import { measureFrame, type Sample } from './recorder'
 import { type Arrival, THOUGHT } from './streams'
 

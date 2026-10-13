@@ -1,5 +1,5 @@
 import type { Controls, ModelRef, Posture } from '@poietica/engine'
-import { availabilityOf } from '../plan-goal'
+import { availabilityOf } from '../session/plan-goal'
 import { readSetting, type SettingsScope } from '../settings-access'
 import type { OmpModelLike, RegistryPort } from './model-helpers'
 import { aliasOf, ENABLED_MODELS_PATH, enabledMatcher, stringArrayOf } from './model-helpers'

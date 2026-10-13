@@ -3,7 +3,7 @@ import { AlertTriangle } from 'lucide-react'
 import { useState } from 'react'
 import type { SkillDocument } from '../../ui-api'
 import type { SkillDocumentStore } from './skill-document-store'
-import { Prose } from './timeline/prose'
+import { Prose } from './timeline/prose/prose'
 import './skill-document-pane.css'
 
 /*

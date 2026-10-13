@@ -1,0 +1,97 @@
+/*
+ * 一次失败的运行，在它停下来的地方说一句：一条横贯的线，中间是那句话。
+ *
+ * 这条规则曾被一次重构连同它自己的注释整块摘走，只留下后面那条属于伪元素的
+ * 注释贴在上一条规则的收尾花括号后面。少了它，::before / ::after 就不再是
+ * 弹性子项 —— flex: 1 1 0 不适用于行内盒，block-size 对非替换行内盒也不生效，
+ * 两条线的宽度归零，屏幕上只剩一个图标和一行左对齐的字。
+ *
+ * 间距用 --cp-timeline-error-gap：那个令牌一直在 skin/metrics.css 里，
+ * 消费者只有这一处，被删之后它就成了孤儿。放回来，它重新有主。
+ */
+.timeline-error {
+  display: flex;
+  align-items: center;
+  gap: var(--cp-timeline-error-gap);
+}
+
+/* 两侧的线自己伸缩；min-inline-size 保证窄容器里也还认得出这是一条线。 */
+.timeline-error::before,
+.timeline-error::after {
+  content: "";
+  flex: 1 1 0;
+  min-inline-size: 0.75rem;
+  block-size: 1px;
+}
+
+/*
+ * 色标写位置，渐隐才有长度。
+ *
+ * 不写位置时，第二个色标默认落在 100% —— 也就是伸缩之后的整段宽度上，
+ * 一条 300px 的线要爬完全程才到达满强度，平均下来只有一半的墨。写上位置，
+ * 淡出被关进外侧那 --cp-error-rule-fade 之内，其余是实线。
+ */
+.timeline-error::before {
+  background: linear-gradient(to right, transparent, var(--cp-error-rule) var(--cp-error-rule-fade));
+}
+
+.timeline-error::after {
+  background: linear-gradient(to left, transparent, var(--cp-error-rule) var(--cp-error-rule-fade));
+}
+
+/* 摘要只占一行：min-inline-size: 0 是 flex 子项允许自己被截断的前提。 */
+.timeline-error__action {
+  display: inline-flex;
+  flex: 0 1 auto;
+  align-items: center;
+  gap: 0.375rem;
+  min-inline-size: 0;
+  max-inline-size: min(100%, 30rem);
+  border: 0;
+  padding: 0;
+  background: none;
+  color: var(--cp-timeline-quiet-text);
+  font: inherit;
+  font-size: var(--ui-prose-size-meta);
+  line-height: 1.4;
+  cursor: pointer;
+  transition: color 120ms var(--cp-motion-ease);
+}
+
+.timeline-error__action:hover {
+  color: var(--cp-ink);
+}
+
+.timeline-error__mark {
+  flex: none;
+  inline-size: 0.875rem;
+  block-size: 0.875rem;
+  color: var(--cp-timeline-danger-text);
+}
+
+/* warning 不是失败：图标退回正文的安静色，线与字都不变（R-09）。 */
+.timeline-error[data-level="warning"] .timeline-error__mark {
+  color: var(--cp-timeline-quiet-text);
+}
+
+/*
+ * 摘要只占一行，装不下就以省略号收尾。
+ *
+ * 截断的只是显示：点击复制交给剪贴板的仍是完整原文（见 error-notice.tsx），
+ * 原生 tooltip 会按原文长度铺开盖住流，所以这里也不挂 title。
+ */
+.timeline-error__text {
+  min-inline-size: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* 复制成功后那 2.2 秒，整行亮一档 —— 反馈是状态，不是另一种颜色。 */
+.timeline-error[data-copied="true"] .timeline-error__action {
+  color: var(--cp-ink);
+}
+
+.timeline-error[data-copied="true"] .timeline-error__mark {
+  color: inherit;
+}

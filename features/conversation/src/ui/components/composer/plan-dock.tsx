@@ -3,7 +3,7 @@ import './plan-dock.css'
 import { memo, useState } from 'react'
 import type { PlanAnswer, PlanDecision } from '../../agent/plan'
 import type { PlanItem } from '../../timeline/timeline-contract'
-import { Prose } from '../timeline/prose'
+import { Prose } from '../timeline/prose/prose'
 
 /*
  * 待批准的计划（04 页 §3.12 的第 5 支、产品负责人 2026-10-07 定稿的卡片形状）。

@@ -6,7 +6,7 @@ import type { ToolCallStatus, ToolKind } from '../../../agent/tool-call'
 import { type Presentation, selectPresentation, type ToolGroupPlan } from '../../../timeline/presentation'
 import type { TimelineItem, TimelineState, ToolCallTimelineItem } from '../../../timeline/timeline-contract'
 import { sayProcessSummary } from '../../semantics/tool-intent'
-import { ToolGroupCard } from '../tool-group-card'
+import { ToolGroupCard } from '../tools/tool-group-card'
 
 /*
  * 过程组：read / execute 与夹在它们中间的思考连成一条记事。

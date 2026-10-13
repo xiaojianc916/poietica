@@ -97,7 +97,7 @@
     "desktop:dev": "bun run --filter @poietica/desktop dev",
     "new:package": "bun run tooling/scaffold/new-package.ts",
     "new:feature": "bun run tooling/scaffold/new-feature.ts",
-    "python:pin": "bun run scripts/pin-python.ts"
+    "python:pin": "bun run features/python/scripts/pin-python.ts"
   },
   "devDependencies": {
     "@biomejs/biome": "catalog:",

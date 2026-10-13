@@ -1,6 +1,6 @@
 import { expect, test } from 'bun:test'
 import { act, cleanup, render } from '@testing-library/react'
-import { Prose } from '../prose'
+import { Prose } from '../prose/prose'
 
 /*
  * P-03：流式正文用批次波浪淡入，而不是 Streamdown 自带的逐字 span 动画。

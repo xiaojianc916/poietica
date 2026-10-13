@@ -1,13 +1,12 @@
 import { platformContract } from '@poietica/feature-platform/contract'
 import { createJsonDocument } from '@poietica/fs-kit'
-import { defineHostModule, HostLoggingToken } from '@poietica/host-kernel'
+import { defineHostModule, HostLoggingToken, WINDOW_BACKGROUND } from '@poietica/host-kernel'
 import { nativeTheme } from 'electron'
 import { preferencesContract } from '../contract'
 import { Preferences } from '../contract/entities'
 import { createKeymapService } from './keymap-service'
 import { createPrefsService } from './prefs-service'
 import { createUiStateService } from './ui-state-service'
-import { WINDOW_BACKGROUND } from './window-colors'
 
 export default defineHostModule({
   id: 'preferences',

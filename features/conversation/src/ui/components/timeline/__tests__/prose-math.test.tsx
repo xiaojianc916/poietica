@@ -1,7 +1,7 @@
 import { afterEach, beforeAll, describe, expect, test } from 'bun:test'
 import { cleanup, render, waitFor } from '@testing-library/react'
-import { currentMath, resetMathForTests } from '../math-plugin'
-import { Prose } from '../prose'
+import { currentMath, resetMathForTests } from '../prose/math-plugin'
+import { Prose } from '../prose/prose'
 
 /*
  * P-06：公式（katex）按需加载。

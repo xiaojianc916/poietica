@@ -1,4 +1,4 @@
-import './skin/surface.css'
+import './surface.css'
 
 import { Banner } from '@poietica/design-system'
 import { WorkspacePicker, type WorkspacePickerProps } from '@poietica/feature-workspaces/ui-api'
@@ -10,14 +10,19 @@ import type { SessionConfigControl } from '../agent/config'
 import type { SessionGoal } from '../agent/goal'
 import type { AgentSessionPort } from '../agent/session'
 import type { SessionUsage } from '../agent/usage'
+import { ComposerDraftKeyContext } from '../composer/drafts-context'
 import type { PromptInputMessage } from '../composer/prompt'
 import { useAgentToolkit } from '../configuration/composer-toolkit'
 import type { PlanItem } from '../timeline/timeline-contract'
 import type { PreparedThread } from '../transcript/transcript-store'
+import {
+  type AssistantSession,
+  useAssistantInteractions,
+  useAssistantSession,
+} from '../transcript/use-assistant-session'
 import { AssistantComposer } from './composer/assistant-composer'
 import { ComposerNotice } from './composer/composer-notice'
 import { useDockClearance } from './composer/dock-clearance'
-import { ComposerDraftKeyContext } from './composer/drafts-context'
 import type { PermissionDockProps } from './composer/permission-dock'
 import type { PromptInputHandle } from './composer/prompt-input'
 import { SwarmToggle } from './composer/swarm-toggle'
@@ -29,11 +34,6 @@ import { PromptQueue } from './prompt-queue'
 import { ThreadTitleMenu } from './threads/thread-title-menu'
 import { TranscriptView } from './timeline/transcript-view'
 import { CONVERSATION_TODO_LAYOUT_STYLE, ConversationTodoPopover } from './todo/conversation-todo-popover'
-import {
-  type AssistantSession,
-  useAssistantInteractions,
-  useAssistantSession,
-} from './transcript/use-assistant-session'
 
 /* 连不上 agent 时输入区上沿那一句；原文（controlsFailure）只做 title。 */
 const DISCONNECTED = '没连上 agent，点击重试'

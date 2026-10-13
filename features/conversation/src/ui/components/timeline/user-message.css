@@ -1,0 +1,66 @@
+/*
+ * The person's own words, in a bubble that hugs them.
+ *
+ * Aligned to the end of the column so a glance tells who said what without a
+ * label, and capped so a pasted page still reads as a message.
+ */
+
+.timeline-user {
+  display: grid;
+  justify-items: end;
+  gap: 0.25rem;
+  margin: 0;
+  margin-inline-start: auto;
+  inline-size: fit-content;
+  max-inline-size: min(100%, 32rem);
+  padding: var(--cp-timeline-pad);
+  border-radius: var(--ui-radius-xl);
+  background: var(--cp-timeline-user-surface);
+  /* 气泡里的字与回答同一档，不是继承来的默认灰。 */
+  color: var(--cp-timeline-body-ink);
+}
+
+.timeline-user__text {
+  margin: 0;
+  font-size: var(--ui-prose-size);
+  line-height: var(--ui-prose-line-height);
+  inline-size: 100%;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+/*
+ * 没送达的那一句（R-08-5）：虚线框说「它在，但没到 agent 手里」。
+ *
+ * 只换描边不换底色，也不把字染成失败色：说出口的话还是那句话，错的是投递。虚线在
+ * 深浅两套主题下都读得出（--cp-hairline 是分割线那一档，压得住底色的同时不抢眼）。
+ */
+.timeline-user[data-undelivered="true"] {
+  border: 1px dashed var(--cp-hairline);
+}
+
+/*
+ * Clipped, never scrolled: overflow is clip, so this box cannot become a
+ * second scroller inside the one the transcript already has. The fade is a
+ * mask rather than an overlay, so it works on any bubble colour.
+ */
+.timeline-user[data-clamped="true"] .timeline-user__text {
+  max-block-size: var(--cp-timeline-said-max);
+  overflow: clip;
+  mask-image: linear-gradient(to bottom, #000 calc(100% - 2.75rem), transparent);
+}
+
+.timeline-user__more {
+  border: 0;
+  padding: 0;
+  background: none;
+  color: var(--cp-timeline-quiet-text);
+  font: inherit;
+  font-size: var(--ui-prose-size-aux);
+  cursor: pointer;
+  transition: color 120ms var(--cp-motion-ease);
+}
+
+.timeline-user__more:hover {
+  color: var(--cp-ink);
+}

@@ -15,7 +15,7 @@ import { ArchiveRestore, Search, Trash2 } from 'lucide-react'
 import { type ReactNode, useEffect, useMemo, useState } from 'react'
 import type { Thread } from '../../contract'
 import type { ConversationApi } from '../api'
-import type { ConversationStores } from '../stores'
+import type { ConversationStores } from '../session'
 import { groupByWorkspace, type ThreadListItem } from '../threads/thread-order'
 import './archived-page.css'
 

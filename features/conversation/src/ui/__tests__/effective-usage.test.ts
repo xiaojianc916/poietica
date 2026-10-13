@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'bun:test'
 import type { ContextUsage } from '@poietica/engine'
-import { effectiveUsage } from '../control-shapes'
+import { effectiveUsage } from '../configuration/control-shapes'
 
 /*
  * 屏幕上那一份用量有**两条来源**，这一份钉的是它俩的优先级。

@@ -6,10 +6,10 @@ import {
   DropdownMenuItem,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
+  focusOnMount,
 } from '@poietica/design-system'
 import { Check, ChevronDown, FolderClosed, FolderPlus, ListFilter, Plus, Search, X } from 'lucide-react'
 import { useState } from 'react'
-import { focusOnMount } from './focus-on-mount'
 
 /*
  * 当前的工作目录，以及换一个 —— 侧栏的第一行（此前另有一栏「工作区」段标题加一枚

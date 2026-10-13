@@ -2,7 +2,7 @@ import { afterEach, describe, expect, it } from 'bun:test'
 import { act, cleanup, render } from '@testing-library/react'
 import { MotionConfig } from 'motion/react'
 import { type ReactElement, StrictMode } from 'react'
-import { RollingLine } from '../rolling-line'
+import { RollingLine } from '../ticker/rolling-line'
 
 /*
  * 组头那一格的结构与时序（思考行 v2）。

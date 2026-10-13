@@ -9,7 +9,7 @@ import { fileURLToPath } from 'node:url'
  * tooling/checks/ticker-layout）。这里只钉住几条「一改就回到 v1」的规则。
  */
 
-const CSS = readFileSync(fileURLToPath(new URL('../rolling-line.css', import.meta.url)), 'utf8')
+const CSS = readFileSync(fileURLToPath(new URL('../ticker/rolling-line.css', import.meta.url)), 'utf8')
 
 interface Rule {
   readonly selector: string

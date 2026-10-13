@@ -1,10 +1,9 @@
-import '../skin/surface.css'
+import '../surface.css'
 
 import { useCallback } from 'react'
 import { channelNameOf, delegateKey, delegationOf } from '../../timeline/delegate-channel'
-
+import { useAssistantTimeline } from '../../transcript/use-assistant-session'
 import { SwarmIcon } from '../primitives/icons'
-import { useAssistantTimeline } from '../transcript/use-assistant-session'
 import { TranscriptView } from './transcript-view'
 import { UserMessage } from './user-message'
 

@@ -3,15 +3,15 @@ import type { TurnMark } from '../../agent/thread'
 import type { FeedRow, Presentation } from '../../timeline/presentation'
 import { selectPresentation } from '../../timeline/presentation'
 import { selectIsBusy } from '../../timeline/timeline-queries'
-import { AgentActivityFeed, type FeedPort, type RowRhythm } from '../feed/agent-activity-feed'
-import { ConversationMinimap } from '../minimap/conversation-minimap'
-import { useTranscripts } from '../transcript/transcripts-context'
+import { useTranscripts } from '../../transcript/transcripts-context'
 import {
   useAssistantHasEarlier,
   useAssistantOutline,
   useAssistantRevealTarget,
   useAssistantTimeline,
-} from '../transcript/use-assistant-session'
+} from '../../transcript/use-assistant-session'
+import { AgentActivityFeed, type FeedPort, type RowRhythm } from '../feed/agent-activity-feed'
+import { ConversationMinimap } from '../minimap/conversation-minimap'
 import { createRowEstimator } from './row-estimate'
 import { TimelineSeat } from './timeline-seat'
 

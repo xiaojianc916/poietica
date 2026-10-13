@@ -1,15 +1,15 @@
 import { FeatureScope, useContributions } from '@poietica/ui-kernel'
 import { type ReactNode, useMemo } from 'react'
 import { composerProviders, workspaceGitProviders } from '../ui-api'
-import { AttachmentIntakeContext } from './components/composer/attachment-intake'
-import { ComposerDraftsContext } from './components/composer/drafts-context'
-import { SessionControlsContext } from './components/configuration/session-controls-context'
+import { AttachmentIntakeContext } from '../ui-api/composer-assets'
 import { DelegateChannelContext } from './components/timeline/delegate-channel-context'
-import { TranscriptsContext } from './components/transcript/transcripts-context'
 import { ComposerDrafts } from './composer/drafts'
+import { ComposerDraftsContext } from './composer/drafts-context'
 import type { PostureIntent } from './configuration/posture-intent'
+import { SessionControlsContext } from './configuration/session-controls-context'
 import { SessionControlsStore } from './configuration/session-controls-store'
 import type { TranscriptStore } from './transcript/transcript-store'
+import { TranscriptsContext } from './transcript/transcripts-context'
 
 /*
  * 组合根（dependency-injection root）：把 legacy 组件树要的每一个 Context 都接上。

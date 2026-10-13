@@ -23,6 +23,7 @@ import {
   type WorkspaceGitStatus,
 } from '../../../ui-api'
 import type { SessionGoal } from '../../agent/goal'
+import { useOptionalThreadGoal } from '../../configuration/session-controls-context'
 import type {
   BackgroundTaskItem,
   BackgroundTaskStatus,
@@ -31,15 +32,14 @@ import type {
   ToolCallTimelineItem,
 } from '../../timeline/timeline-contract'
 import { delegateCallsOf } from '../../timeline/timeline-queries'
-import { useOptionalThreadGoal } from '../configuration/session-controls-context'
-import { GOAL_CONTROL_ID, GOAL_PAUSED, GOAL_RESUMED } from '../goal/goal-control'
-import { useSecond } from '../primitives/clock'
 import {
   useAssistantBackgroundTasks,
   useAssistantSubagents,
   useAssistantTimeline,
   useAssistantTodos,
-} from '../transcript/use-assistant-session'
+} from '../../transcript/use-assistant-session'
+import { GOAL_CONTROL_ID, GOAL_PAUSED, GOAL_RESUMED } from '../goal/goal-control'
+import { useSecond } from '../primitives/clock'
 import './todo-panel.css'
 
 /* 区块名与 ZCode ConversationStatusPanel 一致；状态面板的单一分发点在这里。 */

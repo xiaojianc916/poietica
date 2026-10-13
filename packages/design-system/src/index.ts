@@ -47,6 +47,7 @@ export {
   TooltipProvider,
   TooltipTrigger,
 } from './control/tooltip'
+export { focusOnMount } from './focus-on-mount'
 export { formatBytes } from './format-bytes'
 export {
   RegionSplitter,

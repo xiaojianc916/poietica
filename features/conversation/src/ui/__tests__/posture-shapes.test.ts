@@ -1,7 +1,7 @@
 import { describe, expect, test } from 'bun:test'
 import type { Controls } from '@poietica/engine'
+import { POSTURE_TO_CONTROL, postureOfControl, sessionConfigControlsOf } from '../configuration/control-shapes'
 import { permissionPosturesOf } from '../configuration/permission-posture'
-import { POSTURE_TO_CONTROL, postureOfControl, sessionConfigControlsOf } from '../control-shapes'
 
 /*
  * 真实故障：输入框那一排**没有批准方式**（胶囊以及它那张菜单整颗不画）。

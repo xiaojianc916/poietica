@@ -6,7 +6,7 @@ import path from 'node:path'
 import { Settings } from '@oh-my-pi/pi-coding-agent/config/settings'
 import type { EngineSession, EngineSessionEvent, OpenSessionSpec } from '@poietica/engine'
 import { type Logger, noopLogger } from '@poietica/foundation'
-import { wrapOmpSession } from '../../../omp-session-adapter'
+import { wrapOmpSession } from '../../../session/omp-session-adapter'
 
 /*
  * 一个假的 omp AgentSession：只实现 wrapOmpSession 真正用到的那几格（OmpAgentSessionLike），

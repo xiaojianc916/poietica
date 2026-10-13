@@ -2459,3 +2459,81 @@ v1 栽在「happy-dom 没有布局」上，所以这一版把「最新的字有�
 删了 `features/browser/src/host/picker-runtime.ts` 还没收尾（typecheck 报 `host/index.ts` 的
 TS2307），与本项无关；那半边收尾后复跑即全绿。
 
+
+## 目录与文件归属整理：删死文件、收拢与拆分（2026-10-13）
+
+**来源**：产品负责人交办的目录整理清单（外部输入，不入库）。**只动目录与文件归属，不改行为**；
+层级（contract / core / host / ui、packages 分层）一律不动。
+
+**先删**（全仓无人引用，逐条脚本核过）：
+
+- `ui/threads/threads-store.ts`（513 行旧 `ThreadsStore` 类）——线程列表真正在用的是
+  `ui/session/threads-store.ts`，两份并存会让人以为线程状态有两处。
+- `ui/components/semantics/file-meta.ts` + `file-size.ts`——`fileExtensionLabel` /
+  `fileMetaLabel` / `formatByteSize` 逐字复制自 `ui/timeline/timeline-contract.ts`。
+- `ui/configuration/model-choice-visibility.ts`（`projectVisibleModelChoices` 无调用方）。
+- `packages/transcript/src/upstream/contract/events.ts`（`transcriptEventSchema` 等 6 个名字全无引用，
+  `index.ts` 也没导出它）。
+- `packages/engine-omp/src/projector/tool-view.ts` + `projector/__tests__/tool-view.test.ts`：
+  生产代码无人用 `toolTitleOf` / `toolSummaryOf` / `toolResultTextOf`，只剩测试在测它；
+  真正在用的工具词汇在 `features/conversation/src/ui/components/timeline/tools/`。
+
+**合并 / 收拢**：
+
+1. **conversation 的 `ui/` 统一成一条规则**：一个领域的 store、纯逻辑、context / hook 住
+   `ui/<领域>/`，`ui/components/<领域>/` 只放组件与样式。线程 → `ui/threads/`；
+   草稿 → `ui/composer/`（并删掉只有 1 个文件的 `ui/interjection/`）；会话控件 →
+   `ui/configuration/`（并删掉只有 1 个文件的 `components/configuration/`）；
+   `components/transcript/`（三个 context / hook，不是组件）并进 `ui/transcript/`；
+   `components/skin/` 去掉（唯一的 `surface.css` 挪到 `components/surface.css`）。
+   最后 `ui/stores/` 只剩会话层的东西，整体改名 `ui/session/`。
+2. **去掉转发壳** `components/composer/attachment-intake.ts`：三个引用方直接引
+   `ui-api/composer-assets`。
+3. **跨模块重复副本收进包**：`focusOnMount`（两份逐字相同）→
+   `packages/design-system/src/focus-on-mount.ts`；`WINDOW_BACKGROUND`（两份逐字相同）→
+   `packages/host-kernel/src/window-colors.ts`。两个包入口各加一行导出，四份副本删除。
+4. **`features/review/src/ui/components/` 去掉**：测试挪走后只剩 `review-pane.tsx` + `.css`，
+   而别的组件本来就在 `ui/` 下平铺。
+
+**拆分**：
+
+5. `components/timeline/`（48 个文件）按块分成 `prose/`、`ticker/`、`wave/`、`tools/`；
+   951 行的 `timeline.css` 跟着拆：绝大部分（`.timeline-prose*`）归 `prose/prose.css`，
+   `.timeline-error` / `.timeline-user` / `.timeline-plan` 落回各自组件旁边。
+6. `omp-tool-view.ts`（1413 行）按工具族分家，入口只留 `HANDLERS` 与 `ompToolView()`。
+7. `ui/index.tsx`（1026 行）拆成 `ui/setup/` 五段，`index.tsx` 只按顺序调用。
+8. `packages/engine-omp/src/` 的「一条会话」十来个文件收进 `src/session/`，
+   对应测试跟着进 `src/session/__tests__/`；根目录只留引擎级的东西。
+
+**零碎**：3 个放错位置的测试归入 `__tests__/`；删 `apps|features|packages/.gitkeep`；
+根 `scripts/` 并到 `features/python/scripts/`（`python:pin` 路径与 `biome.json` 的
+`"scripts/**"` 一起改，`tooling/refs/sync.ts` 的工程模式换成 `features/*/scripts/tsconfig.json`）。
+
+### 与清单的偏差
+
+1. **`timeline/tools/` 里的三个纯逻辑文件挪到了 `ui/timeline/tools/`**（清单也是这么写的）：
+   `ui/transcript/transcript-projector.ts` 在引它们，而按第 1 条规则「纯逻辑住 `ui/<领域>/`」，
+   `components/` 下只留组件与样式。所以 `components/timeline/tools/` 现在装的是六张工具卡与样式。
+2. **`writeView` 的 `xd://` 委派用一格迟登记回调**，没有直接互相 import：
+   `views/files.ts` 要用整张 `HANDLERS` 表再认一次名字，而表在 `omp-tool-view.ts` 里、
+   入口又 import 每个视图文件 —— 直接引就成环（depcruise 的 no-circular 会红）。
+   `view-kit.ts` 出 `registerViewLookup` / `viewOf`，入口在模块求值末尾登记。
+3. **`.timeline-plan*` 四条规则没有对应的活动组件**（`timeline-row.tsx` 的 `case 'plan'` 返回
+   `null`）。清单说这些规则「放回各自组件旁边」，但那个组件不存在；为免静默删掉规则，
+   仍收在 `timeline/plan.css`，由 `timeline-row.tsx` 引入。
+4. **`build` 用的那两个项目名保留**：`features/python/scripts/tsconfig.json` 的
+   `extends` 深度从 `../tooling` 改成 `../../../tooling`、`references` 改成 `../src/core`，
+   并把 `features/*/scripts/tsconfig.json` 加进 `tooling/refs/sync.ts` 的工程模式。
+5. **biome.json 的复杂度覆盖跟着新路径改了三处**（`session/session-port.ts`、
+   `setup/contributions.tsx`、`session/omp-session-adapter.ts`）——这些文件本身没改行为，
+   只是路径变了；不改就是「覆盖静默失效、闸门突然变红」。
+
+### 验收
+
+`bun run all` 全绿（**2040 pass / 0 fail**，263 个文件）。基线是 2043 pass / 264 个文件：
+-`projector/__tests__/tool-view.test.ts`（清单要求删的死代码测试），
+-2 条属于它的断言；+3 条是 `ui/transcript/__tests__/use-slice-frames.test.tsx`
+（移动 `components/transcript/` 时被误删，已按 HEAD 原文恢复并重定 import）。未动契约形状，
+不需 `protocol:snapshot`；未碰 omp 隔离与环境，未跑 `core:probe`。
+**待跑**：`bun run check:ticker`（改到了 `timeline/rolling-line*`、`ticker-*`、`roll-scheduler*`
+的路径，文件内容逐字未动；真实布局检查需要 GPU 与窗口）。

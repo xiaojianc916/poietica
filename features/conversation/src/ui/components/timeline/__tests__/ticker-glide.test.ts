@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test'
-import { AT_REST, type GlideState, glideStep, noteShift, type Shift, shiftRate } from '../ticker-glide'
+import { AT_REST, type GlideState, glideStep, noteShift, type Shift, shiftRate } from '../ticker/ticker-glide'
 
 const FRAME = 1000 / 60
 const EM = 14

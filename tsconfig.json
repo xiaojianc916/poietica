@@ -116,6 +116,9 @@
       "path": "features/preferences/src/ui-api"
     },
     {
+      "path": "features/python/scripts"
+    },
+    {
       "path": "features/python/src/contract"
     },
     {
@@ -234,9 +237,6 @@
     },
     {
       "path": "packages/workbench"
-    },
-    {
-      "path": "scripts"
     },
     {
       "path": "tooling"

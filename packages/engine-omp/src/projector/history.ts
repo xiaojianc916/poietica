@@ -8,7 +8,7 @@ import {
   type TranscriptPage,
   turnId,
 } from '@poietica/transcript'
-import { isGoalContinuationMessage, isUserSkillMessage } from '../prompt'
+import { isGoalContinuationMessage, isUserSkillMessage } from '../session/prompt'
 import { GOAL_CONTINUATION_ORIGIN, type TurnOrigin } from './origin'
 
 /** omp 的消息形状（只取投影要读的那几格，避免绑到 omp 的深层类型） */

@@ -1,4 +1,4 @@
-import '../skin/surface.css'
+import '../surface.css'
 import './composer-actions.css'
 import './auxiliary-composer.css'
 

@@ -11,8 +11,6 @@ import type {
 import type { QuestionChoice, QuestionItem } from '../agent/question'
 import type { TurnMark } from '../agent/thread'
 import type { ToolCallContent } from '../agent/tool-call'
-import { ompToolView } from '../components/timeline/tools/omp-tool-view'
-import { describeTool } from '../components/timeline/tools/tool-vocabulary'
 import type {
   BackgroundTaskItem,
   CompactionState,
@@ -31,6 +29,8 @@ import type {
   UserMessageItem,
 } from '../timeline/timeline-contract'
 import { fileMetaLabel, isInFlight } from '../timeline/timeline-contract'
+import { ompToolView } from '../timeline/tools/omp-tool-view'
+import { describeTool } from '../timeline/tools/tool-vocabulary'
 
 function timeOf(value?: string): number | undefined {
   if (value === undefined) {

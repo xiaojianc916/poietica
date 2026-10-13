@@ -2,7 +2,7 @@ import './prompt-chip.css'
 
 import { DecoratorNode, type NodeKey, type SerializedLexicalNode } from 'lexical'
 import type { ReactNode, SVGProps } from 'react'
-import { ElementIcon, SkillIcon, ToolIcon } from '../primitives/icons'
+import { ElementIcon, SkillIcon, ToolIcon } from './icons'
 
 /* DSH composer chip 的原字形（圆角纸 + 两行字）；图标库的 FileText 带折角，是另一张图。 */
 function FileDocIcon({ className }: SVGProps<SVGSVGElement>) {

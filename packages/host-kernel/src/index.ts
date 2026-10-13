@@ -29,4 +29,5 @@ export { createQuitCoordinator, type QuitCoordinator, type QuitDeps, type QuitOp
 export { pickFreePort } from './relay-port'
 export { createHostRpcBinding, type HostRpcBinding } from './rpc-binding'
 export { type HubWebContents, RpcHub, type RpcHubOptions } from './rpc-hub'
+export { WINDOW_BACKGROUND } from './window-colors'
 export { type MainWindowConfig, WindowRegistry } from './windows'

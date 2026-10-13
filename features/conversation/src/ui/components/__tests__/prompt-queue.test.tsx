@@ -1,7 +1,7 @@
 import { describe, expect, test } from 'bun:test'
 import { act, cleanup, fireEvent, render } from '@testing-library/react'
 import type { QueuedMessages } from '../../agent/session'
-import { MessageQueue } from '../../interjection/message-queue'
+import { MessageQueue } from '../../composer/message-queue'
 import { PromptQueue, queueRows } from '../prompt-queue'
 
 /*

@@ -5,7 +5,7 @@ import path from 'node:path'
 
 const PROJECT_PATTERNS = [
   'tooling/tsconfig.json',
-  'scripts/tsconfig.json',
+  'features/*/scripts/tsconfig.json',
   'packages/*/tsconfig.json',
   'features/*/src/*/tsconfig.json',
   'apps/core/tsconfig.json',

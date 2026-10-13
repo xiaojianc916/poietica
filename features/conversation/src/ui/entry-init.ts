@@ -1,6 +1,6 @@
 import type { ModelRef, Posture } from '@poietica/engine'
 import type { SessionConfigControl } from './agent/config'
-import { postureOfControl } from './control-shapes'
+import { postureOfControl } from './configuration/control-shapes'
 
 /*
  * 入口页发送时铸出的线程初始化（07 页 §5E「新对话入口页的选择器」的发送流程）。

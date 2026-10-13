@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'bun:test'
 import { fakeClock } from '@poietica/test-kit'
-import { createRollScheduler, FINISH_MS, MIN_DWELL_MS, type Promotion } from '../roll-scheduler'
+import { createRollScheduler, FINISH_MS, MIN_DWELL_MS, type Promotion } from '../ticker/roll-scheduler'
 
 const line = (key: string, text = key) => ({ key, text })
 

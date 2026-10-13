@@ -37,10 +37,12 @@ import {
   composerInputHandlers,
   type DraftAttachment,
 } from '../../../ui-api'
+import { useAttachmentIntake } from '../../../ui-api/composer-assets'
 import type { ChatStatus } from '../../agent/run'
 import type { PromptConfiguration, PromptSkill } from '../../agent/session'
 import { type ComposerAsset, isInlineAttachment } from '../../composer/attachment'
 import type { ComposerDraft } from '../../composer/drafts'
+import { ENTRY_DRAFT_KEY, useComposerDraftKey, useComposerDrafts } from '../../composer/drafts-context'
 import {
   canSubmitDraft,
   type PendingPromptConfiguration,
@@ -50,7 +52,6 @@ import {
 import { cx } from '../primitives/class-names'
 import { ResumeIcon, StopIcon, SubmitIcon } from '../primitives/icons'
 import { $createChipNode, ChipNode, type PromptChipValue, samePromptChip } from '../primitives/prompt-chip'
-import { useAttachmentIntake } from './attachment-intake'
 import {
   ComposerPalette,
   composerComposeGroup,
@@ -60,7 +61,6 @@ import {
   paletteOptionId,
   useDismissOutside,
 } from './composer-palette'
-import { ENTRY_DRAFT_KEY, useComposerDraftKey, useComposerDrafts } from './drafts-context'
 
 const NO_ATTACHMENTS: readonly ComposerAsset[] = []
 const NO_GROUPS: readonly PaletteGroup[] = []

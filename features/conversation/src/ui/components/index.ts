@@ -1,18 +1,20 @@
 export type { GitBranchPickerProps } from '../../ui-api'
-export { AssistantSurface } from './assistant-surface'
-export { AssistantComposer } from './composer/assistant-composer'
-export { AttachmentIntakeContext } from './composer/attachment-intake'
-export { AuxiliaryComposer } from './composer/auxiliary-composer'
-export { ComposerDraftKeyContext, ComposerDraftsContext } from './composer/drafts-context'
-export type { PromptInputHandle } from './composer/prompt-input'
-export { SwarmToggle } from './composer/swarm-toggle'
+export { AttachmentIntakeContext } from '../../ui-api/composer-assets'
+export { ComposerDraftKeyContext, ComposerDraftsContext } from '../composer/drafts-context'
 export {
   SessionControlsContext,
   useSessionControlsActions,
   useThreadSelectorFailure,
   useThreadSelectors,
   useThreadUsage,
-} from './configuration/session-controls-context'
+} from '../configuration/session-controls-context'
+export { TranscriptsContext } from '../transcript/transcripts-context'
+export { useRunningThreads } from '../transcript/use-running-threads'
+export { AssistantSurface } from './assistant-surface'
+export { AssistantComposer } from './composer/assistant-composer'
+export { AuxiliaryComposer } from './composer/auxiliary-composer'
+export type { PromptInputHandle } from './composer/prompt-input'
+export { SwarmToggle } from './composer/swarm-toggle'
 // Git 那一格的事实与投递口搬到了 ../../ui-api（跨功能协作只能经那一格）：见 ui-api/git-status.ts
 export { SkillDocumentPane } from './skill-document-pane'
 export { createSkillDocumentStore, type SkillDocumentStore } from './skill-document-store'
@@ -24,7 +26,5 @@ export {
   DelegateChannelPane,
   useDelegateChannelNames,
 } from './timeline/delegate-channel-view'
-export { TableExportProvider } from './timeline/table-export-context'
+export { TableExportProvider } from './timeline/prose/table-export-context'
 export { TodoPanel } from './todo/todo-panel'
-export { TranscriptsContext } from './transcript/transcripts-context'
-export { useRunningThreads } from './transcript/use-running-threads'

@@ -99,7 +99,14 @@
       }
     },
     {
-      "includes": ["tooling/**", "scripts/**", "apps/*/scripts/**", "**/__tests__/**", "**/*.test.ts", "**/*.test.tsx"],
+      "includes": [
+        "tooling/**",
+        "features/*/scripts/**",
+        "apps/*/scripts/**",
+        "**/__tests__/**",
+        "**/*.test.ts",
+        "**/*.test.tsx"
+      ],
       "linter": {
         "rules": {
           "suspicious": {
@@ -163,8 +170,6 @@
         "features/conversation/src/ui/components/home-surface.tsx",
         "features/conversation/src/ui/components/mascot/emotion-ball.tsx",
         "features/conversation/src/ui/components/semantics/tool-call-facets.ts",
-        "features/conversation/src/ui/configuration/capability-store.ts",
-        "features/conversation/src/ui/threads/threads-store.ts",
         "features/conversation/src/ui/timeline/presentation.ts",
         "features/conversation/src/ui/timeline/timeline-queries.ts",
         "features/conversation/src/ui/transcript/transcript-replica.ts",
@@ -203,7 +208,7 @@
     },
     {
       "includes": [
-        "features/conversation/src/ui/stores/session-port.ts",
+        "features/conversation/src/ui/session/session-port.ts",
         "features/conversation/src/ui/transcript/transcript-projector.ts",
         "features/extensions/src/ui/mcp-config.ts",
         "packages/engine-omp/src/projector/__tests__/fixtures/live.ts"
@@ -223,7 +228,7 @@
     },
     {
       "includes": [
-        "features/conversation/src/ui/index.tsx",
+        "features/conversation/src/ui/setup/contributions.tsx",
         "features/models/src/ui/catalog-port.ts",
         "packages/logging/src/logger.ts",
         "packages/logging/src/redact.ts"
@@ -244,7 +249,7 @@
     {
       "includes": [
         "features/conversation/src/core/repository.ts",
-        "packages/engine-omp/src/omp-session-adapter.ts",
+        "packages/engine-omp/src/session/omp-session-adapter.ts",
         "packages/git/src/parse.ts"
       ],
       "linter": {

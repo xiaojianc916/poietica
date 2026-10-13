@@ -1,8 +1,8 @@
 import { describe, expect, test } from 'bun:test'
 import type { Thread } from '../../contract'
 import type { ConversationApi } from '../api'
-import { createThreadsStore } from '../stores/threads'
-import { createTurnStatesStore } from '../stores/turn-states'
+import { createTurnStatesStore } from '../session/turn-states'
+import { createThreadsStore } from '../threads/threads-store'
 
 /*
  * R-04 S9：`threads.list` 的 `state` 是运行态的**快照兜底**。

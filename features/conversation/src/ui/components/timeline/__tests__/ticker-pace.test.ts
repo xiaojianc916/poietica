@@ -9,7 +9,7 @@ import {
   type PaceState,
   paceStep,
   visibleCount,
-} from '../ticker-pace'
+} from '../ticker/ticker-pace'
 
 const FRAME = 1000 / 60
 

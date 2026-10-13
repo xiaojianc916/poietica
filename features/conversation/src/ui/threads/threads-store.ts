@@ -1,513 +1,89 @@
-import { invariant } from '@poietica/foundation'
-import type { OpenedThread, SharedThread, ThreadPort, ThreadRecord } from '../agent/thread'
-import { createExternalStore } from '../components/primitives/external-store'
-import { describeFailure } from '../failure'
-import { byRecency, type ThreadListItem, type ThreadsList, workspaceIdOf } from './thread-order'
-import { forkNameOf, nameOf, shorten } from './thread-title'
-import { normalizeWorkspaceRoot } from './workspace-root'
+import { createFeatureStore, type FeatureStore } from '@poietica/ui-kernel'
+import type { Thread } from '../../contract'
+import type { ConversationApi } from '../api'
+import type { TurnStatesStore } from '../session/turn-states'
 
-const NO_ITEMS: readonly ThreadListItem[] = []
-
-class ThreadProjection {
-  #items = new Map<string, ThreadListItem>()
-  #last: readonly ThreadListItem[] = NO_ITEMS
-
-  of(threads: readonly ThreadRecord[], fallbackWorkspaceId?: string): readonly ThreadListItem[] {
-    const listed = [...threads].sort(byRecency)
-    const kept = new Map<string, ThreadListItem>()
-    const items: ThreadListItem[] = []
-    let same = listed.length === this.#last.length
-    for (const [index, thread] of listed.entries()) {
-      const title = nameOf(thread)
-      const isPinned = thread.pinned === true
-      const workspaceId = workspaceIdOf(thread, fallbackWorkspaceId)
-      const previous = this.#items.get(thread.threadId)
-      const item =
-        previous !== undefined &&
-        previous.title === title &&
-        previous.isPinned === isPinned &&
-        previous.updatedAt === thread.updatedAt &&
-        previous.workspaceId === workspaceId
-          ? previous
-          : { id: thread.threadId, title, isPinned, updatedAt: thread.updatedAt, workspaceId }
-      kept.set(thread.threadId, item)
-      items.push(item)
-      if (this.#last[index] !== item) {
-        same = false
-      }
-    }
-    this.#items = kept
-    this.#last = same ? this.#last : items
-    return this.#last
-  }
-}
-
-type Intent =
-  | {
-      readonly kind: 'activity'
-      readonly threadId: string
-      readonly title: string
-      readonly at: string
-    }
-  | { readonly kind: 'rename'; readonly threadId: string; readonly title: string }
-  | { readonly kind: 'pin'; readonly threadId: string; readonly pinned: boolean }
-interface Held {
-  readonly records: ReadonlyMap<string, ThreadRecord>
-  readonly intents: ReadonlyMap<number, Intent>
+export interface ThreadsState {
+  readonly items: readonly Thread[]
+  readonly workspaceId: string | null
+  readonly includeArchived: boolean
   readonly isLoading: boolean
   readonly failure: string | null
 }
-interface ThreadsStoreOptions {
-  readonly defaultWorkspaceId?: (() => string | null) | undefined
-  readonly port?: ThreadPort | undefined
-  readonly now?: (() => string) | undefined
+
+export interface ThreadsStore {
+  readonly store: FeatureStore<ThreadsState>
+  refresh(): Promise<void>
+  setWorkspace(workspaceId: string | null): void
+  setIncludeArchived(v: boolean): void
+  /** 通知与本地写入都走它：同一个 id 就替换，新的就按 pinned/updatedAt 排进去 */
+  upsert(thread: Thread): void
+  remove(threadId: string): void
+  byId(threadId: string): Thread | undefined
 }
 
-/** Only port responses enter records; pending user commands are a separate intent log. */
-export class ThreadsStore {
-  readonly #port: ThreadPort | undefined
-  readonly #defaultWorkspaceId: (() => string | null) | undefined
-  readonly #now: () => string
-  readonly #projection = new ThreadProjection()
-  readonly #archivedProjection = new ThreadProjection()
-  readonly #store = createExternalStore<ThreadsList>({ read: () => this.#list })
-  readonly #removed = new Set<(threadId: string) => void>()
-  readonly #opened = new Set<(answer: OpenedThread) => void>()
-  readonly #tails = new Map<string, Promise<void>>()
-  #held: Held = { records: new Map(), intents: new Map(), isLoading: true, failure: null }
-  #visible: ReadonlyMap<string, ThreadRecord> = new Map()
-  #list: ThreadsList = { items: NO_ITEMS, isLoading: true, failure: null }
-  #archived: ThreadsList = { items: NO_ITEMS, isLoading: true, failure: null }
-  #disposed = false
-  #revision = 0
-  #nextIntent = 0
-  #refreshing: Promise<void> | null = null
-  #refreshAgain = false
+/** pinned DESC, updated_at DESC —— 与服务端的排序一致（07 页 §5C）；本地插入也照它排 */
+export function orderThreads(items: readonly Thread[]): readonly Thread[] {
+  return [...items].sort((a, b) => {
+    if (a.pinned !== b.pinned) return a.pinned ? -1 : 1
+    return b.updatedAt - a.updatedAt
+  })
+}
 
-  constructor({ defaultWorkspaceId, port, now }: ThreadsStoreOptions) {
-    this.#port = port
-    this.#defaultWorkspaceId = defaultWorkspaceId
-    this.#now = now ?? (() => new Date().toISOString())
-  }
-  dispose = (): void => {
-    this.#disposed = true
-    this.#revision += 1
-    this.#removed.clear()
-    this.#opened.clear()
-    this.#tails.clear()
-  }
-  subscribe = (listener: () => void): (() => void) =>
-    this.#disposed ? () => undefined : this.#store.subscribe(listener)
-  onRemoved = (listener: (threadId: string) => void): (() => void) => {
-    if (!this.#disposed) {
-      this.#removed.add(listener)
-    }
-    return () => {
-      this.#removed.delete(listener)
-    }
-  }
-  onOpened = (listener: (answer: OpenedThread) => void): (() => void) => {
-    if (!this.#disposed) {
-      this.#opened.add(listener)
-    }
-    return () => {
-      this.#opened.delete(listener)
-    }
-  }
-  listSnapshot = (): ThreadsList => this.#list
-  archivedSnapshot = (): ThreadsList => this.#archived
-  rootOf = (threadId: string): string | null => {
-    const root = this.#held.records.get(threadId)?.workspaceRoot
-    return root == null || root.length === 0 ? null : normalizeWorkspaceRoot(root)
-  }
-  titleOf = (threadId: string): string => nameOf(this.#visible.get(threadId))
-  standInTitle = (message: string): string => shorten(message) || '[图片]'
+/**
+ * 线程列表。
+ *
+ * `refresh()` 拿到的 `Thread.state` 是运行态的**快照兜底**：只靠 `turns.state` 通知的话，
+ * Core 在运行中崩溃重启之后最后一条通知停在 running，侧栏会一直转圈（R-04 §1.4）；
+ * 渲染进程重载后更是没有任何通知，正在跑的对话会显示为空闲。
+ */
+export function createThreadsStore(api: ConversationApi, turnStates: TurnStatesStore): ThreadsStore {
+  const store = createFeatureStore<ThreadsState>(() => ({
+    items: [],
+    workspaceId: null,
+    includeArchived: false,
+    isLoading: true,
+    failure: null,
+  }))
 
-  refresh = (): Promise<void> => {
-    if (this.#disposed) {
-      return Promise.resolve()
-    }
-    if (this.#refreshing !== null) {
-      this.#refreshAgain = true
-      return this.#refreshing
-    }
-    const port = this.#port
-    if (port === undefined) {
-      this.#commit({ isLoading: false })
-      return Promise.resolve()
-    }
-    const work = async (): Promise<void> => {
-      do {
-        this.#refreshAgain = false
-        await this.#pull(port, this.#revision)
-      } while (this.#refreshAgain && !this.#disposed)
-    }
-    const running = work().finally(() => {
-      if (this.#refreshing === running) {
-        this.#refreshing = null
-      }
-    })
-    this.#refreshing = running
-    return running
+  const merge = (thread: Thread): void => {
+    store.setState((s) => ({ items: orderThreads([...s.items.filter((t) => t.id !== thread.id), thread]) }))
   }
 
-  async #pull(port: ThreadPort, revision: number): Promise<void> {
-    try {
-      const found = await port.list()
-      if (this.#disposed) {
-        return
-      }
-      if (revision !== this.#revision) {
-        this.#refreshAgain = true
-        return
-      }
-      const records = this.#mergeRecords(found)
-      this.#commit({
-        records,
-        intents: this.#confirmed(this.#held.intents, records),
-        isLoading: false,
-        failure: null,
-      })
-    } catch (reason) {
-      if (this.#disposed) {
-        return
-      }
-      if (revision !== this.#revision) {
-        this.#refreshAgain = true
-        return
-      }
-      this.#commit({ isLoading: false, failure: describeFailure(reason) })
-    }
-  }
-
-  /** Listing replaces fallback titles wholesale and never touches local titles. */
-  #mergeRecords(found: readonly ThreadRecord[]): Map<string, ThreadRecord> {
-    const records = new Map([...this.#held.records].filter(([, record]) => record.titleSource === 'fallback'))
-    const seen = new Set<string>()
-    for (const record of found) {
-      if (seen.has(record.threadId)) {
-        invariant(false, 'The platform returned duplicate conversation identities.')
-      }
-      seen.add(record.threadId)
-      records.set(record.threadId, record)
-    }
-    return records
-  }
-
-  create = (threadId: string, workspaceRoot?: string): Promise<string | null> =>
-    this.#serial(threadId, async () => {
-      if (this.#disposed || this.#port === undefined) {
-        return null
-      }
-      this.#revision += 1
-      const opened = await this.#port.create(threadId, workspaceRoot)
-      if (this.#disposed) {
-        return null
-      }
-      this.#identity(threadId, opened.thread)
-      const records = new Map(this.#held.records).set(threadId, opened.thread)
-      this.#commit({ records, failure: null })
-      for (const listener of this.#opened) {
-        listener(opened)
-      }
-      return threadId
-    })
-
-  noteUserMessage = (threadId: string, message: string): void => {
-    if (this.#disposed) {
-      return
-    }
-    const intents = new Map(this.#held.intents)
-    let title = this.standInTitle(message)
-    for (const [key, intent] of intents) {
-      if (intent.threadId === threadId && intent.kind === 'activity') {
-        title = intent.title
-        intents.delete(key)
-      }
-    }
-    intents.set(++this.#nextIntent, { kind: 'activity', threadId, title, at: this.#now() })
-    this.#commit({ intents })
-  }
-  rename = (threadId: string, title: string): Promise<void> => {
-    const action = this.#port?.rename
-    const named = title.trim()
-    if (this.#disposed || action === undefined || named.length === 0) {
-      return Promise.resolve()
-    }
-    return this.#change(threadId, () => action(threadId, named), {
-      kind: 'rename',
-      threadId,
-      title: named,
-    })
-  }
-  setPinned = (threadId: string, pinned: boolean): Promise<void> => {
-    const action = this.#port?.setPinned
-    if (this.#disposed || action === undefined) {
-      return Promise.resolve()
-    }
-    return this.#change(threadId, () => action(threadId, pinned), { kind: 'pin', threadId, pinned })
-  }
-  archive = (threadId: string, archived: boolean): Promise<void> => {
-    const action = this.#port?.archive
-    if (this.#disposed || action === undefined) {
-      return Promise.resolve()
-    }
-    return this.#change(threadId, () => action(threadId, archived), undefined, archived)
-  }
-  remove = (threadId: string): Promise<void> =>
-    this.#serial(threadId, async () => {
-      const action = this.#port?.remove
-      if (this.#disposed || action === undefined) {
-        return
-      }
-      this.#revision += 1
+  return {
+    store,
+    byId: (threadId) => store.getState().items.find((t) => t.id === threadId),
+    upsert: merge,
+    remove: (threadId) => {
+      store.setState((s) => ({ items: s.items.filter((t) => t.id !== threadId) }))
+    },
+    setWorkspace: (workspaceId) => {
+      store.setState({ workspaceId })
+    },
+    setIncludeArchived: (includeArchived) => {
+      store.setState({ includeArchived })
+    },
+    async refresh() {
+      const { workspaceId, includeArchived } = store.getState()
+      store.setState({ isLoading: true })
+      /*
+       * 版本在**发请求之前**取：往返期间到达的通知版本更高，hydrate 会跳过那些线程，
+       * 不让出发时的旧快照把新状态盖回去。
+       */
+      const mark = turnStates.mark()
       try {
-        await action(threadId)
-      } catch (reason) {
-        this.#revision += 1
-        this.#commit({ failure: describeFailure(reason) })
-        return
-      }
-      if (this.#disposed) {
-        return
-      }
-      const records = new Map(this.#held.records)
-      records.delete(threadId)
-      const intents = new Map([...this.#held.intents].filter(([, intent]) => intent.threadId !== threadId))
-      this.#commit({ records, intents, failure: null })
-      for (const listener of this.#removed) {
-        listener(threadId)
-      }
-    })
-  fork = (threadId: string, undoCount: number): Promise<string | null> =>
-    this.#serial(threadId, async () => {
-      const action = this.#port?.fork
-      if (this.#disposed || action === undefined) {
-        return null
-      }
-      this.#revision += 1
-      try {
-        const forked = await action(threadId, forkNameOf(this.titleOf(threadId)), undoCount)
-        if (this.#disposed) {
-          return null
-        }
-        if (forked.threadId === threadId) {
-          invariant(false, 'A fork must have a distinct conversation identity.')
-        }
-        this.#commit({
-          records: new Map(this.#held.records).set(forked.threadId, forked),
-          failure: null,
+        const items = await api.listThreads({
+          ...(workspaceId === null ? {} : { workspaceId }),
+          includeArchived,
         })
-        await this.refresh()
-        return this.#disposed ? null : forked.threadId
-      } catch (reason) {
-        this.#revision += 1
-        this.#commit({ failure: describeFailure(reason) })
-        return null
-      }
-    })
-  export = async (threadId: string): Promise<boolean> => {
-    const action = this.#port?.export
-    if (this.#disposed || action === undefined) {
-      return false
-    }
-    try {
-      const saved = await action(threadId)
-      if (this.#disposed) {
-        return false
-      }
-      this.#commit({ failure: null })
-      return saved
-    } catch (reason) {
-      this.#commit({ failure: describeFailure(reason) })
-      return false
-    }
-  }
-  /*
-   * 分享返回链接而不是名字：调用方拿不到它，这个动作用户就什么也没得到。会话不存在、
-   * 上传失败都抛出去 —— 遮成 null 会让「没分享成」和「分享成了但没链接」长得一样。
-   * 失败仍记在 failure 上：侧栏那句失败文案是这条动作唯一的落点。
-   */
-  share = async (threadId: string): Promise<SharedThread | null> => {
-    const action = this.#port?.share
-    if (this.#disposed || action === undefined) {
-      return null
-    }
-    try {
-      const shared = await action(threadId)
-      if (this.#disposed) {
-        return null
-      }
-      this.#commit({ failure: null })
-      return shared
-    } catch (reason) {
-      this.#commit({ failure: describeFailure(reason) })
-      return null
-    }
-  }
-
-  #serial<T>(threadId: string, work: () => Promise<T>): Promise<T> {
-    const previous = this.#tails.get(threadId) ?? Promise.resolve()
-    const result = previous.then(work)
-    // The returned result retains failure; this tail only orders subsequent commands.
-    const tail = result.then(
-      () => {},
-      () => {},
-    )
-    this.#tails.set(threadId, tail)
-    void tail.then(() => {
-      if (this.#tails.get(threadId) === tail) {
-        this.#tails.delete(threadId)
-      }
-    })
-    return result
-  }
-  #change(threadId: string, action: () => Promise<void>, intent?: Intent, closeTab = false): Promise<void> {
-    const key = ++this.#nextIntent
-    if (intent !== undefined) {
-      this.#commit({ intents: new Map(this.#held.intents).set(key, intent) })
-    }
-    return this.#serial(threadId, async () => {
-      if (this.#disposed || this.#port === undefined) {
-        return
-      }
-      this.#revision += 1
-      try {
-        await action()
-      } catch (reason) {
-        this.#revision += 1
-        const intents = new Map(this.#held.intents)
-        intents.delete(key)
-        this.#commit({ intents })
-        await this.refresh()
-        this.#commit({ failure: describeFailure(reason) })
-        return
-      }
-      if (this.#disposed) {
-        return
-      }
-      this.#revision += 1
-      try {
-        const snapshot = await this.#port.read(threadId)
-        if (this.#disposed) {
-          return
-        }
-        this.#identity(threadId, snapshot.thread)
-        const records = new Map(this.#held.records).set(threadId, snapshot.thread)
-        const intents = new Map(this.#held.intents)
-        intents.delete(key)
-        this.#commit({ records, intents: this.#confirmed(intents, records), failure: null })
-      } catch (reason) {
-        this.#revision += 1
-        const intents = new Map(this.#held.intents)
-        intents.delete(key)
-        this.#commit({ intents })
-        await this.refresh()
-        this.#commit({ failure: describeFailure(reason) })
-      }
-      if (closeTab && !this.#disposed) {
-        for (const listener of this.#removed) {
-          listener(threadId)
-        }
-      }
-    })
-  }
-  #identity(expected: string, record: ThreadRecord): void {
-    if (record.threadId !== expected) {
-      invariant(false, 'The platform returned a different conversation identity.')
-    }
-  }
-  #confirmed(
-    intents: ReadonlyMap<number, Intent>,
-    records: ReadonlyMap<string, ThreadRecord>,
-  ): ReadonlyMap<number, Intent> {
-    const remaining = new Map(intents)
-    for (const [key, intent] of remaining) {
-      if (intent.kind !== 'activity') {
-        continue
-      }
-      const record = records.get(intent.threadId)
-      if (
-        record !== undefined &&
-        record.titleSource !== 'fallback' &&
-        Date.parse(record.updatedAt) >= Date.parse(intent.at)
-      ) {
-        remaining.delete(key)
-      }
-    }
-    return remaining
-  }
-  #project(next: Held): ReadonlyMap<string, ThreadRecord> {
-    const visible = new Map(next.records)
-    for (const intent of next.intents.values()) {
-      const record = visible.get(intent.threadId)
-      if (intent.kind === 'activity') {
-        if (record === undefined) {
-          visible.set(intent.threadId, {
-            threadId: intent.threadId,
-            sessionId: null,
-            title: intent.title,
-            titleSource: 'message',
-            updatedAt: intent.at,
-          })
-        } else {
-          visible.set(intent.threadId, {
-            ...record,
-            ...(record.titleSource === 'fallback' ? { title: intent.title, titleSource: 'message' as const } : {}),
-            updatedAt: Date.parse(intent.at) > Date.parse(record.updatedAt) ? intent.at : record.updatedAt,
-          })
-        }
-      } else if (record !== undefined) {
-        visible.set(
-          intent.threadId,
-          intent.kind === 'rename'
-            ? { ...record, title: intent.title, titleSource: 'manual' }
-            : { ...record, pinned: intent.pinned },
+        store.setState({ items: orderThreads(items), isLoading: false, failure: null })
+        turnStates.hydrate(
+          items.map((thread) => ({ id: thread.id, state: thread.state })),
+          mark,
         )
+      } catch (e) {
+        store.setState({ isLoading: false, failure: e instanceof Error ? e.message : String(e) })
       }
-    }
-    return visible
-  }
-  #commit(patch: Partial<Held>): void {
-    if (this.#disposed) {
-      return
-    }
-    const next = { ...this.#held, ...patch }
-    const listing = next.records !== this.#held.records || next.intents !== this.#held.intents
-    this.#held = next
-    if (listing) {
-      this.#revision += 1
-      this.#visible = this.#project(next)
-    }
-    const workspace = this.#defaultWorkspaceId?.() ?? undefined
-    const rows = [...this.#visible.values()].filter((record) => record.titleSource !== 'fallback')
-    const active = listing
-      ? this.#projection.of(
-          rows.filter((row) => row.archived !== true),
-          workspace,
-        )
-      : this.#list.items
-    const archived = listing
-      ? this.#archivedProjection.of(
-          rows.filter((row) => row.archived === true),
-          workspace,
-        )
-      : this.#archived.items
-    const previous = this.#list
-    const previousArchived = this.#archived
-    const { isLoading, failure } = next
-    if (active !== previous.items || isLoading !== previous.isLoading || failure !== previous.failure) {
-      this.#list = { items: active, isLoading, failure }
-    }
-    if (
-      archived !== previousArchived.items ||
-      isLoading !== previousArchived.isLoading ||
-      failure !== previousArchived.failure
-    ) {
-      this.#archived = { items: archived, isLoading, failure }
-    }
-    if (previous !== this.#list || previousArchived !== this.#archived) {
-      this.#store.notify()
-    }
+    },
   }
 }

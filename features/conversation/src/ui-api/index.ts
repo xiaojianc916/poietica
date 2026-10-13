@@ -8,8 +8,7 @@ import type { Thread } from '../contract'
  *
  * 这两样同时被 conversation 的输入框（消费方）与 attachments 的入库实现（提供方）
  * 用到，而两个功能之间只能经 contract / core-api / ui-api 协作（守则 3），所以它们
- * 住在 ui-api 这一格。`ui/composer/attachment.ts` 与 `ui/components/composer/attachment-intake.ts`
- * 各留一层转发，legacy 迁入的组件 import 路径不必全改。
+ * 住在 ui-api 这一格。消费方直接引本文件，不再留转发层。
  */
 export {
   type AttachmentIntake,

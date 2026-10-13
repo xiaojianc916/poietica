@@ -2,10 +2,10 @@ import { describe, expect, test } from 'bun:test'
 import type { Thread } from '../../../contract'
 import type { AgentPromptHandle, AgentPromptRequest, AgentSessionPort, QueuedMessages } from '../../agent/session'
 import type { TranscriptPage } from '../../agent/transcript'
-import { readFailedSubmissionText } from '../../components/transcript/use-assistant-session'
-import { createSessionRegistry } from '../../stores/session-registry'
-import { createThreadEntry } from '../../stores/thread-entry'
+import { createSessionRegistry } from '../../session/session-registry'
+import { createThreadEntry } from '../../threads/thread-entry'
 import { TranscriptStore } from '../transcript-store'
+import { readFailedSubmissionText } from '../use-assistant-session'
 
 /*
  * 会话接线的四条回归（真实故障「这个界面还没有接上助手会话。」的守卫）。

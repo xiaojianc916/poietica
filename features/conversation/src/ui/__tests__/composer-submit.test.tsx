@@ -6,7 +6,6 @@ import { MotionConfig } from 'motion/react'
 import { type ReactNode, useRef } from 'react'
 import { composerToolkitSources } from '../../ui-api'
 import { ComposerActions, composerPaletteGroups } from '../components/composer/composer-actions'
-import { ComposerDraftsContext } from '../components/composer/drafts-context'
 import {
   PromptInput,
   PromptInputBody,
@@ -15,6 +14,7 @@ import {
   PromptInputToolbar,
 } from '../components/composer/prompt-input'
 import { ComposerDrafts } from '../composer/drafts'
+import { ComposerDraftsContext } from '../composer/drafts-context'
 import type { PromptInputMessage } from '../composer/prompt'
 
 /*

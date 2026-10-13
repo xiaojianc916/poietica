@@ -1,8 +1,8 @@
 import { describe, expect, test } from 'bun:test'
 import { renderHook } from '@testing-library/react'
 import { StrictMode } from 'react'
-import { completionBody, confirmQuit, isTurnSettled, shouldNotify } from '../stores/notify'
-import { useThreadSessionLifecycle } from '../thread-lifecycle'
+import { completionBody, confirmQuit, isTurnSettled, shouldNotify } from '../session/notify'
+import { useThreadSessionLifecycle } from '../threads/thread-lifecycle'
 
 /*
  * 07 页 §5E 的通知表（完成 / 失败 / 需要确认）与退出确认的判据层。

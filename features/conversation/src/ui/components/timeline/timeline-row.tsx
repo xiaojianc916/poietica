@@ -1,4 +1,5 @@
-import './timeline.css'
+import './message.css'
+import './plan.css'
 
 import { FeatureScope, useContributions } from '@poietica/ui-kernel'
 import { memo } from 'react'
@@ -6,9 +7,9 @@ import { type ToolCallRendererProps, toolCallRenderers } from '../../../ui-api'
 import type { FeedRow } from '../../timeline/presentation'
 import { CompactionStatus } from './compaction-status'
 import { ErrorNotice } from './error-notice'
-import { LinkCard } from './link-card'
-import { Prose } from './prose'
-import { ToolCallCard } from './tool-call-card'
+import { LinkCard } from './prose/link-card'
+import { Prose } from './prose/prose'
+import { ToolCallCard } from './tools/tool-call-card'
 import { UserMessage } from './user-message'
 
 // 纯分发：feed 管滚动和测量，每个渲染器管自己的外观。

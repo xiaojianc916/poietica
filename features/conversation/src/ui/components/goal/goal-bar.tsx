@@ -1,9 +1,8 @@
-import { Tooltip, TooltipContent, TooltipTrigger } from '@poietica/design-system'
+import { focusOnMount, Tooltip, TooltipContent, TooltipTrigger } from '@poietica/design-system'
 import { Check, CirclePause, CirclePlay, Goal, Pencil, Trash2, X } from 'lucide-react'
 import { type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { SessionGoal } from '../../agent/goal'
 import { describeFailure } from '../../failure'
-import { focusOnMount } from '../primitives/focus-on-mount'
 import type { GoalAction, GoalActionHandler, GoalActionResult } from './goal-control'
 import './goal-bar.css'
 

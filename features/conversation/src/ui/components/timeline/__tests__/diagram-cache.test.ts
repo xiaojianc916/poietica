@@ -1,6 +1,14 @@
 import { beforeEach, describe, expect, test } from 'bun:test'
-import { cachedInks, cachedSvg, inksKey, keepInks, keepSvg, resetDiagramCacheForTests, svgKey } from '../diagram-cache'
-import { DIAGRAM_INKS, type DiagramInks } from '../diagram-theme'
+import {
+  cachedInks,
+  cachedSvg,
+  inksKey,
+  keepInks,
+  keepSvg,
+  resetDiagramCacheForTests,
+  svgKey,
+} from '../prose/diagram-cache'
+import { DIAGRAM_INKS, type DiagramInks } from '../prose/diagram-theme'
 
 /*
  * 一张完整的颜色表：键集跟着真实的槽位走（少一个就不是这张图该有的那一套），值只要互不相同

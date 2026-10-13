@@ -3,6 +3,8 @@ import type { MessageFile, MessageImage } from '../../timeline/timeline-contract
 import { PromptChip, promptSegments } from '../primitives/prompt-chip'
 import { MessageAttachments } from './message-attachments'
 
+import './user-message.css'
+
 /*
  * A long message is clipped, and the clip can be released.
  *
