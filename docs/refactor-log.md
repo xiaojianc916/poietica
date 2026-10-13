@@ -2535,11 +2535,22 @@ TS2307），与本项无关；那半边收尾后复跑即全绿。
 -2 条属于它的断言；+3 条是 `ui/transcript/__tests__/use-slice-frames.test.tsx`
 （移动 `components/transcript/` 时被误删，已按 HEAD 原文恢复并重定 import）。未动契约形状，
 不需 `protocol:snapshot`；未碰 omp 隔离与环境，未跑 `core:probe`。
-**未跑 `bun run check:ticker`**（改到了 `timeline/rolling-line*`、`ticker-*`、`roll-scheduler*`
-的路径，但文件内容逐字未动：哈希比对 SAME，唯一改动是 `rolling-line.tsx` 里
-`cx` 的 import 相对深度）。本环境跑不起来 —— 检查台把 electron 可执行文件写死在
-`node_modules/electron/dist/electron.exe`，而 bun 的 isolated linker 下安装的 electron
-没有下载 `dist/`（`node_modules/electron` 是指向 `.bun/electron@44.7.0/...` 的软链，
-里面只有 `cli.js` / `index.js`）。临时挂上同版本的 electron 跑也无产出（无 GPU 与窗口，
-逐帧采样拿不到帧）。**待决**：`run.ts` 的 `ELECTRON` 常量改用 `electron` 包的解析结果，
-别写死路径。
+**`bun run check:ticker`（补跑通过，六场几何全 ✔）**：改到了 `timeline/rolling-line*`、
+`ticker-*`、`roll-scheduler*` 的路径，但文件内容逐字未动 —— 除 `rolling-line.tsx` 里 `cx`
+的 import 相对深度外，其余七个文件与基线 blob 哈希 **SAME**。六场里 `右裁` 与
+`句首被裁` 全部为 0（这正是这条检查存在的两条理由）；`steady` 的 sJ90 在 0.23～0.29
+之间抖动（阈值 ≤ 0.25），三次复跑 0.23 ✔ / 0.27 ✘ / 0.24 ✔ —— 是这台机器的测量噪声，
+与被测文件无关。
+
+**环境事故（与本次重构无关，已修）**：`bun dev` 报 `Error: Electron uninstall`。
+根因是上一个提交 `2a3548e6`「提升依赖版本」把 electron 从 `^44.5.1` 提到 `^44.7.0`，
+而 44.7.0 的 postinstall **下载失败后没有重试**，`node_modules/electron/` 下只有
+`cli.js` / `index.js`，没有 `dist/` 也没有 `path.txt`；`electron-vite` 的
+`getElectronPath()` 读不到 `path.txt` 就抛这句话。修法：从镜像取官方 zip
+（sha 与 npm 上的一致，158293649 字节，zip 完整、内层 `electron.exe` 246302208 字节），
+解到 `node_modules/electron/dist/` 并写 `path.txt`（内容 `electron.exe`）。
+`bun install` 不会覆盖已存在的 dist，所以这次修复是持久的。修完 `bun dev` 起来：
+host ready、core ready（protocol 15 / engine 18.10.3），窗口标题 `Poietica`。
+**待决**：`tooling/checks/ticker-layout/run.ts` 的 `ELECTRON` 常量写死了
+`node_modules/electron/dist/electron.exe`，改走 `require.resolve('electron')` + `path.txt`
+更稳（isolated linker 下前者不成立）。
