@@ -161,17 +161,16 @@
    *
    * 几何照抄正本 @deepseek-ai/dsh-client-ui-conversation 的 QueueDock.module.css
    * （装机版本 2026-10-02），数字逐条对应：
-   *   栏  卡片两侧各让 8（--dsh-composer-dock-inset）、三面都让 16
-   *       （--dsh-composer-side-clearance）、下沿咬进输入卡 6 + 3
-   *       （--dsh-composer-stack-gap）、卡宽 = 输入卡宽 − 16
+   *   栏  卡片两侧各让 16（正本是 --dsh-composer-dock-inset 的 8）、下沿咬进输入卡
+   *       6 + 3（--dsh-composer-stack-gap）、卡宽 = 输入卡宽 − 32
    *   面  上圆角 16 下直角、上下各 2 内边距、.5 描边只画三边（底边留给输入卡）
    *   头  36 高、行圆角 12、内边距 4/12、间距 10、字 13/24 中黑
    *   列表 上限 180、行 36 高、内边距 4/5/4/12、行间距是一条 inset 发丝线
    *   行  预览 13/20、操作钮 28 圆、字形 14、悬停铺一层 6% 墨、禁用 45%
    * 队列归 agent，本机只画它报来的快照，所以这里没有一枚数字属于「本地排队」。
    */
-  --cp-queue-inset: 8px;
-  --cp-queue-clear: 16px;
+  /* 两侧让位：正本是 8；真机上按产品口径逐次收窄到 16。 */
+  --cp-queue-inset: 16px;
   /*
    * 下沿咽进输入卡的那 3px。
    *
@@ -180,8 +179,11 @@
    * 的那 3px —— 照抄整串会把 11px 压到卡上，把档位那一行的下半截盖掉。
    */
   --cp-queue-tuck: 3px;
-  /* 三面各让 16 再加两侧的 8 —— 正本那一串 calc 抄成一条，省得每次读三遍源头。 */
-  --cp-queue-gutter: calc(var(--cp-queue-clear) + var(--cp-queue-inset));
+  /*
+   * 正本那条「三面各让 16」（--dsh-composer-side-clearance）不抄：输入卡住的那条带子
+   * （.assistant-surface__dock）自己已经让过一层 gutter，再叠上它卡就明显比输入卡窄，
+   * 一条待发的话读起来像另一张卡。两侧让位只留 --cp-queue-inset 这一档。
+   */
   --cp-queue-card-max: calc(var(--cp-input-max) - var(--cp-queue-inset) * 2);
   --cp-queue-radius: var(--ui-radius-2xl);
   --cp-queue-row-radius: var(--ui-radius-xl);

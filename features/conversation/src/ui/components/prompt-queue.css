@@ -1,13 +1,12 @@
-/* 画法照 DSH 的 QueueDock：宽度比输入卡上限窄 16，材质是玻璃底 blur 40px + saturate 150%。 */
+/* 画法照 DSH 的 QueueDock：宽度比输入卡窄 32，材质是玻璃底 blur 40px + saturate 150%。 */
 
-/* 三面各让 16（clear）再各让 8（inset）：左右比输入卡窄 8、比面板窄 32；下沿咽进输入卡 3px（tuck），圆角咬合，接缝由重叠给出。 */
+/* 两侧各让 16（inset）：比输入卡窄 32；下沿咽进输入卡 3px（tuck），圆角咬合，接缝由重叠给出。 */
 .prompt-queue {
   box-sizing: border-box;
-  inline-size: calc(100% - var(--cp-queue-gutter) * 2);
+  inline-size: calc(100% - var(--cp-queue-inset) * 2);
   max-inline-size: var(--cp-queue-card-max);
   flex: none;
   margin: 0 auto calc(0px - var(--cp-queue-tuck));
-  padding: 0 var(--cp-queue-inset);
 }
 
 /* 下沿压在输入卡底下，那条边由输入卡自己的上边框给，所以圆角上圆下直。 */
