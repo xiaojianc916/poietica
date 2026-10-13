@@ -3,13 +3,8 @@ import { Copy, Minus, Square, X } from 'lucide-react'
 import { type ReactElement, type ReactNode, useEffect, useState } from 'react'
 import type { PlatformApi } from './api'
 
-/*
- * 窗口按钮。**迁移自** legacy `window/window-controls.tsx`：三枚 design-system 的
- * Button（variant ghost、size icon、rounded-none、w-11 / 关闭 w-12），字形取 lucide
- * 的 Minus / Square / Copy / X。悬停色读 desktop 令牌（app.css 那一族）。
- *
- * 只改数据来源：legacy 的回调由宿主注入，这里走 platform 契约。
- */
+/* 三枚 design-system 的 Button（variant ghost、size icon、rounded-none、w-11 / 关闭 w-12），字形取 lucide 的
+ * Minus / Square / Copy / X。悬停色读 desktop 令牌。只改数据来源：legacy 的回调由宿主注入，这里走 platform 契约。 */
 export function WindowButtons({ api }: { readonly api: PlatformApi }): ReactElement {
   const [maximized, setMaximized] = useState(false)
   useEffect(() => {

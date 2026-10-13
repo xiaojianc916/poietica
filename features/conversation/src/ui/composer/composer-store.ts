@@ -3,29 +3,24 @@ import type { DraftAttachment } from '../../ui-api'
 import type { DraftSelection } from '../entry-init'
 
 /**
- * 入口页那排选择器的本地草稿（07 页 §5E「新对话入口页的选择器」）：
- * 只改本地、不改全局默认；发送时带进 `threads.create`。
- *
- * 它**只在入口页**（threadId 为 null）用得上，因此挂在草稿的同一格里、随
- * `conversation.drafts` 一起落盘 —— 这就是 07 页说的「入口页草稿另存选择器的值
- * { model, thinking, posture }」，重开软件后这一趟的选择还在。
+ * 只改本地、不改全局默认；发送时带进 `threads.create`。它**只在入口页**（threadId 为 null）用得上，因此挂在草稿的同一格里、随 `conversation.drafts` 一起落盘。
  */
-/** 入口页选择器的值：形状与组件那一份逐字一致（entry-init 的 DraftSelection）。 */
+/** 形状与组件那一份逐字一致（entry-init 的 DraftSelection）。 */
 export type EntrySelection = DraftSelection
 
-/** 每个线程一份草稿（文本、附件、技能）；草稿持久化到 uiState 的 'conversation.drafts' */
+/** 每个线程一份草稿（文本、附件、技能）；持久化到 uiState 的 'conversation.drafts' */
 export interface Draft {
   readonly text: string
   readonly attachments: readonly DraftAttachment[]
   readonly skills: readonly string[]
-  /** 入口页选择器的值（07 页 §5E）；别的键上缺席。 */
+  /** 入口页选择器的值；别的键上缺席。 */
   readonly selection?: EntrySelection
 }
 
 export const EMPTY_DRAFT: Draft = { text: '', attachments: [], skills: [] }
 
 export interface ComposerState {
-  /** threadId 为键；home 页的新对话用 '__new__'（还不存在的线程） */
+  /** threadId 为键；home 页的新对话用 '__new__' */
   readonly drafts: Readonly<Record<string, Draft>>
   readonly submitting: boolean
 }
@@ -40,16 +35,12 @@ export interface ComposerStore {
   addAttachments(threadId: string | null, items: readonly DraftAttachment[]): void
   removeAttachment(threadId: string | null, id: string): void
   addSkill(threadId: string | null, skill: string): void
-  /** 入口页改一格选择器：只动本地草稿，不下发（07 页 §5E）。 */
+  /** 入口页改一格选择器：只动本地草稿，不下发。 */
   setSelection(threadId: string | null, patch: EntrySelection): void
   selectionOf(threadId: string | null): EntrySelection
   clear(threadId: string | null): void
   restore(threadId: string | null, draft: Draft): void
-  /**
-   * 从所有草稿里移除这些附件 id（R-07 §3.4：Core 回报 missing 时清理）。
-   *
-   * 内容没变不换引用；返回实际移除的条数。
-   */
+  /** Core 回报 missing 时清理（R-07 §3.4）。内容没变不换引用；返回实际移除的条数。 */
   dropAttachments(ids: readonly string[]): number
   setSubmitting(v: boolean): void
   /** 启动时把 uiState 里那份草稿读回来（持久化用）。 */
@@ -62,7 +53,7 @@ export function createComposerStore(initial: Readonly<Record<string, Draft>> = {
   const store = createFeatureStore<ComposerState>(() => ({ drafts: initial, submitting: false }))
   const read = (threadId: string | null): Draft => store.getState().drafts[draftKeyOf(threadId)] ?? EMPTY_DRAFT
 
-  /** 清空正文、附件与技能，但**保住入口页的选择器**（07 页 §5E：发送后草稿的 init 保留）。 */
+  /** 清空正文、附件与技能，但**保住入口页的选择器**（发送后草稿的 init 保留）。 */
   const cleared = (d: Draft): Draft =>
     d.selection === undefined ? EMPTY_DRAFT : { ...EMPTY_DRAFT, selection: d.selection }
 

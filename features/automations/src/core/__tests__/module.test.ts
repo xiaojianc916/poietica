@@ -10,10 +10,6 @@ import { fakeClock, tempDir } from '@poietica/test-kit'
 import { automationsContract } from '../../contract'
 import automations from '../index'
 
-/**
- * 模块级集成测试（14 页 §0.4）：只含 automations 及其依赖的真实内核，引擎是 FakeEngine。
- * agent 工具经 FakeEngine 的 `tool` 步骤调用；`engine.toolCalls` 记下每一次调用。
- */
 async function harness(script?: ScenarioScript) {
   const clock = fakeClock()
   const engine = createFakeEngine({ clock, ...(script === undefined ? {} : { script }) })
@@ -31,11 +27,8 @@ const runBeats = async (clock: ReturnType<typeof fakeClock>, beats = 8): Promise
   for (let i = 0; i < beats; i++) await clock.advanceAsync(20)
 }
 
-/*
- * conversation 的 core-api `submit` 目前把 clientTurnId 写成空串（见 features/conversation/src/core/conversation-service.ts），
- * 而 strict 模式的内核会校验 timeline.ops 通知：带空 clientTurnId 的 turn.upsert 会被判为不符合契约。
- * 这不是 automations 的问题，跑 module 集成测试时先把它记下来、不打断这一条断言（历史遗留偏差，见进度报告）。
- */
+/* conversation 的 core-api submit 把 clientTurnId 写成空串，而 strict 模式的内核会校验 timeline.ops 通知，带空值的 turn.upsert 会被判为
+ * 不符合契约。这不是 automations 的问题，跑集成测试时先记下来、不打断断言。 */
 const ignoreKnownTimelineStrictness = async (run: () => Promise<void>): Promise<void> => {
   try {
     await run()
@@ -87,7 +80,6 @@ describe('automations core 模块', () => {
     expect(list[0]!.title).toBe('晨会动态')
     expect(list[0]!.workspaceId).toBe(ws.id)
 
-    /* 工具结果以 JSON 文本返回 */
     const createCall = engine.toolCalls.find((c) => c.name === 'automation_create')!
     expect(createCall.sessionKey).toBe(thread.id)
     const view = JSON.parse(createCall.result)
@@ -118,10 +110,6 @@ describe('automations core 模块', () => {
     })
     expect(automation.nextRunAt).not.toBeNull()
 
-    /*
-     * 走到 nextRunAt 之后、且确保 30 秒 tick 至少响过一次：
-     * fakeClock 的起点在秒上并不对齐，直接推 31 秒可能还没到下一分钟。
-     */
     await ignoreKnownTimelineStrictness(() => clock.advanceAsync(automation.nextRunAt! - clock.now() + 31_000))
     await ignoreKnownTimelineStrictness(() => runBeats(clock, 6))
     const runs = await api.call('automations.runs', { automationId: automation.id, limit: 10 })
@@ -130,7 +118,6 @@ describe('automations core 模块', () => {
     expect(runs.runs[0]!.scheduledFor).toBe(automation.nextRunAt)
     expect(runs.runs[0]!.threadId).not.toBeNull()
 
-    /* 线程标题按 07 页 §9C：「定时任务：<标题> <MM-DD HH:mm>」—— 不再被首句自动改名覆盖（审查 R-14） */
     const threads = await h.client(conversationContract).call('threads.list', {
       workspaceId: ws.id,
       includeArchived: false,
@@ -175,10 +162,7 @@ describe('automations core 模块', () => {
     await dir.dispose()
   })
 
-  /*
-   * R-06 §5 A6：句子没送达时，运行记录必须自己收口 —— 一条永远 running 的记录会让
-   * `runner.isRunning` 从此为真，之后每一次调度与手动运行都被跳过（旧代码就是这样）。
-   */
+  /* 句子没送达时运行记录必须自己收口 —— 一条永远 running 的记录会让 runner.isRunning 从此为真，之后每次调度与手动运行都被跳过。 */
   test('R-06 A6 冷打开失败：运行收成 failed，恢复后下一次手动运行照常起来', async () => {
     const { h, engine, dir, ws, clock } = await harness()
     const api = h.client(automationsContract)
@@ -204,7 +188,6 @@ describe('automations core 模块', () => {
     expect(settled.outcome).toBe('failed')
     expect(settled.message).toContain('工作区目录已改名')
 
-    /* 恢复之后：这一次必须真的能起来，而不是 already_running */
     engine.openSession = healthy
     const second = await api.call('automations.runNow', { automationId: automation.id })
     expect(second.id).not.toBe(first.id)

@@ -1,18 +1,13 @@
 import type { AutomationDraft } from '../contract'
 
-/*
- * 照 legacy `packages/automation/src/templates.ts` 逐字搬迁：四张模板卡片上的
- * 标题、说明、真正投给 agent 的提示词都不动。draftOfTemplate 交出去的是新契约的
- * AutomationDraft（schedule 是 {cron,timeZone} 对象、工作区字段名是 workspaceId），
- * 形状变了，卡片上看到的那几个字一个没变。
- */
+/* 照 legacy 逐字搬迁：卡片上的标题、说明、投给 agent 的提示词都不动。draftOfTemplate 交出去的是新契约的 AutomationDraft，
+ * 形状变了，卡片上看到的那几个字一个没变。 */
 
 export interface AutomationTemplate {
   readonly id: string
   readonly title: string
   readonly description: string
   readonly prompt: string
-  /** cron 表达式；null 表示只手动运行 */
   readonly schedule: string | null
 }
 
@@ -35,10 +30,6 @@ export function draftOfTemplate(
   }
 }
 
-/*
- * description 是卡片上那两行灰字，超出部分由 line-clamp-2 截掉，所以写完整句。
- * prompt 是真正投给 agent 的正文：与 description 同一件事，但说清边界与产出形态。
- */
 export const AUTOMATION_TEMPLATES: readonly AutomationTemplate[] = [
   {
     id: 'morning-briefing',

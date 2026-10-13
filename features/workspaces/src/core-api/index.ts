@@ -4,7 +4,7 @@ import type { Workspace } from '../contract'
 
 export interface WorkspacesService {
   get(id: string): Workspace | null
-  /** 不存在 → workspaces.not_found；目录已不存在 → workspaces.directory_missing */
+  /** 目录已不存在 → workspaces.directory_missing */
   requireUsable(id: string): Workspace
   list(): readonly Workspace[]
 }

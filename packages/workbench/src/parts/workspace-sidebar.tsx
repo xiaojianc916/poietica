@@ -3,17 +3,9 @@ import { type ReactNode, Suspense } from 'react'
 import { PartSkeleton } from './part-skeleton'
 import { SidebarFooter } from './sidebar-footer'
 
-/**
- * 侧栏内容。**迁移自** legacy `shell/sidebar/workspace-sidebar.tsx` 的三段结构
- * （导航 / 面板 / 底部行）。
- *
- * 导航行仍然由各功能自己贡献（`placement: 'nav'` 的 sidebarSections），外壳一个产品
- * 常量都不写：legacy 的 `SURFACE_NAVIGATION_ORDER` 是那个包认识全部功能才有的
- * 产品常量，新架构里换成贡献点（03 页 §4、06 页 §6）。
- *
- * 默认（缺省 placement）的条目落在中部面板那一格 —— 那是线程列表，可滚动。
- *
- * 底部行（帮助菜单 + 设置）是外壳家具，留在外壳里（legacy sidebar-footer.tsx 同此）。
+/*
+ * 侧栏内容：导航行由各功能自己贡献（`placement: 'nav'`），外壳一个产品常量都不写 ——
+ * 缺省 placement 的条目落在中部面板那一格（线程列表，可滚动）；底部行是外壳家具。
  */
 export function WorkspaceSidebar(): ReactNode {
   const sections = useContributions(builtinPoints.sidebarSections)

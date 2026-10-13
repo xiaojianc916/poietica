@@ -1,10 +1,4 @@
-/*
- * 会话页左上角那一格。它住在 .conversation-header（右对齐的那条带子）里，所以
- * margin-inline-end: auto 把它顶到最左，右端仍留给 threadHeaderItems。
- *
- * 三个部分各有各的悬停（产品负责人 2026-10-12 定稿）：机器图标不给反馈（它只是标记），
- * 标题与下拉箭头各自一枚按钮、各自在自己身上铺底色 —— 不再有一颗包住整行的按钮。
- */
+/* margin-inline-end: auto 把它顶到最左，右端留给 threadHeaderItems；标题与下拉箭头各一枚按钮、各自铺底色。 */
 .conversation-title {
   display: inline-flex;
   block-size: var(--cp-control);
@@ -23,13 +17,7 @@
   color: var(--cp-ink-muted);
 }
 
-/*
- * 标题本体：点一下就地改名。悬停的底色与圆角止于文字本身。
- *
- * 这一格是 flex 容器，省略号不能写在这里：text-overflow 只对块级盒自己的行盒生效，
- * 对 flex 项不生效 —— 写在这层的结果是超长标题被硬裁掉、看不到「…」（真机实测）。
- * 省略号落在里面那层 .conversation-title__text 上（见下）。
- */
+/* 真机实测：flex 容器上写 text-overflow 无效，超长标题被硬裁掉、看不到「…」，省略号要落在块级盒里。 */
 .conversation-title__label {
   display: inline-flex;
   block-size: var(--cp-control-sm);
@@ -48,7 +36,7 @@
   transition: background-color var(--cp-motion-swift) var(--cp-motion-ease);
 }
 
-/* 唯一一处说「放不下就用 … 收尾」：块级盒 + 单行 + 溢出隐藏，三样缺一不可。 */
+/* 放不下就用 … 收尾：块级盒 + 单行 + 溢出隐藏，缺一不可。 */
 .conversation-title__text {
   display: block;
   min-inline-size: 0;
@@ -67,7 +55,6 @@
   outline-offset: var(--cp-px);
 }
 
-/* 给不出改名动作时标题只是文字：不铺悬停底色，指针也不变成手。 */
 .conversation-title__label--static {
   cursor: default;
 }
@@ -76,7 +63,6 @@
   background: transparent;
 }
 
-/* 下拉箭头：自己一枚按钮，开菜单。 */
 .conversation-title__toggle {
   display: grid;
   block-size: var(--cp-control-sm);
@@ -103,7 +89,6 @@
   inline-size: var(--cp-icon);
 }
 
-/* 就地改名：与标题同一行、同一字号，不加框不加底。 */
 .conversation-title__rename {
   display: flex;
   min-inline-size: 0;

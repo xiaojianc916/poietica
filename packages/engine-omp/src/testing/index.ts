@@ -23,10 +23,8 @@ export interface CreateOmpEngineForTestOptions {
 type MockReply = MockResponse
 
 /**
- * 测试与探针专用的引擎（12 页 §12.1）：用 omp 自带的 mock provider 替代真实模型，完全离线、免 key，
+ * 测试与探针专用的引擎：用 omp 自带的 mock provider 替代真实模型，完全离线、免 key，
  * 且不改动产品代码的任何路径。createOmpEngineWith 与测试缝都不从包根导出，只有 ./testing 能拿到。
- *
- * scenario → mock 回复的翻译规则见 12 页 §12.1 的表格。
  */
 export async function createOmpEngineForTest(o: CreateOmpEngineForTestOptions): Promise<MockEngineHandle> {
   const logger = o.logger ?? noopLogger

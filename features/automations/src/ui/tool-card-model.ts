@@ -1,16 +1,8 @@
 import { describeSchedule } from './automation'
 
-/*
- * 对话里「定时任务」工具卡的读法（审查 R-16）：工具调用 → 一份只读的卡片模型。
- *
- * 纯函数、不碰 React：卡片长什么样由 automation-tool-card.tsx 画，「这一次调用说了什么」
- * 只在这里判一次，测试直接验它。输入是 conversation 交来的三样东西：
- *   - args   —— 模型传进来的参数（「已修改：…」读它给了哪些键）；
- *   - result —— 工具结果（R-15 的 JSON 文本，字段名见 R-15 §3.3）；
- *   - status —— running / succeeded / failed。
- *
- * 读不出来的一律退回「只有一行」，不编造字段。
- */
+/* 工具调用 → 一份只读的卡片模型。纯函数、不碰 React —— 卡片长什么样由 automation-tool-card.tsx 画，「这一次调用说了什么」只在
+ * 这里判一次。输入是 conversation 交来的三样：args（「已修改：…」读它给了哪些键）、result、status。读不出来的一律退回
+ * 「只有一行」，不编造字段。 */
 
 export type ToolStatus = 'running' | 'succeeded' | 'failed'
 export type Tone = 'quiet' | 'success' | 'warning' | 'danger'
@@ -20,16 +12,13 @@ export interface CardAutomation {
   readonly title: string
   readonly prompt: string
   readonly enabled: boolean
-  /** 「每工作日 09:00」「一次 · 05-02 09:00」「仅手动运行」 */
   readonly plan: string
-  /** 下一次的绝对时刻（毫秒）；没有就是 null */
   readonly nextRunAt: number | null
   readonly state: { readonly label: string; readonly tone: Tone }
   readonly meta: readonly { readonly label: string; readonly value: string }[]
   readonly upcoming: readonly string[]
   readonly issue: string | null
   readonly timeZone: string
-  /** 一次性：计划那句已经写了时刻，「下次」只补相对时间 */
   readonly once: boolean
 }
 
@@ -39,7 +28,6 @@ export interface CardListRow {
   readonly plan: string
   readonly tone: Tone
   readonly last: string | null
-  /** 上次失败时行尾那句用危险色 */
   readonly lastTone: Tone
 }
 
@@ -63,17 +51,12 @@ export type CardBody =
   | { readonly kind: 'run'; readonly automationId: string; readonly threadId: string | null }
 
 export interface ToolCardModel {
-  /** 行里那句话：动作 + 对象 */
   readonly line: string
-  /** 行尾的小字（数量、计划）；没有就是 null */
   readonly hint: string | null
   readonly status: ToolStatus
-  /** 失败时的那句原话 */
   readonly error: string | null
   readonly body: CardBody
 }
-
-/* ── 词表 ──────────────────────────────────────────────────────────────── */
 
 const VERBS: Readonly<Record<string, readonly [running: string, done: string]>> = {
   automation_options: ['正在查看定时任务可选项', '查看了定时任务可选项'],
@@ -124,7 +107,6 @@ const THINKING_TEXT: Readonly<Record<string, string>> = {
   xhigh: '极深思考',
 }
 
-/** update 的参数键 → 「已修改：…」里的说法；id / enabled 另说 */
 const FIELD_TEXT: Readonly<Record<string, string>> = {
   title: '标题',
   prompt: '指令',
@@ -144,8 +126,6 @@ const TRIGGER_TAG: Readonly<Record<string, string>> = {
   catch_up: '补跑',
 }
 
-/* ── 安全读取 ───────────────────────────────────────────────────────────── */
-
 type Bag = Readonly<Record<string, unknown>>
 
 function bag(value: unknown): Bag {
@@ -162,10 +142,6 @@ function bool(value: unknown, key: string): boolean | null {
   return typeof raw === 'boolean' ? raw : null
 }
 
-/**
- * 工具结果的正文：引擎交来的可能是 `{text}`、`{content:[{type:'text',text}]}`，
- * 也可能直接是字符串。三种都认，别的形状一律当没有正文。
- */
 export function resultText(result: unknown): string | null {
   if (typeof result === 'string') return result
   const direct = str(result, 'text')
@@ -189,7 +165,6 @@ function parsed(result: unknown): unknown {
   }
 }
 
-/** 失败那一句：结果里的 error / message，或读不成 JSON 的正文本身 */
 function errorOf(result: unknown): string | null {
   const explicit = str(result, 'error') ?? str(result, 'message')
   if (explicit !== null) return explicit
@@ -199,11 +174,8 @@ function errorOf(result: unknown): string | null {
   return json === null ? text : (str(json, 'message') ?? str(json, 'error') ?? text)
 }
 
-/* ── 时间 ──────────────────────────────────────────────────────────────── */
-
 const pad = (n: number): string => String(n).padStart(2, '0')
 
-/** ISO（带时差）或毫秒 → 「MM-DD HH:mm」，按给定时区读；读不懂返回 null */
 export function clockText(at: string | number, timeZone: string | null = null): string | null {
   const ms = typeof at === 'number' ? at : Date.parse(at)
   if (!Number.isFinite(ms)) return null
@@ -223,8 +195,6 @@ export function clockText(at: string | number, timeZone: string | null = null): 
     return `${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`
   }
 }
-
-/* ── 一条任务 ──────────────────────────────────────────────────────────── */
 
 export function planOf(schedule: unknown): string {
   const type = str(schedule, 'type')
@@ -304,7 +274,6 @@ export function automationOf(view: unknown): CardAutomation | null {
   }
 }
 
-/** update 的参数里给了哪些键 → 「标题、模型」；enabled 说成「暂停 / 恢复」 */
 export function changedOf(args: unknown): readonly string[] {
   const given = bag(args)
   const out: string[] = []
@@ -315,8 +284,6 @@ export function changedOf(args: unknown): readonly string[] {
   if (given.enabled === true) out.push('恢复')
   return out
 }
-
-/* ── 列表与运行 ─────────────────────────────────────────────────────────── */
 
 const LIST_LIMIT = 6
 
@@ -361,8 +328,6 @@ export function runRowOf(run: unknown, timeZone: string | null): CardRunRow | nu
     threadId: str(run, 'threadId'),
   }
 }
-
-/* ── 总入口 ────────────────────────────────────────────────────────────── */
 
 function lineOf(toolName: string, status: ToolStatus, subject: string | null): string {
   const verbs = VERBS[toolName]

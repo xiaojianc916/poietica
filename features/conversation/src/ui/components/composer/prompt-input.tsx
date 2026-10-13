@@ -73,7 +73,6 @@ interface PromptInputActions {
   readonly removeConfiguration: (id: string) => void
   readonly openFilePicker: () => void
   readonly requestSubmit: () => void
-  /** 翻开或合上加号那张面板。 */
   readonly togglePalette: () => void
 }
 
@@ -82,7 +81,7 @@ const AttachmentsContext = createContext<readonly ComposerAsset[]>(NO_ATTACHMENT
 const DraftContext = createContext<PromptInputDraft | null>(null)
 const ContributedDraftContext = createContext<ContributedComposerDraft | null>(null)
 
-/** 附件契约的一条 → 输入框内部那一份。没有原生会话令牌（新架构的附件走 attachments 契约的 id）。 */
+/** sessionToken 空着：附件身份走 attachments 契约的 id。 */
 function composerAssetOf(item: DraftAttachment): ComposerAsset {
   return {
     sessionToken: '',
@@ -95,10 +94,7 @@ function composerAssetOf(item: DraftAttachment): ComposerAsset {
   }
 }
 
-/*
- * 输入框的 combobox 语义（WAI-ARIA APG：带 listbox 弹层的 combobox）。焦点始终在编辑器上，
- * 活动项靠 aria-activedescendant 指过去；只有壳知道弹层开没开、指着哪一行，所以从这里往下交。
- */
+/* 输入框是带 listbox 弹层的 combobox（WAI-ARIA APG）：焦点留在编辑器上，活动项靠 aria-activedescendant 指过去。 */
 export interface PaletteAria {
   readonly listboxId: string
   readonly expanded: boolean
@@ -107,7 +103,6 @@ export interface PaletteAria {
 
 const PaletteAriaContext = createContext<PaletteAria | null>(null)
 
-/** 面板此刻开没开，以及它是哪一张 listbox。只有壳知道，所以只从这里读。 */
 export function usePromptInputPalette(): PaletteAria | null {
   return useContext(PaletteAriaContext)
 }
@@ -136,18 +131,11 @@ export function usePromptInputDraft(): PromptInputDraft {
   return draft
 }
 
-/**
- * 其它功能贡献到输入框左端的动作（07 页 §5E 的 composerActions）。
- *
- * 贡献者拿到的是 ui-api 的 ComposerDraft —— 它由壳里那一份正在编辑的草稿兑现，
- * 所以「添加附件」「写入正文」「提交」三条路都落在同一个 PromptInput 上。
- * 贡献项要在 FeatureScope 内渲染：useService 的访问控制按功能身份查。
- */
+/** 必须在 FeatureScope 内渲染：useService 的访问控制按功能身份查。 */
 export function ComposerContributedActions(): ReactNode {
   const contributions = useContributions(composerActions)
   const draft = useContext(ContributedDraftContext)
 
-  /* 没有草稿时整组不画：贡献动作都是对草稿的写入，没有草稿就没有去处。 */
   if (draft === null) {
     return null
   }
@@ -163,10 +151,7 @@ export function ComposerContributedActions(): ReactNode {
   })
 }
 
-/**
- * What the composer may be asked from outside it.
- * 草稿归这张卡，外面写进来只能经过这条通道；焦点随文字走。
- */
+/** 草稿归这张卡：外面写进来只能经过这条通道。 */
 export interface PromptInputHandle {
   readonly setText: (text: string) => void
   readonly insertText: (text: string) => void
@@ -204,12 +189,11 @@ function readDraft(): DraftProjection {
   return { text: $getRoot().getTextContent(), skills: [...skills.values()], inline }
 }
 
-/** 正文里此刻还挂着的那几枚记号，按资产 token 认。 */
 function inlineTokens(projection: DraftProjection): ReadonlySet<string> {
   return new Set(projection.inline.map((chip) => chip.assetToken))
 }
 
-/* 一份附件在正文里的那枚记号。元素上下文点的是拾取到的元素，不是文件名。 */
+/* 元素上下文点的是拾取到的元素，不是文件名。 */
 function inlineChipOf(asset: ComposerAsset): InlineChip {
   return asset.context?.kind === 'browser-element'
     ? { kind: 'element', assetToken: asset.assetToken, label: asset.context.label }
@@ -225,7 +209,7 @@ function $insertChip(value: PromptChipValue): void {
   }
 }
 
-/* 插入点。编辑器还没被聚焦过时选区是 null（官方 Selection 文档的第四种），当场落在正文末尾。 */
+/* 编辑器还没被聚焦过时选区是 null，插入点当场落在正文末尾。 */
 function $caret(): RangeSelection {
   const selection = $getSelection()
 
@@ -253,7 +237,6 @@ function replaceDraft(editor: LexicalEditor, text: string): void {
   })
 }
 
-/** 这一格此刻值得留住的东西；什么都没有就不留。 */
 function snapshotOf(
   editor: LexicalEditor,
   assets: readonly ComposerAsset[],
@@ -269,7 +252,6 @@ function snapshotOf(
   return { assets, configuration, editorState: state.toJSON() }
 }
 
-/* 这一批进门之后册子里还剩哪几份：多选则并集，否则换掉整批。 */
 function mergeAssets(
   current: readonly ComposerAsset[],
   incoming: readonly ComposerAsset[],
@@ -304,23 +286,18 @@ export interface PromptInputProps {
   readonly ref?: Ref<PromptInputHandle> | undefined
   readonly multiple?: boolean
   readonly maxFiles?: number
-  /** 这一格收不收文件。收不了就不画「添加文件」那一行：面板里不该有按不动的按钮。默认收。 */
   readonly attachments?: boolean | undefined
-  /** 挂载时先写进编辑器的正文，此后不再读第二次。缺席即空草稿 —— 装回去只发生一次（离屏册子 ComposerDrafts 同规）。 */
+  /** 只在挂载时写进编辑器一次，此后不再读；装回草稿也只发生一次。 */
   readonly initialText?: string | undefined
-  /** 草稿正文变了。往外报一次，让不是消息框的调用方也能把它当普通字段读。 */
   readonly onChange?: ((text: string) => void) | undefined
-  /** 面板里 agent 那几组（模式、技能、命令、other 选择器）。「添加」组由这个框自己起头。 */
   readonly groups?: readonly PaletteGroup[] | undefined
   readonly configuration?: readonly PromptConfiguration[] | undefined
-  /** 这一句发出去做什么。缺席时是字段而非消息框：Enter 只换行，提交不存在，草稿不被消费。自动化「到期发给 agent 的指令」就是字段。 */
+  /** 缺席时这一格是字段而非消息框：Enter 只换行、没有提交、草稿不被消费。 */
   readonly onSubmit?: ((message: PromptInputMessage) => void) | undefined
 }
 
 interface PromptInputShellProps extends PromptInputProps {
-  /** 上一次离屏时留下的草稿。装回去只发生在挂载那一次。 */
   readonly restored: ComposerDraft | undefined
-  /** 这一格的草稿归哪个键：贡献者看到的 threadId 由它来。 */
   readonly draftKey: string
 }
 
@@ -328,12 +305,11 @@ export function PromptInput(props: PromptInputProps) {
   const drafts = useComposerDrafts()
   const draftKey = useComposerDraftKey()
 
-  /* 取回即交出所有权：从这一刻起草稿又归编辑器。 */
+  /* 取回即交出所有权：此后草稿又归编辑器。 */
   const [restored] = useState(() => drafts.take(draftKey))
 
   const initialConfig = useMemo(
     () => ({
-      /* 官方给的复原入口就是这一格（Lexical initialConfig.editorState）。 */
       ...(restored === undefined ? {} : { editorState: JSON.stringify(restored.editorState) }),
       namespace: 'assistant-composer',
       nodes: [ChipNode],
@@ -370,7 +346,7 @@ function PromptInputShell({
   const [editor] = useLexicalComposerContext()
   const intake = useAttachmentIntake()
   const drafts = useComposerDrafts()
-  /* 初值直接读编辑器此刻的状态：装回草稿不触发更新监听器，取空会让装回的草稿在首次编辑之前发不出去。 */
+  /* 初值直接读编辑器此刻的状态：装回草稿不触发更新监听器，取空会让它在首次编辑之前发不出去。 */
   const [draftText, setDraftText] = useState<DraftProjection>(() => editor.getEditorState().read(readDraft))
   const [attachments, setAttachments] = useState<readonly ComposerAsset[]>(restored?.assets ?? NO_ATTACHMENTS)
   const [pendingConfiguration, setPendingConfiguration] = useState<readonly PendingPromptConfiguration[]>(
@@ -379,7 +355,7 @@ function PromptInputShell({
   const [paletteOpened, setPaletteOpened] = useState(false)
   const [highlighted, setHighlighted] = useState(0)
   const handoff = useRef({ attachments, configuration: pendingConfiguration })
-  /* 两条往外走的路。监听器与命令都只注册一次，回调却每次渲染都可能是新的。 */
+  /* 监听器与命令只注册一次，回调却每次渲染都可能是新的。 */
   const report = useRef(onChange)
   const submit = useRef(onSubmit)
   const seeded = useRef(false)
@@ -389,29 +365,13 @@ function PromptInputShell({
   submit.current = onSubmit
 
   const listboxId = useId()
-  /*
-   * 没有收信人时这层壳不是 form，是 div。
-   *
-   * 字段用法（自动化编辑器那一格）把它嵌在**自己的 form 里**，而 HTML 不允许 form 嵌套：
-   * 浏览器会把内层丢掉、React 报「<form> cannot be a descendant of <form>」并警告 hydration
-   * 会出错。这里没有提交可言（没有 onSubmit、没有发送键、Enter 只换行），所以 form 那一套
-   * 语义本来就是多余的 —— 换成 div 既去掉嵌套，也不改任何行为。
-   */
-  /*
-   * 断言成 'form' 只是为了让这一层的 props 类型保持一套（div 与 form 的联合类型
-   * 在 JSX 上无法统一）。运行时那个 div 由 requestFormSubmit 的 instanceof 兜住 ——
-   * 字段用法压根没有提交这条路，所以那条分支永远不会被走到。
-   */
+  /* HTML 不允许 form 嵌套（React 报 <form> cannot be a descendant of <form>），没有 onSubmit 时也没有提交语义，所以换成 div；
+     断言成 'form' 只让 props 类型保持一套，运行时那个 div 由 instanceof 兜住。 */
   const Shell = (onSubmit === undefined ? 'div' : 'form') as 'form'
   const formRef = useRef<HTMLFormElement>(null)
-  /* Enter 与 Ctrl/Cmd+Enter 只差这一格：命令先写它，提交时读它。 */
   const queued = useRef(false)
 
-  /*
-   * 提交这一句。字段用法（不是 form）没有提交可言：那条路上这一次调用整个不存在。
-   *
-   * `requestSubmit` 只长在 form 上，所以这里先问壳是不是 form —— 直接调会 TypeError。
-   */
+  /* `requestSubmit` 只长在 form 上，直接调会 TypeError，先问壳是不是 form。 */
   const requestFormSubmit = useCallback(() => {
     const shell = formRef.current
 
@@ -464,7 +424,7 @@ function PromptInputShell({
     [draftKey, drafts, editor],
   )
 
-  /* Enter 发送，Shift+Enter 换行，Ctrl/Cmd+Enter 排队（插话但不打断）。组词期间一律不碰 —— 那是输入法在说话。 */
+  /* Enter 发送，Shift+Enter 换行，Ctrl/Cmd+Enter 排队（插话但不打断）；组词期间一律不碰。 */
   useEffect(
     () =>
       editor.registerCommand(
@@ -519,11 +479,8 @@ function PromptInputShell({
     [insertText, requestFormSubmit],
   )
 
-  /*
-   * 入册，并把该内联的几份插成正文记号。flushSync 必需：记号只能在「入册收下了哪几
-   * 份」之后插，而那要等这次提交落地。判据是「收下了」而非「新来的」—— 记号被退格
-   * 删掉后字节仍在册子里，按「新来的」算重挑一次就什么都不发生。
-   */
+  /* `flushSync` 必需（等这次提交落地才知道册子收下了哪几份），判据是「收下了」而非「新来的」：
+     记号被退格删掉后字节仍在册子里，按「新来的」算，重挑一次就什么都不发生。 */
   const addAssets = useCallback(
     (incoming: readonly ComposerAsset[]) => {
       flushSync(() => {
@@ -573,23 +530,12 @@ function PromptInputShell({
 
   const removeAttachment = useCallback(
     (assetToken: string) => {
-      /*
-       * **释放字节这件事必须在 updater 之外做。**
-       *
-       * `setAttachments` 的那个函数是 React 的更新器，它必须是纯的：StrictMode 下 React
-       * 会**故意调用两次**，于是 `discard` 也跑两次 —— 第二次释放的是一份已经放掉的资产，
-       * 原生侧如实回 `resourceMissing`，日志里就留下一条「暂存附件未能释放」。
-       *
-       * 实测过：字节其实**释放成功了**（`asset_read` 从 held 变成 resourceMissing），
-       * 所以那不是泄漏，而是一条**假警报** —— 而假警报会让人不再相信真警报。
-       *
-       * 判据读 `handoff`（那个 ref 就是「此刻册子里有哪几份」的权威）：闭包里的 `attachments`
-       * 可能是旧的那一份 —— `addAssets` 用 `flushSync` 收下新的一份时，本次渲染的闭包还没有它。
-       * 用旧列表的后果实测过：找不到这一份 → 不释放 → **字节真的漏了**（`asset_read` 仍是 held）。
-       */
+      /* **释放字节必须在 updater 之外做**：`setAttachments` 的函数是纯更新器，StrictMode 下 React 会故意调用两次，
+         第二次释放一份已放掉的资产，日志里留下「暂存附件未能释放」—— 实测字节其实释放成功了，是假警报。
+         判据读 `handoff`：闭包里的 `attachments` 可能是旧的，用旧列表实测漏过字节。 */
       const going = handoff.current.attachments.find((attachment) => attachment.assetToken === assetToken)
 
-      /* 移掉一张卡片就是放掉那一份字节：注册表的预算是整个进程共用的。 */
+      /* 移掉一张卡片就是放掉那一份字节：注册表的预算是全进程共用的。 */
       if (going !== undefined) {
         intake?.discard(going)
       }
@@ -635,13 +581,7 @@ function PromptInputShell({
     requestFormSubmit()
   }, [requestFormSubmit])
 
-  /*
-   * 贡献者看到的那一份草稿（07 页 §5E 的 ComposerDraft）。
-   *
-   * 它就是壳里这一份正在编辑的草稿：加附件落到 addAssets、写正文落到 insertText、
-   * 提交落到这一次真正的 form 提交 —— 与手打一句话走的是同一条路，没有第二条。
-   * 入口那一格还没有线程（key 是全局那一个），threadId 如实交回 null。
-   */
+  /* 就是壳里这一份正在编辑的草稿：加附件、写正文、提交都落在与手打一句话同一条路上。 */
   const contributedDraft = useMemo<ContributedComposerDraft>(
     () => ({
       threadId: draftKey === ENTRY_DRAFT_KEY ? null : draftKey,
@@ -654,10 +594,7 @@ function PromptInputShell({
     [addAssets, draftKey, insertText, requestFormSubmit],
   )
 
-  /*
-   * 其它功能贡献的输入处理器（07 页 §4E/§5E）：粘贴与拖放各走一遍，谁先吃掉谁负责。
-   * 一次事件只归一个：返回 true 就 preventDefault 并跳过内置那条路。
-   */
+  /* 贡献的输入处理器：粘贴与拖放各走一遍，谁先吃掉谁负责 —— 返回 true 就跳过内置那条路。 */
   const inputHandlers = useContributions(composerInputHandlers)
 
   const handleContributedPaste = useCallback(
@@ -690,7 +627,7 @@ function PromptInputShell({
     [contributedDraft, inputHandlers],
   )
 
-  /* 拖文件走原生那条：宿主（Electron）接管文件拖放，HTML5 那条在 Windows 上收不到事件。 */
+  /* 拖文件走原生：HTML5 那条在 Windows 上收不到事件。 */
   useEffect(() => {
     if (intake === null) {
       return undefined
@@ -746,7 +683,6 @@ function PromptInputShell({
       allGroups.map((group) => ({
         ...group,
         rows: group.rows.map((row) => {
-          /* 收窄要落在一个 const 上才进得了 some 的闭包。 */
           const { action } = row
 
           return action.kind === 'configure'
@@ -774,7 +710,6 @@ function PromptInputShell({
 
   const pickRow = useCallback(
     (row: PaletteRow) => {
-      /* 收窄落在一个 const 上才进得了闭包，闭包里也就不必再问一次 kind。 */
       const { action } = row
 
       closePalette()
@@ -791,7 +726,6 @@ function PromptInputShell({
         })
       }
 
-      /* 三条路都以焦点回到编辑器收尾：选完接着打字。 */
       focusEditor()
     },
     [closePalette, draftText.text, editor, focusEditor, toggleConfiguration],
@@ -799,7 +733,7 @@ function PromptInputShell({
 
   useDismissOutside(paletteOpen, formRef, closePalette)
 
-  /* 面板开着时这几个键归面板。捕获相先到，编辑器因此不需要知道面板存在。 */
+  /* 面板开着时这几个键归面板，捕获相先到，编辑器因此不需要知道面板存在。 */
   const onPaletteKeyDown = (event: KeyboardEvent<HTMLFormElement>) => {
     paletteKeyDown(event, {
       highlighted,
@@ -846,11 +780,7 @@ function PromptInputShell({
                 }
               }}
               onDrop={(event) => {
-                /*
-                 * 落下必须先同步 preventDefault —— 异步回调里再补就晚了（事件的默认动作
-                 * 早已发生）。HTML5 拖放在 Windows 上收不到事件（见下方原生那条），
-                 * 所以这里只在真的有贡献处理器时拦。
-                 */
+                /* 落下必须先同步 preventDefault —— 异步回调里再补就晚了（默认动作早已发生）；只在真的有人接拖放时才拦。 */
                 if (inputHandlers.some(({ item }) => item.onDrop !== undefined)) {
                   event.preventDefault()
                   void handleContributedDrop(event)
@@ -860,14 +790,8 @@ function PromptInputShell({
               onKeyDownCapture={onPaletteKeyDown}
               onMouseDown={onFormMouseDown}
               onPaste={(event) => {
-                /*
-                 * 贡献者的粘贴先走：剪贴板里的图片归 attachments.input（07 页 §4E），
-                 * 它吃掉这一事件之后就轮不到下面那条内置的路。
-                 *
-                 * 只在剪贴板里真的有文件时拦：纯文本粘贴是编辑器的默认动作，拦下来
-                 * 等于把人打的一句话吃掉。preventDefault 必须同步 —— 异步回调里再
-                 * 补时默认动作已经发生。
-                 */
+                /* 只在剪贴板里真的有文件时拦：纯文本粘贴是编辑器的默认动作，拦下来等于把人打的一句话吃掉。
+                   preventDefault 必须同步 —— 异步回调里再补就晚了。 */
                 const carriesFiles = event.clipboardData.files.length > 0
 
                 if (carriesFiles && inputHandlers.some(({ item }) => item.onPaste !== undefined)) {
@@ -876,7 +800,7 @@ function PromptInputShell({
                   return
                 }
 
-                /* 剪贴板里的截图没有路径，所以它是唯一还经过字节的一条。 */
+                /* 截图没有路径，所以它是唯一还经过字节的一条。 */
                 const [pasted] = Array.from(event.clipboardData.files)
 
                 if (intake === null || pasted === undefined) {
@@ -898,7 +822,7 @@ function PromptInputShell({
                       addAssets([asset])
                     },
                     () => {
-                      /* 收不下就是没多出一张卡片。 */
+                      /* 收不下就是没多出一张卡片，不打扰用户。 */
                     },
                   )
               }}
@@ -932,13 +856,7 @@ function PromptInputShell({
                   return
                 }
 
-                /*
-                 * 记号被删掉的那几份先**退出正文**，字节留到这一句真的交出去之后再放。
-                 *
-                 * 从前这里在组装消息时就 discard 了 —— 那时还不知道这一句发不发得出去。
-                 * 发送失败时横幅只给「取回文字」，字节已经放掉、卡片也早就没了，附件救不回来。
-                 * 现在把顺序倒过来：先摘卡片（屏幕上不再挂着它），提交回执到达时再放字节。
-                 */
+                /* 记号被删掉的那几份先**退出正文**：屏幕上不再挂着它，字节留到这一句真的交出去之后再放。 */
                 const detached = attachments.filter(
                   (attachment) => isInlineAttachment(attachment) && !tokens.has(attachment.assetToken),
                 )
@@ -955,13 +873,8 @@ function PromptInputShell({
                 }
                 queued.current = false
 
-                /*
-                 * 先把这一句交出去，再清现场。
-                 *
-                 * 顺序不能反：`submit.current` 要是抛了（这一句压根没交出去），那几份被摘下来的
-                 * 附件必须还在册子里，用户才能原样重发。从前 discard 排在提交之前，一次失败就
-                 * 连字节一起收走了 —— 而失败横幅只给「取回文字」，附件救不回来。
-                 */
+                /* 顺序不能反：`submit.current` 要是抛了，那几份被摘下来的附件必须还在册子里，用户才能原样重发
+                   —— 失败横幅只给「取回文字」，附件救不回来。 */
                 const handedOver = ((): boolean => {
                   try {
                     submit.current(message)
@@ -1018,7 +931,7 @@ export function PromptInputBody({ className, ...props }: ComponentProps<'div'>) 
   return <div className={className} data-slot="prompt-input-body" {...props} />
 }
 
-/** 正文那一面。contenteditable 归 Lexical：选区、输入法组词、撤销栈与粘贴规范化都在内核，这里只声明壳与占位字。 */
+/** 正文那一面。contenteditable 归 Lexical：选区、组词、撤销栈与粘贴规范化都在内核，这里只声明壳与占位字。 */
 export function PromptInputEditor({ placeholder }: { readonly placeholder: string }) {
   const palette = usePromptInputPalette()
 

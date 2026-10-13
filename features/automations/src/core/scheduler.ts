@@ -4,20 +4,17 @@ import type { AutomationsRepository } from './repository'
 import type { Runner } from './runner'
 import { nextOf, PROBLEM_TEXT } from './schedule'
 
-/** 调度器 tick 间隔（07 页 §9C「每 30 秒 tick」） */
 export const TICK_MS = 30_000
 
 export const OVERLAP_MESSAGE = '上一次运行还没结束，跳过这一次'
 export const MISSED_MESSAGE = '错过：计划时间应用没有运行'
 
 export interface Scheduler {
-  /** running/awaiting → failed；错过的计划按任务的 catchUp 补跑或记一条跳过；重算 next_run_at 与 issue */
   repairOnStartup(): void
   tick(): Promise<void>
   start(): Disposable
 }
 
-/** 依据一项任务的计划算它的下一次运行与问题说明；只手动运行与「一次性且时间已过」两者都是空 */
 export function scheduleOf(
   automation: Pick<Automation, 'schedule'>,
   now: number,
@@ -36,7 +33,6 @@ export function createScheduler(d: {
   readonly logger: Logger
 }): Scheduler {
   const { clock, logger, repo, runner } = d
-  /** 启动时发现错过、且要补跑的任务：下一次 tick 以 catch_up 触发 */
   const catchUps = new Set<string>()
 
   const advance = (a: Automation): void => {
@@ -45,7 +41,6 @@ export function createScheduler(d: {
     repo.setIssue(a.id, issue, clock.now())
   }
 
-  /** 这一次（跑了或跳过了）之后：一次性任务停用，周期任务推到下一次 */
   const finish = (a: Automation): void => {
     if (isOnce(a)) {
       repo.setEnabled(a.id, false, clock.now())
@@ -62,7 +57,7 @@ export function createScheduler(d: {
       for (const a of repo.listEnabled()) {
         const missed = a.issue === null && a.nextRunAt !== null && a.nextRunAt <= now
         if (missed && a.catchUp) {
-          /* 不动 next_run_at：它仍是过去的时刻，第一次 tick 就会把它挑出来 —— 只补一次 */
+          /* 不动 next_run_at：第一次 tick 就会把它挑出来，只补一次。 */
           catchUps.add(a.id)
           continue
         }
@@ -80,7 +75,6 @@ export function createScheduler(d: {
         try {
           if (a.schedule.cron === null && a.schedule.at === null) continue
           if (runner.isRunning(a.id)) {
-            /* 同一任务不能并发：记一条跳过，再推到下一次 */
             runner.skip(a, trigger, a.nextRunAt, OVERLAP_MESSAGE)
             finish(a)
             continue

@@ -1,21 +1,18 @@
 /*
  * 顶部居中的一句话横幅。
  *
- * 版式与动画的正本是 deepseek-harness 的
- * packages/client/ui-primitives/src/Toast.module.css（锚定 639ed015）。几何、时长、
- * 缓动一律照抄；换掉的只有令牌 —— 那边读 --dsw-* 设计平台，这里读本仓的 --ui-*。
+ * 几何、时长、缓动照抄 deepseek-harness 的 Toast.module.css（别改）；换掉的只有令牌 ——
+ * 那边读 --dsw-* 设计平台，这里读本仓的 --ui-*。
  *
- * 淡出的延迟由组件作为 --ui-banner-hold 传进来，所以一条值同时驱动卸载定时器与这里的
- * 动画；回退值与组件的默认值对齐。淡出的时长仍旧必须与 banner.tsx 的 FADE_MS 一致。
+ * 淡出的延迟由组件作为 --ui-banner-hold 传进来，所以一条值同时驱动卸载定时器与这里的动画；
+ * 回退值与组件的默认值对齐。淡出的时长仍旧必须与 banner.tsx 的 FADE_MS 一致。
  */
 
 .ui-banner {
   position: fixed;
   top: 40px;
   left: 50%;
-  /*
-   * 压在图片灯箱(1000)之上：预览开着的时候报出来的事也必须读得到。
-   */
+  /* 压在图片灯箱(1000)之上：预览开着的时候报出来的事也必须读得到。 */
   z-index: 1100;
   /* 通知从不接指针。 */
   pointer-events: none;
@@ -23,19 +20,18 @@
   align-items: center;
   gap: 10px;
   /*
-   * 固定定位的盒子在设了 left 之后是按 left 右侧的剩余空间收缩的（translate 发生在
-   * 量尺寸之后），所以贴着窗口边的一个锚点会让它提前折行。max-content 让它只按文字
-   * 定宽，再由下面的 max-width 封顶。
+   * 固定定位的盒子在设了 left 之后是按 left 右侧的剩余空间收缩的（translate 发生在量尺寸
+   * 之后），所以贴着窗口边的一个锚点会让它提前折行。max-content 让它只按文字定宽，再由下面
+   * 的 max-width 封顶。
    */
   width: max-content;
   max-width: min(640px, calc(100vw - 48px));
   padding: 12px 16px;
   border-radius: var(--ui-radius-lg);
   /*
-   * 正本这张卡面在两个主题下都是深色（浅色 bluish-800 / 深色 bluish-750），所以文字
-   * 与动作色写死不跟主题翻。这里要的是「彩色的字压在深色卡面上」，所以卡面在深浅两
-   * 个主题里各取本仓最近的一档墨色：浅色下 --ui-foreground（近黑），深色下
-   * --ui-surface —— 两个主题下都深于页面、也都深于卡面本身。
+   * 卡面在两个主题下都要深色，所以文字与动作色写死不跟主题翻。卡面在深浅两个主题里各取本仓
+   * 最近的一档墨色：浅色下 --ui-foreground（近黑），深色下 --ui-surface —— 两个主题下都深于
+   * 页面、也都深于卡面本身。
    */
   background: var(--banner-fill, var(--ui-foreground));
   color: var(--banner-label, var(--ui-background));
@@ -55,10 +51,10 @@
 }
 
 /*
- * 常驻：只滑入，不淡出。收场由调用方卸载决定（组件那边 holdMs 为 null 时连计时器都不装）。
+ * 常驻：只滑入，不淡出，收场由调用方卸载决定。
  *
- * 单独一条规则而不是改基础那条的时长 —— 基础那条是「一句话说完自己走」的默认形态，
- * 大多数横幅要的就是它；只有没结束就不该消失的事才走这一档。
+ * 单独一条规则而不是改基础那条的时长 —— 基础那条是「一句话说完自己走」的默认形态，大多数
+ * 横幅要的就是它；只有没结束就不该消失的事才走这一档。
  */
 .ui-banner--sticky {
   animation: ui-banner-in 160ms ease-out;
@@ -67,9 +63,9 @@
 /*
  * 有确数的进度：卡面下缘一条细轨，宽度按百分比。
  *
- * 只在下缘画一条，不改卡面尺寸、也不改文字基线 —— 进度每跳一个百分点都会重渲，
- * 一条会推动版式的进度条就是每秒几十次的抖动。不接无障碍树（组件那边 aria-hidden），
- * 确数在文字里已经念过一遍。
+ * 只在下缘画一条，不改卡面尺寸、也不改文字基线 —— 进度每跳一个百分点都会重渲，一条会推动
+ * 版式的进度条就是每秒几十次的抖动。不接无障碍树（组件那边 aria-hidden），确数在文字里已经
+ * 念过一遍。
  */
 .ui-banner__progress {
   position: absolute;
@@ -108,8 +104,8 @@
 }
 
 /*
- * 失败那一档的红。卡面在两个主题下都是深色（见上），所以这里取 --ui-destructive ——
- * 深色下是 red-400、浅色下是 red-500，两边在各自的卡面上都读得出来。
+ * 失败那一档的红。卡面在两个主题下都是深色（见上），所以这里取 --ui-destructive —— 深色下是
+ * red-400、浅色下是 red-500，两边在各自的卡面上都读得出来。
  */
 .ui-banner__icon--error {
   color: var(--ui-destructive);
@@ -125,16 +121,11 @@
   border: 0;
   padding: 0;
   background: none;
-  /*
-   * 动作色同理写死：正本是 deepseek-400 提亮过的一档蓝，在恒深的卡面上读成「可点」
-   * 而不必加下划线。
-   */
+  /* 动作色写死不跟主题翻：这一档蓝在恒深的卡面上读成「可点」而不必加下划线。 */
   color: var(--ui-palette-blue-400);
   font: inherit;
   cursor: pointer;
-  /*
-   * 卡面本身是 click-through（上面的 pointer-events: none），只有动作文字接指针。
-   */
+  /* 卡面本身是 click-through（上面的 pointer-events: none），只有动作文字接指针。 */
   pointer-events: auto;
 }
 
@@ -162,8 +153,8 @@
 }
 
 /*
- * 减少动效偏好下丢掉滑入；那段延迟的淡出（是透明度变化，不是位移）仍然在定时卸载
- * 之前把横幅收干净。
+ * 减少动效偏好下丢掉滑入；那段延迟的淡出（是透明度变化，不是位移）仍然在定时卸载之前把横幅
+ * 收干净。
  */
 @media (prefers-reduced-motion: reduce) {
   .ui-banner {

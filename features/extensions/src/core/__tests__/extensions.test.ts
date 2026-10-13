@@ -15,7 +15,6 @@ type SkillRow = {
   path: string
 }
 
-/** 一个已安装的用户技能 */
 const USER_SKILL: SkillRow = {
   id: '/skills/mine',
   name: 'mine',
@@ -35,11 +34,8 @@ const BUILTIN_SKILL: SkillRow = {
 }
 
 describe('extensions core', () => {
-  /*
-   * U10（07 页 §8B/§8C）：引擎把「没有 SKILL.md」报成内核级的 kernel.invalid_params，
-   * 而契约对这件事有自己的一枚码。翻译必须发生在 extensions 的 Core 里 —— 否则
-   * `extensions.invalid_skill_package` 全仓没有抛点，契约承诺的错误码不可达。
-   */
+  /* 引擎把「没有 SKILL.md」报成内核级的 kernel.invalid_params，而契约对这件事有自己的一枚码。翻译必须发生在 extensions 的 Core 里 ——
+   * 否则 extensions.invalid_skill_package 全仓没有抛点，契约承诺的错误码不可达。 */
   test('装一个没有 SKILL.md 的 zip → extensions.invalid_skill_package（不是 kernel.invalid_params）', async () => {
     const base = createFakeEngine()
     const engine = {
@@ -143,7 +139,7 @@ describe('extensions core', () => {
     const api = h.client(extensionsContract)
     const err = await api.call('skills.remove', { skillId: BUILTIN_SKILL.id }).catch((e: unknown) => e)
 
-    /* 铁律 5：跨边界的错误必须是 AppError，错误码是**码**而不是 message 里的一段文字 */
+    /* 铁律 5：跨边界的错误必须是 AppError，错误码是**码**而不是 message 里的一段文字。 */
     expect((err as AppError).code).toBe('extensions.skill_not_removable')
     expect(trashed).toEqual([])
     await h.dispose()
@@ -178,11 +174,8 @@ describe('extensions core', () => {
     await h.dispose()
   })
 
-  /*
-   * mcp.upsert 按名字幂等（第二次是更新，允许同名）。**mcp_name_conflict 目前不可达**：
-   * 05 页 §11 的参数只有 McpServerInfo，没有区分新增/更新的位，而「名字已存在」就是更新。
-   * 见 docs/refactor-log.md 待决问题 Q21。
-   */
+  /* mcp.upsert 按名字幂等。**mcp_name_conflict 目前不可达**：参数只有 McpServerInfo，没有区分新增 / 更新的位，而「名字已存在」就是更新
+   * （见 docs/refactor-log.md 待决问题 Q21）。 */
   test('同名的第二次 upsert 是更新（覆盖配置），不抛错', async () => {
     const base = createFakeEngine()
     const h = await createCoreHarness({ modules: [workspaces, extensions], engine: base })

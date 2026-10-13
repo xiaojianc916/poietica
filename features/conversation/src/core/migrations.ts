@@ -1,6 +1,6 @@
 import type { Migration } from '@poietica/storage-sqlite'
 
-/** 表结构照 08 页 §5.2 原样。字段与实体的对应：hasSession = session_file IS NOT NULL；state 不存库 */
+/** 字段与实体的对应：hasSession = session_file IS NOT NULL；state 不存库 */
 export const migrations: readonly Migration[] = [
   {
     version: 1,
@@ -32,8 +32,8 @@ CREATE UNIQUE INDEX conversation_threads_by_session_file ON conversation_threads
     version: 2,
     name: 'submissions',
     /*
-     * 「Core 即时回显」的提交表：每条提交都有确定结局，并且**存进库**（重开应用也在）。
-     * 状态机 pending → started / queued / failed；retry 把 failed 改回 pending（号不变）。
+     * 提交表：每条提交都有确定结局并存进库（重开应用也在）。状态机 pending → started / queued / failed；
+     * retry 把 failed 改回 pending（号不变）。
      */
     sql: `CREATE TABLE conversation_submissions (
   client_turn_id   TEXT PRIMARY KEY,

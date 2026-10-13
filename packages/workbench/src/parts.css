@@ -1,26 +1,9 @@
-/*
- * 外壳各区域的排版。迁移自 legacy 的：
- *   - shell/chrome/title-bar.css（标题栏、拖拽区）
- *   - window/window-controls 的类（窗口按钮由 platform 贡献，样式在这里给）
- *   - control/toast.css（通知；横幅改回 design-system 的通用 Banner，不在这里画）
- *   - shell/commands/command-palette.tsx 的行样式
- *
- * 颜色与尺寸一律取 design-system 的语义令牌，一个色值都不写。
- */
-
-/* ── 标题栏（迁移自 legacy shell/chrome/title-bar.css）──────────────── */
+/* 外壳各区域的排版。颜色与尺寸一律取 design-system 的语义令牌，一个色值都不写。 */
 
 /*
- * 标题栏左上角开合区的几何。
- *
- * 只有一条中线：--ui-row-icon-center，由 WorkspaceFrame 挂到外壳根节点上，
- * 沿 DOM 继承到这里。开合按钮的盒子居中压在这条中线上，所以前导留白 =
- * 中线 − 控件高 / 2；区宽的下限 = 前导 × 2 + 开合与搜索两枚控件的宽 + 两者间距，
- * 右侧留白因此与前导恒等 —— 对称是算出来的。
- *
- * 前导夹到 0 不是装饰：控件高是 rem，根字号放大到控件高 > 2 × 中线时前导本该为负，
- * 而负 padding 会被静默夹成 0；区宽若仍按负值算就会小于内容，收起态的按钮会溢出
- * 到拖拽区底下。显式 max(0px, …) 让位置与区宽用同一个夹紧结果。
+ * 开合区几何：前导 = 中线 − 控件高 / 2，区宽下限 = 前导 × 2 + 两枚控件宽 + 间距，右侧留白因此与前导恒等。
+ * 前导必须显式 max(0px, …)：根字号放大到控件高 > 2 × 中线时前导本该为负，而负 padding 会被静默夹成 0，
+ * 区宽若仍按负值算就小于内容，收起态的按钮会溢出到拖拽区底下。
  */
 .desktop-title-bar__toggle-zone {
   --titlebar-toggle-size: 1.75rem;
@@ -38,11 +21,7 @@
   );
 }
 
-/*
- * 拖拽区由宿主的非客户区命中测试处理，拖动、双击最大化、系统菜单与触控不经
- * JavaScript/IPC。子元素必须显式 no-drag，因为命中区域按元素矩形计算。
- * 这条能力由 Electron 的 -webkit-app-region 独占提供。
- */
+/* 拖拽由宿主的非客户区命中测试处理，不经 JavaScript/IPC；子元素必须显式 no-drag，因为命中区域按元素矩形计算。 */
 .desktop-title-bar__drag-region {
   -webkit-app-region: drag;
 }
@@ -51,12 +30,7 @@
   -webkit-app-region: no-drag;
 }
 
-/*
- * 窗口按钮的样式由 design-system 的 Button + platform 贡献处的工具类负责
- * （legacy window-controls.tsx 的同一条用法：w-11 / w-12、rounded-none、ghost）。
- * 这里只留拖拽命中测试那一条 —— 交互式标题栏控件不得参与原生拖拽。
- * 见 legacy shell/chrome/title-bar.css。
- */
+/* 窗口按钮样式由 design-system 的 Button + platform 工具类负责；这里只留一条：交互式标题栏控件不得参与原生拖拽。 */
 .desktop-window-controls {
   position: relative;
   z-index: 3;
@@ -67,7 +41,6 @@
   -webkit-app-region: no-drag;
 }
 
-/* ── 侧栏 ──────────────────────────────────────────────────────── */
 .workbench__sidebar-section {
   min-height: 0;
 }
@@ -79,7 +52,6 @@
   text-align: center;
 }
 
-/* ── 主区 ──────────────────────────────────────────────────────── */
 .workbench__main {
   position: relative;
   height: 100%;
@@ -123,33 +95,14 @@
   cursor: pointer;
 }
 
-/*
- * 这里原有一批 `.workbench__panel*` 与 `.workbench__status*` 规则。
- *
- * 前一批是**底坞**那套自绘面板的样式（tag strip + body），底坞已按产品负责人
- * 2026-10-07 的决定整块删除（见 docs/refactor-log.md 偏差 #45），右坞改由
- * auxiliary.css 的 legacy 形制负责 —— 这批类名在全仓再无消费者。
- *
- * 后一批是 **StatusBar** 的样式，状态栏同样按产品负责人 2026-10-05 的决定删除，
- * Core 状态改到设置「关于」页（见 refactor-log 偏差 #7）。`builtinPoints.statusItems`
- * 的定义保留（03 页 §4 的贡献点表），但外壳不画这一行。
- *
- * 留着失效规则会让下一个人以为外壳还有这两块家具，因此整批删除。
- */
+/* 这里原有的 `.workbench__panel*`（底坞）与 `.workbench__status*`（状态栏）规则已随这两块家具整块删除，不留失效规则。 */
 
-/*
- * 浮层的包装层。contents = 不生成盒子：宿主挂在栅格根之内，普通 div 会被自动放进某个
- * 格位，等于外壳又替浮层占了一格（就是横幅行那个故障的形状）。浮层自己 portal / fixed，
- * 脱流由它自己负责。
- */
+/* 浮层包装层：contents = 不生成盒子。用普通 div 会被自动放进某个格位，等于外壳又替浮层占了一格。 */
 .workbench__overlay {
   display: contents;
 }
 
-/*
- * 功能加载失败那一条：它住在**浮层**这一层（不再占外壳栅格的一行），所以自己定位到
- * 页头下方 —— 顶在窗口上沿会压住可拖拽的标题栏。
- */
+/* 失效条住在浮层这一层，自己定位到页头下方：顶在窗口上沿会压住可拖拽的标题栏。 */
 .workbench__failures {
   position: fixed;
   inset-block-start: calc(var(--chrome-height) + 0.5rem);
@@ -178,11 +131,6 @@
   box-shadow: var(--shadow-md);
   white-space: nowrap;
 }
-
-/*
- * 命令面板的外观由 design-system 的 Dialog + CommandMenu 负责
- * （迁移自 legacy command-palette.tsx 的同一条用法），此处不再画一套。
- */
 
 /* ── 浮层：通知 / 确认框 ───────────────────────────────────────── */
 .workbench__toasts {
@@ -219,12 +167,7 @@
   font-size: var(--text-micro);
 }
 
-/*
- * 内核确认框的自绘样式（.workbench__modal*）已删除：外观交给 design-system 的
- * ConfirmationDialog，与功能里的二次确认同一个组件、同一套危险色与主题适配。
- */
-
-/* 功能错误边界（ui-kernel 的 FeatureErrorBoundary 用 data-* 属性，不用类名） */
+/* 功能错误边界（ui-kernel 的 FeatureErrorBoundary 用 data-* 属性） */
 [data-feature-error] {
   display: grid;
   height: 100%;

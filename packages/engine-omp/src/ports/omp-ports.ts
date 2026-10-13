@@ -20,11 +20,11 @@ export interface OmpPortsOptions {
   readonly registry: OmpModelRegistry
   readonly authStorage: object
   readonly relayPort: number
-  /** 活着的会话：MCP 状态要按名汇总它们各自的 mcpManager（12 页 §3.14） */
+  /** 活着的会话：MCP 状态要按名汇总它们各自的 mcpManager */
   readonly sessions: Set<OmpSessionLike>
 }
 
-/** 六个端口一次组装好（12 页 §10）。端口之间不互相依赖，只依赖 omp 对象与设置句柄。 */
+/** 六个端口一次组装好。端口之间不互相依赖，只依赖 omp 对象与设置句柄。 */
 export async function ompPorts(o: OmpPortsOptions): Promise<{
   sessionFiles: AgentEngine['sessionFiles']
   models: AgentEngine['models']
@@ -35,7 +35,7 @@ export async function ompPorts(o: OmpPortsOptions): Promise<{
   /** MCP 端口的增量重报（接口上没有这一格：只有实现知道什么时候该重报） */
   mcpRefreshStatus: () => void
 }> {
-  // 会话目录：<ompAgentDir>/sessions（12 页 §10.1 / docs/omp-sdk-reference.md §N）
+  // 会话目录：<ompAgentDir>/sessions（见 docs/omp-sdk-reference.md §N）
   const dirs = await import('@oh-my-pi/pi-utils/dirs')
   const sessionDir = dirs.getSessionsDir(o.layout.ompAgentDir)
   /*

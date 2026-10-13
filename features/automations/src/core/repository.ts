@@ -1,7 +1,6 @@
 import type { ModuleDatabase } from '@poietica/storage-sqlite'
 import type { Automation, AutomationDraft, AutomationRun } from '../contract/entities'
 
-/** 每个任务只保留最近 50 条运行记录（07 页 §9C「历史上限」） */
 export const RUN_HISTORY_LIMIT = 50
 
 interface AutomationRow {
@@ -97,9 +96,7 @@ export interface AutomationsRepository {
   setNextRun(id: string, nextRunAt: number | null, now: number): void
   setIssue(id: string, issue: string | null, now: number): void
   setEnabled(id: string, enabled: boolean, now: number): void
-  /** 续用模式第一次运行（或续用的对话没了）新建对话后记下来 */
   setThread(id: string, threadId: string | null, now: number): void
-  /** 续用的对话被删：清掉所有指向它的任务，返回清了几个 */
   clearThread(threadId: string, now: number): number
   remove(id: string): void
   removeByWorkspace(workspaceId: string): void

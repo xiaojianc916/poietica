@@ -9,17 +9,9 @@ import type {
   ProviderDto,
 } from './model-catalog'
 
-/*
- * ModelCatalogPort 在 models 契约上的实现：**新架构里唯一换掉的那一层**。
- *
- * legacy 的那一份由原生侧的 catalog 命令实现（含 agent-CLI 安装、六种 provider 类型、
- * 联网目录）。新架构里数据来自引擎端口的两张表（07 页 §6C：Core 的九个方法就是对
- * \`ctx.engine.models\` 的一次转发），所以这里把两张表折成组件在用的读法：
- *
- *   providers ← 已配置/自定义的服务商（内置的配好 key 也算）
- *   models    ← 属于上面那些服务商的模型
- *   catalog   ← 还没配的内置服务商（「从目录添加」那一页列它，选中后只需填 key）
- */
+/* ModelCatalogPort 在 models 契约上的实现：**新架构里唯一换掉的那一层**。legacy 那份由原生侧的 catalog 命令实现（含 agent-CLI 安装、六种 provider
+ * 类型、联网目录）。新架构里数据来自引擎端口的两张表，所以这里把两张表折成组件在用的读法：providers ← 已配置/自定义的服务商；models ← 属于上面
+ * 那些服务商的模型；catalog ← 还没配的内置服务商（「从目录添加」那一页列它）。 */
 function toProvider(provider: ProviderInfo): ProviderDto {
   return {
     id: provider.id,
@@ -124,7 +116,7 @@ export function createCatalogPort(api: ModelsApi): ModelCatalogPort {
         break
       }
       case 'importCatalog': {
-        // 目录导入 = 给这家服务商填 key（内置服务商在 omp 里只需要这一个）
+        // 目录导入 = 给这家服务商填 key（内置服务商在 omp 里只需要这一个）。
         if (operation.apiKey !== undefined && operation.apiKey !== '') {
           await api.setApiKey(operation.catalogId, operation.apiKey)
         }
@@ -145,7 +137,7 @@ export function createCatalogPort(api: ModelsApi): ModelCatalogPort {
 
   return {
     execute,
-    // 目录变了要重取：契约的 models.changed 通知（04 页 §2.2）
+    // 契约的 models.changed 通知到了要重取。
     subscribeInvalidation: async (listener) => {
       const subscription = api.onChanged(listener)
       return () => {

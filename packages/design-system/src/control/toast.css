@@ -1,8 +1,8 @@
 /*
  * 通知的出场与退场。
  *
- * 出场不需要状态：keyframes 在元素插入时自己开始。退场需要元素还在，所以由
- * data-state="closed" 驱动，元素何时被移除由持有通知的 store 说。
+ * 出场不需要状态：keyframes 在元素插入时自己开始。退场需要元素还在，所以由 data-state="closed"
+ * 驱动，元素何时被移除由持有通知的 store 说。
  */
 .ui-toast {
   max-height: min(420px, calc(100dvh - 96px));

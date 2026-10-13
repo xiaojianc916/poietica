@@ -14,28 +14,16 @@ import type { Thread } from '../../../contract'
 import { threadActions } from '../../../ui-api'
 
 /*
- * 会话页左上角的那一格：机器图标 + 这条对话的标题 + 下拉箭头。
- *
- * 标题**不缓存**：它整格从 `thread` prop 读，而调用方订阅着线程库 —— omp 总结出新标题
- * （`threads.updated` → stores.threads.upsert）时这里跟着换，用户改的名字同理。
- *
- * 三个部分各有各的语义（产品负责人 2026-10-12 定稿）：最左边的机器图标只是标记，
- * 悬停不给任何反馈；标题本身就是「改名」的入口，点一下换成就地输入框；下拉箭头才开菜单。
- * 标题上不再挂原生 title 提示 —— 它的悬停气泡与「点标题改名」是两回事，会互相打架。
- *
- * 菜单项与侧栏行菜单同一份次序、同一张脸（固定 / 重命名 / 导出会话，之后是其它功能
- * 贡献的动作，例如「以此对话创建定时任务」）；动作由上层交进来，这一格只画。
+ * 标题**不缓存**：整格从 `thread` prop 读，调用方订阅着线程库。标题本身就是改名的入口，下拉箭头才开菜单；标题上不挂原生 title 提示 —— 它的悬停气泡与「点标题改名」会打架。
  */
 
 export interface ThreadTitleMenuProps {
-  /** 线程行还没到时整格不画（点开对话的头一帧）。 */
   readonly thread: Thread | undefined
   readonly onPin?: ((threadId: string, pinned: boolean) => void) | undefined
   readonly onRename?: ((threadId: string, title: string) => void) | undefined
   readonly onExport?: ((threadId: string) => void) | undefined
 }
 
-/* 就地改名的那一格：Enter / 失焦提交，Escape 放弃。 */
 function TitleRenameField({
   initial,
   onCancel,
@@ -49,9 +37,8 @@ function TitleRenameField({
   const settled = useRef(false)
 
   /*
-   * 挂载时取焦点并选中一次；ref 用 useCallback 钉住标识，不然每敲一个字都会重新全选。
-   * 显式 focus 是必需的：从菜单点「重命名」进来时，焦点还在被卸载的弹层上，不抢回来的话
-   * 输入框拿到焦点之前就可能吃到一次 blur，编辑框当场收掉（真机上表现为「点了没反应」）。
+   * ref 用 useCallback 钉住标识，不然每敲一个字都会重新全选。显式 focus 是必需的：从菜单点「重命名」进来时焦点还在被卸载的弹层上，
+   * 不抢回来输入框可能在拿到焦点前吃到一次 blur，编辑框当场收掉（真机表现为「点了没反应」）。
    */
   const selectOnMount = useCallback((node: HTMLInputElement | null) => {
     if (node !== null) {

@@ -2,8 +2,7 @@ import type { InteractionAnswer } from '@poietica/engine'
 import type { InteractionDraft } from './broker'
 
 /**
- * 计划模式下的「提交计划 / 请求批准」（12 页 §8.5，迁移 legacy bridge.ts:3525-3589 的
- * proposePlan / askPlanApproval；四档答复的判据按产品负责人 2026-10-07 的定稿）。
+ * 计划模式下的「提交计划 / 请求批准」。
  *
  * omp 那边只有一条 `xd://propose`：agent 写计划文件，plan mode 的 PlanProposalHandler 收到标题。
  * 这里把「标题 + 计划正文」翻成产品的 `kind:'plan'` 卡片，答复（approve / reject / revise + feedback）
@@ -11,10 +10,10 @@ import type { InteractionDraft } from './broker'
  * - approve：把计划的 `local://` 路径登记为参考（setPlanReferencePath），并交给调用方退出计划模式；
  * - revise：留在计划模式里，把人的反馈原样回给模型，让它改完再提一次；反馈为空时与 reject 同义；
  * - reject / dismiss（超时、中止、cancelAll）：这一次提交作废，但**仍然留在计划模式里** ——
- *   出模式等于告诉模型可以动手了。dismiss 是「取消、退出计划模式」这一档的兑现（§7.8）。
+ *   出模式等于告诉模型可以动手了。dismiss 是「取消、退出计划模式」这一档的兑现。
  *
- * legacy 走的是授权闸门那张选项表（所以答复与工具授权逐字同形），新设计里计划有自己的 kind，
- * 卡片因此能画计划正文，而不必把整篇计划塞进一句 select 标题里。
+ * 计划有自己的 kind（不是走授权闸门那张选项表），卡片因此能画计划正文，
+ * 而不必把整篇计划塞进一句 select 标题里。
  */
 
 /** 产品那三颗按钮的取值域 */
@@ -64,7 +63,7 @@ export function planOutcomeOf(answer: InteractionAnswer): PlanOutcome {
   return { decision: 'reject', feedback: answer.feedback }
 }
 
-/** 计划获批准时回给模型的工具结果（产品负责人 2026-10-07 定稿的文案） */
+/** 计划获批准时回给模型的工具结果 */
 export function planApprovedText(planFilePath: string): string {
   return `计划已确认：${planFilePath}。按它执行。`
 }
@@ -77,7 +76,7 @@ export function planRevisionText(planFilePath: string, feedback: string): string
 /**
  * 计划被否决（含 dismiss）时回给模型的工具结果。
  *
- * 比 legacy 多一句「不要重新提交」：人否决之后模型再提一版会把这张卡片重新推上来，
+ * 多一句「不要重新提交」：人否决之后模型再提一版会把这张卡片重新推上来，
  * 而人的意思恰恰是停下 —— 说清楚比让它猜好。
  */
 export function planRejectedText(planFilePath: string): string {

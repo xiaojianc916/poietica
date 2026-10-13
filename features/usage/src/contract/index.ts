@@ -8,7 +8,7 @@ export { usageErrors } from './errors'
 
 const _empty = z.object({})
 
-/** 日期区间：from <= to，且跨度不超过 400 天（热力图要 53 周 = 371 天，留出余量）。 */
+/** from <= to，且跨度不超过 400 天（热力图要 53 周 = 371 天，留出余量）。 */
 const MAX_RANGE_DAYS = 400
 const DayRange = z
   .object({ from: DayKey, to: DayKey })
@@ -39,18 +39,12 @@ export const usageContract = defineContract({
       name: 'usage.messageCount',
       owner: 'core',
       params: DayRange,
-      /*
-       * 口径是**用户发出去的句子数**（含插话），不是模型采样条数 —— 与 legacy 的
-       * turn_admissions、ADR 0039 一致。表也换成 usage_messages（见 core/migrations.ts）。
-       */
+      /* 口径是**用户发出去的句子数**（含插话），不是模型采样条数（ADR 0039）。表是 usage_messages。 */
       result: z.object({ days: z.array(MessageCountDay) }),
       description: '按天统计用户发出的消息数',
     }),
   ],
-  /*
-   * 通知一条不剩：原先只有 usage.updated，它服务的线程标题栏那枚「累计用量」按钮已删
-   * （见 refactor-log 偏差 #50）。设置页那三张图是「读一次 + 换窗口重读」，不靠推送。
-   */
+  /* 通知一条不剩：原先只有 usage.updated，它服务的线程标题栏那枚按钮已删（refactor-log 偏差 #50）。设置页那三张图是「读一次 + 换窗口重读」。 */
   notifications: [],
   errors: usageErrors,
 })

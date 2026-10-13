@@ -1,18 +1,8 @@
 import type { SkillDocument, SkillDocumentFacts } from '@poietica/feature-conversation/ui-api'
 import type { SkillInfo } from '../contract'
 
-/*
- * 一份 SKILL.md 读出来的那几格。**迁移自** legacy `packages/extension/src/skill.ts` 的
- * `skillFrontmatter` 与 `skillRows` 里与展示有关的部分：字段名、缺省值、毛病清单
- * （缺 frontmatter / 缺结束分隔符 / 顶层不是映射 / 缺 name / 缺 description / 不支持的
- * type）逐条照旧。
- *
- * 与 legacy 的差距（见 docs/refactor-log.md 偏差 23）：legacy 用 `yaml` 包解析 frontmatter，
- * 这里只做行级取值。理由有两条：解析结果要交给 conversation 的面板渲染，而功能之间不得
- * 互相 import `ui`（守则 3），所以它只能落在 extensions 的 ui 子入口；`yaml` 不在 ui 子入口
- * 允许的依赖表里（03 页 §5.2），为了几个标量字段把整份 YAML 解析器拖进渲染进程也不划算。
- * 代价是块状标量（`description: |`）读成字面量，多行值要在方案里给这条通道留位置后再补。
- */
+/* 一份 SKILL.md 读出来的那几格照 legacy。这里只做行级 frontmatter 取值而不用 yaml 包：解析结果要交给 conversation 的面板渲染，
+ * 而 yaml 不在 ui 子入口允许的依赖表里，为几个标量字段把整份解析器拖进渲染进程不划算。代价是块状标量（description: |）读成字面量。 */
 
 const TEXT = /^(.*)$/u
 
@@ -26,7 +16,6 @@ function scalar(raw: string): string | undefined {
   return trimmed.replace(/^['"]|['"]$/gu, '').trim()
 }
 
-/** 只认顶层 `key: value` 这一档；嵌套与列表原样跳过（legacy 取的那几格都是标量）。 */
 function field(lines: readonly string[], closing: number, keys: readonly string[]): string | undefined {
   for (const line of lines.slice(1, closing)) {
     const at = line.indexOf(':')
@@ -106,7 +95,6 @@ export function skillDocumentFacts(markdown: string): SkillDocumentFacts {
   return { name, description, body, type, whenToUse, disableModelInvocation, issues }
 }
 
-/** 名册上的那条记录 + 读回来的原文 → 右栏渲染要的那一份。 */
 export function skillDocumentOf(skill: SkillInfo, markdown: string): SkillDocument {
   const facts = skillDocumentFacts(markdown)
 

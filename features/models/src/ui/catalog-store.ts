@@ -1,7 +1,4 @@
-/*
- * legacy 的 ModelCatalogStore：**逐字迁移**（代际守卫、load 去重、失效订阅、dispose 全在）。
- * 唯一换掉的是它依赖的 ModelCatalogPort 实现 —— 见 catalog-port.ts。
- */
+/* legacy 的 ModelCatalogStore：**逐字迁移**（代际守卫、load 去重、失效订阅、dispose 全在）。唯一换掉的是它依赖的 ModelCatalogPort 实现。 */
 import type { ModelCatalogData, ModelCatalogOperation, ModelCatalogPort, ModelCatalogSnapshot } from './model-catalog'
 
 const EMPTY: ModelCatalogSnapshot = Object.freeze({
@@ -123,10 +120,8 @@ export class ModelCatalogStore {
   }
 
   /**
-   * 让 agent 自己去重取模型目录（在线目录 + 端点发现），再回一张新快照。
-   *
-   * 不在这条线上补元数据：模型的档位、上下文、能力位只有一个产地 —— agent 自己的
-   * 注册表（ADR 0017）。我们这侧再拿一份目录去"补全"它，就是第二个事实。
+   * 让 agent 自己去重取模型目录（在线目录 + 端点发现），再回一张新快照。不在这条线上补元数据：模型的档位、上下文、能力位只有一个产地 ——
+   * agent 自己的注册表（ADR 0017）。我们这侧再拿一份目录去「补全」它，就是第二个事实。
    */
   refreshFromSources = (): Promise<void> => this.mutate({ kind: 'refreshProviders' })
 

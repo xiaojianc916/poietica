@@ -18,23 +18,9 @@ import { ComposerDraftsContext } from '../composer/drafts-context'
 import type { PromptInputMessage } from '../composer/prompt'
 
 /*
- * 从面板行到提交的那条线：点「技能」那一行 → 正文里落一枚记号 → 发送时
- * `PromptInputMessage.skills` 里带着这个名字（`turns.submit.skills` 收的就是它）。
- *
- * 这一条之前是断的：面板里的行由贡献点给的数据画出来（见 composer-toolkit.test.ts），
- * 而行画不出来时后面的路一步都走不到 —— 这个用例把「画出来之后真的能用」钉死。
- */
-
-/*
- * 动效在这里按住：面板开合是 motion 的两段动画（见 primitives/motion），而 happy-dom 的
- * `Element.animate` 不推进时间轴 —— 动画停在中途被取消时，motion reject 一个没人接的
- * `finished` promise（`AbortError: The animation was canceled.`），一条这样的 rejection
- * 就足以判整个用例失败。真机上不会发生。
- *
- * 用 `MotionConfig skipAnimations` 而不是去改系统偏好：后者在 motion 内部**首次读取时
- * 就缓存**（useReducedMotion 的惰性初始化），同一个测试进程里再改已经晚了，而且把时长
- * 压到 0 也仍然会建一条动画、仍然会被取消。MotionConfig 是逐子树的配置，动的就是这条
- * 面板自己，动画整条不建。
+ * happy-dom 的 `Element.animate` 不推进时间轴，动画半途被取消时 motion reject 一个没人接的 `finished`
+ * （AbortError），足以判整个用例失败（真机不会）。用 `MotionConfig skipAnimations` 而不是改系统偏好 ——
+ * 后者在 motion 内首次读取时就缓存，同进程里再改已经晚了。
  */
 
 function statusBridge(): WindowBridge {
@@ -67,7 +53,6 @@ function statusBridge(): WindowBridge {
   } satisfies WindowBridge
 }
 
-/** 装一台空内核（只用它的贡献点注册表与 Context，不走任何 RPC 数据）。 */
 async function harness(): Promise<{
   readonly renderComposer: (onSubmit: (message: PromptInputMessage) => void) => {
     readonly container: HTMLElement
@@ -161,15 +146,14 @@ describe('从加号面板到提交', () => {
         closed.push(message)
       })
 
-      /* 先把一句话写进正文：技能记号本身不满足提交条件（与 legacy 同一条判据）。 */
+      /* 技能记号本身不满足提交条件，得先往正文里写一句话。 */
       handle()?.setText('帮我翻一下')
 
-      /* 翻开面板：先写正文再点，正文里那一句不该被吞掉（toggleRow 的 run 入参就是它）。 */
+      /* 先写正文再翻面板：正文里那一句不该被吞掉。 */
       const plus = container.querySelector<HTMLButtonElement>('button[aria-label="添加内容"]')
       expect(plus).not.toBeNull()
       fireEvent.click(plus!)
 
-      /* 技能那一行。 */
       await waitFor(() => {
         expect(container.textContent ?? '').toContain('翻译')
       })
@@ -179,12 +163,11 @@ describe('从加号面板到提交', () => {
       expect(row).not.toBeUndefined()
       fireEvent.mouseDown(row!)
 
-      /* 记号是经 Lexical 的 update 插进去的：那一次更新在微任务里落地。 */
+      /* 记号经 Lexical 的 update 插入，那一次更新在微任务里落地。 */
       await waitFor(() => {
         expect(container.querySelector('.assistant-prompt-chip')).not.toBeNull()
       })
 
-      /* 提交。 */
       const form = container.querySelector('form')
       expect(form).not.toBeNull()
       fireEvent.submit(form!)
@@ -193,7 +176,7 @@ describe('从加号面板到提交', () => {
       expect(closed[0]?.text).toContain('帮我翻一下')
       expect(closed[0]?.skills).toEqual([{ name: '翻译' }])
     } finally {
-      /* 等面板的退场动画走完再拆：happy-dom 里半途取消会抛 AbortError（真机不会）。 */
+      /* 等面板的退场动画走完再拆，否则 happy-dom 里半途取消会抛 AbortError（真机不会）。 */
       await Bun.sleep(400)
       harnessed.unmount()
     }

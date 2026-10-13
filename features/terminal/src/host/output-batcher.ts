@@ -1,15 +1,10 @@
-/**
- * 把 PTY 的高频小块输出合并为每 8ms 最多一条通知。
- *
- * `flush(data, offset)` 的 offset 是本段第一个码元在终端累计输出里的位置（R-08-15）：
- * 合批把几段拼在一起，只有起点能说明这段在整体里的位置。
- */
+/** 把 PTY 的高频小块输出合并为每 8ms 最多一条通知。offset 是本段第一个码元在累计输出里的位置（R-08-15）：合批把几段拼在一起，
+ * 只有起点能说明这段在整体里的位置。 */
 export function createOutputBatcher(
   flush: (data: string, offset: number) => void,
   intervalMs = 8,
 ): { push(chunk: string): void; drain(): void; dispose(): void } {
   let buf = ''
-  /* 缓冲区里第一个码元的位置；合批与丢弃都不影响累计计数 */
   let base = 0
   let total = 0
   let timer: ReturnType<typeof setTimeout> | undefined

@@ -5,14 +5,9 @@ import type { BrowserApi } from '../api'
 import { createBrowserPanelStore } from '../store'
 import { createBrowserToolCard } from '../tool-card'
 
-/*
- * agent 那条线上的浏览器卡片。喂进去的是 **omp 18.5 真实的 eval 形状**：浏览器是 eval
- * 的 prelude，产出里只有 `details.statusEvents`（那句 `open main https://…`）与
- * `details.images[]`，入参只有 `{ language, code, title }`。
- *
- * 旧卡片读的是 `args.action / args.url` 与 `details.screenshots` —— 那是早期顶层 browser
- * 工具的形状，于是屏幕上只有一句「浏览器 main」和一枚按钮。这一组用例就是那个缺陷的钉子。
- */
+/* 喂进去的是 omp 18.5 真实的 eval 形状：浏览器是 eval 的 prelude，产出里只有 details.statusEvents 与 details.images[]，入参只有
+ * { language, code, title }。旧卡片读的是 args.action / args.url 与 details.screenshots（早期顶层 browser 工具的形状），屏幕上只剩一句
+ * 「浏览器 main」和一枚按钮 —— 这一组用例就是那个缺陷的钉子。 */
 
 function fakeApi(): BrowserApi & { readonly selected: number[] } {
   const selected: number[] = []
@@ -71,7 +66,6 @@ const ARGS = {
   title: '看首页',
 }
 
-/** 一次 browser.open + screenshot 的产出：正本就是这一份。 */
 const RESULT = {
   content: [{ type: 'text', text: 'ok' }],
   details: {
@@ -110,7 +104,7 @@ function mount(
   render(
     <Card
       args={over.args === undefined ? ARGS : over.args}
-      /* null 是「还没有产出」的正经取值，不能被兜底吃掉。 */
+      /** null 是「还没有产出」的正经取值，不能被兜底吃掉。 */
       result={over.result === undefined ? RESULT : over.result}
       status={over.status ?? 'succeeded'}
       threadId="t1"
@@ -121,7 +115,6 @@ function mount(
   return { api, reported, panel, store }
 }
 
-/** 展开卡片（折叠行就是那个按钮）。 */
 function expand(): void {
   const row = document.querySelector('[data-browser-tool] button')
 
@@ -188,10 +181,8 @@ describe('展开区', () => {
     mount()
     expand()
 
-    /* 步骤列表：这一步是打开 a.com。 */
     expect(screen.getAllByText(/https:\/\/a\.com/u).length).toBeGreaterThan(0)
 
-    /* 代码默认收起，展开后能看到真正跑过的那两行。 */
     const code = document.querySelector('details')
     expect(code?.hasAttribute('open')).toBe(false)
 

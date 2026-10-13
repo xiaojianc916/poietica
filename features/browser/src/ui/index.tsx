@@ -28,36 +28,16 @@ import { createBrowserToolCard } from './tool-card'
 
 import './browser-panel.css'
 
-/*
- * 浏览器功能的 UI 装配（07 页 §12E）。
- *
- * 落点与读法：
- *   panels（right, order 20）“浏览器” —— 标签条 / 地址栏 / 工具栏 / 占位 div + setBounds
- *   conversation 的 toolCallRenderers（toolName: 'browser'）—— agent 那条线的工具卡片
- *   commands —— browser.toggle（Ctrl+Shift+B）、browser.newTab、browser.focusAddress
- *               （Ctrl+Shift+L，面板可见时）、browser.pickElement
- *
- * 这一层是唯一认识浏览器之外功能的地方（拾取结果要去 attachments 与 conversation），
- * 面板组件本身只认标签面（store）与 api。
- */
+/* UI 装配。落点：panels(right, order 20)「浏览器」；conversation 的 toolCallRenderers（toolName: 'browser'）；
+ * commands —— browser.toggle（Ctrl+Shift+B）、browser.newTab、browser.focusAddress（Ctrl+Shift+L）、browser.pickElement。 */
 
 const PANEL_ID = 'browser.panel'
 
-/**
- * 浮在页面上的对话框（命令面板、确认框、设计系统的 Dialog…）。
- *
- * 命令面板的开合不经过内核 —— `packages/workbench/src/palette-state.ts` 是 workbench 的
- * 内部模块，功能不许 import。它渲染出来的浮层倒是一条稳定的 DOM 契约：design-system 的
- * Dialog 建在 Base UI 上，打开时 Popup 带 `role="dialog"` 与 Base UI 自己发的 `data-open`。
- * 认这一对属性，命令面板与其他所有走 Dialog 的浮层都在里面；内核的确认框另有
- * DialogsToken 这一条路（见 overlayOpen）。这些浮层都经 Base UI 的传送门挂在应用根之外，
- * 查询与观察都只看那里（overlay-watch.ts，P-07）。
- */
+/** 浮层（命令面板、确认框、Dialog…）都经传送门挂在应用根之外，查询只看那里（P-07）。 */
 function dialogOpen(): boolean {
   return overlayPresent(document)
 }
 
-/** 覆盖层（对话框、命令面板）：原生视图永远盖在 DOM 之上，有它们时浏览器必须收起来。 */
 function overlayOpen(dialogs: DialogService): boolean {
   return dialogs.current().length > 0 || dialogOpen()
 }
@@ -101,17 +81,12 @@ export default defineUiFeature({
       report,
     })
 
-    /*
-     * 拾取结果：交付失败只报一次（legacy 的两条保护在这里同样成立 —— 交付前确认当前
-     * 输入框还在、一次拾取只产生一条提示词，见 pick-delivery.ts）。
-     */
     ctx.lifecycle.onDispose(
       api.onElementPicked((picked: PickedElement) => {
         void delivery.deliver(picked)
       }).dispose,
     )
 
-    /* 主动拉一次快照：面板与 driven 提示都要在 core ready 后立刻有值。 */
     const refresh = (): void => {
       void store.refresh().catch((cause: unknown) => {
         report('浏览器状态没能读回', cause)
@@ -127,10 +102,7 @@ export default defineUiFeature({
       store.dispose()
     })
 
-    /*
-     * agent 操控提示（07 页 §12E）：driven 从 false 变 true 就把面板拉到眼前。
-     * 只在翻转那一瞬开面板 —— 每次通知都开会把用户自己关掉的面板反复顶出来。
-     */
+    /* driven 从 false 变 true 就把面板拉到眼前 —— 每次通知都开会把用户自己关掉的面板反复顶出来。 */
     let driven = false
     const watchDriven = (state: BrowserState): void => {
       if (state.driven && !driven) {
@@ -148,11 +120,6 @@ export default defineUiFeature({
     })
     ctx.lifecycle.onDispose(stopDriven)
 
-    /*
-     * 浏览器那一格。标签页由 `dockTabs` 交给右坞的标签条 —— legacy 的浏览器标签与其它
-     * 通道的标签同处一条（auxiliary-tab-strip.tsx），新架构里那一条归 workbench，
-     * 这里只把「这一格有哪些标签」报上去（真相仍在浏览器宿主的 store 里）。
-     */
     ctx.contribute(builtinPoints.panels, {
       id: PANEL_ID,
       location: 'right',
@@ -163,10 +130,7 @@ export default defineUiFeature({
       component: () => <BrowserPanelHost api={api} dialogs={dialogs} report={report} store={store} />,
     })
 
-    /*
-     * 工具卡片要 api 与 store：「在面板中查看」除了开那一格，还要切到卡片上那条地址
-     * 所在的标签（revealTabFor 认不出时就不切，只开面板）。
-     */
+    /** 「在面板中查看」除了开那一格，还要切到卡片上那条地址所在的标签。 */
     ctx.contribute(toolCallRenderers, {
       toolName: 'browser',
       component: createBrowserToolCard({
@@ -249,13 +213,7 @@ export default defineUiFeature({
   },
 })
 
-/**
- * 面板宿主：把「该不该让原生视图露面」这一件事算清楚再交给面板。
- *
- * 原生子 webview 按逻辑坐标摆在外壳之上，看不见的三种情况必须自己收起来 ——
- * 右栏收起、活动面板不是浏览器、或者有覆盖层（对话框、命令面板）。前两者读
- * LayoutService，后者读 DialogsToken 与浮层的 DOM 契约（见 overlayOpen）。
- */
+/** 面板宿主：算清「该不该让原生视图露面」再交给面板。原生子 webview 摆在外壳之上，右栏收起、活动面板不是浏览器、或有覆盖层时都必须自己收起来。 */
 function BrowserPanelHost({
   api,
   dialogs,
@@ -272,20 +230,13 @@ function BrowserPanelHost({
   const dock = layoutState.right
   const sidebar = layoutState.sidebar
   const visible = dock.open && dock.activeId === PANEL_ID && !covered
-  /*
-   * 几何指纹：列的开合与宽度换一个值，视口据此重新量一次矩形。它只做同一性比较
-   * （viewport.ts 从不解读它），字符串本身就是稳定引用 —— 不必再套一层对象。
-   *
-   * 侧栏那两项必须在内：位置变化不进 ResizeObserver（视口 x 是侧栏让出来的），
-   * 拖侧栏分裂条只改位置——legacy 的指纹同样是 `sidebarOpen:sidebarWidth:auxiliaryWidth`。
-   */
+  /* 几何指纹：列的开合与宽度换一个值，视口据此重新量一次矩形。侧栏那两项必须在内：位置变化不进 ResizeObserver，拖侧栏分裂条只改位置。 */
   const layoutSignal = useMemo(
     () =>
       `${String(sidebar.visible)}:${String(sidebar.width)}:${String(dock.open)}:${String(dock.size)}:${dock.activeId ?? ''}`,
     [dock.activeId, dock.open, dock.size, sidebar.visible, sidebar.width],
   )
 
-  /* 覆盖层与命令面板都不进内核：两者都靠 DOM 契约盯住（见 overlayOpen 的头注）。 */
   useEffect(() => {
     const update = (): void => {
       setCovered(overlayOpen(dialogs))
@@ -293,7 +244,6 @@ function BrowserPanelHost({
 
     update()
     const stopDialogs = dialogs.subscribe(update)
-    /* 只看应用根之外的传送门：对话流式输出时 #root 里的变动不会叫醒这里（P-07） */
     const stopOverlays = watchOverlays(document, update)
 
     return () => {
@@ -302,7 +252,6 @@ function BrowserPanelHost({
     }
   }, [dialogs])
 
-  /* 看不见就不能开着拾取：页面上那层面板会留在原地等一个永远不来的点击。 */
   useEffect(() => {
     if (!visible) {
       void cancelPick(api)

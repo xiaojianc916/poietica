@@ -2,15 +2,15 @@ import { assertNever } from '@poietica/foundation'
 import type { TranscriptOperation } from '@poietica/transcript'
 
 /*
- * 时间线批内压缩（性能审查 P-05）。
+ * 时间线批内压缩（P-05）。
  *
- * 生产者（engine-omp 的投影器）按事件吐 op：文本每个 token 一条 append，工具每块输出一条
- * 带完整尾部输出（omp 每块都发 ≤50KB 的整份尾缓冲）的 frame.upsert。通道 16ms 合一批，但以前
- * 原样发出 —— 同一格的前几份立刻被最后一份覆盖，却照样走完 JSON 序列化、两次跨进程、
- * 结构化克隆与逐条应用。这里在发出前只做**可证明等价**的两种合并：
+ * 生产者按事件吐 op：文本每个 token 一条 append，工具每块输出一条带完整尾部输出（omp 每块都发
+ * ≤50KB 的整份尾缓冲）的 frame.upsert。通道 16ms 合一批，但之前原样发出 —— 同一格的前几份立刻
+ * 被最后一份覆盖，却照样走完 JSON 序列化、两次跨进程、结构化克隆与逐条应用。这里在发出前只做
+ * **可证明等价**的两种合并：
  *
- *   A. 紧邻、同目标、offset 首尾相接的 append 拼成一条（appendAtOffset 的重叠 / 缺口判据
- *      对拼接前后给出同样的结论，见 P-05 页 §5）；
+ *   A. 紧邻、同目标、offset 首尾相接的 append 拼成一条（appendAtOffset 的重叠 / 缺口判据对拼接
+ *      前后给出同样的结论）；
  *   B. 同一个键的整格替换（frame.upsert 按 turn/step/frame，task.upsert 按 taskId）：后一条的
  *      内容放进前一条的槽位，后一条不再单独出现。位置用旧的：帧在 step 里的顺序、任务在表里
  *      的顺序都由**第一次插入**决定；中间那些 op 只要不碰这个键，就与它可交换。

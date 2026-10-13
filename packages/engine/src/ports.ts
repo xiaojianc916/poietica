@@ -37,9 +37,7 @@ export interface ModelsPort {
   setTitleModel(ref: ModelRef | null): Promise<void>
   /**
    * 此刻真正可用的模型（omp 的 `getAvailable()`）——「生成标题的模型」的候选表用它。
-   *
-   * 与 `providers.configured` 的分工：那个判的是「这家**配过凭据**没有」（同样与 omp 的鉴权
-   * 判据同源），它判不了「这一条模型此刻在不在白名单 / 目录里」。候选表要的是后者，所以走这里。
+   * 与 `providers.configured` 的分工：那个判的是「这家**配过凭据**没有」，判不了「这一条模型此刻在不在白名单 / 目录里」。
    */
   availableModels(): Promise<readonly { readonly ref: ModelRef; readonly label: string }[]>
   upsertCustomProvider(def: CustomProviderDef): Promise<void>
@@ -62,20 +60,15 @@ export interface CustomProviderDef {
 export interface SettingsPort {
   catalog(): Promise<z.infer<typeof SettingDescriptor>[]>
   /**
-   * 设置页上分节的次序（07 页 §7B/§7C：分组顺序取自 engine-omp 设置目录）。
-   *
-   * 它是 **`group` 键**的序列（`Prompt` / `Mnemopi`…），与 descriptor 的 `group` 字段同源 ——
-   * 界面按那个键归并，换成译名会让两条不同的键撞上同一个名字。
-   *
-   * 放在端口而不是让 agent-settings 直接读 engine-omp：depcruise 的 `engine-omp-only-in-app`
-   * 禁止功能依赖 engine-omp，顺序只能经引擎端口过来。
+   * 设置页上分节的次序，是 **`group` 键**的序列（与 descriptor 的 `group` 字段同源 —— 界面按那个键归并，
+   * 换成译名会让两条不同的键撞上同一个名字）。放在端口而不是让功能直接读 engine-omp：depcruise 禁止功能依赖 engine-omp。
    */
   readonly groupOrder: readonly string[]
   set(path: string, value: unknown): Promise<void>
   reset(path: string): Promise<void>
   capabilities(): Promise<z.infer<typeof Capabilities>>
   setCapability(name: keyof z.infer<typeof Capabilities>, enabled: boolean): Promise<void>
-  /** 当前设置的 Python 解释器路径；没设置（自动探测）时为 null（07 页 §13C 的 onReady 判据） */
+  /** 当前设置的 Python 解释器路径；没设置（自动探测）时为 null。 */
   getPythonInterpreter(): Promise<string | null>
   setPythonInterpreter(exePath: string | null): Promise<void>
   readonly onDidChange: Event<{ readonly paths: readonly string[] }>
@@ -85,7 +78,7 @@ export interface SkillsPort {
   setEnabled(id: string, enabled: boolean): Promise<void>
   installFromDirectory(dir: string): Promise<z.infer<typeof SkillInfo>>
   installFromZip(zipFile: string): Promise<z.infer<typeof SkillInfo>>
-  /** 只清理 omp 设置里该技能的启用状态；技能目录由 extensions 经 Host 的 shell.trashItem 移到回收站 */
+  /** 只清理 omp 设置里该技能的启用状态；技能目录由 extensions 经 Host 的 shell.trashItem 移到回收站。 */
   forget(id: string): Promise<void>
   read(id: string): Promise<{ markdown: string }>
 }

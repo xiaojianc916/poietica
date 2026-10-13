@@ -1,13 +1,6 @@
 import { z } from 'zod'
 
-/*
- * MCP 配置的解析与校验。**逐字迁移**自 legacy `packages/extension/src/mcp-config.ts` 里
- * 与界面有关的那一半（`validateMcpEntry` / `parseMcpImport` / `mcpEntryFromForm`）。
- *
- * legacy 的另一半（读写 mcp.json 的 `upsertMcpServer` / `removeMcpServer` /
- * `setMcpServerEnabledInConfig`）没有迁过来：新架构的写盘由 omp 的 mcp config-writer
- * 经引擎端口完成（04 页 §MCP），UI 只负责把这一份形状交出去。
- */
+/* MCP 配置的解析与校验。legacy 的另一半（读写 mcp.json）没有迁过来：新架构的写盘由 omp 的 mcp config-writer 经引擎端口完成。 */
 
 export type McpTransport = 'stdio' | 'http' | 'sse'
 
@@ -17,11 +10,7 @@ export interface McpEntry {
   readonly config: Record<string, unknown>
 }
 
-/**
- * 表单校验的返回形状（C 类，09 页 §4 第 5 条）：
- * 用户输入不合法**不抛异常** —— 它由字段旁边的一句提示承接，不是一次失败。
- * 两处调用点（新建表单、批量导入）都按同一个形状读 `message`。
- */
+/** 用户输入不合法**不抛异常** —— 它由字段旁边的一句提示承接，不是一次失败；两处调用点都按同一个形状读 message。 */
 export type McpValidation<T> =
   | { readonly ok: true; readonly value: T }
   | { readonly ok: false; readonly message: string }
@@ -34,7 +23,6 @@ export function mcpInvalid<T>(message: string): McpValidation<T> {
   return { ok: false, message }
 }
 
-/* 这里只校验配置输入；协议和连接管理由 agent 自己的 MCP 客户端负责。 */
 const Timeout = z.int().min(1).max(2_147_483_647)
 const Nonempty = z.string().refine((value) => value.trim().length > 0)
 const Strings = z.record(z.string(), z.string())
@@ -96,7 +84,7 @@ export function validateMcpEntry(name: string, input: unknown): McpValidation<Mc
       return mcpInvalid('仅支持 HTTP/HTTPS；凭据请使用环境变量引用或请求头，不要放进 URL。')
     }
   }
-  /* 交回去的那一份把 transport 提到契约那一格，正文里的其余键原样留：omp 自己认它们。 */
+  /* transport 提到契约那一格，正文里的其余键原样留：omp 自己认它们。 */
   const { transport: _transport, ...config } = input as Record<string, unknown>
   return mcpOk({ name, transport, config })
 }

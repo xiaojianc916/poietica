@@ -23,9 +23,9 @@ export {
 /*
  * 工作区/分支选择器本体也从这个子入口出去。
  *
- * 它画在**输入框下方那一行上下文**里（legacy 的 composer-context），而那一行的数据
- * （当前分支、分支名单、切换与新建）属于 review —— review 不能 import conversation 的
- * `ui`（feature-cross-impl），所以组件住在这里、由 review 取用（03 页 §4.4）。
+ * 它画在**输入框下方那一行上下文**里，而那一行的数据（当前分支、分支名单、切换与新建）属于
+ * review —— review 不能 import conversation 的 `ui`（feature-cross-impl），所以组件住在这里、
+ * 由 review 取用。
  */
 export { GitBranchPicker, type GitBranchPickerProps } from './git-branch-picker'
 
@@ -44,7 +44,7 @@ export {
   workspaceGitProviders,
 } from './git-status'
 /**
- * 输入框下方那一行的其它 chip（03 页 §4.4 的跨功能扩展）。
+ * 输入框下方那一行的其它 chip。
  *
  * 工作区胶囊由 conversation 自己画（它认识工作区），分支胶囊由 review 贡献：
  * conversation 不认识 git，review 也不该认识输入框的排版。
@@ -57,7 +57,7 @@ export interface ComposerContextItem {
 export const composerContextItems = defineContributionPoint<ComposerContextItem>('conversation.composerContextItems')
 
 /**
- * 输入框树的外层提供者（03 页 §4.4）。
+ * 输入框树的外层提供者。
  *
  * 附件的入库口（AttachmentIntake）由 attachments 提供：它认识 dialog.pickFiles 与
  * attachments.importPaths，而 conversation 的 `ui` 不能 import 它（features 之间只能经
@@ -185,11 +185,9 @@ export const ConversationUiToken = defineServiceToken<ConversationUi>('conversat
 /**
  * 技能文档：看到一份 SKILL.md。
  *
- * legacy 里这件事由宿主的 `auxiliaryPanel.openFile('settings', 'skill:<id>')` 干，面板本体
- * 住在 `apps/desktop/src/workbench/skill-document-pane.tsx`。新架构里右栏面板由功能经
- * `panels` 贡献点注入，而**能画 markdown 的那一套排版（Prose）属于 conversation**
- * （守则 3：功能之间不得互相 import ui），所以面板住在 conversation，extensions 只把
- * 「人要看这一份」说出来 —— 与 legacy 的分工一字不差。
+ * 右栏面板由功能经 `panels` 贡献点注入，而**能画 markdown 的那一套排版（Prose）属于
+ * conversation**（功能之间不得互相 import ui），所以面板住在 conversation，extensions
+ * 只把「人要看这一份」说出来。
  */
 /** SKILL.md 的 frontmatter 读出来的那几格。解析在 extensions 侧做（它认识技能包），
  * 这里只声明跨功能要传的形状。 */

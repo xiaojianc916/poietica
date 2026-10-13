@@ -90,7 +90,7 @@ function makePort(): Harness {
     customProviders: new CustomProvidersFile({
       file: modelsFilePath(dir),
       logger,
-      /* 规则 3：写完 models.yml 让 registry 重新读取 —— 与端口自己的 reload 是同一件事 */
+      /* 写完 models.yml 让 registry 重新读取 —— 与端口自己的 reload 是同一件事 */
       reload: noteReload,
     }),
     logger,

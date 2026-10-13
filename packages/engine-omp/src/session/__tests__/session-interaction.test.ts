@@ -10,8 +10,7 @@ import { z } from 'zod'
 import { testLayout } from '../../__tests__/omp-home'
 
 /*
- * 交互上屏（迁移自 legacy 的 interaction.test.ts 与 interaction-reaches-the-dock.test.ts）：
- * 经 OmpSession + omp mock provider 驱动，验的是**屏幕上看得到的那一条链** ——
+ * 交互上屏：经 OmpSession + omp mock provider 驱动，验的是**屏幕上看得到的那一条链** ——
  * omp 的审批闸门 → broker → interactionRequested + interaction.upsert → 答复 → resolved。
  */
 

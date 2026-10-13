@@ -10,18 +10,16 @@ import type { DescribedAttachment, ResolvedAttachment } from '../core-api'
 import { kindOf, mimeOf } from './mime'
 import type { AttachmentsRepository, ItemRow } from './repository'
 
-/** 无引用且创建超过这个时长的 item 才会被回收：给“刚导入还没发送”的附件留宽限（07 页 §4C） */
+/** 给「刚导入还没发送」的附件留宽限。 */
 export const SWEEP_GRACE_MS = 24 * 60 * 60 * 1000
 export const SWEEP_FIRST_DELAY_MS = 60_000
 export const SWEEP_INTERVAL_MS = 6 * 60 * 60 * 1000
 
 export interface AttachmentsServiceDeps {
   readonly repo: AttachmentsRepository
-  /** layout.attachmentsDir */
   readonly dir: string
   readonly clock: Clock
   readonly logger: Logger
-  /** 测试注入：删文件（R-08-13 的交接缝）；生产走 node:fs/promises 的 rm */
   readonly removeFile?: (file: string) => Promise<void>
 }
 
@@ -29,25 +27,19 @@ export interface AttachmentsApi extends AttachmentsServiceDeps {
   importPaths(paths: readonly string[]): Promise<Attachment[]>
   importData(name: string, mime: string, base64: string): Promise<Attachment>
   get(id: string): Attachment
-  /** core-api：给 conversation 用的“附件 id → 本地路径”解析 */
   resolve(ids: readonly string[]): readonly ResolvedAttachment[]
-  /** core-api：查询表取提交回显要的那几格（name / kind / size / previewUrl） */
   describe(ids: readonly string[]): readonly DescribedAttachment[]
   retain(ids: readonly string[], ownerKey: string): void
   releaseOwner(ownerKey: string): void
-  /** UI 持有的附件（草稿）：把 ownerKey 的引用集合整体替换为 ids，不存在的 id 交回调用方 */
   replaceOwner(ownerKey: string, ids: readonly string[]): { missing: string[] }
-  /** 分支对话继承源线程的引用（R-07 §3.3） */
   copyOwner(from: string, to: string): void
   sweep(): Promise<{ items: number; files: number }>
 }
 
-/** 内容寻址的目标路径：<attachmentsDir>/<sha256 前两位>/<sha256> */
 export function contentPath(dir: string, sha256: string): string {
   return path.join(dir, sha256.slice(0, 2), sha256)
 }
 
-/** 图片走自定义协议的预览地址；文件类型为 null（07 页 §4B） */
 export function previewUrlOf(sha256: string, mime: string, kind: 'image' | 'file'): string | null {
   return kind === 'image' ? `poietica-asset://attachment/${sha256}?mime=${encodeURIComponent(mime)}` : null
 }
@@ -66,16 +58,9 @@ export function attachmentOf(row: ItemRow): Attachment {
 }
 
 export function createAttachmentsService(d: AttachmentsServiceDeps): AttachmentsApi {
-  /*
-   * 一把异步互斥（R-08-13）。
-   *
-   * sweep 先删 items 行、再 `await rm(文件)`；恰好在这个 await 之间导入同一内容时，
-   * store 看到 `existsSync(target)` 为真就走**去重**分支（只补一行 file / item，不碰盘），
-   * 随后 sweep 的 rm 把文件删掉 —— 新 item 指向一个不存在的文件，从此永远读不到。
-   * 导入是用户操作、sweep 每 6 小时一次，串行化没有任何体感成本。
-   *
-   * 只用 promise 链：上一步失败不能让链子断掉（失败也要把下一个排上来）。
-   */
+  /* 一把异步互斥。sweep 先删 items 行、再 `await rm(文件)`；恰好在这个 await 之间导入同一内容时，store 看到 `existsSync(target)` 为真
+   * 就走**去重**分支（只补一行 file / item，不碰盘），随后 sweep 的 rm 把文件删掉 —— 新 item 指向一个不存在的文件，从此永远读不到。
+   * 导入是用户操作、sweep 每 6 小时一次，串行化没有任何体感成本。只用 promise 链：上一步失败不能让链子断掉。 */
   let queue: Promise<unknown> = Promise.resolve()
   const serial = <T>(fn: () => Promise<T>): Promise<T> => {
     const run = queue.then(fn, fn)
@@ -91,7 +76,6 @@ export function createAttachmentsService(d: AttachmentsServiceDeps): Attachments
     return row
   }
 
-  /** 内容入库：目标不存在就“临时名 → rename”（同盘原子）；已存在就删临时文件（去重） */
   const store = async (
     source: { kind: 'file'; path: string } | { kind: 'data'; bytes: Uint8Array },
     sha256: string,
@@ -114,7 +98,6 @@ export function createAttachmentsService(d: AttachmentsServiceDeps): Attachments
     try {
       await rename(tmp, target)
     } catch (e) {
-      // 目标在这一刻被别的导入抢先创建：删掉临时文件，内容已经在库里了
       await rm(tmp, { force: true }).catch(() => undefined)
       if (!existsSync(target)) throw e
     }
@@ -143,7 +126,7 @@ export function createAttachmentsService(d: AttachmentsServiceDeps): Attachments
           } catch (e) {
             throw new AppError(attachmentsErrors.unreadable, `无法读取文件：${p}`, { cause: String(e) })
           }
-          // 大小检查在复制之前（07 页 §4C 坑 1）：stat 一看就知道，不必读完再判断
+          // 大小检查在复制之前：stat 一看就知道，不必读完再判断。
           if (size > MAX_ATTACHMENT_BYTES) {
             throw new AppError(attachmentsErrors.too_large, '附件超过 50 MB')
           }
@@ -157,15 +140,12 @@ export function createAttachmentsService(d: AttachmentsServiceDeps): Attachments
     },
     importData(name, mime, base64) {
       return serial(async () => {
-        // base64 长度估算先判一次（不要解完再判断）
         const estimated = Math.floor((base64.length * 3) / 4)
         if (estimated > MAX_ATTACHMENT_BYTES) {
           throw new AppError(attachmentsErrors.too_large, '附件超过 50 MB')
         }
         let bytes: Uint8Array
         try {
-          /* 解码交给 Uint8Array.fromBase64：官方实现，且非法字符当场抛错，
-             不像 Buffer 那样宽松解码出一堆垃圾字节还照样落盘。 */
           bytes = Uint8Array.fromBase64(base64)
         } catch (e) {
           throw new AppError(attachmentsErrors.unreadable, '无法解码附件内容', { cause: String(e) })
@@ -173,7 +153,6 @@ export function createAttachmentsService(d: AttachmentsServiceDeps): Attachments
         if (bytes.byteLength > MAX_ATTACHMENT_BYTES) {
           throw new AppError(attachmentsErrors.too_large, '附件超过 50 MB')
         }
-        // Bun 自带 SHA256，省掉一次动态 import
         const sha256 = Bun.SHA256.hash(bytes, 'hex')
         await store({ kind: 'data', bytes }, sha256, bytes.byteLength)
         return record(sha256, bytes.byteLength, name, mime === '' ? mimeOf(name) : mime)
@@ -197,7 +176,6 @@ export function createAttachmentsService(d: AttachmentsServiceDeps): Attachments
       })
     },
     describe(ids) {
-      /* 只查表、不碰盘：提交回显要的是「这条附件长什么样」，不是它的字节。 */
       return ids.map((id) => {
         const row = sha(id)
         const file = d.repo.getFile(row.sha256)
@@ -227,7 +205,7 @@ export function createAttachmentsService(d: AttachmentsServiceDeps): Attachments
     sweep() {
       return serial(async () => {
         const cutoff = d.clock.now() - SWEEP_GRACE_MS
-        // 顺序：先删 items 行，再删没有 item 指向的 files 行，最后删磁盘文件（07 页 §4C 坑 6）
+        // 顺序：先删 items 行，再删没有 item 指向的 files 行，最后删磁盘文件。
         let items = 0
         for (const id of d.repo.unreferencedItems(cutoff)) {
           d.repo.deleteItem(id)
@@ -238,7 +216,7 @@ export function createAttachmentsService(d: AttachmentsServiceDeps): Attachments
           d.repo.deleteFile(sha256)
           files++
           await removeFile(contentPath(d.dir, sha256)).catch((e: unknown) => {
-            // 删文件失败只记 warn：文件可能被杀毒软件占用，下次回收会再试一次
+            // 只记 warn：文件可能被杀毒软件占用，下次回收会再试一次。
             d.logger.warn('attachment file remove failed', { sha256, error: String(e) })
           })
         }

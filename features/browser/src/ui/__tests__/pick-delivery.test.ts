@@ -4,15 +4,8 @@ import type { NavigationService } from '@poietica/ui-kernel'
 import type { PickedElement } from '../../contract'
 import { createPickDelivery, reportName, utf8ToBase64 } from '../pick-delivery'
 
-/*
- * 拾取结果 → 输入框（07 页 §12E）。迁移自 legacy `apps/desktop/src/browser/browser-pick.test.ts`
- * 的全部断言意图：
- *
- *   - 交付只落到交付时的那一个目标（legacy：instances deliver only to their own target）→
- *     目标由每次交付前现取 `activeComposer()` 决定；取不到就去入口页再取一次；
- *   - 附件与文字按浏览器那一次的用户意图落进草稿（`submission==='send'` 才提交）；
- *   - 没有目标可去就把结果丢掉并报一次（legacy 的「没有输入框可去，丢弃」）。
- */
+/* 拾取结果 → 输入框：交付只落到交付时的那一个目标（每次交付前现取 activeComposer()，取不到就去入口页再取一次）；附件与文字按浏览器
+ * 那一次的用户意图落进草稿（submission==='send' 才提交）；没有目标可去就把结果丢掉并报一次。 */
 
 const picked = (over: Partial<PickedElement> = {}): PickedElement => ({
   tabId: 1,

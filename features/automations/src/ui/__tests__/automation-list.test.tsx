@@ -6,14 +6,7 @@ import type { AutomationsApi } from '../api'
 import { AutomationList } from '../automation-list'
 import { createAutomationsStore } from '../automations-store'
 
-/*
- * 列表卡片的读数（产品负责人 2026-10-13 交办）：卡片只画任务定义 —— 标题、指令、
- * 计划、已运行次数 —— 不画上一次运行的结论。
- *
- * 结论那句是 agent 用 `automation_report` 交的正文，读起来就是对话里的聊天记录；
- * 摆在任务卡片上会被当成「任务里夹了一条聊天消息」。运行结果去编辑页的运行历史看
- * （`automation-run-history`），那里本来就逐条列着结论与系统消息。
- */
+/* 列表卡片只画任务定义，**不画上一次运行的结论**：那句结论摆在任务卡片上会被当成「任务里夹了一条聊天消息」。运行结果去编辑页看。 */
 
 const RUN_SUMMARY = '当前时间 2026-10-11 00:17（+0800，周日）。工作区根目录共 23 个条目'
 
@@ -58,7 +51,6 @@ function run(over: Partial<AutomationRun> = {}): AutomationRun {
   }
 }
 
-/** 这个用例用不到的命令：一律当作「不该被调用」 */
 const unused = (): never => {
   throw new Error('这个用例不该走到这条命令')
 }
@@ -111,7 +103,6 @@ describe('automation list card', () => {
 
   test('上一次运行的结论不上卡片', () => {
     mount(automation({ lastRun: run({ summary: RUN_SUMMARY, attention: true }) }), [run()])
-    /* 断言写成布尔：命中时 toBeNull 会把整个 DOM 打出来，红的时候反而看不清原因 */
     expect(screen.queryByText(RUN_SUMMARY) !== null).toBe(false)
     expect(screen.queryByText('需要关注') !== null).toBe(false)
   })

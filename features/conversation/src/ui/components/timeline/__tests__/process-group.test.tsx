@@ -8,13 +8,9 @@ import type { TimelineItem, TimelineState, ToolCallTimelineItem } from '../../..
 import { sayProcessSummary } from '../../semantics/tool-intent'
 import { ToolGroupCard } from '../tools/tool-group-card'
 
-/*
- * 过程组：read / execute 与夹在它们中间的思考连成一条记事。
- *
- * 两条要求钉在投影那一层，不靠渲染结果反推：
- *   • 思考从头到尾不落成行，只在组头一闪；落定之后整段消失，历史回放也不出现；
- *   • 思考对每一档都透明：edit / fetch 等同档相邻即使中间夹着思考也连成一条。
- */
+/* 过程组：read / execute 与夹在它们中间的思考连成一条记事。两条要求钉在投影那一层，不靠渲染
+ * 结果反推：思考从头到尾不落成行，只在组头一闪，落定后整段消失（历史回放也不出现）；思考对
+ * 每一档都透明，edit / fetch 等同档相邻即使中间夹着思考也连成一条。 */
 
 function ask(id = 'ask'): TimelineItem {
   return { type: 'user_message', id, turn: 0, at: 0, text: '看看仓库' }
@@ -48,7 +44,6 @@ function thought(id: string, text: string): TimelineItem {
   return { type: 'agent_thought', id, turn: 0, at: 0, text, sealed: false }
 }
 
-/** 缺省是一条已经收口的对话；running 时用它跑流式尾巴。 */
 function stateOf(items: readonly TimelineItem[], running = false): TimelineState {
   return {
     status: running ? 'running' : 'idle',
@@ -79,11 +74,7 @@ function planAt(feed: Presentation, index: number): ToolGroupPlan {
 
 const nothing = (): void => undefined
 
-/*
- * 思考句的文字归逐帧引擎（rolling-line.tsx 只渲染窗口那一层，见 marquee-track.tsx），
- * 静态标记里看不到它，要断言「印出来的是哪一句」就得真挂一次。上下刷不建动画，理由与
- * rolling-line.test.tsx 同一条。
- */
+/* 思考句归逐帧引擎（只渲染窗口那一层），静态标记里看不到，要断言「印出来的是哪一句」就得真挂一次。 */
 function renderHead(plan: ToolGroupPlan): HTMLElement {
   const { container } = render(
     <MotionConfig skipAnimations>
@@ -184,7 +175,7 @@ describe('过程组的投影', () => {
       new Map(),
     )
 
-    /* 思考与它后面第一条 fetch 成组（单条工具加一条思考算组），edit 换了档，自己一行。 */
+    /* 单条工具 + 一条思考算组；edit 换档，自己一行。 */
     expect(broken.count).toBe(3)
     expect(planAt(broken, 1).kind).toBe('fetch')
     expect(planAt(broken, 1).tools.map((row) => row.item.id)).toEqual(['a'])
@@ -213,7 +204,7 @@ describe('过程组的组头', () => {
     expect(markup).toContain('再读配置')
     expect(markup).not.toContain('aria-expanded')
     expect(markup).not.toContain('timeline-shimmer')
-    /* 思考那一格不给图标：这一行自己在换字，左边再挂一枚不动的字形是两套说法。 */
+    /* 思考那一格不给图标：格子在换字，静图标是第二种说法。 */
     expect(markup).not.toContain('timeline-row__icon')
   })
 
@@ -239,13 +230,12 @@ describe('过程组的组头', () => {
 
     expect(markup).toContain('还在想')
     expect(markup).not.toContain('timeline-shimmer')
-    /* 组头此刻印的是思考：图标让位，行首就是那句话。 */
     expect(markup).not.toContain('timeline-row__icon')
   })
 
   it('思考那一格走滚动，工具那一格从头显示', () => {
-    /* 两个 variant 的几何完全不同（见 rolling-line.css）：思考往左滚、最新的字永远完整；
-       工具行不动，从头显示，放不下时末尾省略号。衔接在 tool-group-card 那一层。 */
+    /* 两个 variant 的几何不同（rolling-line.css）：思考往左滚、最新的字永远完整；工具行不动、
+       从头显示，放不下时末尾省略号。 */
     const thinking = selectPresentation(
       stateOf([ask(), tool('r', 'read', 'in_progress'), thought('t', '第一行\n还在想')], true),
       new Map(),
@@ -255,7 +245,7 @@ describe('过程组的组头', () => {
     )
 
     expect(thinkingMarkup).toContain('data-variant="thought"')
-    /* 还在写的思考句交给逐帧引擎：静态标记里那一格只有窗口，轨道由客户端建（从第一个字开始写）。 */
+    /* 还在写的思考句交给逐帧引擎：静态标记里只有窗口，轨道由客户端从头建。 */
     expect(thinkingMarkup).toContain('data-following')
     expect(thinkingMarkup).not.toContain('ticker-track')
 
@@ -273,11 +263,8 @@ describe('过程组的组头', () => {
   })
 
   it('思考取的是当前那一句，不是最后一行：一整个长段落里也看得出换句', () => {
-    /*
-     * 按行号取句时这一整段只算一行，永远看不到换句（思考行 T-04）。身份（key）与「上一句」
-     * 都进不了 DOM —— 它们是 React 的 key 与 props，这里能看见的只有「印出来的是哪一句」，
-     * 而那一句必须已经切到句号之后。
-     */
+    /* 按行号取句会把整段算作一行，永远看不到换句（T-04）；key 与「上一句」都是 React 的 props，
+       进不了 DOM，这里只能断言印出来的是切到句号之后的那一句。 */
     const feed = selectPresentation(
       stateOf([ask(), tool('r', 'read', 'in_progress'), thought('t', '先看看配置。然后读日志')], true),
       new Map(),
@@ -297,7 +284,6 @@ describe('过程组的组头', () => {
 
     expect(markup).toContain('先看看配置。')
     expect(markup).not.toContain('const a = 1')
-    /* 围栏那三个反引号也不许印出来。 */
     expect(markup).not.toContain('```')
   })
 
@@ -322,8 +308,8 @@ describe('过程组的组头', () => {
       <ToolGroupCard isOpen={false} onToggle={nothing} plan={planAt(feed, 1)} renderRow={() => null} />,
     )
 
-    /* 量度归阅读栏：flow-row.css 的 [data-measure="prose"] 把量度放开到整列，而那一列
-       与输入框同宽（都由 --cp-grid 解出）。不收在工具那一档的 38rem 上。 */
+    /* 量度归阅读栏：flow-row.css 的 [data-measure="prose"] 把量度放开到整列，那一列与输入框
+       同宽（都由 --cp-grid 解出），不收在工具那一档的 38rem 上。 */
     expect(markup).toContain('data-measure="prose"')
   })
 
@@ -361,7 +347,7 @@ describe('过程组的组头', () => {
     expect(rendered).toEqual(['r', 'e'])
     expect(markup).toContain('已读取文件运行了命令')
     expect(markup).toContain('data-scrollable')
-    /* 两端那道雾：首帧还没量过，四态是 none（不画雾），量过之后按 scrollTop 换。 */
+    /* 两端那道雾：首帧没量过时是 none（不画雾），量过之后按 scrollTop 换。 */
     expect(markup).toContain('data-scroll-mask="none"')
   })
 })

@@ -22,16 +22,15 @@ export function markerMatches(marker: InstallMarker | null): boolean {
   return marker.tag === PYTHON_RELEASE_TAG && marker.version === PYTHON_VERSION && marker.sha256 === PYTHON_ASSET_SHA256
 }
 
-/** 该解释器路径是不是落在我们管的目录里（不区分大小写，Windows 语义）。 */
+/** 不区分大小写（Windows 语义）。 */
 export function isInside(dir: string, file: string): boolean {
   const rel = path.relative(dir, file)
   return rel !== '' && !rel.startsWith('..') && !path.isAbsolute(rel)
 }
 
 /**
- * `onReady` 的判据（07 页 §13C 的 onReady 一行）：标记与 exe 都对 → ready，并把解释器
- * 再写给 omp 一次（保证设置与实际一致）；否则 absent，且**当且仅当** omp 当前解释器
- * 指向我们的目录内部时把它清空（指向别处的设置不是我们该动的）。
+ * 标记与 exe 都对 → ready，并把解释器再写给 omp 一次（保证设置与实际一致）；否则 absent，且**当且仅当** omp 当前解释器指向我们的目录内部时
+ * 把它清空（指向别处的设置不是我们该动的）。
  */
 export function onReadyPlan(args: {
   readonly marker: unknown

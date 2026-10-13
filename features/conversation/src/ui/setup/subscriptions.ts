@@ -8,19 +8,15 @@ export function createConversationSubscriptions(setup: ConversationSetup, action
   const { api, ctx, platform, preferences, posture, sessions, stores, transcripts } = setup
   const { draftPin, notify, openThread } = actions
 
-  // ── 订阅：所有增量都进各自的副本（UI 自己按 threadId 过滤）───────────────
   ctx.lifecycle.onDispose(
     api.onTimelineOps((p) => {
-      /*
-       * 时间线的增量由端口层（stores/session-port.ts）翻译成副本信号；这里只剩
-       * 「真实那一轮到达 → 提交行销账」这一条与转录无关的副作用。
-       */
+      /* 时间线的增量由端口层翻译成副本信号；这里只剩「真实那一轮到达 → 提交行销账」这一条与转录无关的副作用。 */
       const stamped = p.ops.flatMap((op) => {
         const turn = (op as { op: string; turn?: { clientTurnId?: string } }).turn
         return op.op === 'turn.upsert' && turn?.clientTurnId !== undefined ? [turn.clientTurnId] : []
       })
       if (stamped.length > 0) {
-        /* 待发提交表在真实那一轮到达时销账：提交行换成真实 turn。 */
+        /* 待发提交表在真实那一轮到达时销账。 */
         transcripts.settleSubmissions(p.threadId, stamped)
       }
     }).dispose,
@@ -41,23 +37,14 @@ export function createConversationSubscriptions(setup: ConversationSetup, action
     api.onThreadRemoved((p) => {
       stores.threads.remove(p.threadId)
       stores.turnStates.clear(p.threadId)
-      /*
-       * 时间线副本与端口注册表都要跟着这条对话一起收掉。
-       *
-       * 两者各管一半（store 退订阅、注册表丢对象），所以必须从同一个入口发起；
-       * 少发一处就是「一边忘了一边还记得」的半状态 —— 端口留着，后来同一个 id
-       * 的新对话会读到上一份订阅计数。
-       */
+      /* 两者各管一半（store 退订阅、注册表丢对象），必须从同一个入口发起 —— 少发一处就是「一边忘了一边还记得」的半状态。 */
       transcripts.forget(p.threadId)
       sessions.release(p.threadId)
     }).dispose,
   )
   /*
-   * 一轮结束 → 系统通知（07 页 §5E / CV-10 的同一条路）。
-   *
-   * 「结束」= turns.state 从 running / awaiting 回到 idle。判据用**前一份状态**：
-   * 只看当前是 idle 会把 threads.list 的初始快照也当成一次「结束」，一打开软件就弹。
-   * 这一格里 `document.hasFocus()` 与偏好由 notify() 统一判，测试只验这条规则。
+   * 「结束」= turns.state 从 running / awaiting 回到 idle（CV-10）。判据用**前一份状态**：只看当前是 idle 会把 threads.list 的初始快照也当成一次「结束」，一打开软件就弹。
+   * `document.hasFocus()` 与偏好由 notify() 统一判，测试只验这条规则。
    */
   ctx.lifecycle.onDispose(
     api.onTurnState((s) => {
@@ -67,27 +54,16 @@ export function createConversationSubscriptions(setup: ConversationSetup, action
     }).dispose,
   )
   ctx.lifecycle.onDispose(api.onControlsChanged((p) => stores.controls.set(p.threadId, p.controls)).dispose)
-  /*
-   * 上下文用量单独一条（契约里 controls.contextChanged 的头注说明为什么不合进 controls.changed）：
-   * 它每轮都在变，而控件表只在模型 / 档位 / 模式变了才变。
-   */
+  /* 上下文用量单独一条：它每轮都在变，而控件表只在模型 / 档位 / 模式变了才变。 */
   ctx.lifecycle.onDispose(api.onContextUsage((p) => stores.controls.setUsage(p.threadId, p.usage)).dispose)
-  /*
-   * 需要确认的通知只发一次系统通知 —— 待答卡片本身来自时间线的 interactions 表
-   * （转录副本订阅的那条路），这里不再另存一份。
-   */
+  /* 需要确认的通知只发一次系统通知 —— 待答卡片本身来自时间线的 interactions 表，这里不再另存一份。 */
   ctx.lifecycle.onDispose(
     api.onInteractionRequested((p) => {
       notify(p.threadId, '需要你的确认', 'needs-confirm')
     }).dispose,
   )
 
-  /*
-   * 点系统通知 → 回到那条对话（07 页 §5E 通知表最后一行）。
-   *
-   * threadId 为 null 时（例如别的功能发的没有归属的通知）什么都不做：没有目标就不跳，
-   * 跳到「一个新对话」会是凭空多出来的行为。
-   */
+  /* threadId 为 null 时什么都不做：没有目标就不跳，跳到「一个新对话」会是凭空多出来的行为。 */
   ctx.lifecycle.onDispose(
     platform.on('notify.clicked', ({ threadId }) => {
       if (threadId === null || threadId === '') return
@@ -95,34 +71,21 @@ export function createConversationSubscriptions(setup: ConversationSetup, action
     }).dispose,
   )
 
-  // ── core ready / lost：整体重新同步（14 页 §9.5f、R-04 §3.7）────────────
   ctx.lifecycle.onDispose(() => {
     transcripts.dispose()
   })
 
-  /*
-   * Core 换代：运行态与已绑定对话全部不可信。
-   *
-   * 只做同步的内存清理（这是 onCoreLost 的硬要求：此刻 Core 不可用，RPC 会排队到超时）；
-   * 真正重读放在随后的 onCoreReady 里。
-   */
+  /* Core 换代：运行态与已绑定对话全部不可信。这里只做同步的内存清理（onCoreLost 的硬要求：此刻 Core 不可用，RPC 会排队到超时），真正重读放在随后的 onCoreReady 里。 */
   ctx.lifecycle.onCoreLost(() => {
     stores.turnStates.resetAll()
     transcripts.markAllStale()
   })
 
   /*
-   * 草稿读盘**只做一次**。
-   *
-   * `hydrate` 是 `{...当前, ...盘上}` 的合并：Core 每次重启都重读一遍，会把重启那一刻
-   * 输入框里最近 300ms（UI 去抖）+ 500ms（Host 去抖）内敲的字用盘上的旧版本盖回去
-   * （R-04 §1.5）。`posture.load()` 与它同一条理由。
+   * `hydrate` 是 `{...当前, ...盘上}` 的合并：Core 每次重启都重读一遍，会把重启那一刻输入框里最近 300ms（UI 去抖）+ 500ms（Host 去抖）内敲的字用盘上的旧版本盖回去。
+   * `posture.load()` 与它同一条理由。
    */
-  /*
-   * 「读失败」与「盘上没有值」必须分开（R-07 §3.4）：前者要保持「草稿没恢复」，
-   * 下一次 ready 再读；混在一起会让 attachments 那一侧在一个空集合上做整体替换，
-   * 把盘上草稿的引用全清掉。读成功（哪怕是 null）才算恢复完成。
-   */
+  /* 「读失败」与「盘上没有值」必须分开（R-07 §3.4）：混在一起会让 attachments 那一侧在一个空集合上做整体替换，把盘上草稿的引用全清掉。读成功（哪怕是 null）才算恢复完成。 */
   const loadDraftsOnce = async (): Promise<void> => {
     let storedDrafts: unknown
     try {
@@ -142,7 +105,7 @@ export function createConversationSubscriptions(setup: ConversationSetup, action
     readyCount += 1
     const first = readyCount === 1
     if (first) {
-      /* 首屏画完、开始拉历史时顺手预取公式模块（P-06）：不阻塞这里的恢复步骤 */
+      /* 首屏画完、开始拉历史时顺手预取公式模块（P-06），不阻塞这里的恢复步骤。 */
       void loadMath().catch((cause: unknown) => {
         ctx.logger.warn('公式渲染模块没能加载，公式将按源码显示', { error: String(cause) })
       })
@@ -150,7 +113,7 @@ export function createConversationSubscriptions(setup: ConversationSetup, action
     const steps: Array<readonly [string, () => unknown]> = [
       ['threads', () => stores.threads.refresh()],
       ...(first ? ([['posture', () => posture.load()]] as const) : []),
-      /* 读失败时保持「没恢复」，所以不是「只有第一次」——恢复到之前每次 ready 都试。 */
+      /* 读失败时保持「没恢复」，所以不是「只有第一次」—— 恢复到之前每次 ready 都试。 */
       ...(draftPin.restored() ? [] : ([['drafts', () => loadDraftsOnce()]] as const)),
       [
         'transcripts',
@@ -161,10 +124,7 @@ export function createConversationSubscriptions(setup: ConversationSetup, action
         },
       ],
     ]
-    /*
-     * 每一步各自兜底：某一格抛错（例如盘上那份草稿读不回来）不该把后面的恢复步骤跳过
-     * —— 原先整段共用一次 await，第一步失败就等于「重启之后什么都不再同步」。
-     */
+    /* 每一步各自兜底：某一格抛错不该把后面的恢复步骤跳过 —— 原先整段共用一次 await，第一步失败就等于「重启之后什么都不再同步」。 */
     for (const [name, run] of steps) {
       try {
         await run()

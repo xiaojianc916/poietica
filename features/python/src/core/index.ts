@@ -27,19 +27,14 @@ export default defineCoreModule({
           return response
         },
         run: async (cmd, args, timeout) => {
-          /*
-           * stderr 显式 pipe：Bun.spawn 默认 inherit，流上是 undefined ——
-           * 从前那句 `new Response(proc.stderr)` 读到的永远是空串，失败详情全丢了。
-           */
+          /* stderr 显式 pipe：Bun.spawn 默认 inherit，流上是 undefined —— 从前那句 `new Response(proc.stderr)` 读到的永远是空串，失败详情全丢了。 */
           const proc = Bun.spawn([cmd, ...args], { timeout, stderr: 'pipe' })
-          /* 读取交给 Bun 官方实现，不自己把流包进 Response 再取 text */
           const stdout = await Bun.readableStreamToText(proc.stdout)
           const stderr = await Bun.readableStreamToText(proc.stderr)
           const code = await proc.exited
           return { stdout, stderr, code }
         },
         fs: {
-          /* 文件操作走 node:fs 的官方实现，不经 shell 命令 */
           mkdir: async (path, opts) => {
             await mkdir(path, { recursive: opts?.recursive ?? false })
           },
@@ -68,7 +63,6 @@ export default defineCoreModule({
       ctx.rpc.emit('python.statusChanged', status)
     }
 
-    // 启动时清理残留 + 读标记文件（07 页 §13C 的 onReady 一行）
     ctx.lifecycle.onReady(async () => {
       await removeStagingLeftovers()
 
@@ -104,7 +98,6 @@ export default defineCoreModule({
 
     async function readMarker(): Promise<unknown> {
       try {
-        /* Bun 自带的 json() 解析，别在这里再手搓 text + JSON.parse */
         return await Bun.file(markerPath).json()
       } catch {
         return null
@@ -127,11 +120,7 @@ export default defineCoreModule({
         setStatus(statusOf('ready', null, null, exe))
         await ctx.engine.settings.setPythonInterpreter(exe)
       } catch (e) {
-        /*
-         * 失败原因只从 AppError 的错误码取（铁律 5）：installer 抛什么就报什么，
-         * 别的异常一律归 download_failed。不再从 message 里切前缀 —— 那要求
-         * installer 把错误码写成正文，等于把错误码当字符串用。
-         */
+        /* 失败原因只从 AppError 的错误码取（铁律 5）：installer 抛什么就报什么，别的异常一律归 download_failed。 */
         const code = e instanceof AppError ? e.code : pythonErrors.download_failed
         const message = e instanceof AppError ? e.message : String(e)
         setStatus(statusOf('failed', null, { code, message }))
@@ -148,9 +137,7 @@ export default defineCoreModule({
       await ctx.engine.settings.setPythonInterpreter(null)
       try {
         await rm(pythonDir, { recursive: true, force: true })
-      } catch {
-        /* 忽略 */
-      }
+      } catch {}
       setStatus(statusOf('absent'))
       return {}
     })

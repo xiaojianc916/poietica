@@ -72,7 +72,7 @@ export function DropdownMenuItem({ className, ...props }: Omit<ComponentProps<ty
  *
  * The role, aria-checked, the arrow keys and the mounting of the indicator all
  * belong to the group rather than to a data attribute: RadioGroup holds the
- * value, and the row whose value matches is the one that shows its indicator.
+ * value, and the row that matches is the one showing its indicator.
  */
 export function DropdownMenuRadioItem({
   className,

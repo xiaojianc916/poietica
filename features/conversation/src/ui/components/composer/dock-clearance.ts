@@ -5,9 +5,7 @@ export interface DockClearance {
   readonly value: number | null
 }
 
-/**
- * 测量覆盖转录的输入区。首个 live 尺寸在绘制前发布，后续尺寸由 ResizeObserver 接管。
- */
+/** 测量覆盖转录的输入区；首个尺寸在绘制前发布，之后由 ResizeObserver 接管。 */
 export function useDockClearance(active: boolean): DockClearance {
   const node = useRef<HTMLDivElement | null>(null)
   const [value, setValue] = useState<number | null>(null)

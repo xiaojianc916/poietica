@@ -78,10 +78,7 @@ describe('agent-settings 类型校验（14 页 §7.3）', () => {
     const d = descriptor({ type: 'enum', options: [option('a'), option('b')] })
     expect(validateValue(d, 'a')).toBe(true)
     expect(validateValue(d, 'c')).toBe(false)
-    /*
-     * label 是给人看的那一列，**不是取值**：拿它判会把合法值全判成越界
-     * （「关闭」不是写回 agent 的那个标识符）。
-     */
+    /* label 是给人看的那一列，**不是取值**：拿它判会把合法值全判成越界（「关闭」不是写回 agent 的那个标识符）。 */
     expect(validateValue(descriptor({ type: 'enum', options: [option('x', '关闭')] }), '关闭')).toBe(false)
     expect(validateValue(d, 1)).toBe(false)
   })
@@ -156,13 +153,8 @@ describe('catalog 分组（07 页 §7C）', () => {
     expect(groups[1]!.settings.map((s) => s.path)).toEqual(['a', 'c'])
   })
 
-  /*
-   * 归并认 **group 键**，标题取 groupLabel：两者不是一件事。
-   *
-   * 拿译名当键会让两条不同的键撞上同一个名字（认不出的节原样交回英文，于是
-   * `Sharpshooter` 与某个真叫「Sharpshooter」的中文译名会合成一格），
-   * 而屏幕上看不出哪里错了 —— 正是这次修掉的那类缺陷。
-   */
+  /* 归并认 **group 键**，标题取 groupLabel。拿译名当键会让两条不同的键撞上同一个名字（认不出的节原样交回英文），而屏幕上看不出哪里错了
+   * —— 正是这次修掉的那类缺陷。 */
   test('标题取 groupLabel，归并仍按 group 键', () => {
     const groups = groupOf(
       [
@@ -173,7 +165,6 @@ describe('catalog 分组（07 页 §7C）', () => {
     )
     expect(groups.map((g) => g.id)).toEqual(['Thinking', 'Mnemopi'])
     expect(groups.map((g) => g.label)).toEqual(['思考', 'Mnemopi'])
-    /* 次序取的是 groupOrder 的键，不是译名的字典序。 */
     expect(groups[1]!.settings.map((s) => s.path)).toEqual(['a'])
   })
 })

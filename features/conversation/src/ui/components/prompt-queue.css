@@ -1,31 +1,6 @@
-/*
- * 输入框上方那条待发队列：DeepSeek Harness 的 QueueDock，逐条照抄。
- *
- * 正本 @deepseek-ai/dsh-client-ui-conversation 的 src/client/queue/QueueDock.module.css
- * （装机版本 2026-10-02）；本仓的 --cp-queue-* 就是它那几条 --dsh-composer-* 的等价量，
- * 数字在 skin/metrics.css 里逐条注明了出处。类名换成这一层的 BEM，其余声明连顺序都
- * 尽量与正本一致 —— 差别只允许来自「本仓没有的令牌」与「两边机制不同」。
- *
- * 三处按正本改不了、各自成一条：
- *
- *   材质  正本的面是玻璃底 --dsw-specific-menu + 40px 模糊 + 150% 饱和，边界走 elevation
- *         里那圈 0 0 0 .5px 描边（它没有 border）。本仓把这一整套收敛在浮层族里，
- *         --ui-popup-surface 与 --ui-popup-elevation 正是同一条材质按本仓令牌取准的
- *         结果（值与其出处见 tokens/light.css）。这一条读那两支，不自己再写一份玻璃底。
- *   宽度  正本那一串 calc 里的 reading measure 是 DSH 自己的聊天列宽；本仓输入卡的上限
- *         就是 --cp-input-max（= --cp-grid），队列按正本同一条关系比它窄 16。
- *   折叠  正本两行以上才画折叠头，一行直接摊开；本仓照同一条判据。队列模式那一行是
- *         本仓多出来的（见下）。
- */
+/* 画法照 DSH 的 QueueDock：宽度比输入卡上限窄 16，材质是玻璃底 blur 40px + saturate 150%。 */
 
-/*
- * 咬在输入卡上沿的那一栏。
- *
- * 三面各让 16（--cp-queue-clear），再各让 8（--cp-queue-inset）—— 输入卡自己长在那 16
- * 的里面，所以这一条左右各比输入卡窄 8，面板窄 32。下沿咽进输入卡 3px
- * （--cp-queue-tuck），两个圆角于是咬在一起，接缝由重叠给出：面板下沿是方的，被卡片
- * 盖住那一截正是它该被盖住的地方。
- */
+/* 三面各让 16（clear）再各让 8（inset）：左右比输入卡窄 8、比面板窄 32；下沿咽进输入卡 3px（tuck），圆角咬合，接缝由重叠给出。 */
 .prompt-queue {
   box-sizing: border-box;
   inline-size: calc(100% - var(--cp-queue-gutter) * 2);
@@ -35,12 +10,7 @@
   padding: 0 var(--cp-queue-inset);
 }
 
-/*
- * 这张卡本身：只在上左右三面成框的浮层带。
- *
- * 下沿没有边界 —— 它压在输入卡底下，那条边由输入卡自己的上边框给。圆角因此是
- * 「上圆下直」：正本 border-radius: lg lg 0 0 逐字如此。
- */
+/* 下沿压在输入卡底下，那条边由输入卡自己的上边框给，所以圆角上圆下直。 */
 .prompt-queue__panel {
   position: relative;
   isolation: isolate;
@@ -51,7 +21,7 @@
   box-shadow: var(--ui-popup-elevation);
 }
 
-/* 玻璃底画在内容之下：z-index:-1 配 isolation，把那层底关在这张卡自己的栈里。 */
+/* z-index:-1 配 isolation，把这层底关在这张卡自己的层叠上下文里，不会漏到外面。 */
 .prompt-queue__panel::before {
   position: absolute;
   z-index: -1;
@@ -68,12 +38,7 @@
   backdrop-filter: none;
 }
 
-/*
- * 折叠头那一格：两行以上才画，一行直接摊开（正本同一条判据）。
- *
- * 它是**一格**而不是一颗按钮：左边那颗按钮管折叠，右边贴着两枚模式图标（见下）。两枚图标
- * 改的是整条队列，所以它们跟这一格走 —— 一行时没有这一格，它们就贴那一行的右缘。
- */
+/* 折叠头是**一格**而不是一颗按钮：左边管折叠，右边贴换层图标；一行时没有这一格，它们就贴那一行的右缘。 */
 .prompt-queue__header {
   box-sizing: border-box;
   display: flex;
@@ -84,7 +49,6 @@
   padding: 4px 5px 4px 12px;
 }
 
-/* 折叠按钮：静息没有底，按下去也只有一层墨；它占满图标左边那一整段。 */
 .prompt-queue__summary {
   box-sizing: border-box;
   display: flex;
@@ -107,7 +71,6 @@
   outline-offset: -2px;
 }
 
-/* 前导：居中一格字形。 */
 .prompt-queue__lead {
   display: grid;
   flex: none;
@@ -115,10 +78,7 @@
   color: var(--cp-ink-muted);
 }
 
-/*
- * 折角：它是一枚真的按钮（点得动），尺寸与悬停跟其他操作钮同一条口径 —— 它排在那一排的
- * 最右，与它们并排，长得不一样就会被读成装饰。
- */
+/* 折角是一枚真的按钮：尺寸与悬停跟其他操作钮同口径，长得不一样就会被读成装饰。 */
 .prompt-queue__chevron {
   display: grid;
   flex: none;
@@ -150,9 +110,7 @@
   line-height: 24px;
 }
 
-/*
- * 那几行。装不下由它自己滚，卡不会长到把输入卡挤出视野 —— 上限 180 是正本的值。
- */
+/* 装不下由它自己滚：上限 180 是正本的值，卡不会长到把输入卡挤出视野。 */
 .prompt-queue__list {
   max-block-size: var(--cp-queue-list-max);
   margin: 0;
@@ -165,12 +123,7 @@
   display: none;
 }
 
-/*
- * 一行。
- *
- * 行与行之间**没有**分隔线：几条待发的话是一串同类的行，横线会把它们读成一张表的几行。
- * 分开它们的是行高与那枚序号（见下）。正本写了 .row + .row 的上边线，本仓按产品口径去掉。
- */
+/* 行与行之间**没有**分隔线：几条待发的话是一串同类的行，横线会把它们读成一张表的几行，分开它们的是行高与序号。 */
 .prompt-queue__row {
   box-sizing: border-box;
   display: flex;
@@ -182,13 +135,7 @@
   border-radius: var(--cp-queue-row-radius);
 }
 
-/*
- * 行首那枚记号。
- *
- * 只有一行时是队列记号（正本如此，行列里只有一句，没有顺序可交代）；两行以上换成**序号**
- * —— 那时才真的有「谁先走」要说，而数字比一个词更短也更准。序号占的格子与记号一样宽，
- * 换行时正文的左缘因此不会动。
- */
+/* 只有一行时是队列记号；两行以上换成**序号** —— 那时才真有「谁先走」要说，而数字更短更准。序号与记号同宽，换行时正文左缘不会动。 */
 .prompt-queue__lead {
   display: grid;
   inline-size: 16px;
@@ -210,7 +157,7 @@
   cursor: default;
 }
 
-/* 正文：这一行是「我说了什么」，与转录里那句话同一档墨，不是次要信息。 */
+/* 这一行是「我说了什么」，与转录里那句话同一档墨，不是次要信息。 */
 .prompt-queue__said {
   min-inline-size: 0;
   flex: auto;
@@ -222,15 +169,7 @@
   white-space: nowrap;
 }
 
-/*
- * 操作钮。
- *
- * 它们**长在行自己的 flex 里**（正文 flex:auto 把这一组顶到右缘），不是另起一列。正本每
- * 一行右侧贴着的就是那几枚 28 的圆钮，行与按钮同一个盒子 —— 分成两列会让按钮游离在行
- * 之外，跟它要操作的那句话对不上。
- *
- * 屏幕上不出现按钮的名字：名字在 aria-label 与悬停提示里（正本每一枚都是这么给的）。
- */
+/* 操作钮**长在行自己的 flex 里**（正文 flex:auto 把这一组顶到右缘），不另起一列：分成两列会让按钮游离在行之外，跟它要操作的那句话对不上。名字只在 aria-label 与悬停提示里。 */
 .prompt-queue__action {
   display: grid;
   flex: none;

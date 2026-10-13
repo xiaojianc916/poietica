@@ -26,13 +26,13 @@ export interface EventRouterDeps {
   readonly hub: TimelineHub
   /**
    * 「Core 即时回显」的提交服务：路由要在本会话第一个新 turn 上盖 clientTurnId，
-   * 并把那条提交推进到 `started`（方案第 4 节的「事件路由 timeline」一行）。
+   * 并把那条提交推进到 `started`。
    */
   readonly submissions: import('./submission-service').SubmissionService
   readonly clock: Clock
   readonly threads: {
     threadOf(row: ThreadRow): Thread
-    /** controls 事件里的姿态与线程行不一致时把行改掉（07 页 §5C 的行为表） */
+    /** controls 事件里的姿态与线程行不一致时把行改掉（服务行为表） */
     setPosture(threadId: string, posture: Posture): void
     /** omp 自动总结出的标题（omp 知识 #17）；守卫住在 thread-service 里 */
     setTitleFromSession(threadId: string, title: string, sessionFile: string): void
@@ -85,7 +85,7 @@ export class EventRouter {
     return this.runtime.has(threadId) || this.claimed.has(threadId)
   }
 
-  // ── 路由（07 页 §5C 的行为表）─────────────────────────────────────────────
+  // ── 路由（会话事件的行为表）──────────────────────────────────────────────
   onEvent(threadId: string, event: EngineSessionEvent): void {
     switch (event.type) {
       case 'timeline': {
@@ -134,7 +134,7 @@ export class EventRouter {
 
   // ── 内部 ──────────────────────────────────────────────────────────────────
   /**
-   * 本会话第一个新 turn 上盖 clientTurnId（方案第 4 节「事件路由 timeline」一行）。
+   * 本会话第一个新 turn 上盖 clientTurnId。
    *
    * 号从提交服务认领（只有**真的交给 omp 且还没开轮**的那条才有）；同时把那条提交推进
    * 到 `started` 并记下真实 `turnId` —— 界面就是靠这两样判断「真轮到了没」。
@@ -144,9 +144,9 @@ export class EventRouter {
       if (op.op !== 'turn.upsert') return op
       const turnId = op.turn.turnId
       /*
-       * 认领与 `runtime` 无关：runtime 只在 state 事件 / cancel 时才有，而「Core 即时
-       * 回显」之后提交不再经过 router —— 依赖它的存在，号就永远认领不了（实测：提交
-       * 一直是 pending，界面判不出「真轮到了没」，于是出现两个用户气泡）。
+       * 认领与 `runtime` 无关：runtime 只在 state 事件 / cancel 时才有，而「Core 即时回显」
+       * 之后提交不再经过 router —— 依赖它的存在，号就永远认领不了（实测：提交一直是 pending，
+       * 界面判不出「真轮到了没」，于是出现两个用户气泡）。
        */
       const claimedTurns = this.claimed.get(threadId) ?? new Set<string>()
       if (!claimedTurns.has(turnId)) {
@@ -155,7 +155,7 @@ export class EventRouter {
         const claimed = this.d.submissions.claimPendingTurn(threadId)
         if (claimed !== null) this.d.submissions.markTurn(threadId, claimed, turnId)
       }
-      /* 每条 upsert 都带上号（方案：实时推送和快照都要写上）：收尾那条会把整条 turn
+      /* 每条 upsert 都带上号（实时推送和快照都要写上）：收尾那条会把整条 turn
          换掉，只在首条写号的话界面就判不出「真轮到了没」，提交行会再冒出来一条。 */
       const clientTurnId = this.d.submissions.clientTurnIdOf(threadId, turnId)
       return clientTurnId === null ? op : ({ ...op, turn: { ...op.turn, clientTurnId } } as TranscriptOperation)
@@ -199,9 +199,9 @@ export class EventRouter {
       rt.startedAt = null
       this.d.emitTurnSettled({ threadId, outcome, error })
       /*
-       * 回到 idle 而那一轮**没开出来**（方案第 4 节）：交出去的那条提交还停在 pending，
-       * 说明 omp 没收下它。按事件自带的 error 收成 failed；没有 error 时看是不是用户
-       * 点了停止（cancelled），否则就是 dropped。
+       * 回到 idle 而那一轮**没开出来**：交出去的那条提交还停在 pending，说明 omp 没收下它。
+       * 按事件自带的 error 收成 failed；没有 error 时看是不是用户点了停止（cancelled），
+       * 否则就是 dropped。
        */
       this.d.submissions.settleUnstarted(
         threadId,

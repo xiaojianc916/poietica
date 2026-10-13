@@ -4,7 +4,7 @@ import { DecoratorNode, type NodeKey, type SerializedLexicalNode } from 'lexical
 import type { ReactNode, SVGProps } from 'react'
 import { ElementIcon, SkillIcon, ToolIcon } from './icons'
 
-/* DSH composer chip 的原字形（圆角纸 + 两行字）；图标库的 FileText 带折角，是另一张图。 */
+/* 图标库的 FileText 带折角，不是这张字形（圆角纸 + 两行字）。 */
 function FileDocIcon({ className }: SVGProps<SVGSVGElement>) {
   return (
     <svg
@@ -25,10 +25,7 @@ function FileDocIcon({ className }: SVGProps<SVGSVGElement>) {
   )
 }
 
-/*
- * element 与 file 的字节住在附件册（prompt-input.tsx 的 AttachmentsContext），
- * 记号只挂 token 与标签：记号在不在，就是那份字节发不发。
- */
+/* element 与 file 的字节住在附件册（prompt-input.tsx 的 AttachmentsContext），记号只挂 token 与标签：记号在不在，就是那份字节发不发。 */
 export type PromptChipValue =
   | { readonly kind: 'skill'; readonly name: string; readonly args?: string | undefined }
   | { readonly kind: 'mcp'; readonly id: string; readonly name: string }
@@ -48,7 +45,7 @@ export function samePromptChip(left: PromptChipValue, right: PromptChipValue): b
   return right.kind === left.kind && left.assetToken === right.assetToken
 }
 
-/** 一台 MCP server 在正文里被点名的写法。写与读只有这一对。 */
+/** @mcp: 记号的写法只有这一对读写处，改一处必须改另一处。 */
 const MENTION = /@mcp:(\S+)/g
 
 function mention(name: string): string {
@@ -59,7 +56,6 @@ export type PromptSegment =
   | { readonly kind: 'text'; readonly text: string }
   | { readonly kind: 'mcp'; readonly name: string }
 
-/** 正文切成「话」与「记号」两种段，顺序与原文一致。 */
 export function promptSegments(text: string): readonly PromptSegment[] {
   const segments: PromptSegment[] = []
   let cursor = 0
@@ -86,7 +82,6 @@ export function promptSegments(text: string): readonly PromptSegment[] {
   return segments
 }
 
-/* 草稿与转录共用：一句话发出去之后仍是同一枚记号，各画一遍会各漂一份。 */
 export function PromptChip({ kind, name }: { readonly kind: PromptChipValue['kind']; readonly name: string }) {
   const Glyph = kind === 'mcp' ? ToolIcon : kind === 'element' ? ElementIcon : kind === 'file' ? FileDocIcon : SkillIcon
 
@@ -130,7 +125,6 @@ export class ChipNode extends DecoratorNode<ReactNode> {
   }
 
   override createDOM(): HTMLElement {
-    /* 样子归 PromptChip：宿主只是编辑器要的那个位置。 */
     return document.createElement('span')
   }
 

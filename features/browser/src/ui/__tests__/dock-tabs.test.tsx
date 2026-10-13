@@ -4,15 +4,7 @@ import type { BrowserApi } from '../api'
 import { createBrowserDockTabs } from '../dock-tabs'
 import { createBrowserPanelStore } from '../store'
 
-/*
- * 浏览器那一格交给右坞标签条的**页签面**（`panels` 贡献的 `dockTabs`）。
- *
- * 用例的意图逐条迁自 panel.test.tsx 原「标签条」一组（那些断言原先钉在面板内部的
- * BrowserTabStrip 上）：每个标签一张脸（标题 / 选中态 / 图标）、点「+」开一个空白标签
- * （地址 null 而不是空串）、点标签切前台、点 × 关掉它。换的只是判据的落点 ——
- * 新架构里这些动作由右坞统一发起，浏览器只提供数据与三个回调，所以这里直接测那三个
- * 回调与 tabs() 的输出。
- */
+/* 浏览器那一格交给右坞标签条的页签面：每个标签一张脸（标题 / 选中态 / 图标）、点「+」开一个空白标签（地址 null 而不是空串）、点标签切前台、点 × 关掉 —— 这些动作由右坞统一发起，浏览器只提供数据与三个回调。 */
 
 const tab = (over: Partial<BrowserState['tabs'][number]> = {}): BrowserState['tabs'][number] => ({
   id: 1,
@@ -95,9 +87,7 @@ describe('浏览器页签面（dockTabs）', () => {
     expect(tabs[0]?.active).toBe(false)
     expect(tabs[1]?.title).toBe('B 站')
     expect(tabs[1]?.active).toBe(true)
-    /* 脸是真元素（不是 null）：装载中转圈 / favicon / 地球都由 BrowserTabIcon 决定。 */
     expect(tabs[0]?.icon).toBeDefined()
-    /* 页签 id 是字符串（DOM 的键），标签号在契约里是数。 */
     expect(tabs.map((t) => t.id)).toEqual(['1', '2'])
   })
 
@@ -123,7 +113,6 @@ describe('浏览器页签面（dockTabs）', () => {
     const { dockTabs, store } = harness(stateOf())
 
     expect(store.snapshot()).not.toBeNull()
-    /* 换一份空面（模拟 core 重启后还没拉回来）—— tabs() 必须认 null。 */
     expect(dockTabs.tabs().length).toBe(1)
   })
 

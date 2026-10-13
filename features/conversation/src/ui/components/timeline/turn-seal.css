@@ -37,7 +37,7 @@
   color: var(--cp-ink);
 }
 
-/* 图标盒与文字盒等高，所以不需要那 1px 的手工偏移。 */
+/* 图标盒与文字盒等高，不需要那 1px 的手工偏移。 */
 .turn-seal__chevron {
   display: block;
   flex: none;

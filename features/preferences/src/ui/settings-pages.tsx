@@ -11,19 +11,9 @@ import { type ReactElement, useCallback, useEffect, useState } from 'react'
 import type { Preferences } from '../contract'
 import type { PreferencesRpcApi } from './api'
 
-/*
- * 三个设置页。**迁移自** legacy `settings-surface.tsx` 的 GeneralSettings /
- * AppearanceSettings / KeymapSettings：分组名、行标签、说明文案、选项表（含顺序与
- * 措辞）逐条照旧；排版词汇取自 design-system 的 settings-primitives。
- *
- * 只改数据来源：legacy 读 settings store 的 controller.update，这里读 preferences 的
- * 契约方法。
- */
+/* 分组名、行标签、说明文案、选项表（含顺序与措辞）照 legacy；只改数据来源：读 preferences 契约方法。 */
 
-/*
- * 静态选项表，与 legacy 同名同序。顺序是产品定的，不重排
- * （legacy 里「跟随系统」在最后、密度「宽松」在前）。
- */
+/* 静态选项表：顺序是产品定的，不重排（「跟随系统」在最后、「宽松」在前）。 */
 const COLOR_MODES = [
   { value: 'light', label: '浅色' },
   { value: 'dark', label: '深色' },
@@ -59,7 +49,7 @@ function usePrefs(
   return [prefs, update, setPrefs]
 }
 
-/** 初始值：与契约里每格的 default 一致（「恢复默认」写回去的就是这一份） */
+/** 与契约里每格的 default 一致（「恢复默认」写回去的就是这一份） */
 const DEFAULT_PREFERENCES = {
   theme: 'system',
   language: 'zh-CN',
@@ -67,13 +57,7 @@ const DEFAULT_PREFERENCES = {
   appearance: { density: 'comfortable', reduceMotion: false, messageTimestamps: false },
 } as const
 
-/**
- * 落在某一页里的**别的功能**贡献的那些组（builtinPoints.settingsSections）。
- *
- * legacy 的通用页里住着 Python 内核那一组（07 页 §13G 原设计是独立一页，产品负责人
- * 2026-10-06 改成并入通用页）。`page` 是字符串，所以这里不 import python 功能（守则 3）；
- * 每一段用 FeatureScope 包住，贡献者的组件仍然按它自己的功能 id 取服务。
- */
+/** 别的功能贡献到本页的组；`page` 是字符串，所以这里不 import python 功能（守则 3），每段用 FeatureScope 包住。 */
 function PageSections({ page }: { readonly page: string }): ReactElement | null {
   const sections = useContributions(builtinPoints.settingsSections).filter((c) => c.item.page === page)
 
@@ -94,12 +78,7 @@ function PageSections({ page }: { readonly page: string }): ReactElement | null 
   )
 }
 
-/**
- * 通用页：对话 / 安全（本功能拥有的两组）+ 别的功能搬进来的「运行时」等组 + 重置。
- * 分组次序照 legacy GeneralSettings：对话 → 启动项 → 安全 → 运行时 → 重置
- * （「启动项」那组要 `general.daemon`，新契约的 general 没有这个字段 —— 见
- * docs/refactor-log.md 的待决问题 Q22，不编数据）。
- */
+/** 对话 / 安全（本功能）+ 别的功能搬进来的组 + 重置；「启动项」那组要 general.daemon，新契约没有 —— 见 refactor-log Q22。 */
 export function GeneralPage({ api }: { readonly api: PreferencesRpcApi }): ReactElement {
   const [prefs, update, setPrefs] = usePrefs(api)
   const [resetting, setResetting] = useState(false)
@@ -166,7 +145,6 @@ export function GeneralPage({ api }: { readonly api: PreferencesRpcApi }): React
   )
 }
 
-/** 外观页：主题与语言 / 界面（legacy AppearanceSettings 的两个分组） */
 export function AppearancePage({ api }: { readonly api: PreferencesRpcApi }): ReactElement {
   const [prefs, update] = usePrefs(api)
   if (prefs === null) return <SettingsPage />
@@ -229,12 +207,6 @@ export function AppearancePage({ api }: { readonly api: PreferencesRpcApi }): Re
   )
 }
 
-/*
- * 吉祥物的两个开关。**迁移**自 legacy \`settings-surface/mascot-prefs.tsx\`：
- * 分组名、标签、说明、默认值（都是 true）一字未改；换掉的只有存放处 ——
- * legacy 把这两格放在渲染层的偏好文件里（\`@poietica/external-store\` 的 createPreference），
- * 新架构里渲染层记忆的正主是 \`uiState\`（preferences 契约的 uiState.get/set）。
- */
 function MascotPrefsGroup({ api }: { readonly api: PreferencesRpcApi }): ReactElement {
   const [tour, setTour] = useState(true)
   const [follow, setFollow] = useState(true)
@@ -277,7 +249,6 @@ function MascotPrefsGroup({ api }: { readonly api: PreferencesRpcApi }): ReactEl
   )
 }
 
-/** 快捷键页：全部命令 + 当前按键 + 录制 + 恢复默认（legacy keymap-settings 的同一件事） */
 export function KeymapPage({ api }: { readonly api: PreferencesRpcApi }): ReactElement {
   const keybindings = useService(KeybindingsToken) as KeybindingService
   const commands = useContributions(builtinPoints.commands)

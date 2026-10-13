@@ -2,10 +2,7 @@ import { expect, test } from 'bun:test'
 import { cleanup, render } from '@testing-library/react'
 import { ErrorNotice } from '../error-notice'
 
-/*
- * 报错条的两档样子（R-09）：error 维持红色感叹号 + role=alert；
- * warning 换三角、安静色，role=status 不打断读屏。线与字都不变。
- */
+/* 两档（R-09）：error 用 alert，warning 用 status —— status 不打断读屏。 */
 
 test('E1 error 是 alert，复制按钮说的是「报错信息」', () => {
   const { container } = render(<ErrorNotice message="x" />)

@@ -8,7 +8,6 @@ import type { UpdateApi } from '../api'
 import { createUpdateStore } from '../store'
 import { UpdateBanner } from '../update-banner'
 
-/** 只收 warn 的假 logger：本包的 devDependencies 里没有 @poietica/test-kit */
 function collectingLogger(): { logger: Logger; warns: string[] } {
   const warns: string[] = []
   const logger: Logger = {
@@ -21,15 +20,9 @@ function collectingLogger(): { logger: Logger; warns: string[] } {
   return { logger, warns }
 }
 
-/*
- * R-08-14：`update.download` 的传输层拒绝必须被收下。
- *
- * 契约把这一档的超时改成 0（结果由 update.stateChanged 说话），但连接换代、窗口关闭
- * 仍可能让请求以错误拒绝；从前是裸 `void api.download()`，那就是一条未处理的 rejection。
- *
- * 两条用例都显式放宽等元素的时限：testing-library 的默认 1 秒是给单独一个文件跑的，
- * 全仓并行时横幅的首帧常被别的文件挤到 1 秒之外（实测偶发，与本条要验的行为无关）。
- */
+/* `update.download` 的传输层拒绝必须被收下。契约把这一档的超时改成 0（结果由 update.stateChanged 说话），但连接换代、窗口关闭仍可能让
+ * 请求以错误拒绝；从前是裸 `void api.download()`，那就是一条未处理的 rejection。两条用例都显式放宽等元素的时限：testing-library 的
+ * 默认 1 秒是给单独一个文件跑的，全仓并行时横幅的首帧常被别的文件挤到 1 秒之外（实测偶发，与本条要验的行为无关）。 */
 const SLOW = { timeout: 5000 }
 
 describe('UpdateBanner 的下载动作（R-08-14）', () => {
@@ -49,7 +42,6 @@ describe('UpdateBanner 的下载动作（R-08-14）', () => {
     store.apply(state)
     const api = {
       download,
-      /* 只有 download 会被这条用例碰到；其余给能自我说明的空实现 */
       state: async () => state,
       check: async () => state,
       install: async () => state,

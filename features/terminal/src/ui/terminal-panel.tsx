@@ -7,20 +7,9 @@ import { TerminalView } from './terminal-view'
 
 import './terminal-pane.css'
 
-/**
- * 终端面板（07 页 §11E）：标签条（`title • 序号`、已退出变灰、`+` 新建、每个标签
- * 的 `×` 关闭）＋ 主体 xterm 视图。
- *
- * **外观以 legacy 为准**（legacy `packages/terminal/src/surface/terminal-pane.tsx`）：
- *   1. 打开这一格就先开一条终端 —— legacy 的 TerminalPane 在挂载那一刻就 attach，
- *      用户点「终端」看到的是一块能敲的 shell，而不是一块空面板加一枚加号；
- *   2. 只有一条终端时不画标签条 —— legacy 每格只有一条终端，那一行本来就不存在；
- *      它与 `+` 只在用户真的开出第二条之后才出现（07 页 §11E 的新能力，视觉词汇
- *      沿用外壳的面板标签条：workbench 的 TabStrip，迁移自 legacy auxiliary-tab-strip）。
- *
- * 这一格只在用户真的打开它之后才挂载（坞的归属语义：owner 存在且在才渲染），所以
- * 下面的自动新建不会凭空开出一条 PTY。
- */
+/** 标签条 ＋ 主体 xterm 视图。**外观以 legacy 为准**：打开这一格就先开一条终端（legacy 的 TerminalPane 在挂载那刻就 attach，用户点「终端」
+ * 看到的是一块能敲的 shell，而不是空面板加一枚加号）；只有一条终端时不画标签条，它与 `+` 只在用户开出第二条之后才出现。这一格只在用户真的
+ * 打开它之后才挂载，所以下面的自动新建不会凭空开出一条 PTY。 */
 export function TerminalPanel({ runtime }: { readonly runtime: TerminalRuntime }): ReactNode {
   const terminals = useFeatureStore(runtime.store, (s) => s.terminals)
   const activeId = useFeatureStore(runtime.store, (s) => s.activeId)

@@ -3,13 +3,7 @@ import type { ComposerToolkit, ComposerToolkitSource } from '../../ui-api'
 import { composerPaletteGroups } from '../components/composer/composer-actions'
 import { mergeToolkits, toolkitReaderOf } from '../configuration/composer-toolkit'
 
-/*
- * 加号面板那两组（技能 / MCP）的数据合成。
- *
- * 这一份钉三件事：分组**有没有内容**（空名册就不画，面板里不该有按不动的组）、
- * 合并的形状（去重、次序、契约 → 面板的换算），以及 `read` 的**引用稳定性** ——
- * 它喂 useSyncExternalStore 的 getSnapshot，每次新造一张表会让整棵输入框无限重渲染。
- */
+/* 空名册不画分组；`read` 喂 useSyncExternalStore 的 getSnapshot，每次新造一张表会让整棵输入框无限重渲染。 */
 
 const empty: ComposerToolkit = { skills: [], mcpServers: [] }
 
@@ -27,7 +21,6 @@ describe('名册的合并', () => {
 
     expect(toolkit.skills).toHaveLength(0)
     expect(toolkit.mcpServers).toHaveLength(0)
-    /* 面板那一侧的判据：空表 -> 只剩「添加 / 模式」两组。 */
     expect(
       composerPaletteGroups({ controls: [], mcpServers: [], onSelectControl: () => undefined, skills: [] }),
     ).toEqual([])
@@ -82,7 +75,6 @@ describe('名册的合并', () => {
     ])
 
     expect(merged.mcpServers.map((row) => row.status)).toEqual(['connected', 'connecting', 'error', 'disconnected'])
-    /* id 与 name 同值：行身份与正文里那枚记号读的是同一格。 */
     expect(merged.mcpServers[0]?.id).toBe('a')
   })
 
@@ -96,7 +88,6 @@ describe('名册的合并', () => {
 })
 
 describe('read 的引用稳定性', () => {
-  /* 一个按脚本回话的假来源：read 交回它此刻握着的那一份。 */
   function sourceOf(initial: ComposerToolkit): ComposerToolkitSource & { put(next: ComposerToolkit): void } {
     let held = initial
 

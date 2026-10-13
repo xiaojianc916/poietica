@@ -20,7 +20,7 @@ interface Entry {
   readonly logger: Logger
 }
 
-/** 同步分发、按订阅顺序；发出方不等待异步处理完成；订阅方的异常不影响发出方 */
+/** 同步分发、按订阅顺序；发出方不等待异步处理完成；订阅方的异常不影响发出方。 */
 export function createEventHub(): EventHub {
   const handlers = new Map<CoreEvent<unknown>, Set<Entry>>()
   return {

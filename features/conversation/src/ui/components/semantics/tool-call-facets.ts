@@ -3,9 +3,8 @@ import type { ToolCallContent } from '../../agent/tool-call'
 import { toDiffFiles, toDisplayPath } from './file-diff'
 import { type ToolContentPart, toToolContentParts } from './tool-call-content'
 
-// 一次工具调用的两个面（送出/交回），都交 markdown 给同一条渲染管线。
-// 送出面优先用投影层映好的 requestContent，缺席才退回入参 JSON；产出同理。
-// 图不走 markdown（data URL 会被拦），单独走 images。不截断：长产出由抽屉按行虚拟化。
+// 两个面（送出/交回）都交 markdown 给同一条渲染管线：优先用投影层映好的 requestContent，缺席才退回入参 JSON。
+// 图不走 markdown（data URL 会被拦），单独走 images；不截断，长产出由抽屉按行虚拟化。
 
 export interface ToolCallFacetSource {
   readonly requestContent?: readonly ToolCallContent[] | undefined
@@ -17,7 +16,7 @@ export interface ToolCallFacetSource {
 export interface ToolCallFacets {
   readonly diffs: readonly DiffFile[]
   readonly diffStat: DiffStat | null
-  /** 这次调用交回来的图，按出现顺序。 */
+  /** 按出现顺序。 */
   readonly images: readonly ToolImage[]
   readonly request: string | null
   readonly response: string | null
@@ -25,7 +24,7 @@ export interface ToolCallFacets {
 
 const INDENT = 2
 
-// 装着 JSON 文档的字符串摊开成文档（避免双重转义压成一行）；不是文档才问是不是路径。
+// 装着 JSON 文档的字符串摊开成文档，避免双重转义压成一行。
 function display(raw: unknown): unknown {
   if (typeof raw !== 'string') {
     return raw
@@ -34,7 +33,6 @@ function display(raw: unknown): unknown {
   return readJsonDocument(raw) ?? toDisplayPath(raw)
 }
 
-// 全文件唯一把值印成 JSON 源码的地方。
 function displayJson(value: unknown): string | undefined {
   return JSON.stringify(value, (_key: string, raw: unknown) => display(raw), INDENT)
 }
@@ -59,7 +57,7 @@ function block(lang: string, body: string): string {
   return `${rail}${lang}\n${body}\n${rail}`
 }
 
-// block() 的逆运算：交回围栏内行；不是一段机器输出时交回 null。
+// block() 的逆：交回围栏内行，不是一段机器输出时交回 null。
 export function fencedBodyOf(markdown: string): readonly string[] | null {
   const lines = markdown.split('\n')
   const head = lines[0]
@@ -90,7 +88,7 @@ function inlineCode(value: string): string {
   return `${rail}${pad}${value}${pad}${rail}`
 }
 
-// 只认对象与数组且真解析得动：裸标量重排前后一样，白跑。
+// 只认对象与数组且真解析得动：裸标量重排前后一样。
 function readJsonDocument(text: string): object | null {
   const head = text.trim()
 
@@ -124,7 +122,6 @@ function jsonBlock(value: unknown): string | null {
   }
 }
 
-// 空信封（{}）不算一面。
 function isEmptyBag(value: object): boolean {
   return Array.isArray(value) ? value.length === 0 : Reflect.ownKeys(value).length === 0
 }
@@ -199,7 +196,7 @@ function imageMarkdown(data: string, mimeType: string): string {
   return `![截图](data:${mimeType};base64,${data})`
 }
 
-// omp 产出信封（AgentToolResult 的 content 块数组）在这里拆开：文本接起来，图折成 markdown。
+// omp 的 AgentToolResult 信封：content 块数组。
 function outputOf(value: unknown): string | null {
   if (value === undefined || value === null) {
     return null
@@ -232,7 +229,7 @@ function outputOf(value: unknown): string | null {
   return jsonBlock(value)
 }
 
-/** 一张要画出来的图。base64 与 mimeType 是它的正本（omp 的 ImageContent）。 */
+/** base64 与 mimeType 是它的正本（omp 的 ImageContent）。 */
 export interface ToolImage {
   readonly data: string
   readonly mimeType: string
@@ -241,10 +238,7 @@ export interface ToolImage {
 const NO_IMAGES: readonly ToolImage[] = []
 
 /**
- * 一面里画得出来的那些片段接成一段 markdown；一段都没有就是 null。
- *
- * 图不在这里：data URL 走 markdown 会被 Streamdown 拦下（它把 data: 当可疑来源，
- * 屏幕上只剩一句「图片被拦截」）。图由 imagesOf 单独交出去，按 <img> 画。
+ * data URL 走 markdown 会被 Streamdown 拦下（它把 data: 当可疑来源，屏幕上只剩一句「图片被拦截」），由 imagesOf 单独交出去按 <img> 画。
  */
 function proseOf(parts: readonly ToolContentPart[]): string | null {
   const pieces: string[] = []
@@ -258,7 +252,6 @@ function proseOf(parts: readonly ToolContentPart[]): string | null {
   return pieces.length === 0 ? null : pieces.join('\n\n')
 }
 
-/** 这一面里的图，按出现顺序。 */
 export function imagesOf(parts: readonly ToolContentPart[]): readonly ToolImage[] {
   const shots: ToolImage[] = []
 
@@ -282,7 +275,7 @@ export function toDiffFilesOf(source: ToolCallFacetSource): readonly DiffFile[] 
   return back.length === 0 ? sent : [...sent, ...back]
 }
 
-// 三格一趟算完；改动不走 markdown，带行号的统一 diff 才是它的画法（file-diff.ts）。
+// 改动不走 markdown：带行号的统一 diff 才是它的画法。
 export function toToolCallFacets(source: ToolCallFacetSource): ToolCallFacets {
   const sent = toToolContentParts(source.requestContent)
   const back = toToolContentParts(source.content)
@@ -291,7 +284,6 @@ export function toToolCallFacets(source: ToolCallFacetSource): ToolCallFacets {
   return {
     diffs,
     diffStat: diffStatOf(diffs),
-    /** 两面各自的图；data URL 走不了 markdown，所以与 markdown 分开交出去。 */
     images: imagesOf(back),
     request: sent.length === 0 ? bagOf(source.rawInput) : proseOf(sent),
     response: back.length === 0 ? outputOf(source.rawOutput) : proseOf(back),

@@ -50,12 +50,11 @@ import type { StepRetry, StepTiming, StepUsage, TranscriptStep, TranscriptTurn, 
 import type { AgentTranscriptSnapshot, TranscriptOperation } from '../ops/operation'
 
 /*
- * 线上形状与消费侧读法是两份定义：schema.ts 认字节，model/ 说类型。它们必须同形，
- * 否则「schema 校验通过」就不再蕴含「这是合法的 model」—— 校验形同虚设。
+ * 线上形状与消费侧读法是两份定义：schema.ts 认字节，model/ 说类型。它们必须同形，否则
+ * 「schema 校验通过」就不再蕴含「这是合法的 model」—— 校验形同虚设。
  *
- * 这里只用类型：一行运行时都不会产生。判据是单向的 —— schema 的输出必须能当 model 用，
- * 那是校验的意义所在；反方向不成立（model 的 readonly 数组不是 schema 的输入）。
- *
+ * 这里只用类型，一行运行时都不会产生。判据是单向的：schema 的输出必须能当 model 用，那是校验的
+ * 意义所在；反方向不成立（model 的 readonly 数组不是 schema 的输入）。
  * 这个文件刻意不出现在 index.ts：它是编译期断言，不是包的公开面。
  */
 

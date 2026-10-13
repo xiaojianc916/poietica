@@ -10,9 +10,8 @@ import { createChildProcessTransport } from '@poietica/rpc/stdio'
 import { buildCoreLaunch, type DataLayout, dataLayout } from '@poietica/runtime-layout'
 
 /**
- * 探针：不启动 Electron，直接运行编译出来的 exe，验证它本身是对的——包括隔离是否成立。
- * CI 每次都跑它。任何一步失败：打印 Core stderr 的最后 200 行，以退出码 1 退出；
- * 无论成功失败，最后都删除 fakeHome。
+ * 探针：直接运行编译出来的 exe，验证它本身是对的——包括隔离是否成立。CI 每次都跑它。
+ * 任何一步失败：打印 Core stderr 的最后 200 行，以退出码 1 退出；最后都删除 fakeHome。
  */
 const ROOT = path.resolve(import.meta.dir, '../../..')
 const DIST = path.join(ROOT, 'apps/core/dist-probe')
@@ -29,13 +28,9 @@ async function main(): Promise<void> {
   if (!(await Bun.file(EXE).exists())) fail('构建没有产出 poietica-core.exe')
 
   /*
-   * 临时的假用户目录：数据根设在 <fakeHome>/AppData/Roaming/Poietica 之下，
-   * 这样 「数据根必须在用户目录之下」 的约束成立，同时可以从外面检查有没有漏出去的路径。
-   *
-   * 位置选在仓库根下的 `.probe-home/`（纯 ASCII、且在允许写入的工作区里）：本机 %TEMP% 的路径里带
-   * 非 ASCII 用户名（C:\Users\<中文名>\AppData\Local\Temp），编译出来的 exe 在那里写普通文件会 EPERM，
-   * bun:sqlite 随之报 "unable to open database file" —— 那是环境问题而不是 Core 的问题，但会让探针
-   * 永远红。探针检查的是「隔离有没有漏」，与被测目录在哪无关，所以这个位置不影响结论。
+   * 临时的假用户目录：位置选在仓库根下的 `.probe-home/`（纯 ASCII、且在允许写入的工作区里）。
+   * 本机 %TEMP% 的路径里带非 ASCII 用户名，编译出来的 exe 在那里写普通文件会 EPERM，bun:sqlite
+   * 随之报 "unable to open database file" —— 那是环境问题而不是 Core 的问题，但会让探针永远红。
    */
   const fakeHome = path.join(ROOT, '.probe-home')
   rmSync(fakeHome, { recursive: true, force: true })
@@ -72,8 +67,8 @@ async function main(): Promise<void> {
       '--strict',
       '--probe-mock-model',
     ]
-    // 用 node:child_process 而不是 Bun.spawn：createChildProcessTransport 面向 Node 风格的子进程流
-    // （setEncoding / on('data')），这也是 CoreSupervisor 启动 Core 的同一条路径。
+    // 用 node:child_process 而不是 Bun.spawn：createChildProcessTransport 面向 Node 风格的子进程流，
+    // 这也是 CoreSupervisor 启动 Core 的同一条路径。
     child = nodeSpawn(EXE, args, {
       cwd: layout.coreCwd,
       env: { ...launch, POIETICA_PROBE_BUILD: '1' },
@@ -92,7 +87,6 @@ async function main(): Promise<void> {
     })
 
     console.log('[probe] 3/5 等待 core.ready（10 秒）…')
-    // stderr 逐行收集（失败时打印最后 200 行）
     const lines = new LineSplitter((line) => {
       if (line.trim() !== '') stderrLines.push(line)
     })
@@ -118,8 +112,6 @@ async function main(): Promise<void> {
     console.log('[probe] 4/5 检查隔离目录与用户目录…')
     const check = await import('@poietica/engine-omp/bootstrap')
     void check
-    // 隔离目录：所有 omp 目录都必须落在数据根之下（self-check 已通过才会 ready）；
-    // 用户目录：除数据根路径链外，fakeHome 里不得出现任何文件或目录
     const leaked = listLeaks(fakeHome, dataRoot)
     if (leaked.length > 0) fail(`假用户目录里出现了数据根之外的路径：\n  ${leaked.join('\n  ')}`)
     console.log('[probe]     用户目录干净：除数据根路径链外没有任何文件或目录')
@@ -157,7 +149,6 @@ async function main(): Promise<void> {
   }
 }
 
-/** 与 buildCoreLaunch 的 env 规则一致（这里直接复用它的产物，只额外补 POIETICA_PROBE_BUILD） */
 function envForCore(fakeHome: string, layout: DataLayout): Record<string, string> {
   const launch = buildCoreLaunch({
     coreExe: EXE,
@@ -171,14 +162,10 @@ function envForCore(fakeHome: string, layout: DataLayout): Record<string, string
   return { ...launch.env }
 }
 
-/**
- * 假用户目录里除了**数据根这一条路径链**之外，不允许出现任何文件或目录。
- * 数据根里面的东西全部允许（那是它的本职），只有跑到它外面的才算泄漏。
- */
+/** 数据根本身以及它到 fakeHome 的每一级祖父母录，都算那条路径链的一部分。 */
 function listLeaks(fakeHome: string, dataRoot: string): string[] {
   const root = path.resolve(fakeHome)
   const data = path.resolve(dataRoot)
-  // 数据根本身以及它到 fakeHome 的每一级祖父母录，都算这条路径链的一部分
   const chain = new Set<string>()
   let current = data
   while (current.startsWith(root)) {
@@ -191,7 +178,6 @@ function listLeaks(fakeHome: string, dataRoot: string): string[] {
   const walk = (dir: string): void => {
     for (const entry of readdirSync(dir, { withFileTypes: true })) {
       const full = path.resolve(dir, entry.name).toLowerCase()
-      // 数据根以下的一切都归数据根管
       if (full === data.toLowerCase() || full.startsWith(`${data.toLowerCase()}\\`)) continue
       if (chain.has(full)) {
         if (entry.isDirectory()) walk(path.join(dir, entry.name))

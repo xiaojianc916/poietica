@@ -8,12 +8,7 @@ import { createLazyTerminalRuntime } from '../terminal-loader'
 import { TerminalPanel } from '../terminal-panel'
 import * as storeModule from '../terminal-store'
 
-/*
- * P-06：终端运行时（连同 xterm）按需加载。
- *
- * 判据是「什么时候才去加载模块」与「加载前后行为不变」：加载由注入的 loadModule 计数，
- * 模块本身用真的 terminal-store（与 terminal-store.test 同一套假 API）。
- */
+/* P-06：判据是「什么时候才去加载模块」与「加载前后行为不变」：加载由注入的 loadModule 计数，模块本身用真的 terminal-store。 */
 
 const info = (terminalId: string): TerminalInfo => ({
   terminalId,
@@ -54,7 +49,6 @@ function fakeApi(restored: readonly TerminalInfo[] = []) {
   return { api, calls }
 }
 
-/** 可控的加载器：记次数；gate 非 null 时等它放行，用来钉住「加载途中」 */
 function loader() {
   const state = { loads: 0, gate: null as Promise<void> | null, fail: false }
   const loadModule = async () => {
@@ -165,18 +159,14 @@ describe('P-06 终端按需加载', () => {
     runtime.dispose()
   })
 
-  /*
-   * index.tsx 的顺序：命令里先 openPanel 再 create()，面板是 lazy(Promise.all([load(), import(面板)]))。
-   * create() 的续体先挂在同一个 load() 上，必然先于面板挂载执行；面板挂载时 count() 已是 1，
-   * 它「没有终端就先开一条」的 effect 不会再开第二条。
-   */
+  /* 命令里先 openPanel 再 create()，面板是 lazy(Promise.all([load(), import(面板)]))。create() 的续体先挂在同一个 load() 上，必然先于
+   * 面板挂载执行；面板挂载时 count() 已是 1，它「没有终端就先开一条」的 effect 不会再开第二条。 */
   test('L8 新建命令 + 面板首次挂载：只开出一条终端', async () => {
     const { runtime } = open()
     runtime.create()
-    /* 面板模块预先静态导入：Promise.all 只多等几个微任务，最贴近「面板分块已在缓存里」的最紧情形 */
+    /* 最贴近「面板分块已在缓存里」的最紧情形。 */
     const [loaded] = await Promise.all([runtime.load(), Promise.resolve(TerminalPanel)])
     render(createElement(TerminalPanel, { runtime: loaded }))
-    /* 多等一会：晚到的第二次新建（如果有）也要落地后再数 */
     await new Promise((resolve) => setTimeout(resolve, 100))
     expect(runtime.count()).toBe(1)
     runtime.dispose()

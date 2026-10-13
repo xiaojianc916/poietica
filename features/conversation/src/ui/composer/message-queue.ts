@@ -9,14 +9,8 @@ import type {
 } from '../agent/session'
 
 /**
- * 待发队列这一侧的看法。
- *
- * 队列**归 agent**：omp 的 steering / followUp 两个队列住在它的 Agent 里
- * （`getQueuedMessages` / `removeQueuedMessage` / `setSteeringMode`），本机不留副本
- * （AGENTS.md §1「每一类状态有且只有一个所有者」）。所以这一层只有三件事：读它报来的
- * 快照、订阅变化、把撤回与改模式交出去。
- *
- * 队列项带号（R-01 §3.8）：撤回与换层都按号点名，屏幕上画的那一行才是真的被操作的那一条。
+ * 队列**归 agent**：omp 的 steering / followUp 两个队列住在它的 Agent 里，本机不留副本（AGENTS.md §1「每一类状态有且只有一个所有者」）。
+ * 所以这一层只有三件事：读它报来的快照、订阅变化、把撤回与改模式交出去。队列项带号（R-01 §3.8）：撤回与换层都按号点名。
  */
 export interface MessageQueueState {
   readonly steering: readonly QueuedItem[]
@@ -73,10 +67,7 @@ export class MessageQueue {
     })
   }
   /**
-   * 撤回一条还排着的输入，按号点名（R-01 §3.8）。
-   *
-   * 号不在队列里（已被 agent 消费、UI 快照落后）时端口交回 null；真的撤到了就把
-   * 正文交给调用方（回输入框改）。上游按号连带取走紧挨在这句话前面的隐藏伴生消息。
+   * 号不在队列里（已被 agent 消费、UI 快照落后）时端口交回 null；真的撤到了就把正文交给调用方。上游按号连带取走紧挨在这句话前面的隐藏伴生消息。
    */
   withdraw = async (itemId: string): Promise<WithdrawnMessage | null> => {
     this.#active()

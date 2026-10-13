@@ -4,16 +4,14 @@ import { z } from 'zod'
 import { WIDGET_HTML_MAX, WIDGET_LIBRARY_ORIGINS, WIDGET_TOKEN_NAMES, WIDGET_URL_HOSTS } from '../contract'
 
 /*
- * agent 在对话里放一个能操作的小组件（审查 R-18）。
+ * agent 在对话里放一个能操作的小组件（R-18）。
  *
- * 工具本身很薄：校验参数、对 url 来源探一下开发服务器活着没有，然后告诉模型「已经显示了」。
- * 真正的渲染在 UI：toolCallRenderers 认到 show_widget，用参数里的 html / url 画一个沙箱 iframe
- * （ui/components/timeline/widget-card.tsx）。参数随工具调用存在对话记录里，重开对话照样能看。
+ * 工具本身很薄：校验参数、探一下 url 来源的开发服务器活着没有，然后告诉模型「已经显示了」。
+ * 渲染在 UI：toolCallRenderers 认到 show_widget，用参数里的 html / url 画一个沙箱 iframe。
+ * 参数随工具调用存在对话记录里，重开对话照样能看。
  *
- * 两种来源：
- * - html：模型现写的 HTML/CSS/JS。装进 poietica-asset://widget 的外壳里跑：脚本能跑，碰不到
- *   Poietica，除了几个公共 CDN 以外连不出去（CSP 在 host/widget-shell.ts）。
- * - url：本机开发服务器上的页面（localhost / 127.0.0.1），用来看用户项目真实跑起来的样子。
+ * 两种来源：html 是模型现写的页面（装进 poietica-asset://widget 的外壳里跑，脚本能跑但碰不到
+ * Poietica，除几个公共 CDN 外连不出去）；url 是本机开发服务器上的页面。
  */
 
 const URL_PROBE_TIMEOUT_MS = 4000

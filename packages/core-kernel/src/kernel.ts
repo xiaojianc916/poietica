@@ -51,15 +51,12 @@ type KernelState = 'created' | 'starting' | 'ready' | 'stopping' | 'stopped'
 
 const SHUTDOWN_HOOK_TIMEOUT_MS = 5_000
 const INFLIGHT_DRAIN_MS = 1_500
-/** engine.dispose 至少要拿到的时间：即使前面把预算花光了，也要给它一个下限 */
+/** engine.dispose 的时间下限：即使前面把预算花光了也要给它。 */
 const ENGINE_DISPOSE_FLOOR_MS = 1_000
 
 /**
- * 与 foundation 的 withTimeout 同义，但计时走**注入的 Clock**（R-05 §3.3）。
- *
- * 关停预算的截止时间是 opts.clock.now() 算的；若等待用真实 setTimeout，测试注入的
- * 假时钟推不动它们，这条路径就没法确定地验收。生产里 clock 就是 systemClock，
- * 两者是同一个东西。
+ * 与 foundation 的 withTimeout 同义，但计时走**注入的 Clock**（R-05 §3.3）：关停预算的截止时间由 opts.clock.now() 算，
+ * 若等待用真实 setTimeout，测试注入的假时钟推不动它们，这条路径就没法确定地验收（生产里 clock 就是 systemClock）。
  */
 function withClockTimeout<T>(clock: Clock, promise: Promise<T>, ms: number, onTimeout: () => Error): Promise<T> {
   return new Promise<T>((resolve, reject) => {

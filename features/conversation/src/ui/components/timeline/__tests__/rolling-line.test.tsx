@@ -4,17 +4,8 @@ import { MotionConfig } from 'motion/react'
 import { type ReactElement, StrictMode } from 'react'
 import { RollingLine } from '../ticker/rolling-line'
 
-/*
- * 组头那一格的结构与时序（思考行 v2）。
- *
- * happy-dom 没有布局：宽度一律 0、ResizeObserver 不回调，所以「滚到哪、裁没裁到字」量不出来 ——
- * 那归 ticker-pace / ticker-glide 的纯函数测，和 tooling/checks/ticker-layout 的真实布局检查。
- * 这里测的是：哪种状态用哪种格子、字是不是按顺序放出来、换句后旧句有没有留下、有没有任何「遮」的记号。
- *
- * 上下刷走 MotionConfig skipAnimations（理由同 composer-submit.test.tsx：happy-dom 的 Element.animate
- * 不推进时间轴）。放字读真实时间（performance.now / requestAnimationFrame），所以用真实等待、留够余量。
- * 少动效分支不在这里测：motion 首次读取系统偏好后就缓存，同一进程里改不了。
- */
+/* happy-dom 没有布局（宽度恒 0、ResizeObserver 不回调），量不出「滚到哪、裁没裁到字」—— 那归 ticker-pace / ticker-glide 的纯函数测与 ticker-layout 的真实布局检查；
+ * 这里只测格子选择、放字顺序、换句后旧句残留、有没有「遮」的记号。上下刷走 MotionConfig skipAnimations。 */
 
 function wait(ms: number): Promise<void> {
   return new Promise((resolve) => {
@@ -196,7 +187,6 @@ describe('换句', () => {
     const seen = await sample(container, 2000)
     const fresh = seen.filter((text) => !text.includes('第一句'))
 
-    /* 新句换上后经历过「只写了一部分」的样子，而不是整句一下子出现 */
     expect(fresh.some((text) => text.length < '然后看配置文件'.length && '然后看配置文件'.startsWith(text))).toBe(true)
     expect(container.textContent).toBe('然后看配置文件')
   })

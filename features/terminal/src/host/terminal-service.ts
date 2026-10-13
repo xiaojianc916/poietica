@@ -7,10 +7,9 @@ import { createOutputBatcher } from './output-batcher'
 import { RingBuffer } from './ring-buffer'
 import { resolveShell, type ShellSpec, terminalEnv } from './shell'
 
-/** 已退出的终端在表里最多留这么久，等 UI 自己来 close（R-08-16） */
+/** 已退出的终端在表里最多留这么久，等 UI 自己来 close（R-08-16）。 */
 const EXITED_TTL_MS = 10 * 60_000
 
-/** node-pty 的最小形状；index.ts 用 @lydell/node-pty 的 spawn 实现它，测试用假实现 */
 export interface Pty {
   readonly pid: number
   write(data: string): void
@@ -29,16 +28,14 @@ interface Entry {
   pty: Pty
   replay: RingBuffer
   batcher: ReturnType<typeof createOutputBatcher>
-  /** 累计输出长度：replay 的末尾与输出通知的起点都按它算（R-08-15） */
+  /** replay 的末尾与输出通知的起点都按它算（R-08-15）。 */
   offset: number
-  /** 退出时刻；还在跑时为 null（R-08-16） */
   exitedAt: number | null
 }
 
 export interface TerminalServiceDeps {
   readonly spawn: PtyFactory
   readonly logger: Logger
-  /** offset = data 首码元在累计输出里的位置（R-08-15） */
   readonly emitOutput: (terminalId: string, data: string, offset: number) => void
   readonly emitExited: (terminalId: string, exitCode: number | null) => void
   readonly env?: NodeJS.ProcessEnv
@@ -68,7 +65,7 @@ export function createTerminalService(d: TerminalServiceDeps) {
     }
   }
 
-  /* R-08-16：UI 崩了或漏调 close 时把退出已久的条目顺手收掉，不让重放缓存一直涨。 */
+  /* UI 崩了或漏调 close 时把退出已久的条目顺手收掉，不让重放缓存一直涨。 */
   function sweepExited(): void {
     const now = clock.now()
     for (const [id, e] of entries) {
@@ -143,12 +140,10 @@ export function createTerminalService(d: TerminalServiceDeps) {
     list(): TerminalInfo[] {
       return [...entries.values()].map((e) => e.info)
     },
-    /** 重放数据 + 它在累计输出里的末尾位置（R-08-15） */
     replay(id: string): { data: string; endOffset: number } {
       const e = get(id)
       return { data: e.replay.read(), endOffset: e.offset }
     },
-    /** 退出时调用：杀掉全部 PTY 及其子进程树 */
     async disposeAll(): Promise<void> {
       const all = [...entries.values()]
       entries.clear()

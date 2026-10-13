@@ -38,7 +38,7 @@ export interface OmpEngineOptions {
 }
 
 /**
- * OmpEngine（12 页 §6.2）。工具表在第一次 openSession 之前必须冻结：
+ * OmpEngine。工具表在第一次 openSession 之前必须冻结：
  * 冻结前注册、冻结后只读，防止会话拿到不完整的工具表。
  */
 export class OmpEngine implements AgentEngine {
@@ -77,12 +77,12 @@ export class OmpEngine implements AgentEngine {
   }
 
   /**
-   * 草稿控件表：**只读**，不开会话、不写设置、不碰文件（方案 §04）。
+   * 草稿控件表：**只读**，不开会话、不写设置、不碰文件。
    *
    * 三格的来路与会话里那份完全一致：
    *   - `model.choices`：`registry.getAvailable()`（凭据作用域，与 omp 自己的选择器同源）；
    *   - `thinking.choices`：当前模型自己的档位梯子（`Model.thinking.efforts`，静态可得）；
-   *   - `posture`：`init.posture ?? 'auto-edit'`（07 页 §5C 的 `threads.create` 同一条默认值）。
+   *   - `posture`：`init.posture ?? 'auto-edit'`（`threads.create` 同一条默认值）。
    *
    * `init` 只决定**哪一格被选中**：不改任何全局默认，也不落盘。
    */
@@ -131,7 +131,7 @@ export class OmpEngine implements AgentEngine {
 
   /**
    * 登记会话，并包一层 dispose：无论谁关闭它（会话池、线程删除、引擎自己），
-   * 都从登记表里移除；同一会话重复 dispose 只走一次原实现（R-05 §3.1）。
+   * 都从登记表里移除；同一会话重复 dispose 只走一次原实现（R-05）。
    */
   private track(session: EngineSession): void {
     this.sessions.add(session)

@@ -10,27 +10,9 @@ import { createLazyTerminalRuntime } from './terminal-loader'
 
 const PANEL_ID = 'terminal.panel'
 
-/*
- * 终端功能的 UI 装配（07 页 §11E）。
- *
- * **偏差**：07 页 §11E 把终端落在底坞（`location: 'bottom'`），而 legacy 的终端是右坞
- * 四格之一（`auxiliary-panel-store.ts` 的 AUXILIARY_LAUNCHER）。产品负责人要求「UI 与
- * 对话效果必须与 legacy 一模一样」，故以 legacy 为准落 `right`，order 15（辅助对话 5 /
- * 审查 10 / 终端 15 / 浏览器 20）。底坞的基础设施保留但本功能不再使用；已记
- * docs/refactor-log.md。
- *
- * 落点与读法：
- *   panels（bottom, order 10）“终端” —— 命令里开面板，面板里挂 xterm
- *   commands / keybindings —— terminal.new（Ctrl+Shift+`）、terminal.toggle（Ctrl+`）、
- *                             terminal.closeActive、terminal.clear
- *
- * 新建终端的 cwd 取 WorkspacesUiToken.active()?.path ?? null（07 页 §11E 的行为规则），
- * 因此 dependsOn 里必须有 workspaces；面板的开合走内核的 LayoutService。
- *
- * dependsOn 里的 platform 是 §11E「链接」一行的要求（xterm WebLinks → shell.openExternal）：
- * 07 页 §0.1 的终端 UI 依赖表只列了 workspaces，与 §11E 冲突，这里以行为表为准（多声明
- * 一条已存在的依赖，不引入新的契约面）。
- */
+/* 终端功能的 UI 装配。**偏差**：方案把终端落在底坞，而 legacy 的终端是右坞四格之一；产品负责人要求「UI 与对话效果必须与 legacy
+ * 一模一样」，故以 legacy 为准落 `right`、order 15。已记 docs/refactor-log.md。落点：panels(right, order 15)「终端」；commands /
+ * keybindings —— terminal.new（Ctrl+Shift+`）、terminal.toggle（Ctrl+`）、terminal.closeActive、terminal.clear。 */
 export default defineUiFeature({
   id: 'terminal',
   dependsOn: ['workspaces', 'platform'],
@@ -41,7 +23,6 @@ export default defineUiFeature({
     const api = createTerminalApi(ctx)
     const platform = ctx.rpc(platformContract)
 
-    /* xterm 不进入口闭包：运行时与面板都按需加载（P-06，见 terminal-loader.ts） */
     const runtime = createLazyTerminalRuntime({
       api,
       logger: ctx.logger,
@@ -56,7 +37,6 @@ export default defineUiFeature({
       },
     })
 
-    /* 右坞的面板主体外层已有 Suspense（auxiliary-dock.tsx）与功能错误边界（FeatureScope） */
     const TerminalPanelLazy = lazy(async () => {
       const [loaded, { TerminalPanel }] = await Promise.all([runtime.load(), import('./terminal-panel')])
       return { default: () => <TerminalPanel runtime={loaded} /> }
@@ -71,7 +51,6 @@ export default defineUiFeature({
       component: TerminalPanelLazy,
     })
 
-    /* 通知按 terminalId 分发到各自的常驻画面上（07 页 §11E 的「输出」一行）。 */
     ctx.lifecycle.onDispose(
       api.onOutput((p) => {
         runtime.writeToHost(p.terminalId, p.data, p.offset)
@@ -83,7 +62,7 @@ export default defineUiFeature({
       }).dispose,
     )
 
-    /* 重载恢复：渲染进程重新起跑后，Host 里的 PTY 还在（07 页 §11A）。 */
+    /* 渲染进程重新起跑后，Host 里的 PTY 还在。 */
     ctx.lifecycle.onCoreReady(async () => {
       await runtime.restore()
     })
@@ -93,7 +72,7 @@ export default defineUiFeature({
       runtime.create()
     }
 
-    /* Ctrl+`：切换底坞（收起 → 展开本面板；开着本面板 → 收起）；展开且还没终端时顺手开一个。 */
+    /* Ctrl+`：收起 → 展开本面板；开着本面板 → 收起。展开且还没终端时顺手开一个。 */
     const toggle = (): void => {
       const dock = layout.current().right
       const wasOpen = dock.open && dock.activeId === PANEL_ID
@@ -106,7 +85,6 @@ export default defineUiFeature({
     }
 
     const command = (id: string, title: string, run: () => void, enabled?: () => boolean): void => {
-      /* exactOptionalPropertyTypes：没有 enabled 时就不能带这个键 */
       ctx.contribute(
         builtinPoints.commands,
         enabled === undefined ? { id, title, category: '终端', run } : { id, title, category: '终端', run, enabled },

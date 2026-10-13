@@ -1,7 +1,6 @@
 import type { UsageSample } from '@poietica/engine'
 import type { ModuleDatabase } from '@poietica/storage-sqlite'
 
-/** Core 进程的本地时区日期 YYYY-MM-DD（Windows 的系统时区） */
 export function localDay(at: number): string {
   const d = new Date(at)
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
@@ -16,7 +15,7 @@ export function createUsageRepo(db: ModuleDatabase) {
     insert(r: { threadId: string; day: string } & UsageSample): void {
       ins.run(r.threadId, r.day, r.at, r.provider, r.model, r.input, r.output, r.cacheRead, r.cacheWrite, r.cost)
     },
-    /** 用户发出去一句话（准入）。数的是它，不是模型采样条数 —— ADR 0039。 */
+    /** 用户发出去一句话（准入）—— 数的是它，不是模型采样条数（ADR 0039）。 */
     insertMessage(r: { threadId: string; at: number }): void {
       insMessage.run(r.threadId, localDay(r.at), r.at)
     },
@@ -47,13 +46,8 @@ export function createUsageRepo(db: ModuleDatabase) {
         cost: number
       }>
     },
-    /**
-     * 按天统计用户发出的消息数（ADR 0039 / legacy 的 turn_admissions 口径）。
-     *
-     * 数的是 usage_messages 那一张**准入账**，不是 usage_events 的采样条数：一次用户
-     * 输入会引出多次模型调用（工具来回、多轮补全），按采样数会把「消息数量」放大约一个
-     * 数量级。插话也过准入，所以照算 —— 与 legacy 一致。
-     */
+    /** 按天统计用户发出的消息数（ADR 0039）。数的是 usage_messages 那张**准入账**，不是 usage_events 的采样条数：一次用户输入会引出多次
+     * 模型调用，按采样数会把「消息数量」放大约一个数量级。插话也过准入，所以照算。 */
     messageCount(from: string, to: string) {
       return db
         .prepare(

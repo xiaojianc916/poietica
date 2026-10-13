@@ -19,27 +19,18 @@ import {
 } from './ticker-pace'
 
 /*
- * 思考句的逐帧引擎：唯一碰 requestAnimationFrame 与 ResizeObserver 的地方。
- *
- * 分工（这是 v1 失败后的核心改动）：
- *   • 「对」交给布局：轨道在窗口里右对齐、右侧留 tail 的空（rolling-line.css）。最新的字越不过
- *     右边缘、放得下时句首不被吃掉，都由 CSS 保证，与这里算得准不准无关。
- *   • 「顺」交给这里：放字（ticker-pace）把成批的 token 摊匀，滑行（ticker-glide）把每个字带来
- *     的布局位移摊成连续运动。这里出了错，最坏是「不顺」，不会遮字、不会卡死。
- *
- * 逐帧不进 React：直接写文本节点、transform 与 data-moving。轨道及其子节点归引擎所有，
- * React 只渲染外面那个窗口（见 marquee-track.tsx），两边不抢同一批 DOM。
+ * 「对」交给布局（rolling-line.css：最新的字越不过右边缘，句首不被吃掉），「顺」交给这里 —— 这里出错最坏是「不顺」，不会遮字。逐帧不进 React：轨道归引擎所有。
  */
 
-/** 新字保持「刚写下」颜色的时长。只变颜色、不变透明度：透明度一变，右端读起来就是被遮了。 */
+/** 只变颜色不变透明度：透明度一变，右端读起来就是被遮了。 */
 export const INK_MS = 450
 
-/** 小于这个宽度的溢出当作没溢出：亚像素误差不该引起滑行。 */
+/** 亚像素误差（< 0.5px）不当溢出，否则会引起滑行。 */
 const OVERFLOW_EPS_PX = 0.5
 
 export interface TickerOptions {
   readonly text: string
-  /** 刚被换上来的新句：从第 0 个字开始写。否则（首次挂载、滚出视野再滚回来）整句直接摆好，不重播。 */
+  /** 刚被换上来的新句：从第 0 个字开始写；否则（首次挂载、滚出视野再滚回来）整句直接摆好，不重播。 */
   readonly fresh: boolean
   readonly reduced: boolean
   /** 新字用「刚写下」的颜色（--cp-ticker-ink） */
@@ -66,7 +57,7 @@ export class TickerEngine {
   private pace: PaceState
   private glide: GlideState = AT_REST
   private shifts: Shift[] = []
-  /** 每个字被放出来的时刻；首屏就有的字记为 -∞（不是刚写下的）。长度受句长上限约束。 */
+  /** 每个字被放出来的时刻；首屏就有的字记为 -∞。 */
   private releasedAt: number[] = []
   private rendered = -1
   private inkFrom = 0
@@ -94,12 +85,12 @@ export class TickerEngine {
     this.text = options.text
     this.log = noteArrival(EMPTY_LOG, performance.now(), options.text.length)
     this.pace = { shown: options.fresh && !options.reduced ? 0 : options.text.length, speed: 0 }
-    /* 字号只在这里读一次：逐帧读 getComputedStyle 会强制样式计算。 */
+    /* 字号只在挂载时读一次：逐帧读 getComputedStyle 会强制样式计算。 */
     this.em = Number.parseFloat(getComputedStyle(host).fontSize) || 14
     this.tail = this.em * TAIL_EM
     this.render(performance.now())
 
-    /* 一个观察者同时看轨道与窗口：同一次布局里的两处变化在同一个回调里到，算溢出时两个宽度永远同步。 */
+    /* 一个观察者同时看轨道与窗口：同一次布局里的两处变化在同一个回调里到，算溢出时两个宽度同步。 */
     this.observer =
       typeof ResizeObserver === 'undefined'
         ? null
@@ -111,7 +102,6 @@ export class TickerEngine {
     this.kick()
   }
 
-  /** 同一句又长了（或被改写）。 */
   setText(text: string): void {
     if (this.stopped || text === this.text) return
 
@@ -134,7 +124,7 @@ export class TickerEngine {
     this.kick()
   }
 
-  /** 开始退场：整句一次写完、停止一切逐帧工作。退场中的旧句保持此刻的位置。 */
+  /** 退场：整句一次写完、停帧；旧句的位置保持此刻不动。 */
   finish(): void {
     if (this.stopped) return
 
@@ -143,7 +133,7 @@ export class TickerEngine {
     this.stop()
   }
 
-  /** 卸载：停下一切逐帧工作，并把自己建的轨道摘掉（StrictMode 挂回来时不会留下两条轨道）。 */
+  /** 卸载：停帧并摘掉自建的轨道（StrictMode 会挂回来，留两条轨道就错了）。 */
   dispose(): void {
     this.stop()
     this.track.remove()
@@ -188,7 +178,6 @@ export class TickerEngine {
     return this.pace.shown < this.text.length || this.glide.o > 0 || this.glide.v > 0 || this.inkFrom < this.rendered
   }
 
-  /** 把「该显示几个字、其中哪几个算刚写下」写进两个节点。没变就不碰 DOM。 */
   private render(now: number): void {
     const count = visibleCount(this.text, this.pace.shown)
 
@@ -217,8 +206,7 @@ export class TickerEngine {
   }
 
   /**
-   * 尺寸变了。RO 在布局之后、绘制之前送达，所以在这里补上的 o 与布局位移落在同一帧：
-   * 画面上看不到「先跳一下再补回来」。
+   * RO 在布局之后、绘制之前送达，所以在这里补上的 o 与布局位移落在同一帧：看不到「先跳一下再补回来」。
    */
   private onResize(entries: readonly ResizeObserverEntry[]): void {
     const grew = this.readSizes(entries)
@@ -228,7 +216,7 @@ export class TickerEngine {
       this.shifts = noteShift(this.shifts, performance.now(), grew)
       this.glide = { o: Math.min(this.tail, this.glide.o + Math.max(0, overflow - this.overflow)), v: this.glide.v }
     } else {
-      /* 窗口变了（拖窄、拖宽）：布局已经把字摆对了，不演滑行，只把 o 收进上限。 */
+      /* 窗口变了：布局已把字摆对，不演滑行，只把 o 收进上限。 */
       this.glide = { o: Math.min(this.glide.o, this.tail), v: this.glide.v }
     }
 
@@ -240,7 +228,7 @@ export class TickerEngine {
     this.kick()
   }
 
-  /** 更新两个宽度，返回轨道这次长了多少（首次量到不算「长」：那是挂载，不是新字）。 */
+  /** 更新两个宽度，返回轨道这次长了多少（首次量到是挂载，不算「长」）。 */
   private readSizes(entries: readonly ResizeObserverEntry[]): number {
     let grew = 0
 

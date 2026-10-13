@@ -2,7 +2,6 @@ import './compaction-status.css'
 
 import type { CompactionTimelineItem } from '../../timeline/timeline-contract'
 
-/* 一行里最多两个数，但组件会随流式重绘；格式器建一次就够。 */
 const COUNT = new Intl.NumberFormat()
 
 function count(value: number): string {

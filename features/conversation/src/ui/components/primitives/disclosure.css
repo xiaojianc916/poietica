@@ -1,4 +1,4 @@
-/* 抽屉只管开合：收起就不挂载（disclosure.tsx），所以这里只剩那一枚箭头。 */
+/* 收起时整块不挂载（见 disclosure.tsx），所以这里只剩箭头。 */
 .disclosure__chevron {
   transform: rotate(-90deg);
   transition: transform var(--cp-motion-drawer) var(--cp-motion-drawer-ease, cubic-bezier(0.2, 0, 0, 1));

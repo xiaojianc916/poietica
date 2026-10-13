@@ -5,10 +5,7 @@ const FRAME = 1000 / 60
 const EM = 14
 const TAIL = 35
 
-/**
- * 模拟「每 33ms 放出一个 14px 的字」：放字那一刻 o += 14（布局左移由 o 抵消），然后逐帧滑。
- * 返回每帧的视觉位移（px，向左为正）与 o。
- */
+/** 模拟放字：放字那刻 o += 字宽（布局左移由 o 抵消），其后逐帧滑；返回每帧视觉位移与 o。 */
 function simulate(charEvery: number, charWidth: number, until: number, stopAt = Infinity) {
   let state: GlideState = AT_REST
   let shifts: Shift[] = []

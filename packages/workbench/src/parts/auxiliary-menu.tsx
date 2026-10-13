@@ -3,17 +3,11 @@ import { Plus } from 'lucide-react'
 import { type ReactNode, useLayoutEffect, useRef } from 'react'
 
 /*
- * 辅助面板加号菜单的唯一实现。**迁移自** legacy
- * `packages/workspace/src/panels/auxiliary-menu.tsx` 的 MenuShell + AuxiliaryNewTabMenu。
- *
- * 菜单是主文档里的 DOM，定位、碰撞翻转、键盘与 aria 归 @poietica/design-system 的
- * DropdownMenu；行高读控件小号令牌、字号 text-xs —— 与标签条同一套量纲，量纲一律走类。
- *
- * 与 legacy 唯一的差别是 offer 的 kind 现在是**面板贡献 id**（新架构里一个可开的
- * 落点就是一条贡献），不再是一组写死的通道字面量；视觉、DOM 形状与展开行为一字未改。
+ * 辅助面板加号菜单。定位、碰撞翻转、键盘与 aria 归 @poietica/design-system 的 DropdownMenu；
+ * 量纲一律走类。offer 的 kind 是**面板贡献 id**。
  */
 
-/** 加号菜单与启动器共用一条 offer：能开什么由两者分别按 offer!==false 过滤后传进来。 */
+/** 加号菜单与启动器共用的 offer；由调用方按 offer !== false 过滤后传进来。 */
 export interface AuxiliaryOffer {
   readonly kind: string
   readonly label: string
@@ -24,7 +18,6 @@ export interface AuxiliaryOffer {
 const triggerClassName =
   'flex size-6 shrink-0 items-center justify-center rounded-md opacity-60 hover:bg-launcher hover:opacity-100'
 
-/** 行里的标签位：一份，两张菜单共用。 */
 const labelClassName = 'min-w-0 flex-1 truncate text-xs'
 
 function MenuShell({

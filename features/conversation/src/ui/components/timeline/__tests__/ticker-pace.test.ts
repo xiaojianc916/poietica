@@ -13,7 +13,6 @@ import {
 
 const FRAME = 1000 / 60
 
-/** 按到达序列逐帧推放字，返回每帧的 { at, shown, speed, length }。 */
 function simulate(arrivals: readonly { at: number; length: number }[], until: number) {
   let log: ArrivalLog = EMPTY_LOG
   let state: PaceState = { shown: 0, speed: 0 }

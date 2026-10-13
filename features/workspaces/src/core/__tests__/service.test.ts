@@ -129,12 +129,10 @@ describe('workspaces 服务（07 页 §3G）', () => {
     const dir = path.join(root.path, 'x')
     await ensureDir(dir)
     const ws = service.add(dir)
-    // 用 emitRemoved 的时机断言：删行之后才发
     const removedCb = (e: WorkspaceRemoved): void => {
       seen = service.get(e.workspaceId)
     }
     void removedCb
-    // 直接复用服务的 emitRemoved 通道：换一个只在删行后读的探针
     const probe = createWorkspacesService({
       repo: createWorkspacesRepository(db.forModule('workspaces')),
       scratchDir: path.join(root.path, 'scratch'),
@@ -224,7 +222,7 @@ describe('workspaces 服务（07 页 §3G）', () => {
       }
     })()
     expect(err).toBeInstanceOf(AppError)
-    /* 07 页 §3C：空名是入参不合法（kernel.invalid_params），不是「工作区不存在」 */
+    /* 空名是入参不合法（kernel.invalid_params），不是「工作区不存在」。 */
     expect((err as AppError).code).toBe('kernel.invalid_params')
     db.close()
     await root.dispose()

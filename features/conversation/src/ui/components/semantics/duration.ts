@@ -16,7 +16,7 @@ const second = narrowUnit('second')
 const minute = narrowUnit('minute')
 const hour = narrowUnit('hour')
 
-/** 未知或非法值不冒充零；单位交给平台本地化。 */
+/** 未知或非法值交 null，不冒充零。 */
 export function formatDuration(span: number): string | null {
   if (!Number.isFinite(span) || span < 0) {
     return null

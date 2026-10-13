@@ -1,6 +1,6 @@
 /*
- * 渲染进程的日志 sink：把内核日志写进 devtools console（真正落盘由 platform 的 log.write 完成）。
- * console 是渲染层唯一可用的输出通道，这个文件在 biome.json 里按精确路径豁免 noConsole。
+ * 渲染进程的日志 sink：内核日志写进 devtools console，落盘由 platform 的 log.write 完成。
+ * console 是渲染层唯一可用的输出通道，本文件在 biome.json 里按精确路径豁免 noConsole。
  */
 import type { Logger } from '@poietica/foundation'
 
@@ -13,7 +13,7 @@ export interface UiLogEntry {
 }
 export interface UiLogging {
   readonly logger: Logger
-  /** platform 的 ui 功能在 setup 时接上 log.write；接上之前的日志先缓存（最多 500 条） */
+  /** platform 的 ui 功能在 setup 时接上；接上之前的日志先缓存（最多 500 条）。 */
   setSink(sink: (entries: readonly UiLogEntry[]) => void): void
 }
 const BUFFER_MAX = 500

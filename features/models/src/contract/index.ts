@@ -74,12 +74,8 @@ export const modelsContract = defineContract({
       params: empty,
       result: z.object({
         model: ModelRef.nullable(),
-        /*
-         * 可选项：**omp 此刻真正可用的模型**（引擎 getAvailable，与输入框的模型选择器同源）。
-         *
-         * 不给 UI 自己按 providers.configured 过滤的机会：那个判的是「这家配过凭据没有」，
-         * 而这里要的是「这一条模型此刻在不在可用目录里」—— 停用的、还没发现出来的都该缺席。
-         */
+        /* 可选项：**omp 此刻真正可用的模型**（引擎 getAvailable，与输入框的模型选择器同源）。不给 UI 自己按 providers.configured 过滤的机会：那个判的是
+         * 「这家配过凭据没有」，而这里要的是「这一条模型此刻在不在可用目录里」—— 停用的、还没发现出来的都该缺席。 */
         choices: z.array(z.object({ ref: ModelRef, label: z.string() })),
       }),
       description: '读取「生成对话标题用的模型」与可选项；null 表示跟随对话自己的模型',

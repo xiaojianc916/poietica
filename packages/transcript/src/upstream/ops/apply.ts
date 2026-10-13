@@ -132,7 +132,6 @@ function skeletonStep(stepId: string, turnId: TurnId): TranscriptStep {
   return { kind: 'step', stepId, turnId, ordinal, state: 'running', frames: [] }
 }
 
-// 位置表是 items 的派生，只在 items 真的动过时重建（插入/删除已付出 O(n) 复制）。
 function turnIndexIn(items: readonly TranscriptItem[]): ReadonlyMap<TurnId, number> {
   const turnIndex = new Map<TurnId, number>()
   for (let at = 0; at < items.length; at += 1) {
@@ -151,9 +150,8 @@ function getTurn(state: AgentState, turnId: TurnId): TranscriptTurn | undefined 
 /*
  * 位置表是 items 的派生，只在 items 真的动过时重建。
  *
- * **插进最后一个位置不必重建**：回放一条历史会话时轮按 ordinal 递增到达，
- * 每轮都重建一次就是打开一条长对话要付的 O(n²)。乱序到达仍走全表 —— 那时才真的
- * 需要找位置（判据：integration 的「乱序到达的 turn 仍能按 ordinal 归位」）。
+ * **插进最后一个位置不必重建**：回放一条历史会话时轮按 ordinal 递增到达，每轮都重建一次
+ * 就是打开一条长对话要付的 O(n²)。乱序到达仍走全表 —— 那时才真的需要找位置。
  */
 function insertTurn(
   state: AgentState,
@@ -196,10 +194,8 @@ function replaceTurn(
 }
 
 /*
- * 就地改一条轮：换掉那一格，位置表**不重建**（位置没变）。
- *
- * 这一个是打开一条长对话的主要开销：整表重建一张 1 万条的位置表，而回放里每一次
- * 帧/段改写都要走一趟 —— 那就是 4.5 秒的来源。找不到这条轮时回退到插入（那时位置会变）。
+ * 就地改一条轮：换掉那一格，位置表**不重建**（位置没变）。整表重建一张 1 万条的位置表，
+ * 而回放里每一次帧/段改写都要走一趟 —— 那就是 4.5 秒的来源。
  */
 function sealTurn(state: AgentState, turnId: TurnId, turn: TranscriptTurn): AgentState {
   return { ...state, ...replaceTurn(state, turnId, turn) }
@@ -592,10 +588,9 @@ function taskEquals(a: TranscriptTask, b: TranscriptTask): boolean {
 /*
  * 相位是「这一档从哪一刻起」的读数，不是内容：同一个四元组的两次读数算相等。
  *
- * 比法只能逐格来：meta.merge 的载荷是**按格覆盖**（未提的格保持原值），所以两个对象
- * 相等与否要看每一格，不能看引用 —— `{...state.meta.agent, ...meta.agent}` 每次都造新
- * 对象，引用比较恒为 false，于是每一条相位都被判成「变了」，下游一整批 ops 因此每次都
- * 叫醒 React（即使屏幕上没有任何可见变化）。
+ * 比法只能逐格来：meta.merge 的载荷是**按格覆盖**，所以两个对象相等与否要看每一格，不能看引用 ——
+ * `{...state.meta.agent, ...meta.agent}` 每次都造新对象，引用比较恒为 false，于是每一条相位都被判成
+ * 「变了」，下游一整批 ops 因此每次都叫醒 React（即使屏幕上没有任何可见变化）。
  */
 function agentMetaEquals(a: AgentStatusMeta, b: AgentStatusMeta): boolean {
   return (

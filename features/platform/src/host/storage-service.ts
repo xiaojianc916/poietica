@@ -6,7 +6,7 @@ import type { StorageEntry, StorageEntryId } from '../contract/entities'
 
 export interface StorageDeps {
   readonly layout: DataLayout
-  /** 单次统计最多扫描的文件数，默认 200 000；测试注入小值 */
+  /** 默认 200 000；测试注入小值 */
   readonly maxFiles?: number
   readonly clearDefaultSessionCache: () => Promise<void>
   readonly browserSession: { clearCache(): Promise<void>; clearStorageData(): Promise<void> }
@@ -17,7 +17,7 @@ export interface StorageService {
   clear(kind: 'cache' | 'logs' | 'browser'): Promise<{ freedBytes: number }>
 }
 
-/** 缓存目录名：kernel-cache 与 browser-data 是同一个 session/ 的两种切分 */
+/** kernel-cache 与 browser-data 是同一个 session/ 的两种切分。 */
 const CACHE_DIRS = new Set([
   'Cache',
   'Code Cache',
@@ -72,7 +72,7 @@ export function createStorageService(d: StorageDeps): StorageService {
   const maxFiles = d.maxFiles ?? 200_000
   let scanned = 0
 
-  /** 异步、有上限的递归求和：计数器超过 maxFiles 就停止并返回已统计的值 */
+  /** 计数器超过 maxFiles 就停止并返回已统计的值。 */
   const sizeOf = async (
     dir: string,
     opts: { skip?: (name: string, full: string) => boolean } = {},
@@ -100,14 +100,11 @@ export function createStorageService(d: StorageDeps): StorageService {
       scanned++
       try {
         total += (await stat(full)).size
-      } catch {
-        /* 文件在统计过程中被删掉：跳过 */
-      }
+      } catch {}
     }
     return total
   }
 
-  /** 找出 session/ 下所有的缓存目录（含 Partitions/*） */
   const findCacheDirs = async (): Promise<string[]> => {
     const session = d.layout.chromiumSessionDir
     const found: string[] = []
@@ -135,7 +132,7 @@ export function createStorageService(d: StorageDeps): StorageService {
     const cacheDirs = await findCacheDirs()
     let cache = 0
     for (const dir of cacheDirs) cache += await sizeOf(dir)
-    // browser-data = Partitions/* 减去其中的缓存目录；kernel-state = session/ 减去以上两项
+    // browser-data = Partitions/* 减去其中的缓存目录；kernel-state = session/ 减去以上两项。
     const partitionsDir = path.join(d.layout.chromiumSessionDir, 'Partitions')
     const partitionTotal = await sizeOf(partitionsDir)
     let partitionCache = 0
@@ -158,7 +155,7 @@ export function createStorageService(d: StorageDeps): StorageService {
       conversations: sessions,
       database: await sizeOf(d.layout.coreDir),
       attachments: await sizeOf(d.layout.attachmentsDir),
-      // omp/ 中除 agent/sessions/ 外的全部，加上 native-home/
+      // omp/ 中除 agent/sessions/ 外的全部，加上 native-home/。
       'omp-other': Math.max(0, ompTotal - sessions) + (await sizeOf(d.layout.nativeHomeDir)),
       scratch: await sizeOf(d.layout.scratchDir),
       tools: await sizeOf(d.layout.toolsDir),
@@ -182,7 +179,7 @@ export function createStorageService(d: StorageDeps): StorageService {
       try {
         await rm(path.join(dir, entry.name), { recursive: true, force: true })
       } catch {
-        /* 部分删除失败：freedBytes 用清理前后相减得到，不自己累加 */
+        /* freedBytes 用清理前后相减得到，不自己累加。 */
       }
     }
   }
@@ -196,7 +193,7 @@ export function createStorageService(d: StorageDeps): StorageService {
         await d.clearDefaultSessionCache()
         await d.browserSession.clearCache()
       } else if (kind === 'logs') {
-        // 只删轮转副本（*.log.N），当前的 *.log 保留
+        // 只删轮转副本（*.log.N），当前的 *.log 保留。
         await removeDirContents(d.layout.logsDir, (name) => !/\.log\.\d+$/.test(name))
       } else {
         await d.browserSession.clearStorageData()

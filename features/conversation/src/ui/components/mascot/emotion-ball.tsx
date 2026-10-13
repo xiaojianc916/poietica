@@ -4,11 +4,8 @@ import './emotion-ball.css'
 import { memo, useCallback, useEffect, useRef } from 'react'
 import type { EmotionBallEngine, EmotionGroup } from './emotion-ball-runtime'
 
-/*
- * 迁移说明：legacy 用 @poietica/problem 的 error() 把吉祥物运行时的问题喂给错误上报管线。
- * 新架构里那一层是内核日志（ctx.logger）与 toasts；组件拿不到内核句柄，吉祥物坏了也不该
- * 挡住对话，所以走日志系统不可用时的最后通道（lastResort）。
- */
+/* 组件拿不到内核句柄（ctx.logger 与 toasts），运行时的问题只能走日志系统不可用时的最后通道（lastResort）；
+   吉祥物坏了也不该挡住对话。 */
 function reportMascotError(...args: readonly unknown[]): void {
   lastResort('[emotion-ball]', args.map((a) => String(a)).join(' '))
 }

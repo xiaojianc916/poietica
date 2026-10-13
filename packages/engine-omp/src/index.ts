@@ -1,4 +1,4 @@
-// 包根只导出生产入口：createOmpEngineWith 与测试缝不给外面（12 页 §12.1）。
+// 包根只导出生产入口：createOmpEngineWith 与测试缝不给外面。
 // 测试与探针要 mock 模型时走 './testing' 子入口。
 import type { AgentEngine } from '@poietica/engine'
 import type { Logger } from '@poietica/foundation'
@@ -22,7 +22,7 @@ export interface CreateOmpEngineOptions {
   readonly engineVersion?: string
 }
 
-/** 生产入口。omp 的隔离、设置、注册表与全部端口都在这一步建好（12 页 §6.1） */
+/** 生产入口。omp 的隔离、设置、注册表与全部端口都在这一步建好 */
 export async function createOmpEngine(o: CreateOmpEngineOptions): Promise<AgentEngine> {
   return await createOmpEngineWith({ ...o, engineVersion: o.engineVersion ?? OMP_VERSION }, null)
 }

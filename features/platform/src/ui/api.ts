@@ -1,7 +1,6 @@
 import type { UiFeatureContext } from '@poietica/ui-kernel'
 import { type AppInfo, type CoreDiagnostics, platformContract, type StorageEntry, type UiLogEntry } from '../contract'
 
-/** 对 ctx.rpc(platformContract) 的薄封装：测试时整体替换为假对象 */
 export function createPlatformApi(ctx: UiFeatureContext) {
   const rpc = ctx.rpc(platformContract)
   return {

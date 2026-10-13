@@ -6,13 +6,8 @@ import type { AutomationsRepository } from './repository'
 import type { Runner } from './runner'
 import { nextOf, PROBLEM_TEXT, previewOf, type ScheduleProblem } from './schedule'
 
-/**
- * 更新用的一格 patch。
- *
- * 与 `Partial<AutomationDraft>` 的差别只在 exactOptionalPropertyTypes：线上传来的
- * 是 zod 的 `.partial()` 输出，缺席的键在类型上是 `T | undefined`。这里明确收下
- * undefined 并当作「不改这一格」。线上的 patch 表是契约的 AutomationPatch（不带默认值，审查 R-14）。
- */
+/** 更新用的一格 patch。差别只在 exactOptionalPropertyTypes：线上传来的是 zod 的 .partial() 输出，缺席的键在类型上是
+ * T | undefined，这里明确收下并当作「不改这一格」。 */
 export type AutomationPatch = { readonly [K in keyof AutomationDraft]?: AutomationDraft[K] | undefined }
 
 export interface AutomationsService {
@@ -27,16 +22,11 @@ export interface AutomationsService {
   runs(id: string, limit: number): AutomationRun[]
   previewSchedule(schedule: Schedule, count: number): { times: number[]; problem: ScheduleProblem | null }
   recompute(id: string): Automation
-  /** 这条对话上有没有开着的定时任务运行（agent 工具据此拦下运行中的管理操作，审查 R-15） */
+  /** agent 工具据此拦下运行中的管理操作。 */
   inRun(threadId: string): boolean
-  /** 运行中的 agent 交结论（automation_report） */
   report(threadId: string, summary: string, attention: boolean): AutomationRun[]
 }
 
-/**
- * 计划校验。`allowPast`：一次性时间已过算不算错 —— 新建、改计划、重新启用时算；
- * 只改别的字段（例如给跑完的一次性任务改个标题）时不算，那只是「做完了」。
- */
 function assertSchedule(schedule: Schedule, now: number, allowPast: boolean): void {
   const { problem } = nextOf(schedule, now)
   if (problem === null || problem === 'never_runs') return
@@ -44,10 +34,8 @@ function assertSchedule(schedule: Schedule, now: number, allowPast: boolean): vo
   throw new AppError(automationsErrors.invalid_schedule, PROBLEM_TEXT[problem])
 }
 
-/** patch 并进当前任务：缺席的键不改（model / thinking 可以显式改成 null） */
 function mergePatch(current: Automation, patch: AutomationPatch): AutomationDraft {
   const workspaceId = patch.workspaceId ?? current.workspaceId
-  /* 换了工作区而没指定续用哪条：原来那条在旧工作区里，不能再续用 —— 下次运行新建 */
   const threadId =
     patch.threadId !== undefined ? patch.threadId : workspaceId !== current.workspaceId ? null : current.threadId
   return {
@@ -82,10 +70,7 @@ export function createAutomationsService(d: {
     return automation
   }
 
-  /**
-   * 下一次运行与 issue。一次性任务的时间已过不是 issue：它要么已经跑过（调度器跑完会停用它），
-   * 要么是用户停用后时间过了 —— 两种都只是「没有下一次」。
-   */
+  /** 一次性任务的时间已过不是 issue：要么已经跑过，要么是用户停用后才过期 —— 都只是「没有下一次」。 */
   const recompute = (id: string): Automation => {
     const automation = require_(id)
     const now = clock.now()
@@ -96,10 +81,7 @@ export function createAutomationsService(d: {
     return require_(id)
   }
 
-  /**
-   * 续用对话的规矩（审查 R-14）：每次新开 → 不记对话；续用 → 记着的那条必须还在、且在任务的工作区里。
-   * 记着的是 null 表示「下一次运行新建一条再记下」。
-   */
+  /** 续用 → 记着的那条必须还在、且在任务的工作区里；null 表示下次运行新建一条再记下。 */
   const normalizeThread = (draft: AutomationDraft): AutomationDraft => {
     if (draft.threadMode === 'new') return draft.threadId === null ? draft : { ...draft, threadId: null }
     if (draft.threadId === null) return draft

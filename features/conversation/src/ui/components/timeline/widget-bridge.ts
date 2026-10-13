@@ -1,9 +1,6 @@
-/*
- * 对话内组件（审查 R-18）在 UI 这一侧的纯逻辑：参数怎么读、外壳发来的消息怎么认、
- * 设计令牌怎么交给组件。DOM 与 React 都在 widget-card.tsx，这里不碰，便于单测。
- */
+/* 对话内组件在 UI 这一侧的纯逻辑（DOM 与 React 在 widget-card.tsx，这里不碰，便于单测）。 */
 
-/** 组件里能用的变量 → 求值用的设计令牌。名字表与 contract 的 WIDGET_TOKEN_NAMES 必须一致（有单测钉住） */
+/** 与 contract 的 WIDGET_TOKEN_NAMES 必须一致（有单测钉住） */
 export const WIDGET_TOKEN_SOURCES: Readonly<Record<string, string>> = {
   '--color-text': '--cp-timeline-body-ink',
   '--color-text-muted': '--cp-ink-muted',
@@ -31,11 +28,8 @@ export const WIDGET_TOKEN_SOURCES: Readonly<Record<string, string>> = {
   '--shadow': '--ui-shadow-md',
 }
 
-/*
- * 令牌 → `:root{…}`。read 交回令牌在 iframe 所在位置的计算值（getComputedStyle 的
- * getPropertyValue：var() 已代入，oklch()/color-mix() 原样保留 —— iframe 同是 Chromium，认得）。
- * 值里出现 < > { } ; 一律丢掉这一格：它们只可能把样式表拆开。
- */
+/* 令牌 → `:root{…}`。read 给的是 getComputedStyle 的计算值（var() 已代入）。
+ * 值里出现 < > { } ; 一律丢掉这一格：它们只可能把样式表拆开。 */
 export function widgetTokenCss(read: (token: string) => string): string {
   const declarations: string[] = []
   for (const [name, token] of Object.entries(WIDGET_TOKEN_SOURCES)) {
@@ -58,7 +52,7 @@ function text(value: unknown): string | undefined {
   return typeof value === 'string' && value.trim() !== '' ? value : undefined
 }
 
-/** 工具参数 → 组件。形状不对（参数还在流、模型写坏了）交回 null，卡片画「准备中」或失败 */
+/** 参数还在流、模型写坏了 → null，卡片画「准备中」或失败 */
 export function widgetArgsOf(args: unknown): WidgetArgs | null {
   if (typeof args !== 'object' || args === null) return null
   const bag = args as Record<string, unknown>
@@ -88,7 +82,7 @@ export type WidgetMessage =
   | { readonly type: 'open'; readonly url: string }
   | { readonly type: 'error'; readonly message: string }
 
-/** 发给 agent / 放进输入框的一段话最长多少字：组件是别人写的代码，不能让它塞一本书进来 */
+/** 组件是别人写的代码，不能让它塞一本书进来 */
 export const WIDGET_TEXT_MAX = 4000
 
 /** 外壳发来的消息：只认这六种，字段类型不对就当没收到 */
@@ -120,7 +114,7 @@ function saidOf(raw: unknown, type: 'send' | 'draft'): WidgetMessage | null {
   return said === '' ? null : { type, text: said.slice(0, WIDGET_TEXT_MAX) }
 }
 
-/** 组件要打开的外链：只放 http(s) 与 mailto */
+/** 只放 http(s) 与 mailto */
 export function externalUrlOf(raw: string): string | null {
   try {
     const url = new URL(raw)
@@ -130,7 +124,7 @@ export function externalUrlOf(raw: string): string | null {
   }
 }
 
-/** 失败那一句：结果可能是字符串、{text}、{content:[{type:'text',text}]}，或带 message/error */
+/** 结果可能是字符串、{text}、{content:[{type:'text',text}]}，或带 message/error */
 export function widgetFailureOf(result: unknown): string {
   if (typeof result === 'string' && result.trim() !== '') return result
   if (typeof result === 'object' && result !== null) {

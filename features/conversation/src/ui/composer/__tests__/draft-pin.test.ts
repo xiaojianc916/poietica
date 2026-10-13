@@ -3,7 +3,7 @@ import { createComposerStore } from '../composer-store'
 import { createDraftPin } from '../draft-pin'
 
 /**
- * R-07 D1–D4：conversation 交出去的那份「草稿里有哪些附件」的只读视图。
+ * conversation 交出去的那份「草稿里有哪些附件」的只读视图。
  *
  * 这一份视图是 attachments 侧做整体替换的唯一依据，所以两条时序判据要钉死：
  * 恢复前是 null（不是空集合），以及打字不触发通知。

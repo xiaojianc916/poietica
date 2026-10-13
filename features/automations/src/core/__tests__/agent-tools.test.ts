@@ -4,11 +4,8 @@ import { AppError } from '@poietica/foundation'
 import { registerAgentTools } from '../agent-tools'
 import { buildCore, fullDraft, stubWorkspaces, testWorkspace } from './helpers'
 
-/*
- * 审查 R-15：定时任务的 agent 工具。直接调 execute（不经引擎），引擎只替 draftControls。
- *   T1 八张工具；T2 可选项；T3–T5 新建；T6 模型与思考强度校验；T7 「回到这条对话」；
- *   T8 修改只动给了的字段；T9 运行中不许管理任务；T10 汇报；T11 立即运行；T12 列表。
- */
+/* R-15：直接调 execute（不经引擎），引擎只替 draftControls。T1 八张工具；T2 可选项；T3–T5 新建；T6 校验；T7「回到这条
+ * 对话」；T8 修改只动给了的字段；T9 运行中不许管理任务；T10 汇报；T11 立即运行；T12 列表。 */
 
 const MODELS: readonly { ref: ModelRef; label: string }[] = [
   { ref: { provider: 'anthropic', id: 'claude-sonnet' }, label: 'Claude Sonnet' },
@@ -50,7 +47,6 @@ function rig() {
     thinking: null,
   })
   const ctx: EngineToolContext = { cwd: 'D:/ws', signal: new AbortController().signal, sessionKey: thread.id }
-  /* 工具结果是 JSON 文本，测试按字段断言：any 的例外登记在 biome.json 的 overrides（审查 R-15） */
   const call = async (name: string, params: unknown, c: EngineToolContext = ctx): Promise<any> => {
     const spec = specs.get(name)
     if (spec === undefined) throw new Error(`没有注册 ${name}`)

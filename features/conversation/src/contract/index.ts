@@ -21,7 +21,7 @@ export type { WireTranscriptOperation } from './wire'
 
 const empty = z.object({})
 
-/** 时间线增量批次：epoch 与 seq 的规则见 05 页 §12.2 */
+/** 时间线增量批次：epoch 与 seq 的规则见协议说明 */
 const TimelineBatch = z.object({
   seq: z.number().int().positive(),
   ops: z.array(timelineOperationSchema),
@@ -245,9 +245,8 @@ export const conversationContract = defineContract({
     /*
      * 入口那一格（还没有对话）的选择器：**草稿**控件表。
      *
-     * 它只读，不开会话、不写设置、不碰文件（方案 §04）。草案与会话页共用同一个
-     * 选择器组件，只是入口页改选择只改本地草稿、不改全局默认；发送时把选中的值
-     * 带进 `threads.create` 的 `ThreadInit`（方案 §07「入口页改选择只改本地草稿」）。
+     * 它只读，不开会话、不写设置、不碰文件。草案与会话页共用同一个选择器组件，只是入口页改
+     * 选择只改本地草稿、不改全局默认；发送时把选中的值带进 `threads.create` 的 `ThreadInit`。
      */
     defineMethod({
       name: 'controls.draft',
@@ -299,8 +298,8 @@ export const conversationContract = defineContract({
       name: 'controls.setGoal',
       owner: 'core',
       /*
-       * 目标正文非空**:空白也算空** —— 目标是一个要在达成前一直挂着的东西，一格空串会让
-       * omp 建出一个没有 objective 的目标。校验放在契约层（唯一入口），引擎侧照收。
+       * 目标正文**空白也算空** —— 目标是一个要在达成前一直挂着的东西，一格空串会让 omp 建出
+       * 一个没有 objective 的目标。校验放在契约层（唯一入口），引擎侧照收。
        */
       params: z.object({ threadId: z.string().min(1), goal: z.string().trim().min(1).nullable() }),
       result: Controls,
@@ -405,8 +404,7 @@ export const conversationContract = defineContract({
      * 上下文用量**单独一条通道**，不搭 controls.changed 那班车。
      *
      * 控件表是「模型 / 档位 / 姿态 / 模式」，用量是每轮都在涨的读数：搭同一班车意味着跑完一轮
-     * 不重画，或者每轮重发一次整张控件表（含模型候选清单）。legacy 也是分开的两条
-     * （bridge.ts 的 reselect 与 reportUsage），这里与它对齐。
+     * 不重画，或者每轮重发一次整张控件表（含模型候选清单）。
      *
      * usage 可为 null：那是**一次有效报数**——「这条会话此刻没有可报的窗口」（换了没有窗口
      * 元数据的模型）与「还没报过」对屏幕是两件事，前者要收掉已经画出来的圆环。
@@ -422,9 +420,9 @@ export const conversationContract = defineContract({
       description: '上下文用量变化',
     }),
     /*
-     * 模型列表变了（装/卸服务商、启停模型）→ 入口页重新读一次草稿表（方案 §05）。
-     * 它不带参数：草稿选择是**入口页本地**的，Core 不知道用户此刻在草稿里选了什么，
-     * 所以只报「目录变了」，重读由入口页自己发起（带上它手里的草稿）。
+     * 模型列表变了（装/卸服务商、启停模型）→ 入口页重新读一次草稿表。它不带参数：草稿选择是
+     * **入口页本地**的，Core 不知道用户此刻在草稿里选了什么，所以只报「目录变了」，重读由
+     * 入口页自己发起（带上它手里的草稿）。
      */
     defineNotification({
       name: 'controls.draftChanged',

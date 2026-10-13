@@ -65,13 +65,12 @@ type ScreenBlock =
   | { readonly kind: 'tool'; readonly callId: string; readonly name: string; readonly arguments: unknown }
 
 /**
- * 历史分页（12 页 §9.2，迁移自 legacy bridge.ts 的 screenTurns / groupTurns / turnOps）。
+ * 历史分页。
  *
  * **一轮从「人说的话」开始，到下一句人话为止**——与增量那条路同一个判据。一次 omp turn 里模型会跑好几趟，
  * 「一条消息一格」会把一次对话拆成好几行；这里按人话归拢，assistant 消息各占一个段，工具结果并回发起它的那次调用。
  *
- * 删掉了 legacy 的镜像机制（transcript-mirror、warmScreen、restage）：分页直接从 omp 的会话消息算，
- * Core 不保存第二份正文，所以不存在两份数据不一致的问题。
+ * 分页直接从 omp 的会话消息算，Core 不保存第二份正文，所以不存在两份数据不一致的问题。
  */
 export function projectHistoryPage(
   messages: readonly OmpMessage[],
@@ -159,8 +158,7 @@ function screenTurns(messages: readonly OmpMessage[], isTurnOpen: boolean): Scre
  * 一条消息在分轮上的角色：开一轮的三种（人话 / 目标续跑 / 压缩摘要）、不进屏幕的（skip）、
  * 其余的（null，落进当前这一轮）。
  *
- * 目标续跑的开场消息是 display:false 的 custom 消息，但它**开一轮**（审查 R-11）——
- * 增量那条路在同一处开轮（LiveProjector.goalContinuationTurn）；这里不认它，续跑的输出就会
+ * 目标续跑的开场消息是 display:false 的 custom 消息，但它**开一轮**（审查 R-11）—— * 增量那条路在同一处开轮（LiveProjector.goalContinuationTurn）；这里不认它，续跑的输出就会
  * 并进上一句人话那一轮，重开之后屏幕上的轮数、轮号都与刚才跑的时候对不上。
  */
 function openerOf(message: OmpMessage): 'prompt' | 'continuation' | 'compaction' | 'skip' | null {

@@ -22,7 +22,7 @@ export const UiLogEntry = z.object({
   data: z.record(z.string(), z.unknown()).optional(),
 })
 
-/** 存储统计的确定清单：顺序与 id 由 07 页 §1D 的表固定，执行者不得增删 */
+/** 顺序与 id 由方案的表固定，执行者不得增删。 */
 export const StorageEntryId = z.enum([
   'conversations',
   'database',

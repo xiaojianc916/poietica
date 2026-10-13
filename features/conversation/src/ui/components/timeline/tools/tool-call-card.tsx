@@ -44,7 +44,7 @@ import { ToolCallPanels } from './tool-call-panels'
  * 字形只有这一处分发。名字认得出就按名字给，认不出才是「从外面来的工具」。
  *
  * GithubMark 是设计系统的品牌标记：实心、没有描边概念，与其余描边字形不是一类东西，
- * 所以它单独一臂而不是混进某张表 —— 混进去就得先编一个共同形状出来。
+ * 所以它单独一臂而不是混进某张表。
  */
 export function ToolGlyphIcon({ name, scheme = '' }: { readonly name: string; readonly scheme?: string }) {
   const glyph = toolGlyphOf(name, scheme)

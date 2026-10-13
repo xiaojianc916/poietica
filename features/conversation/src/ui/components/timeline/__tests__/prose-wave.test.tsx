@@ -2,11 +2,7 @@ import { expect, test } from 'bun:test'
 import { act, cleanup, render } from '@testing-library/react'
 import { Prose } from '../prose/prose'
 
-/*
- * P-03：流式正文用批次波浪淡入，而不是 Streamdown 自带的逐字 span 动画。
- * 在旧实现（animated={REVEAL}）上 P1 失败：每个字一个 [data-sd-animate] span。
- * 节奏按 16ms 一帧、一次 3 字推进（接近真实流式）；在飞 span 只与「淡入窗口 / 到达间隔」有关。
- */
+/* 流式正文用批次波浪淡入，不逐字做 span（P1 钉的就是这个）；节奏 16ms 一帧、一次 3 字。 */
 const PARA = '流式输出的时候，新到的文字应该像一道波一样淡入，前面的先变实，后面的跟上。'
 
 const frame = () => new Promise((resolve) => setTimeout(resolve, 16))

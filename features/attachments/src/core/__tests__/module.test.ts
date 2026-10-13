@@ -7,10 +7,8 @@ import { attachmentsContract } from '../../contract'
 import attachments from '../index'
 
 /**
- * attachments 模块级测试：契约方法经真实内核走一遍。
- *
- * R-07 T5：`ownerKey` 只放行 `ui:` 前缀 —— UI 只能整体替换自己那一份引用，
- * 放开成任意 ownerKey 就等于让 UI 能误删 Core 的引用。
+ * 契约方法经真实内核走一遍。`ownerKey` 只放行 `ui:` 前缀 —— UI 只能整体替换自己那一份引用，放开成任意 ownerKey 就等于让 UI 能误删
+ * Core 的引用。
  */
 async function harness() {
   const clock = fakeClock()
@@ -38,7 +36,6 @@ describe('attachments 模块（R-07 §3.2）', () => {
     expect(
       await api.call('attachments.setOwnerRefs', { ownerKey: 'ui:conversation.drafts', attachmentIds: [] }),
     ).toEqual({ missing: [] })
-    /* 同一个 owner 连续两次替换：第二次的 missing 就是「这条 id 已经不在库里」 */
     const again = await api.call('attachments.setOwnerRefs', {
       ownerKey: 'ui:conversation.drafts',
       attachmentIds: ['ghost'],

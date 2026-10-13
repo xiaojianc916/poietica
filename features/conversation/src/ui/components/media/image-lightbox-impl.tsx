@@ -10,14 +10,8 @@ import './image-lightbox.css'
 /* 插件表提成模块常量：内联数组每次渲染都是新引用，库会当成插件变了 */
 const PLUGINS = [Zoom, Counter]
 
-/**
- * Build lightbox slides from attachments.
- *
- * `SlideImage` declares `width?: number` (without `| undefined`), and this
- * workspace compiles with `exactOptionalPropertyTypes`. An absent dimension must
- * therefore be an absent *key*, not a key holding `undefined` — hence the
- * conditional spreads instead of a cast or a widened local type.
- */
+/** SlideImage 的 width/height 是可选的、且本仓开了 exactOptionalPropertyTypes：
+ * 缺尺寸必须是「没有这个键」而不是「键为 undefined」，所以只能条件展开，不能转类型。 */
 const toSlides = (images: readonly PreviewableImage[]): Slide[] =>
   images.map((image): SlideImage => {
     const { width, height, caption } = image
@@ -31,18 +25,8 @@ const toSlides = (images: readonly PreviewableImage[]): Slide[] =>
     }
   })
 
-/**
- * Fullscreen image preview. Controlled: the caller owns the open index, so the
- * same overlay can be driven from a thumbnail grid, a keyboard shortcut, or a
- * transcript message without duplicating state.
- *
- * carousel.padding 是显式给的，因为库的默认值是 "16px"：配上默认的
- * imageFit: "contain"，一张图会被放大到离窗口边缘只剩 16px，打开的第一眼是「顶
- * 满」而不是「看清」。取百分比而不是像素，是因为 computeSlideRect 按容器宽度折
- * 算它 —— 窗口拉大留白同比例跟随，一个数管所有窗口尺寸。
- *
- * 缩略图那两档尺寸不在这里：它们是列表里的物件，与打开后的观看尺度无关。
- */
+/** carousel.padding 必须显式给：库默认 "16px"，配默认的 imageFit: "contain" 会把图放大到
+ * 离窗口只剩 16px，第一眼是「顶满」而不是「看清」。取百分比是因为 computeSlideRect 按容器宽度折算。 */
 export function ImageLightboxImpl({ images, index, onIndexChange }: ImageLightboxProps) {
   const slides = useMemo(() => toSlides(images), [images])
   const open = index !== null && index >= 0 && index < slides.length

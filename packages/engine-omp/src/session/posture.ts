@@ -28,8 +28,8 @@ export function readPosture(scope: SettingsScope): Posture {
 }
 
 /**
- * 会话级放行：写进会话设置的 override 层。legacy 写到全局并 flush，结果“本会话允许”变成了
- * “永久允许”，这是要修正的 bug（12 页 §5.3）。
+ * 会话级放行：写进会话设置的 override 层。写全局并 flush 的话，「本会话允许」会变成
+ * “永久允许”，这是要修正的 bug。
  */
 export function grantToolForSession(scope: SettingsScope, tool: string): void {
   const current = readSetting(scope, 'tools.approval')

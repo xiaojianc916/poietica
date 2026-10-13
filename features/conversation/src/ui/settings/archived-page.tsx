@@ -20,22 +20,9 @@ import { groupByWorkspace, type ThreadListItem } from '../threads/thread-order'
 import './archived-page.css'
 
 /*
- * 已归档聊天管理页。**逐字迁移**自 legacy
- * `packages/settings/src/ui/surface/archived-chats-settings.tsx`：
- * 页面结构（页 / 组 / 行）、文案、类名、按钮形状与那两条确认文案一字未改，
- * 两份 CSS（`archived-chats-settings.css` → `archived-page.css`）逐字照抄。
- *
- * 与 legacy 的差别只有数据来路（守则：迁移只换「数据从哪来」）：
- *
- *   legacy                             新架构
- *   threads.subscribe/archivedSnapshot → stores.threads.store（zustand，订阅式选择器）
- *   threads.archive(id,false)          → api.setArchived(id,false) + stores.threads.upsert
- *   threads.remove(id)                 → api.deleteThread(id) + stores.threads.remove
- *   groupByWorkspace(items)            → 同一个函数 + 工作区表查名（线程带的是 id 不是路径）
- *
- * 「已归档」这一格在 07 页的功能设计里没有落点（方案缺口，refactor-log 的 Q22）；
- * 按产品负责人 2026-10-07 的指示补到 conversation 的 ui 里，段内次序照 legacy
- * （快捷键 → 电脑控制 → 用量 → 已归档 → 存储 → 关于）。
+ * 已归档聊天管理页。**形状逐字迁移**自 legacy 的 archived-chats-settings.tsx：页面结构、文案、类名、按钮形状与那两条确认文案一字未改，
+ * 两份 CSS 也逐字照抄 —— 改这里要连带核对基准截图。与 legacy 的差别只有数据来路（订阅式选择器、api.setArchived / deleteThread）。
+ * 段内次序照既有相对位置（快捷键 → 电脑控制 → 用量 → 已归档 → 存储 → 关于）。
  */
 
 const ARCHIVED_DATE = new Intl.DateTimeFormat('zh-CN', {
@@ -99,11 +86,7 @@ export function ArchivedChatsPage({
   readonly threads: ConversationStores['threads']
 }): ReactNode {
   const workspaces = useService(WorkspacesUiToken) as WorkspacesUi
-  /*
-   * 这一页只列已归档的：共享 store 的列表查询带 `includeArchived: false`（侧栏用的就是它），
-   * 所以归档页自己按 `includeArchived: true` 拉一份，再筛出 `archived === true`
-   * （legacy 的 ThreadsStore 从同一份全量行里切出 active / archived 两格，这里等价）。
-   */
+  /* 共享 store 的列表查询带 `includeArchived: false`（侧栏用的就是它），所以归档页自己按 true 拉一份，再筛出 `archived === true`。 */
   const [archived, setArchived] = useState<{
     readonly items: readonly Thread[]
     readonly isLoading: boolean
@@ -134,7 +117,7 @@ export function ArchivedChatsPage({
     }
 
     load()
-    /* 共享 store 的每一次变化（本页归档 / 删除，或别处来的 threads.updated）都重拉一次（legacy 的 archivedSnapshot 同一件事）。 */
+    /* 共享 store 的每一次变化（本页归档 / 删除，或别处来的 threads.updated）都重拉一次。 */
     const unsubscribe = threads.store.subscribe(load)
 
     return () => {
@@ -143,10 +126,7 @@ export function ArchivedChatsPage({
     }
   }, [api, threads])
 
-  /*
-   * 组名从工作区表查 —— 新架构的 thread.workspaceId 是工作区实体 id，不是路径，
-   * legacy 的「路径末段」那套在这里会把 uuid 当名字（与侧栏同一判据）。
-   */
+  /* 组名从工作区表查 —— thread.workspaceId 是工作区实体 id，用「路径末段」那套会把 uuid 当名字。 */
   const listed = archived.items
   const groups = useMemo(
     () =>

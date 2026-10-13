@@ -13,16 +13,15 @@ import { AppError, createId, type Disposable, SystemErrorCode } from '@poietica/
 import type { InboundContext, Router, RpcPeer } from '@poietica/rpc'
 
 export interface CoreRpcBinding<C extends Contract> {
-  /** 注册本模块契约中 owner='core' 的方法实现。handler 收到的参数已经过 zod 校验。 */
+  /** 注册本模块契约中 owner='core' 的方法实现；handler 收到的参数已经过 zod 校验。 */
   handle<N extends MethodName<C>>(
     name: N,
     handler: (params: ParamsOut<C, N>, ctx: InboundContext) => Promise<ResultOf<C, N>> | ResultOf<C, N>,
   ): Disposable
-  /** 发出本模块契约中 owner='core' 的通知。 */
   emit<N extends NotificationName<C>>(name: N, params: NotificationParams<C, N>): void
 }
 
-/** Core 调用 Host 的方法（只允许 owner='host' 的方法），例如 extensions 调 shell.trashItem。 */
+/** Core 调用 Host 的方法（只允许 owner='host'），例如 extensions 调 shell.trashItem。 */
 export interface HostCaller {
   call<C extends Contract, N extends MethodName<C>>(
     contract: C,
@@ -35,7 +34,7 @@ export interface HostCaller {
 export interface RpcBindingDeps {
   readonly moduleId: string
   readonly router: Router
-  /** 惰性获取：内核在 start() 第 0 步创建 peer */
+  /** 惰性获取：内核在 start() 第 0 步创建 peer。 */
   readonly peer: () => RpcPeer
   /** 开发版 true：校验本端发出的结果与通知 */
   readonly strict: boolean

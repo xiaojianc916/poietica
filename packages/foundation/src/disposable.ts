@@ -2,7 +2,7 @@ export interface Disposable {
   dispose(): void
 }
 
-/** 把回调包装成 Disposable；多次 dispose 只执行一次 */
+/** 把回调包装成 Disposable；多次 dispose 只执行一次。 */
 export function toDisposable(fn: () => void): Disposable {
   let done = false
   return {
@@ -16,7 +16,7 @@ export function toDisposable(fn: () => void): Disposable {
 
 /**
  * 资源集合。dispose 时按添加的逆序释放；某一项抛错时继续释放其余项，最后抛 AggregateError。
- * dispose 之后再 add 的资源会被立即释放（防止“关闭过程中又注册”造成泄漏）。
+ * dispose 之后再 add 的资源会被立即释放（防止「关闭过程中又注册」造成泄漏）。
  */
 export class DisposableStore implements Disposable {
   private readonly items: Disposable[] = []

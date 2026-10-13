@@ -25,7 +25,6 @@ export interface WorkspacesRepository {
   insert(row: WorkspaceRow): void
   get(id: string): WorkspaceRow | null
   findByKey(pathKey: string): WorkspaceRow | null
-  /** last_opened_at DESC */
   list(): WorkspaceRow[]
   update(id: string, patch: Partial<Omit<WorkspaceRow, 'id'>>): void
   delete(id: string): void
@@ -45,7 +44,7 @@ function toRow(r: Row): WorkspaceRow {
   }
 }
 
-/** 行 → 实体：exists 由调用方实时检查（07 页 §3C：目录失效不自动删除） */
+/** exists 由调用方实时检查：目录失效不自动删除。 */
 export function workspaceOf(row: WorkspaceRow, exists: boolean): Workspace {
   return {
     id: row.id,

@@ -5,8 +5,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
  *
  * 对勾停留 2.2 秒：够看清，又短于一次「我再复制一遍」的犹豫。
  *
- * 失败不切对勾。一个假的成功反馈比没有反馈更贵：人会以为东西已经在剪贴板里，
- * 于是把源头关掉。
+ * 失败不切对勾。一个假的成功反馈比没有反馈更贵：人会以为东西已经在剪贴板里，于是把源头关掉。
  */
 const RESTORE_MS = 2200
 
@@ -36,7 +35,7 @@ export function useCopy(): CopyAction {
 
         restore.current = setTimeout(() => setCopied(false), RESTORE_MS)
       })
-      /* 复制失败不切对勾，也不写日志：design-system 不依赖日志系统；失败的表现就是没有对勾。 */
+      /* 复制失败不切对勾，也不写日志：design-system 不依赖日志系统。 */
       .catch(() => undefined)
   }, [])
 

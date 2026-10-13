@@ -15,8 +15,7 @@ const SETTINGS_ROUTE: Route = { surface: 'workbench.settings', params: {} }
 
 /**
  * workbench 自己也以一个 UI 功能的身份注册命令与设置界面（id `workbench`），
- * 这样外壳的命令同样可以被用户改键。内核服务的令牌 owner 都是 KERNEL_OWNER，
- * 任何功能都可以取，无需 dependsOn。
+ * 这样外壳的命令同样可以被用户改键。
  */
 export const workbenchFeature = defineUiFeature({
   id: 'workbench',
@@ -62,11 +61,7 @@ export const workbenchFeature = defineUiFeature({
     bind('workbench.back', 'Alt+ArrowLeft')
     bind('workbench.forward', 'Alt+ArrowRight')
 
-    /*
-     * 三个标准设置段（06 页 §6.3）。workbench 只认识「段」，不知道哪个页属于哪个功能；
-     * 页归哪一段由贡献它的功能用 `group` 声明（段内顺序则由页自己的 `order` 决定）。
-     * 段 id 来自 ui-kernel 的 SETTINGS_GROUPS —— 功能写 group 时引用同一份常量。
-     */
+    /* 段 id 来自 ui-kernel 的 SETTINGS_GROUPS：功能写 group 时引用同一份常量。 */
     const group = (id: string, order: number): void => {
       ctx.contribute(builtinPoints.settingsGroups, { id, order })
     }
@@ -75,10 +70,8 @@ export const workbenchFeature = defineUiFeature({
     group(SETTINGS_GROUPS.system, 900)
 
     /*
-     * 设置界面注册成**表面**（06 页 §6.3：路由参数 page 选页，缺省选第一页），
-     * 但它在外壳里的落点与普通表面不同 —— 打开时是外壳自己的区域换内容：
-     * 侧栏区放设置导航、主区放设置内容（迁移自 legacy workspace.tsx 的 isSettingsOpen
-     * 分支，见 workbench.tsx）。这个贡献登记的是主区那一格的内容。
+     * 设置注册成**表面**，但落点与普通表面不同：打开时是外壳自己的区域换内容
+     * （侧栏放导航、主区放内容，见 workbench.tsx）。这个贡献登记的是主区那一格。
      */
     ctx.contribute(builtinPoints.surfaces, {
       id: 'workbench.settings',

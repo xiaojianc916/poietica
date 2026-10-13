@@ -1,9 +1,4 @@
-/*
- * 模型设置页的样式。
- *
- * **逐字迁移**自 legacy \`packages/settings/src/ui/models/models-settings.css\`：类名与数值
- * 一个字未改。页面结构因此与 legacy 逐格对应（已配置的模型 / 供应商手风琴 / 默认）。
- */
+/* **逐字迁移**自 legacy `packages/settings/src/ui/models/models-settings.css`：类名与数值一个字未改，页面结构与 legacy 逐格对应。 */
 .models-page {
   --models-surface: var(--settings-surface);
   --models-divider: var(--settings-divider);
@@ -57,10 +52,7 @@
 .models-row--compact {
   padding-block: 8px;
 }
-/*
- * 行右端的「状态 + 动作」装在一格里。散着交给 .models-row 的话，space-between
- * 会把行内每一件都当成一个端点 —— 忙碌时转圈会孤零零停在正中间，离按钮一整个空档。
- */
+/* 散着交给 .models-row 的话，space-between 会把行内每一件都当成一个端点 —— 忙碌时转圈会孤零零停在正中间，离按钮一整个空档。 */
 .models-row__actions {
   display: flex;
   min-inline-size: 0;
@@ -173,8 +165,6 @@
   gap: 12px;
 }
 
-/* ── 供应商手风琴（动画复用 todo-panel：高度 + chevron 旋转） ─────── */
-
 .models-provider-head {
   display: flex;
   align-items: center;
@@ -268,8 +258,6 @@
 .models-accordion-trigger[data-panel-open] .models-provider-chevron {
   transform: rotate(180deg);
 }
-
-/* ── 添加供应商面板 ─────────────────────────────────────────────────── */
 
 .models-add-tab {
   display: flex;
@@ -392,8 +380,6 @@
   gap: 8px;
 }
 
-/* ── 表单字段（沿用原设置页风格） ──────────────────────────────────── */
-
 .models-provider-form {
   display: flex;
   min-block-size: 0;
@@ -444,8 +430,6 @@
 .models-secret__toggle:hover:not(:disabled) {
   color: var(--ui-foreground);
 }
-
-/* ── 模型列表编辑器（三列直填） ────────────────────────────────────── */
 
 .models-model-list {
   display: flex;
@@ -521,12 +505,7 @@
   }
 }
 
-/*
- * 未配置提示（07 页 §6E 的文案与动作）。
- *
- * 它在**入口界面的吉祥物上方**（builtinPoints.entryNotices），不占外壳栅格的行；
- * 这里只给内容排一行：一句话 + 一个动作。
- */
+/* 未配置提示。它在**入口界面的吉祥物上方**（builtinPoints.entryNotices），不占外壳栅格的行；这里只给内容排一行：一句话 + 一个动作。 */
 .models-banner {
   display: inline-flex;
   align-items: center;

@@ -24,10 +24,7 @@ export default defineUiFeature({
       component: () => <ModelsPage api={api} />,
     })
 
-    /*
-     * 「生成标题的模型」落在**通用页**里（omp 知识 #17）：标题生成用的是模型目录，
-     * 所以这一格归 models 功能，而不是往 preferences 里塞一份模型知识。
-     */
+    /* 「生成标题的模型」落在**通用页**里（omp 知识 #17）：标题生成用的是模型目录，所以这一格归 models 功能，而不是往 preferences 里塞一份模型知识。 */
     ctx.contribute(builtinPoints.settingsSections, {
       id: 'models.titleModel',
       order: 400,
@@ -35,12 +32,8 @@ export default defineUiFeature({
       component: () => <TitleModelGroup api={api} />,
     })
 
-    /*
-     * 未配置提示（07 页 §6E 的文案与动作）：没有任何 configured 的服务商时显示 + 「去设置」。
-     *
-     * 落点按产品负责人的要求放在**新对话界面的吉祥物上方**（不占独立一行），因此走
-     * entryNotices —— 两条判据、文案、动作一字未变，只是画在哪里不同。
-     */
+    /* 未配置提示：没有任何 configured 的服务商时显示 + 「去设置」。落点按产品负责人的要求放在**新对话界面的吉祥物上方**（不占独立一行），因此走
+     * entryNotices —— 两条判据、文案、动作一字未变，只是画在哪里不同。 */
     ctx.contribute(builtinPoints.entryNotices, {
       id: 'models.unconfigured',
       order: 50,

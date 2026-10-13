@@ -1,6 +1,5 @@
 @import "./session-controls.css";
 
-/* Shared permission posture control. */
 .assistant-posture,
 .assistant-posture-menu {
   --pp-ink-alert: #e46620;
@@ -30,8 +29,7 @@
   transition: background-color var(--cp-motion-swift) var(--cp-motion-ease);
 }
 
-/* 只剩字形时两侧留白取同一个数：那一对 6/10 是给「前导圆 + 后随字」的补偿，
-   没有字就没有要补偿的那一侧，留着尾巴会把字形顶得偏左。 */
+/* 只剩字形时两侧留白取同一个数：没有字就没有要补偿的那一侧，留着尾巴会把字形顶得偏左。 */
 .assistant-posture[data-icon-only] {
   padding-inline: var(--cp-pill-lead);
 }
@@ -55,12 +53,8 @@
 }
 
 /*
- * 这一张的几何归它自己，边与面不写在这里 —— 它们已经是 .assistant-menu-surface
- * （工具条浮层族共用那张脸）的两格，与模型面板、项目与分支选择器同源。
- *
- * 唯一不跟那一族走的是影：工具条浮层族整族铺一档，这一张不要 —— 它压在输入卡上，
- * 与输入卡自己是同一条取舍（见 metrics.css 里深色的 --cp-input-lift）。
- * 两个选择器的特异性（本行高于 .assistant-menu-surface）决定胜负，与文件次序无关。
+ * 这一张的几何归它自己，边与面已经是 .assistant-menu-surface 的两格，与模型面板、项目与分支选择器同源。
+ * 唯一不跟那一族走的是影：它压在输入卡上，与输入卡自己是同一条取舍。两个选择器的特异性决定胜负，与文件次序无关。
  */
 .assistant-posture-menu[data-assistant-skin] {
   inline-size: 21rem;
@@ -87,8 +81,7 @@
   cursor: default;
 }
 
-/* 被指到的那一行：读菜单卡面那一档悬停（--cp-menu-hover），与模型面板、项目与分支
-   选择器的行同一个值。胶囊自己压在输入卡上，读输入卡那一档。 */
+/* 被指到的那一行读菜单卡面那一档悬停（--cp-menu-hover）；胶囊自己压在输入卡上，读输入卡那一档。 */
 [data-assistant-skin] .assistant-posture-menu__item:hover,
 [data-assistant-skin] .assistant-posture-menu__item[data-highlighted] {
   outline: none;

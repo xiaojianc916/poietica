@@ -84,7 +84,6 @@ describe('automations service', () => {
     const automation = service.create(draftOf())
     for (let i = 0; i < 55; i++) {
       const run = await service.runNow(automation.id)
-      /* 让每次运行落定，下一轮才能再启动 */
       repo.updateRun({ ...run, outcome: 'succeeded', settledAt: i })
     }
     expect(repo.runs(automation.id, 100).length).toBe(50)

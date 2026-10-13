@@ -4,7 +4,6 @@ export interface NotifyService {
   show(o: { title: string; body: string; threadId?: string }): void
 }
 
-/** 主窗口聚焦时不弹；点击 → focusMain() 并发 notify.clicked{threadId} */
 export function createNotifyService(d: {
   isMainFocused(): boolean
   focusMain(): void

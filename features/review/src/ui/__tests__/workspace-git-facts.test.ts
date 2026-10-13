@@ -3,15 +3,8 @@ import type { GitBranchPickerProps } from '@poietica/feature-conversation/ui-api
 import type { ReviewReading } from '../review-store'
 import { workspaceGitFactsOf } from '../workspace-git-facts'
 
-/*
- * 状态面板「Git 工具」那一格的判据（产品负责人 2026-10-07 的要求）：
- * **只要是 git 工作区就恒画，没有增删也画 +0 -0**。
- *
- * 这一组钉的正是那条：
- *   - 干净仓库（0/0）必须交回事实 —— 交 null 就等于「这一格不画」，那是缺陷本身；
- *   - 没有事实的三档（不是仓库 / 还没读到 / 读失败）交 null，不拿 0 冒充事实；
- *   - 分支名与改动数同出一份读数（切了分支就一起换，不会一新一旧）。
- */
+/* **只要是 git 工作区就恒画，没有增删也画 +0 -0**。干净仓库（0/0）必须交回事实 —— 交 null 就等于「这一格不画」，那是缺陷本身；
+ * 不是仓库 / 还没读到 / 读失败三档交 null，不拿 0 冒充事实。 */
 
 const picker: GitBranchPickerProps = {
   branch: null,
@@ -74,13 +67,11 @@ describe('Git 工具那一格的事实', () => {
       branches: ['feature/x', 'main'],
       stat: { added: 3, removed: 1 },
     })
-    /* picker 由这一份读数造出来（见 workspace-git-source 的 picker）：两者同源。 */
     const facts = workspaceGitFactsOf(reading, { ...picker, branch: reading.head, branches: reading.branches })
 
     expect(facts?.status.branch).toBe('feature/x')
     expect(facts?.status.branches).toEqual(['feature/x', 'main'])
     expect(facts?.status.added).toBe(3)
-    /* 分支那一行读 picker、正文那一行读 status，两者是同一个分支名。 */
     expect(facts?.picker?.branch).toBe(facts?.status.branch)
   })
 })

@@ -4,12 +4,7 @@ import type { ConversationApi } from '../api'
 import { createTurnStatesStore } from '../session/turn-states'
 import { createThreadsStore } from '../threads/threads-store'
 
-/*
- * R-04 S9：`threads.list` 的 `state` 是运行态的**快照兜底**。
- *
- * 只信 turns.state 通知的话：Core 在运行中崩溃重启，最后一条通知停在 running，
- * 侧栏永远转圈（R-04 §1.4）；渲染进程重载后，正在跑的对话更会被显示成空闲。
- */
+/* R-04 S9：`threads.list` 的 `state` 是运行态的快照兜底；只信 turns.state 通知的话，Core 崩溃重启后侧栏永远转圈，重载后正在跑的对话显示成空闲。 */
 function thread(id: string, state: Thread['state']): Thread {
   return {
     id,
@@ -51,7 +46,7 @@ describe('线程列表喂运行态（R-04 §3.5）', () => {
     const api = {
       listThreads: async () => {
         await gate
-        /* 快照是请求出发那一刻的：idle。 */
+        /* 快照是请求出发那一刻的 idle。 */
         return [thread('t1', 'idle')]
       },
     } as unknown as ConversationApi
@@ -59,7 +54,7 @@ describe('线程列表喂运行态（R-04 §3.5）', () => {
     const threads = createThreadsStore(api, turnStates)
 
     const pending = threads.refresh()
-    /* 往返期间 Core 推来「这条对话正在跑」：它比快照新。 */
+    /* 往返期间 Core 推来「正在跑」，它比快照新。 */
     turnStates.set({ threadId: 't1', state: 'running', error: null, startedAt: 1 })
     release()
     await pending

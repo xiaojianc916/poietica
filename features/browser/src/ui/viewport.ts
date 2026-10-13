@@ -1,13 +1,3 @@
-/*
- * 视口对齐：面板视口的矩形是原生子 webview 的摆放依据，这里是它唯一的测量处。
- *
- * **逐字迁移**自 legacy `packages/browser/src/viewport-alignment.ts`。
- *
- * 位置变化不进 ResizeObserver（侧栏开合、拖宽、窗口移动都只改位置），所以只能
- * 在帧上量；三个触发源都从 start 进来，一帧最多量一次，连续两帧不动就停机。
- */
-
-/** 连续几帧不动算停。 */
 const STILL_FRAMES = 2
 
 export interface ViewportBounds {
@@ -18,12 +8,6 @@ export interface ViewportBounds {
 }
 
 export interface ViewportAlignment {
-  /**
-   * 重新起跑一次跟随。
-   *
-   * 指纹只做同一性比较，本层从不解读它，所以它是 unknown 而不是某个具体形状 ——
-   * 断言成形状等于宣称这一层认识布局。传进来的值必须引用稳定。
-   */
   readonly follow: (signal: unknown) => void
   readonly stop: () => void
 }
@@ -32,7 +16,6 @@ export function alignViewport(element: Element, report: (bounds: ViewportBounds)
   let frame = 0
   let still = 0
   let last: ViewportBounds | null = null
-  /* 独立哨兵，不用 null 也不 undefined：指纹是调用方给的值，可能正好是它们。 */
   const NO_SIGNAL = Symbol('no-signal')
   let signal: unknown = NO_SIGNAL
 

@@ -1,4 +1,4 @@
-/** 子序列匹配打分：不匹配返回 -1；连续命中、词首命中加分；大小写不敏感 */
+/** 不匹配返回 -1；连续命中与词首命中加分，大小写不敏感。 */
 export function fuzzyScore(query: string, text: string): number {
   const q = query.trim().toLowerCase()
   if (q === '') return 0

@@ -14,17 +14,8 @@ import type { Automation, AutomationRun } from '../contract'
 import { activeRun, describeMoment, describePlan, hasPlan, latestRun } from './automation'
 import type { AutomationsStore } from './automations-store'
 
-/*
- * 照 legacy `packages/automation/src/ui/automation-list.tsx` 逐字迁移：筛选、卡片、
- * 菜单、空态与 KeepAwakeRow 的外观一字未改。随新契约变的只有数据来路：
- *   - 运行记录不进 Automation 实体（实体只带 lastRun），「进行中」与「已运行 N 次」
- *     因此读 store 里按 id 缓存的 runs（`runsOf(id)`）；
- *   - `store.setEnabled` 不再要 revision（新契约没有乐观并发）。
- *
- * 卡片只画任务定义（标题、指令、计划、已运行次数），**不画上一次运行的结论**：那句结论是
- * agent 用 `automation_report` 交的正文，放在卡片上读起来就是一条聊天记录（产品负责人
- * 2026-10-13 交办）。结论去编辑页的运行历史看，那里逐条列着 `run.summary`。
- */
+/* 外观照 legacy 逐字迁移。数据来路变了：运行记录不进 Automation 实体，「进行中」与「已运行 N 次」读 store 里按 id 缓存的 runs。
+ * 卡片只画任务定义，**不画上一次运行的结论** —— 那句结论是 agent 交的正文，放在卡片上读起来就是一条聊天记录。 */
 
 export interface AutomationListProps {
   readonly automations: readonly Automation[]
@@ -39,10 +30,6 @@ const STATUS_FILTERS = ['全部', '进行中', '已完成', '失败'] as const
 
 type StatusFilter = (typeof STATUS_FILTERS)[number]
 
-/*
- * 筛选只看最近一次运行：没跑过的任务既不是「已完成」也不是「失败」，只在「全部」里
- * 出现。运行中另立一档，它与最近一次已经落定的结果无关。
- */
 function matchesFilter(runs: readonly AutomationRun[], filter: StatusFilter): boolean {
   if (filter === '全部') {
     return true
@@ -148,7 +135,6 @@ export function AutomationList({ automations, pending, runsOf, onCreateBlank, on
   )
 }
 
-/** 卡片底部那一句：计划 + 下次 / 已暂停 / 已结束（一次性跑完） */
 function planLine(automation: Automation): string {
   const schedule = describePlan(automation.schedule)
   if (automation.schedule.at !== null && !automation.enabled && automation.nextRunAt === null) {
@@ -212,10 +198,6 @@ function TaskCard({
   )
 }
 
-/*
- * 一行任务的全部动作收进卡片右上角这一个菜单：表格时代它们各占一栏，卡片放不下，
- * 而「立即运行 / 暂停 / 编辑 / 删除」本来就是同一件事的四种走向。
- */
 function TaskMenu({
   active,
   automation,
@@ -231,10 +213,6 @@ function TaskMenu({
   readonly onOpen: (automationId: string) => void
   readonly store: AutomationsStore
 }) {
-  /*
-   * 契约里的五档随 Rust 运行态一起收窄：legacy 的 cancelling 是「等停止确认」，
-   * 新契约没有这一档 —— 已发停止请求的运行仍在 running/awaiting 里，按钮不置灰。
-   */
   const cancelling = false
   return (
     <DropdownMenu>
@@ -312,12 +290,6 @@ function TaskMenu({
   )
 }
 
-/*
- * 空态那张大卡片中央的白按钮，与有任务时工具栏右侧那颗，是同一颗。
- *
- * 一步进编辑页：模板在列表下方另有画廊（template-gallery），下拉里再摆一岔只会
- * 让「新建」变成两次点击。
- */
 function CreateButton({ onCreateBlank }: { readonly onCreateBlank: () => void }) {
   return (
     <button
@@ -330,11 +302,7 @@ function CreateButton({ onCreateBlank }: { readonly onCreateBlank: () => void })
   )
 }
 
-/*
- * ponytail: 这一行目前只是界面。仓库里没有任何电源管理能力（Rust 侧与前端都搜不到
- * prevent_sleep 之类），开关切了不改变任何行为。接上真实的防休眠命令之前，别把
- * 它当成能用的开关。
- */
+/* 这一行目前只是界面：仓库里没有任何电源管理能力，开关切了不改变任何行为。接上真实的防休眠命令之前，别把它当成能用的开关。 */
 function KeepAwakeRow() {
   const [keepAwake, setKeepAwake] = useState(false)
   return (

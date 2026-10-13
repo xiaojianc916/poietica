@@ -25,32 +25,17 @@ import { createAutomationToolCard } from './automation-tool-card'
 import { type AutomationsStore, createAutomationsStore } from './automations-store'
 import { AutomationsEditSurface, AutomationsListSurface } from './automations-surface'
 
-/*
- * automations 的 UI 装配（07 页 §9E）。
- *
- * 落点与读法：
- *   surfaces —— automations.list（任务列表 + 模板画廊）、automations.edit（参数
- *               automationId，新建为 'new'）
- *   sidebarSections（order 30）——“定时任务”，右侧显示启用数
- *   conversation 的 threadActions —— “以此对话创建定时任务”
- *   conversation 的 toolCallRenderers —— /^automation_/ → 任务卡片
- *
- * 与 legacy 的差别只在数据来源：legacy 的 AutomationGateway / createAutomationStore
- * 在这里换成 automations 契约的 RPC 与 createAutomationsStore。界面文案、几何与动效
- * 一字未改（列表页、编辑页、模板画廊、运行历史都是 legacy 的逐字迁移）。
- */
+/* automations 的 UI 装配。落点：surfaces —— automations.list 与 automations.edit；sidebarSections(order 30)「定时任务」，
+ * 右侧显示启用数；conversation 的 threadActions「以此对话创建定时任务」；conversation 的 toolCallRenderers（/^automation_/）。 */
 
 function defaultTimeZone(): string {
   return Intl.DateTimeFormat().resolvedOptions().timeZone
 }
 
-/* ── threadActions：线程 → 预填一条草稿 ──────────────────────────────────── */
-
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null
 }
 
-/** 时间线里第一条用户消息的正文：legacy 的预填读的就是它。 */
 function firstUserPrompt(items: readonly unknown[]): string | null {
   for (const item of items) {
     if (!isRecord(item) || item.kind !== 'turn') {
@@ -58,7 +43,6 @@ function firstUserPrompt(items: readonly unknown[]): string | null {
     }
     const origin = item.origin
     const kind = isRecord(origin) ? origin.kind : undefined
-    /* conversation 契约的 origin 只有 user / automation 两档；automation 那条不预填。 */
     if (kind === undefined || kind === 'user') {
       const prompt = item.prompt
       if (typeof prompt === 'string' && prompt.trim() !== '') {
@@ -69,7 +53,6 @@ function firstUserPrompt(items: readonly unknown[]): string | null {
   return null
 }
 
-/** 当前页最早一轮的 id；没有轮次就返回 null。 */
 function oldestTurnId(items: readonly unknown[]): string | null {
   for (const item of items) {
     if (isRecord(item) && item.kind === 'turn' && typeof item.turnId === 'string') {
@@ -101,15 +84,8 @@ export default defineUiFeature({
       stopStore = null
     })
 
-    /*
-     * ── 系统通知（审查 R-16）────────────────────────────────────────────────
-     *
-     * 该不该通知只在 Core 的 notice.ts 判（任务的通知策略 × 这次运行的结局）；这里原样
-     * 转给 platform 的 notify.show。带 threadId：点通知由 conversation 的 notify.clicked
-     * 那一条打开对话（conversation/ui/index.tsx），这里不再接点击。主窗口聚焦时 platform
-     * 本来就不弹。conversation 自己那两条（一轮结束 / 需要确认）对定时任务的对话不再发
-     * （见 conversation/ui/index.tsx 的 notify 头注），所以同一件事只响一次。
-     */
+    /* 系统通知：该不该通知只在 Core 的 notice.ts 判，这里原样转给 platform 的 notify.show。点通知由 conversation 的 notify.clicked
+     * 打开对话；主窗口聚焦时 platform 本来就不弹。 */
     const platform = ctx.rpc(platformContract)
     ctx.lifecycle.onDispose(
       api.onAttention((attention) => {
@@ -122,7 +98,6 @@ export default defineUiFeature({
       }).dispose,
     )
 
-    /* ── 表面：列表与编辑（legacy 的单页在路由上拆成两格）──────────────────── */
     ctx.contribute(builtinPoints.surfaces, {
       id: 'automations.list',
       title: '自动化',
@@ -147,15 +122,8 @@ export default defineUiFeature({
       ),
     })
 
-    /*
-     * ── 侧栏导航：自动化（order 30）──────────────────────────────────────────
-     *
-     * 行的文案与图标取 legacy 的 SURFACE_REGISTRY（tab-id `automations`，title
-     * 「自动化」、图标 clock）—— 用户给定的基准截图（#02）里这一行写的就是「自动化」。
-     * 右侧的启用数只在大于 0 时画：0 是一个没有信息量的数字，而 legacy 的导航行
-     * 本来就不带计数（07 页 §9E 要求「显示启用数」，这一条在零个任务时的外观与
-     * 基准截图冲突，取截图，记入 docs/refactor-log.md）。
-     */
+    /* 侧栏导航：自动化（order 30）。文案与图标取 legacy 的 SURFACE_REGISTRY；右侧启用数只在大于 0 时画：0 没有信息量，
+     * 与基准截图一致（记入 docs/refactor-log.md）。 */
     ctx.contribute(builtinPoints.sidebarSections, {
       id: 'automations.nav',
       order: 30,
@@ -165,7 +133,6 @@ export default defineUiFeature({
       component: () => <AutomationsNavRow navigation={navigation} store={store} />,
     })
 
-    /* ── conversation：线程动作与工具卡片 ─────────────────────────────────── */
     ctx.contribute(threadActions, {
       id: 'automations.createFromThread',
       order: 30,
@@ -191,7 +158,6 @@ export default defineUiFeature({
       }),
     })
 
-    /** 线程没有可读消息时只预填工作区；标题沿用线程标题。 */
     async function prefillFromThread(thread: Thread): Promise<AutomationDraft> {
       const rpc = ctx.rpc(conversationContract)
       const agentId = MAIN_AGENT_ID
@@ -240,12 +206,6 @@ export default defineUiFeature({
   },
 })
 
-/*
- * 侧栏「定时任务」一行。
- *
- * 行的几何由 workbench 的全局样式持有（.sidebar-nav-row / __icon / __label，逐字迁移自
- * legacy 的 sidebar-rows.css），这里只贡献文字、图标与右侧的启用数；高亮跟着路由。
- */
 function AutomationsNavRow({
   navigation,
   store,

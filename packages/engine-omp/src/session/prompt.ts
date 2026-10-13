@@ -24,10 +24,9 @@ export interface PreparedPrompt {
   readonly text: string
   readonly images: readonly PreparedImage[]
   /**
-   * 直接交给 omp 的图片内容（`ImageContent[]`）：data 与 mimeType 之外，还带上了
-   * `tagImageAttachmentSource` 画的落盘路径标记 —— SDK 靠这个符号注入隐藏的
-   * image-attachment 伴生消息，agent 于是既拿到像素，也拿到能 `read` 的路径
-   * （12 页 §7.6；legacy bridge.ts 第 2204 行同一处）。
+   * 直接交给 omp 的图片内容（`ImageContent[]`）：除 data 与 mimeType 外还带 `tagImageAttachmentSource`
+   * 画的落盘路径标记 —— SDK 靠这个符号注入隐藏的 image-attachment 伴生消息，agent 于是既拿到像素，
+   * 也拿到能 `read` 的路径。
    */
   readonly imageContents: readonly unknown[]
   readonly skillNames: readonly string[]
@@ -45,13 +44,10 @@ export interface SkillPromptMessage {
 /** omp 的技能消息类型（与官方 SKILL_PROMPT_MESSAGE_TYPE 同一个值） */
 export const SKILL_MESSAGE_TYPE = 'skill-prompt'
 
-/**
- * omp 目标续跑那条隐藏消息的类型（审查 R-11）：RpcGoalController 的 #scheduleContinuation
- * 写死的值。goal-host 靠它认出「这是续跑」，history 靠它给续跑开一轮。
- */
+/** omp 目标续跑那条隐藏消息的类型：RpcGoalController 写死的值，goal-host 靠它认出「这是续跑」 */
 export const GOAL_CONTINUATION_TYPE = 'goal-continuation'
 
-/** 目标续跑那一轮的开场消息：custom、display:false —— 它不是人话，但它开一轮（审查 R-11） */
+/** 目标续跑那一轮的开场消息：custom、display:false —— 它不是人话，但它开一轮 */
 export function isGoalContinuationMessage(message: {
   readonly role?: unknown
   readonly customType?: unknown
@@ -60,10 +56,8 @@ export function isGoalContinuationMessage(message: {
 }
 
 /**
- * 一句话交给 omp 时的正文：用户原文 + 每个文件一行 `@<绝对路径>`。
- *
- * turn / steer / followUp 三种投递与队列对账、插话认领都必须用这一份 —— 投递正文
- * 与显示正文（用户原话）是两件事：屏幕上画原文，与 omp 的一切匹配用投递正文。
+ * 一句话交给 omp 时的正文：用户原文 + 每个文件一行 `@<绝对路径>`。投递正文与显示正文是两件事：
+ * 屏幕上画原文，与 omp 的一切匹配（队列对账、插话认领）用这一份。
  */
 export function wireTextOf(input: Pick<SubmitInput, 'text' | 'files'>): string {
   const referenced = input.files.map((file) => `@${file.path}`).join('\n')
@@ -79,9 +73,7 @@ export function isUserSkillMessage(message: {
 }
 
 /**
- * 一次读盘的图片加载（R-08-1）：`submit` 只调它一次，结果同时交给时间线那一帧与
- * omp prompt —— 一张图不再同步读两遍，Core 主线程也不会被大图阻塞。
- *
+ * `submit` 只调它一次，结果同时交给时间线那一帧与 omp prompt —— 一张图不再同步读两遍。
  * 超过 20 MB 抛 kernel.invalid_params（先看 stat，不读大文件）；读不到原样抛错。
  */
 export interface LoadImagesOptions {
@@ -101,7 +93,6 @@ export async function loadImages(
     if (size > MAX_IMAGE_BYTES) {
       throw new AppError(SystemErrorCode.invalidParams, `图片超过 20 MB：${image.path}`)
     }
-    // 编码交给 Uint8Array.toBase64（Bun 的官方实现），不再走 Buffer 的老写法
     out.push({ path: image.path, mime: image.mime, base64: (await read(image.path)).toBase64() })
   }
   return out
@@ -118,10 +109,7 @@ export function imageContentsOf(images: readonly LoadedImage[]): unknown[] {
 export interface PreparePromptOptions {
   readonly readFile?: (path: string) => Buffer
   readonly statSize?: (path: string) => number
-  /**
-   * 已经读好的图片（submit 那条路只读一次）。给了就不再碰盘；按 `input.images`
-   * 的顺序一一对应（调用方保证同一批）。
-   */
+  /** 已经读好的图片（`submit` 那条路只读一次）。给了就不再碰盘；按 `input.images` 的顺序一一对应 */
   readonly loadedImages?: readonly LoadedImage[]
 }
 
@@ -129,22 +117,13 @@ export interface PreparePromptOptions {
 export interface ExpandSkillOptions {
   /** 会话里当前可用的技能名（omp 的 session.skills）；找不到就报错，不静默 */
   readonly availableSkills: readonly string[]
-  /**
-   * 把一个技能名展开成要喂给模型的正文（omp 的 `buildSkillPromptMessage` 的产物）。
-   * 它要读 SKILL.md，所以是异步；返回 null 表示展开了但没有正文。
-   */
+  /** 把一个技能名展开成要喂给模型的正文（omp 的 `buildSkillPromptMessage`）；要读 SKILL.md，所以是异步 */
   readonly skillMessage: (name: string, args: string) => Promise<{ message: string; details: unknown } | null>
 }
 
 /**
- * SubmitInput → omp 输入（12 页 §7.6，迁移自 legacy bridge.ts 的 readPromptImages）。
- *
- * 图片：超过 20 MB 抛 kernel.invalid_params；读文件转 base64（omp 的 ImageContent 只认 base64）。
- * 普通文件：以 @<绝对路径> 的形式逐行附在正文后面（omp 的文件引用约定），由 agent 自己去读。
- *
- * **同步**：不挂技能的那条路必须一路同步走到 `session.prompt()` —— 投递一推迟，屏幕上
- * 那一轮就要等一个额外的刻度才真的开始。技能展开（要读 SKILL.md）是单独的一步，见
- * `expandSkillMessage`。
+ * 图片超过 20 MB 抛 kernel.invalid_params、读文件转 base64；普通文件以 @<绝对路径> 逐行附在正文后面。
+ * **同步**：不挂技能的那条路必须一路同步走到 `session.prompt()` —— 投递一推迟，屏幕上那一轮就要多等一个刻度。
  */
 export function preparePrompt(input: SubmitInput, o: PreparePromptOptions): PreparedPrompt {
   const loaded = o.loadedImages ?? readImagesSync(input.images, o)
@@ -175,12 +154,7 @@ function readImagesSync(
   })
 }
 
-/**
- * 挂上的技能 → 一条 omp 自定义消息（12 页 §7.6，迁移自 legacy bridge.ts 的 expandSkills）。
- *
- * 名字对不上会话自己的技能表时抛 `kernel.not_found`：那一枚 chip 指着一个此刻不存在的技能，
- * 静默丢掉等于「看起来跑了其实没跑」。
- */
+/** 名字对不上会话自己的技能表时抛 `kernel.not_found`：静默丢掉等于「看起来跑了其实没跑」 */
 export async function expandSkillMessage(
   input: SubmitInput,
   imageContents: readonly unknown[],
@@ -197,7 +171,6 @@ export async function expandSkillMessage(
   }
   if (blocks.length === 0) return null
   return {
-    /* 内容 = 各技能块的文本 + 图片（12 页 §7.6）；details 取第一份，与 legacy customSkillMessage 同此 */
     customType: SKILL_MESSAGE_TYPE,
     content: [...blocks.map((block) => ({ type: 'text' as const, text: block.message })), ...imageContents],
     display: true,

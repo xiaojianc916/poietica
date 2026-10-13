@@ -5,7 +5,7 @@ const MARKER_KEYFRAMES: Keyframe[] = [{ color: 'transparent' }, {}]
 const EASING = 'cubic-bezier(0.33, 0, 0.2, 1)'
 const SELECTOR = `[${WAVE_START_ATTRIBUTE}],[${WAVE_MARKER_ATTRIBUTE}]`
 
-/** 每个元素至多两条动画（本体、::marker）。animation 为 null：这个元素被判「直接实显」 */
+/** animation 为 null = 这个元素被判「直接实显」 */
 interface Pinned {
   animation: Animation | null
   start: number

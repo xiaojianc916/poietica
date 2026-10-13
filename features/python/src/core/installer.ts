@@ -10,10 +10,9 @@ import {
   PYTHON_VERSION,
 } from './release'
 
-/** 下载进度回传的节流窗口（07 页 §13C 步骤 2：状态通知最多每 250ms 一次） */
+/** 状态通知最多每 250ms 一次 */
 export const PROGRESS_INTERVAL_MS = 250
 
-/** 注入的依赖（测试时替换） */
 export interface InstallerDeps {
   readonly fetch: (
     url: string,
@@ -35,18 +34,17 @@ export interface InstallerDeps {
     remove: (path: string, opts?: { recursive?: boolean }) => Promise<void>
     exists: (path: string) => Promise<boolean>
     readFile: (path: string) => Promise<string>
-    /** 文本与二进制都要能写（07 页 §13C 步骤 1：tar.gz 是字节流，不能当文本转一遍） */
+    /** 文本与二进制都要能写（tar.gz 是字节流，不能当文本转一遍） */
     writeFile: (path: string, data: string | Uint8Array) => Promise<void>
   }
   readonly ulid: () => string
   readonly log: (level: 'info' | 'warn' | 'error', message: string, data?: Record<string, unknown>) => void
-  /** 状态上报：下载进度（受 PROGRESS_INTERVAL_MS 节流）与阶段切换 */
+  /** 下载进度（受 PROGRESS_INTERVAL_MS 节流）与阶段切换 */
   readonly report: (
     next: { readonly kind: 'downloading'; readonly progress: number } | { readonly kind: 'installing' },
   ) => void
-  /** 现在（毫秒）；测试注入假时钟 */
   readonly now: () => number
-  /** 期望的 sha256（07 页 §13C 步骤 3）；生产恒为 release.generated.ts 里钉住的那一个 */
+  /** 生产恒为 release.generated.ts 里钉住的那一个 */
   readonly expectedSha256?: string
 }
 
@@ -68,12 +66,8 @@ export function createInstaller(deps: InstallerDeps, stagingDir: string, targetD
     state = next
   }
 
-  /*
-   * 一条地址的下载结果：成功给字节，失败给错误码。
-   *
-   * 校验和不符与网络 / HTTP 失败是**两种**结局（07 页 §13C 步骤 3）：前者说明这一份
-   * 内容被篡改或传坏了，后者说明这次没拿到。全失败时把最后一次的错误码报出去。
-   */
+  /* 一条地址的下载结果：成功给字节，失败给错误码。校验和不符与网络 / HTTP 失败是**两种**结局：前者说明这一份内容被篡改或传坏了，后者说明这次
+   * 没拿到。全失败时把最后一次的错误码报出去。 */
   const fetchOnce = async (
     url: string,
     archive: string,
@@ -90,10 +84,7 @@ export function createInstaller(deps: InstallerDeps, stagingDir: string, targetD
       const reader = response.body?.getReader()
       if (reader === undefined) return { ok: false, code: pythonErrors.download_failed, detail: 'no response body' }
 
-      /*
-       * 先按字节攒齐再一次性写盘。**不能**走 `Blob.text()` / 字符串写盘 —— 那会把
-       * tar.gz 按 UTF-8 重新编码，字节全变，解压必炸（07 页 §13C 步骤 1/6）。
-       */
+      /* 先按字节攒齐再一次性写盘。**不能**走 `Blob.text()` / 字符串写盘 —— 那会把 tar.gz 按 UTF-8 重新编码，字节全变，解压必炸。 */
       const hasher = new Bun.CryptoHasher('sha256')
       const chunks: Uint8Array[] = []
       while (true) {
@@ -154,7 +145,7 @@ export function createInstaller(deps: InstallerDeps, stagingDir: string, targetD
             break
           }
           last = { code: result.code, detail: result.detail }
-          /* 07 页 §13C 步骤 3：校验不符的这一份不能留给下一个地址去覆盖（内容也不可信） */
+          /* 校验不符的这一份不能留给下一个地址去覆盖（内容也不可信）。 */
           await deps.fs.remove(archive).catch(() => undefined)
         }
 
@@ -201,7 +192,7 @@ export function createInstaller(deps: InstallerDeps, stagingDir: string, targetD
         const marker: InstallMarker = {
           tag: PYTHON_RELEASE_TAG,
           version: PYTHON_VERSION,
-          /* 记的是这一份安装**实际被校验通过**的那个哈希；生产恒等于产品钉住的那一个 */
+          /* 记的是这一份安装**实际被校验通过**的那个哈希；生产恒等于产品钉住的那一个。 */
           sha256: deps.expectedSha256 ?? PYTHON_ASSET_SHA256,
           installedAt: Date.now(),
         }
@@ -217,9 +208,7 @@ export function createInstaller(deps: InstallerDeps, stagingDir: string, targetD
       } catch (e) {
         try {
           await deps.fs.remove(staging, { recursive: true })
-        } catch {
-          /* 忽略 */
-        }
+        } catch {}
         setState({ kind: 'idle' })
         throw e
       }
@@ -233,7 +222,7 @@ export function createInstaller(deps: InstallerDeps, stagingDir: string, targetD
   }
 }
 
-/** 把下载分片拼成一整块：交给 Bun 的官方实现，不自己逐块拷贝。 */
+/** 交给 Bun 的官方实现，不自己逐块拷贝。 */
 function joinChunks(chunks: readonly Uint8Array[], total: number): Uint8Array {
   return Bun.concatArrayBuffers([...chunks], total, true)
 }

@@ -14,34 +14,19 @@ import { AuxiliaryNewTabMenu, type AuxiliaryOffer } from './auxiliary-menu'
 import { PartSkeleton } from './part-skeleton'
 
 /*
- * 右侧面板坞。**迁移自** legacy：
- *   - `packages/workspace/src/panels/auxiliary-panel.tsx`（外壳结构、启动器空态）
- *   - `packages/workspace/src/panels/auxiliary-tab-strip.tsx`（标签条、键盘移动、关闭接力）
- *   - `packages/workspace/src/panels/auxiliary-menu.tsx`（加号菜单，见同目录 auxiliary-menu.tsx）
- *
- * 只换数据来源：legacy 的 AuxiliaryPanelStore 按 owner 存 panes，这里换成 ui-kernel 的
- * LayoutService（`panes` 按 owner 分账、`auxiliary.owner/activeOwner/fullscreen`）；
- * 各类面板本体由功能经 `panels` 贡献点注入 —— legacy 的 AuxiliaryPaneRenderers/宿主的
- * paneOffers 两张表在这里合成一条贡献点（03 页 §4）。
- *
- * 两类贡献：
- *   - 无 dockTabs 的是「pane」：活在 LayoutService 的 panes 分账里，一开一个标签；
- *   - 有 dockTabs 的是「组」（浏览器）：页签由功能自己的 store 给，坞只聚合展示。
- *
- * 视觉以 legacy 为绝对权威：DOM 层级、类名、行高、让位算式与键盘行为逐字照旧。
+ * 右侧面板坞。两类贡献：无 dockTabs 的是「pane」（活在 LayoutService 的 panes 分账里，一开一个标签）；
+ * 有 dockTabs 的是「组」（页签由功能自己的 store 给，坞只聚合展示）。
  */
 
 type PanelContribution = Contributed<PanelItem>
 type DockTabs = NonNullable<PanelItem['dockTabs']>
 type DockTab = ReturnType<DockTabs['tabs']>[number]
 
-/** 一个组（有 dockTabs 的贡献）此刻的全部页签。 */
 interface GroupView {
   readonly contribution: PanelContribution
   readonly tabs: readonly DockTab[]
 }
 
-/** 标签条里一格已经摊平了的页签：点击/关闭该做什么都已经绑好。 */
 interface TabView {
   readonly key: string
   readonly domId: string
@@ -55,15 +40,10 @@ interface TabView {
 export const AUXILIARY_TABPANEL_ID = 'auxiliary-tabpanel'
 
 const auxiliaryPaneTabId = (id: string) => `auxiliary-pane-${id}`
-/* 组页签带上组 id：两个组可能各有 id 相同的标签（legacy 只有浏览器一个组，DOM id 在此前
- * 是 `auxiliary-browser-<tabId>`；多一个组前缀只是把潜在的 id 撞车挡住，视觉不变）。 */
+/* 组页签带组前缀：两个组可能有 id 相同的标签，前缀挡住 DOM id 撞车。 */
 const auxiliaryGroupTabId = (groupId: string, tabId: string) => `auxiliary-browser-${groupId}-${tabId}`
 
-/*
- * 键盘移动与关闭接力：**逐字迁移** legacy auxiliary-tab-strip.tsx。
- * 方向键在 `[role=tab]` 之间成环走，Home/End 到两端；Delete 关闭当前页签并把焦点交给
- * 下一个/上一个/加号按钮（`[data-auxiliary-tab-fallback]` 标记的那一处）。
- */
+/* 方向键在 [role=tab] 之间成环走，Home/End 到两端；Delete 关闭当前页签并把焦点交给下一个/上一个/加号按钮。 */
 function moveTabFocus(event: KeyboardEvent<HTMLDivElement>): void {
   if (!['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) {
     return
@@ -100,11 +80,7 @@ function closeFocusedTab(tab: HTMLButtonElement, onClose: () => void): void {
   onClose()
 }
 
-/*
- * 一格标签。**逐字迁移** legacy AuxiliaryTab：大小、圆角、内边距、图标↔叉的类名与
- * data 属性、Delete 与指针行为都照旧。图标↔叉的取色规则在 features/browser 的
- * browser-panel.css（同一份 legacy 声明迁过去的那一处，这里不写第二遍）。
- */
+/* 图标↔叉的取色规则在 features/browser 的 browser-panel.css，这里不写第二遍。 */
 function AuxiliaryTab({
   active,
   icon,
@@ -167,18 +143,11 @@ function AuxiliaryTab({
   )
 }
 
-/*
- * 组页签的聚合订阅：一个 hook 订所有组的 subscribe，变化时重读 tabs()。
- *
- * groups 由调用方 useMemo 保持引用稳定：没有这一条，坞每帧重画都会重订一遍，
- * 订阅集合跟着抖动。快照由**订阅回调自己**算（不是在渲染期算完再拿 epoch 当信号）——
- * 依赖数组里因此只有 groups 一个真依赖，不需要「多余依赖」那种 lint 例外。
- */
+/* groups 必须由调用方 useMemo 保持引用稳定：否则坞每帧重画都会重订一遍，订阅集合跟着抖动。 */
 function useGroupTabs(groups: readonly PanelContribution[]): readonly GroupView[] {
   const [views, setViews] = useState<readonly GroupView[]>(() => readGroupTabs(groups))
 
   useEffect(() => {
-    /* 组换了一批：立刻按新的这一批重算一次，再重订。 */
     setViews(readGroupTabs(groups))
 
     const stops = groups.flatMap((group) => {
@@ -189,7 +158,7 @@ function useGroupTabs(groups: readonly PanelContribution[]): readonly GroupView[
 
       return [
         dockTabs.subscribe(() => {
-          /* 这一组自己通报了：整批重读一遍（组数是个位数，重读不比按组挑更贵）。 */
+          /* 组数是个位数，整批重读不比按组挑更贵。 */
           setViews(readGroupTabs(groups))
         }),
       ]
@@ -205,7 +174,6 @@ function useGroupTabs(groups: readonly PanelContribution[]): readonly GroupView[
   return views
 }
 
-/** 把「哪些组有页签、各自有哪些页签」一次读全。 */
 function readGroupTabs(groups: readonly PanelContribution[]): readonly GroupView[] {
   return groups.flatMap((group) => {
     const dockTabs = group.item.dockTabs
@@ -220,10 +188,7 @@ export function AuxiliaryDock(): ReactNode {
   const panesState = useObservable(layoutService.panes)
   const contributions = useContributions(builtinPoints.panels)
 
-  /*
-   * 取 right 的贡献并按 order 排序：ContributionRegistry.list 已经按 order 升序返回，
-   * 这里只分组，不改变次序。无 dockTabs 的是 pane，有 dockTabs 的是组。
-   */
+  /* ContributionRegistry.list 已按 order 升序返回，这里只分组、不排序。 */
   const rightPanels = useMemo(() => contributions.filter((c) => c.item.location === 'right'), [contributions])
   const paneContributions = useMemo(() => rightPanels.filter((c) => c.item.dockTabs === undefined), [rightPanels])
   const groups = useMemo(() => rightPanels.filter((c) => c.item.dockTabs !== undefined), [rightPanels])
@@ -232,13 +197,9 @@ export function AuxiliaryDock(): ReactNode {
   const owner = layoutState.auxiliary.owner
   const activeOwner = layoutState.auxiliary.activeOwner
   const right = layoutState.right
-  /* 归属缺席时没有可投影的一格；pane 分账也只认字符串 owner 这一档。 */
   const paneSet = owner === null ? null : (panesState.byOwner[owner] ?? null)
 
-  /*
-   * 已开 pane 的贡献：只认集合里**确实有 pane 贡献**的 id。组 id 不进 pane 标签，
-   * 未知 id 也不许把无关贡献画出来。
-   */
+  /* 只认确实有 pane 贡献的 id：组 id 不进 pane 标签，未知 id 也不许把无关贡献画出来。 */
   const openPaneContributions = useMemo(() => {
     if (paneSet === null) {
       return []
@@ -251,7 +212,6 @@ export function AuxiliaryDock(): ReactNode {
     })
   }, [paneContributions, paneSet])
 
-  /* 启动器/加号菜单共用一份 opens：offer !== false 的 pane 贡献 + 全部 dockTabs 组。 */
   const offers = useMemo<readonly AuxiliaryOffer[]>(
     () =>
       rightPanels
@@ -265,11 +225,7 @@ export function AuxiliaryDock(): ReactNode {
     [rightPanels],
   )
 
-  /*
-   * 点开一条 offer。pane 开进当前归属（owner 缺席时先落到 activeOwner，与 legacy
-   * 「开关打开的是当前对话的右栏」同义）；组先让它自己开（onOpen），再把坞的 active
-   * 指到组贡献 id，归属缺席同样先补 activeOwner。
-   */
+  /* pane 开进当前归属，owner 缺席时先落到 activeOwner；组先让它自己开，再把坞的 active 指到组贡献 id。 */
   const openOffer = (kind: string): void => {
     const contribution = rightPanels.find((c) => c.item.id === kind)
 
@@ -288,15 +244,13 @@ export function AuxiliaryDock(): ReactNode {
       return
     }
 
-    /* 归属两栏都空 = 当下没有前台，面板无处可落（legacy 的 openPane 在 owner 为 null 时
-     * 直接返回）。 */
+    /* 归属两栏都空 = 当下没有前台，面板无处可落。 */
     const target = owner ?? activeOwner
     if (target !== null) {
       layoutService.openPane(target, kind)
     }
   }
 
-  /* 摊平标签条：pane 标签 + 每个组的页签，同一行、同一套 AuxiliaryTab。 */
   const tabs = useMemo<TabView[]>(() => {
     const views: TabView[] = []
 
@@ -353,13 +307,9 @@ export function AuxiliaryDock(): ReactNode {
     return views
   }, [activeOwner, groupTabs, layoutService, openPaneContributions, owner, paneSet, right.activeId])
 
-  /* 空态是「一个 pane 都没开、所有组也一个页签都没有」，不是回退态。 */
   const showLauncher = openPaneContributions.length === 0 && groupTabs.every((g) => g.tabs.length === 0)
 
-  /*
-   * 正文解析：优先当前归属集合的 active pane；否则坞的 active 若是某个组 id 就渲染该组；
-   * 否则落最后一个已开 pane；再退到「有页签的组」兜底（页签还在，启动器不许盖住它）。
-   */
+  /* 兜底次序：active pane → active 组 → 最后一个已开 pane → 有页签的组（页签还在时启动器不许盖住它）。 */
   const activePane =
     paneSet === null ? null : (openPaneContributions.find((c) => c.item.id === paneSet.activeId) ?? null)
   const activeGroup =
@@ -391,7 +341,7 @@ export function AuxiliaryDock(): ReactNode {
             tabs={tabs}
           />
           {body === null ? (
-            /* 理论上到不了：非空态至少有一格 pane 或一个组页签。留一条兜底只为不画白板。 */
+            /* 理论上到不了，留一条兜底只为不画白板。 */
             <AuxiliaryLauncher offers={offers} onOpen={openOffer} />
           ) : (
             <div className="min-h-0 flex-1 overflow-hidden">
@@ -409,12 +359,8 @@ export function AuxiliaryDock(): ReactNode {
 }
 
 /*
- * 标签条。**迁移自** legacy AuxiliaryTabStrip：让位算式、横向滚动、role=tablist、
- * 加号菜单的让位占位与全屏按钮全部照旧。
- *
- *   左 = 圆角半径再让 4px —— 面板左上那个缺口是半径 16px 的四分之一圆，标签左缘
- *   落在 12px 时它的左上角顺着弧走；右 = 圆角半径 + 开关那枚控件宽 + 行内间距，
- *   全屏时外壳把开关收走，这一份让位随之收回。
+ * 左让位 = 圆角半径 − 4px（面板左上缺口是半径 16px 的圆，标签左缘落在 12px 时才顺着弧走）；
+ * 右让位 = 圆角半径 + 开关控件宽 + 行内间距，全屏时外壳把开关收走，这一份随之收回。
  */
 function AuxiliaryTabStrip({
   fullscreen,
@@ -489,17 +435,14 @@ function AuxiliaryTabStrip({
         </button>
       </div>
       {menuOpen ? (
-        /* 只负责让位：它自己不许画边（画了就是标签条下面凭空多一条线）。 */
+        /* 只负责让位，不许画边：画了就是标签条下面凭空多一条线。 */
         <div aria-hidden className="bg-muted/30" style={{ blockSize: menuHeight }} />
       ) : null}
     </div>
   )
 }
 
-/*
- * 启动器空态。**迁移自** legacy AuxiliaryLauncher：类名与排版一字未改（含深色下
- * hover 的规则，见 auxiliary.css）。offers 由调用方按 order 摊平两类贡献。
- */
+/* 深色下 hover 的规则见 auxiliary.css。 */
 function AuxiliaryLauncher({
   offers,
   onOpen,

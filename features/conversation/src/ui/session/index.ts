@@ -9,14 +9,13 @@ import { createTurnStatesStore, type TurnStatesStore } from './turn-states'
 export { createDraftPin } from '../composer/draft-pin'
 export type { TurnStatesStore }
 
-/** 一个线程的输入框句柄：组件拿它读草稿、发消息、改控件 */
 export interface ComposerApi {
   readonly threadId: string | null
   readonly draft: import('../composer/composer-store').Draft
   setText(text: string): void
   addAttachments(items: readonly import('../../ui-api').DraftAttachment[]): void
   removeAttachment(id: string): void
-  /** ComposerDraft 的形状（07 页 §5E）：贡献者通过它往草稿里加东西 */
+  /** ComposerDraft 的形状：贡献者通过它往草稿里加东西 */
   insertText(text: string): void
   submit(deliverAs: 'turn' | 'steer' | 'followUp'): void
   setModel(model: ModelRef): void
@@ -64,7 +63,7 @@ export function createStores(
         const skills = [...current.skills]
         composer.clear(threadId)
         void stores.api.submit({ threadId, clientTurnId, text, attachmentIds, skills, deliverAs }).catch(() => {
-          // 失败：把正文与附件放回草稿（14 页 §9.5f）
+          // 失败：把正文与附件放回草稿
           composer.restore(threadId, { text, attachments: current.attachments, skills })
         })
       }

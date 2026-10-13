@@ -1,42 +1,24 @@
 import { type CSSProperties, type MouseEvent, useState } from 'react'
 import { busiestOf, dateOf, formatTokens, type ModelSeries } from './usage-activity'
 
-/*
- * 每日 Token 趋势图：一个模型一条线，横轴是这段日历，纵轴按这段日子的单日最高定。
- *
- * 折线走 SVG，不引图表库（正本 zcode 用了 recharts，本仓不为此装一个库）：这里只有
- * 网格与折线两样，装一个图表库换来的是它整套排版与主题。
- *
- * **悬浮的三样（竖线、点、数值气泡）由同一个指针位置算出**，不各挂一套监听：三样
- * 同源才不会出现「气泡在这一列、点在那一列」，也不会因气泡自己的开合延时抖。
- * 平时只画线 —— 三十个点常驻会把折线读成一串珠子，而这里要看的是走势。
- *
- * 悬浮那三样走 HTML 而不是 SVG：SVG 被 preserveAspectRatio="none" 横向拉伸，画在
- * 里面的圆会变成椭圆、虚线间距也会跟着变形。按百分比定位的 HTML 层与拉伸后的坐标
- * 系是同一套线性映射，圆永远是圆、线永远是 1px。
- */
+/* 一个模型一条线，横轴是这段日历，纵轴按这段日子的单日最高定。折线走 SVG，不引图表库（正本用了 recharts，本仓不为此装一个库）。
+ * **悬浮的三样（竖线、点、数值气泡）由同一个指针位置算出**：同源才不会出现「气泡在这一列、点在那一列」，也不会因气泡自己的开合延时抖。
+ * 平时只画线 —— 三十个点常驻会把折线读成一串珠子。悬浮三样走 HTML 而不是 SVG：SVG 被 preserveAspectRatio="none" 横向拉伸，画在里面的
+ * 圆会变成椭圆，按百分比定位的 HTML 层与拉伸后的坐标系是同一套线性映射。 */
 
 const WIDTH = 1000
 const HEIGHT = 240
-/* 上下各留一截：线不贴着框，最高那天也不顶到上沿。 */
 const PAD_Y = 16
 
-/*
- * 左右各留一截，与正本 zcode 的图表 margin 同一个用意（它给 {top:8,right:24,left:24}）：
- * 首尾两个点正落在绘图区边界上时，日期文字与最后一个点会被容器裁掉一半。
- * 这里写成比例，因为本仓的横轴是等分格而不是固定像素。
- */
+/* 首尾两个点正落在绘图区边界上时，日期文字与最后一个点会被容器裁掉一半。这里写成比例，因为横轴是等分格而不是固定像素。 */
 const INSET_SHARE = 0.025
 
-/** 六档色轮转，与正本 zcode 的 usage chart 色板同序。 */
 const SERIES_INKS = 6
 
-/** 这个天数以内横轴每天都写；再多按固定步长抽（正本 zcode 的判据同值）。 */
 const AXIS_LABELS = 14
 
 const AXIS_DATE = new Intl.DateTimeFormat('zh-CN', { month: 'numeric', day: 'numeric' })
 
-/** 纵轴的四条虚线：0 与单日最高之间等分。 */
 const GRID = [0, 1, 2, 3, 4] as const
 
 interface Spot {
@@ -44,14 +26,8 @@ interface Spot {
   readonly y: number
 }
 
-/**
- * 第 index 个点的横坐标（viewBox 坐标）：首点贴左界、末点贴右界，中间等分。
- *
- * **不是格心**。按格心算的话每一列都要再内缩半格，而半格是随天数变的：7 天时占
- * 6.8%、30 天时只占 1.6%，于是 7 天的七个日期全挤在中间，30 天的却铺得开 ——
- * 两档看着不像同一张图。正本 zcode 的 recharts 分类轴也是首末贴边（scalePoint），
- * 所以这里按 (count - 1) 等分。
- */
+/** 首点贴左界、末点贴右界，中间等分。**不是格心** —— 按格心算每列要再内缩半格，而半格随天数变（7 天占 6.8%、30 天只占 1.6%），
+ * 于是两档看着不像同一张图。所以按 (count - 1) 等分。 */
 function xOf(index: number, count: number): number {
   const span = 1 - INSET_SHARE * 2
   const share = count <= 1 ? 0.5 : index / (count - 1)
@@ -59,12 +35,10 @@ function xOf(index: number, count: number): number {
   return WIDTH * (INSET_SHARE + span * share)
 }
 
-/** 一个数在绘图区里的位置，0（底）到 1（顶）。 */
 function ratioOf(count: number, busiest: number): number {
   return busiest <= 0 ? 0 : count / busiest
 }
 
-/** 第 index 个点的纵坐标（viewBox 坐标）。 */
 function yOf(count: number, busiest: number): number {
   return HEIGHT - PAD_Y - ratioOf(count, busiest) * (HEIGHT - PAD_Y * 2)
 }
@@ -76,13 +50,8 @@ function spotsOf(series: ModelSeries, busiest: number): readonly Spot[] {
   }))
 }
 
-/*
- * 单调三次插值（Fritsch–Carlson）→ 三次贝塞尔路径，分三步。
- *
- * 正本 zcode 的折线是 recharts 的 type="monotone"，本仓不引那个库，所以这一小段
- * 自己算：折线直接连点会在数据拐弯处留下生硬的尖角，而单调插值既把拐角磨圆，又
- * **不会在两点之间插出多余的峰谷**（普通样条会，屏幕上就是一条凭空冒出来的波动）。
- */
+/* 单调三次插值（Fritsch–Carlson）→ 三次贝塞尔路径。折线直接连点会在数据拐弯处留下生硬的尖角，而单调插值既把拐角磨圆，又**不会在两点
+ * 之间插出多余的峰谷**（普通样条会，屏幕上就是一条凭空冒出来的波动）。 */
 
 function segmentSlopes(spots: readonly Spot[]): readonly number[] {
   const deltas: number[] = []
@@ -98,7 +67,7 @@ function segmentSlopes(spots: readonly Spot[]): readonly number[] {
   return deltas
 }
 
-/** 每个点上的切线斜率：Fritsch–Carlson 的三条约束（保单调、拐点归零、限幅）。 */
+/** Fritsch–Carlson 的三条约束：保单调、拐点归零、限幅。 */
 function monotoneSlopes(deltas: readonly number[]): readonly number[] {
   const slopes: number[] = [deltas[0] ?? 0]
 
@@ -161,14 +130,8 @@ function monotonePath(spots: readonly Spot[]): string {
   return path
 }
 
-/*
- * 横轴上要写日期的那几列。判据逐字取正本 zcode 的 shouldShowDailyChartAxisLabel：
- * 两周以内全写；再长按固定步长（超过 45 天用 7，否则 5），首尾必写。
- *
- * 步长写死而不是按「想要几个」反算：反算出来的步长会随天数变化（30 天得 4、31 天
- * 得 4、60 天得 8），同一张图在 7 天与 30 天之间切换时刻度位置毫无延续性。
- * 固定步长下 7 天是 7 个、30 天也是 7 个，两档读起来是同一张图。
- */
+/* 两周以内全写；再长按固定步长（超过 45 天用 7，否则 5），首尾必写。步长写死而不是按「想要几个」反算：反算出来的步长会随天数变化，
+ * 同一张图在 7 天与 30 天之间切换时刻度位置毫无延续性。 */
 function labelledColumns(count: number): ReadonlySet<number> {
   if (count <= AXIS_LABELS) {
     return new Set(Array.from({ length: count }, (_, index) => index))
@@ -186,12 +149,7 @@ function labelledColumns(count: number): ReadonlySet<number> {
   return kept
 }
 
-/**
- * 那一天谁花了多少，只留真的花了的。
- *
- * 导出给测试：它同时是「这一天有没有数据」的判据（空数组即没有），而竖虚线画不画
- * 就取这个判据 —— 两条规则同一个来源，不会一处说有一天说没有。
- */
+/** 只留真的花了的。导出给测试：它同时是「这一天有没有数据」的判据（空数组即没有），竖虚线画不画就取这个判据 —— 两条规则同一个来源。 */
 export function spendOf(series: readonly ModelSeries[], index: number) {
   return series
     .map((line, at) => ({
@@ -212,7 +170,6 @@ export function ModelTrend({ series }: ModelTrendProps) {
   const days = series[0]?.days ?? []
   const marked = labelledColumns(days.length)
 
-  /* 指针落在第几列。一列一格，判据只有位置，不依赖任何气泡的开关。 */
   const track = (event: MouseEvent<SVGSVGElement>) => {
     if (days.length === 0) {
       return
@@ -220,7 +177,6 @@ export function ModelTrend({ series }: ModelTrendProps) {
 
     const box = event.currentTarget.getBoundingClientRect()
     const share = (event.clientX - box.left) / box.width
-    /* 扣掉两端留白后，剩下的宽度上等分着 n 个点（首末贴边），按最近的取。 */
     const within = (share - INSET_SHARE) / (1 - INSET_SHARE * 2)
     const index = Math.round(within * (days.length - 1))
 
@@ -295,11 +251,7 @@ export function ModelTrend({ series }: ModelTrendProps) {
             ))}
 
             {spend.length === 0 ? null : (
-              /*
-               * 位置交给 CSS 的 clamp：气泡以锚点为中心画，靠边那一列会有一半伸到
-               * 卡外被切掉，而这里算不出气泡自己有多宽。内联 left 会盖过那条规则，
-               * 所以只把锚点交下去。
-               */
+              /* 位置交给 CSS 的 clamp：气泡以锚点为中心画，靠边那一列会有一半伸到卡外被切掉。内联 left 会盖过那条规则，所以只把锚点交下去。 */
               <div
                 className="settings-trend__hint"
                 style={{ '--settings-trend-anchor': `${anchor}%` } as CSSProperties}

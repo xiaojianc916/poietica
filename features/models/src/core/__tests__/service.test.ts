@@ -11,7 +11,7 @@ function make(providers: ProviderInfo[] = [], models: ModelInfo[] = []) {
   const records: TestLogRecord[] = logger.records
   let changed = 0
   const service = createModelsService({
-    // FakeEngine 的 models 端口本身就是内存数组实现；providers 先灌进去
+    // FakeEngine 的 models 端口本身就是内存数组实现；providers 先灌进去。
     models: {
       ...engine.models,
       async providers() {
@@ -37,17 +37,17 @@ const PROVIDERS: ProviderInfo[] = [
 describe('models 服务（14 页 §6.5）', () => {
   test('标题模型：默认 null（= 跟随对话自己的模型），设了能读回，清掉又变回 null；可选项来自引擎', async () => {
     const { service, changed } = make(PROVIDERS)
-    /* 默认：没设过就是 null —— 这一格的口径是「不设置就用对话自己的模型」（omp 知识 #17） */
+    /* 没设过就是 null —— 这一格的口径是「不设置就用对话自己的模型」（omp 知识 #17）。 */
     expect((await service.titleModel()).model).toBeNull()
 
     await service.setTitleModel({ provider: 'anthropic', id: 'claude-haiku' })
     expect((await service.titleModel()).model).toEqual({ provider: 'anthropic', id: 'claude-haiku' })
 
-    /* 选回「跟随对话模型」= 传 null：读回来必须是 null，而不是一条空串 */
+    /* 选回「跟随对话模型」= 传 null：读回来必须是 null，而不是一条空串。 */
     await service.setTitleModel(null)
     expect((await service.titleModel()).model).toBeNull()
     expect(changed()).toBeGreaterThanOrEqual(2)
-    /* 可选项是引擎此刻可用的那批（替身读 enabled 目录），UI 不自己过滤 */
+    /* 可选项是引擎此刻可用的那批（替身读 enabled 目录），UI 不自己过滤。 */
     expect(Array.isArray((await service.titleModel()).choices)).toBe(true)
   })
 

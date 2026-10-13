@@ -10,7 +10,6 @@ const empty = z.object({})
 const host = { owner: 'host' } as const
 const tabId = z.object({ tabId: z.number().int().positive() })
 
-/** 07 页 §12B 的方法表 + 05 页 §11.12 的最终形状。全部 owner='host'（没有 core 模块）。 */
 export const browserContract = defineContract({
   id: 'browser',
   namespaces: ['browser'],

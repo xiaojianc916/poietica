@@ -22,9 +22,9 @@ export interface SessionFactoryOptions {
   readonly registry: unknown
   /** 引擎的工具表（会话建好后交给 adapter） */
   readonly tools: ReadonlyMap<string, EngineToolSpec>
-  /** 测试缝（12 页 §12.1）：存在时跳过模型解析、直接用注入的 mock */
+  /** 测试缝：存在时跳过模型解析、直接用注入的 mock */
   readonly testSeams?: { readonly model?: unknown; readonly getApiKey?: (model: unknown) => string } | null
-  /** 本会话的模型解析（12 页 §6.3 第 3 步） */
+  /** 本会话的模型解析 */
   readonly resolveModel: (selector: string | null) => { provider: string; id: string } | null
   readonly modelRoles: () => Readonly<Record<string, string>>
   /** 用户在设置页选的「生成标题用的模型」（已解析成整串 provider/id）；null = 跟随对话自己的模型 */
@@ -46,13 +46,10 @@ export interface SessionFactoryOptions {
 }
 
 /**
- * SessionFactory（12 页 §6.3）。
+ * SessionFactory。
  *
  * **串行化**（omp 知识 #9）：omp 进程内只有一个 “Main” 工具注册槽，两个 createAgentSession 并发执行会互相顶掉。
  * 做法是一条 Promise 链：每次 create 都接在上一次后面，无论上一次成功还是失败都继续。
- *
- * 与 legacy 的差异：legacy 先用 SessionManager.create 发号、后台再水合；新设计里引擎只提供「打开会话」这个原子操作，
- * 界面先出现由 conversation 的会话池负责。
  */
 export class SessionFactory {
   private tail: Promise<unknown> = Promise.resolve()
@@ -72,7 +69,7 @@ export class SessionFactory {
   }
 
   private async open(spec: OpenSessionSpec): Promise<EngineSession> {
-    // 每个会话一个 overlay：读取实时穿透到根实例，写入只进它自己的 override 层（12 页 §5.1）
+    // 每个会话一个 overlay：读取实时穿透到根实例，写入只进它自己的 override 层
     const settings =
       (this.o.root as { overlay?: (overrides?: Readonly<Record<string, unknown>>) => SettingsScope }).overlay?.() ??
       this.o.root

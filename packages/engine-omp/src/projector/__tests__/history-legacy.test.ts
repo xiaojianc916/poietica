@@ -3,12 +3,11 @@ import { type OmpMessage, projectHistoryPage } from '../history'
 import { assistant, assistantTexts, prompts, T0, toolCall, toolResult, user } from './fixtures/history'
 
 /*
- * 迁移自 legacy transcript-mirror.test.ts（12 页 §12.3：原来针对镜像窗口的用例，改为针对历史分页）。
- *
- * legacy 的镜像机制在 12 页 §9.2 里已被删除：分页不再从 Core 保存的第二份正文算，
- * 而是直接从 omp 的会话消息算。契约里仍然成立的那几条在这里逐条钉：
+ * 历史分页：契约里仍然成立的那几条在这里逐条钉：
  * 「没更早的了要如实说」「认不出的游标回空页而不是原地不动」「开窗只取最近几轮」
  * 「翻页必须严格更早」「附件不带没被引用的」。
+ *
+ * 分页不保存第二份正文，直接从 omp 的会话消息算。
  */
 describe('历史分页（legacy transcript-mirror.test.ts 的窗口语义）', () => {
   test('手上就是全部时如实说没有更早的', () => {
@@ -97,7 +96,7 @@ describe('历史分页（legacy transcript-mirror.test.ts 的窗口语义）', (
 })
 
 /*
- * 历史里的图片（legacy history-images.test.ts）。
+ * 历史里的图片。
  *
  * 缘起是一个真实的缺口：omp 读会话文件时已把 blob 引用换回 base64 内联进消息正文，
  * 而投影只取文本块、图片块整块丢掉 —— 重开一条带图的会话，图全都不见了。像素就在手上，
@@ -196,7 +195,7 @@ describe('历史里的图片（legacy history-images.test.ts）', () => {
 })
 
 /*
- * 技能轮（legacy skill-turn.test.ts）。
+ * 技能轮。
  *
  * 技能以 role: 'custom' + customType: 'skill-prompt' + attribution: 'user' 进显示经过
  * （判据就是官方 pi-tui 的 isUserTurnInitiator 那一条）。两条事实都静默坏过：
@@ -238,12 +237,12 @@ describe('技能轮（legacy skill-turn.test.ts）', () => {
 })
 
 /*
- * 压缩（legacy compaction-events.test.ts）。
+ * 压缩。
  *
  * 缘由：上下文被压缩时屏幕上什么都不说，人看到的是自己前几句莫名其妙没了。
  * history 这一侧把压缩摘要铺成一行 marker；号按轮走，两次压缩各占一行。
- * legacy 的 tokensBefore / cancelled 那两档由 live 的开门关门事件产出，新树里那一侧没有生产者
- * （12 页 §9.1 的表与 §7.8 的实现不一致），所以这里只钉历史真正带得出来的那几格。
+ * tokensBefore / cancelled 那两档由 live 的开门关门事件产出，而那一侧没有生产者
+ * （omp 的事件表与实现不一致），所以这里只钉历史真正带得出来的那几格。
  */
 describe('压缩标记（legacy compaction-events.test.ts）', () => {
   test('压缩那一条铺成一行 marker，号按轮走', () => {
@@ -294,11 +293,10 @@ describe('压缩标记（legacy compaction-events.test.ts）', () => {
 })
 
 /*
- * 插话在历史里的形态（legacy interjection-layers.test.ts 的那条主线）。
+ * 插话在历史里的形态。
  *
- * legacy 那一侧靠一个「认领账本」把已经注入的插话画成一句人话；新树删掉了账本
- * （12 页 §9.2：分页直接从 omp 的会话消息算，Core 不保存第二份正文），
- * 所以历史这条路的判据变成：人说过的话一定开一轮、一定看得到，
+ * 历史这条路不摆「认领账本」：分页直接从 omp 的会话消息算，Core 不保存第二份正文，
+ * 所以判据变成：人说过的话一定开一轮、一定看得到，
  * 而 steer / followUp 折进上下文之后与普通提交没有分别。
  */
 describe('插话在历史里的形态（legacy interjection-layers.test.ts）', () => {

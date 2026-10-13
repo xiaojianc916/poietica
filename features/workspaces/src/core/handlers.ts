@@ -4,7 +4,6 @@ import type { WorkspacesApi } from './service'
 
 type Ctx = CoreModuleContext<typeof workspacesContract>
 
-/** 契约方法 → 服务调用（每个 handler 一行） */
 export function registerHandlers(ctx: Ctx, service: WorkspacesApi): void {
   ctx.rpc.handle('workspaces.list', () => ({ workspaces: [...service.list()] }))
   ctx.rpc.handle('workspaces.add', ({ path }) => service.add(path))

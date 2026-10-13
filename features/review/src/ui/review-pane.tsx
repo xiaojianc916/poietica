@@ -59,7 +59,6 @@ const TROUBLE: Readonly<Record<'asking' | 'unreadable', string>> = {
   asking: '',
   unreadable: '读不到 git 变更。',
 }
-/* 列宽走注册过的自定义属性，与外壳那一份同构。 */
 type ReviewStyle = CSSProperties & Record<`--${string}`, string>
 const SWITCHES: readonly {
   readonly name: ReviewSwitch
@@ -74,7 +73,6 @@ const SWITCHES: readonly {
 const ICON_CLASS =
   'review-toolbar-action flex size-6 shrink-0 items-center justify-center rounded-md opacity-60 hover:opacity-100'
 const ROW_CLASS = 'min-w-0 flex-1 truncate text-xs'
-/* 菜单行的前导字形：与工具条上那枚同一档尺寸与不透明度。 */
 const MENU_ICON_CLASS = 'size-3.5 shrink-0 opacity-60'
 export interface ReviewPaneProps {
   readonly gateway: ReviewGateway
@@ -82,13 +80,8 @@ export interface ReviewPaneProps {
 }
 
 export function ReviewPane({ gateway, report }: ReviewPaneProps) {
-  /*
-   * store 按工作区共享（review-store-holder 的头注）：状态面板的「Git 工具」那一格
-   * 读的是**同一个对象**，所以工具条上这两个数、那一格上那两个数、以及分支名，
-   * 永远是同一份快照 —— 不会这边 +3 -1、那边 +0 -0（legacy 的老毛病）。
-   */
+  /* store 按工作区共享：「Git 工具」那一格读的是**同一个对象**，所以工具条、那一格与分支名永远是同一份快照。 */
   const store = useReviewStore(gateway, report)
-  /* 行带的折叠带宽度锚归 DiffBody（它量这个盒子的可视宽）；这里只交出这个盒子。 */
   const scroller = useRef<HTMLDivElement | null>(null)
   const state = useFeatureStore(store.store, (held) => held)
   const reading = state.reading
@@ -110,7 +103,7 @@ export function ReviewPane({ gateway, report }: ReviewPaneProps) {
   const style: ReviewStyle = { '--review-tree-width': `${String(treeColumn)}px` }
   return (
     <div
-      /* 只有拖拽中关掉划选，悬停不算：分隔条那 8px 命中区跨在列边界上，指针停在那里是正常的。 */
+      /* 只有拖拽中关掉划选：分隔条那 8px 命中区跨在列边界上，指针停在那里是正常的。 */
       className={cn('review-pane flex h-full min-h-0 flex-col', state.splitter === 'drag' ? 'select-none' : null)}
       data-splitter={state.splitter}
       style={style}
@@ -146,7 +139,6 @@ function Cards({
       </div>
     )
   }
-  /* 筛选把主区筛空时也要说话：否则右边树在筛、左边一片空白没有理由。 */
   if (shown.length === 0) {
     return <Note>没有匹配的文件。</Note>
   }
@@ -158,7 +150,6 @@ function Cards({
     </>
   )
 }
-/* 一条工具条：比较基准、总计、更多操作、折叠、文件树、提交 —— 基准入口只有一个。 */
 function Toolbar({
   reading,
   state,
@@ -196,12 +187,8 @@ function Toolbar({
     </div>
   )
 }
-/*
- * 比较基准：一层菜单，档位、分组、选中打勾与不可用置灰照 waku 的 diff 来源选择器
- * （src/app/right_panel.rs 的 right-panel-diff-source）。六档先全部摆上：本仓现在只有
- * 「工作树对某个 ref」一条路，落得下的只有未提交与分支；其余四档 ref 为 null 即尚无
- * 实现，git 侧给出对应范围后接上即可。
- */
+/* 档位、分组、选中打勾与不可用置灰照 waku 的 diff 来源选择器。六档先全部摆上：本仓现在只有「工作树对某个 ref」一条路，落得下
+ * 的只有未提交与分支；其余四档 ref 为 null 即尚无实现。 */
 function Bases({
   base,
   reading,
@@ -257,11 +244,9 @@ function Bases({
   )
 }
 function Overflow({ state, store }: { readonly state: ReviewState; readonly store: ReviewStore }) {
-  /* 补丁是按需取的（07 页 §10E 的 git.filePatch），所以这一行在点下去之后才去拼命令。 */
   const copyCommand = (): void => {
     void store.applyCommand().then((command) => {
       if (command !== '') {
-        /* 复制失败交给全局未处理拒绝那条策略，不在这里另开一套。 */
         void navigator.clipboard.writeText(command)
       }
     })
@@ -297,7 +282,6 @@ function Overflow({ state, store }: { readonly state: ReviewState; readonly stor
     </DropdownMenu>
   )
 }
-/* 提交、提交并推送、推送是三件事三条路：不再由一个动作替人决定要不要联网。 */
 function Commit({
   reading,
   state,
@@ -335,7 +319,6 @@ function Commit({
               }
               return
             }
-            /* 菜单把方向键与字母当导航；说明框里它们是输入。 */
             if (event.key !== 'Escape' && event.key !== 'Tab') {
               event.stopPropagation()
             }
@@ -413,8 +396,7 @@ function Card({
   const cut = file.path.lastIndexOf('/')
   const fileName = cut === -1 ? file.path : file.path.slice(cut + 1)
   const fileDir = cut === -1 ? undefined : file.path.slice(0, cut + 1)
-  /* 报一份估高：视口外的卡跳过绘制，没有估高滚动条会随视口推进跳动。
-   * 行数按展开态算：折叠带展开的行也是这张卡此刻的真实高度。 */
+  /* 视口外的卡跳过绘制，没有估高滚动条会随视口推进跳动；行数按展开态算。 */
   const rows = open ? renderedRowsOf(file, state.openGaps) : 0
   const style: ReviewStyle = { '--review-card-rows': String(rows) }
   return (
@@ -470,7 +452,6 @@ function Body({
       </div>
     )
   }
-  /* 行带只有一份实现（design-system/diff/surface）：这一格只交出折叠带的开合与滚动口。 */
   return (
     <DiffBody
       file={file}
@@ -481,7 +462,6 @@ function Body({
     />
   )
 }
-/* 右侧：变更文件树。筛选在顶，行按目录归并，左边缘拖着调宽。 */
 function Tree({
   docked,
   shown,
@@ -497,7 +477,6 @@ function Tree({
     shown.map((file) => file.path),
     state.collapsedFolders,
   )
-  /* 收起只是列宽归零：子树不卸载，滚动位置与展开状态不随开合重建。 */
   return (
     <aside className="review-tree" inert={!docked}>
       <div className="review-tree__clip">
@@ -561,8 +540,7 @@ function Tree({
     </aside>
   )
 }
-/* 树缩进照抄 OpenCode file-tree-v2（packages/app/src/components/file-tree-v2.tsx）：
- * 16px 一格；文件图标占掉箭头那一格，所以文件比同级目录少缩一格。 */
+/* 16px 一格；文件图标占掉箭头那一格，所以文件比同级目录少缩一格。 */
 const TREE_INDENT = 16
 function treePaddingStart(depth: number, folder: boolean): number {
   if (folder || depth === 0) {
@@ -570,12 +548,9 @@ function treePaddingStart(depth: number, folder: boolean): number {
   }
   return 8 + (depth - 1) * TREE_INDENT
 }
-/* 线落格中：与 file-tree-v2 的 guideLineStart 同式。 */
 function treeGuideStart(index: number): number {
   return 8 + index * TREE_INDENT + 8
 }
-/* 引导线：与 file-tree-v2 的 GuideLines 同形 —— 绝对定位的 1px 竖线，
- * 上下各探 2px 过行缝；显形规则在 CSS（平时藏起，树悬浮才出现）。 */
 function TreeGuides({ depth }: { readonly depth: number }) {
   return (
     <>
@@ -659,13 +634,10 @@ function FileRow({
     </li>
   )
 }
-/* 树里点一行要能滚到对应的卡：id 由路径直接给，getElementById 不需要转义。 */
 function cardId(path: string): string {
   return `review:${path}`
 }
-/* 一处变更的处境：新增是 U、删除是 D、改写是方框里一个点。只认 git 清单说的 status，
- * 不从加减行数反推：+0 −1 是删掉一行的改写，不是删文件。U 与 D 是裸字母、颜色按
- * 处境分（色在 review-pane.css）；目录不给徽章，目录不是 git 的变更单位。 */
+/* 只认 git 清单说的 status，不从加减行数反推（+0 −1 是删掉一行的改写，不是删文件）；目录不给徽章。 */
 const MARK_LABELS: Readonly<Record<FileChange, string>> = {
   added: '新增',
   conflicted: '冲突',
@@ -685,13 +657,10 @@ function ChangeMark({ status }: { readonly status: FileChange }) {
       role="img"
     >
       {status === 'deleted' ? (
-        /* 同 U：字面 D 而不是图标 —— git 清单里 D 就是删除。 */
         <span aria-hidden className="font-bold text-[13px] leading-none">
           D
         </span>
       ) : status === 'added' || status === 'untracked' ? (
-        /* 字面 U 而不是图标：git 清单里 U 就是「未跟踪」，字形本身即记号。
-         * U 与 D 这两支不加框（框在 CSS 里对它们收掉），所以字要自己够重。 */
         <span aria-hidden className="font-bold text-[13px] leading-none">
           U
         </span>
@@ -721,8 +690,7 @@ function IconButton({
     </Tooltip>
   )
 }
-/* 两侧都写出来，0/0 也写：没有文本改动是一份数出来的结果，与「没数」不是一回事。
- * 默认跟着卡头正文走；工具条与提交面板旁边是 11–12px 的字，那两处传 dense 收一档。 */
+/* 0/0 也写：没有文本改动是一份数出来的结果，与「没数」不是一回事。 */
 function Tally({
   dense = false,
   stat,

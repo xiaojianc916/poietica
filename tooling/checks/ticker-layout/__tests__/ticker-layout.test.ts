@@ -1,12 +1,7 @@
 import { describe, expect, test } from 'bun:test'
 import { computeMetrics, judge, type Sample } from '../metrics'
 
-/*
- * 真实布局检查的指标（§8.4 的参考实现，只改类型与模块形式）。
- *
- * 这里喂的是手写的采样序列：真机上的指标要等 Electron，而这些计算本身是纯函数，能在
- * 测试里一条条钉住 —— 阈值判错时，人看到的是「检查自己乱报」，那种检查没人会信。
- */
+/* 阈值判错时，人看到的是「检查自己乱报」，那种检查没人会信。 */
 
 const at = (t: number, extra: Partial<Sample> = {}): Sample => ({
   t,

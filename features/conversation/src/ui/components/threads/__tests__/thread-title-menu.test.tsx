@@ -9,11 +9,8 @@ import { threadActions } from '../../../../ui-api'
 import { ThreadTitleMenu } from '../thread-title-menu'
 
 /*
- * 会话页左上角那一格（机器图标 + 标题 + 下拉箭头）。
- *
- * 两件事必须是判据：标题**跟着 prop 换**（omp 总结出新标题、用户改名都走这一条），
- * 菜单里是那几项内置动作 + 其它功能贡献的动作（automations 的定时任务）；
- * 标题与下拉箭头是**两枚各管各的按钮**（产品负责人 2026-10-12 定稿）。
+ * 两件事必须是判据：标题**跟着 prop 换**（omp 总结出新标题、用户改名都走这一条），菜单里是那几项内置动作
+ * + 其它功能贡献的动作；标题与下拉箭头是**两枚各管各的按钮**。
  */
 
 function testBridge(): WindowBridge {
@@ -104,8 +101,7 @@ describe('会话页左上角标题菜单', () => {
 
     expect(screen.getByText('新对话')).toBeDefined()
     /*
-     * 省略号只认块级盒，标题文字必须装在 .conversation-title__text 里：直接挂在按钮
-     * （flex 容器）上会被硬裁断。这条断言钉住那一层壳的存在。
+     * 省略号只认块级盒，标题文字必须装在 .conversation-title__text 里：直接挂在按钮（flex 容器）上会被硬裁断。
      */
     expect(screen.getByText('新对话').className).toBe('conversation-title__text')
 
@@ -135,8 +131,7 @@ describe('会话页左上角标题菜单', () => {
     expect(screen.getByText('导出会话')).toBeDefined()
     expect(screen.getByText('以此对话创建定时任务')).toBeDefined()
     /*
-     * 贡献项自带字形，菜单里要跟着画：这一行若无图标，与另外三项排在一起时会被读成
-     * 另一种层级。钉住「贡献方的 icon 真的落到行里」。
+     * 贡献项自带字形，菜单里要跟着画：这一行若无图标，与另外三项排在一起时会被读成另一种层级。
      */
     expect(screen.getByText('以此对话创建定时任务').closest('button')?.querySelector('svg')).not.toBeNull()
   })
@@ -183,8 +178,7 @@ describe('会话页左上角标题菜单', () => {
     })
 
     /*
-     * 菜单里点「重命名」等弹层关闭动画走完再进编辑（Base UI 的关闭完成通知）。
-     * happy-dom 里这条通知要靠真实计时器推。
+     * 菜单里点「重命名」等弹层关闭动画走完再进编辑（Base UI 的关闭完成通知）。happy-dom 里这条通知要靠真实计时器推。
      */
     await act(async () => {
       await new Promise((resolve) => {

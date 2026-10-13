@@ -1,10 +1,4 @@
-/*
- * 入口提示：入口区顶部的一列（浮在吉祥物之上，见 skin/surface.css 的
- * `.assistant-surface__entry-notices`）。
- *
- * 它自己不占外壳栅格的行：这块版心属于入口界面，不是横幅行。
- */
-.entry-notices {
+/* 入口提示浮在吉祥物之上；它是入口版心，不占外壳栅格的行。 */ .entry-notices {
   display: flex;
   flex-direction: column;
   align-items: center;

@@ -15,15 +15,9 @@ import type { TurnMark } from '../../agent/thread'
 import { RAIL_PITCH_PX, RAIL_VISIBLE_TURNS, railCentre } from './conversation-minimap-geometry'
 import { useRailPointer } from './use-rail-pointer'
 
-/*
- * 对话目录。
- *
- * 一格一轮，定义域是帧日志（transcript 的 outline），不是此刻载入了多少 —— 所以
- * 轨道长度不随滚动伸缩，第一轮从头到尾都点得到。地址是 admissionId：行号会随回填
- * 改变，号不会。
- */
+/* 一格一轮，定义域是帧日志（transcript 的 outline）而不是此刻载入了多少，所以轨道长度不随滚动
+ * 伸缩；地址用 admissionId —— 行号会随回填改变，号不会。 */
 interface ConversationMinimapProps {
-  /** 正在读的那一轮，按 id。 */
   readonly activeId: string | undefined
   readonly busyId: string | null
   readonly marks: readonly TurnMark[]
@@ -87,7 +81,6 @@ function Rail({ activeId, busyId, marks, onSelect }: ConversationMinimapProps) {
   useEffect(() => {
     setTabbable((current) => Math.min(current, Math.max(0, marks.length - 1)))
   }, [marks.length])
-  /* 读到哪一轮，轨道就把那一格滚到中间。 */
   useEffect(() => {
     const scroller = scrollerRef.current
     if (scroller === null) {

@@ -1,4 +1,4 @@
-/** 命令面板的开合：内核之外的一格瞬时状态，由 Workbench 订阅 */
+/** 内核之外的一格瞬时状态，由 Workbench 订阅。 */
 const listeners = new Set<() => void>()
 let open = false
 

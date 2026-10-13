@@ -3,7 +3,7 @@ import { applyOps, emptyTimeline, pageFromState } from '@poietica/transcript'
 import { LiveProjector } from '../live'
 
 /*
- * 12 页 §7.4 第 3 步与 §9.1 的表要求的三个生产者：
+ * 事件表要求的三个生产者：
  * 附件条目（attachmentOp）、插话认领（steeredFrame 有生产者）、压缩标记（marker）。
  * 这三条曾经在实现里缺失（只有接口没有生产者），这里逐个钉住。
  */

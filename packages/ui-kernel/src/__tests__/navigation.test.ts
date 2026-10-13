@@ -105,14 +105,12 @@ describe('layout', () => {
   })
 
   /*
-   * 右坞的开合由**归属**决定（legacy 的 auxiliaryThread === activeConversationId）：
-   * 没有前台就别开（命令不该凭空拉出一个空面板），有前台时开一格即在场，
-   * toggle 同一格收起、toggle 另一格换过去。
+   * 右坞的开合由**归属**决定：没有前台就别开（命令不该凭空拉出一个空面板），
+   * 有前台时开一格即在场，toggle 同一格收起、toggle 另一格换过去。
    */
   test('openPanel / togglePanel / closePanel（右坞的归属语义）', () => {
     const l = createLayoutService()
 
-    /* 没有前台：openPanel 是空操作，坞不出现。 */
     l.openPanel('right', 'p1')
     expect(l.current().right.open).toBe(false)
     expect(l.current().right.activeId).toBeNull()

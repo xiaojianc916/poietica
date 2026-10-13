@@ -4,7 +4,7 @@ import type { TranscriptPage } from '../../agent/transcript'
 import { outlineOf, type ProjectionMemo, projectTranscript } from '../transcript-projector'
 
 /*
- * 投影的「引用稳定化」必须按通道各记各的（性能审查 P-04）。
+ * 投影的「引用稳定化」必须按通道各记各的。
  *
  * presentation 层以 `sealed` 数组为键缓存整段前缀，minimap 以 `outline` 数组为键做 memo。
  * 主对话、每个子代理、后台在跑的每条对话都调同一个 `projectTranscript` / `outlineOf`：

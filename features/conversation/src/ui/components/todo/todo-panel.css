@@ -1,33 +1,6 @@
-/*
- * 状态面板 —— 逐条复刻 ZCode ConversationStatusPanel
- * （D:\xiaojianc\zcode-ref\packages\ui\src\v4\ConversationStatusPanel.tsx）。
- *
- * 尺寸、圆角、间距、过渡、颜色档位全部取自 ZCode 源码的字面值：
- * - 字号：ZCode :root 的 --ui-font-size: 14px（text-ui-base）；
- * - 墨色：ZCode packages/ui/src/styles.css 的 .theme-zai-light / .theme-zai-dark
- *   （--color-foreground 与其 60% / 40%（深色 30%）两档、--color-diff-added/removed），
- *   取值见下方「墨色」两条声明；
- * - 深色：--color-popover #2b2b2b、--color-border rgba(255,255,255,.1)、
- *   --color-hover rgba(255,255,255,.05)、--color-menu-hover #363636；
- * - 浅色：--color-popover #ffffff、--color-border rgba(13,13,13,.1)、
- *   --color-hover rgba(13,13,13,.05)、--color-menu-hover #f0f0f0。
- * 这些值在 Poietica 里各有对应令牌，映射见下方每一处注释。
- */
-/*
- * 本表用到的取值。面板本体在 [data-assistant-skin] 作用域内（读 --cp-*），
- * 但每条都带全局兜底，避免换挂载点（如页头控件行）时解析成空值。
- */
-/*
- * 墨色照 ZCode 那张卡取，不跟全站 --cp-*：浅色是 zcode-ref 的 .theme-zai-light
- * （packages/ui/src/styles.css）—— 正文 neutral-800 #262626，次要 60%、最次 40%，
- * 增删 #1e8a3e / #e03131。
- *
- * 直接声明在面板自己身上即可：skin/metrics.css 那套 --cp-* 挂在祖先
- * [data-assistant-skin] 上，元素的自身声明恒压过继承值，不必比特异度。
- * 悬停墨也照抄 ZCode 的 --color-hover（浅 5% 黑、深 5% 白）。
- */
+/* 色值照 ZCode 那张卡的字面值取，不跟全站 --cp-*：自身声明恒压过祖先 [data-assistant-skin]
+ * 投下来的继承值，不必比特异度；每条又都带全局兜底，换挂载点（如页头控件行）时不会解析成空值。 */
 .status-panel {
-  /* ZCode :root 的 --ui-font-size: 14px（text-ui-base）。 */
   --status-panel-font-size: 14px;
   --cp-ink: #262626;
   --cp-ink-muted: #262626;
@@ -41,7 +14,6 @@
   --status-panel-removed: var(--cp-diff-removed-text, var(--ui-destructive));
 }
 
-/* ZCode CollapsibleContent：高度 300ms ease-in-out + 内容淡入，同一条时间轴。 */
 @keyframes status-panel-fade-in {
   from {
     opacity: 0;
@@ -62,11 +34,8 @@
   }
 }
 
-/* ── 面板内容 ──────────────────────────────────────────────────────────
- * ZCode 把边、圆角、阴影、底色都画在壳（aside）上，内容层只负责 p-2 的排布。
- * 壳在宿主那一侧（conversation-todo-popover 的 __surface / __mini），
- * 这里再画一遍就是双层边框 —— 展开态与收起态都会显得比 ZCode 厚一圈。
- */
+/* 边、圆角、阴影、底色都画在宿主的壳上（conversation-todo-popover 的 __surface / __mini），
+ * 这里再画一遍就是双层边框。 */
 .status-panel {
   display: flex;
   min-inline-size: 0;
@@ -77,9 +46,6 @@
   font-size: var(--status-panel-font-size);
 }
 
-/* ── 分区 ──────────────────────────────────────────────────────────────
- * ZCode StatusSection: min-w-0 flex-none；separated 时 border-t pt-2
- */
 .status-panel__section {
   display: block;
   min-inline-size: 0;
@@ -92,7 +58,6 @@
   border-block-start: 1px solid #414141;
 }
 
-/* StatusSectionHeader: mb-0.5 flex h-8 items-center gap-1.5 px-2 pr-8 */
 .status-panel__heading {
   margin: 0 0 2px;
 }
@@ -120,7 +85,6 @@
   outline-offset: -2px;
 }
 
-/* 标题：text-[--color-foreground-subtle] */
 .status-panel__title {
   flex: none;
   color: var(--cp-ink-subtle);
@@ -128,7 +92,6 @@
   line-height: 24px;
 }
 
-/* 折叠箭头：size-3.5，常态 opacity-0，hover/focus 才显形（ZCode 同款） */
 .status-panel__chevron {
   display: grid;
   block-size: 14px;
@@ -173,15 +136,12 @@
   white-space: nowrap;
 }
 
-/*
- * 例外是 Git 那一格：它收起时要贴着「Git 工具」显示，不是甩到对边
- * （ZCode GitStatusSection 的 trailing 就是标题右邻，见 GitStatusSection）。
- */
+/* 例外只有 Git 那一格：收起时 +N -M 要贴着「Git 工具」显示，不是甩到对边。 */
 .status-panel__trailing:has(.status-panel__git-stats--summary) {
   justify-content: flex-start;
 }
 
-/* 展开时右侧那份 +N -M 撤掉，正文里已经有一行「更改」在报同样的数。 */
+/* 展开时右侧那份 +N -M 撤掉：正文里已经有一行「更改」在报同样的数。 */
 .status-panel__section[data-open] .status-panel__git-stats--summary {
   display: none;
 }
@@ -205,7 +165,6 @@
   color: var(--status-panel-success);
 }
 
-/* ZCode Button ghost icon-sm：size-6 rounded-full，hover 才给底 */
 .status-panel__icon-button {
   display: inline-flex;
   block-size: 24px;
@@ -231,15 +190,9 @@
   inline-size: 14px;
 }
 
-/* ── 折叠动画 ──────────────────────────────────────────────────────────
- * 高度 300ms ease-in-out，同 ZCode CollapsibleContent 的时长与曲线。
- *
- * 用 transition 而不是 @keyframes：Base UI 在面板挂上 [data-ending-style] **之前**
- * 就读 computedStyle 判动画种类（useCollapsiblePanel 的 getAnimationType），只写在
- * 那个属性下的关键帧它读不到，于是判定「无动画」直接把面板卸载 —— 收起就变成一次
- * 硬跳。height 用 var(--accordion-panel-height)（Base UI 量的像素高），
- * 所以两个方向都从实数补间，auto 不参与。
- */
+/* 用 transition 而不是 @keyframes：Base UI 在挂上 [data-ending-style] 之前就读 computedStyle
+ * 判动画种类，只写在该属性下的关键帧它读不到，会判定「无动画」直接卸载面板 —— 收起变成一次硬跳。
+ * height 用 Base UI 量出的 var(--accordion-panel-height)，两个方向都从实数补间，auto 不参与。 */
 .status-panel__body {
   height: var(--accordion-panel-height);
   overflow: hidden;
@@ -261,9 +214,6 @@
   animation: status-panel-fade-out 300ms ease-in-out forwards;
 }
 
-/* ZCode STATUS_SECTION_SCROLL_POLICY: goal/terminal/workflow/agent max-h-48，
- * plan（进程）max-h-80。overflow-y-auto pr-1。
- */
 .status-panel__scroll--goal,
 .status-panel__scroll--agents,
 .status-panel__scroll--terminals {
@@ -280,10 +230,6 @@
   padding-inline-end: 4px;
 }
 
-/* ── 列表行 ────────────────────────────────────────────────────────────
- * ZCode PlanStatusItemRows: flex min-h-8 items-start gap-2 rounded-lg px-2 py-1.5
- * hover:bg-[--color-hover]
- */
 .status-panel__list {
   display: flex;
   min-inline-size: 0;
@@ -332,7 +278,6 @@
   gap: 6px;
 }
 
-/* ZCode: line-clamp-2 break-words leading-5 */
 .status-panel__item-text {
   min-inline-size: 0;
   overflow: hidden;
@@ -344,13 +289,11 @@
   line-height: 20px;
 }
 
-/* 完成项：ZCode 用 line-through + foreground-subtlest */
 .status-panel__item-text[data-done] {
   color: var(--cp-placeholder);
   text-decoration: line-through;
 }
 
-/* ZCode PlanStatusIcon：mt-0.5 size-3.5 */
 .status-panel__glyph {
   display: grid;
   block-size: 16px;
@@ -385,7 +328,6 @@
   animation: status-panel-spin 1s linear infinite;
 }
 
-/* 折叠占位行：ZCode 的 h-8 行高、px-2，墨取 TodoPreviewTrigger 的 foreground-subtle。 */
 .status-panel__fold {
   display: flex;
   block-size: 32px;
@@ -418,10 +360,6 @@
   inline-size: 14px;
 }
 
-/* ── Git 工具区 ────────────────────────────────────────────────────────
- * ZCode GitStatusSection 的三行：h-8 w-full rounded-lg px-2 gap-2
- * 更改行右侧 +N/-M 用 diff-added / diff-removed 两色。
- */
 .status-panel__git {
   display: flex;
   min-inline-size: 0;
@@ -446,11 +384,7 @@
   background: var(--cp-hover);
 }
 
-/*
- * 三行的图标都用正文墨：ZCode GitStatusSection 的 FileDiffIcon / GitActionMenu 的
- * GitCommitIcon 写 text-[var(--color-foreground)]，分支那枚经 triggerClassName 的
- * [&_svg:first-child] 也压到同一档（picker 自己那支是 --cp-ink-muted，在这里让位）。
- */
+/* 三行的图标都用正文墨，含 picker 的 trigger 首枚 svg（picker 自己那支是 muted，在这里让位）。 */
 .status-panel__git-row .status-panel__item-icon,
 .status-panel__git-row--branch .git-branch-picker__trigger svg:first-child {
   color: var(--cp-ink);
@@ -464,7 +398,6 @@
   white-space: nowrap;
 }
 
-/* 「提交或推送」是按钮：外观与其它两行同款，去掉浏览器默认的按钮装饰。 */
 .status-panel__git-row--action {
   border: 0;
   background: transparent;
@@ -484,7 +417,6 @@
   outline-offset: -2px;
 }
 
-/* 分支行：里面的 picker 铺满整行，行自己的 padding 让给它（ZCode 的 switcher 也铺满）。 */
 .status-panel__git-row--branch {
   padding: 0;
 }
@@ -503,7 +435,6 @@
   font-size: var(--status-panel-font-size);
 }
 
-/* +N -M：等宽数字，两色分列（ZCode 用 --color-diff-added / --color-diff-removed）。 */
 .status-panel__git-stats {
   display: inline-flex;
   flex: none;
@@ -519,7 +450,6 @@
   color: var(--status-panel-removed);
 }
 
-/* ZCode EndedDirectoryRow：px-2 py-2，计数靠右，末尾一枚 ChevronRight。 */
 .status-panel__ended[data-separated] {
   margin-block-start: 8px;
   padding-block-start: 8px;
@@ -550,10 +480,6 @@
   color: var(--cp-ink-subtle);
 }
 
-/* ── 目标行 ────────────────────────────────────────────────────────────
- * ZCode goal iteration row: flex items-start gap-2 rounded-lg px-2 py-2
- * 正文 line-clamp-3 leading-4
- */
 .status-panel__goal {
   display: flex;
   min-inline-size: 0;
@@ -588,14 +514,8 @@
   }
 }
 
-/*
- * 深色下 --cp-ground 与地色齐平，只剩一圈边线；抬一档到产品指定的 #202020
- * （不是 ZCode 的 #2b2b2b，墨色档位仍照 zai-dark）。
- *
- * 墨色照 ZCode 那张卡：正文 neutral-300 #d4d4d4，次要 60%、最次 30%，
- * 增删 #46bf72 / #ff5c5c。全站 --ui-foreground 是 #c3c3c3、次要 55%，
- * 在这张卡上比 ZCode 那套暗一档。自身声明压过继承，理由见文件头那条。
- */
+/* 深色下 --cp-ground 与地色齐平只剩一圈边线，抬到产品指定的 #202020（不是 ZCode 的 #2b2b2b）；
+ * 墨色档位仍照 zai-dark：正文 #d4d4d4、次要 60%、最次 30%。 */
 :root[data-theme="dark"] .status-panel {
   --cp-ink: #d4d4d4;
   --cp-ink-muted: #d4d4d4;

@@ -4,7 +4,7 @@ import type { Thread } from '../../contract'
 /*
  * 系统通知与确认框的判据层：**只做判断，不做 IO**。
  *
- * 通知本身走 platform 的 notify.show（07 页 §5E 的通知表：完成 / 失败 / 需要确认三种，
+ * 通知本身走 platform 的 notify.show（完成 / 失败 / 需要确认三种，
  * 窗口没有焦点时才发，点击通知导航到该线程）；确认框走内核的 DialogsToken。
  * 把「什么时候该说」与「怎么说」分开，是为了让这几条能被直接断言。
  */
@@ -14,17 +14,17 @@ export function shouldNotify(focused: boolean, notifyOnCompletion: boolean): boo
   return !focused && notifyOnCompletion
 }
 
-/** 一轮结束时该说什么（07 页 §5E 的通知表） */
+/** 一轮结束时该说什么 */
 export function completionBody(error: { readonly code: string } | null): string {
   return error === null ? '已完成' : '运行失败'
 }
 
 /**
- * 这一条 `turns.state` 是否就是「一轮结束」（07 页 §5E 通知表的判据）。
+ * 这一条 `turns.state` 是否就是「一轮结束」。
  *
  * 判据取**前一份状态**：从 running / awaiting 回到 idle 才算结束。只看当前是 idle 会把
  * 首次 `threads.list` 的初始读数也当成一次「结束」，一开软件就弹通知（真机上会报一串
- * 「已完成」）。UI 的其余部分也从不自己推断状态（14 页 §9 第 3 条），这里同一条口径。
+ * 「已完成」）。UI 的其余部分也从不自己推断状态，这里同一条口径。
  */
 export function isTurnSettled(
   previous: 'idle' | 'running' | 'awaiting' | undefined,

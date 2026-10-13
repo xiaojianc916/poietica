@@ -6,12 +6,8 @@ export interface ControlsState {
   readonly byThread: Readonly<Record<string, Controls>>
   readonly failure: Readonly<Record<string, string>>
   /**
-   * 上下文用量，按对话。**与 byThread 分开一格**：它由 controls.contextChanged 单独写，
-   * 而 byThread 整份来自 controls.get / controls.changed —— 合成一格的话，每一条用量
-   * 通知都会把整张控件表（含模型候选清单）一起换掉，重画那一排选择器。
-   *
-   * 缺席（这条对话还没收到过任何一次报数）与 null（报过，但此刻没有可报的窗口）
-   * 是两件事，所以读法是 `usageOf` 而不是给个默认值。
+   * **与 byThread 分开一格**：它由 controls.contextChanged 单独写，而 byThread 整份来自 controls.get / controls.changed ——
+   * 合成一格的话，每一条用量通知都会把整张控件表（含模型候选清单）一起换掉。缺席（从没收到过报数）与 null（报过但此刻没有窗口）是两件事。
    */
   readonly usage: Readonly<Record<string, ContextUsage | null>>
 }

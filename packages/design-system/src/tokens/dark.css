@@ -18,30 +18,27 @@
   --ui-card-divider: var(--ui-region-divider-color);
   --ui-card-frame: var(--ui-surface-frame);
   --ui-chrome: var(--ui-palette-dark-850);
-  /* 独立界面的地色（自动化）：与页面底色同值 —— 浅色那边两格
-   * 都是纯白，深色下原来那一格比页面亮，整块界面看着像浮起来的卡片。 */
+  /* 独立界面的地色（自动化）：与页面底色同值，否则整块界面看着像浮起来的卡片。 */
   --ui-ground: var(--ui-palette-dark-950);
 
   /* 同一条式子把白色兑进去：深色下这一格自动变亮而不是变暗。 */
   --ui-sunken: color-mix(in oklab, var(--ui-foreground) 5%, var(--ui-background));
 
   --ui-sidebar: var(--ui-palette-dark-850);
-  /* 侧栏这一层唯一的压深色（浅色那格是 #e7e8e8）：底升到 #202020 后，原来的
-   * #252525 只剩 5 格差，选中行几乎看不出来。 */
+  /* 侧栏这一层唯一的压深色。底升到 #202020 后，#252525 只剩 5 格差，选中行几乎看不出来，
+   * 所以取 #313131。 */
   --ui-sidebar-accent: #313131;
   --ui-sidebar-accent-foreground: var(--ui-palette-white);
 
-  /* 悬停与选中在深色下是一层墨而不是一个固定的灰：铺在什么底上跟着什么底走。
-   * 标签页两档例外，写字面值：辅助面板的底是 #181818，一层 5% 的墨兑出来与选中
-   * 那档只差 1 格，两者分不开。 */
+  /* 悬停与选中在深色下是一层墨而不是一个固定的灰：铺在什么底上跟着什么底走。标签页两档例外，
+   * 写字面值：辅助面板的底是 #181818，一层 5% 的墨兑出来与选中那档只差 1 格，两者分不开。 */
   --ui-tab-active: #222222;
   --ui-tab-hover: #1e1e1e;
   --ui-control-hover: color-mix(in srgb, var(--ui-foreground) 10%, transparent);
 
   /*
-   * 与 light.css 同构，相对基底（--ui-palette-dark-950）定档，同样保持
-   * 3～6 倍的对比度差。深色下绝对差比浅色略大、投影比浅色重：底色越暗，
-   * 同样的差越难读出来。
+   * 与 light.css 同构，相对基底（--ui-palette-dark-950）定档，同样保持 3～6 倍的对比度差。
+   * 深色下绝对差比浅色略大、投影比浅色重：底色越暗，同样的差越难读出来。
    */
   --ui-region-divider-color: rgb(255 255 255 / 16%);
   --ui-divider: var(--ui-region-divider-color);
@@ -60,7 +57,7 @@
   --ui-secondary-foreground: var(--ui-palette-white);
 
   --ui-muted: var(--ui-palette-dark-750);
-  /* 辅助面板启动器四枚按钮的底色：比面板底 #181818 抬一档，不再跟 muted 同值。 */
+  /* 辅助面板启动器四枚按钮的底色：比面板底 #181818 抬一档，不与 muted 同值。 */
   --ui-launcher: #1f1f1f;
   --ui-muted-foreground: rgb(255 255 255 / 65%);
 
@@ -71,8 +68,8 @@
   --ui-accent-foreground: var(--ui-palette-white);
 
   /*
-   * 浮层与下拉触发器共用一张脸：比卡面再抬一档，触发器于是不会缩进卡里，
-   * 展开的面板也不会与它同色（浅色下这一格是纯白）。
+   * 浮层与下拉触发器共用一张脸：比卡面再抬一档，触发器于是不会缩进卡里，展开的面板也不会
+   * 与它同色。
    */
   --ui-popover: #2a2a2a;
   /* 与 light.css 同构：浮层上的字就是默认前景色，不另开一档白。 */
@@ -82,16 +79,16 @@
   --ui-popup-elevation: 0 0 0 0.5px #ffffff0f, 0 3px 8px 0 rgb(0 0 0 / 3.9%), 0 0 20px 0 rgb(0 0 0 / 5.1%);
   --ui-popup-highlight: #ffffff14;
   /*
-   * 触发器收起态的框。这里写字面实色，不跟区域线那支半透明墨：半透明墨会跟着
-   * 底走，同一个控件收起与展开时会量出两个颜色。
+   * 触发器收起态的框。这里写字面实色，不跟区域线那支半透明墨：半透明墨会跟着底走，同一个
+   * 控件收起与展开时会量出两个颜色。
    */
   --ui-popover-trigger-frame: #3b3b3b;
   /* 与浅色同构：内线 = --dsw-alias-border-l2，正本画成 0.5px 色块。 */
   --ui-popup-divider: #ffffff1f;
 
   /*
-   * 划选高亮底：深色下是产品指定的深蓝，与浅色那支的浅蓝各一格；字取本主题的
-   * 默认前景（同 light.css 的结构），深底上仍是亮字。
+   * 划选高亮底：深色下是产品指定的深蓝，与浅色那支的浅蓝各一格；字取本主题的默认前景，深底
+   * 上仍是亮字。
    */
   --ui-selection-background: #384c5e;
   --ui-selection-foreground: var(--ui-foreground);
@@ -118,10 +115,10 @@
   --ui-info-foreground: var(--ui-palette-dark-1000);
 
   /*
-   * 终端那一格的颜色。ANSI 十六色取 VS Code 的终端默认调色板：用户心里的“正常终端”
-   * 就是它，而这一域不跟界面语义令牌共用。底色是例外——同浅色那边一样跟着页面地色
-   * 走，终端在辅助面板里才不像嵌了一块更暗的板。只能写 hex 或 rgb()——xterm 的颜色
-   * 解析只认这两种，链到 oklch 档位会被它静默丢回默认色。
+   * 终端那一格的颜色。ANSI 十六色取 VS Code 的终端默认调色板：用户心里的“正常终端”就是它，
+   * 而这一域不跟界面语义令牌共用。底色是例外——同浅色那边一样跟着页面地色走，终端在辅助面板
+   * 里才不像嵌了一块更暗的板。只能写 hex 或 rgb()——xterm 的颜色解析只认这两种，链到 oklch
+   * 档位会被它静默丢回默认色。
    */
   --terminal-background: var(--ui-palette-dark-950);
   --terminal-foreground: #cccccc;
@@ -145,8 +142,8 @@
   --terminal-ansi-bright-white: #e5e5e5;
 
   /*
-   * 产品标记的墨。比 --ui-foreground（#c3c3c3）亮五格：标记是实心墨块，同一档灰
-   * 在近黑底上比描边字形轻。浅色那支在 light.css。
+   * 产品标记的墨。比 --ui-foreground（#c3c3c3）亮五格：标记是实心墨块，同一档灰在近黑底上
+   * 比描边字形轻。浅色那支在 light.css。
    */
   --ui-mark-ink: #c8c8c8;
 }

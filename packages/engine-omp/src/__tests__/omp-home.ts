@@ -2,7 +2,7 @@
 // ESM 按书写顺序求值依赖，第一行的 import 会先于后面所有 import 执行。
 //
 // 为什么必须这样做：omp 的目录由 @oh-my-pi/pi-utils/dirs 在**模块求值时**读取环境变量算出，
-// 而且整个进程只算一次；bun test 默认把所有测试文件放在同一个进程里（12 页 §2.2）。
+// 而且整个进程只算一次；bun test 默认把所有测试文件放在同一个进程里。
 import { mkdirSync, realpathSync } from 'node:fs'
 import { homedir, tmpdir } from 'node:os'
 import path from 'node:path'

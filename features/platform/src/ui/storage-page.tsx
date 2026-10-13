@@ -4,15 +4,8 @@ import { type ReactElement, useCallback, useEffect, useState } from 'react'
 import type { StorageEntry } from '../contract'
 import type { PlatformApi } from './api'
 
-/*
- * 存储页。**迁移自** legacy `storage-settings.tsx`：先看见、再清理；占用那张卡带
- * 「展开明细」的头按钮，清理那一组两个动作（安全的直接清、要重新登录的走二次确认）。
- *
- * 只改数据来源：legacy 的 StorageGateway 换成 platform 契约的 storageUsage /
- * storageClear；二次确认用内核的 dialogs.confirm（legacy 是 ConfirmationDialog）。
- */
-
-/** 每一类的说法；认不出的 id 照原样显示，不猜。 */
+/* 先看见、再清理；占用那张卡带「展开明细」的头按钮，清理那一组两个动作（安全的直接清、要重新登录的走二次确认）。只改数据来源：legacy 的
+ * StorageGateway 换成 platform 契约的 storageUsage / storageClear；二次确认用内核的 dialogs.confirm。 */
 const DESCRIPTIONS: Record<string, string> = {
   ledger: '对话索引、帧日志与附件索引。',
   settings: '主题、语言、快捷键与 agent 接入档案。',
@@ -31,7 +24,6 @@ const DESCRIPTIONS: Record<string, string> = {
 
 const MEASURED_AT = new Intl.DateTimeFormat('zh-CN', { hour: '2-digit', minute: '2-digit' })
 
-/** 存储页：占用卡（可展开明细）+ 清理组；要重新登录的那一项先走 dialogs.confirm */
 export function StoragePage({ api }: { readonly api: PlatformApi }): ReactElement {
   const { dialogs } = useKernel().kernelServices
   const [entries, setEntries] = useState<readonly StorageEntry[] | null>(null)
@@ -167,7 +159,6 @@ export function StoragePage({ api }: { readonly api: PlatformApi }): ReactElemen
   )
 }
 
-/** 跨边界来的失败已经是折过的错误，它的 message 就是那句话。 */
 function reasonOf(cause: unknown): string {
   return cause instanceof Error && cause.message.length > 0 ? cause.message : '未知原因'
 }

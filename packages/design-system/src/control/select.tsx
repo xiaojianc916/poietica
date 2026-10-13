@@ -11,8 +11,8 @@ export interface SelectOption<TValue extends string = string> {
   /**
    * 行首图标。
    *
-   * 名字彼此只差一个序号时（字段列表就是「字段 1」「字段 2」），图标是唯一一眼能
-   * 分出种类的东西。触发器与清单画同一份 —— 分开画就是两个产地。
+   * 名字彼此只差一个序号时（字段列表就是「字段 1」「字段 2」），图标是唯一一眼能分出种类的
+   * 东西。触发器与清单画同一份。
    */
   readonly mark?: ReactNode
 }
@@ -36,8 +36,7 @@ export interface SelectProps<TValue extends string = string> {
  * cn 靠后的类覆盖靠前的冲突类，调用点的 className 因此排在最后。
  *
  * 触发器与展开的面板同属一个控件：底取 --ui-popover（收起与展开同色），框取
- * --ui-popover-trigger-frame（比面板那圈轻一档）。两处都由令牌给值，不再写死
- * 白底与浅色线。
+ * --ui-popover-trigger-frame（比面板那圈轻一档）。两处都由令牌给值。
  */
 const TRIGGER = cn(
   'flex items-center justify-between',
@@ -60,9 +59,8 @@ const TRIGGER_VALUE = cn('flex min-w-0 flex-1', 'items-center gap-1.5')
 const MARK = cn('flex shrink-0', 'items-center', 'text-muted-foreground')
 
 /*
- * ChevronDown 而不是 ChevronsUpDown：双向箭头说的是「有一根轴能上下走」，那是
- * 步进器与可搜索输入的记号。这里是有限离散值的弹出菜单，说的是「下面会展开一
- * 张列表」。
+ * ChevronDown 而不是 ChevronsUpDown：双向箭头说的是「有一根轴能上下走」，那是步进器与可搜索
+ * 输入的记号。这里是有限离散值的弹出菜单，说的是「下面会展开一张列表」。
  */
 const ICON = cn('size-3.5', 'shrink-0', 'text-muted-foreground/60')
 
@@ -72,9 +70,8 @@ const LIST = cn('max-h-64', 'overflow-y-auto', 'overscroll-contain', 'p-1 outlin
 /*
  * 行高比触发器高 2px，字号与触发器同档：菜单是控件的展开，不是新界面。
  *
- * 高亮是中性的：勾号说「当前生效的值」，高亮说「指针或键盘现在指着谁」。用
- * --ui-accent 去画一个瞬时指向，等于给临时状态派了个语义色，而它还是命令面板
- * 与菜单的全局强调色，改动波及整个应用。
+ * 高亮是中性的：勾号说「当前生效的值」，高亮说「指针或键盘现在指着谁」。用 --ui-accent 去画
+ * 一个瞬时指向，等于给临时状态派了个语义色，而它还是命令面板与菜单的全局强调色。
  */
 const ITEM = cn(
   'group relative flex',
@@ -93,10 +90,9 @@ const ITEM = cn(
 /*
  * 弹出层宽度自适应内容，锚点宽度只是下限。
  *
- * 下限来自 Base UI Positioner 暴露的 --anchor-width，不由 React 读 offsetWidth
- * 再 setState：那既在 commit 阶段强制同步布局，又在窗口尺寸、字号与文案长度变化
- * 后不会更新。上限与设置页 .settings-select-trigger 同数：面板的水平范围由锚点
- * 决定，不由内容随意撑开，否则勾号被推到很远。
+ * 下限来自 Base UI Positioner 暴露的 --anchor-width，不由 React 读 offsetWidth 再 setState：
+ * 那既在 commit 阶段强制同步布局，又在窗口尺寸、字号与文案长度变化后不会更新。上限与设置页
+ * .settings-select-trigger 同数：面板的水平范围由锚点决定，否则勾号被推到很远。
  */
 const POPUP_MIN_INLINE_SIZE = '168px'
 
@@ -124,16 +120,16 @@ export function Select<TValue extends string = string>({
         }
       }}
       /*
-       * 只把 null / undefined 折成「没有选中」，'' 原样交下去：空串是**我们自己**的
-       * 一个合法取值（如 sharpshooter.model 的「自动」档，写回 agent 的就是 ''）。
-       * 写成 `value || null` 会把它一起吞掉，那一档永远显示成占位符。
+       * 只把 null / undefined 折成「没有选中」，'' 原样交下去：空串是**我们自己**的一个合法
+       * 取值（如 sharpshooter.model 的「自动」档，写回 agent 的就是 ''）。写成 `value || null`
+       * 会把它一起吞掉，那一档永远显示成占位符。
        */
       value={value ?? null}
     >
       <BaseSelect.Trigger aria-label={type} className={cn(TRIGGER, className)} id={id} type="button">
         {/*
-         * 触发器自己渲染选中的那一项，不用 Value 的 placeholder：icon 与文案要一起
-         * 画，而 placeholder 只认一段文字。占位走同一个盒子，因此与选中的样子同宽。
+         * 触发器自己渲染选中的那一项，不用 Value 的 placeholder：icon 与文案要一起画，而
+         * placeholder 只认一段文字。占位走同一个盒子，因此与选中的样子同宽。
          */}
         <BaseSelect.Value className={TRIGGER_VALUE}>
           {(value: unknown) => {

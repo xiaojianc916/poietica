@@ -2,12 +2,7 @@ import { describe, expect, test } from 'bun:test'
 import { PICKER_CALLBACK_HOST } from '../../contract/entities'
 import { createPicker, decodePickerCallback, isPickerCallback } from '../picker'
 
-/*
- * 拾取的宿主侧（BR-8）：租约、回调地址解码、以及与标签面的接口。
- *
- * 07 页 §12D 的四条在这里逐条钉住：token 为 UUID、一次只租给一个标签、
- * 回调必须带当前租约才算数、过期的载荷被丢掉。
- */
+/* BR-8：token 为 UUID、一次只租给一个标签、回调必须带当前租约才算数、过期的载荷被丢掉。 */
 
 const CALLBACK = `https://${PICKER_CALLBACK_HOST}/`
 
@@ -22,7 +17,6 @@ describe('BR-8: 租约', () => {
     picker.start(2)
 
     expect(picker.activeTabId()).toBe(2)
-    // 旧租约已经不在了：它那一轮的 token 再也过不了 finish。
     expect(picker.finish(1, 'token-1')).toBe(false)
   })
 
@@ -35,7 +29,6 @@ describe('BR-8: 租约', () => {
     expect(picker.finish(1, 'token-2')).toBe(false)
     expect(picker.finish(1, 'token-1')).toBe(true)
     expect(picker.activeTabId()).toBeNull()
-    // 同一份载荷不能结算两次。
     expect(picker.finish(1, 'token-1')).toBe(false)
   })
 
@@ -130,10 +123,6 @@ describe('BR-8: 回调地址解码', () => {
   })
 })
 
-/*
- * 标签面那一侧：回调地址由 will-navigate 交给 index.ts，index.ts 在这里做的是
- * 「token 对不上就丢、对上就 emit + 清 pickingTabId」—— 这一条用假的 tabs 面钉住。
- */
 describe('BR-8: 回调 → elementPicked', () => {
   interface FakeTabs {
     picking: number | null

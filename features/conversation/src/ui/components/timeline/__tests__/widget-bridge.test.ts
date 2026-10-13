@@ -11,8 +11,6 @@ import {
   widgetTokenCss,
 } from '../widget-bridge'
 
-/* 对话内组件（审查 R-18）在 UI 侧的纯逻辑。 */
-
 describe('组件小桥（审查 R-18）', () => {
   test('B1 交给组件的变量名与工具描述里写给模型的那张表一字不差', () => {
     expect(Object.keys(WIDGET_TOKEN_SOURCES)).toEqual([...WIDGET_TOKEN_NAMES])

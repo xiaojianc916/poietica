@@ -3,16 +3,9 @@ import { afterEach, beforeEach, expect, mock, test } from 'bun:test'
 import * as diagramTheme from '../prose/diagram-theme'
 
 /*
- * 图所在的行会被虚拟器卸载；回来时不该重跑一遍布局引擎，也不该先出一帧源码面板。
- *
- * 引擎与取色都换成替身：
- *   • `@streamdown/mermaid` 真的会去 import mermaid（几百毫秒、还带真布局），
- *     这里只要一个会数数的 render；`initialize` 收下的颜色也顺手记下来，好断言重挂载
- *     那次没再初始化；
- *   • `diagram-theme` 的探针要真实样式引擎 + 2d 画布，happy-dom 两者都不给，直接给固定色。
- *
- * 替身交回的 svg 照真实引擎的样子带 xmlns：happy-dom 按命名空间建元素，缺了它连
- * `viewBox` 都没有（`ground()` 读不到），而那只关测试环境。
+ * 图行会被虚拟器卸载；回来时不该重跑布局引擎，也不该先出一帧源码面板。引擎与取色都换成替身：真 mermaid 要几百毫秒
+ * 还带真布局，取色探针要真实样式引擎 + 2d 画布而 happy-dom 两者都不给。替身交回的 svg 照真实引擎带 xmlns，缺了它
+ * happy-dom 连 viewBox 都建不出来（只关测试环境）。
  */
 
 let renderCount = 0
@@ -50,10 +43,7 @@ mock.module('@streamdown/mermaid', () => ({
   },
 }))
 
-/*
- * 只换探针，其余出口原样摊回来：mock.module 是进程级的，替身少写一个出口，
- * 后面 import 这张模块的测试文件就一起躺枪（而且只在按目录跑时才现形）。
- */
+/* 只换探针、其余出口原样摊回来：mock.module 是进程级的，替身少写一个出口，后面 import 这张模块的测试文件就一起躺枪（只在按目录跑时才现形）。 */
 mock.module('../prose/diagram-theme', () => ({
   ...diagramTheme,
   diagramInks: () => INKS,
@@ -88,7 +78,7 @@ test('D1 重挂载命中缓存：引擎只画一次，且首帧就是图', async
   })
 
   expect(renderCount).toBe(1)
-  /* 画一次只需初始化一次；重挂载命中缓存时连它也不该再跑。 */
+  /* 重挂载命中缓存时，连 initialize 也不该再跑。 */
   expect(initCount).toBe(1)
 
   const painted = first.container.querySelector('.timeline-prose__diagram-stage svg')

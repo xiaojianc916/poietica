@@ -7,12 +7,8 @@ import { cx } from '../../primitives/class-names'
 import { DisclosureBody } from '../../primitives/disclosure'
 import { ChevronDownIcon, LinkIcon } from '../../primitives/icons'
 
-/*
- * 一次断线，长在它耽误的那一轮里，与工具调用同一行形制。
- *
- * 「还断着吗」不由这张卡自己判：它与工具卡片同问 row.isInFlight（判据在
- * presentation.ts 的 inFlight），所以一轮死掉时这里的光会停。
- */
+/* 一次断线，长在它耽误的那一轮里；「还断着吗」不由这张卡自己判，它与工具卡片同问 row.isInFlight
+   （判据在 presentation.ts 的 inFlight），所以一轮死掉时这里的光会停。 */
 
 function say(link: LinkTimelineItem['link']): { line: string; detail: string } {
   switch (link.state) {

@@ -2,12 +2,8 @@ import { describe, expect, test } from 'bun:test'
 import { readFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 
-/*
- * 组头那一格的样式护栏（思考行 v2）。
- *
- * 读的是样式表文本，不是渲染结果：happy-dom 没有布局，量不出字落在哪（真实布局的验证见
- * tooling/checks/ticker-layout）。这里只钉住几条「一改就回到 v1」的规则。
- */
+/* 组头那一格的样式护栏（思考行 v2）：happy-dom 没有布局，只能读样式表文本，钉住几条「一改就
+ * 回到 v1」的规则；真实布局由 tooling/checks/ticker-layout 验证。 */
 
 const CSS = readFileSync(fileURLToPath(new URL('../ticker/rolling-line.css', import.meta.url)), 'utf8')
 
@@ -37,7 +33,6 @@ function rulesOf(css: string): Rule[] {
 
 const RULES = rulesOf(CSS)
 
-/** 某个选择器（逗号分隔的任一项）所在规则里，某个属性最后一次的取值。 */
 function declaredValue(selector: string, property: string): string | undefined {
   let value: string | undefined
 

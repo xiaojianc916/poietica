@@ -1,10 +1,7 @@
 import { toDisposable } from '@poietica/foundation'
 import { watchRepository } from '@poietica/git'
 
-/**
- * 引用计数 + 300ms 去抖（07 页 §10C）：多个面板或标题栏部件可能同时 watch 同一个
- * 工作区，计数归零才停止监听；去抖与忽略噪音在 `watchRepository` 里。
- */
+/** 引用计数 + 300ms 去抖：多个部件可能同时 watch 同一个工作区，计数归零才停止监听。 */
 export interface ReviewWatcher {
   watch(path: string, onChange: () => void): void
   unwatch(path: string): void

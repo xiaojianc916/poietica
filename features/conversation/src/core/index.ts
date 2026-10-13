@@ -65,9 +65,9 @@ export default defineCoreModule({
     })
 
     registerHandlers(ctx, core, hub)
-    // agent 往对话里展示图片的正式入口（审查 R-13）：工具集在全部 setup 之后冻结，只能在这里注册
+    // R-13：agent 往对话里展示图片的正式入口。工具集在全部 setup 之后冻结，只能在这里注册
     registerImageTool({ tools: ctx.agentTools, attachments })
-    // 对话内组件（审查 R-18）：同一条理由，必须在 setup 里同步注册
+    // R-18：同一条理由
     registerWidgetTool({ tools: ctx.agentTools })
     ctx.services.provide(ConversationServiceToken, conversationService(core))
 
@@ -79,12 +79,9 @@ export default defineCoreModule({
     ctx.disposables.add(ctx.engine.models.onDidChange(invalidateSessions))
 
     /*
-     * 模型列表变了 → 通知入口页重读**草稿**表（方案 §05 的 controls.draftChanged）。
-     *
-     * 草稿选择是入口页本地的，Core 不知道用户此刻在草稿里选了什么，所以这条通知不带参数：
-     * 它只说「目录变了」，重读由入口页自己发起（带上它手里的草稿）。装/卸服务商、启停模型
-     * 都会走到这里 —— 少了它，用户在设置里配好 key 回到首页，那排选择器还是旧的那一份
-     * （空的），要切一次页面才刷新。
+     * 模型列表变了 → 通知入口页重读**草稿**表。草稿选择是入口页本地的，Core 不知道用户选了
+     * 什么，所以这条通知不带参数。少了它，用户在设置里配好 key 回到首页，那排选择器还是空的，
+     * 要切一次页面才刷新。
      */
     ctx.disposables.add(
       ctx.engine.models.onDidChange(() => {
@@ -101,7 +98,7 @@ export default defineCoreModule({
       }),
     )
 
-    // 会话池与 hub 的释放都是异步/有序的：模块的 onShutdown 里逐个做（07 页 §5C）
+    // 会话池与 hub 的释放都是异步/有序的：模块的 onShutdown 里逐个做
     ctx.lifecycle.onShutdown(async () => {
       hub.dispose()
       await core.dispose()

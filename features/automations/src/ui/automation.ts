@@ -1,14 +1,7 @@
 import { invariant } from '@poietica/foundation'
 import type { Automation, AutomationDraft, AutomationRun, RunOutcome, RunTrigger, Schedule } from '../contract'
 
-/*
- * 照 legacy `packages/automation/src/automation.ts` 逐字搬迁的纯逻辑：日程的
- * 人话说法、常见形状与 cron 之间的往返、运行记录的派生。
- *
- * 与新架构的差别只有数据形状两处：时间戳由 ISO 字符串换成毫秒数（契约 07 页 §9B），
- * 会话配置（sessionConfig 那本字典）换成 AutomationDraft 的 posture / model / thinking
- * 三格 —— legacy 里那一本是不透明的键值对，新契约把它收成了引擎认识的三个字段。
- */
+/* 照 legacy 逐字搬迁的纯逻辑。差别只有数据形状两处：时间戳由 ISO 字符串换成毫秒数；会话配置换成 AutomationDraft 的三格。 */
 
 const MINUTE = 60_000
 const HOUR = 60 * MINUTE
@@ -55,16 +48,11 @@ export function activeRun(runs: readonly AutomationRun[]): AutomationRun | null 
   return runs.find((run) => !isTerminal(run.outcome)) ?? null
 }
 
-// Only product-authored presets are recognized here; cron evaluation belongs to Core scheduling.
 export type CommonScheduleKind = 'hourly' | 'daily' | 'weekdays' | 'weekly' | 'monthly'
 export type ScheduleKind = CommonScheduleKind | 'custom'
 
 export const DEFAULT_SCHEDULE_TIME = '09:00'
 
-/*
- * cron 的星期号收进 0-6 这一支：1 是周一。cron 自己允许 7 表示周日，识别时折进来，
- * 界面因此只有七个选项。
- */
 export type Weekday = 0 | 1 | 2 | 3 | 4 | 5 | 6
 
 export const WEEKDAY_LABELS: Readonly<Record<Weekday, string>> = {
@@ -80,7 +68,6 @@ export const WEEKDAY_LABELS: Readonly<Record<Weekday, string>> = {
 interface CommonSchedule {
   readonly kind: CommonScheduleKind
   readonly time: string | null
-  /* 只有 weekly 给出这一格，其余 kind 为 null。 */
   readonly weekday: Weekday | null
 }
 
@@ -190,13 +177,11 @@ export function describeSchedule(schedule: string | null): string {
 
 const pad2 = (n: number): string => String(n).padStart(2, '0')
 
-/** 毫秒 → 「MM-DD HH:mm」（本机时间）：列表、历史里的时刻都这样写，一列里对得齐。 */
 export function clockOf(at: number): string {
   const d = new Date(at)
   return `${pad2(d.getMonth() + 1)}-${pad2(d.getDate())} ${pad2(d.getHours())}:${pad2(d.getMinutes())}`
 }
 
-/** 整份计划的人话（审查 R-16）：一次性写「一次 · MM-DD HH:mm」，其余同 describeSchedule。 */
 export function describePlan(schedule: Pick<Schedule, 'cron' | 'at'>): string {
   if (schedule.at !== null) {
     return `一次 · ${clockOf(schedule.at)}`
@@ -204,19 +189,16 @@ export function describePlan(schedule: Pick<Schedule, 'cron' | 'at'>): string {
   return describeSchedule(schedule.cron)
 }
 
-/** 有没有计划（周期或一次性）；都没有是「只手动」 */
 export function hasPlan(schedule: Pick<Schedule, 'cron' | 'at'>): boolean {
   return schedule.cron !== null || schedule.at !== null
 }
 
-/** 这次运行是怎么来的：按计划的不写，手动与补跑写一个小标签（审查 R-16） */
 export const TRIGGER_LABELS: Readonly<Record<RunTrigger, string | null>> = {
   schedule: null,
   manual: '手动',
   catch_up: '补跑',
 }
 
-/* 新建任务的空草稿：时区与工作区由调用方按当时的上下文补上。 */
 export const BLANK_DRAFT: AutomationDraft = {
   title: '',
   prompt: '',
@@ -247,7 +229,6 @@ export function draftOf(automation: Automation): AutomationDraft {
   }
 }
 
-/** 草稿与基线是否同一份「形状」：编辑页用它判脏。 */
 export function sameDraft(left: AutomationDraft, right: AutomationDraft): boolean {
   return (
     left.title === right.title &&

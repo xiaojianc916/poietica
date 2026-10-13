@@ -5,21 +5,9 @@ import type { Automation, AutomationDraft, AutomationRun, Schedule, ScheduleProb
 import type { AutomationsApi } from './api'
 
 /*
- * 照 legacy `packages/automation/src/automation-store.ts` 搬迁：界面要的那几格
- * （automations / loaded / error / watchError / pending）与「命令回执去重」的脾气
- * 一字未改，换的是数据的来路与去处。
- *
- * legacy 的目录快照带 revision，写入靠 expectedRevision 做乐观并发；新契约（07 页
- * §9B/§11.9）没有 revision，RPC 每次写都返回最新的那一条，读侧靠 changed /
- * runUpdated 两条通知对账。因此：写入成功后直接把返回值并回列表，不认识的变更由
- * changed → refresh 兜底。
- *
- * 运行记录不进 automation 实体（实体只带 lastRun），列表页要显示「已运行 N 次」、
- * 编辑页要显示完整历史，所以这里按 id 拉 `automations.runs`（历史上限 50 由 Core 保证）
- * 并缓存。runUpdated 到达时只更新缓存里的那一条，不整表重拉。
+ * 界面要的那几格与「命令回执去重」的脾气照 legacy。新契约没有 revision，RPC 每次写返回最新那一条，读侧靠 changed / runUpdated
+ * 两条通知对账。运行记录不进 automation 实体，所以这里按 id 拉 runs 并缓存，runUpdated 只更新缓存里的那一条。
  */
-
-/** 一次取整条历史的上限：Core 每个任务只保留最近 50 条，这里直接对齐。 */
 export const RUNS_LIMIT = 50
 
 export interface AutomationsViewModel {
@@ -33,13 +21,7 @@ export interface AutomationsViewModel {
 
 export interface AutomationsStore {
   readonly store: FeatureStore<AutomationsViewModel>
-  /**
-   * 列表表面点「创建/模板」后交给编辑表面的草稿。
-   *
-   * 两个表面在路由上各是一次挂载，草稿没法当 props 传；legacy 里它是 surface 的内部
-   * state，新架构把它暂存在 store 上（不是持久状态，只是两个表面之间的一次交接——
-   * 编辑表面读走即清空）。
-   */
+  /** 两个表面在路由上各是一次挂载，草稿没法当 props 传，所以暂存在这里（读走即清空）。 */
   pendingDraft: AutomationDraft | null
   readonly create: (draft: AutomationDraft) => Promise<boolean>
   readonly update: (id: string, draft: AutomationDraft, enabled: boolean) => Promise<boolean>
@@ -48,7 +30,6 @@ export interface AutomationsStore {
   readonly runNow: (id: string) => Promise<boolean>
   readonly cancel: (runId: string) => Promise<boolean>
   readonly preview: (schedule: Schedule, count: number) => Promise<{ times: number[]; problem: ScheduleProblem | null }>
-  /** 编辑器的模型 / 思考强度可选项（审查 R-16）：直通 api，不进 store 的状态 */
   readonly draftControls: (model: ModelRef | null) => Promise<Controls>
   readonly refresh: () => Promise<boolean>
   readonly start: () => () => void
@@ -63,7 +44,6 @@ const EMPTY: AutomationsViewModel = {
   pending: [],
 }
 
-/** 只读修复：订阅断掉或漏了通知时，靠它把目录重新对齐（legacy 同此）。 */
 const REPAIR_INTERVAL_MS = 15_000
 
 export function createAutomationsStore(d: { readonly api: AutomationsApi; readonly logger: Logger }): AutomationsStore {
@@ -86,7 +66,7 @@ export function createAutomationsStore(d: { readonly api: AutomationsApi; readon
     return [operation, detail].join('：')
   }
 
-  /** 把一条新记录并进列表（新增追加、已有替换）；排序仍由 Core 的 created_at DESC 决定 */
+  /** 排序仍由 Core 的 created_at DESC 决定。 */
   const upsertAutomation = (automation: Automation): void => {
     const found = snapshot.automations.some((row) => row.id === automation.id)
     const automations = found
@@ -108,7 +88,6 @@ export function createAutomationsStore(d: { readonly api: AutomationsApi; readon
       const runs = await api.runs(automationId, RUNS_LIMIT)
       publish({ runs: { ...snapshot.runs, [automationId]: runs } })
     } catch (cause) {
-      /* 历史读不到不该让整个列表变红：留在「已运行 0 次」，下一次 refresh 再对。 */
       logger.warn('运行历史读取失败', { automationId, error: String(cause) })
     }
   }
@@ -124,7 +103,6 @@ export function createAutomationsStore(d: { readonly api: AutomationsApi; readon
           return true
         }
         publish({ automations, loaded: true, error: null })
-        /* 历史与目录分别读：一个任务的运行记录读失败不牵连其余 */
         await Promise.all(
           automations.map(async (automation) => {
             if (owner === generation) {
@@ -253,7 +231,6 @@ export function createAutomationsStore(d: { readonly api: AutomationsApi; readon
 
       attach()
       void refresh()
-      /* 只读修复轮询：不能认领也不能提交任何工作（legacy 同此）。 */
       const timer = setInterval(() => {
         void refresh()
       }, REPAIR_INTERVAL_MS)

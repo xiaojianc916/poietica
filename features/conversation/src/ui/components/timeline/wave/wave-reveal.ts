@@ -1,33 +1,22 @@
 import type { Element, ElementContent, Root, RootContent, Text } from 'hast'
 
 /*
- * 流式正文的「批次波浪淡入」（P-03）。
- *
- * 每批新到的文字切成若干小段，小段依次错开启动淡入；相邻批次的波首尾相接，于是
- * 最近一小段时间里到的字形成一条「越旧越实、越新越淡」的渐变带，跟着正文末尾前进。
- *
- * 这一层只负责「标记」：把仍在淡入中的小段包成 <span data-wave-start="…">，淡完的字
- * 并回普通文本。真正的动画由 wave-dom.ts 在提交后用 Web Animations 挂上，并把每个
- * 动画的 startTime 钉在小段的绝对启动时刻 —— React 复用或挪动 DOM 节点都不会让动画
- * 重播或被截断。同一时刻的 span 数有上限，与回复长度无关。
+ * 流式正文的「批次波浪淡入」（P-03）：每批新到的文字切成小段错开启动，波首尾相接。这一层只打标记；动画由 wave-dom.ts 在提交后挂上，
+ * 并把 startTime 钉在小段的绝对启动时刻 —— React 复用或挪动 DOM 都不会让动画重播或被截断，且同一时刻的 span 数有上限，与回复长度无关。
  */
 
 export interface WaveOptions {
-  /** 一小段从透明到实的时长 */
   readonly fadeMs: number
-  /** 相邻小段的启动间隔上限 */
   readonly stepMs: number
-  /** 一批的波最多铺开多久；也是跨批排队的积压上限 */
+  /** 一批的波最多铺开多久，也是跨批排队的积压上限 */
   readonly spreadMs: number
-  /** 一小段至少几个字素（太碎就退化成逐字，span 数也会涨） */
   readonly minSegment: number
   readonly maxSegments: number
-  /** 一批超过这么多字素（如从后台切回）：只给最后 hugeTail 个做动画，前面的直接实显 */
+  /** 一批超过 hugeBatch 个字素（如从后台切回）：只给最后 hugeTail 个做动画，前面的直接实显 */
   readonly hugeBatch: number
   readonly hugeTail: number
-  /** 判定「已淡完」时额外等的时间：插件在渲染期运行，DOM 提交还要晚一点 */
   readonly settleMarginMs: number
-  /** 一次提交里最多新起几个动画；超出的（靠前的）直接实显 —— 从后台切回时不让整屏一起淡 */
+  /** 一次提交里最多新起 maxFreshPerCommit 个动画，超出的直接实显 —— 从后台切回时不让整屏一起淡 */
   readonly maxFreshPerCommit: number
 }
 
@@ -45,20 +34,14 @@ export const WAVE: WaveOptions = {
 
 /** 这些子树不拆字：代码块由专门组件画，图与 MathML 拆了会坏 */
 const OPAQUE = new Set(['pre', 'svg', 'math', 'annotation'])
-/**
- * 这些元素整体算一个「字」：新出现时整个元素淡入。
- * img/hr 直接打标记；行内 code（含 remark-math 产出的 code.math-inline）外包一层 span ——
- * 数学插件排在本插件之后，KaTeX 会把 code 元素整个换掉，标记打在外层才留得住。
- */
+/** 这些元素整体算一个「字」；行内 code 要外包一层 span —— 数学插件排在本插件之后，KaTeX 会把 code 元素整个换掉。 */
 const UNIT = new Set(['img', 'hr', 'code'])
 const WRAPPED_UNIT = new Set(['code'])
-/** 单元在拼接文本里的占位（对象替换字符） */
 const UNIT_MARK = '\uFFFC'
 /** 最近几个块的账：Streamdown 重新分块时，旧块可能再渲染一次 */
 const MAX_BLOCKS = 8
-/** 末尾允许「改写」的长度：未闭合的链接、强调等在补全前后，渲染出的末尾几个字会变 */
+/** 末尾允许「改写」的长度：未闭合的链接、强调等在补全前后渲染出的末尾几个字会变；这种情形要认作同一块还需至少 MIN_SHARED 的最短公共前缀 */
 const TAIL_REWRITE = 16
-/** 认作「同一块」所需的最短公共前缀（末尾改写的情形）；纯追加不受此限 */
 const MIN_SHARED = 8
 
 export const WAVE_START_ATTRIBUTE = 'data-wave-start'
@@ -82,7 +65,6 @@ type Atom =
 
 interface ListItem {
   readonly node: Element
-  /** 这一项第一个原子的位置；没有原子的项记 -1 */
   readonly first: number
 }
 
@@ -124,7 +106,6 @@ function visit(acc: Collected, child: RootContent | ElementContent, parent: Elem
   if (child.tagName === 'li') acc.items.push({ node: child, first: acc.atoms[before]?.at ?? -1 })
 }
 
-/** 收集原子、列表项，并拼出可比对的文本。O(块大小)，与 Streamdown 解析这一块同阶。 */
 function collect(tree: Root): { atoms: Atom[]; items: ListItem[]; text: string } {
   const acc: Collected = { atoms: [], items: [], parts: [], at: 0 }
   for (const child of tree.children) visit(acc, child, tree)
@@ -146,7 +127,6 @@ function sharedPrefix(a: string, b: string): number {
 }
 
 let segmenter: Intl.Segmenter | undefined
-/** 新到文字的字素边界（绝对偏移，含两端）。只切新到的那一段。 */
 function graphemeEdges(text: string, base: number): number[] {
   segmenter ??= new Intl.Segmenter(undefined, { granularity: 'grapheme' })
   const edges: number[] = []
@@ -164,7 +144,6 @@ const waveSpan = (seg: Segment, children: ElementContent[]): Element => ({
   children,
 })
 
-/** 这个位置落在哪一段（段按位置升序，第一段之前的一律不在飞） */
 function segmentAt(segments: readonly Segment[], at: number): Segment | undefined {
   const first = segments[0]
   if (first === undefined || at < first.from) return undefined
@@ -189,7 +168,6 @@ function paintUnit(atom: Extract<Atom, { kind: 'unit' }>, segments: readonly Seg
   atom.node.properties = { ...atom.node.properties, [WAVE_START_ATTRIBUTE]: markOf(seg) }
 }
 
-/** 把一个文本节点按在飞的段切开；没有在飞的字时返回空数组 */
 function splitText(value: string, at: number, segments: readonly Segment[]): ElementContent[] {
   const end = at + value.length
   const out: ElementContent[] = []
@@ -215,7 +193,6 @@ function paintText(atom: Extract<Atom, { kind: 'text' }>, segments: readonly Seg
   siblings.splice(siblings.indexOf(atom.node), 1, ...out)
 }
 
-/** 把仍在淡入中的小段落成 span；其余保持普通文本 */
 function paint(atoms: readonly Atom[], items: readonly ListItem[], segments: readonly Segment[]): void {
   if (segments.length === 0) return
   markItems(items, segments)
@@ -226,11 +203,10 @@ function paint(atoms: readonly Atom[], items: readonly ListItem[], segments: rea
 }
 
 export interface WaveReveal {
-  /** rehype 插件（attacher），放在净化链之后。名字唯一：Streamdown 按插件名缓存处理器 */
+  /** rehype 插件，放在净化链之后；名字必须唯一 —— Streamdown 按插件名缓存处理器 */
   readonly attacher: () => (tree: Root) => void
   /** 首个挂着插件的提交之后调用：此前已有的字一律不做动画 */
   arm(): void
-  /** 摘下插件时调用：清账 */
   disarm(): void
   /** 最后一段淡完的时刻；摘插件要等到它之后，否则最后一波会被截断 */
   busyUntil(): number

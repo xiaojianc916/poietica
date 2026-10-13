@@ -1,5 +1,5 @@
 /*
- * 对话内组件（审查 R-18）。
+ * 对话内组件。
  *
  * html 组件没有外框、没有底色：它就是回复的一部分，宽度占满正文栏，高度跟内容走（封顶 80vh，
  * 超出在组件里滚）。底下一行安静的标题与「重新运行」，悬停整块才显现，透明时不挡点击。
@@ -96,8 +96,7 @@
   color: var(--cp-ink);
 }
 
-/* url：细框 + 地址条 */
-.timeline-widget[data-source="url"] {
+/* url：细框 + 地址条 */ .timeline-widget[data-source="url"] {
   overflow: hidden;
   border: 1px solid var(--cp-edge);
   border-radius: var(--ui-radius-lg);

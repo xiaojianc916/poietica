@@ -11,18 +11,12 @@ export default defineCoreModule({
   migrations,
   setup(ctx) {
     const repo = createUsageRepo(ctx.db)
-    /*
-     * 采样落账。原先这里还兼一份「按线程合批 1 秒、推 usage.updated」的活 —— 那条通知只
-     * 服务线程标题栏那枚累计用量按钮，它已删（refactor-log 偏差 #50），合批与队列随之撤掉。
-     * 落账本身与通知无关：设置页那三张图直接查账（usage.tokenDays / modelDays /
-     * messageCount），不靠推送重读。
-     */
+    /* 采样落账。落账与通知无关：设置页那三张图直接查账，不靠推送重读。 */
     ctx.disposables.add(
       ctx.events.on(usageSampled, ({ threadId, sample }) => {
         repo.insert({ threadId, day: localDay(sample.at), ...sample })
       }),
     )
-    /* 准入账只管「消息数量」那一格（ADR 0039）。 */
     ctx.disposables.add(ctx.events.on(userMessageSubmitted, (p) => repo.insertMessage(p)))
 
     ctx.rpc.handle('usage.tokenDays', (p) => {

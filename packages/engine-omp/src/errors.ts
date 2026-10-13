@@ -2,7 +2,7 @@ import { EngineErrorCode } from '@poietica/engine'
 import { AppError, isAppError, SystemErrorCode } from '@poietica/foundation'
 
 /**
- * 唯一的错误映射点（12 页 §0.3 / §11.2）：引擎边界把任意异常换成 AppError。
+ * 唯一的错误映射点：引擎边界把任意异常换成 AppError。
  * 判别顺序是固定的：先看 AppError，再看类名，再看 message，最后看状态码字段。
  */
 export function toEngineError(error: unknown): AppError {
@@ -48,8 +48,8 @@ export interface TurnOutcome {
 }
 
 /**
- * 一轮的结局（迁移自 legacy outcome.ts）：stopReason 为 aborted → cancelled；error → failed；
- * 其它 → completed。“静默中止不算失败”的判断要保留。
+ * 一轮的结局：stopReason 为 aborted → cancelled；error → failed；其它 → completed。
+ * 「静默中止不算失败」的判断要保留。
  */
 export function outcomeOf(last: { stopReason?: string; errorMessage?: string } | undefined): TurnOutcome {
   const reason = last?.stopReason

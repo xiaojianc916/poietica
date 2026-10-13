@@ -1,9 +1,4 @@
-/*
- * relay 的线上形状（07 页 §12D 的完整代码）。
- *
- * 正本是 omp 的 `tools/browser/relay/protocol.ts`（锚定 18.5.0）：那是它内部的契约，
- * 没有版本号，所以这里与它逐字对应，升级 omp 时一起核（16 页 §5 陷阱表）。
- */
+/* relay 的线上形状，与 omp 18.5.0 的 tools/browser/relay/protocol.ts 逐字对应：那是它内部的契约、没有版本号，升级 omp 时一起核。 */
 
 export interface TabSnapshot {
   tabId: number

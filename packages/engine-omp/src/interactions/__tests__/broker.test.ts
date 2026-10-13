@@ -1,6 +1,6 @@
 import '../../__tests__/omp-home'
 // 本文件经 ui-context 触到 omp 的运行时模块（pi-tui/theme 与 extensions/types 的函数），
-// 所以按包内约定先钉住 omp 的隔离目录（12 页 §2.2）。
+// 所以按包内约定先钉住 omp 的隔离目录。
 import '../../__tests__/omp-home'
 import { describe, expect, test } from 'bun:test'
 import { EngineErrorCode, type InteractionAnswer } from '@poietica/engine'
@@ -13,8 +13,6 @@ import { createUiContext } from '../ui-context'
 /*
  * 待答交互的生命周期：每一种开门都必须有一条关门的路。
  *
- * 迁移自 legacy 的 dialog-lifecycle.test.ts、dialog-abort.test.ts、cancel-drains-dialogs.test.ts：
- * 断言意图一条不删，只把 DialogDesk 换成 InteractionBroker（12 页 §12.3 的去向表）。
  * 起因是一个真实的挂死隐患：一道对话框若没人收尾，agent 那头永远停在 await 上，
  * 屏幕上是收不掉的带子，而日志里一个字都没有。所以判据不是「画不画得出来」，而是「有没有人收尾」。
  */
@@ -125,7 +123,7 @@ describe('InteractionBroker 的生命周期', () => {
     void broker.ask({ kind: 'confirm', title: '后问的', message: '' })
 
     expect(broker.pending().map((held) => (held.kind === 'confirm' ? held.title : ''))).toEqual(['先问的', '后问的'])
-    // list() 是 04 页 §3.12 的旧名，与 pending() 是同一份账
+    // list() 是 pending() 的旧名，与它是同一份账
     expect(broker.list()).toEqual(broker.pending())
   })
 
@@ -217,7 +215,7 @@ describe('中止信号（迁移自 dialog-abort）', () => {
 
     /*
      * 已经作废的那一次不该挂在人面前：没人能答它，屏幕上的带子只会永远收不掉。
-     * 这一条钉的是「先看信号再登记」那个次序（12 页 §8.1 第 3 点）。
+     * 这一条钉的是「先看信号再登记」那个次序。
      */
     expect(changes).toEqual([])
     expect(broker.pending()).toEqual([])

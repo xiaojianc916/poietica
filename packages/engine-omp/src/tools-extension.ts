@@ -12,7 +12,7 @@ export interface ToolBridgeOptions {
 }
 
 /**
- * 工具桥（12 页 §11.1）：把 EngineToolSpec 变成 omp 的 ToolDefinition。
+ * 工具桥：把 EngineToolSpec 变成 omp 的 ToolDefinition。
  *
  * omp 知识 #15：内置工具必须用 extensions，不能用 customTools —— 后者会替换掉 omp 的默认工具。
  * loadMode 必须是 'essential'：扩展工具默认是 discoverable，模型要先搜索才能看到；产品工具必须常驻。
@@ -35,7 +35,7 @@ export function createToolsExtension(o: ToolBridgeOptions): void {
 
 /**
  * 一次工具执行。参数先校验（失败时把 zod 的说明交回模型，让它自己修正重试）；
- * 抛出的异常**绝不冒到 omp**，否则会话会进入错误状态（12 页 §11.1）。
+ * 抛出的异常**绝不冒到 omp**，否则会话会进入错误状态。
  */
 async function executeTool(
   spec: EngineToolSpec,

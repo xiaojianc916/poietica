@@ -1,8 +1,4 @@
-/*
- * 面板的皮肤：贴着输入框卡片的上沿、与它同宽，向上展开。
- *
- * 令牌取自 skin/metrics.css，浅色面板两处字面值见文件尾。
- */
+/* 面板贴着输入框卡片上沿、与它同宽，向上展开；令牌取自 skin/metrics.css，浅色字面值见文件尾。 */
 
 .composer-palette {
   position: relative;
@@ -15,7 +11,6 @@
   left: 0;
   /* 贴着输入框长出来的一层浮层：在内容之上、对话与弹层之下。 */
   z-index: var(--ui-z-floating);
-  /* 它从输入框上沿长出来，缩放的支点因此在下沿。 */
   transform-origin: bottom;
   max-block-size: min(290px, calc(100vh - 96px));
   overflow-y: auto;
@@ -25,7 +20,6 @@
   border-radius: 12px;
 }
 
-/* 内边距归组，组与组之间只有一条线 —— 比外框低一档对比度。 */
 .composer-palette__group {
   padding: var(--am-pad);
 }
@@ -34,7 +28,6 @@
   border-block-start: var(--cp-px) solid var(--cp-menu-line);
 }
 
-/* 组标题：Codex 式的一行小字。 */
 .composer-palette__heading {
   padding: 2px 8px 4px;
   font-size: var(--cp-font-micro);
@@ -58,8 +51,7 @@
   border-radius: var(--am-item);
 }
 
-/* 悬停色只认 data-highlighted：指针进入会把它挪过来（见 tsx 的 onMouseEnter），
-   :hover 再来一份就是两行同时亮 —— 高亮只留一个来源。 */
+/* 悬停色只认 data-highlighted（指针进入时由 tsx 挪过来）：再加一份 :hover 就是两行同时亮。 */
 .composer-palette__row[data-highlighted="true"] {
   outline: none;
   background: var(--cp-menu-hover);
@@ -71,7 +63,6 @@
   color: var(--cp-ink-muted);
 }
 
-/* 一行一枚描边字形，同一格尺寸。 */
 .composer-palette__icon svg {
   block-size: var(--cp-icon);
   inline-size: var(--cp-icon);
@@ -109,12 +100,8 @@
   inline-size: var(--cp-icon);
 }
 
-/*
- * 浅色面板取设计字面值：纯白面板、浅灰悬停。深色仍走上面的令牌。
- *
- * 悬停那一格不接 --cp-menu-hover：那个值是 #f2f2f3，与产品定稿的 #f2f3f3 差一个
- * 通道，兑不出来（同 skin/metrics.css 里内联代码底那条的理由）。
- */
+/* 浅色面板取设计字面值（纯白面板、浅灰悬停），深色仍走令牌。悬停那格不接 --cp-menu-hover：
+   那个值是 #f2f2f3，与产品定稿的 #f2f3f3 差一个通道，兑不出来。 */
 :root[data-theme="light"] .composer-palette__panel {
   background: var(--ui-popover);
 }

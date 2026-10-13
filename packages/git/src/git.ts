@@ -13,18 +13,17 @@ export interface GitRunOptions {
 
 export interface Git {
   readonly cwd: string
-  /** 运行任意 git 子命令（参数数组，绝不拼接字符串）。自动加 -c core.quotepath=false，使非 ASCII 路径原样输出 */
+  /** 自动加 -c core.quotepath=false，使非 ASCII 路径原样输出；参数数组，绝不拼接字符串。 */
   run(args: readonly string[], o?: GitRunOptions): Promise<RunResult>
-  /** `status --porcelain=v2 --branch -z` 并解析；不是仓库时返回 null（不抛错） */
+  /** 不是仓库时返回 null（不抛错）。 */
   status(signal?: AbortSignal): Promise<PorcelainStatus | null>
   branches(signal?: AbortSignal): Promise<BranchEntry[]>
 }
 
 export interface CreateGitOptions {
   readonly cwd: string
-  /** 测试注入；默认在第一次使用时 which('git') */
+  /** 测试注入；默认在第一次使用时 which('git')。 */
   readonly gitPath?: string
-  /** 基础环境，默认 process.env */
   readonly env?: Readonly<Record<string, string | undefined>>
 }
 
@@ -91,7 +90,7 @@ export function createGit(o: CreateGitOptions): Git {
   }
 }
 
-/** 分支名等引用名的安全检查：空白或以 - 开头（会被 git 当成选项）→ GitRefusedError */
+/** 引用名安全检查：空白或以 - 开头（会被 git 当成选项）→ GitRefusedError。 */
 export function assertSafeRefName(label: string, value: string): void {
   if (value.trim() === '') throw new GitRefusedError(`${label}不能为空`)
   if (value.startsWith('-')) throw new GitRefusedError(`${label}不能以 - 开头：${value}`)

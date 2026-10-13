@@ -7,8 +7,6 @@ import { createGit } from '@poietica/git'
 import { createTestLogger, tempDir } from '@poietica/test-kit'
 import { createReviewService } from '../service'
 
-/** 07 页 §10G：在临时目录 `git init` 的真实仓库上跑 status / review / stage / commit。 */
-
 function hasGit(): boolean {
   try {
     execFileSync('git', ['--version'], { stdio: 'ignore' })
@@ -65,10 +63,6 @@ describe('review 服务（真实临时仓库）', () => {
     await root.dispose()
   })
 
-  /*
-   * 07 页 §10C：未跟踪文件「行数用文件行数计」。它不在 diff 里，numstat 对它一个字
-   * 都不吐，所以这一段是 review 自己数的。
-   */
   maybe('未跟踪文件的行数 = 文件自己的行数，不是 0', async () => {
     const { root, cwd, service } = await repo()
     fs.writeFileSync(path.join(cwd, 'three.txt'), 'one\ntwo\nthree\n')
@@ -80,7 +74,6 @@ describe('review 服务（真实临时仓库）', () => {
     expect(three?.deletions).toBe(0)
     expect(three?.binary).toBe(false)
 
-    /* 末尾没有换行的最后一行也算一行 */
     const noNewline = files.find((f) => f.path === 'no-newline.txt')
     expect(noNewline?.additions).toBe(2)
 
@@ -149,7 +142,6 @@ describe('review 服务（真实临时仓库）', () => {
     await service.commit(cwd, message, true)
     const subject = git(cwd, ['log', '-1', '--pretty=%B'])
     expect(subject.trimEnd()).toBe(message)
-    /* 命令替换没有被执行：git 只把它当文本 */
     expect(subject).toContain('$(echo pwned)')
     await root.dispose()
   })

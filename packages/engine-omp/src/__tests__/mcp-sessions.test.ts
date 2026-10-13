@@ -6,10 +6,10 @@ import { createOmpEngineForTest } from '../testing'
 import { testLayout } from './omp-home'
 
 /*
- * MCP 状态要按名汇总**活会话**的 mcpManager（12 页 §3.14）。
+ * MCP 状态要按名汇总**活会话**的 mcpManager。
  *
  * 这条线的两个端点都在组合根上：端口拿的是引擎登记会话时用的同一份表。
- * 曾经端口另建了一个空 Set —— 那句「从活会话的 mcpManager 汇总」就成了空转，
+ * 端口若另建一个空 Set，那句「从活会话的 mcpManager 汇总」就成了空转，
  * 界面上永远报不出任何一台服务器。这里钉的是「会话登记进去了」这一格。
  */
 

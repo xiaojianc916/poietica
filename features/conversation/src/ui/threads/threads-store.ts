@@ -22,7 +22,7 @@ export interface ThreadsStore {
   byId(threadId: string): Thread | undefined
 }
 
-/** pinned DESC, updated_at DESC —— 与服务端的排序一致（07 页 §5C）；本地插入也照它排 */
+/** pinned DESC, updated_at DESC —— 与服务端的排序一致；本地插入也照它排 */
 export function orderThreads(items: readonly Thread[]): readonly Thread[] {
   return [...items].sort((a, b) => {
     if (a.pinned !== b.pinned) return a.pinned ? -1 : 1

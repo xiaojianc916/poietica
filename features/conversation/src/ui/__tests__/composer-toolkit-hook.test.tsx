@@ -7,18 +7,10 @@ import type { ComposerToolkit, ComposerToolkitSource } from '../../ui-api'
 import { composerToolkitSources } from '../../ui-api'
 import { useAgentToolkit } from '../configuration/composer-toolkit'
 
-/*
- * useAgentToolkit 这一层：一个真的内核 + 一台假来源，验「谁给的数据、什么时候去要」。
- *
- * 三条判据各自对着一个真实缺陷的形状：
-   - 没有任何来源 → 空名册（分组隐藏，而不是崩）；
-   - 来源在列 → 两组上屏，且切换工作区会 ensure（技能按项目分层）；
-   - 数据没变 → 重渲染不换对象（getSnapshot 引用稳定，否则输入框会自喂自渲）。
- */
+/* 数据没变时重渲染不换对象：getSnapshot 引用不稳会让输入框自喂自渲。 */
 
 /**
- * 假 bridge：只回 `core.getStatus`（内核 start 要它才走得完），其余一概不管 ——
- * 这一份测试不经过别的 RPC。
+ * 假 bridge：只回 `core.getStatus`（内核 start 要它才走得完），其余一概不管。
  */
 function statusBridge(): WindowBridge {
   const listeners = new Set<(message: RpcMessage) => void>()
@@ -62,7 +54,6 @@ async function startKernel(features: Parameters<typeof createUiKernel>[0]['featu
   return kernel
 }
 
-/** 一台可推的假来源：测试自己决定它此刻握着哪一份，以及被 ensure 过哪几个工作区。 */
 function fakeSource(initial: ComposerToolkit): ComposerToolkitSource & {
   readonly ensured: Array<string | null>
   put(next: ComposerToolkit): void
@@ -166,7 +157,7 @@ describe('useAgentToolkit', () => {
 
     rerender()
 
-    /* 来源对象没换：合并结果必须是**同一个**引用（getSnapshot 的判据）。 */
+    /* 来源对象没换，合并结果必须是同一个引用（getSnapshot 的判据）。 */
     expect(result.current).toBe(first)
 
     await act(async () => {
@@ -196,7 +187,6 @@ describe('useAgentToolkit', () => {
       ),
     })
 
-    /* StrictMode 会把 effect 跑两遍，但两次要的都是同一个工作区。 */
     expect(new Set(source.ensured)).toEqual(new Set(['w-1']))
     unmount()
   })

@@ -1,13 +1,7 @@
-/*
- * 活动流里一条可点的记事：一枚图标、一句话、指到才出现的箭头。
- *
- * 工具调用与一组调用共用它：同一个音量、同一套缩进，只此一份。
- */
+/* 活动流里一条可点的记事：图标、一句话、悬停才出现的箭头；工具调用与调用组共用同一套缩进与音量。 */
 
 .timeline-row {
-  /* 行盒是显式的：高度由它定，不由最高的那个孩子撑出来，居中才有确定的参照。 */
   --cp-row-line: var(--cp-control-sm);
-  /* 量度：一条工具记事（路径、命令）收在工具那一档。 */
   --cp-row-measure: var(--cp-timeline-tool-max);
 
   display: inline-flex;
@@ -27,13 +21,7 @@
   transition: color var(--cp-motion-swift) var(--cp-motion-ease);
 }
 
-/*
- * 推理摘要是模型的原话，量度归阅读栏而不是工具那一档。
- *
- * 上限显式取输入框那一档（--cp-input-max 与 --cp-grid 同值，就是阅读栏的宽）：这一行在写的时候
- * 像显示屏一样滚 —— 轨道右端贴住窗口右端、左边缘直接裁（见 rolling-line.css），量度因此是它
- * 唯一的刹车。上面那层 min(100%, …) 负责窗口窄时不让它溢出去，两个一起才闭合。
- */
+/* 推理摘要的量度归阅读栏：这一行像显示屏一样滚，轨道左边缘直接裁，量度是它唯一的刹车。 */
 .timeline-row[data-measure="prose"] {
   --cp-row-measure: var(--cp-input-max);
 }
@@ -48,12 +36,7 @@ button.timeline-row:focus-visible {
   color: var(--cp-ink);
 }
 
-/*
- * 图标盒与文字盒等高，居中于是从「凑」变成恒等 —— 不需要任何逐处的像素微调。
- *
- * 字形不会被拉伸：SVG 的 preserveAspectRatio 默认 xMidYMid meet，viewBox 在视口里等比
- * 缩放并居中，所以一个 16 宽、1lh 高的视口画出来仍是 16×16，只是垂直居中了。
- */
+/* 图标盒与文字盒等高，垂直居中于是恒等；SVG 靠 preserveAspectRatio 等比缩放，字形不会被拉伸。 */
 .timeline-row__icon,
 .timeline-row__chevron {
   flex: none;
@@ -61,8 +44,7 @@ button.timeline-row:focus-visible {
   block-size: 1lh;
 }
 
-/* 箭头是给鼠标的第二遍提示，读屏那一遍由 aria-expanded 说。一直占位，出现时不重排。 */
-.timeline-row__chevron {
+/* 箭头是给鼠标的第二遍提示，读屏那一遍由 aria-expanded 说。一直占位，出现时不重排。 */ .timeline-row__chevron {
   opacity: 0;
   transition: opacity var(--cp-motion-swift) var(--cp-motion-ease);
 }
@@ -73,7 +55,6 @@ button.timeline-row:focus-visible {
   opacity: 1;
 }
 
-/* 会变的那一格：一行，不长、会缩，长了收省略号。 */
 .timeline-row__label {
   flex: 0 1 auto;
   min-inline-size: 0;

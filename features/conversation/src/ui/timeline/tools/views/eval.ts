@@ -4,12 +4,8 @@ import { code, dot, failOr, get, join, list, NONE, oneLine, pick, prose, saidTex
 export const EVAL_LANGS: Readonly<Record<string, string>> = { js: 'javascript', py: 'python' }
 
 /*
- * eval 里不是代码的动作名。`browser`/`computer` 是注入 eval 内核的 prelude 作用域对象，
- * 不是顶层工具（omp 的 tools/browser.ts 与 tools/computer.ts 的 createBrowserPrelude /
- * createComputerPrelude，经 eval/preludes.ts 注册）；模型写 `browser.open(...)` 等调用，
- * 每次都在产出里留一条 details.statusEvents = `[{ op, detail }]`，op 即 prelude 名，
- * detail 是上游自己写的那句（如 `open main https://…`）。单独挑出来说 —— 一次浏览器
- * 动作不该显示成「运行 JavaScript」。
+ * `browser`/`computer` 是注入 eval 内核的 prelude 作用域对象，不是顶层工具；模型写 `browser.open(...)` 等调用，每次都在产出里留一条 details.statusEvents。
+ * 单独挑出来说 —— 一次浏览器动作不该显示成「运行 JavaScript」。
  */
 export const PRELUDE_NAMES: Readonly<Record<string, string>> = {
   browser: '浏览器',
@@ -63,11 +59,8 @@ export function preludesOf(ctx: Ctx): readonly string[] {
 }
 
 /*
- * 状态事件到达前先按代码预判：否则卡片会在运行中途从「运行 JavaScript」跳成浏览器卡片。
- *
- * 判据只认真正的调用形状（`browser.open(` 这一串），不认「提到过」——代码里出现
- * `browser` 这个词的地方太多了，误判一次就是把脚本运行说成浏览器动作。
- * 同时写着 computer 时不预判：那是两件事，认错比晚认更糟（产出到达后照旧按 op 认）。
+ * 状态事件到达前先按代码预判：否则卡片会在运行中途从「运行 JavaScript」跳成浏览器卡片。判据只认真正的调用形状（`browser.open(` 这一串），不认「提到过」——误判一次就是把脚本运行说成浏览器动作。
+ * 同时写着 computer 时不预判：那是两件事，认错比晚认更糟。
  */
 export const BROWSER_CALL = /\bbrowser\s*\.\s*(?:open|tab|tabs|close)\s*\(/u
 export const COMPUTER_CALL = /\bcomputer\s*\./u
@@ -78,7 +71,7 @@ export function guessedPreludeOf(code: string): string | null {
 
 export const evalView: Handler = (ctx) => evalCall(ctx, pick(ctx.input, 'language') ?? 'js')
 
-/* eval 别名：官方视图表把 js/python/notebook 指到同一渲染器，入参没 language 时按别名来，而非一律落回 JavaScript。 */
+/* 官方视图表把 js/python/notebook 指到同一渲染器，入参没 language 时按别名来，而非一律落回 JavaScript。 */
 export const evalAlias =
   (language: string): Handler =>
   (ctx) =>
@@ -89,19 +82,17 @@ export function evalCall(ctx: Ctx, language: string): OmpToolView {
   const body = pick(ctx.input, 'code') ?? ''
   const title = pick(ctx.input, 'title')
   const cells = list(ctx.details, 'cells')
-  // 后端自己的 cells 才是真正跑过的那几段（一个 eval 可以带多个 cell）。
+  // 后端自己的 cells 才是真正跑过的那几段。
   const request =
     cells.length === 0
       ? [code(body, EVAL_LANGS[language] ?? '')]
       : cells.map((entry) => code(pick(entry, 'code') ?? '', EVAL_LANGS[language] ?? ''))
-  /* 调了 prelude 就报那件事（「浏览器 打开 main https://x」），否则退回「运行 JavaScript」：两者都报会把一次浏览器动作说成脚本运行。 */
+  /* 调了 prelude 就报那件事，否则退回「运行 JavaScript」：两者都报会把一次浏览器动作说成脚本运行。 */
   const preludes = preludesOf(ctx)
   const head = preludes.length > 0 ? preludes.join('；') : dot(`运行 ${named}`, title ?? oneLine(body))
   /*
-   * 字形也跟着那件事走：一次 browser.open 实际跑的是浏览器，不是脚本。
-   * 用 invokedTool 这一格而不是另开一条路 —— 它就是「真正在跑的是谁」。
-   *
-   * 还没有状态事件时（调用刚发出）按代码预判一次，否则这一行会在运行中途换一张卡片。
+   * 字形也跟着那件事走：一次 browser.open 实际跑的是浏览器，不是脚本。用 invokedTool 这一格 —— 它就是「真正在跑的是谁」。
+   * 还没有状态事件时按代码预判一次，否则这一行会在运行中途换一张卡片。
    */
   const ops = preludeOpsOf(ctx)
   const running = ops.length === 1 ? (ops[0] as string) : ops.length === 0 ? guessedPreludeOf(body) : null

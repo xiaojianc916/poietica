@@ -10,11 +10,10 @@
   --ui-palette-white: oklch(1 0 0);
 
   /*
-   * #f3f3f3 —— 顶部栏与左侧侧边栏底色，同时是窗口衬底（拖拽或还原瞬间露出的
-   * 那一层）的正本。窗口早于 webview 存在，读不到这里的 CSS，所以正本写字面
-   * 十六进制、可被取色器核对，并由 window-surface-policy 核对三份抄本与之相等：
-   * electron/main.ts 的创建底色、index.html 的预运行初稿、theme-runtime.ts 的
-   * RGB 投影。改这一格必须同时改那三处。
+   * #f3f3f3 —— 顶部栏与左侧侧边栏底色，同时是窗口衬底（拖拽或还原瞬间露出的那一层）的正本。
+   * 窗口早于 webview 存在，读不到这里的 CSS，所以正本写字面十六进制、可被取色器核对，并由
+   * window-surface-policy 核对三份抄本与之相等：electron/main.ts 的创建底色、index.html 的
+   * 预运行初稿、theme-runtime.ts 的 RGB 投影。改这一格必须同时改那三处。
    */
   --ui-palette-neutral-75: #f3f3f3;
   --ui-palette-neutral-100: oklch(0.95 0.004 90);
@@ -28,9 +27,8 @@
   --ui-palette-neutral-900: oklch(0.18 0.01 90);
 
   /*
-   * 深色梯级，从亮到暗。档位是按界面层次定的，不是等差：
-   * 750 悬停与选中，850 抬起的面与外壳（顶部栏、侧边栏）兼深色窗口衬底的
-   * 正本（抄本清单见上面 --ui-palette-neutral-75 那条），
+   * 深色梯级，从亮到暗。档位是按界面层次定的，不是等差：750 悬停与选中，850 抬起的面与外壳
+   * （顶部栏、侧边栏）兼深色窗口衬底的正本（抄本清单见上面 --ui-palette-neutral-75 那条），
    * 950 主内容区，1000 只作前景反色用。
    */
   --ui-palette-dark-750: #30302f;

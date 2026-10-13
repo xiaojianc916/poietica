@@ -2,14 +2,9 @@ import { describe, expect, test } from 'bun:test'
 import type { BrowserState } from '../../contract'
 import { browserCallModel, parseStep, revealTabFor } from '../tool-card-model'
 
-/*
- * 卡片的数据层。浏览器在 omp 18.5 里是 eval 的 prelude，产出形状是
- * `{ content: [...], details: { statusEvents, cells[].statusEvents, images } }`，
- * 入参是 `{ language, code, title }` —— 这里逐条钉住每一种形状。
- *
- * 纯函数，不挂 React：形状有二十来种，走渲染去验证每一种要多写十倍断言，
- * 而且分不清是解析错了还是画错了。
- */
+/* 卡片的数据层。浏览器在 omp 18.5 里是 eval 的 prelude，产出形状是
+ * { content: [...], details: { statusEvents, cells[].statusEvents, images } }，入参是 { language, code, title }。
+ * 纯函数不挂 React：形状有二十来种，走渲染去验证要多写十倍断言，还分不清是解析错了还是画错了。 */
 
 const evalArgs = (over: Record<string, unknown> = {}): unknown => ({
   language: 'js',

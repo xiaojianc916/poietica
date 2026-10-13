@@ -3,11 +3,8 @@ import type { SessionConfigControl } from '../agent/config'
 import { entryThreadInitOf } from '../entry-init'
 
 /*
- * 入口页发送时带进 `threads.create` 的那几格（07 页 §5E 的发送流程）。
- *
- * 真机故障：入口页显示 DeepSeek-V4.1-Flash，发送后会话文件里是 deepseek-v4-pro。
- * 根因是这一层此前只把「用户手改过的草稿」带进去：没动过选择器时一个字段都不传，
- * 引擎收不到模型，就按内置目录自己的规则另挑了一条。
+ * 真机故障：入口页显示 DeepSeek-V4.1-Flash，发送后会话文件里是 deepseek-v4-pro。根因是这一层
+ * 此前只把「用户手改过的草稿」带进去：没动过选择器时一个字段都不传，引擎就按内置目录另挑了一条。
  */
 
 function control(id: string, current: string): SessionConfigControl {
@@ -48,10 +45,7 @@ describe('入口页的线程初始化', () => {
     expect(init?.thinking).toBe('low')
   })
 
-  /*
-   * 换了模型、草稿表还没重读回来时，表里那份档位属于**上一条模型** —— 它可能正是
-   * 新模型没有的那一档，不传比传错好。
-   */
+  /* 换了模型、草稿表还没重读回来时，表里那份档位属于上一条模型，不传比传错好。 */
   test('模型不一致时档位不跟着旧表走', () => {
     const init = entryThreadInitOf({
       workspaceId: 'w1',

@@ -10,8 +10,8 @@ export interface ThreadRow {
   posture: Posture
   origin: 'user' | 'automation'
   /**
-   * omp 会话 id 与文件路径。08 页 §5.2 的 CHECK 要求两者同时为空或同时有值，
-   * 所以它们只在这一处一起写（不暴露给实体：Thread 只有 hasSession）。
+   * omp 会话 id 与文件路径：库里的 CHECK 要求两者同时为空或同时有值，所以只在这一处一起写
+   * （不暴露给实体：Thread 只有 hasSession）。
    */
   sessionId: string | null
   sessionFile: string | null

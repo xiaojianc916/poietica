@@ -10,9 +10,8 @@ import { conversationContract } from '../../contract'
 import { BUSY_SCRIPT, harness } from './helpers'
 
 /**
- * 模块级集成测试（14 页 §0.4）：用 createCoreHarness 启动只含被测模块及其依赖的真实内核，
- * engine 是 FakeEngine。harness 的时钟是 fakeClock —— FakeEngine 按 12 页 §1.2 用注入的
- * Clock 排下一拍，时间线合批窗口（16ms）也走同一个 clock，所以必须显式推时间。
+ * 模块级集成测试：真实内核只装被测模块及其依赖，engine 是 FakeEngine。
+ * harness 的时钟是 fakeClock —— FakeEngine 排下一拍、时间线 16ms 合批都走它，必须显式推时间。
  */
 async function started(script?: ScenarioScript) {
   const { h, engine } = await harness(script === undefined ? {} : { script })
@@ -33,10 +32,7 @@ const runOneBeat = async (h: Awaited<ReturnType<typeof started>>['h']): Promise<
   await h.clock.advanceAsync(20)
 }
 
-/**
- * 把这一轮跑到底：FakeEngine 的每一步都排在下一拍（12 页 §1.2），所以推一次不够。
- * 循环推到线程不再是 running 为止（有上限，免得脚本停不下来时挂住）。
- */
+/** 把这一轮跑到底：FakeEngine 的每一步都排在下一拍，所以推一次不够。有上限，免得脚本停不下来时挂住。 */
 const runToIdle = async (
   h: Awaited<ReturnType<typeof started>>['h'],
   api: Awaited<ReturnType<typeof started>>['api'],
@@ -80,7 +76,7 @@ describe('conversation core 模块', () => {
     await finish()
   })
 
-  /* CV-3（方案第 7 节改写）：运行中提交 turn 被接受，并转为 followUp（排队）。 */
+  /* CV-3：运行中提交 turn 被接受，并转为 followUp（排队）。 */
   test('CV-3 运行中 turns.submit(turn) 被接受并转为排队；steer 与 followUp 也被接受', async () => {
     // 用一个会停在交互上的脚本：这一档的会话稳定是「忙」，不会被下一拍跑完
     const { api, thread, h, finish } = await started(BUSY_SCRIPT)

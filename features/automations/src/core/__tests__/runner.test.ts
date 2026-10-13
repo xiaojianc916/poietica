@@ -5,11 +5,8 @@ import { createRunner, type Runner } from '../runner'
 import { createAutomationsService } from '../service'
 import { unitDeps } from './helpers'
 
-/*
- * R-06：运行记录的结束不能只绑定在「一轮结束」上 —— 「Core 即时回显」之后提交有独立的
- * 生命周期，`failed` 这个结局不经过任何一轮。这些用例钉住 runner 的两个新入口与轮询的
- * 新边界（idle 不是「运行中」的证据）。
- */
+/* R-06：运行记录的结束不能只绑定在「一轮结束」上 —— 「Core 即时回显」之后提交有独立的生命周期，failed 不经过任何一轮。
+ * 这些用例钉住 runner 的两个新入口与轮询的新边界（idle 不是「运行中」的证据）。 */
 
 function draftOf(overrides: Partial<AutomationDraft> = {}): AutomationDraft {
   return {
@@ -74,10 +71,8 @@ describe('automations runner（R-06）', () => {
     expect(settled.settledAt).not.toBeNull()
     expect(runner.isRunning(automation.id)).toBe(false)
     expect(runs.length).toBe(before + 1)
-    /* 审查 R-14：运行失败只记在运行记录里，不再挂 issue —— 挂了 issue 的任务 due() 不挑，从此不再被调度 */
     expect(repo.get(automation.id)!.issue).toBeNull()
 
-    /* 收口之后下一次照常能起来（旧代码在这里抛 already_running） */
     const next = await service.runNow(automation.id)
     expect(next.outcome).toBe('running')
     db.close()
@@ -91,7 +86,6 @@ describe('automations runner（R-06）', () => {
     let runner: Runner | undefined
     d.conversation.submit = async (input) => {
       await submit(input)
-      /* 模拟：交接失败的事件在 submit 的 await 返回之前就到了 */
       const open = d.repo.openRunsByThread(input.threadId)[0]
       if (open !== undefined) {
         runner?.onSubmissionFailed({
@@ -126,7 +120,6 @@ describe('automations runner（R-06）', () => {
     expect(run.outcome).toBe('failed')
     expect(run.message).toContain('冷打开失败')
     expect(d.repo.getRun(run.id)!.outcome).toBe('failed')
-    /* 事件先到、start() 后返回：只发了那一次 failed，没有再补一条 running */
     expect(runs.filter((r) => r.outcome === 'running')).toHaveLength(0)
     d.db.close()
   })
@@ -161,7 +154,6 @@ describe('automations runner（R-06）', () => {
     clock.advance(5_000)
     expect(repo.getRun(run.id)!.outcome).toBe('awaiting')
 
-    /* idle 不是「运行中」的证据：状态留给事件去收，轮询不动它 */
     const before = runs.length
     conversation.setState(threadId, 'idle')
     clock.advance(5_000)
@@ -184,7 +176,6 @@ describe('automations runner（R-06）', () => {
     expect(settled.message).toBe('运行所在的对话已被删除')
     expect(settled.settledAt).not.toBeNull()
     expect(runner.isRunning(automation.id)).toBe(false)
-    /* 对话没了不是任务的问题 —— 与 fail() 的区别就在这一格 */
     expect(repo.get(automation.id)!.issue).toBeNull()
     expect(runs.at(-1)!.outcome).toBe('cancelled')
     db.close()

@@ -24,11 +24,8 @@ const WORKSPACE_LAYOUT_STYLE: WorkspaceStyle = {
 export interface WorkspaceFrameProps {
   readonly chrome: ReactNode
   /**
-   * 页面之上的浮层（自己定位 / portal，不占栅格）。
-   *
-   * 挂在根节点**之内**是为了让浮层读得到根上的自定义属性（如 `--chrome-height`）——
-   * 它们由这里的内联 style 写，挂在根之外 (`:root`) 拿不到。定位于视口的浮层是脱流的，
-   * 因此不会给这个 grid 造出任何一行。
+   * 页面之上的浮层。挂在根节点**之内**才读得到根上的自定义属性（如 `--chrome-height`，
+   * 由这里的内联 style 写）；定位于视口的浮层是脱流的，不会给这个 grid 造出任何一行。
    */
   readonly overlays: ReactNode
   readonly sidebar: ReactNode
@@ -44,10 +41,6 @@ export interface WorkspaceFrameProps {
   readonly splitterRegion: SplitterRegion
 }
 
-/**
- * 外壳的栅格框架。**迁移自** legacy `apps/desktop/src/shell/layout/workspace-frame.tsx`：
- * 栅格形状、内联自定义属性、data-* 属性一字未改。
- */
 export function WorkspaceFrame({
   chrome,
   overlays,
@@ -64,9 +57,8 @@ export function WorkspaceFrame({
   splitterRegion,
 }: WorkspaceFrameProps): ReactNode {
   /*
-   * 全屏把 aux 列宽铺到剩余全部。算式只能用视口单位：这条属性注册成 <length>，
-   * 1fr 不是长度、整条声明会失效并退回 0px；cqw 要给外壳加 container-type，
-   * 而那会造出包含块、把 fixed 的浮层关进外壳里。
+   * 全屏把 aux 列宽铺到剩余全部。只能用视口单位：这条属性注册成 <length>，1fr 不是长度、
+   * 整条声明会失效并退回 0px；cqw 要给外壳加 container-type，那会造出包含块、把 fixed 的浮层关进外壳里。
    */
   const style: WorkspaceStyle = {
     ...WORKSPACE_LAYOUT_STYLE,
@@ -85,7 +77,7 @@ export function WorkspaceFrame({
       data-splitter={splitter}
       data-splitter-region={splitterRegion}
       /* 两枚稳定标记：data-ui-rows 是 --ui-row-lead 公式的锚（见 tokens/rows.css），
-       * data-workbench 是外壳挂载点的测试锚（legacy 的 [data-workbench] 契约）。 */
+       * data-workbench 是外壳挂载点的测试锚。 */
       data-ui-rows=""
       data-workbench=""
       style={style}

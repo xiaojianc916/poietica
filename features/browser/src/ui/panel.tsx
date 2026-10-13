@@ -6,31 +6,16 @@ import { BrowserOverflowMenu, ZOOM_MAX, ZOOM_MIN } from './overflow-menu'
 import type { BrowserPanelStore } from './store'
 import { alignViewport, type ViewportAlignment } from './viewport'
 
-/*
- * 浏览器面板本体（07 页 §12E「panels」一栏）。
- *
- * **迁移自** legacy `packages/workspace/src/panels/auxiliary-panel.tsx` 的 BrowserToolbar /
- * AddressInput / ToolbarButton / Viewport 与 `packages/browser/src/viewport-alignment.ts`
- * 的用法：类名、DOM 形状、间距、动画、空态文案一字未改。换掉的是数据来源 ——
- * 面板读的是宿主标签面（store），不直接认识 RPC。
- *
- * 页面本体不在这棵 React 树里：它是主窗口的原生子 webview，按逻辑坐标摆在下方视口
- * 区域上。这个组件只画「面板的壳」—— 工具栏、空态 —— 并把视口矩形对齐给宿主。
- *
- * 标签条不在这里：legacy 的浏览器标签与其它通道的标签同处一条（右坞的标签条），新架构
- * 里那一条由 workbench 的右边坞按 `panels` 贡献的 `dockTabs` 绘制（见 ui/index.tsx）。
- */
+/* 浏览器面板本体：类名、DOM 形状、间距、动画、空态文案照 legacy 一字未改，只换数据来源 —— 面板读宿主标签面
+ * （store），不直接认识 RPC。页面本体是主窗口的原生子 webview，按逻辑坐标摆在下方视口区域上，这个组件只画「面板的壳」。 */
 
 export interface BrowserPanelProps {
   readonly api: BrowserApi
   readonly store: BrowserPanelStore
-  /** 几何输入的指纹：变了就重新起跑视口对齐；内容不解读，由 viewport.ts 只做同一性比较。 */
+  /** 变了就重新起跑视口对齐；内容不解读，只做同一性比较。 */
   readonly layoutSignal: unknown
-  /** 面板此刻该不该让原生视图露面（右栏开合、活动面板、遮挡层共同决定）。 */
   readonly visible: boolean
-  /** 宿主/内核层要报告的失败（面板里不做提示样式，交给 toast）。 */
   readonly report: (message: string, cause?: unknown) => void
-  /** 「拾取元素」：交给 UI 装配（那里认识 attachments 与 conversation）。 */
   readonly onPickToggle: (tabId: number, picking: boolean) => void
 }
 
@@ -47,11 +32,7 @@ export function BrowserPanel({
   const [menuOpen, setMenuOpen] = useState(false)
   const [menuHeight, setMenuHeight] = useState(0)
 
-  /*
-   * 原生子 webview 不在这棵 DOM 里：面板该露面还是该收起，只能下发给宿主
-   * （07 页 §12E 的「面板挂载 setVisible(true)、卸载 setVisible(false)」）。
-   * 卸载时补一发 false —— 面板被拆掉后视图不能留在屏幕上。
-   */
+  /* 该露面还是该收起只能下发给宿主；卸载时补一发 false，否则面板被拆掉后视图会留在屏幕上。 */
   useEffect(() => {
     void api.setVisible(visible).catch((cause: unknown) => {
       report('浏览器视图没能切换显隐', cause)
@@ -97,10 +78,7 @@ export function BrowserPanel({
   )
 }
 
-/*
- * agent 操控提示（07 页 §12E「agent 操控提示」）：driven 为真时面板顶部多一条信息带，
- * 为假时整条消失。样式沿用工具栏同一套（下缘线 + 同色底），不另立视觉语言。
- */
+/** driven 为真时面板顶部多一条信息带。 */
 function DrivenBanner(): ReactNode {
   return (
     <div
@@ -208,8 +186,6 @@ function BrowserToolbar({
         </ToolbarButton>
 
         <BrowserOverflowMenu
-          /* 这一层还没有命令面（阶段 5 逐个接上）：空对象 = legacy 那张行清单里除缩放外的
-             条目全是灰行，不假装能用（B-15）。 */
           commands={{}}
           onHeightChange={onMenuHeightChange}
           onOpenChange={onMenuOpenChange}
@@ -225,7 +201,6 @@ function BrowserToolbar({
           }}
           open={menuOpen}
           recentlyClosed={state?.recentlyClosed ?? []}
-          /* 缩放档的所有者是宿主（内核的 setZoomLevel）：面板不留副本，直接读标签面。 */
           zoomLevel={activeTab?.zoom ?? 0}
         />
       </div>
@@ -249,7 +224,6 @@ function AddressInput({
   const [draft, setDraft] = useState(committed)
   const editing = useRef(false)
 
-  /* 外部导航（点链接、重定向）要回到地址栏，但不打断正在输入的人。 */
   useEffect(() => {
     if (!editing.current) {
       setDraft(committed)
@@ -283,7 +257,6 @@ function AddressInput({
           return
         }
 
-        /* 没有标签就先开一个再导航 —— 宿主的 open 命令本来就收地址。 */
         const task = activeTab === null ? api.newTab(address) : api.navigate(activeTab.id, address)
 
         void task.catch((cause: unknown) => {
@@ -364,16 +337,11 @@ function Viewport({
     }
   }, [api, report])
 
-  /* 开合与拖宽经指纹重新起跑：补间由外壳在 React 之外推进，量不到重渲染。 */
   useEffect(() => {
     alignment.current?.follow(layoutSignal)
   }, [layoutSignal])
 
-  /*
-   * 底部让出一条圆角半径。页面本体是原生子 webview（按这个元素的矩形摆放），原生层整幅
-   * 盖在宿主 DOM 之上 —— 面板那层的圆角与 overflow 裁不到它，不缩这一条，页面就会把
-   * 面板底部的两个圆角盖成直角。
-   */
+  /* 底部让出一条圆角半径：页面本体是原生子 webview，整幅盖在宿主 DOM 之上，面板那层的圆角与 overflow 裁不到它 —— 不缩这一条，页面会把面板底部的两个圆角盖成直角。 */
   return (
     <div
       className="relative mb-[var(--workspace-card-radius)] min-h-0 flex-1"
@@ -382,7 +350,6 @@ function Viewport({
       ref={region}
     >
       {showEmpty ? (
-        /* 空态。活动标签是空白页时原生侧没有 webview，这里就是画面本身。 */
         <div className="flex h-full flex-col items-center justify-center gap-2 px-6 text-center">
           <Globe aria-hidden className="size-8 opacity-30" />
           <p className="text-sm font-medium">浏览器</p>

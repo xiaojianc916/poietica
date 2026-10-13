@@ -12,27 +12,9 @@ import type { ModelRef, Posture } from '@poietica/engine'
 import { Brain, Check, ChevronDown, Hand, ShieldAlert, ShieldCheck } from 'lucide-react'
 import { useState } from 'react'
 
-/*
- * 自动化编辑器的指令输入框。
- *
- * legacy 这一格直接把 conversation 的 `AssistantComposer` 摆进编辑页
- * （`packages/automation/src/ui/automation-editor.tsx` 的「指令」一栏）。新架构里
- * conversation 的输入框没有经 ui-api 导出，而铁律禁止功能之间直接 import 别的功能的
- * ui —— 所以这里按同一份度量复刻它可见的那几格：
- *
- *   [data-slot="prompt-input"]        卡片框体（边、圆角、底、影，读 --cp-* 令牌）
- *   [data-slot="prompt-input-editor"] 正文，占位文案由调用方给
- *   [data-slot="prompt-input-toolbar"] 工具条：姿态胶囊 + 模型胶囊
- *
- * 与 legacy 的差别只有「工具条里能点的东西」：
- *   - 姿态由契约的 Posture（ask / auto-edit / full-access）驱动，三档与对话页那三颗
- *     胶囊同一份说法；
- *   - 模型与思考强度（审查 R-16）：可选项读 conversation 的 `controls.draft`（只读 RPC，
- *     对话入口页的选择器读的也是它），由编辑器取来经 choices 交进来。
- *
- * conversation 把这张卡（或它的 ui-api 资产）导出来之后，这个文件应当整份删除、
- * 改回引用同一份 —— 到那时两者不会再有漂移的可能。
- */
+/* 编辑器里的指令输入框。legacy 直接摆 conversation 的 AssistantComposer，而那个输入框没经 ui-api 导出、铁律又禁止功能之间
+ * import 别的功能的 ui，所以按同一份度量复刻它可见的几格：[data-slot="prompt-input"] 卡片框体、"prompt-input-editor" 正文、
+ * "prompt-input-toolbar" 工具条。conversation 把这张卡导出之后，这个文件应当整份删除、改回引用同一份。 */
 
 const POSTURES: readonly { readonly value: Posture; readonly label: string; readonly detail: string }[] = [
   { value: 'ask', label: '每次询问', detail: '编辑外部文件和使用互联网时始终询问' },
@@ -46,10 +28,8 @@ const GLYPH: Readonly<Record<Posture, typeof Hand>> = {
   'full-access': ShieldAlert,
 }
 
-/** 模型与思考强度的可选项（conversation 的 controls.draft，见 api.ts）；null = 还没读到 */
 export interface ModelChoices {
   readonly models: readonly { readonly ref: ModelRef; readonly label: string }[]
-  /** 「默认模型」此刻解析成哪一个（只用来写旁注） */
   readonly defaultLabel: string | null
   readonly thinking: readonly { readonly id: string; readonly label: string }[]
 }
@@ -70,11 +50,8 @@ export interface AutomationComposerProps {
 const DEFAULT_KEY = '__default__'
 const keyOf = (ref: ModelRef | null): string => (ref === null ? DEFAULT_KEY : `${ref.provider}/${ref.id}`)
 
-/*
- * 模型那一格（审查 R-16）：第一项永远是「默认模型」—— 存成 null，到点时才解析，用户改了
- * 默认模型任务跟着变；其余是此刻可用的模型。存着的模型不在表里（被删了、凭据没了）也照
- * 样显示它的 id，不悄悄换掉：到点会报错，用户在这里看得见、改得了。
- */
+/* 第一项永远是「默认模型」（存 null，到点才解析，用户改了默认模型任务跟着变）；存着的模型不在表里（被删了、凭据没了）也
+ * 照样显示它的 id，不悄悄换掉：到点会报错，用户在这里看得见、改得了。 */
 function ModelMenu({
   choices,
   model,
@@ -127,7 +104,6 @@ function ModelMenu({
   )
 }
 
-/* 思考强度：只在这个模型有档位时出现；「默认」存 null。 */
 function ThinkingMenu({
   choices,
   onThinkingChange,

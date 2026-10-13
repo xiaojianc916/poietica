@@ -15,14 +15,14 @@ import {
 import type { CustomProvidersFile } from './models-file'
 import { flushOf, modelRoleOf, setModelRoleOf } from './settings-writes'
 
-/** 默认模型那一格：`modelRoles.default`，值是整串 provider/id。 */
+/** 默认模型那一格：`modelRoles.default`，值是整串 provider/id */
 const DEFAULT_ROLE_KEY = 'default'
-/** 标题模型那一格：`modelRoles.title`（产品语义见 ModelsPort.titleModel 的头注）。 */
+/** 标题模型那一格：`modelRoles.title`（产品语义见 ModelsPort.titleModel 的头注） */
 const TITLE_ROLE_KEY = 'title'
-/** 全局那一档思考深度（session/settings.ts 的 cfgDefaultThinkingLevel）。 */
+/** 全局那一档思考深度（session/settings.ts 的 cfgDefaultThinkingLevel） */
 const DEFAULT_THINKING_PATH = 'defaultThinkingLevel'
 
-/** ModelsPort 需要的东西：registry、凭据存储、root 设置、models.yml 的读写器。 */
+/** ModelsPort 需要的东西：registry、凭据存储、root 设置、models.yml 的读写器 */
 export interface ModelsPortDeps {
   readonly registry: RegistryPort
   /** omp 的 AuthStorage.credentials 子 API */
@@ -38,24 +38,17 @@ export interface ModelsPortDeps {
   readonly reload: () => Promise<void>
 }
 
-/**
- * 模型目录端口。读的是 omp 自己的注册表（内置目录 + 用户 models.yml），写的是它自己的两处真身：
- * 凭据进 agent.db（AuthStorage），默认模型与启用白名单进 config.yml（Settings）。
- * 本端口不持有第二份副本。
- */
+/** 读 omp 自己的注册表（内置目录 + 用户 models.yml），写它自己的两处真身：凭据进 agent.db、默认模型与白名单进 config.yml */
 export class OmpModelsPort implements ModelsPort {
   readonly #change = new Emitter<void>()
   readonly onDidChange = this.#change.event
 
   constructor(private readonly d: ModelsPortDeps) {}
 
-  /**
-   * provider 列表：registry 认得的全部 provider；`configured` 用 **omp 自己的鉴权判据**
-   * （`hasConfiguredAuth`，逐条模型问）—— 凭据表只是它认的四个来源之一。
-   */
+  /** provider 列表：`configured` 用 **omp 自己的鉴权判据**（`hasConfiguredAuth`，逐条模型问），凭据表只是它认的四个来源之一 */
   async providers(): Promise<z.infer<typeof ProviderInfo>[]> {
     try {
-      /* 全部模型按 provider 归并：判鉴权要拿得到「这家的一条模型」，目录里没有的 provider 无从判起。 */
+      /** 全部模型按 provider 归并：判鉴权要拿得到「这家的一条模型」，目录里没有的 provider 无从判起 */
       const models = new Map<string, OmpModelLike>()
       for (const model of this.d.registry.all()) models.set(model.provider, model)
       for (const model of this.d.registry.available()) {
@@ -65,21 +58,18 @@ export class OmpModelsPort implements ModelsPort {
       for (const [id, model] of [...models].sort(([left], [right]) => left.localeCompare(right))) {
         out.push({
           id,
-          /* omp 的内置目录没有单独的 provider 显示名，官方 TUI 画的也是 id。 */
+          /** omp 的内置目录没有单独的 provider 显示名，官方 TUI 画的也是 id */
           name: id,
           /*
-           * omp 知识 #18：`configured` 必须与 omp 自己「这家能不能用」的判据同源，否则界面会把
-           * models.yml 里写死 apiKey、或声明 `auth: none` 的免密钥服务商误报成没配 —— 真机上
-           * 入口页因此挂着「还没有配置任何模型服务商」，而模型选择器一条不少地列着它们。
-           *
-           * hasConfiguredAuth 认四类来源：yml 里的 apiKey、免密钥 provider、凭据表、环境别名；
-           * 只查 credentials.has 就只认了第三类。
+           * omp 知识 #18：`configured` 必须与 omp 自己「这家能不能用」的判据同源，否则界面会把 models.yml
+           * 里写死 apiKey、或声明 `auth: none` 的免密钥服务商误报成没配 —— 真机上入口页因此挂着「还没有配置
+           * 任何模型服务商」，而模型选择器一条不少地列着它们。hasConfiguredAuth 认四类来源，只查 credentials.has 就只认了凭据表这一类。
            */
           configured: this.d.registry.hasConfiguredAuth(model),
           custom: await this.d.customProviders.defined(id),
-          /* 产品不支持 OAuth 登录，所以只可能是这两档。 */
+          /** 产品不支持 OAuth 登录，所以只可能是这两档 */
           authKind: 'api_key',
-          /* omp 的目录里没有「文档地址」这一格，如实交 null，不编一个。 */
+          /** omp 的目录里没有「文档地址」这一格，如实交 null，不编一个 */
           docsUrl: null,
         })
       }
@@ -89,7 +79,7 @@ export class OmpModelsPort implements ModelsPort {
     }
   }
 
-  /** 全部模型，带完整元数据；enabled 来自 omp 的 enabledModels 白名单。 */
+  /** 全部模型，带完整元数据；enabled 来自 omp 的 enabledModels 白名单 */
   async models(): Promise<z.infer<typeof ModelInfo>[]> {
     try {
       const matcher = enabledMatcher(stringArrayOf(readSetting(this.d.root, ENABLED_MODELS_PATH)))
@@ -107,12 +97,12 @@ export class OmpModelsPort implements ModelsPort {
     }
   }
 
-  /* omp 知识 #12：API key 的写法固定是 credentials.set(provider, { type: 'api_key', key, source: 'login' })。 */
+  /** omp 知识 #12：API key 的写法固定是 credentials.set(provider, { type: 'api_key', key, source: 'login' }) */
   async setApiKey(provider: string, key: string): Promise<void> {
     try {
       /*
-       * 这一行下面到函数结束都不许出现 key：端口不记日志、不回传、不放进任何事件。
-       * source: 'login' 是上游给「人自己填进来的钥匙」打的标记，不写它凭据来源分类会认错来路。
+       * 这一行下面到函数结束都不许出现 key：端口不记日志、不回传、不放进任何事件。source: 'login' 是上游给
+       * 「人自己填进来的钥匙」打的标记，不写它凭据来源分类会认错来路。
        */
       await this.d.credentials.set(provider, { type: 'api_key', key, source: 'login' })
       await this.#refreshCredentials()
@@ -134,10 +124,7 @@ export class OmpModelsPort implements ModelsPort {
     }
   }
 
-  /**
-   * 停用/启用一条模型。写入面是全局层的 enabledModels（omp 的可用模型白名单；
-   * 出处：config/model-settings.ts 的 cfgEnabledModels 与 model-resolver.ts 的 resolveAllowedModels）。
-   */
+  /** 停用 / 启用一条模型。写入面是全局层的 enabledModels（omp 的可用模型白名单） */
   async setModelEnabled(ref: ModelRef, enabled: boolean): Promise<void> {
     try {
       const patterns = stringArrayOf(readSetting(this.d.root, ENABLED_MODELS_PATH))
@@ -172,11 +159,8 @@ export class OmpModelsPort implements ModelsPort {
   }
 
   /**
-   * 「生成对话标题用的模型」：omp 的 `modelRoles.title`。
-   *
-   * null = 没设 → 标题用这条对话自己的模型（产品默认，见 create-engine 的说明）。
-   * 单开一个键而不是复用 tiny：omp 的 tiny 是它自己给一堆后台小事（记忆整理、技能摘要）
-   * 挑轻量模型的角色，用户在这里选的只该管标题这一件事。
+   * 「生成对话标题用的模型」：omp 的 `modelRoles.title`。null = 没设 → 标题用这条对话自己的模型。
+   * 单开一个键而不是复用 tiny：omp 的 tiny 是它给后台小事挑轻量模型的角色，用户选的只该管标题这一件事。
    */
   async titleModel(): Promise<ModelRef | null> {
     try {
@@ -228,10 +212,10 @@ export class OmpModelsPort implements ModelsPort {
     }
   }
 
-  /** 自定义 provider：整份读、整份写 models.yml，写完让 registry 重读。 */
+  /** 自定义 provider：整份读、整份写 models.yml，写完让 registry 重读 */
   async upsertCustomProvider(def: CustomProviderDef): Promise<void> {
     try {
-      /* models.yml 的三条规则在 CustomProvidersFile 里：整份读整份写、原子写、写完让 registry 重读。 */
+      /** models.yml 的三条规则：整份读整份写、原子写、写完让 registry 重读 */
       await this.d.customProviders.upsert(def)
       this.#change.fire()
     } catch (error) {
@@ -248,14 +232,11 @@ export class OmpModelsPort implements ModelsPort {
     }
   }
 
-  /** 凭据变了要让 registry 重算「这个 provider 能不能用」（omp 的目录是凭据作用域的）。 */
+  /** 凭据变了要让 registry 重算「这个 provider 能不能用」（omp 的目录是凭据作用域的） */
   async #refreshCredentials(): Promise<void> {
     await this.d.registry.hydrateCredentialScopedModelCaches()
     this.d.registry.refreshInBackground()
-    /*
-     * 写完凭据让 omp 自己重扫一遍：只刷内存快照的话，agent.db 里那把钥匙要等下次启动才被认到。
-     * 刷新失败不改「钥匙已经写进去了」这个事实：如实记 warn 就好。
-     */
+    /* 写完凭据让 omp 自己重扫：只刷内存快照的话，agent.db 里那把钥匙要等下次启动才被认到 */
     await this.d.reload().catch((error: unknown) => {
       this.d.logger.warn('model registry reload failed', { error: String(error) })
     })
@@ -265,24 +246,24 @@ export class OmpModelsPort implements ModelsPort {
     await flushOf(this.d.root)
   }
 
-  /** AgentEngine.dispose 时一并释放监听器。 */
+  /** AgentEngine.dispose 时一并释放监听器 */
   dispose(): void {
     this.#change.dispose()
   }
 }
 
-/** provider/id → ModelRef；没有斜杠就原样当 provider 与 id（坏值如实交出去，不猜）。 */
+/** provider/id → ModelRef；没有斜杠就原样当 provider 与 id（坏值如实交出去，不猜） */
 function splitAlias(alias: string): ModelRef {
   const cut = alias.indexOf('/')
   if (cut <= 0 || cut === alias.length - 1) return { provider: alias, id: alias }
   return { provider: alias.slice(0, cut), id: alias.slice(cut + 1) }
 }
 
-/** modelRoles 里那一格 → ModelRef；没配或空串就是 null。 */
+/** modelRoles 里那一格 → ModelRef；没配或空串就是 null */
 function modelOf(scope: SettingsScope, role: string): ModelRef | null {
   const value = modelRoleOf(scope, role)
   return value === undefined || value === '' ? null : splitAlias(value)
 }
 
-/** 让 biome 知道 OmpModelLike 在这里被用作形状约束（RegistryPort 的成员）。 */
+/** 让 biome 知道 OmpModelLike 在这里被用作形状约束（RegistryPort 的成员） */
 export type { OmpModelLike }

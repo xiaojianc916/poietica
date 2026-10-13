@@ -3,10 +3,7 @@ import type { ToolCallStatus, ToolKind } from '../../../agent/tool-call'
 import { selectPresentation } from '../../../timeline/presentation'
 import type { TimelineItem, TimelineState, ToolCallTimelineItem } from '../../../timeline/timeline-contract'
 
-/*
- * 对话内组件（审查 R-18）在时间线里的位置：组件是给人看、给人点的，
- * 不并进过程组，轮次落定后也不折进「过程」。失败的那次照常归过程。
- */
+/* 对话内组件（审查 R-18）不并进过程组，落定后也不折进「过程」；失败的那次照常归过程。 */
 
 function ask(): TimelineItem {
   return { type: 'user_message', id: 'ask', turn: 0, at: 0, text: '给我三种输入框样式' }

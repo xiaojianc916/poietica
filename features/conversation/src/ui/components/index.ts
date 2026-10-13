@@ -19,7 +19,7 @@ export { SwarmToggle } from './composer/swarm-toggle'
 export { SkillDocumentPane } from './skill-document-pane'
 export { createSkillDocumentStore, type SkillDocumentStore } from './skill-document-store'
 export { AssistantThreadList } from './threads/assistant-thread-list'
-// 工作区选择器搬家了：它属于 workspaces 功能，从那边的 ui-api 取（03 页 §4.4）
+// 工作区选择器属于 workspaces 功能，从那边的 ui-api 取
 export { DelegateChannelContext } from './timeline/delegate-channel-context'
 export {
   DelegateChannelIcon,

@@ -11,14 +11,13 @@ import { applyPosture } from '../posture'
 import { OmpSession, type OmpSessionHost } from '../session'
 
 /*
- * 控件（12 页 §7.7、§12.3 的去向表）：迁移自 legacy thinking.test.ts，另加一轮自己产出的
- * 时间线判断「本轮结束后就是空闲」。
+ * 控件：另加一轮自己产出的时间线判断「本轮结束后就是空闲」。
  *
  * 关键的一条：思考档位的候选是**这条模型自己的梯子**（omp 的 getAvailableThinkingLevels），
  * 不是一张写死的四档表 —— 写死一张通用表的代码会在这里红。
  *
- * legacy 顶部那一段「收敛」判据（旧版本留下的 off / auto 要收掉、换过模型之后落到默认档）
- * 在新树里没有落点：新树不保存第二份梯子，档位直接来自 omp 自己（12 页 §7.7 的表），
+ * 「收敛」那一段判据（旧版本留下的 off / auto 要收掉、换过模型之后落到默认档）
+ * 在这一层没有落点：这里不保存第二份梯子，档位直接来自 omp 自己，
  * 收敛那一趟由 omp 的 applyAutoThinkingLevel 负责，产品侧只把解析结果作为 OpenSessionSpec.thinking 传下去。
  *
  * 被测对象是 OmpSession 自己：用手工组装的 OmpSessionHost（hostOf）驱动，不起进程、不碰磁盘。
@@ -327,7 +326,7 @@ describe('OmpSession 的控件', () => {
   })
 
   /*
-   * 真实故障「输入框显示的模型与我用的模型不一样」：先前 setModel/setThinking 只改本地
+   * 真实故障「输入框显示的模型与我用的模型不一样」：setModel/setThinking 若只改本地
    * 那一格，从不交给 omp —— 屏幕报 B，会话仍在跑 A。这两条钉住「改一次就真的下发一次」。
    */
   test('setModel 真的下发到会话，不是只改本地那一格', async () => {

@@ -5,11 +5,8 @@ import { GoalBar, useGoalActions } from '../goal/goal-bar'
 import type { GoalAction, GoalActionHandler, GoalActionResult } from '../goal/goal-control'
 
 /*
- * 目标栏的动作（审查 R-10）。
- *
- * 旧目标栏把动作交给 onSelect 之后立刻当成功：暂停 / 继续 / 改正文在上一层被整条丢掉，
- * 人点了既没有变化也没有报错。这里钉三件事：每个按钮交出去的是**哪一个动作**；
- * 等到出口真的答复才算完（期间按钮 disabled）；失败的那句话亮在 role=alert 上。
+ * 审查 R-10：旧目标栏把动作交给 onSelect 之后立刻当成功，暂停 / 继续 / 改正文在上一层被整条丢掉，
+ * 人点了既没变化也没报错。这里钉三件事：动作身份、等到出口真答复才算完（期间 disabled）、失败亮在 role=alert 上。
  */
 
 function goalOf(over: Partial<SessionGoal> = {}): SessionGoal {
@@ -34,7 +31,6 @@ function Harness({ goal, onAction }: { readonly goal: SessionGoal; readonly onAc
 interface Recorder {
   readonly calls: GoalAction[]
   readonly onAction: GoalActionHandler
-  /** 让最早那一个还没答复的动作以 result 答复 */
   settle(result: GoalActionResult): void
 }
 
@@ -127,7 +123,7 @@ describe('目标栏动作（审查 R-10）', () => {
       fireEvent.keyDown(input, { key: 'Enter' })
     })
     expect(r.calls).toEqual([{ kind: 'edit', objective: '把测试迁完并补文档' }])
-    // 答复之前仍在编辑（失败了人还能改）
+    // 答复前仍在编辑：失败了人还能改
     expect(container.querySelector('input[aria-label="目标内容"]')).not.toBeNull()
 
     await act(async () => {

@@ -31,7 +31,7 @@ type ToUpstream<T> = (answer: InteractionAnswer) => T
 export const DISMISS: InteractionAnswer = Object.freeze({ kind: 'dismiss' })
 
 /**
- * 待答交互的账本（04 页 §3.12、12 页 §8.1）。
+ * 待答交互的账本。
  *
  * 三件事只在这里发生，写成一份就没有「Promise 结了但屏幕没被告知」的缝：
  * - 登记：签发 id、按注入的 now 算 createdAt / timeoutAt、记进表里、发 requested；
@@ -48,7 +48,7 @@ export class InteractionBroker {
    */
   private readonly changes: Emitter<InteractionChange>
 
-  /** 变化订阅。omp 在自己的事件循环里调它；监听器异常由 Emitter 吞掉并交给注入的那条日志（12 页 §0.3） */
+  /** 变化订阅。omp 在自己的事件循环里调它；监听器异常由 Emitter 吞掉并交给注入的那条日志 */
   readonly onChange: Event<InteractionChange>
 
   constructor(
@@ -59,7 +59,7 @@ export class InteractionBroker {
     this.onChange = this.changes.event
   }
 
-  /** 登记一次交互并等答复（04 页 §3.12 的原签名） */
+  /** 登记一次交互并等答复 */
   ask(draft: InteractionDraft, options?: AskOptions): Promise<InteractionAnswer>
   /** 登记并等答复，同时把答复翻成上游要的形状（ui-context 走这一支） */
   ask<T>(draft: InteractionDraft, toUpstream: ToUpstream<T>, options?: AskOptions): Promise<T>
@@ -82,7 +82,7 @@ export class InteractionBroker {
     return new Promise<T | InteractionAnswer>((resolve, reject) => {
       let timer: ReturnType<typeof setTimeout> | undefined
 
-      /* 唯一的结账点：答复、超时、中止三条路都从这里走（legacy DialogDesk 把三条归一，是为了让「结了但没告知」写不出来） */
+      /* 唯一的结账点：答复、超时、中止三条路都从这里走 —— 三条归一，是为了让「结了但没告知」写不出来 */
       const settle = (answer: InteractionAnswer): void => {
         if (!this.waiting.delete(id)) return
         if (timer !== undefined) clearTimeout(timer)
@@ -104,7 +104,7 @@ export class InteractionBroker {
       /*
        * 已经作废的那一次压根不登记：abort 监听器只在 abort **之后**触发，信号若在登记之前
        * 就已中止，监听器永远不会响，这次交互就永远留在等人答的表里 —— 屏幕上是收不掉的带子。
-       * 所以先看状态再决定问不问（12 页 §8.1 第 3 点）。
+       * 所以先看状态再决定问不问。
        */
       if (opts?.signal?.aborted === true) {
         try {
@@ -160,7 +160,7 @@ export class InteractionBroker {
     return [...this.waiting.values()].map((entry) => entry.interaction)
   }
 
-  /** 04 页 §3.12 的旧名，与 pending() 是同一份账 */
+  /** 旧名，与 pending() 是同一份账 */
   list(): readonly Interaction[] {
     return this.pending()
   }

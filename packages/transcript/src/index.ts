@@ -1,6 +1,6 @@
 // 显式罗列而非 export *：线上契约在 upstream/contract，消费侧读法在 upstream/model，通配会藏起同名同形的分叉。
 
-// —— 本包新增：三个进程共用的高层 API（05 页 §12.1）——
+// —— 本包新增：三个进程共用的高层 API ——
 export {
   applyOps,
   emptyTimeline,
@@ -13,7 +13,7 @@ export {
   type TranscriptPage,
   transcriptPageSchema,
 } from './timeline'
-// —— 上游（src/upstream/，原样迁移自 legacy packages/transcript）——
+// —— 上游（src/upstream/）——
 export {
   agentTranscriptSnapshotSchema,
   appendTargetSchema,

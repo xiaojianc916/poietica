@@ -1,10 +1,5 @@
 import { z } from 'zod'
 
-/*
- * browser 的 zod 实体（07 页 §12B 的完整代码）。线上形状只有一个产地：
- * host/tabs.ts 产出、UI 消费，两边都从这里取类型。
- */
-
 export const BrowserTab = z.object({
   id: z.number().int().positive(), // Host 内自增，从 1 开始
   url: z.string().nullable(), // 空白标签为 null（内部是 about:blank）
@@ -36,9 +31,8 @@ export const PickedElement = z.object({
 })
 export type PickedElement = z.infer<typeof PickedElement>
 
-/** 外站视图的用户数据与主界面分开（07 页 §12D）：权限在这一个会话上单独收紧。 */
 export const BROWSER_PARTITION = 'persist:poietica-browser'
-/** 空白页写法的唯一产地；宿主记的是「没有 url」，不是这条地址。 */
+/** 空白页写法的唯一产地；宿主记的是「没有 url」。 */
 export const BLANK_PAGE = 'about:blank'
 /** 拾取脚本住的隔离世界：0 是页面主世界，不能用（会被页面自己的 CSP 判死）。 */
 export const PICKER_WORLD = 999

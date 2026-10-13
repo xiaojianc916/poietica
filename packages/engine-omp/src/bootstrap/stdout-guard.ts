@@ -1,7 +1,7 @@
 /**
  * stdout 是 Core 与 Host 之间的帧通道。omp 与它的依赖里到处是 console.log，
  * 任何一行杂散输出都会被 Host 当成 stray 行。守卫把 stdout 全部改道到 stderr，
- * 只留下 writeFrame 能写真正的 stdout（12 页 §4.3）。
+ * 只留下 writeFrame 能写真正的 stdout。
  */
 let installed: ((frame: string) => void) | null = null
 

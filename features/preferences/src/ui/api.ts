@@ -7,7 +7,6 @@ import {
   type UiStateKey,
 } from '../contract'
 
-/** 对 ctx.rpc(preferencesContract) 的薄封装：测试时整体替换为假对象 */
 export function createPreferencesApi(ctx: UiFeatureContext) {
   const rpc = ctx.rpc(preferencesContract)
   return {

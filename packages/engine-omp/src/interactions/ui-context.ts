@@ -31,7 +31,7 @@ import type { AskOptions, InteractionBroker } from './broker'
 import { askQuestionsOf, askResultOf, questionInteraction } from './questions'
 
 /**
- * omp 的 ExtensionUIContext 实现（12 页 §8.3、04 页 §3.12）。
+ * omp 的 ExtensionUIContext 实现。
  *
  * omp 的授权闸门与提问都经这个接口找人：没有它（或者不完整）时闸门 fail closed，
  * 非 yolo 模式下每一次 write/exec 都抛「requires approval but no interactive UI available」。
@@ -39,7 +39,7 @@ import { askQuestionsOf, askResultOf, questionInteraction } from './questions'
  *
  * 只有问得出人的那四个对话框（select / confirm / input / editor）与 askDialog 接到 broker 上；
  * 其余成员是交互式 TUI 的面（主题、控件、状态栏），嵌入方没有也不该有 —— 但**必须逐个实现**：
- * 用 `as unknown as ExtensionUIContext` 强转会让 omp 升级时新增的成员静默缺失（12 页 §8.3）。
+ * 用 `as unknown as ExtensionUIContext` 强转会让 omp 升级时新增的成员静默缺失。
  */
 export interface UiContextHooks {
   /** 会话级放行：approve 且 scope 为 session 时调用。写的是会话 overlay，不落盘、不串会话 */
@@ -168,7 +168,7 @@ class OmpUiContext implements ExtensionUIContext {
     /*
      * 与 PI_NO_PTY=1 配合：这个宿主没有终端组件层，没有东西可渲染，也没有键盘焦点可交。
      * 返回 undefined 而不是 reject：omp 的调用方把 undefined 读成「没拿到结果」，
-     * 抛出去会在它的事件循环里变成一条 runtime error（12 页 §8.3）。
+     * 抛出去会在它的事件循环里变成一条 runtime error。
      */
     return undefined as T
   }
@@ -234,7 +234,7 @@ function inputValueOf(answer: InteractionAnswer): string | undefined {
   return answer.kind === 'input' ? (answer.value ?? undefined) : undefined
 }
 
-/** dialogOptions.timeout / signal 原样交给 broker（12 页 §8.3 的要点） */
+/** dialogOptions.timeout / signal 原样交给 broker */
 function askOptions(dialogOptions?: ExtensionUIDialogOptions): AskOptions {
   return {
     ...(dialogOptions?.timeout === undefined ? {} : { timeoutMs: dialogOptions.timeout }),

@@ -12,30 +12,17 @@ interface NavItem {
 }
 
 /*
- * 导航分段（06 页 §6.2「设置导航」）。
- *
- * 外壳只认识**段**：段由 `settingsGroups` 贡献点给出（workbenchFeature 贡献三段），
- * 页归哪一段由贡献这个页的功能用它自己的 `group` 声明。所以这张表里没有、
- * 也不可能有任何 `@poietica/feature-*` 的名字 —— 外壳不认识功能。
- *
- * 段之间只有间距、没有标题（与 legacy `settings-surface.tsx` 的 SECTION_GROUPS 一致：
- * `.settings-navigation__items + .settings-navigation__items` 那条外边距就是它）。
+ * 外壳只认识**段**：段由 `settingsGroups` 贡献点给出，页归哪一段由贡献这个页的功能用自己的 `group` 声明 ——
+ * 所以这张表里不可能有任何 `@poietica/feature-*` 的名字。段之间只有间距、没有标题。
  */
-/** 一段导航：一个 `settingsGroups` 条目 + 落在它里面的页（段内按 order）。 */
 export interface SettingsNavGroup {
   readonly id: string
   readonly items: readonly NavItem[]
 }
 
 /**
- * 把设置页按段切开（06 页 §6.2 的渲染规则）：
- * - 段按 `settingsGroups` 的 order 排序，每段渲染一个 `<nav>`；
- * - 没有页的段不渲染；
- * - `group` 找不到对应段的页进**末尾的兜底段**；
- * - 段内按页的 order 排序。
- *
- * 抽成导出函数是为了单测：这段是「外壳不认识功能」的落点，判据要能脱离渲染直接钉住。
- * 兜底段的 warn 由调用方负责（渲染期不做副作用）。
+ * 按段切开设置页：段按 `settingsGroups` 的 order 排，空段不渲染，`group` 找不到对应段的页进末尾兜底段。
+ * 抽成导出函数是为了单测能脱离渲染钉住判据；兜底段的 warn 由调用方负责（渲染期不做副作用）。
  */
 export function groupSettingsPages(
   groups: readonly { readonly id: string; readonly order: number }[],
@@ -68,26 +55,15 @@ export function groupSettingsPages(
   return out
 }
 
-/** 兜底段标记（供调用方记 warn 用） */
 export const UNKNOWN_SETTINGS_GROUP = '__unknown__'
 
-/**
- * 设置导航。**迁移自** legacy `settings-surface.tsx` 的 SettingsNavigation：
- * 返回键 + 分类列表 + 底部行；类名与结构照旧，数据来源换成 settingsPages 贡献点。
- *
- * 它占的是**外壳的侧栏那一格**（legacy workspace.tsx 的 isSettingsOpen 分支），
- * 不是主区里的一列。
- */
+/** 设置导航：返回键 + 分类列表 + 底部行，占外壳的侧栏那一格，不是主区里的一列。 */
 export function SettingsNavigation({
   footer,
   page,
 }: {
   readonly footer?: ReactNode
-  /**
-   * 当前页。组合根（Workbench）给，缺省才回落到读路由 ——
-   * 外壳把这两块内容做成稳定引用来避免拖拽时重渲染（见 workbench.tsx 的 useMemo），
-   * 而稳定引用同时也要求「换页」这件事必须能从 props 看见，否则子树不会被重画。
-   */
+  /** 当前页由组合根给：稳定引用要求「换页」必须能从 props 看见，否则子树不会被重画。 */
   readonly page?: string | undefined
 }): ReactNode {
   const pages = useContributions(builtinPoints.settingsPages)
@@ -95,9 +71,8 @@ export function SettingsNavigation({
   const { kernelServices } = useKernel()
   const route = kernelServices.navigation.current().route
   /*
-   * 空串要当成「没给」：Workbench 传的是 `route.params.page ?? ''`，而 `''` 不是 nullish，
-   * `page ?? route.params.page` 于是留下空串 —— 打开设置（params 为空对象）时 activeId 变成
-   * 空串，第一页「通用」拿不到 data-active，导航里没有一行是选中的（真实故障）。
+   * 空串要当成「没给」：Workbench 传的是 `route.params.page ?? ''`，`page ?? route.params.page` 于是留下空串，
+   * activeId 变成空串后第一页拿不到 data-active，导航里没有一行是选中的（真实故障）。
    */
   const wanted = page ?? route.params.page
   const current = wanted === undefined || wanted === '' ? undefined : wanted
@@ -112,10 +87,7 @@ export function SettingsNavigation({
     groups.map((c) => c.item),
     items,
   )
-  /*
-   * group 填错的页（不在 settingsGroups 里）进末尾兜底段，并记一条 warn。
-   * 渲染期不做副作用：这里只在首次渲染这个组合时记一次，判据是「这一页 + 这一段」。
-   */
+  /* 渲染期不做副作用：同一个「页 + 段」只 warn 一次。 */
   const warned = useRef(new Set<string>())
   for (const section of sections) {
     if (section.id !== UNKNOWN_SETTINGS_GROUP) continue
@@ -126,9 +98,7 @@ export function SettingsNavigation({
       kernelServices.logging.logger.warn('settings page has unknown group', { page: item.id, group: item.group })
     }
   }
-  /*
-   * 路由没有 page 时选**第一段的第一页**（06 页 §6.2），不是「贡献顺序里的第一个」。
-   */
+  /* 没有 page 时选第一段的第一页，不是「贡献顺序里的第一个」。 */
   const firstPageId = sections[0]?.items[0]?.id
   const activeId = route.surface === 'workbench.settings' ? (current ?? firstPageId) : firstPageId
 
@@ -173,10 +143,7 @@ export function SettingsNavigation({
   )
 }
 
-/**
- * 设置内容区。**迁移自** legacy 的 SettingsContentRegion：内容宽度上限 720px 居中。
- * 作为 surface 注册，所以签名要收 params（06 页 §6.3：路由参数 page 选中页面）。
- */
+/** 设置内容区：内容宽度上限 720px 居中；作为 surface 注册，所以签名要收 params。 */
 export function SettingsContentRegion({
   params,
 }: {
@@ -187,10 +154,7 @@ export function SettingsContentRegion({
   const { kernelServices } = useKernel()
   const route = kernelServices.navigation.current().route
   const pageId = params?.page ?? route.params.page
-  /*
-   * 缺省页 = **第一段的第一页**（06 页 §6.2），与导航的高亮判据同源：
-   * 两处若各自用「贡献顺序里的第一个」，段序一变就会指到不同的页。
-   */
+  /* 缺省页与导航高亮同源：两处若各自用「贡献顺序里的第一个」，段序一变就会指到不同的页。 */
   const firstPageId = groupSettingsPages(
     groups.map((c) => c.item),
     pages.map((c) => ({

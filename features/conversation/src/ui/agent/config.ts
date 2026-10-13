@@ -27,7 +27,7 @@ export interface SessionConfigReport {
 
 export interface SessionConfigMemoryPort {
   readonly read: () => readonly SessionConfigControl[]
-  /** agent 刚确认过的那一张。写失败不该影响这一趟，由宿主自己上报。 */
+  /** 写失败不该影响这一趟，由宿主自己上报。 */
   readonly write: (controls: readonly SessionConfigControl[]) => void
 }
 

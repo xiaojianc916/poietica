@@ -12,11 +12,9 @@ import { noticeOf } from './notice'
 import type { AutomationsRepository } from './repository'
 import { wallTime } from './time'
 
-/** 运行开始后每隔这么久问一次会话状态：搬 awaiting ↔ running、累计运行时长、看两条超时 */
+/** 轮询会话状态：搬 awaiting ↔ running、累计运行时长、看两条超时 */
 const AWAITING_POLL_MS = 5_000
-/** 单次运行最多跑多久（只算真在跑的时间，等批准的时间不算）—— 审查 R-14 */
 export const RUN_TIMEOUT_MS = 60 * 60_000
-/** 卡在等批准上最多等多久 —— 审查 R-14 */
 export const APPROVAL_TIMEOUT_MS = 2 * 60 * 60_000
 
 export const RUN_TIMEOUT_MESSAGE = '运行超过 60 分钟，已停止'
@@ -25,15 +23,11 @@ export const BUSY_THREAD_MESSAGE = '续用的对话正在进行中，这一次�
 
 export interface Runner {
   start(a: Automation, trigger: RunTrigger, scheduledFor: number | null): Promise<AutomationRun>
-  /** 到点了但不跑：记一条 skipped（上一次还没结束 / 应用当时没开且不补跑 / 续用的对话正忙） */
   skip(a: Automation, trigger: RunTrigger, scheduledFor: number | null, message: string): AutomationRun
-  /** 运行中的 agent 交结论（automation_report）；这条对话上没有开着的运行 → not_in_run */
+  /** 没有开着的运行 → not_in_run。 */
   report(threadId: string, summary: string, attention: boolean): AutomationRun[]
-  /** 由 index.ts 订阅 conversation 的 turnSettled 后转进来 */
   onTurnSettled(e: TurnSettled): void
-  /** 一句话没送达（R-06）：本次运行不会再有回合结束事件，就地收成 failed */
   onSubmissionFailed(e: SubmissionFailed): void
-  /** 运行所在的对话被删除（R-06）：收成 cancelled */
   onThreadRemoved(e: ThreadRemoved): void
   cancel(runId: string): Promise<void>
   isRunning(automationId: string): boolean
@@ -48,14 +42,10 @@ export function threadTitleOf(automation: Automation, at: number): string {
   return `定时任务：${automation.title} ${stamp}`
 }
 
-/** 运行结束前交结论的那句交代：与 agent-tools.ts 的 automation_report 同名同参 */
 export const REPORT_INSTRUCTION =
   '（运行结束前调用 automation_report，用一两句话写下结论；需要用户处理或有异常发现时把 attention 设为 true。）'
 
-/**
- * 真正投给 agent 的那段话：一行抬头（哪个任务、为什么此刻在跑）+ 用户写的指令 + 交结论的交代。
- * 抬头让续用同一条对话的 agent 分得清「这是第几次、哪天的运行」；用户在对话里看到的也是这段。
- */
+/** 抬头（哪个任务、为何此刻跑）+ 用户写的指令 + 交结论的交代；抬头让续用同一条对话的 agent 分得清第几次。 */
 export function framePrompt(a: Automation, trigger: RunTrigger, scheduledFor: number | null): string {
   const when =
     trigger === 'manual' || scheduledFor === null
@@ -76,9 +66,7 @@ interface Watch {
   readonly timer: Disposable
   readonly threadId: string
   lastPollAt: number
-  /** 真在跑（running）累计的毫秒数；等批准的时间不算 */
   activeMs: number
-  /** 这一段等批准从什么时候开始；不在等批准是 null */
   awaitingSince: number | null
 }
 
@@ -105,7 +93,6 @@ export function createRunner(d: {
     d.emitRunUpdated(run)
   }
 
-  /** 按任务的通知策略决定要不要告诉用户（判定见 notice.ts） */
   const announce = (run: AutomationRun, moment: 'settled' | 'awaiting'): void => {
     const automation = repo.get(run.automationId)
     if (automation === null) return
@@ -114,20 +101,14 @@ export function createRunner(d: {
     d.emitAttention({ automationId: run.automationId, runId: run.id, threadId: run.threadId, ...notice })
   }
 
-  /** 按运行号读还开着的那条运行（running / awaiting）；其余一律是 null */
   const openRunById = (runId: string): AutomationRun | null => {
     const run = repo.getRun(runId)
     if (run === null) return null
     return run.outcome === 'running' || run.outcome === 'awaiting' ? run : null
   }
 
-  /**
-   * 收口一条运行：写结局、停轮询、按策略通知。
-   *
-   * 不再往任务上挂 issue（审查 R-14）：issue 只表示「计划本身有问题」，而 `due()` 只挑
-   * issue 为空的任务 —— 一次送达失败就挂 issue 的话，这个任务从此不再被调度，直到重启或
-   * 改一次任务。运行失败只记在运行记录里（列表上的「上次结果」就是它）。
-   */
+  /** 收口一条运行：写结局、停轮询、按策略通知。不往任务上挂 issue —— issue 只表示「计划本身有问题」，而 due() 只挑
+   * issue 为空的任务，一次送达失败就挂 issue 的话这个任务从此不再被调度。 */
   const settle = (run: AutomationRun, outcome: AutomationRun['outcome'], message: string | null): AutomationRun => {
     stopWatching(run.id)
     const settled: AutomationRun = { ...run, outcome, message, settledAt: clock.now() }
@@ -136,7 +117,6 @@ export function createRunner(d: {
     return settled
   }
 
-  /** 超时：先把运行收成 failed（之后的 turnSettled 找不到开着的运行，不会把它改写成 cancelled），再停会话 */
   const timeOut = (run: AutomationRun, message: string): void => {
     settle(run, 'failed', message)
     if (run.threadId === null) return
@@ -145,7 +125,6 @@ export function createRunner(d: {
     })
   }
 
-  /** 等批准：这一段刚开始 → 通知一次；已经等满 2 小时 → 停 */
   const checkAwaiting = (w: Watch, run: AutomationRun, now: number): void => {
     if (w.awaitingSince === null) {
       w.awaitingSince = now
@@ -155,14 +134,13 @@ export function createRunner(d: {
     if (now - w.awaitingSince >= APPROVAL_TIMEOUT_MS) timeOut(run, APPROVAL_TIMEOUT_MESSAGE)
   }
 
-  /** 真在跑：把上一拍到这一拍的时间记进运行时长；满 60 分钟 → 停 */
+  /** 满 60 分钟即停。 */
   const checkRunning = (w: Watch, run: AutomationRun, elapsed: number): void => {
     w.awaitingSince = null
     w.activeMs += elapsed
     if (w.activeMs >= RUN_TIMEOUT_MS) timeOut(run, RUN_TIMEOUT_MESSAGE)
   }
 
-  /** 运行记录搬到 running / awaiting（已经是就原样返回） */
   const moveTo = (run: AutomationRun, outcome: 'running' | 'awaiting'): AutomationRun => {
     if (run.outcome === outcome) return run
     const moved: AutomationRun = { ...run, outcome }
@@ -170,7 +148,6 @@ export function createRunner(d: {
     return moved
   }
 
-  /** 一拍：运行已收口就停表；会话在跑就搬状态、看超时 */
   const poll = (runId: string): void => {
     const w = watches.get(runId)
     const current = openRunById(runId)
@@ -236,13 +213,8 @@ export function createRunner(d: {
     return run
   }
 
-  /**
-   * 这一次在哪条对话里跑（审查 R-14）。
-   *
-   * 续用模式：记着的对话还在、还在这个工作区 → 用它；它正在跑（用户正在里面聊，或别的什么）→
-   * 这一次跳过 —— 排在用户那一轮后面的话，用户那一轮的 turnSettled 会被当成本次运行的结局。
-   * 记着的对话没了 → 新建一条并重新记下（记忆从这里重新开始）。
-   */
+  /** 续用模式：记着的对话还在且还在这个工作区 → 用它；它正在跑 → 这一次跳过 —— 排在用户那一轮后面的话，用户那轮的
+   * turnSettled 会被当成本次运行的结局。记着的对话没了 → 新建一条并重新记下。 */
   const pickThread = (
     a: Automation,
     startedAt: number,
@@ -270,7 +242,6 @@ export function createRunner(d: {
     return { kind: 'ready', threadId: thread.id }
   }
 
-  /** 工作区不可用的说明；可用是 null */
   const workspaceProblemOf = (a: Automation): string | null => {
     try {
       workspaces.requireUsable(a.workspaceId)
@@ -299,11 +270,8 @@ export function createRunner(d: {
       } catch (e) {
         return settle(run, 'failed', e instanceof Error ? e.message : String(e))
       }
-      /*
-       * 交接失败的事件可能先于 `submit()` 的 await 返回（R-06 §3.3）：这时运行已经被
-       * onSubmissionFailed 收成了 failed，这里再 publish 一次会把结局覆盖回 running。
-       * 所以重新读库，只有还开着的运行才接着等轮终（库里的行没了就退回手里这一份）。
-       */
+      /* 交接失败的事件可能先于 submit() 的 await 返回：这时运行已被 onSubmissionFailed 收成 failed，这里再 publish 一次会把它
+             覆盖回 running。所以重新读库，只有还开着的运行才接着等轮终。 */
       const current = openRunById(run.id)
       if (current === null) return repo.getRun(run.id) ?? run
       publish(current)
@@ -326,14 +294,12 @@ export function createRunner(d: {
       })
     },
     onSubmissionFailed(e) {
-      /* 用户在运行中插的话失败不该让这次运行失败 —— 只有 turn 方式才代表「这句话没开始」 */
       if (e.deliverAs !== 'turn') return
       for (const run of repo.openRunsByThread(e.threadId)) {
         settle(run, 'failed', `没能开始运行：${e.error.message}`)
       }
     },
     onThreadRemoved(e) {
-      /* 对话被删不是任务出问题：收成 cancelled（noticeOf 对 cancelled 不通知） */
       for (const run of repo.openRunsByThread(e.threadId)) {
         settle(run, 'cancelled', '运行所在的对话已被删除')
       }

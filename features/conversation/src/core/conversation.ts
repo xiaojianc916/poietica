@@ -65,7 +65,7 @@ export interface ConversationCoreDeps {
 }
 
 /**
- * conversation 的 Core 组合根（07 页 §5C 的文件清单）：
+ * conversation 的 Core 组合根：
  *
  * - `thread-service.ts`  —— 线程 CRUD / fork / export / 删除 / 工作区级联
  * - `turn-service.ts`    —— submit / cancel / queue / controls / interactions / timeline
@@ -136,9 +136,9 @@ export class ConversationCore {
     })
 
     /*
-     * 「Core 即时回显」：提交的存库、推送、后台交接都归它（方案第 4 节）。
-     * 与 router 互相需要（router 要认领 clientTurnId、它要 pool 开会话），所以两边
-     * 都走**惰性引用**：这里只把 this 上的实例交给 router，调用发生在运行时。
+     * 「Core 即时回显」：提交的存库、推送、后台交接都归它。与 router 互相需要
+     * （router 要认领 clientTurnId、它要 pool 开会话），所以两边都走**惰性引用**：
+     * 这里只把 this 上的实例交给 router，调用发生在运行时。
      */
     this.submissions = new SubmissionService({
       repo: submissionsRepo,
@@ -206,10 +206,9 @@ export class ConversationCore {
     })
 
     /*
-     * Core 启动时的提交恢复（方案第 4 节）：`pending` 与 `queued` 一律收成
-     * `core_restarted` —— 前者是上一次进程没来得及交出去的，后者排在 omp 的内存队列里、
-     * 跟着进程一起消失了（R-08-5）；`started` 里太旧的清掉（真实轮次在会话文件里，
-     * 这里清的只是账）。
+     * Core 启动时的提交恢复：`pending` 与 `queued` 一律收成 `core_restarted` —— 前者是上一次
+     * 进程没来得及交出去的，后者排在 omp 的内存队列里、跟着进程一起消失了（R-08-5）；
+     * `started` 里太旧的清掉（真实轮次在会话文件里，这里清的只是账）。
      */
     this.submissions.recoverOnStart()
   }

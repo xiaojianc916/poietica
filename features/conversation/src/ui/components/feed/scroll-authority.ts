@@ -1,41 +1,27 @@
 import { useCallback, useState } from 'react'
 import { scrolledToEdge, scrollTargetOf } from './nested-scroll'
 
-/** 人接手视口的那些手势。 */
 const HUMAN_EVENTS = ['touchstart', 'keydown', 'pointerdown'] as const
 
-/** 展开与收起会改几何，但那不是人在滚。 */
 const DISCLOSURE = '[aria-expanded]'
 
 export interface ScrollAuthority {
-  /** 末端还有没有没看见的内容。判据在虚拟器，这里只是它的一次采样。 */
   readonly atLatest: boolean
-  /**
-   * 要不要跟着末端走。这是意图，不是采样：末端的坐标分帧才凑齐（偏移与尾部各等一次
-   * ResizeObserver，行高等实测），采样在中途会说「不在末端」，而人并没有接手。
-   */
+  /** 是意图不是采样：末端坐标分帧才凑齐，采样在中途会说「不在末端」，而人并没有接手。 */
   readonly pinned: boolean
-  /** 人要求看的那一行，或上次离开时视线所在的那一行；落定或被人接手后回到 null。 */
   readonly revealing: number | null
-  /** 采一次末端判据。调用方在它每帧那一次布局读取里唤起，不额外问一次几何。 */
   readonly sample: (atEnd: boolean) => void
   readonly travel: () => void
   readonly reveal: (row: number) => void
-  /** 接管视口上的人机仲裁，交回卸载函数。 */
   readonly watch: (viewport: HTMLElement, atEnd: () => boolean) => () => void
 }
 
-/**
- * 会话流的滚动意图。
- *
- * 只回答三件事：末端是不是还有没看见的内容，要不要跟着末端走，人此刻要求看哪一行。
- * 它不认识写入者 —— 位置从头到尾归虚拟器写，而写的那一处只有一个（见滚动区的布局效应）。
- */
+/** 会话流的滚动意图，不认识写入者：位置从头到尾归虚拟器写，且只有一处写（见滚动区的布局效应）。 */
 export function useScrollAuthority(
   /** 上次离开这条对话时视线所在的行；null = 上次在末端。 */
   resumeAt: number | null,
 ): ScrollAuthority {
-  /* 初值就是这三样的全部来源：一条对话一个盒子，所以挂载即「打开这条对话」。 */
+  /* 一条对话一个盒子：挂载即「打开这条对话」，初值就是全部来源。 */
   const [atLatest, setAtLatest] = useState(resumeAt === null)
   const [pinned, setPinned] = useState(resumeAt === null)
   const [revealing, setRevealing] = useState<number | null>(resumeAt)

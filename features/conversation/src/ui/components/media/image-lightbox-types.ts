@@ -1,8 +1,6 @@
-/* 灯箱的类型单独成文件：轻壳与实现都引用它，彼此之间不形成环（P-06） */
+/* 轻壳与实现共用的类型单独成文件，两者之间不形成环（P-06） */
 
-/** A previewable image, typically produced from a composer attachment. */
 export type PreviewableImage = {
-  /** Stable identity; falls back to `src` when omitted. */
   id?: string
   /** `asset://`, `blob:`, `data:` and `https:` sources are all supported. */
   src: string

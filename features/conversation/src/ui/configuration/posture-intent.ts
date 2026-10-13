@@ -2,17 +2,8 @@ import type { PermissionPosturePort } from '../agent/permission'
 import { createExternalStore } from '../components/primitives/external-store'
 
 /*
- * 批准方式的**跨会话意图**。
- *
- * legacy 把上一趟按下的那一档写成一条客户端偏好（`poietica.permission-posture`），
- * 开机先读回来、再拿它去对齐新建的会话 —— 所以「选过一次完全访问」在重开软件之后
- * 仍然是完全访问。新架构里这条记忆的正主是 `uiState` 的
- * `'conversation.permissionPosture'`（与 `conversation.drafts` 同一条理由：渲染层
- * 记得住的东西住在渲染层）。
- *
- * 形状只有一格：**内存里那一份 + 异步落盘**。`read()` 必须同步答得出来 ——
- * 两台 store（锚会话与单条对话）在 agent 答复落地的那一刻就要拿它判「要不要补发
- * 一次对齐」，等一次往返就等于那一帧先画错再改回来。
+ * 记忆的正主是 `uiState` 的 `'conversation.permissionPosture'`：开机先读回来、再拿它去对齐新建的会话。
+ * 形状只有一格：**内存里那一份 + 异步落盘**。`read()` 必须同步答得出来 —— 两台 store 在 agent 答复落地的那一刻就要拿它判「要不要补发一次对齐」。
  */
 
 export interface PostureIntent extends PermissionPosturePort {
@@ -38,10 +29,7 @@ export function createPostureIntent({ read, report, write }: PostureIntentOption
   return {
     read: () => held,
     subscribe: store.subscribe,
-    /*
-     * 先改内存再发出去（与 `default_model` 的落盘同一条顺序）：失手时盘上那份仍是
-     * 用户上一次真的按下的那一颗，而屏幕上这一趟照旧按人刚点的走。
-     */
+    /* 先改内存再发出去：失手时盘上那份仍是用户上一次真的按下的那一颗，而屏幕上照旧按人刚点的走。 */
     write: (value) => {
       if (value === held) {
         return

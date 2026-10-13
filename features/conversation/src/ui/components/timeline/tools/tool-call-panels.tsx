@@ -61,14 +61,8 @@ function ToolPanel({
         />
       ) : (
         /*
-         * 围栏在这里不封顶。
-         *
-         * Streamdown 把 codeBlockMaxHeight 写成**内联** maxHeight 加 overflow-y-auto
-         * （它 dist 里的 HighlightedCodeBlockBody），内联样式盖不过样式表 —— 所以只在
-         * CSS 里把上限摘掉是不够的，围栏仍会是面板里第二个滚动容器，屏幕上多出一条
-         * 贴着自己底边的滚动条。0 是 Streamdown 自己的「禁用」值。
-         *
-         * 上限因此只由面板那一处持有（tool-call.css 的 __panel），长出来的部分归它滚。
+         * Streamdown 把 codeBlockMaxHeight 写成**内联** maxHeight 加 overflow-y-auto，内联样式盖不过样式表 —— 只在 CSS 里摘上限不够，围栏仍会是面板里第二个滚动容器。
+         * 0 是 Streamdown 自己的「禁用」值。上限因此只由面板那一处持有（tool-call.css 的 __panel）。
          */
         <Prose className="timeline-tool__prose" codeBlockMaxHeight={0} text={text} />
       )}
@@ -79,11 +73,7 @@ function ToolPanel({
 }
 
 /**
- * 这一面里的图：浏览器的每一帧、桌面控制的那张快照、read 一张图、生成的图。
- *
- * 不走 markdown —— Streamdown 把 data URL 当可疑来源拦掉，屏幕上只剩一句「图片被
- * 拦截」。这里直接 <img>：base64 与 mimeType 就是这张图的正本。点击交给灯箱（与
- * 消息附件同一套），所以它不只是一个缩略图。
+ * 不走 markdown —— Streamdown 把 data URL 当可疑来源拦掉，屏幕上只剩一句「图片被拦截」。这里直接 <img>：base64 与 mimeType 就是这张图的正本。点击交给灯箱。
  */
 function ToolShots({ images }: { readonly images: readonly ToolImage[] }) {
   const [openIndex, setOpenIndex] = useState<number | null>(null)
@@ -130,14 +120,13 @@ function FileDiff({ file }: { readonly file: DiffFile }) {
        * 一处改动就是审查面板画的那一份行带（@poietica/design-system/diff/surface 的 DiffBody），
        * 不再自己排一套：行号槽、增删底色、语法色、大文件的虚拟化全仓一份。
        *
-       * 语法色要自己跑着色器（diff-painting.ts）：computeFile 只切行、不认语法，
-       * 不跑就整片是黑的 —— 审查面板有 worker 替它跑，这里没有。
+       * 语法色要自己跑着色器（diff-painting.ts）：computeFile 只切行、不认语法，不跑就整片
+       * 是黑的 —— 审查面板有 worker 替它跑，这里没有。
        *
-       * 两处只差横向出口归谁：这里归这一格 —— 它是唯一的双轴滚动容器，行带自己不再
-       * 横滚（scrollX 关掉），否则同一件事会在屏幕上并排出现两条横条。
+       * 两处只差横向出口归谁：这里归这一格 —— 它是唯一的双轴滚动容器，行带自己不再横滚
+       * （scrollX 关掉），否则同一件事会在屏幕上并排出现两条横条。
        *
-       * 折叠带也关掉（gaps）：这一处改动只取三行上下文，跳过的行根本没进这份模型，
-       * 那条带子既展不开也说不明什么，就只是在两行之间插一句废话。
+       * 折叠带也关掉（gaps）：这一处改动只取三行上下文，跳过的行根本没进这份模型。
        */}
       <section aria-label="文件差异" className="timeline-tool__diff" data-scrollable="" ref={scroller}>
         <DiffBody file={shown} gaps={false} scroller={scroller} scrollX={false} wrap={false} />
@@ -171,8 +160,7 @@ export function ToolCallPanels({
   const responseText = response ?? emptyNoteOf(item.kind, isRunning)
 
   /*
-   * 图属于产出那一面。只有图、没有字时也得画出来 —— 一次截图调用的正文可能就一句
-   * 「done」，而那张图才是产出；反过来缺了它，屏幕上只剩一句 done。
+   * 图属于产出那一面。只有图、没有字时也得画出来 —— 一次截图调用的正文可能就一句「done」，而那张图才是产出。
    */
   if (item.shape === 'result' || request === null) {
     return (

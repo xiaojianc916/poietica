@@ -3,11 +3,9 @@
 /*
  * 包的公开面。显式罗列而不是 export *：谁在用什么必须一眼可见。
  *
- * 导出清单按 13 页 §4 审查过：对每个导出在 legacy 全仓搜索使用处，没有使用处的导出删除。
- * 已删除（legacy 无任何使用处）：ContextMenu*（整个 control/context-menu.tsx 模块一并删除）、
- * SearchableSelect（连同 .css）、popupPositionerClassName / popupSurfaceClassName（模块保留，
- * 供包内其它控件使用）、Banner 的 BannerAction / BannerProps 类型导出。
- * 样式变量（tokens/*.css）一个都没有改动。
+ * 每个导出都按「全仓有没有使用处」审过一遍，没有使用处的删掉（ContextMenu* 整个模块、
+ * SearchableSelect、Banner 的两个类型导出等）；popupPositionerClassName /
+ * popupSurfaceClassName 不对外导出但模块保留 —— 包内其它控件在用。tokens/*.css 一个都没改动。
  */
 
 import './control/menu-surface.css'

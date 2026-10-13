@@ -1,6 +1,6 @@
 import { AppError, SystemErrorCode } from './errors'
 
-/** 把 resolve/reject 暴露出来的 Promise。settled 之后再次 resolve/reject 没有效果 */
+/** 把 resolve/reject 暴露出来的 Promise；settled 之后再次 resolve/reject 没有效果。 */
 export class Deferred<T> {
   readonly promise: Promise<T>
   private resolveFn!: (value: T) => void
@@ -31,7 +31,7 @@ export class Deferred<T> {
   }
 }
 
-/** 等待 ms 毫秒；signal 中止时以 kernel.cancelled reject */
+/** 等待 ms 毫秒；signal 中止时以 kernel.cancelled reject。 */
 export function delay(ms: number, signal?: AbortSignal): Promise<void> {
   return new Promise<void>((resolve, reject) => {
     if (signal?.aborted === true) {
@@ -50,7 +50,7 @@ export function delay(ms: number, signal?: AbortSignal): Promise<void> {
   })
 }
 
-/** 超时后以 onTimeout() 的返回值 reject。不会取消原 Promise（需要取消请配合 AbortSignal） */
+/** 超时后以 onTimeout() 的返回值 reject。不会取消原 Promise（需要取消请配合 AbortSignal）。 */
 export function withTimeout<T>(promise: Promise<T>, ms: number, onTimeout: () => Error): Promise<T> {
   return new Promise<T>((resolve, reject) => {
     const timer = setTimeout(() => reject(onTimeout()), ms)
@@ -67,7 +67,7 @@ export function withTimeout<T>(promise: Promise<T>, ms: number, onTimeout: () =>
   })
 }
 
-/** 让一个不支持取消的 Promise 可以被 signal 提前 reject（原操作仍在后台继续） */
+/** 让一个不支持取消的 Promise 可以被 signal 提前 reject（原操作仍在后台继续）。 */
 export function abortable<T>(promise: Promise<T>, signal: AbortSignal | undefined): Promise<T> {
   if (signal === undefined) return promise
   if (signal.aborted) return Promise.reject(cancelledError())

@@ -1,12 +1,11 @@
 import { captureLaunchEnv, dispatchProcessMode } from '@poietica/engine-omp/bootstrap'
 
 /**
- * 顶层致命错误的最后通道（06 页 §2.7）：日志系统可能还没有建立，先按 Core 的
- * stderr JSONL 约定写一条 fatal 记录，再以退出码退出 —— Host 见到 1 当崩溃退避重启，
- * 见到 4 / 5 当确定性失败直接进 failed（R-08-8）。
+ * 顶层致命错误的最后通道：日志系统可能还没有建立，先按 Core 的 stderr JSONL 约定写一条 fatal 记录，
+ * 再以退出码退出 —— Host 见到 1 当崩溃退避重启，见到 4 / 5 当确定性失败直接进 failed。
  */
 function fatal(scope: string, error: unknown): void {
-  // code 必须带上：06 页 A-K6 的判据是 core.log 里能看到 kernel.unhandled_method
+  // code 必须带上：判据是 core.log 里能看到 kernel.unhandled_method
   const code =
     typeof (error as { code?: unknown } | null)?.code === 'string' ? (error as { code: string }).code : undefined
   const record = {

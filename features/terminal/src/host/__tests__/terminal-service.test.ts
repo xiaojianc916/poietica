@@ -8,7 +8,6 @@ import { MAX_TERMINALS, REPLAY_BYTES } from '../../contract/entities'
 import { terminalErrors } from '../../contract/errors'
 import { createTerminalService, type Pty, type PtyFactory } from '../terminal-service'
 
-/* 假 PTY：可控地触发 onData / onExit，记录 write/resize/kill。 */
 class FakePty implements Pty {
   readonly pid: number
   readonly written: string[] = []
@@ -96,7 +95,6 @@ describe('TM-4: 数量上限', () => {
       expect(err).toBeInstanceOf(AppError)
       expect((err as AppError).code).toBe(terminalErrors.too_many)
 
-      /* 退出一个：名额让出来 */
       ptys[0]!.emitExit(0)
       const info = await service.open({ cwd, cols: 80, rows: 24 })
       expect(info.terminalId).toBe(`t${MAX_TERMINALS + 1}`)
@@ -149,7 +147,6 @@ describe('TM-6: 退出顺序', () => {
       expect(output.length).toBe(0)
 
       ptys[0]!.emitExit(3)
-      /* drain 先跑：这一条输出必须排在 exited 之前 */
       expect(output).toEqual([{ terminalId: info.terminalId, data: 'hello', offset: 0 }])
       expect(exited).toEqual([{ terminalId: info.terminalId, exitCode: 3 }])
       expect(service.list().find((t) => t.terminalId === info.terminalId)?.exited).toBe(true)
@@ -306,12 +303,10 @@ describe('R-08-15: 输出序号', () => {
       ptys[0]!.emitData('de')
       ptys[0]!.emitExit(0)
 
-      /* drain 把 'ab'、'de' 合成一段，起点仍是 0 */
       expect(output).toEqual([{ terminalId: info.terminalId, data: 'abcde', offset: 0 }])
 
       ptys[0]!.emitData('更多')
       ptys[0]!.emitExit(0)
-      /* 一段 5 个码元之后，下一段的起点是 5（不因合批或重放裁剪而重置） */
       expect(output.at(-1)).toEqual({ terminalId: info.terminalId, data: '更多', offset: 5 })
     } finally {
       rmSync(cwd, { recursive: true, force: true })
@@ -325,7 +320,7 @@ describe('R-08-15: 输出序号', () => {
       const info = await service.open({ cwd, cols: 80, rows: 24 })
       const block = `${'x'.repeat(1023)}\n`
 
-      /* 塞满 256 KB 环再溢出：环里只剩尾部，endOffset 仍是全部输出长度 */
+      /* 环里只剩尾部，endOffset 仍是全部输出长度。 */
       for (let i = 0; i < 300; i += 1) ptys[0]!.emitData(block)
 
       const replay = service.replay(info.terminalId)
@@ -348,7 +343,6 @@ describe('R-08-15: 输出序号', () => {
       const replay = service.replay(info.terminalId)
       const emitted = output.at(-1)!
 
-      /* 重放末尾与这一段通知的起点对齐：offset + len 就是重放的 endOffset */
       expect(emitted.offset).toBe(0)
       expect(emitted.offset + emitted.data.length).toBe(replay.endOffset)
     } finally {
@@ -370,7 +364,6 @@ describe('R-08-16: 已退出终端的清理', () => {
       await service.open({ cwd, cols: 80, rows: 24 })
 
       expect(service.list().map((t) => t.terminalId)).toEqual(['t2'])
-      /* 已经收掉了：重放也跟着没了 */
       expect(() => service.replay(stale.terminalId)).toThrow(AppError)
     } finally {
       rmSync(cwd, { recursive: true, force: true })

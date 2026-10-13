@@ -13,7 +13,6 @@ describe('platform core（diagnostics）', () => {
     for (const [name, dir] of Object.entries(diag.dirs)) {
       expect({ name, inside: dir.startsWith(h.dataRoot) }).toEqual({ name, inside: true })
     }
-    // harness 的 runtime.scrubbedEnvKeys 是空数组
     expect(diag.scrubbedEnvKeys).toEqual([])
     expect(diag.coreVersion).toBe('test')
     expect(diag.engineVersion).toBe('test')

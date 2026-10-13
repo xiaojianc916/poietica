@@ -7,17 +7,8 @@ import { Prose } from './timeline/prose/prose'
 import './skill-document-pane.css'
 
 /*
- * 技能文档那一格。**迁移自** legacy 宿主侧的 `apps/desktop/src/workbench/skill-document-pane.tsx`
- * 与同名 CSS：文件位置面包屑、Preview / Source 两档、预览的字段表、源码的行号列一字未改。
- *
- * 它住在 conversation 而不是 extensions：能画 markdown 的那一套排版（Prose）属于会话的
- * 时间线，功能之间不得互相 import `ui`（守则 3），所以面板由 conversation 贡献、
- * extensions 经 `SkillDocumentToken` 递内容（与 legacy 的分工相同，只是接口换了名字）。
- *
- * 与 legacy 的差距：legacy 的 SKILL.md 原文、类型、辅助文件数都由原生名册带回来；
- * 契约 `SkillInfo` 只有 id / name / description / source / enabled / path，加上
- * `skills.read` 交回的 markdown，所以字段表只剩名称、说明、调用、方式与类型（从
- * frontmatter 现读），没有总字节数与更新时间。见 docs/refactor-log.md 偏差 23。
+ * 住在 conversation 而不是 extensions：能画 markdown 的 Prose 属于会话时间线，功能之间不得互相 import `ui`（守则 3），所以面板由 conversation 贡献、extensions 经 `SkillDocumentToken` 递内容。
+ * 形状照 legacy 宿主侧的同名组件与 CSS（别改）。契约没有总字节数与更新时间，字段表因此只剩名称、说明、调用、方式与类型（refactor-log 偏差 23）。
  */
 
 type ViewMode = 'preview' | 'source'

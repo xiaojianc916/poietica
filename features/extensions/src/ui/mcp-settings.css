@@ -27,7 +27,6 @@
   font-variant-numeric: tabular-nums;
 }
 
-/* 第一行：作用域 pill ｜ MCP n …… 搜索框 */
 .mcp__filter {
   display: flex;
   align-items: center;
@@ -74,7 +73,6 @@
   color: var(--ui-muted-foreground);
 }
 
-/* 作用域 pill：白底圆角描边，与设计稿同形 */
 .mcp__scope {
   display: inline-flex;
   align-items: center;
@@ -102,7 +100,6 @@
   min-inline-size: 220px;
 }
 
-/* 第二行：已安装 n …… 省略 / 刷新 / 新建 */
 .mcp__installed {
   display: flex;
   align-items: center;
@@ -149,7 +146,6 @@
   }
 }
 
-/* 黑色主按钮：前景 / 背景 token 对调，浅色下是黑底白字，深色下反转 */
 .mcp__primary {
   display: inline-flex;
   align-items: center;
@@ -218,7 +214,6 @@
   cursor: default;
 }
 
-/* 空态：虚线大卡片 */
 .mcp__empty {
   display: grid;
   justify-items: center;
@@ -247,7 +242,6 @@
   margin-block-start: 10px;
 }
 
-/* 服务器卡片：与设置界面同款白卡 —— 卡面即页面底色，边界由外框承担。 */
 .mcp__cards {
   display: grid;
   margin: 0;
@@ -331,7 +325,6 @@
   overflow-wrap: anywhere;
 }
 
-/* 新建页 */
 .mcp-create__head {
   display: flex;
   align-items: flex-start;
@@ -425,7 +418,6 @@
   min-inline-size: 72px;
 }
 
-/* 表单 */
 .mcp-form {
   display: grid;
   gap: 14px;
@@ -510,7 +502,6 @@
   transform: rotate(0deg);
 }
 
-/* JSON 导入勾选 */
 .mcp__checks {
   display: grid;
   gap: 4px;

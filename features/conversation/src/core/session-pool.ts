@@ -45,8 +45,7 @@ type Slot = OpeningSlot | LiveSlot
  * - 配置变更换代（invalidate）：空闲的立刻释放，忙的与打开中的在第一次空闲时释放；
  * - 忙（运行中或有待答交互）的会话永不驱逐；
  * - 空闲超过 10 分钟，或空闲会话超过 6 个时，按最久未用驱逐。
- */
-export class SessionPool implements Disposable {
+ */ export class SessionPool implements Disposable {
   private readonly slots = new Map<string, Slot>()
   /** 配置代号：每次 invalidate() +1，槽位记住自己是哪一代打开的 */
   private generation = 0

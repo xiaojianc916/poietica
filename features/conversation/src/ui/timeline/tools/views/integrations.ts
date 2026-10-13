@@ -20,9 +20,7 @@ import {
 } from '../view-kit'
 
 /*
- * hub 是 18.2.11 的协调面入口，钉 18.3.0 后新会话不再报它（收成 `wait`）；留着是因为
- * 磁盘上有 18.2.11 写下的会话，重开旧对话时这些调用要从 jsonl 回放，没有这一档就是裸
- * JSON。一个 hub 后面可以是发消息也可以是起进程看日志，只报工具名等于什么都没说。
+ * hub 是 18.2.11 的协调面入口，钉 18.3.0 后新会话不再报它（收成 `wait`）；留着是因为磁盘上有 18.2.11 写下的会话，重开旧对话时要从 jsonl 回放。
  */
 export const HUB_OPS: Readonly<Record<string, string>> = {
   cancel: '终止作业',
@@ -161,9 +159,7 @@ export const memoryEditView: Handler = (ctx) => {
 }
 
 /*
- * IDA Pro：一个工具十种动作（list/open/save/close/exec/rename/comment/set_type/make_function）。
- * 折叠行上先说是哪一个动作，再说是对哪一个库/符号 —— 十种动作合成一句「使用 ida」就什么都看不出来。
- * 判据取自上游自己那张表（tools/ida.ts 的 idaSchema.action）。
+ * 一个工具十种动作：折叠行上先说是哪一个动作，再说是对哪一个库/符号 —— 合成一句「使用 ida」就什么都看不出来。判据取自上游自己那张表。
  */
 export const IDA_ACTIONS: Readonly<Record<string, string>> = {
   list: '列出数据库',
@@ -316,16 +312,13 @@ export const vibeKillView: Handler = (ctx) => {
 export const vibeListView: Handler = (ctx) =>
   view('delegate', '查看 vibe 会话', '', NONE, failOr(ctx, proseSaid(ctx)), 'result')
 
-/*
- * xd:// 设备：不是顶层工具，只能经 `write xd://<name>` 到达（omp 的 tools/xdev.ts）。
- * writeView 按 details.xdev.tool 委派，这几个名字要认得 —— 否则屏幕上只剩裸名字。
- */
+/* xd:// 设备不是顶层工具，只能经 `write xd://<name>` 到达；这几个名字要认得，否则屏幕上只剩裸名字。 */
 export const deviceView = (said: string): Handler =>
   function device(ctx) {
     return view('other', said, '', NONE, failOr(ctx, proseSaid(ctx)), 'result')
   }
 
-/** MCP 结果里那一对（tool-bridge.ts 的 { serverName, mcpToolName }）；拿不到就是空。 */
+/** MCP 结果里那一对（tool-bridge 的 { serverName, mcpToolName }）；拿不到就是空。 */
 export const mcpServerOf = (output: unknown): string | undefined => mcpPairOf(output)?.[0]
 
 export const mcpToolOf = (output: unknown): string | undefined => mcpPairOf(output)?.[1]
@@ -339,14 +332,8 @@ export function mcpPairOf(output: unknown): readonly [string, string] | undefine
 }
 
 /*
- * MCP 工具：拆名字是**猜**，omp 自己给的那一对才是答案。
- *
- * 名字由 createMCPToolName 铸成 `mcp__<server>_<tool>`（单下划线），但它会剥掉重复的
- * 服务器前缀、按 64 字符上限加哈希后缀 —— `mcp__chrome_devtools_list_pages` 里那个
- * 下划线不是分隔符，拆错就把服务器名说成 "chrome"。
- *
- * 真答案在产出的 details 里（tool-bridge.ts 的 { serverName, mcpToolName }）。拿不到
- * （还在飞、或名字不是铸出来的）就退回前缀，只报名字本身，不猜边界。
+ * 拆名字是**猜**，omp 自己给的那一对才是答案：`createMCPToolName` 铸的名字会剥掉重复的服务器前缀、按 64 字符上限加哈希后缀 ——
+ * `mcp__chrome_devtools_list_pages` 里那个下划线不是分隔符，拆错就把服务器名说成 "chrome"。真答案在产出的 details 里；拿不到就退回前缀，不猜边界。
  */
 export function mcpView(name: string, input: unknown, server?: string, tool?: string): OmpToolView {
   const subject = server === undefined ? '' : tool === undefined ? server : `${server} · ${tool}`
@@ -367,13 +354,8 @@ export function mcpView(name: string, input: unknown, server?: string, tool?: st
 }
 
 /*
- * 表里每个名字都是 omp 真的会报出来的那一个：
- * - 内建与隐藏工具：tools/builtin-names.ts 的 BUILTIN_TOOL_NAMES + HIDDEN_TOOL_NAMES；
- *   search 是历史别名（同文件 LEGACY_BUILTIN_TOOL_NAME_ALIASES → grep）。
- * - apply_patch / puppeteer / js / python / notebook：官方视图表登记的别名
- *   （dist/tool-views.generated-*.js 的注册表），老会话存着的名字要认得。
- * - browser / computer：eval 的 prelude（非顶层工具，见 evalView），官方视图表按工具名
- *   登记它们，故这里留一档。
- * - generate_image / tts / vibe_*：omp 注册的 CustomTool，同样以工具呼叫做出来。
- * - report_issue / resolve / reject / propose：xd:// 设备，经 write 委派到达。
+ * 表里每个名字都是 omp 真的会报出来的那一个：内建与隐藏工具（builtin-names.ts，search 是 grep 的历史别名）、
+ * 官方视图表登记的别名（apply_patch / puppeteer / js / python / notebook，老会话存着的名字要认得）、
+ * eval 的 prelude（browser / computer）、omp 注册的 CustomTool（generate_image / tts / vibe_*）、
+ * 以及 xd:// 设备（report_issue / resolve / reject / propose，经 write 委派到达）。
  */

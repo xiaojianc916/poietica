@@ -77,7 +77,7 @@ export class TurnService {
     await this.d.pool.invalidate()
   }
 
-  // ── 回合（07 页 §5C 服务行为表）──────────────────────────────────────────
+  // ── 回合（服务行为表）────────────────────────────────────────────────────
   async submit(input: {
     threadId: string
     clientTurnId: string
@@ -89,12 +89,11 @@ export class TurnService {
     /*
      * 「Core 即时回显」：这里只存库、推送、回复（几毫秒），打开会话与交给 omp 由
      * SubmissionService 在后台做。忙时不再报 thread_busy —— 交接时自动改成排队。
-     */
-    return { submission: this.d.submissions.submit(input) }
+     */ return { submission: this.d.submissions.submit(input) }
   }
 
   async cancel(threadId: string): Promise<void> {
-    /* 还没交给 omp 的 pending 直接收成 failed / submit_cancelled（方案第 4 节）。 */
+    /* 还没交给 omp 的 pending 直接收成 failed / submit_cancelled。 */
     this.d.submissions.cancelUnhanded(threadId)
     const session = this.d.pool.peek(threadId)
     if (session === undefined) return
@@ -102,12 +101,12 @@ export class TurnService {
     await session.cancel()
   }
 
-  /** 时间线订阅要画的提交行（方案：线程还没有会话时也要返回）。 */
+  /** 时间线订阅要画的提交行（线程还没有会话时也要返回）。 */
   submissionsOf(threadId: string, stamped: ReadonlySet<string>): import('../contract').SubmissionView[] {
     return this.d.submissions.viewOfThread(threadId, stamped)
   }
 
-  // ── 时间线（07 页 §5C 的 timeline 三段）───────────────────────────────────
+  // ── 时间线（timeline 三段）───────────────────────────────────────────────
   /** 空页：线程还没有会话时 timeline.subscribe 用它（不打开会话） */
   emptyPage(): TranscriptPage {
     return {
@@ -127,7 +126,7 @@ export class TurnService {
     return session.page(agentId, beforeTurnId)
   }
 
-  // ── 队列（07 页 §5C 的 queue 三方法）──────────────────────────────────────
+  // ── 队列（queue 三方法）──────────────────────────────────────────────────
   async queue(threadId: string): Promise<QueueSnapshot> {
     const session = await this.d.pool.acquire(threadId)
     return session.queue()
@@ -162,14 +161,14 @@ export class TurnService {
     return session.queue()
   }
 
-  // ── 控件（07 页 §5C 的 controls 六方法 + 草稿）─────────────────────────────
+  // ── 控件（controls 六方法 + 草稿）────────────────────────────────────────
   async controls(threadId: string): Promise<Controls> {
     const session = await this.d.pool.acquire(threadId)
     return session.controls()
   }
 
   /**
-   * 入口那一格（还没有对话）的**草稿**控件表（方案 §04/§05）。
+   * 入口那一格（还没有对话）的**草稿**控件表。
    *
    * `controls.get` 的免会话版本：**不开会话、不写设置、不碰文件**，只是把引擎那一支
    * `draftControls` 转发出去。`init` 只决定哪一格被选中（用户改过的草稿），不改全局默认。

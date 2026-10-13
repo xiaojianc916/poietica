@@ -1,9 +1,5 @@
-/*
- * 变更清单 → 目录树的行。
- *
- * 纯函数：吃路径与折叠集合，交回一串带缩进深度的行。只有一个子目录且没有直属文件的
- * 目录段并成一行（src/review/…）—— 变更集是稀疏的，不并就会出现一长串单孩子目录。
- */
+/* 变更清单 → 目录树的行。纯函数。只有一个子目录且没有直属文件的目录段并成一行（src/review/…）—— 变更集是稀疏的，不并就会出现
+ * 一长串单孩子目录。 */
 import { basename } from '@poietica/design-system/diff'
 
 export interface ChangeTreeFile {
@@ -43,7 +39,6 @@ export function changeTreeRows(paths: readonly string[], collapsed: ReadonlySet<
 function branch(): Branch {
   return { files: [], folders: new Map<string, Branch>() }
 }
-/* 目录在文件之前，两者各自按名字 —— 文件树的通行顺序。 */
 function walk(
   here: Branch,
   prefix: string,

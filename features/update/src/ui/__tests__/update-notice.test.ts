@@ -2,14 +2,8 @@ import { describe, expect, test } from 'bun:test'
 import { type UpdateState, UpdateState as UpdateStateSchema } from '../../contract'
 import { updateBannerNotice, updateBannerVisible } from '../update-notice'
 
-/*
- * 横幅三态（07 页 §15E）。判据是纯函数，所以这里钉的是**哪一刻该说什么、给哪几个动作**
- * ——「稍后」的作用域（本次运行、只对那一版）、下载中的进度与字形、待重启那唯一入口，
- * 全在这几条里。
- *
- * 横幅本身改回了 design-system 的通用 Banner（产品负责人 2026-10-06），但这一层判据
- * 一字未动：换的只是画在哪，不是说什么。
- */
+/* 判据是纯函数，所以这里钉的是**哪一刻该说什么、给哪几个动作** ——「稍后」的作用域（本次运行、只对那一版）、下载中的进度与字形、
+ * 待重启那唯一入口，全在这几条里。 */
 
 const state = (over: Partial<UpdateState>): UpdateState =>
   UpdateStateSchema.parse({
@@ -51,7 +45,6 @@ describe('downloading', () => {
     const notice = updateBannerNotice(state({ phase: 'downloading', version: '1.2.3', progress: 0 }), null)
     expect(notice?.spinning).toBe(true)
     expect(notice?.actions).toEqual([])
-    /* 0 是合法的确数（刚开始），不能因为它是假值就被吞掉。 */
     expect(notice?.progress).toBe(0)
   })
 })
@@ -81,11 +74,8 @@ describe('不说话的那几档', () => {
   })
 })
 
-/*
- * 「已是最新」是**手动检查**的答复（legacy `update-phase.ts` 的 latest 档），不是 Host
- * 的一个相位：`idle` 分不出「没查过」与「查过、没有新版本」，所以这个标记由发起检查的
- * 那一侧记在 store 里，横幅只负责报，报完清掉。
- */
+/* 「已是最新」是**手动检查**的答复，不是 Host 的一个相位：`idle` 分不出「没查过」与「查过、没有新版本」，所以这个标记由发起检查的
+ * 那一侧记在 store 里，横幅只负责报，报完清掉。 */
 describe('latest（手动检查的回话）', () => {
   test('idle + latest：说「已是最新版本」，带绿勾、没有动作', () => {
     const notice = updateBannerNotice(state({ phase: 'idle' }), null, true)

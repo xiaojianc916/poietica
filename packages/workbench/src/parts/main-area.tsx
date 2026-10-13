@@ -3,12 +3,7 @@ import { type ReactNode, Suspense } from 'react'
 import { PartSkeleton } from './part-skeleton'
 import { UnknownSurface } from './unknown-surface'
 
-/**
- * 表面宿主。**迁移自** legacy `shell/surfaces/surface-host.tsx`：已注册的表面渲染自身，
- * 未注册的落到 PlannedSurface 占位（legacy 对未实现表面的处理方式同此）。
- *
- * 区域内容来自 surfaces 贡献点 —— legacy 的 SurfaceRenderers 注册表在这里就是它。
- */
+/** 表面宿主：已注册的表面渲染自身，未注册的落到 UnknownSurface 占位。 */
 export function MainArea(): ReactNode {
   const { route } = useNavigation()
   const surfaces = useContributions(builtinPoints.surfaces)

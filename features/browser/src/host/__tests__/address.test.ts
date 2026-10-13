@@ -1,13 +1,7 @@
 import { describe, expect, test } from 'bun:test'
 import { displayHost, isNavigableAddress, normalizeAddress } from '../address'
 
-/*
- * BR-1：地址归一（07 页 §12G）。
- *
- * 判据与 legacy host.test.ts 的「裸主机名补 https，本地地址走 http，搜索词被拒」同一组，
- * 断言的六条就是 07 页点名的六条：localhost:5173、example.com、foo、a b、
- * javascript:alert(1)、file:///C:/x.html。
- */
+/* BR-1：地址归一。断言的六条就是点名的六条：localhost:5173、example.com、foo、a b、javascript:alert(1)、file:///C:/x.html。 */
 
 describe('BR-1: normalizeAddress', () => {
   test('localhost:5173 → http://localhost:5173/', () => {
@@ -56,7 +50,6 @@ describe('BR-1: normalizeAddress', () => {
 describe('地址判据的另两个入口', () => {
   test('displayHost 给主机名；不是 URL 的字符串原样交回', () => {
     expect(displayHost('https://a.example/x')).toBe('a.example')
-    /* 解析得了、但没有主机的写法（about:、data:）拿到空串 —— 与内核的 URL.host 同此。 */
     expect(displayHost('about:blank')).toBe('')
     expect(displayHost('not a url')).toBe('not a url')
   })

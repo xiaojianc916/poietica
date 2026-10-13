@@ -24,7 +24,7 @@ export interface TimelineRowProps {
 }
 
 /*
- * 其它功能为自己的 agent 工具贡献卡片（07 页 §5E 的 toolCallRenderers）。
+ * 其它功能为自己的 agent 工具贡献卡片（toolCallRenderers）。
  * 匹配按 invokedTool —— 它就是「真正在跑的是谁」，与字形、身份同一格。
  */
 function matchesToolName(toolName: string | RegExp, invokedTool: string): boolean {

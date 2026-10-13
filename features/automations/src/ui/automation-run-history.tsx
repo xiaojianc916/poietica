@@ -1,13 +1,8 @@
 import type { AutomationRun } from '../contract'
 import { describeMoment, isTerminal, RUN_LABELS, TRIGGER_LABELS } from './automation'
 
-/*
- * 照 legacy `packages/automation/src/ui/automation-run-history.tsx` 逐字搬迁。
- * 两处随契约变：时间从 ISO 字符串变成毫秒数（describeMoment 直接收 number）；
- * outcome 是契约里的六个值（running / awaiting / succeeded / failed / cancelled / skipped，
- * 后两档由审查 R-14 加入），legacy 的 queued / dispatching / cancelling / uncertain 四档随
- * Rust 运行态一起取消，因此这里只在 running 与 awaiting 上给「停止」。
- */
+/* 外观照 legacy 逐字搬迁。两处随契约变：时间从 ISO 字符串变成毫秒数；outcome 是契约里那六个值，legacy 的 queued /
+ * dispatching / cancelling / uncertain 四档随 Rust 运行态一起取消。 */
 
 export interface AutomationRunHistoryProps {
   readonly runs: readonly AutomationRun[]
@@ -42,7 +37,6 @@ function outcomeClass(outcome: AutomationRun['outcome']): string {
   return 'text-foreground'
 }
 
-/* 一次运行一行：结局、来由（手动 / 补跑）、要不要关注、对话、时刻；下面是结论与系统的话 */
 function RunRow({
   onCancel,
   onOpenThread,

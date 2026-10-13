@@ -3,9 +3,8 @@ import type { SVGProps } from 'react'
 /**
  * 本地字形。
  *
- * 这些不是  @lucide/react 里的图标，改这个文件不会影响图标库，升级图标库
- * 也不会影响这里——放在设计系统里只是因为工作区外壳和 AI 界面都要用，字形不该
- * 有两份。
+ * 这些不是 @lucide/react 里的图标，改这个文件不会影响图标库，升级图标库也不会影响这里 ——
+ * 放在设计系统里只是因为工作区外壳和 AI 界面都要用，字形不该有两份。
  */
 
 type GlyphProps = SVGProps<SVGSVGElement>
@@ -13,8 +12,8 @@ type GlyphProps = SVGProps<SVGSVGElement>
 /**
  * 品牌标记。
  *
- * 字形来自图标库、可替换、描边、粗细跟着 --ui-icon-stroke 走；标记来自商标持有者、
- * 不可重绘、实心、没有描边概念。后缀 Mark 就是为了在调用点分开这两类。
+ * 字形来自图标库、可替换、描边、粗细跟着 --ui-icon-stroke 走；标记来自商标持有者、不可重绘、
+ * 实心、没有描边概念。后缀 Mark 就是为了在调用点分开这两类。
  */
 function BrandMark({ children, ...props }: GlyphProps) {
   return (
@@ -27,14 +26,12 @@ function BrandMark({ children, ...props }: GlyphProps) {
 /**
  * GitHub 的官方标记，取自 GitHub 自己的图标库 Octicons（MIT）的 mark-github。
  *
- * 用 16 视口那一版而不是 24 视口版：16px 这一档是 GitHub 专门绘制的，内边距
- * 与拐点按这个尺寸调过。24 视口版铺满画布，放进 16px 盒子里会比旁边的描边字
- * 形明显重一档，要么缩小要么留白补偿 —— 而 tokens/controls.css 只允许 16 / 32
- * 两档尺寸（S / 16 必须在 dpr 1.5 下取整）。用官方在目标尺寸上的那一版，就不
- * 需要任何补偿。
+ * 用 16 视口那一版而不是 24 视口版：16px 这一档是 GitHub 专门绘制的，内边距与拐点按这个尺寸
+ * 调过。24 视口版铺满画布，放进 16px 盒子里会比旁边的描边字形明显重一档 —— 而
+ * tokens/controls.css 只允许 16 / 32 两档尺寸（S / 16 必须在 dpr 1.5 下取整）。
  *
- * width / height 不写在这里：全局的 :where(svg) 规则已经把尺寸绑到 --ui-icon，
- * 那是零特异性的，调用方给 className 仍然能盖过去。
+ * width / height 不写在这里：全局的 :where(svg) 规则已经把尺寸绑到 --ui-icon，那是零特异性的，
+ * 调用方给 className 仍然能盖过去。
  */
 export function GithubMark(props: GlyphProps) {
   return (

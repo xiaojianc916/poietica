@@ -2,10 +2,8 @@ import type { ModuleDatabase } from '@poietica/storage-sqlite'
 import type { SubmissionAttachment, SubmissionView } from '../contract'
 
 /**
- * 提交表（「Core 即时回显」方案的第 3 条规则）：每条提交在 Core 里都有一个**确定结局**
- * 并且存进库 —— 要么变成真实的一轮，要么排队，要么失败；刷新或重开应用，失败的消息还在。
- *
- * 表名按功能 id 前缀（`conversation_`），SQL 只写在本文件（铁律 6）。
+ * 提交表：每条提交在 Core 里都有一个**确定结局**并存进库 —— 要么变成真实的一轮，要么排队，
+ * 要么失败；刷新或重开应用，失败的消息还在。表名按功能 id 前缀。
  */
 export interface SubmissionRow {
   clientTurnId: string
@@ -79,13 +77,13 @@ export interface SubmissionsRepository {
   get(clientTurnId: string): SubmissionRow | null
   /** 这个线程的全部提交，按创建顺序（时间的先后就是屏幕上气泡的先后）。 */
   listByThread(threadId: string): SubmissionRow[]
-  /** ## turnId → clientTurnId（快照盖章用：把本机的提交号补到 turn 上）。 */
+  /** turnId → clientTurnId（快照盖章用：把本机的提交号补到 turn 上）。 */
   mapByTurnId(threadId: string): ReadonlyMap<string, string>
   /**
-   * 这一条线程里某个 turnId 对应的提交行（事件路由每条 upsert 补号用）。
+   * 这一条线程里某个 turnId 对应的提交行。
    *
-   * **必须带 threadId**：turnId 是每条会话各自从 `t1` 编的，只按 turnId 查会命中别的
-   * 线程（实测：界面上出现两个用户气泡，正是因为新线程的 t1 拿到了旧线程的提交号）。
+   * **必须带 threadId**：turnId 是每条会话各自从 `t1` 编的，只按 turnId 查会命中别的线程
+   * （实测：界面上出现两个用户气泡，正是因为新线程的 t1 拿到了旧线程的提交号）。
    */
   findByTurnId(threadId: string, turnId: string): SubmissionRow | null
   update(clientTurnId: string, patch: Partial<Pick<SubmissionRow, 'status' | 'turnId' | 'error'>>): SubmissionRow | null

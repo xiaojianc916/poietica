@@ -15,25 +15,18 @@ import type { ScenarioStep } from './scenario'
 
 export interface ConformanceTarget {
   /**
-   * 「到现在为止开过几个会话」——只读性的判据（C-DRAFT-CONTROLS 要证明 draftControls
-   * 一条都不开）。
-   *
-   * 它是**可选**的：`AgentEngine` 本身没有这一格（真实引擎不需要对外报这个数），
-   * 只有测试替身（FakeEngine 的 `opened`）拿得出来。缺席时那一条断言跳过 ——
-   * 套件在真引擎上仍然要能跑。
+   * 「到现在为止开过几个会话」—— 只读性的判据（C-DRAFT-CONTROLS 要证明 draftControls 一条都不开）。
+   * **可选**：`AgentEngine` 本身没有这一格，只有测试替身（FakeEngine 的 `opened`）拿得出来；缺席时那一条断言跳过。
    */
   readonly openedCount?: () => number
   /**
-   * 模型引用 → 草稿表里 current 的那个写法（provider/id）。
-   *
-   * 同样可选：别名拼法是**测试侧**的事（避免在两个引擎的用例里各写一遍字符串拼接），
+   * 模型引用 → 草稿表里 current 的那个写法（provider/id）。同样可选：别名拼法是**测试侧**的事，
    * 不是引擎接口的一部分。
    */
   readonly draftAliasOf?: (model: ModelRef | null) => string | null
   readonly engine: AgentEngine
   /** 设定接下来几轮的回复；每次调用覆盖之前的设定 */
   script(turns: readonly (readonly ScenarioStep[])[]): void
-  /** 一个可写的临时工作区目录 */
   readonly cwd: string
   dispose(): Promise<void>
 }
@@ -61,7 +54,6 @@ function recorder(session: EngineSession): Recorded {
   }
 }
 
-/** 出现过的交互 id（按出现顺序） */
 function interactionIds(events: readonly EngineSessionEvent[]): string[] {
   return events
     .filter(
@@ -70,7 +62,6 @@ function interactionIds(events: readonly EngineSessionEvent[]): string[] {
     .map((e) => e.interaction.id)
 }
 
-/** 第一个还没被答复的交互 id（用于逐轮应答审批） */
 function pendingInteractionId(events: readonly EngineSessionEvent[], answered: ReadonlySet<string>): string | null {
   return interactionIds(events).find((id) => !answered.has(id)) ?? null
 }
@@ -79,7 +70,7 @@ function describeEvent(event: EngineSessionEvent): string {
   return event.type === 'state' ? `state:${event.state}` : event.type
 }
 
-/** 事件类型序列（state 带上状态名，便于断言顺序） */
+/** state 带上状态名，便于断言顺序。 */
 function shape(events: readonly EngineSessionEvent[]): string[] {
   return events.map(describeEvent)
 }
@@ -111,7 +102,6 @@ function allText(page: TranscriptPage): string {
   return parts.join('\n')
 }
 
-/** 工具产出的文本（与 UI 同一条规则：{ content, details } → content 里的文本块） */
 function toolTextOf(output: unknown): string {
   const content = (output as { readonly content?: unknown } | null)?.content ?? output
   if (typeof content === 'string') return content
@@ -127,7 +117,7 @@ function turnCount(page: TranscriptPage): number {
 }
 
 /**
- * 端口语义的可执行定义：同一套用例同时跑在 FakeEngine 与真实的 OmpEngine 上（12 页 §1.3）。
+ * 端口语义的可执行定义：同一套用例同时跑在 FakeEngine 与真实的 OmpEngine 上。
  * make() 必须返回**尚未冻结工具表**的引擎；套件注册完两个测试工具后自己冻结。
  */
 export function runEngineConformance(name: string, make: () => Promise<ConformanceTarget>): void {
@@ -175,7 +165,7 @@ export function runEngineConformance(name: string, make: () => Promise<Conforman
       await session.submit(submit('hello'))
       await record.waitFor((events) => shape(events).includes('state:idle'), '这一轮没有结束')
       const states = record.events.filter((e) => e.type === 'state').map(describeEvent)
-      // 12 页 §7.4：turn.upsert 的 timeline 先发，随后才是 state:running
+      // timeline 先发，随后才是 state:running
       expect(states[0]).toBe('state:running')
       expect(states[states.length - 1]).toBe('state:idle')
       expect(shape(record.events)).toContain('timeline')
@@ -274,7 +264,6 @@ export function runEngineConformance(name: string, make: () => Promise<Conforman
       record.subscription.dispose()
     })
 
-    /** 换层：一条 followUp 搬到 steer，deliverAs 变了、拿到新 id、其余项顺序不动 */
     test('C-QUEUE-MOVE', async () => {
       const session = await openNew()
       const record = recorder(session)
@@ -296,7 +285,6 @@ export function runEngineConformance(name: string, make: () => Promise<Conforman
 
       const after = session.queue().items
       expect(after).toHaveLength(2)
-      // 该正文的层变了、id 也换了；另一条原地不动
       const moved = after.find((i) => i.text === 'one')!
       expect(moved.deliverAs).toBe('steer')
       expect(moved.id).not.toBe(moving.id)
@@ -305,7 +293,6 @@ export function runEngineConformance(name: string, make: () => Promise<Conforman
       record.subscription.dispose()
     })
 
-    /** 撤回一个不存在的 id：kernel.not_found，队列照旧 */
     test('C-QUEUE-WITHDRAW-MISSING', async () => {
       const session = await openNew()
       const record = recorder(session)
@@ -334,8 +321,8 @@ export function runEngineConformance(name: string, make: () => Promise<Conforman
     })
 
     /**
-     * 目标的一生（审查 R-10）：设 → 暂停 → 改正文（仍暂停）→ 继续 → 清除；控件快照每一步都跟着走。
-     * 暂停 / 继续是幂等的；没有目标时暂停抛 kernel.not_found。
+     * 目标的一生（审查 R-10）：设 → 暂停 → 改正文（仍暂停）→ 继续 → 清除。暂停 / 继续是幂等的；
+     * 没有目标时暂停抛 kernel.not_found。
      */
     test('C-GOAL-LIFECYCLE', async () => {
       const session = await openNew()
@@ -414,11 +401,8 @@ export function runEngineConformance(name: string, make: () => Promise<Conforman
     })
 
     /*
-     * C-CUSTOM-PROVIDER-CONFIGURED：手动加的服务商必须**当场**算「已配置」。
-     *
-     * 真机上翻过车：写完 models.yml 之后 configured 仍报 false（判据只看凭据表），入口页于是挂着
-     * 「还没有配置任何模型服务商」，而用户在设置页里明明刚加好。两个引擎在这里比的是同一条语义：
-     * 定义写进去之后，providers() 里这一家要带着 custom 与 configured 一起出现。
+     * C-CUSTOM-PROVIDER-CONFIGURED：手动加的服务商必须**当场**算「已配置」。真机上翻过车：写完 models.yml 之后
+     * configured 仍报 false（判据只看凭据表），入口页于是挂着「还没有配置任何模型服务商」，而用户在设置页里明明刚加好。
      */
     test('C-CUSTOM-PROVIDER-CONFIGURED', async () => {
       const before = await target.engine.models.providers()
@@ -467,36 +451,27 @@ export function runEngineConformance(name: string, make: () => Promise<Conforman
     })
 
     /*
-     * C-DRAFT-CONTROLS（方案 §04 的 AgentEngine.draftControls）。
-     *
-     * 三个断言，逐条对应方案的规则：
-     *   1. 只读 —— 调它**不开会话**（target.engine.opened 一条都不多）；
-     *   2. 默认姿态是 auto-edit；
-     *   3. 草稿给的 model / thinking / posture 原样回显（用户在入口页选了什么，
-     *      发送时带进 threads.create 的就是什么）。
-     *
-     * 两个引擎在这里比的是「草稿表怎么组装」：档位候选的**来源**各不一样
-     * （omp 烤在模型目录里、FakeEngine 由 opts 注入），所以这里只断言形状与回显。
+     * C-DRAFT-CONTROLS：三个断言 —— 只读（调它**不开会话**）、默认姿态是 auto-edit、草稿给的 model / thinking / posture 原样回显。
+     * 两个引擎比的是「草稿表怎么组装」：档位候选的**来源**各不一样（omp 烤在模型目录里、FakeEngine 由 opts 注入），
+     * 所以这里只断言形状与回显。
      */
     test('C-DRAFT-CONTROLS', async () => {
       const openedBefore = target.openedCount?.() ?? null
 
       const draft = await target.engine.draftControls({})
-      /* 只读：一条会话都没有开。 */
       if (openedBefore !== null) expect(target.openedCount?.()).toBe(openedBefore)
-      /* 默认姿态是 auto-edit（07 页 §5C 的 threads.create 同一条默认值）。 */
+      /* 默认姿态是 auto-edit，与 threads.create 同一条默认值。 */
       expect(draft.posture).toBe('auto-edit')
       expect(draft.planMode).toBe(false)
       expect(draft.goal).toBeNull()
       expect(draft.context).toBeNull()
       /*
-       * 两档可用性也在草稿表里（04 页 §2.2 的 Controls.available）：入口页据此决定
-       * 画不画计划 / 目标选择器。两个引擎都报**布尔**，真实现现读 agent 设置。
+       * 两档可用性也在草稿表里：入口页据此决定画不画计划 / 目标选择器。两个引擎都报**布尔**，真实现现读 agent 设置。
        */
       expect(typeof draft.available.plan).toBe('boolean')
       expect(typeof draft.available.goal).toBe('boolean')
 
-      /* 草稿给的三格原样回显。模型取目录里第一条（两个引擎都至少有它）。 */
+      /* 草稿给的三格原样回显；模型取目录里第一条（两个引擎都至少有它）。 */
       const first = draft.model.choices[0]
       const alias = first === undefined ? null : (target.draftAliasOf?.(first.ref) ?? null)
       if (first !== undefined) {
@@ -505,7 +480,6 @@ export function runEngineConformance(name: string, make: () => Promise<Conforman
         expect(echoed.posture).toBe('full-access')
       }
 
-      /* 草稿里的档位跟着那张表：给了就在候选里。 */
       const withThinking = await target.engine.draftControls({ thinking: 'low' })
       expect(withThinking.thinking.current).toBe('low')
     })

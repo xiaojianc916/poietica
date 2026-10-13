@@ -8,15 +8,8 @@
   background: transparent;
   color: inherit;
 
-  /*
-   * 吉祥物的配色不跟主题。
-   *
-   * 它是这个产品的形象：深色下换成另一档蓝、眼睛翻成近黑，读起来就是另一个角色。
-   * 所以这里不读 --ui-primary / --ui-primary-foreground —— 那两个令牌的职责恰恰
-   * 是随主题走。下面这一档是浅色主题解出来的主色（正本在
-   * packages/design-system/src/tokens/light.css 的 --ui-primary），钉在这里，
-   * 两套主题同一套颜色。
-   */
+  /* 吉祥物的配色不跟主题：它是产品形象，深色下换一档蓝、眼睛翻成近黑，读起来就是另一个角色。这一档是浅色主题解出来的
+     主色（正本在 packages/design-system/src/tokens/light.css 的 --ui-primary），钉在这里，两套主题同一套颜色。 */
   --emotion-ball-body: oklch(0.55 0.19 255);
 }
 

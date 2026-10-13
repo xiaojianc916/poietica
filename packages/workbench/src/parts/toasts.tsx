@@ -1,7 +1,6 @@
 import { useKernel, useObservable } from '@poietica/ui-kernel'
 import type { ReactElement } from 'react'
 
-/** Toast 浮层：右下角，来自内核的 toasts 服务 */
 export function Toasts(): ReactElement | null {
   const { kernelServices } = useKernel()
   const toasts = useObservable(kernelServices.toasts)

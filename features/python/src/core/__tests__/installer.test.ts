@@ -4,12 +4,8 @@ import { pythonErrors } from '../../contract/errors'
 import { createInstaller, type InstallerDeps } from '../installer'
 import { PYTHON_VERSION } from '../release'
 
-/*
- * PY-1…PY-6（07 页 §13G）：注入假 fetch / 假 run / 假 fs 与临时目录。
- *
- * 这里**不碰真网络**：验证的是编排（地址轮换、校验和语义、解压/验证、原子替换、
- * 残留清理、幂等与 busy），真实 CPython 包由 python:pin + 探针在发布链上验证。
- */
+/* PY-1…PY-6：注入假 fetch / 假 run / 假 fs 与临时目录。这里**不碰真网络**：验证的是编排（地址轮换、校验和语义、解压/验证、原子替换、残留清理、
+ * 幂等与 busy），真实 CPython 包由 python:pin + 探针在发布链上验证。 */
 
 interface FakeFs {
   readonly files: Map<string, string | Uint8Array>
@@ -88,10 +84,8 @@ function readerOf(chunks: Uint8Array[]): { read(): Promise<{ done: boolean; valu
 
 const shaOf = (bytes: Uint8Array): string => new Bun.CryptoHasher('sha256').update(bytes).digest('hex')
 
-/*
- * 假内容与它的真哈希：期望的 sha 由测试注入（生产恒为 release.generated.ts 里钉住的
- * PYTHON_ASSET_SHA256），所以这里能拿一小段假 payload 走完真实的校验路径。
- */
+/* 假内容与它的真哈希：期望的 sha 由测试注入（生产恒为 release.generated.ts 里钉住的 PYTHON_ASSET_SHA256），所以这里能拿一小段假 payload
+ * 走完真实的校验路径。 */
 const FAKE_PAYLOAD = new TextEncoder().encode('fake-python-payload')
 const SHA_OK = shaOf(FAKE_PAYLOAD)
 const SHA_WRONG = 'b'.repeat(64)
@@ -118,7 +112,7 @@ describe('PY-1 下载：第一个地址失败、第二个成功', () => {
     const installer = createInstaller(deps, 'C:\\tools', 'C:\\tools\\python')
     await installer.install()
 
-    /* 一开始那次 downloading(0)、随后 installing；判题只要求两档都报过 */
+    /* 一开始那次 downloading(0)、随后 installing；判题只要求两档都报过。 */
     expect(statuses[0]).toBe('downloading')
     expect(statuses).toContain('installing')
     expect(fs.files.has('C:\\tools\\python\\poietica-python.json')).toBe(true)
@@ -135,7 +129,7 @@ describe('PY-2 两个地址的校验和都不对', () => {
     const error = await installer.install().catch((e: unknown) => e)
     expect(error).toBeInstanceOf(AppError)
     expect((error as AppError).code).toBe(pythonErrors.checksum_mismatch)
-    // 暂存目录（含下载到一半的 archive）不留在盘上
+    // 暂存目录（含下载到一半的 archive）不留在盘上。
     expect([...fs.files.keys()].some((f) => f.includes('python.staging-'))).toBe(false)
     expect(fs.dirs.has('C:\\tools\\python.staging-T1')).toBe(false)
   })

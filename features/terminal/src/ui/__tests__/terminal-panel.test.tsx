@@ -6,14 +6,8 @@ import type { TerminalApi } from '../api'
 import { TerminalPanel } from '../terminal-panel'
 import { createTerminalRuntime } from '../terminal-store'
 
-/*
- * 面板这一层的形状（07 页 §11E 的标签条 + 外观以 legacy 为准的两条）：
- *   - 打开这一格没有终端时**先开一条**（legacy 的 TerminalPane 挂载即 attach）；
- *   - 只有一条终端时**不画标签条**（legacy 每格只有一条终端，那一行不存在）；
- *   - 从第二条起画标签条：每个终端一个标签、`+` 新建、标签上的 `×` 关闭、
- *     点击标签把它切到前台。
- * xterm 的渲染本身不在 happy-dom 里断言（14 页 §0.4 的口径），这里只验 DOM 形状。
- */
+/* 打开这一格没有终端时**先开一条**；只有一条终端时**不画标签条**（legacy 每格只有一条）；从第二条起画标签条。xterm 的渲染本身不在
+ * happy-dom 里断言，这里只验 DOM 形状。 */
 
 const info = (terminalId: string, over: Partial<TerminalInfo> = {}): TerminalInfo => ({
   terminalId,
@@ -80,7 +74,6 @@ describe('terminal 面板（07 页 §11E 的标签条）', () => {
     render(<TerminalPanel runtime={runtime} />)
 
     expect(runtime.count()).toBe(1)
-    /* 只有一条：没有那一行标签条，也没有加号（legacy 的每格一条终端就是这个样子）。 */
     expect(screen.queryAllByRole('tab')).toHaveLength(0)
     expect(screen.queryByRole('button', { name: '新建终端' })).toBeNull()
   })
@@ -98,7 +91,6 @@ describe('terminal 面板（07 页 §11E 的标签条）', () => {
   test('开出第二条起画标签条：每条一个标签，`+` 再新建', () => {
     const runtime = makeRuntime(fakeApi())
 
-    /* 先备好两条（第一条由挂载时自动开、第二条走 store），再挂载：这时才该有标签条。 */
     runtime.create()
     runtime.create()
     render(<TerminalPanel runtime={runtime} />)

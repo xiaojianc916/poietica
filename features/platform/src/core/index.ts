@@ -10,7 +10,7 @@ export default defineCoreModule({
       engineVersion: ctx.runtime.engineVersion,
       dataRoot: ctx.layout.root,
       ompRoot: ctx.layout.ompRoot,
-      // 关于页把这些目录展示出来，就是给用户看的“隔离证明”
+      // 关于页把这些目录展示出来，就是给用户看的「隔离证明」。
       dirs: {
         ompAgentDir: ctx.layout.ompAgentDir,
         nativeHomeDir: ctx.layout.nativeHomeDir,

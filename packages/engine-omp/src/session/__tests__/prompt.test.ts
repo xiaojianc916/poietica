@@ -4,16 +4,14 @@ import { AppError } from '@poietica/foundation'
 import { type ExpandSkillOptions, expandSkillMessage, preparePrompt } from '../prompt'
 
 /*
- * SubmitInput → omp 输入（12 页 §7.6、§12.3 的去向表：迁移自 legacy provider-input.test.ts
- * 与 live-image-attachments.test.ts 的输入那一半、skill-turn.test.ts 的 args 那一格）。
+ * SubmitInput → omp 输入。
  *
- * legacy 的前提是「线上来的每一格都可能缺席、可能是 null」，所以判据是逐格钉：不炸、不编空壳。
- * 新树的输入面收窄了一档（SubmitInput 的 images / files / skills 都是数组，缺席就是空数组），
- * 于是同一份判据落在这里的两件事上：**每一格都可以是空**，以及**没给的东西不编**。
+ * 输入面收窄了一档（SubmitInput 的 images / files / skills 都是数组，缺席就是空数组），
+ * 于是判据落在这里的两件事上：**每一格都可以是空**，以及**没给的东西不编**。
  *
- * legacy 的 provider 定义那几条（ALL_NULL 不炸、空档位表不算有档位、界面 api 取值对齐上游、
- * 空显示名不算名字）在新树里换了落点：provider 定义现在是 features/models 的 CustomProviderDef
- * 契约（07 页 §6B 的 zod：api 只能是三种、models 至少一条、baseUrl 必须是 http(s)），
+ * provider 定义那几条（ALL_NULL 不炸、空档位表不算有档位、界面 api 取值对齐上游、
+ * 空显示名不算名字）的落点在别处：provider 定义现在是 features/models 的 CustomProviderDef
+ * 契约（zod：api 只能是三种、models 至少一条、baseUrl 必须是 http(s)），
  * 单测在 ports/__tests__/models-file.test.ts。契约已经把它挡在门外，所以这里不再复刻一份。
  *
  * 这里不起进程、不碰磁盘：读文件与 stat 都是注入的。
@@ -180,7 +178,7 @@ describe('expandSkillMessage：技能', () => {
         skillMessage: async (name) => ({ message: `[技能正文]${name}`, details: { name } }),
       }),
     )
-    // 技能消息的内容块是各技能正文，块与块各自一个（与 legacy customSkillMessage 同形）
+    // 技能消息的内容块是各技能正文，块与块各自一个
     expect(message?.content).toEqual([
       { type: 'text', text: '[技能正文]review' },
       { type: 'text', text: '[技能正文]ponytail' },

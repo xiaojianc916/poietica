@@ -474,8 +474,8 @@ export function foldWireRecordFacts(
               )
             : -1
         /*
-         * 认领不上的第二判据：agent 报的用户消息有时不带 id，而锚点必须落到某一轮上。
-         * 落回「还没有 id 的那一轮」—— 按到达顺序认领，不是按内容猜。
+         * 认领不上的第二判据：agent 报的用户消息有时不带 id，而锚点必须落到某一轮上 ——
+         * 按到达顺序认领，不是按内容猜。
          */
         const unclaimedIndex =
           matchingIndex < 0 && typeof message.id === 'string'

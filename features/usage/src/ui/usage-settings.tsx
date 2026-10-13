@@ -16,13 +16,8 @@ import {
   type UsageModelDay,
 } from './usage-activity'
 
-/*
- * 用量页。**迁移自** legacy \`packages/settings/src/ui/usage-settings.tsx\`，结构与文案一字未改，
- * 换掉的只有数据来路（读函数由组合根注入、模型名从 models 目录折进来）。
- *
- * 两个时间窗口各管各的：滑块只改概览与趋势图，热力图恒定看最近 26 周。
- * 热力图不跟滑块走 —— 按周成列的图缩到 7 天只剩一列。
- */
+/* 结构与文案照 legacy 一字未改，换掉的只有数据来路。两个时间窗口各管各的：滑块只改概览与趋势图，热力图恒定看最近 26 周 —— 按周成列的图
+ * 缩到 7 天只剩一列。 */
 
 const SPANS = [
   { value: '7', label: '最近 7 天' },
@@ -33,13 +28,11 @@ type SpanValue = (typeof SPANS)[number]['value']
 
 const HEATMAP_WEEKS = 26
 
-/** 热力图那段日历，也是一次读回来的窗口：概览的两档都落在它里面。 */
 const LEDGER_DAYS = HEATMAP_WEEKS * 7
 
-/** 这一格还没有账可查时画它。0 的意思是「没用过」，而事实是「没记过」。 */
+/** 0 的意思是「没用过」，而事实是「没记过」。 */
 const UNRECORDED = '—'
 
-/** 账还没到时的那一份。常量而不是每次现造：否则趋势图每一帧都要重算。 */
 const NO_MODEL_DAYS: readonly UsageModelDay[] = []
 
 interface UsageMetric {
@@ -64,14 +57,7 @@ function metricsOf(
   ]
 }
 
-/*
- * 读一次原生。
- *
- * 换窗口时**保留上一份**，等新的到了再换：先清空再铺回来会让整张图塌掉重画，
- * 屏幕上就是抖一下。首帧没有上一份，那才如实空着。
- *
- * 读失败不写出数：宁可「没记过」，不写编出来的 0。
- */
+/** 换窗口时**保留上一份**，等新的到了再换：先清空再铺回来会让整张图塌掉重画。读失败不写出数：宁可「没记过」，不写编出来的 0。 */
 function useRead<T>(read: () => Promise<T>): T | undefined {
   const [value, setValue] = useState<T>()
 
@@ -99,9 +85,7 @@ export interface UsageSettingsProps {
   readonly readTokenDays: ReadTokenDays
   readonly readModelDays: ReadModelDays
   readonly readMessageCount: ReadMessageCount
-  /** 线程的 updatedAt 列表（概览的对话数/活跃天数/连续天数） */
   readonly threadTimes: readonly string[]
-  /** 账上的 provider/id → 显示名（来自 models 目录）；目录还没到时给空表 */
   readonly modelNames: ModelNames
   readonly failure: string | null
 }
@@ -118,10 +102,7 @@ export function UsageSettings({
 
   const overview = useMemo(() => summarize(threadTimes, new Date(), Number(span)), [threadTimes, span])
 
-  /*
-   * 热力图那本账一次读满、终生不换：它的依赖里没有滑块，所以动滑块不会重读它。
-   * 这正是「切范围不该让热力图抖一下」的那条 —— 它根本不需要那份数据。
-   */
+  /* 它的依赖里没有滑块，所以动滑块不会重读它 —— 这正是「切范围不该让热力图抖一下」的那条。 */
   const readLedger = useCallback(async () => {
     const found = await readTokenDays(LEDGER_DAYS)
 
@@ -130,10 +111,8 @@ export function UsageSettings({
 
   const ledger = useRead(readLedger)
 
-  /* 两端补齐到整周：列是整周，半截开头或结尾会让首尾各缺一块。 */
   const heatmap = useMemo(() => spreadWeeks(ledger ?? new Map(), new Date(), HEATMAP_WEEKS), [ledger])
 
-  /* 概览那一格与热力图读的是同一本账，只是窗口短一些 —— 不另开一条口径。 */
   const tokens = useMemo(() => {
     if (ledger === undefined) {
       return undefined
@@ -142,7 +121,6 @@ export function UsageSettings({
     return spread(ledger, new Date(), Number(span)).reduce((sum, day) => sum + day.count, 0)
   }, [ledger, span])
 
-  /* 趋势图与概览那一格同一个窗口：滑块动，两条线跟着动。 */
   const window = Number(span)
 
   const readModels = useCallback(() => readModelDays(window), [readModelDays, window])

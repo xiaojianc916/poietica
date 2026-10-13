@@ -134,7 +134,7 @@ describe('SettingsPort', () => {
 
   /*
    * 现算的选项表：`sharpshooter.model` 的取值是「模型目录里的某一条」，而上游 schema 只给了
-   * string —— 选项必须由端口用**模型目录**现填（legacy 的 `SettingChoicesOf` 同此）。
+   * string —— 选项必须由端口用**模型目录**现填。
    *
    * 少了这一格，界面上就是一个自由输入框，而这一格填的值必须是目录里的 `provider/id`：
    * 拼法不同就选不中，模型解析静默回落 smol。
@@ -206,7 +206,7 @@ describe('SettingsPort', () => {
     const { port, settings } = makePort()
     await port.setPythonInterpreter('C:\\python\\python.exe')
     expect(globalAt(settings, 'python.interpreter')).toBe('C:\\python\\python.exe')
-    // 读回：onReady 的判据要能拿到同一个值（07 页 §13C）
+    // 读回：onReady 的判据要能拿到同一个值
     expect(await port.getPythonInterpreter()).toBe('C:\\python\\python.exe')
     await port.setPythonInterpreter(null)
     expect(globalAt(settings, 'python.interpreter')).toBeUndefined()

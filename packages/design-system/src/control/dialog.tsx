@@ -20,9 +20,8 @@ export interface DialogProps {
 }
 
 /**
- * 建在 Base UI Dialog 上的项目对话框：Base UI 管传送门生命周期、焦点圈禁、
- * 初始与最终焦点、Escape、外点按压与模态无障碍语义；Poietica 管视觉令牌、
- * 布局、busy 策略与产品文案。
+ * 建在 Base UI Dialog 上的项目对话框：Base UI 管传送门生命周期、焦点圈禁、初始与最终焦点、
+ * Escape、外点按压与模态无障碍语义；Poietica 管视觉令牌、布局、busy 策略与产品文案。
  */
 export function Dialog({
   open,
@@ -88,8 +87,8 @@ export function Dialog({
               'rounded-xl border',
               'border-divider',
               /*
-               * 与浮层同一张脸：对话框也是浮起来的一层，浅色下两者都是纯白，
-               * 深色下浮层那格比页面底色抬一档（见 tokens/dark.css）。
+               * 与浮层同一张脸：对话框也是浮起来的一层，深色下浮层那格比页面底色抬一档（见
+               * tokens/dark.css）。
                */
               'bg-popover',
               'text-popover-foreground',
@@ -132,9 +131,8 @@ export function Dialog({
               </header>
             ) : (
               /*
-               * 模态对话框必须有名称。隐藏视觉表头不等于放弃无障碍名称：
-               * showHeader 为 false 时 header 整块不渲染，BaseDialog.Title
-               * 也随之消失，对话框就没有任何可访问名称了。
+               * 模态对话框必须有名称。隐藏视觉表头不等于放弃无障碍名称：showHeader 为 false 时
+               * header 整块不渲染，BaseDialog.Title 也随之消失，对话框就没有任何可访问名称了。
                */
               <BaseDialog.Title className="sr-only">{title}</BaseDialog.Title>
             )}

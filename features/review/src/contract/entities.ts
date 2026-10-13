@@ -1,4 +1,3 @@
-// review 的 zod 实体（07 页 §10B）
 import { z } from 'zod'
 
 export const FileChange = z.enum(['added', 'modified', 'deleted', 'renamed', 'copied', 'untracked', 'conflicted'])

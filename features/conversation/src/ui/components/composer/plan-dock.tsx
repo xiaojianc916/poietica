@@ -6,22 +6,12 @@ import type { PlanItem } from '../../timeline/timeline-contract'
 import { Prose } from '../timeline/prose/prose'
 
 /*
- * 待批准的计划（04 页 §3.12 的第 5 支、产品负责人 2026-10-07 定稿的卡片形状）。
- *
- * 外框与按钮沿用授权那条带子（同一张 `assistant-approval` 脸，样式在 permission-dock.css
- * 与 plan-dock.css），多出来的是正文那一块：计划是一篇 Markdown，默认折叠、点开才铺开 ——
- * 直接铺开会把输入框顶出屏幕。
- *
- * 三颗按钮就是那一档答复：批准 / 修改…（展开一个反馈输入框）/ 否决。答过之后三颗按钮让位
- * 给一句话（已批准 / 已要求修改：… / 已否决），随即整张卡消失 —— 痕迹归事件日志，转录不做
- * 第二事实来源（与审批同此）。那句话是这一格在屏幕上的最后一帧。
+ * 待批准的计划：外框与按钮沿用授权那条带子，多出正文那一块（默认折叠，直接铺开会把输入框顶出屏幕）。
+ * 三颗按钮就是三档答复；答过之后让位给一句话 —— 痕迹归事件日志，转录不做第二事实来源（与审批同此）。
  */
 
 /**
- * 答复之后卡片上那句话。
- *
- * 三档各自成句，因为它们在引擎那边的后果完全不同：批准会让这一轮继续跑，修改与否决都
- * 留在计划模式里等下一版。措辞与交回模型的工具结果同一套词（见 interactions/plan.ts）。
+ * 三档各自成句，因为它们在引擎那边的后果完全不同：批准让这一轮继续跑，修改与否决都留在计划模式里等下一版。
  */
 function outcomeLabel(answer: { readonly decision: PlanDecision; readonly feedback: string }): string {
   if (answer.decision === 'approve') return '已批准'
@@ -33,7 +23,6 @@ interface Button {
   readonly id: string
   readonly label: string
   readonly decision: PlanDecision
-  /** 主按钮，只有一颗。 */
   readonly lead?: true
 }
 
@@ -49,16 +38,16 @@ export interface PlanDockProps {
 }
 
 export const PlanDock = memo(function PlanDock({ item, onResolve }: PlanDockProps) {
-  /** 已经交出去的那一档答复；有值之后按钮不再画（重复答复在协议上也没有第二个结果）。 */
+  /** 已交出去的那一档答复；有值之后按钮不再画（协议上也没有第二个结果）。 */
   const [answered, setAnswered] = useState<{ readonly decision: PlanDecision; readonly feedback: string } | undefined>(
     undefined,
   )
   const [revising, setRevising] = useState(false)
   const [feedback, setFeedback] = useState('')
-  /** 「修改…」交了一次空意见：提示留在原地，卡片不作答复（也不把三颗按钮锁死）。 */
+  /** 交了一次空意见：只提示、不答复，也不把按钮锁死。 */
   const [emptyFeedback, setEmptyFeedback] = useState(false)
 
-  /* 换了计划就从「一个都没点」重新开始（与 PermissionDock 同一条判据：渲染期复位 state）。 */
+  /* 换了计划就复位全部 state（渲染期复位，与 PermissionDock 同一条判据）。 */
   const [asked, setAsked] = useState(item.requestId)
   if (asked !== item.requestId) {
     setAsked(item.requestId)
@@ -69,7 +58,6 @@ export const PlanDock = memo(function PlanDock({ item, onResolve }: PlanDockProp
   }
 
   const answer = (button: Button): void => {
-    /* 「修改…」不直接交答复：先展开反馈输入框，等人在里面写完意见再提交。 */
     if (button.decision === 'revise' && !revising) {
       setRevising(true)
       setEmptyFeedback(false)
@@ -80,9 +68,7 @@ export const PlanDock = memo(function PlanDock({ item, onResolve }: PlanDockProp
 
     if (button.decision === 'revise' && said === '') {
       /*
-       * 说了要改却一个字没给：引擎那边（planOutcomeOf）把空意见当作废处理，但人点的是
-       * 「修改…」，静悄悄换成否决是替他做了决定。所以这里只提示、不答复，按钮照旧可按 ——
-       * 他可以写一句，也可以改去点否决。
+       * 空意见在引擎那边（planOutcomeOf）当作废处理：静悄悄换成否决是替人做了决定，所以这里只提示、不答复，按钮照旧可按。
        */
       setEmptyFeedback(true)
       return
@@ -100,7 +86,7 @@ export const PlanDock = memo(function PlanDock({ item, onResolve }: PlanDockProp
     <div className="assistant-approval assistant-approval--plan">
       <div aria-busy={answered !== undefined} className="assistant-approval__bar" key={item.requestId}>
         <span className="assistant-approval__intent">计划待批准：{item.title}</span>
-        {/* 副行：计划文件落在哪（人据此去读全文） */}
+        {/* 计划文件落在哪，人据此去读全文 */}
         <span className="assistant-plan__path">{item.planFilePath}</span>
 
         {item.planMarkdown === '' ? null : (

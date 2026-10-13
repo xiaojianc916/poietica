@@ -9,13 +9,8 @@ import { StaticLine, TickerLine } from './marquee-track'
 import { createRollScheduler, FAST_ROLL_MS, type LineSnapshot, ROLL_MS } from './roll-scheduler'
 
 /**
- * 组头那一格「正在做什么」。
- *
- *   1. 思考句还在写：像显示屏一样往左滚（TickerLine）。没写满时字从左往右长；写满后整行跟着
- *      出字的速度连续左移，左边缘直接裁掉 —— 不加任何渐隐遮罩；最新的字永远完整，右侧留约两字空。
- *   2. 换句才上下刷一次：旧句往上走、新句从下面升起，新句从第一个字开始写。
- *   3. 工具行、落定态、占位：不动，从头显示，放不下时末尾省略号（StaticLine）。
- *
+ * 组头那一格「正在做什么」：思考句在写时像显示屏往左滚（TickerLine，最新的字永远完整、左边缘直接裁），
+ * 工具行与落定态不动、放不下时末尾省略号（StaticLine）；换句才上下刷一次。
  * 容器只做三件事：把句子喂给调度器、在提升时换 key、按状态选哪一种格子。
  */
 
@@ -24,13 +19,13 @@ const ROLL_EASE: [number, number, number, number] = [0.4, 0, 0.2, 1]
 const AT_ONCE = { duration: 0 }
 
 export interface RollingLineProps {
-  /** 这一格的身份：它变了才播一次上下刷（思考句的起始偏移、工具调用的 id）。 */
+  /** 这一格的身份：它变了才播一次上下刷。 */
   readonly contentKey: string
   /** 还有成员在动：思考句滚动；否则这是落定的摘要，从头显示。 */
   readonly following: boolean
   /** thought：思考句；tool：工具调用句。 */
   readonly variant?: 'thought' | 'tool'
-  /** 上一句（只有思考句有）：同一批 token 里旧句收尾时用来把旧句补完。 */
+  /** 上一句（只有思考句有）：换句时用来把旧句补完。 */
   readonly previous?: LineSnapshot | null
   /** 戴扫光：在飞的工具调用与「正在思考」占位。戴扫光的格子一律不滚。 */
   readonly shimmer?: boolean
@@ -47,14 +42,10 @@ export const RollingLine = memo(function RollingLine({
 }: RollingLineProps) {
   const reduced = useReducedMotion() === true
   const [rolls] = useState(() => createRollScheduler({ key: contentKey, text }, systemClock, reduced))
-  /* 换句是这一格唯一的结构性变化，也是唯一的 React 状态。 */
   const [rolled, setRolled] = useState({ key: contentKey, fast: false })
   /* 首次挂载时就在的那一句不算「新句」：直接摆好，不从第一个字重写一遍。 */
   const mountedKey = useRef(contentKey)
-  /*
-   * 「下一句在等」要成为状态：等待者在布局副作用里才进调度器，渲染期读 rolls.waiting() 会晚
-   * 一批 token 才生效 —— 慢模型下一批要两三百毫秒，旧句的加速收尾就整段错过了。
-   */
+  /* 「下一句在等」必须进状态：渲染期读 rolls.waiting() 会晚一批 token 才生效，慢模型下旧句的收尾就整段错过。 */
   const [waiting, setWaiting] = useState(false)
 
   useEffect(() => {
@@ -72,14 +63,14 @@ export const RollingLine = memo(function RollingLine({
     rolls.setImmediate(reduced)
   }, [rolls, reduced])
 
-  /* 每次渲染都喂一次：同 key 原地生长，异 key 排队换句。换句要重渲染，所以放在布局副作用里。 */
+  /* 每次渲染都喂一次：同 key 原地生长，异 key 排队换句；换句要重渲染，所以放布局副作用里。 */
   useLayoutEffect(() => {
     rolls.offer({ key: contentKey, text }, previous)
-    /* 同值时 React 直接跳过；变了就在绘制前补一轮渲染，旧句这一帧就开始收尾。 */
+    /* 同值时 React 跳过；变了就在绘制前补一轮渲染，旧句这一帧开始收尾。 */
     setWaiting(rolls.waiting())
   })
 
-  /* 显示哪一句：调度器说的还是这次 prop 这一句，就直接用 prop 的文字（原地生长不等一轮渲染）。 */
+  /* 显示哪一句：调度器说的就是这次 prop 这一句时直接用 prop 的文字（原地生长不等一轮渲染）。 */
   const shownLine = rolls.shown()
   const line = shownLine.key === contentKey ? { key: contentKey, text } : shownLine
   const ticking = following && variant === 'thought' && !shimmer

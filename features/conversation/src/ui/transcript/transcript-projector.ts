@@ -124,14 +124,7 @@ const NO_TURN_ATTACHMENTS: TurnAttachments = { images: [], files: [] }
 
 const EMPTY_INDEX: ReadonlyMap<string, TranscriptAttachment> = new Map()
 
-/*
- * 图片只有一种来源：`attachment.upsert` 里内联的 data URL。
- *
- * 时间线里不再有「引用一条要另取字节的媒体」这条表示（04 页端口已删 `media(fileId)`）：
- * 实时投影把发的图直接读成 data URL，历史投影从会话消息的 base64 现拼，两头都落在
- * `{ kind: 'url' }` 上。给不了 source 的附件本来就只能是卡片（`source` 为 undefined），
- * 如实返回 undefined 而不是去排一次取字节。
- */
+/* 图片只有一种来源：`attachment.upsert` 里内联的 data URL。给不出 source 就返回 undefined，不排一次取字节。 */
 function imageUrlOf(attachment: TranscriptAttachment): string | undefined {
   const { source } = attachment
   return source?.kind === 'url' ? source.url : undefined
@@ -151,7 +144,6 @@ function attachmentsOfTurn(turn: TranscriptTurn, index: ReadonlyMap<string, Tran
     }
     if (attachment.mediaType.startsWith('image/')) {
       const url = imageUrlOf(attachment)
-      // 有内联 data URL 就画出来；给不出像素的（例如只带元数据的条目）留在占位
       images.push(url === undefined ? { pending: true } : { url })
     } else {
       const name = attachment.name ?? '附件'
@@ -161,7 +153,7 @@ function attachmentsOfTurn(turn: TranscriptTurn, index: ReadonlyMap<string, Tran
   return { images, files }
 }
 
-// 只有真用户输入才成行；正文里混着给模型看的附件句子，在这里摘掉。
+// 正文里混着给模型看的附件句子，在这里摘掉：只有真用户输入才成行。
 function inputItem(
   source: InputSource,
   id: string,
@@ -190,7 +182,6 @@ function inputItem(
 const isSettled = (state: TranscriptTurn['state']): boolean =>
   state === 'completed' || state === 'cancelled' || state === 'failed'
 
-/** 文本帧：助手那句是已封口的正文，用户那句要过 sourceOfFrame 才认得出是不是真输入。 */
 function textFrameOf(
   frame: Extract<TranscriptFrame, { kind: 'text' }>,
   turn: number,
@@ -215,7 +206,7 @@ function toolFrameOf(
   stamp: number,
 ): ToolCallTimelineItem {
   const view = ompToolView(frame.name, frame.input, frame.output, frame.error, frame.intent)
-  // describeTool 只在 view 不认识该工具或 subject 为空时才需要，避免 15k 次无用 Reflect.get
+  // 只在 view 不认识该工具或 subject 为空时才要 describeTool，避免 15k 次无用 Reflect.get。
   const tool = view.known && view.subject ? undefined : describeTool(frame.input)
   return {
     type: 'tool_call',
@@ -224,8 +215,7 @@ function toolFrameOf(
     at: stamp,
     toolCallId: frame.toolCallId,
     title: frame.name,
-    // 认名字要认得的是「真正在跑的那一个」：write xd://<工具> 跑的是被挂载的设备。
-    // title 保持帧上的名字 —— 它是调用号退化成工具名时的身份（见 askIndexes）。
+    // 认名字要认得「真正在跑的那一个」：write xd://<工具> 跑的是被挂载的设备；title 保持帧上的名字。
     invokedTool: view.known && view.invokedTool !== '' ? view.invokedTool : frame.name,
     scheme: view.known ? view.scheme : '',
     kind: view.known ? view.kind : (tool?.kind ?? 'other'),
@@ -251,7 +241,6 @@ function toolFrameOf(
   } satisfies ToolCallTimelineItem
 }
 
-/** 一帧换一格：判别式只此一处，四种帧各交回自己那一格。 */
 function frameOf(frame: TranscriptFrame, turn: number, stamp: number): TimelineItem | null {
   switch (frame.kind) {
     case 'text':
@@ -266,7 +255,7 @@ function frameOf(frame: TranscriptFrame, turn: number, stamp: number): TimelineI
         sealed: true,
       }
     case 'notice':
-      /* info 在本产品里没有样子：引擎侧已经不发，这里只是不让漏网的那条画成报错（R-09） */
+      /* info 在本产品里没有样子：引擎侧已经不发了。 */
       return frame.level === 'info'
         ? null
         : { type: 'error', id: frame.frameId, turn, at: stamp, message: frame.message, level: frame.level }
@@ -279,13 +268,7 @@ const approvalDecision = (state: TranscriptInteraction['state']) =>
 const questionOutcome = (state: TranscriptInteraction['state']) =>
   state === 'answered' ? 'answered' : state === 'dismissed' ? 'dismissed' : 'cancelled'
 
-/**
- * 计划卡片那一格的终态（04 页 §3.12 第 5 支）。
- *
- * 引擎把三档答复映射成 transcript 的四档状态（`resolvedStateOf`）：approve → approved、
- * revise → answered（带着那条反馈）、reject 与 dismiss → rejected / cancelled。
- * 这里再翻回卡片自己的词表 —— 「已要求修改」要连反馈一起带上。
- */
+/** 引擎的三档答复映射成 transcript 的四档，这里再翻回卡片自己的词表。 */
 function planResolutionOf(interaction: TranscriptInteraction): NonNullable<PlanItem['resolution']> {
   const response = typeof interaction.response === 'object' && interaction.response !== null ? interaction.response : {}
   const feedback = stringField(response, 'feedback')
@@ -295,18 +278,17 @@ function planResolutionOf(interaction: TranscriptInteraction): NonNullable<PlanI
   return { decision: 'rejected' }
 }
 
-/** 一个字符串格；缺席 / 类型不符都返回 null（不编一个空串当有值）。 */
+/** 缺席 / 类型不符都返回 null —— 不编一个空串当有值。 */
 function stringField(source: object, key: string): string | null {
   const value = Reflect.get(source, key)
   return typeof value === 'string' ? value : null
 }
 
-/** 审批那一格请求里我们要读的：工具名，以及上游算好的「将做什么」。 */
 function approvalFields(request: unknown): { toolName: string; detail: string | null } {
   if (typeof request !== 'object' || request === null) {
     return { toolName: '', detail: null }
   }
-  /* 线上字段名就是 toolName（桥那边组的是 { method, toolName, detail }），别跟着改。 */
+  /* 线上字段名就是 toolName，别跟着改。 */
   const toolName = Reflect.get(request, 'toolName')
   const detail = Reflect.get(request, 'detail')
 
@@ -322,13 +304,7 @@ function interactionOf(
   stamp: number,
 ): PermissionItem | PlanItem | QuestionTimelineItem {
   const resolved = interaction.state !== 'pending'
-  /*
-   * 计划那一支（04 页 §3.12 第 5 支）：卡片的正文与路径都在 `request` 里 ——
-   * 引擎组的就是 `{ kind:'plan', title, planFilePath, planMarkdown, ... }`。
-   *
-   * 判据要照**放宽后**的那份类型读：上游的 `InteractionKind` 只有 approval / question，
-   * `plan` 是线上形状那一层放出来的（contract/wire.ts），所以这里先收宽再判。
-   */
+  /* 卡片的正文与路径都在 `request` 里。判据照**放宽后**的类型读：`plan` 是线上形状那一层放出来的。 */
   const kind: string = interaction.interactionKind
   if (kind === 'plan') {
     const request = typeof interaction.request === 'object' && interaction.request !== null ? interaction.request : {}
@@ -349,11 +325,7 @@ function interactionOf(
     const { toolName, detail } = approvalFields(interaction.request)
 
     /*
-     * 主语取上游算好的那一段（`Command: rm -rf …` 这类），不是工具名：判据是「要不要
-     * 让它做这件事」，而工具名回答不了。说不出来才退到工具名，再退到一句中性的字。
-     *
-     * 用 headline 而不是 subject：headline 是多行原文，sayToolLine 只截第一行 ——
-     * 它正是给这件事用的那一格（tool-intent.ts）。
+     * 主语取上游算好的那一段（`Command: rm -rf …` 这类），不是工具名：判据是「要不要让它做这件事」。用 headline 而不是 subject：headline 是多行原文，sayToolLine 只截第一行。
      */
     const said = detail ?? toolName
 
@@ -396,14 +368,7 @@ function interactionOf(
 }
 
 /*
- * 人答了什么，从答复里读回来。
- *
- * 答复有两个产地，形状不同，都得认：
- * - 现场：桥把**产品形状**的答复挂在 `answers` 上（questions.ts 的 answerPayloadOf 的入参），
- *   键是题号，值就是 QuestionChoice；
- * - 回放：本机账本存的是 `[{questionId, answer}]`（question.rs 的 AnsweredQuestion）。
- *
- * 读不出来就给空表 —— 题面还在，答案那行缺席，比编一个「答过了」强。
+ * 现场挂在 `answers` 上（键是题号），回放时本机账本存的是 `[{questionId, answer}]`。读不出来就给空表 —— 题面还在，比编一个「答过了」强。
  */
 function answersOf(response: unknown): Readonly<Record<string, QuestionChoice>> {
   if (typeof response !== 'object' || response === null) {
@@ -451,7 +416,7 @@ function readId(entry: unknown): string | undefined {
   return typeof id === 'string' && id !== '' ? id : undefined
 }
 
-/** 一条答复：判别式与分支名是协议取值域（question.rs 的 QuestionAnswer）。 */
+/** 判别式与分支名是协议取值域，别改。 */
 function readAnswer(entry: unknown): QuestionChoice | undefined {
   if (typeof entry !== 'object' || entry === null) {
     return undefined
@@ -498,7 +463,7 @@ function stringsOf(value: unknown): readonly string[] | undefined {
   return Array.isArray(value) && value.every((item) => typeof item === 'string') ? value : undefined
 }
 
-/** 整组题的备注；上游每题一格，产品整组一格，所以取那一格。 */
+/** 上游每题一格备注，产品整组一格，所以取那一格。 */
 function noteOf(response: unknown): string {
   if (typeof response !== 'object' || response === null) {
     return ''
@@ -508,7 +473,6 @@ function noteOf(response: unknown): string {
 
   return typeof note === 'string' ? note : ''
 }
-/** 一个选项 id 读回它的标签；对不上题时照原文，不编。 */
 function labelOf(item: QuestionItem, optionId: string): string {
   const option = item.options.find((candidate) => candidate.id === optionId)
 
@@ -531,12 +495,7 @@ function describeAnswer(item: QuestionItem, answer: QuestionChoice): string {
 }
 
 /*
- * 人答了什么，折成这次调用产出里的那一段。
- *
- * 题面在上、答复在下 —— 与当初那张落定卡同一套读法，只是它现在长在发起它的那次 ask
- * 调用的产出里，不再另立一行。未答成的把由来写清，不装成答复。
- *
- * 一道答案都读不出（协议形状不认识）时交回 null：那句原始产出虽然朴素，但它是真的。
+ * 题面在上、答复在下，长在发起它的那次 ask 调用里。一道都读不出时交回 null —— 那句原始产出虽然朴素，但它是真的。
  */
 const UNANSWERED = {
   cancelled: '这一轮被取消，这组题没有等到答复。',
@@ -592,10 +551,7 @@ function answersBodyOf(interaction: TranscriptInteraction): string | null {
 }
 
 const backgroundOf = (task: TranscriptTask): BackgroundTaskItem | null => {
-  /*
-   * 子代理不走这一格：它们是「智能体」那一节的，见 subagentOf。`detached` 只说明
-   * 「父轮不等它」，不说明它是什么 —— 只按 detached 分派就是那条缺陷本身。
-   */
+  /* 子代理不走这一格（见 subagentOf）。`detached` 只说明「父轮不等它」，不说明它是什么。 */
   if (!task.detached || task.kind === 'subagent') {
     return null
   }
@@ -611,12 +567,7 @@ const backgroundOf = (task: TranscriptTask): BackgroundTaskItem | null => {
 }
 
 /*
- * 子代理那一行。
- *
- * 判据是 `kind === 'subagent'`，不是 `detached`：`detached` 说的是「父轮不等它」，
- * 而**同步**子代理同样要出现在「智能体」那一节（官方 TUI 的 HUD 也列它们）。
- * 按 detached 分派正是此前那条缺陷 —— 子代理会被塞进「后台任务」，而那一节的图标
- * 是终端、那一格的名字叫 terminals。
+ * 判据是 `kind === 'subagent'`，不是 `detached` —— 同步子代理同样要出现在「智能体」那一节。按 detached 分派正是此前那条缺陷。
  */
 const subagentOf = (task: TranscriptTask): SubagentItem | null => {
   if (task.kind !== 'subagent') {
@@ -656,21 +607,11 @@ function spanOf(turn: TranscriptTurn, index: number): TurnSpan {
 }
 
 /*
- * 答完的题折回发起它的**那次调用**的产出里。
- *
- * 判据是交互自己带的工具调用号（桥从 tool_execution_start 取的真号，不是工具名 ——
- * 名字对不上任何一次具体调用）。号对不上任何一页时这一组就不上屏：它已经不再是独立的
- * 一行，而位置差一点比编一个位置强。
- *
- * 待答的不在这里：它得留在活动段尾（timeline-queries 从 active.items 里找它，
- * 输入框那张卡靠这一条挂出来），而且它本来就不上屏（renderable 的 question 分支）。
- *
- * 页按基础页身份记账：sealed 段一旦封口就不再改写，presentation 的 PREFIX/SEGMENTS
- * 全靠页引用稳定（与 wrappedPage 同一条规矩）。命中判据是页身份 + 锚进来的那几条。
+ * 判据是交互自带的工具调用号（桥从 tool_execution_start 取的真号，不是工具名）。号对不上任何一页时这一组就不上屏。待答的不在这里：它得留在活动段尾。
+ * 页按基础页身份记账：sealed 段一旦封口就不再改写，presentation 的 PREFIX/SEGMENTS 全靠页引用稳定。
  */
 const ANCHORED_PAGES = new WeakMap<TurnPage, { readonly held: readonly TranscriptInteraction[]; page: TurnPage }>()
 
-/* 这一页里被问过的调用，按屏幕顺序。 */
 function askIndexes(items: readonly TimelineItem[], toolCallId: string): readonly number[] {
   const exact: number[] = []
   const byName: number[] = []
@@ -689,13 +630,7 @@ function askIndexes(items: readonly TimelineItem[], toolCallId: string): readonl
   return exact.length > 0 ? exact : byName
 }
 
-/*
- * 这次调用是哪一条，且没被上一组题认领过。
- *
- * 首选真调用号；回放的历史会话里号退成了工具名（桥取不到真号时写的就是 `ask`），
- * 那就按工具名找**下一条还没被认领的** —— 一轮里问过两次时，两组答复因此各归各的
- * 调用，而不是一起并到最近那一次上。
- */
+/* 首选真调用号；回放时号退成了工具名，那就按工具名找**下一条还没被认领的** —— 一轮里问过两次时，两组答复各归各的调用。 */
 function askAt(items: readonly TimelineItem[], toolCallId: string, used: Set<number>): number {
   for (const at of askIndexes(items, toolCallId)) {
     if (!used.has(at)) {
@@ -743,12 +678,7 @@ function anchoredPage(page: TurnPage, held: readonly TranscriptInteraction[]): T
   return fresh
 }
 
-/**
- * 把已结的题的答复折进发起它的那一次调用，交出改过的页与「仍然要挂尾部」的那几条。
- *
- * 只认提问：审批恒不上屏（renderable 的 permission 分支），而它的 toolCallId 是工具名，
- * 锚上去只会锚到别人的调用上。
- */
+/** 把已结的题的答复折进发起它的那一次调用。只认提问：审批恒不上屏，而它的 toolCallId 是工具名，锚上去只会锚到别人的调用上。 */
 function anchorQuestions(
   pages: readonly TurnPage[],
   interactions: AgentTranscriptSnapshot['interactions'],
@@ -795,10 +725,7 @@ function anchorQuestions(
   return { pages: next, tail }
 }
 
-/*
- * 待答的审批与提问挂在活动段尾部；压缩那一条也在这里 —— 它不绑 turn
- * （agent 压缩的是上下文，不是某一轮），所以没有自己的页可挂。
- */
+/* 待答的审批与提问挂在活动段尾部；压缩那一条也在这里 —— 它不绑 turn。 */
 const tailOf = (
   pages: readonly TurnPage[],
   interactions: readonly TranscriptInteraction[],
@@ -827,12 +754,7 @@ const tailOf = (
 }
 
 /*
- * 上下文压缩那一条：agent 自己报的，落在标记上。
- *
- * 判据是 marker 名（`compaction`，见 packages/transcript 的 KNOWN_MARKERS）。
- * payload 由桥按 agent 自己的事件填（它知道那次压缩是为什么、成没成）；
- * 这里只把 payload 读成产品那一格，读不出的格子如实缺席 —— 渲染器本来就按
- * 缺席退成一句没有数字的话，编一个数比不显示更坏。
+ * agent 自己报的，落在标记上，判据是 marker 名（`compaction`）。读不出的格子如实缺席 —— 编一个数更坏。
  */
 function compactionMarks(items: AgentTranscriptSnapshot['items']): readonly TranscriptMarker[] {
   return items.filter((item): item is TranscriptMarker => item.kind === 'marker' && item.marker === 'compaction')
@@ -883,7 +805,7 @@ const phaseOf = (snapshot: AgentTranscriptSnapshot, last: TranscriptTurn | undef
   }
   const approval = snapshot.interactions.some((item) => item.state === 'pending' && item.interactionKind === 'approval')
   if (approval) return 'awaiting_permission'
-  /* 计划是一道自己的闸：它把「继续执行」拦在批准之前，与审批/提问并列（04 页 §3.12）。 */
+  /* 计划是一道自己的闸：它把「继续执行」拦在批准之前，与审批 / 提问并列。 */
   const kinded = snapshot.interactions.map((item) => item.interactionKind as string)
   if (snapshot.interactions.some((item, index) => item.state === 'pending' && kinded[index] === 'plan')) {
     return 'awaiting_plan'
@@ -894,12 +816,7 @@ const phaseOf = (snapshot: AgentTranscriptSnapshot, last: TranscriptTurn | undef
 type TurnFact = { opensWithAnchor: boolean; anchors: number | null }
 
 /*
- * 段投影按 step 对象身份记账：上游 reducer 只把真改动的那一个 step 换成新对象，其余原样
- * 复用，所以流式期间没动过的段整段复用 —— 段里的帧、工具入参 JSON、工具视图都不必每帧重算。
- * 键是 step 自身，随它一起被回收，不跨对话累积。
- *
- * ordinal 与兜底时间戳必须在判据里：turn 对象每帧都换，而这里是按 step 复用，只有把
- * 从 turn 读来的那两个数一起比过，复用才是真等价。
+ * 上游 reducer 只把真改动的那一个 step 换成新对象，其余复用。ordinal 与兜底时间戳必须在判据里：turn 对象每帧都换。
  */
 interface StepFrames {
   readonly ordinal: number
@@ -953,7 +870,6 @@ function framesOf(
 }
 
 // 按 turn 对象身份记账：上游 reducer 结构共享，没变的 turn 复用上次投影。
-// 带附件的 turn 还依赖外部集合 attachments，判据跟着它走。
 const TURN_PROJECTIONS = new WeakMap<
   TranscriptTurn,
   {
@@ -977,7 +893,6 @@ const sameSources = (
   right: readonly (TranscriptAttachment | undefined)[],
 ): boolean => left.length === right.length && left.every((value, at) => value === right[at])
 
-/** turn 上报的错去重后追加到条目尾；没有就不加。 */
 function errorItemOf(turn: TranscriptTurn, items: TimelineItem[], stamp: number): void {
   if (
     turn.error === undefined ||
@@ -1047,7 +962,7 @@ function projectTurn(
   return projected
 }
 
-// 包裹页按基础页身份记账：run 字段不变时复用，否则 presentation 层的页缓存永远不命中。
+// 包裹页按基础页身份记账：run 字段不变时复用，否则 presentation 的页缓存永远不命中。
 const WRAPPED_PAGES = new WeakMap<TurnPage, TurnPage>()
 
 function wrappedPage(page: TurnPage, run: NonNullable<TurnPage['run']>): TurnPage {
@@ -1101,7 +1016,7 @@ function runBoundariesOf(
     } else {
       suffixAnchors += fact.anchors
     }
-    // conversation-runtime ForkThread.drop_turns is u32.
+    // ForkThread.drop_turns 是 u32。
     if (suffixAnchors > 0xffff_ffff) {
       uncertainty = '撤销锚点计数超出平台支持范围。'
     }
@@ -1115,11 +1030,7 @@ function runBoundariesOf(
 }
 
 /**
- * 一条通道上一次投影交出去的那几份数组：只为把引用稳住。
- *
- * 必须按通道各一份（由调用方持有、随通道一起丢）：主对话、每个子代理、后台在跑的每条对话
- * 都调同一个 `projectTranscript` / `outlineOf`，模块级只放一份的话，两条通道交替发布就
- * 互相覆盖 —— 前台那条每批都换新数组，presentation 的前缀缓存与 minimap 的 memo 全部落空。
+ * 必须按通道各一份（由调用方持有、随通道一起丢）—— 模块级只放一份的话，两条通道交替发布就互相覆盖，presentation 的前缀缓存与 minimap 的 memo 全部落空。
  */
 export interface ProjectionMemo {
   sealed: readonly TurnPage[]
@@ -1167,9 +1078,7 @@ export function projectTranscript(snapshot: AgentTranscriptSnapshot, memo: Proje
 }
 
 /*
- * sealed 引用稳定化：presentation 层的 PREFIX WeakMap 以 sealed 数组为键，
- * 每次 slice 都换新引用会让缓存永远不命中。元素引用已由 TURN_PROJECTIONS +
- * WRAPPED_PAGES 保证稳定，所以只需比较长度与逐元素引用即可复用这条通道上一次的数组。
+ * presentation 层的 PREFIX WeakMap 以 sealed 数组为键，每次 slice 换新引用会让缓存永远不命中。元素引用已由 TURN_PROJECTIONS + WRAPPED_PAGES 保证稳定，只需比较长度与逐元素引用。
  */
 function stableSealed(marked: readonly TurnPage[], memo: ProjectionMemo): readonly TurnPage[] {
   const len = marked.length - 1
@@ -1187,23 +1096,13 @@ function stableSealed(marked: readonly TurnPage[], memo: ProjectionMemo): readon
 }
 
 /*
- * 目录标记按 turn 对象身份记账，与同文件的 TURN_PROJECTIONS / WRAPPED_PAGES 同一形态。
- *
- * 不能用模块级 turnId 强引用表：turnId 在每条对话、每个子代理频道里都从 t1 重新编，
- * 按它记账会把 A 的标记发给 B（题面与回复一起串）；reset 换掉正文而号没换时同样会
- * 认错。而且那张表永不释放 —— 开过的对话越多久占越大。turn 对象是每条对话各自持有
- * 的，WeakMap 因此既认得出归属，也随对话一起被回收。
- *
- * 记账里还要存「算出这个 reply 时那一轮封口没有」：未封口时复用（minimap 不需要逐
- * token 刷新），一变成封口就必须重算一次 —— 封口前看到的是半截正文，拿它当最终回复
- * 是错的。数组也做引用稳定化（按通道记在 `ProjectionMemo` 里），避免 minimap memo 100% 失效。
+ * 不能用模块级 turnId 强引用表：turnId 在每条对话、每个子代理频道里都从 t1 重编，按它记账会把 A 的标记发给 B，而且那张表永不释放。
+ * 记账里还要存「算出这个 reply 时那一轮封口没有」：封口前看到的是半截正文，拿它当最终回复是错的。
  */
 const OUTLINE_MARKS = new WeakMap<TranscriptTurn, { readonly sealed: boolean; readonly mark: TurnMark }>()
 
 /*
- * 逐段算好的正文。判据是段自己的身份：流式期间上游只替换真动了的那一段，其余段按
- * 引用留用，于是只有正在吐字的那一段要重新拼 —— 整轮重拼是「按 turn 记账」要付的那
- * 笔钱，而它随轮长线性增长。
+ * 判据是段自己的身份：流式期间上游只替换真动了的那一段，于是只有正在吐字的那一段要重新拼。
  */
 const STEP_REPLIES = new WeakMap<TranscriptTurn['steps'][number], string>()
 
@@ -1238,12 +1137,7 @@ const sameMark = (left: TurnMark, right: TurnMark): boolean =>
   left.reply === right.reply
 
 /*
- * 在跑那一轮在上一份目录里的标记，可以原样留用吗。
- *
- * 流式每来一批，上游都会把在跑的那一轮换成新的 turn 对象（结构共享只留没动的部分），
- * 按对象身份的 OUTLINE_MARKS 因此每批都落空。上一份目录是**这条通道自己的**（memo 按通道
- * 各一份），同一个位置上号、题面都对得上，就是同一轮 —— 不会像模块级 turnId 表那样认错别的
- * 对话。题面变了（reset 换掉正文而号没换）就不认。
+ * 流式每来一批，上游都会把在跑的那一轮换成新的 turn 对象，按对象身份记账因此每批都落空；而上一份目录是**这条通道自己的**，同一个位置上号、题面都对得上就是同一轮。
  */
 function carriedMark(turn: TranscriptTurn, previous: TurnMark | undefined): TurnMark | undefined {
   if (previous === undefined || isSettled(turn.state)) {
@@ -1256,12 +1150,10 @@ function carriedMark(turn: TranscriptTurn, previous: TurnMark | undefined): Turn
   return same ? previous : undefined
 }
 
-/* 一轮的标记：封口前算一次（之后跨批留用），封口时再算一次，之后原样交回。 */
 function markOf(turn: TranscriptTurn, previous: TurnMark | undefined): TurnMark {
   const held = OUTLINE_MARKS.get(turn)
   const sealed = isSettled(turn.state)
 
-  // 已经按封口算过，或这一轮本来就还没封口 → 复用。
   if (held !== undefined && (held.sealed || !sealed)) {
     return held.mark
   }
@@ -1297,7 +1189,6 @@ export const outlineOf = (snapshot: AgentTranscriptSnapshot, memo: ProjectionMem
     }
   }
 
-  /* 引用稳定化：元素全同则交回这条通道上次那个数组，minimap 的 memo 才稳得住。 */
   if (sameOutline(marks, previous)) {
     return previous
   }

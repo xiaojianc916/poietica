@@ -19,19 +19,8 @@ import {
 import { PermissionPicker, SessionControls } from './controls'
 
 /*
- * 辅助对话这一格的输入条。
- *
- * 它比主对话那张卡矮一档，也少一行：辅助对话住在右栏（320–800），两行版式在那
- * 个宽度里挤不下。整条就是一颗药丸，外面不再套卡片 —— 药丸自己带一圈边，外面再
- * 套一层同色边读起来是双线框。
- *
- * 打开的三样全是主对话那几处：加号翻开的面板（composer-palette）、模型与档位
- * （session-controls）、批准方式（permission-picker）。这里只换版式，不换实现。
- *
- * 面板还没接上会话，所以档位表是占位的一份：改档位只落在这一格的 state 里，一个
- * 字都不往外发，发送键也还没有收信人。技能名册是真的（右栏本来就持有它）。接上
- * 会话时把 PLACEHOLDER_CONTROLS 换成会话报的那张表、把 select 接到 selectControl
- * 上，其余一个字不用动。
+ * 比主对话那张卡矮一档也少一行（右栏只有 320–800），整条就是一颗药丸；打开的三样与主对话相同，
+ * 这里只换版式不换实现。面板还没接上会话：档位表是占位的一份，改档位只落在本格 state。
  */
 
 const PLACEHOLDER_CONTROLS: readonly SessionConfigControl[] = [
@@ -100,11 +89,7 @@ export function AuxiliaryComposer() {
   const [paletteOpen, setPaletteOpen] = useState(false)
   const [highlighted, setHighlighted] = useState(0)
 
-  /*
-   * 名册与主对话读的是同一个贡献点：加号翻开的面板里那两组因此不必各拉一遍。
-   * 辅助对话没有自己的工作区（它不在任何一条线程上），问的是全局活动的那一个 ——
-   * 与它旁边那些面板（审查 / 终端）读的是同一格。
-   */
+  /* 名册与主对话读同一个贡献点；辅助对话没有自己的工作区，问的是全局活动的那一个。 */
   const workspaces = useService(WorkspacesUiToken) as WorkspacesUi
   const { activeId } = useWorkspacesView(workspaces)
   const { mcpServers, skills } = useAgentToolkit(activeId)
@@ -112,10 +97,7 @@ export function AuxiliaryComposer() {
   const listboxId = useId()
   const bar = useRef<HTMLFormElement | null>(null)
 
-  /*
-   * 屏幕上的值只有一个来源，就是上面那张表：占位期间它归这一格自己，接上会话之后
-   * 它归 agent，这里改的只是它的 current —— 与 SessionControls 的受控读法一致。
-   */
+  /* 屏幕上的值只有一个来源：占位期间归本格，接上会话后归 agent，这里只改它的 current。 */
   const select = useCallback((controlId: string, value: string) => {
     setControls((held) => held.map((control) => (control.id === controlId ? { ...control, current: value } : control)))
   }, [])
@@ -133,10 +115,7 @@ export function AuxiliaryComposer() {
 
   useDismissOutside(open, bar, () => setPaletteOpen(false))
 
-  /*
-   * 面板里能落地的只有模式开关：它改的是这一格自己的占位表。插入技能要一张装得下
-   * 胶囊的编辑器，配置项要一份待发草稿，这一格都还没有 —— 那两类行先画出来。
-   */
+  /* 面板里能落地的只有模式开关：插入技能要一张编辑器，配置项要一份待发草稿，这一格都还没有。 */
   const pick = (row: PaletteRow) => {
     setPaletteOpen(false)
 
@@ -145,8 +124,7 @@ export function AuxiliaryComposer() {
     }
   }
 
-  /* 面板开着时这几个键归面板。捕获相先到 —— 与主输入框同一条理由：草稿那个输入框
-     不该知道面板存在，放它冒泡上去，方向键就先去挪光标了。 */
+  /* 面板开着时这几个键归面板：捕获相先到，否则方向键会先去挪草稿输入框的光标。 */
   const onKeyDown = (event: KeyboardEvent<HTMLFormElement>) => {
     paletteKeyDown(event, {
       highlighted,

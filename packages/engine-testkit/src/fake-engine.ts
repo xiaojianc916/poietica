@@ -63,21 +63,15 @@ type MarketplaceEntryValue = z.infer<typeof MarketplaceEntry>
 export interface FakeEngineOptions {
   readonly script?: ScenarioScript
   readonly clock?: Clock
-  /** OpenSessionSpec 没给 posture 时用它 */
   /**
-   * 草稿控件表要报的思考档位（`draftControls` 的 thinking.choices）。
-   *
-   * omp 的档位梯子是**按模型**烤在目录里的（Model.thinking.efforts），FakeEngine 的模型
-   * 表没有那一格，所以档位改从这里注入 —— 一致性套件的 C-DRAFT-CONTROLS 两个引擎都
-   * 用同一组档位，比的是「草稿表怎么组装」而不是「档位从哪来」。
+   * 草稿控件表要报的思考档位。omp 的档位梯子是**按模型**烤在目录里的（Model.thinking.efforts），
+   * FakeEngine 的模型表没有那一格，所以档位改从这里注入。
    */
   readonly thinkingLevels?: readonly string[]
   readonly posture?: Posture
   /**
    * 上下文用量那一格的报数（替身没有真会话，omp 的 getContextUsage 无处可读，只能注入）。
-   *
-   * 报**null 也是有效报数**（「此刻没有可报的窗口」），所以这里默认 undefined = 一次都不报，
-   * 与真引擎「还没水合」同义；给了值就按真引擎的时机报（每条 assistant 消息落地、轮终）。
+   * 默认 undefined = 一次都不报，与真引擎「还没水合」同义。
    */
   readonly contextUsage?: ContextUsage | null
   readonly autoTitle?: (text: string) => string | null | undefined
@@ -93,19 +87,15 @@ export interface FakeToolCall {
 export interface FakeEngine extends AgentEngine {
   readonly opened: readonly OpenSessionSpec[]
   readonly toolCalls: readonly FakeToolCall[]
-  /** `setPythonInterpreter` 收到的每次调用（含传 null 的解除）；python 的 onReady 判据据此断言。 */
   readonly pythonInterpreterCalls: readonly (string | null)[]
-  /**
-   * 草稿表里 current 的写法（provider/id），与 omp 侧 aliasOf 同一拼法。
-   * 一致性套件比两个引擎的草稿表时用它，不在测试里各写一遍字符串拼接。
-   */
+  /** 草稿表里 current 的写法（provider/id）；一致性套件比两个引擎的草稿表时用它。 */
   readonly draftAliasOf: (model: ModelRef | null) => string | null
 }
 
 const APPROVAL_TIER: Record<EngineToolSpec['approval'], number> = { read: 0, write: 1, exec: 2 }
 const POSTURE_MAX: Record<Posture, number> = { ask: 0, 'auto-edit': 1, 'full-access': 2 }
 
-/** 与 omp 的 APPROVAL_MODE_MAX_TIER 一致的放行规则（12 页 §5.3） */
+/** 与 omp 的 APPROVAL_MODE_MAX_TIER 一致的放行规则。 */
 function needsApproval(posture: Posture, approval: EngineToolSpec['approval']): boolean {
   return APPROVAL_TIER[approval] > POSTURE_MAX[posture]
 }
@@ -131,7 +121,6 @@ class FakeSession implements EngineSession {
   /** 目标：正文 + 进行中 / 已暂停（R-10）；没有目标是 null */
   private goal: { objective: string; status: 'active' | 'paused' } | null = null
   private ordinal = 0
-  /** 本会话是否已经代 omp 触发过自动标题（只触发一次，与真引擎同一口径） */
   private titleRequested = false
   private step = 0
   private turnCount = 0
@@ -147,7 +136,7 @@ class FakeSession implements EngineSession {
       readonly store: SessionLedger
       readonly posture: Posture
       readonly contextUsage: () => ContextUsage | null
-      /** 自动总结标题的替身：给文本回一个标题；回 null / undefined = 生成失败（不发事件） */
+      /** 自动总结标题的替身：回 null / undefined = 生成失败（不发事件） */
       readonly autoTitle?: (text: string) => string | null | undefined
     },
   ) {
@@ -178,16 +167,14 @@ class FakeSession implements EngineSession {
       try {
         listener(event)
       } catch {
-        // 监听器不抛异常（12 页 §0.3）
+        // 监听器不抛异常
       }
     }
   }
 
   /**
-   * omp 自动总结出的标题（omp 知识 #17）：替身按端口语义发一条同样的 `sessionTitle`。
-   *
-   * 与真引擎逐条对齐的三件事：只在本会话**第一条真轮**触发一次；`spec.autoTitle === false`
-   * 不触发；生成「失败」就是什么都不发（标题留在首句兜底上）。
+   * omp 自动总结出的标题（omp 知识 #17）：替身按端口语义发一条同样的 `sessionTitle` ——
+   * 只在本会话**第一条真轮**触发一次，`spec.autoTitle === false` 不触发，生成失败就什么都不发。
    */
   private maybeAutoTitle(input: SubmitInput): void {
     if (this.titleRequested || this.o.spec.autoTitle === false) return
@@ -204,7 +191,6 @@ class FakeSession implements EngineSession {
     this.emit({ type: 'state', state: next, error })
   }
 
-  /** 记一笔时间线并推向订阅者 */
   private push(operations: readonly TranscriptOperation[]): void {
     if (operations.length === 0) return
     this.ops.push(...operations)
@@ -225,7 +211,7 @@ class FakeSession implements EngineSession {
       return
     }
     if (input.deliverAs !== 'turn') {
-      // 空闲时点“插话”就是开始一轮
+      // 空闲时插话就是开始一轮
     }
     this.turnCount++
     const ordinal = this.turnCount
@@ -325,7 +311,7 @@ class FakeSession implements EngineSession {
               ? { kind: 'text', frameId: frame, text: '', role: 'assistant' }
               : { kind: 'thinking', frameId: frame, text: '' },
         })
-        // 分两段推送：让上层的增量拼接被真实覆盖（12 页 §1.2）
+        // 分两段推送：让上层的增量拼接被真实覆盖
         const half = Math.ceil(step.text.length / 2)
         const head = step.text.slice(0, half)
         const tail = step.text.slice(half)
@@ -485,8 +471,7 @@ class FakeSession implements EngineSession {
   }
 
   /**
-   * 换层：从账本里取出该项、改层、换新 id、放到队尾（与真引擎同一条语义 —— 排队的
-   * 唯一主人在账本里，换层不重新展开输入）。不存在时抛 kernel.not_found。
+   * 换层：取出该项、改层、换新 id、放到队尾（与真引擎同一条语义 —— 排队的唯一主人在账本里，换层不重新展开输入）。
    */
   async moveQueued(queueItemId: string, deliverAs: 'steer' | 'followUp'): Promise<void> {
     const at = this.ledger.findIndex((e) => e.id === queueItemId)
@@ -529,7 +514,6 @@ class FakeSession implements EngineSession {
               tokensUsed: 0,
               wallClockMs: 0,
             },
-      /** 替身没有 agent 设置文件，两档一律可用（真实现现读 plan.enabled / goal.enabled） */
       available: { plan: true, goal: true },
       context: null,
     }
@@ -539,7 +523,6 @@ class FakeSession implements EngineSession {
     this.emit({ type: 'controls', controls: this.controls() })
   }
 
-  /** 轮终的上下文重报（与真引擎的 agent_end 同一条：收尾也会动上下文）。 */
   private reportContextUsage(): void {
     this.emit({ type: 'contextUsage', usage: this.o.contextUsage() })
   }
@@ -627,7 +610,6 @@ class FakeSession implements EngineSession {
   }
 }
 
-/** 审批未通过：用一个小函数表达，避免把“拒绝”混进工具实现的成功路径 */
 function isBusyOrNot(approved: boolean): boolean {
   return !approved
 }
@@ -651,11 +633,10 @@ export function createFakeEngine(opts: FakeEngineOptions = {}): FakeEngine {
   let capabilities: CapabilitiesValue = { computerUse: false, browserControl: false }
   let defaultModelRef: ModelRef | null = null
   let defaultThinkingLevel: string | null = null
-  /** 「生成标题用的模型」这一格（omp 知识 #17 的设置项）；null = 跟随对话自己的模型 */
+  /** 「生成标题用的模型」（omp 知识 #17 的设置项）；null = 跟随对话自己的模型 */
   let titleModelRef: ModelRef | null = null
-  /** 当前设置的 Python 解释器（07 页 §13C 的 onReady 判据；PY-1 断言写入的那一格）。 */
+  /** 当前设置的 Python 解释器（PY-1 断言写入的那一格）。 */
   let pythonInterpreter: string | null = null
-  /** `setPythonInterpreter` 收到的每一次调用（含传 null 的解除），供断言。 */
   const pythonInterpreterCalls: (string | null)[] = []
 
   const engine: FakeEngine = {
@@ -663,11 +644,8 @@ export function createFakeEngine(opts: FakeEngineOptions = {}): FakeEngine {
     opened,
     pythonInterpreterCalls,
     /*
-     * 草稿控件表（方案 §04 的 draftControls）：只读，不开会话、不写设置。
-     *
-     * 与会话里那份同一条规则：可选模型来自目录（只取 enabled），思考档位按当前模型
-     * 的 thinkingLevels 给，姿态是 init.posture ?? 'auto-edit'。FakeEngine 的模型表
-     * 没有 reasoning 的档位梯子，所以档位用 opts 里给的那一组（缺省空表）。
+     * 草稿控件表（方案 §04 的 draftControls）：只读，不开会话、不写设置。与会话里那份同一条规则：
+     * 可选模型来自目录（只取 enabled），思考档位按当前模型的 thinkingLevels 给，姿态是 init.posture ?? 'auto-edit'。
      */
     async draftControls(init) {
       const current = init?.model ?? defaultModelRef
@@ -723,8 +701,8 @@ export function createFakeEngine(opts: FakeEngineOptions = {}): FakeEngine {
         ...(opts.autoTitle === undefined ? {} : { autoTitle: opts.autoTitle }),
       })
       /*
-       * 与 OmpEngine 同一条登记规矩（R-05 §3.1）：会话池释放一条会话直接调它的 dispose()，
-       * 不经过引擎 —— 这里不包一层，替身自己也会只增不减，测试就可能替真实现遮错。
+       * 与 OmpEngine 同一条登记规矩（R-05 §3.1）：会话池释放一条会话直接调它的 dispose()，不经过引擎 ——
+       * 这里不包一层，替身自己也会只增不减，测试就可能替真实现遮错。
        */
       sessions.add(session)
       const original = session.dispose.bind(session)
@@ -791,7 +769,7 @@ export function createFakeEngine(opts: FakeEngineOptions = {}): FakeEngine {
         defaultThinkingLevel = level
         change.fire()
       },
-      /* 标题模型：null = 跟随对话自己的模型（与真引擎同一语义） */
+      /* 标题模型：null = 跟随对话自己的模型 */
       async titleModel() {
         return titleModelRef
       },

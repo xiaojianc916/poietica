@@ -1,6 +1,5 @@
 import type { Event } from '@poietica/foundation'
 
-/** 主进程侧最小可用的 Notification 接口（注入 Electron 的实现，测试用假对象） */
 export interface NotificationPort {
   on(event: 'click', listener: () => void): unknown
   show(): void

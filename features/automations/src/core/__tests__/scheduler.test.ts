@@ -57,7 +57,6 @@ describe('scheduler', () => {
     const automation = service.create(draftOf())
     expect(automation.nextRunAt).not.toBeNull()
 
-    /* 第一轮到期：启动一次运行 */
     clock.advance(MINUTE)
     await scheduler.tick()
     expect(repo.runs(automation.id, 10).length).toBe(1)
@@ -65,7 +64,7 @@ describe('scheduler', () => {
     const first = repo.get(automation.id)!
     expect(first.nextRunAt).not.toBeNull()
 
-    /* 第二轮到期：上一个运行还没结束（stub 会话不会自己 settle），不得再启动 —— 但要留一条「跳过」 */
+    /* 上一个运行还没结束（stub 会话不会自己 settle）：不得再启动，但要留一条「跳过」。 */
     clock.advance(MINUTE)
     await scheduler.tick()
     const runs = repo.runs(automation.id, 10)
@@ -100,7 +99,6 @@ describe('scheduler', () => {
     await service.runNow(automation.id)
     expect(repo.openRun(automation.id)).not.toBeNull()
 
-    /* 模拟上次退出：DB 里留着 running 记录 */
     scheduler.repairOnStartup()
     const runs = repo.runs(automation.id, 10)
     expect(runs[0]!.outcome).toBe('failed')
@@ -108,7 +106,6 @@ describe('scheduler', () => {
     expect(runs[0]!.settledAt).toBe(clock.now())
     expect(repo.openRun(automation.id)).toBeNull()
 
-    /* 修复之后再到期能正常跑起来 */
     clock.advance(MINUTE)
     await scheduler.tick()
     expect(conversation.created.length).toBe(2)

@@ -9,13 +9,12 @@ import { threadOf } from './repository'
 import type { TimelineHub } from './timeline-hub'
 import { deriveTitle, normalizeTitle, PENDING_TITLE } from './title'
 
-/** 附件引用的 ownerKey 拼法（07 页 §4C 的约定：'<功能 id>:<实体>:<id>'） */
+/** 附件引用的 ownerKey 拼法：'<功能 id>:<实体>:<id>' */
 export const OWNER_KEY = (threadId: string): string => `conversation:thread:${threadId}`
 
 /**
- * 线程服务（07 页 §5C 的 `thread-service.ts`）：线程 CRUD、fork、export、删除，
- * 以及工作区移除的级联清理。会话池的接线（describe / onOpened / cleanup）也在这里 ——
- * 「一条线程对应哪个 omp 会话」是线程自己的事实。
+ * 线程 CRUD、fork、export、删除，以及工作区移除的级联清理。会话池的接线
+ * （describe / onOpened / cleanup）也在这里 —— 「一条线程对应哪个 omp 会话」是线程自己的事实。
  */
 export interface ThreadServiceDeps {
   readonly repo: ThreadsRepository
@@ -67,7 +66,7 @@ export class ThreadService {
     return this.d.repo.list(q).map((row) => this.threadOf(row))
   }
 
-  // ── 线程 CRUD（07 页 §5C 服务行为表）──────────────────────────────────────
+  // ── 线程 CRUD（服务行为表）───────────────────────────────────────────────
   create(init: {
     workspaceId: string
     posture?: Posture | undefined
@@ -133,11 +132,10 @@ export class ThreadService {
   }
 
   /**
-   * 第一条消息落地时按正文起标题（07 页 §5C；只从 `pending` 起一次）。
+   * 第一条消息落地时按正文起标题（只从 `pending` 起一次）。
    *
-   * 原先这段住在 TurnService 的 submit 里；「Core 即时回显」之后，起标题的时机是
-   * **一条 `turn` 提交被存下**（提交可能在后台排队很久），所以挪到线程自己的服务上，
-   * 由提交服务调用。
+   * 起标题的时机是**一条 `turn` 提交被存下**（提交可能在后台排队很久），所以住在提交服务
+   * 调用的这里，而不是 TurnService 的 submit 里。
    */
   autoTitle(threadId: string, text: string): void {
     const row = this.d.repo.get(threadId)
@@ -172,7 +170,7 @@ export class ThreadService {
     this.emitUpdated({ ...row, title: next, titleSource: 'auto', updatedAt: now })
   }
 
-  /** 会话池问路：这一条线程的 cwd、会话文件、姿态、初始模型（07 页 §5C 的 describe） */
+  /** 会话池问路：这一条线程的 cwd、会话文件、姿态、初始模型（describe） */
   describe(threadId: string): import('@poietica/engine').OpenSessionSpec {
     const row = this.requireRow(threadId)
     const ws = this.d.workspaces.requireUsable(row.workspaceId)
@@ -202,7 +200,7 @@ export class ThreadService {
     // 线程已有通道（会话被驱逐后又打开）→ 换 epoch，UI 整页重取
     if (this.d.hub.has(threadId, MAIN_AGENT_ID)) this.d.hub.resetThread(threadId)
     if (row.sessionFile !== session.sessionFile) {
-      // session_id 与 session_file 必须同时写（08 页 §5.2 的 CHECK）
+      // session_id 与 session_file 必须同时写（库里的 CHECK 约束）
       this.d.repo.update(threadId, { sessionId: session.sessionId, sessionFile: session.sessionFile })
       const next = { ...row, sessionId: session.sessionId, sessionFile: session.sessionFile }
       this.emitUpdated(next)
@@ -213,8 +211,8 @@ export class ThreadService {
    * 会话释放（空闲驱逐 / 关闭）后：丢掉该线程的补发历史，并把行再报一次，
    * 让 state 从 running 回到 idle（R-05 §3.2）。
    *
-   * 历史不能留：op 里可能有内联图片（base64 data URL）与长工具输出，会话释放后
-   * 这份缓存随线程活到进程结束。不动 epoch、不发 reset —— 那会立刻触发整读。
+   * 历史不能留：op 里可能有内联图片（base64 data URL）与长工具输出，会话释放后这份缓存会
+   * 随线程活到进程结束。不动 epoch、不发 reset —— 那会立刻触发整读。
    */
   onReleased(threadId: string): void {
     this.d.hub.dropHistory(threadId)

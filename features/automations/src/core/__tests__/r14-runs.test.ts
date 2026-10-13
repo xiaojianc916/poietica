@@ -12,11 +12,8 @@ import {
 import { MISSED_MESSAGE } from '../scheduler'
 import { buildCore, fullDraft } from './helpers'
 
-/*
- * 审查 R-14：运行与调度。
- *   S1 投给 agent 的那段话；S2–S4 续用对话；S5–S6 两条超时与等批准通知；S7 通知策略；
- *   S8 agent 汇报；S9 一次性任务；S10–S11 错过补跑；S12 失败不再让任务停摆。
- */
+/* R-14：S1 投给 agent 的那段话；S2–S4 续用对话；S5–S6 两条超时与等批准通知；S7 通知策略；S8 汇报；S9 一次性任务；
+ * S10–S11 错过补跑；S12 失败不再让任务停摆。 */
 
 const MINUTE = 60_000
 const POLL = 5_000

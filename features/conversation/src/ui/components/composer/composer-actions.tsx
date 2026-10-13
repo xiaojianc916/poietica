@@ -27,8 +27,6 @@ export function ComposerActions() {
   )
 }
 
-/* 目标控制身份由 goal/goal-control.ts 单点定义。 */
-
 export interface ComposerPaletteSource {
   readonly controls: readonly SessionConfigControl[]
   readonly onSelectControl: (controlId: string, value: string, input?: string) => void
@@ -77,10 +75,7 @@ function toggleRow(control: SessionConfigControl, onSelect: ComposerPaletteSourc
           }
         : {
             kind: 'run',
-            /*
-             * 草稿正文原样带上：开目标时它就是 objective。吞掉它，用户先打字再点「目标」
-             * 也会被判成「没有正文」（面板只把 run 的入参交到这里，见 composer-palette）。
-             */
+            /* 草稿正文原样带上：开目标时它就是 objective；吞掉它，用户先打字再点「目标」会被判成「没有正文」。 */
             run: (draft) => {
               onSelect(control.id, enabled ? 'off' : 'on', draft)
             },
@@ -217,7 +212,7 @@ export function ComposerChips({ controls, onSelect }: ComposerChipsProps) {
   const { configuration } = usePromptInputDraft()
   const { removeConfiguration } = usePromptInputActions()
 
-  /* 生效中的模式；目标进了模式就归灵动岛，这里不留它。 */
+  /* 目标进了模式就归灵动岛，这里不留它。 */
   const active = controls.filter(
     (control) => control.purpose === 'mode' && control.current === 'on' && control.id !== GOAL_CONTROL_ID,
   )

@@ -19,7 +19,6 @@ function validTimeZone(tz: string): boolean {
 
 const CRON_OPTIONS = { domAndDow: false, sloppyRanges: true } as const
 
-/** 与 legacy 相同的规则：不接受 '?'；秒字段可省略；最小粒度一分钟（秒字段必须恰好命中一个值） */
 function parse(expression: string, timeZone: string): Cron | ScheduleProblem {
   if (expression.includes('?')) return 'unreadable'
   let cron: Cron
@@ -63,12 +62,7 @@ export function preview(
   return { times, problem: null }
 }
 
-/**
- * 一份完整计划（周期 / 一次性 / 只手动）的下一次运行（审查 R-14）。
- *
- * 一次性计划的时间已经过去时：`next` 为 null，problem 为 in_past —— 由调用方决定它算不算问题
- * （新建 / 改时间时是错误；已经跑过的一次性任务只是「做完了」，见 service.recompute）。
- */
+/** 一次性计划的时间已过时 next 为 null、problem 为 in_past，由调用方决定它算不算问题。 */
 export function nextOf(schedule: Schedule, now: number): ScheduleResult {
   if (!validTimeZone(schedule.timeZone)) return { next: null, problem: 'time_zone' }
   if (schedule.cron !== null && schedule.at !== null) return { next: null, problem: 'conflict' }
@@ -77,7 +71,6 @@ export function nextOf(schedule: Schedule, now: number): ScheduleResult {
   return nextAfter(schedule.cron, schedule.timeZone, now)
 }
 
-/** 预览未来若干次：一次性计划最多一次 */
 export function previewOf(
   schedule: Schedule,
   now: number,

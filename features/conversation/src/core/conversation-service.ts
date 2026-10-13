@@ -2,7 +2,7 @@ import { createId } from '@poietica/foundation'
 import type { ConversationService } from '../core-api'
 import type { ConversationCore } from './conversation'
 
-/** core-api 的 ConversationService 只是组合 thread-service 与 turn-service，不写新逻辑（07 页 §5C） */
+/** core-api 的 ConversationService 只是组合 thread-service 与 turn-service，不写新逻辑 */
 export function conversationService(core: ConversationCore): ConversationService {
   return {
     createThread(init) {
@@ -18,9 +18,9 @@ export function conversationService(core: ConversationCore): ConversationService
     },
     async submit(input) {
       /*
-       * 提交号在这里现铸：契约的 `clientTurnId` 是 `min(1)`（方案第 3 节），而 Core 内部
-       * 调用方（automations 等）不关心这个号 —— 原来是空串，strict 校验会当场拒掉，
-       * 整条提交与自动起标题都跟着失败（真实故障：定时任务线程标题/提交都被判不合契约）。
+       * 提交号在这里现铸：Core 内部的调用方（automations 等）不关心这个号，以前交空串，
+       * 而契约的 `clientTurnId` 是 `min(1)` —— strict 校验当场拒掉，提交与自动起标题跟着
+       * 全失败（真实故障：定时任务线程的标题与提交都被判不合契约）。
        */
       await core.turns.submit({
         threadId: input.threadId,

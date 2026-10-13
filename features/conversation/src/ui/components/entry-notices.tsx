@@ -2,13 +2,7 @@ import { builtinPoints, type EntryNoticeItem, useContributions } from '@poietica
 import type { ReactElement, ReactNode } from 'react'
 import './entry-notices.css'
 
-/*
- * 入口提示的宿主：把 builtinPoints.entryNotices 上的贡献画成一列，交给新对话界面。
- *
- * 与外壳的 OverlayHost（workbench 的 parts/overlays.tsx）同一形制：useVisible 是个 Hook，
- * 只能在组件里调，所以每条贡献包一层。外壳那一份住在 workbench，这一份住在 conversation，
- * 因为落点是入口版心而不是浮层。
- */
+/* useVisible 是 Hook，只能在组件里调，所以每条贡献包一层；这份宿主住在 conversation 而非 workbench，因为落点是入口版心而不是浮层。 */
 
 function NoticeHost({ item }: { readonly item: EntryNoticeItem }): ReactNode {
   const visible = item.useVisible()

@@ -6,8 +6,6 @@ import { askQuestionsOf, askResultOf } from '../questions'
 /*
  * omp 的 ask 题组 ↔ 产品题组：形状折叠与答复翻译的自检。
  *
- * 迁移自 legacy questions.test.ts（题组与审批那两部分）与 answer-parity.test.ts，
- * 断言意图一条不删，只把输入改成新接口（12 页 §12.3 的去向表）。
  * 断言的形状取自上游源码：请求是 tools/ask.ts:770-784 的 ExtensionAskDialogQuestion；
  * 答复是 pi-tui/overlays/ask-dialog 的 results（options / selectedOptions 都是标签）。
  *
@@ -168,7 +166,7 @@ describe('答复翻译', () => {
 /*
  * 一条答复的两个半边必须对得上：产品序列化出去的那份，正是这里读进来折成上游 results 的那份。
  * 这条缝是最容易错的地方 —— 两侧各自单测全绿，接起来却发现号对不上。
- * 下面几份载荷是有意写死的 JSON 字面量（legacy answer-parity 的意图：不信构造器，只信线上那份文本）。
+ * 下面几份载荷是有意写死的 JSON 字面量：不信构造器，只信线上那份文本。
  */
 const ASKED = askQuestionsOf([
   { id: 'q0', question: '选一个', options: [{ label: '甲' }, { label: '乙' }], multi: false },

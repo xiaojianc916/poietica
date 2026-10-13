@@ -11,13 +11,7 @@ import {
   type WebContentsViewLike,
 } from '../tabs'
 
-/*
- * 标签与视图的自检。真 Chromium 不参与：ViewHost 是注入面，假视图记下 setBounds/setVisible
- * 的每一次调用、webContents 的 on 真的把回调存起来 —— 「谁可见、摆在哪儿、关掉之后落到
- * 哪一页」本来就与内核无关（这一组断言**迁移自** legacy host.test.ts 的对应几组）。
- *
- * 时间也注入：16ms 合批要能被确定地推进（fakeClock.advance(16)），否则断言只能靠等。
- */
+/* 标签与视图的自检：真 Chromium 不参与，ViewHost 是注入面（假视图记下 setBounds/setVisible 的每一次调用）；时间也注入，16ms 合批能被确定地推进。 */
 
 type Listener = (...args: readonly unknown[]) => void
 
@@ -44,7 +38,6 @@ function fakeContents(): FakeContents {
   const closed = { count: 0 }
   const back = { count: 0 }
   const forward = { count: 0 }
-  /* 缩放归内核：这里照内核的三种调用记一份，好让「一格一档」可被断言。 */
   const zoom = { mode: null as 'isolated' | 'proportional' | null, level: 0 }
   let url = ''
   let loading = false
@@ -83,7 +76,6 @@ function fakeContents(): FakeContents {
     setZoomMode(mode) {
       zoom.mode = mode
     },
-    /* 节流归 relay 管（B-03），标签这一层只要求视图有这个口子。 */
     setBackgroundThrottling: () => undefined,
     executeJavaScriptInIsolatedWorld(_world, scripts) {
       injected.push(...scripts.map((script) => script.code))
@@ -91,7 +83,6 @@ function fakeContents(): FakeContents {
       return Promise.resolve(undefined)
     },
     navigationHistory: {
-      // 内核的导航历史是「能不能退」在前、「退」在后：桩照这个顺序记账，退到头就不再执行。
       canGoBack: () => back.count === 0,
       canGoForward: () => forward.count === 0,
       goBack: () => {
@@ -278,11 +269,7 @@ describe('摆放与可见性（迁移自 legacy host.test.ts）', () => {
     expect(visibleViews(h)).toHaveLength(0)
   })
 
-  /*
-   * agent 经 CDP 导航（relay 那条线）不经过宿主的命令面：地址由内核报回来的 did-navigate
-   * 落账。那张标签在导航前是空白的，不占面板；落账之后必须当场被摆上 —— 只 publish 不
-   * layout 的写法会让画面停在隐藏状态：地址、标题都对，就是没内容。
-   */
+  /* agent 经 CDP 导航不经过宿主的命令面，地址由 did-navigate 落账：空白标签落账之后必须当场被摆上 —— 只 publish 不 layout 会让画面停在隐藏状态（地址、标题都对，就是没内容）。 */
   test('CDP 导航落账：空白标签当场摆上；退回空白页再收走', () => {
     h.tabs.setBounds({ x: 10, y: 20, width: 300, height: 200 })
     h.tabs.setVisible(true)
@@ -304,17 +291,13 @@ describe('摆放与可见性（迁移自 legacy host.test.ts）', () => {
     expect(visibleViews(h)).toHaveLength(0)
   })
 
-  /*
-   * 面板拖动是每帧一次的通报（viewport.ts），逐帧把同一个可见性重复下发给每个标签是白付的：
-   * 实测 5 个标签 60 帧 = 300 次。这里钉住「没翻转就不叫内核」，同时钉住真的翻转时一次都没漏。
-   */
+  /* 实测 5 个标签 60 帧会重复下发 300 次同一可见性，白付。 */
   test('可见性没翻转就不叫内核；翻转了就照旧下发', () => {
     h.tabs.setVisible(true)
     h.tabs.openTab('https://a.example/')
 
     const only = h.created[0] as FakeWebContentsView
 
-    // 建视图时先隐一次，挂上来由 layout 亮一次 —— 这就是开一个标签的两笔账。
     expect(only.visible).toEqual([false, true])
 
     for (let frame = 0; frame < 60; frame += 1) {
@@ -362,13 +345,8 @@ describe('摆放与可见性（迁移自 legacy host.test.ts）', () => {
   })
 })
 
-/*
- * B-02：relay 可以附着任何一张标签，而被附着的标签未必是面板正在显示的那张 —— 非活动
- * 标签、或面板从没打开过时，页面会按 1×1 排版、截图 1×1、按坐标的点击落空。
- *
- * 所以摆放改成「每张标签都摆，只是可见性只给目标那张」：当前显示的那张用面板矩形，
- * 其余的用最近一次像样的面板矩形，都没有时用常见桌面视口。
- */
+/* B-02：relay 可以附着任何一张标签，而被附着的未必是面板正在显示的那张 —— 非活动标签会按 1×1 排版、截图 1×1、按坐标的点击落空。
+ * 所以摆放改成「每张标签都摆，只是可见性只给目标那张」：其余用最近一次像样的面板矩形，都没有时用常见桌面视口。 */
 describe('所有标签都有真实尺寸（B-02）', () => {
   const boundsOf = (view: FakeWebContentsView): RectangleLike | undefined => view.bounds.at(-1)
 
@@ -385,7 +363,6 @@ describe('所有标签都有真实尺寸（B-02）', () => {
     h.tabs.openTab('https://a.example/')
     h.tabs.openTab('https://b.example/')
 
-    /* 后开的那张是活动的（贴着面板矩形），先前那张退到后台 —— 它也得有真实矩形。 */
     expect(boundsOf(h.created[0] as FakeWebContentsView)).toEqual({ x: 0, y: 0, width: 1280, height: 800 })
   })
 
@@ -395,7 +372,6 @@ describe('所有标签都有真实尺寸（B-02）', () => {
     h.tabs.openTab('https://a.example/')
     h.tabs.openTab('https://b.example/')
 
-    // 两张都摆了：活动那张贴着面板，另一张也拿着同一个矩形（只是不画出来）。
     expect(boundsOf(h.created[0] as FakeWebContentsView)).toEqual({ x: 10, y: 20, width: 800, height: 600 })
     expect(boundsOf(h.created[1] as FakeWebContentsView)).toEqual({ x: 10, y: 20, width: 800, height: 600 })
 
@@ -410,7 +386,7 @@ describe('所有标签都有真实尺寸（B-02）', () => {
     h.tabs.openTab('https://a.example/')
     h.tabs.openTab('https://b.example/')
 
-    /* 面板收起时宿主报的是 0×0 一类的矩形：它不能拿去给后台标签排版。 */
+    /* 面板收起时宿主报的是 0×0 一类的矩形，不能拿去给后台标签排版。 */
     h.tabs.setBounds({ x: 0, y: 0, width: 0, height: 0 })
     h.tabs.setVisible(false)
 
@@ -430,7 +406,6 @@ describe('所有标签都有真实尺寸（B-02）', () => {
     const before = only.bounds.length
 
     for (let frame = 0; frame < 60; frame += 1) {
-      /* 面板拖动：每帧一次通报，值一模一样。 */
       h.tabs.setBounds({ x: 0, y: 0, width: 1280, height: 800 })
     }
 
@@ -494,7 +469,6 @@ describe('BR-10: 关标签与最近关闭', () => {
 
     const state = h.tabs.state()
 
-    // 旧标签已经关掉了，「重开」只能是新开一张：id 不复用，环里那一格被取走。
     expect(state.tabs).toHaveLength(1)
     expect(state.tabs[0]?.id).toBe(2)
     expect(state.tabs[0]?.url).toBe('https://a.example/')
@@ -529,7 +503,6 @@ describe('状态形状与合批', () => {
   test('变化按 16ms 合批，同向重复事件不再发一次状态', () => {
     h.tabs.openTab('https://a.example/')
 
-    // onState 是 16ms 合批的：开标签这一笔要推进时钟才送出来。
     expect(h.states).toHaveLength(0)
     h.clock.advance(16)
     expect(h.states).toHaveLength(1)
@@ -537,7 +510,6 @@ describe('状态形状与合批', () => {
     const before = h.states.length
     const only = lastView(h)
 
-    // openTab 已经把它记成装载中：两次同向的 did-start-loading 都不是变化。
     only.webContents.emit('did-start-loading')
     only.webContents.emit('did-start-loading')
     h.clock.advance(16)
@@ -545,7 +517,6 @@ describe('状态形状与合批', () => {
     expect(h.states.length).toBe(before)
     expect(h.tabs.state().tabs[0]?.loading).toBe(true)
 
-    // 反向那一次才是变化：批里照样只有最后一帧被送出。
     only.webContents.emit('did-stop-loading')
     h.clock.advance(16)
 
@@ -576,7 +547,6 @@ describe('导航与事件', () => {
   test('裸主机名补 https，本地地址走 http，搜索词被拒', () => {
     expect(h.tabs.openTab('example.com')).toBe(1)
     expect(h.tabs.openTab('localhost:5173')).toBe(2)
-    // 搜索词不是地址：被拒的这一次根本不建标签（与 legacy 的 host 同一条）。
     expect(h.tabs.openTab('两个 词')).toBeNull()
 
     expect(h.tabs.state().tabs).toHaveLength(2)
@@ -680,7 +650,6 @@ describe('导航与事件', () => {
     h.tabs.back(1)
     h.tabs.forward(1)
 
-    // 退过一次之后 canGoBack 已经为假，第二次 back 不该再落到内核上。
     expect(h.created[0]?.webContents.navigationHistory.canGoBack()).toBe(false)
     expect(h.tabs.state().tabs[0]?.canGoBack).toBe(false)
   })

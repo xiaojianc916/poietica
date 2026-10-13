@@ -1,8 +1,8 @@
 /*
  * 工具条浮层族共用的那张脸。
  *
- * 边与面读菜单那一对（--cp-menu-edge / --cp-menu-face），与权限弹窗同源：同一个输入
- * 卡上打开的弹窗只有一种面色。几何（圆角、内边距）仍是它自己的。
+ * 边与面读菜单那一对（--cp-menu-edge / --cp-menu-face），与权限弹窗同源：同一个输入卡上打开的
+ * 弹窗只有一种面色。几何（圆角、内边距）仍是它自己的。
  */
 .assistant-menu-surface {
   border: var(--ui-hairline) solid var(--cp-menu-edge);

@@ -2,9 +2,8 @@ import { watch } from 'node:fs'
 import { type Clock, type Disposable, systemClock, toDisposable } from '@poietica/foundation'
 
 /**
- * 某个相对路径（相对仓库根目录）的变化是否值得刷新 git 状态。
- * .git 目录内只关心 HEAD、index、packed-refs、MERGE_HEAD 与 refs/**（对象库、日志、锁文件的变化太频繁且无意义）；
- * 任意层级的 node_modules 忽略。
+ * 某个相对路径（相对仓库根目录）的变化是否值得刷新 git 状态。.git 目录内只关心 HEAD、index、
+ * packed-refs、MERGE_HEAD 与 refs/**（对象库、日志、锁文件的变化太频繁且无意义）；任意层级的 node_modules 忽略。
  */
 export function isNoteworthy(relativePath: string): boolean {
   const p = relativePath.replace(/\\/g, '/')
@@ -26,8 +25,7 @@ export function isNoteworthy(relativePath: string): boolean {
 /**
  * 递归监听仓库目录（Windows 原生支持 recursive），值得关注的变化在 debounceMs 静默后合并通知一次。
  * 目录被删除等错误交给 onError，之后监听停止（调用方可选择重新 watch）。
- */
-export function watchRepository(
+ */ export function watchRepository(
   root: string,
   onChange: () => void,
   o: { readonly debounceMs?: number; readonly clock?: Clock; readonly onError?: (error: Error) => void } = {},

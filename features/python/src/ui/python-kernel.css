@@ -1,9 +1,4 @@
-/*
- * 内置 Python 内核那一格的两件东西：行内的忙碌标记与不确定进度条。
- *
- * **逐字迁移**自 legacy `packages/settings/src/ui/python-kernel-settings.css`：类名与数值
- * 一个字未改。
- */
+/* 行内的忙碌标记与不确定进度条。**逐字迁移**自 legacy `python-kernel-settings.css`：类名与数值一个字未改。 */
 
 .python-kernel__busy {
   display: inline-flex;
@@ -26,10 +21,7 @@
   background: var(--settings-divider);
 }
 
-/*
- * 三分之一宽度的色块来回走：不写百分比，也不假装它走到了某一个位置。
- * 位移用 transform（合成层），避免每帧改布局。
- */
+/* 三分之一宽度的色块来回走：不写百分比，也不假装它走到了某一个位置。位移用 transform（合成层），避免每帧改布局。 */
 .python-kernel__progress-bar {
   inline-size: 33%;
   block-size: 100%;

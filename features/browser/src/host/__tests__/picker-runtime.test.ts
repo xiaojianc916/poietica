@@ -2,16 +2,8 @@ import { afterEach, describe, expect, test } from 'bun:test'
 import { PICKER_CALLBACK_HOST } from '../../contract/entities'
 import { pickerRuntime } from '../picker-runtime'
 
-/*
- * BR-9：注入脚本的字符串在 happy-dom 里真的跑一遍。
- *
- * 这一条测的不是「函数能不能调用」（那是源码层的），而是**注入那一刻的那份字符串**：
- * 宿主用的是 `pickerRuntime.toString()`，所以自包含是硬要求 —— 函数体里引用任何外部
- * 变量，`new Function` 出来的副本当场就抛 ReferenceError。
- *
- * 覆盖层出现的判据是宿主给的那条 DOM 契约（宿主元素带 data-poietica-element-picker），
- * 取消的判据是 `location.assign` 收到的地址 —— happy-dom 不让真的导航，把它换成记账。
- */
+/* BR-9：注入那一刻的**那份字符串**在 happy-dom 里真跑一遍。宿主用的是 pickerRuntime.toString()，所以自包含是硬要求 ——
+ * 函数体里引用任何外部变量，new Function 出来的副本当场就抛 ReferenceError。判据是宿主给的 DOM 契约与 location.assign 收到的地址。 */
 
 const CALLBACK = `https://${PICKER_CALLBACK_HOST}/`
 
@@ -21,7 +13,6 @@ interface Assigned {
 
 interface Harness {
   readonly assigned: Assigned[]
-  /** happy-dom 不让真的导航：把 location 换成记账的那一个喂给脚本（新 Function 的形参遮蔽全局）。 */
   readonly location: { assign(url: string): void }
   start(): void
 }
@@ -42,7 +33,6 @@ function harness(): Harness {
       const run = new Function(
         'args',
         'location',
-        // 注入时宿主写的是 `(${script})(${JSON.stringify(args)})`：这里照抄那一句。
         `"use strict"; const window = globalThis; return (${source})(args);`,
       ) as (args: unknown, location: unknown) => void
 
@@ -51,7 +41,6 @@ function harness(): Harness {
   }
 }
 
-/** happy-dom 里的 document 是全局的：每条用例前后都把注入脚本留下的东西清掉。 */
 function clear(): void {
   for (const node of document.querySelectorAll('[data-poietica-element-picker]')) {
     node.remove()

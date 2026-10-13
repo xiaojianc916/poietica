@@ -43,11 +43,8 @@ import {
 import { astGrepView, findView, globView, grepView, lspView } from './views/search'
 
 /*
- * omp 工具调用的因地制宜视图：按工具名查标准答案，认不出的交回空视图由调用方兜底。
- * 产出优先于入参（edit/read 的真实内容在产出 details 里）；图片在出口统一追加。
- *
- * 小工具在 view-kit，各工具族的视图按 files / search / eval / agent / integrations 分家，
- * 这里只留注册表与出口。
+ * omp 工具调用的因地制宜视图：按工具名查标准答案，认不出的交回空视图由调用方兜底。产出优先于入参（edit/read 的真实内容在产出 details 里）。
+ * 小工具在 view-kit，各工具族的视图按 files / search / eval / agent / integrations 分家，这里只留注册表与出口。
  */
 const HANDLERS: Readonly<Record<string, Handler>> = {
   apply_patch: editView,
@@ -121,19 +118,13 @@ const EMPTY: OmpToolView = {
 }
 
 /*
- * 折叠行那句话认谁。默认用 omp 自带的 intent（提示里叫 "concise intent"，由模型写，
- * 比按参数猜得准）；两类压过它 —— 与 omp 官方优先级（modes/acp 的 buildToolTitle）
- * 一致：命令与脚本那一行该是命令本身，模型的概括词盖不过它；没写 intent 的老会话
- * 退回按参数算的那句。其余工具一律听 intent，按路径或模式拼的那句只是它的近似。
+ * 默认用 omp 自带的 intent（由模型写，比按参数猜得准）；两类压过它 —— 与 omp 官方优先级一致：命令与脚本那一行该是命令本身。
+ * 没写 intent 的老会话退回按参数算的那句。
  */
 const INTENT_OVERRIDDEN: ReadonlySet<string> = new Set(['bash', 'eval', 'js', 'python', 'notebook'])
 
 /*
- * 这次碰的是哪种内部资源。
- *
- * 首选 omp 自己盖的章（details.meta.source.type === 'internal'，由 read 的 sourceInternal 写下），
- * 它是跑完之后的事实；调用还在飞的时候没有产出，退回入参 path 上的 scheme。
- *
+ * 首选 omp 自己盖的章（details.meta.source.type === 'internal'），它是跑完之后的事实；调用还在飞的时候没有产出，退回入参 path 上的 scheme。
  * 只看传输工具：别的工具名字已经说清楚了，不该被地址改写。
  */
 function schemeOf(tool: string, input: unknown, output: unknown): string {
@@ -152,7 +143,7 @@ function schemeOf(tool: string, input: unknown, output: unknown): string {
   return schemeFrom(pick(input, 'path'))
 }
 
-/** 地址上那个 scheme；不是内部 URL（http、盘符路径）就是空串。 */
+/** 不是内部 URL（http、盘符路径）就是空串。 */
 function schemeFrom(value: string | undefined): string {
   if (value === undefined) {
     return ''
@@ -207,5 +198,5 @@ export function ompToolView(
   }
 }
 
-// 出口登记给 view-kit：writeView 的 xd:// 委派要经它回调进来（见 view-kit 的 registerViewLookup）。
+// 出口登记给 view-kit：writeView 的 xd:// 委派要经它回调进来。
 registerViewLookup((tool, input, output) => ompToolView(tool, input, output))

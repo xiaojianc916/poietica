@@ -15,18 +15,14 @@ import {
 import { SCENARIO_IDS, STREAMS, type Stream } from './streams'
 
 /*
- * 思考行的真实布局检查（§8.4，规格 C7）。
+ * 思考行的真实布局检查：`bun run check:ticker [场景 id]`
  *
- *   bun run check:ticker
- *
- * 它要真实的 GPU 与窗口，所以**不**放进 `bun run all`。改 timeline/rolling-line*、
- * ticker-*、roll-scheduler*、flow-row.css 时必须跑一次 —— 那几条要钉的性质（最新的字有没有
- * 被裁、放得下时句首有没有被吃）在 happy-dom 里量不出来，而 v1 就栽在这一条上。
+ * 要真实的 GPU 与窗口，所以不放进 `bun run all`。改 timeline/rolling-line*、ticker-*、
+ * roll-scheduler*、flow-row.css 时必须跑一次 —— 要钉的两条性质（最新的字有没有被裁、放得下时
+ * 句首有没有被吃）在 happy-dom 里量不出来，v1 就栽在这一条上。
  *
  * 流程：Bun.build 把 harness 打成一个 html → electron 逐场景跑、逐帧采样、存三张截图 →
  * 这里用纯函数算指标、比阈值。退出码 0 全过 / 1 有不合格 / 2 环境不合格。
- *
- * 调参时可以只跑一个场景：`bun run check:ticker <id>`（不带参数就是全跑）。
  */
 
 const ROOT = path.resolve(import.meta.dir, '../../..')
@@ -48,7 +44,6 @@ function thresholdsFor(stream: Stream): Thresholds {
   return DEFAULT_THRESHOLDS
 }
 
-/** 把 harness 打成一个 html（含样式），放进一个临时目录。 */
 async function buildPage(): Promise<string> {
   const dir = mkdtempSync(path.join(tmpdir(), 'poietica-ticker-'))
   const built = await Bun.build({
@@ -95,7 +90,6 @@ async function buildPage(): Promise<string> {
   return path.join(dir, 'index.html')
 }
 
-/** 跑一个场景（一个 electron 进程），把那一行 JSON 收回来。 */
 function runScenario(html: string, stream: Stream, outDir: string): Promise<ScenarioResult> {
   const scenario = {
     id: stream.id,
@@ -141,7 +135,7 @@ function report(id: string, metrics: Metrics, failures: readonly string[], fps: 
 
   console.log(failures.length === 0 ? `✔ ${line}` : `✘ ${line}`)
 
-  /* 没有阈值的项只报数：极快档的顿挫是 §10 记下的已知局限，不是这一版要修的缺陷。 */
+  /* 没有阈值的项只报数：极快档的顿挫是已知局限，不是这一版要修的缺陷。 */
   if (thresholds.stallFrac === null) console.log('   - 应动未动与 sJ90 只记录、不判定（极快 / 少动效档，见 §10）')
 
   for (const failure of failures) console.log(`   - ${failure}`)
@@ -150,7 +144,7 @@ function report(id: string, metrics: Metrics, failures: readonly string[], fps: 
 const outDir = path.join(ROOT, '.ticker-layout')
 const only = process.argv[2]
 
-/* 场景名写错时不许「一场没跑」地绿着退出：那种检查看着过，其实什么都没查。 */
+/* 场景名写错时不许「一场没跑」地绿着退出。 */
 if (only !== undefined && !STREAMS.some((stream) => stream.id === only)) {
   console.error(`[ticker-layout] 没有这个场景：${only}（可用的：${SCENARIO_IDS.join(' / ')}）`)
   process.exit(1)
@@ -176,7 +170,6 @@ for (const stream of STREAMS.filter((candidate) => only === undefined || candida
   const thresholds = thresholdsFor(stream)
   const failures = judge(metrics, thresholds)
 
-  /* 原始采样留档：指标坏了要能回看是采样的问题还是判定的问题。 */
   writeFileSync(
     path.join(outDir, `${stream.id}.json`),
     JSON.stringify({ fps: result.fps, metrics, samples: result.samples, arrivals: result.arrivals }),

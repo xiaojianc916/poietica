@@ -9,19 +9,10 @@ import { automationsErrors } from '../contract/errors'
 import type { AutomationPatch, AutomationsService } from './service'
 import { isoIn, parseIsoWithOffset } from './time'
 
-/*
- * 定时任务的 agent 工具（审查 R-15）。
- *
- * 一共八张：automation_options / list / runs / create / update / run / delete / report。
- * 设计要点：
- *   - 时间一律是带时差的 ISO 8601，时区默认用户本机时区 —— 模型不用猜；
- *   - 工作区、模型、思考强度都能选，可选值由 automation_options 一次给全，传错了报中文错误并列出可选值；
- *   - 结果是 JSON 文本：同一份既给模型读，也给对话里的工具卡片画（automation-tool-card.tsx）；
- *   - 定时任务**运行中**（这条对话上有开着的运行）只许 options / list / runs / report：
- *     不许建、改、删、手动运行任务，防止任务自我繁殖或改写自己。
- *
- * 参数表单独命名（而不是内联进 tools.register）是为了让 execute 的 params 有确切类型。
- */
+/* 定时任务的 agent 工具，八张：options / list / runs / create / update / run / delete / report。时间一律是带时差的
+ * ISO 8601，时区默认本机时区；可选值由 automation_options 一次给全，传错报中文错误并列出可选值；结果是 JSON 文本，
+ * 同一份既给模型读也给对话里的工具卡片画；任务**运行中**只许 options / list / runs / report，不许建改删与手动运行，
+ * 防止任务自我繁殖或改写自己。 */
 
 const POSTURE_TEXT: Readonly<Record<Posture, string>> = {
   ask: 'ask：每次改文件、跑命令都要用户批准（无人值守时会卡住等批准）',
@@ -170,8 +161,6 @@ export function registerAgentTools(d: {
 }): void {
   const { conversation, engine, service, tools, workspaces } = d
 
-  /* ── 读法：交给模型、也交给卡片的那几格 ─────────────────────────────── */
-
   const iso = (at: number | null, timeZone: string): string | null => (at === null ? null : isoIn(at, timeZone))
 
   const scheduleView = (s: Schedule) =>
@@ -218,13 +207,10 @@ export function registerAgentTools(d: {
     lastRun: a.lastRun === null ? null : runView(a.lastRun, a.schedule.timeZone),
   })
 
-  /** 新建、修改之后多给接下来三次的运行时间：agent 拿它跟用户确认「下次是明早 9 点」 */
   const detailOf = async (a: Automation, sessionKey: string) => ({
     ...viewOf(a, sessionKey, await modelLabels()),
     upcoming: service.previewSchedule(a.schedule, 3).times.map((t) => isoIn(t, a.schedule.timeZone)),
   })
-
-  /* ── 写法：工具参数 → 契约草稿 ──────────────────────────────────────── */
 
   const scheduleOf = (p: ScheduleParam, timeZone: string): Schedule => {
     if (p.type === 'manual') return { cron: null, at: null, timeZone }
@@ -238,7 +224,6 @@ export function registerAgentTools(d: {
     return { cron: null, at, timeZone }
   }
 
-  /** 模型与思考强度只收可选表里有的：传错了把可选值列给模型，它下一次就能传对 */
   const assertModel = async (model: ModelRef | null, thinking: string | null): Promise<void> => {
     let controls: Controls | null = null
     if (model !== null) {
@@ -268,7 +253,6 @@ export function registerAgentTools(d: {
 
   const currentWorkspaceOf = (sessionKey: string): string | null => conversation.get(sessionKey)?.workspaceId ?? null
 
-  /** thread 参数 → 续用模式与续用哪条；'this' 要求任务就在这条对话的工作区里 */
   const threadOf = (
     thread: SettingsParams['thread'],
     sessionKey: string,
@@ -287,7 +271,6 @@ export function registerAgentTools(d: {
     return { threadMode: 'continue', threadId: sessionKey }
   }
 
-  /** 改计划或只改时区；都没给是 undefined（不改） */
   const scheduleUpdateOf = (params: z.output<typeof updateParams>, current: Automation): Schedule | undefined => {
     const timeZone = params.timeZone ?? current.schedule.timeZone
     if (params.schedule !== undefined) return scheduleOf(params.schedule, timeZone)
@@ -295,7 +278,6 @@ export function registerAgentTools(d: {
     return undefined
   }
 
-  /** automation_update 的参数 → 服务层 patch：只带给了的字段，并逐项校验（工作区、模型、计划、续用） */
   const patchOf = async (
     params: z.output<typeof updateParams>,
     current: Automation,
@@ -324,8 +306,6 @@ export function registerAgentTools(d: {
       catchUp: params.catchUp,
     }
   }
-
-  /* ── 工具 ──────────────────────────────────────────────────────────── */
 
   tools.register({
     name: 'automation_options',

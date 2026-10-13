@@ -24,7 +24,7 @@ export function defaultWindowState(): WindowState {
   return { bounds: { width: 1280, height: 800 }, maximized: false }
 }
 
-/** 纯函数：可见面积不足 100×100 时去掉 x/y（窗口居中），宽高保留 */
+/** 可见面积不足 100×100 时去掉 x/y（窗口居中），宽高保留。 */
 export function fitToDisplays(s: WindowState, workAreas: readonly Rect[]): WindowState {
   const { x, y, width, height } = s.bounds
   if (x === undefined || y === undefined) return { bounds: { width, height }, maximized: s.maximized }
@@ -38,14 +38,12 @@ export function fitToDisplays(s: WindowState, workAreas: readonly Rect[]): Windo
 
 export interface WindowStateStore {
   load(): Promise<WindowState>
-  /** 去抖 500ms 落盘 */
   save(s: WindowState): void
   flush(): Promise<void>
 }
 
 /**
- * 窗口位置存 <数据根>/window-state.json。读取用 zod 校验，失败用默认值（窗口居中）。
- * 08 页 §6.2：写入走 `createJsonDocument` 的 `saveDebounced`（500ms），退出时 `flush()`。
+ * 窗口位置存 <数据根>/window-state.json。读取用 zod 校验，失败用默认值（窗口居中）；写入走 `createJsonDocument` 的 `saveDebounced`。
  */
 export function createWindowStateStore(d: {
   file: string
@@ -64,11 +62,11 @@ export function createWindowStateStore(d: {
   return {
     async load() {
       const loaded = await doc.load()
-      // 显示器被拔掉后旧坐标可能落在屏幕外：这时只保留宽高，让窗口居中
+      // 显示器被拔掉后旧坐标可能落在屏幕外：只保留宽高，让窗口居中。
       return fitToDisplays(loaded, d.workAreas())
     },
     save(s) {
-      // 坐标已经过 fitToDisplays（save 的调用方给的是窗口当前值，必然可见）
+      // 坐标已经过 fitToDisplays（调用方给的是窗口当前值，必然可见）。
       doc.saveDebounced(s)
     },
     async flush() {

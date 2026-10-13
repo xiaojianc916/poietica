@@ -1,7 +1,7 @@
 import type { UsageSample } from '@poietica/engine'
 
 /**
- * 一条 assistant 消息的用量（12 页 §11.3，迁移自 legacy 的用量读取）。
+ * 一条 assistant 消息的用量。
  * 只处理 role 为 assistant、带 usage 的消息；全为 0 时返回 null，不发事件。
  */
 export function usageOf(

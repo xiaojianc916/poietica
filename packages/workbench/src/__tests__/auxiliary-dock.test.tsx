@@ -5,15 +5,8 @@ import { cleanup, fireEvent, render } from '@testing-library/react'
 import { Workbench } from '../workbench'
 
 /*
- * 右坞与主区右上角控件（legacy 的 auxiliary dock + main.controls）。
- *
- * 这一段是用户 2026-10-07 的两条报障：进入对话后右上角没有开关；右栏的样子与逻辑
- * 跟 legacy 不是一回事。用例钉住的是形状与语义：
- *   - mainControls 贡献按 order 落进栅格，data-slot 分主区 / 窗口两格；
- *   - 右坞空态画启动器（offer !== false 的面板），点一枚开一格；
- *   - 开了之后标签条取代启动器，点 × 关掉回到启动器；
- *   - 全屏按钮改的是 auxiliary.fullscreen，外壳跟着把 data-auxiliary-fullscreen 翻过去；
- *   - 坞只画当前归属（auxiliary.owner === activeOwner）的格。
+ * 右坞与主区右上角控件。用例钉住的是形状与语义：mainControls 按 order 落进栅格（data-slot 分主区 / 窗口两格）；
+ * 右坞空态画启动器、点一枚开一格、点 × 回到启动器；全屏翻 auxiliary.fullscreen；坞只画当前归属的格。
  */
 
 function testBridge(): WindowBridge {
@@ -56,7 +49,6 @@ async function mount(features: readonly UiFeature[] = []) {
   return kernel
 }
 
-/** 三枚 offer 面板（辅助对话 / 审查 / 终端）+ 一枚 offer:false 的（技能文档）。 */
 function panelsFeature(): UiFeature {
   return defineUiFeature({
     id: 'panels',
@@ -141,8 +133,8 @@ describe('右坞（启动器 / 标签条 / 全屏）', () => {
   })
 
   /*
-   * 走到启动器的真实路径：对话框那一枚辅助开关先把坞认领给这条对话（owner = threadId,
-   * activeOwner 由表面声明），坞开出来、里面一格都没有 —— 这时看到的就是启动器。
+   * 走到启动器的真实路径：辅助开关先把坞认领给这条对话（owner = threadId），
+   * 坞开出来但里面一格都没有 —— 这时看到的就是启动器。
    */
   test('点启动器一枚：开一格，标签条取代启动器', async () => {
     const kernel = await mount([panelsFeature()])
@@ -225,9 +217,8 @@ describe('右坞（启动器 / 标签条 / 全屏）', () => {
   })
 
   /*
-   * 归属语义（legacy auxiliaryThread === activeConversationId）：坞只画**当前前台**
-   * 那一份格清单。换一条对话（activeOwner 变了）面板立刻离场，格还留着 —— 切回来
-   * 原样还在，不会串门。
+   * 坞只画**当前前台**那一份格清单。换一条对话（activeOwner 变了）面板立刻离场，
+   * 格还留着 —— 切回来原样还在，不会串门。
    */
   test('换前台归属：面板离场但格保留，切回原归属原样还在', async () => {
     const kernel = await mount([panelsFeature()])

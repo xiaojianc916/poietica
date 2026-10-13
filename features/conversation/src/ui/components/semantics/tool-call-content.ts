@@ -1,6 +1,6 @@
 import type { ToolCallContent } from '../../agent/tool-call'
 
-// 协议信封 → 可显示片段的投影，无 React：读方是同样不认 React 的 file-diff 与 tool-call-facets。
+// 无 React：读方是同样不认 React 的 file-diff 与 tool-call-facets。
 
 export type ToolContentPart =
   | { readonly type: 'text'; readonly text: string }
@@ -28,7 +28,6 @@ const OPAQUE_LABELS: Record<string, string> = {
   audio: '一段音频',
 }
 
-// 带正文就当正文画，只有字节时退回链接。
 function resourcePart(resource: { readonly uri: string; readonly text?: string | undefined }): ToolContentPart {
   const text = resource.text
 

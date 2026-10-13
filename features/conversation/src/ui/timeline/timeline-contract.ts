@@ -66,18 +66,11 @@ export interface UserMessageItem extends TimelineEntry {
   readonly type: 'user_message'
   readonly text: string
   /**
-   * 这条用户消息对应的**提交号**（「Core 即时回显」方案）。
-   *
-   * 真实 turn 到达时带着它；界面拿它把 Core 的「提交行」换成真实的那一轮
-   * （同一 key、同一组件，DOM 原地更新）。历史回放里没有提交号的轮没有这一格。
+   * 真实 turn 到达时带着它，界面拿它把 Core 的「提交行」换成真实的那一轮（同一 key、同一组件，DOM 原地更新）。历史回放里没有提交号的轮没有这一格。
    */
   readonly clientTurnId?: string
   /**
-   * 这句话**没有被 agent 收到**（R-08-5）。
-   *
-   * 排过队 / 插过话的那些没有真实轮次可换（omp 的队列住进程内存里，Core 崩溃就没了），
-   * 所以它们在这里按「未送达」画成一个用户气泡 —— 正文还看得见，也能取回来重发。
-   * 正常走过的用户消息没有这一格。
+   * 排过队 / 插过话的那些没有真实轮次可换（omp 的队列住进程内存里，Core 崩溃就没了），所以按「未送达」画成一个用户气泡（R-08-5）。
    */
   readonly undelivered?: boolean
   readonly images?: readonly MessageImage[]
@@ -109,21 +102,13 @@ export interface ToolCallTimelineItem extends TimelineEntry {
   readonly type: 'tool_call'
   readonly toolCallId: string
   readonly title: string
-  /**
-   * 真正在跑的那个工具的名字。
-   *
-   * 平时与 title 同值；只有 `write xd://<工具>` 不同 —— 帧上是 write，跑的是被挂载的
-   * 那个设备，字形与身份都得按后者。title 留给「调用号退化成工具名」那条老路。
-   */
+  /** 平时与 title 同值，只有 `write xd://<工具>` 不同 —— 帧上是 write，跑的是被挂载的那个设备。 */
   readonly invokedTool: string
   /**
-   * 这次碰的是什么地址的内部资源（`skill` / `memory` / `xd` …），空串表示不是内部资源。
-   *
-   * read/write 是传输工具，名字回答不了「在读文件还是读技能」——地址回答得了。
+   * read/write 是传输工具，名字回答不了「在读文件还是读技能」—— 地址回答得了。空串表示不是内部资源。
    */
   readonly scheme: string
   readonly kind: ToolKind
-  // 由工具视图按这个工具自己的性子写全，不在这里按类别拼。
   readonly headline: string
   readonly subject: string
   readonly shape: ToolDrawerShape
@@ -168,20 +153,13 @@ export interface BackgroundTaskItem {
   readonly taskId: string
   readonly description: string
   readonly status: BackgroundTaskStatus
-  /** transcript 给的启动时刻（epoch ms）；运行中行内秒针用它推。 */
   readonly startedAt?: number
   readonly endedAt?: number
 }
 
 /*
- * 一个后台跑着的子代理。
- *
- * 与 `BackgroundTaskItem` **分开**是有意的：两者形状相近但说的是两件事 ——
- * 后台任务那一节画的是 shell/工具的作业（图标就是终端），子代理是「智能体」那一节
- * 的事。合成一个类型，把子代理塞进后台任务那一格就只是类型允许、语义错误。
- *
- * `agentId` 是 omp 给这个子代理签的号（`task` 工具的输出 id，形如 `Anna`、`Anna-2`），
- * 也就是 transcript 的 `TranscriptTask.agentId`。
+ * 与 `BackgroundTaskItem` **分开**是有意的：后台任务那一节画的是 shell/工具的作业（图标就是终端），子代理是「智能体」那一节的事 ——
+ * 合成一个类型，把子代理塞进后台任务那一格就只是类型允许、语义错误。`agentId` 是 omp 给这个子代理签的号（形如 `Anna`、`Anna-2`）。
  */
 export interface SubagentItem {
   readonly agentId: string
@@ -196,10 +174,7 @@ export interface PermissionItem extends TimelineEntry {
   readonly requestId: string
   readonly title: string
   /**
-   * 待批准的那件事本身（上游算好的 `Command: …` / 路径 / 新旧正文）。
-   *
-   * 「要不要允许 Bash」回答不了任何问题，人要知道的是**将跑哪条命令**。它是多行原文，
-   * 带子只截第一行（sayToolLine），所以这里单独一格而不是塞进 title 里当一句话。
+   * 「要不要允许 Bash」回答不了任何问题，人要知道的是**将跑哪条命令**；它是多行原文，带子只截第一行，所以单独一格。
    */
   readonly headline?: string
   readonly kind: ToolKind
@@ -212,18 +187,13 @@ export interface PermissionItem extends TimelineEntry {
 }
 
 /**
- * 待批准的计划（04 页 §3.12 第 5 支）。
- *
- * 与审批分开成一类，因为卡片上要画的是**正文**（Markdown），而审批那一格画的是「将要
- * 执行什么」。`resolution` 记终态：已批准 / 已要求修改（带那条意见）/ 已否决。
+ * 与审批分开成一类，因为卡片上要画的是**正文**（Markdown），而审批那一格画的是「将要执行什么」。`resolution` 记终态：已批准 / 已要求修改 / 已否决。
  */
 export interface PlanItem extends TimelineEntry {
   readonly type: 'plan'
   readonly requestId: string
   readonly title: string
-  /** 计划文件的 `local://` 路径：卡片画在副行上，人据此去读全文 */
   readonly planFilePath: string
-  /** 计划正文（Markdown）；读不到时是空串，卡片只显示标题 */
   readonly planMarkdown: string
   readonly resolution?:
     | { readonly decision: 'approved' }
@@ -271,7 +241,7 @@ export interface CompactionTimelineItem extends TimelineEntry {
 interface ErrorItem extends TimelineEntry {
   readonly type: 'error'
   readonly message: string
-  /** 画成哪一档：error = 红色感叹号；warning = 三角、安静色（R-09）。info 不进时间线 */
+  /** error = 红色感叹号；warning = 三角、安静色（R-09）。info 不进时间线。 */
   readonly level: 'error' | 'warning'
 }
 
@@ -288,7 +258,6 @@ export type TimelineItem =
   | CompactionTimelineItem
   | ErrorItem
 
-// 终态耗时以 transcript 的 durationMs 为准；时间戳只负责运行态推进。
 export interface TurnSpan {
   readonly turn: number
   readonly durationMs?: number
@@ -305,7 +274,6 @@ export interface TurnPage {
     readonly undoCount: number | null
     readonly forkUnavailableReason: string | null
   }
-  /** agent 自己报的这一轮 token 用量；缺席表示还没报或协议没给。 */
   readonly usage?: TranscriptUsage
   readonly items: readonly TimelineItem[]
 }
@@ -313,7 +281,6 @@ export interface TurnPage {
 export interface TimelineState {
   readonly status: RunStatus
   readonly backgroundTasks: readonly BackgroundTaskItem[]
-  /** 后台跑着的子代理；「智能体」那一节画它们。 */
   readonly subagents: readonly SubagentItem[]
   readonly sealed: readonly TurnPage[]
   readonly active: TurnPage

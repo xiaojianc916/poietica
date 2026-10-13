@@ -18,9 +18,7 @@ export interface WorkspacesServiceDeps {
   readonly scratchDir: string
   readonly clock: Clock
   readonly logger: Logger
-  /** → workspaces.changed 通知 */
   readonly emitChanged: () => void
-  /** → ctx.events.emit(workspaceRemoved, e) */
   readonly emitRemoved: (e: WorkspaceRemoved) => void
   readonly fs: {
     isDirectory(p: string): boolean
@@ -37,7 +35,7 @@ export interface WorkspacesApi extends WorkspacesService {
   touch(id: string): void
 }
 
-/** 盘符根目录的名字：path.basename('C:\\') 是空串，特殊处理为 'C:'（07 页 §3C 的坑 5） */
+/** path.basename('C:\\') 是空串，特殊处理为 'C:'。 */
 export function nameOfPath(p: string): string {
   const resolved = path.resolve(p)
   const base = path.basename(resolved)
@@ -89,7 +87,7 @@ export function createWorkspacesService(d: WorkspacesServiceDeps): WorkspacesApi
       const existing = d.repo.findByKey(key)
       const now = d.clock.now()
       if (existing !== null) {
-        // 已存在：更新 last_opened_at 并原样返回（07 页 §3C）
+        // 已存在：更新 last_opened_at 并原样返回。
         d.repo.update(existing.id, { lastOpenedAt: now })
         return toEntity({ ...existing, lastOpenedAt: now })
       }
@@ -128,7 +126,7 @@ export function createWorkspacesService(d: WorkspacesServiceDeps): WorkspacesApi
       const row = requireRow(id)
       const trimmed = name.trim()
       if (trimmed === '') {
-        /* 07 页 §3C：空名是**入参**不合法，不是「工作区不存在」 */
+        /* 空名是**入参**不合法，不是「工作区不存在」。 */
         throw new AppError(SystemErrorCode.invalidParams, '工作区名字不能为空')
       }
       d.repo.update(id, { name: trimmed })
@@ -137,11 +135,11 @@ export function createWorkspacesService(d: WorkspacesServiceDeps): WorkspacesApi
     },
     async remove(id) {
       const row = requireRow(id)
-      // 顺序（07 页 §3C）：先删行 → 再发 workspaceRemoved → 再删 scratch 目录 → 最后发 changed
+      // 顺序：先删行 → 再发 workspaceRemoved → 再删 scratch 目录 → 最后发 changed。
       d.repo.delete(id)
       d.emitRemoved({ workspaceId: id, kind: row.kind, path: row.path })
       if (row.kind === 'scratch') {
-        // removeSafe 拒绝删除 scratchDir 之外的路径：防止 bug 删错目录
+        // removeSafe 拒绝删除 scratchDir 之外的路径：防止 bug 删错目录。
         await removeSafe(row.path, { within: d.scratchDir }).catch((e: unknown) => {
           d.logger.warn('scratch remove failed', { workspaceId: id, error: String(e) })
         })
@@ -149,7 +147,7 @@ export function createWorkspacesService(d: WorkspacesServiceDeps): WorkspacesApi
       d.emitChanged()
     },
     touch(id) {
-      // 不发通知：打开线程时会 touch，每次都发会让列表反复重排（07 页 §3C 的坑 4）
+      // 不发通知：打开线程时会 touch，每次都发会让列表反复重排。
       requireRow(id)
       d.repo.update(id, { lastOpenedAt: d.clock.now() })
     },

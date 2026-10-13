@@ -11,7 +11,7 @@ import { applyOps, emptyTimeline, type TranscriptOperation } from '@poietica/tra
 import { wrapOmpSession } from '../omp-session-adapter'
 
 /*
- * 排队 / 插话这条链路的十条判据（R-01 §5.1）。
+ * 排队 / 插话这条链路的十条判据（R-01）。
  *
  * 假的 omp AgentSession 有两个真数组当队列（steering / followUp）：`steer` / `followUp` /
  * `promptCustomMessage` 往数组里 push 并发一帧 queue_update；`removeQueuedMessage` 删第一个

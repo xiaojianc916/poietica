@@ -5,7 +5,7 @@ export interface ContributionPoint<T> {
   readonly __type?: T
 }
 
-/** 内置贡献点 id 以 'workbench.' 开头；功能自定义贡献点 id 以 '<功能 id>.' 开头，例如 'conversation.toolCallRenderers' */
+/** 内置贡献点 id 以 'workbench.' 开头，功能自定义的以 '<功能 id>.' 开头。 */
 export function defineContributionPoint<T>(id: string): ContributionPoint<T> {
   return Object.freeze({ id })
 }
@@ -51,7 +51,7 @@ export class ContributionRegistry {
     }
   }
 
-  /** 按 item.order 升序（缺省 0），同 order 按注册先后；返回的数组在下一次变化之前保持同一引用 */
+  /** 按 item.order 升序（缺省 0），同 order 按注册先后；返回的数组在下一次变化之前保持同一引用。 */
   list<T>(point: ContributionPoint<T>): readonly Contributed<T>[] {
     const cached = this.cache.get(point.id)
     if (cached !== undefined) return cached as readonly Contributed<T>[]
@@ -66,7 +66,6 @@ export class ContributionRegistry {
     return sorted
   }
 
-  /** 某功能贡献的全部条目（诊断/测试用） */
   featureIds(): readonly string[] {
     const ids = new Set<string>()
     for (const list of this.entries.values()) for (const e of list) ids.add(e.featureId)

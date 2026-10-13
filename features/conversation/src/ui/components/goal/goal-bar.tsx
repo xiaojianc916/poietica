@@ -26,28 +26,18 @@ export function goalBarPresentation(status: SessionGoal['status']): GoalBarPrese
   return PRESENTATION[status]
 }
 
-/** 在途时又点了一下：不下发、不亮错（按钮本来就 disabled，这一条只防连点穿透）。 */
+/** 在途时又点一下：按钮本来就 disabled，这一条只防连点穿透。 */
 const IN_FLIGHT: GoalActionResult = { ok: false, error: '' }
 
-/** 目标动作的状态与出口：目标栏与任务浮层的目标区块共用同一份（审查 R-10）。 */
 export interface GoalActions {
-  /** 有一个动作在途：目标栏的按钮一起 disabled。 */
   readonly pending: boolean
-  /** 上一个动作失败的那句话；ACTION_ERROR_LIFETIME_MS 后自动消失，目标换了也不再显示。 */
   readonly error: string | null
-  /** 下发一个动作。一次只走一个：在途时直接返回 IN_FLIGHT（不排队、不亮错）。 */
   readonly run: (action: GoalAction) => Promise<GoalActionResult>
 }
 
-/**
- * 目标动作的钩子（审查 R-10）。
- *
- * 状态挂在**调用方**（AssistantSurface）而不是目标栏里：任务浮层的暂停 / 继续也走这里，
- * 它失败的那句话才有地方显示（目标栏），两处的按钮也不会各自连发。
- */
+/** 状态挂在**调用方**而不是目标栏里：任务浮层共用这一份，失败才有地方显示（目标栏），两处按钮也不会各自连发。 */
 export function useGoalActions(onAction: GoalActionHandler, objective: string | undefined): GoalActions {
   const [pending, setPending] = useState(false)
-  /* 失败记在当时那个目标名下：目标换了（或没了），那句话自然不再显示 */
   const [failure, setFailure] = useState<GoalFailure | null>(null)
   const pendingRef = useRef(false)
 
@@ -74,7 +64,7 @@ export function useGoalActions(onAction: GoalActionHandler, objective: string | 
         }
         return result
       } catch (cause) {
-        /* 出口按约定永不 reject；万一违约，也不能让按钮卡在 pending、让失败无声 */
+        /* 出口按约定永不 reject；违约了也不能让按钮卡在 pending、让失败无声 */
         const message = describeFailure(cause)
         setFailure({ objective, message })
         return { ok: false, error: message }
@@ -144,7 +134,7 @@ function GoalBarView({ goal, actions }: GoalBarViewProps) {
     if (objective.length === 0) {
       return
     }
-    /* 正文没变：直接收起，不发请求（引擎那边同正文本来也什么都不做） */
+    /* 正文没变：不发请求，引擎那边同正文本来也什么都不做 */
     if (objective === goal.objective) {
       setEditing(false)
       return
@@ -273,22 +263,13 @@ function GoalBarView({ goal, actions }: GoalBarViewProps) {
 }
 
 export interface GoalBarProps {
-  /** 这条对话此刻的目标；没有目标是 undefined（整条不画）。 */
+  /** 这条对话此刻的目标；undefined 表示没有目标（整条不画）。 */
   readonly goal: SessionGoal | undefined
-  /**
-   * 目标动作的状态与出口（useGoalActions 的返回值，由 AssistantSurface 持有，任务浮层共用同一份）。
-   * 暂停 / 继续 / 改正文 / 清除各走自己的 RPC（审查 R-10）；失败在这一条上亮 role=alert。
-   */
+  /** 与任务浮层共用同一份（由 AssistantSurface 持有）。 */
   readonly actions: GoalActions
 }
 
-/*
- * 目标面板（「进行中的目标 <正文>」那一条）。
- *
- * 数据与动作都**从上面交进来**：目标的事实住在 Core 的控件通道（`Controls.goalSnapshot`，
- * 由 `stores.controls` 持有）；动作走 `actions.run`，等 Core 真的答复了才算完 ——
- * 不在本地猜状态（「已暂停」要等引擎报回来的快照）。
- */
+/* 数据与动作**从上面交进来**，不在本地猜状态（「已暂停」要等引擎报回来的快照）。 */
 export function GoalBar({ goal, actions }: GoalBarProps) {
   if (goal === undefined || goal.status === 'complete') {
     return null

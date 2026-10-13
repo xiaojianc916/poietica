@@ -3,17 +3,10 @@ import { createPostureIntent } from '../posture-intent'
 
 /*
  * 真实故障：批准方式**不持久**——在入口页选一次完全访问，切走页面或重启软件又回到默认档。
- *
- * 根因是这一格从来没有落盘的地方：legacy 把用户按下那一档写进一条客户端偏好
- * （`poietica.permission-posture`），新架构里它对应 preferences 的 uiState
- * `'conversation.permissionPosture'`。这台 intent 就是那条记忆的正主，判据有三条：
- *
- *   1. `read()` **同步**答得出来（两台 store 在 agent 答复落地那一刻要它判补发）；
- *   2. `write()` 先改内存、再异步落盘（失手不拖垮这一趟）；
- *   3. `load()` 开机读一次盘，读回来才换内存那一份。
+ * 记忆的正主是 uiState 的 `'conversation.permissionPosture'`，判据见下面各用例：`read()` 必须
+ * 同步答得出来（两台 store 在 agent 答复落地那一刻要它判补发），`write()` 先改内存再异步落盘。
  */
 
-/** 一片可控的盘：读写各记一笔，交回什么由用例指定。 */
 interface FakeDisk {
   readonly written: string[]
   reads: number
@@ -72,7 +65,6 @@ describe('批准方式的持久意图', () => {
 
     intent.write('auto')
 
-    /* 顺序是这一条的全部：同步这一格必须先换，异步那一段只是补记。 */
     expect(intent.read()).toBe('auto')
     expect(disk.written).toEqual(['auto'])
   })
@@ -99,7 +91,6 @@ describe('批准方式的持久意图', () => {
     intent.write('auto')
     await intent.load()
 
-    /* 盘上那份与内存同值才换；先写后读这一趟读到的还是刚写的那一个。 */
     expect(intent.read()).toBe('auto')
   })
 
@@ -137,7 +128,7 @@ describe('批准方式的持久意图', () => {
     expect(intent.read()).toBeUndefined()
 
     intent.write('auto')
-    /* 落盘是异步的，等它那一转失败上报。 */
+    // 落盘是异步的，等它那一转失败上报。
     await Promise.resolve()
     await Promise.resolve()
 

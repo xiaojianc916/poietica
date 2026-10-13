@@ -8,7 +8,6 @@ import './catalog-grid.css'
 const VISIBLE = 6
 
 interface CatalogAction {
-  /** 把一条装进这个 agent 的 mcp.json；名字是名单里那个 id。 */
   readonly install: (name: string, body: Record<string, unknown>) => void
 }
 
@@ -17,11 +16,7 @@ export interface CatalogGridProps {
   readonly action: CatalogAction
 }
 
-/*
- * 名单页的网格。**迁移自** legacy `packages/extension/src/ui/catalog-grid.tsx`：DOM、类名、
- * 文案、展开行为一字未改。去掉的只有 `resolveLauncher` —— 新架构没有原生启动器解析这条通道
- * （见 catalog.ts 的头注与 docs/refactor-log.md 偏差 22）。
- */
+/* DOM、类名、文案、展开行为照 legacy 一字未改；去掉的只有 resolveLauncher —— 新架构没有原生启动器解析这条通道。 */
 export function CatalogGrid({ action, groups }: CatalogGridProps) {
   if (groups.length === 0) {
     return null
@@ -73,10 +68,7 @@ interface CatalogCardProps {
 }
 
 function CatalogCard({ action, row }: CatalogCardProps) {
-  /*
-   * 中间那列给了最小宽度而不是任由压扁：卡片变窄时动作区换到下一行，
-   * 名字与说明完整换行显示，不会被挤成一两个字加省略号。
-   */
+  /* 中间那列给了最小宽度：卡片变窄时动作区换到下一行，名字与说明完整换行，不会被挤成一两个字加省略号。 */
   return (
     <li className="catalog-card group flex min-w-0 flex-wrap items-center gap-x-3.5 gap-y-2 rounded-2xl px-3 py-3 transition-colors">
       <PluginGlyph displayName={row.displayName} id={row.id} />
@@ -98,10 +90,7 @@ interface InstallServerProps {
   readonly onInstall: (name: string, body: Record<string, unknown>) => void
 }
 
-/*
- * 内置名单是真安装：把这一台写进这个 agent 的 mcp.json。要人补钥匙的，那一格输入就长在
- * 卡片上 —— 装上才发现跑不起来，比多一格输入更糟。
- */
+/* 内置名单是真安装：把这一台写进这个 agent 的 mcp.json。要人补钥匙的，输入就长在卡片上 —— 装上才发现跑不起来，比多一格输入更糟。 */
 function InstallServer({ id, onInstall }: InstallServerProps) {
   const [filled, setFilled] = useState('')
 

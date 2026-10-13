@@ -1,7 +1,6 @@
 import { AppError } from '@poietica/foundation'
 import { platformErrors } from '../contract/errors'
 
-/** electron 的 shell 模块里本服务需要的部分（注入，便于测试） */
 export interface ShellPort {
   openExternal(url: string): Promise<void>
   openPath(path: string): Promise<string>
@@ -27,8 +26,7 @@ export function createShellService(d: { shell: ShellPort; exists(path: string): 
   }
   return {
     async openExternal(url) {
-      // 用 new URL 判协议，不用字符串前缀：'file:'、'javascript:'、'data:' 一律拒绝，
-      // new URL 抛错也按 url_not_allowed 处理
+      // 用 new URL 判协议：'file:'、'javascript:'、'data:' 一律拒绝，new URL 抛错也按 url_not_allowed 处理。
       const protocol = ((): string => {
         try {
           return new URL(url).protocol

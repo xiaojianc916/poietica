@@ -5,18 +5,8 @@ import type { BrowserApi } from '../api'
 import { BrowserPanel } from '../panel'
 import { createBrowserPanelStore } from '../store'
 
-/*
- * 面板这一层只画「面板的壳」（07 页 §12E 的「panels」一栏）：
- *   - 地址栏：回车 navigate；没有标签时先 newTab；
- *   - 后退 / 前进 / 刷新（装载中变停止）/ 拾取元素；
- *   - 空态那句文案；
- *   - driven 提示条。
- *
- * 标签条不在这里：legacy 的浏览器标签与别的通道同处一条（auxiliary-tab-strip.tsx），
- * 新架构里那一条归右坞（panels 贡献的 dockTabs），用例在 dock-tabs.test.tsx。
- *
- * 原生子 webview 不在这里（它不在 React 树里），所以断言的是 DOM 形状与下发的调用。
- */
+/* 这一层只画「面板的壳」：地址栏（回车 navigate、没有标签先 newTab）、后退 / 前进 / 刷新 / 拾取元素、空态那句文案、driven 提示条。
+ * 标签条归右坞（dockTabs，用例在 dock-tabs.test.tsx）；原生子 webview 不在 React 树里，所以断言的是 DOM 形状与下发的调用。 */
 
 interface FakeApi extends BrowserApi {
   readonly calls: string[]
@@ -140,10 +130,6 @@ function mount(state: BrowserState, over: { readonly visible?: boolean } = {}) {
     />,
   )
 
-  /*
-   * 挂载那一刻的调用单独收走：面板一上来就会下发一次 setVisible（还有别的用例在追
-   * 视口对齐），后面的断言只看用户动作在下发什么。
-   */
   const mountCalls = [...api.calls]
   api.calls.length = 0
 
@@ -264,7 +250,6 @@ describe('显隐下发', () => {
     const hidden = mount(stateOf(), { visible: false })
 
     expect(hidden.mountCalls).toContain('setVisible:false')
-    /* 收起的面板不该把原生视图留在屏幕上。 */
     expect(hidden.mountCalls).not.toContain('setVisible:true')
   })
 

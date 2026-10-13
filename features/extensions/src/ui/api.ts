@@ -8,14 +8,8 @@ import { extensionsContract } from '../contract'
 
 export function createExtensionsApi(ctx: UiFeatureContext) {
   const rpc: TypedRpcClient<typeof extensionsContract> = ctx.rpc(extensionsContract)
-  /*
-   * 两个跨功能的取用口，落在这里而不是散在页面里：
-   *   - platform 的 dialog.pickFolder / dialog.pickFiles（07 页 §8E 要求技能页有
-   *     「从文件夹安装 / 从 zip 安装」，那两个对话框属于 platform）；
-   *   - conversation 的 SkillDocumentToken（「查看 SKILL.md」落到右坞的那一格，
-   *     能画 markdown 的排版属于会话，守则 3）。
-   * 两边的 dependsOn 都写在 index.tsx 的 defineUiFeature 上。
-   */
+  /* 两个跨功能的取用口落在这里：platform 的 dialog.pickFolder / dialog.pickFiles（技能页的两个安装入口）；conversation 的
+   * SkillDocumentToken（「查看 SKILL.md」落到右坞那一格）。两边的 dependsOn 都写在 index.tsx 的 defineUiFeature 上。 */
   const platform = ctx.rpc(platformContract)
   const skillDocuments = ctx.services.get(SkillDocumentToken) as SkillDocumentPort
   return {

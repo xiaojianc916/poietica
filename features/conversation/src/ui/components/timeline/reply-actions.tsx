@@ -7,24 +7,18 @@ import { memo, type ReactNode } from 'react'
 
 export interface ReplyActionHostProps {
   readonly children: ReactNode
-  /** 官方用户撤销锚点数；null 表示此边界不可精确分叉。 */
+  /** null 表示此边界不可精确分叉，不是「0 个锚点」。 */
   readonly undoCount: number | null
   readonly forkUnavailableReason: string | null
-  /** 从这一轮分叉。缺席 = 动作不可用，按钮禁用而不是点了没反应。 */
+  /** 缺席 = 按钮禁用，而不是点了没反应。 */
   readonly onFork: ((undoCount: number) => void) | undefined
   readonly text: string
-  /** 这一轮 agent 自己报的 token 用量；缺席不画。 */
   readonly usage?: TranscriptUsage | undefined
 }
 
 /*
- * 一轮回复末端与操作行的共同悬停边界。
- *
- * 对标 OpenCode 桌面端（packages/session-ui/src/components/message-part.tsx 的
- * text-part-copy-wrapper）：操作行在正常文档流里占住自己那一条，显隐全部交给
- * CSS :hover / :focus-within。按钮本就在悬停子树内部，从正文移到按钮不会离开
- * 热区，不需要任何退场宽限计时器；操作行也不再绝对定位悬浮，不会盖住虚拟器
- * 铺出来的相邻行。
+ * 一轮回复末端与操作行的共同悬停边界：操作行在正常文档流里占住自己那一条，显隐全部交给 CSS :hover / :focus-within。
+ * 按钮本就在悬停子树内部，从正文移到按钮不会离开热区，不需要退场宽限计时器。
  */
 export function ReplyActionHost({
   children,
@@ -56,10 +50,8 @@ export interface ReplyActionsProps {
   readonly usage?: TranscriptUsage | undefined
 }
 
-/* 落点与能力归投影；这里仅使用原生按钮呈现操作。 */
 const FORK = '从这一运行分叉'
 
-/** 单个数值格式化为 K/M/B 短写，保留两位小数；千以下原样。 */
 function compactCount(value: number): string {
   if (value < 1000) {
     return String(value)
@@ -76,7 +68,6 @@ function compactCount(value: number): string {
   return `${text}${label}`
 }
 
-/** 把 agent 报的用量折成一行短文本；没有可用字段时返回 null。 */
 function usageLabel(usage: TranscriptUsage | undefined): string | null {
   if (usage === undefined) {
     return null
@@ -137,5 +128,4 @@ function Actions({ undoCount, forkUnavailableReason, onFork, text, usage }: Repl
   )
 }
 
-/* 已结回复的操作使用稳定原始值参与浅比较。 */
 export const ReplyActions = memo(Actions)

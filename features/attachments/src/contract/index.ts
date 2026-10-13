@@ -35,11 +35,8 @@ export const attachmentsContract = defineContract({
       name: 'attachments.setOwnerRefs',
       owner: 'core',
       params: z.object({
-        /*
-         * 只允许 UI 前缀：UI 整体替换的是自己那一份引用（草稿），放开成任意
-         * ownerKey 就等于让 UI 能误删 Core 的引用（R-07 §3.1）。上限放到 10 000：
-         * 整体替换一旦被拒，等于把超出的部分全部释放，宁可放宽。
-         */
+        /* 只允许 UI 前缀：UI 整体替换的是自己那一份引用（草稿），放开成任意 ownerKey 就等于让 UI 能误删 Core 的引用。上限放到 10 000：
+         * 整体替换一旦被拒，等于把超出的部分全部释放，宁可放宽。 */
         ownerKey: z.string().regex(/^ui:[a-z0-9.:-]+$/),
         attachmentIds: z.array(z.string().min(1)).max(10_000),
       }),

@@ -1,14 +1,14 @@
 import type { OmpModelLike } from './ports/model-helpers'
 
 /*
- * 会话初始化时的模型解析（12 页 §6.3 第 3 步）。
+ * 会话初始化时的模型解析。
  *
  * **回传的是注册表里那一条模型对象本身，不是 `{provider,id}` 精简对**。
  * `createAgentSession` 的 `model` 参数要的是完整 Model 实例：SDK 会读它的 `api`、
  * `baseUrl`、`identity.class`、`compat`……（sdk.ts 的 `resolveDelegationBias`、
- * `streamDispatch`、`edit-mode` 都直接取字段）。此前这里回传精简对，SDK 走到
+ * `streamDispatch`、`edit-mode` 都直接取字段）。回传精简对时 SDK 走到
  * `model.identity.class` 当场抛 `undefined is not an object` —— 真机上表现为
- * 「新建对话发送后立刻报 AppError，会话起不来」（2026-10-08 用户截图）。
+ * 「新建对话发送后立刻报 AppError，会话起不来」（真实故障）。
  *
  * 判据收在这里：纯函数、无副作用、可单测。
  */

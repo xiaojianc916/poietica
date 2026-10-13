@@ -4,14 +4,8 @@ import { WorkspacesServiceToken } from '@poietica/feature-workspaces/core-api'
 import { AppError, isAppError, SystemErrorCode } from '@poietica/foundation'
 import { extensionsContract, extensionsErrors } from '../contract'
 
-/*
- * 引擎把「目录 / zip 里没有 SKILL.md」与「没有这个插件」都报成内核级的通用码
- * （`kernel.invalid_params` / `kernel.not_found`），而 extensions 的契约对这两件事各有一枚
- * 自己的码（07 页 §8B：`invalid_skill_package` / `plugin_not_found`）。
- *
- * 翻译放在**调用处**而不是芯片层：引擎端口是全应用共用的（04 页），那里报通用码是对的；
- * 「这件事属于哪一类产品错误」只有各功能的契约知道。07 页 §10C 的 git 错误码转换同此形制。
- */
+/* 引擎把「目录 / zip 里没有 SKILL.md」与「没有这个插件」都报成内核级通用码，而 extensions 的契约对这两件事各有一枚自己的码。
+ * 翻译放在**调用处**而不是芯片层：引擎端口是全应用共用的，那里报通用码是对的，「这件事属于哪一类产品错误」只有各功能的契约知道。 */
 function translateInstallError(e: unknown): never {
   if (isAppError(e) && e.code === SystemErrorCode.invalidParams) {
     throw new AppError(extensionsErrors.invalid_skill_package, '目录或 zip 中没有 SKILL.md')
@@ -46,8 +40,6 @@ export default defineCoreModule({
         ctx.rpc.emit('mcp.statusChanged', { servers: statuses })
       }),
     )
-
-    // ---- skills ----
 
     ctx.rpc.handle('skills.list', async (p) => {
       const cwd = p.workspaceId === undefined ? null : workspaces.requireUsable(p.workspaceId).path
@@ -89,19 +81,14 @@ export default defineCoreModule({
       return engine.skills.read(p.skillId)
     })
 
-    // ---- mcp ----
-
     ctx.rpc.handle('mcp.list', async () => {
       const servers = await engine.mcp.list()
       return { servers }
     })
 
     ctx.rpc.handle('mcp.upsert', async (p) => {
-      /*
-       * 按名字 upsert（幂等）。**mcp_name_conflict 在 Core 侧目前不可达**：05 页 §11 的参数只有
-       * McpServerInfo，「新增」与「更新」在线上没有区分位，而「名字已存在」恰恰就是更新。
-       * 见 docs/refactor-log.md 的待决问题 Q21；等契约补上意图位（或 UI 走独立的新增方法）再接。
-       */
+      /* 按名字 upsert（幂等）。**mcp_name_conflict 在 Core 侧目前不可达**：参数只有 McpServerInfo，「新增」与「更新」在线上没有区分位，
+       * 而「名字已存在」恰恰就是更新（见 docs/refactor-log.md 的待决问题 Q21）。 */
       await engine.mcp.upsert(p)
       return {}
     })
@@ -115,8 +102,6 @@ export default defineCoreModule({
       const statuses = await engine.mcp.status()
       return { servers: statuses }
     })
-
-    // ---- plugins ----
 
     ctx.rpc.handle('plugins.list', async () => {
       const plugins = await engine.plugins.list()

@@ -30,14 +30,14 @@ export interface HostModule<C extends Contract = Contract> {
 }
 
 export interface CoreCaller {
-  /** 调用 owner='core' 的方法。Core 未就绪时排队（最多 30 秒），与 UI 的请求走同一条路径 */
+  /** 调用 owner='core' 的方法。Core 未就绪时排队（最多 30 秒），与 UI 的请求走同一条路径。 */
   call<C extends Contract, N extends MethodName<C>>(
     contract: C,
     name: N,
     params: ParamsIn<C, N>,
     opts?: { signal?: AbortSignal; timeoutMs?: number },
   ): Promise<ResultOf<C, N>>
-  /** 订阅 Core 发出的通知（Host 模块旁听；通知照常广播给窗口） */
+  /** 订阅 Core 发出的通知（Host 模块旁听；通知照常广播给窗口）。 */
   on<C extends Contract, N extends NotificationName<C>>(
     contract: C,
     name: N,
@@ -45,7 +45,7 @@ export interface CoreCaller {
   ): Disposable
   readonly status: () => CoreStatus
   onStatus(listener: (status: CoreStatus) => void): Disposable
-  /** 当前（或最近一次）Core 进程使用的浏览器 relay 端口；Core 从未启动过时为 null */
+  /** Core 从未启动过时为 null。 */
   relayPort(): number | null
 }
 
@@ -60,11 +60,11 @@ export interface HostModuleContext<C extends Contract = Contract> {
   readonly rpc: HostRpcBinding<C>
   readonly core: CoreCaller
   readonly windows: WindowRegistry
-  /** 在 poietica-asset://<host>/... 下注册一个子路径处理器，例如 attachments 注册 host='attachment' */
+  /** 在 poietica-asset://<host>/... 下注册一个子路径处理器。 */
   readonly assets: { register(host: string, handler: AssetHandler): void }
   readonly services: ModuleServices
   readonly app: {
-    /** 走完整退出流程。任何模块都可以调用，例如 platform 的 app.quit 方法、update 的安装更新 */
+    /** 走完整退出流程，任何模块都可以调用。 */
     quit(opts?: QuitOptions): Promise<void>
     readonly quitting: () => boolean
   }
@@ -83,7 +83,7 @@ export function defineHostModule<C extends Contract>(m: HostModule<C>): HostModu
   return m
 }
 
-/** 内核服务：日志级别。preferences 的 host 模块在启动与偏好变化时调用 setLevel；CoreSupervisor 启动 Core 时读取 level */
+/** 内核服务：日志级别。preferences 的 host 模块写，CoreSupervisor 启动 Core 时读。 */
 export interface HostLogging {
   level(): 'debug' | 'info' | 'warn' | 'error'
   setLevel(level: 'debug' | 'info' | 'warn' | 'error'): void

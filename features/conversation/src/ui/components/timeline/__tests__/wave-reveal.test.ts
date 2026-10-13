@@ -2,10 +2,7 @@ import { describe, expect, test } from 'bun:test'
 import type { Element, ElementContent, Root, RootContent } from 'hast'
 import { createWaveReveal, WAVE, WAVE_MARKER_ATTRIBUTE, WAVE_START_ATTRIBUTE } from '../wave/wave-reveal'
 
-/*
- * 批次波浪淡入的纯函数部分（P-03）。时钟可注入：每个用例自己推进 t。
- * 不依赖 Streamdown，直接喂手搭的 hast 树。
- */
+/* 批次波浪淡入的纯函数部分（P-03）：时钟可注入，直接喂手搭的 hast 树。 */
 
 const text = (value: string): ElementContent => ({ type: 'text', value })
 const el = (tagName: string, children: ElementContent[] = [], properties: Element['properties'] = {}): Element => ({
@@ -28,7 +25,7 @@ function setup(options = WAVE) {
   return { clock, wave, run }
 }
 
-/** 树里所有带启动时刻的 span：[文本, 启动时刻] */
+/* 树里所有带启动时刻的 span。 */
 function waves(tree: Root | Element): Array<[string, number]> {
   const out: Array<[string, number]> = []
   const walk = (node: Root | Element) => {

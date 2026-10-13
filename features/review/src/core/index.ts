@@ -21,7 +21,7 @@ export default defineCoreModule({
       }),
     })
 
-    /* 工作区 id → 仓库路径；每次调用都问一遍，工作区被移走后自然报 workspaces.not_found */
+    /* 每次调用都问一遍，工作区被移走后自然报 workspaces.not_found。 */
     const pathOf = (workspaceId: string): string => workspaces.requireUsable(workspaceId).path
 
     ctx.disposables.add({ dispose: () => watcher.dispose() })
@@ -49,7 +49,7 @@ export default defineCoreModule({
       try {
         watcher.unwatch(pathOf(p.workspaceId))
       } catch {
-        /* 工作区已被移除：监听也随它一起没了，不算失败 */
+        // 工作区已被移除：监听也随它一起没了，不算失败
       }
       return {}
     })

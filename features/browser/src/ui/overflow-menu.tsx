@@ -8,24 +8,11 @@ import {
 import { ChevronRight, History, Minus, MoreHorizontal, Plus, RotateCcw } from 'lucide-react'
 import { type ReactNode, useLayoutEffect, useRef } from 'react'
 
-/*
- * 浏览器工具栏右端那张「更多操作」菜单（07 页 §12E 的「缩放菜单」「最近关闭菜单」）。
- *
- * **迁移自** legacy `packages/workspace/src/panels/auxiliary-menu.tsx` 的 MenuShell /
- * OVERFLOW_ROWS / ZoomRow：菜单壳、行清单、行类名、缩放步进（一格 = 1.2 倍）一字未改。
- * 换掉的是三处口径：
- *
- *   - 行清单里「还没接进来」的那些条目不再假装存在（07 页只要缩放与最近关闭两张菜单），
- *     留着的行照 legacy 的写法画出灰行禁用；
- *   - 缩放范围按契约（`browser.setZoom` 限 -3…5），legacy 的 -7…8 是内核的边界、
- *     不是本架构的（07 页 §12B 的方法表就是权威）；
- *   - 最近关闭这一栏是新增的（legacy 没有 UI），行样式沿用同一套 DropdownMenuItem。
- */
+/* 工具栏右端那张「更多操作」菜单。菜单壳、行清单、行类名、缩放步进照 legacy；换掉三处口径：没接进来的条目不再假装存在、缩放范围按契约 browser.setZoom 的 -3…5、最近关闭是新增的。 */
 
 const triggerClassName =
   'flex size-6 shrink-0 items-center justify-center rounded-md opacity-60 hover:bg-launcher hover:opacity-100'
 
-/** 行里的标签位：菜单里的每一行共用。 */
 const labelClassName = 'min-w-0 flex-1 truncate text-xs'
 
 function MenuShell({
@@ -78,10 +65,6 @@ function MenuShell({
   )
 }
 
-/*
- * 缩放：三个键都走宿主的 setZoomLevel，所以这里的「一档」就是内核的一档 ——
- * scale = 1.2 ^ level，一格 = 20%（Electron 文档原文）。范围取契约的 -3…5。
- */
 const ZOOM_STEP = 1
 export const ZOOM_MIN = -3
 export const ZOOM_MAX = 5
@@ -129,7 +112,6 @@ function ZoomRow({ onZoom, level }: { readonly onZoom: (level: number) => void; 
 }
 
 export interface BrowserOverflowMenuProps {
-  /** 已经接上命令面的行（键是 OVERFLOW_ROWS 的 id）；没给的画成灰行，不假装能用。 */
   readonly commands: Readonly<Partial<Record<string, () => void>>>
   readonly onHeightChange: (height: number) => void
   readonly onOpenChange: (open: boolean) => void
@@ -150,11 +132,6 @@ type OverflowRow =
       readonly submenu?: true
     }
 
-/*
- * 行清单只有这一份，**与 legacy 的 OVERFLOW_ROWS 一字不差**。哪些行能点不写死在这里，
- * 由外面的 `commands` 决定（见 CommandRow）：07 页 §12E 只点名了缩放与最近关闭两张
- * 菜单，其余条目的命令面要等阶段 5 逐个接上，在那之前它们只能是灰行。
- */
 const OVERFLOW_ROWS: readonly OverflowRow[] = [
   { kind: 'command', id: 'find-in-page', label: '在页面中查找' },
   { kind: 'command', id: 'print', label: '打印' },
@@ -173,7 +150,6 @@ const OVERFLOW_ROWS: readonly OverflowRow[] = [
   { kind: 'command', id: 'settings', label: '浏览器设置' },
 ]
 
-/** 命令行的画法：可点 = 真有处理函数（B-15）。没有的就画成灰行，不假装能用。 */
 function CommandRow({
   command,
   label,

@@ -9,7 +9,7 @@ interface State {
   error: Error | null
 }
 
-/** 一个功能的组件崩溃只影响它自己的区域。兜底界面的样式由 workbench 的 [data-feature-error] 规则提供 */
+/** 一个功能的组件崩溃只影响它自己的区域；兜底界面样式由 workbench 的 [data-feature-error] 规则提供。 */
 export class FeatureErrorBoundary extends Component<Props, State> {
   override state: State = { error: null }
 

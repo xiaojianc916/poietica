@@ -1,14 +1,5 @@
-/*
- * 对话里「定时任务」工具卡（审查 R-16）。
- *
- * 行与纸都是时间线的（.timeline-row / .timeline-tool__body，见 conversation 的
- * flow-row.css 与 tool-call.css）；这里只排纸上的内容。规矩：
- *   - 一种字号给正文（--ui-prose-size-aux），一种给标注（--cp-font-micro）；
- *   - 分隔只用发丝线（--cp-hairline），不用边框、阴影、渐变；
- *   - 颜色只给状态点、失败、需要关注（--ui-success / --ui-warning / --ui-destructive），
- *     其余都是墨色的深浅（--cp-ink / --cp-timeline-quiet-text）；
- *   - 数字一律等宽（tabular-nums），时间在一列里才对得齐。
- */
+/* 行与纸都是时间线的，这里只排纸上的内容：一种字号给正文、一种给标注（--cp-font-micro）；分隔只用发丝线（--cp-hairline），
+ * 不用边框、阴影、渐变；颜色只给状态点、失败、需要关注，其余都是墨色的深浅，数字一律等宽。 */
 
 .automation-tool {
   gap: 0;
@@ -77,8 +68,6 @@
   inline-size: 0.875rem;
   block-size: 0.875rem;
 }
-
-/* ── 一条任务（创建 / 修改）──────────────────────────────────────────── */
 
 .automation-tool__card,
 .automation-tool__list,
@@ -161,7 +150,6 @@
   color: var(--cp-timeline-quiet-text);
 }
 
-/* 指令只露两行：卡片说的是「建了哪条」，不是把指令再念一遍；全文在「打开任务」里。 */
 .automation-tool__prompt {
   display: -webkit-box;
   margin: 0.125rem 0 0;
@@ -181,7 +169,6 @@
   color: var(--ui-warning);
 }
 
-/* 元信息：两列网格，标签小一号、淡一档；窄了自动收成一列。 */
 .automation-tool__meta {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -241,7 +228,6 @@
   margin-inline-start: calc(var(--cp-timeline-tool-indent) - 0.5rem);
 }
 
-/* 动作是安静的文字键：静息只有墨色，指到才有一层底。 */
 .automation-tool__button {
   display: inline-flex;
   align-items: center;
@@ -262,8 +248,6 @@
 .automation-tool__button:focus-visible {
   background: color-mix(in srgb, currentColor 7%, transparent);
 }
-
-/* ── 列表与运行记录：一行一条，整行可点 ─────────────────────────────── */
 
 .automation-tool__list {
   margin-block-start: var(--cp-control-gap);
@@ -368,8 +352,6 @@ button.automation-tool__item:focus-visible {
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-
-/* ── 汇报：一段结论；要人看的那一份左边一道警示色 ─────────────────── */
 
 .automation-tool__report {
   gap: 0.25rem;

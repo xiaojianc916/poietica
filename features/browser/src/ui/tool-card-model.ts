@@ -1,13 +1,7 @@
-/*
- * 浏览器卡片的数据层：只认 omp 18.5 的 eval 形状（浏览器是 eval 的 prelude，不是顶层工具）。
- * 拆成纯函数是为了能脱离 React 钉住每一种产出形状。
- *
- * 正本在产出里，不在入参里：一次 `browser.open(...)` 经 `describeBrowserCall`
- * （omp/src/tools/browser.ts）写一条 `{ op: 'browser', detail: 'open main https://…' }`，
- * 落在 `details.statusEvents` 与 `details.cells[].statusEvents`；截图落在 `details.images[]`。
- * 入参只有 `{ language, code, title }` —— 按旧顶层工具的 `args.action / args.url` 读，
- * 读到的永远是空的。
- */
+/* 浏览器卡片的数据层：只认 omp 18.5 的 eval 形状（浏览器是 eval 的 prelude，不是顶层工具）。一次
+ * browser.open(...) 经 describeBrowserCall 把 { op: 'browser', detail: 'open main https://…' } 写进
+ * details.statusEvents 与 details.cells[].statusEvents，截图落在 details.images[]；入参只有
+ * { language, code, title } —— 按旧顶层工具的 args.action / args.url 读，读到的永远是空的。 */
 
 import type { BrowserState } from '../contract'
 
@@ -48,7 +42,6 @@ function list(value: unknown, key: string): readonly unknown[] {
   return Array.isArray(raw) ? raw : []
 }
 
-/** 事件既可能挂在整次调用上，也可能挂在产生它的那个 cell 上。 */
 function statusEventsOf(details: unknown): readonly unknown[] {
   const events = [...list(details, 'statusEvents')]
 
@@ -59,7 +52,6 @@ function statusEventsOf(details: unknown): readonly unknown[] {
   return events
 }
 
-/** 只取浏览器那几笔：`computer` 等别的 prelude 不是浏览器动作。 */
 function stepsOf(details: unknown): readonly BrowserStep[] {
   const steps: BrowserStep[] = []
   const seen = new Set<string>()
@@ -82,7 +74,6 @@ function stepsOf(details: unknown): readonly BrowserStep[] {
   return steps
 }
 
-/** `<tab>.<method>(…)…` 的第一层括号内容；没有括号或括号没闭合就是 null。 */
 function parenBody(detail: string): string | null {
   const open = detail.indexOf('(')
 
@@ -109,7 +100,6 @@ function parenBody(detail: string): string | null {
   return null
 }
 
-/** 去引号的字段：`"https://a.com"` 与 `'#go'` 都该读成裸值。 */
 function unquote(text: string): string {
   const trimmed = text.trim()
   const first = trimmed.at(0)
@@ -122,7 +112,6 @@ function unquote(text: string): string {
 
 type Scan = { readonly quote: string | null; readonly depth: number; readonly stop: boolean }
 
-/** 扫一格：引号、括号深度，以及「从这里断开」——顶层逗号只认第一层。 */
 function step(char: string, at: Scan): Scan {
   if (at.quote !== null) {
     return { quote: char === at.quote ? null : at.quote, depth: at.depth, stop: false }
@@ -143,7 +132,6 @@ function step(char: string, at: Scan): Scan {
   return { quote: null, depth: at.depth, stop: char === ',' && at.depth === 0 }
 }
 
-/** 括号里第一段参数（顶层逗号之前），去引号；调用链的其余部分由目标自己带着。 */
 function firstArgument(body: string): string | null {
   let at: Scan = { quote: null, depth: 0, stop: false }
 
@@ -160,7 +148,6 @@ function firstArgument(body: string): string | null {
   return only === '' ? null : only
 }
 
-/** `<tab>.<method>(…)`：动作是方法名，目标取第一段参数。 */
 function callStep(detail: string, said: string): BrowserStep {
   const called = /^([^\s.()]+)\.([A-Za-z_$][\w$]*)(?=[.(])/u.exec(detail)
 
@@ -178,7 +165,7 @@ function callStep(detail: string, said: string): BrowserStep {
   }
 }
 
-/** 上游写的那句 detail → 卡片画的一步。每一档都留着原话，认不出时也不是一片空白。 */
+/** 每档都留着上游原话，认不出时也不是一片空白。 */
 export function parseStep(detail: string): BrowserStep {
   const said = detail
 
@@ -240,7 +227,6 @@ function textOf(result: unknown): string {
   return joined.length > TEXT_CAP ? `${joined.slice(0, TEXT_CAP)}…` : joined
 }
 
-/** 内联图（旧形状，relay 能带回像素时才有）：只认 data，别的都不当位图。 */
 function inlineSrcOf(part: unknown): string | null {
   const record = bag(part)
   const inner = record.type === 'content' ? bag(record.content) : record
@@ -278,7 +264,6 @@ function imagesOf(details: unknown, result: unknown): readonly { readonly src: s
   return images
 }
 
-/** 失败时先说第一段：后面往往是调用栈，折叠行上要的是那句人话。 */
 function firstParagraph(text: string): string | null {
   const cut = /\n\s*\n/u.exec(text)
   const head = (cut === null ? text : text.slice(0, cut.index)).trim()
@@ -310,7 +295,6 @@ export function browserCallModel(args: unknown, result: unknown, failed: boolean
   }
 }
 
-/** 地址的同一性：hash 不算（`#a` 与 `#b` 是同一页的两次跳转，仍是那张标签）。 */
 function withoutHash(address: string): string | null {
   try {
     const url = new URL(address)

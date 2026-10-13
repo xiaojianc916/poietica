@@ -219,10 +219,7 @@ function ConfiguredModels({
         ) : (
           <div className="models-list">
             {models.map((model) => {
-              /*
-               * 可见性记的是别名 provider/id，与选择器 choices 的取值同一拼法：按裸 id 记，
-               * 开关写下的那一格与选择器过滤读的那一格永远对不上。
-               */
+              /* 可见性记的是别名 provider/id，与选择器 choices 的取值同一拼法：按裸 id 记，开关写下的那一格与选择器过滤读的那一格永远对不上。 */
               const alias = modelAlias(model.provider, model.model)
 
               return (
@@ -275,8 +272,6 @@ function ConfiguredModel({
   )
 }
 
-/* ── 供应商手风琴工作区 ─────────────────────────────────────────────── */
-
 function ProviderWorkspace({
   data,
   disabled,
@@ -296,7 +291,7 @@ function ProviderWorkspace({
     () => reconcileProviderOrder(data.providers, providerOrder),
     [data.providers, providerOrder],
   )
-  /* 按供应商分一次组：逐项现 filter 一遍就是 O(供应商 × 模型)，每次重画都付。 */
+  /* 逐项现 filter 一遍就是 O(供应商 × 模型)，每次重画都付。 */
   const modelsByProvider = useMemo(() => {
     const grouped = new Map<string, ModelDescriptor[]>()
     for (const model of data.models) {
@@ -424,8 +419,6 @@ function ProviderItem({
     </AccordionItem>
   )
 }
-
-/* ── 添加供应商（目录 / 注册表 / 手动） ─────────────────────────────── */
 
 type AddMode = 'catalog' | 'manual'
 
@@ -677,8 +670,6 @@ function CatalogAddTab({
     </div>
   )
 }
-
-/* ── 供应商表单（编辑 / 新建共用） ──────────────────────────────────── */
 
 interface ModelDraft {
   readonly key: string

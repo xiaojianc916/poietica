@@ -1,15 +1,5 @@
-/*
- * 自动化编辑器里那张输入框的框体。
- *
- * 这张卡与对话输入框是**同一张脸**：legacy 直接复用 conversation 的
- * `composer/frame.css`（`[data-slot="prompt-input"]` / `.composer-context` 那一族），
- * 新架构里那份样式随 conversation 的 UI 子入口走，跨功能 import 别的功能的 ui 是
- * 铁律禁止的。因此这里按同一份度量把卡片的几何**逐条抄下来**，只认 design-system
- * 的 --cp-* 令牌（`packages/design-system/src/tokens/assistant.css`），不写第二个数字。
- *
- * 将来 conversation 把这张卡（或它的样式入口）作为 ui-api 资产导出时，这份样式
- * 应当整份删除、改回引用同一份 —— 到那时两者不会再有漂移的可能。
- */
+/* 与对话输入框是**同一张脸**：legacy 直接复用 conversation 的 composer/frame.css，而跨功能 import 别的功能的 ui 是铁律禁止的，
+ * 所以按同一份度量抄下几何，只认 design-system 的 --cp-* 令牌。conversation 把这张卡导出之后，这份样式应当整份删除。 */
 
 .automation-composer [data-slot="prompt-input"] {
   position: relative;
@@ -78,10 +68,6 @@
   flex: 1;
 }
 
-/*
- * 卡下面那条灰色上下文栏：与 composer-frame.css 的 .composer-context 同一条几何，
- * 向上探进卡里一个圆角的量，接缝由重叠给出。
- */
 .automation-composer .composer-context {
   position: relative;
   z-index: 0;
@@ -97,10 +83,6 @@
   background: var(--cp-shelf);
 }
 
-/*
- * 模型 / 思考强度两颗胶囊（审查 R-16）：与姿态那颗同高同圆角，静息是一层 chip 底、
- * 指到加深一档；禁用（可选项还没读到）时只降透明度，不换形状。
- */
 .automation-composer__picker {
   display: inline-flex;
   block-size: var(--cp-control-sm);

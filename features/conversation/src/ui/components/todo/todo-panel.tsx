@@ -42,10 +42,8 @@ import { GOAL_CONTROL_ID, GOAL_PAUSED, GOAL_RESUMED } from '../goal/goal-control
 import { useSecond } from '../primitives/clock'
 import './todo-panel.css'
 
-/* 区块名与 ZCode ConversationStatusPanel 一致；状态面板的单一分发点在这里。 */
 type SectionKind = 'environment' | 'goal' | 'todo' | 'agents' | 'terminals'
 
-/** 各区块内容限高：超出即区块内滚动，与 ZCode 的 max-h-48/max-h-80 同档；environment 不限高。 */
 const SECTION_SCROLL_CLASS: Record<SectionKind, string | null> = {
   environment: null,
   goal: 'status-panel__scroll--goal',
@@ -54,7 +52,6 @@ const SECTION_SCROLL_CLASS: Record<SectionKind, string | null> = {
   terminals: 'status-panel__scroll--terminals',
 }
 
-/* 同 ZCode formatBackgroundTaskElapsedLabel：分钟档「已运行 M 分 S 秒」，秒档「已运行 S 秒」。 */
 export function formatElapsed(elapsedMs: number): string {
   const totalSeconds = Math.max(1, Math.floor(elapsedMs / 1000))
   const minutes = Math.floor(totalSeconds / 60)
@@ -62,7 +59,6 @@ export function formatElapsed(elapsedMs: number): string {
   return minutes > 0 ? `已运行 ${minutes} 分 ${seconds} 秒` : `已运行 ${seconds} 秒`
 }
 
-/* 同 ZCode formatDurationUnits：时分秒只取非零段，全零落 0 秒。 */
 export function formatDuration(totalSeconds: number): string {
   const seconds = Math.max(0, Math.floor(totalSeconds))
   const hours = Math.floor(seconds / 3600)
@@ -81,7 +77,7 @@ export function formatDuration(totalSeconds: number): string {
   return parts.join(' ')
 }
 
-/** 目标用时：agent 报的 wallClockMs 加上快照到达后本地推的时间；暂停即冻结。 */
+/** 目标用时 = agent 报的 wallClockMs + 快照到达后本地推的时间；暂停即冻结。 */
 function goalElapsedSeconds(goal: SessionGoal, now: number): number {
   const extra = goal.status === 'active' ? Math.max(0, now - goal.receivedAt) : 0
   return Math.floor((goal.wallClockMs + extra) / 1000)
@@ -108,7 +104,7 @@ const BACKGROUND_PROGRESS_LABEL = {
   interrupted: '已中断',
 } as const
 
-/** 零档不提：进度那一格只说非零的桶；桶间分隔用 EN SPACE，不是普通空格。 */
+/** 零档不提：只说非零的桶；桶间分隔用 EN SPACE，不是普通空格。 */
 function progressLabel(counts: readonly (readonly [number, string])[]): string {
   return counts
     .filter(([count]) => count > 0)
@@ -127,25 +123,14 @@ export function backgroundTaskProgressLabel(tasks: readonly BackgroundTaskItem[]
   ])
 }
 
-/*
- * 「智能体」那一节的一行。
- *
- * 两个来源折成同一个形状：agent 自己报的生命周期帧（subagents），以及时间线上的
- * delegate 工具调用。前者是 detached 子代理的**唯一**真相 —— 发起它的那次调用早就
- * 返回了；后者在历史会话里仍然有用（重开一条旧对话时总线上没有任何帧）。
- */
+/* 两个来源折成同一个形状：agent 自己报的生命周期帧（detached 子代理的唯一真相），以及时间线上的 delegate 调用（重开旧对话时总线上没有任何帧）。 */
 interface AgentRow {
   readonly key: string
   readonly title: string
   readonly startedAt: number
 }
 
-/*
- * 智能体那两拨。
- *
- * 有总线帧就用总线帧，否则退回 delegate 工具调用：两条都画会在屏幕上把同一个子代理
- * 列两遍，而人看不出那是同一个。
- */
+/* 有总线帧就用总线帧，否则退回 delegate 工具调用：两条都画会在屏幕上把同一个子代理列两遍。 */
 function agentRows(
   subagents: readonly SubagentItem[],
   delegates: { readonly ended: number; readonly running: readonly ToolCallTimelineItem[] },
@@ -169,7 +154,7 @@ function agentRows(
       running.push({
         key: agent.agentId,
         title: agent.description,
-        /* 启动时刻缺席时用 0：排序稳定，秒针会显示成一个很大的数 —— 那比丢行好。 */
+        /* 启动时刻缺席时用 0：排序稳定；秒针会显示成很大的数，比丢行好。 */
         startedAt: agent.startedAt ?? 0,
       })
     } else {
@@ -180,7 +165,6 @@ function agentRows(
   return { ended, running }
 }
 
-/* 分区头与 ZCode StatusSection 同构：标题 + 折叠钮 + 行内摘要。 */
 function Section({
   children,
   footer,
@@ -190,7 +174,7 @@ function Section({
   value,
 }: {
   readonly children: ReactNode
-  /* 常显页脚（ZCode 的 EndedDirectoryRow）：终态入口不随折叠藏起来。 */
+  /* 常显页脚：终态入口不随折叠藏起来，所以放在折叠面板之外。 */
   readonly footer?: ReactNode
   readonly separated?: boolean
   readonly summary?: (open: boolean) => ReactNode
@@ -217,31 +201,19 @@ function Section({
   )
 }
 
-/* ── Git 工具（环境） ─────────────────────────────────────────────────── */
-
-/*
- * 复刻 ZCode GitStatusSection：「更改 +N -M」→ 分支切换器 → 「提交或推送」。
- *
- * **只要是 git 工作区就恒画**，干净仓库照画（+0 -0）：交来这份事实即代表
- * 「这个目录是仓库、而且读到了」，交 undefined 才是「这一区不画」——不是仓库、
- * 没装 git、还没读到。判据在 review 的 workspaceGitFactsOf（那里有单测钉住）。
- */
-/* 导出只为测试：判据在 review，这里钉的是「干净仓库也画得出 +0 -0」这一格长什么样。 */
+/* 只要是 git 工作区就恒画，干净仓库照画（+0 -0）：undefined 才是「这一区不画」（不是仓库、没装 git、还没读到）。 */
+/* 导出只为测试：钉住「干净仓库也画得出 +0 -0」这一格长什么样。 */
 export function GitStatusSection({
   git,
   onOpenReview,
   picker,
 }: {
   readonly git: WorkspaceGitStatus
-  /* 「提交或推送」那一行交给审查面：那里有完整的提交/推送与信息输入，不在这里再造一份。 */
+  /* 「提交或推送」交给审查面：那里有完整的提交/推送与信息输入，不在这里再造一份。 */
   readonly onOpenReview?: (() => void) | undefined
   readonly picker?: GitBranchPickerProps | undefined
 }) {
-  /*
-   * 两个数照实报，**没有「不报数」这一档**：这份事实只在读到了仓库时才存在，
-   * 所以 0 就是干净的 0。原先让它们缺席（null）时不画，等于把「不知道」说成
-   * 「没改动」，也让「干净仓库」与「没读到」在屏幕上长得一样。
-   */
+  /* 两个数照实报，没有「不报数」这一档：0 就是干净的 0（缺席会把「不知道」说成「没改动」，也让「干净仓库」与「没读到」长得一样）。 */
   const stats = (
     <>
       <span className="status-panel__added">+{git.added}</span>{' '}
@@ -250,10 +222,7 @@ export function GitStatusSection({
   )
   return (
     <Section
-      /*
-       * 收起态把 +N -M 留在标题右边（ZCode GitStatusSection 的 trailing 就是这个）；
-       * 展开时正文里已经有一行「更改」在报同样的数，那一份由 CSS 撤掉，不重复造。
-       */
+      /* 收起态把 +N -M 留在标题右边；展开时正文已有一行「更改」在报同样的数。 */
       summary={() => <span className="status-panel__git-stats status-panel__git-stats--summary">{stats}</span>}
       title="Git 工具"
       value="environment"
@@ -264,7 +233,7 @@ export function GitStatusSection({
           <span className="status-panel__git-label">更改</span>
           <span className="status-panel__git-stats">{stats}</span>
         </div>
-        {/* 分支那一行就是切换入口本身（ZCode 的 GitBranchSwitcher 也铺满这行）。 */}
+        {/* 分支那一行就是切换入口本身。 */}
         <div className="status-panel__git-row status-panel__git-row--branch" data-git-row="branch">
           {picker === undefined ? (
             <>
@@ -289,8 +258,6 @@ export function GitStatusSection({
     </Section>
   )
 }
-
-/* ── 目标 ─────────────────────────────────────────────────────────────── */
 
 function GoalSection({
   goal,
@@ -358,9 +325,6 @@ function GoalSection({
   )
 }
 
-/* ── 进程（待办） ─────────────────────────────────────────────────────── */
-
-/* 与 ZCode 同一道精简窗口：超过 6 项只画焦点三条，前/后各折一条占位行。 */
 const COMPACT_TODO_THRESHOLD = 6
 const TODO_FOCUS_WINDOW_SIZE = 3
 
@@ -404,7 +368,7 @@ function TodoStatusGlyph({ status }: { readonly status: TodoItem['status'] }) {
 }
 
 function TodoSection({ separated, todos }: { readonly separated: boolean; readonly todos: readonly TodoItem[] }) {
-  /* 没有待办事项就整格不提：空表画一行「暂无任务」是废话，摘要也不留 0/0。 */
+  /* 空表整格不提：画一行「暂无任务」是废话，摘要也不留 0/0。 */
   if (todos.length === 0) {
     return null
   }
@@ -460,8 +424,6 @@ function TodoSection({ separated, todos }: { readonly separated: boolean; readon
   )
 }
 
-/* ── 智能体（子代理） ─────────────────────────────────────────────────── */
-
 function AgentsSection({
   agents,
   endedCount,
@@ -471,13 +433,10 @@ function AgentsSection({
   readonly endedCount: number
   readonly separated: boolean
 }) {
-  /*
-   * hook 先于闸门：ticking/排序都是无条件调用，闸门放在它们之后 ——
-   * 早退写在 hook 之前会让同一组件的 hook 顺序随数据变化，是 React 的硬错。
-   */
+  /* hook 先于闸门：早退写在 hook 之前会让同一组件的 hook 顺序随数据变化，是 React 的硬错。 */
   const ticking = agents.length > 0
   const now = useSecond(ticking)
-  /* 与 ZCode 同：子代理按启动先后排，投影本身无序。 */
+  /* 子代理按启动先后排，投影本身无序。 */
   const ordered = useMemo(() => [...agents].sort((left, right) => left.startedAt - right.startedAt), [agents])
   if (agents.length === 0 && endedCount <= 0) {
     return null
@@ -486,7 +445,7 @@ function AgentsSection({
   return (
     <Section
       footer={
-        /* ZCode EndedDirectoryRow：终态子代理不占活动列表的位置，但入口必须留着。 */
+        /* 终态子代理不占活动列表的位置，但入口必须留着。 */
         endedCount > 0 ? (
           <div className="status-panel__ended" data-separated={agents.length > 0 || undefined}>
             <span className="status-panel__ended-row">
@@ -528,7 +487,7 @@ function AgentsSection({
   )
 }
 
-/* ── 终端（后台任务） ─────────────────────────────────────────────────── */
+/* 终端（后台任务） */
 
 function BackgroundStatusGlyph({ status }: { readonly status: BackgroundTaskStatus }) {
   if (status === 'running') {
@@ -550,7 +509,7 @@ function TerminalsSection({
   /* hook 先于闸门：早退写在 hook 之前会让同一组件的 hook 顺序随数据变化，是 React 的硬错。 */
   const running = tasks.filter((task) => task.status === 'running' && task.startedAt !== undefined)
   const now = useSecond(running.length > 0)
-  /* 没有后台任务就整格不提，同待办事项：空表画一行「暂无」是废话。 */
+  /* 没有后台任务就整格不提，同待办事项。 */
   if (tasks.length === 0) {
     return null
   }
@@ -583,7 +542,7 @@ function TerminalsSection({
   )
 }
 
-/* ── 面板 ─────────────────────────────────────────────────────────────── */
+/* 面板 */
 
 export function TaskPanelContent({
   backgroundTasks,
@@ -611,16 +570,12 @@ export function TaskPanelContent({
   const agents = runningAgents ?? []
   const showGoal = goal !== undefined && goal.status !== 'complete'
   const showAgents = agents.length > 0 || endedAgents > 0
-  /* Git 是工具而不是进展：只要目录是 git 工作区就恒画，没有增删也画（+0 -0）。 */
+  /* Git 是工具而不是进展：只要目录是 git 工作区就恒画。 */
   const showGit = git !== undefined
 
   /*
-   * 每一格都是有事实才出现：空表连标题都不画（原来「待办事项 / 后台任务」常驻并各说
-   * 一句「暂无」，那是两块永远空着的标题加两句废话）。
-   *
-   * 展开与否按同一条规则：**有内容的才默认展开，空的谈不上**。全展开会把一块面板
-   * 铺成一屏空白；全收起则等于把「有待办在跑」这件事藏起来，都得点一下才知道。
-   * Git 是唯一例外 —— 它是常驻工具区，出现即展开，与有没有改动无关。
+   * 每一格都是有事实才出现：空表连标题都不画（原来「待办事项 / 后台任务」常驻并各说一句「暂无」，那是两块永远空着的标题加两句废话）。
+   * 展开与否按同一条规则：**有内容的才默认展开**。Git 是唯一例外 —— 它是常驻工具区，出现即展开。
    */
   const expanded = useMemo(
     () => [
@@ -634,12 +589,8 @@ export function TaskPanelContent({
   )
 
   /*
-   * 开合**受控**，不用 Accordion 的 defaultValue。
-   *
-   * 每一格的数据都是异步到的（git 那一份要走一次 RPC），所以「这一格该不该默认展开」
-   * 在首帧常常还没有答案：defaultValue 只在挂载那一刻算一次，晚到的那一格挂上来就是
-   * 收起的 —— 屏幕上先是「面板里什么都没有」，下一帧多出一行收起的标题。这里改成
-   * 受控：新出现的一格补进开着的名单（**只补一次**，之后人在它上面收起来就一直是收的）。
+   * 开合**受控**，不用 Accordion 的 defaultValue：每一格的数据都是异步到的（git 那一份要走一次 RPC），「该不该默认展开」在首帧常常还没有答案，
+   * 而 defaultValue 只在挂载那一刻算一次 —— 晚到的那一格挂上来就是收起的。这里新出现的一格补进开着的名单（**只补一次**，之后人在它上面收起来就一直是收的）。
    */
   const [open, setOpen] = useState<string[]>([...expanded])
   const seen = useRef(new Set(expanded))
@@ -697,11 +648,7 @@ export function TodoPanel({
   const { controls, goal: heldGoal } = useOptionalThreadGoal(threadId)
   const goal = goalProp ?? heldGoal
   const agents = useMemo(() => agentRows(subagents, delegateCallsOf(timeline)), [subagents, timeline])
-  /*
-   * Git 那一格的事实从 Context 读，不从 props 读：它由 review 贡献的 Provider 投下来
-   * （见 ui-api/git-status.ts 的头注）。这样这一格与右侧「审查」面板读的是同一份快照，
-   * 而这个组件不必认识 review、调用方也不必转手一份 git 数据。
-   */
+  /* Git 那一格的事实从 Context 读，不从 props 读：它由 review 贡献的 Provider 投下来，这样这一格与右侧「审查」面板读的是同一份快照，而这个组件不必认识 review。 */
   const git = useWorkspaceGitFacts()
 
   return (

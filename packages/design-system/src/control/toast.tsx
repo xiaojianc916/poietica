@@ -16,8 +16,8 @@ export interface ToastRegionProps {
 /**
  * 失败通知的落地处：只读投影，不持有通知。
  *
- * 停留多久、什么时候退场、最多叠几张都在调用方的 store 里；这里只把 closing 翻成
- * data-state 交给 CSS。整张卡片就是那个关闭控件，所以没有叉。
+ * 停留多久、什么时候退场、最多叠几张都在调用方的 store 里；这里只把 closing 翻成 data-state
+ * 交给 CSS。整张卡片就是那个关闭控件，所以没有叉。
  */
 export function ToastRegion({ notices, onDismiss, onHoverChange }: ToastRegionProps) {
   return (

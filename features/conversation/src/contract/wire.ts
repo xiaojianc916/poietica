@@ -10,9 +10,9 @@ import {
 import { z } from 'zod'
 
 /*
- * 线上形状（05 页 §12）与内存形状之间唯一的一处加宽。
+ * 线上形状与内存形状之间唯一的一处加宽。
  *
- * 快照的**形状**就是 @poietica/transcript 的 TranscriptPage（三个进程共用的一份模型，05 页 §12.1）。
+ * 快照的**形状**就是 @poietica/transcript 的 TranscriptPage（三个进程共用的一份模型）。
  * 下面的 `pageSchema` 在运行时用上游的 zod 校验，但把编译期类型钉回 TranscriptPage —— zod 的推断在
  * exactOptionalPropertyTypes 之下会把可选字段放宽成 `?: T | undefined`，而线上跑的就是同一份 JSON，
  * 这里要声明的是那一份。
@@ -54,10 +54,10 @@ export const pageSchema = (() => {
 })()
 
 /**
- * 05 页 §12.2 要求 Core 把 UI 提交时给的 `clientTurnId` 写进 `turn.upsert` 的 `clientTurnId` 字段
+ * Core 要把 UI 提交时给的 `clientTurnId` 写进 `turn.upsert` 的 `clientTurnId` 字段
  * （UI 靠它把乐观消息换成真实那一轮）。上游的 `TranscriptTurn` 没有这个字段 —— 它是新架构一致性
- * 协议的一部分、不是对话内容，所以加在**线上形状**这一层：src/upstream/ 与 legacy 逐字节相同
- * （11 页 P1.4 的验收要求）。其余 op 的形状与校验原样从上游派生，不抄第二份。
+ * 协议的一部分、不是对话内容，所以加在**线上形状**这一层：`src/upstream/` 与 legacy 逐字节相同
+ * （P1.4 的验收要求）。其余 op 的形状与校验原样从上游派生，不抄第二份。
  */
 export type WireTranscriptOperation =
   | Exclude<TranscriptOperation, { op: 'turn.upsert' }>
@@ -65,7 +65,7 @@ export type WireTranscriptOperation =
 
 /**
  * 交互那一格也是一处加宽：产品的交互有五支（approval / question / select / input / confirm / plan），
- * 而 transcript 的 `interactionKind` 只认 approval / question 两档（它是从 legacy 逐字节迁来的）。
+ * 而 transcript 的 `interactionKind` 只认 approval / question 两档。
  *
  * 计划卡片要在时间线上有一席之地（04 页 §3.12 第 5 支），所以线上这一层把 `plan` 放出来；
  * 上游那一份照旧不动（P1.4 要求 `src/upstream/` 与 legacy 逐字节相同），规则与 `clientTurnId` 同此。

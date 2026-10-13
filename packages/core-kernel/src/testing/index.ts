@@ -8,16 +8,12 @@ import { memoryLayout } from './memory-layout'
 
 export interface CoreHarnessOptions {
   readonly modules: readonly CoreModule[]
-  /** 调用方传入：通常是 @poietica/engine-testkit 的 createFakeEngine()；功能包把 engine-testkit 列在 devDependencies */
+  /** 通常是 @poietica/engine-testkit 的 createFakeEngine()；功能包把 engine-testkit 列在 devDependencies。 */
   readonly engine: AgentEngine
-  /** 被测模块调用 Host 方法时的应答：键是方法名 */
   readonly hostHandlers?: Readonly<Record<string, (params: unknown) => unknown>>
   /**
-   * 与 FakeEngine 共用的假时钟。省略时内核自己造一个。
-   *
-   * 为什么要有这一格：FakeEngine 按 12 页 §1.2 用**注入的 Clock** 排下一拍，而内核用另一个
-   * 时钟排合批与 TTL。两者不是同一个时钟时，测试推一个推不动另一个 —— 现象是「时间线增量
-   * 永远不来、会话永远是 running」。要让时间可控，只能让双方共用同一个 fakeClock。
+   * 与 FakeEngine 共用的假时钟。两者不是同一个时钟时，测试推一个推不动另一个 ——
+   * 现象是「时间线增量永远不来、会话永远是 running」。
    */
   readonly clock?: FakeClock
 }
@@ -28,7 +24,6 @@ export interface CoreHarness {
   readonly engine: AgentEngine
   readonly dataRoot: string
   client<C extends Contract>(contract: C): TypedRpcClient<C>
-  /** 已收到的通知（按到达顺序） */
   notifications<C extends Contract, N extends NotificationName<C>>(contract: C, name: N): NotificationParams<C, N>[]
   dispose(): Promise<void>
 }

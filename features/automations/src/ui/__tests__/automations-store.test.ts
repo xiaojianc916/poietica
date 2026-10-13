@@ -4,12 +4,8 @@ import type { Automation, AutomationRun, Schedule, ScheduleProblem } from '../..
 import type { AutomationsApi } from '../api'
 import { createAutomationsStore } from '../automations-store'
 
-/*
- * store 的行为（逐条对照 legacy `packages/automation/src/automation-store.ts` 的测试口径）：
- *   - changed → refresh；runUpdated → 只更新缓存里的那一条；
- *   - 写入成功把返回值并进列表；命令去重（同键只发一次）；
- *   - 读失败会写进 error（loaded 仍为 true），订阅失败写 watchError。
- */
+/* changed → refresh；runUpdated → 只更新缓存里那一条；写入成功把返回值并进列表；命令去重。读失败写进 error（loaded 仍为 true），
+ * 订阅失败写 watchError。 */
 
 function automation(id: string, over: Partial<Automation> = {}): Automation {
   return {

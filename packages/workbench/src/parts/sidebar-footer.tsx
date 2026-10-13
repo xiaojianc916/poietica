@@ -18,14 +18,9 @@ import { PartSkeleton } from './part-skeleton'
 
 const REPOSITORY_URL = 'https://github.com/xiaojianc916/poietica'
 
-/**
- * 侧栏底部行。**迁移自** legacy `shell/sidebar/sidebar-footer.tsx`：
- * DOM、类名、图标与三条菜单项一字未改；数据来源换成内核服务与命令服务。
- * legacy 的 `updateRow` 插槽换成 `helpMenuItems` 贡献点：条目由功能自己贡献
- * （update 贡献「检查更新」），外壳不认识任何具体功能（守则 2/3）。
- *
- * 「开发者工具」那一项由**菜单自己**执行命令（`HelpMenu` 内），这里不再传回调：
- * 早先两处都执行一次，点一下会开两个 DevTools。
+/*
+ * 侧栏底部行。菜单条目由 `helpMenuItems` 贡献点来，外壳不认识任何具体功能。
+ * 「开发者工具」只由菜单自己执行命令：早先两处都执行一次，点一下会开两个 DevTools。
  */
 export function SidebarFooter({ settingsActive = false }: { readonly settingsActive?: boolean }): ReactNode {
   const { kernelServices } = useKernel()
@@ -47,7 +42,6 @@ export function SidebarFooter({ settingsActive = false }: { readonly settingsAct
   )
 }
 
-/** 底部行的一枚图标按钮：悬停出现提示，激活态用侧栏强调底色。 */
 function FooterButton({
   label,
   icon: Icon,
@@ -83,11 +77,6 @@ function FooterButton({
   )
 }
 
-/**
- * 帮助菜单：项目文档 / 功能贡献的行（如「检查更新」）/ GitHub / 开发者工具。
- *
- * 贡献行落在「项目文档」与「GitHub」之间 —— legacy 的 `{updateRow}` 就在这个位置。
- */
 function HelpMenu(): ReactNode {
   const { kernelServices } = useKernel()
   const rows = useContributions(builtinPoints.helpMenuItems)
@@ -150,9 +139,7 @@ function HelpMenuItem({
   )
 
   /*
-   * 内容只有这一份：走链接时放进 <a> 里，走按钮时交给菜单项。
-   *
-   * 不是重复 —— 链接必须有可访问内容（WCAG 2.4.4，biome 的 useAnchorContent 同一条），
+   * 内容只有这一份：链接必须有可访问内容（WCAG 2.4.4，biome 的 useAnchorContent 同一条），
    * 而 render 插槽里那个空 <a> 在静态上根本看不出内容从哪来。
    */
   if (href !== undefined) {

@@ -15,13 +15,11 @@
   font-size: var(--cp-font-caption);
 }
 
-/* 与转录里那条失败横线同一种红。 */
 .assistant-notice__mark {
   flex: none;
   color: var(--ui-destructive);
 }
 
-/* 正文吃中间那一格：长句以省略号收尾，按钮留在右端。 */
 .assistant-notice__text {
   flex: 1;
   min-inline-size: 0;
@@ -56,7 +54,7 @@
   color: var(--cp-ink);
 }
 
-/* 这一趟在飞：字形转起来，钮按不动。旋转复用 skin/surface.css 的 assistant-spin。 */
+/* 这一趟在飞；字形旋转复用 skin/surface.css 的 assistant-spin。 */
 .assistant-notice__retry[data-retrying="true"] {
   cursor: default;
 }

@@ -1,12 +1,7 @@
 import { describe, expect, test } from 'bun:test'
 import { KeepAlive, mergeRange } from '../keep-alive'
 
-/*
- * 常驻集合的纯逻辑：按 key 记、按最近使用淘汰、有上限。
- *
- * 滚动区怎么把它接进渲染窗口（虚拟器下标、rowAtAnchor 的二分）不在这里测 ——
- * 那需要真实几何，happy-dom 给不了。
- */
+/* 常驻集合的纯逻辑：按 key 记、按最近使用淘汰、有上限。滚动区怎么接进渲染窗口（虚拟器下标、rowAtAnchor 的二分）需要真实几何，happy-dom 给不了，不在这里测。 */
 
 describe('KeepAlive', () => {
   test('超出容量时从最旧的一端淘汰', () => {

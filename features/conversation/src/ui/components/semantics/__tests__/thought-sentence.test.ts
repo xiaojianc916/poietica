@@ -2,13 +2,10 @@ import { describe, expect, it } from 'bun:test'
 import { MAX_SENTENCE_CHARS, readThoughtSentence, stripThoughtMarkup } from '../thought-sentence'
 
 /*
- * 组头那一行取的是哪一句话。
- *
- * 两条都是老毛病的回归：用行号当身份时一整段不换行的思考从头到尾看不到换句（T-04）；
- * 逐字照抄不认 Markdown 时屏幕上会出现 `**`、`#`、围栏（T-06）。
- *
- * 判据的重心是**身份稳不稳**：同一句继续写，key 必须一模一样 —— 容器靠它决定是「原地长字」
- * 还是「上下刷一次」。key 一旦随字数变，每个 token 都会被当成换句。
+ * 组头那一行取的是哪一句话。两条老毛病的回归：用行号当身份，一整段不换行的思考看不到换句
+ * （T-04）；不认 Markdown，屏幕上会露出 `**`、`#`、围栏（T-06）。**身份必须稳**：同一句继续
+ * 写 key 要一模一样 —— 容器靠它决定「原地长字」还是「上下刷一次」，key 随字数变则每个 token
+ * 都被当成换句。
  */
 
 const han = (count: number): string => '啊'.repeat(count)
@@ -40,7 +37,7 @@ describe('取句：句界', () => {
 
   it('换行是句界', () => {
     expect(readThoughtSentence('第一行\n第二行').current).toEqual({ key: '4', text: '第二行' })
-    /* CRLF 先归一成 \n，偏移因此按归一后的文本算：偏移是这一层内部的身份，不对外承诺。 */
+    /* 偏移按 CRLF 归一后的文本算，是这一层内部的身份，不对外承诺。 */
     expect(readThoughtSentence('第一行\r\n第二行').current).toEqual({ key: '4', text: '第二行' })
   })
 
@@ -83,7 +80,7 @@ describe('取句：英文标点', () => {
     expect(readThoughtSentence('Done!Next').current.text).toBe('Done!Next')
     expect(readThoughtSentence('Really? Yes').current.text).toBe('Yes')
     expect(readThoughtSentence('Really?Yes').current.text).toBe('Really?Yes')
-    /* 姓名缩写后面不带空白：缩写的判据在点号上，这条走的是另一档。 */
+    /* 姓名缩写走的是点号那一档判据，不是空白那一档。 */
     expect(readThoughtSentence('J. Smith wrote').current.text).toBe('J. Smith wrote')
   })
 })
@@ -112,10 +109,9 @@ describe('取句：超长段落', () => {
   })
 
   it('切点不落在代理对中间', () => {
-    /* emoji 占住第 399、400 两个码元：硬切在 400 会把它劈成半个。 */
+    /* emoji 占住第 399、400 两个码元：硬切在 400 会把它劈成半个，右移一位后那一句从 401 起。 */
     const said = readThoughtSentence(`${han(399)}😀${han(200)}`)
 
-    /* 右移一位让开它 —— 偏移+1，那一句因此从 401 起。 */
     expect(said.current.key).toBe('401')
     expect(said.current.text).toBe(han(200))
   })

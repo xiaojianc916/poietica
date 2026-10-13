@@ -31,13 +31,12 @@
 /*
  * 图标盒。
  *
- * SVG 默认是 display: inline，会参与行内布局：baseline 对齐把元素推到一个
- * 由 line-height 决定的小数 y 偏移上，整张位图随之被重采样。尺寸再怎么对齐
- * 设备像素也救不回来，因为糊的是「起点」不是「大小」。block 让它退出行内
- * 布局，flex: none 阻止弹性容器把它压成小数宽度。
+ * SVG 默认是 display: inline，会参与行内布局：baseline 对齐把元素推到一个由 line-height
+ * 决定的小数 y 偏移上，整张位图随之被重采样。尺寸再怎么对齐设备像素也救不回来，因为糊的是
+ * 「起点」不是「大小」。block 让它退出行内布局，flex: none 阻止弹性容器把它压成小数宽度。
  *
- * 这里不设 stroke-width：描边宽度是字形绘制时的属性，由字形集决定。此前那条
- * :where(button > svg, a > svg) 会连 spinner、logo、图表一起改写。
+ * 这里不设 stroke-width：描边宽度由字形集决定，一条 :where(button > svg, a > svg) 会连
+ * spinner、logo、图表一起改写。
  */
 .ui-icon {
   display: block;

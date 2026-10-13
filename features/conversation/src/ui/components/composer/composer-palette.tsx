@@ -6,20 +6,9 @@ import type { PromptConfiguration } from '../../agent/session'
 import { AttachIcon, CheckIcon } from '../primitives/icons'
 import { ENTER_EASE, ENTER_SECONDS, EXIT_EASE, EXIT_SECONDS, RISE_PX } from '../primitives/motion'
 
-/*
- * 输入框上沿那张面板，加号翻开。
- *
- * 纯视图。开不开、高亮哪一行、键盘怎么走，全归持有草稿的 PromptInput —— 键盘
- * 事件落在 contenteditable 上，面板自己听不见。行由调用方摊平后交进来，所以这里
- * 不认识 agent、不认识技能、也不认识文件选择器。
- */
+/* 输入框上沿那张面板（加号翻开）。纯视图：开合、高亮、键盘都归持有草稿的 PromptInput —— 键盘事件落在 contenteditable 上，面板自己听不见。 */
 
-/*
- * 选中一行之后做什么。
- *
- * 要动草稿的一律只声明意图，由持有草稿的 PromptInput 执行 —— 面板算不出光标，
- * 也不该拿到写草稿的权力。
- */
+/* 选中一行之后做什么。要动草稿的一律只声明意图，由持有草稿的 PromptInput 执行。 */
 export type PaletteAction =
   | { readonly kind: 'insert'; readonly chip: import('../primitives/prompt-chip').PromptChipValue }
   | {
@@ -33,11 +22,8 @@ export interface PaletteRow {
   readonly id: string
   readonly icon: ReactNode
   readonly label: string
-  /** 名字后面那句淡字。 */
   readonly detail?: string | undefined
-  /** 最右侧的键位提示。 */
   readonly hint?: string | undefined
-  /** 打勾：这一行是此刻生效的那一档。 */
   readonly checked?: boolean | undefined
 
   readonly action: PaletteAction
@@ -49,17 +35,14 @@ export interface PaletteGroup {
   readonly rows: readonly PaletteRow[]
 }
 
-/** 面板与输入框共用这一条 id 规则：活动项由 aria-activedescendant 指过来。 */
+/** 面板与输入框共用的 id 规则：活动项由 aria-activedescendant 指过来。 */
 export function paletteOptionId(listboxId: string, rowId: string): string {
   return `${listboxId}-${rowId}`
 }
 
 /**
- * 面板开着时，这几个键归面板。两个 composer 共用一条规则 —— 抄成两份的话，
- * 补一个键位就会只补到其中一处。
- *
- * 只在捕获相调用：编辑器与输入框都不该知道面板存在，放它们先看见方向键，
- * 光标就先挪走了。`stopPropagation` 归调用方：主输入框里还有 Lexical 在听。
+ * 面板开着时这几个键归面板。两个 composer 共用一条规则，抄成两份就会只补到其中一处。
+ * 只在捕获相调用，放编辑器先看见方向键光标就先挪走了；`stopPropagation` 归调用方（主输入框里还有 Lexical 在听）。
  */
 export function paletteKeyDown(
   event: KeyboardEvent<HTMLFormElement>,
@@ -118,13 +101,6 @@ export function paletteKeyDown(
   }
 }
 
-/*
- * 面板的第一组：往这一句里加什么。
- *
- * 归这里而不是归某一个 composer —— 行本身不认识文件，只认一个回调，所以主对话的
- * 加号与辅助对话的加号翻开的是同一组行。放在这一层也避开一条环：持有文件选择器的
- * prompt-input 反过来要读它。
- */
 export function composerComposeGroup(onAddFile: () => void): PaletteGroup {
   return {
     id: 'compose',
@@ -142,13 +118,8 @@ export function composerComposeGroup(onAddFile: () => void): PaletteGroup {
 }
 
 /**
- * 点到框外就收面板：捕获相 pointerdown，因为点不可聚焦区域不移走焦点。
- *
- * 两个 composer 共用一条规则。`inside` 交回此刻算「框内」的那个元素 ——
- * 主输入框的框是 form，辅助那一格是输入条本身。
- *
- * `portal` 是另一块也算框内的元素：面板经传送门落在 body 下，不在 `inside` 的子树里，
- * 不带上它就会「点自己反而把自己关掉」。
+ * 点到框外就收面板：捕获相 pointerdown，因为点不可聚焦区域不移走焦点。两个 composer 共用。
+ * `portal` 是另一块也算框内的元素：面板经传送门落在 body 下，不带上它就会「点自己反而把自己关掉」。
  */
 export function useDismissOutside(
   open: boolean,
@@ -185,11 +156,8 @@ export function useDismissOutside(
 
 export interface ComposerPaletteProps {
   readonly groups: readonly PaletteGroup[]
-  /** 开合的真相在 PromptInput，这里只负责把它播出来。 */
   readonly isOpen: boolean
-  /** listbox 自己的 id：输入框拿它填 aria-controls。 */
   readonly listboxId: string
-  /** 在摊平后的行序列里的下标。 */
   readonly highlighted: number
   /** 指针进入某一行时把高亮挪过去：任何时刻只有一行有悬停色。 */
   readonly onHighlight: (index: number) => void

@@ -11,8 +11,7 @@ export type ToolKind =
   | 'todo'
   | 'write'
 
-// 折叠行上那一枚字形。类别只有十一档，字形按工具名分得更细
-// （transcript/omp-tool-glyphs.ts）；认不出的名字是「从外面来的工具」。
+// 折叠行上那一枚字形：按工具名分得比 ToolKind 细，映射在 transcript/omp-tool-glyphs.ts；认不出的名字归 other。
 export type ToolGlyph =
   | 'bug'
   | 'clock'
@@ -38,8 +37,7 @@ export type ToolGlyph =
   | 'write'
   | 'yield'
 
-// flow: 送出在上、交回在下同一张纸；diff: 一处改动按行画；
-// result: 只有产出面；tabs: 两头不相干时退到入参/产出两页签。
+// 四种画法：diff 按行画一处改动，flow 入参在上、产出在下同一张纸，result 只有产出面，tabs 入参/产出各一页签。
 export type ToolDrawerShape = 'diff' | 'flow' | 'result' | 'tabs'
 
 export type ToolCallStatus = 'completed' | 'failed' | 'in_progress' | 'pending'

@@ -23,7 +23,7 @@ export interface QuitDeps {
   readonly logger: Logger
   readonly supervisor: Pick<CoreSupervisor, 'stop'>
   readonly windows: Pick<WindowRegistry, 'destroyAll'>
-  /** 默认 app.exit(code)（06 页 §4.9）；测试注入假实现时不必加载 electron */
+  /** 默认 app.exit(code)；测试注入假实现时不必加载 electron。 */
   readonly exit?: (code: number) => void
 }
 
@@ -47,11 +47,9 @@ export function createQuitCoordinator(o: QuitDeps): QuitCoordinator {
       running = (async () => {
         o.logger.info('quitting', { reason })
         /*
-         * 先停 Core，再跑 Host 钩子与 disposables（R-08-11）。
-         *
-         * Core 关停期间（会话中止、工具收尾）仍可能调用 owner='host' 的方法（浏览器、终端
-         * 类工具），那时 Host 的服务必须还活着；反过来的顾虑不存在 —— Host 钩子里
-         * （terminal、browser、preferences、platform）全是本地动作，没有需要 Core 活着的。
+         * 先停 Core，再跑 Host 钩子与 disposables（R-08-11）。Core 关停期间（会话中止、工具收尾）
+         * 仍可能调用 owner='host' 的方法，那时 Host 的服务必须还活着；反过来不存在顾虑 ——
+         * Host 钩子里全是本地动作，没有需要 Core 活着的。
          */
         await o.supervisor.stop()
         for (const h of [...hooks].reverse()) {

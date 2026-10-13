@@ -15,32 +15,20 @@ import type { AutomationsStore } from './automations-store'
 import { TemplateGallery } from './template-gallery'
 import { type AutomationTemplate, draftOfTemplate } from './templates'
 
-/*
- * 自动化表面（07 页 §9E 的 `surfaces`）。
- *
- * legacy 的这个组件自己管一个内部视图状态（list / draft / editor），因为整个自动化
- * 功能是一张单页。新架构里表面对应路由：`automations.list` 与 `automations.edit`
- * （参数 automationId，新建为 'new'），所以这里拆成两个表面组件；两者共用一个
- * AutomationsStore 与同一份工作区选择。
- *
- * 工作区 choices 由 WorkspacesUiToken 派生（新架构里工作区是 workspaces 的实体，
- * 有 id 与 name 两格），不再像 legacy 那样从已有任务的目录里反推。
- */
+/* legacy 的这个组件自己管内部视图状态（list / draft / editor）；新架构里表面对应路由：automations.list 与 automations.edit
+ * （新建为 'new'），所以拆成两个表面组件，共用一个 store 与同一份工作区选择。 */
 
 export interface AutomationsSurfaceProps {
   readonly store: AutomationsStore
-  /** 新建/编辑时用的系统时区；由组合根按 Intl 算出（07 页 §9E）。 */
   readonly defaultTimeZone: string
   readonly onOpenThread: (threadId: string) => void
 }
 
-/** 任务的运行记录（store 里按 id 缓存；实体只带 lastRun）。 */
 export function useRunsOf(store: AutomationsStore): (automationId: string) => readonly AutomationRun[] {
   const runs = useFeatureStoreShallow(store.store, (held) => held.runs)
   return useMemo(() => (automationId: string) => runs[automationId] ?? [], [runs])
 }
 
-/** 工作区 choices：WorkspacesUi 的 store 是布局列，选器要的是 {id,name} 两格。 */
 function useWorkspaceChoices(): readonly WorkspaceChoice[] {
   const workspaces = useService(WorkspacesUiToken) as WorkspacesUi
   const items = useFeatureStoreShallow(workspaces.store, (held) => held.items)
@@ -61,8 +49,6 @@ function usePickWorkspace(): () => Promise<string | null> {
     [workspaces],
   )
 }
-
-/* ── 列表表面 ─────────────────────────────────────────────────────────────── */
 
 export function AutomationsListSurface({ store }: AutomationsSurfaceProps) {
   const navigation = useService(NavigationToken) as NavigationService
@@ -142,8 +128,6 @@ export function AutomationsListSurface({ store }: AutomationsSurfaceProps) {
   )
 }
 
-/* ── 编辑表面 ─────────────────────────────────────────────────────────────── */
-
 export function AutomationsEditSurface({
   automationId,
   store,
@@ -191,12 +175,8 @@ export function AutomationsEditSurface({
   )
 }
 
-/*
- * 草稿在**数据到位之后**才初始化（编辑表面先等 loaded）：宿主组件按 automationId 挂载，
- * useState 初始化器只读一次数据来源，之后目录里那条任务如何刷新都不再改草稿 —— legacy
- * 的 baselineDraft 同此。pendingDraft 的清空放在 effect（提交之后）而不是渲染期间：
- * StrictMode 会双调用渲染，渲染期间的副作用会丢掉线程动作预填的草稿。
- */
+/* 草稿在数据到位之后才初始化（编辑表面先等 loaded）：useState 初始化器只读一次数据来源。清空 pendingDraft 放在 effect 而不是
+ * 渲染期间：StrictMode 会双调用渲染，渲染期间的副作用会丢掉预填的草稿。 */
 function AutomationEditorHost({
   automation,
   defaultTimeZone,
@@ -223,7 +203,6 @@ function AutomationEditorHost({
     if (automation === null) {
       return { ...BLANK_DRAFT, schedule: { cron: null, at: null, timeZone: defaultTimeZone } }
     }
-    /* 任务记着的时区原样保留（agent 可能按别的时区建）：只有缺省时才落本机时区（审查 R-16） */
     const timeZone = automation.schedule.timeZone === '' ? defaultTimeZone : automation.schedule.timeZone
     return { ...draftOf(automation), schedule: { ...automation.schedule, timeZone } }
   })

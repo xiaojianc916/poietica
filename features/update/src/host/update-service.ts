@@ -3,7 +3,6 @@ import type { UpdateState } from '../contract/entities'
 import { updateErrors } from '../contract/errors'
 
 export interface UpdaterPort {
-  /** 没有新版本时返回 isUpdateAvailable:false（electron-updater 的真实行为） */
   checkForUpdates(): Promise<{
     isUpdateAvailable: boolean
     updateInfo: { version: string; releaseNotes?: unknown }
@@ -14,8 +13,7 @@ export interface UpdaterPort {
 }
 
 /**
- * 发布说明转纯文本（07 页 §15D）：两种形状（字符串 / 逐版本数组）都接，
- * `<br>` 与块级标签的收尾换行、其余标签剥掉，UI 不渲染 HTML。
+ * 两种形状（字符串 / 逐版本数组）都接，`<br>` 与块级标签的收尾换行、其余标签剥掉，UI 不渲染 HTML。
  */
 export function notesToText(notes: unknown): string | null {
   const raw =
@@ -37,18 +35,13 @@ export function notesToText(notes: unknown): string | null {
   return text.length > 0 ? text : null
 }
 
-/** 错误文案取自契约（defineErrors 的 __messages），与 UI 兜底一字不差。 */
 const messageOf = (code: string): string => updateErrors.__messages[code] ?? code
 
 /**
- * 更新状态机（07 页 §15D 完整代码）。
- *
- * 不 import electron / electron-updater：更新器由 `updater` 注入（打包版由 host/index.ts
- * 装配真身，开发版同样装配 —— 读 dev-app-update.yml），所以全部相位转换都能单测
- * （UP-1…UP-7）。`null` 仍是合法输入：装配不出来时状态机退回 `disabled`。
+ * 更新状态机。不 import electron / electron-updater：更新器由 `updater` 注入，所以全部相位转换都能单测（UP-1…UP-7）。`null` 仍是合法
+ * 输入：装配不出来时状态机退回 `disabled`。
  */
 export function createUpdateService(d: {
-  /** 缺席时相位停在 disabled（正常装配两条路径都会给真身） */
   updater: UpdaterPort | null
   currentVersion: string
   logger: Logger

@@ -75,15 +75,15 @@ describe('P2.3 引导与隔离', () => {
   })
 
   /*
-   * T-ISO-6（04 页 §3.3 第 9 条 / 12 页 §5.2）：外来 provider 的禁用必须在**第一次开会话之前**
+   * T-ISO-6：外来 provider 的禁用必须在**第一次开会话之前**
    * 就已生效，不能等某条会话建好才落到 omp 的 capability 注册表上。
    *
    * 根因形状：`disableProvider` 写的是「当前绑定的那个 Settings」，没有先
    * `initializeWithSettings` 时它只进一个未绑定的进程级集合，配置一刷就没了 ——
    * 于是 `~/.claude` / `~/.agents` 的配置会在第一条会话开始之前被读进来。
    *
-   * `agents` 已按产品负责人 2026-10-09 的裁决放行（refactor-log Q32）：`~/.agents` 是跨工具共享的
-   * 用户级目录，legacy 照读；这一条因此改成「`.claude` 仍被挡、`.agents` 已放行」。
+   * `agents` 已按产品负责人的裁决放行（refactor-log Q32）：`~/.agents` 是跨工具共享的
+   * 用户级目录；这一条因此改成「`.claude` 仍被挡、`.agents` 已放行」。
    */
   test('T-ISO-6 外来 provider 在第一次开会话之前就已生效（~/.claude 被挡，~/.agents 已放行）', async () => {
     const fakeHome = mkdtempSync(path.join(tmpdir(), 'poietica-foreign-home-'))

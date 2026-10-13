@@ -1,7 +1,4 @@
-/*
- * 题号与选项号由桥签发，全程不解析（ADR 0018）：agent 自己的题只有标签，号是桥现编的，
- * 答复按同一个号回来 —— 这一侧既不给号赋予含义，也不从号里推标签。
- */
+/* 题号与选项号由桥签发、全程不解析（ADR 0018）：不给号赋予含义，也不从号里推标签。 */
 
 export interface QuestionOption {
   readonly id: string
@@ -21,7 +18,7 @@ export interface QuestionItem {
   readonly otherDescription?: string
 }
 
-/** 判别式与分支名是这条答复协议的取值域；正本 crates/agent-client 的 QuestionAnswer。 */
+/** 判别式与分支名是这条答复协议的取值域（crates/agent-client 的 QuestionAnswer），别改。 */
 export type QuestionChoice =
   | { readonly kind: 'single'; readonly optionId: string }
   | { readonly kind: 'multi'; readonly optionIds: readonly string[] }
@@ -38,13 +35,13 @@ export interface QuestionAnswer {
   readonly answer: QuestionChoice
 }
 
-/** 官方把 click 丢掉，但它在 wire 上是合法值；如实上报，不改报。 */
+/** 官方把 click 丢掉，但它在 wire 上合法；如实上报，不改报。 */
 export type QuestionAnswerMethod = 'enter' | 'space' | 'number_key' | 'click'
 
 export interface QuestionResponse {
   readonly questionId: string
   readonly answers: readonly QuestionAnswer[]
   readonly method?: QuestionAnswerMethod
-  /** 官方 server 今天收下但不读（routes/questions.ts 的 toInProcessResponse）；它是官方契约的一部分。 */
+  /** 官方 server 今天收下但不读；它是官方契约的一部分。 */
   readonly note?: string
 }

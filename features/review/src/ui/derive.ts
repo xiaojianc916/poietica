@@ -45,7 +45,6 @@ export function createDeriver(
     if (event.data.ok) {
       held.resolve(event.data.files)
     } else {
-      /* worker 里抛出来的东西按不变量带回来（那个 worker 只可能因为代码缺陷失败） */
       held.reject(new InvariantError(event.data.error.message))
     }
   }

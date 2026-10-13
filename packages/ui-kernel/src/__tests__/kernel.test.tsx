@@ -229,10 +229,8 @@ describe('ui-kernel', () => {
   })
 
   /*
-   * R-08-9：功能之间没有顺序依赖（依赖顺序只在 setup 阶段有意义），所以 onCoreReady
-   * 必须并行跑 —— 从前是逐个 await，一个功能的慢请求把后面所有功能的首屏数据都压住。
-   *
-   * 但**同一个功能**注册的多个钩子仍按注册顺序串行：功能内部的前后关系只有它自己知道。
+   * R-08-9：功能之间**并行**（依赖顺序只在 setup 阶段有意义）—— 从前是逐个 await，
+   * 一个功能的慢请求把后面所有功能的首屏数据都压住。但**同一个功能**的多个钩子仍按注册顺序串行。
    */
   test('R-08-9 onCoreReady 跨功能并行、同功能内串行', async () => {
     const order: string[] = []
@@ -275,11 +273,8 @@ describe('ui-kernel', () => {
   })
 
   /*
-   * R-04 S10：Core 丢失是一等生命周期事件。
-   *
-   * ready → restarting → ready 这一趟里，onCoreLost 必须恰恰调用一次、且早于第二次
-   * onCoreReady —— 后者才会重新拉数据，前者负责把依赖 Core 进程内状态的 UI 缓存清掉。
-   * `starting → ready`（首次启动）不是丢失，不触发。
+   * R-04 S10：ready → restarting → ready 这一趟里，onCoreLost 恰恰调用一次、且早于第二次 onCoreReady
+   * —— 后者才重新拉数据，前者负责把依赖 Core 进程内状态的 UI 缓存清掉。`starting → ready`（首次启动）不是丢失。
    */
   test('R-04 S10 onCoreLost 在 ready → 非 ready 时同步执行，早于下一次 onCoreReady', async () => {
     const order: string[] = []
@@ -296,7 +291,6 @@ describe('ui-kernel', () => {
     })
     const { bridge } = await startKernel({ features: [f] })
 
-    /* 首次进入 ready：只有 ready，没有 lost。 */
     bridge.emit({ jsonrpc: '2.0', method: 'core.status', params: { state: 'ready', reason: null, attempt: 0 } })
     await new Promise((r) => setTimeout(r, 5))
     expect(order).toEqual(['ready'])
@@ -330,8 +324,7 @@ describe('ui-kernel', () => {
   })
 
   /*
-   * R-04 S11：一个功能的 onCoreLost 抛错不能连累别人 —— 清缓存漏掉一格就是「一片界面
-   * 停在旧进程状态上」，比日志里多一条 error 严重得多。
+   * R-04 S11：一个功能的 onCoreLost 抛错不能连累别人 —— 清缓存漏掉一格就是「一片界面停在旧进程状态上」。
    */
   test('R-04 S11 某个 onCoreLost 抛错：其它功能仍被调用，错误写进 logger', async () => {
     const called: string[] = []
@@ -409,7 +402,7 @@ describe('ui-kernel', () => {
       },
     })
     const { kernel } = await startKernel({ features: [f], bridge, validateResults: true })
-    // 结果不符合 schema：抛出 ZodError，内核/功能自行处理；验收点是"不静默"
+    // 结果不符合 schema：抛 ZodError，内核/功能自行处理；验收点是「不静默」
     const err = await client!.call('alpha.bad', {}).catch((e: unknown) => e)
     expect(err).toBeInstanceOf(Error)
     expect(String(err)).toContain('ok')

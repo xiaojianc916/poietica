@@ -1,10 +1,7 @@
 import { integrationMarkFor } from '@poietica/design-system'
 import { useState } from 'react'
 
-/*
- * 插件 / MCP 服务器的那枚字形。**迁移自** legacy `packages/extension/src/ui/plugin-glyph.tsx`：
- * DOM 与类名一字未改，认得出的条目用集成标记，认不出的与坏掉的资源退回彩色首字母。
- */
+/* 认得出的条目用集成标记，认不出的与坏掉的资源退回彩色首字母。 */
 
 function pluginHue(id: string): number {
   let hash = 7

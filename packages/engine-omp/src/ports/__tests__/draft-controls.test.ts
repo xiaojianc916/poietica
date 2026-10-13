@@ -50,7 +50,7 @@ async function settingsRoot(): Promise<Settings> {
 }
 
 /*
- * 草稿控件表（方案 §04）。这里是它**组装规则**的单测：注册表给了什么、白名单滤掉什么、
+ * 草稿控件表。这里是它**组装规则**的单测：注册表给了什么、白名单滤掉什么、
  * 没有默认模型时怎么办。真引擎那一侧的端到端在 engine-testkit 的 C-DRAFT-CONTROLS。
  */
 describe('draftControlsOf', () => {

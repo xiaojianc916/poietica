@@ -16,9 +16,9 @@ export interface CommandMenuItem {
 /**
  * 一组。
  *
- * 组是这个控件的一等公民，不是行上的一个属性。此前 category 画在行尾，于是
- * 同一类的十条各自重复十遍类名，而「这里开始是另一类了」这件事没有任何视觉
- * 或语义上的表达 —— 读屏软件读到的是一条一百项的平列表。
+ * 组是这个控件的一等公民，不是行上的一个属性。此前 category 画在行尾，于是同一类的十条各自
+ * 重复十遍类名，而「这里开始是另一类了」这件事没有任何视觉或语义上的表达 —— 读屏软件读到的
+ * 是一条一百项的平列表。
  */
 export interface CommandMenuGroup {
   readonly id: string
@@ -38,9 +38,8 @@ export interface CommandMenuProps {
 }
 
 /**
- * 建在 Base UI Combobox 上的可访问内联命令选择：Base UI 管高亮、跨组导航、
- * Home/End、Enter 选中、active-descendant 语义与组标注；调用方管命令注册、
- * 过滤、分组排序、执行与文案。
+ * 建在 Base UI Combobox 上的可访问内联命令选择：Base UI 管高亮、跨组导航、Home/End、
+ * Enter 选中、active-descendant 语义与组标注；调用方管命令注册、过滤、分组排序、执行与文案。
  */
 export function CommandMenu({
   groups,
@@ -78,8 +77,8 @@ export function CommandMenu({
       value={null}
     >
       {/*
-       * 输入框不画放大镜、不画底部分隔线：占位符本身就是"搜索聊天"，
-       * 再叠一个图标和一条线只会把顶部压重。间距靠 padding 撑开。
+       * 输入框不画放大镜、不画底部分隔线：占位符本身就是"搜索聊天"，再叠一个图标和一条线只会把
+       * 顶部压重。间距靠 padding 撑开。
        */}
       <div className={cn('px-5', 'py-4')}>
         <BaseCombobox.Input
@@ -156,8 +155,8 @@ export function CommandMenu({
         ))}
 
         {/*
-         * Empty 的根节点永远挂载（读屏播报用），有结果时只清空子节点。
-         * 占位尺寸必须写在子节点上 —— 写在根上会在有结果时留下一块空白。
+         * Empty 的根节点永远挂载（读屏播报用），有结果时只清空子节点。占位尺寸必须写在子节点上
+         * —— 写在根上会在有结果时留下一块空白。
          */}
         <BaseCombobox.Empty className={cn('outline-none')}>
           <span className={cn('grid min-h-28', 'place-content-center', 'gap-1 px-4', 'text-center')}>

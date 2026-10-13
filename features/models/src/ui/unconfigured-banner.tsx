@@ -2,12 +2,7 @@ import { Button } from '@poietica/design-system'
 import { type ReactElement, useEffect, useState } from 'react'
 import type { ModelsApi } from './api'
 
-/*
- * 未配置服务商的横幅（07 页 §6E）。没有首启引导（用户确认过）：只显示一条横幅 + 「去设置」。
- *
- * 外壳（workbench 的 BannerHost）负责语气色与容器，这里只出内容。
- */
-
+/* 未配置服务商的横幅。没有首启引导（用户确认过）：只显示一条横幅 + 「去设置」。外壳（workbench 的 BannerHost）负责语气色与容器。 */
 /** 「一个已配置的服务商都没有」。目录为空也算没有（还没读到目录时返回 false，不闪） */
 export function isUnconfigured(providers: readonly { readonly configured: boolean }[]): boolean {
   return providers.length > 0 && !providers.some((p) => p.configured)
@@ -52,8 +47,7 @@ export function ModelsBanner({
 }
 
 /**
- * EntryNoticeItem.useVisible 是一个 Hook（06 页 §5.5）。这里与组件读同一份状态：
- * 只有「读到目录且一个都没有配置」才占位。
+ * EntryNoticeItem.useVisible 是一个 Hook。这里与组件读同一份状态：只有「读到目录且一个都没有配置」才占位。
  */
 export function useUnconfiguredVisible(api: ModelsApi): boolean {
   const [visible, setVisible] = useState(false)

@@ -2,10 +2,7 @@ import { Activity, FileText, ListChecks, type LucideIcon, Target } from 'lucide-
 import { describeSchedule } from './automation'
 import { AUTOMATION_TEMPLATES, type AutomationTemplate } from './templates'
 
-/*
- * 字形表住在展示层：templates.ts 是纯数据，要在没有 DOM 的地方被读，不该 import
- * 图标库。加模板忘了配字形会在这里取到 undefined，兜底用文档字形。
- */
+/* 字形表住在展示层：templates.ts 是纯数据，不该 import 图标库。加模板忘了配字形会在这里取到 undefined，兜底用文档字形。 */
 const GLYPHS: Readonly<Record<string, LucideIcon>> = {
   'morning-briefing': Target,
   'risk-scan': Activity,
@@ -17,10 +14,6 @@ export interface TemplateGalleryProps {
   readonly onPick: (template: AutomationTemplate) => void
 }
 
-/*
- * 整张卡片就是「用这个模板」的入口，不再单放一颗「使用」按钮：卡片本身已经把
- * 标题、用途和日程说完了，按钮只是重复。description 由 line-clamp-2 收成两行。
- */
 export function TemplateGallery({ onPick }: TemplateGalleryProps) {
   return (
     <div className="mt-10 border-t border-divider pt-8">

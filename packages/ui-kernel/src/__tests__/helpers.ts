@@ -36,7 +36,6 @@ export const betaContract = defineContract({
 })
 
 export interface TestBridge extends WindowBridge {
-  /** 测试里模拟 Host → UI 的通知 */
   emit(message: RpcMessage): void
   readonly sent: RpcMessage[]
   /** 断开：模拟 Host 重启渲染进程的端口 */
@@ -44,10 +43,7 @@ export interface TestBridge extends WindowBridge {
   readonly isDropped: () => boolean
 }
 
-/**
- * 一个不依赖真实 Host 的 bridge：send 把消息记下来，测试用 respond 回复。
- * onRequest 收到请求时调用 handler 决定应答。
- */
+/** 不依赖真实 Host 的 bridge：send 把消息记下来，handler 决定应答。 */
 export function createTestBridge(
   handler: (method: string, params: unknown) => Promise<unknown> | unknown,
   opts: { coreStatus?: unknown } = {},

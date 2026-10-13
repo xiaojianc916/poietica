@@ -1,32 +1,12 @@
 /// <reference lib="dom" />
 
-/*
- * 注入页面的拾取脚本（07 页 §12D「元素拾取」第 6 条）。**迁移自** legacy
- * `apps/desktop/src/browser/element-picker-runtime.ts`：悬浮高亮、点击选中、Esc 取消、
- * 两张字段表、附加/发送的载荷逐条保留。
- *
- * 与 legacy 的三处差异（前者是新架构的硬要求，见 07 页 §12D）：
- *   1. 整个脚本是**一个自包含函数**：函数体内不引用任何外部变量，宿主注入时用的是
- *      `pickerRuntime.toString()`（打包压缩不改变自包含函数的结果）。
- *      因此 legacy 引的 `react-grab/primitives`（取元素上下文）改成本文件内的最小实现：
- *      量外框、拼选择器、截 HTML。
- *   2. 回调地址与参数形状换成本架构的：`kind=submitted|cancelled`（07 页 §12D 第 3 条），
- *      token 是宿主给的 UUID。
- *   3. 面板视觉按产品给的基准图重做：选中一个元素后先出现浮条（滑杆图标 +「添加评论...」+
- *      对勾），点左侧图标在浮条与面板（顶栏 / `<span>` 标签带 / 可滚动属性表 /「取消」+ 对勾）
- *      之间来回切。下拉菜单与
- *      可展开的盒模型行都是自绘的 —— 面板长在外部页面里带不进设计系统的样式表，原生
- *      `<select>` 也画不出基准图里那张深色圆角菜单。
- *
- * 文件长度按 P5 的逐字迁移先例接受（07/09 页的 400 行规则见 docs/refactor-log.md 的偏差记录）：
- * 自包含是这条脚本的硬约束，拆文件会让它引用外部变量、注入即失效。
- */
+/* 注入页面的拾取脚本：悬浮高亮、点击选中、Esc 取消、两张字段表。整个脚本**必须自包含** —— 宿主用
+ * pickerRuntime.toString() 注入，引用外部变量则 new Function 出来的副本当场抛 ReferenceError；面板长在外部页面里
+ * 带不进设计系统样式表，所以下拉菜单与盒模型行都自绘。 */
 
 export interface PickerRuntimeArgs {
-  /** 宿主发的租约 token（UUID）：页面猜不到，伪造的回调会被丢弃。 */
   readonly token: string
   readonly theme: 'light' | 'dark'
-  /** 回调地址：拾取完成时 `location.assign` 到这个不存在的域名，由宿主在 will-navigate 里拦。 */
   readonly callbackUrl: string
 }
 
@@ -47,7 +27,6 @@ export function pickerRuntime(args: PickerRuntimeArgs): void {
         readonly kind: 'cells'
         readonly label: string
         readonly properties: readonly string[]
-        /** 展开后逐项输入的字段（上/右/下/左、水平/垂直…）；空数组表示这一行不展开。 */
         readonly subs: readonly SubField[]
       }
   type Group = { readonly fields: readonly Field[] }
@@ -342,10 +321,7 @@ export function pickerRuntime(args: PickerRuntimeArgs): void {
 
   const gap = 8
 
-  /* 面板长在外部页面里，带不进设计系统的样式表：下面的取值逐像素取自基准图
-     （浮条 297×44、面板 344 宽圆角 16、面板 #2d2d2d、标签带 #363636、菜单 #2c2c2c、
-     描边 16% 白、对勾圆 #747474、输入框高 30 圆角 10、取消胶囊 #343434、
-     控件列 x 172→342、行距 35、底栏内边距 8、对勾圆 28）。 */
+  /* 面板长在外部页面里带不进设计系统的样式表：下面的取值逐像素取自基准图。 */
   const css = [
     ':host{all:initial;color-scheme:light;font:13px/1.4 system-ui,-apple-system,"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif;--pk-bg:#fff;--pk-band:#f2f2f3;--pk-menu:#fff;--pk-menu-line:rgba(0,0,0,.14);--pk-text:rgba(0,0,0,.9);--pk-muted:rgba(0,0,0,.56);--pk-value:rgba(0,0,0,.5);--pk-faint:rgba(0,0,0,.38);--pk-placeholder:rgba(0,0,0,.26);--pk-line:rgba(0,0,0,.06);--pk-border:rgba(0,0,0,.14);--pk-hover:rgba(0,0,0,.05);--pk-glyph-hover:rgba(0,0,0,.1);--pk-glyph-active:rgba(0,0,0,.16);--pk-pill:#f2f2f3;--pk-pill-hover:#e8e8ea;--pk-circle:#bcbcbc;--pk-circle-fg:#555;--pk-accent:#3c82f7;--pk-danger:#dc2626}',
     ':host([data-theme=dark]){color-scheme:dark;--pk-bg:#2d2d2d;--pk-band:#363636;--pk-menu:#2d2d2d;--pk-menu-line:#454545;--pk-text:rgba(255,255,255,.85);--pk-muted:rgba(255,255,255,.56);--pk-value:rgba(255,255,255,.5);--pk-faint:rgba(255,255,255,.38);--pk-placeholder:rgba(255,255,255,.26);--pk-line:rgba(255,255,255,.06);--pk-border:rgba(255,255,255,.16);--pk-hover:rgba(255,255,255,.08);--pk-glyph-hover:rgba(255,255,255,.12);--pk-glyph-active:rgba(255,255,255,.2);--pk-pill:#343434;--pk-pill-hover:#3d3d3d;--pk-circle:#747474;--pk-circle-fg:#2d2d2d;--pk-accent:#3c82f7;--pk-danger:#e97366}',
@@ -354,33 +330,28 @@ export function pickerRuntime(args: PickerRuntimeArgs): void {
     'button{border:0;background:transparent;cursor:pointer;padding:0;text-align:left}',
     '.outline{position:fixed;z-index:2147483646;pointer-events:none;border:2px solid var(--pk-accent);background:color-mix(in srgb,var(--pk-accent) 10%,transparent);border-radius:4px}',
     '.badge{position:absolute;left:-2px;bottom:100%;max-width:280px;padding:2px 7px;border-radius:6px 6px 0 0;background:var(--pk-accent);color:#fff;font:600 11px/1.4 ui-monospace,SFMono-Regular,Consolas,monospace;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}',
-    /* 浮条是面板的收起态：位置由脚本按选中元素算，别用居中，免得切换时跳一下。 */
+    /* 浮条是面板的收起态：位置按选中元素算，居中会在切换时跳一下。 */
     '.bar{position:fixed;z-index:2147483647;width:min(294px,calc(100vw - 24px));height:44px;display:flex;align-items:center;gap:14px;padding:0 8px 0 14px;border-radius:22px;background:var(--pk-bg);color:var(--pk-text);box-shadow:0 10px 28px rgba(0,0,0,.35),0 0 0 1px rgba(0,0,0,.08)}',
     '.bar[hidden]{display:none}',
-    /* 浮条图标 hover 是一枚圆：28×28、半径 50%，和右侧对勾圆同尺寸。 */
     '.barGlyph{flex:0 0 28px;width:28px;height:28px;display:flex;align-items:center;justify-content:center;border:0;border-radius:50%;background:transparent;color:rgba(255,255,255,.7);cursor:pointer;transition:background .12s ease}',
     '.barGlyph:hover{background:var(--pk-glyph-hover)}',
     '.barGlyph:active{background:var(--pk-glyph-active)}',
     '.barNote{flex:1;min-width:0;height:20px;padding:0;border:0;background:transparent;line-height:20px;resize:none;outline:none;overflow:hidden}',
     '.barNote::placeholder{color:var(--pk-placeholder)}',
-    /* 上限宽高一致：面板最多长成正方形，再高的内容交给属性表自己滚。 */
-    /* 圆角与浮条同一个数（浮条高 44、半径 22）：两态切换时轮廓一致。 */
     '.panel{position:fixed;z-index:2147483647;width:min(344px,calc(100vw - 16px));max-height:min(344px,calc(100vh - 16px));display:none;flex-direction:column;border-radius:22px;background:var(--pk-bg);color:var(--pk-text);box-shadow:0 16px 44px rgba(0,0,0,.42),0 0 0 1px rgba(0,0,0,.1);overflow:hidden}',
     '.panel[data-open=true]{display:flex}',
     /* 三块固定带必须禁掉 flex 收缩：面板到顶后 body 会长，默认收缩会把标签带压回 12px。 */
     '.head{flex:0 0 auto;display:flex;align-items:flex-start;gap:8px;padding:8px 14px 8px 12px}',
-    /* 面板顶栏这颗与浮条图标同款：28×28 圆、hover 提亮，两态切换不换手感。 */
     '.glyph{flex:0 0 28px;width:28px;height:28px;display:flex;align-items:center;justify-content:center;border:0;border-radius:50%;background:var(--pk-band);color:var(--pk-text);cursor:pointer;transition:background .12s ease}',
     '.glyph:hover{background:var(--pk-glyph-hover)}',
     '.glyph:active{background:var(--pk-glyph-active)}',
     '.note{flex:1;min-width:0;height:28px;max-height:76px;padding:6px 0;border:0;background:transparent;line-height:1.35;resize:none;outline:none;overflow:auto;scrollbar-width:none}',
     '.note::-webkit-scrollbar{width:0;height:0}',
     '.note::placeholder{color:var(--pk-placeholder)}',
-    /* 标签带是「这是什么元素」的唯一提示，比基准图再高一档，缩进面板里也一眼看得见。 */
     '.band{flex:0 0 auto;display:flex;align-items:center;justify-content:space-between;gap:8px;height:34px;padding:0 16px;background:var(--pk-band);color:var(--pk-muted)}',
     '.tag{overflow:hidden;white-space:nowrap;text-overflow:ellipsis;font:11px/1 ui-monospace,SFMono-Regular,Consolas,monospace}',
     '.grip{display:flex;flex:0 0 auto;color:var(--pk-faint)}',
-    /* 右侧留出 12px 给浏览器原生滚动条：基准图里滚动条是系统样式（带上下箭头），内容右边缘落在 317。 */
+    /* 右侧留 12px 给浏览器原生滚动条：基准图里它是系统样式，内容右边缘落在 317。 */
     '.body{flex:1;min-height:0;overflow:auto;padding:6px 16px 4px;scrollbar-width:thin;scrollbar-color:#6e6e6e transparent}',
     '.body::-webkit-scrollbar{width:8px;height:8px}',
     '.body::-webkit-scrollbar-track{background:transparent}',
@@ -411,7 +382,7 @@ export function pickerRuntime(args: PickerRuntimeArgs): void {
     '.cells:focus-within{border-color:var(--pk-muted)}',
     '.cells input{flex:1;min-width:0;height:100%;padding:0 2px;border:0;border-left:1px solid var(--pk-border);border-radius:0;background:transparent;color:var(--pk-value);text-align:center;outline:none}',
     '.cells input:first-child{border-left:0}',
-    /* 菜单挂在独立图层上：属性表是可滚动的，画在行里的菜单会被裁掉一半。 */
+    /* 菜单挂在独立图层：属性表可滚动，画在行里的菜单会被裁掉一半。 */
     '.menus{position:fixed;z-index:2147483647;left:0;top:0;width:0;height:0}',
     '.menu{position:fixed;display:flex;flex-direction:column;min-width:196px;max-height:min(264px,calc(100vh - 16px));padding:5px 4px;border:1px solid var(--pk-menu-line);border-radius:12px;background:var(--pk-menu);box-shadow:0 12px 30px rgba(0,0,0,.45);overflow:auto}',
     '.menu::-webkit-scrollbar{width:8px;height:8px}',
@@ -459,7 +430,7 @@ export function pickerRuntime(args: PickerRuntimeArgs): void {
     return Math.max(low, Math.min(value, Math.max(low, high)))
   }
 
-  /** 输入框里只留数字：基准图的盒模型格子写的是 `0`，不是 `0px`。 */
+  /** 只留数字：基准图的盒模型格子写的是 `0`，不是 `0px`。 */
   function bare(value: string): string {
     return value.endsWith('px') ? value.slice(0, -2).trim() : value
   }
@@ -473,15 +444,10 @@ export function pickerRuntime(args: PickerRuntimeArgs): void {
     return /^[+-]?[\d.]+$/u.test(value) ? `${value}${unit}` : value
   }
 
-  /** 下拉按钮上显示的是中文标签；算出来的值不在表里（比如整串 font-family）就直接显示原值。 */
   function labelOf(field: Extract<Field, { kind: 'select' }>, current: string): string {
     return field.options.find((option) => option.value === current)?.label ?? current
   }
 
-  /*
-   * legacy 引的 react-grab/primitives 在这里的最小替代：命中、外框、选择器、HTML 预览。
-   * 只保留这套面板真的会画出来的那几格。
-   */
   function boundsOf(element: Element | null): { x: number; y: number; width: number; height: number } | null {
     if (element === null || typeof element.getBoundingClientRect !== 'function') {
       return null
@@ -499,7 +465,6 @@ export function pickerRuntime(args: PickerRuntimeArgs): void {
       return false
     }
 
-    // 根元素与 document 不是「页面上的一个元素」；量不出外框的节点同样不要。
     return node !== document.documentElement && boundsOf(node) !== null
   }
 
@@ -538,7 +503,6 @@ export function pickerRuntime(args: PickerRuntimeArgs): void {
     return html.length > 4_000 ? `${html.slice(0, 4_000)}\n…（截断）` : html
   }
 
-  /** cells 字段每格的中文名：四格是盒模型方位，两格是水平 / 垂直。 */
   function cellName(field: Extract<Field, { kind: 'cells' }>, index: number): string {
     const names = field.properties.length === 2 ? ['水平', '垂直'] : ['上', '右', '下', '左']
 
@@ -559,12 +523,11 @@ export function pickerRuntime(args: PickerRuntimeArgs): void {
     private comment: HTMLTextAreaElement | null = null
     private status: HTMLElement | null = null
     private hovered: Element | null = null
-    /** 光标最近一次落在页面上的位置：浮条按钮长在宿主里，点它时取不到「刚才看着的那个元素」。 */
+    /** 光标最后落点：浮条按钮长在宿主里，点它时取不到「刚才看着的那个元素」。 */
     private lastPoint: { readonly x: number; readonly y: number } | null = null
     private selected: Element | null = null
     private busy = false
     private openMenu: { readonly control: HTMLElement; readonly menu: HTMLElement } | null = null
-    /** 展开的盒模型行（按字段名记）：重画属性表之后仍然保持展开。 */
     private readonly expanded = new Set<string>()
     private readonly baseline = new Map<string, Baseline>()
     private readonly changes = new Map<string, Change>()
@@ -573,7 +536,6 @@ export function pickerRuntime(args: PickerRuntimeArgs): void {
       this.cancel()
       this.token = token
       this.ensureUi(theme)
-      /* 还没选元素时不露面：浮条是「选中之后」的收起态，不是拾取模式的常驻工具条。 */
       this.setBarVisible(false)
       document.addEventListener('pointerdown', this.onPointerDown, true)
       document.addEventListener('pointermove', this.onPointerMove, true)
@@ -606,7 +568,6 @@ export function pickerRuntime(args: PickerRuntimeArgs): void {
       this.changes.clear()
     }
 
-    /** 唯一的监听清单。cancel 与提交前的拆台都走它。 */
     private unbind(): void {
       document.removeEventListener('pointerdown', this.onPointerDown, true)
       document.removeEventListener('pointermove', this.onPointerMove, true)
@@ -662,7 +623,6 @@ export function pickerRuntime(args: PickerRuntimeArgs): void {
       })
       shell.querySelector('.cancel')?.addEventListener('click', () => this.sendCancel())
       shell.querySelector('.foot .send')?.addEventListener('click', () => void this.submit('send'))
-      // 只有左侧图标负责切换（用户明确要的「自由切换」）；对勾是提交，两态各管一件事。
       shell.querySelector('.barGlyph')?.addEventListener('click', () => this.togglePanel())
       shell.querySelector('.barSend')?.addEventListener('click', () => {
         if (this.selected === null) {
@@ -674,10 +634,6 @@ export function pickerRuntime(args: PickerRuntimeArgs): void {
       shell.querySelector('.glyph')?.addEventListener('click', () => this.togglePanel())
     }
 
-    /*
-     * 浮条与面板的切换口。还没选中元素时先按「光标最后落点 → 页面中心」选一个出来
-     * （点浮条图标就是「我要看这个元素的样式」）；已经选中了就在两态之间来回切。
-     */
     private togglePanel(): void {
       const panel = this.panel
 
@@ -712,7 +668,7 @@ export function pickerRuntime(args: PickerRuntimeArgs): void {
       }
     }
 
-    /** 点到菜单与它的控件之外就收起：菜单挂在独立图层上，不会自己收到 blur。 */
+    /** 点到菜单与它的控件之外就收起：挂在独立图层上收不到 blur。 */
     private readonly onPointerDown = (event: PointerEvent): void => {
       const open = this.openMenu
 
@@ -769,7 +725,6 @@ export function pickerRuntime(args: PickerRuntimeArgs): void {
       }
     }
 
-    /** 页面滚动或窗口变形时，高亮与面板必须跟着元素走。 */
     private readonly onReflow = (): void => {
       if (this.selected === null) {
         return
@@ -818,13 +773,13 @@ export function pickerRuntime(args: PickerRuntimeArgs): void {
       this.selected = element
       this.hovered = element
       this.draw(element)
-      /* 选中之后的默认态是浮条：面板要用户点左侧图标才展开。 */
+      /* 选中之后默认收成浮条：面板要用户点左侧图标才展开。 */
       this.setBarVisible(true)
       this.panel?.setAttribute('data-open', 'false')
       this.position()
       this.note('')
 
-      // 浮条里先写的那句话跟着进面板：选中元素不该把它丢掉。
+      // 浮条里先写的需求跟着进面板：选中元素不该把它丢掉。
       if (this.comment !== null && this.barNote !== null) {
         this.comment.value = this.barNote.value
       }
@@ -844,14 +799,9 @@ export function pickerRuntime(args: PickerRuntimeArgs): void {
       this.closeMenu()
       this.panel?.setAttribute('data-open', 'false')
       this.note('')
-      /* 取消选中就整体退场：浮条只在「有选中的元素」时存在。 */
       this.setBarVisible(false)
     }
 
-    /**
-     * 浮条与面板是同一个东西的两态，位置都由选中元素算：默认贴在元素下方，
-     * 下方放不下就翻到上方，横向溢出就贴右缘，最后夹进视口。
-     */
     private position(): void {
       const panel = this.panel
       const bar = this.bar
@@ -876,14 +826,12 @@ export function pickerRuntime(args: PickerRuntimeArgs): void {
       const x = clamp(left, gap, window.innerWidth - rect.width - gap)
       const y = clamp(top, gap, window.innerHeight - rect.height - gap)
 
-      // 两态共用同一个落点：切换时只在原地改高度，不会从屏幕一角跳过来。
       for (const node of [bar, panel]) {
         node.style.left = `${x}px`
         node.style.top = `${y}px`
       }
     }
 
-    /** 需求框随行数长高，封顶到 76px（再多就在框里滚）。 */
     private autosize(): void {
       const note = this.comment
 
@@ -1002,7 +950,6 @@ export function pickerRuntime(args: PickerRuntimeArgs): void {
       return control
     }
 
-    /** 文本框 / 数字框共用一副壳：高 30、圆角 10、描边 16% 白。 */
     private box(label: string, width: 'sm' | 'md' | 'lg', value: string, numeric: boolean): HTMLElement {
       const control = document.createElement('span')
       control.className = 'control'
@@ -1102,7 +1049,7 @@ export function pickerRuntime(args: PickerRuntimeArgs): void {
       return control
     }
 
-    /** 自绘的下拉：深色圆角菜单 + 选中项打勾（原生 select 画不出基准图这张菜单）。 */
+    /** 自绘的下拉：原生 select 画不出基准图这张菜单。 */
     private toggleMenu(field: Extract<Field, { kind: 'select' }>, control: HTMLElement, value: HTMLElement): void {
       if (this.openMenu !== null && this.openMenu.control === control) {
         this.closeMenu()
@@ -1147,7 +1094,6 @@ export function pickerRuntime(args: PickerRuntimeArgs): void {
       this.revealMenu(control, menu)
     }
 
-    /** 菜单挂在独立图层上，所以每次开都要按控件的位置重新摆一次。 */
     private revealMenu(control: HTMLElement, menu: HTMLElement): void {
       const rect = control.getBoundingClientRect()
       const size = menu.getBoundingClientRect()
@@ -1218,7 +1164,6 @@ export function pickerRuntime(args: PickerRuntimeArgs): void {
       this.position()
     }
 
-    /** 改完颜色后把色块拉回计算值：色块画的是「现在实际是什么色」。 */
     private syncSwatches(): void {
       if (this.selected === null) {
         return
@@ -1249,7 +1194,7 @@ export function pickerRuntime(args: PickerRuntimeArgs): void {
       }
     }
 
-    /** 面板上那条属性表就是快照的定义：屏幕上看得见的每一项都进文件。 */
+    /** 快照就是面板上那条属性表：屏幕上看得见的每一项都进文件。 */
     private snapshot(): string {
       const selected = this.selected
 

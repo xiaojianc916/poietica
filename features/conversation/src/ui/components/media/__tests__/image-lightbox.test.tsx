@@ -2,9 +2,6 @@ import { afterEach, describe, expect, test } from 'bun:test'
 import { cleanup, render, waitFor } from '@testing-library/react'
 import { ImageLightbox } from '../image-lightbox'
 
-/*
- * P-06：灯箱轻壳。没打开过时不挂载实现（库在独立分块里）；打开时等分块到达后正常显示。
- */
 afterEach(() => {
   cleanup()
 })

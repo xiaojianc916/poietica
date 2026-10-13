@@ -1,9 +1,4 @@
-/*
- * 分段切换的皮。语义、键盘与焦点在 tabs.tsx，这里只有外观。
- *
- * 尺寸与颜色全部取自 skin/metrics.css 的令牌 —— 这一层不挑数字，也不写十六
- * 进制：深浅两套主题各自的取值已经在那张表里定过一次。
- */
+/* 尺寸与颜色全部取自 skin/metrics.css 的令牌：这里不写数字也不写十六进制，深浅两套主题的取值已在表里定过一次。 */
 
 .tabs {
   display: inline-flex;
@@ -40,10 +35,7 @@
   color: var(--cp-ink);
 }
 
-/*
- * 焦点圈不自己画：这里没有 outline: none，浏览器的 :focus-visible 因此照常生效。
- * 多发明一套焦点样式，只会和界面其它地方对不上。
- */
+/* 焦点圈不自己画：没有 outline: none，浏览器的 :focus-visible 因此照常生效；另发明一套只会和界面其它地方对不上。 */
 
 @media (prefers-reduced-motion: reduce) {
   .tabs__tab {

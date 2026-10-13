@@ -7,7 +7,6 @@ export interface ShellSpec {
   readonly title: string
 }
 
-/** 选择顺序固定：pwsh.exe → powershell.exe → %ComSpec% → cmd.exe（C:\Windows\System32） */
 export async function resolveShell(
   env: NodeJS.ProcessEnv,
   find: (name: string) => Promise<string | null> = which,
@@ -23,7 +22,6 @@ export async function resolveShell(
   return { file: path.join(env.SystemRoot ?? 'C:\\Windows', 'System32', 'cmd.exe'), args: [], title: 'cmd' }
 }
 
-/** 终端环境 = Host 的 process.env 去掉 Electron/Poietica 内部变量，再加终端能力声明 */
 export function terminalEnv(env: NodeJS.ProcessEnv): Record<string, string> {
   const out: Record<string, string> = {}
   for (const [k, v] of Object.entries(env)) {

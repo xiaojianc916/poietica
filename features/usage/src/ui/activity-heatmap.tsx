@@ -2,15 +2,9 @@ import { Tooltip, TooltipContent, TooltipTrigger } from '@poietica/design-system
 import { Fragment } from 'react'
 import { type ActivityDay, busiestOf, dateOf, formatTokens, HEAT_LEVELS, levelOf } from './usage-activity'
 
-/*
- * 热力图：一格一天，一列一周，周一在最上面。形制取自 GitHub 贡献图 / kibo-ui
- * Contribution Graph：进来的是已铺好的**整周**日历（spreadWeeks），出去的是格子，
- * 分档交给 data 属性由 CSS 决定。依赖一个不装（kibo 按 shadcn registry 分发，
- * 装它拷进一整套外来排版）。
- *
- * 提示走设计系统 Tooltip，不用原生 title：同页不能有两种气泡。没有账的日子不弹
- * 提示 —— 写「0 token」是在替一本空账下结论。
- */
+/* 一格一天，一列一周，周一在最上面。进来的是已铺好的**整周**日历，出去的是格子，分档交给 data 属性由 CSS 决定（依赖一个不装：kibo
+ * 按 shadcn registry 分发，装它拷进一整套外来排版）。提示走设计系统 Tooltip，不用原生 title：同页不能有两种气泡。没有账的日子不弹提示 ——
+ * 写「0 token」是在替一本空账下结论。 */
 
 const CELL_DATE = new Intl.DateTimeFormat('zh-CN', { month: 'long', day: 'numeric' })
 
@@ -36,9 +30,6 @@ export function ActivityHeatmap({ days }: ActivityHeatmapProps) {
           const hint = tooltipOf(day)
           const cell = <span className="settings-heatmap__cell" data-level={levelOf(day.count, busiest)} />
 
-          /*
-           * 没账的日子不装空气泡：Trigger 配没有 Popup 的 Root 不在官方用法里。
-           */
           return hint === undefined ? (
             <Fragment key={day.date}>{cell}</Fragment>
           ) : (

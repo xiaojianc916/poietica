@@ -1,17 +1,8 @@
 import { type Clock, type Disposable, systemClock } from '@poietica/foundation'
 
 /*
- * 什么时候换句。只看时间，不和逐帧那一层握手。
- *
- * v1 让轨道回报「已划到位」，调度器再据此决定换句；两边各有一条规则（每次渲染作废「已到位」、
- * 同一个目标只回报一次），合在一起就是「到位」永远不成立，每次换句都要等满上限，快模型下截止
- * 时间还被后来的句子不断往后推。这一版把规则收成一条可以当场算出来的式子：
- *
- *   换句时刻 = max(这一句露面满 MIN_DWELL_MS, 下一句出现后 FINISH_MS)
- *
- * 第一个等待者出现时算一次、定一个计时器，之后不再后推。FINISH_MS 是给旧句收尾的：
- * 下一句出现的同时容器让旧句加速写完（setFlushing），这段时间足够把缓冲里那一批放完。
- * 等待期间又来了更新的句子，就顶掉等待的那句（过期的不补播），并用快速刷。
+ * 什么时候换句。只看时间，不和逐帧那一层握手：换句时刻 = max(这一句露面满 MIN_DWELL_MS, 下一句出现后 FINISH_MS)。
+ * 第一个等待者出现时算一次、定一个计时器，之后不再后推：两边各有一条规则时「到位」永远不成立，每次换句都要等满上限。
  */
 
 export interface LineSnapshot {
@@ -25,7 +16,6 @@ export interface Promotion {
   readonly fast: boolean
 }
 
-/** 正常 / 积压时的上下刷时长。 */
 export const ROLL_MS = 260
 export const FAST_ROLL_MS = 140
 
@@ -42,7 +32,6 @@ export interface RollScheduler {
   shown(): LineSnapshot
   /** 是否有下一句在等（容器据此让旧句加速收尾）。 */
   waiting(): boolean
-  /** 少动效开关变了：之后的新句直接换上，不等。 */
   setImmediate(immediate: boolean): void
   /** 订阅换句。没有订阅者时不定时（提升了也没人重渲染）。 */
   onPromote(listener: (promotion: Promotion) => void): Disposable
@@ -89,10 +78,7 @@ export function createRollScheduler(
   }
 
   /*
-   * 有人在等、有人在听、还没定时：按原定的换句时刻定一个计时器。
-   *
-   * 没人在听时不定时：提升了也没人重渲染，画面会停在旧句上。重新订阅（StrictMode 的模拟卸载、
-   * 或者订阅晚于第一个等待者）时在这里补上 —— 用的还是原来的 waitingSince，换句时刻不因此后推。
+   * 没人在听时不定时：提升了也没人重渲染，画面会停在旧句上；重新订阅时在这里补上 —— 用的还是原来的 waitingSince。
    */
   const arm = (): void => {
     if (pending === null || timer !== null || listeners.size === 0) return
@@ -145,12 +131,7 @@ export function createRollScheduler(
       }
     },
     dispose() {
-      /*
-       * 删除路径：计时器与监听者一并清掉，不留自己在跑的定时器。
-       *
-       * 不把调度器标成「已死」：React 的 StrictMode 会在开发时模拟一次卸载再挂回同一个实例，
-       * 标死了之后那一格就再也不换句。状态留着，下次有人订阅时按原定时刻重新定时。
-       */
+      /* 计时器与监听者一并清掉。不标成「已死」：StrictMode 会模拟一次卸载再挂回同一实例，标死了那一格就再也不换句。 */
       clearTimer()
       listeners.clear()
     },

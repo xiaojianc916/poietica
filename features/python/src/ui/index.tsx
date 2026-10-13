@@ -9,10 +9,7 @@ export default defineUiFeature({
   setup(ctx) {
     const api = createPythonApi(ctx)
 
-    /*
-     * 「运行时」那一组落在**通用页**里（legacy 的位置），不再单占导航一格。
-     * `page` 是设置页 id 的纯字符串，所以这里不认识 preferences 功能（守则 3）。
-     */
+    /* 「运行时」那一组落在**通用页**里（legacy 的位置），不再单占导航一格。`page` 是设置页 id 的纯字符串，所以这里不认识 preferences 功能（守则 3）。 */
     ctx.contribute(builtinPoints.settingsSections, {
       id: 'python.runtime',
       order: 600,

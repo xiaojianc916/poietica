@@ -7,10 +7,7 @@ describe('PY-7: release.test.ts', () => {
     expect(PYTHON_ASSET_SHA256).toMatch(/^[a-f0-9]{64}$/)
   })
 
-  /*
-   * 占位值（64 个 0 / 空串）也满足上面那条正则，却会让每一次真实安装都在校验处失败。
-   * 这一条把它钉死：`bun run python:pin` 没跑过，CI 就得红。
-   */
+  /* 占位值（64 个 0 / 空串）也满足那条正则，却会让每一次真实安装都在校验处失败。这一条把它钉死：`bun run python:pin` 没跑过，CI 就得红。 */
   it('PYTHON_ASSET_SHA256 不是占位值（python:pin 已跑过）', () => {
     expect(PYTHON_ASSET_SHA256).not.toBe('0'.repeat(64))
     expect(PYTHON_ASSET_SHA256.length).toBe(64)

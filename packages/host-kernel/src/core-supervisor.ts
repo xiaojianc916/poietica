@@ -60,7 +60,7 @@ export interface CoreSupervisorOptions {
   readonly coreLog: CoreLogSink
   readonly onRequest: (method: string, params: unknown, ctx: InboundContext) => Promise<unknown>
   readonly onNotification: (method: string, params: unknown) => void
-  /** 测试注入 */
+  /** 测试注入用。 */
   readonly spawn?: typeof nodeSpawn
   readonly clock?: Clock
   readonly pickPort?: () => Promise<number>
@@ -117,7 +117,7 @@ export class CoreSupervisor {
     await this.launch()
   }
 
-  /** UI 的“重新启动 Core”：清空崩溃记录，停止当前进程（如有），再启动 */
+  /** 清空崩溃记录，停止当前进程（如有），再启动。 */
   async restart(): Promise<void> {
     this.crashes = []
     if (this.child !== undefined) await this.stop()
@@ -149,14 +149,13 @@ export class CoreSupervisor {
     this.setState('stopped')
   }
 
-  /** 立即杀掉（Windows 注销/关机时的 session-end） */
+  /** 立即杀掉（Windows 注销 / 关机时的 session-end）。 */
   killNow(): void {
     this.restartTimer?.dispose()
     this.state = 'stopping'
     if (this.child?.pid !== undefined) void (this.o.kill ?? killTree)(this.child.pid)
   }
 
-  /** RpcHub 转发 UI 请求、Host 模块调用 Core 都走这里 */
   async forward(
     method: string,
     params: unknown,
@@ -297,16 +296,14 @@ export class CoreSupervisor {
   }
 
   /**
-   * 代际是否已过期（R-05 §3.4）。
-   *
-   * `idle` 也算：restart() 先置 idle 再 start()，而 start() 立刻 setState('starting')
-   * 并在 launch 里 ++generation —— 新一代不会被误判，落在中间的旧一代一律收手。
+   * 代际是否已过期（R-05 §3.4）。`idle` 也算：restart() 先置 idle 再 start()，而 start() 立刻
+   * setState('starting') 并在 launch 里 ++generation —— 新一代不会被误判，落在中间的旧一代一律收手。
    */
   private stale(gen: number): boolean {
     return gen !== this.generation || this.state === 'stopping' || this.state === 'stopped' || this.state === 'idle'
   }
 
-  /** 只杀自己这一代、还没退出的 child（已经退出的 pid 不能再杀） */
+  /** 只杀自己这一代、还没退出的 child —— 已经退出的 pid 不能再杀。 */
   private async killChild(child: ChildProcess): Promise<void> {
     if (child.pid !== undefined && child.exitCode === null) await (this.o.kill ?? killTree)(child.pid)
   }

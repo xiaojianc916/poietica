@@ -3,12 +3,10 @@ import { confirmDeleteThread } from '../session/notify'
 import type { ConversationActions } from './actions'
 import type { ConversationSetup } from './context'
 
-/** 命令与快捷键。 */
 export function createConversationCommands(setup: ConversationSetup, actions: ConversationActions): void {
   const { api, ctx, dialogs, prefs, stores } = setup
   const { activeThreadId, exportThread, newThread, openThread } = actions
 
-  // ── 命令与快捷键 ────────────────────────────────────────────────────────
   const command = (id: string, title: string, run: () => void): void => {
     ctx.contribute(builtinPoints.commands, { id, title, category: '对话', run } satisfies CommandItem)
   }

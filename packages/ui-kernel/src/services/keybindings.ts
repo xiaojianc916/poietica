@@ -4,14 +4,13 @@ import type { ContributionRegistry } from '../contribution'
 import type { CommandService } from './commands'
 import { createValue, type Observable } from './observable'
 
-/** commandId → 新按键；null 表示禁用 */
+/** null 表示禁用。 */
 export type KeyOverrides = Readonly<Record<string, string | null>>
 
 export interface KeybindingService extends Observable<KeyOverrides> {
   setOverrides(overrides: KeyOverrides): void
-  /** 某命令当前生效的按键（覆盖优先），没有则 null；命令面板和设置页显示用 */
   keyFor(commandId: string): string | null
-  /** 把键盘事件规范化成 'Ctrl+Shift+P' 形式；设置页“录制按键”也用它 */
+  /** 设置页「录制按键」也用它。 */
   normalize(event: KeyboardEvent): string | null
   install(target: Window): Disposable
 }

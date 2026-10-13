@@ -3,11 +3,10 @@ import { defineContributionPoint } from '@poietica/ui-kernel'
 /*
  * 输入框加号面板里「技能 / MCP」两组的数据落点。
  *
- * 07 页 §5E 迁移时漏了这件事：面板的显隐由 `skills.length > 0` / `mcpServers.length > 0`
- * 决定，而名册从哪来没有写。名册属于 extensions（它持有 `skills.list` / `mcp.status` /
- * `mcp.statusChanged`），conversation 的契约再转发一份就是两个主人，所以按守则 3 走
- * 贡献点：谁认识名册谁来提供，与 attachments 的 `composerProviders`、review 的
- * `workspaceGitProviders` 同一形制。
+ * 面板的显隐由 `skills.length > 0` / `mcpServers.length > 0` 决定，名册则属于 extensions
+ * （它持有 `skills.list` / `mcp.status` / `mcp.statusChanged`）；conversation 的契约再转发一份
+ * 就是两个主人，所以走贡献点：谁认识名册谁来提供，与 attachments 的 `composerProviders`、
+ * review 的 `workspaceGitProviders` 同一形制。
  *
  * 数据按**工作区**寻址：技能分层按工作目录（omp 的 discoverSkills(cwd)），换项目换名册。
  * MCP 是全局的一份（配置文件只有用户级），提供方自己在各工作区缓存里共用同一次读。
@@ -28,8 +27,8 @@ export interface ToolkitSkill {
  * 面板里一行的 MCP server。
  *
  * 四档就是面板那四句话的判据：已连接 / 连接中 / 未连接 / 起不来。**名单**来自配置
- * （`mcp.list`），状态来自活会话（`mcp.status`）—— 没连上的（含还没跑过会话、以及被
- * 停用的）一律 `disconnected`：面板只说「这一句用不上它」，启用与否归设置页说。
+ * （`mcp.list`），状态来自活会话（`mcp.status`）—— 没连上的（含还没跑过会话、以及被停用的）
+ * 一律 `disconnected`：面板只说「这一句用不上它」，启用与否归设置页说。
  */
 export interface ToolkitMcpServer {
   readonly name: string

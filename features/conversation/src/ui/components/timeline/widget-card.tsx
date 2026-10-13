@@ -17,22 +17,13 @@ import {
 } from './widget-bridge'
 
 /*
- * 对话内组件的卡片（审查 R-18，show_widget 的 toolCallRenderers）。
- *
- * - html 来源：iframe 装 poietica-asset://widget 的外壳（host/widget-shell.ts），sandbox 只给
- *   allow-scripts allow-forms —— 不同源，碰不到这个窗口。没有外框、底色透明，像直接画在回复里；
- *   高度跟着组件内容走（外壳报 poietica:height），封顶 80vh。主题切换时把新令牌推过去。
- * - url 来源：本机开发服务器的页面，细框 + 地址条（刷新、在浏览器打开）。它是用户自己的项目，
- *   要 allow-same-origin 才能正常跑（HMR、存储），所以拒绝与本窗口同源的地址。
- *
- * 组件发来的 send / draft / open 只在用户正在操作它时才认（焦点在这个 iframe 上）：组件是模型
- * 写的代码，不能自己替用户发消息。send 另有一秒的节流。
+ * html：iframe 装 poietica-asset://widget 外壳，sandbox 只给 allow-scripts allow-forms —— 不同源，碰不到这个窗口。url：用户自己的项目，要 allow-same-origin 才能跑，所以拒绝同源地址。
+ * send / draft / open 只在焦点在这个 iframe 上时才认：组件是模型写的代码，不能自己替用户发消息。send 另有 1 秒节流。
  */
 
 export interface WidgetCardDeps {
-  /** 以用户的名义往这条对话发一句话（不碰输入框里的草稿） */
   readonly send: (threadId: string, text: string) => void
-  /** 把一句话放进这条对话的输入框，不发送 */
+  /** 放进输入框，不发送 */
   readonly draft: (threadId: string, text: string) => void
   readonly openExternal: (url: string) => void
 }
@@ -62,7 +53,7 @@ function HtmlWidget(props: {
   readonly threadId: string
   readonly widget: WidgetArgs & { readonly html: string }
 }): ReactNode {
-  /* 重新运行 = 整块重挂：iframe、高度、报错一起回到初始 */
+  /* 重新运行 = 整块重挂 */
   const [generation, setGeneration] = useState(0)
   return (
     <HtmlFrame
@@ -79,7 +70,7 @@ interface FrameContext {
   readonly deps: WidgetCardDeps
   readonly threadId: string
   readonly lastSend: { current: number }
-  /** 焦点在这个 iframe 上 = 用户刚在组件里点过/按过键；发消息、填输入框、开链接都要这个前提 */
+  /** 焦点在这个 iframe 上 = 用户刚在组件里操作过；发消息、填输入框、开链接都要这个前提 */
   readonly interacting: () => boolean
   readonly render: () => void
   readonly resize: (height: number) => void
@@ -102,7 +93,7 @@ function routeWidgetMessage(message: WidgetMessage, at: FrameContext): void {
   }
 }
 
-/** 组件替用户做的三件事：没有用户操作一律不做；send 另有 1 秒节流 */
+/** 组件替用户做的三件事：没有用户操作一律不做 */
 function actForUser(message: Extract<WidgetMessage, { type: 'send' | 'draft' | 'open' }>, at: FrameContext): void {
   if (!at.interacting()) return
   if (message.type === 'draft') {
@@ -164,7 +155,7 @@ function HtmlFrame({
     }
 
     window.addEventListener('message', onMessage)
-    /* 换主题只换 data-theme：令牌在新主题下重新求值，推给组件（组件不重跑） */
+    /* 换主题只换 data-theme：令牌重新求值后推给组件（组件不重跑） */
     const watch = new MutationObserver(() => {
       post({ type: 'poietica:theme', css: tokensAt(element), theme: themeNow() })
     })
@@ -218,7 +209,7 @@ function UrlWidget({
   const [generation, setGeneration] = useState(0)
   const { title, url } = widget
 
-  /* allow-same-origin 之下同源就等于把整个窗口交出去：这个地址永远不嵌 */
+  /* allow-same-origin 之下同源就等于把整个窗口交出去 */
   let sameOrigin = false
   try {
     sameOrigin = new URL(url).origin === window.location.origin

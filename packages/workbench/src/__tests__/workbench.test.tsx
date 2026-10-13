@@ -38,8 +38,7 @@ function testBridge(): WindowBridge {
 }
 
 afterEach(() => {
-  // 每个用例结束都卸载并清空 body：同一进程里跑多个测试文件时，残留的 DOM 会让
-  // document.querySelector 命中上一次渲染的节点，用例之间互相污染。
+  // 每个用例结束都卸载并清空 body：残留 DOM 会让 document.querySelector 命中上一次渲染的节点，用例互相污染。
   cleanup()
   document.body.innerHTML = ''
 })
@@ -61,10 +60,7 @@ async function mount(features: readonly UiFeature[] = []): Promise<UiKernel> {
   return kernel
 }
 
-/**
- * CommandMenu 的每一行是 role=option（Base UI Combobox 渲染）。命令 id 由它写进
- * 行的 value 属性，取不到时退回文本 —— 测试只关心「这一行在不在」。
- */
+/** 命令 id 由 Base UI Combobox 写进 role=option 行的 value 属性，取不到时退回文本。 */
 function optionValues(): string[] {
   return [...document.querySelectorAll('[role="option"]')].map((el) => {
     const attrs = el.getAttributeNames()
@@ -75,17 +71,11 @@ function optionValues(): string[] {
 }
 
 describe('workbench 外壳', () => {
-  /*
-   * 13 页 §6 的 P3.5 用例：贡献 2 个段和 4 个页（其中 1 个页的 group 没有注册）
-   * → 渲染 3 个 `settings-navigation__items`（最后一个是兜底段），段内按 order 排序，
-   * 没有段标题，未知 group 记一条 warn。
-   */
   test('设置导航：按段渲染，未知 group 进兜底段并记 warn', async () => {
     const { workbenchFeature } = await import('../feature')
     const feature = defineUiFeature({
       id: 'test',
       setup: (ctx) => {
-        // 只贡献 app / agent 两段；第三段（system）由 workbenchFeature 贡献
         ctx.contribute(builtinPoints.settingsGroups, { id: 'test.extra', order: 250 })
         ctx.contribute(builtinPoints.settingsPages, {
           id: 'test.a',
@@ -127,7 +117,7 @@ describe('workbench 外壳', () => {
     await new Promise((r) => setTimeout(r, 5))
 
     const sections = [...document.querySelectorAll('.settings-navigation__items')]
-    // 段序：app(100) → test.extra(250) → agent(200)… 按 order 排；兜底段在最后
+    // 段按 order 升序；兜底段在最后
     const last = sections.at(-1)
     expect(last?.querySelector('[data-settings-page="test.orphan"]')).not.toBeNull()
 
@@ -144,7 +134,7 @@ describe('workbench 外壳', () => {
     expect(document.querySelector('[data-workbench]')).not.toBeNull()
     expect(document.querySelector('[data-workbench-part="title-bar"]')).not.toBeNull()
     expect(document.querySelector('[data-empty="sidebar"]')).not.toBeNull()
-    /* 未注册的表面走 06 页 §6.2 的 UnknownSurface（「该页面不可用」）。 */
+    /* 未注册的表面走 UnknownSurface（「该页面不可用」）。 */
     expect(document.querySelector('[data-workbench-part="unknown-surface"]')).not.toBeNull()
     kernel.dispose()
   })
@@ -190,11 +180,9 @@ describe('workbench 外壳', () => {
       },
     })
     const kernel = await mount([workbenchFeature, feature])
-    // 通过命令面板自己的命令打开它
     await kernel.kernelServices.commands.execute('workbench.commandPalette')
     await new Promise((r) => setTimeout(r, 5))
-    // 命令面板已迁移到 design-system 的 Dialog + CommandMenu（legacy 同一条用法），
-    // 所以找的是 Base UI Combobox 的输入框与 option，而不是自绘的行。
+    // 面板用 design-system 的 CommandMenu，所以找的是 Base UI Combobox 的输入框与 option。
     const input = document.querySelector<HTMLInputElement>('[role="combobox"]')
     expect(input).not.toBeNull()
     expect(optionValues().some((v) => v.includes('test.hello'))).toBe(true)
@@ -240,7 +228,6 @@ describe('workbench 外壳', () => {
       expect(commands).toContain(id)
     }
     expect(kernel.registry.list(builtinPoints.surfaces).map((c) => c.item.id)).toContain('workbench.settings')
-    /* Ctrl+J（切换底部面板）随底坞一起删除：legacy 没有底坞，也没有这条快捷键。 */
     expect(kernel.registry.list(builtinPoints.keybindings).length).toBeGreaterThanOrEqual(7)
     kernel.dispose()
   })
@@ -288,9 +275,8 @@ describe('workbench 外壳', () => {
   })
 
   /*
-   * 真实故障：打开设置（`params: {}`）时导航里没有一行是选中的 —— 组合根传的是
-   * `route.params.page ?? ''`，空串穿过 `?? ` 落到 activeId 上，第一页的
-   * `data-active` 因此不是 `true`。这里把「位于通用页时通用必须是选中态」钉住。
+   * 真实故障：打开设置（`params: {}`）时导航里没有一行选中 —— 组合根传的
+   * `route.params.page ?? ''` 让空串落到 activeId 上，第一页的 `data-active` 因此不是 `true`。
    */
   test('设置表面：params 为空时第一页是选中态（空串不算「指定了页」）', async () => {
     const { workbenchFeature } = await import('../feature')
@@ -325,10 +311,7 @@ describe('workbench 外壳', () => {
     kernel.dispose()
   })
 
-  /*
-   * 真实故障：进入设置后底部的「帮助 / 设置」两枚图标整排消失 —— 设置那一支侧栏
-   * 只渲了导航，没把 legacy 的 SidebarFooter（settingsActive）挂回去。
-   */
+  /* 真实故障：进入设置后底部的「帮助 / 设置」两枚图标整排消失 —— 设置那一支侧栏没把 SidebarFooter 挂回去。 */
   test('设置表面：侧栏底部行（帮助与设置）仍在，且设置是高亮态', async () => {
     const { workbenchFeature } = await import('../feature')
     const kernel = await mount([workbenchFeature])
@@ -343,10 +326,7 @@ describe('workbench 外壳', () => {
     kernel.dispose()
   })
 
-  /*
-   * 回归：底部行的「开发者工具」早先被执行两次（SidebarFooter 传回调执行一次、
-   * HelpMenu 自己又执行一次），点一下会开两个 DevTools。命令的执行点只允许一处。
-   */
+  /* 回归：命令的执行点只允许一处 —— 早先 SidebarFooter 与 HelpMenu 各执行一次，点一下会开两个 DevTools。 */
   test('帮助菜单的「开发者工具」只执行一次', async () => {
     const calls: string[] = []
     const spy = defineUiFeature({
@@ -381,11 +361,7 @@ describe('workbench 外壳', () => {
     kernel.dispose()
   })
 
-  /*
-   * 回归：帮助菜单里的「更新行」在 legacy 是 `app-shell.tsx` 传给 `SidebarFooter` 的
-   * 一个插槽；新架构里换成 `helpMenuItems` 贡献点 —— 但曾经**没有任何功能往里贡献**，
-   * 于是菜单里那一行整条消失。这一条钉住「功能贡献的行真的画在项目文档与 GitHub 之间」。
-   */
+  /* 回归：`helpMenuItems` 曾经没有任何功能往里贡献，菜单里那一行整条消失。 */
   test('帮助菜单渲染功能贡献的行（位置在项目文档与 GitHub 之间）', async () => {
     const feature = defineUiFeature({
       id: 'test',
@@ -407,7 +383,7 @@ describe('workbench 外壳', () => {
 
     const row = document.querySelector('[data-test-help-row]')
     expect(row).not.toBeNull()
-    /* DOM 次序就是 legacy 的位置：项目文档 → 贡献行 → GitHub。 */
+    /* 次序：项目文档 → 贡献行 → GitHub。 */
     const item = (label: string): Element => {
       const found = [...document.querySelectorAll('[role="menuitem"]')].find((el) =>
         (el.textContent ?? '').includes(label),
@@ -440,7 +416,6 @@ describe('workbench 外壳', () => {
     await new Promise((r) => setTimeout(r, 5))
     expect(screen.getByText('确定吗')).toBeDefined()
     const { fireEvent } = await import('@testing-library/react')
-    // 外观归 design-system 的 ConfirmationDialog（见 parts/confirm-host.tsx 的头注），
     // 取消键按可访问名称找，不认实现细节的类名。
     fireEvent.click(screen.getByRole('button', { name: '取消' }))
     expect(await answer).toBe(false)
@@ -448,12 +423,8 @@ describe('workbench 外壳', () => {
   })
 
   /*
-   * 浮层宿主挂在栅格根之内（为了继承 --chrome-height 那类自定义属性），所以它的包装层
-   * 必须 display: contents —— 否则一个静态定位的 div 会被栅格**自动放进某个格位**，等于
-   * 外壳又替浮层占了一格，正是横幅行那个故障的形状。
-   *
-   * happy-dom 不做布局，「没占格位」量不出来；这里改为钉住那个前提（包装层的类名在，
-   * 且 .workbench__overlay 规则存在），规则本身由 parts.css 保证。
+   * 包装层必须 display: contents，否则静态定位的 div 会被栅格自动放进某个格位，等于外壳替浮层占了一格。
+   * happy-dom 不做布局，「没占格位」量不出来，这里改为钉住那个前提。
    */
   test('浮层包装层不生成盒子（display: contents）', async () => {
     const feature = defineUiFeature({
@@ -492,10 +463,7 @@ describe('workbench 外壳', () => {
     kernel.dispose()
   })
 
-  /*
-   * 06 页 §6.2 的渲染规则表要求「kernel.failures 非空时显示 N 个功能加载失败，点击弹出列表」。
-   * 该条原先是状态栏左端那一格；本设计没有状态栏，横幅区删掉之后它住在**浮层**这一层。
-   */
+  /* kernel.failures 非空时显示 N 个功能加载失败，点击弹出列表；它住在浮层这一层。 */
   test('功能加载失败时浮层显示失败计数', async () => {
     const bad = defineUiFeature({
       id: 'bad',
@@ -524,7 +492,7 @@ describe('workbench 外壳', () => {
     })
     const kernel = await mount([feature])
     expect(document.querySelector('[data-feature-error="test"]')).not.toBeNull()
-    /* 只有抛错那一格显示占位：主区与标题栏照常渲染（title-bar 是外壳家具）。 */
+    /* 只有抛错那一格显示占位，其余照常渲染。 */
     expect(document.querySelector('[data-workbench-part="title-bar"]')).not.toBeNull()
     expect(document.querySelector('[data-workbench-part="unknown-surface"]')).not.toBeNull()
     kernel.dispose()

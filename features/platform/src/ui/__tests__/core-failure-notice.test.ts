@@ -8,18 +8,9 @@ const status = (state: CoreStatus['state'], reason: CoreStatus['reason'] = null,
   attempt,
 })
 
-/*
- * 产品负责人 2026-10-06 的两次收缩，最终把 Core 状态横幅整条删掉：
- *   - `restarting`（「Agent 引擎意外退出，正在重新连接（第 N 次）」）先删 —— Core 自己会重连，
- *     报在屏幕顶上只会让人以为出了事；
- *   - `failed`（要人重新启动的那一档）从横幅行移到**入口提示**，与「还没有配置任何模型
- *     服务商」同一个样式、同一个位置（吉祥物上方）；
- *   - 最后 `starting` / `stopped` 那档「正在启动 Agent 引擎…」也删除（见 platform/ui/index.tsx
- *     的注释）：它每次启动都会横贯整窗闪一下，退出时还留下一条没有字的 `--ui-accent` 色块。
- *
- * 于是 Failed 文案表与可见性判据全部收在 core-failure-notice 这一份里，外壳横幅区不再有
- * platform 的贡献。
- */
+/* 产品负责人 2026-10-06 的两次收缩，最终把 Core 状态横幅整条删掉：`restarting` 先删（Core 自己会重连）；`failed` 从横幅行移到**入口提示**
+ * （见 core-failure-notice.tsx）；最后 `starting` / `stopped` 那档也删除 —— 它每次启动都会横贯整窗闪一下，退出时还留下一条没有字的
+ * `--ui-accent` 色块。于是 Failed 文案表与可见性判据全部收在 core-failure-notice 这一份里。 */
 describe('入口提示：Core 起不来', () => {
   test('只有 failed 占这一格', () => {
     expect(coreFailureVisible(status('starting'))).toBe(false)

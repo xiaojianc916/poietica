@@ -2,9 +2,9 @@ import type { Settings } from '@oh-my-pi/pi-coding-agent/config/settings'
 import { type SettingsScope, settingAt } from '../settings-access'
 
 /*
- * 端口要用到、而 settings-access.ts（P2.4，别人的线）没导出的那几件设置操作。
- * 收在这里而不是回头去改那个文件：端口只写 ports/**（task-6 的写范围），
- * 而 settings-access 的 settingAt 已经是全仓唯一的路径解析点 —— 这里从它出发，不自己 lookup。
+ * 端口要用到、而 settings-access.ts 没导出的那几件设置操作。
+ * 收在这里而不是回头去改那个文件：settings-access 的 settingAt 已经是全仓唯一的路径
+ * 解析点 —— 这里从它出发，不自己 lookup。
  */
 
 /** 设置句柄的 schema 类型（boolean / enum / number / string / array / record）。 */

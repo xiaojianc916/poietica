@@ -59,17 +59,12 @@ export default defineCoreModule({
       localTimeZone,
     })
 
-    /* 结束：conversation 的 turnSettled 按 threadId 落到本次运行 */
     ctx.disposables.add(
       ctx.events.on<TurnSettled>(turnSettled, (e) => {
         runner.onTurnSettled(e)
       }),
     )
 
-    /*
-     * R-06：「一句话没送达」与「对话被删」都不会有回合结束事件，靠这两条 Core 事件收口，
-     * 否则 open run 永远收不掉，调度器会一直跳过这个任务。
-     */
     ctx.disposables.add(
       ctx.events.on<SubmissionFailed>(submissionFailed, (e) => {
         runner.onSubmissionFailed(e)
@@ -78,12 +73,10 @@ export default defineCoreModule({
     ctx.disposables.add(
       ctx.events.on<ThreadRemoved>(threadRemoved, (e) => {
         runner.onThreadRemoved(e)
-        /* 续用的那条对话被删：任务忘掉它，下次运行新建一条（审查 R-14） */
         if (repo.clearThread(e.threadId, ctx.clock.now()) > 0) ctx.rpc.emit('automations.changed', {})
       }),
     )
 
-    /* 工作区被移除：删掉它名下的全部任务（运行记录级联；线程归 conversation 删） */
     ctx.disposables.add(
       ctx.events.on<WorkspaceRemoved>(workspaceRemoved, (e) => {
         repo.removeByWorkspace(e.workspaceId)
@@ -91,7 +84,6 @@ export default defineCoreModule({
       }),
     )
 
-    /* 启动修复在 onReady：上次退出时仍在运行的记录 → failed；重算 next_run_at 与 issue */
     ctx.lifecycle.onReady(() => {
       scheduler.repairOnStartup()
       ctx.disposables.add(scheduler.start())

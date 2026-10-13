@@ -1,16 +1,13 @@
 // 真实布局检查的宿主（CommonJS：electron 直接跑这个文件）。
 //
-// 一个场景一个进程：少动效那一档要靠 --force-prefers-reduced-motion 启动开关，
-// 而 motion 首次读取系统偏好后就缓存，同一进程里改不了。
+// 一个场景一个进程：少动效那一档要靠 --force-prefers-reduced-motion 启动开关，而 motion 首次读取
+// 系统偏好后就缓存，同一进程里改不了。
 //
-// 窗口放在屏幕外但保持可见（x/y 为负、show: true）：隐藏窗口的 rAF 会被 Chromium 节流，
-// 测出来的帧率、延迟与抖动都没有意义。backgroundThrottling 再关一次。
+// 窗口放在屏幕外但保持可见（x/y 为负、show: true）：隐藏窗口的 rAF 会被 Chromium 节流，测出来的
+// 帧率、延迟与抖动都没有意义。backgroundThrottling 再关一次。
 //
 // 它不做判断：跑完把原始采样以一行 JSON 交回 stdout，指标与阈值归 run.ts（metrics.ts）。
-// 帧率不够（< 50fps）时退出码 2 —— 环境不合格就不给结论。
-//
-// 收尾等页面的 `window.__done`（来字都印出来了、滑行也停了），最多等到 HARD_LIMIT_MS：
-// 干等固定时长要么太短（把收尾当稳态），要么太慢。
+// 帧率不够（< 50fps）时退出码 2 —— 环境不合格就不给结论。收尾等页面的 `window.__done`。
 const { app, BrowserWindow } = require('electron')
 const fs = require('node:fs')
 const path = require('node:path')

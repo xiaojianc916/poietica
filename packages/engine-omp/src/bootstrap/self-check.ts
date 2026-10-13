@@ -11,8 +11,8 @@ export interface IsolationSelfCheck {
 }
 
 /**
- * 启动自检：omp 的每个目录都必须落在隔离根之内，否则以退出码 3 退出（12 页 §4.6）。
- * natives 加载器自己算目录、不走 dirs 模块，所以额外核对一个（04 页 §3.3 第 4 条）。
+ * 启动自检：omp 的每个目录都必须落在隔离根之内，否则以退出码 3 退出。
+ * natives 加载器自己算目录、不走 dirs 模块，所以额外核对一个。
  */
 export async function runIsolationSelfCheck(layout: DataLayout): Promise<IsolationSelfCheck> {
   const dirs = await import('@oh-my-pi/pi-utils/dirs')

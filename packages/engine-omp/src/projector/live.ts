@@ -1,7 +1,7 @@
 import { frameId, stepId, type TranscriptOperation, turnId } from '@poietica/transcript'
 import { GOAL_CONTINUATION_ORIGIN, type TurnOrigin } from './origin'
 
-/** 工具帧降级时显示的正文（状态照实，正文换成这句；R-02 §2.5） */
+/** 工具帧降级时显示的正文（状态照实，正文换成这句；R-02） */
 export const TOOL_FALLBACK_TEXT = '这一步的内容无法显示（详情已写入日志）'
 
 interface Streaming {
@@ -21,7 +21,7 @@ export interface LiveProjectorOptions {
 }
 
 /**
- * omp 的会话事件 → transcript 的 ops（12 页 §9.1，迁移自 legacy projection.ts 的 TranscriptProjector）。
+ * omp 的会话事件 → transcript 的 ops。
  *
  * 它只维护指针：当前 turn/step 的号，以及每个流式帧已经发出了多少字。除此之外没有任何副作用：
  * 不发事件、不做 I/O、不写 console。append 认 offset，offset 大于已有长度就是缺口（TranscriptGapError），
@@ -74,7 +74,7 @@ export class LiveProjector {
   }
 
   /**
-   * 一张图片的附件条目（12 页 §7.4 第 3 步：每张图片先 attachmentOp 再 userTurn）。
+   * 一张图片的附件条目（每张图片先 attachmentOp 再 userTurn）。
    * 像素用 url 源直接给（data URL）：omp 读会话时已经把 blob 换成内联 base64，界面直接画得出来。
    */
   attachmentOp(input: {
@@ -462,7 +462,7 @@ export class LiveProjector {
   }
 
   /**
-   * 工具事件投影失败时的降级帧（R-02 §2.5）：只改这一格，其余什么都不动。
+   * 工具事件投影失败时的降级帧（R-02）：只改这一格，其余什么都不动。
    *
    * 本方法不得抛异常：入参全是已经确认过类型的字符串和布尔值，不读任何 unknown 值的内部。
    * 状态照实写（`ended` 三态），因为工具本身可能成功了，只是我们展示失败 —— 一律标成 error 是撒谎。
@@ -505,7 +505,7 @@ export class LiveProjector {
   }
 
   /**
-   * 放弃当前轮：只复位累加器，不产出 op（R-02 §2.5）。
+   * 放弃当前轮：只复位累加器，不产出 op（R-02）。
    *
    * 收尾时 `turnEnd` 没能执行完（投影成不成功）走它兜底；对已关闭的轮是空操作。
    * 字段清单与 `turnEnd` 末尾的复位段是同一份 —— 两处各写一遍就会漂移，所以只有这一个产地。

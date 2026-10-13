@@ -1,23 +1,22 @@
 /*
- * 一条滚动条，全仓一份。**复刻 DeepSeek Harness** —— 正本是装机版
- * `@deepseek-ai/dsh-client-ui-theme` 的 `src/styles/scrollbar.css`（2026-10-09 从
- * app.asar 提取），下面每一条的值都与它相同：宽度 5px、滑块竖边 0px、轨道与四角透明、
- * `corner-shape: round`、圆角 999px、槽边距 0px、悬停只换底色。
+ * 一条滚动条，全仓一份。**形状照抄装机版 DeepSeek Harness**
+ * `@deepseek-ai/dsh-client-ui-theme` 的 `src/styles/scrollbar.css`（别改），下面每一条的值都
+ * 与它相同：宽度 5px、滑块竖边 0px、轨道与四角透明、`corner-shape: round`、圆角 999px、
+ * 槽边距 0px、悬停只换底色。
  *
- * 取色是实色，不是 color-mix：正本给的就是实色 —— 浅色 #e5e5e5 / 悬停 #d4d4d4，
- * 深色 #2b2b2b / 悬停 #545557。混合写的是「看起来差不多」，实色可以逐格核对。
+ * 取色是实色，不是 color-mix：实色可以逐格核对，混合写的是「看起来差不多」—— 浅色
+ * #e5e5e5 / 悬停 #d4d4d4，深色 #2b2b2b / 悬停 #545557。
  *
- * 槽宽只剩 --ui-scrollbar-size 这一格（正本是 5px，整仓没有第二个值）。改它等于同时
- * 改 xterm 自绘条的宽度：终端那条不走 ::-webkit-scrollbar，读的是同一个令牌
+ * 槽宽只剩 --ui-scrollbar-size 这一格（整仓没有第二个值）。改它等于同时改 xterm 自绘条的
+ * 宽度：终端那条不走 ::-webkit-scrollbar，读的是同一个令牌
  * （features/terminal/src/ui/terminal-pane.css）。
  *
  * 两条老规矩仍然成立：
  *   1. 直绘而非标准属性。标准属性只能给轨道涂一个纯色，画不出铺满细槽的滑块，且与
- *      ::-webkit-scrollbar 在 Chromium 里互斥 —— 两套并存时标准属性赢，条会退回系统
- *      外观。所以产品样式里不再有 scrollbar-color，每处「不要条」也只需标准属性。
- *   2. 回退分支照抄正本：不认识 ::-webkit-scrollbar 的引擎走 scrollbar-width: thin 加
- *      scrollbar-color。Chromium 两套都认，于是这是死代码 —— 留着是与正本逐字相同，
- *      删掉就多一处偏差。
+ *      ::-webkit-scrollbar 在 Chromium 里互斥 —— 两套并存时标准属性赢，条会退回系统外观。
+ *   2. 回退分支（下面的 @supports）照抄：不认识 ::-webkit-scrollbar 的引擎走
+ *      scrollbar-width: thin 加 scrollbar-color。Chromium 两套都认，于是这是死代码 —— 删掉
+ *      就多一处偏差。
  */
 :root {
   --ui-scrollbar-size: 5px;
@@ -27,7 +26,7 @@
   --ui-scrollbar-thumb-hover: #d4d4d4;
 }
 
-/* 深色常态是产品指定的一格（比正本那档更深）；悬停仍是正本的 #545557。 */
+/* 深色常态是产品指定的一格；悬停仍是 #545557。 */
 :root[data-theme="dark"] {
   --ui-scrollbar-thumb: #2b2b2b;
   --ui-scrollbar-thumb-hover: #545557;

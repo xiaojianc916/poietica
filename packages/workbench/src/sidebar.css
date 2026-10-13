@@ -1,10 +1,5 @@
 /*
- * 侧边栏行的绘制。
- *
- * **迁移自** legacy `shell/sidebar/sidebar-rows.css`：类名、几何读法一字未改。
- * 行的形状本身不在这里 —— 它由 design-system 的 --ui-row-* 一族持有
- * （tokens/rows.css）；中线由 WorkspaceFrame 挂成 --ui-row-icon-center。
- *
+ * 侧边栏行的绘制。行的形状由 design-system 的 --ui-row-* 一族持有（tokens/rows.css）。
  * 这里读令牌一律不写兜底值：兜底值就是第二份真相，链子断掉应当显形。
  */
 

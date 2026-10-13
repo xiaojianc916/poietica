@@ -2,7 +2,6 @@ import type { TypedRpcClient } from '@poietica/rpc'
 import type { UiFeatureContext } from '@poietica/ui-kernel'
 import { type Attachment, attachmentsContract } from '../contract'
 
-/** ctx.rpc(attachmentsContract) 的薄封装 */
 export function createAttachmentsApi(ctx: UiFeatureContext) {
   const rpc: TypedRpcClient<typeof attachmentsContract> = ctx.rpc(attachmentsContract)
   return {

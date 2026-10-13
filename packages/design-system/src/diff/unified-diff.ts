@@ -3,9 +3,9 @@ import { diffWordsWithSpace, parsePatch, structuredPatch } from 'diff'
 /*
  * 统一 diff 的语义：一份补丁、或一对正文 → 屏幕上的那些行。
  *
- * 切 hunk、编行号、算词级差分交给 jsdiff（unified format 是 GNU diffutils 定下的、
- * 被解决过的问题）；折叠、行的身份与加减账目是这个产品自己的规则，全仓只有这一份。
- * 不认 React 与 DOM，能在 Node 里单测。
+ * 切 hunk、编行号、算词级差分交给 jsdiff（unified format 是 GNU diffutils 定下的、被解决过的
+ * 问题）；折叠、行的身份与加减账目是这个产品自己的规则，全仓只有这一份。不认 React 与 DOM，
+ * 能在 Node 里单测。
  */
 
 /** 一截正文在两套主题下的颜色；填色的是消费者，这一层只留位置。 */
@@ -150,7 +150,7 @@ function fileOf(path: string, hunks: readonly Hunk[], binary: boolean, emphasis:
   }
 }
 
-/* hunk 摊成行。加减的账在这一趟记完，不必再问一次 numstat。 */
+/* hunk 摊成行。加减的账在这一趟记完。 */
 function flatten(hunks: readonly Hunk[], count: Count): readonly Item[] {
   const items: Item[] = []
   let next = 1
@@ -252,7 +252,7 @@ function fold(items: readonly Item[]): readonly DiffRow[] {
   return rows
 }
 
-/* 等长的一段删除紧跟一段新增才对得上行；不等长就不猜，整行算改动。 */
+/* 等长的一段删除紧跟一段新增才对得上行。 */
 function emphasised(rows: readonly DiffRow[]): readonly DiffRow[] {
   const held = [...rows]
   let index = 0

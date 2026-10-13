@@ -4,11 +4,7 @@ import { BLANK_PAGE, type BrowserState } from '../../contract'
 import { createRelayClient, type RelaySocket, relayUrlForStatus } from '../relay-client'
 import type { ContentsListener, WebContentsLike } from '../tabs'
 
-/*
- * relay 这一侧（agent 那条线）的自检。真 Chromium 与真 WebSocket 都不参与：socket 从
- * `createSocket` 注入，时间从 `clock` 注入 —— 这一组断言**迁移自** legacy relay.test.ts
- * 的全部意图，钉住 BR-2…BR-7 与 BR-11。
- */
+/* relay 这一侧的自检：socket 与 clock 都注入，真 Chromium 与真 WebSocket 不参与；钉住 BR-2…BR-7 与 BR-11。 */
 
 interface Sent {
   readonly t?: string
@@ -51,13 +47,11 @@ class FakeSocket implements RelaySocket {
     this.emit('close')
   }
 
-  /** 服务端那一侧：握手完成。 */
   open(): void {
     this.readyState = FakeSocket.OPEN
     this.emit('open')
   }
 
-  /** 服务端那一侧：连接断掉（不是这一侧叫的 close）。 */
   drop(): void {
     this.readyState = 3
     this.emit('close')
@@ -91,7 +85,6 @@ type FakeDebugger = {
 interface FakeContents extends WebContentsLike {
   readonly loaded: string[]
   readonly commands: string[]
-  /** 后台节流的每一次下发（B-03）；初值就是内核的默认值 true。 */
   readonly throttled: boolean[]
   readonly debugger: FakeDebugger
 }
@@ -119,7 +112,6 @@ function fakeContents(url: string): FakeContents {
       attach: () => {
         attached = true
       },
-      // 内核是真的发事件：这里照发，一轮 detach 可以发不止一条。
       detach: () => {
         attached = false
         emit('detach', {}, 'target closed')
@@ -171,7 +163,6 @@ interface Harness {
   readonly closed: number[]
   readonly selected: number[]
   readonly connected: boolean[]
-  /** onAttachedChange 的每一次通报（B-04）：集合快照的数组，只记变化。 */
   readonly attachedLog: (readonly number[])[]
   readonly clock: FakeClock
   readonly client: ReturnType<typeof createRelayClient>
@@ -263,7 +254,6 @@ function harness(url: string): Harness {
   return { socket, contents, opened, closed, selected, connected, attachedLog, clock, client, state }
 }
 
-/** 一问一答：假 socket 上没有事件循环，答案在同一批微任务里就位。 */
 async function rpc(socket: FakeSocket, request: Record<string, unknown>): Promise<Sent> {
   const id = socket.sent.length + 1000
 
@@ -396,11 +386,7 @@ describe('BR-3 / BR-4: attach 与 detach', () => {
     h.client.dispose()
   })
 
-  /*
-   * 内核为一轮 detach 会发不止一条 detach 事件。只有第一条是「我们主动拆的」，
-   * 后面的每一条若被读成「用户拆的」，relay 就把这张标签拉黑：面板的页面从 CDP 发现里
-   * 消失，之后每次 browser.open 都只得到「没有可用页面」。
-   */
+  /* 一轮 detach 会发不止一条事件：后面的每一条若被读成「用户拆的」，relay 就把这张标签拉黑 —— 页面从 CDP 发现里消失，之后每次 browser.open 都只得到「没有可用页面」。 */
   test('BR-3: 一轮 detach 的回执都算 relay 主动，重 attach 后清除标记', async () => {
     const h = harness('https://a.example/')
 
@@ -415,7 +401,6 @@ describe('BR-3 / BR-4: attach 与 detach', () => {
     expect(reports).toHaveLength(3)
     expect(reports.every((message) => message.relayInitiated === true)).toBe(true)
 
-    // 重新 attach 之后不再欠着上一轮：真·非 relay 的 detach 照旧老实报 false。
     await rpc(h.socket, { op: 'attach', tabId: 1 })
     h.contents.debugger.emit('detach', {}, 'devtools')
 
@@ -429,12 +414,8 @@ describe('BR-3 / BR-4: attach 与 detach', () => {
     h.client.dispose()
   })
 
-  /*
-   * B-03：面板收起时视图是 setVisible(false)，Chromium 会把这页当成后台标签降频 ——
-   * 计时器被拉长、渲染帧被跳过，Page.captureScreenshot 要么很久才回、要么根本不回。
-   * 附着期间关掉这张标签的节流，分离时恢复。**只改这一张**：全局关节流会让用户自己
-   * 开的后台标签一直跑满 CPU。
-   */
+  /* B-03：面板收起时视图是 setVisible(false)，Chromium 把这页当后台标签降频 —— 截图要么很久才回、要么根本不回；
+   * 附着期间关掉这张标签的节流，分离时恢复。**只改这一张**：全局关节流会让用户自己开的后台标签一直跑满 CPU。 */
   test('B-03: 附着期间关掉这张标签的后台节流，分离时恢复', async () => {
     const h = harness('https://a.example/')
 
@@ -541,19 +522,7 @@ describe('BR-3 / BR-4: attach 与 detach', () => {
   })
 })
 
-/*
- * B-04：「AI 正在使用这个浏览器」说的是「至少有一张标签挂着 AI 的调试器」，不是
- * 「socket 连着」。relay 守护首次使用后就常驻，socket 一直连着 —— 按连接算的话这条
- * 提示永远亮着，Core 重启后重连还会把用户关掉的面板又顶出来。
- */
-/*
- * B-09：omp bridge 把 `relayInitiated: false` 当作「用户拆掉了调试器」，把标签设为
- * banned，直到地址变化才解除。内核自己拆的理由很多（渲染进程崩溃、目标关闭），都不是
- * 用户的意思；而 tabs.ts 在渲染进程崩溃后按**原地址**重载，于是这张标签对 AI 永久
- * 不可用。Poietica 的界面没有 DevTools 入口，用户主动拆的情况几乎不存在。
- *
- * 只有理由里写明是用户（canceled_by_user）或被 DevTools 抢占时才报 false。
- */
+/* B-04：那条提示按「有没有标签挂着 AI 的调试器」算，不是按 socket 连着 —— relay 守护常驻，按连接算它会一直亮着。 */
 describe('B-09: 非用户原因的内核 detach 不拉黑标签', () => {
   test('渲染进程崩溃：relayInitiated 为真', async () => {
     const h = harness('https://a.example/')
@@ -648,7 +617,6 @@ describe('B-04: 附着集合的通报', () => {
 
     expect(h.attachedLog).toEqual([[1], []])
 
-    /* 已经空了：重连上来又断掉，不该再发一条空的。 */
     h.clock.advance(1000)
 
     const second = FakeSocket.instances.at(-1) as FakeSocket
@@ -666,7 +634,6 @@ describe('BR-6: 重连', () => {
   test('断开后 1s、2s、4s、8s、10s…封顶 10s', () => {
     const h = harness('https://a.example/')
 
-    /** 断掉当前这条，再往前走一格：返回下一次重试是否在正好那个毫秒上发生。 */
     const retryAfter = (current: FakeSocket, delay: number): boolean => {
       const socketCount = (): number => FakeSocket.instances.length
 
@@ -689,7 +656,6 @@ describe('BR-6: 重连', () => {
     expect(retryAfter(FakeSocket.instances[0] as FakeSocket, 2000)).toBe(true)
     expect(retryAfter(FakeSocket.instances[0] as FakeSocket, 4000)).toBe(true)
     expect(retryAfter(FakeSocket.instances[0] as FakeSocket, 8000)).toBe(true)
-    // 已经到顶：10s 那一档一直用它，不再翻倍。
     expect(retryAfter(FakeSocket.instances[0] as FakeSocket, 10_000)).toBe(true)
     expect(retryAfter(FakeSocket.instances[0] as FakeSocket, 10_000)).toBe(true)
 

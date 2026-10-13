@@ -9,7 +9,6 @@ import { createShellService } from './shell-service'
 import { createStorageService } from './storage-service'
 import { createWindowStateStore } from './window-state'
 
-/** 目标路径存在且是文件或目录 */
 function pathExists(p: string): boolean {
   try {
     statSync(p)
@@ -51,11 +50,10 @@ export default defineHostModule({
       },
     })
 
-    // ── 窗口位置：beforeWindow 恢复，onReady 里监听变化 ──────────────
     ctx.lifecycle.beforeWindow(async () => {
       const saved = await windowState.load()
       ctx.windows.configureMain({
-        // exactOptionalPropertyTypes：x/y 缺席时不要显式写 undefined
+        // exactOptionalPropertyTypes：x/y 缺席时不要显式写 undefined。
         bounds: {
           ...(saved.bounds.x === undefined ? {} : { x: saved.bounds.x }),
           ...(saved.bounds.y === undefined ? {} : { y: saved.bounds.y }),
@@ -81,8 +79,7 @@ export default defineHostModule({
         save()
         ctx.rpc.emit('window.maximizedChanged', { maximized: false })
       })
-      // 关闭拦截：已在退出中 → 放行；渲染进程无响应或已崩溃 → 直接退出（否则用户永远关不掉窗口）；
-      // 其余 → preventDefault 并通知 UI（UI 确认完自己调用 app.quit）
+      // 已在退出中 → 放行；渲染进程无响应或已崩溃 → 直接退出（否则用户永远关不掉窗口）；其余 → preventDefault 并通知 UI。
       win.on('close', (event) => {
         if (ctx.app.quitting()) return
         if (!ctx.windows.isMainResponsive() || win.webContents.isCrashed()) {
@@ -97,7 +94,6 @@ export default defineHostModule({
       await windowState.flush()
     })
 
-    // ── 方法 ────────────────────────────────────────────────────────
     ctx.rpc.handle('app.info', () => ({
       version: ctx.appVersion,
       isPackaged: ctx.isPackaged,

@@ -1,7 +1,4 @@
-/*
- * 问答面板只负责题面布局和交互反馈；共享按钮与 Tooltip 由 design-system 提供。
- * 选中态由图标和背景表达，不使用描边。
- */
+/* 共享按钮与 Tooltip 由 design-system 提供；选中态用图标和背景表达，不描边。 */
 
 .assistant-question-panel {
   display: grid;

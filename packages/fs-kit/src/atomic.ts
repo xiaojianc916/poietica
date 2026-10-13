@@ -17,15 +17,11 @@ export interface RenameRetryOptions {
 }
 
 /**
- * 带退避的 rename（R-08-12）。
- *
- * 立即返回的失败只有一种：目标目录里的临时文件被别的进程攥着 —— Defender 的实时扫描、
- * Windows Search 的索引器都会短暂打开刚写出来的文件，这时 NTFS 的改名会抛
- * EPERM / EACCES / EBUSY（同一个仓库的并发写测试里也能复现）。从前这种偶发拒绝直接
- * 让这次写入作废（JsonDocument 只记一条 error），偏好 / 草稿 / 窗口状态就悄悄丢了。
- *
- * 退避 10→20→40…，总等待封顶 2 秒；其它错误码（路径不存在、跨卷……）立刻抛出，
- * 不白等。
+ * 带退避的 rename（R-08-12）。立即返回的失败只有一种：目标目录里的临时文件被别的进程攥着 ——
+ * Defender 的实时扫描、Windows Search 的索引器都会短暂打开刚写出来的文件，这时 NTFS 的改名会抛
+ * EPERM / EACCES / EBUSY。从前这种偶发拒绝直接让这次写入作废（JsonDocument 只记一条 error），
+ * 偏好 / 草稿 / 窗口状态就悄悄丢了。退避 10→20→40…，总等待封顶 2 秒；其它错误码（路径不存在、
+ * 跨卷……）立刻抛出，不白等。
  */
 export async function renameWithRetry(
   renameFile: Rename,

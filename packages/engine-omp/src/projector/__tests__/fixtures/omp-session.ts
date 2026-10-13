@@ -12,8 +12,8 @@ import { wrapOmpSession } from '../../../session/omp-session-adapter'
  * 一个假的 omp AgentSession：只实现 wrapOmpSession 真正用到的那几格（OmpAgentSessionLike），
  * 并把订阅回调抓在手里，让测试自己放帧。
  *
- * 它存在的理由与 legacy 的 SDK 原型拦截同一条：真起一条会话要模型与密钥，而这里要证的只是
- * 「桥把哪一格读成什么」（12 页 §12.3）。事件形状照 docs/omp-sdk-reference.md 的 AgentSessionEvent 抄。
+ * 它存在的理由是：真起一条会话要模型与密钥，而这里要证的只是
+ * 「桥把哪一格读成什么」。事件形状照 docs/omp-sdk-reference.md 的 AgentSessionEvent 抄。
  */
 
 export interface DeliveredCall {
@@ -57,7 +57,7 @@ export interface FakeSessionOptions {
  * 会话里那个技能的 SKILL.md（临时目录，进程内建一次）。
  *
  * 技能展开走的是 omp 官方的 `buildSkillPromptMessage` —— 它要读盘，所以夹具必须给一份
- * 真的 SKILL.md 与真的 baseDir，而不是只有名字的空壳（12 页 §7.6）。
+ * 真的 SKILL.md 与真的 baseDir，而不是只有名字的空壳。
  */
 const SKILL_DIR = path.join(tmpdir(), 'poietica-fixture-skill-review')
 const SKILL_FILE = path.join(SKILL_DIR, 'SKILL.md')
@@ -177,8 +177,7 @@ export function opsOf(events: readonly EngineSessionEvent[]): readonly Record<st
 
 /**
  * 自定义消息的正文。omp 的 `CustomMessage.content` 是「文本块 + 图片」的联合数组
- * （与 prompt() 收裸字符串两条签名不一样），所以这里按文本块拼一次 —— legacy 的
- * `textOf` 也是这么读的。
+ * （与 prompt() 收裸字符串两条签名不一样），所以这里按文本块拼一次。
  */
 function textOfContent(content: unknown): string {
   if (typeof content === 'string') return content

@@ -1,12 +1,6 @@
 import { afterEach, beforeEach, expect, mock, test } from 'bun:test'
 import { overlayPresent, watchOverlays } from '../overlay-watch'
 
-/*
- * P-07：浮层观察只看 body 的直接子节点与应用根（#root）之外的传送门子树。
- * 流式输出时 #root 里每秒几十次的 DOM 变动不应该叫醒浏览器面板（O1 在旧逻辑上失败）。
- */
-
-/** MutationObserver 的回调在微任务里批量派发 */
 const flush = () => new Promise((resolve) => setTimeout(resolve, 0))
 
 let root: HTMLElement

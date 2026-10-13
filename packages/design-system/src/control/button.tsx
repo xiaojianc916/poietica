@@ -2,8 +2,8 @@ import type { ComponentPropsWithRef } from 'react'
 import { cn } from '../class-names'
 
 /*
- * 变体表。不出这个文件：它是 Button 表达自己的方式，不是供人拼 class 的公共资产。
- * 写法与同目录其余组件一致（switch.tsx 的 ROOT_SIZE / THUMB_SIZE）。
+ * 变体表。不出这个文件：它是 Button 表达自己的方式，不是供人拼 class 的公共资产。写法与同目录
+ * 其余组件一致（switch.tsx 的 ROOT_SIZE / THUMB_SIZE）。
  */
 
 import './danger-soft.css'
@@ -21,8 +21,8 @@ const VARIANT: Record<ButtonVariant, string> = {
   /*
    * dangerSoft：不可撤销、但不是当前这一步要执行的动作。无边框，红字，红墨压出的浅底。
    *
-   * 红底那几档颜色住在 danger-soft.css：浅色是浅粉，深色是 12%/20% 的红墨，与确认对话框
-   * 那颗危险键同一档浓度。Tailwind 的工具类写不出主题相关的这一层。
+   * 红底那几档颜色住在 danger-soft.css：浅色是浅粉，深色是 12%/20% 的红墨，与确认对话框那颗
+   * 危险键同一档浓度。Tailwind 的工具类写不出主题相关的这一层。
    */
   dangerSoft: 'ui-button--danger-soft',
   outline: 'border border-input bg-background shadow-sm hover:bg-accent hover:text-accent-foreground',

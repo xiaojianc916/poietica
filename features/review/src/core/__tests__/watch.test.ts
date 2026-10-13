@@ -1,8 +1,6 @@
 import { describe, expect, test } from 'bun:test'
 import { createReviewWatcher } from '../watch'
 
-/** 07 页 §10G：watch 两次 unwatch 一次仍在监听，再 unwatch 一次停止。 */
-
 function makeWatcher() {
   const started: string[] = []
   const stopped: string[] = []
@@ -49,7 +47,6 @@ describe('review 监听引用计数', () => {
     watcher.watch('/b', () => undefined)
     watcher.dispose()
     expect(stopped.sort()).toEqual(['/a', '/b'])
-    /* dispose 之后再 watch 会重新起一次（计数表已清空） */
     watcher.watch('/a', () => undefined)
     expect(started).toEqual(['/a', '/b', '/a'])
   })

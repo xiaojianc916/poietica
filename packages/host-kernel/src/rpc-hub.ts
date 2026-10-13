@@ -12,7 +12,6 @@ import { type InboundContext, type Router, RpcPeer, type Transport } from '@poie
 import type { CoreSupervisor } from './core-supervisor'
 import type { CoreCaller } from './module'
 
-/** 只需要 webContents 的这几个能力；测试中用假对象 */
 export interface HubWebContents {
   readonly id: number
   on(
@@ -27,7 +26,7 @@ export interface RpcHubOptions {
   readonly hostRouter: Router
   readonly supervisor: Pick<CoreSupervisor, 'forward' | 'status' | 'onStatus' | 'relayPort'>
   readonly logger: Logger
-  /** 生产环境传 createIpcTransport；测试传入返回 transportPair 一端的函数 */
+  /** 生产环境传 createIpcTransport；测试传入返回 transportPair 一端的函数。 */
   readonly createTransport: (wc: HubWebContents) => Transport
 }
 
@@ -66,7 +65,7 @@ export class RpcHub {
     for (const peer of this.windows.values()) peer.notify(method, params)
   }
 
-  /** Core 发来的通知：先给 Host 模块旁听，再广播给窗口（core.ready 由 supervisor 消费，不会到这里） */
+  /** Core 发来的通知：先给 Host 模块旁听，再广播给窗口（core.ready 由 supervisor 消费，不会到这里）。 */
   fromCore(method: string, params: unknown): void {
     for (const l of [...(this.coreListeners.get(method) ?? [])]) {
       try {
@@ -102,11 +101,7 @@ export class RpcHub {
         const ac = new AbortController()
         const timeoutMs = opts?.timeoutMs ?? def.timeoutMs
         const timer = timeoutMs > 0 ? setTimeout(() => ac.abort(), timeoutMs) : undefined
-        /*
-         * 调用方可能拿一个**长寿** signal（模块生命周期的 AbortController）反复调用
-         * （R-08-10）：监听器必须摘掉，否则监听器与闭包（含每次的 ac）单调累积。
-         * 已经中止的 signal 直接落下去，让 forward 侧按取消处理。
-         */
+        /* 调用方可能拿一个**长寿** signal 反复调用（R-08-10）：监听器必须摘掉，否则监听器与闭包单调累积。 */
         const onAbort = (): void => ac.abort()
         if (opts?.signal?.aborted === true) ac.abort()
         else opts?.signal?.addEventListener('abort', onAbort, { once: true })
@@ -155,7 +150,7 @@ export class RpcHub {
     const def = this.o.appContract.methods.get(method)
     if (def === undefined) throw new AppError(SystemErrorCode.methodNotFound, `未知方法 ${method}`)
     if (def.owner === 'host') return this.o.hostRouter.handle(method, params, ctx)
-    // owner='core'：Hub 不设超时（timeoutMs=0），由 UI 侧超时后发送 $/cancelRequest，ctx.signal 随之中止并转发取消
+    // owner='core'：Hub 不设超时（timeoutMs=0），UI 侧超时后发 $/cancelRequest，ctx.signal 随之中止并转发取消
     return this.o.supervisor.forward(method, params, { signal: ctx.signal, meta: ctx.meta })
   }
 }

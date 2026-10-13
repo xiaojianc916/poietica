@@ -10,10 +10,7 @@ import {
 } from '../prose/diagram-cache'
 import { DIAGRAM_INKS, type DiagramInks } from '../prose/diagram-theme'
 
-/*
- * 一张完整的颜色表：键集跟着真实的槽位走（少一个就不是这张图该有的那一套），值只要互不相同
- * —— 这里量的是缓存键的算法，不是颜色。
- */
+/* 键集跟着真实槽位走，值只要互不相同 —— 这里量的是缓存键的算法，不是颜色。 */
 function inksWith(overrides: Partial<DiagramInks> = {}): DiagramInks {
   const inks = Object.fromEntries(
     Object.keys(DIAGRAM_INKS).map((slot, index) => [slot, `rgb(${String(index)}, ${String(index)}, ${String(index)})`]),

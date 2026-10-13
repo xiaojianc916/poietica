@@ -9,7 +9,7 @@ export { platformErrors } from './errors'
 const empty = z.object({})
 const pathIn = z.object({ path: z.string().min(1) })
 
-/** 本契约中除了两个 diagnostics 之外全部 owner='host' */
+/** 除了两个 diagnostics 之外全部 owner='host'。 */
 const host = { owner: 'host' } as const
 
 export const platformContract = defineContract({

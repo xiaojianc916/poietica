@@ -12,8 +12,7 @@ import { testLayout } from '../../__tests__/omp-home'
 import type { MockEngineHandle } from '../../testing'
 
 /*
- * 目标模式的宿主职责（审查 R-11）：omp 真 SDK + mock provider，验人看得到的那几件事 ——
- * 两轮之间自动续跑、暂停 / 停止真的停、重开会话目标还在、完成之后收尾。
+ * 目标模式的宿主职责（审查 R-11）：omp 真 SDK + mock provider，验人看得到的那几件事 —— * 两轮之间自动续跑、暂停 / 停止真的停、重开会话目标还在、完成之后收尾。
  *
  * 续跑何时停由 omp 的 RpcGoalController 决定：一轮续跑里没有新的工具调用（goalContinuationActivity
  * 为空）就停下等人。所以脚本里「要它继续」的续跑轮都带一次工具调用，最后一轮只回正文。

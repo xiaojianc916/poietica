@@ -1,8 +1,8 @@
 /*
  * 分段控件：等宽轨道 + 一枚滑到选中格的滑块。
  *
- * 轨道用透明边框内缩 —— padding 内缩会让绝对定位的滑块与栅格列宽错开基准；
- * fit-content 必须有 —— display: grid 是块级，落在块级流里会撑满整行。
+ * 轨道用透明边框内缩 —— padding 内缩会让绝对定位的滑块与栅格列宽错开基准；fit-content 必须有
+ * —— display: grid 是块级，落在块级流里会撑满整行。
  */
 .segmented-control {
   position: relative;

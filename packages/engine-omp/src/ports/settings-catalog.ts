@@ -1,25 +1,15 @@
 /**
- * 产品开放的 omp 设置键清单：分组、中文标签与说明（12 页 §10.3、04 页 §3.8）。
+ * 产品开放的 omp 设置键清单：分组、中文标签与说明。键与选项以 **omp 自己的标识符**为准（path 是稳定标识符，
+ * 英文 label 是会自动改词的散文），中文只换「给人看的那一列」。
  *
- * 键与选项以 **omp 自己的标识符**为准（path 是稳定标识符，英文 label 是会自动改词的散文）；
- * 中文只换「给人看的那一列」，path / group / value 一律原样。逐字迁移自 legacy 的
- * settings-labels.ts / settings-descriptions.ts。
- *
- * 四件事在这里各答各的（**不要**把其中一件折进另一件）：
- *
- * 1. **进不进目录**（`isProductSetting`）：类型落进契约的四档，且跟这台桌面软件有关 ——
- *    终端渲染、终端键盘、agent 自己的启动与自更新、语音的终端入口、协作/分享/直播的 CLI
- *    入口，在我们这条进程里改了没有任何效果。画一格没有作用的控件就是骗人。
- * 2. **行画不画**（`ownedElsewhereOf`）：产品已经有专属控件的那几格只标不删 —— 值照报，
- *    因为别的格子按 `condition` 读它。
- * 3. **归哪一页**（`sectionOf`）：「记忆」按 omp 自己的 tab 判，「个性化」按 path 名单判。
- *    两者都与前两件正交。
- * 4. **给人看的那一列**（`labelOf` / `descriptionOf` / `groupLabelOf` / `optionLabelOf`）：
- *    查不到就把 omp 的英文原样交回，绝不返回空串 —— 缺一条翻译最多是不好看，缺一格设置是缺陷。
+ * 四件事各答各的（**不要**把其中一件折进另一件）：进不进目录（`isProductSetting`：类型落进契约的四档、且跟
+ * 这台桌面软件有关 —— 终端渲染、CLI 子命令这些读取点在我们的边车进程里根本跑不到，画出来就是骗人）；
+ * 行画不画（`ownedElsewhereOf`）；归哪一页（`sectionOf`）；给人看的那一列（查不到就把 omp 的英文原样交回，
+ * 绝不返回空串 —— 缺一条翻译最多是不好看，缺一格设置是缺陷）。
  */
 import { TAB_GROUPS } from '@oh-my-pi/pi-tui/overlays/settings-defs'
 
-/** 分节的中文名。键是 omp 的英文 group 原文；查不到就原样交回英文（产品名与协议名刻意不译）。 */
+/** 分节的中文名。键是 omp 的英文 group 原文；查不到就原样交回英文（产品名与协议名刻意不译） */
 export const GROUP_LABELS: Readonly<Record<string, string>> = {
   Advisor: '顾问',
   Agent: 'Agent 行为',
@@ -75,12 +65,8 @@ export const GROUP_LABELS: Readonly<Record<string, string>> = {
   Vision: '视觉',
 }
 
-/**
- * 每一格的标题。键是 omp 的 **path**（不是英文 label）。
- * 同一件事的译法全表只出现一次；查不到就原样交回 omp 的英文（表只可能少，不会错）。
- */
+/** 每一格的标题。键是 omp 的 **path**（不是英文 label）；查不到就原样交回 omp 的英文（表只可能少，不会错） */
 export const SETTING_LABELS: Readonly<Record<string, string>> = {
-  // ── appearance ──────────────────────────────────────────────────────────
   'theme.dark': '深色主题',
   'theme.light': '浅色主题',
   symbolPreset: '符号风格',
@@ -120,7 +106,6 @@ export const SETTING_LABELS: Readonly<Record<string, string>> = {
   'tui.imeSafeCursor': '输入法安全的输入布局',
   'task.showResolvedModelBadge': '显示实际使用的模型',
 
-  // ── model ───────────────────────────────────────────────────────────────
   'advisor.enabled': '启用顾问',
   'prewalk.enabled': '启用 Prewalk',
   'advisor.syncBacklog': '顾问同步积压',
@@ -176,7 +161,6 @@ export const SETTING_LABELS: Readonly<Record<string, string>> = {
   'providers.anthropic.serverSideFallback': 'Anthropic 服务端回退（Fable 5）',
   'providers.autoThinkingMaxEffort': '自动思考上限',
 
-  // ── interaction ─────────────────────────────────────────────────────────
   autoResume: '自动恢复上次会话',
   'power.sleepPrevention': '阻止系统休眠',
   'git.enabled': '启用 Git 集成',
@@ -230,7 +214,6 @@ export const SETTING_LABELS: Readonly<Record<string, string>> = {
   'tools.approvalMode': '工具审批',
   'features.unexpectedStopDetection': '意外停止',
 
-  // ── context ─────────────────────────────────────────────────────────────
   'workspace.additionalDirectories': '额外工作区目录',
   'contextPromotion.enabled': '自动提升上下文',
   extendedContext: '扩展上下文',
@@ -262,7 +245,6 @@ export const SETTING_LABELS: Readonly<Record<string, string>> = {
   'ttsr.builtinRules': '内置规则',
   'ttsr.disabledRules': '已禁用规则',
 
-  // ── memory ──────────────────────────────────────────────────────────────
   'memory.backend': '记忆后端',
   'sharpshooter.model': 'Sharpshooter 模型',
   'autolearn.enabled': '自动学习（实验）',
@@ -294,7 +276,6 @@ export const SETTING_LABELS: Readonly<Record<string, string>> = {
   'hindsight.mentalModelsEnabled': 'Hindsight 心智模型',
   'hindsight.mentalModelAutoSeed': 'Hindsight 心智模型自动生成',
 
-  // ── files ───────────────────────────────────────────────────────────────
   'edit.mode': '编辑模式',
   'edit.fuzzyMatch': '模糊匹配',
   'edit.fuzzyThreshold': '模糊匹配阈值',
@@ -323,7 +304,6 @@ export const SETTING_LABELS: Readonly<Record<string, string>> = {
   'lsp.diagnosticsOnEdit': '编辑后诊断',
   'lsp.diagnosticsDeduplicate': '诊断去重',
 
-  // ── shell ───────────────────────────────────────────────────────────────
   'bash.enabled': 'Bash',
   'bash.allowCompoundCommands': '允许复合命令',
   'bash.autoBackground.enabled': 'Bash 自动转后台',
@@ -342,7 +322,6 @@ export const SETTING_LABELS: Readonly<Record<string, string>> = {
   'python.kernelMode': 'Python 内核模式',
   'python.interpreter': 'Python 解释器',
 
-  // ── tools ───────────────────────────────────────────────────────────────
   'tools.artifactSpillThreshold': '产物落盘阈值（KB）',
   'tools.artifactTailBytes': '产物尾部保留（KB）',
   'tools.artifactHeadBytes': '产物头部保留（KB）',
@@ -406,7 +385,6 @@ export const SETTING_LABELS: Readonly<Record<string, string>> = {
   'dev.autoqa': '自动 QA',
   'dev.autoqaPush.endpoint': '自动 QA 上报地址',
 
-  // ── tasks ───────────────────────────────────────────────────────────────
   'plan.enabled': '计划模式',
   'plan.defaultOnStartup': '启动时进入计划模式',
   'plan.autosave': '自动保存计划',
@@ -441,7 +419,6 @@ export const SETTING_LABELS: Readonly<Record<string, string>> = {
   'commands.enableOpencodeUser': 'OpenCode 用户命令',
   'commands.enableOpencodeProject': 'OpenCode 项目命令',
 
-  // ── providers ───────────────────────────────────────────────────────────
   'providers.maxInFlightRequests': '最大并发请求数',
   'providers.openai-codex.codeMode': 'Codex 代码模式',
   'providers.openai-codex.codeModeDirectTools': 'Codex 代码模式直连工具',
@@ -478,7 +455,7 @@ export const SETTING_LABELS: Readonly<Record<string, string>> = {
   'exa.searchDelayMs': 'Exa 搜索间隔',
   'searxng.endpoint': 'SearXNG 地址',
 
-  // ── 18.5.0 新增的 19 格（升级时对着上游 ui.label 逐条补） ────────────────────
+  /** ── 18.5.0 新增的 19 格（升级时对着上游 ui.label 逐条补） ── */
   'display.subagentLivePreview': '子代理实时预览',
   'input.bareExitOnEmptySession': '空会话直接退出',
   'input.bareSlashCommands': '免斜杠命令',
@@ -500,9 +477,8 @@ export const SETTING_LABELS: Readonly<Record<string, string>> = {
   'ida.idleCloseSec': 'IDA 空闲关闭超时',
 }
 
-/** 说明：只写产品真正要跟用户说清楚的那些；查不到就交回 omp 自己的英文说明。 */
+/** 说明：只写产品真正要跟用户说清楚的那些；查不到就交回 omp 自己的英文说明 */
 export const SETTING_DESCRIPTIONS: Readonly<Record<string, string>> = {
-  // ── model 与 tools ──────────────────────────────────────────────────────
   'advisor.enabled': '指派第二个模型（advisor 角色）被动审查每一轮，并注入批注。',
   'prewalk.enabled':
     '先用当前模型开工，在计划提示生成出待办清单之后的第一次编辑/写入时，切到快速便宜的模型（默认 smol 角色）—— 强模型负责规划、提交待办并开始实现，然后交接。可用 --prewalk / --no-prewalk 逐会话覆盖。',
@@ -654,7 +630,6 @@ export const SETTING_DESCRIPTIONS: Readonly<Record<string, string>> = {
     '自动上报工具问题（xd://report_issue）。默认开启；第一次上报会征求同意，拒绝后停止上报，直到显式重新启用',
   'dev.autoqaPush.endpoint': '接收自动 QA JSON 报告的完整 URL（默认 https://qa.omp.sh/v1/grievances）',
 
-  // ── appearance ──────────────────────────────────────────────────────────
   colorBlindMode: 'diff 新增行用蓝色而不是绿色',
   'images.autoResize': '把大图缩到最大 2000x2000，以提升模型兼容性',
   'images.blockImages': '阻止把图片发送给 LLM 供应商',
@@ -666,7 +641,6 @@ export const SETTING_DESCRIPTIONS: Readonly<Record<string, string>> = {
   'display.collapseCompacted':
     '在实时对话记录里把压缩前的历史折叠到摘要分隔线之后；关闭则完整历史内联显示，并在每个压缩点插入分隔线',
 
-  // ── context ─────────────────────────────────────────────────────────────
   'workspace.additionalDirectories':
     '给每个会话追加的额外工作区根目录（多根工作区）。可用 /add-dir 与 /remove-dir 实时增删。路径相对 cwd 解析，建议用绝对路径。agent 会被告知这些根目录存在，可对它们读取/grep/glob。',
   'contextPromotion.enabled': '上下文溢出时提升到更大上下文的模型，而不是压缩',
@@ -704,7 +678,6 @@ export const SETTING_DESCRIPTIONS: Readonly<Record<string, string>> = {
   'ttsr.builtinRules': '加载 agent 自带的内置规则（可用 ttsr.disabledRules 逐条覆盖）',
   'ttsr.disabledRules': '完全忽略的规则名（对内置默认规则与你自己的规则同样生效）',
 
-  // ── memory ──────────────────────────────────────────────────────────────
   'memory.backend': '关闭、本地摘要流水线、Mnemopi SQLite、Hindsight 远程记忆，或 Sharpshooter',
   'sharpshooter.model': '负责抽取/整合的模型选择，留空 = 使用 smol 角色',
   'autolearn.enabled': 'agent 停止后提醒它把经验教训沉淀到记忆，并创建/增强彼此隔离的受管技能',
@@ -743,7 +716,6 @@ export const SETTING_DESCRIPTIONS: Readonly<Record<string, string>> = {
   'hindsight.mentalModelAutoSeed':
     '会话开始时，在记忆库上创建尚不存在的内置心智模型（project-conventions、project-decisions、user-preferences）。',
 
-  // ── tasks ───────────────────────────────────────────────────────────────
   'plan.enabled': '启用计划模式，在执行前先做只读探索与规划',
   'plan.autosave': '计划模式完成时自动把已批准的计划保存到磁盘',
   'plan.autosaveDir': '自动保存计划的目录。支持 ~、绝对路径与相对 cwd 的路径。留空使用 <project>/.omp/plans/。',
@@ -786,7 +758,6 @@ export const SETTING_DESCRIPTIONS: Readonly<Record<string, string>> = {
   'commands.enableOpencodeUser': '从 ~/.config/opencode/commands/ 加载命令',
   'commands.enableOpencodeProject': '从 .opencode/commands/ 加载命令',
 
-  // ── providers ───────────────────────────────────────────────────────────
   'providers.maxInFlightRequests':
     '每个供应商 id（例如 "openai" 或 "anthropic"）的最大并发 LLM 请求数，在共用同一配置根的所有本地 OMP 进程间共享。未列出的供应商不限并发。',
   'providers.openai-codex.codeMode':
@@ -835,7 +806,6 @@ export const SETTING_DESCRIPTIONS: Readonly<Record<string, string>> = {
   'exa.searchDelayMs': 'Exa 网页搜索请求之间的最小间隔毫秒数；设为 0 关闭节流',
   'searxng.endpoint': '自托管 SearXNG 实例的基础 URL，用于网页搜索',
 
-  // ── interaction ─────────────────────────────────────────────────────────
   'power.sleepPrevention': '会话活跃期间阻止系统休眠。各档位是累加的 —— 更高档会叠加所有更低档的抑制标志。',
   steeringMode: 'agent 正在工作时，如何处理排队中的消息',
   followUpMode: '一轮结束后如何取用追问消息',
@@ -865,7 +835,6 @@ export const SETTING_DESCRIPTIONS: Readonly<Record<string, string>> = {
   'tools.approvalMode':
     '工具调用的默认审批行为。Always ask 只自动批准只读工具；Write 自动批准读取与工作区写入类工具；Yolo 自动批准所有层级；用户策略仍可能要求确认或阻止。',
 
-  // ── files ───────────────────────────────────────────────────────────────
   'edit.mode': '选择 edit 工具的形态（replace、patch、hashline 或 apply_patch）',
   'edit.fuzzyMatch': '对仅有空白差异的情况接受高置信度的模糊匹配',
   'edit.fuzzyThreshold': '接受模糊匹配的相似度阈值（0-1）',
@@ -896,7 +865,6 @@ export const SETTING_DESCRIPTIONS: Readonly<Record<string, string>> = {
   'lsp.diagnosticsOnEdit': '编辑代码文件后返回 LSP 诊断',
   'lsp.diagnosticsDeduplicate': '抑制某个文件已经展示过的编辑后 LSP 诊断；只呈现新增或有变化的诊断',
 
-  // ── shell ───────────────────────────────────────────────────────────────
   'bash.enabled': '启用 bash 工具以执行 shell 命令',
   'bash.allowCompoundCommands': '把字面量 && 链按单条命令逐一评估；未匹配的命令走常规的 bash 审批策略与模式',
   'bash.autoBackground.enabled': '自动把长时间运行的 bash 命令转为后台，稍后再交付结果',
@@ -918,7 +886,7 @@ export const SETTING_DESCRIPTIONS: Readonly<Record<string, string>> = {
   'python.kernelMode': '让 IPython 内核在多次 eval 调用间保持存活，或每次都重新启动',
   'python.interpreter': '可选的精确 Python 可执行文件路径。设置后跳过 Python 运行时的自动探测。',
 
-  // ── 18.5.0 新增的 19 格（升级时对着上游 ui.description 逐条补） ────────────────
+  /** ── 18.5.0 新增的 19 格（升级时对着上游 ui.description 逐条补） ── */
   'display.subagentLivePreview': '在每一行子代理下面显示它当前（或最近一次）的工具调用',
   'input.bareExitOnEmptySession':
     '第一条消息之前，提交恰好是 `exit`、`quit` 或 `q`（不分大小写）就退出，而不是去问模型',
@@ -952,22 +920,14 @@ export const SETTING_DESCRIPTIONS: Readonly<Record<string, string>> = {
 }
 
 /*
- * 跟这台桌面软件无关的格子。判据是「我们这条边车进程跑不跑得到它的读取点」：
- * 终端渲染、CLI 子命令、启动向导、终端键盘与语音这些读取点在我们的进程里根本跑不到，
- * 画出来就是让人以为改了会变。分节级的判据**不用**：分节的边界不等于有没有用。
+ * 跟这台桌面软件无关的格子。判据是「我们这条边车进程跑不跑得到它的读取点」：终端渲染、CLI 子命令、
+ * 启动向导、终端键盘与语音这些读取点在我们的进程里根本跑不到，画出来就是让人以为改了会变。分节级的
+ * 判据**不用**（分节的边界不等于有没有用）。列表按前缀、逐路径两段。
  *
- * **逐条对齐 legacy 的 IRRELEVANT 名单**（`settings-labels.ts`，对着 omp 18.5.0 的源码
- * 核过）。列表按前缀、逐路径两段：前者成族（终端渲染那一整棵树），后者是散落的个例。
- *
- * 两处**刻意不在名单里**，迁移时曾经误删，这里写明理由：
- *
- *   - `display.collapseCompacted`：它读的是一个传给 buildSessionContext 的选项
- *     （`options.transcript && collapseCompactedHistory`），而我们自己也走那条读取路径 ——
- *     删掉就是替它判断，而证据不足（legacy 原文注释同此）。
- *   - `plan.*` / `goal.*` 的**整族**前缀判据：legacy 只删了 `plan.defaultOnStartup` 一条，
- *     没有按前缀砍整族。`plan.autosave` / `plan.autosaveDir` 是照常上屏的格子，
- *     而 `plan.enabled` / `goal.enabled` 走 owned（值照报、行不画）——
- *     按前缀砍会把它们从目录里整个抽掉，于是读它们的两条 condition 永远为假。
+ * 两处**刻意不在名单里**，误删会让别的格子永远消失：`display.collapseCompacted` 读的是传给
+ * buildSessionContext 的选项，而我们也走那条读取路径，删掉就是证据不足地替它判断；`plan.*` / `goal.*`
+ * 没有按前缀砍整族 —— `plan.autosave` 照常上屏，`plan.enabled` / `goal.enabled` 走 owned，
+ * 砍掉会把它们从目录里整个抽掉，于是读它们的两条 condition 永远为假。
  */
 const IRRELEVANT_PREFIXES: readonly string[] = [
   'tui.',
@@ -1024,12 +984,9 @@ const IRRELEVANT_PATHS: readonly string[] = [
 ]
 
 /*
- * 产品已经有专属控件的格子（一个事实两个控件）。**只标不删**：值照报（别的格子按 condition
- * 读它决定显不显示），只是不在这里画第二行。判据是「产品里已经有一处能改它」。
- *
- * 这一层是 `owned` 标志的产地，**不是**过滤名单 —— 「这个值还要不要报」与「这一行画不画」
- * 是两个问题。删掉一格会让读它的 condition 永远为假，且屏幕上没有任何迹象说明为什么
- * （legacy 原文：「抽掉值，那几行会永远消失而没有迹象」）。
+ * 产品已经有专属控件的格子。**只标不删**：值照报（别的格子按 condition 读它决定显不显示），只是不在这里
+ * 画第二行。这一层是 `owned` 标志的产地，**不是**过滤名单 —— 删掉一格会让读它的 condition 永远为假，
+ * 且屏幕上没有任何迹象说明为什么。
  */
 const CONTROLLED_ELSEWHERE: readonly string[] = [
   /* 输入框那一排：计划 / 目标 / 思考档位 / 审批级别。 */
@@ -1048,38 +1005,28 @@ const CONTROLLED_ELSEWHERE: readonly string[] = [
   'computer.enabled',
 ]
 
-/** 契约只画得出这四种；array / record 不进目录。 */
+/** 契约只画得出这四种；array / record 不进目录 */
 const SUPPORTED_TYPES: readonly string[] = ['boolean', 'enum', 'number', 'string']
 
-/*
- * 这一格进不进目录（画不画它的行由 `owned` 单独决定）。
- *
- * 两条判据：类型落进契约的四档、且跟这台桌面软件有关。**产品已有专属控件不在这里挡** ——
- * 那类格子要留在目录里，见 CONTROLLED_ELSEWHERE 的注释。
- */
+/* 进不进目录（行画不画由 `owned` 单独决定）：类型落进契约的四档、且跟这台桌面软件有关。**产品已有专属控件不在这里挡** */
 export function isProductSetting(path: string, type: string): boolean {
   if (!SUPPORTED_TYPES.includes(type)) return false
   if (IRRELEVANT_PATHS.includes(path)) return false
   return !IRRELEVANT_PREFIXES.some((prefix) => path.startsWith(prefix))
 }
 
-/** 这一格的行由产品别处的控件负责：值照报，行不画。 */
+/** 这一格的行由产品别处的控件负责：值照报，行不画 */
 export function ownedElsewhereOf(path: string): boolean {
   return CONTROLLED_ELSEWHERE.includes(path)
 }
 
 /*
- * 选项的中文名。
- *
- * 键是 **path 再 value 两层**：同一个取值在不同格子上说的是不同的话（`none` 在
- * `personality` 是「不使用」、在别处是「关闭」），只按 value 索引会把两格合成一句话。
- * 与另外三张表同一条安全属性：查不到就原样交出上游的英文 label。
- *
- * 思考档位名（`xhigh` / `max`）刻意不译 —— 它是 agent 报的原文，输入框那一排也照原样画，
- * 这里译了同一件事就有两个名字。
+ * 选项的中文名。键是 **path 再 value 两层**：同一个取值在不同格子上说的是不同的话（`none` 在 `personality`
+ * 是「不使用」、在别处是「关闭」），只按 value 索引会把两格合成一句话。思考档位名（`xhigh` / `max`）
+ * 刻意不译 —— 它是 agent 报的原文，输入框那一排也照原样画。
  */
 const OPTION_LABELS: Readonly<Record<string, Readonly<Record<string, string>>>> = {
-  /* ── 记忆页 ─────────────────────────────────────────────────────────────── */
+  /** ── 记忆页 ── */
   'memory.backend': {
     off: '关闭',
     local: '本地摘要流水线',
@@ -1111,7 +1058,7 @@ const OPTION_LABELS: Readonly<Record<string, Readonly<Record<string, string>>>> 
     'last-turn': '最近一轮',
   },
 
-  /* ── 个性化页 ───────────────────────────────────────────────────────────── */
+  /** ── 个性化页 ── */
   personality: {
     default: '默认',
     friendly: '友好',
@@ -1129,112 +1076,79 @@ const OPTION_LABELS: Readonly<Record<string, Readonly<Record<string, string>>>> 
   },
 }
 
-/**
- * 某一格某个取值的中文名；没有译文时原样交出上游的 label。
- *
- * `value` 是写回 agent 的那一格，**绝不参与翻译**：这里换的只是给人看的那一列。
- */
+/** 某一格某个取值的中文名；没有译文时原样交出上游的 label。`value` 是写回 agent 的那一格，**绝不参与翻译** */
 export function optionLabelOf(path: string, value: string, fallback: string): string {
   return OPTION_LABELS[path]?.[value] ?? fallback
 }
 
-/** 某一格的中文标题；没有译文时原样交出 omp 的英文。 */
+/** 某一格的中文标题；没有译文时原样交出 omp 的英文 */
 export function labelOf(path: string, fallback: string): string {
   return SETTING_LABELS[path] ?? fallback
 }
 
-/** 某一格的说明，中文优先；认不出的 path 交回 fallback，绝不返回空串。 */
+/** 某一格的说明，中文优先；认不出的 path 交回 fallback，绝不返回空串 */
 export function descriptionOf(path: string, fallback: string): string {
   return SETTING_DESCRIPTIONS[path] ?? fallback
 }
 
-/** 某一节的中文名；没有译文时原样交出 omp 的英文 group（产品名与协议名刻意不译）。 */
+/** 某一节的中文名；没有译文时原样交出 omp 的英文 group（产品名与协议名刻意不译） */
 export function groupLabelOf(group: string): string {
   return GROUP_LABELS[group] ?? group
 }
 
 /*
- * 「个性化」那一页的归属。
+ * 「个性化」那一页的归属。判据只能按 path 名单，**因为上游没有这一栏**：「个性化」是产品的一个切面，
+ * personality 与思考那几格散在 model 栏的 Prompt / Thinking 两个 group 里；拿 group 当判据会把整节搬走，
+ * 而那些节里住着别的格子。
  *
- * 判据只能按 path 名单，**因为上游没有这一栏**：omp 的 tab 是它自己的导航结构，而
- * 「个性化」是产品的一个切面 —— personality（人设）与思考那几格散在 model 栏的
- * Prompt / Thinking 两个 group 里。拿 group 当判据会把整节搬走，而那些节里住着别的格子。
- *
- * **采样那一组刻意在名单外**：temperature / topP / topK / minP / presencePenalty /
- * repetitionPenalty / textVerbosity 是逐供应商的调参旋钮，产品不摆这个界面。它们**不是**
- * 「改了没效果」—— omp 构造 Agent 时逐个读它们，值照旧生效；只是没有任何一页画它们的行。
- *
- * `tier.*` 同样在名单外：它们说的是请求发往哪个服务档位（计费与路由），不是模型怎么写 ——
- * 摆进「个性化」会让人以为改它能改语气。
+ * **采样那一组刻意在名单外**（temperature / topP / topK / minP / presencePenalty / repetitionPenalty /
+ * textVerbosity）：它们是逐供应商的调参旋钮，产品不摆这个界面，但 omp 构造 Agent 时逐个读、值照旧生效，
+ * 只是没有任何一页画它们的行。`tier.*` 同样在名单外：它们说的是请求发往哪个服务档位，不是模型怎么写。
  */
 const PERSONA: readonly string[] = [
-  /* 系统提示词怎么写：人设、技能清单、模型名、工作区树、工具描述。 */
+  /** 系统提示词怎么写：人设、技能清单、模型名、工作区树、工具描述 */
   'personality',
   'skillful',
   'includeModelInPrompt',
   'includeWorkspaceTree',
   'inlineToolDescriptors',
   'modelRoleStorage',
-  /*
-   * 思考：省不省摘要、要不要外部思考、自动档位能开到多高。
-   * `defaultThinkingLevel` 已被 ownedElsewhereOf 认领（输入框那一排有档位选择器），
-   * 但它的人设归属仍是事实 —— section 与 owned 正交，两个判据各答各的问题。
-   */
+  /* 思考：省不省摘要、要不要外部思考、自动档位能开到多高。`defaultThinkingLevel` 已被 owned 认领，但人设归属仍是事实 */
   'omitThinking',
   'externalThinking',
   'providers.autoThinkingMaxEffort',
   'defaultThinkingLevel',
 ]
 
-/** 这一格属不属于「个性化」那一页。 */
+/** 这一格属不属于「个性化」那一页 */
 export function personaSettingOf(path: string): boolean {
   return PERSONA.includes(path)
 }
 
 /*
- * 哪一格是**模型选择器**：取值是「模型目录里的某一条」或留空。
- *
- * 只认 `sharpshooter.model`。同名的邻居不是同一件事：`mnemopi.embeddingModel` 是
- * **嵌入模型 id**（memnopi 自己那套变体，不是 omp 的模型目录条目）、`mnemopi.llmModel`
- * 是**远端服务的模型名**（发给对方 API 的字符串）。按「路径里有 model 字样」一刀切
- * 会把那两格也画成目录选择器 —— 它们填的值根本不在目录里，下拉里一条都选不出来。
- *
- * 这一格的可选项**不在 schema 里**（上游只给了 string，选项要现算），所以选项由调用方
- * 用模型目录现填：判据（哪一格要现算）留在这里，产地（模型目录）留在端口那一侧。
+ * 哪一格是**模型选择器**：只认 `sharpshooter.model`。同名的邻居不是同一件事 —— `mnemopi.embeddingModel` 是
+ * **嵌入模型 id**、`mnemopi.llmModel` 是**远端服务的模型名**（发给对方 API 的字符串），按「路径里有 model
+ * 字样」一刀切会把那两格也画成目录选择器，而它们填的值根本不在目录里。选项**不在 schema 里**，由调用方
+ * 用模型目录现填：判据留在这里，产地留在端口那一侧。
  */
 export function modelSelectorSettingOf(path: string): boolean {
   return path === 'sharpshooter.model'
 }
 
-/*
- * 「记忆」那一页的归属。
- *
- * 判据是 **omp 自己的 tab**，不是路径前缀名单：tab 是它自报的结构，我们照搬；
- * 手抄一份 `mnemopi.* / hindsight.* / autolearn.*` 就是第二个事实，上游换掉记忆后端时
- * 我们的名单会静默落后。这一栏此刻 30 格（18.5.0 实测）。
- */
+/* 判据是 **omp 自己的 tab**，不是路径前缀名单：手抄一份 `mnemopi.* / hindsight.* / autolearn.*` 就是第二个事实，上游换掉记忆后端时我们的名单会静默落后。这一栏此刻 30 格（18.5.0 实测） */
 export function memorySettingOf(tab: string): boolean {
   return tab === 'memory'
 }
 
-/**
- * 这一格归产品哪一个剥离页；不属于任何一页就交回 null。
- *
- * 两个判据互斥，记忆优先 —— 与 legacy 的 `sectionOf` 同一句。值域只有两个词，
- * 所以「一格至多一个归属」是构造上成立的，不靠调用方自觉。
- */
+/** 这一格归产品哪一个剥离页；不属于任何一页就交回 null。两个判据互斥、记忆优先，值域只有两个词，所以「至多一个归属」构造上成立 */
 export function sectionOf(path: string, tab: string): 'memory' | 'persona' | null {
   if (memorySettingOf(tab)) return 'memory'
   return personaSettingOf(path) ? 'persona' : null
 }
 
-/**
- * 某一栏分节的次序。
- *
- * 取自 omp 自己的 `TAB_GROUPS`（pi-tui 的 settings-defs）：那是它设置面板里每一栏分节的
- * 排列，我们照搬。**这不是接口的装饰** —— 按 `orderedSettings` 的首次出现次序排会把
- * 同一栏的分节打乱（Sharpshooter 在 General 之前、Advisor 在 Thinking 之前）。
- *
+/*
+ * 某一栏分节的次序，取自 omp 自己的 `TAB_GROUPS`。**这不是接口的装饰** —— 按 `orderedSettings` 的首次
+ * 出现次序排会把同一栏的分节打乱（Sharpshooter 在 General 之前、Advisor 在 Thinking 之前）。
  * 认不出的栏交回空表，调用方据此退回「首次出现次序」。
  */
 export function tabGroupOrderOf(tab: string): readonly string[] {

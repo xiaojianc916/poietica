@@ -12,7 +12,7 @@ export interface KeymapService {
   flush(): Promise<void>
 }
 
-/** 快捷键覆盖表：独立于 preferences.json 的 keymap.json；每次变化立即落盘（08 页 §6.2 的 `save`） */
+/** 独立于 preferences.json 的 keymap.json；每次变化立即落盘。 */
 export function createKeymapService(d: { file: string; logger: Logger }): KeymapService {
   const doc: JsonDocument<KeyOverridesValue> = createJsonDocument({
     file: d.file,

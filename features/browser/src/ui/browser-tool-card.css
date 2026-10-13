@@ -1,22 +1,12 @@
-/*
- * agent 那条线的浏览器工具卡片（07 页 §12E 的 `toolCallRenderers`）。
- *
- * 折叠行本身读的是对话时间线的行类名（.timeline-tool / .timeline-row__icon /
- * .timeline-row__label），这里只补三件时间线没有的东西：截图缩略图、状态胶囊、
- * 以及「在面板中查看」那枚按钮。取色一律走同一套令牌，不另立视觉语言。
- */
+/* agent 那条线的浏览器工具卡片。折叠行本身读的是对话时间线的行类名（.timeline-tool / .timeline-row__icon / .timeline-row__label），
+ * 这里只补三件时间线没有的东西：截图缩略图、状态胶囊、「在面板中查看」那枚按钮；取色一律走同一套令牌。 */
 
 .browser-tool {
   display: grid;
   gap: var(--cp-control-gap);
 }
 
-/*
- * 行内排版与时间线的工具行同款：图标 + 那句话 + 右侧的状态。
- *
- * 展开箭头由 .timeline-row 那一套自带（hover 才出现），所以这粒按钮只补「整行可点」：
- * 它的宽度随内容，与时间线里其余可点的行一致。
- */
+/* 行内排版与时间线的工具行同款；展开箭头由 .timeline-row 那一套自带（hover 才出现），这粒按钮只补「整行可点」。 */
 .browser-tool__row {
   margin: 0;
 }
@@ -35,7 +25,6 @@
   opacity: 1;
 }
 
-/* 缩略图一排：横着排，出不来的往右边溢出由卡片的抽屉接住。 */
 .browser-tool__shots {
   display: flex;
   flex-wrap: wrap;
@@ -60,10 +49,7 @@
   object-fit: cover;
 }
 
-/*
- * 放大的那张图：原生 dialog 自带顶层与 Esc 关闭，样式只管摆位。
- * 点任意处就关（onClick 归组件），所以不给关闭按钮。
- */
+/* 放大的那张图：原生 dialog 自带顶层与 Esc 关闭，样式只管摆位；点任意处就关，所以不给关闭按钮。 */
 .browser-tool__zoom {
   position: relative;
   max-inline-size: 90vw;
@@ -80,7 +66,6 @@
   border-radius: var(--ui-radius-md);
 }
 
-/* 关闭按钮贴在放大图的右上角外面一点：它是这一层的出口，不该压在画面上。 */
 .browser-tool__zoom-close {
   position: absolute;
   inset-block-start: -0.5rem;
@@ -101,7 +86,6 @@
   padding: 0.625rem 0.75rem;
 }
 
-/* 步骤列表：一行一步。 */
 .browser-tool__steps {
   display: grid;
   gap: 0.125rem;
@@ -190,7 +174,6 @@
   color: var(--cp-ink);
 }
 
-/* 失败那段正文：红字，与状态胶囊同一档颜色。 */
 .browser-tool__error {
   margin: 0;
   color: var(--ui-destructive);

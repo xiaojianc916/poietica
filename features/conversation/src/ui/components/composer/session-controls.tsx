@@ -15,26 +15,8 @@ import type { SessionConfigControl } from '../../agent/config'
 import { SWARM_CONTROL_ID } from './swarm-toggle'
 
 /*
- * 这条会话的模型与思考档位：工具条上一颗胶囊，打开是一张卡。
- *
- * 屏幕上的值没有第二份。agent 报的那张表就是全部（control.current），点一下是
- * 往它发一次改动，值由它的答复换掉 —— 滑轨因此受控，卡里不存档位。
- *
- * 卡只有一张，换的是卡里的页：根页是档位（蓝字档位名 + 模型名两行居中，下面
- * 一条离散轨道），点档位那一行整页换成模型清单 —— 与 deepseek-harness
- * ModelSelect 的 root / model 同一个范式，不再使用悬停展开的级联子菜单。档位
- * 那一行用 closeOnClick=false，因为它的职责是换页而不是提交；清单里的取值行显式
- * closeOnClick，点选即提交、提交即关闭。（Base UI 的 Menu.RadioItem 默认
- * closeOnClick=false，不显式写出来弹层不会关。）Escape 在清单页先退回根页，再按
- * 一次才关闭；菜单关闭时页签复位，下次打开永远从档位页开始。
- *
- * 这里只住得下 model 与 thought 两类：批准方式是工具条上常显的胶囊
- * （permission-picker），计划、目标与 Swarm 各有各的住处（composer-actions 的
- * 徽记与 swarm-toggle 的勾选）。sessionControlRows 仍然把 other 一并收进来，
- * 只是今天没有第二位 other —— 多出来的一位会在卡里没有位置。
- *
- * Portal 与皮肤属性的职责不变：DropdownMenuContent 自带 portal，data-assistant-skin
- * 挂在弹层自身。
+ * 工具条上一颗胶囊，打开是一张卡，卡里换的是页。值没有第二份：agent 报的那张表就是全部，点了就发一次改动，值由答复换掉 —— 滑轨因此受控。
+ * 档位那一行 closeOnClick=false（职责是换页不是提交）；Escape 在清单页先退回根页，再按一次才关闭。
  */
 
 export function isToggleControl(control: SessionConfigControl): boolean {
@@ -48,13 +30,11 @@ const MODEL = 'model'
 
 const ORDER: readonly string[] = ['model', 'thought', 'other']
 
-/** Where a purpose sits; anything unrecognised sorts last rather than away. */
 function rank(purpose: SessionConfigControl['purpose']): number {
   const found = ORDER.indexOf(purpose)
 
   return found < 0 ? ORDER.length : found
 }
-
 export function labelOf(control: SessionConfigControl, choice: SessionConfigControl['choices'][number]): string {
   const prefix = `${control.label}`
   const stripped = choice.label.startsWith(prefix) ? choice.label.slice(prefix.length).trimStart() : ''
@@ -63,7 +43,7 @@ export function labelOf(control: SessionConfigControl, choice: SessionConfigCont
   return control.purpose === 'thought' ? label.charAt(0).toUpperCase() + label.slice(1) : label
 }
 
-/* 候选集里没有生效值时退回原文：一颗空白的胶囊说不出此刻在用什么。 */
+/* 候选集里没有生效值时退回原文：空白胶囊说不出此刻在用什么。 */
 function chosen(control: SessionConfigControl): string {
   const inForce = control.choices.find((choice) => choice.value === control.current)
 
@@ -74,19 +54,13 @@ export function sessionControlRows(controls: readonly SessionConfigControl[]): r
   return (
     [...controls]
       .filter((control) => ORDER.includes(control.purpose))
-      /* Swarm 不住在菜单里：它是上下文栏右端的一枚勾选（swarm-toggle.tsx）。
-       一个控制只有一个住处，搬走那一行在同一次改动里删掉。 */
+      /* Swarm 不住在菜单里（它是上下文栏右端的勾选）：一个控制只有一个住处。 */
       .filter((control) => control.id !== SWARM_CONTROL_ID)
       .sort((left, right) => rank(left.purpose) - rank(right.purpose))
   )
 }
 
-/*
- * 档位在轨道上的落点。
- *
- * 轨道两端各留半个滑块，所以第一个与最后一个档位都停在轨道里；滑块中心、档位点、
- * 填充终点是同一条式子 —— 三样东西分别算一次就会错位。
- */
+/* 轨道两端各留半个滑块，滑块中心、档位点、填充终点是同一条式子，分开算会错位。 */
 function stopOffset(position: number, count: number): string {
   const span = count - 1
   const ratio = span > 0 ? position / span : 0
@@ -94,12 +68,7 @@ function stopOffset(position: number, count: number): string {
   return `calc(var(--cp-model-thumb) / 2 + ${ratio} * (100% - var(--cp-model-thumb)))`
 }
 
-/*
- * 指针落在哪一个档位上：反解 stopOffset，不逐点测量。
- *
- * 档位点按与滑块同一条式子摆放，所以「最近的一档」就是这条式子的逆运算；每一帧读
- * 一次轨道盒子与滑块宽即可，与档位数无关。
- */
+/* 反解 stopOffset（档位点与滑块同一条式子），每帧读一次轨道盒子与滑块宽即可，与档位数无关。 */
 function stopAt(rail: HTMLElement, clientX: number, count: number): number {
   const span = count - 1
 
@@ -123,11 +92,10 @@ function stopAt(rail: HTMLElement, clientX: number, count: number): number {
 export interface SessionControlsProps {
   readonly controls: readonly SessionConfigControl[]
   readonly onSelect: (controlId: string, value: string) => void
-  /** 这张表还没被 agent 确认过：画法不变，只是点不动。见 permission-picker 同名入参。 */
+  /** 这张表还没被 agent 确认过：画法不变，只是点不动。 */
   readonly pending?: boolean | undefined
 }
 
-/** 入参只有 controls 会变，而这下面只有一张弹层加一个页签状态。 */
 export const SessionControls = memo(function SessionControls({ controls, onSelect, pending }: SessionControlsProps) {
   const rows = useMemo(() => sessionControlRows(controls), [controls])
   const [pane, setPane] = useState<string>(LEVEL)
@@ -136,7 +104,7 @@ export const SessionControls = memo(function SessionControls({ controls, onSelec
   const level = rows.find((control) => control.purpose === 'thought')
   const model = rows.find((control) => control.purpose === 'model')
 
-  /* 没有控件可画就整个不画：连不上怎么说归输入区上沿那条提示（composer-notice.tsx）。 */
+  /* 没有控件可画就整个不画：连不上怎么说归 composer-notice 那条提示。 */
   if (level === undefined && model === undefined) {
     return null
   }
@@ -144,7 +112,6 @@ export const SessionControls = memo(function SessionControls({ controls, onSelec
   const name = model === undefined ? undefined : chosen(model)
   const band = level === undefined ? undefined : chosen(level)
 
-  /* 没有档位控件时，卡里只剩模型清单这一页。 */
   const listing = model !== undefined && (level === undefined || pane === MODEL)
 
   const listPane =
@@ -181,7 +148,7 @@ export const SessionControls = memo(function SessionControls({ controls, onSelec
   const bandPane =
     level === undefined ? null : (
       <div className="assistant-model-select__band-pane">
-        {/* 档位那一行整页换成模型清单；没有模型控件时它就只是一行字。 */}
+        {/* 点击整页换成模型清单；没有模型控件时它就只是一行字。 */}
         {model === undefined ? (
           <div className="assistant-model-select__head">
             <span className="assistant-model-select__head-band">{band}</span>
@@ -211,12 +178,7 @@ export const SessionControls = memo(function SessionControls({ controls, onSelec
   return (
     <DropdownMenu
       onOpenChange={(nextOpen) => {
-        /*
-         * 未确认时开不动，但看起来与平时一样。开不了这件事由这里拦，不靠 disabled ——
-         * 那会连画法一起改掉（DropdownMenuTrigger 自带 disabled:opacity-50）。
-         *
-         * provisional 只会从真转假一次，所以不必担心「已经开着的时候转成未确认」。
-         */
+        /* 未确认时开不动，但外观与平时一样：不靠 disabled，那会连画法一起改掉（DropdownMenuTrigger 自带 disabled:opacity-50）。 */
         if (pending) {
           return
         }
@@ -262,17 +224,8 @@ export const SessionControls = memo(function SessionControls({ controls, onSelec
 })
 
 /*
- * 离散轨道。
- *
- * 指针全归底轨自己：点一下、按住横拖，都走 setPointerCapture 加「落点反解出来的那一档」。
- * 档位是离散的，所以一次横拖最多换这么多次档（每跨一格一次），这里不另做节流。档位点
- * 那个命中区冒泡上来落到的也是底轨，所以「从点上起手拖」不会断。
- *
- * 原生 range 只剩键盘与 aria：指针一律穿透，滑块隐形（看得见的那颗是自己画的）。不这么
- * 分，滑块就跟不上换档的动画 —— 原生滑块的落点是布局算出来的，位置一变就是跳。
- *
- * 方向键必须在输入框上止住：菜单也监听方向键并且 preventDefault，放它冒泡上去，
- * 档位就一动不动。
+ * 指针全归底轨自己（点一下、按住横拖都走 setPointerCapture 加落点反解）；档位是离散的，一次横拖每跨一格换一次。
+ * 方向键必须在输入框上止住：菜单也监听方向键并 preventDefault，放它冒泡上去档位就一动不动。
  */
 function rail(control: SessionConfigControl, band: string, onSelect: (controlId: string, value: string) => void) {
   const count = control.choices.length
@@ -297,7 +250,7 @@ function rail(control: SessionConfigControl, band: string, onSelect: (controlId:
       className="assistant-model-select__rail"
       onPointerDown={(event) => {
         event.currentTarget.setPointerCapture(event.pointerId)
-        /* 顺手把焦点交给输入框：点完接着按方向键微调，和点原生滑块时一样。 */
+        /* 顺手把焦点交给输入框：点完接着按方向键微调。 */
         event.currentTarget.querySelector('input')?.focus()
         pick(stopAt(event.currentTarget, event.clientX, count))
       }}

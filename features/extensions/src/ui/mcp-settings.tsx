@@ -21,17 +21,8 @@ import { PluginGlyph } from './plugin-glyph'
 
 import './mcp-settings.css'
 
-/*
- * MCP 设置页。**迁移自** legacy `packages/extension/src/ui/mcp-settings.tsx` 与同名 CSS：
- * DOM、类名、文案、图标、两副面孔（列表 / 新建）与导入勾选全部照旧；数据来源换成新架构的
- * extensions 契约（`mcp.*`），不再经 legacy 的 PluginStore。
- *
- * 与新契约的差距（见 docs/refactor-log.md 待决 Q23）：
- *   - legacy 的每台服务器带 `origin`（用户 / 插件）与 `launchedBy`（谁起它）；契约
- *     `McpServerInfo` 只有 name / transport / enabled / config，卡片的说明行因此只有
- *     「个人」这一种来源，绿点改读会话报回来的连接状态；
- *   - legacy 的列表顺序与「工作区」置灰行照旧，作用域这一档在契约里同样只支持用户。
- */
+/* DOM、类名、文案、图标、两副面孔与导入勾选照 legacy；数据来源换成 extensions 契约（mcp.*）。与新契约的差距（待决 Q23）：契约
+ * McpServerInfo 只有 name / transport / enabled / config，卡片的说明行因此只有「个人」这一种来源，绿点改读会话报回来的连接状态。 */
 
 type CreateTab = 'form' | 'json'
 
@@ -48,10 +39,7 @@ const TRANSPORT_MODES = [
   { value: 'sse', label: 'SSE' },
 ] as const satisfies readonly SegmentedOption<McpTransport>[]
 
-/*
- * 本应用自己托管的内置服务器：自动化引擎。它写进同一份 mcp.json，但删了就等于把应用的
- * 核心能力拆了，所以不允许删除（legacy 的 BUILTIN_MANAGED_SERVERS，一字未改）。
- */
+/* 本应用自己托管的内置服务器：自动化引擎。它写进同一份 mcp.json，但删了等于把应用的核心能力拆了，所以不允许删除。 */
 const BUILTIN_MANAGED_SERVERS = ['poietica-automations'] as const
 
 export function McpSettingsPage({ api }: { readonly api: ExtensionsApi }) {
@@ -91,10 +79,7 @@ export function McpSettingsPage({ api }: { readonly api: ExtensionsApi }) {
     return api.mcp.onStatusChanged(setStatuses).dispose
   }, [api, reload])
 
-  /*
-   * 写一条配置。新契约只有幂等的 `mcp.upsert`（05 页 §11 没有「新增 / 更新」的意图位，
-   * 见 docs/refactor-log.md 的 Q21），所以新建走的就是它：同名即更新。
-   */
+  /* 新契约只有幂等的 mcp.upsert（没有「新增 / 更新」的意图位，见 Q21），所以新建走的就是它：同名即更新。 */
   const upsert = useCallback(
     (entry: McpEntry): Promise<void> => {
       setBusy(true)
@@ -258,10 +243,7 @@ export function McpSettingsPage({ api }: { readonly api: ExtensionsApi }) {
   )
 }
 
-/*
- * 作用域下拉：只有“用户”能点。工作区后端不存在，画出分组与置灰行只是为了
- * 与设计稿同形，点不了，也不会把不生效的开关列出来。
- */
+/* 只有「用户」能点：工作区后端不存在，画出分组与置灰行只是为了与设计稿同形。 */
 function ScopePill() {
   return (
     <DropdownMenu>
@@ -431,7 +413,6 @@ function McpFormPage({
       }
     }
 
-    /* 表单校验不抛异常（C 类）：不合法时把原样文案交给字段旁边那一行。 */
     const validated = mcpEntryFromForm(fields)
     if (!validated.ok) {
       setError(validated.message)

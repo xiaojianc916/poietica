@@ -9,7 +9,7 @@ import type { DataLayout } from '@poietica/runtime-layout'
 import { testLayout } from './omp-home'
 
 /**
- * P2.11：一致性套件跑在真实 OmpEngine 上（12 页 §12.2）。
+ * 一致性套件跑在真实 OmpEngine 上。
  *
  * 模型用 omp 自带的 mock provider：完全离线、免 key，不改产品代码的任何路径。
  * 这 13 个用例同时也是端口语义与 FakeEngine 的对照 —— 两边都过才说明替身可信。

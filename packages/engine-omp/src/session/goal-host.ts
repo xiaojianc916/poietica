@@ -14,7 +14,7 @@ import { GOAL_CONTINUATION_TYPE } from './prompt'
  * omp 把目标的「持久生命周期」（建 / 续 / 停 / 弃、计量、落盘）放在 GoalRuntime 里，三个宿主共用；
  * 而「宿主职责」——goal 工具在活动集里的去留、完成 / 放弃之后的收尾、重开会话时把目标接回来、
  * 两轮之间自动续跑——TUI 写在 InteractiveMode 里，RPC 宿主写在 RpcGoalController 里。
- * Poietica 是第四个宿主，先前一件都没做。
+ * Poietica 是第四个宿主，这一层负责补上这些宿主职责。
  *
  * 这里**不自己实现**这些判断，直接用 omp 导出的 RpcGoalController（与 `omp --mode rpc` 同一份代码），
  * 只在两处接线：

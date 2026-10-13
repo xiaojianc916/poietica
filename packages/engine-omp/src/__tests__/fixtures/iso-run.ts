@@ -1,4 +1,4 @@
-// T-ISO-5 夹具（12 页 §12.4）：按 serve.ts 的顺序引导，用 mock 模型跑一轮对话，
+// T-ISO-5 夹具：按 serve.ts 的顺序引导，用 mock 模型跑一轮对话，
 // 再调一次 models.providers() 与 skills.list(null)，然后正常退出。
 // 宿主断言：子进程退出码为 0，且假用户目录里除了数据根那条链之外什么都没有。
 

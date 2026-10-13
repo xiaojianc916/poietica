@@ -4,16 +4,11 @@ import path from 'node:path'
 /**
  * 构建单个可执行文件 poietica-core.exe。
  *
- * 编译方式与 omp 官方的 scripts/compile-binary.ts 保持一致（omp 知识 #16）：
- * 同样的 target 与 autoload 开关、同样的 external、同样的 define 常量、
- * 同样的 json-parse 插件与 legacy-pi 模块桩插件（都从 omp 包内导入，不自己重写）。
+ * 编译方式与 omp 官方的 scripts/compile-binary.ts 保持一致（omp 知识 #16）：同样的 target 与 autoload
+ * 开关、external、define 常量与插件（都从 omp 包内导入，不自己重写）。
  *
- * 所有产物输出到 apps/core/dist/（探针版为 dist-probe/），不直接写进 apps/desktop/resources：
- * 开发时 Host 直接从 dist 启动 Core；打包时由 electron-builder 的 extraResources 复制。
- *
- * 用法：
- *   bun apps/core/scripts/build.ts            正式版
- *   bun apps/core/scripts/build.ts --probe    探针版（POIETICA_PROBE_BUILD=1，接受 --probe-mock-model）
+ * 产物输出到 apps/core/dist/（探针版为 dist-probe/），不直接写进 apps/desktop/resources：
+ * 开发时 Host 直接从 dist 启动 Core；打包时由 electron-builder 的 extraResources 复制。用法见 --probe。
  */
 
 const ROOT = path.resolve(import.meta.dir, '../../..')
@@ -32,12 +27,9 @@ const ompPkg = JSON.parse(readFileSync(path.join(ompRoot, 'package.json'), 'utf8
 const exe = path.join(outDir, 'poietica-core.exe')
 
 /**
- * omp 官方编译脚本用的两个插件 + 文档索引，都从 omp 包内导入（不自己重写）。
- *
- * legacy-pi 桩插件：omp 官方的 createLegacyPiVirtualModulePlugin 会去 `<repoRoot>/packages/<pkg>`
- * 扫源码来生成“旧 Pi 模块”的懒加载注册表 —— 那是 omp 自仓库的布局；安装到 node_modules 的
- * 发布版里没有 packages/，插件会以 ENOENT 失败。Poietica 不使用任何 legacy Pi 扩展导入，
- * 所以这里退化为一个桩：仍然提供 `omp-legacy-pi-modules` 这个虚拟模块，但注册表为空。
+ * legacy-pi 桩插件：omp 官方插件会去 `<repoRoot>/packages/<pkg>` 扫源码生成旧 Pi 模块注册表 ——
+ * 那是 omp 自仓库的布局，装进 node_modules 的发布版里没有 packages/，插件会以 ENOENT 失败。
+ * Poietica 不使用任何 legacy Pi 扩展导入，所以退化为空注册表的桩。
  */
 async function ompBuildParts(): Promise<{ plugins: unknown[]; docs: string; legacyPi: 'omp' | 'stub' }> {
   const jsonParse = (await import(path.join(ompRoot, 'scripts/json-parse-plugin.ts'))) as {
@@ -63,9 +55,8 @@ async function ompBuildParts(): Promise<{ plugins: unknown[]; docs: string; lega
 }
 
 /**
- * 文档索引。omp 的生成器读 `<包>/../../docs` —— 发布版里那一级不存在（是 omp 自仓库的布局），
- * 所以读失败时退化为空索引：`PI_DOCS_EMBED` 为空字符串，omp 的文档工具会认为没有内嵌文档。
- * 这不会影响任何对话功能。
+ * omp 的文档索引生成器读 `<包>/../../docs`，发布版里那一级不存在，所以读失败时退化为空索引
+ * （`PI_DOCS_EMBED` 为空串）。这不影响任何对话功能。
  */
 async function docsPayload(mod: { buildDocsIndexPayload: () => Promise<{ payload: string }> }): Promise<string> {
   try {
@@ -135,11 +126,9 @@ if (!result.success) {
   process.exit(1)
 }
 
-// 复制 natives：从 @oh-my-pi/pi-natives-win32-x64 包复制两个 .node 到 exe 同目录。
-// 为什么能保证加载的是这一份：natives 加载器在编译模式下按 <natives 目录>/<版本>/ → <natives 目录>/ → exe 所在目录
-// 的顺序查找；前两个目录都在隔离根下而且为空，所以最终加载的一定是随包发布的这一份。
-// natives 包由 @oh-my-pi/pi-natives 以 optionalDependency 拉进来（isolation linker 不 hoist），
-// 所以从 node_modules/.bun 下按名字找它
+// 复制 natives：加载器按 <natives 目录>/<版本>/ → <natives 目录>/ → exe 所在目录 的顺序查找，前两个
+// 目录都在隔离根下而且为空，所以最终加载的一定是随包发布的这一份。natives 包由 @oh-my-pi/pi-natives
+// 以 optionalDependency 拉进来（isolation linker 不 hoist），所以从 node_modules/.bun 下按名字找它
 const nativesCandidate = path.join(ROOT, 'node_modules/.bun')
 const resolvedNatives = (() => {
   const dirs = readdirSync(nativesCandidate).filter((d) => d.startsWith('@oh-my-pi+pi-natives-win32-x64@'))

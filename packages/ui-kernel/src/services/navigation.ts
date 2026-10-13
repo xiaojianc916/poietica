@@ -15,7 +15,7 @@ export interface NavigationService extends Observable<NavigationState> {
   back(): void
   forward(): void
   home(): void
-  /** preferences 在启动时恢复上次的位置（不进入历史） */
+  /** preferences 在启动时恢复上次的位置，不进入历史。 */
   restore(route: Route): void
 }
 

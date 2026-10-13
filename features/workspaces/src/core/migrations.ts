@@ -1,6 +1,5 @@
 import type { Migration } from '@poietica/storage-sqlite'
 
-/** DDL 照 08 页 §5.1 原样 */
 export const migrations: readonly Migration[] = [
   {
     version: 1,

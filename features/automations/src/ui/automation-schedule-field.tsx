@@ -24,25 +24,18 @@ import {
   type Weekday,
 } from './automation'
 
-/*
- * 照 legacy `packages/automation/src/ui/automation-schedule-field.tsx` 逐字搬迁。
- * 三处随新契约变：ScheduleProblem 的键换成契约里的 snake_case（unreadable /
- * never_runs / too_frequent / time_zone，审查 R-14 再加 in_past / conflict），文案仍是 legacy 那四句；
- * preview 的形状由 {nextRunAt, problem} 换成 {times, problem}（05 页 §11.9），
- * 「下一次」取 times[0]；时区不再由界面给（任务一律落系统时区）。
- */
+/* 外观照 legacy 逐字搬迁。三处随契约变：ScheduleProblem 的键换成契约里的 snake_case（R-14 再加 in_past / conflict），
+ * 文案仍是 legacy 那四句；preview 的形状换成 {times, problem}；时区不再由界面给。 */
 
 const PROBLEMS: Record<ScheduleProblem, string> = {
   never_runs: '这段日程没有未来的运行时间。',
   too_frequent: '最小调度粒度是一分钟。',
   unreadable: '无法识别这段 crontab 表达式。',
-  /* 时区不再由界面给：任务一律落系统时区。这一条只为契约里的枚举键有着落。 */
   time_zone: '任务记着的时区无效。',
   in_past: '这个时间已经过去了。',
   conflict: '周期计划与一次性时间只能二选一。',
 }
 
-/* 「一次」不是 cron 的形状（审查 R-16）：它读 Schedule.at，所以只在这一格里与 cron 的几种并列。 */
 type FieldKind = ScheduleKind | 'once'
 
 const LABELS: Record<FieldKind, string> = {
@@ -57,7 +50,6 @@ const LABELS: Record<FieldKind, string> = {
 
 const OPTIONS: readonly FieldKind[] = ['once', 'hourly', 'daily', 'weekdays', 'weekly', 'monthly', 'custom']
 
-/** 计划这一格的值：周期（cron）与一次性（at，毫秒）至多一个非 null；都为 null 是「只手动」。 */
 export interface ScheduleValue {
   readonly cron: string | null
   readonly at: number | null
@@ -65,20 +57,17 @@ export interface ScheduleValue {
 
 const pad2 = (n: number): string => String(n).padStart(2, '0')
 
-/** 毫秒 → `<input type="datetime-local">` 的值（本机时间）。 */
 export function localInputOf(at: number): string {
   const d = new Date(at)
   return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}T${pad2(d.getHours())}:${pad2(d.getMinutes())}`
 }
 
-/** `<input type="datetime-local">` 的值 → 毫秒（本机时间）；读不懂返回 null。 */
 export function atOfLocalInput(value: string): number | null {
   if (!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(value)) return null
   const at = new Date(value).getTime()
   return Number.isFinite(at) ? at : null
 }
 
-/** 选「一次」时的起始值：明天的默认时刻（09:00，本机时间）。 */
 export function defaultOnceAt(now = Date.now()): number {
   const d = new Date(now)
   d.setDate(d.getDate() + 1)
@@ -87,7 +76,6 @@ export function defaultOnceAt(now = Date.now()): number {
   return d.getTime()
 }
 
-/* 「每周」必须连着说是周几，否则那颗下拉名不副实：它底下只能是周一。 */
 const WEEKDAYS: readonly SelectOption[] = ([0, 1, 2, 3, 4, 5, 6] as const).map((day) => ({
   label: WEEKDAY_LABELS[day],
   value: String(day),
@@ -132,13 +120,7 @@ function ScheduleMenu({
   )
 }
 
-/*
- * 两列数字，点一下就是那个值。
- *
- * 不用原生 <input type="time">：点文字是编辑数字段，点时钟图标才是挑，同一个控件
- * 两副面孔；而这一行里其余两处（计划、星期）都是点选。两列各排各的，改小时不必
- * 先跨过分钟那一栏。
- */
+/** 不用原生 <input type="time">：点文字是编辑数字段、点时钟图标才是挑，同一个控件两副面孔。 */
 const HOURS: readonly string[] = Array.from({ length: 24 }, (_, hour) => String(hour).padStart(2, '0'))
 
 const MINUTES: readonly string[] = Array.from({ length: 60 }, (_, minute) => String(minute).padStart(2, '0'))
@@ -154,11 +136,7 @@ function TimeColumn({
   readonly options: readonly string[]
   readonly selected: string
 }) {
-  /*
-   * 选中项一挂上就滚进视野：分钟那列有 60 项，打开面板不该从 00 数起。
-   *
-   * 推迟一帧是因为浮层打开时自己还要聚焦一次，抢在它前面滚会被它滚回去。
-   */
+  /** 分钟那列有 60 项，打开不该从 00 数起。推迟一帧是因为浮层打开时要自己聚焦一次，抢在它前面滚会被它滚回去。 */
   const reveal = useCallback((node: HTMLElement | null) => {
     requestAnimationFrame(() => {
       if (node?.isConnected === true) {
@@ -188,12 +166,6 @@ function TimeColumn({
   )
 }
 
-/*
- * 时间触发器：点开是两列，选完即关。
- *
- * 值仍是 `HH:MM`（scheduleTimeOf / scheduleFor 那一对的口径），面板只负责把它拆成
- * 两段再拼回去，不认 cron。
- */
 function TimePicker({ onChange, time }: { readonly onChange: (time: string) => void; readonly time: string }) {
   const [hours = '00', minutes = '00'] = time.split(':')
 
@@ -238,7 +210,6 @@ export interface AutomationScheduleFieldProps {
   readonly onChange: (schedule: ScheduleValue) => void
 }
 
-/* 一次性的那一格：原生日期时间框（日期必须能挑，两列数字挑不了日子）。 */
 function OnceInput({
   at,
   feedback,
@@ -264,10 +235,6 @@ function OnceInput({
   )
 }
 
-/*
- * 计划那一行：没选过是一颗「添加计划」，选过之后是 [计划][星期][时间] 与移除键。
- * 拆出来只为把这一层的条件收进一个名字里，它读的全是调用点算好的值。
- */
 function ScheduleRow({
   feedback,
   kind,

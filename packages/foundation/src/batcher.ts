@@ -2,9 +2,8 @@ import type { Clock } from './clock'
 import type { Disposable } from './disposable'
 
 /**
- * 合并器：push 进来的条目在 delayMs 内攒成一批，再一次性交给 flush。
- * maxItems 达到上限时立即 flush。dispose 会先把剩余条目 flush 掉。
- * 用于高频通知（例如 usage.updated 每秒最多一次、终端输出 8ms 合并）。
+ * 合并器：push 进来的条目在 delayMs 内攒成一批，再一次性交给 flush；maxItems 达到上限时立即 flush，
+ * dispose 会先把剩余条目 flush 掉。用于高频通知（例如 usage.updated 每秒最多一次、终端输出 8ms 合并）。
  */
 export class Batcher<T> implements Disposable {
   private items: T[] = []

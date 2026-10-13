@@ -13,15 +13,10 @@ import { measureFrame, type Sample } from './recorder'
 import { type Arrival, THOUGHT } from './streams'
 
 /*
- * 思考行的真实布局检查台（§8.4）。
- *
- * 用的是仓库里**真实的** RollingLine、readThoughtSentence 与设计令牌，外面套与
- * tool-group-card 纯思考分支完全一样的结构：
- *
- *   section.timeline-group > div.timeline-row[data-measure="prose"] > RollingLine
- *
- * 这一台在真实 Chromium 里跑（见 run.ts），所以「最新的字有没有被裁」「放得下时句首有没有
- * 被吃」量得出来 —— 这正是 happy-dom 做不到、也让 v1 全绿的那一部分。
+ * 思考行的真实布局检查台：用仓库里真实的 RollingLine 与设计令牌，套与 tool-group-card 纯思考分支
+ * 一样的结构（section.timeline-group > div.timeline-row[data-measure="prose"] > RollingLine）。
+ * 在真实 Chromium 里跑（见 run.ts），所以「最新的字有没有被裁」「放得下时句首有没有被吃」量得出来
+ * —— 这正是 happy-dom 做不到、也让 v1 全绿的那一部分。
  */
 
 declare global {
@@ -33,12 +28,10 @@ declare global {
     __ready?: boolean
     /** 时基零点：采样与到达时刻都相对它算 */
     __started?: number
-    /** 这一场的来字都印出来了、滑行也停了：run.ts 据此收尾，不用干等固定时长 */
     __done?: boolean
   }
 }
 
-/** 这一屏的来字节奏由 URL 参数给：run.ts 一个场景一个 page。 */
 function streamFromQuery(): {
   readonly arrivals: readonly Arrival[]
   readonly resize: boolean
@@ -54,13 +47,6 @@ function streamFromQuery(): {
   }
 }
 
-/**
- * 一帧一采：rAF 之后排一个 setTimeout(0)，那时这一帧已经画完，量到的就是人看到的那一帧。
- *
- * `doneAt` 是这一场来字的尽头（原文长度）：屏幕上印到这里、且没有滑行在跑，就把 `__done`
- * 立起来。run.ts 靠它收尾 —— 干等一个够长的固定时长会让检查台慢，等太短又会把收尾的帧
- * 当成稳态。
- */
 function startRecorder(started: () => number, doneAt: number): () => void {
   const samples = window.__samples ?? []
   const keys = window.__key ?? []
@@ -74,7 +60,6 @@ function startRecorder(started: () => number, doneAt: number): () => void {
 
     requestAnimationFrame(() => {
       setTimeout(() => {
-        /* 采样与到达用同一个时基：都相对挂载那一刻算。 */
         const sample = measureFrame(keys, () => performance.now() - started())
 
         if (sample !== null) {
@@ -124,7 +109,6 @@ function Harness({
 
   useEffect(() => {
     window.__started = started.current
-    /* 采样器一上来就要读到达序列算「到这一刻到了多少字」，所以先摆好再起它。 */
     window.__arrivals = arrivals
 
     const stop = startRecorder(() => started.current, arrivals[arrivals.length - 1]?.length ?? 0)

@@ -3,15 +3,8 @@ import { cleanup, render, waitFor } from '@testing-library/react'
 import { currentMath, resetMathForTests } from '../prose/math-plugin'
 import { Prose } from '../prose/prose'
 
-/*
- * P-06：公式（katex）按需加载。
- *
- * 顺序有意义：模块级的加载状态在同一个文件里共享，M1 必须在 M2 之前（bun 按书写顺序跑）。
- * 旧代码没有 math-plugin.ts，整份文件在旧代码上直接失败。
- *
- * beforeAll 的复位：`bun test` 单进程跑完全仓，别的文件（如 apps/desktop 的
- * core-recovery.test.tsx）会真的启动一次功能、触发首帧预取，M1 因此会看见它们的脏状态。
- */
+/* P-06 公式（katex）按需加载：模块级加载状态同文件共享，M1 必须排在 M2 之前（bun 按书写顺序跑）。
+ * beforeAll 复位：别处的测试（如 core-recovery.test.tsx）会启动功能、触发首帧预取，留下脏状态。 */
 beforeAll(() => {
   resetMathForTests()
 })

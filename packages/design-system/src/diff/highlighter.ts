@@ -19,15 +19,15 @@ import githubLight from 'shiki/themes/github-light.mjs'
 /*
  * 着色器的那一份 shiki。
  *
- * 默认入口（'shiki'）把 308 个语法、65 个主题与整块 oniguruma wasm 都算作可达。worker
- * 是不可分包的 IIFE，那一整套会原样内联：9.6 MB 里九成来自这里。下面只点名语法着色
- * 真正用到的 13 个语法与 2 个主题，逐个从 shiki/langs 与 shiki/themes 取。
+ * 默认入口（'shiki'）把 308 个语法、65 个主题与整块 oniguruma wasm 都算作可达。worker 是不可
+ * 分包的 IIFE，那一整套会原样内联：9.6 MB 里九成来自这里。下面只点名语法着色真正用到的 13 个
+ * 语法与 2 个主题，逐个从 shiki/langs 与 shiki/themes 取。
  *
- * 引擎仍是 oniguruma。JavaScript 正则引擎能省掉 607 KB 的 wasm，但分词边界不同 ——
- * typescript 的 `number): string {` 会被并成一个词元 —— 颜色跟着变，所以不换。
+ * 引擎仍是 oniguruma。JavaScript 正则引擎能省掉 607 KB 的 wasm，但分词边界不同 —— typescript
+ * 的 `number): string {` 会被并成一个词元 —— 颜色跟着变，所以不换。
  *
- * 键名即语法注册名，也就是 suffix 表要交回 shiki 的 id：两者同源，加一种语法只在这里
- * 加一行，syntax.ts 的后缀表由 PaintedLanguage 兜住。
+ * 键名即语法注册名，也就是 suffix 表要交回 shiki 的 id：加一种语法只在这里加一行，syntax.ts
+ * 的后缀表由 PaintedLanguage 兜住。
  */
 const GRAMMARS = {
   css,

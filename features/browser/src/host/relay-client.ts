@@ -5,19 +5,10 @@ import { browserErrors } from '../contract/errors'
 import type { RelayInbound, RelayOutbound, TabSnapshot } from './relay-protocol'
 import type { WebContentsLike } from './tabs'
 
-/*
- * 内置浏览器接进 agent 的那条线（07 页 §12D「relay 通道」）。**迁移自** legacy
- * `apps/desktop/electron/browser/relay.ts`，全部语义照旧，只换两处口径：
- *
- *   - electron 的三个 API（session/WebContents/WebSocket）都从外面注入：
- *     `createSocket` 与 `RelayTabsPort.userAgent()` 由 index.ts 用真实对象实现，
- *     测试喂假 socket / 假 contents 就能钉住 BR-2…BR-7；
- *   - 连接由 setUrl 驱动（原来只有 start/stop）：Core 每次重启端口都可能变。
- *
- * 不走「开应用级 remote-debugging-port 再把 cdpUrl 指过去」：那个端点上主界面自己也是
- * 一个 page target，omp 挑 target 时 agent 会一头钻进主界面；而且整个应用的调试面就此
- * 开在回环上，本机任何进程都能连。
- */
+/* 内置浏览器接进 agent 的那条线（relay 通道）。electron 的 API 全部注入：createSocket 与
+ * RelayTabsPort.userAgent() 由 index.ts 用真实对象实现，测试喂假 socket 就能钉住 BR-2…BR-7；连接由 setUrl
+ * 驱动（Core 每次重启端口都可能变）。不走「开应用级 remote-debugging-port 再把 cdpUrl 指过去」：那个端点上
+ * 主界面自己也是一个 page target，agent 挑 target 会钻进主界面，而且整个应用的调试面就此开在回环上。 */
 
 export const DEFAULT_RELAY_URL = 'http://127.0.0.1:9224'
 
@@ -26,7 +17,6 @@ const RECONNECT_MAX_MS = 10000
 /** 与扩展同款心跳：对面 30s 一轮的保活要有东西可听。 */
 const PING_INTERVAL_MS = 20000
 
-/** WebSocket 里用到的那一份子集（测试的假 socket 也满足它）。 */
 export interface RelaySocket {
   readonly readyState: number
   send(data: string): void
@@ -43,16 +33,13 @@ export interface RelayTabsPort {
   openTab(url: string | null): number | null
   closeTab(tabId: number): void
   selectTab(tabId: number): void
-  /** session.fromPartition(BROWSER_PARTITION).getUserAgent() */
   userAgent(): string
-  /** `Chrome/${process.versions.chrome}` */
   browserVersion(): string
 }
 
 export interface RelayClient {
   /** 设置 relay 地址并（重新）开始连接；null = 停止连接 */
   setUrl(url: string | null): void
-  /** 标签面变化：按 tabCreated / tabUpdated / tabRemoved 推送差异 */
   publish(state: BrowserState): void
   readonly connected: () => boolean
   onConnectedChange(listener: (connected: boolean) => void): Disposable
@@ -61,12 +48,7 @@ export interface RelayClient {
   dispose(): void
 }
 
-/**
- * Core 状态 → relay 地址（07 页 §12D 装配节选；BR-11 钉的就是这条映射）。
- *
- * relay 服务只在 omp 第一次使用浏览器工具时才启动，所以「连不上」是常态；
- * Core 每次重启端口都可能变，`restarting` 期间必须先把地址收掉（null）。
- */
+/** restarting 期间必须先收掉地址：Core 每次重启端口都可能变（BR-11）。 */
 export function relayUrlForStatus(state: string, port: number | null): string | null {
   return state === 'ready' && port !== null ? `http://127.0.0.1:${String(port)}` : null
 }
@@ -75,7 +57,6 @@ export interface RelayClientOptions {
   readonly logger: Logger
   readonly createSocket?: (url: string) => RelaySocket
   readonly clock?: Clock
-  /** 每次 Host 启动生成一次（`poietica-<UUID>`）；不传时随机造一个，测试可固定。 */
   readonly instanceId?: string
 }
 
@@ -84,11 +65,7 @@ const SOCKET_OPEN = 1
 export function createRelayClient(tabs: RelayTabsPort, opts: RelayClientOptions): RelayClient {
   const clock = opts.clock ?? systemClock
   const connect = opts.createSocket ?? defaultCreateSocket
-  /*
-   * 这一侧的浏览器身份：relay 按它给标签分命名空间。relay 对同名实例是「最新连接顶掉旧连接」，
-   * 固定 id 会被别的连接挤出 CDP 发现。每次启动换一个 —— 重启后的标签 id 从 1 数起，
-   * 换命名空间才不会撞上上一次运行留下的状态。
-   */
+  /* 浏览器身份：relay 按它给标签分命名空间，同名实例是「最新连接顶掉旧连接」—— 固定 id 会被别的连接挤出 CDP 发现，所以每次启动换一个。 */
   const instanceId = opts.instanceId ?? `poietica-${crypto.randomUUID()}`
 
   let url: string | null = null
@@ -98,33 +75,21 @@ export function createRelayClient(tabs: RelayTabsPort, opts: RelayClientOptions)
   let pingTimer: Disposable | null = null
   let disposed = false
   let isConnected = false
-  /** 上一次报给 relay 的标签面，用来算增删改。 */
   const known = new Map<number, TabSnapshot>()
-  /*
-   * 正在由我们主动 detach 的标签：它的 detached 回执不算「用户拆掉了调试器」。
-   * 这个标记要留到下一次 attach 才清 —— 内核为一轮 detach 会发不止一条 detach 事件，
-   * 后面的每一条若被读成「用户拆的」，relay 就把这张标签拉黑（banned）。
-   */
+  /* 正在由我们主动 detach 的标签：它的 detached 回执不算「用户拆掉了调试器」。标记要留到下一次 attach ——
+   * 内核为一轮 detach 会发不止一条事件，后面每条若被读成「用户拆的」，relay 就把这张标签拉黑。 */
   const detaching = new Set<number>()
-  /** 已经挂过监听的内核对象。监听按 WebContents 挂，多挂一条就多一条假回执。 */
+  /** 监听按 WebContents 挂，多挂一条就多一条假回执。 */
   const wired = new WeakSet<WebContentsLike>()
   /** 当前被我们关掉后台节流的标签（B-03）：重复 attach 不重复下发，分离时恢复一次。 */
   const unthrottled = new Set<WebContentsLike>()
-  /*
-   * 挂着 AI 调试器的标签（B-04）：「AI 正在使用这个浏览器」说的是这个集合非空，不是
-   * socket 连着 —— relay 守护首次使用后就常驻，按连接算的话那条提示永远亮着。
-   *
-   * 三处删除路径：debugger 的 detach 回执、显式 detach 的那条 rpc、socket 关闭时清空。
-   */
+  /* 挂着 AI 调试器的标签（B-04）：「AI 正在使用这个浏览器」说的是这个集合非空，不是 socket 连着。
+   * 三处删除路径：debugger 的 detach 回执、显式 detach 的那条 rpc、socket 关闭时清空。 */
   const attached = new Set<number>()
   const listeners = new Set<(connected: boolean) => void>()
   const attachedListeners = new Set<(attachedTabIds: readonly number[]) => void>()
 
-  /*
-   * 端点：`http://127.0.0.1:<port>` → `ws://127.0.0.1:<port>/ext`。
-   * WebSocket 构造函数只认 ws/wss，直接把 http 地址喂给它是一句 SyntaxError
-   * （连不上而且看不出原因），所以换算必须在这里做。
-   */
+  /* 端点 http://… → ws://…/ext：WebSocket 构造函数只认 ws/wss，直接把 http 地址喂给它是一句 SyntaxError。 */
   const endpoint = (): string => relaySocketUrl(url ?? '')
 
   function post(message: RelayOutbound): void {
@@ -145,7 +110,6 @@ export function createRelayClient(tabs: RelayTabsPort, opts: RelayClientOptions)
     }
   }
 
-  /** 把标签面折成 relay 的 TabSnapshot：面板里没有标签组，windowId/pinned/groupId 是常量。 */
   function snapshotOf(state: BrowserState): TabSnapshot[] {
     return state.tabs.map((tab) => ({
       tabId: tab.id,
@@ -158,27 +122,17 @@ export function createRelayClient(tabs: RelayTabsPort, opts: RelayClientOptions)
     }))
   }
 
-  /*
-   * CDP 要有一张已经提交的文档：没导航过的内核里没有 DevTools 会话，命令发下去
-   * Electron 既不回执也不报错，relay 那边只会等到 20s 超时。空白标签（宿主记
-   * 「没有 url」）就是这样 —— 补一张 about:blank，内核报回来的地址会被宿主的
-   * noteUrl 归回「没有 url」，面板不见变化。
-   */
+  /* CDP 要有一张已经提交的文档：没导航过的内核里没有 DevTools 会话，命令发下去 Electron 既不回执也不报错，
+   * relay 只会等到 20s 超时。空白标签补一张 about:blank，地址会被 noteUrl 归回「没有 url」，面板不见变化。 */
   async function ensureDocument(contents: WebContentsLike): Promise<void> {
     if (contents.getURL().length === 0 && !contents.isLoading()) {
       await contents.loadURL(BLANK_PAGE)
     }
   }
 
-  /*
-   * 只有「用户主动拆」才该让 relay 拉黑标签：omp bridge 把 relayInitiated: false 当作
-   * 用户的意思，把这张标签设为 banned，直到地址变化才解除；而 tabs.ts 在渲染进程崩溃后
-   * 按**原地址**重载，于是这张标签对 AI 永久不可用（B-09）。
-   *
-   * Chromium 给用户主动拆的理由是 canceled_by_user，DevTools 抢占时理由里带 devtools。
-   * 崩溃、目标关闭等其它理由都不是用户的意思。Poietica 的界面没有 DevTools 入口，
-   * 用户主动拆的情况几乎不存在。
-   */
+  /* 只有「用户主动拆」才该让 relay 拉黑标签：omp bridge 把 relayInitiated: false 当作用户的意思，把这张
+   * 标签设为 banned 直到地址变化；而 tabs.ts 在渲染进程崩溃后按原地址重载，于是这张标签对 AI 永久不可用
+   * （B-09）。Chromium 给的理由是 canceled_by_user，DevTools 抢占时带 devtools；崩溃与目标关闭都不是用户的意思。 */
   const USER_DETACH = /canceled_by_user|devtools/iu
 
   function reportDetach(tabId: number, reason: string): void {
@@ -199,7 +153,6 @@ export function createRelayClient(tabs: RelayTabsPort, opts: RelayClientOptions)
     }
   }
 
-  /** 连接没了就什么都附着不上了：非空才通报，免得反复发同一条空集合。 */
   function clearAttached(): void {
     if (attached.size === 0) {
       return
@@ -220,14 +173,9 @@ export function createRelayClient(tabs: RelayTabsPort, opts: RelayClientOptions)
     }
   }
 
-  /*
-   * 附着期间关掉这张标签的后台节流（B-03）：面板收起时视图是 setVisible(false)，
-   * Chromium 会把这页当成后台标签降频 —— 计时器被拉长、渲染帧被跳过，
-   * Page.captureScreenshot 要么很久才回、要么根本不回。分离时恢复。
-   *
-   * 只动这一张标签：BROWSER_VIEW_PREFERENCES 里全局关节流会让用户自己开的后台标签
-   * 一直跑满 CPU。重复 attach 不重复下发（面板那边的 attach 是每次操作都来一遍）。
-   */
+  /* 附着期间关掉这张标签的后台节流（B-03）：面板收起时视图是 setVisible(false)，Chromium 会把这页当后台
+   * 标签降频 —— 计时器被拉长、渲染帧被跳过，Page.captureScreenshot 要么很久才回、要么根本不回。只动这一张：
+   * 全局关节流会让用户自己开的后台标签一直跑满 CPU。 */
   function unthrottle(contents: WebContentsLike): void {
     if (unthrottled.has(contents)) {
       return
@@ -305,7 +253,6 @@ export function createRelayClient(tabs: RelayTabsPort, opts: RelayClientOptions)
       case 'send': {
         const contents = await attachDebugger(message.tabId)
 
-        /* sessionId 是 relay 给的真实子会话（OOPIF、worker）：Electron 认同一套，直接转过去。 */
         return await contents.debugger.sendCommand(message.method, message.params ?? {}, message.sessionId)
       }
       case 'createTab': {
@@ -365,10 +312,7 @@ export function createRelayClient(tabs: RelayTabsPort, opts: RelayClientOptions)
     )
   }
 
-  /*
-   * 握手：报上当前标签面。一个标签都没有就先开一个 —— relay 服务端活着就是 agent
-   * 要用浏览器了，而 CDP 上一个 page target 都没有时它只会答「没有可用页面」。
-   */
+  /* 握手：报上当前标签面；一个标签都没有就先开一个 —— relay 服务端活着就是 agent 要用浏览器了，而 CDP 上一个 page target 都没有时它只会答「没有可用页面」。 */
   function hello(): void {
     if (tabs.state().tabs.length === 0) {
       tabs.openTab(null)
@@ -456,10 +400,7 @@ export function createRelayClient(tabs: RelayTabsPort, opts: RelayClientOptions)
     })
   }
 
-  /*
-   * 标签面的增删改。不整份重发：relay 那边按 tabId 维护状态，重发会让它把每个标签
-   * 当成新出现的（它据此决定要不要给下游发 targetCreated）。
-   */
+  /* 标签面的增删改不整份重发：relay 按 tabId 维护状态，重发会让它把每个标签当成新出现的。 */
   function publishDiffs(state: BrowserState): void {
     if (socket === null || socket.readyState !== SOCKET_OPEN) {
       return
@@ -550,15 +491,10 @@ export function createRelayClient(tabs: RelayTabsPort, opts: RelayClientOptions)
   }
 }
 
-/**
- * 默认的 socket 工厂。relay 的默认端点（DEFAULT_RELAY_URL）只在没有 Core 端口时留着给
- * 开发期直连；生产路径上 Host 每次用 supervisor.relayPort() 传给 setUrl。
- */
 function defaultCreateSocket(target: string): RelaySocket {
   return new WebSocket(target) as unknown as RelaySocket
 }
 
-/** relay 地址 → WebSocket 地址（http → ws、https → wss）。 */
 export function relaySocketUrl(base: string): string {
   const endpoint = `${base.replace(/\/+$/, '')}/ext`
 

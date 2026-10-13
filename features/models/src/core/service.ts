@@ -18,13 +18,13 @@ export interface ModelsService {
   catalog(): Promise<ModelInfo[]>
   setEnabled(model: ModelRef, enabled: boolean): Promise<void>
   defaults(): Promise<{ model: ModelRef | null; thinking: string | null }>
-  /** 标题模型（null = 跟随对话自己的模型）与可选项（引擎此刻可用的模型） */
+  /** null = 跟随对话自己的模型 */
   titleModel(): Promise<{ model: ModelRef | null; choices: readonly { ref: ModelRef; label: string }[] }>
   setTitleModel(model: ModelRef | null): Promise<void>
   setDefaults(input: { model?: ModelRef; thinking?: string | null }): Promise<void>
 }
 
-/** 内置服务商 = engine.models.providers() 里 custom === false 的项（07 页 §6C：不硬编码名单） */
+/** 内置服务商 = engine.models.providers() 里 custom === false 的项（不硬编码名单）。 */
 async function builtinIds(models: ModelsPort): Promise<ReadonlySet<string>> {
   const providers = await models.providers()
   return new Set(providers.filter((p) => !p.custom).map((p) => p.id))
@@ -32,7 +32,7 @@ async function builtinIds(models: ModelsPort): Promise<ReadonlySet<string>> {
 
 export function createModelsService(d: ModelsServiceDeps): ModelsService {
   return {
-    // 每个方法都是对 ctx.engine.models 的一次调用加参数校验，没有自己的表（07 页 §6C）
+    // 每个方法都是对 ctx.engine.models 的一次调用加参数校验，没有自己的表。
     providers: () => d.models.providers(),
 
     async setApiKey(provider, apiKey) {
@@ -41,7 +41,7 @@ export function createModelsService(d: ModelsServiceDeps): ModelsService {
         throw new AppError(modelsErrors.provider_not_found, '模型服务商不存在')
       }
       await d.models.setApiKey(provider, apiKey)
-      // 日志里只记服务商名：绝不把 params 整体写进日志（07 页 §6.4 坑 1）
+      // 日志里只记服务商名：绝不把 params 整体写进日志。
       d.logger.info('api key set', { provider })
       d.emitChanged()
     },
@@ -91,10 +91,8 @@ export function createModelsService(d: ModelsServiceDeps): ModelsService {
       d.emitChanged()
     },
 
-    /*
-     * 标题模型：null 一路透传（= 跟随对话自己的模型），端口那一层负责把 null 落成「删掉这一格」。
-     * 可选项现读引擎的可用模型 —— 与输入框选择器同一份事实（见 ModelsPort.availableModels）。
-     */
+    /* 标题模型：null 一路透传（= 跟随对话自己的模型），端口那一层负责把 null 落成「删掉这一格」。可选项现读引擎的可用模型 —— 与输入框选择器
+     * 同一份事实。 */
     async titleModel() {
       const [model, choices] = await Promise.all([d.models.titleModel(), d.models.availableModels()])
       return { model, choices }

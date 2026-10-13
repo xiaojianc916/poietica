@@ -1,7 +1,7 @@
 import type { TranscriptOperation, TranscriptTask } from '@poietica/transcript'
 
 /*
- * omp 子代理可观测面 → transcript 的 task 行（12 页 §9.3，原样迁移 legacy subagents.ts）。
+ * omp 子代理可观测面 → transcript 的 task 行。
  *
  * omp 把子代理的生死与进度推在根作用域总线上（createAgentSession 交回的 subagentEventBus，
  * 频道名从 '@oh-my-pi/pi-tui/overlays/session-observer-registry' 导入，不手写字符串）。

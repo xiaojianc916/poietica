@@ -21,20 +21,15 @@ export interface TimelineHubDeps {
   readonly emitOps: (p: TimelineOpsNotice) => void
   readonly emitReset: (p: TimelineResetNotice) => void
   /**
-   * 本进程 epoch 的起点；默认随机（见 `randomEpochBase`）。测试注入固定值。
+   * 本进程 epoch 的起点；默认随机。测试注入固定值。
    *
-   * epoch 是「换代」的判据（UI 端口按它给副本发 reset），进程内自增只能保证
-   * **本进程**不重复；两个先后启动的 Core 都会从 1 开始，UI 就认不出换代（R-04 §3.2）。
+   * epoch 是「换代」的判据（UI 按它给副本发 reset）；进程内自增只保证**本进程**不重复 ——
+   * 两个先后启动的 Core 都从 1 开始，UI 就认不出换代（R-04 §3.2）。
    */
   readonly epochBase?: number
 }
 
-/**
- * 2^40 以内的随机正整数：与之后的自增合起来仍远小于 Number.MAX_SAFE_INTEGER。
- *
- * 不用 `Date.now()`：同一毫秒附近启动的两个进程、以及时钟回拨都会撞号；
- * 随机起点让「两个 Core 进程的第一个 epoch 相等」的概率低到可以忽略。
- */
+/** 2^40 以内的随机正整数：不用 `Date.now()`，同一毫秒启动的两个进程与时钟回拨都会撞号 */
 export function randomEpochBase(): number {
   return 1 + Math.floor(Math.random() * 2 ** 40)
 }

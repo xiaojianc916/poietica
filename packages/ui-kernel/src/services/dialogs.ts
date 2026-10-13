@@ -21,7 +21,7 @@ export interface DialogService extends Observable<readonly ConfirmRequest[]> {
   }): Promise<boolean>
 }
 
-/** 同一时间只显示队首的确认框；workbench 的 ConfirmHost 负责渲染并调用 resolve */
+/** 同一时间只显示队首；workbench 的 ConfirmHost 负责渲染并调用 resolve。 */
 export function createDialogService(): DialogService {
   const queue = createValue<readonly ConfirmRequest[]>([])
   return {

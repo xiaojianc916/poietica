@@ -1,10 +1,7 @@
 import { describe, expect, test } from 'bun:test'
 import { imageFromClipboard, pathsFromDrop } from '../paste'
 
-/*
- * 粘贴与拖放的两条取数规则（07 页 §4E、14 页 §8.5 坑 8）。
- * 只测「取什么」，入库那一段走契约方法（在 core 的测试里覆盖）。
- */
+/* 粘贴与拖放的两条取数规则。只测「取什么」，入库那一段走契约方法（在 core 的测试里覆盖）。 */
 
 const item = (kind: string, file: File | null): DataTransferItem =>
   ({ kind, getAsFile: () => file }) as unknown as DataTransferItem

@@ -5,7 +5,6 @@ import {
 } from '@poietica/engine'
 import { z } from 'zod'
 
-/* 值 + 同名类型：与 platform 的 entities.ts 同一个写法 */
 export const ModelInfo = ModelInfoSchema
 export const ModelRef = ModelRefSchema
 export const ProviderInfo = ProviderInfoSchema

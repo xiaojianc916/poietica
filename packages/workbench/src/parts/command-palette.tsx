@@ -3,14 +3,7 @@ import { builtinPoints, useContributions, useKernel, useObservable } from '@poie
 import { type ReactNode, useEffect, useMemo, useState } from 'react'
 import { fuzzyScore } from '../fuzzy'
 
-/**
- * 命令面板。**迁移自** legacy `shell/commands/command-palette.tsx`：
- * 用 design-system 的 Dialog + CommandMenu（legacy 同此），不再自己画输入框与列表 ——
- * 高亮、跨组导航、Home/End、Enter 选中、active-descendant 语义都归 Base UI。
- *
- * 只换数据来源：legacy 读 CommandRegistry，这里读 commands 贡献点 + 内核的
- * keybindings 服务。分组、过滤、最近 5 条的行为照旧（06 页 §6.4）。
- */
+/** 命令面板：高亮、跨组导航、Home/End、Enter 选中、active-descendant 语义都归 design-system 的 CommandMenu。 */
 export function CommandPalette({ open, onClose }: { readonly open: boolean; readonly onClose: () => void }): ReactNode {
   const { kernelServices } = useKernel()
   const commands = useContributions(builtinPoints.commands)
@@ -42,7 +35,7 @@ export function CommandPalette({ open, onClose }: { readonly open: boolean; read
             .map((x) => x.c)
 
     if (query.trim() === '') {
-      // 最近执行的 5 条在输入为空时置顶（06 页 §6.4）
+      // 最近执行的 5 条在输入为空时置顶
       const byId = new Map(scored.map((c) => [c.item.id, c]))
       const recentItems = recent.map((id) => byId.get(id)).filter((c) => c !== undefined)
       scored.splice(0, scored.length, ...recentItems, ...scored.filter((c) => !recent.includes(c.item.id)))

@@ -3,7 +3,6 @@ import type { UiFeatureContext } from '@poietica/ui-kernel'
 import type { CustomProviderDef, ModelInfo, ModelRef, ProviderInfo } from '../contract'
 import { modelsContract } from '../contract'
 
-/** ctx.rpc(modelsContract) 的薄封装 */
 export function createModelsApi(ctx: UiFeatureContext) {
   const rpc: TypedRpcClient<typeof modelsContract> = ctx.rpc(modelsContract)
   return {

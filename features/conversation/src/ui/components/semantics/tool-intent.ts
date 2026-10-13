@@ -1,11 +1,11 @@
 import { basename } from '@poietica/design-system/diff'
 import type { ToolCallTimelineItem } from '../../timeline/timeline-contract'
 
-// 首选投影层的 headline（认得工具的视图写全），认不出才退回按类别拼动词。
+// 优先用投影层的 headline（认得工具的视图写全），认不出才退回按类别拼动词。
 
 type ToolKind = ToolCallTimelineItem['kind']
 
-// 只有认不出工具时才用的兜底动词；null 表示主语自己说完了。
+// null 表示主语自己说完了。
 const VERB: Record<ToolKind, string | null> = {
   delegate: '派发子代理',
   edit: '编辑',
@@ -33,7 +33,7 @@ export function clampToLine(full: string): string | null {
   return said.length > CLAMP ? `${said.slice(0, CLAMP)}…` : said
 }
 
-// 待答的审批项也带上 headline（agent 算好的「将做什么」），与工具卡走同一条判据。
+// 待答的审批项也带上 headline（agent 算好的「将做什么」）。
 type ToolLineSource = Pick<ToolCallTimelineItem, 'kind' | 'locations' | 'subject' | 'title'> & {
   readonly headline?: string | undefined
 }
@@ -99,9 +99,7 @@ export function sayToolCount(kind: ToolKind, count: number): string {
 }
 
 /**
- * 过程组（read / execute 混在一起）落定后的账目。
- *
- * 文案取基准截图的说法：「已读取文件运行了命令」；只有一半时就只说那一半。
+ * 文案取基准截图的说法；只有一半时就只说那一半。
  */
 export function sayProcessSummary(reads: number, executes: number): string {
   if (reads > 0 && executes > 0) {

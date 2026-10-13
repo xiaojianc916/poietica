@@ -8,12 +8,8 @@ export interface ModuleNode {
 const MODULE_ID = /^[a-z][a-z0-9]*(-[a-z0-9]+)*$/
 
 /**
- * 拓扑排序。规则：
- * - id 必须是 kebab-case，且唯一；
- * - dependsOn 引用的模块必须存在于同一份清单里；
- * - 不允许环；
- * - 结果稳定：没有依赖关系的模块之间，保持它们在输入清单中的相对顺序。
- * 任一规则被违反都抛 kernel.module_graph_invalid，message 指出具体模块。
+ * 拓扑排序：id 必须是 kebab-case 且唯一；dependsOn 引用的模块必须存在；不允许环；
+ * 没有依赖关系的模块之间保持输入清单的相对顺序。任一规则被违反都抛 kernel.module_graph_invalid。
  */
 export function sortModules<T extends ModuleNode>(modules: readonly T[]): T[] {
   const byId = new Map<string, T>()

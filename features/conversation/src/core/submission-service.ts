@@ -8,9 +8,7 @@ import { type SubmissionRow, type SubmissionsRepository, submissionOf } from './
 import { OWNER_KEY } from './thread-service'
 
 /**
- * 「Core 即时回显」的提交服务（方案第 4 节）。
- *
- * 三条规则：
+ * 「Core 即时回显」的提交服务。三条规则：
  * 1. 界面只画 Core 给的数据 —— 气泡就是本服务存下的这条记录；
  * 2. `turns.submit` **不等 omp**：先存库、推送、回复，打开会话与交给 omp 放后台；
  * 3. 每条提交都有确定结局并存进库（pending → started / queued / failed）。
@@ -50,13 +48,11 @@ export class SubmissionService {
   private readonly handed = new Set<string>()
   private readonly lanes = new Map<string, Lane>()
   /**
-   * 进程内的 `turnId → clientTurnId` 缓存（R-08-2）。
+   * 进程内的 `turnId → clientTurnId` 缓存（R-08-2）：流式期间每条 `turn.upsert` 都要问一次号，
+   * 不缓存就是每条都同步查一次库。
    *
-   * 流式期间每条 `turn.upsert` 都要问一次号（事件路由每条 upsert 补号）：先前每次都同步
-   * 查一次库。命中就直接答；没命中查一次库，把结果（**包括 null**）写回 —— null 也要缓存，
-   * 否则认不出号的 turn 会每条 upsert 都再查一次。
-   *
-   * `markTurn` 必须覆盖 null（先查后认领是真实顺序），线程删除时随 `forget` 一起清掉。
+   * **null 也要缓存** —— 否则认不出号的 turn 每条 upsert 都再查一次。`markTurn` 必须能覆盖
+   * null（先查后认领是真实顺序）；线程删除时随 `forget` 一起清掉。
    */
   private readonly turnIds = new Map<string, Map<string, string | null>>()
 
@@ -99,9 +95,8 @@ export class SubmissionService {
     /*
      * R-07 §3.3：引用在「被接受」（写库）时就登记，不等 `deliver`。
      *
-     * 旧位置在交接时（`resolve` 之后）：写库到交接之间、以及交接失败的 failed 行，
-     * 它们的附件都没有引用，24 小时回收会连文件一起删掉，隔天重试永远报 not_found。
-     * 这一句与 insert 同一同步段，中间不会被回收插进来。
+     * 写库到交接之间、以及交接失败的 failed 行，若不在此登记就都没有引用，24 小时回收会连
+     * 文件一起删掉，隔天重试永远报 not_found。这一句与 insert 同一同步段，中间不会被回收插进来。
      */
     this.d.attachments.retain(input.attachmentIds, OWNER_KEY(input.threadId))
     const view = submissionOf(row)
@@ -146,11 +141,11 @@ export class SubmissionService {
   }
 
   /**
-   * 给一页快照里的 turn 补上 `clientTurnId`（方案第 4 节的「快照」一行）。
+   * 给一页快照里的 turn 补上 `clientTurnId`。
    *
-   * 实时那条路（事件路由）已经在推送前盖好；快照走的是引擎的 `page()`，它不认识
-   * 我们的提交号，所以在返回前按 `turnId → clientTurnId` 补一次。两头都盖，
-   * 界面才拿得到「同一个号」去把提交行换成真实 turn。
+   * 实时那条路（事件路由）已经在推送前盖好；快照走的是引擎的 `page()`，它不认识我们的提交号，
+   * 所以在返回前按 `turnId → clientTurnId` 补一次。两头都盖，界面才拿得到「同一个号」去把
+   * 提交行换成真实 turn。
    */
   stampPage<T extends { readonly items: readonly unknown[] }>(threadId: string, page: T): T {
     const map = this.d.repo.mapByTurnId(threadId)
@@ -168,15 +163,12 @@ export class SubmissionService {
   }
 
   // ── 事件路由用的两口 ──────────────────────────────────────────────────────
-  /**
-   * 这一条线程里某个 turnId 对应的提交号（事件路由每条 upsert 补号用；没有就是 null）。
-   */
+  /** 这一条线程里某个 turnId 对应的提交号（事件路由每条 upsert 补号用；没有就是 null）。 */
   clientTurnIdOf(threadId: string, turnId: string): string | null {
     const cache = this.turnIds.get(threadId) ?? new Map<string, string | null>()
     if (cache.has(turnId)) return cache.get(turnId) ?? null
     const row = this.d.repo.findByTurnId(threadId, turnId)
     const clientTurnId = row === null ? null : row.clientTurnId
-    /* 把「查过、没有」也记住：认不出号的 turn 不再每条 upsert 都去问库一次 */
     cache.set(turnId, clientTurnId)
     this.turnIds.set(threadId, cache)
     return clientTurnId
@@ -235,7 +227,7 @@ export class SubmissionService {
    *
    * 两档都必须在这里收掉，因为它们是**进程内**的两样东西：`pending` 是还没交接的提交，
    * `queued` 是交给了 omp、排在它内存队列里的那一句 —— 队列随进程一起消失（R-08-5）。
-   * 从前只收 pending，排队的那些就永远停在 `queued`，界面既不画队列（队列已经没了）
+   * 只收 pending 的话，排队的那些会永远停在 `queued`：界面既不画队列（队列已经没了）
    * 也不画这条提交（`queued` 不进时间线），用户根本不知道那句话没了。
    */
   recoverOnStart(): void {
@@ -261,9 +253,10 @@ export class SubmissionService {
   }
 
   /**
-   * 线程已删：丢掉这条线程的交接车道与待认领号（库里的行已经随线程级联删除）。
-   * 这是 R-03 的统一遗忘钩子的提交服务这一半 —— 少了它，Core 这个长期运行的进程
-   * 会随自动化不断建线程而永久积累 lanes / pendingTurn / handed。
+   * 线程已删：丢掉这条线程的交接车道、待认领号与号表（库里的行已经随线程级联删除）。
+   *
+   * Core 是长期运行的进程，少了它，`lanes` / `pendingTurn` / `handed` / `turnIds` 会随
+   * 自动化不断建线程而只增不减（R-03 §2.3、R-08-2）。
    */
   forget(threadId: string): void {
     this.lanes.delete(threadId)
@@ -286,7 +279,7 @@ export class SubmissionService {
       this.d.logger.warn('submission hand-over failed', { threadId, error: String(cause) })
     })
     this.lanes.set(threadId, { tail })
-    // 车道的尾巴自己收口：不收的话每跑一条线程就永久留一项（R-03 §2.3 顺带修）
+    // 车道的尾巴自己收口：不收的话每跑一条线程就永久留一项（R-03 §2.3）
     void tail.finally(() => {
       if (this.lanes.get(threadId)?.tail === tail) this.lanes.delete(threadId)
     })
@@ -304,12 +297,11 @@ export class SubmissionService {
     }
   }
 
-  /** 交给 omp 的那一段（拆出来只为让复杂度落在闸门内；顺序与方案逐条对应）。 */
+  /** 交给 omp 的那一段（拆出来只为让复杂度落在闸门内）。 */
   private async deliver(row: SubmissionRow): Promise<void> {
     const ids = row.attachments.map((a) => a.id)
     const resolved = this.d.attachments.resolve(ids)
 
-    /* 冷启动可能要很久，但气泡早就在了（方案第 6 节）。 */
     const session = await this.d.acquireSession(row.threadId)
     /* 等待期间被停止 / 丢弃：不要交出去。 */
     const current = this.d.repo.get(row.clientTurnId)
@@ -342,7 +334,7 @@ export class SubmissionService {
     this.d.emitUserMessage({ threadId: row.threadId, at: this.d.clock.now() })
   }
 
-  /** 失败结局（方案第 2 节的状态表：没送达 → failed，错误码原样存下）。 */
+  /** 失败结局（没送达 → failed，错误码原样存下）。 */
   private fail(clientTurnId: string, threadId: string, cause: unknown): void {
     if (this.pendingTurn.get(threadId) === clientTurnId) this.pendingTurn.delete(threadId)
     const row = this.d.repo.get(clientTurnId)

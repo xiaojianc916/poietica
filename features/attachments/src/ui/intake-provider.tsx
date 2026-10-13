@@ -8,21 +8,9 @@ import type { ReactNode } from 'react'
 import type { Attachment } from '../contract'
 import type { AttachmentsApi } from './api'
 
-/*
- * 附件的入库口（legacy `apps/desktop/src/assistant/attachment-intake.ts` 的当前形态）。
- *
- * legacy 的 createAttachmentIntake 直接调 native-bridge 的资产库；新架构里那条路换成
- * attachments 契约与 platform 的对话框（07 页 §4C/§4E）：
- *   importPaths  → attachments.importPaths
- *   paste         → attachments.importData
- *   pick          → platform dialog.pickFiles → attachments.importPaths
- *   watchDrop     → 空缺（拖放进来的文件走输入框自己的 drop 处理器，07 页 §4E）
- *   discard       → 空缺（字节的生命周期由 core 侧的回收策略管，前端只交回卡片）
- *
- * 两个字段在新契约里没有对应物，如实给空值而不编一个：
- *   sessionToken 在 legacy 是资产会话号（新契约没有会话这一层）；
- *   size 在 legacy 是进门那份收据（新契约的 Attachment 带 size，直接用）。
- */
+/* 附件的入库口。legacy 的 createAttachmentIntake 直接调 native-bridge 的资产库；新架构换成 attachments 契约与 platform 的对话框：
+ * importPaths / paste / pick 分别落到 attachments.importPaths、attachments.importData 与 platform 的
+ * dialog.pickFiles。watchDrop 与 discard 空缺（前者走输入框自己的 drop 处理器，后者的字节生命周期由 core 侧回收策略管）。 */
 
 function assetOf(attachment: Attachment): ComposerAsset {
   return {

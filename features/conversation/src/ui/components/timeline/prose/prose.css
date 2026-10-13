@@ -1,44 +1,12 @@
-/*
- * The timeline draws itself from tokens with fallbacks, so a row is readable
- * before any theme loads and correct once one does.
- */
+/* 行是从令牌画的、且带兜底：主题没加载也能读，加载后自动正确。 */
+
+/* `--sdm-*` 的兜底不是债：Shiki 经 Streamdown 逐 token 注入，逗号后那一半就是没被注入时的样子；本仓令牌一律不带兜底。 */
 
 /*
- * --sdm-* 上的兜底不是债：它不是本仓的令牌，是 Shiki 经 Streamdown 逐 token 注入的自定义
- * 属性（--sdm-c 前景，只有自带底色的 token 才有 --sdm-tbg）。绝大多数元素上它并不存在，
- * 逗号后面那一半正是没被注入时该长什么样。
- *
- * 本仓自己的令牌一律不带兜底：名字在 skin/metrics.css 里，取不到值应当看得见。
+ * 正文纵向节奏在这条流里只声明一次：令牌是 em，容器字号小一档，间距等比收紧，思维链比回答紧全靠这条。
+ * 表格不在这张清单里：Streamdown 包了三层，首块清零只够到两层，边距会落在滚动盒内部的 <table> 上顶出空白。
  */
-
-/*
- * The vertical rhythm of prose, declared once for every stream in the timeline.
- *
- * The token is in em, so a scope that sets a smaller type size gets
- * proportionally tighter spacing without restating a number. That is the whole
- * mechanism behind the thought chain reading tighter than the answer: it says
- * only that it is one notch quieter, and the arithmetic follows.
- *
- * 表格不在这张清单里：Streamdown 把它包了三层（包裹层 → 滚动盒 → table），
- * 下面那条首块清零只够到两层。清单若把 table 算进来，这道 margin 会落在滚动盒
- * 内部的 <table> 上，在表头上方顶出一条空白。边距归包裹层所有 —— 它才是这条流
- * 里的那个块。
- */
-/*
- * prose type scale — 一条回复的排版，在这里一次性定死。
- *
- * scoped prose：先在这个作用域里推翻 UA 的级差，再重新给一套。UA 那套刻度是给
- * 一整页文档准备的 —— h1 是 2em 且 700，放进一条聊天流里一个二级标题就有 20 多个
- * 像素高，段落于是被顶得四散。Tailwind Typography 的 prose、GitHub 的
- * .markdown-body、Bootstrap Reboot 都是同一个模式：排版归组件所有，而不是归文档
- * 默认值所有。
- *
- * 刻度只有一个绝对值：容器的 --ui-prose-size。其余全部用 em 相对它表达，所以
- * 思维链那边只要把容器字号降一档，整套级差和间距会等比跟着收紧。
- *
- * 字重取 600 而非 UA 的 700：这个字号下 700 会糊成一团，编辑器类产品普遍停在
- * 600。字距取 0 —— 小字号收紧字距只会伤中文。
- */
+/* 字号级差一次定死：推翻 UA 那套（h1 是 2em/700），只给三档；字重取 600 —— 这个字号下 700 会糊。 */
 .timeline-prose {
   --cp-prose-flow: var(--ui-prose-flow);
   --cp-prose-flow-heading: calc(var(--cp-prose-flow) * 1.4);
@@ -49,10 +17,7 @@
   text-wrap: pretty;
 }
 
-/*
- * 包住正文的那层只给波浪淡入（use-wave-reveal.ts）一个扫描范围，不参与布局。
- * 系统请求减少动态时 use-wave-reveal 根本不挂插件，正文立即稳定，这里不需要额外规则。
- */
+/* 包住正文的那层只给波浪淡入（use-wave-reveal.ts）一个扫描范围，不参与布局。 */
 .timeline-prose-host {
   display: contents;
 }
@@ -61,7 +26,6 @@
   margin-block: var(--cp-prose-flow) 0;
 }
 
-/* A heading opens a section, so it takes a breath a paragraph does not. */
 .timeline-prose :is(h1, h2, h3, h4, h5, h6) {
   margin-block-start: var(--cp-prose-flow-heading);
   font-weight: var(--ui-font-weight-semibold);
@@ -69,10 +33,7 @@
   letter-spacing: var(--ui-letter-spacing-normal);
 }
 
-/*
- * 三档，不是六档。一条回复里能被读出来的层级本来就只有"节""小节""其余"，
- * 多出来的三档在 13px 上彼此看不出差别，只会让作者以为自己有更多层可用。
- */
+/* 三档不是六档：13px 上多出来的档彼此看不出差别，只会让作者以为自己有更多层可用。 */
 .timeline-prose h1 {
   font-size: 1.231em;
 }
@@ -94,10 +55,7 @@
   font-weight: var(--ui-font-weight-semibold);
 }
 
-/*
- * 列表的缩进跟着字号走，所以在思维链里会自动变浅。项与项之间给一个远小于段间距
- * 的呼吸：一份清单是一个块，不是若干个段落。
- */
+/* 列表缩进跟着字号走；项间距远小于段间距 —— 一份清单是一个块，不是若干段落。 */
 .timeline-prose :is(ul, ol) {
   padding-inline-start: 1.35em;
 }
@@ -114,10 +72,7 @@
   color: var(--cp-timeline-quiet-text);
 }
 
-/*
- * 引用是一条边，不是一个盒子：这条流里已经有卡片（代码块、工具调用、表格），
- * 再给引用一个背景，读者就得判断它是不是又一种控件。
- */
+/* 引用是一条边，不是一个盒子：这条流里已经有卡片，再给引用一个背景，读者就得判断它是不是控件。 */
 .timeline-prose blockquote {
   padding-inline-start: 0.875em;
   border-inline-start: 2px solid var(--cp-hairline);
@@ -125,10 +80,7 @@
   font-style: normal;
 }
 
-/*
- * Spacing goes between blocks, never before the first one: the edge above it
- * belongs to the row, and a leading margin there reads as a misaligned entry.
- */
+/* 间距一律加在块之间，不加在第一个块之前：上面那条边属于整行，加在那里看起来像没对齐。 */
 .timeline-prose > :first-child {
   margin-block-start: 0;
 }
@@ -145,15 +97,7 @@
   background: var(--cp-hairline);
 }
 
-/*
- * 下划线取设计给的虚线，不用浏览器默认的实线。
- *
- * 墨色不读 --cp-accent（那是主色，管着二十来处的焦点环与描边），走正文链接自己的
- * 一格 --cp-timeline-link-ink。
- *
- * 字重与断行也从这里给：链接不再由 streamdown 的类名着色排版，它那串类名换成了
- * 这个组件（见 prose-link.tsx），落在这条链接上的外观由这一处说清。
- */
+/* 墨色走链接自己的一格 `--cp-timeline-link-ink`，不读 `--cp-accent`（那是主色，管着二十来处焦点环与描边）。 */
 .timeline-prose a {
   color: var(--cp-timeline-link-ink);
   font-weight: 500;
@@ -164,26 +108,8 @@
   text-decoration-thickness: from-font;
 }
 
-/*
- * The code block, styled against what Streamdown actually renders.
- *
- * From streamdown/lib/code-block:
- *   container  [data-streamdown="code-block"]         — rounded-xl, border, p-2, gap-2
- *   header     [data-streamdown="code-block-header"]  — h-8, holds the language
- *   actions    [data-streamdown="code-block-actions"] — a pill inside a sticky
- *                                                        overlay, copy + download
- *   body       [data-streamdown="code-block-body"]    — rounded-md, border, p-4
- *
- * The gutter and the download control are not fought here at all: Prose
- * declines both through lineNumbers and controls, so neither is ever rendered.
- *
- * Two bordered, rounded boxes nested one inside the other is why this looked
- * like nothing else in the product. Here the container is the only frame: the
- * body gives up its edge, its radius and its outer padding, the header becomes
- * the bar across the top, and one grid puts the actions in that same bar rather
- * than floating over the first line of code. Nothing renames a class of theirs
- * and nothing is patched in script — this is the whole styling.
- */
+/* Streamdown 真实渲染是 container / header / actions / body 四层，容器是唯一的框：body 交出边、圆角与外边距，
+ * header 变顶栏，一个 grid 把 actions 放进同一条栏而不是浮在代码上方。 */
 .timeline-prose [data-streamdown="code-block"] {
   display: grid;
   grid-template-columns: 1fr auto;
@@ -196,17 +122,8 @@
   background: transparent;
 }
 
-/*
- * 深色下这一整块的面与边（产品负责人 2026-10-12 定稿）：面 #2a2a2a、边 #333333，
- * 抬头与正文同一张面、中间不画线 —— 图上整块只有一个色块。浅色那支不动：#2a2a2a
- * 的面铺在白纸上是一块黑斑（与 assistant-threads.css 那张深色菜单同一条判据）。
- *
- * :where() 把主题前缀压成零权重，这几条仍是 0,2,0 —— 压得住同名基线，压不过抽屉里
- * 那几条（tool-call.css 的 .timeline-prose.timeline-tool__prose，0,3,0）：围栏在抽屉里
- * 没有外壳，这里不能给它长回来。
- *
- * 与基线同特异性的覆盖写在基线之后：那两条谁赢靠书写顺序，不靠先来后到。
- */
+/* 深色下面 #2a2a2a、边 #333333，抬头与正文同一张面、中间不画线；浅色不动（#2a2a2a 铺在白纸上是一块黑斑）。
+ * `:where()` 把主题前缀压成零权重，这几条仍是 0,2,0：压得住同名基线，压不过 tool-call.css 里那条 0,3,0。 */
 :where(:root[data-theme="dark"]) .timeline-prose [data-streamdown="code-block"] {
   border-color: #333333;
   background: #2a2a2a;
@@ -222,7 +139,7 @@
   background: var(--cp-timeline-output-surface);
 }
 
-/* 深色：抬头也是那一块面，抬头与正文之间那条线不要（同一条定稿）。 */
+/* 深色：抬头也是那一块面，抬头与正文之间那条线不要。 */
 :where(:root[data-theme="dark"]) .timeline-prose [data-streamdown="code-block-header"],
 :where(:root[data-theme="dark"])
   .timeline-prose
@@ -238,7 +155,7 @@
   color: var(--cp-timeline-quiet-text);
 }
 
-/* The actions leave their overlay and take their place in the bar. */
+/* actions 从浮层里出来，落到那条栏上。 */
 .timeline-prose [data-streamdown="code-block"] > :has(> [data-streamdown="code-block-actions"]) {
   grid-area: 1 / 2;
   position: static;
@@ -255,16 +172,8 @@
   backdrop-filter: none;
 }
 
-/*
- * 一段代码是一段代码,不是一整屏。
- *
- * 高度上限与 overflow 缺一不可：外层容器写着 overflow: hidden（它要用自己的圆角
- * 裁住内部，那条不能动），所以没有 overflow 出口时，超出宽度的长行会被父级裁掉，
- * 那些字符在界面上根本取不到。
- *
- * 交出去的是滚动权：overflow: auto 一次管住两个轴。纵向的上限归 prose.tsx 的
- * codeBlockMaxHeight —— 只有上游拿到高度，它才给这个盒子挂流式末端锚定。
- */
+/* 高度上限与 overflow 缺一不可：外层用 overflow: hidden 拿圆角裁内部，没出口时长行会被裁掉、字符取不到。
+ * 纵向上限归 prose.tsx 的 codeBlockMaxHeight —— 只有上游拿到高度，它才给这个盒子挂流式末端锚定。 */
 .timeline-prose [data-streamdown="code-block-body"] {
   grid-area: 2 / 1 / 3 / 3;
   overflow: auto;
@@ -277,65 +186,28 @@
   line-height: var(--ui-line-height-normal);
 }
 
-/*
- * A fenced block keeps the layout the package gives it: lines are its business,
- * and it is the only party that knows the shape of the tree Shiki produced.
- * What is set here is what this app has an opinion about — the tab, at the width
- * every editor uses, which no stylesheet upstream declares.
- *
- * Nothing reformats the code, then or now. Reflowing it would rewrite what is
- * inside its string literals, which is why a professional editor keeps
- * formatting an explicit action and never a rendering step.
- */
+/* 行怎么排是包的事；这里只定 tab 宽度 2（上游没有样式表声明它）。代码从不被重排：重排会改写字符串字面量。 */
 .timeline-prose [data-streamdown="code-block-body"] pre {
   margin: 0;
   background: transparent;
   tab-size: 2;
 }
 
-/*
- * A highlighted line has to be a line.
- *
- * streamdown emits one <span> per source line and writes nothing between them,
- * so the spans only read as lines if something makes them block-level. Upstream
- * puts that "block" class inside the line-number class list and applies the
- * whole list conditionally — packages/streamdown/lib/code-block/body.tsx:
- * `className={lineNumbers ? lineNumberClasses : undefined}`. We render without
- * line numbers, so the line box went out with the gutter and every line ran
- * into the next (vercel/streamdown#532).
- *
- * The line box is structure, not decoration, so it is declared once, here,
- * instead of being chased with white-space tricks — and the gutter stays off.
- */
+/* 行盒是结构不是装饰：streamdown 每源行发一个 <span>、之间不写东西，只有块级才成行。上游把「块」类塞在行号类表里
+ * 条件应用，我们不画行号，行盒随边距槽一起没了，每行都连在一起（vercel/streamdown#532）。 */
 .timeline-prose [data-streamdown="code-block-body"] pre code > span {
   display: block;
 }
 
-/*
- * 高亮的颜色在自定义属性里，得由我们花掉。
- *
- * body.tsx 给每个 token 的 inline style 只写 --sdm-c（前景）、--sdm-tbg（底色）
- * 和双主题的 --shiki-dark，真正的 color 声明在上游自己的 Tailwind 工具类
- * text-[var(--sdm-c,inherit)] 里。官方 styles.css 只提供流式动画，不包含这些 Tailwind
- * 工具类；本应用的 Tailwind 也不扫描 node_modules，于是变量照旧下发、没人消费，
- * 每个 token 回落到 inherit：结构还在，颜色全丢。管线是我们的，外观也就是我们的。
- *
- * light-dark() 跟随文档的 color-scheme，所以两套主题共用一条声明，不必猜主题
- * 的类名，也不必再写一条媒体查询。fallback 一路退到 inherit：Shiki 还没解析
- * 完（highlight 首次返回 null，结果经回调异步到达）的那几帧，代码是当前墨色的
- * 纯文本，而不是一片透明。
- */
+/* 高亮色只在自定义属性里，得由我们花掉：上游的 color 声明在 Tailwind 工具类里，而本应用的 Tailwind 不扫 node_modules ——
+ * 变量照旧下发、没人消费，每个 token 回落到 inherit，结构还在、颜色全丢。fallback 到 inherit：Shiki 没解析完的那几帧是纯文本，不是透明。 */
 .timeline-prose [data-streamdown="code-block-body"] pre code span {
   color: light-dark(var(--sdm-c, inherit), var(--shiki-dark, var(--sdm-c, inherit)));
-  /*
-   * 少数 token 自带底色（diff、命中标记）。只花 --sdm-tbg，不碰 --shiki-dark-bg ——
-   * 后者是整块的主题底色，写在 pre 上并会继承下来，花在每个 span 上就等于把主题的
-   * 底色一格一格铺回我们已经交给卡片的表面上。
-   */
+  /* 少数 token 自带底色（diff、命中标记）。只花 --sdm-tbg，不碰 --shiki-dark-bg —— 后者是整块主题底色、会继承下来。 */
   background-color: var(--sdm-tbg, transparent);
 }
 
-/* Inline code is a word in a sentence, not a block: it gets a tint, no edge. */
+/* 行内 code 是句子里的一个词，不是块：给一层底色，不给边。 */
 .timeline-prose :not(pre) > code {
   padding: 0.0625rem 0.25rem;
   border-radius: 0.3125rem;
@@ -344,22 +216,8 @@
   font-size: 0.875em;
 }
 
-/* ── 表格 ───────────────────────────────────────────────────────────
- *
- * 上游把表格包成三层（外层 rounded-lg border bg-sidebar p-2、里层滚动盒
- * rounded-md border bg-background、最里面才是 <table>），正文里因此出现一个卡中卡。
- * 2026-10-12 定稿再退一步：这张表**没有壳** —— 四周不画边框，表头也不铺底色，
- * 上下分隔全由行线承担。上游那几个 border / bg 工具类靠这里的显式归零压掉。
- *
- * 这条栏的高度只有一个来源：--cp-table-head 同时是表头单元格与控件层的
- * block-size。表头 padding-block 归零，行高不参与，栏高就是那个 token ——
- * 高度写两遍只能凭运气对齐，字号、行高、字体任何一处一动就错位。
- *
- * 复制键只有一枚、位置固定（产品负责人 2026-10-12 定稿：删掉下载键，复制挪到表外右上角），
- * 所以末列让位不再数按钮个数：一个内边距 + 一枚按钮 + 一个内边距，改一处即两边同时准。
- *
- * 包裹层不能 overflow: hidden：复制键是 absolute，裁剪会把它剪断。
- */
+/* 表格：上游包了三层，正文里因此出现卡中卡；这张表**没有壳** —— 不画边框、表头不铺底色，上下分隔全由行线承担。
+ * 栏高只有一个来源：--cp-table-head 同时是表头单元格与控件层的 block-size。包裹层不能 overflow: hidden：复制键是 absolute，裁剪会把它剪断。 */
 
 .timeline-prose [data-streamdown="table-wrapper"] {
   --cp-table-head: 2.25rem;
@@ -375,13 +233,8 @@
   background: transparent;
 }
 
-/*
- * 控件层压在表头那一行的右端、贴表外沿 —— 它绝对定位，不参与流、也不撑宽包裹层。
- *
- * 写在滚动盒**外面**是这张表的要求，不是偏好：表格横向滚得动，埋在滚动盒里的控件会
- * 跟着表格一起滑出视野。表头行没有底色，除了一层压缩过的不透明窗口本身，不需要什么
- * 垫在按钮下面。
- */
+/* 控件层绝对定位、不参与流、也不撑宽包裹层。写在滚动盒**外面**是要求不是偏好：表格横向滚得动，
+ * 埋在滚动盒里的控件会跟着一起滑出视野。 */
 .timeline-prose [data-streamdown="table-actions"] {
   position: absolute;
   z-index: 1;
@@ -411,13 +264,8 @@
   color: var(--cp-ink);
 }
 
-/*
- * 滚动盒交出边框，只留滚动，并接手圆角裁剪。
- *
- * 轴写死成「横向 auto、纵向 hidden」：上游给的是 overflow-auto，两个轴都成了滚动
- * 容器，而表格在这条流里从来没有纵向上限、也就从来没有纵向溢出。一个不会滚的滚动
- * 容器不是中性的 —— 它会被浮层当成一条候选轨道，指针停在表格上时滚轮整个失效。
- */
+/* 轴写死成「横向 auto、纵向 hidden」：上游给的 overflow-auto 让两个轴都成了滚动容器，而表格从来没有纵向上限 ——
+ * 一个不会滚的滚动容器会被浮层当成候选轨道，指针停在表格上时滚轮整个失效。 */
 .timeline-prose [data-streamdown="table-wrapper"] > div:last-child {
   overflow: auto hidden;
   border: 0;
@@ -431,15 +279,12 @@
   font-size: var(--ui-prose-size-aux);
 }
 
-/* 表头不铺底色（2026-10-12 定稿）：与正文同一张面，归零也压掉上游的 bg-muted/80。 */
+/* 表头不铺底色：与正文同一张面，归零也压掉上游的 bg-muted/80。 */
 .timeline-prose [data-streamdown="table-header"] {
   background: transparent;
 }
 
-/*
- * 表头行的高度就是那个 token：padding-block 归零，行高不再参与，文字靠单元格
- * 默认的 middle 对齐居中。控件层用同一个 token，两者从此不可能错位。
- */
+/* padding-block 归零、行高不参与，栏高就是 --cp-table-head —— 控件层用同一个 token，两者不可能错位。 */
 .timeline-prose [data-streamdown="table-header-cell"] {
   block-size: var(--cp-table-head);
   padding: 0 var(--cp-table-pad);
@@ -462,46 +307,23 @@
   border-block-start: 1px solid var(--cp-hairline);
 }
 
-/*
- * 深色下这几根线改 #2a2a2a（产品负责人 2026-10-12 定稿）：这张表没有壳，行与行的分隔
- * 全靠它们，而屏幕上那一条是 border-collapse: collapse 把两条边塌成的一条。
- *
- * 改的是「行」的 border-color，不是某一条边：塌边取谁的颜色按「行 > 行组」裁定，
- * 实际画出来的是上一行的 border-block-end（上游 divide-y / border-border 给的那条，
- * 读 --ui-border），只改我们自己的 border-block-start 改不到屏幕上那一条。
- * tbody 一并给上，让参与同一条塌边的第二来源同色。
- *
- * 浅色那支不动 —— 同样的值铺在白纸上就是几道黑杠。
- */
+/* 深色下这几根行线改 #2a2a2a：这张表没有壳，行与行的分隔全靠它们。改的是「行」的 border-color 而不是某一条边 ——
+ * 塌边取谁的颜色按「行 > 行组」裁定，实际画出来的是上一行的 border-block-end（读 --ui-border）；tbody 一并给上让第二来源同色。
+ * 浅色不动：同样的值铺在白纸上就是几道黑杠。 */
 :where(:root[data-theme="dark"]) .timeline-prose [data-streamdown="table-body"],
 :where(:root[data-theme="dark"]) .timeline-prose [data-streamdown="table-body"] [data-streamdown="table-row"] {
   border-color: #2a2a2a;
 }
 
-/*
- * 末列让位：一个内边距 + 一枚复制键 + 一个内边距 —— 与控件层同一组常量。
- * 光标停在这一列的表头文字上时，复制键右缘与文字之间就不会压着一个字。
- */
+/* 末列让位 = 内边距 ×2 + 一枚复制键，与控件层同一组常量：复制键右缘与表头文字之间不会压着一个字。 */
 .timeline-prose [data-streamdown="table-wrapper"] [data-streamdown="table-header-cell"]:last-child {
   padding-inline-end: calc(var(--cp-table-pad) * 2 + var(--cp-table-control));
 }
 
-/*
- * 行间与行内公式各有自己的溢出出口：KaTeX 的盒子不换行，一条长推导必然超出正文宽度，
- * 交出的是滚动权而不是一个宽度上限 —— 被裁掉的字符取不回来。
- *
- * 纵向不能靠 overflow-y: visible 放行。规范里 overflow-x: auto 与 overflow-y: visible
- * 是非法组合，visible 会被**强制算成 auto**（实测 computed 值就是 auto），于是纵向反而
- * 多出一个滚动容器，而且 KaTeX 的溢出照样被它裁掉。真正的出路是让溢出不发生：KaTeX 的
- * 纵向排版建立在零高度 span 加负外边距的堆叠上（katex.min.css 的
- * `.vlist>span{display:block;height:0}`），分式、根号、求和号与积分号的上下限全都画在
- * 内容盒之外。padding-block 把内容盒撑到能容纳它们，`scrollHeight` 于是等于 `clientHeight`，
- * overflow-y: hidden 再没有可裁的东西。
- *
- * 0.5em 是实测出来的余量：对十一种上下限形态（积分、求和、嵌套分式、over/underbrace、
- * 二项式、深根号、矩阵、大运算符、极限、substack）量到的最大溢出是 5px，16px 字号下
- * 0.5em = 8px，留了一档。
- */
+/* 交出滚动权而不是宽度上限 —— 被裁掉的字符取不回来。纵向不能靠 overflow-y: visible 放行：它与 overflow-x: auto 是非法组合，
+ * visible 会被**强制算成 auto**（实测 computed 值就是 auto），于是纵向反而多出一个滚动容器、KaTeX 的溢出照样被裁。
+ * 出路是让溢出不发生：KaTeX 把分式、根号、上下限画在内容盒之外（零高度 span 加负外边距），padding-block 把内容盒撑到容得下。
+ * 0.5em 是实测余量：十一种上下限形态量到的最大溢出 5px，16px 字号下 0.5em = 8px。 */
 .timeline-prose .katex-display {
   margin-block: var(--cp-prose-flow) 0;
   overflow-x: auto;
@@ -509,40 +331,15 @@
   padding-block: 0.5em;
 }
 
-/*
- * 公式不参与「任意处断行」。
- *
- * overflow-wrap 会继承，而 .timeline-message 与 .timeline-user__text
- * 都声明了 anywhere —— 那对长 URL 和长中文串是对的，
- * 对 KaTeX 是灾难：它的排版完全建立在一串精确定位的 inline 盒子上，分数线、
- * 根号的延伸、上下标的基线偏移，全靠这些 span 不被拆开。anywhere 授权浏览器
- * 在任意两个字符之间断行，于是靠近右边缘的公式被从中间劈开，分子分母错位、
- * 根号盖不住被开方的部分。
- *
- * 修的是继承的作用范围，不是那两条声明本身：它们在自己的语境里没有错，只是
- * 不该穿透进另一套排版体系。word-break 一并复位 —— 两个属性都能触发同一件事。
- */
+/* 公式不参与「任意处断行」：overflow-wrap 会继承，而 .timeline-message 与 .timeline-user__text 都声明了 anywhere ——
+ * 那对长 URL 是对的，对 KaTeX 是灾难：anywhere 授权在任意两个字符之间断行，靠近右边缘的公式会被从中间劈开。 */
 .timeline-prose :is(.katex, .katex-display) {
   overflow-wrap: normal;
   word-break: normal;
 }
 
-/*
- * 行内公式不持有滚动盒。
- *
- * 此前这里挂的是 overflow-x: auto + overflow-y: hidden，于是每一个行内公式都是一个
- * 独立的滚动容器 —— 实测 `\colorbox` / `\fcolorbox` / 长行内式都会让 scrollWidth 比
- * clientWidth 多出 2px，那 2px 就变成一根横杠。屏幕上看到的就是「公式旁边莫名其妙
- * 多出左右两个箭头」，而它们滚动不了任何有意义的东西。纵向同时被 hidden 裁掉，
- * 上下标与分数照样缺一截。
- *
- * 行内公式本来就不需要自己的出口：它参与行内排版，宽度由 text-wrap 决定，放不下时
- * 该换行的是这一行文字，不是公式自己开一个滚动条。去掉这两个属性，盒子仍是
- * inline-block，只是不再裁剪、不再滚动。
- *
- * display 公式不同 —— 它独占一行，宽度可以真的超出正文，所以滚动权留给
- * .katex-display 自己（见上）。
- */
+/* 行内公式不持有滚动盒：实测 `\colorbox` / 长行内式会让 scrollWidth 比 clientWidth 多出 2px，那 2px 就变成一根横杠，
+ * 纵向被 hidden 裁掉后上下标与分数又缺一截。它参与行内排版，放不下时该换行的是这行文字，滚动权只留给 .katex-display。 */
 .timeline-prose :not(.katex-display) > .katex {
   display: inline-block;
   max-inline-size: 100%;
@@ -553,12 +350,7 @@
   margin-block-start: 0;
 }
 
-/*
- * 图面板。
- *
- * 图直接长在正文里：没有底色、没有边框、没有固定高度，宽度跟着栏宽走，高度由 viewBox
- * 比例决定。右上角仍留一枚浮层，鼠标进来才出现，它自己带纸面与阴影，不需要面板垫底。
- */
+/* 图直接长在正文里：没有底色、边框、固定高度，宽度跟栏宽走、高度由 viewBox 比例定；右上角一枚鼠标进来才出现的浮层。 */
 .timeline-prose__diagram {
   --cp-diagram-pad: 0.75rem;
   --cp-diagram-icon: 1rem;
@@ -568,25 +360,14 @@
   margin-block: var(--cp-prose-flow);
 }
 
-/*
- * 舞台就是图本身的位置。
- *
- * 只按宽度适配：宽度吃满栏宽，高度交给 svg 固有比例。不裁剪、不滚动，图多高就多高 ——
- * 一栏里塞不下的宽图整体缩小，高图顺着正文往下长，不另开出口。
- */
+/* 只按宽度适配：宽度吃满栏宽，高度交给 svg 固有比例，不裁剪不滚动 —— 宽图整体缩小，高图顺着正文往下长。 */
 .timeline-prose__diagram-stage {
   inline-size: 100%;
 }
 
-/*
- * 行内元素的基线间隙会在图下方垫出几个像素。宽高由 diagram.tsx 的 ground() 定：宽度
- * 100%、高度 auto。svg 自带的 max-width（自然宽）在窄图上原样生效，两边留白由
- * margin-inline: auto 摊平 —— 位置仍居中，只是不再靠画布的 transform 挪。
- *
- * 下面几条压的是 mermaid 自己写进 svg 的那份样式表（它在 <style> 里，选择器是 #id）：
- * 节点圆角在那边是写死的 0。颜色不在这里 —— 流程图走 themeVariables、mindmap 走 themeCSS，
- * 两份都在 diagram-theme.ts；这一份只补形状，圆角一档与卡片、输入框同刻度。
- */
+/* 行内元素的基线间隙会在图下方垫出几个像素。宽高由 diagram.tsx 的 ground() 定（100% / auto）；下面几条压的是 mermaid
+ * 写进 svg 的那份样式表（选择器是 #id，节点圆角在那边写死 0）。颜色不在这一条：流程图走 themeVariables、
+ * mindmap 走 themeCSS，都在 diagram-theme.ts。 */
 .timeline-prose__diagram-stage svg {
   display: block;
   max-inline-size: 100%;
@@ -603,10 +384,7 @@
   display: none;
 }
 
-/*
- * 源码视图：图没有固定高度了，这一面也不再有可对齐的高。给它自己的高度上限，长了在自己
- * 身上滚 —— 也就是原来那条 26rem 从「共享的底」变成「只给源码的上限」。
- */
+/* 源码视图：图没有固定高度，这一面也不再有可对齐的高 —— 26rem 从「共享的底」变成「只给源码的上限」，长了在自己身上滚。 */
 .timeline-prose__diagram-source {
   margin: 0;
   max-block-size: 26rem;
@@ -618,23 +396,13 @@
   tab-size: 2;
 }
 
-/*
- * token 的颜色在这里花掉：Shiki 交回的是两套主题各一个色值，light-dark() 跟着文档的
- * color-scheme 选一套，不必猜主题类名，也不必再写一条媒体查询。回落到 inherit —— 分词还没
- * 到的那几帧是当前墨色的纯文本，不是一片透明。
- */
+/* token 的颜色在这里花掉：Shiki 交回两套主题各一个色值，light-dark() 跟着 color-scheme 选；回落到 inherit（分词没到的那几帧是纯文本，不是透明）。 */
 .timeline-prose__diagram-ink {
   color: light-dark(var(--cp-tok, inherit), var(--cp-tok-dark, var(--cp-tok, inherit)));
 }
 
-/*
- * 控件浮在内容上，鼠标进来才出现。键盘走 focus-within，否则那几个按钮就是焦点顺序里几个看不
- * 见的落点。
- *
- * 底色取抽屉那张纸，兑一点透明并在背后做一次模糊：它压着的是图或代码，实色会把下面那一块彻
- * 底盖掉，纯透明又会让图里的线条穿过图标。不画边框 —— 一条 1px 的浅色描边贴在灰底上就是一道
- * 白框；浮层与底之间的分界交给阴影，那是这套设计系统里既有的那一档。
- */
+/* 键盘走 focus-within，否则那几个按钮就是焦点顺序里几个看不见的落点。底色取抽屉那张纸兑一点透明并在背后模糊：
+ * 它压着的是图或代码，实色会把下面那一块彻底盖掉，纯透明又会让图里的线条穿过图标。 */
 .timeline-prose__diagram-tools {
   position: absolute;
   z-index: 1;
@@ -662,10 +430,7 @@
   opacity: 1;
 }
 
-/*
- * 复制那一枚是上游的组件，它自带一串工具类。同一枚浮层里两套配色说不通，所以这里用两级选择
- * 器盖过去：工具类是单类选择器，两级一定赢，与样式表的先后顺序无关。
- */
+/* 复制键是上游组件、自带一串工具类；同一枚浮层里两套配色说不通，用两级选择器盖过去：工具类是单类，两级一定赢。 */
 .timeline-prose__diagram-tools .timeline-prose__diagram-tool {
   display: grid;
   place-items: center;
@@ -690,10 +455,8 @@
   cursor: default;
 }
 
-/*
- * 16px 对上字形库 24 的 viewBox 正好是 2/3，1.5 的描边因此落成一个整像素 —— 图标发虚是描边压
- * 在半个像素上，不是分辨率不够。上游那枚复制按钮把 14 写在 svg 的属性上，这一条盖掉它。
- */
+/* 16px 对上字形库 24 的 viewBox 正好是 2/3，1.5 的描边因此落成一个整像素 —— 图标发虚是描边压在半个像素上，不是分辨率不够。
+ * 上游那枚复制按钮把 14 写在 svg 属性上，这一条盖掉它。 */
 .timeline-prose__diagram-tool svg {
   display: block;
   inline-size: var(--cp-diagram-icon);
@@ -707,14 +470,8 @@
   color: var(--cp-timeline-quiet-text);
 }
 
-/*
- * 图片。
- *
- * 上游 image.tsx 的外观全在 Tailwind 工具类里（group relative my-4 inline-block、
- * max-w-full rounded-lg、失败时的 hidden）。官方 styles.css 只提供流式动画，不包含这些
- * 工具类；本应用的 Tailwind 也不扫描 node_modules —— 与 --sdm-c 同一个坑：类不存在，
- * 加载失败时破图占位与兜底文案同时在屏幕上。这几条把那份外观补在自己这边。
- */
+/* 上游 image.tsx 的外观全在 Tailwind 工具类里（my-4、max-w-full rounded-lg、失败时 hidden），官方 styles.css 不含这些类、
+ * 本应用的 Tailwind 也不扫 node_modules —— 与 --sdm-c 同一个坑：类不存在，加载失败时破图占位与兜底文案同时在屏幕上。 */
 .timeline-prose [data-streamdown="image-wrapper"] {
   display: block;
   margin-block: var(--cp-prose-flow) 0;

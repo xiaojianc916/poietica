@@ -5,12 +5,8 @@ import { MessageQueue } from '../../composer/message-queue'
 import { PromptQueue, queueRows } from '../prompt-queue'
 
 /*
- * 队列条的按号操作（R-01 §5.3）。
- *
- * 屏幕上那两枚键改的必须是**它们所在的那一行**：早先 UI 只把正文摊成字符串数组、
- * 撤回靠「猜队首」，于是画在最后一行、撤掉的却是第一条（R-01 §1 缺陷 D）。
- * 这里钉两件事：换层按最后一行自己的 id 掉 `queue.move`（不是撤回再重投），
- * 以及撤回拿回的就是那一行自己的正文。
+ * 队列条的按号操作（R-01 缺陷 D）：早先 UI 只把正文摊成字符串数组、撤回靠「猜队首」，于是画在最后一行、
+ * 撤掉的却是第一条。这里钉两件事：换层按最后一行自己的 id 掉 `queue.move`（不是撤回再重投），撤回拿回那一行自己的正文。
  */
 
 function queued(over: Partial<QueuedMessages> = {}): QueuedMessages {
@@ -83,7 +79,7 @@ describe('队列条（R-01 §5.3）', () => {
     })
 
     expect(recorded.withdrawn).toEqual(['f2'])
-    // 端口交回的正文按 id 造，落进输入框的就是最后一条的正文
+    // 端口交回的正文按 id 造，所以落进输入框的就是这一行自己的正文
     expect(edits).toEqual(['f2'])
     cleanup()
   })

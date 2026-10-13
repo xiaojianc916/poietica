@@ -38,10 +38,8 @@ function snapshotEntry(threadId: string, state: TurnState['state'], prev: TurnSt
 }
 
 /**
- * 线程状态只来自 turns.state 通知与 threads.list 的 state 字段，UI 不推断（14 页 §9.5）。
- *
- * 快照与通知之间有竞态：`threads.list` 往返期间到达的通知比快照新（快照是出发时那一刻的），
- * 所以用版本号记账 —— 通知写过的那条线程，hydrate 不拿旧快照覆盖它（R-04 §3.5）。
+ * 线程状态只来自 turns.state 通知与 threads.list 的 state 字段，UI 不推断。快照与通知之间有竞态：`threads.list` 往返期间到达的通知比快照新，
+ * 所以用版本号记账 —— 通知写过的那条线程，hydrate 不拿旧快照覆盖它。
  */
 export function createTurnStatesStore(): TurnStatesStore {
   const store = createFeatureStore<TurnStatesState>(() => ({ byThread: {} }))
@@ -63,12 +61,8 @@ export function createTurnStatesStore(): TurnStatesStore {
   return {
     store,
     /*
-     * 写入一格，**内容没变就不换引用**。
-     *
-     * `turns.state` 通知会重复推同一个状态（例如一轮里连报两次 running），而无条件
-     * `{ ...s.byThread, ... }` 每次都交回一个新对象 —— 订阅着读 byThread 的那些组件
-     * （侧栏线程列表、输入框、时间线）会跟着重画一遍，白画。内容真变时才换引用，
-     * 是「订阅式选择器能不能安定」的前提（见 __tests__/turn-states.test.ts）。
+     * **内容没变就不换引用**：`turns.state` 通知会重复推同一个状态，而无条件 `{ ...s.byThread, ... }` 每次都交回一个新对象 ——
+     * 订阅着读 byThread 的那些组件（侧栏线程列表、输入框、时间线）会跟着白画一遍。
      */
     set: (state) => {
       /* 通知到过就是更新的事实：即使内容没变也记版本，hydrate 才不会拿旧快照覆盖它。 */

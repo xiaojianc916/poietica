@@ -18,7 +18,7 @@ export function ExportableTable({ children, className, node: _node, ...props }: 
   const { copied, copy } = useCopy()
   const CopyStateIcon = copied ? CheckIcon : CopyIcon
 
-  /* 复制的是 Markdown 源码，不是屏幕上这份排版（历史上如此，按钮的 aria-label 也这么说）。 */
+  /* 复制的是 Markdown 源码，不是屏幕上这份排版；按钮的 aria-label 也这么说。 */
   const copyMarkdown = (): void => {
     const element = table.current
 
@@ -29,10 +29,7 @@ export function ExportableTable({ children, className, node: _node, ...props }: 
 
   return (
     <div className="relative my-4 flex flex-col rounded-lg" data-streamdown="table-wrapper">
-      {/*
-       * 控件层在表外、靠右：它绝对定位，不参与流、也不撑宽包裹层，表格宽度仍由内容决定。
-       * 它压着的是这张表自己的表头（第一行没有底色），所以按钮直接落在行带上，不用垫底。
-       */}
+      {/* 控件层在表外、靠右：绝对定位不撑宽包裹层；它压着的是这张表自己的表头（第一行没有底色），按钮直接落在行带上。 */}
       <div className="absolute end-0 flex items-center gap-1" data-streamdown="table-actions">
         <button
           aria-label={copied ? '已复制 Markdown 表格' : '复制表格 Markdown'}

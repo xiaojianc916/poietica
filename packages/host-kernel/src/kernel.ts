@@ -45,18 +45,15 @@ export interface HostKernelOptions {
   }
 }
 
-/** 整个 Host 的入口。apps/desktop/src/main/index.ts 只调用这一个函数。 */
 export function runHostKernel(opts: HostKernelOptions): void {
   // ① 身份与数据根（ready 之前）
   const identity = configureAppIdentity()
   // ② 单实例
   if (!app.requestSingleInstanceLock()) {
-    // 走到这里有两种情况，凭现象分不出来，所以必须说出来：
-    //   a) 真的已经有一个实例在跑（正常：聚焦已有窗口后退出）；
-    //   b) 拿不到实例锁 —— Chromium 的 SingletonLock 建不出来（userData 目录权限、或终端是
-    //      管理员身份等），上游会用同样的 "Lock file can not be created" 报错，锁直接返回 false。
-    // 此时日志目录都还没建（第 ③ 步在后面），什么都不写就退出，现象就是「窗口一闪、没有任何日志」。
-    // 这是 #21 排查时踩到的坑：给这条分支补一条 stderr，让人一眼看出是锁的问题而不是崩溃。
+    // 走到这里有两种情况，凭现象分不出来：a) 真的已经有一个实例在跑；b) 拿不到实例锁 —— Chromium 的
+    // SingletonLock 建不出来（userData 权限、终端是管理员身份等），上游同样报 "Lock file can not be created"
+    // 并返回 false。此时日志目录还没建（第 ③ 步在后面），什么都不写就退出，现象就是「窗口一闪、没有任何日志」。
+    // 这条 stderr 就是为 #21 那次排查补的：让人一眼看出是锁的问题而不是崩溃。
     const existing = app.hasSingleInstanceLock()
     process.stderr.write(
       existing
@@ -81,10 +78,10 @@ export function runHostKernel(opts: HostKernelOptions): void {
   })
   process.on('uncaughtException', (e) => logger.error('uncaughtException', { error: String(e), stack: e.stack }))
   process.on('unhandledRejection', (e) => logger.error('unhandledRejection', { error: String(e) }))
-  // ④ 自定义协议的特权声明（ready 之前，只能调用一次）
+  // ④ 自定义协议特权声明（ready 之前，只能调用一次）
   protocol.registerSchemesAsPrivileged([
     { scheme: ASSET_SCHEME, privileges: { standard: true, secure: true, supportFetchAPI: true, stream: true } },
-    /* 应用外壳：安装版从这里加载渲染进程，才有 V8 代码缓存（P-06，见 app-protocol.ts） */
+    /* 应用外壳：安装版从这里加载渲染进程，才有 V8 代码缓存（P-06，见 app-protocol.ts）。 */
     { scheme: APP_SCHEME, privileges: APP_SCHEME_PRIVILEGES },
   ])
   void app
@@ -115,7 +112,7 @@ async function boot(
   const assets = createAssetDispatcher(logger.child({ scope: 'asset' }))
   const coreLog = createCoreLogSink({ file: identity.layout.coreLog })
 
-  // ⑤ 总机与 Core 看护人（此时都还没有连接）
+  // ⑤ 总机与 Core 看护人（此时两者都还没有连接）
   let hub!: RpcHub
   const supervisor = new CoreSupervisor({
     layout: identity.layout,

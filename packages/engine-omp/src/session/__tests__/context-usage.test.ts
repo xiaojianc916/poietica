@@ -5,7 +5,7 @@ import { toContextUsage } from '../context-usage'
  * omp 的上下文读数 → 引擎端口。
  *
  * 这里的**字段名**是真机故障「输入框没有用量显示」的根因：omp 的 getContextUsage() 报的是
- * { tokens, contextWindow }（pi-tui 的 status-line/types），而适配器原先按
+ * { tokens, contextWindow }（pi-tui 的 status-line/types），而适配器按
  * { usedTokens, windowTokens } 去读 —— 两个名字都不存在，于是恒为 undefined、恒被判成
  * 「会话还没报过」，那颗圆环永远不画。第一条用例拿真实 SDK 形状喂进去，按旧名读会红。
  *

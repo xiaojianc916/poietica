@@ -51,36 +51,20 @@ type ConversationOperation =
       readonly kind: 'failed'
       readonly message: string
       readonly blocks: boolean
-      /**
-       * 这一句已经离开本机，而回执没回来 —— 那一轮**可能还在跑**。
-       *
-       * 与 `blocks` 分开：`blocks` 说的是「这个失败还算不算数」，这里说的是「我们到底
-       * 知不知道它没在跑」。只有后者需要停止键，而它不能由错误文案反推。
-       */
+      /** 这一句离开了本机而回执没回来：那一轮**可能还在跑**。只有它需要停止键，不能由错误文案反推。 */
       readonly indeterminate: boolean
     }
 
-/**
- * 投递结果不明：这一轮**到底跑没跑起来我们并不知道** —— 回执正是没回来的那一样。
- *
- * 它不改这一格的状态（`failed` 是「刚才那一下没成」这个事实的正确答案），只多给出一条
- * 「可能还有一轮在跑」：停止键认它。真正确认没跑起来时，取消是一次空转。
- */
+/** 投递结果不明：跑没跑起来不知道。不改状态（`failed` 仍对），只让停止键认「可能还有一轮」。 */
 export function deliveryUnknown(transcript: Transcript): boolean {
   return transcript.operation.kind === 'failed' && transcript.operation.indeterminate
 }
 
-/** 现在能不能停：在飞，或者投递结果不明（可能还有一轮在跑）。 */
 export function canCancel(transcript: Transcript): boolean {
   return selectIsBusy(transcript.timeline) || deliveryUnknown(transcript)
 }
 
-/**
- * 把时间线上那一轮标成已结束（本机判定它再也不会动了）。
- *
- * 只动 `active.run.settled`：其余（items、usage、spans）是 agent 说过的事实，
- * 我们无权改写。`run` 缺席时什么都不做 —— 那一轮本来就没在跑。
- */
+/** 只动 `active.run.settled`：items、usage、spans 是 agent 说过的事实，无权改写。 */
 function settleActiveRun(timeline: TimelineState): TimelineState {
   const run = timeline.active.run
 
@@ -117,10 +101,7 @@ export interface Transcript {
   readonly status: RunStatus
   readonly operation: ConversationOperation
   readonly submissions: readonly PendingSubmission[]
-  /**
-   * 「Core 即时回显」的提交行（方案第 5 节）：Core 存下并推回来的真实记录。
-   * 时间线在真实 turn 画得出来之前，画的是这一份。
-   */
+  /** Core 存下并推回的真实提交记录；真实 turn 画得出来之前，时间线画的就是这一份。 */
   readonly submissionRows: readonly SubmissionView[]
   readonly promptId: string | null
   readonly timeline: TimelineState
@@ -139,72 +120,33 @@ interface SendOptions {
   readonly assets: readonly PromptAsset[]
   readonly configuration: readonly PromptConfiguration[]
   readonly skills: readonly PromptSkill[]
-  /**
-   * 把这一条提交要落的对话准备好，交回它此刻的键与端口。
-   *
-   * 入口那一格还没有对话号：号由 Core 在 `threads.create` 里铸（05 页 §11.4），
-   * 所以键只能在 prepare 之后才知道 —— 之后每一步（乐观提交、取端口、提交）都用它。
-   * legacy 的号是渲染进程自己铸的，才能先有号再 prepare；数据来源换了，先后的形状
-   * 跟着它走。
-   *
-   * 交回 null 表示这一刻开不出对话（例如还没选工作区）；抛出的错误原样上屏，
-   * 那一句正文跟着「提交未完成」一起留在输入框上（可以取回）。
-   */
+  /* 号由 Core 铸，键只能在 prepare 之后才知道，**先后顺序不能反**；交回 null 表示这一刻开不出对话。 */
   readonly prepare?: (() => Promise<PreparedThread | null>) | undefined
-  /**
-   * 这条对话此刻的端口（由 ui/session-registry.ts 单点持有身份）。
-   *
-   * 入口那一格第一句话发出之前它不存在 —— 那时端口随 `prepare` 一起到手。
-   */
+  /** 身份由 ui/session-registry.ts 单点持有；第一句话之前不存在，随 `prepare` 到手。 */
   readonly port?: AgentSessionPort | undefined
   readonly onUserMessage?: ((threadId: string, text: string) => void) | undefined
 }
 const MAIN_AGENT_ID = 'main'
 const PENDING_SIGNAL_LIMIT = 64
 
-/**
- * 一条对话此刻握着的那根端口，以及它的四个订阅。
- *
- * 每一条对话各有一份：端口按对话建（stores/session-port.ts 的头注），订阅随它生、
- * 随它灭 —— 一次连接一条会话，正是 §11.4 六个命名空间里 `threadId` 的粒度。
- */
+/** 端口按对话建、订阅随它生灭 —— 一次连接一条会话，正是 `threadId` 的粒度。 */
 interface HeldSession {
   readonly port: AgentSessionPort
   readonly offs: readonly (() => void)[]
 }
 
-/**
- * 入口页那一格准备好之后的产物：这一条提交要落的对话，以及它此刻的端口。
- *
- * 两样一起交回（而不是只交号）：端口也正是在这一刻才建得出来的 —— 它按对话号建，
- * 而号是刚刚才铸的（ui/components/home-surface.tsx 的 prepare）。
- */
+/** `prepare` 的产物：端口按号建，而号刚铸出来，所以键与端口一起交回。 */
 export interface PreparedThread {
   readonly key: string
   readonly port: AgentSessionPort
 }
 
-/** 提交行在时间线里的条目 id 前缀（换真实 turn 时靠它把上一份剔掉）。 */
+/** 提交行在时间线里的条目 id 前缀：换真实 turn 时靠它把上一份剔掉。 */
 const SUBMISSION_ITEM_PREFIX = 'submission:'
 
-/**
- * 把 Core 的提交行并进时间线（方案第 5 节）。
- *
- * 只画 `deliverAs === 'turn'` 且还没被真实 turn 换掉的那些 —— 插话与排队不进时间线，
- * 它们由队列区显示（`queue.changed`）。真实 turn 到达后 Core 不再返回这条记录，
- * 这里自然就少了一行。
- *
- * 例外是**失败的插话 / 排队**（R-08-5）：它们没有真实 turn 可换，队列也已经没有它们
- * （Core 重启把 omp 的内存队列带走了），不画就等于那句话无声无息地消失。按「未送达」
- * 画成一条用户消息 —— 正文还看得见，也能取回来重发。
- */
+/** 只画 `deliverAs === 'turn'` 且还没被真实 turn 换掉的。例外是**失败的插话 / 排队**（R-08-5）：不画就等于那句话无声无息地消失。 */
 function withSubmissionRows(next: Transcript, seen: ReadonlySet<string>): Transcript {
-  /*
-   * 先剔掉上一轮贴进来的提交条目，再贴当前应有的那一份。
-   *
-   * `#put` 会被调很多次（提交、通知、投影），而 `next.timeline` 可能就是上一份已经贴过
-   * 提交条目的快照 —— 不先剔就会越贴越多（实测：一次发送出现 3~7 条一样的用户气泡）。
-   */
+  /* 先剔上一轮贴进来的再贴当前应有的：`#put` 会被调很多次，不先剔就越贴越多（实测：一次发送出现 3~7 条一样的用户气泡）。 */
   const stripped = next.timeline.active.items.some((item) => item.id.startsWith(SUBMISSION_ITEM_PREFIX))
     ? {
         ...next.timeline,
@@ -220,11 +162,7 @@ function withSubmissionRows(next: Transcript, seen: ReadonlySet<string>): Transc
   if (rows.length === 0) {
     return stripped === next.timeline ? next : { ...next, timeline: stripped }
   }
-  /*
-   * 「真轮已经换过这条提交」的判据是 `seen`：本机见过的提交号。唯一的调用方 `#put` 刚把
-   * 这一份时间线里带号的真实轮并进去 —— 剔掉的提交条目本身不带号，`stripped` 里的号因此
-   * 全在 `seen` 里，不必再扫一遍整条时间线。
-   */
+  /* 「真轮已经换过这条提交」的判据是 `seen`：剔掉的提交条目不带号，所以不必再扫一遍整条时间线。 */
   const pending = rows.filter((row) => !seen.has(row.clientTurnId))
   if (pending.length === 0) {
     return { ...next, timeline: stripped }
@@ -238,10 +176,7 @@ function withSubmissionRows(next: Transcript, seen: ReadonlySet<string>): Transc
     ...(row.status === 'failed' ? { undelivered: true } : {}),
     ...(row.skills.length === 0 ? {} : { skills: row.skills }),
   }))
-  /*
-   * 插在本轮开头：用户那一句是一轮的第一条，agent 的正文全在它后面。
-   * 与真实投影里 `projectTurn` 把用户消息放最前同形 —— 换的那一帧 DOM 才不跳。
-   */
+  /* 插在本轮开头，与真实投影里把用户消息放最前同形 —— 换的那一帧 DOM 才不跳。 */
   return {
     ...next,
     timeline: {
@@ -251,15 +186,7 @@ function withSubmissionRows(next: Transcript, seen: ReadonlySet<string>): Transc
   }
 }
 
-/**
- * 端口工厂：把对话号变成它的会话端口。
- *
- * 由功能的组装点注入（ui/index.tsx）：那里既有 `api`，也知道「哪些通知该转给谁」。
- * store 不 import 自己的 api，只认这个函数形状 —— 与 `TranscriptSink` 同一条理由。
- *
- * 身份由 ui/session-registry.ts 单点持有：同一条对话永远交回同一个对象，
- * 所以 `#attach` 的「同一对象重复 attach 什么都不做」是常规路径而不是巧合。
- */
+/** 由组装点（ui/index.tsx）注入 —— store 不 import 自己的 api。身份由 ui/session-registry.ts 单点持有：同一条对话永远交回同一个对象。 */
 export type SessionPortFactory = (threadId: string) => AgentSessionPort
 
 const EMPTY: Transcript = {
@@ -282,12 +209,7 @@ const channelKey = (threadId: string, agentId: string): string =>
 const addressOf = (key: string): { readonly conversation: string; readonly agentId: string } =>
   delegateAddress(key) ?? { conversation: key, agentId: MAIN_AGENT_ID }
 
-/**
- * 还没在快照里露面的那几条本机提交（按 agent 的 promptId 收口）。
- *
- * 绝大多数批次里一条待收口的都没有 —— 那时不建号表：它要扫一遍快照的全部轮次与 prompt。
- * 什么都没收掉就交回原数组，调用方据此判「没变」。
- */
+/** 还没在快照里露面的本机提交（按 agent 的 promptId 收口）；一条都没有时不建号表，那要扫一遍快照全部轮次。 */
 function remainingSubmissions(
   submissions: readonly PendingSubmission[],
   snapshot: AgentTranscriptSnapshot,
@@ -302,12 +224,7 @@ function remainingSubmissions(
 
 export class TranscriptStore implements TranscriptSink {
   readonly #queues = new Map<string, MessageQueue>()
-  /*
-   * 每份队列此刻归哪条对话。写动作（撤回、换层、改模式）与失败横幅都按它现找端口：
-   * 入口那一格（`''`）建出的队列会在第一句话时迁到真对话号下，而 `''` 不记别名 ——
-   * 键关在闭包里就会一直拿 `''` 找端口，点了没反应（真机故障，见 transcript-store.test.ts
-   * 的「入口页开的对话」）。
-   */
+  /* 每份队列此刻归哪条对话。键关在闭包里会一直拿入口那格的 `''` 找端口，点了没反应（真机故障，见 transcript-store.test.ts「入口页开的对话」）。 */
   readonly #queueHomes = new WeakMap<MessageQueue, { key: string }>()
   readonly #held = new Map<string, Transcript>()
   readonly #owners = new Map<string, TranscriptReplica>()
@@ -318,57 +235,18 @@ export class TranscriptStore implements TranscriptSink {
   readonly #runningListeners = new Set<() => void>()
   readonly #now: () => number
   #running = new Set<string>()
-  /**
-   * 每条对话一根端口，键是对话号。
-   *
-   * legacy 里全应用只有一根连接（一个 agent 进程一棵会话树），所以上游那个 store 写的是
-   * 「一根端口，换就抛错」。新架构里「一条会话」的身份就是对话号（stores/session-port.ts
-   * 的头注），端口因此按对话建 —— 切对话、入口页刚铸号都不会再撞上那条抛错。
-   */
+  /** 每条对话一根端口：身份就是对话号，切对话、入口页刚铸号都不会撞上「一根端口，换就抛错」。 */
   readonly #sessions = new Map<string, HeldSession>()
-  /**
-   * 迁移过的键 → 它现在的键。
-   *
-   * 入口那一格在发出第一句话时从草稿键迁到真对话号（`#migrate`），而屏幕上那一刻
-   * 可能还有旧键的引用在手上（入口页的队列对象、刚交出去的回调）。这一条让它们
-   * 落到同一格上，而不是各开一份 —— 迁移是转场，不是两个真相。
-   */
+  /** 迁移过的键 → 它现在的键：迁移是转场，不是两个真相 —— 旧键的引用都落到同一格上。 */
   readonly #aliases = new Map<string, string>()
-  /**
-   * 本地时间线副本里**见过**的提交号（方案第 5 节的 `stamped`）。
-   *
-   * 只增不减：真轮一旦出现过，这条提交就不该再画。不能每次从投影里现扫 ——
-   * 收尾那条 `turn.upsert` 只带一次号，之后投影里可能就没有了，现扫会判成「没到过」，
-   * 提交行又会被贴回来（实测：AI 回复跑完后出现两个用户气泡）。
-   */
+  /* 本机**见过**的提交号，只增不减。不能每次从投影现扫：收尾那条 `turn.upsert` 只带一次号，现扫会判成「没到过」（实测：回复跑完后出现两个用户气泡）。 */
   readonly #stamped = new Map<string, Set<string>>()
-  /**
-   * 每条通道的投影备忘录（P-04）：按端口副本 + agentId 各一份。
-   *
-   * 挂在副本（`#owners` 的值）上，而不是按对话号另开一张表：副本被换掉或释放后备忘录随它
-   * 一起被回收，不需要再维护一条删除路径（AGENTS §8.4）；别名迁移也不用搬 —— 迁的是键，
-   * 副本还是那一个。内层按 agentId 的表与副本自己的 agent 表同生同灭。
-   */
+  /** 每条通道的投影备忘录，挂在副本（`#owners` 的值）上：副本被换掉或释放时随它回收，不必另维护删除路径。 */
   readonly #memos = new WeakMap<TranscriptReplica, Map<string, ProjectionMemo>>()
-  /**
-   * 每条对话的提交行（方案第 5 节「每个线程一个 submissions 存储」）。
-   *
-   * **独立于 `#held` 存**：Core 的 `submissions.changed` 常常在界面为这条对话建出转录
-   * 格子之前就到了（提交发生在挂载整读之前），靠格子存在才收的写法会把那一条永远丢掉 ——
-   * 屏幕上的气泡就只能等 omp 的真实 turn 帧来画（真机故障：发送后要等 AI 回复才出现）。
-   * 存成自己的表，来源先到先存，格子什么时候建起来什么时候画。
-   */
+  /* 提交行**独立于 `#held` 存**：`submissions.changed` 常在转录格子建出来之前就到，靠格子存在才收会把那一条永远丢掉（真机故障：要等 AI 回复才出现气泡）。 */
   readonly #submissions = new Map<string, SubmissionView[]>()
-  /** 端口的工厂；由功能的组装点注入（ui/index.tsx）。缺席即没有会话可接。 */
   readonly #factory: SessionPortFactory | null
-  /**
-   * 已经绑过会话、而 Core 换代之后还没重读过的对话。
-   *
-   * Core 重启会丢掉进程内的一切（会话池、时间线副本的游标），已绑定的对话都不可信了；
-   * 但重启之后**不能**对所有访问过的对话立刻整读 —— R-03 之后整读会 acquire 会话，
-   * 那会一口气冷启动 N 个 AgentSession（R-04 §3.1）。所以只打标记，
-   * 屏幕上正显示的那条立即重读，其余等下次 `open`。
-   */
+  /* 已绑过会话、Core 换代后还没重读过的对话。不能立刻整读所有对话 —— R-03 之后整读会 acquire 会话，那会一口气冷启动 N 个 AgentSession。 */
   readonly #stale = new Set<string>()
   #disposed = false
   #serial = 0
@@ -381,14 +259,8 @@ export class TranscriptStore implements TranscriptSink {
     this.#factory = sessions ?? null
   }
 
-  /**
-   * 这条对话的待发队列视图。
-   *
-   * 队列的真相在 agent 里（一次连接一条会话），这里只是把它报来的快照按对话存一份，
-   * 好让屏幕订阅。写动作（撤回、改模式）原样交回端口。
-   */
+  /** 这条对话的待发队列视图：真相在 agent 里，这里只把它的快照按对话存一份好让屏幕订阅。 */
   queue = (threadId: string): MessageQueue => {
-    /* 别名先解到底：入口那一格迁到真对话号之后，两条键问的是同一份队列。 */
     const target = this.#resolveKey(threadId)
     const lifetime = this.#lifetime(target)
     const held = this.#queues.get(target)
@@ -435,12 +307,7 @@ export class TranscriptStore implements TranscriptSink {
       throw cause
     }
   }
-  /**
-   * 这个键此刻的转录。
-   *
-   * 别名解析在**读**这一侧：入口那一格迁到真对话号之后，手上还握着草稿键的读者
-   * （入口页的队列、刚交出去的回调）看到的是同一个事实，而不是各自的一份空表。
-   */
+  /** 这个键此刻的转录。别名解析在**读**这一侧：迁移之后握着草稿键的读者看到的是同一个事实，不是各自一份空表。 */
   read = (key: string): Transcript => this.#held.get(this.#resolveKey(key)) ?? EMPTY
   subscribe = (key: string, listener: () => void): (() => void) => {
     const target = this.#resolveKey(key)
@@ -460,20 +327,9 @@ export class TranscriptStore implements TranscriptSink {
     return () => this.#runningListeners.delete(listener)
   }
 
-  /**
-   * 本机说这几条提交已经在时间线上落地了。
-   *
-   * 为什么需要这一口：`#publish` 的收口按 **agent 的 promptId** 收
-   * （`knownPromptIds` 扫的是快照里 prompt 自己的号），而我们这一侧存的 promptId 是
-   * **UI 铸的 clientTurnId**（`stores/session-port.ts` 的 `prompt` 把它当 promptId 交回）。
-   * 两个词表没有交集 —— 那一条提交永远收不掉，`activityOf` 恒判「提交中」，屏幕上的
-   * 发送键就一直转（真实故障：对话已经结束，那颗键还在转圈）。
-   *
-   * 判据就是 `turn.upsert` 带回来的 `clientTurnId`（05 页 §12.2）：真实那一轮出现了，
-   * 这一句就不再是「待发」。已经定性为失败的那些不动 —— `failed` 是给人看的补救入口，
-   * 收掉它等于把「取回文字」那颗键一起收走。
-   *
-   * 空数组是空操作（调用方不必先判），超过上限的键也不怕：这是本机自己的号表。
+  /*
+   * `#publish` 按 **agent 的 promptId** 收口，这一侧存的却是 **UI 铸的 clientTurnId** —— 词表没有交集，那一条永远收不掉，发送键一直转
+   * （真实故障：对话已结束，键还在转圈）。判据是 `turn.upsert` 带回的 `clientTurnId`；已定性的 failed 不动 —— 那是对人的补救入口。
    */
   settleSubmissions = (threadId: string, clientTurnIds: readonly string[]): void => {
     if (this.#disposed || clientTurnIds.length === 0) {
@@ -539,19 +395,13 @@ export class TranscriptStore implements TranscriptSink {
     })
   }
 
-  /**
-   * 这条对话用哪根端口：已经有就用那一根，还没有就现建一根。
-   *
-   * 幂等：同一对话已经有端口时原样交回（重复 ensure 不重新订阅、不换身份）。
-   * 没有工厂（Store 被裸构造，例如单测）时抛出 —— 与 legacy「没有会话」同一句话。
-   */
+  /** 这条对话用哪根端口：幂等，同一对话已经有端口时原样交回（不重新订阅、不换身份）。 */
   #requirePort = (threadId: string): AgentSessionPort => {
     if (this.#disposed) {
       invariant(false, 'TranscriptStore is disposed.')
     }
     const target = this.#resolveKey(threadId)
     if (target === '') {
-      /* 入口那一格还没有号：这一刻没有会话可接（正常路径上 prepare 会先把它铸出来）。 */
       invariant(false, '这个界面还没有接上助手会话。')
     }
     const held = this.#sessions.get(target)
@@ -564,24 +414,13 @@ export class TranscriptStore implements TranscriptSink {
     return this.#attach(target, this.#factory(target)).port
   }
 
-  /** 已经握着的端口，不新建。给「没有就是没有」的读法用（队列刷新、图像代取）。 */
+  /** 只取已经握着的端口，不新建。 */
   #heldPort = (threadId: string): AgentSessionPort | undefined => this.#sessions.get(this.#resolveKey(threadId))?.port
 
-  /**
-   * 把一根端口接到一条对话上，并订阅它的四路通知。
-   *
-   * 同一条对话换一根端口（例如重连后重建）时先把旧的四个订阅退掉 —— 端口这一层是
-   * 每条对话的唯一真相，留着旧订阅就是两份事实在写同一格。
-   */
+  /** 把端口接到一条对话上并订阅四路通知；换端口时先退掉旧的四个订阅 —— 端口是唯一真相，留旧订阅就是两份事实写同一格。 */
   #attach = (threadId: string, port: AgentSessionPort): HeldSession => {
     const previous = this.#sessions.get(threadId)
-    /*
-     * 同一个对象重复 attach：什么都不做。
-     *
-     * 这是**常规路径**（端口的身份由 ui/session-registry.ts 单点持有：同一条对话永远
-     * 交回同一个对象），不是巧合 —— 重订阅会多出一份事实，StrictMode 的双渲染也会因此
-     * 把订阅数翻倍。
-     */
+    /* 同一个对象重复 attach 什么都不做，这是**常规路径**：重订阅会多出一份事实，StrictMode 的双渲染还会把订阅数翻倍。 */
     if (previous?.port === port) {
       return previous
     }
@@ -607,12 +446,7 @@ export class TranscriptStore implements TranscriptSink {
     this.#requirePort(threadId)
   }
 
-  /**
-   * 用**手上这一根**端口，而不是让工厂再建一根。
-   *
-   * 入口页那条路的端口是随 `prepare` 一起到手的（那一格的号刚铸出来，工厂那时候还
-   * 不知道它），所以这里直接把它挂上；同一对象重复挂是幂等的。
-   */
+  /** 用**手上这一根**端口，而不是让工厂再建一根：入口页的端口随 `prepare` 到手，工厂那时还不知道这一格。 */
   #mountPort = (threadId: string, port: AgentSessionPort): AgentSessionPort => {
     if (this.#sessions.get(threadId)?.port === port) {
       return port
@@ -620,28 +454,12 @@ export class TranscriptStore implements TranscriptSink {
     return this.#attach(threadId, port).port
   }
 
-  /**
-   * 把 `from` 那一格上的东西迁到 `to` 上，并把 `from` 记成别名。
-   *
-   * 迁移的是**这一格的身份**：提交记录、状态、队列对象、生命周期。入口那一格在
-   * 发出第一句话时走这一条（草稿键 → 真对话号），产物是「这一句仍然在屏幕上，
-   * 只是它现在属于那条对话」。
-   *
-   * `from` 没有任何东西时也照样记别名：入口那一格的第一句话常常是先有号（prepare）
-   * 再有第二次调用，别名让两条路落到同一格。
-   */
+  /** 迁的是**这一格的身份**（提交记录、状态、队列对象、生命周期）。`from` 没有任何东西时也记别名：入口那格常是先有号再有第二次调用。 */
   #migrate = (from: string, to: string): void => {
     if (from === to) {
       return
     }
-    /*
-     * 入口那一格（`''`）**不记别名**。
-     *
-     * 它是「还没铸号」这一个位置，不是某条对话：第一次发送把它迁到 A 之后再记成
-     * `'' -> A`，下次从入口页发消息时那句提交就会写进 A 的格子（真机实测：A 里冒出
-     * 一条 `B:submitting` 的幽灵记录），而新对话的格子那时还不存在，Core 推来的
-     * 提交行无处可落 —— 新气泡只能等 AI 回复跑完才被真实 turn 画出来。
-     */
+    /* 入口那一格（`''`）**不记别名**：它是「还没铸号」这个位置，不是某条对话。记成 `'' -> A` 后下次从入口页发消息会写进 A 的格子（真机实测：A 里冒出 `B:submitting` 幽灵记录）。 */
     if (from !== '') {
       this.#aliases.set(from, to)
     }
@@ -650,7 +468,6 @@ export class TranscriptStore implements TranscriptSink {
       this.#held.delete(from)
       this.#put(to, held)
     }
-    /* 提交行也要跟着走：它独立于格子存（见 `#submissions` 的头注）。 */
     const rows = this.#submissions.get(from)
     if (rows !== undefined) {
       this.#submissions.delete(from)
@@ -660,7 +477,6 @@ export class TranscriptStore implements TranscriptSink {
     if (queue !== undefined) {
       this.#queues.delete(from)
       this.#queues.set(to, queue)
-      /* 屏幕订阅的还是这一份（不换对象），只把它的归属改过去 */
       const home = this.#queueHomes.get(queue)
       if (home !== undefined) home.key = to
     }
@@ -676,7 +492,6 @@ export class TranscriptStore implements TranscriptSink {
     }
   }
 
-  /** 退掉一条对话的端口订阅并忘记它。 */
   #releasePort = (threadId: string): void => {
     const held = this.#sessions.get(threadId)
     if (held === undefined) {
@@ -688,7 +503,6 @@ export class TranscriptStore implements TranscriptSink {
     }
   }
 
-  /** 退掉全部端口的订阅。dispose 与 forget 共用（那里退一条）。 */
   #releasePorts = (): void => {
     for (const threadId of [...this.#sessions.keys()]) {
       this.#releasePort(threadId)
@@ -725,13 +539,7 @@ export class TranscriptStore implements TranscriptSink {
     }
   }
 
-  /**
-   * agent 报来的一份队列快照。
-   *
-   * 端口是**按对话**建的一根（stores/session-port.ts 的头注），所以这份快照的归属
-   * 就是订阅它的那条对话 —— 不需要再经别的号反查。端口在转交前已经按号过滤过
-   * （`subscribeQueue` 只报这条对话的），这里直接落到它的队列格上。
-   */
+  /** agent 报来的队列快照：端口按对话建，归属就是订阅它的那条对话，不必再经别的号反查。 */
   #acceptQueue = (queue: QueuedMessages): void => {
     if (this.#disposed) {
       return
@@ -739,13 +547,7 @@ export class TranscriptStore implements TranscriptSink {
     this.#queues.get(queue.threadId)?.accept(queue)
   }
 
-  /**
-   * 这一句在入队前就被取消了。
-   *
-   * 归属直接是 port 报来的那条对话（与 `#acceptQueue` 同一条理由）：那条对话名下的
-   * 提交记录里按正文找回还在提交中的那一条，收成失败并说清楚：**这句话没有落进
-   * 会话文件**，不会有任何帧来解释它。
-   */
+  /** 这一句在入队前就被取消：按正文找回还在提交中的那一条收成失败 —— **这句话没有落进会话文件**，不会有任何帧来解释它。 */
   #acceptDropped = ({ threadId, text }: DroppedPrompt): void => {
     if (this.#disposed) {
       return
@@ -779,52 +581,19 @@ export class TranscriptStore implements TranscriptSink {
     })
   }
 
-  /**
-   * 本机说这一轮失败了（agent 连接断开、进程没了）。
-   *
-   * 与 `#acceptDropped` 同一件事的**更大一号**：那一条收的是「这一句没送出去」，
-   * 这一条收的是「整轮终止了」。两者都必须收，因为屏幕上的轮终只认 agent 的
-   * transcript —— 而 agent 已经死了，那条通道再也不会有帧。
-   *
-   * 不收的后果实测过：那一轮永远转下去，提交键变成「正在停止」然后消失，
-   * 连发送键都没有了，只能重启应用。
-   *
-   * 判据是**会话号**（与 dropped 同一条理由）：这条事件按会话到，得先认出它属于哪条对话。
-   */
+  /* 不收的后果实测过：那一轮永远转下去，提交键变成「正在停止」然后消失，连发送键都没了，只能重启应用 —— 屏幕上的轮终只认 agent 的 transcript。判据是**会话号**。 */
   /*
-   * 本机判定「这一轮终止了」的那条事实。
-   *
-   * **它是本机的事实，不是 agent 快照的投影** —— 所以它必须住在自己的一格里，
-   * 不能写进 `timeline`：`#publish` 每来一次快照就把 `timeline` 整块重算并覆盖，
-   * 写进去的判据会被下一次投影冲掉，屏幕退回「正在处理」。
-   *
-   * 生效点在 `#publish`：投影之后就地收口，投影本身保持是纯函数。
-   */
-  /*
-   * 对话号 → **被本机收掉的那一轮的编号**。
-   *
-   * 存编号而不是一个布尔：这条事实管的是「那一轮已经终止」，不是「这条对话废了」。
-   * 后来的轮次是**另一轮**，它该怎么显示由 agent 的投影说了算 —— 不存编号就会把
-   * 之后每一轮都强行收成已结束（转圈不出现、封条说已完成，而那一轮其实还在跑）。
-   * 编号一变这条事实就自然失效，不必另设清理时机。
+   * 对话号 → **被本机收掉的那一轮的编号**。**这是本机的事实，不是快照的投影** —— 写进 `timeline` 会被下一次投影整块覆盖，屏幕退回「正在处理」。
+   * 存编号而不是布尔：管的是「那一轮已经终止」，不是「这条对话废了」。
    */
   #runFailed = new Map<string, number>()
 
-  /**
-   * 把本机那条「这一轮终止了」贴到时间线上。
-   *
-   * **唯一的实现**，两个调用点：`#acceptRunFailed`（事实刚到的这一刻）与 `#publish`
-   * （每一次投影之后）。后者不能省：`timeline` 是快照的重算产物，只贴一次会被下一次
-   * 投影冲掉，屏幕退回「正在处理」。
-   *
-   * 只贴给**被收掉的那一轮**（按编号认）。后来的轮次是另一轮，由 agent 的投影说了算。
-   */
+  /** **唯一的实现**，两个调用点：`#acceptRunFailed` 与 `#publish` —— 后者不能省，`timeline` 每次由快照重算，只贴一次会被冲掉。 */
   #withRunFailed(threadId: string | undefined, timeline: TimelineState): TimelineState {
     if (threadId === undefined) {
       return timeline
     }
 
-    /* 编号对不上就是另一轮了：那条事实与它无关，让它按 agent 的投影显示。 */
     if (this.#runFailed.get(threadId) !== timeline.active.turn) {
       return timeline
     }
@@ -841,13 +610,9 @@ export class TranscriptStore implements TranscriptSink {
       return
     }
 
-    /* 记在这条对话名下：下一次投影（以及任何一次投影）都会把它重新应用上去。 */
     this.#runFailed.set(threadId, transcript.timeline.active.turn)
 
-    /*
-     * 把还在等回执的那几条提交一并收成失败：这一轮已经没有回执可等了。
-     * 已经定了性的（failed / delivered）不动 —— 收第二次会让屏幕上那条记录改口。
-     */
+    /* 把还在等回执的那几条提交一并收成失败（这一轮已经没有回执可等）；已定性的 failed / delivered 不动 —— 收第二次会让记录改口。 */
     const settled = transcript.submissions.map((entry) =>
       entry.phase === 'submitting' ? { ...entry, phase: 'failed' as const } : entry,
     )
@@ -855,15 +620,8 @@ export class TranscriptStore implements TranscriptSink {
     this.#put(threadId, {
       ...transcript,
       restoring: false,
-      /* 事实刚到：立刻贴上（这一刻还没有下一次投影）。 */
       timeline: this.#withRunFailed(threadId, transcript.timeline),
-      /*
-       * 收尾对两种都做（那一轮都不会再有帧了），报错只对真失败做。
-       *
-       * `degraded` 是「这一轮跑完了，只是我们自己的帧记录掉了帧」—— 那种时候
-       * `message` 是一句内部诊断（英文、带帧数），弹成失败横幅会让跑完的一轮看起来
-       * 像崩了。原样留着 `operation`，屏幕照常显示这一轮已完成。
-       */
+      /* 收尾对两种都做（那一轮不会再有帧了），报错只对真失败做：`degraded` 的 `message` 是一句内部诊断（英文、带帧数），弹成横幅会让跑完的一轮看起来像崩了。 */
       ...(degraded
         ? {}
         : {
@@ -883,16 +641,10 @@ export class TranscriptStore implements TranscriptSink {
     owner.seed(baseline)
     this.#flush(sessionId)
     this.#observe(threadId, owner, owner.synchronize(MAIN_AGENT_ID))
-    /* 刚绑上这条会话：队列此刻是什么样，读一次。之后的变由 agent 自己推。 */
     this.refreshQueue(threadId)
   }
 
-  /**
-   * 读一次队列快照。
-   *
-   * 推送是常规路（谁排了一句、谁撤回、模型看见它，agent 都会报），这一条只补两个缺口：
-   * 刚绑上一条会话（还没有任何变化事件），以及一次断线重连之后。
-   */
+  /** 读一次队列快照：推送是常规路，这一条只补「刚绑上一条会话」与「断线重连」两个缺口。 */
   refreshQueue = (key: string): void => {
     const port = this.#heldPort(key)
     if (port === undefined) {
@@ -906,48 +658,24 @@ export class TranscriptStore implements TranscriptSink {
         }
       },
       () => {
-        /* 读不到队列不是这条对话的失败：chip 那一栏空着，下一句照发。 */
+        /* 读不到队列不算这条对话的失败：chip 那一栏空着，下一句照发。 */
       },
     )
   }
 
-  /*
-   * 会话号 → 对话号。`#routes` 是这条对应关系的唯一产地，由 `#bind` 写。
-   *
-   * 现在还读它的只有 SessionControlsStore 那一支（按 `sessionId` 认领 agent 主动
-   * 报来的控件表/用量）—— 那一支在新架构里还没有接上数据（组合根只传了
-   * `transcripts`），所以这里是留给它的接口，不是当前数据路。
-   */
+  /* 会话号 → 对话号，`#routes` 是唯一产地（由 `#bind` 写）。现在只有 SessionControlsStore 那一支读它，而那一支还没接上数据。 */
   ownerOf = (sessionId: string): string | undefined => this.#routes.get(sessionId)
-  /**
-   * 打开一条对话：接上端口、整读一次时间线、读一次队列。
-   *
-   * 新架构里「打开」不再是宿主交回一整份 `OpenedThread`（那是 legacy 的形状），
-   * 时间线要经 `timeline.subscribe` 现取 —— 这一条就是那次现取的入口，由会话页
-   * 挂载时的 effect 调用（components/transcript/use-assistant-session.ts）。
-   *
-   * **幂等**：已经绑定过、且整读已经落地的（`loaded`）不再整读一次；重复调用只
-   * 补一次队列读数。这样 StrictMode 的双渲染、切走再切回来都不会重复全文往返。
-   *
-   * 失败往这条对话自己的 `operation` 上写（`#observe`/`failed`），不抛给渲染期 ——
-   * effect 里抛出去只会炸掉整棵树，而「这一条读不回来」是这一格的事。
-   */
+  /* **幂等**：已绑定过且整读已落地（`loaded`）的不再整读，StrictMode 双渲染与切走再切回都不会重复全文往返。失败写进这条对话自己的 `operation`，不抛给渲染期。 */
   open = (threadId: string): void => {
     if (this.#disposed || threadId === '') {
       return
     }
     try {
-      /*
-       * 换代后第一次再打开这条对话：先重读一遍（resync 之后 `loaded` 仍为 true，
-       * 下面的整读分支不会再发一次请求）。
-       */
+      /* 换代后第一次再打开这条对话：先重读一遍（resync 之后 `loaded` 仍为 true，下面的整读分支不会再发请求）。 */
       if (this.#stale.has(threadId)) {
         this.#resync(threadId)
       }
-      /*
-       * 已经绑过会话的对话不重绑：`route` 那条路（控件表报回来时）用的会话号是引擎
-       * 签的，重绑会把已经建好的副本连同正文一起作废。
-       */
+      /* 已经绑过会话的对话不重绑：重绑会把已经建好的副本连同正文一起作废。 */
       const owner = this.#owners.get(threadId) ?? this.#bind(threadId, threadId)
       const current = this.read(threadId)
       if (!current.loaded && !current.restoring) {
@@ -960,11 +688,7 @@ export class TranscriptStore implements TranscriptSink {
     }
   }
 
-  /**
-   * 「Core 即时回显」：一条提交记录到达（订阅快照、通知、或 submit 的回复）。
-   *
-   * 只接受**更大的 rev**（方案第 5 节）：三个来源先后无所谓，旧的那一份不覆盖新的。
-   */
+  /** 「Core 即时回显」：一条提交记录到达（订阅快照、通知、或 submit 的回复）。只接受**更大的 rev**，旧的不覆盖新的。 */
   upsertSubmission = (threadId: string, view: SubmissionView): void => {
     if (this.#disposed) return
     const key = this.#resolveKey(threadId)
@@ -976,7 +700,6 @@ export class TranscriptStore implements TranscriptSink {
     this.#render(key)
   }
 
-  /** 一条失败的提交被丢弃（`submissions.removed`）。 */
   removeSubmission = (threadId: string, clientTurnId: string): void => {
     if (this.#disposed) return
     const key = this.#resolveKey(threadId)
@@ -1004,13 +727,7 @@ export class TranscriptStore implements TranscriptSink {
     })
   }
   forget = (threadId: string): void => {
-    /*
-     * 卸掉这条对话的端口：订阅归零、端口表里那一格消失。
-     *
-     * 端口自己是无状态的（每条命令都现取），所以「释放」在这里就是退订阅 + 忘记它；
-     * 注册表（ui/session-registry.ts）看见同一个调用也会把它那一格一起收掉 —— 两处
-     * 都从这一个入口走，所以不会有「store 忘了、注册表还留着」的半状态。
-     */
+    /* 端口本身无状态（每条命令现取），「释放」就是退订阅 + 忘记它；注册表从同一个入口走，所以不会有「store 忘了、注册表还留着」的半状态。 */
     this.#releasePort(threadId)
     this.#queues.get(threadId)?.dispose()
     this.#queues.delete(threadId)
@@ -1029,14 +746,10 @@ export class TranscriptStore implements TranscriptSink {
         this.#fire(key)
       }
     }
-    /* 提交行也随这条对话一起收掉（它独立于格子存）。 */
     this.#submissions.delete(threadId)
     this.#stamped.delete(threadId)
     this.#stale.delete(threadId)
-    /*
-     * 别名也要一并清掉：这条对话已经不存在了，把旧键再解析到它上面等于给幽灵续命
-     * （新对话拿到同一个 id、或者旧回调晚到一步时，都会写进一个不存在的格）。
-     */
+    /* 别名一并清掉：把旧键解析到一条已不存在的对话上等于给幽灵续命（新对话拿到同一个 id、或旧回调晚到一步时都会写进不存在的格）。 */
     this.#aliases.delete(threadId)
     for (const [from, to] of [...this.#aliases]) {
       if (to === threadId) {
@@ -1046,22 +759,14 @@ export class TranscriptStore implements TranscriptSink {
     this.#publishRunning()
   }
 
-  /**
-   * Core 丢失：所有已绑定的对话都不可信了。
-   *
-   * 只打标记、不发请求 —— 此刻 Core 不可用，RPC 只会排队到超时（R-04 §7）。
-   */
+  /** Core 丢失：所有已绑定的对话都不可信了。只打标记、不发请求 —— 此刻 Core 不可用，RPC 只会排队到超时。 */
   markAllStale = (): void => {
     for (const thread of this.#owners.keys()) {
       this.#stale.add(thread)
     }
   }
 
-  /**
-   * Core 恢复：正在显示的对话立即重读，其余的留到下次 `open`。
-   *
-   * 交回立即重读的线程号，调用方据此刷新控件表（它们也是 Core 进程内的状态）。
-   */
+  /** Core 恢复：正在显示的对话立即重读，其余的留到下次 `open`；交回立即重读的线程号供调用方刷新控件表。 */
   resyncVisible = (): readonly string[] => {
     const now: string[] = []
     for (const thread of [...this.#stale]) {
@@ -1084,7 +789,6 @@ export class TranscriptStore implements TranscriptSink {
     return false
   }
 
-  /** 重读一条已经绑定的对话：换掉所有副本、读一次队列（正文与队列都是 Core 进程内的事实）。 */
   #resync(thread: string): void {
     this.#stale.delete(thread)
     const owner = this.#owners.get(thread)
@@ -1144,14 +848,7 @@ export class TranscriptStore implements TranscriptSink {
     text,
     threadId,
   }: SendOptions): Promise<AgentPromptHandle | null> => {
-    /*
-     * 这一句落在哪条对话上：入口那一格还没有号，prepare 之后才知道。
-     *
-     * 在此之前的一切（提交记录、失败横幅、那一条「提交未完成」的正文）都记在**调用
-     * 方给的那个键**上 —— 入口那一格就是 `''`。prepare 铸出号之后，这一次提交里
-     * 往后每一步（乐观提交、端口、提交、收据）都换成新键，并把入口那一格的那条
-     * 提交记录迁到新键下面（`#migrate`），屏幕上因此不会在转场的一瞬间丢掉它。
-     */
+    /* 铸号之后换成新键，并把入口那一格的提交记录迁过去（`#migrate`），屏幕上不会在转场的一瞬间丢掉它。 */
     const entryKey = threadId
     const lifetime = this.#lifetime(entryKey)
     if (deliverAs !== 'turn') {
@@ -1174,34 +871,19 @@ export class TranscriptStore implements TranscriptSink {
       phase: 'submitting',
       promptId: null,
     }
-    /*
-     * 这一句到底有没有离开本机。它决定失败该报哪一种：**没出去**的失败是确定的
-     * （没有轮在跑），**出去了**的失败结果不明（回执可能只是没回来，那一轮也许正在跑）。
-     * 判据就是「有没有走到 port.prompt」这一步，不靠错误文案反推。
-     */
+    /* **没出去**的失败是确定的（没有轮在跑），**出去了**的失败结果不明（回执可能只是没回来）。判据是「有没有走到 port.prompt」，不靠错误文案反推。 */
     let leftTheMachine = false
     const before = this.read(entryKey)
     this.#put(entryKey, {
       ...before,
       operation: { kind: 'ready' },
       promptId: null,
-      /*
-       * 上一次失败到此为止。它没有被 `#publish` 收走的可能（`promptId` 是 null，永远
-       * 留在表里），留着就等于把「提交未完成」那句话连同补救入口钉在屏幕上 —— 人已经
-       * 重发了，横幅还在说上一句。取消的提交另有去处（`#publish` 按号收），不在这里。
-       */
+      /* 上一次失败到此为止：它没有被 `#publish` 收走的可能，留着就等于把人已经重发的那句「提交未完成」钉在屏幕上。取消的提交另有去处。 */
       submissions: [...before.submissions.filter((entry) => entry.phase !== 'failed'), submission],
     })
-    /* 到这一刻为止，这一条提交落在哪条对话上。失败横幅与正文取回认的就是它。 */
     let key = entryKey
     try {
-      /*
-       * 顺序：**先 prepare（铸号），再取端口**。
-       *
-       * 反过来的话入口页永远发不出第一句：那一格的端口是建完号才有的（真实故障：
-       * 「这个界面还没有接上助手会话。」）。这一条与 07 页 §5E 的「乐观提交」同序：
-       * 身份先落地，再谈提交。
-       */
+      /* **先 prepare（铸号），再取端口** —— 反过来的话入口页永远发不出第一句：那一格的端口是建完号才有的（真实故障：「这个界面还没有接上助手会话。」）。 */
       const prepared = prepare === undefined ? undefined : await prepare()
       if (lifetime.signal.aborted) {
         return null
@@ -1217,10 +899,7 @@ export class TranscriptStore implements TranscriptSink {
       this.#mountPort(key, port)
       onUserMessage?.(key, text)
       leftTheMachine = true
-      /*
-       * 提交号由**界面铸**（方案第 5 节）：Core 回显的那条记录带着同一个号，界面上那一条
-       * 与真实 turn 靠它认成同一条。铸在这里而不是 Core，是因为界面要在提交前就知道号。
-       */
+      /* 提交号由**界面铸**：Core 回显的那条记录带着同一个号，界面上那一条与真实 turn 靠它认成同一条。 */
       const clientTurnId = createId()
       const handle = await port.prompt({
         threadId: key,
@@ -1231,7 +910,6 @@ export class TranscriptStore implements TranscriptSink {
         skills,
         clientTurnId,
       })
-      /* 兜底：通知通常先到，这里再写一次（rev 判重，旧的不覆盖新的）。 */
       if (handle.submission !== undefined) this.upsertSubmission(key, handle.submission)
       if (lifetime.signal.aborted) {
         return null
@@ -1267,7 +945,6 @@ export class TranscriptStore implements TranscriptSink {
             kind: 'failed',
             message: describeFailure(cause),
             blocks: true,
-            /* 没出去 = 确定没有轮在跑；出去了而回执没回来 = 结果不明，可能还在跑。 */
             indeterminate: leftTheMachine,
           },
           submissions: current.submissions.map(
@@ -1280,23 +957,13 @@ export class TranscriptStore implements TranscriptSink {
   }
 
   /**
-   * 一句插话。
-   *
-   * 与开一轮那条路的**全部差别**在这里：
-   * - 不开乐观轮：这句话进的是 agent 的队列，模型看见它的那一刻桥会推一条帧
-   *   （`projection.ts` 的 steeredFrame），屏幕上因此不会先长出一轮再作废。
-   * - 不记提交、不认号：插话没有官方轮身份，收据只是「agent 收下了」。
-   * - 队列 chip 由 agent 报来（`subscribeQueue`），这一侧不排第二份队。
-   *
-   * 失败仍然要说：`kind: failed` 但 `blocks: false` —— 这一句话没进去，正在跑的那一轮
-   * 却没受影响，不该把输入框锁住。结果不明时（回执没回来）标 indeterminate：
-   * 它可能已经排在队里了，屏幕上的队列快照会说明到底进没进。
+   * 一句插话。与开一轮那条路的全部差别：**不开乐观轮**（这句话进 agent 的队列，模型看见它时桥会推一条帧）、不记提交、不认号。
+   * 失败仍然要说：`kind: failed` 但 `blocks: false` —— 这一句话没进去，正在跑的那一轮却没受影响，不该把输入框锁住。
    */
   async #interject(options: SendOptions & { readonly lifetime: AbortController }): Promise<AgentPromptHandle | null> {
     const { assets, configuration, deliverAs, lifetime, port, prepare, skills, text, threadId } = options
     let key = threadId
     try {
-      /* 与开一轮同一条顺序：先 prepare（可能铸号），再取端口。 */
       const prepared = prepare === undefined ? undefined : await prepare()
       if (lifetime.signal.aborted) {
         return null
@@ -1371,7 +1038,6 @@ export class TranscriptStore implements TranscriptSink {
       }
     })
   }
-  /** 答一张计划卡片（04 页 §3.12 第 5 支）：与审批同一条路，只是答复类型不同。 */
   resolvePlan = (key: string, requestId: string, answer: PlanAnswer): void => {
     const thread = addressOf(key).conversation
     const lifetime = this.#lifetime(thread)
@@ -1437,12 +1103,7 @@ export class TranscriptStore implements TranscriptSink {
       })
     }
     this.#lifetime(thread)
-    /*
-     * 这一格的端口：这条对话此刻握着的那一根。
-     *
-     * 正常路径上它一定在（`send` 先跑 `ensure`，`route` 也从端口回填走同一条路）；
-     * 没有就当场说出来，不凭空造一根。
-     */
+    /* 这一格的端口：正常路径上它一定在（`send` 先跑 `ensure`）；没有就当场说出来，不凭空造一根。 */
     const port = this.#requirePort(thread)
     const owner: TranscriptReplica = new TranscriptReplica(sessionId, port.transcript, (agentId, snapshot) => {
       if (this.#owners.get(thread) === owner) {
@@ -1506,11 +1167,8 @@ export class TranscriptStore implements TranscriptSink {
     const memo = this.#memoOf(owner, agentId)
     const projected = projectTranscript(snapshot, memo)
     /*
-     * 投影是纯的；本机那条「这一轮已经终止」在这里补上。
-     *
-     * **这是唯一的收口点。** 写进上一份 `timeline` 是假修复：`timeline` 每次都由快照
-     * 重算，那一份连同写进去的判据一起被丢掉，屏幕退回「正在处理」。
-     * 收在一处，这条不变量才可证 —— 两处都写就分不清是谁生效。
+     * 投影是纯的；本机那条「这一轮已经终止」在这里补上。**这是唯一的收口点** —— 写进上一份 `timeline` 是假修复
+     * （`timeline` 每次都由快照重算，那一份连同判据一起被丢掉），两处都写就分不清是谁生效。
      */
     const timeline = this.#withRunFailed(owner?.sessionId, projected)
     const remaining = remainingSubmissions(current.submissions, snapshot)
@@ -1527,7 +1185,6 @@ export class TranscriptStore implements TranscriptSink {
       submissions: remaining,
     })
   }
-  /** 这条通道的投影备忘录；没有副本（不该发生）就给一份一次性的，只是不复用。 */
   #memoOf(owner: TranscriptReplica | undefined, agentId: string): ProjectionMemo {
     if (owner === undefined) {
       return createProjectionMemo()
@@ -1543,26 +1200,15 @@ export class TranscriptStore implements TranscriptSink {
     if (this.#disposed || this.#held.get(target) === next) {
       return
     }
-    /*
-     * 提交行按对话存在 `#submissions`（它先于格子存在，见那张表的头注）：
-     * 每次写格子时从那张表取**当前应有的一份**，而不是信调用方带进来的。
-     */
+    /* 提交行按对话存在 `#submissions`（它先于格子存在）：每次写格子时从那张表取**当前应有的一份**，不信调用方带进来的。 */
     const rows = this.#submissions.get(target) ?? []
     const withRows: Transcript = { ...next, submissionRows: rows }
-    /*
-     * 记下这一份时间线里出现的提交号（方案第 5 节 `stamped` 的来源）。
-     * 写完再合并提交行 —— 判据与记录在同一次写里对齐。
-     */
     const seen = this.#stamped.get(target) ?? new Set<string>()
     for (const id of clientTurnIdsOf(withRows.timeline)) seen.add(id)
     this.#stamped.set(target, seen)
     /*
-     * 提交行合进时间线（方案第 5 节）：Core 还没把真实 turn 画出来之前，
-     * 屏幕上那一条用户消息就是 Core 存下的**真实记录**（不是界面造的）。
-     *
-     * 合并点选在这里（唯一写入口），投影、通知、失败回滚三条路就都覆盖到；
-     * 真实 turn 到达并带上同一个 clientTurnId 后，Core 不再返回这条提交行，
-     * 它自然消失 —— 不需要界面对账。
+     * 提交行合进时间线：真实 turn 画出来之前，屏幕上那一条用户消息就是 Core 存下的**真实记录**（不是界面造的）。
+     * 合并点选在唯一写入口，投影、通知、失败回滚三条路都覆盖到；真实 turn 带上同一个 clientTurnId 后它自然消失。
      */
     const merged = withSubmissionRows(withRows, seen)
     this.#held.set(target, { ...merged, status: activityOf(merged) })
@@ -1570,7 +1216,6 @@ export class TranscriptStore implements TranscriptSink {
     this.#fire(target)
   }
 
-  /** 提交行变了：有格子就重画那一条，没有就先存着（格子建起来时从 `#submissions` 取）。 */
   #render(key: string): void {
     const target = this.#resolveKey(key)
     const current = this.#held.get(target)
@@ -1579,7 +1224,6 @@ export class TranscriptStore implements TranscriptSink {
       this.#put(target, { ...current })
     }
   }
-  /** 别名解到最后的那一格：迁移过的键与它的新键是同一格。 */
   #resolveKey = (key: string): string => {
     let target = key
     for (let hops = 0; hops < 8; hops += 1) {

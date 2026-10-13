@@ -2,14 +2,8 @@ import { describe, expect, test } from 'bun:test'
 import { type UpdateState, UpdateState as UpdateStateSchema } from '../../contract'
 import { createUpdateStore } from '../store'
 
-/*
- * 更新界面这一份状态（07 页 §15E）。这里钉的是**三个字段各自的寿数** —— 它们混在一
- * 起才是「菜单里的检查行发起、横幅回话」这条链路的判据：
- *   - `apply` 只换 Host 的投影；
- *   - `dismiss` 是本次运行内的「稍后」；
- *   - `latest` 是手动检查刚回话「已是最新」的一次性标记（`idle` 分不出「没查过」与
- *     「查过没有新版本」，这个标记只能由发起检查的那一侧记）。
- */
+/* 这里钉的是**三个字段各自的寿数**：`apply` 只换 Host 的投影；`dismiss` 是本次运行内的「稍后」；`latest` 是手动检查刚回话「已是最新」的
+ * 一次性标记（`idle` 分不出「没查过」与「查过没有新版本」，只能由发起检查的那一侧记）。 */
 
 const state = (over: Partial<UpdateState> = {}): UpdateState =>
   UpdateStateSchema.parse({

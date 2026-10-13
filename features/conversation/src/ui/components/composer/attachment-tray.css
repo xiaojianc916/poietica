@@ -1,21 +1,15 @@
-/*
- * 附件是一格图，不是一行文件名。
- *
- * 几何与颜色全部来自 skin/metrics.css：这一格与输入框、工具栏同处一张卡，
- * 尺寸与边色不能各挑各的。
- */
+/* 几何与颜色全部来自 skin/metrics.css：与输入框同处一张卡，不能各挑各的。 */
 
 .composer-tray {
   display: flex;
   flex-wrap: wrap;
   gap: var(--cp-control-gap);
   margin: 0;
-  /* 与 textarea 同一组内缩：同一张卡里上下相邻的两块，左边缘必须对齐。 */
+  /* 与 textarea 同组内缩：同卡内上下相邻的两块左边缘必须对齐。 */
   padding: var(--cp-pad-top) var(--cp-pad-x) 0;
   list-style: none;
 }
 
-/* 删除键的定位祖先就是这一格；裁剪归里面那张脸，图要跟着圆角收边。 */
 .composer-tile {
   position: relative;
   flex: none;
@@ -43,17 +37,14 @@
   outline-offset: var(--cp-px);
 }
 
-/* 图、转圈、字形同占一格：解码完成的那一刻这一格不会有任何位移。 */
+/* 图、转圈、字形同占一格：解码完成时这一格不位移。 */
 .composer-tile__image,
 .composer-tile__spinner,
 .composer-tile__mark {
   grid-area: 1 / 1;
 }
 
-/*
- * 非图片那一格：字形在上、类型名在下，所以它不是叠在一格里的那三样。
- * 覆盖掉共用的 grid-area，否则字形会压在类型名上。
- */
+/* 字形与类型名是竖排的，要覆盖共用的 grid-area，否则字形会压在类型名上。 */
 .composer-tile__file {
   align-content: center;
   gap: var(--cp-tile-inset);
@@ -82,7 +73,6 @@
   block-size: 100%;
   inline-size: 100%;
   object-fit: cover;
-  /* 还没解码完的那一帧不画：半张图比一格干净的底更吵。 */
   opacity: 0;
   transition: opacity var(--cp-motion-swift) var(--cp-motion-ease);
 }
@@ -101,10 +91,7 @@
   }
 }
 
-/*
- * 持续旋转对前庭敏感的人是诱因（WCAG 2.2 SC 2.3.3）。停掉的是位移，不是「还在
- * 等」这句话，所以换成明暗呼吸而不是直接不动。
- */
+/* 持续旋转是前庭敏感者的诱因（WCAG 2.2 SC 2.3.3）：停的是位移，换成明暗呼吸。 */
 @media (prefers-reduced-motion: reduce) {
   .composer-tile__spinner {
     animation: composer-tile-breathe 1600ms ease-in-out infinite;
@@ -121,15 +108,7 @@
   }
 }
 
-/*
- * 删除键落在格内右上角。
- *
- * 它压在图上，而不是排在图旁边：并排要为按钮另留一列，那正是旧那一行占满整个
- * 输入框宽度的原因。
- *
- * 静息隐形，指针进这一格才现身：缩略图自己是主角，一枚常驻的圆点在整个附件条上
- * 就是一片噪点。位置照旧占着 —— 绝对定位本就不占流内，淡入淡出不会让图动一下。
- */
+/* 删除键压在图上，占流内会为按钮多留一列、把这一行撑满输入框宽。 */
 .composer-tile__remove {
   position: absolute;
   display: grid;
@@ -151,20 +130,14 @@
     background-color var(--cp-motion-swift) var(--cp-motion-ease);
 }
 
-/*
- * 指针进这一格、或键盘落在格内任一控件上，按钮现身并接管指针。
- *
- * 键盘那一条不是补丁：opacity 隐形的按钮仍在无障碍树里、仍可聚焦，只写 :hover
- * 就是一个「Tab 得到、却看不见」的陷阱。指针从图移到按钮上也不会中断 —— 按钮是
- * 这一格的子孙，:hover 一直成立，所以显隐纯靠 CSS，不需要 JS 退场宽限。
- */
+/* 指针进格或键盘落在格内控件上按钮都现身：opacity 隐形的按钮仍在无障碍树里、仍可聚焦，只写 :hover 就是「Tab 得到却看不见」的陷阱。 */
 .composer-tile:hover .composer-tile__remove,
 .composer-tile:focus-within .composer-tile__remove {
   opacity: 1;
   pointer-events: auto;
 }
 
-/* 没有 hover 能力的设备不能依赖悬停发现删除键。 */
+/* 没有 hover 能力的设备不能靠悬停发现删除键。 */
 @media (hover: none) and (pointer: coarse) {
   .composer-tile__remove {
     opacity: 1;
@@ -172,10 +145,7 @@
   }
 }
 
-/*
- * 命中区撑到 24×24（WCAG 2.2 SC 2.5.8）。撑的是命中区不是字形：圆点再大就会啃掉
- * 缩略图的一个角。外扩 2px 之后仍落在格内，不会伸到相邻那一格上。
- */
+/* 命中区撑到 24×24（WCAG 2.2 SC 2.5.8）：撑的是命中区不是字形。 */
 .composer-tile__remove::after {
   content: "";
   position: absolute;

@@ -6,11 +6,7 @@ import type { QuestionAnswerMethod, QuestionResponse } from '../../agent/questio
 import type { QuestionTimelineItem } from '../../timeline/timeline-contract'
 import { answerOf, EMPTY_DRAFT, type QuestionDraft, responseOf } from '../semantics/question-answer'
 
-/*
- * 一组题一次只画一道，全部答完或跳过后才提交。
- * 数字键、空格与回车仍可操作；最后一次选择手势随答复上报。
- * 面板状态随题组 key 重建，QuestionResponse 只由 responseOf 生成。
- */
+/* 一组题一次只画一道，全部答完或跳过后才提交；面板状态随题组 key 重建，QuestionResponse 只由 responseOf 生成。 */
 
 /* 数字键覆盖协议选项和末尾的“其他”。 */
 const HOTKEYS = ['1', '2', '3', '4', '5', '6', '7', '8', '9']

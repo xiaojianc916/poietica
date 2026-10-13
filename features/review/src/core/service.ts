@@ -39,7 +39,6 @@ export interface GitBranchInfo {
   readonly lastCommitAt: number | null
 }
 
-/** 空状态：不是仓库时的形状（07 页 §10C 第 2 条）。 */
 const EMPTY: GitStatus = {
   isRepo: false,
   branch: null,
@@ -51,10 +50,7 @@ const EMPTY: GitStatus = {
   unstaged: [],
 }
 
-/**
- * 错误码转换只在这里做（07 页 §10C）：
- * GitNotFoundError → review.git_not_found；其余 git 子进程失败 → review.git_failed（data 带 stderr）。
- */
+/** 错误码转换只在这里做：GitNotFoundError → review.git_not_found；其余 git 子进程失败 → review.git_failed（data 带 stderr）。 */
 async function translate<T>(logger: Logger, run: () => Promise<T>): Promise<T> {
   try {
     return await run()
@@ -138,13 +134,9 @@ export function createReviewService(d: ReviewServiceDeps): ReviewService {
     filePatch: (cwd, path, base) =>
       translate(logger, async () => {
         const git = d.gitFor(cwd)
-        // 跟踪状态由服务自己判（05 页 §11 的 git.filePatch 参数里没有它）：exitCode 1 = 未跟踪
         const tracked = await git.run(['ls-files', '--error-unmatch', '--', path], { okExitCodes: [0, 1] })
         if (tracked.exitCode !== 0) {
-          /*
-           * 未跟踪文件的 diff：Windows 的空设备名是 NUL；这个命令有差异时退出码是 1，
-           * 要视为成功（07 页 §10C）。
-           */
+          /* Windows 的空设备名是 NUL；这个命令有差异时退出码是 1，要视为成功。 */
           const r = await git.run(['diff', '--no-index', '--', 'NUL', path], { okExitCodes: [0, 1] })
           return r.stdout
         }
@@ -236,7 +228,6 @@ async function reviewFiles(git: Git, base: 'HEAD' | 'index'): Promise<ReviewFile
     })
   }
   if (cached) return files
-  /* 未跟踪文件不在 diff 里：行数用文件行数计（07 页 §10C）。 */
   const others = await git.run(['ls-files', '--others', '--exclude-standard', '-z'])
   for (const relative of parseNulList(others.stdout)) {
     const counted = await countLines(git.cwd, relative)
@@ -245,28 +236,17 @@ async function reviewFiles(git: Git, base: 'HEAD' | 'index'): Promise<ReviewFile
   return files
 }
 
-/**
- * 未跟踪文件的行数：按文件自身的行数算（07 页 §10C）。
- *
- * 二进制（含无效 UTF-8）读不出「行」，按 diff 的同一约定记 `binary: true`、行数 0 ——
- * 让屏幕上的 `+0 −0` 与「这一份不是文本」区分开。读失败（权限、并发删除）不炸整次
- * review：交给上层的 translate 会把它变成 git_failed，而一个读不到的新文件不该让
- * 整块「改动」消失。
- */
+/** 未跟踪文件的行数按文件自身算。二进制（含无效 UTF-8）读不出「行」，按 diff 的同一约定记 binary: true、行数 0 —— 让屏幕上
+ * 的 +0 −0 与「这一份不是文本」区分开。读失败不炸整次 review。 */
 async function countLines(
   cwd: string,
   relative: string,
 ): Promise<Pick<ReviewFile, 'additions' | 'deletions' | 'binary'>> {
   try {
     const bytes = await Bun.file(path.join(cwd, relative)).bytes()
-    /* 与 git 同一条判据：含 NUL 字节即视为二进制 */
     if (bytes.includes(0)) return { additions: 0, deletions: 0, binary: true }
     const text = new TextDecoder('utf-8', { fatal: true }).decode(bytes)
     if (text === '') return { additions: 0, deletions: 0, binary: false }
-    /*
-     * 行数 = 换行符个数 + 末尾没有换行时补 1。空文件是 0 行（git 的 numstat 对
-     * 空新增文件也报 0）。
-     */
     const newlines = text.split('\n').length - 1
     return { additions: text.endsWith('\n') ? newlines : newlines + 1, deletions: 0, binary: false }
   } catch {
@@ -274,7 +254,6 @@ async function countLines(
   }
 }
 
-/** 测试用：把 git 包里的 createGit 直接接上 */
 export function gitFor(cwd: string): Git {
   return createGit({ cwd })
 }

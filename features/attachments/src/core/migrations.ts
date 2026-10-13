@@ -1,6 +1,6 @@
 import type { Migration } from '@poietica/storage-sqlite'
 
-/** DDL 照 08 页 §5.3 原样（三张表：内容、条目、引用） */
+/** 三张表：内容、条目、引用。 */
 export const migrations: readonly Migration[] = [
   {
     version: 1,

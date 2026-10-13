@@ -26,22 +26,9 @@ import { AutomationRunHistory } from './automation-run-history'
 import { AutomationScheduleField, type ScheduleValue } from './automation-schedule-field'
 import type { AutomationsStore } from './automations-store'
 
-/*
- * 编辑器。逐字迁移自 legacy `packages/automation/src/ui/automation-editor.tsx`
- * （超过 400 行属于 legacy 逐字迁移的先例，P5 同此），只换数据来源：
- *
- *   - 新契约没有 revision / 乐观并发，也就没有「版本冲突」那一条警报与「保留草稿并重新
- *     确认」那一次确认；
- *   - 会话配置由 legacy 的不透明 sessionConfig 字典换成 posture / model / thinking 三格，
- *     工具条上是姿态、思考强度、模型三格（AutomationComposer；后两格的可选项读
- *     conversation 的 controls.draft，审查 R-16）；
- *   - 审查 R-16 加了「一次」计划（Schedule.at）与「运行方式」一栏（对话 / 通知 / 错过补跑）；
- *   - 工作区选择器换成 workspaces 的同一枚组件（ui-api 的公开资产），choices 由 surface
- *     从 WorkspacesUiToken 派生；
- *   - 预览按 07 页 §9E 的要求在输入停止 300ms 后请求（legacy 是 250ms），读 times[0]；
- *   - 运行历史不进 Automation 实体（实体只带 lastRun），由 surface 从 store 的 runs
- *     缓存传进来。
- */
+/* 编辑器。新契约没有 revision / 乐观并发，因此没有「版本冲突」警报与「保留草稿并重新确认」；会话配置由 legacy 的不透明
+ * sessionConfig 换成 posture / model / thinking 三格；R-16 加了「一次」计划与「运行方式」一栏；工作区选择器换成 workspaces
+ * 的同一枚组件；预览在输入停止 300ms 后请求（legacy 是 250ms），读 times[0]。 */
 
 export interface AutomationEditorProps {
   readonly automation: Automation | null
@@ -56,7 +43,6 @@ export interface AutomationEditorProps {
 
 const FORM_ID = 'automation-editor-form'
 
-/* 「调度」标题右边那句旁注：下一次什么时候跑。以本机时间计。 */
 function statusText(
   preview: { readonly times: readonly number[]; readonly problem: ScheduleProblem | null } | null,
 ): string {
@@ -77,12 +63,6 @@ function workspaceChoiceOf(workspaceId: string, choices: readonly WorkspaceChoic
   return choices.find((choice) => choice.id === workspaceId) ?? { id: workspaceId, name: workspaceId }
 }
 
-/*
- * 表单上方的两条警报：本地/全局错误与任务自带的问题。有哪条报哪条。
- *
- * legacy 还有第三条 —— 版本冲突。新契约（07 页 §9B）没有 revision，写入不做乐观并发，
- * 那一条随之取消。
- */
 function EditorAlerts({ issue, message }: { readonly issue: string | null; readonly message: string | null }) {
   return (
     <>
@@ -107,11 +87,7 @@ const EDITOR_VIEWS = [
   { value: 'runs', label: '历史' },
 ] as const satisfies readonly SegmentedOption<EditorView>[]
 
-/*
- * 面包屑是这一页唯一确定的返回入口，坐在页面最左上角：贴面板内缘 16px —— 与面板
- * 卡片圆角半径同档，再往里就压到圆角的弧上；它不跟正文那条居中列缩进。「自动化」
- * 可点即返回列表，悬停时带一块底色，点得到才看得出来。
- */
+/* 这一页唯一确定的返回入口。贴面板内缘 16px，不跟正文那条居中列缩进。 */
 function EditorBreadcrumb({
   automation,
   onBack,
@@ -143,7 +119,6 @@ function Field({
   htmlFor,
   label,
 }: {
-  /* 标题行右侧的旁注，如「调度」右边的下一次运行时间。基线对齐，超长省略。 */
   readonly aside?: ReactNode
   readonly children: ReactNode
   readonly htmlFor?: string
@@ -166,7 +141,6 @@ function Field({
   )
 }
 
-/* 「状态」字段：胶囊与右边的滑块说的是同一件事 —— 这条任务开不开。 */
 function StatusField({
   enabled,
   hasSchedule,
@@ -191,12 +165,7 @@ function StatusField({
   )
 }
 
-/*
- * 胶囊只有两档：任务开着是「运行中」，关掉是「已暂停」。
- *
- * 读的是这一页的开关值，不是落盘的那一份 —— 胶囊与开关在同一行，说的是同一件事；
- * 拨了开关而胶囊不动，屏幕上就同时挂着两个状态。
- */
+/** 只有两档：开着是「运行中」，关掉是「已暂停」。读这一页的开关值而不是落盘那份 —— 拨了开关而胶囊不动，屏幕上就同时挂着两个状态。 */
 function StatusBadge({ enabled }: { readonly enabled: boolean }) {
   return (
     <span className="inline-flex items-center gap-2 rounded-lg bg-sidebar-accent px-3 py-1.5 text-xs">
@@ -206,11 +175,7 @@ function StatusBadge({ enabled }: { readonly enabled: boolean }) {
   )
 }
 
-/*
- * 视图切换与提交键同一行：左边切「设置 / 历史」，右边是这一页的动作。
- * 提交键在 form 外面，靠 form 属性把这一页的字段一起交出去。
- * 「立即运行」跑的是已保存的版本，草稿未落盘时它不可点；暂停与删除收进省略号菜单。
- */
+/** 提交键在 form 外面，靠 form 属性把字段一起交出去；「立即运行」跑的是已保存的版本，草稿未落盘时不可点。 */
 function EditorToolbar({
   active,
   automation,
@@ -238,7 +203,6 @@ function EditorToolbar({
   readonly store: AutomationsStore
   readonly view: EditorView
 }) {
-  /* 与列表页「创建定时任务」同一张脸：最高对比的一档，白底反字。 */
   const submitClassName = 'bg-foreground text-background hover:opacity-90'
   return (
     <div className="mt-6 flex items-center gap-3">
@@ -313,11 +277,6 @@ function EditorToolbar({
   )
 }
 
-/*
- * 两枚确认框：删除与放弃草稿。
- *
- * legacy 还有第三枚「用当前草稿编辑最新版本？」—— 随 revision 一起取消（见 EditorAlerts）。
- */
 function EditorDialogs({
   automation,
   confirmingBack,
@@ -367,8 +326,6 @@ function EditorDialogs({
     </>
   )
 }
-
-/* ── 运行方式（审查 R-16）：对话、通知、错过补跑 ─────────────────────────── */
 
 const THREAD_OPTIONS = [
   { value: 'new', label: '每次新开对话' },
@@ -481,7 +438,6 @@ function RunOptionsField({
   )
 }
 
-/** 控件表 → 编辑器要的可选项：模型表与默认模型读不带模型的那份，档位读选中模型那份 */
 function choicesOf(base: Controls, picked: Controls | null): ModelChoices {
   const models = base.model.choices.map((c) => ({ ref: c.ref, label: c.label }))
   const current = base.model.current
@@ -492,7 +448,6 @@ function choicesOf(base: Controls, picked: Controls | null): ModelChoices {
   return { models, defaultLabel, thinking: (picked ?? base).thinking.choices }
 }
 
-/* 读可选项：模型一变就重读档位。读失败给空表（控件仍可用，只是只剩「默认」）。 */
 function useModelChoices(store: AutomationsStore, model: ModelRef | null): ModelChoices | null {
   const [choices, setChoices] = useState<ModelChoices | null>(null)
   const provider = model?.provider ?? null
@@ -556,7 +511,6 @@ export function AutomationEditor({
   const { cron, at } = schedule
   const hasSchedule = cron !== null || at !== null
 
-  /* 时区不由界面给：任务一律按系统时区跑，编辑器只读草稿里那一份。 */
   const timeZone = draft.schedule.timeZone
   const next: AutomationDraft = useMemo(
     () => ({
@@ -568,7 +522,6 @@ export function AutomationEditor({
       model,
       thinking,
       threadMode,
-      /* 续用的那条对话由 Core 记；改成「每次新开」就忘掉它，切回续用时第一次运行再新建 */
       threadId: threadMode === 'new' ? null : baselineDraft.threadId,
       notify,
       catchUp,
@@ -603,7 +556,6 @@ export function AutomationEditor({
   const currentWorkspace = workspaceChoiceOf(workspaceId, workspaceChoices)
   const active = activeRun(runs)
 
-  /* 输入停止 300ms 后请求预览（07 页 §9E）；超时请求作废的方式是清掉定时器。 */
   useEffect(() => {
     let disposed = false
     const timer = setTimeout(() => {
@@ -740,7 +692,6 @@ export function AutomationEditor({
                     model={model}
                     onModelChange={(picked) => {
                       setModel(picked)
-                      /* 档位是模型的：换了模型，原来那一档不一定还在，回到「默认」 */
                       setThinking(null)
                     }}
                     onPostureChange={setPosture}

@@ -45,7 +45,7 @@ describe('T-ISO-5：假用户目录', () => {
 
     /*
      * 断言：除了数据根这一条路径链之外，假用户目录里没有任何文件或目录。
-     * 特别是不能出现 .omp、.agents、.config（12 页 §12.4）。
+     * 特别是不能出现 .omp、.agents、.config。
      */
     const realHome = homedir()
     if (path.resolve(fakeHome).startsWith(path.resolve(realHome))) {
@@ -65,7 +65,7 @@ describe('T-ISO-5：假用户目录', () => {
       if (rel.startsWith('.bun/')) continue
       throw new Error(`假用户目录里出现了数据根之外的路径：${rel}`)
     }
-    // 12 页 §12.4 点名的三处：全局 omp、跨工具用户目录、XDG 配置
+    // 点名的三处：全局 omp、跨工具用户目录、XDG 配置
     expect(entries.some((rel) => rel === '.omp' || rel.startsWith('.omp/'))).toBe(false)
     expect(entries.some((rel) => rel === '.agents' || rel.startsWith('.agents/'))).toBe(false)
     expect(entries.some((rel) => rel === '.config' || rel.startsWith('.config/'))).toBe(false)

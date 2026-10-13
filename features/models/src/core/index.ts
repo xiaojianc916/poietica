@@ -37,7 +37,7 @@ export default defineCoreModule({
     ctx.rpc.handle('models.defaults', () => service.defaults())
     ctx.rpc.handle('models.titleModel', async () => {
       const { model, choices } = await service.titleModel()
-      /* 契约那一格收可变数组，这里按值拷一份（只读是服务内部的约定，不该漏到线上） */
+      /* 契约那一格收可变数组，这里按值拷一份（只读是服务内部的约定，不该漏到线上）。 */
       return { model, choices: [...choices] }
     })
     ctx.rpc.handle('models.setTitleModel', async ({ model }) => {
@@ -52,7 +52,7 @@ export default defineCoreModule({
       return {}
     })
 
-    // omp 自己刷新目录时 UI 也能更新（07 页 §6C：两者都 emit，重复通知无害）
+    // omp 自己刷新目录时 UI 也能更新（两者都 emit，重复通知无害）。
     ctx.disposables.add(
       ctx.engine.models.onDidChange(() => {
         ctx.rpc.emit('models.changed', {})

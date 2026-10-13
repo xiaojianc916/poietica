@@ -5,13 +5,7 @@ import { AutomationDraft, AutomationPatch } from '../../contract/entities'
 import { migrations } from '../migrations'
 import { buildCore, fullDraft, stubWorkspaces, testWorkspace } from './helpers'
 
-/*
- * 审查 R-14：契约与数据模型。
- *   D1 更新用的 patch 不带默认值（zod 4 会在 .partial() 里套用 .default()，只改标题会把模型冲掉）；
- *   D2 迁移 v2 保住旧行；
- *   D3–D5 一次性计划的校验；
- *   D6–D8 续用对话的规矩。
- */
+/* R-14：D1 patch 不带默认值；D2 迁移 v2 保住旧行；D3–D5 一次性计划的校验；D6–D8 续用对话的规矩。 */
 
 const HOUR = 3_600_000
 
@@ -27,7 +21,7 @@ function codeOf(fn: () => unknown): string | null {
 describe('R-14 契约与数据模型', () => {
   test('D1 patch 表不带默认值：只给标题就只有标题（旧的 AutomationDraft.partial() 会补出 posture/model/thinking）', () => {
     expect(AutomationPatch.parse({ title: '改个名' })).toEqual({ title: '改个名' })
-    /* 对照：旧写法确实会补默认值 —— 这就是 bug 的来源 */
+    /* 对照：旧写法确实会补默认值 —— 这就是 bug 的来源。 */
     expect(AutomationDraft.partial().parse({ title: '改个名' })).toMatchObject({ posture: 'auto-edit', model: null })
   })
 
@@ -56,7 +50,6 @@ describe('R-14 契约与数据模型', () => {
       )
       .get()
     expect(r).toEqual({ id: 'r1', outcome: 'succeeded', summary: null, attention: 0 })
-    /* 新的结局与触发方式写得进去 */
     m.prepare(
       `INSERT INTO automations_runs (id, automation_id, triggered_by, started_at, outcome) VALUES ('r2', 'a1', 'catch_up', 5, 'skipped')`,
     ).run()
@@ -90,7 +83,6 @@ describe('R-14 契约与数据模型', () => {
     expect(renamed.issue).toBeNull()
     expect(renamed.nextRunAt).toBeNull()
     expect(codeOf(() => service.setEnabled(once.id, true))).toBe('automations.invalid_schedule')
-    /* 改成未来的时间就能再启用 */
     service.update(once.id, { schedule: { cron: null, at: clock.now() + HOUR, timeZone: 'UTC' } })
     expect(service.setEnabled(once.id, true).enabled).toBe(true)
     db.close()

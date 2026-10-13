@@ -38,6 +38,6 @@ export default defineCoreModule({
       list: service.list,
     })
 
-    // scratchDir 由 createScratch 的第一次写入创建（08 页 §1 的“谁创建目录”表：第一次写入时 ensureDir）
+    // scratchDir 由 createScratch 的第一次写入创建（第一次写入时 ensureDir）。
   },
 })

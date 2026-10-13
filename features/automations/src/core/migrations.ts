@@ -1,6 +1,5 @@
 import type { Migration } from '@poietica/storage-sqlite'
 
-/** DDL 照 08 页 §5.4 原样；列名 triggered_by 避开 SQL 关键字，实体字段名仍是 trigger */
 export const migrations: readonly Migration[] = [
   {
     version: 1,
@@ -39,11 +38,8 @@ CREATE INDEX automations_runs_by_automation ON automations_runs (automation_id, 
 CREATE INDEX automations_runs_open ON automations_runs (outcome) WHERE outcome IN ('running', 'awaiting');`,
   },
   {
-    /*
-     * 审查 R-14：一次性计划（run_at）、续用对话（thread_mode / thread_id）、通知策略（notify）、
-     * 错过补跑（catch_up）；运行记录加 agent 汇报（summary / attention）、触发方式 catch_up、
-     * 结局 skipped。SQLite 改不了已有列的 CHECK，所以运行表整张重建（行原样搬过去）。
-     */
+    /* R-14 加的列：run_at、thread_mode / thread_id、notify、catch_up，运行表另加 summary / attention 与 catch_up 触发。
+     * SQLite 改不了已有列的 CHECK，所以运行表整张重建（行原样搬过去）。 */
     version: 2,
     name: 'r14-automation-upgrade',
     sql: `ALTER TABLE automations_automations ADD COLUMN run_at INTEGER;

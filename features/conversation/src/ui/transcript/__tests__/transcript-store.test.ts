@@ -8,10 +8,8 @@ import { TranscriptStore } from '../transcript-store'
 import { readFailedSubmissionText } from '../use-assistant-session'
 
 /*
- * 会话接线的四条回归（真实故障「这个界面还没有接上助手会话。」的守卫）。
- *
- * 四条都盯着同一类错误：**端口这一层的身份与生命周期**。它们是纯 store/状态机，
- * 不需要渲染树 —— 判据写在这里，组件只负责把它们接起来。
+ * 真实故障「这个界面还没有接上助手会话。」的守卫：四条都盯着**端口这一层的身份与生命周期**。
+ * 它们是纯 store/状态机，不需要渲染树 —— 判据写在这里，组件只负责把它们接起来。
  */
 
 const EMPTY_PAGE: TranscriptPage = {
@@ -38,11 +36,7 @@ const EMPTY_QUEUE: QueuedMessages = {
   interruptMode: 'immediate',
 }
 
-/**
- * 一根记账用的假端口。
- *
- * `active` 是它此刻还活着的订阅数（订阅加一、退订减一）——第 3、4 条判据量它。
- */
+/** `active` 是此刻还活着的订阅数（订阅加一、退订减一）—— 第 3、4 条判据量它。 */
 function fakePort(threadId: string) {
   const state = { active: 0, opened: 0, prompts: [] as string[] }
   const track = () => {
@@ -110,12 +104,7 @@ const submit = (text: string) => ({
 })
 
 describe('会话接线的四条回归', () => {
-  /*
-   * 真实故障的正面判据：入口那一格（键是 `''`）的第一句话，必须能经 `prepare` 铸出号、
-   * 落到新号上、并且不再抛「这个界面还没有接上助手会话。」。
-   *
-   * 顺序是这一条的全部内容：**先 prepare 再取端口**。反过来的话入口页永远发不出第一句。
-   */
+  /* 顺序是这一条的全部内容：**先 prepare 再取端口**，反过来的话入口页永远发不出第一句。 */
   test('入口页第一句话：先铸号再取端口，提交落到新号上', async () => {
     const ports = new Map<string, ReturnType<typeof fakePort>>()
     const store = new TranscriptStore({
@@ -155,9 +144,8 @@ describe('会话接线的四条回归', () => {
     expect(store.read('t-new').loaded).toBe(false)
     expect(store.read('t-new').submissions.map((entry_) => entry_.text)).toEqual(['你好'])
     /*
-     * 入口那一格**不记别名**：它是「还没铸号」这个位置，不是某条对话。
-     * 记成 `'' -> t-new` 之后，下一次从入口页发消息时，提交会先写进上一条对话
-     * （真机故障：上一条对话冒出幽灵提交、新对话的气泡要等 AI 回复完才出现）。
+     * 入口那一格**不记别名**：记成 `'' -> t-new` 后，下次从入口页发消息会先写进上一条对话
+     * （真机故障：上一条冒出幽灵提交、新对话的气泡要等 AI 回复完才出现）。
      */
     expect(store.read('').submissions).toEqual([])
   })
@@ -178,7 +166,7 @@ describe('会话接线的四条回归', () => {
     })
 
     expect(handle).toBeNull()
-    /* 正文还在（横幅上的「取回文字」认的就是它），来源标成 failed。 */
+    /* 正文还在（横幅上的「取回文字」认的就是它）。 */
     const held = store.read('')
     expect(held.submissions.map((entry) => [entry.text, entry.phase])).toEqual([['这句话要取回来', 'failed']])
     expect(held.operation.kind).toBe('failed')
@@ -215,7 +203,7 @@ describe('会话接线的四条回归', () => {
     expect(created).toBe(1)
     expect(left?.key).toBe('t1')
     expect(right?.key).toBe('t1')
-    /* 第三次是顺序调用：已经铸过，原样交回，不再建第二条。 */
+    /* 第三次已经铸过，原样交回，不再建第二条。 */
     expect((await entry.prepare(request))?.key).toBe('t1')
     expect(created).toBe(1)
   })
@@ -263,20 +251,12 @@ describe('会话接线的四条回归', () => {
 })
 
 /*
- * 真实故障：对话已经结束，发送键却一直转圈。
- *
- * 根因是**两本账记的号不是同一套**。`TranscriptStore.#publish` 按 agent 报的
- * `promptId`（快照里 prompt 自己的号，`knownPromptIds` 扫的就是它）销掉待发提交；
- * 而这一侧存进 `PendingSubmission.promptId` 的，是 UI 自己铸的 **clientTurnId**
- * （`session-port.ts` 的 `prompt` 把它当 promptId 交回）。两个词表交集为空 —— 那一条
- * 提交永远收不掉，`activityOf` 恒判「提交中」，`PromptInputSubmit` 的 svg 就一直在转。
- *
- * 修法是给 store 补一口**按 clientTurnId 销账**的入口（`settleSubmissions`），由
- * `ui/index.tsx` 从 `turn.upsert` 带回的 `clientTurnId` 调用 —— 真实那一轮出现了，
- * 这一句就不再是「待发」。
+ * 真实故障：对话已经结束，发送键却一直转圈。根因是**两本账记的号不是同一套** —— `#publish` 按 agent 报的 `promptId` 销账，
+ * 而这一侧存的是 UI 铸的 **clientTurnId**，两个词表交集为空，那一条提交永远收不掉，`activityOf` 恒判「提交中」。
+ * 修法是补一口按 clientTurnId 销账的入口（`settleSubmissions`），由 `ui/index.tsx` 从 `turn.upsert` 的 `clientTurnId` 调用。
  */
 describe('待发提交按 clientTurnId 收口（发送键不再空转）', () => {
-  /** 造一台只认「提交」的假端口；promptId 就是调用方给的号，便于对照。 */
+  /** 造一台只认「提交」的假端口；promptId 就是调用方给的号。 */
   function storeWithPort() {
     const ports = new Map<string, ReturnType<typeof fakePort>>()
     const store = new TranscriptStore({
@@ -301,7 +281,7 @@ describe('待发提交按 clientTurnId 收口（发送键不再空转）', () =>
     store.settleSubmissions('t1', [handle!.promptId])
 
     expect(store.read('t1').submissions).toEqual([])
-    /* 收掉之后没有待发提交，也没在跑 —— 状态不再是「提交中」（发送键不转的前提）。 */
+    /* 收掉后没有待发提交也没在跑 —— 状态不再是「提交中」，这是发送键不转的前提。 */
     expect(store.read('t1').status).not.toBe('submitted')
   })
 
@@ -352,10 +332,8 @@ describe('待发提交按 clientTurnId 收口（发送键不再空转）', () =>
 })
 
 /*
- * R-04 §3.6：Core 换代之后，已绑定的对话要能重读；正在显示的立即读，其余等下次打开。
- *
- * 旧实现没有这两口：重启之后 UI 侧没有任何路径知道「副本的游标属于旧进程」，
- * 时间线于是冻结（新进程的 seq 从 1 重新开始，副本按旧水位判成重复）。
+ * Core 换代之后：正在显示的对话立即重读，其余等下次打开。旧实现没有这两口 —— 重启后 UI 侧没有任何路径知道
+ * 「副本的游标属于旧进程」，时间线于是冻结（新进程 seq 从 1 重来，副本按旧水位判成重复）。
  */
 describe('Core 换代后的重新同步（R-04 §3.6）', () => {
   /** 一根可记账、可主动推信号的假端口。 */
@@ -414,12 +392,7 @@ describe('Core 换代后的重新同步（R-04 §3.6）', () => {
     await Bun.sleep(0)
     expect(held.state.reads).toBe(1)
 
-    /*
-     * 模拟端口层的换代输出：一条 reset，随后新进程 seq=1 的 op。
-     *
-     * 换代后的整读交回**新进程的水位 0**（旧进程留在副本里的水位是 100）——
-     * 这正是旧代码丢掉整批新数据的那种相位。
-     */
+    /* 换代后的整读交回**新进程的水位 0**（旧进程留在副本里的是 100）—— 这正是旧代码丢掉整批新数据的相位。 */
     held.state.nextSeq = 0
     held.emit({ kind: 'reset', sessionId: 't1', agentId: 'main', seq: undefined })
     await Bun.sleep(0)
@@ -438,7 +411,7 @@ describe('Core 换代后的重新同步（R-04 §3.6）', () => {
       ],
     })
     await Bun.sleep(0)
-    /* seq=1 被真的应用：这一轮画进了时间线（状态跟着 running）。 */
+    /* seq=1 被真的应用：这一轮画进了时间线。 */
     expect(store.read('t1').loaded).toBe(true)
     expect(store.read('t1').status).toBe('running')
   })
@@ -480,11 +453,8 @@ describe('Core 换代后的重新同步（R-04 §3.6）', () => {
 })
 
 /*
- * R-08-5：排过队 / 插过话的那一句，Core 重启后是「未送达」。
- *
- * omp 的插话 / 排队队列住进程内存里，Core 一崩就没了；对应提交行留在库里收成 failed。
- * 界面从前只画 `deliverAs === 'turn'` 的提交行，于是那句话在屏幕上一个字都不剩 ——
- * 没有队列（队列不存在了）、没有气泡（这条不画）、也没有真实轮（从来没有过）。
+ * 排过队 / 插过话的那一句，Core 重启后是「未送达」：omp 的插话 / 排队队列住进程内存，Core 一崩就没了。
+ * 界面从前只画 `deliverAs === 'turn'` 的提交行，于是那句话在屏幕上一个字都不剩 —— 没有队列、没有气泡、也没有真实轮。
  */
 describe('R-08-5 未送达的插话 / 排队也画成气泡', () => {
   const submission = (over: Partial<import('../../../contract').SubmissionView>) => ({
@@ -531,7 +501,7 @@ describe('R-08-5 未送达的插话 / 排队也画成气泡', () => {
       submission({ clientTurnId: 'c3', deliverAs: 'steer', status: 'pending', text: '还没交出去' }),
     )
 
-    /* 排队中的那些由队列区显示（`queue.changed`），时间线里不该多一份 */
+    /* 排队中的那些由队列区显示，时间线里不该多一份。 */
     expect(rowsOf(store, 't1').map((row) => row.text)).toEqual(['插了一句'])
   })
 
@@ -545,9 +515,8 @@ describe('R-08-5 未送达的插话 / 排队也画成气泡', () => {
   })
 
   /*
-   * 「取回文字」那颗键的正文来源（R-08-5）：Core 库里的失败行是排队 / 插话那一路唯一的
-   * 来源 —— 本机从不登记它们（没有乐观轮可收）。只认**最后一条**，否则人重发之后旧失败
-   * 还会顶在横幅上。
+   * Core 库里的失败行是排队 / 插话那一路唯一的来源 —— 本机从不登记它们。只认**最后一条**，
+   * 否则人重发之后旧失败还会顶在横幅上。
    */
   test('失败行的正文按最后一条取；成功的那些不算', () => {
     const store = new TranscriptStore({ sessions: () => fakePort('t1').port })
@@ -556,7 +525,7 @@ describe('R-08-5 未送达的插话 / 排队也画成气泡', () => {
     store.upsertSubmission('t1', submission({ clientTurnId: 'c1', text: '旧的一句' }))
     expect(readFailedSubmissionText(store.read('t1'))).toBe('旧的一句')
 
-    /* 之后又成功发出了一句：失败这件事已经翻篇，横幅与那颗键都不该再出现 */
+    /* 之后又成功发出了一句：失败这件事已经翻篇，横幅与那颗键都不该再出现。 */
     store.upsertSubmission('t1', submission({ clientTurnId: 'c2', text: '新的一句', status: 'started', turnId: 't1' }))
     expect(readFailedSubmissionText(store.read('t1'))).toBeNull()
   })
@@ -564,13 +533,9 @@ describe('R-08-5 未送达的插话 / 排队也画成气泡', () => {
 
 describe('入口页开的对话：队列的撤回 / 换层落到真对话的端口上', () => {
   /*
-   * 真实故障：从入口页发第一句开出的对话，AI 回复时再发一句进了队列，队列条上
-   * 「插话」「撤回」两枚键点了都没反应。
-   *
-   * 队列条在入口页就挂上了，`queue('')` 那一刻建出的 MessageQueue 把键 `''` 关进了
-   * 闭包；第一句话把它迁到真对话号下（`#migrate`）—— 快照照收，屏幕照画，但写动作
-   * 仍拿 `''` 找端口，入口那一格没有端口（也不记别名），于是抛「这个界面还没有接上
-   * 助手会话。」，失败又记在 `''` 那一格上，对话里什么都看不见。
+   * 真实故障：从入口页发第一句开出的对话，AI 回复时再发一句进了队列，队列条上「插话」「撤回」两枚键点了都没反应。
+   * 队列条在入口页就挂上了，`queue('')` 那一刻把键 `''` 关进了闭包；第一句话把它迁到真对话号下 —— 快照照收、屏幕照画，
+   * 但写动作仍拿 `''` 找端口，而入口那一格没有端口（也不记别名），于是失败记在 `''` 上，对话里什么都看不见。
    */
   function entryStore(writes: Pick<AgentSessionPort, 'withdraw' | 'move'>) {
     const ports = new Map<string, AgentSessionPort>()
@@ -608,7 +573,7 @@ describe('入口页开的对话：队列的撤回 / 换层落到真对话的端�
         return { ...EMPTY_QUEUE, threadId: 't-new' }
       },
     })
-    /* 入口页渲染时就取了这一格的队列（输入框只挂一处，队列条跟着它） */
+    /* 入口页渲染时就取了这一格的队列（输入框只挂一处，队列条跟着它）。 */
     const early = store.queue('')
     await store.send({ ...submit('你好'), threadId: '', prepare })
     expect(store.queue('t-new')).toBe(early)
@@ -629,7 +594,7 @@ describe('入口页开的对话：队列的撤回 / 换层落到真对话的端�
     await store.send({ ...submit('你好'), threadId: '', prepare })
     const fresh = store.queue('')
     expect(fresh).not.toBe(early)
-    /* 入口那一格还没有号：撤回拿不到端口，失败记在入口那一格，不碰 t-new */
+    /* 入口那一格还没有号：撤回拿不到端口，失败记在入口那一格，不碰 t-new。 */
     expect(await fresh.withdraw('q1')).toBeNull()
     expect(store.read('t-new').operation.kind).not.toBe('failed')
   })

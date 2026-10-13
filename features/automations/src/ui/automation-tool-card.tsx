@@ -25,20 +25,11 @@ import {
 } from './tool-card-model'
 import './automation-tool-card.css'
 
-/*
- * 对话里「定时任务」工具卡（审查 R-16；07 页 §9E 的 `toolCallRenderers`：`/^automation_/`）。
- *
- * 视觉语言全部借时间线：折叠行是 .timeline-row（图标 + 一句话），摊开的那张纸是
- * .timeline-tool__body（--cp-timeline-drawer-surface、--cp-radius-item、缩进到第一个字）。
- * 这里只加时间线没有的几样：任务的标题与状态、计划那一句、元信息网格、接下来几次、
- * 两枚动作。不用阴影、不用渐变、不用品牌色 —— 颜色只出现在状态点与「需要你关注」上。
- *
- * 「这一次调用说了什么」由 tool-card-model.ts 的 toolCardOf 判（纯函数、有测试），
- * 本文件只画。卡片里的动作走 deps（打开编辑页 / 立即运行 / 打开对话），由 index.tsx 装配。
- */
+/* 对话里「定时任务」工具卡（toolCallRenderers：/^automation_/）。视觉语言全部借时间线：折叠行是 .timeline-row，摊开那张纸是
+ * .timeline-tool__body；这里只加时间线没有的几样：标题与状态、计划那句、元信息网格、接下来几次、两枚动作。「这一次调用说了
+ * 什么」由 tool-card-model.ts 的 toolCardOf 判（纯函数、有测试），本文件只画。 */
 
 export interface ToolCardDeps {
-  /** 这条任务现在还在不在（删掉了就不画动作） */
   readonly useExists: (automationId: string) => boolean
   readonly openAutomation: (automationId: string) => void
   readonly runNow: (automationId: string) => void
@@ -263,7 +254,6 @@ function Body({ body, deps, now }: { readonly body: CardBody; readonly deps: Too
   }
 }
 
-/** 纯展示：模型 + 动作。预览页（静态渲染）与真卡片共用这一份。 */
 export function AutomationToolCardView({
   deps,
   model,
@@ -289,7 +279,6 @@ export function AutomationToolCardView({
   )
 }
 
-/** 装配：index.tsx 把 store 与导航交进来，得到 conversation 要的那枚组件。 */
 export function createAutomationToolCard(deps: ToolCardDeps): ComponentType<ToolCallRendererProps> {
   return function AutomationToolCard({ args, result, status, toolName }: ToolCallRendererProps): ReactNode {
     return <AutomationToolCardView deps={deps} model={toolCardOf(toolName, args, result, status)} />

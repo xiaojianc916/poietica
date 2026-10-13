@@ -10,11 +10,7 @@ import {
   type TranscriptOperation,
 } from '@poietica/transcript'
 
-/*
- * 上游那个 \`TranscriptStore\` 不再随包迁入（05 页 §12.1：legacy 的 store/ 不迁移）。
- * 这里只需要它的两件事：按 agent 存一份状态、按 op 推进并报告缺口。
- * 用新包的 applyOps 就地实现，语义与 plan 的 TimelineReplica 同一条。
- */
+/* 只需两件事：按 agent 存一份状态、按 op 推进并报告缺口 —— 用 @poietica/transcript 的 applyOps 就地实现。 */
 interface ReduceResult {
   readonly accepted: readonly TranscriptOperation[]
   readonly gap?: { readonly expected: number; readonly got: number }
@@ -57,7 +53,6 @@ class LocalTranscriptStore {
   readonly #agents = new Map<string, AgentReducer>()
   readonly #roster = new Map<string, { readonly agentId: string; readonly role: string }>()
 
-  /** 已知的 agent 号（legacy 的花名册在 store 里；新架构里它由 task.upsert op 折出来） */
   agents(): readonly { readonly agentId: string; readonly role: string }[] {
     return [...this.#roster.values()]
   }
@@ -72,7 +67,6 @@ class LocalTranscriptStore {
     return agent
   }
 
-  /** legacy 用它给 agent 号配角色（child/member）；新架构里角色来自 task op，认不出就当子 agent */
   describeAgent(descriptor: { readonly agentId: string; readonly name?: string | undefined }): {
     readonly agentId: string
     readonly role: string
@@ -94,7 +88,7 @@ import type { TranscriptCatchUp, TranscriptPage, TranscriptPort, TranscriptSigna
 type Feed = { seq: number; valid: boolean; tail: Promise<void> }
 type Publish = (agentId: string, snapshot: AgentTranscriptSnapshot) => void
 
-/** Fold contiguous catch-up batches; any gap clears complete and stops folding. */
+/** 合并连续的补齐批次；任何缺口都清掉 complete 并停止合并。 */
 function foldCatchUp(
   caught: TranscriptCatchUp,
   from: number,
@@ -142,7 +136,7 @@ function olderSnapshot(earlier: TranscriptPage, current: AgentTranscriptSnapshot
   }
 }
 
-/** One session owns its reducers and ordered recovery work; it owns no UI state. */
+/** 一个会话持有自己的 reducer 与按序的恢复工作；它不持有任何界面状态。 */
 export class TranscriptReplica {
   readonly #transcript: LocalTranscriptStore
   readonly #port: TranscriptPort
@@ -172,7 +166,7 @@ export class TranscriptReplica {
     if (this.#disposed) {
       return
     }
-    // Opening responses cannot replace a baseline owned by ongoing recovery.
+    // 开场答复不能顶掉正在恢复的那一份基线。
     const feed = this.#feeds.get(page.agentId)
     if (feed !== undefined) {
       if (feed.valid) {
@@ -239,12 +233,7 @@ export class TranscriptReplica {
   }
 
   /**
-   * Retire this agent's generation and rebuild it.
-   *
-   * `watermark` 是 server 在 reset 里自报的当前水位（缺席即不知道）。reset 的载荷本身是
-   * 「从当前水位起的尾巴」，而我们手上那一页正好就落在这个水位上时，那截尾巴我们已经
-   * 有了 —— 再整读一次只会拿回同一份正文，一次全文往返白花。
-   *
+   * 退掉这个 agent 的这一代并重建。`watermark` 是 server 在 reset 里自报的当前水位；它正好等于我们手上那一页时，那截尾巴我们已经有了 —— 再整读只是白花一次往返。
    * 换掉 feed 对象这一步不省：它是这一代的身份，在飞的老读法必须作废。
    */
   #restart(agentId: string, watermark?: number): Promise<void> {
@@ -286,7 +275,7 @@ export class TranscriptReplica {
       const value = await request()
       return this.#owns(agentId, feed) ? value : undefined
     } catch (cause) {
-      // Only the owning generation may observe an I/O failure.
+      // 只有持有这一代的调用方才看得到 I/O 失败。
       if (this.#owns(agentId, feed)) {
         throw cause
       }
@@ -304,7 +293,7 @@ export class TranscriptReplica {
         await action(feed)
       }
     })
-    // The caller retains the rejection, including failures from a successor recovery.
+    // 拒绝由调用方持有，含后继恢复失败的情形。
     feed.tail = work.then(
       () => undefined,
       () => undefined,
@@ -360,11 +349,8 @@ export class TranscriptReplica {
     }
     const folded = foldCatchUp(caught, feed.seq)
     /*
-     * 判据是「我们到没到 server 的水位」，不是「批次日志连不连续」。
-     *
-     * complete:false 只说 journal 够不着 since_seq —— 冷会话（server 内存里没有的旧对话）
-     * 恒回这一档，而它的 latest_seq 与我们手上那一页的水位本就相等。水位相等时两家之间
-     * 没有任何待补的帧，再整读一次 head 只会拿回同一份正文：那是纯粹的一次全文往返。
+     * 判据是「我们到没到 server 的水位」，不是「批次日志连不连续」：complete:false 只说 journal 够不着 since_seq ——
+     * 冷会话恒回这一档，而它的 latest_seq 与我们手上那一页的水位本就相等，再整读只是白花一次全文往返。
      */
     if (folded.cursor !== caught.latestSeq) {
       feed.valid = false
@@ -382,11 +368,7 @@ export class TranscriptReplica {
       return true
     }
     const reducer = this.#transcript.ensureAgent(agentId)
-    /*
-     * 缺口时不必回滚：applyOps 不修改输入状态、整批作废时 AgentReducer 根本没赋值
-     * （packages/transcript 的 TL-5b 钉着这一条）。以前每批先拍一张快照留作回滚，
-     * 白拷五张侧表（P-02）。
-     */
+    /* 缺口时不必回滚：applyOps 不修改输入状态、整批作废时 AgentReducer 根本没赋值（TL-5b 钉着这一条）。 */
     const result = reducer.receive(operations)
     if (result.gap !== undefined) {
       feed.valid = false
@@ -399,7 +381,6 @@ export class TranscriptReplica {
     return true
   }
 
-  /** Page catch-up: read earlier pages until the loaded window covers the known boundary. */
   async #coverBoundary(
     agentId: string,
     feed: Feed,
@@ -455,7 +436,7 @@ export class TranscriptReplica {
     if (head.seq < minimumSeq) {
       invariant(false, 'Recovery snapshot did not cover the observed transcript gap.')
     }
-    // A reset can carry an empty tail; restore the visible window through the read path instead.
+    // reset 可以只带一条空尾巴：可见窗口改走读路径恢复。
     const page = await this.#coverBoundary(agentId, feed, head, turns.length, boundary?.ordinal)
     if (page === undefined || !this.#owns(agentId, feed)) {
       return

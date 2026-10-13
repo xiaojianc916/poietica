@@ -6,8 +6,8 @@ export type SplitterActivity = 'idle' | 'hover' | 'drag'
 /**
  * 被调整的区域贴窗口哪一侧。决定指针位移到尺寸的符号。
  *
- * inline-* 是竖条（左右分栏，拖 X），block-* 是横条（上下分栏，拖 Y）。
- * 底部面板坞用 block-start：条在面板上缘，往上拖面板变高。
+ * inline-* 是竖条（左右分栏，拖 X），block-* 是横条（上下分栏，拖 Y）。底部面板坞用
+ * block-start：条在面板上缘，往上拖面板变高。
  */
 export type RegionEdge = 'inline-start' | 'inline-end' | 'block-start' | 'block-end'
 
@@ -36,8 +36,8 @@ interface DragSession {
 }
 
 /*
- * 指针是否还在条上，按几何自己算。捕获期间 :hover 按 Pointer Events L3 被记在
- * 捕获元素上，所以收尾态不能问浏览器。
+ * 指针是否还在条上，按几何自己算。捕获期间 :hover 按 Pointer Events L3 被记在捕获元素上，
+ * 所以收尾态不能问浏览器。
  */
 function isPointerOver(element: HTMLHRElement, point: { x: number; y: number }): boolean {
   const rect = element.getBoundingClientRect()
@@ -48,13 +48,11 @@ function isPointerOver(element: HTMLHRElement, point: { x: number; y: number }):
 /**
  * 区域分隔条。
  *
- * 元素用 hr：隐式 ARIA 角色就是 separator，可聚焦时按规范可携带 aria-valuenow。
- * 指针捕获交给平台：setPointerCapture 之后 move / up / cancel 都派发到条本身，
- * 越过邻区或离开窗口也不丢，因此不需要 document 上的全局监听。
- * 交互态经 onActivity 交回调用方 —— 条不认识任何 store。
+ * 元素用 hr：隐式 ARIA 角色就是 separator，可聚焦时按规范可携带 aria-valuenow。指针捕获交给
+ * 平台：setPointerCapture 之后 move / up / cancel 都派发到条本身，越过邻区或离开窗口也不丢，
+ * 因此不需要 document 上的全局监听。交互态经 onActivity 交回调用方。
  *
- * 焦点不抢：按下时平台自己把焦点落到条上（见 onPointerDown 的注释），Esc 与方向键
- * 微调因此照旧可用。
+ * 焦点不抢：按下时平台自己把焦点落到条上，Esc 与方向键微调因此照旧可用。
  */
 export function RegionSplitter({
   label,
@@ -71,11 +69,10 @@ export function RegionSplitter({
   const pending = useRef<number | null>(null)
 
   /*
-   * 尺寸随指针位移的符号：贴 inline-start 的区域向右拖变宽，贴 inline-end 的向左拖变宽；
-   * 贴 block-start 的区域（底坞）向上拖变高，贴 block-end 的向下拖变高。
+   * 尺寸随指针位移的符号：贴 inline-start 的区域向右拖变宽，贴 inline-end 的向左拖变宽；贴
+   * block-start 的区域（底坞）向上拖变高，贴 block-end 的向下拖变高。
    */
   const grow = edge === 'inline-start' ? 1 : edge === 'inline-end' ? -1 : edge === 'block-start' ? -1 : 1
-  /* 位移取的是哪一轴：横条读 clientY，竖条读 clientX。 */
   const axis = isBlockEdge(edge) ? 'block' : 'inline'
 
   const clamp = (next: number): number => Math.max(min, Math.min(max, Math.round(next)))
@@ -88,8 +85,8 @@ export function RegionSplitter({
   /*
    * 收尾只有一个出口：放捕获、把最终宽度交回、把交互态归位。
    *
-   * 交互态由调用方点名，不在这里按几何猜：指针离开文档那一路（下面那条监听）几何
-   * 已经不可信 —— 最后已知的位置还留在条上，而指针其实已经进了原生子 webview。
+   * 交互态由调用方点名，不在这里按几何猜：指针离开文档那一路（下面那条监听）几何已经不可信
+   * —— 最后已知的位置还留在条上，而指针其实已经进了原生子 webview。
    */
   const settle = (current: DragSession, finalWidth: number, activity: SplitterActivity): void => {
     session.current = null
@@ -126,9 +123,9 @@ export function RegionSplitter({
   /*
    * 指针一离开文档就收不回交互态了。
    *
-   * 右栏装的是原生子 webview：它整幅盖在宿主 DOM 之上，指针一进去文档就再也收不到
-   * 指针事件 —— 没有 pointerleave，悬停态会一直亮着；拖到一半进去，pointerup 也等
-   * 不到。判据在文档上而不在条上，所以监听挂 document（use-rail-pointer 同一条做法）。
+   * 右栏装的是原生子 webview：它整幅盖在宿主 DOM 之上，指针一进去文档就再也收不到指针事件
+   * —— 没有 pointerleave，悬停态会一直亮着；拖到一半进去，pointerup 也等不到。判据在文档上
+   * 而不在条上，所以监听挂 document。
    *
    * 收尾逻辑用 ref 持有：它要读当前这一帧的 props，而监听只装一次。
    */
@@ -182,8 +179,8 @@ export function RegionSplitter({
     }
 
     /*
-     * 键盘步进：竖条左右键调宽，横条上下键调高。两个方向键按语义分派（右 / 上 = 变大），
-     * 步进与 grow 无关 —— grow 只管指针位移，键盘这条路径不经过它。
+     * 键盘步进：竖条左右键调宽，横条上下键调高。两个方向键按语义分派（右 / 上 = 变大），步进
+     * 与 grow 无关 —— grow 只管指针位移。
      */
     const step = event.shiftKey ? 64 : 16
     const forwardKey = axis === 'block' ? 'ArrowUp' : 'ArrowRight'
@@ -246,9 +243,9 @@ export function RegionSplitter({
         /*
          * 只拦冒泡，不 preventDefault、不 focus()：焦点与划选都交回平台。
          *
-         * 脚本 focus() 会被 :focus-visible 启发式算成「键盘来的」——上一次交互是键盘时
-         * 抓手就常亮到下一次点击（workspace-shell.css 的 :has 那条读的正是它）。平台按
-         * 鼠标归类这次焦点，松手即灭；焦点照样落在条上，Esc 与方向键微调不受影响。
+         * 脚本 focus() 会被 :focus-visible 启发式算成「键盘来的」—— 上一次交互是键盘时抓手就
+         * 常亮到下一次点击。平台按鼠标归类这次焦点，松手即灭；焦点照样落在条上，Esc 与方向键
+         * 微调不受影响。
          */
         event.stopPropagation()
 
@@ -260,7 +257,6 @@ export function RegionSplitter({
          * 反过来的话，`setPointerCapture` 一抛（指针已经不在了 —— 这个调用按规范会抛
          * NotFoundError）就会把 `session.current` 留在一个非空的值上，而上面那道
          * `session.current !== null` 闸门从此永远为真：这条分隔线**再也拖不动**。
-         * 一次平台调用失败不该让面板宽度永久锁死。
          */
         try {
           element.setPointerCapture(event.pointerId)
@@ -300,10 +296,9 @@ export function RegionSplitter({
         /*
          * 最后已知位置立刻记下（收尾判定要用），宽度**合到帧上**再报。
          *
-         * 高轮询鼠标一帧能发好几次 pointermove，而每一次 onResize 都会把整个外壳重渲一遍
-         * （宽度住在布局 store 里，主区也要跟着重排）。合并到帧上不改变结果 —— 同一帧里
-         * 最后那一次本来就会盖掉前面几次 —— 只把重复的那几趟省掉。第一次移动不等帧：
-         * 拖动的第一下必须立刻跟手。
+         * 高轮询鼠标一帧能发好几次 pointermove，而每一次 onResize 都会把整个外壳重渲一遍（宽度
+         * 住在布局 store 里，主区也要跟着重排）。合并到帧上不改变结果 —— 同一帧里最后那一次本来
+         * 就会盖掉前面几次 —— 只把重复的那几趟省掉。第一次移动不等帧：拖动的第一下必须立刻跟手。
          */
         current.point = { x: event.clientX, y: event.clientY }
 

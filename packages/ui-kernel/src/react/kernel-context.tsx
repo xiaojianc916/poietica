@@ -15,7 +15,7 @@ export function useKernel(): UiKernel {
   return k
 }
 
-/** workbench 用它包裹每一个贡献出来的组件：提供错误边界 + 功能身份（useService 据此做访问控制） */
+/** 包裹每一个贡献出来的组件：提供错误边界 + 功能身份（useService 据此做访问控制）。 */
 export function FeatureScope({ featureId, children }: { featureId: string; children: ReactNode }): ReactNode {
   return (
     <FeatureContext.Provider value={featureId}>

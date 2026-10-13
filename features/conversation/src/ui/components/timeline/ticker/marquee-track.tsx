@@ -3,12 +3,8 @@ import { useLayoutEffect, useRef } from 'react'
 import { TickerEngine } from './ticker-engine'
 
 /*
- * 一句话的那一格。两种：
- *
- *   • TickerLine —— 思考句还在写：像显示屏一样往左滚（引擎见 ticker-engine.ts）。
- *     React 只渲染窗口这一层，里面的轨道和字归引擎所有：逐帧改字、改 transform 都不进 React。
- *   • StaticLine —— 工具行、落定态、「正在思考」占位：不动，从头显示，放不下时末尾省略号。
- *     这是所有软件的通用读法：动词和对象在开头，被截掉的只能是末尾。
+ * 一句话的那一格：TickerLine 是还在写的思考句，像显示屏一样往左滚（引擎见 ticker-engine.ts），React 只渲染窗口这一层，
+ * 里面的轨道和字归引擎所有；StaticLine（工具行、落定态、占位）不动、从头显示，放不下时末尾省略号 —— 被截掉的只能是末尾。
  */
 
 export interface TickerLineProps {

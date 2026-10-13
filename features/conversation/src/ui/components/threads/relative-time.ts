@@ -1,18 +1,9 @@
-/*
- * 会话列表的时间文案与期限。没有时间桶表（今天／昨天／过去 7 天…）：列表的一级索引
- * 是工作区而不是时间，时间退回它本来的位置 —— 行尾那一格的元数据，判据正文在
- * threads/thread-order.ts。留下两件不随分组变化的事：一段时长怎么说（formatElapsed），
- * 这一屏下一次会变的时刻（nextChangeIn）；文案与绝对时刻交给 Intl。两级投影
- * （datedGroupsOf / paintedGroupsOf）：时刻与绝对文案只是 updatedAt 的函数，时钟跳
- * 一次不该让整屏重跑一遍 Date.parse 和 dateStyle: 'full'。
- */
+/* 时间退回行尾那一格的元数据；两级投影分开：时钟跳一次不该让整屏重跑解析。 */
 
 import { DAY, HOUR, MINUTE, narrowUnit } from '../semantics/duration'
 
-/* 「不足一分钟」是一句话，让语言自己说，用 numeric: 'auto'。 */
 const spoken = new Intl.RelativeTimeFormat(undefined, { numeric: 'auto' })
 
-/* 其余各档是时长：只有数量和单位，没有方向。常量与格式器都在 ../semantics/duration。 */
 const elapsed = {
   day: narrowUnit('day'),
   hour: narrowUnit('hour'),
@@ -39,11 +30,7 @@ function calendarDays(instant: number, reference: number): number {
   return Math.round((midnight(reference) - midnight(instant)) / DAY)
 }
 
-/**
- * 一行的时间标签。一周之内给时长，更久就给日期 —— GitHub、Slack、Linear 同一道
- * 阶梯：时长在近处有用，远处只剩噪声（「418 天」不解决任何问题）。未来时刻（时钟
- * 偏差）读作「现在」而不是负数。
- */
+/** 一周内给时长、更久给日期：「418 天」不解决任何问题。未来时刻（时钟偏差）读作「现在」。 */
 export function formatElapsed(instant: number, reference: number): string {
   const since = reference - instant
 
@@ -70,15 +57,12 @@ export function formatElapsed(instant: number, reference: number): string {
   return stamp.getFullYear() === new Date(reference).getFullYear() ? sameYear.format(stamp) : otherYear.format(stamp)
 }
 
-/** 悬停时给出准确时刻：相对时间是概览，绝对时间才是事实。 */
 export function formatAbsolute(instant: number): string {
   return exact.format(instant)
 }
 
 /*
- * 这一行的文案下一次会变的时刻 —— 与 formatElapsed 同一道阶梯，反着算。一天以上
- * 没有属于自己的期限（只在本地午夜改口，而午夜由 nextChangeIn 无条件算进去），
- * 交回 Infinity 把这句话说清楚。
+ * 与 formatElapsed 同一道阶梯，反着算。一天以上没有属于自己的期限（只在本地午夜改口，而午夜由 nextChangeIn 无条件算进去）。
  */
 function nextChangeOf(instant: number, reference: number): number {
   const since = reference - instant
@@ -109,9 +93,7 @@ function nextMidnight(instant: number): number {
 }
 
 /**
- * 整屏下一次会变的时刻。入参是一串已解析好的时刻 —— 分段维度已与时间无关，期限
- * 没有理由再认识它，解析只发生在 datedGroupsOf 那一趟。午夜无条件算进去：跨过
- * 午夜「1天」要改口「2天」，哪怕没有任何一行到达自己的边界、哪怕列表是空的。
+ * 入参是一串已解析好的时刻 —— 期限没有理由再认识分组。午夜无条件算进去：跨过午夜「1天」要改口「2天」，哪怕列表是空的。
  */
 export function nextChangeIn(instants: readonly number[], reference: number): number {
   let found = nextMidnight(reference)
@@ -131,7 +113,6 @@ export function nextChangeIn(instants: readonly number[], reference: number): nu
   return found
 }
 
-/** 一行里不随墙上时间变化的那一半：时刻，以及它的准确说法。 */
 export interface DatedMember<T> {
   readonly thread: T
   /** 解析过的时刻；无法解析时为 NaN。 */
@@ -140,17 +121,12 @@ export interface DatedMember<T> {
   readonly absolute: string | null
 }
 
-/** 一行里随墙上时间变化的那一半：相对文案。 */
 export interface PaintedMember<T> extends DatedMember<T> {
   /** 相对文案；时刻无法解析时为 null，此时该行不画时间。 */
   readonly elapsed: string | null
 }
 
-/*
- * name 可以是 null：那一组的目录还没有被记下来（见 threads/thread-order 的
- * workspaceNameOf）。这三个形状是同一份数据的两级投影，原样带过这件事，不在中途
- * 替它补一个名字 —— 补在哪一层，都是同一个编造。
- */
+/* name 可以是 null：那一组的目录还没有被记下来。两级投影原样带过这件事，不中途替它编一个名字。 */
 export interface Grouped<T> {
   readonly id: string
   readonly name: string | null

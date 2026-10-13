@@ -4,14 +4,8 @@ import type { McpServerInfo, McpStatus, SkillInfo } from '../../contract'
 import type { ExtensionsApi } from '../api'
 import { createComposerToolkitSource } from '../composer-toolkit'
 
-/*
- * 加号面板那张名册的来源（extensions 侧）。
- *
- * 这一份钉读法上的几条判据：技能按工作区缓存且只列可用的；**MCP 的名字单从配置读、
- * 状态从活会话读**（只读状态时第一条对话之前恒为空 —— 那正是报障的那一版）；两条
- * 通知各自刷新一格；失败保留旧值等下一次 ensure 重试。它不进 DOM —— 组件那一侧的
- * 形状由 conversation 的 composer-toolkit.test.ts 与面板本身钉。
- */
+/* 技能按工作区缓存且只列可用的；**MCP 的名字单从配置读、状态从活会话读**（只读状态时第一条对话之前恒为空 —— 那正是报障的那一版）；
+ * 两条通知各自刷新一格；失败保留旧值。 */
 
 const skill = (name: string, over: Partial<SkillInfo> = {}): SkillInfo => ({
   id: name,
@@ -31,7 +25,6 @@ const status = (name: string, over: Partial<McpStatus> = {}): McpStatus => ({
   ...over,
 })
 
-/** 配置里的一台服务器（`mcp.list` 收的形状）。 */
 const server = (name: string, over: Partial<McpServerInfo> = {}): McpServerInfo => ({
   name,
   transport: 'stdio',
@@ -46,7 +39,6 @@ interface FakeApi extends Pick<ExtensionsApi, 'skills' | 'mcp'> {
   readonly statusCalls: number
 }
 
-/** 按脚本回话的假 api：技能与 MCP 各记一趟调用。 */
 function fakeApi(
   skills: (workspaceId: string | null) => Promise<readonly SkillInfo[]>,
   mcpList: () => Promise<readonly McpServerInfo[]> = async () => [],
@@ -77,7 +69,6 @@ function fakeApi(
   return api as unknown as FakeApi
 }
 
-/** 等两趟微任务：一次 .then 落地、一次 finally 收尾。 */
 const settle = (): Promise<void> => new Promise((resolve) => setTimeout(resolve, 0))
 
 describe('名册来源：读法', () => {
@@ -155,15 +146,11 @@ describe('名册来源：读法', () => {
 
     expect(api.listCalls).toBe(1)
     expect(api.statusCalls).toBe(1)
-    /* 但新工作区那一份合并结果里也带着它。 */
     expect(source.read('w-2').mcpServers.map((row) => row.name)).toEqual(['github'])
   })
 
-  /*
-   * 报障的那一版：只读 `mcp.status()`。它汇总的是**活会话**的 mcpManager ——
-   * 一条会话都没跑过时恒为空，面板于是什么都不画（真机上「明明有 MCP 却不显示」）。
-   * 名单必须从配置读，状态只用来给同一行补「连上没连上」。
-   */
+  /* 只读 mcp.status() 时它汇总的是**活会话**的 mcpManager —— 一条会话都没跑过时恒为空，真机上就是「明明有 MCP 却不显示」；名单必须从
+   * 配置读，状态只用来给同一行补「连上没连上」。 */
   test('还没跑过任何会话（状态为空）时，配置里的服务器照画，画成「未连接」', async () => {
     const api = fakeApi(
       async () => [],
@@ -279,7 +266,6 @@ describe('名册来源：刷新与失败', () => {
   })
 
   test('在飞的那一趟遇上 skills.changed：作废的回话不许落进来（旧数据不覆盖新数据）', async () => {
-    /* 第一趟故意慢：它回来的东西是改之前的名单，落进来就是「改了没生效」。 */
     const gates: Array<(rows: readonly SkillInfo[]) => void> = []
     const api = fakeApi(
       async () =>
@@ -293,7 +279,6 @@ describe('名册来源：刷新与失败', () => {
     source.ensure('w-1')
     source.skillsChanged()
 
-    /* 两趟都在飞：第一趟（老）与第二趟（新）。先放第二趟，再放第一趟。 */
     await settle()
     expect(gates).toHaveLength(2)
     gates[1]?.([skill('新的')])
@@ -319,7 +304,6 @@ describe('名册来源：刷新与失败', () => {
     await settle()
     const afterFirst = calls
 
-    /* 同一份数据再读一次（新数组、同样的行）：不该再叫。 */
     source.ensure('w-1')
     await settle()
 

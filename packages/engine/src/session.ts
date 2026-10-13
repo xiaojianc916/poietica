@@ -15,10 +15,10 @@ import type {
 
 export interface OpenSessionSpec {
   readonly key: string // 调用方的稳定标识（conversation 用 threadId），用于日志和工具上下文
-  readonly cwd: string // 工作区绝对路径
+  readonly cwd: string
   readonly sessionFile: string | null // null = 新建会话
   readonly posture: Posture
-  readonly model: ModelRef | null // null = 使用默认模型
+  readonly model: ModelRef | null
   readonly thinking: string | null
   readonly autoTitle?: boolean
 }
@@ -44,15 +44,12 @@ export type EngineSessionEvent =
   | { readonly type: 'queue'; readonly queue: QueueSnapshot }
   | { readonly type: 'controls'; readonly controls: Controls }
   /*
-   * 上下文用量**单独一条通道**，不搭 controls 那班车。
+   * 上下文用量**单独一条通道**，不搭 controls 那班车：controls 是「控件变化」（模型 / 档位 / 姿态 / 模式），
+   * 而用量是每轮都在涨的读数 —— 搭同一班车意味着跑完一轮不重画，或者每轮重发一次整张控件表。
    *
-   * 十二页 §7.7 把 controls 定义成「控件变化」（模型 / 档位 / 姿态 / 模式），而用量是每轮
-   * 都在涨的读数：搭同一班车意味着跑完一轮不重画，或者每轮重发一次整张控件表（含模型候选
-   * 清单）。legacy 也是分开的两条（selectors 与 usage，见 bridge.ts 的 reselect / reportUsage）。
-   *
-   * 报 null 也是**一次有效报数**：「这条会话现在没有可报的窗口」与「还没报过」对屏幕是两件事
-   * —— 前者要收掉已经画出来的圆环（换了没有窗口元数据的模型），后者是首帧。所以这一支收
-   * nullable，而 controls.context 那一格仍然只是初值。
+   * 报 null 也是**一次有效报数**：「这条会话现在没有可报的窗口」与「还没报过」对屏幕是两件事 ——
+   * 前者要收掉已经画出来的圆环（换了没有窗口元数据的模型），后者是首帧。所以这一支收 nullable，
+   * 而 controls.context 那一格仍然只是初值。
    */
   | { readonly type: 'contextUsage'; readonly usage: ContextUsage | null }
   | { readonly type: 'usage'; readonly usage: UsageSample }
@@ -73,16 +70,12 @@ export interface EngineSession {
   cancel(): Promise<void>
   queue(): QueueSnapshot
   /**
-   * 撤回一条还排着的输入。
-   *
-   * 该项已经被 agent 消费时抛 `engine.queue_item_consumed`；不存在时抛 `kernel.not_found`。
+   * 撤回一条还排着的输入。该项已经被 agent 消费时抛 `engine.queue_item_consumed`；不存在时抛 `kernel.not_found`。
    */
   withdraw(queueItemId: string): void
   /**
-   * 把一条排队项换到另一层（steer ⇄ followUp）。用该项的原始输入重新入队：
-   * 图片、文件、技能都保留；重新入队的项排在目标层的队尾，并拿到新的 id。
-   * 该项已经被 agent 消费时抛 `engine.queue_item_consumed`。
-   * 目标层与当前层相同时什么都不做。
+   * 把一条排队项换到另一层（steer ⇄ followUp）：用该项的原始输入重新入队（图片、文件、技能都保留），
+   * 排在目标层队尾并拿到新 id；已被 agent 消费时抛 `engine.queue_item_consumed`，目标层与当前层相同则什么都不做。
    */
   moveQueued(queueItemId: string, deliverAs: 'steer' | 'followUp'): Promise<void>
   setQueueModes(modes: Partial<QueueSnapshot['modes']>): void
@@ -92,16 +85,12 @@ export interface EngineSession {
   setPosture(posture: Posture): void
   setPlanMode(enabled: boolean): Promise<void>
   /**
-   * 设置 / 清除目标（null = 清除）。
-   *
-   * 设置**只改正文、不改状态**（R-10）：没有目标（或上一个已完成）就新建一个进行中的目标；
-   * 已有目标且正文不同就换成新正文（omp 的 replace：用量从零记），进行中的仍进行中、
-   * 已暂停的仍暂停；正文相同什么都不做。
+   * 设置 / 清除目标（null = 清除）。设置**只改正文、不改状态**（R-10）：没有目标（或上一个已完成）就新建一个进行中的目标；
+   * 已有目标且正文不同就换成新正文（omp 的 replace：用量从零记），进行中的仍进行中、已暂停的仍暂停；正文相同什么都不做。
    */
   setGoal(goal: string | null): Promise<void>
   /**
-   * 暂停目标：本轮照常跑完（不打断），之后不再计用量、不再给提示词注入目标上下文（R-10）。
-   *
+   * 暂停目标：本轮照常跑完（不打断），之后不再计用量、不再注入目标上下文（R-10）。
    * 已暂停时什么都不做；没有进行中（或受阻）的目标时抛 `kernel.not_found`。
    */
   pauseGoal(): Promise<void>

@@ -11,14 +11,7 @@ import type {
 } from '../contract'
 import { automationsContract } from '../contract'
 
-/*
- * `ctx.rpc(automationsContract)` 的薄封装（与 terminal / usage / review 的 ui/api.ts 同形）。
- *
- * legacy 的 AutomationGateway 有 loadCatalog / watchCatalog 两个整册读法，因为 Rust 侧
- * 把「任务定义 + 运行记录 + revision」装成一个目录快照。新契约是 07 页 §9 逐方法给出的：
- * 列表、单条读取、runs 分页、invalidation 通知（changed / runUpdated）分开。
- * 界面因此不再认识「目录快照」这个概念，只按方法名取数。
- */
+/* `ctx.rpc(automationsContract)` 的薄封装。新契约逐方法给出，界面不再认识 legacy 那种「目录快照」。 */
 
 export interface AutomationsApi {
   list(): Promise<Automation[]>
@@ -33,12 +26,7 @@ export interface AutomationsApi {
   previewSchedule(schedule: Schedule, count: number): Promise<{ times: number[]; problem: ScheduleProblem | null }>
   onChanged(listener: () => void): { dispose(): void }
   onRunUpdated(listener: (run: AutomationRun) => void): { dispose(): void }
-  /** 一次运行需要告诉用户（审查 R-16：Core 判，这里只转成系统通知） */
   onAttention(listener: (attention: AutomationAttention) => void): { dispose(): void }
-  /**
-   * 模型与思考强度的可选项（审查 R-16）：conversation 的 `controls.draft`（只读、不开会话）。
-   * 给了 model 时 thinking.choices 是那个模型的档位。
-   */
   draftControls(model: ModelRef | null): Promise<Controls>
 }
 

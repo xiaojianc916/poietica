@@ -8,7 +8,7 @@ export interface Toast {
   readonly title: string
   readonly detail?: string
   readonly action?: { readonly label: string; readonly run: () => void }
-  /** 0 表示不自动消失；error 默认 0，其余默认 4000 */
+  /** 0 表示不自动消失；error 默认 0，其余默认 4000。 */
   readonly durationMs: number
 }
 
@@ -19,7 +19,7 @@ export interface ToastService extends Observable<readonly Toast[]> {
 }
 
 const MAX_VISIBLE = 5
-/** 同一条错误在这个窗口内重复出现只显示一次 */
+/** 同一内容在此窗口内重复出现只显示一次 */
 const DEDUPE_MS = 3_000
 
 export function createToastService(errorMessages: Readonly<Record<string, string>>): ToastService {

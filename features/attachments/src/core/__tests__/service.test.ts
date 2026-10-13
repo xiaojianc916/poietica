@@ -46,7 +46,6 @@ describe('attachments 服务（07 页 §4G、14 页 §8.6）', () => {
   test('50 MB + 1 字节 → attachments.too_large，磁盘上没有残留临时文件', async () => {
     const { service, root, dir, db } = await make()
     const big = path.join(root.path, 'big.bin')
-    // 用 truncate 造大小，不真的写 50MB 数据
     const fd = fs.openSync(big, 'w')
     fs.ftruncateSync(fd, MAX_ATTACHMENT_BYTES + 1)
     fs.closeSync(fd)
@@ -162,12 +161,8 @@ describe('attachments 服务（07 页 §4G、14 页 §8.6）', () => {
     await root.dispose()
   })
 
-  /*
-   * R-07 T1–T4：整体替换与复制引用（草稿 / 分支两条路的底盘）。
-   *
-   * 这四条判据全部落在「回收」这个观察点上：引用登记得对不对，最终只由
-   * 「25 小时后的 sweep 里它还在不在」说话。
-   */
+  /* 整体替换与复制引用（草稿 / 分支两条路的底盘）。这四条判据全部落在「回收」这个观察点上：引用登记得对不对，最终只由「25 小时后的 sweep
+   * 里它还在不在」说话。 */
   test('R-07 T1 replaceOwner 之后只留点名的那些；25 小时后其余被回收', async () => {
     const { service, clock, root, dir, db } = await make()
     const src = path.join(root.path, 'a.txt')
@@ -279,16 +274,9 @@ describe('attachments 服务（07 页 §4G、14 页 §8.6）', () => {
     await root.dispose()
   })
 
-  /*
-   * R-08-13：sweep 与「同内容导入」的竞态。
-   *
-   * sweep 先删表、再 `await rm(文件)`；旧代码里这个 await 期间导入同一内容会走
-   * 「目标已存在」的去重分支（只补表行、不碰盘），随后 sweep 的 rm 把文件删掉 ——
-   * 新的 item 从此指向一个不存在的文件。服务内加了串行互斥：导入排到 sweep 之后，
-   * 那时文件确实没了，它走正常落盘分支。
-   *
-   * 假 rm 用手动 resolve 的 Promise 把「删到一半」这一刻钉住，测试自己制造交错。
-   */
+  /* sweep 与「同内容导入」的竞态。sweep 先删表、再 `await rm(文件)`；这个 await 期间导入同一内容会走「目标已存在」的去重分支（只补表行、
+   * 不碰盘），随后 sweep 的 rm 把文件删掉 —— 新的 item 从此指向一个不存在的文件。服务内加了串行互斥：导入排到 sweep 之后，那时文件确实
+   * 没了，它走正常落盘分支。假 rm 用手动 resolve 的 Promise 把「删到一半」这一刻钉住。 */
   test('R-08-13 sweep 删文件期间导入同内容：导入排到 sweep 之后，文件最终存在', async () => {
     const db = openDatabase(':memory:')
     for (const m of migrations) db.forModule('attachments').exec(m.sql!)
@@ -307,7 +295,6 @@ describe('attachments 服务（07 页 §4G、14 页 §8.6）', () => {
       logger: createTestLogger(),
       removeFile: async (file) => {
         removeStarted = true
-        /* 真实 rm 是异步的：先让出线程，再把「文件已撤下」这一刻钉住 */
         await new Promise((resolve) => setTimeout(resolve, 0))
         await removeGate
         fs.rmSync(file, { force: true })
@@ -322,10 +309,8 @@ describe('attachments 服务（07 页 §4G、14 页 §8.6）', () => {
     const sweeping = service.sweep()
     while (!removeStarted) await new Promise((resolve) => setTimeout(resolve, 0))
 
-    /*
-     * rm 还挂着 -> 导入必须**排队**：判据是它在 sweep 结束前不能完成。旧代码里导入不受
-     * 互斥保护，这段时间足够它走完「看盘 -> 去重 -> 记表」一整趟并从 Promise 里出来。
-     */
+    /* rm 还挂着时导入必须**排队**：判据是它在 sweep 结束前不能完成。旧代码里导入不受互斥保护，这段时间足够它走完「看盘 → 去重 → 记表」
+     * 一整趟。 */
     const importing = service.importPaths([src])
     let importedEarly = false
     void importing.then(() => {

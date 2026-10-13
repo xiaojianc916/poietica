@@ -11,8 +11,6 @@ import {
   type TurnSpan,
 } from './timeline-contract'
 
-/** 运行负责收尾，用户消息只负责问题导航；撤销能力由协议投影提供。 */
-
 /** 无开场条目时承载封条，不伪造聊天消息。 */
 interface RunAnchor {
   readonly type: 'run_anchor'
@@ -28,31 +26,21 @@ export interface FeedRow {
 
 type ToolGroupKind = ToolCallTimelineItem['kind']
 
-/**
- * 组头的说法：read 与 execute 合成一条「过程」，思考搭这条过程的顺风车
- * （它只在组头一闪而过，从不单独上屏）；其余类别按自己的 kind 各自成组。
- *
- * process 之外的那几档就是原来的 ToolKind。
- */
+/** read 与 execute 合成一条「过程」，思考搭这条过程的顺风车（只在组头一闪而过，从不单独上屏）；其余类别按自己的 kind 各自成组。 */
 type ToolGroupFlavor = ToolGroupKind | 'process'
 
 export interface ToolGroupPlan {
-  /** 这一组自己的开合身份：成员的 id 归成员，组不借用其中任何一个。 */
   readonly id: string
   readonly kind: ToolGroupFlavor
-  /** 按屏幕顺序的全部成员：过程组里混着思考，第一条是挂着这一组的那一行。 */
   readonly members: readonly FeedRow[]
-  /** 会画进展开列表的工具成员；思考一个都不在里面。 */
   readonly tools: readonly FeedRow[]
 }
 
-/** 封条属于一次运行；身份直接使用 TurnPage 的权威段号。 */
 export interface TurnSealPlan {
   readonly turn: number
   readonly durationMs: number | undefined
   readonly startedAt: number | undefined
   readonly endedAt: number | undefined
-  /** 最近可用的官方时间，不充当终态终点。 */
   readonly lastFrameAt: number | undefined
   readonly hasProcess: boolean
   /** 生命周期来自当前运行自己的终态；时间戳只负责耗时。 */
@@ -64,22 +52,17 @@ export interface ReplyActionPlan {
   readonly text: string
   readonly undoCount: number | null
   readonly forkUnavailableReason: string | null
-  /** 这一轮 agent 自己报的 token 用量；缺席不画。 */
   readonly usage?: TranscriptUsage
 }
 
-/** 屏幕要的一切，按下标问。 */
 export interface Presentation {
   readonly count: number
   readonly latestOwnMessage: string | null
   readonly lastTurn: number | undefined
   readonly rowAt: (index: number) => FeedRow | undefined
-  /** 这一条此刻在第几行。目录按 id 寻址，行号只在这里算。 */
   readonly rowOf: (id: TimelineItemId) => number | undefined
-  /** 这一行属于哪一问：那条用户消息的 id。 */
   readonly turnIdAt: (index: number) => string | undefined
   readonly groupAt: (index: number) => ToolGroupPlan | undefined
-  /** 该行之后的运行封条。 */
   readonly sealAt: (index: number) => TurnSealPlan | undefined
   readonly replyAt: (index: number) => ReplyActionPlan | undefined
 }
@@ -89,23 +72,17 @@ const ASIDE: ReadonlySet<FeedRow['item']['type']> = new Set(['error', 'link', 'p
 /* 字面量而不是 TimelineItem['type']：注解成联合后 === 不再收窄。 */
 const SAID = 'user_message'
 
-/*
- * 自己就是内容的工具（审查 R-18 的 show_widget）：组件是给人看、给人点的，
- * 不并进过程组，轮次落定后也不折进「过程」里。失败的那次照常归过程（错误留在组里）。
- */
+/* 自己就是内容的工具（R-18 的 show_widget）：不并进过程组，轮次落定后也不折进「过程」里；失败的那次照常归过程。 */
 const SHOWN_INLINE: ReadonlySet<string> = new Set(['show_widget'])
 
 function isShownInline(item: FeedRow['item']): boolean {
   return item.type === 'tool_call' && item.status !== 'failed' && SHOWN_INLINE.has(item.invokedTool)
 }
 
-/** 两个以上成员才并组。任意一档里「单条工具加上一条思考」也够两个。 */
 const LEAST = 2
 
-/** 过程组的两类工具：read / execute 换着来也还是同一条过程。 */
 const PROCESS: ReadonlySet<ToolGroupKind> = new Set(['execute', 'read'])
 
-/** 行的分组归属：思考不算工具，它对每一档都是透明成员。 */
 type RunFlavor = ToolGroupFlavor | 'thought'
 
 function runFlavorOf(item: FeedRow['item']): RunFlavor | undefined {
@@ -130,7 +107,6 @@ const PREFIX = new WeakMap<readonly TurnPage[], Prefix>()
 const PREFIX_ROWS = new WeakMap<Prefix, ReadonlyMap<string, number>>()
 const FEEDS = new WeakMap<TimelineState, Held>()
 
-/** 一问的落点。行号相对本段。 */
 interface TurnAt {
   readonly row: number
   readonly id: string
@@ -139,17 +115,13 @@ interface TurnAt {
 /** 一次运行的全部派生。TurnPage 是缓存单位，也是封条的唯一所有者。 */
 interface Segment {
   readonly span: TurnSpan | undefined
-  /** 来自本运行的官方生命周期，不受下一条排队消息影响。 */
   readonly running: boolean
-  /** 人亲手定过的终止后开合；运行中不读取。 */
   readonly picked: boolean | undefined
   readonly rows: readonly FeedRow[]
   readonly groups: ReadonlyMap<string, ToolGroupPlan>
   readonly seals: ReadonlyMap<number, TurnSealPlan>
   readonly replies: ReadonlyMap<number, ReplyActionPlan>
-  /** 段内每一问的落点，升序。 */
   readonly said: readonly TurnAt[]
-  /** 条目 id -> 段内行号。封条落位与目录寻址共用这一份。 */
   readonly where: ReadonlyMap<string, number>
   readonly ownMessage: string | null
 }
@@ -160,10 +132,8 @@ interface Held {
   readonly result: Presentation
 }
 
-/** 已封口那一段的派生。sealed 只在换段时被替换，所以它跨帧按引用共享。 */
 interface Prefix {
   readonly chosen: ReadonlyMap<number, boolean>
-  /** 末段的 span：唯一还可能被改写的那一条，命中时按引用复核。 */
   readonly tailSpan: TurnSpan | undefined
   readonly segments: readonly Segment[]
   readonly offsets: readonly number[]
@@ -188,8 +158,7 @@ function toRow(item: TimelineItem, isStreamingTail: boolean, isInFlight: boolean
   return row
 }
 
-/* 还在动吗。工具调用看终态，断线看接回来了没有 —— 一个判据两种条目，所以
-   一轮死掉时两者的光同时停。 */
+/* 还在动吗。工具调用看终态，断线看接回来了没有 —— 一个判据两种条目，所以一轮死掉时两者的光同时停。 */
 function inFlight(item: TimelineItem): boolean {
   if (item.type === 'link') {
     return item.link.state === 'retrying'
@@ -225,7 +194,6 @@ function rowsOf(page: TurnPage, live: boolean): readonly FeedRow[] {
   return rows
 }
 
-/** 用户消息只服务问题导航，不定义运行或撤销边界。 */
 function saidIn(rows: readonly FeedRow[]): readonly number[] {
   const said: number[] = []
 
@@ -313,13 +281,7 @@ function speechFrom(rows: readonly FeedRow[], from: number, until: number): stri
   return said.join('\n\n')
 }
 
-/**
- * 一行能并进这一组吗。
- *
- * 思考对每一档都是透明的：read / execute 的过程收它，edit / fetch / search … 也收它 ——
- * 「想了一会儿」不是断点，它只借组头一闪，从不占成员列表。真正决定分组的还是工具自己：
- * 同一档相邻（中间的思考不算）就连成一条，换档才断。
- */
+/** 一行能并进这一组吗。思考对每一档都是透明的（「想了一会儿」不是断点，它只借组头一闪）；真正决定分组的是工具自己：同一档相邻就连成一条，换档才断。 */
 function continuesGroup(next: FeedRow['item'], flavor: RunFlavor): boolean {
   const nextFlavor = runFlavorOf(next)
 
@@ -334,12 +296,7 @@ function continuesGroup(next: FeedRow['item'], flavor: RunFlavor): boolean {
   return flavor === 'process' ? nextFlavor === 'process' : nextFlavor === flavor
 }
 
-/**
- * 从 start 那条开始，同轮同过程一直并到哪一行为止（不含）。
- *
- * 一组由思考打头时，第一件工具负责定档，之后的工具照这一档比 —— 「想一会儿再改、
- * 改完接着想」是同一条，想完却换了另一档工具则从这里断开。
- */
+/** 从 start 那条开始，同轮同过程一直并到哪一行为止（不含）。一组由思考打头时，第一件工具负责定档，之后的工具照这一档比。 */
 function runEnd(rows: readonly FeedRow[], start: number, flavor: RunFlavor, turn: number): number {
   let held = flavor
   let end = start + 1
@@ -365,7 +322,6 @@ function runEnd(rows: readonly FeedRow[], start: number, flavor: RunFlavor, turn
   return end
 }
 
-/** 一组工具的档位：read / execute 合成一条过程，其余照各自的 kind。 */
 function flavorOfTools(tools: readonly FeedRow[]): ToolGroupFlavor {
   const head = tools[0]?.item
 
@@ -380,10 +336,7 @@ function groupIn(rows: readonly FeedRow[]): {
   let groups: Map<string, ToolGroupPlan> | undefined
   let cursor = 0
 
-  /*
-   * 到「第一处改动」为止的副本。这条投影每帧都跑，一行都没动过时交回原数组 ——
-   * 没并组没丢行时不该凭空多一份复制。
-   */
+  /* 到「第一处改动」为止的副本。这条投影每帧都跑，一行都没动过时交回原数组 —— 没并组没丢行时不该凭空多一份复制。 */
   const materialize = (upTo: number): FeedRow[] => {
     kept ??= rows.slice(0, upTo)
 
@@ -414,10 +367,7 @@ function groupIn(rows: readonly FeedRow[]): {
     const members = rows.slice(cursor, end)
     const tools = members.filter((member) => member.item.type === 'tool_call')
 
-    /*
-     * 一整段纯思考：还在流才留一枚组头（就是它那一闪），流完整段消失 ——
-     * 既不留行，也不进任何组内列表。
-     */
+    /* 一整段纯思考：还在流才留一枚组头（就是它那一闪），流完整段消失 —— 既不留行，也不进任何组内列表。 */
     if (tools.length === 0) {
       if (members.some((member) => member.isStreamingTail)) {
         materialize(start).push(row)
@@ -455,7 +405,6 @@ function groupIn(rows: readonly FeedRow[]): {
   return kept === undefined ? { groups: NO_GROUPS, rows } : { groups: groups ?? NO_GROUPS, rows: kept }
 }
 
-/** 段内每一问的落点。升序由 saidIn 保证。 */
 function saidAt(rows: readonly FeedRow[]): readonly TurnAt[] {
   const marks: TurnAt[] = []
 
@@ -470,14 +419,12 @@ function saidAt(rows: readonly FeedRow[]): readonly TurnAt[] {
   return marks
 }
 
-/** 不晚于这一行的最后一问。段内升序，二分见 ordered-lookup。 */
 function lastSaid(said: readonly TurnAt[], row: number): TurnAt | undefined {
   const at = lastAtOrBefore(said, (mark) => mark.row, row)
 
   return at === -1 ? undefined : said[at]
 }
 
-/** 可见行的行号索引：封条与回复操作都按它落位。 */
 function placesIn(rows: readonly FeedRow[]): ReadonlyMap<string, number> {
   const where = new Map<string, number>()
 
@@ -492,7 +439,6 @@ function placesIn(rows: readonly FeedRow[]): ReadonlyMap<string, number> {
   return where
 }
 
-/** 操作属于运行尾部，不属于某个正文节点。 */
 function repliesIn(
   text: string,
   rows: readonly FeedRow[],
@@ -515,7 +461,6 @@ function repliesIn(
   ])
 }
 
-/** 运行事实拥有封条，计时与可折叠内容不决定准入。 */
 function sealOf(
   page: TurnPage,
   span: TurnSpan | undefined,
@@ -595,7 +540,6 @@ function segmentOf(page: TurnPage, span: TurnSpan | undefined, running: boolean,
   return built
 }
 
-/** spans 按官方运行序号有序。 */
 function spanOf(spans: readonly TurnSpan[], turn: number): TurnSpan | undefined {
   let low = 0
   let high = spans.length - 1
@@ -618,12 +562,7 @@ function spanOf(spans: readonly TurnSpan[], turn: number): TurnSpan | undefined 
   return undefined
 }
 
-/**
- * 已封口那一段的派生，一次算好跨帧用。
- *
- * sealed 段封口之后不再改写，它们的 span 也不再改写 —— 只有末段那一条还可能
- * 被收口，所以命中时复核它。
- */
+/** 已封口那一段的派生，一次算好跨帧用：sealed 段封口之后不再改写，只有末段那一条还可能被收口，所以命中时复核它。 */
 function prefixOf(state: TimelineState, chosen: ReadonlyMap<number, boolean>): Prefix {
   const sealed = state.sealed
   const last = sealed.at(-1)
@@ -688,9 +627,7 @@ function prefixLocations(prefix: Prefix): ReadonlyMap<string, number> {
   return rows
 }
 
-/**
- * 运行中无条件展开；终止后才读取用户选择。生命周期来自状态机，span 只装饰耗时。
- */
+/** 运行中无条件展开；终止后才读取用户选择。生命周期来自状态机，span 只装饰耗时。 */
 export function selectPresentation(state: TimelineState, chosen: ReadonlyMap<number, boolean>): Presentation {
   const held = FEEDS.get(state)
   const running = state.active.run?.settled === false
@@ -786,11 +723,7 @@ export function selectPresentation(state: TimelineState, chosen: ReadonlyMap<num
   return result
 }
 
-/**
- * 这一组里还在动的那一条，倒着找：卡片只报最后一条的状态。
- *
- * 工具看终态，思考看是不是还挂在流式尾巴上 —— 思考没有终态可等，字还在来就是还在。
- */
+/** 这一组里还在动的那一条，倒着找：卡片只报最后一条的状态。工具看终态，思考看是不是还挂在流式尾巴上。 */
 export function liveMemberOf(plan: ToolGroupPlan): FeedRow | undefined {
   return plan.members.findLast((member) => member.isInFlight === true || member.isStreamingTail === true)
 }

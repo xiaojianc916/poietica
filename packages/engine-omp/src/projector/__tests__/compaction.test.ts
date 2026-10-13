@@ -3,7 +3,7 @@ import { applyOps, emptyTimeline, pageFromState, type TranscriptItem } from '@po
 import { LiveProjector } from '../live'
 
 /*
- * 压缩的桥侧（legacy compaction-events.test.ts，12 页 §12.3）。
+ * 压缩的桥侧。
  *
  * 缘起是一个真实的缺陷：omp 的压缩事件从前掉进 default: break —— 上下文被压缩时屏幕上
  * 什么都不说，人看到的是自己前几句莫名其妙没了。
@@ -12,8 +12,8 @@ import { LiveProjector } from '../live'
  * 一行，而人读到的会是「上下文被压了两次」这种不存在的历史。
  *
  * 这里钉的是**投影器自己**产出的 marker（LiveProjector.marker），也就是适配器那两个 case
- * 落下来的同一格；legacy 的 token 计数那一档（result.tokensBefore）新接口不收
- * （12 页 §9.1 的事件表里标记只带状态），所以那几条断言在这里表达不了，见汇报。
+ * 落下来的同一格；上游的 token 计数那一档（result.tokensBefore）新接口不收
+ * （omp 的事件表里标记只带状态），所以那几条断言在这里表达不了，见汇报。
  */
 const T0 = 1_700_000_000_000
 

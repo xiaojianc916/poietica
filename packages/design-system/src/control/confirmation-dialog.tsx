@@ -3,11 +3,8 @@ import { Dialog } from './dialog'
 import './confirmation-dialog.css'
 
 /*
- * 定值就写成模块常量。
- *
- * 此前页脚那串类名是一个零参数函数：没有入参、返回定值，却每次渲染都 join
- * 一遍拼出同一个字符串；对话框自身那串是行内数组字面量，每次渲染新建一个
- * 数组再 join。本目录既有的形制是模块常量（itemClassName / popupClassName / BASE）。
+ * 定值就写成模块常量：这个目录既有的形制是模块常量（itemClassName / popupClassName / BASE），
+ * 而不是零参数函数或行内数组字面量 —— 后者每次渲染都重新 join 一遍同一个字符串。
  */
 const DIALOG_CLASS_NAME = [
   'confirmation-dialog',

@@ -8,7 +8,6 @@ export function createFeatureStore<S>(init: StateCreator<S, [], []>): FeatureSto
   return createStore<S>()(init)
 }
 
-/** 选择单个值用它 */
 export function useFeatureStore<S, T>(store: FeatureStore<S>, selector: (s: S) => T): T {
   return useStore(store, selector)
 }

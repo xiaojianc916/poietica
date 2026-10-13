@@ -1,7 +1,7 @@
 import { expect, mock, test } from 'bun:test'
 import { createViewFrames } from '../view-frames'
 
-/* P-02：帧闸门本身。帧由测试手动推进。 */
+/* 帧闸门本身。帧由测试手动推进。 */
 function manualFrames() {
   let queued: Array<() => void> = []
   return {

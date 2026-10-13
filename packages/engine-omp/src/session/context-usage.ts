@@ -4,17 +4,15 @@ import type { ContextUsage } from '@poietica/engine'
  * omp 的上下文读数与构成 → 引擎端口的 ContextUsage。**纯映射**，不认识 omp 类型：
  * 上游那两格按结构收窄，单测因此不用起会话。
  *
- * 两处形状差异是这次修复的要害（真机故障「输入框没有用量显示」）：
- *
+ * 两处形状差异是这次修复的要害（真机故障「输入框没有用量显示」）： *
  * omp 的 getContextUsage() 报的是 { tokens, contextWindow, percent }（pi-tui 的
- * status-line/types），而旧代码按 { usedTokens, windowTokens } 去读 —— 两个字段名都不存在，
- * 于是恒为 undefined、恒被判成「会话还没报过」，圆环永远不画。percent 不取：它是
+ * status-line/types），而旧代码按 { usedTokens, windowTokens } 去读 —— 两个字段名都不存在， * 于是恒为 undefined、恒被判成「会话还没报过」，圆环永远不画。percent 不取：它是
  * omp 自己按窗口算的整数百分比，本仓的读数一律由 used/size 现算（面板与圆环同一处算法，
  * 见 context-gauge 的 gaugeLayout），取两份会在四舍五入上打架。
  *
  * 构成明细取 omp 自己的 computeContextBreakdown（/context 面板那一份），不自己按
- * getContextBreakdown 那五格折 —— 正本把「技能」从系统提示词里减出去、还算出空闲与
- * 自动压缩缓冲，自己折就会与它在屏幕上显示的那份对不上（legacy bridge.ts 的同一条注释）。
+ * getContextBreakdown 那五格折 —— omp 把「技能」从系统提示词里减出去、还算出空闲与
+ * 自动压缩缓冲，自己折就会与它在屏幕上显示的那份对不上。
  */
 
 /** omp 的 ContextUsage（按结构收窄，不绑 omp 深层类型） */
@@ -38,7 +36,7 @@ function finite(value: number | undefined): number | undefined {
   return typeof value === 'number' && Number.isFinite(value) ? value : undefined
 }
 
-/** 构成里某一类的读数；认不得的 id 当 0（与 legacy 的 tokensOf 同一条） */
+/** 构成里某一类的读数；认不得的 id 当 0 */
 function tokensOf(breakdown: OmpContextBreakdownLike, id: string): number {
   return finite(breakdown.categories?.find((category) => category.id === id)?.tokens) ?? 0
 }

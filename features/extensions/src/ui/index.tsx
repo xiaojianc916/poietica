@@ -10,24 +10,15 @@ import { SkillsSettingsPage } from './skills-settings'
 
 export default defineUiFeature({
   id: 'extensions',
-  /*
-   * conversation：技能页的「查看 SKILL.md」落到右坞那一格（面板住在 conversation，
-   * 因为能画 markdown 的 Prose 属于会话的时间线，守则 3 不许 extensions 直接取）。
-   * platform：技能页的「从文件夹安装 / 从 zip 安装」走 dialog.pickFolder / dialog.pickFiles。
-   */
+  /* conversation：技能页的「查看 SKILL.md」落到右坞那一格（能画 markdown 的 Prose 属于会话，守则 3 不许 extensions 直接取）；
+   * platform：技能页的「从文件夹安装 / 从 zip 安装」走 dialog.pickFolder / dialog.pickFiles。 */
   dependsOn: ['conversation', 'platform'],
   setup(ctx) {
     const api = createExtensionsApi(ctx)
     const toasts = ctx.services.get(ToastsToken)
 
-    /*
-     * 加号面板那张名册（技能 / MCP）。名册属于本功能，conversation 只画面板，所以
-     * 往它的贡献点里放一台来源（见 composer-toolkit.ts 的头注与 refactor-log）。
-     *
-     * 两条通知各自刷新一格：`skills.changed` 清技能缓存（含装 / 删 / 启停），
-     * `mcp.statusChanged` 整份替换 MCP（连接状态是推送的，不重读）。Core 重启后
-     * 两边都清空重来 —— 那可能是换了一份设置。
-     */
+    /* 名册属于本功能，conversation 只画面板，所以往它的贡献点里放一台来源。两条通知各自刷新一格：skills.changed 清技能缓存，
+     * mcp.statusChanged 整份替换 MCP；Core 重启后两边都清空重来。 */
     const composerToolkit = createComposerToolkitSource({ api, logger: ctx.logger })
     ctx.contribute(composerToolkitSources, composerToolkit)
     ctx.lifecycle.onCoreReady(() => {
@@ -39,7 +30,6 @@ export default defineUiFeature({
       composerToolkit.stop()
     })
 
-    // 图标与标题取 legacy SECTIONS（外观的正本）：技能 = PackageOpen，MCP = Plug /「MCP」。
     ctx.contribute(builtinPoints.settingsPages, {
       id: 'extensions.skills',
       group: SETTINGS_GROUPS.agent,
@@ -58,14 +48,8 @@ export default defineUiFeature({
       component: () => <McpSettingsPage api={api} />,
     })
 
-    /*
-     * 07 页 §8E 要求技能页提供「从文件夹安装」/「从 zip 安装」（路径走 platform 的
-     * dialog.pickFolder / dialog.pickFiles）。legacy 的那一页上**没有**这两颗键
-     * （legacy 的 `installSkill` 全仓没有调用点，见 docs/refactor-log.md 偏差 24），
-     * 而产品负责人要求设置界面与 legacy 逐像素一致，所以能力不摆在页面上：
-     * 它挂在命令面板上（`extensions.installSkillFromFolder` / `…FromZip`）——
-     * 能力照方案补齐，页面外观照 legacy 保留。
-     */
+    /* 技能页要提供「从文件夹安装」/「从 zip 安装」，而 legacy 那一页上**没有**这两颗键，产品负责人又要求设置界面与 legacy 逐像素一致 ——
+     * 所以能力挂在命令面板上（extensions.installSkillFromFolder / …FromZip）：能力照方案补齐，页面外观照 legacy 保留。 */
     const install = (kind: 'directory' | 'zip') => (): void => {
       void (async () => {
         const platform = api.platform()

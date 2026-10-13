@@ -5,7 +5,6 @@ import { completionBody, confirmQuit, isTurnSettled, shouldNotify } from '../ses
 import { useThreadSessionLifecycle } from '../threads/thread-lifecycle'
 
 /*
- * 07 页 §5E 的通知表（完成 / 失败 / 需要确认）与退出确认的判据层。
  * 只测规则，不测 IO —— 发与不发的接线在 index.tsx 的 setup 里。
  */
 
@@ -117,8 +116,8 @@ describe('useThreadSessionLifecycle（挂载预热 / 卸载释放）', () => {
       { wrapper: StrictMode },
     )
     /*
-     * StrictMode 会把 effect 跑两遍（挂载 → 清理 → 挂载）。清理里排的 close 必须被
-     * 紧随其后的挂载取消掉，否则每一屏都会白关一次刚预热的会话。
+     * StrictMode 会把 effect 跑两遍。清理里排的 close 必须被紧随其后的挂载取消掉，
+     * 否则每一屏都会白关一次刚预热的会话。
      */
     await Bun.sleep(2)
     expect(calls).toEqual(['open:t1', 'open:t1'])

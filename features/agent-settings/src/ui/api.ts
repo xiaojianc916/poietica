@@ -3,7 +3,6 @@ import type { UiFeatureContext } from '@poietica/ui-kernel'
 import type { Capabilities, SettingDescriptor, SettingGroup } from '../contract'
 import { agentSettingsContract } from '../contract'
 
-/** ctx.rpc(agentSettingsContract) 的薄封装：把方法名收在一处，组件不认字符串 */
 export function createAgentSettingsApi(ctx: UiFeatureContext) {
   const rpc: TypedRpcClient<typeof agentSettingsContract> = ctx.rpc(agentSettingsContract)
   return {

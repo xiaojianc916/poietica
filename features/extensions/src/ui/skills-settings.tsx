@@ -18,26 +18,11 @@ import type { ExtensionsApi } from './api'
 import { skillDocumentOf } from './skill-document'
 import './skills-settings.css'
 
-/*
- * 技能设置页。**迁移自** legacy `packages/settings/src/ui/skills-settings.tsx` 与同名 CSS：
- * DOM、类名、文案、键盘走位、确认框照旧；数据来源换成新架构的 extensions 契约（`skills.*`），
- * 不再是 legacy 的 PluginStore。
- *
- * 与新契约的差距（已记入 docs/refactor-log.md 的偏差表）：
- *   - legacy 的来源有 builtin / managed / project / user / extra 五档；契约 `SkillInfo.source`
- *     只有 builtin / user / project 三档。legacy 的 managed 就是这里的 user（Poietica 装进
- *     agent skills/ 的那一批），extra 在新架构里没有，界面因此只画三档；
- *   - legacy 行上那个「无效」标读的是 SKILL.md 的 parse issues，契约没有这一格，不再出现；
- *   - 启停 / 删除的判据由 legacy 的「有没有 directory」换成 `source === 'user'`
- *     （契约里只有这一类可写可删，07 页 §8C）。
- *   - legacy 的技能页**没有**「从文件夹安装」/「从 zip 安装」两颗键（legacy 的
- *     `installSkill` 全仓没有调用点）；07 页 §8E 要求这一页有这两个入口，产品负责人又
- *     要求页面与 legacy 逐像素一致，所以能力改挂命令面板与快捷键（见偏差 24）。
- */
+/* DOM、类名、文案、键盘走位、确认框照 legacy；数据来源换成 extensions 契约。与新契约的差距：契约 SkillInfo.source 只有三档；契约没有
+ * legacy 行上那个「无效」标；启停 / 删除的判据换成 source === 'user'；legacy 技能页没有两个安装入口，能力改挂命令面板。 */
 
 type SourceFilter = 'all' | 'managed' | 'project' | 'builtin'
 
-/** 来源的短名。清单一行只有这么宽，长名字会把说明挤没；筛选器读同一张表。 */
 const SOURCE_LABELS: Record<Exclude<SourceFilter, 'all'>, string> = {
   builtin: '内置',
   managed: '本机',
@@ -93,14 +78,12 @@ export function SkillsSettingsPage({ api }: { readonly api: ExtensionsApi }) {
 
   const options = useMemo(() => sourceOptions(skills), [skills])
 
-  /* 键盘走位只高亮不打开，所以走到屏幕外的那一行要跟上去，否则按键没有可见的结果。 */
   useEffect(() => {
     if (focusedKey !== undefined) {
       focusedRow.current?.scrollIntoView({ block: 'nearest' })
     }
   }, [focusedKey])
 
-  /* 打开文档不保留选中态；高亮只跟随悬停与键盘焦点。 */
   const open = (skill: SkillInfo) => {
     void api.skills.read(skill.id).then(
       (markdown) => {
@@ -129,7 +112,6 @@ export function SkillsSettingsPage({ api }: { readonly api: ExtensionsApi }) {
           <Search aria-hidden="true" />
           <input
             aria-label="搜索技能"
-            /* 键盘走位属于这一次键盘会话：焦点离开搜索框，那一块高亮就跟着撤掉。 */
             onBlur={() => {
               setFocusedKey(undefined)
             }}
@@ -240,7 +222,6 @@ function SkillListRow({
   readonly onOpen: () => void
   readonly onToggle: (enabled: boolean) => void
   readonly onTrash: () => void
-  /* 只给键盘走位那一行一个落脚点：走到屏幕外时它要能自己滚回来。 */
   readonly ref?: Ref<HTMLDivElement> | undefined
   readonly skill: SkillInfo
   readonly writable: boolean
@@ -311,7 +292,6 @@ function toggleHint(skill: SkillInfo, writable: boolean): string | undefined {
   return writable ? `停用 ${skill.name}` : '这个技能不由 Poietica 管理，在这里还拨不动。'
 }
 
-/* 契约的三档来源 → 这一页读的三档（见文件头注释）。 */
 function sourceOf(skill: SkillInfo): Exclude<SourceFilter, 'all'> {
   if (skill.source === 'builtin' || skill.source === 'project') {
     return skill.source
@@ -320,7 +300,6 @@ function sourceOf(skill: SkillInfo): Exclude<SourceFilter, 'all'> {
   return 'managed'
 }
 
-/* 来源筛选器上的读法：这一页只剩这一个地方说得出「这个技能是从哪来的」。 */
 function sourceOptions(skills: readonly SkillInfo[]): readonly SelectOption<SourceFilter>[] {
   const counts = new Map<Exclude<SourceFilter, 'all'>, number>()
   for (const skill of skills) {

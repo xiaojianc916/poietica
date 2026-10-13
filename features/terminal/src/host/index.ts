@@ -8,16 +8,10 @@ export default defineHostModule({
   id: 'terminal',
   contract: terminalContract,
   setup(ctx) {
-    /*
-     * 只有这一个文件 import @lydell/node-pty（07 页 §11D）：native 模块加载失败
-     * 只影响 terminal，其它功能照常。service 本身经 PtyFactory 注入，可被假 PTY 测。
-     */
+    /* 只有这一个文件 import @lydell/node-pty：native 模块加载失败只影响 terminal，其它功能照常。service 经 PtyFactory 注入，可被假 PTY 测。 */
     const service = createTerminalService({
       logger: ctx.logger,
-      /*
-       * @lydell/node-pty 在 Windows 上**只有** ConPTY 一条路（没有 winpty 分支），
-       * 所以方案里的 useConpty: true 在这个依赖上没有对应选项；不写即为它的唯一行为。
-       */
+      /* @lydell/node-pty 在 Windows 上**只有** ConPTY 一条路（没有 winpty 分支），方案里的 useConpty: true 在这个依赖上没有对应选项。 */
       spawn: (shell, o) =>
         spawn(shell.file, [...shell.args], {
           name: 'xterm-256color',

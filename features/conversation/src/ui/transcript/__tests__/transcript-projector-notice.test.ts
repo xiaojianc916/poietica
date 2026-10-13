@@ -4,7 +4,7 @@ import type { TranscriptPage } from '../../agent/transcript'
 import { createProjectionMemo, projectTranscript } from '../transcript-projector'
 
 /*
- * notice 帧的级别要一路带到时间线条目（R-09）。
+ * notice 帧的级别要一路带到时间线条目。
  *
  * 引擎侧已经不发 info，但投影器不能把漏网的那一条画成报错：info 投影成 null，
  * warning / error 各带自己的级别交给组件选样子。

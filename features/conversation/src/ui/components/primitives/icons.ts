@@ -1,30 +1,16 @@
 import { createElement, type FunctionComponent, type SVGProps } from 'react'
 
-/*
- * 语义命名到字形的唯一映射表，手工维护。
- *
- * 别名与图标库的一致性由 typecheck 保证：库里改名或删掉某个字形，下面的
- * re-export 会直接编译失败。
- */
+/* 语义命名到字形的映射表，手工维护：库里改名或删掉某个字形，下面的 re-export 会直接编译失败。 */
 
 /*
- * 一个图标在这个应用里是什么形状。re-export 只换名字，交出去的仍是图标库自己的
- * props 类型；一旦被当「值」出境（填进别的库的图标槽、存进表），它就与 React 的
- * SVGProps 不兼容：lucide 把 stroke 声明成 string | number，React 可选属性读出来是
- * string | undefined，exactOptionalPropertyTypes 下「不传」与「传 undefined」是两件事，
- * 函数参数又是逆变的。所以出境面要有本仓说了算的形状
- * （与 @poietica/design-system 的本地字形同一个形状）。
+ * lucide 字形被当「值」填进别的库的图标槽、存进表时，与 React 的 SVGProps 不兼容（stroke 是
+ * string | number；exactOptionalPropertyTypes 下「不传」与「传 undefined」是两件事），所以出境面用本仓的形状。
  */
 export type IconProps = SVGProps<SVGSVGElement> & { readonly size?: number }
 
 export type Icon = FunctionComponent<IconProps>
 
-/*
- * 把一枚字形收进上面那个形状。
- *
- * 按「没有就不传」转发：显式传 undefined 与压根不传，在 exactOptionalPropertyTypes
- * 之下正是要分开的那两件事。只转发字形认得的那两样，其余由样式表决定。
- */
+/* 按「没有就不传」转发：显式传 undefined 与压根不传在 exactOptionalPropertyTypes 之下是两件事。 */
 export function asIcon(glyph: FunctionComponent<{ className?: string; size?: number }>): Icon {
   return ({ className, size }) =>
     createElement(glyph, {

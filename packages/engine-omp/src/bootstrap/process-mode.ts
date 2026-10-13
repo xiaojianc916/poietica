@@ -7,13 +7,13 @@ declareWorkerHostEntry()
 
 export type ProcessMode = 'serve' | 'worker' | 'browser-relay'
 
-/** 永不兑现：worker 与 relay 都由 omp 自己接管生命周期（12 页 §4.4） */
+/** 永不兑现：worker 与 relay 都由 omp 自己接管生命周期 */
 function never(): Promise<never> {
   return new Promise<never>(() => undefined)
 }
 
 /**
- * Core 的参数分派。argv[2] 是模式（04 页 §3.2）：bun 编译版的 argv[1] 是内嵌入口。
+ * Core 的参数分派。argv[2] 是模式：bun 编译版的 argv[1] 是内嵌入口。
  * 本文件只允许静态 import @oh-my-pi/pi-utils/worker-host（它不触发目录解析与 .env 加载），
  * 其它 omp 模块一律在分支里动态 import。
  */

@@ -21,10 +21,10 @@ export function configureAppIdentity(): AppIdentity {
   app.setPath('userData', layout.root)
   app.setPath('sessionData', layout.chromiumSessionDir)
   app.setAppLogsPath(layout.logsDir)
-  // 08 页 §1 的“谁创建目录”表：root 与 logsDir 由这里在启动第一步创建（日志之前）。
-  // 其余目录各归其主（CoreSupervisor 的 mustExistDirs / 各 Core 模块的第一次写入）。
+  // root 与 logsDir 由这里在启动第一步创建（日志之前）；其余目录各归其主
+  // （CoreSupervisor 的 mustExistDirs / 各 Core 模块的第一次写入）。
   mkdirSync(layout.root, { recursive: true })
   mkdirSync(layout.logsDir, { recursive: true })
-  app.setAppUserModelId(isPackaged ? 'com.poietica.Poietica' : 'com.poietica.Poietica.Dev') // 与 electron-builder appId 一致（沿用 legacy，保证覆盖升级）
+  app.setAppUserModelId(isPackaged ? 'com.poietica.Poietica' : 'com.poietica.Poietica.Dev') // 与 electron-builder 的 appId 一致，保证覆盖升级
   return { isPackaged, layout }
 }

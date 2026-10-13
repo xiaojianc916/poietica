@@ -4,8 +4,7 @@ import { AppError } from '@poietica/foundation'
 import { type GoalActionApi, runGoalAction } from '../goal-actions'
 
 /*
- * 目标动作的路由与失败折叠（审查 R-10）：四个动作各走各的 RPC；
- * 永不 reject —— AppError 用它的 message，其余走 describeFailure。
+ * 四个动作各走各的 RPC；永不 reject —— AppError 用它的 message，其余走 describeFailure。
  */
 
 type Call = readonly [method: string, threadId: string, goal?: string | null]

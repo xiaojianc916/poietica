@@ -18,23 +18,17 @@ export interface CreateEngineOptions {
   readonly logger: Logger
   readonly relayPort: number
   readonly appVersion: string
-  /** Core 的引擎版本（omp 的版本，来自 package.json） */
+  /** omp 的版本（来自 package.json） */
   readonly engineVersion: string
 }
 
-/**
- * 测试缝：只有 ./testing 能拿到（12 页 §12.1），不从包根导出。
- * model 存在时跳过模型解析、直接用 mock；getApiKey 让 createAgentSession 不需要写任何凭据。
- */
+/** 测试缝：只有 ./testing 能拿到，不从包根导出。model 存在时跳过模型解析、直接用 mock */
 export interface EngineTestSeams {
   readonly model?: unknown
   readonly getApiKey?: (model: unknown) => string
   /**
-   * 关掉自动总结标题（omp 知识 #17）。
-   *
-   * 为什么测试入口需要它：mock provider 同时也是 `tiny` 角色的候选（`acceptsTinyOrChat`），
-   * 于是标题请求会**吃掉一条脚本回复** —— 那测的是脚本被谁消费，不是引擎语义。
-   * 生产入口不传（seams 恒为 null），所以产品行为不受影响。
+   * 关掉自动总结标题（omp 知识 #17）：mock provider 同时也是 `tiny` 角色的候选，标题请求会**吃掉一条
+   * 脚本回复** —— 那测的是脚本被谁消费，不是引擎语义。生产入口不传（seams 恒为 null）。
    */
   readonly disableAutoTitle?: boolean
 }
@@ -63,17 +57,14 @@ async function ompModules() {
 }
 
 /**
- * omp 知识 #16：Core 的编译参数必须与 omp 官方一致（关闭四类自动加载、bytecode、
- * external fastembed/onnxruntime-node、define PI_COMPILED）—— 那一步在 apps/core/scripts/build.ts（P7）。
+ * omp 知识 #16：Core 的编译参数必须与 omp 官方一致（关闭四类自动加载、bytecode、external
+ * fastembed/onnxruntime-node、define PI_COMPILED），那一步在 apps/core/scripts/build.ts。
  *
- * 引擎的创建顺序（12 页 §6.1，逐条照做）。顺序就是正确性：
- * 1. ensureThemeSync()（omp 知识 #3：ask 工具无条件读主题单例，必须在任何会话之前初始化）
- * 2. Settings.init() → root，再 initializeWithSettings(root)（omp 知识 #10 的前置：disableProvider 写的是「当前绑定的那个 Settings」）
- * 3. 先放行已撤销的外来 provider（`agents`，见 refactor-log Q32），再禁用剩下的 13 个（omp 知识 #10）
- * 4. browser.relay 只在从未配置过时写默认值（omp 知识 #11）
- * 5. browser.relayUrl 只写运行时覆盖层（端口每次启动都不同，不能落盘）
- * 6. 模型注册表：先本地补目录，联网发现放后台（**不要** await refresh()：缓存过期时它会当场等网络）
- * 7. 工具表、SessionFactory、6 个端口，返回 OmpEngine
+ * 创建顺序就是正确性：ensureThemeSync（omp 知识 #3：ask 工具无条件读主题单例）→ Settings.init 后
+ * initializeWithSettings（omp 知识 #10 的前置）→ 先放行已撤销的外来 provider 再禁用剩下的（omp 知识
+ * #10）→ browser.relay 只在从未配置过时写默认值（omp 知识 #11）→ browser.relayUrl 只写运行时覆盖层
+ * → 模型注册表先补本地目录、联网发现放后台（**不要** await refresh：缓存过期时它会当场等网络）
+ * → 工具表、SessionFactory、6 个端口。
  */
 /** 生产入口：包根的 createOmpEngine(opts) 就是它（seams 恒为 null） */
 export async function createOmpEngineWith(o: CreateEngineOptions, seams: EngineTestSeams | null): Promise<AgentEngine> {
@@ -82,9 +73,8 @@ export async function createOmpEngineWith(o: CreateEngineOptions, seams: EngineT
   theme.ensureThemeSync()
   const omp = await ompModules()
   const root = await omp.Settings.init()
-  // omp 知识 #10：先绑定再禁用。capability 的开关只在绑定过 Settings 之后才读写它；
-  // 没有这一步 disableProvider 落进一个「未绑定」的进程级集合，配置一刷就被丢掉，
-  // 外来 provider（~/.claude、AGENTS.md、~/.agents/skills……）会照常被读进隔离根。
+  // omp 知识 #10：先绑定再禁用。capability 的开关只在绑定过 Settings 之后才读写它；没有这一步，
+  // disableProvider 落进一个「未绑定」的进程级集合，配置一刷就被丢掉，外来 provider 会照常被读进隔离根。
   omp.initializeWithSettings(root)
   // 先撤再禁：旧版本把 `agents` 写进过 disabledProviders，顺序反过来会当场又禁回去。
   const released = await releaseForeignProviders(root, () => root.flush(), omp.enableProvider)
@@ -96,21 +86,15 @@ export async function createOmpEngineWith(o: CreateEngineOptions, seams: EngineT
     writeGlobalSetting(root, 'browser.relay', true)
     await root.flush()
   }
-  // 只写运行时覆盖层：端口每次启动都不同
   overrideSetting(root, 'browser.relayUrl', `http://127.0.0.1:${String(o.relayPort)}`)
   // 自动总结标题（omp 知识 #17）：不额外改任何设置，omp 的默认就是产品要的
-  // 「首句兜底 → 总结成功替换一次；没配轻量角色就用这条对话自己的模型」。
   const authStorage = await omp.discoverAuthStorage()
   const registry = new omp.ModelRegistry(authStorage)
   await registry.hydrateCredentialScopedModelCaches()
   registry.refreshInBackground()
 
-  /*
-   * 活会话表：端口与引擎共用同一份（12 页 §3.14：MCP 的状态要按名汇总各活会话的 mcpManager）。
-   * 以前这里给端口另建了一个空 Set，结果 mcp.status() 永远报不出任何一台服务器。
-   */
+  /* 端口与引擎共用同一份活会话表（MCP 的状态要按名汇总各活会话的 mcpManager）；端口另建一个空 Set 的话，mcp.status() 永远报不出任何一台服务器 */
   const liveSessions = new Set<OmpSessionLike>()
-  // 6 个端口（12 页 §10）：每个端口一个文件、一个类，构造参数是它需要的 omp 对象，不依赖 OmpEngine
   const ports = await ompPorts({
     layout: o.layout,
     logger: o.logger,
@@ -120,8 +104,7 @@ export async function createOmpEngineWith(o: CreateEngineOptions, seams: EngineT
     relayPort: o.relayPort,
     sessions: liveSessions,
   })
-  // 先把引擎建出来（它持有工具表的唯一真相），再把那一份交给 SessionFactory：
-  // 两份 Map 会让 registerTool 写进 A、会话从 B 读，工具永远不生效。
+  // 先把引擎建出来（它持有工具表的唯一真相）再交给 SessionFactory：两份 Map 会让 registerTool 写进 A、会话从 B 读
   let factory: SessionFactory | null = null
   const engine = new OmpEngine({
     info: { name: 'omp', version: o.engineVersion },
@@ -131,12 +114,7 @@ export async function createOmpEngineWith(o: CreateEngineOptions, seams: EngineT
       return factory.create(spec)
     },
     sessionFiles: ports.sessionFiles,
-    /*
-     * 草稿控件表（方案 §04）：只读注册表与设置，不开会话。
-     *
-     * 只有组合根这一层同时拿得到 RegistryPort 与 root Settings，所以实现挂在这里，
-     * 由 OmpEngine.draftControls 转发（引擎本身不认识 omp）。
-     */
+    /* 只有组合根这层同时拿得到 RegistryPort 与 root Settings，所以草稿控件表的实现挂在这里，由 OmpEngine.draftControls 转发 */
     draftControls: (init) =>
       Promise.resolve(
         draftControlsOf({
@@ -168,15 +146,11 @@ export async function createOmpEngineWith(o: CreateEngineOptions, seams: EngineT
     registry,
     tools,
     testSeams: seams,
-    // 设置页的「生成标题用的模型」：null（没设）= 不覆盖 → omp 用候选表或当前会话模型
     titleModelAlias: () => {
       const value = modelRoleOf(root, 'title')
       return value === undefined || value === '' ? null : value
     },
-    /*
-     * 12 页 §6.3 第 3 步：解析出**注册表里那一条实例**（不是精简对 —— SDK 要读
-     * identity / api / baseUrl）；还要求 provider 真的配过凭据，否则交给 SDK 兜底。
-     */
+    /* 解析出**注册表里那一条实例**（不是精简对 —— SDK 要读 identity / api / baseUrl）；还要求 provider 真的配过凭据 */
     resolveModel: (selector) =>
       resolveSessionModel(
         {
@@ -186,7 +160,6 @@ export async function createOmpEngineWith(o: CreateEngineOptions, seams: EngineT
         selector,
       ),
     modelRoles: () => {
-      // omp 18.5.0 的 Settings 没有 get(path)：值要从 Setting 句柄读
       const roles = readSetting(root, 'modelRoles')
       return typeof roles === 'object' && roles !== null ? (roles as Record<string, string>) : {}
     },
@@ -194,7 +167,6 @@ export async function createOmpEngineWith(o: CreateEngineOptions, seams: EngineT
       const wrapped = await wrapOmpSession({
         ...sessionInput,
         logger: o.logger,
-        // 子代理总线：createAgentSession 的返回值上（没有就不接）
         subagentBus:
           (
             sessionInput.created as {
@@ -215,12 +187,7 @@ export async function createOmpEngineWith(o: CreateEngineOptions, seams: EngineT
         model: sessionInput.model,
         thinking: sessionInput.spec.thinking,
         disableAutoTitle: seams?.disableAutoTitle === true,
-        /*
-         * 静态目录：模型名字与思考梯子烤在 omp 的注册表里，开会话之前就查得到。
-         *
-         * 两个消费者：`controls()` 的思考候选/默认档（会话没水合时的兜底），以及模型
-         * 候选的 label。与入口页草稿表同一条产地（draft-controls 读的也是它）。
-         */
+        /* 静态目录：模型名字与思考梯子烤在 omp 的注册表里，开会话之前就查得到。消费者是 `controls()` 的思考候选 / 默认档兜底与模型候选的 label */
         modelCatalog: (ref) => {
           const found = registry.find(ref.provider, ref.id)
           if (found === undefined) return null
@@ -231,10 +198,7 @@ export async function createOmpEngineWith(o: CreateEngineOptions, seams: EngineT
           }
         },
       })
-      /*
-       * 活会话账（12 页 §3.14）：MCP 的状态要按名汇总各活会话的 mcpManager。
-       * 会话关掉就摘掉 —— 留着一个死会话的坑，界面上的状态灯会一直在。
-       */
+      /* 活会话账：MCP 的状态要按名汇总各活会话的 mcpManager。会话关掉就摘掉 —— 留着死会话的坑，界面上的状态灯会一直在 */
       const live: OmpSessionLike = {
         sessionId: wrapped.sessionId,
         sessionKey: sessionInput.spec.key,
@@ -254,5 +218,3 @@ export async function createOmpEngineWith(o: CreateEngineOptions, seams: EngineT
   })
   return engine
 }
-
-/** 端口工厂：集中在这里，OmpEngine 只拿到接口 */

@@ -5,7 +5,7 @@ import { pageSchema, type WireTranscriptPage } from './wire'
 export const ThreadId = z.string().min(1)
 export const MAIN_AGENT_ID = 'main'
 
-/** 新线程的默认姿态：threads.create 与 controls.draft 共用这一个值（07 页 §5E）。 */
+/** 新线程的默认姿态：threads.create 与 controls.draft 共用这一个值。 */
 export const DEFAULT_POSTURE: Posture = 'auto-edit'
 
 export const Thread = z.object({
@@ -34,7 +34,7 @@ export const TurnState = z.object({
 export type TurnState = z.infer<typeof TurnState>
 
 /**
- * 一条提交（用户按了发送）在 Core 里的状态（「Core 即时回显」方案）。
+ * 一条提交（用户按了发送）在 Core 里的状态。
  *
  * 界面**只画 Core 给的数据**：气泡不是界面自己造的，而是 Core 存库后推回来的这条记录。
  * 所以不存在「乐观条目要被谁收掉」这套对账 —— 记录本身随状态前进，同一行原地改写。

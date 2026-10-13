@@ -122,7 +122,6 @@ describe('ui-state-service', () => {
     })
     await service.load()
     for (let i = 0; i < 10; i++) service.set('layout', { width: i })
-    // 去抖窗口内只写最后一次（08 页 §6.1 的 saveDebounced）
     await Bun.sleep(60)
     await service.flush()
     const written = JSON.parse(await Bun.file(file).text()) as Record<string, unknown>

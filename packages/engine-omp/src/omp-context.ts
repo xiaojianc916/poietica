@@ -4,7 +4,7 @@ import type { SettingsScope } from './settings-access'
 
 /**
  * 全局（进程级）的 omp 对象：root Settings、模型注册表、凭据存储、日志、时钟、数据布局。
- * 它是 OmpEngine、SessionFactory 与各端口的公共输入；各端口不依赖 OmpEngine 本身（12 页 §10）。
+ * 它是 OmpEngine、SessionFactory 与各端口的公共输入；各端口不依赖 OmpEngine 本身。
  *
  * 这里的每个成员都是**最小形状**：字段与真实 omp 对象逐条核对过（见 docs/omp-sdk-reference.md 的
  * A.2-A.5），只留端口用得到的那几格。真实类型对不上时以 node_modules 的 .d.ts 为准。
@@ -62,7 +62,7 @@ export interface OmpModel {
    * omp 的思考档位配置（`@oh-my-pi/pi-catalog` 的 ThinkingConfig）。
    *
    * `efforts` 是**静态**的 —— 它烤在模型目录里，不需要开会话就能拿到，所以入口页那排
-   * 选择器的档位轨道可以不开会话就画出来（方案 §04 的 draftControls 正是靠它）。
+   * 选择器的档位轨道可以不开会话就画出来（draftControls 正是靠它）。
    * 没有可控档位面的模型这一格是 `undefined`（不是空数组）。
    */
   readonly thinking?: { readonly efforts?: readonly string[]; readonly defaultLevel?: string } | undefined

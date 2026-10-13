@@ -1,9 +1,4 @@
-/**
- * 这条连接此刻的链路态。
- *
- * 它是一帧的载荷（frame.rs 的 RunFrame::LinkChanged），所以重放一条对话会原样
- * 再演一遍。判别式与字段名与原生侧的 LinkState 逐字相同（crates/conversation 的 link.rs）。
- */
+/** 一帧的载荷（RunFrame::LinkChanged），重放对话会原样再演一遍；字段名与原生 LinkState 逐字相同，别改。 */
 export type SessionLink =
   | {
       readonly state: 'retrying'

@@ -23,10 +23,8 @@ interface FakeApi extends TerminalApi {
   readonly exits: Array<(p: { terminalId: string; exitCode: number | null }) => void>
   restored: readonly TerminalInfo[]
   replayData: { data: string; endOffset: number }
-  /** 非 null 时 list / replay 先等这道门，用来把「订阅之后、重放回来之前」这一刻钉住 */
   listGate: Promise<void> | null
   replayGate: Promise<void> | null
-  /** 非 null 时 replay 以它拒绝（模拟 Host 侧读不到） */
   replayError: Error | null
 }
 
@@ -196,10 +194,8 @@ describe('terminal runtime：重载恢复（list + replay）', () => {
     expect(api.calls).toEqual(['list', 'replay:t1', 'replay:t2'])
     expect(runtime.count()).toBe(2)
     expect(runtime.store.getState().terminals.map((t) => t.info?.terminalId)).toEqual(['t1', 't2'])
-    /* 恢复出来的标签：没有别的活动标签时挑第一条 */
     expect(runtime.store.getState().activeId).toBe(runtime.store.getState().terminals[0]!.id)
 
-    /* 通知按 terminalId 落到恢复出来的画面上（用不上 DOM 也能观测：写进 xterm 的缓冲） */
     runtime.writeToHost('t1', 'live', 10)
     const first = runtime.store.getState().terminals[0]!.id
 
@@ -228,7 +224,6 @@ describe('terminal runtime：重载恢复（list + replay）', () => {
 })
 
 describe('R-08-15: 重放与实时输出按 offset 对齐', () => {
-  /** 画面上的文字（xterm 的写是异步的，等一拍再读缓冲） */
   const screen = async (runtime: ReturnType<typeof makeRuntime>, id: string): Promise<string> => {
     await new Promise((resolve) => setTimeout(resolve, 15))
     const buffer = runtime.session(id)?.terminal.buffer.active
@@ -246,7 +241,6 @@ describe('R-08-15: 重放与实时输出按 offset 对齐', () => {
     return lines.join('\n').trim()
   }
 
-  /** 让 restore() 停在「已订阅、replay 还没回来」这一刻 */
   const gated = (): { api: FakeApi; release: () => void } => {
     const api = fakeApi()
     let release!: () => void
@@ -256,7 +250,6 @@ describe('R-08-15: 重放与实时输出按 offset 对齐', () => {
     return { api, release }
   }
 
-  /** 与 restore() 并行：等到 replay 真的被叫了（list 已经回来） */
   const untilReplaying = async (api: FakeApi): Promise<void> => {
     for (let i = 0; i < 50 && !api.calls.includes('replay:t1'); i += 1) {
       await new Promise((resolve) => setTimeout(resolve, 1))
@@ -273,7 +266,6 @@ describe('R-08-15: 重放与实时输出按 offset 对齐', () => {
     const restoring = runtime.restore()
     await untilReplaying(api)
 
-    /* 重放回来之前，Host 把同一段输出又推了一遍（0..10） */
     runtime.writeToHost('t1', 'ping\r\npong\r\n', 0)
     release()
     await restoring
@@ -291,7 +283,6 @@ describe('R-08-15: 重放与实时输出按 offset 对齐', () => {
     const restoring = runtime.restore()
     await untilReplaying(api)
 
-    /* 通知从 4 开始：前 2 个码元（ef）已经在重放里 */
     runtime.writeToHost('t1', 'efgh', 4)
     release()
     await restoring
@@ -385,7 +376,6 @@ describe('R-08-15: 重放与实时输出按 offset 对齐', () => {
     release()
     await restoring
 
-    /* 关掉的会话不该再被写：攒下的那一段既没人写，也不该留在表里 */
     expect(runtime.session(id)).toBeUndefined()
     expect(runtime.count()).toBe(0)
   })

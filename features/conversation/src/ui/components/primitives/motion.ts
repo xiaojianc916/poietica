@@ -1,10 +1,4 @@
-/*
- * 这一面的动效词汇：进场减速，退场加速且更短 —— 退场是一个已经做完的决定。
- *
- * 曲线与 packages/conversation/src/surface/skin/metrics.css 的
- * --cp-motion-drawer-ease 同一条：
- * motion 要的是数，而 CSS 令牌读不进 JS，所以这里是它在 JS 侧的唯一产地。
- */
+/* 曲线与 skin/metrics.css 的 --cp-motion-drawer-ease 必须同一条：CSS 令牌读不进 JS，这里是 JS 侧唯一产地。 */
 
 export const ENTER_EASE: [number, number, number, number] = [0.2, 0, 0, 1]
 export const EXIT_EASE: [number, number, number, number] = [0.4, 0, 1, 1]

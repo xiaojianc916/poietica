@@ -1,17 +1,11 @@
 import { type Disposable, toDisposable } from './disposable'
 import { lastResort } from './last-resort'
 
-/** 订阅函数：传入监听器，返回取消订阅的 Disposable */
 export type Event<T> = (listener: (value: T) => void) => Disposable
 
 /**
- * 事件发射器。监听器抛错时经 `lastResort` 兜底并继续通知其余监听器
- * （foundation 没有 logger，这一处只能交给日志系统不可用时的最后通道）。
- * 通知时对监听器集合做快照：在回调中新增的监听器本次不会收到，在回调中移除的监听器本次仍会收到。
- *
- * 调用方（已经拿着 logger 的模块，比如 OmpSession、InteractionBroker）可以给一份
- * `onListenerError`：异常照旧不外抛、其余监听器照旧收到，只是改成记在有上下文的那条日志上
- * （R-08-4）。不给就仍是 `lastResort`。
+ * 事件发射器。监听器抛错时经 `lastResort` 兜底并继续通知其余监听器（foundation 没有 logger）。通知时对监听器集合做快照：
+ * 回调中新增的本次不会收到，回调中移除的本次仍会收到。调用方可以给 `onListenerError`，把异常记在有上下文的那条日志上（R-08-4）。
  */
 export interface EmitterOptions {
   readonly onListenerError?: (error: unknown) => void
@@ -61,7 +55,7 @@ export class Emitter<T> implements Disposable {
   }
 }
 
-/** 等待事件的下一次触发。signal 中止时 reject（reason 为 signal.reason） */
+/** 等待事件的下一次触发；signal 中止时 reject（reason 为 signal.reason）。 */
 export function onceEvent<T>(event: Event<T>, signal?: AbortSignal): Promise<T> {
   return new Promise<T>((resolve, reject) => {
     if (signal?.aborted === true) {

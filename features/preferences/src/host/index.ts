@@ -24,10 +24,7 @@ export default defineHostModule({
 
     const resolvedTheme = (): 'light' | 'dark' => (nativeTheme.shouldUseDarkColors ? 'dark' : 'light')
 
-    /**
-     * 日志级别要同步两边：Host 自己 HostLogging.setLevel；Core 为 ready 时调 diagnostics.setLogLevel。
-     * 每次 Core 重新进入 ready（崩溃重启后）再同步一次，否则重启后的 Core 会回到默认级别。
-     */
+    /** 日志级别要同步两边：Host 自己 setLevel，Core ready 时调 diagnostics.setLogLevel；每次重新 ready 都要再同步一次。 */
     const syncLogLevel = (level: 'debug' | 'info' | 'warn' | 'error'): void => {
       logging.setLevel(level)
       if (ctx.core.status().state === 'ready') {
@@ -41,7 +38,7 @@ export default defineHostModule({
       nativeTheme.themeSource = next.theme
       ctx.rpc.emit('theme.changed', { resolved: resolvedTheme() })
       if (prev === null || prev.logLevel !== next.logLevel) syncLogLevel(next.logLevel)
-      // 主题变化后窗口底色也要跟着走：窗口已存在，configureMain 会拒绝，所以直接设底色
+      // 窗口已存在时 configureMain 会拒绝，所以直接设底色。
       if (prev === null || prev.theme !== next.theme) {
         const win = ctx.windows.main()
         if (!win.isDestroyed()) {
@@ -57,14 +54,14 @@ export default defineHostModule({
       logger: ctx.logger,
     })
 
-    // 主题的两个来源：用户选 system 时，Windows 切换深浅色也要重算并广播
+    // 用户选 system 时，Windows 切换深浅色也要重算并广播。
     nativeTheme.on('updated', () => {
       ctx.rpc.emit('theme.changed', { resolved: resolvedTheme() })
     })
 
-    // beforeWindow：读偏好并按主题设置窗口底色（深色主题启动没有白闪）
+    // 按主题设窗口底色：深色主题启动没有白闪。
     ctx.lifecycle.beforeWindow(async () => {
-      // 三个 JSON 文档都在窗口创建之前读完：窗口一出现，渲染层就可能来取
+      // 都在窗口创建之前读完：窗口一出现，渲染层就可能来取。
       await prefs.load()
       await uiState.load()
       await keymap.load()

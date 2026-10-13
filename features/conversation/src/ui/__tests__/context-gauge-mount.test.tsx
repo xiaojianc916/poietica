@@ -3,14 +3,7 @@ import { renderToStaticMarkup } from 'react-dom/server'
 import type { SessionUsage } from '../agent/usage'
 import { ContextGauge } from '../components/composer/context-gauge'
 
-/*
- * 挂载这一层只验一件事：原来的悬浮提示没有被面板顶掉。
- *
- * 提示与面板是两个触发器挂在同一个按钮上（PopoverTrigger 交给 TooltipTrigger 的
- * render）。两者都在 DOM 里才算数 —— 只有面板、没有提示，就是退掉了原来那一格。
- *
- * 面板里的数由 gaugeLayout 的纯函数测试覆盖，这里不重复数。
- */
+/* 提示与面板是两个触发器挂在同一个按钮上，只有面板、没有提示就是退掉了原来那一格。 */
 
 const usage = (breakdown: SessionUsage['breakdown']): SessionUsage => ({
   used: 140_000,
@@ -25,10 +18,8 @@ describe('上下文胶囊的触发方式', () => {
   test('常显触发按钮，且提示与面板两个入口都在', () => {
     const markup = renderToStaticMarkup(<ContextGauge usage={usage(null)} />)
 
-    /* 触发按钮：圆环 + 读数写进 aria-label。 */
     expect(markup).toContain('context-gauge__trigger')
     expect(markup).toContain('上下文已用 70%')
-    /* 提示那一支仍在（原来那一格不能因为加了面板就没了）。 */
     expect(markup).toContain('context-gauge__ring')
   })
 

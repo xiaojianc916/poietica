@@ -1,7 +1,7 @@
 import { useCallback } from 'react'
 import { RAIL_PITCH_PX, railCentre, railWeight, railWindow } from './conversation-minimap-geometry'
 
-/** 指针从轨道朝内容那一侧探出多少就算进入。要调手感就调这一个数。 */
+/** 指针从轨道朝内容那一侧探出多少就算进入；要调手感就改这一个数。 */
 const REACH_INWARD_PX = 28
 const REACH_OUTWARD_PX = 16
 const TRACK_CLASS = 'conversation-minimap__scroller'
@@ -9,14 +9,12 @@ const TURN_CLASS = 'conversation-minimap__turn'
 const WEIGHT_VAR = '--cp-rail-weight'
 const CARD_Y_VAR = '--cp-rail-card-y'
 const AIMED_ATTRIBUTE = 'data-aimed'
-/** 低于这个权重与静止无异，写平的 0。 */
 const EPSILON = 0.002
 interface Span {
   from: number
   to: number
 }
 const EMPTY: Span = { from: 0, to: -1 }
-/** 横向朝内容那一侧探出算数；纵向以可见轨道为界。 */
 function inReach(box: DOMRect, x: number, y: number): boolean {
   return (
     !Number.isNaN(x) &&
@@ -26,15 +24,8 @@ function inReach(box: DOMRect, x: number, y: number): boolean {
     y <= box.bottom
   )
 }
-/**
- * Dock magnification，纵向：柱子按到指针的距离拿 0..1 的权重，样式表把它换成长度。
- *
- * 权重逐帧变，所以写成自定义属性而不进 React；「指着第几根」跨格才变，那一件事才
- * 交给 React。两者由同一趟算出，读写落在同一帧，指针几何因此只有一个所有者。
- *
- * 指针跟在 window 上：轨道只有三十来像素宽，真正的边界在它外面。焦点压过指针 ——
- * 人按了 Tab 就是在用键盘，鼠标停在哪里是历史遗留。
- */
+/** 柱子按到指针的距离拿 0..1 权重，样式表把它换成长度：权重逐帧变走自定义属性，只有「指着第几根」跨格才变、交给 React。
+ * 指针跟在 window 上（轨道只有三十来像素宽，真正的边界在它外面）；焦点压过指针 —— 按了 Tab 就是在用键盘。 */
 export function useRailPointer(
   onShow: (index: number) => void,
 ): (node: HTMLElement | null) => (() => void) | undefined {
@@ -51,7 +42,7 @@ export function useRailPointer(
       /* 命中盒是可见轨道：nav 铺满整栏，拿它当边界等于整栏都能命中。 */
       const rails = node.getElementsByClassName(TRACK_CLASS) as HTMLCollectionOf<HTMLElement>
       /* 粗指针与减弱动效下不放大：内联自定义属性盖得过媒体查询，所以在这里退场，
-       * 交给样式表的 ':hover' 与 ':focus-visible'。焦点那一路照常。 */
+       * 交给样式表的 ':hover' 与 ':focus-visible'；焦点那一路照常。 */
       const magnifies = !(
         view.matchMedia('(pointer: coarse)').matches || view.matchMedia('(prefers-reduced-motion: reduce)').matches
       )
@@ -103,7 +94,6 @@ export function useRailPointer(
         pointed = -1
         settle(true)
       }
-      /** 一段窗口内的柱子按各自权重上色；没变的写零次。 */
       const paintWeights = (span: Span, anchor: number) => {
         for (let index = span.from; index <= span.to; index += 1) {
           const bar = bars[index]

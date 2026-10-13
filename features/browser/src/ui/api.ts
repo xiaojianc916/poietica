@@ -2,12 +2,6 @@ import type { Disposable } from '@poietica/foundation'
 import type { UiFeatureContext } from '@poietica/ui-kernel'
 import { type BrowserState, browserContract, type PickedElement } from '../contract'
 
-/**
- * `ctx.rpc(browserContract)` 的薄封装（07 页 §12E）。
- *
- * 契约以 tabId 寻址、方法面很窄；这里只换驼峰与「通知 → 订阅函数」两处口径，
- * 让面板组件不认识 RPC 的字符串名字。
- */
 export function createBrowserApi(ctx: UiFeatureContext) {
   const rpc = ctx.rpc(browserContract)
 

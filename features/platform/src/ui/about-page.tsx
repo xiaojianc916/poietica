@@ -11,13 +11,8 @@ import { type ReactElement, useEffect, useState } from 'react'
 import type { AppInfo, CoreDiagnostics } from '../contract'
 import type { PlatformApi } from './api'
 
-/*
- * 关于页。**迁移自** legacy `settings-surface.tsx` 的 AboutSettings：
- * 版本卡、四条架构原则、软件目录明细表都照旧；「诊断与更新」那组由 update 功能贡献
- * （`builtinPoints.settingsSections` 的 `page: 'platform.about'`，见 update 的
- * `UpdateAboutGroup`）—— 产品负责人 2026-10-06：软件更新并入关于页，不再单占导航一格。
- * 这一层只出页面骨架，不 import update 的 ui（守则 3）。
- */
+/* 版本卡、四条架构原则、软件目录明细表照 legacy；「诊断与更新」那组由 update 功能贡献（`page: 'platform.about'`）—— 产品负责人 2026-10-06：软件更新
+ * 并入关于页，不再单占导航一格。这一层只出页面骨架，不 import update 的 ui（守则 3）。 */
 
 const PRINCIPLES = [
   { index: '01', title: 'Agent 集成', description: '统一各类 Agent 交互规范' },
@@ -45,7 +40,6 @@ function Principle({
 }
 
 /**
- * Core 状态的说法。**迁移自** legacy 里原先散在状态栏/横幅的那几句话，落成一格设置项。
  * 五个 state 都出中文（与 CoreStatus 的枚举一一对应）。
  */
 const CORE_STATE_TEXT: Readonly<Record<string, string>> = {
@@ -57,10 +51,7 @@ const CORE_STATE_TEXT: Readonly<Record<string, string>> = {
 }
 
 /**
- * 落在关于页里的**别的功能**贡献的那些组（builtinPoints.settingsSections）。
- *
- * 目前只有 update 的「软件更新」一组。`page` 是字符串，所以平台包不认识任何功能
- * （守则 3）；每一段用 FeatureScope 包住，贡献者的组件仍然按它自己的功能 id 取服务。
+ * 目前只有 update 的「软件更新」一组。`page` 是字符串，所以平台包不认识任何功能（守则 3）；每一段用 FeatureScope 包住。
  */
 function AboutSections(): ReactElement | null {
   const sections = useContributions(builtinPoints.settingsSections).filter((c) => c.item.page === 'platform.about')
@@ -82,7 +73,6 @@ function AboutSections(): ReactElement | null {
   )
 }
 
-/** 关于页：版本、Core 状态与软件目录（迁移自 legacy 的版本卡 + 明细表） */
 export function AboutPage({ api }: { readonly api: PlatformApi }): ReactElement {
   const toasts = useService(ToastsToken)
   const coreStatus = useCoreStatus()

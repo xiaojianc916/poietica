@@ -4,13 +4,12 @@ import { LiveProjector } from '../live'
 import { framesOf, iso, projector, snapshot } from './fixtures/live'
 
 /*
- * 迁移自 legacy projection.test.ts、screen-turns.test.ts、live-image-attachments.test.ts
- * 的屏幕侧那一半（12 页 §12.3 的去向表）：断言意图一条不删，只把输入换成 LiveProjector 的接口。
+ * 屏幕侧那一半：断言意图一条不删，只把输入换成 LiveProjector 的接口。
  *
- * 两处 legacy 有、新接口表达不了的（在完成汇报里点名，不在这里假绿）：
- *   - legacy 的 userTurn 能直接指定「屏幕上已有那一格」的号；新接口只有 seat(n)（下一号 = n + 1），
+ * 两处旧接口有、新接口表达不了的（在完成汇报里点名，不在这里假绿）：
+ *   - 旧的 userTurn 能直接指定「屏幕上已有那一格」的号；新接口只有 seat(n)（下一号 = n + 1），
  *     等价表达见「指定座位开轮」那一条。
- *   - legacy 的 skills 每一项带 args（写进 origin 的 skillArgs）；新接口只收技能名（方案 §7.4 的形状）。
+ *   - 旧的 skills 每一项带 args（写进 origin 的 skillArgs）；新接口只收技能名。
  */
 describe('正文、工具与轮终的完整链（legacy projection.test.ts）', () => {
   test('正文逐段追加：offset 逐条接得上，applyOps 不抛缺口，prompt 不被流式覆盖', () => {
@@ -245,10 +244,10 @@ describe('投影器坐到屏幕的位置上（legacy projection.test.ts / screen
 })
 
 /*
- * 现场发送的图片上屏（legacy live-image-attachments.test.ts 的屏幕那一侧）。
+ * 现场发送的图片上屏。
  *
- * legacy 的链是「同一号上先有一条能画的 attachment.upsert，然后 turn 引用它」，
- * 新接口由 LiveProjector.attachmentOp 出这条 upsert（12 页 §7.4 第 3 步）。
+ * 链是「同一号上先有一条能画的 attachment.upsert，然后 turn 引用它」，
+ * 新接口由 LiveProjector.attachmentOp 出这条 upsert。
  */
 describe('现场图片上屏（legacy live-image-attachments.test.ts）', () => {
   /** 一张 1×1 的 PNG，够证明「像素过得了这条线」而不必带大文件 */

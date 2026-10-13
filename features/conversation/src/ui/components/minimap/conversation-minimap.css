@@ -1,17 +1,8 @@
-/*
- * 轮次轨道：会话的目录，站在面板前缘。
- *
- * 度量在顶上声明一次，其余全是对它们的 calc()。鱼眼是一次乘法：use-rail-pointer
- * 逐帧写每根柱子 0..1 的权重，长度按权重在静止与增益之间插值，粗细不参与。
- * 步距与可见轮数由 conversation-minimap-geometry.ts 注入，那里是它们的产地。
- */
+/* 轮次轨道：度量在顶上声明一次，其余全是对它们的 calc()。步距与可见轮数由 conversation-minimap-geometry.ts 注入。 */
 .conversation-minimap {
   /* 一个设备像素折合多少 CSS px；只有小数缩放需要在文件底部改写。 */
   --cp-rail-dpx: 1px;
-  /*
-   * 粗细恒为屏幕上的 3 个设备像素。3 CSS px 在 125% 下是 3.75 个设备像素，
-   * 栅格化摊成 4~5 行、首尾各带一条抗锯齿灰边，量出来就成了「5px」。
-   */
+  /* 粗细恒为屏幕上的 3 个设备像素：3 CSS px 在 125% 下是 3.75 个设备像素，栅格化摊成 4~5 行、首尾各带抗锯齿灰边。 */
   --cp-rail-line: calc(var(--cp-rail-dpx) * 3);
   --cp-rail-len: calc(var(--cp-rail-dpx) * 9);
   --cp-rail-gain: 25px;
@@ -29,10 +20,7 @@
   inline-size: calc(var(--cp-rail-len) + var(--cp-rail-gain));
   pointer-events: none;
 }
-/*
- * 可见轮数是滚动的唯一判据：装得下 --cp-rail-visible 轮就不滚，多一轮才滚。
- * 滚动条不画 —— 这条轨道本身就是位置指示，再画一条是同一件事的第二种说法。
- */
+/* 装得下 --cp-rail-visible 轮就不滚，多一轮才滚；滚动条不画 —— 轨道本身就是位置指示。 */
 .conversation-minimap__scroller {
   position: absolute;
   inset-block-start: 50%;
@@ -45,11 +33,7 @@
   pointer-events: auto;
   scrollbar-width: none;
 }
-/*
- * 整条轨道站在设备像素的整数上：50% 相对容器高算，容器高是奇数时它落在半个
- * 像素上，整列杠的相位随之偏半格。@supports 是护栏：round() 里放百分比需要较新
- * 的引擎，声明无效会让定位退回 auto。
- */
+/* 整条轨道要站在设备像素的整数上：容器高为奇数时 50% 落在半个像素上，整列杠的相位偏半格。@supports 是护栏 —— round() 里放百分比需要较新引擎。 */
 @supports (inset-block-start: round(down, 50%, 1px)) {
   .conversation-minimap__scroller {
     inset-block-start: round(down, 50%, var(--cp-rail-dpx));
@@ -66,10 +50,7 @@
 .conversation-minimap__item {
   display: contents;
 }
-/*
- * 一格的盒子，尺寸恒定。inline-size 固定，卡片的左边界因此是一条不动的竖线，
- * 而逐帧变化的布局被关进单根横条内部。
- */
+/* 一格尺寸恒定：inline-size 固定，卡片的左边界才是一条不动的竖线。 */
 .conversation-minimap__turn {
   --cp-rail-weight: 0;
   display: flex;
@@ -99,7 +80,7 @@
     inline-size var(--cp-motion-swift) var(--cp-motion-ease),
     background-color var(--cp-motion-swift) var(--cp-motion-ease);
 }
-/* 字面量 4px 是地板（4 × k/4 恒为整数），round() 是真值，步长取设备像素。 */
+/* 字面量 4px 是地板（4 × k/4 恒为整数），round() 才是真值，步长取设备像素。 */
 @supports (margin-block-start: round(down, 1px, 1px)) {
   .conversation-minimap__bar {
     margin-block-start: round(down, calc((var(--cp-rail-hit) - var(--cp-rail-line)) / 2), var(--cp-rail-dpx));
@@ -123,13 +104,7 @@
   background: var(--cp-rail-ink-active);
   animation: conversation-minimap-busy 900ms ease-in-out infinite alternate;
 }
-/*
- * 预览卡。问题恒一行，超出省略号；回复至多三整行 —— max-block-size 取行高的
- * 整数倍，裁切因此永远落在行边界上，不会露出半行。
- *
- * 两段延迟由 transition-delay 表达，没有定时器：进场 90ms 是「你确实想看」的门槛，
- * 离场 60ms 是擦边划过的宽限。跨格时不透明度的目标值不变，门槛因此只翻一次。
- */
+/* 至多三整行：max-block-size 取行高整数倍，裁切才永远落在行边界上。进场 90ms / 离场 60ms 由 transition-delay 表达，没有定时器。 */
 .conversation-minimap__card {
   position: absolute;
   inset-block-start: 0;
@@ -185,13 +160,7 @@
     animation: none;
   }
 }
-/*
- * 深色下的三档墨与卡片。
- *
- * 上面那三档是浅底上的取向：平常浅灰、读到的那根中灰、指着的那根近黑 —— 浅底上
- * 最深的一根最跳。深底上这条关系反过来：指着的那根要给最亮的一档，否则等于把它
- * 从轨道上擦掉。卡片同理，写死的浅色边与卡面档底色压在近黑上都不成立。
- */
+/* 深色下三档墨要反过来：浅底上最深的一根最跳，深底上指着的那根必须给最亮的一档，否则等于把它从轨道上擦掉。写死的浅色卡边与卡面压在近黑上同样不成立。 */
 :root[data-theme="dark"] .conversation-minimap {
   --cp-rail-ink-rest: #464646;
   --cp-rail-ink-active: #909090;

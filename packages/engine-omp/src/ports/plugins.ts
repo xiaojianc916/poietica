@@ -23,8 +23,8 @@ export interface PluginsPortDeps {
 }
 
 /**
- * 插件端口。用 omp 自己的插件管理器、安装器与市场（**市场源也是 omp 自己的**，不再用 legacy
- * 写死的那个地址）。安装失败的回滚交给 omp 的 installer，不再保留 legacy 的「暂存 / 提交 / 丢弃」。
+ * 插件端口。用 omp 自己的插件管理器、安装器与市场（**市场源也是 omp 自己的**）。
+ * 安装失败的回滚交给 omp 的 installer，这里不保留暂存 / 提交 / 丢弃那一套。
  */
 export class OmpPluginsPort implements PluginsPort {
   constructor(private readonly d: PluginsPortDeps) {}

@@ -2,7 +2,6 @@ import type { TypedRpcClient } from '@poietica/rpc'
 import type { UiFeatureContext } from '@poietica/ui-kernel'
 import { type Workspace, workspacesContract } from '../contract'
 
-/** ctx.rpc(workspacesContract) 的薄封装 */
 export function createWorkspacesApi(ctx: UiFeatureContext) {
   const rpc: TypedRpcClient<typeof workspacesContract> = ctx.rpc(workspacesContract)
   return {

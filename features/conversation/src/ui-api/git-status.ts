@@ -5,13 +5,13 @@ import type { GitBranchPickerProps } from './git-branch-picker'
 /*
  * 状态面板「Git 工具」那一格读的那一份事实，以及「谁来提供它」。
  *
- * 定义在对话包的 ui-api 而不是 ui：这一格有两个主人 —— 面板住在 conversation
- * （它画的是任务浮层的排版），事实属于 review（它认识 git）。两个功能之间只能经
- * contract / core-api / ui-api 协作（守则 3），所以形状与投递口都住在这一格，
- * review 往这里贡献一个 Provider，conversation 只把贡献套在树上。
+ * 定义在对话包的 ui-api 而不是 ui：这一格有两个主人 —— 面板住在 conversation（它画的是任务
+ * 浮层的排版），事实属于 review（它认识 git）。两个功能之间只能经 contract / core-api / ui-api
+ * 协作，所以形状与投递口都住在这一格，review 往这里贡献一个 Provider，conversation 只把贡献
+ * 套在树上。
  *
- * 缺席用 null / undefined 表达 —— 非 git 仓库、没装 git、还没读到，都是「这一区不画」，
- * 不是一个假的 0。**干净仓库是在场的**：它只是没有增删，照样画 +0 -0。
+ * 缺席用 null / undefined 表达 —— 非 git 仓库、没装 git、还没读到，都是「这一区不画」，不是
+ * 一个假的 0。**干净仓库是在场的**：它只是没有增删，照样画 +0 -0。
  */
 export interface WorkspaceGitStatus {
   /** 当前检出的分支；HEAD 分离时为 null。 */
@@ -22,9 +22,8 @@ export interface WorkspaceGitStatus {
    * 相对 HEAD 的新增 / 删除行数。
    *
    * **不是可空的**：这一份事实只在「仓库读到了」时才存在（见 WorkspaceGitFacts 的闸门），
-   * 所以干净仓库就是 0 —— 那两个数要么是事实，要么整份事实都不在。原先写成可空，
-   * 于是「不知道」与「没改」在屏幕上长得一样（都是 +0 -0），产品负责人 2026-10-07
-   * 点出的正是这一处。
+   * 所以干净仓库就是 0 —— 那两个数要么是事实，要么整份事实都不在。写成可空就会让「不知道」
+   * 与「没改」在屏幕上长得一样（都是 +0 -0），产品负责人 2026-10-07 点出的正是这一处。
    */
   readonly added: number
   readonly removed: number
@@ -46,8 +45,8 @@ export interface WorkspaceGitStatus {
 /**
  * 面板那一格要的整副事实：正文那两行读 status，分支那一行读 picker。
  *
- * 两者同出一份快照（见 review 的 workspace-git-source）：分支与改动数是同一次读到的，
- * 不会出现「分支已经切了、数字还是上一个分支的」。
+ * 两者同出一份快照：分支与改动数是同一次读到的，不会出现「分支已经切了、数字还是上一个
+ * 分支的」。
  */
 export interface WorkspaceGitFacts {
   readonly status: WorkspaceGitStatus

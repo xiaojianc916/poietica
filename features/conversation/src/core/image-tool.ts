@@ -6,17 +6,16 @@ import { z } from 'zod'
 import { OWNER_KEY } from './thread-service'
 
 /*
- * agent 往对话里展示一张图（审查 R-13）。
+ * agent 往对话里展示一张图（R-13）。
  *
- * 助手正文里的图只认附件协议 `poietica-asset://attachment/<sha256>`（prose.tsx 的净化链与 CSP
- * 都只放行它；file://、data:、http(s) 一律被拦）。协议处理器只读附件库那一棵树 —— 这是安全边界：
- * 任何被渲染出来的 markdown（包括模型被网页、文件内容诱导着复述的）都够得着它，放开成「任意路径」
- * 就等于界面能显示本机任意文件。所以不放宽协议，而是给 agent 一个**正式入口**：交一个路径，
- * 由 Core 走与输入框添加附件同一条导入管线（50 MB 上限、扩展名定 mime、按内容去重），
- * 挂到这条对话名下（删对话、分支、回收都跟着对话走），交回那一行 markdown。
+ * 正文里的图只认附件协议 `poietica-asset://attachment/<sha256>`（file://、data:、http(s) 一律被拦），
+ * 而协议处理器只读附件库那一棵树 —— 这是安全边界：任何被渲染的 markdown（包括模型被网页或文件
+ * 内容诱导着复述的）都够得着它，放开成「任意路径」就等于界面能显示本机任意文件。所以不放宽协议，
+ * 而是给 agent 一个**正式入口**：交路径，由 Core 走与输入框添加附件同一条导入管线，挂到这条对话
+ * 名下，交回那一行 markdown。
  */
 
-/** 能在对话里直接显示的扩展名：与附件协议处理器的内联白名单同一张（attachments/host/asset-handler.ts 的 INLINE_MIME） */
+/** 能在对话里直接显示的扩展名：与附件协议处理器的内联白名单同一张 */
 const SHOWABLE_EXTENSIONS: ReadonlySet<string> = new Set(['.png', '.jpg', '.jpeg', '.gif', '.webp', '.bmp', '.svg'])
 const SHOWABLE_LIST = 'png, jpg, jpeg, gif, webp, bmp, svg'
 

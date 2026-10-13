@@ -2,7 +2,7 @@ import type { AssetHandler } from '@poietica/host-kernel'
 import { WIDGET_LIBRARY_ORIGINS, WIDGET_SHELL_FILE } from '../contract'
 
 /*
- * 对话内组件的外壳文档（审查 R-18）：poietica-asset://widget/shell-1.html。
+ * 对话内组件的外壳文档（R-18）：poietica-asset://widget/shell-1.html。
  *
  * 为什么要一个外壳，而不是 <iframe srcdoc>：srcdoc / blob: / data: 文档**继承父文档的 CSP**，
  * 主窗口的 script-src 不给 'unsafe-inline'，组件里的脚本一行都跑不起来；放开主窗口的 CSP 又等于

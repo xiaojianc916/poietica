@@ -4,7 +4,7 @@ import type { Contributed, ContributionPoint } from '../contribution'
 import type { Observable } from '../services/observable'
 import { useFeatureId, useKernel } from './kernel-context'
 
-/** 组件里取服务：与 setup 中的 ctx.services.get 遵守同样的 dependsOn 规则 */
+/** 与 setup 中的 ctx.services.get 遵守同样的 dependsOn 规则。 */
 export function useService<T>(token: ServiceToken<T>): T {
   const kernel = useKernel()
   const featureId = useFeatureId()
@@ -18,11 +18,7 @@ export function useObservable<T>(o: Observable<T>): T {
 export const useCoreStatus = () => useObservable(useKernel().kernelServices.coreStatus)
 export const useNavigation = () => useObservable(useKernel().kernelServices.navigation)
 export const useLayout = () => useObservable(useKernel().kernelServices.layout)
-/**
- * 订阅一个贡献点。放在 react/ 而不是 contribution.ts：后者若 import 本文件，
- * 会形成 contribution → react/kernel-context → kernel → contribution 的环
- * （depcruise 的 no-circular 规则不允许）。
- */
+/** 放在 react/ 而不是 contribution.ts：后者若 import 本文件会形成 depcruise 不允许的环。 */
 export function useContributions<T>(point: ContributionPoint<T>): readonly Contributed<T>[] {
   const { registry } = useKernel()
   return useSyncExternalStore(

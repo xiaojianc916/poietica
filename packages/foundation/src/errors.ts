@@ -33,7 +33,7 @@ export function toAppError(error: unknown): AppError {
   return new AppError(SystemErrorCode.internal, String(error))
 }
 
-/** 系统级错误码（命名空间 kernel）。功能级错误码由各功能在 contract 中用 defineErrors 定义。 */
+/** 系统级错误码（命名空间 kernel）；功能级错误码由各功能在 contract 中用 defineErrors 定义。 */
 export const SystemErrorCode = {
   invalidParams: 'kernel.invalid_params',
   methodNotFound: 'kernel.method_not_found',

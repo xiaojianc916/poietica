@@ -4,23 +4,21 @@ import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 /*
- * 一、主题契约完整性。起因：一次用正则替换注释的改动把 --ui-card /
- *     --ui-chrome / --ui-sidebar 等七个 token 连带删掉，设置页分组卡与侧栏
- *     底色变成一片白，而当时的测试只看几个颜色字面值，全绿。
+ * 一、主题契约完整性。起因：一次用正则替换注释的改动把 --ui-card / --ui-chrome /
+ *     --ui-sidebar 等七个 token 连带删掉，设置页分组卡与侧栏底色变成一片白，而当时的
+ *     测试只看几个颜色字面值，全绿（真实故障）。
  *
- * 二、两档线的比例不变量：同一张卡内，外框相对基底的对比度是卡内线的
- *     3～6 倍。低于 3 卡片会"化开"成一叠平行线（曾经是 1 倍，后来 2.2 倍，
- *     都不够）。这条是核心，值可以整体升降，比例不许塌。
+ * 二、两档线的比例不变量：同一张卡内，外框相对基底的对比度是卡内线的 3～6 倍。低于 3
+ *     卡片会"化开"成一叠平行线。这条是核心，值可以整体升降，比例不许塌。
  *
- *     这里曾经还有一条"外框必须比窗格分隔线重"，已删除：窗格线是整屏宽的
- *     区域边界，卡框是几百像素宽的容器边界，同墨量下视觉重量差一个量级，
- *     卡框比窗格线淡是常态而非缺陷。换成绝对墨量的上下限。
+ *     这里曾经还有一条"外框必须比窗格分隔线重"，已删除：窗格线是整屏宽的区域边界，
+ *     卡框是几百像素宽的容器边界，同墨量下视觉重量差一个量级，卡框比窗格线淡是常态而
+ *     非缺陷。换成绝对墨量的上下限。
  *
  * 三、卡片不许自己造背景，也不许自己开宽度档。
  *
- * 这个文件曾经住在根 tests/unit/ 并用 join(repoRoot, 'packages', 'ui', …)
- * 从包外面伸手读 CSS，目录一动就 ENOENT，连断三次。现在它读的是自己包里的
- * 相对路径：被测物搬到哪，它跟到哪。
+ * 这个文件曾经住在根 tests/unit/ 从包外面伸手读 CSS，目录一动就 ENOENT，连断三次
+ * （真实故障）。现在它读的是自己包里的相对路径：被测物搬到哪，它跟到哪。
  */
 
 const here = dirname(fileURLToPath(import.meta.url))
@@ -32,8 +30,8 @@ const stripComments = (css: string) => css.replace(/\/\*[\s\S]*?\*\//g, '')
 /*
  * 一条真正的 background 声明:属性名顶在 '{' 或 ';' 之后。
  *
- * 此前这里是 not.toContain('background'),既过松也过紧 —— 注释里出现这个词就红,
- * 而 --ui-card-background 这类 token 名同样被算成"卡片自己造了背景"。
+ * 此前这里是 not.toContain('background'),既过松也过紧 —— 注释里出现这个词就红,而
+ * --ui-card-background 这类 token 名同样被算成"卡片自己造了背景"。
  */
 const BACKGROUND_DECL = /(?:^|[{;])\s*background(?:-[a-z]+)?\s*:/m
 
@@ -59,8 +57,8 @@ const grayOf = (value: string) =>
 /*
  * 读进来就把注释剥掉。
  *
- * 断言的对象是声明,不是文件文本。此前 stripComments 只在 declaredTokens /
- * declOf 里用,另外几条断言直接读原文:同一个文件两套读法。
+ * 断言的对象是声明,不是文件文本。此前 stripComments 只在 declaredTokens / declOf 里用,
+ * 另外几条断言直接读原文:同一个文件两套读法。
  */
 const declarationsIn = (...segments: string[]) => stripComments(readFileSync(join(...segments), 'utf8'))
 

@@ -14,7 +14,7 @@ export interface UiKernelOptions {
   readonly errorMessages: Readonly<Record<string, string>>
   readonly validateResults: boolean
   readonly defaultRoute: Route
-  /** 测试注入；默认 window[BRIDGE_GLOBAL] */
+  /** 测试注入用。 */
   readonly bridge?: WindowBridge
 }
 
@@ -22,7 +22,6 @@ export interface UiKernel {
   start(): Promise<void>
   readonly registry: ContributionRegistry
   readonly kernelServices: KernelServices
-  /** 某功能可见的服务视图（FeatureScope 用它实现 useService 的访问控制） */
   servicesFor(featureId: string): UiFeatureContext['services']
   readonly failures: ReadonlyMap<string, Error>
   dispose(): void
@@ -41,7 +40,7 @@ export function createUiKernel(opts: UiKernelOptions): UiKernel {
   })
   const logger = kernelServices.logging.logger
   const transport = createWindowBridgeTransport(bridge)
-  // channel 在下面的 peer 的 onNotification 里被引用：通知只会在 start() 之后到达，那时 channel 一定已赋值
+  // channel 只会在 start() 之后被通知引用，那时一定已赋值
   let channel: UiChannel
   const peer = new RpcPeer({
     name: 'ui',
@@ -70,10 +69,8 @@ export function createUiKernel(opts: UiKernelOptions): UiKernel {
 
   /**
    * 每个功能的多个 onCoreReady 钩子**按注册顺序串行**（功能内部的前后关系只有它自己知道），
-   * 功能之间**并行**（R-08-9）—— 依赖顺序只在 setup 阶段有意义，一个功能的慢请求不该把
-   * 后面所有功能的首屏数据都压住。
-   *
-   * 分组按钩子的注册顺序做，所以“先注册的功能”只是先起步，不保证先完成。
+   * 功能之间**并行**（R-08-9）—— 一个功能的慢请求不该把后面所有功能的首屏数据都压住。
+   * 先注册只是先起步，不保证先完成。
    */
   async function runCoreReady(): Promise<void> {
     const groups = new Map<string, Array<(typeof coreReadyHooks)[number]>>()
@@ -106,7 +103,7 @@ export function createUiKernel(opts: UiKernelOptions): UiKernel {
       for (const f of sortModules(opts.features)) {
         const deps = f.dependsOn ?? []
         dependsOf.set(f.id, deps)
-        // 内核自己拥有的契约（system：core.restart / core.getStatus）任何功能都可以用，无需 dependsOn
+        // 内核自己的契约（system）任何功能都可以用，无需 dependsOn
         const allowedContracts = new Set([f.id, SYSTEM_CONTRACT_ID, ...deps])
         const ctx: UiFeatureContext = {
           featureId: f.id,
@@ -171,7 +168,7 @@ export function createUiKernel(opts: UiKernelOptions): UiKernel {
         try {
           fn()
         } catch {
-          /* 忽略 */
+          // 关停期忽略即可
         }
       }
       for (const d of [...disposables].reverse()) d.dispose()

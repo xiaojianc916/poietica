@@ -4,10 +4,8 @@ export interface PorcelainEntry {
   readonly kind: 'ordinary' | 'renamed' | 'unmerged' | 'untracked' | 'ignored'
   /** 暂存区状态字符（'.' 表示未改动）；untracked/ignored 为 '?' / '!' */
   readonly index: string
-  /** 工作树状态字符 */
   readonly worktree: string
   readonly path: string
-  /** 只有 renamed（含复制）有值 */
   readonly oldPath: string | null
 }
 
@@ -32,7 +30,6 @@ function afterFields(record: string, n: number): string {
   return record.slice(at)
 }
 
-/** 解析 `git status --porcelain=v2 --branch -z` 的输出 */
 export function parsePorcelainV2(stdout: string): PorcelainStatus {
   const tokens = stdout.split('\0')
   let oid: string | null = null
@@ -97,8 +94,7 @@ function changeOf(code: string): FileChangeKind {
 }
 
 /**
- * 把条目分成“已暂存 / 未暂存”两组（review 的 GitStatus 直接使用）：
- * ordinary/renamed：index≠'.' → 已暂存一条（renamed 带 oldPath）；worktree≠'.' → 未暂存一条。
+ * 把条目分成「已暂存 / 未暂存」两组（review 的 GitStatus 直接使用）：ordinary/renamed 按 index 与 worktree 各出一条；
  * unmerged → 未暂存 conflicted；untracked → 未暂存 untracked；ignored 忽略。
  */
 export function toChangeLists(entries: readonly PorcelainEntry[]): { staged: ChangeEntry[]; unstaged: ChangeEntry[] } {
@@ -127,7 +123,7 @@ export interface NumstatEntry {
   readonly binary: boolean
 }
 
-/** 解析 `git diff --numstat -z …`。重命名记录为 `add\tdel\t\0old\0new\0` */
+/** 解析 `git diff --numstat -z …`。重命名记录为 `add\tdel\t\0old\0new\0`。 */
 export function parseNumstat(stdout: string): NumstatEntry[] {
   const tokens = stdout.split('\0')
   const out: NumstatEntry[] = []
@@ -151,7 +147,6 @@ export function parseNumstat(stdout: string): NumstatEntry[] {
 }
 
 export interface NameStatusEntry {
-  /** A/M/D/R/C/T/U 等单个字符 */
   readonly status: string
   readonly path: string
   readonly oldPath: string | null
@@ -178,7 +173,7 @@ export function parseNameStatus(stdout: string): NameStatusEntry[] {
   return out
 }
 
-/** for-each-ref 的格式串（字段以 NUL 分隔，每个引用一行）。与 parseForEachRef 配套使用 */
+/** for-each-ref 的格式串：字段以 NUL 分隔，每个引用一行。与 parseForEachRef 配套使用。 */
 export const BRANCH_FORMAT = '%(refname:short)%00%(upstream:short)%00%(committerdate:unix)%00%(HEAD)'
 
 export interface BranchEntry {
@@ -205,7 +200,6 @@ export function parseForEachRef(stdout: string): BranchEntry[] {
     })
 }
 
-/** 解析以 NUL 分隔的路径列表（`ls-files -z` 等） */
 export function parseNulList(stdout: string): string[] {
   return stdout.split('\0').filter((s) => s.length > 0)
 }

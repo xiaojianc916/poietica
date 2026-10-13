@@ -1,15 +1,5 @@
-/*
- * MCP 名单页的数据层。**迁移自** legacy `packages/extension/src/catalog/builtin.ts`（名单正文）
- * 与 `catalog/listing.ts`（分组 / 搜索 / 状态文案），去掉插件那半边 —— 新架构里「插件」
- * 设置页已按产品要求删除（见 docs/refactor-log.md 偏差 19），名单页只剩 MCP 服务器。
- *
- * 与 legacy 的两处差距（见 docs/refactor-log.md 偏差 25）：
- *   - legacy 的 stdio 条目在安装时经原生 `launcher_resolve` 把逻辑程序名解析成这台机器上的
- *     启动式；新架构没有这条通道，写进配置的就是 `npx` 本身（与 legacy 解析不到时一样跑得起来
- *     才怪，但这一层不该自己造一条假的解析）；
- *   - legacy 的 `ListingStatus` 还有 `elsewhere`（命令行里装过）与两个版本号并列，
- *     新契约的 `McpServerInfo` 只有名字与开关，「命令行里装过」没有数据来源。
- */
+/* MCP 名单页的数据层。与 legacy 的两处差距：stdio 条目安装时不再经原生 launcher_resolve 解析成本机启动式，写进配置的就是 npx；
+ * 新契约的 McpServerInfo 只有名字与开关，legacy 的 elsewhere（命令行里装过）没有数据来源。 */
 
 export interface HttpTransport {
   readonly kind: 'http'
@@ -27,20 +17,17 @@ export type BuiltinTransport = HttpTransport | StdioTransport
 export interface ServerInput {
   readonly label: string
   readonly placeholder: string
-  /** 空着能不能装。 */
   readonly required: boolean
   readonly apply: (body: Record<string, unknown>, value: string) => Record<string, unknown>
 }
 
 export interface BuiltinServer {
-  /** mcp.json 里那个键，同时是会话里工具名的前缀。 */
   readonly id: string
   readonly displayName: string
   readonly description: string
   readonly group: string
   readonly homepage: string
   readonly transport: BuiltinTransport
-  /** 跑起来之前用户还得自己补什么。没有就是 undefined。 */
   readonly needs: string | undefined
   readonly input: ServerInput | undefined
 }
@@ -116,12 +103,8 @@ export const BUILTIN_SERVERS: readonly BuiltinServer[] = [
   },
 ]
 
-/**
- * 写进 mcp.json 的那一条正文。形状与协议侧文档同形：远端一条 url，本地一条 command 加 args。
- *
- * legacy 在这里接原生侧的 `launcher_resolve`（把 npx 换成绝对路径、给 .cmd 垫片加 cmd.exe /c）；
- * 新架构没有这条通道，所以交出去的 command 就是名单里那个逻辑程序名（偏差 22）。
- */
+/** 写进 mcp.json 的那一条正文：远端一条 url，本地一条 command 加 args。新架构没有 launcher_resolve 通道，交出去的 command 就是
+ * 名单里的逻辑程序名。 */
 export function mcpServerBody(server: BuiltinServer, filled: string): Record<string, unknown> | null {
   const { transport } = server
 
@@ -136,8 +119,6 @@ export function mcpServerBody(server: BuiltinServer, filled: string): Record<str
 
   return server.input.apply(body, value)
 }
-
-/* ── 名单页那些格子：分组与状态在这里算完，界面只负责画 ─────────────────── */
 
 export type ListingStatus =
   | { readonly kind: 'installable' }
@@ -177,11 +158,7 @@ export interface RowGroup {
   readonly rows: readonly CatalogRow[]
 }
 
-/*
- * 判空交给标准库：Array.prototype.join 规定 undefined 与 null 元素渲染成空串，逐个字段
- * 判一遍是在手搓一件已被解决的事。分隔符取换行而不是空串，免得相邻两段拼接处凑出一个
- * 本不存在的匹配。
- */
+/* 分隔符取换行而不是空串，免得相邻两段拼接处凑出一个本不存在的匹配。 */
 export function matches(needle: string, ...fields: readonly (string | undefined)[]): boolean {
   return needle === '' || fields.join('\n').toLowerCase().includes(needle.toLowerCase())
 }
@@ -195,7 +172,7 @@ function rank(row: CatalogRow): number {
   return row.status.kind === 'installed' ? 0 : 1
 }
 
-/* 「精选」永远在最前，其余按名字排 —— 组名是开放集合，写死一张全序表就意味着少一格。 */
+/* 组名是开放集合，写死一张全序表就意味着少一格。 */
 const FEATURED = '精选'
 
 export function groupRows(rows: readonly CatalogRow[]): readonly RowGroup[] {
@@ -229,10 +206,7 @@ export function groupRows(rows: readonly CatalogRow[]): readonly RowGroup[] {
     .map(([title, bucket]) => ({ title, rows: ordered(bucket) }))
 }
 
-/**
- * 内置那份名单的行。「已装」的判据是这台服务器的名字出现在已解析的那张 MCP 表里 ——
- * 那张表是唯一真相，这里只拿名字去对，不另存一份「我们装过什么」。
- */
+/** 「已装」的判据是名字出现在已解析的那张 MCP 表里 —— 那张表是唯一真相，不另存一份「我们装过什么」。 */
 export function builtinServerRows(
   resolved: readonly { readonly name: string }[],
   needle: string,

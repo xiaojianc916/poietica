@@ -7,12 +7,11 @@ export const KERNEL_OWNER = 'kernel'
 export interface ModuleServices {
   provide<T>(token: ServiceToken<T>, impl: T): void
   get<T>(token: ServiceToken<T>): T
-  /** 可选依赖：提供方模块没有加载时返回 undefined（仍要求 dependsOn 声明，用于表达“如果存在就用”） */
+  /** 可选依赖：提供方模块没有加载时返回 undefined；仍要求 dependsOn 声明。 */
   tryGet<T>(token: ServiceToken<T>): T | undefined
 }
 
 export interface ServiceRegistry {
-  /** 为某个模块创建受限视图。kernelScope=true 时只能 provide KERNEL_OWNER 的令牌（内核自己使用）。 */
   scoped(moduleId: string, dependsOn: readonly string[]): ModuleServices
   kernelScope(): Pick<ModuleServices, 'provide'>
 }

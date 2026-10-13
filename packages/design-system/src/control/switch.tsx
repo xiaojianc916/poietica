@@ -12,8 +12,8 @@ export type SwitchProps = ComponentProps<typeof BaseSwitch.Root> & {
 /*
  * 轨道与滑块必须成对定义：行程 = 轨道宽 - 滑块宽 - 两侧留白。
  *
- * 拆开写、或者由使用方用 CSS 只压轨道，滑块就会停在轨道外面。
- * 所以尺寸只有这一张表，使用方通过 size 选择，不通过样式覆盖。
+ * 拆开写、或者由使用方用 CSS 只压轨道，滑块就会停在轨道外面。所以尺寸只有这一张表，使用方
+ * 通过 size 选择，不通过样式覆盖。
  */
 const ROOT_SIZE: Record<SwitchSize, string> = {
   sm: 'h-[18px] w-[32px]',
@@ -73,8 +73,8 @@ export function Switch({ className, children, size = 'md', ...props }: SwitchPro
           THUMB_SIZE[size],
           'rounded-full',
           /*
-           * 滑块不跟主题走，两色主题都是白的：深色下 --ui-background 是近黑，
-           * 读它会缩成轨道里的一个洞。
+           * 滑块不跟主题走，两色主题都是白的：深色下 --ui-background 是近黑，读它会缩成轨道里的
+           * 一个洞。
            */
           'bg-white',
 

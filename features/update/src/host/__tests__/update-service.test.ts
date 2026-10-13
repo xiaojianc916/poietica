@@ -3,12 +3,9 @@ import { type Clock, isAppError, noopLogger, toDisposable } from '@poietica/foun
 import { updateErrors } from '../../contract/errors'
 import { createUpdateService, notesToText, type UpdaterPort } from '../update-service'
 
-/*
- * UP-1…UP-7（07 页 §15G）。测的是**状态机**，不是 electron-updater：端口注入之后，
- * 全部相位转换、失败回话、安装路径都在这里钉住。
- */
+/* UP-1…UP-7。测的是**状态机**，不是 electron-updater：端口注入之后，全部相位转换、失败回话、安装路径都在这里钉住。 */
 
-/** 本功能不需要 test-kit：状态机只读 clock.now()，一个定值时钟就够了（UP-2 断言这一格）。 */
+/** 本功能不需要 test-kit：状态机只读 clock.now()，一个定值时钟就够了。 */
 const fixedClock: Clock = {
   now: () => 1_700_000_000_000,
   setTimeout: () => toDisposable(() => undefined),
@@ -25,7 +22,6 @@ function service(updater: UpdaterPort | null, quit?: (finalize: () => void) => P
   })
 }
 
-/** 默认端口：发现 1.2.3、下载立即成功；各项行为可逐字段覆盖。 */
 function updater(over: Partial<UpdaterPort> = {}): UpdaterPort {
   return {
     checkForUpdates: () => Promise.resolve({ isUpdateAvailable: true, updateInfo: { version: '1.2.3' } }),
@@ -199,7 +195,7 @@ describe('UP-6: notesToText', () => {
   })
 
   test('逐版本数组（electron-updater 的另一种形状）：每条自带的块尾换行 + 数组连接换行', () => {
-    /* 07 页 §15D 的 notesToText 是逐字实现：map 出的每条保留自己的块尾 \n，join('\n') 再接一次。 */
+    /* map 出的每条保留自己的块尾 \n，join('\n') 再接一次。 */
     expect(notesToText([{ version: '1.2.3', note: '<p>甲</p>' }, { note: '<p>乙</p>' }])).toBe('甲\n\n乙')
   })
 

@@ -16,11 +16,7 @@ import { deferredOpenEngine } from './helpers'
 async function makeCore(overrides: { engine?: FakeEngine; workspaces?: WorkspacesService } = {}) {
   const db = openDatabase(':memory:')
   for (const m of migrations) db.forModule('conversation').exec(m.sql!)
-  /*
-   * FakeEngine 按 12 页 §1.2 用**注入的 Clock** 排下一拍（clock.setTimeout(…, 0)）。
-   * 这里用 systemClock：这些用例要观察「运行中」这一刻，而 fakeClock 不推时间就永远不开始。
-   * 会用到 fakeClock 的只有会话池自己的 TTL/sweep —— 那些用例在 session-pool.test.ts 里。
-   */
+  /* 用 systemClock：这些用例要观察「运行中」这一刻，fakeClock 不推时间就永远不开始 */
   const clock = systemClock
   const dir = await tempDir('conv-core-')
   const hub = new TimelineHub({ clock, emitOps: () => undefined, emitReset: () => undefined })
@@ -158,11 +154,7 @@ async function makeCore(overrides: { engine?: FakeEngine; workspaces?: Workspace
   }
 }
 
-/**
- * 让会话稳定停在「忙」的那一档：一个 approval 交互。
- * FakeEngine 执行到 interaction 会发 interactionRequested → state awaiting 并**暂停**，
- * 直到 respond（12 页 §1.2），所以 isBusy() 不会因为脚本跑完而自己变回 idle。
- */
+/** 让会话稳定停在「忙」：一个 approval 交互会让 FakeEngine 暂停在 awaiting，直到 respond */
 const BUSY_SCRIPT: ScenarioScript = () => [
   { kind: 'interaction', interaction: { kind: 'confirm', title: '继续吗', message: '等一句回答' } },
 ]
@@ -172,8 +164,7 @@ const submit = (core: ConversationCore, threadId: string, text: string) =>
 
 /**
  * 「收下了、但一个 turn.upsert 都没产出」的会话桩（R-06 的 settleUnstarted 档）：
- * `submit` 只把状态推到 running，不推任何时间线 op —— 于是提交的 pendingTurn 还在，
- * 随后 `state = idle` 的事件就要负责把它收成 failed。
+ * `submit` 只把状态推到 running，不推任何时间线 op —— 随后 `state = idle` 的事件要把它收成 failed。
  */
 function stalledTurnEngine(engine: FakeEngine): FakeEngine {
   const open = engine.openSession.bind(engine)
@@ -211,16 +202,12 @@ describe('conversation core（不经内核的直连测试）', () => {
   })
 
   test('CV-4 clientTurnId 只写一次', async () => {
-    /*
-     * 判据取自 UI 真正读的那条路：Core 把 op 交给 hub（16ms 合批），
-     * UI 用 catchUp 把批次读回来 —— 所以这里也从 hub 的增量通知里读，
-     * 断言 `turn.upsert` 上带着提交时的 clientTurnId，且同一 turn 的后续更新不再重复带它。
-     */
+    /* 从 hub 的增量通知里读：那正是 UI 走的那条路 */
     const db = openDatabase(':memory:')
     for (const m of migrations) db.forModule('conversation').exec(m.sql!)
     const dir = await tempDir('conv-core-')
     const clock = systemClock
-    /* 线上形状：clientTurnId 只在这里有（core 交给 hub 的 op 就是这一份）。 */
+    /* 线上形状：clientTurnId 只在这里有 */
     const batches: { seq: number; ops: readonly WireTranscriptOperation[] }[] = []
     const hub = new TimelineHub({
       clock,
@@ -310,10 +297,8 @@ describe('conversation core（不经内核的直连测试）', () => {
 
     const stamped = upserts.filter((op) => op.turn.clientTurnId === clientTurnId)
     /*
-     * 提交号写在 turn.upsert 上，值等于提交时给的那个（方案第 3 节）。
-     *
-     * **每条** upsert 都要带（不是只带第一条）：收尾那条会把整条 turn 换掉，只在首条写
-     * 的话界面就判不出「真轮到了没」，会同时画出提交行与真实轮 —— 两个用户气泡。
+     * **每条** upsert 都要带号（不是只带第一条）：收尾那条会把整条 turn 换掉，只在首条写的话
+     * 界面判不出「真轮到了没」，会同时画出提交行与真实轮 —— 两个用户气泡。
      */
     expect(stamped.length).toBeGreaterThan(0)
     const turnId = stamped[0]!.turn.turnId
@@ -389,10 +374,8 @@ describe('conversation core（不经内核的直连测试）', () => {
   })
 
   /*
-   * 上下文用量那条通道的转发。原先它搭的是 controls.changed 那班车，而用量每轮都在涨、
-   * 控件表不变 —— 于是跑完一轮读数也不动（真机故障「输入框没有用量显示」的另一半）。
-   *
-   * 这一条钉住：引擎报 contextUsage → core 原样转发给 UI（含 null 那一次有效报数）。
+   * 用量走独立通道，不搭 controls.changed 那班车：控件表不变时它也得能更新
+   * （真机故障「输入框没有用量显示」的另一半）。含 null 那一次有效报数。
    */
   test('上下文用量单独转发：引擎每报一次就发一次，null 也发（它是一次有效报数）', async () => {
     const contextUsage = { usedTokens: 27_200, windowTokens: 1_000_000, breakdown: null }
@@ -437,10 +420,8 @@ describe('conversation core（不经内核的直连测试）', () => {
   })
 
   /*
-   * CV-3（方案第 7 节改写）：**运行中提交 turn 被接受，并转为 followUp**。
-   *
-   * 旧行为是当场抛 thread_busy —— 「Core 即时回显」之后不再这样：Core 先存库再交接，
-   * 交接时发现会话在忙就自动改成排队（用户看到的是它进了队列，而不是被拒）。
+   * CV-3：**运行中提交 turn 被接受，并转为 followUp**。旧行为是当场抛 thread_busy ——
+   * 「Core 即时回显」之后先存库再交接，交接时发现会话在忙就自动改成排队。
    */
   test('CV-3 运行中提交 turn 被接受并转为排队，steer 与 followUp 也被接受', async () => {
     const { core, engine, dir, db } = await makeCore({ engine: createFakeEngine({ script: BUSY_SCRIPT }) })
@@ -483,11 +464,9 @@ describe('conversation core（不经内核的直连测试）', () => {
   })
 
   /*
-   * 用量页「消息数量」那一格的账源（ADR 0039 / legacy 的 turn_admissions）。
-   *
-   * 两条判据缺一不可：**发出去的算一句**（含插话），**被拒的不算** —— 后者尤其要紧，
-   * 计数写在 session.submit 的 await **之前**的话，用户点了发送但对话正忙、
-   * 屏幕上什么都没发生，账上却已经多了一句没说过的话。
+   * 用量页「消息数量」的账源：**发出去的算一句**（含插话），**被拒的不算**。后者尤其要紧 ——
+   * 计数若写在 `await session.submit` 之前，用户点了发送但对话正忙、屏幕上什么都没发生，
+   * 账上却已经多了一句没说过的话。
    */
   test('US-7 发出去一句话算一句（插话也算）', async () => {
     const { core, messages, dir, db } = await makeCore({ engine: createFakeEngine({ script: BUSY_SCRIPT }) })
@@ -519,11 +498,8 @@ describe('conversation core（不经内核的直连测试）', () => {
   })
 
   /*
-   * 计数必须写在 `await session.submit` **之后**：引擎自己拒绝这一句时（会话已关闭、
-   * provider 报错……），屏幕上什么都没发生，账上不该多一句没说过的话。
-   *
-   * 「Core 即时回显」之后失败不再抛给调用方，而是落成提交的 `failed` 结局（方案第 2 节
-   * 的状态表）—— 所以判据换成「那条提交变成 failed，且账上没有多一句」。
+   * 计数必须写在 `await session.submit` **之后**：引擎自己拒绝这一句时，屏幕上什么都没发生，
+   * 账上不该多一句。失败落成提交的 `failed` 结局，所以判据是「那条提交 failed，且账上没多」。
    */
   test('US-7 引擎拒收这一句时不计数（计数在 await 之后）', async () => {
     const { core, engine, messages, dir, db } = await makeCore()
@@ -609,9 +585,8 @@ describe('conversation core（不经内核的直连测试）', () => {
   })
 
   /*
-   * R-05 §3.2（M4）：会话被释放（空闲驱逐 / 配置换代 / 删除）后，环形缓存里的补发历史
-   * 必须一起丢掉 —— 里面可能躺着 base64 图片与长工具输出，而这份缓存随线程活到进程结束。
-   * 旧代码的 onReleased 只重报一次行，缓存原样留着。
+   * R-05 §3.2：会话被释放后，环形缓存里的补发历史必须一起丢掉 —— 里面可能躺着 base64 图片与
+   * 长工具输出，而这份缓存随线程活到进程结束。
    */
   test('R-05 M4 会话释放后该线程的补发历史被丢弃，UI 将整读', async () => {
     const { core, hub, dir, db } = await makeCore()
@@ -644,9 +619,8 @@ describe('conversation core（不经内核的直连测试）', () => {
   })
 
   /*
-   * R-03 缺陷 A（T1）：新线程的第一句话正在冷打开时被删 —— 打开中的会话 peek 不到，
-   * 旧代码允许删除、cleanup 什么也没做，几秒后会话落进池里挂着、omp 为它新建的会话
-   * 文件成了孤儿。新语义：删除成功，打开被取消，落地即 dispose，且不绑定会话文件。
+   * R-03 缺陷 A（T1）：新线程的第一句话正在冷打开时被删 —— 打开中的会话 peek 不到。
+   * 新语义：删除成功，打开被取消，落地即 dispose，且不绑定会话文件。
    */
   test('R-03 T1 打开中删除线程：会话被 dispose，不属于该线程的活会话不存在', async () => {
     const controlled = deferredOpenEngine()

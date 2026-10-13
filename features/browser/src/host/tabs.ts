@@ -3,18 +3,9 @@ import { BLANK_PAGE, BROWSER_PARTITION, type BrowserState, type BrowserTab, PICK
 import { browserErrors } from '../contract/errors'
 import { displayHost, isNavigableAddress, isWebAddress, normalizeAddress } from './address'
 
-/*
- * 标签与视图（07 页 §12D 的规则表）。**迁移自** legacy
- * `apps/desktop/electron/browser/host.ts` 的 createBrowserHost，拆成「electron 通过
- * ViewHost 注入」的形状：
- *
- *   - createView / attach / detach / zoomFactor / onResize 由 index.ts 用主窗口实现；
- *   - tabs.ts 不 import electron，测试喂假视图就能钉住 BR-10 与摆放规则。
- *
- * 语义一字未改：只有活动标签的视图可见、全部共享同一个矩形、关标签先右后左、
- * 空白页不进最近关闭环、CDP 导航落账后要当场重摆（只 publish 不 layout 会让 agent
- * 打开的页面在面板里没有画面）。
- */
+/* 标签与视图。createView / attach / detach / zoomFactor / onResize 由 index.ts 注入，本文件不 import
+ * electron，测试喂假视图即可钉住 BR-10。CDP 导航落账后必须当场重摆：只 publish 不 layout，agent 打开的
+ * 页面在面板里没有画面。 */
 
 export interface RectangleLike {
   readonly x: number
@@ -23,10 +14,8 @@ export interface RectangleLike {
   readonly height: number
 }
 
-/** 监听器签名只用来挡类型：内核的事件都是 (event, ...payload)。 */
 export type ContentsListener = (...args: never[]) => void
 
-/** WebContents 里 browser 模块用到的那一份子集（tabs 与 relay 共用）。 */
 export interface WebContentsLike {
   getURL(): string
   isLoading(): boolean
@@ -37,7 +26,7 @@ export interface WebContentsLike {
   setZoomLevel(level: number): void
   getZoomLevel(): number
   setZoomMode(mode: 'isolated' | 'proportional'): void
-  /** 后台标签会被 Chromium 降频；AI 附着期间要关掉它（B-03）。 */
+  /** 后台标签会被 Chromium 降频，AI 附着期间要关掉它（B-03）。 */
   setBackgroundThrottling(allowed: boolean): void
   executeJavaScriptInIsolatedWorld(worldId: number, scripts: readonly { code: string }[]): Promise<unknown>
   readonly navigationHistory: {
@@ -51,7 +40,6 @@ export interface WebContentsLike {
   readonly debugger: DebuggerLike
 }
 
-/** webContents.debugger 里 relay 用到的那一份子集（与 Chrome 扩展的 chrome.debugger 同一套 CDP）。 */
 export interface DebuggerLike {
   isAttached(): boolean
   attach(protocolVersion?: string): void
@@ -68,20 +56,17 @@ export interface WebContentsViewLike {
 }
 
 export interface ViewHost {
-  /** 按 §12D 的 webPreferences 创建视图（没有 preload） */
   createView(): WebContentsViewLike
   attach(view: WebContentsViewLike): void
   detach(view: WebContentsViewLike): void
-  /** win.webContents.getZoomFactor()：CSS 像素 × 它 = 视图要的像素 */
+  /** CSS 像素 × 它 = 视图要的像素 */
   zoomFactor(): number
   onResize(fn: () => void): Disposable
 }
 
 export interface BrowserTabs {
   state(): BrowserState
-  /** 16ms 合批；同一批里只有最后一次变化被送出 */
   onState(listener: (s: BrowserState) => void): Disposable
-  /** 地址归一失败返回 null；成功时新标签成为活动标签 */
   openTab(url: string | null): number | null
   closeTab(tabId: number): void
   selectTab(tabId: number): void
@@ -103,7 +88,7 @@ export interface BrowserTabs {
 export interface BrowserTabsOptions {
   readonly logger: Logger
   readonly clock?: Clock
-  /** 拾取回调地址在 will-navigate / will-redirect 上被拦住时叫一次（解码与租约归 index.ts） */
+  /** 拦到拾取回调地址时叫一次（解码与租约归 index.ts） */
   readonly onPickerCallback: (tabId: number, url: string) => void
 }
 
@@ -111,9 +96,8 @@ const RECENTLY_CLOSED_CAP = 10
 const STATE_BATCH_MS = 16
 const CRASH_WINDOW_MS = 60_000
 
-/** 面板从没上报过像样的矩形时，后台标签用的尺寸：常见桌面视口，AI 截图与排版都按它来。 */
+/** 常见桌面视口；面板没上报过像样矩形时，AI 截图与排版按它来。 */
 const FALLBACK_BOUNDS: RectangleLike = { x: 0, y: 0, width: 1280, height: 800 }
-/** 低于它的矩形是面板收起或拖得极窄，不拿来给后台标签排版。 */
 const MIN_USABLE_EDGE = 200
 
 interface Tab {
@@ -126,7 +110,7 @@ interface Tab {
   canGoForward: boolean
   zoom: number
   shown: boolean
-  /** 上一次下发给内核的矩形指纹；面板拖动是每帧一次的通报，同一个值不重复叫内核。 */
+  /** 上一次下发的矩形指纹：拖动每帧通报一次，同值不重复叫内核。 */
   rectKey: string | null
   crashedAt: number | null
   readonly view: WebContentsViewLike
@@ -143,7 +127,6 @@ export function createBrowserTabs(host: ViewHost, opts: BrowserTabsOptions): Bro
   let nextId = 1
   let revision = 0
   let bounds: RectangleLike = { x: 0, y: 0, width: 1, height: 1 }
-  /* 最近一次像样的面板矩形：后台标签（非活动、或面板没显示时）拿它排版。 */
   let usable: RectangleLike | null = null
   let visible = false
   let batchTimer: Disposable | null = null
@@ -195,7 +178,7 @@ export function createBrowserTabs(host: ViewHost, opts: BrowserTabsOptions): Bro
     }
   }
 
-  /** 每次变化 +1；通知按 16ms 合批，批里只有最后一帧被送出（revision 单调，UI 丢旧的）。 */
+  /** 每次变化 +1；16ms 合批只送最后一帧，UI 靠单调 revision 丢旧的。 */
   function publish(): void {
     revision += 1
 
@@ -207,14 +190,14 @@ export function createBrowserTabs(host: ViewHost, opts: BrowserTabsOptions): Bro
     }
   }
 
-  /** 当前该显示哪一页：只有活动标签，且它真的导航过（空白标签没有要显示的东西）。 */
+  /** 只有活动标签且真的导航过才显示：空白标签没有可显示的东西。 */
   const showing = (): Tab | undefined => {
     const tab = activeTabId === null ? undefined : find(activeTabId)
 
     return tab?.url === null ? undefined : tab
   }
 
-  /** CSS 像素的矩形 → 视图要的像素；内核不接受零尺寸，面板收起/极窄时至少留一像素。 */
+  /** 内核不接受零尺寸，收起或极窄时至少留一像素。 */
   function scaled(rect: RectangleLike, scale: number): RectangleLike {
     return {
       x: Math.round(rect.x * scale),
@@ -224,27 +207,16 @@ export function createBrowserTabs(host: ViewHost, opts: BrowserTabsOptions): Bro
     }
   }
 
-  /*
-   * 摆放只有这一处。**每张标签都摆**，只是可见性只给目标那张：
-   *
-   *   - 当前显示的那张贴着面板矩形；
-   *   - 其余的（非活动、面板收起、面板从没打开过）用最近一次像样的面板矩形，
-   *     都没有时用 FALLBACK_BOUNDS。
-   *
-   * 只摆显示中那张的写法会让 relay 附着的后台标签按 1×1 排版 —— 截图 1×1、按坐标的
-   * 点击落空（B-02）。窗口 resize 也走它。
-   */
-  /** 摆一张标签。几何先于可见性：点亮的那一帧必须已经有真实矩形，否则会先按上一次的亮一下。 */
+  /* 摆放只有这一处：每张标签都摆，可见性只给目标那张。只摆显示中那张，relay 附着的后台标签会按 1×1 排版（截图 1×1、按坐标的点击落空，B-02）。 */
+  /** 几何先于可见性：点亮那一帧必须已有真实矩形，否则会先按上一次的亮一下。 */
   function place(tab: Tab, rect: RectangleLike, shown: boolean, scale: number): void {
     const key = `${String(rect.x)},${String(rect.y)},${String(rect.width)},${String(rect.height)},${String(scale)}`
 
-    /* 面板拖动是每帧一次的通报，逐帧重复同一个值是白付的。 */
     if (tab.rectKey !== key) {
       tab.rectKey = key
       tab.view.setBounds(scaled(rect, scale))
     }
 
-    /* 只在真的翻转时才叫内核。 */
     if (shown !== tab.shown) {
       tab.shown = shown
       tab.view.setVisible(shown)
@@ -270,8 +242,7 @@ export function createBrowserTabs(host: ViewHost, opts: BrowserTabsOptions): Bro
   }
 
   function noteUrl(tab: Tab, url: string): void {
-    /* 地址是「这一页有没有东西可摆」的判据，所以它与几何、可见性同批结算：agent 经 CDP
-       导航过来的页面（空白标签 → 真站点）要当场被摆上。 */
+    /* 地址是「有没有东西可摆」的判据，与几何、可见性同批结算：CDP 导航过来的页面要当场摆上。 */
     tab.url = url === BLANK_PAGE || url.length === 0 ? null : url
     syncHistory(tab)
     layout()
@@ -299,7 +270,7 @@ export function createBrowserTabs(host: ViewHost, opts: BrowserTabsOptions): Bro
     })
   }
 
-  /* 拾取租赁约归 index.ts；这里只把取消脚本送进页面（换标签、导航、隐藏面板时都要退掉上一个面板）。 */
+  /* 租约归 index.ts；这里只把取消脚本送进页面（换标签、导航、隐藏面板都要退掉上一个面板）。 */
   function cancelPick(tabId: number): void {
     inject(tabId, 'window.__poieticaElementPicker?.cancel();')
   }
@@ -315,10 +286,9 @@ export function createBrowserTabs(host: ViewHost, opts: BrowserTabsOptions): Bro
     const view = host.createView()
     const contents = view.webContents
 
-    /* 缩放按标签隔离，不按 origin 共享：面板给每一格发了自己的缩放键。 */
     contents.setZoomMode('isolated')
 
-    // 外站不许开自己的窗口：http(s) 交给宿主开一个新标签，其余直接丢。
+    // 外站不许开自己的窗口：http(s) 转交宿主开新标签，其余丢弃。
     contents.setWindowOpenHandler(({ url }) => {
       if (isWebAddress(url)) {
         openTab(url)
@@ -330,7 +300,7 @@ export function createBrowserTabs(host: ViewHost, opts: BrowserTabsOptions): Bro
     })
 
     const onNavigation = (event: { preventDefault(): void }, url: string): void => {
-      // 拾取面板的回调不是一次导航，是它把结果送回来的唯一一条路：拦住、交给 index.ts。
+      // 拾取回调不是导航，是结果回来的唯一一条路：拦住交给 index.ts。
       if (url.startsWith('https://pick.poietica.invalid/')) {
         event.preventDefault()
         opts.onPickerCallback(tabOf(contents)?.id ?? -1, url)
@@ -407,7 +377,7 @@ export function createBrowserTabs(host: ViewHost, opts: BrowserTabsOptions): Bro
       }
     })
 
-    /* 渲染进程崩溃：reload 一次；60 秒内第二次崩溃就显示空白并保留标签。 */
+    /* 崩溃后 reload 一次；60 秒内第二次崩溃就显示空白并保留标签。 */
     contents.on('render-process-gone', () => {
       const tab = tabOf(contents)
 
@@ -438,7 +408,6 @@ export function createBrowserTabs(host: ViewHost, opts: BrowserTabsOptions): Bro
     return view
   }
 
-  /** 视图 → 标签：事件回调里只有 contents，没有 id。 */
   function tabOf(contents: WebContentsLike): Tab | undefined {
     return tabs.find((tab) => tab.view.webContents === contents)
   }
@@ -512,7 +481,6 @@ export function createBrowserTabs(host: ViewHost, opts: BrowserTabsOptions): Bro
     }
 
     if (activeTabId === id) {
-      // 先右后左：关掉最右一页时焦点才回到左边那页。
       const next = tabs[index] ?? tabs[index - 1]
 
       activeTabId = next?.id ?? null
@@ -650,10 +618,7 @@ export function createBrowserTabs(host: ViewHost, opts: BrowserTabsOptions): Bro
     },
 
     setVisible(next) {
-      /*
-       * 收起面板也要停掉拾取：原生视图藏了，页面上那层面板却还在等人点，
-       * 用户会以为没关掉（legacy 的 setVisible(false) → stopPicker 同此）。
-       */
+      /* 收起面板也要停掉拾取：视图藏了而页面上的面板还在等人点，用户会以为没关掉。 */
       if (!next && pickingTabId !== null) {
         cancelPick(pickingTabId)
         pickingTabId = null
@@ -706,7 +671,6 @@ export function createBrowserTabs(host: ViewHost, opts: BrowserTabsOptions): Bro
   }
 }
 
-/** 视图创建时用的窗口偏好（07 页 §12D 的规则表；index.ts 把它交给 WebContentsView）。 */
 export const BROWSER_VIEW_PREFERENCES = {
   partition: BROWSER_PARTITION,
   sandbox: true,

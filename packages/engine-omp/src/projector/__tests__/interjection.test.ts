@@ -5,11 +5,9 @@ import { applyOps, emptyTimeline } from '@poietica/transcript'
 import { fakeOmpSession } from './fixtures/omp-session'
 
 /*
- * 插话的三层投递与「认领」（legacy interjection-layers.test.ts，12 页 §12.3）。
+ * 插话的三层投递与「认领」。
  *
- * legacy 的缺口是一整条：deliverAs 之前根本不存在，而唯一那条 steer 命令把 prompt 号当正文
- * 发进插话队列，三层里一层都没真的用上。新树的三层路由在 OmpSession.submit / enqueue /
- * omp-session-adapter 的 steer 上，这里按 legacy 的判据逐条钉：
+ * 这里按判据逐条钉：
  *
  *   1. 运行中的 steer / followUp 落在 omp 自己的队列（session.steer / followUp）；
  *   2. 空闲时的 steer / followUp 按 turn 处理（语义就是开始一轮）；
@@ -20,7 +18,6 @@ import { fakeOmpSession } from './fixtures/omp-session'
  *
  * 被测对象是 OmpSession 自己：假的 omp 会话只实现适配器用到的那几格（fixtures/omp-session.ts），
  * 副作用的判据是「哪一个方法被调了、正文是什么」＋「时间线上多没多出那一句」。
- * legacy 的文件级夹具（queued / withdrawn / modes 三个死对象）换成按用例现搭。
  */
 const NOW = 1_700_000_000_000
 
@@ -95,7 +92,7 @@ describe('插话的三层投递（legacy interjection-layers.test.ts）', () => 
   })
 
   /*
-   * 技能必须走 omp 官方的展开路径（12 页 §7.6）：投出去的是 SKILL.md 的正文，
+   * 技能必须走 omp 官方的展开路径：投出去的是 SKILL.md 的正文，
    * 而不是「review」这三个字。只送名字等于技能静默不跑 —— 模型会当普通一句话处理。
    */
   test('技能投出去的是 SKILL.md 的正文，不是技能名', async () => {

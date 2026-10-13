@@ -1,37 +1,13 @@
-/*
- * 审批带咬在输入框那张卡的上沿。
- *
- * 它画上半张脸：两个上圆角、一层底色，一条边都不画；下沿多出一个圆角的量，被卡
- * 整个盖住。接缝由重叠给出，不由两边各自对齐 —— 盖住的那一段盖多盖少都不会露缝，
- * 所以这里没有任何一个数需要与卡片保持同步。
- *
- * 底色是 --cp-shelf，比地色深一档：卡的两个上圆角之外那两个缺口露出的正是它，
- * 凹凸因此是看得见的，不需要在接缝上再画一条线。
- *
- * 左缘对占位符那一列（--cp-pad-x），右缘对发送键那一列（--cp-inset）。两个数都是
- * 卡片已有的两条沟，不是为这条带子新挑的：卡里的字从 --cp-pad-x 起排，卡里的圆钮
- * 贴 --cp-inset 收边，而这条带子左边是字、右边是钮。
- */
+/* 审批带咬在输入框那张卡的上沿：只画上半张脸（两个上圆角 + 底色，一条边都不画），下沿多探进一个圆角的量被卡盖住 ——
+ * 接缝由重叠给出，两边没有一个数需要与卡片同步。底色 --cp-shelf 比地色深一档，卡的上圆角外那两个缺口露出的正是它；
+ * 左缘对 --cp-pad-x、右缘对 --cp-inset，都是卡片已有的沟。 */
 
 .assistant-approval {
-  /*
-   * 撑开靠行高从 0fr 到 1fr，不靠 max-height 猜一个数。
-   *
-   * 猜一个够大的 max-height，缓动曲线的头一半就跑在没有内容的空气里，观感是
-   * 「先慢后猛」；grid 行高插的是内容的真实高度，所以它自然。
-   *
-   * 不做位移与过冲：这一格长出来会把 textarea 整体往下推，而人此刻正盯着插入符 ——
-   * 过冲量会让插入符越过真正的落点再弹回来，输入法的候选窗还得追着动画跑。
-   */
+  /* 撑开靠行高 0fr→1fr，不靠 max-height 猜数：猜的数够大时缓动头一半跑在空气里，观感「先慢后猛」。
+     不做位移与过冲 —— 过冲量会让插入符越过落点再弹回来，输入法候选窗还得追着动画跑。 */
   display: grid;
   grid-template-rows: 1fr;
-  /*
-   * 咬合就是这一行。
-   *
-   * 下沿探进卡里一个圆角的量，卡在树序上排在后面、又是定位元素，所以它压在上面
-   * （见 skin/surface.css 的 position: relative）。探进去多少不需要精确：只要不小于
-   * 卡的圆角，重叠段就完全看不见。
-   */
+  /* 咬合就是这一行：卡在树序上排在后面又是定位元素，压在上面（skin/surface.css）；探进多少不用精确，不小于卡的圆角即可。 */
   margin-block-end: calc(-1 * var(--cp-radius));
   animation: assistant-approval-open var(--cp-motion-drawer) var(--cp-motion-drawer-ease) both;
 }
@@ -48,16 +24,10 @@
   min-inline-size: 0;
   align-items: center;
   gap: var(--cp-control-gap);
-  /* 行高从 0fr 长起来时，内容必须被裁住，否则它会溢出到转录上。 */
   overflow: hidden;
-  /* 一条边都不画。这一格和卡是同一件东西的两段，中间没有交界，而一圈描边会把它
-     读成浮在卡上面的第二块面板 —— 那正是它不是的东西。形状由底色给出：--cp-shelf
-     比地色深一档，两个上圆角之外的缺口露出的就是它。 */
   border: 0;
   border-radius: var(--cp-radius) var(--cp-radius) 0 0;
-  /* 下内边距多留一个圆角：那一段正是被卡盖住的部分，不放任何字。 */
   padding-block: var(--cp-pad-mid) calc(var(--cp-pad-mid) + var(--cp-radius));
-  /* 左缘对占位符那一列，右缘对发送键那一列。两个数都是卡片已有的沟。 */
   padding-inline: var(--cp-pad-x) var(--cp-inset);
   background: var(--cp-shelf);
   animation: assistant-approval-turn var(--cp-motion-swift) var(--cp-motion-ease) both;
@@ -69,7 +39,7 @@
   }
 }
 
-/* 序号只在真的有第二个时出现。恒定显示最早那一个，所以分子永远是 1。 */
+/* 恒定显示最早那一个，分子永远是 1。 */
 .assistant-approval__count {
   flex: none;
   font-family: var(--cp-font-mono);
@@ -78,13 +48,8 @@
   color: var(--cp-ink-subtle);
 }
 
-/*
- * 要签字的那件事，一行。
- *
- * 等宽且可选中：它是一条命令、一个路径、一个 glob，比例字体会把 l 与 1、连续
- * 空格画得读不准，而核对命令最可靠的做法是复制出去。截断在 tool-intent 里做完
- * （首行 + 160 字），这里只收残余的溢出 —— 带子恒高一行，输入框不会被推走。
- */
+/* 要签字的那件事一行等宽且可选中：命令与路径要能复制出去核对，比例字体会把 l 与 1 画得读不准。
+   截断在 tool-intent 里做完（首行 + 160 字），这里只收残余溢出，带子恒高一行，输入框不会被推走。 */
 .assistant-approval__intent {
   min-inline-size: 0;
   flex: 1 1 auto;
@@ -98,7 +63,6 @@
   user-select: text;
 }
 
-/* 说不出意图时按钮仍然靠右：那一列对着发送键，与有没有第二段字无关。 */
 .assistant-approval__options {
   display: flex;
   flex: none;
@@ -107,15 +71,8 @@
   margin-inline-start: auto;
 }
 
-/*
- * 按钮不画边，靠一层底色站住。
- *
- * 一圈描边会把一次选择读成一个待填的输入位（question-panel 已经为同一件事写过
- * 一次）。但全透明也不行：三颗光秃秃的字浮在带子上，既看不出可点，也看不出它们
- * 是一组。所以给一层极淡的底 —— 与带子同一条中性色阶，只差档位：带子、按钮、
- * 悬浮、主按钮，四档由浅入深。用 color-mix 兑前景色而不是挑一个色值，深浅两套
- * 主题因此各自成立，仓里也不多一个私有令牌。
- */
+/* 按钮不画边靠底色站住：一圈描边会把一次选择读成待填的输入位，全透明又看不出可点也看不出成组。
+   用 color-mix 兑前景色而不是挑色值：深浅两套主题各自成立，仓里也不多一个私有令牌。 */
 .assistant-approval__option {
   display: inline-flex;
   block-size: var(--cp-pill);
@@ -139,16 +96,8 @@
   color: var(--cp-ink);
 }
 
-/*
- * 主按钮是被抬起来的那一颗，不是被染色的那一颗。
- *
- * 品牌色实心块是「提交表单」的语言。这里要人做的是一次带风险的放行：Claude Code、
- * Zed 的 ACP 审批、Cursor 的 run 确认都不用主色喊话，默认动作靠位置、字重和一层
- * 抬起说清楚。同屏已经有一颗蓝色实心圆（发送键），第二颗只会分掉它的注意力。
- *
- * 抬起用的就是卡面色：地色 → 这一格 → 卡面，三档正好是这张卡已有的三层，深浅两套
- * 主题各自成立，不需要为它挑第二个颜色。
- */
+/* 主按钮是被抬起来的那一颗，不是被染色的那一颗：品牌色实心块是「提交表单」的语言，而这里是一次
+   带风险的放行，同屏已有一颗蓝色实心圆（发送键），第二颗只会分掉注意力。 */
 .assistant-approval__option[data-lead="true"] {
   background: var(--cp-surface);
   box-shadow: var(--cp-lift);
@@ -174,7 +123,6 @@
   outline-offset: 2px;
 }
 
-/* 撑开撤掉，只留淡入 —— 出现这件事本身仍然要被看见。 */
 @media (prefers-reduced-motion: reduce) {
   .assistant-approval {
     animation: none;

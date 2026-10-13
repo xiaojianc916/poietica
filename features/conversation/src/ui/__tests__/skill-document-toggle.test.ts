@@ -5,16 +5,13 @@ import type { SkillDocument } from '../../ui-api'
 import { createSkillDocumentStore, SKILL_DOCUMENT_PANEL, toggleSkillDocument } from '../components/skill-document-store'
 
 /*
- * 技能文档那一格的开关语义。
- *
- * 面板是**静态贡献**（id 与 title 都是常量），坞按 id 判「停的是不是这一格」，所以它分不出
- * 「又点了同一行」与「换了另一行」—— 那两件事必须由这里裁决。用例走的是产品代码自己的
- * toggleSkillDocument（不复刻判据），坞由真的内核给（createUiKernel 的 kernelServices.layout）。
+ * 面板是静态贡献，坞按 id 判「停的是不是这一格」，分不出「又点同一行」与「换了另一行」。
+ * 那两件事由这里裁决；用例走真身：toggleSkillDocument 加内核给的 layout，不复刻判据。
  */
 
 const OWNER = 'settings'
 
-/** 只回核心状态的最小 bridge：这份用例不碰 RPC 的那几条口。 */
+/** 只回核心状态的最小 bridge。 */
 function testBridge(): WindowBridge {
   const listeners = new Set<(message: RpcMessage) => void>()
   return {
@@ -38,7 +35,7 @@ function testBridge(): WindowBridge {
   }
 }
 
-/** 现场把坞立起来并认一个前台（技能设置页那一刻）。 */
+/** 现场把坞立起来并认一个前台。 */
 async function settingsDock(): Promise<LayoutService> {
   const kernel = createUiKernel({
     features: [],
@@ -73,8 +70,8 @@ function documentOf(path: string, name: string): SkillDocument {
 type Store = ReturnType<typeof createSkillDocumentStore>
 
 /*
- * 点一行技能。ensurePanel 由「功能的组态」提供（真身是 ctx.contribute），这里记下它被
- * 调用了几次：贡献必须发生在 openPanel 之前，而收起那一趟不该再贡献一次。
+ * ensurePanel 真身是 ctx.contribute，这里数它被调了几次：贡献必须在 openPanel 之前，
+ * 收起那一趟不该再贡献。
  */
 function click(layout: LayoutService, store: Store, document: SkillDocument) {
   let contributions = 0
@@ -129,10 +126,7 @@ describe('技能文档那一格的开关', () => {
   })
 
   it('坞停在别的格上时点同一行:打开,不是收起', async () => {
-    /*
-     * 判据里「正停在技能文档那一格」这一条。少了它，从辅助对话切回技能文档这一下会被读成
-     * 「又点了同一行」而把坞收起 —— 用户看到的是点了没反应。
-     */
+    /* 少了「正停在技能文档那一格」这一条，从辅助对话切回会被读成「又点了同一行」而收起，用户看到的是点了没反应。 */
     const layout = await settingsDock()
     const store = createSkillDocumentStore()
 
@@ -155,9 +149,7 @@ describe('技能文档那一格的开关', () => {
   })
 
   it('收起那一趟不再贡献面板:贡献只该发生一次', async () => {
-    /*
-     * 贡献是幂等的（??= 只建一次），但收起那一趟本就不该走到那里 —— 走到了说明判据被绕过。
-     */
+    /* 贡献本身是幂等的，但收起那一趟本就不该走到那里，走到了说明判据被绕过。 */
     const layout = await settingsDock()
     const store = createSkillDocumentStore()
 
@@ -175,10 +167,7 @@ describe('技能文档那一格的开关', () => {
   })
 
   it('判据是路径:同一份文档重新读一遍（对象换新、名字也可能换）仍算同一行', async () => {
-    /*
-     * 每次点行都重新 skills.read 一遍并重建对象，所以判等不能靠引用；name 取自 frontmatter，
-     * 可能与名册那一行不同 —— 判据只认路径这一格。
-     */
+    /* 每次点行都重新读一遍并重建对象，判等不能靠引用；name 取自 frontmatter，判据只认路径这一格。 */
     const layout = await settingsDock()
     const store = createSkillDocumentStore()
 

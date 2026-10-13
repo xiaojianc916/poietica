@@ -1,18 +1,10 @@
 #!/usr/bin/env bun
 /**
- * 在本机完成一次发布。
+ * 在本机完成一次发布：bun release [patch|minor|major|版本号] [--yes] [--draft]
  *
- *   bun release              # 交互选择，默认 patch
- *   bun release minor        # 也可 patch / major / 具体版本号
- *   bun release 0.5.1 --yes  # 跳过确认
- *   bun release patch --draft # 先建草稿，人工验收后再转正（15 页 §10.5 的口径）
- *
- * 构建、上传、验通道全部在本地用 gh 完成。代价是这台机器必须能完整构建
- * （Bun + 本机已装的 Electron），且构建的十几分钟里终端得开着；换来的是不依赖
- * 仓库 Secret、不等 CI 排队，失败立刻回滚。
- *
- * 与 `.github/workflows/release.yml` 的分工：那条链由 tag 触发、建草稿等人验收；
- * 这条链是本地一条命令直达（默认直接发正式版，与 legacy 的 `bun release` 一致）。
+ * 构建、上传、验通道全部在本地用 gh 完成：不依赖仓库 Secret、不等 CI 排队，失败立刻回滚；
+ * 代价是构建的十几分钟里终端得开着。`.github/workflows/release.yml` 那条链由 tag 触发、
+ * 只建草稿，这条链默认直接发正式版。
  */
 
 import { spawnSync } from 'node:child_process'
@@ -35,13 +27,11 @@ import {
 } from './version'
 
 const MAIN_BRANCH = 'main'
-/* electron-builder 的产物落点（electron-builder.yml 的 directories.output）。 */
 const BUNDLE_DIR = 'apps/desktop/release'
 const STAGE_DIR = 'dist-release'
 /* 本脚本由 bun 跑起来，process.execPath 就是那个 bun —— 不指望 PATH 上恰好还有一个。 */
 const BUN = process.execPath
 
-/** 预期内的失败：打印一句人话就退场，不甩堆栈。 */
 class Abort extends Error {}
 
 /** 版本号已写入、但还没提交。Ctrl+C 与异常路径都靠它决定要不要签回去。 */
@@ -51,7 +41,7 @@ function line(argv: readonly string[]): string {
   return argv.map((value) => (/\s/.test(value) ? JSON.stringify(value) : value)).join(' ')
 }
 
-/** 执行一条命令，输出直通终端；onFail 决定失败时抛 Abort 还是只记一句（回滚路径不能再抛）。 */
+/** onFail 决定失败时抛 Abort 还是只记一句（回滚路径不能再抛）。 */
 function spawn(argv: readonly string[], onFail: 'throw' | 'log'): void {
   console.log(`    $ ${line(argv)}`)
   const [program, ...args] = argv
@@ -64,12 +54,11 @@ function spawn(argv: readonly string[], onFail: 'throw' | 'log'): void {
   }
 }
 
-/** 执行一条命令，输出直通终端。失败即抛。 */
 function run(...argv: string[]): void {
   spawn(argv, 'throw')
 }
 
-/** 执行一条命令并拿回它的输出。失败返回 null，用于探测。 */
+/** 失败返回 null，用于探测。 */
 function capture(...argv: string[]): string | null {
   const [program, ...args] = argv
   const result = spawnSync(program ?? '', args, { encoding: 'utf8' })
@@ -79,15 +68,10 @@ function capture(...argv: string[]): string | null {
 const tryRun = (...argv: string[]): void => spawn(argv, 'log')
 
 /**
- * 问一句、拿一行答案。
+ * **一次提问开一个 readline，问完就关**。
  *
- * **一次提问开一个 readline，问完就关**，不常驻一个。两个理由：
- *
- * 1. gh auth login 这类命令要独占终端（问问题、开浏览器），而常驻的 readline 一直
- *    占着 stdin：两个读者会互相吃键，gh 的提示也画不出来。
- * 2. readline 一旦 close 就暂停了 stdin，再 createInterface 也收不到数据 ——
- *    「关掉再重开」看起来对称，实际会让下一个问题永远等不到回车（实测卡死）。
- *    每次都新建、用完即关，就不存在这个中间态。
+ * gh auth login 这类命令要独占终端，常驻的 readline 会一直占着 stdin，两个读者互相吃键；
+ * 而 readline 一旦 close 就暂停了 stdin，「关掉再重开」会让下一个问题永远等不到回车（实测卡死）。
  */
 async function ask(question: string): Promise<string> {
   const terminal = createInterface({ input: process.stdin, output: process.stdout })
@@ -139,13 +123,8 @@ async function confirm(question: string, fallback = true): Promise<boolean> {
 }
 
 /**
- * 报一句签名状态。
- *
- * 这一版刻意不签名（15 页 §10.4）：没有证书，SmartScreen 会对每个用户弹一次
- * 「未知发布者」，处理方式写在发布说明里。这里提前说清楚，不等到装的时候。
- *
- * CSC_LINK 一旦被设上，electron-builder 就会用那把证书签 —— 那不是本流程的决定，
- * 所以也点名，免得有人在不知情的情况下换掉了产物的签名状态。
+ * 这一版刻意不签名：没有证书，SmartScreen 会对每个用户弹一次「未知发布者」。
+ * CSC_LINK 一旦被设上，electron-builder 就会用那把证书签 —— 那不是本流程的决定。
  */
 function reportSigning(): void {
   if (process.env.CSC_LINK === undefined) {
@@ -155,9 +134,6 @@ function reportSigning(): void {
   console.log('    CSC_LINK 已设置：这一版会用环境变量里的证书签名')
 }
 
-/* ── [1] 起飞前检查 ────────────────────────────────────────── */
-
-/** 当前版本从唯一来源读：apps/desktop 的 version（15 页 §10.1）。 */
 async function readCurrentVersion(): Promise<string> {
   const current = packageVersion(await readFile(VERSION_SOURCE, 'utf8').catch(() => ''))
 
@@ -206,12 +182,8 @@ function syncWithRemote(): void {
 }
 
 /**
- * 没登录就地登录，不把人踢出去。
- *
- * 发布是一条十几分钟的链，前面已经跑过门禁与对表；因为一个可以当场做完的步骤退场，
- * 整条链就得从头再跑一遍。所以这里直接开 gh 的登录流程，登录完接着往下走，
- * 也不多问一句「要不要登录」—— 那一下同样是打断，想退出按 Ctrl+C。
- * 非交互终端（CI、管道）下 gh 问不了问题，那时才如实报错让人手动跑。
+ * 没登录就地登录，不把人踢出去：这条链已经跑了十几分钟，因为一个能当场做完的步骤退场，
+ * 整条链就得从头再跑。非交互终端（CI、管道）下 gh 问不了问题，那时才如实报错。
  */
 async function requireGh(): Promise<void> {
   if (capture('gh', '--version') === null) {
@@ -259,9 +231,6 @@ async function preflight(): Promise<{ branch: string; current: string }> {
   return { branch, current }
 }
 
-/* ── [2] 选版本 ────────────────────────────────────────────── */
-
-/** 交互菜单：只定预设，手动输入与校验留给调用方统一处理。 */
 async function askPresetTarget(next: { patch: string; minor: string; major: string }): Promise<string | undefined> {
   console.log(`      1. 修订版  ${next.patch}   （修 bug、小改动）`)
   console.log(`      2. 次版本  ${next.minor}   （加功能）`)
@@ -307,7 +276,6 @@ function assertTagFree(tag: string): void {
   )
 }
 
-/** 预设名 → 目标版本号；不是预设名时按「用户直接给了版本号」处理。 */
 function targetFromPresets(next: Bump, requested: string | undefined): string {
   const presets = new Map([
     ['patch', next.patch],
@@ -317,7 +285,6 @@ function targetFromPresets(next: Bump, requested: string | undefined): string {
   return presets.get(requested ?? 'patch') ?? requested ?? next.patch
 }
 
-/** 拿到目标版本号：命令行给的、预设映射来的，或交互问出来的（空串交给调用方重问）。 */
 async function resolveTarget(current: string, requested: string | undefined, yes: boolean): Promise<string> {
   const next = bumped(current)
 
@@ -358,8 +325,6 @@ async function pickVersion(
   return { target, tag }
 }
 
-/* ── [3] 质量门禁（在写版本号之前）───────────────────────────── */
-
 async function gate(): Promise<void> {
   console.log('\n[3] 质量门禁：类型、lint、依赖规则、全部测试')
   console.log('    放在写版本号之前跑。门禁失败时仓库还没被动过，什么都不用回滚。')
@@ -370,8 +335,6 @@ async function gate(): Promise<void> {
   run(BUN, 'run', 'check')
 }
 
-/* ── [4] 写版本号 ──────────────────────────────────────────── */
-
 function applyVersion(target: string): void {
   console.log('\n[4] 写版本号')
   run(BUN, 'run', 'version:set', target)
@@ -379,23 +342,17 @@ function applyVersion(target: string): void {
   run(BUN, 'run', 'check:versions', `v${target}`)
 }
 
-/* ── [5][6][7] 清空、构建、收集产物 ─────────────────────────── */
-
 /**
  * 打出来的包里 node_modules 只该有运行时真正 import 的那几个。
  *
- * 打包器另有一个只认否定模式的 matcher，会把生产依赖树整棵塞进 asar：谁往
- * apps/desktop 的 dependencies 里放一个渲染层依赖，安装包就悄悄胖几十 MB，
- * 而构建照样绿。这个闸门让那次误加在打包后立刻现形，而不是等用户量体积。
- *
- * 运行时真正从 node_modules 读的依赖就这两个（15 页 §10.3）：
- * @lydell/node-pty 被 features/terminal/src/host 动态加载，electron-updater 只在
- * 打包版由 features/update/src/host 加载。其余依赖都已被 electron-vite 内联进 out/**。
+ * 打包器另有一个只认否定模式的 matcher，会把生产依赖树整棵塞进 asar：谁往 apps/desktop 的
+ * dependencies 里放一个渲染层依赖，安装包就悄悄胖几十 MB，而构建照样绿。这个闸门让那次误加
+ * 在打包后立刻现形。`@lydell/node-pty` 被 features/terminal/src/host 动态加载，electron-updater
+ * 只在打包版由 features/update/src/host 加载；其余依赖都已被 electron-vite 内联进 out/**。
  */
 const RUNTIME_DEPENDENCIES = ['@lydell/node-pty', 'electron-updater']
 
 const RUNTIME_DEPENDENCY_CLOSURE = [
-  /* electron-updater 自己的闭包，由它带进来，不算误加。 */
   'builder-util-runtime',
   'fs-extra',
   'graceful-fs',
@@ -411,16 +368,13 @@ const RUNTIME_DEPENDENCY_CLOSURE = [
   'sax',
   'debug',
   'ms',
-  /* @lydell/node-pty 的 Windows 原生实现，同样由它带进来。 */
   '@lydell/node-pty-win32-x64',
 ]
 
 /**
  * 直接读 asar 的头部清单，不依赖外部命令：发布链要能离线跑。
- *
- * asar 布局是 [16 字节头][JSON 目录][补齐到 4 字节][文件数据]，JSON 的字节数在
- * 偏移 12。要 original-fs：Electron 之外的 Node 无所谓，但在 Electron 进程里
- * node:fs 会把 .asar 当目录接管。
+ * 布局是 [16 字节头][JSON 目录][补齐到 4 字节][文件数据]，JSON 的字节数在偏移 12。
+ * 要 original-fs：在 Electron 进程里 node:fs 会把 .asar 当目录接管。
  */
 function asarNodeModules(archive: string): string[] {
   const fd = openSync(archive, 'r')
@@ -482,7 +436,6 @@ function assertLeanPackage(): void {
   console.log(`    包内依赖 ${found.length} 个，符合预期。`)
 }
 
-/** 构建目录里必须正好有这一版的安装包与它的块索引，多一个版本都不行。 */
 async function resolveInstaller(target: string): Promise<string> {
   const files = await readdir(BUNDLE_DIR).catch(() => [] as string[])
   const installers = files.filter((name) => name.endsWith('-setup.exe'))
@@ -514,7 +467,6 @@ async function stageInstaller(installer: string): Promise<void> {
   await copyFile(path.join(BUNDLE_DIR, `${installer}.blockmap`), path.join(STAGE_DIR, `${installer}.blockmap`))
 }
 
-/** 把 stage 里的每个资产逐个念出来：确认之前看到的必须正是等下要传的那几个。 */
 async function reportAssets(installer: string): Promise<{
   version?: string
   path?: string
@@ -562,9 +514,7 @@ async function buildAndStage(target: string, tag: string, current: string): Prom
   console.log('\n[7] 收集产物')
   const installer = await resolveInstaller(target)
   await stageInstaller(installer)
-  /* 上一版那份从上一个 release 取回来 —— 差分要有基准才成立，见下面那个函数。 */
   await stagePreviousBlockmap(current)
-  /* latest.yml 由 electron-builder 写、由 latest-json 校验并搬运；SHA256SUMS.txt 也在那一步落盘。 */
   run(BUN, 'run', 'latest-json', BUNDLE_DIR, STAGE_DIR, tag)
 
   const manifest = await reportAssets(installer)
@@ -584,19 +534,11 @@ async function buildAndStage(target: string, tag: string, current: string): Prom
 }
 
 /**
- * 差分下载要两份块索引：这一版的，与**上一个版本**的那一份。
- *
- * 旧的那份从上一个 release 取回来，**按原名字**放进这一版的资产里。这不是随便挑的
- * 位置：客户端按「新版本资产名里把版本号换成旧版本号」拼它的地址
- * （electron-updater 的 providers/Provider.ts 的 getBlockMapFiles），拼出来仍在**这一版**
- * 的 tag 目录下。旧安装包的字节不必跟着发 —— 客户端手里正在跑的那份就是基准。
- *
- * 它没法用这一版的块索引顶替：块索引是内容寻址的，跟那一版的实际字节绑定。顶替的后果
- * 不是报错，是客户端照一份错的比对表拼出文件、末了 sha512 校验不过、退回整包下载 ——
- * 白跑一趟，比不做差分还慢。所以宁可不带。
- *
- * 取不到不是失败：这一版就是第一个带块索引的版本时，如实说一句，
- * 客户端整包下载一次，从下一版起差分才成立。
+ * 差分下载要两份块索引：这一版的，与上一个版本的那一份。旧的那份从上一个 release 取回来、按原名字
+ * 放进这一版的资产里：客户端按「新版本资产名里把版本号换成旧版本号」拼地址（electron-updater 的
+ * providers/Provider.ts），拼出来仍落在这一版的 tag 目录下。它没法用这一版的块索引顶替 ——
+ * 块索引是内容寻址的，顶替的后果不是报错，是客户端照一份错的比对表拼出文件、末了 sha512 校验不过、
+ * 退回整包下载，比不做差分还慢。取不到不算失败：这一版就是第一个带块索引的版本时，客户端整包下载一次。
  */
 async function stagePreviousBlockmap(previousVersion: string): Promise<void> {
   const previousTag = `v${previousVersion}`
@@ -617,10 +559,7 @@ async function stagePreviousBlockmap(previousVersion: string): Promise<void> {
     return
   }
 
-  /*
-   * 取回来的必须真是块索引。挡在这里，别让一份坏比对表跟着这一版发给所有客户端 ——
-   * 那时每台机器都会白跑一次差分再退回整包下载。
-   */
+  /* 取回来的必须真是块索引，别让一份坏比对表跟着这一版发给所有客户端。 */
   try {
     const parsed = JSON.parse(Bun.gunzipSync(await readFile(path.join(STAGE_DIR, name))).toString()) as {
       files?: unknown
@@ -634,8 +573,6 @@ async function stagePreviousBlockmap(previousVersion: string): Promise<void> {
     await rm(path.join(STAGE_DIR, name), { force: true })
   }
 }
-
-/* ── [8][9][10] 提交打标、发布、验通道 ──────────────────────── */
 
 type PublishState = { committed: boolean; tagPushed: boolean }
 
@@ -656,7 +593,6 @@ async function commitAndTag(tag: string, branch: string, state: PublishState): P
 async function createRelease(tag: string, installer: string, yes: boolean, draft: boolean): Promise<void> {
   console.log('\n[9] 发布：上传安装包、清单、校验和到 GitHub Release')
 
-  /* stage 目录里除了安装包、清单与校验和，就是给差分下载用的 blockmap。 */
   const blockmaps = (await readdir(STAGE_DIR)).filter((name) => name.endsWith('.blockmap'))
   const createArgs = [
     'release',
@@ -713,9 +649,7 @@ async function publish(options: {
 }
 
 /**
- * 把已经推出去的半个发布收回来。
- *
- * 顺序是从外往里：release → 远端 tag → 本地 tag → 版本号提交。最后那一步分两种情况，
+ * 顺序是从外往里：release → 远端 tag → 本地 tag → 版本号提交；最后一步分两种情况，
  * 因为推没推出去决定了能不能直接把提交抹掉。
  */
 async function unwind(options: { branch: string; tag: string; state: PublishState; error: unknown }): Promise<void> {
@@ -756,9 +690,6 @@ async function unwind(options: { branch: string; tag: string; state: PublishStat
   console.log(`已撤回 ${tag}，版本号提交已丢弃，仓库回到发布前的状态。`)
 }
 
-/* ── 编排 ──────────────────────────────────────────────────── */
-
-/** 发布完成后机器做不了的那几步：真机上的自动更新必须由人看着走一遍。 */
 function printHandover(target: string, tag: string, draft: boolean): void {
   console.log('')
   console.log(`  ${tag} ${draft ? '已建为草稿' : '发布完成'}。`)

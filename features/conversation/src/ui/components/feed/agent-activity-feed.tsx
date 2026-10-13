@@ -10,68 +10,47 @@ import { KeepAlive, mergeRange } from './keep-alive'
 import { rowAtAnchor } from './reading-position'
 import { useScrollAuthority } from './scroll-authority'
 
-/*
- * 视口之外预留的行数，两级而非一个折中值：首帧行高多半是估的，铺得越多越是白测；
- * 几何稳了之后抬到能盖住一次快滚的量。
- */
+/* 两级而非折中值：首帧行高多是估的，铺多了白测；几何稳了再抬到盖得住一次快滚。 */
 const OVERSCAN_COLD = 6
 const OVERSCAN_SETTLED = 20
 
-/** 视口之外还留着的「最近看过的行」上限。上去看一眼再回来不该重新解析正文。 */
 const KEEP_ALIVE_ROWS = 80
 
-/** 视线在视口里的位置（自上而下）：上沿一条边，上一轮的残留一个像素就占住；三分之一处才是人在看的地方。 */
+/** 取 1/3 而非上沿：上沿会被上一轮残留的一个像素占住。 */
 const READING_ANCHOR_RATIO = 1 / 3
 
-/** 距顶端不足这么多屏就去要更早的一页：触顶才取，看见的就是一次停顿。 */
+/** 触顶才取会看见一次停顿，所以提前这么多屏去要更早的一页。 */
 const EARLIER_LEAD_SCREENS = 1
 
-/** 距末端不足这么多像素算在末端：一格滚轮的量。虚拟器据此决定跟不跟随。 */
+/** 一格滚轮的量：不足它就算在末端。 */
 const END_THRESHOLD_PX = 48
 
-/** 浮层可以向滚动区要什么。行号，不是像素。 */
 export interface FeedPort {
-  /** 人正在读的那一行；跳转期间是人要求看的那一行。 */
   readonly activeRow: number
   readonly scrollToRow: (index: number) => void
 }
 
-/** 一行按哪一档节奏排：左图标右文字的一条记事，或一段正文。行距因此只有两个数。 */
+/** 只有两种行距：glyph（左图标右文字的记事）与 prose（正文）。 */
 export type RowRhythm = 'glyph' | 'prose'
 
 export interface AgentActivityFeedProps {
-  /** 这些行属于哪条对话：盒子按它取 key（一条对话一个盒子），也是行高量表的名字。 */
   readonly conversation: string
   readonly feed: Presentation
-  /**
-   * 开合表：封条与抽屉，人亲手改的那一份。这一层只认它的身份 —— 换身份 = 这帧的高度
-   * 变化是人点出来的。virtual-core 的 resizeItem 在 anchorTo 为 end 且人在末端时把长高
-   * 的量补进 scrollTop 钉住底边：模型吐字是「跟着流走」，人点开面板就是整屏上蹿 ——
-   * 区别只在高度变化是谁引起的。
-   */
+  /** 封条与抽屉的开合表。换身份＝长高是人点出来的，虚拟器把量补进 scrollTop 钉底边。 */
   readonly disclosed: object
-  /** 一行还没被测量时有多高。类别知识归转录那一侧。 */
   readonly estimateRow: (index: number) => number
-  /** 这一行按哪一档节奏排。同上，类别知识归转录那一侧。 */
   readonly rowRhythm: (index: number) => RowRhythm
   readonly renderRow: (index: number) => ReactNode
   readonly isBusy: boolean
-  /** 覆盖转录的输入区高度；null 表示首帧布局尚未落定。 */
+  /** null 表示首帧布局尚未落定。 */
   readonly dockClearance: number | null
-  /** 上面还有没有更早的一页。 */
   readonly hasEarlier: boolean
-  /** 顶端快见底了。读不读、读几页归转录那一侧。 */
   readonly onReachStart: () => Promise<void>
-  /** 转录之前那一块常驻内容。它在滚动盒里,所以跟着滚,并与转录共用阅读栏宽。 */
   readonly lead?: ReactNode
-  /** 画在滚动区之上，位于一切会滚的东西之外。 */
   readonly overlay?: (port: FeedPort) => ReactNode
 }
 
-/**
- * 会话流的滚动区。铺内容、量几何，一个 scrollTop 都不写：位置归虚拟器，意图归
- * scroll-authority。不认识条目类型：内容与估高都从插槽进来。
- */
+/** 位置归虚拟器，意图归 scroll-authority，这里一个 scrollTop 都不写。 */
 export function AgentActivityFeed({
   conversation,
   disclosed,
@@ -86,52 +65,37 @@ export function AgentActivityFeed({
   renderRow,
   rowRhythm,
 }: AgentActivityFeedProps) {
-  /** 滚动区的生命周期归这一个 state：装卸不再随任何 prop 变化而重做。 */
   const [viewport, setViewport] = useState<HTMLDivElement | null>(null)
   const transcriptRef = useRef<HTMLDivElement | null>(null)
   const leadRef = useRef<HTMLDivElement | null>(null)
 
-  /* 行的落点要踩在设备像素上：落在半个设备像素，行内 1px 的边会摊到两行、墨色减半。 */
+  /* 落点要踩在设备像素上：落在半个设备像素，行内 1px 的边会摊到两行、墨色减半。 */
   const snapToDevicePixels = useDevicePixels()
 
-  /* 转录相对滚动区的偏移（滚动区是转录的 offsetParent，故一次 offsetTop）。是 state 非 ref：虚拟器在渲染期读它。 */
+  /* 是 state 非 ref：虚拟器渲染期就要读它。 */
   const [scrollMargin, setScrollMargin] = useState<number | null>(null)
 
-  /** 视线落在哪一行。null 是「还没读到过」，不是第 0 行。 */
+  /** null 是「还没读到过」，不是第 0 行。 */
   const [readingRow, setReadingRow] = useState<number | null>(null)
 
-  /** 虚拟器此刻铺出来的区间表，给那两次二分用。提交之后镜像一次。 */
   const spansRef = useRef<readonly VirtualItem[]>([])
   const earlierRequest = useRef<Promise<void> | null>(null)
 
-  /* 向上续读的最新入参。滚动区一处装卸，所以这两个 prop 不进监听器的依赖。 */
   const earlier = useRef({ hasEarlier, onReachStart })
 
   useLayoutEffect(() => {
     earlier.current = { hasEarlier, onReachStart }
   }, [hasEarlier, onReachStart])
 
-  /* 虚拟器选项保持身份；ref 只提供这一帧最新的领域读模型。 */
   const rowAccess = useRef({ estimateRow, feed })
   rowAccess.current = { estimateRow, feed }
   const getItemKey = useCallback((index: number) => rowAccess.current.feed.rowAt(index)?.item.id ?? index, [])
   const estimateItem = useCallback((index: number) => rowAccess.current.estimateRow(index), [])
 
-  /*
-   * 最近被铺出来过的行。一步都没有 id 的条目（不该有）不常驻，所以键就是条目 id。
-   *
-   * 一份盒子一条对话：换对话时这个组件整个换掉（外层按对话号给了 key），常驻集合跟着换，
-   * 不会把上一条对话的行留在这儿。
-   */
+  /* 一条对话一份常驻集合：外层按对话号给了 key，换对话整个组件换掉。 */
   const [keepAlive] = useState(() => new KeepAlive(KEEP_ALIVE_ROWS))
 
-  /*
-   * 渲染集合 = 默认区间 ∪ 最近看过的行。
-   *
-   * 这一层只铺行：常驻行照常由虚拟器摆位置、照常被 measureElement 观察，它在视口之外，
-   * ResizeObserver 不会为它触发，测量成本不涨。行的下标要从 key 换回来 —— 向上续读会
-   * 在前面插行、下标整体位移，而 key 不变。
-   */
+  /* 渲染集合 = 默认区间 ∪ 常驻行：常驻行在视口之外，测量成本不涨；下标要从 key 换回来 —— 续读会在前面插行。 */
   const extractRange = useCallback(
     (range: Range) => {
       const base = defaultRangeExtractor(range)
@@ -145,16 +109,11 @@ export function AgentActivityFeed({
     [keepAlive],
   )
 
-  /* 几何只在挂载那一次被收走，所以只取一次。 */
   const [restored] = useState(() => geometryOf(conversation))
 
-  /* 两项都在布局阶段落定，错误的首帧几何不会上屏。 */
   const settled = scrollMargin !== null && dockClearance !== null
 
-  /*
-   * 人点开抽屉的那一帧，末端锚定让位给起始锚定：那时要钉的是被点的那一行。
-   * 归位判据是总高变了而非提交完了 —— 行的测量由 ResizeObserver 异步送达。
-   */
+  /* 人点开抽屉那一帧末端锚定让位给起始锚定：要钉的是被点的那一行。 */
   const [held, setHeld] = useState(disclosed)
   const holding = held !== disclosed
   const measuredTotal = useRef(0)
@@ -177,7 +136,6 @@ export function AgentActivityFeed({
     }
   }, [viewport])
 
-  /** 这一行的内容顶比盒顶低多少。 */
   const leadOf = (row: number) => metrics[rowRhythm(row)]
   const paddingEnd = dockClearance === null ? 0 : dockClearance + metrics.dissolve
 
@@ -188,45 +146,34 @@ export function AgentActivityFeed({
     getScrollElement: () => viewport,
     estimateSize: estimateItem,
     getItemKey,
-    /* 交出副本：这份会被虚拟器收走当自己的初值。空表与库默认等价。 */
+    /* 交出副本：这份会被虚拟器收走当自己的初值。 */
     initialMeasurementsCache: restored === undefined ? [] : [...restored.rows],
     scrollMargin: scrollMargin ?? 0,
     paddingEnd,
     overscan: settled ? OVERSCAN_SETTLED : OVERSCAN_COLD,
     rangeExtractor: extractRange,
-    /* 尾部锚定：前插不动眼前那一行，末端跟随只在人本来就在末端时发生。 */
     anchorTo: holding ? 'start' : 'end',
     followOnAppend: !holding,
     scrollEndThreshold: END_THRESHOLD_PX,
-    /* 滚动停没停问浏览器：库那条 isScrollingResetDelay 的退路是为跨浏览器差异准备的，
-       而这里的渲染器只有 Chromium，原生 scrollend 早已可用。 */
+    /* 渲染器只有 Chromium，原生 scrollend 已可用。 */
     useScrollendEvent: true,
   })
 
-  /*
-   * 长高的量只补视口之上那些行：落点行自己被量出与估高之差时，不该把落点推走。
-   * 装好的 virtual-core 里这一格是实例字段，不是选项 —— 传进选项表会被静默忽略。
-   */
+  /* 长高的量只补视口之上那些行。这一格是 virtual-core 的实例字段，传进选项表会被静默忽略。 */
   virtualizer.shouldAdjustScrollPositionOnItemSizeChange = (item, _delta, instance) =>
     item.start + leadOf(item.index) < (instance.scrollOffset ?? 0)
 
   const total = virtualizer.getTotalSize()
 
-  /*
-   * 末端坐标：偏移加总高（含尾部清空距离）。两段分帧到达（各等一次 ResizeObserver），
-   * 挂载首钉是还没量到的假末端，所以落末端只能是一份持续意图，坐标一动就重钉一次；
-   * 真值到位后停在离底一段处，正是尾部清空距离。钉末端还是钉某一行由意图层说，这里
-   * 只在坐标变化时重写同一份意图；行高补偿归虚拟器（anchorTo/followOnAppend）。
-   */
+  /* 挂载首钉落在还没量到的假末端上，所以落末端只能是一份持续意图，坐标一动就重钉一次。 */
   const end = (scrollMargin ?? 0) + total
 
-  /* 这一份意图落在哪个坐标上。意图或坐标变了才重写一次，两者都没变就什么都不做。 */
   const intent = revealing === null ? (pinned ? `end:${String(end)}` : null) : `row:${String(revealing)}:${String(end)}`
   const wroteAt = useRef<string | null>(null)
 
   useLayoutEffect(() => {
     if (intent === null) {
-      /* 意图撤了：同一行再点一次仍然要写一次位置。 */
+      /* 意图撤了也要清空：同一行再点一次仍要写一次位置。 */
       wroteAt.current = null
 
       return
@@ -244,11 +191,10 @@ export function AgentActivityFeed({
       return
     }
 
-    /* 人要求看的那一行最权威：请求由 scrollend 了结，所以这一路自己会停。 */
     virtualizer.scrollToIndex(revealing, { align: 'start' })
   }, [intent, revealing, settled, viewport, virtualizer])
 
-  /* 那一次长高量到了，锚定当场归位：让位只覆盖人点出来的那一次测量。 */
+  /* 让位只覆盖人点出来的那一次测量：量到了就当场归位。 */
   useLayoutEffect(() => {
     if (holding && total === measuredTotal.current) {
       return
@@ -264,7 +210,6 @@ export function AgentActivityFeed({
     spansRef.current = items
   }, [items])
 
-  /* 意图与视线的最新值。走的时候要读它们，而那一次装卸只随对话变化。 */
   const seen = useRef<{ pinned: boolean; reading: number | null }>({
     pinned: true,
     reading: null,
@@ -274,19 +219,17 @@ export function AgentActivityFeed({
     seen.current = { pinned, reading: readingRow }
   }, [pinned, readingRow])
 
-  /* 走的时候把几何留下：下次打开这条对话，总高与视线都从这一份起。 */
   useLayoutEffect(
     () => () => {
       keepGeometry(conversation, {
         rows: virtualizer.takeSnapshot(),
-        /* 在末端就不记行号：回来时继续跟随末端，而不是钉死在当时的最后一行。 */
+        /* 在末端就不记行号：回来时继续跟随末端。 */
         reading: seen.current.pinned ? null : seen.current.reading,
       })
     },
     [conversation, virtualizer],
   )
 
-  /* 滚动、尺寸观察和阅读锚点共享滚动盒的生命周期。 */
   useLayoutEffect(() => {
     if (viewport === null) {
       return
@@ -303,10 +246,7 @@ export function AgentActivityFeed({
         frame = null
 
         const spans = spansRef.current
-        /*
-         * 常驻行不改变这次二分：它找的是「最后一个起点不晚于锚点的行」，而视口所在的
-         * 连续区间一定盖住锚点；常驻行要么远在上方、要么远在下方，都不越过它。
-         */
+        /* 常驻行远在上方或下方，不影响这次二分。 */
         const reading = rowAtAnchor(spans, viewport.scrollTop + viewport.clientHeight * READING_ANCHOR_RATIO)
 
         if (reading !== null) {
@@ -316,7 +256,6 @@ export function AgentActivityFeed({
         /* 末端判据归虚拟器，这里只在同一次布局读取里采样。 */
         sample(virtualizer.isAtEnd())
 
-        /* 离顶端还有多远，同一次读取里问出来。 */
         if (
           earlier.current.hasEarlier &&
           earlierRequest.current === null &&
@@ -334,11 +273,7 @@ export function AgentActivityFeed({
       })
     }
 
-    /*
-     * 转录也在名单上：它盖住行内的异步排版与抽屉展开。回路接不上 —— 回调写的都是
-     * state，React 在值没变时挡掉。尾部按边框盒观察不是可选：它的高度整个来自
-     * padding-block-end，content-box 不因内边距变化派发，paddingEnd 会停在冷启动那一测。
-     */
+    /* 尾部必须按边框盒观察：它的高度整个来自 padding-block-end，content-box 不派发。 */
     const observer = new ResizeObserver(() => {
       if (transcriptRef.current !== null) {
         setScrollMargin(transcriptRef.current.offsetTop)
@@ -352,7 +287,7 @@ export function AgentActivityFeed({
     if (transcriptRef.current !== null) {
       const transcript = transcriptRef.current
 
-      /* 与尾部同一条纪律：首次通知晚于首帧，挂载时先同步读一次。 */
+      /* 首次通知晚于首帧，挂载时先同步读一次。 */
       setScrollMargin(transcript.offsetTop)
       observer.observe(transcript)
     }
@@ -376,10 +311,7 @@ export function AgentActivityFeed({
     }
   }, [sample, viewport, virtualizer, watch])
 
-  /*
-   * 自己说的话把视线带回末端：那是答复将要出现的地方。触发者是数据 —— 最后一条我说的
-   * 话换了 id；换对话走挂载那一路，不会被当成「我又说了一句」。
-   */
+  /* 自己说的话把视线带回末端：触发者是数据 —— 最后一条我说的话换了 id。换对话走挂载那一路，不算。 */
   const ownMessage = feed.latestOwnMessage
   const said = useRef<{ readonly message: string | null } | null>(null)
 
@@ -397,7 +329,6 @@ export function AgentActivityFeed({
     }
   }, [ownMessage, travel])
 
-  /* 人刚要求看的那一轮最权威；其次是视线推出来的那一行；首帧两者都还没有，那时在末尾。 */
   const activeRow = revealing ?? readingRow ?? Math.max(0, feed.count - 1)
 
   return (
@@ -419,7 +350,7 @@ export function AgentActivityFeed({
           role="log"
           style={{ height: total }}
         >
-          {/* 每行坐在虚拟器算出来的 start 上：模型说它在哪它就在哪，位置只有一个来源。 */}
+          {/* 位置只有一个来源：虚拟器算出来的 start。 */}
           {items.map((item) => {
             const row = feed.rowAt(item.index)
 
@@ -446,11 +377,7 @@ export function AgentActivityFeed({
         </div>
       </div>
 
-      {/*
-       * 回到最新。常驻挂载，靠 data-shown 在两个静态状态间过渡。隐藏时挂 inert：
-       * opacity 为 0 的按钮仍可点、仍进 Tab 序。判据是 atLatest 而非 isBusy：
-       * 它回答「下面还有我没看见的东西」。
-       */}
+      {/* 常驻挂载，靠 data-shown 在静态状态间过渡；隐藏时挂 inert —— opacity 0 的按钮仍可点、仍进 Tab 序。判据是 atLatest 而非 isBusy。 */}
       <button
         aria-label="回到最新"
         className="agent-activity-feed__to-latest"

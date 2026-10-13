@@ -1,13 +1,8 @@
 import type { Migration } from '@poietica/storage-sqlite'
 
-/*
- * DDL 照 08 页 §5 原样（usage_events 一表）。
- *
- * v2 是 2026-10-07 的修正：08 页给的 `messageCount` 口径是「一次模型调用 = 一条消息」
- * （数 usage_events 的行），而 legacy 与 ADR 0039 的口径是**用户发出去的句子数**——
- * 两者相差一个数量级（一次用户输入会引出多次模型调用），屏幕上的数字对不上。
- * 按产品负责人裁决改回 legacy 口径：另立一张按天的准入账，不去猜哪些采样属于同一次输入。
- */
+/* v2 是 2026-10-07 的修正：原方案给的 messageCount 口径是「一次模型调用 = 一条消息」（数 usage_events 的行），而 legacy 与 ADR 0039
+ * 的口径是**用户发出去的句子数** —— 两者相差一个数量级（一次用户输入会引出多次模型调用），屏幕上的数字对不上。按产品负责人裁决改回
+ * legacy 口径：另立一张按天的准入账，不去猜哪些采样属于同一次输入。 */
 export const migrations: readonly Migration[] = [
   {
     version: 1,

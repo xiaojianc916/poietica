@@ -1,21 +1,6 @@
-/* Session configuration controls shared by every composer. */
+/* 模型与思考档位选择器：量度与配色住在 skin/metrics.css 的 --cp-model-*，轨道四层的定位关系只在 stopOffset 算一次，分开算会错位。 */
 
-/*
- * 模型与思考档位选择器：工具条上一颗胶囊，打开是一张卡。
- *
- * 量度与配色是复刻参考稿的量过的值，住在 skin/metrics.css 的 --cp-model-*
- * 一栏；这里只说它们怎么摆。轨道四层皮（底轨 / 填充 / 档位点 / 滑块）的定位关系
- * 写在 session-controls.tsx 的 stopOffset 上 —— 三样东西分别算一次就会错位。
- */
-
-/* ---------- 胶囊 ---------- */
-
-/*
- * 静息是透明的，跟工具条里另外两枚胶囊一样：它是常显的一个控件，不是一段标记。
- * 一层常驻的灰底会把它读成"已选中/已展开"，而这颗胶囊一直是被选中的那一个。
- * 悬停与展开才铺 --cp-input-hover（与加号、批准方式共用同一个名字）—— 参考稿
- * 那张就是这个状态。
- */
+/* 静息要透明，跟工具条另外两枚胶囊一样：常驻的灰底会被读成「已选中/已展开」。 */
 .assistant-model-select__button {
   display: inline-flex;
   block-size: var(--cp-model-pill);
@@ -31,7 +16,7 @@
   font: inherit;
   font-size: var(--cp-model-size);
   font-weight: 400;
-  /* 这一格的颜色就是模型名那一段的墨；档位那一段在下面自己盖一档。 */
+  /* 这一格的颜色就是模型名那一段的墨。 */
   color: var(--cp-model-pill-ink);
   cursor: pointer;
   transition: background-color var(--cp-motion-swift) var(--cp-motion-ease);
@@ -42,11 +27,7 @@
   background: var(--cp-input-hover);
 }
 
-/*
- * 行高必须装得下字形自己的盒子。这两格有 overflow: hidden（长名要靠省略号收尾），
- * 行高一旦压到 1，'g' 那一捺与括号就都在行盒外面 —— 胶囊里显示的是模型名，看不全
- * 就等于没说。1.35 与工具条另外两枚胶囊的行高同值。
- */
+/* 行高要装得下字形自己的盒子：压到 1，'g' 那一捺与括号都在行盒外面，而这两格有 overflow: hidden。 */
 .assistant-model-select__name,
 .assistant-model-select__band {
   min-inline-size: 0;
@@ -54,11 +35,7 @@
   line-height: 1.35;
   text-overflow: ellipsis;
   white-space: nowrap;
-  /*
-   * 胶囊居中的是行盒，看到的却是字身的墨：字体的上伸部高过大写，墨的视觉中心
-   * 比行盒中心低 (ascent - capHeight) / 2 —— 14px 这一档约 1.2px。取 1.5px：
-   * 把 'p' 'g' 那一捺也算进视觉重心。
-   */
+  /* 居中的是行盒，看着对的却是字身的墨：墨比行盒中心低约 1.2px（14px 档），取 1.5px 把 'p' 'g' 那一捺也算进视觉重心。 */
   translate: 0 -1.5px;
 }
 
@@ -67,13 +44,7 @@
   color: var(--cp-model-pill-level-ink);
 }
 
-/* ---------- 卡 ---------- */
-
-/*
- * 面板壳沿用工具条浮层的同一张脸（assistant-menu-surface）：底色共用一处。几何与那
- * 一圈影是它自己的 —— 宽、圆角、边色、以及比浮层族轻一档的投影。内边距归每一页
- * 自己，两页的留白不是同一个数。
- */
+/* 面板壳沿用工具条浮层的同一张脸（assistant-menu-surface），几何与那一圈影是它自己的。 */
 .assistant-model-select__panel[data-assistant-skin] {
   inline-size: var(--cp-model-panel);
   min-inline-size: 0;
@@ -84,7 +55,7 @@
   box-shadow: var(--cp-model-panel-lift);
 }
 
-/* 档位页：两行字加一条轨道。上沿窄一档、字与轨道之间宽一档，两个数都是量出来的。 */
+/* 档位页：两行字加一条轨道。 */
 .assistant-model-select__band-pane {
   display: grid;
   gap: var(--cp-model-panel-gap);
@@ -92,19 +63,13 @@
 }
 
 /*
- * 档位那一行。
- *
- * 两行字整块居中，不是逐行居中：目录里的模型名长短差得很远，逐行居中会让档位名
- * 跟着左右跳。
- *
- * 箭头绝对定位在档位名之后。它不参与居中 —— 参与进去，整块就往右偏半个箭头，
- * 上一版就是那样，档位名看着总是不在正中。
+ * 两行字整块居中，不是逐行居中 —— 模型名长短差得远，逐行居中会让档位名左右跳。箭头绝对定位在档位名之后、不参与居中。
  */
 [data-assistant-skin] .assistant-model-select__head {
   display: grid;
   justify-self: center;
   justify-items: center;
-  /* 这一行是菜单里的一行，它带着菜单行的项目间距；两行字是同一行里的两行，不留缝。 */
+  /* 这一行是菜单里的一行，它带着菜单行的项目间距。 */
   gap: 0;
   padding: var(--cp-model-head-pad);
   border: 0;
@@ -144,23 +109,9 @@
   line-height: 1.2;
 }
 
-/* ---------- 轨道 ---------- */
-
 /*
- * 底轨、填充、档位点、滑块四层。
- *
- * 填充是底轨自己的一层背景，不是另起一个元素 —— 圆头那一段只有这样才对：填充的盒子
- * 只有半个滑块宽（14px），`border-radius: 9999px` 落在这么窄的盒子上会被按比例压成
- * 7px，于是它的左端不是半径 12 的圆头，而是一段比滑块那道弧更靠外的弧；滑块滑到最左
- * 时，轨道左上、左下各露出一弯蓝。背景层由底轨自己的 border-radius 裁切，露不出去。
- *
- * 填充的长度在这里过渡，滑块的位置在 __thumb 上过渡，两者读同一个时长与曲线：换一档
- * 时它们是同一条动作的两半，各走各的就会看出错位。时长与曲线都是既有的令牌，不新定。
- *
- * 这一层里没有参与排布的子元素：填充是它的背景，档位点、滑块与原生输入都按
- * stopOffset 绝对定位，轨道自己只管高度与圆角。
- *
- * 指针全部归这一层（原生输入一律穿透），所以拖动从档位点上起手也是通的。
+ * 底轨、填充、档位点、滑块四层。填充是底轨自己的一层背景而不是另起元素：它的盒子只有半个滑块宽（14px），9999px 的圆角在这么窄的盒子上会被按比例压成 7px，
+ * 滑块滑到最左时轨道左上、左下各露出一弯蓝；背景层由底轨自己的圆角裁切，露不出去。档位点、滑块与原生输入都按 stopOffset 绝对定位。
  */
 .assistant-model-select__rail {
   position: relative;
@@ -169,23 +120,15 @@
   background-color: var(--cp-model-rail-face);
   background-image: linear-gradient(var(--cp-model-rail-fill), var(--cp-model-rail-fill));
   background-repeat: no-repeat;
-  /* background-size 由 rail() 逐档给出，与滑块的中心是同一条式子。 */
+  /* background-size 由 rail() 逐档给出。 */
   cursor: pointer;
   touch-action: none;
   transition: background-size var(--cp-motion-swift) var(--cp-motion-ease);
 }
 
 /*
- * 档位点。
- *
- * 位置由 rail() 逐档写出，读的是与滑块、填充同一条式子（stopOffset）—— 三者是同一组
- * 坐标，不会各自算一遍再对不上。中心靠 translate 拉回落点，因此点本身不占位。
- *
- * 点自己只有 4px，悬停够不着，所以给它一个透明命中区（::after），撑到设计系统的指针
- * 目标下限。
- *
- * 自身 pointer-events: none、命中区 auto：悬停落在命中区上（点照样 :hover），而指针
- * 按下时冒泡上来的是底轨，拖动不会因为起手在点上就断掉。
+ * 位置由 rail() 逐档写出。点自己只有 4px，悬停够不着，所以给它一个透明命中区（::after）撑到设计系统的指针目标下限；
+ * 自身 pointer-events: none、命中区 auto，按下时冒泡上来的是底轨，拖动不会因起手在点上就断掉。
  */
 .assistant-model-select__dot {
   position: absolute;
@@ -221,12 +164,7 @@
   background: rgb(255 255 255 / 30%);
 }
 
-/*
- * 滑块。
- *
- * 自己画的这一颗才跟得上左右滑动的动画：原生滑块的落点是布局算出来的，位置一变就是
- * 跳，CSS 补不了间。
- */
+/* 原生滑块的落点是布局算出来的，位置一变就是跳，CSS 补不了间，所以自己画一颗。 */
 .assistant-model-select__thumb {
   position: absolute;
   inset-block-start: 50%;
@@ -238,15 +176,12 @@
   background: var(--cp-model-thumb-face);
   box-shadow: var(--cp-model-thumb-lift);
   pointer-events: none;
-  /* inset-inline-start 由 rail() 逐档给出。 */
   transition: inset-inline-start var(--cp-motion-swift) var(--cp-motion-ease);
 }
 
 /*
- * 原生输入只剩键盘与 aria：指针一律穿透（拖动、点击都归底轨），滑块自己隐形。
- *
- * 不是 display: none 或 visibility: hidden 那种"藏"：它仍在无障碍树里，方向键、Home/End
- * 与 aria-valuetext 照旧生效，:focus-visible 的焦点环也照旧画在轨道那一圈上。
+ * 指针一律穿透（拖动、点击都归底轨），滑块自己隐形。**不能用 display: none 或 visibility: hidden 藏它**：
+ * 那样会掉出无障碍树，方向键、Home/End 与 aria-valuetext 都失效，焦点环也画不出来。
  */
 .assistant-model-select__input {
   position: absolute;
@@ -280,14 +215,8 @@
   opacity: 0;
 }
 
-/* ---------- 模型清单 ---------- */
-
 /*
- * 列宽由面板说了算，不跟最宽那一行撑开。
- *
- * 不加这一条，grid 的隐式列按 max-content 算：长模型名把行撑得比面板还宽，字被卡片的
- * overflow: hidden 直接裁掉 —— 屏幕上看到的是「字贴到边」，而不是省略号。收尾那一格
- * 仍是 __item-name 的 ellipsis，这里只把宽度交还给面板。
+ * 列宽由面板说了算，不跟最宽那一行撑开：不加这一条，grid 的隐式列按 max-content 算，长模型名把行撑得比面板还宽，字被卡片的 overflow: hidden 裁掉。
  */
 .assistant-model-select__list-pane {
   display: grid;
@@ -332,7 +261,7 @@
   color: var(--cp-ink);
 }
 
-/* 工具条浮层族共用的几何与面色变量（--am-*，多处消费）。 */
+/* 工具条浮层族的几何与面色变量只有这一处定义，工作区、分支、调色板、批准方式等处都取这里的值。 */
 [data-assistant-skin] {
   --am-radius: 8px;
   --am-item: 5px;

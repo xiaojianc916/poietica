@@ -11,7 +11,6 @@ export interface SidebarRegionProps {
   readonly children: ReactNode
 }
 
-/** **迁移自** legacy `shell/layout/sidebar-region.tsx`：结构、类名、inert 一字未改。 */
 export function SidebarRegion({
   isDocked,
   width,
@@ -56,7 +55,6 @@ export interface AuxiliaryRegionProps {
   readonly children: ReactNode
 }
 
-/** **迁移自** legacy `shell/layout/auxiliary-region.tsx`。 */
 export function AuxiliaryRegion({
   isDocked,
   fullscreen,

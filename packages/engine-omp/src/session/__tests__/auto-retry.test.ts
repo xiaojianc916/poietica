@@ -5,7 +5,7 @@ import { applyOps, emptyTimeline } from '@poietica/transcript'
 import { fakeOmpSession } from '../../projector/__tests__/fixtures/omp-session'
 
 /*
- * 自动重试上屏（12 页 §9.1 的表：`auto_retry_start` / `auto_retry_end` → notice 帧）。
+ * 自动重试上屏（`auto_retry_start` / `auto_retry_end` → notice 帧）。
  *
  * omp 在服务商抖动时会自己重试；不把这两条接上屏，那几十秒在人是「卡住了」——
  * 时间线上一个字节都不长，看起来像崩了。

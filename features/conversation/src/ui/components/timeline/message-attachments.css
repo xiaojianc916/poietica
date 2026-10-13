@@ -1,14 +1,4 @@
-/*
- * 附件排在气泡上面，靠右。
- *
- * 占满行宽 + justify-content: flex-end，而不是「收缩到内容宽度 + auto 起始
- * 边距」。后者是上一版的写法，它依赖一个前提：容器宽度恰好等于内容宽度。
- * 那个前提被一个隐形的 flex 子项破坏过一次（大图组件当时在这排里面），
- * 而它还会被下一个角标、下一个「共 N 张」再破一次。靠尾对齐不需要这个前提。
- *
- * 行盒（.agent-activity-feed__row）是 inset-inline: 0 的块级盒，所以 100%
- * 就是这一列的宽度，和气泡对齐到同一条右边线。
- */
+/* 占满行宽 + flex-end，而不是「收缩到内容宽度 + auto 起始边距」：后者依赖「容器宽等于内容宽」，一个隐形 flex 子项就能破坏它。 */
 .timeline-attachments {
   display: flex;
   flex-wrap: wrap;
@@ -18,10 +8,7 @@
   inline-size: 100%;
 }
 
-/*
- * 一张缩略图是一个可以按的东西，所以它是 button —— 键盘能到、读屏能报。
- * line-height: 0 去掉行内图片底下那条基线留白，否则圆角里会露出一条边。
- */
+/* 缩略图是 button：键盘能到、读屏能报；line-height: 0 去掉行内图片底下的基线留白，否则圆角处会露一条边。 */
 .timeline-attachments__item {
   display: block;
   flex: none;
@@ -39,19 +26,8 @@
   outline-offset: 2px;
 }
 
-/*
- * 一个定死的方块，一张也好五张也好都一样。
- *
- * 缩略图的职责是指认「这里有一张图」，呈现是大图那一层的事。给单张图开例外（不裁切、
- * 更大）会让同一条流里的附件行随张数忽大忽小，而张数不该是一个影响版式的量。
- *
- * 4.5rem = 72px：和列表里的头像、文件图标同一量级，一眼能认出画的是什么，又不会在
- * 转录里抢走那句话的位置。cover 而不是 contain：等大的方块读起来是「若干个附件」，
- * 参差的矩形读起来是一堆东西。真实比例在大图里还它。
- *
- * 内描边用 outline 不用 border：border 参与盒子尺寸，和裁切叠在一起要多算一次；
- * outline-offset 取负把它画进圆角里面。
- */
+/* 定死的方块，一张也好五张也好都一样：给单张图开例外会让附件行随张数忽大忽小。4.5rem = 72px，与列表头像同一量级；cover 而不是 contain。
+   内描边用 outline 不用 border：border 参与盒子尺寸，和裁切叠在一起要多算一次。 */
 .timeline-attachments__image {
   display: block;
   inline-size: 4.5rem;
@@ -95,10 +71,7 @@
   }
 }
 
-/*
- * 通用文件是一张宽卡片，不是方块：图标 + 文件名 + 「类型 大小」，与 deepseek-harness
- * 的 FileCard 同一个形制。整列靠右，与图片排、气泡对齐到同一条右边线。
- */
+/* 通用文件是宽卡片，不是方块：图标 + 文件名 + 「类型 大小」；整列靠右，与图片排、气泡对齐同一条右边线。 */
 .timeline-files {
   display: flex;
   flex-direction: column;

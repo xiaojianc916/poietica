@@ -4,15 +4,12 @@ import type { z } from 'zod'
 import { writeFileAtomic } from './atomic'
 
 export interface JsonDocument<T> {
-  /** 读取并缓存。文件不存在 → defaults；JSON 损坏或校验失败 → 坏文件改名为 <file>.corrupt-<时间戳>，返回 defaults */
+  /** 读取并缓存。文件不存在 → defaults；JSON 损坏或校验失败 → 坏文件改名为 `<file>.corrupt-<时间戳>`，返回 defaults。 */
   load(): Promise<T>
-  /** 当前缓存值（load 之前调用抛错） */
   current(): T
-  /** 立即写入（串行化：并发调用按顺序写，最后一次为准） */
+  /** 立即写入（并发调用按顺序串行化，最后一次为准）。 */
   save(value: T): Promise<void>
-  /** 合并写入：debounceMs 内的多次调用只写最后一次 */
   saveDebounced(value: T): void
-  /** 把待写的去抖内容立刻落盘（退出时调用） */
   flush(): Promise<void>
 }
 

@@ -3,11 +3,7 @@ import { SquarePen } from 'lucide-react'
 import type { ReactNode } from 'react'
 
 /*
- * 侧栏顶行「新建对话」。**迁移自** legacy `shell/sidebar/sidebar-nav.tsx` 的第一枚
- * NavRow（icon SquarePen、label 「新建对话」）：行的几何由 workbench 的全局样式持有
- * （.sidebar-nav-row / __icon / __label，逐字迁移自 legacy 的 sidebar-rows.css），
- * 这里只贡献图标、文字与动作。高亮跟着路由：停在入口页（conversation.home）时这一行
- * 亮起（legacy 的判据是活动表面是 'ai'）。
+ * 行的几何在 workbench 的全局样式（.sidebar-nav-row / __icon / __label），别在这里改。
  */
 export function NewConversationNavRow(): ReactNode {
   const { route } = useNavigation()

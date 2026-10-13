@@ -8,7 +8,6 @@ export default defineCoreModule({
   setup(ctx) {
     const service = createAgentSettingsService({
       settings: ctx.engine.settings,
-      /* 端口交出的就是 group 键的序列（与 descriptor.group 同源），这里原样转发。 */
       groupOrder: ctx.engine.settings.groupOrder,
       emitChanged: (paths) => ctx.rpc.emit('agentSettings.changed', { paths: [...paths] }),
     })

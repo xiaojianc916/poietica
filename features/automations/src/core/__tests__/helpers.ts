@@ -13,7 +13,6 @@ import { createRunner } from '../runner'
 import { createScheduler } from '../scheduler'
 import { createAutomationsService } from '../service'
 
-/** 内存库 + automations 迁移：仓库/服务/调度器的单测共用 */
 export function createTestDatabase(): { db: Database; repo: AutomationsRepository } {
   const db = openDatabase(':memory:')
   const moduleDb = db.forModule('automations')
@@ -46,7 +45,6 @@ export function stubWorkspaces(workspaces: readonly Workspace[] = [testWorkspace
   }
 }
 
-/** 假会话服务：记录创建与提交，状态可被测试直接设定 */
 export function stubConversation(): ConversationService & {
   readonly created: { workspaceId: string; title: string }[]
   readonly submitted: { threadId: string; text: string }[]
@@ -121,9 +119,6 @@ export function testClock(): FakeClock {
 
 export { createFakeEngine, type FakeEngine, type ScenarioScript }
 
-/* ── 审查 R-14 / R-15 的新用例共用 ─────────────────────────────── */
-
-/** 一份完整草稿：默认每分钟一次、UTC、工作区 ws1，按需覆盖 */
 export function fullDraft(overrides: Partial<AutomationDraft> = {}): AutomationDraft {
   return {
     title: '晨会动态',
@@ -141,7 +136,6 @@ export function fullDraft(overrides: Partial<AutomationDraft> = {}): AutomationD
   }
 }
 
-/** runner + service + scheduler 全套，外加记下发出去的运行更新与通知 */
 export function buildCore(o: { readonly workspaces?: WorkspacesService } = {}) {
   const d = unitDeps(o)
   const logger = createTestLogger()

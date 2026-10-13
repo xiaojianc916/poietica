@@ -67,7 +67,6 @@ export function scanPending(items: readonly TimelineItem[]): PendingInteractions
   return { permission, permissionCount, plan, question }
 }
 
-/** 一次状态过滤、一次扫描，交出输入区需要的完整交互快照。 */
 export function pendingInteractions(scope: WaitingScope): PendingInteractions {
   if (
     scope.status !== 'awaiting_permission' &&
@@ -95,10 +94,7 @@ export function pendingPermission(scope: WaitingScope): PermissionItem | undefin
   return pendingInteractions(scope).permission
 }
 
-/*
- * 一页里最新的那份清单，倒着找。`live` 判一条还没完成的清单算不算数（在跑那一轮的实时预览）。
- * 失败的不算；没完成又不是实时预览的不算。
- */
+/* 一页里最新的那份清单，倒着找。`live` 判一条还没完成的清单算不算数（在跑那一轮的实时预览）：失败的不算，没完成又不是实时预览的不算。 */
 function latestTodosIn(
   items: readonly TimelineItem[],
   live: (item: TimelineItem) => boolean,
@@ -122,9 +118,8 @@ function latestTodosIn(
 const NOT_LIVE = (): boolean => false
 
 /*
- * 已封口页里只认完成的清单：实时预览只属于在跑那一轮（`item.turn === active.turn`），
- * 而页里条目的 turn 就是页的 turn（投影按 turn.ordinal 打号）。页号撞上 active 的那种
- * 不走缓存，照原样现算 —— 判据因此与逐条判完全一致。
+ * 已封口页里只认完成的清单：实时预览只属于在跑那一轮（`item.turn === active.turn`），而页里条目的 turn 就是页的 turn。
+ * 页号撞上 active 的那种不走缓存，照原样现算 —— 判据因此与逐条判完全一致。
  */
 const settledTodosOf = sealedPageMemo((page) => latestTodosIn(page.items, NOT_LIVE))
 
@@ -149,7 +144,6 @@ export function currentTodos(state: TimelineState): readonly TodoItem[] | null {
 
 const NO_STAMPS: readonly string[] = []
 
-/* 一页里带提交号（`clientTurnId`）的用户消息，按出现顺序。 */
 function clientTurnIdsIn(items: readonly TimelineItem[]): readonly string[] {
   let stamps: string[] | undefined
   for (const item of items) {
@@ -164,9 +158,7 @@ function clientTurnIdsIn(items: readonly TimelineItem[]): readonly string[] {
 const sealedStampsOf = sealedPageMemo((page) => clientTurnIdsIn(page.items))
 
 /**
- * 时间线里此刻已有的真实 turn 号（`clientTurnId`）。
- *
- * 判据是**真实 turn 已经画得出来**：投影里那一轮带上了提交号，才算「换过了」。
+ * 时间线里此刻已有的真实 turn 号（`clientTurnId`）。判据是**真实 turn 已经画得出来**：投影里那一轮带上了提交号才算「换过了」；
  * 每次写格子都要问一遍，所以已封口的页按页记账，只有在跑那一页现扫。
  */
 export function clientTurnIdsOf(state: Pick<TimelineState, 'sealed' | 'active'>): ReadonlySet<string> {
@@ -205,11 +197,7 @@ function delegateCallsIn(items: readonly TimelineItem[]): DelegateCalls {
 
 const sealedDelegatesOf = sealedPageMemo((page) => delegateCallsIn(page.items))
 
-/**
- * 这条时间轴上全部 delegate 调用（任务面板「智能体」那一节）。
- *
- * 面板随时间线每帧重算，长对话里逐条扫一遍全部条目是每帧的固定开销；已封口页按页记账。
- */
+/** 这条时间轴上全部 delegate 调用（任务面板「智能体」那一节）。面板随时间线每帧重算，长对话里逐条扫一遍是每帧固定开销，所以已封口页按页记账。 */
 export function delegateCallsOf(state: Pick<TimelineState, 'sealed' | 'active'>): DelegateCalls {
   let ended = 0
   const running: ToolCallTimelineItem[] = []

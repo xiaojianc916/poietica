@@ -1,7 +1,6 @@
 import type { FeedRow } from '../../timeline/presentation'
 
-// 首屏估高：条目类型是现成信息，用一个常量估所有类型是白白放弃它。
-// 表键是条目类型联合，新增类型会在这里和 timeline-row.tsx 同时编译失败。
+// 首屏估高：表键是条目类型联合，新增类型会在这里和 timeline-row.tsx 同时编译失败。
 const ROW_PX: Record<Exclude<FeedRow['item']['type'], 'agent_text'>, number> = {
   agent_thought: 32,
   compaction: 32,
@@ -31,7 +30,7 @@ interface ProseMeasurement {
 
 export type RowEstimator = (row: FeedRow | undefined) => number
 
-// 同一正文 id 只追加；每次估高只扫描本帧新增的后缀。
+// 同一正文 id 只追加：每次估高只扫描本帧新增的后缀。
 export function createRowEstimator(): RowEstimator {
   const measurements = new Map<string, ProseMeasurement>()
 

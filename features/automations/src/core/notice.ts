@@ -1,14 +1,7 @@
 import type { Automation, AutomationRun } from '../contract/entities'
 
-/*
- * 什么时候告诉用户（审查 R-14）。判定只在这里一处：Core 判、UI 只转成系统通知
- * （platform 的 notify.show 在主窗口聚焦时本来就不弹，所以这里不管窗口状态）。
- *
- *   never      → 一律不通知；
- *   attention  → 失败（含超时）、等批准，或 agent 汇报时标了 attention；
- *   always     → attention 的全部，再加每次成功。
- * 用户自己点的停止（cancelled）与跳过（skipped）从不通知：前者用户就在场，后者只记账。
- */
+/* 什么时候告诉用户只在这里判一处：Core 判，UI 只转成系统通知。never 一律不通知；attention 是失败（含超时）、等批准、
+ * 或 agent 标了 attention；always 再加每次成功。用户自己点的停止（cancelled）与跳过（skipped）从不通知。 */
 export interface Notice {
   readonly title: string
   readonly body: string

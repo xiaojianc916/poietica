@@ -23,11 +23,7 @@ import { currentMath, loadMath, mayContainMath, subscribeMath } from './math-plu
 import { ProseLink } from './prose-link'
 import { ExportableTable } from './table-export'
 
-/*
- * 插件表必须是稳定引用：Streamdown 按 plugins.math / plugins.cjk 的引用做 useMemo，
- * 每次给新对象就会重建处理链。公式模块到达前用 BASE_PLUGINS，到达后所有 Prose 共用同一份
- * 带 math 的表（P-06：katex 按需加载，见 math-plugin.ts）。
- */
+/* 插件表必须是稳定引用：Streamdown 按它的引用做 useMemo，每次给新对象就会重建处理链。 */
 const BASE_PLUGINS: PluginConfig = { cjk, code, renderers: [DIAGRAM_RENDERER] }
 let pluginsWithMath: PluginConfig | undefined
 
@@ -43,7 +39,6 @@ function useProsePlugins(text: string): PluginConfig {
   return pluginsWithMath
 }
 
-/* 表格使用产品自己的导出控件，图片交互由媒体视图接管。 */
 const CONTROLS: ControlsConfig = {
   code: { copy: true, download: false },
   image: false,
@@ -64,28 +59,17 @@ const ICONS: Partial<IconMap> = {
 const LINK_SAFETY: LinkSafetyConfig = { enabled: false }
 const CODE_CAP = 'var(--cp-timeline-code-cap)'
 const TABLE_CAP = 0
-/* 表格换成产品自己的导出控件；链接要带一枚显示地址的悬停提示。 */
 const COMPONENTS = { a: ProseLink, table: ExportableTable }
 
-/*
- * 助手产物里的图片走资产协议：地址形状与投递端都是 poietica-asset://（见
- * packages/host-kernel/src/asset-protocol.ts 与 features/attachments/src/host/asset-handler.ts）。streamdown 的默认净化链只放行
- * http/https 的 src，所以这里把协议的 scheme 补进它的 schema —— 补的是**协议名**，
- * 不是放行任意地址：file://、data:、javascript: 仍在默认白名单之外。
- *
- * 换的是整条链而不是加一个插件：Streamdown 的 rehypePlugins 是**替换**语义
- * （dist 的 Ja() 直接用 e.rehypePlugins 取代默认值），少一环就等于把净化摘了。
- */
+/* 图片走资产协议：streamdown 的默认净化链只放行 http/https 的 src，这里补的是**协议名**，
+ * 不是放行任意地址：file://、data:、javascript: 仍在白名单之外。
+ * 必须换整条链：rehypePlugins 是**替换**语义，少一环就等于把净化摘了。 */
 const ASSET_SRC_SCHEME = 'poietica-asset'
 type RehypeChain = NonNullable<StreamdownProps['rehypePlugins']>
 type RehypeEntry = RehypeChain[number]
 
-/*
- * 往净化 schema 的 src 协议表里补一个 scheme；只有元组形状带 schema，别的形状原样交回。
- *
- * 上游改名时那一格会缺席 —— 那时抛，而不是静默跳过：少一环就等于把净化摘了，
- * 而那种失效在界面上看不出来。
- */
+/* 只有元组形状带 schema；上游改名时那一格会缺席 —— 那时抛而不是静默跳过，
+ * 少一环就等于把净化摘了，而那种失效在界面上看不出来。 */
 function withAssetImages(entry: RehypeEntry | undefined): RehypeEntry {
   if (entry === undefined) {
     invariant(false, 'streamdown 的默认净化链改了形状：有一格不在了')
@@ -129,7 +113,7 @@ export const Prose = memo(function Prose({
   text,
 }: ProseProps) {
   const plugins = useProsePlugins(text)
-  /* 流式淡入是批次波浪（use-wave-reveal.ts，P-03），不用 Streamdown 自带的逐字 animated */
+  /* 流式淡入是批次波浪（use-wave-reveal.ts），不用 Streamdown 自带的逐字 animated */
   const wave = useWaveReveal(REHYPE_PLUGINS, streaming)
   return (
     <div className="timeline-prose-host" ref={wave.hostRef}>

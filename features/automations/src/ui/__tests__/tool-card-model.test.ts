@@ -3,13 +3,8 @@ import { describePlan, hasPlan } from '../automation'
 import { atOfLocalInput, defaultOnceAt, localInputOf } from '../automation-schedule-field'
 import { changedOf, clockText, resultText, toolCardOf } from '../tool-card-model'
 
-/*
- * 审查 R-16：对话里「定时任务」工具卡的读法（toolCardOf 是纯函数，卡片只画它的结果）。
- *   C1 新建；C2 修改的「已修改」；C3 一次性与跑完；C4 列表；C5 运行记录；C6 汇报；
- *   C7 进行中与失败；C8 结果的几种外形；C9 删除与立即运行；C10 可选项；
- *   C11 编辑器的一次性时间换算与计划人话。
- * 结果 JSON 的字段名是 R-15 §3.3 的规格。
- */
+/* R-16：C1 新建；C2 修改的「已修改」；C3 一次性与跑完；C4 列表；C5 运行记录；C6 汇报；C7 进行中与失败；C8 结果的几种外形；
+ * C9 删除与立即运行；C10 可选项；C11 一次性时间换算与计划人话。结果 JSON 的字段名是 R-15 §3.3 的规格。 */
 
 const TZ = 'Asia/Shanghai'
 

@@ -3,17 +3,9 @@ import type { BrowserApi } from './api'
 import type { BrowserPanelStore } from './store'
 import { BrowserTabIcon } from './tab-strip'
 
-/*
- * 浏览器那一格交给右坞的**页签面**（`panels` 贡献的 `dockTabs`）。
- *
- * legacy 的浏览器标签与别的通道同处一条标签条（auxiliary-tab-strip.tsx 把
- * `host.tabs` 与 `panes` 一起摊进同一个 tablist），新架构里那一条标签条归外壳
- * （packages/workbench/src/parts/auxiliary-dock.tsx），浏览器只把「这一格此刻有哪些
- * 标签」报上去 —— 真相仍住在浏览器宿主的 store 里，这里不做第二份副本。
- *
- * 单列一个文件是为了能直接单测：它只依赖 store 与 api 两个对象，不碰 React，也不需要
- * 内核起来（`ui/index.tsx` 的 setup 里只是把它挂到贡献上）。
- */
+/* 浏览器那一格交给右坞的**页签面**（panels 贡献的 dockTabs）。legacy 里浏览器标签与别的通道同处一条标签条，新架构里那一条归外壳，
+ * 浏览器只把「这一格此刻有哪些标签」报上去 —— 真相住在浏览器宿主的 store 里，这里不做第二份副本。单列一个文件是为了能直接单测：
+ * 只依赖 store 与 api，不碰 React，也不需要内核起来。 */
 export function createBrowserDockTabs({
   api,
   report,
@@ -51,7 +43,6 @@ export function createBrowserDockTabs({
         active: tab.id === state.activeTabId,
       }))
     },
-    /* 标签号在契约里是数，坞只认字符串（页签 id 是 DOM 的键），转换收在这里一处。 */
     onSelect: (tabId) => {
       run('标签页没能切换', api.selectTab(Number(tabId)))
     },

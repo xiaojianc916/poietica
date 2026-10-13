@@ -11,10 +11,7 @@ export interface UiStateService {
   flush(): Promise<void>
 }
 
-/**
- * 界面记忆：08 页 §6.2 要求走 `createJsonDocument` 的 `saveDebounced`（500ms）。
- * load 前先取默认空表；`set` 只改内存与待写值，`flush` 在退出时立即落盘。
- */
+/** 走 createJsonDocument 的 saveDebounced（500ms）；load 前先给默认空表，退出时 flush 立即落盘。 */
 export function createUiStateService(d: { file: string; logger: Logger; debounceMs?: number }): UiStateService {
   const doc: JsonDocument<UiState> = createJsonDocument({
     file: d.file,

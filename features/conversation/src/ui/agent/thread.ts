@@ -22,7 +22,7 @@ export interface ThreadSnapshot {
   readonly thread: ThreadRecord
   readonly usage?: SessionUsage
 }
-/** 分享把对话上传到第三方，返回那一次的链接。truncated 表示上传的是被截短的一份。 */
+/** 分享把对话上传到第三方；truncated 表示上传的是被截短的一份。 */
 export interface SharedThread {
   readonly url: string
   readonly truncated: boolean

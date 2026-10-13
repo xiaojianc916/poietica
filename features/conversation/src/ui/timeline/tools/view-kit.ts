@@ -10,17 +10,11 @@ export interface OmpToolView {
   readonly known: boolean
   readonly kind: ToolKind
   /*
-   * 真正在跑的那个工具的名字。
-   *
-   * 平时就是帧上的 name；只有 `write xd://<工具>` 例外 —— 帧上是 write，跑的是被挂载
-   * 的那个设备。字形按名字取，认 write 会画成铅笔而屏幕上写着「读取诊断」。
+   * 平时就是帧上的 name；只有 `write xd://<工具>` 例外 —— 帧上是 write，跑的是被挂载的那个设备。字形按名字取，认 write 会画成铅笔而屏幕上写着「读取诊断」。
    */
   readonly invokedTool: string
   /**
-   * 这次碰的是什么地址的内部资源（`skill` / `memory` / `xd` …），空串表示不是内部资源。
-   *
-   * 取 omp 自己盖的章 details.meta.source（OutputMetaBuilder 的 sourceInternal），
-   * 跑的时候还没有产出，退回入参 path 的 scheme。
+   * 取 omp 自己盖的章 details.meta.source；跑的时候还没有产出，退回入参 path 的 scheme。空串表示不是内部资源。
    */
   readonly scheme: string
   readonly headline: string
@@ -34,9 +28,7 @@ export interface OmpToolView {
 export const NONE: readonly ToolCallContent[] = []
 
 /*
- * 出口反向登记：writeView 遇到 xd:// 设备委派时要用整张 HANDLERS 表再认一次名字，
- * 而表在 registry.ts 里、registry 又 import 每个视图文件 —— 直接互相 import 就成环。
- * 出口在模块求值完之后把 ompToolView 挂上来，视图文件只经这一格回调。
+ * 出口反向登记：writeView 遇到 xd:// 设备委派时要用整张 HANDLERS 表再认一次名字，而表在 registry 里、registry 又 import 每个视图文件 —— 直接互相 import 就成环。
  */
 export type ViewLookup = (tool: string, input: unknown, output: unknown) => OmpToolView
 
