@@ -47,6 +47,18 @@
       "allowTrailingCommas": false
     }
   },
+  "plugins": [
+    {
+      "path": "./tooling/checks/raw-errors.grit",
+      "includes": [
+        "**/features/**/*.ts",
+        "**/features/**/*.tsx",
+        "!**/features/**/__tests__/**",
+        "!**/features/**/*.test.ts",
+        "!**/features/**/*.test.tsx"
+      ]
+    }
+  ],
   "css": {
     "parser": {
       "cssModules": false,
@@ -67,7 +79,8 @@
         "useExportType": "error",
         "noNonNullAssertion": "off",
         "useNodejsImportProtocol": "error",
-        "noDefaultExport": "off"
+        "noDefaultExport": "off",
+        "useThrowOnlyError": "error"
       },
       "correctness": {
         "noUnusedImports": "error",

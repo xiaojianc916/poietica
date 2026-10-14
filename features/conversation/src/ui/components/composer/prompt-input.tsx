@@ -2,6 +2,7 @@ import { LexicalComposer } from '@lexical/react/LexicalComposer'
 import { useLexicalComposerContext } from '@lexical/react/LexicalComposerContext'
 import { ContentEditable } from '@lexical/react/LexicalContentEditable'
 import { LexicalErrorBoundary } from '@lexical/react/LexicalErrorBoundary'
+import { HistoryPlugin } from '@lexical/react/LexicalHistoryPlugin'
 import { PlainTextPlugin } from '@lexical/react/LexicalPlainTextPlugin'
 import { invariant } from '@poietica/foundation'
 import { FeatureScope, useContributions } from '@poietica/ui-kernel'
@@ -12,6 +13,7 @@ import {
   $getSelection,
   $isRangeSelection,
   $nodesOfType,
+  CLEAR_HISTORY_COMMAND,
   COMMAND_PRIORITY_HIGH,
   type EditorState,
   KEY_ENTER_COMMAND,
@@ -216,6 +218,11 @@ function $caret(): RangeSelection {
   return $isRangeSelection(selection) ? selection : $getRoot().selectEnd()
 }
 
+/*
+ * 交出正文之后清空编辑器。**必须同时清掉撤销栈**：这一步是 `editor.update()` 写进去的，
+ * 装回历史之后它会成为可撤销的一步 —— 用户发送后按 Ctrl+Z 能把刚发出去的正文捞回来，
+ * 那时再回车就是一次静默重发。清空历史让「发送」成为不可逆的边界。
+ */
 function clearDraft(editor: LexicalEditor): void {
   editor.update(() => {
     const root = $getRoot()
@@ -223,6 +230,7 @@ function clearDraft(editor: LexicalEditor): void {
     root.clear()
     root.append($createParagraphNode())
   })
+  editor.dispatchCommand(CLEAR_HISTORY_COMMAND, undefined)
 }
 
 function replaceDraft(editor: LexicalEditor, text: string): void {
@@ -323,6 +331,8 @@ export function PromptInput(props: PromptInputProps) {
 
   return (
     <LexicalComposer initialConfig={initialConfig}>
+      {/* 挂在组合根而不是编辑器那一面：撤销栈属于「这个输入框」，谁用 PromptInput 都该有，与调用方传了哪些子件无关。 */}
+      <HistoryPlugin />
       <PromptInputShell {...props} draftKey={draftKey} restored={restored} />
     </LexicalComposer>
   )
@@ -931,7 +941,10 @@ export function PromptInputBody({ className, ...props }: ComponentProps<'div'>) 
   return <div className={className} data-slot="prompt-input-body" {...props} />
 }
 
-/** 正文那一面。contenteditable 归 Lexical：选区、组词、撤销栈与粘贴规范化都在内核，这里只声明壳与占位字。 */
+/**
+ * 正文那一面。contenteditable 归 Lexical：选区、组词、粘贴规范化都在内核，这里只声明壳与占位字。
+ * 撤销栈不在这里挂 —— 它由 `PromptInput` 根上的 `HistoryPlugin` 提供（见那里的说明）。
+ */
 export function PromptInputEditor({ placeholder }: { readonly placeholder: string }) {
   const palette = usePromptInputPalette()
 

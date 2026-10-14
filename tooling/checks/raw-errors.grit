@@ -1,0 +1,19 @@
+language js
+
+// 铁律 5：features/** 里不许出现裸 Error（09 页 §4 第 5 条的三类判定）。
+// 三类之外没有第四类，所以 `new <内置错误类>(` 就是漏网。
+//
+// 与手写正则版相比，这里是 **AST 匹配**：注释里的示例与字符串字面量里的
+// `new Error(` 不再误报（旧版逐行扫文本，`return 'new Error('` 会被判成命中）。
+
+`new $Ctor($args)` where {
+  $Ctor <: or {
+    `Error`,
+    `AggregateError`,
+    `TypeError`,
+    `RangeError`,
+    `SyntaxError`,
+    `URIError`
+  },
+  register_diagnostic(span=$Ctor, message="features/** 里不许出现裸 Error：A → AppError + 错误码；B → invariant() / assertNever()；C → 返回值")
+}

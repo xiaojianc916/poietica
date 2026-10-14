@@ -112,7 +112,6 @@
         "lucide-react": "catalog:",
         "react": "catalog:",
         "zod": "catalog:",
-        "zustand": "catalog:",
       },
       "devDependencies": {
         "@poietica/engine-testkit": "workspace:*",
@@ -142,7 +141,6 @@
         "lucide-react": "catalog:",
         "react": "catalog:",
         "zod": "catalog:",
-        "zustand": "catalog:",
       },
       "devDependencies": {
         "@poietica/engine-testkit": "workspace:*",
@@ -173,7 +171,6 @@
         "lucide-react": "catalog:",
         "react": "catalog:",
         "zod": "catalog:",
-        "zustand": "catalog:",
       },
       "devDependencies": {
         "@poietica/engine-testkit": "workspace:*",
@@ -243,7 +240,6 @@
         "streamdown": "catalog:",
         "yet-another-react-lightbox": "catalog:",
         "zod": "catalog:",
-        "zustand": "catalog:",
       },
       "devDependencies": {
         "@poietica/engine-omp": "workspace:*",
@@ -274,7 +270,6 @@
         "lucide-react": "catalog:",
         "react": "catalog:",
         "zod": "catalog:",
-        "zustand": "catalog:",
       },
       "devDependencies": {
         "@poietica/engine-testkit": "workspace:*",
@@ -299,7 +294,6 @@
         "lucide-react": "catalog:",
         "react": "catalog:",
         "zod": "catalog:",
-        "zustand": "catalog:",
       },
       "devDependencies": {
         "@poietica/engine-testkit": "workspace:*",
@@ -325,7 +319,6 @@
         "lucide-react": "catalog:",
         "react": "catalog:",
         "zod": "catalog:",
-        "zustand": "catalog:",
       },
       "devDependencies": {
         "@poietica/engine-testkit": "workspace:*",
@@ -352,7 +345,6 @@
         "lucide-react": "catalog:",
         "react": "catalog:",
         "zod": "catalog:",
-        "zustand": "catalog:",
       },
       "devDependencies": {
         "@poietica/engine-testkit": "workspace:*",
@@ -375,7 +367,6 @@
         "lucide-react": "catalog:",
         "react": "catalog:",
         "zod": "catalog:",
-        "zustand": "catalog:",
       },
       "devDependencies": {
         "@poietica/engine-testkit": "workspace:*",
@@ -403,7 +394,6 @@
         "lucide-react": "catalog:",
         "react": "catalog:",
         "zod": "catalog:",
-        "zustand": "catalog:",
       },
       "devDependencies": {
         "@poietica/test-kit": "workspace:*",
@@ -433,7 +423,6 @@
         "lucide-react": "catalog:",
         "react": "catalog:",
         "zod": "catalog:",
-        "zustand": "catalog:",
       },
       "devDependencies": {
         "@poietica/test-kit": "workspace:*",
@@ -459,7 +448,6 @@
         "lucide-react": "catalog:",
         "react": "catalog:",
         "zod": "catalog:",
-        "zustand": "catalog:",
       },
       "devDependencies": {
         "@testing-library/react": "catalog:",
@@ -485,7 +473,6 @@
         "lucide-react": "catalog:",
         "react": "catalog:",
         "zod": "catalog:",
-        "zustand": "catalog:",
       },
       "devDependencies": {
         "@testing-library/react": "catalog:",
@@ -511,7 +498,6 @@
         "lucide-react": "catalog:",
         "react": "catalog:",
         "zod": "catalog:",
-        "zustand": "catalog:",
       },
       "devDependencies": {
         "@poietica/engine-testkit": "workspace:*",

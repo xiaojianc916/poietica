@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, test } from 'bun:test'
 import { createTestLogger, type FakeClock, fakeClock } from '@poietica/test-kit'
 import { BLANK_PAGE, type BrowserState } from '../../contract'
 import { createRelayClient, type RelaySocket, relayUrlForStatus } from '../relay-client'
+import { DISCARDED_TABS_PROTOCOL_VERSION } from '../relay-protocol'
 import type { ContentsListener, WebContentsLike } from '../tabs'
 
 /* relay 这一侧的自检：socket 与 clock 都注入，真 Chromium 与真 WebSocket 不参与；钉住 BR-2…BR-7 与 BR-11。 */
@@ -160,6 +161,7 @@ interface Harness {
   readonly socket: FakeSocket
   readonly contents: FakeContents
   readonly opened: (string | null)[]
+  readonly openedActive: (boolean | undefined)[]
   readonly closed: number[]
   readonly selected: number[]
   readonly connected: boolean[]
@@ -174,6 +176,7 @@ function harness(url: string): Harness {
 
   const contents = fakeContents(url)
   const opened: (string | null)[] = []
+  const openedActive: (boolean | undefined)[] = []
   const closed: number[] = []
   const selected: number[] = []
   const connected: boolean[] = []
@@ -203,8 +206,9 @@ function harness(url: string): Harness {
     {
       state: () => state,
       contentsOf: (id) => (id === 1 ? contents : null),
-      openTab: (next) => {
+      openTab: (next, active) => {
         opened.push(next)
+        openedActive.push(active)
         const id = state.tabs.length + 1
         const tab = {
           id,
@@ -251,7 +255,7 @@ function harness(url: string): Harness {
 
   socket.open()
 
-  return { socket, contents, opened, closed, selected, connected, attachedLog, clock, client, state }
+  return { socket, contents, opened, openedActive, closed, selected, connected, attachedLog, clock, client, state }
 }
 
 async function rpc(socket: FakeSocket, request: Record<string, unknown>): Promise<Sent> {
@@ -299,13 +303,27 @@ describe('BR-2: 握手与驱动标记', () => {
       url: string
       title: string
       active: boolean
+      discarded: boolean
       windowId: number
       pinned: boolean
       groupId: number
     }[]
 
-    expect(tabs).toEqual([{ tabId: 1, url: '', title: 't', active: true, windowId: 1, pinned: false, groupId: -1 }])
+    expect(tabs).toEqual([
+      { tabId: 1, url: '', title: 't', active: true, discarded: false, windowId: 1, pinned: false, groupId: -1 },
+    ])
     expect(hello?.attachedTabIds).toEqual([])
+
+    h.client.dispose()
+  })
+
+  /* 少了这个字段，omp 18.10.3 的 bridge 把整个实例判成不 eligible：一张 target 都发现不了，
+   * 浏览器工具直接报「扩展过期」（实测 waitForRelayExtension 返回 outdated-extension）。 */
+  test('hello 报 discardedTabsProtocol，否则 relay 判我们「扩展过期」', () => {
+    const h = harness('https://a.example/')
+    const hello = h.socket.messages().find((message) => message.t === 'hello')
+
+    expect(hello?.discardedTabsProtocol).toBe(DISCARDED_TABS_PROTOCOL_VERSION)
 
     h.client.dispose()
   })
@@ -504,6 +522,18 @@ describe('BR-3 / BR-4: attach 与 detach', () => {
 
     expect(h.opened).toEqual([null])
     expect(h.state.tabs.at(-1)?.url).toBeNull()
+
+    h.client.dispose()
+  })
+
+  /* omp 的 newPage 带 background:true 时发 active:false：agent 要一张标签不等于要抢走用户正在看的那张。 */
+  test('createTab 的 active 透传：false 时开在后台', async () => {
+    const h = harness('https://a.example/')
+
+    await rpc(h.socket, { op: 'createTab', url: 'https://b.example/', active: false })
+    await rpc(h.socket, { op: 'createTab', url: 'https://c.example/' })
+
+    expect(h.openedActive).toEqual([false, true])
 
     h.client.dispose()
   })

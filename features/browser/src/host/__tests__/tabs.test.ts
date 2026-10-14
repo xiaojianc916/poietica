@@ -229,6 +229,30 @@ describe('摆放与可见性（迁移自 legacy host.test.ts）', () => {
     expect(h.tabs.state().activeTabId).toBe(3)
   })
 
+  /* agent 开后台标签（omp 的 newPage background:true）不该把用户正在看的那张顶掉。 */
+  test('后台开标签：活动标签不动，新标签也不可见', () => {
+    h.tabs.setBounds({ x: 0, y: 0, width: 300, height: 200 })
+    h.tabs.setVisible(true)
+    h.tabs.openTab('https://a.example/')
+    h.tabs.openTab('https://b.example/', false)
+
+    expect(h.tabs.state().activeTabId).toBe(1)
+    expect(visibleViews(h)).toHaveLength(1)
+    expect(visibleViews(h)[0]).toBe(h.created[0])
+
+    h.tabs.selectTab(2)
+
+    expect(h.tabs.state().activeTabId).toBe(2)
+  })
+
+  /* 一张都没有时，后台开出来的那张必须接管活动位：否则面板一张都不画。 */
+  test('没有任何标签时，后台开的标签仍然成为活动标签', () => {
+    h.tabs.setVisible(true)
+    h.tabs.openTab('https://a.example/', false)
+
+    expect(h.tabs.state().activeTabId).toBe(1)
+  })
+
   test('收起面板：一个都不画', () => {
     h.tabs.setVisible(true)
     h.tabs.openTab('https://a.example/')

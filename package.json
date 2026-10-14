@@ -75,7 +75,7 @@
   "scripts": {
     "typecheck": "bun run tooling/refs/sync.ts --check && bun check -b && bun check -p tsconfig.tests.json",
     "refs": "bun run tooling/refs/sync.ts",
-    "lint": "biome check . && bun run tooling/checks/no-raw-errors.ts && bun run tooling/checks/no-biome-ignore.ts && bun run tooling/checks/editor-project-map.ts && depcruise --config tooling/depcruise/config.cjs tooling packages features apps",
+    "lint": "biome check . && bun run tooling/checks/no-biome-ignore.ts && bun run tooling/checks/editor-project-map.ts && depcruise --config tooling/depcruise/config.cjs tooling packages features apps",
     "test": "bun test",
     "all": "bun run typecheck && bun run lint && bun run test",
     "format": "biome check --write .",

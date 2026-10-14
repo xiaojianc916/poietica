@@ -237,7 +237,7 @@ function relayTabsPort(tabs: BrowserTabs): RelayTabsPort {
   return {
     state: () => tabs.state(),
     contentsOf: (tabId) => tabs.contentsOf(tabId),
-    openTab: (url) => tabs.openTab(url),
+    openTab: (url, active) => tabs.openTab(url, active),
     closeTab: (tabId) => {
       tabs.closeTab(tabId)
     },

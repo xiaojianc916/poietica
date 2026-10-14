@@ -42,8 +42,7 @@
     "react-dom": "catalog:",
     "streamdown": "catalog:",
     "yet-another-react-lightbox": "catalog:",
-    "zod": "catalog:",
-    "zustand": "catalog:"
+    "zod": "catalog:"
   },
   "devDependencies": {
     "@poietica/engine-omp": "workspace:*",

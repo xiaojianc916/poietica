@@ -67,7 +67,7 @@ export interface ViewHost {
 export interface BrowserTabs {
   state(): BrowserState
   onState(listener: (s: BrowserState) => void): Disposable
-  openTab(url: string | null): number | null
+  openTab(url: string | null, active?: boolean): number | null
   closeTab(tabId: number): void
   selectTab(tabId: number): void
   reopenClosed(index: number): void
@@ -412,7 +412,7 @@ export function createBrowserTabs(host: ViewHost, opts: BrowserTabsOptions): Bro
     return tabs.find((tab) => tab.view.webContents === contents)
   }
 
-  function openTab(url: string | null): number | null {
+  function openTab(url: string | null, active = true): number | null {
     if (pickingTabId !== null) {
       cancelPick(pickingTabId)
       pickingTabId = null
@@ -447,7 +447,11 @@ export function createBrowserTabs(host: ViewHost, opts: BrowserTabsOptions): Bro
     }
 
     tabs.push(tab)
-    activeTabId = id
+
+    /* 后台标签不许把「当前没有活动标签」的空档留着 —— 那会让面板一张都不显示。 */
+    if (active || activeTabId === null) {
+      activeTabId = id
+    }
 
     if (normalized !== null) {
       void view.webContents.loadURL(normalized).catch((cause: unknown) => {

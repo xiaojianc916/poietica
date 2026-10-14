@@ -3,6 +3,7 @@ import type { BrowserState } from '../contract/entities'
 import { BLANK_PAGE, BROWSER_PARTITION } from '../contract/entities'
 import { browserErrors } from '../contract/errors'
 import type { RelayInbound, RelayOutbound, TabSnapshot } from './relay-protocol'
+import { DISCARDED_TABS_PROTOCOL_VERSION } from './relay-protocol'
 import type { WebContentsLike } from './tabs'
 
 /* 内置浏览器接进 agent 的那条线（relay 通道）。electron 的 API 全部注入：createSocket 与
@@ -30,7 +31,8 @@ export interface RelaySocket {
 export interface RelayTabsPort {
   state(): BrowserState
   contentsOf(tabId: number): WebContentsLike | null
-  openTab(url: string | null): number | null
+  /** active=false 时开在后台：agent 要一张标签不代表要抢走用户正在看的那张。 */
+  openTab(url: string | null, active?: boolean): number | null
   closeTab(tabId: number): void
   selectTab(tabId: number): void
   userAgent(): string
@@ -116,6 +118,7 @@ export function createRelayClient(tabs: RelayTabsPort, opts: RelayClientOptions)
       url: tab.url ?? '',
       title: tab.title,
       active: tab.id === state.activeTabId,
+      discarded: false,
       windowId: 1,
       pinned: false,
       groupId: -1,
@@ -257,7 +260,7 @@ export function createRelayClient(tabs: RelayTabsPort, opts: RelayClientOptions)
       }
       case 'createTab': {
         // omp 的 newPage 用 about:blank 要一个空白标签：那是「没有 url」，不是一条地址。
-        const id = tabs.openTab(message.url === BLANK_PAGE ? null : message.url)
+        const id = tabs.openTab(message.url === BLANK_PAGE ? null : message.url, message.active ?? true)
 
         if (id === null) {
           throw new AppError(browserErrors.relay_address_rejected, `打不开这个地址：${message.url}`)
@@ -331,6 +334,8 @@ export function createRelayClient(tabs: RelayTabsPort, opts: RelayClientOptions)
       browserVersion: tabs.browserVersion(),
       tabs: snapshots,
       attachedTabIds: [],
+      /* 缺了它 relay 把这一侧整实例判成不 eligible、浏览器工具直接报「扩展过期」（见 relay-protocol.ts 文件头）。 */
+      discardedTabsProtocol: DISCARDED_TABS_PROTOCOL_VERSION,
     })
   }
 

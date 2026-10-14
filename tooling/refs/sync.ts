@@ -1,5 +1,6 @@
 // 用法：bun run refs          写入最新的 references
 //      bun run refs --check  只检查，不一致时列出并以退出码 1 结束（check 脚本使用）
+import { spawnSync } from 'node:child_process'
 import { existsSync, readdirSync, readFileSync, statSync, writeFileSync } from 'node:fs'
 import path from 'node:path'
 
@@ -132,27 +133,22 @@ export function computeReferences(root: string): Map<string, string[]> {
   return result
 }
 
-const isPrimitive = (v: unknown) => v === null || typeof v !== 'object'
+const REPO_ROOT = path.resolve(import.meta.dir, '../..')
+const BIOME = path.join(REPO_ROOT, 'node_modules', '.bin', process.platform === 'win32' ? 'biome.exe' : 'biome')
+const BIOME_CONFIG = path.join(REPO_ROOT, 'biome.json')
 
-/** 与 biome 的 JSON 格式化保持一致：只含标量的数组写在一行（references 是对象数组，仍逐项展开） */
-function stringify(value: unknown, indent: number): string {
-  const pad = ' '.repeat(indent)
-  const inner = ' '.repeat(indent + 2)
-  if (Array.isArray(value)) {
-    if (value.length === 0) return '[]'
-    if (value.every(isPrimitive)) return `[${value.map((item) => JSON.stringify(item)).join(', ')}]`
-    return `[\n${value.map((item) => `${inner}${stringify(item, indent + 2)}`).join(',\n')}\n${pad}]`
-  }
-  if (value !== null && typeof value === 'object') {
-    const entries = Object.entries(value)
-    if (entries.length === 0) return '{}'
-    const body = entries.map(([k, v]) => `${inner}${JSON.stringify(k)}: ${stringify(v, indent + 2)}`).join(',\n')
-    return `{\n${body}\n${pad}}`
-  }
-  return JSON.stringify(value)
+function format(root: string, value: unknown, file: string): string {
+  const raw = `${JSON.stringify(value, null, 2)}\n`
+  /* cwd 与 --config-path 都钉在仓库上：root 在单测里是临时目录，那里既没有 node_modules 也没有
+   * biome.json，不钉就会退回 biome 内建的 Tab 缩进，写出与仓库风格不一致的文件。 */
+  const formatted = spawnSync(
+    BIOME,
+    ['format', `--config-path=${BIOME_CONFIG}`, `--stdin-file-path=${posix(path.relative(root, file))}`],
+    { cwd: REPO_ROOT, input: raw, encoding: 'utf8' },
+  )
+  if (formatted.status !== 0) throw new Error(`biome 格式化失败：${formatted.stderr}`)
+  return formatted.stdout
 }
-
-const format = (v: unknown) => `${stringify(v, 0)}\n`
 
 /** 返回需要改动的文件（相对路径 → 新内容）。不写盘 */
 export function planSync(root: string): Map<string, string> {
@@ -161,11 +157,11 @@ export function planSync(root: string): Map<string, string> {
   for (const [project, list] of refs) {
     const file = path.join(root, project, 'tsconfig.json')
     const cfg = readJson<TsConfig>(file)
-    const next = format({ ...cfg, references: list.map((p) => ({ path: p })) })
+    const next = format(root, { ...cfg, references: list.map((p) => ({ path: p })) }, file)
     if (readFileSync(file, 'utf8') !== next) changes.set(posix(path.relative(root, file)), next)
   }
   const rootFile = path.join(root, 'tsconfig.json')
-  const rootNext = format({ files: [], references: [...refs.keys()].map((p) => ({ path: p })) })
+  const rootNext = format(root, { files: [], references: [...refs.keys()].map((p) => ({ path: p })) }, rootFile)
   if (readFileSync(rootFile, 'utf8') !== rootNext) changes.set('tsconfig.json', rootNext)
   return changes
 }

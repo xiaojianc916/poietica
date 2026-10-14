@@ -2728,3 +2728,120 @@ git 里原始实现 + 专门的「表情切换过渡帧」对拍发现的，随�
 `tooling/checks/no-biome-ignore.ts` 的 `SKIP_DIRS` 里的 `vendor`；
 `tooling/refs/sync.ts` 的 `PROJECT_PATTERNS` 也去掉了为 vendor 加的那条模式
 （新位置在 `src/ui` 工程覆盖范围内，不需要独立工程）。depcruise 的自检用例同步改名。
+
+## 用官方能力替换手搓代码（2026-10-14）
+
+**来源**：产品负责人交办的审查任务「使用官方能力替代手搓代码，可以接受加依赖或者减依赖或者换依赖，
+先出审查报告」（外部输入）。审查报告先交，获批后按优先级逐项落地。全仓 1,033 个 TS 文件 / 139k 行。
+
+**结论：三处真缺陷（前两条是功能性的），三处纯删除，一处闸门换口径，一处依赖清理。**
+凡是「看起来该换、实测换了会坏」的（`line-splitter` / `which` / `id` / `thought-sentence` /
+吉祥物缓动 / `formatTokens` / `transcript/upstream`），一律只补注释说明理由，不动代码。
+
+### 1. relay 协议缺 `discardedTabsProtocol` —— 浏览器工具此前完全不可用（真缺陷）
+
+`relay-protocol.ts` 自述「与 omp 18.5.0 逐字对应」，而 catalog 早已是 **18.10.3**，这次升级没核
+这一个文件（AGENTS.md §11 点名要求核对）。18.10.3 的 `relay/bridge.ts` 的 `#eligible()` 拿
+`discardedTabsProtocol` 当能力闸门：对不上的实例**每张标签都不 eligible** —— `Target.getTargets`
+返回空、`/json/version` 报 `ompExtensionDiscardedTabsProtocol: "0"`，`probe.ts` 于是判成
+`outdated-extension`，agent 每次用浏览器工具都拿到「扩展过期，请跑 `omp browser-relay install`」
+（而扩展根本不归我们装）。
+
+**证据（实测，不是读源码推的）**：起一台真 relay、用 Poietica 真实的 `createRelayClient` 接线：
+
+| hello 形状 | `waitForRelayExtension` | `/json/list` |
+| --- | --- | --- |
+| 现状（无该字段） | `outdated-extension` | `[]` |
+| 补上 `discardedTabsProtocol: 1` | `ready` | 那张标签可发现 |
+
+**改法**：`relay-protocol.ts` 加 `DISCARDED_TABS_PROTOCOL_VERSION = 1` 与 `TabSnapshot.discarded`
+（Electron 的 `WebContentsView` 没有 Chrome 的省内存丢弃机制，恒 false —— 不冒领一个「激活就会自己
+活过来」的状态）；hello 带上该字段；顺带补 `createTab.active`（omp 的 `newPage` 带
+`background:true` 时发 `active:false`，此前不认这个字段，agent 开后台标签会抢用户焦点），
+后台标签在「当前没有活动标签」时仍接管活动位（否则面板一张都不画）。
+
+**收益**：浏览器工具从「每次都报扩展过期」恢复可用；两处协议漂移一次补齐。不动 engine 端口、
+不升 `PROTOCOL_VERSION`。测试 +5（hello 形状、能力字段、active 透传、后台标签不抢焦点、
+无标签时后台标签接管活动位）。`features/browser` **170 pass**。
+
+### 2. 输入框的 Ctrl+Z 是死键（真缺陷）
+
+`prompt-input.tsx` 没挂 `HistoryPlugin`，而 Lexical 内核把 Ctrl+Z 拦成 `UNDO_COMMAND` 并
+`preventDefault`（`Lexical.dev.js` 的 keydown 表 + `historyUndo` 分支，注释原文：
+「with no history extension registered undo becomes a no-op rather than native undo」）——
+**原生撤销与命令两头都落空**。实测 `dispatchCommand(UNDO_COMMAND)` 返回 `false`（无监听者）。
+
+**改法**：`PromptInput` 根上挂 `<HistoryPlugin />`（`@lexical/react` 已有 `@lexical/history`
+依赖，**不需要新增依赖**）。
+
+**必须一起处理的副作用**：`clearDraft`（提交成功后清空正文）是普通 `editor.update()`，装了历史
+之后它成为可撤销的一步 —— 用户发送后按 Ctrl+Z 能把正文捞回来，此时回车就是**一次静默重发**。
+所以 `clearDraft` 里补 `CLEAR_HISTORY_COMMAND`，让「发送」成为不可逆的边界。
+
+**反向验证**（两条都做了）：注掉 `<HistoryPlugin />` → 第一条用例红
+（`Expected: true, Received: false`，正是 v1 的行为）；注掉 `CLEAR_HISTORY_COMMAND` → 第二条用例红
+（`Expected: "", Received: "这句要发出去"`，捞回了已发出的正文）。两处都是真实承重的。
+
+**过程中查清的一条语义**：Lexical 的第一次更新不可撤销（`getUndoEntry` 在 `current === null` 时
+返回 null，源码注释写明 "mirrors the way the first update of an editor is not undoable"）。
+用例因此写两次改动，并在注释里记下这条，免得后人以为是 bug。测试 +2。
+
+### 3. 纯删除与替换（各闸门全绿）
+
+- **`process-kit` 的 `quote.ts` + `streaming.ts`（102 行死代码）**：`git grep` 确认包外零引用，
+  包内只有 `index.ts` 的两行 re-export 与它自己的测试。`quote.ts` 的注释自己就写着「正常调用一律用
+  参数数组，不需要它」—— 而全仓确实都用参数数组。删文件 + 2 行导出 + 20 行测试。
+- **`compile-styles.ts` 的 `capture-css` vite 插件（13 行）**：文件头注释断言「css 只能靠
+  `generateBundle` 取回」，**这个前提是错的** —— `write: false` 之下产物就在 `build()` 返回值里。
+  实测新旧产物：CSS 正文**逐字节相同**（100 489 字节），旧版多写出的 12 字节只是 Vite 的
+  `/*$vite$:1*/` 开发标记。
+- **`refs/sync.ts` 的 21 行手写 JSON 格式化器** → `biome format --stdin-file-path`：那种「手抄
+  biome 规则」的复刻一旦上游改规则就静默分叉。合规性实测：仓里**全部 85 个 tsconfig.json** 与
+  biome 的输出**逐字节相同**（含 `include: ["src"]` 这种写在一行的标量数组）。`cwd` 与
+  `--config-path` 都钉在仓库上 —— root 在单测里是临时目录，不钉会退回 biome 内建的 Tab 缩进。
+
+### 4. 换掉手搓闸门：`no-raw-errors.ts`（62 行正则）→ 官方 AST 闸门
+
+手写版逐行扫文本，靠「去注释去字符串」续命。换成 **biome 内置 `useThrowOnlyError`**
+（`throw '...'`）+ **GritQL 插件** `tooling/checks/raw-errors.grit`（`new Error(` /
+`AggregateError` / `TypeError` / `RangeError` / `SyntaxError` / `URIError`）。
+
+**这不是等价替换，是更准**：同一份对照输入（生产文件），旧版把
+`export const x = 'return new Error( 在字符串里'` **判成命中**（误报），新版不报；注释里的示例两者
+都不报。两个方向都验过：真 features 跑出新旧同为 0 命中；塞一个 `throw new Error('x')` 进生产文件，
+新版报并 `exit 1`；同一文件里测试路径被 `includes` 的 `!` 规则排除。
+
+**踩到的坑（已写进 biome.json 的插件 includes）**：插件的 `includes` 只认 `**/features/**/*.ts`
+这种形状；写 `features/**/*.ts`（不带前导 `**/`）会**静默不生效** —— 插件看着配了，其实一次没跑。
+
+### 5. 减依赖：14 个 feature 声明了没人 import 的 `zustand`
+
+`zustand` 在 14 个 feature 的 `package.json` 里声明，而 `git grep "from 'zustand"` 在
+`features/**` 里**零命中**（那 3 处非 package.json 命中全是注释）。feature 拿的是
+`ui-kernel` 的 `createFeatureStore` 封装（`FeatureStore` 由 ui-kernel 转出），不直连 zustand。
+
+**验证**：删完 `bun install` → typecheck（750 文件 / 80 工程 + 966 文件）全过、depcruise
+**0 violations**、`bun run all` **2089 pass / 0 fail**。残留的旧符号链接由 `bun install` 按
+`package.json` 重建（实测：删掉目录再 install 不会重现），全仓现在只有 `packages/ui-kernel`
+依赖 zustand。
+
+### 验收
+
+`bun run all` 全绿：**2089 pass / 0 fail**（266 文件 / 10 455 断言）。基线 2090 pass 与本次的差
+= 删除的 `quote.test.ts` 7 条 + 新增的 7 条（浏览器 5 + 撤销 2）− 1（原 hello 形状用例并入新断言）。
+未动契约形状，**不需 `protocol:snapshot`**；未碰 omp 隔离与环境，未跑 `core:probe`。
+
+**未做（明确记录）**：审查报告里的 #10（MCP 的 `bearerTokenEnvVar` / `toolTimeoutMs` /
+`enabledTools` / `disabledTools` 四个键 omp 根本不认，且名称校验与 omp 的 `validateServerName`
+错位）留作待决 —— 它要改 UI 字段与校验归属，属产品决定，不在「用官方能力替换手搓」的范围里。
+另有三条「官方能力存在但跨边界成本高于收益」也记入待决：omp 的 `searchSmitheryRegistry`、
+`node:sqlite` 的 `setAuthorizer`（受「一条连接服务多模块」架构限制）、`Bun.Archive` 解压
+（需先确认路径穿越防护）。
+
+### 待决问题
+
+| Q | 日期 | 问题 | 现状 | 处置 |
+| --- | --- | --- | --- | --- |
+| Q43 | 2026-10-14 | `docs/omp-sdk-reference.md` 仍标 18.5.0，而 catalog 是 18.10.3。发现 1 的 relay 缺陷正是这份文档没跟上导致的 | 无（本次按实测核对了 relay 协议并补了文件头注释） | 记录：升级 omp 时按 AGENTS.md §11 重新抽取该文档 |
+| Q44 | 2026-10-14 | MCP 配置的四个死键（`bearerTokenEnvVar` / `toolTimeoutMs` / `enabledTools` / `disabledTools`）+ 名称校验与 omp 的 `validateServerName` 不一致（`foo/bar` 能过表单、到 omp 才抛错，提示回不到字段旁） | 无（本次未动） | 记录：要改 UI 字段与校验归属，属产品决定 |
+| Q45 | 2026-10-14 | `relay-protocol.ts` 仍是 omp 内部协议的**副本**（omp 未导出稳定契约）。根治要么在 engine 端口转出协议，要么每次升级手工核 | 已补文件头注释与具名常量 | 记录：升级 omp 时必核这一个文件 |

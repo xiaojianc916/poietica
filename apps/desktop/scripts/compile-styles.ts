@@ -22,24 +22,12 @@ if (out === undefined) {
 const ROOT = path.resolve(import.meta.dir, '../../..')
 const ENTRY = path.join(ROOT, 'apps', 'desktop', 'src', 'renderer', 'styles.css')
 
-/* 只编样式：插件把 css 收进 memory，用 generateBundle 取回文本。 */
+/* 只编样式：`write: false` 之下产物留在 build() 的返回值里，直接从 output 里取那一份 css，不需要自己写插件去截。 */
 const result = await build({
   root: ROOT,
   configFile: false,
   logLevel: 'error',
-  plugins: [
-    tailwindcss(),
-    {
-      name: 'capture-css',
-      generateBundle(_options, bundle) {
-        for (const [name, asset] of Object.entries(bundle)) {
-          if (name.endsWith('.css') && asset.type === 'asset') {
-            writeFileSync(out, String(asset.source))
-          }
-        }
-      },
-    },
-  ],
+  plugins: [tailwindcss()],
   build: {
     write: false,
     rollupOptions: { input: ENTRY },
@@ -50,4 +38,15 @@ if (result === undefined) {
   console.error('vite 没有交回结果')
   process.exit(2)
 }
+
+/* `write: false` 时返回的一定是产物（不是 watcher）；单入口也不会是数组，这里两样都收一下免得类型上留个洞。 */
+const chunks = (Array.isArray(result) ? result : [result]).flatMap((item) => ('output' in item ? item.output : []))
+const css = chunks.find((item) => item.type === 'asset' && item.fileName.endsWith('.css'))
+
+if (css === undefined || css.type !== 'asset') {
+  console.error('构建产物里没有 css')
+  process.exit(2)
+}
+
+writeFileSync(out, String(css.source))
 process.stdout.write(`${out}\n`)
