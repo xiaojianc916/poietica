@@ -3,15 +3,15 @@
 import { composerContextItems, workspaceGitProviders } from '@poietica/feature-conversation/ui-api'
 import { type WorkspacesUi, WorkspacesUiToken } from '@poietica/feature-workspaces/ui-api'
 import { builtinPoints, defineUiFeature, type LayoutService, LayoutToken, ToastsToken } from '@poietica/ui-kernel'
-import { FileDiff } from 'lucide-react'
+import { FileDiff, GitCompareArrows } from 'lucide-react'
 import { ComposerBranchChip } from './composer-branch'
-import { BranchStatusItem, ReviewPanel } from './surface'
+import { BranchStatusItem, CodeReviewNavRow, CodeReviewSurface, ReviewPanel } from './surface'
 import { WorkspaceGitSource } from './workspace-git-source'
 
 const PANEL_ID = 'review.panel'
 
-/* 审查功能的 UI 装配。落点：panels（right, order 10）「审查」—— 读活动工作区；statusItems（left, order 20）当前分支名；
- * commands review.openChanges（Ctrl+Shift+G）/ review.commit。 */
+/* 审查功能的 UI 装配。落点：sidebarSections（nav, order 25）「代码审查」；surfaces review.code；panels（right, order 10）
+ * 「审查」—— 读活动工作区；statusItems（left, order 20）当前分支名；commands review.openChanges（Ctrl+Shift+G）/ review.commit。 */
 export default defineUiFeature({
   id: 'review',
   dependsOn: ['conversation', 'workspaces'],
@@ -39,6 +39,22 @@ export default defineUiFeature({
       title: '审查',
       icon: FileDiff,
       component: () => <ReviewPanel ctx={ctx} report={report} workspaces={workspaces} />,
+    })
+
+    /* 侧栏导航「代码审查」（order 25，落在「新建对话」与「自动化」之间）。正文还没写，页面先占位。 */
+    ctx.contribute(builtinPoints.sidebarSections, {
+      id: 'review.nav',
+      order: 25,
+      title: '代码审查',
+      icon: GitCompareArrows,
+      placement: 'nav',
+      component: () => <CodeReviewNavRow />,
+    })
+
+    ctx.contribute(builtinPoints.surfaces, {
+      id: 'review.code',
+      title: '代码审查',
+      component: CodeReviewSurface,
     })
 
     ctx.contribute(builtinPoints.statusItems, {

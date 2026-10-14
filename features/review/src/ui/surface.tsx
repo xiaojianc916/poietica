@@ -1,6 +1,12 @@
 import { type WorkspacesUi, WorkspacesUiToken } from '@poietica/feature-workspaces/ui-api'
-import { useFeatureStore } from '@poietica/ui-kernel'
-import { FileDiff } from 'lucide-react'
+import {
+  type NavigationService,
+  NavigationToken,
+  useFeatureStore,
+  useNavigation,
+  useService,
+} from '@poietica/ui-kernel'
+import { FileDiff, GitCompareArrows } from 'lucide-react'
 import { type ReactNode, useEffect, useMemo, useState } from 'react'
 import { createReviewApi, createReviewGateway } from './api'
 import { ReviewPane } from './review-pane'
@@ -82,4 +88,46 @@ export function BranchStatusItem({
 
 export function useWorkspacesUi(ctx: { services: { get<T>(token: unknown): T } }): WorkspacesUi {
   return ctx.services.get<WorkspacesUi>(WorkspacesUiToken)
+}
+
+/* 侧栏导航「代码审查」那一行。行的几何在 workbench 的全局样式（.sidebar-nav-row / __icon / __label），别在这里改；
+ * 与「新建对话」「自动化」同一种行，选中态也由路由决定。 */
+export function CodeReviewNavRow(): ReactNode {
+  const { route } = useNavigation()
+  const navigation = useService(NavigationToken) as NavigationService
+  const active = route.surface === 'review.code'
+  const className = [
+    'sidebar-nav-row text-xs text-muted-foreground transition-colors hover:bg-sidebar-accent',
+    active ? 'bg-sidebar-accent text-foreground' : '',
+  ]
+    .filter((part) => part !== '')
+    .join(' ')
+
+  return (
+    <button
+      aria-current={active ? 'page' : undefined}
+      className={className}
+      onClick={() => {
+        navigation.navigate({ surface: 'review.code', params: {} })
+      }}
+      type="button"
+    >
+      <GitCompareArrows aria-hidden="true" className="sidebar-nav-row__icon" />
+      <span className="sidebar-nav-row__label">代码审查</span>
+    </button>
+  )
+}
+
+/* 「代码审查」页只是**骨架**：先占住这一格，正文待补。 */
+export function CodeReviewSurface(): ReactNode {
+  return (
+    <section className="h-full overflow-y-auto bg-ground">
+      <div className="mx-auto w-full max-w-3xl px-8 pb-16 pt-10">
+        <header>
+          <h1 className="text-3xl font-semibold tracking-tight">代码审查</h1>
+          <p className="mt-2 text-xs leading-5 text-muted-foreground">这一页的正文还没写。</p>
+        </header>
+      </div>
+    </section>
+  )
 }
