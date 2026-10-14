@@ -80,7 +80,7 @@ function springStep(s: Spring, w: number, z: number, dt: number): void {
 /* 两组眼环逐点插值 */
 function lerpRing(a: EyeRing, b: EyeRing, t: number): EyeRing {
   const out: RingPoint[] = new Array(a.length)
-  for (var i = 0; i < a.length; i++) {
+  for (let i = 0; i < a.length; i++) {
     const pa = a[i]!,
       pb = b[i]!
     out[i] = [pa[0] + (pb[0] - pa[0]) * t, pa[1] + (pb[1] - pa[1]) * t]
@@ -100,11 +100,11 @@ const BOUNCE_TOTAL = BOUNCE_SEGS.reduce((s, q) => s + q.d, 0)
 function hexToRgb(hex: string): [number, number, number] {
   let h = hex.replace('#', '')
   if (h.length === 3) h = `${h[0]}${h[0]}${h[1]}${h[1]}${h[2]}${h[2]}`
-  var n = parseInt(h, 16)
+  const n = parseInt(h, 16)
   return [(n >> 16) & 255, (n >> 8) & 255, n & 255]
 }
 function rgbToHex(r: number, g: number, b: number): string {
-  return '#' + [r, g, b].map((v) => clamp(Math.round(v), 0, 255).toString(16).padStart(2, '0')).join('')
+  return `#${[r, g, b].map((v) => clamp(Math.round(v), 0, 255).toString(16).padStart(2, '0')).join('')}`
 }
 function lerpColor(a: string, b: string, t: number): string {
   if (a === b) return b
@@ -163,7 +163,7 @@ function clonePose(p: Pose): Pose {
 function applySpec(pose: Pose, spec: PoseSpec | null | undefined): Pose {
   if (!spec) return pose
   if (spec.body) Object.assign(pose.body, spec.body)
-  var e = spec.eyes
+  const e = spec.eyes
   if (e) {
     if (e.both) {
       Object.assign(pose.left, e.both)
@@ -187,6 +187,21 @@ function fieldsOf(part: BodyPose | EyePose): NumericPosePart {
   return part as unknown as NumericPosePart
 }
 
+/** 把单个字段从 pa 插值到 pb（原 lerpPose 内层循环体原样搬出） */
+function lerpPoseField(po: NumericPosePart, pa: NumericPosePart, pb: NumericPosePart, k: string, t: number): void {
+  const vb = pb[k]
+  if (typeof vb === 'number') {
+    const from = pa[k]
+    po[k] = lerp(typeof from === 'number' ? from : vb, vb, t)
+  } else if (k === 'color') {
+    const from = pa[k]
+    po[k] = lerpColor(typeof from === 'string' ? from : String(vb), String(vb), t)
+  } else {
+    /* 非数值字段（ring 这类对象引用）不过渡，原样直通 */
+    po[k] = vb
+  }
+}
+
 function lerpPose(a: Pose, b: Pose, t: number): Pose {
   const out = defaultPose()
   for (const part of PARTS) {
@@ -194,17 +209,7 @@ function lerpPose(a: Pose, b: Pose, t: number): Pose {
     const pb = fieldsOf(b[part])
     const po = fieldsOf(out[part])
     for (const k of Object.keys(pb)) {
-      const vb = pb[k]
-      if (typeof vb === 'number') {
-        const from = pa[k]
-        po[k] = lerp(typeof from === 'number' ? from : vb, vb, t)
-      } else if (k === 'color') {
-        const from = pa[k]
-        po[k] = lerpColor(typeof from === 'string' ? from : String(vb), String(vb), t)
-      } else {
-        /* 非数值字段（ring 这类对象引用）不过渡，原样直通 */
-        po[k] = vb
-      }
+      lerpPoseField(po, pa, pb, k, t)
     }
   }
   return out
@@ -232,21 +237,21 @@ const ANIM_TYPES: Record<string, (a: AnimSpec, t: number, eng?: Engine) => numbe
   },
   /** 三角波快速来回扫动 */
   scan: (a, t) => {
-    var per = a.period || 800
-    var p = ((t + (a.phaseMs || 0)) % per) / per
-    var tri = p < 0.5 ? p * 4 - 1 : 3 - p * 4 /* -1 → 1 → -1 */
+    const per = a.period || 800
+    const p = ((t + (a.phaseMs || 0)) % per) / per
+    const tri = p < 0.5 ? p * 4 - 1 : 3 - p * 4 /* -1 → 1 → -1 */
     return (a.amp ?? 0) * tri
   },
   /** 张望：平滑方波，在 ±amp 两端各停留片刻再换边（左看看、右看看） */
   glance: (a, t) => {
-    var per = a.period || 3600
-    var ph = TAU * (((t + (a.phaseMs || 0)) % per) / per) + (a.phase || 0)
+    const per = a.period || 3600
+    const ph = TAU * (((t + (a.phaseMs || 0)) % per) / per) + (a.phase || 0)
     return (a.amp ?? 0) * Math.tanh(2.8 * Math.sin(ph))
   },
   /** 周期眨眼：interval 周期内前 dur 毫秒闭合再睁开（返回负值叠加到 open）
    *  相位叠加实例随机种子，多实例不会同步眨眼 */
   blink: (a, t, eng) => {
-    var interval = a.interval || 3800,
+    const interval = a.interval || 3800,
       dur = a.dur || 200
     const p = (t + (a.phaseMs || 0) + (eng ? eng.seed * 97 : 0)) % interval
     if (p >= dur) return 0
@@ -254,32 +259,39 @@ const ANIM_TYPES: Record<string, (a: AnimSpec, t: number, eng?: Engine) => numbe
   },
 }
 
+/* 只作用在这三类姿态节点上：body / 单眼；'scale' 在眼睛上要同时改 scaleX 与 scaleY */
+function animTargets(pose: Pose, a: AnimSpec, isBody: boolean): NumericPosePart[] {
+  return a.target === 'eyes'
+    ? [fieldsOf(pose.left), fieldsOf(pose.right)]
+    : isBody
+      ? [fieldsOf(pose.body)]
+      : a.target === 'left'
+        ? [fieldsOf(pose.left)]
+        : a.target === 'right'
+          ? [fieldsOf(pose.right)]
+          : []
+}
+
+function applyAnimValue(tg: NumericPosePart, prop: AnimSpec['prop'], isBody: boolean, v: number): void {
+  if (prop === 'scale') {
+    if (isBody) tg.scale = num(tg.scale) + v
+    else {
+      tg.scaleX = num(tg.scaleX) + v
+      tg.scaleY = num(tg.scaleY) + v
+    }
+  } else if (prop !== undefined) {
+    tg[prop] = num(tg[prop]) + v
+  }
+}
+
 function applyAnim(pose: Pose, a: AnimSpec, t: number, eng: Engine): void {
   const fn = ANIM_TYPES[a.type]
   if (!fn) return
-  var v = fn(a, t, eng)
-  /* 只作用在这三类姿态节点上：body / 单眼；'scale' 在眼睛上要同时改 scaleX 与 scaleY */
+  const v = fn(a, t, eng)
   const isBody = a.target === 'body'
-  const targets: NumericPosePart[] =
-    a.target === 'eyes'
-      ? [fieldsOf(pose.left), fieldsOf(pose.right)]
-      : isBody
-        ? [fieldsOf(pose.body)]
-        : a.target === 'left'
-          ? [fieldsOf(pose.left)]
-          : a.target === 'right'
-            ? [fieldsOf(pose.right)]
-            : []
+  const targets = animTargets(pose, a, isBody)
   for (const tg of targets) {
-    if (a.prop === 'scale') {
-      if (isBody) tg.scale = num(tg.scale) + v
-      else {
-        tg.scaleX = num(tg.scaleX) + v
-        tg.scaleY = num(tg.scaleY) + v
-      }
-    } else if (a.prop !== undefined) {
-      tg[a.prop] = num(tg[a.prop]) + v
-    }
+    applyAnimValue(tg, a.prop, isBody, v)
   }
 }
 
@@ -302,7 +314,7 @@ function validate(raw: EmotionRaw): string[] {
   }
   if (typeof raw.id !== 'string' || !raw.id.trim()) errs.push('缺少合法的字符串 id')
   if (typeof raw.name !== 'string' || !raw.name.trim()) errs.push('缺少 name')
-  if (!knownGroup(raw.group)) errs.push('group 不合法：' + raw.group)
+  if (!knownGroup(raw.group)) errs.push(`group 不合法：${raw.group}`)
   if (raw.anims != null) {
     if (!Array.isArray(raw.anims)) errs.push('anims 必须是数组')
     else
@@ -422,6 +434,37 @@ const ticker = {
 }
 
 /* ---------------- EmotionEngine ---------------- */
+
+/** 解析容器：字符串走 querySelector；找不到容器是不变量错误（构造器原逻辑原样搬出） */
+function resolveTargetEl(target: string | Element): Element {
+  const el = typeof target === 'string' ? document.querySelector(target) : target
+  if (!el) invariant(false, 'EmotionBall.create：找不到容器元素')
+  return el
+}
+
+/** 转交 ball 的选项：lite 缺省时等价于「不自启」（构造器原逻辑原样搬出） */
+function mergeBallOptions(opts: EngineOptions): EngineOptions {
+  return Object.assign({}, opts, {
+    lite: opts.lite != null ? opts.lite : opts.autostart === false,
+  })
+}
+
+/** 实例主题色：只有给了体色才生效，眼睛默认白（构造器原逻辑原样搬出） */
+function themeFromOpts(opts: EngineOptions): { body: string; eyes: string } | null {
+  return opts.color ? { body: opts.color, eyes: opts.eyeColor || '#FFFFFF' } : null
+}
+
+/** 待机策略归一化：补默认时长 / ID（构造器原 if-else 原样搬出，求值时机不变） */
+function idleFromOpts(opts: EngineOptions): IdlePolicy | null {
+  if (opts.idle) {
+    return Object.assign(
+      { standbyAfter: 60000, sleepAfter: 180000, standbyId: '02', sleepId: '00' },
+      opts.idle === true ? {} : opts.idle,
+    )
+  }
+  return null
+}
+
 export class Engine {
   readonly ball: BallHandle
   private readonly _seed: number
@@ -468,20 +511,14 @@ export class Engine {
 
   constructor(target: string | Element, opts: EngineOptions = {}) {
     opts = opts || {}
-    var el = typeof target === 'string' ? document.querySelector(target) : target
-    if (!el) invariant(false, 'EmotionBall.create：找不到容器元素')
+    const el = resolveTargetEl(target)
 
-    this.ball = createBall(
-      el,
-      Object.assign({}, opts, {
-        lite: opts.lite != null ? opts.lite : opts.autostart === false,
-      }),
-    )
+    this.ball = createBall(el, mergeBallOptions(opts))
     this._seed = Math.random() * 100
     this._events = {}
     this._gaze = { x: 0, y: 0, tx: 0, ty: 0 }
     this._style = { sketch: 0 }
-    this._theme = opts.color ? { body: opts.color, eyes: opts.eyeColor || '#FFFFFF' } : null
+    this._theme = themeFromOpts(opts)
     this._eyeScale = opts.eyeScale || 1
     this._lastTick = 0
     this._spin = null /* { x, v, t }：弹簧驱动的整圈自旋（彩带触发源） */
@@ -516,14 +553,7 @@ export class Engine {
     this._fallbackId = opts.fallbackId || FALLBACK_ID
     this._lastActivity = performance.now()
 
-    if (opts.idle) {
-      this._idle = Object.assign(
-        { standbyAfter: 60000, sleepAfter: 180000, standbyId: '02', sleepId: '00' },
-        opts.idle === true ? {} : opts.idle,
-      )
-    } else {
-      this._idle = null
-    }
+    this._idle = idleFromOpts(opts)
 
     this._logger = opts.logger ?? silentLogger
     this.setEmotion(opts.emotion || this._fallbackId, { auto: true })
@@ -563,42 +593,56 @@ export class Engine {
     return this._touring
   }
 
-  /* ---------- 核心：切换表情（含兜底） ---------- */
-  setEmotion(id: string, o: { auto?: boolean | undefined } = {}): boolean {
-    let def = config.get(id)
-    if (!def) {
-      this._logger.warn(`[EmotionBall] 未知表情 ID "${id}"，回退到待机 (${this._fallbackId})`)
-      this._emit('error', { message: '未知表情 ID "' + id + '"，已回退待机', id: id })
-      def = config.get(this._fallbackId)
-      if (!def) return false
-    }
-    var now = performance.now()
-    var prevId = this._def ? this._def.id : null
+  /** 查表 + 未知 ID 兜底：拿不到就返回 null（setEmotion 原分支原样搬出） */
+  private _resolveDef(id: string): EmotionDef | null {
+    const def = config.get(id)
+    if (def) return def
+    this._logger.warn(`[EmotionBall] 未知表情 ID "${id}"，回退到待机 (${this._fallbackId})`)
+    this._emit('error', { message: `未知表情 ID "${id}"，已回退待机`, id: id })
+    return config.get(this._fallbackId)
+  }
+
+  /** 切换时的姿态 / 过渡 / sequence 状态写入（顺序与上游一致） */
+  private _beginTransition(def: EmotionDef, now: number, auto: boolean): void {
     this._prevPose = this._lastPose ? clonePose(this._lastPose) : null
     this._def = def
     this._emoStart = now
     this._transStart = now
     this._transDur = this._prevPose ? def.transition : 0
     this._seq = def.sequence ? { frames: def.sequence.frames, settle: def.sequence.settle, done: false } : null
-    if (!o.auto) this._lastActivity = now
+    if (!auto) this._lastActivity = now
+  }
 
-    /* 状态切换：眼环弹到新池首个表情（兴奋类用更快弹簧），
-     * 并且切换瞬间先眨一次眼（睡眠 / 停止类除外） */
+  /** 状态切换：眼环弹到新池首个表情（兴奋类用更快弹簧），
+   *  并且切换瞬间先眨一次眼（睡眠 / 停止类除外） */
+  private _scheduleBlinkPool(def: EmotionDef, now: number, prevId: string | null): void {
     this._poolPos = 0
     this._setExpr(def.pool[0]!, def.poolSpeed >= 10 ? 10 : 8)
     this._poolNext = now + rand(def.poolMs[0], def.poolMs[1])
     if (prevId !== null && prevId !== def.id && def.blinkMs) this._blinkNow(now)
     this._blinkNext = def.blinkMs ? now + rand(def.blinkMs[0], def.blinkMs[1]) : Infinity
     this._anticNext = now + rand(2500, 5000)
+  }
+
+  /** 配置中的 ribbons / confetti 是进入表情时的一次性事件：
+   *  ribbons → 自旋甩彩带；confetti → 撒花爆发 */
+  private _entryFx(def: EmotionDef): void {
+    const fx = def.base.body
+    if (fx.ribbons > 0) this.spin(fx.ribbons >= 1 ? 2 : 1)
+    if (fx.confetti > 0) this.burst(20)
+  }
+
+  /* ---------- 核心：切换表情（含兜底） ---------- */
+  setEmotion(id: string, o: { auto?: boolean | undefined } = {}): boolean {
+    const def = this._resolveDef(id)
+    if (!def) return false
+    const now = performance.now()
+    const prevId = this._def ? this._def.id : null
+    this._beginTransition(def, now, !!o.auto)
+    this._scheduleBlinkPool(def, now, prevId)
 
     this._emit('change', { id: def.id, def: def, auto: !!o.auto })
-    /* 配置中的 ribbons / confetti 是进入表情时的一次性事件：
-     * ribbons → 自旋甩彩带；confetti → 撒花爆发 */
-    if (this._active) {
-      const fx = def.base.body
-      if (fx.ribbons > 0) this.spin(fx.ribbons >= 1 ? 2 : 1)
-      if (fx.confetti > 0) this.burst(20)
-    }
+    if (this._active) this._entryFx(def)
     if (!this._active) this.renderStatic()
     return true
   }
@@ -736,7 +780,7 @@ export class Engine {
     this._ringSpring.v = 0
     this._open.x = this._def ? this._def.openness : 1
     this._open.v = 0
-    var seq = this._seq
+    const seq = this._seq
     this._seq = null
     this.tick(performance.now())
     this._seq = seq
@@ -790,10 +834,34 @@ export class Engine {
       pose = clonePose(def.base)
     }
 
-    /* 内置呼吸（相位用绝对时间，切换表情不跳变） */
-    var br = pose.body.breathe || 0
+    this._applyAnims(pose, def, now, t)
+
+    const dt = this._dt || 1 / 60
+
+    this._advanceSchedules(now, def)
+
+    this._stepSprings(dt)
+    pose.body.yaw = this._spin ? this._spin.x : 0
+
+    this._applyBounce(now, pose)
+
+    this._composeRing(pose)
+    this._composeGaze(pose, def, now, dt)
+    this._finishEyes(pose)
+
+    /* 表情切换过渡插值 */
+    const tt = now - this._transStart
+    if (this._transDur > 0 && tt < this._transDur && this._prevPose) {
+      pose = lerpPose(this._prevPose, pose, easeInOutCubic(tt / this._transDur))
+    }
+    return pose
+  }
+
+  /** 内置呼吸 + 动画原语：相位用绝对时间，切换表情不跳变 */
+  private _applyAnims(pose: Pose, def: EmotionDef, now: number, t: number): void {
+    const br = pose.body.breathe || 0
     if (br) {
-      var ph = (TAU * now) / 3600
+      const ph = (TAU * now) / 3600
       pose.body.scale += br * Math.sin(ph)
       pose.body.y += br * 55 * Math.sin(ph + 0.6)
     }
@@ -801,9 +869,71 @@ export class Engine {
     for (const anim of def.anims) applyAnim(pose, anim, t, this)
 
     pose.body.sketch = Math.max(pose.body.sketch || 0, this._style.sketch || 0)
+  }
 
-    var dt = this._dt || 1 / 60
+  /** 当前眼环：形变中逐点插值，静止后复用目标引用（跳过 d 重建） */
+  private _composeRing(pose: Pose): void {
+    if (this._ringSpring.x < 0.999 || this._ringSpring.v > 0.001 || this._ringSpring.v < -0.001) {
+      const rs = clamp(this._ringSpring.x, 0, 1.35)
+      this._ringCur = [
+        lerpRing(this._ringSrc[0], this._ringDst[0], rs),
+        lerpRing(this._ringSrc[1], this._ringDst[1], rs),
+      ]
+    } else if (this._ringCur !== this._ringDst) {
+      this._ringCur = this._ringDst
+    }
+    pose.left.ring = this._ringCur[0]
+    pose.right.ring = this._ringCur[1]
+  }
 
+  /** 注视：鼠标目标指数平滑（帧率无关）+ 常驻眼神微漂移（每只眼相位错开） */
+  private _composeGaze(pose: Pose, def: EmotionDef, now: number, dt: number): void {
+    const k = 1 - Math.exp(-5.66 * dt)
+    const gx = def.gaze !== false ? this._gaze.tx : 0
+    const gy = def.gaze !== false ? this._gaze.ty : 0
+    this._gaze.x += (gx - this._gaze.x) * k
+    this._gaze.y += (gy - this._gaze.y) * k
+    pose.left.lookX += this._gaze.x
+    pose.right.lookX += this._gaze.x
+    pose.left.lookY += this._gaze.y
+    pose.right.lookY += this._gaze.y
+
+    if (def.gaze !== false) {
+      const w = now / 1000
+      pose.left.lookX += 1.4 * Math.sin(0.42 * w) + 0.5 * Math.sin(1.0 * w)
+      pose.right.lookX += 1.4 * Math.sin(0.42 * w + 1) + 0.5 * Math.sin(1.0 * w + 2)
+      pose.left.lookY += 0.9 * Math.sin(0.58 * w)
+      pose.right.lookY += 0.9 * Math.sin(0.58 * w + 1)
+    }
+  }
+
+  /** 眼睛收尾：小尺寸放大占比、实例主题色、开合度与最小缩放钳位 */
+  private _finishEyes(pose: Pose): void {
+    if (this._eyeScale !== 1) {
+      pose.left.scaleX *= this._eyeScale
+      pose.left.scaleY *= this._eyeScale
+      pose.right.scaleX *= this._eyeScale
+      pose.right.scaleY *= this._eyeScale
+    }
+
+    if (this._theme) {
+      pose.body.color = this._theme.body
+      if (pose.left.color === DEFAULT_EYE.color) pose.left.color = this._theme.eyes
+      if (pose.right.color === DEFAULT_EYE.color) pose.right.color = this._theme.eyes
+    }
+
+    /* 开合度 = 配置基础值 × 眨眼弹簧（弹簧可过冲到 1.08） */
+    const openS = clamp(this._open.x, 0.02, 1.5)
+    pose.left.open = clamp(pose.left.open, 0, 1.3) * openS
+    pose.right.open = clamp(pose.right.open, 0, 1.3) * openS
+    pose.left.scaleX = Math.max(pose.left.scaleX, 0.05)
+    pose.left.scaleY = Math.max(pose.left.scaleY, 0.05)
+    pose.right.scaleX = Math.max(pose.right.scaleX, 0.05)
+    pose.right.scaleY = Math.max(pose.right.scaleY, 0.05)
+  }
+
+  /** 表情池轮换 / 眨眼调度 / 待机小动作：三者都按各自的 next 时刻推进入队 */
+  private _advanceSchedules(now: number, def: EmotionDef): void {
     /* ---- 表情池轮换：poolMs 间隔内随机跳到池内另一个眼环 ---- */
     if (this._active && now >= this._poolNext) {
       if (def.pool.length > 1) {
@@ -828,18 +958,21 @@ export class Engine {
     /* ---- 待机小动作：9~18s 随机自旋 / 弹跳 ---- */
     if (this._active && def.antics && now >= this._anticNext) {
       if (!this._spin && this._bounceAt < 0) {
-        var pick = Math.random()
+        const pick = Math.random()
         if (pick < 0.45) this.spin(1)
         else if (pick < 0.8) this.bounce()
         else this._blinkNow(now)
       }
       this._anticNext = now + rand(9000, 18000)
     }
+  }
 
+  /** 弹簧整步（子步 1/120 保稳定）：形变 / 开合 / 自旋 */
+  private _stepSprings(dt: number): void {
     /* ---- 弹簧整步（子步 1/120 保稳定）：形变 / 开合 / 自旋 ---- */
-    var steps = Math.max(1, Math.ceil(dt / (1 / 120)))
-    var j = dt / steps
-    for (var si = 0; si < steps; si++) {
+    const steps = Math.max(1, Math.ceil(dt / (1 / 120)))
+    const j = dt / steps
+    for (let si = 0; si < steps; si++) {
       springStep(this._ringSpring, this._ringSpeed, 1, j)
       springStep(this._open, 26, 1, j)
       if (this._spin) {
@@ -849,11 +982,13 @@ export class Engine {
         }
       }
     }
-    pose.body.yaw = this._spin ? this._spin.x : 0
+  }
 
+  /** 弹跳位移：-4·h·n(1-n) 抛物线 */
+  private _applyBounce(now: number, pose: Pose): void {
     /* ---- 弹跳位移：-4·h·n(1-n) 抛物线 ---- */
     if (this._bounceAt >= 0) {
-      var be = (now - this._bounceAt) / 1000
+      const be = (now - this._bounceAt) / 1000
       if (be >= BOUNCE_TOTAL) {
         this._bounceAt = -1
       } else {
@@ -868,70 +1003,6 @@ export class Engine {
         pose.body.y += -4 * seg.h * bn * (1 - bn)
       }
     }
-
-    /* ---- 当前眼环：形变中逐点插值，静止后复用目标引用（跳过 d 重建） ---- */
-    if (this._ringSpring.x < 0.999 || this._ringSpring.v > 0.001 || this._ringSpring.v < -0.001) {
-      var rs = clamp(this._ringSpring.x, 0, 1.35)
-      this._ringCur = [
-        lerpRing(this._ringSrc[0], this._ringDst[0], rs),
-        lerpRing(this._ringSrc[1], this._ringDst[1], rs),
-      ]
-    } else if (this._ringCur !== this._ringDst) {
-      this._ringCur = this._ringDst
-    }
-    pose.left.ring = this._ringCur[0]
-    pose.right.ring = this._ringCur[1]
-
-    /* 鼠标注视：帧率无关的指数平滑（60fps 基准下每帧收敛约 9%） */
-    var k = 1 - Math.exp(-5.66 * dt)
-    var gx = def.gaze !== false ? this._gaze.tx : 0
-    var gy = def.gaze !== false ? this._gaze.ty : 0
-    this._gaze.x += (gx - this._gaze.x) * k
-    this._gaze.y += (gy - this._gaze.y) * k
-    pose.left.lookX += this._gaze.x
-    pose.right.lookX += this._gaze.x
-    pose.left.lookY += this._gaze.y
-    pose.right.lookY += this._gaze.y
-
-    /* 常驻眼神微漂移：每只眼相位错开，永不完全静止 */
-    if (def.gaze !== false) {
-      var w = now / 1000
-      pose.left.lookX += 1.4 * Math.sin(0.42 * w) + 0.5 * Math.sin(1.0 * w)
-      pose.right.lookX += 1.4 * Math.sin(0.42 * w + 1) + 0.5 * Math.sin(1.0 * w + 2)
-      pose.left.lookY += 0.9 * Math.sin(0.58 * w)
-      pose.right.lookY += 0.9 * Math.sin(0.58 * w + 1)
-    }
-
-    /* 小尺寸实例放大眼睛占比，保证 32~48px 下仍可读 */
-    if (this._eyeScale !== 1) {
-      pose.left.scaleX *= this._eyeScale
-      pose.left.scaleY *= this._eyeScale
-      pose.right.scaleX *= this._eyeScale
-      pose.right.scaleY *= this._eyeScale
-    }
-
-    /* 实例主题色（baby bot）：体色恒为主题色，眼睛仅覆盖默认黑 */
-    if (this._theme) {
-      pose.body.color = this._theme.body
-      if (pose.left.color === DEFAULT_EYE.color) pose.left.color = this._theme.eyes
-      if (pose.right.color === DEFAULT_EYE.color) pose.right.color = this._theme.eyes
-    }
-
-    /* 开合度 = 配置基础值 × 眨眼弹簧（弹簧可过冲到 1.08） */
-    var openS = clamp(this._open.x, 0.02, 1.5)
-    pose.left.open = clamp(pose.left.open, 0, 1.3) * openS
-    pose.right.open = clamp(pose.right.open, 0, 1.3) * openS
-    pose.left.scaleX = Math.max(pose.left.scaleX, 0.05)
-    pose.left.scaleY = Math.max(pose.left.scaleY, 0.05)
-    pose.right.scaleX = Math.max(pose.right.scaleX, 0.05)
-    pose.right.scaleY = Math.max(pose.right.scaleY, 0.05)
-
-    /* 表情切换过渡插值 */
-    var tt = now - this._transStart
-    if (this._transDur > 0 && tt < this._transDur && this._prevPose) {
-      pose = lerpPose(this._prevPose, pose, easeInOutCubic(tt / this._transDur))
-    }
-    return pose
   }
 
   /** sequence 采样；播完按 settle 处理（hold / base / next） */

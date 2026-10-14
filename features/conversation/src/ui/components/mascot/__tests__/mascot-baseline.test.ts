@@ -33,7 +33,10 @@ interface Harness {
   tick: (now: number) => void
   setEmotion: (id: string) => boolean
   spin: (turns: number) => void
+  burst: (count: number) => void
+  bounce: () => void
   setGaze: (x: number, y: number) => void
+  clearGaze: () => void
 }
 
 function mount(opts: Record<string, unknown> = {}): { host: HTMLElement; engine: Harness; restore: () => void } {
@@ -97,6 +100,50 @@ describe('吉祥物迁移版：行为基线', () => {
     restore()
     host.remove()
   })
+
+  for (const shape of ['blob', 'wedge', 'gem'] as const) {
+    test(`全特效路径（${shape}）：32 套表情逐套渲染，每帧都有 SVG`, () => {
+      const { host, engine, restore } = mount({ shape })
+      let t = 1000
+      const frame = (): string => {
+        t += 16.667
+        engine.tick(t)
+        return host.innerHTML
+      }
+      for (const id of config.list()) {
+        engine.setEmotion(id.id)
+        for (let f = 0; f < 4; f++) expect(frame()).toContain('<svg')
+      }
+      engine.destroy()
+      restore()
+      host.remove()
+    })
+
+    test(`全特效路径（${shape}）：长停留 + 自旋 + 撒花 + 弹跳 + 注视切换`, () => {
+      const { host, engine, restore } = mount({ shape })
+      let t = 1000
+      const frame = (): void => {
+        t += 16.667
+        engine.tick(t)
+      }
+      /* 长停留：表情池轮换 / 眨眼 / 待机小动作 / 常驻环带 / zzz 都会在这里走到 */
+      for (let f = 0; f < 200; f++) frame()
+      engine.spin(3)
+      for (let f = 0; f < 40; f++) frame()
+      engine.burst(30)
+      engine.bounce()
+      for (let f = 0; f < 40; f++) frame()
+      engine.setGaze(0.8, -0.5)
+      for (let f = 0; f < 15; f++) frame()
+      engine.clearGaze()
+      for (let f = 0; f < 8; f++) frame()
+      expect(host.innerHTML).toContain('<svg')
+      engine.destroy()
+      restore()
+      host.remove()
+      expect(host.innerHTML).toBe('')
+    })
+  }
 
   test('连续 40 帧的渲染稳定：帧帧有内容，且切换表情/自旋/注视都会改变画面', () => {
     const { host, engine, restore } = mount()

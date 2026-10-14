@@ -97,14 +97,11 @@
       ],
       "linter": {
         "rules": {
-          "correctness": {
-            "noInnerDeclarations": "off"
-          },
           "complexity": {
             "noExcessiveCognitiveComplexity": {
               "level": "error",
               "options": {
-                "maxAllowedComplexity": 80
+                "maxAllowedComplexity": 25
               }
             }
           }
