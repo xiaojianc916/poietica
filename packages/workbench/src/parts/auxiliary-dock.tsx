@@ -131,12 +131,12 @@ function AuxiliaryTab({
       tabIndex={active ? 0 : -1}
       type="button"
     >
-      <span aria-hidden className="auxiliary-tab-icon relative size-3.5 shrink-0">
+      <span aria-hidden className="auxiliary-tab-icon relative size-4 shrink-0 self-center">
         <span className="auxiliary-tab-icon__glyph pointer-events-none absolute inset-0 transition-opacity">
           {icon}
         </span>
         <X
-          className="auxiliary-tab-icon__close pointer-events-none absolute inset-0 size-3.5 opacity-0 transition-opacity"
+          className="auxiliary-tab-icon__close pointer-events-none absolute inset-0 size-4 opacity-0 transition-opacity"
           data-close-tab
         />
       </span>
