@@ -1,5 +1,5 @@
 import { defineContract, defineMethod, defineNotification } from '@poietica/contract-kit'
-import { MarketplaceEntry, McpServerInfo, McpStatus, PluginInfo, SkillInfo } from '@poietica/engine'
+import { MarketplaceEntry, McpCatalogEntry, McpServerInfo, McpStatus, PluginInfo, SkillInfo } from '@poietica/engine'
 import { z } from 'zod'
 import { SkillInstallSource } from './entities'
 import { extensionsErrors } from './errors'
@@ -76,6 +76,15 @@ export const extensionsContract = defineContract({
       params: empty,
       result: z.object({ servers: z.array(McpStatus) }),
       description: '查 MCP 服务器状态',
+    }),
+    defineMethod({
+      name: 'mcp.catalog',
+      owner: 'core',
+      params: z.object({ query: z.string() }),
+      /* 一次要取每条目的详情，目录方那边可能慢；给足预算，别让 60 秒的默认值把它掐了。 */
+      timeoutMs: 30_000,
+      result: z.object({ entries: z.array(McpCatalogEntry) }),
+      description: '在在线目录（Smithery）里搜 MCP 服务器；查不到是空数组，取不到目录才抛错',
     }),
     defineMethod({
       name: 'plugins.list',

@@ -3,6 +3,7 @@ import type { z } from 'zod'
 import type {
   Capabilities,
   MarketplaceEntry,
+  McpCatalogEntry,
   McpServerInfo,
   McpStatus,
   ModelInfo,
@@ -87,6 +88,11 @@ export interface McpPort {
   upsert(server: z.infer<typeof McpServerInfo>): Promise<void>
   remove(name: string): Promise<void>
   status(): Promise<z.infer<typeof McpStatus>[]>
+  /**
+   * 在**在线目录**里搜服务器（omp 的 Smithery registry）。查不到就是空数组，不是错误；
+   * 网络不通 / 目录方报错才抛（调用方据此显示「取不到目录」，而不是「没有结果」）。
+   */
+  catalog(query: string): Promise<z.infer<typeof McpCatalogEntry>[]>
   readonly onDidChangeStatus: Event<z.infer<typeof McpStatus>[]>
 }
 export interface PluginsPort {

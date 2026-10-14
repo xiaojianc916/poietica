@@ -3,7 +3,15 @@ import { SkillDocumentToken } from '@poietica/feature-conversation/ui-api'
 import { platformContract } from '@poietica/feature-platform/contract'
 import type { TypedRpcClient } from '@poietica/rpc'
 import type { UiFeatureContext } from '@poietica/ui-kernel'
-import type { MarketplaceEntry, McpServerInfo, McpStatus, PluginInfo, SkillInfo, SkillInstallSource } from '../contract'
+import type {
+  MarketplaceEntry,
+  McpCatalogEntry,
+  McpServerInfo,
+  McpStatus,
+  PluginInfo,
+  SkillInfo,
+  SkillInstallSource,
+} from '../contract'
 import { extensionsContract } from '../contract'
 
 export function createExtensionsApi(ctx: UiFeatureContext) {
@@ -35,6 +43,8 @@ export function createExtensionsApi(ctx: UiFeatureContext) {
       upsert: (server: McpServerInfo): Promise<void> => rpc.call('mcp.upsert', server).then(() => undefined),
       remove: (name: string): Promise<void> => rpc.call('mcp.remove', { name }).then(() => undefined),
       status: (): Promise<readonly McpStatus[]> => rpc.call('mcp.status', {}).then((r) => r.servers),
+      catalog: (query: string): Promise<readonly McpCatalogEntry[]> =>
+        rpc.call('mcp.catalog', { query }).then((r) => r.entries),
       onStatusChanged: (listener: (statuses: readonly McpStatus[]) => void) =>
         rpc.on('mcp.statusChanged', (p) => listener(p.servers)),
     },

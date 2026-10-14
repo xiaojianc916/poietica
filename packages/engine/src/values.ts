@@ -260,6 +260,44 @@ export const McpStatus = z.object({
   toolCount: z.number().int(),
   error: z.string().nullable(),
 })
+/**
+ * 目录里的一条搜索结果（只读的展示件 + 可直接写进配置的正文）。
+ *
+ * `config` 是**已经能写盘的那一条**（omp 的 `MCPServerConfig`）：装上不等于能用，所以随条目一起把
+ * 缺什么也带回来（`inputs` / `warnings`）。
+ */
+export const McpCatalogEntry = z.object({
+  /** 目录自己的稳定 id。 */
+  id: z.string(),
+  /** 写进配置的**建议名**（已按 omp 的名称约束归一；重名由调用方另让用户改）。 */
+  name: z.string(),
+  title: z.string(),
+  description: z.string(),
+  /** 目录方给的地址；没有时 null。 */
+  homepage: z.string().nullable(),
+  /** 远端还是本地包，决定它跑起来要不要本机有 npx。 */
+  sourceType: z.enum(['remote', 'package']),
+  /** 用的人多不多（目录方的报数），列表按它排序。 */
+  useCount: z.number().int(),
+  /** 目录方核过的条目。 */
+  verified: z.boolean(),
+  /** 这一条要人补什么值才跑得起来。 */
+  inputs: z.array(
+    z.object({
+      key: z.string(),
+      label: z.string(),
+      required: z.boolean(),
+      /** 像个密钥（界面要遮住输入）。 */
+      sensitive: z.boolean(),
+      defaultValue: z.string().nullable(),
+      description: z.string().nullable(),
+    }),
+  ),
+  /** 目录方的提示（例如「运行时要经 Smithery CLI」）。 */
+  warnings: z.array(z.string()),
+  /** 直接可写进配置的正文。 */
+  config: z.record(z.string(), z.unknown()),
+})
 export const PluginInfo = z.object({
   id: z.string(),
   name: z.string(),

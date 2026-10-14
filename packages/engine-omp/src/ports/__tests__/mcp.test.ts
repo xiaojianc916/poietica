@@ -118,3 +118,148 @@ describe('McpPort', () => {
     sub.dispose()
   })
 })
+
+/*
+ * catalog 的形状映射。**不真连 registry**：那是第三方服务，进 bun run all 就是给闸门装一个
+ * 外部开关。这里截住 fetch，喂一份按真实报文精简过的响应，钉住映射本身。
+ */
+describe('McpPort.catalog', () => {
+  const realFetch = globalThis.fetch
+
+  /* 换掉全局 fetch 要绕开 `typeof fetch` 上的 preconnect 等附加属性：只借用它的调用签名。 */
+  function stubFetch(handler: (url: string) => Response | Promise<Response>): void {
+    globalThis.fetch = ((input: string | URL | Request) => {
+      const url = typeof input === 'string' ? input : input instanceof URL ? input.href : input.url
+      return Promise.resolve(handler(url))
+    }) as unknown as typeof fetch
+  }
+
+  afterEach(() => {
+    globalThis.fetch = realFetch
+  })
+
+  /** 按真实 /servers 与 /servers/<id> 的形状给两条：一条 remote、一条 stdio 且要密钥。 */
+  function stubRegistry(): void {
+    /* 列表那一层就带 displayName / qualifiedName：omp 拿它们与关键词做同一性命中
+     * （matchesIdentityQuery），不给就会被整个滤掉 —— 这正是真报文的形状。 */
+    /* verified / useCount 取自**列表**那一层（omp 的 toSearchResult 读的就是 entry.verified），
+     * displayName / qualifiedName 也是 —— 都必须在列表里给全。 */
+    const servers = [
+      {
+        id: 'a/one',
+        qualifiedName: '@a/demo-one',
+        displayName: 'Demo One',
+        namespace: 'a',
+        slug: 'demo-one',
+        verified: true,
+        useCount: 42,
+      },
+      {
+        id: 'b/two',
+        qualifiedName: '@b/demo-two',
+        displayName: 'Demo Two',
+        namespace: 'b',
+        slug: 'demo-two',
+        verified: false,
+        useCount: 5,
+      },
+    ]
+    /* 详情按 `namespace/slug` 取（omp 的 resolveDetailPathCandidates 就是这个顺序），
+     * 与列表里的 id 不是一回事 —— 用 slug 当键才是真报文的形状。 */
+    const detail: Record<string, unknown> = {
+      'a/demo-one': {
+        id: 'a/one',
+        qualifiedName: '@a/demo-one',
+        displayName: 'Demo One',
+        description: '第一条',
+        verified: true,
+        useCount: 42,
+        remote: true,
+        isDeployed: true,
+        tools: [],
+        connections: [{ type: 'http', deploymentUrl: 'https://one.test/mcp' }],
+      },
+      'b/demo-two': {
+        id: 'b/two',
+        qualifiedName: '@b/demo-two',
+        displayName: 'Demo Two',
+        description: '第二条',
+        verified: false,
+        useCount: 5,
+        tools: [],
+        /* configSchema 挂在 **connection** 上（omp 的 getSchemaInputs 读的就是它）：
+         * 放到 details 根上会被忽略，requiredInputs 就是空的。 */
+        connections: [
+          {
+            type: 'stdio',
+            runtime: 'node',
+            configSchema: {
+              type: 'object',
+              required: ['apiKey'],
+              properties: { apiKey: { type: 'string', description: '密钥' } },
+            },
+          },
+        ],
+      },
+    }
+
+    globalThis.fetch = (async (input: string | URL | Request) => {
+      const url = typeof input === 'string' ? input : input instanceof URL ? input.href : input.url
+
+      if (url.includes('/servers/')) {
+        const id = decodeURIComponent(url.split('/servers/')[1] ?? '').split('?')[0] ?? ''
+        return Response.json(detail[id] ?? {})
+      }
+
+      return Response.json({ servers })
+    }) as unknown as typeof fetch
+  }
+
+  test('目录条目映射成契约形状：名字归一、正文可直接写盘、必填输入带出来', async () => {
+    stubRegistry()
+    /* 关键词要与 displayName / qualifiedName 命得上 —— 真报文的检索就是这个口径。 */
+    const entries = await makePort().catalog('demo')
+
+    expect(entries.map((entry) => entry.id)).toEqual(['a/one', 'b/two'])
+
+    const remote = entries[0]
+    /* 目录名带斜杠（`a/demo-one`），写盘前必须归一成 validateServerName 认的形状。 */
+    expect(remote?.name).toBe('a-demo-one')
+    expect(remote?.name).toMatch(/^[a-zA-Z0-9_.:-]+$/)
+    expect(remote?.verified).toBe(true)
+    expect(remote?.useCount).toBe(42)
+    expect(remote?.sourceType).toBe('remote')
+    expect(remote?.config).toMatchObject({ type: 'http', url: 'https://one.test/mcp' })
+
+    const local = entries[1]
+    expect(local?.sourceType).toBe('package')
+    expect(local?.config).toMatchObject({ type: 'stdio' })
+    /* 要密钥的那一条必须把「补什么」带出来，否则界面无从提示。 */
+    expect(local?.inputs).toEqual([
+      {
+        key: 'apiKey',
+        label: expect.any(String),
+        required: true,
+        sensitive: true,
+        defaultValue: null,
+        description: '密钥',
+      },
+    ])
+  })
+
+  test('空关键词不查目录（连 fetch 都不发）', async () => {
+    let called = 0
+    stubFetch(() => {
+      called += 1
+      return Response.json({ servers: [] })
+    })
+
+    expect(await makePort().catalog('   ')).toEqual([])
+    expect(called).toBe(0)
+  })
+
+  test('目录方报错时如实抛 AppError，不假装成空结果', async () => {
+    stubFetch(() => new Response('boom', { status: 503 }))
+    await expect(makePort().catalog('demo')).rejects.toMatchObject({ code: expect.any(String) })
+  })
+})

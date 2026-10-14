@@ -7,7 +7,8 @@ import {
   setServerDisabled,
   updateMCPServer,
 } from '@oh-my-pi/pi-coding-agent/mcp/config-writer'
-import type { McpPort, McpServerInfo, McpStatus } from '@poietica/engine'
+import { searchSmitheryRegistry, toConfigName } from '@oh-my-pi/pi-coding-agent/mcp/smithery-registry'
+import type { McpCatalogEntry, McpPort, McpServerInfo, McpStatus } from '@poietica/engine'
 import { Emitter, type Logger } from '@poietica/foundation'
 import type { z } from 'zod'
 import { toEngineError } from '../errors'
@@ -15,6 +16,12 @@ import type { OmpMcpManager, OmpSessionLike } from '../omp-context'
 
 /** 用户级 MCP 配置文件：<ompAgentDir>/mcp.json（omp 自己的位置，不自己拼 JSON）。 */
 const MCP_CONFIG_NAME = 'mcp.json'
+
+/**
+ * 一次搜回几条。目录方自己把上限钳在 1–100（默认 20），这里取 20：一屏够翻，
+ * 请求也不会因为一次拉太多详情而拖长（每条都要再取一次详情）。
+ */
+const CATALOG_LIMIT = 20
 
 /** McpPort 需要的东西：omp 的 agent 目录、活着的会话（状态要汇总它们）、logger。 */
 export interface McpPortDeps {
@@ -106,6 +113,45 @@ export class OmpMcpPort implements McpPort {
         }
       }
       return [...merged.values()]
+    } catch (error) {
+      throw toEngineError(error)
+    }
+  }
+
+  /**
+   * 在线目录检索（omp 的 Smithery registry）。空关键词不查 —— 目录方对空查询也是空结果，
+   * 但不必为此发一次网络请求。
+   *
+   * 写进配置的**名字**用 omp 自己的 `toConfigName` 归一：目录里的名字形如
+   * `nexgendata-apify/github-mcp-server`，带斜杠，直接写进 mcp.json 会被
+   * `validateServerName` 拒掉（只许字母数字与 `_ . - :`）。归一之后重名由调用方让用户改。
+   */
+  async catalog(query: string): Promise<z.infer<typeof McpCatalogEntry>[]> {
+    const keyword = query.trim()
+    if (keyword === '') return []
+    try {
+      const found = await searchSmitheryRegistry(keyword, { limit: CATALOG_LIMIT })
+      return found.map((entry) => ({
+        id: entry.id,
+        /* entry.name 已去掉前导 @，toConfigName 再收一次斜杠与非法字符。 */
+        name: toConfigName(entry.name),
+        title: entry.title ?? entry.display.displayName,
+        description: entry.description ?? entry.display.description,
+        homepage: entry.display.homepage ?? null,
+        sourceType: entry.sourceType,
+        useCount: entry.display.useCount,
+        verified: entry.display.verified,
+        inputs: entry.requiredInputs.map((input) => ({
+          key: input.key,
+          label: input.label,
+          required: input.required,
+          sensitive: input.sensitive,
+          defaultValue: input.defaultValue ?? null,
+          description: input.description ?? null,
+        })),
+        warnings: [...entry.warnings],
+        config: { ...(entry.config as unknown as Record<string, unknown>) },
+      }))
     } catch (error) {
       throw toEngineError(error)
     }

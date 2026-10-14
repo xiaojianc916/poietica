@@ -421,6 +421,19 @@ export function runEngineConformance(name: string, make: () => Promise<Conforman
       expect((await target.engine.models.providers()).some((p) => p.id === 'conformance-mine')).toBe(false)
     })
 
+    /**
+     * MCP 在线目录检索（`mcp.catalog`）的**离线**契约点：空关键词不发请求、返回空数组。
+     *
+     * 只钉这一条，是因为真实目录是第三方服务：一致性子集跑在 `bun run all` 里，让 CI 依赖
+     * registry.smithery.ai 的可用性与内容，等于给闸门装一个随时会红的外部开关。结果**形状**的
+     * 校验（名字合法、正文能直接写盘）落在各实现自己的用例里，那里可以喂固定的报文。
+     */
+    test('C-MCP-CATALOG-EMPTY', async () => {
+      expect(await target.engine.mcp.catalog('')).toEqual([])
+      expect(await target.engine.mcp.catalog('   ')).toEqual([])
+      expect(await target.engine.mcp.catalog('\n\t ')).toEqual([])
+    })
+
     test('C-CUSTOM-TOOL', async () => {
       const session = await openNew()
       const record = recorder(session)

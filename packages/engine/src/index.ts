@@ -20,6 +20,7 @@ export {
   Interaction,
   InteractionAnswer,
   MarketplaceEntry,
+  McpCatalogEntry,
   McpServerInfo,
   McpStatus,
   ModelInfo,

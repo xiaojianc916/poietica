@@ -2845,3 +2845,54 @@ git 里原始实现 + 专门的「表情切换过渡帧」对拍发现的，随�
 | Q43 | 2026-10-14 | `docs/omp-sdk-reference.md` 仍标 18.5.0，而 catalog 是 18.10.3。发现 1 的 relay 缺陷正是这份文档没跟上导致的 | 无（本次按实测核对了 relay 协议并补了文件头注释） | 记录：升级 omp 时按 AGENTS.md §11 重新抽取该文档 |
 | Q44 | 2026-10-14 | MCP 配置的四个死键（`bearerTokenEnvVar` / `toolTimeoutMs` / `enabledTools` / `disabledTools`）+ 名称校验与 omp 的 `validateServerName` 不一致（`foo/bar` 能过表单、到 omp 才抛错，提示回不到字段旁） | 无（本次未动） | 记录：要改 UI 字段与校验归属，属产品决定 |
 | Q45 | 2026-10-14 | `relay-protocol.ts` 仍是 omp 内部协议的**副本**（omp 未导出稳定契约）。根治要么在 engine 端口转出协议，要么每次升级手工核 | 已补文件头注释与具名常量 | 记录：升级 omp 时必核这一个文件 |
+
+## MCP 名单接上 omp 的在线目录（2026-10-14）
+
+**来源**：产品负责人「你说硬编码 6 条 MCP 名单，omp 自带实时 registry 检索，那就改成 omp 官方能力吧，
+ui 也要改，适应其能力」（外部输入）。这是上一轮审查里标记为 **unclear**、我建议记待决的那一条
+（Q3），产品负责人决定采纳。
+
+**改法**：**不是**删掉那 6 条精选，而是让两条来源并存 —— 精选给「装上就能用、不用挑」的那几条
+（产品意图，离线可用），目录给长尾（实时检索）。两处的 `group` 进同一张分组表，界面不为它们写第二套。
+
+按 AGENTS.md §5.5 的顺序走完四层：
+
+1. **端口**（`packages/engine`）：新增 `McpCatalogEntry` 值对象与 `McpPort.catalog(query)`。
+   条目里带的不只是展示件，还有**能直接写盘的 `config`** 与**要人补什么的 `inputs`**
+   （`required` / `sensitive` / `defaultValue`）—— 装上不等于能用，缺什么得随条目一起回来。
+2. **engine-omp**：`searchSmitheryRegistry(keyword, { limit: 20 })`。**写进配置的名字经 omp 自己的
+   `toConfigName` 归一**：目录名形如 `nexgendata-apify/github-mcp-server`，带斜杠，直接写盘会被
+   `validateServerName` 拒（只许字母数字与 `_ . - :`）。
+3. **testkit**：FakeEngine 的 `mcp.catalog` 按标题/说明做子串过滤（`FakeEngineOptions.mcpCatalog`
+   注入式，默认空表）。
+4. **契约**：新方法 `mcp.catalog`（`owner: core`，`timeoutMs: 30_000` —— 一次要取每条目的详情，
+   别让 60 秒默认值掐了）；`PROTOCOL_VERSION` **17 → 18**，快照已重生成。
+
+**UI 的适配（这次的重点）**：搜索框拆成两件事 —— **过滤已装**是逐字本地过滤，**去在线目录搜**要按
+回车/点按钮（那是对外请求，跟着逐字发就是自己打自己）。目录卡片与精选同一套 DOM，动作区不同：
+
+- 必填输入没填时**安装键点不动**，并写明缺哪个键；展开填上即可。
+- 填的值**照抄 omp 的做法**落进 `--config`（`#applyRegistryInputOverrides`）：目录给的命令是
+  `bunx @smithery/cli run <name> --config {}`，值就填在那个 `{}` 上。**远程条目（http/sse）不填** ——
+  它的凭据走 OAuth / 请求头，目录也没给 `--config` 的位置，不假装填进去了。
+- 重名按 omp 的规矩让开（`-2` / `-3`…）。
+- 「取不到目录」与「没有结果」分开显示：前者是错误横幅，后者只是空列表。
+
+**实测（真目录，不是读源码推的）**：`q=slack` 回 6 条，`verified` / `useCount` / `sourceType` 都对上；
+一条 stdio 条目带出 `SLACK_BOT_TOKEN`（required + sensitive）；把 `slack` 真写进 mcp.json 再读回、
+再删掉，`transport=http`、`enabled` 都如实。8 组关键词 34 条里，7 条有必填输入，**且全部是 stdio** ——
+正好落在 `--config` 那条路径上，远程条目确实用不到。
+
+**一致性与测试的取舍（重要）**：真实目录是第三方服务，**不让 `bun run all` 依赖它**。一致性子集只钉
+离线的那一条（`C-MCP-CATALOG-EMPTY`：空关键词不发请求、返回空数组）；形状映射落在
+`engine-omp/src/ports/__tests__/mcp.test.ts`，那里截住 `fetch` 喂一份按真实报文精简过的响应
+（列表层带 `displayName` / `qualifiedName`，`configSchema` 挂在 **connection** 上，详情按
+`namespace/slug` 取 —— 这三条都是实测踩出来的，写错了就会「检索命中 0 条」）。中途我曾把一致性用例
+写成真连 registry，`C-MCP-CATALOG-SHAPE` 直接 5 秒超时 —— 那是给闸门装了一个外部开关，已改掉。
+
+**验收**：`bun run all` 全绿（**2111 pass / 0 fail**，268 文件；较上轮 +22 条：契约 2 + 端口 3 +
+UI 数据逻辑 11 + 卡片渲染 4 + 一致性 1 + 原有调整）。测试**不发网络**：端口用例截 `fetch`，
+UI 用例喂固定条目。
+
+**未做**：精选那 6 条**保持原样**（它们是产品意图，不是过时的硬编码）。Q44（MCP 四个死键与名称校验
+错位）仍未动。

@@ -9929,6 +9929,143 @@
       }
     },
     {
+      "name": "mcp.catalog",
+      "owner": "core",
+      "timeoutMs": 30000,
+      "description": "在在线目录（Smithery）里搜 MCP 服务器；查不到是空数组，取不到目录才抛错",
+      "params": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "query": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "query"
+        ]
+      },
+      "result": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "entries": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string"
+                },
+                "name": {
+                  "type": "string"
+                },
+                "title": {
+                  "type": "string"
+                },
+                "description": {
+                  "type": "string"
+                },
+                "homepage": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "sourceType": {
+                  "type": "string",
+                  "enum": [
+                    "remote",
+                    "package"
+                  ]
+                },
+                "useCount": {
+                  "type": "integer",
+                  "minimum": -9007199254740991,
+                  "maximum": 9007199254740991
+                },
+                "verified": {
+                  "type": "boolean"
+                },
+                "inputs": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "key": {
+                        "type": "string"
+                      },
+                      "label": {
+                        "type": "string"
+                      },
+                      "required": {
+                        "type": "boolean"
+                      },
+                      "sensitive": {
+                        "type": "boolean"
+                      },
+                      "defaultValue": {
+                        "type": [
+                          "string",
+                          "null"
+                        ]
+                      },
+                      "description": {
+                        "type": [
+                          "string",
+                          "null"
+                        ]
+                      }
+                    },
+                    "required": [
+                      "key",
+                      "label",
+                      "required",
+                      "sensitive",
+                      "defaultValue",
+                      "description"
+                    ],
+                    "additionalProperties": false
+                  }
+                },
+                "warnings": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                },
+                "config": {
+                  "type": "object",
+                  "propertyNames": {
+                    "type": "string"
+                  },
+                  "additionalProperties": {}
+                }
+              },
+              "required": [
+                "id",
+                "name",
+                "title",
+                "description",
+                "homepage",
+                "sourceType",
+                "useCount",
+                "verified",
+                "inputs",
+                "warnings",
+                "config"
+              ],
+              "additionalProperties": false
+            }
+          }
+        },
+        "required": [
+          "entries"
+        ],
+        "additionalProperties": false
+      }
+    },
+    {
       "name": "mcp.list",
       "owner": "core",
       "timeoutMs": 30000,

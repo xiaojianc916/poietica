@@ -103,6 +103,11 @@ export default defineCoreModule({
       return { servers: statuses }
     })
 
+    ctx.rpc.handle('mcp.catalog', async (p) => {
+      const entries = await engine.mcp.catalog(p.query)
+      return { entries }
+    })
+
     ctx.rpc.handle('plugins.list', async () => {
       const plugins = await engine.plugins.list()
       return { plugins }

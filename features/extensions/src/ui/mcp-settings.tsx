@@ -12,9 +12,9 @@ import {
 } from '@poietica/design-system'
 import { Check, ChevronDown, Download, Monitor, Plus, RotateCw, Search } from 'lucide-react'
 import { type FormEvent, useCallback, useEffect, useRef, useState } from 'react'
-import type { McpServerInfo, McpStatus } from '../contract'
+import type { McpCatalogEntry, McpServerInfo, McpStatus } from '../contract'
 import type { ExtensionsApi } from './api'
-import { builtinServerRows, groupRows, matches } from './catalog'
+import { builtinServerRows, groupRows, matches, registryServerRows } from './catalog'
 import { CatalogGrid } from './catalog-grid'
 import { type McpEntry, mcpEntryFromForm, parseMcpImport } from './mcp-config'
 import { PluginGlyph } from './plugin-glyph'
@@ -42,6 +42,20 @@ const TRANSPORT_MODES = [
 /* 本应用自己托管的内置服务器：自动化引擎。它写进同一份 mcp.json，但删了等于把应用的核心能力拆了，所以不允许删除。 */
 const BUILTIN_MANAGED_SERVERS = ['poietica-automations'] as const
 
+/**
+ * 安装正文 → 契约的 transport 那一格。精选那 6 条只有 url / command 两种写法，
+ * 而目录来的条目**自己带 type**（它可能是 sse），所以先认 `type` 再退回按 url 判。
+ */
+function transportOfBody(body: Record<string, unknown>): McpTransport {
+  const declared = body.type
+
+  if (declared === 'stdio' || declared === 'http' || declared === 'sse') {
+    return declared
+  }
+
+  return body.url === undefined ? 'stdio' : 'http'
+}
+
 export function McpSettingsPage({ api }: { readonly api: ExtensionsApi }) {
   const [servers, setServers] = useState<readonly McpServerInfo[]>([])
   const [statuses, setStatuses] = useState<readonly McpStatus[]>([])
@@ -51,6 +65,11 @@ export function McpSettingsPage({ api }: { readonly api: ExtensionsApi }) {
   const [tab, setTab] = useState<CreateTab | null>(null)
   const [removing, setRemoving] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
+  /* 在线目录：只在用户真的搜了之后才去取（起页面时就发请求既慢又没必要），失败单独记一格 ——
+   * 「取不到目录」与「没有结果」对用户是两件事。 */
+  const [registry, setRegistry] = useState<readonly McpCatalogEntry[]>([])
+  const [registryBusy, setRegistryBusy] = useState(false)
+  const [registryFailure, setRegistryFailure] = useState<string | null>(null)
 
   const report = useCallback((cause: unknown): void => {
     setFailure(cause instanceof Error ? cause.message : String(cause))
@@ -79,6 +98,39 @@ export function McpSettingsPage({ api }: { readonly api: ExtensionsApi }) {
     return api.mcp.onStatusChanged(setStatuses).dispose
   }, [api, reload])
 
+  /*
+   * 在线目录检索要人去点（或按回车）：每一次都对外发网络请求，跟着输入框逐字发就是自己打自己。
+   * 查询词变了不清旧结果 —— 搜索是「换一批」，不是「先清空」，否则按下去到回来之间屏幕会闪一下。
+   */
+  const searchRegistry = useCallback(
+    (keyword: string) => {
+      const query = keyword.trim()
+
+      if (query === '') {
+        setRegistry([])
+        setRegistryFailure(null)
+
+        return
+      }
+
+      setRegistryBusy(true)
+
+      void api.mcp.catalog(query).then(
+        (entries) => {
+          setRegistry(entries)
+          setRegistryFailure(null)
+          setRegistryBusy(false)
+        },
+        (cause: unknown) => {
+          /* 失败时留住上一批结果，只把原因说出来。 */
+          setRegistryFailure(cause instanceof Error ? cause.message : String(cause))
+          setRegistryBusy(false)
+        },
+      )
+    },
+    [api],
+  )
+
   /* 新契约只有幂等的 mcp.upsert（没有「新增 / 更新」的意图位，见 Q21），所以新建走的就是它：同名即更新。 */
   const upsert = useCallback(
     (entry: McpEntry): Promise<void> => {
@@ -103,6 +155,8 @@ export function McpSettingsPage({ api }: { readonly api: ExtensionsApi }) {
 
   const query = needle.trim()
   const installedServers = servers.filter((server) => matches(query, server.name, '个人 用户'))
+  /* 目录条目重名时靠它让开（omp 的 -2 / -3 规矩），判据与界面同源：已解析的那张表。 */
+  const takenNames = new Set(servers.map((server) => server.name))
 
   return (
     <section aria-label="MCP 服务器管理" className="mcp">
@@ -112,16 +166,26 @@ export function McpSettingsPage({ api }: { readonly api: ExtensionsApi }) {
         <span className="mcp__count">
           MCP <span className="mcp__muted">{servers.length}</span>
         </span>
-        <span className="mcp__search">
+        {/* 过滤已装的那一份是**逐字**的（本地、免费）；去在线目录搜要按回车/点按钮 —— 那是对外请求。 */}
+        <form
+          className="mcp__search"
+          onSubmit={(event) => {
+            event.preventDefault()
+            searchRegistry(needle)
+          }}
+        >
           <Search aria-hidden="true" size={15} />
           <input
             aria-label="搜索 MCP 服务器"
             onChange={(event) => setNeedle(event.target.value)}
-            placeholder="搜索 MCP 服务器..."
+            placeholder="过滤已装；回车去在线目录搜"
             type="search"
             value={needle}
           />
-        </span>
+          <button className="mcp__text-btn text-[12px]" disabled={registryBusy} type="submit">
+            {registryBusy ? '搜索中…' : '在线搜索'}
+          </button>
+        </form>
       </div>
 
       <div className="mcp__installed">
@@ -196,17 +260,24 @@ export function McpSettingsPage({ api }: { readonly api: ExtensionsApi }) {
         </ul>
       )}
 
+      {registryFailure === null ? null : (
+        <p className="mcp__error" role="alert">
+          在线目录取不到：{registryFailure}
+        </p>
+      )}
+
       <CatalogGrid
         action={{
           install: (name, body) => {
             void upsert({
               name,
-              transport: body.url === undefined ? 'stdio' : 'http',
+              transport: transportOfBody(body),
               config: body,
             }).catch(() => undefined)
           },
         }}
-        groups={groupRows(builtinServerRows(servers, query))}
+        groups={groupRows([...builtinServerRows(servers, query), ...registryServerRows(registry, servers)])}
+        taken={takenNames}
       />
 
       <ConfirmationDialog

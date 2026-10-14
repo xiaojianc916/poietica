@@ -146,6 +146,7 @@ function makeEngine(over: Partial<ConstructorParameters<typeof OmpEngine>[0]> = 
       upsert: async () => undefined,
       remove: async () => undefined,
       status: async () => [],
+      catalog: async () => [],
       onDidChangeStatus: () => ({ dispose: () => undefined }),
     },
     plugins: {

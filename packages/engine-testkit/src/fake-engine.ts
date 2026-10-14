@@ -12,6 +12,7 @@ import {
   type Interaction,
   type InteractionAnswer,
   type MarketplaceEntry,
+  type McpCatalogEntry,
   type McpServerInfo,
   type McpStatus,
   type ModelInfo,
@@ -57,6 +58,7 @@ type SettingDescriptorValue = z.infer<typeof SettingDescriptor>
 type SkillInfoValue = z.infer<typeof SkillInfo>
 type McpServerInfoValue = z.infer<typeof McpServerInfo>
 type McpStatusValue = z.infer<typeof McpStatus>
+type McpCatalogEntryValue = z.infer<typeof McpCatalogEntry>
 type PluginInfoValue = z.infer<typeof PluginInfo>
 type MarketplaceEntryValue = z.infer<typeof MarketplaceEntry>
 
@@ -75,6 +77,11 @@ export interface FakeEngineOptions {
    */
   readonly contextUsage?: ContextUsage | null
   readonly autoTitle?: (text: string) => string | null | undefined
+  /**
+   * MCP 在线目录的替身内容（`mcp.catalog` 返回这些）。真实现要起网络，所以默认空表；
+   * 一致性用例与 UI 测试都从这里注入。
+   */
+  readonly mcpCatalog?: readonly z.infer<typeof McpCatalogEntry>[]
 }
 
 export interface FakeToolCall {
@@ -629,6 +636,8 @@ export function createFakeEngine(opts: FakeEngineOptions = {}): FakeEngine {
   let settings: SettingDescriptorValue[] = []
   let skills: SkillInfoValue[] = []
   let mcpServers: McpServerInfoValue[] = []
+  /** 在线目录（Smithery）的替身内容，注入式：真实现要起网络，默认空表。 */
+  const mcpCatalog: McpCatalogEntryValue[] = [...(opts.mcpCatalog ?? [])]
   let plugins: PluginInfoValue[] = []
   let capabilities: CapabilitiesValue = { computerUse: false, browserControl: false }
   let defaultModelRef: ModelRef | null = null
@@ -858,6 +867,15 @@ export function createFakeEngine(opts: FakeEngineOptions = {}): FakeEngine {
       },
       async status(): Promise<McpStatusValue[]> {
         return []
+      },
+      /* 在线目录检索的替身：按标题/说明做大小写不敏感的子串过滤，与 omp 的语义同形但不起网络。
+       * 空关键词返回空数组（真实现同样不查）。 */
+      async catalog(query) {
+        const needle = query.trim().toLowerCase()
+        if (needle === '') return []
+        return mcpCatalog.filter(
+          (entry) => entry.title.toLowerCase().includes(needle) || entry.description.toLowerCase().includes(needle),
+        )
       },
       onDidChangeStatus: () => toDisposable(() => undefined),
     },

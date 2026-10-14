@@ -199,4 +199,51 @@ describe('extensions core', () => {
     expect(h.notifications(extensionsContract, 'skills.changed').length).toBe(1)
     await h.dispose()
   })
+
+  /* 在线目录检索经契约往返：Core 侧只做转发，取不到目录时如实抛（不吞成空数组）。 */
+  test('mcp.catalog 把引擎的目录结果原样交回，空关键词是空数组', async () => {
+    const entry = {
+      id: 'x/one',
+      name: 'x-one',
+      title: 'One',
+      description: '说明',
+      homepage: null,
+      sourceType: 'package' as const,
+      useCount: 3,
+      verified: false,
+      inputs: [],
+      warnings: [],
+      config: { type: 'stdio', command: 'npx' },
+    }
+    const base = createFakeEngine({ mcpCatalog: [entry] })
+    const h = await createCoreHarness({ modules: [workspaces, extensions], engine: base })
+    const api = h.client(extensionsContract)
+
+    expect((await api.call('mcp.catalog', { query: '   ' })).entries).toEqual([])
+
+    const found = await api.call('mcp.catalog', { query: 'One' })
+    expect(found.entries).toEqual([entry])
+
+    await h.dispose()
+  })
+
+  test('目录取不到时抛给调用方，不假装成「没有结果」', async () => {
+    const base = createFakeEngine()
+    const engine = {
+      ...base,
+      mcp: {
+        ...base.mcp,
+        catalog: async () => {
+          throw new AppError('engine.upstream', '目录方 503')
+        },
+      },
+    }
+    const h = await createCoreHarness({ modules: [workspaces, extensions], engine: engine as never })
+    const api = h.client(extensionsContract)
+
+    const err = await api.call('mcp.catalog', { query: 'slack' }).catch((e: unknown) => e)
+    expect((err as AppError).code).toBe('engine.upstream')
+
+    await h.dispose()
+  })
 })

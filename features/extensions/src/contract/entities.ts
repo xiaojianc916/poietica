@@ -1,5 +1,6 @@
 import type {
   MarketplaceEntry as MarketplaceEntrySchema,
+  McpCatalogEntry as McpCatalogEntrySchema,
   McpServerInfo as McpServerInfoSchema,
   McpStatus as McpStatusSchema,
   PluginInfo as PluginInfoSchema,
@@ -11,6 +12,7 @@ import { z } from 'zod'
 export type SkillInfo = z.infer<typeof SkillInfoSchema>
 export type McpServerInfo = z.infer<typeof McpServerInfoSchema>
 export type McpStatus = z.infer<typeof McpStatusSchema>
+export type McpCatalogEntry = z.infer<typeof McpCatalogEntrySchema>
 export type PluginInfo = z.infer<typeof PluginInfoSchema>
 export type MarketplaceEntry = z.infer<typeof MarketplaceEntrySchema>
 
