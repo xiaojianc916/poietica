@@ -3,32 +3,17 @@ import { useKernel } from '@poietica/ui-kernel'
 import { type ReactElement, useCallback, useEffect, useState } from 'react'
 import type { StorageEntry } from '../contract'
 import type { PlatformApi } from './api'
+import { StorageBar } from './storage-usage'
 
-/* 先看见、再清理；占用那张卡带「展开明细」的头按钮，清理那一组两个动作（安全的直接清、要重新登录的走二次确认）。只改数据来源：legacy 的
- * StorageGateway 换成 platform 契约的 storageUsage / storageClear；二次确认用内核的 dialogs.confirm。 */
-const DESCRIPTIONS: Record<string, string> = {
-  ledger: '对话索引、帧日志与附件索引。',
-  settings: '主题、语言、快捷键与 agent 接入档案。',
-  agents: 'agent 自己的配置、凭据、会话与技能。',
-  attachments: '历史对话里的附件字节。',
-  plugins: '装进来的插件副本。',
-  workspace: '无项目会话的工作目录。',
-  tools: '本应用自己装的工具与内置 Python 解释器。',
-  logs: '排障用；日志按天保留。',
-  'native-cache': '可以从上游重取的东西。',
-  'kernel-cache': '网页与代码的磁盘缓存，随时可清，代价是下次加载慢一点。',
-  'browser-data': '站点登录态与本地存储；清完要去那些站点重新登录。',
-  'kernel-state': '内核自己的偏好与网络状态。',
-  other: '数据根里没有归类的文件。',
-}
-
+/* 先看见、再清理；占用那张卡里是一条用量条加一排图例，清理那一组两个动作（安全的直接清、要重新登录的走二次确认）。
+ * 只改数据来源：legacy 的 StorageGateway 换成 platform 契约的 storageUsage / storageClear；二次确认用内核的 dialogs.confirm。
+ * 契约里几个只有几 MB 的 id（数据库、非会话的 agent 数据、临时会话目录）在界面上合成一格：类多了没人看得懂那几兆是什么。 */
 const MEASURED_AT = new Intl.DateTimeFormat('zh-CN', { hour: '2-digit', minute: '2-digit' })
 
 export function StoragePage({ api }: { readonly api: PlatformApi }): ReactElement {
   const { dialogs } = useKernel().kernelServices
   const [entries, setEntries] = useState<readonly StorageEntry[] | null>(null)
   const [busy, setBusy] = useState(false)
-  const [expanded, setExpanded] = useState(false)
   const [measuredAt, setMeasuredAt] = useState<Date | null>(null)
   const [failure, setFailure] = useState<{ where: 'read' | 'clear'; text: string } | null>(null)
 
@@ -68,28 +53,12 @@ export function StoragePage({ api }: { readonly api: PlatformApi }): ReactElemen
     }
   }
 
-  const occupied = (entries ?? []).filter((entry) => entry.bytes > 0)
+  const occupied = entries ?? []
   const total = occupied.reduce((sum, entry) => sum + entry.bytes, 0)
 
   return (
     <SettingsPage>
-      <SettingsGroup
-        headerAction={
-          <Button
-            aria-expanded={expanded}
-            disabled={entries === null}
-            onClick={() => {
-              setExpanded(!expanded)
-            }}
-            size="xs"
-            type="button"
-            variant="soft"
-          >
-            {expanded ? '收起明细' : '展开明细'}
-          </Button>
-        }
-        title="占用"
-      >
+      <SettingsGroup title="占用">
         <SettingRow
           description={
             entries === null || measuredAt === null
@@ -104,20 +73,13 @@ export function StoragePage({ api }: { readonly api: PlatformApi }): ReactElemen
           </Button>
         </SettingRow>
 
-        {expanded
-          ? occupied.map((entry) => (
-              <SettingRow
-                data-storage-entry={entry.id}
-                description={DESCRIPTIONS[entry.id]}
-                key={entry.id}
-                label={entry.label}
-              >
-                <span className="settings-row__path" data-storage-bytes={entry.id}>
-                  {formatBytes(entry.bytes)}
-                </span>
-              </SettingRow>
-            ))
-          : null}
+        <div className="settings-usage__panel">
+          {entries === null ? (
+            <p className="settings-usage__empty">正在测量…</p>
+          ) : (
+            <StorageBar entries={occupied} total={total} />
+          )}
+        </div>
       </SettingsGroup>
 
       <SettingsGroup title="清理">

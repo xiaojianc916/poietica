@@ -30,16 +30,17 @@ const CACHE_DIRS = new Set([
 ])
 
 export const STORAGE_LABELS: Readonly<Record<StorageEntryId, string>> = Object.freeze({
-  conversations: '对话记录',
-  database: '数据库',
+  conversations: '聊天',
+  /* 数据库、非会话的 agent 数据、临时会话目录都只有几 MB，单列一格没人看得懂这几兆是什么。 */
+  database: 'Agent 数据',
   attachments: '附件',
   'omp-other': 'Agent 数据',
-  scratch: '临时对话文件夹',
+  scratch: 'Agent 数据',
   tools: '内置工具',
   logs: '日志',
   'kernel-cache': '浏览器缓存',
-  'browser-data': '内置浏览器数据',
-  'kernel-state': '其它浏览器状态',
+  'browser-data': '浏览器数据',
+  'kernel-state': '浏览器数据',
 })
 
 export const STORAGE_CLEANABLE: Readonly<Record<StorageEntryId, 'none' | 'safe' | 'confirm'>> = Object.freeze({

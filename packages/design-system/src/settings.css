@@ -1111,3 +1111,121 @@
   word-break: break-all;
   text-align: right;
 }
+/* ---------------- 存储占用（用量条 + 图例） ---------------- */
+
+/*
+ * 一条按大小铺满的堆叠条，下面一排「一格一类」的图例；图例一格两行，色点 + 标签在上、读数在下。
+ *
+ * 条是**实体**：底色就是「已用」那档序列色，没铺满的那截由容器底色露出来（图一那条黄与灰）。
+ * 六档色借趋势图那套序列色 —— 同是「多个平级类别」，谈不上对错，用不上语义色那四档。
+ */
+.settings-storage {
+  --settings-series-0: #4099ff;
+  --settings-series-1: #46bf72;
+  --settings-series-2: #7b5ce5;
+  --settings-series-3: #ff5c5c;
+  --settings-series-4: #ff8a30;
+  --settings-series-5: #42c8c8;
+
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+/*
+ * 高 12px、圆角 6px，两端各是半个圆。底色只在**浅色**下是那截灰条：图一那张是浅色主题；
+ * 深色下换成 --ui-divider，同族里最淡的一档 —— 系列蓝在深色卡面上正是一块实色，用它当轨道
+ * 会把「剩下多少没用到」读成「又用掉了一截」。
+ */
+.settings-storage__bar {
+  display: flex;
+  overflow: hidden;
+  block-size: 12px;
+  border-radius: 6px;
+  background: color-mix(in oklab, var(--ui-divider) 50%, transparent);
+}
+
+:root[data-theme="dark"] .settings-storage__bar {
+  background: var(--ui-divider);
+}
+
+.settings-storage__segment {
+  flex: none;
+  block-size: 100%;
+}
+
+.settings-storage__legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px 18px;
+  margin: 0;
+}
+
+.settings-storage__item {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-inline-size: 0;
+}
+
+.settings-storage__item dt {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--ui-muted-foreground);
+  font-size: 12px;
+}
+
+.settings-storage__item dd {
+  margin: 0;
+  color: var(--ui-foreground);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+
+/* 还没量出字节的格子与标签同一档色：读数那栏写的是「0 字节」，不该读成一个真实读数。 */
+.settings-storage__item dd[data-unmeasured="true"] {
+  color: var(--ui-muted-foreground);
+}
+
+.settings-storage__swatch {
+  flex: none;
+  inline-size: 8px;
+  block-size: 8px;
+  border-radius: 50%;
+}
+
+/* 「其它」不进序列色轮转：它在条上的样子就是那截轨道底色，色块照抄同一档。 */
+.settings-storage__swatch[data-series="-1"] {
+  background: var(--ui-divider);
+}
+
+.settings-storage__segment[data-series="0"],
+.settings-storage__swatch[data-series="0"] {
+  background: var(--settings-series-0);
+}
+
+.settings-storage__segment[data-series="1"],
+.settings-storage__swatch[data-series="1"] {
+  background: var(--settings-series-1);
+}
+
+.settings-storage__segment[data-series="2"],
+.settings-storage__swatch[data-series="2"] {
+  background: var(--settings-series-2);
+}
+
+.settings-storage__segment[data-series="3"],
+.settings-storage__swatch[data-series="3"] {
+  background: var(--settings-series-3);
+}
+
+.settings-storage__segment[data-series="4"],
+.settings-storage__swatch[data-series="4"] {
+  background: var(--settings-series-4);
+}
+
+.settings-storage__segment[data-series="5"],
+.settings-storage__swatch[data-series="5"] {
+  background: var(--settings-series-5);
+}
