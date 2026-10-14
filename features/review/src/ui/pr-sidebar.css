@@ -1,0 +1,30 @@
+/*
+ * 左栏的皮肤。几何与配色都从 design-system 的 token 取。
+ *
+ * 底与页面同色（--color-ground，深色下 #181818）：三栏是同一块纸，靠留白分开，不靠色差。
+ * 选中行因此不能再用 sidebar-accent（那档在 #181818 上几乎看不出来），改用控制面那一档。
+ */
+
+/* 左栏的底就是页面地色（深色下 #181818），与中栏、右栏同一块底 —— 用户明确要求。
+   三栏之间因此没有色差，只有留白。 */
+.pr-sidebar {
+  background: var(--color-ground);
+}
+
+/* 搜索药丸：在 #181818 的地色上抬一档（--color-surface 深色下是 #202020）。 */
+.pr-sidebar__search {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+}
+
+.pr-sidebar__search:focus-within {
+  border-color: var(--color-ring);
+}
+
+/* 加载骨架：七条与参考实现同数，高度贴近一行两行之间的实感。 */
+.pr-sidebar__skeleton {
+  height: 57px;
+  border-radius: var(--radius-lg);
+  background: var(--color-muted);
+  opacity: 0.35;
+}

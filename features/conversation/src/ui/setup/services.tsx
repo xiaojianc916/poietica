@@ -2,10 +2,11 @@ import { type WindowCloseGuard, WindowCloseToken } from '@poietica/feature-platf
 import { createId, type Disposable } from '@poietica/foundation'
 import { builtinPoints } from '@poietica/ui-kernel'
 import { FileText, MessageSquareText } from 'lucide-react'
-import { ConversationUiToken, SkillDocumentToken, toolCallRenderers } from '../../ui-api'
+import { ConversationUiToken, MarkdownRendererToken, SkillDocumentToken, toolCallRenderers } from '../../ui-api'
 import { AuxiliaryComposer } from '../components/composer/auxiliary-composer'
 import { SkillDocumentPane } from '../components/skill-document-pane'
 import { SKILL_DOCUMENT_PANEL, toggleSkillDocument } from '../components/skill-document-store'
+import { Prose } from '../components/timeline/prose/prose'
 import { createWidgetCard } from '../components/timeline/widget-card'
 import { ConversationProviders } from '../composition'
 import { confirmQuit } from '../session/notify'
@@ -85,6 +86,11 @@ export function createConversationServices(setup: ConversationSetup, actions: Co
         void platform.call('shell.openExternal', { url })
       },
     }),
+  })
+
+  /* 其它功能要画一段 Markdown 时经这个令牌取渲染器（review 页的 PR 正文与评论）。 */
+  ctx.services.provide(MarkdownRendererToken, {
+    render: (text: string) => <Prose codeBlockMaxHeight={420} mode="static" text={text} />,
   })
 
   ctx.services.provide(ConversationUiToken, {

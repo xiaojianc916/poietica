@@ -1,5 +1,15 @@
 import type { UiFeatureContext } from '@poietica/ui-kernel'
-import { type GitBranch, type GitStatus, type ReviewFile, reviewContract } from '../contract'
+import {
+  type GitBranch,
+  type GithubAvailability,
+  type GithubComment,
+  type GithubMergeMethod,
+  type GithubPullRequest,
+  type GithubRepository,
+  type GitStatus,
+  type ReviewFile,
+  reviewContract,
+} from '../contract'
 
 /** `ctx.rpc(reviewContract)` 的薄封装。契约以 workspaceId 为键而审查面按仓库根寻址，所以「哪个工作区」固定在组合根这一层。 */
 export function createReviewApi(ctx: UiFeatureContext, workspaceId: string) {
@@ -24,6 +34,21 @@ export function createReviewApi(ctx: UiFeatureContext, workspaceId: string) {
       rpc.call('git.commit', { workspaceId, message, stageAll }),
     watch: (): Promise<Record<string, never>> => rpc.call('git.watch', { workspaceId }),
     unwatch: (): Promise<Record<string, never>> => rpc.call('git.unwatch', { workspaceId }),
+    githubAvailability: (): Promise<GithubAvailability> => rpc.call('github.availability', {}),
+    githubRepository: (): Promise<GithubRepository | null> =>
+      rpc.call('github.repository', { workspaceId }).then((r) => r.repository),
+    githubPullRequests: (): Promise<{ repository: GithubRepository | null; pulls: readonly GithubPullRequest[] }> =>
+      rpc.call('github.pullRequests', { workspaceId, includeClosed: true }),
+    githubPullRequest: (number: number): Promise<GithubPullRequest> =>
+      rpc.call('github.pullRequest', { workspaceId, number }).then((r) => r.pull),
+    githubComments: (number: number): Promise<readonly GithubComment[]> =>
+      rpc.call('github.comments', { workspaceId, number }).then((r) => r.comments),
+    githubComment: (number: number, body: string): Promise<GithubComment> =>
+      rpc.call('github.comment', { workspaceId, number, body }).then((r) => r.comment),
+    githubSetDraft: (number: number, draft: boolean): Promise<void> =>
+      rpc.call('github.setDraft', { workspaceId, number, draft }).then(() => undefined),
+    githubMerge: (number: number, method: GithubMergeMethod): Promise<void> =>
+      rpc.call('github.mergePullRequest', { workspaceId, number, method }).then(() => undefined),
     onChanged: (listener: () => void) =>
       rpc.on('git.changed', (p: { workspaceId: string }) => {
         if (p.workspaceId === workspaceId) listener()
@@ -60,5 +85,17 @@ export function createReviewGateway(api: ReviewApi): import('./review-store').Re
       }
     },
     commit: (request) => api.commit(request.message, request.stageAll),
+  }
+}
+/** 代码审查页那一份：契约里 github.* 的薄封装。 */
+export function createGithubGateway(api: ReviewApi): import('./pr-store').PrGateway {
+  return {
+    availability: () => api.githubAvailability(),
+    pullRequests: () => api.githubPullRequests(),
+    pullRequest: (number) => api.githubPullRequest(number),
+    comments: (number) => api.githubComments(number),
+    comment: (number, body) => api.githubComment(number, body),
+    setDraft: (number, draft) => api.githubSetDraft(number, draft),
+    merge: (number, method) => api.githubMerge(number, method),
   }
 }

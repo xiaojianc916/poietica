@@ -183,6 +183,20 @@ export interface ConversationUi {
 export const ConversationUiToken = defineServiceToken<ConversationUi>('conversation', 'ConversationUi')
 
 /**
+ * Markdown 渲染器：把一段 Markdown 画成节点。
+ *
+ * 能画 markdown 的那一套排版（Prose）属于 conversation 的会话时间线；别的功能要显示一段
+ * 用户可见的 Markdown（例如 review 页里 GitHub 上 PR 的正文与评论）时不得 import 本功能的
+ * `ui`，所以由 conversation 把渲染器放进服务令牌，消费方直接调用。
+ *
+ * 渲染是纯的：不认识 IPC，也不需要会话上下文。
+ */
+export interface MarkdownRenderer {
+  render(text: string): ReactNode
+}
+export const MarkdownRendererToken = defineServiceToken<MarkdownRenderer>('conversation', 'MarkdownRenderer')
+
+/**
  * 技能文档：看到一份 SKILL.md。
  *
  * 右栏面板由功能经 `panels` 贡献点注入，而**能画 markdown 的那一套排版（Prose）属于

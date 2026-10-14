@@ -1,0 +1,99 @@
+/*
+ * 右栏的皮肤。
+ *
+ * 这里**不画卡片**：四节之间靠 gap-7（28px）的留白分开，节内是「标题一行 + 内容一列」。
+ * 底是页面地色 #181818，卡片框在深色下会变成四条亮边，反而比内容抢眼（用户明确要求去掉）。
+ *
+ * 颜色一律走 design-system 的语义 token（--ui-* / --color-*），本文件没有一处自造颜色。
+ */
+
+.pr-info {
+  display: flex;
+  flex-direction: column;
+  gap: 28px;
+  font-size: 0.8125rem;
+  line-height: 1.45;
+  color: var(--ui-foreground);
+}
+
+.pr-info__section {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 8px;
+}
+
+/* 标题行固定 24px 高：标题与右端那枚 Request 胶囊在同一基线上。 */
+.pr-info__head {
+  display: flex;
+  min-height: 24px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+/* 节题：次要墨色、正常字重 —— 它是这一节的说明，不是内容本身。 */
+.pr-info__label {
+  margin: 0;
+  color: var(--ui-muted-foreground);
+  font-size: 0.8125rem;
+  font-weight: 400;
+}
+
+.pr-info__body {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 8px;
+}
+
+/*
+ * 检查项一行：字形在内、名字在外，左右各出 6px 的内边距让悬停底色比文字宽一点
+ * （负外边距把它拉回来，所以整列仍然对齐）。
+ */
+.pr-info__check {
+  display: flex;
+  min-width: 0;
+  margin-inline: -6px;
+  align-items: center;
+  gap: 8px;
+  border-radius: var(--ui-radius-md);
+  padding: 4px 6px;
+}
+
+.pr-info__more {
+  width: fit-content;
+  border-radius: var(--ui-radius-md);
+  color: var(--ui-muted-foreground);
+  font-size: 0.75rem;
+}
+
+.pr-info__more:hover {
+  color: var(--ui-foreground);
+}
+
+/* 空态：整块只剩这一句，居中且不抢视线。 */
+.pr-info__empty {
+  margin: 0;
+  color: var(--ui-muted-foreground);
+  text-align: center;
+}
+
+/* 骨架：呼吸而不是扫光 —— 四节同时扫光会把整个右栏变成一根亮条。 */
+.pr-info__skeleton-line {
+  block-size: 10px;
+  border-radius: var(--ui-radius-sm);
+  background: var(--ui-sunken);
+  animation: pr-info-breathe 1.4s var(--ui-ease-standard) infinite;
+}
+
+@keyframes pr-info-breathe {
+  0%,
+  100% {
+    opacity: 1;
+  }
+
+  50% {
+    opacity: 0.45;
+  }
+}

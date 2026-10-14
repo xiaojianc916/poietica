@@ -8384,6 +8384,801 @@
       }
     },
     {
+      "name": "github.availability",
+      "owner": "core",
+      "timeoutMs": 30000,
+      "description": "gh 是否可用（装了且登录了）；读一次，UI 拿它决定整页的呈现",
+      "params": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {}
+      },
+      "result": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "available": {
+            "type": "boolean"
+          },
+          "reason": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "login": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "available",
+          "reason",
+          "login"
+        ],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "github.comment",
+      "owner": "core",
+      "timeoutMs": 60000,
+      "description": "发一条评论",
+      "params": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "workspaceId": {
+            "type": "string",
+            "minLength": 1
+          },
+          "number": {
+            "type": "integer",
+            "exclusiveMinimum": 0,
+            "maximum": 9007199254740991
+          },
+          "body": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "required": [
+          "workspaceId",
+          "number",
+          "body"
+        ]
+      },
+      "result": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "comment": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string"
+              },
+              "kind": {
+                "type": "string",
+                "enum": [
+                  "comment",
+                  "review"
+                ]
+              },
+              "author": {
+                "type": "string"
+              },
+              "avatarUrl": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "body": {
+                "type": "string"
+              },
+              "createdAt": {
+                "type": "string"
+              },
+              "reviewState": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "enum": [
+                      "approved",
+                      "changes_requested",
+                      "review_required",
+                      "none"
+                    ]
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": [
+              "id",
+              "kind",
+              "author",
+              "avatarUrl",
+              "body",
+              "createdAt",
+              "reviewState"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "required": [
+          "comment"
+        ],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "github.comments",
+      "owner": "core",
+      "timeoutMs": 60000,
+      "description": "PR 的评论与评审（时间线标签页）",
+      "params": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "workspaceId": {
+            "type": "string",
+            "minLength": 1
+          },
+          "number": {
+            "type": "integer",
+            "exclusiveMinimum": 0,
+            "maximum": 9007199254740991
+          }
+        },
+        "required": [
+          "workspaceId",
+          "number"
+        ]
+      },
+      "result": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "comments": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string"
+                },
+                "kind": {
+                  "type": "string",
+                  "enum": [
+                    "comment",
+                    "review"
+                  ]
+                },
+                "author": {
+                  "type": "string"
+                },
+                "avatarUrl": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "body": {
+                  "type": "string"
+                },
+                "createdAt": {
+                  "type": "string"
+                },
+                "reviewState": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "enum": [
+                        "approved",
+                        "changes_requested",
+                        "review_required",
+                        "none"
+                      ]
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                }
+              },
+              "required": [
+                "id",
+                "kind",
+                "author",
+                "avatarUrl",
+                "body",
+                "createdAt",
+                "reviewState"
+              ],
+              "additionalProperties": false
+            }
+          }
+        },
+        "required": [
+          "comments"
+        ],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "github.mergePullRequest",
+      "owner": "core",
+      "timeoutMs": 60000,
+      "description": "合并这个 PR（方法由调用方选：merge / squash / rebase）",
+      "params": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "workspaceId": {
+            "type": "string",
+            "minLength": 1
+          },
+          "number": {
+            "type": "integer",
+            "exclusiveMinimum": 0,
+            "maximum": 9007199254740991
+          },
+          "method": {
+            "type": "string",
+            "enum": [
+              "merge",
+              "squash",
+              "rebase"
+            ]
+          }
+        },
+        "required": [
+          "workspaceId",
+          "number",
+          "method"
+        ]
+      },
+      "result": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {},
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "github.pullRequest",
+      "owner": "core",
+      "timeoutMs": 60000,
+      "description": "单个 pull request 的详情（正文 + 检查项）",
+      "params": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "workspaceId": {
+            "type": "string",
+            "minLength": 1
+          },
+          "number": {
+            "type": "integer",
+            "exclusiveMinimum": 0,
+            "maximum": 9007199254740991
+          }
+        },
+        "required": [
+          "workspaceId",
+          "number"
+        ]
+      },
+      "result": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "pull": {
+            "type": "object",
+            "properties": {
+              "number": {
+                "type": "integer",
+                "minimum": -9007199254740991,
+                "maximum": 9007199254740991
+              },
+              "title": {
+                "type": "string"
+              },
+              "state": {
+                "type": "string",
+                "enum": [
+                  "open",
+                  "merged",
+                  "closed"
+                ]
+              },
+              "draft": {
+                "type": "boolean"
+              },
+              "author": {
+                "type": "string"
+              },
+              "avatarUrl": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "createdAt": {
+                "type": "string"
+              },
+              "updatedAt": {
+                "type": "string"
+              },
+              "mergedAt": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "headBranch": {
+                "type": "string"
+              },
+              "baseBranch": {
+                "type": "string"
+              },
+              "additions": {
+                "type": "integer",
+                "minimum": -9007199254740991,
+                "maximum": 9007199254740991
+              },
+              "deletions": {
+                "type": "integer",
+                "minimum": -9007199254740991,
+                "maximum": 9007199254740991
+              },
+              "changedFiles": {
+                "type": "integer",
+                "minimum": -9007199254740991,
+                "maximum": 9007199254740991
+              },
+              "commits": {
+                "type": "integer",
+                "minimum": -9007199254740991,
+                "maximum": 9007199254740991
+              },
+              "comments": {
+                "type": "integer",
+                "minimum": -9007199254740991,
+                "maximum": 9007199254740991
+              },
+              "reviews": {
+                "type": "integer",
+                "minimum": -9007199254740991,
+                "maximum": 9007199254740991
+              },
+              "mergeStatus": {
+                "type": "string",
+                "enum": [
+                  "clean",
+                  "conflicting",
+                  "blocked",
+                  "behind",
+                  "draft",
+                  "unknown"
+                ]
+              },
+              "reviewState": {
+                "type": "string",
+                "enum": [
+                  "approved",
+                  "changes_requested",
+                  "review_required",
+                  "none"
+                ]
+              },
+              "url": {
+                "type": "string"
+              },
+              "body": {
+                "type": "string"
+              },
+              "labels": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "checks": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "name": {
+                      "type": "string"
+                    },
+                    "state": {
+                      "type": "string",
+                      "enum": [
+                        "success",
+                        "failure",
+                        "pending",
+                        "neutral",
+                        "skipped"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "name",
+                    "state"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            },
+            "required": [
+              "number",
+              "title",
+              "state",
+              "draft",
+              "author",
+              "avatarUrl",
+              "createdAt",
+              "updatedAt",
+              "mergedAt",
+              "headBranch",
+              "baseBranch",
+              "additions",
+              "deletions",
+              "changedFiles",
+              "commits",
+              "comments",
+              "reviews",
+              "mergeStatus",
+              "reviewState",
+              "url",
+              "body",
+              "labels",
+              "checks"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "required": [
+          "pull"
+        ],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "github.pullRequests",
+      "owner": "core",
+      "timeoutMs": 60000,
+      "description": "仓库的 pull request 列表（列表栏用它）",
+      "params": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "workspaceId": {
+            "type": "string",
+            "minLength": 1
+          },
+          "includeClosed": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "workspaceId"
+        ]
+      },
+      "result": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "repository": {
+            "anyOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "owner": {
+                    "type": "string"
+                  },
+                  "name": {
+                    "type": "string"
+                  },
+                  "fullName": {
+                    "type": "string"
+                  },
+                  "url": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "owner",
+                  "name",
+                  "fullName",
+                  "url"
+                ],
+                "additionalProperties": false
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "pulls": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "number": {
+                  "type": "integer",
+                  "minimum": -9007199254740991,
+                  "maximum": 9007199254740991
+                },
+                "title": {
+                  "type": "string"
+                },
+                "state": {
+                  "type": "string",
+                  "enum": [
+                    "open",
+                    "merged",
+                    "closed"
+                  ]
+                },
+                "draft": {
+                  "type": "boolean"
+                },
+                "author": {
+                  "type": "string"
+                },
+                "avatarUrl": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "createdAt": {
+                  "type": "string"
+                },
+                "updatedAt": {
+                  "type": "string"
+                },
+                "mergedAt": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "headBranch": {
+                  "type": "string"
+                },
+                "baseBranch": {
+                  "type": "string"
+                },
+                "additions": {
+                  "type": "integer",
+                  "minimum": -9007199254740991,
+                  "maximum": 9007199254740991
+                },
+                "deletions": {
+                  "type": "integer",
+                  "minimum": -9007199254740991,
+                  "maximum": 9007199254740991
+                },
+                "changedFiles": {
+                  "type": "integer",
+                  "minimum": -9007199254740991,
+                  "maximum": 9007199254740991
+                },
+                "commits": {
+                  "type": "integer",
+                  "minimum": -9007199254740991,
+                  "maximum": 9007199254740991
+                },
+                "comments": {
+                  "type": "integer",
+                  "minimum": -9007199254740991,
+                  "maximum": 9007199254740991
+                },
+                "reviews": {
+                  "type": "integer",
+                  "minimum": -9007199254740991,
+                  "maximum": 9007199254740991
+                },
+                "mergeStatus": {
+                  "type": "string",
+                  "enum": [
+                    "clean",
+                    "conflicting",
+                    "blocked",
+                    "behind",
+                    "draft",
+                    "unknown"
+                  ]
+                },
+                "reviewState": {
+                  "type": "string",
+                  "enum": [
+                    "approved",
+                    "changes_requested",
+                    "review_required",
+                    "none"
+                  ]
+                },
+                "url": {
+                  "type": "string"
+                },
+                "body": {
+                  "type": "string"
+                },
+                "labels": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                },
+                "checks": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "name": {
+                        "type": "string"
+                      },
+                      "state": {
+                        "type": "string",
+                        "enum": [
+                          "success",
+                          "failure",
+                          "pending",
+                          "neutral",
+                          "skipped"
+                        ]
+                      }
+                    },
+                    "required": [
+                      "name",
+                      "state"
+                    ],
+                    "additionalProperties": false
+                  }
+                }
+              },
+              "required": [
+                "number",
+                "title",
+                "state",
+                "draft",
+                "author",
+                "avatarUrl",
+                "createdAt",
+                "updatedAt",
+                "mergedAt",
+                "headBranch",
+                "baseBranch",
+                "additions",
+                "deletions",
+                "changedFiles",
+                "commits",
+                "comments",
+                "reviews",
+                "mergeStatus",
+                "reviewState",
+                "url",
+                "body",
+                "labels",
+                "checks"
+              ],
+              "additionalProperties": false
+            }
+          }
+        },
+        "required": [
+          "repository",
+          "pulls"
+        ],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "github.repository",
+      "owner": "core",
+      "timeoutMs": 30000,
+      "description": "工作区远端对应的 GitHub 仓库；不是 GitHub 时 repository=null",
+      "params": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "workspaceId": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "required": [
+          "workspaceId"
+        ]
+      },
+      "result": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "repository": {
+            "anyOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "owner": {
+                    "type": "string"
+                  },
+                  "name": {
+                    "type": "string"
+                  },
+                  "fullName": {
+                    "type": "string"
+                  },
+                  "url": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "owner",
+                  "name",
+                  "fullName",
+                  "url"
+                ],
+                "additionalProperties": false
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "repository"
+        ],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "github.setDraft",
+      "owner": "core",
+      "timeoutMs": 60000,
+      "description": "把 PR 转成草稿 / 标记为可评审（gh pr ready [--undo]）",
+      "params": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "workspaceId": {
+            "type": "string",
+            "minLength": 1
+          },
+          "number": {
+            "type": "integer",
+            "exclusiveMinimum": 0,
+            "maximum": 9007199254740991
+          },
+          "draft": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "workspaceId",
+          "number",
+          "draft"
+        ]
+      },
+      "result": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {},
+        "additionalProperties": false
+      }
+    },
+    {
       "name": "interactions.list",
       "owner": "core",
       "timeoutMs": 30000,
@@ -26691,12 +27486,32 @@
       "message": "系统中找不到 git"
     },
     {
+      "code": "review.github_failed",
+      "message": "GitHub 请求失败"
+    },
+    {
+      "code": "review.github_unavailable",
+      "message": "读不到 GitHub：没装 gh，或还没登录"
+    },
+    {
+      "code": "review.merge_refused",
+      "message": "GitHub 拒绝这次合并"
+    },
+    {
+      "code": "review.no_composer",
+      "message": "当前页面没有可用的输入框"
+    },
+    {
       "code": "review.not_a_repository",
       "message": "不是 git 仓库"
     },
     {
       "code": "review.nothing_to_commit",
       "message": "没有可以提交的内容"
+    },
+    {
+      "code": "review.pull_request_missing",
+      "message": "这个 pull request 已经不在了"
     },
     {
       "code": "terminal.cwd_not_found",

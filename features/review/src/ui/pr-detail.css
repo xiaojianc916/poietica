@@ -1,0 +1,76 @@
+/*
+ * 中栏的皮肤。正文的排版交给 Prose（markdown 由页面注入），这里只给壳：工具条、评论卡、输入条、骨架。
+ * 整页不画左右分割线。
+ */
+
+/*
+ * 中栏的滚动体：滚轮照常滚，但不画滚动条 —— 用户要求「把中间那栏的滑动条隐藏」。
+ * 隐藏而不是禁止滚动：正文本来就长，禁掉就看不全了。
+ * scrollbar-width 管 Firefox/新 Chromium，::-webkit-scrollbar 管老的那条路。
+ */
+.pr-detail__scroll {
+  min-height: 0;
+  flex: 1;
+  overflow-y: auto;
+  scrollbar-width: none;
+}
+
+.pr-detail__scroll::-webkit-scrollbar {
+  display: none;
+}
+
+/* 中栏顶行：三个标签（Summary / Changes / Timeline）。动作在右栏那一行的上方。 */
+.pr-detail__tabs {
+  display: flex;
+  min-height: 44px;
+  flex: none;
+  flex-wrap: nowrap;
+  align-items: center;
+  gap: 8px;
+  padding-inline: 12px;
+}
+
+/* Prose 自带排版；这里只压掉它的首尾外边距，免得正文与卡片之间忽大忽小。 */
+.pr-detail__prose > :first-child {
+  margin-top: 0;
+}
+
+.pr-detail__prose > :last-child {
+  margin-bottom: 0;
+}
+
+.pr-detail__comment {
+  background: var(--color-surface);
+}
+
+.pr-detail__avatar {
+  background: var(--color-muted);
+  border-radius: 9999px;
+}
+
+.pr-detail__note {
+  padding: 12px;
+  border-radius: var(--radius-lg);
+  color: var(--color-muted-foreground);
+  font-size: 0.8125rem;
+  line-height: 1.6;
+}
+
+.pr-detail__input {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+}
+
+.pr-detail__input:focus-within {
+  border-color: var(--color-ring);
+}
+
+.pr-detail__skeleton {
+  border-radius: var(--radius-md);
+  background: var(--color-muted);
+  opacity: 0.5;
+}
+/* 评论区与正文之间那道线：它把「这条 PR 说了什么」与「大家说了什么」分开。 */
+.pr-detail__comments {
+  border-top: 1px solid var(--ui-divider-subtle);
+}

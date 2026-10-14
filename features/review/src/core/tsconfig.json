@@ -12,6 +12,9 @@
       "path": "../../../../packages/git"
     },
     {
+      "path": "../../../../packages/process-kit"
+    },
+    {
       "path": "../../../workspaces/src/core-api"
     },
     {

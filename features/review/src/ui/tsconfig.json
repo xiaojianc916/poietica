@@ -15,6 +15,9 @@
       "path": "../../../conversation/src/ui-api"
     },
     {
+      "path": "../../../platform/src/contract"
+    },
+    {
       "path": "../../../workspaces/src/ui-api"
     },
     {

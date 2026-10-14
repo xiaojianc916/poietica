@@ -1,3 +1,4 @@
+import { platformContract } from '@poietica/feature-platform/contract'
 import { type WorkspacesUi, WorkspacesUiToken } from '@poietica/feature-workspaces/ui-api'
 import {
   type NavigationService,
@@ -9,6 +10,7 @@ import {
 import { FileDiff, GitCompareArrows } from 'lucide-react'
 import { type ReactNode, useEffect, useMemo, useState } from 'react'
 import { createReviewApi, createReviewGateway } from './api'
+import { CodeReviewPage } from './pr-page'
 import { ReviewPane } from './review-pane'
 import type { ReviewFailureReport } from './review-store'
 
@@ -118,16 +120,28 @@ export function CodeReviewNavRow(): ReactNode {
   )
 }
 
-/* 「代码审查」页只是**骨架**：先占住这一格，正文待补。 */
-export function CodeReviewSurface(): ReactNode {
+/*
+ * 侧栏导航「代码审查」那一行落到的整页：左列表 / 中详情 / 右信息栏，数据是活动工作区远端仓库上的
+ * pull request（读法在 review/core 的 gh 封装里）。页面本身不知道「哪个工作区」，跟面板那一路一样由
+ * 组合根这一层固定。
+ */
+export function CodeReviewSurface({
+  ctx,
+  workspaces,
+}: {
+  readonly ctx: Parameters<typeof createReviewApi>[0]
+  readonly workspaces: WorkspacesUi
+}): ReactNode {
+  const platform = ctx.rpc(platformContract)
   return (
-    <section className="h-full overflow-y-auto bg-ground">
-      <div className="mx-auto w-full max-w-3xl px-8 pb-16 pt-10">
-        <header>
-          <h1 className="text-3xl font-semibold tracking-tight">代码审查</h1>
-          <p className="mt-2 text-xs leading-5 text-muted-foreground">这一页的正文还没写。</p>
-        </header>
-      </div>
-    </section>
+    <CodeReviewPage
+      ctx={ctx}
+      openExternal={(url) => {
+        void platform.call('shell.openExternal', { url }).catch((cause: unknown) => {
+          ctx.logger.warn('链接没能打开', { error: String(cause) })
+        })
+      }}
+      workspaces={workspaces}
+    />
   )
 }

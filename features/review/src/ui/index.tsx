@@ -14,7 +14,7 @@ const PANEL_ID = 'review.panel'
  * 「审查」—— 读活动工作区；statusItems（left, order 20）当前分支名；commands review.openChanges（Ctrl+Shift+G）/ review.commit。 */
 export default defineUiFeature({
   id: 'review',
-  dependsOn: ['conversation', 'workspaces'],
+  dependsOn: ['conversation', 'platform', 'workspaces'],
   setup(ctx) {
     const layout = ctx.services.get(LayoutToken) as LayoutService
     const toasts = ctx.services.get(ToastsToken)
@@ -54,7 +54,7 @@ export default defineUiFeature({
     ctx.contribute(builtinPoints.surfaces, {
       id: 'review.code',
       title: '代码审查',
-      component: CodeReviewSurface,
+      component: () => <CodeReviewSurface ctx={ctx} workspaces={workspaces} />,
     })
 
     ctx.contribute(builtinPoints.statusItems, {

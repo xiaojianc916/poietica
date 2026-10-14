@@ -31,6 +31,10 @@ type OutputChunk = Rollup.OutputChunk
  * 开发版：与安装版同一张策略表（06 页 §4.8），只额外放开 Vite HMR 需要的两处 ——
  * `script-src` 的 'unsafe-inline'（React 刷新前导脚本）与 `connect-src` 的 localhost websocket。
  *
+ * img-src 里放行 avatars.githubusercontent.com：代码审查页要画 GitHub 的作者头像，而这张表是
+ * 白名单 —— 不给这一条，图片会被 Chromium 静默拦掉（页面只是没有头像，控制台才有一条 CSP 报告）。
+ * 只放行这一个头像主机，不放行任意 https。
+ *
  * 'wasm-unsafe-eval' 是产品需要，不是开发版特权：diff 的语法着色走 shiki，它的
  * oniguruma 引擎是 WebAssembly；不给这条，Chromium 直接拒绝编译 WASM，着色静默
  * 退化成一堆没有颜色的正文（真机上就是这么冒出来的）。它只放行 WASM 编译，不等于
@@ -40,7 +44,7 @@ const DEV_CSP = [
   "default-src 'self'",
   "script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval'",
   "connect-src 'self' ws://localhost:* http://localhost:*",
-  "img-src 'self' data: blob: poietica-asset:",
+  "img-src 'self' data: blob: poietica-asset: https://avatars.githubusercontent.com",
   "media-src 'self' blob: poietica-asset:",
   "style-src 'self' 'unsafe-inline'",
   "font-src 'self' data:",
@@ -56,7 +60,7 @@ const PROD_CSP = [
   "default-src 'self'",
   "script-src 'self' 'wasm-unsafe-eval'",
   "connect-src 'self'",
-  "img-src 'self' data: blob: poietica-asset:",
+  "img-src 'self' data: blob: poietica-asset: https://avatars.githubusercontent.com",
   "media-src 'self' blob: poietica-asset:",
   "style-src 'self' 'unsafe-inline'",
   "font-src 'self' data:",

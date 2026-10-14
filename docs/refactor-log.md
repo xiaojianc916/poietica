@@ -2554,3 +2554,129 @@ host ready、core ready（protocol 15 / engine 18.10.3），窗口标题 `Poieti
 **待决**：`tooling/checks/ticker-layout/run.ts` 的 `ELECTRON` 常量写死了
 `node_modules/electron/dist/electron.exe`，改走 `require.resolve('electron')` + `path.txt`
 更稳（isolated linker 下前者不成立）。
+
+
+---
+
+## 代码审查页：按 synara 复刻三栏（PR 列表 / 详情 / 信息栏）
+
+**目标**：`review.code` 表面此前只有一句「这一页的正文还没写。」；本次把它做成参考实现
+（synara，`D:\xiaojianc\synara-ref`，只读）那一页的样子：**左列表 + 中详情 + 右信息栏**，
+事实源是工作区远端仓库的 GitHub pull request。
+
+### 与参考实现的偏差
+
+1. **事实源从「GitHub 应用内集成」换成 `gh` CLI**。参考实现自带 GitHub 客户端与限流处理；
+   本仓没有 GitHub 集成，也不该为一个页面新引入一套 OAuth。改用开发机上已登录的 `gh`
+   （读 `gh api` / `gh api graphql`，写 `gh pr comment|edit|merge`）。代价与边界写在这里：
+   没装或没登录 `gh` 时整页降级为一句说明（`review.github_unavailable`），而不是空白或报错。
+2. **不做 diff 正文**。参考实现的 Changes 标签接的是它自己的 diff 渲染管线；本次只给
+   「N files changed +553 −358」的统计与一句「去 GitHub 上看」的诚实说明，不假装能读 diff。
+   审查面板（右坞 `review.panel`）本来就是本仓的 diff 阅读处，两者不重复造。
+3. **Issues 一栏留空（计数恒为 0）**，PR 之外的条目本次不做；过滤标签照参考实现保留
+   `All / PRs / Issues` 三档，Issues 选中时为空列表。宁可空着，也不把 issue 伪装成 PR。
+4. **评论与评审为只读 + 发评论 + 请求评审**；参考实现的 `Send to agent` 在这里落成
+   「把这条 PR 的引用插进会话输入框」（不自动发送）—— 本仓的 agent 入口是会话输入框，
+   与参考实现的 side chat 不是一回事。
+
+### 架构落点（按本仓守则，不是照抄参考实现的目录）
+
+| 关注点 | 落在 |
+| --- | --- |
+| 契约 | `features/review/src/contract`：命名空间 `github`，七个方法与四个错误码 |
+| 读写 GitHub | `features/review/src/core`（Core 进程，`gh` 薄封装；只读 + 三种写操作） |
+| 页面状态机 | `features/review/src/ui/pr-store.ts`（视图三块共用一个 store） |
+| markdown 渲染 | conversation 经新的 `MarkdownRendererToken`（`ui-api`）提供 —— 能画 markdown 的
+Prose 属于会话时间线，功能之间不得互相 import `ui`（守则 3），所以走服务令牌而不是复制一份 |
+
+**协议版本 15 → 16**，快照已重新生成（七个方法与四个错误码）。
+
+### 验收
+
+- `bun run all` 全绿（**2075 pass / 0 fail**，265 个文件；typecheck 745 + 960 文件、lint 与 depcruise 全过）。
+- 真机（真实 Electron + 真实组件 + 真 GitHub 数据）：新增 `bun run check:review-page`，
+  12 项几何/内容断言全过，截图落在 `.review-page-shots/code-review-page.png`。
+  三栏实测 416 / 674 / 352 px（左 clamp 命中上限、右 22rem 分毫不差、中栏最宽），
+  页面整体不滚（滚动只在中栏与左栏列表内），标题未被截断，四张卡与 PR#3 的真实数据
+  （conflicting、+553 −358、Frontend 绿 / Rust 红 / Windows Desktop 红）逐个对上。
+  这一条不进 `bun run all`：它要真实 GPU、真实窗口与一个登录过的 `gh`。
+- 为什么必须跑真机而不是 happy-dom：三栏的宽度、滚动归属与标题截断在 happy-dom 里都量不出来
+  （那里没有布局）。第一次跑真机就抓到一个 happy-dom 永远发现不了的真缺陷 —— 栅格行高是默认的
+  `auto`，正文一长就把整页顶出视口，而外壳的 `overflow: hidden` 只是把它裁掉，中栏底部再也够不着；
+  改成 `grid-template-rows: minmax(0, 1fr)` 才对。
+- 同一次真机检查还暴露了另一件事：**冒烟必须用真的 Tailwind 产物**。`Bun.build` 不认识
+  `@import "tailwindcss"`、也不知道 `@source` 扫哪些文件，直接打包出来的 CSS 里一个工具类都没有；
+  那样量到的「三栏」其实是三个堆叠的块。所以编译步骤单开
+  `apps/desktop/scripts/compile-styles.ts`（走 `@tailwindcss/vite`，与真实构建同一条路），
+  `@tailwindcss/node` 随之进 catalog 与 `apps/desktop` 的依赖。
+
+### 待决问题
+
+1. **Issues 一栏恒为 0**：过滤标签照参考实现留了 `All / PRs / Issues` 三档，但 issue 本次不做，
+   选中 Issues 是空列表。要做的话要先决定「issue 的详情页长什么样」。
+2. **Changes 标签不画 diff**：只给「N files changed」的统计与一句「去 GitHub 上看」。
+   本仓的 diff 阅读处是右坞的「审查」面板；要不要把 `packages/design-system/diff` 接进这一页，
+   取决于产品要不要「一个页面读完全部改动」。
+3. **`gh` 是这一页的硬前提**：没装或没登录时整页降级成一句说明。若以后要自带 GitHub 集成，
+   `core/gh.ts` 是唯一需要换掉的那一层（`pr.ts` 的映射与 UI 都不用动）。
+
+
+### 产品负责人验收后的第二轮改动（2026-10-14）
+
+三条都是主管人看过真机之后的原话，逐条照做：
+
+1. **底要 #181818、左右不要分割线**。底本来就该是页面地色（深色主题的 `--ui-ground` = `--ui-palette-dark-950` = `#181818`），
+   之前那版写的是 `--color-background` 并且给中栏画了 `border-inline`。现在整页改用 `--color-ground`，
+   三栏的左右边框全部去掉（真机断言逐栏数过：`0px/0px/0px`）。
+2. **四个动作移到右栏上方（右移）**。之前工具条只属于中栏，四个动作因此缩在中栏右上角；
+   现在工具条提到页面顶层、横跨整页（实测宽 1442 = 视口宽），动作落在窗口最右
+   （实测 right=1430，视口 1442）。标签仍在中栏那一段的起点上方。
+3. **合并状态与检查项的 UI 太简陋**。之前是一颗 8px 的纯色圆点，既没有形状也没有语义。现在照 synara：
+   - 右栏**不再画卡片**，改回它那套「标题 + 内容」的素面节，节间留白 28px（`gap-7`）；
+     卡片框在深色底上会变成四条亮边，比内容还抢眼。
+   - 合并状态：有冲突 = 红色的 `GitMergeConflict` 字形 + 「Conflicts with main」；
+     能合 = 绿底反白的对勾；其余（被拦 / 落后 / 草稿 / 未知）退回这条 PR 自身的状态字形。
+   - 检查项：绿底反白勾 / 红底反白叉 / 琥珀转圈 / 灰色虚线空圈，四种占同一个 16px 光学方框；
+     超过 6 条时出现 `View more`（与 synara 同数同文案）。
+   - 一个实现细节：`lucide` 的 `fill-current` 会把整块圆面连笔画一起涂满，勾与叉反而消失（成了实心圆点）。
+     synara 的实心字形来自另一套图标族（Central 的 `variant="fill"`），`lucide` 没有对应物，
+     所以这里是「着色实心圆 + 一枚反色小字形」自己拼出来的，观感与它一致。
+
+**验收**：`bun run all` 全绿（**2075 pass / 0 fail**）。真机 `bun run check:review-page` 扩到 **15 项断言**
+（新增：页面底 = `rgb(24,24,24)`、三栏左右边框为 0、Merge 按钮贴到窗口右缘、工具条横跨整页、右栏四节齐全、
+状态字形已绘制），全过；另存一张右栏特写 `.review-page-shots/info-column.png` 供人眼比对。
+
+
+### 第三轮：三栏对齐、动作归位、滚动条与头像（2026-10-14）
+
+主管人指出的五件事，逐条落实。其中第一条是我上一轮**理解错了**，先认下来：
+
+1. **三栏都下沉、中间空出一条**（本轮新报）。根因是我把「四个动作」做成了一条**横跨整页**的顶栏，
+   而它里面只有右侧那几个按钮 —— 那一条占掉了整行高度，左、中两栏因此被顶下去，整行左侧空着。
+   动作属于**右栏**，不属于页面：现在它们住在右栏自己的第一行，正好在 Merge status 那些节的上方，
+   左、中两栏与右栏同为 y=0。真机新增断言「左右中三栏顶边齐平」，并且**先把量几何的 rect() 补上 y**
+   —— 没有 y 的那版断言是空转的（三条 undefined === undefined 也能过），这一点本身就该被记一笔。
+2. **中栏滚动条隐藏**。中栏的正文容器加 `scrollbar-width: none` 与 `::-webkit-scrollbar { display: none }`：
+   仍然能滚（正文本来就长，禁掉就看不全），只是不画那条槽。真机断言量 `scrollbarWidth === 'none'`。
+3. **标签不要动，动作要上移**。这两件事曾被我看成一件：上一轮我把整条工具条一起上移，这一轮又整条
+   移回来，两次都不对。现在拆成两个组件 —— `PrDetailTabs` 留在中栏正文上方（它原本的位置），
+   `PrDetailActions` 只把四个动作送到右栏顶行。真机断言分别量它们：标签与中栏同宽、动作行只在右栏内。
+4. **头像要显示**。两个原因，都不是「忘了写」：
+   - 列表行与详情头本来就没画头像，只写了作者名 —— 现在补上 `Avatar`（`pr-format` 之外的新文件），
+     列表行的 meta 行是「状态字形 + 头像 + 作者 · 相对时间 …… #编号」，详情头是「头像 + 作者」。
+   - **渲染进程的 CSP 把头像主机挡住了**：`img-src` 是白名单，原来只有 `'self' data: blob: poietica-asset:`，
+     `avatars.githubusercontent.com` 不在里面 —— 图片会被 Chromium 静默拦掉（页面只是没有头像，
+     控制台才有一条 CSP 报告）。开发版与安装版两张表都补上了这一个主机，不放行任意 https。
+     头像只用 GitHub 明确挂在该 actor 上的 `avatarUrl`；加载失败退回首字母圆牌（与参考实现同）。
+5. **状态胶囊与它的菜单**（主管人给的第 5 张图）。详情头现在有那枚胶囊：词、色、字形都读
+   `pullStatePresentation`（开着 = 绿、草稿 = 灰、**有冲突 = 红 + GitMergeConflict**、已合并 = 紫、已关闭 = 灰），
+   点开是 `Draft / Ready for review` 两项单选，经新契约方法 `github.setDraft` 走 `gh pr ready [--undo]`。
+   合并与关闭的 PR 不给切换入口（GitHub 也不给），只报状态。
+   冲突改状态词这件事顺带修正了一处旧行为：原来「开着 + 有冲突」写「Open」，现在写「Has conflicts」——
+   草稿仍然优先。对应单测按新规则改了，并补了两条（草稿优先于冲突、被拦/落后不改状态词）。
+
+**协议版本 16 → 17**，快照重生成（新增 `github.setDraft`）。
+
+**验收**：`bun run all` 全绿（**2078 pass / 0 fail**，+3 条单测）；真机 `bun run check:review-page` 扩到
+**20 项断言**（新增三栏顶边齐平、动作行只在右栏内、标签留在中栏、中栏滚动条为 none、页面底 #181818），全过。
+
