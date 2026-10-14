@@ -2680,3 +2680,51 @@ Prose 属于会话时间线，功能之间不得互相 import `ui`（守则 3）
 **验收**：`bun run all` 全绿（**2078 pass / 0 fail**，+3 条单测）；真机 `bun run check:review-page` 扩到
 **20 项断言**（新增三栏顶边齐平、动作行只在右栏内、标签留在中栏、中栏滚动条为 none、页面底 #181818），全过。
 
+## V-01 吉祥物运行时从上游 JS 迁为 TS（2026-10-14）
+
+**背景**：`features/conversation/vendor/aora-bot/emotion-ball/js/` 下四个 `.js` 是上游第三方 IIFE，
+靠副作用导入往 `window` 挂引擎，没有任何类型。本次把四个文件迁成 `.ts`（B 方案：结构移植 + 补类型，
+不重写），并搬进本功能的实现目录。
+
+**最终位置**：`features/conversation/src/ui/components/mascot/engine-runtime/`
+（`rings.ts` / `emotions.ts` / `ball.ts` / `engine.ts` / `types.ts`）。
+原先暂放的 `features/conversation/vendor/aora-bot/` 整个目录已删除——包括上游的
+`LICENSE` 与 `NOTICE.md`（维护者 2026-10-14 确认不再保留）。
+
+**做了什么**：IIFE 拆成 ES 模块、`window.EB_RINGS`/`window.EmotionBall` 改成 import、
+`console.*` 改成注入 logger、`Engine.prototype` 改成 `class Engine`；数据文件的数据本体逐字未改；
+新增 `types.ts` 收三层共享类型；消费侧 `emotion-ball-runtime.ts` 改为直接 import，
+`emotion-ball.tsx` 一行未改；删掉不再需要的 `vendor-js.d.ts` 模块声明桩。
+
+**等价性证据（实测）**：把上游原始 `.js` 与迁移后的 `.ts` 放进同一 happy-dom 环境，固定随机数与
+`performance.now`，跑同一组输入，比对（a）`config.exportConfig()` 逐字节、（b）分组与列表、
+（c）**32 套表情 × 3 种形状（blob/wedge/gem）**连续切表情 + 自旋 + 注视的逐帧 SVG 逐字节。
+三项一致（唯一差异是梯度 id 计数 `eb0g` vs `eb1g`，源于旧实现每次求值脚本都重置模块计数器，
+非行为差异）。对拍结论冻结为 `features/conversation/src/ui/components/mascot/__tests__/mascot-baseline.test.ts`。
+上游 `.js` 随后删除（同目录 `.ts` 优先，留旧文件只会造成「改了没生效」的静默错误）。
+
+**偏差 1（两条 biome 规则例外，精确到文件）**：`biome.json` 的 `overrides` 新增一段，
+只对 `engine-runtime` 的 5 个文件生效：
+- `noInnerDeclarations: "off"` —— 上游用 `var` 的函数作用域在同一函数内共享同名变量
+  （`e`/`a`/`r`/`node`/`h`/`n`/`s`/`i` 等 15 组重复声明），机械改成 `let` 会直接冲突或改变语义；
+  共 76 处，不是能一次替换的机械改动。
+- `noExcessiveCognitiveComplexity` 上限 15 → 80 —— 上游把构建 / 投影 / 彩带 / 撒花写在同一个
+  `createBall`（最高 79）、`_compose`（69）里；拆函数必然动渲染顺序与状态机求值次序，属于重写。
+  仓库里同类先例见 `biome.json` 既有的 6 处复杂度上限调整（20/25/30/40/52）。
+其余规则（format、useTemplate、noUnusedVariables 等）已用 `biome check --write` 修到干净；
+剩 24 条 `useTemplate` 提示是 info 级、不阻断闸门，且属于 unsafe fix——保留上游字符串拼接，
+避免任何行为差异。
+
+**偏差 2（`var` 与分号风格保留）**：同上，逐字等价优先于套本仓风格。
+
+**过程中真实发生过的一次退化**：类型清理阶段曾误删 `lerpPose` 的 `else po[k] = vb` 分支
+（负责把 `ring` 这类非数值字段原样直传）。行为基线测不出这条（它只断言帧有变化），是靠回查
+git 里原始实现 + 专门的「表情切换过渡帧」对拍发现的，随后修复并复验。教训：这个目录的改动
+必须跑对拍，不能只靠类型检查与基线断言。
+
+**闸门口径变化**：因 vendor 目录消失，三处对它的排除已一并移除——
+`biome.json` 的 `!features/conversation/vendor`、`tooling/depcruise/config.cjs` 的
+`doNotFollow`/`exclude` 里的 `vendor`（及其注释）、`tooling/checks/no-raw-errors.ts` 与
+`tooling/checks/no-biome-ignore.ts` 的 `SKIP_DIRS` 里的 `vendor`；
+`tooling/refs/sync.ts` 的 `PROJECT_PATTERNS` 也去掉了为 vendor 加的那条模式
+（新位置在 `src/ui` 工程覆盖范围内，不需要独立工程）。depcruise 的自检用例同步改名。

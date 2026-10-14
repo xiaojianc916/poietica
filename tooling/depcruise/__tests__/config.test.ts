@@ -32,9 +32,9 @@ describe('depcruise 配置的自检', () => {
     expect(exclude).not.toContain('dist')
   })
 
-  test('doNotFollow 含 node_modules / dist / vendor：这些是「不往里走」而不是「从图里删掉」', async () => {
+  test('doNotFollow 含 node_modules / dist：这些是「不往里走」而不是「从图里删掉」', async () => {
     const doNotFollow = (await loadOptions()).doNotFollow?.path ?? ''
-    for (const part of ['node_modules', 'dist', 'vendor']) {
+    for (const part of ['node_modules', 'dist']) {
       expect(doNotFollow).toContain(part)
     }
   })

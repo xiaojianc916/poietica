@@ -20,7 +20,6 @@
       "!**/*.svg",
       "!**/*.min.js",
       "!packages/transcript/src/upstream",
-      "!features/conversation/vendor",
       "!docs/baseline"
     ],
     "maxSize": 2097152
@@ -88,6 +87,30 @@
     }
   },
   "overrides": [
+    {
+      "includes": [
+        "features/conversation/src/ui/components/mascot/engine-runtime/ball.ts",
+        "features/conversation/src/ui/components/mascot/engine-runtime/emotions.ts",
+        "features/conversation/src/ui/components/mascot/engine-runtime/engine.ts",
+        "features/conversation/src/ui/components/mascot/engine-runtime/rings.ts",
+        "features/conversation/src/ui/components/mascot/engine-runtime/types.ts"
+      ],
+      "linter": {
+        "rules": {
+          "correctness": {
+            "noInnerDeclarations": "off"
+          },
+          "complexity": {
+            "noExcessiveCognitiveComplexity": {
+              "level": "error",
+              "options": {
+                "maxAllowedComplexity": 80
+              }
+            }
+          }
+        }
+      }
+    },
     {
       "includes": ["features/automations/src/core/__tests__/agent-tools.test.ts"],
       "linter": {

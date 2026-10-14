@@ -29,7 +29,7 @@
 | `src/composer/{drafts,attachment,prompt}.ts` | `ui/composer/*` | 草稿与附件的小工具 |
 | `src/threads/{thread-order,thread-title,workspace-root}.ts` | `ui/threads/*` | 列表次序与分组 |
 | `src/interjection/message-queue.ts` | `ui/interjection/*` | 队列看法；数据换成 `QueueSnapshot`（**待接**） |
-| `vendor/aora-bot/**` | `features/conversation/vendor/**` | 吉祥物运行时（第三方 JS，副作用导入） |
+| `vendor/aora-bot/**` | `src/ui/components/mascot/engine-runtime/**` | 吉祥物运行时，由上游 JS 迁为 TS（IIFE 拆模块、window 改成 import）；上游 `vendor/aora-bot/` 目录（含其 LICENSE / NOTICE）已按维护者确认删除。详见 `engine-runtime/README.md` 与 refactor-log V-01 |
 
 ## 3. 待逐个复核：疑似过时（下一批决定）
 

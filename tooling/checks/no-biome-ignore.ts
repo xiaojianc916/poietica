@@ -21,7 +21,6 @@ const SKIP_DIRS = new Set([
   'out',
   'release',
   'coverage',
-  'vendor',
   'docs',
   'Project Refactoring Plan',
 ])

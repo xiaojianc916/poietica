@@ -216,12 +216,10 @@ module.exports = {
      *
      * - `doNotFollow` 只声明「不往这个节点内部继续走」，节点本身仍在图里，
      *   于是针对它的规则（omp-confined / layer-order / not-to-undeclared）照常判定。
-     *   node_modules 与 vendor 属于此类：vendor 是随界面迁入的第三方 JS
-     *   （features/conversation/vendor），不参与我们的依赖图，也不该被 swc 解析
-     *   （那份代码不是 ES module，解析必失败）。
+     *   node_modules 属于此类；构建产物目录同理（已由 exclude 排除）。
      */
-    doNotFollow: { path: '(^|/)(node_modules|\\.tsbuild|dist|out|release|coverage|vendor)/' },
-    exclude: { path: '(^|/)(\\.tsbuild|out|release|coverage|vendor)/' },
+    doNotFollow: { path: '(^|/)(node_modules|\\.tsbuild|dist|out|release|coverage)/' },
+    exclude: { path: '(^|/)(\\.tsbuild|out|release|coverage)/' },
     parser: 'swc',
     tsPreCompilationDeps: true,
     preserveSymlinks: false,

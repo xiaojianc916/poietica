@@ -14,7 +14,7 @@
 import path from 'node:path'
 
 const ROOT = path.resolve(import.meta.dir, '../..')
-const SKIP_DIRS = new Set(['node_modules', '.tsbuild', 'dist', 'out', 'release', 'vendor'])
+const SKIP_DIRS = new Set(['node_modules', '.tsbuild', 'dist', 'out', 'release'])
 
 /** 测试文件可以拿裸 Error 当夹具（「让它炸」正是被测行为），与 depcruise 的 TEST 豁免同一判据。 */
 const TEST_FILE = /(^|\/)(__tests__\/|[^/]+\.test\.tsx?$)/
