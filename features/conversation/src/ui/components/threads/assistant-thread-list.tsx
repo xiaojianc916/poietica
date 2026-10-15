@@ -9,6 +9,9 @@ import { useHorizon, useNow } from '../primitives/clock'
 import { ArchiveIcon, ChevronDownIcon, PinIcon, PlusIcon } from '../primitives/icons'
 import { datedGroupsOf, instantsOf, nextChangeIn, paintedGroupsOf } from './relative-time'
 import { ThreadDisclosure } from './thread-disclosure'
+import type { ArchivedFilter } from './thread-view'
+import { GROUP_BY, type GroupBy, shapeGroups } from './thread-view'
+import { ThreadsHeader } from './threads-header'
 
 /* 行必须是 memo，否则时钟每跳一次就重渲整张列表；加号交给工作台开或激活，不在库里先造一条没人说过话的会话。 */
 
@@ -40,6 +43,11 @@ export interface AssistantThreadListProps {
   /** 收起状态活过重启，所以在宿主。 */
   readonly collapsedWorkspaces: ReadonlySet<string>
   readonly onToggleWorkspace: (workspaceId: string) => void
+  /** 开系统的文件夹选择器，并把它加成一个工作区（组头右侧那枚加号与「新建项目」同一件事）。 */
+  readonly onAddWorkspace: () => void
+  /* 归档那一档要**换一次查询**（列表那一问带 includeArchived），所以它活在宿主，不在这层的草稿里。 */
+  readonly archivedFilter: ArchivedFilter
+  readonly onArchivedFilterChange: (value: ArchivedFilter) => void
   readonly onActivate: (threadId: string) => void
   readonly onCreate: (workspaceId?: string) => void
   readonly onPin: (threadId: string, pinned: boolean) => void
@@ -255,6 +263,9 @@ export function AssistantThreadList({
   activeThreadId,
   runningThreadIds,
   collapsedWorkspaces,
+  onAddWorkspace,
+  archivedFilter,
+  onArchivedFilterChange,
   onToggleWorkspace,
   onActivate,
   onCreate,
@@ -264,7 +275,27 @@ export function AssistantThreadList({
   /* 时钟整张列表共用，睡到下一次会变的时刻，不轮询。 */
   const now = useNow()
 
-  const dated = useMemo(() => datedGroupsOf(groups), [groups])
+  /* 搜索词与分组方式只活在这一列（正本同样不落盘，本仓也没有对应的一份，另存就是第二个真相）；归档那一档要换查询，归宿主。 */
+  const [query, setQuery] = useState('')
+  const [groupBy, setGroupBy] = useState<GroupBy>(GROUP_BY.workspace)
+  /* 搜索展开时同一栏上的标题与另两枚动作一起让位（正本 sectionHeader），所以展开态由这一栏的两个孩子共用。 */
+  const [searchOpen, setSearchOpen] = useState(false)
+
+  /* 归档事实来自行自己的记录：`archived` 这一档要能筛，就不能只当它是「宿主已经帮我滤掉了」。 */
+  const shaped = useMemo(
+    () =>
+      shapeGroups(
+        groups.map((group) => ({
+          id: group.id,
+          name: group.name,
+          items: group.items.map((item) => ({ ...item, archived: item.record?.archived === true })),
+        })),
+        { archivedFilter, groupBy, query },
+      ),
+    [archivedFilter, groupBy, groups, query],
+  )
+
+  const dated = useMemo(() => datedGroupsOf(shaped), [shaped])
   const painted = useMemo(() => paintedGroupsOf(dated, now), [dated, now])
 
   /* 固定是独立顶层入口，跨工作区按最近活动统一排序；项目列表保留工作区顺序。 */
@@ -355,13 +386,28 @@ export function AssistantThreadList({
       )}
 
       <section className="assistant-threads__section">
-        <ThreadSectionHeader
-          isOpen={isRepositoriesOpen}
-          label="项目"
-          onToggle={() => {
-            setRepositoriesOpen((open) => !open)
-          }}
-        />
+        {/* 标题与那三枚按钮是同一条栏：搜索展开时标题让位，动作让位（正本 sectionHeader 的编排）。 */}
+        <div className="assistant-threads__section-bar" data-searching={searchOpen ? 'true' : undefined}>
+          <ThreadSectionHeader
+            isOpen={isRepositoriesOpen}
+            label="项目"
+            onToggle={() => {
+              setRepositoriesOpen((open) => !open)
+            }}
+          />
+
+          <ThreadsHeader
+            archivedFilter={archivedFilter}
+            expanded={searchOpen}
+            groupBy={groupBy}
+            onAdd={onAddWorkspace}
+            onArchivedFilterChange={onArchivedFilterChange}
+            onExpandedChange={setSearchOpen}
+            onGroupByChange={setGroupBy}
+            onQueryChange={setQuery}
+            query={query}
+          />
+        </div>
 
         <ThreadDisclosure isOpen={isRepositoriesOpen}>
           {showPlaceholders ? (

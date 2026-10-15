@@ -9,7 +9,7 @@ import {
   useObservable,
 } from '@poietica/ui-kernel'
 import { Archive, SquarePen } from 'lucide-react'
-import { useMemo } from 'react'
+import { useMemo, useState } from 'react'
 import { ActiveOwner } from '../components/active-owner'
 import { AssistantSurface } from '../components/assistant-surface'
 import { ConversationAuxiliaryToggle, ConversationTodoToggle } from '../components/conversation-controls'
@@ -17,6 +17,7 @@ import { GOAL_CONTROL_ID, GOAL_DISABLED } from '../components/goal/goal-control'
 import { HomeSurface } from '../components/home-surface'
 import { NewConversationNavRow } from '../components/new-conversation-nav-row'
 import { AssistantThreadList } from '../components/threads/assistant-thread-list'
+import { ARCHIVED_FILTER, type ArchivedFilter } from '../components/threads/thread-view'
 import { ConversationProviders } from '../composition'
 import {
   effectiveUsage,
@@ -64,8 +65,11 @@ export function createConversationContributions(setup: ConversationSetup, action
       const items = useMemo(
         () =>
           threads
-            /* 已归档的**移出活动列表**（store 留着整条记录供线程页按 id 查）—— 不过滤的话点了归档看起来没反应。 */
-            .filter((thread) => !thread.archived)
+            /*
+             * 这里不再过滤归档：归档是视图选项里的一档（隐藏 / 一起显示 / 只看它们），由列表按行上的
+             * record.archived 一处判。查询那一侧跟着档位换（setIncludeArchived 之后重读），列表于是拿得到
+             * 它要画的那一份；两层各筛一次，就会出现「档位说显示、列表里却没有」。
+             */
             .map((thread) => ({
               id: thread.id,
               title: thread.title,
@@ -89,6 +93,11 @@ export function createConversationContributions(setup: ConversationSetup, action
       const { route } = useNavigation()
       const active = route.surface === 'conversation.thread' ? (route.params.threadId ?? null) : null
       const collapsedWorkspaces = useObservable(collapsed)
+      /*
+       * 归档那一档要**换一次查询**（threads.list 带 includeArchived），所以它住在这里、不在列表的草稿里：
+       * 只切本地视图的话，「一起显示」拿不到任何已归档的行，「只看它们」永远是空的。
+       */
+      const [archivedFilter, setArchivedFilter] = useState<ArchivedFilter>(ARCHIVED_FILTER.hide)
       /* 归档横幅同样订阅着读：读到快照的话 set 之后这一格不会重画。 */
       const archivedNotice = useObservable(archived)
       /* 组名从工作区表查：`thread.workspaceId` 是实体 id 不是路径，用「路径末段」猜只会得到 uuid。 */
@@ -100,6 +109,7 @@ export function createConversationContributions(setup: ConversationSetup, action
         <>
           <AssistantThreadList
             activeThreadId={active}
+            archivedFilter={archivedFilter}
             collapsedWorkspaces={collapsedWorkspaces}
             failure={state.failure}
             groups={grouped}
@@ -110,6 +120,12 @@ export function createConversationContributions(setup: ConversationSetup, action
                 stores.threads.upsert(t)
                 archived.set({ threadId, seq: (archived.current()?.seq ?? 0) + 1 })
               })
+            }}
+            onAddWorkspace={() => void workspaces.pickAndAdd()}
+            onArchivedFilterChange={(value) => {
+              setArchivedFilter(value)
+              stores.threads.setIncludeArchived(value !== ARCHIVED_FILTER.hide)
+              void stores.threads.refresh()
             }}
             onCreate={newThread}
             onPin={(threadId, pinned) => {

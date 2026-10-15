@@ -1,0 +1,193 @@
+/*
+ * 「项目」组头右侧那三枚按钮 —— 正本是 DeepSeek Harness 的 WorkspaceBrowser sectionHeader
+ * （见 threads-header.tsx 头注）。几何取本仓这一列的 --ui-row-* 一族，与组头、会话行同一批令牌：
+ *
+ * - 条   靠右、末尾对齐，间距取 --ui-row-gap 的一半（正本 4 / 它那条栏的 8）
+ * - 钮   28 见方（与侧栏那几枚图标钮同尺寸）、圆角 --ui-radius-md；悬停同它们一样铺底并提亮字色
+ * - 搜索 收起时只占那一枚的宽，展开时吃掉剩余宽度；宽度与内边距一起补间（正本 .search → .searchExpanded）
+ */
+
+/* 动作这一侧吃掉剩余宽度，静息时两端对齐把三枚按钮顶到右缘（正本 sectionHeader 的 justify-content: flex-end）。 */
+.threads-header {
+  display: flex;
+  min-inline-size: 0;
+  flex: 1 1 auto;
+  align-items: center;
+  justify-content: flex-end;
+  gap: calc(var(--ui-row-gap) / 2);
+  /* 28 = 侧栏那几枚图标钮的尺寸（workbench/parts/sidebar-footer.tsx 的 size-7）。
+   * 三枚按钮与它们在同一条侧栏里，悬停药丸必须一样大 —— 这正是本节要的那一条。 */
+  --threads-header-button: 28px;
+}
+
+/* 正本这一条表宽 60（两枚 28 + 间距 4）；这里由两枚按钮的宽与那一格间距解出来，换一档行高自动跟上。 */
+.threads-header__actions {
+  display: flex;
+  max-inline-size: calc(var(--threads-header-button) * 2 + var(--ui-row-gap) / 2);
+  flex: none;
+  align-items: center;
+  gap: calc(var(--ui-row-gap) / 2);
+  overflow: hidden;
+  transition:
+    max-inline-size var(--ui-duration-normal) var(--ui-ease-standard),
+    opacity var(--ui-duration-fast) var(--ui-ease-standard),
+    transform var(--ui-duration-normal) var(--ui-ease-standard);
+}
+
+/* 搜索展开：另两枚让位给输入框，退场时带一点位移（正本 headerActionsHidden 的 translate(4px)）。 */
+.threads-header[data-expanded="true"] .threads-header__actions {
+  max-inline-size: 0;
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+  transform: translateX(4px);
+  transition:
+    max-inline-size var(--ui-duration-normal) var(--ui-ease-standard),
+    opacity var(--ui-duration-fast) var(--ui-ease-standard),
+    transform var(--ui-duration-normal) var(--ui-ease-standard),
+    visibility 0s linear var(--ui-duration-normal);
+}
+
+.threads-header__search {
+  display: flex;
+  min-inline-size: 0;
+  max-inline-size: var(--threads-header-button);
+  flex: 0 1 auto;
+  align-items: center;
+  border: var(--ui-hairline) solid transparent;
+  border-radius: var(--ui-radius-sm);
+  transition:
+    max-inline-size var(--ui-duration-normal) var(--ui-ease-standard),
+    border-color var(--ui-duration-normal) var(--ui-ease-standard);
+}
+
+.threads-header__search[data-expanded="true"] {
+  max-inline-size: 100%;
+  flex: 1 1 auto;
+  border-color: var(--ui-divider-subtle);
+}
+
+.threads-header__search-button {
+  display: inline-flex;
+  block-size: var(--threads-header-button);
+  inline-size: var(--threads-header-button);
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  border: 0;
+  border-radius: var(--ui-radius-md);
+  padding: 0;
+  background: transparent;
+  color: var(--cp-ink-muted);
+  cursor: pointer;
+  transition:
+    background-color 150ms var(--ui-ease-standard),
+    color 150ms var(--ui-ease-standard);
+}
+
+/* 悬停照抄侧栏里那几枚图标按钮（workbench/parts/sidebar-footer.tsx 的 FooterButton）：
+ * 铺 --ui-sidebar-accent，墨从 muted 提到 foreground。这一列与它们同处一条侧栏，
+ * 不给同一档灰与同一次提亮，三枚按钮就会读成另一种控件。 */
+.threads-header__search-button:hover {
+  background: var(--ui-sidebar-accent);
+  color: var(--ui-foreground);
+}
+
+/* 展开时那一圈边占掉两格宽，按钮内缩补回来，图标才不会往右跳一格；那一格此时也归输入框，悬停不再铺底（正本 .searchExpanded .searchButton:hover）。 */
+.threads-header__search[data-expanded="true"] .threads-header__search-button {
+  margin-inline-start: calc(var(--ui-hairline) * -1);
+}
+
+.threads-header__search[data-expanded="true"] .threads-header__search-button:hover {
+  background: transparent;
+  color: var(--cp-ink-muted);
+}
+
+.threads-header__input {
+  min-inline-size: 0;
+  flex: 1;
+  border: 0;
+  padding: 0;
+  background: transparent;
+  color: var(--cp-ink);
+  font: inherit;
+  font-size: var(--cp-font-caption);
+  opacity: 0;
+  outline: none;
+  pointer-events: none;
+  transition: opacity var(--ui-duration-fast) var(--ui-ease-standard);
+}
+
+.threads-header__search[data-expanded="true"] .threads-header__input {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.threads-header__input::placeholder {
+  color: var(--cp-placeholder);
+}
+
+/* 清除键比它所在那一格小一档（正本 24 / 28），才收得进展开后那圈边里。 */
+.threads-header__clear {
+  display: inline-flex;
+  block-size: calc(var(--threads-header-button) - 4px);
+  inline-size: calc(var(--threads-header-button) - 4px);
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  margin-inline-end: calc(var(--ui-hairline) * 2);
+  border: 0;
+  border-radius: var(--ui-radius-md);
+  padding: 0;
+  background: transparent;
+  color: var(--cp-ink-muted);
+  cursor: pointer;
+  transition:
+    background-color 150ms var(--ui-ease-standard),
+    color 150ms var(--ui-ease-standard);
+}
+
+/* 它只在搜索展开时露面，是这一组里的第四枚；悬停跟着同一条规则走，免得同一条栏上出现两种灰。 */
+.threads-header__clear:hover {
+  background: var(--ui-sidebar-accent);
+  color: var(--ui-foreground);
+}
+
+/* 视图选项与添加：正本 .iconButton（与行同高见方、静息 label-secondary、悬停铺底、键盘环内缩 2）。 */
+.threads-header__icon-button {
+  display: inline-flex;
+  block-size: var(--threads-header-button);
+  inline-size: var(--threads-header-button);
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  border: 0;
+  border-radius: var(--ui-radius-md);
+  padding: 0;
+  background: transparent;
+  color: var(--cp-ink-muted);
+  cursor: pointer;
+  transition:
+    background-color 150ms var(--ui-ease-standard),
+    color 150ms var(--ui-ease-standard);
+}
+
+/* 菜单开着与指针压着是同一句话「这一格正被用着」，共用一块底；半透明墨压在这条实色侧栏上会淡一档，
+ * 所以两处都读 --ui-sidebar-accent（与导航行同一档）。 */
+.threads-header__icon-button:hover,
+.threads-header__icon-button[data-popup-open] {
+  background: var(--ui-sidebar-accent);
+  color: var(--ui-foreground);
+}
+
+.threads-header__icon-button:focus-visible,
+.threads-header__search-button:focus-visible,
+.threads-header__clear:focus-visible {
+  outline: var(--ui-focus-ring-width) solid var(--cp-accent);
+  outline-offset: -2px;
+}
+
+/* 正本 .viewOptionsMenu 的 min-width: 200px。 */
+.threads-header__menu {
+  min-inline-size: 200px;
+}

@@ -28,6 +28,13 @@
   gap: calc(var(--ui-hairline) * 2);
 }
 
+/* 标题与三枚按钮是同一条栏（正本 sectionHeader）：栏本身不吃内缩 —— 按钮的右边缘与下面那些行对齐。 */
+.assistant-threads__section-bar {
+  display: flex;
+  align-items: center;
+  gap: calc(var(--ui-hairline) * 2);
+}
+
 .assistant-threads__section-title {
   display: inline-flex;
   block-size: var(--ui-row-height);
@@ -48,6 +55,29 @@
 
   text-align: start;
   cursor: pointer;
+}
+
+/* 标题只占自己那一格：剩余宽度归右边那条工具栏，搜索展开时它才吃得到地方。 */
+.assistant-threads__section-bar .assistant-threads__section-title {
+  min-inline-size: 0;
+  flex: 0 1 auto;
+  overflow: hidden;
+  white-space: nowrap;
+  transition:
+    max-inline-size var(--ui-duration-normal) var(--ui-ease-standard),
+    opacity var(--ui-duration-fast) var(--ui-ease-standard);
+}
+
+/* 搜索展开：标题与另两枚动作一起让位，这一栏整个让给输入框（正本 sectionLabelHidden / headerActionsHidden）。
+ * visibility 延迟到补间之后才切，退场那一帧才还看得见字。 */
+.assistant-threads__section-bar[data-searching="true"] .assistant-threads__section-title {
+  max-inline-size: 0;
+  opacity: 0;
+  visibility: hidden;
+  transition:
+    max-inline-size var(--ui-duration-normal) var(--ui-ease-standard),
+    opacity var(--ui-duration-fast) var(--ui-ease-standard),
+    visibility 0s linear var(--ui-duration-normal);
 }
 
 .assistant-threads__section-title:hover {
