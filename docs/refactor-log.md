@@ -2962,6 +2962,10 @@ DSH 桌面端这一处的**代码逻辑**，不是只照抄外观。参考物是
 - **鲸鱼图标资产取 DSH 的 APNG**（28×28、60 帧、3 秒循环），静态那条是 DSH 的 `REST_PATH`
   描边路径。切换条件照抄它的三条 AND：`@supports (mask-mode: alpha) and (mask-image: url(""))` ×
   `prefers-reduced-motion: no-preference` × `forced-colors: none`。
+- **封条那枚箭头的旋转方向沿用本仓**：本仓一律 `-90deg → 0deg`（`disclosure.css` 与
+  `turn-seal.css` 都是这套），DSH 是 `0deg → 180deg`。这一处**在本次改动之前就是本仓的样子**
+  （`git show origin/main:…turn-seal.css` 可见），改它等于顺手改掉全仓的箭头语言，
+  超出这次复刻的范围，所以留着并在此记明。
 
 **测试**（新增 59 条，全部先写、按新判据红过再实现）：
 
