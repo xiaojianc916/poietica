@@ -21,11 +21,13 @@ import { ARCHIVED_FILTER, type ArchivedFilter } from '../components/threads/thre
 import { ConversationProviders } from '../composition'
 import {
   effectiveUsage,
+  hiddenModelsOf,
   PLAN_CONTROL_ID,
   PLAN_ENABLED,
   postureOfControl,
   sessionConfigControlsOf,
   sessionGoalOf,
+  withoutHiddenModels,
 } from '../configuration/control-shapes'
 import { runGoalAction } from '../goal-actions'
 import { ArchivedChatsPage } from '../settings/archived-page'
@@ -37,7 +39,7 @@ import { useRunningThreadIds } from './use-running-thread-ids'
 
 /** 界面、侧栏、面板等贡献。 */
 export function createConversationContributions(setup: ConversationSetup, actions: ConversationActions): void {
-  const { api, ctx, layout, posture, sessions, stores, transcripts, workspaces } = setup
+  const { api, ctx, layout, posture, prefs, sessions, stores, transcripts, workspaces } = setup
   const { archived, collapsed, exportThread, newThread, openThread, showArchived, todoThread } = actions
   /* 线程表面挂载 / 换对话时预热会话并主动问一次控件表（审查 R-19-4，判据见 thread-lifecycle.ts）。setup 级的稳定引用：它进了 effect 依赖。 */
   const openThreadSurface = createThreadSurfaceOpener({
@@ -203,6 +205,7 @@ export function createConversationContributions(setup: ConversationSetup, action
         <ActiveOwner layout={layout} owner={null} />
         <HomeSurface
           api={api}
+          preferences={prefs}
           onOpenThread={openThread}
           posture={posture}
           sessions={sessions}
@@ -230,6 +233,12 @@ export function createConversationContributions(setup: ConversationSetup, action
        */
       const goalSnapshot = useFeatureStore(stores.controls.store, (s) => s.byThread[threadId]?.goalSnapshot)
       const goal = useMemo(() => sessionGoalOf(goalSnapshot, Date.now()), [goalSnapshot])
+      /* 设置页关掉的模型订阅着读：开关一拨，输入框的模型菜单当场跟着变，不等重开会话或重启。 */
+      const hiddenModels = hiddenModelsOf(useObservable(prefs))
+      const shownControls = useMemo(
+        () => withoutHiddenModels(sessionConfigControlsOf(controls), hiddenModels),
+        [controls, hiddenModels],
+      )
       /* 世界线记录本身：贡献点（review 的改动数、usage 的累计用量）收的就是它。 */
       const thread = useFeatureStore(stores.threads.store, (s) => s.items.find((t) => t.id === threadId))
       const view = useWorkspacesView(workspaces)
@@ -244,7 +253,7 @@ export function createConversationContributions(setup: ConversationSetup, action
           <ActiveOwner layout={layout} owner={threadId} />
           <AssistantSurface
             {...(session === undefined ? {} : { session })}
-            controls={sessionConfigControlsOf(controls)}
+            controls={shownControls}
             controlsFailure={controlsFailure}
             endpoint={threadId}
             goal={goal}

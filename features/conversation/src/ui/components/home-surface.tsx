@@ -1,15 +1,18 @@
+import type { PreferencesApi } from '@poietica/feature-preferences/ui-api'
 import { useWorkspacesView, type WorkspacesUi } from '@poietica/feature-workspaces/ui-api'
 import { useFeatureStore } from '@poietica/ui-kernel'
-import { type ReactElement, useCallback, useEffect, useRef, useState, useSyncExternalStore } from 'react'
+import { type ReactElement, useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react'
 import type { SessionConfigControl } from '../agent/config'
 import type { ConversationApi } from '../api'
 import { type EntrySelection, NEW_THREAD_KEY } from '../composer/composer-store'
 import {
+  hiddenModelsOf,
   PLAN_CONTROL_ID,
   PLAN_DISABLED,
   PLAN_ENABLED,
   postureOfControl,
   sessionConfigControlsOf,
+  withoutHiddenModels,
 } from '../configuration/control-shapes'
 import type { PostureIntent } from '../configuration/posture-intent'
 import { type DraftSelection, entryThreadInitOf } from '../entry-init'
@@ -50,12 +53,15 @@ export interface HomeSurfaceProps {
   readonly posture?: PostureIntent | undefined
   readonly sessions: SessionRegistry
   readonly onOpenThread: (threadId: string) => void
+  /** 偏好：读设置页关掉的模型（`modelPicker.hiddenModels`）。订阅着读，开关一拨菜单当场变；没接就不藏。 */
+  readonly preferences?: PreferencesApi | undefined
 }
 
 export function HomeSurface({
   api,
   onOpenThread,
   posture: postureIntent,
+  preferences,
   sessions,
   stores,
   workspaces,
@@ -73,6 +79,12 @@ export function HomeSurface({
     [stored, stores.composer],
   )
   const [controls, setControls] = useState<readonly SessionConfigControl[]>([])
+  const hiddenModels = useSyncExternalStore(
+    preferences?.subscribe ?? NO_SUBSCRIPTION,
+    useCallback(() => hiddenModelsOf(preferences?.current()), [preferences]),
+  )
+  /* 只藏画出来的那一份：建线程时交给 Core 的仍是完整控件表（`prepare` 里的 controls）。 */
+  const shownControls = useMemo(() => withoutHiddenModels(controls, hiddenModels), [controls, hiddenModels])
 
   /* 持久意图订阅着读；用户没在这一格动过批准方式时画的就是它，一点草稿就压过它。 */
   const storedPosture = useSyncExternalStore(
@@ -176,7 +188,7 @@ export function HomeSurface({
 
   return (
     <AssistantSurface
-      controls={controls}
+      controls={shownControls}
       endpoint={threadId ?? ''}
       isNew
       onSelectControl={select}

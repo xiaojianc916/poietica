@@ -27,6 +27,40 @@ export function postureOfControl(value: string): Posture | undefined {
   return (Object.keys(POSTURE_TO_CONTROL) as Posture[]).find((p) => POSTURE_TO_CONTROL[p] === value)
 }
 
+const NO_HIDDEN_MODELS: readonly string[] = Object.freeze([])
+
+/**
+ * 偏好里关掉的模型别名。按「可能缺格」读：首帧兜底、老载荷、测试桩都可能还没有 `modelPicker` 这一格 ——
+ * 少一格就当没藏，不能因为一个菜单过滤把整个输入框表面炸进错误边界。没有就交回同一个空表（引用不变）。
+ */
+export function hiddenModelsOf(
+  preferences: { readonly modelPicker?: { readonly hiddenModels?: readonly string[] } } | undefined,
+): readonly string[] {
+  return preferences?.modelPicker?.hiddenModels ?? NO_HIDDEN_MODELS
+}
+
+/**
+ * 设置页「已配置的模型」里关掉的那几条不进输入框的模型菜单（偏好 `modelPicker.hiddenModels`，别名 `provider/id`，
+ * 与 choices 的取值同一拼法）。**当前正在用的那一条例外**：它关掉之后仍是这一段对话的模型，菜单里少了它，
+ * 按钮上的名字就在菜单里找不到、勾也没处打。没有可藏的就原样交回（引用不变，memo 过的组件不重画）。
+ */
+export function withoutHiddenModels(
+  controls: readonly SessionConfigControl[],
+  hiddenModels: readonly string[],
+): readonly SessionConfigControl[] {
+  if (hiddenModels.length === 0) return controls
+  const hidden = new Set(hiddenModels)
+  let changed = false
+  const next = controls.map((control) => {
+    if (control.purpose !== 'model') return control
+    const choices = control.choices.filter((choice) => choice.value === control.current || !hidden.has(choice.value))
+    if (choices.length === control.choices.length) return control
+    changed = true
+    return { ...control, choices }
+  })
+  return changed ? next : controls
+}
+
 export function sessionConfigControlsOf(controls: Controls | null | undefined): readonly SessionConfigControl[] {
   if (controls?.model === undefined || controls?.thinking === undefined) return []
   const model: SessionConfigControl = {

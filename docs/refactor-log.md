@@ -3236,3 +3236,23 @@ RPC 契约与 `PROTOCOL_VERSION` 不变；conversation 新增迁移 v3（只删�
 收完之后才发的话照旧开新轮；被叫停 / 出错之后排着的话是新轮；插话带图不撞号；开着的那一轮插话段留 running；
 **实时投影与历史投影的轮数、人话、帧序逐项相等**。另在沙箱里把两边的页喂进 conversation 的真实投影与
 `selectPresentation`：修复前历史侧两张封条（可折 1分29秒 + 2分56秒），修复后与实时同为一张、不可折、起止相同。
+
+## R-24 模型显示开关：关掉的模型仍出现在输入框菜单里，且开关要当场生效（基于 db8505c）
+
+**现象**：设置页「已配置的模型」关掉 4 条，输入框的模型菜单仍列全部 6 条；重启也一样。
+
+**根因**：开关写的是偏好 `modelPicker.hiddenModels`（别名 `provider/id`），可 conversation **没有任何一处读它** ——
+新对话入口（`HomeSurface`）与已有对话（`conversation.thread` 表面）都把引擎的控件表原样交给菜单。
+设置页那边的注释写着「与选择器过滤读的那一格同一拼法」，选择器那一侧的过滤在迁移到新架构时丢了。
+
+**改法**：
+- `control-shapes.ts` 新增 `withoutHiddenModels(controls, hidden)`：只从 `purpose: 'model'` 那一格的 choices 里去掉关掉的别名；
+  **当前在用的那一条例外**（关掉之后它仍是这段对话的模型，菜单里少了它，按钮上的名字找不到、勾也没处打）；
+  没有可藏的就交回原引用。`hiddenModelsOf()` 按「可能缺格」读偏好，缺 `modelPicker` 时当作没藏，不让一个菜单过滤把表面炸进错误边界。
+- 两处表面都**订阅着读**偏好（`useObservable` / `useSyncExternalStore`），所以设置页一拨开关 → 宿主发 `prefs.changed` →
+  菜单当场重画，开着的菜单也会跟着变，不靠重启、不靠重开对话。
+- 只藏**画出来**的那一份：入口页建线程时交给 Core 的仍是完整控件表；不改引擎的可用模型（`enabledModels` 是另一件事）。
+
+**测试**：`apps/desktop/src/renderer/__tests__/hidden-models-picker.test.tsx`，装真实的 preferences + conversation，
+新对话入口与已有对话各一条：首帧不列关掉的；推一条 `prefs.changed` 后菜单当场换；关掉当前在用的那一条它仍留着；全打开恢复全量。
+修复前两条都失败（关掉的 Pro 仍在菜单里）。
