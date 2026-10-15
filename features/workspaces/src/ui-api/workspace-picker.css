@@ -116,17 +116,16 @@
   display: none;
 }
 
-.workspace-picker__menu[data-assistant-skin] {
+/* 卡面、行盒与那条分隔线都归通用弹窗；这一张只声明自己的最小宽度与搜索栏。 */
+.workspace-picker__menu {
   min-inline-size: 216px;
-  font-size: var(--cp-font-caption);
-  box-shadow: none;
 }
 
 .workspace-picker__field {
   display: flex;
   align-items: center;
   gap: 8px;
-  margin: 2px 4px var(--am-pad);
+  margin: 2px 4px 4px;
   border-block-end: var(--cp-px) solid var(--cp-hairline);
   padding: 4px 4px 8px;
   color: var(--cp-ink-subtle);
@@ -148,27 +147,9 @@
   color: var(--cp-placeholder);
 }
 
-.workspace-picker__menu[data-assistant-skin] .workspace-picker__item {
+.workspace-picker__menu .workspace-picker__item {
   display: flex;
-  min-block-size: 28px;
   align-items: center;
-  gap: 8px;
-  border-radius: var(--am-item);
-  padding: 0 8px;
-  color: var(--cp-ink);
-  cursor: pointer;
-}
-
-.workspace-picker__menu[data-assistant-skin] .workspace-picker__item svg {
-  block-size: var(--cp-icon);
-  inline-size: var(--cp-icon);
-  flex: none;
-  color: var(--cp-ink-muted);
-}
-
-.workspace-picker__menu[data-assistant-skin] .workspace-picker__item[data-highlighted] {
-  outline: none;
-  background: var(--cp-menu-hover);
 }
 
 .workspace-picker__item-name {
@@ -182,11 +163,6 @@
   padding: 4px 8px 8px;
   color: var(--cp-ink-subtle);
   font-size: var(--cp-font-micro);
-}
-
-.workspace-picker__menu[data-assistant-skin] .workspace-picker__separator {
-  margin: var(--am-pad) 8px;
-  background-color: var(--cp-hairline);
 }
 
 /* 灰色基座属于 .composer-context：项目与分支是它里面的两枚平级 chip，条不归任何一枚 chip 所有。这里只剩项目胶囊自己的盒子。 */

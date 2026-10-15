@@ -111,7 +111,7 @@ export function GitBranchPicker({
 
         <DropdownMenuContent
           align="start"
-          className="git-branch-picker__menu assistant-menu-surface"
+          className="git-branch-picker__menu"
           data-assistant-skin
           side="bottom"
           sideOffset={4}

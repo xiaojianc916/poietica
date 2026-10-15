@@ -56,10 +56,9 @@
   white-space: nowrap;
 }
 
-.git-branch-picker__menu[data-assistant-skin] {
+/* 卡面、行盒与那条分隔线都归通用弹窗；这一张只声明自己的最小宽度与搜索栏。 */
+.git-branch-picker__menu {
   min-inline-size: 216px;
-  font-size: var(--cp-font-caption);
-  box-shadow: none;
 }
 
 /* 搜索是弹层的标题栏，与项目选择器同一形状：图标在左，与名单隔一条线。 */
@@ -67,7 +66,7 @@
   display: flex;
   align-items: center;
   gap: 8px;
-  margin: 2px 4px var(--am-pad);
+  margin: 2px 4px 4px;
   border-block-end: var(--cp-px) solid var(--cp-hairline);
   padding: 4px 4px 8px;
   color: var(--cp-ink-subtle);
@@ -95,29 +94,9 @@
   color: var(--cp-placeholder);
 }
 
-.git-branch-picker__menu[data-assistant-skin] .git-branch-picker__item {
+.git-branch-picker__menu .git-branch-picker__item {
   display: flex;
-  min-block-size: 28px;
   align-items: center;
-  gap: 8px;
-  border-radius: var(--am-item);
-  padding: 0 8px;
-  color: var(--cp-ink);
-  cursor: pointer;
-}
-
-.git-branch-picker__menu[data-assistant-skin] .git-branch-picker__item svg {
-  block-size: var(--cp-icon);
-  inline-size: var(--cp-icon);
-  flex: none;
-  color: var(--cp-ink-muted);
-}
-
-/* 高亮读菜单卡面那一档悬停（--cp-menu-hover），与权限弹窗、模型面板、项目选择器
- * 的行同一个值，不读 --cp-hover：后者是半透明墨，压在这张实色浮层上还要再兑一次底。 */
-.git-branch-picker__menu[data-assistant-skin] .git-branch-picker__item[data-highlighted] {
-  outline: none;
-  background: var(--cp-menu-hover);
 }
 
 .git-branch-picker__item-name {
@@ -138,17 +117,17 @@
 }
 
 /* 名单最多露 6 行（6 × 28px），超出滚动；滚动条藏起来，保持弹层干净。 */
-.git-branch-picker__menu[data-assistant-skin] .git-branch-picker__list {
+.git-branch-picker__menu .git-branch-picker__list {
   max-block-size: 168px;
   overflow-y: auto;
   scrollbar-width: none;
 }
 
-.git-branch-picker__menu[data-assistant-skin] .git-branch-picker__list::-webkit-scrollbar {
+.git-branch-picker__menu .git-branch-picker__list::-webkit-scrollbar {
   display: none;
 }
 
-.git-branch-picker__menu[data-assistant-skin] .git-branch-picker__separator {
+.git-branch-picker__menu .git-branch-picker__separator {
   margin: var(--am-pad) 8px;
   background-color: var(--cp-hairline);
 }

@@ -2,8 +2,10 @@ import {
   Button,
   cn,
   DropdownMenu,
+  DropdownMenuCheck,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuLabel,
   DropdownMenuRadioGroup,
   DropdownMenuRadioItem,
   DropdownMenuSeparator,
@@ -84,8 +86,7 @@ const STATE_GLYPHS: Readonly<Record<StateGlyph, typeof GitMerge>> = {
   'pr-conflict': GitMergeConflict,
 }
 
-const MENU_ICON_CLASS = 'size-3.5 shrink-0 opacity-60'
-const ROW_CLASS = 'min-w-0 flex-1 truncate text-xs'
+const ROW_CLASS = 'min-w-0 flex-1 truncate'
 
 const REVIEW_WORD: Readonly<Record<GithubReviewState, string>> = {
   approved: 'Approved',
@@ -310,7 +311,7 @@ function MergeButton({
       <DropdownMenuContent align="end" className="w-64">
         {why === null ? null : (
           <>
-            <div className="px-2 py-1.5 text-xs text-muted-foreground">{why}</div>
+            <DropdownMenuLabel>{why}</DropdownMenuLabel>
             <DropdownMenuSeparator />
           </>
         )}
@@ -392,11 +393,11 @@ function StatePill({
           value={pull.draft ? 'draft' : 'ready'}
         >
           <DropdownMenuRadioItem value="draft">
-            <GitPullRequestDraft aria-hidden className={MENU_ICON_CLASS} />
+            <GitPullRequestDraft aria-hidden />
             <span className={ROW_CLASS}>Draft</span>
           </DropdownMenuRadioItem>
           <DropdownMenuRadioItem value="ready">
-            <GitPullRequest aria-hidden className={MENU_ICON_CLASS} />
+            <GitPullRequest aria-hidden />
             <span className={ROW_CLASS}>Ready for review</span>
           </DropdownMenuRadioItem>
         </DropdownMenuRadioGroup>

@@ -288,90 +288,13 @@
   }
 }
 
-.assistant-thread-menu.assistant-thread-menu {
-  overflow: hidden;
-  font-family: inherit;
-  line-height: 1.25;
-  color: var(--cp-ink);
-}
-
-/* 几何与视觉语言属于这个紧凑的侧边栏，所以这些选择器的特异性故意高于设计系统下拉的工具类。 */
-.assistant-thread-menu .assistant-thread-menu__item {
-  display: flex;
-  align-items: center;
-  border: 0;
-  background: transparent;
-  font-family: inherit;
-  font-weight: 400;
-  line-height: 1.25;
-  color: var(--cp-ink);
-  text-align: start;
-  cursor: pointer;
-  transition:
-    background-color var(--cp-motion-swift) var(--cp-motion-ease),
-    color var(--cp-motion-swift) var(--cp-motion-ease);
-}
-
-.assistant-thread-menu .assistant-thread-menu__item svg {
-  flex: none;
-  color: var(--cp-ink-muted);
-}
-
-.assistant-thread-menu .assistant-thread-menu__item[data-highlighted],
-.assistant-thread-menu .assistant-thread-menu__item:focus-visible {
-  outline: none;
-  background: var(--cp-hover);
-  color: var(--cp-ink);
-}
-
-/* 侧栏菜单同上面的皮肤；行为、焦点顺序与定位仍归设计系统的下拉。 */
-.assistant-thread-menu[data-assistant-skin].assistant-thread-menu {
+/*
+ * 卡面、圆角、行盒、行圆角、字形颜色与悬停底全归通用弹窗（control/popup-surface.ts 与
+ * control/menu.css）。这一张只声明它在紧凑侧栏里的最小宽度 —— 这里以前写着整整一套皮肤，
+ * 于是同一个控件在侧栏和别处是两张脸。
+ */
+.assistant-thread-menu {
   min-inline-size: 184px;
-  font-size: var(--cp-font-caption);
-}
-
-.assistant-thread-menu[data-assistant-skin] .assistant-thread-menu__item {
-  min-block-size: 28px;
-  gap: 8px;
-  border-radius: var(--am-item);
-  padding: 0 8px;
-  font-size: var(--cp-font-caption);
-}
-
-.assistant-thread-menu[data-assistant-skin] .assistant-thread-menu__item svg {
-  block-size: var(--cp-icon);
-  inline-size: var(--cp-icon);
-}
-
-/* 这组档只覆盖深色（浅色下 #2a2a2a 就是一块黑斑）；墨色写在这里而不改全局令牌，因为 --cp-ink 还铺在整块会话页上。
- * 圆角 12px 比浮层族默认大一档，行内高亮跟着抬到 8px：外圆角减内边距才是那行该用的半径，否则高亮会从卡角里戳出来。 */
-:root[data-theme="dark"] .assistant-thread-menu[data-assistant-skin].assistant-thread-menu {
-  border-color: #343434;
-  border-radius: 12px;
-  background: #2a2a2a;
-  --cp-ink: #e6e6e6;
-  --cp-ink-muted: #cccccc;
-}
-
-:root[data-theme="dark"] .assistant-thread-menu .assistant-thread-menu__item {
-  border-radius: 8px;
-}
-
-:root[data-theme="dark"] .assistant-thread-menu .assistant-thread-menu__item[data-highlighted],
-:root[data-theme="dark"] .assistant-thread-menu .assistant-thread-menu__item:focus-visible {
-  background: #3b3b3b;
-}
-
-/* Base UI 在 Popup 上发 data-open / data-closed；认成 Radix 的 data-state 则一条都不命中，入场动画不播。 */
-.assistant-thread-menu[data-assistant-skin][data-open] {
-  animation: assistant-menu-in var(--cp-motion-swift) var(--cp-motion-ease) both;
-}
-
-/* 退场没有可画的画面，也没有动画要等，弹层立刻卸载。 */
-.assistant-thread-menu[data-assistant-skin][data-closed] {
-  animation: none;
-  opacity: 0;
-  pointer-events: none;
 }
 
 /* 会话列表首帧：读取落定之前不说"还没有会话"，所以指针也关掉。 */
@@ -385,7 +308,8 @@
   block-size: 10px;
   margin: 0;
   border-radius: 4px;
-  background: var(--am-line);
+  /* 骨架块的浅灰。此前读的是工具条浮层皮肤那一族变量（--am-line），那一族随皮肤一起拆掉了。 */
+  background: var(--ui-divider-subtle);
   animation: assistant-thread-ghost 1200ms ease-in-out infinite;
 }
 

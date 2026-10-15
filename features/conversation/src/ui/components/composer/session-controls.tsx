@@ -204,7 +204,7 @@ export const SessionControls = memo(function SessionControls({ controls, onSelec
 
       <DropdownMenuContent
         align="end"
-        className="assistant-model-select__panel assistant-menu-surface"
+        className="assistant-model-select__panel"
         data-assistant-skin
         onKeyDown={(event) => {
           if (event.key === 'Escape' && listing) {

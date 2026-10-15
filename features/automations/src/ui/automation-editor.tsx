@@ -264,7 +264,7 @@ function EditorToolbar({
                   </DropdownMenuItem>
                 ) : null}
                 <DropdownMenuSeparator />
-                <DropdownMenuItem className="text-destructive" disabled={active !== null} onClick={onDelete}>
+                <DropdownMenuItem danger disabled={active !== null} onClick={onDelete}>
                   <Trash aria-hidden className="size-3.5" />
                   删除
                 </DropdownMenuItem>

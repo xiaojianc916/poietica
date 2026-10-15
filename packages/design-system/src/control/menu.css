@@ -1,0 +1,119 @@
+/*
+ * 菜单行里那些「不属于行本身」的格子：图标、勾、两个变体的行高，以及浮层内部那条滚动条。
+ *
+ * 逐条照抄 DeepSeek Harness 的 Menu.module.css 与 MenuSurface.module.css
+ * （@deepseek-ai/dsh-client-ui-primitives，装机版本 2026-10-01）：
+ *   .item        34 高、圆角 12、内边距 6px 8px、字 13/20（在 control/popup-surface.ts）
+ *   .itemIcon    14 一格，颜色读菜单图标那一档；.itemIcon svg 同为 14
+ *   .check       14 一格，颜色走正文那一档，不伸缩
+ *   .denseList   行 34 → 30（只压行距），标题行同样压一档
+ *   .compactList 卡 156 起、圆角 12、行 24、圆角 8、字 11/17、间距 5、图标与勾 12、标题 10/15
+ *
+ * 为什么是后代规则而不是把每一格都做成组件：图标与文字在调用点直接作为行的子级出现（组件不
+ * 接管 children 的形状），而调用点自己那点 size-3.5 / text-xs 与工具类同层，谁赢只看生成
+ * 顺序。这一份是无层规则，压得住 @layer utilities 里的任何工具类，于是「行的样子由行说了算」
+ * 这条约定才真的成立。
+ */
+
+/* 行首图标：14 一格（正本 .itemIcon 与其 svg）。 */
+.ds-menu-item > svg {
+  inline-size: 14px;
+  block-size: 14px;
+}
+
+/*
+ * 图标不跟正文同色，走 --ui-popup-icon（正本 --dsw-alias-menu-icon，比正文浅一档）。
+ * 危险行例外：整行已经是红的，图标跟着行走（正本用 .danger 覆盖一次，这里用同一个判据）。
+ */
+.ds-menu-item:not(.ds-menu-item-danger) > svg {
+  color: var(--ui-popup-icon);
+}
+
+/* 选中那枚勾（正本 .check）：颜色是行字那一档。 */
+.ds-menu-check {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  inline-size: 14px;
+  block-size: 14px;
+  color: var(--ui-popup-ink);
+}
+
+.ds-menu-check > svg {
+  inline-size: 14px;
+  block-size: 14px;
+}
+
+/* dense：只压行距，排版与卡宽不动（正本 .denseList；标题行同样压一档）。 */
+.ds-menu-card.ds-menu-dense .ds-menu-item {
+  min-height: var(--ui-menu-row-height-dense);
+  padding-block: 4px;
+}
+
+.ds-menu-card.ds-menu-dense .ds-menu-label {
+  padding-block: 3px;
+}
+
+/* compact：整档缩小（正本 .compactList 与 MenuSurface 的 .compact）。 */
+.ds-menu-card.ds-menu-compact {
+  min-width: 156px;
+  border-radius: var(--ui-radius-xl);
+}
+
+.ds-menu-card.ds-menu-compact .ds-menu-item {
+  min-height: var(--ui-menu-row-height-compact);
+  gap: 5px;
+  padding: 2px 6px;
+  border-radius: var(--ui-radius-md);
+  font-size: 11px;
+  line-height: 17px;
+}
+
+.ds-menu-card.ds-menu-compact .ds-menu-item > svg,
+.ds-menu-card.ds-menu-compact .ds-menu-check,
+.ds-menu-card.ds-menu-compact .ds-menu-check > svg {
+  inline-size: 12px;
+  block-size: 12px;
+}
+
+.ds-menu-card.ds-menu-compact .ds-menu-separator {
+  margin: 2px;
+}
+
+.ds-menu-card.ds-menu-compact .ds-menu-label {
+  padding: 3px 6px;
+  font-size: 10px;
+  line-height: 15px;
+}
+
+/*
+ * 两条线挨在一起只画一条（正本 .separator + .separator）。
+ *
+ * 正本另外两条是「行自带 separatorBefore 时，行内的线不重复画」；本仓的行没有那个属性，分隔线
+ * 是平级元素，所以那两条在这里没有对应物 —— 写成 :first-child 会把「组标题上面那条线」一起吞掉
+ * （组在 DOM 里就是一个包装元素，线是它的第一个子级），整张卡于是矮两格。卡自己的第一条就是线
+ * 时仍然不画：那是同一件事里唯一还成立的一半。
+ */
+.ds-menu-separator + .ds-menu-separator,
+.ds-menu-card > .ds-menu-separator:first-child {
+  display: none;
+}
+
+/*
+ * 浮层内部那条滚动条：正本把 elevation 的 l2 两档改绑在这一层（Menu.module.css 的
+ * --dsh-scrollbar-thumb*），滑块于是比页面那条亮一档，压在玻璃卡上才看得见。改绑只在本卡片内
+ * 生效 —— 自定义属性继承到真正滚动的那个后代身上，全仓其余滚动区不受影响。
+ */
+.ds-menu-card {
+  --ui-scrollbar-thumb: var(--ui-popup-scrollbar-thumb);
+  --ui-scrollbar-thumb-hover: var(--ui-popup-scrollbar-thumb-hover);
+}
+
+/*
+ * 名单滚起来时的高度上限（正本 .scrollable）：卡最多到视口下沿再让 12px，更多内容在卡内滚。
+ * 正本上面那一段是 macOS 的窗口层内缩，本仓没有那一层，取同一个 12。
+ */
+.ds-menu-scrollable {
+  max-height: calc(100vh - 24px);
+}

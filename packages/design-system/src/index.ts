@@ -8,7 +8,6 @@
  * popupSurfaceClassName 不对外导出但模块保留 —— 包内其它控件在用。tokens/*.css 一个都没改动。
  */
 
-import './control/menu-surface.css'
 
 export { cn } from './class-names'
 export {
@@ -25,9 +24,11 @@ export { ConfirmationDialog } from './control/confirmation-dialog'
 export { Dialog } from './control/dialog'
 export {
   DropdownMenu,
+  DropdownMenuCheck,
   DropdownMenuContent,
   DropdownMenuGroup,
   DropdownMenuItem,
+  DropdownMenuLabel,
   DropdownMenuRadioGroup,
   DropdownMenuRadioItem,
   DropdownMenuRadioItemIndicator,

@@ -157,7 +157,7 @@ function ThreadActionsMenu({
 
       <DropdownMenuContent
         align="start"
-        className="assistant-thread-menu assistant-menu-surface"
+        className="assistant-thread-menu"
         data-assistant-skin
         side="bottom"
         sideOffset={6}

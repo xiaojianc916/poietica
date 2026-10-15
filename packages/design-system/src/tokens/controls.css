@@ -8,6 +8,12 @@
    * 34 = DeepSeek Harness .item 的 min-height（正本 Menu.module.css，装机版本 2026-10-01）。
    */
   --ui-menu-row-height: 34px;
+  /*
+   * 同一行的两个变体，值的正本同为 Menu.module.css：.denseList 的行高 30（只压行距，
+   * 排版与卡宽不动），.compactList 的 24（整档缩小，见 control/menu.css）。
+   */
+  --ui-menu-row-height-dense: 30px;
+  --ui-menu-row-height-compact: 24px;
 
   /*
    * 图标档位只声明 16 这一档。

@@ -44,15 +44,10 @@
   color: var(--cp-model-pill-level-ink);
 }
 
-/* 面板壳沿用工具条浮层的同一张脸（assistant-menu-surface），几何与那一圈影是它自己的。 */
-.assistant-model-select__panel[data-assistant-skin] {
+/* 卡面、圆角、影与内边距全归通用弹窗；这里只留这一张自己的宽度。 */
+.assistant-model-select__panel {
   inline-size: var(--cp-model-panel);
-  min-inline-size: 0;
   max-inline-size: calc(100vw - 2 * var(--cp-gutter));
-  padding: 0;
-  border-color: var(--cp-model-panel-edge);
-  border-radius: var(--cp-model-panel-radius);
-  box-shadow: var(--cp-model-panel-lift);
 }
 
 /* 档位页：两行字加一条轨道。 */
@@ -83,7 +78,7 @@
 [data-assistant-skin] .assistant-model-select__head:hover,
 [data-assistant-skin] .assistant-model-select__head[data-highlighted] {
   outline: none;
-  background: var(--cp-menu-hover);
+  background: var(--ui-popup-highlight);
 }
 
 .assistant-model-select__head-band {
@@ -224,26 +219,10 @@
   padding: 6px var(--cp-model-panel-pad);
 }
 
-/* 行比面板窄四格：字仍起在面板的留白上，底色往里收，四周才不顶着卡片边。 */
-[data-assistant-skin] .assistant-model-select__item {
+/* 行盒、悬停底与字色归通用弹窗；这里只留名字那一格怎么收尾。 */
+.assistant-model-select__item {
   display: flex;
-  min-block-size: var(--cp-model-item-row);
   align-items: center;
-  gap: var(--cp-model-item-pad);
-  margin-inline: calc(-1 * var(--cp-model-item-pad));
-  padding-inline: var(--cp-model-item-pad);
-  border: 0;
-  border-radius: var(--cp-radius-item);
-  background: transparent;
-  font: inherit;
-  font-size: var(--cp-model-size);
-  color: var(--cp-ink);
-}
-
-[data-assistant-skin] .assistant-model-select__item:hover,
-[data-assistant-skin] .assistant-model-select__item[data-highlighted] {
-  outline: none;
-  background: var(--cp-menu-hover);
 }
 
 .assistant-model-select__item-name {
@@ -258,15 +237,5 @@
   flex: none;
   align-items: center;
   margin-inline-start: auto;
-  color: var(--cp-ink);
 }
 
-/* 工具条浮层族的几何与面色变量只有这一处定义，工作区、分支、调色板、批准方式等处都取这里的值。 */
-[data-assistant-skin] {
-  --am-radius: 8px;
-  --am-item: 5px;
-  --am-pad: 4px;
-  --am-line: var(--ui-divider);
-
-  --am-shadow: var(--cp-lift-menu);
-}

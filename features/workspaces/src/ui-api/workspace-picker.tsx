@@ -167,7 +167,7 @@ export function WorkspacePicker({
 
         <DropdownMenuContent
           align={placement === 'composer' ? 'start' : 'end'}
-          className="workspace-picker__menu assistant-menu-surface"
+          className="workspace-picker__menu"
           data-assistant-skin
           side="bottom"
           sideOffset={4}

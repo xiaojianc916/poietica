@@ -1,6 +1,7 @@
 import {
   cn,
   DropdownMenu,
+  DropdownMenuCheck,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuSeparator,
@@ -72,8 +73,7 @@ const SWITCHES: readonly {
 ]
 const ICON_CLASS =
   'review-toolbar-action flex size-6 shrink-0 items-center justify-center rounded-md opacity-60 hover:opacity-100'
-const ROW_CLASS = 'min-w-0 flex-1 truncate text-xs'
-const MENU_ICON_CLASS = 'size-3.5 shrink-0 opacity-60'
+const ROW_CLASS = 'min-w-0 flex-1 truncate'
 export interface ReviewPaneProps {
   readonly gateway: ReviewGateway
   readonly report: ReviewFailureReport
@@ -234,7 +234,7 @@ function Bases({
             >
               <span className={ROW_CLASS}>{source.label}</span>
               {source.ref !== null && source.ref === base ? (
-                <Check aria-hidden className="size-3 shrink-0 opacity-60" />
+                <DropdownMenuCheck />
               ) : null}
             </DropdownMenuItem>
           </Fragment>
@@ -258,7 +258,7 @@ function Overflow({ state, store }: { readonly state: ReviewState; readonly stor
       </DropdownMenuTrigger>
       <DropdownMenuContent className="w-56">
         <DropdownMenuItem onClick={store.refresh}>
-          <RefreshCw aria-hidden className={MENU_ICON_CLASS} />
+          <RefreshCw aria-hidden />
           <span className={ROW_CLASS}>刷新</span>
         </DropdownMenuItem>
         <DropdownMenuSeparator />
@@ -269,13 +269,13 @@ function Overflow({ state, store }: { readonly state: ReviewState; readonly stor
               store.toggleSwitch(entry.name)
             }}
           >
-            <entry.icon aria-hidden className={MENU_ICON_CLASS} />
+            <entry.icon aria-hidden />
             <span className={ROW_CLASS}>{state.presentation[entry.name] ? entry.on : entry.off}</span>
           </DropdownMenuItem>
         ))}
         <DropdownMenuSeparator />
         <DropdownMenuItem disabled={!store.hasChanges()} onClick={copyCommand}>
-          <Copy aria-hidden className={MENU_ICON_CLASS} />
+          <Copy aria-hidden />
           <span className={ROW_CLASS}>复制 git apply 命令</span>
         </DropdownMenuItem>
       </DropdownMenuContent>
@@ -353,7 +353,7 @@ function Commit({
             store.commit('commit')
           }}
         >
-          <GitCommitHorizontal aria-hidden className={MENU_ICON_CLASS} />
+          <GitCommitHorizontal aria-hidden />
           <span className="min-w-0 flex-1 truncate text-xs">提交</span>
           <span className="review-commit-kbd">Ctrl+↵</span>
         </DropdownMenuItem>
@@ -364,7 +364,7 @@ function Commit({
             store.commit('commit-and-push')
           }}
         >
-          <ArrowUp aria-hidden className={MENU_ICON_CLASS} />
+          <ArrowUp aria-hidden />
           <span className="min-w-0 flex-1 truncate text-xs">提交并推送</span>
         </DropdownMenuItem>
         <DropdownMenuItem
@@ -374,7 +374,7 @@ function Commit({
             store.commit('push')
           }}
         >
-          <Upload aria-hidden className={MENU_ICON_CLASS} />
+          <Upload aria-hidden />
           <span className="min-w-0 flex-1 truncate text-xs">推送</span>
         </DropdownMenuItem>
       </DropdownMenuContent>

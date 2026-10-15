@@ -99,7 +99,7 @@ export const PermissionPicker = memo(function PermissionPicker({
 
       <DropdownMenuContent
         align="start"
-        className="assistant-posture-menu assistant-menu-surface"
+        className="assistant-posture-menu"
         data-assistant-skin
         side="top"
         sideOffset={6}

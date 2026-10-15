@@ -104,6 +104,21 @@
   --ui-popup-highlight: #2631480f;
   /* 浮层内线 = --dsw-alias-border-l2。正本的分隔线是 0.5px 色块，不是 1px 边框。 */
   --ui-popup-divider: #0000001a;
+  /* 行首图标 = --dsw-alias-menu-icon：比正文浅一档，图标于是不与字抢读。 */
+  --ui-popup-icon: #353638;
+  /* 列标题（「分组方式」那一行）= --dsw-alias-label-tertiary。 */
+  --ui-popup-label: #81858c;
+  /* 行字与勾 = --dsw-alias-label-primary。浮层上的正文比页面正文更黑一档，取正本的字面值。 */
+  --ui-popup-ink: #0f1115;
+  /* 危险行的字 = --dsw-alias-state-error-primary；高亮底 = --dsw-alias-interactive-bg-hover-danger。 */
+  --ui-popup-danger: #ec1313;
+  --ui-popup-danger-highlight: #ec13130d;
+  /*
+   * 浮层里那条滚动条。正本整卡改绑 elevation 的 l2 两档（Menu.module.css 的 --dsh-scrollbar-*），
+   * 浅色下与全局那两格同值，深色下与它们不同 —— 深色的浮层比页面亮，滑块要跟着抬。
+   */
+  --ui-popup-scrollbar-thumb: #e5e5e5;
+  --ui-popup-scrollbar-thumb-hover: #d4d4d4;
   /* 触发器收起态的框：与卡片线同一档。 */
   --ui-popover-trigger-frame: var(--ui-card-divider);
 

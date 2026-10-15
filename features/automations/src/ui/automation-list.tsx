@@ -276,7 +276,7 @@ function TaskMenu({
         <DropdownMenuSeparator />
 
         <DropdownMenuItem
-          className="text-destructive"
+          danger
           disabled={busy || active !== null}
           onClick={() => {
             onDelete(automation)

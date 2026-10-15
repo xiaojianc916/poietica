@@ -52,70 +52,41 @@
   text-overflow: ellipsis;
 }
 
-/*
- * 这一张的几何归它自己，边与面已经是 .assistant-menu-surface 的两格，与模型面板、项目与分支选择器同源。
- * 唯一不跟那一族走的是影：它压在输入卡上，与输入卡自己是同一条取舍。两个选择器的特异性决定胜负，与文件次序无关。
- */
-.assistant-posture-menu[data-assistant-skin] {
+/* 卡面、行高、行圆角与悬停底都归通用弹窗（control/popup-surface.ts）。这里只留这一张自己的宽度。 */
+.assistant-posture-menu {
   inline-size: 21rem;
-  min-inline-size: 0;
   max-inline-size: calc(100vw - 2 * var(--cp-gutter));
-  padding: var(--am-pad);
-  box-shadow: none;
 }
 
-[data-assistant-skin] .assistant-posture-menu__item {
+/* 两行字加一枚字形：格还在，但字号、字色、行盒取自通用弹窗的行。 */
+.assistant-posture-menu__item {
   display: grid;
   grid-template-areas: "glyph name tick" "glyph detail tick";
   grid-template-columns: auto minmax(0, 1fr) auto;
-  align-items: center;
-  column-gap: 8px;
+  column-gap: 6px;
   row-gap: 2px;
-  border: 0;
-  border-radius: var(--am-item);
-  padding: 6px 8px;
-  background: transparent;
-  font: inherit;
-  color: var(--cp-ink);
-  text-align: start;
-  cursor: default;
 }
 
-/* 被指到的那一行读菜单卡面那一档悬停（--cp-menu-hover）；胶囊自己压在输入卡上，读输入卡那一档。 */
-[data-assistant-skin] .assistant-posture-menu__item:hover,
-[data-assistant-skin] .assistant-posture-menu__item[data-highlighted] {
-  outline: none;
-  background: var(--cp-menu-hover);
-}
-
-[data-assistant-skin] .assistant-posture-menu__item[data-alert] {
+.assistant-posture-menu__item[data-alert] {
   color: var(--pp-ink-alert);
 }
 
-[data-assistant-skin] .assistant-posture-menu__glyph,
-[data-assistant-skin] .assistant-posture-menu__tick svg {
-  block-size: var(--cp-icon);
-  inline-size: var(--cp-icon);
-  flex: none;
-}
-
-[data-assistant-skin] .assistant-posture-menu__glyph {
+.assistant-posture-menu__glyph {
   grid-area: glyph;
+  color: var(--ui-popup-icon);
 }
 
-[data-assistant-skin] .assistant-posture-menu__name {
+.assistant-posture-menu__name {
   grid-area: name;
-  font-size: var(--cp-font-caption);
-  font-weight: 400;
 }
 
-[data-assistant-skin] .assistant-posture-menu__detail {
+.assistant-posture-menu__detail {
   grid-area: detail;
   font-size: var(--cp-font-micro);
   color: var(--cp-ink-subtle);
 }
 
-[data-assistant-skin] .assistant-posture-menu__tick {
+.assistant-posture-menu__tick {
   display: flex;
   grid-area: tick;
   align-items: center;
