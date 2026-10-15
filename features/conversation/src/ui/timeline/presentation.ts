@@ -51,11 +51,37 @@ export interface TurnSealPlan {
 }
 
 /**
- * 这一轮是不是**永远摊开**（DSH turnProcessAlwaysOpen 的后两档）：被人叫停、或者自己坏了。
- * 两者都不接受折叠 —— 那要让人看见它停在哪、坏在哪。正在跑的那一轮压根没有封条（见 sealOf）。
+ * 这一轮是不是**永远摊开**（DSH turnProcessAlwaysOpen）：被人叫停、自己坏了、或者中途有人插过话。
+ * 三者都不接受折叠 —— 前两个要让人看见它停在哪、坏在哪；有插话的那一轮，那段过程里夹着人自己的话，
+ * 折起来会把他的话一起藏掉。正在跑的那一轮压根没有封条（见 sealOf），所以不必在这里判。
  */
-function pinnedOpen(outcome: TurnOutcome | undefined): boolean {
-  return outcome === 'aborted' || outcome === 'error'
+function pinnedOpen(outcome: TurnOutcome | undefined, interjected: boolean): boolean {
+  return interjected || outcome === 'aborted' || outcome === 'error'
+}
+
+/**
+ * 轮里有没有**中途插话**（DSH 的 hasInterleavedInput）：开场那句之后、这一轮已经在干活了，人又说了话。
+ *
+ * 判据是「人说的话出现在它的产出之后」：开场白与它那一条重复的帧都在产出之前，不算插话。
+ * agent_text / agent_thought / tool_call 三者任一出现就说明这一轮已经在干活了。
+ */
+function interjectedIn(rows: readonly FeedRow[]): boolean {
+  let worked = false
+
+  for (const row of rows) {
+    const type = row.item.type
+
+    if (type === 'agent_text' || type === 'agent_thought' || type === 'tool_call') {
+      worked = true
+      continue
+    }
+
+    if (worked && type === 'user_message') {
+      return true
+    }
+  }
+
+  return false
 }
 
 export interface ReplyActionPlan {
@@ -495,6 +521,7 @@ function sealOf(
   running: boolean,
   isOpen: boolean,
   hasProcess: boolean,
+  interjected: boolean,
 ): TurnSealPlan | undefined {
   /*
    * 这一轮还没结束就没有封条（DSH：turn.status !== 'closed' 就返回 null）。在跑的那一句由转录末尾的
@@ -504,7 +531,7 @@ function sealOf(
     return undefined
   }
   return {
-    canCollapse: hasProcess && !pinnedOpen(page.outcome),
+    canCollapse: hasProcess && !pinnedOpen(page.outcome, interjected),
     durationMs: span?.durationMs,
     endedAt: span?.endedAt,
     hasProcess,
@@ -522,11 +549,13 @@ function buildSegment(
   picked: boolean | undefined,
 ): Segment {
   const all = rowsOf(page, running)
-  /* 在跑、被人叫停、自己坏掉都不折：前两个还没完或刚停，第三个要让人看见坏在哪。 */
-  const isOpen = running || pinnedOpen(page.outcome) || (picked ?? false)
+  /* 有插话的那一轮不折：过程里夹着人自己的话，折起来会把它一起藏掉。 */
+  const interjected = interjectedIn(all)
+  /* 在跑、被人叫停、自己坏掉、中途有人插话都不折。 */
+  const isOpen = running || pinnedOpen(page.outcome, interjected) || (picked ?? false)
   const answer = answerStart(all, 0, all.length)
   const process = foldFrom(all, answer ?? all.length)
-  const seal = sealOf(page, span, running, isOpen, process.length > 0)
+  const seal = sealOf(page, span, running, isOpen, process.length > 0, interjected)
   const visible = isOpen || seal === undefined || process.length === 0 ? all : omitSorted(all, process)
   const grouped = groupIn(visible)
   const where = placesIn(grouped.rows)

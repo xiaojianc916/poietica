@@ -2911,6 +2911,7 @@ DSH 桌面端这一处的**代码逻辑**，不是只照抄外观。参考物是
 | `RunningWhaleTail` | 鲸鱼尾图标：APNG 当 mask 着色，静态 SVG 兜底 |
 | `TurnProcessNodeView` | 封条的渲染与三档文案；**`turn.status !== 'closed'` 直接返回 null** |
 | `turnProcessAlwaysOpen` | 「永远摊开」：`status === 'open'` 或 `reason` 是 aborted / error |
+| `derivePresentation` 的 `hasInterleavedInput` | 「中途有人插过话」同样是永远摊开（`alwaysOpen = liveProcess \|\| hasInterleavedInput \|\| turnProcessAlwaysOpen`） |
 | `processSpec` + `derivePresentation` | `foldable` / `hasContent` / `open` 三格怎么解出来 |
 
 **复刻到本仓的映射**（DSH 的概念 → 本仓已有的那一格）：
@@ -2924,9 +2925,15 @@ DSH 桌面端这一处的**代码逻辑**，不是只照抄外观。参考物是
 3. **什么时候封**：DSH 的封条只在轮**结束之后**存在（`turn.status !== 'closed' → null`）。本仓的
    `sealOf()` 因此加一条 `|| running → undefined`：**在跑的那一轮没有封条**，那一句由末尾的运行
    状态行说。这不是删功能 —— 两处都报「正在处理」本来就是两种说法说同一件事。
-4. **什么时候选择不封**（DSH `turnProcessAlwaysOpen`）：被人叫停、或者自己坏了，都**不接受折叠**，
-   过程整段摊开让人看见停在哪、坏在哪。正常答完的才谈得上折，且默认收起。
-   DSH 的第三档 `status === 'open'`（正在跑）在本仓由上一条吸收 —— 在跑的轮压根没有封条。
+4. **什么时候选择不封**（DSH `turnProcessAlwaysOpen` + `hasInterleavedInput`）：**被人叫停、
+   自己坏了、中途有人插过话**，三者都**不接受折叠** —— 前两个要让人看见它停在哪、坏在哪；
+   第三个是因为那段过程里夹着人自己的话（气泡就落在过程那一段里），折起来会把他的话一起藏掉。
+   正常答完的才谈得上折，且默认收起。DSH 的 `status === 'open'`（正在跑）那一档在本仓由上一条
+   吸收 —— 在跑的轮压根没有封条。
+   插话的判据是**端到端**的：`interjectedIn()` 只认「人说的话出现在它的产出之后」。这正好对上
+   引擎的真实形态 —— `live.ts` 里开场那条用户帧**不带 origin**（不上屏），只有 `steeredFrame`
+   才给 `origin: { kind: 'user' }`，而带 origin 的才在投影里成行（`sourceOfFrame` 只认它）。
+   所以「产出之后出现的人话」与「真的插过话」是同一件事，不是近似。
 5. **封条的三档文案**（DSH `TurnProcessNodeView`）：`已停止` / `处理失败` / `已完成`；
    正常答完才带时长（`已完成，用时 N`），**被打断与出错不报时长**，且时长下限 1 秒
    （`Math.max(1e3, …)`）—— 屏幕上不出现「0秒」。
@@ -2956,7 +2963,7 @@ DSH 桌面端这一处的**代码逻辑**，不是只照抄外观。参考物是
   描边路径。切换条件照抄它的三条 AND：`@supports (mask-mode: alpha) and (mask-image: url(""))` ×
   `prefers-reduced-motion: no-preference` × `forced-colors: none`。
 
-**测试**（新增 45 条，全部先写、按新判据红过再实现）：
+**测试**（新增 53 条，全部先写、按新判据红过再实现）：
 
 - `duration.test.ts`（6）：整秒向下取整、60 秒才带分、1 小时才带小时、秒永远在场、
   **非有限值当 0**（NaN 会一路印成「NaN秒」，实测抓到）。
@@ -2965,11 +2972,12 @@ DSH 桌面端这一处的**代码逻辑**，不是只照抄外观。参考物是
 - `turn-seal.test.tsx`（12）：三档文案、打断与出错不报时长、1 秒下限、
   `durationMs` 优先于两头相减（那两个时刻只覆盖最后一跳）、老载荷缺终局不编「失败」、
   能折才是按钮且带 `aria-expanded`。
-- `turn-seal-plan.test.ts`（16）：**「什么时候不封」的三条**（在跑没有封条、被打断不折、
-  出错不折）、不存在运行事实就没有封条、没有过程可折就不画开关、折起来时过程真的离开投影、
-  运行状态行的四条判据（在跑才有、起始时刻来自段、分隔线的四种来路）。
-- `transcript-projector-outcome.test.ts`（5）：**端到端** —— omp 的 `state` → `TurnPage.outcome`，
-  四档状态各一条，且终局封口之后仍留在那一页上。
+- `turn-seal-plan.test.ts`（18）：**「什么时候不封」的四条**（在跑没有封条、被打断不折、
+  出错不折、**插过话不折**）、不存在运行事实就没有封条、没有过程可折就不画开关、
+  折起来时过程真的离开投影、运行状态行的四条判据（在跑才有、起始时刻来自段、分隔线的四种来路）。
+- `transcript-projector-outcome.test.ts`（8）：**端到端** —— omp 的 `state` → `TurnPage.outcome`
+  四档各一条、终局封口之后仍留在那一页上；外加插话那三条走**真实投影**：插过话的轮不折、
+  没插过的照常可折、插话在投影里确实是一条排在产出之后的 `user_message`。
 
 **过程中被测试抓到的两个真缺陷**（都在这轮里改掉）：
 
@@ -2977,11 +2985,9 @@ DSH 桌面端这一处的**代码逻辑**，不是只照抄外观。参考物是
    拿它当「上面有产出」等于凭空多一道线。判据补上 `item.type !== 'run_anchor'`。
 2. **`formatRunDuration(NaN)` 印出「NaN秒」**：非有限值先归 0。
 
-**验收**：`bun run typecheck` 干净（752 files / 80 projects + 975 test files）；
-`bun run lint` **与基线逐条相同**（6 errors / 4 warnings，全部落在本次改动之外的
-`session-controls.css` / `review-pane.tsx` / `dropdown-menu.tsx` / `popup-surface.ts` /
-`design-system/src/index.ts` format 与 `pr-detail.tsx` unused import）；`bun test`
-**2151 pass / 0 fail**（272 文件）；`bun run desktop:build` 通过，鲸鱼 PNG 落在
+**验收**：`bun run typecheck` 干净（752 files / 80 projects + 977 test files）；
+`bun run lint` **全绿**（那 6 处既有失败已单独成一笔 `chore(lint)` 修掉，见下）；
+`bun test` **2156+ pass / 0 fail**（273 文件）；`bun run desktop:build` 通过，鲸鱼 PNG 落在
 `out/renderer/assets/whale-tail-*.png`、CSS 里的 `url()` 指向它，且规则落在**入口那两张
 样式表**里（不是按需分块 —— 已核对 `index.html` 直链的那两张）。
 `bun run check:ticker`：`steady` / `batched` / `slow` / `fast` 全过，
@@ -2993,5 +2999,11 @@ DSH 桌面端这一处的**代码逻辑**，不是只照抄外观。参考物是
 会让 electron 以纯 Node 启动、`require('electron')` 交出 undefined 而报
 `Cannot read properties of undefined (reading 'whenReady')`。跑之前清掉这个变量即可
 （`$env:ELECTRON_RUN_AS_NODE = $null`）。这条不影响 CI。
+
+**另记（与复刻无关的一笔）**：`main@bba994e2` 上 `bun run lint` 本来就是红的
+（6 errors / 4 warnings，工作区干净时即可复现），全部落在本次改动之外。按「`bun run all`
+不绿不提交」单独成一笔 `chore(lint)`：`session-controls.css` / `review-pane.tsx` /
+`dropdown-menu.tsx` / `popup-surface.ts` / `design-system/src/index.ts` 的格式化，
+以及 `pr-detail.tsx` 一个未用导入。只有格式化与删导入，无行为变化。
 
 **待决问题**：无。

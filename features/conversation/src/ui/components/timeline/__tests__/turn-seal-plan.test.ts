@@ -9,7 +9,8 @@ import type {
 
 /*
  * 「什么时候封 / 什么时候不封」的判据全在投影这一层（DSH 的 canCollapse / alwaysOpen / foldable）。
- * 三条不封：**在跑**（还没完）、**被人叫停**、**自己坏了** —— 后两条要让人看见过程与它坏在哪。
+ * 四条不封：**在跑**（还没完）、**被人叫停**、**自己坏了**、**中途有人插过话** ——
+ * 后两条要让人看见过程与它坏在哪，插话那条折起来会把人自己的话一起藏掉。
  * 正常答完的才封，且封条自己变成那个可点的开关。
  */
 
@@ -131,6 +132,19 @@ describe('封条的折叠判据（canCollapse）', () => {
     expect(seal?.outcome).toBe('aborted')
     expect(seal?.isOpen).toBe(true)
     expect(seal?.canCollapse).toBe(false)
+  })
+
+  it('中途有人插过话：摊开、不可折叠 —— 那段过程里夹着人自己的话', () => {
+    const seal = sealOf(stateOf('completed', false, [ask(), toolCall('r', 'read', 'read'), said('a'), ask('插一句')]))
+
+    expect(seal?.canCollapse).toBe(false)
+    expect(seal?.isOpen).toBe(true)
+  })
+
+  it('插话在它的产出之后才算：只多一条开场白不影响折叠', () => {
+    const seal = sealOf(stateOf('completed', false, [ask('开场'), toolCall('r', 'read', 'read'), said('a')]))
+
+    expect(seal?.canCollapse).toBe(true)
   })
 
   it('自己坏了：同样摊开、不可折叠', () => {
