@@ -68,6 +68,10 @@ export class LiveProjector {
   /** 这一轮开头那几张图的条目（审查 R-19-1）：这一轮还开着时历史分页要沿用同一批号，见 `openTurnAttachments`。 */
   private turnAttachments: readonly TranscriptAttachment[] = []
 
+  /** 增量那条路上压缩格的流水号，与开着的那一格（还没关门） */
+  private compactionSeq = 0
+  private compactionOpen: string | null = null
+
   constructor(private readonly o: LiveProjectorOptions) {}
 
   private now(): string {
@@ -573,6 +577,42 @@ export class LiveProjector {
     this.step += 1
     this.frame = 0
     this.streaming = null
+  }
+
+  /**
+   * 一次压缩开门：每次另起一格（compaction-live-<n>），关门落回这一格。
+   *
+   * 号不按轮号铸：同一轮里可以压好几次（overflow 重试、换一种方式再压），按轮号铸会让后一次盖掉前一次；
+   * 也不与历史那条路的号（compaction-<轮>-<次>）同名 —— 整页重取时增量这几格会被整份换掉，不必对号。
+   */
+  compactionStart(input: { readonly reason?: unknown; readonly action?: unknown }): TranscriptOperation[] {
+    const markerId = this.nextCompactionId()
+    this.compactionOpen = markerId
+    return this.marker({
+      markerId,
+      marker: 'compaction',
+      payload: {
+        state: 'running',
+        ...(typeof input.reason === 'string' ? { reason: input.reason } : {}),
+        ...(typeof input.action === 'string' ? { action: input.action } : {}),
+      },
+    })
+  }
+
+  /**
+   * 关门：载荷由 compactionEndPayload 算好交进来；null（这次其实没压）就撤掉开门那一格。
+   * 没见过开门（订阅晚于开门）也照样落一格：关门那一刻的结果比「什么都不说」强。
+   */
+  compactionEnd(payload: Record<string, unknown> | null): TranscriptOperation[] {
+    const markerId = this.compactionOpen ?? this.nextCompactionId()
+    this.compactionOpen = null
+    if (payload === null) return [{ op: 'items.remove', ids: [markerId] }]
+    return this.marker({ markerId, marker: 'compaction', payload })
+  }
+
+  private nextCompactionId(): string {
+    this.compactionSeq += 1
+    return `compaction-live-${String(this.compactionSeq)}`
   }
 
   /** 压缩/重试这类标记：走 marker.upsert，不绑 turn */

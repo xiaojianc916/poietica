@@ -41,6 +41,8 @@ export interface FakeSession {
   listen(): void
   /** 适配器收到的全部事件，按顺序（判断 timelineReset 之类的副作用） */
   readonly events: EngineSessionEvent[]
+  /** 适配器读显示经过时带的参数，按顺序（只有给了 transcript 才有） */
+  readonly transcriptReads: Record<string, unknown>[]
 }
 
 export interface FakeSessionOptions {
@@ -51,6 +53,13 @@ export interface FakeSessionOptions {
   readonly thinkingLevels?: readonly string[]
   readonly skills?: readonly { readonly name: string }[]
   readonly logger?: Logger
+  /** 模型上下文（session.messages）；压缩之后它只剩「摘要 + 保留的尾巴」 */
+  readonly messages?: readonly Record<string, unknown>[]
+  /**
+   * 显示经过（omp 的 buildTranscriptSessionContext）。给了才实现那个方法；同一个数组按引用读，
+   * 测试往里追加就等于 omp 又落了一条。
+   */
+  readonly transcript?: Record<string, unknown>[]
 }
 
 /**
@@ -83,11 +92,21 @@ export async function fakeOmpSession(o: FakeSessionOptions = {}): Promise<FakeSe
   const nameListeners = new Set<() => void>()
   const calls: DeliveredCall[] = []
   const events: EngineSessionEvent[] = []
+  const transcriptReads: Record<string, unknown>[] = []
+  const transcript = o.transcript
   const session = {
     sessionId: 'session-1',
     sessionFile: 'session-1.jsonl',
     settings: Settings.isolated(),
-    messages: [],
+    messages: o.messages ?? [],
+    ...(transcript === undefined
+      ? {}
+      : {
+          buildTranscriptSessionContext: (options: Record<string, unknown> = {}) => {
+            transcriptReads.push(options)
+            return { messages: transcript }
+          },
+        }),
     // 技能表带上 filePath / baseDir：官方那条展开路径要读 SKILL.md
     skills: (o.skills ?? []).map((skill) => ({ ...skill, filePath: SKILL_FILE, baseDir: SKILL_DIR })),
     sessionManager: {
@@ -165,6 +184,7 @@ export async function fakeOmpSession(o: FakeSessionOptions = {}): Promise<FakeSe
     },
     calls,
     events,
+    transcriptReads,
   }
 }
 

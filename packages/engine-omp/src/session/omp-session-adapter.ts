@@ -20,6 +20,7 @@ import { AppError, type Logger, SystemErrorCode, systemClock } from '@poietica/f
 import { InteractionBroker } from '../interactions/broker'
 import { planInteraction, planOutcomeOf } from '../interactions/plan'
 import { createUiContext } from '../interactions/ui-context'
+import { compactionEndPayload, latestCompactionOf } from '../projector/compaction'
 import { lastTurnOrdinal, type OmpMessage, projectHistoryPage } from '../projector/history'
 import { LiveProjector } from '../projector/live'
 import { SubagentLedger } from '../projector/subagents'
@@ -60,7 +61,16 @@ interface OmpAgentSessionLike {
   readonly model?: { readonly provider: string; readonly id: string } | undefined
   readonly thinkingLevel?: string | undefined
   readonly settings: SettingsScope
+  /** 模型上下文：压缩之后只剩「摘要 + 保留的尾巴」，不能拿来画屏幕（见 transcriptOf） */
   readonly messages: readonly OmpMessage[]
+  /**
+   * omp 的显示经过（TUI 重画对话用的同一个入口）。collapseCompactedHistory:false = 压缩不抹掉前文，
+   * 每次压缩在它发生的位置留一条 compactionSummary。
+   */
+  buildTranscriptSessionContext?(options?: {
+    readonly collapseCompactedHistory?: boolean
+    readonly keepDanglingToolCalls?: boolean
+  }): { readonly messages: readonly OmpMessage[] }
   /**
    * **不要在 AgentSession 上直接读 artifactsDir / cwd** —— 真实形状里只有 sessionManager：读出来恒是
    * undefined，`local://` 会退到 `os.tmpdir()`，artifacts 里的计划一份也解不出来。
@@ -169,8 +179,23 @@ export async function wrapOmpSession(input: WrapOmpSessionInput): Promise<Engine
   const projector = new LiveProjector({ now: () => systemClock.now() })
   const sessionKey = input.spec.key
   const ledger = new SubagentLedger({ now: () => systemClock.now() })
+  /*
+   * omp 知识 #19：屏幕上的经过 = omp 的**显示经过**（压缩只在原处留一格摘要，前文都在），不是 `session.messages`：
+   * 那是模型上下文，压缩之后只剩「摘要 + 保留的尾巴」（审查 R-21-1）。分页与落座必须读同一份，
+   * 否则落座的号比屏幕上的少，下一句话会盖掉已有的轮。
+   * 开着一轮时让 omp 保留悬挂调用：正在跑的那次工具调用还没有结果，剥掉它屏幕上那一行就没了；
+   * 封了口的轮里的悬挂调用由历史投影自己剥（与 omp 同一个口径）。
+   * 形状里没有这个方法（测试替身）才退回模型上下文。
+   */
+  const transcriptOf = (): readonly OmpMessage[] =>
+    session.buildTranscriptSessionContext === undefined
+      ? session.messages
+      : session.buildTranscriptSessionContext({
+          collapseCompactedHistory: false,
+          keepDanglingToolCalls: projector.isTurnOpen,
+        }).messages
   // 重开会话：累加器要摆到屏幕上已有的位置，否则第一句话会盖掉已有的轮
-  projector.seat(lastTurnOrdinal(session.messages))
+  projector.seat(lastTurnOrdinal(transcriptOf()))
   /*
    * 上下文用量：读数取 getContextUsage，构成取 omp 自己的 computeSessionContextBreakdown（/context 面板印的
    * 就是这一份；自己折那五格会与屏幕上显示的对不上）。每次现读、不存第二份，算不出构成只是没有明细。
@@ -303,7 +328,7 @@ export async function wrapOmpSession(input: WrapOmpSessionInput): Promise<Engine
       liveGoal: () => goalOf(session),
       liveGoalSnapshot: () => goalSnapshotOf(session),
       page: async (_agentId, beforeTurnId) =>
-        projectHistoryPage(session.messages, beforeTurnId, {
+        projectHistoryPage(transcriptOf(), beforeTurnId, {
           isTurnOpen: projector.isTurnOpen,
           openTurnAttachments: projector.openTurnAttachments,
         }),
@@ -332,6 +357,7 @@ export async function wrapOmpSession(input: WrapOmpSessionInput): Promise<Engine
     projector,
     goal,
     faults: new EventFaults(input.logger, () => projector.turnOrdinal),
+    latestCompaction: () => latestCompactionOf(transcriptOf()),
     logger: input.logger,
   }
   const subscriptions = [
@@ -709,6 +735,8 @@ interface EventPump {
   readonly projector: LiveProjector
   readonly goal: GoalHost
   readonly faults: EventFaults
+  /** 显示经过里最近那一条压缩摘要（压缩收口时读 tokensAfter 用） */
+  readonly latestCompaction: () => OmpMessage | undefined
   /** info 级 notice 与「重试成功」只落日志，不上屏 */
   readonly logger: Logger
 }
@@ -797,28 +825,21 @@ function dispatchOmpEvent(event: Record<string, unknown>, pump: EventPump): void
       break
     }
     case 'auto_compaction_start':
-      session.requestTimeline(
-        projector.marker({
-          markerId: `compaction-${String(projector.turnOrdinal)}`,
-          marker: 'compaction',
-          payload: { state: 'running', reason: event.reason },
-        }),
-      )
+      session.requestTimeline(projector.compactionStart({ reason: event.reason, action: event.action }))
       break
-    case 'auto_compaction_end':
-      // 压缩后副本已不可信：让 UI 整页重取；同时把那一格标成已收口
-      session.requestTimeline(
-        projector.marker({
-          markerId: `compaction-${String(projector.turnOrdinal)}`,
-          marker: 'compaction',
-          payload: {
-            state: event.aborted === true ? 'cancelled' : 'completed',
-            ...(typeof event.errorMessage === 'string' ? { error: event.errorMessage } : {}),
-          },
-        }),
-      )
-      if (event.aborted !== true) session.timelineReset('main')
+    /*
+     * 收口：把那一格标成做完 / 取消 / 失败（跳过就撤掉），再重报一次上下文占用（压完圆环要立刻掉下来）。
+     *
+     * **不再整页重取**（审查 R-21-1/2）：屏幕上的东西都是增量那条路画的，压缩并不改写它们；从前在这里
+     * timelineReset，一来重取的那一页是按「压缩后的模型上下文」算的 —— 前文全没了；二来重置会丢掉还没
+     * 发出去的关门那一帧，换上历史那一格的 running，于是一直停在「正在压缩上下文…」。
+     */
+    case 'auto_compaction_end': {
+      const persisted = event.result === undefined || event.result === null ? undefined : pump.latestCompaction()
+      session.requestTimeline(projector.compactionEnd(compactionEndPayload(event, persisted)))
+      session.reportContextUsage()
       break
+    }
     /* 自动重试起止各上一条 notice 帧：不接它，服务商抖动的那几十秒在屏幕上就是「卡住了」 */
     case 'auto_retry_start':
       session.requestTimeline(

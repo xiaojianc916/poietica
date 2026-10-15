@@ -225,7 +225,8 @@ interface InflightPromptItem extends TimelineEntry {
   readonly settled?: true
 }
 
-export type CompactionState = 'running' | 'blocked' | 'cancelled' | 'completed'
+/** failed = agent 报了错、这次没压成（与 cancelled 分开：一个是人按了停，一个是出了事） */
+export type CompactionState = 'running' | 'blocked' | 'cancelled' | 'completed' | 'failed'
 
 export interface CompactionTimelineItem extends TimelineEntry {
   readonly type: 'compaction'
@@ -236,6 +237,14 @@ export interface CompactionTimelineItem extends TimelineEntry {
   readonly turnId?: number
   readonly tokensBefore?: number
   readonly tokensAfter?: number
+  /** 压缩摘要（agent 给什么就是什么；展开那一面读它） */
+  readonly summary?: string
+  /** 失败时 agent 报的原因 */
+  readonly error?: string
+  /** 压完仍然腾不出空间之类的事后告警 */
+  readonly warning?: string
+  /** 这份摘要已被后一次压缩取代（agent 只留了占位，不是摘要） */
+  readonly superseded?: true
 }
 
 interface ErrorItem extends TimelineEntry {

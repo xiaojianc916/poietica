@@ -10,6 +10,7 @@ import {
   turnId,
 } from '@poietica/transcript'
 import { isGoalContinuationMessage, isUserSkillMessage } from '../session/prompt'
+import { compactionPayloadOf } from './compaction'
 import { GOAL_CONTINUATION_ORIGIN, type TurnOrigin } from './origin'
 
 /** omp 的消息形状（只取投影要读的那几格，避免绑到 omp 的深层类型） */
@@ -26,6 +27,12 @@ export interface OmpMessage {
   readonly toolCallId?: string
   readonly isError?: boolean
   readonly summary?: string
+  /* 压缩摘要（role: compactionSummary）的展示元数据：omp 把它们写在压缩条目上，显示经过里原样带出 */
+  readonly shortSummary?: string
+  readonly tokensBefore?: number
+  readonly tokensAfter?: number
+  readonly method?: string
+  readonly warning?: string
 }
 
 export interface HistoryPageOptions {
@@ -51,6 +58,8 @@ interface OpenTurn {
   readonly opening: OmpMessage
   readonly prompt: OmpMessage | null
   readonly steps: OmpMessage[]
+  /** 这一轮里（或这一轮之后、下一句人话之前）发生的压缩，按发生顺序 */
+  readonly compactions: OmpMessage[]
   /** 这一轮的终点（毫秒）：段与工具结果里最晚的「答完那一刻」，还没落地就是 null。 */
   closedAt: number | null
 }
@@ -60,6 +69,7 @@ interface ScreenTurn {
   readonly opening: OmpMessage
   readonly prompt: OmpMessage | null
   readonly steps: readonly OmpMessage[]
+  readonly compactions: readonly OmpMessage[]
   readonly openedAt: string
   readonly endedAt: string | null
   readonly state: 'running' | 'completed'
@@ -78,6 +88,13 @@ type ScreenBlock =
  * 「一条消息一格」会把一次对话拆成好几行；这里按人话归拢，assistant 消息各占一个段，工具结果并回发起它的那次调用。
  *
  * 分页直接从 omp 的会话消息算，Core 不保存第二份正文，所以不存在两份数据不一致的问题。
+ *
+ * `messages` 必须是**显示经过**（omp 的 `buildTranscriptSessionContext({ collapseCompactedHistory: false })`），
+ * 不是模型上下文（`session.messages`）：压缩之后模型上下文只剩「摘要 + 保留的尾巴」，拿它分页，
+ * 屏幕上压缩之前的对话就全没了、轮号也从 1 重数（审查 R-21-1）。
+ *
+ * 压缩**不开轮**：它挂在发生时开着的那一轮后面（增量那条路也不为它开轮），轮号因此与增量那条路一致；
+ * 一次 omp turn 里中途压缩，压缩之后的段仍归这一轮，而不是被吞进一格看不见正文的「压缩轮」。
  */
 export function projectHistoryPage(
   messages: readonly OmpMessage[],
@@ -85,11 +102,19 @@ export function projectHistoryPage(
   o: HistoryPageOptions = {},
 ): TranscriptPage {
   const pageSize = o.pageSize ?? 20
-  const turns = screenTurns(messages, o.isTurnOpen === true)
+  const { leading, turns } = screenTurns(messages, o.isTurnOpen === true)
   const before = beforeTurnId === null ? Number.POSITIVE_INFINITY : turnOrdinalOf(beforeTurnId)
   const older = turns.filter((entry) => entry.turn < before)
   const window = older.slice(Math.max(0, older.length - pageSize))
-  const ops = window.flatMap((entry) => screenOps(entry, o.openTurnAttachments ?? []))
+  /* 第一句人话之前的压缩只跟着最早那一页走：别的页带上它，「加载更早」时它会在中间冒出来 */
+  const head = window.length === older.length ? compactionOps(0, leading) : []
+  const ops = [
+    ...head,
+    ...window.flatMap((entry) => [
+      ...turnOps(entry, o.openTurnAttachments ?? []),
+      ...compactionOps(entry.turn, entry.compactions),
+    ]),
+  ]
   const items = itemsFromOps(ops)
   return {
     items,
@@ -105,8 +130,7 @@ export function projectHistoryPage(
 
 /** 历史里最后一轮的序号；重开会话时交给 LiveProjector.seat */
 export function lastTurnOrdinal(messages: readonly OmpMessage[]): number {
-  const turns = screenTurns(messages, false)
-  return turns.at(-1)?.turn ?? 0
+  return screenTurns(messages, false).turns.at(-1)?.turn ?? 0
 }
 
 function turnOrdinalOf(id: string): number {
@@ -114,9 +138,13 @@ function turnOrdinalOf(id: string): number {
   return Number.isFinite(n) ? n : 0
 }
 
-function screenTurns(messages: readonly OmpMessage[], isTurnOpen: boolean): ScreenTurn[] {
+function screenTurns(
+  messages: readonly OmpMessage[],
+  isTurnOpen: boolean,
+): { readonly leading: readonly OmpMessage[]; readonly turns: ScreenTurn[] } {
   const results = resultsOf(messages)
   const turns: ScreenTurn[] = []
+  const leading: OmpMessage[] = []
   let open: OpenTurn | null = null
   const seal = (): void => {
     if (open === null) return
@@ -128,6 +156,7 @@ function screenTurns(messages: readonly OmpMessage[], isTurnOpen: boolean): Scre
       opening: held.opening,
       prompt: held.prompt,
       steps: held.steps,
+      compactions: held.compactions,
       openedAt: stampOf(held.prompt ?? held.opening),
       endedAt: held.closedAt === null ? null : new Date(held.closedAt).toISOString(),
       state: 'completed',
@@ -135,40 +164,50 @@ function screenTurns(messages: readonly OmpMessage[], isTurnOpen: boolean): Scre
     })
   }
   for (const message of messages) {
-    const opener = openerOf(message)
-    if (opener === 'skip') continue
-    if (opener !== null) {
+    const role = roleOf(message)
+    if (role === 'skip') continue
+    if (role === 'compaction') {
+      if (open === null) leading.push(message)
+      else open.compactions.push(message)
+      continue
+    }
+    if (role !== null) {
       seal()
       const next: OpenTurn = {
         opening: message,
-        prompt: opener === 'prompt' ? message : null,
+        prompt: role === 'prompt' ? message : null,
         steps: [],
+        compactions: [],
         closedAt: null,
       }
       open = next
       continue
     }
     if (open === null) {
-      open = { opening: message, prompt: null, steps: [], closedAt: null }
+      open = { opening: message, prompt: null, steps: [], compactions: [], closedAt: null }
     }
     open.steps.push(message)
     open.closedAt = laterOf(open.closedAt, closedAtOf(message))
   }
   seal()
   const newest = turns.at(-1)
-  return newest !== undefined && isTurnOpen
-    ? [...turns.slice(0, -1), { ...newest, state: 'running', endedAt: null }]
-    : turns
+  return {
+    leading,
+    turns:
+      newest !== undefined && isTurnOpen
+        ? [...turns.slice(0, -1), { ...newest, state: 'running', endedAt: null }]
+        : turns,
+  }
 }
 
 /**
- * 一条消息在分轮上的角色：开一轮的三种（人话 / 目标续跑 / 压缩摘要）、不进屏幕的（skip）、
- * 其余的（null，落进当前这一轮）。
+ * 一条消息在分轮上的角色：开一轮的两种（人话 / 目标续跑）、压缩摘要（挂在当前这一轮后面，不开轮）、
+ * 不进屏幕的（skip）、其余的（null，落进当前这一轮）。
  *
  * 目标续跑的开场消息是 display:false 的 custom 消息，但它**开一轮**（审查 R-11）—— * 增量那条路在同一处开轮（LiveProjector.goalContinuationTurn）；这里不认它，续跑的输出就会
  * 并进上一句人话那一轮，重开之后屏幕上的轮数、轮号都与刚才跑的时候对不上。
  */
-function openerOf(message: OmpMessage): 'prompt' | 'continuation' | 'compaction' | 'skip' | null {
+function roleOf(message: OmpMessage): 'prompt' | 'continuation' | 'compaction' | 'skip' | null {
   if (isGoalContinuationMessage(message)) return 'continuation'
   if (message.role === 'toolResult' || !isVisible(message)) return 'skip'
   if (message.role === 'user' || isUserSkillMessage(message)) return 'prompt'
@@ -192,26 +231,25 @@ function isVisible(message: OmpMessage): boolean {
   return message.display !== false
 }
 
-function screenOps(entry: ScreenTurn, openTurnAttachments: readonly TranscriptAttachment[]): TranscriptOperation[] {
-  return entry.opening.role === 'compactionSummary' ? compactionOps(entry) : turnOps(entry, openTurnAttachments)
-}
-
-/** 压缩那一格：号按轮走（compaction-<轮号>），live 的开门/关门两次 upsert 也落在同一格上 */
-function compactionOps(entry: ScreenTurn): TranscriptOperation[] {
-  const payload: Record<string, unknown> = { state: entry.state === 'running' ? 'running' : 'completed' }
-  if (typeof entry.opening.summary === 'string' && entry.opening.summary !== '') payload.summary = entry.opening.summary
-  return [
-    {
+/**
+ * 压缩那几格：号是 `compaction-<所挂的轮号>-<这一轮里的第几次>`，与增量那条路的号（compaction-live-*）
+ * 分属两个名字空间 —— 整页重取会把增量那几格整个换掉，两边不必对号，也就不会互相盖掉。
+ * 落了盘的压缩一定已经做完：这里只有 completed，没有 running（审查 R-21-2：从前按「最新一轮还开着」
+ * 把它标成 running，中途压缩之后这一行就永远停在「正在压缩上下文…」）。
+ */
+function compactionOps(turn: number, compactions: readonly OmpMessage[]): TranscriptOperation[] {
+  return compactions.map(
+    (message, index): TranscriptOperation => ({
       op: 'marker.upsert',
       item: {
         kind: 'marker',
-        markerId: `compaction-${String(entry.turn)}`,
+        markerId: `compaction-${String(turn)}-${String(index + 1)}`,
         marker: 'compaction',
-        at: entry.openedAt,
-        payload,
+        at: stampOf(message),
+        payload: compactionPayloadOf(message),
       },
-    },
-  ]
+    }),
+  )
 }
 
 function turnOps(entry: ScreenTurn, openTurnAttachments: readonly TranscriptAttachment[]): TranscriptOperation[] {
@@ -229,7 +267,7 @@ function turnOps(entry: ScreenTurn, openTurnAttachments: readonly TranscriptAtta
   for (const message of entry.steps) {
     const at = stampOf(message)
     const done = closedIsoOf(message)
-    const blocks = contentOf(message)
+    const blocks = shownBlocksOf(entry, message)
     let frame = 0
     if (blocks.length === 0) continue
     ops.push(stepOp(turn, step, 'completed', at, done))
@@ -250,6 +288,16 @@ function turnOps(entry: ScreenTurn, openTurnAttachments: readonly TranscriptAtta
     step += 1
   }
   return entry.state === 'running' ? markLastStepRunning(ops, turn) : ops
+}
+
+/**
+ * 封了口的那一轮里没有结果的调用不上屏：与 omp 剥悬挂调用同一个口径。开着的那一轮要留着 ——
+ * 它正在跑（适配器为此让 omp 保留悬挂调用，keepDanglingToolCalls），剥掉它，屏幕上那一行就没了。
+ */
+function shownBlocksOf(entry: ScreenTurn, message: OmpMessage): readonly ScreenBlock[] {
+  const blocks = contentOf(message)
+  if (entry.state === 'running') return blocks
+  return blocks.filter((block) => block.kind !== 'tool' || entry.results.has(block.callId))
 }
 
 /** 只有最后一个段能在跑着的时候留 running：段永远停在进行中，屏幕上那一行就一直转 */

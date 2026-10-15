@@ -126,6 +126,147 @@ describe('projectHistoryPage', () => {
     expect(marker?.kind === 'marker' && marker.marker).toBe('compaction')
   })
 
+  /*
+   * 审查 R-21-1：压缩之后前文消失。分页读的是显示经过（压缩前的对话都在，摘要在它发生的位置），
+   * 压缩挂在当时开着的那一轮后面、不开轮 —— 轮号与增量那条路一致，中途压缩之后的段仍在这一轮里。
+   */
+  test('显示经过里的压缩：前文都在、轮号连续，压缩挂在它发生时那一轮后面', () => {
+    const page = projectHistoryPage(
+      [
+        user('第一问', 0),
+        assistant('第一答', 10),
+        user('第二问', 20),
+        toolCall('c1', 'read', { path: 'a.ts' }, 30),
+        toolResult('c1', '内容'),
+        {
+          role: 'compactionSummary',
+          timestamp: T0 + 40,
+          summary: '整份摘要',
+          shortSummary: '短摘要',
+          tokensBefore: 120_000,
+          tokensAfter: 18_000,
+          method: 'context-full',
+        },
+        assistant('压完接着答', 50),
+        user('第三问', 60),
+        assistant('第三答', 70),
+      ],
+      null,
+    )
+    expect(prompts(page)).toEqual(['第一问', '第二问', '第三问'])
+    expect(page.items.map((item) => (item.kind === 'turn' ? item.turnId : item.kind))).toEqual([
+      't1',
+      't2',
+      'marker',
+      't3',
+    ])
+    // 压缩之后的那一段仍归第二轮，没有被吞进一格看不见正文的「压缩轮」
+    expect(assistantTexts(page)).toEqual(['第一答', '压完接着答', '第三答'])
+    const marker = page.items.find((item) => item.kind === 'marker')
+    expect(marker).toMatchObject({
+      markerId: 'compaction-2-1',
+      marker: 'compaction',
+      at: iso(40),
+      payload: {
+        state: 'completed',
+        summary: '整份摘要',
+        shortSummary: '短摘要',
+        tokensBefore: 120_000,
+        tokensAfter: 18_000,
+        method: 'context-full',
+      },
+    })
+    expect(lastTurnOrdinal([user('一', 0), { role: 'compactionSummary', timestamp: T0 + 1 }, user('二', 2)])).toBe(2)
+  })
+
+  test('审查 R-21-2：最新一轮还开着时，落了盘的压缩也是 completed（不再停在 running）', () => {
+    const page = projectHistoryPage(
+      [user('问', 0), assistant('答', 10), { role: 'compactionSummary', timestamp: T0 + 20, summary: '摘要' }],
+      null,
+      { isTurnOpen: true },
+    )
+    const marker = page.items.find((item) => item.kind === 'marker')
+    expect(marker?.kind === 'marker' && marker.payload).toMatchObject({ state: 'completed' })
+    expect(page.items.find((item) => item.kind === 'turn')).toMatchObject({ turnId: 't1', state: 'running' })
+  })
+
+  test('被后一次压缩取代的摘要只剩占位：标 superseded，不当摘要摆出来', () => {
+    const page = projectHistoryPage(
+      [
+        user('问', 0),
+        {
+          role: 'compactionSummary',
+          timestamp: T0 + 10,
+          summary: '[Superseded compaction summary elided after a newer compaction]',
+          shortSummary: 'Superseded compaction elided',
+          tokensBefore: 100,
+        },
+      ],
+      null,
+    )
+    const marker = page.items.find((item) => item.kind === 'marker')
+    const payload = marker?.kind === 'marker' ? marker.payload : undefined
+    expect(payload).toMatchObject({ state: 'completed', superseded: true, tokensBefore: 100 })
+    expect(payload).not.toHaveProperty('summary')
+    expect(payload).not.toHaveProperty('shortSummary')
+  })
+
+  test('同一轮里压两次：两行，各有各的号', () => {
+    const page = projectHistoryPage(
+      [
+        user('问', 0),
+        { role: 'compactionSummary', timestamp: T0 + 10, summary: '一' },
+        assistant('答', 20),
+        { role: 'compactionSummary', timestamp: T0 + 30, summary: '二' },
+      ],
+      null,
+    )
+    expect(page.items.flatMap((item) => (item.kind === 'marker' ? [item.markerId] : []))).toEqual([
+      'compaction-1-1',
+      'compaction-1-2',
+    ])
+  })
+
+  test('第一句人话之前的压缩只跟着最早那一页走', () => {
+    const messages = [
+      { role: 'compactionSummary', timestamp: T0, summary: '最早' },
+      ...Array.from({ length: 3 }, (_, index) => [
+        user(`问${index}`, index * 10 + 1),
+        assistant('答', index * 10 + 2),
+      ]).flat(),
+    ]
+    const latest = projectHistoryPage(messages, null, { pageSize: 2 })
+    expect(latest.items.some((item) => item.kind === 'marker')).toBe(false)
+    expect(latest.hasMoreOlder).toBe(true)
+    const older = projectHistoryPage(messages, 't2', { pageSize: 2 })
+    expect(older.items.map((item) => (item.kind === 'turn' ? item.turnId : item.kind))).toEqual(['marker', 't1'])
+  })
+
+  test('封了口的轮里没有结果的调用不上屏；开着的那一轮里的留着（正在跑）', () => {
+    const messages = [
+      user('一', 0),
+      toolCall('dead', 'bash', { command: 'x' }, 10),
+      assistant('换个办法', 20),
+      user('二', 30),
+      toolCall('live', 'bash', { command: 'y' }, 40),
+    ]
+    const sealed = projectHistoryPage(messages, null)
+    const open = projectHistoryPage(messages, null, { isTurnOpen: true })
+    const callsOf = (page: ReturnType<typeof projectHistoryPage>) =>
+      page.items.flatMap((item) =>
+        item.kind === 'turn'
+          ? item.steps.flatMap((step) =>
+              step.frames.flatMap((f) => (f.kind === 'tool' ? [`${item.turnId}:${f.toolCallId}`] : [])),
+            )
+          : [],
+      )
+    expect(callsOf(sealed)).toEqual([])
+    expect(callsOf(open)).toEqual(['t2:live'])
+    // 剥掉调用后不留一个空段
+    const first = sealed.items.find((item) => item.kind === 'turn' && item.turnId === 't1')
+    expect(first?.kind === 'turn' && first.steps.length).toBe(1)
+  })
+
   test('lastTurnOrdinal 给出最后一轮的号', () => {
     expect(lastTurnOrdinal([user('一', 0), assistant('a', 1)])).toBe(1)
     expect(lastTurnOrdinal([])).toBe(0)

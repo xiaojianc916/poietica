@@ -95,7 +95,15 @@ export const TimelineRow = memo(function TimelineRow({ isOpen, onToggle, row, th
     }
 
     case 'compaction':
-      return <CompactionStatus item={item} />
+      return (
+        <CompactionStatus
+          isOpen={isOpen}
+          item={item}
+          onToggle={() => {
+            onToggle(item.id)
+          }}
+        />
+      )
 
     case 'error':
       return <ErrorNotice level={item.level} message={item.message} />

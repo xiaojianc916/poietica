@@ -3154,3 +3154,38 @@ agent 自己报过终局的（`completed` / `cancelled` / `failed`）一律不�
 
 **契约**：`SubmitInput.ref` 与 `queueSettled` 是引擎内部 TS 接口（engine ↔ engine-omp ↔ conversation core），
 RPC 契约与 `PROTOCOL_VERSION` 不变；conversation 新增迁移 v3（只删行，不改表结构）。
+
+## R-21 压缩上下文：前文消失、卡在「正在压缩上下文…」、压缩行与工具行两种长相（基于 f4bbe0f）
+
+**来源**：核心工程师交办的三个现象（外部输入，不入库）：压缩之后前面的对话莫名消失；一直停在「正在压缩上下文…」；
+压缩那一行（`↻` + 灰字）与工具调用行长得不一样。
+
+1. **R-21-1 前文消失**：历史分页（`page`）与落座（`seat`）读的是 `session.messages` —— 那是 omp 的**模型上下文**，
+   压缩之后只剩「摘要 + 保留的尾巴」。适配器又在 `auto_compaction_end` 时 `timelineReset`，UI 整页重取，
+   拿到的就是这份残缺的经过；`screenTurns` 还把摘要当成开轮消息，轮号从 1 重数（与增量那条路的 `turnOrdinal` 错位，
+   重开会话后下一句话会盖掉已有的轮），压缩之后同一轮的段被吞进一格只画 marker 的「压缩轮」。
+   改法：分页与落座改读 omp 的**显示经过** `buildTranscriptSessionContext({ collapseCompactedHistory: false,
+   keepDanglingToolCalls: 开着轮 })`（omp 知识 #19；TUI 重画对话用的同一个入口）——前文都在，每次压缩在发生处留一条
+   `compactionSummary`。历史投影里压缩**不开轮**，挂在当时开着的那一轮后面（`compaction-<轮>-<次>`；第一句人话之前的
+   归第 0 轮、只跟最早那一页走）；封了口的轮里没有结果的工具调用由投影自己剥（与 omp 同口径，开着的那一轮保留）。
+   UI 投影 `placeCompactions`：压缩行落进条目序里它前面那一轮的页、页内按时刻插位（中途压缩之后的段在它下面），
+   不再一律挤到活动段尾部；按基础页身份记账，sealed 页引用稳定。
+2. **R-21-2 卡在「正在压缩上下文…」**：收口时先 upsert completed、紧接着 `timelineReset`——重置丢掉了还没发出去的
+   那一帧，重取的历史又按「最新一轮还开着」把摘要轮标成 running（中途 / overflow 压缩时轮一定开着），之后再没有
+   任何事件改它。改法：收口**不再整页重取**（屏幕上的东西都是增量那条路画的，压缩不改写它们）；落了盘的压缩恒为
+   completed；增量那条路的号改由 `LiveProjector.compactionStart/compactionEnd` 铸（`compaction-live-<n>`，同一轮压两次
+   不互相覆盖，与历史的号分属两个名字空间）。关门载荷统一走 `projector/compaction.ts`：aborted → cancelled（带 error）、
+   有 result → completed（token 数 / 摘要以 omp 刚落盘的那条摘要为准，`tokensAfter` 只在条目上，omp 知识 #20）、
+   只有 errorMessage → **failed**（新状态）、skipped → `items.remove` 撤掉那一格、shake 就地改写 → completed；
+   收口后重报一次上下文占用。
+3. **R-21-3 样式**：`CompactionStatus` 改成工具行同一套结构：`.timeline-tool > .timeline-row`（`FoldVertical` 字形 +
+   一句话 + 悬停箭头），跑着时那句话走 `timeline-shimmer`；有摘要 / 原因 / 告警时可展开，抽屉是同一个
+   `.timeline-tool__panel` + Prose。文案：「正在压缩上下文…」「已压缩上下文 · a → b tokens」「上下文压缩已取消 / 失败」。
+   删除 `compaction-status.css`。`CompactionTimelineItem` 增 `summary / error / warning / superseded`，`CompactionState` 增 `failed`。
+
+**契约**：transcript 的 op / marker 形状不变（payload 多几个可选字段）；RPC 契约与 `PROTOCOL_VERSION` 不变。
+
+**测试**：engine-omp `projector/__tests__/compaction.test.ts`（关门载荷四档、跳过撤格、同轮两次两行、不再 reset、
+分页读显示经过、omp 源码钉子）、`history.test.ts`（前文与轮号、中途压缩的段归原轮、开着轮时仍 completed、superseded、
+同轮两次、首页才带第 0 轮的压缩、悬挂调用）、`history-legacy.test.ts` 改成新号；conversation
+`transcript-projector-compaction.test.ts`（落页 / 页内插位 / 载荷 / 页对象复用 / 无轮）、`compaction-status.test.tsx`。

@@ -759,31 +759,29 @@ function anchorQuestions(
   return { pages: next, tail }
 }
 
-/* 待答的审批与提问挂在活动段尾部；压缩那一条也在这里 —— 它不绑 turn。 */
+/* 待答的审批与提问挂在活动段尾部。压缩不在这里：它按发生的位置落在各自那一页里（placeCompactions），只有一轮都还没有时才落在这一段。 */
 const tailOf = (
   pages: readonly TurnPage[],
   interactions: readonly TranscriptInteraction[],
   items: AgentTranscriptSnapshot['items'],
 ): TurnPage => {
   const held = pages.at(-1)
-  const marks = compactionMarks(items)
 
   if (held === undefined) {
     return {
       turn: 0,
       items: [
-        ...marks.map((mark) => compactionOf(mark, 0)),
+        ...compactionMarks(items).map((mark) => compactionOf(mark, 0)),
         ...interactions.map((interaction) => interactionOf(interaction, 0, 0)),
       ],
     }
   }
+  if (interactions.length === 0) {
+    return held
+  }
   return {
     ...held,
-    items: [
-      ...held.items,
-      ...marks.map((mark) => compactionOf(mark, held.turn)),
-      ...interactions.map((interaction) => interactionOf(interaction, held.turn, 0)),
-    ],
+    items: [...held.items, ...interactions.map((interaction) => interactionOf(interaction, held.turn, 0))],
   }
 }
 
@@ -792,6 +790,92 @@ const tailOf = (
  */
 function compactionMarks(items: AgentTranscriptSnapshot['items']): readonly TranscriptMarker[] {
   return items.filter((item): item is TranscriptMarker => item.kind === 'marker' && item.marker === 'compaction')
+}
+
+/*
+ * 压缩那一行落在哪：条目序里它前面最近的那一轮（第一轮之前的归第一轮的开头）；页内按时刻插在
+ * 它之后才开始的第一条之前 —— 一次 omp turn 里中途压缩，压缩之后的段在它下面，而不是全堆在它上面。
+ * 从前一律挂在活动段尾部：完整经过里有好几次压缩时，它们会全挤在最后一轮的末尾（审查 R-21-1）。
+ * 页按基础页身份记账：sealed 段的页引用必须稳定（presentation 的 PREFIX/SEGMENTS 缓存全靠它）。
+ */
+const COMPACTED_PAGES = new WeakMap<
+  TurnPage,
+  { readonly lead: readonly TranscriptMarker[]; readonly marks: readonly TranscriptMarker[]; page: TurnPage }
+>()
+
+const NO_MARKS: readonly TranscriptMarker[] = []
+
+const sameMarks = (left: readonly TranscriptMarker[], right: readonly TranscriptMarker[]): boolean =>
+  left.length === right.length && left.every((mark, at) => mark === right[at])
+
+function placeCompactions(pages: readonly TurnPage[], items: AgentTranscriptSnapshot['items']): readonly TurnPage[] {
+  if (pages.length === 0) {
+    return pages
+  }
+
+  const lead: TranscriptMarker[] = []
+  const held = new Map<number, TranscriptMarker[]>()
+  let seen = -1
+
+  for (const item of items) {
+    if (item.kind === 'turn') {
+      seen += 1
+      continue
+    }
+    if (item.kind !== 'marker' || item.marker !== 'compaction') {
+      continue
+    }
+    if (seen < 0) {
+      lead.push(item)
+      continue
+    }
+    const list = held.get(seen)
+    if (list === undefined) {
+      held.set(seen, [item])
+    } else {
+      list.push(item)
+    }
+  }
+
+  if (lead.length === 0 && held.size === 0) {
+    return pages
+  }
+
+  return pages.map((page, at) => {
+    const marks = held.get(at) ?? NO_MARKS
+    const first = at === 0 ? lead : NO_MARKS
+    return marks.length === 0 && first.length === 0 ? page : compactedPage(page, first, marks)
+  })
+}
+
+function compactedPage(
+  page: TurnPage,
+  lead: readonly TranscriptMarker[],
+  marks: readonly TranscriptMarker[],
+): TurnPage {
+  const kept = COMPACTED_PAGES.get(page)
+
+  if (kept !== undefined && sameMarks(kept.lead, lead) && sameMarks(kept.marks, marks)) {
+    return kept.page
+  }
+
+  const items: TimelineItem[] = [...lead.map((mark) => compactionOf(mark, page.turn)), ...page.items]
+
+  for (const mark of marks) {
+    const row = compactionOf(mark, page.turn)
+    /* 第 0 条是这一轮的开场（人话 / 续跑）：压缩不会插到开场前面 */
+    const after = items.findIndex((item, index) => index > lead.length && item.at > row.at)
+    if (after < 0) {
+      items.push(row)
+    } else {
+      items.splice(after, 0, row)
+    }
+  }
+
+  const fresh = { ...page, items }
+  COMPACTED_PAGES.set(page, { lead, marks, page: fresh })
+
+  return fresh
 }
 
 function compactionOf(mark: TranscriptMarker, turn: number): CompactionTimelineItem {
@@ -803,6 +887,10 @@ function compactionOf(mark: TranscriptMarker, turn: number): CompactionTimelineI
   const instruction = payload.instruction
   const tokensBefore = countOf(payload.tokensBefore)
   const tokensAfter = countOf(payload.tokensAfter)
+  /* 展开那一面给人读：有 PR 式短摘要就用它，没有才用整份摘要 */
+  const summary = textOf(payload.shortSummary) ?? textOf(payload.summary)
+  const error = textOf(payload.error)
+  const warning = textOf(payload.warning)
 
   return {
     type: 'compaction',
@@ -815,12 +903,20 @@ function compactionOf(mark: TranscriptMarker, turn: number): CompactionTimelineI
     ...(typeof instruction === 'string' && instruction !== '' ? { instruction } : {}),
     ...(tokensBefore === undefined ? {} : { tokensBefore }),
     ...(tokensAfter === undefined ? {} : { tokensAfter }),
+    ...(summary === undefined ? {} : { summary }),
+    ...(error === undefined ? {} : { error }),
+    ...(warning === undefined ? {} : { warning }),
+    ...(payload.superseded === true ? { superseded: true as const } : {}),
   }
+}
+
+function textOf(value: unknown): string | undefined {
+  return typeof value === 'string' && value.trim() !== '' ? value : undefined
 }
 
 /** 认不出的状态按「正在跑」处理：报完成会把一次没成的压缩说成成了。 */
 function compactionStateOf(value: unknown): CompactionState {
-  return value === 'blocked' || value === 'cancelled' || value === 'completed' ? value : 'running'
+  return value === 'blocked' || value === 'cancelled' || value === 'completed' || value === 'failed' ? value : 'running'
 }
 
 function countOf(value: unknown): number | undefined {
@@ -1131,7 +1227,8 @@ export function projectTranscript(snapshot: AgentTranscriptSnapshot, memo: Proje
     spans.push(projected.span)
   }
   const marked = runBoundariesOf(pages, facts, snapshot.items, busy)
-  const placed = anchorQuestions(marked, snapshot.interactions)
+  const anchored = anchorQuestions(marked, snapshot.interactions)
+  const placed = { pages: placeCompactions(anchored.pages, snapshot.items), tail: anchored.tail }
   return {
     status,
     backgroundTasks: snapshot.tasks.map(backgroundOf).filter((item): item is BackgroundTaskItem => item !== null),

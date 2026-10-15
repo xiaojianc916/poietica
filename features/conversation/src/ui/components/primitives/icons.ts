@@ -41,6 +41,7 @@ export {
   Download as DownloadIcon,
   Ellipsis as MoreIcon,
   FolderPlus as FolderPlusIcon,
+  FoldVertical as CompactionIcon,
   Globe as GlobeIcon,
   Image as ImageIcon,
   Layers as ToolIcon,
