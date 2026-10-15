@@ -124,6 +124,7 @@ interface TurnAttachments {
 const NO_TURN_ATTACHMENTS: TurnAttachments = { images: [], files: [] }
 
 const EMPTY_INDEX: ReadonlyMap<string, TranscriptAttachment> = new Map()
+const NO_IDS: readonly string[] = []
 
 /* 图片只有一种来源：`attachment.upsert` 里内联的 data URL。给不出 source 就返回 undefined，不排一次取字节。 */
 function imageUrlOf(attachment: TranscriptAttachment): string | undefined {
@@ -131,8 +132,14 @@ function imageUrlOf(attachment: TranscriptAttachment): string | undefined {
   return source?.kind === 'url' ? source.url : undefined
 }
 
-function attachmentsOfTurn(turn: TranscriptTurn, index: ReadonlyMap<string, TranscriptAttachment>): TurnAttachments {
-  const ids = turn.attachmentIds
+/**
+ * 一句人话带的附件：轮头（开轮那一句）与插话帧（R-19-1：开着一轮时插进来的那一句）共用这一份。
+ * 号在索引里找不到就跳过 —— 附件条目总是先于引用它的轮头 / 帧到达，找不到说明它不归这一页。
+ */
+function attachmentsOf(
+  ids: readonly string[] | undefined,
+  index: ReadonlyMap<string, TranscriptAttachment>,
+): TurnAttachments {
   if (ids === undefined || ids.length === 0) {
     return NO_TURN_ATTACHMENTS
   }
@@ -199,6 +206,7 @@ function textFrameOf(
   frame: Extract<TranscriptFrame, { kind: 'text' }>,
   turn: number,
   stamp: number,
+  index: ReadonlyMap<string, TranscriptAttachment>,
 ): TimelineItem | null {
   if (frame.role === 'assistant') {
     return {
@@ -210,7 +218,15 @@ function textFrameOf(
       sealed: true,
     }
   }
-  return inputItem(sourceOfFrame(frame), frame.frameId, turn, stamp, frame.text, skillNamesOf(frame.origin))
+  return inputItem(
+    sourceOfFrame(frame),
+    frame.frameId,
+    turn,
+    stamp,
+    frame.text,
+    skillNamesOf(frame.origin),
+    attachmentsOf(frame.attachmentIds, index),
+  )
 }
 
 function toolFrameOf(
@@ -254,10 +270,15 @@ function toolFrameOf(
   } satisfies ToolCallTimelineItem
 }
 
-function frameOf(frame: TranscriptFrame, turn: number, stamp: number): TimelineItem | null {
+function frameOf(
+  frame: TranscriptFrame,
+  turn: number,
+  stamp: number,
+  index: ReadonlyMap<string, TranscriptAttachment>,
+): TimelineItem | null {
   switch (frame.kind) {
     case 'text':
-      return textFrameOf(frame, turn, stamp)
+      return textFrameOf(frame, turn, stamp, index)
     case 'thinking':
       return {
         type: 'agent_thought',
@@ -836,6 +857,9 @@ interface StepFrames {
   readonly fallback: number
   readonly items: readonly TimelineItem[]
   readonly userAnchors: number | null
+  /** 这一段里人话帧引用的附件号（多数段为空），与投影那一刻解析到的条目逐一对应 —— 条目换了就不能复用。 */
+  readonly refIds: readonly string[]
+  readonly sources: readonly (TranscriptAttachment | undefined)[]
 }
 
 const STEP_FRAMES = new WeakMap<TranscriptTurn['steps'][number], StepFrames>()
@@ -844,15 +868,42 @@ const STEP_FRAMES = new WeakMap<TranscriptTurn['steps'][number], StepFrames>()
 const addAnchors = (left: number | null, right: number | null): number | null =>
   left === null || right === null ? null : left + right
 
-function projectStep(step: TranscriptTurn['steps'][number], ordinal: number, fallback: number): StepFrames {
+const resolveIds = (
+  ids: readonly string[],
+  index: ReadonlyMap<string, TranscriptAttachment>,
+): readonly (TranscriptAttachment | undefined)[] => (ids.length === 0 ? [] : ids.map((id) => index.get(id)))
+
+/* 缓存命中的判据：没引用附件的段（绝大多数）一次比较都不做。 */
+const sameRefs = (
+  held: { readonly refIds: readonly string[]; readonly sources: readonly (TranscriptAttachment | undefined)[] },
+  index: ReadonlyMap<string, TranscriptAttachment>,
+): boolean => held.refIds.length === 0 || sameSources(held.sources, resolveIds(held.refIds, index))
+
+function frameRefIdsOf(step: TranscriptTurn['steps'][number]): readonly string[] {
+  let ids: string[] | null = null
+  for (const frame of step.frames) {
+    if (frame.kind === 'text' && frame.role === 'user' && (frame.attachmentIds?.length ?? 0) > 0) {
+      ids ??= []
+      ids.push(...(frame.attachmentIds ?? []))
+    }
+  }
+  return ids ?? NO_IDS
+}
+
+function projectStep(
+  step: TranscriptTurn['steps'][number],
+  ordinal: number,
+  fallback: number,
+  index: ReadonlyMap<string, TranscriptAttachment>,
+): StepFrames {
   const held = STEP_FRAMES.get(step)
-  if (held !== undefined && held.ordinal === ordinal && held.fallback === fallback) {
+  if (held !== undefined && held.ordinal === ordinal && held.fallback === fallback && sameRefs(held, index)) {
     return held
   }
   const items: TimelineItem[] = []
   let userAnchors: number | null = 0
   for (const frame of step.frames) {
-    const projected = frameOf(frame, ordinal, at(step.startedAt) || fallback)
+    const projected = frameOf(frame, ordinal, at(step.startedAt) || fallback, index)
     if (projected !== null) {
       items.push(projected)
     }
@@ -860,7 +911,8 @@ function projectStep(step: TranscriptTurn['steps'][number], ordinal: number, fal
       userAnchors = addAnchors(userAnchors, sourceOfFrame(frame).anchors)
     }
   }
-  const fresh: StepFrames = { ordinal, fallback, items, userAnchors }
+  const refIds = frameRefIdsOf(step)
+  const fresh: StepFrames = { ordinal, fallback, items, userAnchors, refIds, sources: resolveIds(refIds, index) }
   STEP_FRAMES.set(step, fresh)
   return fresh
 }
@@ -868,38 +920,36 @@ function projectStep(step: TranscriptTurn['steps'][number], ordinal: number, fal
 function framesOf(
   turn: TranscriptTurn,
   stamp: number,
+  index: ReadonlyMap<string, TranscriptAttachment>,
 ): {
   items: readonly TimelineItem[]
   userAnchors: number | null
+  refIds: readonly string[]
 } {
   const items: TimelineItem[] = []
   let userAnchors: number | null = 0
+  let refIds: readonly string[] = NO_IDS
   for (const step of turn.steps) {
-    const projected = projectStep(step, turn.ordinal, stamp)
+    const projected = projectStep(step, turn.ordinal, stamp, index)
     items.push(...projected.items)
     userAnchors = addAnchors(userAnchors, projected.userAnchors)
+    if (projected.refIds.length > 0) refIds = [...refIds, ...projected.refIds]
   }
-  return { items, userAnchors }
+  return { items, userAnchors, refIds }
 }
 
 // 按 turn 对象身份记账：上游 reducer 结构共享，没变的 turn 复用上次投影。
 const TURN_PROJECTIONS = new WeakMap<
   TranscriptTurn,
   {
+    /** 轮头与本轮各插话帧引用的全部附件号：turn 对象没换时号也不会换，只需再比一次解析到的条目。 */
+    readonly refIds: readonly string[]
     readonly sources: readonly (TranscriptAttachment | undefined)[]
     page: TurnPage
     fact: TurnFact
     span: TurnSpan
   }
 >()
-
-function sourcesOf(
-  turn: TranscriptTurn,
-  index: ReadonlyMap<string, TranscriptAttachment>,
-): readonly (TranscriptAttachment | undefined)[] {
-  const ids = turn.attachmentIds
-  return ids === undefined || ids.length === 0 ? [] : ids.map((id) => index.get(id))
-}
 
 const sameSources = (
   left: readonly (TranscriptAttachment | undefined)[],
@@ -933,9 +983,7 @@ function projectTurn(
   span: TurnSpan
 } {
   const cached = TURN_PROJECTIONS.get(turn)
-
-  const usesAttachments = (turn.attachmentIds?.length ?? 0) > 0
-  if (cached !== undefined && (!usesAttachments || sameSources(cached.sources, sourcesOf(turn, index)))) {
+  if (cached !== undefined && sameRefs(cached, index)) {
     return cached
   }
 
@@ -943,7 +991,7 @@ function projectTurn(
   const source = sourceOfTurn(turn)
   const hasInput = turn.prompt !== undefined || (turn.attachmentIds?.length ?? 0) > 0
   const opening = hasInput ? source.anchors : source.isUser ? null : 0
-  const attached = hasInput ? attachmentsOfTurn(turn, index) : NO_TURN_ATTACHMENTS
+  const attached = hasInput ? attachmentsOf(turn.attachmentIds, index) : NO_TURN_ATTACHMENTS
   const opened = hasInput
     ? inputItem(
         source,
@@ -956,13 +1004,15 @@ function projectTurn(
         (turn as { readonly clientTurnId?: string }).clientTurnId,
       )
     : null
-  const frames = framesOf(turn, stamp)
+  const frames = framesOf(turn, stamp, index)
   const anchors = frames.userAnchors === null || opening === null ? null : opening + frames.userAnchors
   const items = [...(opened === null ? [] : [opened]), ...frames.items]
   errorItemOf(turn, items, stamp)
   const outcome = outcomeOf(turn.state)
+  const refIds = [...(turn.attachmentIds ?? NO_IDS), ...frames.refIds]
   const projected = {
-    sources: sourcesOf(turn, index),
+    refIds,
+    sources: resolveIds(refIds, index),
     page: {
       turn: turn.ordinal,
       ...(outcome === undefined ? {} : { outcome }),
@@ -1067,7 +1117,8 @@ export function projectTranscript(snapshot: AgentTranscriptSnapshot, memo: Proje
     turns.some((turn) => !isSettled(turn.state)) ||
     (snapshot.meta.activity !== undefined && snapshot.meta.activity !== 'idle')
   const attachmentIndex =
-    turns.some((turn) => (turn.attachmentIds?.length ?? 0) > 0) && snapshot.attachments.length > 0
+    /* 不再只看轮头：插话帧也带附件（R-19-1），只看轮头会让插话那一句的图永远解析不到。 */
+    snapshot.attachments.length > 0
       ? new Map(snapshot.attachments.map((attachment) => [attachment.attachmentId, attachment]))
       : EMPTY_INDEX
   const pages: TurnPage[] = []

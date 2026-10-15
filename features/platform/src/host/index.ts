@@ -1,6 +1,6 @@
 import { statSync } from 'node:fs'
 import { BROWSER_PARTITION } from '@poietica/feature-browser/contract'
-import { defineHostModule, WINDOW_BACKGROUND } from '@poietica/host-kernel'
+import { defineHostModule } from '@poietica/host-kernel'
 import { type BrowserWindow, dialog, Notification, screen, session, shell } from 'electron'
 import { platformContract } from '../contract'
 import { createLogSink } from './log-sink'
@@ -61,7 +61,10 @@ export default defineHostModule({
           height: saved.bounds.height,
         },
         maximized: saved.maximized,
-        backgroundColor: WINDOW_BACKGROUND.light,
+        /*
+         * 不在这里设 backgroundColor（审查 R-19-2）：底色归 preferences 按主题设。configureMain 是后写覆盖，
+         * 这里写一份浅色，结果就取决于模块顺序 —— modules.ts 声称「顺序无关」，换个顺序深色启动就白闪。
+         */
       })
     })
     ctx.lifecycle.onReady(() => {

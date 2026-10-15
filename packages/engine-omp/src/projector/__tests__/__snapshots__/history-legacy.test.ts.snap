@@ -16,6 +16,9 @@ exports[`一页的代表性形状（12 页 §9.5 的快照） 两轮：带图的
   "interactions": [],
   "items": [
     {
+      "attachmentIds": [
+        "2023-11-14T22:13:20.000Z#1",
+      ],
       "endedAt": "2023-11-14T22:13:20.010Z",
       "kind": "turn",
       "ordinal": 1,

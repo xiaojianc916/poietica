@@ -30,15 +30,9 @@ export default defineUiFeature({
     const keybindings = ctx.services.get(KeybindingsToken) as KeybindingService
     ctx.services.get(CommandsToken) as CommandService
 
-    // setup 同步而 prefs.get 异步：先拿默认值兜底，拿到真值后替换。
+    // setup 同步而 prefs.get 异步：先拿默认值兜底，拿到真值后替换（下面「首帧就解一次」那一处一并替换）。
     let current: () => Preferences = () => PreferencesSchema.parse({})
     const listeners = new Set<(p: never) => void>()
-    void api
-      .get()
-      .then((p) => {
-        current = () => p
-      })
-      .catch(() => undefined)
     const preferencesApi: PreferencesApi = {
       current: () => current(),
       subscribe: (listener) => {
@@ -65,13 +59,41 @@ export default defineUiFeature({
       else delete document.documentElement.dataset.reduceMotion
     }
 
+    /*
+     * 审查 R-19-2：主题必须在第一次渲染之前就落到文档根上，不能等 prefs.get 回来。
+     * Host 在建窗口之前已经把 nativeTheme.themeSource 设成了偏好（preferences/host 的 beforeWindow），
+     * 所以渲染层此刻读到的 prefers-color-scheme **就是解析后的那一档**（选浅色 / 深色时被强制，选跟随系统时是系统那档）。
+     * 同步投一次，prefs.get 回来再以偏好为准校一次；prefs.get 失败时也不会停在浅色。
+     */
+    applyTheme(systemPrefersDark() ? 'dark' : 'light')
+
     /* 首帧就解一次：偏好住在 Host 的 JSON 里，渲染层只能问一次；不等 Core ready，主题是外壳自己的事。 */
     void api.get().then(
       (p) => {
+        current = () => p
         applyThemePreference(p.theme)
       },
       () => undefined,
     )
+
+    /*
+     * 审查 R-19-3：布局（侧栏开合 / 宽度、右栏）同样住在 Host 的 uiState 里，与 Core 无关 —— 在 setup 里就恢复。
+     * 以前放在 onCoreReady 里，要等 Core 起来（冷启动常常好几秒）：这段时间外壳按 DEFAULT_LAYOUT 画，
+     * Core 一就绪再跳到存下的状态，列宽变化还带过渡动画 —— 看上去就是「侧栏先是一个样子、过一会儿自己变了」。
+     * 这条请求先于 kernel.start 里的 core.getStatus 发出、同一条通道按序应答，所以 restore 落在第一次渲染之前。
+     */
+    let layoutRestored = false
+    void api
+      .uiStateGet('layout')
+      .then(
+        (saved) => {
+          if (saved !== null && saved !== undefined) layout.restore(saved)
+        },
+        () => undefined,
+      )
+      .finally(() => {
+        layoutRestored = true
+      })
 
     const page = (
       id: string,
@@ -95,9 +117,7 @@ export default defineUiFeature({
       applyAppearance(prefs)
       for (const l of [...listeners]) (l as (p: unknown) => void)(prefs)
 
-      // 读 uiState 并 restore（不进入历史）。
-      const layoutState = await api.uiStateGet('layout').catch(() => null)
-      if (layoutState !== null) layout.restore(layoutState)
+      // 读 uiState 并 restore（不进入历史）。布局已在 setup 里恢复（R-19-3）；路由要等 Core：目标表面一挂载就要向 Core 要数据。
       const route = (await api.uiStateGet('navigation')) as Route | null
       if (route !== null) navigation.restore(route)
 
@@ -123,7 +143,8 @@ export default defineUiFeature({
     let restoring = true
     ctx.lifecycle.onDispose(
       layout.subscribe(() => {
-        if (restoring) return
+        /* 恢复完成之前不写回：否则 DEFAULT_LAYOUT 会先把存下的那份盖掉。恢复完成之后不必等 Core —— 启动期间点了侧栏也要记住。 */
+        if (!layoutRestored) return
         void api.uiStateSet('layout', layout.current())
       }),
     )

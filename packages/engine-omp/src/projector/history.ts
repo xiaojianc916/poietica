@@ -4,6 +4,7 @@ import {
   frameId,
   pageFromState,
   stepId,
+  type TranscriptAttachment,
   type TranscriptOperation,
   type TranscriptPage,
   turnId,
@@ -32,6 +33,12 @@ export interface HistoryPageOptions {
   readonly pageSize?: number
   /** 已经是当前那一轮：留 running（屏幕上的封条还在转） */
   readonly isTurnOpen?: boolean
+  /**
+   * 还开着的那一轮在增量那条路上已经发过的图片条目（审查 R-19-1）。给了就让最新那一轮沿用这批号：
+   * 那一轮收尾时增量那条路会再发一次整份轮头，轮头里是**它**的号 —— 历史这边另起一批号的话，
+   * 收尾那一刻轮头指向界面没见过的号，图就从气泡上消失了。
+   */
+  readonly openTurnAttachments?: readonly TranscriptAttachment[]
 }
 
 interface ScreenResult {
@@ -82,7 +89,7 @@ export function projectHistoryPage(
   const before = beforeTurnId === null ? Number.POSITIVE_INFINITY : turnOrdinalOf(beforeTurnId)
   const older = turns.filter((entry) => entry.turn < before)
   const window = older.slice(Math.max(0, older.length - pageSize))
-  const ops = window.flatMap((entry) => screenOps(entry))
+  const ops = window.flatMap((entry) => screenOps(entry, o.openTurnAttachments ?? []))
   const items = itemsFromOps(ops)
   return {
     items,
@@ -185,8 +192,8 @@ function isVisible(message: OmpMessage): boolean {
   return message.display !== false
 }
 
-function screenOps(entry: ScreenTurn): TranscriptOperation[] {
-  return entry.opening.role === 'compactionSummary' ? compactionOps(entry) : turnOps(entry)
+function screenOps(entry: ScreenTurn, openTurnAttachments: readonly TranscriptAttachment[]): TranscriptOperation[] {
+  return entry.opening.role === 'compactionSummary' ? compactionOps(entry) : turnOps(entry, openTurnAttachments)
 }
 
 /** 压缩那一格：号按轮走（compaction-<轮号>），live 的开门/关门两次 upsert 也落在同一格上 */
@@ -207,11 +214,16 @@ function compactionOps(entry: ScreenTurn): TranscriptOperation[] {
   ]
 }
 
-function turnOps(entry: ScreenTurn): TranscriptOperation[] {
+function turnOps(entry: ScreenTurn, openTurnAttachments: readonly TranscriptAttachment[]): TranscriptOperation[] {
   const turn = turnId(entry.turn)
+  const images = promptImagesOf(entry, openTurnAttachments)
+  /* 轮头必须带上号（审查 R-19-1）：界面只按轮头的 attachmentIds 找图，只发条目不挂号 = 重开之后图全部消失。 */
   const ops: TranscriptOperation[] = [
-    turnOp(entry),
-    ...imagesOf(entry.prompt === null ? undefined : entry.prompt.content, entry.openedAt),
+    turnOp(
+      entry,
+      images.map((op) => op.attachment.attachmentId),
+    ),
+    ...images,
   ]
   let step = 0
   for (const message of entry.steps) {
@@ -251,7 +263,7 @@ function markLastStepRunning(ops: TranscriptOperation[], turn: string): Transcri
   })
 }
 
-function turnOp(entry: ScreenTurn): TranscriptOperation {
+function turnOp(entry: ScreenTurn, attachmentIds: readonly string[]): TranscriptOperation {
   const skills = entry.prompt === null ? [] : skillActivationsOf(entry.prompt)
   return {
     op: 'turn.upsert',
@@ -264,6 +276,7 @@ function turnOp(entry: ScreenTurn): TranscriptOperation {
       ...(entry.prompt === null ? {} : { prompt: promptTextOf(entry.prompt) }),
       startedAt: entry.openedAt,
       ...(entry.endedAt === null ? {} : { endedAt: entry.endedAt }),
+      ...(attachmentIds.length === 0 ? {} : { attachmentIds: [...attachmentIds] }),
     },
   }
 }
@@ -395,13 +408,26 @@ function textOf(value: unknown): string {
     .join('\n')
 }
 
+type AttachmentUpsert = Extract<TranscriptOperation, { op: 'attachment.upsert' }>
+
+/**
+ * 这一轮开头那句人话的图片条目。还开着的那一轮优先沿用增量那条路发过的那一批（号与像素都相同）；
+ * 只有张数对得上才沿用 —— 对不上说明 omp 的消息里还没有这一句（或者根本不是同一句），各用各的号更安全。
+ */
+function promptImagesOf(entry: ScreenTurn, openTurnAttachments: readonly TranscriptAttachment[]): AttachmentUpsert[] {
+  const fromHistory = imagesOf(entry.prompt === null ? undefined : entry.prompt.content, entry.openedAt)
+  if (entry.state !== 'running' || openTurnAttachments.length === 0) return fromHistory
+  if (openTurnAttachments.length !== fromHistory.length) return fromHistory
+  return openTurnAttachments.map((attachment) => ({ op: 'attachment.upsert', attachment }))
+}
+
 /**
  * 用户消息里的图片。omp 读会话时已把 blob 换回内联 base64，所以像素此刻就在手上。
  * 号必须跨消息唯一：号里带上这条消息的时刻，否则两条各带一张图的用户消息会撞号、后一张覆盖前一张。
  */
-function imagesOf(content: unknown, stamp: string): TranscriptOperation[] {
+function imagesOf(content: unknown, stamp: string): AttachmentUpsert[] {
   if (!Array.isArray(content)) return []
-  const ops: TranscriptOperation[] = []
+  const ops: AttachmentUpsert[] = []
   for (const [index, value] of content.entries()) {
     const block = value as { readonly type?: unknown; readonly data?: unknown; readonly mimeType?: unknown }
     if (block.type !== 'image' || typeof block.data !== 'string' || block.data === '') continue

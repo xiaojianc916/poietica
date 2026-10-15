@@ -17,7 +17,7 @@ import { AppError, createId, Emitter, type Logger, SystemErrorCode } from '@poie
 import type { TranscriptOperation, TranscriptPage } from '@poietica/transcript'
 import { outcomeOf, type TurnOutcome, toEngineError } from '../errors'
 import type { InteractionBroker } from '../interactions/broker'
-import type { LiveProjector } from '../projector/live'
+import type { ImageAttachmentInput, LiveProjector } from '../projector/live'
 import { describeError } from './event-faults'
 import type { LoadedImage } from './prompt'
 import { type SkillPromptMessage, wireTextOf } from './prompt'
@@ -61,11 +61,15 @@ export interface OmpSessionHost {
     images: readonly { readonly path: string; readonly mime: string; readonly base64: string }[],
     skillMessage: SkillPromptMessage | null,
   ) => Promise<boolean>
-  /** 排队 / 插话投递；返回值是 omp 队列里这一项的正文（对账与 removeQueued 都认它） */
+  /**
+   * 排队 / 插话投递；返回值是 omp 队列里这一项的正文（对账与 removeQueued 都认它）。
+   * `images` 是已经读好的图（与插话帧上的图同一份像素，不再读第二遍）；不给就由实现自己读。
+   */
   readonly steer: (
     input: SubmitInput,
     deliverAs: 'steer' | 'followUp',
     skillMessage: SkillPromptMessage | null,
+    images?: readonly LoadedImage[],
   ) => Promise<{ readonly wireText: string }>
   readonly abort: () => Promise<void>
   readonly disposeSession: () => Promise<void>
@@ -137,6 +141,18 @@ interface QueueEntry {
   readonly deliverAs: 'steer' | 'followUp'
   readonly createdAt: number
   readonly input: SubmitInput
+  /** 这一句带的图（审查 R-19-1）：被 message_start 认领、画成插话帧时一起上屏。号在入队时铸好 */
+  readonly images: readonly ImageAttachmentInput[]
+}
+
+/** 读好的图 → 时间线附件条目。号跨消息唯一，`#序号` 只为读日志时一眼看出是第几张 */
+function imageInputsOf(images: readonly LoadedImage[]): ImageAttachmentInput[] {
+  const batch = createId()
+  return images.map((image, index) => ({
+    attachmentId: `${batch}#${String(index)}`,
+    mediaType: image.mime,
+    dataUrl: `data:${image.mime};base64,${image.base64}`,
+  }))
 }
 
 /**
@@ -281,28 +297,12 @@ export class OmpSession implements EngineSession {
   private async runTurn(input: SubmitInput): Promise<void> {
     try {
       const images = input.images.length === 0 ? [] : await this.o.loadImages(input.images)
-      /* 号只签一次：attachment.upsert 与 userTurn 引用同一批（投影按号查附件） */
-      const imageIds = images.map((_image, index) => `${createId()}#${String(index)}`)
-      if (images.length > 0) {
-        this.timeline(
-          images.flatMap((image, index) =>
-            this.o.projector.attachmentOp({
-              attachmentId: imageIds[index]!,
-              mediaType: image.mime,
-              dataUrl: `data:${image.mime};base64,${image.base64}`,
-            }),
-          ),
-        )
-      }
+      /* 号只签一次：attachment.upsert 与轮头引用同一批（投影按号查附件），两者由 userTurn 一起发 */
       this.timeline(
         this.o.projector.userTurn({
           text: input.text,
           skills: input.skills,
-          ...(images.length === 0
-            ? {}
-            : {
-                attachmentIds: imageIds,
-              }),
+          ...(images.length === 0 ? {} : { images: imageInputsOf(images) }),
         }),
       )
       const skillMessage = input.skills.length === 0 ? null : await this.skillTextFor(input)
@@ -427,8 +427,12 @@ export class OmpSession implements EngineSession {
   private enqueue(input: SubmitInput, deliverAs: 'steer' | 'followUp'): Promise<void> {
     return this.serial(async () => {
       this.assertLive()
-      const skillMessage = input.skills.length === 0 ? null : await this.skillTextFor(input)
-      const { wireText } = await this.o.steer(input, deliverAs, skillMessage)
+      /* 图在这里读一次：同一份像素既交给 omp，也留在账本里等认领时画到插话帧上（审查 R-19-1） */
+      const images = input.images.length === 0 ? [] : await this.o.loadImages(input.images)
+      this.assertLive()
+      const loaded = images.length === 0 ? undefined : images
+      const skillMessage = input.skills.length === 0 ? null : await this.skillTextFor(input, loaded)
+      const { wireText } = await this.o.steer(input, deliverAs, skillMessage, loaded)
       this.ledger.push({
         id: createId(),
         text: input.text,
@@ -437,6 +441,7 @@ export class OmpSession implements EngineSession {
         deliverAs,
         createdAt: this.o.now(),
         input,
+        images: imageInputsOf(images),
       })
       this.emitQueue()
     })
@@ -494,7 +499,11 @@ export class OmpSession implements EngineSession {
   }
 
   queue(): QueueSnapshot {
-    return { items: this.ledger.map((e) => ({ ...e })), modes: { ...this.modes } }
+    /* 逐字段拷：账本项里还带着图片的 data URL，整份展开会让每一次队列通知都把像素再送一遍 */
+    return {
+      items: this.ledger.map((e) => ({ id: e.id, text: e.text, deliverAs: e.deliverAs, createdAt: e.createdAt })),
+      modes: { ...this.modes },
+    }
   }
 
   withdraw(queueItemId: string): void {
@@ -704,7 +713,7 @@ export class OmpSession implements EngineSession {
       return
     }
     const entry = this.takeConsumed((e) => !e.skill && e.wireText === wireText)
-    if (entry !== null) this.timeline(this.o.projector.steeredFrame(entry.text))
+    if (entry !== null) this.timeline(this.o.projector.steeredFrame(entry.text, entry.images))
   }
 
   /** 技能消息没有可靠的正文可对，按 FIFO 认领最早的技能项 */
@@ -714,7 +723,7 @@ export class OmpSession implements EngineSession {
       return
     }
     const entry = this.takeConsumed((e) => e.skill)
-    if (entry !== null) this.timeline(this.o.projector.steeredFrame(entry.text))
+    if (entry !== null) this.timeline(this.o.projector.steeredFrame(entry.text, entry.images))
   }
 
   /** 先在 consumed 里找（queue_update 先到），再在 ledger 里找（message_start 先到） */

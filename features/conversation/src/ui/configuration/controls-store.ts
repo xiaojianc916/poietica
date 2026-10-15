@@ -26,6 +26,31 @@ export interface ControlsStore {
 
 export function createControlsStore(api: ConversationApi): ControlsStore {
   const store = createFeatureStore<ControlsState>(() => ({ byThread: {}, failure: {}, usage: {} }))
+  /*
+   * 审查 R-19-4：同一条对话的 refresh 可能一拍里来好几次（线程表面挂载、点侧栏 openThread、Core 就绪后的 resyncVisible、
+   * StrictMode 双挂载）。进行中的请求按对话号共用一份，不重复打 controls.get。
+   */
+  const inflight = new Map<string, Promise<void>>()
+  /*
+   * 每条对话被 `set`（controls.changed 推来的整张表）写过几次。refresh 发出之后又来了一份推送，
+   * 那份推送比 refresh 的应答新：应答回来时不能拿旧表把它盖掉。
+   */
+  const pushed = new Map<string, number>()
+  const fetchControls = async (threadId: string): Promise<void> => {
+    const generation = pushed.get(threadId) ?? 0
+    try {
+      const controls = await api.getControls(threadId)
+      if ((pushed.get(threadId) ?? 0) !== generation) return
+      store.setState((s) => ({
+        byThread: { ...s.byThread, [threadId]: controls },
+        failure: Object.fromEntries(Object.entries(s.failure).filter(([k]) => k !== threadId)),
+      }))
+    } catch (e) {
+      if ((pushed.get(threadId) ?? 0) !== generation) return
+      const message = e instanceof Error ? e.message : String(e)
+      store.setState((s) => ({ failure: { ...s.failure, [threadId]: message } }))
+    }
+  }
   return {
     store,
     get: (threadId) => store.getState().byThread[threadId],
@@ -35,22 +60,20 @@ export function createControlsStore(api: ConversationApi): ControlsStore {
       store.setState((s) => (s.usage[threadId] === usage ? s : { usage: { ...s.usage, [threadId]: usage } }))
     },
     set: (threadId, controls) => {
+      pushed.set(threadId, (pushed.get(threadId) ?? 0) + 1)
       store.setState((s) => ({
         byThread: { ...s.byThread, [threadId]: controls },
         failure: Object.fromEntries(Object.entries(s.failure).filter(([k]) => k !== threadId)),
       }))
     },
-    async refresh(threadId) {
-      try {
-        const controls = await api.getControls(threadId)
-        store.setState((s) => ({
-          byThread: { ...s.byThread, [threadId]: controls },
-          failure: Object.fromEntries(Object.entries(s.failure).filter(([k]) => k !== threadId)),
-        }))
-      } catch (e) {
-        const message = e instanceof Error ? e.message : String(e)
-        store.setState((s) => ({ failure: { ...s.failure, [threadId]: message } }))
-      }
+    refresh(threadId) {
+      const running = inflight.get(threadId)
+      if (running !== undefined) return running
+      const request = fetchControls(threadId).finally(() => {
+        inflight.delete(threadId)
+      })
+      inflight.set(threadId, request)
+      return request
     },
   }
 }

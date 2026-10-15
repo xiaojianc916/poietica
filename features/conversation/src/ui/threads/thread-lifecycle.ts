@@ -29,3 +29,23 @@ export function useThreadSessionLifecycle(deps: {
     }
   }, [close, open, threadId])
 }
+
+/**
+ * 线程表面用的 `open`：预热会话（`threads.open`），**同时主动问一次控件表**（审查 R-19-4）。
+ *
+ * `threads.open` 只预热、不返回控件表。点侧栏那条路（actions.openThread）一直会自己 refresh；
+ * 但重启后由 navigation.restore 直接进到线程页的那条路只走这里 —— Core 就绪时那次 resyncVisible 与路由恢复并行，
+ * 表面挂得晚就一份控件表都拿不到：输入框下面那排选择器（批准方式 / 模型 / 思考）不画，要点一下侧栏标题才出来（真实故障）。
+ * 控件表的重复请求由 controls-store 按对话号合并，这里不必去重。
+ */
+export function createThreadSurfaceOpener(deps: {
+  readonly open: (threadId: string) => Promise<unknown>
+  readonly refreshControls: (threadId: string) => Promise<void>
+}): (threadId: string) => Promise<unknown> {
+  const { open, refreshControls } = deps
+  return (threadId) => {
+    const opened = open(threadId)
+    void refreshControls(threadId).catch(() => undefined)
+    return opened
+  }
+}

@@ -51,6 +51,19 @@
 }
 
 /*
+ * 审查 R-19-2：JS 把 data-theme 写上之前的那几帧（index.html 不再写死 data-theme="light"）。
+ * 窗口在第一帧画完时才 show（ready-to-show），那一帧只有 html / body / #root 这一层底衬；
+ * 浅色令牌是 :root 的默认值，不兜这一层，深色启动就会先白一下。
+ * Host 在建窗口前已把 nativeTheme.themeSource 设成偏好，所以这里的 prefers-color-scheme 就是解析后的那一档。
+ */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme]) {
+    color-scheme: dark;
+    --window-backing-surface: #202020;
+  }
+}
+
+/*
  * 这里只保留 border-color。box-sizing 由 Tailwind preflight 设过；字体平滑两条
  * macOS 补偿在 Windows 上只关闭 ClearType，净损失，不留。
  *

@@ -1,5 +1,22 @@
-import { frameId, stepId, type TranscriptOperation, turnId } from '@poietica/transcript'
+import { frameId, stepId, type TranscriptAttachment, type TranscriptOperation, turnId } from '@poietica/transcript'
 import { GOAL_CONTINUATION_ORIGIN, type TurnOrigin } from './origin'
+
+/** 一张图片附件：号由调用方铸（session 里的 createId），像素是内联 data URL */
+export interface ImageAttachmentInput {
+  readonly attachmentId: string
+  readonly mediaType: string
+  readonly dataUrl: string
+  readonly name?: string
+}
+
+function attachmentOf(input: ImageAttachmentInput): TranscriptAttachment {
+  return {
+    attachmentId: input.attachmentId,
+    mediaType: input.mediaType,
+    source: { kind: 'url', url: input.dataUrl },
+    ...(input.name === undefined ? {} : { name: input.name }),
+  }
+}
 
 /** 工具帧降级时显示的正文（状态照实，正文换成这句；R-02） */
 export const TOOL_FALLBACK_TEXT = '这一步的内容无法显示（详情已写入日志）'
@@ -48,6 +65,8 @@ export class LiveProjector {
   private promptId: string | undefined
   private startedAt = ''
   private attachmentIds: readonly string[] = []
+  /** 这一轮开头那几张图的条目（审查 R-19-1）：这一轮还开着时历史分页要沿用同一批号，见 `openTurnAttachments`。 */
+  private turnAttachments: readonly TranscriptAttachment[] = []
 
   constructor(private readonly o: LiveProjectorOptions) {}
 
@@ -64,6 +83,11 @@ export class LiveProjector {
     return this.turnOpen
   }
 
+  /** 开着的这一轮由 userTurn 带进来的图片条目；没开着轮时为空 */
+  get openTurnAttachments(): readonly TranscriptAttachment[] {
+    return this.turnOpen ? this.turnAttachments : []
+  }
+
   /**
    * 把累加器摆到屏幕上已有的位置：下一轮从 ordinal + 1 起号。
    * 只许在没开着轮时调：屏幕上的号是显示经过里的位置，增量这条路的号是它自己数的，两者不对齐就会盖掉已有的轮。
@@ -77,33 +101,24 @@ export class LiveProjector {
    * 一张图片的附件条目（每张图片先 attachmentOp 再 userTurn）。
    * 像素用 url 源直接给（data URL）：omp 读会话时已经把 blob 换成内联 base64，界面直接画得出来。
    */
-  attachmentOp(input: {
-    readonly attachmentId: string
-    readonly mediaType: string
-    readonly dataUrl: string
-    readonly name?: string
-  }): TranscriptOperation[] {
-    return [
-      {
-        op: 'attachment.upsert',
-        attachment: {
-          attachmentId: input.attachmentId,
-          mediaType: input.mediaType,
-          source: { kind: 'url', url: input.dataUrl },
-          ...(input.name === undefined ? {} : { name: input.name }),
-        },
-      },
-    ]
+  attachmentOp(input: ImageAttachmentInput): TranscriptOperation[] {
+    return [{ op: 'attachment.upsert', attachment: attachmentOf(input) }]
   }
 
-  /** 一条用户消息：开一个新 turn，正文落在它下面第一个 step 的第一帧 */
+  /**
+   * 一条用户消息：开一个新 turn，正文落在它下面第一个 step 的第一帧。
+   * 带 `images` 时先发这几张图的条目、再开轮，轮头的 attachmentIds 就是这几张图的号（号由调用方铸）。
+   */
   userTurn(input: {
     readonly text: string
     readonly attachmentIds?: readonly string[]
+    readonly images?: readonly ImageAttachmentInput[]
     readonly promptId?: string
     readonly skills?: readonly string[]
   }): TranscriptOperation[] {
-    const attachmentIds = input.attachmentIds ?? []
+    const attachments = (input.images ?? []).map(attachmentOf)
+    const attachmentIds =
+      attachments.length > 0 ? attachments.map((attachment) => attachment.attachmentId) : (input.attachmentIds ?? [])
     const skills = input.skills ?? []
     const origin: TurnOrigin =
       skills.length === 0
@@ -123,7 +138,9 @@ export class LiveProjector {
       promptId: input.promptId,
       attachmentIds,
     })
+    this.turnAttachments = attachments
     return [
+      ...attachments.map((attachment): TranscriptOperation => ({ op: 'attachment.upsert', attachment })),
       {
         op: 'turn.upsert',
         turn: {
@@ -214,18 +231,25 @@ export class LiveProjector {
     this.promptId = input.promptId
     this.startedAt = at
     this.attachmentIds = input.attachmentIds
+    this.turnAttachments = []
     return { ordinal, turn: turnId(ordinal), at }
   }
 
-  /** 一句插话：开着一轮时进当前 step 并封掉正在流的那一帧；没开着就退回 userTurn */
-  steeredFrame(text: string, attachmentIds: readonly string[] = []): TranscriptOperation[] {
-    if (!this.turnOpen) return this.userTurn({ text, attachmentIds })
+  /**
+   * 一句插话：开着一轮时进当前 step 并封掉正在流的那一帧；没开着就退回 userTurn。
+   * 插话带的图（审查 R-19-1）和开轮那一句同一个做法：先发条目，帧上挂号 —— 不挂号的话模型看得见、气泡上没有。
+   */
+  steeredFrame(text: string, images: readonly ImageAttachmentInput[] = []): TranscriptOperation[] {
+    if (!this.turnOpen) return this.userTurn({ text, images })
+    const attachments = images.map(attachmentOf)
+    const attachmentIds = attachments.map((attachment) => attachment.attachmentId)
     this.streaming = null
     const turn = turnId(this.turn)
     const step = stepId(turn, this.step)
     const id = frameId(step, this.frame)
     this.frame += 1
     return [
+      ...attachments.map((attachment): TranscriptOperation => ({ op: 'attachment.upsert', attachment })),
       {
         op: 'frame.upsert',
         turnId: turn,
@@ -512,6 +536,7 @@ export class LiveProjector {
    */
   abandonTurn(): void {
     this.turnOpen = false
+    this.turnAttachments = []
     this.stepOpen = false
     this.streaming = null
     this.tools.clear()

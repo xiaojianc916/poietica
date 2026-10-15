@@ -434,4 +434,39 @@ describe('排队 / 插话链路（R-01 §5.1）', () => {
     expect(turns[0]?.attachmentIds).toEqual(upserts.map((attachment) => attachment.attachmentId))
     await f.session.cancel()
   })
+  /*
+   * R-19-1 现象：会话忙时发图，Core 把这一句降级成 followUp / 插话；认领那一帧以前只带字不带图，
+   * 模型看得见、气泡上没有。判据：图只读一次；认领时条目先到、人话帧挂上同一批号；队列快照不带像素。
+   */
+  test('R-19-1 忙时带图的 followUp：认领后条目先到、人话帧挂号，队列快照不带像素', async () => {
+    const f = await fixture()
+    await f.session.submit(submit('打底'))
+    await f.session.submit(submit('看这张图', 'followUp', { images: [{ path: 'C:\\a.png', mime: 'image/png' }] }))
+
+    expect(f.imageReads.count).toBe(1)
+    const queued = f.session.queue().items
+    expect(queued).toHaveLength(1)
+    expect(Object.keys(queued[0]!).sort()).toEqual(['createdAt', 'deliverAs', 'id', 'text'])
+
+    const before = f.events.flatMap((event) => (event.type === 'timeline' ? event.ops : [])).length
+    f.followUp.splice(0, f.followUp.length)
+    f.syncQueue()
+    f.messageStart({ role: 'user', content: '看这张图', timestamp: NOW + 1 })
+
+    const ops = f.events.flatMap((event) => (event.type === 'timeline' ? event.ops : [])).slice(before)
+    const upsertAt = ops.findIndex((op) => op.op === 'attachment.upsert')
+    const frameAt = ops.findIndex(
+      (op) => op.op === 'frame.upsert' && op.frame.kind === 'text' && op.frame.text === '看这张图',
+    )
+    expect(upsertAt).toBeGreaterThanOrEqual(0)
+    expect(frameAt).toBeGreaterThan(upsertAt)
+    const upsert = ops[upsertAt]
+    const frame = ops[frameAt]
+    if (upsert?.op !== 'attachment.upsert' || frame?.op !== 'frame.upsert' || frame.frame.kind !== 'text')
+      throw new Error('unreachable')
+    expect(upsert.attachment.source).toEqual({ kind: 'url', url: 'data:image/png;base64,QUJD' })
+    expect(frame.frame.attachmentIds).toEqual([upsert.attachment.attachmentId])
+    expect(f.imageReads.count).toBe(1)
+    await f.session.cancel()
+  })
 })

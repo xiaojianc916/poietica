@@ -218,8 +218,8 @@ export async function wrapOmpSession(input: WrapOmpSessionInput): Promise<Engine
        * `text` 是**投递正文**（用户原文 + 每个文件一行 `@<绝对路径>`）。不能发 `submit.text`：文件在排队 /
        * 插话这条路上会被静默丢掉，而队列对账、removeQueuedMessage、message_start 认领都认这一份。
        */
-      steer: async (submit, deliverAs, skillMessage) => {
-        const prepared = preparePrompt(submit, {})
+      steer: async (submit, deliverAs, skillMessage, images) => {
+        const prepared = preparePrompt(submit, images === undefined ? {} : { loadedImages: images })
         if (skillMessage !== null) {
           await session.promptCustomMessage(skillMessage as unknown as Record<string, unknown>, {
             streamingBehavior: deliverAs,
@@ -303,7 +303,10 @@ export async function wrapOmpSession(input: WrapOmpSessionInput): Promise<Engine
       liveGoal: () => goalOf(session),
       liveGoalSnapshot: () => goalSnapshotOf(session),
       page: async (_agentId, beforeTurnId) =>
-        projectHistoryPage(session.messages, beforeTurnId, { isTurnOpen: projector.isTurnOpen }),
+        projectHistoryPage(session.messages, beforeTurnId, {
+          isTurnOpen: projector.isTurnOpen,
+          openTurnAttachments: projector.openTurnAttachments,
+        }),
       /*
        * omp 知识 #17：omp 的自动总结标题只由它的 input-controller 触发，而我们直接调 session.prompt，
        * 所以这里代它触发一次；omp 自己做低信号过滤与去重。

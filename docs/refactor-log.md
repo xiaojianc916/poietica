@@ -3089,3 +3089,30 @@ agent 自己报过终局的（`completed` / `cancelled` / `failed`）一律不�
   所以 R-13 当时没抄错；上面这一条补修针对的是**本仓自己**那条 DSH 没有的收尾路径。
 
 **待决问题**：无。
+
+## R-19 四个启动 / 附件现象：气泡丢图、深色闪白、侧栏跳变、恢复后控件不画
+
+**来源**：核心工程师交办的四个现象（外部输入，不入库）。每一条先写会红的用例，再改。
+
+1. **R-19-1 用户气泡上的图**（三条根因，同一个现象）：
+   - 历史投影 `projector/history.ts` 只发 `attachment.upsert`、**轮头不挂 attachmentIds**；UI 只按轮头的号找图 →
+     任何一次快照 / 整页重读（timeline.subscribe、reset、重启）图都消失。`turnOp(entry, attachmentIds)` 补上。
+   - 会话忙时 Core 把 turn 降级成 followUp / 插话：`enqueue` 不保留图、认领时 `steeredFrame(text)` 不带图 →
+     模型看得见、气泡上没有。`QueueEntry.images`（只读一次盘），`steeredFrame(text, images)` 先发条目、帧上挂号；
+     `queue()` 改为逐字段拷贝（不把 data URL 推进每一次队列通知）。
+   - 一轮还开着时取快照：历史铸的号与 live 的不同，`turnEnd` 再发一次轮头就把图换没了。
+     `HistoryPageOptions.openTurnAttachments`：开着的那一轮沿用 live 的条目。
+   - UI `transcript-projector.ts`：人话帧也渲染附件；附件索引只要有条目就建；按轮缓存的命中条件加上「引用的条目没变」。
+2. **R-19-2 深色启动闪白**：`index.html` 写死 `data-theme="light"`，第一帧（ready-to-show）只有底衬那一层且是白的。
+   去掉写死的属性；`styles.css` 在 `:root:not([data-theme])` 上按 `prefers-color-scheme` 兜底衬（Host 在建窗前已设
+   `nativeTheme.themeSource`，这个媒体查询就是解析后的那一档）；preferences UI 在 setup 里同步投一次主题；
+   platform 的 beforeWindow 不再写浅色 `backgroundColor`（configureMain 后写覆盖，结果取决于模块顺序）。
+3. **R-19-3 侧栏启动跳变**：布局本来就有记忆（uiState `layout`），但只在 onCoreReady 里恢复 —— 要等 Core。
+   改为 setup 里立即恢复（请求先于 `core.getStatus` 发出、按序应答，落在第一次渲染之前）；恢复完成后即开始写回，
+   不再等 Core。路由恢复仍在 onCoreReady（目标表面要向 Core 要数据）。
+4. **R-19-4 恢复到线程后输入框控件不画**：只有点侧栏的 `actions.openThread` 会 `controls.refresh`；
+   `navigation.restore` 进来的线程表面只调 `threads.open`，又与 Core 就绪时的 `resyncVisible` 竞态。
+   线程表面改用 `createThreadSurfaceOpener`（预热 + 拉控件表）；`controls-store.refresh` 按对话号合并在途请求，
+   且 refresh 发出后又收到 `controls.changed` 推送时不拿旧应答覆盖。
+
+**契约**：没有变化（`QueueItem` 仍是 4 个字段，`attachmentIds` 本就是轮头 / 帧的可选字段），`PROTOCOL_VERSION` 不动。

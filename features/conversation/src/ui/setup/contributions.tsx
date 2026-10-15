@@ -29,7 +29,7 @@ import {
 } from '../configuration/control-shapes'
 import { runGoalAction } from '../goal-actions'
 import { ArchivedChatsPage } from '../settings/archived-page'
-import { useThreadSessionLifecycle } from '../threads/thread-lifecycle'
+import { createThreadSurfaceOpener, useThreadSessionLifecycle } from '../threads/thread-lifecycle'
 import { groupByWorkspace } from '../threads/thread-order'
 import type { ConversationActions } from './actions'
 import type { ConversationSetup } from './context'
@@ -39,6 +39,11 @@ import { useRunningThreadIds } from './use-running-thread-ids'
 export function createConversationContributions(setup: ConversationSetup, actions: ConversationActions): void {
   const { api, ctx, layout, posture, sessions, stores, transcripts, workspaces } = setup
   const { archived, collapsed, exportThread, newThread, openThread, showArchived, todoThread } = actions
+  /* 线程表面挂载 / 换对话时预热会话并主动问一次控件表（审查 R-19-4，判据见 thread-lifecycle.ts）。setup 级的稳定引用：它进了 effect 依赖。 */
+  const openThreadSurface = createThreadSurfaceOpener({
+    open: api.openThread,
+    refreshControls: (threadId) => stores.controls.refresh(threadId),
+  })
 
   /* 侧栏导航「新建对话」归 conversation —— 这个功能才知道入口在哪儿，外壳一个产品常量都不写。 */
   ctx.contribute(builtinPoints.sidebarSections, {
@@ -233,7 +238,7 @@ export function createConversationContributions(setup: ConversationSetup, action
        * StrictMode 双渲染、切走再切回来这几条路上都成立。组件里 `useMemo` 做不到 —— 它随组件生命周期生灭，换个实例就换一根端口。
        */ const session = threadId === '' ? undefined : sessions.port(threadId)
       /* 挂载预热 / 卸载释放（threads.open / threads.close）；规则与 StrictMode 的兜底在 thread-lifecycle.ts 里。 */
-      useThreadSessionLifecycle({ threadId, open: api.openThread, close: api.closeThread })
+      useThreadSessionLifecycle({ threadId, open: openThreadSurface, close: api.closeThread })
       return (
         <ConversationProviders posture={posture} transcripts={transcripts}>
           <ActiveOwner layout={layout} owner={threadId} />
