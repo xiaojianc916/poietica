@@ -1,5 +1,6 @@
 import { basename } from '@poietica/design-system/diff'
 import type { ToolCallTimelineItem } from '../../timeline/timeline-contract'
+import { type ToolFacet, toolFamilyOf } from '../../timeline/tools/tool-family'
 
 // 优先用投影层的 headline（认得工具的视图写全），认不出才退回按类别拼动词。
 
@@ -98,15 +99,66 @@ export function sayToolCount(kind: ToolKind, count: number): string {
   }
 }
 
+/* 组头账目的每一笔怎么说；声明顺序就是组头里的先后（阅读 → 搜索 → 运行命令，不随谁先到而换位）。 */
+const FACET_COPY: Readonly<Record<Exclude<ToolFacet, 'kind'>, (count: number) => string>> = {
+  read: (n) => `读取 ${n} 个文件`,
+  search: (n) => `搜索 ${n} 次`,
+  execute: (n) => `运行 ${n} 条命令`,
+  web_search: (n) => `搜索网络 ${n} 次`,
+  fetch: (n) => `抓取 ${n} 个网页`,
+  memory_read: (n) => `读取 ${n} 条记忆`,
+  recall: (n) => `回忆 ${n} 次`,
+  retain: (n) => `记下 ${n} 条记忆`,
+  reflect: (n) => `反思 ${n} 次`,
+  memory_edit: (n) => `整理 ${n} 次记忆`,
+  edit: (n) => `编辑 ${n} 处`,
+  write: (n) => `写入 ${n} 个文件`,
+  delegate: (n) => `调度子代理 ${n} 次`,
+  agent_read: (n) => `查看 ${n} 份子代理产出`,
+  browser: (n) => `操作浏览器 ${n} 次`,
+  computer: (n) => `操作电脑 ${n} 次`,
+  skill_read: (n) => `读取 ${n} 个技能`,
+  learn: (n) => `习得 ${n} 条经验`,
+  skill: (n) => `管理技能 ${n} 次`,
+  github: (n) => `访问 GitHub ${n} 次`,
+  checkpoint: (n) => `操作回退点 ${n} 次`,
+  lsp: (n) => `语言服务请求 ${n} 次`,
+  mcp: (n) => `调用 ${n} 次 MCP 工具`,
+  mcp_resource: (n) => `读取 ${n} 个 MCP 资源`,
+}
+
+const FACET_RANK: ReadonlyMap<string, number> = new Map(Object.keys(FACET_COPY).map((facet, rank) => [facet, rank]))
+
+type FacetSource = Pick<ToolCallTimelineItem, 'invokedTool' | 'kind' | 'scheme'>
+
 /**
- * 文案取基准截图的说法；只有一半时就只说那一半。
+ * 组头落定后的账目：按族里各笔分开数，例如「读取 3 个文件，搜索 2 次，运行 1 条命令」。没有的那一笔不说。
  */
-export function sayProcessSummary(reads: number, executes: number): string {
-  if (reads > 0 && executes > 0) {
-    return '已读取文件运行了命令'
+export function sayFamilySummary(items: readonly FacetSource[]): string {
+  const tally = new Map<string, { readonly say: (count: number) => string; readonly rank: number; count: number }>()
+
+  for (const item of items) {
+    const { facet } = toolFamilyOf(item)
+    const id = facet === 'kind' ? `kind:${item.kind}` : facet
+    const held = tally.get(id)
+
+    if (held !== undefined) {
+      held.count += 1
+      continue
+    }
+
+    tally.set(
+      id,
+      facet === 'kind'
+        ? { count: 1, rank: FACET_RANK.size, say: (n) => sayToolCount(item.kind, n) }
+        : { count: 1, rank: FACET_RANK.get(facet) ?? FACET_RANK.size, say: FACET_COPY[facet] },
+    )
   }
 
-  return executes > 0 ? '运行了命令' : '已读取文件'
+  return [...tally.values()]
+    .sort((a, b) => a.rank - b.rank)
+    .map((entry) => entry.say(entry.count))
+    .join('，')
 }
 
 // ToolKind 长出新档时这里是编译错误。

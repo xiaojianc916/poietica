@@ -14,7 +14,7 @@ import {
   yieldView,
 } from './views/agent'
 import { browserView, computerView, evalAlias, evalView } from './views/eval'
-import { astEditView, bashView, editView, readView, writeView } from './views/files'
+import { astEditView, bashView, editView, fetchView, readView, writeView } from './views/files'
 import {
   debugView,
   deviceView,
@@ -59,7 +59,7 @@ const HANDLERS: Readonly<Record<string, Handler>> = {
   debug: debugView,
   edit: editView,
   eval: evalView,
-  fetch: readView,
+  fetch: fetchView,
   find: findView,
   generate_image: imageGenView,
   github: githubView,

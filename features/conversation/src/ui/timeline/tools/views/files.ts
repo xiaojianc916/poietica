@@ -42,24 +42,67 @@ export const bashView: Handler = (ctx) => {
   )
 }
 
-// 给人看的原始正文在 details.displayContent.text（hashline 模式下入参带行号前缀）。
-export const readView: Handler = (ctx) => {
-  const path = pick(ctx.input, 'path') ?? pick(ctx.details, 'resolvedPath') ?? ''
-  const shown = pick(get(ctx.details, 'displayContent'), 'text') ?? ctx.said
-  const conflict = numb(ctx.details, 'conflictCount')
-
-  return view(
-    'read',
-    path === '' ? '读取文件' : `阅读 ${path}`,
-    path,
-    NONE,
-    failOr(ctx, [
-      ...(shown === undefined ? NONE : [code(shown, langOf(path))]),
-      ...(conflict === undefined || conflict === 0 ? NONE : [prose(`这个文件有 ${String(conflict)} 处未解决的冲突。`)]),
-    ]),
-    'result',
-  )
+/*
+ * read 是传输工具，读的是什么由地址说：记忆、技能各有自己的动词，网页是「抓取」而且归 fetch 类；其余地址照旧「阅读」。
+ * 动词与 omp-tool-glyphs 的字形、tool-family 的分族同一批判据，三处说的是同一件事。
+ */
+const READ_HEADS: Readonly<Record<string, string>> = {
+  memory: '读取记忆',
+  skill: '读取技能',
 }
+
+function addressOf(path: string): { readonly scheme: string; readonly rest: string } {
+  const cut = path.indexOf('://')
+
+  return cut <= 0 ? { scheme: '', rest: path } : { scheme: path.slice(0, cut).toLowerCase(), rest: path.slice(cut + 3) }
+}
+
+function readHeadOf(path: string, isFetch: boolean): { readonly kind: 'fetch' | 'read'; readonly head: string } {
+  if (path === '') {
+    return isFetch ? { kind: 'fetch', head: '抓取网页' } : { kind: 'read', head: '读取文件' }
+  }
+
+  const { rest, scheme } = addressOf(path)
+
+  if (isFetch || scheme === 'http' || scheme === 'https') {
+    return { kind: 'fetch', head: `抓取 ${path}` }
+  }
+
+  const verb = READ_HEADS[scheme]
+
+  return verb === undefined || rest === ''
+    ? { kind: 'read', head: `阅读 ${path}` }
+    : { kind: 'read', head: `${verb} ${rest}` }
+}
+
+// 给人看的原始正文在 details.displayContent.text（hashline 模式下入参带行号前缀）。
+function readWith(isFetch: boolean): Handler {
+  return (ctx) => {
+    const path = pick(ctx.input, 'path') ?? pick(ctx.input, 'url') ?? pick(ctx.details, 'resolvedPath') ?? ''
+    const shown = pick(get(ctx.details, 'displayContent'), 'text') ?? ctx.said
+    const conflict = numb(ctx.details, 'conflictCount')
+    const { head, kind } = readHeadOf(path, isFetch)
+
+    return view(
+      kind,
+      head,
+      path,
+      NONE,
+      failOr(ctx, [
+        ...(shown === undefined ? NONE : [code(shown, langOf(path))]),
+        ...(conflict === undefined || conflict === 0
+          ? NONE
+          : [prose(`这个文件有 ${String(conflict)} 处未解决的冲突。`)]),
+      ]),
+      'result',
+    )
+  }
+}
+
+export const readView: Handler = readWith(false)
+
+// fetch 是「读 URL」那一把：画法与 read 相同，类别与动词归网页。
+export const fetchView: Handler = readWith(true)
 
 // write 还是 xd:// 传输本身：omp 把可挂载工具收进 write xd://<tool>，
 // 一次 write 其实是在调另一个工具，按被调的那个工具画，否则永远显示成「写入 xd://browser」。

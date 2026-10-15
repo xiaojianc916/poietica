@@ -5,18 +5,39 @@ import { renderToStaticMarkup } from 'react-dom/server'
 import type { ToolCallStatus, ToolKind } from '../../../agent/tool-call'
 import { type Presentation, selectPresentation, type ToolGroupPlan } from '../../../timeline/presentation'
 import type { TimelineItem, TimelineState, ToolCallTimelineItem } from '../../../timeline/timeline-contract'
-import { sayProcessSummary } from '../../semantics/tool-intent'
+import { sayFamilySummary } from '../../semantics/tool-intent'
 import { ToolGroupCard } from '../tools/tool-group-card'
 
-/* 过程组：read / execute 与夹在它们中间的思考连成一条记事。两条要求钉在投影那一层，不靠渲染
+/* 过程组：阅读 / 搜索 / 运行命令与夹在它们中间的思考连成一条记事。要求钉在投影那一层，不靠渲染
  * 结果反推：思考从头到尾不落成行，只在组头一闪，落定后整段消失（历史回放也不出现）；思考对
- * 每一档都透明，edit / fetch 等同档相邻即使中间夹着思考也连成一条。 */
+ * 每一族都透明，edit / fetch 等同族相邻即使中间夹着思考也连成一条；成组只数工具，不数思考。 */
 
 function ask(id = 'ask'): TimelineItem {
   return { type: 'user_message', id, turn: 0, at: 0, text: '看看仓库' }
 }
 
-function tool(id: string, kind: ToolKind, status: ToolCallStatus = 'completed'): ToolCallTimelineItem {
+/* 每个类别取一把真实的 omp 工具名：分族听的是名字与地址，不是 kind。 */
+const NAMES: Readonly<Record<ToolKind, string>> = {
+  delegate: 'task',
+  edit: 'edit',
+  execute: 'bash',
+  fetch: 'fetch',
+  goal: 'goal',
+  other: 'think',
+  read: 'read',
+  search: 'grep',
+  skill: 'manage_skill',
+  todo: 'todo',
+  write: 'write',
+}
+
+function tool(
+  id: string,
+  kind: ToolKind,
+  status: ToolCallStatus = 'completed',
+  name: string = NAMES[kind],
+  scheme = '',
+): ToolCallTimelineItem {
   return {
     type: 'tool_call',
     id,
@@ -24,8 +45,8 @@ function tool(id: string, kind: ToolKind, status: ToolCallStatus = 'completed'):
     at: 0,
     toolCallId: `call-${id}`,
     title: kind,
-    invokedTool: kind,
-    scheme: '',
+    invokedTool: name,
+    scheme,
     kind,
     headline: '',
     subject: '',
@@ -105,11 +126,26 @@ describe('过程组的投影', () => {
     expect(plan.tools.map((row) => row.item.id)).toEqual(['r', 'e'])
   })
 
-  it('单条 read 加一条思考成组；单条 read 自己仍是单行', () => {
+  it('成组只数工具：单条 read 加一条落定的思考仍是单行，没有箭头；思考还在流时才借组头一闪', () => {
     const paired = selectPresentation(stateOf([ask(), tool('r', 'read'), thought('t', '看看这个文件')]), new Map())
 
     expect(paired.count).toBe(2)
-    expect(planAt(paired, 1).tools.map((row) => row.item.id)).toEqual(['r'])
+    expect(paired.groupAt(1)).toBeUndefined()
+    expect(paired.rowAt(1)?.item.id).toBe('r')
+
+    const leading = selectPresentation(stateOf([ask(), thought('t', '先看看'), tool('r', 'read')]), new Map())
+
+    expect(leading.count).toBe(2)
+    expect(leading.groupAt(1)).toBeUndefined()
+    expect(leading.rowAt(1)?.item.id).toBe('r')
+
+    const streaming = selectPresentation(
+      stateOf([ask(), tool('r', 'read', 'in_progress'), thought('t', '还在想')], true),
+      new Map(),
+    )
+
+    expect(streaming.count).toBe(2)
+    expect(planAt(streaming, 1).tools.map((row) => row.item.id)).toEqual(['r'])
 
     const alone = selectPresentation(stateOf([ask(), tool('r', 'read')]), new Map())
 
@@ -125,7 +161,8 @@ describe('过程组的投影', () => {
     const mixed = selectPresentation(stateOf([ask(), tool('r', 'read'), thought('t', '想过就算了')]), new Map())
 
     expect(mixed.count).toBe(2)
-    expect(planAt(mixed, 1).tools.map((row) => row.item.id)).toEqual(['r'])
+    expect(mixed.groupAt(1)).toBeUndefined()
+    expect(mixed.rowAt(1)?.item.id).toBe('r')
   })
 
   it('流式里的思考借组头一闪：只出一条组头，没有可展开的成员', () => {
@@ -175,10 +212,10 @@ describe('过程组的投影', () => {
       new Map(),
     )
 
-    /* 单条工具 + 一条思考算组；edit 换档，自己一行。 */
+    /* fetch 只剩一条（思考不算数），edit 换族，各自一行。 */
     expect(broken.count).toBe(3)
-    expect(planAt(broken, 1).kind).toBe('fetch')
-    expect(planAt(broken, 1).tools.map((row) => row.item.id)).toEqual(['a'])
+    expect(broken.groupAt(1)).toBeUndefined()
+    expect(broken.rowAt(1)?.item.id).toBe('a')
     expect(broken.groupAt(2)).toBeUndefined()
   })
 
@@ -189,8 +226,8 @@ describe('过程组的投影', () => {
     )
 
     expect(feed.count).toBe(3)
-    expect(planAt(feed, 1).kind).toBe('edit')
-    expect(planAt(feed, 1).tools.map((row) => row.item.id)).toEqual(['a'])
+    expect(feed.groupAt(1)).toBeUndefined()
+    expect(feed.rowAt(1)?.item.id).toBe('a')
     expect(feed.groupAt(2)).toBeUndefined()
   })
 })
@@ -345,17 +382,146 @@ describe('过程组的组头', () => {
     )
 
     expect(rendered).toEqual(['r', 'e'])
-    expect(markup).toContain('已读取文件运行了命令')
+    expect(markup).toContain('读取 1 个文件，运行 1 条命令')
     expect(markup).toContain('data-scrollable')
     /* 两端那道雾：首帧没量过时是 none（不画雾），量过之后按 scrollTop 换。 */
     expect(markup).toContain('data-scroll-mask="none"')
   })
 })
 
+describe('分族：图标、文案、分组同一个答案', () => {
+  const ids = (feed: Presentation, index: number) => planAt(feed, index).tools.map((row) => row.item.id)
+
+  it('读记忆不进过程组：它自己一行，后面的阅读另起一组', () => {
+    const feed = selectPresentation(
+      stateOf([
+        ask(),
+        tool('s', 'search'),
+        tool('m', 'read', 'completed', 'read', 'memory'),
+        tool('a', 'read'),
+        tool('b', 'read'),
+      ]),
+      new Map(),
+    )
+
+    expect(feed.count).toBe(4)
+    expect(feed.groupAt(1)).toBeUndefined()
+    expect(feed.rowAt(1)?.item.id).toBe('s')
+    expect(feed.groupAt(2)).toBeUndefined()
+    expect(feed.rowAt(2)?.item.id).toBe('m')
+    expect(planAt(feed, 3).kind).toBe('process')
+    expect(ids(feed, 3)).toEqual(['a', 'b'])
+  })
+
+  it('阅读、代码搜索、运行命令（含 python / js）并成一条过程，组头分笔计数', () => {
+    const feed = selectPresentation(
+      stateOf([
+        ask(),
+        tool('r', 'read'),
+        tool('g', 'search'),
+        tool('f', 'search', 'completed', 'glob'),
+        tool('b', 'execute'),
+        tool('p', 'execute', 'completed', 'python'),
+      ]),
+      new Map(),
+    )
+
+    expect(feed.count).toBe(2)
+
+    const plan = planAt(feed, 1)
+
+    expect(plan.kind).toBe('process')
+    expect(ids(feed, 1)).toEqual(['r', 'g', 'f', 'b', 'p'])
+    expect(
+      renderToStaticMarkup(<ToolGroupCard isOpen={false} onToggle={nothing} plan={plan} renderRow={() => null} />),
+    ).toContain('读取 1 个文件，搜索 2 次，运行 2 条命令')
+  })
+
+  it('网络搜索不算「搜索」：它与读网页同族，不进过程组', () => {
+    const feed = selectPresentation(
+      stateOf([
+        ask(),
+        tool('g', 'search'),
+        tool('w', 'fetch', 'completed', 'web_search'),
+        tool('f', 'fetch'),
+        tool('h', 'fetch', 'completed', 'read', 'https'),
+      ]),
+      new Map(),
+    )
+
+    expect(feed.count).toBe(3)
+    expect(feed.groupAt(1)).toBeUndefined()
+    expect(planAt(feed, 2).family).toBe('web')
+    expect(ids(feed, 2)).toEqual(['w', 'f', 'h'])
+  })
+
+  it('强相关的工具同族：记忆一族、编辑与写入、同一个 MCP 服务', () => {
+    const memory = selectPresentation(
+      stateOf([ask(), tool('m', 'read', 'completed', 'read', 'memory'), tool('c', 'search', 'completed', 'recall')]),
+      new Map(),
+    )
+
+    expect(planAt(memory, 1).family).toBe('memory')
+    expect(ids(memory, 1)).toEqual(['m', 'c'])
+
+    const edits = selectPresentation(stateOf([ask(), tool('e', 'edit'), tool('w', 'write')]), new Map())
+
+    expect(planAt(edits, 1).family).toBe('edit')
+    expect(ids(edits, 1)).toEqual(['e', 'w'])
+
+    const mcp = selectPresentation(
+      stateOf([
+        ask(),
+        tool('a', 'other', 'completed', 'mcp__linear__list'),
+        tool('b', 'other', 'completed', 'mcp__linear__get'),
+        tool('c', 'other', 'completed', 'mcp__figma__get'),
+      ]),
+      new Map(),
+    )
+
+    expect(mcp.count).toBe(3)
+    expect(ids(mcp, 1)).toEqual(['a', 'b'])
+    expect(mcp.groupAt(2)).toBeUndefined()
+  })
+
+  it('其余工具只与同一个工具成组', () => {
+    const feed = selectPresentation(
+      stateOf([
+        ask(),
+        tool('a', 'other', 'completed', 'wait'),
+        tool('b', 'other', 'completed', 'wait'),
+        tool('c', 'other', 'completed', 'ask'),
+      ]),
+      new Map(),
+    )
+
+    expect(feed.count).toBe(3)
+    expect(ids(feed, 1)).toEqual(['a', 'b'])
+    expect(feed.groupAt(2)).toBeUndefined()
+  })
+})
+
 describe('过程组的账目与成员列表', () => {
-  it('只有 read 说已读取文件，只有 execute 说运行了命令，两样都有就合起来说', () => {
-    expect(sayProcessSummary(1, 0)).toBe('已读取文件')
-    expect(sayProcessSummary(0, 1)).toBe('运行了命令')
-    expect(sayProcessSummary(2, 3)).toBe('已读取文件运行了命令')
+  it('按族里各笔分开数，顺序固定为阅读、搜索、运行命令，没有的那笔不说', () => {
+    const read = tool('r', 'read')
+    const grep = tool('g', 'search')
+    const bash = tool('b', 'execute')
+
+    expect(sayFamilySummary([read])).toBe('读取 1 个文件')
+    expect(sayFamilySummary([bash])).toBe('运行 1 条命令')
+    expect(sayFamilySummary([bash, grep, read, read])).toBe('读取 2 个文件，搜索 1 次，运行 1 条命令')
+  })
+
+  it('其他族的账目按工具说，不再借「阅读 / 搜索」的说法', () => {
+    expect(
+      sayFamilySummary([tool('m', 'read', 'completed', 'read', 'memory'), tool('c', 'search', 'completed', 'recall')]),
+    ).toBe('读取 1 条记忆，回忆 1 次')
+    expect(
+      sayFamilySummary([tool('w', 'fetch', 'completed', 'web_search'), tool('f', 'fetch'), tool('h', 'fetch')]),
+    ).toBe('搜索网络 1 次，抓取 2 个网页')
+    expect(sayFamilySummary([tool('e', 'edit'), tool('f', 'edit')])).toBe('编辑 2 处')
+    expect(sayFamilySummary([tool('a', 'other', 'completed', 'wait'), tool('b', 'other', 'completed', 'wait')])).toBe(
+      '调用 2 次工具',
+    )
   })
 })

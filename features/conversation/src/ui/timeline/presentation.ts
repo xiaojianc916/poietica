@@ -11,6 +11,7 @@ import {
   type TurnPage,
   type TurnSpan,
 } from './timeline-contract'
+import { PROCESS_FAMILY, toolFamilyOf } from './tools/tool-family'
 
 /** 无开场条目时承载封条，不伪造聊天消息。 */
 interface RunAnchor {
@@ -27,12 +28,15 @@ export interface FeedRow {
 
 type ToolGroupKind = ToolCallTimelineItem['kind']
 
-/** read 与 execute 合成一条「过程」，思考搭这条过程的顺风车（只在组头一闪而过，从不单独上屏）；其余类别按自己的 kind 各自成组。 */
+/** 阅读 / 搜索 / 运行命令合成一条「过程」，思考搭顺风车（只在组头一闪而过，从不单独上屏）；其余按族成组（tools/tool-family）。 */
 type ToolGroupFlavor = ToolGroupKind | 'process'
 
 export interface ToolGroupPlan {
   readonly id: string
+  /** 过程组是 'process'，其余是打头那条工具的 kind（兜底措辞用）。 */
   readonly kind: ToolGroupFlavor
+  /** 并组凭据（toolFamilyOf 的 key）：同 key 相邻才连成一组。 */
+  readonly family: string
   readonly members: readonly FeedRow[]
   readonly tools: readonly FeedRow[]
 }
@@ -129,20 +133,21 @@ function isShownInline(item: FeedRow['item']): boolean {
 
 const LEAST = 2
 
-const PROCESS: ReadonlySet<ToolGroupKind> = new Set(['execute', 'read'])
+/* 'thought' 不会与族 key 撞名：族 key 只有 process / 固定族名 / mcp:… / tool:…。 */
+type RunFlavor = string
 
-type RunFlavor = ToolGroupFlavor | 'thought'
+const THOUGHT = 'thought'
 
 function runFlavorOf(item: FeedRow['item']): RunFlavor | undefined {
   if (item.type === 'agent_thought') {
-    return 'thought'
+    return THOUGHT
   }
 
   if (item.type !== 'tool_call' || isShownInline(item)) {
     return undefined
   }
 
-  return PROCESS.has(item.kind) ? 'process' : item.kind
+  return toolFamilyOf(item).key
 }
 
 /*
@@ -335,7 +340,7 @@ function speechFrom(rows: readonly FeedRow[], from: number, until: number): stri
   return said.join('\n\n')
 }
 
-/** 一行能并进这一组吗。思考对每一档都是透明的（「想了一会儿」不是断点，它只借组头一闪）；真正决定分组的是工具自己：同一档相邻就连成一条，换档才断。 */
+/** 一行能并进这一组吗。思考对每一族都是透明的（「想了一会儿」不是断点，它只借组头一闪）；真正决定分组的是工具自己：同一族相邻就连成一条，换族才断。 */
 function continuesGroup(next: FeedRow['item'], flavor: RunFlavor): boolean {
   const nextFlavor = runFlavorOf(next)
 
@@ -343,11 +348,11 @@ function continuesGroup(next: FeedRow['item'], flavor: RunFlavor): boolean {
     return false
   }
 
-  if (nextFlavor === 'thought' || flavor === 'thought') {
+  if (nextFlavor === THOUGHT || flavor === THOUGHT) {
     return true
   }
 
-  return flavor === 'process' ? nextFlavor === 'process' : nextFlavor === flavor
+  return nextFlavor === flavor
 }
 
 /** 从 start 那条开始，同轮同过程一直并到哪一行为止（不含）。一组由思考打头时，第一件工具负责定档，之后的工具照这一档比。 */
@@ -362,10 +367,10 @@ function runEnd(rows: readonly FeedRow[], start: number, flavor: RunFlavor, turn
       break
     }
 
-    if (held === 'thought') {
+    if (held === THOUGHT) {
       const adopted = runFlavorOf(next)
 
-      if (adopted !== undefined && adopted !== 'thought') {
+      if (adopted !== undefined && adopted !== THOUGHT) {
         held = adopted
       }
     }
@@ -376,10 +381,16 @@ function runEnd(rows: readonly FeedRow[], start: number, flavor: RunFlavor, turn
   return end
 }
 
-function flavorOfTools(tools: readonly FeedRow[]): ToolGroupFlavor {
+function planOfTools(tools: readonly FeedRow[]): Pick<ToolGroupPlan, 'family' | 'kind'> {
   const head = tools[0]?.item
 
-  return head?.type === 'tool_call' && !PROCESS.has(head.kind) ? head.kind : 'process'
+  if (head?.type !== 'tool_call') {
+    return { family: PROCESS_FAMILY, kind: 'process' }
+  }
+
+  const family = toolFamilyOf(head).key
+
+  return { family, kind: family === PROCESS_FAMILY ? 'process' : head.kind }
 }
 
 function groupIn(rows: readonly FeedRow[]): {
@@ -426,7 +437,7 @@ function groupIn(rows: readonly FeedRow[]): {
       if (members.some((member) => member.isStreamingTail)) {
         materialize(start).push(row)
         groups ??= new Map()
-        groups.set(row.item.id, { id: `group:${row.item.id}`, kind: 'process', members, tools })
+        groups.set(row.item.id, { id: `group:${row.item.id}`, family: PROCESS_FAMILY, kind: 'process', members, tools })
       } else {
         /* 落定的思考整段丢掉：为了把它从结果里剔出去，前面那份前缀必须真的复制出来。 */
         materialize(start)
@@ -437,9 +448,20 @@ function groupIn(rows: readonly FeedRow[]): {
       continue
     }
 
-    /* 孤零零一条工具还是单行；旁边陪了一条思考就是一组（单条 read + 一条思考算组）。 */
-    if (members.length < LEAST) {
-      kept?.push(row)
+    /*
+     * 成组只数工具，不数思考：思考从不上屏，「一条工具 + 一段看不见的思考」画成组只会多出一个点开还是那一条的箭头。
+     * 唯一的例外是思考正在流：组头要借给它那一闪（落定后这一组退回单行，组头与单行同是一行高，不跳）。
+     */
+    const thinking = members.some((member) => member.isStreamingTail && member.item.type === 'agent_thought')
+
+    if (tools.length < LEAST && !thinking) {
+      if (members.length === 1) {
+        kept?.push(row)
+      } else {
+        /* 落定的思考一并丢掉，只留那条工具。 */
+        materialize(start).push(...tools)
+      }
+
       cursor = end
 
       continue
@@ -449,7 +471,7 @@ function groupIn(rows: readonly FeedRow[]): {
     groups ??= new Map()
     groups.set(row.item.id, {
       id: `group:${row.item.id}`,
-      kind: flavorOfTools(tools),
+      ...planOfTools(tools),
       members,
       tools,
     })

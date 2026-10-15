@@ -4,12 +4,13 @@ import './tool-group.css'
 import { type DiffFile, type DiffStat, diffStatOf } from '@poietica/design-system/diff'
 import type { ReactNode } from 'react'
 import { type FeedRow, liveMemberOf, type ToolGroupPlan } from '../../../timeline/presentation'
+import type { ToolCallTimelineItem } from '../../../timeline/timeline-contract'
 import { DisclosureBody } from '../../primitives/disclosure'
 import { ChevronDownIcon } from '../../primitives/icons'
 import { useScrollMask } from '../../primitives/use-scroll-mask'
 import { readThoughtSentence, type ThoughtSentences } from '../../semantics/thought-sentence'
 import { toDiffFilesOf } from '../../semantics/tool-call-facets'
-import { readToolLine, sayProcessSummary, sayToolCount } from '../../semantics/tool-intent'
+import { readToolLine, sayFamilySummary } from '../../semantics/tool-intent'
 import { RollingLine } from '../ticker/rolling-line'
 import { ToolCallDiffStat, ToolGlyphIcon } from './tool-call-card'
 
@@ -57,34 +58,24 @@ function statOf(plan: ToolGroupPlan): DiffStat | null {
   return diffStatOf(files)
 }
 
-/** 同类相邻，字形取头一个成员即可。 */
+/** 同族相邻，字形取头一个成员即可（过程组里三种字形都是阅读 / 搜索 / 终端，不会再冒出记忆那枚）。 */
 function firstTool(plan: ToolGroupPlan): { readonly name: string; readonly scheme: string } {
   const head = plan.tools[0]?.item
 
   return head?.type === 'tool_call' ? { name: head.invokedTool, scheme: head.scheme } : { name: '', scheme: '' }
 }
 
-/** 按基准截图：过程组报「已读取文件 / 运行了命令」，其余类别沿用各自的计数句。 */
+/** 落定后的账目：按族里各笔分开数（「读取 3 个文件，搜索 2 次，运行 1 条命令」）。 */
 function summaryOf(plan: ToolGroupPlan): string {
-  if (plan.kind !== 'process') {
-    return sayToolCount(plan.kind, plan.tools.length)
-  }
-
-  let reads = 0
-  let executes = 0
+  const items: ToolCallTimelineItem[] = []
 
   for (const row of plan.tools) {
-    if (row.item.type !== 'tool_call') {
-      continue
-    }
-    if (row.item.kind === 'read') {
-      reads += 1
-    } else {
-      executes += 1
+    if (row.item.type === 'tool_call') {
+      items.push(row.item)
     }
   }
 
-  return sayProcessSummary(reads, executes)
+  return sayFamilySummary(items)
 }
 
 export interface ToolGroupCardProps {

@@ -19,7 +19,7 @@ const GLYPHS: Readonly<Record<string, ToolGlyph>> = {
   debug: 'bug',
   edit: 'write',
   eval: 'execute',
-  fetch: 'read',
+  fetch: 'fetch',
   find: 'search',
   generate_image: 'image',
   github: 'github',

@@ -95,8 +95,9 @@ describe('组件在时间线里的位置（审查 R-18）', () => {
       if (row !== undefined) ids.push(row.item.id)
       expect(feed.groupAt(index)?.members.map((member) => member.item.id) ?? []).not.toContain('w')
     }
-    expect(ids).toEqual(['ask', 't', 'w', 'o2'])
-    expect(feed.groupAt(1)?.members.map((member) => member.item.id)).toEqual(['t', 'o1'])
+    /* 成组只数工具：思考 + 一条 o1 不成组，落定的思考丢掉，o1 自己一行。 */
+    expect(ids).toEqual(['ask', 'o1', 'w', 'o2'])
+    expect(feed.groupAt(1)).toBeUndefined()
   })
 
   it('失败的那次照常归过程：落定后折起来', () => {

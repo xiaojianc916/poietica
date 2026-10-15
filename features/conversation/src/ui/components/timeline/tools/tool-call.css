@@ -138,6 +138,8 @@
   /* 只比正文小一号：它是行里的一处事实，不是注脚。 */
   font-size: var(--ui-prose-size-aux);
   font-variant-numeric: tabular-nums;
+  /* 盒高收到一个字高：继承行高时盒子与行等高，下面那 2px 位移会探出行底；在组成员那个自己滚的盒子里，这 2px 会被当成「下面还有」，整行戴上渐隐的雾。字形在行盒里本就居中，收行高不挪字。 */
+  line-height: 1;
   /* 数字偏上是真机量出来的：14px 的 Segoe UI 比 13px 的 Consolas 低 2px。不用 baseline 修，那会让整行重解行盒、其它几格一起跳。 */
   translate: 0 2px;
 }
