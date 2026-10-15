@@ -12,8 +12,8 @@
   flex-direction: column;
   align-items: flex-start;
   color: var(--cp-deep-diving);
-  font-size: var(--cp-font-caption);
-  font-variant-numeric: tabular-nums;
+  /* 比正文小两号（DSH 的 content-font-size - 2px = 12px）：这是状态，不是正文。 */
+  font-size: var(--ui-prose-size-meta);
   line-height: var(--ui-line-height-tight);
 }
 
@@ -106,6 +106,8 @@
   --cp-shimmer-base: var(--cp-deep-diving);
   --cp-shimmer-sweep: var(--cp-deep-diving-shimmer);
   min-inline-size: 0;
+  /* 整句都按等宽数字排（DSH 的 runningText）：汉字不受影响，秒数每秒换值时不抽动。 */
+  font-variant-numeric: tabular-nums;
 }
 
 /*
