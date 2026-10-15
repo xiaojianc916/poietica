@@ -27,6 +27,10 @@ export interface OmpMessage {
   readonly toolCallId?: string
   readonly isError?: boolean
   readonly summary?: string
+  /** 助手消息怎么收的尾：`aborted` / `error` 说明这一次运行到这里就结束了 */
+  readonly stopReason?: string
+  /** omp 给插话（steer）打的标：它是在一次运行**中途**送进去的人话，不开新的一轮 */
+  readonly steering?: boolean
   /* 压缩摘要（role: compactionSummary）的展示元数据：omp 把它们写在压缩条目上，显示经过里原样带出 */
   readonly shortSummary?: string
   readonly tokensBefore?: number
@@ -57,11 +61,16 @@ interface ScreenResult {
 interface OpenTurn {
   readonly opening: OmpMessage
   readonly prompt: OmpMessage | null
+  /** 段（助手消息）与插话（这一轮跑着时送进来的人话），按发生顺序 */
   readonly steps: OmpMessage[]
   /** 这一轮里（或这一轮之后、下一句人话之前）发生的压缩，按发生顺序 */
   readonly compactions: OmpMessage[]
   /** 这一轮的终点（毫秒）：段与工具结果里最晚的「答完那一刻」，还没落地就是 null。 */
   closedAt: number | null
+  /** 这一次运行最后一次有动静的时刻（段落地、工具结果回来）：判断一句人话是不是跑着时送进来的 */
+  heardAt: number | null
+  /** 最后一段的收尾方式：被叫停 / 出错就是这次运行已经结束，排着的话会另起一次运行 */
+  lastStop: string | undefined
 }
 
 interface ScreenTurn {
@@ -84,7 +93,8 @@ type ScreenBlock =
 /**
  * 历史分页。
  *
- * **一轮从「人说的话」开始，到下一句人话为止**——与增量那条路同一个判据。一次 omp turn 里模型会跑好几趟，
+ * **一轮从「人说的话」开始，到下一句开轮的人话为止**——与增量那条路同一个判据。跑着的时候送进去的话
+ * （插话 steer、排队 followUp 在同一次运行里被吃掉的）不开轮，落进当前那一轮，见 `interjects`。一次 omp turn 里模型会跑好几趟，
  * 「一条消息一格」会把一次对话拆成好几行；这里按人话归拢，assistant 消息各占一个段，工具结果并回发起它的那次调用。
  *
  * 分页直接从 omp 的会话消息算，Core 不保存第二份正文，所以不存在两份数据不一致的问题。
@@ -171,23 +181,24 @@ function screenTurns(
       else open.compactions.push(message)
       continue
     }
-    if (role !== null) {
-      seal()
-      const next: OpenTurn = {
-        opening: message,
-        prompt: role === 'prompt' ? message : null,
-        steps: [],
-        compactions: [],
-        closedAt: null,
-      }
-      open = next
+    if (role === 'result') {
+      if (open !== null) open.heardAt = laterOf(open.heardAt, closedAtOf(message))
       continue
     }
-    if (open === null) {
-      open = { opening: message, prompt: null, steps: [], compactions: [], closedAt: null }
+    if (role === 'prompt' && open !== null && interjects(open, message)) {
+      open.steps.push(message)
+      continue
     }
+    if (role !== null) {
+      seal()
+      open = blankTurn(message, role === 'prompt' ? message : null)
+      continue
+    }
+    if (open === null) open = blankTurn(message, null)
     open.steps.push(message)
     open.closedAt = laterOf(open.closedAt, closedAtOf(message))
+    open.heardAt = laterOf(open.heardAt, closedAtOf(message))
+    open.lastStop = message.stopReason
   }
   seal()
   const newest = turns.at(-1)
@@ -200,16 +211,41 @@ function screenTurns(
   }
 }
 
+function blankTurn(opening: OmpMessage, prompt: OmpMessage | null): OpenTurn {
+  return { opening, prompt, steps: [], compactions: [], closedAt: null, heardAt: null, lastStop: undefined }
+}
+
+/**
+ * 这句人话是不是在这一轮**跑着的时候**送进来的（插话）。增量那条路的判据是「送达那一刻有没有一轮开着」
+ * （`LiveProjector.steeredFrame`）：开着就落进这一轮成一句插话，不开新轮、不另起封条。重开之后的屏幕
+ * 必须与当时一致，所以这里从落了盘的消息里还原同一件事：
+ *
+ * - **上一段被叫停或出错了**：那次运行已经结束，排着的话会由 omp 另起一次运行 —— 实时那边是新的一轮；
+ * - **omp 打了插话标**（`steering: true`）：只有跑着时排进插话队列的话才有；
+ * - **提交时刻早于这次运行最后一次动静**：人话的 `timestamp` 是**提交**那一刻，不是送达那一刻。
+ *   排队（followUp）那条路没有标，但它在跑着的时候就提交了，送达却在之后 —— 新开一轮的话只能在
+ *   上一轮收完之后才发得出来（界面在跑着时一律走排队），时刻一定更晚。
+ */
+function interjects(open: OpenTurn, message: OmpMessage): boolean {
+  if (open.lastStop === 'aborted' || open.lastStop === 'error') return false
+  if (message.steering === true) return true
+  const submitted = message.timestamp
+  return (
+    open.heardAt !== null && typeof submitted === 'number' && Number.isFinite(submitted) && submitted < open.heardAt
+  )
+}
+
 /**
  * 一条消息在分轮上的角色：开一轮的两种（人话 / 目标续跑）、压缩摘要（挂在当前这一轮后面，不开轮）、
- * 不进屏幕的（skip）、其余的（null，落进当前这一轮）。
+ * 工具结果（不单独上屏，只记它回来的时刻）、不进屏幕的（skip）、其余的（null，落进当前这一轮）。
  *
  * 目标续跑的开场消息是 display:false 的 custom 消息，但它**开一轮**（审查 R-11）—— * 增量那条路在同一处开轮（LiveProjector.goalContinuationTurn）；这里不认它，续跑的输出就会
  * 并进上一句人话那一轮，重开之后屏幕上的轮数、轮号都与刚才跑的时候对不上。
  */
-function roleOf(message: OmpMessage): 'prompt' | 'continuation' | 'compaction' | 'skip' | null {
+function roleOf(message: OmpMessage): 'prompt' | 'continuation' | 'compaction' | 'result' | 'skip' | null {
   if (isGoalContinuationMessage(message)) return 'continuation'
-  if (message.role === 'toolResult' || !isVisible(message)) return 'skip'
+  if (message.role === 'toolResult') return 'result'
+  if (!isVisible(message)) return 'skip'
   if (message.role === 'user' || isUserSkillMessage(message)) return 'prompt'
   return message.role === 'compactionSummary' ? 'compaction' : null
 }
@@ -265,6 +301,11 @@ function turnOps(entry: ScreenTurn, openTurnAttachments: readonly TranscriptAtta
   ]
   let step = 0
   for (const message of entry.steps) {
+    if (roleOf(message) === 'prompt') {
+      ops.push(...interjectionOps(turn, step, message))
+      step += 1
+      continue
+    }
     const at = stampOf(message)
     const done = closedIsoOf(message)
     const blocks = shownBlocksOf(entry, message)
@@ -288,6 +329,33 @@ function turnOps(entry: ScreenTurn, openTurnAttachments: readonly TranscriptAtta
     step += 1
   }
   return entry.state === 'running' ? markLastStepRunning(ops, turn) : ops
+}
+
+/**
+ * 一句插话：与增量那条路（`LiveProjector.steeredFrame`）同一个形状 —— 一条 role:user、origin:user 的文本帧，
+ * 图先发条目、帧上挂号。它自占一段：前后的段都是助手的产出，插话夹在中间。
+ */
+function interjectionOps(turn: string, step: number, message: OmpMessage): TranscriptOperation[] {
+  const at = stampOf(message)
+  const images = imagesOf(message.content, at)
+  const attachmentIds = images.map((op) => op.attachment.attachmentId)
+  return [
+    stepOp(turn, step, 'completed', at, at),
+    ...images,
+    {
+      op: 'frame.upsert',
+      turnId: turn,
+      stepId: stepId(turn, step),
+      frame: {
+        kind: 'text',
+        role: 'user',
+        frameId: frameId(stepId(turn, step), 0),
+        text: promptTextOf(message),
+        origin: { kind: 'user' },
+        ...(attachmentIds.length > 0 ? { attachmentIds } : {}),
+      },
+    },
+  ]
 }
 
 /**
