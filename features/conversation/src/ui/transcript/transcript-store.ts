@@ -724,15 +724,24 @@ export class TranscriptStore implements TranscriptSink {
     this.#render(key)
   }
 
+  /**
+   * Core 删掉了一条提交行（丢弃、排队项送达 / 撤回、被新的一句取代）。本机按同一个号铸的那条提交也在这里收口
+   * （审查 R-20-1）：忙时发的一句被降级成排队，送达时没有任何 turn 带这个号，`settleSubmissions` 永远等不到它，
+   * 发送键就一直报「已提交」。已定性的 failed 不动 —— 那是对人的补救入口，由 `send()` / 丢弃清。
+   */
   removeSubmission = (threadId: string, clientTurnId: string): void => {
     if (this.#disposed) return
     const key = this.#resolveKey(threadId)
     const current = this.#submissions.get(key)
-    if (current === undefined) return
-    const next = current.filter((row) => row.clientTurnId !== clientTurnId)
-    if (next.length === current.length) return
-    this.#submissions.set(key, next)
-    this.#render(key)
+    const next = current?.filter((row) => row.clientTurnId !== clientTurnId)
+    const rowsChanged = current !== undefined && next !== undefined && next.length !== current.length
+    const held = this.#held.get(key)
+    const local = held?.submissions.filter((entry) => entry.phase === 'failed' || entry.promptId !== clientTurnId)
+    const localChanged = held !== undefined && local !== undefined && local.length !== held.submissions.length
+    if (!rowsChanged && !localChanged) return
+    if (rowsChanged) this.#submissions.set(key, next)
+    if (localChanged) this.#put(key, { ...held, submissions: local })
+    else this.#render(key)
   }
   opening = (threadId: string): void => {
     this.#lifetime(threadId)

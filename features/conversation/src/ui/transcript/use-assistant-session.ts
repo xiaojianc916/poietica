@@ -138,11 +138,17 @@ const readNotice = (transcript: Transcript): string | null =>
 const readSubmissions = (transcript: Transcript): Transcript['submissions'] => transcript.submissions
 
 /**
- * 最后一条提交的正文，且它必须是 failed；否则 null。只看最后一条：Core 的提交行全部留着，往前扫会把人已经重发过的旧失败一遍遍翻出来。
+ * **最晚提交**的那一行的正文，且它必须是 failed；否则 null。只看最晚一条：往前扫会把人已经重发过的旧失败一遍遍翻出来。
+ *
+ * 按 `createdAt` 取、不按数组末尾取（审查 R-20-1）：数组顺序是「到达顺序」—— 快照、通知、retry 的回执交错到达，
+ * 末尾不一定是最晚的那一句。并列时取靠后者（同一毫秒的两句，后到的那条更新）。
  */
 export const readFailedSubmissionText = (transcript: Transcript): string | null => {
-  const last = transcript.submissionRows[transcript.submissionRows.length - 1]
-  return last !== undefined && last.status === 'failed' ? last.text : null
+  let latest: Transcript['submissionRows'][number] | undefined
+  for (const row of transcript.submissionRows) {
+    if (latest === undefined || row.createdAt >= latest.createdAt) latest = row
+  }
+  return latest !== undefined && latest.status === 'failed' ? latest.text : null
 }
 
 const readTimeline = (transcript: Transcript): TimelineState => transcript.timeline

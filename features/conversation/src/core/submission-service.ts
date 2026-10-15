@@ -1,4 +1,4 @@
-import type { EngineSession } from '@poietica/engine'
+import type { EngineSession, QueueOutcome } from '@poietica/engine'
 import type { AttachmentsService } from '@poietica/feature-attachments/core-api'
 import type { WorkspacesService } from '@poietica/feature-workspaces/core-api'
 import { AppError, type Clock, type Logger, toAppError } from '@poietica/foundation'
@@ -11,7 +11,8 @@ import { OWNER_KEY } from './thread-service'
  * 「Core 即时回显」的提交服务。三条规则：
  * 1. 界面只画 Core 给的数据 —— 气泡就是本服务存下的这条记录；
  * 2. `turns.submit` **不等 omp**：先存库、推送、回复，打开会话与交给 omp 放后台；
- * 3. 每条提交都有确定结局并存进库（pending → started / queued / failed）。
+ * 3. 每条提交都有确定结局并存进库（pending → started / queued / failed）。`queued` 不是结局：引擎报回
+ *    `queueSettled` 时收口 —— 送达 / 撤回删行，被丢弃改 failed（审查 R-20-1）。
  */
 export interface SubmissionServiceDeps {
   readonly repo: SubmissionsRepository
@@ -92,6 +93,7 @@ export class SubmissionService {
       updatedAt: at,
     }
     this.d.repo.insert(row)
+    this.supersedeFailed(input.threadId, input.clientTurnId)
     /*
      * R-07 §3.3：引用在「被接受」（写库）时就登记，不等 `deliver`。
      *
@@ -125,7 +127,32 @@ export class SubmissionService {
     if (row === null) throw new AppError(conversationErrors.thread_not_found, '这条提交不存在')
     if (row.status !== 'failed') throw new AppError(conversationErrors.thread_busy, '只有失败的提交可以删除')
     this.d.repo.delete(clientTurnId)
+    /* 别的窗口 / 重开的对话里也画着这一行：只回 RPC 不推事件，那边的气泡与横幅就一直挂着 */
+    this.d.emitRemoved({ threadId: row.threadId, clientTurnId })
     return { threadId: row.threadId, clientTurnId }
+  }
+
+  /**
+   * 排队项（steer / followUp，含忙时降级成 followUp 的 turn）的结局（审查 R-20-1）。
+   *
+   * - `delivered` / `withdrawn`：删行并推 `submissions.removed` —— 送达后那句话是会话文件里的事实，
+   *   撤回后它不该再出现；留着就是下次 Core 启动被 `recoverOnStart` 当成「没送到」改成 failed。
+   * - `dropped`：omp 丢了它，收成 failed（用户可以重试 / 取回文字）。
+   *
+   * 幂等：行已不在、已有别的结局、或根本不是这条线程的，一律不动。`pending` 只在已交给引擎时认 ——
+   * 结局可能先于 `deliver` 里那句 `queued` 落库到达。
+   */
+  settleQueued(threadId: string, clientTurnId: string, outcome: QueueOutcome): void {
+    const row = this.d.repo.get(clientTurnId)
+    if (row === null || row.threadId !== threadId) return
+    const waiting = row.status === 'queued' || (row.status === 'pending' && this.handed.has(clientTurnId))
+    if (!waiting) return
+    if (outcome === 'dropped') {
+      this.markFailed(row, { code: conversationErrors.submit_dropped, message: conversationErrors.submit_dropped })
+      return
+    }
+    this.d.repo.delete(clientTurnId)
+    this.d.emitRemoved({ threadId, clientTurnId })
   }
 
   // ── 读 ───────────────────────────────────────────────────────────────────
@@ -273,6 +300,18 @@ export class SubmissionService {
   }
 
   // ── 内部 ─────────────────────────────────────────────────────────────────
+  /**
+   * 新的一句进来，同线程更早的 failed 行到此为止（审查 R-20-1）：界面的 `send()` 本来就会清掉本机那份
+   * 失败记录，库里的不清，下次整读又从「最后一条失败」里把横幅和「取回文字」复活出来。
+   */
+  private supersedeFailed(threadId: string, keep: string): void {
+    for (const row of this.d.repo.listByThread(threadId)) {
+      if (row.clientTurnId === keep || row.status !== 'failed') continue
+      this.d.repo.delete(row.clientTurnId)
+      this.d.emitRemoved({ threadId, clientTurnId: row.clientTurnId })
+    }
+  }
+
   private enqueue(threadId: string, work: () => Promise<void>): void {
     const previous = this.lanes.get(threadId)?.tail ?? Promise.resolve()
     const tail = previous.then(work).catch((cause: unknown) => {
@@ -325,9 +364,12 @@ export class SubmissionService {
       files: resolved.filter((a) => a.kind === 'file').map((a) => ({ path: a.path, name: a.name })),
       skills: [...row.skills],
       deliverAs: deliveredAs,
+      /* 排队项的结局靠这个号对回本行（审查 R-20-1） */
+      ref: row.clientTurnId,
     })
     if (deliveredAs !== 'turn') {
-      this.update(row.clientTurnId, { status: 'queued' })
+      /* 结局可能已经先到（送达 → 行已删 / 丢弃 → failed）：只有还停在 pending 才记成 queued */
+      if (this.d.repo.get(row.clientTurnId)?.status === 'pending') this.update(row.clientTurnId, { status: 'queued' })
     } else if (this.pendingTurn.get(row.threadId) === row.clientTurnId && session.state() === 'idle') {
       throw new AppError(conversationErrors.submit_dropped, conversationErrors.submit_dropped)
     }

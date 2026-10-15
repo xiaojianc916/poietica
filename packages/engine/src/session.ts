@@ -29,7 +29,20 @@ export interface SubmitInput {
   readonly files: readonly { readonly path: string; readonly name: string }[]
   readonly skills: readonly string[]
   readonly deliverAs: DeliverAs
+  /**
+   * 调用方给这一句起的号（conversation 填 clientTurnId）。引擎不解释它，只在这一句**作为排队项**有了结局时
+   * 经 `queueSettled` 原样交回 —— 队列快照的项号是引擎自己签的，调用方没有别的办法把结局对回自己的记录（审查 R-20-1）。
+   */
+  readonly ref?: string | undefined
 }
+
+/**
+ * 一条排队项（steer / followUp）的结局：
+ * - `delivered`：agent 已经把它从队列里取走（进了上下文），之后是会话文件里的事实；
+ * - `withdrawn`：人撤回了它（换层 `moveQueued` 不算撤回，号跟着原始输入走）；
+ * - `dropped`：agent 丢弃了它（omp 的 promptDropped），这句话没有进上下文。
+ */
+export type QueueOutcome = 'delivered' | 'withdrawn' | 'dropped'
 
 export type EngineSessionEvent =
   | { readonly type: 'timeline'; readonly agentId: string; readonly ops: readonly TranscriptOperation[] }
@@ -54,6 +67,8 @@ export type EngineSessionEvent =
   | { readonly type: 'contextUsage'; readonly usage: ContextUsage | null }
   | { readonly type: 'usage'; readonly usage: UsageSample }
   | { readonly type: 'promptDropped'; readonly text: string } // omp 丢弃了一条用户输入，必须告诉用户
+  /* 带 `ref` 交进来的排队项有了结局（审查 R-20-1）；没带 `ref` 的不报。同一个 ref 可能报不止一次，接收方按幂等处理。 */
+  | { readonly type: 'queueSettled'; readonly ref: string; readonly outcome: QueueOutcome }
   /*
    * omp 自动总结出的会话标题（omp 知识 #17）：**首句兜底**先写进 Core 的线程行，这一条是之后的替换。
    * 带 sessionFile 让 Core 认出「这是哪条会话的名」——线程释放重开后，迟到的事件不许改现在的标题。

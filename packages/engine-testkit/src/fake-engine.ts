@@ -117,7 +117,14 @@ class FakeSession implements EngineSession {
   private readonly pending = new Map<string, (answer: InteractionAnswer) => void>()
   private readonly outstanding: Interaction[] = []
   private readonly granted = new Set<string>()
-  private readonly ledger: { id: string; text: string; deliverAs: 'steer' | 'followUp'; createdAt: number }[] = []
+  /* `ref` 是调用方给的号：撤回时经 `queueSettled` 原样交回（与真引擎同一条契约，审查 R-20-1） */
+  private readonly ledger: {
+    id: string
+    text: string
+    deliverAs: 'steer' | 'followUp'
+    createdAt: number
+    ref: string | undefined
+  }[] = []
   private readonly modes: QueueSnapshot['modes'] = { steer: 'all', followUp: 'all' }
   private ops: TranscriptOperation[]
   private current: SessionState = 'idle'
@@ -213,7 +220,13 @@ class FakeSession implements EngineSession {
     this.assertLive()
     if (this.current !== 'idle') {
       if (input.deliverAs === 'turn') throw new AppError(EngineErrorCode.busy, 'agent 正忙')
-      this.ledger.push({ id: createId(), text: input.text, deliverAs: input.deliverAs, createdAt: this.o.clock.now() })
+      this.ledger.push({
+        id: createId(),
+        text: input.text,
+        deliverAs: input.deliverAs,
+        createdAt: this.o.clock.now(),
+        ref: input.ref,
+      })
       this.emit({ type: 'queue', queue: this.queue() })
       return
     }
@@ -467,14 +480,18 @@ class FakeSession implements EngineSession {
   }
 
   queue(): QueueSnapshot {
-    return { items: this.ledger.map((e) => ({ ...e })), modes: { ...this.modes } }
+    return {
+      items: this.ledger.map((e) => ({ id: e.id, text: e.text, deliverAs: e.deliverAs, createdAt: e.createdAt })),
+      modes: { ...this.modes },
+    }
   }
 
   withdraw(queueItemId: string): void {
     const at = this.ledger.findIndex((e) => e.id === queueItemId)
     if (at < 0) throw new AppError(SystemErrorCode.notFound, '队列里没有这一项')
-    this.ledger.splice(at, 1)
+    const [entry] = this.ledger.splice(at, 1)
     this.emit({ type: 'queue', queue: this.queue() })
+    if (entry?.ref !== undefined) this.emit({ type: 'queueSettled', ref: entry.ref, outcome: 'withdrawn' })
   }
 
   /**

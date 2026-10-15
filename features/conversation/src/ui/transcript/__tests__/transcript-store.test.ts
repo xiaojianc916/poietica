@@ -298,6 +298,20 @@ describe('待发提交按 clientTurnId 收口（发送键不再空转）', () =>
     expect(store.read('t2').submissions.map((entry) => entry.promptId)).toEqual([other!.promptId])
   })
 
+  /*
+   * R-20-1：忙时发的一句被 Core 降级成排队，送达时**没有任何 turn 带这个号**，`settleSubmissions` 等不到它。
+   * Core 收口时推的 `submissions.removed` 就是它的终点。
+   */
+  test('removeSubmission 同时收掉本机按同号铸的那条提交（即使 Core 行这一侧没有它）', async () => {
+    const { store } = storeWithPort()
+    const handle = await store.send({ ...submit('排进去的一句'), threadId: 't1' })
+    const other = await store.send({ ...submit('另一句'), threadId: 't1' })
+
+    store.removeSubmission('t1', handle!.promptId)
+
+    expect(store.read('t1').submissions.map((entry) => entry.promptId)).toEqual([other!.promptId])
+  })
+
   test('settleSubmissions 空数组是空操作', async () => {
     const { store } = storeWithPort()
     await store.send({ ...submit('你好'), threadId: 't1' })
@@ -513,6 +527,22 @@ describe('R-08-5 未送达的插话 / 排队也画成气泡', () => {
     store.upsertSubmission('t1', submission({ status: 'pending', deliverAs: 'turn', text: '正常的一句' }))
 
     expect(rowsOf(store, 't1').map((row) => [row.text, row.undelivered])).toEqual([['正常的一句', undefined]])
+  })
+
+  /* R-20-1：数组顺序是到达顺序，不是提交顺序 —— retry 的回执、迟到的快照都会把旧行排到末尾 */
+  test('失败行按 createdAt 取最晚的一条，不按到达顺序', () => {
+    const store = new TranscriptStore({ sessions: () => fakePort('t1').port })
+    store.open('t1')
+
+    store.upsertSubmission(
+      't1',
+      submission({ clientTurnId: 'c2', text: '新的一句', status: 'started', turnId: 't1', createdAt: 20 }),
+    )
+    store.upsertSubmission('t1', submission({ clientTurnId: 'c1', text: '旧的一句', createdAt: 10 }))
+    expect(readFailedSubmissionText(store.read('t1'))).toBeNull()
+
+    store.upsertSubmission('t1', submission({ clientTurnId: 'c3', text: '最新的失败', createdAt: 30 }))
+    expect(readFailedSubmissionText(store.read('t1'))).toBe('最新的失败')
   })
 
   /*

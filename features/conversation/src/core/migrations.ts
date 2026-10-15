@@ -52,4 +52,28 @@ CREATE UNIQUE INDEX conversation_threads_by_session_file ON conversation_threads
 );
 CREATE INDEX conversation_submissions_by_thread ON conversation_submissions (thread_id, created_at);`,
   },
+  {
+    version: 3,
+    name: 'submissions_cleanup',
+    /*
+     * 一次性清旧账（审查 R-20-1）。升级前 `queued` 从来没有收口，每次 Core 启动都把早已送达、早已答复的
+     * 排队句改成 failed / core_restarted；整读时「最后一条失败」又把它们复活成「提交未完成」横幅。
+     * 1. 还停在 queued 的、以及 core_restarted 的失败行：绝大多数是送达过的排队句，删掉；
+     * 2. 同线程里**更晚**还有非失败提交的失败行：用户已经接着往下说了，这条失败到此为止（与新代码的
+     *    `supersedeFailed` 同一条规矩）。
+     */
+    sql: `DELETE FROM conversation_submissions
+ WHERE status = 'queued'
+    OR (status = 'failed' AND error_code = 'conversation.core_restarted');
+DELETE FROM conversation_submissions
+ WHERE status = 'failed'
+   AND EXISTS (
+     SELECT 1 FROM conversation_submissions AS later
+      WHERE later.thread_id = conversation_submissions.thread_id
+        AND later.status <> 'failed'
+        AND (later.created_at > conversation_submissions.created_at
+          OR (later.created_at = conversation_submissions.created_at
+            AND later.client_turn_id > conversation_submissions.client_turn_id))
+   );`,
+  },
 ]

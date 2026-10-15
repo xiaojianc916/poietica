@@ -20,6 +20,7 @@ function serviceOf(
   overrides: {
     readonly session?: (submits: SubmitInput[]) => EngineSession
     readonly failures?: { clientTurnId: string; deliverAs: string; code: string }[]
+    readonly removed?: string[]
   } = {},
 ): {
   service: SubmissionService
@@ -44,7 +45,7 @@ function serviceOf(
       return inner.findByTurnId(threadId, turnId)
     },
   }
-  const workspaces = {} as WorkspacesService
+  const workspaces = { requireUsable: () => undefined } as unknown as WorkspacesService
   const attachments = {
     describe: () => [],
     resolve: () => [],
@@ -60,7 +61,9 @@ function serviceOf(
     requireThread: () => ({ id: 't1', workspaceId: 'ws1' }),
     autoTitle: () => undefined,
     emitChanged: () => undefined,
-    emitRemoved: () => undefined,
+    emitRemoved: (p) => {
+      overrides.removed?.push(p.clientTurnId)
+    },
     emitFailed: (p) => {
       overrides.failures?.push({ clientTurnId: p.clientTurnId, deliverAs: p.deliverAs, code: p.error.code })
     },
@@ -236,5 +239,176 @@ describe('R-08-5 重启后排队的话不再静默丢失', () => {
 
     expect(submits.map((input) => input.deliverAs)).toEqual(['steer'])
     expect(repo.get('c1')?.status).toBe('queued')
+  })
+})
+
+/*
+ * R-20-1：排队项要有结局。之前 `queued` 永远停着，下次 Core 启动全部被改成 failed / core_restarted，
+ * 旧对话凭空冒出「提交未完成；请先核对会话。」与「取回文字」。
+ */
+describe('R-20-1 排队项收口', () => {
+  async function queuedOne(
+    over: { removed?: string[]; failures?: { clientTurnId: string; deliverAs: string; code: string }[] } = {},
+  ) {
+    const submits: SubmitInput[] = []
+    const ctx = serviceOf({ ...over, session: () => fakeSession(submits, true) })
+    ctx.service.submit({
+      threadId: 't1',
+      clientTurnId: 'c1',
+      text: '第二句',
+      attachmentIds: [],
+      skills: [],
+      deliverAs: 'turn',
+    })
+    await waitFor(() => ctx.repo.get('c1')?.status === 'queued')
+    return { ...ctx, submits }
+  }
+
+  test('忙时发出的一句降级成排队：交给引擎时带上自己的号', async () => {
+    const { submits } = await queuedOne()
+    expect(submits.map((input) => [input.deliverAs, input.ref])).toEqual([['followUp', 'c1']])
+  })
+
+  test('送达 → 删行并推 removed（之后 recoverOnStart 不会再把它改成 failed）', async () => {
+    const removed: string[] = []
+    const failures: { clientTurnId: string; deliverAs: string; code: string }[] = []
+    const { service, repo } = await queuedOne({ removed, failures })
+
+    service.settleQueued('t1', 'c1', 'delivered')
+    service.recoverOnStart()
+
+    expect(repo.get('c1')).toBeNull()
+    expect(removed).toEqual(['c1'])
+    expect(failures).toEqual([])
+  })
+
+  test('撤回 → 删行并推 removed', async () => {
+    const removed: string[] = []
+    const { service, repo } = await queuedOne({ removed })
+    service.settleQueued('t1', 'c1', 'withdrawn')
+    expect(repo.get('c1')).toBeNull()
+    expect(removed).toEqual(['c1'])
+  })
+
+  test('被 omp 丢弃 → failed(submit_dropped)，并广播失败事件', async () => {
+    const failures: { clientTurnId: string; deliverAs: string; code: string }[] = []
+    const { service, repo } = await queuedOne({ failures })
+    service.settleQueued('t1', 'c1', 'dropped')
+    expect(repo.get('c1')?.status).toBe('failed')
+    expect(repo.get('c1')?.error?.code).toBe('conversation.submit_dropped')
+    expect(failures).toEqual([{ clientTurnId: 'c1', deliverAs: 'turn', code: 'conversation.submit_dropped' }])
+  })
+
+  test('幂等：别的线程、已开轮、已失败、不存在的号一律不动', async () => {
+    const removed: string[] = []
+    const { service, repo } = await queuedOne({ removed })
+    repo.insert({ ...rowOf('c2', 'turn-2'), status: 'started' })
+    repo.insert({ ...rowOf('c3', null), status: 'failed', error: { code: 'x', message: 'x' } })
+
+    service.settleQueued('t2', 'c1', 'delivered')
+    service.settleQueued('t1', 'c2', 'delivered')
+    service.settleQueued('t1', 'c3', 'withdrawn')
+    service.settleQueued('t1', 'nope', 'delivered')
+
+    expect(repo.get('c1')?.status).toBe('queued')
+    expect(repo.get('c2')?.status).toBe('started')
+    expect(repo.get('c3')?.status).toBe('failed')
+    expect(removed).toEqual([])
+  })
+
+  test('结局先于「记成 queued」到达：行不会被复活成 queued', async () => {
+    const removed: string[] = []
+    let service!: SubmissionService
+    const ctx = serviceOf({
+      removed,
+      session: (submits) =>
+        ({
+          sessionId: 's1',
+          sessionFile: 's1.jsonl',
+          state: () => 'running',
+          isBusy: () => true,
+          submit: async (input: SubmitInput) => {
+            submits.push(input)
+            /* 引擎在 submit 返回前就报了送达（omp 的 queue_update 抢在前面） */
+            service.settleQueued('t1', input.ref!, 'delivered')
+          },
+        }) as unknown as EngineSession,
+    })
+    service = ctx.service
+    service.submit({
+      threadId: 't1',
+      clientTurnId: 'c1',
+      text: '抢跑',
+      attachmentIds: [],
+      skills: [],
+      deliverAs: 'followUp',
+    })
+    await waitFor(() => removed.length > 0)
+    await Bun.sleep(5)
+
+    expect(ctx.repo.get('c1')).toBeNull()
+  })
+
+  test('新的一句进来：同线程更早的失败行到此为止（删行并推 removed）', () => {
+    const removed: string[] = []
+    const { service, repo } = serviceOf({ removed })
+    repo.insert({ ...rowOf('c0', null), status: 'failed', error: { code: 'x', message: 'x' } })
+
+    service.submit({
+      threadId: 't1',
+      clientTurnId: 'c1',
+      text: '接着说',
+      attachmentIds: [],
+      skills: [],
+      deliverAs: 'turn',
+    })
+
+    expect(repo.get('c0')).toBeNull()
+    expect(repo.get('c1')?.status).toBe('pending')
+    expect(removed).toEqual(['c0'])
+  })
+
+  test('丢弃一条失败行也推 removed（别的窗口里那一行要跟着消失）', () => {
+    const removed: string[] = []
+    const { service, repo } = serviceOf({ removed })
+    repo.insert({ ...rowOf('c0', null), status: 'failed', error: { code: 'x', message: 'x' } })
+    service.discard('c0')
+    expect(removed).toEqual(['c0'])
+  })
+})
+
+describe('R-20-1 迁移 v3：清掉升级前的旧账', () => {
+  test('queued 与 core_restarted 的失败行删掉；被更晚的一句取代的失败行删掉；最晚的失败行留着', () => {
+    const db = openDatabase(':memory:')
+    const conn = db.forModule('conversation')
+    for (const m of migrations.filter((m) => m.version < 3)) conn.exec(m.sql!)
+    for (const id of ['t1', 't2']) {
+      conn
+        .prepare(
+          `INSERT INTO conversation_threads (id, workspace_id, title, title_source, posture, origin, pinned, archived, created_at, updated_at)
+           VALUES (?, 'ws1', 't', 'auto', 'auto-edit', 'user', 0, 0, 0, 0)`,
+        )
+        .run(id)
+    }
+    const repo = createSubmissionsRepository(conn)
+    const failed = (code: string) => ({ status: 'failed' as const, error: { code, message: code } })
+    const row = (id: string, threadId: string, createdAt: number, over: Partial<SubmissionRow>): SubmissionRow => ({
+      ...rowOf(id, null),
+      threadId,
+      createdAt,
+      updatedAt: createdAt,
+      ...over,
+    })
+    repo.insert(row('q', 't1', 1, { status: 'queued', requestedAs: 'followUp' }))
+    repo.insert(row('restarted', 't1', 2, failed('conversation.core_restarted')))
+    repo.insert(row('old-fail', 't1', 3, failed('conversation.submit_dropped')))
+    repo.insert(row('later', 't1', 4, { status: 'started', turnId: 'turn-4' }))
+    repo.insert(row('last-fail', 't2', 5, failed('conversation.submit_dropped')))
+    repo.insert(row('earlier', 't2', 1, { status: 'started', turnId: 'turn-1' }))
+
+    conn.exec(migrations.find((m) => m.version === 3)!.sql!)
+
+    expect(repo.listByThread('t1').map((r) => r.clientTurnId)).toEqual(['later'])
+    expect(repo.listByThread('t2').map((r) => r.clientTurnId)).toEqual(['earlier', 'last-fail'])
   })
 })

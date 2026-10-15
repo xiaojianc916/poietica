@@ -122,6 +122,10 @@ export class EventRouter {
       case 'promptDropped':
         this.d.emitTurnDropped({ threadId, clientTurnId: null, text: event.text })
         break
+      case 'queueSettled':
+        /* 排队项有了结局：提交行收口（审查 R-20-1） */
+        this.d.submissions.settleQueued(threadId, event.ref, event.outcome)
+        break
       case 'sessionTitle':
         /*
          * omp 的自动总结标题替换首句兜底（omp 知识 #17）。**不**改 epoch、不整页重取：

@@ -3116,3 +3116,41 @@ agent 自己报过终局的（`completed` / `cancelled` / `failed`）一律不�
    且 refresh 发出后又收到 `controls.changed` 推送时不拿旧应答覆盖。
 
 **契约**：没有变化（`QueueItem` 仍是 4 个字段，`attachmentIds` 本就是轮头 / 帧的可选字段），`PROTOCOL_VERSION` 不动。
+
+## R-20 两个现象：「提交未完成；请先核对会话。」横幅误报、内置浏览器 / eval 报 same-realm（基于 d18d9fc）
+
+**来源**：核心工程师交办的两个现象（外部输入，不入库）。
+
+1. **R-20-1「提交未完成；请先核对会话。」+「取回文字」凭空出现**（截图里 notice 为空 → 横幅来自 Core 的提交行）：
+   - **`queued` 从来没有终局**：`SubmissionService.deliver` 忙时把 turn 降级成 followUp（或本来就是插话 / 排队）后记成
+     `queued`，之后 omp 取走 / 人撤回 / omp 丢弃都没人改它。下次 Core 启动 `recoverOnStart → failUndelivered` 把**全部
+     历史 queued 行**（早已送达、早已答复）改成 failed / `core_restarted`。「连发两次」正是第二句进了 followUp。
+   - **整读后「最后一条」变了**：`viewOfThread` 剔除已在页内的 started 行，旧的 failed 行成了列表末尾 →
+     每次重启 / 重开对话都复活横幅；`withSubmissionRows` 还把它当未送达气泡插到当前轮开头。
+   - 附带：UI 本机提交（`accepted`，promptId = clientTurnId）在 followUp 送达时没有任何 turn 带这个号，永不收口；
+     `emitRemoved` 有依赖却从未被调用（`discard` 也不发）。
+
+   改法：引擎 `SubmitInput.ref` + 会话事件 `queueSettled { ref, outcome: delivered | withdrawn | dropped }`
+   （`OmpSession`：对账搬进 consumed / message_start 先到 / 撤回时 omp 已取走 → delivered；撤回 → withdrawn，换层
+   `moveQueued` 不报；`promptDropped` 对上账本项 → 摘掉并 dropped）。Core `deliver` 带 `ref: clientTurnId`，
+   `settleQueued`：送达 / 撤回删行并推 `submissions.removed`，丢弃收成 failed(`submit_dropped`)，幂等；只在仍为
+   pending 时才记 `queued`（结局可能先到）。`submit` 插入新行时同线程更早的 failed 行到此为止（删行并推 removed，
+   与 UI `send()` 同一条规矩）；`discard` 补推 removed。迁移 v3 `submissions_cleanup` 一次性删掉升级前的 `queued` 行、
+   `core_restarted` 失败行、以及被更晚非失败提交取代的失败行。UI：`removeSubmission` 一并收掉本机同号提交；
+   `readFailedSubmissionText` 按 `createdAt` 取最晚一行。`FakeEngine` 撤回时同样报 `queueSettled`。
+2. **R-20-2 AI 用不了内置浏览器 / eval 报「Cannot run code while another same-realm JS runtime is running」**：
+   omp 的 `cli.ts` 被 import 时**自己会派发**（`isProcessEntry = import.meta.main || process.env.PI_COMPILED === "true"`，
+   `if (isProcessEntry || !Bun.isMainThread) runCli(process.argv.slice(2))`），`process-mode.ts` 又 `runCli([selector])` 一次。
+   编译版（build define 了 PI_COMPILED）每个 worker 子进程、以及任何 worker 线程里，omp 的 worker 入口都起了两份：
+   eval 子进程两个 JsRuntime 同吃一条 run → 第二个立刻报 same-realm，宿主先收到这个错误结果；broker 子进程两个
+   broker 抢同一根命名管道；browser-relay 同样双启动。次要：worker 线程里 Poietica 先装的收件箱被 omp 自派发时装的
+   第二个覆盖，父线程同步发的 init 握手进了孤儿缓存 → 等满 init 超时后退回 inline tab worker（跑在 Core realm 里）。
+
+   改法：新文件 `bootstrap/worker-dispatch.ts`（无副作用）：`ompCliSelfDispatches()`（编译版或 worker 线程 → cli 自派发）
+   与 `holdEarlyMessages(port)`（同步前缀里接住早到消息，第一个 `on('message')` 注册时按序回放并换回原 `on`；30 s
+   无人接则放手清空）。`process-mode.ts`：worker / relay 分支只在 cli 不自派发时 runCli；worker 线程用
+   `holdEarlyMessages` 代替 `installWorkerInbox`。omp 知识 #1 改写；钉子测试读 omp `cli.ts` 源码断言自派发条件。
+   Python「backend unavailable」是机器上没装 Python kernel，不是缺陷。
+
+**契约**：`SubmitInput.ref` 与 `queueSettled` 是引擎内部 TS 接口（engine ↔ engine-omp ↔ conversation core），
+RPC 契约与 `PROTOCOL_VERSION` 不变；conversation 新增迁移 v3（只删行，不改表结构）。

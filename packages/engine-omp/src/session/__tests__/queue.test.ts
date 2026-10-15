@@ -52,6 +52,8 @@ interface Fixture {
   /** 让下一次 followUp 投递挂住，直到 openFollowUpGate()（Q9 的慢投递） */
   installFollowUpGate(): void
   openFollowUpGate(): void
+  /** R-20-1：模拟 omp 的 setPromptDropped 回调（omp 丢弃了一句用户输入） */
+  dropPrompt(text: string): void
 }
 
 const BASE_SPEC: OpenSessionSpec = {
@@ -71,6 +73,7 @@ async function fixture(): Promise<Fixture> {
   const imageReads = { count: 0 }
   let gate: Promise<void> | null = null
   let openGate: (() => void) | null = null
+  let promptDropped: ((prompt: { text: string }) => void) | undefined
 
   const emitQueue = (): void => {
     for (const listener of listeners) {
@@ -127,7 +130,9 @@ async function fixture(): Promise<Fixture> {
     },
     abort: async (): Promise<void> => undefined,
     dispose: async (): Promise<void> => undefined,
-    setPromptDropped: (): void => undefined,
+    setPromptDropped: (handler: ((prompt: { text: string }) => void) | undefined): void => {
+      promptDropped = handler
+    },
     setThinkingLevel: (): void => undefined,
     setSteeringMode: (): void => undefined,
     setFollowUpMode: (): void => undefined,
@@ -188,6 +193,7 @@ async function fixture(): Promise<Fixture> {
     openFollowUpGate: () => {
       openGate?.()
     },
+    dropPrompt: (text) => promptDropped?.({ text }),
   }
 }
 
@@ -467,6 +473,98 @@ describe('排队 / 插话链路（R-01 §5.1）', () => {
     expect(upsert.attachment.source).toEqual({ kind: 'url', url: 'data:image/png;base64,QUJD' })
     expect(frame.frame.attachmentIds).toEqual([upsert.attachment.attachmentId])
     expect(f.imageReads.count).toBe(1)
+    await f.session.cancel()
+  })
+})
+
+/*
+ * R-20-1：排队项的结局要交回调用方（`queueSettled`，按调用方给的 ref）。不报，conversation 的提交行就一直停在
+ * `queued`，下次 Core 启动被当成「没送到」改成 failed —— 旧对话里凭空冒出「提交未完成；请先核对会话。」。
+ */
+describe('排队项结局（R-20-1）', () => {
+  const settled = (events: readonly EngineSessionEvent[]) =>
+    events.flatMap((event) => (event.type === 'queueSettled' ? [[event.ref, event.outcome]] : []))
+
+  test('omp 取走（queue_update 先到）→ delivered，且只报一次', async () => {
+    const f = await fixture()
+    await f.session.submit(submit('打底'))
+    await f.session.submit(submit('第二句', 'followUp', { ref: 'c2' }))
+    expect(settled(f.events)).toEqual([])
+
+    f.followUp.length = 0
+    f.syncQueue()
+    f.messageStart({ role: 'user', content: '第二句', timestamp: NOW + 2 })
+
+    expect(settled(f.events)).toEqual([['c2', 'delivered']])
+    expect(textsOf(textFrames(f.events), '第二句')).toBe(1)
+    await f.session.cancel()
+  })
+
+  test('message_start 先到（还在账本里就被认领）→ delivered', async () => {
+    const f = await fixture()
+    await f.session.submit(submit('打底'))
+    await f.session.submit(submit('插一句', 'steer', { ref: 'c2' }))
+
+    f.messageStart({ role: 'user', content: '插一句', timestamp: NOW + 2 })
+    f.steering.length = 0
+    f.syncQueue()
+
+    expect(settled(f.events)).toEqual([['c2', 'delivered']])
+    await f.session.cancel()
+  })
+
+  test('撤回 → withdrawn；换层不算撤回，送达时仍按原号报', async () => {
+    const f = await fixture()
+    await f.session.submit(submit('打底'))
+    await f.session.submit(submit('撤掉的', 'followUp', { ref: 'c2' }))
+    await f.session.submit(submit('换层的', 'followUp', { ref: 'c3' }))
+
+    f.session.withdraw(f.session.queue().items.find((item) => item.text === '撤掉的')!.id)
+    await f.session.moveQueued(f.session.queue().items.find((item) => item.text === '换层的')!.id, 'steer')
+    expect(settled(f.events)).toEqual([['c2', 'withdrawn']])
+
+    f.steering.length = 0
+    f.syncQueue()
+    expect(settled(f.events)).toEqual([
+      ['c2', 'withdrawn'],
+      ['c3', 'delivered'],
+    ])
+    await f.session.cancel()
+  })
+
+  test('撤回时 omp 已经取走 → delivered（并照旧报「撤不回来」）', async () => {
+    const f = await fixture()
+    await f.session.submit(submit('打底'))
+    await f.session.submit(submit('来不及撤', 'followUp', { ref: 'c2' }))
+    const item = f.session.queue().items.find((entry) => entry.text === '来不及撤')!
+    f.followUp.length = 0 // omp 已经取走，还没来得及发 queue_update
+
+    expect(() => f.session.withdraw(item.id)).toThrow(AppError)
+    expect(settled(f.events)).toEqual([['c2', 'delivered']])
+    await f.session.cancel()
+  })
+
+  test('omp 丢弃（promptDropped）→ dropped，队列里也摘掉它', async () => {
+    const f = await fixture()
+    await f.session.submit(submit('打底'))
+    await f.session.submit(submit('被丢的', 'followUp', { ref: 'c2' }))
+
+    f.dropPrompt('被丢的')
+
+    expect(settled(f.events)).toEqual([['c2', 'dropped']])
+    expect(f.session.queue().items).toEqual([])
+    expect(f.events.some((event) => event.type === 'promptDropped' && event.text === '被丢的')).toBe(true)
+    await f.session.cancel()
+  })
+
+  test('没带 ref 的排队项不报结局', async () => {
+    const f = await fixture()
+    await f.session.submit(submit('打底'))
+    await f.session.submit(submit('无号', 'followUp'))
+    f.followUp.length = 0
+    f.syncQueue()
+
+    expect(settled(f.events)).toEqual([])
     await f.session.cancel()
   })
 })

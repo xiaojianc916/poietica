@@ -77,6 +77,7 @@ async function makeCore(overrides: { engine?: FakeEngine; workspaces?: Workspace
   const updated: string[] = []
   const removed: string[] = []
   const submissionFailures: { threadId: string; clientTurnId: string; deliverAs: string; code: string }[] = []
+  const submissionRemoved: string[] = []
   const threadRemovedEvents: string[] = []
   const states: { threadId: string; state: string }[] = []
 
@@ -109,7 +110,9 @@ async function makeCore(overrides: { engine?: FakeEngine; workspaces?: Workspace
     emitInteractionRequested: () => undefined,
     emitInteractionResolved: () => undefined,
     emitSubmissionChanged: () => undefined,
-    emitSubmissionRemoved: () => undefined,
+    emitSubmissionRemoved: (p) => {
+      submissionRemoved.push(p.clientTurnId)
+    },
     emitSubmissionFailed: (p) => {
       submissionFailures.push({
         threadId: p.threadId,
@@ -148,6 +151,7 @@ async function makeCore(overrides: { engine?: FakeEngine; workspaces?: Workspace
     updated,
     removed,
     submissionFailures,
+    submissionRemoved,
     threadRemovedEvents,
     states,
     hub,
@@ -727,6 +731,32 @@ describe('conversation core（不经内核的直连测试）', () => {
     const moved = after.items.find((entry) => entry.text === '排队的一句')!
     expect(moved.deliverAs).toBe('steer')
 
+    await core.dispose()
+    db.close()
+    await dir.dispose()
+  })
+
+  /* R-20-1：排队项撤回之后，它的提交行跟着收口 —— 留着就是下次启动被改成 failed，旧对话冒出「提交未完成」 */
+  test('R-20-1 撤回一条排队的话：提交行删掉并推 submissions.removed', async () => {
+    const { core, dir, db, submissionRemoved } = await makeCore({ engine: createFakeEngine({ script: BUSY_SCRIPT }) })
+    const row = core.threads.create({ workspaceId: 'ws1' })
+    await submit(core, row.id, '第一句')
+    await new Promise((r) => setTimeout(r, 5))
+    const clientTurnId = createId()
+    await core.turns.submit({
+      threadId: row.id,
+      clientTurnId,
+      text: '排队的一句',
+      attachmentIds: [],
+      skills: [],
+      deliverAs: 'followUp',
+    })
+    await new Promise((r) => setTimeout(r, 30))
+
+    const item = (await core.turns.queue(row.id)).items.find((entry) => entry.text === '排队的一句')!
+    await core.turns.withdraw(row.id, item.id)
+
+    expect(submissionRemoved).toEqual([clientTurnId])
     await core.dispose()
     db.close()
     await dir.dispose()

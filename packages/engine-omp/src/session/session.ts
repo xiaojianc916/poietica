@@ -9,6 +9,7 @@ import {
   type ModelRef,
   type OpenSessionSpec,
   type Posture,
+  type QueueOutcome,
   type QueueSnapshot,
   type SessionState,
   type SubmitInput,
@@ -479,11 +480,22 @@ export class OmpSession implements EngineSession {
         keep.push(entry)
       } else {
         this.consumed.push(entry)
+        this.settleQueued(entry, 'delivered')
       }
     }
     this.ledger.length = 0
     this.ledger.push(...keep)
     this.emitQueue()
+  }
+
+  /**
+   * 排队项的结局交回调用方（审查 R-20-1）：conversation 靠它把提交行收口 —— 不报，那一行就一直停在
+   * `queued`，下次 Core 启动被当成「没送到」改成 failed，旧对话里凭空冒出「提交未完成」。
+   */
+  private settleQueued(entry: QueueEntry, outcome: QueueOutcome): void {
+    const ref = entry.input.ref
+    if (ref === undefined) return
+    this.emit({ type: 'queueSettled', ref, outcome })
   }
 
   async cancel(): Promise<void> {
@@ -507,15 +519,29 @@ export class OmpSession implements EngineSession {
   }
 
   withdraw(queueItemId: string): void {
+    this.withdrawEntry(queueItemId, true)
+  }
+
+  /**
+   * `settle` 为 false 只给换层用：`moveQueued` 撤下来马上用同一份输入（同一个 ref）重新入队，
+   * 这时报 `withdrawn` 会让调用方把还活着的那一句收掉。
+   */
+  private withdrawEntry(queueItemId: string, settle: boolean): QueueEntry {
     this.assertLive()
     const at = this.ledger.findIndex((entry) => entry.id === queueItemId)
     if (at < 0) throw new AppError(SystemErrorCode.notFound, '队列里没有这一项')
-    const [entry] = this.ledger.splice(at, 1)
-    const removed = this.o.removeQueued(entry!.wireText, entry!.deliverAs)
-    // omp 已经取走：它即将（或已经）上屏，留在 consumed 里等 message_start 认领
-    if (!removed) this.consumed.push(entry!)
+    const entry = this.ledger.splice(at, 1)[0]!
+    const removed = this.o.removeQueued(entry.wireText, entry.deliverAs)
+    if (removed) {
+      if (settle) this.settleQueued(entry, 'withdrawn')
+    } else {
+      // omp 已经取走：它即将（或已经）上屏，留在 consumed 里等 message_start 认领；换层也一样是送达了
+      this.consumed.push(entry)
+      this.settleQueued(entry, 'delivered')
+    }
     this.emitQueue()
     if (!removed) throw new AppError(EngineErrorCode.queueItemConsumed, '这条消息已经交给 agent，撤不回来了')
+    return entry
   }
 
   async moveQueued(queueItemId: string, deliverAs: 'steer' | 'followUp'): Promise<void> {
@@ -523,7 +549,7 @@ export class OmpSession implements EngineSession {
     const entry = this.ledger.find((e) => e.id === queueItemId)
     if (entry === undefined) throw new AppError(SystemErrorCode.notFound, '队列里没有这一项')
     if (entry.deliverAs === deliverAs) return
-    this.withdraw(queueItemId)
+    this.withdrawEntry(queueItemId, false)
     await this.enqueue(entry.input, deliverAs)
   }
 
@@ -733,6 +759,7 @@ export class OmpSession implements EngineSession {
     const l = this.ledger.findIndex(match)
     if (l < 0) return null
     const [entry] = this.ledger.splice(l, 1)
+    if (entry !== undefined) this.settleQueued(entry, 'delivered')
     this.emitQueue()
     return entry ?? null
   }
@@ -777,7 +804,22 @@ export class OmpSession implements EngineSession {
     this.emit({ type: 'sessionTitle', title, sessionFile: this.sessionFile })
   }
 
+  /**
+   * omp 丢掉了一句用户输入（omp 知识 #8）。它只交回原文：账本 / 待认领里对得上的那一项一并摘掉并报 `dropped`，
+   * 否则那一项留在队列里像是还会送达，提交行也收不了口（审查 R-20-1）。
+   */
   emitPromptDropped(text: string): void {
+    const match = (entry: QueueEntry): boolean => entry.text === text || entry.wireText === text
+    const c = this.consumed.findIndex(match)
+    if (c >= 0) {
+      this.settleQueued(this.consumed.splice(c, 1)[0]!, 'dropped')
+    } else {
+      const l = this.ledger.findIndex(match)
+      if (l >= 0) {
+        this.settleQueued(this.ledger.splice(l, 1)[0]!, 'dropped')
+        this.emitQueue()
+      }
+    }
     this.emit({ type: 'promptDropped', text })
   }
 
