@@ -23,14 +23,6 @@
 从 [Releases](https://github.com/xiaojianc916/poietica/releases) 下载
 `Poietica_<版本>_x64-setup.exe` 并运行。
 
-> **没有代码签名。** Windows SmartScreen 会提示「未知发布者」——点「更多信息」→「仍要运行」即可。
-
-> **0.5.0 起历史对话与设置不从 0.4.x 迁移。** 0.5.0 使用全新的数据布局
-> （`%APPDATA%\Poietica\`），旧版本的对话、设置与 API key 不会被读取，装完请重新填一次 API key。
-> 卸载会保留该数据根。
-
-已知限制：目前只有 Windows x64；界面文案只有中文。
-
 ## 架构速览
 
 三个进程、三个微内核：**UI**（Electron 渲染进程，React）↔ **Host**（Electron 主进程）↔
