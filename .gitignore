@@ -30,6 +30,9 @@ coverage/
 # 打包输出（只限桌面应用；tooling/release/ 是源码，不可忽略）
 apps/desktop/release/
 
+# 侦察过程中的临时产物（自建，不入库）
+.scratch/
+
 # 编辑器 / 系统
 *.log
 .DS_Store
