@@ -2981,7 +2981,7 @@ DSH 桌面端这一处的**代码逻辑**，不是只照抄外观。参考物是
   四档各一条、终局封口之后仍留在那一页上；外加插话那三条走**真实投影**：插过话的轮不折、
   没插过的照常可折、插话在投影里确实是一条排在产出之后的 `user_message`。
 
-**对着参考物复核时补上的两处**（都不是测试抓的，是回头逐行核对发现的）：
+**对着参考物复核时补上的三处**（都不是测试抓的，是把两边的 CSS 摆在一起逐条比出来的）：
 
 1. **`hasInterleavedInput` 这一档漏了**：DSH 的 `alwaysOpen` 有三个分支
    （`liveProcess || hasInterleavedInput || turnProcessAlwaysOpen`），最初只搬了两档。
@@ -2991,6 +2991,11 @@ DSH 桌面端这一处的**代码逻辑**，不是只照抄外观。参考物是
    秒数每秒在变、比例字会让那半句左右抽动。现在 `formatRunDuration` 交回 parts，
    运行行与封条各按 part 出格子（真 Chromium 复核：数字解析出 Consolas + tabular-nums，
    汉字仍是正文那一支）。
+3. **运行行的字号大了一号**：DSH 写的是 `calc(var(--dsh-content-font-size, 14px) - 2px)`，
+   即**正文减 2px = 12px**；本仓原先取 `--cp-font-caption`（`--cp-font(16px) - 3px` = 13px）。
+   把 DSH 那条式子按本仓的正文刻度（`--ui-prose-size` = 14px）重新解一遍，落在
+   `--ui-prose-size-meta`（0.75rem = 12px）上，正好是同一档。真 Chromium 复核：改前 13px、改后 12px。
+   顺带把 `tabular-nums` 从容器挪到那句可见文案上（DSH 的 `runningText` 就是这么戴的）。
 
 **过程中被测试抓到的两个真缺陷**（都在这轮里改掉）：
 
