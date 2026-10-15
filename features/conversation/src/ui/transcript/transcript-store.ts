@@ -23,7 +23,13 @@ import type { TranscriptPage, TranscriptSignal } from '../agent/transcript'
 import { MessageQueue } from '../composer/message-queue'
 import { describeFailure } from '../failure'
 import { delegateAddress, delegateKey } from '../timeline/delegate-channel'
-import { createTimelineState, isInFlight, type TimelineItem, type TimelineState } from '../timeline/timeline-contract'
+import {
+  createTimelineState,
+  isInFlight,
+  type TimelineItem,
+  type TimelineState,
+  type TurnOutcome,
+} from '../timeline/timeline-contract'
 import { clientTurnIdsOf, selectIsBusy } from '../timeline/timeline-queries'
 import {
   createProjectionMemo,
@@ -64,18 +70,30 @@ export function canCancel(transcript: Transcript): boolean {
   return selectIsBusy(transcript.timeline) || deliveryUnknown(transcript)
 }
 
-/** 只动 `active.run.settled`：items、usage、spans 是 agent 说过的事实，无权改写。 */
-function settleActiveRun(timeline: TimelineState): TimelineState {
+/**
+ * 本机把还在跑的那一轮收掉：Core 中途没了，那一轮**再也不会有帧**了。
+ *
+ * 收尾（`run.settled`）与**终局**（`outcome`）必须一起写。只收尾不写终局时，封条会落到
+ * 「缺终局就按正常答完算」那一支 —— 屏幕把死在半路的一轮报成「已完成」，还让它可折。
+ * DSH 对同一种情形（turn/end 的 reason 是 `interrupted`，即进程先退出了）报的是「已停止」；
+ * 本仓的终局那一格里，`aborted` 就是「已停止」。
+ *
+ * 其余格（items、usage、spans）是 agent 说过的事实，无权改写；`outcome` 也只补**缺的那一格**，
+ * agent 已经报过终局时不改口。
+ */
+function settleActiveRun(timeline: TimelineState, outcome: TurnOutcome | undefined): TimelineState {
   const run = timeline.active.run
 
   if (run === undefined || run.settled) {
     return timeline
   }
 
+  const settled = outcome === undefined || timeline.active.outcome !== undefined ? {} : { outcome }
+
   return {
     ...timeline,
     status: 'failed',
-    active: { ...timeline.active, run: { ...run, settled: true } },
+    active: { ...timeline.active, run: { ...run, settled: true }, ...settled },
   }
 }
 
@@ -583,10 +601,13 @@ export class TranscriptStore implements TranscriptSink {
 
   /* 不收的后果实测过：那一轮永远转下去，提交键变成「正在停止」然后消失，连发送键都没了，只能重启应用 —— 屏幕上的轮终只认 agent 的 transcript。判据是**会话号**。 */
   /*
-   * 对话号 → **被本机收掉的那一轮的编号**。**这是本机的事实，不是快照的投影** —— 写进 `timeline` 会被下一次投影整块覆盖，屏幕退回「正在处理」。
+   * 对话号 → **被本机收掉的那一轮**（编号 + 它是不是「跑完了只是掉了帧」）。**这是本机的事实，不是快照的投影** ——
+   * 只写进 `timeline` 会被下一次投影整块覆盖，屏幕退回「正在处理」。
    * 存编号而不是布尔：管的是「那一轮已经终止」，不是「这条对话废了」。
+   * 存 `degraded` 是因为**两种收尾要报不同的终局**：真的死在半路 → `aborted`（「已停止」），
+   * 跑完了只是掉了帧 → 不写终局（「已完成」本来就是对的）。
    */
-  #runFailed = new Map<string, number>()
+  #runFailed = new Map<string, { readonly turn: number; readonly degraded: boolean }>()
 
   /** **唯一的实现**，两个调用点：`#acceptRunFailed` 与 `#publish` —— 后者不能省，`timeline` 每次由快照重算，只贴一次会被冲掉。 */
   #withRunFailed(threadId: string | undefined, timeline: TimelineState): TimelineState {
@@ -594,11 +615,14 @@ export class TranscriptStore implements TranscriptSink {
       return timeline
     }
 
-    if (this.#runFailed.get(threadId) !== timeline.active.turn) {
+    const failed = this.#runFailed.get(threadId)
+
+    if (failed === undefined || failed.turn !== timeline.active.turn) {
       return timeline
     }
 
-    return settleActiveRun(timeline)
+    /* `degraded` 的那一轮**是真的跑完了**，只是本机掉了帧：它报「已完成」是对的，不该改口成「已停止」。 */
+    return settleActiveRun(timeline, failed.degraded ? undefined : 'aborted')
   }
 
   #acceptRunFailed = ({ threadId, message, degraded }: RunFailed): void => {
@@ -610,7 +634,7 @@ export class TranscriptStore implements TranscriptSink {
       return
     }
 
-    this.#runFailed.set(threadId, transcript.timeline.active.turn)
+    this.#runFailed.set(threadId, { turn: transcript.timeline.active.turn, degraded })
 
     /* 把还在等回执的那几条提交一并收成失败（这一轮已经没有回执可等）；已定性的 failed / delivered 不动 —— 收第二次会让记录改口。 */
     const settled = transcript.submissions.map((entry) =>

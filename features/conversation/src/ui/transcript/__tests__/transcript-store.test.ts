@@ -4,6 +4,7 @@ import type { AgentPromptHandle, AgentPromptRequest, AgentSessionPort, QueuedMes
 import type { TranscriptPage } from '../../agent/transcript'
 import { createSessionRegistry } from '../../session/session-registry'
 import { createThreadEntry } from '../../threads/thread-entry'
+import { selectPresentation } from '../../timeline/presentation'
 import { TranscriptStore } from '../transcript-store'
 import { readFailedSubmissionText } from '../use-assistant-session'
 
@@ -528,6 +529,258 @@ describe('R-08-5 未送达的插话 / 排队也画成气泡', () => {
     /* 之后又成功发出了一句：失败这件事已经翻篇，横幅与那颗键都不该再出现。 */
     store.upsertSubmission('t1', submission({ clientTurnId: 'c2', text: '新的一句', status: 'started', turnId: 't1' }))
     expect(readFailedSubmissionText(store.read('t1'))).toBeNull()
+  })
+})
+
+/*
+ * Core 在一轮中途没了（崩溃、被关掉）：那一轮**再也不会**有帧了，本机必须把它收掉。
+ *
+ * 收掉的动作原先只动 `run.settled`，**不写终局** —— 于是封条落到「缺终局就按正常答完算」那一支，
+ * 屏幕上报的是「已完成」、过程还能折。可这一轮根本没答完：它死在半路。
+ * DSH 对同一种情形（turn/end 的 reason 是 `interrupted`，即进程先退出了）报的是「已停止」——
+ * 死掉的一轮不能报成答完的一轮。
+ */
+describe('进程中途没了那一轮报「已停止」，不报「已完成」', () => {
+  /** 能捕获 `RunFailed` 订阅者的假端口（真接线在装配层，这里直接把它拉出来问）。 */
+  function dyingPort(threadId: string) {
+    let listener: ((signal: import('../../agent/transcript').TranscriptSignal) => void) | null = null
+    let runFailed: ((failed: import('../../agent/session').RunFailed) => void) | null = null
+    const port: AgentSessionPort = {
+      transcript: {
+        subscribeTranscript: (l) => {
+          listener = l
+          return () => {
+            listener = null
+          }
+        },
+        readTranscript: async () => EMPTY_PAGE,
+        catchUpTranscript: async (_sessionId, agentId, sinceSeq) => ({
+          agentId,
+          batches: [],
+          latestSeq: sinceSeq,
+          complete: true,
+        }),
+      },
+      prompt: async (): Promise<AgentPromptHandle> => ({ sessionId: threadId, promptId: 'p1' }),
+      cancel: async () => undefined,
+      readQueue: async () => ({ ...EMPTY_QUEUE, threadId }),
+      withdraw: async () => null,
+      move: async () => ({ ...EMPTY_QUEUE, threadId }),
+      setDeliveryModes: async () => ({ ...EMPTY_QUEUE, threadId }),
+      subscribeQueue: () => () => undefined,
+      subscribePromptDropped: () => () => undefined,
+      subscribeRunFailed: (l) => {
+        runFailed = l
+        return () => {
+          runFailed = null
+        }
+      },
+      abortPrompt: async () => undefined,
+      resolvePermission: async () => undefined,
+      resolvePlan: async () => undefined,
+      answerQuestions: async () => undefined,
+      dismissQuestions: async () => undefined,
+    }
+    return {
+      port,
+      emit: (signal: import('../../agent/transcript').TranscriptSignal): void => listener?.(signal),
+      /* 让这一轮真的跑起来：一轮 + 一个段 + 一次 read（有过程可折，才谈得上折不折）。 */
+      openTurn: (): void => {
+        /* seq 必须接在初始整读的水位之后（EMPTY_PAGE.seq = 1），否则会被当成重复批丢掉。 */
+        listener?.({
+          kind: 'ops',
+          sessionId: threadId,
+          agentId: 'main',
+          seq: 2,
+          ops: [
+            {
+              op: 'turn.upsert',
+              turn: {
+                kind: 'turn',
+                turnId: 't1',
+                ordinal: 1,
+                state: 'running',
+                origin: { kind: 'user' },
+                prompt: '干活',
+                startedAt: '2026-10-10T00:00:00.000Z',
+              },
+            },
+            {
+              op: 'step.upsert',
+              turnId: 't1',
+              step: {
+                kind: 'step',
+                stepId: 't1:s0',
+                turnId: 't1',
+                ordinal: 0,
+                state: 'running',
+                startedAt: '2026-10-10T00:00:00.000Z',
+              },
+            },
+            {
+              op: 'frame.upsert',
+              turnId: 't1',
+              stepId: 't1:s0',
+              frame: {
+                kind: 'tool',
+                frameId: 't1:s0:t0',
+                name: 'read',
+                toolCallId: 'c1',
+                input: {},
+                output: '',
+                state: 'done',
+              },
+            },
+          ],
+        } as never)
+      },
+      fail: (message: string, degraded = false): void => {
+        runFailed?.({ threadId, message, degraded })
+      },
+    }
+  }
+
+  test('本机把这一轮收掉时写下终局：aborted（封条因此报「已停止」）', async () => {
+    const held = dyingPort('t1')
+    const store = new TranscriptStore({ sessions: () => held.port })
+    store.open('t1')
+    await Bun.sleep(0)
+
+    held.openTurn()
+    await Bun.sleep(0)
+    expect(store.read('t1').timeline.active.outcome).toBeUndefined()
+
+    held.fail('Core 断了')
+    await Bun.sleep(0)
+
+    const timeline = store.read('t1').timeline
+    expect(timeline.status).toBe('failed')
+    expect(timeline.active.run?.settled).toBe(true)
+    /* 这就是这条用例的全部意义：终局必须是「被人叫停」，不是「答完了」。 */
+    expect(timeline.active.outcome).toBe('aborted')
+  })
+
+  test('收掉之后封条摊开且不可折：死在哪得让人看得见', async () => {
+    const held = dyingPort('t1')
+    const store = new TranscriptStore({ sessions: () => held.port })
+    store.open('t1')
+    await Bun.sleep(0)
+
+    held.openTurn()
+    await Bun.sleep(0)
+    held.fail('Core 断了')
+    await Bun.sleep(0)
+
+    const feed = selectPresentation(store.read('t1').timeline, new Map())
+    let seal: { canCollapse: boolean; isOpen: boolean } | undefined
+    for (let index = 0; index < feed.count; index += 1) {
+      const found = feed.sealAt(index)
+      if (found !== undefined) {
+        seal = found
+        break
+      }
+    }
+
+    expect(seal?.canCollapse).toBe(false)
+    expect(seal?.isOpen).toBe(true)
+  })
+
+  test('跑完了只是掉了帧（degraded）：照旧「已完成」，不改口成「已停止」', async () => {
+    const held = dyingPort('t1')
+    const store = new TranscriptStore({ sessions: () => held.port })
+    store.open('t1')
+    await Bun.sleep(0)
+
+    held.openTurn()
+    await Bun.sleep(0)
+    held.fail('内部诊断：丢了 3 帧', true)
+    await Bun.sleep(0)
+
+    const timeline = store.read('t1').timeline
+    expect(timeline.active.run?.settled).toBe(true)
+    /* 这一轮是真答完了（`degraded` 的 message 只是一句内部诊断）—— 不能报成「已停止」。 */
+    expect(timeline.active.outcome).toBeUndefined()
+  })
+
+  test('在跑的那一轮（还没有终局）被收掉：补的就是 aborted', async () => {
+    const held = dyingPort('t1')
+    const store = new TranscriptStore({ sessions: () => held.port })
+    store.open('t1')
+    await Bun.sleep(0)
+
+    held.openTurn()
+    await Bun.sleep(0)
+    /* 快照里这一轮是 `running`：`run` 在、`outcome` 不在 —— 这正是「死在半路」的形状。 */
+    expect(store.read('t1').timeline.active.run).toBeDefined()
+    expect(store.read('t1').timeline.active.outcome).toBeUndefined()
+
+    held.fail('Core 断了')
+    await Bun.sleep(0)
+
+    expect(store.read('t1').timeline.active.outcome).toBe('aborted')
+  })
+
+  test('agent 自己报过终局时不改口：本机只补缺的那一格', async () => {
+    const held = dyingPort('t1')
+    const store = new TranscriptStore({ sessions: () => held.port })
+    store.open('t1')
+    await Bun.sleep(0)
+
+    held.openTurn()
+    await Bun.sleep(0)
+    /* agent 已经报过「答完了」，之后本机才把这一轮收掉。 */
+    held.emit({
+      kind: 'ops',
+      sessionId: 't1',
+      agentId: 'main',
+      seq: 3,
+      ops: [
+        {
+          op: 'turn.upsert',
+          turn: {
+            kind: 'turn',
+            turnId: 't1',
+            ordinal: 1,
+            state: 'completed',
+            origin: { kind: 'user' },
+            prompt: '干活',
+            startedAt: '2026-10-10T00:00:00.000Z',
+            endedAt: '2026-10-10T00:00:05.000Z',
+          },
+        },
+      ],
+    } as never)
+    await Bun.sleep(0)
+    expect(store.read('t1').timeline.active.outcome).toBe('completed')
+
+    held.fail('Core 断了')
+    await Bun.sleep(0)
+
+    expect(store.read('t1').timeline.active.outcome).toBe('completed')
+  })
+
+  test('写下的终局活得过下一次投影（快照每次整块重算）', async () => {
+    const held = dyingPort('t1')
+    const store = new TranscriptStore({ sessions: () => held.port })
+    store.open('t1')
+    await Bun.sleep(0)
+
+    held.openTurn()
+    await Bun.sleep(0)
+    held.fail('Core 断了')
+    await Bun.sleep(0)
+
+    /* 再推一条无关的快照：投影会把 timeline 整块重算，本机写的那一格不能被冲掉。 */
+    held.emit({
+      kind: 'ops',
+      sessionId: 't1',
+      agentId: 'main',
+      seq: 3,
+      ops: [],
+    } as never)
+    await Bun.sleep(0)
+
+    expect(store.read('t1').timeline.active.outcome).toBe('aborted')
   })
 })
 

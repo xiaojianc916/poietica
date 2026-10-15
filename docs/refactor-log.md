@@ -3033,3 +3033,59 @@ DSH 桌面端这一处的**代码逻辑**，不是只照抄外观。参考物是
 以及 `pr-detail.tsx` 一个未用导入。只有格式化与删导入，无行为变化。
 
 **待决问题**：无。
+
+---
+
+## R-13 补修：进程中途没了的那一轮报「已停止」，不报「已完成」（2026-10-15）
+
+**来源**：R-13 合并之后，拿 DSH 的**真源码**（不是安装版的压缩产物）逐条复核时发现的一处漏网。
+
+**上游真源码怎么说的**。DSH 那边「轮怎么结束的」有四种 reason，其中 `interrupted` 是
+**进程在轮跑完之前就退出了**（`packages/client/ui-chat/src/client/conversation-nodes/turn-error.ts`：
+`case 'interrupted': return { message: 'The DSH process exited before this turn finished.', code: 'INTERRUPTED' }`）。
+它在两处都算「停」：
+
+- `contract/turn-process.ts`：`status === 'open' || reason === 'aborted' || reason === 'interrupted' || reason === 'error'`
+  → 永不折叠；
+- `chat/TurnProcessNodeView.tsx`：`const stopped = reason === 'aborted' || reason === 'interrupted'`
+  → 报「已停止」，且不报时长。
+
+**本仓的对应物**：本机把还在跑的那一轮收掉走 `transcript-store` 的 `settleActiveRun`（Core 崩溃、
+被关掉时不再有帧）。它原先**只写 `run.settled`、不写终局**，于是封条落到「缺终局按正常答完算」
+那一支 —— **屏幕把死在半路的一轮报成「已完成」，还让它可折**。实测：`{canCollapse: true, isOpen: false}`。
+
+**改法**：`settleActiveRun` 同时写终局。分两种收尾，因为语义不同：
+
+| 情形 | `degraded` | 终局 | 屏幕 |
+| --- | --- | --- | --- |
+| 真的死在半路 | `false` | `aborted` | 「已停止」，摊开、不可折（= DSH 的 `interrupted`） |
+| 跑完了只是掉了帧 | `true` | 不写 | 「已完成」本来就是对的，不该改口 |
+
+`#runFailed` 因此从「编号」改成「编号 + `degraded`」。另外只在**缺那一格**时补：
+agent 自己报过终局的（`completed` / `cancelled` / `failed`）一律不改口。
+
+**测试**（6 条，全部先在旧代码上红过）。红的样子正是缺陷本身：`outcome === undefined`、
+封条 `canCollapse: true, isOpen: false`。
+
+- 收掉时写下 `aborted`（`status: failed` + `run.settled`）。
+- 收掉之后封条摊开且不可折。
+- `degraded` 那一轮照旧「已完成」。
+- 在跑（有 `run`、无 `outcome`）被收掉 → 补 `aborted`。
+- agent 报过 `completed` 之后本机再收 → 仍是 `completed`。
+- 写下的终局**活得过下一次投影**（`timeline` 每次由快照整块重算，只贴一次会被冲掉）。
+
+**验收**：`bun run all` 全绿（**2172 pass / 0 fail**，273 文件，较 R-13 合并时的 2167 多 5 条）；
+真 Chromium 复核封条多出的一档报「已停止」且不带时长。
+
+**另记（R-13 的复核手段）**：R-13 当时只有本机安装版的压缩产物，靠反编译逐行抄。
+`web_fetch` 连不上 GitHub 就误判成「没网」，实际是 **git 配了代理 `127.0.0.1:7897` 而 `web_fetch` 不走它** ——
+清掉这个误区后 `git clone` 到了真源码（`packages/client/ui-chat/src/`），逐条对完的结论：
+
+- **逐字一致的**：鲸鱼 PNG 字节相同（同 sha256）、`REST_PATH`、那三个点是 **U+00B7 ×3** 不是省略号、
+  单位 `秒`/`分`/`小时`、`formatRunDuration` 的边界、`durationNumber` 的等宽字、
+  CSS 的 `margin:8px 0 10px` 与字号 / 图标公式。
+- **源码里有、但已装版没有的**：`interrupted` 这一档 reason 是 `0.2.1-alpha.3` 才加的，已装版
+  `rc.2` 的编译产物里 `turnProcessAlwaysOpen` 只有三个分支。复刻对齐的是**用户机器上装的那个版本**，
+  所以 R-13 当时没抄错；上面这一条补修针对的是**本仓自己**那条 DSH 没有的收尾路径。
+
+**待决问题**：无。
