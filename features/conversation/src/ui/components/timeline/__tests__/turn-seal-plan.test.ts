@@ -114,6 +114,21 @@ describe('什么时候这一轮没有封条', () => {
   })
 })
 
+describe('封条挂在哪一行', () => {
+  it('挂在这一轮的第一行上：封条说的是「这一轮结束了」，它得在整轮的最上面', () => {
+    const feed = selectPresentation(stateOf('completed', false), new Map())
+
+    expect(sealIndex(stateOf('completed', false))).toBe(0)
+    expect(feed.rowAt(0)?.item.type).toBe('user_message')
+  })
+
+  it('落定且收起时，封条仍挂在自己的那一行上（过程被折掉，行号不跟着漂）', () => {
+    const feed = selectPresentation(stateOf('completed', false), new Map())
+
+    expect(feed.sealAt(0)).toBeDefined()
+  })
+})
+
 describe('封条的折叠判据（canCollapse）', () => {
   it('还在跑：压根没有封条 —— 那一句由转录末尾的运行状态行说', () => {
     expect(sealIndex(stateOf(undefined, true))).toBeUndefined()
