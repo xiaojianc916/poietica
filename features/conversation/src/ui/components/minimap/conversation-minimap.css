@@ -113,7 +113,7 @@
   overflow: hidden;
   inline-size: 220px;
   border: 1px solid var(--cp-rail-card-edge);
-  border-radius: var(--am-item);
+  border-radius: var(--cp-radius-item);
   padding: 6px 8px;
   background: var(--cp-rail-card-face);
   box-shadow:

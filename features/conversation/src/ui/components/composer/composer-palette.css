@@ -21,7 +21,8 @@
 }
 
 .composer-palette__group {
-  padding: var(--am-pad);
+  /* 4px：工具条浮层族的 --am-pad 随皮肤拆掉了，浮层卡的内边距档就落成这个数。 */
+  padding: 4px;
 }
 
 .composer-palette__group + .composer-palette__group {
@@ -48,7 +49,7 @@
   cursor: default;
   background: transparent;
   border: 0;
-  border-radius: var(--am-item);
+  border-radius: var(--cp-radius-item);
 }
 
 /* 悬停色只认 data-highlighted（指针进入时由 tsx 挪过来）：再加一份 :hover 就是两行同时亮。 */
