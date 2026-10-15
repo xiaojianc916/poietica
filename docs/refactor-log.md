@@ -2896,3 +2896,140 @@ UI 用例喂固定条目。
 
 **未做**：精选那 6 条**保持原样**（它们是产品意图，不是过时的硬编码）。Q44（MCP 四个死键与名称校验
 错位）仍未动。
+
+## R-13 复刻 DSH 的运行状态行与封条：什么时候出现、什么时候封、什么时候不封（2026-10-15）
+
+**来源**：产品负责人交办的截图（对话页那条「深度求索中，用时 4秒 ···」）与口头要求 —— 全面复刻
+DSH 桌面端这一处的**代码逻辑**，不是只照抄外观。参考物是本机安装版 DSH 的构建产物
+（`@deepseek-ai/dsh-client-ui-chat@0.2.0-rc.2`，MIT），逐条抄录成规格后再落到本仓的层次上。
+
+**参考物与它们的判据**（bundle 已反编译逐行核对，定位坐标记在本次侦察的规格文档里）：
+
+| 参考物 | 管什么 |
+| --- | --- |
+| `RunningStatus` | 转录末尾那一行：`chat.deepDiving` / `chat.deepDivingFor`，1 秒一跳的本地时钟 |
+| `RunningWhaleTail` | 鲸鱼尾图标：APNG 当 mask 着色，静态 SVG 兜底 |
+| `TurnProcessNodeView` | 封条的渲染与三档文案；**`turn.status !== 'closed'` 直接返回 null** |
+| `turnProcessAlwaysOpen` | 「永远摊开」：`status === 'open'` 或 `reason` 是 aborted / error |
+| `derivePresentation` 的 `hasInterleavedInput` | 「中途有人插过话」同样是永远摊开（`alwaysOpen = liveProcess \|\| hasInterleavedInput \|\| turnProcessAlwaysOpen`） |
+| `processSpec` + `derivePresentation` | `foldable` / `hasContent` / `open` 三格怎么解出来 |
+
+**复刻到本仓的映射**（DSH 的概念 → 本仓已有的那一格）：
+
+1. **轮的终局**：DSH 读 `turn.end.reason.kind`；本仓对应 omp 的 `TranscriptTurn['state']`
+   （`completed` / `cancelled` / `failed`）。新增 `TurnOutcome = 'completed' | 'aborted' | 'error'`，
+   由 `transcript-projector` 的 `outcomeOf()` 映射后挂到 `TurnPage.outcome` 上。**`cancelled` → aborted
+   （「已停止」）、`failed` → error（「处理失败」）**：一个是人叫停的，一个是它自己坏的。
+2. **什么时候出现**：DSH 的判据是**这一轮已经在跑**（`running && <RunningStatus>`）。本仓上屏判据
+   同一条 —— `Presentation.running` 只在 `active.run.settled === false` 时给出。
+3. **什么时候封**：DSH 的封条只在轮**结束之后**存在（`turn.status !== 'closed' → null`）。本仓的
+   `sealOf()` 因此加一条 `|| running → undefined`：**在跑的那一轮没有封条**，那一句由末尾的运行
+   状态行说。这不是删功能 —— 两处都报「正在处理」本来就是两种说法说同一件事。
+4. **什么时候选择不封**（DSH `turnProcessAlwaysOpen` + `hasInterleavedInput`）：**被人叫停、
+   自己坏了、中途有人插过话**，三者都**不接受折叠** —— 前两个要让人看见它停在哪、坏在哪；
+   第三个是因为那段过程里夹着人自己的话（气泡就落在过程那一段里），折起来会把他的话一起藏掉。
+   正常答完的才谈得上折，且默认收起。DSH 的 `status === 'open'`（正在跑）那一档在本仓由上一条
+   吸收 —— 在跑的轮压根没有封条。
+   插话的判据是**端到端**的：`interjectedIn()` 只认「人说的话出现在它的产出之后」。这正好对上
+   引擎的真实形态 —— `live.ts` 里开场那条用户帧**不带 origin**（不上屏），只有 `steeredFrame`
+   才给 `origin: { kind: 'user' }`，而带 origin 的才在投影里成行（`sourceOfFrame` 只认它）。
+   所以「产出之后出现的人话」与「真的插过话」是同一件事，不是近似。
+5. **封条的三档文案**（DSH `TurnProcessNodeView`）：`已停止` / `处理失败` / `已完成`；
+   正常答完才带时长（`已完成，用时 N`），**被打断与出错不报时长**，且时长下限 1 秒
+   （`Math.max(1e3, …)`）—— 屏幕上不出现「0秒」。
+6. **用时的格式**（DSH `formatRunDuration`）：整秒向下取整，**秒永远在场**，60 秒起才带分、
+   1 小时起才带小时（`1分0秒` / `1小时0分0秒`）。与仓里原有的 `formatDuration`（`<1秒` 起、
+   进位制紧凑式）是两种口径，所以**新增 `formatRunDuration` 而不是改旧的** —— 旧的那一支还给
+   别处用着。
+
+**偏差（与 DSH 不一致或本仓另有做法的地方，逐条说明）**：
+
+- **气泡里那三个点是 U+00B7 MIDDLE DOT，不是省略号**（DSH 的 `chat.deepDivingFor` 原文
+  `"深度求索中，用时 {duration} ···"`，码点 U+00B7 ×3）。照抄：省略号读起来是「这里被截断了」，
+  它说的是「还在往外冒」。测试钉住码点。
+- **没有做 DSH 的 `stepGrouping` / `transcript detail` 四档策略**（简洁 / 标准 / 详细 / 完全展开）。
+  本仓没有「工作步骤展示」这个设置项，过程的折叠规则是单一的。要求里没有它，为一个参考物加的
+  设置项属于超范围。
+- **运行状态行挂在转录盒内、末尾留白的上沿**（绝对定位，纵向位移 = 虚拟器 `total - paddingEnd`），
+  DSH 是 flex 列的最后一项。抄的是**行为**（常驻、不参与行测量、被内容推着走）：本仓的行由虚拟器
+  绝对定位，直接塞一个 flex 子项会被算进 `measureElement`，那一格每秒改字就是每秒一次滚动补偿。
+- **秒针走本仓的 `useSecond`（`primitives/clock.ts`）**，不用 DSH 的 `setInterval(1s)`：那一口钟
+  已经做了「没人在看就不烧 CPU」「窗口重新可见先补一帧」，且期限归消费者报。
+- **扫光沿用本仓的 `.timeline-shimmer`**（`background-clip: text` + 横移渐变），只把颜色抽成
+  `--cp-shimmer-base` / `--cp-shimmer-sweep` 两个变量给运行行换成它那一对蓝。没有照抄 DSH 的
+  TextShimmer（那是「真实内容层 + aria-hidden 装饰层 + 反向 translateX」的另一套实现）——
+  本仓已有等价物，再引入一套是两套做法说同一件事。
+- **鲸鱼图标资产取 DSH 的 APNG**（28×28、60 帧、3 秒循环），静态那条是 DSH 的 `REST_PATH`
+  描边路径。切换条件照抄它的三条 AND：`@supports (mask-mode: alpha) and (mask-image: url(""))` ×
+  `prefers-reduced-motion: no-preference` × `forced-colors: none`。
+- **封条那枚箭头的旋转方向沿用本仓**：本仓一律 `-90deg → 0deg`（`disclosure.css` 与
+  `turn-seal.css` 都是这套），DSH 是 `0deg → 180deg`。这一处**在本次改动之前就是本仓的样子**
+  （`git show origin/main:…turn-seal.css` 可见），改它等于顺手改掉全仓的箭头语言，
+  超出这次复刻的范围，所以留着并在此记明。
+
+**测试**（新增 59 条，全部先写、按新判据红过再实现）：
+
+- `duration.test.ts`（10）：整秒向下取整、60 秒才带分、1 小时才带小时、秒永远在场、
+  **非有限值当 0**（NaN 会一路印成「NaN秒」，实测抓到）；外加数字 / 单位分格的形状四条
+  （只有数字那一格戴等宽字，且「逐格渲染」与「拼成一个串」两条路径等价）。
+- `running-status.test.tsx`（6）：文案两态、**结尾是三个 U+00B7 且不含 U+2026**、
+  分隔线只在上面有产出时画、鲸鱼两层都在且都 `aria-hidden`、live 区只播那句固定文案。
+- `turn-seal.test.tsx`（12）：三档文案、打断与出错不报时长、1 秒下限、
+  `durationMs` 优先于两头相减（那两个时刻只覆盖最后一跳）、老载荷缺终局不编「失败」、
+  能折才是按钮且带 `aria-expanded`。
+- `turn-seal-plan.test.ts`（20）：**「什么时候不封」的四条**（在跑没有封条、被打断不折、
+  出错不折、**插过话不折**）、不存在运行事实就没有封条、没有过程可折就不画开关、
+  **封条挂在这一轮的第一行上**（收起之后行号不漂）、折起来时过程真的离开投影、
+  运行状态行的四条判据（在跑才有、起始时刻来自段、分隔线的四种来路）。
+- `transcript-projector-outcome.test.ts`（8）：**端到端** —— omp 的 `state` → `TurnPage.outcome`
+  四档各一条、终局封口之后仍留在那一页上；外加插话那三条走**真实投影**：插过话的轮不折、
+  没插过的照常可折、插话在投影里确实是一条排在产出之后的 `user_message`。
+
+**对着参考物复核时补上的四处**（都不是测试抓的，是把两边的 CSS 摆在一起逐条比出来的）：
+
+1. **`hasInterleavedInput` 这一档漏了**：DSH 的 `alwaysOpen` 有三个分支
+   （`liveProcess || hasInterleavedInput || turnProcessAlwaysOpen`），最初只搬了两档。
+   插过话的那一轮在屏幕上就是一条落在过程**中间**的用户气泡，折起来会把人自己的话一起藏掉。
+2. **用时的数字没有换等宽字**：DSH 把 `formatRunDuration` 的产物**按 part 分格渲染**，
+   只给 `numeric` 的那一格戴 `--ds-font-family-code` + `tabular-nums`。原先合成一个字符串，
+   秒数每秒在变、比例字会让那半句左右抽动。现在 `formatRunDuration` 交回 parts，
+   运行行与封条各按 part 出格子（真 Chromium 复核：数字解析出 Consolas + tabular-nums，
+   汉字仍是正文那一支）。
+3. **运行行的字号大了一号**：DSH 写的是 `calc(var(--dsh-content-font-size, 14px) - 2px)`，
+   即**正文减 2px = 12px**；本仓原先取 `--cp-font-caption`（`--cp-font(16px) - 3px` = 13px）。
+   把 DSH 那条式子按本仓的正文刻度（`--ui-prose-size` = 14px）重新解一遍，落在
+   `--ui-prose-size-meta`（0.75rem = 12px）上，正好是同一档。真 Chromium 复核：改前 13px、改后 12px。
+   顺带把 `tabular-nums` 从容器挪到那句可见文案上（DSH 的 `runningText` 就是这么戴的）。
+4. **鲸鱼图标大了一号**：DSH 的 `runningIcon` 边长是 `calc(14px + font-delta)`，**就是正文刻度**
+   （content-font-size = 14px）；本仓原先读 `--cp-icon`（`--ui-icon-size-sm` = 16px），
+   那是工具行的图标档，挂在状态行上会压过那句话。改成 `--ui-prose-size`，
+   真 Chromium 复核：图标盒 14×14（改前 16×16）。
+
+**过程中被测试抓到的两个真缺陷**（都在这轮里改掉）：
+
+1. **分隔线为运行锚点也画了一根**：`run_anchor` 是承载封条用的合成条目、自己不上屏，
+   拿它当「上面有产出」等于凭空多一道线。判据补上 `item.type !== 'run_anchor'`。
+2. **`formatRunDuration(NaN)` 印出「NaN秒」**：非有限值先归 0。
+
+**验收**：`bun run typecheck` 干净（752 files / 80 projects + 977 test files）；
+`bun run lint` **全绿**（那 6 处既有失败已单独成一笔 `chore(lint)` 修掉，见下）；
+`bun test` **2167 pass / 0 fail**（273 文件）；`bun run desktop:build` 通过，鲸鱼 PNG 落在
+`out/renderer/assets/whale-tail-*.png`、CSS 里的 `url()` 指向它，且规则落在**入口那两张
+样式表**里（不是按需分块 —— 已核对 `index.html` 直链的那两张）。
+`bun run check:ticker`：`steady` / `batched` / `slow` / `fast` 全过，
+**两条核心指标（右裁、句首被裁）全部场景 0**；`resize` 的平滑度 `sJ90` 判红 —— 该场景在
+**改动前**（`shimmer.css` 原样 stash 后连跑三次）同样是 0.26 / 0.27 / 0.28，是本机既有基线，
+不是这次改出来的。
+
+**偏差（工具链环境，不是代码）**：本会话里 `ELECTRON_RUN_AS_NODE=1`，直接 `bun run check:ticker`
+会让 electron 以纯 Node 启动、`require('electron')` 交出 undefined 而报
+`Cannot read properties of undefined (reading 'whenReady')`。跑之前清掉这个变量即可
+（`$env:ELECTRON_RUN_AS_NODE = $null`）。这条不影响 CI。
+
+**另记（与复刻无关的一笔）**：`main@bba994e2` 上 `bun run lint` 本来就是红的
+（6 errors / 4 warnings，工作区干净时即可复现），全部落在本次改动之外。按「`bun run all`
+不绿不提交」单独成一笔 `chore(lint)`：`session-controls.css` / `review-pane.tsx` /
+`dropdown-menu.tsx` / `popup-surface.ts` / `design-system/src/index.ts` 的格式化，
+以及 `pr-detail.tsx` 一个未用导入。只有格式化与删导入，无行为变化。
+
+**待决问题**：无。

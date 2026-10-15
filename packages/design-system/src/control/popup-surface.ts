@@ -40,12 +40,7 @@ export const popupPositionerClassName = 'z-[var(--ui-z-popover)] outline-none'
  * 菜单卡（正本 .list）。宽度那两条（144 / 360）与内边距在这一格，调用点只再加自己的宽度。
  * ds-menu-card 是行内三格、两个变体与浮层滚动条的挂点：它们要看见卡，才谈得上「卡里的行」。
  */
-export const menuCardClassName = [
-  'ds-menu-card',
-  'box-border flex flex-col',
-  'min-w-36 max-w-[360px]',
-  'p-1',
-].join(' ')
+export const menuCardClassName = ['ds-menu-card', 'box-border flex flex-col', 'min-w-36 max-w-[360px]', 'p-1'].join(' ')
 
 /*
  * 菜单里的一行（正本 .item）。Menu 与 ContextMenu 认同一份：右键菜单不是另一种菜单，两族各写一套

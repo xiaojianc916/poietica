@@ -266,6 +266,13 @@ export interface TurnSpan {
   readonly lastFrameAt?: number
 }
 
+/**
+ * 一轮怎么结束的（DSH 的 `turn.end.reason.kind`）。封条的三档文案与「不封」都由它解出：
+ * 被打断与出错的那一轮永远摊开（人要看的是它坏在哪），正常答完的才谈得上折叠。
+ * 快照还没报出终局时为 undefined（排队 / 在跑）。
+ */
+export type TurnOutcome = 'completed' | 'aborted' | 'error'
+
 // 封口之后不再改写，跨帧按引用共享。
 export interface TurnPage {
   readonly turn: number
@@ -274,6 +281,7 @@ export interface TurnPage {
     readonly undoCount: number | null
     readonly forkUnavailableReason: string | null
   }
+  readonly outcome?: TurnOutcome
   readonly usage?: TranscriptUsage
   readonly items: readonly TimelineItem[]
 }

@@ -24,6 +24,7 @@ import type {
   TimelineItem,
   TimelineState,
   ToolCallTimelineItem,
+  TurnOutcome,
   TurnPage,
   TurnSpan,
   UserMessageItem,
@@ -181,6 +182,18 @@ function inputItem(
 
 const isSettled = (state: TranscriptTurn['state']): boolean =>
   state === 'completed' || state === 'cancelled' || state === 'failed'
+
+/**
+ * 轮的终局 → 封条那一格的三档。`cancelled` 是「人叫停的」，报「已停止」；`failed` 是「它自己坏的」，
+ * 报「处理失败」。两者都不折过程：坏在哪比省一屏更重要。未终局返回 undefined（在跑 / 排队）。
+ */
+function outcomeOf(state: TranscriptTurn['state']): TurnOutcome | undefined {
+  if (state === 'completed') {
+    return 'completed'
+  }
+
+  return state === 'cancelled' ? 'aborted' : state === 'failed' ? 'error' : undefined
+}
 
 function textFrameOf(
   frame: Extract<TranscriptFrame, { kind: 'text' }>,
@@ -947,10 +960,12 @@ function projectTurn(
   const anchors = frames.userAnchors === null || opening === null ? null : opening + frames.userAnchors
   const items = [...(opened === null ? [] : [opened]), ...frames.items]
   errorItemOf(turn, items, stamp)
+  const outcome = outcomeOf(turn.state)
   const projected = {
     sources: sourcesOf(turn, index),
     page: {
       turn: turn.ordinal,
+      ...(outcome === undefined ? {} : { outcome }),
       ...(turn.usage === undefined ? {} : { usage: turn.usage }),
       items,
     },

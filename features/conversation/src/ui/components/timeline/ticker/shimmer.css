@@ -4,15 +4,18 @@
  * 颜色两态都在这里给（跨文件的同特异性声明谁赢看打包顺序）；渐变只在 no-preference 下加。
  * 戴在那句话上而非整行（整行的 color: transparent 会继承到图标描边上）；只动 background-position —— 这些行挂着 measureElement，不能碰会改高度的动画。
  */
+/* 底色与扫过那一道各自可以被消费者换掉：运行状态行有自己的一对蓝，其余沿用时间线那一对。 */
 .timeline-shimmer {
-  color: var(--cp-timeline-quiet-text);
+  --cp-shimmer-base: var(--cp-timeline-quiet-text);
+  --cp-shimmer-sweep: var(--cp-ink);
+  color: var(--cp-shimmer-base);
 }
 
 @media (prefers-reduced-motion: no-preference) {
   .timeline-shimmer {
     background-image:
-      linear-gradient(90deg, transparent 40%, var(--cp-ink) 50%, transparent 60%),
-      linear-gradient(var(--cp-timeline-quiet-text), var(--cp-timeline-quiet-text));
+      linear-gradient(90deg, transparent 40%, var(--cp-shimmer-sweep) 50%, transparent 60%),
+      linear-gradient(var(--cp-shimmer-base), var(--cp-shimmer-base));
     background-repeat: no-repeat, repeat;
     background-size:
       250% 100%,

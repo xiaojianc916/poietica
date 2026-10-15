@@ -233,9 +233,7 @@ function Bases({
               }}
             >
               <span className={ROW_CLASS}>{source.label}</span>
-              {source.ref !== null && source.ref === base ? (
-                <DropdownMenuCheck />
-              ) : null}
+              {source.ref !== null && source.ref === base ? <DropdownMenuCheck /> : null}
             </DropdownMenuItem>
           </Fragment>
         ))}

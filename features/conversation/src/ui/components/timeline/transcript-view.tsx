@@ -13,6 +13,7 @@ import {
 import { AgentActivityFeed, type FeedPort, type RowRhythm } from '../feed/agent-activity-feed'
 import { ConversationMinimap } from '../minimap/conversation-minimap'
 import { createRowEstimator } from './row-estimate'
+import { RunningStatus } from './running-status'
 import { TimelineSeat } from './timeline-seat'
 
 const REPLY_ACTIONS_PX = 32
@@ -230,6 +231,12 @@ export function TranscriptView({ dockClearance, lead, onFork, sessionKey }: Tran
     [feed, outline, revealTarget, selectMark],
   )
 
+  /*
+   * 末尾那一行是常驻的：它每秒都在改字，交给虚拟器就会被当成内容长高。
+   * 只有真在跑时才有它，所以运行态与非运行态之间节点数会变 —— 这是有意的，它就是那一轮的在场记号。
+   */
+  const running = feed.running
+
   return (
     <AgentActivityFeed
       conversation={sessionKey}
@@ -244,6 +251,9 @@ export function TranscriptView({ dockClearance, lead, onFork, sessionKey }: Tran
       overlay={overlay}
       renderRow={renderRowAt}
       rowRhythm={rowRhythmAt}
+      trailing={
+        running === undefined ? undefined : <RunningStatus divided={running.divided} startedAt={running.startedAt} />
+      }
     />
   )
 }

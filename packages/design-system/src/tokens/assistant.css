@@ -515,6 +515,21 @@
   --cp-lift-menu:
     0 2px 4px color-mix(in srgb, var(--ui-foreground) 6%, transparent),
     0 12px 32px -8px color-mix(in srgb, var(--ui-foreground) 20%, transparent);
+
+  /*
+   * 运行状态行那一族蓝（DSH 的 label-deep-diving）。
+   *
+   * 它和 --cp-chip-ink 是同一个色系的两种用法：那一支是「这是一枚记号」的小面积墨，
+   * 这一支整行都在用它，还带一道会走的扫光，所以要两个值 —— 底色与扫过的那一道必须
+   * 差得出来，否则扫光读成一整行在闪。浅色取 DSH 的 color-mix(deepseek-500 70%, blue-950)
+   * 与 30% 那一档；深色另给（见文件末尾 dark 块）。
+   *
+   * 不读 --cp-accent（--ui-primary）：那一档还管着焦点环、发送键等二十来处，改不动。
+   */
+  --cp-deep-diving: #345eba;
+  --cp-deep-diving-shimmer: #243d80;
+  /* 运行状态行上沿那道分隔线：两层边界墨兑出来的一根发丝线。 */
+  --cp-running-rule: rgb(0 0 0 / 5.5%);
 }
 
 :root[data-theme="dark"] [data-assistant-skin] {
@@ -613,4 +628,13 @@
    */
   --cp-lift: 0 2px 4px rgb(0 0 0 / 40%), 0 8px 16px -8px rgb(0 0 0 / 60%);
   --cp-lift-menu: 0 2px 4px rgb(0 0 0 / 45%), 0 12px 32px -8px rgb(0 0 0 / 65%);
+
+  /*
+   * 运行状态行那一族蓝的深色支：近黑底上要的是两档更亮的蓝，与浅色那支不是同一个刻度。
+   * 照着关系推（底色的彩度压一档、扫光那一道提亮），不是把浅色那一支兑白。
+   */
+  --cp-deep-diving: #7d9adf;
+  --cp-deep-diving-shimmer: #8abcfe;
+  /* 深色下分隔线要一层白墨：黑墨压在近黑面上等于没画。 */
+  --cp-running-rule: rgb(255 255 255 / 7.5%);
 }

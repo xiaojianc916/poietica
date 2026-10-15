@@ -37,6 +37,17 @@
   flex: none;
 }
 
+/*
+ * 转录末尾那一格（运行状态行）。绝对定位在「最后一行之后、输入框留白之内」—— 纵向位移由
+ * 组件按虚拟器算出的 total 减去 paddingEnd 给出，所以它跟着行位置走，但自己不参与行测量。
+ */
+.agent-activity-feed__trailing {
+  position: absolute;
+  inset-inline: 0;
+  contain: style;
+  pointer-events: none;
+}
+
 /* 高度由虚拟器以行内样式给出：这里声明它不参与 flex 伸缩，否则高度会有第二个来源。 */
 .agent-activity-feed__transcript {
   position: relative;

@@ -125,10 +125,7 @@ export function DropdownMenuRadioItemIndicator({
 /*
  * 行尾那枚勾，给非单选的选中行用（正本里 .selected 与 .selectedFill 的区别就在这一枚勾）。
  */
-export function DropdownMenuCheck({
-  className,
-  ...props
-}: Omit<ComponentProps<typeof Check>, 'ref'>): ReactNode {
+export function DropdownMenuCheck({ className, ...props }: Omit<ComponentProps<typeof Check>, 'ref'>): ReactNode {
   return <Check aria-hidden="true" className={cn(menuCheckClassName, className)} {...props} />
 }
 

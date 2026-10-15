@@ -7,6 +7,7 @@ import {
   type TimelineItemId,
   type TimelineState,
   type ToolCallTimelineItem,
+  type TurnOutcome,
   type TurnPage,
   type TurnSpan,
 } from './timeline-contract'
@@ -38,14 +39,49 @@ export interface ToolGroupPlan {
 
 export interface TurnSealPlan {
   readonly turn: number
+  readonly outcome: TurnOutcome | undefined
   readonly durationMs: number | undefined
   readonly startedAt: number | undefined
   readonly endedAt: number | undefined
-  readonly lastFrameAt: number | undefined
   readonly hasProcess: boolean
-  /** 生命周期来自当前运行自己的终态；时间戳只负责耗时。 */
-  readonly isRunning: boolean
+  /** 这一轮此刻是不是摊开的（在跑、被打断、出错，或人点开过）。 */
   readonly isOpen: boolean
+  /** 能不能点着折叠（DSH 的 canCollapse：有过程、且不满足「永远摊开」）。 */
+  readonly canCollapse: boolean
+}
+
+/**
+ * 这一轮是不是**永远摊开**（DSH turnProcessAlwaysOpen）：被人叫停、自己坏了、或者中途有人插过话。
+ * 三者都不接受折叠 —— 前两个要让人看见它停在哪、坏在哪；有插话的那一轮，那段过程里夹着人自己的话，
+ * 折起来会把他的话一起藏掉。正在跑的那一轮压根没有封条（见 sealOf），所以不必在这里判。
+ */
+function pinnedOpen(outcome: TurnOutcome | undefined, interjected: boolean): boolean {
+  return interjected || outcome === 'aborted' || outcome === 'error'
+}
+
+/**
+ * 轮里有没有**中途插话**（DSH 的 hasInterleavedInput）：开场那句之后、这一轮已经在干活了，人又说了话。
+ *
+ * 判据是「人说的话出现在它的产出之后」：开场白与它那一条重复的帧都在产出之前，不算插话。
+ * agent_text / agent_thought / tool_call 三者任一出现就说明这一轮已经在干活了。
+ */
+function interjectedIn(rows: readonly FeedRow[]): boolean {
+  let worked = false
+
+  for (const row of rows) {
+    const type = row.item.type
+
+    if (type === 'agent_text' || type === 'agent_thought' || type === 'tool_call') {
+      worked = true
+      continue
+    }
+
+    if (worked && type === 'user_message') {
+      return true
+    }
+  }
+
+  return false
 }
 
 export interface ReplyActionPlan {
@@ -55,10 +91,22 @@ export interface ReplyActionPlan {
   readonly usage?: TranscriptUsage
 }
 
+/**
+ * 转录末尾那一行运行状态的判据（DSH RunningStatus 的挂载条件 + 分隔线条件）。
+ *
+ * `startedAt` 缺席时报不出时长，只报「深度求索中」。`divided` 说的是「它上面已经有不是
+ * 我说话的东西」—— 直接跟在自己那句话后面时不画线，那一格本来就是「我说完了，它开始动」。
+ */
+export interface RunningPlan {
+  readonly startedAt: number | undefined
+  readonly divided: boolean
+}
+
 export interface Presentation {
   readonly count: number
   readonly latestOwnMessage: string | null
   readonly lastTurn: number | undefined
+  readonly running: RunningPlan | undefined
   readonly rowAt: (index: number) => FeedRow | undefined
   readonly rowOf: (id: TimelineItemId) => number | undefined
   readonly turnIdAt: (index: number) => string | undefined
@@ -96,6 +144,12 @@ function runFlavorOf(item: FeedRow['item']): RunFlavor | undefined {
 
   return PROCESS.has(item.kind) ? 'process' : item.kind
 }
+
+/*
+ * 运行状态行只在**真在跑**时上屏（DSH 挂载 RunningStatus 的条件就是会话 running）。判据是这一轮
+ * 有没有终局，而不是 status —— 停在「等待审批」上时这一轮还在跑，那一行该在。
+ */
+const NO_RUNNING: RunningPlan | undefined = undefined
 
 const NO_GROUPS: ReadonlyMap<string, ToolGroupPlan> = new Map()
 const NO_SEALS: ReadonlyMap<number, TurnSealPlan> = new Map()
@@ -467,17 +521,22 @@ function sealOf(
   running: boolean,
   isOpen: boolean,
   hasProcess: boolean,
+  interjected: boolean,
 ): TurnSealPlan | undefined {
-  if (page.run === undefined) {
+  /*
+   * 这一轮还没结束就没有封条（DSH：turn.status !== 'closed' 就返回 null）。在跑的那一句由转录末尾的
+   * 运行状态行说 —— 两处都报「正在处理」是两种说法说同一件事，而且封条这一格报不出「它还在不在动」。
+   */
+  if (page.run === undefined || running) {
     return undefined
   }
   return {
+    canCollapse: hasProcess && !pinnedOpen(page.outcome, interjected),
     durationMs: span?.durationMs,
     endedAt: span?.endedAt,
     hasProcess,
     isOpen,
-    isRunning: running,
-    lastFrameAt: span?.lastFrameAt,
+    outcome: page.outcome,
     startedAt: span?.startedAt,
     turn: page.turn,
   }
@@ -490,10 +549,13 @@ function buildSegment(
   picked: boolean | undefined,
 ): Segment {
   const all = rowsOf(page, running)
-  const isOpen = running || (picked ?? false)
+  /* 有插话的那一轮不折：过程里夹着人自己的话，折起来会把它一起藏掉。 */
+  const interjected = interjectedIn(all)
+  /* 在跑、被人叫停、自己坏掉、中途有人插话都不折。 */
+  const isOpen = running || pinnedOpen(page.outcome, interjected) || (picked ?? false)
   const answer = answerStart(all, 0, all.length)
   const process = foldFrom(all, answer ?? all.length)
-  const seal = sealOf(page, span, running, isOpen, process.length > 0)
+  const seal = sealOf(page, span, running, isOpen, process.length > 0, interjected)
   const visible = isOpen || seal === undefined || process.length === 0 ? all : omitSorted(all, process)
   const grouped = groupIn(visible)
   const where = placesIn(grouped.rows)
@@ -686,9 +748,19 @@ export function selectPresentation(state: TimelineState, chosen: ReadonlyMap<num
     return sought
   }
 
+  /*
+   * 运行状态行的两条判据：在跑才上屏；上面那一格有**看得见**的产出、且不是「我说的话」才画分隔线。
+   * 直接跟在自己的气泡后面时不画 —— 那一行本来就是「我说完了，它开始动」，中间不该有分界。
+   * 运行锚点不算产出：它自己不上屏，只负责承载封条，为它画一根线等于凭空多一道。
+   */
+  const above = tail.rows.at(-1) ?? prefix.segments.at(-1)?.rows.at(-1)
+  const divided = above !== undefined && above.item.type !== SAID && above.item.type !== 'run_anchor'
+  const runningPlan = running ? { divided, startedAt: activeSpan?.startedAt } : NO_RUNNING
+
   const result: Presentation = {
     count,
     latestOwnMessage: tail.ownMessage ?? prefix.latestOwnMessage,
+    running: runningPlan,
     lastTurn: tail.rows.at(-1)?.item.turn ?? prefix.lastTurn,
     groupAt: (index) => {
       const found = seek(index)

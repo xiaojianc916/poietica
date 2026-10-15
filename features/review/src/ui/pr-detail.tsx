@@ -2,7 +2,6 @@ import {
   Button,
   cn,
   DropdownMenu,
-  DropdownMenuCheck,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuLabel,
