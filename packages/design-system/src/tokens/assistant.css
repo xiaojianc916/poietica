@@ -65,8 +65,8 @@
   --cp-ticker-tail: 2.5em;
   /* 新字刚写下时的颜色：与正文同墨，随后冷却成 --cp-timeline-quiet-text。 */
   --cp-ticker-ink: var(--cp-ink);
-  /* 对话下沿化开的距离：一行半正文。三行是过量，那段渐变自己就变成了色带。 */
-  --cp-dock-dissolve: calc(var(--cp-line) * 1.5);
+  /* 对话下沿化开的距离：再收一档到 8px，最后一行几乎贴着输入框。 */
+  --cp-dock-dissolve: 8px;
 
   --cp-font: 16px;
   --cp-line-ratio: 1.625;
