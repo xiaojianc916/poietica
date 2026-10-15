@@ -54,7 +54,8 @@
 .assistant-model-select__band-pane {
   display: grid;
   gap: var(--cp-model-panel-gap);
-  padding: var(--cp-model-panel-lead) var(--cp-model-panel-pad) var(--cp-model-panel-pad);
+  /* 菜单卡自己带 4 的横向内边距（p-1），这里补 8，两侧合计 12 才等于 --cp-model-panel-pad，轨道才是 224 - 24 = 200。 */
+  padding: var(--cp-model-panel-lead) 8px var(--cp-model-panel-pad);
 }
 
 /*
@@ -212,11 +213,13 @@
 
 /*
  * 列宽由面板说了算，不跟最宽那一行撑开：不加这一条，grid 的隐式列按 max-content 算，长模型名把行撑得比面板还宽，字被卡片的 overflow: hidden 裁掉。
+ *
+ * 这里不再加横向留白：行自带 8、卡片让 4，缩进已经是 12；面板再加一份 12，高亮块就缩在卡片中间（224 的面板只剩 192 给行），看着像整页缩进去了。
  */
 .assistant-model-select__list-pane {
   display: grid;
   grid-template-columns: minmax(0, 1fr);
-  padding: 6px var(--cp-model-panel-pad);
+  padding: 6px 0;
 }
 
 /* 行盒、悬停底与字色归通用弹窗；这里只留名字那一格怎么收尾。 */
