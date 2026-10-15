@@ -64,6 +64,25 @@ const TickList = memo(function TickList({
     </>
   )
 })
+function PreviewCard({ mark }: { readonly mark: TurnMark | undefined }) {
+  const [retained, setRetained] = useState(mark)
+  /* 隐藏只撤掉 data-shown：退出延迟和淡出期间仍能看见正文，不能换成空轮次的占位文案。
+   * 留住最后一次有效快照，而不是下标；轮次回填或移除也不能改写正在退场的内容。 */
+  if (mark !== undefined && mark !== retained) {
+    setRetained(mark)
+  }
+  const preview = mark ?? retained
+  return (
+    <div aria-hidden="true" className="conversation-minimap__card" data-shown={mark === undefined ? undefined : ''}>
+      {preview !== undefined && (
+        <>
+          <p className="conversation-minimap__card-question">{preview.prompt.trim() || UNNAMED}</p>
+          <p className="conversation-minimap__card-reply">{preview.reply?.trim() || NO_REPLY}</p>
+        </>
+      )}
+    </div>
+  )
+}
 function Rail({ activeId, busyId, marks, onSelect }: ConversationMinimapProps) {
   const activeIndex = useMemo(
     () =>
@@ -154,10 +173,7 @@ function Rail({ activeId, busyId, marks, onSelect }: ConversationMinimapProps) {
           <TickList activeIndex={activeIndex} busyId={busyId} marks={marks} tabbable={tabbable} />
         </ol>
       </div>
-      <div aria-hidden="true" className="conversation-minimap__card" data-shown={mark === undefined ? undefined : ''}>
-        <p className="conversation-minimap__card-question">{mark?.prompt.trim() || UNNAMED}</p>
-        <p className="conversation-minimap__card-reply">{mark?.reply?.trim() || NO_REPLY}</p>
-      </div>
+      <PreviewCard mark={mark} />
     </nav>
   )
 }

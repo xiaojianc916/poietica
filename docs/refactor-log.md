@@ -3189,3 +3189,21 @@ RPC 契约与 `PROTOCOL_VERSION` 不变；conversation 新增迁移 v3（只删�
 分页读显示经过、omp 源码钉子）、`history.test.ts`（前文与轮号、中途压缩的段归原轮、开着轮时仍 completed、superseded、
 同轮两次、首页才带第 0 轮的压缩、悬挂调用）、`history-legacy.test.ts` 改成新号；conversation
 `transcript-projector-compaction.test.ts`（落页 / 页内插位 / 载荷 / 页对象复用 / 无轮）、`compaction-status.test.tsx`。
+
+## R-22 minimap：鼠标移出时闪现「未命名轮次」（基于 d8e26a3）
+
+**现象**：悬浮时预览正常，鼠标移出的一瞬间，卡片稳定闪成「未命名轮次 / 暂无文本回复」。
+
+**根因**：`useRailPointer` 离开命中区后报告 `-1`，`marks[shown]` 随即变成 `undefined`。
+旧渲染在撤掉 `data-shown` 的同一次提交中，把正文换成空轮次占位；但 CSS 还有 60ms 退出延迟和
+140ms 淡出，正文替换立刻可见。不是轮次数据丢失，也不是命中范围抖动。
+
+**改法**：在同文件内拆出 `PreviewCard`，将显示条件与内容寿命分开。是否显示仍取决于当前 `mark`；
+内容保留最后一个有效 `TurnMark` 快照（不是下标）。退场只撤显示标记，不清正文；快速重入、跨轮或流式更新
+立即使用新内容；从未命中时不渲染假轮次。真实空标题 / 空回复的占位照旧。无新增定时器，不改 CSS、
+命中范围、动画节奏或协议；每个卡片只保留一个快照，随组件卸载释放。
+
+**测试**：`minimap/__tests__/conversation-minimap.test.tsx` 新增 10 个用例，走真实指针 hook，覆盖初次挂载、
+退出、快速重入、流式更新、退出后列表重排、当前轮移除、真实空内容、pointerleave / 窗口 blur 与键盘焦点退出。
+本地 Chromium 加载真实组件和 CSS，在浅 / 深色、1 / 1.25 DPR 下分别重复 5 次，逐帧确认退出期间不再出现占位文案，
+同时保留原有淡出；快速重入、键盘退出及减弱动效也通过。Windows Electron 真机验收仍由维护者执行。
