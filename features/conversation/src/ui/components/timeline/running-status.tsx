@@ -47,7 +47,7 @@ export interface RunningStatusProps {
 export const RunningStatus = memo(function RunningStatus({ divided, startedAt }: RunningStatusProps) {
   const now = useSecond(startedAt !== undefined)
   const elapsed = startedAt === undefined ? undefined : Math.max(MIN_RUN_MS, now - startedAt)
-  const label = elapsed === undefined ? '深度求索中' : `深度求索中，用时 ${formatRunDuration(elapsed)}${TAIL}`
+  const duration = elapsed === undefined ? null : formatRunDuration(elapsed)
 
   return (
     <div className="running-status" data-chat-running="">
@@ -60,7 +60,16 @@ export const RunningStatus = memo(function RunningStatus({ divided, startedAt }:
 
       <span className="running-status__content">
         <WhaleTail />
-        <span className="running-status__text timeline-shimmer">{label}</span>
+        <span className="running-status__text timeline-shimmer">
+          {duration === null ? '深度求索中' : '深度求索中，用时 '}
+          {/* 数字换等宽字，单位与那句话跟着正文走（DSH 的 runningText 也是 tabular-nums）。 */}
+          {duration?.map((part, index) => (
+            <span className={part.numeric ? 'running-status__number' : undefined} key={index}>
+              {part.text}
+            </span>
+          ))}
+          {duration === null ? null : TAIL}
+        </span>
       </span>
     </div>
   )

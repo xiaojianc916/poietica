@@ -95,6 +95,12 @@
   }
 }
 
+/* 只有数字换等宽字：秒数每秒在变，比例字会让整句话左右抽动。 */
+.running-status__number {
+  font-family: var(--cp-font-mono);
+  font-variant-numeric: tabular-nums;
+}
+
 /* 扫光那一对蓝：底色是深求索蓝，扫过的那一道是它的亮/暗一档。 */
 .running-status__text {
   --cp-shimmer-base: var(--cp-deep-diving);

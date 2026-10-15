@@ -54,7 +54,17 @@ function Seal({ canCollapse, durationMs, endedAt, isOpen, onToggle, outcome, sta
   /* 打断与出错不报时长：那一刻的长度不是这条封条要说的事。 */
   const timed = outcome !== 'aborted' && outcome !== 'error'
   const duration = elapsed === undefined || !timed ? null : formatRunDuration(Math.max(MIN_RUN_MS, elapsed))
-  const label = duration === null ? phase : `${phase}，用时 ${duration}`
+  /* 数字与单位分开成格：只有数字换等宽字，前缀那几个汉字跟着正文走（DSH 的 durationNumber）。 */
+  const label = (
+    <>
+      {duration === null ? phase : `${phase}，用时 `}
+      {duration?.map((part, index) => (
+        <span className={part.numeric ? 'turn-seal__number' : undefined} key={index}>
+          {part.text}
+        </span>
+      ))}
+    </>
+  )
 
   return (
     <div className="turn-seal-line">

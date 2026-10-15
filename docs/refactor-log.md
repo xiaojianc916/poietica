@@ -2963,10 +2963,11 @@ DSH 桌面端这一处的**代码逻辑**，不是只照抄外观。参考物是
   描边路径。切换条件照抄它的三条 AND：`@supports (mask-mode: alpha) and (mask-image: url(""))` ×
   `prefers-reduced-motion: no-preference` × `forced-colors: none`。
 
-**测试**（新增 53 条，全部先写、按新判据红过再实现）：
+**测试**（新增 57 条，全部先写、按新判据红过再实现）：
 
-- `duration.test.ts`（6）：整秒向下取整、60 秒才带分、1 小时才带小时、秒永远在场、
-  **非有限值当 0**（NaN 会一路印成「NaN秒」，实测抓到）。
+- `duration.test.ts`（10）：整秒向下取整、60 秒才带分、1 小时才带小时、秒永远在场、
+  **非有限值当 0**（NaN 会一路印成「NaN秒」，实测抓到）；外加数字 / 单位分格的形状四条
+  （只有数字那一格戴等宽字，且「逐格渲染」与「拼成一个串」两条路径等价）。
 - `running-status.test.tsx`（6）：文案两态、**结尾是三个 U+00B7 且不含 U+2026**、
   分隔线只在上面有产出时画、鲸鱼两层都在且都 `aria-hidden`、live 区只播那句固定文案。
 - `turn-seal.test.tsx`（12）：三档文案、打断与出错不报时长、1 秒下限、
@@ -2978,6 +2979,17 @@ DSH 桌面端这一处的**代码逻辑**，不是只照抄外观。参考物是
 - `transcript-projector-outcome.test.ts`（8）：**端到端** —— omp 的 `state` → `TurnPage.outcome`
   四档各一条、终局封口之后仍留在那一页上；外加插话那三条走**真实投影**：插过话的轮不折、
   没插过的照常可折、插话在投影里确实是一条排在产出之后的 `user_message`。
+
+**对着参考物复核时补上的两处**（都不是测试抓的，是回头逐行核对发现的）：
+
+1. **`hasInterleavedInput` 这一档漏了**：DSH 的 `alwaysOpen` 有三个分支
+   （`liveProcess || hasInterleavedInput || turnProcessAlwaysOpen`），最初只搬了两档。
+   插过话的那一轮在屏幕上就是一条落在过程**中间**的用户气泡，折起来会把人自己的话一起藏掉。
+2. **用时的数字没有换等宽字**：DSH 把 `formatRunDuration` 的产物**按 part 分格渲染**，
+   只给 `numeric` 的那一格戴 `--ds-font-family-code` + `tabular-nums`。原先合成一个字符串，
+   秒数每秒在变、比例字会让那半句左右抽动。现在 `formatRunDuration` 交回 parts，
+   运行行与封条各按 part 出格子（真 Chromium 复核：数字解析出 Consolas + tabular-nums，
+   汉字仍是正文那一支）。
 
 **过程中被测试抓到的两个真缺陷**（都在这轮里改掉）：
 

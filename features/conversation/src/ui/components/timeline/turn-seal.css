@@ -48,6 +48,12 @@
   min-block-size: 1rem;
 }
 
+/* 只有数字换等宽字（DSH 的 durationNumber）：单位是汉字，跟着正文的字体走。 */
+.turn-seal__number {
+  font-family: var(--cp-font-mono);
+  font-variant-numeric: tabular-nums;
+}
+
 .turn-seal--toggle {
   cursor: pointer;
 }
