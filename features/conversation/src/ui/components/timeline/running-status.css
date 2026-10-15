@@ -57,8 +57,10 @@
   position: relative;
   display: inline-flex;
   flex: none;
-  inline-size: var(--cp-icon);
-  block-size: var(--cp-icon);
+  /* 14px：DSH 的图标边长就是正文刻度（content-font-size 14px），跟着正文字号一起缩放。
+     不读 --cp-icon（16px）—— 那是工具行的图标档，比正文大两号，挂在状态行上会压过那句话。 */
+  inline-size: var(--ui-prose-size);
+  block-size: var(--ui-prose-size);
   contain: strict;
   overflow: hidden;
 }
