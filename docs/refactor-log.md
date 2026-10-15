@@ -2963,7 +2963,7 @@ DSH 桌面端这一处的**代码逻辑**，不是只照抄外观。参考物是
   描边路径。切换条件照抄它的三条 AND：`@supports (mask-mode: alpha) and (mask-image: url(""))` ×
   `prefers-reduced-motion: no-preference` × `forced-colors: none`。
 
-**测试**（新增 57 条，全部先写、按新判据红过再实现）：
+**测试**（新增 59 条，全部先写、按新判据红过再实现）：
 
 - `duration.test.ts`（10）：整秒向下取整、60 秒才带分、1 小时才带小时、秒永远在场、
   **非有限值当 0**（NaN 会一路印成「NaN秒」，实测抓到）；外加数字 / 单位分格的形状四条
@@ -2973,9 +2973,10 @@ DSH 桌面端这一处的**代码逻辑**，不是只照抄外观。参考物是
 - `turn-seal.test.tsx`（12）：三档文案、打断与出错不报时长、1 秒下限、
   `durationMs` 优先于两头相减（那两个时刻只覆盖最后一跳）、老载荷缺终局不编「失败」、
   能折才是按钮且带 `aria-expanded`。
-- `turn-seal-plan.test.ts`（18）：**「什么时候不封」的四条**（在跑没有封条、被打断不折、
+- `turn-seal-plan.test.ts`（20）：**「什么时候不封」的四条**（在跑没有封条、被打断不折、
   出错不折、**插过话不折**）、不存在运行事实就没有封条、没有过程可折就不画开关、
-  折起来时过程真的离开投影、运行状态行的四条判据（在跑才有、起始时刻来自段、分隔线的四种来路）。
+  **封条挂在这一轮的第一行上**（收起之后行号不漂）、折起来时过程真的离开投影、
+  运行状态行的四条判据（在跑才有、起始时刻来自段、分隔线的四种来路）。
 - `transcript-projector-outcome.test.ts`（8）：**端到端** —— omp 的 `state` → `TurnPage.outcome`
   四档各一条、终局封口之后仍留在那一页上；外加插话那三条走**真实投影**：插过话的轮不折、
   没插过的照常可折、插话在投影里确实是一条排在产出之后的 `user_message`。
@@ -2999,7 +3000,7 @@ DSH 桌面端这一处的**代码逻辑**，不是只照抄外观。参考物是
 
 **验收**：`bun run typecheck` 干净（752 files / 80 projects + 977 test files）；
 `bun run lint` **全绿**（那 6 处既有失败已单独成一笔 `chore(lint)` 修掉，见下）；
-`bun test` **2156+ pass / 0 fail**（273 文件）；`bun run desktop:build` 通过，鲸鱼 PNG 落在
+`bun test` **2167 pass / 0 fail**（273 文件）；`bun run desktop:build` 通过，鲸鱼 PNG 落在
 `out/renderer/assets/whale-tail-*.png`、CSS 里的 `url()` 指向它，且规则落在**入口那两张
 样式表**里（不是按需分块 —— 已核对 `index.html` 直链的那两张）。
 `bun run check:ticker`：`steady` / `batched` / `slow` / `fast` 全过，
