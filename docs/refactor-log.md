@@ -3256,3 +3256,34 @@ RPC 契约与 `PROTOCOL_VERSION` 不变；conversation 新增迁移 v3（只删�
 **测试**：`apps/desktop/src/renderer/__tests__/hidden-models-picker.test.tsx`，装真实的 preferences + conversation，
 新对话入口与已有对话各一条：首帧不列关掉的；推一条 `prefs.changed` 后菜单当场换；关掉当前在用的那一条它仍留着；全打开恢复全量。
 修复前两条都失败（关掉的 Pro 仍在菜单里）。
+
+## R-25 后台任务的完成通知被画成了助手正文（基于 a5b9da4）
+
+**现象**：提问「omp的会话树有什么用？」、插话「快点啊」之后，这一轮在「运行了命令」那一行下面多出一大段原文：
+`2 background jobs have completed. Resume your work using the results below. ── Job bg_1 (P="node_modules/…"; echo...) ──
+=== buildSessionContext === …`，命令输出与脚本源码整段按 markdown 画成了「助手说的话」。
+
+**根因**：这不是工具结果漏出来，是 omp 的**系统通知**。模型把命令放到后台跑（bash `async`），任务做完时 omp
+（`session/async-job-delivery.ts` 的 `buildAsyncResultBatchMessage`）往这次运行里塞一条
+`role: 'custom'`、`customType: 'async-result'`、`display: true`、`attribution: 'agent'` 的消息，
+正文是 `<system-notice>` 包着的各任务原始输出 —— 写给模型看、让它接着干活的。omp 的终端界面给它画专用卡片
+（`buildAsyncResultBlock`），不当正文。实时那条路不画它（custom 消息没有流式正文，`message_start` 也不认领它）；
+历史投影的 `roleOf` 却把它归进「其余的（null）→ 落进当前这一轮的一段」，`contentOf` 把字符串正文变成文本帧，
+于是一重开 / 一整页重取，原文就出现在这一轮里（`<system-notice>` 标签被 markdown 吃掉，看上去像助手在说话）。
+同一类的还有受管进程退出（`launch-completion`）与迟到的 LSP 诊断（`lsp-late-diagnostic`）。
+
+**改法**（只改 `packages/engine-omp/src/projector/history.ts`）：
+
+- 新增 `isHarnessNotice`：role:custom 且类型是 `async-result` / `launch-completion` / `lsp-late-diagnostic`，
+  或正文以 harness 标签开头（`<system-…>` / `<irc>`，与 omp `harness-tags.ts` 同一套名字）→ 系统通知。
+- `roleOf` 把它与工具结果归成同一种 `heard`（原 `result` 改名）：**不上屏、不开轮、不改这一轮的终点与收尾方式**，
+  只记下「这次运行此刻还有动静」，插话判据（R-23 的 `heardAt`）照旧成立。
+- 通知带的图（任务截图）随之一起不上屏，也不在轮头挂号。用户自己发的技能消息、目标续跑、其余 custom 消息的去向不变。
+
+**测试**：`projector/__tests__/history-harness-notice.test.ts` 新增 5 个用例，修复前全部失败：截图那一轮（两条后台命令、
+插话、通知、接着作答）只有一轮、插话照旧是插话、正文里没有通知原文；通知带图；三种通知与 harness 标签开头的未知通知；
+开着的那一轮收到通知后轮头仍 running；**实时投影与历史投影的帧序逐项相等**。
+
+**没改的**：通知送达时 omp 已经空闲（这次运行先答完、任务后做完）的情况下，omp 会用这条通知**自己另起一次运行**
+（`YieldQueue` 的 idle flush → `agent.prompt(通知)`）。实时那条路此时没有开着的轮，那次运行的输出整段丢掉，
+要等重开才看得到（重开后并进上一轮）。是否给它像目标续跑那样自开一轮，见「需要确认」。

@@ -181,7 +181,8 @@ function screenTurns(
       else open.compactions.push(message)
       continue
     }
-    if (role === 'result') {
+    /* 工具结果与系统通知都不上屏：只记下这次运行此刻还有动静（插话判据要用） */
+    if (role === 'heard') {
       if (open !== null) open.heardAt = laterOf(open.heardAt, closedAtOf(message))
       continue
     }
@@ -237,15 +238,16 @@ function interjects(open: OpenTurn, message: OmpMessage): boolean {
 
 /**
  * 一条消息在分轮上的角色：开一轮的两种（人话 / 目标续跑）、压缩摘要（挂在当前这一轮后面，不开轮）、
- * 工具结果（不单独上屏，只记它回来的时刻）、不进屏幕的（skip）、其余的（null，落进当前这一轮）。
+ * 只记时刻的（heard：工具结果与系统通知，不上屏，只记它到达的时刻）、不进屏幕的（skip）、其余的（null，落进当前这一轮）。
  *
  * 目标续跑的开场消息是 display:false 的 custom 消息，但它**开一轮**（审查 R-11）—— * 增量那条路在同一处开轮（LiveProjector.goalContinuationTurn）；这里不认它，续跑的输出就会
  * 并进上一句人话那一轮，重开之后屏幕上的轮数、轮号都与刚才跑的时候对不上。
  */
-function roleOf(message: OmpMessage): 'prompt' | 'continuation' | 'compaction' | 'result' | 'skip' | null {
+function roleOf(message: OmpMessage): 'prompt' | 'continuation' | 'compaction' | 'heard' | 'skip' | null {
   if (isGoalContinuationMessage(message)) return 'continuation'
-  if (message.role === 'toolResult') return 'result'
+  if (message.role === 'toolResult') return 'heard'
   if (!isVisible(message)) return 'skip'
+  if (isHarnessNotice(message)) return 'heard'
   if (message.role === 'user' || isUserSkillMessage(message)) return 'prompt'
   return message.role === 'compactionSummary' ? 'compaction' : null
 }
@@ -260,6 +262,35 @@ function resultsOf(messages: readonly OmpMessage[]): Map<string, ScreenResult> {
     }
   }
   return results
+}
+
+/**
+ * omp 写给**模型**看的系统通知（审查 R-25）：后台任务做完了（`async-result`）、受管进程退出了
+ * （`launch-completion`）、迟到的 LSP 诊断（`lsp-late-diagnostic`）。它们是 role:custom、display:true ——
+ * omp 的终端界面给它们各画一张专用卡片，不是正文；正文是 `<system-notice>` 包着的任务原始输出。
+ * 不认它的话它就落进「这一轮里的一段」，整段原文（命令输出、脚本源码）被画成助手说的话。
+ * 实时那条路本来就不画它（它没有流式正文），这里不画，重开之后与当时一致。
+ *
+ * 除了这三个类型，**正文以 harness 标签开头**的 custom 消息也算（`<system-…>` / `<irc>`，omp 的
+ * `harness-tags.ts` 同一套名字）：系统提示词告诉模型这种块是外壳写的，不是谁说的话。
+ */
+const HARNESS_NOTICE_TYPES: ReadonlySet<string> = new Set(['async-result', 'launch-completion', 'lsp-late-diagnostic'])
+const HARNESS_TAG_OPENING = /^\s*<\s*(?:irc|system-[a-z][a-z-]*)(?![\w-])/i
+
+function isHarnessNotice(message: OmpMessage): boolean {
+  if (message.role !== 'custom') return false
+  if (typeof message.customType === 'string' && HARNESS_NOTICE_TYPES.has(message.customType)) return true
+  return HARNESS_TAG_OPENING.test(leadingTextOf(message.content))
+}
+
+/** 正文开头那一段文字（字符串，或块数组里的第一个文本块） */
+function leadingTextOf(content: unknown): string {
+  if (typeof content === 'string') return content
+  if (!Array.isArray(content)) return ''
+  const first = (content as readonly { readonly type?: unknown; readonly text?: unknown }[]).find(
+    (block) => block.type === 'text' && typeof block.text === 'string',
+  )
+  return typeof first?.text === 'string' ? first.text : ''
 }
 
 /** omp 给合成的横幅打了 display: false（目标模式的 <goal_context>）——它是给模型看的上下文，不是用户说过的话 */
