@@ -63,6 +63,7 @@ export {
   Siren as SirenIcon,
   Square as StopIcon,
   SquareDashedBottomCode as LspIcon,
+  SquarePen as ComposeIcon,
   SquareTerminal as TerminalIcon,
   Target as GoalIcon,
   Trash2 as TrashIcon,

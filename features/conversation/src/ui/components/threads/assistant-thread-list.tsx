@@ -6,14 +6,14 @@ import { memo, useCallback, useMemo, useState } from 'react'
 import type { Thread } from '../../../contract'
 import { byIsoDescending } from '../../threads/thread-order'
 import { useHorizon, useNow } from '../primitives/clock'
-import { ArchiveIcon, ChevronDownIcon, PinIcon, PlusIcon } from '../primitives/icons'
+import { ArchiveIcon, ChevronDownIcon, ComposeIcon, PinIcon } from '../primitives/icons'
 import { datedGroupsOf, instantsOf, nextChangeIn, paintedGroupsOf } from './relative-time'
 import { ThreadDisclosure } from './thread-disclosure'
 import type { ArchivedFilter } from './thread-view'
 import { GROUP_BY, type GroupBy, shapeGroups } from './thread-view'
 import { ThreadsHeader } from './threads-header'
 
-/* 行必须是 memo，否则时钟每跳一次就重渲整张列表；加号交给工作台开或激活，不在库里先造一条没人说过话的会话。 */
+/* 行必须是 memo，否则时钟每跳一次就重渲整张列表；新建交给工作台开或激活，不在库里先造一条没人说过话的会话。 */
 
 export interface AssistantThreadSummary {
   readonly id: string
@@ -233,7 +233,7 @@ function WorkspaceHeader({ workspaceId, name, isOpen, onCreate, onToggle }: Work
         }}
         type="button"
       >
-        <PlusIcon aria-hidden="true" />
+        <ComposeIcon aria-hidden="true" />
       </button>
     </div>
   )
