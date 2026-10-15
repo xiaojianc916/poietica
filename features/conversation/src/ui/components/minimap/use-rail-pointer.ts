@@ -10,6 +10,16 @@ const WEIGHT_VAR = '--cp-rail-weight'
 const CARD_Y_VAR = '--cp-rail-card-y'
 const AIMED_ATTRIBUTE = 'data-aimed'
 const EPSILON = 0.002
+/* 卡片贴行的滑行：临界阻尼弹簧（ω≈22 rad/s，落定约 300ms，与原 320ms 缓动同一手感）。
+ * 不写成 CSS transition：过渡的目标一变就从零速重启，指针连续跨格时位置卡住不动、停下才走完
+ * 最后一段，看起来就是一顿再瞬移 —— 弹簧从当前位置和当前速度接着走，没有这件事。 */
+const CARD_OMEGA = 22
+/** 单帧时间步上限：掉帧或标签页回来时，不让弹簧一步跨过半个行程。 */
+const CARD_MAX_DT_S = 0.032
+const CARD_SETTLE_PX = 0.25
+const CARD_SETTLE_V = 2
+/** 目标视为「同一根」的容差：柱子的盒子读数带小数，抖一点点不算换格。 */
+const CARD_SAME_PX = 0.1
 interface Span {
   from: number
   to: number
@@ -46,6 +56,8 @@ export function useRailPointer(
       const magnifies = !(
         view.matchMedia('(pointer: coarse)').matches || view.matchMedia('(prefers-reduced-motion: reduce)').matches
       )
+      /* 减弱动效下贴行不做滑行：跨格直接给到位。 */
+      const glides = !view.matchMedia('(prefers-reduced-motion: reduce)').matches
       let frame = 0
       let pointerX = Number.NaN
       let pointerY = Number.NaN
@@ -53,6 +65,11 @@ export function useRailPointer(
       let pointed = -1
       let focused = -1
       let shown = -1
+      let cardY = Number.NaN
+      let cardV = 0
+      let cardTarget = Number.NaN
+      let cardAt = 0
+      let cardMoving = false
       const unpaint = (from: number, to: number) => {
         for (let index = from; index <= to; index += 1) {
           bars[index]?.style.removeProperty(WEIGHT_VAR)
@@ -64,7 +81,7 @@ export function useRailPointer(
 
         return Number.isInteger(held) ? held : -1
       }
-      /** 卡片贴着它那一根走；轨道会滚，所以按柱子自己的盒子重算。 */
+      /** 卡片贴着它那一根走；轨道会滚，所以按柱子自己的盒子重算。这里只写目标，位移交给 glide。 */
       const place = (index: number) => {
         const bar = bars[index]
         if (bar === undefined) {
@@ -72,7 +89,23 @@ export function useRailPointer(
         }
         const box = bar.getBoundingClientRect()
         const top = box.top - node.getBoundingClientRect().top + box.height / 2
-        node.style.setProperty(CARD_Y_VAR, `${String(top)}px`)
+        /* 第一次落位与减弱动效直接给到位：没有别的东西在动，滑行只会显得慢。 */
+        if (Number.isNaN(cardY) || !glides) {
+          cardY = top
+          cardV = 0
+          cardTarget = top
+          cardMoving = false
+          node.style.setProperty(CARD_Y_VAR, `${cardY.toFixed(2)}px`)
+          return
+        }
+        if (Math.abs(top - cardTarget) > CARD_SAME_PX) {
+          cardTarget = top
+          if (!cardMoving) {
+            /* 上一趟已经停表：这一趟的第一帧只对时，速度从零起。 */
+            cardAt = 0
+            cardMoving = true
+          }
+        }
       }
       const settle = (notify: boolean) => {
         const next = focused >= 0 ? focused : pointed
@@ -107,8 +140,25 @@ export function useRailPointer(
           }
         }
       }
-      const paint = () => {
-        frame = 0
+      /** 位置那一半：逐帧把卡片追到目标，落定后自己停表。 */
+      const glide = (now: number): boolean => {
+        if (!cardMoving) {
+          return false
+        }
+        const dt = cardAt === 0 ? 0 : Math.min((now - cardAt) / 1000, CARD_MAX_DT_S)
+        cardAt = now
+        cardV += (-CARD_OMEGA * CARD_OMEGA * (cardY - cardTarget) - 2 * CARD_OMEGA * cardV) * dt
+        cardY += cardV * dt
+        if (Math.abs(cardTarget - cardY) <= CARD_SETTLE_PX && Math.abs(cardV) <= CARD_SETTLE_V) {
+          cardY = cardTarget
+          cardV = 0
+          cardMoving = false
+        }
+        node.style.setProperty(CARD_Y_VAR, `${cardY.toFixed(2)}px`)
+        return cardMoving
+      }
+      /** 指针那一半：命中、权重与「指着第几根」。 */
+      const updateAim = () => {
         const rail = rails[0]
         const first = bars[0]
         if (!magnifies || rail === undefined || first === undefined) {
@@ -131,6 +181,13 @@ export function useRailPointer(
         pointed = aimed
         settle(true)
       }
+      const paint = (now: number) => {
+        frame = 0
+        updateAim()
+        if (glide(now)) {
+          schedule()
+        }
+      }
       const schedule = () => {
         if (frame === 0) {
           frame = view.requestAnimationFrame(paint)
@@ -151,10 +208,14 @@ export function useRailPointer(
         const turn = target instanceof Element ? target.closest<HTMLElement>(`.${TURN_CLASS}`) : null
         focused = turn === null || !turn.matches(':focus-visible') ? -1 : indexOfBar(turn)
         settle(true)
+        /* 键盘那条路没有 pointermove 来踢这一趟，自己叫一帧。 */
+        schedule()
       }
       const leave = () => {
         focused = -1
         settle(true)
+        /* 交还给指针那一根时也要踢一帧，否则卡片停在键盘那一格不再走。 */
+        schedule()
       }
       view.addEventListener('pointermove', track, { passive: true })
       view.addEventListener('pointerdown', track, { passive: true })

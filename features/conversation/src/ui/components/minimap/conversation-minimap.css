@@ -128,9 +128,9 @@
 }
 .conversation-minimap__card[data-shown] {
   opacity: 1;
-  transition:
-    opacity var(--cp-motion-swift) var(--cp-motion-ease) 90ms,
-    translate var(--cp-motion-settle) var(--cp-motion-settle-ease);
+  /* 只补不透明度。位移由 use-rail-pointer 的弹簧逐帧写 --cp-rail-card-y：CSS 过渡的目标一变
+   * 就从零速重启，指针连续跨格时会先钉住不动、停下才走完最后一程。 */
+  transition: opacity var(--cp-motion-swift) var(--cp-motion-ease) 90ms;
 }
 .conversation-minimap__card-question {
   overflow: hidden;
