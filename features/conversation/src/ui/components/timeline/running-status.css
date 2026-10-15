@@ -1,0 +1,113 @@
+/*
+ * 对话最下面那一行「深度求索中，用时 N秒 ···」（DSH RunningStatus）。
+ *
+ * 它不住在虚拟列表里：这一格每秒都在改字，进行测量就会被当成内容长高，而那是一次
+ * 滚动补偿。位置由父层按「转录末尾」给定，这里只管自己长什么样。
+ *
+ * 字号比正文小两号（DSH 的 content-font-size - 2px），行高单给 —— 这一行是状态，
+ * 不是正文，跟着正文的行高走会让它读起来像一段没有说完的话。
+ */
+.running-status {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  color: var(--cp-deep-diving);
+  font-size: var(--cp-font-caption);
+  font-variant-numeric: tabular-nums;
+  line-height: var(--ui-line-height-tight);
+}
+
+/*
+ * 上沿那道分隔线：只在它上面已经有产出时才画（DSH 的兄弟选择器判据）。直接跟在
+ * 自己说的话后面时没有线 —— 那一格说的是「我说完了，它开始动」，中间不该有分界。
+ */
+.running-status__divider {
+  inline-size: 100%;
+  block-size: var(--cp-px);
+  margin: 0.5rem 0 0.625rem;
+  background: var(--cp-running-rule);
+  pointer-events: none;
+}
+
+/*
+ * 只给读屏用的那半句固定文案。用 clip 而不是 display: none —— 后者会把它从无障碍树里摘掉，
+ * 等于没写。可见的那一行带秒数、每秒都在变，挂 aria-live 会让读屏用户永远停不下来。
+ */
+.running-status__announce {
+  position: absolute;
+  inline-size: 1px;
+  block-size: 1px;
+  padding: 0;
+  border: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+.running-status__content {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--cp-control-gap);
+  min-inline-size: 0;
+}
+
+/* 图标盒：两层二选一，不动的 SVG 与动的 APNG 各占一层。 */
+.running-status__icon {
+  position: relative;
+  display: inline-flex;
+  flex: none;
+  inline-size: var(--cp-icon);
+  block-size: var(--cp-icon);
+  contain: strict;
+  overflow: hidden;
+}
+
+.running-status__whale-animated {
+  position: absolute;
+  inset: 0;
+  display: none;
+}
+
+.running-status__whale-still {
+  display: initial;
+  inline-size: 100%;
+  block-size: 100%;
+}
+
+/*
+ * 三个条件缺一不可：浏览器认 mask-mode（否则 mask 整个无效，这里会变成一块实心方块）、
+ * 人不要求减少动效、也没开强制配色（强制配色下 mask 出来的形状会被系统色顶掉）。
+ * 不满足就走上面那条静态 SVG —— 它是一条描边路径，任何环境都画得出来。
+ */
+@supports (mask-mode: alpha) and (mask-image: url("")) {
+  @media (prefers-reduced-motion: no-preference) and (forced-colors: none) {
+    .running-status__whale-animated {
+      display: block;
+      background: currentColor;
+      mask: url("./assets/whale-tail.png") 50% / 100% 100% no-repeat alpha;
+      will-change: transform;
+    }
+
+    .running-status__whale-still {
+      display: none;
+    }
+  }
+}
+
+/* 扫光那一对蓝：底色是深求索蓝，扫过的那一道是它的亮/暗一档。 */
+.running-status__text {
+  --cp-shimmer-base: var(--cp-deep-diving);
+  --cp-shimmer-sweep: var(--cp-deep-diving-shimmer);
+  min-inline-size: 0;
+}
+
+/*
+ * 减少动效时不起扫光：那时字要一直是那个蓝。「不做动画」不等于「不做颜色」——
+ * 少了下面这条，背景被摘掉而 color 仍是 transparent，整行字会消失。
+ */
+@media (prefers-reduced-motion: reduce) {
+  .running-status__text {
+    color: var(--cp-deep-diving);
+  }
+}

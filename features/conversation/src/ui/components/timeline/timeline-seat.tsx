@@ -48,13 +48,12 @@ export const TimelineSeat = memo(function TimelineSeat({
       )}
       {seal === undefined ? null : (
         <TurnSeal
+          canCollapse={seal.canCollapse}
           durationMs={seal.durationMs}
           endedAt={seal.endedAt}
-          hasProcess={seal.hasProcess}
           isOpen={seal.isOpen}
-          isRunning={seal.isRunning}
-          lastFrameAt={seal.lastFrameAt}
           onToggle={onSealToggle}
+          outcome={seal.outcome}
           startedAt={seal.startedAt}
           turn={seal.turn}
         />

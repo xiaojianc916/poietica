@@ -48,6 +48,8 @@ export interface AgentActivityFeedProps {
   readonly onReachStart: () => Promise<void>
   readonly lead?: ReactNode
   readonly overlay?: (port: FeedPort) => ReactNode
+  /** 转录末尾那一格（运行状态行）。它不在虚拟列表里：那一行每秒都在改字，参与测量就是一次滚动补偿。 */
+  readonly trailing?: ReactNode
 }
 
 /** 位置归虚拟器，意图归 scroll-authority，这里一个 scrollTop 都不写。 */
@@ -64,6 +66,7 @@ export function AgentActivityFeed({
   overlay,
   renderRow,
   rowRhythm,
+  trailing,
 }: AgentActivityFeedProps) {
   const [viewport, setViewport] = useState<HTMLDivElement | null>(null)
   const transcriptRef = useRef<HTMLDivElement | null>(null)
@@ -374,6 +377,18 @@ export function AgentActivityFeed({
               </div>
             )
           })}
+
+          {/*
+            转录的最后一格（运行状态行）。它落在**末尾那段留白里** —— 虚拟器为输入框预留的
+            paddingEnd 正是这一段，把这一格摆在留白的上沿，它就正好压在最后一条消息下面、
+            输入框上面；摆到转录盒外面则会掉进输入框底下（那一段留白是给输入框让位的）。
+            它不进行测量：这一格每秒都在改字，量它等于每秒一次滚动补偿。
+          */}
+          {trailing === undefined ? null : (
+            <div className="agent-activity-feed__trailing" style={{ insetBlockStart: total - paddingEnd }}>
+              {trailing}
+            </div>
+          )}
         </div>
       </div>
 
