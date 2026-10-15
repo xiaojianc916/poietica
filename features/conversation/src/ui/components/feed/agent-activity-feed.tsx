@@ -126,7 +126,7 @@ export function AgentActivityFeed({
   /* 这些令牌注册为 length，getComputedStyle 因而返回可直接相加的像素值。 */
   const metrics = useMemo(() => {
     if (viewport === null) {
-      return { dissolve: 0, glyph: 0, prose: 0 }
+      return { dissolve: 0, gap: 0, glyph: 0, prose: 0 }
     }
 
     const style = getComputedStyle(viewport)
@@ -134,13 +134,16 @@ export function AgentActivityFeed({
 
     return {
       dissolve: read('--cp-dock-dissolve'),
+      gap: read('--cp-dock-gap'),
       glyph: read('--cp-feed-glyph-row-gap'),
       prose: read('--cp-feed-prose-row-gap'),
     }
   }, [viewport])
 
   const leadOf = (row: number) => metrics[rowRhythm(row)]
-  const paddingEnd = dockClearance === null ? 0 : dockClearance + metrics.dissolve
+  /* 运行行在时留它的跑道；不在时只留净空 —— 静止态下整条跑道会读成悬空的一截。 */
+  const runway = trailing === undefined ? metrics.gap : metrics.dissolve
+  const paddingEnd = dockClearance === null ? 0 : dockClearance + runway
 
   const virtualizer = useVirtualizer({
     /* 落点 = item.start - scrollPaddingStart：被揭示的行之上留一格行距。 */
@@ -337,7 +340,12 @@ export function AgentActivityFeed({
   return (
     <div
       className="agent-activity-feed"
-      style={{ '--cp-dock-clearance': `${String(dockClearance ?? 0)}px` } as CSSProperties}
+      style={
+        {
+          '--cp-dock-clearance': `${String(dockClearance ?? 0)}px`,
+          '--cp-dock-runway': `${String(runway)}px`,
+        } as CSSProperties
+      }
     >
       <div className="agent-activity-feed__viewport" ref={setViewport}>
         {lead === undefined ? null : (

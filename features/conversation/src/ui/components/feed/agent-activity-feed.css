@@ -71,7 +71,7 @@
 /* 行绝对定位，容器 gap 与相邻兄弟选择器都无从成立，所以行距是每行自己的上下内边距。 */
 .agent-activity-feed__to-latest {
   position: absolute;
-  inset-block-end: calc(var(--cp-dock-clearance) + var(--cp-dock-dissolve));
+  inset-block-end: calc(var(--cp-dock-clearance) + var(--cp-dock-runway));
   inset-inline-start: 0;
   inset-inline-end: var(--assistant-surface-inline-end-clearance, 0px);
   display: flex;

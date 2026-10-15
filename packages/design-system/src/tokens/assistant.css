@@ -31,6 +31,12 @@
   initial-value: 0px;
 }
 
+@property --cp-dock-gap {
+  syntax: "<length>";
+  inherits: true;
+  initial-value: 0px;
+}
+
 [data-assistant-skin] {
   --cp-px: var(--ui-hairline);
 
@@ -65,8 +71,15 @@
   --cp-ticker-tail: 2.5em;
   /* 新字刚写下时的颜色：与正文同墨，随后冷却成 --cp-timeline-quiet-text。 */
   --cp-ticker-ink: var(--cp-ink);
-  /* 对话下沿化开的距离：再收一档到 8px，最后一行几乎贴着输入框。 */
-  --cp-dock-dissolve: 8px;
+  /* 运行状态行（「深度求索中…」）挂着的那条跑道，也是入口区下沿的留白：一行半正文。 */
+  --cp-dock-dissolve: calc(var(--cp-line) * 1.5);
+  /*
+   * 静止时转录最后一行到输入卡的净空。
+   *
+   * 与 --cp-dock-dissolve 分家：那一档要装得下运行状态行（一行半正文），静止时没有那一格，
+   * 再留这么长就白悬一截。
+   */
+  --cp-dock-gap: 8px;
 
   --cp-font: 16px;
   --cp-line-ratio: 1.625;
