@@ -11,14 +11,10 @@ export {
   type TimelineState,
   TranscriptGapError,
   type TranscriptPage,
+  transcriptOperationSchema,
   transcriptPageSchema,
 } from './timeline'
-// —— 上游（src/upstream/）——
-export {
-  agentTranscriptSnapshotSchema,
-  transcriptItemSchema,
-  transcriptOperationSchema,
-} from './upstream/contract/schema'
+// —— 模型与 op（src/upstream/，历史目录名）——
 export type { TranscriptAttachment } from './upstream/model/attachment'
 export type { TranscriptFrame } from './upstream/model/frame'
 export type {
@@ -33,7 +29,7 @@ export type {
   TurnId,
 } from './upstream/model/ids'
 export { frameId, stepId, turnId, turnOrdinal } from './upstream/model/ids'
-export type { TranscriptInteraction } from './upstream/model/interaction'
+export type { InteractionKind, InteractionState, TranscriptInteraction } from './upstream/model/interaction'
 export type { TranscriptItem, TranscriptMarker, TranscriptTaskRef } from './upstream/model/item'
 export { itemId } from './upstream/model/item'
 export type { TranscriptMeta, TranscriptMetaMerge } from './upstream/model/meta'

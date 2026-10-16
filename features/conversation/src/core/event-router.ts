@@ -162,7 +162,7 @@ export class EventRouter {
       /* 每条 upsert 都带上号（实时推送和快照都要写上）：收尾那条会把整条 turn
          换掉，只在首条写号的话界面就判不出「真轮到了没」，提交行会再冒出来一条。 */
       const clientTurnId = this.d.submissions.clientTurnIdOf(threadId, turnId)
-      return clientTurnId === null ? op : ({ ...op, turn: { ...op.turn, clientTurnId } } as TranscriptOperation)
+      return clientTurnId === null ? op : { ...op, turn: { ...op.turn, clientTurnId } }
     })
   }
 

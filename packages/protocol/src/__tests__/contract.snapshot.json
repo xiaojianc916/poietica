@@ -14249,6 +14249,10 @@
                                             "type": "string"
                                           }
                                         },
+                                        "clientTurnId": {
+                                          "type": "string",
+                                          "minLength": 1
+                                        },
                                         "steps": {
                                           "type": "array",
                                           "items": {
@@ -14888,7 +14892,8 @@
                                       "type": "string",
                                       "enum": [
                                         "approval",
-                                        "question"
+                                        "question",
+                                        "plan"
                                       ]
                                     },
                                     "toolCallId": {
@@ -15726,6 +15731,10 @@
                                   "type": "string"
                                 }
                               },
+                              "clientTurnId": {
+                                "type": "string",
+                                "minLength": 1
+                              },
                               "startedAt": {
                                 "type": "string"
                               },
@@ -15755,10 +15764,6 @@
                               },
                               "error": {
                                 "type": "string"
-                              },
-                              "clientTurnId": {
-                                "type": "string",
-                                "minLength": 1
                               }
                             },
                             "required": [
@@ -17508,6 +17513,10 @@
                         "type": "string"
                       }
                     },
+                    "clientTurnId": {
+                      "type": "string",
+                      "minLength": 1
+                    },
                     "steps": {
                       "type": "array",
                       "items": {
@@ -17971,10 +17980,6 @@
                     },
                     "error": {
                       "type": "string"
-                    },
-                    "clientTurnId": {
-                      "type": "string",
-                      "minLength": 1
                     }
                   },
                   "required": [
@@ -18151,7 +18156,8 @@
                   "type": "string",
                   "enum": [
                     "approval",
-                    "question"
+                    "question",
+                    "plan"
                   ]
                 },
                 "toolCallId": {
@@ -19009,6 +19015,10 @@
                             "type": "string"
                           }
                         },
+                        "clientTurnId": {
+                          "type": "string",
+                          "minLength": 1
+                        },
                         "steps": {
                           "type": "array",
                           "items": {
@@ -19472,10 +19482,6 @@
                         },
                         "error": {
                           "type": "string"
-                        },
-                        "clientTurnId": {
-                          "type": "string",
-                          "minLength": 1
                         }
                       },
                       "required": [
@@ -19652,7 +19658,8 @@
                       "type": "string",
                       "enum": [
                         "approval",
-                        "question"
+                        "question",
+                        "plan"
                       ]
                     },
                     "toolCallId": {
@@ -24023,6 +24030,10 @@
                                       "type": "string"
                                     }
                                   },
+                                  "clientTurnId": {
+                                    "type": "string",
+                                    "minLength": 1
+                                  },
                                   "steps": {
                                     "type": "array",
                                     "items": {
@@ -24662,7 +24673,8 @@
                                 "type": "string",
                                 "enum": [
                                   "approval",
-                                  "question"
+                                  "question",
+                                  "plan"
                                 ]
                               },
                               "toolCallId": {
@@ -25500,6 +25512,10 @@
                             "type": "string"
                           }
                         },
+                        "clientTurnId": {
+                          "type": "string",
+                          "minLength": 1
+                        },
                         "startedAt": {
                           "type": "string"
                         },
@@ -25529,10 +25545,6 @@
                         },
                         "error": {
                           "type": "string"
-                        },
-                        "clientTurnId": {
-                          "type": "string",
-                          "minLength": 1
                         }
                       },
                       "required": [

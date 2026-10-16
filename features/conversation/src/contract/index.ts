@@ -9,22 +9,21 @@ import {
   Posture,
   QueueSnapshot,
 } from '@poietica/engine'
+import { transcriptOperationSchema, transcriptPageSchema } from '@poietica/transcript'
 import { z } from 'zod'
 import { SubmissionView, Thread, ThreadInit, TimelineSnapshot, TurnState } from './entities'
 import { conversationErrors } from './errors'
-import { pageSchema, timelineOperationSchema } from './wire'
 
 export * from './entities'
 export { conversationErrors } from './errors'
 export * from './widget'
-export type { WireTranscriptOperation } from './wire'
 
 const empty = z.object({})
 
 /** 时间线增量批次：epoch 与 seq 的规则见协议说明 */
 const TimelineBatch = z.object({
   seq: z.number().int().positive(),
-  ops: z.array(timelineOperationSchema),
+  ops: z.array(transcriptOperationSchema),
 })
 
 export const conversationContract = defineContract({
@@ -190,7 +189,7 @@ export const conversationContract = defineContract({
         agentId: z.string().min(1),
         beforeTurnId: z.string().nullable(),
       }),
-      result: pageSchema,
+      result: transcriptPageSchema,
       description: '加载更早的一页',
     }),
     defineMethod({
@@ -378,7 +377,7 @@ export const conversationContract = defineContract({
         agentId: z.string().min(1),
         epoch: z.number().int().positive(),
         seq: z.number().int().positive(),
-        ops: z.array(timelineOperationSchema),
+        ops: z.array(transcriptOperationSchema),
       }),
       description: '时间线增量',
     }),

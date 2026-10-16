@@ -15,7 +15,7 @@ import {
   type SubmitInput,
 } from '@poietica/engine'
 import { AppError, createId, Emitter, type Logger, SystemErrorCode } from '@poietica/foundation'
-import type { TranscriptOperation, TranscriptPage } from '@poietica/transcript'
+import type { InteractionKind, InteractionState, TranscriptOperation, TranscriptPage } from '@poietica/transcript'
 import { outcomeOf, type TurnOutcome, toEngineError } from '../errors'
 import type { InteractionBroker } from '../interactions/broker'
 import type { FileAttachmentInput, ImageAttachmentInput, LiveProjector } from '../projector/live'
@@ -25,8 +25,8 @@ import type { LoadedImage } from './prompt'
 import { type SkillPromptMessage, wireTextOf } from './prompt'
 import { usageOf } from './usage'
 
-/** 上游的 `TranscriptInteraction` 只认 approval / question；`plan` 是线上形状那一层放宽出来的第三档 */
-function interactionKindOf(interaction: Interaction): 'approval' | 'question' | 'plan' {
+/** 引擎交互 → 时间线卡片的种类：select / input / confirm 都按审批画，计划与提问各自一档 */
+function interactionKindOf(interaction: Interaction): InteractionKind {
   if (interaction.kind === 'question') return 'question'
   if (interaction.kind === 'plan') return 'plan'
   return 'approval'
@@ -796,8 +796,8 @@ export class OmpSession implements EngineSession {
   /** 交互上屏：requested 时 pending，resolved 时终态；映射归这里，不归 broker（它不认识 transcript） */
   interactionOp(input: {
     readonly interactionId: string
-    readonly kind: 'approval' | 'question' | 'plan'
-    readonly state: 'pending' | 'approved' | 'rejected' | 'cancelled' | 'answered' | 'dismissed'
+    readonly kind: InteractionKind
+    readonly state: InteractionState
     readonly request?: unknown
     readonly response?: unknown
   }): void {
@@ -809,8 +809,7 @@ export class OmpSession implements EngineSession {
           op: 'interaction.upsert',
           interaction: {
             interactionId: input.interactionId,
-            /* 上游的 `TranscriptInteraction` 只认 approval / question（形状照 legacy，别改），如实留一个窄化断言 */
-            interactionKind: input.kind as 'approval' | 'question',
+            interactionKind: input.kind,
             state: input.state,
             ...(input.request === undefined ? {} : { request: input.request }),
             ...(input.response === undefined ? {} : { response: input.response }),

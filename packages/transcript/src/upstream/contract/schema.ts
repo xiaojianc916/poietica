@@ -128,7 +128,7 @@ export const toolCallFrameSchema = z.object({
 
 export const interactionSchema = z.object({
   interactionId: z.string(),
-  interactionKind: z.enum(['approval', 'question']),
+  interactionKind: z.enum(['approval', 'question', 'plan']),
   toolCallId: z.string().optional(),
   state: z.enum(['pending', 'approved', 'rejected', 'cancelled', 'answered', 'dismissed']),
   request: z.unknown().optional(),
@@ -177,6 +177,7 @@ export const transcriptTurnSchema = z.object({
   origin: turnOriginSchema,
   prompt: z.string().optional(),
   attachmentIds: z.array(z.string()).optional(),
+  clientTurnId: z.string().min(1).optional(),
   steps: z.array(transcriptStepSchema),
   startedAt: z.string().optional(),
   endedAt: z.string().optional(),

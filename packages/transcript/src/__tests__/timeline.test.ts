@@ -8,6 +8,7 @@ import {
   stateFromPage,
   TranscriptGapError,
   type TranscriptPage,
+  transcriptOperationSchema,
   transcriptPageSchema,
 } from '../timeline'
 import type { TranscriptFrame } from '../upstream/model/frame'
@@ -184,5 +185,21 @@ describe('timeline', () => {
 
   test('TL-11 空时间线没有最早的轮', () => {
     expect(oldestTurnId(emptyTimeline())).toBeNull()
+  })
+
+  /* 词表里的两个字段在**线上 schema** 里也必须活着：zod 默认剥掉未知键，只改类型不改 schema 会在收端静默丢号。 */
+  test('TL-12 clientTurnId 与 plan 交互过 schema 不被剥掉、不被拒', () => {
+    const upsert = { op: 'turn.upsert', turn: { ...turnHeader(1), clientTurnId: 'c-1' } }
+    expect(transcriptOperationSchema.parse(upsert)).toEqual(upsert as TranscriptOperation)
+    const plan = {
+      op: 'interaction.upsert',
+      interaction: { interactionId: 'p1', interactionKind: 'plan', state: 'pending' },
+    } as const
+    expect(transcriptOperationSchema.safeParse(plan).success).toBe(true)
+    const page = { ...emptyPage(), interactions: [plan.interaction] }
+    expect(transcriptPageSchema.safeParse(page).success).toBe(true)
+    const state = applyOps(emptyTimeline(), [upsert as TranscriptOperation])
+    const first = pageFromState(state).items[0]
+    expect(first?.kind === 'turn' ? first.clientTurnId : null).toBe('c-1')
   })
 })

@@ -2,6 +2,7 @@ import type { EngineSession, QueueOutcome } from '@poietica/engine'
 import type { AttachmentsService } from '@poietica/feature-attachments/core-api'
 import type { WorkspacesService } from '@poietica/feature-workspaces/core-api'
 import { AppError, type Clock, type Logger, toAppError } from '@poietica/foundation'
+import type { TranscriptPage } from '@poietica/transcript'
 import type { SubmissionView } from '../contract'
 import { conversationErrors } from '../contract/errors'
 import { type SubmissionRow, type SubmissionsRepository, submissionOf } from './submissions-repository'
@@ -174,19 +175,18 @@ export class SubmissionService {
    * 所以在返回前按 `turnId → clientTurnId` 补一次。两头都盖，界面才拿得到「同一个号」去把
    * 提交行换成真实 turn。
    */
-  stampPage<T extends { readonly items: readonly unknown[] }>(threadId: string, page: T): T {
+  stampPage(threadId: string, page: TranscriptPage): TranscriptPage {
     const map = this.d.repo.mapByTurnId(threadId)
     if (map.size === 0) return page
     let touched = false
     const items = page.items.map((item) => {
-      const entry = item as { readonly kind?: unknown; readonly turnId?: unknown }
-      if (entry.kind !== 'turn' || typeof entry.turnId !== 'string') return item
-      const clientTurnId = map.get(entry.turnId)
+      if (item.kind !== 'turn') return item
+      const clientTurnId = map.get(item.turnId)
       if (clientTurnId === undefined) return item
       touched = true
-      return { ...(item as object), clientTurnId }
+      return { ...item, clientTurnId }
     })
-    return touched ? ({ ...page, items } as T) : page
+    return touched ? { ...page, items } : page
   }
 
   // ── 事件路由用的两口 ──────────────────────────────────────────────────────

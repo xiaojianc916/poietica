@@ -6,7 +6,7 @@ import type { WorkspacesService } from '@poietica/feature-workspaces/core-api'
 import { createId, systemClock } from '@poietica/foundation'
 import { openDatabase } from '@poietica/storage-sqlite'
 import { createTestLogger, tempDir, waitFor } from '@poietica/test-kit'
-import type { WireTranscriptOperation } from '../../contract/wire'
+import type { TranscriptOperation } from '@poietica/transcript'
 import { ConversationCore } from '../conversation'
 import { migrations } from '../migrations'
 import { TimelineHub } from '../timeline-hub'
@@ -212,7 +212,7 @@ describe('conversation core（不经内核的直连测试）', () => {
     const dir = await tempDir('conv-core-')
     const clock = systemClock
     /* 线上形状：clientTurnId 只在这里有 */
-    const batches: { seq: number; ops: readonly WireTranscriptOperation[] }[] = []
+    const batches: { seq: number; ops: readonly TranscriptOperation[] }[] = []
     const hub = new TimelineHub({
       clock,
       emitOps: (p) => batches.push({ seq: p.seq, ops: p.ops }),
@@ -296,7 +296,7 @@ describe('conversation core（不经内核的直连测试）', () => {
 
     const upserts = batches
       .flatMap((b) => b.ops)
-      .filter((op): op is Extract<WireTranscriptOperation, { op: 'turn.upsert' }> => op.op === 'turn.upsert')
+      .filter((op): op is Extract<TranscriptOperation, { op: 'turn.upsert' }> => op.op === 'turn.upsert')
     expect(upserts.length).toBeGreaterThan(0)
 
     const stamped = upserts.filter((op) => op.turn.clientTurnId === clientTurnId)

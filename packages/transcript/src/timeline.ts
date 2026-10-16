@@ -1,5 +1,5 @@
 import type { z } from 'zod'
-import { agentTranscriptSnapshotSchema } from './upstream/contract/schema'
+import { agentTranscriptSnapshotSchema, transcriptOperationSchema as operationSchema } from './upstream/contract/schema'
 import type { TurnId } from './upstream/model/ids'
 import { itemId } from './upstream/model/item'
 import { type AgentState, applyOperation, EMPTY_AGENT_STATE } from './upstream/ops/apply'
@@ -11,13 +11,17 @@ export type TranscriptPage = AgentTranscriptSnapshot
 export type TimelineState = AgentState
 
 /*
- * 契约里描述 TranscriptPage 的 zod schema。运行时用上游的 schema，编译期把**输出类型**钉回上游的
- * AgentTranscriptSnapshot：zod 的推断会把可选字段放宽成 `?: T | undefined`，与上游模型在
- * exactOptionalPropertyTypes 之下的形状不同（而线上跑的就是上游那一份 JSON）。不钉住的话，引擎端口
- * 交出的 `page`（上游类型）就没法与契约推导出的类型互相赋值 —— 两边说的是同一件事。
+ * 契约里描述 TranscriptPage / TranscriptOperation 的 zod schema —— 线上形状**只有这一份**，
+ * 各功能的契约直接引用，不再在消费侧 extend / 加宽。运行时用 contract/schema 的 schema，编译期把
+ * **输出类型**钉回模型：zod 的推断会把可选字段放宽成 `?: T | undefined`、把 readonly 去掉，与模型在
+ * exactOptionalPropertyTypes 之下的形状不同（而线上跑的就是模型那一份 JSON）。不钉住的话，引擎端口
+ * 交出的 `page`（模型类型）就没法与契约推导出的类型互相赋值 —— 两边说的是同一件事。
+ * 两份是否同形由 `upstream/contract/parity.ts` 在编译期对拍（schema 输出 ⊆ 模型）。
  */
 export const transcriptPageSchema: z.ZodType<TranscriptPage> =
   agentTranscriptSnapshotSchema as unknown as z.ZodType<TranscriptPage>
+export const transcriptOperationSchema: z.ZodType<TranscriptOperation> =
+  operationSchema as unknown as z.ZodType<TranscriptOperation>
 
 /** append 的 offset 超出当前长度或与已有内容冲突：副本已不可信，调用方必须整页重取（重新订阅）。 */
 export class TranscriptGapError extends Error {

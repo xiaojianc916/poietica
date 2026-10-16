@@ -1,6 +1,6 @@
 import { ModelRef, Posture, SessionState } from '@poietica/engine'
+import { type TranscriptPage, transcriptPageSchema } from '@poietica/transcript'
 import { z } from 'zod'
-import { pageSchema, type WireTranscriptPage } from './wire'
 
 export const ThreadId = z.string().min(1)
 export const MAIN_AGENT_ID = 'main'
@@ -79,7 +79,7 @@ export type SubmissionView = z.infer<typeof SubmissionView>
  * 同一个 zod schema 在 deep-compare 快照与校验，编译期则是三个进程共用的那一份模型。
  */
 export interface TimelineSnapshot {
-  readonly page: WireTranscriptPage
+  readonly page: TranscriptPage
   readonly epoch: number
   readonly seq: number
   /** 这个线程此刻要画的提交行（pending / failed / 页码外的 started）。 */
@@ -87,7 +87,7 @@ export interface TimelineSnapshot {
 }
 
 export const TimelineSnapshot: z.ZodType<TimelineSnapshot> = z.object({
-  page: pageSchema,
+  page: transcriptPageSchema,
   epoch: z.number().int().positive(),
   seq: z.number().int().nonnegative(),
   submissions: z.array(SubmissionView),

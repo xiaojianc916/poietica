@@ -56,6 +56,11 @@ export interface TranscriptTurn {
   readonly origin: TurnOrigin
   readonly prompt?: string
   readonly attachmentIds?: readonly AttachmentId[]
+  /**
+   * 本机提交号：渲染进程提交时铸的号，主进程在推送与快照里盖到 turn 上，界面靠它把乐观的「提交行」
+   * 换成真实这一轮。引擎不认识它（引擎侧永远不写），只有 conversation 的主进程会写。
+   */
+  readonly clientTurnId?: string
   readonly steps: TranscriptStep[]
   readonly startedAt?: string
   readonly endedAt?: string

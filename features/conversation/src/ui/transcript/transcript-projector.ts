@@ -932,8 +932,7 @@ const phaseOf = (snapshot: AgentTranscriptSnapshot, last: TranscriptTurn | undef
   const approval = snapshot.interactions.some((item) => item.state === 'pending' && item.interactionKind === 'approval')
   if (approval) return 'awaiting_permission'
   /* 计划是一道自己的闸：它把「继续执行」拦在批准之前，与审批 / 提问并列。 */
-  const kinded = snapshot.interactions.map((item) => item.interactionKind as string)
-  if (snapshot.interactions.some((item, index) => item.state === 'pending' && kinded[index] === 'plan')) {
+  if (snapshot.interactions.some((item) => item.state === 'pending' && item.interactionKind === 'plan')) {
     return 'awaiting_plan'
   }
   return 'awaiting_question'
@@ -1076,7 +1075,7 @@ function projectTurn(
         turn.prompt ?? '',
         skillNamesOf(turn.origin.payload),
         attached,
-        (turn as { readonly clientTurnId?: string }).clientTurnId,
+        turn.clientTurnId,
       )
     : null
   const frames = framesOf(turn, stamp, index)
