@@ -50,6 +50,11 @@ export interface CoreKernel {
 type KernelState = 'created' | 'starting' | 'ready' | 'stopping' | 'stopped'
 
 const SHUTDOWN_HOOK_TIMEOUT_MS = 5_000
+/**
+ * 启动途中被要求关停时，等「正在跑的那一步」（某个 setup / onReady）收手的上限。
+ * 不等就会在钩子还在用库的时候 close 掉数据库；等太久会吃掉后面钩子的预算。
+ */
+const STARTUP_ABORT_WAIT_MS = 3_000
 const INFLIGHT_DRAIN_MS = 1_500
 /** engine.dispose 的时间下限：即使前面把预算花光了也要给它。 */
 const ENGINE_DISPOSE_FLOOR_MS = 1_000
@@ -84,6 +89,9 @@ export function createCoreKernel(opts: CoreKernelOptions): CoreKernel {
   const moduleDisposables: DisposableStore[] = []
   const exitListeners: Array<(code: number) => void> = []
   let state: KernelState = 'created'
+  let exitCode: number | null = null
+  /** start() 的进行中 Promise：shutdown 在启动途中到来时要先等它在下一个检查点收手 */
+  let starting: Promise<void> | undefined
   let peer: RpcPeer | undefined
   let db: Database | undefined
   let toolsFrozen = false
@@ -139,9 +147,46 @@ export function createCoreKernel(opts: CoreKernelOptions): CoreKernel {
     }
   }
 
-  async function start(): Promise<void> {
-    if (state !== 'created') throw new AppError(SystemErrorCode.conflict, 'start() 只能调用一次')
+  /**
+   * 启动途中是否已被叫停（core.shutdown / Host 断开）。守则 §8.3：每个 await 之后都要重查 ——
+   * 否则关停跑完、库已关、exit 回调已发之后，start 还会接着跑剩下的 setup / onReady，最后把
+   * 状态写回 ready 并对着已释放的对端发 core.ready。
+   */
+  const aborted = (): boolean => state !== 'starting'
+
+  function start(): Promise<void> {
+    if (state !== 'created') return Promise.reject(new AppError(SystemErrorCode.conflict, 'start() 只能调用一次'))
     state = 'starting'
+    starting = startModules()
+    return starting
+  }
+
+  /** 顺序执行 onReady；单个失败只记录并发 core.notice。每一步前后都重查是否已被叫停。 */
+  async function runReadyHooks(): Promise<void> {
+    for (const h of readyHooks) {
+      if (aborted()) return
+      try {
+        await h.fn()
+      } catch (e) {
+        if (aborted()) return
+        log.error('onReady hook failed', { module: h.moduleId, error: String(e) })
+        getPeer().notify('core.notice', { level: 'error', message: `${h.moduleId} 初始化未完成：${String(e)}` })
+      }
+    }
+  }
+
+  /** 启动途中被叫停：先让正在跑的那一步走到下一个检查点（它看到 stopping 就收手），再拆钩子与数据库 */
+  async function awaitStartupYield(budget: number): Promise<void> {
+    if (starting === undefined) return
+    await withClockTimeout(
+      opts.clock,
+      starting.catch(() => undefined),
+      budget,
+      () => new Error('startup abort timeout'),
+    ).catch(() => log.warn('startup step did not yield before shutdown'))
+  }
+
+  async function startModules(): Promise<void> {
     // 0. 先建立 RPC 对端：setup 期间模块就可以 emit 通知（Host 会照常广播）
     peer = new RpcPeer({
       name: 'core',
@@ -192,6 +237,7 @@ export function createCoreKernel(opts: CoreKernelOptions): CoreKernel {
       }
       const t0 = opts.clock.now()
       await m.setup(ctx)
+      if (aborted()) return
       log.info('module ready', { module: m.id, ms: opts.clock.now() - t0 })
     }
     // 4. 每个 owner='core' 的方法都必须有实现
@@ -200,14 +246,8 @@ export function createCoreKernel(opts: CoreKernelOptions): CoreKernel {
     opts.engine.freezeTools()
     toolsFrozen = true
     // 6. onReady（顺序执行；单个失败只记录并发 core.notice，不阻止启动）
-    for (const h of readyHooks) {
-      try {
-        await h.fn()
-      } catch (e) {
-        log.error('onReady hook failed', { module: h.moduleId, error: String(e) })
-        getPeer().notify('core.notice', { level: 'error', message: `${h.moduleId} 初始化未完成：${String(e)}` })
-      }
-    }
+    await runReadyHooks()
+    if (aborted()) return
     // 7. 开始服务
     state = 'ready'
     getPeer().notify('core.ready', {
@@ -221,12 +261,14 @@ export function createCoreKernel(opts: CoreKernelOptions): CoreKernel {
   async function shutdown(reason: string): Promise<void> {
     if (state === 'stopping' || state === 'stopped') return
     const wasStarted = state !== 'created'
+    const wasStarting = state === 'starting'
     state = 'stopping'
     log.info('shutting down', { reason })
     // 总截止时间：所有分阶段预算都必须从这里算，Host 的宽限期比它更长（R-05 §3.3）
     const deadline = opts.clock.now() + CORE_SHUTDOWN_BUDGET_MS
     const remaining = (cap: number): number => Math.max(0, Math.min(cap, deadline - opts.clock.now()))
     try {
+      if (wasStarting) await awaitStartupYield(remaining(STARTUP_ABORT_WAIT_MS))
       if (inflight > 0) {
         const budget = remaining(INFLIGHT_DRAIN_MS)
         if (budget > 0) {
@@ -271,13 +313,20 @@ export function createCoreKernel(opts: CoreKernelOptions): CoreKernel {
       peer?.dispose()
     }
     state = 'stopped'
+    exitCode = 0
     for (const fn of exitListeners) fn(0)
   }
 
   return {
     start,
     shutdown,
+    /* 晚到的监听者（关停已经跑完）立刻收到退出码：否则 Core 在「启动途中 Host 断开」时永远不退出，成为孤儿进程 */
     onExit: (fn) => {
+      if (exitCode !== null) {
+        const code = exitCode
+        queueMicrotask(() => fn(code))
+        return
+      }
       exitListeners.push(fn)
     },
     services: {

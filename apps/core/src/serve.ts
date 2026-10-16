@@ -63,9 +63,10 @@ export async function serve(launchEnv: LaunchEnv): Promise<void> {
       },
     },
   })
-  await kernel.start() // 8. 迁移 → 模块 setup → freezeTools → onReady → 发 core.ready
+  // 8. 先挂退出回调再启动：启动途中 Host 断开 / 要求关停时，关停跑完就得退出，不能等 start 返回才挂
+  kernel.onExit((code) => process.exit(code)) //    core.shutdown 或 stdin 关闭 → kernel.shutdown → 退出码 0
+  await kernel.start() // 9. 迁移 → 模块 setup → freezeTools → onReady → 发 core.ready
   await Bun.write(path.join(layout.coreDir, 'core.pid'), String(process.pid))
-  kernel.onExit((code) => process.exit(code)) // 9. core.shutdown 或 stdin 关闭 → kernel.shutdown → 退出码 0
 }
 
 async function createRealEngine(

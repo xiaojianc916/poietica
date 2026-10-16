@@ -3396,3 +3396,43 @@ error 后补发 exit 只算一次、`pickPort` 抛一次错后自愈、`launch` 
 孤儿进程打架。`start_timeout` 这一档仍在（真的等满 `READY_TIMEOUT_MS` 时用），对应「Core 起来了但
 一直没 ready」。
 
+---
+
+## R-29 core-kernel 启动途中被叫停：关停不再与启动交错、Core 一定退出（基于 b04a5b15）
+
+**来源**：外部补丁 `poietica-core-kernel-startup-abort.patch`（方案方给出，含 KA-1…KA-3 三条测试）。
+
+**现象**：Core 还在 `starting` 时被叫停（Host 断开 stdin，或 `core.shutdown` 落在 setup / onReady 还没跑完
+的时候），关停会和启动**交错着跑**：shutdown hooks 与 `db.close` 跑在 onReady 中间，`start()` 收尾又把状态从
+`stopped` 写回 `ready` 并照发 `core.ready`。更要紧的是 `apps/core/src/serve.ts` 等到 `await kernel.start()`
+返回才注册 `kernel.onExit`，在这个窗口里跑完的关停**永远等不到退出回调**：Host 已经死了的话，
+`poietica-core.exe` 就是孤儿进程，一直占着 SQLite 与 omp 会话，下次启动的失败表现得很随机。
+
+**根因**：
+
+1. `shutdown()` 在 `starting` 状态下不等正在跑的 setup / onReady，直接跑钩子、关数据库 —— onReady 后面的步骤
+   于是跑在一个已经关掉的内核上。
+2. `start()` 收尾不检查自己是不是已经被叫停：`state = 'ready'` 与 `core.ready` 照发。
+3. 退出回调挂得太晚（`start()` 返回之后才挂）。
+4. 探索性测试复现的实际执行顺序是 `ready-start → shutdown-hook → ready-end`，exits 为空。
+
+**改法**（3 个文件，+148 / −12）：
+
+1. **每个 await 之后重查前提**（AGENTS §8.3）：`aborted()` 即 `state !== 'starting'`，setup 循环与 onReady
+   （抽成 `runReadyHooks`）逐处各查一次；被叫停就收手 —— 不跑后续 onReady、不发 `core.ready`、不改写状态。
+2. **关停先等启动收手**：记下进行中的 `starting` promise，`shutdown()` 遇到 `starting` 时经 `awaitStartupYield`
+   最多等 `STARTUP_ABORT_WAIT_MS = 3000`（从关停总预算里扣），让当前这一步走到下一个检查点；某一步卡死不返回
+   也只记一条 warn（`startup step did not yield before shutdown`），不拖住关停。
+3. **记住退出码**：`exitCode` 落定后，晚挂的 `onExit` 经 `queueMicrotask` 立刻收到。
+4. **`serve.ts` 先挂 `onExit` 再 `start()`**（退出回调不再依赖启动成功）。
+5. 为满足 biome 的认知复杂度上限抽出两个函数；未新增生命周期状态、未改 RPC 契约。
+
+**测试**：`packages/core-kernel/src/__tests__/kernel-startup-abort.test.ts` 新增 KA-1（onReady 跑着时 Host 断开：
+等这一步收手、后面的 onReady 不再跑、不发 `core.ready`、退出码 0）、KA-2（关停跑完之后才挂的退出回调照样
+触发）、KA-3（启动那一步一直不返回：最多等满预算，照样跑完并退出）。三条在旧代码上 **3/3 失败**，
+新代码 `bun test packages/core-kernel` 56 条全过；`bun run all` 全绿（2322 pass / 0 fail，290 文件）。
+
+**没改的**：退避 / 预算参数、启动步骤顺序（迁移 → setup → freezeTools → onReady → `core.ready`）与
+`core.pid` 的写入时机都没动；与 R-28 互补（那份管 Host 侧重拉，这份管 Core 侧真的退出，两份一起时
+重试不会撞上还活着的旧 Core）。P3 页给的两步真机验收（启动窗口内结束 Host、紧接着重启）本轮未跑。
+
