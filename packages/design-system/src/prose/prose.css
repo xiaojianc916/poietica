@@ -110,7 +110,13 @@
 
 /* Streamdown 真实渲染是 container / header / actions / body 四层，容器是唯一的框：body 交出边、圆角与外边距，
  * header 变顶栏，一个 grid 把 actions 放进同一条栏而不是浮在代码上方。 */
+/* 栏高与复制键尺寸是一组：抬头与复制键共处一条栏，栏高钉在两者身上，不然行高由较高的那个说话。
+ * 上游抬头写死 h-8（2rem），对一个语言名太宽裕；栏收一档之后，16px 字形加 8px 内边距的复制键就顶满了这条栏，两者同步收。 */
 .timeline-prose [data-streamdown="code-block"] {
+  --cp-code-band: 1.5rem;
+  --cp-code-control: 1.25rem;
+  --cp-code-icon: 0.875rem;
+
   display: grid;
   grid-template-columns: 1fr auto;
   gap: 0;
@@ -151,17 +157,18 @@
 
 .timeline-prose [data-streamdown="code-block-header"] {
   grid-area: 1 / 1;
+  block-size: var(--cp-code-band);
   padding-inline-start: 0.75rem;
   color: var(--cp-timeline-quiet-text);
 }
 
-/* actions 从浮层里出来，落到那条栏上。 */
+/* actions 从浮层里出来，落到那条栏上。栏高与抬头同一个 token：两条轨道同一行，只能有一个高度。 */
 .timeline-prose [data-streamdown="code-block"] > :has(> [data-streamdown="code-block-actions"]) {
   grid-area: 1 / 2;
   position: static;
   margin: 0;
   padding-inline-end: 0.5rem;
-  block-size: auto;
+  block-size: var(--cp-code-band);
   pointer-events: auto;
 }
 
@@ -170,6 +177,19 @@
   padding: 0;
   background: none;
   backdrop-filter: none;
+}
+
+/* 复制键上游带 p-1 包着 size=14 的属性值 —— 属性管不了尺寸：全局的 :where(svg)（0 权重）会把字形改写成 --ui-icon。
+ * 尺寸因此从这里下发，一个变量就够，不必再写一条 svg 选择器；颜色、悬停与 disabled 仍走上游工具类。 */
+.timeline-prose [data-streamdown="code-block-actions"] > button {
+  --ui-icon: var(--cp-code-icon);
+
+  display: grid;
+  place-items: center;
+  inline-size: var(--cp-code-control);
+  block-size: var(--cp-code-control);
+  padding: 0;
+  border-radius: var(--ui-radius-sm);
 }
 
 /* 高度上限与 overflow 缺一不可：外层用 overflow: hidden 拿圆角裁内部，没出口时长行会被裁掉、字符取不到。
