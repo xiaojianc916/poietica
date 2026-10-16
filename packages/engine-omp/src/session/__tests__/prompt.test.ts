@@ -1,7 +1,7 @@
 import { describe, expect, test } from 'bun:test'
 import type { SubmitInput } from '@poietica/engine'
 import { AppError } from '@poietica/foundation'
-import { type ExpandSkillOptions, expandSkillMessage, preparePrompt } from '../prompt'
+import { type ExpandSkillOptions, expandSkillMessage, preparePrompt, splitWireText, wireTextOf } from '../prompt'
 
 /*
  * SubmitInput → omp 输入。
@@ -125,7 +125,7 @@ describe('preparePrompt：图片', () => {
 })
 
 describe('preparePrompt：普通文件与正文', () => {
-  test('普通文件以 @绝对路径 逐行附在正文后面，由 agent 自己去读', () => {
+  test('普通文件以 @绝对路径 (文件名) 逐行附在正文后面，由 agent 自己去读', () => {
     const prepared = preparePrompt(
       {
         ...INPUT,
@@ -137,7 +137,12 @@ describe('preparePrompt：普通文件与正文', () => {
       },
       options(),
     )
-    expect(prepared.text).toBe('看看这两个\n@C:/work/a.ts\n@C:/work/notes.txt')
+    expect(prepared.text).toBe('看看这两个\n@C:/work/a.ts (a.ts)\n@C:/work/notes.txt (notes.txt)')
+  })
+
+  test('名字里的换行压成空格、`@` 换成全角：括号里那段不会被 omp 认成又一个文件记号', () => {
+    const text = wireTextOf({ text: '看', files: [{ path: '/s/ab/x', name: 'a @b\n.md' }] })
+    expect(text).toBe('看\n@/s/ab/x (a ＠b .md)')
   })
 
   test('没有文件时正文原样，不加尾随空行', () => {
@@ -152,6 +157,39 @@ describe('preparePrompt：普通文件与正文', () => {
       imageContents: [],
       skillNames: [],
     })
+  })
+})
+
+describe('splitWireText：wireTextOf 的逆（重开之后气泡上的文件记号从这里读回来）', () => {
+  const SHA = `ab${'c'.repeat(62)}`
+
+  test('来回一趟：原文与每个文件的名字原样回来', () => {
+    const files = [
+      { path: 'C:\\Users\\me\\attachments\\ab\\x', name: 'poietica-tool-grouping.patch' },
+      { path: '/data/att/cd/y', name: 'div (1).md' },
+    ]
+    expect(splitWireText(wireTextOf({ text: '你可以看见吗\n第二行', files }))).toEqual({
+      text: '你可以看见吗\n第二行',
+      files,
+    })
+  })
+
+  test('原文为空（只发了文件）：正文是空串', () => {
+    const files = [{ path: '/a/b', name: 'b.md' }]
+    expect(splitWireText(wireTextOf({ text: '', files }))).toEqual({ text: '', files })
+  })
+
+  test('旧会话的引用行不带名字：只认附件库的内容寻址路径', () => {
+    expect(splitWireText(`看这个\n@C:\\data\\attachments\\ab\\${SHA}`)).toEqual({
+      text: '看这个',
+      files: [{ path: `C:\\data\\attachments\\ab\\${SHA}` }],
+    })
+    expect(splitWireText('看这个\n@src/a.ts')).toEqual({ text: '看这个\n@src/a.ts', files: [] })
+  })
+
+  test('第一行永远是原文；句中的 @路径 不算附件', () => {
+    expect(splitWireText('@/abs/a.ts (a.ts)')).toEqual({ text: '@/abs/a.ts (a.ts)', files: [] })
+    expect(splitWireText('先看\n@/abs/a.ts (a.ts)\n再说')).toEqual({ text: '先看\n@/abs/a.ts (a.ts)\n再说', files: [] })
   })
 })
 

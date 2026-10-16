@@ -17,7 +17,8 @@ function isLong(text: string): boolean {
 
 /**
  * 绝不走 markdown：渲染用户的话会让他们自己的文本改变显示方式，也会让粘贴进来的一份文档改写这段对话。
- * 附件与气泡是两个兄弟节点：塞进气泡就是把气泡撑成图片框。
+ * 图片与气泡是两个兄弟节点：塞进气泡就是把气泡撑成图片框。文件不一样 —— 它在输入框里就是正文里的一枚记号，
+ * 发出去之后也画成气泡里的同一枚记号（排在技能之后、原文之前），人看到的就是自己写下的那一句。
  */
 export function UserMessage({
   files,
@@ -33,22 +34,22 @@ export function UserMessage({
   /** 这一句没有被 agent 收到（R-08-5）：Core 重启带走了 omp 的内存队列。 */
   readonly undelivered?: boolean | undefined
 }) {
-  const hasAttachments = (files?.length ?? 0) > 0 || (images?.length ?? 0) > 0
-
   return (
     <>
-      {hasAttachments ? <MessageAttachments files={files} images={images} /> : null}
-      <Said text={text} skills={skills ?? []} undelivered={undelivered === true} />
+      {(images?.length ?? 0) > 0 ? <MessageAttachments images={images} /> : null}
+      <Said files={files ?? []} skills={skills ?? []} text={text} undelivered={undelivered === true} />
     </>
   )
 }
 
 /** 与 `UserMessage` 分开只为：附件与气泡是两个兄弟，合在一个函数里条件会叠在一起，复杂度闸门过不去。 */
 function Said({
+  files,
   skills,
   text,
   undelivered,
 }: {
+  readonly files: readonly MessageFile[]
   readonly skills: readonly string[]
   readonly text: string
   readonly undelivered: boolean
@@ -56,7 +57,7 @@ function Said({
   const [expanded, setExpanded] = useState(false)
   const long = isLong(text)
 
-  if (text.length === 0 && skills.length === 0) {
+  if (text.length === 0 && skills.length === 0 && files.length === 0) {
     return null
   }
 
@@ -69,6 +70,9 @@ function Said({
       <p className="timeline-user__text">
         {skills.map((name) => (
           <PromptChip key={`skill-${name}`} kind="skill" name={name} />
+        ))}
+        {files.map((file, at) => (
+          <PromptChip key={`file-${String(at)}-${file.name}`} kind="file" name={file.name} />
         ))}
         {promptSegments(text).map((segment, at) =>
           segment.kind === 'text' ? (

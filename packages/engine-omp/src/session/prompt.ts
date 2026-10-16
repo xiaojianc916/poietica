@@ -56,12 +56,55 @@ export function isGoalContinuationMessage(message: {
 }
 
 /**
- * 一句话交给 omp 时的正文：用户原文 + 每个文件一行 `@<绝对路径>`。投递正文与显示正文是两件事：
+ * 一句话交给 omp 时的正文：用户原文 + 每个文件一行 `@<绝对路径> (<文件名>)`。投递正文与显示正文是两件事：
  * 屏幕上画原文，与 omp 的一切匹配（队列对账、插话认领）用这一份。
+ *
+ * 文件名跟在路径后面，是因为会话文件里**只有这一句**会落盘：附件按内容寻址存放，路径里没有名字，
+ * 重开之后气泡上那几枚文件记号只能从这里读回来（`splitWireText` 是它的逆，两处改一处必须改另一处）。
+ * omp 认 `@` 记号只取到空白为止，括号里那段不会被当成路径；名字里的 `@` 换成全角，免得被认成又一个记号。
  */
 export function wireTextOf(input: Pick<SubmitInput, 'text' | 'files'>): string {
-  const referenced = input.files.map((file) => `@${file.path}`).join('\n')
+  const referenced = input.files.map((file) => `@${file.path} (${wireNameOf(file.name)})`).join('\n')
   return referenced === '' ? input.text : `${input.text}\n${referenced}`
+}
+
+function wireNameOf(name: string): string {
+  const flat = name.replace(/\s+/gu, ' ').replaceAll('@', '＠').trim()
+  return flat === '' ? 'file' : flat
+}
+
+/** 投递正文末尾的一行文件引用。带名字的是现在的写法；不带名字的是旧会话，只认附件库的内容寻址路径（`<目录>/<sha 前两位>/<sha256>`）。 */
+const NAMED_REFERENCE = /^@((?:[A-Za-z]:[\\/]|[\\/])\S*) \((.+)\)$/u
+const BARE_REFERENCE = /^@(\S*[\\/]([0-9a-f]{2})[\\/]\2[0-9a-f]{62})$/iu
+
+export interface WireFile {
+  readonly path: string
+  /** 旧会话的引用行不带名字 */
+  readonly name?: string
+}
+
+function referenceOf(line: string): WireFile | null {
+  const named = NAMED_REFERENCE.exec(line)
+  if (named?.[1] !== undefined && named[2] !== undefined) return { path: named[1], name: named[2] }
+  const bare = BARE_REFERENCE.exec(line)
+  return bare?.[1] === undefined ? null : { path: bare[1] }
+}
+
+/**
+ * `wireTextOf` 的逆：从会话文件里那句投递正文摘回用户原文与它带的文件。只摘**末尾**连续的引用行，
+ * 且第一行永远是原文（原文为空时它是空行）—— 用户自己在句中写的 `@路径` 不会被当成附件吞掉。
+ */
+export function splitWireText(wire: string): { readonly text: string; readonly files: readonly WireFile[] } {
+  const lines = wire.split('\n')
+  const files: WireFile[] = []
+  let end = lines.length
+  while (end > 1) {
+    const file = referenceOf(lines[end - 1] ?? '')
+    if (file === null) break
+    files.unshift(file)
+    end -= 1
+  }
+  return files.length === 0 ? { text: wire, files } : { text: lines.slice(0, end).join('\n'), files }
 }
 
 /** 用户自己发起的技能消息：类型 + 归属两格都对才算（自动加载的技能是 agent 自己塞的上下文） */

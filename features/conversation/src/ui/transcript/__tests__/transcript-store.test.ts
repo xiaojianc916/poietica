@@ -529,6 +529,32 @@ describe('R-08-5 未送达的插话 / 排队也画成气泡', () => {
     expect(rowsOf(store, 't1').map((row) => [row.text, row.undelivered])).toEqual([['正常的一句', undefined]])
   })
 
+  /* 提交行就是真实 turn 到之前的那只气泡：文件记号与图要和换上来的真实投影同形，发出去那一刻不能先没了再冒出来 */
+  test('提交行带上附件：文件成记号、图片用预览地址', () => {
+    const store = new TranscriptStore({ sessions: () => fakePort('t1').port })
+    store.open('t1')
+
+    store.upsertSubmission(
+      't1',
+      submission({
+        status: 'pending',
+        deliverAs: 'turn',
+        text: '你可以看见吗',
+        attachments: [
+          { id: 'a1', name: 'div.md', mime: 'text/markdown', kind: 'file', size: 2048, previewUrl: null },
+          { id: 'a2', name: 'p.png', mime: 'image/png', kind: 'image', size: 9, previewUrl: 'poietica-asset://x' },
+        ],
+      }),
+    )
+
+    const [row] = store
+      .read('t1')
+      .timeline.active.items.filter((item) => item.type === 'user_message')
+      .map((item) => item as { files?: { name: string }[]; images?: { url?: string }[] })
+    expect(row?.files?.map((file) => file.name)).toEqual(['div.md'])
+    expect(row?.images).toEqual([{ url: 'poietica-asset://x' }])
+  })
+
   /* R-20-1：数组顺序是到达顺序，不是提交顺序 —— retry 的回执、迟到的快照都会把旧行排到末尾 */
   test('失败行按 createdAt 取最晚的一条，不按到达顺序', () => {
     const store = new TranscriptStore({ sessions: () => fakePort('t1').port })

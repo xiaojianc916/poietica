@@ -9,8 +9,9 @@ import {
   type TranscriptPage,
   turnId,
 } from '@poietica/transcript'
-import { isGoalContinuationMessage, isUserSkillMessage } from '../session/prompt'
+import { isGoalContinuationMessage, isUserSkillMessage, splitWireText } from '../session/prompt'
 import { compactionPayloadOf } from './compaction'
+import { FILE_MEDIA_TYPE } from './live'
 import { GOAL_CONTINUATION_ORIGIN, type TurnOrigin } from './origin'
 
 /** omp 的消息形状（只取投影要读的那几格，避免绑到 omp 的深层类型） */
@@ -321,14 +322,17 @@ function compactionOps(turn: number, compactions: readonly OmpMessage[]): Transc
 
 function turnOps(entry: ScreenTurn, openTurnAttachments: readonly TranscriptAttachment[]): TranscriptOperation[] {
   const turn = turnId(entry.turn)
-  const images = promptImagesOf(entry, openTurnAttachments)
-  /* 轮头必须带上号（审查 R-19-1）：界面只按轮头的 attachmentIds 找图，只发条目不挂号 = 重开之后图全部消失。 */
+  const attached = [
+    ...promptImagesOf(entry, openTurnAttachments),
+    ...(entry.prompt === null ? [] : filesOf(entry.prompt, entry.openedAt)),
+  ]
+  /* 轮头必须带上号（审查 R-19-1）：界面只按轮头的 attachmentIds 找图与文件，只发条目不挂号 = 重开之后它们全部消失。 */
   const ops: TranscriptOperation[] = [
     turnOp(
       entry,
-      images.map((op) => op.attachment.attachmentId),
+      attached.map((op) => op.attachment.attachmentId),
     ),
-    ...images,
+    ...attached,
   ]
   let step = 0
   for (const message of entry.steps) {
@@ -368,11 +372,11 @@ function turnOps(entry: ScreenTurn, openTurnAttachments: readonly TranscriptAtta
  */
 function interjectionOps(turn: string, step: number, message: OmpMessage): TranscriptOperation[] {
   const at = stampOf(message)
-  const images = imagesOf(message.content, at)
-  const attachmentIds = images.map((op) => op.attachment.attachmentId)
+  const attached = [...imagesOf(message.content, at), ...filesOf(message, at)]
+  const attachmentIds = attached.map((op) => op.attachment.attachmentId)
   return [
     stepOp(turn, step, 'completed', at, at),
-    ...images,
+    ...attached,
     {
       op: 'frame.upsert',
       turnId: turn,
@@ -446,7 +450,8 @@ function promptTextOf(message: OmpMessage): string {
   const args = detailsField(message, 'args')
   if (typeof prompt === 'string' && prompt !== '') return prompt
   if (typeof args === 'string' && args !== '') return args
-  return textOf(message.content)
+  /* 会话文件里存的是投递正文：末尾那几行文件引用是给模型的，气泡上画的是用户原文（文件另走 `filesOf`）。 */
+  return message.role === 'user' ? splitWireText(textOf(message.content)).text : textOf(message.content)
 }
 
 function detailsField(message: OmpMessage, key: string): unknown {
@@ -593,6 +598,24 @@ function imagesOf(content: unknown, stamp: string): AttachmentUpsert[] {
     })
   }
   return ops
+}
+
+/**
+ * 用户消息带的普通文件：从投递正文末尾那几行引用读回名字（见 `wireTextOf`）。旧会话的引用行没有名字，
+ * 条目也照样发 —— 界面给它一个泛称，比把一串内容寻址路径画在气泡里强。号的 `#f` 与图片的 `#序号` 分属两个名字空间。
+ */
+function filesOf(message: OmpMessage, stamp: string): AttachmentUpsert[] {
+  if (message.role !== 'user') return []
+  return splitWireText(textOf(message.content)).files.map(
+    (file, index): AttachmentUpsert => ({
+      op: 'attachment.upsert',
+      attachment: {
+        attachmentId: `${stamp}#f${String(index)}`,
+        mediaType: FILE_MEDIA_TYPE,
+        ...(file.name === undefined ? {} : { name: file.name }),
+      },
+    }),
+  )
 }
 
 function stampOf(message: OmpMessage): string {

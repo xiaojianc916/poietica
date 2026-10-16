@@ -18,6 +18,21 @@ function attachmentOf(input: ImageAttachmentInput): TranscriptAttachment {
   }
 }
 
+/**
+ * 一份普通文件附件（输入框里那枚文件记号、元素拾取的报告）：没有像素，只有名字 —— 气泡上画成一枚记号。
+ * 类型一律记成 octet-stream：会话文件里读不回真实类型，增量与重开两条路必须同形，这一格也只用来跟图片分开。
+ */
+export interface FileAttachmentInput {
+  readonly attachmentId: string
+  readonly name: string
+}
+
+export const FILE_MEDIA_TYPE = 'application/octet-stream'
+
+export function fileAttachmentOf(input: FileAttachmentInput): TranscriptAttachment {
+  return { attachmentId: input.attachmentId, mediaType: FILE_MEDIA_TYPE, name: input.name }
+}
+
 /** 工具帧降级时显示的正文（状态照实，正文换成这句；R-02） */
 export const TOOL_FALLBACK_TEXT = '这一步的内容无法显示（详情已写入日志）'
 
@@ -117,10 +132,12 @@ export class LiveProjector {
     readonly text: string
     readonly attachmentIds?: readonly string[]
     readonly images?: readonly ImageAttachmentInput[]
+    readonly files?: readonly FileAttachmentInput[]
     readonly promptId?: string
     readonly skills?: readonly string[]
   }): TranscriptOperation[] {
-    const attachments = (input.images ?? []).map(attachmentOf)
+    const pictures = (input.images ?? []).map(attachmentOf)
+    const attachments = [...pictures, ...(input.files ?? []).map(fileAttachmentOf)]
     const attachmentIds =
       attachments.length > 0 ? attachments.map((attachment) => attachment.attachmentId) : (input.attachmentIds ?? [])
     const skills = input.skills ?? []
@@ -142,7 +159,8 @@ export class LiveProjector {
       promptId: input.promptId,
       attachmentIds,
     })
-    this.turnAttachments = attachments
+    /* 只留图：历史分页按张数对号沿用的是图（`promptImagesOf`），文件在那条路上另起号。 */
+    this.turnAttachments = pictures
     return [
       ...attachments.map((attachment): TranscriptOperation => ({ op: 'attachment.upsert', attachment })),
       {
@@ -243,9 +261,13 @@ export class LiveProjector {
    * 一句插话：开着一轮时进当前 step 并封掉正在流的那一帧；没开着就退回 userTurn。
    * 插话带的图（审查 R-19-1）和开轮那一句同一个做法：先发条目，帧上挂号 —— 不挂号的话模型看得见、气泡上没有。
    */
-  steeredFrame(text: string, images: readonly ImageAttachmentInput[] = []): TranscriptOperation[] {
-    if (!this.turnOpen) return this.userTurn({ text, images })
-    const attachments = images.map(attachmentOf)
+  steeredFrame(
+    text: string,
+    images: readonly ImageAttachmentInput[] = [],
+    files: readonly FileAttachmentInput[] = [],
+  ): TranscriptOperation[] {
+    if (!this.turnOpen) return this.userTurn({ text, images, files })
+    const attachments = [...images.map(attachmentOf), ...files.map(fileAttachmentOf)]
     const attachmentIds = attachments.map((attachment) => attachment.attachmentId)
     this.streaming = null
     const turn = turnId(this.turn)

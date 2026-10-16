@@ -219,14 +219,14 @@ function textsOf(frames: readonly { readonly role: string; readonly text: string
 }
 
 describe('排队 / 插话链路（R-01 §5.1）', () => {
-  test('Q1 忙时的 followUp 带上文件：omp 收到的正文 = 原文 + @路径', async () => {
+  test('Q1 忙时的 followUp 带上文件：omp 收到的正文 = 原文 + @路径 (文件名)', async () => {
     const f = await fixture()
     await f.session.submit(submit('打底'))
     f.calls.length = 0
 
     await f.session.submit(submit('看这个文件', 'followUp', { files: [{ path: 'C:\\a.txt', name: 'a.txt' }] }))
 
-    expect(f.calls.find((call) => call.how === 'followUp')?.text).toBe('看这个文件\n@C:\\a.txt')
+    expect(f.calls.find((call) => call.how === 'followUp')?.text).toBe('看这个文件\n@C:\\a.txt (a.txt)')
     await f.session.cancel()
   })
 
@@ -240,16 +240,39 @@ describe('排队 / 插话链路（R-01 §5.1）', () => {
     await f.session.submit(submit('打底'))
     await f.session.submit(submit('看这个文件', 'steer', { files: [{ path: 'C:\\a.txt', name: 'a.txt' }] }))
 
-    expect(f.steering).toEqual(['看这个文件\n@C:\\a.txt'])
+    expect(f.steering).toEqual(['看这个文件\n@C:\\a.txt (a.txt)'])
     const item = f.session.queue().items.find((entry) => entry.text === '看这个文件')!
     expect(f.session.queue().items.find((entry) => entry.id === item.id)?.text).toBe('看这个文件')
 
-    f.steering.splice(f.steering.indexOf('看这个文件\n@C:\\a.txt'), 1)
+    f.steering.splice(f.steering.indexOf('看这个文件\n@C:\\a.txt (a.txt)'), 1)
     f.syncQueue()
-    f.messageStart({ role: 'user', content: '看这个文件\n@C:\\a.txt', timestamp: NOW + 1 })
+    f.messageStart({ role: 'user', content: '看这个文件\n@C:\\a.txt (a.txt)', timestamp: NOW + 1 })
 
     expect(textFrames(f.events).filter((frame) => frame.role === 'user' && frame.text === '看这个文件')).toHaveLength(1)
     expect(textFrames(f.events).some((frame) => frame.text.includes('@C:\\a.txt'))).toBe(false)
+    /* 文件随认领一起上屏：帧上挂号、条目带名字 —— 不挂的话模型读得到、气泡上没有那枚记号 */
+    const ops = f.events.flatMap((event) => (event.type === 'timeline' ? event.ops : []))
+    const named = ops.flatMap((op) => (op.op === 'attachment.upsert' ? [op.attachment] : []))
+    const claimed = ops.flatMap((op) =>
+      op.op === 'frame.upsert' && op.frame.kind === 'text' && op.frame.text === '看这个文件' ? [op.frame] : [],
+    )
+    expect(named.map((attachment) => attachment.name)).toEqual(['a.txt'])
+    expect(claimed.map((frame) => frame.attachmentIds)).toEqual([named.map((attachment) => attachment.attachmentId)])
+    await f.session.cancel()
+  })
+
+  test('Q1c 空闲时开轮带文件：轮头挂上文件条目的号，条目带名字，轮头正文是原文', async () => {
+    const f = await fixture()
+    await f.session.submit(submit('看这个文件', 'turn', { files: [{ path: 'C:\\a.txt', name: 'a.txt' }] }))
+
+    const ops = f.events.flatMap((event) => (event.type === 'timeline' ? event.ops : []))
+    const named = ops.flatMap((op) => (op.op === 'attachment.upsert' ? [op.attachment] : []))
+    const turn = ops.find((op) => op.op === 'turn.upsert')
+    expect(named.map((attachment) => attachment.name)).toEqual(['a.txt'])
+    expect(turn?.op === 'turn.upsert' ? [turn.turn.prompt, turn.turn.attachmentIds] : undefined).toEqual([
+      '看这个文件',
+      named.map((attachment) => attachment.attachmentId),
+    ])
     await f.session.cancel()
   })
 

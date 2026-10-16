@@ -25,7 +25,10 @@ import { describeFailure } from '../failure'
 import { delegateAddress, delegateKey } from '../timeline/delegate-channel'
 import {
   createTimelineState,
+  fileMetaLabel,
   isInFlight,
+  type MessageFile,
+  type MessageImage,
   type TimelineItem,
   type TimelineState,
   type TurnOutcome,
@@ -162,6 +165,23 @@ export interface PreparedThread {
 /** 提交行在时间线里的条目 id 前缀：换真实 turn 时靠它把上一份剔掉。 */
 const SUBMISSION_ITEM_PREFIX = 'submission:'
 
+/** 提交行带的附件与真实 turn 投影出来的同形：换的那一帧气泡上的图与文件记号不闪。 */
+function rowAttachments(row: SubmissionView): { images?: MessageImage[]; files?: MessageFile[] } {
+  if (row.attachments.length === 0) {
+    return {}
+  }
+  const images: MessageImage[] = []
+  const files: MessageFile[] = []
+  for (const attachment of row.attachments) {
+    if (attachment.kind === 'image') {
+      images.push(attachment.previewUrl === null ? { pending: true } : { url: attachment.previewUrl })
+    } else {
+      files.push({ name: attachment.name, meta: fileMetaLabel(attachment.name, attachment.size) })
+    }
+  }
+  return { ...(images.length === 0 ? {} : { images }), ...(files.length === 0 ? {} : { files }) }
+}
+
 /** 只画 `deliverAs === 'turn'` 且还没被真实 turn 换掉的。例外是**失败的插话 / 排队**（R-08-5）：不画就等于那句话无声无息地消失。 */
 function withSubmissionRows(next: Transcript, seen: ReadonlySet<string>): Transcript {
   /* 先剔上一轮贴进来的再贴当前应有的：`#put` 会被调很多次，不先剔就越贴越多（实测：一次发送出现 3~7 条一样的用户气泡）。 */
@@ -193,6 +213,7 @@ function withSubmissionRows(next: Transcript, seen: ReadonlySet<string>): Transc
     text: row.text,
     ...(row.status === 'failed' ? { undelivered: true } : {}),
     ...(row.skills.length === 0 ? {} : { skills: row.skills }),
+    ...rowAttachments(row),
   }))
   /* 插在本轮开头，与真实投影里把用户消息放最前同形 —— 换的那一帧 DOM 才不跳。 */
   return {

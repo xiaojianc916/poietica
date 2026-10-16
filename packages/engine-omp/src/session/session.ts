@@ -18,7 +18,7 @@ import { AppError, createId, Emitter, type Logger, SystemErrorCode } from '@poie
 import type { TranscriptOperation, TranscriptPage } from '@poietica/transcript'
 import { outcomeOf, type TurnOutcome, toEngineError } from '../errors'
 import type { InteractionBroker } from '../interactions/broker'
-import type { ImageAttachmentInput, LiveProjector } from '../projector/live'
+import type { FileAttachmentInput, ImageAttachmentInput, LiveProjector } from '../projector/live'
 import { describeError } from './event-faults'
 import type { LoadedImage } from './prompt'
 import { type SkillPromptMessage, wireTextOf } from './prompt'
@@ -144,9 +144,18 @@ interface QueueEntry {
   readonly input: SubmitInput
   /** 这一句带的图（审查 R-19-1）：被 message_start 认领、画成插话帧时一起上屏。号在入队时铸好 */
   readonly images: readonly ImageAttachmentInput[]
+  /** 这一句带的普通文件：认领时与图一起挂到插话帧上，气泡才画得出那几枚记号 */
+  readonly files: readonly FileAttachmentInput[]
 }
 
 /** 读好的图 → 时间线附件条目。号跨消息唯一，`#序号` 只为读日志时一眼看出是第几张 */
+/** 这一句带的普通文件 → 时间线附件条目。名字与投递正文里那一行同一份，重开之后读回来的也是它 */
+function fileInputsOf(files: SubmitInput['files']): FileAttachmentInput[] {
+  if (files.length === 0) return []
+  const batch = createId()
+  return files.map((file, index) => ({ attachmentId: `${batch}#f${String(index)}`, name: file.name }))
+}
+
 function imageInputsOf(images: readonly LoadedImage[]): ImageAttachmentInput[] {
   const batch = createId()
   return images.map((image, index) => ({
@@ -304,6 +313,7 @@ export class OmpSession implements EngineSession {
           text: input.text,
           skills: input.skills,
           ...(images.length === 0 ? {} : { images: imageInputsOf(images) }),
+          ...(input.files.length === 0 ? {} : { files: fileInputsOf(input.files) }),
         }),
       )
       const skillMessage = input.skills.length === 0 ? null : await this.skillTextFor(input)
@@ -443,6 +453,7 @@ export class OmpSession implements EngineSession {
         createdAt: this.o.now(),
         input,
         images: imageInputsOf(images),
+        files: fileInputsOf(input.files),
       })
       this.emitQueue()
     })
@@ -739,7 +750,7 @@ export class OmpSession implements EngineSession {
       return
     }
     const entry = this.takeConsumed((e) => !e.skill && e.wireText === wireText)
-    if (entry !== null) this.timeline(this.o.projector.steeredFrame(entry.text, entry.images))
+    if (entry !== null) this.timeline(this.o.projector.steeredFrame(entry.text, entry.images, entry.files))
   }
 
   /** 技能消息没有可靠的正文可对，按 FIFO 认领最早的技能项 */
@@ -749,7 +760,7 @@ export class OmpSession implements EngineSession {
       return
     }
     const entry = this.takeConsumed((e) => e.skill)
-    if (entry !== null) this.timeline(this.o.projector.steeredFrame(entry.text, entry.images))
+    if (entry !== null) this.timeline(this.o.projector.steeredFrame(entry.text, entry.images, entry.files))
   }
 
   /** 先在 consumed 里找（queue_update 先到），再在 ledger 里找（message_start 先到） */
