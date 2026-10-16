@@ -19,6 +19,7 @@ import type { TranscriptOperation, TranscriptPage } from '@poietica/transcript'
 import { outcomeOf, type TurnOutcome, toEngineError } from '../errors'
 import type { InteractionBroker } from '../interactions/broker'
 import type { FileAttachmentInput, ImageAttachmentInput, LiveProjector } from '../projector/live'
+import { OpenTurnScreen, overlayOpenTurn } from '../projector/open-turn'
 import { describeError } from './event-faults'
 import type { LoadedImage } from './prompt'
 import { type SkillPromptMessage, wireTextOf } from './prompt'
@@ -127,7 +128,15 @@ export interface OmpSessionHost {
   readonly livePlanMode: () => boolean
   readonly liveGoal: () => string | null
   readonly liveGoalSnapshot: () => import('@poietica/engine').SessionGoalSnapshot | null
-  readonly page: (agentId: string, beforeTurnId: string | null) => Promise<TranscriptPage>
+  /**
+   * 历史投影的一页。`openTurnShown` = 开着的那一轮会由 `OpenTurnScreen` 换上实时版本：
+   * 这时历史投影不要再把「最新一轮」标成 running —— omp 还没写进这句话时，最新一轮是上一轮，标了就错。
+   */
+  readonly page: (
+    agentId: string,
+    beforeTurnId: string | null,
+    options: { readonly openTurnShown: boolean },
+  ) => Promise<TranscriptPage>
   readonly now: () => number
 }
 
@@ -182,6 +191,8 @@ export class OmpSession implements EngineSession {
   private mutation: Promise<void> = Promise.resolve()
   private readonly modes: QueueSnapshot['modes'] = { steer: 'all', followUp: 'all' }
   private readonly subscriptions: { dispose(): void }[] = []
+  /** 开着的那一轮在屏幕上已经是什么样：整页重取时这一轮用它，不用历史投影的版本（见 OpenTurnScreen） */
+  private readonly openTurn = new OpenTurnScreen()
   private stateValue: SessionState = 'idle'
   /**
    * `agent_end` 到达时还有待答交互：记下结局，等交互全部答完再收成 idle。不记的话那一轮永远收不了尾
@@ -269,7 +280,11 @@ export class OmpSession implements EngineSession {
   }
 
   private timeline(ops: readonly TranscriptOperation[]): void {
-    if (ops.length > 0) this.emit({ type: 'timeline', agentId: 'main', ops })
+    if (ops.length === 0) return
+    if (!this.openTurn.observe(ops)) {
+      this.o.logger.warn('open turn screen diverged; pages fall back to history projection', { ops: ops.length })
+    }
+    this.emit({ type: 'timeline', agentId: 'main', ops })
   }
 
   /** broker 变化：待答交互数决定 running 与 awaiting 的来回切 */
@@ -715,7 +730,10 @@ export class OmpSession implements EngineSession {
 
   async page(agentId: string, beforeTurnId: string | null): Promise<TranscriptPage> {
     this.assertLive()
-    return await this.o.page(agentId, beforeTurnId)
+    /* 与历史投影同一刻取：o.page 的投影在调用时就同步算完，等它的这一拍里可能又发出了增量 */
+    const view = agentId === 'main' ? this.openTurn.view() : null
+    const page = await this.o.page(agentId, beforeTurnId, { openTurnShown: view !== null })
+    return overlayOpenTurn(page, view, beforeTurnId === null)
   }
 
   /** 转发交互事件、把卡片 upsert 上屏、按待答数调整状态；session-factory 在 omp 会话建好后调用一次 */

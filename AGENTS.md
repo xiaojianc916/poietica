@@ -156,7 +156,7 @@ L0  foundation
 3. **每个 `await` 之后重新检查前提**：是否已 dispose、是否被取消、代号（generation）是否变了。打开中、启动中的对象也要能被关闭和取消。
 4. **按线程或会话索引的进程内表（`Map` / `Set`）必须有删除路径**。Core 是长期运行的进程，只增不减就是内存泄漏。
 5. **Core 会重启，UI 会重载**。UI 侧的状态要能从 Core 重新拉齐，不能只在首次就绪时加载一次；不要在进程内从 1 开始数版本号，然后假定对端没见过。
-6. **时间线**：增量投影（`LiveProjector`）和历史投影（`projectHistoryPage`）的**帧号**一律由 omp 的消息身份派生（`projector/frame-ids.ts`：第几条助手消息 + contentIndex、第几句插话、`tool.<callId>`），两边必须相同，`live-history-parity.test.ts` 钉着；开轮那句人话只在轮头，不另发用户帧。**段（step）的划分**仍然不同（增量一轮一段），增量的 append 认段号，所以一轮还开着时不要让 UI 整页重取，局部失败就局部降级。
+6. **时间线**：增量投影（`LiveProjector`）和历史投影（`projectHistoryPage`）的**帧号**一律由 omp 的消息身份派生（`projector/frame-ids.ts`：第几条助手消息 + contentIndex、第几句插话、`tool.<callId>`），两边必须相同，`live-history-parity.test.ts` 钉着；开轮那句人话只在轮头，不另发用户帧。**段（step）的划分**仍然不同（增量一轮一段），增量的 append 认段号 —— 所以整页里**开着的那一轮**不取历史投影，取实时那条路已经发出去的样子（`projector/open-turn.ts` 的 `OpenTurnScreen`，`OmpSession.page` 换上），一轮开着时整页重取也接得上（`open-turn-refetch.test.ts` 钉着）。封口的轮只由历史投影决定。
 7. **Windows**：文件被占用时 rename / unlink 可能报 `EPERM` / `EBUSY`；子进程退出、端口释放都比 Linux 慢，关停要有超时预算。
 ​
 ## 9. UI 约定

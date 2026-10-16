@@ -3345,6 +3345,11 @@ RPC 契约与 `PROTOCOL_VERSION` 不变；conversation 新增迁移 v3（只删�
 那条路也按助手消息切段（stepId 同样由消息身份派生），可以另开一份独立方案。目标续跑、压缩这两个场景的
 真 omp 三方对照仍只有逐例测试。
 
+> **这一节的「下一步」与那条使用约束都已被 R-31 取代**：没有让两条路切同一套段，而是按轮的状态划分所有权 ——
+> 开着的轮整页时换上实时版本（`projector/open-turn.ts`）。**段的划分仍然不同**这一点不变，仍如本节所述；
+> 上面「这条守则保留」的「一轮还开着时不要整页重取」在 R-31 里删掉了（缺口恢复 / 重新订阅 / 副本重建本来
+> 就会整页重取，守则守不住）。
+
 ---
 
 ## R-28 CoreSupervisor 拉起失败自愈：spawn 只发 `error`、`launch()` 抛错都不再停在 `starting`（基于 32cbc5e）
@@ -3517,3 +3522,86 @@ packages/protocol features/conversation` 1063 pass / 0 fail；`bun run all` 全�
 
 **真机验收（未跑）**：P4.md §Windows 真机验收 六步 —— 其中「关掉应用重开，新线程仍只有 2 轮」是本轮
 修复的要点，必须真机确认（F-1 用 `SessionManager.open` 重开覆盖了同一件事，但不含应用重启）。
+
+---
+
+## R-31 开着的那一轮只有一个产地：整页里换上实时版本
+
+**来源**：外部补丁 `poietica-open-turn-single-source.patch` 与方案 `P5.md`（方案方给出，含 O-1…O-4 四条测试）。
+基线 `54058f42`，叠在 R-30 之上 apply 无冲突（两份补丁不碰同一个文件）。
+
+**现象**：一轮开着时整页重取（补发缺口 `#head`、重新订阅、副本重建），之后的实时增量接不上。三个后果：
+
+1. **正在跑的工具出现两张卡片，其中一张永远转圈**：屏幕变
+   `t1.0[tool.call-0 done, tool.call-1 done, t1.a2.c0 "做完了"]` **另有** `t1.1[tool.call-1 running]`；
+   一直在线的那块屏幕只有前者。
+2. **正文还在流时重取，每个增量报一次缺口**：omp 要等 `message_end` 才把助手消息写进消息表，历史投影里
+   就没有这一帧；下一条 `append` 的 offset 对不上，抛 `TranscriptGapError` → 界面再取整页 → 还是没有。
+3. **omp 还没写入这句话时重取**（例如发送前的自动压缩还在跑）：`isTurnOpen` 把历史里的「最新一轮」
+   ——其实是**上一轮**——标成 running，得到 `['t1:running']`；应为 `['t1:completed', 't2:running']`。
+
+**根因**：两条投影对同一轮各算一遍，而「同一轮由谁说了算」没有定义。R-27 已把**帧号**对齐，但**段的划分**
+仍不同（实时一轮一段；历史一条助手消息 / 一次工具调用一段），可见范围也不同（历史看不到还在流的那条消息）。
+增量的 `frame.upsert / append` 都带着段号，整页里开着的那一轮被历史版本整个替换之后，增量就落到另一套段号上。
+AGENTS §8.6 第 6 条对此的处理是加一条使用约束（「一轮还开着时不要让 UI 整页重取」），但缺口恢复、重新订阅、
+副本重建本身就会整页重取，约束守不住。
+
+**是否地基问题**：是。不是某处计数写错，而是**时间线的一致性模型**本身：从前需要证明「两条投影在任意时刻
+相等」，而它们在开着的那一轮上不可能相等。改成**按轮的状态划分所有权**：开着的轮只认实时产地（它是之后
+所有增量的基准，整页时也必须返回它），封口的轮只认历史产地（omp 落了盘的东西是唯一真相）。这样只需守住
+两条更弱、更容易守的性质：封口之后两边帧号一致（R-27 + parity 测试）；开着时整页与增量来自同一个产地
+（本补丁）。与既有的 `openTurnAttachments`（开着那一轮的附件号沿用实时那条路签发的号）同一个思路，
+只是从「附件号」推广到「整轮」。协议不变。
+
+**改法**：
+
+- `packages/engine-omp/src/projector/open-turn.ts`（新）：`OpenTurnScreen` 把 `OmpSession.timeline()` 发出的
+  每批 op 用官方 `applyOps` 叠起来，只保留**开着的那一轮**；遇到新的 running 轮头就从空状态重来（同批里
+  排在轮头前面的附件条目一起算），轮头变成终态就放手。叠不上时（理论上不会：它收到的就是界面收到的同一串
+  op）返回 false，整页退回只用历史投影的旧行为。`view()` 返回不可变快照。
+  `overlayOpenTurn(page, view, newest)`：历史页里同号的轮原位替换；没有而且这是最新一页，就接在末尾；
+  这一轮的附件条目与 `meta` 一并补上。
+- `packages/engine-omp/src/session/session.ts`：`timeline()` 发出前先 `openTurn.observe(ops)`（失败记
+  warn `open turn screen diverged…`）；`page()` 先**同步**取 `view()`，再取历史页，然后 overlay；宿主接口
+  `page` 加第三个参数 `{ openTurnShown }`。
+- `packages/engine-omp/src/session/omp-session-adapter.ts`：`isTurnOpen: projector.isTurnOpen && !openTurnShown`
+  —— 开着的轮由屏幕副本接管时，历史投影不再给「最新一轮」标 running。
+- `AGENTS.md` §8 第 6 条：删掉「一轮还开着时不要让 UI 整页重取」，改为说明开着的那一轮的单一产地与钉住它的测试。
+
+**测试**：`packages/engine-omp/src/__tests__/open-turn-refetch.test.ts` 新增 O-1（真 omp：工具正在跑时重取 →
+接上之后的增量 = 一直在线的屏幕；工具状态 `['done','done']`）、O-2（正文流到一半重取 → 下一条 append 接得上；
+用例内断言旧路径会抛）、O-3（omp 还没写入这句话时重取 → `t1:completed, t2:running`；用例内断言旧路径给
+`t1:running`）、O-4（收口后屏幕副本放手，整页原样就是历史投影同一个对象）。四条全过。
+
+**在旧代码上复现过**：把本补丁对 `session.ts` / `omp-session-adapter.ts` / `AGENTS.md` 的改动撤掉、只留新增的
+`open-turn.ts` 与测试，O-1 失败，差异正是多出来的 `t1.1[tool.call-1:tool=running]`（O-2…O-4 直接调新模块，
+旧文件下照旧通过）。
+
+**闸门**：`bun check -b`（757 文件 / 80 工程）与 `bun check -p tsconfig.tests.json`（1001 文件）0 错误；
+`bun run lint` exit 0（4 条基线 warning，都在既有的 `ds-menu` CSS 上）；改动文件 `biome` 通过。
+`bun test packages/engine-omp packages/engine-testkit packages/transcript features/conversation`
+**1078 pass / 0 fail**（132 文件）；`open-turn-refetch` + `live-history-parity` 9 pass / 0 fail
+（P5.md 记的 1069 / 2 是叠在 `54058f42` 上的数，本树已含 R-30，且它记的那两条基线失败 T-ISO-5 / T-ISO-6
+在本机未出现）。
+
+**风险与后续**：
+
+- **同时发现、本补丁未修：omp 事后修正的消息，实时那条路收不回来。** 推理模型给出「只有思维链、没有正文」的
+  stop 时，omp 会把这条助手消息**持久地丢掉**再重试（`turn-recovery.ts` 的 `#handleEmptyAssistantStop` →
+  `#dropAssistantTurnDurably`）。实时那条路已经画了这条消息的思维链帧，也把它算进了「第几条助手消息」，
+  于是屏幕上留着一帧 omp 已经删掉的思维链，同一轮之后的帧号整体错一位（实时 `t1.a3.c0`，历史 / 重开 `t1.a2.c0`），
+  R-27 的帧号一致性在这种情况下不成立。这是双产地结构的第二个后果：实时产地只能追加，跟不上 omp 对已发消息的
+  修订。第二步（单独一页做）是**封口时以历史为准**：一轮收口时引擎用历史投影重算这一轮，作为这一轮的最终版本
+  发出去。这需要 transcript 词汇里有「整轮替换」（现有 `items.remove` 会连带清掉挂在这一轮工具上的交互，
+  不能直接拿来用），属于协议变更，要单独评审。做完之后两条投影只需要在「开着的轮」上共存，而这部分已由本补丁
+  收归实时产地。
+- `OpenTurnScreen` 只看主 agent（`agentId === 'main'`）。子 agent 的页仍是旧路径，它们的实时 op 不经过这里。
+- 叠不上时退回旧行为并记 warn（`open turn screen diverged…`）；日志里如果出现这条，说明实时 op 自身不一致，
+  应当另查。
+- 开销：引擎在开着的那一轮内多维护一份不可变状态，规模就是这一轮本身，与界面持有的那份相同；封口即释放，
+  不随会话增长。
+
+**真机验收（未跑）**：P5.md §Windows 真机验收 四步 —— ① 长工具跑着时刷新界面 / 重开窗口 / 切走再切回 →
+工具卡片只有一张，结束后变完成，不留转圈的那张；② 长回复流式输出时做同样操作 → 回复继续流，不卡不闪，
+开发者工具里没有连续的整页请求；③ 发送一句话后立刻触发重取（能撞上发送前的自动压缩更好）→ 上一轮不显示为
+运行中；④ 正常聊几轮、重开线程 → 屏幕与运行时一致。

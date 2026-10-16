@@ -327,9 +327,9 @@ export async function wrapOmpSession(input: WrapOmpSessionInput): Promise<Engine
       livePlanMode: () => planner.isPlanModeOn(),
       liveGoal: () => goalOf(session),
       liveGoalSnapshot: () => goalSnapshotOf(session),
-      page: async (_agentId, beforeTurnId) =>
+      page: async (_agentId, beforeTurnId, { openTurnShown }) =>
         projectHistoryPage(transcriptOf(), beforeTurnId, {
-          isTurnOpen: projector.isTurnOpen,
+          isTurnOpen: projector.isTurnOpen && !openTurnShown,
           openTurnAttachments: projector.openTurnAttachments,
         }),
       /*
