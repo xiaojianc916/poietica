@@ -70,28 +70,27 @@ export function applyOps(state: TimelineState, ops: readonly TranscriptOperation
 }
 
 /**
- * 把更早的一页拼到当前状态前面（「加载更早的消息」）。条目：older 中已存在于当前状态的 id 被丢弃（当前状态更新）；
- * 侧表：同 id 以当前状态为准；meta 用当前状态的；hasMoreOlder 取 older 的值。
+ * 把更早的一页拼到当前这一页前面（「加载更早的消息」）。条目与侧表：older 里已在当前页出现的 id 被丢弃
+ * （当前页更新），其余排在前面；meta 与其余字段取当前页；hasMoreOlder 取 older 的值。
+ *
+ * 只有页的形状、不碰索引状态：调用方（界面副本）手里本来就是页，转一次索引状态再转回来是白算。
  */
-export function prependOlder(state: TimelineState, older: TranscriptPage): TimelineState {
-  const present = new Set(state.items.map(itemId))
-  const olderItems = older.items.filter((item) => !present.has(itemId(item)))
-  const merge = <T, K>(olderList: readonly T[], current: ReadonlyMap<K, T>, key: (v: T) => K): T[] => {
-    const map = new Map<K, T>()
-    for (const v of olderList) map.set(key(v), v)
-    for (const [k, v] of current) map.set(k, v)
-    return [...map.values()]
+export function prependOlder<P extends TranscriptPage>(current: P, older: TranscriptPage): P {
+  const mergeBy = <T>(earlier: readonly T[], present: readonly T[], key: (value: T) => string): T[] => {
+    const prefix = new Map(earlier.map((value) => [key(value), value]))
+    for (const value of present) prefix.delete(key(value))
+    return [...prefix.values(), ...present]
   }
-  return stateFromPage({
-    items: [...olderItems, ...state.items],
-    tasks: merge(older.tasks, state.tasks, (t) => t.taskId),
-    interactions: merge(older.interactions, state.interactions, (i) => i.interactionId),
-    attachments: merge(older.attachments, state.attachments, (a) => a.attachmentId),
-    todos: merge(older.todos, state.todos, (t) => t.todoId),
-    prompts: merge(older.prompts, state.prompts, (p) => p.promptId),
-    meta: state.meta,
+  return {
+    ...current,
+    items: mergeBy(older.items, current.items, itemId),
+    tasks: mergeBy(older.tasks, current.tasks, (t) => t.taskId),
+    interactions: mergeBy(older.interactions, current.interactions, (i) => i.interactionId),
+    attachments: mergeBy(older.attachments, current.attachments, (a) => a.attachmentId),
+    todos: mergeBy(older.todos, current.todos, (t) => t.todoId),
+    prompts: mergeBy(older.prompts, current.prompts, (p) => p.promptId),
     hasMoreOlder: older.hasMoreOlder ?? false,
-  })
+  }
 }
 
 /** 当前最早一轮的 id；没有任何 turn 时为 null。加载更早内容时作为游标。 */

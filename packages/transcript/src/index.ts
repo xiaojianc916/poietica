@@ -16,17 +16,9 @@ export {
 // —— 上游（src/upstream/）——
 export {
   agentTranscriptSnapshotSchema,
-  appendTargetSchema,
   transcriptItemSchema,
-  transcriptMetaSchema,
   transcriptOperationSchema,
-  transcriptOpsCatchupResponseSchema,
-  transcriptOpsPayloadSchema,
-  transcriptResetPayloadSchema,
-  transcriptResponseSchema,
 } from './upstream/contract/schema'
-export { foldWireRecordFacts } from './upstream/history/foldFacts'
-export { groupMessagesIntoSnapshot } from './upstream/history/groupTurns'
 export type { TranscriptAttachment } from './upstream/model/attachment'
 export type { TranscriptFrame } from './upstream/model/frame'
 export type {
@@ -40,7 +32,7 @@ export type {
   TodoId,
   TurnId,
 } from './upstream/model/ids'
-export { compareTurnIds, frameId, stepId, turnId, turnOrdinal } from './upstream/model/ids'
+export { frameId, stepId, turnId, turnOrdinal } from './upstream/model/ids'
 export type { TranscriptInteraction } from './upstream/model/interaction'
 export type { TranscriptItem, TranscriptMarker, TranscriptTaskRef } from './upstream/model/item'
 export { itemId } from './upstream/model/item'

@@ -54,7 +54,6 @@ function settled(items: readonly TimelineItem[]): TimelineState {
     subagents: [],
     sealed: [],
     active: { turn: 0, run: { settled: true, keepTurns: null, forkUnavailableReason: null }, items },
-    lastSeq: 0,
     spans: [],
   }
 }

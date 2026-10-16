@@ -302,8 +302,6 @@ export interface TimelineState {
   readonly subagents: readonly SubagentItem[]
   readonly sealed: readonly TurnPage[]
   readonly active: TurnPage
-  // 已收到的最大序号；去重只需要它（帧走单条有序 IPC，「到过」等价于「不大于它」）。
-  readonly lastSeq: number
   readonly spans: readonly TurnSpan[]
 }
 
@@ -314,7 +312,6 @@ export function createTimelineState(): TimelineState {
     subagents: [],
     sealed: [],
     active: { turn: 0, items: [] },
-    lastSeq: 0,
     spans: [],
   }
 }

@@ -3,8 +3,8 @@ import {
   type TranscriptPage as AgentTranscriptSnapshot,
   applyOps,
   emptyTimeline,
-  itemId,
   pageFromState,
+  prependOlder,
   type TimelineState,
   TranscriptGapError,
   type TranscriptOperation,
@@ -113,27 +113,6 @@ function foldCatchUp(
     }
   }
   return { complete, cursor, operations }
-}
-
-function mergeBy<T>(earlier: readonly T[], current: readonly T[], key: (value: T) => string): readonly T[] {
-  const prefix = new Map(earlier.map((value) => [key(value), value]))
-  for (const value of current) {
-    prefix.delete(key(value))
-  }
-  return [...prefix.values(), ...current]
-}
-
-function olderSnapshot(earlier: TranscriptPage, current: AgentTranscriptSnapshot): AgentTranscriptSnapshot {
-  return {
-    ...current,
-    items: mergeBy(earlier.items, current.items, itemId),
-    tasks: mergeBy(earlier.tasks, current.tasks, (value) => value.taskId),
-    interactions: mergeBy(earlier.interactions, current.interactions, (value) => value.interactionId),
-    attachments: mergeBy(earlier.attachments, current.attachments, (value) => value.attachmentId),
-    todos: mergeBy(earlier.todos, current.todos, (value) => value.todoId),
-    prompts: mergeBy(earlier.prompts, current.prompts, (value) => value.promptId),
-    hasMoreOlder: earlier.hasMoreOlder ?? false,
-  }
 }
 
 /** 一个会话持有自己的 reducer 与按序的恢复工作；它不持有任何界面状态。 */
@@ -411,7 +390,7 @@ export class TranscriptReplica {
       if (earlier.seq < current.seq) {
         invariant(false, 'Transcript history crossed a cursor reset.')
       }
-      const expanded: TranscriptPage = { ...current, ...olderSnapshot(earlier, current) }
+      const expanded: TranscriptPage = prependOlder(current, earlier)
       const next = expanded.items.find((item) => item.kind === 'turn')
       if (
         expanded.hasMoreOlder &&
@@ -468,7 +447,7 @@ export class TranscriptReplica {
       this.#transcript.describeAgent(descriptor)
     }
     const reducer = this.#transcript.ensureAgent(page.agentId)
-    const snapshot = prepend ? olderSnapshot(page, reducer.snapshot()) : page
+    const snapshot = prepend ? prependOlder(reducer.snapshot(), page) : page
     const applied = reducer.receive([{ op: 'reset', agentId: page.agentId, snapshot }])
     if (applied.gap !== undefined) {
       invariant(false, 'Official transcript reducer rejected a reset.')

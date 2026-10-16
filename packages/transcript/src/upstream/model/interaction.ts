@@ -2,13 +2,7 @@ import type { InteractionId } from './ids'
 
 export type InteractionKind = 'approval' | 'question'
 
-export type InteractionState =
-  | 'pending'
-  | 'approved'
-  | 'rejected'
-  | 'cancelled'
-  | 'answered'
-  | 'dismissed'
+export type InteractionState = 'pending' | 'approved' | 'rejected' | 'cancelled' | 'answered' | 'dismissed'
 
 export interface TranscriptInteraction {
   readonly interactionId: InteractionId

@@ -72,7 +72,6 @@ function stateOf(
     subagents: [],
     sealed: [],
     active,
-    lastSeq: 0,
     spans: [],
   }
 }
@@ -106,7 +105,6 @@ describe('什么时候这一轮没有封条', () => {
       subagents: [],
       sealed: [],
       active: { turn: 0, items: items() },
-      lastSeq: 0,
       spans: [],
     }
 

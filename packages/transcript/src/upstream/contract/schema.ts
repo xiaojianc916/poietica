@@ -239,10 +239,7 @@ export const modesMetaSchema = z.object({
 })
 
 export const modesMetaMergeSchema = z.object({
-  plan: z
-    .object({ reviewPath: z.string().optional(), version: z.number().optional() })
-    .nullable()
-    .optional(),
+  plan: z.object({ reviewPath: z.string().optional(), version: z.number().optional() }).nullable().optional(),
   swarm: z.object({ trigger: z.string().optional() }).nullable().optional(),
   tower: z.object({}).nullable().optional(),
 })

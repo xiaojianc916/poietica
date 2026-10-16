@@ -78,7 +78,6 @@ function stateOf(items: readonly TimelineItem[], running = false): TimelineState
           items,
         }
       : { turn: 0, items },
-    lastSeq: 0,
     spans: [],
   }
 }

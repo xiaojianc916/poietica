@@ -139,7 +139,7 @@ describe('timeline', () => {
   })
 
   test('TL-7 prependOlder：更早的一页拼在前面，已有轮用当前版本', () => {
-    const current = applyOps(emptyTimeline(), skeleton(2))
+    const current = pageFromState(applyOps(emptyTimeline(), skeleton(2)))
     const older: TranscriptPage = {
       ...emptyPage(),
       items: [turnHeader(1) as never, turnHeader(2) as never],
@@ -147,8 +147,9 @@ describe('timeline', () => {
     }
     const merged = prependOlder(current, older)
     expect(merged.items.map((i) => (i.kind === 'turn' ? i.turnId : '?'))).toEqual(['t1', 't2'])
-    expect(oldestTurnId(merged)).toBe('t1')
-    expect(merged.turnIndex.get('t2')).toBe(1)
+    /* t2 用当前页那一份（带着 step），不是 older 里的空轮头 */
+    expect(merged.items[1]).toBe(current.items[0])
+    expect(oldestTurnId(stateFromPage(merged))).toBe('t1')
     expect(merged.hasMoreOlder).toBe(true)
   })
 
@@ -160,9 +161,9 @@ describe('timeline', () => {
       detached: false,
       outputTail: '',
     })
-    const current = stateFromPage({ ...emptyPage(), tasks: [task('completed')] })
+    const current = { ...emptyPage(), tasks: [task('completed')] }
     const older = { ...emptyPage(), tasks: [task('running')] }
-    expect(prependOlder(current, older).tasks.get('task1')?.state).toBe('completed')
+    expect(prependOlder(current, older).tasks.map((t) => t.state)).toEqual(['completed'])
   })
 
   test('TL-9 pending 交互往返后仍在 pendingInteractions 里', () => {

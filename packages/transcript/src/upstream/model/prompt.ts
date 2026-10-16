@@ -1,12 +1,6 @@
 import type { PromptId } from './ids'
 
-export type TranscriptPromptStatus =
-  | 'running'
-  | 'queued'
-  | 'blocked'
-  | 'completed'
-  | 'failed'
-  | 'aborted'
+export type TranscriptPromptStatus = 'running' | 'queued' | 'blocked' | 'completed' | 'failed' | 'aborted'
 
 export interface TranscriptPrompt {
   readonly promptId: PromptId

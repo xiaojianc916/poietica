@@ -19,7 +19,6 @@
       "!packages/protocol/src/__tests__/contract.snapshot.json",
       "!**/*.svg",
       "!**/*.min.js",
-      "!packages/transcript/src/upstream",
       "!docs/baseline"
     ],
     "maxSize": 2097152
@@ -100,6 +99,21 @@
     }
   },
   "overrides": [
+    {
+      "includes": ["packages/transcript/src/upstream/ops/apply.ts"],
+      "linter": {
+        "rules": {
+          "complexity": {
+            "noExcessiveCognitiveComplexity": {
+              "level": "error",
+              "options": {
+                "maxAllowedComplexity": 30
+              }
+            }
+          }
+        }
+      }
+    },
     {
       "includes": [
         "features/conversation/src/ui/components/mascot/engine-runtime/ball.ts",

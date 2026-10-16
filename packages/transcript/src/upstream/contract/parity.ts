@@ -1,6 +1,23 @@
 import type { z } from 'zod'
-
-import {
+import type { TranscriptAttachment } from '../model/attachment'
+import type { TranscriptFrame } from '../model/frame'
+import type { TranscriptInteraction } from '../model/interaction'
+import type { TranscriptItem, TranscriptMarker, TranscriptTaskRef } from '../model/item'
+import type {
+  AgentPhaseMeta,
+  AgentStatusMeta,
+  GoalMeta,
+  ModesMeta,
+  ModesMetaMerge,
+  TranscriptMeta,
+  TranscriptMetaMerge,
+} from '../model/meta'
+import type { TranscriptPrompt } from '../model/prompt'
+import type { TranscriptTask } from '../model/task'
+import type { TranscriptTodo } from '../model/todo'
+import type { StepRetry, StepTiming, StepUsage, TranscriptStep, TranscriptTurn, TranscriptUsage } from '../model/turn'
+import type { AgentTranscriptSnapshot, TranscriptOperation } from '../ops/operation'
+import type {
   agentPhaseMetaSchema,
   agentStatusMetaSchema,
   agentTranscriptSnapshotSchema,
@@ -29,25 +46,6 @@ import {
   transcriptTurnSchema,
   transcriptUsageSchema,
 } from './schema'
-
-import type { TranscriptAttachment } from '../model/attachment'
-import type { TranscriptFrame } from '../model/frame'
-import type { TranscriptInteraction } from '../model/interaction'
-import type { TranscriptMarker, TranscriptItem, TranscriptTaskRef } from '../model/item'
-import type {
-  AgentPhaseMeta,
-  AgentStatusMeta,
-  GoalMeta,
-  ModesMeta,
-  ModesMetaMerge,
-  TranscriptMeta,
-  TranscriptMetaMerge,
-} from '../model/meta'
-import type { TranscriptPrompt } from '../model/prompt'
-import type { TranscriptTask } from '../model/task'
-import type { TranscriptTodo } from '../model/todo'
-import type { StepRetry, StepTiming, StepUsage, TranscriptStep, TranscriptTurn, TranscriptUsage } from '../model/turn'
-import type { AgentTranscriptSnapshot, TranscriptOperation } from '../ops/operation'
 
 /*
  * 线上形状与消费侧读法是两份定义：schema.ts 认字节，model/ 说类型。它们必须同形，否则

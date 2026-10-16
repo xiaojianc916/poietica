@@ -1183,7 +1183,6 @@ export function projectTranscript(snapshot: AgentTranscriptSnapshot, memo: Proje
     subagents: snapshot.tasks.map(subagentOf).filter((item): item is SubagentItem => item !== null),
     sealed: stableSealed(placed.pages, memo),
     active: tailOf(placed.pages, placed.tail, snapshot.items),
-    lastSeq: 0,
     spans,
   }
 }
