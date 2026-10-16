@@ -65,7 +65,15 @@ export interface ViewHost {
 }
 
 export interface BrowserTabs {
+  /** 给面板看的标签面：不含备用标签。 */
   state(): BrowserState
+  /** 给 relay 看的标签面：含备用标签（omp 要有页可接管），备用标签在没有别的活动标签时算活动。 */
+  relayState(): BrowserState
+  /**
+   * 保证 agent 有页可用：一张标签都没有（连备用标签也没有）时补一张**备用标签**。幂等，可以在每次状态变化时叫。
+   * omp 把这里当「借来的浏览器」，按设计从不自己开页；页面供给只能由宿主负责。
+   */
+  ensureAgentPage(): void
   onState(listener: (s: BrowserState) => void): Disposable
   openTab(url: string | null, active?: boolean): number | null
   closeTab(tabId: number): void
@@ -113,6 +121,11 @@ interface Tab {
   /** 上一次下发的矩形指纹：拖动每帧通报一次，同值不重复叫内核。 */
   rectKey: string | null
   crashedAt: number | null
+  /**
+   * 备用标签：只报给 relay、不进面板。用户把面板关空后 agent 仍有页可接管，面板也不会冒出一张关不掉的空白页。
+   * 被导航到真实地址（agent 打开了网页）就转正成普通标签。
+   */
+  reserve: boolean
   readonly view: WebContentsViewLike
 }
 
@@ -144,10 +157,22 @@ export function createBrowserTabs(host: ViewHost, opts: BrowserTabsOptions): Bro
     return tab
   }
 
+  /* 面板只看普通标签；relay 看全部。activeTabId 从不指向备用标签（转正之前它不抢活动位）。 */
   function read(): BrowserState {
+    return snapshot(
+      tabs.filter((tab) => !tab.reserve),
+      activeTabId,
+    )
+  }
+
+  function readForRelay(): BrowserState {
+    return snapshot(tabs, activeTabId ?? tabs.find((tab) => tab.reserve)?.id ?? null)
+  }
+
+  function snapshot(shown: readonly Tab[], active: number | null): BrowserState {
     return {
       revision,
-      tabs: tabs.map(
+      tabs: shown.map(
         (tab): BrowserTab => ({
           id: tab.id,
           url: tab.url,
@@ -159,7 +184,7 @@ export function createBrowserTabs(host: ViewHost, opts: BrowserTabsOptions): Bro
           zoom: tab.zoom,
         }),
       ),
-      activeTabId,
+      activeTabId: active,
       pickingTabId,
       recentlyClosed: [...recentlyClosed],
       driven,
@@ -244,6 +269,16 @@ export function createBrowserTabs(host: ViewHost, opts: BrowserTabsOptions): Bro
   function noteUrl(tab: Tab, url: string): void {
     /* 地址是「有没有东西可摆」的判据，与几何、可见性同批结算：CDP 导航过来的页面要当场摆上。 */
     tab.url = url === BLANK_PAGE || url.length === 0 ? null : url
+
+    /* agent 把备用标签导航到了真实地址：转正，进面板；面板上没有活动标签时它就是活动标签。 */
+    if (tab.reserve && tab.url !== null) {
+      tab.reserve = false
+
+      if (activeTabId === null) {
+        activeTabId = tab.id
+      }
+    }
+
     syncHistory(tab)
     layout()
     publish()
@@ -413,6 +448,18 @@ export function createBrowserTabs(host: ViewHost, opts: BrowserTabsOptions): Bro
   }
 
   function openTab(url: string | null, active = true): number | null {
+    return addTab(url, active, false)
+  }
+
+  function ensureAgentPage(): void {
+    if (disposed || tabs.length > 0) {
+      return
+    }
+
+    addTab(null, false, true)
+  }
+
+  function addTab(url: string | null, active: boolean, reserve: boolean): number | null {
     if (pickingTabId !== null) {
       cancelPick(pickingTabId)
       pickingTabId = null
@@ -443,13 +490,14 @@ export function createBrowserTabs(host: ViewHost, opts: BrowserTabsOptions): Bro
       shown: false,
       rectKey: null,
       crashedAt: null,
+      reserve,
       view,
     }
 
     tabs.push(tab)
 
-    /* 后台标签不许把「当前没有活动标签」的空档留着 —— 那会让面板一张都不显示。 */
-    if (active || activeTabId === null) {
+    /* 后台标签不许把「当前没有活动标签」的空档留着 —— 那会让面板一张都不显示。备用标签不进面板，也就不占活动位。 */
+    if (!reserve && (active || activeTabId === null)) {
       activeTabId = id
     }
 
@@ -485,9 +533,11 @@ export function createBrowserTabs(host: ViewHost, opts: BrowserTabsOptions): Bro
     }
 
     if (activeTabId === id) {
-      const next = tabs[index] ?? tabs[index - 1]
+      /* 仍然先右后左，但备用标签不进面板：面板的活动位只交给普通标签，剩下的空档由 relay 那一侧自己挑备用页。 */
+      const right = tabs.slice(index).find((tab) => !tab.reserve)
+      const left = [...tabs.slice(0, index)].reverse().find((tab) => !tab.reserve)
 
-      activeTabId = next?.id ?? null
+      activeTabId = right?.id ?? left?.id ?? null
     }
 
     host.detach(tab.view)
@@ -523,6 +573,10 @@ export function createBrowserTabs(host: ViewHost, opts: BrowserTabsOptions): Bro
   return {
     state: read,
 
+    relayState: readForRelay,
+
+    ensureAgentPage,
+
     onState(listener) {
       stateListeners.add(listener)
 
@@ -537,6 +591,11 @@ export function createBrowserTabs(host: ViewHost, opts: BrowserTabsOptions): Bro
 
     selectTab(id) {
       const tab = require(id)
+
+      /* relay 的 activateTab 可能点到备用标签：它不在面板里，没有可切换的画面；在 relay 那一侧它本来就算活动。 */
+      if (tab.reserve) {
+        return
+      }
 
       stopPickerUnless(id)
       activeTabId = tab.id

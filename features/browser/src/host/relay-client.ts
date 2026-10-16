@@ -29,10 +29,13 @@ export interface RelaySocket {
 }
 
 export interface RelayTabsPort {
+  /** relay 看到的标签面：含不进面板的备用标签。 */
   state(): BrowserState
   contentsOf(tabId: number): WebContentsLike | null
   /** active=false 时开在后台：agent 要一张标签不代表要抢走用户正在看的那张。 */
   openTab(url: string | null, active?: boolean): number | null
+  /** 一张页都没有时补一张不进面板的备用标签（幂等）。 */
+  ensureAgentPage(): void
   closeTab(tabId: number): void
   selectTab(tabId: number): void
   userAgent(): string
@@ -315,13 +318,25 @@ export function createRelayClient(tabs: RelayTabsPort, opts: RelayClientOptions)
     )
   }
 
-  /* 握手：报上当前标签面；一个标签都没有就先开一个 —— relay 服务端活着就是 agent 要用浏览器了，而 CDP 上一个 page target 都没有时它只会答「没有可用页面」。 */
-  function hello(): void {
-    if (tabs.state().tabs.length === 0) {
-      tabs.openTab(null)
+  /*
+   * 不变式：socket 连着，relay 那一侧就至少有一张页。omp 把这里当「借来的浏览器」，从不自己开页
+   * （attach.ts：never create a tab in a borrowed browser），一张都没有时 browser.open 只会等满 10s 超时；
+   * 而 omp 列页面时读的是 relay 自己记的标签账（bridge.ts 的 Target.getTargets），不会来问我们 —— 所以不能「等它要的时候再给」，
+   * 只能在每一个让标签面变空的时刻补上。按状态判、不按事件判：握手、用户关空面板、agent 关掉最后一张、哪条路变空都一样。
+   */
+  function withAgentPage(state: BrowserState): BrowserState {
+    if (state.tabs.length > 0) {
+      return state
     }
 
-    const snapshots = snapshotOf(tabs.state())
+    tabs.ensureAgentPage()
+
+    return tabs.state()
+  }
+
+  /* 握手：报上当前标签面；一张页都没有就先补备用标签（不进面板，用户看不到一张凭空出现的空白页）。 */
+  function hello(): void {
+    const snapshots = snapshotOf(withAgentPage(tabs.state()))
 
     for (const tab of snapshots) {
       known.set(tab.tabId, tab)
@@ -406,10 +421,13 @@ export function createRelayClient(tabs: RelayTabsPort, opts: RelayClientOptions)
   }
 
   /* 标签面的增删改不整份重发：relay 按 tabId 维护状态，重发会让它把每个标签当成新出现的。 */
-  function publishDiffs(state: BrowserState): void {
+  function publishDiffs(given: BrowserState): void {
     if (socket === null || socket.readyState !== SOCKET_OPEN) {
       return
     }
+
+    /* 变空的那一帧当场补上：同一轮差分里备用标签的 tabCreated 排在旧标签的 tabRemoved 之前，relay 的标签账一刻都不空着。 */
+    const state = withAgentPage(given)
 
     const next = new Map<number, TabSnapshot>()
 

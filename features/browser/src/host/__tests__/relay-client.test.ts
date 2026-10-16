@@ -164,6 +164,8 @@ interface Harness {
   readonly openedActive: (boolean | undefined)[]
   readonly closed: number[]
   readonly selected: number[]
+  /** ensureAgentPage 被叫时标签面里有几张：0 才真的补。 */
+  readonly ensured: number[]
   readonly connected: boolean[]
   readonly attachedLog: (readonly number[])[]
   readonly clock: FakeClock
@@ -179,6 +181,7 @@ function harness(url: string): Harness {
   const openedActive: (boolean | undefined)[] = []
   const closed: number[] = []
   const selected: number[] = []
+  const ensured: number[] = []
   const connected: boolean[] = []
   const attachedLog: (readonly number[])[] = []
   const clock = fakeClock()
@@ -226,6 +229,25 @@ function harness(url: string): Harness {
 
         return id
       },
+      ensureAgentPage: () => {
+        ensured.push(state.tabs.length)
+
+        if (state.tabs.length === 0) {
+          const id = 100 + ensured.length
+
+          state.tabs.push({
+            id,
+            url: null,
+            title: '新标签页',
+            loading: false,
+            favicon: null,
+            canGoBack: false,
+            canGoForward: false,
+            zoom: 0,
+          })
+          state.activeTabId = id
+        }
+      },
       closeTab: (tabId) => {
         closed.push(tabId)
       },
@@ -255,7 +277,20 @@ function harness(url: string): Harness {
 
   socket.open()
 
-  return { socket, contents, opened, openedActive, closed, selected, connected, attachedLog, clock, client, state }
+  return {
+    socket,
+    contents,
+    opened,
+    openedActive,
+    closed,
+    selected,
+    ensured,
+    connected,
+    attachedLog,
+    clock,
+    client,
+    state,
+  }
 }
 
 async function rpc(socket: FakeSocket, request: Record<string, unknown>): Promise<Sent> {
@@ -328,10 +363,11 @@ describe('BR-2: 握手与驱动标记', () => {
     h.client.dispose()
   })
 
-  test('一个标签都没有时 hello 前先开空白标签', () => {
+  test('一个标签都没有时 hello 前先补备用标签（不开进面板的普通标签）', () => {
     FakeSocket.instances = []
 
     const opened: (string | null)[] = []
+    const ensured: number[] = []
     const state: BrowserState = {
       revision: 0,
       tabs: [],
@@ -348,6 +384,9 @@ describe('BR-2: 握手与驱动标记', () => {
           opened.push(next)
 
           return 1
+        },
+        ensureAgentPage: () => {
+          ensured.push(1)
         },
         closeTab: () => undefined,
         selectTab: () => undefined,
@@ -370,7 +409,8 @@ describe('BR-2: 握手与驱动标记', () => {
     client.setUrl('http://127.0.0.1:9224')
     ;(FakeSocket.instances[0] as FakeSocket).open()
 
-    expect(opened).toEqual([null])
+    expect(ensured).toEqual([1])
+    expect(opened).toEqual([])
     expect(connected).toEqual([true])
 
     client.dispose()
@@ -824,6 +864,55 @@ describe('BR-7: 标签面增量推送', () => {
     h.client.publish({ ...h.state, revision: 2, activeTabId: null })
 
     expect(h.socket.messages().filter((message) => message.t === 'tabUpdated')).toHaveLength(1)
+
+    h.client.dispose()
+  })
+})
+
+describe('不变式：连着就至少有一张页（面板关空后 open 永久 10s 超时）', () => {
+  test('连着时标签面变空：当场补备用标签，同一轮里先报 tabCreated 再报 tabRemoved，relay 的账一刻都不空', () => {
+    const h = harness('https://a.example/')
+    const before = h.socket.sent.length
+
+    h.state.tabs.length = 0
+    h.client.publish({ ...h.state, revision: 2 })
+
+    const sent = h.socket.messages().slice(before)
+
+    expect(h.ensured).toEqual([0])
+    expect(sent.map((message) => message.t)).toEqual(['tabCreated', 'tabRemoved'])
+    expect(sent.find((message) => message.t === 'tabRemoved')?.tabId).toBe(1)
+    expect(sent.find((message) => message.t === 'tabCreated')?.tab).toMatchObject({ tabId: 101, url: '' })
+
+    h.client.dispose()
+  })
+
+  test('反复关空反复补：按状态判，不是只在握手时补一次', () => {
+    const h = harness('https://a.example/')
+
+    for (let round = 0; round < 3; round += 1) {
+      h.state.tabs.length = 0
+      h.client.publish({ ...h.state, revision: round + 2 })
+    }
+
+    expect(h.ensured).toEqual([0, 0, 0])
+    expect(h.socket.messages().filter((message) => message.t === 'tabCreated')).toHaveLength(3)
+
+    h.client.dispose()
+  })
+
+  test('有页时不补；断开时不补（下一次握手再补）', () => {
+    const h = harness('https://a.example/')
+
+    h.client.publish({ ...h.state, revision: 2 })
+
+    expect(h.ensured).toEqual([])
+
+    h.client.setUrl(null)
+    h.state.tabs.length = 0
+    h.client.publish({ ...h.state, revision: 3 })
+
+    expect(h.ensured).toEqual([])
 
     h.client.dispose()
   })

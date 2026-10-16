@@ -221,7 +221,8 @@ export default defineHostModule({
       )
       ctx.disposables.add(
         active.onState((state) => {
-          relay.publish(state)
+          /* relay 要的是含备用标签的那一份；面板拿不含的。 */
+          relay.publish(active.relayState())
           ctx.rpc.emit('browser.stateChanged', state)
         }),
       )
@@ -235,9 +236,12 @@ export default defineHostModule({
 
 function relayTabsPort(tabs: BrowserTabs): RelayTabsPort {
   return {
-    state: () => tabs.state(),
+    state: () => tabs.relayState(),
     contentsOf: (tabId) => tabs.contentsOf(tabId),
     openTab: (url, active) => tabs.openTab(url, active),
+    ensureAgentPage: () => {
+      tabs.ensureAgentPage()
+    },
     closeTab: (tabId) => {
       tabs.closeTab(tabId)
     },

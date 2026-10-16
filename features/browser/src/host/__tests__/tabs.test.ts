@@ -724,3 +724,125 @@ describe('拾取租约与面板收合', () => {
     expect(h.tabs.state().pickingTabId).toBeNull()
   })
 })
+
+/* agent 的页面供给（面板关空后 browser.open 永久 10s 超时）：omp 把这里当借来的浏览器、从不自己开页，宿主补一张不进面板的备用标签。 */
+describe('备用标签：agent 永远有页可用，面板不冒出关不掉的空白页', () => {
+  test('一张都没有时补一张：relay 看得见、面板看不见，也不占活动位', () => {
+    h.tabs.setVisible(true)
+    h.tabs.ensureAgentPage()
+
+    expect(h.tabs.state().tabs).toHaveLength(0)
+    expect(h.tabs.state().activeTabId).toBeNull()
+    expect(h.tabs.relayState().tabs).toHaveLength(1)
+    expect(h.tabs.relayState().activeTabId).toBe(h.tabs.relayState().tabs[0]?.id ?? -1)
+    expect(visibleViews(h)).toHaveLength(0)
+  })
+
+  test('幂等：已有备用标签或普通标签时什么都不做', () => {
+    h.tabs.ensureAgentPage()
+    h.tabs.ensureAgentPage()
+
+    expect(h.created).toHaveLength(1)
+
+    const other = harness()
+
+    other.tabs.openTab('https://a.example/')
+    other.tabs.ensureAgentPage()
+
+    expect(other.created).toHaveLength(1)
+    expect(other.tabs.relayState().tabs).toHaveLength(1)
+  })
+
+  test('用户把面板关空：面板保持空，relay 那一侧仍有一张可接管的页', () => {
+    const id = h.tabs.openTab('https://a.example/') as number
+
+    h.tabs.closeTab(id)
+    h.tabs.ensureAgentPage()
+
+    expect(h.tabs.state().tabs).toHaveLength(0)
+    expect(h.tabs.relayState().tabs).toHaveLength(1)
+    expect(h.tabs.state().recentlyClosed.map((record) => record.url)).toEqual(['https://a.example/'])
+  })
+
+  test('反复关：备用标签在面板之外，关多少次普通标签都不用重补；备用标签自己被关才再补一张', () => {
+    h.tabs.ensureAgentPage()
+
+    for (let round = 0; round < 3; round += 1) {
+      const id = h.tabs.openTab('https://a.example/') as number
+
+      h.tabs.closeTab(id)
+      h.tabs.ensureAgentPage()
+    }
+
+    /* 三张普通标签 + 一张备用标签，没有多补。 */
+    expect(h.created).toHaveLength(4)
+
+    const reserve = h.tabs.relayState().tabs[0]?.id as number
+
+    h.tabs.closeTab(reserve)
+    h.tabs.ensureAgentPage()
+
+    expect(h.created).toHaveLength(5)
+    expect(h.tabs.relayState().tabs).toHaveLength(1)
+  })
+
+  test('用户有自己的标签时，relay 那一侧的活动标签是用户那张，不是备用标签', () => {
+    h.tabs.ensureAgentPage()
+
+    const id = h.tabs.openTab('https://a.example/') as number
+
+    expect(h.tabs.relayState().tabs).toHaveLength(2)
+    expect(h.tabs.relayState().activeTabId).toBe(id)
+  })
+
+  test('agent 把备用标签导航到真实地址：转正进面板、成为活动标签、当场摆上', () => {
+    h.tabs.setBounds({ x: 10, y: 20, width: 300, height: 200 })
+    h.tabs.setVisible(true)
+    h.tabs.ensureAgentPage()
+
+    const reserve = lastView(h)
+
+    reserve.webContents.emit('did-navigate', {}, 'https://a.example/')
+
+    expect(h.tabs.state().tabs.map((tab) => tab.url)).toEqual(['https://a.example/'])
+    expect(h.tabs.state().activeTabId).toBe(h.tabs.state().tabs[0]?.id ?? -1)
+    expect(visibleViews(h)).toEqual([reserve])
+  })
+
+  test('about:blank 不算转正：ensureDocument 补的空白文档不让它进面板', () => {
+    h.tabs.ensureAgentPage()
+    lastView(h).webContents.emit('did-navigate', {}, 'about:blank')
+
+    expect(h.tabs.state().tabs).toHaveLength(0)
+  })
+
+  test('relay 激活备用标签不动面板的活动位', () => {
+    const id = h.tabs.openTab('https://a.example/') as number
+
+    h.tabs.closeTab(id)
+    h.tabs.ensureAgentPage()
+    h.tabs.selectTab(h.tabs.relayState().tabs[0]?.id as number)
+
+    expect(h.tabs.state().activeTabId).toBeNull()
+  })
+
+  test('释放之后不再补', () => {
+    h.tabs.disposeAll()
+    h.tabs.ensureAgentPage()
+
+    expect(h.created).toHaveLength(0)
+  })
+
+  test('关掉最后一张普通标签：面板的活动位交回 null，不落到备用标签上', () => {
+    h.tabs.ensureAgentPage()
+
+    const id = h.tabs.openTab('https://a.example/') as number
+
+    h.tabs.closeTab(id)
+
+    expect(h.tabs.state().tabs).toHaveLength(0)
+    expect(h.tabs.state().activeTabId).toBeNull()
+    expect(h.tabs.relayState().tabs).toHaveLength(1)
+    expect(h.tabs.relayState().activeTabId).toBe(h.tabs.relayState().tabs[0]?.id ?? -1)
+  })
+})
