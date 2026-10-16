@@ -90,7 +90,7 @@ function interjectedIn(rows: readonly FeedRow[]): boolean {
 
 export interface ReplyActionPlan {
   readonly text: string
-  readonly undoCount: number | null
+  readonly keepTurns: number | null
   readonly forkUnavailableReason: string | null
   readonly usage?: TranscriptUsage
 }
@@ -529,7 +529,7 @@ function repliesIn(
       rows.length - 1,
       {
         text,
-        undoCount: run.undoCount,
+        keepTurns: run.keepTurns,
         forkUnavailableReason: run.forkUnavailableReason,
         ...(usage === undefined ? {} : { usage }),
       },

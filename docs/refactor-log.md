@@ -3436,3 +3436,84 @@ error 后补发 exit 只算一次、`pickPort` 抛一次错后自愈、`launch` 
 `core.pid` 的写入时机都没动；与 R-28 互补（那份管 Host 侧重拉，这份管 Core 侧真的退出，两份一起时
 重试不会撞上还活着的旧 Core）。P3 页给的两步真机验收（启动窗口内结束 Host、紧接着重启）本轮未跑。
 
+
+---
+
+## R-30 分叉按轮号截断，截断落盘（协议 19）
+
+**来源**：外部补丁 `poietica-fork-by-turn.patch` 与方案 `P4.md`（方案方给出，含 F-1…F-6 / K-1 / K-2 九条测试）。
+
+**现象**：两个。
+
+1. **分叉不生效（真缺陷）**：3 轮的会话，在第 2 轮上点「从这里分叉」，新线程打开后仍是 q1/q2/q3 三轮。
+   旧代码 `fork(file, 1)` 再重开，得到 `[["q1","a1"],["q2","a2"],["q3","a3"]]`。
+2. **大量轮被禁用分叉**：只要后面出现过一次上下文压缩，之前所有轮都显示「包含压缩或其他边界标记，无法证明
+   精确截断。」；技能开的轮、目标续跑开的轮之前显示「下一段不从用户撤销锚点开始，无法精确截到此处。」。
+
+**根因**：两个，都在**寻址键**上。
+
+1. **截断没有落盘**：`OmpSessionFilesPort.fork` 先 `forkFrom` 整份克隆，再 `manager.branch(anchor.parentId)`。
+   `branch()` 只改内存里的叶子；omp 重开会话时按**最后一条物理记录**还原叶子
+   （`session-manager.ts` 的 `discardEntryDurably` 注释写着同一件事：「The loader reconstructs the active
+   branch from the last physical journal entry, so changing the in-memory leaf alone is lost on reload」），
+   所以副本一关一开就恢复成整条历史。
+2. **位置寻址用了三套数法，靠「证明相等」维持**：协议参数 `undoTurns` / 界面 `undoCount` 是「从尾部撤掉
+   几个用户锚点」（这套语义来自另一个协议的 `ForkThread.drop_turns`）；引擎只数 `role === 'user'` 的记录
+   （技能是 `custom/skill-prompt`、目标续跑是 `custom/goal-continuation`，都不算）；时间线分轮又是第三套
+   （`screenTurns`）。三套规则互不相同，界面只好在每种「可能对不上」的情形下禁用分叉。
+
+**是否地基问题**：是。毛病不在某个计数写错了，而在**寻址键选错**：omp 会话是按 id 寻址的树，引擎本来就
+给每一轮签发轮号（R-27 之后实时与重开一致）。拿「从尾部数某类消息」去定位一个本来就有身份的东西，
+只能不停地补「这种情况数不清」的规则 —— 用户看到的就是越来越多的灰按钮。
+
+**改法**：协议 `threads.fork` 的 `undoTurns` → `keepTurns: int ≥ 1, optional`（缺省 = 整条复制），
+`PROTOCOL_VERSION` 18 → 19，快照重生成。引擎按**轮号**截：轮号就是时间线上那一轮的 `turn.ordinal`。
+
+- `packages/engine/src/ports.ts`：`SessionFilesPort.fork(sessionFile, keepTurns?)`，文档写明「只留前
+  keepTurns 轮，截断落盘，原文件只读；超出现有轮数报 invalid_params，不静默夹到边界」。
+- `packages/engine-omp/src/projector/history.ts`：新增 `turnOpenings(messages)` =
+  `screenTurns(...).turns.map(t => t.opening)`。分叉与历史分页用的是**同一份**分轮结果 —— 屏幕上第 n 轮
+  就是截断时的第 n 轮。`screenTurns` 的轮号是 `turns.length + 1`（从 1 连续），增量那条路是
+  `seat(lastTurnOrdinal())` 之后 `this.turn + 1`，两边同序。
+- `packages/engine-omp/src/ports/session-files.ts`：删掉 `truncateTurns`，新增 `keepFirstTurns` ——
+  `buildSessionContext({transcript:true, collapseCompactedHistory:false})` 拿显示经过（与
+  `buildTranscriptSessionContext` 逐项等价，已核对 `session-provider-boundary.ts`）→ `turnOpenings` →
+  越界（<1 或 >轮数）如实报 `invalid_params` → `entryOf` 把第 keep+1 轮开场消息对回会话记录 →
+  `branchWithSummary(cut.parentId, '', {kind:'poietica-fork', keepTurns})`。空摘要不上屏、不进模型上下文
+  （omp 自己 `discardEntryDurably` 也是这么做的）；`#recordEntry` 会 `#appendToSessionFile`，叶子因此
+  落在磁盘上。
+- Core `handlers` / `thread-service` 透传 `keepTurns`。
+- 界面 `transcript-projector.ts`：删掉整套锚点推导（`TurnFact`、`userAnchors`、`addAnchors`、
+  `sourceOf*` 的 `anchors` 字段，约 −80 行）；`runBoundariesOf` 只剩一条规则：会话不忙且这一轮已收口
+  → `keepTurns = turn.ordinal`，否则给出「会话仍在运行或等待输入，暂不可分叉。」。
+- 界面其余：`undoCount/replyUndoCount/dropTurns` → `keepTurns/replyKeepTurns`（timeline-contract、
+  presentation、transcript-view、timeline-seat、reply-actions、assistant-surface、api、commands、
+  contributions）；整条复制改为不传 `keepTurns`。
+- FakeEngine 参数改名，语义同步。
+
+**测试**：`packages/engine-omp/src/ports/__tests__/session-files-fork.test.ts` 新增 F-1（3 轮只留 2 轮，
+**重开**分叉文件屏幕上就是前 2 轮，原文件字节不变）、F-2（不给 keepTurns = 整条复制）、F-3（keep = 轮数
+= 整条；4 / 0 → `invalid_params`，不夹边界）、F-4（技能 `custom` 开的轮也是一轮）、F-5（目标续跑开的轮
+同理）、F-6（压缩之后照样能截到压缩之前的第 1 / 第 2 轮）；`features/conversation/src/ui/transcript/__tests__/transcript-projector-fork.test.ts`
+新增 K-1（压缩 / 技能 / 续跑之前的轮，分叉位置都是各自轮号 `[1,2,3,4]`；旧代码 `[禁用,禁用,1,0]`）、
+K-2（会话还在跑：所有轮都不可分叉并给出原因）。八条全过；`bun test packages/engine-omp packages/engine-testkit
+packages/protocol features/conversation` 1063 pass / 0 fail；`bun run all` 全绿。
+
+**顺带修的两处**：`conversation-core.test.ts` 的 `core.threads.fork(row.id, 0)` 是旧语义的遗留
+（位置参数 `0` 现在等于「只留前 0 轮」，会被引擎按越界拒掉），改成 `undefined`（整条复制）；
+`fake-engine.ts` 与 `live-legacy.test.ts` 各一条注释仍写着「界面会把整轮的分叉锚点判成算不出来」，
+锚点推导已删，改成描述帧号对齐（R-27）那条理由。
+
+**风险与后续**：
+
+- **协议破坏性变更**（18 → 19）：Core 与 UI 同仓同发，没有外部客户端；如有自建脚本调用
+  `threads.fork { undoTurns }`，需要改成 `keepTurns`。
+- `entryOf` 把显示消息对回会话记录：消息记录按 role + 时刻，自定义消息按时刻，压缩 / 分支摘要按种类。
+  同一毫秒出现两条同 role 的记录才可能对错；对不上时抛 `internal`，不会静默截错位置。更彻底的做法是让
+  omp 的 `buildSessionContext` 带回 entry id，可以另提上游 issue。
+- 跑着的会话仍不能分叉（磁盘没写完）。以后若需要，可以按「已收口的轮」放开，因为轮号本身已稳定。
+- 分叉后的副本末尾多一条空的 `branch_summary`（`details.kind = 'poietica-fork'`），omp 终端界面同样
+  不显示它；再对副本分叉也能正确识别。
+
+**真机验收（未跑）**：P4.md §Windows 真机验收 六步 —— 其中「关掉应用重开，新线程仍只有 2 轮」是本轮
+修复的要点，必须真机确认（F-1 用 `SessionManager.open` 重开覆盖了同一件事，但不含应用重启）。

@@ -99,11 +99,15 @@ export const conversationContract = defineContract({
       owner: 'core',
       params: z.object({
         threadId: z.string().min(1),
-        undoTurns: z.number().int().nonnegative(),
+        /**
+         * 只留前几轮：值就是时间线上那一轮的 `turn.ordinal`（引擎签发的轮号，引擎自己认回）。
+         * 不给 = 整条复制。不再用「从尾部往回数几个用户锚点」—— 那要界面替引擎证明计数精确，证明不了就只能禁用分叉。
+         */
+        keepTurns: z.number().int().positive().optional(),
         title: z.string().optional(),
       }),
       result: Thread,
-      description: '从某个线程分支出一个新线程',
+      description: '从某个线程分支出一个新线程（可只留前 keepTurns 轮）',
     }),
     defineMethod({
       name: 'threads.export',

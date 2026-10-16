@@ -13,13 +13,13 @@ export interface TimelineSeatProps {
   readonly group: ToolGroupPlan | undefined
   readonly seal: TurnSealPlan | undefined
   readonly replyText: string | undefined
-  readonly replyUndoCount: number | null | undefined
+  readonly replyKeepTurns: number | null | undefined
   readonly replyForkReason: string | null | undefined
   readonly replyUsage: TranscriptUsage | undefined
   readonly open: ReadonlySet<string>
   readonly onToggle: (id: string) => void
   readonly onSealToggle: (turn: number, isOpen: boolean) => void
-  readonly onFork?: ((undoCount: number) => void) | undefined
+  readonly onFork?: ((keepTurns: number) => void) | undefined
 }
 
 export const TimelineSeat = memo(function TimelineSeat({
@@ -28,7 +28,7 @@ export const TimelineSeat = memo(function TimelineSeat({
   onSealToggle,
   onToggle,
   open,
-  replyUndoCount,
+  replyKeepTurns,
   replyForkReason,
   replyText,
   replyUsage,
@@ -67,7 +67,7 @@ export const TimelineSeat = memo(function TimelineSeat({
       forkUnavailableReason={replyForkReason ?? null}
       onFork={onFork}
       text={replyText}
-      undoCount={replyUndoCount ?? null}
+      keepTurns={replyKeepTurns ?? null}
       usage={replyUsage}
     >
       {content}

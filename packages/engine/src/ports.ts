@@ -16,7 +16,11 @@ import type {
 
 export interface SessionFilesPort {
   exists(sessionFile: string): Promise<boolean>
-  fork(sessionFile: string, undoTurns: number): Promise<{ sessionId: string; sessionFile: string }>
+  /**
+   * 复制一条会话；给了 `keepTurns` 就只留屏幕上的前 `keepTurns` 轮（轮号就是时间线上 `turn.ordinal` 那个号，
+   * 由引擎自己签发、自己认回）。不给 = 整条复制。超出现有轮数报 invalid_params，不静默夹到边界。
+   */
+  fork(sessionFile: string, keepTurns?: number): Promise<{ sessionId: string; sessionFile: string }>
   delete(sessionFile: string): Promise<void>
   exportHtml(sessionFile: string, outFile: string): Promise<void>
   exportMarkdown(sessionFile: string): Promise<string>

@@ -287,7 +287,8 @@ export interface TurnPage {
   readonly turn: number
   readonly run?: {
     readonly settled: boolean
-    readonly undoCount: number | null
+    /** 从这一轮分叉 = 只留前 keepTurns 轮（就是这一轮的轮号）；null = 此刻不能分叉，原因见 forkUnavailableReason */
+    readonly keepTurns: number | null
     readonly forkUnavailableReason: string | null
   }
   readonly outcome?: TurnOutcome

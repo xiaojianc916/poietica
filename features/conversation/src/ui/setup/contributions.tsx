@@ -258,8 +258,8 @@ export function createConversationContributions(setup: ConversationSetup, action
             endpoint={threadId}
             goal={goal}
             isNew={false}
-            onFork={(dropTurns) => {
-              void api.forkThread({ threadId, undoTurns: dropTurns }).then((t) => {
+            onFork={(keepTurns) => {
+              void api.forkThread({ threadId, keepTurns }).then((t) => {
                 stores.threads.upsert(t)
                 openThread(t.id)
               })

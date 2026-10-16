@@ -257,7 +257,7 @@ class FakeSession implements EngineSession {
         turnId: turn,
         step: { kind: 'step', stepId: userStep, turnId: turn, ordinal: 1, state: 'completed' },
       },
-      /* 人话只在轮头（与 engine-omp 的两条投影同形）：另发一条没有 origin 的用户帧，界面会把整轮的分叉锚点判成算不出来 */
+      /* 人话只在轮头（与 engine-omp 的两条投影同形）：另发一条没有 origin 的用户帧，两条路的帧就对不上了 */
     ])
     this.maybeAutoTitle(input)
     this.setState('running')
@@ -743,10 +743,10 @@ export function createFakeEngine(opts: FakeEngineOptions = {}): FakeEngine {
       async exists(file) {
         return store.has(file)
       },
-      async fork(file, undoTurns) {
+      async fork(file, keepTurns) {
         const next = `${file}.fork-${createId()}`
         store.set(next, [...(store.get(file) ?? [])])
-        void undoTurns
+        void keepTurns
         return { sessionId: createId(), sessionFile: next }
       },
       async delete(file) {

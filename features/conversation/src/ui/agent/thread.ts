@@ -46,8 +46,8 @@ export interface ThreadPort {
   readonly share?: (threadId: ThreadId) => Promise<SharedThread>
   readonly rename?: (threadId: ThreadId, title: string) => Promise<void>
   readonly remove?: (threadId: ThreadId) => Promise<void>
-  /** undoCount counts protocol user anchors, not runs or rendered messages. */
-  readonly fork?: (threadId: ThreadId, title: string, undoCount: number) => Promise<ThreadRecord>
+  /** keepTurns = 只留前几轮（时间线上的轮号，引擎签发、引擎认回）。 */
+  readonly fork?: (threadId: ThreadId, title: string, keepTurns: number) => Promise<ThreadRecord>
   readonly archive?: (threadId: ThreadId, archived: boolean) => Promise<void>
   readonly setPinned?: (threadId: ThreadId, pinned: boolean) => Promise<void>
 }

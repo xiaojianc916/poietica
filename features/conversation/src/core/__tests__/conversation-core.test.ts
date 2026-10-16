@@ -794,11 +794,11 @@ describe('conversation core（不经内核的直连测试）', () => {
   test('fork：无会话 → thread_empty；有会话 → 新线程绑定新会话文件', async () => {
     const { core, db, dir } = await makeCore()
     const row = core.threads.create({ workspaceId: 'ws1' })
-    const err = await core.threads.fork(row.id, 0).catch((e: unknown) => e)
+    const err = await core.threads.fork(row.id, undefined).catch((e: unknown) => e)
     expect((err as { code?: string }).code).toBe('conversation.thread_empty')
     await submit(core, row.id, 'hi')
     await new Promise((r) => setTimeout(r, 30))
-    const forked = await core.threads.fork(row.id, 0)
+    const forked = await core.threads.fork(row.id, undefined)
     expect(forked.forkedFrom).toBe(row.id)
     expect(forked.title).toBe(`${core.threads.row(row.id)!.title}（分支）`)
     expect(forked.sessionFile).not.toBeNull()

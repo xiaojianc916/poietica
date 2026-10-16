@@ -74,7 +74,7 @@ function stateOf(items: readonly TimelineItem[], running = false): TimelineState
     active: running
       ? {
           turn: 0,
-          run: { settled: false, undoCount: null, forkUnavailableReason: null },
+          run: { settled: false, keepTurns: null, forkUnavailableReason: null },
           items,
         }
       : { turn: 0, items },

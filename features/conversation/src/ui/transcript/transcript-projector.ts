@@ -65,10 +65,9 @@ function jsonOf(value: unknown): string | undefined {
 
 interface InputSource {
   readonly isUser: boolean
-  readonly anchors: number | null
 }
 
-const USER_INPUT: InputSource = { isUser: true, anchors: 1 }
+const USER_INPUT: InputSource = { isUser: true }
 
 const originField = (value: unknown, key: string): unknown =>
   typeof value === 'object' && value !== null ? Reflect.get(value, key) : undefined
@@ -102,18 +101,15 @@ function sourceOfTurn(turn: TranscriptTurn): InputSource {
       return USER_INPUT
     }
     if (kind === 'shell_command') {
-      return { isUser: originField(origin.payload, 'phase') === 'input', anchors: 0 }
+      return { isUser: originField(origin.payload, 'phase') === 'input' }
     }
-    return { ...USER_INPUT, anchors: null }
+    return USER_INPUT
   }
-  return { isUser: false, anchors: origin.kind === 'other' ? null : 0 }
+  return { isUser: false }
 }
 
 function sourceOfFrame(frame: Extract<TranscriptFrame, { role: 'user' }>): InputSource {
-  if (frame.origin?.kind === 'user') {
-    return { ...USER_INPUT, anchors: (frame.promptIds?.length ?? 0) > 1 ? null : 1 }
-  }
-  return { isUser: false, anchors: frame.taskId === undefined ? null : 0 }
+  return frame.origin?.kind === 'user' ? USER_INPUT : { isUser: false }
 }
 
 interface TurnAttachments {
@@ -943,8 +939,6 @@ const phaseOf = (snapshot: AgentTranscriptSnapshot, last: TranscriptTurn | undef
   return 'awaiting_question'
 }
 
-type TurnFact = { opensWithAnchor: boolean; anchors: number | null }
-
 /*
  * 上游 reducer 只把真改动的那一个 step 换成新对象，其余复用。ordinal 与兜底时间戳必须在判据里：turn 对象每帧都换。
  */
@@ -952,17 +946,12 @@ interface StepFrames {
   readonly ordinal: number
   readonly fallback: number
   readonly items: readonly TimelineItem[]
-  readonly userAnchors: number | null
   /** 这一段里人话帧引用的附件号（多数段为空），与投影那一刻解析到的条目逐一对应 —— 条目换了就不能复用。 */
   readonly refIds: readonly string[]
   readonly sources: readonly (TranscriptAttachment | undefined)[]
 }
 
 const STEP_FRAMES = new WeakMap<TranscriptTurn['steps'][number], StepFrames>()
-
-/* 锚点数相加：null 是「说不清」，一沾就整轮说不清。 */
-const addAnchors = (left: number | null, right: number | null): number | null =>
-  left === null || right === null ? null : left + right
 
 const resolveIds = (
   ids: readonly string[],
@@ -997,18 +986,14 @@ function projectStep(
     return held
   }
   const items: TimelineItem[] = []
-  let userAnchors: number | null = 0
   for (const frame of step.frames) {
     const projected = frameOf(frame, ordinal, at(step.startedAt) || fallback, index)
     if (projected !== null) {
       items.push(projected)
     }
-    if (frame.kind === 'text' && frame.role === 'user') {
-      userAnchors = addAnchors(userAnchors, sourceOfFrame(frame).anchors)
-    }
   }
   const refIds = frameRefIdsOf(step)
-  const fresh: StepFrames = { ordinal, fallback, items, userAnchors, refIds, sources: resolveIds(refIds, index) }
+  const fresh: StepFrames = { ordinal, fallback, items, refIds, sources: resolveIds(refIds, index) }
   STEP_FRAMES.set(step, fresh)
   return fresh
 }
@@ -1019,19 +1004,16 @@ function framesOf(
   index: ReadonlyMap<string, TranscriptAttachment>,
 ): {
   items: readonly TimelineItem[]
-  userAnchors: number | null
   refIds: readonly string[]
 } {
   const items: TimelineItem[] = []
-  let userAnchors: number | null = 0
   let refIds: readonly string[] = NO_IDS
   for (const step of turn.steps) {
     const projected = projectStep(step, turn.ordinal, stamp, index)
     items.push(...projected.items)
-    userAnchors = addAnchors(userAnchors, projected.userAnchors)
     if (projected.refIds.length > 0) refIds = [...refIds, ...projected.refIds]
   }
-  return { items, userAnchors, refIds }
+  return { items, refIds }
 }
 
 // 按 turn 对象身份记账：上游 reducer 结构共享，没变的 turn 复用上次投影。
@@ -1042,7 +1024,6 @@ const TURN_PROJECTIONS = new WeakMap<
     readonly refIds: readonly string[]
     readonly sources: readonly (TranscriptAttachment | undefined)[]
     page: TurnPage
-    fact: TurnFact
     span: TurnSpan
   }
 >()
@@ -1075,7 +1056,6 @@ function projectTurn(
   index: ReadonlyMap<string, TranscriptAttachment>,
 ): {
   page: TurnPage
-  fact: TurnFact
   span: TurnSpan
 } {
   const cached = TURN_PROJECTIONS.get(turn)
@@ -1086,7 +1066,6 @@ function projectTurn(
   const stamp = at(turn.startedAt)
   const source = sourceOfTurn(turn)
   const hasInput = turn.prompt !== undefined || (turn.attachmentIds?.length ?? 0) > 0
-  const opening = hasInput ? source.anchors : source.isUser ? null : 0
   const attached = hasInput ? attachmentsOf(turn.attachmentIds, index) : NO_TURN_ATTACHMENTS
   const opened = hasInput
     ? inputItem(
@@ -1101,7 +1080,6 @@ function projectTurn(
       )
     : null
   const frames = framesOf(turn, stamp, index)
-  const anchors = frames.userAnchors === null || opening === null ? null : opening + frames.userAnchors
   const items = [...(opened === null ? [] : [opened]), ...frames.items]
   errorItemOf(turn, items, stamp)
   const outcome = outcomeOf(turn.state)
@@ -1115,7 +1093,6 @@ function projectTurn(
       ...(turn.usage === undefined ? {} : { usage: turn.usage }),
       items,
     },
-    fact: { opensWithAnchor: opening === 1, anchors },
     span: spanOf(turn, turn.ordinal),
   }
   TURN_PROJECTIONS.set(turn, projected)
@@ -1131,7 +1108,7 @@ function wrappedPage(page: TurnPage, run: NonNullable<TurnPage['run']>): TurnPag
   if (
     wrapped?.run !== undefined &&
     wrapped.run.settled === run.settled &&
-    wrapped.run.undoCount === run.undoCount &&
+    wrapped.run.keepTurns === run.keepTurns &&
     wrapped.run.forkUnavailableReason === run.forkUnavailableReason
   ) {
     return wrapped
@@ -1141,53 +1118,26 @@ function wrappedPage(page: TurnPage, run: NonNullable<TurnPage['run']>): TurnPag
   return fresh
 }
 
-function runBoundariesOf(
-  pages: readonly TurnPage[],
-  facts: readonly TurnFact[],
-  items: AgentTranscriptSnapshot['items'],
-  busy: boolean,
-): TurnPage[] {
-  const result = [...pages]
-  let suffixAnchors = 0
-  let nextOpensWithAnchor = true
-  let uncertainty: string | null = null
-  let runIndex = result.length - 1
-  for (const item of items.toReversed()) {
-    if (item.kind !== 'turn') {
-      uncertainty = '包含压缩或其他边界标记，无法证明精确截断。'
-      continue
-    }
-    const page = result[runIndex]
-    const fact = facts[runIndex]
-    if (page === undefined || fact === undefined) {
+/**
+ * 每一轮的分叉事实。分叉按**轮号**截（`threads.fork` 的 `keepTurns` = 这一轮的 `turn.ordinal`）：
+ * 轮号是引擎签发的，引擎按同一套分轮规则认回，界面不必再替它数「后面还有几个用户锚点」——
+ * 也就不再有「压缩之后 / 用过技能 / 目标续跑 / 合并提示」这些数不清就只好禁用的情形。
+ * 只剩一个限制：会话还在跑（或这一轮还没收口）时不分叉，磁盘上的会话文件还没写完。
+ */
+function runBoundariesOf(pages: readonly TurnPage[], turns: readonly TranscriptTurn[], busy: boolean): TurnPage[] {
+  return pages.map((page, at) => {
+    const turn = turns[at]
+    if (turn === undefined) {
       invariant(false, 'Transcript run projection is incomplete.')
     }
-    const settled = isSettled(item.state)
-    const reason =
-      busy || !settled
-        ? '会话仍在运行或等待输入，暂不可分叉。'
-        : (uncertainty ?? (nextOpensWithAnchor ? null : '下一段不从用户撤销锚点开始，无法精确截到此处。'))
-    result[runIndex] = wrappedPage(page, {
+    const settled = isSettled(turn.state)
+    const reason = busy || !settled ? '会话仍在运行或等待输入，暂不可分叉。' : null
+    return wrappedPage(page, {
       settled,
-      undoCount: reason === null ? suffixAnchors : null,
+      keepTurns: reason === null ? turn.ordinal : null,
       forkUnavailableReason: reason,
     })
-    if (fact.anchors === null) {
-      uncertainty = '来源或撤销锚点信息不足，不能可靠计算分叉位置。'
-    } else {
-      suffixAnchors += fact.anchors
-    }
-    // ForkThread.drop_turns 是 u32。
-    if (suffixAnchors > 0xffff_ffff) {
-      uncertainty = '撤销锚点计数超出平台支持范围。'
-    }
-    if (item.origin.kind === 'compaction') {
-      uncertainty = '不能跨越上下文压缩边界分叉。'
-    }
-    nextOpensWithAnchor = fact.opensWithAnchor
-    runIndex -= 1
-  }
-  return result
+  })
 }
 
 /**
@@ -1219,14 +1169,12 @@ export function projectTranscript(snapshot: AgentTranscriptSnapshot, memo: Proje
       : EMPTY_INDEX
   const pages: TurnPage[] = []
   const spans: TurnSpan[] = []
-  const facts: TurnFact[] = []
   for (const turn of turns) {
     const projected = projectTurn(turn, attachmentIndex)
     pages.push(projected.page)
-    facts.push(projected.fact)
     spans.push(projected.span)
   }
-  const marked = runBoundariesOf(pages, facts, snapshot.items, busy)
+  const marked = runBoundariesOf(pages, turns, busy)
   const anchored = anchorQuestions(marked, snapshot.interactions)
   const placed = { pages: placeCompactions(anchored.pages, snapshot.items), tail: anchored.tail }
   return {

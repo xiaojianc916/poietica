@@ -43,8 +43,8 @@ export function registerHandlers(ctx: Ctx, core: ConversationCore, hub: Timeline
     await threads.delete(threadId)
     return {}
   })
-  ctx.rpc.handle('threads.fork', async ({ threadId, undoTurns, title }) =>
-    threads.threadOf(await threads.fork(threadId, undoTurns, title)),
+  ctx.rpc.handle('threads.fork', async ({ threadId, keepTurns, title }) =>
+    threads.threadOf(await threads.fork(threadId, keepTurns, title)),
   )
   ctx.rpc.handle('threads.export', ({ threadId, format, targetPath }) =>
     threads.exportThread(threadId, format, targetPath),

@@ -7,11 +7,11 @@ import { memo, type ReactNode } from 'react'
 
 export interface ReplyActionHostProps {
   readonly children: ReactNode
-  /** null 表示此边界不可精确分叉，不是「0 个锚点」。 */
-  readonly undoCount: number | null
+  /** null 表示此刻不能分叉（原因见 forkUnavailableReason），不是「保留 0 轮」。 */
+  readonly keepTurns: number | null
   readonly forkUnavailableReason: string | null
   /** 缺席 = 按钮禁用，而不是点了没反应。 */
-  readonly onFork: ((undoCount: number) => void) | undefined
+  readonly onFork: ((keepTurns: number) => void) | undefined
   readonly text: string
   readonly usage?: TranscriptUsage | undefined
 }
@@ -22,7 +22,7 @@ export interface ReplyActionHostProps {
  */
 export function ReplyActionHost({
   children,
-  undoCount,
+  keepTurns,
   forkUnavailableReason,
   onFork,
   text,
@@ -35,7 +35,7 @@ export function ReplyActionHost({
         forkUnavailableReason={forkUnavailableReason}
         onFork={onFork}
         text={text}
-        undoCount={undoCount}
+        keepTurns={keepTurns}
         usage={usage}
       />
     </div>
@@ -43,9 +43,9 @@ export function ReplyActionHost({
 }
 
 export interface ReplyActionsProps {
-  readonly undoCount: number | null
+  readonly keepTurns: number | null
   readonly forkUnavailableReason: string | null
-  readonly onFork: ((undoCount: number) => void) | undefined
+  readonly onFork: ((keepTurns: number) => void) | undefined
   readonly text: string
   readonly usage?: TranscriptUsage | undefined
 }
@@ -85,12 +85,12 @@ function usageLabel(usage: TranscriptUsage | undefined): string | null {
   return total > 0 ? `${compactCount(total)} token` : null
 }
 
-function Actions({ undoCount, forkUnavailableReason, onFork, text, usage }: ReplyActionsProps) {
+function Actions({ keepTurns, forkUnavailableReason, onFork, text, usage }: ReplyActionsProps) {
   const { copied, copy } = useCopy()
   const CopyStateIcon = copied ? Check : Copy
   const unavailable =
     forkUnavailableReason ??
-    (onFork === undefined ? '当前平台不提供分叉操作。' : undoCount === null ? '协议无法精确定位此边界。' : null)
+    (onFork === undefined ? '当前平台不提供分叉操作。' : keepTurns === null ? '这一轮还不能分叉。' : null)
   const label = unavailable === null ? FORK : `${FORK}（${unavailable}）`
   const tokens = usageLabel(usage)
   return (
@@ -110,8 +110,8 @@ function Actions({ undoCount, forkUnavailableReason, onFork, text, usage }: Repl
         className="timeline-reply-actions__button"
         disabled={unavailable !== null}
         onClick={() => {
-          if (unavailable === null && undoCount !== null) {
-            onFork?.(undoCount)
+          if (unavailable === null && keepTurns !== null) {
+            onFork?.(keepTurns)
           }
         }}
         onMouseDown={(event) => event.preventDefault()}

@@ -58,8 +58,8 @@ export interface TranscriptViewProps {
   readonly sessionKey: string
   readonly dockClearance: number | null
   readonly lead?: ReactNode
-  /** 参数是协议用户撤销锚点数，不是运行数。缺席表示平台不提供分叉。 */
-  readonly onFork?: ((undoCount: number) => void) | undefined
+  /** 参数是要留下的轮数（= 点的那一轮的轮号）。缺席表示平台不提供分叉。 */
+  readonly onFork?: ((keepTurns: number) => void) | undefined
 }
 
 // 与 row-estimate.ts 同一条约束：新增条目类型在这里编译失败。
@@ -155,7 +155,7 @@ export function TranscriptView({ dockClearance, lead, onFork, sessionKey }: Tran
           open={items}
           replyForkReason={replyAction?.forkUnavailableReason}
           replyText={replyAction?.text}
-          replyUndoCount={replyAction?.undoCount}
+          replyKeepTurns={replyAction?.keepTurns}
           replyUsage={replyAction?.usage}
           row={row}
           seal={feed.sealAt(index)}

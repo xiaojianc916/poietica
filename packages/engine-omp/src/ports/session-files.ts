@@ -1,6 +1,7 @@
 import { mkdir, stat } from 'node:fs/promises'
 import path from 'node:path'
 import { exportFromFile } from '@oh-my-pi/pi-coding-agent/export/html'
+import type { SessionEntry } from '@oh-my-pi/pi-coding-agent/session/session-entries'
 import { formatSessionHistoryMarkdown } from '@oh-my-pi/pi-coding-agent/session/session-history-format'
 import { loadSessionMessagesReadOnly } from '@oh-my-pi/pi-coding-agent/session/session-loader'
 import { SessionManager } from '@oh-my-pi/pi-coding-agent/session/session-manager'
@@ -9,6 +10,7 @@ import type { SessionFilesPort } from '@poietica/engine'
 import { EngineErrorCode } from '@poietica/engine'
 import { AppError, type Logger, SystemErrorCode } from '@poietica/foundation'
 import { toEngineError } from '../errors'
+import { type OmpMessage, turnOpenings } from '../projector/history'
 
 /** SessionFilesPort 需要的东西：omp 的会话目录，以及一个只用来记异常的 logger。 */
 export interface SessionFilesPortDeps {
@@ -36,7 +38,7 @@ export class OmpSessionFilesPort implements SessionFilesPort {
     }
   }
 
-  async fork(sessionFile: string, undoTurns: number): Promise<{ sessionId: string; sessionFile: string }> {
+  async fork(sessionFile: string, keepTurns?: number): Promise<{ sessionId: string; sessionFile: string }> {
     try {
       await this.requireFile(sessionFile)
       /*
@@ -45,7 +47,7 @@ export class OmpSessionFilesPort implements SessionFilesPort {
        */
       const forked = await SessionManager.forkFrom(sessionFile, path.dirname(sessionFile), this.d.sessionDir)
       try {
-        if (undoTurns > 0) truncateTurns(forked, undoTurns)
+        if (keepTurns !== undefined) keepFirstTurns(forked, keepTurns)
         const created = forked.getSessionFile()
         if (created === undefined) throw new AppError(SystemErrorCode.internal, 'omp 没有为新会话签发文件')
         return { sessionId: forked.getSessionId(), sessionFile: created }
@@ -97,21 +99,67 @@ export class OmpSessionFilesPort implements SessionFilesPort {
   }
 }
 
-/** 丢掉最后 undoTurns 轮：在副本上重锚到「第一个被丢掉的用户消息」之前。 */
-function truncateTurns(manager: SessionManager, undoTurns: number): void {
-  const users = manager.getBranch().filter((entry) => entry.type === 'message' && entry.message.role === 'user')
-  /* 超出可丢的轮数不夹到边界：静默夹会让「丢 5 轮」变成「丢 3 轮」而没人知道。 */
-  if (undoTurns > users.length) {
-    throw new AppError(SystemErrorCode.invalidParams, `只能丢 ${users.length} 轮，要求丢 ${undoTurns} 轮`)
+/**
+ * 只留屏幕上的前 `keep` 轮：在副本上把叶子挪到第 `keep + 1` 轮开场消息之前，并且**落盘**。
+ *
+ * 轮怎么分只有一个产地 —— `turnOpenings`，与时间线的历史分页同一套（它读的也是同一份「显示经过」）。
+ * 所以屏幕上的第 n 轮就是这里的第 n 轮：目标续跑、技能、压缩、插话都不需要另外数一遍。
+ *
+ * 只 `branch()` 是不够的：它只改内存里的叶子，omp 重开会话时按**最后一条物理记录**还原叶子，
+ * 副本关掉再打开就又是整条历史。`branchWithSummary` 追加一条空摘要的分支记录（omp 自己
+ * `discardEntryDurably` 也是这样做的），叶子因此落在磁盘上；空摘要既不上屏也不进模型上下文。
+ */
+function keepFirstTurns(manager: SessionManager, keep: number): void {
+  const transcript = manager.buildSessionContext({ transcript: true, collapseCompactedHistory: false })
+  const messages = transcript.messages as unknown as readonly OmpMessage[]
+  const openings = turnOpenings(messages)
+  /* 超出现有轮数不夹到边界：静默夹会让「留 5 轮」变成「留 3 轮」而没人知道。 */
+  if (!Number.isInteger(keep) || keep < 1 || keep > openings.length) {
+    throw new AppError(SystemErrorCode.invalidParams, `这条会话只有 ${openings.length} 轮，不能只留前 ${keep} 轮`)
   }
-  const anchor = users[users.length - undoTurns]
-  if (anchor === undefined) throw new AppError(SystemErrorCode.invalidParams, `没有可截断的轮次：${undoTurns}`)
-  if (anchor.parentId === null) {
-    /* 丢到一轮不剩：清空到只有表头，与 omp 官方 branch(null) 同义。 */
-    manager.resetLeaf()
-    return
+  if (keep === openings.length) return
+  const cut = entryOf(manager.getBranch(), messages, openings[keep]!)
+  if (cut === undefined || cut.parentId === null) {
+    throw new AppError(SystemErrorCode.internal, `找不到第 ${keep + 1} 轮开场消息在会话里的位置`)
   }
-  manager.branch(anchor.parentId)
+  manager.branchWithSummary(cut.parentId, '', { kind: 'poietica-fork', keepTurns: keep })
+}
+
+/**
+ * 一条「显示经过」里的消息落在哪条会话记录上。两份都按路径顺序排，逐条往前对：消息记录按 role + 时刻认，
+ * 自定义消息按时刻认（omp 现造对象，号认不了），压缩与分支摘要按种类认 —— 不产出消息的记录被跳过。
+ */
+function entryOf(
+  path: readonly SessionEntry[],
+  messages: readonly OmpMessage[],
+  target: OmpMessage,
+): SessionEntry | undefined {
+  let at = 0
+  for (const message of messages) {
+    while (at < path.length && !produces(path[at]!, message)) at += 1
+    if (at >= path.length) return undefined
+    if (message === target) return path[at]
+    at += 1
+  }
+  return undefined
+}
+
+function produces(entry: SessionEntry, message: OmpMessage): boolean {
+  switch (entry.type) {
+    case 'message':
+      return (
+        entry.message === (message as unknown) ||
+        (entry.message.role === message.role && entry.message.timestamp === message.timestamp)
+      )
+    case 'custom_message':
+      return message.role === 'custom' && new Date(entry.timestamp).getTime() === message.timestamp
+    case 'compaction':
+      return message.role === 'compactionSummary'
+    case 'branch_summary':
+      return message.role === 'branchSummary'
+    default:
+      return false
+  }
 }
 
 /**

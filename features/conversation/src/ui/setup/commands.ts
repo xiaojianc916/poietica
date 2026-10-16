@@ -38,7 +38,7 @@ export function createConversationCommands(setup: ConversationSetup, actions: Co
   command('conversation.forkThread', '分支对话', () => {
     const threadId = activeThreadId()
     if (threadId === null) return
-    void api.forkThread({ threadId, undoTurns: 0 }).then((t) => {
+    void api.forkThread({ threadId }).then((t) => {
       stores.threads.upsert(t)
       openThread(t.id)
     })

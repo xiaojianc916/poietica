@@ -60,7 +60,7 @@ function stateOf(
   const active: TimelineState['active'] = {
     turn: 0,
     ...(running || outcome !== undefined
-      ? { run: { settled: !running, undoCount: null, forkUnavailableReason: null } }
+      ? { run: { settled: !running, keepTurns: null, forkUnavailableReason: null } }
       : {}),
     ...(outcome === undefined ? {} : { outcome }),
     items: list,

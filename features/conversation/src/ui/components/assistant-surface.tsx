@@ -45,7 +45,7 @@ export interface AssistantSurfaceProps {
   /** 故意可选：缺席时整个表面挂在一份惰性 stub 上跑，真端口由 app 注入。 */
   readonly session?: AgentSessionPort
   readonly onUserMessage?: ((threadId: string, text: string) => void) | undefined
-  readonly onFork?: ((dropTurns: number) => void) | undefined
+  readonly onFork?: ((keepTurns: number) => void) | undefined
   readonly onPinThread?: ((threadId: string, pinned: boolean) => void) | undefined
   readonly onRenameThread?: ((threadId: string, title: string) => void) | undefined
   readonly onExportThread?: ((threadId: string) => void) | undefined

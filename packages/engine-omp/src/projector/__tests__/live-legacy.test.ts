@@ -301,7 +301,7 @@ describe('现场图片上屏（legacy live-image-attachments.test.ts）', () => 
     const state = applyOps(emptyTimeline(), p.userTurn({ text: '这是什么', attachmentIds: ['shot.png'] }))
     const turn = state.items[0]
     expect(turn?.kind === 'turn' && turn.attachmentIds).toEqual(['shot.png'])
-    // 历史那条路从来不发这一帧；界面把没有 origin 的用户帧认作来源不明，整轮的分叉锚点就算不出来
+    // 历史那条路从来不发这一帧；另发一条，两条路的帧号就对不上了（R-27）
     expect(turn?.kind === 'turn' ? turn.steps.flatMap((step) => step.frames) : null).toEqual([])
   })
 

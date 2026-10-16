@@ -41,7 +41,7 @@ describe('SessionFilesPort', () => {
     const { port, sessions, workspace } = makePort()
     const missing = path.join(sessions, 'missing.jsonl')
     const missingCode = EngineErrorCode.sessionFileMissing
-    await expect(port.fork(missing, 0)).rejects.toMatchObject({ code: missingCode })
+    await expect(port.fork(missing)).rejects.toMatchObject({ code: missingCode })
     await expect(port.delete(missing)).rejects.toMatchObject({ code: missingCode })
     await expect(port.exportHtml(missing, path.join(workspace, 'out.html'))).rejects.toMatchObject({
       code: missingCode,
@@ -63,19 +63,12 @@ describe('SessionFilesPort', () => {
     const file = path.join(sessions, '2026-01-01_src.jsonl')
     writeSession(file, 'src')
     const before = readText(file)
-    const forked = await port.fork(file, 0)
+    const forked = await port.fork(file)
     expect(forked.sessionId).not.toBe('src')
     expect(forked.sessionFile).not.toBe(file)
     expect(await port.exists(forked.sessionFile)).toBe(true)
     expect(readText(file)).toBe(before)
     void workspace
-  })
-
-  test('fork 丢轮数超过实际轮数时如实报错，不静默夹到边界', async () => {
-    const { port, sessions } = makePort()
-    const file = path.join(sessions, '2026-01-01_src2.jsonl')
-    writeSession(file, 'src2')
-    await expect(port.fork(file, 3)).rejects.toThrow(/只能丢/)
   })
 })
 

@@ -35,7 +35,7 @@ export function createConversationApi(ctx: UiFeatureContext) {
     setArchived: (threadId: string, archived: boolean): Promise<Thread> =>
       rpc.call('threads.setArchived', { threadId, archived }),
     deleteThread: (threadId: string): Promise<void> => rpc.call('threads.delete', { threadId }).then(() => undefined),
-    forkThread: (p: { threadId: string; undoTurns: number; title?: string }): Promise<Thread> =>
+    forkThread: (p: { threadId: string; keepTurns?: number; title?: string }): Promise<Thread> =>
       rpc.call('threads.fork', p),
     exportThread: (p: {
       threadId: string

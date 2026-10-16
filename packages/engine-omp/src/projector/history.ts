@@ -140,6 +140,14 @@ export function projectHistoryPage(
   }
 }
 
+/**
+ * 每一轮的开场消息（下标 i = 第 i + 1 轮），与 `projectHistoryPage` 同一套分轮。
+ * 分叉按轮号截断（`OmpSessionFilesPort.fork`）只能认这一份：分轮规则只有一个产地，屏幕上的第 n 轮与截断时的第 n 轮才是同一轮。
+ */
+export function turnOpenings(messages: readonly OmpMessage[]): readonly OmpMessage[] {
+  return screenTurns(messages, false).turns.map((entry) => entry.opening)
+}
+
 /** 历史里最后一轮的序号；重开会话时交给 LiveProjector.seat */
 export function lastTurnOrdinal(messages: readonly OmpMessage[]): number {
   return screenTurns(messages, false).turns.at(-1)?.turn ?? 0

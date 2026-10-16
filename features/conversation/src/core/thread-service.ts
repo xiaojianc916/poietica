@@ -229,7 +229,8 @@ export class ThreadService {
     this.d.emitThreadRemoved(threadId)
   }
 
-  async fork(threadId: string, undoTurns: number, title?: string): Promise<ThreadRow> {
+  /** `keepTurns`：只留前几轮（时间线上的轮号）；不给 = 整条复制 */
+  async fork(threadId: string, keepTurns: number | undefined, title?: string): Promise<ThreadRow> {
     const row = this.requireRow(threadId)
     if (await this.#isBusy(threadId)) {
       throw new AppError(conversationErrors.thread_busy, '对话正在运行，请先停止')
@@ -237,7 +238,7 @@ export class ThreadService {
     if (row.sessionFile === null) {
       throw new AppError(conversationErrors.thread_empty, '对话还没有任何内容')
     }
-    const forked = await this.d.engine.sessionFiles.fork(row.sessionFile, undoTurns)
+    const forked = await this.d.engine.sessionFiles.fork(row.sessionFile, keepTurns)
     const now = this.d.clock.now()
     const next: ThreadRow = {
       ...row,

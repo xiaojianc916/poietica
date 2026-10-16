@@ -197,7 +197,7 @@ describe('conversation core 模块', () => {
       deliverAs: 'turn',
     })
     await runToIdle(h, api, thread.id)
-    const forked = await api.call('threads.fork', { threadId: thread.id, undoTurns: 0 })
+    const forked = await api.call('threads.fork', { threadId: thread.id })
 
     const resetsBefore = h.notifications(conversationContract, 'timeline.reset').length
     const snap = await api.call('timeline.subscribe', { threadId: forked.id, agentId: 'main' })
@@ -330,7 +330,7 @@ describe('conversation core 模块', () => {
       })
       await runToIdle(h, api, thread.id)
 
-      const forked = await api.call('threads.fork', { threadId: thread.id, undoTurns: 0 })
+      const forked = await api.call('threads.fork', { threadId: thread.id })
       await api.call('threads.delete', { threadId: thread.id })
 
       await sweepAndAwaitCanary(h, attachments, canary.id)
