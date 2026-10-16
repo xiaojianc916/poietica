@@ -11,16 +11,120 @@
   pointer-events: auto;
 }
 
-/* agent 操控提示那条信息带：与工具栏同一套取色 —— 下缘线读同一份卡片分隔色，底是同一档 muted；深色下那条线用前景半透明。 */
-[data-browser-driven] {
-  border-bottom: 1px solid var(--ui-card-divider);
+/*
+ * agent 正在驾驶：**网页内容**四周一圈彩线，线上几道波光沿周长走。取代原来卡内那条顶部信息带 ——
+ * 状态改由网页自己的边框说，不再占一行高度、也不再顶掉页面。
+ *
+ * 画在视口占位（[data-browser-viewport]）上，不是整张右栏卡片：要圈住的是页面本身，标签条与工具栏留在圈外。
+ * 页面是原生子 webview、盖在整个 DOM 之上，所以四周都得让出一条边（宽度与 panel.tsx 的 AGENT_RING_WIDTH 同值）。
+ *
+ * 两道波光各用一个注册成 <angle> 的属性、各跑各的时长与方向，同一张 conic-gradient 里叠起来才是
+ * 「粼粼」而不是单点跑马灯；底下那层常亮的环保证减弱动效时仍看得出「agent 正在用」。
+ * 线要够实（浅色下用主色本体，不兑透明度），这是状态指示不是装饰。
+ */
+@property --browser-agent-ring-sweep-a {
+  syntax: "<angle>";
+  inherits: false;
+  initial-value: 0turn;
 }
 
-:root[data-theme="dark"] [data-browser-driven] {
-  border-bottom-color: color-mix(in srgb, currentColor 10%, transparent);
+@property --browser-agent-ring-sweep-b {
+  syntax: "<angle>";
+  inherits: false;
+  initial-value: 0turn;
+}
+
+[data-browser-viewport][data-browser-agent-ring] {
+  --browser-agent-ring-width: 3px;
+  /* 底环是主色本体（不兑透明度）：这圈线是状态指示，不是装饰，浅色下必须一眼看见。 */
+  --browser-agent-ring-line: var(--ui-primary);
+  /* 两道波光都比底环亮：近白的亮斑压在实色线上才读得出「粼粼」。
+   * 用 --ui-background 而不是白：浅色下就是白，深色下跟着主题走。 */
+  --browser-agent-ring-glow: color-mix(in oklab, var(--ui-background) 34%, var(--ui-primary));
+  --browser-agent-ring-hi: color-mix(in oklab, var(--ui-background) 72%, var(--ui-primary));
+}
+
+:root[data-theme="dark"] [data-browser-viewport][data-browser-agent-ring] {
+  --browser-agent-ring-line: var(--ui-primary);
+  /* 深色下要的是「更亮」，不是「更白」：亮斑兑 --ui-foreground（#c3c3c3），
+   * 兑纯白会亮得跟主题脱节。 */
+  --browser-agent-ring-glow: color-mix(in oklab, var(--ui-foreground) 26%, var(--ui-primary));
+  --browser-agent-ring-hi: color-mix(in oklab, var(--ui-foreground) 68%, var(--ui-primary));
+}
+
+[data-browser-viewport][data-browser-agent-ring]::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 4;
+  border-radius: 6px;
+  padding: var(--browser-agent-ring-width, 3px);
+  pointer-events: none;
+  background:
+    conic-gradient(
+      from var(--browser-agent-ring-sweep-a, 0turn),
+      transparent 0turn,
+      transparent 0.42turn,
+      var(--browser-agent-ring-hi) 0.52turn,
+      transparent 0.62turn,
+      transparent 1turn
+    ),
+    conic-gradient(
+      from var(--browser-agent-ring-sweep-b, 0turn),
+      transparent 0turn,
+      var(--browser-agent-ring-glow) 0.1turn,
+      transparent 0.24turn,
+      transparent 0.68turn,
+      var(--browser-agent-ring-glow) 0.8turn,
+      transparent 1turn
+    ),
+    var(--browser-agent-ring-line);
+  /* 两层 mask 异或 = 只留 padding 那一圈：中间挖空，页面照旧透出来。 */
+  -webkit-mask:
+    linear-gradient(#000 0 0) content-box,
+    linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask:
+    linear-gradient(#000 0 0) content-box,
+    linear-gradient(#000 0 0);
+  mask-composite: exclude;
+}
+
+/* 波光只动角度：不碰会改布局的属性，也不重绘文字。 */
+@media (prefers-reduced-motion: no-preference) {
+  [data-browser-viewport][data-browser-agent-ring]::after {
+    animation:
+      browser-agent-ring-sweep-a 2400ms linear infinite,
+      browser-agent-ring-sweep-b 5600ms linear infinite reverse;
+  }
+}
+
+@keyframes browser-agent-ring-sweep-a {
+  from {
+    --browser-agent-ring-sweep-a: 0turn;
+  }
+
+  to {
+    --browser-agent-ring-sweep-a: 1turn;
+  }
+}
+
+@keyframes browser-agent-ring-sweep-b {
+  from {
+    --browser-agent-ring-sweep-b: 0turn;
+  }
+
+  to {
+    --browser-agent-ring-sweep-b: 1turn;
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {
+  /* 减弱动效：不出流光，只留那圈常亮的线（状态仍然看得见，只是不闪）。 */
+  [data-browser-viewport][data-browser-agent-ring]::after {
+    background: var(--browser-agent-ring-line);
+  }
+
   .auxiliary-tab-icon__glyph,
   .auxiliary-tab-icon__close {
     transition: none;

@@ -2,10 +2,10 @@ import { afterEach, describe, expect, test } from 'bun:test'
 import { cleanup, fireEvent, render, screen } from '@testing-library/react'
 import type { BrowserState } from '../../contract'
 import type { BrowserApi } from '../api'
-import { BrowserPanel } from '../panel'
+import { AGENT_RING_WIDTH, BrowserPanel } from '../panel'
 import { createBrowserPanelStore } from '../store'
 
-/* 这一层只画「面板的壳」：地址栏（回车 navigate、没有标签先 newTab）、后退 / 前进 / 刷新 / 拾取元素、空态那句文案、driven 提示条。
+/* 这一层只画「面板的壳」：地址栏（回车 navigate、没有标签先 newTab）、后退 / 前进 / 刷新 / 拾取元素、空态那句文案、driven 那一圈描边。
  * 标签条归右坞（dockTabs，用例在 dock-tabs.test.tsx）；原生子 webview 不在 React 树里，所以断言的是 DOM 形状与下发的调用。 */
 
 interface FakeApi extends BrowserApi {
@@ -219,16 +219,23 @@ describe('空态与提示', () => {
     expect(screen.queryByText('粘贴或输入 URL 以打开网页。')).toBeNull()
   })
 
-  test('driven 为真时顶部多一条 agent 提示', () => {
-    mount(stateOf({ driven: true }))
+  test('driven 为真时网页内容四周挂上环形描边，顶部不再有信息带', () => {
+    const { view } = mount(stateOf({ driven: true }))
 
-    expect(screen.getByText('AI 正在使用这个浏览器')).toBeDefined()
+    expect(view.container.querySelector('[data-browser-viewport][data-browser-agent-ring]')).not.toBeNull()
+    expect(screen.queryByText('AI 正在使用这个浏览器')).toBeNull()
   })
 
-  test('driven 为假时那条提示不在', () => {
-    mount(stateOf())
+  test('driven 为假时那圈描边的标记不在', () => {
+    const { view } = mount(stateOf())
 
-    expect(screen.queryByText('AI 正在使用这个浏览器')).toBeNull()
+    expect(view.container.querySelector('[data-browser-agent-ring]')).toBeNull()
+  })
+
+  test('面板收起时不画那圈线：原生视图本来就不露面', () => {
+    const { view } = mount(stateOf({ driven: true }), { visible: false })
+
+    expect(view.container.querySelector('[data-browser-agent-ring]')).toBeNull()
   })
 })
 
@@ -240,6 +247,31 @@ describe('视口对齐', () => {
 
     expect(api.bounds.length).toBeGreaterThan(0)
     expect(api.bounds.at(-1)).toMatchObject({ x: 0, y: 0 })
+  })
+
+  test('driven 时页面四周各让出描边那一条边，不驾驶时照旧铺满', async () => {
+    const idle = mount(stateOf())
+
+    await Bun.sleep(32)
+
+    const idleBounds = idle.api.bounds.at(-1)
+
+    expect(idleBounds?.x).toBe(0)
+    expect(idleBounds?.y).toBe(0)
+
+    cleanup()
+
+    const driven = mount(stateOf({ driven: true }))
+
+    await Bun.sleep(32)
+
+    const drivenBounds = driven.api.bounds.at(-1)
+
+    /* happy-dom 没有排版：量出来是 0 宽，宽高被 1px 下限接住，所以只钉四条边各让一条。 */
+    expect(drivenBounds?.x).toBe(AGENT_RING_WIDTH)
+    expect(drivenBounds?.y).toBe(AGENT_RING_WIDTH)
+    expect(drivenBounds?.width).toBeLessThanOrEqual(idleBounds?.width ?? 0)
+    expect(drivenBounds?.height).toBeLessThanOrEqual(idleBounds?.height ?? 0)
   })
 })
 

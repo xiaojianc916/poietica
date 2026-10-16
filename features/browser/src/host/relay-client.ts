@@ -88,7 +88,7 @@ export function createRelayClient(tabs: RelayTabsPort, opts: RelayClientOptions)
   const wired = new WeakSet<WebContentsLike>()
   /** 当前被我们关掉后台节流的标签（B-03）：重复 attach 不重复下发，分离时恢复一次。 */
   const unthrottled = new Set<WebContentsLike>()
-  /* 挂着 AI 调试器的标签（B-04）：「AI 正在使用这个浏览器」说的是这个集合非空，不是 socket 连着。
+  /* 挂着 AI 调试器的标签（B-04）：面板四周那圈流光说的是这个集合非空，不是 socket 连着。
    * 三处删除路径：debugger 的 detach 回执、显式 detach 的那条 rpc、socket 关闭时清空。 */
   const attached = new Set<number>()
   const listeners = new Set<(connected: boolean) => void>()

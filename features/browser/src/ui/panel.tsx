@@ -7,7 +7,11 @@ import type { BrowserPanelStore } from './store'
 import { alignViewport, type ViewportAlignment } from './viewport'
 
 /* 浏览器面板本体：类名、DOM 形状、间距、动画、空态文案照 legacy 一字未改，只换数据来源 —— 面板读宿主标签面
- * （store），不直接认识 RPC。页面本体是主窗口的原生子 webview，按逻辑坐标摆在下方视口区域上，这个组件只画「面板的壳」。 */
+ * （store），不直接认识 RPC。页面本体是主窗口的原生子 webview，按逻辑坐标摆在下方视口区域上，这个组件只画「面板的壳」。
+ * agent 正在驾驶这张浏览器时，网页内容四周那圈流光由 browser-panel.css 按视口占位上的 data-browser-agent-ring 画。 */
+
+/** 页面给环形描边让出的边宽：原生子视图盖在 DOM 之上，四周不让出一条边这圈线就看不见（与 CSS 的 --browser-agent-ring-width 同值）。 */
+export const AGENT_RING_WIDTH = 3
 
 export interface BrowserPanelProps {
   readonly api: BrowserApi
@@ -48,12 +52,6 @@ export function BrowserPanel({
 
   return (
     <div className="flex h-full min-h-0 flex-col" data-browser-panel="">
-      {/* 07 页 §12E「agent 操控提示」：信息带在面板顶部，driven 为假时整条消失。 */}
-      {state?.driven === true ? (
-        <div className="shrink-0">
-          <DrivenBanner />
-        </div>
-      ) : null}
       <div className="shrink-0">
         <BrowserToolbar
           activeTab={activeTab}
@@ -69,24 +67,12 @@ export function BrowserPanel({
       </div>
       <Viewport
         api={api}
+        driven={state?.driven === true}
         layoutSignal={layoutSignal}
         report={report}
         showEmpty={activeTab === null || activeTab.url === null}
         visible={visible}
       />
-    </div>
-  )
-}
-
-/** driven 为真时面板顶部多一条信息带。 */
-function DrivenBanner(): ReactNode {
-  return (
-    <div
-      className="flex min-h-7 items-center gap-1.5 border-b border-current/10 bg-muted/30 px-2 text-xs"
-      data-browser-driven=""
-    >
-      <Globe aria-hidden className="size-3.5 shrink-0 opacity-60" />
-      <span className="min-w-0 truncate opacity-80">AI 正在使用这个浏览器</span>
     </div>
   )
 }
@@ -302,12 +288,15 @@ function ToolbarButton({
 
 function Viewport({
   api,
+  driven,
   layoutSignal,
   report,
   showEmpty,
   visible,
 }: {
   readonly api: BrowserApi
+  /** agent 正在驾驶：页面四周各让出一条边，环形描边才露得出来。 */
+  readonly driven: boolean
   readonly layoutSignal: unknown
   readonly report: (message: string, cause?: unknown) => void
   readonly showEmpty: boolean
@@ -315,6 +304,8 @@ function Viewport({
 }): ReactNode {
   const region = useRef<HTMLDivElement | null>(null)
   const alignment = useRef<ViewportAlignment | null>(null)
+  /* 收起、被浮层盖住时不画这圈线：那时原生视图本来就不露面。 */
+  const ring = driven && visible
 
   useEffect(() => {
     const element = region.current
@@ -324,9 +315,19 @@ function Viewport({
     }
 
     const running = alignViewport(element, (bounds) => {
-      void api.setBounds(bounds).catch((cause: unknown) => {
-        report('浏览器视口没能对齐', cause)
-      })
+      /* 四周各让出一条边：环形那圈线画在视口占位上，页面盖上去就没了。不画线时页面铺满视口，与基准一致。 */
+      const edge = ring ? AGENT_RING_WIDTH : 0
+
+      void api
+        .setBounds({
+          x: bounds.x + edge,
+          y: bounds.y + edge,
+          width: Math.max(1, bounds.width - edge * 2),
+          height: Math.max(1, bounds.height - edge * 2),
+        })
+        .catch((cause: unknown) => {
+          report('浏览器视口没能对齐', cause)
+        })
     })
 
     alignment.current = running
@@ -335,7 +336,7 @@ function Viewport({
       alignment.current = null
       running.stop()
     }
-  }, [api, report])
+  }, [api, ring, report])
 
   useEffect(() => {
     alignment.current?.follow(layoutSignal)
@@ -345,6 +346,7 @@ function Viewport({
   return (
     <div
       className="relative mb-[var(--workspace-card-radius)] min-h-0 flex-1"
+      data-browser-agent-ring={ring ? 'true' : undefined}
       data-browser-viewport=""
       data-visible={visible ? 'true' : 'false'}
       ref={region}
