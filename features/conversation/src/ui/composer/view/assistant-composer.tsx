@@ -3,6 +3,7 @@ import './question-panel.css'
 
 import { memo, type Ref, useMemo } from 'react'
 import type { SessionConfigControl } from '../../shared/model/config'
+import type { DialogAnswer } from '../../shared/model/dialog'
 import type { PlanAnswer } from '../../shared/model/plan'
 import type { QuestionResponse } from '../../shared/model/question'
 import type { ChatStatus } from '../../shared/model/run'
@@ -14,6 +15,7 @@ import { AttachmentTray } from './attachment-tray'
 import { activePromptConfiguration, ComposerActions, ComposerChips, composerPaletteGroups } from './composer-actions'
 import { ContextGauge } from './context-gauge'
 import { PermissionPicker, SessionControls } from './controls'
+import { DialogPanel } from './dialog-panel'
 import { PermissionDock, type PermissionDockProps } from './permission-dock'
 import { PlanDock, type PlanDockProps } from './plan-dock'
 import type { PromptInputHandle } from './prompt-input'
@@ -51,6 +53,7 @@ export interface AssistantComposerProps {
   /** 非空时输入框长成问答面板，空着就是平常那个 composer。 */
   readonly question?: QuestionTimelineItem | null | undefined
   readonly onAnswerQuestions?: ((response: QuestionResponse) => Promise<void>) | undefined
+  readonly onAnswerDialog?: ((interactionId: string, answer: DialogAnswer) => Promise<void>) | undefined
   readonly onDismissQuestions?: ((questionId: string) => Promise<void>) | undefined
   /* 与题组是同一条协议通道的两支：题组把卡内容整个换成面板，审批只在卡顶加一格 —— 它拦的是 agent 的下一步，输入框照常能打字。 */
   readonly approval?: PermissionDockProps | null | undefined
@@ -119,6 +122,7 @@ export const AssistantComposer = memo(function AssistantComposer({
   attachments,
   initialText,
   onChange,
+  onAnswerDialog,
   onAnswerQuestions,
   onDismissQuestions,
   mcpServers,
@@ -170,7 +174,15 @@ export const AssistantComposer = memo(function AssistantComposer({
         onSubmit={onSubmit}
         ref={ref}
       >
-        {asking ? (
+        {asking && question.dialog !== undefined ? (
+          /* 单问（确认 / 单选 / 输入）一张自己的卡；key 同题组：换一问就从空草稿重来。 */
+          <DialogPanel
+            item={question}
+            key={question.questionId}
+            onAnswer={onAnswerDialog}
+            onDismiss={onDismissQuestions}
+          />
+        ) : asking ? (
           /* 一组题一个面板：换题组就从第一题、空草稿、未交出重新开始 —— key 的用处，不是加 effect 复位 state。 */
           <QuestionPanel
             item={question}

@@ -18,6 +18,7 @@ import {
 import { AppError, createId, Emitter, type Logger, SystemErrorCode } from '@poietica/foundation'
 import type { TranscriptInteraction, TranscriptOperation, TranscriptPage } from '@poietica/transcript'
 import { outcomeOf, type TurnOutcome, toEngineError } from '../errors'
+import { AskCallTracker } from '../interactions/ask-calls'
 import type { InteractionBroker } from '../interactions/broker'
 import type { FileAttachmentInput, ImageAttachmentInput, LiveProjector } from '../projector/live'
 import { OpenTurnScreen, overlayOpenTurn } from '../projector/open-turn'
@@ -171,6 +172,8 @@ export class OmpSession implements EngineSession {
   private readonly subscriptions: { dispose(): void }[] = []
   /** 开着的那一轮在屏幕上已经是什么样：整页重取时这一轮用它，不用历史投影的版本（见 OpenTurnScreen） */
   private readonly openTurn = new OpenTurnScreen()
+  /** 题组 ↔ ask 调用号：askDialog 不带号，号只在工具事件里（Q1-E） */
+  private readonly askCalls = new AskCallTracker()
   private stateValue: SessionState = 'idle'
   /**
    * `agent_end` 到达时还有待答交互：记下结局，等交互全部答完再收成 idle。不记的话那一轮永远收不了尾
@@ -719,10 +722,12 @@ export class OmpSession implements EngineSession {
     return this.o.broker.onChange((change) => {
       if (change.type === 'requested') {
         this.emit({ type: 'interactionRequested', interaction: change.interaction })
-        this.interactionOp(interactionCardOf(change.interaction))
+        const call = this.askCalls.requested(change.interaction)
+        this.interactionOp(withToolCall(interactionCardOf(change.interaction), call))
       } else {
         this.emit({ type: 'interactionResolved', interactionId: change.interaction.id })
-        this.interactionOp(interactionCardOf(change.interaction, { answer: change.answer }))
+        const call = this.askCalls.resolved(change.interaction.id)
+        this.interactionOp(withToolCall(interactionCardOf(change.interaction, { answer: change.answer }), call))
       }
       this.onPendingCountChanged(this.o.broker.pendingCount())
     })
@@ -759,6 +764,20 @@ export class OmpSession implements EngineSession {
     if (entry !== undefined) this.settleQueued(entry, 'delivered')
     this.emitQueue()
     return entry ?? null
+  }
+
+  /**
+   * 一次工具调用开始 / 结束（事件泵转来）。只认 ask：题组先到、号后到时，在这里把号补进那张待答卡 ——
+   * 收口那张卡同样带着号，答过的题组才锚得到发起它的那次调用（Q1-E）。
+   */
+  onToolStart(toolCallId: string, toolName: string): void {
+    if (toolName !== ASK_TOOL) return
+    const asked = this.askCalls.started(toolCallId)
+    if (asked !== null) this.interactionOp(withToolCall(interactionCardOf(asked), toolCallId))
+  }
+
+  onToolEnd(toolCallId: string, toolName: string): void {
+    if (toolName === ASK_TOOL) this.askCalls.ended(toolCallId)
   }
 
   /** 交互上屏：requested 时 pending，resolved 时终态；卡片形状归 `interactionCardOf`，不归 broker（它不认识 transcript） */
@@ -852,4 +871,11 @@ export class OmpSession implements EngineSession {
   private assertLive(): void {
     if (this.disposed) throw new AppError(SystemErrorCode.cancelled, '会话已关闭')
   }
+}
+
+/** omp 提问工具的名字（tools/ask.ts 的 `readonly name = "ask"`） */
+const ASK_TOOL = 'ask'
+
+function withToolCall(card: TranscriptInteraction, toolCallId: string | undefined): TranscriptInteraction {
+  return toolCallId === undefined ? card : { ...card, toolCallId }
 }

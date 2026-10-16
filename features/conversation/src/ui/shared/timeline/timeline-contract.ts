@@ -1,5 +1,6 @@
 import { formatBytes } from '@poietica/design-system'
 import type { TranscriptUsage } from '@poietica/transcript'
+import type { DialogRequest } from '../model/dialog'
 import type { SessionLink } from '../model/link'
 import type { ApprovalDecision, ApprovalScope } from '../model/permission'
 import type { QuestionChoice, QuestionItem } from '../model/question'
@@ -193,6 +194,11 @@ export interface QuestionTimelineItem extends TimelineEntry {
   readonly questionId: string
   readonly toolCallId?: string
   readonly questions: readonly QuestionItem[]
+  /**
+   * 在场时这不是 ask 的题组，而是一道单问（确认 / 单选 / 输入，Q1-E）：`questions` 为空，输入框那张卡画单问面板，
+   * 答复按它自己的种类回去。与题组同排一条队列、同一档 `awaiting_question`，所以借这一类而不另开一类条目。
+   */
+  readonly dialog?: DialogRequest
   readonly resolution?: {
     readonly outcome: QuestionOutcome
     readonly answers: Readonly<Record<string, QuestionChoice>>

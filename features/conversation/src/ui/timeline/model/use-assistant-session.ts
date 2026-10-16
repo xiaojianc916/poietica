@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useSyncExternalStore } from 'react'
+import type { DialogAnswer } from '../../shared/model/dialog'
 import type { MessageQueue, MessageQueueState } from '../../shared/model/message-queue'
 import type { ApprovalAnswer } from '../../shared/model/permission'
 import type { PlanAnswer } from '../../shared/model/plan'
@@ -53,6 +54,7 @@ export interface AssistantSession {
   readonly resolvePermission: (requestId: string, answer: ApprovalAnswer) => void
   readonly resolvePlan: (requestId: string, answer: PlanAnswer) => void
   readonly answerQuestions: (response: QuestionResponse) => Promise<void>
+  readonly answerDialog: (interactionId: string, answer: DialogAnswer) => Promise<void>
   readonly dismissQuestions: (questionId: string) => Promise<void>
   readonly queue: MessageQueue
   readonly isRestoring: boolean
@@ -238,6 +240,10 @@ export function useAssistantSession({
     (response: QuestionResponse) => transcripts.answerQuestions(key, response),
     [key, transcripts],
   )
+  const answerDialog = useCallback(
+    (interactionId: string, answer: DialogAnswer) => transcripts.answerDialog(key, interactionId, answer),
+    [key, transcripts],
+  )
   const dismissQuestions = useCallback(
     (questionId: string) => transcripts.dismissQuestions(key, questionId),
     [key, transcripts],
@@ -250,6 +256,7 @@ export function useAssistantSession({
     resolvePermission,
     resolvePlan,
     answerQuestions,
+    answerDialog,
     dismissQuestions,
     queue,
     isRestoring,

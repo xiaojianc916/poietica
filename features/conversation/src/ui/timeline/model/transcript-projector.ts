@@ -1,8 +1,11 @@
 import { invariant } from '@poietica/foundation'
 import type {
   AgentTranscriptSnapshot,
+  ConfirmInteraction,
+  InputInteraction,
   PlanInteraction,
   QuestionInteraction,
+  SelectInteraction,
   TranscriptAttachment,
   TranscriptFrame,
   TranscriptInteraction,
@@ -11,6 +14,7 @@ import type {
   TranscriptTurn,
   TurnOrigin,
 } from '@poietica/transcript'
+import type { DialogRequest } from '../../shared/model/dialog'
 import type { QuestionChoice, QuestionItem } from '../../shared/model/question'
 import type { TurnMark } from '../../shared/model/thread'
 import type { ToolCallContent } from '../../shared/model/tool-call'
@@ -325,6 +329,29 @@ function interactionOf(
         ...(resolved ? { resolution: { decision: approvalDecision(interaction.state) } } : {}),
       }
     }
+    case 'confirm':
+    case 'select':
+    case 'input':
+      return {
+        type: 'question',
+        id: interaction.interactionId,
+        turn,
+        at: stamp,
+        questionId: interaction.interactionId,
+        questions: [],
+        dialog: dialogOf(interaction),
+        /* 单问答过就收：它不上屏（与审批同理，操作痕迹归事件日志），终态只用来让面板让位 */
+        ...(resolved
+          ? {
+              resolution: {
+                outcome:
+                  interaction.state === 'cancelled' || interaction.state === 'dismissed' ? 'cancelled' : 'answered',
+                answers: {},
+                note: '',
+              },
+            }
+          : {}),
+      }
     case 'question':
       return {
         type: 'question',
@@ -345,6 +372,29 @@ function interactionOf(
           : {}),
       }
   }
+}
+
+type DialogInteraction = ConfirmInteraction | SelectInteraction | InputInteraction
+
+const DIALOGS = new WeakMap<DialogInteraction['request'], DialogRequest>()
+
+/** 词表的单问 → 面板的单问；按请求身份记账，同一张卡每帧拿到同一个引用。 */
+function dialogOf(interaction: DialogInteraction): DialogRequest {
+  const kept = DIALOGS.get(interaction.request)
+  if (kept !== undefined) return kept
+  const dialog: DialogRequest =
+    interaction.interactionKind === 'confirm'
+      ? { kind: 'confirm', title: interaction.request.title, message: interaction.request.message }
+      : interaction.interactionKind === 'select'
+        ? { kind: 'select', title: interaction.request.title, options: interaction.request.options }
+        : {
+            kind: 'input',
+            title: interaction.request.title,
+            ...(interaction.request.placeholder === undefined ? {} : { placeholder: interaction.request.placeholder }),
+            multiline: interaction.request.multiline,
+          }
+  DIALOGS.set(interaction.request, dialog)
+  return dialog
 }
 
 /* 词表的题 → 面板的题。引擎的题没有题头、正文与「其他」的自定义文案，面板对这几格各有缺省。 */

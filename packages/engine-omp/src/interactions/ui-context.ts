@@ -48,7 +48,24 @@ export interface UiContextHooks {
 
 /** 造一个接到 broker 上的 uiContext。传入的 hooks 只影响「批准并记住」这一条路 */
 export function createUiContext(broker: InteractionBroker, hooks: UiContextHooks = {}): ExtensionUIContext {
-  return new OmpUiContext(broker, hooks)
+  return boundMethods(new OmpUiContext(broker, hooks))
+}
+
+/**
+ * omp 会把成员**摘下来再调**：tools/ask.ts:764 `const richAskDialog = extensionUi.askDialog` 之后裸调
+ * `richAskDialog(...)`，extensions/runner.ts:199 也把 `ui.askDialog` 原样转交。类方法一离开实例 `this` 就是
+ * undefined，ask 工具每次都抛「undefined is not an object (evaluating 'this.broker')」，错误长进调用产出、
+ * 题面板根本不出现。所以原型上的每个方法都钉在实例上；getter（`theme`）不动。
+ */
+function boundMethods<T extends object>(target: T): T {
+  const proto: object = Object.getPrototypeOf(target)
+  for (const name of Object.getOwnPropertyNames(proto)) {
+    if (name === 'constructor') continue
+    const method: unknown = Object.getOwnPropertyDescriptor(proto, name)?.value
+    if (typeof method !== 'function') continue
+    Object.defineProperty(target, name, { value: method.bind(target), configurable: true, writable: true })
+  }
+  return target
 }
 
 class OmpUiContext implements ExtensionUIContext {

@@ -3,6 +3,7 @@ import type { AgentTranscriptSnapshot } from '@poietica/transcript'
 import type { SubmissionView } from '../../../contract'
 import { conversationErrors } from '../../../contract'
 import { describeFailure } from '../../failure'
+import type { DialogAnswer } from '../../shared/model/dialog'
 import { MessageQueue } from '../../shared/model/message-queue'
 import type { ApprovalAnswer } from '../../shared/model/permission'
 import type { PlanAnswer } from '../../shared/model/plan'
@@ -333,6 +334,8 @@ export class TranscriptStore implements TranscriptSink {
   }
   answerQuestions = (key: string, response: QuestionResponse): Promise<void> =>
     this.#command(key, (port) => port.answerQuestions(response))
+  answerDialog = (key: string, interactionId: string, answer: DialogAnswer): Promise<void> =>
+    this.#command(key, (port) => port.answerDialog(interactionId, answer))
   dismissQuestions = (key: string, questionId: string): Promise<void> =>
     this.#command(key, (port) => port.dismissQuestions(questionId))
   async #command(key: string, perform: (port: AgentSessionPort) => Promise<void>): Promise<void> {

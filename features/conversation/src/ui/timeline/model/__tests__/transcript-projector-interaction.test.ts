@@ -182,14 +182,99 @@ test('I5 撤下没有答复：终态由 state 说，response 缺席', () => {
   })
 })
 
-test('I6 确认类没有自己的卡片：按审批画，主语空、正文是那句问话，确认即批准', () => {
+test('I6 确认类有自己的卡片：按单问画在输入框里，确认是 approved、不确认是 rejected（Q1-E）', () => {
   const confirm: Interaction = { ...base, kind: 'confirm', title: '继续吗？', message: '将覆盖 3 个文件' }
-  const card = interactionCardOf(confirm, { answer: { kind: 'confirm', value: true } })
-  expect(card).toMatchObject({
-    interactionKind: 'approval',
-    state: 'approved',
-    request: { toolName: '', title: '继续吗？', detail: '将覆盖 3 个文件', allowSessionScope: false },
-    response: { decision: 'approve', scope: 'once' },
+  expect(interactionCardOf(confirm)).toEqual({
+    interactionId: 'i1',
+    state: 'pending',
+    interactionKind: 'confirm',
+    request: { title: '继续吗？', message: '将覆盖 3 个文件' },
   })
-  expect(itemsOf(confirm)[0]).toMatchObject({ type: 'permission', subject: '', title: '将覆盖 3 个文件' })
+  expect(interactionCardOf(confirm, { answer: { kind: 'confirm', value: true } })).toMatchObject({
+    state: 'approved',
+    response: { value: true },
+  })
+  expect(interactionCardOf(confirm, { answer: { kind: 'confirm', value: false } }).state).toBe('rejected')
+  const [item] = itemsOf(confirm)
+  expect(item).toMatchObject({
+    type: 'question',
+    questionId: 'i1',
+    questions: [],
+    dialog: { kind: 'confirm', title: '继续吗？', message: '将覆盖 3 个文件' },
+  })
+  expect(item?.type === 'question' ? item.resolution : 'x').toBeUndefined()
+})
+
+test('I7 单选与输入：选项原文与提示照引擎的画，答复是原文 / 那句话', () => {
+  const select: Interaction = { ...base, kind: 'select', title: '用哪个？', options: ['甲', '乙'] }
+  expect(interactionCardOf(select, { answer: { kind: 'select', value: '乙' } })).toEqual({
+    interactionId: 'i1',
+    state: 'answered',
+    interactionKind: 'select',
+    request: { title: '用哪个？', options: ['甲', '乙'] },
+    response: { value: '乙' },
+  })
+  expect(itemsOf(select)[0]).toMatchObject({ type: 'question', dialog: { kind: 'select', options: ['甲', '乙'] } })
+
+  const input: Interaction = { ...base, kind: 'input', title: '起个名', placeholder: null, multiline: false }
+  expect(interactionCardOf(input)).toEqual({
+    interactionId: 'i1',
+    state: 'pending',
+    interactionKind: 'input',
+    request: { title: '起个名', multiline: false },
+  })
+  expect(interactionCardOf(input, { answer: { kind: 'input', value: null } })).toMatchObject({
+    state: 'answered',
+    response: {},
+  })
+  const editor: Interaction = { ...base, kind: 'input', title: '正文', placeholder: '预填', multiline: true }
+  expect(itemsOf(editor)[0]).toMatchObject({
+    type: 'question',
+    dialog: { kind: 'input', title: '正文', placeholder: '预填', multiline: true },
+  })
+  /* 撤下：卡片收口成 cancelled，面板让位 */
+  const [dismissed] = itemsOf(input, { kind: 'dismiss' })
+  expect(dismissed?.type === 'question' ? dismissed.resolution?.outcome : 'x').toBe('cancelled')
+})
+
+test('I8 待答的单问是 awaiting_question：输入框那张卡认得到它，不再落成审批', () => {
+  const select: Interaction = { ...base, kind: 'select', title: '用哪个？', options: ['甲', '乙'] }
+  const projected = projectTranscript(pageWith([interactionCardOf(select)]), createProjectionMemo())
+  expect(projected.status).toBe('awaiting_question')
+})
+
+test('I9 答过的题组带着调用号：锚进那次 ask 的产出，一轮问两次各归各的', () => {
+  const second = [
+    ...ASK_TURN,
+    {
+      op: 'frame.upsert',
+      turnId: 't1',
+      stepId: 't1:s0',
+      frame: { kind: 'tool', frameId: 't1:s0:f1', toolCallId: 'call-2', name: 'ask', state: 'done', output: '第二次' },
+    },
+  ] as unknown as TranscriptOperation[]
+  const answered = (id: string, call: string, option: string): TranscriptInteraction => ({
+    ...interactionCardOf(
+      { ...QUESTION, id },
+      {
+        answer: {
+          kind: 'question',
+          answers: { q0: { selected: [option], custom: null }, q1: { selected: [], custom: null } },
+        },
+      },
+    ),
+    toolCallId: call,
+  })
+  const projected = projectTranscript(
+    pageWith([answered('g2', 'call-2', 'o1'), answered('g1', 'call-1', 'o0')], second),
+    createProjectionMemo(),
+  )
+  const calls = [...projected.sealed, projected.active]
+    .flatMap((page) => page.items)
+    .filter((item) => item.type === 'tool_call')
+  const text = (call: string) =>
+    JSON.stringify(calls.find((item) => item.type === 'tool_call' && item.toolCallId === call))
+  expect(text('call-1')).toContain('bun')
+  expect(text('call-1')).not.toContain('node')
+  expect(text('call-2')).toContain('node')
 })

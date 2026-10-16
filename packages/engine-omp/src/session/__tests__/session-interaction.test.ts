@@ -78,6 +78,54 @@ async function open(posterior: 'ask' | 'full-access' = 'ask') {
 const toolTurn = (name: string, text: string) => [[{ kind: 'tool' as const, name, args: { text }, result: '' }]]
 
 describe('交互经 OmpSession 上屏', () => {
+  test('真 ask 工具：题面板出得来，答过的题组带着那次调用的号收口（Q1-E）', async () => {
+    const { handle, session } = await open('full-access')
+    const questions = [
+      { id: 'weekend', question: '理想周末怎么过？', options: [{ label: '睡到自然醒' }, { label: '出门走走' }] },
+    ]
+    handle.script([[{ kind: 'tool' as const, name: 'ask', args: { questions }, result: '' }]])
+    const h = record(session)
+    await session.submit({ text: 'go', images: [], files: [], skills: [], deliverAs: 'turn' } as never)
+    /* 从前 omp 把 askDialog 摘下来裸调，`this.broker` 是 undefined：题组根本发不出来，错误长进调用产出 */
+    await h.waitFor((events) => events.some((e) => e.type === 'interactionRequested'), '没有得到题组')
+    const requested = h.events.find((e) => e.type === 'interactionRequested')
+    if (requested?.type !== 'interactionRequested' || requested.interaction.kind !== 'question') {
+      throw new Error('应当是一组题')
+    }
+    const toolCallIdOf = (page: TranscriptPage) =>
+      page.items.flatMap((item) =>
+        item.kind === 'turn'
+          ? item.steps.flatMap((s) =>
+              s.frames.flatMap((f) => (f.kind === 'tool' && f.name === 'ask' ? [f.toolCallId] : [])),
+            )
+          : [],
+      )
+    /* 题组与调用谁先到不确定：等到待答卡带上号为止 */
+    await h.waitFor(
+      (events) => pageOf(events).interactions.some((i) => i.toolCallId !== undefined),
+      '待答卡没有补上调用号',
+    )
+    const [call] = toolCallIdOf(pageOf(h.events))
+    expect(call).toBeDefined()
+    expect(pageOf(h.events).interactions[0]).toMatchObject({ state: 'pending', toolCallId: call })
+
+    const option = requested.interaction.questions[0]!.options[1]!
+    session.respond(requested.interaction.id, {
+      kind: 'question',
+      answers: { [requested.interaction.questions[0]!.id]: { selected: [option.id], custom: null } },
+    })
+    await h.waitFor((events) => events.some((e) => e.type === 'state' && e.state === 'idle'), '答复后没有结束')
+    const page = pageOf(h.events)
+    expect(page.interactions[0]).toMatchObject({ interactionKind: 'question', state: 'answered', toolCallId: call })
+    const output = page.items.flatMap((item) =>
+      item.kind === 'turn'
+        ? item.steps.flatMap((s) => s.frames.flatMap((f) => (f.kind === 'tool' && f.name === 'ask' ? [f] : [])))
+        : [],
+    )[0]
+    expect(output?.state).toBe('done')
+    expect(JSON.stringify(output?.output ?? '')).not.toContain('this.broker')
+  })
+
   test('审批请求到达 UI，卡片 pending；答复后卡片收口、轮子继续到 idle', async () => {
     const { handle, session } = await open('ask')
     handle.script(toolTurn('write_test', 'x'))

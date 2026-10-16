@@ -393,4 +393,27 @@ describe('uiContext：omp 的对话框走 broker（12 页 §8.3）', () => {
     expect(await askDialog.call(ui, [])).toBeUndefined()
     expect(broker.pendingCount()).toBe(0)
   })
+
+  test('方法摘下来裸调也认得 broker：omp 的 ask 工具就是这么调 askDialog 的', async () => {
+    const { broker } = brokerWithRecorder()
+    const ui = createUiContext(broker)
+    /* tools/ask.ts:764 与 extensions/runner.ts:199 都是 `const askDialog = ui.askDialog` 之后裸调 */
+    const { askDialog, select, confirm, input, editor } = ui
+    if (askDialog === undefined) throw new Error('ui-context 必须实现 askDialog')
+    const asked = askDialog([{ id: 'q1', question: '周末怎么过？', options: [{ label: '睡觉' }, { label: '出门' }] }])
+    const pending = broker.pending()[0]
+    expect(pending?.kind).toBe('question')
+    if (pending?.kind !== 'question') throw new Error('应当发出一组题')
+    broker.answer(pending.id, {
+      kind: 'question',
+      answers: { q1: { selected: [pending.questions[0]!.options[1]!.id], custom: null } },
+    })
+    expect(await asked).toMatchObject({ kind: 'submit' })
+
+    for (const dialog of [select('选一个', ['a']), confirm('继续吗', '?'), input('写一句'), editor('正文')]) {
+      broker.answer(broker.pending()[0]!.id, { kind: 'dismiss' })
+      await dialog
+    }
+    expect(broker.pendingCount()).toBe(0)
+  })
 })

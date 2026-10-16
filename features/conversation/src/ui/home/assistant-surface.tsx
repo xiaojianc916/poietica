@@ -289,6 +289,7 @@ export const AssistantSurface = memo(function AssistantSurface({
         controls={controls}
         controlsPending={controlsPending}
         mcpServers={mcpServers}
+        onAnswerDialog={assistant.answerDialog}
         onAnswerQuestions={assistant.answerQuestions}
         onCancel={assistant.cancel}
         onContinue={continueConversation}

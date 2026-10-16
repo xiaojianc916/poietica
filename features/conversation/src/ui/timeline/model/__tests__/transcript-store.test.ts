@@ -77,6 +77,7 @@ function fakePort(threadId: string) {
     resolvePermission: async () => undefined,
     resolvePlan: async () => undefined,
     answerQuestions: async () => undefined,
+    answerDialog: async () => undefined,
     dismissQuestions: async () => undefined,
   }
   return { port, state }
@@ -395,6 +396,7 @@ describe('Core 换代后的重新同步（R-04 §3.6）', () => {
       resolvePermission: async () => undefined,
       resolvePlan: async () => undefined,
       answerQuestions: async () => undefined,
+      answerDialog: async () => undefined,
       dismissQuestions: async () => undefined,
     }
     return {
@@ -639,6 +641,7 @@ describe('进程中途没了那一轮报「已停止」，不报「已完成」'
       resolvePermission: async () => undefined,
       resolvePlan: async () => undefined,
       answerQuestions: async () => undefined,
+      answerDialog: async () => undefined,
       dismissQuestions: async () => undefined,
     }
     return {

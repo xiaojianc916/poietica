@@ -1,5 +1,4 @@
 import type {
-  ApprovalRequest,
   InteractionState,
   QuestionAnswerValue,
   QuestionRequest,
@@ -9,7 +8,8 @@ import type { Interaction, InteractionAnswer } from './values'
 
 /*
  * 引擎交互 → 时间线卡片（Q1-C）。映射只此一处：真引擎与替身都从这里出卡片，界面按 transcript 的类型读，
- * 不再认引擎的字段名。select / input / confirm 没有自己的卡片，按审批画（主语空、正文是那句问话）。
+ * 不再认引擎的字段名。select / input / confirm 各有自己的卡片（Q1-E）：从前按审批画，界面只会答 `approval`，
+ * broker 按种类对不上就拒收，时间线上一张也答不了。
  */
 
 /** 答复 → 卡片终态：没有答复（超时、中止、撤下）是 cancelled；确认类按 true/false 分。 */
@@ -57,40 +57,59 @@ export function interactionCardOf(
         request: questionRequestOf(interaction),
         ...(answer?.kind === 'question' ? { response: { answers: answersOf(answer.answers) } } : {}),
       }
-    default:
+    case 'confirm':
+    case 'select':
+    case 'input':
+      return dialogCardOf(interaction, base, answer)
+    case 'approval':
       return {
         ...base,
         interactionKind: 'approval',
-        request: approvalRequestOf(interaction),
+        request: {
+          toolName: interaction.tool,
+          title: interaction.title,
+          detail: interaction.detail,
+          allowSessionScope: interaction.allowSessionScope,
+        },
         ...(answer?.kind === 'approval'
           ? { response: { decision: answer.decision, scope: answer.scope, ...feedbackOf(answer.feedback) } }
-          : answer?.kind === 'confirm'
-            ? { response: { decision: answer.value ? 'approve' : 'reject', scope: 'once' } }
-            : {}),
+          : {}),
       }
   }
 }
 
-function approvalRequestOf(interaction: Exclude<Interaction, { kind: 'plan' | 'question' }>): ApprovalRequest {
+/** 三类单问各自的卡片（Q1-E）：请求照抄，答复只认同种类的那一支。 */
+function dialogCardOf(
+  interaction: Extract<Interaction, { kind: 'confirm' | 'select' | 'input' }>,
+  base: Pick<TranscriptInteraction, 'interactionId' | 'state'>,
+  answer: InteractionAnswer | undefined,
+): TranscriptInteraction {
   switch (interaction.kind) {
-    case 'approval':
-      return {
-        toolName: interaction.tool,
-        title: interaction.title,
-        detail: interaction.detail,
-        allowSessionScope: interaction.allowSessionScope,
-      }
     case 'confirm':
-      return { toolName: '', title: interaction.title, detail: interaction.message, allowSessionScope: false }
+      return {
+        ...base,
+        interactionKind: 'confirm',
+        request: { title: interaction.title, message: interaction.message },
+        ...(answer?.kind === 'confirm' ? { response: { value: answer.value } } : {}),
+      }
     case 'select':
       return {
-        toolName: '',
-        title: interaction.title,
-        detail: interaction.options.join('\n'),
-        allowSessionScope: false,
+        ...base,
+        interactionKind: 'select',
+        request: { title: interaction.title, options: [...interaction.options] },
+        ...(answer?.kind === 'select' ? { response: chosenOf(answer.value) } : {}),
       }
     case 'input':
-      return { toolName: '', title: interaction.title, detail: '', allowSessionScope: false }
+      return {
+        ...base,
+        interactionKind: 'input',
+        request: {
+          title: interaction.title,
+          ...(interaction.placeholder === null ? {} : { placeholder: interaction.placeholder }),
+          multiline: interaction.multiline,
+        },
+        ...(answer?.kind === 'input' ? { response: chosenOf(answer.value) } : {}),
+      }
   }
 }
 
@@ -118,6 +137,11 @@ function answersOf(
     out[id] = { selected: [...answer.selected], ...(answer.custom === null ? {} : { custom: answer.custom }) }
   }
   return out
+}
+
+/** select / input 的答复：引擎的「没选 / 没填」是 null，词表是缺席。 */
+function chosenOf(value: string | null): { readonly value?: string } {
+  return value === null ? {} : { value }
 }
 
 /** 引擎的「没有」是 null，词表的「没有」是缺席。 */

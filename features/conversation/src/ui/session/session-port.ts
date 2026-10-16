@@ -240,6 +240,11 @@ export function createSessionPort({ api, threadId, onSubmissions }: SessionPortO
       await api.respond(threadId, response.questionId, { kind: 'question', answers })
     },
 
+    /* 答复形状就是引擎那一支（同 resolvePlan）：从前一律答成 approval，broker 按种类对不上就拒收（Q1-E）。 */
+    async answerDialog(interactionId, answer) {
+      await api.respond(threadId, interactionId, answer)
+    },
+
     async dismissQuestions(questionId) {
       await api.respond(threadId, questionId, { kind: 'dismiss' })
     },

@@ -778,6 +778,8 @@ function dispatchOmpEvent(event: Record<string, unknown>, pump: EventPump): void
           ...(typeof event.intent === 'string' ? { intent: event.intent } : {}),
         }),
       )
+      /* 先上调用、再补题组的号：卡片锚的是这条调用 */
+      session.onToolStart(String(event.toolCallId), String(event.toolName))
       break
     case 'tool_execution_update':
       session.requestTimeline(
@@ -797,6 +799,7 @@ function dispatchOmpEvent(event: Record<string, unknown>, pump: EventPump): void
           ...(event.isError === true ? { isError: true } : {}),
         }),
       )
+      session.onToolEnd(String(event.toolCallId), String(event.toolName))
       break
     case 'message_start': {
       /* 助手消息一开始就计数：历史那条路按同一个口径数（见 frame-ids.ts），两边对同一段话给出同一个号 */

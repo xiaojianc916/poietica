@@ -15184,6 +15184,189 @@
                                         "request"
                                       ],
                                       "additionalProperties": false
+                                    },
+                                    {
+                                      "type": "object",
+                                      "properties": {
+                                        "interactionId": {
+                                          "type": "string"
+                                        },
+                                        "toolCallId": {
+                                          "type": "string"
+                                        },
+                                        "state": {
+                                          "type": "string",
+                                          "enum": [
+                                            "pending",
+                                            "approved",
+                                            "rejected",
+                                            "cancelled",
+                                            "answered",
+                                            "dismissed"
+                                          ]
+                                        },
+                                        "interactionKind": {
+                                          "type": "string",
+                                          "const": "confirm"
+                                        },
+                                        "request": {
+                                          "type": "object",
+                                          "properties": {
+                                            "title": {
+                                              "type": "string"
+                                            },
+                                            "message": {
+                                              "type": "string"
+                                            }
+                                          },
+                                          "required": [
+                                            "title",
+                                            "message"
+                                          ],
+                                          "additionalProperties": false
+                                        },
+                                        "response": {
+                                          "type": "object",
+                                          "properties": {
+                                            "value": {
+                                              "type": "boolean"
+                                            }
+                                          },
+                                          "required": [
+                                            "value"
+                                          ],
+                                          "additionalProperties": false
+                                        }
+                                      },
+                                      "required": [
+                                        "interactionId",
+                                        "state",
+                                        "interactionKind",
+                                        "request"
+                                      ],
+                                      "additionalProperties": false
+                                    },
+                                    {
+                                      "type": "object",
+                                      "properties": {
+                                        "interactionId": {
+                                          "type": "string"
+                                        },
+                                        "toolCallId": {
+                                          "type": "string"
+                                        },
+                                        "state": {
+                                          "type": "string",
+                                          "enum": [
+                                            "pending",
+                                            "approved",
+                                            "rejected",
+                                            "cancelled",
+                                            "answered",
+                                            "dismissed"
+                                          ]
+                                        },
+                                        "interactionKind": {
+                                          "type": "string",
+                                          "const": "select"
+                                        },
+                                        "request": {
+                                          "type": "object",
+                                          "properties": {
+                                            "title": {
+                                              "type": "string"
+                                            },
+                                            "options": {
+                                              "type": "array",
+                                              "items": {
+                                                "type": "string"
+                                              }
+                                            }
+                                          },
+                                          "required": [
+                                            "title",
+                                            "options"
+                                          ],
+                                          "additionalProperties": false
+                                        },
+                                        "response": {
+                                          "type": "object",
+                                          "properties": {
+                                            "value": {
+                                              "type": "string"
+                                            }
+                                          },
+                                          "additionalProperties": false
+                                        }
+                                      },
+                                      "required": [
+                                        "interactionId",
+                                        "state",
+                                        "interactionKind",
+                                        "request"
+                                      ],
+                                      "additionalProperties": false
+                                    },
+                                    {
+                                      "type": "object",
+                                      "properties": {
+                                        "interactionId": {
+                                          "type": "string"
+                                        },
+                                        "toolCallId": {
+                                          "type": "string"
+                                        },
+                                        "state": {
+                                          "type": "string",
+                                          "enum": [
+                                            "pending",
+                                            "approved",
+                                            "rejected",
+                                            "cancelled",
+                                            "answered",
+                                            "dismissed"
+                                          ]
+                                        },
+                                        "interactionKind": {
+                                          "type": "string",
+                                          "const": "input"
+                                        },
+                                        "request": {
+                                          "type": "object",
+                                          "properties": {
+                                            "title": {
+                                              "type": "string"
+                                            },
+                                            "placeholder": {
+                                              "type": "string"
+                                            },
+                                            "multiline": {
+                                              "type": "boolean"
+                                            }
+                                          },
+                                          "required": [
+                                            "title",
+                                            "multiline"
+                                          ],
+                                          "additionalProperties": false
+                                        },
+                                        "response": {
+                                          "type": "object",
+                                          "properties": {
+                                            "value": {
+                                              "type": "string"
+                                            }
+                                          },
+                                          "additionalProperties": false
+                                        }
+                                      },
+                                      "required": [
+                                        "interactionId",
+                                        "state",
+                                        "interactionKind",
+                                        "request"
+                                      ],
+                                      "additionalProperties": false
                                     }
                                   ]
                                 }
@@ -17099,6 +17282,189 @@
                                   "request"
                                 ],
                                 "additionalProperties": false
+                              },
+                              {
+                                "type": "object",
+                                "properties": {
+                                  "interactionId": {
+                                    "type": "string"
+                                  },
+                                  "toolCallId": {
+                                    "type": "string"
+                                  },
+                                  "state": {
+                                    "type": "string",
+                                    "enum": [
+                                      "pending",
+                                      "approved",
+                                      "rejected",
+                                      "cancelled",
+                                      "answered",
+                                      "dismissed"
+                                    ]
+                                  },
+                                  "interactionKind": {
+                                    "type": "string",
+                                    "const": "confirm"
+                                  },
+                                  "request": {
+                                    "type": "object",
+                                    "properties": {
+                                      "title": {
+                                        "type": "string"
+                                      },
+                                      "message": {
+                                        "type": "string"
+                                      }
+                                    },
+                                    "required": [
+                                      "title",
+                                      "message"
+                                    ],
+                                    "additionalProperties": false
+                                  },
+                                  "response": {
+                                    "type": "object",
+                                    "properties": {
+                                      "value": {
+                                        "type": "boolean"
+                                      }
+                                    },
+                                    "required": [
+                                      "value"
+                                    ],
+                                    "additionalProperties": false
+                                  }
+                                },
+                                "required": [
+                                  "interactionId",
+                                  "state",
+                                  "interactionKind",
+                                  "request"
+                                ],
+                                "additionalProperties": false
+                              },
+                              {
+                                "type": "object",
+                                "properties": {
+                                  "interactionId": {
+                                    "type": "string"
+                                  },
+                                  "toolCallId": {
+                                    "type": "string"
+                                  },
+                                  "state": {
+                                    "type": "string",
+                                    "enum": [
+                                      "pending",
+                                      "approved",
+                                      "rejected",
+                                      "cancelled",
+                                      "answered",
+                                      "dismissed"
+                                    ]
+                                  },
+                                  "interactionKind": {
+                                    "type": "string",
+                                    "const": "select"
+                                  },
+                                  "request": {
+                                    "type": "object",
+                                    "properties": {
+                                      "title": {
+                                        "type": "string"
+                                      },
+                                      "options": {
+                                        "type": "array",
+                                        "items": {
+                                          "type": "string"
+                                        }
+                                      }
+                                    },
+                                    "required": [
+                                      "title",
+                                      "options"
+                                    ],
+                                    "additionalProperties": false
+                                  },
+                                  "response": {
+                                    "type": "object",
+                                    "properties": {
+                                      "value": {
+                                        "type": "string"
+                                      }
+                                    },
+                                    "additionalProperties": false
+                                  }
+                                },
+                                "required": [
+                                  "interactionId",
+                                  "state",
+                                  "interactionKind",
+                                  "request"
+                                ],
+                                "additionalProperties": false
+                              },
+                              {
+                                "type": "object",
+                                "properties": {
+                                  "interactionId": {
+                                    "type": "string"
+                                  },
+                                  "toolCallId": {
+                                    "type": "string"
+                                  },
+                                  "state": {
+                                    "type": "string",
+                                    "enum": [
+                                      "pending",
+                                      "approved",
+                                      "rejected",
+                                      "cancelled",
+                                      "answered",
+                                      "dismissed"
+                                    ]
+                                  },
+                                  "interactionKind": {
+                                    "type": "string",
+                                    "const": "input"
+                                  },
+                                  "request": {
+                                    "type": "object",
+                                    "properties": {
+                                      "title": {
+                                        "type": "string"
+                                      },
+                                      "placeholder": {
+                                        "type": "string"
+                                      },
+                                      "multiline": {
+                                        "type": "boolean"
+                                      }
+                                    },
+                                    "required": [
+                                      "title",
+                                      "multiline"
+                                    ],
+                                    "additionalProperties": false
+                                  },
+                                  "response": {
+                                    "type": "object",
+                                    "properties": {
+                                      "value": {
+                                        "type": "string"
+                                      }
+                                    },
+                                    "additionalProperties": false
+                                  }
+                                },
+                                "required": [
+                                  "interactionId",
+                                  "state",
+                                  "interactionKind",
+                                  "request"
+                                ],
+                                "additionalProperties": false
                               }
                             ]
                           }
@@ -18982,6 +19348,189 @@
                     "request"
                   ],
                   "additionalProperties": false
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "interactionId": {
+                      "type": "string"
+                    },
+                    "toolCallId": {
+                      "type": "string"
+                    },
+                    "state": {
+                      "type": "string",
+                      "enum": [
+                        "pending",
+                        "approved",
+                        "rejected",
+                        "cancelled",
+                        "answered",
+                        "dismissed"
+                      ]
+                    },
+                    "interactionKind": {
+                      "type": "string",
+                      "const": "confirm"
+                    },
+                    "request": {
+                      "type": "object",
+                      "properties": {
+                        "title": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "title",
+                        "message"
+                      ],
+                      "additionalProperties": false
+                    },
+                    "response": {
+                      "type": "object",
+                      "properties": {
+                        "value": {
+                          "type": "boolean"
+                        }
+                      },
+                      "required": [
+                        "value"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  "required": [
+                    "interactionId",
+                    "state",
+                    "interactionKind",
+                    "request"
+                  ],
+                  "additionalProperties": false
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "interactionId": {
+                      "type": "string"
+                    },
+                    "toolCallId": {
+                      "type": "string"
+                    },
+                    "state": {
+                      "type": "string",
+                      "enum": [
+                        "pending",
+                        "approved",
+                        "rejected",
+                        "cancelled",
+                        "answered",
+                        "dismissed"
+                      ]
+                    },
+                    "interactionKind": {
+                      "type": "string",
+                      "const": "select"
+                    },
+                    "request": {
+                      "type": "object",
+                      "properties": {
+                        "title": {
+                          "type": "string"
+                        },
+                        "options": {
+                          "type": "array",
+                          "items": {
+                            "type": "string"
+                          }
+                        }
+                      },
+                      "required": [
+                        "title",
+                        "options"
+                      ],
+                      "additionalProperties": false
+                    },
+                    "response": {
+                      "type": "object",
+                      "properties": {
+                        "value": {
+                          "type": "string"
+                        }
+                      },
+                      "additionalProperties": false
+                    }
+                  },
+                  "required": [
+                    "interactionId",
+                    "state",
+                    "interactionKind",
+                    "request"
+                  ],
+                  "additionalProperties": false
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "interactionId": {
+                      "type": "string"
+                    },
+                    "toolCallId": {
+                      "type": "string"
+                    },
+                    "state": {
+                      "type": "string",
+                      "enum": [
+                        "pending",
+                        "approved",
+                        "rejected",
+                        "cancelled",
+                        "answered",
+                        "dismissed"
+                      ]
+                    },
+                    "interactionKind": {
+                      "type": "string",
+                      "const": "input"
+                    },
+                    "request": {
+                      "type": "object",
+                      "properties": {
+                        "title": {
+                          "type": "string"
+                        },
+                        "placeholder": {
+                          "type": "string"
+                        },
+                        "multiline": {
+                          "type": "boolean"
+                        }
+                      },
+                      "required": [
+                        "title",
+                        "multiline"
+                      ],
+                      "additionalProperties": false
+                    },
+                    "response": {
+                      "type": "object",
+                      "properties": {
+                        "value": {
+                          "type": "string"
+                        }
+                      },
+                      "additionalProperties": false
+                    }
+                  },
+                  "required": [
+                    "interactionId",
+                    "state",
+                    "interactionKind",
+                    "request"
+                  ],
+                  "additionalProperties": false
                 }
               ]
             }
@@ -20741,6 +21290,189 @@
                           "required": [
                             "answers"
                           ],
+                          "additionalProperties": false
+                        }
+                      },
+                      "required": [
+                        "interactionId",
+                        "state",
+                        "interactionKind",
+                        "request"
+                      ],
+                      "additionalProperties": false
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "interactionId": {
+                          "type": "string"
+                        },
+                        "toolCallId": {
+                          "type": "string"
+                        },
+                        "state": {
+                          "type": "string",
+                          "enum": [
+                            "pending",
+                            "approved",
+                            "rejected",
+                            "cancelled",
+                            "answered",
+                            "dismissed"
+                          ]
+                        },
+                        "interactionKind": {
+                          "type": "string",
+                          "const": "confirm"
+                        },
+                        "request": {
+                          "type": "object",
+                          "properties": {
+                            "title": {
+                              "type": "string"
+                            },
+                            "message": {
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "title",
+                            "message"
+                          ],
+                          "additionalProperties": false
+                        },
+                        "response": {
+                          "type": "object",
+                          "properties": {
+                            "value": {
+                              "type": "boolean"
+                            }
+                          },
+                          "required": [
+                            "value"
+                          ],
+                          "additionalProperties": false
+                        }
+                      },
+                      "required": [
+                        "interactionId",
+                        "state",
+                        "interactionKind",
+                        "request"
+                      ],
+                      "additionalProperties": false
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "interactionId": {
+                          "type": "string"
+                        },
+                        "toolCallId": {
+                          "type": "string"
+                        },
+                        "state": {
+                          "type": "string",
+                          "enum": [
+                            "pending",
+                            "approved",
+                            "rejected",
+                            "cancelled",
+                            "answered",
+                            "dismissed"
+                          ]
+                        },
+                        "interactionKind": {
+                          "type": "string",
+                          "const": "select"
+                        },
+                        "request": {
+                          "type": "object",
+                          "properties": {
+                            "title": {
+                              "type": "string"
+                            },
+                            "options": {
+                              "type": "array",
+                              "items": {
+                                "type": "string"
+                              }
+                            }
+                          },
+                          "required": [
+                            "title",
+                            "options"
+                          ],
+                          "additionalProperties": false
+                        },
+                        "response": {
+                          "type": "object",
+                          "properties": {
+                            "value": {
+                              "type": "string"
+                            }
+                          },
+                          "additionalProperties": false
+                        }
+                      },
+                      "required": [
+                        "interactionId",
+                        "state",
+                        "interactionKind",
+                        "request"
+                      ],
+                      "additionalProperties": false
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "interactionId": {
+                          "type": "string"
+                        },
+                        "toolCallId": {
+                          "type": "string"
+                        },
+                        "state": {
+                          "type": "string",
+                          "enum": [
+                            "pending",
+                            "approved",
+                            "rejected",
+                            "cancelled",
+                            "answered",
+                            "dismissed"
+                          ]
+                        },
+                        "interactionKind": {
+                          "type": "string",
+                          "const": "input"
+                        },
+                        "request": {
+                          "type": "object",
+                          "properties": {
+                            "title": {
+                              "type": "string"
+                            },
+                            "placeholder": {
+                              "type": "string"
+                            },
+                            "multiline": {
+                              "type": "boolean"
+                            }
+                          },
+                          "required": [
+                            "title",
+                            "multiline"
+                          ],
+                          "additionalProperties": false
+                        },
+                        "response": {
+                          "type": "object",
+                          "properties": {
+                            "value": {
+                              "type": "string"
+                            }
+                          },
                           "additionalProperties": false
                         }
                       },
@@ -26033,6 +26765,189 @@
                                   "request"
                                 ],
                                 "additionalProperties": false
+                              },
+                              {
+                                "type": "object",
+                                "properties": {
+                                  "interactionId": {
+                                    "type": "string"
+                                  },
+                                  "toolCallId": {
+                                    "type": "string"
+                                  },
+                                  "state": {
+                                    "type": "string",
+                                    "enum": [
+                                      "pending",
+                                      "approved",
+                                      "rejected",
+                                      "cancelled",
+                                      "answered",
+                                      "dismissed"
+                                    ]
+                                  },
+                                  "interactionKind": {
+                                    "type": "string",
+                                    "const": "confirm"
+                                  },
+                                  "request": {
+                                    "type": "object",
+                                    "properties": {
+                                      "title": {
+                                        "type": "string"
+                                      },
+                                      "message": {
+                                        "type": "string"
+                                      }
+                                    },
+                                    "required": [
+                                      "title",
+                                      "message"
+                                    ],
+                                    "additionalProperties": false
+                                  },
+                                  "response": {
+                                    "type": "object",
+                                    "properties": {
+                                      "value": {
+                                        "type": "boolean"
+                                      }
+                                    },
+                                    "required": [
+                                      "value"
+                                    ],
+                                    "additionalProperties": false
+                                  }
+                                },
+                                "required": [
+                                  "interactionId",
+                                  "state",
+                                  "interactionKind",
+                                  "request"
+                                ],
+                                "additionalProperties": false
+                              },
+                              {
+                                "type": "object",
+                                "properties": {
+                                  "interactionId": {
+                                    "type": "string"
+                                  },
+                                  "toolCallId": {
+                                    "type": "string"
+                                  },
+                                  "state": {
+                                    "type": "string",
+                                    "enum": [
+                                      "pending",
+                                      "approved",
+                                      "rejected",
+                                      "cancelled",
+                                      "answered",
+                                      "dismissed"
+                                    ]
+                                  },
+                                  "interactionKind": {
+                                    "type": "string",
+                                    "const": "select"
+                                  },
+                                  "request": {
+                                    "type": "object",
+                                    "properties": {
+                                      "title": {
+                                        "type": "string"
+                                      },
+                                      "options": {
+                                        "type": "array",
+                                        "items": {
+                                          "type": "string"
+                                        }
+                                      }
+                                    },
+                                    "required": [
+                                      "title",
+                                      "options"
+                                    ],
+                                    "additionalProperties": false
+                                  },
+                                  "response": {
+                                    "type": "object",
+                                    "properties": {
+                                      "value": {
+                                        "type": "string"
+                                      }
+                                    },
+                                    "additionalProperties": false
+                                  }
+                                },
+                                "required": [
+                                  "interactionId",
+                                  "state",
+                                  "interactionKind",
+                                  "request"
+                                ],
+                                "additionalProperties": false
+                              },
+                              {
+                                "type": "object",
+                                "properties": {
+                                  "interactionId": {
+                                    "type": "string"
+                                  },
+                                  "toolCallId": {
+                                    "type": "string"
+                                  },
+                                  "state": {
+                                    "type": "string",
+                                    "enum": [
+                                      "pending",
+                                      "approved",
+                                      "rejected",
+                                      "cancelled",
+                                      "answered",
+                                      "dismissed"
+                                    ]
+                                  },
+                                  "interactionKind": {
+                                    "type": "string",
+                                    "const": "input"
+                                  },
+                                  "request": {
+                                    "type": "object",
+                                    "properties": {
+                                      "title": {
+                                        "type": "string"
+                                      },
+                                      "placeholder": {
+                                        "type": "string"
+                                      },
+                                      "multiline": {
+                                        "type": "boolean"
+                                      }
+                                    },
+                                    "required": [
+                                      "title",
+                                      "multiline"
+                                    ],
+                                    "additionalProperties": false
+                                  },
+                                  "response": {
+                                    "type": "object",
+                                    "properties": {
+                                      "value": {
+                                        "type": "string"
+                                      }
+                                    },
+                                    "additionalProperties": false
+                                  }
+                                },
+                                "required": [
+                                  "interactionId",
+                                  "state",
+                                  "interactionKind",
+                                  "request"
+                                ],
+                                "additionalProperties": false
                               }
                             ]
                           }
@@ -27938,6 +28853,189 @@
                               "required": [
                                 "answers"
                               ],
+                              "additionalProperties": false
+                            }
+                          },
+                          "required": [
+                            "interactionId",
+                            "state",
+                            "interactionKind",
+                            "request"
+                          ],
+                          "additionalProperties": false
+                        },
+                        {
+                          "type": "object",
+                          "properties": {
+                            "interactionId": {
+                              "type": "string"
+                            },
+                            "toolCallId": {
+                              "type": "string"
+                            },
+                            "state": {
+                              "type": "string",
+                              "enum": [
+                                "pending",
+                                "approved",
+                                "rejected",
+                                "cancelled",
+                                "answered",
+                                "dismissed"
+                              ]
+                            },
+                            "interactionKind": {
+                              "type": "string",
+                              "const": "confirm"
+                            },
+                            "request": {
+                              "type": "object",
+                              "properties": {
+                                "title": {
+                                  "type": "string"
+                                },
+                                "message": {
+                                  "type": "string"
+                                }
+                              },
+                              "required": [
+                                "title",
+                                "message"
+                              ],
+                              "additionalProperties": false
+                            },
+                            "response": {
+                              "type": "object",
+                              "properties": {
+                                "value": {
+                                  "type": "boolean"
+                                }
+                              },
+                              "required": [
+                                "value"
+                              ],
+                              "additionalProperties": false
+                            }
+                          },
+                          "required": [
+                            "interactionId",
+                            "state",
+                            "interactionKind",
+                            "request"
+                          ],
+                          "additionalProperties": false
+                        },
+                        {
+                          "type": "object",
+                          "properties": {
+                            "interactionId": {
+                              "type": "string"
+                            },
+                            "toolCallId": {
+                              "type": "string"
+                            },
+                            "state": {
+                              "type": "string",
+                              "enum": [
+                                "pending",
+                                "approved",
+                                "rejected",
+                                "cancelled",
+                                "answered",
+                                "dismissed"
+                              ]
+                            },
+                            "interactionKind": {
+                              "type": "string",
+                              "const": "select"
+                            },
+                            "request": {
+                              "type": "object",
+                              "properties": {
+                                "title": {
+                                  "type": "string"
+                                },
+                                "options": {
+                                  "type": "array",
+                                  "items": {
+                                    "type": "string"
+                                  }
+                                }
+                              },
+                              "required": [
+                                "title",
+                                "options"
+                              ],
+                              "additionalProperties": false
+                            },
+                            "response": {
+                              "type": "object",
+                              "properties": {
+                                "value": {
+                                  "type": "string"
+                                }
+                              },
+                              "additionalProperties": false
+                            }
+                          },
+                          "required": [
+                            "interactionId",
+                            "state",
+                            "interactionKind",
+                            "request"
+                          ],
+                          "additionalProperties": false
+                        },
+                        {
+                          "type": "object",
+                          "properties": {
+                            "interactionId": {
+                              "type": "string"
+                            },
+                            "toolCallId": {
+                              "type": "string"
+                            },
+                            "state": {
+                              "type": "string",
+                              "enum": [
+                                "pending",
+                                "approved",
+                                "rejected",
+                                "cancelled",
+                                "answered",
+                                "dismissed"
+                              ]
+                            },
+                            "interactionKind": {
+                              "type": "string",
+                              "const": "input"
+                            },
+                            "request": {
+                              "type": "object",
+                              "properties": {
+                                "title": {
+                                  "type": "string"
+                                },
+                                "placeholder": {
+                                  "type": "string"
+                                },
+                                "multiline": {
+                                  "type": "boolean"
+                                }
+                              },
+                              "required": [
+                                "title",
+                                "multiline"
+                              ],
+                              "additionalProperties": false
+                            },
+                            "response": {
+                              "type": "object",
+                              "properties": {
+                                "value": {
+                                  "type": "string"
+                                }
+                              },
                               "additionalProperties": false
                             }
                           },

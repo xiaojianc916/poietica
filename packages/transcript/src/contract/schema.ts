@@ -172,6 +172,24 @@ export const interactionSchema = z.discriminatedUnion('interactionKind', [
       })
       .optional(),
   }),
+  z.object({
+    ...interactionBase,
+    interactionKind: z.literal('confirm'),
+    request: z.object({ title: z.string(), message: z.string() }),
+    response: z.object({ value: z.boolean() }).optional(),
+  }),
+  z.object({
+    ...interactionBase,
+    interactionKind: z.literal('select'),
+    request: z.object({ title: z.string(), options: z.array(z.string()) }),
+    response: z.object({ value: z.string().optional() }).optional(),
+  }),
+  z.object({
+    ...interactionBase,
+    interactionKind: z.literal('input'),
+    request: z.object({ title: z.string(), placeholder: z.string().optional(), multiline: z.boolean() }),
+    response: z.object({ value: z.string().optional() }).optional(),
+  }),
 ])
 
 export const noticeFrameSchema = z.object({

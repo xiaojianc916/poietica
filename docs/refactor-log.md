@@ -3927,3 +3927,26 @@ design-system（review 那处 `as MarkdownRenderer` 一并去掉）；新增 dep
   584 pass / 0 fail（改前 575）。新增 TL-13、apply「来源按格比」、`transcript-projector-interaction` I1–I6、
   session-port「按题号回传」。
 - `bun test packages/engine-omp`：与改前逐条相同（失败均为沙箱环境既有的隔离 / 用户目录类用例）。
+
+## Q1-E 提问打不开、答过的题组锚不上、三类单问答不了（协议 22）
+
+**症状**：时间线上 ask 调用的产出是一行 `undefined is not an object (evaluating 'this.broker')`，题面板从不出现。
+
+**根因与改法**：
+
+| 问题 | 根因 | 改法 |
+| --- | --- | --- |
+| ask 抛 `this.broker` | omp 把 `askDialog` 摘下来裸调（`tools/ask.ts:764`、`extensions/runner.ts:199`），类方法离开实例 `this` 是 undefined | `createUiContext` 把原型上每个方法钉到实例上（`boundMethods`） |
+| 答过的题组锚不上 | `askDialog` 不带调用号，号只在 `tool_execution_start/_end` 里；两边先后不确定 | 新增 `engine-omp/interactions/ask-calls.ts` 的 `AskCallTracker`，双向延迟认领；`OmpSession.onToolStart/onToolEnd` 由事件泵调用，题组先到时补发带号的待答卡，收口卡同样带号 |
+| confirm / select / input 答不了 | 按审批画、界面只答 `approval`，broker 按种类拒收 | 词表新增三种 `interactionKind`（各自 request / response），`interactionCardOf` 各自映射；界面投影成带 `dialog` 的提问条目，输入框里画 `DialogPanel`（借提问面板的样子），答复经新的 `answerDialog` 按原种类回传；撤下仍走 dismiss |
+
+- `PROTOCOL_VERSION` 21 → 22，重新生成 `contract.snapshot.json`。
+- `editor` 的预填落在 `input.placeholder`：多行时面板把它当正文起点，单行时只是提示。
+- 单问收口后与审批一样不上屏（`isRenderable` 对 question 恒为 false），终态只让面板让位。
+
+### 验收（实测）
+
+- `bun run typecheck`、`bun run lint`：通过（lint 只余 4 条既有 `noDescendingSpecificity` 警告）。
+- 相关包：591 pass / 0 fail（改前 584）。新增 I7–I9、`DialogPanel` 四条，I6 改为「确认类有自己的卡片」。
+- `bun test packages/engine-omp`（`TMPDIR` 置于用户目录下）：475 pass / 2 fail，改前 467 / 2，两条失败相同（T-ISO-5/6，沙箱环境）。
+  新增「真 ask 工具」端到端一条（撤掉任一处修复都红）、uiContext 裸调一条、`AskCallTracker` 六条。

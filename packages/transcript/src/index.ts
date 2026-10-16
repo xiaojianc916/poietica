@@ -19,6 +19,12 @@ export type {
   ApprovalInteraction,
   ApprovalRequest,
   ApprovalResponse,
+  ConfirmInteraction,
+  ConfirmRequest,
+  ConfirmResponse,
+  InputInteraction,
+  InputRequest,
+  InputResponse,
   InteractionKind,
   InteractionQuestion,
   InteractionQuestionOption,
@@ -30,6 +36,9 @@ export type {
   QuestionInteraction,
   QuestionRequest,
   QuestionResponse,
+  SelectInteraction,
+  SelectRequest,
+  SelectResponse,
   TranscriptInteraction,
 } from './model/interaction'
 export type { TranscriptItem, TranscriptMarker, TranscriptTaskRef } from './model/item'

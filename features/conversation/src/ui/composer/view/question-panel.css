@@ -268,3 +268,14 @@
     animation: none;
   }
 }
+
+/* 单问面板（dialog-panel.tsx）的输入格：借「其他」那一行的样子，多行时顶端对齐、可拉高。 */
+.assistant-dialog-panel__field {
+  cursor: text;
+}
+
+.assistant-dialog-panel__text {
+  min-height: 72px;
+  resize: vertical;
+  line-height: var(--ui-line-height-normal);
+}

@@ -1,4 +1,5 @@
 import type { ThreadId } from './address'
+import type { DialogAnswer } from './dialog'
 import type { AgentPromptResult } from './dto'
 import type { ApprovalAnswer } from './permission'
 import type { PlanAnswer } from './plan'
@@ -108,5 +109,7 @@ export interface AgentSessionPort {
   readonly resolvePermission: (requestId: string, answer: ApprovalAnswer) => Promise<void>
   readonly resolvePlan: (interactionId: string, answer: PlanAnswer) => Promise<void>
   readonly answerQuestions: (response: QuestionResponse) => Promise<void>
+  /** 单问（确认 / 单选 / 输入）按它自己的种类答（Q1-E）；撤下仍走 `dismissQuestions`。 */
+  readonly answerDialog: (interactionId: string, answer: DialogAnswer) => Promise<void>
   readonly dismissQuestions: (questionId: string) => Promise<void>
 }
