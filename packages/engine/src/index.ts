@@ -1,5 +1,6 @@
 export type { AgentEngine, DraftControlInit, EngineInfo } from './engine'
 export { EngineErrorCode, engineErrorMessages } from './errors'
+export { interactionCardOf, interactionStateOf } from './interaction-card'
 export type {
   CustomProviderDef,
   McpPort,

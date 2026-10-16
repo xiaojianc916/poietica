@@ -12,7 +12,7 @@ import { isGoalContinuationMessage, isUserSkillMessage, splitWireText } from '..
 import { compactionPayloadOf } from './compaction'
 import { assistantFrameId, extraFrameId, interjectionFrameId } from './frame-ids'
 import { FILE_MEDIA_TYPE } from './live'
-import { GOAL_CONTINUATION_ORIGIN, type TurnOrigin } from './origin'
+import { GOAL_CONTINUATION_ORIGIN, type TurnOrigin, userOrigin } from './origin'
 
 /** omp 的消息形状（只取投影要读的那几格，避免绑到 omp 的深层类型） */
 export interface OmpMessage {
@@ -447,7 +447,7 @@ function markLastStepRunning(ops: TranscriptOperation[], turn: string): Transcri
 }
 
 function turnOp(entry: ScreenTurn, attachmentIds: readonly string[]): TranscriptOperation {
-  const skills = entry.prompt === null ? [] : skillActivationsOf(entry.prompt)
+  const skills = entry.prompt === null ? [] : skillNamesOf(entry.prompt)
   return {
     op: 'turn.upsert',
     turn: {
@@ -465,16 +465,14 @@ function turnOp(entry: ScreenTurn, attachmentIds: readonly string[]): Transcript
 }
 
 /** 这一轮的来源：续跑那一轮是 GOAL_CONTINUATION_ORIGIN（与 live 同一个形状），其余都是人话 */
-function originOf(entry: ScreenTurn, skills: readonly { skillName: string }[]): TurnOrigin {
+function originOf(entry: ScreenTurn, skills: readonly string[]): TurnOrigin {
   if (isGoalContinuationMessage(entry.opening)) return GOAL_CONTINUATION_ORIGIN
-  return skills.length === 0
-    ? { kind: 'user' }
-    : { kind: 'user', payload: { kind: 'skill_activation', trigger: 'user-slash', skillActivations: skills } }
+  return userOrigin(skills)
 }
 
-function skillActivationsOf(message: OmpMessage): readonly { skillName: string }[] {
+function skillNamesOf(message: OmpMessage): readonly string[] {
   const name = detailsField(message, 'name')
-  return typeof name === 'string' && name !== '' ? [{ skillName: name }] : []
+  return typeof name === 'string' && name !== '' ? [name] : []
 }
 
 function promptTextOf(message: OmpMessage): string {

@@ -14138,7 +14138,24 @@
                                                   "type": "string",
                                                   "const": "user"
                                                 },
-                                                "payload": {}
+                                                "skillActivations": {
+                                                  "type": "array",
+                                                  "items": {
+                                                    "type": "object",
+                                                    "properties": {
+                                                      "skillName": {
+                                                        "type": "string"
+                                                      },
+                                                      "skillArgs": {
+                                                        "type": "string"
+                                                      }
+                                                    },
+                                                    "required": [
+                                                      "skillName"
+                                                    ],
+                                                    "additionalProperties": false
+                                                  }
+                                                }
                                               },
                                               "required": [
                                                 "kind"
@@ -14155,8 +14172,7 @@
                                                 "taskId": {
                                                   "type": "string",
                                                   "minLength": 1
-                                                },
-                                                "payload": {}
+                                                }
                                               },
                                               "required": [
                                                 "kind"
@@ -14173,8 +14189,7 @@
                                                 "taskId": {
                                                   "type": "string",
                                                   "minLength": 1
-                                                },
-                                                "payload": {}
+                                                }
                                               },
                                               "required": [
                                                 "kind",
@@ -14188,8 +14203,7 @@
                                                 "kind": {
                                                   "type": "string",
                                                   "const": "hook"
-                                                },
-                                                "payload": {}
+                                                }
                                               },
                                               "required": [
                                                 "kind"
@@ -14202,8 +14216,7 @@
                                                 "kind": {
                                                   "type": "string",
                                                   "const": "compaction"
-                                                },
-                                                "payload": {}
+                                                }
                                               },
                                               "required": [
                                                 "kind"
@@ -14216,8 +14229,7 @@
                                                 "kind": {
                                                   "type": "string",
                                                   "const": "side"
-                                                },
-                                                "payload": {}
+                                                }
                                               },
                                               "required": [
                                                 "kind"
@@ -14231,7 +14243,12 @@
                                                   "type": "string",
                                                   "const": "other"
                                                 },
-                                                "payload": {}
+                                                "trigger": {
+                                                  "type": "string",
+                                                  "enum": [
+                                                    "goal_continuation"
+                                                  ]
+                                                }
                                               },
                                               "required": [
                                                 "kind"
@@ -14883,42 +14900,292 @@
                                 "default": [],
                                 "type": "array",
                                 "items": {
-                                  "type": "object",
-                                  "properties": {
-                                    "interactionId": {
-                                      "type": "string"
+                                  "oneOf": [
+                                    {
+                                      "type": "object",
+                                      "properties": {
+                                        "interactionId": {
+                                          "type": "string"
+                                        },
+                                        "toolCallId": {
+                                          "type": "string"
+                                        },
+                                        "state": {
+                                          "type": "string",
+                                          "enum": [
+                                            "pending",
+                                            "approved",
+                                            "rejected",
+                                            "cancelled",
+                                            "answered",
+                                            "dismissed"
+                                          ]
+                                        },
+                                        "interactionKind": {
+                                          "type": "string",
+                                          "const": "approval"
+                                        },
+                                        "request": {
+                                          "type": "object",
+                                          "properties": {
+                                            "toolName": {
+                                              "type": "string"
+                                            },
+                                            "title": {
+                                              "type": "string"
+                                            },
+                                            "detail": {
+                                              "type": "string"
+                                            },
+                                            "allowSessionScope": {
+                                              "type": "boolean"
+                                            }
+                                          },
+                                          "required": [
+                                            "toolName",
+                                            "title",
+                                            "detail",
+                                            "allowSessionScope"
+                                          ],
+                                          "additionalProperties": false
+                                        },
+                                        "response": {
+                                          "type": "object",
+                                          "properties": {
+                                            "decision": {
+                                              "type": "string",
+                                              "enum": [
+                                                "approve",
+                                                "reject"
+                                              ]
+                                            },
+                                            "scope": {
+                                              "type": "string",
+                                              "enum": [
+                                                "once",
+                                                "session"
+                                              ]
+                                            },
+                                            "feedback": {
+                                              "type": "string"
+                                            }
+                                          },
+                                          "required": [
+                                            "decision",
+                                            "scope"
+                                          ],
+                                          "additionalProperties": false
+                                        }
+                                      },
+                                      "required": [
+                                        "interactionId",
+                                        "state",
+                                        "interactionKind",
+                                        "request"
+                                      ],
+                                      "additionalProperties": false
                                     },
-                                    "interactionKind": {
-                                      "type": "string",
-                                      "enum": [
-                                        "approval",
-                                        "question",
-                                        "plan"
-                                      ]
+                                    {
+                                      "type": "object",
+                                      "properties": {
+                                        "interactionId": {
+                                          "type": "string"
+                                        },
+                                        "toolCallId": {
+                                          "type": "string"
+                                        },
+                                        "state": {
+                                          "type": "string",
+                                          "enum": [
+                                            "pending",
+                                            "approved",
+                                            "rejected",
+                                            "cancelled",
+                                            "answered",
+                                            "dismissed"
+                                          ]
+                                        },
+                                        "interactionKind": {
+                                          "type": "string",
+                                          "const": "plan"
+                                        },
+                                        "request": {
+                                          "type": "object",
+                                          "properties": {
+                                            "title": {
+                                              "type": "string"
+                                            },
+                                            "planFilePath": {
+                                              "type": "string"
+                                            },
+                                            "planMarkdown": {
+                                              "type": "string"
+                                            }
+                                          },
+                                          "required": [
+                                            "title",
+                                            "planFilePath",
+                                            "planMarkdown"
+                                          ],
+                                          "additionalProperties": false
+                                        },
+                                        "response": {
+                                          "type": "object",
+                                          "properties": {
+                                            "decision": {
+                                              "type": "string",
+                                              "enum": [
+                                                "approve",
+                                                "reject",
+                                                "revise"
+                                              ]
+                                            },
+                                            "feedback": {
+                                              "type": "string"
+                                            }
+                                          },
+                                          "required": [
+                                            "decision"
+                                          ],
+                                          "additionalProperties": false
+                                        }
+                                      },
+                                      "required": [
+                                        "interactionId",
+                                        "state",
+                                        "interactionKind",
+                                        "request"
+                                      ],
+                                      "additionalProperties": false
                                     },
-                                    "toolCallId": {
-                                      "type": "string"
-                                    },
-                                    "state": {
-                                      "type": "string",
-                                      "enum": [
-                                        "pending",
-                                        "approved",
-                                        "rejected",
-                                        "cancelled",
-                                        "answered",
-                                        "dismissed"
-                                      ]
-                                    },
-                                    "request": {},
-                                    "response": {}
-                                  },
-                                  "required": [
-                                    "interactionId",
-                                    "interactionKind",
-                                    "state"
-                                  ],
-                                  "additionalProperties": false
+                                    {
+                                      "type": "object",
+                                      "properties": {
+                                        "interactionId": {
+                                          "type": "string"
+                                        },
+                                        "toolCallId": {
+                                          "type": "string"
+                                        },
+                                        "state": {
+                                          "type": "string",
+                                          "enum": [
+                                            "pending",
+                                            "approved",
+                                            "rejected",
+                                            "cancelled",
+                                            "answered",
+                                            "dismissed"
+                                          ]
+                                        },
+                                        "interactionKind": {
+                                          "type": "string",
+                                          "const": "question"
+                                        },
+                                        "request": {
+                                          "type": "object",
+                                          "properties": {
+                                            "questions": {
+                                              "type": "array",
+                                              "items": {
+                                                "type": "object",
+                                                "properties": {
+                                                  "id": {
+                                                    "type": "string",
+                                                    "minLength": 1
+                                                  },
+                                                  "prompt": {
+                                                    "type": "string"
+                                                  },
+                                                  "multiple": {
+                                                    "type": "boolean"
+                                                  },
+                                                  "allowCustom": {
+                                                    "type": "boolean"
+                                                  },
+                                                  "options": {
+                                                    "type": "array",
+                                                    "items": {
+                                                      "type": "object",
+                                                      "properties": {
+                                                        "id": {
+                                                          "type": "string",
+                                                          "minLength": 1
+                                                        },
+                                                        "label": {
+                                                          "type": "string"
+                                                        },
+                                                        "description": {
+                                                          "type": "string"
+                                                        }
+                                                      },
+                                                      "required": [
+                                                        "id",
+                                                        "label"
+                                                      ],
+                                                      "additionalProperties": false
+                                                    }
+                                                  }
+                                                },
+                                                "required": [
+                                                  "id",
+                                                  "prompt",
+                                                  "multiple",
+                                                  "allowCustom",
+                                                  "options"
+                                                ],
+                                                "additionalProperties": false
+                                              }
+                                            }
+                                          },
+                                          "required": [
+                                            "questions"
+                                          ],
+                                          "additionalProperties": false
+                                        },
+                                        "response": {
+                                          "type": "object",
+                                          "properties": {
+                                            "answers": {
+                                              "type": "object",
+                                              "propertyNames": {
+                                                "type": "string"
+                                              },
+                                              "additionalProperties": {
+                                                "type": "object",
+                                                "properties": {
+                                                  "selected": {
+                                                    "type": "array",
+                                                    "items": {
+                                                      "type": "string"
+                                                    }
+                                                  },
+                                                  "custom": {
+                                                    "type": "string"
+                                                  }
+                                                },
+                                                "required": [
+                                                  "selected"
+                                                ],
+                                                "additionalProperties": false
+                                              }
+                                            }
+                                          },
+                                          "required": [
+                                            "answers"
+                                          ],
+                                          "additionalProperties": false
+                                        }
+                                      },
+                                      "required": [
+                                        "interactionId",
+                                        "state",
+                                        "interactionKind",
+                                        "request"
+                                      ],
+                                      "additionalProperties": false
+                                    }
+                                  ]
                                 }
                               },
                               "attachments": {
@@ -15620,7 +15887,24 @@
                                         "type": "string",
                                         "const": "user"
                                       },
-                                      "payload": {}
+                                      "skillActivations": {
+                                        "type": "array",
+                                        "items": {
+                                          "type": "object",
+                                          "properties": {
+                                            "skillName": {
+                                              "type": "string"
+                                            },
+                                            "skillArgs": {
+                                              "type": "string"
+                                            }
+                                          },
+                                          "required": [
+                                            "skillName"
+                                          ],
+                                          "additionalProperties": false
+                                        }
+                                      }
                                     },
                                     "required": [
                                       "kind"
@@ -15637,8 +15921,7 @@
                                       "taskId": {
                                         "type": "string",
                                         "minLength": 1
-                                      },
-                                      "payload": {}
+                                      }
                                     },
                                     "required": [
                                       "kind"
@@ -15655,8 +15938,7 @@
                                       "taskId": {
                                         "type": "string",
                                         "minLength": 1
-                                      },
-                                      "payload": {}
+                                      }
                                     },
                                     "required": [
                                       "kind",
@@ -15670,8 +15952,7 @@
                                       "kind": {
                                         "type": "string",
                                         "const": "hook"
-                                      },
-                                      "payload": {}
+                                      }
                                     },
                                     "required": [
                                       "kind"
@@ -15684,8 +15965,7 @@
                                       "kind": {
                                         "type": "string",
                                         "const": "compaction"
-                                      },
-                                      "payload": {}
+                                      }
                                     },
                                     "required": [
                                       "kind"
@@ -15698,8 +15978,7 @@
                                       "kind": {
                                         "type": "string",
                                         "const": "side"
-                                      },
-                                      "payload": {}
+                                      }
                                     },
                                     "required": [
                                       "kind"
@@ -15713,7 +15992,12 @@
                                         "type": "string",
                                         "const": "other"
                                       },
-                                      "payload": {}
+                                      "trigger": {
+                                        "type": "string",
+                                        "enum": [
+                                          "goal_continuation"
+                                        ]
+                                      }
                                     },
                                     "required": [
                                       "kind"
@@ -16531,42 +16815,292 @@
                             "const": "interaction.upsert"
                           },
                           "interaction": {
-                            "type": "object",
-                            "properties": {
-                              "interactionId": {
-                                "type": "string"
+                            "oneOf": [
+                              {
+                                "type": "object",
+                                "properties": {
+                                  "interactionId": {
+                                    "type": "string"
+                                  },
+                                  "toolCallId": {
+                                    "type": "string"
+                                  },
+                                  "state": {
+                                    "type": "string",
+                                    "enum": [
+                                      "pending",
+                                      "approved",
+                                      "rejected",
+                                      "cancelled",
+                                      "answered",
+                                      "dismissed"
+                                    ]
+                                  },
+                                  "interactionKind": {
+                                    "type": "string",
+                                    "const": "approval"
+                                  },
+                                  "request": {
+                                    "type": "object",
+                                    "properties": {
+                                      "toolName": {
+                                        "type": "string"
+                                      },
+                                      "title": {
+                                        "type": "string"
+                                      },
+                                      "detail": {
+                                        "type": "string"
+                                      },
+                                      "allowSessionScope": {
+                                        "type": "boolean"
+                                      }
+                                    },
+                                    "required": [
+                                      "toolName",
+                                      "title",
+                                      "detail",
+                                      "allowSessionScope"
+                                    ],
+                                    "additionalProperties": false
+                                  },
+                                  "response": {
+                                    "type": "object",
+                                    "properties": {
+                                      "decision": {
+                                        "type": "string",
+                                        "enum": [
+                                          "approve",
+                                          "reject"
+                                        ]
+                                      },
+                                      "scope": {
+                                        "type": "string",
+                                        "enum": [
+                                          "once",
+                                          "session"
+                                        ]
+                                      },
+                                      "feedback": {
+                                        "type": "string"
+                                      }
+                                    },
+                                    "required": [
+                                      "decision",
+                                      "scope"
+                                    ],
+                                    "additionalProperties": false
+                                  }
+                                },
+                                "required": [
+                                  "interactionId",
+                                  "state",
+                                  "interactionKind",
+                                  "request"
+                                ],
+                                "additionalProperties": false
                               },
-                              "interactionKind": {
-                                "type": "string",
-                                "enum": [
-                                  "approval",
-                                  "question",
-                                  "plan"
-                                ]
+                              {
+                                "type": "object",
+                                "properties": {
+                                  "interactionId": {
+                                    "type": "string"
+                                  },
+                                  "toolCallId": {
+                                    "type": "string"
+                                  },
+                                  "state": {
+                                    "type": "string",
+                                    "enum": [
+                                      "pending",
+                                      "approved",
+                                      "rejected",
+                                      "cancelled",
+                                      "answered",
+                                      "dismissed"
+                                    ]
+                                  },
+                                  "interactionKind": {
+                                    "type": "string",
+                                    "const": "plan"
+                                  },
+                                  "request": {
+                                    "type": "object",
+                                    "properties": {
+                                      "title": {
+                                        "type": "string"
+                                      },
+                                      "planFilePath": {
+                                        "type": "string"
+                                      },
+                                      "planMarkdown": {
+                                        "type": "string"
+                                      }
+                                    },
+                                    "required": [
+                                      "title",
+                                      "planFilePath",
+                                      "planMarkdown"
+                                    ],
+                                    "additionalProperties": false
+                                  },
+                                  "response": {
+                                    "type": "object",
+                                    "properties": {
+                                      "decision": {
+                                        "type": "string",
+                                        "enum": [
+                                          "approve",
+                                          "reject",
+                                          "revise"
+                                        ]
+                                      },
+                                      "feedback": {
+                                        "type": "string"
+                                      }
+                                    },
+                                    "required": [
+                                      "decision"
+                                    ],
+                                    "additionalProperties": false
+                                  }
+                                },
+                                "required": [
+                                  "interactionId",
+                                  "state",
+                                  "interactionKind",
+                                  "request"
+                                ],
+                                "additionalProperties": false
                               },
-                              "toolCallId": {
-                                "type": "string"
-                              },
-                              "state": {
-                                "type": "string",
-                                "enum": [
-                                  "pending",
-                                  "approved",
-                                  "rejected",
-                                  "cancelled",
-                                  "answered",
-                                  "dismissed"
-                                ]
-                              },
-                              "request": {},
-                              "response": {}
-                            },
-                            "required": [
-                              "interactionId",
-                              "interactionKind",
-                              "state"
-                            ],
-                            "additionalProperties": false
+                              {
+                                "type": "object",
+                                "properties": {
+                                  "interactionId": {
+                                    "type": "string"
+                                  },
+                                  "toolCallId": {
+                                    "type": "string"
+                                  },
+                                  "state": {
+                                    "type": "string",
+                                    "enum": [
+                                      "pending",
+                                      "approved",
+                                      "rejected",
+                                      "cancelled",
+                                      "answered",
+                                      "dismissed"
+                                    ]
+                                  },
+                                  "interactionKind": {
+                                    "type": "string",
+                                    "const": "question"
+                                  },
+                                  "request": {
+                                    "type": "object",
+                                    "properties": {
+                                      "questions": {
+                                        "type": "array",
+                                        "items": {
+                                          "type": "object",
+                                          "properties": {
+                                            "id": {
+                                              "type": "string",
+                                              "minLength": 1
+                                            },
+                                            "prompt": {
+                                              "type": "string"
+                                            },
+                                            "multiple": {
+                                              "type": "boolean"
+                                            },
+                                            "allowCustom": {
+                                              "type": "boolean"
+                                            },
+                                            "options": {
+                                              "type": "array",
+                                              "items": {
+                                                "type": "object",
+                                                "properties": {
+                                                  "id": {
+                                                    "type": "string",
+                                                    "minLength": 1
+                                                  },
+                                                  "label": {
+                                                    "type": "string"
+                                                  },
+                                                  "description": {
+                                                    "type": "string"
+                                                  }
+                                                },
+                                                "required": [
+                                                  "id",
+                                                  "label"
+                                                ],
+                                                "additionalProperties": false
+                                              }
+                                            }
+                                          },
+                                          "required": [
+                                            "id",
+                                            "prompt",
+                                            "multiple",
+                                            "allowCustom",
+                                            "options"
+                                          ],
+                                          "additionalProperties": false
+                                        }
+                                      }
+                                    },
+                                    "required": [
+                                      "questions"
+                                    ],
+                                    "additionalProperties": false
+                                  },
+                                  "response": {
+                                    "type": "object",
+                                    "properties": {
+                                      "answers": {
+                                        "type": "object",
+                                        "propertyNames": {
+                                          "type": "string"
+                                        },
+                                        "additionalProperties": {
+                                          "type": "object",
+                                          "properties": {
+                                            "selected": {
+                                              "type": "array",
+                                              "items": {
+                                                "type": "string"
+                                              }
+                                            },
+                                            "custom": {
+                                              "type": "string"
+                                            }
+                                          },
+                                          "required": [
+                                            "selected"
+                                          ],
+                                          "additionalProperties": false
+                                        }
+                                      }
+                                    },
+                                    "required": [
+                                      "answers"
+                                    ],
+                                    "additionalProperties": false
+                                  }
+                                },
+                                "required": [
+                                  "interactionId",
+                                  "state",
+                                  "interactionKind",
+                                  "request"
+                                ],
+                                "additionalProperties": false
+                              }
+                            ]
                           }
                         },
                         "required": [
@@ -17402,7 +17936,24 @@
                               "type": "string",
                               "const": "user"
                             },
-                            "payload": {}
+                            "skillActivations": {
+                              "type": "array",
+                              "items": {
+                                "type": "object",
+                                "properties": {
+                                  "skillName": {
+                                    "type": "string"
+                                  },
+                                  "skillArgs": {
+                                    "type": "string"
+                                  }
+                                },
+                                "required": [
+                                  "skillName"
+                                ],
+                                "additionalProperties": false
+                              }
+                            }
                           },
                           "required": [
                             "kind"
@@ -17419,8 +17970,7 @@
                             "taskId": {
                               "type": "string",
                               "minLength": 1
-                            },
-                            "payload": {}
+                            }
                           },
                           "required": [
                             "kind"
@@ -17437,8 +17987,7 @@
                             "taskId": {
                               "type": "string",
                               "minLength": 1
-                            },
-                            "payload": {}
+                            }
                           },
                           "required": [
                             "kind",
@@ -17452,8 +18001,7 @@
                             "kind": {
                               "type": "string",
                               "const": "hook"
-                            },
-                            "payload": {}
+                            }
                           },
                           "required": [
                             "kind"
@@ -17466,8 +18014,7 @@
                             "kind": {
                               "type": "string",
                               "const": "compaction"
-                            },
-                            "payload": {}
+                            }
                           },
                           "required": [
                             "kind"
@@ -17480,8 +18027,7 @@
                             "kind": {
                               "type": "string",
                               "const": "side"
-                            },
-                            "payload": {}
+                            }
                           },
                           "required": [
                             "kind"
@@ -17495,7 +18041,12 @@
                               "type": "string",
                               "const": "other"
                             },
-                            "payload": {}
+                            "trigger": {
+                              "type": "string",
+                              "enum": [
+                                "goal_continuation"
+                              ]
+                            }
                           },
                           "required": [
                             "kind"
@@ -18147,42 +18698,292 @@
             "default": [],
             "type": "array",
             "items": {
-              "type": "object",
-              "properties": {
-                "interactionId": {
-                  "type": "string"
+              "oneOf": [
+                {
+                  "type": "object",
+                  "properties": {
+                    "interactionId": {
+                      "type": "string"
+                    },
+                    "toolCallId": {
+                      "type": "string"
+                    },
+                    "state": {
+                      "type": "string",
+                      "enum": [
+                        "pending",
+                        "approved",
+                        "rejected",
+                        "cancelled",
+                        "answered",
+                        "dismissed"
+                      ]
+                    },
+                    "interactionKind": {
+                      "type": "string",
+                      "const": "approval"
+                    },
+                    "request": {
+                      "type": "object",
+                      "properties": {
+                        "toolName": {
+                          "type": "string"
+                        },
+                        "title": {
+                          "type": "string"
+                        },
+                        "detail": {
+                          "type": "string"
+                        },
+                        "allowSessionScope": {
+                          "type": "boolean"
+                        }
+                      },
+                      "required": [
+                        "toolName",
+                        "title",
+                        "detail",
+                        "allowSessionScope"
+                      ],
+                      "additionalProperties": false
+                    },
+                    "response": {
+                      "type": "object",
+                      "properties": {
+                        "decision": {
+                          "type": "string",
+                          "enum": [
+                            "approve",
+                            "reject"
+                          ]
+                        },
+                        "scope": {
+                          "type": "string",
+                          "enum": [
+                            "once",
+                            "session"
+                          ]
+                        },
+                        "feedback": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "decision",
+                        "scope"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  "required": [
+                    "interactionId",
+                    "state",
+                    "interactionKind",
+                    "request"
+                  ],
+                  "additionalProperties": false
                 },
-                "interactionKind": {
-                  "type": "string",
-                  "enum": [
-                    "approval",
-                    "question",
-                    "plan"
-                  ]
+                {
+                  "type": "object",
+                  "properties": {
+                    "interactionId": {
+                      "type": "string"
+                    },
+                    "toolCallId": {
+                      "type": "string"
+                    },
+                    "state": {
+                      "type": "string",
+                      "enum": [
+                        "pending",
+                        "approved",
+                        "rejected",
+                        "cancelled",
+                        "answered",
+                        "dismissed"
+                      ]
+                    },
+                    "interactionKind": {
+                      "type": "string",
+                      "const": "plan"
+                    },
+                    "request": {
+                      "type": "object",
+                      "properties": {
+                        "title": {
+                          "type": "string"
+                        },
+                        "planFilePath": {
+                          "type": "string"
+                        },
+                        "planMarkdown": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "title",
+                        "planFilePath",
+                        "planMarkdown"
+                      ],
+                      "additionalProperties": false
+                    },
+                    "response": {
+                      "type": "object",
+                      "properties": {
+                        "decision": {
+                          "type": "string",
+                          "enum": [
+                            "approve",
+                            "reject",
+                            "revise"
+                          ]
+                        },
+                        "feedback": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "decision"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  "required": [
+                    "interactionId",
+                    "state",
+                    "interactionKind",
+                    "request"
+                  ],
+                  "additionalProperties": false
                 },
-                "toolCallId": {
-                  "type": "string"
-                },
-                "state": {
-                  "type": "string",
-                  "enum": [
-                    "pending",
-                    "approved",
-                    "rejected",
-                    "cancelled",
-                    "answered",
-                    "dismissed"
-                  ]
-                },
-                "request": {},
-                "response": {}
-              },
-              "required": [
-                "interactionId",
-                "interactionKind",
-                "state"
-              ],
-              "additionalProperties": false
+                {
+                  "type": "object",
+                  "properties": {
+                    "interactionId": {
+                      "type": "string"
+                    },
+                    "toolCallId": {
+                      "type": "string"
+                    },
+                    "state": {
+                      "type": "string",
+                      "enum": [
+                        "pending",
+                        "approved",
+                        "rejected",
+                        "cancelled",
+                        "answered",
+                        "dismissed"
+                      ]
+                    },
+                    "interactionKind": {
+                      "type": "string",
+                      "const": "question"
+                    },
+                    "request": {
+                      "type": "object",
+                      "properties": {
+                        "questions": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "id": {
+                                "type": "string",
+                                "minLength": 1
+                              },
+                              "prompt": {
+                                "type": "string"
+                              },
+                              "multiple": {
+                                "type": "boolean"
+                              },
+                              "allowCustom": {
+                                "type": "boolean"
+                              },
+                              "options": {
+                                "type": "array",
+                                "items": {
+                                  "type": "object",
+                                  "properties": {
+                                    "id": {
+                                      "type": "string",
+                                      "minLength": 1
+                                    },
+                                    "label": {
+                                      "type": "string"
+                                    },
+                                    "description": {
+                                      "type": "string"
+                                    }
+                                  },
+                                  "required": [
+                                    "id",
+                                    "label"
+                                  ],
+                                  "additionalProperties": false
+                                }
+                              }
+                            },
+                            "required": [
+                              "id",
+                              "prompt",
+                              "multiple",
+                              "allowCustom",
+                              "options"
+                            ],
+                            "additionalProperties": false
+                          }
+                        }
+                      },
+                      "required": [
+                        "questions"
+                      ],
+                      "additionalProperties": false
+                    },
+                    "response": {
+                      "type": "object",
+                      "properties": {
+                        "answers": {
+                          "type": "object",
+                          "propertyNames": {
+                            "type": "string"
+                          },
+                          "additionalProperties": {
+                            "type": "object",
+                            "properties": {
+                              "selected": {
+                                "type": "array",
+                                "items": {
+                                  "type": "string"
+                                }
+                              },
+                              "custom": {
+                                "type": "string"
+                              }
+                            },
+                            "required": [
+                              "selected"
+                            ],
+                            "additionalProperties": false
+                          }
+                        }
+                      },
+                      "required": [
+                        "answers"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  "required": [
+                    "interactionId",
+                    "state",
+                    "interactionKind",
+                    "request"
+                  ],
+                  "additionalProperties": false
+                }
+              ]
             }
           },
           "attachments": {
@@ -18904,7 +19705,24 @@
                                   "type": "string",
                                   "const": "user"
                                 },
-                                "payload": {}
+                                "skillActivations": {
+                                  "type": "array",
+                                  "items": {
+                                    "type": "object",
+                                    "properties": {
+                                      "skillName": {
+                                        "type": "string"
+                                      },
+                                      "skillArgs": {
+                                        "type": "string"
+                                      }
+                                    },
+                                    "required": [
+                                      "skillName"
+                                    ],
+                                    "additionalProperties": false
+                                  }
+                                }
                               },
                               "required": [
                                 "kind"
@@ -18921,8 +19739,7 @@
                                 "taskId": {
                                   "type": "string",
                                   "minLength": 1
-                                },
-                                "payload": {}
+                                }
                               },
                               "required": [
                                 "kind"
@@ -18939,8 +19756,7 @@
                                 "taskId": {
                                   "type": "string",
                                   "minLength": 1
-                                },
-                                "payload": {}
+                                }
                               },
                               "required": [
                                 "kind",
@@ -18954,8 +19770,7 @@
                                 "kind": {
                                   "type": "string",
                                   "const": "hook"
-                                },
-                                "payload": {}
+                                }
                               },
                               "required": [
                                 "kind"
@@ -18968,8 +19783,7 @@
                                 "kind": {
                                   "type": "string",
                                   "const": "compaction"
-                                },
-                                "payload": {}
+                                }
                               },
                               "required": [
                                 "kind"
@@ -18982,8 +19796,7 @@
                                 "kind": {
                                   "type": "string",
                                   "const": "side"
-                                },
-                                "payload": {}
+                                }
                               },
                               "required": [
                                 "kind"
@@ -18997,7 +19810,12 @@
                                   "type": "string",
                                   "const": "other"
                                 },
-                                "payload": {}
+                                "trigger": {
+                                  "type": "string",
+                                  "enum": [
+                                    "goal_continuation"
+                                  ]
+                                }
                               },
                               "required": [
                                 "kind"
@@ -19649,42 +20467,292 @@
                 "default": [],
                 "type": "array",
                 "items": {
-                  "type": "object",
-                  "properties": {
-                    "interactionId": {
-                      "type": "string"
+                  "oneOf": [
+                    {
+                      "type": "object",
+                      "properties": {
+                        "interactionId": {
+                          "type": "string"
+                        },
+                        "toolCallId": {
+                          "type": "string"
+                        },
+                        "state": {
+                          "type": "string",
+                          "enum": [
+                            "pending",
+                            "approved",
+                            "rejected",
+                            "cancelled",
+                            "answered",
+                            "dismissed"
+                          ]
+                        },
+                        "interactionKind": {
+                          "type": "string",
+                          "const": "approval"
+                        },
+                        "request": {
+                          "type": "object",
+                          "properties": {
+                            "toolName": {
+                              "type": "string"
+                            },
+                            "title": {
+                              "type": "string"
+                            },
+                            "detail": {
+                              "type": "string"
+                            },
+                            "allowSessionScope": {
+                              "type": "boolean"
+                            }
+                          },
+                          "required": [
+                            "toolName",
+                            "title",
+                            "detail",
+                            "allowSessionScope"
+                          ],
+                          "additionalProperties": false
+                        },
+                        "response": {
+                          "type": "object",
+                          "properties": {
+                            "decision": {
+                              "type": "string",
+                              "enum": [
+                                "approve",
+                                "reject"
+                              ]
+                            },
+                            "scope": {
+                              "type": "string",
+                              "enum": [
+                                "once",
+                                "session"
+                              ]
+                            },
+                            "feedback": {
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "decision",
+                            "scope"
+                          ],
+                          "additionalProperties": false
+                        }
+                      },
+                      "required": [
+                        "interactionId",
+                        "state",
+                        "interactionKind",
+                        "request"
+                      ],
+                      "additionalProperties": false
                     },
-                    "interactionKind": {
-                      "type": "string",
-                      "enum": [
-                        "approval",
-                        "question",
-                        "plan"
-                      ]
+                    {
+                      "type": "object",
+                      "properties": {
+                        "interactionId": {
+                          "type": "string"
+                        },
+                        "toolCallId": {
+                          "type": "string"
+                        },
+                        "state": {
+                          "type": "string",
+                          "enum": [
+                            "pending",
+                            "approved",
+                            "rejected",
+                            "cancelled",
+                            "answered",
+                            "dismissed"
+                          ]
+                        },
+                        "interactionKind": {
+                          "type": "string",
+                          "const": "plan"
+                        },
+                        "request": {
+                          "type": "object",
+                          "properties": {
+                            "title": {
+                              "type": "string"
+                            },
+                            "planFilePath": {
+                              "type": "string"
+                            },
+                            "planMarkdown": {
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "title",
+                            "planFilePath",
+                            "planMarkdown"
+                          ],
+                          "additionalProperties": false
+                        },
+                        "response": {
+                          "type": "object",
+                          "properties": {
+                            "decision": {
+                              "type": "string",
+                              "enum": [
+                                "approve",
+                                "reject",
+                                "revise"
+                              ]
+                            },
+                            "feedback": {
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "decision"
+                          ],
+                          "additionalProperties": false
+                        }
+                      },
+                      "required": [
+                        "interactionId",
+                        "state",
+                        "interactionKind",
+                        "request"
+                      ],
+                      "additionalProperties": false
                     },
-                    "toolCallId": {
-                      "type": "string"
-                    },
-                    "state": {
-                      "type": "string",
-                      "enum": [
-                        "pending",
-                        "approved",
-                        "rejected",
-                        "cancelled",
-                        "answered",
-                        "dismissed"
-                      ]
-                    },
-                    "request": {},
-                    "response": {}
-                  },
-                  "required": [
-                    "interactionId",
-                    "interactionKind",
-                    "state"
-                  ],
-                  "additionalProperties": false
+                    {
+                      "type": "object",
+                      "properties": {
+                        "interactionId": {
+                          "type": "string"
+                        },
+                        "toolCallId": {
+                          "type": "string"
+                        },
+                        "state": {
+                          "type": "string",
+                          "enum": [
+                            "pending",
+                            "approved",
+                            "rejected",
+                            "cancelled",
+                            "answered",
+                            "dismissed"
+                          ]
+                        },
+                        "interactionKind": {
+                          "type": "string",
+                          "const": "question"
+                        },
+                        "request": {
+                          "type": "object",
+                          "properties": {
+                            "questions": {
+                              "type": "array",
+                              "items": {
+                                "type": "object",
+                                "properties": {
+                                  "id": {
+                                    "type": "string",
+                                    "minLength": 1
+                                  },
+                                  "prompt": {
+                                    "type": "string"
+                                  },
+                                  "multiple": {
+                                    "type": "boolean"
+                                  },
+                                  "allowCustom": {
+                                    "type": "boolean"
+                                  },
+                                  "options": {
+                                    "type": "array",
+                                    "items": {
+                                      "type": "object",
+                                      "properties": {
+                                        "id": {
+                                          "type": "string",
+                                          "minLength": 1
+                                        },
+                                        "label": {
+                                          "type": "string"
+                                        },
+                                        "description": {
+                                          "type": "string"
+                                        }
+                                      },
+                                      "required": [
+                                        "id",
+                                        "label"
+                                      ],
+                                      "additionalProperties": false
+                                    }
+                                  }
+                                },
+                                "required": [
+                                  "id",
+                                  "prompt",
+                                  "multiple",
+                                  "allowCustom",
+                                  "options"
+                                ],
+                                "additionalProperties": false
+                              }
+                            }
+                          },
+                          "required": [
+                            "questions"
+                          ],
+                          "additionalProperties": false
+                        },
+                        "response": {
+                          "type": "object",
+                          "properties": {
+                            "answers": {
+                              "type": "object",
+                              "propertyNames": {
+                                "type": "string"
+                              },
+                              "additionalProperties": {
+                                "type": "object",
+                                "properties": {
+                                  "selected": {
+                                    "type": "array",
+                                    "items": {
+                                      "type": "string"
+                                    }
+                                  },
+                                  "custom": {
+                                    "type": "string"
+                                  }
+                                },
+                                "required": [
+                                  "selected"
+                                ],
+                                "additionalProperties": false
+                              }
+                            }
+                          },
+                          "required": [
+                            "answers"
+                          ],
+                          "additionalProperties": false
+                        }
+                      },
+                      "required": [
+                        "interactionId",
+                        "state",
+                        "interactionKind",
+                        "request"
+                      ],
+                      "additionalProperties": false
+                    }
+                  ]
                 }
               },
               "attachments": {
@@ -23919,7 +24987,24 @@
                                             "type": "string",
                                             "const": "user"
                                           },
-                                          "payload": {}
+                                          "skillActivations": {
+                                            "type": "array",
+                                            "items": {
+                                              "type": "object",
+                                              "properties": {
+                                                "skillName": {
+                                                  "type": "string"
+                                                },
+                                                "skillArgs": {
+                                                  "type": "string"
+                                                }
+                                              },
+                                              "required": [
+                                                "skillName"
+                                              ],
+                                              "additionalProperties": false
+                                            }
+                                          }
                                         },
                                         "required": [
                                           "kind"
@@ -23936,8 +25021,7 @@
                                           "taskId": {
                                             "type": "string",
                                             "minLength": 1
-                                          },
-                                          "payload": {}
+                                          }
                                         },
                                         "required": [
                                           "kind"
@@ -23954,8 +25038,7 @@
                                           "taskId": {
                                             "type": "string",
                                             "minLength": 1
-                                          },
-                                          "payload": {}
+                                          }
                                         },
                                         "required": [
                                           "kind",
@@ -23969,8 +25052,7 @@
                                           "kind": {
                                             "type": "string",
                                             "const": "hook"
-                                          },
-                                          "payload": {}
+                                          }
                                         },
                                         "required": [
                                           "kind"
@@ -23983,8 +25065,7 @@
                                           "kind": {
                                             "type": "string",
                                             "const": "compaction"
-                                          },
-                                          "payload": {}
+                                          }
                                         },
                                         "required": [
                                           "kind"
@@ -23997,8 +25078,7 @@
                                           "kind": {
                                             "type": "string",
                                             "const": "side"
-                                          },
-                                          "payload": {}
+                                          }
                                         },
                                         "required": [
                                           "kind"
@@ -24012,7 +25092,12 @@
                                             "type": "string",
                                             "const": "other"
                                           },
-                                          "payload": {}
+                                          "trigger": {
+                                            "type": "string",
+                                            "enum": [
+                                              "goal_continuation"
+                                            ]
+                                          }
                                         },
                                         "required": [
                                           "kind"
@@ -24664,42 +25749,292 @@
                           "default": [],
                           "type": "array",
                           "items": {
-                            "type": "object",
-                            "properties": {
-                              "interactionId": {
-                                "type": "string"
+                            "oneOf": [
+                              {
+                                "type": "object",
+                                "properties": {
+                                  "interactionId": {
+                                    "type": "string"
+                                  },
+                                  "toolCallId": {
+                                    "type": "string"
+                                  },
+                                  "state": {
+                                    "type": "string",
+                                    "enum": [
+                                      "pending",
+                                      "approved",
+                                      "rejected",
+                                      "cancelled",
+                                      "answered",
+                                      "dismissed"
+                                    ]
+                                  },
+                                  "interactionKind": {
+                                    "type": "string",
+                                    "const": "approval"
+                                  },
+                                  "request": {
+                                    "type": "object",
+                                    "properties": {
+                                      "toolName": {
+                                        "type": "string"
+                                      },
+                                      "title": {
+                                        "type": "string"
+                                      },
+                                      "detail": {
+                                        "type": "string"
+                                      },
+                                      "allowSessionScope": {
+                                        "type": "boolean"
+                                      }
+                                    },
+                                    "required": [
+                                      "toolName",
+                                      "title",
+                                      "detail",
+                                      "allowSessionScope"
+                                    ],
+                                    "additionalProperties": false
+                                  },
+                                  "response": {
+                                    "type": "object",
+                                    "properties": {
+                                      "decision": {
+                                        "type": "string",
+                                        "enum": [
+                                          "approve",
+                                          "reject"
+                                        ]
+                                      },
+                                      "scope": {
+                                        "type": "string",
+                                        "enum": [
+                                          "once",
+                                          "session"
+                                        ]
+                                      },
+                                      "feedback": {
+                                        "type": "string"
+                                      }
+                                    },
+                                    "required": [
+                                      "decision",
+                                      "scope"
+                                    ],
+                                    "additionalProperties": false
+                                  }
+                                },
+                                "required": [
+                                  "interactionId",
+                                  "state",
+                                  "interactionKind",
+                                  "request"
+                                ],
+                                "additionalProperties": false
                               },
-                              "interactionKind": {
-                                "type": "string",
-                                "enum": [
-                                  "approval",
-                                  "question",
-                                  "plan"
-                                ]
+                              {
+                                "type": "object",
+                                "properties": {
+                                  "interactionId": {
+                                    "type": "string"
+                                  },
+                                  "toolCallId": {
+                                    "type": "string"
+                                  },
+                                  "state": {
+                                    "type": "string",
+                                    "enum": [
+                                      "pending",
+                                      "approved",
+                                      "rejected",
+                                      "cancelled",
+                                      "answered",
+                                      "dismissed"
+                                    ]
+                                  },
+                                  "interactionKind": {
+                                    "type": "string",
+                                    "const": "plan"
+                                  },
+                                  "request": {
+                                    "type": "object",
+                                    "properties": {
+                                      "title": {
+                                        "type": "string"
+                                      },
+                                      "planFilePath": {
+                                        "type": "string"
+                                      },
+                                      "planMarkdown": {
+                                        "type": "string"
+                                      }
+                                    },
+                                    "required": [
+                                      "title",
+                                      "planFilePath",
+                                      "planMarkdown"
+                                    ],
+                                    "additionalProperties": false
+                                  },
+                                  "response": {
+                                    "type": "object",
+                                    "properties": {
+                                      "decision": {
+                                        "type": "string",
+                                        "enum": [
+                                          "approve",
+                                          "reject",
+                                          "revise"
+                                        ]
+                                      },
+                                      "feedback": {
+                                        "type": "string"
+                                      }
+                                    },
+                                    "required": [
+                                      "decision"
+                                    ],
+                                    "additionalProperties": false
+                                  }
+                                },
+                                "required": [
+                                  "interactionId",
+                                  "state",
+                                  "interactionKind",
+                                  "request"
+                                ],
+                                "additionalProperties": false
                               },
-                              "toolCallId": {
-                                "type": "string"
-                              },
-                              "state": {
-                                "type": "string",
-                                "enum": [
-                                  "pending",
-                                  "approved",
-                                  "rejected",
-                                  "cancelled",
-                                  "answered",
-                                  "dismissed"
-                                ]
-                              },
-                              "request": {},
-                              "response": {}
-                            },
-                            "required": [
-                              "interactionId",
-                              "interactionKind",
-                              "state"
-                            ],
-                            "additionalProperties": false
+                              {
+                                "type": "object",
+                                "properties": {
+                                  "interactionId": {
+                                    "type": "string"
+                                  },
+                                  "toolCallId": {
+                                    "type": "string"
+                                  },
+                                  "state": {
+                                    "type": "string",
+                                    "enum": [
+                                      "pending",
+                                      "approved",
+                                      "rejected",
+                                      "cancelled",
+                                      "answered",
+                                      "dismissed"
+                                    ]
+                                  },
+                                  "interactionKind": {
+                                    "type": "string",
+                                    "const": "question"
+                                  },
+                                  "request": {
+                                    "type": "object",
+                                    "properties": {
+                                      "questions": {
+                                        "type": "array",
+                                        "items": {
+                                          "type": "object",
+                                          "properties": {
+                                            "id": {
+                                              "type": "string",
+                                              "minLength": 1
+                                            },
+                                            "prompt": {
+                                              "type": "string"
+                                            },
+                                            "multiple": {
+                                              "type": "boolean"
+                                            },
+                                            "allowCustom": {
+                                              "type": "boolean"
+                                            },
+                                            "options": {
+                                              "type": "array",
+                                              "items": {
+                                                "type": "object",
+                                                "properties": {
+                                                  "id": {
+                                                    "type": "string",
+                                                    "minLength": 1
+                                                  },
+                                                  "label": {
+                                                    "type": "string"
+                                                  },
+                                                  "description": {
+                                                    "type": "string"
+                                                  }
+                                                },
+                                                "required": [
+                                                  "id",
+                                                  "label"
+                                                ],
+                                                "additionalProperties": false
+                                              }
+                                            }
+                                          },
+                                          "required": [
+                                            "id",
+                                            "prompt",
+                                            "multiple",
+                                            "allowCustom",
+                                            "options"
+                                          ],
+                                          "additionalProperties": false
+                                        }
+                                      }
+                                    },
+                                    "required": [
+                                      "questions"
+                                    ],
+                                    "additionalProperties": false
+                                  },
+                                  "response": {
+                                    "type": "object",
+                                    "properties": {
+                                      "answers": {
+                                        "type": "object",
+                                        "propertyNames": {
+                                          "type": "string"
+                                        },
+                                        "additionalProperties": {
+                                          "type": "object",
+                                          "properties": {
+                                            "selected": {
+                                              "type": "array",
+                                              "items": {
+                                                "type": "string"
+                                              }
+                                            },
+                                            "custom": {
+                                              "type": "string"
+                                            }
+                                          },
+                                          "required": [
+                                            "selected"
+                                          ],
+                                          "additionalProperties": false
+                                        }
+                                      }
+                                    },
+                                    "required": [
+                                      "answers"
+                                    ],
+                                    "additionalProperties": false
+                                  }
+                                },
+                                "required": [
+                                  "interactionId",
+                                  "state",
+                                  "interactionKind",
+                                  "request"
+                                ],
+                                "additionalProperties": false
+                              }
+                            ]
                           }
                         },
                         "attachments": {
@@ -25401,7 +26736,24 @@
                                   "type": "string",
                                   "const": "user"
                                 },
-                                "payload": {}
+                                "skillActivations": {
+                                  "type": "array",
+                                  "items": {
+                                    "type": "object",
+                                    "properties": {
+                                      "skillName": {
+                                        "type": "string"
+                                      },
+                                      "skillArgs": {
+                                        "type": "string"
+                                      }
+                                    },
+                                    "required": [
+                                      "skillName"
+                                    ],
+                                    "additionalProperties": false
+                                  }
+                                }
                               },
                               "required": [
                                 "kind"
@@ -25418,8 +26770,7 @@
                                 "taskId": {
                                   "type": "string",
                                   "minLength": 1
-                                },
-                                "payload": {}
+                                }
                               },
                               "required": [
                                 "kind"
@@ -25436,8 +26787,7 @@
                                 "taskId": {
                                   "type": "string",
                                   "minLength": 1
-                                },
-                                "payload": {}
+                                }
                               },
                               "required": [
                                 "kind",
@@ -25451,8 +26801,7 @@
                                 "kind": {
                                   "type": "string",
                                   "const": "hook"
-                                },
-                                "payload": {}
+                                }
                               },
                               "required": [
                                 "kind"
@@ -25465,8 +26814,7 @@
                                 "kind": {
                                   "type": "string",
                                   "const": "compaction"
-                                },
-                                "payload": {}
+                                }
                               },
                               "required": [
                                 "kind"
@@ -25479,8 +26827,7 @@
                                 "kind": {
                                   "type": "string",
                                   "const": "side"
-                                },
-                                "payload": {}
+                                }
                               },
                               "required": [
                                 "kind"
@@ -25494,7 +26841,12 @@
                                   "type": "string",
                                   "const": "other"
                                 },
-                                "payload": {}
+                                "trigger": {
+                                  "type": "string",
+                                  "enum": [
+                                    "goal_continuation"
+                                  ]
+                                }
                               },
                               "required": [
                                 "kind"
@@ -26312,42 +27664,292 @@
                       "const": "interaction.upsert"
                     },
                     "interaction": {
-                      "type": "object",
-                      "properties": {
-                        "interactionId": {
-                          "type": "string"
+                      "oneOf": [
+                        {
+                          "type": "object",
+                          "properties": {
+                            "interactionId": {
+                              "type": "string"
+                            },
+                            "toolCallId": {
+                              "type": "string"
+                            },
+                            "state": {
+                              "type": "string",
+                              "enum": [
+                                "pending",
+                                "approved",
+                                "rejected",
+                                "cancelled",
+                                "answered",
+                                "dismissed"
+                              ]
+                            },
+                            "interactionKind": {
+                              "type": "string",
+                              "const": "approval"
+                            },
+                            "request": {
+                              "type": "object",
+                              "properties": {
+                                "toolName": {
+                                  "type": "string"
+                                },
+                                "title": {
+                                  "type": "string"
+                                },
+                                "detail": {
+                                  "type": "string"
+                                },
+                                "allowSessionScope": {
+                                  "type": "boolean"
+                                }
+                              },
+                              "required": [
+                                "toolName",
+                                "title",
+                                "detail",
+                                "allowSessionScope"
+                              ],
+                              "additionalProperties": false
+                            },
+                            "response": {
+                              "type": "object",
+                              "properties": {
+                                "decision": {
+                                  "type": "string",
+                                  "enum": [
+                                    "approve",
+                                    "reject"
+                                  ]
+                                },
+                                "scope": {
+                                  "type": "string",
+                                  "enum": [
+                                    "once",
+                                    "session"
+                                  ]
+                                },
+                                "feedback": {
+                                  "type": "string"
+                                }
+                              },
+                              "required": [
+                                "decision",
+                                "scope"
+                              ],
+                              "additionalProperties": false
+                            }
+                          },
+                          "required": [
+                            "interactionId",
+                            "state",
+                            "interactionKind",
+                            "request"
+                          ],
+                          "additionalProperties": false
                         },
-                        "interactionKind": {
-                          "type": "string",
-                          "enum": [
-                            "approval",
-                            "question",
-                            "plan"
-                          ]
+                        {
+                          "type": "object",
+                          "properties": {
+                            "interactionId": {
+                              "type": "string"
+                            },
+                            "toolCallId": {
+                              "type": "string"
+                            },
+                            "state": {
+                              "type": "string",
+                              "enum": [
+                                "pending",
+                                "approved",
+                                "rejected",
+                                "cancelled",
+                                "answered",
+                                "dismissed"
+                              ]
+                            },
+                            "interactionKind": {
+                              "type": "string",
+                              "const": "plan"
+                            },
+                            "request": {
+                              "type": "object",
+                              "properties": {
+                                "title": {
+                                  "type": "string"
+                                },
+                                "planFilePath": {
+                                  "type": "string"
+                                },
+                                "planMarkdown": {
+                                  "type": "string"
+                                }
+                              },
+                              "required": [
+                                "title",
+                                "planFilePath",
+                                "planMarkdown"
+                              ],
+                              "additionalProperties": false
+                            },
+                            "response": {
+                              "type": "object",
+                              "properties": {
+                                "decision": {
+                                  "type": "string",
+                                  "enum": [
+                                    "approve",
+                                    "reject",
+                                    "revise"
+                                  ]
+                                },
+                                "feedback": {
+                                  "type": "string"
+                                }
+                              },
+                              "required": [
+                                "decision"
+                              ],
+                              "additionalProperties": false
+                            }
+                          },
+                          "required": [
+                            "interactionId",
+                            "state",
+                            "interactionKind",
+                            "request"
+                          ],
+                          "additionalProperties": false
                         },
-                        "toolCallId": {
-                          "type": "string"
-                        },
-                        "state": {
-                          "type": "string",
-                          "enum": [
-                            "pending",
-                            "approved",
-                            "rejected",
-                            "cancelled",
-                            "answered",
-                            "dismissed"
-                          ]
-                        },
-                        "request": {},
-                        "response": {}
-                      },
-                      "required": [
-                        "interactionId",
-                        "interactionKind",
-                        "state"
-                      ],
-                      "additionalProperties": false
+                        {
+                          "type": "object",
+                          "properties": {
+                            "interactionId": {
+                              "type": "string"
+                            },
+                            "toolCallId": {
+                              "type": "string"
+                            },
+                            "state": {
+                              "type": "string",
+                              "enum": [
+                                "pending",
+                                "approved",
+                                "rejected",
+                                "cancelled",
+                                "answered",
+                                "dismissed"
+                              ]
+                            },
+                            "interactionKind": {
+                              "type": "string",
+                              "const": "question"
+                            },
+                            "request": {
+                              "type": "object",
+                              "properties": {
+                                "questions": {
+                                  "type": "array",
+                                  "items": {
+                                    "type": "object",
+                                    "properties": {
+                                      "id": {
+                                        "type": "string",
+                                        "minLength": 1
+                                      },
+                                      "prompt": {
+                                        "type": "string"
+                                      },
+                                      "multiple": {
+                                        "type": "boolean"
+                                      },
+                                      "allowCustom": {
+                                        "type": "boolean"
+                                      },
+                                      "options": {
+                                        "type": "array",
+                                        "items": {
+                                          "type": "object",
+                                          "properties": {
+                                            "id": {
+                                              "type": "string",
+                                              "minLength": 1
+                                            },
+                                            "label": {
+                                              "type": "string"
+                                            },
+                                            "description": {
+                                              "type": "string"
+                                            }
+                                          },
+                                          "required": [
+                                            "id",
+                                            "label"
+                                          ],
+                                          "additionalProperties": false
+                                        }
+                                      }
+                                    },
+                                    "required": [
+                                      "id",
+                                      "prompt",
+                                      "multiple",
+                                      "allowCustom",
+                                      "options"
+                                    ],
+                                    "additionalProperties": false
+                                  }
+                                }
+                              },
+                              "required": [
+                                "questions"
+                              ],
+                              "additionalProperties": false
+                            },
+                            "response": {
+                              "type": "object",
+                              "properties": {
+                                "answers": {
+                                  "type": "object",
+                                  "propertyNames": {
+                                    "type": "string"
+                                  },
+                                  "additionalProperties": {
+                                    "type": "object",
+                                    "properties": {
+                                      "selected": {
+                                        "type": "array",
+                                        "items": {
+                                          "type": "string"
+                                        }
+                                      },
+                                      "custom": {
+                                        "type": "string"
+                                      }
+                                    },
+                                    "required": [
+                                      "selected"
+                                    ],
+                                    "additionalProperties": false
+                                  }
+                                }
+                              },
+                              "required": [
+                                "answers"
+                              ],
+                              "additionalProperties": false
+                            }
+                          },
+                          "required": [
+                            "interactionId",
+                            "state",
+                            "interactionKind",
+                            "request"
+                          ],
+                          "additionalProperties": false
+                        }
+                      ]
                     }
                   },
                   "required": [

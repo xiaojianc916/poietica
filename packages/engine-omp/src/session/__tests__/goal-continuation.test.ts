@@ -25,7 +25,7 @@ afterEach(async () => {
 })
 
 /* 故意写死字面量、不导入生产常量：常量写错时这里要能抓住 */
-const CONTINUATION_ORIGIN = { kind: 'other', payload: { kind: 'system_trigger', name: 'goal_continuation' } } as const
+const CONTINUATION_ORIGIN = { kind: 'other', trigger: 'goal_continuation' } as const
 
 /** 能卡住的工具：execute 进门就报到，等测试放行（或被 abort）才返回 */
 interface Gate {

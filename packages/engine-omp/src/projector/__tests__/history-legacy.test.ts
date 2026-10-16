@@ -199,7 +199,7 @@ describe('历史里的图片（legacy history-images.test.ts）', () => {
  *
  * 技能以 role: 'custom' + customType: 'skill-prompt' + attribution: 'user' 进显示经过
  * （判据就是官方 pi-tui 的 isUserTurnInitiator 那一条）。两条事实都静默坏过：
- * chip 在重投影之后还在（origin.payload.skillActivations），以及 SKILL.md 的整份正文不上屏。
+ * chip 在重投影之后还在（origin.skillActivations），以及 SKILL.md 的整份正文不上屏。
  */
 describe('技能轮（legacy skill-turn.test.ts）', () => {
   const SKILL_BODY = '[IMPORTANT: User invoked the "ponytail" skill; follow its instructions. Full skill below.]'
@@ -213,12 +213,12 @@ describe('技能轮（legacy skill-turn.test.ts）', () => {
     timestamp: T0,
   })
 
-  test('技能那一轮带着 chip（origin.payload.skillActivations），人的原话落回 prompt', () => {
+  test('技能那一轮带着 chip（origin.skillActivations），人的原话落回 prompt', () => {
     const page = projectHistoryPage([skillMessage('user'), assistant('做完了', 10)], null)
     const turn = page.items[0]
-    expect(turn?.kind === 'turn' && turn.origin).toMatchObject({
+    expect(turn?.kind === 'turn' && turn.origin).toEqual({
       kind: 'user',
-      payload: { kind: 'skill_activation', trigger: 'user-slash', skillActivations: [{ skillName: 'ponytail' }] },
+      skillActivations: [{ skillName: 'ponytail' }],
     })
     expect(prompts(page)).toEqual(['清理冗余代码'])
   })

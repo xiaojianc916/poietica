@@ -219,7 +219,7 @@ describe('LiveProjector', () => {
     const heads = ops.flatMap((op) => (op.op === 'turn.upsert' ? [op.turn] : []))
     expect(heads).toHaveLength(2)
     expect(heads[1]?.origin).toEqual(heads[0]?.origin)
-    expect(heads[1]?.origin.payload).toMatchObject({ kind: 'skill_activation' })
+    expect(heads[1]?.origin).toEqual({ kind: 'user', skillActivations: [{ skillName: 'review' }] })
     expect(heads[1]?.prompt).toBe('看看这段')
   })
 

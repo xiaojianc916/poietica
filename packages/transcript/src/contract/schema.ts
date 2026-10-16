@@ -12,18 +12,24 @@ export function isPlainAgentId(agentId: string): boolean {
   return AGENT_ID_PATTERN.test(agentId) && agentId !== '.' && agentId !== '..'
 }
 
+export const transcriptSkillActivationSchema = z.object({
+  skillName: z.string(),
+  skillArgs: z.string().optional(),
+})
+
+export const transcriptUserOriginSchema = z.object({
+  kind: z.literal('user'),
+  skillActivations: z.array(transcriptSkillActivationSchema).optional(),
+})
+
 export const turnOriginSchema = z.discriminatedUnion('kind', [
-  z.object({ kind: z.literal('user'), payload: z.unknown().optional() }),
-  z.object({
-    kind: z.literal('cron'),
-    taskId: taskIdSchema.optional(),
-    payload: z.unknown().optional(),
-  }),
-  z.object({ kind: z.literal('task'), taskId: taskIdSchema, payload: z.unknown().optional() }),
-  z.object({ kind: z.literal('hook'), payload: z.unknown().optional() }),
-  z.object({ kind: z.literal('compaction'), payload: z.unknown().optional() }),
-  z.object({ kind: z.literal('side'), payload: z.unknown().optional() }),
-  z.object({ kind: z.literal('other'), payload: z.unknown().optional() }),
+  transcriptUserOriginSchema,
+  z.object({ kind: z.literal('cron'), taskId: taskIdSchema.optional() }),
+  z.object({ kind: z.literal('task'), taskId: taskIdSchema }),
+  z.object({ kind: z.literal('hook') }),
+  z.object({ kind: z.literal('compaction') }),
+  z.object({ kind: z.literal('side') }),
+  z.object({ kind: z.literal('other'), trigger: z.enum(['goal_continuation']).optional() }),
 ])
 
 export const transcriptUsageSchema = z.object({
@@ -61,16 +67,6 @@ export const stepRetrySchema = z.object({
 
 export const turnStateSchema = z.enum(['queued', 'running', 'completed', 'failed', 'cancelled'])
 export const stepStateSchema = z.enum(['running', 'completed', 'interrupted', 'failed'])
-
-export const transcriptSkillActivationSchema = z.object({
-  skillName: z.string(),
-  skillArgs: z.string().optional(),
-})
-
-export const transcriptUserOriginSchema = z.object({
-  kind: z.literal('user'),
-  skillActivations: z.array(transcriptSkillActivationSchema).optional(),
-})
 
 const textFrameShape = {
   kind: z.literal('text'),
@@ -126,14 +122,57 @@ export const toolCallFrameSchema = z.object({
   agentRefs: z.array(agentRefSchema).optional(),
 })
 
-export const interactionSchema = z.object({
+const interactionBase = {
   interactionId: z.string(),
-  interactionKind: z.enum(['approval', 'question', 'plan']),
   toolCallId: z.string().optional(),
   state: z.enum(['pending', 'approved', 'rejected', 'cancelled', 'answered', 'dismissed']),
-  request: z.unknown().optional(),
-  response: z.unknown().optional(),
+}
+
+export const interactionQuestionSchema = z.object({
+  id: z.string().min(1),
+  prompt: z.string(),
+  multiple: z.boolean(),
+  allowCustom: z.boolean(),
+  options: z.array(z.object({ id: z.string().min(1), label: z.string(), description: z.string().optional() })),
 })
+
+export const interactionSchema = z.discriminatedUnion('interactionKind', [
+  z.object({
+    ...interactionBase,
+    interactionKind: z.literal('approval'),
+    request: z.object({
+      toolName: z.string(),
+      title: z.string(),
+      detail: z.string(),
+      allowSessionScope: z.boolean(),
+    }),
+    response: z
+      .object({
+        decision: z.enum(['approve', 'reject']),
+        scope: z.enum(['once', 'session']),
+        feedback: z.string().optional(),
+      })
+      .optional(),
+  }),
+  z.object({
+    ...interactionBase,
+    interactionKind: z.literal('plan'),
+    request: z.object({ title: z.string(), planFilePath: z.string(), planMarkdown: z.string() }),
+    response: z
+      .object({ decision: z.enum(['approve', 'reject', 'revise']), feedback: z.string().optional() })
+      .optional(),
+  }),
+  z.object({
+    ...interactionBase,
+    interactionKind: z.literal('question'),
+    request: z.object({ questions: z.array(interactionQuestionSchema) }),
+    response: z
+      .object({
+        answers: z.record(z.string(), z.object({ selected: z.array(z.string()), custom: z.string().optional() })),
+      })
+      .optional(),
+  }),
+])
 
 export const noticeFrameSchema = z.object({
   kind: z.literal('notice'),

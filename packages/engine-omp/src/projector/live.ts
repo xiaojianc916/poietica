@@ -1,6 +1,6 @@
 import { frameId, stepId, type TranscriptAttachment, type TranscriptOperation, turnId } from '@poietica/transcript'
 import { assistantFrameId, interjectionFrameId } from './frame-ids'
-import { GOAL_CONTINUATION_ORIGIN, type TurnOrigin } from './origin'
+import { GOAL_CONTINUATION_ORIGIN, type TurnOrigin, userOrigin } from './origin'
 
 /** 一张图片附件：号由调用方铸（session 里的 createId），像素是内联 data URL */
 export interface ImageAttachmentInput {
@@ -154,17 +154,7 @@ export class LiveProjector {
     const attachmentIds =
       attachments.length > 0 ? attachments.map((attachment) => attachment.attachmentId) : (input.attachmentIds ?? [])
     const skills = input.skills ?? []
-    const origin: TurnOrigin =
-      skills.length === 0
-        ? { kind: 'user' }
-        : {
-            kind: 'user',
-            payload: {
-              kind: 'skill_activation',
-              trigger: 'user-slash',
-              skillActivations: skills.map((name) => ({ skillName: name })),
-            },
-          }
+    const origin = userOrigin(skills)
     const { ordinal, turn, at } = this.openTurn({
       origin,
       prompt: input.text,

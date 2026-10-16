@@ -221,21 +221,20 @@ export function createSessionPort({ api, threadId, onSubmissions }: SessionPortO
     },
 
     async answerQuestions(response: QuestionResponse) {
-      // 一题一答、题号是桥签的；交互 id 就是那一个号。
-      const first = response.answers[0]
+      /*
+       * 交互号是这一组的号，题号是引擎签的、一组可以有好几道 —— 答复按**题号**一道一道回去。
+       * 从前只回第一道、还按交互号作键，引擎按题号对不上，整组被读成「用户取消」（Q1-C）。
+       */
       const answers: Record<string, { selected: string[]; custom: string | null }> = {}
-      if (first !== undefined) {
-        const choice = first.answer
-        answers[response.questionId] = {
+      for (const { questionId, answer } of response.answers) {
+        answers[questionId] = {
           selected:
-            choice.kind === 'single'
-              ? [choice.optionId]
-              : choice.kind === 'multi'
-                ? [...choice.optionIds]
-                : choice.kind === 'multi_with_other'
-                  ? [...choice.optionIds]
-                  : [],
-          custom: choice.kind === 'other' ? choice.text : choice.kind === 'multi_with_other' ? choice.otherText : null,
+            answer.kind === 'single'
+              ? [answer.optionId]
+              : answer.kind === 'multi' || answer.kind === 'multi_with_other'
+                ? [...answer.optionIds]
+                : [],
+          custom: answer.kind === 'other' ? answer.text : answer.kind === 'multi_with_other' ? answer.otherText : null,
         }
       }
       await api.respond(threadId, response.questionId, { kind: 'question', answers })

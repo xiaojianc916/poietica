@@ -8,7 +8,7 @@ import type { AgentPhaseMeta, AgentStatusMeta, TranscriptMeta, TranscriptMetaMer
 import type { TranscriptPrompt } from '../model/prompt'
 import type { TranscriptTask } from '../model/task'
 import type { TranscriptTodo } from '../model/todo'
-import type { TranscriptStep, TranscriptTurn } from '../model/turn'
+import type { TranscriptStep, TranscriptTurn, TurnOrigin } from '../model/turn'
 import type { AppendOp, StepHeader, TranscriptOperation, TurnHeader } from './operation'
 
 export interface AgentState {
@@ -204,12 +204,26 @@ function turnEquals(turn: TranscriptTurn, header: TurnHeader): boolean {
     turn.attachmentIds === header.attachmentIds &&
     turn.startedAt === header.startedAt &&
     turn.endedAt === header.endedAt &&
-    turn.origin.kind === header.origin.kind &&
-    turn.origin.payload === header.origin.payload &&
+    originEquals(turn.origin, header.origin) &&
     turn.usage === header.usage &&
     turn.durationMs === header.durationMs &&
     turn.error === header.error
   )
+}
+
+/** 来源是小值对象：按格比，而不是按引用 —— 每一份轮头都是新铸的对象，按引用比等于永远「变了」。 */
+function originEquals(a: TurnOrigin, b: TurnOrigin): boolean {
+  if (a.kind === 'user' && b.kind === 'user') {
+    const left = a.skillActivations ?? []
+    const right = b.skillActivations ?? []
+    return (
+      left.length === right.length &&
+      left.every((skill, at) => skill.skillName === right[at]?.skillName && skill.skillArgs === right[at]?.skillArgs)
+    )
+  }
+  if (a.kind === 'other' && b.kind === 'other') return a.trigger === b.trigger
+  if ((a.kind === 'cron' && b.kind === 'cron') || (a.kind === 'task' && b.kind === 'task')) return a.taskId === b.taskId
+  return a.kind === b.kind
 }
 
 function applyStepUpsert(state: AgentState, turnId: TurnId, header: StepHeader): ApplyResult {

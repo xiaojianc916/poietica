@@ -11,6 +11,7 @@ import {
   type EngineToolSpec,
   type Interaction,
   type InteractionAnswer,
+  interactionCardOf,
   type MarketplaceEntry,
   type McpCatalogEntry,
   type McpServerInfo,
@@ -365,21 +366,7 @@ class FakeSession implements EngineSession {
         this.outstanding.splice(this.outstanding.indexOf(request), 1)
         this.emit({ type: 'interactionResolved', interactionId: request.id })
         if (!this.disposed) this.setState('running')
-        return [
-          {
-            op: 'interaction.upsert',
-            interaction: {
-              interactionId: request.id,
-              interactionKind: request.kind === 'question' ? 'question' : 'approval',
-              state:
-                answer.kind === 'dismiss'
-                  ? 'cancelled'
-                  : answer.kind === 'confirm' && !answer.value
-                    ? 'rejected'
-                    : 'approved',
-            },
-          },
-        ]
+        return [{ op: 'interaction.upsert', interaction: interactionCardOf(request, { answer }) }]
       }
       case 'usage': {
         const usage: UsageSample = { ...step.usage, at: this.o.clock.now() }

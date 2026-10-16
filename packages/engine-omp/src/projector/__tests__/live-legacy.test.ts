@@ -47,13 +47,10 @@ describe('正文、工具与轮终的完整链（legacy projection.test.ts）', 
     const p = projector()
     const state = applyOps(emptyTimeline(), p.userTurn({ text: '看看这个', skills: ['review', 'ponytail'] }))
     const turn = state.items[0]
-    // chip 的真产地：origin.payload.skillActivations（transcript-projector 的 skillNamesOf 只读它）
-    expect(turn?.kind === 'turn' && turn.origin).toMatchObject({
+    // chip 的真产地：origin.skillActivations（transcript-projector 的 skillNamesOf 只读它）
+    expect(turn?.kind === 'turn' && turn.origin).toEqual({
       kind: 'user',
-      payload: {
-        kind: 'skill_activation',
-        skillActivations: [{ skillName: 'review' }, { skillName: 'ponytail' }],
-      },
+      skillActivations: [{ skillName: 'review' }, { skillName: 'ponytail' }],
     })
   })
 

@@ -1,12 +1,15 @@
 import { invariant } from '@poietica/foundation'
 import type {
   AgentTranscriptSnapshot,
+  PlanInteraction,
+  QuestionInteraction,
   TranscriptAttachment,
   TranscriptFrame,
   TranscriptInteraction,
   TranscriptMarker,
   TranscriptTask,
   TranscriptTurn,
+  TurnOrigin,
 } from '@poietica/transcript'
 import type { QuestionChoice, QuestionItem } from '../../shared/model/question'
 import type { TurnMark } from '../../shared/model/thread'
@@ -69,43 +72,17 @@ interface InputSource {
 
 const USER_INPUT: InputSource = { isUser: true }
 
-const originField = (value: unknown, key: string): unknown =>
-  typeof value === 'object' && value !== null ? Reflect.get(value, key) : undefined
-
-function skillNamesOf(origin: unknown): readonly string[] {
-  const activations = originField(origin, 'skillActivations')
-  if (!Array.isArray(activations)) {
+/** chip 的唯一产地：人话那一轮点名的技能（引擎在轮头上写，历史与实时同一个形状）。 */
+function skillNamesOf(origin: TurnOrigin | undefined): readonly string[] {
+  if (origin?.kind !== 'user') {
     return []
   }
-  const names: string[] = []
-  for (const activation of activations) {
-    const name = originField(activation, 'skillName')
-    if (typeof name === 'string' && name.length > 0) {
-      names.push(name)
-    }
-  }
-  return names
+  return (origin.skillActivations ?? []).map((skill) => skill.skillName).filter((name) => name.length > 0)
 }
 
+/** 与用户帧同一条判据：只有人话那一轮是人说的；目标续跑这类系统触发的 `other` 不是。 */
 function sourceOfTurn(turn: TranscriptTurn): InputSource {
-  const { origin } = turn
-  const kind = originField(origin.payload, 'kind')
-  const slash =
-    (kind === 'skill_activation' || kind === 'plugin_command') &&
-    originField(origin.payload, 'trigger') === 'user-slash'
-  if (origin.kind === 'other' && slash) {
-    return USER_INPUT
-  }
-  if (origin.kind === 'user') {
-    if (kind === undefined || kind === 'user') {
-      return USER_INPUT
-    }
-    if (kind === 'shell_command') {
-      return { isUser: originField(origin.payload, 'phase') === 'input' }
-    }
-    return USER_INPUT
-  }
-  return { isUser: false }
+  return turn.origin.kind === 'user' ? USER_INPUT : { isUser: false }
 }
 
 function sourceOfFrame(frame: Extract<TranscriptFrame, { role: 'user' }>): InputSource {
@@ -299,33 +276,11 @@ const questionOutcome = (state: TranscriptInteraction['state']) =>
   state === 'answered' ? 'answered' : state === 'dismissed' ? 'dismissed' : 'cancelled'
 
 /** 引擎的三档答复映射成 transcript 的四档，这里再翻回卡片自己的词表。 */
-function planResolutionOf(interaction: TranscriptInteraction): NonNullable<PlanItem['resolution']> {
-  const response = typeof interaction.response === 'object' && interaction.response !== null ? interaction.response : {}
-  const feedback = stringField(response, 'feedback')
+function planResolutionOf(interaction: PlanInteraction): NonNullable<PlanItem['resolution']> {
   if (interaction.state === 'approved') return { decision: 'approved' }
-  if (interaction.state === 'answered') return { decision: 'revise', feedback: feedback ?? '' }
+  if (interaction.state === 'answered') return { decision: 'revise', feedback: interaction.response?.feedback ?? '' }
   if (interaction.state === 'cancelled' || interaction.state === 'dismissed') return { decision: 'cancelled' }
   return { decision: 'rejected' }
-}
-
-/** 缺席 / 类型不符都返回 null —— 不编一个空串当有值。 */
-function stringField(source: object, key: string): string | null {
-  const value = Reflect.get(source, key)
-  return typeof value === 'string' ? value : null
-}
-
-function approvalFields(request: unknown): { toolName: string; detail: string | null } {
-  if (typeof request !== 'object' || request === null) {
-    return { toolName: '', detail: null }
-  }
-  /* 线上字段名就是 toolName，别跟着改。 */
-  const toolName = Reflect.get(request, 'toolName')
-  const detail = Reflect.get(request, 'detail')
-
-  return {
-    toolName: typeof toolName === 'string' ? toolName : '',
-    detail: typeof detail === 'string' && detail !== '' ? detail : null,
-  }
 }
 
 function interactionOf(
@@ -334,175 +289,121 @@ function interactionOf(
   stamp: number,
 ): PermissionItem | PlanItem | QuestionTimelineItem {
   const resolved = interaction.state !== 'pending'
-  /* 卡片的正文与路径都在 `request` 里。判据照**放宽后**的类型读：`plan` 是线上形状那一层放出来的。 */
-  const kind: string = interaction.interactionKind
-  if (kind === 'plan') {
-    const request = typeof interaction.request === 'object' && interaction.request !== null ? interaction.request : {}
-    const resolution = resolved ? planResolutionOf(interaction) : undefined
-    return {
-      type: 'plan',
-      id: interaction.interactionId,
-      turn,
-      at: stamp,
-      requestId: interaction.interactionId,
-      title: stringField(request, 'title') ?? '计划',
-      planFilePath: stringField(request, 'planFilePath') ?? '',
-      planMarkdown: stringField(request, 'planMarkdown') ?? '',
-      ...(resolution === undefined ? {} : { resolution }),
+  switch (interaction.interactionKind) {
+    case 'plan': {
+      const { request } = interaction
+      const resolution = resolved ? planResolutionOf(interaction) : undefined
+      return {
+        type: 'plan',
+        id: interaction.interactionId,
+        turn,
+        at: stamp,
+        requestId: interaction.interactionId,
+        title: request.title === '' ? '计划' : request.title,
+        planFilePath: request.planFilePath,
+        planMarkdown: request.planMarkdown,
+        ...(resolution === undefined ? {} : { resolution }),
+      }
     }
-  }
-  if (interaction.interactionKind === 'approval') {
-    const { toolName, detail } = approvalFields(interaction.request)
-
-    /*
-     * 主语取上游算好的那一段（`Command: rm -rf …` 这类），不是工具名：判据是「要不要让它做这件事」。用 headline 而不是 subject：headline 是多行原文，sayToolLine 只截第一行。
-     */
-    const said = detail ?? toolName
-
-    return {
-      type: 'permission',
-      id: interaction.interactionId,
-      turn,
-      at: stamp,
-      requestId: interaction.interactionId,
-      title: said === '' ? 'Approval' : said,
-      ...(said === '' ? {} : { headline: said }),
-      kind: 'other',
-      subject: toolName,
-      locations: [],
-      ...(resolved ? { resolution: { decision: approvalDecision(interaction.state) } } : {}),
+    case 'approval': {
+      const { toolName, detail } = interaction.request
+      /*
+       * 主语取上游算好的那一段（`Command: rm -rf …` 这类），不是工具名：判据是「要不要让它做这件事」。用 headline 而不是 subject：headline 是多行原文，sayToolLine 只截第一行。
+       */
+      const said = detail === '' ? toolName : detail
+      return {
+        type: 'permission',
+        id: interaction.interactionId,
+        turn,
+        at: stamp,
+        requestId: interaction.interactionId,
+        title: said === '' ? 'Approval' : said,
+        ...(said === '' ? {} : { headline: said }),
+        kind: 'other',
+        subject: toolName,
+        locations: [],
+        ...(resolved ? { resolution: { decision: approvalDecision(interaction.state) } } : {}),
+      }
     }
-  }
-  const request = typeof interaction.request === 'object' && interaction.request !== null ? interaction.request : {}
-  const questions = (
-    Array.isArray(Reflect.get(request, 'questions')) ? Reflect.get(request, 'questions') : []
-  ) as readonly QuestionItem[]
-  return {
-    type: 'question',
-    id: interaction.interactionId,
-    turn,
-    at: stamp,
-    questionId: interaction.interactionId,
-    ...(interaction.toolCallId === undefined ? {} : { toolCallId: interaction.toolCallId }),
-    questions,
-    ...(resolved
-      ? {
-          resolution: {
-            outcome: questionOutcome(interaction.state),
-            answers: answersOf(interaction.response),
-            note: noteOf(interaction.response),
-          },
-        }
-      : {}),
+    case 'question':
+      return {
+        type: 'question',
+        id: interaction.interactionId,
+        turn,
+        at: stamp,
+        questionId: interaction.interactionId,
+        ...(interaction.toolCallId === undefined ? {} : { toolCallId: interaction.toolCallId }),
+        questions: questionItemsOf(interaction),
+        ...(resolved
+          ? {
+              resolution: {
+                outcome: questionOutcome(interaction.state),
+                answers: answersOf(interaction),
+                note: '',
+              },
+            }
+          : {}),
+      }
   }
 }
 
+/* 词表的题 → 面板的题。引擎的题没有题头、正文与「其他」的自定义文案，面板对这几格各有缺省。 */
+const QUESTION_ITEMS = new WeakMap<QuestionInteraction['request'], readonly QuestionItem[]>()
+
+function questionItemsOf(interaction: QuestionInteraction): readonly QuestionItem[] {
+  const { request } = interaction
+  const held = QUESTION_ITEMS.get(request)
+  if (held !== undefined) {
+    return held
+  }
+  const items = request.questions.map(
+    (question): QuestionItem => ({
+      id: question.id,
+      question: question.prompt,
+      options: question.options,
+      multiSelect: question.multiple,
+      allowOther: question.allowCustom,
+    }),
+  )
+  QUESTION_ITEMS.set(request, items)
+  return items
+}
+
 /*
- * 现场挂在 `answers` 上（键是题号），回放时本机账本存的是 `[{questionId, answer}]`。读不出来就给空表 —— 题面还在，比编一个「答过了」强。
+ * 引擎的答复按题号给「勾了哪几个 + 写了什么」，这里翻回面板的五种答法（与 session-port 里 answerQuestions 那一步互逆）。
+ * 没有答复（撤下、取消）就是空表 —— 题面还在，比编一个「答过了」强。
  */
-function answersOf(response: unknown): Readonly<Record<string, QuestionChoice>> {
-  if (typeof response !== 'object' || response === null) {
-    return {}
-  }
-
-  const value = Reflect.get(response, 'answers')
+function answersOf(interaction: QuestionInteraction): Readonly<Record<string, QuestionChoice>> {
   const answers: Record<string, QuestionChoice> = {}
+  const given = interaction.response?.answers ?? {}
 
-  if (Array.isArray(value)) {
-    for (const entry of value) {
-      const id = readId(entry)
-      const answer = readAnswer(entry)
+  for (const question of interaction.request.questions) {
+    const answer = given[question.id]
 
-      if (id !== undefined && answer !== undefined) {
-        answers[id] = answer
-      }
-    }
-
-    return answers
-  }
-
-  if (typeof value !== 'object' || value === null) {
-    return {}
-  }
-
-  for (const [id, answer] of Object.entries(value)) {
-    const read = readAnswer({ answer })
-
-    if (read !== undefined) {
-      answers[id] = read
+    if (answer !== undefined) {
+      answers[question.id] = choiceOf(question.multiple, answer.selected, answer.custom ?? '')
     }
   }
 
   return answers
 }
 
-function readId(entry: unknown): string | undefined {
-  if (typeof entry !== 'object' || entry === null) {
-    return undefined
+/** 判别式与分支名是面板答复的取值域，别改。 */
+function choiceOf(multiple: boolean, selected: readonly string[], custom: string): QuestionChoice {
+  const [first] = selected
+
+  if (first === undefined) {
+    return custom === '' ? { kind: 'skipped' } : { kind: 'other', text: custom }
+  }
+  if (!multiple) {
+    return custom === '' ? { kind: 'single', optionId: first } : { kind: 'other', text: custom }
   }
 
-  const id = Reflect.get(entry, 'questionId')
-
-  return typeof id === 'string' && id !== '' ? id : undefined
+  return custom === ''
+    ? { kind: 'multi', optionIds: selected }
+    : { kind: 'multi_with_other', optionIds: selected, otherText: custom }
 }
 
-/** 判别式与分支名是协议取值域，别改。 */
-function readAnswer(entry: unknown): QuestionChoice | undefined {
-  if (typeof entry !== 'object' || entry === null) {
-    return undefined
-  }
-
-  const answer: unknown = Reflect.get(entry, 'answer')
-
-  if (typeof answer !== 'object' || answer === null) {
-    return undefined
-  }
-
-  switch (Reflect.get(answer, 'kind')) {
-    case 'single': {
-      const optionId = Reflect.get(answer, 'optionId')
-
-      return typeof optionId === 'string' ? { kind: 'single', optionId } : undefined
-    }
-    case 'multi': {
-      const optionIds = stringsOf(Reflect.get(answer, 'optionIds'))
-
-      return optionIds === undefined ? undefined : { kind: 'multi', optionIds }
-    }
-    case 'other': {
-      const text = Reflect.get(answer, 'text')
-
-      return typeof text === 'string' ? { kind: 'other', text } : undefined
-    }
-    case 'multi_with_other': {
-      const optionIds = stringsOf(Reflect.get(answer, 'optionIds'))
-      const otherText = Reflect.get(answer, 'otherText')
-
-      return optionIds === undefined || typeof otherText !== 'string'
-        ? undefined
-        : { kind: 'multi_with_other', optionIds, otherText }
-    }
-    case 'skipped':
-      return { kind: 'skipped' }
-    default:
-      return undefined
-  }
-}
-
-function stringsOf(value: unknown): readonly string[] | undefined {
-  return Array.isArray(value) && value.every((item) => typeof item === 'string') ? value : undefined
-}
-
-/** 上游每题一格备注，产品整组一格，所以取那一格。 */
-function noteOf(response: unknown): string {
-  if (typeof response !== 'object' || response === null) {
-    return ''
-  }
-
-  const note = Reflect.get(response, 'note')
-
-  return typeof note === 'string' ? note : ''
-}
 function labelOf(item: QuestionItem, optionId: string): string {
   const option = item.options.find((candidate) => candidate.id === optionId)
 
@@ -533,45 +434,32 @@ const UNANSWERED = {
   undelivered: '答复没能送到 agent 手里。',
 } as const
 
-function answersBodyOf(interaction: TranscriptInteraction): string | null {
-  const request = typeof interaction.request === 'object' && interaction.request !== null ? interaction.request : {}
-  const questions = (
-    Array.isArray(Reflect.get(request, 'questions')) ? Reflect.get(request, 'questions') : []
-  ) as readonly QuestionItem[]
+function answersBodyOf(interaction: QuestionInteraction): string | null {
+  const questions = questionItemsOf(interaction)
 
   if (questions.length === 0) {
     return null
   }
 
   const outcome = questionOutcome(interaction.state)
-  const answers = answersOf(interaction.response)
+  const answers = answersOf(interaction)
 
   if (outcome === 'answered' && questions.every((question) => answers[question.id] === undefined)) {
     return null
   }
 
-  const note = noteOf(interaction.response)
-  const last = questions.length - 1
   const blocks: string[] = []
 
-  for (const [index, question] of questions.entries()) {
+  for (const question of questions) {
     const answer = answers[question.id]
-    const notes: string[] = []
-
-    if (outcome !== 'answered') {
-      notes.push(UNANSWERED[outcome])
-    }
-    if (index === last && note.length > 0) {
-      notes.push(note)
-    }
 
     blocks.push(question.question)
 
     if (answer !== undefined) {
       blocks.push('', `**${describeAnswer(question, answer)}**`)
     }
-    if (notes.length > 0) {
-      blocks.push('', notes.join(' '))
+    if (outcome !== 'answered') {
+      blocks.push('', UNANSWERED[outcome])
     }
 
     blocks.push('')
@@ -640,7 +528,7 @@ function spanOf(turn: TranscriptTurn, index: number): TurnSpan {
  * 判据是交互自带的工具调用号（桥从 tool_execution_start 取的真号，不是工具名）。号对不上任何一页时这一组就不上屏。待答的不在这里：它得留在活动段尾。
  * 页按基础页身份记账：sealed 段一旦封口就不再改写，presentation 的 PREFIX/SEGMENTS 全靠页引用稳定。
  */
-const ANCHORED_PAGES = new WeakMap<TurnPage, { readonly held: readonly TranscriptInteraction[]; page: TurnPage }>()
+const ANCHORED_PAGES = new WeakMap<TurnPage, { readonly held: readonly QuestionInteraction[]; page: TurnPage }>()
 
 function askIndexes(items: readonly TimelineItem[], toolCallId: string): readonly number[] {
   const exact: number[] = []
@@ -671,7 +559,7 @@ function askAt(items: readonly TimelineItem[], toolCallId: string, used: Set<num
   return -1
 }
 
-function anchoredPage(page: TurnPage, held: readonly TranscriptInteraction[]): TurnPage {
+function anchoredPage(page: TurnPage, held: readonly QuestionInteraction[]): TurnPage {
   const kept = ANCHORED_PAGES.get(page)
 
   if (
@@ -713,7 +601,7 @@ function anchorQuestions(
   pages: readonly TurnPage[],
   interactions: AgentTranscriptSnapshot['interactions'],
 ): { readonly pages: readonly TurnPage[]; readonly tail: readonly TranscriptInteraction[] } {
-  const anchored = new Map<number, TranscriptInteraction[]>()
+  const anchored = new Map<number, QuestionInteraction[]>()
   const tail: TranscriptInteraction[] = []
 
   for (const interaction of interactions) {
@@ -1073,7 +961,7 @@ function projectTurn(
         turn.ordinal,
         stamp,
         turn.prompt ?? '',
-        skillNamesOf(turn.origin.payload),
+        skillNamesOf(turn.origin),
         attached,
         turn.clientTurnId,
       )

@@ -3881,3 +3881,49 @@ design-system（review 那处 `as MarkdownRenderer` 一并去掉）；新增 dep
 这个动作；这些是 conversation 自己的形状，留在 `shared/primitives` 是对的。`formatByteSize` 的手写格式化
 （`1.5KB` 无空格、无千分位）与 `formatBytes`（`1.5 KB`、`1,023 B`）是两套排版，合并会改可见文案，所以只把
 **格式化**归一到 `formatBytes`，`fileMetaLabel` 的输出随之变为 `PNG 1.5 KB`（无测试钉住旧写法）。
+
+## Q1-C 交互载荷类型化：卡片的形状归词表，映射只在引擎一侧做一次（协议 21）
+
+按《问题一 C · 交互载荷类型化》执行。`TranscriptInteraction` 的 `request` / `response` 与轮头的
+`origin.payload` 原来都是 `unknown`，界面用 `Reflect.get` / `originField` 按**自己记得的**字段名去掏。
+勘察时发现记得的和引擎发的根本不是一套（这正是 `unknown` 让类型检查看不见的那一类）：
+
+| 处 | 界面读 | 引擎发 | 后果 |
+| --- | --- | --- | --- |
+| 审批主语 | `request.toolName` | `tool` | 主语恒为空串 |
+| 题面 | `questions[].question` | `prompt` | 提问面板题干是空的 |
+| 多选 / 其他 | `multiSelect` / `allowOther` | `multiple` / `allowCustom` | 多选当单选、「其他」那一栏不出现 |
+| 答复 | `answers[交互号]`，只回第一道 | 按题号查 `answers[题号]` | 对不上号，omp 读成「用户取消」 |
+| 收口 | — | 收口那次 upsert 只带 `response` | 整条替换，题面与计划正文在收口时丢掉 |
+
+**改法**：
+
+- `packages/transcript/src/model/interaction.ts`：`TranscriptInteraction` 改为按 `interactionKind` 判别的
+  `ApprovalInteraction | PlanInteraction | QuestionInteraction`，`request` 必填、`response` 可缺（撤下 /
+  超时 / 取消没有答复，终态由 `state` 说）；`contract/schema.ts` 同步为 `discriminatedUnion`。
+- `TurnOrigin` 去掉 `payload: unknown`：`user` 与用户帧共用 `TranscriptUserOrigin`（带
+  `skillActivations`），`other` 只认 `trigger: 'goal_continuation'`；`ops/apply.ts` 的轮头比较改为按格比
+  （`originEquals`），不再按引用。
+- 新增 `packages/engine/src/interaction-card.ts`：`interactionCardOf(interaction, resolution?)` 是引擎
+  `Interaction` → 卡片的**唯一**映射，真引擎（`engine-omp/session.ts`）与替身（`engine-testkit`）都走它；
+  请求在待答与收口两次 upsert 里都带上。select / input / confirm 仍按审批画（主语空、正文是那句问话）。
+- 界面：`transcript-projector.ts` 删掉 `originField` / `approvalFields` / `stringField` / `readId` /
+  `readAnswer` / `stringsOf` / `noteOf` 与三处 `Reflect.get(request, 'questions')`，按类型读；
+  `sourceOfTurn` 收为与 `sourceOfFrame` 同一条判据。`session-port.answerQuestions` 改为逐题按题号回传。
+- `PROTOCOL_VERSION` 20 → 21，重新生成 `contract.snapshot.json`；`live-legacy` 的轮头快照随形状更新。
+
+**没有存量要迁**：交互与轮头都不落盘（历史投影的 `interactions` 恒为空，轮头每次从 omp 会话文件重投影），
+只有「新收端遇到旧发端」这一种情形，由协议版本号挡在握手那一步；TL-13 另钉住旧形状的轮头只会被剥成
+光秃秃的来源、不会让整条 op 被拒。
+
+**未做（数据缺口，不是类型问题）**：引擎不给提问填 `toolCallId`，答过的题组因此锚不到发起它的那次 ask
+调用上（`anchorQuestions` 找不到就丢弃）。要补的是 engine-omp 在 `askDialog` 时认出正在执行的 ask 调用号。
+
+### 验收（实测）
+
+- `bun run typecheck`：通过（753 文件 / 80 工程 + 1001 文件测试工程）。
+- `bun run lint`：通过（只余 4 条既有 `noDescendingSpecificity` 警告）。
+- 相关包 `bun test packages/transcript packages/engine/ packages/engine-testkit packages/protocol features/conversation`：
+  584 pass / 0 fail（改前 575）。新增 TL-13、apply「来源按格比」、`transcript-projector-interaction` I1–I6、
+  session-port「按题号回传」。
+- `bun test packages/engine-omp`：与改前逐条相同（失败均为沙箱环境既有的隔离 / 用户目录类用例）。

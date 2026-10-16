@@ -222,6 +222,8 @@ describe('中止信号（迁移自 dialog-abort）', () => {
   })
 })
 
+const BASH_APPROVAL = { toolName: 'bash', title: '允许使用工具：bash', detail: '', allowSessionScope: true }
+
 describe('取消一轮时的清场（迁移自 cancel-drains-dialogs）', () => {
   test('取消一轮收掉它正在等的那次审批', () => {
     // 取消之后那一条不再是 pending：带子的挂载条件因此不再成立
@@ -233,6 +235,7 @@ describe('取消一轮时的清场（迁移自 cancel-drains-dialogs）', () => 
           interactionKind: 'approval' as const,
           toolCallId: 'bash',
           state: 'pending' as const,
+          request: BASH_APPROVAL,
         },
       },
       {
@@ -242,6 +245,7 @@ describe('取消一轮时的清场（迁移自 cancel-drains-dialogs）', () => 
           interactionKind: 'approval' as const,
           toolCallId: 'bash',
           state: 'cancelled' as const,
+          request: BASH_APPROVAL,
         },
       },
     ]

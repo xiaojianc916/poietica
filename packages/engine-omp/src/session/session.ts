@@ -6,6 +6,7 @@ import {
   type EngineSessionEvent,
   type Interaction,
   type InteractionAnswer,
+  interactionCardOf,
   type ModelRef,
   type OpenSessionSpec,
   type Posture,
@@ -15,7 +16,7 @@ import {
   type SubmitInput,
 } from '@poietica/engine'
 import { AppError, createId, Emitter, type Logger, SystemErrorCode } from '@poietica/foundation'
-import type { InteractionKind, InteractionState, TranscriptOperation, TranscriptPage } from '@poietica/transcript'
+import type { TranscriptInteraction, TranscriptOperation, TranscriptPage } from '@poietica/transcript'
 import { outcomeOf, type TurnOutcome, toEngineError } from '../errors'
 import type { InteractionBroker } from '../interactions/broker'
 import type { FileAttachmentInput, ImageAttachmentInput, LiveProjector } from '../projector/live'
@@ -24,29 +25,6 @@ import { describeError } from './event-faults'
 import type { LoadedImage } from './prompt'
 import { type SkillPromptMessage, wireTextOf } from './prompt'
 import { usageOf } from './usage'
-
-/** 引擎交互 → 时间线卡片的种类：select / input / confirm 都按审批画，计划与提问各自一档 */
-function interactionKindOf(interaction: Interaction): InteractionKind {
-  if (interaction.kind === 'question') return 'question'
-  if (interaction.kind === 'plan') return 'plan'
-  return 'approval'
-}
-
-/** 答复 → 卡片终态：dismiss（超时与 abort）与确认类按 true/false 分 */
-function resolvedStateOf(
-  _interaction: Interaction,
-  answer: InteractionAnswer | undefined,
-): 'approved' | 'rejected' | 'cancelled' | 'answered' {
-  if (answer === undefined || answer.kind === 'dismiss') return 'cancelled'
-  if (answer.kind === 'approval') return answer.decision === 'approve' ? 'approved' : 'rejected'
-  /* 计划三档与卡片终态逐档对应：批准 / 要求修改 / 否决 */
-  if (answer.kind === 'plan') {
-    if (answer.decision === 'approve') return 'approved'
-    return answer.decision === 'revise' ? 'answered' : 'rejected'
-  }
-  if (answer.kind === 'confirm') return answer.value ? 'approved' : 'rejected'
-  return 'answered'
-}
 
 /** OmpSession 需要的最小 omp 会话面（细节由 session-factory 注入，会话自己不认识 omp 类型） */
 export interface OmpSessionHost {
@@ -741,20 +719,10 @@ export class OmpSession implements EngineSession {
     return this.o.broker.onChange((change) => {
       if (change.type === 'requested') {
         this.emit({ type: 'interactionRequested', interaction: change.interaction })
-        this.interactionOp({
-          interactionId: change.interaction.id,
-          kind: interactionKindOf(change.interaction),
-          state: 'pending',
-          request: change.interaction,
-        })
+        this.interactionOp(interactionCardOf(change.interaction))
       } else {
         this.emit({ type: 'interactionResolved', interactionId: change.interaction.id })
-        this.interactionOp({
-          interactionId: change.interaction.id,
-          kind: interactionKindOf(change.interaction),
-          state: resolvedStateOf(change.interaction, change.answer),
-          response: change.answer,
-        })
+        this.interactionOp(interactionCardOf(change.interaction, { answer: change.answer }))
       }
       this.onPendingCountChanged(this.o.broker.pendingCount())
     })
@@ -793,30 +761,9 @@ export class OmpSession implements EngineSession {
     return entry ?? null
   }
 
-  /** 交互上屏：requested 时 pending，resolved 时终态；映射归这里，不归 broker（它不认识 transcript） */
-  interactionOp(input: {
-    readonly interactionId: string
-    readonly kind: InteractionKind
-    readonly state: InteractionState
-    readonly request?: unknown
-    readonly response?: unknown
-  }): void {
-    this.emit({
-      type: 'timeline',
-      agentId: 'main',
-      ops: [
-        {
-          op: 'interaction.upsert',
-          interaction: {
-            interactionId: input.interactionId,
-            interactionKind: input.kind,
-            state: input.state,
-            ...(input.request === undefined ? {} : { request: input.request }),
-            ...(input.response === undefined ? {} : { response: input.response }),
-          },
-        },
-      ],
-    })
+  /** 交互上屏：requested 时 pending，resolved 时终态；卡片形状归 `interactionCardOf`，不归 broker（它不认识 transcript） */
+  interactionOp(interaction: TranscriptInteraction): void {
+    this.emit({ type: 'timeline', agentId: 'main', ops: [{ op: 'interaction.upsert', interaction }] })
   }
 
   requestTimeline(ops: readonly TranscriptOperation[]): void {

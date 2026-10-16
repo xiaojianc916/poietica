@@ -15,6 +15,9 @@ import {
   transcriptPageSchema,
 } from '../timeline'
 
+const APPROVAL = { toolName: 'bash', title: '允许使用工具：bash', detail: 'Command: ls', allowSessionScope: true }
+const PLAN = { title: '迁移测试', planFilePath: 'local://migrate-plan.md', planMarkdown: '# 计划' }
+
 const emptyPage = (): TranscriptPage => ({
   items: [],
   tasks: [],
@@ -171,7 +174,7 @@ describe('timeline', () => {
     const state = applyOps(emptyTimeline(), [
       {
         op: 'interaction.upsert',
-        interaction: { interactionId: 'i1', interactionKind: 'approval', state: 'pending' },
+        interaction: { interactionId: 'i1', interactionKind: 'approval', state: 'pending', request: APPROVAL },
       },
     ])
     expect(pageFromState(state).interactions.length).toBe(1)
@@ -193,7 +196,7 @@ describe('timeline', () => {
     expect(transcriptOperationSchema.parse(upsert)).toEqual(upsert as TranscriptOperation)
     const plan = {
       op: 'interaction.upsert',
-      interaction: { interactionId: 'p1', interactionKind: 'plan', state: 'pending' },
+      interaction: { interactionId: 'p1', interactionKind: 'plan', state: 'pending', request: PLAN },
     } as const
     expect(transcriptOperationSchema.safeParse(plan).success).toBe(true)
     const page = { ...emptyPage(), interactions: [plan.interaction] }
@@ -201,5 +204,69 @@ describe('timeline', () => {
     const state = applyOps(emptyTimeline(), [upsert as TranscriptOperation])
     const first = pageFromState(state).items[0]
     expect(first?.kind === 'turn' ? first.clientTurnId : null).toBe('c-1')
+  })
+
+  /*
+   * 载荷按种类判别（Q1-C）：三种卡片连同答复过 schema 原样往返；形状不对的在收端就被拒，而不是让界面去猜。
+   * 轮头的旧形状（`payload: unknown`）只会被剥成光秃秃的来源 —— 轮头与交互都不落盘，每次都从引擎重投影，
+   * 所以没有要迁移的存量，只有「新收端遇到旧发端」这一种降级，而协议版本号把它挡在握手那一步。
+   */
+  test('TL-13 交互载荷与轮头来源按种类判别，过 schema 不丢格', () => {
+    const cards = [
+      {
+        interactionId: 'a1',
+        interactionKind: 'approval',
+        state: 'approved',
+        request: APPROVAL,
+        response: { decision: 'approve', scope: 'session' },
+      },
+      {
+        interactionId: 'p1',
+        interactionKind: 'plan',
+        state: 'answered',
+        request: PLAN,
+        response: { decision: 'revise', feedback: '先拆小' },
+      },
+      {
+        interactionId: 'q1',
+        interactionKind: 'question',
+        state: 'answered',
+        request: {
+          questions: [
+            {
+              id: 'q0',
+              prompt: '用哪个？',
+              multiple: false,
+              allowCustom: true,
+              options: [
+                { id: 'o0', label: 'bun', description: '快' },
+                { id: 'o1', label: 'node' },
+              ],
+            },
+          ],
+        },
+        response: { answers: { q0: { selected: ['o0'] } } },
+      },
+    ] as const
+    for (const interaction of cards) {
+      const op = { op: 'interaction.upsert', interaction }
+      expect(transcriptOperationSchema.parse(op)).toEqual(op as TranscriptOperation)
+    }
+    const untyped = {
+      op: 'interaction.upsert',
+      interaction: { interactionId: 'x', interactionKind: 'approval', state: 'pending', request: { tool: 'bash' } },
+    }
+    expect(transcriptOperationSchema.safeParse(untyped).success).toBe(false)
+    const skilled = { ...turnHeader(1), origin: { kind: 'user', skillActivations: [{ skillName: 'review' }] } }
+    expect(transcriptOperationSchema.parse({ op: 'turn.upsert', turn: skilled })).toEqual({
+      op: 'turn.upsert',
+      turn: skilled,
+    } as TranscriptOperation)
+    const legacy = {
+      ...turnHeader(1),
+      origin: { kind: 'other', payload: { kind: 'system_trigger', name: 'goal_continuation' } },
+    }
+    const parsed = transcriptOperationSchema.parse({ op: 'turn.upsert', turn: legacy })
+    expect(parsed.op === 'turn.upsert' ? parsed.turn.origin : null).toEqual({ kind: 'other' })
   })
 })

@@ -2,7 +2,7 @@
 
 // —— 模型与 op（src/model、src/ops）——
 export type { TranscriptAttachment } from './model/attachment'
-export type { TranscriptFrame } from './model/frame'
+export type { TranscriptFrame, TranscriptSkillActivation } from './model/frame'
 export type {
   AgentId,
   AttachmentId,
@@ -15,14 +15,30 @@ export type {
   TurnId,
 } from './model/ids'
 export { frameId, stepId, turnId, turnOrdinal } from './model/ids'
-export type { InteractionKind, InteractionState, TranscriptInteraction } from './model/interaction'
+export type {
+  ApprovalInteraction,
+  ApprovalRequest,
+  ApprovalResponse,
+  InteractionKind,
+  InteractionQuestion,
+  InteractionQuestionOption,
+  InteractionState,
+  PlanInteraction,
+  PlanRequest,
+  PlanResponse,
+  QuestionAnswerValue,
+  QuestionInteraction,
+  QuestionRequest,
+  QuestionResponse,
+  TranscriptInteraction,
+} from './model/interaction'
 export type { TranscriptItem, TranscriptMarker, TranscriptTaskRef } from './model/item'
 export { itemId } from './model/item'
 export type { TranscriptMeta, TranscriptMetaMerge } from './model/meta'
 export type { TranscriptPrompt } from './model/prompt'
 export type { TranscriptTask } from './model/task'
 export type { TranscriptTodo } from './model/todo'
-export type { TranscriptStep, TranscriptTurn, TranscriptUsage } from './model/turn'
+export type { SystemTrigger, TranscriptStep, TranscriptTurn, TranscriptUsage, TurnOrigin } from './model/turn'
 export { applyOperation, EMPTY_AGENT_STATE } from './ops/apply'
 export type {
   AgentTranscriptSnapshot,

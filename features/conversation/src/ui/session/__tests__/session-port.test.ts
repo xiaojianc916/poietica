@@ -169,3 +169,34 @@ describe('会话端口的 epoch + seq 位置（R-04 §3.3）', () => {
     expect(older.seq).toBe(40)
   })
 })
+
+describe('提问答复按题号回到引擎（Q1-C）', () => {
+  test('一组两道题：每道按自己的题号回去，交互号只用来点名这一组', async () => {
+    const responded: { threadId: string; interactionId: string; answer: unknown }[] = []
+    const api = {
+      respond: async (threadId: string, interactionId: string, answer: unknown) => {
+        responded.push({ threadId, interactionId, answer })
+      },
+    } as unknown as ConversationApi
+    const port = createSessionPort({ api, threadId: 'th' })
+
+    await port.answerQuestions({
+      questionId: 'i1',
+      answers: [
+        { questionId: 'q0', answer: { kind: 'multi_with_other', optionIds: ['o0', 'o1'], otherText: 'deno' } },
+        { questionId: 'q1', answer: { kind: 'skipped' } },
+      ],
+    })
+
+    expect(responded).toEqual([
+      {
+        threadId: 'th',
+        interactionId: 'i1',
+        answer: {
+          kind: 'question',
+          answers: { q0: { selected: ['o0', 'o1'], custom: 'deno' }, q1: { selected: [], custom: null } },
+        },
+      },
+    ])
+  })
+})

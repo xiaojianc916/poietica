@@ -1,14 +1,20 @@
-import type { TranscriptFrame } from './frame'
+import type { TranscriptFrame, TranscriptUserOrigin } from './frame'
 import type { AttachmentId, StepId, TaskId, TurnId } from './ids'
 
+/*
+ * 一轮从哪来（Q1-C：不再挂 `payload: unknown`）。人话那一轮与用户帧同一个形状，带着它点名的技能（chip 的唯一产地）；
+ * `other` 只认得系统自己触发的那几种，认不出的来源就是不带 `trigger` 的 `other`。
+ */
+export type SystemTrigger = 'goal_continuation'
+
 export type TurnOrigin =
-  | { kind: 'user'; payload?: unknown }
-  | { kind: 'cron'; taskId?: TaskId; payload?: unknown }
-  | { kind: 'task'; taskId: TaskId; payload?: unknown }
-  | { kind: 'hook'; payload?: unknown }
-  | { kind: 'compaction'; payload?: unknown }
-  | { kind: 'side'; payload?: unknown }
-  | { kind: 'other'; payload?: unknown }
+  | TranscriptUserOrigin
+  | { readonly kind: 'cron'; readonly taskId?: TaskId }
+  | { readonly kind: 'task'; readonly taskId: TaskId }
+  | { readonly kind: 'hook' }
+  | { readonly kind: 'compaction' }
+  | { readonly kind: 'side' }
+  | { readonly kind: 'other'; readonly trigger?: SystemTrigger }
 
 export type TurnState = 'queued' | 'running' | 'completed' | 'failed' | 'cancelled'
 

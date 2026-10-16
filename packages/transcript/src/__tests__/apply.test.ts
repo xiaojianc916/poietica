@@ -80,4 +80,14 @@ describe('applyOps 语义', () => {
     expect(state.hasMoreOlder).toBe(true)
     expect(pageFromState(state).items.length).toBe(1)
   })
+
+  test('轮头来源按格比：同一份技能来源重投一次不算变化，换了技能才算', () => {
+    const skilled = (name: string): TurnHeader => ({
+      ...turnHeader(1),
+      origin: { kind: 'user', skillActivations: [{ skillName: name }] },
+    })
+    const first = applyOps(emptyTimeline(), [{ op: 'turn.upsert', turn: skilled('review') }])
+    expect(applyOps(first, [{ op: 'turn.upsert', turn: skilled('review') }])).toBe(first)
+    expect(applyOps(first, [{ op: 'turn.upsert', turn: skilled('ponytail') }])).not.toBe(first)
+  })
 })
