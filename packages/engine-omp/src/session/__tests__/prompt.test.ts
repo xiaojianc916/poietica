@@ -125,7 +125,7 @@ describe('preparePrompt：图片', () => {
 })
 
 describe('preparePrompt：普通文件与正文', () => {
-  test('普通文件以 @绝对路径 (文件名) 逐行附在正文后面，由 agent 自己去读', () => {
+  test('普通文件以 @"绝对路径" (文件名) 逐行附在正文后面，由 agent 自己去读', () => {
     const prepared = preparePrompt(
       {
         ...INPUT,
@@ -137,12 +137,12 @@ describe('preparePrompt：普通文件与正文', () => {
       },
       options(),
     )
-    expect(prepared.text).toBe('看看这两个\n@C:/work/a.ts (a.ts)\n@C:/work/notes.txt (notes.txt)')
+    expect(prepared.text).toBe('看看这两个\n@"C:/work/a.ts" (a.ts)\n@"C:/work/notes.txt" (notes.txt)')
   })
 
   test('名字里的换行压成空格、`@` 换成全角：括号里那段不会被 omp 认成又一个文件记号', () => {
     const text = wireTextOf({ text: '看', files: [{ path: '/s/ab/x', name: 'a @b\n.md' }] })
-    expect(text).toBe('看\n@/s/ab/x (a ＠b .md)')
+    expect(text).toBe('看\n@"/s/ab/x" (a ＠b .md)')
   })
 
   test('没有文件时正文原样，不加尾随空行', () => {
@@ -171,6 +171,26 @@ describe('splitWireText：wireTextOf 的逆（重开之后气泡上的文件记�
     expect(splitWireText(wireTextOf({ text: '你可以看见吗\n第二行', files }))).toEqual({
       text: '你可以看见吗\n第二行',
       files,
+    })
+  })
+
+  test('数据目录里有空格：路径带引号，来回一趟整条路径与名字都在', () => {
+    const files = [
+      {
+        path: `C:\\Users\\陈小建\\AppData\\Roaming\\Poietica Dev\\attachments\\eb\\eb${'c'.repeat(62)}`,
+        name: 'span.md',
+      },
+    ]
+    const wire = wireTextOf({ text: '可以看见吗', files })
+    expect(wire.split('\n')[1]?.startsWith('@"C:')).toBe(true)
+    expect(splitWireText(wire)).toEqual({ text: '可以看见吗', files })
+  })
+
+  test('早先不带引号落了盘的那一行（路径里有空格）：靠内容寻址路径认出整条', () => {
+    const path = `C:\\Users\\陈小建\\AppData\\Roaming\\Poietica Dev\\attachments\\eb\\${SHA.replace(/^ab/u, 'eb')}`
+    expect(splitWireText(`可以看见吗\n可以看见吗\n@${path} (span.md)`)).toEqual({
+      text: '可以看见吗\n可以看见吗',
+      files: [{ path, name: 'span.md' }],
     })
   })
 

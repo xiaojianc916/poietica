@@ -56,15 +56,18 @@ export function isGoalContinuationMessage(message: {
 }
 
 /**
- * 一句话交给 omp 时的正文：用户原文 + 每个文件一行 `@<绝对路径> (<文件名>)`。投递正文与显示正文是两件事：
+ * 一句话交给 omp 时的正文：用户原文 + 每个文件一行 `@"<绝对路径>" (<文件名>)`。投递正文与显示正文是两件事：
  * 屏幕上画原文，与 omp 的一切匹配（队列对账、插话认领）用这一份。
+ *
+ * 路径**必须加引号**：omp 不加引号的 `@` 记号只取到空白为止，数据目录里有空格（`Poietica Dev`、带空格的用户名）
+ * 时它只认到半截路径，文件自动读不进来，重开时这一行也认不出来，整串路径就画进了气泡。Windows 路径里不会有 `"`。
  *
  * 文件名跟在路径后面，是因为会话文件里**只有这一句**会落盘：附件按内容寻址存放，路径里没有名字，
  * 重开之后气泡上那几枚文件记号只能从这里读回来（`splitWireText` 是它的逆，两处改一处必须改另一处）。
- * omp 认 `@` 记号只取到空白为止，括号里那段不会被当成路径；名字里的 `@` 换成全角，免得被认成又一个记号。
+ * 名字里的 `@` 换成全角，免得被认成又一个记号。
  */
 export function wireTextOf(input: Pick<SubmitInput, 'text' | 'files'>): string {
-  const referenced = input.files.map((file) => `@${file.path} (${wireNameOf(file.name)})`).join('\n')
+  const referenced = input.files.map((file) => `@"${file.path}" (${wireNameOf(file.name)})`).join('\n')
   return referenced === '' ? input.text : `${input.text}\n${referenced}`
 }
 
@@ -73,9 +76,16 @@ function wireNameOf(name: string): string {
   return flat === '' ? 'file' : flat
 }
 
-/** 投递正文末尾的一行文件引用。带名字的是现在的写法；不带名字的是旧会话，只认附件库的内容寻址路径（`<目录>/<sha 前两位>/<sha256>`）。 */
+/**
+ * 投递正文末尾的一行文件引用，按先后认三种写法：
+ * - 现在的写法：路径带引号，后面跟名字；
+ * - 早先不带引号的写法（会话文件里已经落了盘）：只认附件库的内容寻址路径（`<目录>/<sha 前两位>/<sha256>`），
+ *   有这个锚点，路径里有空格也认得出整条；名字可有可无（再早的会话没有名字）；
+ * - 不带引号、路径里没有空格的绝对路径加名字。
+ */
+const QUOTED_REFERENCE = /^@"([^"]+)"(?: \((.+)\))?$/u
+const STORED_REFERENCE = /^@(.*[\\/]([0-9a-f]{2})[\\/]\2[0-9a-f]{62})(?: \((.+)\))?$/iu
 const NAMED_REFERENCE = /^@((?:[A-Za-z]:[\\/]|[\\/])\S*) \((.+)\)$/u
-const BARE_REFERENCE = /^@(\S*[\\/]([0-9a-f]{2})[\\/]\2[0-9a-f]{62})$/iu
 
 export interface WireFile {
   readonly path: string
@@ -83,11 +93,18 @@ export interface WireFile {
   readonly name?: string
 }
 
+function fileOf(path: string | undefined, name: string | undefined): WireFile | null {
+  if (path === undefined || path === '') return null
+  return name === undefined ? { path } : { path, name }
+}
+
 function referenceOf(line: string): WireFile | null {
+  const quoted = QUOTED_REFERENCE.exec(line)
+  if (quoted !== null) return fileOf(quoted[1], quoted[2])
+  const stored = STORED_REFERENCE.exec(line)
+  if (stored !== null) return fileOf(stored[1], stored[3])
   const named = NAMED_REFERENCE.exec(line)
-  if (named?.[1] !== undefined && named[2] !== undefined) return { path: named[1], name: named[2] }
-  const bare = BARE_REFERENCE.exec(line)
-  return bare?.[1] === undefined ? null : { path: bare[1] }
+  return named === null ? null : fileOf(named[1], named[2])
 }
 
 /**

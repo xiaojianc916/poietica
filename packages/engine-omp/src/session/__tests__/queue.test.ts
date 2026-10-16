@@ -226,7 +226,7 @@ describe('排队 / 插话链路（R-01 §5.1）', () => {
 
     await f.session.submit(submit('看这个文件', 'followUp', { files: [{ path: 'C:\\a.txt', name: 'a.txt' }] }))
 
-    expect(f.calls.find((call) => call.how === 'followUp')?.text).toBe('看这个文件\n@C:\\a.txt (a.txt)')
+    expect(f.calls.find((call) => call.how === 'followUp')?.text).toBe('看这个文件\n@"C:\\a.txt" (a.txt)')
     await f.session.cancel()
   })
 
@@ -240,13 +240,13 @@ describe('排队 / 插话链路（R-01 §5.1）', () => {
     await f.session.submit(submit('打底'))
     await f.session.submit(submit('看这个文件', 'steer', { files: [{ path: 'C:\\a.txt', name: 'a.txt' }] }))
 
-    expect(f.steering).toEqual(['看这个文件\n@C:\\a.txt (a.txt)'])
+    expect(f.steering).toEqual(['看这个文件\n@"C:\\a.txt" (a.txt)'])
     const item = f.session.queue().items.find((entry) => entry.text === '看这个文件')!
     expect(f.session.queue().items.find((entry) => entry.id === item.id)?.text).toBe('看这个文件')
 
-    f.steering.splice(f.steering.indexOf('看这个文件\n@C:\\a.txt (a.txt)'), 1)
+    f.steering.splice(f.steering.indexOf('看这个文件\n@"C:\\a.txt" (a.txt)'), 1)
     f.syncQueue()
-    f.messageStart({ role: 'user', content: '看这个文件\n@C:\\a.txt (a.txt)', timestamp: NOW + 1 })
+    f.messageStart({ role: 'user', content: '看这个文件\n@"C:\\a.txt" (a.txt)', timestamp: NOW + 1 })
 
     expect(textFrames(f.events).filter((frame) => frame.role === 'user' && frame.text === '看这个文件')).toHaveLength(1)
     expect(textFrames(f.events).some((frame) => frame.text.includes('@C:\\a.txt'))).toBe(false)
