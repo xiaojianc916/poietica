@@ -33,7 +33,7 @@ exports[`一页的代表性形状（12 页 §9.5 的快照） 两轮：带图的
           "endedAt": "2023-11-14T22:13:20.010Z",
           "frames": [
             {
-              "frameId": "t1.0.f0",
+              "frameId": "t1.a0.c0",
               "kind": "text",
               "role": "assistant",
               "text": "看到了",
@@ -94,7 +94,7 @@ exports[`一页的代表性形状（12 页 §9.5 的快照） 两轮：带图的
           "endedAt": "2023-11-14T22:13:20.040Z",
           "frames": [
             {
-              "frameId": "t2.1.f0",
+              "frameId": "t2.a1.c0",
               "kind": "text",
               "role": "assistant",
               "text": "做完了",

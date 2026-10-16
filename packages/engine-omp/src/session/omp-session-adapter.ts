@@ -450,6 +450,12 @@ function toSub(unsubscribe: () => void): { dispose(): void } {
   return { dispose: unsubscribe }
 }
 
+/* `message_start` 的消息身份只看 role：它是唯一在流式增量之前就到了的一格 */
+function startedRoleOf(raw: unknown): unknown {
+  const message = raw as { readonly role?: unknown } | undefined
+  return message?.role
+}
+
 /* user 消息按投递正文认领；技能消息走 promptCustomMessage，omp 发的是 custom 消息，要类型 + 归属两格都对 */
 function claimStartedMessage(raw: unknown, session: OmpSession): void {
   const message = raw as
@@ -757,8 +763,10 @@ function dispatchOmpEvent(event: Record<string, unknown>, pump: EventPump): void
       const deltaType = assistant?.type
       const delta = assistant?.delta
       if (typeof delta !== 'string') break
-      if (deltaType === 'text_delta') session.requestTimeline(projector.textDelta(delta))
-      else if (deltaType === 'thinking_delta') session.requestTimeline(projector.thinkingDelta(delta))
+      /* 块在这条助手消息 content 里的下标：帧号由它派生，重开之后历史那条路给出同一个号（frame-ids.ts） */
+      const index = typeof assistant?.contentIndex === 'number' ? assistant.contentIndex : undefined
+      if (deltaType === 'text_delta') session.requestTimeline(projector.textDelta(delta, index))
+      else if (deltaType === 'thinking_delta') session.requestTimeline(projector.thinkingDelta(delta, index))
       break
     }
     case 'tool_execution_start':
@@ -791,6 +799,8 @@ function dispatchOmpEvent(event: Record<string, unknown>, pump: EventPump): void
       )
       break
     case 'message_start': {
+      /* 助手消息一开始就计数：历史那条路按同一个口径数（见 frame-ids.ts），两边对同一段话给出同一个号 */
+      if (startedRoleOf(event.message) === 'assistant') projector.assistantMessageStart()
       claimStartedMessage(event.message, session)
       break
     }

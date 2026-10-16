@@ -208,6 +208,8 @@ function textFrames(events: readonly EngineSessionEvent[]): { readonly role: str
   const frames: { role: string; text: string }[] = []
   for (const item of state.items) {
     if (item.kind !== 'turn') continue
+    /* 开轮那句人话只在轮头（不再另发一条用户帧）：屏幕上的气泡 = 轮头的 prompt + 插话帧 */
+    if (item.prompt !== undefined) frames.push({ role: 'user', text: item.prompt })
     for (const step of item.steps)
       for (const frame of step.frames) if (frame.kind === 'text') frames.push({ role: frame.role, text: frame.text })
   }

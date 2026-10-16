@@ -1,4 +1,5 @@
 import { frameId, stepId, type TranscriptAttachment, type TranscriptOperation, turnId } from '@poietica/transcript'
+import { assistantFrameId, interjectionFrameId } from './frame-ids'
 import { GOAL_CONTINUATION_ORIGIN, type TurnOrigin } from './origin'
 
 /** 一张图片附件：号由调用方铸（session 里的 createId），像素是内联 data URL */
@@ -39,6 +40,8 @@ export const TOOL_FALLBACK_TEXT = '这一步的内容无法显示（详情已写
 interface Streaming {
   readonly id: string
   readonly kind: 'text' | 'thinking'
+  /** omp 流式事件的 contentIndex（块在这条助手消息 content 里的下标）；号就由它派生 */
+  readonly block: number
   readonly step: string
   /** 已经发出的字符数，也就是下一条 append 的 offset */
   readonly emitted: number
@@ -62,10 +65,19 @@ export interface LiveProjectorOptions {
 export class LiveProjector {
   private turn = 0
   private step = 0
+  /** 提示帧（notice）的流水号：只有增量这条路画提示帧，号与正文 / 插话不同名字空间 */
   private frame = 0
+  /** 这一轮里第几条助手消息（message_start 计数，-1 = 还没来过）；正文 / 思维链帧的号由它 + contentIndex 派生 */
+  private message = -1
+  /** 这条助手消息里没带 contentIndex 的增量的兜底下标（老 omp / 测试替身） */
+  private block = -1
+  /** 这一轮里第几句插话 */
+  private interjections = 0
   private turnOpen = false
   private stepOpen = false
   private streaming: Streaming | null = null
+  /** 最近流过的那一帧（封口之后也留着）：同一块被打断后接着流时接回它，见 #stream */
+  private lastStream: Streaming | null = null
   private readonly tools = new Map<string, string>()
   private readonly args = new Map<string, unknown>()
   private readonly intents = new Map<string, string>()
@@ -125,7 +137,8 @@ export class LiveProjector {
   }
 
   /**
-   * 一条用户消息：开一个新 turn，正文落在它下面第一个 step 的第一帧。
+   * 一条用户消息：开一个新 turn。人话只在轮头（`turn.prompt`），**不再另发一条用户帧** —— 历史那条路从来不发它，
+   * 而界面认「没有 origin 的用户帧」为来源不明，整轮的撤销锚点就算不出来，实时会话里前面几轮的分叉按钮全部失效。
    * 带 `images` 时先发这几张图的条目、再开轮，轮头的 attachmentIds 就是这几张图的号（号由调用方铸）。
    */
   userTurn(input: {
@@ -153,7 +166,6 @@ export class LiveProjector {
             },
           }
     const { ordinal, turn, at } = this.openTurn({
-      firstFrame: 1,
       origin,
       prompt: input.text,
       promptId: input.promptId,
@@ -182,18 +194,6 @@ export class LiveProjector {
         turnId: turn,
         step: { kind: 'step', stepId: stepId(turn, 0), turnId: turn, ordinal: 0, state: 'running', startedAt: at },
       },
-      {
-        op: 'frame.upsert',
-        turnId: turn,
-        stepId: stepId(turn, 0),
-        frame: {
-          kind: 'text',
-          role: 'user',
-          frameId: frameId(stepId(turn, 0), 0),
-          text: input.text,
-          ...(attachmentIds.length > 0 ? { attachmentIds } : {}),
-        },
-      },
     ]
   }
 
@@ -203,7 +203,6 @@ export class LiveProjector {
    */
   goalContinuationTurn(): TranscriptOperation[] {
     const { ordinal, turn, at } = this.openTurn({
-      firstFrame: 0,
       origin: GOAL_CONTINUATION_ORIGIN,
       prompt: undefined,
       promptId: undefined,
@@ -231,7 +230,6 @@ export class LiveProjector {
 
   /** 开一轮的累加器复位（userTurn 与 goalContinuationTurn 共用这一份，两处各写一遍就会漂移） */
   private openTurn(input: {
-    readonly firstFrame: number
     readonly origin: TurnOrigin
     readonly prompt: string | undefined
     readonly promptId: string | undefined
@@ -241,7 +239,11 @@ export class LiveProjector {
     const at = this.now()
     this.turn = ordinal
     this.step = 0
-    this.frame = input.firstFrame
+    this.frame = 0
+    this.message = -1
+    this.block = -1
+    this.interjections = 0
+    this.lastStream = null
     this.turnOpen = true
     this.stepOpen = true
     this.streaming = null
@@ -272,8 +274,8 @@ export class LiveProjector {
     this.streaming = null
     const turn = turnId(this.turn)
     const step = stepId(turn, this.step)
-    const id = frameId(step, this.frame)
-    this.frame += 1
+    this.interjections += 1
+    const id = interjectionFrameId(turn, this.interjections)
     return [
       ...attachments.map((attachment): TranscriptOperation => ({ op: 'attachment.upsert', attachment })),
       {
@@ -292,40 +294,45 @@ export class LiveProjector {
     ]
   }
 
-  textDelta(delta: string): TranscriptOperation[] {
-    return this.stream('text', delta)
+  /**
+   * 一条助手消息开始（omp 的 `message_start`，role:assistant）：这一轮的助手消息序号进一，正在流的帧封口。
+   * 历史那条路按同一个口径数（`turnOps` 里每条 role:assistant 的消息进一），两边对同一段话给出同一个号。
+   */
+  assistantMessageStart(): void {
+    if (!this.turnOpen) return
+    this.message += 1
+    this.block = -1
+    this.streaming = null
   }
 
-  thinkingDelta(delta: string): TranscriptOperation[] {
-    return this.stream('thinking', delta)
+  /** `contentIndex` = omp 流式事件里块在这条助手消息 content 里的下标；号由它派生（见 frame-ids.ts） */
+  textDelta(delta: string, contentIndex?: number): TranscriptOperation[] {
+    return this.stream('text', delta, contentIndex)
   }
 
-  private stream(kind: 'text' | 'thinking', delta: string): TranscriptOperation[] {
+  thinkingDelta(delta: string, contentIndex?: number): TranscriptOperation[] {
+    return this.stream('thinking', delta, contentIndex)
+  }
+
+  private stream(kind: 'text' | 'thinking', delta: string, contentIndex: number | undefined): TranscriptOperation[] {
     if (!this.turnOpen) return []
-    const open = this.streaming
     const turn = turnId(this.turn)
-    const step = stepId(turn, this.step)
-    if (open === null || open.kind !== kind) {
-      const created: Streaming = { id: frameId(step, this.frame), kind, step, emitted: 0, since: 0 }
-      this.frame += 1
-      this.streaming = created
-      const start: TranscriptOperation =
-        kind === 'text'
-          ? {
-              op: 'frame.upsert',
-              turnId: turn,
-              stepId: step,
-              frame: { kind: 'text', role: 'assistant', frameId: created.id, text: '' },
-            }
-          : {
-              op: 'frame.upsert',
-              turnId: turn,
-              stepId: step,
-              frame: { kind: 'thinking', frameId: created.id, text: '' },
-            }
-      return [start, appendOp(turn, step, created.id, 0, delta), ...this.advance(created, delta)]
+    const open = this.streaming
+    if (open !== null && open.kind === kind && (contentIndex === undefined || open.block === contentIndex)) {
+      return [appendOp(turn, open.step, open.id, open.emitted, delta), ...this.advance(open, delta)]
     }
-    return [appendOp(turn, open.step, open.id, open.emitted, delta), ...this.advance(open, delta)]
+    const block = contentIndex ?? this.block + 1
+    this.block = Math.max(this.block, block)
+    const id = assistantFrameId(turn, Math.max(0, this.message), block)
+    /* 同一块被别的帧打断（插话 / 工具起头把它封了口）之后接着流：接回原来那一帧，不另起、也不清空已有的字 */
+    const last = this.lastStream
+    if (last !== null && last.id === id && last.kind === kind) {
+      const resumed: Streaming = { ...last, since: 0 }
+      return [appendOp(turn, resumed.step, id, resumed.emitted, delta), ...this.advance(resumed, delta)]
+    }
+    const step = stepId(turn, this.step)
+    const created: Streaming = { id, kind, block, step, emitted: 0, since: 0 }
+    return [streamStartOp(turn, step, kind, id), appendOp(turn, step, id, 0, delta), ...this.advance(created, delta)]
   }
 
   /**
@@ -338,6 +345,7 @@ export class LiveProjector {
     const opened = open.since === 0
     const since = opened ? this.o.now() : open.since
     this.streaming = { ...open, emitted, since }
+    this.lastStream = this.streaming
     if (!opened) return []
     return [
       {
@@ -594,13 +602,6 @@ export class LiveProjector {
     ]
   }
 
-  /** 起一段新的 assistant step（一次 omp turn 里可能有多段正文与多次工具调用） */
-  nextStep(): void {
-    this.step += 1
-    this.frame = 0
-    this.streaming = null
-  }
-
   /**
    * 一次压缩开门：每次另起一格（compaction-live-<n>），关门落回这一格。
    *
@@ -671,6 +672,18 @@ function textOf(value: unknown): string {
     .filter((block) => block.type === 'text' && typeof block.text === 'string')
     .map((block) => block.text as string)
     .join('\n')
+}
+
+function streamStartOp(turn: string, step: string, kind: 'text' | 'thinking', id: string): TranscriptOperation {
+  return {
+    op: 'frame.upsert',
+    turnId: turn,
+    stepId: step,
+    frame:
+      kind === 'text'
+        ? { kind: 'text', role: 'assistant', frameId: id, text: '' }
+        : { kind: 'thinking', frameId: id, text: '' },
+  }
 }
 
 function appendOp(turn: string, step: string, id: string, offset: number, chunk: string): TranscriptOperation {

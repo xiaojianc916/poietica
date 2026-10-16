@@ -89,7 +89,7 @@ function allText(page: TranscriptPage): string {
   const parts: string[] = []
   for (const item of page.items) {
     if (item.kind !== 'turn') continue
-    // 用户文本在两种引擎里的落点不同：FakeEngine 放在 turn.prompt，OmpEngine 还会额外建一个用户帧
+    // 开轮那句人话两种引擎都只放在 turn.prompt；插话才是一条带 origin 的用户帧
     if (item.prompt !== undefined) parts.push(item.prompt)
     for (const step of item.steps) {
       for (const frame of step.frames) {

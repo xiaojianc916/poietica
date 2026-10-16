@@ -3287,3 +3287,60 @@ RPC 契约与 `PROTOCOL_VERSION` 不变；conversation 新增迁移 v3（只删�
 **没改的**：通知送达时 omp 已经空闲（这次运行先答完、任务后做完）的情况下，omp 会用这条通知**自己另起一次运行**
 （`YieldQueue` 的 idle flush → `agent.prompt(通知)`）。实时那条路此时没有开着的轮，那次运行的输出整段丢掉，
 要等重开才看得到（重开后并进上一轮）。是否给它像目标续跑那样自开一轮，见「需要确认」。
+
+## R-27 时间线帧号：增量与历史两条投影对同一段话给出不同的号（基于 e264d314）
+
+**现象**：两个，同一个根因。
+
+1. **实时会话里分叉不可用**：同一条会话连发几轮，除最后一轮外，前面每一轮的「从这里分叉」都显示
+   「来源或撤销锚点信息不足，不能可靠计算分叉位置。」关掉会话再打开，又能用了。
+2. **整页重取后界面状态错位**：重取的场景包括压缩收口（`timelineReset`）、补发缺口、Core 重启、切回线程。
+   重取后按 `item.id`（即 frameId）记的状态挂到别的行上 —— 虚拟列表的 `getItemKey`、`row-estimate`
+   的量高缓存、`open.has(item.id)` 记的展开 / 收起。不同种类的帧还会撞号：实时那边的 `t1.0.f1` 是思维链，
+   历史那边的 `t1.0.f1` 却是正文。
+
+**根因**：帧号按「投影走到第几格」数，而两条路切段的规则不同 —— 增量投影一轮只有一段，历史投影是一条助手
+消息一段、工具前后再切。同一段话在两边拿到的号不一样。另外增量投影开轮时会多发一条历史投影从来不发的
+用户帧（没有 `origin`），界面 `transcript-projector.ts` 的 `sourceOfFrame` 把它判成
+`{ isUser: false, anchors: null }`：不画气泡，却把整轮的撤销锚点置成 null，于是 `runBoundariesOf`
+给前面几轮都填上 `forkUnavailableReason`（Core 只是原样转发 ops，问题出在引擎这一层）。
+`LiveProjector.nextStep()` 是死代码，没有任何调用方；AGENTS §8.6 还把「编号规则不同」写成了既定事实。
+
+**改法**：帧号由 **omp 自己的消息身份**派生（工具帧早就是这么做的：`tool.<callId>`），没有把两条路合并
+成一个投影器（增量那条路必须保持流式、append 要认 offset，合并的改动面太大）。
+
+- 新增 `packages/engine-omp/src/projector/frame-ids.ts`，三种号：`t{n}.a{这一轮第几条助手消息}.c{contentIndex}`、
+  `t{n}.u{这一轮第几句插话}`、`t{n}.x{…}.c{…}`（只有历史那条路会画的其余消息，单独一个名字空间，
+  不挤占助手消息的序号）。
+- `live.ts`：`userTurn` 不再发那条用户帧（人话只在轮头 `turn.prompt`）；新增 `assistantMessageStart()`；
+  `textDelta` / `thinkingDelta` 接收 `contentIndex`；一块被插话或工具封口后又接着流时接回原来那一帧，
+  不清空已有的字；插话按序号起号；删掉死代码 `nextStep()`；不带 `contentIndex` 的事件（老 omp、测试替身）
+  走兜底递增，号仍然唯一。
+- `omp-session-adapter.ts`：收到 `message_start`（role:assistant）时调 `assistantMessageStart()`；
+  `message_update` 把 `assistantMessageEvent.contentIndex` 传下去。
+- `history.ts`：块带上它在 content 数组里的原始下标；每条 role:assistant 消息都计数，**一块都不上屏也占
+  一个号**（与增量那条路在 `message_start` 计数对齐）；插话计数；段的划分不变。
+- `engine-testkit` 的 FakeEngine 同步改：它也会多发那条用户帧，收尾的 `turn.upsert` 还漏了 `prompt`
+  （与 R-11 同类）。契约测试 `C-SUBMIT-TURN` / `C-REOPEN` 原来靠那条多余的用户帧才通过。
+- AGENTS §8.6 第 6 条改写：帧号两边必须相同，段的划分仍不同 —— 「一轮还开着时不要整页重取」这条守则保留
+  （增量的 append 认段号）。
+
+**测试**：新增 `packages/engine-omp/src/__tests__/live-history-parity.test.ts`（真 omp + 脚本化模型），
+比三张页 —— 跑的时候攒下的（live）、同一个会话当场取的历史页（history）、关掉重开之后的历史页（reopened），
+每一帧的种类 / 角色 / 正文 / 工具名与状态**以及帧号**逐项相等；另钉一条「屏幕上没有来源不明（没有 origin）
+的用户帧」。5 条用例在旧代码上 5/5 失败，新代码上 5/5 通过。更新 `live-legacy` 的两条断言、
+`queue.test` 的气泡计数辅助函数与两份快照、FakeEngine 与 conformance 的注释。
+
+**验收**（探索性，未进补丁）：真 omp 三轮，把增量攒下的 ops 折成快照后过界面的 `projectTranscript`：
+旧代码第 1、2 轮 `undoCount = null` 且带着上面那句原因，第 3 轮 0 / null；新代码 2 / 1 / 0，原因全为 null。
+另补测了 P1 列为「还没覆盖」的**真 omp 插话**：一轮跑着时插一句，三张页给出同一串
+`tool.call-0` / `t1.u1`（`origin: user` 的插话帧）/ `t1.a1.c0`，帧号逐项相等。
+
+**已知取舍**：本方案依赖 omp 流式事件的 `contentIndex` 与最终 `message.content` 的下标一致
+（`@oh-my-pi/pi-agent-core@18.10.3` 的 `ProxyAssistantMessageEvent` 里每一档都带 `contentIndex`，
+已核对）；omp 改了的话对照测试会第一时间变红。升级后已经打开的会话在第一次整页重取时会因为号变了
+而丢一次展开状态 —— 只发生一次。
+
+**没改的**：段的划分仍然不同（增量一轮一段）。想彻底去掉「开着轮时不整页重取」这条限制，下一步是让增量
+那条路也按助手消息切段（stepId 同样由消息身份派生），可以另开一份独立方案。目标续跑、压缩这两个场景的
+真 omp 三方对照仍只有逐例测试。

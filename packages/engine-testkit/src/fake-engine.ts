@@ -257,23 +257,19 @@ class FakeSession implements EngineSession {
         turnId: turn,
         step: { kind: 'step', stepId: userStep, turnId: turn, ordinal: 1, state: 'completed' },
       },
-      {
-        op: 'frame.upsert',
-        turnId: turn,
-        stepId: userStep,
-        frame: { kind: 'text', frameId: frameId(userStep, 1), text: input.text, role: 'user' },
-      },
+      /* 人话只在轮头（与 engine-omp 的两条投影同形）：另发一条没有 origin 的用户帧，界面会把整轮的分叉锚点判成算不出来 */
     ])
     this.maybeAutoTitle(input)
     this.setState('running')
     const steps = this.o.script(input, ordinal - 1)
     // 立即返回：真正的执行在下一拍（C-SUBMIT-RETURNS-EARLY）
     this.o.clock.setTimeout(() => {
-      void this.run(steps, turn, ordinal)
+      void this.run(steps, turn, ordinal, input.text)
     }, 0)
   }
 
-  private async run(steps: readonly ScenarioStep[], turn: string, ordinal: number): Promise<void> {
+  /** `prompt` 要带到每一次 turn.upsert 上：轮头是整头替换，收尾时漏了它，开轮那句话就从屏幕上消失 */
+  private async run(steps: readonly ScenarioStep[], turn: string, ordinal: number, prompt: string): Promise<void> {
     for (const step of steps) {
       if (this.disposed) return
       if (step.kind === 'fail') {
@@ -286,6 +282,7 @@ class FakeSession implements EngineSession {
               ordinal,
               state: 'failed',
               origin: { kind: 'user' },
+              prompt,
             },
           },
         ])
@@ -299,7 +296,7 @@ class FakeSession implements EngineSession {
     this.push([
       {
         op: 'turn.upsert',
-        turn: { kind: 'turn', turnId: turn, ordinal, state: 'completed', origin: { kind: 'user' } },
+        turn: { kind: 'turn', turnId: turn, ordinal, state: 'completed', origin: { kind: 'user' }, prompt },
       },
     ])
     this.setState('idle')

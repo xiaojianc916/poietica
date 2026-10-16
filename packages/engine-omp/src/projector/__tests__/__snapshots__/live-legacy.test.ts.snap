@@ -30,13 +30,7 @@ exports[`一轮的代表性形状（12 页 §9.5 的快照） 正文 + 思考 + 
           "endedAt": "2023-11-14T22:13:20.000Z",
           "frames": [
             {
-              "frameId": "t1.0.f0",
-              "kind": "text",
-              "role": "user",
-              "text": "跑一下测试",
-            },
-            {
-              "frameId": "t1.0.f1",
+              "frameId": "t1.a0.c0",
               "kind": "thinking",
               "text": "先想一下",
             },
@@ -60,7 +54,7 @@ exports[`一轮的代表性形状（12 页 §9.5 的快照） 正文 + 思考 + 
               "toolCallId": "c1",
             },
             {
-              "frameId": "t1.0.f2",
+              "frameId": "t1.a0.c1",
               "kind": "text",
               "role": "assistant",
               "text": "做完了",

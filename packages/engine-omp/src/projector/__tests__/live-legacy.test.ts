@@ -168,14 +168,15 @@ describe('插话帧（legacy projection.test.ts 的「插话帧」）', () => {
     const steps = turn?.kind === 'turn' ? turn.steps : []
     expect(steps).toHaveLength(1)
     const frames = steps[0]?.frames ?? []
+    // 开轮那句只在轮头（turn.prompt），帧里只有模型的输出与插话
+    expect(turn?.kind === 'turn' && turn.prompt).toBe('干活')
     expect(frames.map((frame) => (frame.kind === 'text' ? frame.text : frame.kind))).toEqual([
-      '干活',
       '先做一半',
       '停，改这里',
       '接着做',
     ])
     // 人说的话必须带 origin：投影层认「这是人说的」只看那一格
-    const interjection = frames[2]
+    const interjection = frames[1]
     expect(interjection?.kind === 'text' && interjection.origin).toEqual({ kind: 'user' })
     // 没有第二个 turn：插话不是新的一轮
     expect(state.items.filter((item) => item.kind === 'turn')).toHaveLength(1)
@@ -295,13 +296,13 @@ describe('现场图片上屏（legacy live-image-attachments.test.ts）', () => 
     expect(turn?.kind === 'turn' && turn.attachmentIds).toBeUndefined()
   })
 
-  test('turn 与它下面那一帧都引用附件的号', () => {
+  test('附件的号挂在轮头上；开轮不再另发一条（没有 origin 的）用户帧', () => {
     const p = projector()
     const state = applyOps(emptyTimeline(), p.userTurn({ text: '这是什么', attachmentIds: ['shot.png'] }))
     const turn = state.items[0]
     expect(turn?.kind === 'turn' && turn.attachmentIds).toEqual(['shot.png'])
-    const frame = turn?.kind === 'turn' ? turn.steps[0]?.frames[0] : undefined
-    expect(frame?.kind === 'text' && frame.attachmentIds).toEqual(['shot.png'])
+    // 历史那条路从来不发这一帧；界面把没有 origin 的用户帧认作来源不明，整轮的分叉锚点就算不出来
+    expect(turn?.kind === 'turn' ? turn.steps.flatMap((step) => step.frames) : null).toEqual([])
   })
 
   test('没有附件时不编一个空表', () => {

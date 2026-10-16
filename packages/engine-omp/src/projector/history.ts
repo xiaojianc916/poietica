@@ -1,7 +1,6 @@
 import {
   applyOps,
   emptyTimeline,
-  frameId,
   pageFromState,
   stepId,
   type TranscriptAttachment,
@@ -11,6 +10,7 @@ import {
 } from '@poietica/transcript'
 import { isGoalContinuationMessage, isUserSkillMessage, splitWireText } from '../session/prompt'
 import { compactionPayloadOf } from './compaction'
+import { assistantFrameId, extraFrameId, interjectionFrameId } from './frame-ids'
 import { FILE_MEDIA_TYPE } from './live'
 import { GOAL_CONTINUATION_ORIGIN, type TurnOrigin } from './origin'
 
@@ -86,9 +86,10 @@ interface ScreenTurn {
   readonly results: ReadonlyMap<string, ScreenResult>
 }
 
+/** 正文 / 思维链块带着它在 content 数组里的下标（= omp 流式事件的 contentIndex）：帧号由它派生，见 frame-ids.ts */
 type ScreenBlock =
-  | { readonly kind: 'text'; readonly text: string }
-  | { readonly kind: 'thinking'; readonly text: string }
+  | { readonly kind: 'text'; readonly text: string; readonly index: number }
+  | { readonly kind: 'thinking'; readonly text: string; readonly index: number }
   | { readonly kind: 'tool'; readonly callId: string; readonly name: string; readonly arguments: unknown }
 
 /**
@@ -334,13 +335,20 @@ function turnOps(entry: ScreenTurn, openTurnAttachments: readonly TranscriptAtta
     ),
     ...attached,
   ]
+  /*
+   * 帧号按 omp 的消息身份数（与增量那条路同一个口径，见 frame-ids.ts）：这一轮里第几条助手消息、第几句插话。
+   * 助手消息即便一块都不上屏也要占一个号 —— 增量那条路在 message_start 就数了它。
+   */
+  const seen = { assistant: -1, extra: -1, interjections: 0 }
   let step = 0
   for (const message of entry.steps) {
     if (roleOf(message) === 'prompt') {
-      ops.push(...interjectionOps(turn, step, message))
+      seen.interjections += 1
+      ops.push(...interjectionOps(turn, step, message, interjectionFrameId(turn, seen.interjections)))
       step += 1
       continue
     }
+    const idOf = frameIdsOf(turn, message, seen)
     const at = stampOf(message)
     const done = closedIsoOf(message)
     const blocks = shownBlocksOf(entry, message)
@@ -358,7 +366,7 @@ function turnOps(entry: ScreenTurn, openTurnAttachments: readonly TranscriptAtta
         ops.push(toolOp(turn, step, block, entry.results.get(block.callId)))
         continue
       }
-      ops.push(frameOp(turn, step, frame, block))
+      ops.push(frameOp(turn, step, idOf(block.index), block))
       frame += 1
     }
     step += 1
@@ -366,11 +374,27 @@ function turnOps(entry: ScreenTurn, openTurnAttachments: readonly TranscriptAtta
   return entry.state === 'running' ? markLastStepRunning(ops, turn) : ops
 }
 
+/** 这条消息里块下标 → 帧号；助手消息与其余上屏消息各数各的（只有助手消息在增量那条路上有对应） */
+function frameIdsOf(
+  turn: string,
+  message: OmpMessage,
+  seen: { assistant: number; extra: number },
+): (block: number) => string {
+  if (message.role === 'assistant') {
+    seen.assistant += 1
+    const ordinal = seen.assistant
+    return (block) => assistantFrameId(turn, ordinal, block)
+  }
+  seen.extra += 1
+  const ordinal = seen.extra
+  return (block) => extraFrameId(turn, ordinal, block)
+}
+
 /**
  * 一句插话：与增量那条路（`LiveProjector.steeredFrame`）同一个形状 —— 一条 role:user、origin:user 的文本帧，
  * 图先发条目、帧上挂号。它自占一段：前后的段都是助手的产出，插话夹在中间。
  */
-function interjectionOps(turn: string, step: number, message: OmpMessage): TranscriptOperation[] {
+function interjectionOps(turn: string, step: number, message: OmpMessage, id: string): TranscriptOperation[] {
   const at = stampOf(message)
   const attached = [...imagesOf(message.content, at), ...filesOf(message, at)]
   const attachmentIds = attached.map((op) => op.attachment.attachmentId)
@@ -384,7 +408,7 @@ function interjectionOps(turn: string, step: number, message: OmpMessage): Trans
       frame: {
         kind: 'text',
         role: 'user',
-        frameId: frameId(stepId(turn, step), 0),
+        frameId: id,
         text: promptTextOf(message),
         origin: { kind: 'user' },
         ...(attachmentIds.length > 0 ? { attachmentIds } : {}),
@@ -476,10 +500,9 @@ function stepOp(
 function frameOp(
   turn: string,
   step: number,
-  frame: number,
+  id: string,
   block: Extract<ScreenBlock, { kind: 'text' | 'thinking' }>,
 ): TranscriptOperation {
-  const id = frameId(stepId(turn, step), frame)
   return {
     op: 'frame.upsert',
     turnId: turn,
@@ -521,23 +544,23 @@ function toolOp(
 
 function contentOf(message: OmpMessage): readonly ScreenBlock[] {
   const content = message.content
-  if (typeof content === 'string') return content === '' ? [] : [{ kind: 'text', text: content }]
+  if (typeof content === 'string') return content === '' ? [] : [{ kind: 'text', text: content, index: 0 }]
   if (!Array.isArray(content)) return []
   const blocks: ScreenBlock[] = []
-  for (const value of content as readonly Record<string, unknown>[]) {
-    const parsed = blockOf(value)
+  for (const [index, value] of (content as readonly Record<string, unknown>[]).entries()) {
+    const parsed = blockOf(value, index)
     if (parsed !== undefined) blocks.push(parsed)
   }
   return blocks
 }
 
-function blockOf(block: Record<string, unknown>): ScreenBlock | undefined {
+function blockOf(block: Record<string, unknown>, index: number): ScreenBlock | undefined {
   const kind = block.type
   if (kind === 'text' && typeof block.text === 'string' && block.text !== '') {
-    return { kind: 'text', text: block.text }
+    return { kind: 'text', text: block.text, index }
   }
   if (kind === 'thinking' && typeof block.thinking === 'string' && block.thinking !== '') {
-    return { kind: 'thinking', text: block.thinking }
+    return { kind: 'thinking', text: block.thinking, index }
   }
   if (kind === 'toolCall' && typeof block.id === 'string' && block.id !== '') {
     return {
