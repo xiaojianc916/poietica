@@ -3820,3 +3820,57 @@ Q44（MCP 四个死键）、Q45/Q47（relay 协议副本）仍未决：relay 那
   `system-prompt-digest` + 字符串 `data`，不是空对象）。
 - 隔离判据同时核过：全局 `~/.omp/agent/sessions` 下 **0 个 `.jsonl`**，9 个全在隔离根 —— 与
   §6 的隔离承诺一致。
+
+## Q1/Q2 两页质疑的修复：词表归 transcript、共享界面归 design-system（2026-10-16）
+
+按《问题一》与《问题二》执行，顺序 A → B → D → Q2-1 → Q2-2。
+
+**Q1-A 收为自有词表**（`7cf4dfa3`）：删掉四个零消费方文件（`foldFacts` 745 行、`groupTurns` 619 行、
+`contract/origin` 26 行、`contract/mediaRef` 31 行，合计 1421 行）；分页合并只留 `timeline.prependOlder`
+一处（页形态，语义照搬渲染进程那份 `olderSnapshot`），`transcript-replica` 删掉自带的 `mergeBy` /
+`olderSnapshot`；`TimelineState.lastSeq` 死字段清掉；biome 不再排除 transcript（`ops/apply.ts` 单列
+复杂度上限 30，仓库仍禁 `biome-ignore`）；README 改写为「自有词表，缺什么就在这里加」。
+
+**Q1-B 契约不再做 schema 手术**（`1e6e2069`，协议 19 → 20）：`InteractionKind` 加 `plan`、
+`TranscriptTurn` 加 `clientTurnId`（引擎不写，只有 conversation 主进程盖章），schema 同步加宽；
+`timeline.ts` 新增被 `ZodType<TranscriptOperation>` 钉住的 `transcriptOperationSchema`；
+`contract/wire.ts` 删除，契约直接用词表的 schema；`session.ts` / `event-router.ts` /
+`transcript-projector.ts` / `subscriptions.ts` / `submission-service.ts` 五处断言或鸭子类型去掉；
+新增 TL-12 钉住「schema 不剥字段、plan 两处都过」。快照变更是纯加宽（重新生成 `contract.snapshot.json`）。
+
+**Q1-D 目录扁平化**（`dee13adf`）：去掉 `src/upstream/` 这一层，`model/`、`ops/`、`contract/` 直接放
+`src/` 下；biome override 与 README 措辞跟着改。
+
+**Q2-1 共享界面下沉**（`259524c1`）：Prose（8 文件 + `wave/` 3 文件 + 7 个测试）搬到
+`packages/design-system/src/prose/` 并新开 `@poietica/design-system/prose` 子入口；
+GitBranchPicker / WorkspacePicker 搬到 `design-system/src/control/` 并从主入口导出；
+SkillDocument 面板、store 与它的测试搬到 `features/extensions/src/ui/`，extensions 自己持 store、
+首次打开时懒贡献面板；`MarkdownRendererToken` 与 `SkillDocumentToken` 删除，消费侧改为直接 import
+design-system（review 那处 `as MarkdownRenderer` 一并去掉）；新增 depcruise 规则 `ui-api-no-styles`
+（探针验证过会报错）；conversation 的非测试 TS 从 37008 行降到 35216 行，`ui-api` 从 771 行降到 393 行。
+
+**Q2-2 功能内部分区**（`babbee1b`、`d2239ec1`）：`features/conversation/src/ui/` 按区拆为
+`{threads,composer,timeline,session,status,home,shared}`，区与区之间只经 `<区>/index` 互引，
+`shared/` 收跨区模型、工具词表与基础件且不得反向依赖任何区；新增闸门 `conversation-area-via-index`
+与 `conversation-shared-is-leaf`（都按反向探针验证过会报错）。拆区时必须先做的几处归属修正（否则必然成环）：
+
+- `message-queue`、`permission-posture`、`goal-control`、`thread-order`、`workspace-root` → `shared/`
+  （前四者分别被两个区读，后者是纯函数）；
+- `composer-toolkit` → `composer/`（图标工具栏归输入框，home 经 `composer/index` 取）；
+- `turn-states` → `threads/`（它逐线程，`threads-store` 与 `session` 都读它）；
+- `thread-entry` → `session/`（铸号状态机的输入是会话注册表）；
+- `timeline-contract`、`tool-family`、`omp-tool-glyphs`、`tool-vocabulary`、`tool-intent` → `shared/`
+  （时序：视图模型与工具卡同读，留在 timeline 会让 shared↔timeline 成环）；
+- `surface.css` / `composer-frame.css` → `shared/styles/`（起草在 composer 与 timeline::view 两处
+  挂皮，留在 home 就成 home↔composer 环）。
+
+**Q1-C（交互载荷类型化）未做**：问题一自己把它列为「只给设计、单独评审」，不在本轮范围。
+
+### 验收（实测）
+
+- `bun run typecheck`：通过（753 文件 / 80 工程 + 1000 文件测试工程）。
+- `bun run lint`：通过（biome 1299 文件，只余 4 条既有 `noDescendingSpecificity` 警告；
+  no-biome-ignore / editor-project-map / omp-doc / depcruise 全绿，depcruise 1269 模块 0 违规）。
+- `bun test`（10 个相关包）：1296 pass / 0 fail。
+- 真机冒烟：`apps/desktop` 的 `electron-vite build` 成功（renderer + main + preload 全部产出，
+  3.03 MB 入口闭包）。
