@@ -121,6 +121,14 @@ module.exports = {
       to: { path: `${NM}(electron|@lydell/node-pty|electron-updater)/` },
     },
     {
+      name: 'ui-api-no-styles',
+      severity: 'error',
+      comment:
+        'ui-api 只放跨功能的形状、贡献点与服务令牌，不放带样式的组件：多个功能共用的无状态 UI 归 design-system（docs/ARCHITECTURE.md §4.3）',
+      from: { path: '^features/[^/]+/src/ui-api/', pathNot: TEST },
+      to: { path: '\\.css$' },
+    },
+    {
       name: 'feature-subentry-core',
       severity: 'error',
       from: { path: '^features/([^/]+)/src/core/' },

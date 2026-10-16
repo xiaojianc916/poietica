@@ -1,7 +1,6 @@
 import './surface.css'
 
-import { Banner } from '@poietica/design-system'
-import { WorkspacePicker, type WorkspacePickerProps } from '@poietica/feature-workspaces/ui-api'
+import { Banner, WorkspacePicker, type WorkspacePickerProps } from '@poietica/design-system'
 import { FeatureScope, type Observable, useContributions, useObservable } from '@poietica/ui-kernel'
 import { memo, type ReactNode, type Ref, useCallback, useMemo, useRef, useState } from 'react'
 import type { Thread } from '../../contract'

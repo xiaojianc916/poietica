@@ -2,11 +2,11 @@ import './flow-row.css'
 import './ticker/shimmer.css'
 import './tools/tool-call.css'
 
+import { Prose } from '@poietica/design-system/prose'
 import type { CompactionTimelineItem } from '../../timeline/timeline-contract'
 import { cx } from '../primitives/class-names'
 import { DisclosureBody } from '../primitives/disclosure'
 import { ChevronDownIcon, CompactionIcon } from '../primitives/icons'
-import { Prose } from './prose/prose'
 
 const COUNT = new Intl.NumberFormat()
 

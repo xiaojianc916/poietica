@@ -1,5 +1,5 @@
-import { Tooltip, TooltipContent, TooltipTrigger } from '@poietica/design-system'
 import type { ComponentProps } from 'react'
+import { Tooltip, TooltipContent, TooltipTrigger } from '../control/tooltip'
 
 /*
  * 正文链接带一枚显示真实地址的悬停提示：markdown 的链接文字是作者随手起的，target=_blank 之后地址栏也不再教人它要去哪。

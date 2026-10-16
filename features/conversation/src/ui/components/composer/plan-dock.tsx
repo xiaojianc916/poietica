@@ -1,9 +1,9 @@
 import './plan-dock.css'
 
+import { Prose } from '@poietica/design-system/prose'
 import { memo, useState } from 'react'
 import type { PlanAnswer, PlanDecision } from '../../agent/plan'
 import type { PlanItem } from '../../timeline/timeline-contract'
-import { Prose } from '../timeline/prose/prose'
 
 /*
  * 待批准的计划：外框与按钮沿用授权那条带子，多出正文那一块（默认折叠，直接铺开会把输入框顶出屏幕）。

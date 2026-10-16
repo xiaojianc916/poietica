@@ -1,4 +1,5 @@
-import { GitBranchPicker, useWorkspaceGitFacts } from '@poietica/feature-conversation/ui-api'
+import { GitBranchPicker } from '@poietica/design-system'
+import { useWorkspaceGitFacts } from '@poietica/feature-conversation/ui-api'
 import type { ReactNode } from 'react'
 
 /* 输入框下方那一行的第二枚 chip：当前工作区分支。这份数据属于 review 而有两个落点（这枚 chip 与状态面板的「Git 工具」），所以

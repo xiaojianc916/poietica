@@ -1,14 +1,14 @@
 import './message.css'
 import './plan.css'
 
+import { Prose } from '@poietica/design-system/prose'
 import { FeatureScope, useContributions } from '@poietica/ui-kernel'
 import { memo } from 'react'
 import { type ToolCallRendererProps, toolCallRenderers } from '../../../ui-api'
 import type { FeedRow } from '../../timeline/presentation'
 import { CompactionStatus } from './compaction-status'
 import { ErrorNotice } from './error-notice'
-import { LinkCard } from './prose/link-card'
-import { Prose } from './prose/prose'
+import { LinkCard } from './link-card'
 import { ToolCallCard } from './tools/tool-call-card'
 import { UserMessage } from './user-message'
 

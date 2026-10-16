@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test'
-import type { GitBranchPickerProps } from '@poietica/feature-conversation/ui-api'
+import type { GitBranchPickerProps } from '@poietica/design-system'
 import type { ReviewReading } from '../review-store'
 import { workspaceGitFactsOf } from '../workspace-git-facts'
 

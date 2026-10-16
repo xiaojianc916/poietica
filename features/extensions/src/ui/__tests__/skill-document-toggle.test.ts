@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'bun:test'
 import type { RpcMessage, WindowBridge } from '@poietica/rpc'
 import { createUiKernel, type LayoutService } from '@poietica/ui-kernel'
-import type { SkillDocument } from '../../ui-api'
-import { createSkillDocumentStore, SKILL_DOCUMENT_PANEL, toggleSkillDocument } from '../components/skill-document-store'
+import type { SkillDocument } from '../skill-document'
+import { createSkillDocumentStore, SKILL_DOCUMENT_PANEL, toggleSkillDocument } from '../skill-document-store'
 
 /*
  * 面板是静态贡献，坞按 id 判「停的是不是这一格」，分不出「又点同一行」与「换了另一行」。

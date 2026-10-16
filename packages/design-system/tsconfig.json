@@ -1,5 +1,9 @@
 {
   "extends": "../../tooling/tsconfig/dom.json",
   "include": ["src"],
-  "references": []
+  "references": [
+    {
+      "path": "../foundation"
+    }
+  ]
 }

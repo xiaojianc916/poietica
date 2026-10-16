@@ -1,7 +1,7 @@
-import { useCopy } from '@poietica/design-system'
 import { type ComponentProps, useRef } from 'react'
 import { extractTableDataFromElement, tableDataToMarkdown } from 'streamdown'
-import { CheckIcon, CopyIcon } from '../../primitives/icons'
+import { useCopy } from '../use-copy'
+import { CheckIcon, CopyIcon } from './icons'
 
 /* 表的复制键：几何归样式表（--cp-table-control），这里只留配色、圆角与转场。 */
 const ACTION_CLASS =

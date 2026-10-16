@@ -1,14 +1,6 @@
 import { beforeEach, describe, expect, test } from 'bun:test'
-import {
-  cachedInks,
-  cachedSvg,
-  inksKey,
-  keepInks,
-  keepSvg,
-  resetDiagramCacheForTests,
-  svgKey,
-} from '../prose/diagram-cache'
-import { DIAGRAM_INKS, type DiagramInks } from '../prose/diagram-theme'
+import { cachedInks, cachedSvg, inksKey, keepInks, keepSvg, resetDiagramCacheForTests, svgKey } from '../diagram-cache'
+import { DIAGRAM_INKS, type DiagramInks } from '../diagram-theme'
 
 /* 键集跟着真实槽位走，值只要互不相同 —— 这里量的是缓存键的算法，不是颜色。 */
 function inksWith(overrides: Partial<DiagramInks> = {}): DiagramInks {

@@ -1,5 +1,5 @@
 import { createValue, type LayoutService, type Observable } from '@poietica/ui-kernel'
-import type { SkillDocument } from '../../ui-api'
+import type { SkillDocument } from './skill-document'
 
 /* 右坞面板是**静态贡献**（`panels` 的 title 是常量），所以「看的是哪一份」只能悬在面板外面 —— 就是这一个值。 */
 export interface SkillDocumentStore extends Observable<SkillDocument | undefined> {
@@ -7,7 +7,7 @@ export interface SkillDocumentStore extends Observable<SkillDocument | undefined
 }
 
 /** 技能文档那一格的 panel id。 */
-export const SKILL_DOCUMENT_PANEL = 'conversation.skillDocument'
+export const SKILL_DOCUMENT_PANEL = 'extensions.skillDocument'
 
 /**
  * 判据取路径：它来自名册那一行，一份技能一个，是这一格的真正身份 —— 面板 id 是常量，坞自己分不出「又点了同一行」与「换了另一行」。

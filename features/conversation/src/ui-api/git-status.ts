@@ -1,6 +1,6 @@
+import type { GitBranchPickerProps } from '@poietica/design-system'
 import { defineContributionPoint } from '@poietica/ui-kernel'
 import { type ComponentType, createContext, type ReactNode, useContext } from 'react'
-import type { GitBranchPickerProps } from './git-branch-picker'
 
 /*
  * 状态面板「Git 工具」那一格读的那一份事实，以及「谁来提供它」。

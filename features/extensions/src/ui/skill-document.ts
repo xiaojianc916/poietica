@@ -1,7 +1,25 @@
-import type { SkillDocument, SkillDocumentFacts } from '@poietica/feature-conversation/ui-api'
 import type { SkillInfo } from '../contract'
 
-/* 一份 SKILL.md 读出来的那几格照 legacy。这里只做行级 frontmatter 取值而不用 yaml 包：解析结果要交给 conversation 的面板渲染，
+/** SKILL.md 的 frontmatter 读出来的那几格。 */
+export interface SkillDocumentFacts {
+  readonly name: string
+  readonly description: string | undefined
+  readonly body: string
+  readonly type: string | undefined
+  readonly whenToUse: string | undefined
+  readonly disableModelInvocation: boolean
+  /** SKILL.md 自己报的毛病（缺 frontmatter、没写 name……），与 legacy 的 issues 同义。 */
+  readonly issues: readonly string[]
+}
+export interface SkillDocument {
+  readonly markdown: string
+  readonly name: string
+  /** 名册里报的那条路径：可能是 SKILL.md 本身，也可能只是目录。 */
+  readonly path: string
+  readonly facts: SkillDocumentFacts
+}
+
+/* 一份 SKILL.md 读出来的那几格照 legacy。这里只做行级 frontmatter 取值而不用 yaml 包：解析结果只给右坞的技能文档面板用，
  * 而 yaml 不在 ui 子入口允许的依赖表里，为几个标量字段把整份解析器拖进渲染进程不划算。代价是块状标量（description: |）读成字面量。 */
 
 const TEXT = /^(.*)$/u

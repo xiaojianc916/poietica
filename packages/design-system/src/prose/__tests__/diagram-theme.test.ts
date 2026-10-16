@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'bun:test'
 
-import { DIAGRAM_CSS, DIAGRAM_INKS } from '../prose/diagram-theme'
+import { DIAGRAM_CSS, DIAGRAM_INKS } from '../diagram-theme'
 
 /* 压的是 mermaid 自己生成的那份样式表，两边同样带 #id 前缀：胜负全在选择器多出来的那一个类上。少一个配色就静默回到纯黑，而屏幕上看不出「少了一个类」与「颜色本来就这样」。 */
 describe('图的分支配色', () => {

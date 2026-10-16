@@ -1,4 +1,4 @@
-import { loadMath } from '../components/timeline/prose/math-plugin'
+import { loadMath } from '@poietica/design-system/prose'
 import { completionBody, isTurnSettled } from '../session/notify'
 import type { ConversationActions } from './actions'
 import type { ConversationSetup } from './context'

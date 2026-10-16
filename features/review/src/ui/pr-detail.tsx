@@ -38,8 +38,8 @@ import './pr-detail.css'
  * 中栏：一条 pull request 的详情。三个标签（Summary / Changes / Timeline）、右上四个动作、
  * 正文（Markdown）、以及底部的评论流与输入框。
  *
- * 纯展示：markdown 由页面注入（能画 markdown 的 Prose 属于 conversation，功能之间不得互相
- * import ui），本文件不引 markdown 库、不调 RPC。
+ * 纯展示：markdown 由页面注入（pr-page 交的是 design-system 的 Prose，测试可以换成纯文本），
+ * 本文件不引 markdown 库、不调 RPC。
  */
 
 export interface PrDetailProps {

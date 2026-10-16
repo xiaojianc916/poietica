@@ -1,5 +1,3 @@
-import type { SkillDocumentPort } from '@poietica/feature-conversation/ui-api'
-import { SkillDocumentToken } from '@poietica/feature-conversation/ui-api'
 import { platformContract } from '@poietica/feature-platform/contract'
 import type { TypedRpcClient } from '@poietica/rpc'
 import type { UiFeatureContext } from '@poietica/ui-kernel'
@@ -13,18 +11,16 @@ import type {
   SkillInstallSource,
 } from '../contract'
 import { extensionsContract } from '../contract'
+import { createSkillDocumentOpener } from './skill-document-pane'
 
 export function createExtensionsApi(ctx: UiFeatureContext) {
   const rpc: TypedRpcClient<typeof extensionsContract> = ctx.rpc(extensionsContract)
-  /* 两个跨功能的取用口落在这里：platform 的 dialog.pickFolder / dialog.pickFiles（技能页的两个安装入口）；conversation 的
-   * SkillDocumentToken（「查看 SKILL.md」落到右坞那一格）。两边的 dependsOn 都写在 index.tsx 的 defineUiFeature 上。 */
+  /* 跨功能的取用口：platform 的 dialog.pickFolder / dialog.pickFiles（技能页的两个安装入口），dependsOn 写在 index.tsx 上。
+   * 「查看 SKILL.md」落到右坞那一格是本功能自己的面板（skill-document-pane.tsx）。 */
   const platform = ctx.rpc(platformContract)
-  const skillDocuments = ctx.services.get(SkillDocumentToken) as SkillDocumentPort
   return {
     platform: () => platform,
-    openSkillDocument: (document: Parameters<SkillDocumentPort['open']>[0]): void => {
-      skillDocuments.open(document)
-    },
+    openSkillDocument: createSkillDocumentOpener(ctx),
     skills: {
       list: (workspaceId: string | null): Promise<readonly SkillInfo[]> =>
         rpc.call('skills.list', workspaceId === null ? {} : { workspaceId }).then((r) => r.skills),

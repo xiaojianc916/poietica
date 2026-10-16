@@ -1,4 +1,5 @@
-import { type WorkspaceChoice, type WorkspacesUi, WorkspacesUiToken } from '@poietica/feature-workspaces/ui-api'
+import type { WorkspaceChoice } from '@poietica/design-system'
+import { type WorkspacesUi, WorkspacesUiToken } from '@poietica/feature-workspaces/ui-api'
 import {
   type NavigationService,
   NavigationToken,

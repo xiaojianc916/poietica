@@ -99,6 +99,17 @@ CoreSupervisor（启动/重启/关闭 Core，含退避与 crash loop 判定）�
 | 进程内事件 | 发布/订阅 | `conversation/core` 发 `usageSampled`，`usage/core` 订阅后落库 |
 | 贡献点 | UI 扩展 | `browser/ui` 往 conversation 的 `toolCallRenderers` 贡献卡片 |
 
+**共享的界面不是协作，是下沉。** 两个以上功能都要画的那一块界面（Markdown 正文、分支 / 工作区选择器……）
+不走上面三种方式中的任何一种，而是下沉到 `design-system`：
+
+- `design-system` 收的是**不认识业务的富界面**：不调 RPC、不持有功能 store、不 import 任何功能的
+  `contract`，数据全从 props 进、动作全从回调出。带重依赖的单开子入口（`./diff` 带 shiki，`./prose`
+  带 streamdown / katex / mermaid），不进根入口的闭包。
+- 功能的 `ui-api` 只放跨功能的**形状、贡献点与服务令牌**，不放带样式的组件（depcruise `ui-api-no-styles`）。
+  反例就是这条规则的来历：Prose、分支选择器、技能文档面板曾经因为「功能之间不得 import ui」被吸进
+  conversation，再经类型被擦掉的服务令牌（`MarkdownRendererToken`、`SkillDocumentToken`）漏给别的功能。
+- 只被一个功能用的界面留在那个功能里，哪怕它很大（例如 conversation 的吉祥物）。
+
 ## 5. 契约与协议
 
 每个功能在自己的 `contract` 子入口用 zod 定义方法与通知；`@poietica/protocol` 只做汇总、

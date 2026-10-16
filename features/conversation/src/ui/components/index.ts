@@ -1,4 +1,3 @@
-export type { GitBranchPickerProps } from '../../ui-api'
 export { AttachmentIntakeContext } from '../../ui-api/composer-assets'
 export { ComposerDraftKeyContext, ComposerDraftsContext } from '../composer/drafts-context'
 export {
@@ -16,8 +15,6 @@ export { AuxiliaryComposer } from './composer/auxiliary-composer'
 export type { PromptInputHandle } from './composer/prompt-input'
 export { SwarmToggle } from './composer/swarm-toggle'
 // Git 那一格的事实与投递口搬到了 ../../ui-api（跨功能协作只能经那一格）：见 ui-api/git-status.ts
-export { SkillDocumentPane } from './skill-document-pane'
-export { createSkillDocumentStore, type SkillDocumentStore } from './skill-document-store'
 export { AssistantThreadList } from './threads/assistant-thread-list'
 // 工作区选择器属于 workspaces 功能，从那边的 ui-api 取
 export { DelegateChannelContext } from './timeline/delegate-channel-context'

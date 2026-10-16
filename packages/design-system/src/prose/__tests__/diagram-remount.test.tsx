@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, expect, mock, test } from 'bun:test'
 
-import * as diagramTheme from '../prose/diagram-theme'
+import * as diagramTheme from '../diagram-theme'
 
 /*
  * 图行会被虚拟器卸载；回来时不该重跑布局引擎，也不该先出一帧源码面板。引擎与取色都换成替身：真 mermaid 要几百毫秒
@@ -44,14 +44,14 @@ mock.module('@streamdown/mermaid', () => ({
 }))
 
 /* 只换探针、其余出口原样摊回来：mock.module 是进程级的，替身少写一个出口，后面 import 这张模块的测试文件就一起躺枪（只在按目录跑时才现形）。 */
-mock.module('../prose/diagram-theme', () => ({
+mock.module('../diagram-theme', () => ({
   ...diagramTheme,
   diagramInks: () => INKS,
 }))
 
 const { cleanup, render, waitFor } = await import('@testing-library/react')
-const { resetDiagramCacheForTests } = await import('../prose/diagram-cache')
-const { Diagram } = await import('../prose/diagram')
+const { resetDiagramCacheForTests } = await import('../diagram-cache')
+const { Diagram } = await import('../diagram')
 
 beforeEach(() => {
   renderCount = 0

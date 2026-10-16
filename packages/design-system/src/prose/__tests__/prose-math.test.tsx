@@ -1,7 +1,7 @@
 import { afterEach, beforeAll, describe, expect, test } from 'bun:test'
 import { cleanup, render, waitFor } from '@testing-library/react'
-import { currentMath, resetMathForTests } from '../prose/math-plugin'
-import { Prose } from '../prose/prose'
+import { currentMath, resetMathForTests } from '../math-plugin'
+import { Prose } from '../prose'
 
 /* P-06 公式（katex）按需加载：模块级加载状态同文件共享，M1 必须排在 M2 之前（bun 按书写顺序跑）。
  * beforeAll 复位：别处的测试（如 core-recovery.test.tsx）会启动功能、触发首帧预取，留下脏状态。 */

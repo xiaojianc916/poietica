@@ -15,13 +15,13 @@ import {
 import 'streamdown/styles.css'
 import './prose.css'
 
-import { cx } from '../../primitives/class-names'
-import { asIcon, CheckIcon, CopyIcon } from '../../primitives/icons'
-import { useWaveReveal } from '../wave/use-wave-reveal'
+import { clsx } from 'clsx'
 import { DIAGRAM_RENDERER } from './diagram'
+import { asIcon, CheckIcon, CopyIcon } from './icons'
 import { currentMath, loadMath, mayContainMath, subscribeMath } from './math-plugin'
 import { ProseLink } from './prose-link'
 import { ExportableTable } from './table-export'
+import { useWaveReveal } from './wave/use-wave-reveal'
 
 /* 插件表必须是稳定引用：Streamdown 按它的引用做 useMemo，每次给新对象就会重建处理链。 */
 const BASE_PLUGINS: PluginConfig = { cjk, code, renderers: [DIAGRAM_RENDERER] }
@@ -118,7 +118,7 @@ export const Prose = memo(function Prose({
   return (
     <div className="timeline-prose-host" ref={wave.hostRef}>
       <Streamdown
-        className={cx('timeline-prose', wave.active && 'timeline-prose--wave', className)}
+        className={clsx('timeline-prose', wave.active && 'timeline-prose--wave', className)}
         codeBlockMaxHeight={codeBlockMaxHeight}
         components={COMPONENTS}
         controls={CONTROLS}

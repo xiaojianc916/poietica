@@ -17,6 +17,7 @@ export {
   AccordionTrigger,
 } from './control/accordion'
 export { Banner } from './control/banner'
+export { GitBranchPicker, type GitBranchPickerProps } from './control/branch-picker'
 export { Button } from './control/button'
 export { CommandMenu, type CommandMenuGroup, type CommandMenuItem } from './control/command-menu'
 export { ConfirmationDialog } from './control/confirmation-dialog'
@@ -45,6 +46,7 @@ export {
   TooltipProvider,
   TooltipTrigger,
 } from './control/tooltip'
+export { type WorkspaceChoice, WorkspacePicker, type WorkspacePickerProps } from './control/workspace-picker'
 export { focusOnMount } from './focus-on-mount'
 export { formatBytes } from './format-bytes'
 export {

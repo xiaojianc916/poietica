@@ -21,13 +21,9 @@ export {
 } from './composer-assets'
 
 /*
- * 工作区/分支选择器本体也从这个子入口出去。
- *
- * 它画在**输入框下方那一行上下文**里，而那一行的数据（当前分支、分支名单、切换与新建）属于
- * review —— review 不能 import conversation 的 `ui`（feature-cross-impl），所以组件住在这里、
- * 由 review 取用。
+ * 分支选择器本体（GitBranchPicker）住在 design-system：它只认 props、不认识 git 也不调 RPC，
+ * review（输入框那枚 chip）与 conversation（状态面板那一行）各自从 `@poietica/design-system` 取。
  */
-export { GitBranchPicker, type GitBranchPickerProps } from './git-branch-picker'
 
 /*
  * 状态面板「Git 工具」那一格的事实与投递口（见 ./git-status.ts 的头注）。
@@ -181,49 +177,3 @@ export interface ConversationUi {
   readonly draftAttachments: DraftAttachments
 }
 export const ConversationUiToken = defineServiceToken<ConversationUi>('conversation', 'ConversationUi')
-
-/**
- * Markdown 渲染器：把一段 Markdown 画成节点。
- *
- * 能画 markdown 的那一套排版（Prose）属于 conversation 的会话时间线；别的功能要显示一段
- * 用户可见的 Markdown（例如 review 页里 GitHub 上 PR 的正文与评论）时不得 import 本功能的
- * `ui`，所以由 conversation 把渲染器放进服务令牌，消费方直接调用。
- *
- * 渲染是纯的：不认识 IPC，也不需要会话上下文。
- */
-export interface MarkdownRenderer {
-  render(text: string): ReactNode
-}
-export const MarkdownRendererToken = defineServiceToken<MarkdownRenderer>('conversation', 'MarkdownRenderer')
-
-/**
- * 技能文档：看到一份 SKILL.md。
- *
- * 右栏面板由功能经 `panels` 贡献点注入，而**能画 markdown 的那一套排版（Prose）属于
- * conversation**（功能之间不得互相 import ui），所以面板住在 conversation，extensions
- * 只把「人要看这一份」说出来。
- */
-/** SKILL.md 的 frontmatter 读出来的那几格。解析在 extensions 侧做（它认识技能包），
- * 这里只声明跨功能要传的形状。 */
-export interface SkillDocumentFacts {
-  readonly name: string
-  readonly description: string | undefined
-  readonly body: string
-  readonly type: string | undefined
-  readonly whenToUse: string | undefined
-  readonly disableModelInvocation: boolean
-  /** SKILL.md 自己报的毛病（缺 frontmatter、没写 name……），与 legacy 的 issues 同义。 */
-  readonly issues: readonly string[]
-}
-export interface SkillDocument {
-  readonly markdown: string
-  readonly name: string
-  /** 名册里报的那条路径：可能是 SKILL.md 本身，也可能只是目录。 */
-  readonly path: string
-  readonly facts: SkillDocumentFacts
-}
-export interface SkillDocumentPort {
-  /** 打开右侧「技能文档」面板并换成这一份；面板已经开着就只换内容。 */
-  open(document: SkillDocument): void
-}
-export const SkillDocumentToken = defineServiceToken<SkillDocumentPort>('conversation', 'SkillDocument')

@@ -1,4 +1,12 @@
-import { Accordion, AccordionHeader, AccordionItem, AccordionPanel, AccordionTrigger } from '@poietica/design-system'
+import {
+  Accordion,
+  AccordionHeader,
+  AccordionItem,
+  AccordionPanel,
+  AccordionTrigger,
+  GitBranchPicker,
+  type GitBranchPickerProps,
+} from '@poietica/design-system'
 import {
   ArrowRight,
   Bot,
@@ -16,12 +24,7 @@ import {
   SquareTerminal,
 } from 'lucide-react'
 import { type ReactNode, useEffect, useMemo, useRef, useState } from 'react'
-import {
-  GitBranchPicker,
-  type GitBranchPickerProps,
-  useWorkspaceGitFacts,
-  type WorkspaceGitStatus,
-} from '../../../ui-api'
+import { useWorkspaceGitFacts, type WorkspaceGitStatus } from '../../../ui-api'
 import type { SessionGoal } from '../../agent/goal'
 import { useOptionalThreadGoal } from '../../configuration/session-controls-context'
 import type {

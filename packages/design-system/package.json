@@ -10,23 +10,32 @@
     ".": "./src/index.ts",
     "./diff": "./src/diff/index.ts",
     "./diff/surface": "./src/diff/surface.tsx",
+    "./prose": "./src/prose/index.ts",
     "./styles.css": "./src/styles.css"
   },
   "dependencies": {
     "@base-ui/react": "catalog:",
+    "@poietica/foundation": "workspace:*",
+    "@streamdown/cjk": "catalog:",
+    "@streamdown/code": "catalog:",
+    "@streamdown/math": "catalog:",
+    "@streamdown/mermaid": "catalog:",
     "@tanstack/react-virtual": "catalog:",
     "clsx": "catalog:",
     "diff": "catalog:",
+    "katex": "catalog:",
     "lucide-react": "catalog:",
     "shiki": "catalog:",
+    "streamdown": "catalog:",
     "tailwind-merge": "catalog:"
   },
   "devDependencies": {
     "@happy-dom/global-registrator": "catalog:",
     "@poietica/test-kit": "workspace:*",
+    "@testing-library/react": "catalog:",
+    "@types/hast": "catalog:",
     "@types/react": "catalog:",
     "@types/react-dom": "catalog:",
-    "@testing-library/react": "catalog:",
     "react": "catalog:",
     "react-dom": "catalog:",
     "tailwindcss": "catalog:"

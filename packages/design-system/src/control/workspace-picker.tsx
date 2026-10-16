@@ -1,15 +1,15 @@
 import './workspace-picker.css'
 
+import { Check, ChevronDown, FolderClosed, FolderPlus, ListFilter, Plus, Search, X } from 'lucide-react'
+import { useState } from 'react'
+import { focusOnMount } from '../focus-on-mount'
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
-  focusOnMount,
-} from '@poietica/design-system'
-import { Check, ChevronDown, FolderClosed, FolderPlus, ListFilter, Plus, Search, X } from 'lucide-react'
-import { useState } from 'react'
+} from './dropdown-menu'
 
 /* 当前的工作目录，以及换一个 —— 侧栏的第一行（此前另有一栏「工作区」段标题加一枚加号，两个标题说同一件事）。行本身没有悬停：它不是动作，
  * 整行唯一的动作是右侧那枚图标。「最近」不是一份新名单：已有对话的工作区就是最近用过的，那份分组侧栏本来就在画，从 props 进来，不新开存储；

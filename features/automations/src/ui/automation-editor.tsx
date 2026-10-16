@@ -13,9 +13,10 @@ import {
   SegmentedControl,
   type SegmentedOption,
   Switch,
+  type WorkspaceChoice,
+  WorkspacePicker,
 } from '@poietica/design-system'
 import type { Controls, ModelRef } from '@poietica/engine'
-import { type WorkspaceChoice, WorkspacePicker } from '@poietica/feature-workspaces/ui-api'
 import { useFeatureStore } from '@poietica/ui-kernel'
 import { ChevronRight, CirclePause, CirclePlay, Ellipsis, Trash } from 'lucide-react'
 import { type ReactNode, useEffect, useMemo, useState } from 'react'

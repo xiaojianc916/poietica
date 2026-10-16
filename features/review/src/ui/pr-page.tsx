@@ -1,9 +1,5 @@
-import {
-  type ConversationUi,
-  ConversationUiToken,
-  type MarkdownRenderer,
-  MarkdownRendererToken,
-} from '@poietica/feature-conversation/ui-api'
+import { Prose } from '@poietica/design-system/prose'
+import { type ConversationUi, ConversationUiToken } from '@poietica/feature-conversation/ui-api'
 import type { WorkspacesUi } from '@poietica/feature-workspaces/ui-api'
 import { AppError } from '@poietica/foundation'
 import { type ToastService, ToastsToken, type UiFeatureContext, useFeatureStore, useService } from '@poietica/ui-kernel'
@@ -77,6 +73,11 @@ export function CodeReviewPage({ ctx, workspaces, openExternal }: CodeReviewPage
   )
 }
 
+/* PR 正文与评论：GitHub 上的长文，代码块封顶 420px，不走流式。 */
+function renderPullMarkdown(text: string): ReactNode {
+  return <Prose codeBlockMaxHeight={420} mode="static" text={text} />
+}
+
 function CodeReviewBody({
   gateway,
   onFailure,
@@ -87,7 +88,6 @@ function CodeReviewBody({
   readonly openExternal: (url: string) => void
 }): ReactNode {
   const conversation = useService(ConversationUiToken) as ConversationUi
-  const markdown = useService(MarkdownRendererToken) as MarkdownRenderer
   const store = useMemo(
     () => createPrStore({ gateway, report: (context) => onFailure(context.cause) }),
     [gateway, onFailure],
@@ -99,7 +99,6 @@ function CodeReviewBody({
 
   const pull = state.facts.pull
   const repository = state.reading.repository
-  const renderMarkdown = useMemo(() => (text: string) => markdown.render(text), [markdown])
 
   const sendToAgent = (): void => {
     if (pull === null) {
@@ -129,7 +128,7 @@ function CodeReviewBody({
         <PrDetail
           busy={state.busy}
           comments={state.comments}
-          markdown={renderMarkdown}
+          markdown={renderPullMarkdown}
           onComment={store.comment}
           onDraft={store.setDraft}
           onSetDraftState={store.setDraftState}

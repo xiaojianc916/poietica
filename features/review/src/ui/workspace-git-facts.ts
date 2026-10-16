@@ -1,4 +1,5 @@
-import type { GitBranchPickerProps, WorkspaceGitFacts } from '@poietica/feature-conversation/ui-api'
+import type { GitBranchPickerProps } from '@poietica/design-system'
+import type { WorkspaceGitFacts } from '@poietica/feature-conversation/ui-api'
 import type { ReviewReading } from './review-store'
 
 /* 审查 store 的一份读数 → 状态面板那一格要的事实。纯函数，判据是**这一个函数**说了算：只有 ready 才有事实，notARepository 与

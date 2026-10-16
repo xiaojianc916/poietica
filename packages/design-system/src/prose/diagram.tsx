@@ -2,10 +2,9 @@ import { invariant } from '@poietica/foundation'
 import { code as painter } from '@streamdown/code'
 import { type CSSProperties, useCallback, useEffect, useId, useMemo, useRef, useState } from 'react'
 import { CodeBlockCopyButton } from 'streamdown'
-
-import { CodeIcon, PreviewIcon } from '../../primitives/icons'
 import { cachedInks, cachedSvg, currentTheme, keepInks, keepSvg, peekSvg, svgKey } from './diagram-cache'
 import { DIAGRAM_CSS, type DiagramInks, diagramInks } from './diagram-theme'
+import { CodeIcon, PreviewIcon } from './icons'
 
 /* 自定义渲染器排在上游 mermaid 分支之前，接管 mermaid 围栏；面板样式归 timeline.css。isIncomplete 由上游给（围栏未闭合）：期间屏幕上是源码。 */
 

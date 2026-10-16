@@ -1,5 +1,3 @@
-/// <reference path="../../../../packages/design-system/src/css.d.ts" />
-
 import { defineServiceToken } from '@poietica/foundation'
 import { type FeatureStore, useFeatureStoreShallow } from '@poietica/ui-kernel'
 import type { Workspace } from '../contract'
@@ -19,9 +17,8 @@ export interface WorkspacesUi {
 }
 export const WorkspacesUiToken = defineServiceToken<WorkspacesUi>('workspaces', 'WorkspacesUi')
 
-/* 工作区选择器有两处落点（侧栏第一行由本功能自己画；新对话输入框下方那一行由 conversation 画），新架构里只有一份，住在这里，
- * conversation 经这个子入口取用。 */
-export { type WorkspaceChoice, WorkspacePicker, type WorkspacePickerProps } from './workspace-picker'
+/* 工作区选择器（WorkspacePicker）只认 props、不持有工作区状态，住在 design-system：conversation（新对话输入框下方）与
+ * automations（编辑器）各自从 `@poietica/design-system` 取，数据从本入口的 WorkspacesUi 拿。 */
 
 /**
  * 一处的「项目名单 + 当前项目」，**订阅**着读。`WorkspacesUi.store` 是 zustand 的 vanilla store：getState() 拿到的是一次性快照。首帧时它还是

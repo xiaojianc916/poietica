@@ -14,7 +14,6 @@ import {
   type UiFeatureContext,
 } from '@poietica/ui-kernel'
 import { createConversationApi } from '../api'
-import { createSkillDocumentStore } from '../components/skill-document-store'
 import { createPostureIntent } from '../configuration/posture-intent'
 import { type ConversationStores, createStores } from '../session'
 import { createSessionRegistry, type SessionRegistry } from '../session/session-registry'
@@ -53,8 +52,6 @@ export function createConversationSetup(ctx: UiFeatureContext) {
       for (const row of rows) transcripts.upsertSubmission(threadId, row)
     },
   })
-  /* 右栏「技能文档」看的那一份。 */
-  const skillDocuments = createSkillDocumentStore()
   const layout = ctx.services.get(LayoutToken) as LayoutService
 
   return {
@@ -68,7 +65,6 @@ export function createConversationSetup(ctx: UiFeatureContext) {
     preferences,
     prefs,
     sessions,
-    skillDocuments,
     stores,
     toasts,
     transcripts,

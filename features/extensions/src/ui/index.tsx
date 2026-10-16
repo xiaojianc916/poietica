@@ -10,7 +10,7 @@ import { SkillsSettingsPage } from './skills-settings'
 
 export default defineUiFeature({
   id: 'extensions',
-  /* conversation：技能页的「查看 SKILL.md」落到右坞那一格（能画 markdown 的 Prose 属于会话，守则 3 不许 extensions 直接取）；
+  /* conversation：输入框的工具名册（composerToolkitSources）；
    * platform：技能页的「从文件夹安装 / 从 zip 安装」走 dialog.pickFolder / dialog.pickFiles。 */
   dependsOn: ['conversation', 'platform'],
   setup(ctx) {

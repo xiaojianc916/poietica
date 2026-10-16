@@ -1,4 +1,5 @@
-import { type GitBranchPickerProps, workspaceGitContext } from '@poietica/feature-conversation/ui-api'
+import type { GitBranchPickerProps } from '@poietica/design-system'
+import { workspaceGitContext } from '@poietica/feature-conversation/ui-api'
 import { type WorkspacesUi, WorkspacesUiToken } from '@poietica/feature-workspaces/ui-api'
 import { useFeatureStore, useService } from '@poietica/ui-kernel'
 import { type ReactNode, useCallback, useMemo, useState } from 'react'
