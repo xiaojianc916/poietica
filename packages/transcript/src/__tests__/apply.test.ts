@@ -1,9 +1,9 @@
 // 迁移自 legacy 对 applyOperation 语义的用例（11 页 P1.4）：输入改为新接口 applyOps，
 // 断言意图一条不删；只测 AgentTranscript 类本身（监听器、roster）的用例不迁移。
 import { describe, expect, test } from 'bun:test'
+import { frameId, stepId, turnId } from '../model/ids'
+import type { StepHeader, TranscriptOperation, TurnHeader } from '../ops/operation'
 import { applyOps, emptyTimeline, pageFromState, stateFromPage } from '../timeline'
-import { frameId, stepId, turnId } from '../upstream/model/ids'
-import type { StepHeader, TranscriptOperation, TurnHeader } from '../upstream/ops/operation'
 
 const S1 = stepId(turnId(1), 1)
 const turnHeader = (n: number): TurnHeader => ({

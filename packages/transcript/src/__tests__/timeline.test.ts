@@ -1,4 +1,7 @@
 import { describe, expect, test } from 'bun:test'
+import type { TranscriptFrame } from '../model/frame'
+import { frameId, stepId, turnId } from '../model/ids'
+import type { StepHeader, TranscriptOperation, TurnHeader } from '../ops/operation'
 import {
   applyOps,
   emptyTimeline,
@@ -11,9 +14,6 @@ import {
   transcriptOperationSchema,
   transcriptPageSchema,
 } from '../timeline'
-import type { TranscriptFrame } from '../upstream/model/frame'
-import { frameId, stepId, turnId } from '../upstream/model/ids'
-import type { StepHeader, TranscriptOperation, TurnHeader } from '../upstream/ops/operation'
 
 const emptyPage = (): TranscriptPage => ({
   items: [],

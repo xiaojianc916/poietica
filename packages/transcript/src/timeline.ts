@@ -1,9 +1,9 @@
 import type { z } from 'zod'
-import { agentTranscriptSnapshotSchema, transcriptOperationSchema as operationSchema } from './upstream/contract/schema'
-import type { TurnId } from './upstream/model/ids'
-import { itemId } from './upstream/model/item'
-import { type AgentState, applyOperation, EMPTY_AGENT_STATE } from './upstream/ops/apply'
-import type { AgentTranscriptSnapshot, AppendTarget, TranscriptOperation } from './upstream/ops/operation'
+import { agentTranscriptSnapshotSchema, transcriptOperationSchema as operationSchema } from './contract/schema'
+import type { TurnId } from './model/ids'
+import { itemId } from './model/item'
+import { type AgentState, applyOperation, EMPTY_AGENT_STATE } from './ops/apply'
+import type { AgentTranscriptSnapshot, AppendTarget, TranscriptOperation } from './ops/operation'
 
 /** 线上传输的时间线快照（纯 JSON），即上游的 AgentTranscriptSnapshot。 */
 export type TranscriptPage = AgentTranscriptSnapshot
@@ -16,7 +16,7 @@ export type TimelineState = AgentState
  * **输出类型**钉回模型：zod 的推断会把可选字段放宽成 `?: T | undefined`、把 readonly 去掉，与模型在
  * exactOptionalPropertyTypes 之下的形状不同（而线上跑的就是模型那一份 JSON）。不钉住的话，引擎端口
  * 交出的 `page`（模型类型）就没法与契约推导出的类型互相赋值 —— 两边说的是同一件事。
- * 两份是否同形由 `upstream/contract/parity.ts` 在编译期对拍（schema 输出 ⊆ 模型）。
+ * 两份是否同形由 `contract/parity.ts` 在编译期对拍（schema 输出 ⊆ 模型）。
  */
 export const transcriptPageSchema: z.ZodType<TranscriptPage> =
   agentTranscriptSnapshotSchema as unknown as z.ZodType<TranscriptPage>

@@ -100,7 +100,7 @@
   },
   "overrides": [
     {
-      "includes": ["packages/transcript/src/upstream/ops/apply.ts"],
+      "includes": ["packages/transcript/src/ops/apply.ts"],
       "linter": {
         "rules": {
           "complexity": {
