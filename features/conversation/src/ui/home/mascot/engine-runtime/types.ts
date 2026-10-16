@@ -107,7 +107,7 @@ export interface EngineOptions {
   [extra: string]: unknown
 }
 
-/** 引擎对外能力：与 src/ui/components/mascot 的运行时接口一致 */
+/** 引擎对外能力：与 src/ui/home/mascot 的运行时接口一致 */
 export interface EngineHandle {
   readonly emotionId: string | null
   readonly touring: boolean

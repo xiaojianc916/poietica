@@ -110,6 +110,12 @@ CoreSupervisor（启动/重启/关闭 Core，含退避与 crash loop 判定）�
   conversation，再经类型被擦掉的服务令牌（`MarkdownRendererToken`、`SkillDocumentToken`）漏给别的功能。
 - 只被一个功能用的界面留在那个功能里，哪怕它很大（例如 conversation 的吉祥物）。
 
+**功能内部按区分目录。** 一个功能大到有多个区域时，每个区一个目录，区里自带状态与视图，区与区之间只能经
+`<区>/index` 互相引用；`shared/` 收跨区的模型、词表与基础件，且**不得反向依赖任何区**。conversation 是
+第一个这样组织的功能（`ui/{threads,composer,timeline,session,status,home,shared}`），两条规则由 depcruise
+的 `conversation-area-via-index` 与 `conversation-shared-is-leaf` 把关。跨功能共享的界面仍然下沉到
+design-system，不进区里。
+
 ## 5. 契约与协议
 
 每个功能在自己的 `contract` 子入口用 zod 定义方法与通知；`@poietica/protocol` 只做汇总、
