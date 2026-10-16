@@ -128,8 +128,12 @@
   display: flex;
   flex-direction: column;
   gap: 2px;
+  /* 选项多时（/review 选提交一次二十条）在面板里滚，不把输入框顶出视口 */
+  max-height: min(320px, 40vh);
   margin: 0;
   padding: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
   list-style: none;
 }
 
@@ -174,8 +178,11 @@
   flex: none;
   color: var(--cp-ink-subtle);
   font-size: var(--cp-font-micro);
+  /* 两位数序号与一位数对齐：10 起不把圆点和正文往右推 */
+  min-width: 2ch;
   font-variant-numeric: tabular-nums;
   line-height: var(--ui-line-height-normal);
+  text-align: right;
 }
 
 .assistant-question-panel__mark {
@@ -276,6 +283,7 @@
 
 .assistant-dialog-panel__text {
   min-height: 72px;
+  max-height: 40vh;
   resize: vertical;
   line-height: var(--ui-line-height-normal);
 }
