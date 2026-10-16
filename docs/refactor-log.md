@@ -3874,3 +3874,10 @@ design-system（review 那处 `as MarkdownRenderer` 一并去掉）；新增 dep
 - `bun test`（10 个相关包）：1296 pass / 0 fail。
 - 真机冒烟：`apps/desktop` 的 `electron-vite build` 成功（renderer + main + preload 全部产出，
   3.03 MB 入口闭包）。
+
+**Q2-2 顺手做（实测后收口）**：`cx` 与 design-system 的 `cn` 是同一件事的两份实现，6 个调用点改用 `cn`，
+`shared/primitives/class-names.ts` 删除。**tabs / disclosure / icons 三项不可做**：design-system 里根本没有
+对应模块（`ls packages/design-system/src/control | grep -iE "tabs|disclos"` 为空），没有「换成 design-system 的」
+这个动作；这些是 conversation 自己的形状，留在 `shared/primitives` 是对的。`formatByteSize` 的手写格式化
+（`1.5KB` 无空格、无千分位）与 `formatBytes`（`1.5 KB`、`1,023 B`）是两套排版，合并会改可见文案，所以只把
+**格式化**归一到 `formatBytes`，`fileMetaLabel` 的输出随之变为 `PNG 1.5 KB`（无测试钉住旧写法）。
