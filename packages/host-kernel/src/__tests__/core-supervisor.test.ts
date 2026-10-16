@@ -487,4 +487,67 @@ describe('CoreSupervisor', () => {
     expect(lines).toContain('one')
     expect(lines).toContain('two')
   })
+
+  test('S-26 spawn 失败只发 error、不发 exit：按崩溃退避重启，不停在 starting', async () => {
+    const s = await setup()
+    const started = s.sup.start()
+    await tick()
+    const child = s.spawned[0]!.child
+    Reflect.set(child, 'pid', undefined)
+    child.emit('error', Object.assign(new Error('spawn EBUSY'), { code: 'EBUSY' }))
+    await started
+    expect(s.sup.status.state).toBe('restarting')
+    expect(s.sup.status.reason).toBe('crashed')
+    s.clock.advance(500)
+    await tick()
+    expect(s.spawned.length).toBe(2)
+    ready(s.spawned[1]!.child)
+    await waitFor(() => s.sup.status.state === 'ready')
+  })
+
+  test('S-27 spawn 失败之后若仍补发 exit：只算一次崩溃', async () => {
+    const s = await setup()
+    const started = s.sup.start()
+    await tick()
+    const child = s.spawned[0]!.child
+    Reflect.set(child, 'pid', undefined)
+    child.emit('error', new Error('spawn ENOENT'))
+    exitChild(child, -2)
+    await started
+    expect(s.sup.status.attempt).toBe(1)
+  })
+
+  test('S-28 launch 里抛错（取端口失败）：start 不抛、进退避，之后能自愈', async () => {
+    let calls = 0
+    const s = await setup({
+      pickPort: async () => {
+        calls++
+        if (calls === 1) throw new Error('no free port')
+        return 12345
+      },
+    })
+    await s.sup.start()
+    expect(s.sup.status.state).toBe('restarting')
+    expect(s.log.at('error').some((r) => r.msg === 'core launch failed')).toBe(true)
+    s.clock.advance(500)
+    await tick()
+    expect(s.spawned.length).toBe(1)
+    ready(s.spawned[0]!.child)
+    await waitFor(() => s.sup.status.state === 'ready')
+  })
+
+  test('S-29 launch 持续抛错：窗口内超过上限进 failed/crash_loop，而不是无限重试', async () => {
+    const s = await setup({
+      pickPort: async () => {
+        throw new Error('no free port')
+      },
+    })
+    await s.sup.start()
+    for (let i = 0; i < 6; i++) {
+      s.clock.advance(8_000)
+      await tick()
+    }
+    expect(s.sup.status.state).toBe('failed')
+    expect(s.sup.status.reason).toBe('crash_loop')
+  })
 })

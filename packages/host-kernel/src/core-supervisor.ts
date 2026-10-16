@@ -116,7 +116,7 @@ export class CoreSupervisor {
     if (this.state !== 'idle' && this.state !== 'failed' && this.state !== 'stopped') return
     this.reason = null
     this.setState('starting')
-    await this.launch()
+    await this.launchSafely()
   }
 
   /** 清空崩溃记录，停止当前进程（如有），再启动。 */
@@ -217,6 +217,31 @@ export class CoreSupervisor {
     })
   }
 
+  /**
+   * launch 的唯一入口：launch 里任何一步抛错（取端口、建目录、spawn 同步抛错）都按「这一代起不来」处理，
+   * 走与崩溃同一条退避路径。否则 start() 的 Promise 带着异常被 `void` 掉，状态永远停在 starting，
+   * UI 只能看到每个请求排队 30 秒后报「Core 启动超时」，而看护人再也不会重试。
+   */
+  private async launchSafely(): Promise<void> {
+    const gen = this.generation + 1
+    try {
+      await this.launch()
+    } catch (e) {
+      if (this.stale(gen)) return
+      this.o.logger.error('core launch failed', { error: String(e) })
+      /* 进程已经 spawn 出来（抛错发生在接线阶段）：杀掉它，由它的 'exit' 走 onExit；否则直接记一次崩溃 */
+      const child = this.child
+      if (child?.pid !== undefined && child.exitCode === null) {
+        await (this.o.kill ?? killTree)(child.pid)
+        return
+      }
+      this.peer?.dispose()
+      this.peer = undefined
+      this.child = undefined
+      this.crashed()
+    }
+  }
+
   private async launch(): Promise<void> {
     const gen = ++this.generation
     if (!existsSync(this.o.coreExe)) {
@@ -258,14 +283,24 @@ export class CoreSupervisor {
         else this.o.onNotification(method, params)
       },
     })
-    child.once('error', (err) => {
-      this.o.logger.error('core spawn error', { error: String(err) })
-      ready.reject(err)
-    })
-    child.once('exit', (code, signal) => {
+    /*
+     * 'exit' 与「spawn 失败的 'error'」都表示这一代结束了，但 Node 不保证 spawn 失败之后还会有 'exit'
+     * （ENOENT / EACCES / 杀软占用 exe 时的 EBUSY、EPERM 都只发 'error'）。两者收进同一个只走一次的出口；
+     * 已经起来的进程上的 'error'（例如 kill 失败）不是退出，只记日志。
+     */
+    let ended = false
+    const end = (code: number | null, signal: NodeJS.Signals | null): void => {
+      if (ended) return
+      ended = true
       stderr.flush()
       this.onExit(gen, code, signal)
+    }
+    child.once('error', (err) => {
+      this.o.logger.error('core spawn error', { error: String(err), spawned: child.pid !== undefined })
+      ready.reject(err)
+      if (child.pid === undefined) end(null, null)
     })
+    child.once('exit', (code, signal) => end(code, signal))
 
     let payload: ReadyPayload
     try {
@@ -281,7 +316,8 @@ export class CoreSupervisor {
         return
       }
       this.o.logger.error('core did not become ready', { error: String(e) })
-      this.reason = 'start_timeout'
+      /* 只有真的等满了才是 start_timeout；spawn 失败已经由上面的出口按崩溃处理过了 */
+      if (child.pid !== undefined && this.reason === null) this.reason = 'start_timeout'
       await this.killChild(child)
       return // 由 onExit 进入退避重启
     }
@@ -342,6 +378,11 @@ export class CoreSupervisor {
       this.fail('start_failed')
       return
     }
+    this.crashed()
+  }
+
+  /** 这一代非确定性地结束了（崩溃、起不来）：记一次崩溃，退避后重启；窗口内超过上限进 failed/crash_loop。 */
+  private crashed(): void {
     const now = this.clock.now()
     this.crashes = [...this.crashes.filter((t) => now - t < CRASH_WINDOW_MS), now]
     if (this.crashes.length > MAX_CRASHES_IN_WINDOW) {
@@ -353,7 +394,7 @@ export class CoreSupervisor {
     this.setState('restarting')
     this.restartTimer = this.clock.setTimeout(() => {
       this.restartTimer = undefined
-      if (this.state === 'restarting') void this.launch()
+      if (this.state === 'restarting') void this.launchSafely()
     }, delay)
   }
 

@@ -3344,3 +3344,55 @@ RPC 契约与 `PROTOCOL_VERSION` 不变；conversation 新增迁移 v3（只删�
 **没改的**：段的划分仍然不同（增量一轮一段）。想彻底去掉「开着轮时不整页重取」这条限制，下一步是让增量
 那条路也按助手消息切段（stepId 同样由消息身份派生），可以另开一份独立方案。目标续跑、压缩这两个场景的
 真 omp 三方对照仍只有逐例测试。
+
+---
+
+## R-28 CoreSupervisor 拉起失败自愈：spawn 只发 `error`、`launch()` 抛错都不再停在 `starting`（基于 32cbc5e）
+
+**来源**：外部补丁 `poietica-core-supervisor-launch-failure.patch`（方案方给出，含 S-26…S-29 四条测试）。
+
+**现象**：Core 拉不起来时，`CoreSupervisor` 会**永远停在 `starting`** —— 界面上请求排队 30 秒后统一报
+「Core 启动超时」，之后也不再重试。触发面是两类真实场景：spawn 只发 `'error'` 不发 `'exit'`
+（ENOENT / EACCES；Windows 上杀软扫描刚落盘的 exe 或被占用时的 EBUSY / EPERM 就是这样），
+以及 `pickPort` / `mkdirSync` / 同步抛出的 spawn 自己抛错。
+
+**根因**：三条都通向同一个「没人收尾」：
+
+1. 崩溃退避整条路径挂在 `onExit` 上，而 `child_process.spawn` 拉不起进程时**不保证**再发 `'exit'`
+   （本机实测：不存在的 exe → 只发 `error` ENOENT、`pid === undefined`、无 `exit`；
+   非可执行文件 → `spawn` **同步**抛 `EFTYPE`，连 `error` 事件都没有）。
+2. `launch()` 的异常顺着 `void supervisor.start()` / `void this.launch()` 变成没人接的 rejection
+   （违反 AGENTS §8.1），状态同样停在 `starting`。
+3. 失败原因被记成 `start_timeout` —— 而这一条其实是「等满 45 秒没 ready」，与拉不起来是两回事。
+
+**改法**（只改 `packages/host-kernel/src/core-supervisor.ts`，无契约变更、不新增状态）：
+
+1. **单次收尾的 `end()`**：`'exit'` 与「spawn 失败的 `'error'`」（`pid === undefined`）走同一个
+   只生效一次的出口，先 `error` 再补发 `exit` 时只算一次崩溃；已经起来的进程上的 `'error'`
+   （例如 kill 失败）不是退出，只记日志。
+2. **`launchSafely()` 包住 `launch()`**：抛错时进程已起 → kill 掉交给正常的 exit 路径；还没起 →
+   清掉 `peer` / `child` 直接走 `crashed()`。`start()` 与退避定时器两个入口都改走它。
+3. **退避路径从 `onExit` 抽成 `crashed()`**：exit、spawn 失败、launch 抛错三个入口共用一份，
+   不会各写一遍再漂移。
+4. **`start_timeout` 只在进程真起来之后才记**（`child.pid !== undefined && this.reason === null`），
+   不再挪用来描述 spawn 失败。
+
+**测试**：`packages/host-kernel/src/__tests__/core-supervisor.test.ts` 新增 S-26…S-29（只发 error、
+error 后补发 exit 只算一次、`pickPort` 抛一次错后自愈、`launch` 持续抛错最终 `failed/crash_loop`）。
+旧代码上 3/4 失败（S-27 本来就是绿的：那条在旧代码上只是没测到新语义），新代码 29/29；`bun run all`
+全绿（2319 pass / 0 fail，289 文件）。
+
+**真机验收（脚本化，真实的 `apps/core/dist/poietica-core.exe`，真时钟、真 spawn / `taskkill`，未入库）**：
+
+| 场景 | 旧代码 | 新代码 |
+| --- | --- | --- |
+| exe 路径下什么都没有（等价杀软隔离 / 卸载不干净） | `failed/core_missing`，请求 0ms 报 `kernel.core_unavailable` | 同左（原有路径，未被本次改动影响） |
+| exe 路径被目录占住（路径在、拉不起来） | `error` 一到位就把原因记成 `start_timeout`，然后**永远停在 `starting`**（第 40 秒仍在 `starting/start_timeout`，一次都没退避；`onExit` 等不到） | `starting → restarting/crashed@1…@5 → failed/crash_loop@6`（15.5 秒，正好 500+1s+2s+4s+8s），此后请求 0ms 立即失败 |
+| exe 位置放垃圾文件（spawn 同步抛错；bun 下报 `EUNKNOWN / uv_spawn`，node 下报 `EFTYPE`） | **异常直接冒出 `start()`**（真机上就是 `kernel.ts` 的 `void supervisor.start()` 变成未处理 rejection），状态停在 `starting` | 同样走退避到 `failed/crash_loop`，`start()` 不抛 |
+| exe 恢复后点重试（P2 验收 2） | — | `restart()` → `ready`（2.3 秒），relay 端口已分配，`stop()` → `stopped` |
+
+**没改的**：退避参数、`crash_loop` 判据、RPC 契约、界面文案都没动；与《core-kernel：启动途中被叫停》
+那份方案互补（这份管 Host 侧重拉，那份管 Core 侧真的退出），两份一起打时重启不会和占着 SQLite 的
+孤儿进程打架。`start_timeout` 这一档仍在（真的等满 `READY_TIMEOUT_MS` 时用），对应「Core 起来了但
+一直没 ready」。
+
