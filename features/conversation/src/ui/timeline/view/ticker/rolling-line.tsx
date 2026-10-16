@@ -1,10 +1,10 @@
 import './rolling-line.css'
 import './shimmer.css'
 
+import { cn } from '@poietica/design-system'
 import { systemClock } from '@poietica/foundation'
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react'
 import { memo, useEffect, useLayoutEffect, useRef, useState } from 'react'
-import { cx } from '../../../shared/primitives/class-names'
 import { StaticLine, TickerLine } from './marquee-track'
 import { createRollScheduler, FAST_ROLL_MS, type LineSnapshot, ROLL_MS } from './roll-scheduler'
 
@@ -80,7 +80,7 @@ export const RollingLine = memo(function RollingLine({
       <AnimatePresence initial={false} mode="popLayout">
         <motion.span
           animate={{ opacity: 1, y: 0 }}
-          className={cx('rolling-line__slot', shimmer && 'timeline-shimmer')}
+          className={cn('rolling-line__slot', shimmer && 'timeline-shimmer')}
           data-line-key={line.key}
           exit={{ opacity: 0, y: `-${ROLL_DISTANCE}` }}
           initial={{ opacity: 0, y: ROLL_DISTANCE }}

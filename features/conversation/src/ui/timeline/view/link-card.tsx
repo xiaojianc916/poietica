@@ -2,7 +2,7 @@ import './flow-row.css'
 import './ticker/shimmer.css'
 import './tools/tool-call.css'
 
-import { cx } from '../../shared/primitives/class-names'
+import { cn } from '@poietica/design-system'
 import { DisclosureBody } from '../../shared/primitives/disclosure'
 import { ChevronDownIcon, LinkIcon } from '../../shared/primitives/icons'
 import type { LinkTimelineItem } from '../../shared/timeline/timeline-contract'
@@ -44,7 +44,7 @@ export function LinkCard({
       <button aria-expanded={isOpen} className="timeline-row" onClick={onToggle} type="button">
         <LinkIcon aria-hidden="true" className="timeline-row__icon" />
 
-        <span className={cx('timeline-row__label', isInFlight && 'timeline-shimmer')}>{line}</span>
+        <span className={cn('timeline-row__label', isInFlight && 'timeline-shimmer')}>{line}</span>
 
         <ChevronDownIcon aria-hidden="true" className="timeline-row__chevron disclosure__chevron" />
       </button>

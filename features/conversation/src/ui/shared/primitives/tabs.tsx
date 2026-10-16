@@ -1,8 +1,7 @@
 import './tabs.css'
 
+import { cn } from '@poietica/design-system'
 import type { KeyboardEvent } from 'react'
-
-import { cx } from './class-names'
 
 /**
  * 分段切换。照 W3C ARIA APG 的 Tabs Pattern：role 三件套 + aria-selected + roving tabindex
@@ -74,7 +73,7 @@ export function TabList({
   }
 
   return (
-    <div aria-label={label} className={cx('tabs', className)} onKeyDown={onKeyDown} role="tablist">
+    <div aria-label={label} className={cn('tabs', className)} onKeyDown={onKeyDown} role="tablist">
       {options.map((option) => {
         const isActive = option.id === activeId
 

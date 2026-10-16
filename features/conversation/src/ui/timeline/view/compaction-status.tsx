@@ -2,8 +2,8 @@ import './flow-row.css'
 import './ticker/shimmer.css'
 import './tools/tool-call.css'
 
+import { cn } from '@poietica/design-system'
 import { Prose } from '@poietica/design-system/prose'
-import { cx } from '../../shared/primitives/class-names'
 import { DisclosureBody } from '../../shared/primitives/disclosure'
 import { ChevronDownIcon, CompactionIcon } from '../../shared/primitives/icons'
 import type { CompactionTimelineItem } from '../../shared/timeline/timeline-contract'
@@ -65,7 +65,7 @@ export function CompactionStatus({
     <>
       <CompactionIcon aria-hidden="true" className="timeline-row__icon" />
 
-      <span className={cx('timeline-row__label', item.state === 'running' && 'timeline-shimmer')}>{label}</span>
+      <span className={cn('timeline-row__label', item.state === 'running' && 'timeline-shimmer')}>{label}</span>
     </>
   )
 

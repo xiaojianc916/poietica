@@ -4,6 +4,7 @@ import { ContentEditable } from '@lexical/react/LexicalContentEditable'
 import { LexicalErrorBoundary } from '@lexical/react/LexicalErrorBoundary'
 import { HistoryPlugin } from '@lexical/react/LexicalHistoryPlugin'
 import { PlainTextPlugin } from '@lexical/react/LexicalPlainTextPlugin'
+import { cn } from '@poietica/design-system'
 import { invariant } from '@poietica/foundation'
 import { FeatureScope, useContributions } from '@poietica/ui-kernel'
 import {
@@ -42,7 +43,6 @@ import {
 import { useAttachmentIntake } from '../../../ui-api/composer-assets'
 import type { ChatStatus } from '../../shared/model/run'
 import type { PromptConfiguration, PromptSkill } from '../../shared/model/session'
-import { cx } from '../../shared/primitives/class-names'
 import { ResumeIcon, StopIcon, SubmitIcon } from '../../shared/primitives/icons'
 import { $createChipNode, ChipNode, type PromptChipValue, samePromptChip } from '../../shared/primitives/prompt-chip'
 import { type ComposerAsset, isInlineAttachment } from '../attachment'
@@ -779,7 +779,7 @@ function PromptInputShell({
         <DraftContext value={draft}>
           <ContributedDraftContext value={contributedDraft}>
             <Shell
-              className={cx('assistant-prompt-input', className)}
+              className={cn('assistant-prompt-input', className)}
               data-slot="prompt-input"
               onDragOver={(event) => {
                 /* 有贡献者接拖放时才允许落下；否则浏览器按默认处理（打开文件）。 */

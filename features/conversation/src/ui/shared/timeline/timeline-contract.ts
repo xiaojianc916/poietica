@@ -1,3 +1,4 @@
+import { formatBytes } from '@poietica/design-system'
 import type { TranscriptUsage } from '@poietica/transcript'
 import type { SessionLink } from '../model/link'
 import type { ApprovalDecision, ApprovalScope } from '../model/permission'
@@ -26,27 +27,12 @@ export function fileExtensionLabel(name: string): string {
   return extension === '' ? '文件' : extension.slice(0, 5).toUpperCase()
 }
 
+/** 字节数的界面写法：格式化只有 design-system 那一份（`formatBytes`），这里只补「没报大小就不写」这一条。 */
 export function formatByteSize(bytes: number | undefined): string | undefined {
   if (bytes === undefined || !Number.isFinite(bytes) || bytes < 0) {
     return undefined
   }
-  if (bytes < 1024) {
-    return `${String(bytes)}B`
-  }
-  const units = ['KB', 'MB', 'GB', 'TB']
-  let value = bytes
-  let unit = -1
-  do {
-    value /= 1024
-    unit += 1
-  } while (value >= 1024 && unit < units.length - 1)
-  const shown =
-    value >= 100 || Number.isInteger(value) ? String(Math.round(value)) : value.toFixed(2).replace(/\.?0+$/, '')
-  // 四舍五入能把 1023.99 推成 1024：那是下一个单位。
-  if (Number(shown) >= 1024 && unit < units.length - 1) {
-    return `1${units[unit + 1]}`
-  }
-  return `${shown}${units[unit]}`
+  return formatBytes(bytes)
 }
 
 export function fileMetaLabel(name: string, size: number | undefined): string {

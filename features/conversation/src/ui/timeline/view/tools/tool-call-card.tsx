@@ -3,9 +3,8 @@ import '../ticker/shimmer.css'
 import './tool-call.css'
 import './tool-group.css'
 
-import { GithubMark } from '@poietica/design-system'
+import { cn, GithubMark } from '@poietica/design-system'
 import { type DiffStat, diffStatOf } from '@poietica/design-system/diff'
-import { cx } from '../../../shared/primitives/class-names'
 import { DisclosureBody } from '../../../shared/primitives/disclosure'
 import {
   BrainIcon,
@@ -154,7 +153,7 @@ function ToolCallHeader({
     <button aria-expanded={isChannel ? undefined : isOpen} className="timeline-row" onClick={onToggle} type="button">
       <ToolGlyphIcon name={item.invokedTool} scheme={item.scheme} />
 
-      <span className={cx('timeline-row__label', isRunning && 'timeline-shimmer')}>{line}</span>
+      <span className={cn('timeline-row__label', isRunning && 'timeline-shimmer')}>{line}</span>
 
       {item.isBackground === true ? <span className="timeline-tool__background">后台</span> : null}
 
@@ -206,7 +205,7 @@ export function ToolCallCard({
         <button aria-expanded={isOpen} className="timeline-row" onClick={onToggle} type="button">
           <ToolGlyphIcon name={item.invokedTool} scheme={item.scheme} />
 
-          <span className={cx('timeline-row__label', view.isRunning && 'timeline-shimmer')}>
+          <span className={cn('timeline-row__label', view.isRunning && 'timeline-shimmer')}>
             {sayToolCount(item.kind, item.channels.length)}
           </span>
 
