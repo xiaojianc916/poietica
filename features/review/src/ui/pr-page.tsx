@@ -148,11 +148,6 @@ function CodeReviewBody({
         <div className="pr-page__actions">
           <PrDetailActions
             busy={state.busy}
-            onCopyLink={() => {
-              if (pull !== null) {
-                void navigator.clipboard.writeText(pull.url)
-              }
-            }}
             onMerge={store.merge}
             onOpenExternal={() => {
               if (pull !== null) {

@@ -2,7 +2,6 @@ import { Database as BunDatabase, type Statement } from 'bun:sqlite'
 import { assertOwnTables, tablePrefix } from './sql-guard'
 
 export type SqlValue = string | number | bigint | boolean | null | Uint8Array
-export type SqlParams = readonly SqlValue[] | Record<string, SqlValue>
 
 /** 模块能拿到的唯一数据库对象：所有 SQL 在 prepare/exec 时检查只引用本模块前缀的表 */
 export interface ModuleDatabase {

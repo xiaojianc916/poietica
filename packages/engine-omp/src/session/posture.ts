@@ -11,20 +11,9 @@ export const POSTURE_MODE: Readonly<Record<Posture, string>> = Object.freeze({
   'full-access': 'yolo',
 })
 
-const MODE_POSTURE: Readonly<Record<string, Posture>> = Object.freeze({
-  'always-ask': 'ask',
-  write: 'auto-edit',
-  yolo: 'full-access',
-})
-
 /** 按会话生效：写在会话设置（root.overlay()）的 override 层，不落盘、不串会话 */
 export function applyPosture(scope: SettingsScope, posture: Posture): void {
   overrideSetting(scope, 'tools.approvalMode', POSTURE_MODE[posture])
-}
-
-export function readPosture(scope: SettingsScope): Posture {
-  const mode = readSetting(scope, 'tools.approvalMode')
-  return (typeof mode === 'string' ? MODE_POSTURE[mode] : undefined) ?? 'ask'
 }
 
 /**

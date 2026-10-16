@@ -15,25 +15,12 @@ export interface ThreadListItem {
   readonly workspaceId: string
 }
 
-export interface ThreadsList {
-  readonly items: readonly ThreadListItem[]
-  readonly isLoading: boolean
-  readonly failure: string | null
-}
-
 /** 一个工作区，以及它下面的对话。 */
 export interface ThreadWorkspaceGroup {
   readonly id: string
   /** 叫什么；null 表示目录还没被记下来 —— 这里如实说「不知道」，不编名字塞进来。 */
   readonly name: string | null
   readonly items: readonly ThreadListItem[]
-}
-
-/** 分好组的列表。侧栏读的就是这个。 */
-export interface ThreadWorkspaceList {
-  readonly groups: readonly ThreadWorkspaceGroup[]
-  readonly isLoading: boolean
-  readonly failure: string | null
 }
 
 /* 缺席就是「默认那一个」：那一列可空、不回填、不需要兼容层。 */

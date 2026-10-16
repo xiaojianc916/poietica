@@ -1,5 +1,4 @@
 import type { Session } from 'electron'
-import { BROWSER_PARTITION } from '../contract/entities'
 
 /* 内置浏览器分区拒绝所有敏感权限，下载走系统「另存为」对话框；与主窗口的 defaultSession 分开 —— 外站页面能拿到的东西少得多。 */
 
@@ -13,5 +12,3 @@ export function applySessionPolicy(s: Session): void {
     item.setSaveDialogOptions({ title: '保存文件' })
   })
 }
-
-export { BROWSER_PARTITION }

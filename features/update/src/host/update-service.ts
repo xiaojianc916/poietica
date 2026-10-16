@@ -123,5 +123,3 @@ export function createUpdateService(d: {
     },
   }
 }
-
-export type UpdateService = ReturnType<typeof createUpdateService>

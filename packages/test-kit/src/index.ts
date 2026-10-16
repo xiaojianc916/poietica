@@ -1,5 +1,4 @@
 export { type FakeClock, fakeClock } from './fake-clock'
-export { type RpcHarness, rpcHarness } from './rpc-harness'
 export { type TempDir, tempDir } from './temp-dir'
 export { createTestLogger, type TestLogger, type TestLogRecord } from './test-logger'
 export { transportPair } from './transport-pair'

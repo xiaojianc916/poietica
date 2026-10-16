@@ -156,4 +156,3 @@ export function createTerminalService(d: TerminalServiceDeps) {
     },
   }
 }
-export type TerminalService = ReturnType<typeof createTerminalService>

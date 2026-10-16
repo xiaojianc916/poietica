@@ -1,5 +1,3 @@
-import { useSyncExternalStore } from 'react'
-
 /*
  * 功能状态一律用 `@poietica/ui-kernel` 的 `createFeatureStore`；这里只剩「某个组件自己的可观察量」。
  */
@@ -41,8 +39,4 @@ export function createExternalStore<T>(source: ExternalStoreSource<T>): External
   }
 
   return { subscribe, read: source.read, notify }
-}
-
-export function useExternalStore<T>(store: ExternalStore<T>): T {
-  return useSyncExternalStore(store.subscribe, store.read)
 }

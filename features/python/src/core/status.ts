@@ -1,4 +1,5 @@
 import path from 'node:path'
+import { isInside } from '@poietica/fs-kit'
 import type { InstallMarker, PythonStatus } from '../contract'
 import { PYTHON_ASSET_SHA256, PYTHON_RELEASE_TAG, PYTHON_VERSION } from './release'
 
@@ -20,12 +21,6 @@ export function statusOf(
 export function markerMatches(marker: InstallMarker | null): boolean {
   if (marker === null) return false
   return marker.tag === PYTHON_RELEASE_TAG && marker.version === PYTHON_VERSION && marker.sha256 === PYTHON_ASSET_SHA256
-}
-
-/** 不区分大小写（Windows 语义）。 */
-export function isInside(dir: string, file: string): boolean {
-  const rel = path.relative(dir, file)
-  return rel !== '' && !rel.startsWith('..') && !path.isAbsolute(rel)
 }
 
 /**

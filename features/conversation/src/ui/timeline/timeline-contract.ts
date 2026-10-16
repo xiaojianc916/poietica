@@ -318,8 +318,3 @@ export function createTimelineState(): TimelineState {
     spans: [],
   }
 }
-
-// 热路径不走它：摊平正是分段要省掉的复制。给测试与诊断读全量用。
-export function allItems(state: TimelineState): readonly TimelineItem[] {
-  return [...state.sealed.flatMap((page) => page.items), ...state.active.items]
-}

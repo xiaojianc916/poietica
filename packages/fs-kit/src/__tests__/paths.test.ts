@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test'
-import { isInside, samePath } from '../paths'
+import { isInside } from '../paths'
 
 describe('isInside', () => {
   test('子目录为真', () => {
@@ -25,12 +25,5 @@ describe('isInside', () => {
 
   test('不同盘符为假', () => {
     expect(isInside('C:\\a', 'D:\\a\\b')).toBe(false)
-  })
-})
-
-describe('samePath', () => {
-  test('解析为绝对路径后不区分大小写', () => {
-    expect(samePath('C:\\a\\b', 'c:/A/B')).toBe(true)
-    expect(samePath('C:\\a\\b', 'C:\\a\\c')).toBe(false)
   })
 })

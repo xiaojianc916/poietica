@@ -7,7 +7,6 @@
  * 行画不画（`ownedElsewhereOf`）；归哪一页（`sectionOf`）；给人看的那一列（查不到就把 omp 的英文原样交回，
  * 绝不返回空串 —— 缺一条翻译最多是不好看，缺一格设置是缺陷）。
  */
-import { TAB_GROUPS } from '@oh-my-pi/pi-tui/overlays/settings-defs'
 
 /** 分节的中文名。键是 omp 的英文 group 原文；查不到就原样交回英文（产品名与协议名刻意不译） */
 export const GROUP_LABELS: Readonly<Record<string, string>> = {
@@ -1144,14 +1143,4 @@ export function memorySettingOf(tab: string): boolean {
 export function sectionOf(path: string, tab: string): 'memory' | 'persona' | null {
   if (memorySettingOf(tab)) return 'memory'
   return personaSettingOf(path) ? 'persona' : null
-}
-
-/*
- * 某一栏分节的次序，取自 omp 自己的 `TAB_GROUPS`。**这不是接口的装饰** —— 按 `orderedSettings` 的首次
- * 出现次序排会把同一栏的分节打乱（Sharpshooter 在 General 之前、Advisor 在 Thinking 之前）。
- * 认不出的栏交回空表，调用方据此退回「首次出现次序」。
- */
-export function tabGroupOrderOf(tab: string): readonly string[] {
-  const groups = (TAB_GROUPS as Readonly<Record<string, readonly string[]>>)[tab]
-  return groups ?? []
 }

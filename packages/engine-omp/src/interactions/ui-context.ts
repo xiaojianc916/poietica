@@ -25,7 +25,7 @@ import {
   setThemeInstance,
   type Theme,
 } from '@oh-my-pi/pi-tui/theme'
-import type { Interaction, InteractionAnswer } from '@poietica/engine'
+import type { InteractionAnswer } from '@poietica/engine'
 import { approvalGrantsSession, approvalInteraction, approvalLabelOf, approvalOf } from './approval'
 import type { AskOptions, InteractionBroker } from './broker'
 import { askQuestionsOf, askResultOf, questionInteraction } from './questions'
@@ -241,6 +241,3 @@ function askOptions(dialogOptions?: ExtensionUIDialogOptions): AskOptions {
     ...(dialogOptions?.signal === undefined ? {} : { signal: dialogOptions.signal }),
   }
 }
-
-/** 本文件在公开签名里用到的那一格交互类型（调用方按需取用，不必回 engine 再导一次） */
-export type UiInteraction = Interaction

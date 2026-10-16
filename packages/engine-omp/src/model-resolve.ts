@@ -1,3 +1,4 @@
+import { resolveSessionModelSelector } from '@oh-my-pi/pi-coding-agent/config/model-resolver'
 import type { OmpModelLike } from './ports/model-helpers'
 
 /*
@@ -10,17 +11,11 @@ import type { OmpModelLike } from './ports/model-helpers'
  * `model.identity.class` 当场抛 `undefined is not an object` —— 真机上表现为
  * 「新建对话发送后立刻报 AppError，会话起不来」（真实故障）。
  *
- * 判据收在这里：纯函数、无副作用、可单测。
+ * 解析本身用 omp 官方的 `resolveSessionModelSelector`（启动恢复会话与运行中切模型走的就是它）：
+ * 它做的正是「parseModelString → find → hasConfiguredAuth」这一串，还多认 `:thinkingLevel` 后缀与
+ * 目录里真存在的 `:max` 后缀模型 id。**不自己再写一份解析器** —— 上游改了选择器语法，
+ * 这里跟着走，不会分叉。
  */
-
-/** 选择器是**整串** `provider/id`；id 自己可能带斜杠，所以只切第一个分隔符。 */
-export function splitModelSelector(selector: string): { provider: string; id: string } | null {
-  const slash = selector.indexOf('/')
-  if (slash <= 0 || slash === selector.length - 1) {
-    return null
-  }
-  return { provider: selector.slice(0, slash), id: selector.slice(slash + 1) }
-}
 
 /**
  * 解析一条模型：从注册表里找出**那一条实例**，并要求 provider 真的配过凭据。
@@ -35,16 +30,5 @@ export function resolveSessionModel<TModel extends OmpModelLike>(
   if (selector === null) {
     return null
   }
-  const parsed = splitModelSelector(selector)
-  if (parsed === null) {
-    return null
-  }
-  const found = registry.find(parsed.provider, parsed.id)
-  if (found === undefined) {
-    return null
-  }
-  if (!registry.hasConfiguredAuth(found)) {
-    return null
-  }
-  return found
+  return (resolveSessionModelSelector(registry as never, selector)?.model as TModel | undefined) ?? null
 }

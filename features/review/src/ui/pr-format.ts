@@ -156,11 +156,6 @@ export function sortChecks(checks: readonly GithubCheck[]): readonly GithubCheck
   return [...checks].sort((a, b) => rank[a.state] - rank[b.state] || a.name.localeCompare(b.name))
 }
 
-/** 列表行 meta 的前半段：「作者 · 相对时间」。编号单独推到行右，所以这里不含它。 */
-export function authorLine(pr: GithubPullRequest): string {
-  return `${pr.author} · ${relativeTimeAgo(pr.createdAt)}`
-}
-
 /** 列表的 meta 行（含仓库与编号）；列表把编号单独摆，所以它主要用于别处的整行展示。 */
 export function pullMetaLine(pr: GithubPullRequest, repositoryName: string | null): string {
   const parts = [pr.author, relativeTimeAgo(pr.createdAt)]

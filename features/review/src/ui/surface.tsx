@@ -1,5 +1,5 @@
 import { platformContract } from '@poietica/feature-platform/contract'
-import { type WorkspacesUi, WorkspacesUiToken } from '@poietica/feature-workspaces/ui-api'
+import type { WorkspacesUi } from '@poietica/feature-workspaces/ui-api'
 import {
   type NavigationService,
   NavigationToken,
@@ -86,10 +86,6 @@ export function BranchStatusItem({
     return null
   }
   return <span className="truncate text-xs text-muted-foreground">{branch}</span>
-}
-
-export function useWorkspacesUi(ctx: { services: { get<T>(token: unknown): T } }): WorkspacesUi {
-  return ctx.services.get<WorkspacesUi>(WorkspacesUiToken)
 }
 
 /* 侧栏导航「代码审查」那一行。行的几何在 workbench 的全局样式（.sidebar-nav-row / __icon / __label），别在这里改；

@@ -9,6 +9,7 @@ import {
   type Logger,
   SystemErrorCode,
   sortModules,
+  withTimeout,
 } from '@poietica/foundation'
 import { type InboundContext, Router, RpcPeer, type Transport } from '@poietica/rpc'
 import { CORE_SHUTDOWN_BUDGET_MS, type DataLayout } from '@poietica/runtime-layout'
@@ -58,26 +59,6 @@ const STARTUP_ABORT_WAIT_MS = 3_000
 const INFLIGHT_DRAIN_MS = 1_500
 /** engine.dispose 的时间下限：即使前面把预算花光了也要给它。 */
 const ENGINE_DISPOSE_FLOOR_MS = 1_000
-
-/**
- * 与 foundation 的 withTimeout 同义，但计时走**注入的 Clock**（R-05 §3.3）：关停预算的截止时间由 opts.clock.now() 算，
- * 若等待用真实 setTimeout，测试注入的假时钟推不动它们，这条路径就没法确定地验收（生产里 clock 就是 systemClock）。
- */
-function withClockTimeout<T>(clock: Clock, promise: Promise<T>, ms: number, onTimeout: () => Error): Promise<T> {
-  return new Promise<T>((resolve, reject) => {
-    const timer = clock.setTimeout(() => reject(onTimeout()), ms)
-    promise.then(
-      (value) => {
-        timer.dispose()
-        resolve(value)
-      },
-      (error: unknown) => {
-        timer.dispose()
-        reject(error)
-      },
-    )
-  })
-}
 
 export function createCoreKernel(opts: CoreKernelOptions): CoreKernel {
   const log = opts.logger.child({ scope: 'kernel' })
@@ -178,11 +159,11 @@ export function createCoreKernel(opts: CoreKernelOptions): CoreKernel {
   /** 启动途中被叫停：先让正在跑的那一步走到下一个检查点（它看到 stopping 就收手），再拆钩子与数据库 */
   async function awaitStartupYield(budget: number): Promise<void> {
     if (starting === undefined) return
-    await withClockTimeout(
-      opts.clock,
+    await withTimeout(
       starting.catch(() => undefined),
       budget,
       () => new Error('startup abort timeout'),
+      opts.clock,
     ).catch(() => log.warn('startup step did not yield before shutdown'))
   }
 
@@ -273,7 +254,7 @@ export function createCoreKernel(opts: CoreKernelOptions): CoreKernel {
         const budget = remaining(INFLIGHT_DRAIN_MS)
         if (budget > 0) {
           drained = new Deferred<void>()
-          await withClockTimeout(opts.clock, drained.promise, budget, () => new Error('drain timeout')).catch(() =>
+          await withTimeout(drained.promise, budget, () => new Error('drain timeout'), opts.clock).catch(() =>
             log.warn('in-flight requests did not finish', { inflight }),
           )
         } else {
@@ -287,7 +268,7 @@ export function createCoreKernel(opts: CoreKernelOptions): CoreKernel {
           log.warn('shutdown budget exhausted, skipping hook', { module: h.moduleId })
           continue
         }
-        await withClockTimeout(opts.clock, Promise.resolve().then(h.fn), budget, () => new Error('timeout')).catch(
+        await withTimeout(Promise.resolve().then(h.fn), budget, () => new Error('timeout'), opts.clock).catch(
           (e: unknown) => log.warn('onShutdown hook failed', { module: h.moduleId, error: String(e) }),
         )
       }
@@ -300,12 +281,9 @@ export function createCoreKernel(opts: CoreKernelOptions): CoreKernel {
       }
       if (wasStarted) {
         const budget = Math.max(ENGINE_DISPOSE_FLOOR_MS, remaining(Number.POSITIVE_INFINITY))
-        await withClockTimeout(
-          opts.clock,
-          opts.engine.dispose(),
-          budget,
-          () => new Error('engine dispose timeout'),
-        ).catch((e: unknown) => log.warn('engine dispose failed', { error: String(e) }))
+        await withTimeout(opts.engine.dispose(), budget, () => new Error('engine dispose timeout'), opts.clock).catch(
+          (e: unknown) => log.warn('engine dispose failed', { error: String(e) }),
+        )
       }
     } finally {
       // 数据库与 RPC 对端无论上面成败都要收掉：留着就是「进程不退出」或「库被两个进程打开」

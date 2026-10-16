@@ -89,11 +89,6 @@ export function pendingInteractions(scope: WaitingScope): PendingInteractions {
   return found
 }
 
-/** 终态中的旧条目不可再操作；活动态只展示最高优先级的审批。 */
-export function pendingPermission(scope: WaitingScope): PermissionItem | undefined {
-  return pendingInteractions(scope).permission
-}
-
 /* 一页里最新的那份清单，倒着找。`live` 判一条还没完成的清单算不算数（在跑那一轮的实时预览）：失败的不算，没完成又不是实时预览的不算。 */
 function latestTodosIn(
   items: readonly TimelineItem[],

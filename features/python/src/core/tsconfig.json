@@ -9,6 +9,9 @@
       "path": "../../../../packages/foundation"
     },
     {
+      "path": "../../../../packages/fs-kit"
+    },
+    {
       "path": "../contract"
     }
   ]

@@ -1,5 +1,6 @@
 import { type ChildProcess, spawn as nodeSpawn } from 'node:child_process'
 import { existsSync, mkdirSync } from 'node:fs'
+import type { CORE_FAILURE_REASONS, CORE_STATUS_STATES } from '@poietica/contract-kit'
 import {
   AppError,
   type Clock,
@@ -18,17 +19,8 @@ import { buildCoreLaunch, CORE_EXIT_CODES, CORE_SHUTDOWN_BUDGET_MS, type DataLay
 import type { CoreLogSink } from './core-log-sink'
 import { pickFreePort } from './relay-port'
 
-export type CoreStatusState = 'starting' | 'ready' | 'restarting' | 'failed' | 'stopped'
-export type CoreFailureReason =
-  | 'start_timeout'
-  | 'crashed'
-  | 'crash_loop'
-  | 'isolation_violated'
-  | 'bad_arguments'
-  | 'protocol_mismatch'
-  | 'core_missing'
-  | 'data_too_new'
-  | 'start_failed'
+export type CoreStatusState = (typeof CORE_STATUS_STATES)[number]
+export type CoreFailureReason = (typeof CORE_FAILURE_REASONS)[number]
 export interface CoreStatus {
   readonly state: CoreStatusState
   readonly reason: CoreFailureReason | null

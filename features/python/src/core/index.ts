@@ -34,6 +34,10 @@ export default defineCoreModule({
           const code = await proc.exited
           return { stdout, stderr, code }
         },
+        /* Bun 自带的 tar+gzip（见 installer 的注释）：实测与 System32\tar.exe 逐字节一致。 */
+        extract: async (archive, into) => {
+          await new Bun.Archive(await Bun.file(archive).arrayBuffer()).extract(into)
+        },
         fs: {
           mkdir: async (path, opts) => {
             await mkdir(path, { recursive: opts?.recursive ?? false })

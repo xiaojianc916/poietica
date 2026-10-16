@@ -55,5 +55,3 @@ export function createUsageApi(ctx: UiFeatureContext) {
     },
   }
 }
-
-export type UsageApi = ReturnType<typeof createUsageApi>

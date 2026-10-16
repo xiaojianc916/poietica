@@ -32,10 +32,14 @@ function fakeDeps(overrides: Partial<InstallerDeps> = {}): {
         body: { getReader: () => readerOf([FAKE_PAYLOAD]) },
       }
     },
-    run: async (cmd, args) => {
+    run: async (cmd) => {
       calls.push(`run:${cmd}`)
-      if (args.includes('-xzf')) return { stdout: '', stderr: '', code: 0 }
       return { stdout: `${PYTHON_VERSION}\n`, stderr: '', code: 0 }
+    },
+    /* 解压的替身：只记一次调用并标出目录，不真解包（真解包由 Python 模块的真包冒烟覆盖）。 */
+    extract: async (archive, into) => {
+      calls.push(`extract:${archive}`)
+      fs.dirs.add(into)
     },
     fs: {
       mkdir: async (p) => {
@@ -117,7 +121,10 @@ describe('PY-1 下载：第一个地址失败、第二个成功', () => {
     expect(statuses).toContain('installing')
     expect(fs.files.has('C:\\tools\\python\\poietica-python.json')).toBe(true)
     expect(fs.files.has('C:\\tools\\python\\poietica-python.json')).toBe(true)
-    expect(calls.filter((c) => c.startsWith('run:')).length).toBe(2)
+    /* 解包一次（Bun.Archive 的替身）、验证一次（真跑解压出来的 exe）—— 从前那个 shell 到
+     * System32\tar.exe 的 run 已经没有了。 */
+    expect(calls.filter((c) => c.startsWith('extract:')).length).toBe(1)
+    expect(calls.filter((c) => c.startsWith('run:')).length).toBe(1)
   })
 })
 

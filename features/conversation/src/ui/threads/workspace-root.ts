@@ -23,25 +23,3 @@ export function workspaceRootName(rootPath: string): string {
 
   return tail.length > 0 ? tail : normalized
 }
-
-/*
- * 与 apps/desktop/native/src/paths.rs 的 PROJECTLESS_DIRECTORY 同一条约定。原生层负责创建目录，这里只识别目录身份：识别的是父目录名加 UUID 子目录。
- */
-const PROJECTLESS_DIRECTORY = 'projectless'
-
-const PROJECTLESS_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
-
-/** 这个目录是否是 Poietica 为无项目会话创建的内部工作目录。 */
-export function isProjectlessWorkspaceRoot(rootPath: string): boolean {
-  const normalized = normalizeWorkspaceRoot(rootPath)
-  const lastSlash = normalized.lastIndexOf('/')
-
-  if (lastSlash <= 0) {
-    return false
-  }
-
-  const id = normalized.slice(lastSlash + 1)
-  const parent = normalized.slice(0, lastSlash)
-
-  return workspaceRootName(parent) === PROJECTLESS_DIRECTORY && PROJECTLESS_ID.test(id)
-}

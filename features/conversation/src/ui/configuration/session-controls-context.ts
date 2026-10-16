@@ -64,15 +64,6 @@ export function useThreadUsage(threadId: string | null): SessionUsage | undefine
   return useSyncExternalStore(store.subscribe, read, read)
 }
 
-/** 这条对话此刻的目标；没有目标在跑是 undefined。 */
-export function useThreadGoal(threadId: string | null): SessionGoal | undefined {
-  const store = useStore()
-
-  const read = useCallback(() => (threadId === null ? undefined : store.goalOf(threadId)), [store, threadId])
-
-  return useSyncExternalStore(store.subscribe, read, read)
-}
-
 /**
  * 没有 Provider 时返回 undefined（不画目标区），不抛 —— 状态面板必须能在 Provider 缺席的树上存活。
  */

@@ -10,7 +10,7 @@ function getEnv(env: Env, name: string): string | undefined {
   return undefined
 }
 
-export function pathEntries(env: Env = process.env): string[] {
+function pathEntries(env: Env = process.env): string[] {
   return (getEnv(env, 'PATH') ?? '')
     .split(';')
     .map((p) => p.trim().replace(/^"(.*)"$/, '$1'))

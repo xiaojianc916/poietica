@@ -1,4 +1,4 @@
-export { type Database, type ModuleDatabase, openDatabase, type SqlParams, type SqlValue } from './database'
+export { type Database, type ModuleDatabase, openDatabase, type SqlValue } from './database'
 export {
   DataTooNewError,
   type Migration,
@@ -6,4 +6,4 @@ export {
   type ModuleMigrations,
   runMigrations,
 } from './migrations'
-export { assertOwnTables, referencedTables, tablePrefix } from './sql-guard'
+export { assertOwnTables, tablePrefix } from './sql-guard'

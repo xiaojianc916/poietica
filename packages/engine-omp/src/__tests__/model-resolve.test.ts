@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test'
-import { resolveSessionModel, splitModelSelector } from '../model-resolve'
+import { resolveSessionModel } from '../model-resolve'
 
 /*
  * 真机故障（2026-10-08 用户截图）：新建对话发第一句 → AppError
@@ -9,6 +9,9 @@ import { resolveSessionModel, splitModelSelector } from '../model-resolve'
  * `createAgentSession`，而 SDK 的模型对象要读 `identity.class`、`api`、`baseUrl`
  * 这些格（sdk.ts 的 resolveDelegationBias / streamDispatch 直接取字段）。
  * 这条用例钉住的是「回传的就是注册表里那一条实例本身」。
+ *
+ * 解析本身委托给 omp 官方的 resolveSessionModelSelector；这里钉的是**经端口转出之后**
+ * 仍然成立的判据（实例完整、凭据门槛、解析不出如实交回 null）。
  */
 
 interface FakeModel {
@@ -30,22 +33,6 @@ function registryOf(models: readonly FakeModel[], configured: readonly string[])
   }
 }
 
-describe('splitModelSelector', () => {
-  test('整串 provider/id 只切第一个分隔符（id 自己可以带斜杠）', () => {
-    expect(splitModelSelector('deepseek/deepseek-flash')).toEqual({ provider: 'deepseek', id: 'deepseek-flash' })
-    expect(splitModelSelector('workbuddy-ai/deepseek-v4.1-flash')).toEqual({
-      provider: 'workbuddy-ai',
-      id: 'deepseek-v4.1-flash',
-    })
-  })
-
-  test('没有分隔符、空 provider、空 id 都不是合法选择器', () => {
-    expect(splitModelSelector('deepseek-flash')).toBeNull()
-    expect(splitModelSelector('/deepseek-flash')).toBeNull()
-    expect(splitModelSelector('deepseek/')).toBeNull()
-  })
-})
-
 describe('resolveSessionModel', () => {
   test('交回注册表里那一条实例本身（SDK 要读 identity 等格）', () => {
     const found = resolveSessionModel(registryOf(MODELS, ['deepseek']), 'deepseek/deepseek-flash')
@@ -65,5 +52,10 @@ describe('resolveSessionModel', () => {
     expect(resolveSessionModel(registry, 'deepseek/下架了')).toBeNull()
     expect(resolveSessionModel(registry, '不是选择器')).toBeNull()
     expect(resolveSessionModel(registry, null)).toBeNull()
+  })
+
+  /* 官方解析器认 thinking 后缀：`provider/id:high` 解到同一条实例，级别由调用方另行处理。 */
+  test('带 thinking 后缀的选择器照样解到同一条实例', () => {
+    expect(resolveSessionModel(registryOf(MODELS, ['deepseek']), 'deepseek/deepseek-flash:high')).toBe(MODELS[0]!)
   })
 })

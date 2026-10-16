@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, test } from 'bun:test'
 import { mkdtemp, rm, writeFile } from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
-import { pathEntries, which } from '../which'
+import { which } from '../which'
 
 let dir: string
 
@@ -36,11 +36,5 @@ describe('which', () => {
     const found = await which('cmd.exe')
     expect(found).not.toBeNull()
     expect((found ?? '').toLowerCase().endsWith('\\cmd.exe')).toBe(true)
-  })
-})
-
-describe('pathEntries', () => {
-  test('拆分 PATH：去掉引号与空项，键名大小写不敏感', () => {
-    expect(pathEntries({ Path: '"C:\\a b";C:\\c;;' })).toEqual(['C:\\a b', 'C:\\c'])
   })
 })

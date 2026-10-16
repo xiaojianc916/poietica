@@ -15,12 +15,6 @@ export function shorten(text: string): string {
   }
   return pieces.join('')
 }
-export function forkNameOf(title: string): string {
-  const match = /^(.*?)(?:\s+\((\d+)\))?$/u.exec(title)
-  const base = match?.[1] ?? title
-  const ordinal = BigInt(match?.[2] ?? '1') + 1n
-  return `${shorten(base)} (${ordinal.toString()})`
-}
 export function nameOf(thread: ThreadRecord | undefined): string {
   switch (thread?.titleSource) {
     case 'manual':

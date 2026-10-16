@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test'
-import { assertOwnTables, referencedTables, tablePrefix } from '../sql-guard'
+import { assertOwnTables, tablePrefix } from '../sql-guard'
 
 describe('tablePrefix', () => {
   test('kebab-case 模块 id → 下划线前缀', () => {
@@ -8,65 +8,45 @@ describe('tablePrefix', () => {
   })
 })
 
-// DB-3：referencedTables 只返回对象名
-describe('referencedTables', () => {
-  test('INSERT … ON CONFLICT(…) DO UPDATE SET …（只得到 a_x）', () => {
-    expect(
-      referencedTables('INSERT INTO a_x (id, n) VALUES (?, ?) ON CONFLICT(id) DO UPDATE SET n = excluded.n'),
-    ).toEqual(['a_x'])
-  })
-
-  test('CHECK (triggered_by IN (…)) 不产生对象名', () => {
-    expect(
-      referencedTables(
-        "CREATE TABLE a_t (id TEXT PRIMARY KEY, triggered_by TEXT NOT NULL CHECK (triggered_by IN ('system', 'user')))",
-      ),
-    ).toEqual(['a_t'])
-  })
-
-  test('INSERT OR IGNORE INTO a_x', () => {
-    expect(referencedTables('INSERT OR IGNORE INTO a_x (id) VALUES (?)')).toEqual(['a_x'])
-  })
-
-  test('UPDATE OR REPLACE a_y', () => {
-    expect(referencedTables('UPDATE OR REPLACE a_y SET n = 1')).toEqual(['a_y'])
-  })
-
-  test('DELETE FROM a_z', () => {
-    expect(referencedTables('DELETE FROM a_z WHERE id = ?')).toEqual(['a_z'])
-  })
-
-  test('CREATE INDEX IF NOT EXISTS a_i ON a_x(c)', () => {
-    expect(referencedTables('CREATE INDEX IF NOT EXISTS a_i ON a_x(c)')).toEqual(['a_i', 'a_x'])
-  })
-
-  test('WITH a_c AS (…), a_d AS (…) SELECT … FROM a_c JOIN a_d', () => {
-    expect(
-      referencedTables(
-        'WITH a_c AS (SELECT 1 AS id), a_d AS (SELECT 2 AS id) SELECT * FROM a_c JOIN a_d ON a_c.id = a_d.id',
-      ),
-    ).toEqual(['a_c', 'a_d'])
-  })
-
-  test('FROM json_each(?) 是表值函数，不算对象名', () => {
-    expect(referencedTables('SELECT * FROM json_each(?)')).toEqual([])
-  })
-
-  test("字符串字面量 'select * from evil' 不算引用", () => {
-    expect(referencedTables("SELECT * FROM a_x WHERE n = 'select * from evil'")).toEqual(['a_x'])
-  })
-
-  test('注释 -- from evil / /* from evil */ 不算引用', () => {
-    expect(referencedTables('SELECT * FROM a_x -- from evil')).toEqual(['a_x'])
-    expect(referencedTables('SELECT c FROM a_x /* from evil */')).toEqual(['a_x'])
-  })
-
-  test('结果小写并去重', () => {
-    expect(referencedTables('SELECT * FROM A_X JOIN a_x ON A_X.id = a_x.id')).toEqual(['a_x'])
-  })
-})
-
 describe('assertOwnTables', () => {
+  /* DB-3：对象名扫描的边角（原来直接钉 referencedTables；它降为模块内私有之后，
+   * 这些输入改从公开入口断言 —— 判据一样，越界的那些必须被拒）。 */
+  test('ON CONFLICT / OR IGNORE / OR REPLACE / CTE / 表值函数 / 字面量与注释里的假引用', () => {
+    const passes = [
+      'INSERT INTO a_x (id, n) VALUES (?, ?) ON CONFLICT(id) DO UPDATE SET n = excluded.n',
+      'INSERT OR IGNORE INTO a_x (id) VALUES (?)',
+      'UPDATE OR REPLACE a_x SET n = 1',
+      'DELETE FROM a_x WHERE id = ?',
+      'CREATE INDEX IF NOT EXISTS a_i ON a_x(c)',
+      'WITH a_c AS (SELECT 1 AS id) SELECT * FROM a_c',
+      'SELECT * FROM json_each(?)',
+      "SELECT * FROM a_x WHERE n = 'select * from evil'",
+      'SELECT * FROM a_x -- from evil',
+      'SELECT c FROM a_x /* from evil */',
+      'SELECT * FROM A_X JOIN a_x ON A_X.id = a_x.id',
+    ]
+    for (const sql of passes) {
+      expect(() => assertOwnTables(sql, 'a', 'a')).not.toThrow()
+    }
+    /* CHECK (triggered_by IN (…)) 不产生第二个对象名：只认 a_t，不该因 'system'/'user' 之类的词误判 */
+    expect(() =>
+      assertOwnTables(
+        "CREATE TABLE a_t (id TEXT PRIMARY KEY, triggered_by TEXT NOT NULL CHECK (triggered_by IN ('system', 'user')))",
+        'a',
+        'a',
+      ),
+    ).not.toThrow()
+    /* 反向：这些输入里的表**必须**被抓到（否则前缀闸门形同虚设） */
+    for (const sql of [
+      'INSERT OR IGNORE INTO b_x (id) VALUES (?)',
+      'UPDATE OR REPLACE b_x SET n = 1',
+      'WITH b_c AS (SELECT 1 AS id) SELECT * FROM b_c',
+      'CREATE INDEX IF NOT EXISTS b_i ON a_x(c)',
+    ]) {
+      expect(() => assertOwnTables(sql, 'a', 'a')).toThrow(/只能访问 a_\* 表/)
+    }
+  })
+
   test('本前缀的表通过（前缀比较忽略大小写）', () => {
     expect(() => assertOwnTables('SELECT * FROM agent_settings_x', 'agent_settings', 'agent-settings')).not.toThrow()
     expect(() => assertOwnTables('SELECT * FROM AGENT_SETTINGS_X', 'agent_settings', 'agent-settings')).not.toThrow()

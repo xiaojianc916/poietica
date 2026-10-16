@@ -84,7 +84,6 @@ function Frame({ store, fixture }: { readonly store: PrStore; readonly fixture: 
           <div className="pr-page__actions">
             <PrDetailActions
               busy={false}
-              onCopyLink={() => undefined}
               onMerge={() => undefined}
               onOpenExternal={() => undefined}
               onSendToAgent={() => undefined}

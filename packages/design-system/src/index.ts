@@ -66,10 +66,4 @@ export {
   ToggleRow,
   type ToggleRowProps,
 } from './settings-primitives'
-export {
-  applyThemePreference,
-  type ResolvedTheme,
-  type ThemePreference,
-  type ThemePreferenceBinding,
-} from './theme/theme-controller'
 export { useCopy } from './use-copy'

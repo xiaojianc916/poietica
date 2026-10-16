@@ -1,8 +1,8 @@
 import { EngineErrorCode, type EngineSession, type EngineToolSpec, type OpenSessionSpec } from '@poietica/engine'
 import { AppError, type Logger, SystemErrorCode } from '@poietica/foundation'
-import { type DataLayout, dataLayout } from '@poietica/runtime-layout'
+import type { DataLayout } from '@poietica/runtime-layout'
 import { overrideModelRolesOf } from '../ports/settings-writes'
-import { type SettingsScope, settingAt } from '../settings-access'
+import type { SettingsScope } from '../settings-access'
 import { createToolsExtension } from '../tools-extension'
 import { allowGoalContinuation } from './goal-host'
 import { applyPosture } from './posture'
@@ -159,14 +159,4 @@ export class SessionFactory {
     if (selector === null) return null
     return this.o.resolveModel(selector)
   }
-}
-
-/** 设置相关的一处小工具：确认某个设置项存在（认不出的路径如实报错） */
-export function assertSettingExists(path: string): void {
-  settingAt(path)
-}
-
-/** 由 Core 参数的数据根算出布局（Core 的 serve.ts 与探针共用） */
-export function layoutOf(dataRoot: string): DataLayout {
-  return dataLayout(dataRoot)
 }

@@ -34,10 +34,6 @@ export function overrideSetting(scope: SettingsScope, path: string, value: unkno
   settingAt(path).override(scope, value as never)
 }
 
-export function clearSettingOverride(scope: SettingsScope, path: string): void {
-  settingAt(path).clearOverride(scope)
-}
-
 /**
  * 这一格有没有被**谁显式配过**（全局、项目或运行时覆盖），而不是回落到 schema 默认。
  * 判「有没有人选过」只能问它，不能读值：值与默认相同时读不出来（omp 知识 #11 依赖这个区分）。
@@ -127,10 +123,4 @@ function optionsRawOf(raw: unknown): readonly SettingOptionRaw[] | undefined {
     })
   }
   return out.length === 0 ? undefined : out
-}
-
-/** 上游注册表里的全部设置 id（供目录维护者核对产品开放的键） */
-export async function orderedSettingIds(): Promise<readonly string[]> {
-  const registry = await import('@oh-my-pi/pi-coding-agent/config/registry')
-  return registry.all().map((s) => s.id)
 }

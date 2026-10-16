@@ -1,5 +1,4 @@
 import type { ModelRef } from '@poietica/engine'
-import type { Logger } from '@poietica/foundation'
 import type { OmpModelRegistry, OmpModel as OmpModelShape } from '../omp-context'
 
 /** omp 的 enabledModels：可用模型白名单（config/model-settings.ts 的 cfgEnabledModels）。 */
@@ -90,9 +89,4 @@ export function nextEnabledPatterns(
   }
   const base = patterns.length === 0 ? available.filter((item) => item !== alias) : patterns
   return base.filter((item) => item !== alias)
-}
-
-/** 端口里的异常都经 toEngineError；这里只留一条 warn 痕（key 之类的敏感值绝不进 data）。 */
-export function warnOnce(logger: Logger, message: string, data?: Record<string, unknown>): void {
-  logger.warn(message, data)
 }

@@ -10,8 +10,6 @@ const COMMENT_LIMIT = 2_000
 /** 上界只为挡住失控的页面，不是内容策略。 */
 const REPORT_LIMIT = 64_000
 
-export const PICKER_CANCEL_SCRIPT = 'window.__poieticaElementPicker?.cancel();'
-
 export interface PickerLease {
   readonly tabId: number
   readonly token: string

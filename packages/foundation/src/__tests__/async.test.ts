@@ -1,6 +1,5 @@
 import { describe, expect, test } from 'bun:test'
-import { abortable, Deferred, delay, withTimeout } from '../async'
-import { AppError } from '../errors'
+import { Deferred, withTimeout } from '../async'
 
 describe('Deferred', () => {
   test('只 settle 一次', async () => {
@@ -24,30 +23,5 @@ describe('withTimeout', () => {
 
   test('及时完成时不 reject', async () => {
     expect(await withTimeout(Promise.resolve('ok'), 1000, () => new Error('不该发生'))).toBe('ok')
-  })
-})
-
-describe('abortable', () => {
-  test('中止后 reject 为 kernel.cancelled', async () => {
-    const ac = new AbortController()
-    const promise = abortable(new Promise<void>(() => {}), ac.signal)
-    ac.abort()
-    const error = await promise.catch((e: unknown) => e)
-    expect(error).toBeInstanceOf(AppError)
-    expect((error as AppError).code).toBe('kernel.cancelled')
-  })
-})
-
-describe('delay', () => {
-  test('中止后 reject 为 kernel.cancelled', async () => {
-    const ac = new AbortController()
-    const promise = delay(10_000, ac.signal)
-    ac.abort()
-    const error = await promise.catch((e: unknown) => e)
-    expect((error as AppError).code).toBe('kernel.cancelled')
-  })
-
-  test('到时 resolve', async () => {
-    await delay(1)
   })
 })

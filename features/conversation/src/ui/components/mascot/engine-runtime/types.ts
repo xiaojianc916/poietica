@@ -131,22 +131,6 @@ export interface EngineHandle {
   destroy: () => void
 }
 
-/** 配置注册中心对外形状 */
-export interface EngineRuntime {
-  readonly create: (target: string | Element, opts?: EngineOptions | undefined) => EngineHandle
-  readonly version: string
-  readonly config: {
-    list: (group?: string | undefined) => readonly { readonly id: string }[]
-    groups: () => readonly { readonly key: string; readonly name: string; readonly en: string }[]
-    exportConfig: () => string
-    importConfig: (json: unknown) => {
-      readonly ok: boolean
-      readonly added: number
-      readonly errors: readonly string[]
-    }
-  }
-}
-
 /** sequence 的一帧：at 毫秒 + 预生成的完整姿态 */
 export interface PoseFrame {
   at: number

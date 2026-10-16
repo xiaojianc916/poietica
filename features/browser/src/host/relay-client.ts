@@ -1,6 +1,6 @@
 import { AppError, type Clock, type Disposable, type Logger, systemClock, toDisposable } from '@poietica/foundation'
 import type { BrowserState } from '../contract/entities'
-import { BLANK_PAGE, BROWSER_PARTITION } from '../contract/entities'
+import { BLANK_PAGE } from '../contract/entities'
 import { browserErrors } from '../contract/errors'
 import type { RelayInbound, RelayOutbound, TabSnapshot } from './relay-protocol'
 import { DISCARDED_TABS_PROTOCOL_VERSION } from './relay-protocol'
@@ -10,8 +10,6 @@ import type { WebContentsLike } from './tabs'
  * RelayTabsPort.userAgent() 由 index.ts 用真实对象实现，测试喂假 socket 就能钉住 BR-2…BR-7；连接由 setUrl
  * 驱动（Core 每次重启端口都可能变）。不走「开应用级 remote-debugging-port 再把 cdpUrl 指过去」：那个端点上
  * 主界面自己也是一个 page target，agent 挑 target 会钻进主界面，而且整个应用的调试面就此开在回环上。 */
-
-export const DEFAULT_RELAY_URL = 'http://127.0.0.1:9224'
 
 const RECONNECT_MIN_MS = 1000
 const RECONNECT_MAX_MS = 10000
@@ -523,5 +521,3 @@ export function relaySocketUrl(base: string): string {
 
   return endpoint.replace(/^http/, 'ws')
 }
-
-export { BROWSER_PARTITION }

@@ -3605,3 +3605,148 @@ AGENTS §8.6 第 6 条对此的处理是加一条使用约束（「一轮还开�
 工具卡片只有一张，结束后变完成，不留转圈的那张；② 长回复流式输出时做同样操作 → 回复继续流，不卡不闪，
 开发者工具里没有连续的整页请求；③ 发送一句话后立刻触发重取（能撞上发送前的自动压缩更好）→ 上一轮不显示为
 运行中；④ 正常聊几轮、重开线程 → 屏幕与运行时一致。
+
+## R-32 第二轮「用官方能力替换手搓代码」：Bun.Archive 换掉 tar.exe，死代码按实测清单清掉（2026-10-16）
+
+**来源**：产品负责人交办「删除冗余代码，使用官方能力替代手搓代码」（外部输入）。上一轮是 10-14 的
+`36fcfb32b`，当时的审查结论里留了三条待决（omp 的 `searchSmitheryRegistry`、`node:sqlite` 的
+`setAuthorizer`、`Bun.Archive` 解压的路径穿越防护）。本轮**先把那三条待决逐条实测**，能落地的落地。
+
+### 1. 替换（有实测等价性证据）
+
+**`Bun.Archive` 换掉 `System32\tar.exe`（`features/python/src/core/installer.ts`）** —— 上一轮记的待决
+就是这一条，本轮把它测完：
+
+- 路径穿越：手工造一份带 `../escaped.txt` 与绝对路径 `/abs.txt` 条目的 tar，`Bun.Archive.extract`
+  把两条都**收进目标目录内**（`out/escaped.txt`、`out/abs.txt`），目标目录外一个文件都没落。防护是
+  内建的，不需要我们再加一层。
+- 解压实效：拿产品真正钉住的那一份 CPython 包（`PYTHON_ASSET_SHA256` 对得上，22 013 771 字节）分别用
+  `tar.exe -xzf` 与 `Bun.Archive` 解到两个目录，**3344 个文件的名字 + 每个文件的 sha256 逐个相同**，
+  两边解出的 `python.exe` 都跑得出 `3.12.15`。解压耗时同一量级（3.3s vs 2.4s）。
+- 改法：解压从 `deps.run(tar, ['-xzf', ...])` 变成**注入的 `deps.extract`**（生产是 `Bun.Archive`，
+  单测注入替身）。顺带去掉一个硬前提：`C:\Windows\System32\tar.exe` 在精简版 Windows 上未必存在。
+- 端到端复验：用产品自己的 installer 跑完整安装（下载 → 校验和 → 解压 → 验证 → 原子替换），
+  装出来的解释器自报 `3.12.15`、标记文件 sha 与仓库钉住的一致、暂存目录零残留。
+
+**omp 的技能消息判据换掉手写常量（`packages/engine-omp/src/session/prompt.ts`）**：
+`SKILL_MESSAGE_TYPE = 'skill-prompt'` 与 `customType === … && attribution === 'user'` 都是上游
+未导出的**副本**。omp 从 `@oh-my-pi/pi-coding-agent/session/messages` 导出 `SKILL_PROMPT_MESSAGE_TYPE`
+与 `isUserInvokedSkillPrompt`，值与我们抄的逐字一致（实测：常量相同，六个输入向量上新旧判据同真同假）。
+现在常量从官方转出、判据直接用官方函数。
+
+**omp 的模型选择器解析（`packages/engine-omp/src/model-resolve.ts`）**：手写的 `splitModelSelector`
+（切第一个 `/`）+ `find` + `hasConfiguredAuth` 正是官方 `resolveSessionModelSelector` 的正文
+（`parseModelString → find → hasConfiguredAuth`），而且官方多认 `:thinkingLevel` 后缀与目录里真存在的
+`:max` 后缀模型 id。实测七个向量行为一致（含「没配凭据」「目录里没有」「坏选择器」都交回 null），
+官方还多出一条带后缀的正解。判据不变：**回传的是注册表里那一条实例本身**（钉住那个真机故障），
+`model-resolve.test.ts` 的四条用例全部改成走官方解析后的同一组断言。
+
+**`withTimeout` 收归一处（`foundation/async.ts` ← `core-kernel/kernel.ts`）**：core-kernel 的私有
+`withClockTimeout` 与 foundation 的 `withTimeout` 是同一份实现，只差计时走不走注入的 `Clock`。
+现在 foundation 的 `withTimeout(promise, ms, onTimeout, clock = systemClock)` 就是那一份，
+core-kernel 四处调用点改传 `opts.clock`。**反向验证**：把某一处的 `opts.clock` 去掉（回到真实
+setTimeout），`kernel.test.ts` 的关停预算用例当场变红（`abandoned` 少一项、2 fail）—— 说明这条
+注入是承重的，不是装饰。
+
+**`features/review` 的复制回执改用 design-system 的 `useCopy`**：手搓的 `useState` + `useRef` 定时器
+（2000ms）与全仓另外四处用的 `useCopy` 是同一件事，且那版失败不切对勾。停留时长随之从 2.0s 变
+2.2s（`RESTORE_MS`），调用方由「传 onCopyLink 回调」改成「传 linkUrl」。
+
+**`features/python/src/core/status.ts` 的 `isInside` 副本删掉**，改用 `@poietica/fs-kit` 的同名函数
+（包内本就该依赖它，`package.json` 补一条 `@poietica/fs-kit`）。顺手修掉一处**不实注释**：那份副本
+自称「不区分大小写（Windows 语义）」，而它一次都没有折大小写；fs-kit 的版本才真的折。
+
+### 2. 纯删除（全仓零引用，逐个 grep 复核过）
+
+新写了一次性扫描（1065 个 .ts/.tsx，排 `node_modules`/`.tsbuild` 等），只留**全仓只出现一次**的
+导出，再逐个 grep 复核。删掉的：
+
+- 整份文件：`packages/foundation/src/result.ts`（`Result`/`ok`/`err`，文件自己写着「跨进程的失败一律
+  用 AppError 抛出，不用 Result」—— 全仓照办了，所以它一次都没被用过）、
+  `packages/foundation/src/queue.ts`（`Mutex`/`SerialQueue`）、`packages/test-kit/src/rpc-harness.ts`、
+  `features/conversation/src/ui/components/timeline/prose/table-export-context.tsx`、
+  `packages/design-system/src/theme/theme-controller.ts`（`applyThemePreference` 全仓零消费者，
+  preferences 自己解一次主题）、以及 engine-omp 的两个**没人 import 的 barrel**
+  `src/ports/index.ts`、`src/interactions/index.ts`。
+- 零引用导出：`foundation` 的 `delay`/`abortable`/`cancelledError`/`LOG_LEVELS`、
+  `fs-kit` 的 `samePath`、`process-kit` 的 `pathEntries`（保留 `which`，它的文件头记着三条实测缺口）、
+  `storage-sqlite` 的 `SqlParams` 与 `referencedTables`（后者降为模块内私有，`assertOwnTables` 照用）、
+  `engine-omp` 的 `OmpRuntime`/`markOmpContextScaffold`/`warnOnce`/`tabGroupOrderOf`/`readPosture`/
+  `assertSettingExists`/`layoutOf`/`clearSettingOverride`/`orderedSettingIds`/`UiInteraction`/
+  `ModelsFileProvider`、`review` 的 `gitFor`/`PrDetailBarProps`/`authorLine`/`useWorkspacesUi`、
+  `browser` 的 `DEFAULT_RELAY_URL`/`PICKER_CANCEL_SCRIPT`/两处 `BROWSER_PARTITION` 再导出、
+  `platform` 的 `DialogPort`/`LoggerPort`（该文件只剩活着的 `NotificationPort`）、
+  `usage`/`update`/`terminal` 的三条 `export type X = ReturnType<typeof create…>`、
+  `conversation` 的 12 个（`forkNameOf`/`isProjectlessWorkspaceRoot`/`useThreadGoal`/`allItems`/
+  `pendingPermission`/`ThreadsList`/`ThreadWorkspaceList`/`useExternalStore`/`SessionConfigMemoryPort`/
+  `WireTranscriptInteraction`/`EngineRuntime`/`testClock`）等。
+
+**只补注释、不动代码的那一类**（实测换了会坏或有明确理由，逐条记下来免得下轮再报）：
+`process-kit/which.ts`（`Bun.which` 的三条实测缺口 + Electron 主进程没有 `Bun`）、
+`process-kit/line-splitter.ts`（readline 会按 U+2028 劈帧）、`foundation/id.ts`（单调 ULID 无替代）、
+`features/attachments/src/core/mime.ts`（`Bun.file().type` 的扩展名表与这里钉的值不同：`.ts` 会给
+`text/javascript`、`.yaml` 给 `text/yaml`、`.webp` 同，而这张表要喂给 asset 协议的内联白名单）、
+`packages/host-kernel/src/relay-port.ts`（`net.createServer().listen(0)` 是标准做法）、
+`packages/fs-kit/src/hash.ts`（流式 sha256；`Bun.CryptoHasher` 在 Electron 主进程不存在；
+`node:crypto` 的一次性 `hash()` 只适合 ≤5MB，正是它要避免的）、
+`packages/logging/src/redact.ts` 与 `jsonl-file-sink.ts`（无对应平台能力）、
+`packages/git/src/parse.ts`（`-z` 分帧的 porcelain 解析，没有标准库）。
+
+**接上而不是删掉的一处**：`host-kernel` 手抄了一份 `CoreStatusState` / `CoreFailureReason` 联合，
+值与 `contract-kit` 的 `CORE_STATUS_STATES` / `CORE_FAILURE_REASONS` 逐字相同（同一份线上契约两个产地）。
+那两个常量当时也零引用 —— 现在 `host-kernel` 从 contract-kit **派生**（`(typeof X)[number]`），
+两个产地收成一个，常量也不再是死导出。层级合规（host-kernel L3 → contract-kit L1，且它本来就依赖）。
+
+**看过但本轮没动**（记入下面的待决）：`node:sqlite` 的 `setAuthorizer`（仍是「一条连接服务多模块」
+架构限制，上一轮已裁决）、`runtime-layout` 的手写 argv 解析（`node:util.parseArgs` 能替，但 9 条用例
+钉的是中文报错文案，「参数重复」「未知参数」这些语义 parseArgs 不给，属行为变更不是纯删除）、
+`test-kit` 的 `FakeClock`（`vi.useFakeTimers()` 推不动注入式时钟，仓库里已经被咬过一次）、
+`tooling/release/release.ts` 的 asar 头解析（`@electron/asar` 在树里但没在任何 package.json 声明，
+用它要加依赖；手写版 40 行、发布链专用）。
+
+### 补充（同轮稍后落地的三条，与上表口径一致）
+
+扫描里还有三条「导出但只在自己模块/测试里用」，一并收了：`fs-kit` 的 `samePath`（模块外零引用，
+**删掉**）、`process-kit` 的 `pathEntries`（只被同文件的 `which` 用，**降为模块内私有**）、
+`storage-sqlite` 的 `SqlParams`（零引用，删）与 `referencedTables`（只被同文件的 `assertOwnTables`
+用，降为模块内私有）。
+
+**`referencedTables` 那 12 条用例没有跟着删**：它们是对象名前缀扫描（`ON CONFLICT` / `OR IGNORE` /
+`OR REPLACE` / CTE / `json_each` 表值函数 / 字符串字面量与注释里的假引用）唯一的直接覆盖，
+降为私有之后改从公开入口 `assertOwnTables` 断言，并补了四条**反向**用例（越界的表必须被抓到）。
+覆盖没缩水，反而多了一层：从前只验「解析出什么名字」，现在连同「越界就拒」一起验。
+
+### 验收
+
+`bun run all` 全绿：**2313 pass / 0 fail**（292 文件 / 11 040 断言）。基线（本轮开工前实测）是
+2333 pass / 293 文件；差额 −20 条 / −1 文件，逐笔对得上：
+
+| 增减 | 条数 | 出处 |
+| --- | --- | --- |
+| −5 | `foundation/src/__tests__/queue.test.ts` 整份 | 随 `queue.ts` 删 |
+| −1 | `test-kit/src/__tests__/rpc-harness.test.ts` 整份 | 随 `rpc-harness.ts` 删 |
+| −3 | `foundation/src/__tests__/async.test.ts` 6 → 3 | `abortable` / `delay` 的用例随那两个导出删 |
+| −10 | `storage-sqlite/.../sql-guard.test.ts` 16 → 6 | `referencedTables` 的 12 条并成 1 条（改从 `assertOwnTables` 断言）+ 补 4 条反向用例；断言数反而从 50 升到 73 |
+| −1 | `engine-omp/.../model-resolve.test.ts` 5 → 4 | `splitModelSelector` 的 2 条随函数删，补 1 条 thinking 后缀 |
+| −1 | `fs-kit/.../paths.test.ts` 7 → 6 | 随 `samePath` 删 |
+| −1 | `process-kit/.../which.test.ts` 5 → 4 | `pathEntries` 降为私有，其用例随导出删 |
+| **+2** | `review/.../pr-detail-copy.test.tsx`（新） | 换 `useCopy` 之后钉住「点了真的写这条 PR 的地址」+「没有 pull 时不写」 |
+
+Python 安装链另有一次**真包端到端**复验（见上）；新加的复制用例做过**反向验证**（把 `linkUrl`
+断开 → 用例当场变红），说明它抓的是真接线而不是渲染成功。
+
+`bun run core:build` + `core:verify-dist` 通过（产物哈希一致，core 0.5.7 / protocol 19 / omp 18.10.3）。
+未动契约形状 → 无需 `protocol:snapshot`。
+
+**`core:probe` 未通过，但与本轮改动无关**：在本轮开工前的干净 HEAD（`21111747`）上同样卡在
+`core.ready` 之前（stderr 最后一条是 `foreign providers disabled`，10 秒超时）。做法是开一个
+worktree 检出基线、`git stash` 本轮全部改动后复跑，现象逐字相同 —— 判定为本机既有的环境问题，
+不是本轮引入。未继续追它：本轮没碰 bootstrap、环境与路径。
+
+**待决问题**：
+
+| Q | 日期 | 问题 | 现状 | 处置 |
+| --- | --- | --- | --- | --- |
+| Q46 | 2026-10-16 | `runtime-layout/src/core-args.ts` 的 33 行 argv 解析可用 `node:util.parseArgs` 替，但它把 `--k=v` 也收下、报错文案是英文的 `ERR_PARSE_ARGS_*`，而 9 条用例钉的是中文文案与「参数重复」这类语义 | 无（本轮未动） | 记录：属可接受的行为变更，等产品负责人裁决 |
+| Q47 | 2026-10-16 | `relay-protocol.ts` 仍是 omp 内部协议副本（原 Q45） | 同 Q45 | 升级 omp 时必核 |
+| Q48 | 2026-10-16 | `omp-version.ts` 的兜底值仍写 `'18.5.0'`，而 catalog 已锁 `18.10.3`；只有源码运行与单测会看到它（生产由构建期注入），但它会进 `core.ready` 与 `diagnostics.core` | 无 | 记录：下次升 omp 时连同 Q43 的文档一起改 |

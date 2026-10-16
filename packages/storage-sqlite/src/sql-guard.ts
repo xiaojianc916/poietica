@@ -36,7 +36,7 @@ const ALLOWED = new Set(['json_each', 'json_tree', 'conflict', 'set'])
 const FORBIDDEN = /\b(ATTACH|DETACH|PRAGMA|VACUUM)\b/i
 
 /** 返回 SQL 中引用的全部对象名（小写、去重）。只用于“前缀检查”，不是完整的 SQL 解析器 */
-export function referencedTables(sql: string): string[] {
+function referencedTables(sql: string): string[] {
   const text = normalize(sql)
   const out = new Set<string>()
   for (const p of PATTERNS) {

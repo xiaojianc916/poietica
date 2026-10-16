@@ -1,4 +1,4 @@
-import type { TranscriptInteraction, TranscriptItem, TranscriptTurn } from '@poietica/transcript'
+import type { TranscriptItem, TranscriptTurn } from '@poietica/transcript'
 import {
   agentTranscriptSnapshotSchema,
   type TranscriptOperation,
@@ -72,10 +72,6 @@ export type WireTranscriptOperation =
  */
 export const WireInteractionKind = z.enum(['approval', 'question', 'plan'])
 export type WireInteractionKind = z.infer<typeof WireInteractionKind>
-
-export type WireTranscriptInteraction = Omit<TranscriptInteraction, 'interactionKind'> & {
-  readonly interactionKind: WireInteractionKind
-}
 
 export const timelineOperationSchema = (() => {
   const options = (transcriptOperationSchema as unknown as { options: readonly z.ZodObject[] }).options

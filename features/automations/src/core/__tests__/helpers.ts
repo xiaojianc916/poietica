@@ -113,10 +113,6 @@ export function unitDeps(o: { readonly clock?: FakeClock; readonly workspaces?: 
   }
 }
 
-export function testClock(): FakeClock {
-  return fakeClock()
-}
-
 export { createFakeEngine, type FakeEngine, type ScenarioScript }
 
 export function fullDraft(overrides: Partial<AutomationDraft> = {}): AutomationDraft {

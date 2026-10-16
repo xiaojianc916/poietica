@@ -37,7 +37,7 @@ describe('python core onReady', () => {
   })
 })
 
-/* 端到端的安装闭环（PY-1 / PY-4）：把全局 fetch 换成可控的假实现，模块里的 install 就会走真实编排 —— 下载、校验、解压（真跑 System32\tar.exe）、
+/* 端到端的安装闭环（PY-1 / PY-4）：把全局 fetch 换成可控的假实现，模块里的 install 就会走真实编排 —— 下载、校验、解压（真走 Bun.Archive）、
  * 验证（真跑解压出来的 python.exe）、写设置。测试用真 tar 造一个「长得像」的包，解压之后验证必然失败（假包不是真 CPython）。所以这里只跑到
  * **下载 + 校验 + 解压**：本文件只钉两件与模块接线有关的事 —— 下载中的 remove → busy；重复 install 不第二次下载。 */
 describe('python core 安装状态机（接在模块上）', () => {

@@ -1,5 +1,6 @@
 import { readFileSync, statSync } from 'node:fs'
 import { readFile } from 'node:fs/promises'
+import { isUserInvokedSkillPrompt, SKILL_PROMPT_MESSAGE_TYPE } from '@oh-my-pi/pi-coding-agent/session/messages'
 import { tagImageAttachmentSource } from '@oh-my-pi/pi-tui/prompt/image-source'
 import type { SubmitInput } from '@poietica/engine'
 import { AppError, SystemErrorCode } from '@poietica/foundation'
@@ -41,8 +42,8 @@ export interface SkillPromptMessage {
   readonly attribution: string
 }
 
-/** omp 的技能消息类型（与官方 SKILL_PROMPT_MESSAGE_TYPE 同一个值） */
-export const SKILL_MESSAGE_TYPE = 'skill-prompt'
+/** omp 的技能消息类型经官方常量转出（引擎端口与测试用它拼消息，值仍只有一处产地） */
+export const SKILL_MESSAGE_TYPE = SKILL_PROMPT_MESSAGE_TYPE
 
 /** omp 目标续跑那条隐藏消息的类型：RpcGoalController 写死的值，goal-host 靠它认出「这是续跑」 */
 export const GOAL_CONTINUATION_TYPE = 'goal-continuation'
@@ -129,7 +130,9 @@ export function isUserSkillMessage(message: {
   readonly customType?: unknown
   readonly attribution?: unknown
 }): boolean {
-  return message.customType === SKILL_MESSAGE_TYPE && message.attribution === 'user'
+  /* 改用 omp 官方判据（同一份 `customType === SKILL_PROMPT_MESSAGE_TYPE && attribution === 'user'`）：
+   * 上游改了值的定义或加了新档，这里跟着走，不必回来改第二处。 */
+  return isUserInvokedSkillPrompt(message as never)
 }
 
 /**

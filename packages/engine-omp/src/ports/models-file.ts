@@ -10,22 +10,6 @@ import { writeFileAtomic } from '@poietica/fs-kit'
  * 所以写由我们补上；写完它自己按 mtime 重读。三条规则缺一条就会把用户的配置弄坏（见下面各方法）。
  */
 
-/** 一次 provider 定义；字段名与 models.yml 的 providers.<id> 逐字对应 */
-export interface ModelsFileProvider {
-  readonly id: string
-  readonly baseUrl: string | null
-  readonly api: string | null
-  readonly models: readonly {
-    readonly id: string
-    readonly name?: string | undefined
-    readonly contextWindow?: number | undefined
-    readonly maxTokens?: number | undefined
-    readonly reasoning?: boolean | undefined
-    readonly efforts?: readonly string[] | undefined
-    readonly input?: readonly string[] | undefined
-  }[]
-}
-
 /** models.yml 的形状；我们只认 providers 那一格，其余原样留着 */
 interface ModelsFile {
   readonly [key: string]: unknown

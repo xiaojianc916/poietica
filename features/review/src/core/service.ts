@@ -2,7 +2,6 @@ import path from 'node:path'
 import { AppError, type Logger } from '@poietica/foundation'
 import {
   assertSafeRefName,
-  createGit,
   type Git,
   GitCommandError,
   GitNotFoundError,
@@ -252,8 +251,4 @@ async function countLines(
   } catch {
     return { additions: 0, deletions: 0, binary: true }
   }
-}
-
-export function gitFor(cwd: string): Git {
-  return createGit({ cwd })
 }

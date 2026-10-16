@@ -25,12 +25,6 @@ export interface SessionConfigReport {
   readonly goal: SessionGoal | null
 }
 
-export interface SessionConfigMemoryPort {
-  readonly read: () => readonly SessionConfigControl[]
-  /** 写失败不该影响这一趟，由宿主自己上报。 */
-  readonly write: (controls: readonly SessionConfigControl[]) => void
-}
-
 export interface SessionConfigPort {
   readonly select: (
     threadId: ThreadId,

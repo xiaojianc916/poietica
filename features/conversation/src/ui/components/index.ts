@@ -26,5 +26,4 @@ export {
   DelegateChannelPane,
   useDelegateChannelNames,
 } from './timeline/delegate-channel-view'
-export { TableExportProvider } from './timeline/prose/table-export-context'
 export { TodoPanel } from './todo/todo-panel'

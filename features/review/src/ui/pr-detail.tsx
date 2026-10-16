@@ -12,6 +12,7 @@ import {
   Tooltip,
   TooltipContent,
   TooltipTrigger,
+  useCopy,
 } from '@poietica/design-system'
 import {
   ArrowUp,
@@ -25,7 +26,7 @@ import {
   GitPullRequestDraft,
   Link as LinkIcon,
 } from 'lucide-react'
-import { type ReactNode, useEffect, useRef, useState } from 'react'
+import type { ReactNode } from 'react'
 import type { GithubComment, GithubMergeMethod, GithubPullRequest, GithubReviewState } from '../contract'
 import { Avatar } from './avatar'
 import { pullBranchLine, pullStatePresentation, relativeTime, relativeTimeAgo, type StateGlyph } from './pr-format'
@@ -56,18 +57,6 @@ export interface PrDetailProps {
   readonly repositoryName: string | null
   /** 页面注入的 Markdown 渲染器。 */
   readonly markdown: (text: string) => ReactNode
-}
-
-/** 顶部那一条工具条要吃的东西。它由页面渲染（见 pr-page.tsx），所以单独一份 props。 */
-export interface PrDetailBarProps {
-  readonly state: PrState
-  readonly pull: GithubPullRequest | null
-  readonly busy: boolean
-  readonly onTab: (tab: PrTab) => void
-  readonly onCopyLink: () => void
-  readonly onOpenExternal: () => void
-  readonly onSendToAgent: () => void
-  readonly onMerge: (method: GithubMergeMethod) => void
 }
 
 const TAB_LABEL: Readonly<Record<PrTab, string>> = {
@@ -200,21 +189,19 @@ export function PrDetailActions({
   pull,
   busy,
   onMerge,
-  onCopyLink,
   onOpenExternal,
   onSendToAgent,
 }: {
   readonly pull: GithubPullRequest | null
   readonly busy: boolean
   readonly onMerge: (method: GithubMergeMethod) => void
-  readonly onCopyLink: () => void
   readonly onOpenExternal: () => void
   readonly onSendToAgent: () => void
 }): ReactNode {
   const blocked = pull !== null && pull.mergeStatus !== 'clean'
   return (
     <>
-      <CopyLinkButton onCopyLink={onCopyLink} />
+      <CopyLinkButton linkUrl={pull?.url ?? null} />
       <IconAction label="Open on GitHub" onClick={onOpenExternal}>
         <ExternalLink aria-hidden className="size-4" />
       </IconAction>
@@ -226,26 +213,14 @@ export function PrDetailActions({
   )
 }
 
-/* 复制成功后短暂变对勾：给一次「按到了」的回执，两秒后自己收回。 */
-function CopyLinkButton({ onCopyLink }: { readonly onCopyLink: () => void }): ReactNode {
-  const [copied, setCopied] = useState(false)
-  const timer = useRef<ReturnType<typeof setTimeout> | null>(null)
-  useEffect(
-    () => () => {
-      if (timer.current !== null) clearTimeout(timer.current)
-    },
-    [],
-  )
+/* 复制成功后短暂变对勾：给一次「按到了」的回执。判据与停留时长归 design-system 的 useCopy（全仓四处都用它）。 */
+function CopyLinkButton({ linkUrl }: { readonly linkUrl: string | null }): ReactNode {
+  const { copied, copy } = useCopy()
   return (
     <IconAction
       label={copied ? 'Link copied' : 'Copy link'}
       onClick={() => {
-        onCopyLink()
-        setCopied(true)
-        if (timer.current !== null) clearTimeout(timer.current)
-        timer.current = setTimeout(() => {
-          setCopied(false)
-        }, 2000)
+        if (linkUrl !== null) copy(linkUrl)
       }}
     >
       {copied ? <Check aria-hidden className="size-4 text-success" /> : <LinkIcon aria-hidden className="size-4" />}
