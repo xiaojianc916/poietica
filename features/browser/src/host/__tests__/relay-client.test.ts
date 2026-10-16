@@ -352,7 +352,7 @@ describe('BR-2: 握手与驱动标记', () => {
     h.client.dispose()
   })
 
-  /* 少了这个字段，omp 18.10.3 的 bridge 把整个实例判成不 eligible：一张 target 都发现不了，
+  /* 少了这个字段，omp 的 bridge 把整个实例判成不 eligible：一张 target 都发现不了，
    * 浏览器工具直接报「扩展过期」（实测 waitForRelayExtension 返回 outdated-extension）。 */
   test('hello 报 discardedTabsProtocol，否则 relay 判我们「扩展过期」', () => {
     const h = harness('https://a.example/')

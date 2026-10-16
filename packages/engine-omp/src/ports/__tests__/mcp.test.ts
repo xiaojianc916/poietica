@@ -82,7 +82,7 @@ describe('McpPort', () => {
     await expect(port.remove('demo')).rejects.toMatchObject({ code: expect.any(String) })
   })
 
-  /* omp 18.5.0 的 MCPManager 没有批量状态接口：按名字逐个问（getAllServerNames + getConnectionStatus）。 */
+  /* omp 的 MCPManager 没有批量状态接口：按名字逐个问（getAllServerNames + getConnectionStatus）。 */
   test('status 从活会话的 mcpManager 汇总，disconnected 映射成 failed', async () => {
     const manager: OmpMcpManager = {
       getAllServerNames: () => ['alpha', 'beta'],

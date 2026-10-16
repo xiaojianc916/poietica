@@ -500,7 +500,7 @@ describe('core-kernel 启动', () => {
     expect(h.received.find((r) => r.method === 'core.ready')?.params).toEqual({
       coreVersion: '1.2.3',
       protocolVersion: 7,
-      engineVersion: '18.5.0',
+      engineVersion: '0.0.0-test',
     })
     await h.dispose()
   })

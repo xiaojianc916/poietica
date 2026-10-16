@@ -1,8 +1,9 @@
 import { readSetting, type SettingsScope } from './settings-access'
 
 /*
- * 会读到隔离根以外内容的 provider。omp 18.5.0 的 discovery 提供者逐个核对后得出，保留的 6 个是
- * native / omp-plugins / mcp-json / ssh-json / skillshare / agents（`agents` 按产品决定放行）。
+ * 会读到隔离根以外内容的 provider。omp 的 discovery 提供者逐个核对后得出（每个文件一个 PROVIDER_ID），
+ * 保留的 6 个是 native / omp-plugins / mcp-json / ssh-json / skillshare / agents（`agents` 按产品决定放行）。
+ * 核对方法见 docs/omp-sdk-reference.md §L 与 refactor-log Q43。
  */
 export const FOREIGN_PROVIDERS: readonly string[] = Object.freeze([
   'claude',

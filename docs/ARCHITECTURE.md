@@ -126,8 +126,8 @@ import `@oh-my-pi/*` 的地方（`apps/core/scripts` 的构建脚本是唯一例
 2. 启动时自检（T-ISO-1…5）：不达标直接拒绝启动。
 3. 全局 `~/.omp`、`.env` 与其它工具的凭据变量一律屏蔽（`launchEnv` 的清洗）。
 
-omp 锁在 `18.5.0`（根 `package.json` 的 catalog）。升级前必须逐项核对 16 页 §5 的陷阱表，
-并在 `docs/refactor-log.md` 记录核对结果。
+omp 的版本锁在根 `package.json` 的 catalog（四个 `@oh-my-pi/*` 同一版本，那**唯一**产地）。
+升级前必须逐项核对 16 页 §5 的陷阱表，并在 `docs/refactor-log.md` 记录核对结果。
 
 ## 7. 数据与存储
 
@@ -176,9 +176,10 @@ omp 锁在 `18.5.0`（根 `package.json` 的 catalog）。升级前必须逐项�
 8. `bun run refs` → `bun run protocol:snapshot` → `bun run  all`。
 9. 在 `docs/refactor-log.md` 记录偏差或待决问题（如果有）。
 
-**升级 omp**：改根 `package.json` catalog 的四个 `@oh-my-pi/*` 版本 → 按 16 页 §5 的陷阱表逐项核对
-（会话文件、设置键、工具名、事件形状、浏览器 relay 协议……）→ 记录到 `docs/refactor-log.md` →
-`bun run core:build` + `core:probe` + `bun run  all`。
+**升级 omp**：改根 `package.json` catalog 的四个 `@oh-my-pi/*` 版本 → `bun install` →
+`bun run check:omp-doc:write`（刷 `docs/omp-sdk-reference.md` 的版本头与行号锚点）→
+按 16 页 §5 的陷阱表逐项核对（会话文件、设置键、工具名、事件形状、浏览器 relay 协议……）→
+记录到 `docs/refactor-log.md` → `bun run core:build` + `core:probe` + `bun run  all`。
 
 **发布**：`bun run version:set <x.y.z>`（唯一入口，同时改根、desktop 与 core）→ 提交 →
 `git tag v<x.y.z>` → 推送 tag → release 工作流构建、冒烟、创建草稿 → 人工在干净虚拟机上验收 →

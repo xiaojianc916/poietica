@@ -1,4 +1,4 @@
-// 本文件是全仓唯一调用 lookup 的地方。omp 18.5.0 把设置改成**注册**出来的：
+// 本文件是全仓唯一调用 lookup 的地方。omp 把设置改成**注册**出来的：
 // 各域自己 register()、config/all-settings.ts 汇总。不导入它，注册表是空的 —— lookup 永远返回
 // undefined，而且不报错，只会让设置目录静默变成 0 格（踩过这个坑）。
 import '@oh-my-pi/pi-coding-agent/config/all-settings'

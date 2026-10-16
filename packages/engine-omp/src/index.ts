@@ -14,8 +14,8 @@ export interface CreateOmpEngineOptions {
   /** 产品版本（Core 的版本），写进 omp 的运行时上下文 */
   readonly appVersion: string
   /**
-   * omp 引擎自己的版本。不传就用本包的 OMP_VERSION（构建时由 apps/core/scripts/build.ts 注入，
-   * 源码运行与单测时回落到与 catalog 锁定的版本）。
+   * omp 引擎自己的版本。不传就用本包的 OMP_VERSION（生产由 apps/core/scripts/build.ts 编译期注入，
+   * 源码运行与单测时从随包安装的那份 omp 现读）—— 两种来源都不写死版本号，catalog 是唯一产地。
    * engine.info.version 会进入 core.ready 载荷与 diagnostics.core，而契约要求它是 string ——
    * 缺了它，strict 模式下 diagnostics.core 整个方法失败（真实故障）。
    */

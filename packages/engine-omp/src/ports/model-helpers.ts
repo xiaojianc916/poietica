@@ -30,9 +30,9 @@ export function registryPortOf(registry: OmpModelRegistry): RegistryPort {
 }
 
 /*
- * omp 18.5.0 的 ModelRegistry：getAll() / getAvailable() / hasConfiguredAuth(model) /
- * find(provider, modelId) —— 没有 find(selector) 的一参形态，也没有 hasAuth 的旧名（18.3.0 把它
- * 拆进了 credentials / keys 两组子 API）。端口把这几件收成 RegistryPort，省得每个调用点各记一遍。
+ * omp 的 ModelRegistry：getAll() / getAvailable() / hasConfiguredAuth(model) /
+ * find(provider, modelId) —— 没有 find(selector) 的一参形态，也没有 hasAuth 的旧名
+ * （它被拆进了 credentials / keys 两组子 API）。端口把这几件收成 RegistryPort，省得每个调用点各记一遍。
  */
 
 /** 模型在界面上的名字：provider/id（与 omp 选择器同一拼法）。 */

@@ -4,6 +4,7 @@ import type { ScenarioStep } from '@poietica/engine-testkit'
 import { type Logger, noopLogger } from '@poietica/foundation'
 import type { DataLayout } from '@poietica/runtime-layout'
 import { createOmpEngineWith } from '../create-engine'
+import { OMP_VERSION } from '../omp-version'
 
 export interface MockEngineHandle {
   readonly engine: AgentEngine
@@ -43,7 +44,7 @@ export async function createOmpEngineForTest(o: CreateOmpEngineForTestOptions): 
       logger,
       relayPort: o.relayPort ?? 0,
       appVersion: 'test',
-      engineVersion: o.engineVersion ?? '18.5.0',
+      engineVersion: o.engineVersion ?? OMP_VERSION,
     },
     // omp 的 getApiKey 签名是 (model) => ApiKey；mock provider 不需要真 key，给一个常量串
     // disableAutoTitle：mock 也是 tiny 角色的候选，标题请求会吃掉一条脚本回复（见测试缝的注释）

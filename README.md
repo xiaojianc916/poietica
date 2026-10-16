@@ -1,7 +1,7 @@
 # Poietica
 
 **本地 AI agent 桌面应用（Windows）**，内置 [Oh My Pi](https://github.com/can1357/oh-my-pi)（omp）引擎，
-开箱即用。omp 随包发布（锁定 18.5.0）、数据只落在应用自己的数据根，与用户机器上的全局 omp 完全隔离。
+开箱即用。omp 随包发布（版本锁在根 `package.json` 的 catalog）、数据只落在应用自己的数据根，与用户机器上的全局 omp 完全隔离。
 
 [![CI](https://github.com/xiaojianc916/poietica/actions/workflows/ci.yml/badge.svg)](https://github.com/xiaojianc916/poietica/actions/workflows/ci.yml)
 [![License: AGPL-3.0-or-later](https://img.shields.io/badge/license-AGPL--3.0--or--later-blue)](LICENSE)
@@ -105,7 +105,7 @@ bun run dev          # 构建 Core 后启动 electron-vite 开发模式
 | --- | --- |
 | `docs/ARCHITECTURE.md` | 现状架构：分层、进程、契约、数据归属、测试策略、扩展配方 |
 | `AGENTS.md` | 工作守则与边界铁律（AI 与人类贡献者都先读这一页） |
-| `docs/omp-sdk-reference.md` | omp 18.5.0 的精确 API（带源码行号），写 engine-omp 前先查这里 |
+| `docs/omp-sdk-reference.md` | 随包 omp 的精确 API（带源码行号），写 engine-omp 前先查这里 |
 | `docs/refactor-log.md` | 重构进度、偏差、待决问题 |
 | `docs/release-notes/` | 每个版本的发布说明 |
 

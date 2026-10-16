@@ -207,7 +207,7 @@ export async function makeKernel(modules: readonly CoreModule[], opts: MakeKerne
     appContract,
     protocolVersion: 7,
     coreVersion: '1.2.3',
-    engineVersion: '18.5.0',
+    engineVersion: '0.0.0-test',
     strict: opts.strict ?? true,
     runtime: { scrubbedEnvKeys: ['OPENAI_API_KEY'], setLogLevel: () => undefined },
   })

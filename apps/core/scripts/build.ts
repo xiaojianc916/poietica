@@ -114,7 +114,7 @@ const result = await Bun.build({
     'process.env.POIETICA_BUILD_VERSION': JSON.stringify(pkg.version),
     'process.env.PI_DOCS_EMBED': JSON.stringify(docs),
     'process.env.POIETICA_PROBE_BUILD': JSON.stringify(probe ? '1' : '0'),
-    // omp 的版本：编译期注入。运行时读不到（见 packages/engine-omp/src/omp-version.ts 的说明）
+    // omp 的版本：编译期注入（exe 里没有 node_modules，运行时探不到；见 omp-version.ts 的说明）
     'process.env.POIETICA_OMP_VERSION': JSON.stringify(ompPkg.version),
   },
   plugins: plugins as never,

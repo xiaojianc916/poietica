@@ -74,7 +74,7 @@ if (problems.length > 0) {
   fail(`产物与 manifest 对不上：\n  - ${problems.join('\n  - ')}`)
 }
 
-/* omp 版本必须与 catalog 里钉住的 18.5.0 一致（03 页 §0 的第 11 条铁律） */
+/* omp 版本必须与 catalog 里钉住的一致（03 页 §0 的第 11 条铁律）—— 具体版本号只有 catalog 一个产地 */
 const rootPkg = JSON.parse(readFileSync(path.join(ROOT, 'package.json'), 'utf8')) as {
   workspaces?: { catalog?: Record<string, string> }
 }

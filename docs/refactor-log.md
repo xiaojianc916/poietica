@@ -3750,3 +3750,73 @@ worktree 检出基线、`git stash` 本轮全部改动后复跑，现象逐字�
 | Q46 | 2026-10-16 | `runtime-layout/src/core-args.ts` 的 33 行 argv 解析可用 `node:util.parseArgs` 替，但它把 `--k=v` 也收下、报错文案是英文的 `ERR_PARSE_ARGS_*`，而 9 条用例钉的是中文文案与「参数重复」这类语义 | 无（本轮未动） | 记录：属可接受的行为变更，等产品负责人裁决 |
 | Q47 | 2026-10-16 | `relay-protocol.ts` 仍是 omp 内部协议副本（原 Q45） | 同 Q45 | 升级 omp 时必核 |
 | Q48 | 2026-10-16 | `omp-version.ts` 的兜底值仍写 `'18.5.0'`，而 catalog 已锁 `18.10.3`；只有源码运行与单测会看到它（生产由构建期注入），但它会进 `core.ready` 与 `diagnostics.core` | 无 | 记录：下次升 omp 时连同 Q43 的文档一起改 |
+
+## R-33 omp 版本号只有一个产地：文档锚点机械化、兜底值改为现读（2026-10-16）
+
+**来源**：产品负责人交办「SDK 参考 1131 行停在 18.5.0、catalog 是 18.10.3、OMP_VERSION 兜底常量
+也是 `'18.5.0'`；升级时不要到处改版本号注释，整理一下」。查完发现三处是三个独立问题，逐个处理。
+
+### 1. 兜底值：不再写死（`packages/engine-omp/src/omp-version.ts`）
+
+`OMP_VERSION` 只有两条来源，都不含版本字面量：
+
+- **生产**：`apps/core/scripts/build.ts` 编译期注入（define），exe 里没有 node_modules，这条**必需**；
+- **源码运行 / 单测**：`Bun.resolveSync('@oh-my-pi/pi-coding-agent', import.meta.dir)` 定位随包那份，
+  从它的 `package.json` 现读版本；两者都探不到时回落到哨兵 `OMP_VERSION_UNKNOWN`。
+
+实测：源码运行读到的就是随包那份（跑之前是 `18.10.3`，改 catalog 后自动跟着变），注入值时
+注入优先。`packages/engine-omp/src/testing/index.ts` 的 `'18.5.0'` 兜底同样改为 `OMP_VERSION`。
+
+### 2. 版本号散落各处的注释：全部去掉
+
+`rg '18\.5\.0'` 命中的 20 处逐条处理：源码/测试注释里的版本限定词改成不带版本的说法（「omp 的
+MCPManager 没有批量状态接口」这种，本来就是对着**当时那一版**核对的结论）；测试夹具的
+`engineVersion: '18.5.0'` 改成中性的 `'0.0.0-test'`（内核用例钉的是「载荷透传」，不是「omp 恰好是
+哪一版」）；`docs/release-notes/0.5.0.md` 里的 18.5.0 是**当时真实的发布内容**（已用
+`git show <0.5.0 提交>:package.json` 核对），保留。
+
+### 3. SDK 文档：从「手抄一次」变成「锚点可机检、可刷新」
+
+`docs/omp-sdk-reference.md` 的行号整体漂移（18.5.0 → 18.10.3 最多 +139 行），且是**静默**的 ——
+relay 协议的缺陷正是「对着旧文档核对」漏出来的（Q43）。新增
+`tooling/checks/omp-sdk-doc.ts`（`bun run check:omp-doc`），接进 `bun run lint`：
+
+- **版本唯一产地**：文档第一行与 `PKGROOT`/`AIROOT`/… 路径行里的版本段都由工具按随包那份 omp
+  现填，文档里不许写死（`--write` 会写回）；
+- **行号锚点**：每个 `// from:` 的区间、正文里 164 处 `名字:N`（成员表）逐个核对；
+- 归属按行判定：一行里点了别的文件（`Full export list of src/x.ts: …`）就用那个文件比对，
+  避免拿 A 文件的形状改 B 文件的行号；
+- `--write` 就地刷新，默认只核对（`bun run lint` 走默认）。
+
+实测：刷新 65 个行号区间 + 164 处锚点；`--write` 幂等（第二次 0 改动）；核对是**闭区间**判定
+（刷新前 130 处引用落在区间外，刷新后 0），不是「差不多就行」。
+
+顺带修掉 4 处**真的内容漂移**（不只是行号）：`buildDisplaySessionContext` 多了 `model?` 参数、
+`pi-tui/theme` 多导出一个 `getMarkdownThemeWithLinkTargets`、`pi-ai/providers/mock` 的 import 多了
+`ServiceTier`、`SessionStorageWriter` 的引用行号错位。
+
+**未做**：文档正文仍是手抄副本（内容本身不可能机械化），升级时该核对的仍要按 §11 核对 —— 本轮的
+目标是「不要因为版本号变了就到处改注释」，不是「升级不用看代码」。
+
+### 验收
+
+`bun run all` 全绿（typecheck / lint 含新闸门 / test）。`bun run lint` 现在会核对文档锚点；
+CSS 的 4 条 `noDescendingSpecificity` 警告是既有欠账（未触碰那两个文件）。
+
+**Q43 / Q48 收尾（R-33）**：Q43（文档停在 18.5.0）与 Q48（`OMP_VERSION` 兜底写死 `'18.5.0'`）都在本轮
+结清 —— 文档头与包根路径由 `bun run check:omp-doc:write` 按随包那份 omp 现填，兜底值改为
+运行时现读，两处都不再出现版本字面量。升级 omp 的步骤已写进 AGENTS.md §11 与 ARCHITECTURE §9。
+Q44（MCP 四个死键）、Q45/Q47（relay 协议副本）仍未决：relay 那个文件升级时**必核**，它没有可机检的锚点。
+
+**补充：会话文件那一节（§N）从「纸上形状」升级为「实测形状」**。此前的正文写着
+「no live session file existed to quote」——那在当时是真的。隔离根
+`<APPDATA>\Poietica\omp\agent\sessions\--D--xiaojianc-poietica--` 现在有 9 个真实 `.jsonl`，
+于是逐项复验并改正：
+
+- 标题槽的字节数：**连自身的 `\n` 恰好 256 字节**（9 个文件全部实测 256，去掉换行是 255），
+  `pad` 是元数据之后剩下的填充；原文写「fixed-width 256-byte title slot」容易被读成不含换行。
+- 前两行换成**真实会话的原样行**（title 槽 + session 头），其余行按实测的键补全
+  （`custom_message` 的 `details` 带 `args` 与 `attribution`；`custom` 的真实样例是
+  `system-prompt-digest` + 字符串 `data`，不是空对象）。
+- 隔离判据同时核过：全局 `~/.omp/agent/sessions` 下 **0 个 `.jsonl`**，9 个全在隔离根 —— 与
+  §6 的隔离承诺一致。

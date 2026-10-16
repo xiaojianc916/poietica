@@ -202,7 +202,7 @@ function mcpConfigOf(server: z.infer<typeof McpServerInfo>): never {
 }
 
 /**
- * 一台会话里某个 MCP 管理器的状态。omp 18.5.0 的 MCPManager 没有批量状态接口
+ * 一台会话里某个 MCP 管理器的状态。omp 的 MCPManager 没有批量状态接口
  * （只有 getAllServerNames / getConnectionStatus / getConnection），所以逐个名字问；
  * getServerStatus 若存在则优先用它（别的实现可能有）。
  */

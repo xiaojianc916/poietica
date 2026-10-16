@@ -75,7 +75,7 @@ async function createRealEngine(
   logger: Parameters<typeof createCoreKernel>[0]['logger'],
 ) {
   const { createOmpEngine } = await import('@poietica/engine-omp')
-  // appVersion 必给；engineVersion 由 engine-omp 自己从 omp 的 package.json 读（只有它能 import @oh-my-pi/*）。
+  // appVersion 必给；engineVersion 由 engine-omp 自己定（生产编译期注入，源码运行读随包那份 omp 的 package.json）。
   // 两个都不能缺：engine.info.version 会成为 core.ready 载荷与 diagnostics.core 的 engineVersion，
   // 契约要求它是 string —— undefined 会让 strict 模式下的 diagnostics.core 整个方法失败。
   return createOmpEngine({ layout, relayPort, logger: logger.child({ module: 'engine' }), appVersion: CORE_VERSION })

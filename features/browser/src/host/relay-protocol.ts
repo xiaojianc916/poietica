@@ -1,8 +1,8 @@
 /*
- * relay 的线上形状，对齐 omp 18.10.3 的 tools/browser/relay/protocol.ts：那是它内部的契约、没有版本号，
+ * relay 的线上形状，对齐 omp 的 tools/browser/relay/protocol.ts：那是它内部的契约、没有版本号，
  * 升级 omp 时必须回来核对（AGENTS.md §11 点名要求核这一个文件）。
  *
- * **hello 必须带上 `discardedTabsProtocol`**：18.10.3 的 bridge 拿它当能力闸门
+ * **hello 必须带上 `discardedTabsProtocol`**：bridge 拿它当能力闸门
  * （`relay/bridge.ts` 的 `#eligible()`），对不上的实例每张标签都不 eligible ——
  * `Target.getTargets` 返回空、`/json/version` 报 `ompExtensionDiscardedTabsProtocol: "0"`，
  * 于是 `probe.ts` 判成 `outdated-extension`、浏览器工具直接抛「扩展过期，请跑 omp browser-relay install」。

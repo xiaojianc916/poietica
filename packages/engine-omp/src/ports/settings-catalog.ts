@@ -454,7 +454,7 @@ export const SETTING_LABELS: Readonly<Record<string, string>> = {
   'exa.searchDelayMs': 'Exa 搜索间隔',
   'searxng.endpoint': 'SearXNG 地址',
 
-  /** ── 18.5.0 新增的 19 格（升级时对着上游 ui.label 逐条补） ── */
+  /** ── 后来新增的一批（升级时对着上游 ui.label 逐条补） ── */
   'display.subagentLivePreview': '子代理实时预览',
   'input.bareExitOnEmptySession': '空会话直接退出',
   'input.bareSlashCommands': '免斜杠命令',
@@ -885,7 +885,7 @@ export const SETTING_DESCRIPTIONS: Readonly<Record<string, string>> = {
   'python.kernelMode': '让 IPython 内核在多次 eval 调用间保持存活，或每次都重新启动',
   'python.interpreter': '可选的精确 Python 可执行文件路径。设置后跳过 Python 运行时的自动探测。',
 
-  /** ── 18.5.0 新增的 19 格（升级时对着上游 ui.description 逐条补） ── */
+  /** ── 后来新增的一批（升级时对着上游 ui.description 逐条补） ── */
   'display.subagentLivePreview': '在每一行子代理下面显示它当前（或最近一次）的工具调用',
   'input.bareExitOnEmptySession':
     '第一条消息之前，提交恰好是 `exit`、`quit` 或 `q`（不分大小写）就退出，而不是去问模型',
@@ -1134,7 +1134,7 @@ export function modelSelectorSettingOf(path: string): boolean {
   return path === 'sharpshooter.model'
 }
 
-/* 判据是 **omp 自己的 tab**，不是路径前缀名单：手抄一份 `mnemopi.* / hindsight.* / autolearn.*` 就是第二个事实，上游换掉记忆后端时我们的名单会静默落后。这一栏此刻 30 格（18.5.0 实测） */
+/* 判据是 **omp 自己的 tab**，不是路径前缀名单：手抄一份 `mnemopi.* / hindsight.* / autolearn.*` 就是第二个事实，上游换掉记忆后端时我们的名单会静默落后 */
 export function memorySettingOf(tab: string): boolean {
   return tab === 'memory'
 }

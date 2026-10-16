@@ -7,7 +7,7 @@
 - Windows 本地 AI agent 桌面应用（AGPL-3.0）。三个进程：**UI**（Electron 渲染进程，React）↔ **Host**（Electron 主进程）↔ **Core**（`poietica-core.exe`，Bun 编译）。
 - UI↔Host 走 IPC `poietica:rpc`，Host↔Core 走 stdio（`\x1e` 分帧），两段都是 JSON-RPC 2.0。Host 的 `CoreSupervisor` 负责看护 Core：Core 会崩溃、会重启，UI 必须能重新同步。
 - 每个进程一个微内核（`core-kernel` / `host-kernel` / `ui-kernel`），功能以模块或贡献的形式插进去。外壳（`workbench`）只渲染贡献点，不认识任何具体功能。
-- agent 引擎是 omp（Oh My Pi，`@oh-my-pi/*` 锁在 `18.5.0`），只经 `@poietica/engine` 端口接入，唯一实现是 `packages/engine-omp`。omp 随包发布，数据落在 `%APPDATA%\Poietica\omp\`，与用户机器上的全局 omp 完全隔离。
+- agent 引擎是 omp（Oh My Pi，`@oh-my-pi/*` 的版本锁在根 `package.json` 的 catalog），只经 `@poietica/engine` 端口接入，唯一实现是 `packages/engine-omp`。omp 随包发布，数据落在 `%APPDATA%\Poietica\omp\`，与用户机器上的全局 omp 完全隔离。
 ​
 必读文档：
 ​
@@ -15,7 +15,7 @@
 | --- | --- |
 | `docs/ARCHITECTURE.md` | 现状架构：分层、进程、契约、数据归属、测试策略、扩展配方 |
 | `docs/refactor-log.md` | 进度、**偏差**（与方案不一致之处及原因）、**待决问题** |
-| `docs/omp-sdk-reference.md` | omp 18.5.0 的精确 API（带源码行号）。写 engine-omp 之前先查这里，不要凭记忆 |
+| `docs/omp-sdk-reference.md` | 随包 omp 的精确 API（带源码行号；`bun run lint` 会核对锚点是否跟得上随包版本）。写 engine-omp 之前先查这里，不要凭记忆 |
 | `docs/release-notes/` | 每个版本的发布说明 |
 ​
 ## 2. 环境与命令
@@ -32,6 +32,7 @@
 | `bun run refs` | 重新生成 tsconfig 项目引用（禁止手改 references） |
 | `bun run protocol:snapshot` | 契约形状变化后更新协议快照 |
 | `bun run check:ticker` | 思考行的**真实布局检查**（Electron + 真实组件，逐帧量「有没有遮字」）；改 `timeline/rolling-line*`、`ticker-*`、`roll-scheduler*`、`flow-row.css` 必须跑一次 |
+| `bun run check:omp-doc` / `check:omp-doc:write` | 核对（或刷新）`docs/omp-sdk-reference.md` 的版本头与行号锚点对得上随包的 omp；核对那一半已进 `bun run lint` |
 | `bun run core:build` / `core:probe` / `core:verify-dist` | 构建 Core、进程级隔离自检、校验产物 |
 | `bun run new:package` / `new:feature` | 脚手架（创建包或功能的唯一入口） |
 | `bun run version:set <x.y.z>` | 同时改根、desktop、core 三处版本号（唯一入口） |
@@ -180,7 +181,7 @@ L0  foundation
 - **加平台包**：`bun run new:package <name> --layer <0|1|2|3|5> --runtime <neutral|dom|node|bun|electron-main>`（会自动登记到 `layers.json`）→ `bun run refs` → `bun run  all`。
 - **加功能**：`bun run new:feature <id> --parts …` → 写 contract → 在 protocol 登记并提升版本 → 实现 core / host（服务、仓储、迁移、handlers）→ 实现 ui → 三个清单各加一行 → 写测试 → `refs` + `protocol:snapshot` + `check`。完整步骤见 ARCHITECTURE §9。
 - **加或删一个 RPC 方法**：改 contract → 实现 handler → 提升 `PROTOCOL_VERSION` → `protocol:snapshot`。
-- **升级 omp**：改 catalog 里四个 `@oh-my-pi/*` 的版本 → 对照 `docs/omp-sdk-reference.md` 和代码里的「omp 知识 #N」注释（`rg "omp 知识 #" packages/engine-omp`）逐项核对会话文件格式、设置键、工具名、事件形状、浏览器 relay 协议 → 核对结果写进 refactor-log → `core:build` + `core:probe` + `check`。核对完成前不合并。
+- **升级 omp**：改 catalog 里四个 `@oh-my-pi/*` 的版本（版本号只有这一个产地）→ `bun install` → 跑 `bun run check:omp-doc:write` 刷 `docs/omp-sdk-reference.md` 的行号锚点，再对照它与代码里的「omp 知识 #N」注释（`rg "omp 知识 #" packages/engine-omp`）逐项核对会话文件格式、设置键、工具名、事件形状、浏览器 relay 协议 → 核对结果写进 refactor-log → `core:build` + `core:probe` + `check`。核对完成前不合并。
 - **发布**：`bun run version:set <x.y.z>` → 提交 → 打 tag `v<x.y.z>` 并推送 → release 工作流出草稿 → 在干净虚拟机上人工验收 → 转为正式发布。
 ​
 ## 12. 工作方式

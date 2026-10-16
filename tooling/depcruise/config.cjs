@@ -1,8 +1,8 @@
 // 依赖规则：03 页 §9。层级规则由 layers.json 生成；其余规则为固定正则。
 //
-// 这里曾 require('./swc-tsx.cjs')：dependency-cruiser 17.4.3 的 swc 解析器把 syntax 固定成
+// 这里曾 require('./swc-tsx.cjs')：旧版 dependency-cruiser 的 swc 解析器把 syntax 固定成
 // 'typescript' 且不打开 tsx，.tsx 里的 JSX 会被当成类型断言而解析失败（P3 起仓库里出现了 .tsx）。
-// dependency-cruiser 18.5.0 的 src/extract/swc/parse.mjs 加了 getOptionsFor()，对 .tsx/.jsx
+// 现版 dependency-cruiser 的 src/extract/swc/parse.mjs 加了 getOptionsFor()，对 .tsx/.jsx
 // 自动带上 tsx: true，补丁已无必要，shim 随之删除（见 docs/refactor-log.md 待决问题 Q2）。
 
 const layers = require('./layers.json')

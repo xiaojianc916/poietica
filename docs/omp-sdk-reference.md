@@ -1,6 +1,6 @@
-# @oh-my-pi/pi-coding-agent 18.5.0 — exact SDK API reference
+# @oh-my-pi/pi-coding-agent 18.10.3 — exact SDK API reference
 
-Extracted read-only from the shipped declarations and sources. `PKGROOT` = `node_modules/.bun/@oh-my-pi+pi-coding-agent@18.5.0+219b93cc7c15e9fb/node_modules/@oh-my-pi/pi-coding-agent`; `AIROOT` = `.../@oh-my-pi+pi-ai@18.5.0/node_modules/@oh-my-pi/pi-ai`; `UTILSROOT` = `.../@oh-my-pi+pi-utils@18.5.0/...`; `TUIROOT` = `.../@oh-my-pi+pi-tui@18.5.0/...`; `COREROOT` = `.../@oh-my-pi+pi-agent-core@18.5.0/...`.
+Extracted read-only from the shipped declarations and sources. `PKGROOT` = `node_modules/.bun/@oh-my-pi+pi-coding-agent@18.10.3+e3cabdc0ee109e47/node_modules/@oh-my-pi/pi-coding-agent`; `AIROOT` = `.../@oh-my-pi+pi-ai@18.10.3/node_modules/@oh-my-pi/pi-ai`; `UTILSROOT` = `.../@oh-my-pi+pi-utils@18.10.3/...`; `TUIROOT` = `.../@oh-my-pi+pi-tui@18.10.3/...`; `COREROOT` = `.../@oh-my-pi+pi-agent-core@18.10.3/...`.
 Every `// from:` path is relative to PKGROOT unless the header names another root; `:N` / `:N-M` are line ranges in that file. JSDoc and blank lines are elided; wrapped signatures are joined onto one line with the text unchanged.
 Export map: `.` -> `src/index.ts` (types `dist/types/index.d.ts`); `./*` -> `src/*.ts` (types `dist/types/*.d.ts`); explicit keys per top-level directory. **No `./cli` key** — `.../cli` resolves through `./*`. pi-utils / pi-tui / pi-ai resolve `worker-host`, `theme`, `overlays/*`, `providers/mock` through their own `./*` wildcards.
 
@@ -9,24 +9,24 @@ Export map: `.` -> `src/index.ts` (types `dist/types/index.d.ts`); `./*` -> `src
 ### A.1 createAgentSession
 
 ```ts
-// from: dist/types/sdk.d.ts:570
+// from: dist/types/sdk.d.ts:620
 export declare function createAgentSession(options?: CreateAgentSessionOptions): Promise<CreateAgentSessionResult>;
 ```
 ```ts
-// from: dist/types/sdk.d.ts:362-381
+// from: dist/types/sdk.d.ts:412-431
 export interface CreateAgentSessionResult { session: AgentSession; extensionsResult: LoadExtensionsResult; setToolUIContext: (uiContext: ExtensionUIContext, hasUI: boolean) => void; mcpManager?: MCPManager; modelFallbackMessage?: string; lspServers?: LspStartupServerInfo[]; startBackgroundModelDiscovery?: () => Promise<void>; eventBus: EventBus; subagentEventBus?: EventBus; }
 ```
 ```ts
-// from: dist/types/sdk.d.ts:36-360 (all fields, types verbatim)
+// from: dist/types/sdk.d.ts:38-410 (all fields, types verbatim)
 export interface CreateAgentSessionOptions { cwd?: string; additionalDirectories?: string[]; agentDir?: string; spawns?: string; inheritedSessionAgents?: readonly AgentDefinition[]; authStorage?: AuthStorage; modelRegistry?: ModelRegistry; getApiKey?: AgentOptions["getApiKey"]; credentialSourceSessionId?: string; model?: Model; rebindModelAfterDiscovery?: boolean; deferRetryFallbackValidation?: boolean; modelPattern?: string | string[]; modelPatternAuthFallback?: string; modelPatternFallbackRole?: string; modelPatternDefaultFallbackChain?: string[]; thinkingLevel?: ConfiguredThinkingLevel; thinkingLevelCeiling?: Effort; openAIServiceTier?: ServiceTier | null; cacheWarming?: boolean; resolveServiceTierByFamily?: (model: Model | undefined) => ServiceTierByFamily; scopedModels?: Array<{ model: Model; thinkingLevel?: ThinkingLevel; }>; prewalk?: Prewalk; deferredPrewalk?: { target: string; patterns: string[]; }; onPrewalkWarning?: (warning: string) => void; planYolo?: PlanYolo; systemPrompt?: string | string[] | ((defaultPrompt: string[]) => string | string[]); systemPromptTemplate?: string; customSystemPrompt?: string; appendSystemPrompt?: string; titleSystemPrompt?: string; providerSessionId?: string; providerPromptCacheKey?: string; providerPromptCacheKeySource?: "explicit" | "fork"; deadline?: number; customTools?: (CustomTool | ToolDefinition)[]; extensions?: ExtensionFactory[]; additionalExtensionPaths?: string[]; disableExtensionDiscovery?: boolean; extensionRoots?: () => EffectiveExtensionRoots; preloadedExtensions?: LoadExtensionsResult; preloadedExtensionPaths?: string[]; preloadedPreparedExtensions?: readonly PreparedExtension[]; preloadedCustomToolPaths?: ToolPathWithSource[]; eventBus?: EventBus; subagentEventBus?: EventBus; skills?: Skill[]; rules?: Rule[]; contextFiles?: Array<{ path: string; content: string; }>; workspaceTree?: WorkspaceTree; promptTemplates?: PromptTemplate[]; slashCommands?: FileSlashCommand[]; enableMCP?: boolean; mcpManager?: MCPManager; enableLsp?: boolean; lspReadOnly?: boolean; enableIrc?: boolean; skipPythonPreflight?: boolean; toolNames?: string[]; restrictToolNames?: boolean; allowRestrictedCustomTools?: boolean; outputSchema?: unknown; outputSchemaMode?: StructuredSubagentSchemaMode; requireYieldTool?: boolean; bindProcessState?: boolean; taskDepth?: number; parentHindsightSessionState?: HindsightSessionState; parentMnemopiSessionState?: MnemopiSessionState; agentId?: string; agentDisplayName?: string; agentName?: string; agentRegistry?: AgentRegistry; expectedAgentRef?: AgentRef | null; parentTaskPrefix?: string; parentAgentId?: string; sessionManager?: SessionManager; localProtocolOptions?: LocalProtocolOptions; settings?: Settings; settingsManager?: Settings | Promise<Settings>; hasUI?: boolean; interactivePrompts?: boolean; settingsApproval?: boolean; deferUsageReserveConfirmation?: boolean; telemetry?: AgentTelemetryConfig; onFirstChatDispatch?: () => void; autoApprove?: boolean; }
 ```
 
-Also exported by that file: `discoverExtensions:419`, `discoverSessionExtensionPaths:434`, `loadSessionExtensions:444`, `loadCliExtensionProviders:457`, `resolvePrewalkTarget:459`, `discoverContextFiles:478`, `discoverPromptTemplates:486`, `discoverSlashCommands:490`, `discoverCustomTSCommands:494`, `discoverMCPServers:499`, `buildSystemPrompt:525`, `customToolToDefinition:526`, `createAutoLearnCaptureRunner:538`, `resolveDialect:383`.
+Also exported by that file: `discoverExtensions:469`, `discoverSessionExtensionPaths:484`, `loadSessionExtensions:494`, `loadCliExtensionProviders:507`, `resolvePrewalkTarget:509`, `discoverContextFiles:528`, `discoverPromptTemplates:536`, `discoverSlashCommands:540`, `discoverCustomTSCommands:544`, `discoverMCPServers:549`, `buildSystemPrompt:575`, `customToolToDefinition:576`, `createAutoLearnCaptureRunner:588`, `resolveDialect:433`.
 
 ### A.2 Settings (class)
 
 ```ts
-// from: dist/types/config/settings.d.ts:92-398 (members, verbatim; wrapped signatures joined)
+// from: dist/types/config/settings.d.ts:107-399 (members, verbatim; wrapped signatures joined)
  static init(options?: SettingsOptions): Promise<Settings>;
  static loadReadOnly(options?: SettingsOptions): Promise<Settings>;
  static loadIsolated(options?: SettingsOptions): Promise<Settings>;
@@ -70,7 +70,7 @@ Also on the class: `cancelPendingSaves:225`, `startWatching:234`, `stopWatching:
 **The settings handle** behind get / set / override / unset / clearOverride / isConfigured / isCredential is the registry handle, not `Settings`:
 
 ```ts
-// from: dist/types/config/registry.d.ts:224-344 (members, verbatim; wrapped signatures joined)
+// from: dist/types/config/registry.d.ts:190-329 (members, verbatim; wrapped signatures joined)
  get isCredential(): boolean;
  envValue(): T | undefined;
  get(scope: ScopeLike): T;
@@ -86,7 +86,7 @@ Also on the class: `cancelPendingSaves:225`, `startWatching:234`, `stopWatching:
 ```
 
 ```ts
-// from: dist/types/config/registry.d.ts:334-344, :157, :340-342
+// from: dist/types/config/registry.d.ts:336-346, :157, :340-342
 export type AnySetting = Setting<unknown>;
 export declare function register<const D extends SettingDefinition>(definition: D): Setting<DefinitionValue<D>, D["id"]>;
 export declare function lookup(id: string): AnySetting | undefined;
@@ -98,7 +98,7 @@ export declare function lookup(id: string): AnySetting | undefined;
 `disableProvider` / `initializeWithSettings` live in the capability registry, re-exported verbatim by the discovery entry; they are NOT in `dist/types/config` and NOT re-exported by the package root (grep `discovery` over dist/types/index.d.ts: 0 matches). Import specifier: `@oh-my-pi/pi-coding-agent/capability` or `/discovery`.
 
 ```ts
-// from: dist/types/capability/index.d.ts:37-67
+// from: dist/types/capability/index.d.ts:43-73
 export declare function initializeWithSettings(activeSettings: Settings): () => void;
 export declare function disableProvider(providerId: string): void;
 export declare function enableProvider(providerId: string): void;
@@ -112,7 +112,7 @@ export declare function setEnabledProviders(providerIds: string[]): void;
 ### A.3 ModelRegistry
 
 ```ts
-// from: dist/types/config/model-registry.d.ts:38-345 (members, verbatim; wrapped signatures joined)
+// from: dist/types/config/model-registry.d.ts:45-368 (members, verbatim; wrapped signatures joined)
  readonly authStorage: AuthStorage;
  constructor(authStorage: AuthStorage, modelsPath?: string, options?: { /** * Gateway mode: ignore local `models.yml` entirely (provider overrides, * config API keys, custom models, custom discovery). A broker-backed * gateway serves only bundled + broker-discovered catalog metadata and * must never apply client-side credential or routing overrides. */ ignoreLocalModelConfig?: boolean; /** Settings source for availability and context-window policies. */ settings?: Settings; /** Model discovery cache database. Defaults beside an explicit models config. */ cacheDbPath?: string; fetch?: FetchImpl; });
  refresh(strategy?: ModelRefreshStrategy, options?: ModelRegistryRefreshOptions): Promise<void>;
@@ -133,32 +133,32 @@ export declare function setEnabledProviders(providerIds: string[]): void;
 ```
 
 ```ts
-// from: dist/types/config/model-registry.d.ts:22-36
+// from: dist/types/config/model-registry.d.ts:27-39
 export interface ModelRegistryRefreshOptions { refreshCommandCredentials?: boolean; }
 export type ResolvedRequestAuth = { ok: true; apiKey?: string; headers?: Record<string, string>; env?: Record<string, string>; } | { ok: false; error: string; };
 ```
 
-Also declared: `reapplyModelPolicies:82`, `refreshProvider:125`, `refreshDiscoverableProviders:132`, `hasLazyRuntimeMetadata:140`, `refreshSelectedModelMetadata:150`, `refreshRuntimeProviders:160`, `getError:164`, `getAvailableForProviders:178`, `hasConcreteAuth:216`, `hasCommandBackedApiKey:223`, `getDiscoverableProviders:224`, `getDiscoveryProviderId:226`, `getProviderDiscoveryState:237`, `isProviderDiscoveryPending:245`, `getProviderBaseUrl:271`, `getProviderHeaders:276`, `resolveModelHeaders:278`, `getApiKey:280`, `getApiKeyAndHeaders:284`, `getApiKeyForProvider:292`, `getApiKeyWithCredentialForProvider:293`, `resolver:301/:302`, `isUsingOAuth:306`, `clearSourceRegistrations:310`, `unregisterProvider:314`, `syncExtensionSources:318`, `suppressSelector:331`, `isSelectorSuppressed:335`, `clearSuppressedSelector:339`, `clearSuppressedSelectors:344`. `ModelRefreshStrategy` comes from `@oh-my-pi/pi-catalog/model-manager`; `ModelKind` from `@oh-my-pi/pi-catalog/types`.
+Also declared: `reapplyModelPolicies:87`, `refreshProvider:130`, `refreshDiscoverableProviders:137`, `hasLazyRuntimeMetadata:145`, `refreshSelectedModelMetadata:155`, `refreshRuntimeProviders:165`, `getError:169`, `getAvailableForProviders:209`, `hasConcreteAuth:247`, `hasCommandBackedApiKey:254`, `getDiscoverableProviders:255`, `getDiscoveryProviderId:257`, `getProviderDiscoveryState:268`, `isProviderDiscoveryPending:276`, `getProviderBaseUrl:302`, `getProviderHeaders:307`, `resolveModelHeaders:309`, `getApiKey:311`, `getApiKeyAndHeaders:315`, `getApiKeyForProvider:326`, `getApiKeyWithCredentialForProvider:334`, `resolver:301/:302`, `isUsingOAuth:347`, `clearSourceRegistrations:351`, `unregisterProvider:355`, `syncExtensionSources:359`, `suppressSelector:372`, `isSelectorSuppressed:376`, `clearSuppressedSelector:380`, `clearSuppressedSelectors:385`. `ModelRefreshStrategy` comes from `@oh-my-pi/pi-catalog/model-manager`; `ModelKind` from `@oh-my-pi/pi-catalog/types`.
 
 ### A.4 discoverAuthStorage + AuthStorage + credentials
 
 ```ts
-// from: dist/types/sdk.d.ts:415 (discoverAuthStorage)
+// from: dist/types/sdk.d.ts:465 (discoverAuthStorage)
 export declare function discoverAuthStorage(agentDir?: string, options?: Omit<DiscoverAuthStorageOptions, "agentDir" | "configValueResolver"> & Omit<EffectiveSettingsScope, "agentDir">): Promise<AuthStorage>;
 ```
 ```ts
-// from: dist/types/session/auth-storage.d.ts:1-7 (pure re-export of the pi-ai surface)
+// from: dist/types/session/auth-storage.d.ts:5-7 (pure re-export of the pi-ai surface)
 export type { ApiKeyCredential, AuthCredential, AuthCredentialEntry, AuthCredentialStore, AuthStorageData, AuthStorageOptions, CredentialOrigin, CredentialOriginKind, OAuthAccountIdentity, OAuthAccountSummary, OAuthCredential, ResetCreditAccountStatus, ResetCreditRedeemOutcome, ResetCreditTarget, StoredAuthCredential, } from "@oh-my-pi/pi-ai";
 export { AuthStorage, REMOTE_REFRESH_SENTINEL, SqliteAuthCredentialStore } from "@oh-my-pi/pi-ai";
 export type { SnapshotResponse } from "@oh-my-pi/pi-ai/auth-broker/types";
 ```
 ```ts
-// from: AIROOT/dist/types/auth-storage.d.ts:14-70
+// from: AIROOT/dist/types/auth-storage.d.ts:14-71
 export declare class AuthStorage { #private; constructor(store: AuthCredentialStore, options?: AuthStorageOptions); get credentials(): CredentialsApi; get keys(): KeysApi; get oauth(): OAuthApi; get sessions(): SessionsApi; get usage(): UsageApi; get health(): HealthApi; get limits(): LimitsApi; get resets(): ResetsApi; get blocks(): BlocksApi; setAccountPolicies(config: { accountPolicies: AuthAccountPolicies; defaultReservePct: number; }): void; replaceStore(store: AuthCredentialStore, options?: { sourceLabel?: string; }): Promise<void>; static create(dbPath: string, options?: AuthStorageOptions): Promise<AuthStorage>; close(): void; getApiKey(provider: string, sessionId?: string, options?: AuthApiKeyOptions): Promise<string | undefined>; reload(): Promise<void>; }
 ```
 
 ```ts
-// from: AIROOT/dist/types/auth/types.d.ts (CredentialsApi):689-799 (members, verbatim; wrapped signatures joined)
+// from: AIROOT/dist/types/auth/types.d.ts (CredentialsApi):714-821 (members, verbatim; wrapped signatures joined)
  readonly generation: number;
  onGeneration(listener: (generation: number) => void): () => void;
  onDisabled(listener: (event: CredentialDisabledEvent) => void | Promise<void>): () => void;
@@ -181,7 +181,7 @@ export declare class AuthStorage { #private; constructor(store: AuthCredentialSt
 ```
 
 ```ts
-// from: AIROOT/dist/types/auth/types.d.ts (KeysApi):801-904 (members, verbatim; wrapped signatures joined)
+// from: AIROOT/dist/types/auth/types.d.ts (KeysApi):840-937 (members, verbatim; wrapped signatures joined)
  get(provider: string, sessionId?: string, options?: AuthApiKeyOptions): Promise<string | undefined>;
  getWithCredential(provider: string, sessionId?: string, options?: AuthApiKeyOptions): Promise<ResolvedApiKey | undefined>;
  peek(provider: string): Promise<string | undefined>;
@@ -205,7 +205,7 @@ export type AuthCredentialEntry = AuthCredential | AuthCredential[];
 ### A.5 SessionManager
 
 ```ts
-// from: dist/types/session/session-manager.d.ts:106-589 (members, verbatim; wrapped signatures joined)
+// from: dist/types/session/session-manager.d.ts:144-607 (members, verbatim; wrapped signatures joined)
  setSessionFile(sessionFile: string): Promise<void>;
  newSession(options?: NewSessionOptions): Promise<string | undefined>;
  ensureOnDisk(): Promise<void>;
@@ -252,7 +252,7 @@ export type AuthCredentialEntry = AuthCredential | AuthCredential[];
 ```
 
 ```ts
-// from: dist/types/session/session-manager.d.ts:13, :28
+// from: dist/types/session/session-manager.d.ts:14-29, :28
 export declare function mintSessionId(): string;
 export type ReadonlySessionManager = Pick<SessionManager, "getCwd" | "getRecordedCwd" | "getSessionDir" | "getSessionId" | "getSessionFile" | "getSessionName" | "getArtifactsDir" | "getArtifactManager" | "allocateArtifactPath" | "saveArtifact" | "getArtifactPath" | "getLeafId" | "getLeafEntry" | "getEntry" | "getLabel" | "getBranch" | "getHeader" | "getEntries" | "getTree" | "getUsageStatistics" | "putBlob" | "putBlobSync">;
 ```
@@ -267,10 +267,10 @@ The session file / messages surface is the trio `getSessionFile(): string | unde
 
 ### A.6 The session object returned by createAgentSession
 
-Class `AgentSession` (dist/types/session/agent-session.d.ts:103). The block below is verbatim, in declaration order, for every member the adapter needs (subscribe / prompt / steer / followUp / abort / dispose / setModel / setThinkingLevel / queues / context usage / model / messages / skills / session file + id); the class declares more, listed by name after the block. `#private` members are excluded, and `initializeExtensions` / `setToolUIContext` are NOT methods here (see A.7).
+Class `AgentSession` (dist/types/session/agent-session.d.ts:111). The block below is verbatim, in declaration order, for every member the adapter needs (subscribe / prompt / steer / followUp / abort / dispose / setModel / setThinkingLevel / queues / context usage / model / messages / skills / session file + id); the class declares more, listed by name after the block. `#private` members are excluded, and `initializeExtensions` / `setToolUIContext` are NOT methods here (see A.7).
 
 ```ts
-// from: dist/types/session/agent-session.d.ts:103-1483 (all adapter-relevant members, in declaration order;
+// from: dist/types/session/agent-session.d.ts:115-1594 (all adapter-relevant members, in declaration order;
 // wrapped signatures joined onto one line; `#private` members and unrelated methods omitted)
  readonly settings: Settings;
  get preparedExtensions(): readonly PreparedExtension[] | undefined;
@@ -288,7 +288,7 @@ Class `AgentSession` (dist/types/session/agent-session.d.ts:103). The block belo
  get isStreaming(): boolean;
  waitForIdle(): Promise<void>;
  get messages(): AgentMessage[];
- buildDisplaySessionContext(): SessionContext;
+ buildDisplaySessionContext(model?: Model<import("@oh-my-pi/pi-ai").Api> | undefined): SessionContext;
  get steeringMode(): "all" | "one-at-a-time";
  get followUpMode(): "all" | "one-at-a-time";
  get sessionFile(): string | undefined;
@@ -323,10 +323,10 @@ Class `AgentSession` (dist/types/session/agent-session.d.ts:103). The block belo
  get extensionRunner(): ExtensionRunner | undefined;
 ```
 
-More public members of the same class (names + line numbers): `constructor:143`, `addDisposer:145`, `get asyncJobManager:148`, `getAgentId:149`, `hasPendingAsyncWork:224`, `getAsyncJobSnapshot:206`, `inspectAsyncJob:214`, `cancelAsyncJob:216`, `settleAsyncWork:237`, `emitNotice:254`, `runStartedAt:287`, `startCacheWarming:299`, `lastPromptTokens:301`, `freshSession:328`, `resetSessionContext:347`, `get servingModel:357`, `setUsageFallbackConfirmer:359`, `configuredThinkingLevel:363`, `isAutoThinking:365`, `autoResolvedThinkingLevel:367`, `serviceTierByFamily:369`, `isAborting:372`, `getLastAssistantMessage:400`, `systemPrompt:402`, `getActiveToolNames:408`, `getEnabledToolNames:410`, `getToolByName:416`, `getAllToolNames:450`, `getAllToolInfos:452`, `refreshSkills:462`, `refreshSkillsAndCommands:468`, `setActiveToolsByName:485`, `refreshMCPTools:515`, `isCompacting:519`, `dropImages:523`, `shake:527`, `compact:532`, `abortCompaction:534`, `autoCompactionEnabled:542`, `setAutoCompactionEnabled:540`, `setModelTemporary:919`, `cycleModel:923`, `applyRoleModel:927`, `cycleRoleModels:929`, `getAvailableModels:931`, `cycleThinkingLevel:935`, `getAvailableEffortSelectors:937`, `getAvailableThinkingLevels:990`, `setInterruptMode:1008`, `interruptMode:575`, `handoff:1030`, `fork:897`, `moveSession:901`, `switchSession:1139`, `branch:1154`, `exportToHtml:1303`, `formatSessionAsText:1326`, `dumpSessionArchiveToTmpDir:1341`, `listCurrentProviderOAuthAccounts:1282`, `pinCurrentProviderOAuthAccount:1287`, `executeBash:1050`, `executePython:1072`, `getSessionAgents:809`, `getTodoPhases:814`, `get titleSystemPrompt:845`, `setTitleSystemPrompt:850`.
+More public members of the same class (names + line numbers): `constructor:153`, `addDisposer:155`, `get asyncJobManager:148`, `getAgentId:159`, `hasPendingAsyncWork:234`, `getAsyncJobSnapshot:216`, `inspectAsyncJob:224`, `cancelAsyncJob:226`, `settleAsyncWork:247`, `emitNotice:270`, `runStartedAt:303`, `startCacheWarming:315`, `lastPromptTokens:317`, `freshSession:344`, `resetSessionContext:363`, `get servingModel:357`, `setUsageFallbackConfirmer:375`, `configuredThinkingLevel:379`, `isAutoThinking:381`, `autoResolvedThinkingLevel:383`, `serviceTierByFamily:385`, `isAborting:388`, `getLastAssistantMessage:418`, `systemPrompt:420`, `getActiveToolNames:426`, `getEnabledToolNames:428`, `getToolByName:434`, `getAllToolNames:468`, `getAllToolInfos:470`, `refreshSkills:480`, `refreshSkillsAndCommands:486`, `setActiveToolsByName:503`, `refreshMCPTools:533`, `isCompacting:539`, `dropImages:543`, `shake:546`, `compact:552`, `abortCompaction:554`, `autoCompactionEnabled:562`, `setAutoCompactionEnabled:560`, `setModelTemporary:959`, `cycleModel:963`, `applyRoleModel:967`, `cycleRoleModels:969`, `getAvailableModels:971`, `cycleThinkingLevel:975`, `getAvailableEffortSelectors:977`, `getAvailableThinkingLevels:1050`, `setInterruptMode:1068`, `interruptMode:597`, `handoff:1090`, `fork:937`, `moveSession:941`, `switchSession:1232`, `branch:1259`, `exportToHtml:1408`, `formatSessionAsText:1431`, `dumpSessionArchiveToTmpDir:1448`, `listCurrentProviderOAuthAccounts:1387`, `pinCurrentProviderOAuthAccount:1392`, `executeBash:1125`, `executePython:1147`, `getSessionAgents:838`, `getTodoPhases:843`, `get titleSystemPrompt:845`, `setTitleSystemPrompt:888`.
 
 ```ts
-// from: dist/types/session/agent-session.d.ts:86-96 (PromptDroppedError, SessionBusyError)
+// from: dist/types/session/agent-session.d.ts:94-104 (PromptDroppedError, SessionBusyError)
 export declare class PromptDroppedError extends Error { constructor(); }
 export declare class SessionBusyError extends Error { constructor(action: string); }
 ```
@@ -334,7 +334,7 @@ export declare class SessionBusyError extends Error { constructor(action: string
 `initializeExtensions` and `setToolUIContext` are NOT AgentSession methods — `setToolUIContext` is a field of `CreateAgentSessionResult` (sdk.d.ts:368) and `initializeExtensions` is the free function in A.7.
 
 ```ts
-// from: dist/types/session/agent-session-types.d.ts:350-432 (PromptOptions, DroppedPrompt, FollowUp/Steer/SendUserMessage options, HandoffResult)
+// from: dist/types/session/agent-session-types.d.ts:379-462 (PromptOptions, DroppedPrompt, FollowUp/Steer/SendUserMessage options, HandoffResult)
 export interface PromptOptions { expandPromptTemplates?: boolean; runCommands?: boolean; throwOnDrop?: boolean; images?: ImageContent[]; streamingBehavior?: "steer" | "followUp" | "aside"; toolChoice?: ToolChoice; synthetic?: boolean; userInitiated?: boolean; attribution?: MessageAttribution; skipCompactionCheck?: boolean; solutionSpace?: string; onPromptAdmitted?: () => void; }
 export interface DroppedPrompt { text: string; images?: ImageContent[]; }
 export interface FollowUpOptions { synthetic?: boolean; expandPromptTemplates?: boolean; attribution?: MessageAttribution; }
@@ -345,7 +345,7 @@ export interface SessionHandoffOptions { autoTriggered?: boolean; signal?: Abort
 ```
 
 ```ts
-// from: dist/types/session/agent-session-types.d.ts:455-513 (ContextUsageBreakdown, SessionStats, FreshSessionResult, RestoredQueuedMessage)
+// from: dist/types/session/agent-session-types.d.ts:484-542 (ContextUsageBreakdown, SessionStats, FreshSessionResult, RestoredQueuedMessage)
 export interface ContextUsageBreakdown { contextWindow: number; anchored: boolean; usedTokens: number; systemPromptTokens: number; systemToolsTokens: number; systemContextTokens: number; skillsTokens: number; messagesTokens: number; }
 export interface SessionStats { sessionFile: string | undefined; sessionId: string; userMessages: number; assistantMessages: number; toolCalls: number; toolResults: number; totalMessages: number; tokens: { input: number; output: number; reasoning: number; cacheRead: number; cacheWrite: number; total: number; }; premiumRequests: number; cost: number; credits?: { cost: number; committedCost: number; acuCost: number; }; routedModels?: Record<string, number>; contextUsage?: ContextUsage; }
 export interface SessionOAuthAccountList { provider: string; accounts: OAuthAccountSummary[]; }
@@ -355,12 +355,12 @@ export type RestoredQueuedMessage = { text: string; images?: ImageContent[]; };
 ```
 
 ```ts
-// from: dist/types/session/agent-session-types.d.ts:34-49 (AgentSessionDisposeOptions)
+// from: dist/types/session/agent-session-types.d.ts:35-50 (AgentSessionDisposeOptions)
 export interface AgentSessionDisposeOptions { mnemopiConsolidateTimeoutMs?: number; drainTimeoutMs?: number; reason?: postmortem.Reason; }
 ```
 
 ```ts
-// from: TUIROOT/dist/types/status-line/types.d.ts:8-15 (ContextUsage)
+// from: TUIROOT/dist/types/status-line/types.d.ts:9-15 (ContextUsage)
 export interface ContextUsage { tokens: number; contextWindow: number; percent: number; }
 ```
 ```ts
@@ -391,7 +391,7 @@ export declare function initializeExtensions(session: AgentSession, options: Ini
 `initializeExtensions` is NOT re-exported from `dist/types/index.d.ts`, and `dist/types/modes/index.d.ts` does not re-export it either (grep `runtime-init` over that file: 0 matches). `setToolUIContext` exists only as a callback value (no exported free function):
 
 ```ts
-// from: dist/types/sdk.d.ts:368
+// from: dist/types/sdk.d.ts:418
  setToolUIContext: (uiContext: ExtensionUIContext, hasUI: boolean) => void;
 ```
 ```ts
@@ -399,15 +399,15 @@ export declare function initializeExtensions(session: AgentSession, options: Ini
  setToolUIContext: (uiContext: ExtensionUIContext, hasUI: boolean) => void;
 ```
 ```ts
-// from: dist/types/main.d.ts:32 (member of AcpSessionFactoryOptions, inside the options object)
+// from: dist/types/main.d.ts:30 (member of AcpSessionFactoryOptions, inside the options object)
  setToolUIContext: (uiContext: ExtensionUIContext, hasUI: boolean) => void;
 ```
 ```ts
-// from: dist/types/modes/interactive-mode.d.ts:494
+// from: dist/types/modes/interactive-mode.d.ts:474
  setToolUIContext(uiContext: ExtensionUIContext, hasUI: boolean): void;
 ```
 ```ts
-// from: dist/types/modes/types.d.ts:257
+// from: dist/types/modes/types.d.ts:267
  setToolUIContext(uiContext: ExtensionUIContext, hasUI: boolean): void;
 ```
 ```ts
@@ -415,7 +415,7 @@ export declare function initializeExtensions(session: AgentSession, options: Ini
  setToolUIContext: (uiContext: ExtensionUIContext, hasUI: boolean) => void;
 ```
 
-`ensureThemeSync`: **NOT FOUND** in @oh-my-pi/pi-coding-agent (searched the whole package including `src/` and `dist/cli.js`). It is a pi-tui export, and the coding-agent root re-exports that module (`dist/types/index.d.ts:20` = `export * from "@oh-my-pi/pi-tui/theme"`):
+`ensureThemeSync`: **NOT FOUND** in @oh-my-pi/pi-coding-agent (searched the whole package including `src/` and `dist/cli.js`). It is a pi-tui export, and the coding-agent root re-exports that module (`dist/types/index.d.ts:23` = `export * from "@oh-my-pi/pi-tui/theme"`):
 
 ```ts
 // from: TUIROOT/dist/types/theme/theme.d.ts:26 — import specifier "@oh-my-pi/pi-tui/theme"
@@ -425,7 +425,7 @@ export declare function ensureThemeSync(): void;
 ### A.8 exportFromFile
 
 ```ts
-// from: dist/types/export/html/index.d.ts:8-48 — import specifier "@oh-my-pi/pi-coding-agent/export/html"
+// from: dist/types/export/html/index.d.ts:8-47 — import specifier "@oh-my-pi/pi-coding-agent/export/html"
 export declare function resolveBundledHtmlAssetPath(assetPath: string, moduleDir?: string): string;
 export declare function getTemplate(): string;
 export interface ExportOptions { outputPath?: string; palette?: "web" | "theme"; themeName?: string; themeNames?: ExportThemeNames; includeSubSessions?: boolean; }
@@ -442,11 +442,11 @@ export declare function exportFromFile(inputPath: string, options?: ExportOption
 ### A.9 discoverSkills
 
 ```ts
-// from: dist/types/sdk.d.ts:470-473
+// from: dist/types/sdk.d.ts:520-523
 export declare function discoverSkills(cwd?: string, _agentDir?: string, settings?: SkillsSettings & Pick<LoadSkillsOptions, "disabledExtensions">): Promise<{ skills: Skill[]; warnings: SkillWarning[]; }>;
 ```
 ```ts
-// from: dist/types/extensibility/skills.d.ts:6-33, :76
+// from: dist/types/extensibility/skills.d.ts:6-76, :76
 export interface Skill { name: string; description: string; filePath: string; baseDir: string; source: string; hide?: boolean; containRoot?: string; _source?: SourceMeta; }
 export interface SkillWarning { skillPath: string; message: string; }
 export interface LoadSkillsResult { skills: Skill[]; warnings: SkillWarning[]; }
@@ -485,7 +485,7 @@ export interface SetMcpServerEnabledOptions { userPath: string; projectPath: str
 export declare function setMcpServerEnabled(options: SetMcpServerEnabledOptions): Promise<void>;
 ```
 ```ts
-// from: dist/types/mcp/types.d.ts:104-134
+// from: dist/types/mcp/types.d.ts:105-134
 export interface MCPHttpServerConfig extends MCPServerConfigBase { type: "http"; url: string; headers?: Record<string, string>; headerPolicy?: "origin-locked"; }
 export interface MCPSseServerConfig extends MCPServerConfigBase { type: "sse"; url: string; headers?: Record<string, string>; headerPolicy?: "origin-locked"; }
 export type MCPServerConfig = MCPStdioServerConfig | MCPHttpServerConfig | MCPSseServerConfig;
@@ -506,7 +506,7 @@ export * from "./parser.js";
 export type * from "./types.js";
 ```
 ```ts
-// from: dist/types/extensibility/plugins/manager.d.ts:2-105 (members, verbatim; wrapped signatures joined)
+// from: dist/types/extensibility/plugins/manager.d.ts:4-92 (members, verbatim; wrapped signatures joined)
  constructor(cwd?: string);
  install(specString: string, options?: InstallOptions): Promise<InstalledPlugin>;
  upgrade(name: string): Promise<{ from: string | undefined; plugin: InstalledPlugin; changed: boolean; }>;
@@ -540,7 +540,7 @@ export * from "./source-resolver.js";
 export * from "./types.js";
 ```
 ```ts
-// from: dist/types/extensibility/plugins/marketplace/manager.d.ts:9-64 (members, verbatim; wrapped signatures joined)
+// from: dist/types/extensibility/plugins/marketplace/manager.d.ts:10-63 (members, verbatim; wrapped signatures joined)
  marketplacesRegistryPath: string;
  installedRegistryPath: string;
  marketplacesCacheDir: string;
@@ -565,7 +565,7 @@ export * from "./types.js";
  upgradeAllPlugins(): Promise<Array<{ pluginId: string; scope: "user" | "project"; from: string; to: string; }>>;
 ```
 ```ts
-// from: dist/types/extensibility/plugins/types.d.ts:1-155
+// from: dist/types/extensibility/plugins/types.d.ts:5-155
 export interface PluginFeature { description?: string; default?: boolean; extensions?: string[]; tools?: string[]; hooks?: string[]; commands?: string[]; }
 export interface PluginManifest { name?: string; version: string; description?: string; tools?: string; hooks?: string; extensions?: string[]; commands?: string[]; features?: Record<string, PluginFeature>; settings?: Record<string, PluginSettingSchema>; }
 export type PluginSettingType = "string" | "number" | "boolean" | "enum";
@@ -588,7 +588,7 @@ export {};
 ### A.13 AgentSessionEvent — every variant
 
 ```ts
-// from: dist/types/session/agent-session-events.d.ts:12-115 (the whole union, verbatim)
+// from: dist/types/session/agent-session-events.d.ts:13-116 (the whole union, verbatim)
 export type AgentSessionEvent = Exclude<AgentEvent, { type: "agent_end"; }> | (Extract<AgentEvent, { type: "agent_end"; }> & { isTerminal?: boolean; yielded?: boolean; awaitingAsyncWork?: boolean; }) | { type: "auto_compaction_start"; reason: "threshold" | "overflow" | "idle" | "incomplete"; action: "context-full" | "remote" | "handoff" | "shake" | "snapcompact"; } | { type: "auto_compaction_end"; action: "context-full" | "remote" | "handoff" | "shake" | "snapcompact"; result: CompactionResult | undefined; aborted: boolean; willRetry: boolean; errorMessage?: string; skipped?: boolean; } | { type: "auto_retry_start"; attempt: number; maxAttempts: number; delayMs: number; errorMessage: string; errorId?: number; } | { type: "auto_retry_end"; success: boolean; attempt: number; finalError?: string; retryErrors?: RetryErrorUpdate[]; } | ({ type: "cache_warming_start"; } & CacheWarmingRefreshStart) | ({ type: "cache_warming_end"; } & CacheWarmingRefreshEnd) | { type: "retry_fallback_applied"; from: string; to: string; role: string; reason?: string; } | { type: "retry_fallback_succeeded"; model: string; role: string; } | { type: "model_changed"; } | { type: "config_warnings_changed"; } | { type: "advisor_cost_changed"; } | { type: "advisor_yielded"; } | { type: "ttsr_triggered"; rules: Rule[]; } | { type: "todo_reminder"; todos: TodoItem[]; attempt: number; maxAttempts: number; } | { type: "todo_auto_clear"; } | { type: "irc_message"; message: CustomMessage; } | { type: "notice"; level: "info" | "warning" | "error"; message: string; source?: string; } | { type: "thinking_level_changed"; thinkingLevel: ThinkingLevel | undefined; configured?: ConfiguredThinkingLevel; resolved?: Effort; } | { type: "goal_updated"; goal: Goal | null; state?: GoalModeState; } | { type: "queue_update"; steering: string[]; followUp: string[]; };
 export type AgentSessionEventListener = (event: AgentSessionEvent) => void;
 ```
@@ -596,19 +596,19 @@ export type AgentSessionEventListener = (event: AgentSessionEvent) => void;
 The first arm (`Exclude<AgentEvent, { type: "agent_end" }>`) expands to these pi-agent-core variants:
 
 ```ts
-// from: COREROOT/dist/types/types.d.ts:1082-1129
+// from: COREROOT/dist/types/types.d.ts:1102-1149
 export type AgentEvent = { type: "agent_start"; } | { type: "agent_end"; messages: AgentMessage[]; telemetry?: AgentRunSummary; coverage?: AgentRunCoverage; } | { type: "turn_start"; } | { type: "turn_end"; message: AgentMessage; toolResults: ToolResultMessage[]; } | { type: "message_start"; message: AgentMessage; } | { type: "message_update"; message: AgentMessage; assistantMessageEvent: AssistantMessageEvent; } | { type: "message_end"; message: AgentMessage; } | { type: "tool_execution_start"; toolCallId: string; toolName: string; args: any; intent?: string; } | { type: "tool_execution_update"; toolCallId: string; toolName: string; args: any; partialResult: any; } | { type: "tool_stream_update"; toolCallId: string; toolName: string; update: unknown; } | { type: "tool_execution_end"; toolCallId: string; toolName: string; result: any; isError?: boolean; };
 ```
 
 ```ts
-// from: dist/types/session/cache-warmer.d.ts:22-38 (payloads of the cache_warming_* arms)
+// from: dist/types/session/cache-warmer.d.ts:23-38 (payloads of the cache_warming_* arms)
 export type CacheWarmingMode = "off" | "streaming" | "idle";
 export declare const CACHE_WARMING_MODES: readonly ["off", "streaming", "idle"];
 export interface CacheWarmingRefreshStart { phase: "streaming" | "idle"; provider: string; model: string; }
 export interface CacheWarmingRefreshEnd extends CacheWarmingRefreshStart { outcome: "hit" | "miss" | "error" | "aborted"; usage?: Usage; warmingStopReason?: string; }
 ```
 ```ts
-// from: dist/types/extensibility/shared-events.d.ts:215-229 (RetryErrorUpdate, used by auto_retry_end)
+// from: dist/types/extensibility/shared-events.d.ts:216-229 (RetryErrorUpdate, used by auto_retry_end)
 export interface RetryErrorUpdate { entryId: string; persistenceKey?: string; note: string; retryRecovery: AssistantRetryRecovery; }
 export interface AutoRetryEndEvent { type: "auto_retry_end"; success: boolean; attempt: number; finalError?: string; retryErrors?: RetryErrorUpdate[]; }
 ```
@@ -616,16 +616,16 @@ export interface AutoRetryEndEvent { type: "auto_retry_end"; success: boolean; a
 ### A.14 ToolDefinition accepted by pi.registerTool inside an extension
 
 ```ts
-// from: dist/types/extensibility/extensions/types.d.ts:461-519
+// from: dist/types/extensibility/extensions/types.d.ts:603-658
 export interface ToolDefinition<TParams extends TSchema = TSchema, TDetails = unknown> { name: string; label: string; description: string; parameters: TParams; hidden?: boolean; defaultInactive?: boolean; loadMode?: ToolLoadMode; deferrable?: boolean; readsSkillUris?: boolean; approval?: ToolApproval; strict?: boolean; mcpServerName?: string; mcpToolName?: string; legacyName?: string; shellEnv?: ToolShellEnvironmentHook; sourcePath?: string; execute(toolCallId: string, params: Static<TParams>, signal: AbortSignal | undefined, onUpdate: AgentToolUpdateCallback<TDetails> | undefined, ctx: ExtensionContext): Promise<AgentToolResult<TDetails>>; onSession?: (event: ToolSessionEvent, ctx: ExtensionContext) => void | Promise<void>; renderCall?: (args: Static<TParams>, options: ToolRenderResultOptions, theme: Theme) => Component; renderResult?: (result: AgentToolResult<TDetails>, options: ToolRenderResultOptions, theme: Theme, args?: Static<TParams>) => Component; describeCall?: (args: Static<TParams>, options: ToolRenderResultOptions) => NativeToolView | undefined; describeResult?: (result: AgentToolResult<TDetails>, options: ToolRenderResultOptions, args?: Static<TParams>) => NativeToolView | undefined; }
 ```
 
 ```ts
-// from: dist/types/extensibility/extensions/types.d.ts:972 (registerTool)
+// from: dist/types/extensibility/extensions/types.d.ts:1111 (registerTool)
  registerTool<TParams extends TSchema = TSchema, TDetails = unknown>(tool: ToolDefinition<TParams, TDetails>): void;
 ```
 ```ts
-// from: dist/types/extensibility/extensions/types.d.ts (ExtensionAPI members):912-1157 (members, verbatim; wrapped signatures joined)
+// from: dist/types/extensibility/extensions/types.d.ts (ExtensionAPI members):1053-1142 (members, verbatim; wrapped signatures joined)
  logger: typeof PiLogger;
  typebox: typeof TypeBox;
  arktype: typeof ArkType;
@@ -636,7 +636,7 @@ export interface ToolDefinition<TParams extends TSchema = TSchema, TDetails = un
 ```
 
 ```ts
-// from: dist/types/extensibility/extensions/types.d.ts:923-970 (the ExtensionAPI on(...) overload set, verbatim)
+// from: dist/types/extensibility/extensions/types.d.ts:1062-1109 (the ExtensionAPI on(...) overload set, verbatim)
 
  on(event: "resources_discover", handler: ExtensionHandler<ResourcesDiscoverEvent, ResourcesDiscoverResult>): void;
  on(event: "session_start", handler: ExtensionHandler<SessionStartEvent>): void;
@@ -688,13 +688,13 @@ export interface ToolDefinition<TParams extends TSchema = TSchema, TDetails = un
  on(event: "mcp_notification", handler: ExtensionHandler<McpNotificationEvent>): void;
 ```
 ```ts
-// from: dist/types/extensibility/extensions/types.d.ts:904 (ExtensionHandler), :1238 (ExtensionFactory)
+// from: dist/types/extensibility/extensions/types.d.ts:1043-1382 (ExtensionHandler), :1238 (ExtensionFactory)
 export type ExtensionHandler<E, R = undefined> = (event: E, ctx: ExtensionContext) => Promise<R | void> | R | void;
 export type ExtensionFactory = (pi: ExtensionAPI) => void | Promise<void>;
 ```
 
 ```ts
-// from: COREROOT/dist/types/types.d.ts:888-940 (AgentToolResult, update callback, ToolTier/ToolLoadMode/ToolApproval)
+// from: COREROOT/dist/types/types.d.ts:908-960 (AgentToolResult, update callback, ToolTier/ToolLoadMode/ToolApproval)
 export interface AgentToolResult<T = any, _TInput = unknown> { content: (TextContent | ImageContent)[]; details?: T; isError?: boolean; providerMetadata?: ToolResultProviderMetadata; useless?: boolean; }
 export type AgentToolUpdateCallback<T = any, TInput = unknown> = (partialResult: AgentToolResult<T, TInput>) => void;
 export interface RenderResultOptions { expanded: boolean; isPartial: boolean; spinnerFrame?: number; }
@@ -705,7 +705,7 @@ export type ToolApproval = ToolApprovalDecision | ((args: unknown) => ToolApprov
 ```
 
 ```ts
-// from: dist/types/extensibility/extensions/types.d.ts:438-460, :529-545 (render options, tool session event, ToolInfo, SourceInfo)
+// from: dist/types/extensibility/extensions/types.d.ts:577-684, :529-545 (render options, tool session event, ToolInfo, SourceInfo)
 export interface ToolRenderResultOptions { expanded: boolean; isPartial: boolean; spinnerFrame?: number; }
 export interface ToolSessionEvent { reason: "start" | "switch" | "branch" | "tree" | "shutdown"; previousSessionFile: string | undefined; }
 export interface ToolShellEnvironmentContext { command: string; cwd: string; env: Record<string, string | undefined>; }
@@ -715,7 +715,7 @@ export interface ToolInfo { name: string; description: string; parameters: TSche
 ```
 
 ```ts
-// from: dist/types/extensibility/extensions/runner.d.ts:210-211 (getUIContext / hasUI)
+// from: dist/types/extensibility/extensions/runner.d.ts:214-215 (getUIContext / hasUI)
  getUIContext(): ExtensionUIContext;
  hasUI(): boolean;
 ```
@@ -723,7 +723,7 @@ export interface ToolInfo { name: string; description: string; parameters: TSche
 ## B. '@oh-my-pi/pi-utils/worker-host'
 
 ```ts
-// from: UTILSROOT/dist/types/worker-host.d.ts:1-51 (complete module)
+// from: UTILSROOT/dist/types/worker-host.d.ts:2-51 (complete module)
 export declare const WORKER_HOST_SELECTOR_PREFIX = "__omp_worker_";
 export declare function isWorkerHostSelector(value: string | undefined): value is string;
 export declare function declareWorkerHostEntry(): void;
@@ -735,7 +735,7 @@ export declare function consumeWorkerInbox(): WorkerInbox | null;
 export {};
 ```
 
-`parentPort`: **NOT FOUND**. The module exports no such symbol — grep for `parentPort` over `UTILSROOT/dist/types/worker-host.d.ts` and `UTILSROOT/src/worker-host.ts` matched only doc comments and the un-exported `MessageListenerPort` interface. Full export list of `UTILSROOT/src/worker-host.ts`: `WORKER_HOST_SELECTOR_PREFIX:4`, `isWorkerHostSelector:7`, `declareWorkerHostEntry:22`, `workerHostEntry:27`, `WorkerInbox:52`, `installWorkerInbox:70`, `consumeWorkerInbox:96`.
+`parentPort`: **NOT FOUND**. The module exports no such symbol — grep for `parentPort` over `UTILSROOT/dist/types/worker-host.d.ts` and `UTILSROOT/src/worker-host.ts` matched only doc comments and the un-exported `MessageListenerPort` interface. Full export list of `UTILSROOT/src/worker-host.ts`: `WORKER_HOST_SELECTOR_PREFIX:4`, `isWorkerHostSelector:7`, `declareWorkerHostEntry:22`, `workerHostEntry:27`, `WorkerInbox:52`, `installWorkerInbox:70`, `consumeWorkerInbox:96` (those line numbers are in `src/`, not in the `dist/types` block above).
 
 ## C. '@oh-my-pi/pi-utils/dirs'
 
@@ -774,7 +774,7 @@ export { getAvailableThemes, getAvailableThemesWithPaths, getThemeByName, type T
 export { isValidThemeColor, type ThemeBg, type ThemeColor } from "./schema.js";
 export { getAvailableSymbolPresets, isValidSymbolPreset, type SpinnerType, type SymbolKey, type SymbolPreset, } from "./symbols.js";
 export { Theme } from "./theme-class.js";
-export { createHighlightStream, getEditorTheme, getMarkdownTheme, getSelectListTheme, getSettingsListTheme, getSymbolTheme, highlightCode, setMarkdownMermaidRendering, warmHighlighter, } from "./tui-adapters.js";
+export { createHighlightStream, getEditorTheme, getMarkdownTheme, getMarkdownThemeWithLinkTargets, getSelectListTheme, getSettingsListTheme, getSymbolTheme, highlightCode, setMarkdownMermaidRendering, warmHighlighter, } from "./tui-adapters.js";
 export declare var theme: Theme;
 type ThemeBinding = (value: Theme) => void;
 export declare function bindTheme(binding: ThemeBinding): () => void;
@@ -811,7 +811,7 @@ export declare function getThemeExportColors(themeName?: string): Promise<{ page
 ```
 
 ```ts
-// from: TUIROOT/dist/types/theme/theme-class.d.ts (the Theme instance the singleton is bound to):6-300 (members, verbatim; wrapped signatures joined)
+// from: TUIROOT/dist/types/theme/theme-class.d.ts (the Theme instance the singleton is bound to):20-306 (members, verbatim; wrapped signatures joined)
  get isLight(): boolean;
  get accentSurfaceLuminance(): number | undefined;
  getColorHex(color: ThemeColor): string;
@@ -865,7 +865,7 @@ export declare function getThemeExportColors(themeName?: string): Promise<{ page
 ## F. '@oh-my-pi/pi-tui/overlays/session-observer-registry'
 
 ```ts
-// from: TUIROOT/dist/types/overlays/session-observer-registry.d.ts:1-77 (complete module)
+// from: TUIROOT/dist/types/overlays/session-observer-registry.d.ts:1-79 (complete module)
 import type { AgentProgress, AgentSource } from "../tools/task.js";
 export declare const TASK_SUBAGENT_PROGRESS_CHANNEL = "task:subagent:progress";
 export declare const TASK_SUBAGENT_LIFECYCLE_CHANNEL = "task:subagent:lifecycle";
@@ -880,8 +880,8 @@ export declare class SessionObserverRegistry { #private; onChange(cb: (kind: Ses
 ## G. '@oh-my-pi/pi-ai/providers/mock'
 
 ```ts
-// from: AIROOT/dist/types/providers/mock.d.ts:44-184 (complete module)
-import type { AnthropicFallbackCreditHandle, Api, Context, Model, SimpleStreamOptions, StopDetails, StopReason, Usage } from "../types.js";
+// from: AIROOT/dist/types/providers/mock.d.ts:44-186 (complete module)
+import type { AnthropicFallbackCreditHandle, Api, Context, Model, ServiceTier, SimpleStreamOptions, StopDetails, StopReason, Usage } from "../types.js";
 import { AssistantMessageEventStream } from "../utils/event-stream.js";
 export declare const MOCK_API: "mock";
 export type MockApi = typeof MOCK_API;
@@ -901,7 +901,7 @@ export declare function registerMockApi(sourceId?: string): void;
 ## H. '@oh-my-pi/pi-coding-agent/extensibility/extensions/types'
 
 ```ts
-// from: dist/types/extensibility/extensions/types.d.ts:55-64
+// from: dist/types/extensibility/extensions/types.d.ts:57-66
 export interface ExtensionUISelectOption { label: string; description?: string; }
 export type ExtensionUISelectItem = string | ExtensionUISelectOption;
 import type { ExtensionAskDialogQuestion, ExtensionAskDialogResult, ExtensionAskDialogSubmitResult } from "@oh-my-pi/pi-tui/overlays/ask-dialog";
@@ -910,7 +910,7 @@ export declare function getExtensionUISelectOptionLabel(option: ExtensionUISelec
 export declare function timedOutAskDialogResult(questions: ExtensionAskDialogQuestion[]): ExtensionAskDialogSubmitResult;
 ```
 
-Import specifier: `@oh-my-pi/pi-coding-agent/extensibility/extensions/types` (also re-exported by `.../extensibility/extensions` and, type-only, by the root: `dist/types/index.d.ts:17-18`).
+Import specifier: `@oh-my-pi/pi-coding-agent/extensibility/extensions/types` (also re-exported by `.../extensibility/extensions` and, type-only, by the root: `dist/types/index.d.ts:15-16`).
 
 ## I. '@oh-my-pi/pi-coding-agent/config/all-settings'
 
@@ -925,7 +925,7 @@ Side effect: the module declares only `orderedSettings()`; importing it pulls in
 ## J. ExtensionUIContext — every member
 
 ```ts
-// from: dist/types/extensibility/extensions/types.d.ts:55-59 and :68-206
+// from: dist/types/extensibility/extensions/types.d.ts:57-212 and :68-206
 export interface ExtensionUISelectOption { label: string; description?: string; }
 export type ExtensionUISelectItem = string | ExtensionUISelectOption;
 export interface ExtensionUIDialogOptions { signal?: AbortSignal; timeout?: number; onTimeout?: () => void; onTimeoutStart?: () => void; onTimeoutReset?: () => void; initialIndex?: number; outline?: boolean; onLeft?: () => void; onRight?: () => void; onExternalEditor?: () => void; helpText?: string; selectionMarker?: "radio" | "checkbox"; checkedIndices?: readonly number[]; markableCount?: number; acceptImages?: boolean; }
@@ -944,7 +944,7 @@ export interface ExtensionUIContext { timeoutStartsOnPresentation?: boolean; sel
 `APPROVAL_MODE_MAX_TIER`: **module-private constant, NOT exported** (absent from `dist/types/tools/approval.d.ts`; grep over PKGROOT/src and PKGROOT/dist/types matched only the source lines shown below). `TIER_RANK` is its exported counterpart.
 
 ```ts
-// from: PKGROOT/src/tools/approval.ts:99-124, :340-387
+// from: PKGROOT/src/tools/approval.ts:99-387, :340-387
 export const TIER_RANK: Readonly<Record<ToolTier, number>> = { read: 0, write: 1, exec: 2, };
 export function strictestApproval(decisions: Iterable<ToolApprovalDecision>): ToolApprovalDecision { let tier: ToolTier = "read"; for (const decision of decisions) { if (typeof decision !== "string" && decision.policy === "deny") return decision; const decisionTier = typeof decision === "string" ? decision : decision.tier; if (TIER_RANK[decisionTier] > TIER_RANK[tier]) tier = decisionTier; } return tier; }
 const APPROVAL_MODE_MAX_TIER: Record<ApprovalMode, ToolTier> = { "always-ask": "read", write: "write", yolo: "exec", };
@@ -953,7 +953,7 @@ export function truncateForPrompt(value: string, maxChars = DEFAULT_PROMPT_TRUNC
 export function formatApprovalPrompt(tool: ApprovalSubject, args: unknown, reason?: string): string { const lines = [`Allow tool: ${tool.name}`]; if (tool.name.startsWith("mcp__") && tool.approval === undefined) { lines.push("Origin: MCP server tool"); } if (reason) { lines.push(`Reason: ${reason}`); } const details = tool.formatApprovalDetails?.(args); if (typeof details === "string") { if (details.length > 0) lines.push(details); } else if (Array.isArray(details)) { for (const detail of details) { if (detail.length > 0) lines.push(detail); } } return lines.join("\n"); }
 ```
 ```ts
-// from: dist/types/tools/approval.d.ts:1-108 — import specifier "@oh-my-pi/pi-coding-agent/tools/approval"
+// from: dist/types/tools/approval.d.ts:9-108 — import specifier "@oh-my-pi/pi-coding-agent/tools/approval"
 import type { AgentTool, ToolApprovalDecision, ToolTier } from "@oh-my-pi/pi-agent-core";
 import type { Settings } from "../config/settings.js";
 export type { ToolApproval, ToolApprovalDecision, ToolTier } from "@oh-my-pi/pi-agent-core";
@@ -977,7 +977,7 @@ export declare function formatApprovalPrompt(tool: ApprovalSubject, args: unknow
 How the approval dialog reaches `uiContext.select` (`Allow tool:`):
 
 ```ts
-// from: PKGROOT/src/extensibility/extensions/wrapper.ts:373-412
+// from: PKGROOT/src/extensibility/extensions/wrapper.ts:342-421
  if (!this.runner.hasUI()) { const reason = "no interactive UI available"; await emitApprovalResolved(false, reason); cancelPreflight(); if (pendingSafetyChecks.length > 0) { throw new Error(`Tool "${this.tool.name}" has pending provider safety checks but no interactive UI is available.`,); } throw new Error(`Tool "${this.tool.name}" requires approval but no interactive UI available.\n` + `Options:\n` + ` 1. Set tools.approvalMode: yolo in /settings\n` + ` 2. Add tools.approval.${this.tool.name}: allow to config\n` + ` 3. Use an interactive UI to approve the tool call`,); }
  const uiContext = this.runner.getUIContext();
  const basePrompt = formatApprovalPrompt(this.tool, resolvedArgs, approvalCheck.reason);
@@ -992,7 +992,7 @@ How the approval dialog reaches `uiContext.select` (`Allow tool:`):
  if (!approved) { cancelPreflight(); throw new Error(`Tool call denied by user: ${this.tool.name}`); }
 ```
 ```ts
-// from: PKGROOT/src/eval/preludes.ts:105-115
+// from: PKGROOT/src/eval/preludes.ts:1-113
  throw new Error(`Eval prelude "${definition.name}" requires approval but no interactive UI is available.\n` + `Set tools.approval.${definition.name}: allow or use an interactive UI to approve the call.`,);
 	}
 	const choice = await untilAborted(context.signal, () => ui.select(formatApprovalPrompt(subject, parameters, resolved.reason), ["Approve", "Deny"]),);
@@ -1002,10 +1002,10 @@ How the approval dialog reaches `uiContext.select` (`Allow tool:`):
 
 Compiled proof: `grep 'Allow tool:' PKGROOT/dist/cli.js` yields a single match on line 2198; the minified formatter is `t$e` there and the eval-prelude caller is `uzo`. The emitted text is `Allow tool: <toolName>`, then `Origin: MCP server tool` for an `mcp__*` tool whose `approval` is undefined, then `Reason: <reason>`, then the `formatApprovalDetails(args)` lines, joined with a newline; the caller awaits `uiContext.select(<that text>, ["Approve", "Deny"])`.
 
-Approval events around the dialog (`dist/types/extensibility/extensions/types.d.ts:723,:731`):
+Approval events around the dialog (`dist/types/extensibility/extensions/types.d.ts:862,:870`):
 
 ```ts
-// from: dist/types/extensibility/extensions/types.d.ts:723-738
+// from: dist/types/extensibility/extensions/types.d.ts:862-877
 export interface ToolApprovalRequestedEvent { type: "tool_approval_requested"; sessionId: string; toolCallId: string; toolName: string; reason?: string; approvalMode: ApprovalMode; }
 export interface ToolApprovalResolvedEvent { type: "tool_approval_resolved"; sessionId: string; toolCallId: string; toolName: string; approved: boolean; reason?: string; }
 ```
@@ -1041,7 +1041,7 @@ src/discovery/windsurf.ts:29        PROVIDER_ID = "windsurf"
 ## M. buildSkillPromptMessage, tagImageAttachmentSource, SKILL_PROMPT_MESSAGE_TYPE
 
 ```ts
-// from: dist/types/extensibility/skills.d.ts:77-81, :88-111
+// from: dist/types/extensibility/skills.d.ts:77-111, :88-111
 export interface BuiltSkillPromptMessage { message: string; details: SkillPromptDetails; }
 export declare function getSkillSlashCommandName(skill: Pick<Skill, "name">): string;
 export interface ParsedSkillInvocation { name: string; args: string; prompt: string; }
@@ -1051,10 +1051,10 @@ export type SkillPromptInput = Pick<ParsedSkillInvocation, "args"> & Partial<Pic
 export declare function buildSkillPromptMessage(skill: Pick<Skill, "name" | "filePath" | "baseDir">, input: SkillPromptInput, invocation?: SkillInvocationKind): Promise<BuiltSkillPromptMessage>;
 ```
 
-`tagImageAttachmentSource`: **NOT FOUND** in `@oh-my-pi/pi-coding-agent` (searched PKGROOT/dist/types and PKGROOT/src recursively; the name appears only as call sites in `PKGROOT/src/modes/controllers/input-controller.ts:66,:2034,:2084`, which import it from pi-tui). It is exported by pi-tui:
+`tagImageAttachmentSource`: **NOT FOUND** in `@oh-my-pi/pi-coding-agent` (searched PKGROOT/dist/types and PKGROOT/src recursively; the name appears only as call sites in `PKGROOT/src/modes/controllers/input-controller.ts:68,:2032,:2078`, which import it from pi-tui). It is exported by pi-tui:
 
 ```ts
-// from: TUIROOT/dist/types/prompt/image-source.d.ts:9-27 — import specifier "@oh-my-pi/pi-tui/prompt/image-source"
+// from: TUIROOT/dist/types/prompt/image-source.d.ts:10-28 — import specifier "@oh-my-pi/pi-tui/prompt/image-source"
 import type { ImageContent } from "@oh-my-pi/pi-ai";
 export type ImageAttachmentSourceKind = "image" | "video";
 export interface ImageAttachmentSource { readonly path: string; readonly kind: ImageAttachmentSourceKind; }
@@ -1066,7 +1066,7 @@ export {};
 ```
 
 ```ts
-// from: TUIROOT/dist/types/chat/messages.d.ts:17 and :40-54 — import specifier "@oh-my-pi/pi-tui/chat/messages"
+// from: TUIROOT/dist/types/chat/messages.d.ts:17-54 and :40-54 — import specifier "@oh-my-pi/pi-tui/chat/messages"
 export declare const SKILL_PROMPT_MESSAGE_TYPE = "skill-prompt";
 export interface SkillPromptDetails { name: string; path: string; args?: string; prompt?: string; lineCount: number; __queueChipText?: string; }
 ```
@@ -1075,23 +1075,23 @@ export interface SkillPromptDetails { name: string; path: string; args?: string;
 
 ## N. Session files: location and .jsonl layout
 
-Sessions root = `getSessionsDir(agentDir?)` = `<agentDir>/sessions`; agent dir default `~/.omp/agent` (overridable by `PI_CODING_AGENT_DIR` / XDG redirects). Verified on this machine: `C:/Users/<user>/.omp/agent/sessions` exists with the buckets `--D--xiaojianc-poietica--` and `--D--xiaojianc-poietica-packages-agent-bridge--`. No `*.jsonl` exists yet under `~/.omp` or the repo.
+Sessions root = `getSessionsDir(agentDir?)` = `<agentDir>/sessions`; agent dir default `~/.omp/agent` (overridable by `PI_CODING_AGENT_DIR` / XDG redirects). Verified on this machine: both the global `~/.omp/agent/sessions` and the app's isolated `<APPDATA>\Poietica\omp\agent\sessions` exist with the buckets `--D--xiaojianc-poietica--` and `--D--xiaojianc-poietica-packages-agent-bridge--`. The global root has no `*.jsonl` (isolation holds); the isolated root has real sessions — the layout below was re-verified against 9 live files.
 
 ```ts
-// from: UTILSROOT/dist/types/dirs.d.ts:285 (getSessionsDir)
+// from: UTILSROOT/dist/types/dirs.d.ts:291 (getSessionsDir)
 export declare function getSessionsDir(agentDir?: string): string;
 ```
 ```ts
-// from: PKGROOT/src/session/session-manager.ts:3796-3815 (session file name and header write)
+// from: PKGROOT/src/session/session-manager.ts:3951-3965 (session file name and header write)
 	static createEmptySessionFile(cwd: string, storage: SessionStorage = new FileSessionStorage()): string { const sessionDir = SessionManager.getDefaultSessionDir(cwd, undefined, storage); const id = mintSessionId(); const timestamp = nowIso(); const header: SessionHeader = { type: "session", version: CURRENT_SESSION_VERSION, id, timestamp, cwd: path.resolve(cwd), }; const file = path.join(sessionDir, `${fileSafeTimestamp(timestamp)}_${id}.jsonl`); storage.writeTextSync(file, `${serializeTitleSlot({ updatedAt: timestamp })}${JSON.stringify(header)}\n`); return file; }
 ```
 ```ts
-// from: PKGROOT/src/session/session-title-slot.ts:111-130 (fixed-width title slot)
+// from: PKGROOT/src/session/session-title-slot.ts:112-130 (fixed-width title slot)
 export function serializeTitleSlot(options: SessionTitleUpdate): string { const title = truncateTitleForSlot(options.title ?? "", options.source, options.updatedAt); const unpadded = titleSlotLine(title, options.source, options.updatedAt, ""); const padBytes = SESSION_TITLE_SLOT_BYTES - byteLength(unpadded); if (padBytes < 0) throw new Error("Session title slot metadata exceeds fixed slot size"); const line = titleSlotLine(title, options.source, options.updatedAt, " ".repeat(padBytes)); if (byteLength(line) !== SESSION_TITLE_SLOT_BYTES) { throw new Error("Session title slot serialization failed to produce fixed-width output"); } return line; }
 export function overlayTitleSlotContent(content: string, update: SessionTitleUpdate): string { const slot = Buffer.from(serializeTitleSlot(update), "utf-8"); const existing = Buffer.from(content, "utf-8"); if (existing.length <= slot.length) return slot.toString("utf-8"); return Buffer.concat([slot, existing.subarray(slot.length)]).toString("utf-8"); }
 ```
 ```ts
-// from: PKGROOT/src/session/session-loader.ts:283-303 (first line peeled as the title slot)
+// from: PKGROOT/src/session/session-loader.ts:333-357 (first line peeled as the title slot)
  sink.append(chunk);
  if (!sawFirstLine) { const buffered = sink.flush()!; const newline = buffered.indexOf(0x0a); if (newline !== -1) { sawFirstLine = true; const firstLine = decoder.decode(buffered.subarray(0, newline)).trim(); if (firstLine) { const slot = parseTitleSlotLine(firstLine); if (slot) { titleSlot = titleUpdateFromSlot(slot); sink.consume(newline + 1); } } } }
 ```
@@ -1099,7 +1099,7 @@ export function overlayTitleSlotContent(content: string, update: SessionTitleUpd
 Directory naming (PKGROOT/src/session/session-paths.ts): `encodeLegacyAbsoluteSessionDirName(cwd)` (:44) = `--` + cwd without its leading separator, with every `/`, backslash and `:` replaced by `-`, + `--` (so `D:\xiaojianc\poietica` becomes `--D--xiaojianc-poietica--`); `encodeRelativeSessionDirName(prefix, relative)` (:49) joins with `-` (prefix `-tmp` under the temp root, `-` under home); `getDefaultSessionDirName` (:76) checks the temp root first, then home-relative, else the absolute form; `computeDefaultSessionDir` (:212) = `path.join(sessionsRoot, encodedDirName)`. Artifacts live in a sibling directory named like the session file minus its `.jsonl` suffix (session-storage.ts:1146-1156).
 
 ```ts
-// from: dist/types/session/session-entries.d.ts:6-19, :52-57
+// from: dist/types/session/session-entries.d.ts:7-61, :52-57
 export declare const CURRENT_SESSION_VERSION = 3;
 export declare const SESSION_TITLE_SLOT_BYTES = 256;
 export declare const SESSION_TITLE_SLOT_ENTRY_TYPE = "title";
@@ -1110,22 +1110,22 @@ export interface SessionEntryBase { type: string; id: string; parentId: string |
 ```
 
 ```ts
-// from: dist/types/session/session-entries.d.ts:270-282
+// from: dist/types/session/session-entries.d.ts:277-288
 export type SessionEntry = SessionMessageEntry | ModelUsageEntry | ThinkingLevelChangeEntry | ModelChangeEntry | ServiceTierChangeEntry | CompactionEntry | BranchSummaryEntry | CustomEntry | CustomMessageEntry | LabelEntry | TitleChangeEntry | TtsrInjectionEntry | SessionInitEntry | ModeChangeEntry | CredentialPinEntry | ResetBoundaryEntry;
 export type FileEntry = SessionHeader | SessionEntry;
 export type RawFileEntry = SessionTitleSlotEntry | FileEntry;
 export interface SessionTreeNode { entry: SessionEntry; children: SessionTreeNode[]; label?: string; }
 ```
 
-Per-entry variants in dist/types/session/session-entries.d.ts (names + line numbers; all extend `SessionEntryBase` = `{ type: string; id: string; parentId: string | null; timestamp: string }`): `SessionMessageEntry:58`, `ModelUsageEntry:63`, `ThinkingLevelChangeEntry:75`, `ModelChangeEntry:85`, `ServiceTierChangeEntry:94`, `CompactionEntry:98`, `BranchSummaryEntry:123`, `ResetBoundaryEntry:140`, `CustomEntry:153`, `LabelEntry:159`, `TitleChangeEntry:165`, `TtsrInjectionEntry:180`, `CredentialPinEntry:195`, `SessionInitEntry:203`, `ModeChangeEntry:242`, `CustomMessageEntry:261`.
+Per-entry variants in dist/types/session/session-entries.d.ts (names + line numbers; all extend `SessionEntryBase` = `{ type: string; id: string; parentId: string | null; timestamp: string }`): `SessionMessageEntry:62`, `ModelUsageEntry:67`, `ThinkingLevelChangeEntry:79`, `ModelChangeEntry:89`, `ServiceTierChangeEntry:98`, `CompactionEntry:102`, `BranchSummaryEntry:127`, `ResetBoundaryEntry:144`, `CustomEntry:157`, `LabelEntry:163`, `TitleChangeEntry:169`, `TtsrInjectionEntry:184`, `CredentialPinEntry:199`, `SessionInitEntry:207`, `ModeChangeEntry:248`, `CustomMessageEntry:267`.
 
-Physical format: one JSON object per line, UTF-8, newline-terminated (`SessionStorageWriter.append` requires the trailing newline — `dist/types/session/session-storage.d.ts:8-20`). The first physical line is the optional fixed-width 256-byte title slot; every later line is a typed entry. Concrete shape (from the types above and `createEmptySessionFile`; no live session file existed to quote):
+Physical format: one JSON object per line, UTF-8, newline-terminated (`SessionStorageWriter.append` requires the trailing newline — `dist/types/session/session-storage.d.ts:16-30`). The first physical line is the title slot: `serializeTitleSlot` pads it so the **line including its own `\n`** is exactly `SESSION_TITLE_SLOT_BYTES` = 256 bytes (all 9 live files measured 256 with the newline, 255 without); the `pad` field is whatever padding is left after the metadata. Every later line is a typed entry. Concrete shape (from the types above, `createEmptySessionFile`, and the live files — the first two lines are quoted from a real session, the rest are the documented shapes):
 
 ```
-{"type":"title","v":1,"title":"...","source":"user","updatedAt":"2026-10-05T01:44:55.000Z","pad":"   ...   "}
-{"type":"session","version":3,"id":"<sessionId>","timestamp":"2026-10-05T01:44:55.000Z","cwd":"D:\\xiaojianc\\poietica"}
+{"type":"title","v":1,"title":"Fix CoreSupervisor launch failure per P2","source":"auto","updatedAt":"2026-10-16T04:50:12.679Z","pad":"<118 spaces>"}
+{"type":"session","version":3,"id":"01a1430a-14c1-7487-8228-a5550edbe335","timestamp":"2026-10-16T04:48:16.577Z","cwd":"D:\\xiaojianc\\poietica"}
 {"type":"message","id":"<entryId>","parentId":null,"timestamp":"...","message":{"role":"user","content":[{"type":"text","text":"hi"}]}}
 {"type":"model_change","id":"...","parentId":"<prevEntryId>","timestamp":"...","model":"anthropic/claude-opus-4-5"}
-{"type":"custom_message","id":"...","parentId":"...","timestamp":"...","customType":"skill-prompt","content":"...","display":true,"details":{"name":"...","path":"...","lineCount":3}}
-{"type":"custom","id":"...","parentId":"...","timestamp":"...","customType":"my-ext","data":{}}
+{"type":"custom_message","id":"...","parentId":"...","timestamp":"...","customType":"skill-prompt","content":"...","display":true,"details":{"name":"...","path":"...","args":"...","lineCount":3},"attribution":"..."}
+{"type":"custom","id":"...","parentId":"...","timestamp":"...","customType":"system-prompt-digest","data":"c295d636c3e2e072"}
 ```

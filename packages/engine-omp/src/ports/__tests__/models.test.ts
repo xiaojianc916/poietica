@@ -260,7 +260,7 @@ function settingHandle(path: string): { set(scope: Settings, value: never): void
   return handle as unknown as { set(scope: Settings, value: never): void }
 }
 
-/** omp 18.5.0 没有 Settings.set(path, v)：测试里的写入也走 Setting 句柄（与 settings-access.ts 同一条路）。 */
+/** omp 没有 Settings.set(path, v)：测试里的写入也走 Setting 句柄（与 settings-access.ts 同一条路）。 */
 function readEnabled(settings: Settings): readonly string[] {
   const value = settings.getGlobalSettings().enabledModels
   return Array.isArray(value) ? (value as string[]) : []
