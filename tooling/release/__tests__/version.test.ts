@@ -82,11 +82,16 @@ describe('锁文件', () => {
 })
 
 describe('声明处', () => {
-  it('唯一来源在列表里，且列表只有仓内包的 package.json', () => {
+  it('唯一来源在列表里，且列表只收仓库自己的 package.json', () => {
     expect(VERSION_FILES).toContain(VERSION_SOURCE)
     for (const file of VERSION_FILES) {
-      expect(file).toMatch(/^apps\/[^/]+\/package\.json$/)
+      expect(file).toMatch(/^(apps\/[^/]+\/)?package\.json$/)
     }
+  })
+
+  /* 根 package.json 也写着版本号：漏掉它，仓库里就多一个永远停在旧版本的假象。 */
+  it('根 package.json 也在列表里', () => {
+    expect(VERSION_FILES).toContain('package.json')
   })
 })
 

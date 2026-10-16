@@ -180,6 +180,6 @@ omp 锁在 `18.5.0`（根 `package.json` 的 catalog）。升级前必须逐项�
 （会话文件、设置键、工具名、事件形状、浏览器 relay 协议……）→ 记录到 `docs/refactor-log.md` →
 `bun run core:build` + `core:probe` + `bun run  all`。
 
-**发布**：`bun run version:set <x.y.z>`（唯一入口，同时改 desktop 与 core）→ 提交 →
+**发布**：`bun run version:set <x.y.z>`（唯一入口，同时改根、desktop 与 core）→ 提交 →
 `git tag v<x.y.z>` → 推送 tag → release 工作流构建、冒烟、创建草稿 → 人工在干净虚拟机上验收 →
 把草稿改为正式发布。

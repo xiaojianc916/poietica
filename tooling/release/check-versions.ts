@@ -1,11 +1,12 @@
 #!/usr/bin/env bun
 /**
  * 三处版本号声明必须处处相同（15 页 §10.1）。唯一来源是 apps/desktop 的 version，
- * apps/core 由它派生 —— 一个安装包里两半版本不一致，只会意味着装坏了。
+ * apps/core 与根 package.json 由它派生 —— 一个安装包里两半版本不一致，只会意味着装坏了；
+ * 根包只有版本号这一个字段需要跟，但它同样会过期。
  *
  * 用法：
- *   bun run  all:versions          只检查
- *   bun run  all:versions v0.5.0   连带核对 tag（发布链在打标前调用）
+ *   bun run check:versions          只检查
+ *   bun run check:versions v0.5.0   连带核对 tag（发布链在打标前调用）
  */
 
 import { readFile } from 'node:fs/promises'

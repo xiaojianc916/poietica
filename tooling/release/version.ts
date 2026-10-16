@@ -55,12 +55,15 @@ export function compareVersions(left: string, right: string): number {
  * Host 与 Core 总是一起发布，一个安装包里两半版本不一致只会意味着装坏了 ——
  * 所以 `apps/core/package.json` 必须与它相同，set-version/check-versions 以它为键。
  *
+ * 根 `package.json` 也在列表里：它没有发布语义（private），但它同样写着版本号，
+ * 不跟着走就会在仓库里留一个永远停在旧版本的假象（实测停在 0.5.0，而 apps 已到 0.5.6）。
+ *
  * Core 的版本另有一处派生落点：`bun run core:build` 把 coreVersion 写进
  * `apps/core/dist/core-manifest.json`，由 verify-dist 与发布链核对，同样不在这个列表里。
  */
 export const VERSION_SOURCE = 'apps/desktop/package.json'
 
-export const VERSION_FILES = ['apps/desktop/package.json', 'apps/core/package.json'] as const
+export const VERSION_FILES = ['package.json', 'apps/desktop/package.json', 'apps/core/package.json'] as const
 
 /**
  * 锁文件记着一份仓内包的版本（bun.lock 记 apps/desktop 与 apps/core）。它由包管理器

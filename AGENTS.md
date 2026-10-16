@@ -34,7 +34,7 @@
 | `bun run check:ticker` | 思考行的**真实布局检查**（Electron + 真实组件，逐帧量「有没有遮字」）；改 `timeline/rolling-line*`、`ticker-*`、`roll-scheduler*`、`flow-row.css` 必须跑一次 |
 | `bun run core:build` / `core:probe` / `core:verify-dist` | 构建 Core、进程级隔离自检、校验产物 |
 | `bun run new:package` / `new:feature` | 脚手架（创建包或功能的唯一入口） |
-| `bun run version:set <x.y.z>` | 同时改 desktop 与 core 的版本号（唯一入口） |
+| `bun run version:set <x.y.z>` | 同时改根、desktop、core 三处版本号（唯一入口） |
 | `bun run desktop:smoke <安装包>` / `dist` | 安装包冒烟 / 打包安装程序 |
 | `bun run python:pin` | 升级内置 Python 时钉住校验和 |
 ​

@@ -1,6 +1,6 @@
 {
   "name": "poietica",
-  "version": "0.5.0",
+  "version": "0.5.7",
   "private": true,
   "description": "Poietica — 本地 AI agent 桌面应用",
   "license": "AGPL-3.0-or-later",

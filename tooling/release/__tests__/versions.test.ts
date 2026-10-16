@@ -20,6 +20,16 @@ test('apps/desktop 与 apps/core 的 version 相同', () => {
   expect(core.version).toBe(desktop.version)
 })
 
+/*
+ * 根 package.json 是 private、没有发布语义，但它的 version 同样是声明处：
+ * 曾经它停在 0.5.0 而 apps 已经到 0.5.6，谁也没发现 —— 这条让它没法再悄悄掉队。
+ */
+test('根 package.json 的 version 与 apps/desktop 相同', () => {
+  const desktop = read('apps/desktop/package.json')
+  const root = read('package.json')
+  expect(root.version).toBe(desktop.version)
+})
+
 test('version 是合法的 x.y.z semver（不带预发布标签）', () => {
   const desktop = read('apps/desktop/package.json')
   expect(SEMVER.test(desktop.version)).toBe(true)

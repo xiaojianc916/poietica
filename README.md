@@ -94,7 +94,7 @@ bun run dev          # 构建 Core 后启动 electron-vite 开发模式
 | `bun run dist` | 构建并打安装包（产物在 `apps/desktop/release/`） |
 | `bun run desktop:smoke <安装包>` | 安装包冒烟测试 |
 | `bun run new:package` / `new:feature` | 脚手架（创建包或功能的唯一入口） |
-| `bun run version:set <x.y.z>` | 版本号的唯一入口（同时改 desktop 与 core） |
+| `bun run version:set <x.y.z>` | 版本号的唯一入口（同时改根、desktop 与 core） |
 | `bun run python:pin` | 升级内置 Python 时钉住校验和 |
 
 改契约、加功能、升级 omp 的完整步骤见 `docs/ARCHITECTURE.md` §9 与 `AGENTS.md` §11。
