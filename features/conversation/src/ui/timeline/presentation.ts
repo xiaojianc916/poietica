@@ -1,6 +1,4 @@
 import type { TranscriptUsage } from '@poietica/transcript'
-import { lastAtOrBefore } from './ordered-lookup'
-import { isRenderable } from './renderable'
 import {
   isTerminal,
   type TimelineItem,
@@ -10,8 +8,10 @@ import {
   type TurnOutcome,
   type TurnPage,
   type TurnSpan,
-} from './timeline-contract'
-import { PROCESS_FAMILY, toolFamilyOf } from './tools/tool-family'
+} from '../shared/timeline/timeline-contract'
+import { PROCESS_FAMILY, toolFamilyOf } from '../shared/tools/tool-family'
+import { lastAtOrBefore } from './ordered-lookup'
+import { isRenderable } from './renderable'
 
 /** 无开场条目时承载封条，不伪造聊天消息。 */
 interface RunAnchor {

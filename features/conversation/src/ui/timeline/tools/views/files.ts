@@ -1,4 +1,4 @@
-import type { ToolCallContent } from '../../../agent/tool-call'
+import type { ToolCallContent } from '../../../shared/model/tool-call'
 import type { Ctx, Handler } from '../view-kit'
 import {
   at,

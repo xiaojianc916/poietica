@@ -14,10 +14,10 @@ import {
   type UiFeatureContext,
 } from '@poietica/ui-kernel'
 import { createConversationApi } from '../api'
-import { createPostureIntent } from '../configuration/posture-intent'
 import { type ConversationStores, createStores } from '../session'
+import { createPostureIntent } from '../session/configuration/posture-intent'
 import { createSessionRegistry, type SessionRegistry } from '../session/session-registry'
-import { TranscriptStore } from '../transcript/transcript-store'
+import { TranscriptStore } from '../timeline/model/transcript-store'
 
 /* 装配的底座：RPC 封装、内核服务、四个 store、转录 store 与会话端口注册表。后面的 actions / subscriptions / contributions / commands / services 各自收一份本对象。 */
 

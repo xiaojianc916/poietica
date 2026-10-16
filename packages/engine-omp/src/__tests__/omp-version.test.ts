@@ -1,4 +1,4 @@
-import '../__tests__/omp-home'
+import './omp-home'
 
 import { describe, expect, test } from 'bun:test'
 import { existsSync, readFileSync } from 'node:fs'

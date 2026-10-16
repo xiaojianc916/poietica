@@ -1,5 +1,5 @@
 import { invariant } from '@poietica/foundation'
-import type { ToolCallContent, ToolDrawerShape, ToolKind } from '../../agent/tool-call'
+import type { ToolCallContent, ToolDrawerShape, ToolKind } from '../../shared/model/tool-call'
 
 // omp 工具调用的因地制宜视图：按工具名查标准答案，认不出的交回空视图由调用方兜底。
 // 产出优先于入参（edit/read 的真实内容在产出 details 里）；图片在出口统一追加。

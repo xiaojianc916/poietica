@@ -1,8 +1,8 @@
 import { describe, expect, test } from 'bun:test'
 import type { QueueSnapshot } from '@poietica/engine'
 import type { TranscriptOperation } from '@poietica/transcript'
-import type { TranscriptSignal } from '../../agent/transcript'
 import type { ConversationApi } from '../../api'
+import type { TranscriptSignal } from '../../shared/model/transcript'
 import { createSessionPort } from '../session-port'
 
 /*

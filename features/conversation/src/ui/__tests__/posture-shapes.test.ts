@@ -1,7 +1,7 @@
 import { describe, expect, test } from 'bun:test'
 import type { Controls } from '@poietica/engine'
-import { POSTURE_TO_CONTROL, postureOfControl, sessionConfigControlsOf } from '../configuration/control-shapes'
-import { permissionPosturesOf } from '../configuration/permission-posture'
+import { POSTURE_TO_CONTROL, postureOfControl, sessionConfigControlsOf } from '../session/configuration/control-shapes'
+import { permissionPosturesOf } from '../shared/model/permission-posture'
 
 /*
  * 真实故障：输入框那一排没有批准方式，胶囊整颗不画。根因是两套词表对不上 —— 组件与 permission-posture.ts

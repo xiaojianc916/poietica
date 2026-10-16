@@ -5,17 +5,17 @@ import { cleanup, fireEvent, render, waitFor } from '@testing-library/react'
 import { MotionConfig } from 'motion/react'
 import { type ReactNode, useRef } from 'react'
 import { composerToolkitSources } from '../../ui-api'
-import { ComposerActions, composerPaletteGroups } from '../components/composer/composer-actions'
+import { ComposerDrafts } from '../composer/drafts'
+import { ComposerDraftsContext } from '../composer/drafts-context'
+import type { PromptInputMessage } from '../composer/prompt'
+import { ComposerActions, composerPaletteGroups } from '../composer/view/composer-actions'
 import {
   PromptInput,
   PromptInputBody,
   PromptInputEditor,
   type PromptInputHandle,
   PromptInputToolbar,
-} from '../components/composer/prompt-input'
-import { ComposerDrafts } from '../composer/drafts'
-import { ComposerDraftsContext } from '../composer/drafts-context'
-import type { PromptInputMessage } from '../composer/prompt'
+} from '../composer/view/prompt-input'
 
 /*
  * happy-dom 的 `Element.animate` 不推进时间轴，动画半途被取消时 motion reject 一个没人接的 `finished`

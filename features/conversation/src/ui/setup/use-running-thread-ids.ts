@@ -1,6 +1,6 @@
 import { useFeatureStore } from '@poietica/ui-kernel'
 import { useMemo } from 'react'
-import type { TurnStatesStore } from '../session'
+import type { TurnStatesStore } from '../threads'
 
 /*
  * 两条判据缺一不可：必须订阅着读（turnStates 由通知逐条写入，读快照的话那圈标记只停在首帧那一次）；

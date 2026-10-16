@@ -1,4 +1,3 @@
-import { sealedPageMemo } from './page-memo'
 import {
   isInFlight,
   type PermissionItem,
@@ -8,7 +7,8 @@ import {
   type TimelineState,
   type TodoItem,
   type ToolCallTimelineItem,
-} from './timeline-contract'
+} from '../shared/timeline/timeline-contract'
+import { sealedPageMemo } from './page-memo'
 
 /** 未结交互以条目为事实；status 只能从条目单向投影，不能反向参与判定。 */
 export interface PendingInteractions {

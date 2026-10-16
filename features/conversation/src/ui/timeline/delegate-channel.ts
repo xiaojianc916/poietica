@@ -1,4 +1,4 @@
-import type { TimelineItem, TimelineState, ToolCallTimelineItem } from './timeline-contract'
+import type { TimelineItem, TimelineState, ToolCallTimelineItem } from '../shared/timeline/timeline-contract'
 
 /**
  * 派发通道的寻址：官方 transcript 自带 agentId（TranscriptPage.agents、ops 的 agent_id），通道的分流由 transcript 通道完成，

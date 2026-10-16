@@ -129,6 +129,26 @@ module.exports = {
       to: { path: '\\.css$' },
     },
     {
+      name: 'conversation-area-via-index',
+      severity: 'error',
+      comment: 'conversation 的区与区之间只经 <区>/index 互引（docs/ARCHITECTURE.md §4.3）',
+      from: {
+        path: '^features/conversation/src/ui/(threads|composer|timeline|session|status|home)/',
+        pathNot: TEST,
+      },
+      to: {
+        path: '^features/conversation/src/ui/(threads|composer|timeline|session|status|home)/',
+        pathNot: ['^features/conversation/src/ui/$1/', '^features/conversation/src/ui/[^/]+/index\\.tsx?$'],
+      },
+    },
+    {
+      name: 'conversation-shared-is-leaf',
+      severity: 'error',
+      comment: 'shared/ 不得反向依赖任何区（docs/ARCHITECTURE.md §4.3）',
+      from: { path: '^features/conversation/src/ui/shared/', pathNot: TEST },
+      to: { path: '^features/conversation/src/ui/(threads|composer|timeline|session|status|home|setup)/' },
+    },
+    {
       name: 'feature-subentry-core',
       severity: 'error',
       from: { path: '^features/([^/]+)/src/core/' },

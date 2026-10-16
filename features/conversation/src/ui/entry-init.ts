@@ -1,6 +1,6 @@
 import type { ModelRef, Posture } from '@poietica/engine'
-import type { SessionConfigControl } from './agent/config'
-import { postureOfControl } from './configuration/control-shapes'
+import { postureOfControl } from './session/configuration/control-shapes'
+import type { SessionConfigControl } from './shared/model/config'
 
 /*
  * 屏幕上那一份（草稿覆盖后的 `controls.draft` 结果）才是这条线程的初始化。只带「用户手改过的草稿」时，没动过选择器就一个都不传，omp 按内置目录另挑一条 ——

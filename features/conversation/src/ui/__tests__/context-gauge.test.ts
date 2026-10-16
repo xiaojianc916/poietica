@@ -1,7 +1,7 @@
 import { describe, expect, test } from 'bun:test'
-import type { AgentUsageBreakdown } from '../agent/dto'
-import type { SessionUsage } from '../agent/usage'
-import { formatTokens, gaugeLayout } from '../components/composer/context-gauge'
+import { formatTokens, gaugeLayout } from '../composer/view/context-gauge'
+import type { AgentUsageBreakdown } from '../shared/model/dto'
+import type { SessionUsage } from '../shared/model/usage'
 
 /*
  * 夹具守 omp 自己的恒等式：五类占用之和就是 used，再加空闲与自动压缩缓冲正好是整个窗口，

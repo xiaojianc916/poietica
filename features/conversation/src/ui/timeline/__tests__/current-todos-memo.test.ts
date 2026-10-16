@@ -6,7 +6,7 @@ import {
   type TodoItem,
   type ToolCallTimelineItem,
   type TurnPage,
-} from '../timeline-contract'
+} from '../../shared/timeline/timeline-contract'
 import { currentTodos } from '../timeline-queries'
 
 /*

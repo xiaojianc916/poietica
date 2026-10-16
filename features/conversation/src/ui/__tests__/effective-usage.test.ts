@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'bun:test'
 import type { ContextUsage } from '@poietica/engine'
-import { effectiveUsage } from '../configuration/control-shapes'
+import { effectiveUsage } from '../session/configuration/control-shapes'
 
 /*
  * 用量有两条来源：推送 undefined = 从没收到过 → 用控件表初值；推送 null = 收到过「没有可报的窗口」→ 不回退。

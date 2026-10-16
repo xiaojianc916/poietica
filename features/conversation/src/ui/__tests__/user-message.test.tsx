@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, test } from 'bun:test'
 import { cleanup, render } from '@testing-library/react'
-import { UserMessage } from '../components/timeline/user-message'
+import { UserMessage } from '../timeline/view/user-message'
 
 afterEach(cleanup)
 

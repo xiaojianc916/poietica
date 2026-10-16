@@ -1,4 +1,4 @@
-import type { ThreadRecord } from '../agent/thread'
+import type { ThreadRecord } from '../shared/model/thread'
 
 const FALLBACK_TITLE = '新建对话'
 const TITLE_GRAPHEMES = 48

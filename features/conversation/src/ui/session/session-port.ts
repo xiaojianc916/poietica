@@ -1,13 +1,13 @@
 import type { InteractionAnswer, QueueSnapshot } from '@poietica/engine'
 import { createId } from '@poietica/foundation'
 import type { TranscriptOperation } from '@poietica/transcript'
-import type { ApprovalAnswer } from '../agent/permission'
-import type { PlanAnswer } from '../agent/plan'
-import type { QuestionResponse } from '../agent/question'
-import type { AgentSessionPort, DeliveryModePatch, QueuedMessages, WithdrawnMessage } from '../agent/session'
-import type { TranscriptCatchUp, TranscriptPage, TranscriptSignal } from '../agent/transcript'
 import type { ConversationApi } from '../api'
-import { GOAL_CONTROL_ID, GOAL_ENABLED } from '../components/goal/goal-control'
+import { GOAL_CONTROL_ID, GOAL_ENABLED } from '../shared/model/goal-control'
+import type { ApprovalAnswer } from '../shared/model/permission'
+import type { PlanAnswer } from '../shared/model/plan'
+import type { QuestionResponse } from '../shared/model/question'
+import type { AgentSessionPort, DeliveryModePatch, QueuedMessages, WithdrawnMessage } from '../shared/model/session'
+import type { TranscriptCatchUp, TranscriptPage, TranscriptSignal } from '../shared/model/transcript'
 
 /*
  * 把 AgentSessionPort 架在 conversation 契约的 RPC 上（`threads.*` / `turns.*` / `timeline.*` / `queue.*` / `interactions.*`）。

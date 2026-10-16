@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'bun:test'
-import type { SessionConfigControl } from '../agent/config'
 import { entryThreadInitOf } from '../entry-init'
+import type { SessionConfigControl } from '../shared/model/config'
 
 /*
  * 真机故障：入口页显示 DeepSeek-V4.1-Flash，发送后会话文件里是 deepseek-v4-pro。根因是这一层

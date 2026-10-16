@@ -1,7 +1,7 @@
 import { describe, expect, test } from 'bun:test'
-import { toolGlyphOf } from '../../omp-tool-glyphs'
+import { toolGlyphOf } from '../../../../shared/tools/omp-tool-glyphs'
+import { toolFamilyOf } from '../../../../shared/tools/tool-family'
 import { ompToolView } from '../../omp-tool-view'
-import { toolFamilyOf } from '../../tool-family'
 
 /*
  * read 是传输工具：读的是什么由地址说。折叠行的动词、字形、分族三处必须给同一个答案 ——

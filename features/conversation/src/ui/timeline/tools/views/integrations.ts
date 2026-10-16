@@ -1,4 +1,4 @@
-import { describeTool } from '../tool-vocabulary'
+import { describeTool } from '../../../shared/tools/tool-vocabulary'
 import type { Handler, OmpToolView } from '../view-kit'
 import {
   at,

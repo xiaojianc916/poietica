@@ -1,4 +1,4 @@
-import type { TimelineItem } from './timeline-contract'
+import type { TimelineItem } from '../shared/timeline/timeline-contract'
 
 // 唯一判据，三个读者：行投影决定哪条上屏、reducer 回答这一轮有没有产出、等待指示器问屏幕上是不是什么都没有。抄成两份就会有两种「空」。
 export function isRenderable(item: TimelineItem): boolean {

@@ -116,11 +116,11 @@
     },
     {
       "includes": [
-        "features/conversation/src/ui/components/mascot/engine-runtime/ball.ts",
-        "features/conversation/src/ui/components/mascot/engine-runtime/emotions.ts",
-        "features/conversation/src/ui/components/mascot/engine-runtime/engine.ts",
-        "features/conversation/src/ui/components/mascot/engine-runtime/rings.ts",
-        "features/conversation/src/ui/components/mascot/engine-runtime/types.ts"
+        "features/conversation/src/ui/home/mascot/engine-runtime/ball.ts",
+        "features/conversation/src/ui/home/mascot/engine-runtime/emotions.ts",
+        "features/conversation/src/ui/home/mascot/engine-runtime/engine.ts",
+        "features/conversation/src/ui/home/mascot/engine-runtime/rings.ts",
+        "features/conversation/src/ui/home/mascot/engine-runtime/types.ts"
       ],
       "linter": {
         "rules": {
@@ -209,18 +209,18 @@
         "features/browser/src/host/picker-runtime.ts",
         "features/browser/src/host/relay-client.ts",
         "features/browser/src/ui/tool-card.tsx",
-        "features/conversation/src/ui/components/assistant-surface.tsx",
-        "features/conversation/src/ui/components/composer/composer-palette.tsx",
-        "features/conversation/src/ui/components/composer/prompt-input.tsx",
-        "features/conversation/src/ui/components/composer/session-controls.tsx",
-        "features/conversation/src/ui/components/feed/agent-activity-feed.tsx",
-        "features/conversation/src/ui/components/home-surface.tsx",
-        "features/conversation/src/ui/components/mascot/emotion-ball.tsx",
-        "features/conversation/src/ui/components/semantics/tool-call-facets.ts",
+        "features/conversation/src/ui/home/assistant-surface.tsx",
+        "features/conversation/src/ui/composer/view/composer-palette.tsx",
+        "features/conversation/src/ui/composer/view/prompt-input.tsx",
+        "features/conversation/src/ui/composer/view/session-controls.tsx",
+        "features/conversation/src/ui/timeline/feed/agent-activity-feed.tsx",
+        "features/conversation/src/ui/home/home-surface.tsx",
+        "features/conversation/src/ui/home/mascot/emotion-ball.tsx",
+        "features/conversation/src/ui/shared/semantics/tool-call-facets.ts",
         "features/conversation/src/ui/timeline/presentation.ts",
         "features/conversation/src/ui/timeline/timeline-queries.ts",
-        "features/conversation/src/ui/transcript/transcript-replica.ts",
-        "features/conversation/src/ui/transcript/transcript-store.ts",
+        "features/conversation/src/ui/timeline/model/transcript-replica.ts",
+        "features/conversation/src/ui/timeline/model/transcript-store.ts",
         "features/models/src/ui/models-settings.tsx",
         "features/platform/src/host/storage-service.ts",
         "packages/core-kernel/src/kernel.ts",
@@ -256,7 +256,7 @@
     {
       "includes": [
         "features/conversation/src/ui/session/session-port.ts",
-        "features/conversation/src/ui/transcript/transcript-projector.ts",
+        "features/conversation/src/ui/timeline/model/transcript-projector.ts",
         "features/extensions/src/ui/mcp-config.ts",
         "packages/engine-omp/src/projector/__tests__/fixtures/live.ts"
       ],

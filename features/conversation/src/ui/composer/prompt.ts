@@ -1,4 +1,4 @@
-import type { PromptConfiguration, PromptSkill } from '../agent/session'
+import type { PromptConfiguration, PromptSkill } from '../shared/model/session'
 import type { ComposerAsset } from './attachment'
 
 export interface PendingPromptConfiguration extends PromptConfiguration {

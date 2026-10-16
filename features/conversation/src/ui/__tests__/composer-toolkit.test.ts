@@ -1,7 +1,7 @@
 import { describe, expect, test } from 'bun:test'
 import type { ComposerToolkit, ComposerToolkitSource } from '../../ui-api'
-import { composerPaletteGroups } from '../components/composer/composer-actions'
-import { mergeToolkits, toolkitReaderOf } from '../configuration/composer-toolkit'
+import { mergeToolkits, toolkitReaderOf } from '../composer/toolkit'
+import { composerPaletteGroups } from '../composer/view/composer-actions'
 
 /* 空名册不画分组；`read` 喂 useSyncExternalStore 的 getSnapshot，每次新造一张表会让整棵输入框无限重渲染。 */
 

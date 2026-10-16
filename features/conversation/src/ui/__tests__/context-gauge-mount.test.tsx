@@ -1,7 +1,7 @@
 import { describe, expect, test } from 'bun:test'
 import { renderToStaticMarkup } from 'react-dom/server'
-import type { SessionUsage } from '../agent/usage'
-import { ContextGauge } from '../components/composer/context-gauge'
+import { ContextGauge } from '../composer/view/context-gauge'
+import type { SessionUsage } from '../shared/model/usage'
 
 /* 提示与面板是两个触发器挂在同一个按钮上，只有面板、没有提示就是退掉了原来那一格。 */
 

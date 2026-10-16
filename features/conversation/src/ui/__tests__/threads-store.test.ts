@@ -1,8 +1,8 @@
 import { describe, expect, test } from 'bun:test'
 import type { Thread } from '../../contract'
 import type { ConversationApi } from '../api'
-import { createTurnStatesStore } from '../session/turn-states'
 import { createThreadsStore } from '../threads/threads-store'
+import { createTurnStatesStore } from '../threads/turn-states'
 
 /* R-04 S9：`threads.list` 的 `state` 是运行态的快照兜底；只信 turns.state 通知的话，Core 崩溃重启后侧栏永远转圈，重载后正在跑的对话显示成空闲。 */
 function thread(id: string, state: Thread['state']): Thread {

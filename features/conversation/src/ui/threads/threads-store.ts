@@ -1,7 +1,7 @@
 import { createFeatureStore, type FeatureStore } from '@poietica/ui-kernel'
 import type { Thread } from '../../contract'
 import type { ConversationApi } from '../api'
-import type { TurnStatesStore } from '../session/turn-states'
+import type { TurnStatesStore } from './turn-states'
 
 export interface ThreadsState {
   readonly items: readonly Thread[]

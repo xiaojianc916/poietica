@@ -10,15 +10,10 @@ import {
 } from '@poietica/ui-kernel'
 import { Archive, SquarePen } from 'lucide-react'
 import { useMemo, useState } from 'react'
-import { ActiveOwner } from '../components/active-owner'
-import { AssistantSurface } from '../components/assistant-surface'
-import { ConversationAuxiliaryToggle, ConversationTodoToggle } from '../components/conversation-controls'
-import { GOAL_CONTROL_ID, GOAL_DISABLED } from '../components/goal/goal-control'
-import { HomeSurface } from '../components/home-surface'
-import { NewConversationNavRow } from '../components/new-conversation-nav-row'
-import { AssistantThreadList } from '../components/threads/assistant-thread-list'
-import { ARCHIVED_FILTER, type ArchivedFilter } from '../components/threads/thread-view'
 import { ConversationProviders } from '../composition'
+import { AssistantSurface } from '../home/assistant-surface'
+import { HomeSurface } from '../home/home-surface'
+import { ActiveOwner } from '../session/active-owner'
 import {
   effectiveUsage,
   hiddenModelsOf,
@@ -28,11 +23,16 @@ import {
   sessionConfigControlsOf,
   sessionGoalOf,
   withoutHiddenModels,
-} from '../configuration/control-shapes'
-import { runGoalAction } from '../goal-actions'
-import { ArchivedChatsPage } from '../settings/archived-page'
+} from '../session/configuration/control-shapes'
+import { ConversationAuxiliaryToggle, ConversationTodoToggle } from '../session/conversation-controls'
+import { ArchivedChatsPage } from '../session/settings/archived-page'
+import { GOAL_CONTROL_ID, GOAL_DISABLED } from '../shared/model/goal-control'
+import { groupByWorkspace } from '../shared/model/thread-order'
+import { runGoalAction } from '../status/goal/goal-actions'
 import { createThreadSurfaceOpener, useThreadSessionLifecycle } from '../threads/thread-lifecycle'
-import { groupByWorkspace } from '../threads/thread-order'
+import { AssistantThreadList } from '../threads/view/assistant-thread-list'
+import { NewConversationNavRow } from '../threads/view/new-conversation-nav-row'
+import { ARCHIVED_FILTER, type ArchivedFilter } from '../threads/view/thread-view'
 import type { ConversationActions } from './actions'
 import type { ConversationSetup } from './context'
 import { useRunningThreadIds } from './use-running-thread-ids'

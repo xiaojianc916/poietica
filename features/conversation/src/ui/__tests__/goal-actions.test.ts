@@ -1,7 +1,7 @@
 import { describe, expect, test } from 'bun:test'
 import type { Controls } from '@poietica/engine'
 import { AppError } from '@poietica/foundation'
-import { type GoalActionApi, runGoalAction } from '../goal-actions'
+import { type GoalActionApi, runGoalAction } from '../status/goal/goal-actions'
 
 /*
  * 四个动作各走各的 RPC；永不 reject —— AppError 用它的 message，其余走 describeFailure。

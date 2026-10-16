@@ -5,7 +5,7 @@ import { act, renderHook } from '@testing-library/react'
 import { type ReactNode, StrictMode } from 'react'
 import type { ComposerToolkit, ComposerToolkitSource } from '../../ui-api'
 import { composerToolkitSources } from '../../ui-api'
-import { useAgentToolkit } from '../configuration/composer-toolkit'
+import { useAgentToolkit } from '../composer/toolkit'
 
 /* 数据没变时重渲染不换对象：getSnapshot 引用不稳会让输入框自喂自渲。 */
 

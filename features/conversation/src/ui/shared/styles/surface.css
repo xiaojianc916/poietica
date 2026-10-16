@@ -1,0 +1,183 @@
+/* 皮肤挂在同一条 import 上；卡片框体仍由 composer-frame.css 提供。 */
+@import "./composer-frame.css";
+
+/* 外框只给面板高与地色：读法宽度、自由空间和两个静止态全在滚动盒里，让外框也滚就会有两个滚轮的主人。 */
+.assistant-surface {
+  /* 回放那段空白里的加载图标绝对定位于此。 */
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  block-size: 100%;
+  overflow: hidden;
+  background: var(--cp-ground);
+  color: var(--cp-ink);
+  font-size: var(--cp-font);
+}
+
+.assistant-masthead {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--cp-mast-gap);
+}
+
+/* 页头只留固定高度与底色；正文列的可滚动高度靠 flex: 1 1 auto、min-block-size: 0、position: relative 三条撑住。 */
+.conversation-header {
+  display: flex;
+  flex: none;
+  /* 左上角那一格贴窗口上沿太紧：整条带子加高 8px，标题整体下来 8px。 */
+  block-size: calc(var(--cp-control) + 8px);
+  align-items: flex-end;
+  justify-content: flex-end;
+  gap: var(--cp-control-gap);
+  /* 右缘与正文列、输入卡同一条；左缘只留一个 gutter。 */
+  padding-inline-start: var(--cp-gutter);
+  padding-inline-end: max(
+    var(--cp-gutter),
+    round(calc((100% - var(--assistant-surface-inline-end-clearance, 0px) - var(--cp-grid)) / 2), var(--ui-hairline))
+  );
+  background: var(--cp-ground);
+}
+
+.conversation-body {
+  position: relative;
+  display: flex;
+  min-block-size: 0;
+  min-inline-size: 0;
+  flex: 1 1 auto;
+  /* 给 todo 浮层的容器查询当参照物。 */
+  container: conversation-body / inline-size;
+}
+
+.conversation-canvas {
+  position: relative;
+  display: flex;
+  min-block-size: 0;
+  min-inline-size: 0;
+  flex: 1 1 auto;
+  flex-direction: column;
+  overflow: hidden;
+  transition: --assistant-surface-inline-end-clearance var(--workspace-layout-duration) var(--workspace-layout-ease);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .conversation-canvas {
+    transition: none;
+  }
+}
+
+/* 雾：地色 + alpha 遮罩，纯渐隐。alpha 走 smootherstep（6t⁵−15t⁴+10t³，两端导数为零），眼对折点与起止坎敏感，零斜率让它无处可锁。 */
+.conversation-veil {
+  position: absolute;
+  inset-block-start: 0;
+  inset-inline: 0 var(--desktop-scrollbar-size, 0px);
+  z-index: 1;
+  block-size: calc(var(--cp-line) * 2);
+  background: var(--cp-ground);
+  pointer-events: none;
+  mask-image: linear-gradient(
+    to bottom,
+    rgb(0 0 0 / 1),
+    rgb(0 0 0 / 0.991) 10%,
+    rgb(0 0 0 / 0.942) 20%,
+    rgb(0 0 0 / 0.837) 30%,
+    rgb(0 0 0 / 0.683) 40%,
+    rgb(0 0 0 / 0.5) 50%,
+    rgb(0 0 0 / 0.317) 60%,
+    rgb(0 0 0 / 0.163) 70%,
+    rgb(0 0 0 / 0.058) 80%,
+    rgb(0 0 0 / 0.009) 90%,
+    rgb(0 0 0 / 0) 100%
+  );
+}
+
+[data-slot="prompt-input-submit"] svg,
+.assistant-threads__create svg,
+.assistant-thread__action svg,
+.workspace-picker__repositories-action svg,
+.workspace-picker__field svg,
+.workspace-picker__context-trigger svg {
+  block-size: var(--cp-icon);
+  inline-size: var(--cp-icon);
+}
+
+/* 两个静止态的挂载与卸载不可补间，不会出现「半落」那个中间态。 */
+.assistant-surface__entry {
+  display: flex;
+  min-block-size: 0;
+  min-inline-size: 0;
+  flex: 1 1 0;
+  flex-direction: column;
+  justify-content: flex-end;
+  padding-block: var(--cp-gutter) var(--cp-dock-dissolve);
+  padding-inline: max(var(--cp-gutter), round(calc((100% - var(--cp-grid)) / 2), var(--ui-hairline)));
+}
+
+.assistant-surface__ballast {
+  flex: 1 1 0;
+}
+
+/* 入口区是 `justify-content: flex-end`，普通子项都会沉到底部；这一格 `margin-block-end: auto` 让自动外边距先吃掉全部自由空间，提示才贴顶。 */
+.assistant-surface__entry-notices {
+  inline-size: 100%;
+  margin-block-end: auto;
+}
+
+/* 左右内边距与滚动区相同，这是它与气泡对齐的唯一依据。 */
+.assistant-surface__dock {
+  --assistant-surface-inline-padding: max(
+    var(--cp-gutter),
+    round(calc((100% - var(--assistant-surface-inline-end-clearance, 0px) - var(--cp-grid)) / 2), var(--ui-hairline))
+  );
+
+  position: relative;
+  flex: none;
+  min-inline-size: 0;
+  padding-block: var(--cp-pad-mid) var(--cp-gutter);
+  padding-inline-start: var(--assistant-surface-inline-padding);
+  padding-inline-end: calc(
+    var(--assistant-surface-inline-padding) +
+    var(--assistant-surface-inline-end-clearance, 0px)
+  );
+}
+
+.assistant-surface__composer {
+  display: flex;
+  min-inline-size: 0;
+  flex-direction: column;
+}
+
+/* 会话态：输入框盖在转录上，入口态是居中的。最后一条消息由 useDockClearance 实测后传给虚拟器的 paddingEnd，不会被压住。 */
+.assistant-surface[data-phase="live"] .assistant-surface__dock {
+  position: absolute;
+  inset-block-end: 0;
+  /*
+   * 右边让开滚动条那条沟：滚动盒的 padding-inline 百分比按整个界面宽算、不减沟，消息列中心因此落在 W/2 减半条沟处。让开后带子内容宽解出 768 − 沟，与消息列逐像素相同。
+   * 兜底写 0px 不省略：读不到值的 var() 会让整条 inset-inline 失效，带子整个塌掉。
+   */
+  inset-inline: 0 var(--desktop-scrollbar-size, 0px);
+  /* 带子整宽但不可点：不让开指针，输入框两侧的空白就会吞掉滚轮，而那里看上去什么都没有。 */
+  pointer-events: none;
+}
+
+/* 只在卡片下方画一条不透明底色条：下方那圈下 padding 不补就会漏字；再往上多盖一个圆角半径，因为卡片底部圆角外侧的三角区不是卡片背景。 */
+.assistant-surface[data-phase="live"] .assistant-surface__dock::after {
+  content: "";
+  position: absolute;
+  inset: auto 0 0;
+  block-size: calc(var(--cp-gutter) + var(--cp-radius));
+  background: var(--cp-ground);
+}
+
+.assistant-surface[data-phase="live"] .assistant-surface__composer {
+  /* 带子整体 pointer-events: none，只把输入框本体放出来接指针。 */
+  position: relative;
+  pointer-events: auto;
+}
+
+/* 吉祥物只声明高度：宽度由 viewBox 的宽高比推出，盒子恒等于画面。 */
+.assistant-masthead__mascot {
+  display: block;
+  block-size: clamp(120px, 18vh, 144px);
+  inline-size: auto;
+}

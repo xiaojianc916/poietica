@@ -2,13 +2,13 @@
 /// <reference path="../../../packages/design-system/src/css.d.ts" />
 
 import '../../../packages/design-system/src/styles.css'
-import '../../../features/conversation/src/ui/components/timeline/flow-row.css'
-import '../../../features/conversation/src/ui/components/timeline/ticker/rolling-line.css'
+import '../../../features/conversation/src/ui/timeline/view/flow-row.css'
+import '../../../features/conversation/src/ui/timeline/view/ticker/rolling-line.css'
 
 import { useEffect, useRef, useState } from 'react'
 import { createRoot } from 'react-dom/client'
-import { readThoughtSentence } from '../../../features/conversation/src/ui/components/semantics/thought-sentence'
-import { RollingLine } from '../../../features/conversation/src/ui/components/timeline/ticker/rolling-line'
+import { readThoughtSentence } from '../../../features/conversation/src/ui/shared/semantics/thought-sentence'
+import { RollingLine } from '../../../features/conversation/src/ui/timeline/view/ticker/rolling-line'
 import { measureFrame, type Sample } from './recorder'
 import { type Arrival, THOUGHT } from './streams'
 

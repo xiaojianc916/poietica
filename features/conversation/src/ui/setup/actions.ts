@@ -1,6 +1,6 @@
 import { createValue } from '@poietica/ui-kernel'
-import type { ConversationTodoThread } from '../components/conversation-controls'
 import { createDraftPin, type DraftPinView } from '../composer/draft-pin'
+import type { ConversationTodoThread } from '../session/conversation-controls'
 import { shouldNotify } from '../session/notify'
 import type { ConversationSetup } from './context'
 

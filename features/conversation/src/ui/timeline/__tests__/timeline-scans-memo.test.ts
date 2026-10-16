@@ -5,7 +5,7 @@ import {
   type TimelineState,
   type ToolCallTimelineItem,
   type TurnPage,
-} from '../timeline-contract'
+} from '../../shared/timeline/timeline-contract'
 import { clientTurnIdsOf, delegateCallsOf } from '../timeline-queries'
 
 /*
