@@ -6,10 +6,11 @@ import {
   removeMCPServer,
   setServerDisabled,
   updateMCPServer,
+  validateServerName,
 } from '@oh-my-pi/pi-coding-agent/mcp/config-writer'
 import { searchSmitheryRegistry, toConfigName } from '@oh-my-pi/pi-coding-agent/mcp/smithery-registry'
 import type { McpCatalogEntry, McpPort, McpServerInfo, McpStatus } from '@poietica/engine'
-import { Emitter, type Logger } from '@poietica/foundation'
+import { AppError, Emitter, type Logger, SystemErrorCode } from '@poietica/foundation'
 import type { z } from 'zod'
 import { toEngineError } from '../errors'
 import type { OmpMcpManager, OmpSessionLike } from '../omp-context'
@@ -22,6 +23,9 @@ const MCP_CONFIG_NAME = 'mcp.json'
  * 请求也不会因为一次拉太多详情而拖长（每条都要再取一次详情）。
  */
 const CATALOG_LIMIT = 20
+
+/** omp 的名称判据（字母数字与 `_ . - :`、词间单个空格、≤100）拒绝时给的中文说明。 */
+const NAME_HINT = '只能包含字母、数字、连字符、下划线、点与冒号，词之间只允许一个空格，最长 100 个字符'
 
 /** McpPort 需要的东西：omp 的 agent 目录、活着的会话（状态要汇总它们）、logger。 */
 export interface McpPortDeps {
@@ -80,6 +84,12 @@ export class OmpMcpPort implements McpPort {
   /** 写一台服务器：不认识就 add，认识就 update（omp 的 config-writer 负责校验与原子写）。 */
   async upsert(server: z.infer<typeof McpServerInfo>): Promise<void> {
     try {
+      /* 名字不合 omp 的判据时 add/update 会抛裸 Error，经 toEngineError 只剩英文原文；这里用 omp 自己的判据
+       * 提前拦下，换成带中文说明的 kernel.invalid_params。 */
+      const nameProblem = validateServerName(server.name)
+      if (nameProblem !== undefined) {
+        throw new AppError(SystemErrorCode.invalidParams, `MCP 服务器名称不合法：${NAME_HINT}`, { omp: nameProblem })
+      }
       const file = this.#configFile()
       const config = mcpConfigOf(server)
       const known = (await loadAllMCPConfigs(process.cwd())).configs

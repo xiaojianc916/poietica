@@ -16,7 +16,7 @@ import type { McpCatalogEntry, McpServerInfo, McpStatus } from '../contract'
 import type { ExtensionsApi } from './api'
 import { builtinServerRows, groupRows, matches, registryServerRows } from './catalog'
 import { CatalogGrid } from './catalog-grid'
-import { type McpEntry, mcpEntryFromForm, parseMcpImport } from './mcp-config'
+import { type McpEntry, type McpField, mcpEntryFromForm, parseMcpImport, serverNameError } from './mcp-config'
 import { PluginGlyph } from './plugin-glyph'
 
 import './mcp-settings.css'
@@ -436,7 +436,7 @@ function McpCreatePage({
 
 const EMPTY_ENTRY: McpEntry = { name: '', transport: 'stdio', config: { command: '', args: [] } }
 
-function McpFormPage({
+export function McpFormPage({
   busy,
   failure,
   onClose,
@@ -448,7 +448,8 @@ function McpFormPage({
   readonly onUpsert: (entry: McpEntry) => Promise<void>
 }) {
   const form = useRef<HTMLFormElement>(null)
-  const [error, setError] = useState<string | null>(null)
+  /* 字段位有值时红字画在那一格旁边，没值时落到底部横幅（导入解析、Core 回报这类指认不出一格的失败）。 */
+  const [error, setError] = useState<{ readonly message: string; readonly field: McpField | null } | null>(null)
   const [valid, setValid] = useState(false)
 
   const checkValid = () => {
@@ -465,7 +466,11 @@ function McpFormPage({
       return typeof value === 'string' ? value.trim() : ''
     }
     const transport = text('transport') || 'stdio'
-    setValid(text('name') !== '' && (transport === 'stdio' ? text('command') !== '' : text('url') !== ''))
+    const name = text('name')
+    const nameError = name === '' ? null : serverNameError(name)
+    /* 名称不合法时保存键置灰，同时把原因贴到那一格 —— 只置灰不给理由，人只会以为界面坏了。 */
+    setError(nameError === null ? null : { message: nameError, field: 'name' })
+    setValid(nameError === null && name !== '' && (transport === 'stdio' ? text('command') !== '' : text('url') !== ''))
   }
   useEffect(checkValid, [])
 
@@ -486,22 +491,26 @@ function McpFormPage({
 
     const validated = mcpEntryFromForm(fields)
     if (!validated.ok) {
-      setError(validated.message)
+      setError({ message: validated.message, field: validated.field ?? null })
       return
     }
     setError(null)
     void onUpsert(validated.value).then(onClose, (cause: unknown) => {
-      setError(cause instanceof Error ? cause.message : '配置无效。')
+      setError({ message: cause instanceof Error ? cause.message : '配置无效。', field: null })
     })
   }
+
+  const fieldError = error !== null && error.field !== null ? { field: error.field, message: error.message } : null
+  /* 已经贴在某一格旁边的错误不再在底部重复一遍；Core 的失败与 `failure` 仍走底部。 */
+  const banner = failure ?? (error !== null && error.field === null ? error.message : null)
 
   return (
     <form className="mcp-create__card" onChange={checkValid} onSubmit={submit} ref={form}>
       <fieldset disabled={busy}>
-        <McpFields entry={EMPTY_ENTRY} />
-        {error === null && failure === null ? null : (
+        <McpFields entry={EMPTY_ENTRY} error={fieldError} />
+        {banner === null ? null : (
           <p className="mcp__error" role="alert">
-            {error ?? failure}
+            {banner}
           </p>
         )}
         <div className="mcp-create__footer">
@@ -645,20 +654,37 @@ function McpJsonPage({
   )
 }
 
-function McpFields({ entry }: { readonly entry: McpEntry }) {
+/** 落在一格上的错误。字段位由 `mcpEntryFromForm` 给，界面只负责把它画到那一格旁边。 */
+export interface McpFieldError {
+  readonly field: McpField
+  readonly message: string
+}
+
+function FieldError({ error, field }: { readonly error: McpFieldError | null; readonly field: McpField }) {
+  if (error === null || error.field !== field) return null
+  return (
+    <span className="mcp-field__error" role="alert">
+      {error.message}
+    </span>
+  )
+}
+
+export function McpFields({ entry, error }: { readonly entry: McpEntry; readonly error: McpFieldError | null }) {
   const { config, transport: declaredTransport } = entry
   const [transport, setTransport] = useState<McpTransport>(declaredTransport)
   const [envOpen, setEnvOpen] = useState(false)
   const text = (key: string) =>
     typeof config[key] === 'string' || typeof config[key] === 'number' ? String(config[key]) : ''
   const json = (key: string, fallback: unknown) => JSON.stringify(config[key] ?? fallback, null, 2)
+  const invalid = (field: McpField) => error !== null && error.field === field
 
   return (
     <div className="mcp-form">
       <div className="mcp-form__row">
         <label className="mcp-field mcp-field--narrow">
           <span className="mcp__muted">名称</span>
-          <input name="name" placeholder="my-mcp-server" required />
+          <input aria-invalid={invalid('name')} name="name" placeholder="my-mcp-server" required />
+          <FieldError error={error} field="name" />
         </label>
         <span className="mcp-form__scope">
           <span className="mcp__muted">作用域</span>
@@ -674,59 +700,78 @@ function McpFields({ entry }: { readonly entry: McpEntry }) {
           options={TRANSPORT_MODES}
           value={transport}
         />
+        <FieldError error={error} field="transport" />
       </div>
       <label className="mcp-field mcp-field--narrow">
-        <span className="mcp__muted">超时时间 MS</span>
+        <span className="mcp__muted">请求超时（毫秒，0 表示不限）</span>
         <input
-          defaultValue={text('startupTimeoutMs')}
+          aria-invalid={invalid('timeout')}
+          defaultValue={text('timeout')}
           max={2147483647}
-          min={1}
-          name="startupTimeoutMs"
+          min={0}
+          name="timeout"
           placeholder="30000"
           step={1}
           type="number"
         />
+        <FieldError error={error} field="timeout" />
       </label>
       {transport === 'stdio' ? (
         <>
           <label className="mcp-field">
             <span className="mcp__muted">命令</span>
-            <input defaultValue={text('command')} name="command" placeholder="npx" required />
+            <input
+              aria-invalid={invalid('command')}
+              defaultValue={text('command')}
+              name="command"
+              placeholder="npx"
+              required
+            />
+            <FieldError error={error} field="command" />
           </label>
           <label className="mcp-field">
             <span className="mcp__muted">参数（JSON 字符串数组）</span>
             <textarea
+              aria-invalid={invalid('args')}
               defaultValue={json('args', [])}
               name="args"
               placeholder='["-y", "@modelcontextprotocol/server-memory"]'
               rows={2}
               spellCheck={false}
             />
+            <FieldError error={error} field="args" />
           </label>
           <label className="mcp-field">
             <span className="mcp__muted">工作目录（可选）</span>
-            <input defaultValue={text('cwd')} name="cwd" placeholder="留空使用默认目录" />
+            <input aria-invalid={invalid('cwd')} defaultValue={text('cwd')} name="cwd" placeholder="留空使用默认目录" />
+            <FieldError error={error} field="cwd" />
           </label>
         </>
       ) : (
         <>
           <label className="mcp-field">
             <span className="mcp__muted">服务器 URL</span>
-            <input defaultValue={text('url')} name="url" placeholder="https://example.com/mcp" required type="url" />
-          </label>
-          <label className="mcp-field">
-            <span className="mcp__muted">令牌环境变量名（可选）</span>
-            <input defaultValue={text('bearerTokenEnvVar')} name="bearerTokenEnvVar" placeholder="MCP_TOKEN" />
+            <input
+              aria-invalid={invalid('url')}
+              defaultValue={text('url')}
+              name="url"
+              placeholder="https://example.com/mcp"
+              required
+              type="url"
+            />
+            <FieldError error={error} field="url" />
           </label>
           <label className="mcp-field">
             <span className="mcp__muted">请求头（JSON，可选）</span>
             <textarea
+              aria-invalid={invalid('headers')}
               autoComplete="off"
               defaultValue={json('headers', {})}
               name="headers"
               rows={2}
               spellCheck={false}
             />
+            <FieldError error={error} field="headers" />
           </label>
         </>
       )}
@@ -744,6 +789,7 @@ function McpFields({ entry }: { readonly entry: McpEntry }) {
         </button>
         {envOpen ? (
           <textarea
+            aria-invalid={invalid('env')}
             autoComplete="off"
             className="mcp__code"
             defaultValue={json('env', {})}
@@ -753,6 +799,7 @@ function McpFields({ entry }: { readonly entry: McpEntry }) {
             spellCheck={false}
           />
         ) : null}
+        <FieldError error={error} field="env" />
       </div>
     </div>
   )

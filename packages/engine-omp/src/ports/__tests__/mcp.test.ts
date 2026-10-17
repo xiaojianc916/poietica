@@ -48,11 +48,13 @@ describe('McpPort', () => {
       name: 'demo',
       transport: 'stdio',
       enabled: true,
-      config: { command: 'node', args: ['server.js'] },
+      config: { command: 'node', args: ['server.js'], timeout: 0 },
     })
     const written = readConfig()
     expect(written.mcpServers?.demo?.command).toBe('node')
     expect(written.mcpServers?.demo?.args).toEqual(['server.js'])
+    /* 表单那一格写的是 omp 的 `timeout`（0 = 关闭客户端超时），原样落到盘上。 */
+    expect(written.mcpServers?.demo?.timeout).toBe(0)
   })
 
   test('enabled=false 落到 disabledServers；list 的 enabled 跟着变', async () => {
@@ -72,6 +74,16 @@ describe('McpPort', () => {
     await port.upsert({ name: 'remote', transport: 'http', enabled: true, config: { url: 'https://mcp.test' } })
     const rows = await port.list()
     expect(rows.find((row) => row.name === 'remote')).toMatchObject({ transport: 'http', enabled: true })
+  })
+
+  /* 名字不合 omp 判据时 add/update 抛的是裸 Error，经 toEngineError 只剩英文；这里必须先用 omp 自己的
+   * validateServerName 拦下，换成带中文说明的 kernel.invalid_params，且一个字都不写盘。 */
+  test('名称不合法：写盘前拦下，kernel.invalid_params，文件未生成', async () => {
+    const port = makePort()
+    await expect(
+      port.upsert({ name: 'foo/bar', transport: 'stdio', enabled: true, config: { command: 'node' } }),
+    ).rejects.toMatchObject({ code: 'kernel.invalid_params' })
+    expect(() => readConfig()).toThrow()
   })
 
   test('remove 删掉配置文件里的那一台；删不存在的如实报错', async () => {

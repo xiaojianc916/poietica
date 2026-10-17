@@ -10,20 +10,39 @@ export interface McpEntry {
   readonly config: Record<string, unknown>
 }
 
+/** 出错的那一格。有它错误就落在输入框旁边，没有就落到底部那块公共横幅（导入解析这类不指向某一格的失败）。 */
+export type McpField = 'name' | 'transport' | 'timeout' | 'command' | 'args' | 'cwd' | 'url' | 'headers' | 'env'
+
 /** 用户输入不合法**不抛异常** —— 它由字段旁边的一句提示承接，不是一次失败；两处调用点都按同一个形状读 message。 */
 export type McpValidation<T> =
   | { readonly ok: true; readonly value: T }
-  | { readonly ok: false; readonly message: string }
+  | { readonly ok: false; readonly message: string; readonly field?: McpField }
 
 export function mcpOk<T>(value: T): McpValidation<T> {
   return { ok: true, value }
 }
 
-export function mcpInvalid<T>(message: string): McpValidation<T> {
-  return { ok: false, message }
+export function mcpInvalid<T>(message: string, field?: McpField): McpValidation<T> {
+  return field === undefined ? { ok: false, message } : { ok: false, message, field }
 }
 
-const Timeout = z.int().min(1).max(2_147_483_647)
+/**
+ * 与 omp 的 `mcp/config-writer.ts` 的 `validateServerName` 同一条判据（字母数字与 `_ . - :`，词之间只允许
+ * 单个空格，最长 100）。写盘前 omp 还会再查一遍 —— 这里只是把错误提前到那一格旁边。
+ */
+const SERVER_NAME = /^[a-zA-Z0-9_.:-]+(?: [a-zA-Z0-9_.:-]+)*$/
+
+export function serverNameError(name: string): string | null {
+  if (name === '') return '名称不能为空。'
+  if (name.length > 100) return '名称最长 100 个字符。'
+  if (!SERVER_NAME.test(name)) {
+    return '名称只能包含字母、数字、连字符、下划线、点与冒号；词之间只允许一个空格。'
+  }
+  return null
+}
+
+/** omp 的 `timeout` 以 0 表示关闭客户端超时（`mcp/types.ts`）。 */
+const Timeout = z.int().min(0).max(2_147_483_647)
 const Nonempty = z.string().refine((value) => value.trim().length > 0)
 const Strings = z.record(z.string(), z.string())
 const InputBody = z.looseObject({
@@ -34,12 +53,8 @@ const InputBody = z.looseObject({
   env: Strings.optional(),
   cwd: z.string().optional(),
   headers: Strings.optional(),
-  bearerTokenEnvVar: Nonempty.optional(),
   enabled: z.boolean().optional(),
-  startupTimeoutMs: Timeout.optional(),
-  toolTimeoutMs: Timeout.optional(),
-  enabledTools: z.array(z.string()).optional(),
-  disabledTools: z.array(z.string()).optional(),
+  timeout: Timeout.optional(),
 })
 
 function parseJson(contents: string): McpValidation<unknown> {
@@ -53,35 +68,42 @@ function parseJson(contents: string): McpValidation<unknown> {
 
 export function validateMcpEntry(name: string, input: unknown): McpValidation<McpEntry> {
   if (name.trim() === '' || name !== name.trim()) {
-    return mcpInvalid('名称不能为空或带首尾空格。')
+    return mcpInvalid('名称不能为空或带首尾空格。', 'name')
+  }
+  const nameError = serverNameError(name)
+  if (nameError !== null) {
+    return mcpInvalid(nameError, 'name')
   }
   const parsed = InputBody.safeParse(input)
   if (!parsed.success) {
+    /* 只有 `timeout` 一格能指认得出来（其余失败可能是多个键一起错），能指认就贴到那一格旁边。 */
+    const onTimeout = parsed.error.issues.some((issue) => issue.path.length === 1 && issue.path[0] === 'timeout')
     return mcpInvalid(
-      '配置字段类型错误：参数须为字符串数组，环境变量/请求头须为字符串映射，超时须为 1–2147483647 的整数。',
+      '配置字段类型错误：参数须为字符串数组，环境变量/请求头须为字符串映射，超时须为 0–2147483647 的整数。',
+      onTimeout ? 'timeout' : undefined,
     )
   }
   const body = parsed.data
   if (Object.hasOwn(body, 'type')) {
-    return mcpInvalid('这份配置用 transport 而不是 type 字段；请按 stdio、http 或 sse 配置。')
+    return mcpInvalid('这份配置用 transport 而不是 type 字段；请按 stdio、http 或 sse 配置。', 'transport')
   }
   const transport = body.transport ?? (body.command === undefined ? 'http' : 'stdio')
   if (transport === 'stdio') {
     if (body.command === undefined || body.url !== undefined) {
-      return mcpInvalid('stdio 必须填写命令，不能同时填写 URL。')
+      return mcpInvalid('stdio 必须填写命令，不能同时填写 URL。', 'command')
     }
   } else {
     if (body.url === undefined || body.command !== undefined) {
-      return mcpInvalid('远程服务必须填写 URL，不能同时填写命令。')
+      return mcpInvalid('远程服务必须填写 URL，不能同时填写命令。', 'url')
     }
     let url: URL
     try {
       url = new URL(body.url)
     } catch {
-      return mcpInvalid('请输入完整的 HTTP 或 HTTPS 地址。')
+      return mcpInvalid('请输入完整的 HTTP 或 HTTPS 地址。', 'url')
     }
     if (!['http:', 'https:'].includes(url.protocol) || url.username !== '' || url.password !== '') {
-      return mcpInvalid('仅支持 HTTP/HTTPS；凭据请使用环境变量引用或请求头，不要放进 URL。')
+      return mcpInvalid('仅支持 HTTP/HTTPS；凭据请使用环境变量引用或请求头，不要放进 URL。', 'url')
     }
   }
   /* transport 提到契约那一格，正文里的其余键原样留：omp 自己认它们。 */
@@ -130,7 +152,7 @@ export function mcpEntryFromForm(fields: Readonly<Record<string, string>>): McpV
     body.command = fields.command?.trim() ?? ''
     const args = parseJson(fields.args?.trim() || '[]')
     if (!args.ok) {
-      return args
+      return mcpInvalid(args.message, 'args')
     }
     body.args = args.value
     if (fields.cwd?.trim()) {
@@ -139,7 +161,7 @@ export function mcpEntryFromForm(fields: Readonly<Record<string, string>>): McpV
     if (fields.env?.trim()) {
       const env = parseJson(fields.env)
       if (!env.ok) {
-        return env
+        return mcpInvalid(env.message, 'env')
       }
       body.env = env.value
     }
@@ -148,16 +170,14 @@ export function mcpEntryFromForm(fields: Readonly<Record<string, string>>): McpV
     if (fields.headers?.trim()) {
       const headers = parseJson(fields.headers)
       if (!headers.ok) {
-        return headers
+        return mcpInvalid(headers.message, 'headers')
       }
       body.headers = headers.value
     }
-    if (fields.bearerTokenEnvVar?.trim()) {
-      body.bearerTokenEnvVar = fields.bearerTokenEnvVar.trim()
-    }
   }
-  if (fields.startupTimeoutMs?.trim()) {
-    body.startupTimeoutMs = Number(fields.startupTimeoutMs)
+  /* 空着就不写键：omp 自己按默认值处理（请求超时默认 30000ms）。 */
+  if (fields.timeout?.trim()) {
+    body.timeout = Number(fields.timeout.trim())
   }
   return validateMcpEntry(fields.name?.trim() ?? '', body)
 }

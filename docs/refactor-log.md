@@ -2843,7 +2843,7 @@ git 里原始实现 + 专门的「表情切换过渡帧」对拍发现的，随�
 | Q | 日期 | 问题 | 现状 | 处置 |
 | --- | --- | --- | --- | --- |
 | Q43 | 2026-10-14 | `docs/omp-sdk-reference.md` 仍标 18.5.0，而 catalog 是 18.10.3。发现 1 的 relay 缺陷正是这份文档没跟上导致的 | 无（本次按实测核对了 relay 协议并补了文件头注释） | 记录：升级 omp 时按 AGENTS.md §11 重新抽取该文档 |
-| Q44 | 2026-10-14 | MCP 配置的四个死键（`bearerTokenEnvVar` / `toolTimeoutMs` / `enabledTools` / `disabledTools`）+ 名称校验与 omp 的 `validateServerName` 不一致（`foo/bar` 能过表单、到 omp 才抛错，提示回不到字段旁） | 无（本次未动） | 记录：要改 UI 字段与校验归属，属产品决定 |
+| Q44 | 2026-10-14 | MCP 配置的四个死键（`bearerTokenEnvVar` / `toolTimeoutMs` / `enabledTools` / `disabledTools`）+ 名称校验与 omp 的 `validateServerName` 不一致（`foo/bar` 能过表单、到 omp 才抛错，提示回不到字段旁） | **已结清（2026-10-17）**：四个死键连同同一缺陷的 `startupTimeoutMs` 一起从表单与 `InputBody` 删除，改用 omp 认的 `timeout`（0 = 关闭超时）；名称按 omp 的判据在表单本地判、红字贴在那一格旁边；Core 侧 `OmpMcpPort.upsert` 写盘前用 omp 自己的 `validateServerName` 拦下，报中文 `kernel.invalid_params` | 结清 |
 | Q45 | 2026-10-14 | `relay-protocol.ts` 仍是 omp 内部协议的**副本**（omp 未导出稳定契约）。根治要么在 engine 端口转出协议，要么每次升级手工核 | 已补文件头注释与具名常量 | 记录：升级 omp 时必核这一个文件 |
 
 ## MCP 名单接上 omp 的在线目录（2026-10-14）

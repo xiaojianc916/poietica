@@ -473,6 +473,17 @@
   color: var(--ui-muted-foreground);
 }
 
+/* 错误跟着那一格走：边框变红，说明紧贴在输入框下面（与底部那块指认不出一格的横幅并存，不互相替代）。 */
+.mcp-field > :is(input, textarea)[aria-invalid="true"] {
+  border-color: var(--ui-destructive);
+}
+
+.mcp-field__error {
+  color: var(--ui-destructive);
+  font-size: 12px;
+  overflow-wrap: anywhere;
+}
+
 .mcp__code {
   font-family: ui-monospace, SFMono-Regular, monospace;
   white-space: pre;
