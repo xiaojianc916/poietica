@@ -1,12 +1,20 @@
-import type { InteractionAnswer, QueueSnapshot } from '@poietica/engine'
+import type { InteractionAnswer } from '@poietica/engine'
 import { createId } from '@poietica/foundation'
 import type { TranscriptOperation } from '@poietica/transcript'
+import type { QueuedItemView, QueueView } from '../../contract'
 import type { ConversationApi } from '../api'
 import { GOAL_CONTROL_ID, GOAL_ENABLED } from '../shared/model/goal-control'
 import type { ApprovalAnswer } from '../shared/model/permission'
 import type { PlanAnswer } from '../shared/model/plan'
 import type { QuestionResponse } from '../shared/model/question'
-import type { AgentSessionPort, DeliveryModePatch, QueuedMessages, WithdrawnMessage } from '../shared/model/session'
+import type {
+  AgentSessionPort,
+  DeliveryModePatch,
+  QueuedAttachment,
+  QueuedItem,
+  QueuedMessages,
+  WithdrawnMessage,
+} from '../shared/model/session'
 import type { TranscriptCatchUp, TranscriptPage, TranscriptSignal } from '../shared/model/transcript'
 
 /*
@@ -28,11 +36,20 @@ function rosterOf(
  * `threadId` 是**这条对话自己的号**，不是队列里那几条 item 的号：填 `snapshot.items[0]?.id` 时它空队列为 `''`、
  * 非空为随手挑的一条消息号，下游按它找转录永远找不着（真实故障：队列 chip 永不更新）。
  */
-function toQueued(threadId: string, snapshot: QueueSnapshot): QueuedMessages {
+/** 契约那一份附件多带 mime / size：队列条与输入框只认这四格，其余在这里落掉。 */
+function attachmentsOf(item: QueuedItemView): readonly QueuedAttachment[] {
+  return item.attachments.map((a) => ({ id: a.id, name: a.name, kind: a.kind, previewUrl: a.previewUrl }))
+}
+
+function queuedOf(item: QueuedItemView): QueuedItem {
+  return { id: item.id, text: item.text, attachments: attachmentsOf(item) }
+}
+
+function toQueued(threadId: string, snapshot: QueueView): QueuedMessages {
   return {
     threadId,
-    steering: snapshot.items.filter((i) => i.deliverAs === 'steer').map((i) => ({ id: i.id, text: i.text })),
-    followUp: snapshot.items.filter((i) => i.deliverAs === 'followUp').map((i) => ({ id: i.id, text: i.text })),
+    steering: snapshot.items.filter((i) => i.deliverAs === 'steer').map(queuedOf),
+    followUp: snapshot.items.filter((i) => i.deliverAs === 'followUp').map(queuedOf),
     steeringMode: snapshot.modes.steer,
     followUpMode: snapshot.modes.followUp,
     interruptMode: 'immediate',
@@ -122,7 +139,7 @@ export function createSessionPort({ api, threadId, onSubmissions }: SessionPortO
     },
   }
 
-  const queue = async (): Promise<QueueSnapshot> => api.getQueue(threadId)
+  const queue = async (): Promise<QueueView> => api.getQueue(threadId)
 
   return {
     transcript,
@@ -164,7 +181,7 @@ export function createSessionPort({ api, threadId, onSubmissions }: SessionPortO
       const item = snapshot.items.find((i) => i.id === itemId)
       if (item === undefined) return null
       await api.withdraw(threadId, itemId)
-      return { text: item.text }
+      return { text: item.text, attachments: attachmentsOf(item) }
     },
 
     async move(itemId: string, deliverAs: 'steer' | 'followUp'): Promise<QueuedMessages> {

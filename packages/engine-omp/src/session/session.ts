@@ -520,7 +520,13 @@ export class OmpSession implements EngineSession {
   queue(): QueueSnapshot {
     /* 逐字段拷：账本项里还带着图片的 data URL，整份展开会让每一次队列通知都把像素再送一遍 */
     return {
-      items: this.ledger.map((e) => ({ id: e.id, text: e.text, deliverAs: e.deliverAs, createdAt: e.createdAt })),
+      items: this.ledger.map((e) => ({
+        id: e.id,
+        text: e.text,
+        deliverAs: e.deliverAs,
+        createdAt: e.createdAt,
+        ...(e.input.ref === undefined ? {} : { ref: e.input.ref }),
+      })),
       modes: { ...this.modes },
     }
   }

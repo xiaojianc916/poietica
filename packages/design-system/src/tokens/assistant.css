@@ -203,6 +203,8 @@
   --cp-queue-row: 36px;
   --cp-queue-list-max: 180px;
   --cp-queue-action: 28px;
+  /* 队列行里的缩略图高：吃在行高 36 的上下内边距里（与操作钮 28 同一条中线），带图不把这一行撑高。宽是高的 1.5 倍。 */
+  --cp-queue-thumb: 24px;
   --cp-queue-font: 13px;
   --cp-queue-edge: var(--ui-popup-divider);
   --cp-queue-hover: var(--ui-popup-highlight);

@@ -465,7 +465,13 @@ class FakeSession implements EngineSession {
 
   queue(): QueueSnapshot {
     return {
-      items: this.ledger.map((e) => ({ id: e.id, text: e.text, deliverAs: e.deliverAs, createdAt: e.createdAt })),
+      items: this.ledger.map((e) => ({
+        id: e.id,
+        text: e.text,
+        deliverAs: e.deliverAs,
+        createdAt: e.createdAt,
+        ...(e.ref === undefined ? {} : { ref: e.ref }),
+      })),
       modes: { ...this.modes },
     }
   }

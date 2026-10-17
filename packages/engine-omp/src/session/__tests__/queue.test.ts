@@ -313,6 +313,22 @@ describe('排队 / 插话链路（R-01 §5.1）', () => {
     await f.session.cancel()
   })
 
+  /* 队列项回显调用方的号：Core 靠它把队列项对回提交行、挂上附件（队列条的缩略图）；换层用同一份输入，号跟着走；没给号就不出现这一格 */
+  test('Q3b 队列项带回调用方的 ref，换层后号不变', async () => {
+    const f = await fixture()
+    await f.session.submit(submit('打底'))
+    await f.session.submit(submit('带图的一句', 'steer', { ref: 'c-1' }))
+    await f.session.submit(submit('没号的一句', 'followUp'))
+
+    const item = f.session.queue().items.find((entry) => entry.text === '带图的一句')!
+    expect(item.ref).toBe('c-1')
+    expect('ref' in f.session.queue().items.find((entry) => entry.text === '没号的一句')!).toBe(false)
+
+    await f.session.moveQueued(item.id, 'followUp')
+    expect(f.session.queue().items.find((entry) => entry.text === '带图的一句')?.ref).toBe('c-1')
+    await f.session.cancel()
+  })
+
   test('Q4 带技能的 followUp 换到 steer：走 promptCustomMessage，streamingBehavior 是 steer', async () => {
     const f = await fixture()
     await f.session.submit(submit('打底'))

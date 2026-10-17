@@ -882,7 +882,7 @@ describe('入口页开的对话：队列的撤回 / 换层落到真对话的端�
     const { store, prepare } = entryStore({
       withdraw: async (itemId) => {
         calls.push(`withdraw ${itemId}`)
-        return { text: '排队的一句' }
+        return { text: '排队的一句', attachments: [] }
       },
       move: async (itemId, deliverAs) => {
         calls.push(`move ${itemId} ${deliverAs}`)
@@ -894,7 +894,7 @@ describe('入口页开的对话：队列的撤回 / 换层落到真对话的端�
     await store.send({ ...submit('你好'), threadId: '', prepare })
     expect(store.queue('t-new')).toBe(early)
 
-    expect(await early.withdraw('q1')).toEqual({ text: '排队的一句' })
+    expect(await early.withdraw('q1')).toEqual({ text: '排队的一句', attachments: [] })
     await early.move('q2', 'followUp')
     expect(calls).toEqual(['withdraw q1', 'move q2 followUp'])
     expect(store.read('t-new').operation.kind).not.toBe('failed')
@@ -903,7 +903,7 @@ describe('入口页开的对话：队列的撤回 / 换层落到真对话的端�
 
   test('Q2 迁走之后入口那一格重新取到的是一份新队列，写动作不串到上一条对话', async () => {
     const { store, prepare } = entryStore({
-      withdraw: async () => ({ text: '不该走到这里' }),
+      withdraw: async () => ({ text: '不该走到这里', attachments: [] }),
       move: async () => ({ ...EMPTY_QUEUE, threadId: 't-new' }),
     })
     const early = store.queue('')

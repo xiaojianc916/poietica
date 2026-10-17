@@ -156,6 +156,52 @@
   cursor: default;
 }
 
+/*
+ * 缩略图吃在行的内边距里：行高 36、上下各让 4 之后还剩 28，图高 24 —— 带图的行与不带图的行一样高，队列条不会因为一张图长高。
+ * 宽取高的 1.5 倍、cover 裁切：截图多是横的，方块会把它裁得只剩中间一条。
+ */
+.prompt-queue__thumb {
+  position: relative;
+  display: grid;
+  flex: none;
+  inline-size: calc(var(--cp-queue-thumb) * 1.5);
+  block-size: var(--cp-queue-thumb);
+  place-items: center;
+  padding: 0;
+  overflow: hidden;
+  border: 1px solid var(--cp-queue-edge);
+  border-radius: 6px;
+  background: var(--cp-queue-hover);
+  color: var(--cp-ink-muted);
+  cursor: zoom-in;
+}
+
+.prompt-queue__thumb:focus-visible {
+  outline: 2px solid var(--ui-ring);
+  outline-offset: 1px;
+}
+
+.prompt-queue__thumb-image {
+  display: block;
+  inline-size: 100%;
+  block-size: 100%;
+  object-fit: cover;
+}
+
+/* 多张时角上的 +N：压在图上，所以自带一层暗底，亮图上也读得出。 */
+.prompt-queue__thumb-more {
+  position: absolute;
+  inset-block-end: 1px;
+  inset-inline-end: 1px;
+  padding: 0 3px;
+  border-radius: 4px;
+  background: rgb(0 0 0 / 0.6);
+  color: #fff;
+  font-size: 10px;
+  font-variant-numeric: tabular-nums;
+  line-height: 12px;
+}
+
 /* 这一行是「我说了什么」，与转录里那句话同一档墨，不是次要信息。 */
 .prompt-queue__said {
   min-inline-size: 0;

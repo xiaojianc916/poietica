@@ -12,6 +12,7 @@ import type { AttachmentsService } from '@poietica/feature-attachments/core-api'
 import type { WorkspacesService } from '@poietica/feature-workspaces/core-api'
 import { AppError, type Clock, type Logger, SystemErrorCode } from '@poietica/foundation'
 import type { TranscriptPage } from '@poietica/transcript'
+import type { QueueView } from '../contract'
 import { DEFAULT_POSTURE, type Thread, type TurnState } from '../contract/entities'
 import { conversationErrors } from '../contract/errors'
 import type { EventRouter } from './event-router'
@@ -127,12 +128,17 @@ export class TurnService {
   }
 
   // ── 队列（queue 三方法）──────────────────────────────────────────────────
-  async queue(threadId: string): Promise<QueueSnapshot> {
+  async queue(threadId: string): Promise<QueueView> {
     const session = await this.d.pool.acquire(threadId)
-    return session.queue()
+    return this.queueViewOf(threadId, session)
   }
 
-  async withdraw(threadId: string, itemId: string): Promise<QueueSnapshot> {
+  /** 队列只从这里出去：引擎快照挂上提交行的附件，界面才画得出缩略图（见 SubmissionService.queueViewOf） */
+  private queueViewOf(threadId: string, session: EngineSession): QueueView {
+    return this.d.submissions.queueViewOf(threadId, session.queue())
+  }
+
+  async withdraw(threadId: string, itemId: string): Promise<QueueView> {
     /*
      * 队列只存在于活会话里（peek 不 acquire）：为撤回一条排队项去冷启动一条会话没有意义，
      * 冷启动出来的队列一定是空的。没有活会话就是「队列里没有这一项」。
@@ -140,7 +146,7 @@ export class TurnService {
     const session = this.d.pool.peek(threadId)
     if (session === undefined) throw new AppError(SystemErrorCode.notFound, '队列里没有这一项')
     session.withdraw(itemId)
-    return session.queue()
+    return this.queueViewOf(threadId, session)
   }
 
   /**
@@ -148,17 +154,17 @@ export class TurnService {
    * 附件与技能一样不丢（R-01 §3.8）。已被 agent 消费的项由引擎抛
    * `engine.queue_item_consumed`，这里原样放行。
    */
-  async move(threadId: string, itemId: string, deliverAs: 'steer' | 'followUp'): Promise<QueueSnapshot> {
+  async move(threadId: string, itemId: string, deliverAs: 'steer' | 'followUp'): Promise<QueueView> {
     const session = this.d.pool.peek(threadId)
     if (session === undefined) throw new AppError(SystemErrorCode.notFound, '队列里没有这一项')
     await session.moveQueued(itemId, deliverAs)
-    return session.queue()
+    return this.queueViewOf(threadId, session)
   }
 
-  async setQueueModes(threadId: string, modes: Partial<QueueSnapshot['modes']>): Promise<QueueSnapshot> {
+  async setQueueModes(threadId: string, modes: Partial<QueueSnapshot['modes']>): Promise<QueueView> {
     const session = await this.d.pool.acquire(threadId)
     session.setQueueModes(modes)
-    return session.queue()
+    return this.queueViewOf(threadId, session)
   }
 
   // ── 控件（controls 六方法 + 草稿）────────────────────────────────────────

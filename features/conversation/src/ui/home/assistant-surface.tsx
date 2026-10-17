@@ -18,7 +18,7 @@ import {
 import type { SessionConfigControl } from '../shared/model/config'
 import type { SessionGoal } from '../shared/model/goal'
 import type { GoalActionHandler } from '../shared/model/goal-control'
-import type { AgentSessionPort } from '../shared/model/session'
+import type { AgentSessionPort, WithdrawnMessage } from '../shared/model/session'
 import type { SessionUsage } from '../shared/model/usage'
 import type { PlanItem } from '../shared/timeline/timeline-contract'
 import {
@@ -251,10 +251,9 @@ export const AssistantSurface = memo(function AssistantSurface({
     [composer],
   )
 
-  /* 撤回的那一句回输入框改：改完重发就是重新投一次（队列的顺序归 agent，本机不预演）。 */
-  const edit = useCallback((text: string) => {
-    draft.current?.setText(text)
-    draft.current?.focus()
+  /* 撤回的那一句（正文 + 附件）回输入框改：改完重发就是重新投一次（队列的顺序归 agent，本机不预演）。 */
+  const edit = useCallback((restored: WithdrawnMessage) => {
+    draft.current?.restore(restored.text, restored.attachments)
   }, [])
 
   /* KAP 没有恢复同一轮的协议动作；这里发送一条可见新消息，不伪装成断流重建。 */
@@ -269,7 +268,9 @@ export const AssistantSurface = memo(function AssistantSurface({
 
       {failure === null || dismissed ? null : (
         <Banner
-          {...(recoverable === null ? {} : { actions: [{ label: '取回文字', onClick: () => edit(recoverable) }] })}
+          {...(recoverable === null
+            ? {}
+            : { actions: [{ label: '取回文字', onClick: () => edit({ text: recoverable, attachments: [] }) }] })}
           holdMs={FAILURE_HOLD_MS}
           key={failure}
           onDone={dismissFailure}

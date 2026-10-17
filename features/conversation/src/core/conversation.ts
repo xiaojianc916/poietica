@@ -4,13 +4,12 @@ import type {
   Controls,
   EngineSessionEvent,
   Interaction,
-  QueueSnapshot,
   UsageSample,
 } from '@poietica/engine'
 import type { AttachmentsService } from '@poietica/feature-attachments/core-api'
 import type { WorkspacesService } from '@poietica/feature-workspaces/core-api'
 import type { Clock, Logger } from '@poietica/foundation'
-import type { Thread, TurnState } from '../contract/entities'
+import type { QueueView, Thread, TurnState } from '../contract/entities'
 import { EventRouter } from './event-router'
 import { createThreadsRepository } from './repository'
 import { SessionPool } from './session-pool'
@@ -35,7 +34,7 @@ export interface ConversationCoreDeps {
   readonly emitThreadRemoved: (threadId: string) => void
   readonly emitTurnState: (state: TurnState) => void
   readonly emitTurnDropped: (p: { threadId: string; clientTurnId: string | null; text: string }) => void
-  readonly emitQueue: (p: { threadId: string; queue: QueueSnapshot }) => void
+  readonly emitQueue: (p: { threadId: string; queue: QueueView }) => void
   readonly emitControls: (p: { threadId: string; controls: Controls }) => void
   /** 上下文用量单独报（见契约里 controls.contextChanged 的头注：它不搭控件那班车） */
   readonly emitContextUsage: (p: { threadId: string; usage: ContextUsage | null }) => void

@@ -163,6 +163,8 @@ export interface PromptInputHandle {
     options?: { readonly text?: string; readonly submit?: boolean },
   ) => void
   readonly focus: () => void
+  /** 撤回的那一句回来改：正文换掉草稿，附件并回去（图进托盘、文件记号落进正文），光标回输入框。 */
+  readonly restore: (text: string, attachments: readonly DraftAttachment[]) => void
 }
 
 type InlineChip = Extract<PromptChipValue, { kind: 'element' | 'file' }>
@@ -530,11 +532,24 @@ function PromptInputShell({
     [addAssets, focusEditor, insertText, requestFormSubmit],
   )
 
-  useImperativeHandle(ref, () => ({ setText, insertText, insertTextAndSubmit, attach, focus: focusEditor }), [
+  /* 先换正文再并附件：文件记号是插进正文里的，反过来做，换正文那一下会把刚插的记号一起冲掉。 */
+  const restore = useCallback(
+    (text: string, restored: readonly DraftAttachment[]) => {
+      setText(text)
+      if (restored.length > 0) {
+        addAssets(restored.map(composerAssetOf))
+      }
+      focusEditor()
+    },
+    [addAssets, focusEditor, setText],
+  )
+
+  useImperativeHandle(ref, () => ({ setText, insertText, insertTextAndSubmit, attach, focus: focusEditor, restore }), [
     attach,
     focusEditor,
     insertText,
     insertTextAndSubmit,
+    restore,
     setText,
   ])
 

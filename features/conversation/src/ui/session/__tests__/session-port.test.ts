@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'bun:test'
-import type { QueueSnapshot } from '@poietica/engine'
 import type { TranscriptOperation } from '@poietica/transcript'
+import type { QueueView } from '../../../contract'
 import type { ConversationApi } from '../../api'
 import type { TranscriptSignal } from '../../shared/model/transcript'
 import { createSessionPort } from '../session-port'
@@ -12,10 +12,19 @@ import { createSessionPort } from '../session-port'
  * 一行，撤的却是别条。这一层现在只做两件事：按号点名交给契约，
  * 并把撤走那一项的正文如实交回。
  */
-const QUEUE: QueueSnapshot = {
+const SHOT = {
+  id: 'a1',
+  name: 'shot.png',
+  mime: 'image/png',
+  kind: 'image' as const,
+  size: 10,
+  previewUrl: 'poietica-asset://attachment/abc?mime=image/png',
+}
+
+const QUEUE: QueueView = {
   items: [
-    { id: 'F1', text: '第一条', deliverAs: 'followUp', createdAt: 1 },
-    { id: 'F2', text: '第二条', deliverAs: 'followUp', createdAt: 2 },
+    { id: 'F1', text: '第一条', deliverAs: 'followUp', createdAt: 1, attachments: [] },
+    { id: 'F2', text: '第二条', deliverAs: 'followUp', createdAt: 2, attachments: [SHOT] },
   ],
   modes: { steer: 'all', followUp: 'all' },
 }
@@ -45,7 +54,23 @@ describe('会话端口的按号撤回（R-01 §5.3）', () => {
     const restored = await port.withdraw('F2')
 
     expect(withdrawn).toEqual([{ threadId: 'th', itemId: 'F2' }])
-    expect(restored).toEqual({ text: '第二条' })
+    /* 附件跟着正文一起交回：只还正文，那张图就随着撤回丢了 */
+    expect(restored).toEqual({
+      text: '第二条',
+      attachments: [{ id: 'a1', name: 'shot.png', kind: 'image', previewUrl: SHOT.previewUrl }],
+    })
+  })
+
+  test('快照里的附件落到队列项上（只留四格），没有附件的项是空数组', async () => {
+    const { api } = fakeApi()
+    const port = createSessionPort({ api, threadId: 'th' })
+
+    const queued = await port.readQueue()
+
+    expect(queued.followUp.map((item) => item.attachments)).toEqual([
+      [],
+      [{ id: 'a1', name: 'shot.png', kind: 'image', previewUrl: SHOT.previewUrl }],
+    ])
   })
 
   test('号不在快照里（已被消费）时什么也不做，交回 null', async () => {

@@ -1,17 +1,9 @@
-import type {
-  ContextUsage,
-  Controls,
-  Interaction,
-  InteractionAnswer,
-  ModelRef,
-  Posture,
-  QueueSnapshot,
-} from '@poietica/engine'
+import type { ContextUsage, Controls, Interaction, InteractionAnswer, ModelRef, Posture } from '@poietica/engine'
 import type { TypedRpcClient } from '@poietica/rpc'
 import type { TranscriptOperation, TranscriptPage } from '@poietica/transcript'
 import type { UiFeatureContext } from '@poietica/ui-kernel'
 import { conversationContract } from '../contract'
-import type { SubmissionView, Thread, TimelineSnapshot, TurnState } from '../contract/entities'
+import type { QueueView, SubmissionView, Thread, TimelineSnapshot, TurnState } from '../contract/entities'
 
 /** 把方法名收在一处，组件不认字符串。 */
 export function createConversationApi(ctx: UiFeatureContext) {
@@ -72,15 +64,15 @@ export function createConversationApi(ctx: UiFeatureContext) {
       sinceSeq: number,
     ): Promise<{ batches: { seq: number; ops: TranscriptOperation[] }[]; latestSeq: number; complete: boolean }> =>
       rpc.call('timeline.catchUp', { threadId, agentId, epoch, sinceSeq }),
-    getQueue: (threadId: string): Promise<QueueSnapshot> => rpc.call('queue.get', { threadId }),
-    withdraw: (threadId: string, itemId: string): Promise<QueueSnapshot> =>
+    getQueue: (threadId: string): Promise<QueueView> => rpc.call('queue.get', { threadId }),
+    withdraw: (threadId: string, itemId: string): Promise<QueueView> =>
       rpc.call('queue.withdraw', { threadId, itemId }),
-    move: (threadId: string, itemId: string, deliverAs: 'steer' | 'followUp'): Promise<QueueSnapshot> =>
+    move: (threadId: string, itemId: string, deliverAs: 'steer' | 'followUp'): Promise<QueueView> =>
       rpc.call('queue.move', { threadId, itemId, deliverAs }),
     setQueueModes: (
       threadId: string,
-      modes: { steer?: QueueSnapshot['modes']['steer']; followUp?: QueueSnapshot['modes']['followUp'] },
-    ): Promise<QueueSnapshot> => rpc.call('queue.setModes', { threadId, ...modes }),
+      modes: { steer?: QueueView['modes']['steer']; followUp?: QueueView['modes']['followUp'] },
+    ): Promise<QueueView> => rpc.call('queue.setModes', { threadId, ...modes }),
     /** 入口那一格（还没有对话）的**草稿**控件表：带上本地草稿、只读、不开会话；改选择本身走入口页自己的 state。 */
     getDraftControls: (draft: {
       model: ModelRef | null
@@ -113,7 +105,7 @@ export function createConversationApi(ctx: UiFeatureContext) {
     ) => rpc.on('timeline.ops', l),
     onTimelineReset: (l: (p: { threadId: string; agentId: string; epoch: number }) => void) =>
       rpc.on('timeline.reset', l),
-    onQueueChanged: (l: (p: { threadId: string; queue: QueueSnapshot }) => void) => rpc.on('queue.changed', l),
+    onQueueChanged: (l: (p: { threadId: string; queue: QueueView }) => void) => rpc.on('queue.changed', l),
     onControlsChanged: (l: (p: { threadId: string; controls: Controls }) => void) => rpc.on('controls.changed', l),
     /** 上下文用量单独一条通道，别并进 controls.changed（理由见契约里 controls.contextChanged 的头注）。 */
     onContextUsage: (l: (p: { threadId: string; usage: ContextUsage | null }) => void) =>

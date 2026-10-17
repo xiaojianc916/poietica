@@ -19,6 +19,8 @@ export const QueueItem = z.object({
   text: z.string(),
   deliverAs: z.enum(['steer', 'followUp']),
   createdAt: z.number().int(),
+  /** 调用方入队时给的号（`SubmitInput.ref`）原样回显：引擎不解释它，调用方靠它把队列项对回自己的记录（附件、提交行）。 */
+  ref: z.string().optional(),
 })
 export const QueueSnapshot = z.object({
   items: z.array(QueueItem),

@@ -1,9 +1,9 @@
-import type { EngineSession, QueueOutcome } from '@poietica/engine'
+import type { EngineSession, QueueOutcome, QueueSnapshot } from '@poietica/engine'
 import type { AttachmentsService } from '@poietica/feature-attachments/core-api'
 import type { WorkspacesService } from '@poietica/feature-workspaces/core-api'
 import { AppError, type Clock, type Logger, toAppError } from '@poietica/foundation'
 import type { TranscriptPage } from '@poietica/transcript'
-import type { SubmissionView } from '../contract'
+import type { QueueView, SubmissionView } from '../contract'
 import { conversationErrors } from '../contract/errors'
 import { type SubmissionRow, type SubmissionsRepository, submissionOf } from './submissions-repository'
 import { OWNER_KEY } from './thread-service'
@@ -187,6 +187,27 @@ export class SubmissionService {
       return { ...item, clientTurnId }
     })
     return touched ? { ...page, items } : page
+  }
+
+  /**
+   * 引擎的队列快照 → 界面版：每一项按 `ref`（就是本服务交给引擎的 clientTurnId）找回自己那条提交行，挂上它的附件。
+   * 排队期间提交行一直在（`pending` / `queued`；送达与撤回才删行），换层用的是同一个号，所以换层后图也不丢。
+   * 号对不上、或不是这条线程的行，一律当作没有附件 —— 这一格只用来画，不用来判。
+   */
+  queueViewOf(threadId: string, snapshot: QueueSnapshot): QueueView {
+    return {
+      modes: { ...snapshot.modes },
+      items: snapshot.items.map((item) => {
+        const row = item.ref === undefined ? null : this.d.repo.get(item.ref)
+        return {
+          id: item.id,
+          text: item.text,
+          deliverAs: item.deliverAs,
+          createdAt: item.createdAt,
+          attachments: row === null || row.threadId !== threadId ? [] : [...row.attachments],
+        }
+      }),
+    }
   }
 
   // ── 事件路由用的两口 ──────────────────────────────────────────────────────

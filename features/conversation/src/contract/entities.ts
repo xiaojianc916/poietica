@@ -1,4 +1,4 @@
-import { ModelRef, Posture, SessionState } from '@poietica/engine'
+import { ModelRef, Posture, QueueSnapshot, SessionState } from '@poietica/engine'
 import { type TranscriptPage, transcriptPageSchema } from '@poietica/transcript'
 import { z } from 'zod'
 
@@ -70,6 +70,26 @@ export const SubmissionView = z.object({
   createdAt: z.number().int(),
 })
 export type SubmissionView = z.infer<typeof SubmissionView>
+
+/**
+ * 队列快照的界面版。引擎那一份只有号与正文（像素不随每次队列通知重发一遍）；Core 按项上的 `ref`（提交号）
+ * 找回那条提交行，把它的附件挂上去 —— 图片只带 `poietica-asset://` 预览地址，队列条才画得出缩略图，撤回时也能把图还给输入框。
+ * 找不到提交行（不是经提交服务进的队列）就是空数组，不是错。
+ */
+export const QueuedItemView = z.object({
+  id: z.string(),
+  text: z.string(),
+  deliverAs: z.enum(['steer', 'followUp']),
+  createdAt: z.number().int(),
+  attachments: z.array(SubmissionAttachment),
+})
+export type QueuedItemView = z.infer<typeof QueuedItemView>
+
+export const QueueView = z.object({
+  items: z.array(QueuedItemView),
+  modes: QueueSnapshot.shape.modes,
+})
+export type QueueView = z.infer<typeof QueueView>
 
 /*
  * 快照的编译期类型显式写成 @poietica/transcript 的 TranscriptPage。

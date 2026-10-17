@@ -7,6 +7,7 @@ import { createId, systemClock } from '@poietica/foundation'
 import { openDatabase } from '@poietica/storage-sqlite'
 import { createTestLogger, tempDir, waitFor } from '@poietica/test-kit'
 import type { TranscriptOperation } from '@poietica/transcript'
+import type { QueueView } from '../../contract'
 import { ConversationCore } from '../conversation'
 import { migrations } from '../migrations'
 import { TimelineHub } from '../timeline-hub'
@@ -78,6 +79,7 @@ async function makeCore(overrides: { engine?: FakeEngine; workspaces?: Workspace
   const removed: string[] = []
   const submissionFailures: { threadId: string; clientTurnId: string; deliverAs: string; code: string }[] = []
   const submissionRemoved: string[] = []
+  const queues: { threadId: string; queue: QueueView }[] = []
   const threadRemovedEvents: string[] = []
   const states: { threadId: string; state: string }[] = []
 
@@ -102,7 +104,9 @@ async function makeCore(overrides: { engine?: FakeEngine; workspaces?: Workspace
       states.push({ threadId: s.threadId, state: s.state })
     },
     emitTurnDropped: () => undefined,
-    emitQueue: () => undefined,
+    emitQueue: (p) => {
+      queues.push(p)
+    },
     emitControls: () => undefined,
     emitContextUsage: (p) => {
       contextUsages.push(p)
@@ -152,6 +156,7 @@ async function makeCore(overrides: { engine?: FakeEngine; workspaces?: Workspace
     removed,
     submissionFailures,
     submissionRemoved,
+    queues,
     threadRemovedEvents,
     states,
     hub,
@@ -757,6 +762,35 @@ describe('conversation core（不经内核的直连测试）', () => {
     await core.turns.withdraw(row.id, item.id)
 
     expect(submissionRemoved).toEqual([clientTurnId])
+    await core.dispose()
+    db.close()
+    await dir.dispose()
+  })
+
+  /* 队列条要画缩略图：引擎快照只有号与正文，Core 按 ref 找回提交行把附件挂上 —— 读与推两条路都要有，换层后也不丢 */
+  test('排队的一句带图：queue.get 与 queue.changed 都带着它的附件，换层之后还在', async () => {
+    const { core, dir, db, queues } = await makeCore({ engine: createFakeEngine({ script: BUSY_SCRIPT }) })
+    const row = core.threads.create({ workspaceId: 'ws1' })
+    await submit(core, row.id, '第一句')
+    await new Promise((r) => setTimeout(r, 5))
+    await core.turns.submit({
+      threadId: row.id,
+      clientTurnId: createId(),
+      text: '快点啊',
+      attachmentIds: ['img-1'],
+      skills: [],
+      deliverAs: 'steer',
+    })
+    await new Promise((r) => setTimeout(r, 30))
+
+    const item = (await core.turns.queue(row.id)).items.find((entry) => entry.text === '快点啊')!
+    expect(item.attachments.map((a) => ({ id: a.id, kind: a.kind }))).toEqual([{ id: 'img-1', kind: 'image' }])
+    const pushed = queues.at(-1)!.queue.items.find((entry) => entry.text === '快点啊')!
+    expect(pushed.attachments.map((a) => a.id)).toEqual(['img-1'])
+
+    const moved = (await core.turns.move(row.id, item.id, 'followUp')).items.find((entry) => entry.text === '快点啊')!
+    expect(moved.attachments.map((a) => a.id)).toEqual(['img-1'])
+
     await core.dispose()
     db.close()
     await dir.dispose()

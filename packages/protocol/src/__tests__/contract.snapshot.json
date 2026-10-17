@@ -11675,13 +11675,59 @@
                   "type": "integer",
                   "minimum": -9007199254740991,
                   "maximum": 9007199254740991
+                },
+                "attachments": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "id": {
+                        "type": "string",
+                        "minLength": 1
+                      },
+                      "name": {
+                        "type": "string"
+                      },
+                      "mime": {
+                        "type": "string"
+                      },
+                      "kind": {
+                        "type": "string",
+                        "enum": [
+                          "image",
+                          "file"
+                        ]
+                      },
+                      "size": {
+                        "type": "integer",
+                        "minimum": 0,
+                        "maximum": 9007199254740991
+                      },
+                      "previewUrl": {
+                        "type": [
+                          "string",
+                          "null"
+                        ]
+                      }
+                    },
+                    "required": [
+                      "id",
+                      "name",
+                      "mime",
+                      "kind",
+                      "size",
+                      "previewUrl"
+                    ],
+                    "additionalProperties": false
+                  }
                 }
               },
               "required": [
                 "id",
                 "text",
                 "deliverAs",
-                "createdAt"
+                "createdAt",
+                "attachments"
               ],
               "additionalProperties": false
             }
@@ -11775,13 +11821,59 @@
                   "type": "integer",
                   "minimum": -9007199254740991,
                   "maximum": 9007199254740991
+                },
+                "attachments": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "id": {
+                        "type": "string",
+                        "minLength": 1
+                      },
+                      "name": {
+                        "type": "string"
+                      },
+                      "mime": {
+                        "type": "string"
+                      },
+                      "kind": {
+                        "type": "string",
+                        "enum": [
+                          "image",
+                          "file"
+                        ]
+                      },
+                      "size": {
+                        "type": "integer",
+                        "minimum": 0,
+                        "maximum": 9007199254740991
+                      },
+                      "previewUrl": {
+                        "type": [
+                          "string",
+                          "null"
+                        ]
+                      }
+                    },
+                    "required": [
+                      "id",
+                      "name",
+                      "mime",
+                      "kind",
+                      "size",
+                      "previewUrl"
+                    ],
+                    "additionalProperties": false
+                  }
                 }
               },
               "required": [
                 "id",
                 "text",
                 "deliverAs",
-                "createdAt"
+                "createdAt",
+                "attachments"
               ],
               "additionalProperties": false
             }
@@ -11876,13 +11968,59 @@
                   "type": "integer",
                   "minimum": -9007199254740991,
                   "maximum": 9007199254740991
+                },
+                "attachments": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "id": {
+                        "type": "string",
+                        "minLength": 1
+                      },
+                      "name": {
+                        "type": "string"
+                      },
+                      "mime": {
+                        "type": "string"
+                      },
+                      "kind": {
+                        "type": "string",
+                        "enum": [
+                          "image",
+                          "file"
+                        ]
+                      },
+                      "size": {
+                        "type": "integer",
+                        "minimum": 0,
+                        "maximum": 9007199254740991
+                      },
+                      "previewUrl": {
+                        "type": [
+                          "string",
+                          "null"
+                        ]
+                      }
+                    },
+                    "required": [
+                      "id",
+                      "name",
+                      "mime",
+                      "kind",
+                      "size",
+                      "previewUrl"
+                    ],
+                    "additionalProperties": false
+                  }
                 }
               },
               "required": [
                 "id",
                 "text",
                 "deliverAs",
-                "createdAt"
+                "createdAt",
+                "attachments"
               ],
               "additionalProperties": false
             }
@@ -11968,13 +12106,59 @@
                   "type": "integer",
                   "minimum": -9007199254740991,
                   "maximum": 9007199254740991
+                },
+                "attachments": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "id": {
+                        "type": "string",
+                        "minLength": 1
+                      },
+                      "name": {
+                        "type": "string"
+                      },
+                      "mime": {
+                        "type": "string"
+                      },
+                      "kind": {
+                        "type": "string",
+                        "enum": [
+                          "image",
+                          "file"
+                        ]
+                      },
+                      "size": {
+                        "type": "integer",
+                        "minimum": 0,
+                        "maximum": 9007199254740991
+                      },
+                      "previewUrl": {
+                        "type": [
+                          "string",
+                          "null"
+                        ]
+                      }
+                    },
+                    "required": [
+                      "id",
+                      "name",
+                      "mime",
+                      "kind",
+                      "size",
+                      "previewUrl"
+                    ],
+                    "additionalProperties": false
+                  }
                 }
               },
               "required": [
                 "id",
                 "text",
                 "deliverAs",
-                "createdAt"
+                "createdAt",
+                "attachments"
               ],
               "additionalProperties": false
             }
@@ -25190,13 +25374,59 @@
                       "type": "integer",
                       "minimum": -9007199254740991,
                       "maximum": 9007199254740991
+                    },
+                    "attachments": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string",
+                            "minLength": 1
+                          },
+                          "name": {
+                            "type": "string"
+                          },
+                          "mime": {
+                            "type": "string"
+                          },
+                          "kind": {
+                            "type": "string",
+                            "enum": [
+                              "image",
+                              "file"
+                            ]
+                          },
+                          "size": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "maximum": 9007199254740991
+                          },
+                          "previewUrl": {
+                            "type": [
+                              "string",
+                              "null"
+                            ]
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "name",
+                          "mime",
+                          "kind",
+                          "size",
+                          "previewUrl"
+                        ],
+                        "additionalProperties": false
+                      }
                     }
                   },
                   "required": [
                     "id",
                     "text",
                     "deliverAs",
-                    "createdAt"
+                    "createdAt",
+                    "attachments"
                   ],
                   "additionalProperties": false
                 }

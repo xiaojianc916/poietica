@@ -1,17 +1,8 @@
 import { defineContract, defineMethod, defineNotification } from '@poietica/contract-kit'
-import {
-  ContextUsage,
-  Controls,
-  DeliverAs,
-  Interaction,
-  InteractionAnswer,
-  ModelRef,
-  Posture,
-  QueueSnapshot,
-} from '@poietica/engine'
+import { ContextUsage, Controls, DeliverAs, Interaction, InteractionAnswer, ModelRef, Posture } from '@poietica/engine'
 import { transcriptOperationSchema, transcriptPageSchema } from '@poietica/transcript'
 import { z } from 'zod'
-import { SubmissionView, Thread, ThreadInit, TimelineSnapshot, TurnState } from './entities'
+import { QueueView, SubmissionView, Thread, ThreadInit, TimelineSnapshot, TurnState } from './entities'
 import { conversationErrors } from './errors'
 
 export * from './entities'
@@ -212,14 +203,14 @@ export const conversationContract = defineContract({
       name: 'queue.get',
       owner: 'core',
       params: z.object({ threadId: z.string().min(1) }),
-      result: QueueSnapshot,
+      result: QueueView,
       description: '读队列快照',
     }),
     defineMethod({
       name: 'queue.withdraw',
       owner: 'core',
       params: z.object({ threadId: z.string().min(1), itemId: z.string().min(1) }),
-      result: QueueSnapshot,
+      result: QueueView,
       description: '撤回一条排队中的输入；已被 agent 消费时抛 engine.queue_item_consumed',
     }),
     defineMethod({
@@ -230,7 +221,7 @@ export const conversationContract = defineContract({
         itemId: z.string().min(1),
         deliverAs: z.enum(['steer', 'followUp']),
       }),
-      result: QueueSnapshot,
+      result: QueueView,
       description: '把一条排队中的输入换到另一层（保留附件与技能）',
     }),
     defineMethod({
@@ -241,7 +232,7 @@ export const conversationContract = defineContract({
         steer: z.enum(['all', 'one-at-a-time']).optional(),
         followUp: z.enum(['all', 'one-at-a-time']).optional(),
       }),
-      result: QueueSnapshot,
+      result: QueueView,
       description: '设置插话与排队的投递模式',
     }),
 
@@ -394,7 +385,7 @@ export const conversationContract = defineContract({
     defineNotification({
       name: 'queue.changed',
       owner: 'core',
-      params: z.object({ threadId: z.string().min(1), queue: QueueSnapshot }),
+      params: z.object({ threadId: z.string().min(1), queue: QueueView }),
       description: '队列变化',
     }),
     defineNotification({

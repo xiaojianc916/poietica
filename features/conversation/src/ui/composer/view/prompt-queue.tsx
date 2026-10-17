@@ -2,9 +2,16 @@ import './prompt-queue.css'
 
 import { Tooltip, TooltipContent, TooltipTrigger } from '@poietica/design-system'
 import { memo, type ReactNode, type SVGProps, useCallback, useState, useSyncExternalStore } from 'react'
+import { ImageLightbox, type PreviewableImage } from '../../shared/media/image-lightbox'
 import type { MessageQueue, MessageQueueState } from '../../shared/model/message-queue'
-import type { PromptDelivery, QueuedDelivery } from '../../shared/model/session'
-import { ChevronDownIcon, ChevronUpIcon, QueueSteerIcon, TrashIcon } from '../../shared/primitives/icons'
+import type {
+  PromptDelivery,
+  QueuedAttachment,
+  QueuedDelivery,
+  QueuedItem,
+  WithdrawnMessage,
+} from '../../shared/model/session'
+import { ChevronDownIcon, ChevronUpIcon, ImageIcon, QueueSteerIcon, TrashIcon } from '../../shared/primitives/icons'
 
 /* 图标库没有这张字形，就近画在用它这一处。 */
 function QueueGlyph({ className }: SVGProps<SVGSVGElement>) {
@@ -29,7 +36,8 @@ function QueueGlyph({ className }: SVGProps<SVGSVGElement>) {
 
 export interface PromptQueueProps {
   readonly queue: MessageQueue
-  readonly onEdit: (text: string) => void
+  /** 撤回那一句：正文与附件一起回输入框（只还正文，图就跟着那一句一起丢了）。 */
+  readonly onEdit: (restored: WithdrawnMessage) => void
 }
 
 /* tier 是屏幕上的字面（'插话' / '排队'），layer 是同一事实的机器那一面。 */
@@ -40,13 +48,28 @@ export interface QueueRow {
   readonly layer: PromptDelivery
   readonly ordinal: number
   readonly last: boolean
+  /** 这一句带的图（只收有预览地址的那些）：队列行画第一张缩略图，点开是这一组的灯箱。 */
+  readonly images: readonly PreviewableImage[]
+}
+
+/* 判据是进门分类 kind（与输入框那一排同口径）；还没有预览地址的图不画缩略图 —— 画出来也只是一块空底。 */
+export function queueImages(attachments: readonly QueuedAttachment[]): readonly PreviewableImage[] {
+  return attachments.flatMap((attachment) =>
+    attachment.kind === 'image' && attachment.previewUrl !== null && attachment.previewUrl !== ''
+      ? [{ id: attachment.id, src: attachment.previewUrl, alt: attachment.name, caption: attachment.name }]
+      : [],
+  )
+}
+
+function rowOf(item: QueuedItem, tier: string, layer: QueuedDelivery) {
+  return { id: item.id, text: item.text, tier, layer, images: queueImages(item.attachments) }
 }
 
 /* steering 先走、followUp 后走，两层接着数一个序号。 */
 export function queueRows(state: MessageQueueState): readonly QueueRow[] {
   const rows = [
-    ...state.steering.map((item) => ({ id: item.id, text: item.text, tier: '插话', layer: 'steer' as const })),
-    ...state.followUp.map((item) => ({ id: item.id, text: item.text, tier: '排队', layer: 'followUp' as const })),
+    ...state.steering.map((item) => rowOf(item, '插话', 'steer')),
+    ...state.followUp.map((item) => rowOf(item, '排队', 'followUp')),
   ]
 
   return rows.map((row, index) => ({
@@ -112,6 +135,50 @@ function QueueAction({
   )
 }
 
+/*
+ * 队列行里的缩略图（照 Codex / LobsterAI 的队列条）：高 24 吃在行的上下内边距里，带图不把这一行撑高；
+ * 多张只画第一张，角上记 +N；点开是这一句那一组图的灯箱。图读不出来时退成一枚图片记号，不留空框。
+ */
+function QueueThumbnail({
+  images,
+  onOpen,
+}: {
+  readonly images: readonly PreviewableImage[]
+  readonly onOpen: () => void
+}) {
+  const [failed, setFailed] = useState(false)
+  const first = images[0]
+  if (first === undefined) {
+    return null
+  }
+  const more = images.length - 1
+  const label = more > 0 ? `预览 ${String(images.length)} 张图片` : `预览 ${first.alt ?? '图片'}`
+
+  return (
+    <button aria-label={label} className="prompt-queue__thumb" onClick={onOpen} title={label} type="button">
+      {failed ? (
+        <ImageIcon aria-hidden className="prompt-queue__thumb-mark" size={14} />
+      ) : (
+        <img
+          alt=""
+          className="prompt-queue__thumb-image"
+          decoding="async"
+          draggable={false}
+          onError={() => {
+            setFailed(true)
+          }}
+          src={first.src}
+        />
+      )}
+      {more > 0 ? (
+        <span aria-hidden className="prompt-queue__thumb-more">
+          +{more}
+        </span>
+      ) : null}
+    </button>
+  )
+}
+
 /* 只有最后一行画得出这两枚（它们改的正是最后那一条），其余行不给按不动的假键；current 缺了点下去屏幕上什么都不动，人读成「这键没反应」。 */
 function RowDeliveries({
   current,
@@ -145,6 +212,14 @@ function RowDeliveries({
 export const PromptQueue = memo(function PromptQueue({ onEdit, queue }: PromptQueueProps) {
   const state: MessageQueueState = useSyncExternalStore(queue.subscribe, queue.read, queue.read)
   const [collapsed, setCollapsed] = useState(false)
+  /* 灯箱一次只开一行的那组图：存那一组本身，不存行号 —— 开着时队列前进了，图也不会换成别的那一句。 */
+  const [preview, setPreview] = useState<{
+    readonly images: readonly PreviewableImage[]
+    readonly index: number
+  } | null>(null)
+  const turnPreview = useCallback((index: number | null) => {
+    setPreview((current) => (index === null || current === null ? null : { ...current, index }))
+  }, [])
 
   /* 正在换层的那一条：不是队列的第二份，是这次操作的落点（搬动期间照它画，见 queueView）。 */
   const [moving, setMoving] = useState<QueueRow | undefined>(undefined)
@@ -177,7 +252,7 @@ export const PromptQueue = memo(function PromptQueue({ onEdit, queue }: PromptQu
     }
     void queue.withdraw(last.id).then((restored) => {
       if (restored !== null) {
-        onEdit(restored.text)
+        onEdit(restored)
       }
     })
   }, [last, onEdit, queue])
@@ -254,6 +329,14 @@ export const PromptQueue = memo(function PromptQueue({ onEdit, queue }: PromptQu
                     </TooltipContent>
                   </Tooltip>
 
+                  {/* 不带图的行它自己什么都不画：这一行的布局与改前一样。 */}
+                  <QueueThumbnail
+                    images={row.images}
+                    onOpen={() => {
+                      setPreview({ images: row.images, index: 0 })
+                    }}
+                  />
+
                   <span className="prompt-queue__said" title={row.text}>
                     {row.text}
                   </span>
@@ -272,6 +355,9 @@ export const PromptQueue = memo(function PromptQueue({ onEdit, queue }: PromptQu
             : null}
         </ul>
       </div>
+
+      {/* 灯箱是幻灯片层，不是列表项：ul 的孩子只能是 li。 */}
+      <ImageLightbox images={preview?.images ?? []} index={preview?.index ?? null} onIndexChange={turnPreview} />
     </div>
   )
 })

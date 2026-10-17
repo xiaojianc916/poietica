@@ -3950,3 +3950,17 @@ design-system（review 那处 `as MarkdownRenderer` 一并去掉）；新增 dep
 - 相关包：591 pass / 0 fail（改前 584）。新增 I7–I9、`DialogPanel` 四条，I6 改为「确认类有自己的卡片」。
 - `bun test packages/engine-omp`（`TMPDIR` 置于用户目录下）：475 pass / 2 fail，改前 467 / 2，两条失败相同（T-ISO-5/6，沙箱环境）。
   新增「真 ask 工具」端到端一条（撤掉任一处修复都红）、uiContext 裸调一条、`AskCallTracker` 六条。
+
+## 队列条看不到插话带的图、撤回把图丢了（协议 23）
+
+**症状**：跑着时发一句带图的插话 / 排队，输入框上沿的队列条只画正文，图不见了；撤回那一条，正文回输入框，图没回来。
+
+**根因与改法**：
+
+| 问题 | 根因 | 改法 |
+| --- | --- | --- |
+| 队列行没有图 | 引擎的 `QueueSnapshot` 只有号与正文（像素不随每次通知重发，这是对的），界面没有别的来源 | 引擎 `QueueItem` 回显调用方的 `ref`（即 clientTurnId）；Core 出口 `SubmissionService.queueViewOf` 按 `ref` 找回提交行，挂上它的附件（图片只带 `poietica-asset://` 预览地址）；契约新增 `QueueView` / `QueuedItemView`，`queue.*` 四个方法与 `queue.changed` 都改用它 |
+| 撤回丢图 | `WithdrawnMessage` 只有 `text`，`onEdit(text)` 只调 `setText` | `WithdrawnMessage` 带 `attachments`；`PromptInputHandle.restore(text, attachments)` 先换正文再并附件（文件记号插在正文里，顺序反了会被冲掉） |
+
+- 队列行画第一张缩略图（多张角标 `+N`），高 `--cp-queue-thumb: 24px`，吃在行高 36 的内边距里：带图与不带图的行同高（真机渲染实测都是 36px）；点开是这一句那组图的灯箱；图读不出来退成图片记号。
+- `PROTOCOL_VERSION` 22 → 23，重新生成 `contract.snapshot.json`。

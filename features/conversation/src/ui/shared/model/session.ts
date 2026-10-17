@@ -42,10 +42,19 @@ export interface AgentPromptRequest {
   readonly clientTurnId?: string
 }
 
+/** 排队那一句带的附件：形状与 `DraftAttachment` 相同，撤回时原样交回输入框；图片的 `previewUrl` 也是队列条缩略图的来源。 */
+export interface QueuedAttachment {
+  readonly id: string
+  readonly name: string
+  readonly kind: 'image' | 'file'
+  readonly previewUrl: string | null
+}
+
 /** 号与正文一起在 UI 里走：撤回 / 换层都按号点名，只拿正文会撤错行（R-01 §1 缺陷 D）。 */
 export interface QueuedItem {
   readonly id: string
   readonly text: string
+  readonly attachments: readonly QueuedAttachment[]
 }
 
 export interface QueuedMessages {
@@ -60,9 +69,10 @@ export interface QueuedMessages {
 
 export type MessageQueueMode = 'all' | 'one-at-a-time'
 
-/** 撤回交回来的那一句。空队列是 null，不是错。 */
+/** 撤回交回来的那一句（正文 + 附件，一起回输入框）。空队列是 null，不是错。 */
 export interface WithdrawnMessage {
   readonly text: string
+  readonly attachments: readonly QueuedAttachment[]
 }
 
 /** 正文是**人打的原样**，号用来找它属于哪条对话。 */

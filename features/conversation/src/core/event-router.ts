@@ -1,7 +1,7 @@
-import type { ContextUsage, Controls, EngineSessionEvent, Posture, QueueSnapshot, UsageSample } from '@poietica/engine'
+import type { ContextUsage, Controls, EngineSessionEvent, Posture, UsageSample } from '@poietica/engine'
 import type { Clock } from '@poietica/foundation'
 import type { TranscriptOperation } from '@poietica/transcript'
-import type { Thread, TurnState } from '../contract/entities'
+import type { QueueView, Thread, TurnState } from '../contract/entities'
 import { conversationErrors } from '../contract/errors'
 import type { ThreadRow, ThreadsRepository } from './repository'
 import type { TimelineHub } from './timeline-hub'
@@ -40,7 +40,7 @@ export interface EventRouterDeps {
   readonly emitThreadUpdated: (thread: Thread) => void
   readonly emitTurnState: (state: TurnState) => void
   readonly emitTurnDropped: (p: { threadId: string; clientTurnId: string | null; text: string }) => void
-  readonly emitQueue: (p: { threadId: string; queue: QueueSnapshot }) => void
+  readonly emitQueue: (p: { threadId: string; queue: QueueView }) => void
   readonly emitControls: (p: { threadId: string; controls: Controls }) => void
   readonly emitContextUsage: (p: { threadId: string; usage: ContextUsage | null }) => void
   readonly emitInteractionRequested: (p: {
@@ -106,7 +106,7 @@ export class EventRouter {
         this.d.emitInteractionResolved({ threadId, interactionId: event.interactionId })
         break
       case 'queue':
-        this.d.emitQueue({ threadId, queue: event.queue })
+        this.d.emitQueue({ threadId, queue: this.d.submissions.queueViewOf(threadId, event.queue) })
         break
       case 'controls':
         this.d.emitControls({ threadId, controls: event.controls })
