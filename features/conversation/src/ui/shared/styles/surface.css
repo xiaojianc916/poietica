@@ -147,6 +147,33 @@
   flex-direction: column;
 }
 
+/*
+ * 两条带子叠在一起（排队条 / 审批带 / 计划卡）：上面那条两侧再各收 --cp-dock-stack-step，
+ * 接缝处就有了台阶。只把上面那条收窄还不够 —— 它的下沿原本是「咽进下面那张卡 3px」的直边，
+ * 压在下面那条的上圆角上会切出两个缺口；所以叠放时它改成整圈圆角、下沿退回，留一道窄缝。
+ * 只有一条时不收也不退：与输入卡同宽、照旧咬在卡的上沿（宽度规则本来就在各自的样式里）。
+ */
+.assistant-surface__composer > :is(.prompt-queue, .assistant-approval):has(~ :is(.prompt-queue, .assistant-approval)) {
+  inline-size: calc(100% - (var(--cp-queue-inset) + var(--cp-dock-stack-step)) * 2);
+  max-inline-size: calc(var(--cp-queue-card-max) - var(--cp-dock-stack-step) * 2);
+  margin-block-end: var(--cp-dock-stack-gap);
+}
+
+.assistant-surface__composer
+  > :is(.prompt-queue, .assistant-approval):has(~ :is(.prompt-queue, .assistant-approval))
+  :is(.prompt-queue__panel, .assistant-approval__bar) {
+  border-radius: var(--cp-queue-radius);
+}
+
+/* 三条叠起来：最上面那条再收一档，台阶逐级放开（离输入卡越远越窄）。 */
+.assistant-surface__composer
+> :is(.prompt-queue, .assistant-approval):has(
+  ~ :is(.prompt-queue, .assistant-approval) ~ :is(.prompt-queue, .assistant-approval)
+) {
+  inline-size: calc(100% - (var(--cp-queue-inset) + var(--cp-dock-stack-step) * 2) * 2);
+  max-inline-size: calc(var(--cp-queue-card-max) - var(--cp-dock-stack-step) * 4);
+}
+
 /* 会话态：输入框盖在转录上，入口态是居中的。最后一条消息由 useDockClearance 实测后传给虚拟器的 paddingEnd，不会被压住。 */
 .assistant-surface[data-phase="live"] .assistant-surface__dock {
   position: absolute;

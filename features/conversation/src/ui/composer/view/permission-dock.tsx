@@ -1,7 +1,10 @@
 import './permission-dock.css'
 
+import { Tooltip, TooltipContent, TooltipTrigger } from '@poietica/design-system'
+import { Hand } from 'lucide-react'
 import { memo, useState } from 'react'
 import type { ApprovalAnswer, ApprovalDecision, ApprovalScope } from '../../shared/model/permission'
+import { CheckCheckIcon, CheckIcon, CloseIcon, type Icon } from '../../shared/primitives/icons'
 import type { PermissionItem } from '../../shared/timeline/timeline-contract'
 import { sayToolLine } from '../../shared/tools/tool-intent'
 
@@ -14,7 +17,9 @@ import { sayToolLine } from '../../shared/tools/tool-intent'
 interface Answer {
   /** 只用来认「哪一颗正在提交」。 */
   readonly id: string
+  /** 字形说形状，这句说清后果：名字只在 aria-label 与悬停提示里（与队列行的操作钮同一口径）。 */
   readonly label: string
+  readonly Icon: Icon
   readonly decision: Exclude<ApprovalDecision, 'cancelled'>
   readonly scope?: ApprovalScope
   readonly lead?: true
@@ -22,9 +27,9 @@ interface Answer {
 
 /* 三颗按钮，因为 kap 的答复只有三种。按钮字面由产品定（agent 不报选项表），「本次会话都批准」指明到会话结束为止、不跨会话。 */
 const ANSWERS: readonly Answer[] = [
-  { id: 'approve', label: '批准', decision: 'approved', lead: true },
-  { id: 'approve_session', label: '本次会话都批准', decision: 'approved', scope: 'session' },
-  { id: 'reject', label: '拒绝', decision: 'rejected' },
+  { id: 'approve', label: '批准', Icon: CheckIcon, decision: 'approved', lead: true },
+  { id: 'approve_session', label: '本次会话都批准', Icon: CheckCheckIcon, decision: 'approved', scope: 'session' },
+  { id: 'reject', label: '拒绝', Icon: CloseIcon, decision: 'rejected' },
 ]
 
 export interface PermissionDockProps {
@@ -63,6 +68,11 @@ export const PermissionDock = memo(function PermissionDock({ item, onResolve, wa
     <div className="assistant-approval">
       {/* key 在里层：换请求时只有内容交叉淡入，外壳不重放撑开。 */}
       <div aria-busy={isSubmitting} className="assistant-approval__bar" key={item.requestId}>
+        {/* 前导字形与队列行同一格：这一条也是「一件事待你答」，不是另一张卡。 */}
+        <span aria-hidden className="assistant-approval__lead">
+          <Hand size={14} />
+        </span>
+
         {waiting > 1 ? <span className="assistant-approval__count">1/{waiting}</span> : null}
 
         {/* 原样：不加前缀、不翻译、不改写。 */}
@@ -70,19 +80,26 @@ export const PermissionDock = memo(function PermissionDock({ item, onResolve, wa
 
         <div className="assistant-approval__options">
           {ANSWERS.map((answer) => (
-            <button
-              className="assistant-approval__option"
-              data-lead={answer.lead}
-              data-pending={answer.id === submitted ? 'true' : undefined}
-              disabled={isSubmitting}
-              key={answer.id}
-              onClick={() => {
-                handleSelect(answer)
-              }}
-              type="button"
-            >
-              {answer.label}
-            </button>
+            <Tooltip key={answer.id}>
+              <TooltipTrigger
+                render={
+                  <button
+                    aria-label={answer.label}
+                    className="assistant-approval__option assistant-approval__option--mark"
+                    data-lead={answer.lead}
+                    data-pending={answer.id === submitted ? 'true' : undefined}
+                    disabled={isSubmitting}
+                    onClick={() => {
+                      handleSelect(answer)
+                    }}
+                    type="button"
+                  >
+                    <answer.Icon aria-hidden size={14} />
+                  </button>
+                }
+              />
+              <TooltipContent side="bottom">{answer.label}</TooltipContent>
+            </Tooltip>
           ))}
         </div>
       </div>

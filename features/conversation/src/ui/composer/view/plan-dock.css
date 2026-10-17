@@ -4,12 +4,14 @@
  * 左右内缩仍是卡片已有的两条沟（--cp-pad-x / --cp-inset）：这一格咬在输入框卡上沿，对不齐就露接缝。
  */
 
-/* 单列：标题、路径、正文入口、按钮自上而下。 */
+/* 单列：标题、路径、正文入口、按钮自上而下。外框沿用插话那条带子的壳，
+   内容比一行高，所以上下内边距比队列行的 4px 放一档，左右仍是同一组数。 */
 .assistant-approval--plan .assistant-approval__bar {
   display: grid;
   grid-template-columns: minmax(0, 1fr);
   align-items: center;
   row-gap: var(--cp-control-gap);
+  padding-block: var(--cp-pad-mid);
 }
 
 /*

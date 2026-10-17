@@ -30,6 +30,7 @@ export {
   Bug as BugIcon,
   CalendarDays as PreviewIcon,
   Check as CheckIcon,
+  CheckCheck as CheckCheckIcon,
   ChevronDown as ChevronDownIcon,
   ChevronUp as ChevronUpIcon,
   CircleAlert as FailureIcon,
