@@ -1,4 +1,5 @@
 import {
+  type AgentRef,
   applyOps,
   emptyTimeline,
   pageFromState,
@@ -9,6 +10,7 @@ import {
   turnId,
 } from '@poietica/transcript'
 import { isGoalContinuationMessage, isUserSkillMessage, splitWireText } from '../session/prompt'
+import { agentRefsOf } from './agent-refs'
 import { compactionPayloadOf } from './compaction'
 import { assistantFrameId, extraFrameId, interjectionFrameId } from './frame-ids'
 import { FILE_MEDIA_TYPE } from './live'
@@ -520,6 +522,12 @@ function frameOp(
   }
 }
 
+/** 派发工具帧的子代理（与实时那条路同一个产地 agent-refs.ts，重开前后是同一个入口） */
+function agentRefsField(name: string, details: unknown): { readonly agentRefs?: readonly AgentRef[] } {
+  const agentRefs = agentRefsOf(name, { details })
+  return agentRefs === undefined ? {} : { agentRefs }
+}
+
 /** 一次工具调用：调用与结果同一帧（同一个 frameId 的两次 upsert）；details 必须带上 */
 function toolOp(
   turn: string,
@@ -543,6 +551,7 @@ function toolOp(
         : {
             output: { content: result.content, details: result.details },
             ...(result.isError ? { error: textOf(result.content) } : {}),
+            ...agentRefsField(block.name, result.details),
           }),
     },
   }

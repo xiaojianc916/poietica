@@ -142,6 +142,27 @@ export interface EngineSession {
   runCommand(text: string): Promise<void>
   interactions(): readonly Interaction[]
   respond(interactionId: string, answer: InteractionAnswer): void
+  /**
+   * 时间线的一页。`agentId` = 通道号：`'main'` 是主对话，其余是这条会话派出去的子代理（号与 task 行的
+   * `agentId`、工具帧的 `agentRefs` 同一个值）。子代理的通道与主对话同一套 ops 形状，增量经 `timeline`
+   * 事件按同一个 agentId 推出；认不出的号交一页空表（它可能是重开前的旧子代理，屏幕照样画得出空面板），不抛。
+   */
   page(agentId: string, beforeTurnId: string | null): Promise<TranscriptPage>
+  /**
+   * 停掉一个子代理（与 omp RPC `cancel_subagent` 同一条路：先立墓碑、再 abort 它自己的会话），父轮照常往下走 ——
+   * 父轮收到的是「这个子代理被停了」的结果。返回 false = 它此刻不在运行（已结束、已被收下结果、不认识）；不抛。
+   */
+  cancelSubagent(agentId: string): Promise<boolean>
+  /**
+   * 以用户身份给一个运行中的子代理插一句话（omp RPC `steer_subagent`，即 Agent Hub 聊天同一条路）：
+   * 跑着的在下一个步边界收到，闲着的开它的下一轮；这句话记进子代理自己的会话，不记到父会话。
+   * 被收下（入队或开轮）即返回；不在运行时抛 `engine.subagent_not_running`，空文本抛 invalid_params。
+   */
+  steerSubagent(agentId: string, text: string): Promise<void>
+  /**
+   * 停掉一个后台作业（task 行 `kind` 为 shell / tool 的那些，号是 task 行的 `taskId`）。
+   * 返回 false = 它已经结束或不认识；不抛。子代理不走这里（用 `cancelSubagent`）。
+   */
+  cancelBackgroundTask(taskId: string): Promise<boolean>
   dispose(): Promise<void>
 }

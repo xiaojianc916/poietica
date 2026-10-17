@@ -16,7 +16,7 @@ import type {
 import type { TurnMark } from '../../shared/model/thread'
 import type { BackgroundTaskItem, SubagentItem, TimelineState, TodoItem } from '../../shared/timeline/timeline-contract'
 import type { PendingInteractions } from '../timeline-queries'
-import { activeScope, currentTodos, pendingInteractions } from '../timeline-queries'
+import { activeScope, pendingInteractions } from '../timeline-queries'
 import type { PreparedThread, Transcript } from './transcript-store'
 import { canCancel, deliveryUnknown } from './transcript-store'
 import { useTranscripts } from './transcripts-context'
@@ -155,7 +155,8 @@ export const readFailedSubmissionText = (transcript: Transcript): string | null 
 
 const readTimeline = (transcript: Transcript): TimelineState => transcript.timeline
 const EMPTY_LIST: readonly TodoItem[] = []
-const readTodos = (transcript: Transcript): readonly TodoItem[] => currentTodos(transcript.timeline) ?? EMPTY_LIST
+const readTodos = (transcript: Transcript): readonly TodoItem[] =>
+  transcript.timeline.todos.length === 0 ? EMPTY_LIST : transcript.timeline.todos
 
 const EMPTY_BACKGROUND_TASKS: readonly BackgroundTaskItem[] = []
 const readBackgroundTasks = (transcript: Transcript): readonly BackgroundTaskItem[] =>

@@ -645,12 +645,31 @@ class FakeSession implements EngineSession {
     settle(answer)
   }
 
-  async page(_agentId: string, beforeTurnId: string | null): Promise<TranscriptPage> {
+  async page(agentId: string, beforeTurnId: string | null): Promise<TranscriptPage> {
+    /* 替身不派子代理：认不出的通道号按端口约定交空页，不抛 */
+    if (agentId !== 'main') return pageFromState(emptyTimeline())
     const state = applyOps(emptyTimeline(), this.ops)
     const page = pageFromState(state)
     if (beforeTurnId === null) return page
     const limit = Number(beforeTurnId.slice(1))
     return { ...page, items: page.items.filter((item) => item.kind !== 'turn' || item.ordinal < limit) }
+  }
+
+  /* 替身没有子代理与后台作业：三条都按「不在运行」答，形状与真引擎一致（false / subagent_not_running） */
+  async cancelSubagent(_agentId: string): Promise<boolean> {
+    this.assertLive()
+    return false
+  }
+
+  async steerSubagent(agentId: string, text: string): Promise<void> {
+    this.assertLive()
+    if (text.trim() === '') throw new AppError(SystemErrorCode.invalidParams, '引导的话不能为空')
+    throw new AppError(EngineErrorCode.subagentNotRunning, `这个子代理已经结束了：${agentId}`)
+  }
+
+  async cancelBackgroundTask(_taskId: string): Promise<boolean> {
+    this.assertLive()
+    return false
   }
 
   async dispose(): Promise<void> {

@@ -19,6 +19,7 @@ import { type ConversationStores, createStores, hiddenModelsOf } from '../sessio
 import { createPostureIntent } from '../session/configuration/posture-intent'
 import { createSessionRegistry, type SessionRegistry } from '../session/session-registry'
 import { TranscriptStore } from '../timeline/model/transcript-store'
+import { SubagentTabsStore } from '../timeline/subagent-tabs'
 
 /* 装配的底座：RPC 封装、内核服务、四个 store、转录 store 与会话端口注册表。后面的 actions / subscriptions / contributions / commands / services 各自收一份本对象。 */
 
@@ -62,6 +63,8 @@ export function createConversationSetup(ctx: UiFeatureContext) {
     },
   })
   const layout = ctx.services.get(LayoutToken) as LayoutService
+  /* 右坞「子代理」组的标签账：按对话号分账，由线程表面（打开）与右坞（选中 / 关闭）共用。 */
+  const subagentTabs = new SubagentTabsStore()
 
   return {
     api,
@@ -76,6 +79,7 @@ export function createConversationSetup(ctx: UiFeatureContext) {
     prefs,
     sessions,
     stores,
+    subagentTabs,
     toasts,
     transcripts,
     workspaces,

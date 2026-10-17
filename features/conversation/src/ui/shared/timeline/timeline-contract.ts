@@ -290,6 +290,11 @@ export interface TurnPage {
 
 export interface TimelineState {
   readonly status: RunStatus
+  /**
+   * 会话此刻的待办（引擎的 `todo.upsert` 那一格，不是从工具卡片里反推的）：omp 的 todo 工具交的是增量操作
+   * （init / start / done …），卡片上只有这一次的参数，拼不出整张表；真身在引擎那份状态里。
+   */
+  readonly todos: readonly TodoItem[]
   readonly backgroundTasks: readonly BackgroundTaskItem[]
   readonly subagents: readonly SubagentItem[]
   readonly sealed: readonly TurnPage[]
@@ -300,6 +305,7 @@ export interface TimelineState {
 export function createTimelineState(): TimelineState {
   return {
     status: 'idle',
+    todos: [],
     backgroundTasks: [],
     subagents: [],
     sealed: [],

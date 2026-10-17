@@ -1,18 +1,20 @@
 import { type WindowCloseGuard, WindowCloseToken } from '@poietica/feature-platform/ui-api'
 import { createId } from '@poietica/foundation'
 import { builtinPoints } from '@poietica/ui-kernel'
-import { MessageSquareText } from 'lucide-react'
+import { Bot, MessageSquareText } from 'lucide-react'
 import { ConversationUiToken, toolCallRenderers } from '../../ui-api'
 import { AuxiliaryComposer } from '../composer/view/auxiliary-composer'
 import { ConversationProviders } from '../composition'
 import { confirmQuit } from '../session/notify'
+import { subagentTitleOf } from '../timeline/view/delegate-channel-view'
+import { createSubagentDockTabs, SUBAGENT_PANEL_ID, SubagentDockPanel } from '../timeline/view/subagent-dock'
 import { createWidgetCard } from '../timeline/view/widget-card'
 import type { ConversationActions } from './actions'
 import type { ConversationSetup } from './context'
 
 /** 关窗守卫，以及 ConversationUiToken 等服务的提供。 */
 export function createConversationServices(setup: ConversationSetup, actions: ConversationActions): void {
-  const { ctx, dialogs, platform, posture, stores, transcripts } = setup
+  const { api, ctx, dialogs, layout, platform, posture, stores, subagentTabs, transcripts } = setup
   const { activeThreadId, draftPin, openThread, runningThreadIds, subscribeActive } = actions
 
   // 退出拦截：有运行中的对话就先确认
@@ -36,6 +38,29 @@ export function createConversationServices(setup: ConversationSetup, actions: Co
     component: () => (
       <ConversationProviders posture={posture} transcripts={transcripts}>
         <AuxiliaryComposer />
+      </ConversationProviders>
+    ),
+  })
+
+  /*
+   * 右坞「子代理」组（order 6，紧挨辅助对话）：每个标签是一个子代理的实时对话，带引导与停止。只能由代码打开（状态面板 / 工具卡上点子代理），
+   * 所以不进启动器。转录读同一台 TranscriptStore 的 `thread#agent` 通道，引导 / 停止走 ConversationApi。
+   */
+  ctx.contribute(builtinPoints.panels, {
+    id: SUBAGENT_PANEL_ID,
+    location: 'right',
+    order: 6,
+    title: '子代理',
+    icon: Bot,
+    offer: false,
+    dockTabs: createSubagentDockTabs({
+      layout,
+      store: subagentTabs,
+      resolveTitle: (threadId, agentId) => subagentTitleOf(transcripts.read(threadId).timeline, agentId),
+    }),
+    component: () => (
+      <ConversationProviders agentControls={api} posture={posture} transcripts={transcripts}>
+        <SubagentDockPanel store={subagentTabs} />
       </ConversationProviders>
     ),
   })

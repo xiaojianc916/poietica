@@ -50,6 +50,7 @@ function said(id: string): TimelineItem {
 function settled(items: readonly TimelineItem[]): TimelineState {
   return {
     status: 'idle',
+    todos: [],
     backgroundTasks: [],
     subagents: [],
     sealed: [],

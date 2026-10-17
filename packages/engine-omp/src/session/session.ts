@@ -131,6 +131,12 @@ export interface OmpSessionHost {
   readonly runBuiltinCommand: (text: string, hooks: BuiltinCommandHooks) => ReturnType<typeof runBuiltinCommand>
   /** 累加器按会话文件重新落座：命令改过文件（压缩、重试）之后，下一轮的号要与历史投影对得上 */
   readonly reseat: () => void
+  /** 停一个子代理（omp RPC cancel_subagent 同一条路，实现在 subagent-channels.ts）；false = 它不在运行 */
+  readonly cancelSubagent: (agentId: string) => Promise<boolean>
+  /** 给运行中的子代理插一句话（omp RPC steer_subagent）；不在运行时抛 engine.subagent_not_running */
+  readonly steerSubagent: (agentId: string, text: string) => Promise<void>
+  /** 停一个后台作业（omp 的 AsyncJobManager.cancel）；false = 已结束或不认识 */
+  readonly cancelBackgroundTask: (taskId: string) => Promise<boolean>
 }
 
 interface QueueEntry {
@@ -901,6 +907,31 @@ export class OmpSession implements EngineSession {
 
   requestTimeline(ops: readonly TranscriptOperation[]): void {
     this.timeline(ops)
+  }
+
+  /**
+   * 子代理通道的增量：**不过** `openTurn` —— 那块屏只认主对话的开着那一轮，子代理的帧喂进去会让它判成分叉、
+   * 主对话的页退回历史投影。子代理自己的开轮屏由 subagent-channels 各自持有。
+   */
+  emitAgentTimeline(agentId: string, ops: readonly TranscriptOperation[]): void {
+    if (ops.length === 0 || this.disposed) return
+    this.emit({ type: 'timeline', agentId, ops })
+  }
+
+  async cancelSubagent(agentId: string): Promise<boolean> {
+    this.assertLive()
+    return this.o.cancelSubagent(agentId)
+  }
+
+  async steerSubagent(agentId: string, text: string): Promise<void> {
+    this.assertLive()
+    if (text.trim() === '') throw new AppError(SystemErrorCode.invalidParams, '引导的话不能为空')
+    await this.o.steerSubagent(agentId, text)
+  }
+
+  async cancelBackgroundTask(taskId: string): Promise<boolean> {
+    this.assertLive()
+    return this.o.cancelBackgroundTask(taskId)
   }
 
   /** omp 的会话名变了（自动总结或用户定名，omp 知识 #17）：`emit` 是 private，这里留的出口 */

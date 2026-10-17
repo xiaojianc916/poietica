@@ -8,7 +8,7 @@ import {
   type Interaction,
   type ModelRef,
 } from '@poietica/engine'
-import { AppError, type Disposable } from '@poietica/foundation'
+import { AppError, type Disposable, SystemErrorCode } from '@poietica/foundation'
 import { applyOps, emptyTimeline, pageFromState, type TranscriptPage } from '@poietica/transcript'
 import { z } from 'zod'
 import type { ScenarioStep } from './scenario'
@@ -492,6 +492,26 @@ export function runEngineConformance(name: string, make: () => Promise<Conforman
       const second = await session.page('main', 't2')
       expect(turnCount(second)).toBe(1)
       record.subscription.dispose()
+    })
+
+    /*
+     * C-SUBAGENT-UNKNOWN：子代理通道与后台作业的「不认识」口径。界面拿着的号可能是重开前的旧子代理、早已结束的作业：
+     * 停止答 false、分页交空页（都不抛，面板照样画得出来）；只有「引导」要如实报 subagent_not_running —— 那句话没送到，
+     * 静默吞掉就是撒谎。空文本先于一切报 invalid_params。
+     */
+    test('C-SUBAGENT-UNKNOWN', async () => {
+      const session = await openNew()
+      expect(await session.cancelSubagent('Nobody')).toBe(false)
+      expect(await session.cancelBackgroundTask('job:nobody')).toBe(false)
+      expect(await session.cancelBackgroundTask('Nobody')).toBe(false)
+      const page = await session.page('Nobody', null)
+      expect(turnCount(page)).toBe(0)
+      expect(page.hasMoreOlder).toBe(false)
+      const refused = await session.steerSubagent('Nobody', '换个思路').catch((error: unknown) => error)
+      expect(refused).toBeInstanceOf(AppError)
+      expect((refused as AppError).code).toBe(EngineErrorCode.subagentNotRunning)
+      const empty = await session.steerSubagent('Nobody', '   ').catch((error: unknown) => error)
+      expect((empty as AppError).code).toBe(SystemErrorCode.invalidParams)
     })
 
     /*

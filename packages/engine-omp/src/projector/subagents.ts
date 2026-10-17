@@ -176,6 +176,8 @@ export class SubagentLedger {
       kind: 'subagent',
       state,
       detached: frame.detached === true || previous?.detached === true,
+      /* 与生命周期那一支同一个号：进度帧先到时少了它，界面的「智能体」那一节就认不出这一行是哪个子代理 */
+      agentId: id,
       description: description ?? previous?.description ?? id,
       outputTail,
       startedAt: previous?.startedAt ?? iso(this.o.now()),

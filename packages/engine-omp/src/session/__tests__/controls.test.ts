@@ -68,6 +68,10 @@ function hostOf(over: Partial<OmpSessionHost> = {}): OmpSessionHost {
     runBuiltinCommand: async () => ({ kind: 'local' }),
     reseat: () => undefined,
     promptWithImages: async () => true,
+    /* 子代理 / 后台作业的控制：这一档用例不测它 */
+    cancelSubagent: async () => false,
+    steerSubagent: async () => undefined,
+    cancelBackgroundTask: async () => false,
     steer: async () => ({ wireText: '' }),
     abort: async () => undefined,
     disposeSession: async () => undefined,

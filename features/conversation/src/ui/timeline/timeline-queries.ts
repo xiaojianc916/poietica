@@ -5,7 +5,6 @@ import {
   type QuestionTimelineItem,
   type TimelineItem,
   type TimelineState,
-  type TodoItem,
   type ToolCallTimelineItem,
 } from '../shared/timeline/timeline-contract'
 import { sealedPageMemo } from './page-memo'
@@ -89,54 +88,6 @@ export function pendingInteractions(scope: WaitingScope): PendingInteractions {
   return found
 }
 
-/* 一页里最新的那份清单，倒着找。`live` 判一条还没完成的清单算不算数（在跑那一轮的实时预览）：失败的不算，没完成又不是实时预览的不算。 */
-function latestTodosIn(
-  items: readonly TimelineItem[],
-  live: (item: TimelineItem) => boolean,
-): readonly TodoItem[] | null {
-  for (let itemIndex = items.length - 1; itemIndex >= 0; itemIndex -= 1) {
-    const item = items[itemIndex]
-    if (item?.type !== 'tool_call' || item.kind !== 'todo' || item.status === 'failed') {
-      continue
-    }
-    if (item.status !== 'completed' && !live(item)) {
-      continue
-    }
-    const snapshot = item.requestContent.find((content) => content.type === 'todo')
-    if (snapshot !== undefined) {
-      return snapshot.items
-    }
-  }
-  return null
-}
-
-const NOT_LIVE = (): boolean => false
-
-/*
- * 已封口页里只认完成的清单：实时预览只属于在跑那一轮（`item.turn === active.turn`），而页里条目的 turn 就是页的 turn。
- * 页号撞上 active 的那种不走缓存，照原样现算 —— 判据因此与逐条判完全一致。
- */
-const settledTodosOf = sealedPageMemo((page) => latestTodosIn(page.items, NOT_LIVE))
-
-export function currentTodos(state: TimelineState): readonly TodoItem[] | null {
-  const live = (item: TimelineItem): boolean => item.turn === state.active.turn && selectIsBusy(state)
-  const fromActive = latestTodosIn(state.active.items, live)
-  if (fromActive !== null) {
-    return fromActive
-  }
-  for (let pageIndex = state.sealed.length - 1; pageIndex >= 0; pageIndex -= 1) {
-    const page = state.sealed[pageIndex]
-    if (page === undefined) {
-      continue
-    }
-    const found = page.turn === state.active.turn ? latestTodosIn(page.items, live) : settledTodosOf(page)
-    if (found !== null) {
-      return found
-    }
-  }
-  return null
-}
-
 const NO_STAMPS: readonly string[] = []
 
 function clientTurnIdsIn(items: readonly TimelineItem[]): readonly string[] {
@@ -165,16 +116,17 @@ export function clientTurnIdsOf(state: Pick<TimelineState, 'sealed' | 'active'>)
   return stamped
 }
 
-/** 时间线上的 delegate 调用：结清的只计数，还在跑的按出现顺序交回。 */
+/** 时间线上的 delegate 调用：结清的计数并按出现顺序留着（状态面板「已结束」展开后要画、要点得开），还在跑的按出现顺序交回。 */
 export interface DelegateCalls {
   readonly ended: number
+  readonly finished: readonly ToolCallTimelineItem[]
   readonly running: readonly ToolCallTimelineItem[]
 }
 
-const NO_DELEGATES: DelegateCalls = { ended: 0, running: [] }
+const NO_DELEGATES: DelegateCalls = { ended: 0, finished: [], running: [] }
 
 function delegateCallsIn(items: readonly TimelineItem[]): DelegateCalls {
-  let ended = 0
+  let finished: ToolCallTimelineItem[] | undefined
   let running: ToolCallTimelineItem[] | undefined
   for (const item of items) {
     if (item.type !== 'tool_call' || item.kind !== 'delegate') {
@@ -184,23 +136,26 @@ function delegateCallsIn(items: readonly TimelineItem[]): DelegateCalls {
       running ??= []
       running.push(item)
     } else {
-      ended += 1
+      finished ??= []
+      finished.push(item)
     }
   }
-  return ended === 0 && running === undefined ? NO_DELEGATES : { ended, running: running ?? [] }
+  return finished === undefined && running === undefined
+    ? NO_DELEGATES
+    : { ended: finished?.length ?? 0, finished: finished ?? [], running: running ?? [] }
 }
 
 const sealedDelegatesOf = sealedPageMemo((page) => delegateCallsIn(page.items))
 
 /** 这条时间轴上全部 delegate 调用（任务面板「智能体」那一节）。面板随时间线每帧重算，长对话里逐条扫一遍是每帧固定开销，所以已封口页按页记账。 */
 export function delegateCallsOf(state: Pick<TimelineState, 'sealed' | 'active'>): DelegateCalls {
-  let ended = 0
+  const finished: ToolCallTimelineItem[] = []
   const running: ToolCallTimelineItem[] = []
   for (const part of [...state.sealed.map(sealedDelegatesOf), delegateCallsIn(state.active.items)]) {
-    ended += part.ended
+    finished.push(...part.finished)
     running.push(...part.running)
   }
-  return { ended, running }
+  return { ended: finished.length, finished, running }
 }
 
 export function selectIsBusy(state: TimelineState): boolean {

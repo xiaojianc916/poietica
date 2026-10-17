@@ -543,3 +543,43 @@
     animation: none;
   }
 }
+
+/* 子代理一行：整行是按钮时去掉按钮自带的皮，悬停与普通行同色。 */
+.status-panel__agent {
+  list-style: none;
+}
+
+.status-panel__item--action {
+  inline-size: 100%;
+  border: 0;
+  background: transparent;
+  font: inherit;
+  font-size: var(--status-panel-font-size);
+  text-align: start;
+  cursor: pointer;
+}
+
+.status-panel__item--action:focus-visible {
+  outline: 2px solid var(--cp-accent);
+  outline-offset: -2px;
+}
+
+.status-panel__agent[data-status="running"] .status-panel__item {
+  color: var(--cp-ink);
+}
+
+.status-panel__ended-row {
+  border: 0;
+  background: transparent;
+  font: inherit;
+  text-align: start;
+  cursor: pointer;
+}
+
+.status-panel__ended-chevron {
+  transition: transform 120ms ease;
+}
+
+.status-panel__ended-chevron[data-open] {
+  transform: rotate(90deg);
+}

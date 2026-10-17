@@ -81,6 +81,15 @@ export function createConversationApi(ctx: UiFeatureContext) {
       threadId: string,
       modes: { steer?: QueueView['modes']['steer']; followUp?: QueueView['modes']['followUp'] },
     ): Promise<QueueView> => rpc.call('queue.setModes', { threadId, ...modes }),
+    /** 停一个子代理；false = 它已经不在运行（界面据此把行标成已结束，不报错） */
+    cancelSubagent: async (threadId: string, agentId: string): Promise<boolean> =>
+      (await rpc.call('subagents.cancel', { threadId, agentId })).cancelled,
+    /** 引导一个运行中的子代理；它已结束时抛 engine.subagent_not_running */
+    steerSubagent: (threadId: string, agentId: string, text: string): Promise<void> =>
+      rpc.call('subagents.steer', { threadId, agentId, text }).then(() => undefined),
+    /** 停一个后台作业（task 行 kind 为 shell / tool） */
+    cancelBackgroundTask: async (threadId: string, taskId: string): Promise<boolean> =>
+      (await rpc.call('backgroundTasks.cancel', { threadId, taskId })).cancelled,
     /** 入口那一格（还没有对话）的**草稿**控件表：带上还没落账的本地草稿、只读、不开会话；改默认走 setDraftDefaults。 */
     getDraftControls: (draft: {
       readonly model: ModelRef | null

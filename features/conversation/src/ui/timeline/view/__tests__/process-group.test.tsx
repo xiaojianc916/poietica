@@ -68,6 +68,7 @@ function thought(id: string, text: string): TimelineItem {
 function stateOf(items: readonly TimelineItem[], running = false): TimelineState {
   return {
     status: running ? 'running' : 'idle',
+    todos: [],
     backgroundTasks: [],
     subagents: [],
     sealed: [],

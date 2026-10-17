@@ -2,7 +2,7 @@
 
 // —— 模型与 op（src/model、src/ops）——
 export type { TranscriptAttachment } from './model/attachment'
-export type { TranscriptFrame, TranscriptSkillActivation } from './model/frame'
+export type { AgentRef, TranscriptFrame, TranscriptSkillActivation } from './model/frame'
 export type {
   AgentId,
   AttachmentId,
@@ -46,7 +46,7 @@ export { itemId } from './model/item'
 export type { TranscriptMeta, TranscriptMetaMerge } from './model/meta'
 export type { TranscriptPrompt } from './model/prompt'
 export type { TranscriptTask } from './model/task'
-export type { TranscriptTodo } from './model/todo'
+export type { TodoItem as TranscriptTodoItem, TranscriptTodo } from './model/todo'
 export type { SystemTrigger, TranscriptStep, TranscriptTurn, TranscriptUsage, TurnOrigin } from './model/turn'
 export { applyOperation, EMPTY_AGENT_STATE } from './ops/apply'
 export type {

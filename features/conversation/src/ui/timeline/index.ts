@@ -14,4 +14,11 @@ export {
   useAssistantTodos,
 } from './model/use-assistant-session'
 export { delegateCallsOf } from './timeline-queries'
+export { type AgentControls, AgentControlsContext, useAgentControls } from './view/agent-controls-context'
+export {
+  DelegateChannelContext,
+  type OpenDelegateChannel,
+  useDelegateChannel,
+  useOptionalDelegateChannel,
+} from './view/delegate-channel-context'
 export { TranscriptView } from './view/transcript-view'

@@ -12,6 +12,7 @@ export const EngineErrorCode = {
   goalUnavailable: 'engine.goal_unavailable',
   queueItemConsumed: 'engine.queue_item_consumed', // 这条排队项已经被 agent 取走，撤不回来了
   commandUnknown: 'engine.command_unknown', // 不是 omp 认识的斜杠命令（或是 GUI 宿主办不了的那几条）
+  subagentNotRunning: 'engine.subagent_not_running', // 子代理已经结束（或已被父轮收下结果），不能再引导
 } as const
 export type EngineErrorCode = (typeof EngineErrorCode)[keyof typeof EngineErrorCode]
 
@@ -28,4 +29,5 @@ export const engineErrorMessages: Readonly<Record<EngineErrorCode, string>> = Ob
   'engine.goal_unavailable': '目标模式已在 Agent 设置里关闭',
   'engine.queue_item_consumed': '这条消息已经交给 agent，撤不回来了',
   'engine.command_unknown': '没有这条命令',
+  'engine.subagent_not_running': '这个子代理已经结束了',
 })

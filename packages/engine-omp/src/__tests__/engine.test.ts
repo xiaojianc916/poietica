@@ -38,6 +38,9 @@ function stubSession(): EngineSession {
     commands: async () => [],
     runCommand: async () => undefined,
     interactions: () => [],
+    cancelSubagent: async () => false,
+    steerSubagent: async () => undefined,
+    cancelBackgroundTask: async () => false,
     respond: () => undefined,
     page: async () => ({
       items: [],

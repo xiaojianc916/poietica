@@ -1,4 +1,12 @@
-import { frameId, stepId, type TranscriptAttachment, type TranscriptOperation, turnId } from '@poietica/transcript'
+import {
+  type AgentRef,
+  frameId,
+  stepId,
+  type TranscriptAttachment,
+  type TranscriptOperation,
+  turnId,
+} from '@poietica/transcript'
+import { agentRefsOf } from './agent-refs'
 import { assistantFrameId, interjectionFrameId } from './frame-ids'
 import { GOAL_CONTINUATION_ORIGIN, type TurnOrigin, userOrigin } from './origin'
 
@@ -35,6 +43,12 @@ export function fileAttachmentOf(input: FileAttachmentInput): TranscriptAttachme
 }
 
 /** 工具帧降级时显示的正文（状态照实，正文换成这句；R-02） */
+/** 派发工具帧带上它派出去的子代理（agent-refs.ts）；其余工具不写这一格 */
+function refsOf(toolName: string, output: unknown): { readonly agentRefs?: readonly AgentRef[] } {
+  const agentRefs = agentRefsOf(toolName, output)
+  return agentRefs === undefined ? {} : { agentRefs }
+}
+
 export const TOOL_FALLBACK_TEXT = '这一步的内容无法显示（详情已写入日志）'
 
 interface Streaming {
@@ -416,6 +430,7 @@ export class LiveProjector {
           ...(args === undefined ? {} : { input: args }),
           ...(intent === undefined ? {} : { intent }),
           output: call.partial,
+          ...refsOf(call.toolName, call.partial),
         },
       },
     ]
@@ -450,6 +465,7 @@ export class LiveProjector {
           ...(intent === undefined ? {} : { intent }),
           output: call.result,
           ...(failed ? { error: textOf(call.result) } : {}),
+          ...refsOf(call.toolName, call.result),
         },
       },
     ]

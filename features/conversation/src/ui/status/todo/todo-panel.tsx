@@ -21,6 +21,7 @@ import {
   GitCommitHorizontal,
   Goal,
   Loader2,
+  Square,
   SquareTerminal,
 } from 'lucide-react'
 import { type ReactNode, useEffect, useMemo, useRef, useState } from 'react'
@@ -38,10 +39,13 @@ import type {
 } from '../../shared/timeline/timeline-contract'
 import {
   delegateCallsOf,
+  type OpenDelegateChannel,
+  useAgentControls,
   useAssistantBackgroundTasks,
   useAssistantSubagents,
   useAssistantTimeline,
   useAssistantTodos,
+  useOptionalDelegateChannel,
 } from '../../timeline'
 import './todo-panel.css'
 
@@ -127,41 +131,65 @@ export function backgroundTaskProgressLabel(tasks: readonly BackgroundTaskItem[]
 }
 
 /* 两个来源折成同一个形状：agent 自己报的生命周期帧（detached 子代理的唯一真相），以及时间线上的 delegate 调用（重开旧对话时总线上没有任何帧）。 */
-interface AgentRow {
+export interface AgentRow {
   readonly key: string
   readonly title: string
   readonly startedAt: number
+  /** 通道地址：有它这一行才点得开（右坞「子代理」标签）。只有一次没报出子代理的派发调用才缺席。 */
+  readonly agentId?: string
+  /** 终态行才有：已完成 / 失败 / 已停止 … 画在行尾。 */
+  readonly status?: BackgroundTaskStatus
+}
+
+const AGENT_STATUS_LABEL = BACKGROUND_STATUS_LABEL
+
+/* 一次 task 调用可以派出好几个子代理（channels 一条一个）：按通道拆行，每行各自点得开；还没报出通道的调用整条算一行。 */
+function delegateRows(call: ToolCallTimelineItem, status?: BackgroundTaskStatus): AgentRow[] {
+  const extra = status === undefined ? {} : { status }
+  if (call.channels.length === 0) {
+    return [{ key: call.toolCallId, title: call.title, startedAt: call.startedAt, ...extra }]
+  }
+  return call.channels.map((channel) => ({
+    key: `${call.toolCallId}:${channel.agentId}`,
+    title: channel.name === '' ? call.title : channel.name,
+    startedAt: call.startedAt,
+    agentId: channel.agentId,
+    ...extra,
+  }))
 }
 
 /* 有总线帧就用总线帧，否则退回 delegate 工具调用：两条都画会在屏幕上把同一个子代理列两遍。 */
-function agentRows(
+export function agentRows(
   subagents: readonly SubagentItem[],
-  delegates: { readonly ended: number; readonly running: readonly ToolCallTimelineItem[] },
-): { readonly ended: number; readonly running: readonly AgentRow[] } {
+  delegates: {
+    readonly finished: readonly ToolCallTimelineItem[]
+    readonly running: readonly ToolCallTimelineItem[]
+  },
+): { readonly ended: readonly AgentRow[]; readonly running: readonly AgentRow[] } {
   if (subagents.length === 0) {
     return {
-      ended: delegates.ended,
-      running: delegates.running.map((call) => ({
-        key: call.toolCallId,
-        title: call.title,
-        startedAt: call.startedAt,
-      })),
+      ended: delegates.finished.flatMap((call) =>
+        delegateRows(call, call.status === 'failed' ? 'failed' : 'completed'),
+      ),
+      running: delegates.running.flatMap((call) => delegateRows(call)),
     }
   }
 
   const running: AgentRow[] = []
-  let ended = 0
+  const ended: AgentRow[] = []
 
   for (const agent of subagents) {
+    const row = {
+      key: agent.agentId,
+      title: agent.description,
+      agentId: agent.agentId,
+      /* 启动时刻缺席时用 0：排序稳定；秒针会显示成很大的数，比丢行好。 */
+      startedAt: agent.startedAt ?? 0,
+    }
     if (agent.status === 'running') {
-      running.push({
-        key: agent.agentId,
-        title: agent.description,
-        /* 启动时刻缺席时用 0：排序稳定；秒针会显示成很大的数，比丢行好。 */
-        startedAt: agent.startedAt ?? 0,
-      })
+      running.push(row)
     } else {
-      ended += 1
+      ended.push({ ...row, status: agent.status })
     }
   }
 
@@ -427,63 +455,125 @@ function TodoSection({ separated, todos }: { readonly separated: boolean; readon
   )
 }
 
+/* 一行子代理：有通道地址又有出口时整行是按钮（打开右坞里它的标签），否则只是一行字。 */
+function AgentRowView({
+  agent,
+  now,
+  onOpen,
+}: {
+  readonly agent: AgentRow
+  readonly now: number
+  readonly onOpen?: OpenDelegateChannel | undefined
+}) {
+  const body = (
+    <>
+      <Bot aria-hidden className="status-panel__item-icon" />
+      <div className="status-panel__item-body">
+        <span className="status-panel__item-text" title={agent.title}>
+          {agent.title}
+        </span>
+        {agent.status === undefined ? (
+          <span className="status-panel__elapsed">{formatElapsed(now - agent.startedAt)}</span>
+        ) : null}
+      </div>
+      {agent.status === undefined ? null : (
+        <span className="status-panel__count" data-agent-status={agent.status}>
+          {AGENT_STATUS_LABEL[agent.status]}
+        </span>
+      )}
+    </>
+  )
+  const agentId = agent.agentId
+  return (
+    <li className="status-panel__agent" data-kind="agent" data-status={agent.status ?? 'running'}>
+      {agentId === undefined || onOpen === undefined ? (
+        <div className="status-panel__item status-panel__item--column">{body}</div>
+      ) : (
+        <button
+          className="status-panel__item status-panel__item--column status-panel__item--action"
+          data-agent-id={agentId}
+          onClick={() => onOpen(agentId, agent.title)}
+          title="在右侧打开这个子代理的对话"
+          type="button"
+        >
+          {body}
+        </button>
+      )}
+    </li>
+  )
+}
+
 function AgentsSection({
   agents,
-  endedCount,
+  ended,
+  onOpenAgent,
   separated,
 }: {
   readonly agents: readonly AgentRow[]
-  readonly endedCount: number
+  readonly ended: readonly AgentRow[]
+  readonly onOpenAgent?: OpenDelegateChannel | undefined
   readonly separated: boolean
 }) {
   /* hook 先于闸门：早退写在 hook 之前会让同一组件的 hook 顺序随数据变化，是 React 的硬错。 */
   const ticking = agents.length > 0
   const now = useSecond(ticking)
+  const [showEnded, setShowEnded] = useState(false)
   /* 子代理按启动先后排，投影本身无序。 */
   const ordered = useMemo(() => [...agents].sort((left, right) => left.startedAt - right.startedAt), [agents])
-  if (agents.length === 0 && endedCount <= 0) {
+  /* 已结束的倒过来：最近结束的在最上面。 */
+  const endedOrdered = useMemo(() => [...ended].sort((left, right) => right.startedAt - left.startedAt), [ended])
+  if (agents.length === 0 && ended.length === 0) {
     return null
   }
   const longest = ordered.reduce((carry, agent) => Math.max(carry, now - agent.startedAt), 0)
   return (
     <Section
       footer={
-        /* 终态子代理不占活动列表的位置，但入口必须留着。 */
-        endedCount > 0 ? (
+        /* 终态子代理不占活动列表的位置，但入口必须留着：点开就地展开，每一行照样点得开它的对话。 */
+        ended.length > 0 ? (
           <div className="status-panel__ended" data-separated={agents.length > 0 || undefined}>
-            <span className="status-panel__ended-row">
+            <button
+              aria-expanded={showEnded}
+              className="status-panel__ended-row"
+              data-agent-action="toggle-ended"
+              onClick={() => setShowEnded((held) => !held)}
+              type="button"
+            >
               <CheckCircle2 aria-hidden className="status-panel__item-icon" />
               <span className="status-panel__git-label">已结束</span>
-              <span className="status-panel__count">{endedCount}</span>
-              <ChevronRight aria-hidden className="status-panel__ended-chevron" />
-            </span>
+              <span className="status-panel__count">{ended.length}</span>
+              <ChevronRight aria-hidden className="status-panel__ended-chevron" data-open={showEnded || undefined} />
+            </button>
+            {showEnded ? (
+              <ul className="status-panel__list status-panel__scroll--agents" data-agent-list="ended">
+                {endedOrdered.map((agent) => (
+                  <AgentRowView agent={agent} key={agent.key} now={now} onOpen={onOpenAgent} />
+                ))}
+              </ul>
+            ) : null}
           </div>
         ) : null
       }
       separated={separated}
-      summary={() => (
-        <>
-          <span className="status-panel__elapsed">{formatDuration(longest / 1000)}</span>
-          <span aria-hidden className="status-panel__dot">
-            ·
-          </span>
-          <span className="status-panel__count">{agents.length} 运行</span>
-        </>
-      )}
+      summary={() =>
+        agents.length > 0 ? (
+          <>
+            <span className="status-panel__elapsed">{formatDuration(longest / 1000)}</span>
+            <span aria-hidden className="status-panel__dot">
+              ·
+            </span>
+            <span className="status-panel__count">{agents.length} 运行</span>
+          </>
+        ) : (
+          <span className="status-panel__count">{ended.length} 已结束</span>
+        )
+      }
       title="智能体"
       value="agents"
     >
       <ul className="status-panel__list">
         {ordered.map((agent) => (
-          <li className="status-panel__item status-panel__item--column" data-kind="agent" key={agent.key}>
-            <Bot aria-hidden className="status-panel__item-icon" />
-            <div className="status-panel__item-body">
-              <span className="status-panel__item-text" title={agent.title}>
-                {agent.title}
-              </span>
-              <span className="status-panel__elapsed">{formatElapsed(now - agent.startedAt)}</span>
-            </div>
-          </li>
+          <AgentRowView agent={agent} key={agent.key} now={now} onOpen={onOpenAgent} />
         ))}
       </ul>
     </Section>
@@ -503,9 +593,12 @@ function BackgroundStatusGlyph({ status }: { readonly status: BackgroundTaskStat
 }
 
 function TerminalsSection({
+  onStopTask,
   separated,
   tasks,
 }: {
+  /** 停一个运行中的后台作业；缺席（没有控制出口）时不画停止键。 */
+  readonly onStopTask?: ((taskId: string) => void) | undefined
   readonly separated: boolean
   readonly tasks: readonly BackgroundTaskItem[]
 }) {
@@ -538,6 +631,18 @@ function TerminalsSection({
                 <span className="status-panel__elapsed">{formatElapsed(now - task.startedAt)}</span>
               ) : null}
             </div>
+            {task.status === 'running' && onStopTask !== undefined ? (
+              <button
+                aria-label={`停止「${task.description}」`}
+                className="status-panel__icon-button"
+                data-task-action="stop"
+                onClick={() => onStopTask(task.taskId)}
+                title="停止"
+                type="button"
+              >
+                <Square aria-hidden className="status-panel__icon" />
+              </button>
+            ) : null}
           </li>
         ))}
       </ul>
@@ -547,15 +652,19 @@ function TerminalsSection({
 
 /* 面板 */
 
+const NO_AGENTS: readonly AgentRow[] = []
+
 export function TaskPanelContent({
   backgroundTasks,
-  endedAgents = 0,
+  endedAgents = NO_AGENTS,
   git,
   gitPicker,
   goal,
+  onOpenAgent,
   onOpenReview,
   onPauseGoal,
   onResumeGoal,
+  onStopTask,
   runningAgents,
   todos,
 }: {
@@ -566,13 +675,17 @@ export function TaskPanelContent({
   readonly onOpenReview?: (() => void) | undefined
   readonly onPauseGoal?: (() => void) | undefined
   readonly onResumeGoal?: (() => void) | undefined
-  readonly endedAgents?: number | undefined
+  /** 点「智能体」里的一行：在右坞打开那个子代理的对话。 */
+  readonly onOpenAgent?: OpenDelegateChannel | undefined
+  /** 后台任务行尾的停止键。 */
+  readonly onStopTask?: ((taskId: string) => void) | undefined
+  readonly endedAgents?: readonly AgentRow[] | undefined
   readonly runningAgents?: readonly AgentRow[]
   readonly todos: readonly TodoItem[]
 }) {
   const agents = runningAgents ?? []
   const showGoal = goal !== undefined && goal.status !== 'complete'
-  const showAgents = agents.length > 0 || endedAgents > 0
+  const showAgents = agents.length > 0 || endedAgents.length > 0
   /* Git 是工具而不是进展：只要目录是 git 工作区就恒画。 */
   const showGit = git !== undefined
 
@@ -623,8 +736,8 @@ export function TaskPanelContent({
         <GoalSection goal={goal} onPause={() => onPauseGoal?.()} onResume={() => onResumeGoal?.()} separated={false} />
       ) : null}
       <TodoSection separated={showGit || showGoal} todos={todos} />
-      {showAgents ? <AgentsSection agents={agents} endedCount={endedAgents} separated /> : null}
-      <TerminalsSection separated tasks={backgroundTasks} />
+      {showAgents ? <AgentsSection agents={agents} ended={endedAgents} onOpenAgent={onOpenAgent} separated /> : null}
+      <TerminalsSection onStopTask={onStopTask} separated tasks={backgroundTasks} />
     </Accordion>
   )
 }
@@ -653,6 +766,18 @@ export function TodoPanel({
   const agents = useMemo(() => agentRows(subagents, delegateCallsOf(timeline)), [subagents, timeline])
   /* Git 那一格的事实从 Context 读，不从 props 读：它由 review 贡献的 Provider 投下来，这样这一格与右侧「审查」面板读的是同一份快照，而这个组件不必认识 review。 */
   const git = useWorkspaceGitFacts()
+  const openAgent = useOptionalDelegateChannel() ?? undefined
+  const agentControls = useAgentControls()
+  const stopTask = useMemo(
+    () =>
+      agentControls === null
+        ? undefined
+        : (taskId: string) => {
+            /* 结果不另报：作业停下后引擎的下一次快照把它改成「已停止」；已经结束的交回 false，同样以快照为准。 */
+            void agentControls.cancelBackgroundTask(threadId, taskId).catch(() => undefined)
+          },
+    [agentControls, threadId],
+  )
 
   return (
     <TaskPanelContent
@@ -661,6 +786,7 @@ export function TodoPanel({
       git={git?.status}
       gitPicker={git?.picker}
       goal={goal}
+      onOpenAgent={openAgent}
       onOpenReview={onOpenReview}
       onPauseGoal={
         onPauseGoalProp ??
@@ -674,6 +800,7 @@ export function TodoPanel({
           void controls?.selectControl(threadId, GOAL_CONTROL_ID, GOAL_RESUMED)
         })
       }
+      onStopTask={stopTask}
       runningAgents={agents.running}
       todos={todos}
     />

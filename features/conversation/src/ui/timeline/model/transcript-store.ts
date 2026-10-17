@@ -736,6 +736,24 @@ export class TranscriptStore implements TranscriptSink {
     }
   }
 
+  /**
+   * 打开一条子代理通道（`对话号#子代理号`）：父对话先照常打开（绑会话），再整读这个子代理的 feed。
+   * 不走 `open`：`open` 把键当对话号，会给通道键另绑一份副本 —— 那份副本永远收不到子代理的 ops（路由按会话号回到父对话）。
+   * 已经整读过（`loaded`）的不再读：之后的增量随父对话的订阅按 agentId 分流进来。
+   */
+  openChannel = (key: string): void => {
+    const address = delegateAddress(key)
+    if (this.#disposed || address === null) {
+      return
+    }
+    this.open(address.conversation)
+    const owner = this.#owners.get(address.conversation)
+    if (owner === undefined || this.read(key).loaded) {
+      return
+    }
+    this.#observe(key, owner, owner.refresh(address.agentId))
+  }
+
   /** 「Core 即时回显」：一条提交记录到达（订阅快照、通知、或 submit 的回复）。只接受**更大的 rev**，旧的不覆盖新的。 */
   upsertSubmission = (threadId: string, view: SubmissionView): void => {
     if (this.#disposed) return

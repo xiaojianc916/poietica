@@ -28,7 +28,18 @@ const TimelineBatch = z.object({
 
 export const conversationContract = defineContract({
   id: 'conversation',
-  namespaces: ['threads', 'turns', 'timeline', 'queue', 'controls', 'interactions', 'submissions', 'commands'],
+  namespaces: [
+    'threads',
+    'turns',
+    'timeline',
+    'queue',
+    'controls',
+    'interactions',
+    'submissions',
+    'commands',
+    'subagents',
+    'backgroundTasks',
+  ],
   methods: [
     defineMethod({
       name: 'threads.list',
@@ -232,6 +243,27 @@ export const conversationContract = defineContract({
       }),
       result: QueueView,
       description: '把一条排队中的输入换到另一层（保留附件与技能）',
+    }),
+    defineMethod({
+      name: 'subagents.cancel',
+      owner: 'core',
+      params: z.object({ threadId: z.string().min(1), agentId: z.string().min(1) }),
+      result: z.object({ cancelled: z.boolean() }),
+      description: '停掉这条会话派出的一个子代理（父轮照常往下走）；它已不在运行时 cancelled=false',
+    }),
+    defineMethod({
+      name: 'subagents.steer',
+      owner: 'core',
+      params: z.object({ threadId: z.string().min(1), agentId: z.string().min(1), text: z.string().min(1) }),
+      result: z.object({}),
+      description: '以用户身份给一个运行中的子代理插一句话；它已结束时抛 engine.subagent_not_running',
+    }),
+    defineMethod({
+      name: 'backgroundTasks.cancel',
+      owner: 'core',
+      params: z.object({ threadId: z.string().min(1), taskId: z.string().min(1) }),
+      result: z.object({ cancelled: z.boolean() }),
+      description: '停掉一个后台作业（task 行 kind 为 shell / tool）；已结束或不认识时 cancelled=false',
     }),
     defineMethod({
       name: 'queue.setModes',

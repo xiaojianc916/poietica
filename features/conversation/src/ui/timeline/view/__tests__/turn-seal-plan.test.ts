@@ -68,6 +68,7 @@ function stateOf(
 
   return {
     status: running ? 'running' : 'idle',
+    todos: [],
     backgroundTasks: [],
     subagents: [],
     sealed: [],
@@ -101,6 +102,7 @@ describe('什么时候这一轮没有封条', () => {
   it('还没有运行事实（没有 run 字段）：整条不画', () => {
     const bare: TimelineState = {
       status: 'idle',
+      todos: [],
       backgroundTasks: [],
       subagents: [],
       sealed: [],

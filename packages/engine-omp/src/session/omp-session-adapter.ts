@@ -20,10 +20,12 @@ import { AppError, type Logger, SystemErrorCode, systemClock } from '@poietica/f
 import { InteractionBroker } from '../interactions/broker'
 import { planInteraction, planOutcomeOf } from '../interactions/plan'
 import { createUiContext } from '../interactions/ui-context'
+import { BackgroundJobLedger, jobIdOf } from '../projector/background-jobs'
 import { compactionEndPayload, latestCompactionOf } from '../projector/compaction'
 import { lastTurnOrdinal, type OmpMessage, projectHistoryPage } from '../projector/history'
 import { LiveProjector } from '../projector/live'
 import { SubagentLedger } from '../projector/subagents'
+import { TodoMirror } from '../projector/todos'
 import type { SettingsScope } from '../settings-access'
 import { toContextUsage } from './context-usage'
 import { describeError, EventFaults } from './event-faults'
@@ -51,6 +53,8 @@ import {
 } from './prompt'
 import { OmpSession } from './session'
 import { listSlashCommands, resolveSlashCommand, runBuiltinCommand } from './slash-commands'
+import { userTextOf } from './subagent-channels'
+import { createSubagentHost, type SubagentHost } from './subagent-host'
 
 type BreakdownSession = Parameters<typeof computeSessionContextBreakdown>[0]
 
@@ -144,7 +148,17 @@ interface OmpAgentSessionLike {
   subscribeCommandMetadataChanged?(listener: () => void): () => void
   sendPlanModeContext?(options?: { deliverAs?: 'steer' | 'followUp' | 'nextTurn' | 'aside' }): Promise<void>
   sendGoalModeContext?(options?: { deliverAs?: 'steer' | 'followUp' | 'nextTurn' | 'aside' }): Promise<void>
+  /** omp 的待办表（todo 工具维护的 TodoPhase[]）；形状由 projector/todos.ts 收窄 */
+  getTodoPhases?(): unknown
+  /** omp 的后台作业表（状态栏、/jobs 读的同一份）；作业管理器没开时是 null */
+  getAsyncJobSnapshot?(options?: { readonly recentLimit?: number }): unknown
+  cancelAsyncJob?(id: string): boolean
 }
+
+/** 有后台作业跑着时多久对一次账：omp 不为作业变化发事件，只能读快照（与它状态栏的刷新同一个量级） */
+const JOB_POLL_MS = 1000
+/** 快照里带几条已结作业：取大一点，刚结束的作业不至于在两次对账之间被挤出去、被误标成 lost */
+const JOB_RECENT_LIMIT = 50
 
 export interface WrapOmpSessionInput {
   readonly spec: OpenSessionSpec
@@ -185,6 +199,10 @@ export async function wrapOmpSession(input: WrapOmpSessionInput): Promise<Engine
   const projector = new LiveProjector({ now: () => systemClock.now() })
   const sessionKey = input.spec.key
   const ledger = new SubagentLedger({ now: () => systemClock.now() })
+  const todos = new TodoMirror(() => systemClock.now())
+  const jobs = new BackgroundJobLedger()
+  /* 子代理通道要往 ompSession 上发，而 ompSession 要用它答 page / 停止 / 引导：同 planner 一样先声明、后接上 */
+  let subagents: SubagentHost | null = null
   /*
    * omp 知识 #19：屏幕上的经过 = omp 的**显示经过**（压缩只在原处留一格摘要，前文都在），不是 `session.messages`：
    * 那是模型上下文，压缩之后只剩「摘要 + 保留的尾巴」（审查 R-21-1）。分页与落座必须读同一份，
@@ -333,11 +351,38 @@ export async function wrapOmpSession(input: WrapOmpSessionInput): Promise<Engine
       livePlanMode: () => planner.isPlanModeOn(),
       liveGoal: () => goalOf(session),
       liveGoalSnapshot: () => goalSnapshotOf(session),
-      page: async (_agentId, beforeTurnId, { openTurnShown }) =>
-        projectHistoryPage(transcriptOf(), beforeTurnId, {
+      page: async (agentId, beforeTurnId, { openTurnShown }) => {
+        if (agentId !== 'main') {
+          return subagents === null ? projectHistoryPage([], null) : await subagents.page(agentId, beforeTurnId)
+        }
+        const page = projectHistoryPage(transcriptOf(), beforeTurnId, {
           isTurnOpen: projector.isTurnOpen && !openTurnShown,
           openTurnAttachments: projector.openTurnAttachments,
-        }),
+        })
+        /*
+         * 子代理行、后台作业、待办只活在增量那条路上：整页不带它们，重订阅（切走再切回、Core 重启、补缺口）
+         * 之后状态弹窗里这几节就整片消失，要等下一帧增量才回来。它们是会话级的、不分页 —— 每一页都带同一份。
+         */
+        const current = todos.current
+        return {
+          ...page,
+          tasks: [...ledger.tasks, ...jobs.tasks],
+          todos: current === null ? [] : [current],
+        }
+      },
+      cancelSubagent: async (agentId) => (subagents === null ? false : await subagents.cancel(agentId)),
+      steerSubagent: async (agentId, text) => {
+        if (subagents === null) throw new AppError(EngineErrorCode.subagentNotRunning, '这个子代理已经结束了')
+        await subagents.steer(agentId, text)
+      },
+      cancelBackgroundTask: async (taskId) => {
+        const jobId = jobIdOf(taskId)
+        if (jobId === null || session.cancelAsyncJob === undefined) return false
+        const cancelled = session.cancelAsyncJob(jobId)
+        /* 立刻对一次账：面板上的「停止」要马上变成「已停止」，不等下一次轮询 */
+        refreshJobs()
+        return cancelled
+      },
       /*
        * omp 知识 #17：omp 的自动总结标题只由它的 input-controller 触发，而我们直接调 session.prompt，
        * 所以这里代它触发一次；omp 自己做低信号过滤与去重。
@@ -370,8 +415,50 @@ export async function wrapOmpSession(input: WrapOmpSessionInput): Promise<Engine
     faults: new EventFaults(input.logger, () => projector.turnOrdinal),
     latestCompaction: () => latestCompactionOf(transcriptOf()),
     logger: input.logger,
+    afterEvent: (type) => {
+      /*
+       * 待办与后台作业都没有自己的增量事件：todo 工具在 execute 里直接改 omp 的 phases，后台作业在
+       * AsyncJobManager 里跑。所以在「可能改过它们」的那几个点现读一次真身、去重后再发。
+       */
+      if (type === 'tool_execution_end' || type === 'todo_auto_clear' || type === 'agent_end') syncTodos()
+      if (type === 'tool_execution_end' || type === 'message_end' || type === 'agent_end') refreshJobs()
+    },
+  }
+  let closed = false
+  const syncTodos = (): void => {
+    if (closed || session.getTodoPhases === undefined) return
+    try {
+      ompSession.requestTimeline(todos.sync(session.getTodoPhases()))
+    } catch (error) {
+      input.logger.warn('todo sync failed', { error: describeError(error) })
+    }
+  }
+  let jobTimer: ReturnType<typeof setTimeout> | null = null
+  const refreshJobs = (): void => {
+    if (closed || session.getAsyncJobSnapshot === undefined) return
+    try {
+      const snapshot = session.getAsyncJobSnapshot({ recentLimit: JOB_RECENT_LIMIT })
+      /* null = 作业管理器没开：没有快照不等于作业都没了，不对账（否则会把跑着的全标成 lost） */
+      if (snapshot !== null && snapshot !== undefined) ompSession.requestTimeline(jobs.reconcile(snapshot))
+    } catch (error) {
+      input.logger.warn('background job sync failed', { error: describeError(error) })
+    }
+    if (jobTimer === null && jobs.hasRunning && !closed) {
+      const timer = setTimeout(() => {
+        jobTimer = null
+        refreshJobs()
+      }, JOB_POLL_MS)
+      /* 轮询不该吊住进程退出 */
+      timer.unref?.()
+      jobTimer = timer
+    }
   }
   const subscriptions = [
+    toSub(() => {
+      closed = true
+      if (jobTimer !== null) clearTimeout(jobTimer)
+      jobTimer = null
+    }),
     ompSession.attachBroker(),
     /* omp 知识 #17：回调**不带名字**（要自己读 getSessionName），订阅**没有回放** */
     toSub(
@@ -399,6 +486,20 @@ export async function wrapOmpSession(input: WrapOmpSessionInput): Promise<Engine
         }),
       ),
     )
+    const host = createSubagentHost({
+      bus: input.subagentBus,
+      now: () => systemClock.now(),
+      logger: input.logger,
+      emit: (agentId, ops) => ompSession.emitAgentTimeline(agentId, ops),
+      artifactsDir: () => session.sessionManager?.getArtifactsDir() ?? null,
+    })
+    subagents = host
+    subscriptions.push({
+      dispose: () => {
+        subagents = null
+        host.dispose()
+      },
+    })
   }
   ompSession.attach(subscriptions)
   // omp 知识 #6：hasUI + setToolUIContext + initializeExtensions 三者缺一不可
@@ -419,6 +520,9 @@ export async function wrapOmpSession(input: WrapOmpSessionInput): Promise<Engine
   const seededName = session.sessionManager?.getSessionName?.()
   if (typeof seededName === 'string' && seededName !== '')
     ompSession.emitSessionTitle(seededName, titleSourceOf(session))
+  /* 打开一条已有待办 / 作业的会话：先对一次账，弹窗不必等到下一次工具调用才出现 */
+  syncTodos()
+  refreshJobs()
   return ompSession
 }
 
@@ -452,16 +556,6 @@ function modelsOf(session: OmpAgentSessionLike): readonly {
   } catch {
     return []
   }
-}
-
-/** 用户消息正文里的文本 */
-function userTextOf(content: unknown): string {
-  if (typeof content === 'string') return content
-  if (!Array.isArray(content)) return ''
-  return (content as readonly { readonly type?: unknown; readonly text?: unknown }[])
-    .filter((block) => block.type === 'text' && typeof block.text === 'string')
-    .map((block) => block.text as string)
-    .join('\n')
 }
 
 function toSub(unsubscribe: () => void): { dispose(): void } {
@@ -763,6 +857,8 @@ interface EventPump {
   readonly latestCompaction: () => OmpMessage | undefined
   /** info 级 notice 与「重试成功」只落日志，不上屏 */
   readonly logger: Logger
+  /** 每条事件翻译完之后：现读待办 / 后台作业的真身（它们没有自己的增量事件） */
+  readonly afterEvent: (type: string) => void
 }
 
 const TOOL_EVENTS = new Set(['tool_execution_start', 'tool_execution_update', 'tool_execution_end'])
@@ -905,14 +1001,19 @@ function handleOmpEvent(event: Record<string, unknown>, pump: EventPump): void {
   }
   if (eventType === 'agent_end') {
     endTurn(pump)
-    return
+  } else {
+    try {
+      dispatchOmpEvent(event, pump)
+    } catch (error) {
+      const toolCallId = typeof event.toolCallId === 'string' ? event.toolCallId : null
+      pump.faults.report(eventType, error, toolCallId === null ? {} : { toolCallId })
+      if (TOOL_EVENTS.has(eventType) && toolCallId !== null) degradeTool(eventType, event, toolCallId, pump)
+    }
   }
   try {
-    dispatchOmpEvent(event, pump)
+    pump.afterEvent(eventType)
   } catch (error) {
-    const toolCallId = typeof event.toolCallId === 'string' ? event.toolCallId : null
-    pump.faults.report(eventType, error, toolCallId === null ? {} : { toolCallId })
-    if (TOOL_EVENTS.has(eventType) && toolCallId !== null) degradeTool(eventType, event, toolCallId, pump)
+    pump.faults.report(`${eventType}.side`, error)
   }
 }
 

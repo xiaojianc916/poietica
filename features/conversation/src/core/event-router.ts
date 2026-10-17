@@ -1,7 +1,7 @@
 import type { ContextUsage, Controls, EngineSessionEvent, Posture, UsageSample } from '@poietica/engine'
 import type { Clock } from '@poietica/foundation'
 import type { TranscriptOperation } from '@poietica/transcript'
-import type { QueueView, Thread, TurnState } from '../contract/entities'
+import { MAIN_AGENT_ID, type QueueView, type Thread, type TurnState } from '../contract/entities'
 import { conversationErrors } from '../contract/errors'
 import type { ThreadRow, ThreadsRepository } from './repository'
 import type { TimelineHub } from './timeline-hub'
@@ -91,7 +91,11 @@ export class EventRouter {
   onEvent(threadId: string, event: EngineSessionEvent): void {
     switch (event.type) {
       case 'timeline': {
-        const ops = this.attributeClientTurn(threadId, event.ops)
+        /*
+         * 只有主对话的轮认领提交号：子代理通道的 turnId 也是 t1、t2……从头数，与主对话撞号；
+         * 让它参与认领，子代理开第一轮就会抢走人刚发的那句话的号（提交行收错口、主轮拿不到 clientTurnId）。
+         */
+        const ops = event.agentId === MAIN_AGENT_ID ? this.attributeClientTurn(threadId, event.ops) : event.ops
         this.d.hub.push(threadId, event.agentId, ops)
         break
       }

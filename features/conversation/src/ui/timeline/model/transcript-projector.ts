@@ -11,6 +11,7 @@ import type {
   TranscriptInteraction,
   TranscriptMarker,
   TranscriptTask,
+  TranscriptTodo,
   TranscriptTurn,
   TurnOrigin,
 } from '@poietica/transcript'
@@ -30,6 +31,7 @@ import type {
   SubagentItem,
   TimelineItem,
   TimelineState,
+  TodoItem,
   ToolCallTimelineItem,
   TurnOutcome,
   TurnPage,
@@ -516,6 +518,20 @@ function answersBodyOf(interaction: QuestionInteraction): string | null {
   }
 
   return blocks.join('\n').trim()
+}
+
+const NO_TODOS: readonly TodoItem[] = []
+
+/*
+ * 一条会话可以有几份待办（端口允许多个 todoId），面板只画一张：取最近更新的那一份。
+ * 引用不变就交回同一个数组 —— 面板按引用判要不要重画，每次投影都 map 一份新的会让它每帧都重画。
+ */
+function latestTodoOf(todos: readonly TranscriptTodo[]): readonly TodoItem[] {
+  let latest: TranscriptTodo | undefined
+  for (const todo of todos) {
+    if (latest === undefined || (todo.updatedAt ?? '') >= (latest.updatedAt ?? '')) latest = todo
+  }
+  return latest === undefined || latest.items.length === 0 ? NO_TODOS : latest.items
 }
 
 const backgroundOf = (task: TranscriptTask): BackgroundTaskItem | null => {
@@ -1116,6 +1132,7 @@ export function projectTranscript(snapshot: AgentTranscriptSnapshot, memo: Proje
   const placed = { pages: placeCompactions(anchored.pages, snapshot.items), tail: anchored.tail }
   return {
     status,
+    todos: latestTodoOf(snapshot.todos),
     backgroundTasks: snapshot.tasks.map(backgroundOf).filter((item): item is BackgroundTaskItem => item !== null),
     subagents: snapshot.tasks.map(subagentOf).filter((item): item is SubagentItem => item !== null),
     sealed: stableSealed(placed.pages, memo),

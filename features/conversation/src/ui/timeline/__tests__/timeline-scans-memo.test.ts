@@ -73,6 +73,7 @@ test('Q4 delegateCallsOf：结清的计数、在跑的按顺序交回，封口�
   const calls = delegateCallsOf(stateOf([first.page], active))
 
   expect(calls.ended).toBe(2)
+  expect(calls.finished.map((call) => call.toolCallId)).toEqual(['a', 'd'])
   expect(calls.running.map((call) => call.toolCallId)).toEqual(['b', 'c'])
   expect(first.reads()).toBe(1)
 })

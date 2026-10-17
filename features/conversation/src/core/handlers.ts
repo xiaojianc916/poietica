@@ -87,13 +87,22 @@ export function registerHandlers(ctx: Ctx, core: ConversationCore, hub: Timeline
      */
     await turns.acquire(threadId)
     const pos = hub.position(threadId, agentId)
+    /*
+     * 提交号与提交行只属于主对话：子代理通道的 turnId 也从 t1 数起，按号盖章会把人的提交号盖到子代理的轮上，
+     * 提交行也会在子代理的屏幕上再冒一遍。
+     */
+    if (agentId !== MAIN_AGENT_ID) {
+      const page = await turns.page(threadId, agentId, null)
+      return wireSnapshot(page, pos.epoch, pos.seq, [])
+    }
     const page = submissions.stampPage(threadId, await turns.page(threadId, agentId, null))
     return wireSnapshot(page, pos.epoch, pos.seq, turns.submissionsOf(threadId, turnIdsOf(page)))
   })
   ctx.rpc.handle('timeline.unsubscribe', () => ({}))
-  ctx.rpc.handle('timeline.page', async ({ threadId, agentId, beforeTurnId }) =>
-    wirePage(submissions.stampPage(threadId, await turns.page(threadId, agentId, beforeTurnId))),
-  )
+  ctx.rpc.handle('timeline.page', async ({ threadId, agentId, beforeTurnId }) => {
+    const page = await turns.page(threadId, agentId, beforeTurnId)
+    return wirePage(agentId === MAIN_AGENT_ID ? submissions.stampPage(threadId, page) : page)
+  })
   ctx.rpc.handle('timeline.catchUp', ({ threadId, agentId, epoch, sinceSeq }) => {
     return wireCatchUp(hub.catchUp(threadId, agentId, epoch, sinceSeq))
   })
@@ -106,6 +115,17 @@ export function registerHandlers(ctx: Ctx, core: ConversationCore, hub: Timeline
       ...(followUp === undefined ? {} : { followUp }),
     }),
   )
+
+  ctx.rpc.handle('subagents.cancel', async ({ threadId, agentId }) => ({
+    cancelled: await turns.cancelSubagent(threadId, agentId),
+  }))
+  ctx.rpc.handle('subagents.steer', async ({ threadId, agentId, text }) => {
+    await turns.steerSubagent(threadId, agentId, text)
+    return {}
+  })
+  ctx.rpc.handle('backgroundTasks.cancel', async ({ threadId, taskId }) => ({
+    cancelled: await turns.cancelBackgroundTask(threadId, taskId),
+  }))
 
   ctx.rpc.handle('controls.draft', (p) => turns.draftControls(p))
   ctx.rpc.handle('controls.setDraft', async (p) => {
@@ -140,6 +160,5 @@ export function registerHandlers(ctx: Ctx, core: ConversationCore, hub: Timeline
     return {}
   })
 
-  void MAIN_AGENT_ID
   void AppError
 }

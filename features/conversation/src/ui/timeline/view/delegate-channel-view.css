@@ -1,0 +1,107 @@
+/* 子代理通道：标题条 + 转录 + 引导框。令牌都来自 [data-assistant-skin]。 */
+.delegate-channel__header {
+  display: flex;
+  flex: none;
+  min-inline-size: 0;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  border-block-end: 1px solid #333;
+  font-size: 13px;
+}
+
+.delegate-channel__icon {
+  inline-size: 14px;
+  block-size: 14px;
+  flex: none;
+  opacity: 0.6;
+}
+
+.delegate-channel__title {
+  min-inline-size: 0;
+  flex: 1 1 auto;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.delegate-channel__status {
+  flex: none;
+  color: var(--cp-ink-subtle);
+  font-size: 12px;
+}
+
+.delegate-channel__stop,
+.delegate-channel__send {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 8px;
+  border: 1px solid #4c4c4c;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--cp-ink);
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.delegate-channel__stop:hover:not(:disabled),
+.delegate-channel__send:hover:not(:disabled) {
+  background: var(--cp-hover);
+}
+
+.delegate-channel__stop:disabled,
+.delegate-channel__send:disabled {
+  cursor: default;
+  opacity: 0.5;
+}
+
+.delegate-channel__button-icon {
+  inline-size: 14px;
+  block-size: 14px;
+}
+
+.delegate-channel__body {
+  position: relative;
+  display: flex;
+  min-block-size: 0;
+  flex: 1 1 auto;
+  flex-direction: column;
+}
+
+.delegate-channel__notice {
+  flex: none;
+  margin: 0;
+  padding: 6px 12px;
+  color: var(--cp-diff-removed-text, #ff5c5c);
+  font-size: 12px;
+}
+
+.delegate-channel__steer {
+  display: flex;
+  flex: none;
+  align-items: flex-end;
+  gap: 8px;
+  padding: 8px 12px 12px;
+  border-block-start: 1px solid #333;
+}
+
+.delegate-channel__input {
+  min-inline-size: 0;
+  flex: 1 1 auto;
+  padding: 6px 8px;
+  border: 1px solid #4c4c4c;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--cp-ink);
+  font: inherit;
+  font-size: 13px;
+  resize: none;
+}
+
+.delegate-channel__input:focus-visible {
+  outline: 2px solid var(--cp-accent);
+  outline-offset: -1px;
+}

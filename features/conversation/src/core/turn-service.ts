@@ -1,13 +1,14 @@
-import type {
-  AgentEngine,
-  Controls,
-  EngineSession,
-  Interaction,
-  InteractionAnswer,
-  ModelRef,
-  Posture,
-  QueueSnapshot,
-  SlashCommand,
+import {
+  type AgentEngine,
+  type Controls,
+  EngineErrorCode,
+  type EngineSession,
+  type Interaction,
+  type InteractionAnswer,
+  type ModelRef,
+  type Posture,
+  type QueueSnapshot,
+  type SlashCommand,
 } from '@poietica/engine'
 import type { AttachmentsService } from '@poietica/feature-attachments/core-api'
 import type { WorkspacesService } from '@poietica/feature-workspaces/core-api'
@@ -160,6 +161,25 @@ export class TurnService {
     if (session === undefined) throw new AppError(SystemErrorCode.notFound, '队列里没有这一项')
     await session.moveQueued(itemId, deliverAs)
     return this.queueViewOf(threadId, session)
+  }
+
+  // ── 子代理与后台作业（状态弹窗 / 子代理标签页的停止与引导）────────────────────────
+  /*
+   * 与撤回同一条理由：跑着的子代理、后台作业只活在活会话里（peek 不 acquire）—— 为停一个子代理去冷启动会话，
+   * 冷启动出来的会话里它一定已经不在跑了。没有活会话就是「它已经结束了」。
+   */
+  async cancelSubagent(threadId: string, agentId: string): Promise<boolean> {
+    return (await this.d.pool.peek(threadId)?.cancelSubagent(agentId)) ?? false
+  }
+
+  async steerSubagent(threadId: string, agentId: string, text: string): Promise<void> {
+    const session = this.d.pool.peek(threadId)
+    if (session === undefined) throw new AppError(EngineErrorCode.subagentNotRunning, '这个子代理已经结束了')
+    await session.steerSubagent(agentId, text)
+  }
+
+  async cancelBackgroundTask(threadId: string, taskId: string): Promise<boolean> {
+    return (await this.d.pool.peek(threadId)?.cancelBackgroundTask(taskId)) ?? false
   }
 
   async setQueueModes(threadId: string, modes: Partial<QueueSnapshot['modes']>): Promise<QueueView> {

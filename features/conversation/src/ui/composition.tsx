@@ -9,7 +9,8 @@ import { SessionControlsContext } from './session/configuration/session-controls
 import { SessionControlsStore } from './session/configuration/session-controls-store'
 import type { TranscriptStore } from './timeline/model/transcript-store'
 import { TranscriptsContext } from './timeline/model/transcripts-context'
-import { DelegateChannelContext } from './timeline/view/delegate-channel-context'
+import { type AgentControls, AgentControlsContext } from './timeline/view/agent-controls-context'
+import { DelegateChannelContext, type OpenDelegateChannel } from './timeline/view/delegate-channel-context'
 
 /*
  * 组合根：把组件树要的每个 Context 接上。加号面板那张名册（技能 / MCP）**不在这里造**
@@ -21,10 +22,14 @@ export interface ConversationProvidersProps {
   readonly transcripts: TranscriptStore
   /** 批准方式的持久意图；两台 store（入口与单条对话）共用同一份。 */
   readonly posture?: PostureIntent | undefined
-  readonly onOpenDelegateChannel?: ((agentId: string) => void) | undefined
+  /** 点子代理（工具卡上的通道、状态面板的「智能体」行）时打开它的通道；缺席即不可开。 */
+  readonly onOpenDelegateChannel?: OpenDelegateChannel | undefined
+  /** 子代理 / 后台作业的取消与引导出口（ConversationApi 本身即满足）；缺席时这些控件画成不可用。 */
+  readonly agentControls?: AgentControls | undefined
 }
 
 export function ConversationProviders({
+  agentControls,
   children,
   onOpenDelegateChannel,
   posture,
@@ -36,7 +41,10 @@ export function ConversationProviders({
     () => new SessionControlsStore({ ...(posture === undefined ? {} : { posture }), transcripts }),
     [posture, transcripts],
   )
-  const openDelegate = useMemo(() => onOpenDelegateChannel ?? (() => undefined), [onOpenDelegateChannel])
+  const openDelegate = useMemo<OpenDelegateChannel>(
+    () => onOpenDelegateChannel ?? (() => undefined),
+    [onOpenDelegateChannel],
+  )
 
   /*
    * 贡献按 order 从外到内套在树上；一个都没有时留一个 null Context —— 输入框据此退化成
@@ -68,7 +76,9 @@ export function ConversationProviders({
       <ComposerDraftsContext value={drafts}>
         <SessionControlsContext value={sessionControls}>
           <DelegateChannelContext value={openDelegate}>
-            <AttachmentIntakeContext value={null}>{provided}</AttachmentIntakeContext>
+            <AgentControlsContext value={agentControls ?? null}>
+              <AttachmentIntakeContext value={null}>{provided}</AttachmentIntakeContext>
+            </AgentControlsContext>
           </DelegateChannelContext>
         </SessionControlsContext>
       </ComposerDraftsContext>

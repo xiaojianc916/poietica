@@ -35,13 +35,15 @@ import { createThreadSurfaceOpener, useThreadSessionLifecycle } from '../threads
 import { AssistantThreadList } from '../threads/view/assistant-thread-list'
 import { NewConversationNavRow } from '../threads/view/new-conversation-nav-row'
 import { ARCHIVED_FILTER, type ArchivedFilter } from '../threads/view/thread-view'
+import { openSubagentTab } from '../timeline/view/subagent-dock'
 import type { ConversationActions } from './actions'
 import type { ConversationSetup } from './context'
 import { useRunningThreadIds } from './use-running-thread-ids'
 
 /** 界面、侧栏、面板等贡献。 */
 export function createConversationContributions(setup: ConversationSetup, actions: ConversationActions): void {
-  const { api, ctx, entryDefaults, layout, posture, prefs, sessions, stores, transcripts, workspaces } = setup
+  const { api, ctx, entryDefaults, layout, posture, prefs, sessions, stores, subagentTabs, transcripts, workspaces } =
+    setup
   const { archived, collapsed, exportThread, newThread, openThread, showArchived, todoThread } = actions
   /* 线程表面挂载 / 换对话时预热会话并主动问一次控件表（审查 R-19-4，判据见 thread-lifecycle.ts）。setup 级的稳定引用：它进了 effect 依赖。 */
   const openThreadSurface = createThreadSurfaceOpener({
@@ -282,8 +284,18 @@ export function createConversationContributions(setup: ConversationSetup, action
       useEffect(() => {
         prefills.delete(threadId)
       }, [threadId])
+      /* 点子代理（工具卡上的通道、状态面板的「智能体」行）= 在右坞开它的标签：引用跟着对话号走，不让 Context 每帧换值。 */
+      const openDelegateChannel = useMemo(
+        () => (agentId: string, title?: string) => openSubagentTab(layout, subagentTabs, threadId, agentId, title),
+        [threadId],
+      )
       return (
-        <ConversationProviders posture={posture} transcripts={transcripts}>
+        <ConversationProviders
+          agentControls={api}
+          onOpenDelegateChannel={openDelegateChannel}
+          posture={posture}
+          transcripts={transcripts}
+        >
           <ActiveOwner layout={layout} owner={threadId} />
           <AssistantSurface
             {...(session === undefined ? {} : { session })}

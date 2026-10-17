@@ -5,7 +5,7 @@ import type { ConversationSetup } from './context'
 
 /** 各条 `api.on…` 通知订阅，以及 onCoreLost / onCoreReady。 */
 export function createConversationSubscriptions(setup: ConversationSetup, actions: ConversationActions): void {
-  const { api, ctx, entryDefaults, platform, preferences, posture, sessions, stores, transcripts } = setup
+  const { api, ctx, entryDefaults, platform, preferences, posture, sessions, stores, subagentTabs, transcripts } = setup
   const { draftPin, notify, openThread } = actions
 
   ctx.lifecycle.onDispose(
@@ -39,6 +39,8 @@ export function createConversationSubscriptions(setup: ConversationSetup, action
       /* 两者各管一半（store 退订阅、注册表丢对象），必须从同一个入口发起 —— 少发一处就是「一边忘了一边还记得」的半状态。 */
       transcripts.forget(p.threadId)
       sessions.release(p.threadId)
+      /* 右坞的子代理标签按对话号记账：对话没了，它们也没有可读的转录了。 */
+      subagentTabs.forget(p.threadId)
     }).dispose,
   )
   /*
