@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, test } from 'bun:test'
-import { mkdtempSync, rmSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { EngineErrorCode } from '@poietica/engine'
@@ -36,17 +36,37 @@ describe('SessionFilesPort', () => {
     expect(await port.exists(path.join(sessions, 'nope.jsonl'))).toBe(false)
   })
 
-  /* omp 知识 #14：会话文件在首次水合之后才落盘，所以四个动作用之前都要 exists 校验。 */
-  test('fork / exportHtml / exportMarkdown / delete 对不存在的文件抛 session_file_missing', async () => {
+  /* omp 知识 #14：会话文件在首次水合之后才落盘，所以这三个动作用之前都要 exists 校验（delete 是「确保不存在」，见下）。 */
+  test('fork / exportHtml / exportMarkdown 对不存在的文件抛 session_file_missing', async () => {
     const { port, sessions, workspace } = makePort()
     const missing = path.join(sessions, 'missing.jsonl')
     const missingCode = EngineErrorCode.sessionFileMissing
     await expect(port.fork(missing)).rejects.toMatchObject({ code: missingCode })
-    await expect(port.delete(missing)).rejects.toMatchObject({ code: missingCode })
     await expect(port.exportHtml(missing, path.join(workspace, 'out.html'))).rejects.toMatchObject({
       code: missingCode,
     })
     await expect(port.exportMarkdown(missing)).rejects.toMatchObject({ code: missingCode })
+  })
+
+  /*
+   * 真实故障：没得到过一条回复的对话在 omp 那里从没落过盘，原先 delete 先校验存在、抛 session_file_missing，
+   * 归档页上那一条就永远「删除失败，请重试。」。删除的语义是「确保不存在」：幂等，残留的产物目录照样清掉。
+   */
+  test('delete 是幂等的：文件不在也成功，残留的产物目录一并清掉；连删两次也成功', async () => {
+    const { port, sessions } = makePort()
+    const missing = path.join(sessions, 'never-written.jsonl')
+    const artifacts = path.join(sessions, 'never-written')
+    mkdirSync(artifacts, { recursive: true })
+    writeFileSync(path.join(artifacts, 'blob.bin'), 'x')
+    await port.delete(missing)
+    expect(existsSync(artifacts)).toBe(false)
+    await port.delete(missing)
+
+    const file = path.join(sessions, '2026-01-02_def.jsonl')
+    writeSession(file, 'def')
+    await port.delete(file)
+    await port.delete(file)
+    expect(await port.exists(file)).toBe(false)
   })
 
   test('delete 删掉文件与它的产物目录', async () => {

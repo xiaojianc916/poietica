@@ -1,9 +1,10 @@
 import { describe, expect, test } from 'bun:test'
+import { EngineErrorCode } from '@poietica/engine'
 import { createFakeEngine, type FakeEngine, type ScenarioScript } from '@poietica/engine-testkit'
 import type { AttachmentsService } from '@poietica/feature-attachments/core-api'
 import type { Workspace } from '@poietica/feature-workspaces/contract'
 import type { WorkspacesService } from '@poietica/feature-workspaces/core-api'
-import { createId, systemClock } from '@poietica/foundation'
+import { AppError, createId, systemClock } from '@poietica/foundation'
 import { openDatabase } from '@poietica/storage-sqlite'
 import { createTestLogger, tempDir, waitFor } from '@poietica/test-kit'
 import type { TranscriptOperation } from '@poietica/transcript'
@@ -1017,6 +1018,72 @@ describe('conversation core（不经内核的直连测试）', () => {
  * `core.threads` / `core.turns` / `core.submissions`，所以这三个属性必须是活的对象；
  * 反过来，谁再往门面上加一个纯转发方法，这里就会红 —— 那正是这条审查要防的。
  */
+/*
+ * 真实故障：归档里一部分对话怎么都删不掉（「删除失败，请重试。」）。删除要动两处存储 —— 库里的行与 omp 的会话文件，
+ * 原先先删文件再删行，文件那一步一抛（omp 从没落过盘 → session_file_missing），行就永远删不掉。
+ */
+describe('删除与会话文件回收（先记账，后动手）', () => {
+  test('会话文件删不掉时线程照样删掉：行没了、threads.removed 发出、文件留在回收队列；重试后出队', async () => {
+    const { core, engine, removed, released, dir, db } = await makeCore()
+    const row = core.threads.create({ workspaceId: 'ws1' })
+    await submit(core, row.id, 'hi')
+    await new Promise((r) => setTimeout(r, 30))
+    const file = core.threads.row(row.id)!.sessionFile!
+
+    const files = engine.sessionFiles as { delete: (file: string) => Promise<void> }
+    const realDelete = files.delete
+    files.delete = async () => {
+      throw new AppError(EngineErrorCode.sessionFileMissing, `会话文件不存在：${file}`)
+    }
+    await core.threads.delete(row.id)
+    expect(core.threads.row(row.id)).toBeNull()
+    expect(removed).toContain(row.id)
+    expect(released).toContain(`conversation:thread:${row.id}`)
+    const queued = db
+      .forModule('conversation')
+      .prepare<{ session_file: string; attempts: number }>('SELECT session_file, attempts FROM conversation_reclaim')
+      .all()
+    expect(queued).toEqual([{ session_file: file, attempts: 1 }])
+
+    /* 下次启动：回收队列重试 */
+    files.delete = realDelete
+    expect(await core.threads.reclaimPending()).toEqual({ reclaimed: 1, failed: 0 })
+    expect(await engine.sessionFiles.exists(file)).toBe(false)
+    expect(db.forModule('conversation').prepare('SELECT session_file FROM conversation_reclaim').all()).toEqual([])
+
+    await core.dispose()
+    db.close()
+    await dir.dispose()
+  })
+
+  test('启动对账：行上绑着、文件却不在的线程解绑，回到「还没有会话」；文件在的不动', async () => {
+    const { core, dir, db } = await makeCore()
+    const ghost = core.threads.create({ workspaceId: 'ws1' })
+    /* 升级前留下的坏账：会话一打开就绑了路径，omp 却从没落过盘 */
+    db.forModule('conversation')
+      .prepare('UPDATE conversation_threads SET session_id = ?, session_file = ? WHERE id = ?')
+      .run('never', `${dir.path}/never-written.jsonl`, ghost.id)
+    const real = core.threads.create({ workspaceId: 'ws1' })
+    await submit(core, real.id, 'hi')
+    await new Promise((r) => setTimeout(r, 30))
+    const realFile = core.threads.row(real.id)!.sessionFile
+    expect(realFile).not.toBeNull()
+
+    expect(await core.threads.reconcileSessionFiles()).toEqual({ unbound: 1 })
+    expect(core.threads.row(ghost.id)!.sessionFile).toBeNull()
+    expect(core.threads.row(ghost.id)!.sessionId).toBeNull()
+    expect(core.threads.row(real.id)!.sessionFile).toBe(realFile)
+
+    /* 解绑之后照常删得掉 */
+    await core.threads.delete(ghost.id)
+    expect(core.threads.row(ghost.id)).toBeNull()
+
+    await core.dispose()
+    db.close()
+    await dir.dispose()
+  })
+})
+
 describe('R-08-7: 门面的形状', () => {
   test('三份服务可从门面直接取到，且是同一批实例（跨服务的惰性闭包还接得上）', async () => {
     const { core, dir, db } = await makeCore()

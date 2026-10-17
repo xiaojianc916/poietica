@@ -100,6 +100,18 @@ export default defineCoreModule({
       }),
     )
 
+    /*
+     * 启动对账（会话池还没开过任何会话，UI 的请求要等 core.ready）：
+     * 1. 行上绑着、文件却不在的 —— 解绑，回到「还没有会话」（升级前留下的坏账，见 reconcileSessionFiles）；
+     * 2. 回收队列里上次没删掉的会话文件 —— 再删一遍，不阻塞启动。
+     */
+    ctx.lifecycle.onReady(async () => {
+      await core.threads.reconcileSessionFiles()
+      void core.threads.reclaimPending().catch((err: unknown) => {
+        ctx.logger.warn('session file reclaim failed', { error: String(err) })
+      })
+    })
+
     // 会话池与 hub 的释放都是异步/有序的：模块的 onShutdown 里逐个做
     ctx.lifecycle.onShutdown(async () => {
       hub.dispose()

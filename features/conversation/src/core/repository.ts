@@ -51,6 +51,8 @@ export interface ThreadsRepository {
   update(id: string, patch: Partial<Omit<ThreadRow, 'id'>>): void
   delete(id: string): void
   listByWorkspace(workspaceId: string): ThreadRow[]
+  /** 绑着会话文件的那些行（启动对账用：行上的路径必须真有文件） */
+  listBound(): Array<{ readonly id: string; readonly sessionFile: string }>
 }
 
 const COLUMNS = `id, workspace_id, title, title_source, posture, origin, session_id, session_file,
@@ -181,6 +183,14 @@ export function createThreadsRepository(db: ModuleDatabase): ThreadsRepository {
         )
         .all(workspaceId)
         .map(toRow)
+    },
+    listBound() {
+      return db
+        .prepare<{ id: string; session_file: string }>(
+          'SELECT id, session_file FROM conversation_threads WHERE session_file IS NOT NULL',
+        )
+        .all()
+        .map((r) => ({ id: r.id, sessionFile: r.session_file }))
     },
   }
 }

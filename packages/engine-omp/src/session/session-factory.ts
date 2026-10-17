@@ -14,7 +14,10 @@ export interface SessionFactoryOptions {
   readonly createAgentSession: (options: Record<string, unknown>) => Promise<Record<string, unknown>>
   /** omp 的 SessionManager */
   readonly sessionManager: {
-    create(cwd: string, sessionDir?: string): { getSessionId(): string; getSessionFile(): string | undefined }
+    create(
+      cwd: string,
+      sessionDir?: string,
+    ): { getSessionId(): string; getSessionFile(): string | undefined; ensureOnDisk?(): Promise<void> }
     open(file: string, sessionDir?: string): Promise<{ getSessionId(): string; getSessionFile(): string | undefined }>
   }
   readonly authStorage: unknown
@@ -105,7 +108,7 @@ export class SessionFactory {
     if (typeof setToolUIContext !== 'function') {
       throw new AppError(SystemErrorCode.internal, 'no setToolUIContext in the result of createAgentSession')
     }
-    return await this.o.wrapSession({
+    const session = await this.o.wrapSession({
       spec,
       settings,
       manager,
@@ -116,6 +119,28 @@ export class SessionFactory {
       created,
       model,
     })
+    if (spec.sessionFile === null) await this.materialize(manager, session)
+    return session
+  }
+
+  /**
+   * 新会话建好就落盘（omp `SessionManager.ensureOnDisk`，ACP 的 session/new 同此处理）。
+   *
+   * omp 默认要等到**第一条助手回复**才写文件（omp 知识 #14），但 Core 在会话打开那一刻就把签发的路径绑到线程行上。
+   * 两者之间的窗口里出任何事 —— 上游报错、用户取消、只改了设置、空闲驱逐 —— 行里就留下一个永远不会出现的文件：
+   * 之后再打开报 session_file_missing，删除也删不掉（真实故障）。在这里落盘，换来一条不变量：**行上绑着的路径，文件一定在**。
+   * 副作用只有一个空会话头（与 omp 自己 ACP 那一支一致），用户那句话即使没得到回复也留在了文件里。
+   */
+  private async materialize(manager: unknown, session: EngineSession): Promise<void> {
+    const ensure = (manager as { ensureOnDisk?: () => Promise<void> }).ensureOnDisk
+    if (typeof ensure !== 'function') return
+    try {
+      await ensure.call(manager)
+    } catch (error) {
+      /* 落不了盘就不交出这条会话：交出去就是一条「绑了路径、没有文件」的行 */
+      await session.dispose().catch(() => undefined)
+      throw error
+    }
   }
 
   private async openManager(spec: OpenSessionSpec): Promise<unknown> {

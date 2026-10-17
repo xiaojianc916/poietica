@@ -1,4 +1,4 @@
-import { mkdir, stat } from 'node:fs/promises'
+import { mkdir, rm, stat } from 'node:fs/promises'
 import path from 'node:path'
 import { exportFromFile } from '@oh-my-pi/pi-coding-agent/export/html'
 import type { SessionEntry } from '@oh-my-pi/pi-coding-agent/session/session-entries'
@@ -21,9 +21,9 @@ export interface SessionFilesPortDeps {
 
 /**
  * 会话文件端口。omp 的会话文件在**首次水合之后**才落盘（omp 知识 #14）：
- * SessionManager.create 只签发号，文件要到第一条消息才出现。所以 fork / export / delete
+ * SessionManager.create 只签发号，文件要到第一条消息才出现。所以 fork / rename / export
  * 一律先 exists 校验，不存在时报 engine.session_file_missing —— 不把一个刚签发、还没落盘的
- * 会话当成丢了。
+ * 会话当成丢了。delete 例外：它的语义是「确保不存在」，文件本来就不在即为成功（见 delete）。
  */
 export class OmpSessionFilesPort implements SessionFilesPort {
   constructor(private readonly d: SessionFilesPortDeps) {}
@@ -82,13 +82,25 @@ export class OmpSessionFilesPort implements SessionFilesPort {
     }
   }
 
+  /**
+   * 删除是「确保不存在」，**幂等**：文件已经不在（omp 从没落过盘的会话、上一次删到一半、用户手动清过目录）
+   * 也照样把产物目录清掉并报成功。原先先 requireFile、不存在就抛 session_file_missing：没得到过一条回复的
+   * 对话在 omp 那里根本没有文件，于是永远删不掉（真实故障：归档页「删除失败，请重试。」怎么点都一样）。
+   * 与 omp 自己的 `SessionManager.dropSession` 同一条规矩（ENOENT 视为成功）。
+   */
   async delete(sessionFile: string): Promise<void> {
     try {
-      await this.requireFile(sessionFile)
       /* 文件与它的产物目录一起删；omp 自己的选择器同此处理。 */
       await new FileSessionStorage().deleteSessionWithArtifacts(sessionFile)
     } catch (error) {
-      throw toEngineError(error)
+      if (!isMissing(error)) throw toEngineError(error)
+      /* 文件不在：omp 那一步在 unlink 上就停了，产物目录（`<name>.jsonl` → `<name>/`）照它的拼法补删 */
+      try {
+        const artifacts = artifactsDirOf(sessionFile)
+        if (artifacts !== null) await rm(artifacts, { recursive: true, force: true })
+      } catch (cleanup) {
+        throw toEngineError(cleanup)
+      }
     }
   }
 
@@ -199,4 +211,13 @@ function produces(entry: SessionEntry, message: OmpMessage): boolean {
  */
 function markdownOf(messages: readonly unknown[]): string {
   return formatSessionHistoryMarkdown([...messages], { title: '会话' })
+}
+
+/** omp `FileSessionStorage.deleteSessionWithArtifacts` 的产物目录拼法：去掉 `.jsonl`；不是会话文件就不猜 */
+function artifactsDirOf(sessionFile: string): string | null {
+  return sessionFile.endsWith('.jsonl') ? sessionFile.slice(0, -'.jsonl'.length) : null
+}
+
+function isMissing(error: unknown): boolean {
+  return (error as NodeJS.ErrnoException | null)?.code === 'ENOENT'
 }

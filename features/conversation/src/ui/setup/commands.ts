@@ -4,7 +4,7 @@ import type { ConversationActions } from './actions'
 import type { ConversationSetup } from './context'
 
 export function createConversationCommands(setup: ConversationSetup, actions: ConversationActions): void {
-  const { api, ctx, dialogs, prefs, stores } = setup
+  const { api, ctx, dialogs, prefs, stores, toasts } = setup
   const { activeThreadId, exportThread, newThread, openThread } = actions
 
   const command = (id: string, title: string, run: () => void): void => {
@@ -32,7 +32,12 @@ export function createConversationCommands(setup: ConversationSetup, actions: Co
     const thread = current === null ? undefined : stores.threads.byId(current)
     if (thread === undefined) return
     void confirmDeleteThread(dialogs, prefs.current().general.confirmBeforeDelete, thread).then((ok) => {
-      if (ok) void api.deleteThread(thread.id)
+      if (!ok) return
+      /* 失败要看得见、查得到：原先 `void` 一丢，删不掉时既没有提示也没有日志 */
+      void api.deleteThread(thread.id).catch((cause: unknown) => {
+        ctx.logger.warn('thread delete failed', { threadId: thread.id, error: String(cause) })
+        toasts.error(cause)
+      })
     })
   })
   command('conversation.forkThread', '分支对话', () => {

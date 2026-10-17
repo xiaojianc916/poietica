@@ -53,6 +53,9 @@ const WORKSPACE = {
 
 const calls: Array<{ method: string; params: unknown }> = []
 
+/** 按方法回错误（JSON-RPC error 对象里带 AppError 的 code / message，与 rpc peer 的 toErrorObject 同形） */
+let failures: Readonly<Record<string, { readonly code: string; readonly message: string }>> = {}
+
 function testBridge(): WindowBridge {
   const listeners = new Set<(m: RpcMessage) => void>()
   calls.length = 0
@@ -79,9 +82,16 @@ function testBridge(): WindowBridge {
       if ('id' in message && typeof message.id === 'number' && 'method' in message) {
         const id = message.id
         calls.push({ method: message.method as string, params: message.params })
+        const failure = failures[message.method as string]
         const result = replies[message.method as string] ?? {}
         queueMicrotask(() => {
-          for (const l of [...listeners]) l({ jsonrpc: '2.0', id, result })
+          for (const l of [...listeners]) {
+            l(
+              failure === undefined
+                ? { jsonrpc: '2.0', id, result }
+                : { jsonrpc: '2.0', id, error: { code: -32000, message: failure.message, data: failure } },
+            )
+          }
         })
       }
     },
@@ -104,6 +114,7 @@ describe('设置 · 已归档页', () => {
     })
     root = null
     document.body.innerHTML = ''
+    failures = {}
   })
 
   async function mountSettings(): Promise<{ host: HTMLElement; nav: { navigate: (r: unknown) => void } }> {
@@ -196,5 +207,58 @@ describe('设置 · 已归档页', () => {
     expect(call?.params).toEqual({ threadId: ARCHIVED_THREAD.id, archived: false })
     /* 取消归档不是删除：不能顺手把那一行真的删掉。 */
     expect(calls.some((c) => c.method === 'threads.delete')).toBe(false)
+  })
+  /* 点「永久删除」→ 确认框里再点「永久删除」 */
+  async function confirmDeleteOf(host: HTMLElement, title: string): Promise<void> {
+    const trigger = host.querySelector(`button[aria-label="永久删除 ${title}"]`) as HTMLButtonElement | null
+    expect(trigger).not.toBeNull()
+    await act(async () => {
+      trigger?.click()
+    })
+    const confirm = [...document.querySelectorAll('button')].find(
+      (b) => (b.textContent ?? '').trim() === '永久删除' && b.getAttribute('aria-label') === null,
+    )
+    expect(confirm).toBeDefined()
+    await act(async () => {
+      confirm?.click()
+    })
+    for (let i = 0; i < 3; i += 1) {
+      await act(async () => {
+        await Bun.sleep(0)
+      })
+    }
+  }
+
+  async function openArchived(): Promise<HTMLElement> {
+    const { host, nav } = await mountSettings()
+    await act(async () => {
+      nav.navigate({ surface: 'workbench.settings', params: { page: 'conversation.archived' } })
+    })
+    for (let i = 0; i < 2; i += 1) {
+      await act(async () => {
+        await Bun.sleep(0)
+      })
+    }
+    return host
+  }
+
+  /* 那一行已经不在了（别处删掉、上一次其实删完了）：与删除成功同一结局，不再报「删除失败」 */
+  test('永久删除遇到 thread_not_found：按已删除处理，确认框关掉', async () => {
+    failures = { 'threads.delete': { code: 'conversation.thread_not_found', message: '对话不存在' } }
+    const host = await openArchived()
+    await confirmDeleteOf(host, ARCHIVED_THREAD.title)
+
+    expect(calls.some((c) => c.method === 'threads.delete')).toBe(true)
+    expect(document.body.textContent ?? '').not.toContain('删除失败')
+    expect(document.body.textContent ?? '').not.toContain('此操作无法撤销')
+  })
+
+  /* 真实故障排查时两头都空：屏幕上只有「请重试」、日志里什么都没有。现在把 Core 给的原因带上屏幕 */
+  test('永久删除失败：确认框里显示 Core 给的原因，而不是一句「请重试」', async () => {
+    failures = { 'threads.delete': { code: 'conversation.thread_busy', message: '对话正在运行，请先停止' } }
+    const host = await openArchived()
+    await confirmDeleteOf(host, ARCHIVED_THREAD.title)
+
+    expect(document.body.textContent ?? '').toContain('删除失败：对话正在运行，请先停止')
   })
 })

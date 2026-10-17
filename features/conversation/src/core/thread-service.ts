@@ -4,6 +4,7 @@ import type { WorkspacesService } from '@poietica/feature-workspaces/core-api'
 import { AppError, type Clock, createId, type Logger } from '@poietica/foundation'
 import { MAIN_AGENT_ID, type Thread, type TurnState } from '../contract/entities'
 import { conversationErrors } from '../contract/errors'
+import type { ReclaimRepository } from './reclaim-repository'
 import type { ThreadRow, ThreadsRepository } from './repository'
 import { threadOf } from './repository'
 import type { TimelineHub } from './timeline-hub'
@@ -18,6 +19,10 @@ export const OWNER_KEY = (threadId: string): string => `conversation:thread:${th
  */
 export interface ThreadServiceDeps {
   readonly repo: ThreadsRepository
+  /** 会话文件回收队列：删行与入队同一个事务（见 cleanup） */
+  readonly reclaim: ReclaimRepository
+  /** 本模块库的同步事务（组合根注入 `db.transaction`） */
+  readonly transaction: <T>(fn: () => T) => T
   readonly engine: AgentEngine
   readonly workspaces: WorkspacesService
   readonly attachments: AttachmentsService
@@ -309,17 +314,80 @@ export class ThreadService {
 
   /**
    * delete 的清理部分（R-03 §2.3）：释放会话（打开中的取消也会等到收尾）→ 重读行拿
-   * sessionFile（打开期间可能已被 onOpened 写上，传进来的 row 是旧的）→ 删会话文件 →
-   * 释放附件 → 删行 → hub.disposeThread → 遗忘进程内状态。
+   * sessionFile（打开期间可能已被 onOpened 写上，传进来的 row 是旧的）→ **删行并把会话文件记进回收队列（同一个事务）**
+   * → hub.disposeThread → 遗忘进程内状态 → 释放附件 → 尝试物理回收。
+   *
+   * 「线程删了没有」只看库里那一行：它与「这份文件待回收」一起落账，之后的步骤失败都不再让线程卡在半删状态。
+   * 原先按「先删文件、再删行」串着做：文件那一步一抛（omp 从没落过盘 → session_file_missing），行就永远删不掉；
+   * 文件删掉了而后面某一步失败，再删一次又会因为文件已不在而失败（真实故障：归档页「删除失败，请重试。」）。
    */
   private async cleanup(row: ThreadRow): Promise<void> {
     await this.d.releaseSession(row.id)
     const current = this.d.repo.get(row.id) ?? row
-    if (current.sessionFile !== null) await this.d.engine.sessionFiles.delete(current.sessionFile)
-    this.d.attachments.releaseOwner(OWNER_KEY(row.id))
-    this.d.repo.delete(row.id)
+    const sessionFile = current.sessionFile
+    this.d.transaction(() => {
+      this.d.repo.delete(row.id)
+      if (sessionFile !== null) this.d.reclaim.enqueue(sessionFile, row.id, this.d.clock.now())
+    })
     this.d.hub.disposeThread(row.id)
     this.d.onThreadRemoved(row.id)
+    /* 附件引用放在落账之后：放在前面，删行失败时线程还在、附件却被 24 小时回收清掉（分支里的 agent 就读不到了） */
+    try {
+      this.d.attachments.releaseOwner(OWNER_KEY(row.id))
+    } catch (error) {
+      this.d.logger.warn('attachments release on delete failed', { threadId: row.id, error: String(error) })
+    }
+    if (sessionFile !== null) await this.reclaimFile(sessionFile)
+  }
+
+  /** 物理回收一份会话文件：成功出队；失败记账、留给下次启动重试，**不抛** —— 线程在用户看来已经删完了 */
+  private async reclaimFile(sessionFile: string): Promise<boolean> {
+    try {
+      await this.d.engine.sessionFiles.delete(sessionFile)
+      this.d.reclaim.done(sessionFile)
+      return true
+    } catch (error) {
+      this.d.reclaim.failed(sessionFile, String(error), this.d.clock.now())
+      this.d.logger.warn('session file reclaim failed; will retry on next start', { sessionFile, error: String(error) })
+      return false
+    }
+  }
+
+  /** 回收队列重试（启动时跑一次）：上次没删掉的会话文件（被占用、权限、进程在删到一半时退出）再删一遍 */
+  async reclaimPending(): Promise<{ reclaimed: number; failed: number }> {
+    let reclaimed = 0
+    let failed = 0
+    for (const entry of this.d.reclaim.pending()) {
+      if (await this.reclaimFile(entry.sessionFile)) reclaimed += 1
+      else failed += 1
+    }
+    if (reclaimed + failed > 0) this.d.logger.info('session file reclaim', { reclaimed, failed })
+    return { reclaimed, failed }
+  }
+
+  /**
+   * 启动对账：行上绑着的会话文件必须真的在。不在的（升级前留下的：会话打开就绑了路径，omp 却要等第一条回复才落盘）
+   * 把绑定清掉，让这条线程回到「还没有会话」—— 下次打开新建一条，而不是每次都报 session_file_missing。
+   * 文件里本来就没有任何东西，清掉绑定不丢数据。正在打开 / 已打开的跳过（启动时不会有，防御性的）。
+   */
+  async reconcileSessionFiles(): Promise<{ unbound: number }> {
+    let unbound = 0
+    for (const bound of this.d.repo.listBound()) {
+      if (this.d.isOpening(bound.id) || this.d.peekSession(bound.id) !== undefined) continue
+      let exists: boolean
+      try {
+        exists = await this.d.engine.sessionFiles.exists(bound.sessionFile)
+      } catch (error) {
+        /* 读不了（权限 / 盘符没挂上）不等于不存在：不动它 */
+        this.d.logger.warn('session file check failed', { threadId: bound.id, error: String(error) })
+        continue
+      }
+      if (exists) continue
+      this.d.repo.update(bound.id, { sessionId: null, sessionFile: null })
+      unbound += 1
+    }
+    if (unbound > 0) this.d.logger.info('unbound threads whose session file never materialized', { unbound })
+    return { unbound }
   }
 
   /**

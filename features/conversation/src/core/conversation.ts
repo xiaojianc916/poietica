@@ -11,6 +11,7 @@ import type { WorkspacesService } from '@poietica/feature-workspaces/core-api'
 import type { Clock, Logger } from '@poietica/foundation'
 import type { QueueView, Thread, TurnState } from '../contract/entities'
 import { EventRouter } from './event-router'
+import { createReclaimRepository } from './reclaim-repository'
 import { createThreadsRepository } from './repository'
 import { SessionPool } from './session-pool'
 import { SubmissionService } from './submission-service'
@@ -100,6 +101,8 @@ export class ConversationCore {
      */
     this.threads = new ThreadService({
       repo,
+      reclaim: createReclaimRepository(d.db),
+      transaction: (fn) => d.db.transaction(fn),
       engine: d.engine,
       workspaces: d.workspaces,
       attachments: d.attachments,

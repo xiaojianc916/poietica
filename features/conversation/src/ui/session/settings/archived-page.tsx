@@ -10,11 +10,14 @@ import {
   SettingsPage,
 } from '@poietica/design-system'
 import { type WorkspacesUi, WorkspacesUiToken } from '@poietica/feature-workspaces/ui-api'
+import { isAppError } from '@poietica/foundation'
 import { useService } from '@poietica/ui-kernel'
 import { ArchiveRestore, Search, Trash2 } from 'lucide-react'
 import { type ReactNode, useEffect, useMemo, useState } from 'react'
 import type { Thread } from '../../../contract'
+import { conversationErrors } from '../../../contract/errors'
 import type { ConversationApi } from '../../api'
+import { describeFailure } from '../../failure'
 import { groupByWorkspace, type ThreadListItem } from '../../shared/model/thread-order'
 import type { ConversationStores } from '../stores'
 import './archived-page.css'
@@ -78,11 +81,59 @@ function toListItem(thread: Thread): ThreadListItem {
   }
 }
 
+/** 删除失败要留痕：原先 catch 一吞，屏幕上只有「删除失败，请重试。」，日志里什么都没有（真实故障排查时两头都空） */
+export interface ArchivedPageLogger {
+  warn(message: string, fields?: Readonly<Record<string, unknown>>): void
+}
+
+/** 一条删除的结局：`thread_not_found` = 那一行已经不在了（别处删掉、上一次其实已删完），与成功同一结局 */
+async function deleteOutcome(
+  api: ConversationApi,
+  threadId: string,
+): Promise<{ ok: true } | { ok: false; cause: unknown }> {
+  try {
+    await api.deleteThread(threadId)
+    return { ok: true }
+  } catch (cause) {
+    if (isAppError(cause) && cause.code === conversationErrors.thread_not_found) return { ok: true }
+    return { ok: false, cause }
+  }
+}
+
+/** 屏幕上的那一句：带上 Core 给的原因（「对话正在运行，请先停止」这类），不再只有一句「请重试」 */
+function failureText(cause: unknown): string {
+  return isAppError(cause) && cause.message.length > 0 ? cause.message : describeFailure(cause)
+}
+
+/** 逐条删；失败的记日志、继续下一条 */
+async function deleteEach(
+  api: ConversationApi,
+  items: readonly Thread[],
+  removed: (threadId: string) => void,
+  logger: ArchivedPageLogger | undefined,
+): Promise<{ failed: number; firstFailure: unknown }> {
+  let failed = 0
+  let firstFailure: unknown
+  for (const item of items) {
+    const outcome = await deleteOutcome(api, item.id)
+    if (outcome.ok) {
+      removed(item.id)
+      continue
+    }
+    failed += 1
+    if (failed === 1) firstFailure = outcome.cause
+    logger?.warn('archived thread delete failed', { threadId: item.id, error: describeFailure(outcome.cause) })
+  }
+  return { failed, firstFailure }
+}
+
 export function ArchivedChatsPage({
   api,
+  logger,
   threads,
 }: {
   readonly api: ConversationApi
+  readonly logger?: ArchivedPageLogger | undefined
   readonly threads: ConversationStores['threads']
 }): ReactNode {
   const workspaces = useService(WorkspacesUiToken) as WorkspacesUi
@@ -215,28 +266,29 @@ export function ArchivedChatsPage({
     setDeleteFailure(null)
 
     if (pendingDeletion.kind === 'single') {
-      setBusyThreadId(pendingDeletion.threadId)
+      const { threadId } = pendingDeletion
+      setBusyThreadId(threadId)
       try {
-        await api.deleteThread(pendingDeletion.threadId)
-        threads.remove(pendingDeletion.threadId)
-        setPendingDeletion(null)
-      } catch {
-        setDeleteFailure('删除失败，请重试。')
+        const outcome = await deleteOutcome(api, threadId)
+        if (outcome.ok) {
+          threads.remove(threadId)
+          setPendingDeletion(null)
+        } else {
+          logger?.warn('archived thread delete failed', { threadId, error: describeFailure(outcome.cause) })
+          setDeleteFailure(`删除失败：${failureText(outcome.cause)}`)
+        }
       } finally {
         setBusyThreadId(null)
       }
       return
     }
 
+    /* 全部删除：一条失败不拦后面的（原先遇到第一条失败就停，剩下的全都没删）；最后汇总没删掉的条数 */
     setDeletingAll(true)
     try {
-      for (const item of listed) {
-        await api.deleteThread(item.id)
-        threads.remove(item.id)
-      }
-      setPendingDeletion(null)
-    } catch {
-      setDeleteFailure('删除失败，请重试。')
+      const { failed, firstFailure } = await deleteEach(api, listed, (threadId) => threads.remove(threadId), logger)
+      if (failed === 0) setPendingDeletion(null)
+      else setDeleteFailure(`有 ${failed} 条没能删除：${failureText(firstFailure)}`)
     } finally {
       setDeletingAll(false)
     }

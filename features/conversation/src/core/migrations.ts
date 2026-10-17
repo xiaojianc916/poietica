@@ -76,4 +76,22 @@ DELETE FROM conversation_submissions
             AND later.client_turn_id > conversation_submissions.client_turn_id))
    );`,
   },
+  {
+    version: 4,
+    name: 'reclaim',
+    /*
+     * 会话文件回收队列（「先记账，后动手」）。删除一条线程要动两处存储：库里的行、omp 目录里的会话文件。
+     * 两者没有共同的事务，原先按「先删文件、再删行」串着做，任何一步失败都把线程卡在半删状态、之后永远删不掉。
+     * 现在删行与「这份文件待回收」在同一个库事务里落账；文件删除在事务之后尝试，失败留在这里，下次启动重试。
+     * 不挂外键：线程行此刻已经不在了。
+     */
+    sql: `CREATE TABLE conversation_reclaim (
+  session_file TEXT PRIMARY KEY,
+  thread_id    TEXT NOT NULL,
+  attempts     INTEGER NOT NULL DEFAULT 0,
+  last_error   TEXT,
+  created_at   INTEGER NOT NULL,
+  updated_at   INTEGER NOT NULL
+);`,
+  },
 ]

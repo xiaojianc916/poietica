@@ -343,7 +343,7 @@ export function createConversationContributions(setup: ConversationSetup, action
     order: 710,
     title: '已归档',
     icon: Archive,
-    component: () => <ArchivedChatsPage api={api} threads={stores.threads} />,
+    component: () => <ArchivedChatsPage api={api} logger={ctx.logger} threads={stores.threads} />,
   })
 }
 

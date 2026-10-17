@@ -35,6 +35,10 @@ export interface SessionFilesPort {
    * `EngineSession.rename`：同一个文件两个写者会互相覆盖会话头。空名报 invalid_params，文件不存在报 session_file_missing。
    */
   rename(sessionFile: string, title: string): Promise<void>
+  /**
+   * 「确保不存在」：会话文件与它的产物一起删；**幂等** —— 文件本来就不在也报成功（omp 只在有了回复之后才落盘，
+   * 没落过盘的会话、删到一半的会话都要删得掉）。只有真正删不掉（权限、占用）才抛。
+   */
   delete(sessionFile: string): Promise<void>
   exportHtml(sessionFile: string, outFile: string): Promise<void>
   exportMarkdown(sessionFile: string): Promise<string>
