@@ -20,6 +20,7 @@ import {
   type EditorState,
   KEY_ENTER_COMMAND,
   type LexicalEditor,
+  PASTE_COMMAND,
   type RangeSelection,
 } from 'lexical'
 import type { ClipboardEvent, ComponentProps, DragEvent, KeyboardEvent, MouseEvent, ReactNode, Ref } from 'react'
@@ -636,6 +637,59 @@ function PromptInputShell({
   /* 贡献的输入处理器：粘贴与拖放各走一遍，谁先吃掉谁负责 —— 返回 true 就跳过内置那条路。 */
   const inputHandlers = useContributions(composerInputHandlers)
 
+  /*
+   * 粘贴的「认领」必须发生在 Lexical 把文字插进 DOM 之前：它在自己的 paste 监听里无条件插入，
+   * React 的 onPaste 到时已经晚了。所以挂在 PASTE_COMMAND 上 —— 认领了就 preventDefault 并返回 true，
+   * 默认插入整条不发生；异步那半段交给贡献者（例如超长文字收成一份文件）。
+   */
+  const pasteHandlers = useRef(inputHandlers)
+  const pasteDraft = useRef(contributedDraft)
+  pasteHandlers.current = inputHandlers
+  pasteDraft.current = contributedDraft
+
+  useEffect(
+    () =>
+      editor.registerCommand(
+        PASTE_COMMAND,
+        (event) => {
+          /* React 的 ClipboardEvent 与 DOM 的同名不同型，贡献者收的是原生那一个。 */
+          const native = event as unknown as globalThis.ClipboardEvent
+          const claimed = pasteHandlers.current.filter(
+            ({ item }) => item.onPaste !== undefined && item.claims?.(native) === true,
+          )
+
+          if (claimed.length === 0) {
+            return false
+          }
+
+          const pasteDefault = (): void => {
+            /* 认领了却没接住：照默认贴回去，不能吞掉用户这一次粘贴。 */
+            const text = native.clipboardData?.getData('text/plain') ?? ''
+
+            if (text.length > 0) {
+              editor.update(() => {
+                $caret().insertText(text)
+              })
+            }
+          }
+
+          native.preventDefault()
+          void (async () => {
+            for (const { item } of claimed) {
+              if (await item.onPaste?.(native, pasteDraft.current)) {
+                return
+              }
+            }
+            pasteDefault()
+          })().catch(pasteDefault)
+
+          return true
+        },
+        COMMAND_PRIORITY_HIGH,
+      ),
+    [editor],
+  )
+
   const handleContributedPaste = useCallback(
     async (event: ClipboardEvent<HTMLFormElement>): Promise<boolean> => {
       for (const { item } of inputHandlers) {
@@ -909,6 +963,7 @@ function PromptInputShell({
                     intake.paste({
                       bytes: new Uint8Array(buffer),
                       filename: pasted.name,
+                      mime: pasted.type === '' ? 'image/png' : pasted.type,
                     }),
                   )
                   .then(

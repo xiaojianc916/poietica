@@ -12,7 +12,14 @@ import type { ReactNode } from 'react'
 import { createAttachmentsApi } from './api'
 import { createDraftRefSync } from './draft-refs'
 import { AttachmentIntakeProvider, createAttachmentIntake } from './intake-provider'
-import { imageFromClipboard, importClipboardImage, pathsFromDrop } from './paste'
+import {
+  claimsLongText,
+  imageFromClipboard,
+  importClipboardImage,
+  markdownOf,
+  pathsFromDrop,
+  textFromClipboard,
+} from './paste'
 
 /* legacy 里附件的入库口由宿主持有，经 `AttachmentIntakeContext` 发给输入框；新架构里这份能力属于 attachments 功能 —— 它认识 platform 的
  * dialog.pickFiles 与自己的契约方法。两处落点：composerProviders 把入库口**注入输入框树**（输入框左端那枚回形针**不在这里**：legacy 与基准
@@ -75,6 +82,21 @@ export default defineUiFeature({
       }
     }
 
+    /* 超长纯文字收成一份 .md：进附件库、在正文里落一枚文件记号，全部走既有那条路。 */
+    const addPastText = async (draft: ComposerDraft, text: string): Promise<boolean> => {
+      try {
+        const { bytes, filename, mime } = markdownOf(text)
+        const imported = await api.importData(filename, mime, bytes.toBase64())
+        draft.addAttachments([
+          { id: imported.id, name: imported.name, kind: imported.kind, previewUrl: imported.previewUrl },
+        ])
+        return true
+      } catch (e) {
+        toasts.error(e)
+        return true
+      }
+    }
+
     const intake = createAttachmentIntake({
       api,
       multiple: true,
@@ -94,9 +116,13 @@ export default defineUiFeature({
 
     ctx.contribute(composerInputHandlers, {
       id: 'attachments.input',
+      /* 超长文字必须在 Lexical 插入之前就认领：粘进去之后再抽出来，那一大段已经建过一次节点了。 */
+      claims: (event) => claimsLongText(textFromClipboard(event.clipboardData)),
       onPaste: async (event, draft) => {
         const clipboard = event.clipboardData
         if (clipboard === null) return false
+        const text = textFromClipboard(clipboard)
+        if (claimsLongText(text)) return addPastText(draft, text)
         const file = imageFromClipboard([...clipboard.items])
         if (file === null) return false
         return addImage(draft, file)

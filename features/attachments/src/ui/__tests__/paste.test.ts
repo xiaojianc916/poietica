@@ -1,5 +1,12 @@
 import { describe, expect, test } from 'bun:test'
-import { imageFromClipboard, pathsFromDrop } from '../paste'
+import {
+  claimsLongText,
+  imageFromClipboard,
+  markdownOf,
+  PASTE_TEXT_ABOVE_LINES,
+  pathsFromDrop,
+  textFromClipboard,
+} from '../paste'
 
 /* 粘贴与拖放的两条取数规则。只测「取什么」，入库那一段走契约方法（在 core 的测试里覆盖）。 */
 
@@ -22,6 +29,37 @@ describe('剪贴板取图', () => {
   test('非图片文件不算（剪贴板里的文本文件不按图入库）', () => {
     const txt = new File(['x'], 'a.txt', { type: 'text/plain' })
     expect(imageFromClipboard([item('file', txt)])).toBeNull()
+  })
+})
+
+/*
+ * 粘进来的整份文档不进编辑器：超过阈值的纯文本收成一份 .md。判据只看行数，
+ * 五十行以内照常是文字，人打的一句话不会被抢走。
+ */
+describe('超长粘贴文本', () => {
+  const lines = (count: number): string =>
+    Array.from({ length: count }, (_, at) => `第 ${String(at + 1)} 行`).join('\n')
+
+  test('阈值那一行以内还是文字', () => {
+    expect(claimsLongText(lines(PASTE_TEXT_ABOVE_LINES))).toBe(false)
+    expect(claimsLongText(lines(PASTE_TEXT_ABOVE_LINES + 1))).toBe(true)
+  })
+
+  test('空文本不算', () => {
+    expect(claimsLongText('')).toBe(false)
+  })
+
+  test('收成一份 markdown 文件', () => {
+    const text = lines(PASTE_TEXT_ABOVE_LINES + 1)
+    const { bytes, filename, mime } = markdownOf(text)
+
+    expect(filename).toBe('粘贴的文本.md')
+    expect(mime).toBe('text/markdown')
+    expect(new TextDecoder().decode(bytes)).toBe(text)
+  })
+
+  test('剪贴板里没有文字就交回空串', () => {
+    expect(textFromClipboard(null)).toBe('')
   })
 })
 

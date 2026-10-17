@@ -48,7 +48,7 @@ export function createAttachmentIntake(options: AttachmentIntakeOptions): Attach
       assetOf(
         await api.importData(
           input.filename.length > 0 ? input.filename : '粘贴的图片.png',
-          'image/png',
+          input.mime,
           input.bytes.toBase64(),
         ),
       ),

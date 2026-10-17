@@ -120,6 +120,11 @@ export const composerActions = defineContributionPoint<ComposerAction>('conversa
 
 export interface ComposerInputHandler {
   readonly id: string
+  /**
+   * 这次粘贴归不归我。**必须同步**：要在 Lexical 把文字插入 DOM 之前就答出来（异步回答时它已经插完了）。
+   * 认领了再由 onPaste 决定接不接得住，接不住会把文字照原样贴回去。
+   */
+  claims?(event: ClipboardEvent): boolean
   onPaste?(event: ClipboardEvent, draft: ComposerDraft): boolean | Promise<boolean>
   onDrop?(event: DragEvent, draft: ComposerDraft): boolean | Promise<boolean>
 }

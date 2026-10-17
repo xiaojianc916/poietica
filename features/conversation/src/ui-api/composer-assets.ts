@@ -41,6 +41,8 @@ export function isInlineAttachment(asset: ComposerAsset): boolean {
 export interface AttachmentUpload {
   readonly bytes: Uint8Array
   readonly filename: string
+  /** 入库按它分类：image 会走预览，其余落成 file。 */
+  readonly mime: string
 }
 
 /** Consumer-owned port for assets entering a prompt draft. */

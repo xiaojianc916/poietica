@@ -4239,4 +4239,37 @@ openai-codex-device / xai-oauth / gitlab-duo / gitlab-duo-agent / factory-droid 
 八行才滚、超过七行戴 `data-scrollable` 且气泡里没有任何按钮、五十行起不整段进 DOM（末行不在 DOM 里）、
 虚拟化档的记号留在滚动盒外面。三条附件用例原样保留。
 
+## R-35 输入框：粘进来的超长纯文字收成一份 .md 附件（2026-10-17）
+
+**来源**：产品负责人反馈「输入框一口气粘极多文字，软件甚至会崩」，要求「超过 50 行虚拟化」。
+调查后判明输入框不是 textarea，而是 Lexical 的 contenteditable（`PromptInputEditor`）：编辑器没有「行数组」，
+`VirtualLines` 那套（用户气泡 R-34 用的）在这里无从下手 —— 局部挂载 contenteditable 等于拆掉 IME、选区和撤销栈。
+按产品负责人在对话里确认的方向改为**粘超长文字时不进编辑器，改挂一份 .md 附件**，走已有的附件那条路。
+
+**改法**：
+
+- `attachments/ui/paste.ts`：`PASTE_TEXT_ABOVE_LINES = 50`、`claimsLongText()`（只看原始换行数，与用户气泡、
+  工具输出同一条判据）、`textFromClipboard()`、`markdownOf()`（文件名「粘贴的文本.md」、mime `text/markdown`）。
+- `attachments/ui/index.tsx`：`composerInputHandlers` 那条贡献加了同步的 `claims` —— 超长纯文字认领这一下粘贴；
+  `onPaste` 里先看超长文字（`api.importData` 收成 .md，落一枚文件记号），再退回图片那条。
+- `conversation/ui-api`：`ComposerInputHandler` 加 `claims(event)`（**必须同步**：要在 Lexical 插入 DOM 之前答），
+  `AttachmentUpload` 加 `mime`（原先写死 `image/png`，现在由调用方给）。
+- `conversation/ui/composer/view/prompt-input.tsx`：粘贴的认领挂到 Lexical 的 `PASTE_COMMAND` 上
+  （`COMMAND_PRIORITY_HIGH`）。**不能在 React 的 `onPaste` 里做**：Lexical 在自己的 paste 监听里无条件插入，
+  那时 React 合成事件刚到、文字已经进 DOM 了 —— 先插一大段再抽出来，正是要避免的那一次开销。
+  认领后 `preventDefault` 并返回 true，默认插入整条不发生；异步那半段交给贡献者，**接不住时把文字照原样贴回去**。
+
+**偏差**：产品负责人原话是「超过 50 行虚拟化」，实现改成「超过 50 行收成附件」。原因是 contenteditable 的虚拟化
+会拆掉 IME / 选区 / 撤销栈；此方向经产品负责人在对话中确认。
+
+**测试**：`attachments/ui/__tests__/paste.test.ts` +4（阈值边界、空文本、.md 转换、空剪贴板）；
+新增 `conversation/ui/__tests__/composer-paste-claim.test.tsx` 2 例 —— 认领的那一份一个字都不进正文、只落一枚
+文件记号（钉的是「认领发生在插入之前」）；短句没人认领时不拦这一下粘贴。
+
+**未做**：粘贴的图片仍走 `intake.paste`（截图没有路径），这条未变。
+
+**验证**：`bun run typecheck` 通过（771 文件 / 80 工程 + 1,035 文件测试工程）；`bun test` 2,454 pass / 0 fail
+（309 文件 / 3 快照）；`bun run lint` 只余基线已有的 4 条 `noDescendingSpecificity` 警告。
+
+
 
