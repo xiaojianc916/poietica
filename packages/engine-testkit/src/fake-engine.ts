@@ -951,6 +951,8 @@ export function createFakeEngine(opts: FakeEngineOptions = {}): FakeEngine {
           section,
           selector: roleSelectors.get(role) ?? null,
           candidates,
+          /* 去向不在这里仿 omp 的回退链：一律交「自动」，挑不挑得出看有没有候选 */
+          fallback: { kind: 'auto' as const, model: candidates[0]?.label ?? null },
         }))
       },
       async setModelRole(role, selector) {

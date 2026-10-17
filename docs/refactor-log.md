@@ -4158,3 +4158,38 @@ openai-codex-device / xai-oauth / gitlab-duo / gitlab-duo-agent / factory-droid 
 表单里显示为空和「选择 API 格式…」，直接保存会把 Base URL 写成空。需要在契约里补上这两项，建议单独处理
 （方案也把它列在「范围外发现」里）。
 
+
+## U-03 模型角色收进「按用途指定」：默认模型为主，没配的格写实际去向（基于 08b95de，协议 32，2026-10-17）
+
+**来源**：`U-03.md`（基线 `a4c4cf5f`，方案按协议 29 → 30 写）。当前 HEAD 已是 `08b95de`（协议 31），
+因此按方案逐条重放，不是原样贴补丁。
+
+**改法**（与 U-03.md 的方案一致）：
+
+- 引擎接口：`ModelRoleInfo` 增加 `fallback`（`role` / `conversation` / `auto(model)`）。
+- engine-omp：`role-catalog.ts` 补「没配时跟谁走」的去向表（逐条照 omp 18.10.3 的读取点）与 `roleFallbackOf`；
+  `OmpRoles.auto` 用 omp 的 `resolveModelRoleValue` 解析自动挑选；内置角色的中文说明全部精简。
+- 协议：`PROTOCOL_VERSION` 31 → 32，`bun run protocol:snapshot` 重新生成快照。
+- 界面：`model-roles-group.tsx` 改成「模型」一组——第一行「默认模型」，其余收进「按用途指定」折叠条，
+  展开后分「对话与任务」「专用能力」两组；没配的格写实际去向、画成空心弱色，折叠条只数配过的；
+  没有候选又没配过的格不画。`models-settings.css` 补折叠条的样式。
+- 测试替身：FakeEngine 补 `fallback`（一律交「自动」，挑不挑得出看候选）。
+- 测试：`models.test.ts` +1（去向判定，用 omp 真实解析跑）、新增 `model-roles-group.test.tsx` 5 例。
+
+**偏差**：
+
+1. **协议版本 31 → 32**（方案写的是 29 → 30）。HEAD 已是 31，按 30 会撞号；版本号只用来发现装坏了或忘了重建 Core。
+2. **`packages/engine-omp/src/ports/models.ts` 手工重放**：补丁写它时的上下文（`settings-writes` 那一行 import）
+   已被 U-02 改过（多了 `settingsInstanceOf`），hunk 打不上。改动本身与方案一致：`OmpRoles` 加 `auto`、
+   `modelRoles()` 补 `fallback` 的组装。其余文件按补丁原样应用。
+
+**验证**：
+
+- `bun run typecheck`：通过（771 文件 / 80 工程 + 1,034 文件测试工程）。
+- `bun run lint`：通过（biome、两项自定义闸门、omp 文档核对与 depcruise 全绿；仅余基线已有的 4 条
+  `noDescendingSpecificity` 警告）。
+- `bun test`：2,443 pass / 0 fail（307 文件 / 3 快照）；基线 `08b95de` 是 2,437 pass，多出的 6 例即本项新增。
+- 定向：`bun test features/models` 26 pass（含新 `model-roles-group.test.tsx` 5 例）；
+  `bun test packages/engine-omp/src/ports/__tests__/models.test.ts` 20 pass；
+  `packages/engine-testkit` + `packages/protocol` 29 pass；`bun run protocol:snapshot` 已重新生成。
+

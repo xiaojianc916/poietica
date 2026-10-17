@@ -422,6 +422,26 @@ describe('ModelsPort', () => {
     await expect(harness.port.setModelRole('title', 'openai/gpt-5')).rejects.toThrow()
   })
 
+  test('没配的角色报 omp 的实际去向：跟角色、跟当前对话、或 omp 自动挑中的那一个', async () => {
+    const harness = makePort()
+    const fallbackOf = async (role: string) => (await harness.port.modelRoles()).find((r) => r.role === role)?.fallback
+    /* default 没配：smol 不继承，落到 omp 的优先级表；tiny 仍跟 smol（omp 的 ROLE_CONFIGURED_FALLBACK 不看 smol 配没配） */
+    expect((await fallbackOf('smol'))?.kind).toBe('auto')
+    expect(await fallbackOf('tiny')).toEqual({ kind: 'role', role: 'smol' })
+    expect(await fallbackOf('memory')).toEqual({ kind: 'role', role: 'tiny' })
+    expect(await fallbackOf('task')).toEqual({ kind: 'conversation' })
+    expect(await fallbackOf('plan')).toEqual({ kind: 'conversation' })
+    /* 没有图像模型：候选为空，自动也挑不出 */
+    expect(await fallbackOf('image')).toEqual({ kind: 'auto', model: null })
+
+    await harness.port.setDefaultModel({ provider: 'anthropic', id: 'claude-opus-4-5' })
+    expect(await fallbackOf('smol')).toEqual({ kind: 'role', role: 'default' })
+    /* advisor 只在 slow 配过时才跟它，否则 omp 自己挑一个强模型 */
+    expect((await fallbackOf('advisor'))?.kind).toBe('auto')
+    await harness.port.setModelRole('slow', 'openai/gpt-5')
+    expect(await fallbackOf('advisor')).toEqual({ kind: 'role', role: 'slow' })
+  })
+
   test('旧版 modelRoles.title：tiny 没配就迁进 tiny 并切 title.generator=tiny；tiny 已配只删旧键', async () => {
     const fresh = makePort()
     fresh.settings.setModelRole('title', 'openai/gpt-5')

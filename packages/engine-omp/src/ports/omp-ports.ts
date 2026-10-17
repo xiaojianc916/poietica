@@ -1,6 +1,8 @@
 import { getOAuthProviders } from '@oh-my-pi/pi-ai/oauth'
 import { getProviderDefinition } from '@oh-my-pi/pi-ai/registry'
+import { resolveModelRoleValue } from '@oh-my-pi/pi-coding-agent/config/model-resolver'
 import {
+  formatModelRoleAlias,
   getKnownRoleIds,
   getRoleInfo,
   MODEL_ROLES,
@@ -103,6 +105,13 @@ export function ompRolesOf(root: SettingsScope, registry: Pick<OmpModelRegistry,
       }
     },
     candidates: (role) => roleCandidatePool(role, settings(), registry as never),
+    auto: (role) => {
+      const s = settings()
+      const pool = roleCandidatePool(role, s, registry as never)
+      return pool.length === 0
+        ? null
+        : (resolveModelRoleValue(formatModelRoleAlias(role), pool, { settings: s }).model ?? null)
+    },
   }
 }
 

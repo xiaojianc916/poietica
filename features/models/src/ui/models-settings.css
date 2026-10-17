@@ -687,3 +687,81 @@
   justify-content: flex-end;
   gap: 8px;
 }
+
+/* ---------------- 「通用」页的「模型」组：默认模型 + 「按用途指定」折叠条 ---------------- */
+/* 折叠条与 settings-row 同高同距、整行可点；分隔线照 settings-row 两侧内缩。 */
+.model-roles {
+  position: relative;
+}
+.model-roles::before,
+.model-roles__section::before {
+  content: "";
+  position: absolute;
+  inset-inline: var(--settings-divider-inset);
+  inset-block-start: 0;
+  border-block-start: 1px solid var(--settings-divider);
+}
+.model-roles__header {
+  margin: 0;
+}
+.model-roles__trigger {
+  display: flex;
+  inline-size: 100%;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 11px 14px;
+  border: 0;
+  background: transparent;
+  font: inherit;
+  text-align: start;
+  cursor: pointer;
+  transition: background-color 140ms ease;
+}
+.model-roles__trigger:hover {
+  background: var(--ui-accent);
+}
+:root[data-theme="dark"] .model-roles__trigger:hover {
+  background: #2e2e2e;
+}
+.model-roles__trigger:focus-visible {
+  outline: 2px solid var(--ui-ring);
+  outline-offset: -2px;
+}
+.model-roles__summary {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: 8px;
+  color: var(--ui-muted-foreground);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+.model-roles__chevron {
+  transition: transform 140ms ease;
+}
+.model-roles__trigger[data-panel-open] .model-roles__chevron {
+  transform: rotate(180deg);
+}
+.model-roles__panel {
+  height: var(--accordion-panel-height);
+  overflow: hidden;
+  transition: height 160ms ease-out;
+}
+.model-roles__panel[data-starting-style],
+.model-roles__panel[data-ending-style] {
+  height: 0;
+}
+.model-roles__section {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .model-roles__panel,
+  .model-roles__chevron,
+  .model-roles__trigger {
+    transition: none;
+  }
+}

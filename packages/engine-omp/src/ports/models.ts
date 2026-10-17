@@ -27,6 +27,7 @@ import {
   stringArrayOf,
 } from './model-helpers'
 import type { CustomProvidersFile } from './models-file'
+import { roleFallbackOf } from './role-catalog'
 import { flushOf, modelRoleOf, setModelRoleOf, settingsInstanceOf } from './settings-writes'
 
 /** 默认模型那一格：`modelRoles.default`，值是整串 provider/id */
@@ -63,6 +64,8 @@ export interface OmpRoles {
   known(): readonly string[]
   info(role: string): { readonly name: string; readonly description: string | null; readonly section: 'chat' | 'kind' }
   candidates(role: string): readonly OmpModelLike[]
+  /** 这一格没配时 omp 自己挑中的模型（与 omp /models 角色面板的「auto-selected」同一次解析）；挑不出为 null */
+  auto(role: string): OmpModelLike | null
 }
 
 /** omp 账号登录那几件事的最小形状（真身：pi-ai 的 getOAuthProviders / getProviderDefinition 与 AuthStorage.oauth / credentials） */
@@ -330,6 +333,14 @@ export class OmpModelsPort implements ModelsPort {
           candidates: this.d.roles
             .candidates(role)
             .map((model) => ({ selector: aliasOf(model), label: model.name ?? model.id })),
+          fallback: roleFallbackOf(
+            role,
+            (other) => (modelRoleOf(this.d.root, other) ?? '') !== '',
+            () => {
+              const picked = this.d.roles.auto(role)
+              return picked === null ? null : (picked.name ?? picked.id)
+            },
+          ),
         }
       })
     } catch (error) {

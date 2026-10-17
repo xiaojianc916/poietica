@@ -232,6 +232,15 @@ export const ModelRoleInfo = z.object({
   selector: z.string().nullable(),
   /** 这一角色能选的模型（omp 的 roleCandidatePool：有凭据、过白名单、种类匹配） */
   candidates: z.array(z.object({ selector: z.string(), label: z.string() })),
+  /**
+   * 没配（selector 为 null）时 omp 实际怎么办：`role` = 跟着另一个角色走（如 tiny → smol）；`conversation` = 用当前对话
+   * 的模型；`auto` = omp 按内置优先级自己挑，`model` 是它此刻挑中的那个的名字（挑不出为 null）。
+   */
+  fallback: z.discriminatedUnion('kind', [
+    z.object({ kind: z.literal('role'), role: z.string() }),
+    z.object({ kind: z.literal('conversation') }),
+    z.object({ kind: z.literal('auto'), model: z.string().nullable() }),
+  ]),
 })
 export const ModelInfo = z.object({
   provider: z.string(),
