@@ -89,6 +89,7 @@ function makeEngine(over: Partial<ConstructorParameters<typeof OmpEngine>[0]> = 
       available: { plan: true, goal: true },
       context: null,
     }),
+    commandCatalog: async () => [],
     logger: noopLogger,
     createSession: async (sessionSpec) => {
       opened.push(sessionSpec.key)

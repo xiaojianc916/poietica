@@ -5,6 +5,7 @@ import { LexicalErrorBoundary } from '@lexical/react/LexicalErrorBoundary'
 import { HistoryPlugin } from '@lexical/react/LexicalHistoryPlugin'
 import { PlainTextPlugin } from '@lexical/react/LexicalPlainTextPlugin'
 import { cn } from '@poietica/design-system'
+import type { SlashCommand } from '@poietica/engine'
 import { invariant } from '@poietica/foundation'
 import { FeatureScope, useContributions } from '@poietica/ui-kernel'
 import {
@@ -41,6 +42,7 @@ import {
   type DraftAttachment,
 } from '../../../ui-api'
 import { useAttachmentIntake } from '../../../ui-api/composer-assets'
+import { requiresArgument, slashQueryOf } from '../../shared/model/commands'
 import type { ChatStatus } from '../../shared/model/run'
 import type { PromptConfiguration, PromptSkill } from '../../shared/model/session'
 import { ResumeIcon, StopIcon, SubmitIcon } from '../../shared/primitives/icons'
@@ -59,10 +61,12 @@ import {
   composerComposeGroup,
   type PaletteGroup,
   type PaletteRow,
+  type PaletteVia,
   paletteKeyDown,
   paletteOptionId,
   useDismissOutside,
 } from './composer-palette'
+import { slashPaletteGroups } from './slash-palette'
 
 const NO_ATTACHMENTS: readonly ComposerAsset[] = []
 const NO_GROUPS: readonly PaletteGroup[] = []
@@ -301,6 +305,11 @@ export interface PromptInputProps {
   readonly initialText?: string | undefined
   readonly onChange?: ((text: string) => void) | undefined
   readonly groups?: readonly PaletteGroup[] | undefined
+  /**
+   * 斜杠命令：给了（且非空）草稿敲下行首 `/` 就弹命令面板，代替加号面板；回车执行走的仍是 onSubmit，
+   * 收信人照常按正文认命令。缺席（自动化的输入框、提问面板）就没有这块面板，`/` 只是一个字。
+   */
+  readonly slashCommands?: readonly SlashCommand[] | undefined
   readonly configuration?: readonly PromptConfiguration[] | undefined
   /** 缺席时这一格是字段而非消息框：Enter 只换行、没有提交、草稿不被消费。 */
   readonly onSubmit?: ((message: PromptInputMessage) => void) | undefined
@@ -354,6 +363,7 @@ function PromptInputShell({
   onSubmit,
   ref,
   restored,
+  slashCommands,
 }: PromptInputShellProps) {
   const [editor] = useLexicalComposerContext()
   const intake = useAttachmentIntake()
@@ -366,6 +376,8 @@ function PromptInputShell({
   )
   const [paletteOpened, setPaletteOpened] = useState(false)
   const [highlighted, setHighlighted] = useState(0)
+  /* 斜杠面板被 Esc、点到框外或点加号压住了：压到草稿离开「行首 `/` 加名字」的样子、再进来为止 */
+  const [slashMuted, setSlashMuted] = useState(false)
   const handoff = useRef({ attachments, configuration: pendingConfiguration })
   /* 监听器与命令只注册一次，回调却每次渲染都可能是新的。 */
   const report = useRef(onChange)
@@ -593,8 +605,10 @@ function PromptInputShell({
     )
   }, [])
 
+  /* 点加号就是要加号面板：斜杠面板开着也让位。 */
   const togglePalette = useCallback(() => {
     setHighlighted(0)
+    setSlashMuted(true)
     setPaletteOpened((open) => !open)
   }, [])
 
@@ -720,8 +734,36 @@ function PromptInputShell({
       })),
     [allGroups, pendingConfiguration],
   )
-  const rows = useMemo(() => visible.flatMap((group) => group.rows), [visible])
-  const paletteOpen = paletteOpened && rows.length > 0
+  /*
+   * 斜杠命令面板：草稿就是行首 `/` 加一截名字时出来，代替加号面板。名字一变高亮回到第一行；
+   * 刚敲下 `/` 那一刻加号面板收起，免得删掉斜杠时它又冒出来。
+   */
+  const slashQuery = slashCommands === undefined || slashCommands.length === 0 ? null : slashQueryOf(draftText.text)
+  const [slashSeen, setSlashSeen] = useState<string | null>(null)
+  if (slashSeen !== slashQuery) {
+    setSlashSeen(slashQuery)
+    setHighlighted(0)
+    /* 进入斜杠样子的那一刻：之前的「压住」作废，加号面板让位 */
+    if (slashSeen === null) {
+      setSlashMuted(false)
+      setPaletteOpened(false)
+    }
+  }
+  const slashGroups = useMemo(
+    () =>
+      slashCommands === undefined || slashQuery === null ? NO_GROUPS : slashPaletteGroups(slashCommands, slashQuery),
+    [slashCommands, slashQuery],
+  )
+  const slashOpen = !slashMuted && slashGroups.length > 0
+  const shownGroups = slashOpen ? slashGroups : visible
+  const rows = useMemo(() => shownGroups.flatMap((group) => group.rows), [shownGroups])
+  const paletteOpen = slashOpen || (paletteOpened && rows.length > 0)
+  /* 面板退场的那几十毫秒里还画着：内容要停在收起前那一份，不然斜杠面板一收，退场的那一帧会闪成加号面板 */
+  const lastShown = useRef(shownGroups)
+  if (paletteOpen) {
+    lastShown.current = shownGroups
+  }
+  const paletteGroups = paletteOpen ? shownGroups : lastShown.current
   const active = paletteOpen ? rows[highlighted] : undefined
 
   const paletteAria = useMemo<PaletteAria>(
@@ -733,13 +775,35 @@ function PromptInputShell({
     [active, listboxId, paletteOpen],
   )
 
+  /*
+   * 选中一条命令：Tab 与带必填参数的命令只补全名字（留一个空格接着写参数）；其余就是执行 ——
+   * 放回 `/名字` 再走表单提交，与手打 `/compact` 回车同一条路，收信人那边不必知道面板存在。
+   */
+  const pickCommand = useCallback(
+    (command: SlashCommand, via: PaletteVia) => {
+      const name = `/${command.name}`
+
+      if (via === 'tab' || requiresArgument(command)) {
+        setText(`${name} `)
+
+        return
+      }
+
+      setText(name)
+      queueMicrotask(requestFormSubmit)
+    },
+    [requestFormSubmit, setText],
+  )
+
   const pickRow = useCallback(
-    (row: PaletteRow) => {
+    (row: PaletteRow, via: PaletteVia) => {
       const { action } = row
 
       closePalette()
 
-      if (action.kind === 'run') {
+      if (action.kind === 'command') {
+        pickCommand(action.command, via)
+      } else if (action.kind === 'run') {
         action.run(draftText.text)
       } else if (action.kind === 'configure') {
         toggleConfiguration({ ...action.configuration, label: action.label })
@@ -753,16 +817,21 @@ function PromptInputShell({
 
       focusEditor()
     },
-    [closePalette, draftText.text, editor, focusEditor, toggleConfiguration],
+    [closePalette, draftText.text, editor, focusEditor, pickCommand, toggleConfiguration],
   )
 
-  useDismissOutside(paletteOpen, formRef, closePalette)
+  const muteSlash = useCallback(() => {
+    setSlashMuted(true)
+  }, [])
+  const dismissPalette = slashOpen ? muteSlash : closePalette
+
+  useDismissOutside(paletteOpen, formRef, dismissPalette)
 
   /* 面板开着时这几个键归面板，捕获相先到，编辑器因此不需要知道面板存在。 */
   const onPaletteKeyDown = (event: KeyboardEvent<HTMLFormElement>) => {
     paletteKeyDown(event, {
       highlighted,
-      onClose: closePalette,
+      onClose: dismissPalette,
       onHighlight: setHighlighted,
       onPick: pickRow,
       open: paletteOpen,
@@ -935,7 +1004,7 @@ function PromptInputShell({
               ref={formRef}
             >
               <ComposerPalette
-                groups={visible}
+                groups={paletteGroups}
                 highlighted={highlighted}
                 isOpen={paletteOpen}
                 listboxId={listboxId}

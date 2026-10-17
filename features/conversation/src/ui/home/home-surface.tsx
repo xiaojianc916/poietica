@@ -15,8 +15,10 @@ import {
   postureOfControl,
   sessionConfigControlsOf,
   type ThreadEntry,
+  useCommandCatalog,
   withoutHiddenModels,
 } from '../session'
+import type { ThreadCommands } from '../shared/model/commands'
 import type { SessionConfigControl } from '../shared/model/config'
 import { GOAL_CONTROL_ID, GOAL_DISABLED, GOAL_ENABLED } from '../shared/model/goal-control'
 import type { PreparedThread } from '../timeline'
@@ -53,6 +55,11 @@ export interface HomeSurfaceProps {
   readonly posture?: PostureIntent | undefined
   readonly sessions: SessionRegistry
   readonly onOpenThread: (threadId: string) => void
+  /**
+   * 在入口页执行了一条斜杠命令：对话号已铸好，由组合根记下这句命令、跳到那条对话，在那里执行（输出也在那里看）。
+   * 入口页没有会话，命令只能落在一条新对话上 —— 与在终端里新开一个 agent 再敲命令是同一件事。
+   */
+  readonly onStartCommand: (threadId: string, text: string) => void
   /** 偏好：读设置页关掉的模型（`modelPicker.hiddenModels`）。订阅着读，开关一拨菜单当场变；没接就不藏。 */
   readonly preferences?: PreferencesApi | undefined
   /** 「新对话默认」那一份意图：选模型 / 档位写穿它，草稿只留没写成功的那一笔。没接就只改本地草稿（旧行为）。 */
@@ -63,6 +70,7 @@ export function HomeSurface({
   api,
   entryDefaults,
   onOpenThread,
+  onStartCommand,
   posture: postureIntent,
   preferences,
   sessions,
@@ -181,6 +189,29 @@ export function HomeSurface({
   const remember = (): void => {
     void entryDefaults?.flush().catch(() => undefined)
   }
+
+  /* 入口页的斜杠命令：表按工作区读；执行 = 先铸出这条对话，再交给组合根跳过去执行。铸号失败就写在命令输出那一块。 */
+  const catalog = useCommandCatalog(api, view.active?.id ?? view.items[0]?.id ?? null)
+  const [commandFailure, setCommandFailure] = useState<ThreadCommands['output']>(null)
+  const commands = useMemo<ThreadCommands>(
+    () => ({
+      list: catalog,
+      output: commandFailure,
+      dismissOutput: () => setCommandFailure(null),
+      run: async (text: string) => {
+        const command = text.trim()
+        try {
+          const prepared = await prepare()
+          if (prepared !== null) onStartCommand(prepared.key, command)
+        } catch (error) {
+          setCommandFailure({ command, lines: [error instanceof Error ? error.message : String(error)] })
+        }
+      },
+    }),
+    [catalog, commandFailure, onStartCommand, prepare],
+  )
+
+  /* 仅改草稿的这几档（计划 / 目标）不下发、不写任何全局默认；模型与档位在上面写穿「新对话默认」那一份意图。 */
   const select = (controlId: string, value: string): void => {
     if (controlId === 'model') {
       const at = value.indexOf('/')
@@ -216,6 +247,7 @@ export function HomeSurface({
 
   return (
     <AssistantSurface
+      commands={commands}
       controls={shownControls}
       endpoint={threadId ?? ''}
       isNew

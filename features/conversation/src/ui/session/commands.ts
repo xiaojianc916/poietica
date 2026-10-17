@@ -6,12 +6,57 @@ import type { ThreadCommands } from '../shared/model/commands'
 const NO_COMMANDS: readonly SlashCommand[] = Object.freeze([])
 
 /**
- * 一条对话的斜杠命令：挂载读一次表，`commands.changed` 再读；输出按 threadId 收。
- * 没有对话号（入口页）时整面是空的 —— 命令要一条活会话才有意义。
+ * 入口页的命令表：还没有对话，表按工作区现读（内置命令 + 该目录的文件命令，Core 的 commands.catalog）；换工作区重读。
+ * 读不到（Core 没起来、工作区目录没了）就是没有命令可选，`/` 只是一个字 —— 起不来的原因由别处那条横幅说。
  */
-export function useThreadCommands(api: ConversationApi, threadId: string): ThreadCommands {
+export function useCommandCatalog(api: ConversationApi, workspaceId: string | null): readonly SlashCommand[] {
+  const [list, setList] = useState<readonly SlashCommand[]>(NO_COMMANDS)
+
+  useEffect(() => {
+    let live = true
+    void api.commandCatalog(workspaceId).then(
+      (commands) => {
+        if (live) setList(commands)
+      },
+      () => {
+        if (live) setList(NO_COMMANDS)
+      },
+    )
+    return () => {
+      live = false
+    }
+  }, [api, workspaceId])
+
+  return list
+}
+
+/**
+ * 一条对话的斜杠命令：挂载读一次表，`commands.changed` 再读；输出按 threadId 收。
+ * 没有对话号（入口页）时整面是空的 —— 入口页的表另由 useCommandCatalog 读。
+ * `takePending`：入口页点了命令、刚建出这条对话就跳过来的那一句 —— 订阅好输出之后再执行，输出才不会漏在跳转那一拍里。
+ */
+export function useThreadCommands(
+  api: ConversationApi,
+  threadId: string,
+  takePending?: (threadId: string) => string | undefined,
+): ThreadCommands {
   const [list, setList] = useState<readonly SlashCommand[]>(NO_COMMANDS)
   const [output, setOutput] = useState<ThreadCommands['output']>(null)
+
+  const run = useCallback(
+    async (text: string) => {
+      const command = text.trim()
+      /* 新命令换一块输出：上一条的输出到这里就算看过了 */
+      setOutput({ command, lines: [] })
+      try {
+        await api.runCommand(threadId, command)
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error)
+        setOutput({ command, lines: [message] })
+      }
+    },
+    [api, threadId],
+  )
 
   useEffect(() => {
     if (threadId === '') return
@@ -35,27 +80,15 @@ export function useThreadCommands(api: ConversationApi, threadId: string): Threa
         held === null ? { command: '', lines: [p.text] } : { ...held, lines: [...held.lines, p.text] },
       )
     })
+    /* 取走即消费：StrictMode 第二遍挂载取到的是空，不会执行两次 */
+    const pending = takePending?.(threadId)
+    if (pending !== undefined) void run(pending)
     return () => {
       live = false
       offChanged.dispose()
       offOutput.dispose()
     }
-  }, [api, threadId])
-
-  const run = useCallback(
-    async (text: string) => {
-      const command = text.trim()
-      /* 新命令换一块输出：上一条的输出到这里就算看过了 */
-      setOutput({ command, lines: [] })
-      try {
-        await api.runCommand(threadId, command)
-      } catch (error) {
-        const message = error instanceof Error ? error.message : String(error)
-        setOutput({ command, lines: [message] })
-      }
-    },
-    [api, threadId],
-  )
+  }, [api, run, takePending, threadId])
 
   const dismissOutput = useCallback(() => setOutput(null), [])
 

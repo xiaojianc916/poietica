@@ -267,6 +267,12 @@ export class TurnService {
     return await session.commands()
   }
 
+  /** 入口页的命令表：不开会话，文件命令按工作区目录读（没给工作区就只有内置命令） */
+  async commandCatalog(workspaceId: string | undefined): Promise<readonly SlashCommand[]> {
+    const cwd = workspaceId === undefined ? null : this.d.workspaces.requireUsable(workspaceId).path
+    return await this.d.engine.commandCatalog(cwd)
+  }
+
   async runCommand(threadId: string, text: string): Promise<void> {
     const session = await this.d.pool.acquire(threadId)
     await session.runCommand(text)

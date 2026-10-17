@@ -1,12 +1,13 @@
 import './composer-palette.css'
 
+import type { SlashCommand } from '@poietica/engine'
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react'
-import { type KeyboardEvent, type ReactNode, type RefObject, useEffect } from 'react'
+import { type KeyboardEvent, type ReactNode, type RefObject, useEffect, useRef } from 'react'
 import type { PromptConfiguration } from '../../shared/model/session'
 import { AttachIcon, CheckIcon } from '../../shared/primitives/icons'
 import { ENTER_EASE, ENTER_SECONDS, EXIT_EASE, EXIT_SECONDS, RISE_PX } from '../../shared/primitives/motion'
 
-/* 输入框上沿那张面板（加号翻开）。纯视图：开合、高亮、键盘都归持有草稿的 PromptInput —— 键盘事件落在 contenteditable 上，面板自己听不见。 */
+/* 输入框上沿那张面板（加号翻开，或草稿敲下行首 `/`）。纯视图：开合、高亮、键盘都归持有草稿的 PromptInput —— 键盘事件落在 contenteditable 上，面板自己听不见。 */
 
 /* 选中一行之后做什么。要动草稿的一律只声明意图，由持有草稿的 PromptInput 执行。 */
 export type PaletteAction =
@@ -17,11 +18,19 @@ export type PaletteAction =
       readonly label: string
     }
   | { readonly kind: 'run'; readonly run: (draft: string) => void }
+  /* 斜杠命令：回车执行（必填参数的先补参数），Tab 只补全名字 —— 草稿怎么改归 PromptInput */
+  | { readonly kind: 'command'; readonly command: SlashCommand }
+
+/** 这一行是怎么被选中的：Tab 只补全，回车与点击是「就要这一条」 */
+export type PaletteVia = 'enter' | 'tab'
 
 export interface PaletteRow {
   readonly id: string
-  readonly icon: ReactNode
+  /** 缺席就不留图标位（命令面板一列都是命令，同一枚图标重复几十遍只是噪音） */
+  readonly icon?: ReactNode
   readonly label: string
+  /** 紧跟名字的参数提示（`[标题]`、`<路径>`） */
+  readonly argument?: string | undefined
   readonly detail?: string | undefined
   readonly hint?: string | undefined
   readonly checked?: boolean | undefined
@@ -58,7 +67,7 @@ export function paletteKeyDown(
     readonly highlighted: number
     readonly onClose: () => void
     readonly onHighlight: (index: number) => void
-    readonly onPick: (row: PaletteRow) => void
+    readonly onPick: (row: PaletteRow, via: PaletteVia) => void
     readonly open: boolean
     readonly rows: readonly PaletteRow[]
     readonly stopPropagation: boolean
@@ -89,7 +98,7 @@ export function paletteKeyDown(
     const chosen = rows[highlighted] ?? rows[0]
 
     if (chosen !== undefined) {
-      onPick(chosen)
+      onPick(chosen, event.key === 'Tab' ? 'tab' : 'enter')
     }
 
     return
@@ -154,6 +163,29 @@ export function useDismissOutside(
   }, [close, inside, open, portal])
 }
 
+/* 一行的几格：图标（可缺）· 名字 · 参数提示 · 说明 · 快捷键 · 勾。拆出来是为了让列表那层只管高亮与选中。 */
+function PaletteRowContent({ row }: { readonly row: PaletteRow }) {
+  return (
+    <>
+      {row.icon == null ? null : <span className="composer-palette__icon">{row.icon}</span>}
+
+      <span className="composer-palette__label">{row.label}</span>
+
+      {row.argument === undefined ? null : <span className="composer-palette__argument">{row.argument}</span>}
+
+      {row.detail === undefined ? null : <span className="composer-palette__detail">{row.detail}</span>}
+
+      {row.hint === undefined ? null : <kbd className="composer-palette__hint">{row.hint}</kbd>}
+
+      {row.checked === true ? (
+        <span className="composer-palette__tick">
+          <CheckIcon aria-hidden="true" />
+        </span>
+      ) : null}
+    </>
+  )
+}
+
 export interface ComposerPaletteProps {
   readonly groups: readonly PaletteGroup[]
   readonly isOpen: boolean
@@ -161,7 +193,7 @@ export interface ComposerPaletteProps {
   readonly highlighted: number
   /** 指针进入某一行时把高亮挪过去：任何时刻只有一行有悬停色。 */
   readonly onHighlight: (index: number) => void
-  readonly onPick: (row: PaletteRow) => void
+  readonly onPick: (row: PaletteRow, via: PaletteVia) => void
 }
 
 export function ComposerPalette({ groups, highlighted, isOpen, listboxId, onHighlight, onPick }: ComposerPaletteProps) {
@@ -177,6 +209,28 @@ export function ComposerPalette({ groups, highlighted, isOpen, listboxId, onHigh
   const reduced = useReducedMotion() === true
   const enter = reduced ? 0 : ENTER_SECONDS
   const exit = reduced ? 0 : EXIT_SECONDS
+
+  /*
+   * 方向键走到可视区外的那一行，把它滚进来：命令面板几十行，不滚就是高亮从眼前消失。
+   * 只服务键盘。指针挪过去不滚：滚动会让指针底下换成另一行，mouseenter 再报一次，高亮与滚动互相追着跑，
+   * 屏幕上就是面板随鼠标上下抖（行只露出一半时最明显）。能悬停到的行本来就在视野里，不需要滚。
+   */
+  const panel = useRef<HTMLDivElement>(null)
+  const pointerPicked = useRef<number | null>(null)
+  useEffect(() => {
+    if (!isOpen) {
+      pointerPicked.current = null
+
+      return
+    }
+    if (pointerPicked.current === highlighted) {
+      /* 这一跳是鼠标自己挪过来的：只换高亮，不动滚动位置。 */
+      pointerPicked.current = null
+
+      return
+    }
+    panel.current?.querySelectorAll<HTMLElement>('[role="option"]')[highlighted]?.scrollIntoView?.({ block: 'nearest' })
+  }, [highlighted, isOpen])
 
   return (
     <div className="composer-palette">
@@ -202,6 +256,7 @@ export function ComposerPalette({ groups, highlighted, isOpen, listboxId, onHigh
             id={listboxId}
             initial={{ opacity: 0, scale: 0.98, y: RISE_PX }}
             key="composer-palette"
+            ref={panel}
             role="listbox"
           >
             {laid.map(({ group, start }) => (
@@ -221,27 +276,21 @@ export function ComposerPalette({ groups, highlighted, isOpen, listboxId, onHigh
                       key={row.id}
                       onMouseDown={(event) => {
                         event.preventDefault()
-                        onPick(row)
+                        onPick(row, 'enter')
                       }}
                       onMouseEnter={() => {
+                        /* 已经高亮的那一行不重复 set：state 不变、effect 不跑，标记会留到下一次键盘操作上。 */
+                        if (at === highlighted) {
+                          return
+                        }
+                        /* 记一笔来源：下面那个滚动 effect 据此把「指针挪过来的」那一跳跳过去。 */
+                        pointerPicked.current = at
                         onHighlight(at)
                       }}
                       role="option"
                       type="button"
                     >
-                      <span className="composer-palette__icon">{row.icon}</span>
-
-                      <span className="composer-palette__label">{row.label}</span>
-
-                      {row.detail === undefined ? null : <span className="composer-palette__detail">{row.detail}</span>}
-
-                      {row.hint === undefined ? null : <kbd className="composer-palette__hint">{row.hint}</kbd>}
-
-                      {row.checked === true ? (
-                        <span className="composer-palette__tick">
-                          <CheckIcon aria-hidden="true" />
-                        </span>
-                      ) : null}
+                      <PaletteRowContent row={row} />
                     </button>
                   )
                 })}

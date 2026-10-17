@@ -1,7 +1,6 @@
 import '../shared/styles/surface.css'
 
 import { Banner, WorkspacePicker, type WorkspacePickerProps } from '@poietica/design-system'
-import type { SlashCommand } from '@poietica/engine'
 import { FeatureScope, type Observable, useContributions, useObservable } from '@poietica/ui-kernel'
 import {
   memo,
@@ -173,12 +172,12 @@ function useDismissed(message: string | null): readonly [boolean, () => void] {
 const FAILURE_HOLD_MS = 60 * 60 * 1000
 
 /**
- * 斜杠命令的两条入口（键入回车、面板点选）收在这一处，不摊进 AssistantSurface。
- * - 回车：行首点名了表里的一条命令、又没挂附件与技能，交给 omp 的命令路由，不当一句话发给模型；
- *   表里没有的 `/xxx`（路径、随手打的斜杠）照常发 —— 判据是 omp 的命令表，不是「以斜杠开头」。
- * - 点选：不带参数的当场执行（草稿留着）；带参数的把 `/名字 ` 接在草稿前面放回输入框，人补完参数按回车。
+ * 斜杠命令的路由收在这一处，不摊进 AssistantSurface。命令只有一个入口：草稿里的 `/名字`（手打回车，
+ * 或在斜杠面板里选中 —— 面板把名字放回草稿再提交，到这里是同一句话）。
+ * 行首点名了表里的一条命令、又没挂附件与技能，交给 omp 的命令路由，不当一句话发给模型；
+ * 表里没有的 `/xxx`（路径、随手打的斜杠）照常发 —— 判据是 omp 的命令表，不是「以斜杠开头」。
  */
-function useCommandRouting(commands: ThreadCommands | undefined, draft: RefObject<PromptInputHandle | null>) {
+function useCommandRouting(commands: ThreadCommands | undefined) {
   const routeCommand = useCallback(
     (message: Omit<PromptInputMessage, 'queued'>): boolean => {
       if (commands === undefined || message.assets.length > 0 || message.skills.length > 0) return false
@@ -187,17 +186,6 @@ function useCommandRouting(commands: ThreadCommands | undefined, draft: RefObjec
       return true
     },
     [commands],
-  )
-  const pickCommand = useCallback(
-    (command: SlashCommand, text: string) => {
-      if (command.hint === null) {
-        void commands?.run(`/${command.name}`)
-        return
-      }
-      draft.current?.setText(`${`/${command.name} ${text}`.trimEnd()} `)
-      draft.current?.focus()
-    },
-    [commands, draft],
   )
   /* 维护动作与重试钮都只是命令的快捷方式：同一条 commands.run，结果落进同一块命令输出。 */
   const runCommand = useCallback(
@@ -211,7 +199,6 @@ function useCommandRouting(commands: ThreadCommands | undefined, draft: RefObjec
     void commands?.run('/retry')
   }, [commands])
   return {
-    pickCommand,
     retry: canRetry ? retry : undefined,
     routeCommand,
     runCommand: commands === undefined ? undefined : runCommand,
@@ -316,7 +303,7 @@ export const AssistantSurface = memo(function AssistantSurface({
 
   /* 把手两个读者：外面写草稿，这层取回队列那句改；铺一条回调 ref 分给两边。 */
   const draft = useRef<PromptInputHandle | null>(null)
-  const { pickCommand, retry, routeCommand, runCommand } = useCommandRouting(commands, draft)
+  const { retry, routeCommand, runCommand } = useCommandRouting(commands)
 
   /* 发言就是那次转场，先于 send：这一刻起就是对话而非入口。`queued` 是人点名的「排队」，跑着时走 followUp 不打断。 */
   const submit = useCallback(
@@ -393,7 +380,6 @@ export const AssistantSurface = memo(function AssistantSurface({
         onCancel={assistant.cancel}
         onContinue={continueConversation}
         onDismissQuestions={assistant.dismissQuestions}
-        onPickCommand={pickCommand}
         onRunCommand={runCommand}
         onResolvePlan={assistant.resolvePlan}
         plan={pendingPlan}

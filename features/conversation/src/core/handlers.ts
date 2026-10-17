@@ -126,6 +126,9 @@ export function registerHandlers(ctx: Ctx, core: ConversationCore, hub: Timeline
   ctx.rpc.handle('controls.resumeGoal', ({ threadId }) => turns.resumeGoal(threadId))
 
   ctx.rpc.handle('commands.list', async ({ threadId }) => ({ commands: [...(await turns.commands(threadId))] }))
+  ctx.rpc.handle('commands.catalog', async ({ workspaceId }) => ({
+    commands: [...(await turns.commandCatalog(workspaceId))],
+  }))
   ctx.rpc.handle('commands.run', async ({ threadId, text }) => {
     await turns.runCommand(threadId, text)
     return {}

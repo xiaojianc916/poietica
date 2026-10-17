@@ -122,6 +122,8 @@ export function createConversationApi(ctx: UiFeatureContext) {
     resumeGoal: (threadId: string): Promise<Controls> => rpc.call('controls.resumeGoal', { threadId }),
     listCommands: async (threadId: string): Promise<readonly SlashCommand[]> =>
       (await rpc.call('commands.list', { threadId })).commands,
+    commandCatalog: async (workspaceId: string | null): Promise<readonly SlashCommand[]> =>
+      (await rpc.call('commands.catalog', workspaceId === null ? {} : { workspaceId })).commands,
     runCommand: (threadId: string, text: string): Promise<void> =>
       rpc.call('commands.run', { threadId, text }).then(() => undefined),
     onCommandOutput: (l: (p: { threadId: string; text: string }) => void) => rpc.on('commands.output', l),

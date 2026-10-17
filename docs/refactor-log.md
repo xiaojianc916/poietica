@@ -4055,3 +4055,45 @@ UI 本地草稿（`conversation.drafts` 的 `__new__.selection`）与引擎的 `
 engine-omp `models.test.ts` 2 例、一致性 `C-DEFAULT-SELECTION`（Fake 与 OmpEngine）、conversation core CV-15 3 例、
 UI `entry-defaults.test.ts` 4 例；`core-recovery.test.tsx` 的入口草稿用例按新行为改写（写穿前每次读都带盘上
 选择、写穿的正是那一笔、写穿后不再重复带）。
+
+## U-01 斜杠命令面板：输入框行首 `/` 起面板、入口页也能用（基于 e1de594，协议 30，2026-10-17）
+
+**来源**：`U-01.md`（基线 `68f56762`，协议 27 → 28 的方案与补丁）。当前 HEAD 已到 `e1de594`（协议 29），
+因此按方案逐条重放，不是原样贴补丁。
+
+**改法**（与 U-01.md 的方案一致）：
+
+- 引擎端口：`AgentEngine.commandCatalog(cwd)` —— 不开会话取命令表，内置命令加 `cwd` 下的文件命令。
+  `engine-omp` 用同一份 `buildAvailableSlashCommands` 交给它一份空会话（`listCommandCatalog`），
+  再剔掉只对已有对话有意义的九条（`NEEDS_HISTORY`：compact / handoff / shake / retry / rename / fresh /
+  export / dump / share）。随包带的 `review` / `green` / `annotate` / `init` 归为内置（人眼里它们不是「自定义」）；
+  新增 `pin` 进 `HOST_BLOCKED`（置顶归线程行，两份置顶各说各的）。
+- 命令文案：新增 `engine-omp/src/session/command-text.ts` —— 内置命令的中文说明、参数提示与面板先后
+  （对话 → 模型与模式 → 任务与工具 → 扩展）。`<…>` 是必填、`[…]` 可选，面板据此决定回车是直接执行还是先补参数；
+  查不到的命令交回 omp 原文、排在表外。
+- 协议：`commands.catalog { workspaceId? } → { commands }`，Core 侧 `TurnService.commandCatalog` 不开会话、
+  按工作区目录读文件命令。
+- UI：草稿是「行首 `/` + 一截名字」时（`slashQueryOf`）弹出命令面板代替加号面板；`rankCommands` 五档匹配
+  （名字相等 > 名字前缀 > 别名前缀 > 名字包含 > 说明包含，说明是中文所以 `/压缩` 找得到 `/compact`），
+  分组依次为自定义 / 扩展 / MCP 提示词 / 内置，有搜索词时按组内最佳匹配排组。回车执行（必填参数只补名字）、
+  Tab 只补全、Esc 或点框外收起且本轮不再自动弹（`slashMuted`，草稿离开斜杠形状再回来才重置）；
+  方向键移出可视区时把高亮行 `scrollIntoView`。加号面板不再放命令。
+- 入口页：`useCommandCatalog` 按工作区现读表；选中命令先铸出对话、由组合根按对话号放一次
+  （`pendingCommands`），那条对话的表面订阅好输出后取走执行，输出落在它自己那一块。
+- 占位文字：有命令可用时是「问我任何问题，输入 / 使用命令」。
+
+**偏差**：
+
+1. **协议版本 29 → 30**（方案写的是 27 → 28）。HEAD 已经是 29，退回去会与 `controls.setDraft` 撞号；
+   版本号只用来发现装坏了或忘了重建 Core，递增到 30 即可。
+2. **`home-surface.tsx` 与 `packages/protocol/src/version.ts` 有冲突，手工合并**。前者是 Q1-二期新加的
+   `entryDefaults` / `remember()` 与 U-01 新加的 `onStartCommand` / `useCommandCatalog` 都要留：
+   两段并存，只把 `select()` 上方那句过时的注释改准（模型与档位写穿意图、计划与目标只改草稿）。
+   后者取 30。
+3. `git apply --3way` 报 `repository lacks the necessary blob`（基线 68f56762 的 blob 不在本仓库对象库里），
+   所以是「补丁 + 手工收敛两处冲突」而不是三方合并。
+
+**验证**：`bun run all` 通过（2,422 pass / 0 fail，305 文件 / 11,441 断言 / 3 快照；typecheck 768 + 1,028 文件、
+biome、自定义闸门、omp 文档核对与 depcruise 全绿；lint 仅余基线已有的 4 条 `noDescendingSpecificity` 警告）。
+U-01 点名的三个套件单独跑：`slash-palette.test.tsx` 6 例、`command-catalog.test.ts` 3 例、
+`commands.test.ts` 9 例（含新增的排序 / 参数判断 / 草稿形状用例）全通过。

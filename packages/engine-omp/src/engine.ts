@@ -9,6 +9,7 @@ import {
   type ModelRef,
   type OpenSessionSpec,
   type Posture,
+  type SlashCommand,
 } from '@poietica/engine'
 import { AppError, type Disposable, type Logger, SystemErrorCode, toDisposable } from '@poietica/foundation'
 
@@ -27,6 +28,8 @@ export interface OmpEngineOptions {
     readonly thinking: string | null
     readonly hidden: readonly string[]
   }) => Promise<Controls>
+  /** 不开会话的命令表（入口页的命令面板）；实现要读 omp 的命令注册表，所以同样由组合根注入 */
+  readonly commandCatalog: AgentEngine['commandCatalog']
   readonly createSession: (spec: OpenSessionSpec, tools: ReadonlyMap<string, EngineToolSpec>) => Promise<EngineSession>
   readonly sessionFiles: AgentEngine['sessionFiles']
   readonly models: AgentEngine['models']
@@ -101,6 +104,10 @@ export class OmpEngine implements AgentEngine {
       thinking: init?.thinking ?? fallback?.thinking ?? null,
       hidden: init?.hidden ?? [],
     })
+  }
+
+  async commandCatalog(cwd: string | null): Promise<readonly SlashCommand[]> {
+    return await this.o.commandCatalog(cwd)
   }
 
   registerTool(spec: EngineToolSpec): Disposable {

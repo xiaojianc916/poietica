@@ -51,6 +51,17 @@ export function createConversationContributions(setup: ConversationSetup, action
 
   /* 重写分出来的新对话要带上的那一句：按新对话号放一次、取一次（setup 级，跨表面实例） */
   const prefills = new Map<string, string>()
+  /* 入口页执行的斜杠命令：对话刚铸出来、表面还没挂上，按对话号放一次，由那条对话的表面订阅好输出后取走执行 */
+  const pendingCommands = new Map<string, string>()
+  const startCommand = (threadId: string, text: string): void => {
+    pendingCommands.set(threadId, text)
+    openThread(threadId)
+  }
+  const takePendingCommand = (threadId: string): string | undefined => {
+    const text = pendingCommands.get(threadId)
+    pendingCommands.delete(threadId)
+    return text
+  }
   const rewriteThread = (threadId: string, turn: number) => {
     const text = promptOfTurn(transcripts.read(threadId).timeline, turn)
     void api.forkThread({ threadId, keepTurns: turn - 1 }).then((t) => {
@@ -221,6 +232,7 @@ export function createConversationContributions(setup: ConversationSetup, action
           entryDefaults={entryDefaults}
           preferences={prefs}
           onOpenThread={openThread}
+          onStartCommand={startCommand}
           posture={posture}
           sessions={sessions}
           stores={stores}
@@ -263,7 +275,7 @@ export function createConversationContributions(setup: ConversationSetup, action
       /* 挂载预热 / 卸载释放（threads.open / threads.close）；规则与 StrictMode 的兜底在 thread-lifecycle.ts 里。 */
       useThreadSessionLifecycle({ threadId, open: openThreadSurface, close: api.closeThread })
       /* omp 的斜杠命令：表随会话现算，输出不进会话文件，所以由这一层按对话号收着 */
-      const commands = useThreadCommands(api, threadId)
+      const commands = useThreadCommands(api, threadId, takePendingCommand)
       /* 表面实例跨对话复用：按对话号记着取到的那一句，换了对话就重取，不把上一条的话放进这一条 */
       const [held, setHeld] = useState(() => ({ threadId, text: prefills.get(threadId) }))
       if (held.threadId !== threadId) setHeld({ threadId, text: prefills.get(threadId) })

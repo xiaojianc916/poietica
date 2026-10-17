@@ -355,6 +355,13 @@ export const conversationContract = defineContract({
       description: '列出这条对话此刻可用的斜杠命令（omp 现算）',
     }),
     defineMethod({
+      name: 'commands.catalog',
+      owner: 'core',
+      params: z.object({ workspaceId: z.string().min(1).optional() }),
+      result: z.object({ commands: z.array(SlashCommand) }),
+      description: '还没有对话时可用的斜杠命令（入口页）：内置命令加该工作区的文件命令，不开会话',
+    }),
+    defineMethod({
       name: 'commands.run',
       owner: 'core',
       params: z.object({ threadId: z.string().min(1), text: z.string().trim().startsWith('/') }),

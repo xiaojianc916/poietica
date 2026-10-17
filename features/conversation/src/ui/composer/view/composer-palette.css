@@ -73,6 +73,13 @@
   white-space: nowrap;
 }
 
+.composer-palette__argument {
+  flex: none;
+  font-size: var(--cp-font-micro);
+  color: var(--cp-ink-subtle);
+  white-space: nowrap;
+}
+
 .composer-palette__detail {
   min-inline-size: 0;
   overflow: hidden;

@@ -31,6 +31,54 @@ export function hasCommand(list: readonly SlashCommand[] | undefined, name: stri
   return list?.some((command) => command.name === name) ?? false
 }
 
+/**
+ * 草稿是不是正在敲一条命令的名字：整份草稿就是行首 `/` 加一截不带空白的字（可以是空串，刚敲下 `/` 那一刻）。
+ * 是就交回那一截，不是（还没敲斜杠、已经在写参数、换了行）交回 null —— 命令面板只在前一种时候出来。
+ */
+export function slashQueryOf(text: string): string | null {
+  const hit = /^\/(\S*)$/.exec(text)
+  return hit === null ? null : (hit[1] ?? '')
+}
+
+/** 选中这条命令时要不要先补参数：omp 的参数提示里 `<…>` 是必填、`[…]` 是可选（可选的直接执行） */
+export function requiresArgument(command: SlashCommand): boolean {
+  return command.hint?.trimStart().startsWith('<') ?? false
+}
+
+/* 匹配档：名字相等 > 名字前缀 > 别名前缀 > 名字含这截 > 说明含这截（说明是中文，敲 `/压缩` 也找得到 /compact）。 */
+function matchRankOf(command: SlashCommand, query: string): number | null {
+  const name = command.name.toLowerCase()
+  if (name === query) return 0
+  if (name.startsWith(query)) return 1
+  if (command.aliases.some((alias) => alias.toLowerCase().startsWith(query))) return 2
+  if (name.includes(query)) return 3
+  if (command.description?.toLowerCase().includes(query) === true) return 4
+  return null
+}
+
+/** 按草稿那一截挑出命令并排好：先按匹配档，同档保持表的次序（表的次序就是常用程度）；空串交回整张表 */
+export function rankCommands(list: readonly SlashCommand[], query: string): readonly SlashCommand[] {
+  const wanted = query.toLowerCase()
+  if (wanted === '') return list
+  return list
+    .map((command, at) => ({ at, command, rank: matchRankOf(command, wanted) }))
+    .filter((entry): entry is { at: number; command: SlashCommand; rank: number } => entry.rank !== null)
+    .sort((a, b) => a.rank - b.rank || a.at - b.at)
+    .map((entry) => entry.command)
+}
+
+/** 命令面板的分组：人自己写的命令在前（最可能是来找它的），内置命令最后；同一组里的先后由 rankCommands 定 */
+export const COMMAND_GROUPS: readonly {
+  readonly id: string
+  readonly heading: string
+  readonly sources: readonly SlashCommand['source'][]
+}[] = [
+  { id: 'custom', heading: '自定义命令', sources: ['file', 'custom'] },
+  { id: 'extension', heading: '扩展命令', sources: ['extension'] },
+  { id: 'mcp', heading: 'MCP 提示词', sources: ['mcp_prompt'] },
+  { id: 'builtin', heading: '内置命令', sources: ['builtin'] },
+]
+
 /** 上下文面板底部那一排：都是 omp 的内置命令，顺序即按钮顺序；文案只是命令的中文名，行为全在 omp */
 export const CONTEXT_COMMANDS = [
   { name: 'compact', label: '压缩', hint: '把较早的对话总结成摘要（/compact）' },

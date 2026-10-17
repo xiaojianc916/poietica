@@ -45,9 +45,8 @@ export interface AssistantComposerProps {
   readonly ref?: Ref<PromptInputHandle> | undefined
   readonly skills?: readonly AgentSkill[] | undefined
   readonly mcpServers?: readonly AgentMcpServer[] | undefined
-  /** omp 的斜杠命令（面板「命令」一组）；选中交给 onPickCommand */
+  /** omp 的斜杠命令：草稿敲下行首 `/` 弹出的命令面板；选中执行仍走 onSubmit（收信人按正文认命令） */
   readonly commands?: readonly SlashCommand[] | undefined
-  readonly onPickCommand?: ((command: SlashCommand, draft: string) => void) | undefined
   /** 直接执行一句命令（上下文面板的维护动作用它）；缺席时那排按钮不画 */
   readonly onRunCommand?: ((text: string) => void) | undefined
   /** Everything the session (or, before one exists, the agent config) offers. */
@@ -137,6 +136,11 @@ function ComposerToolbar({
   )
 }
 
+/* 有命令可用就在占位字里说一声 `/` 能做什么：这是唯一的入口，不说就没人知道（专业 agent 的输入框都这么写）。 */
+function placeholderOf(commands: readonly SlashCommand[] | undefined): string {
+  return commands === undefined || commands.length === 0 ? '问我任何问题…' : '问我任何问题，输入 / 使用命令'
+}
+
 /* memo 只允许语义状态变化重渲染输入区；流式帧由状态球的稳定投影隔离。 */
 export const AssistantComposer = memo(function AssistantComposer({
   approval,
@@ -148,11 +152,10 @@ export const AssistantComposer = memo(function AssistantComposer({
   onAnswerQuestions,
   onDismissQuestions,
   mcpServers,
-  onPickCommand,
   onResolvePlan,
   plan,
   skills,
-  placeholder = '问我任何问题…',
+  placeholder,
   question,
   ref,
   status = 'ready',
@@ -171,14 +174,12 @@ export const AssistantComposer = memo(function AssistantComposer({
   const groups = useMemo(
     () =>
       composerPaletteGroups({
-        commands,
         controls: confirmed,
         mcpServers: mcpServers ?? [],
-        onPickCommand,
         onSelectControl: toolbar.onSelectControl,
         skills: skills ?? [],
       }),
-    [commands, confirmed, mcpServers, onPickCommand, skills, toolbar.onSelectControl],
+    [confirmed, mcpServers, skills, toolbar.onSelectControl],
   )
 
   return (
@@ -198,6 +199,7 @@ export const AssistantComposer = memo(function AssistantComposer({
         onChange={onChange}
         onSubmit={onSubmit}
         ref={ref}
+        slashCommands={asking ? undefined : commands}
       >
         {asking && question.dialog !== undefined ? (
           /* 单问（确认 / 单选 / 输入）一张自己的卡；key 同题组：换一问就从空草稿重来。 */
@@ -220,7 +222,7 @@ export const AssistantComposer = memo(function AssistantComposer({
             <PromptInputBody>
               <AttachmentTray />
 
-              <PromptInputEditor placeholder={placeholder} />
+              <PromptInputEditor placeholder={placeholder ?? placeholderOf(commands)} />
             </PromptInputBody>
 
             <ComposerToolbar

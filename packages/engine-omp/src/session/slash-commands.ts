@@ -1,3 +1,4 @@
+import { loadSlashCommands } from '@oh-my-pi/pi-coding-agent/extensibility/slash-commands'
 import { executeAcpBuiltinSlashCommand } from '@oh-my-pi/pi-coding-agent/slash-commands/acp-builtins'
 import {
   type AvailableCommandsSession,
@@ -6,6 +7,7 @@ import {
 import { parseSlashCommand } from '@oh-my-pi/pi-coding-agent/slash-commands/helpers/parse'
 import type { SlashCommandRuntime } from '@oh-my-pi/pi-coding-agent/slash-commands/types'
 import type { SlashCommand } from '@poietica/engine'
+import { builtinDescriptionOf, builtinHintOf, builtinRankOf } from './command-text'
 
 /*
  * 斜杠命令：表与执行都直接用 omp 给宿主的那两个入口（`buildAvailableSlashCommands` /
@@ -13,6 +15,7 @@ import type { SlashCommand } from '@poietica/engine'
  *   1. 剔除 GUI 宿主办不了的那几条（见 HOST_BLOCKED）；
  *   2. 把 omp 的条目折成端口的 SlashCommand。
  * 不在这里维护命令清单、不解析命令参数 —— omp 每加一条命令，GUI 不改一行就有。
+ * 内置命令的中文说明与面板里的先后在 command-text.ts（查不到就是 omp 原文、排在后面）。
  */
 
 /**
@@ -28,7 +31,25 @@ const HOST_BLOCKED: Readonly<Record<string, readonly string[] | null>> = Object.
   stats: null,
   trace: null,
   session: ['delete'],
+  /* omp 恢复列表里的置顶。GUI 的置顶是线程行上的（threads.setPinned），两份置顶各说各的只会让人糊涂。 */
+  pin: null,
 })
+
+/**
+ * 对已有对话才有意义的命令：还没有对话时（入口页）不列。它们处理的是已经说过的话 —— 压缩、重试、重命名、导出……
+ * 在一条空对话上跑，只会得到一句「没有可处理的内容」。
+ */
+const NEEDS_HISTORY: ReadonlySet<string> = new Set([
+  'compact',
+  'handoff',
+  'shake',
+  'retry',
+  'rename',
+  'fresh',
+  'export',
+  'dump',
+  'share',
+])
 
 type OmpCommandSession = SlashCommandRuntime['session'] & AvailableCommandsSession
 
@@ -55,25 +76,85 @@ export async function resolveSlashCommand(
  * 所以执行前先走它一遍，prompt 才认得刚放进 `.omp/commands` 的那一条。
  */
 export async function listSlashCommands(session: unknown): Promise<readonly SlashCommand[]> {
-  const commands = await buildAvailableSlashCommands(session as OmpCommandSession)
+  const live = session as OmpCommandSession
+  /* omp 随包带的那几条（TS 命令 review / green / annotate，文件命令 init）：对人来说就是内置命令，不是「自定义」 */
+  const bundled = new Set(
+    live.customCommands.filter((loaded) => loaded.source === 'bundled').map((loaded) => loaded.command.name),
+  )
+  const commands = await buildAvailableSlashCommands(live, (cwd) =>
+    loadBundledAware(cwd, live.effectiveExtensionRoots, bundled),
+  )
+  return foldCommands(commands, bundled)
+}
+
+/** 与 omp 的默认读法同一个调用（`loadSlashCommands({ cwd, extensionRoots })`），顺手记下哪几条是随包带的 */
+async function loadBundledAware(
+  cwd: string,
+  extensionRoots: AvailableCommandsSession['effectiveExtensionRoots'],
+  bundled: Set<string>,
+): Promise<Awaited<ReturnType<typeof loadSlashCommands>>> {
+  const files = await loadSlashCommands({ cwd, ...(extensionRoots === undefined ? {} : { extensionRoots }) })
+  for (const file of files) {
+    if (file.source === 'bundled') bundled.add(file.name)
+  }
+  return files
+}
+
+/**
+ * 不开会话的命令表（入口页）：同一个 `buildAvailableSlashCommands`，交给它一份空会话 —— 没有扩展、自定义 TS 命令与
+ * MCP 提示词（那些要会话装起来才有），文件命令照 `cwd` 读。再剔掉只对已有对话有意义的那几条（NEEDS_HISTORY）。
+ */
+export async function listCommandCatalog(cwd: string | null): Promise<readonly SlashCommand[]> {
+  const bare: AvailableCommandsSession = {
+    customCommands: [],
+    skills: [],
+    setSlashCommands: () => undefined,
+    sessionManager: { getCwd: () => cwd ?? '' },
+  }
+  const bundled = new Set<string>()
+  const commands = await buildAvailableSlashCommands(bare, (dir) =>
+    cwd === null ? Promise.resolve([]) : loadBundledAware(dir, undefined, bundled),
+  )
+  return foldCommands(commands, bundled).filter(
+    (command) => command.source !== 'builtin' || !NEEDS_HISTORY.has(command.name),
+  )
+}
+
+type OmpAvailableCommand = Awaited<ReturnType<typeof buildAvailableSlashCommands>>[number]
+
+/**
+ * omp 的条目折成端口的 SlashCommand：剔除技能与 GUI 拦下的命令；随包带的（`bundled`）归为内置 ——
+ * 执行不受影响：内置路由认不出它就原样交给 prompt，由 omp 照常展开。内置命令换中文说明、按 command-text 的先后排。
+ */
+function foldCommands(commands: readonly OmpAvailableCommand[], bundled: ReadonlySet<string>): SlashCommand[] {
   const out: SlashCommand[] = []
   for (const command of commands) {
     /* 技能有自己的入口（输入框的技能标记），这里不再列第二份 */
     if (command.source === 'skill') continue
     if (HOST_BLOCKED[command.name] === null) continue
-    const blockedVerbs = HOST_BLOCKED[command.name] ?? []
-    out.push({
-      name: command.name,
-      aliases: [...(command.aliases ?? [])],
-      description: command.description ?? null,
-      hint: command.input?.hint ?? null,
-      source: command.source,
-      subcommands: (command.subcommands ?? [])
-        .filter((sub) => !blockedVerbs.includes(sub.name))
-        .map((sub) => ({ name: sub.name, description: sub.description ?? null })),
-    })
+    out.push(foldCommand(command, bundled.has(command.name) ? 'builtin' : command.source))
   }
-  return out
+  /* 只给内置命令排先后；其余来源保持 omp 的次序（omp 本来就把内置命令排在最前） */
+  const builtins = out.filter((command) => command.source === 'builtin')
+  builtins.sort((a, b) => builtinRankOf(a.name) - builtinRankOf(b.name))
+  return [...builtins, ...out.filter((command) => command.source !== 'builtin')]
+}
+
+function foldCommand(command: OmpAvailableCommand, source: SlashCommand['source']): SlashCommand {
+  const blockedVerbs = HOST_BLOCKED[command.name] ?? []
+  const builtin = source === 'builtin'
+  const description = command.description ?? null
+  const hint = command.input?.hint ?? null
+  return {
+    name: command.name,
+    aliases: [...(command.aliases ?? [])],
+    description: builtin ? builtinDescriptionOf(command.name, description) : description,
+    hint: builtin ? builtinHintOf(command.name, hint) : hint,
+    source,
+    subcommands: (command.subcommands ?? [])
+      .filter((sub) => !blockedVerbs.includes(sub.name))
+      .map((sub) => ({ name: sub.name, description: sub.description ?? null })),
+  }
 }
 
 export interface BuiltinCommandHooks {

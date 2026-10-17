@@ -11,6 +11,7 @@ import { migrateLegacyTitleRole } from './ports/models'
 import { ompPorts } from './ports/omp-ports'
 import { wrapOmpSession } from './session/omp-session-adapter'
 import { SessionFactory } from './session/session-factory'
+import { listCommandCatalog } from './session/slash-commands'
 import { isConfiguredSetting, overrideSetting, readSetting, writeGlobalSetting } from './settings-access'
 
 export interface CreateEngineOptions {
@@ -127,6 +128,7 @@ export async function createOmpEngineWith(o: CreateEngineOptions, seams: EngineT
           hidden: init.hidden,
         }),
       ),
+    commandCatalog: (cwd) => listCommandCatalog(cwd),
     models: ports.models,
     settings: ports.settings,
     skills: ports.skills,

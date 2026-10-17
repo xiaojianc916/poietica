@@ -749,6 +749,10 @@ export function createFakeEngine(opts: FakeEngineOptions = {}): FakeEngine {
      * 草稿控件表（方案 §04 的 draftControls）：只读，不开会话、不写设置。与会话里那份同一条规则：
      * 可选模型来自目录（只取 enabled），思考档位按当前模型的 thinkingLevels 给，姿态是 init.posture ?? 'auto-edit'。
      */
+    /* 与真引擎同一条规则：入口页的命令表不列只对已有对话有意义的那几条（这里是 compact 与 retry） */
+    async commandCatalog() {
+      return FAKE_COMMANDS.filter((command) => command.name !== 'compact' && command.name !== 'retry')
+    },
     async draftControls(init) {
       /* 与真引擎同一规矩：只有没给模型时才套默认选择器里的档位 */
       const explicit = init?.model ?? null
