@@ -27,19 +27,12 @@ document.documentElement.style.setProperty(
 scrollbarProbe.remove()
 
 const HOME_ROUTE = { surface: 'conversation.home', params: {} } as const
-const DEMO_ROUTE = { surface: 'design-system.demo', params: {} } as const
-
-/**
- * 首屏路由。`#/__ds` 由 design-system-demo 功能在 core ready 之后再认一次
- * （见 features.ts），这里只给一个不会白屏的起点。
- */
-const demoRequested = import.meta.env.DEV && window.location.hash === '#/__ds'
 
 const kernel = createUiKernel({
   features: [workbenchFeature, ...uiFeatures],
   errorMessages: { ...engineErrorMessages, ...appContract.errorMessages },
   validateResults: import.meta.env.DEV,
-  defaultRoute: demoRequested ? DEMO_ROUTE : HOME_ROUTE,
+  defaultRoute: HOME_ROUTE,
 })
 await kernel.start()
 createRoot(document.getElementById('root')!).render(
