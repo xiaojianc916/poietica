@@ -3964,3 +3964,27 @@ design-system（review 那处 `as MarkdownRenderer` 一并去掉）；新增 dep
 
 - 队列行画第一张缩略图（多张角标 `+N`），高 `--cp-queue-thumb: 24px`，吃在行高 36 的内边距里：带图与不带图的行同高（真机渲染实测都是 36px）；点开是这一句那组图的灯箱；图读不出来退成图片记号。
 - `PROTOCOL_VERSION` 22 → 23，重新生成 `contract.snapshot.json`。
+
+## omp 能力利用审查 O-01～O-06（基于 3d22454，协议 27，2026-10-17）
+
+**来源**：`omp 能力利用审查（基于 3d22454）` 总览与 O-01～O-06 六页（外部输入，不入库）。六页按序叠加，补齐 omp 已有能力在产品里的入口，并删掉两处与 omp 冲突的本地事实。
+
+| 页 | 改法 | 契约 |
+| --- | --- | --- |
+| O-01 | 引擎新增斜杠命令端口（`commands()` / `runCommand()`、`commandsChanged` / `commandOutput`）；engine-omp 直接走 omp 的 `buildAvailableSlashCommands` 与 `executeAcpBuiltinSlashCommand`，剔除 GUI 宿主办不了的命令；conversation 新增命令表 / 执行方法与通知，输入框 `/` 面板、输出坞与命令路由 | 协议 23 → 24 |
+| O-02 | 上下文面板底部加“压缩 / 瘦身 / 交接”，末轮报错下加重试；三者都只是 omp 命令的快捷方式；本地命令收口补报上下文用量 | 无形状变化 |
+| O-03 | 分叉允许 `keepTurns = 0`（从第 1 轮重写）；会话条目只按对象身份认，不再按 role + 时间戳模糊匹配；回复下新增“从这一轮重写” | 协议 24 → 25 |
+| O-04 | 接入 omp 订阅登录：`loginProviders` / `startLogin` / `answerLogin` / `cancelLogin` 与 `models.loginEvent`；凭据全程由 omp 保管；模型页新增订阅登录组 | 协议 25 → 26 |
+| O-05 | 删掉自造的 `modelRoles.title` 与每会话 tiny 覆盖；模型角色清单、候选与选择器全部问 omp，通用页改为“模型角色”组；启动时把旧 `title` 迁进 tiny 并切 `title.generator = tiny`（tiny 已配则只删旧键） | 协议 26 → 27 |
+| O-06 | 会话名以 omp 为唯一产地：GUI 改名、`/rename` 回声、分叉命名都写进 omp 会话头；Core 行只是投影，`auto` 不覆盖 `user` | 无形状变化 |
+
+**兼容修复（叠加后实测）**：异步命令表在首次渲染时可能还没有值，`hasCommand` 改为缺省按“没有这条命令”处理，并加
+`shared/model/__tests__/commands.test.ts` 钉住；否则入口页与已有对话的模型菜单会因 `commands.list` 尚未到达而整块崩掉。
+
+**验收（实测，Windows / Bun 1.4.3）**：
+
+- `bun run typecheck`：通过（764 文件 / 80 工程 + 1,020 文件测试工程）。
+- `bun run all`：通过（2,384 pass / 0 fail，302 文件 / 11,253 断言；biome、自定义闸门、omp 文档核对与 depcruise 全绿）。
+- `bun test packages/engine-omp`：487 pass / 0 fail；文档提到的 T-ISO-5/6 在本机通过，且已在基线 `3d22454` 上单独复核为 6 pass / 0 fail，不是本次改动引入的例外。
+- `bun test features/conversation packages/engine-testkit`：571 pass / 0 fail；`bun test features/models features/agent-settings`：35 pass / 0 fail；`bun test packages/protocol`：8 pass / 0 fail。
+- `bun run protocol:snapshot` 已重新生成；协议版本最终为 27。

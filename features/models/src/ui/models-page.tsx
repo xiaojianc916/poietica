@@ -5,6 +5,7 @@ import type { ModelsApi } from './api'
 import { createCatalogPort } from './catalog-port'
 import { ModelCatalogStore } from './catalog-store'
 import { ModelsSettings } from './models-settings'
+import { SubscriptionLogins } from './subscription-login'
 import './models-settings.css'
 
 /* 「模型」页的组合根。页面本体是 legacy 的 `ModelsSettings`（**逐字迁移**）。这里只做三件接线：数据来源换成 `catalog-store` + `catalog-port`；
@@ -31,6 +32,8 @@ export function ModelsPage({ api }: { readonly api: ModelsApi }): ReactNode {
   return (
     <ModelsSettings
       hiddenModelAliases={settings.modelPicker.hiddenModels}
+      /* 订阅登录在钥匙那张表之前：有订阅的人不必先去找 API Key */
+      lead={<SubscriptionLogins api={api} />}
       modelCatalog={store}
       onModelVisibilityChange={onModelVisibilityChange}
       providerOrder={settings.modelPicker.providerOrder}

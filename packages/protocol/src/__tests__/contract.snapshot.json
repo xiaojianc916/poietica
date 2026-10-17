@@ -4106,6 +4106,137 @@
       }
     },
     {
+      "name": "commands.list",
+      "owner": "core",
+      "timeoutMs": 30000,
+      "description": "列出这条对话此刻可用的斜杠命令（omp 现算）",
+      "params": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "threadId": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "required": [
+          "threadId"
+        ]
+      },
+      "result": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "commands": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "name": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "aliases": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                },
+                "description": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "hint": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "source": {
+                  "type": "string",
+                  "enum": [
+                    "builtin",
+                    "extension",
+                    "custom",
+                    "mcp_prompt",
+                    "file"
+                  ]
+                },
+                "subcommands": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "name": {
+                        "type": "string"
+                      },
+                      "description": {
+                        "type": [
+                          "string",
+                          "null"
+                        ]
+                      }
+                    },
+                    "required": [
+                      "name",
+                      "description"
+                    ],
+                    "additionalProperties": false
+                  }
+                }
+              },
+              "required": [
+                "name",
+                "aliases",
+                "description",
+                "hint",
+                "source",
+                "subcommands"
+              ],
+              "additionalProperties": false
+            }
+          }
+        },
+        "required": [
+          "commands"
+        ],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "commands.run",
+      "owner": "core",
+      "timeoutMs": 30000,
+      "description": "执行一条斜杠命令：开始即返回；对话忙时抛 engine.busy，不认识的命令抛 engine.command_unknown",
+      "params": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "threadId": {
+            "type": "string",
+            "minLength": 1
+          },
+          "text": {
+            "type": "string",
+            "format": "starts_with",
+            "pattern": "^\\/.*"
+          }
+        },
+        "required": [
+          "threadId",
+          "text"
+        ]
+      },
+      "result": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {},
+        "additionalProperties": false
+      }
+    },
+    {
       "name": "controls.draft",
       "owner": "core",
       "timeoutMs": 30000,
@@ -10252,6 +10383,65 @@
       }
     },
     {
+      "name": "models.answerLogin",
+      "owner": "core",
+      "timeoutMs": 30000,
+      "description": "交回登录过程中 omp 要人填的那一格（授权码、回调网址……）",
+      "params": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "loginId": {
+            "type": "string",
+            "minLength": 1
+          },
+          "promptId": {
+            "type": "string",
+            "minLength": 1
+          },
+          "value": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "loginId",
+          "promptId",
+          "value"
+        ]
+      },
+      "result": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {},
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "models.cancelLogin",
+      "owner": "core",
+      "timeoutMs": 30000,
+      "description": "取消一次进行中的订阅登录",
+      "params": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "loginId": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "required": [
+          "loginId"
+        ]
+      },
+      "result": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {},
+        "additionalProperties": false
+      }
+    },
+    {
       "name": "models.catalog",
       "owner": "core",
       "timeoutMs": 30000,
@@ -10399,6 +10589,58 @@
       }
     },
     {
+      "name": "models.loginProviders",
+      "owner": "core",
+      "timeoutMs": 30000,
+      "description": "可订阅登录的服务商（omp 的 getOAuthProviders）及是否已有凭据",
+      "params": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {}
+      },
+      "result": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "providers": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string"
+                },
+                "name": {
+                  "type": "string"
+                },
+                "provider": {
+                  "type": "string"
+                },
+                "available": {
+                  "type": "boolean"
+                },
+                "authenticated": {
+                  "type": "boolean"
+                }
+              },
+              "required": [
+                "id",
+                "name",
+                "provider",
+                "available",
+                "authenticated"
+              ],
+              "additionalProperties": false
+            }
+          }
+        },
+        "required": [
+          "providers"
+        ],
+        "additionalProperties": false
+      }
+    },
+    {
       "name": "models.providers",
       "owner": "core",
       "timeoutMs": 30000,
@@ -10483,6 +10725,88 @@
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "type": "object",
         "properties": {},
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "models.roles",
+      "owner": "core",
+      "timeoutMs": 30000,
+      "description": "omp 的全部模型角色（内置 + 自定义）：当前选择器与候选模型，均由 omp 给出",
+      "params": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {}
+      },
+      "result": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "roles": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "role": {
+                  "type": "string"
+                },
+                "name": {
+                  "type": "string"
+                },
+                "description": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "section": {
+                  "type": "string",
+                  "enum": [
+                    "chat",
+                    "kind"
+                  ]
+                },
+                "selector": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "candidates": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "selector": {
+                        "type": "string"
+                      },
+                      "label": {
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "selector",
+                      "label"
+                    ],
+                    "additionalProperties": false
+                  }
+                }
+              },
+              "required": [
+                "role",
+                "name",
+                "description",
+                "section",
+                "selector",
+                "candidates"
+              ],
+              "additionalProperties": false
+            }
+          }
+        },
+        "required": [
+          "roles"
+        ],
         "additionalProperties": false
       }
     },
@@ -10601,32 +10925,23 @@
       }
     },
     {
-      "name": "models.setTitleModel",
+      "name": "models.setRole",
       "owner": "core",
       "timeoutMs": 30000,
-      "description": "设置「生成对话标题用的模型」；null 表示跟随对话自己的模型",
+      "description": "设置一个模型角色（omp modelRoles.<role>）；null 表示删掉、交回 omp 的回退链",
       "params": {
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "type": "object",
         "properties": {
-          "model": {
+          "role": {
+            "type": "string",
+            "minLength": 1
+          },
+          "selector": {
             "anyOf": [
               {
-                "type": "object",
-                "properties": {
-                  "provider": {
-                    "type": "string",
-                    "minLength": 1
-                  },
-                  "id": {
-                    "type": "string",
-                    "minLength": 1
-                  }
-                },
-                "required": [
-                  "provider",
-                  "id"
-                ]
+                "type": "string",
+                "minLength": 1
               },
               {
                 "type": "null"
@@ -10635,7 +10950,8 @@
           }
         },
         "required": [
-          "model"
+          "role",
+          "selector"
         ]
       },
       "result": {
@@ -10646,82 +10962,33 @@
       }
     },
     {
-      "name": "models.titleModel",
+      "name": "models.startLogin",
       "owner": "core",
       "timeoutMs": 30000,
-      "description": "读取「生成对话标题用的模型」与可选项；null 表示跟随对话自己的模型",
+      "description": "开始一次订阅登录；之后的网址、进度、要填的格子与结局都经 models.loginEvent 推送",
       "params": {
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "type": "object",
-        "properties": {}
+        "properties": {
+          "providerId": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "required": [
+          "providerId"
+        ]
       },
       "result": {
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "type": "object",
         "properties": {
-          "model": {
-            "anyOf": [
-              {
-                "type": "object",
-                "properties": {
-                  "provider": {
-                    "type": "string",
-                    "minLength": 1
-                  },
-                  "id": {
-                    "type": "string",
-                    "minLength": 1
-                  }
-                },
-                "required": [
-                  "provider",
-                  "id"
-                ],
-                "additionalProperties": false
-              },
-              {
-                "type": "null"
-              }
-            ]
-          },
-          "choices": {
-            "type": "array",
-            "items": {
-              "type": "object",
-              "properties": {
-                "ref": {
-                  "type": "object",
-                  "properties": {
-                    "provider": {
-                      "type": "string",
-                      "minLength": 1
-                    },
-                    "id": {
-                      "type": "string",
-                      "minLength": 1
-                    }
-                  },
-                  "required": [
-                    "provider",
-                    "id"
-                  ],
-                  "additionalProperties": false
-                },
-                "label": {
-                  "type": "string"
-                }
-              },
-              "required": [
-                "ref",
-                "label"
-              ],
-              "additionalProperties": false
-            }
+          "loginId": {
+            "type": "string"
           }
         },
         "required": [
-          "model",
-          "choices"
+          "loginId"
         ],
         "additionalProperties": false
       }
@@ -13409,7 +13676,7 @@
           },
           "keepTurns": {
             "type": "integer",
-            "exclusiveMinimum": 0,
+            "minimum": 0,
             "maximum": 9007199254740991
           },
           "title": {
@@ -24056,6 +24323,48 @@
       }
     },
     {
+      "name": "commands.changed",
+      "owner": "core",
+      "description": "这条对话的命令表变了：重读 commands.list",
+      "params": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "threadId": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "required": [
+          "threadId"
+        ],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "commands.output",
+      "owner": "core",
+      "description": "斜杠命令给人的一段输出（不进会话文件，只画一次）",
+      "params": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "threadId": {
+            "type": "string",
+            "minLength": 1
+          },
+          "text": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "threadId",
+          "text"
+        ],
+        "additionalProperties": false
+      }
+    },
+    {
       "name": "controls.changed",
       "owner": "core",
       "description": "控件状态变化",
@@ -25091,6 +25400,181 @@
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "type": "object",
         "properties": {},
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "models.loginEvent",
+      "owner": "core",
+      "description": "订阅登录过程中的一步（打开网址 / 进度 / 要填一格 / 完成 / 失败）",
+      "params": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "loginId": {
+            "type": "string"
+          },
+          "event": {
+            "oneOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "kind": {
+                    "type": "string",
+                    "const": "auth"
+                  },
+                  "url": {
+                    "type": "string"
+                  },
+                  "launchUrl": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  },
+                  "instructions": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  }
+                },
+                "required": [
+                  "kind",
+                  "url",
+                  "launchUrl",
+                  "instructions"
+                ],
+                "additionalProperties": false
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "kind": {
+                    "type": "string",
+                    "const": "progress"
+                  },
+                  "message": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "kind",
+                  "message"
+                ],
+                "additionalProperties": false
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "kind": {
+                    "type": "string",
+                    "const": "prompt"
+                  },
+                  "promptId": {
+                    "type": "string"
+                  },
+                  "message": {
+                    "type": "string"
+                  },
+                  "placeholder": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  },
+                  "secret": {
+                    "type": "boolean"
+                  },
+                  "allowEmpty": {
+                    "type": "boolean"
+                  }
+                },
+                "required": [
+                  "kind",
+                  "promptId",
+                  "message",
+                  "placeholder",
+                  "secret",
+                  "allowEmpty"
+                ],
+                "additionalProperties": false
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "kind": {
+                    "type": "string",
+                    "const": "done"
+                  },
+                  "identity": {
+                    "anyOf": [
+                      {
+                        "type": "object",
+                        "properties": {
+                          "kind": {
+                            "type": "string",
+                            "enum": [
+                              "oauth",
+                              "api_key"
+                            ]
+                          },
+                          "email": {
+                            "type": [
+                              "string",
+                              "null"
+                            ]
+                          },
+                          "orgName": {
+                            "type": [
+                              "string",
+                              "null"
+                            ]
+                          }
+                        },
+                        "required": [
+                          "kind",
+                          "email",
+                          "orgName"
+                        ],
+                        "additionalProperties": false
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  }
+                },
+                "required": [
+                  "kind",
+                  "identity"
+                ],
+                "additionalProperties": false
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "kind": {
+                    "type": "string",
+                    "const": "failed"
+                  },
+                  "message": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "kind",
+                  "message"
+                ],
+                "additionalProperties": false
+              }
+            ]
+          }
+        },
+        "required": [
+          "loginId",
+          "event"
+        ],
         "additionalProperties": false
       }
     },
@@ -30506,6 +30990,10 @@
     {
       "code": "models.builtin_provider_readonly",
       "message": "内置服务商不能删除或修改"
+    },
+    {
+      "code": "models.login_not_found",
+      "message": "这次登录已经结束或不存在"
     },
     {
       "code": "models.provider_not_found",

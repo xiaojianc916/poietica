@@ -3,6 +3,7 @@ export { EngineErrorCode, engineErrorMessages } from './errors'
 export { interactionCardOf, interactionStateOf } from './interaction-card'
 export type {
   CustomProviderDef,
+  LoginIO,
   McpPort,
   ModelsPort,
   PluginsPort,
@@ -20,12 +21,15 @@ export {
   DeliverAs,
   Interaction,
   InteractionAnswer,
+  LoginIdentity,
+  LoginProvider,
   MarketplaceEntry,
   McpCatalogEntry,
   McpServerInfo,
   McpStatus,
   ModelInfo,
   ModelRef,
+  ModelRoleInfo,
   PluginInfo,
   Posture,
   ProviderInfo,
@@ -37,6 +41,7 @@ export {
   SettingOption,
   SettingSection,
   SkillInfo,
+  SlashCommand,
   ThinkingLevel,
   UsageSample,
 } from './values'

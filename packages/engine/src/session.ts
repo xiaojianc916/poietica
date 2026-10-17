@@ -10,6 +10,7 @@ import type {
   Posture,
   QueueSnapshot,
   SessionState,
+  SlashCommand,
   UsageSample,
 } from './values'
 
@@ -70,10 +71,20 @@ export type EngineSessionEvent =
   /* 带 `ref` 交进来的排队项有了结局（审查 R-20-1）；没带 `ref` 的不报。同一个 ref 可能报不止一次，接收方按幂等处理。 */
   | { readonly type: 'queueSettled'; readonly ref: string; readonly outcome: QueueOutcome }
   /*
-   * omp 自动总结出的会话标题（omp 知识 #17）：**首句兜底**先写进 Core 的线程行，这一条是之后的替换。
+   * omp 的会话名变了（omp 是会话名的唯一产地，P4）：`source` 照 omp 的 titleSource —— `auto` = 自动总结（替换 Core 的首句兜底），
+   * `user` = 用户定名（GUI 改名、`/rename` 命令、分叉命名都经 omp 写入后从这里回来）。
    * 带 sessionFile 让 Core 认出「这是哪条会话的名」——线程释放重开后，迟到的事件不许改现在的标题。
    */
-  | { readonly type: 'sessionTitle'; readonly title: string; readonly sessionFile: string }
+  | {
+      readonly type: 'sessionTitle'
+      readonly title: string
+      readonly source: 'auto' | 'user'
+      readonly sessionFile: string
+    }
+  /* 命令表变了（装卸插件、技能 / 自定义命令目录变化、MCP 提示词上线）：调用方重读 `commands()`，事件本身不带表 */
+  | { readonly type: 'commandsChanged' }
+  /* 斜杠命令给人的输出（omp 的 runtime.output）。**不进会话文件**，所以不走时间线：屏幕把它画成临时的一块 */
+  | { readonly type: 'commandOutput'; readonly text: string }
 
 export interface EngineSession {
   readonly sessionId: string
@@ -114,6 +125,21 @@ export interface EngineSession {
    * 目标模式在 agent 设置里关掉时抛 `engine.goal_unavailable`。
    */
   resumeGoal(): Promise<void>
+  /**
+   * 用户给会话定名（omp 的 setSessionName(name, 'user')，与 omp RPC `set_session_name` 同一条路）：写进会话文件，
+   * 之后 omp 不再自动起名；结果经 `sessionTitle`（source: user）报回。空名报 invalid_params。忙时也可改。
+   */
+  rename(title: string): Promise<void>
+  /** 此刻可用的斜杠命令（omp 现算；GUI 宿主办不了的几条已剔除） */
+  commands(): Promise<readonly SlashCommand[]>
+  /**
+   * 执行一句以 `/` 开头的输入，路由与 omp 自己的宿主（RPC / ACP）同一个次序：内置命令 → 其余交给 `prompt()`
+   * （扩展命令、自定义命令、文件命令由 omp 在 prompt 里就地处理）。与 `submit` 一样**开始后立即返回**：
+   * 状态切 running（停止键可用），给人的文字走 `commandOutput`，收口时补一条 `timelineReset` —— 命令改的是
+   * 会话文件里的事实，屏幕从文件重取，不在增量里猜它改了什么。非 idle 抛 `engine.busy`；不认识的命令抛
+   * `engine.command_unknown`（不会被当成普通一句话发给模型）。
+   */
+  runCommand(text: string): Promise<void>
   interactions(): readonly Interaction[]
   respond(interactionId: string, answer: InteractionAnswer): void
   page(agentId: string, beforeTurnId: string | null): Promise<TranscriptPage>

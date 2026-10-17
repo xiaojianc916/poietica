@@ -19,6 +19,8 @@ export interface OmpModelRegistry {
    */
   refreshIfStale(): Promise<boolean>
   refreshInBackground(strategy?: string): void
+  /** 只刷一家（omp rpc-mode 登录成功后用的那一条：新凭据要重跑这家的模型发现，不复用缓存） */
+  refreshProvider(providerId: string, strategy?: 'online' | 'offline'): Promise<void>
 }
 
 /**

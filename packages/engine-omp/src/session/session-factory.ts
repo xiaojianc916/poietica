@@ -1,7 +1,6 @@
 import { EngineErrorCode, type EngineSession, type EngineToolSpec, type OpenSessionSpec } from '@poietica/engine'
 import { AppError, type Logger, SystemErrorCode } from '@poietica/foundation'
 import type { DataLayout } from '@poietica/runtime-layout'
-import { overrideModelRolesOf } from '../ports/settings-writes'
 import type { SettingsScope } from '../settings-access'
 import { createToolsExtension } from '../tools-extension'
 import { allowGoalContinuation } from './goal-host'
@@ -27,8 +26,6 @@ export interface SessionFactoryOptions {
   /** 本会话的模型解析 */
   readonly resolveModel: (selector: string | null) => { provider: string; id: string } | null
   readonly modelRoles: () => Readonly<Record<string, string>>
-  /** 用户在设置页选的「生成标题用的模型」（已解析成整串 provider/id）；null = 跟随对话自己的模型 */
-  readonly titleModelAlias: () => string | null
   /** 把 omp 的会话对象包成 OmpSession（由 omp-session-factory 的调用方提供，避免这里绑死形状） */
   readonly wrapSession: (input: {
     readonly spec: OpenSessionSpec
@@ -74,14 +71,6 @@ export class SessionFactory {
       (this.o.root as { overlay?: (overrides?: Readonly<Record<string, unknown>>) => SettingsScope }).overlay?.() ??
       this.o.root
     applyPosture(settings, spec.posture)
-    /*
-     * 「生成标题用的模型」（omp 知识 #17）：写进本会话 overlay 的运行时覆盖层。
-     *
-     * omp 的标题候选只认 tiny → commit → smol；用户选的那条写进 tiny 这一格。
-     * 没选就一个字都不写：候选表空着时 omp 会追加**当前会话模型**，正是产品要的默认。
-     */
-    const titleModel = this.o.titleModelAlias()
-    if (titleModel !== null) overrideModelRolesOf(settings, { tiny: titleModel })
     // 目标续跑：omp 的控制器只认 'rpc' 这一档，Poietica 按交互式宿主的设置放行（审查 R-11，goal-host.ts）
     allowGoalContinuation(settings)
     const manager = await this.openManager(spec)

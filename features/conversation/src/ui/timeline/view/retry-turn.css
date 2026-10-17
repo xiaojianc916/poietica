@@ -1,0 +1,27 @@
+/* 与报错行同列左齐；字色跟报错行的次要字，不抢那一行的红。 */
+.timeline-retry {
+  display: flex;
+  padding: 4px 0;
+}
+
+.timeline-retry__action {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  border: 1px solid var(--cp-hairline, rgb(0 0 0 / 8%));
+  border-radius: 8px;
+  background: transparent;
+  color: var(--cp-ink-muted, #61666b);
+  font-size: var(--cp-font-caption, 12px);
+  cursor: pointer;
+}
+
+.timeline-retry__action:hover {
+  background: var(--cp-hover, rgb(0 0 0 / 4%));
+}
+
+.timeline-retry__mark {
+  width: 14px;
+  height: 14px;
+}

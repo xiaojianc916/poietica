@@ -511,3 +511,40 @@
   align-items: center;
   gap: 12px;
 }
+
+/* 订阅登录：动作钮并排，流程面板在那一行下面展开（网址、要填的一格、结局）。 */
+.models-login__actions {
+  display: inline-flex;
+  gap: 6px;
+}
+
+.models-login__flow {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  width: 100%;
+  margin-top: 8px;
+}
+
+.models-login__line {
+  margin: 0;
+  font-size: 12px;
+}
+
+.models-login__line[data-ok="false"] {
+  color: var(--destructive, #dc2626);
+}
+
+.models-login__prompt {
+  display: flex;
+  align-items: flex-end;
+  gap: 6px;
+}
+
+.models-login__label {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 12px;
+}

@@ -159,6 +159,8 @@ test('T5 守卫：旧会话的迟到事件不许改现在的标题（sessionFile
     emitTurnDropped: () => undefined,
     emitQueue: () => undefined,
     emitControls: () => undefined,
+    emitCommandOutput: () => undefined,
+    emitCommandsChanged: () => undefined,
     emitContextUsage: () => undefined,
     emitInteractionRequested: () => undefined,
     emitInteractionResolved: () => undefined,
@@ -179,19 +181,47 @@ test('T5 守卫：旧会话的迟到事件不许改现在的标题（sessionFile
   core.threads.autoTitle(row.id, '第一句')
 
   /* ① 本会话的名（sessionFile 对得上）→ 替换首句兜底 */
-  core.onEvent(row.id, { type: 'sessionTitle', title: '总结出来的名字', sessionFile: 'own.jsonl' })
+  core.onEvent(row.id, { type: 'sessionTitle', title: '总结出来的名字', source: 'auto', sessionFile: 'own.jsonl' })
   expect(core.threads.row(row.id)?.title).toBe('总结出来的名字')
 
   /* ② 旧会话迟到的名（sessionFile 对不上）→ 不改 */
-  core.onEvent(row.id, { type: 'sessionTitle', title: '旧会话的名字', sessionFile: 'someone-else.jsonl' })
+  core.onEvent(row.id, {
+    type: 'sessionTitle',
+    title: '旧会话的名字',
+    source: 'auto',
+    sessionFile: 'someone-else.jsonl',
+  })
   expect(core.threads.row(row.id)?.title).toBe('总结出来的名字')
 
-  /* ③ 用户定过名之后，本会话的名也不许覆盖 */
-  core.threads.rename(row.id, '我自己起的')
-  core.onEvent(row.id, { type: 'sessionTitle', title: 'omp 又想改', sessionFile: 'own.jsonl' })
+  /* ③ omp 报回用户定名（`/rename` 命令或 GUI 改名的回声）→ 照抄，来源记 user */
+  core.onEvent(row.id, { type: 'sessionTitle', title: '我自己起的', source: 'user', sessionFile: 'own.jsonl' })
   expect(core.threads.row(row.id)?.title).toBe('我自己起的')
+  expect(core.threads.row(row.id)?.titleSource).toBe('user')
+
+  /* ④ 定过名之后，自动总结的名不许覆盖；再一次用户定名照样生效 */
+  core.onEvent(row.id, { type: 'sessionTitle', title: 'omp 又想改', source: 'auto', sessionFile: 'own.jsonl' })
+  expect(core.threads.row(row.id)?.title).toBe('我自己起的')
+  core.onEvent(row.id, { type: 'sessionTitle', title: '又改了一次', source: 'user', sessionFile: 'own.jsonl' })
+  expect(core.threads.row(row.id)?.title).toBe('又改了一次')
 
   await core.dispose()
   db.close()
   await dir.dispose()
+})
+
+describe('会话名以 omp 为唯一产地（P4）', () => {
+  test('N1 改名先写进引擎的会话，再改线程行；分叉的名字也写进新会话', async () => {
+    const { api, thread, submit, finish, h, engine } = await started()
+    await submit('C1', '第一句')
+    await beat(h)
+    await beat(h)
+    const renamed = await api.call('threads.rename', { threadId: thread.id, title: '  我起的名字  ' })
+    expect(renamed.title).toBe('我起的名字')
+    expect([...engine.sessionNames.values()]).toEqual(['我起的名字'])
+
+    const forked = await api.call('threads.fork', { threadId: thread.id })
+    expect(forked.title).toBe('我起的名字（分支）')
+    expect([...engine.sessionNames.values()]).toContain('我起的名字（分支）')
+    await finish()
+  })
 })

@@ -31,11 +31,6 @@ export function setModelRoleOf(scope: SettingsScope, role: string, value: string
   settingsInstanceOf(scope).setModelRole(role, value)
 }
 
-/** 覆盖整份模型角色表（omp 的 Settings.overrideModelRoles，只写运行时覆盖层）。 */
-export function overrideModelRolesOf(scope: SettingsScope, roles: Readonly<Record<string, string>>): void {
-  settingsInstanceOf(scope).overrideModelRoles(roles)
-}
-
 /**
  * 把设置写盘。SettingsScope 是「持有 Settings 的对象」或 Settings 本身（registry.ts 的
  * ScopeLike）；flush 挂在 Settings 实例上，所以这里做一次收窄。
@@ -44,7 +39,8 @@ export async function flushOf(scope: SettingsScope): Promise<void> {
   await settingsInstanceOf(scope).flush()
 }
 
-function settingsInstanceOf(scope: SettingsScope): Settings {
+/** SettingsScope → omp 的 Settings 实例（要把它交给 omp 自己的 helper 时用，如 config/model-roles）。 */
+export function settingsInstanceOf(scope: SettingsScope): Settings {
   return 'settings' in scope ? scope.settings : scope
 }
 

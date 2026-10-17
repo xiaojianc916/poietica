@@ -28,6 +28,7 @@ function registryOf(models: readonly OmpModel[]): RegistryPort {
     hasConfiguredAuth: () => true,
     hydrateCredentialScopedModelCaches: async () => undefined,
     refreshInBackground: () => undefined,
+    refreshProvider: async () => undefined,
   }
 }
 

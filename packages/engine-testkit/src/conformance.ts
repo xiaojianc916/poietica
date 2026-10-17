@@ -445,6 +445,37 @@ export function runEngineConformance(name: string, make: () => Promise<Conforman
       record.subscription.dispose()
     })
 
+    /*
+     * C-COMMANDS：命令表来自引擎（不是 Poietica 自己的清单）；本地命令「开始即返回、文字走 commandOutput、
+     * 收口补 timelineReset 与 contextUsage（本地命令不走轮终，压缩后的读数只能在这里补）、回到 idle」；不认识的命令抛 engine.command_unknown，**不**当成一句话发给模型。
+     */
+    test('C-COMMANDS', async () => {
+      const session = await openNew()
+      const commands = await session.commands()
+      const names = commands.map((command) => command.name)
+      expect(names).toContain('compact')
+      expect(new Set(names).size).toBe(names.length)
+      expect(commands.find((command) => command.name === 'compact')?.source).toBe('builtin')
+      /* GUI 宿主办不了的（搬目录、删会话文件）不进表，点名也不执行 */
+      expect(names).not.toContain('move')
+      await expect(session.runCommand('/move /tmp')).rejects.toMatchObject({ code: EngineErrorCode.commandUnknown })
+      await expect(session.runCommand('/session delete')).rejects.toMatchObject({
+        code: EngineErrorCode.commandUnknown,
+      })
+      const record = recorder(session)
+      await session.runCommand('/session')
+      await record.waitFor((events) => shape(events).includes('state:idle'), '命令没有收口')
+      const output = record.events.flatMap((event) => (event.type === 'commandOutput' ? [event.text] : []))
+      expect(output.join('\n').length).toBeGreaterThan(0)
+      expect(record.events.some((event) => event.type === 'timelineReset')).toBe(true)
+      expect(record.events.some((event) => event.type === 'contextUsage')).toBe(true)
+      await expect(session.runCommand('/definitely-not-a-command')).rejects.toMatchObject({
+        code: EngineErrorCode.commandUnknown,
+      })
+      expect(session.state()).toBe('idle')
+      record.subscription.dispose()
+    })
+
     test('C-PAGE', async () => {
       const session = await openNew()
       const record = recorder(session)

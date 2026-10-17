@@ -26,6 +26,7 @@ import {
   type SessionState,
   type SettingDescriptor,
   type SkillInfo,
+  type SlashCommand,
   type SubmitInput,
   type UsageSample,
 } from '@poietica/engine'
@@ -96,6 +97,8 @@ export interface FakeEngine extends AgentEngine {
   readonly opened: readonly OpenSessionSpec[]
   readonly toolCalls: readonly FakeToolCall[]
   readonly pythonInterpreterCalls: readonly (string | null)[]
+  /** 会话文件 → omp 记的会话名（用户定名才记）：断言「名字落进了引擎」用 */
+  readonly sessionNames: ReadonlyMap<string, string>
   /** 草稿表里 current 的写法（provider/id）；一致性套件比两个引擎的草稿表时用它。 */
   readonly draftAliasOf: (model: ModelRef | null) => string | null
 }
@@ -149,6 +152,7 @@ class FakeSession implements EngineSession {
       readonly toolCalls: FakeToolCall[]
       readonly clock: Clock
       readonly store: SessionLedger
+      readonly names: Map<string, string>
       readonly posture: Posture
       readonly contextUsage: () => ContextUsage | null
       /** 自动总结标题的替身：回 null / undefined = 生成失败（不发事件） */
@@ -196,8 +200,16 @@ class FakeSession implements EngineSession {
     this.titleRequested = true
     const title = this.o.autoTitle?.(input.text)
     if (title !== undefined && title !== null) {
-      this.emit({ type: 'sessionTitle', title, sessionFile: this.sessionFile })
+      this.emit({ type: 'sessionTitle', title, source: 'auto', sessionFile: this.sessionFile })
     }
+  }
+
+  /** 与真引擎同一条端口语义：用户定名写进引擎，经 sessionTitle（source: user）报回；空名报 invalid_params */
+  async rename(title: string): Promise<void> {
+    const name = title.trim()
+    if (name === '') throw new AppError(SystemErrorCode.invalidParams, '会话名不能为空')
+    this.o.names.set(this.sessionFile, name)
+    this.emit({ type: 'sessionTitle', title: name, source: 'user', sessionFile: this.sessionFile })
   }
 
   private setState(next: SessionState, error: { code: string; message: string } | null = null): void {
@@ -594,6 +606,32 @@ class FakeSession implements EngineSession {
     this.controlsChanged()
   }
 
+  async commands(): Promise<readonly SlashCommand[]> {
+    this.assertLive()
+    return FAKE_COMMANDS
+  }
+
+  /** 与真引擎同一条端口语义：只在 idle 时可调；本地命令出一段文字、收尾补一条 timelineReset 与一条 contextUsage；交给 agent 的开一轮 */
+  async runCommand(text: string): Promise<void> {
+    this.assertLive()
+    if (this.current !== 'idle') throw new AppError(EngineErrorCode.busy, 'agent 正忙')
+    const [name = '', verb = ''] = text.trim().slice(1).split(/\s+/)
+    /* 与真引擎同一条拦截：删会话文件走 threads.delete，不走命令 */
+    const blocked = name === 'session' && verb === 'delete'
+    const command = blocked ? undefined : FAKE_COMMANDS.find((candidate) => candidate.name === name)
+    if (command === undefined) throw new AppError(EngineErrorCode.commandUnknown, `没有这条命令：/${name}`)
+    if (command.name === 'retry') {
+      await this.submit({ text, images: [], files: [], skills: [], deliverAs: 'turn' })
+      return
+    }
+    this.setState('running')
+    this.emit({ type: 'commandOutput', text: `${command.name}: ok` })
+    this.emit({ type: 'timelineReset', agentId: 'main' })
+    /* 本地命令（压缩、瘦身）改了上下文却不走轮终：收口补报一次占用，与真引擎同序 */
+    this.emit({ type: 'contextUsage', usage: this.o.contextUsage() })
+    this.setState('idle')
+  }
+
   interactions(): readonly Interaction[] {
     return [...this.outstanding]
   }
@@ -624,6 +662,45 @@ class FakeSession implements EngineSession {
   }
 }
 
+/**
+ * 替身的命令表：只放一致性用例用得到的那几条（形状与 omp 折算出来的一致）。
+ * `session` 是本地命令（只出一段文字），`retry` 交给 agent（开一轮）—— 两种结局各有一条可测。
+ */
+/** 替身的角色表：omp MODEL_ROLES 的前几格（chat 区三格 + kind 区一格），够覆盖「两区」与「未知角色」两件事 */
+const FAKE_ROLES: readonly { role: string; name: string; section: 'chat' | 'kind' }[] = Object.freeze([
+  { role: 'default', name: 'Default', section: 'chat' },
+  { role: 'smol', name: 'Fast', section: 'chat' },
+  { role: 'tiny', name: 'Tiny', section: 'chat' },
+  { role: 'image', name: 'Image generation', section: 'kind' },
+])
+
+const FAKE_COMMANDS: readonly SlashCommand[] = Object.freeze([
+  {
+    name: 'compact',
+    aliases: [],
+    description: 'Compact the conversation',
+    hint: '[focus]',
+    source: 'builtin',
+    subcommands: [],
+  },
+  {
+    name: 'retry',
+    aliases: [],
+    description: 'Retry the last failed agent turn',
+    hint: null,
+    source: 'builtin',
+    subcommands: [],
+  },
+  {
+    name: 'session',
+    aliases: [],
+    description: 'Show or configure the current session',
+    hint: null,
+    source: 'builtin',
+    subcommands: [],
+  },
+])
+
 function isBusyOrNot(approved: boolean): boolean {
   return !approved
 }
@@ -636,6 +713,7 @@ export function createFakeEngine(opts: FakeEngineOptions = {}): FakeEngine {
   const toolCalls: FakeToolCall[] = []
   const sessions = new Set<FakeSession>()
   const store: SessionLedger = new Map()
+  const sessionNames = new Map<string, string>()
   let frozen = false
   const change = new Emitter<void>()
   let providers: ProviderInfoValue[] = []
@@ -649,8 +727,8 @@ export function createFakeEngine(opts: FakeEngineOptions = {}): FakeEngine {
   let capabilities: CapabilitiesValue = { computerUse: false, browserControl: false }
   let defaultModelRef: ModelRef | null = null
   let defaultThinkingLevel: string | null = null
-  /** 「生成标题用的模型」（omp 知识 #17 的设置项）；null = 跟随对话自己的模型 */
-  let titleModelRef: ModelRef | null = null
+  /** 模型角色（omp 的 modelRoles）：替身只认这几格，没配 = 不在表里 */
+  const roleSelectors = new Map<string, string>()
   /** 当前设置的 Python 解释器（PY-1 断言写入的那一格）。 */
   let pythonInterpreter: string | null = null
   const pythonInterpreterCalls: (string | null)[] = []
@@ -659,6 +737,7 @@ export function createFakeEngine(opts: FakeEngineOptions = {}): FakeEngine {
     info: { name: 'omp', version: 'fake' } satisfies EngineInfo,
     opened,
     pythonInterpreterCalls,
+    sessionNames,
     /*
      * 草稿控件表（方案 §04 的 draftControls）：只读，不开会话、不写设置。与会话里那份同一条规则：
      * 可选模型来自目录（只取 enabled），思考档位按当前模型的 thinkingLevels 给，姿态是 init.posture ?? 'auto-edit'。
@@ -711,6 +790,7 @@ export function createFakeEngine(opts: FakeEngineOptions = {}): FakeEngine {
         toolCalls,
         clock,
         store,
+        names: sessionNames,
         posture: spec.posture ?? opts.posture ?? 'ask',
         /* 没给就是 undefined：一次都不报，与真引擎「还没水合」同义。 */
         contextUsage: () => opts.contextUsage ?? null,
@@ -736,11 +816,22 @@ export function createFakeEngine(opts: FakeEngineOptions = {}): FakeEngine {
       async exists(file) {
         return store.has(file)
       },
-      async fork(file, keepTurns) {
+      async fork(file, keepTurns, title) {
         const next = `${file}.fork-${createId()}`
+        /* 与真引擎同一条边界：0 合法（一轮不留），负数与非整数报 invalid_params */
+        if (keepTurns !== undefined && (!Number.isInteger(keepTurns) || keepTurns < 0)) {
+          throw new AppError(SystemErrorCode.invalidParams, `不能只留前 ${keepTurns} 轮`)
+        }
         store.set(next, [...(store.get(file) ?? [])])
-        void keepTurns
+        const name = title === undefined ? sessionNames.get(file) : title.trim()
+        if (name !== undefined && name !== '') sessionNames.set(next, name)
         return { sessionId: createId(), sessionFile: next }
+      },
+      async rename(file, title) {
+        if (!store.has(file)) throw new AppError(EngineErrorCode.sessionFileMissing, `会话文件不存在：${file}`)
+        const name = title.trim()
+        if (name === '') throw new AppError(SystemErrorCode.invalidParams, '会话名不能为空')
+        sessionNames.set(file, name)
       },
       async delete(file) {
         store.delete(file)
@@ -767,6 +858,25 @@ export function createFakeEngine(opts: FakeEngineOptions = {}): FakeEngine {
         providers = providers.map((p) => (p.id === id ? { ...p, configured: false } : p))
         change.fire()
       },
+      /* 订阅登录：每一家内置服务商都假装能登；流程与 omp 的回环登录同形 —— 先给网址，再要一格授权码，填了才算登上 */
+      async loginProviders() {
+        return providers
+          .filter((p) => !p.custom)
+          .map((p) => ({ id: p.id, name: p.name, provider: p.id, available: true, authenticated: p.configured }))
+      },
+      async login(providerId, io) {
+        if (!providers.some((p) => p.id === providerId && !p.custom)) {
+          throw new AppError(SystemErrorCode.invalidParams, `没有这个订阅登录：${providerId}`)
+        }
+        io.onAuth({ url: `https://login.example/${providerId}`, launchUrl: null, instructions: null })
+        io.onProgress('等待授权')
+        const code = await io.onPrompt({ message: '授权码', placeholder: null, secret: false, allowEmpty: false })
+        if (io.signal.aborted) throw new AppError(SystemErrorCode.cancelled, '登录已取消')
+        if (code === '') throw new AppError(SystemErrorCode.invalidParams, '没有填授权码')
+        providers = providers.map((p) => (p.id === providerId ? { ...p, configured: true } : p))
+        change.fire()
+        return { kind: 'oauth' as const, email: 'fake@example.com', orgName: null }
+      },
       async setModelEnabled(ref, enabled) {
         models = models.map((m) => (m.provider === ref.provider && m.id === ref.id ? { ...m, enabled } : m))
         change.fire()
@@ -785,16 +895,26 @@ export function createFakeEngine(opts: FakeEngineOptions = {}): FakeEngine {
         defaultThinkingLevel = level
         change.fire()
       },
-      /* 标题模型：null = 跟随对话自己的模型 */
-      async titleModel() {
-        return titleModelRef
+      /* 角色：候选是目录里 enabled 的那些（真引擎问 omp 的 roleCandidatePool），清单取 omp 内置的前几格 */
+      async modelRoles() {
+        const candidates = models
+          .filter((m) => m.enabled)
+          .map((m) => ({ selector: `${m.provider}/${m.id}`, label: m.name }))
+        return FAKE_ROLES.map(({ role, name, section }) => ({
+          role,
+          name,
+          description: null,
+          section,
+          selector: roleSelectors.get(role) ?? null,
+          candidates,
+        }))
       },
-      /* 可用模型：替身报目录里 enabled 的那些（真引擎读 omp 的 getAvailable） */
-      async availableModels() {
-        return models.filter((m) => m.enabled).map((m) => ({ ref: { provider: m.provider, id: m.id }, label: m.name }))
-      },
-      async setTitleModel(ref) {
-        titleModelRef = ref
+      async setModelRole(role, selector) {
+        if (!FAKE_ROLES.some((r) => r.role === role)) {
+          throw new AppError(SystemErrorCode.invalidParams, `unknown model role: ${role}`)
+        }
+        if (selector === null || selector === '') roleSelectors.delete(role)
+        else roleSelectors.set(role, selector)
         change.fire()
       },
       async upsertCustomProvider(def: CustomProviderDef) {

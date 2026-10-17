@@ -113,17 +113,26 @@ describe('fork 按轮号截断', () => {
     expect(readFileSync(file, 'utf8')).toBe(before)
   })
 
+  test('F-0 留 0 轮：一轮不剩（「从第 1 轮重写」），原文件不动、重开不复活旧历史', async () => {
+    const { port, file, dir } = await sessionOf(THREE)
+    const before = readFileSync(file, 'utf8')
+    const forked = await port.fork(file, 0)
+    expect(await screenOf(forked.sessionFile, dir)).toEqual([])
+    expect(readFileSync(file, 'utf8')).toBe(before)
+  })
+
   test('F-2 不给 keepTurns：整条复制', async () => {
     const { port, file, dir } = await sessionOf(THREE)
     const forked = await port.fork(file)
     expect(await screenOf(forked.sessionFile, dir)).toEqual(await screenOf(file, dir))
   })
 
-  test('F-3 留的轮数等于现有轮数 = 整条；超出、为 0 都如实报 invalid_params，不夹到边界', async () => {
+  test('F-3 留的轮数等于现有轮数 = 整条；超出、负数、非整数都如实报 invalid_params，不夹到边界', async () => {
     const { port, file, dir } = await sessionOf(THREE)
     expect(await screenOf((await port.fork(file, 3)).sessionFile, dir)).toHaveLength(3)
     await expect(port.fork(file, 4)).rejects.toMatchObject({ code: SystemErrorCode.invalidParams })
-    await expect(port.fork(file, 0)).rejects.toMatchObject({ code: SystemErrorCode.invalidParams })
+    await expect(port.fork(file, -1)).rejects.toMatchObject({ code: SystemErrorCode.invalidParams })
+    await expect(port.fork(file, 1.5)).rejects.toMatchObject({ code: SystemErrorCode.invalidParams })
   })
 
   test('F-4 技能开的那一轮（custom，不是 role:user）也是一轮：留 1 轮就只剩第 1 轮', async () => {
@@ -160,5 +169,38 @@ describe('fork 按轮号截断', () => {
       ['q1', 'a1'],
       ['q2', 'a2'],
     ])
+  })
+})
+
+describe('会话名写进 omp（P4）', () => {
+  /** 重开文件读 omp 记下的名字与来源 */
+  async function nameOf(file: string, dir: string): Promise<{ name: string | undefined; source: unknown }> {
+    const manager = await SessionManager.open(file, dir)
+    try {
+      return { name: manager.getSessionName(), source: manager.titleSource }
+    } finally {
+      await manager.close()
+    }
+  }
+
+  test('N-1 rename 把用户定名写进会话头（source=user），重开读得回；空名报 invalid_params', async () => {
+    const { port, file, dir } = await sessionOf([
+      { kind: 'user', text: 'u1' },
+      { kind: 'reply', text: 'a1' },
+    ])
+    await port.rename(file, '我起的名字')
+    expect(await nameOf(file, dir)).toEqual({ name: '我起的名字', source: 'user' })
+    await expect(port.rename(file, '   ')).rejects.toMatchObject({ code: SystemErrorCode.invalidParams })
+  })
+
+  test('N-2 fork 带名字：新会话以用户定名落盘，原会话的名字不动', async () => {
+    const { port, file, dir } = await sessionOf([
+      { kind: 'user', text: 'u1' },
+      { kind: 'reply', text: 'a1' },
+    ])
+    await port.rename(file, '原名')
+    const forked = await port.fork(file, 1, '原名（分支）')
+    expect(await nameOf(forked.sessionFile, dir)).toEqual({ name: '原名（分支）', source: 'user' })
+    expect((await nameOf(file, dir)).name).toBe('原名')
   })
 })

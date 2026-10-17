@@ -191,6 +191,41 @@ export const ProviderInfo = z.object({
   authKind: z.enum(['api_key', 'none']),
   docsUrl: z.string().nullable(),
 })
+/**
+ * 一家可以「订阅登录」的服务商（omp 的 getOAuthProviders：Claude Pro/Max、ChatGPT/Codex、GitHub Copilot、Gemini CLI……）。
+ * `provider` 是登录之后凭据记在哪一家名下（omp 的 storeCredentialsAs，没有就是 id）—— 它对得上 ProviderInfo.id 与模型的 provider。
+ */
+export const LoginProvider = z.object({
+  id: z.string(),
+  name: z.string(),
+  provider: z.string(),
+  /** omp 说这家此刻能不能走登录（缺依赖、平台不支持时为 false） */
+  available: z.boolean(),
+  /** 这家名下已经有凭据（任何来源：登录、钥匙、环境变量） */
+  authenticated: z.boolean(),
+})
+/** 登录完成后 omp 报回的身份；`kind: 'api_key'` = 那一家的「登录」其实是收了一把钥匙 */
+export const LoginIdentity = z.object({
+  kind: z.enum(['oauth', 'api_key']),
+  email: z.string().nullable(),
+  orgName: z.string().nullable(),
+})
+/**
+ * omp 的一个模型角色（`modelRoles.<role>`；内置 default/smol/slow/vision/plan/commit/tiny/memory/task/advisor 与
+ * 模型种类区 image/web/speech/dictation/judge，外加用户在 omp 里自定义的角色）。`selector` 是 omp 原样的选择器
+ * （`provider/id`、`provider/id:high`、`@smol` 都可能），null = 没配 → omp 按自己的回退链挑。
+ */
+export const ModelRoleInfo = z.object({
+  role: z.string(),
+  /** 角色名：内置角色给中文译名，用户在 omp modelTags 里改过名或自定义角色则原样交回 */
+  name: z.string(),
+  /** 这个角色在 omp 里管什么（内置角色才有） */
+  description: z.string().nullable(),
+  section: z.enum(['chat', 'kind']),
+  selector: z.string().nullable(),
+  /** 这一角色能选的模型（omp 的 roleCandidatePool：有凭据、过白名单、种类匹配） */
+  candidates: z.array(z.object({ selector: z.string(), label: z.string() })),
+})
 export const ModelInfo = z.object({
   provider: z.string(),
   id: z.string(),
@@ -315,4 +350,20 @@ export const MarketplaceEntry = z.object({
   description: z.string(),
   installed: z.boolean(),
 })
+/**
+ * 一条斜杠命令（omp 的 `buildAvailableSlashCommands` 原样折算）。命令表与执行都归 omp：Poietica 只画、只转交，
+ * 不维护自己的一份命令清单 —— 否则 omp 每加一条命令（或用户装一个带命令的插件），这里就落后一条。
+ * `source` 只用于分组与图标；技能（`skill`）不进这张表，技能走输入框的技能标记那一条路，一个能力只有一个入口。
+ */
+export const SlashCommand = z.object({
+  name: z.string().min(1),
+  aliases: z.array(z.string()),
+  description: z.string().nullable(),
+  /** 参数提示（omp 的 inlineHint / acpInputHint）；null = 不带参数 */
+  hint: z.string().nullable(),
+  source: z.enum(['builtin', 'extension', 'custom', 'mcp_prompt', 'file']),
+  subcommands: z.array(z.object({ name: z.string(), description: z.string().nullable() })),
+})
+export type SlashCommand = z.infer<typeof SlashCommand>
+
 export const Capabilities = z.object({ computerUse: z.boolean(), browserControl: z.boolean() })

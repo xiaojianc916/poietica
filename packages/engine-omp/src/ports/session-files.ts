@@ -38,7 +38,11 @@ export class OmpSessionFilesPort implements SessionFilesPort {
     }
   }
 
-  async fork(sessionFile: string, keepTurns?: number): Promise<{ sessionId: string; sessionFile: string }> {
+  async fork(
+    sessionFile: string,
+    keepTurns?: number,
+    title?: string,
+  ): Promise<{ sessionId: string; sessionFile: string }> {
     try {
       await this.requireFile(sessionFile)
       /*
@@ -48,11 +52,30 @@ export class OmpSessionFilesPort implements SessionFilesPort {
       const forked = await SessionManager.forkFrom(sessionFile, path.dirname(sessionFile), this.d.sessionDir)
       try {
         if (keepTurns !== undefined) keepFirstTurns(forked, keepTurns)
+        /* 分叉的名字也落进 omp（P4）：否则副本沿用原会话的名字，omp 的会话列表里两条同名 */
+        if (title !== undefined) await requireNamed(forked, title)
         const created = forked.getSessionFile()
         if (created === undefined) throw new AppError(SystemErrorCode.internal, 'omp 没有为新会话签发文件')
         return { sessionId: forked.getSessionId(), sessionFile: created }
       } finally {
         await forked.close()
+      }
+    } catch (error) {
+      throw toEngineError(error)
+    }
+  }
+
+  async rename(sessionFile: string, title: string): Promise<void> {
+    try {
+      await this.requireFile(sessionFile)
+      const manager = await SessionManager.open(sessionFile, path.dirname(sessionFile), undefined, {
+        throwIfMissing: true,
+        suppressBreadcrumb: true,
+      })
+      try {
+        await requireNamed(manager, title)
+      } finally {
+        await manager.close()
       }
     } catch (error) {
       throw toEngineError(error)
@@ -99,6 +122,13 @@ export class OmpSessionFilesPort implements SessionFilesPort {
   }
 }
 
+/** 以用户定名写进 omp 会话（setSessionName(name, 'user')）；omp 拒收（清洗后为空）报 invalid_params */
+async function requireNamed(manager: SessionManager, title: string): Promise<void> {
+  if (!(await manager.setSessionName(title, 'user'))) {
+    throw new AppError(SystemErrorCode.invalidParams, '会话名不能为空')
+  }
+}
+
 /**
  * 只留屏幕上的前 `keep` 轮：在副本上把叶子挪到第 `keep + 1` 轮开场消息之前，并且**落盘**。
  *
@@ -114,20 +144,24 @@ function keepFirstTurns(manager: SessionManager, keep: number): void {
   const messages = transcript.messages as unknown as readonly OmpMessage[]
   const openings = turnOpenings(messages)
   /* 超出现有轮数不夹到边界：静默夹会让「留 5 轮」变成「留 3 轮」而没人知道。 */
-  if (!Number.isInteger(keep) || keep < 1 || keep > openings.length) {
+  if (!Number.isInteger(keep) || keep < 0 || keep > openings.length) {
     throw new AppError(SystemErrorCode.invalidParams, `这条会话只有 ${openings.length} 轮，不能只留前 ${keep} 轮`)
   }
   if (keep === openings.length) return
   const cut = entryOf(manager.getBranch(), messages, openings[keep]!)
-  if (cut === undefined || cut.parentId === null) {
+  if (cut === undefined) {
     throw new AppError(SystemErrorCode.internal, `找不到第 ${keep + 1} 轮开场消息在会话里的位置`)
   }
+  /* 第 1 轮的开场是根记录（parentId 为 null）：分支落在根上，副本里就一轮也不剩 —— omp `/branch` 选第一句也是空会话 */
   manager.branchWithSummary(cut.parentId, '', { kind: 'poietica-fork', keepTurns: keep })
 }
 
 /**
- * 一条「显示经过」里的消息落在哪条会话记录上。两份都按路径顺序排，逐条往前对：消息记录按 role + 时刻认，
- * 自定义消息按时刻认（omp 现造对象，号认不了），压缩与分支摘要按种类认 —— 不产出消息的记录被跳过。
+ * 一条「显示经过」里的消息落在哪条会话记录上。两份都按路径顺序排，逐条往前对。
+ * 消息记录按**同一对象**认：omp 的 buildSessionContext 对 `message` 记录原样推入 `entry.message`（session-context.ts
+ * appendMessage），所以对象身份就是 entryId，不再按 role + 时刻猜（同一毫秒两条同角色消息曾会认错）。
+ * 自定义消息是 omp 现造的对象（customMessageEntryMessage），时刻取自记录本身，按时刻认；压缩与分支摘要按种类认 ——
+ * 不产出消息的记录被跳过。
  */
 function entryOf(
   path: readonly SessionEntry[],
@@ -147,10 +181,7 @@ function entryOf(
 function produces(entry: SessionEntry, message: OmpMessage): boolean {
   switch (entry.type) {
     case 'message':
-      return (
-        entry.message === (message as unknown) ||
-        (entry.message.role === message.role && entry.message.timestamp === message.timestamp)
-      )
+      return entry.message === (message as unknown)
     case 'custom_message':
       return message.role === 'custom' && new Date(entry.timestamp).getTime() === message.timestamp
     case 'compaction':

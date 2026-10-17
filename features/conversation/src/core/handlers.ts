@@ -34,7 +34,9 @@ export function registerHandlers(ctx: Ctx, core: ConversationCore, hub: Timeline
     await turns.close(threadId)
     return {}
   })
-  ctx.rpc.handle('threads.rename', ({ threadId, title }) => threads.threadOf(threads.rename(threadId, title)))
+  ctx.rpc.handle('threads.rename', async ({ threadId, title }) =>
+    threads.threadOf(await threads.rename(threadId, title)),
+  )
   ctx.rpc.handle('threads.setPinned', ({ threadId, pinned }) => threads.threadOf(threads.setPinned(threadId, pinned)))
   ctx.rpc.handle('threads.setArchived', ({ threadId, archived }) =>
     threads.threadOf(threads.setArchived(threadId, archived)),
@@ -114,6 +116,12 @@ export function registerHandlers(ctx: Ctx, core: ConversationCore, hub: Timeline
   ctx.rpc.handle('controls.setGoal', ({ threadId, goal }) => turns.setGoal(threadId, goal))
   ctx.rpc.handle('controls.pauseGoal', ({ threadId }) => turns.pauseGoal(threadId))
   ctx.rpc.handle('controls.resumeGoal', ({ threadId }) => turns.resumeGoal(threadId))
+
+  ctx.rpc.handle('commands.list', async ({ threadId }) => ({ commands: [...(await turns.commands(threadId))] }))
+  ctx.rpc.handle('commands.run', async ({ threadId, text }) => {
+    await turns.runCommand(threadId, text)
+    return {}
+  })
 
   ctx.rpc.handle('interactions.list', ({ threadId }) => ({ interactions: [...turns.interactions(threadId)] }))
   ctx.rpc.handle('interactions.respond', async ({ threadId, interactionId, answer }) => {

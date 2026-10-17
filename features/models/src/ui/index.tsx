@@ -3,9 +3,9 @@
 import { builtinPoints, defineUiFeature, NavigationToken, SETTINGS_GROUPS } from '@poietica/ui-kernel'
 import { Cpu } from 'lucide-react'
 import { createModelsApi } from './api'
+import { ModelRolesGroup } from './model-roles-group'
 import { ModelsPage } from './models-page'
 import './models-settings.css'
-import { TitleModelGroup } from './title-model-group'
 import { ModelsBanner, useUnconfiguredVisible } from './unconfigured-banner'
 
 export default defineUiFeature({
@@ -24,12 +24,12 @@ export default defineUiFeature({
       component: () => <ModelsPage api={api} />,
     })
 
-    /* 「生成标题的模型」落在**通用页**里（omp 知识 #17）：标题生成用的是模型目录，所以这一格归 models 功能，而不是往 preferences 里塞一份模型知识。 */
+    /* 「模型角色」落在**通用页**里：omp 的 modelRoles（含标题用的 tiny）是模型目录的事实，所以这一组归 models 功能，而不是往 preferences 里塞一份模型知识。 */
     ctx.contribute(builtinPoints.settingsSections, {
-      id: 'models.titleModel',
+      id: 'models.roles',
       order: 400,
       page: 'preferences.general',
-      component: () => <TitleModelGroup api={api} />,
+      component: () => <ModelRolesGroup api={api} />,
     })
 
     /* 未配置提示：没有任何 configured 的服务商时显示 + 「去设置」。落点按产品负责人的要求放在**新对话界面的吉祥物上方**（不占独立一行），因此走

@@ -1,5 +1,15 @@
-import type { CustomProviderDef, ModelInfo, ModelRef, ModelsPort, ProviderInfo } from '@poietica/engine'
-import { Emitter, type Logger } from '@poietica/foundation'
+import type {
+  CustomProviderDef,
+  LoginIdentity,
+  LoginIO,
+  LoginProvider,
+  ModelInfo,
+  ModelRef,
+  ModelRoleInfo,
+  ModelsPort,
+  ProviderInfo,
+} from '@poietica/engine'
+import { AppError, Emitter, type Logger, SystemErrorCode } from '@poietica/foundation'
 import type { z } from 'zod'
 import { toEngineError } from '../errors'
 import { readSetting, type SettingsScope, unsetGlobalSetting, writeGlobalSetting } from '../settings-access'
@@ -17,8 +27,8 @@ import { flushOf, modelRoleOf, setModelRoleOf } from './settings-writes'
 
 /** 默认模型那一格：`modelRoles.default`，值是整串 provider/id */
 const DEFAULT_ROLE_KEY = 'default'
-/** 标题模型那一格：`modelRoles.title`（产品语义见 ModelsPort.titleModel 的头注） */
-const TITLE_ROLE_KEY = 'title'
+/** 旧版 Poietica 自造的 `modelRoles.title`（omp 不认）：启动时迁到 omp 的 tiny 角色后删掉，见 migrateLegacyTitleRole */
+const LEGACY_TITLE_ROLE_KEY = 'title'
 /** 全局那一档思考深度（session/settings.ts 的 cfgDefaultThinkingLevel） */
 const DEFAULT_THINKING_PATH = 'defaultThinkingLevel'
 
@@ -31,11 +41,43 @@ export interface ModelsPortDeps {
     set(provider: string, value: { type: 'api_key'; key: string; source: string }): Promise<void>
     remove(provider: string): Promise<void>
   }
+  /** omp 的订阅登录（AuthStorage.oauth.login + getOAuthProviders + keys.source）；凭据由 omp 自己落库 */
+  readonly oauth: OmpOAuth
+  /** omp 的模型角色目录（config/model-roles）；角色清单、名字、候选全由 omp 定，端口不自列 */
+  readonly roles: OmpRoles
   readonly root: SettingsScope
   readonly customProviders: CustomProvidersFile
   readonly logger: Logger
   /** 写完参数目录后让 omp 重新读取（组合根传 registry.refreshIfStale；omp 知识 #18 没有 reload） */
   readonly reload: () => Promise<void>
+}
+
+/** omp 的角色目录（真身：config/model-roles 的 getKnownRoleIds / getRoleInfo / roleCandidatePool） */
+export interface OmpRoles {
+  known(): readonly string[]
+  info(role: string): { readonly name: string; readonly description: string | null; readonly section: 'chat' | 'kind' }
+  candidates(role: string): readonly OmpModelLike[]
+}
+
+/** omp 订阅登录那几件事的最小形状（真身：pi-ai 的 getOAuthProviders 与 AuthStorage.oauth / keys） */
+export interface OmpOAuth {
+  providers(): readonly { id: string; name: string; available: boolean; storeCredentialsAs?: string }[]
+  /** 这家名下有没有任何来源的凭据（keys.source !== undefined，与 omp rpc-mode get_login_providers 同一判据） */
+  authenticated(provider: string): boolean
+  login(
+    providerId: string,
+    ctrl: {
+      onAuth(info: { url: string; launchUrl?: string; instructions?: string }): void
+      onProgress(message: string): void
+      onPrompt(prompt: {
+        message: string
+        placeholder?: string
+        secret?: boolean
+        allowEmpty?: boolean
+      }): Promise<string>
+      signal: AbortSignal
+    },
+  ): Promise<{ type: 'oauth' | 'api_key'; email?: string; orgName?: string } | undefined>
 }
 
 /** 读 omp 自己的注册表（内置目录 + 用户 models.yml），写它自己的两处真身：凭据进 agent.db、默认模型与白名单进 config.yml */
@@ -67,7 +109,7 @@ export class OmpModelsPort implements ModelsPort {
            */
           configured: this.d.registry.hasConfiguredAuth(model),
           custom: await this.d.customProviders.defined(id),
-          /** 产品不支持 OAuth 登录，所以只可能是这两档 */
+          /** 钥匙那条路；订阅登录另走 loginProviders / login（一家可以两条都有） */
           authKind: 'api_key',
           /** omp 的目录里没有「文档地址」这一格，如实交 null，不编一个 */
           docsUrl: null,
@@ -124,6 +166,55 @@ export class OmpModelsPort implements ModelsPort {
     }
   }
 
+  async loginProviders(): Promise<z.infer<typeof LoginProvider>[]> {
+    try {
+      return this.d.oauth.providers().map((entry) => {
+        const provider = entry.storeCredentialsAs ?? entry.id
+        return {
+          id: entry.id,
+          name: entry.name,
+          provider,
+          available: entry.available,
+          authenticated: this.d.oauth.authenticated(provider),
+        }
+      })
+    } catch (error) {
+      throw toEngineError(error)
+    }
+  }
+
+  /**
+   * 照 omp rpc-mode 的 `login` 分支做：交 omp 的 oauth.login，成功后只刷这一家（refreshProvider online），
+   * 新凭据才会重跑这家的模型发现。与 rpc-mode 不同的只有一处：图形宿主能遮住输入，所以 `secret` 的那一格不拒绝。
+   */
+  async login(providerId: string, io: LoginIO): Promise<z.infer<typeof LoginIdentity> | null> {
+    try {
+      const known = this.d.oauth.providers().find((entry) => entry.id === providerId)
+      if (known === undefined) throw new AppError(SystemErrorCode.invalidParams, `没有这个订阅登录：${providerId}`)
+      const identity = await this.d.oauth.login(providerId, {
+        onAuth: (info) =>
+          io.onAuth({ url: info.url, launchUrl: info.launchUrl ?? null, instructions: info.instructions ?? null }),
+        onProgress: (message) => io.onProgress(message),
+        onPrompt: (prompt) =>
+          io.onPrompt({
+            message: prompt.message,
+            placeholder: prompt.placeholder ?? null,
+            secret: prompt.secret === true,
+            allowEmpty: prompt.allowEmpty === true,
+          }),
+        signal: io.signal,
+      })
+      await this.d.registry.refreshProvider(known.storeCredentialsAs ?? known.id)
+      await this.#refreshCredentials()
+      this.d.logger.info('subscription login stored', { provider: providerId })
+      this.#change.fire()
+      if (identity === undefined) return null
+      return { kind: identity.type, email: identity.email ?? null, orgName: identity.orgName ?? null }
+    } catch (error) {
+      throw toEngineError(error)
+    }
+  }
+
   /** 停用 / 启用一条模型。写入面是全局层的 enabledModels（omp 的可用模型白名单） */
   async setModelEnabled(ref: ModelRef, enabled: boolean): Promise<void> {
     try {
@@ -158,35 +249,37 @@ export class OmpModelsPort implements ModelsPort {
     }
   }
 
-  /**
-   * 「生成对话标题用的模型」：omp 的 `modelRoles.title`。null = 没设 → 标题用这条对话自己的模型。
-   * 单开一个键而不是复用 tiny：omp 的 tiny 是它给后台小事挑轻量模型的角色，用户选的只该管标题这一件事。
-   */
-  async titleModel(): Promise<ModelRef | null> {
+  /** omp 已知的全部角色（内置在前，再是 cycleOrder / modelRoles / modelTags 里出现的自定义角色），选择器原样交回 */
+  async modelRoles(): Promise<z.infer<typeof ModelRoleInfo>[]> {
     try {
-      return modelOf(this.d.root, TITLE_ROLE_KEY)
+      return this.d.roles.known().map((role) => {
+        const info = this.d.roles.info(role)
+        const selector = modelRoleOf(this.d.root, role)
+        return {
+          role,
+          name: info.name,
+          description: info.description,
+          section: info.section,
+          selector: selector === undefined || selector === '' ? null : selector,
+          candidates: this.d.roles
+            .candidates(role)
+            .map((model) => ({ selector: aliasOf(model), label: model.name ?? model.id })),
+        }
+      })
     } catch (error) {
       throw toEngineError(error)
     }
   }
 
-  async setTitleModel(ref: ModelRef | null): Promise<void> {
+  /** 只写 omp 认得的角色（P5：不发明设置键）；选择器原样落 config.yml，omp 解析时自己认 `@role` / `:level` */
+  async setModelRole(role: string, selector: string | null): Promise<void> {
     try {
-      setModelRoleOf(this.d.root, TITLE_ROLE_KEY, ref === null ? undefined : aliasOf(ref))
+      if (!this.d.roles.known().includes(role)) {
+        throw new AppError(SystemErrorCode.invalidParams, `omp 不认这个模型角色：${role}`)
+      }
+      setModelRoleOf(this.d.root, role, selector === null || selector === '' ? undefined : selector)
       await this.#flush()
       this.#change.fire()
-    } catch (error) {
-      throw toEngineError(error)
-    }
-  }
-
-  /** 此刻真正可用的模型（omp 的 getAvailable，与它自己的模型选择器同一份事实） */
-  async availableModels(): Promise<readonly { readonly ref: ModelRef; readonly label: string }[]> {
-    try {
-      return this.d.registry.available().map((model) => ({
-        ref: { provider: model.provider, id: model.id },
-        label: model.name ?? model.id,
-      }))
     } catch (error) {
       throw toEngineError(error)
     }
@@ -260,6 +353,24 @@ function splitAlias(alias: string): ModelRef {
 }
 
 /** modelRoles 里那一格 → ModelRef；没配或空串就是 null */
+/**
+ * 旧版的「标题模型」写在 omp 不认的 `modelRoles.title`，靠每个会话把它覆盖进 tiny 才生效。迁移：tiny 没配就把它挪进
+ * tiny（omp 的标题模型角色），并把 `title.generator` 切到 tiny —— 用户当初要的是「标题由这个模型写」，而 omp 默认的
+ * fork 生成器用会话自己的模型、只在 fork 失败时才轮到 tiny。tiny 已配则以用户在 omp 里的选择为准，旧键直接删。
+ */
+export async function migrateLegacyTitleRole(scope: SettingsScope): Promise<boolean> {
+  const legacy = modelRoleOf(scope, LEGACY_TITLE_ROLE_KEY)
+  if (legacy === undefined) return false
+  const tiny = modelRoleOf(scope, 'tiny')
+  if (legacy !== '' && (tiny === undefined || tiny === '')) {
+    setModelRoleOf(scope, 'tiny', legacy)
+    writeGlobalSetting(scope, 'title.generator', 'tiny')
+  }
+  setModelRoleOf(scope, LEGACY_TITLE_ROLE_KEY, undefined)
+  await flushOf(scope)
+  return true
+}
+
 function modelOf(scope: SettingsScope, role: string): ModelRef | null {
   const value = modelRoleOf(scope, role)
   return value === undefined || value === '' ? null : splitAlias(value)

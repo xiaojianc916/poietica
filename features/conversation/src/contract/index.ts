@@ -1,5 +1,14 @@
 import { defineContract, defineMethod, defineNotification } from '@poietica/contract-kit'
-import { ContextUsage, Controls, DeliverAs, Interaction, InteractionAnswer, ModelRef, Posture } from '@poietica/engine'
+import {
+  ContextUsage,
+  Controls,
+  DeliverAs,
+  Interaction,
+  InteractionAnswer,
+  ModelRef,
+  Posture,
+  SlashCommand,
+} from '@poietica/engine'
 import { transcriptOperationSchema, transcriptPageSchema } from '@poietica/transcript'
 import { z } from 'zod'
 import { QueueView, SubmissionView, Thread, ThreadInit, TimelineSnapshot, TurnState } from './entities'
@@ -19,7 +28,7 @@ const TimelineBatch = z.object({
 
 export const conversationContract = defineContract({
   id: 'conversation',
-  namespaces: ['threads', 'turns', 'timeline', 'queue', 'controls', 'interactions', 'submissions'],
+  namespaces: ['threads', 'turns', 'timeline', 'queue', 'controls', 'interactions', 'submissions', 'commands'],
   methods: [
     defineMethod({
       name: 'threads.list',
@@ -91,9 +100,9 @@ export const conversationContract = defineContract({
         threadId: z.string().min(1),
         /**
          * 只留前几轮：值就是时间线上那一轮的 `turn.ordinal`（引擎签发的轮号，引擎自己认回）。
-         * 不给 = 整条复制。不再用「从尾部往回数几个用户锚点」—— 那要界面替引擎证明计数精确，证明不了就只能禁用分叉。
+         * 不给 = 整条复制；0 = 一轮不留（「从第 1 轮重写」）。不再用「从尾部往回数几个用户锚点」—— 那要界面替引擎证明计数精确，证明不了就只能禁用分叉。
          */
-        keepTurns: z.number().int().positive().optional(),
+        keepTurns: z.number().int().nonnegative().optional(),
         title: z.string().optional(),
       }),
       result: Thread,
@@ -314,6 +323,25 @@ export const conversationContract = defineContract({
       description: '继续已暂停的目标（R-10）',
     }),
 
+    /*
+     * 斜杠命令：表与执行都归 omp（引擎端口 commands / runCommand），这里只转交。命令**不走** turns.submit ——
+     * 它不是一句要进会话文件的话，没有提交行可回显；结局靠 turns.state、commands.output 与 timeline.reset 报。
+     */
+    defineMethod({
+      name: 'commands.list',
+      owner: 'core',
+      params: z.object({ threadId: z.string().min(1) }),
+      result: z.object({ commands: z.array(SlashCommand) }),
+      description: '列出这条对话此刻可用的斜杠命令（omp 现算）',
+    }),
+    defineMethod({
+      name: 'commands.run',
+      owner: 'core',
+      params: z.object({ threadId: z.string().min(1), text: z.string().trim().startsWith('/') }),
+      result: empty,
+      description: '执行一条斜杠命令：开始即返回；对话忙时抛 engine.busy，不认识的命令抛 engine.command_unknown',
+    }),
+
     defineMethod({
       name: 'interactions.list',
       owner: 'core',
@@ -423,6 +451,18 @@ export const conversationContract = defineContract({
       owner: 'core',
       params: empty,
       description: '可选模型或档位变了：入口页的草稿表需要重读',
+    }),
+    defineNotification({
+      name: 'commands.output',
+      owner: 'core',
+      params: z.object({ threadId: z.string().min(1), text: z.string() }),
+      description: '斜杠命令给人的一段输出（不进会话文件，只画一次）',
+    }),
+    defineNotification({
+      name: 'commands.changed',
+      owner: 'core',
+      params: z.object({ threadId: z.string().min(1) }),
+      description: '这条对话的命令表变了：重读 commands.list',
     }),
     defineNotification({
       name: 'interactions.requested',

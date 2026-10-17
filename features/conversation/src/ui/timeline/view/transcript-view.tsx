@@ -12,6 +12,7 @@ import {
 import type { FeedRow, Presentation } from '../presentation'
 import { selectPresentation } from '../presentation'
 import { selectIsBusy } from '../timeline-queries'
+import { RetryTurn } from './retry-turn'
 import { createRowEstimator } from './row-estimate'
 import { RunningStatus } from './running-status'
 import { TimelineSeat } from './timeline-seat'
@@ -60,6 +61,10 @@ export interface TranscriptViewProps {
   readonly lead?: ReactNode
   /** 参数是要留下的轮数（= 点的那一轮的轮号）。缺席表示平台不提供分叉。 */
   readonly onFork?: ((keepTurns: number) => void) | undefined
+  /** 从某一轮重写：参数是那一轮的轮号；缺席时回复下不出现重写钮 */
+  readonly onRewrite?: ((turn: number) => void) | undefined
+  /** 执行 omp 的 `/retry`；缺席（命令表里没有、或正在跑）时末轮报错下不出现重试钮 */
+  readonly onRetry?: (() => void) | undefined
 }
 
 // 与 row-estimate.ts 同一条约束：新增条目类型在这里编译失败。
@@ -84,7 +89,13 @@ function rowRhythmOf(row: FeedRow | undefined): RowRhythm {
   return item === undefined ? 'prose' : RHYTHM[item.type]
 }
 
-export function TranscriptView({ dockClearance, lead, onFork, sessionKey }: TranscriptViewProps) {
+/** 末行是一条错误级报错，且这一轮已经停下：只有这时 omp 的 retry 才有东西可撤 */
+function endsInError(feed: Presentation): boolean {
+  const last = feed.rowAt(feed.count - 1)?.item
+  return feed.running === undefined && last?.type === 'error' && last.level !== 'warning'
+}
+
+export function TranscriptView({ dockClearance, lead, onFork, onRetry, onRewrite, sessionKey }: TranscriptViewProps) {
   const timeline = useAssistantTimeline(sessionKey)
   const hasEarlier = useAssistantHasEarlier(sessionKey)
   const outline = useAssistantOutline(sessionKey)
@@ -150,6 +161,7 @@ export function TranscriptView({ dockClearance, lead, onFork, sessionKey }: Tran
         <TimelineSeat
           group={feed.groupAt(index)}
           onFork={onFork}
+          onRewrite={onRewrite}
           onSealToggle={chooseTurn}
           onToggle={toggleOpen}
           open={items}
@@ -163,7 +175,7 @@ export function TranscriptView({ dockClearance, lead, onFork, sessionKey }: Tran
         />
       )
     },
-    [chooseTurn, feed, items, onFork, sessionKey, toggleOpen],
+    [chooseTurn, feed, items, onFork, onRewrite, sessionKey, toggleOpen],
   )
 
   const estimateRowAt = useCallback(
@@ -252,7 +264,13 @@ export function TranscriptView({ dockClearance, lead, onFork, sessionKey }: Tran
       renderRow={renderRowAt}
       rowRhythm={rowRhythmAt}
       trailing={
-        running === undefined ? undefined : <RunningStatus divided={running.divided} startedAt={running.startedAt} />
+        running === undefined ? (
+          onRetry !== undefined && endsInError(feed) ? (
+            <RetryTurn onRetry={onRetry} />
+          ) : undefined
+        ) : (
+          <RunningStatus divided={running.divided} startedAt={running.startedAt} />
+        )
       }
     />
   )

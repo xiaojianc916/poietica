@@ -1,9 +1,18 @@
+import type { SlashCommand } from '@poietica/engine'
 import type { ReactNode } from 'react'
 import type { SessionConfigControl } from '../../shared/model/config'
 import { GOAL_CONTROL_ID } from '../../shared/model/goal-control'
 import type { PromptConfiguration } from '../../shared/model/session'
 import type { AgentMcpServer, AgentSkill } from '../../shared/model/toolkit'
-import { CloseIcon, GoalIcon, PlusIcon, SirenIcon, SkillIcon, ToolIcon } from '../../shared/primitives/icons'
+import {
+  CloseIcon,
+  GoalIcon,
+  PlusIcon,
+  SirenIcon,
+  SkillIcon,
+  TerminalIcon,
+  ToolIcon,
+} from '../../shared/primitives/icons'
 import type { PromptChipValue } from '../../shared/primitives/prompt-chip'
 import type { PaletteGroup, PaletteRow } from './composer-palette'
 import { isToggleControl } from './controls'
@@ -32,6 +41,9 @@ export interface ComposerPaletteSource {
   readonly onSelectControl: (controlId: string, value: string, input?: string) => void
   readonly skills: readonly AgentSkill[]
   readonly mcpServers: readonly AgentMcpServer[]
+  /** omp 的斜杠命令表（没有活会话时为空）；选中一条交给 onPickCommand，草稿正文原样带上当参数 */
+  readonly commands?: readonly SlashCommand[] | undefined
+  readonly onPickCommand?: ((command: SlashCommand, draft: string) => void) | undefined
 }
 
 function insertRow(
@@ -120,9 +132,23 @@ function mcpDetail(server: AgentMcpServer): string {
   }
 }
 
+/* 命令行写成人会打的样子（`/compact`），说明放右侧；带参数的在说明后挂上参数提示。 */
+function commandRow(command: SlashCommand, onPick: (command: SlashCommand, draft: string) => void): PaletteRow {
+  const detail = [command.description, command.hint].filter((part) => part !== null && part !== '').join(' · ')
+  return {
+    id: `command:${command.name}`,
+    icon: <TerminalIcon aria-hidden="true" />,
+    label: `/${command.name}`,
+    ...(detail === '' ? {} : { detail }),
+    action: { kind: 'run', run: (draft) => onPick(command, draft) },
+  }
+}
+
 export function composerPaletteGroups({
+  commands,
   controls,
   mcpServers,
+  onPickCommand,
   onSelectControl,
   skills,
 }: ComposerPaletteSource): readonly PaletteGroup[] {
@@ -169,6 +195,13 @@ export function composerPaletteGroups({
           name: server.name,
         }),
       ),
+    })
+  }
+  if (commands !== undefined && commands.length > 0 && onPickCommand !== undefined) {
+    groups.push({
+      id: 'commands',
+      heading: '命令',
+      rows: commands.map((command) => commandRow(command, onPickCommand)),
     })
   }
   return groups

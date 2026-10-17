@@ -9,11 +9,12 @@ import {
   useObservable,
 } from '@poietica/ui-kernel'
 import { Archive, SquarePen } from 'lucide-react'
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { ConversationProviders } from '../composition'
 import { AssistantSurface } from '../home/assistant-surface'
 import { HomeSurface } from '../home/home-surface'
 import { ActiveOwner } from '../session/active-owner'
+import { useThreadCommands } from '../session/commands'
 import {
   effectiveUsage,
   hiddenModelsOf,
@@ -28,6 +29,7 @@ import { ConversationAuxiliaryToggle, ConversationTodoToggle } from '../session/
 import { ArchivedChatsPage } from '../session/settings/archived-page'
 import { GOAL_CONTROL_ID, GOAL_DISABLED } from '../shared/model/goal-control'
 import { groupByWorkspace } from '../shared/model/thread-order'
+import type { TimelineState } from '../shared/timeline/timeline-contract'
 import { runGoalAction } from '../status/goal/goal-actions'
 import { createThreadSurfaceOpener, useThreadSessionLifecycle } from '../threads/thread-lifecycle'
 import { AssistantThreadList } from '../threads/view/assistant-thread-list'
@@ -46,6 +48,17 @@ export function createConversationContributions(setup: ConversationSetup, action
     open: api.openThread,
     refreshControls: (threadId) => stores.controls.refresh(threadId),
   })
+
+  /* 重写分出来的新对话要带上的那一句：按新对话号放一次、取一次（setup 级，跨表面实例） */
+  const prefills = new Map<string, string>()
+  const rewriteThread = (threadId: string, turn: number) => {
+    const text = promptOfTurn(transcripts.read(threadId).timeline, turn)
+    void api.forkThread({ threadId, keepTurns: turn - 1 }).then((t) => {
+      stores.threads.upsert(t)
+      if (text !== '') prefills.set(t.id, text)
+      openThread(t.id)
+    })
+  }
 
   /* 侧栏导航「新建对话」归 conversation —— 这个功能才知道入口在哪儿，外壳一个产品常量都不写。 */
   ctx.contribute(builtinPoints.sidebarSections, {
@@ -248,11 +261,20 @@ export function createConversationContributions(setup: ConversationSetup, action
        */ const session = threadId === '' ? undefined : sessions.port(threadId)
       /* 挂载预热 / 卸载释放（threads.open / threads.close）；规则与 StrictMode 的兜底在 thread-lifecycle.ts 里。 */
       useThreadSessionLifecycle({ threadId, open: openThreadSurface, close: api.closeThread })
+      /* omp 的斜杠命令：表随会话现算，输出不进会话文件，所以由这一层按对话号收着 */
+      const commands = useThreadCommands(api, threadId)
+      /* 表面实例跨对话复用：按对话号记着取到的那一句，换了对话就重取，不把上一条的话放进这一条 */
+      const [held, setHeld] = useState(() => ({ threadId, text: prefills.get(threadId) }))
+      if (held.threadId !== threadId) setHeld({ threadId, text: prefills.get(threadId) })
+      useEffect(() => {
+        prefills.delete(threadId)
+      }, [threadId])
       return (
         <ConversationProviders posture={posture} transcripts={transcripts}>
           <ActiveOwner layout={layout} owner={threadId} />
           <AssistantSurface
             {...(session === undefined ? {} : { session })}
+            commands={commands}
             controls={shownControls}
             controlsFailure={controlsFailure}
             endpoint={threadId}
@@ -264,6 +286,8 @@ export function createConversationContributions(setup: ConversationSetup, action
                 openThread(t.id)
               })
             }}
+            onRewrite={(turn) => rewriteThread(threadId, turn)}
+            prefill={held.threadId === threadId ? held.text : undefined}
             onGoalAction={(action) => runGoalAction(api, threadId, action)}
             onExportThread={(id) => void exportThread(id)}
             onPinThread={(id, pinned) => {
@@ -321,4 +345,11 @@ export function createConversationContributions(setup: ConversationSetup, action
     icon: Archive,
     component: () => <ArchivedChatsPage api={api} threads={stores.threads} />,
   })
+}
+
+/** 第 `turn` 轮开场那句话的原文（技能与附件记号不带回：omp `/branch` 也只回填文字） */
+function promptOfTurn(timeline: TimelineState, turn: number): string {
+  const page = [...timeline.sealed, timeline.active].find((candidate) => candidate.turn === turn)
+  const said = page?.items.find((item) => item.type === 'user_message')
+  return said?.type === 'user_message' ? said.text : ''
 }

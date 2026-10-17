@@ -7,6 +7,7 @@ import type {
   ModelRef,
   Posture,
   QueueSnapshot,
+  SlashCommand,
 } from '@poietica/engine'
 import type { AttachmentsService } from '@poietica/feature-attachments/core-api'
 import type { WorkspacesService } from '@poietica/feature-workspaces/core-api'
@@ -233,6 +234,17 @@ export class TurnService {
     const session = await this.d.pool.acquire(threadId)
     await session.resumeGoal()
     return session.controls()
+  }
+
+  // ── 斜杠命令（表与执行都归引擎，这里只拿会话转交）──────────────────────────
+  async commands(threadId: string): Promise<readonly SlashCommand[]> {
+    const session = await this.d.pool.acquire(threadId)
+    return await session.commands()
+  }
+
+  async runCommand(threadId: string, text: string): Promise<void> {
+    const session = await this.d.pool.acquire(threadId)
+    await session.runCommand(text)
   }
 
   // ── 交互（07 页 §5C 的 interactions 两方法）───────────────────────────────

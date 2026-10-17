@@ -1,0 +1,59 @@
+/* 斜杠命令的输出：卡外、与卡同宽，与 ComposerNotice 同一套尺度；正文等宽、保留换行，过高就在块内滚动。 */
+.assistant-command-output {
+  box-sizing: border-box;
+  inline-size: 100%;
+  margin-block-end: var(--cp-pad-mid);
+  border: var(--cp-px) solid var(--cp-edge);
+  border-radius: var(--cp-notice-radius);
+  background: var(--cp-surface);
+  color: var(--cp-ink);
+  font-size: var(--cp-font-caption);
+}
+
+.assistant-command-output__head {
+  display: flex;
+  block-size: var(--cp-row);
+  align-items: center;
+  gap: var(--cp-control-gap);
+  padding-inline: var(--cp-inset);
+}
+
+.assistant-command-output__title {
+  flex: 1;
+  min-inline-size: 0;
+  overflow: hidden;
+  font-family: var(--ui-font-mono, monospace);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.assistant-command-output__body {
+  max-block-size: 40vh;
+  margin: 0;
+  padding: 0 var(--cp-inset) var(--cp-inset);
+  overflow: auto;
+  font-family: var(--ui-font-mono, monospace);
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.assistant-command-output__close {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  inline-size: var(--cp-target-min);
+  block-size: var(--cp-target-min);
+  padding: 0;
+  border: 0;
+  border-radius: var(--cp-radius-item);
+  background: none;
+  color: var(--cp-ink-muted);
+  cursor: pointer;
+}
+
+.assistant-command-output__close:hover,
+.assistant-command-output__close:focus-visible {
+  background: var(--cp-overlay-hover);
+  color: var(--cp-ink);
+}

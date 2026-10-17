@@ -20,11 +20,13 @@ export interface TimelineSeatProps {
   readonly onToggle: (id: string) => void
   readonly onSealToggle: (turn: number, isOpen: boolean) => void
   readonly onFork?: ((keepTurns: number) => void) | undefined
+  readonly onRewrite?: ((turn: number) => void) | undefined
 }
 
 export const TimelineSeat = memo(function TimelineSeat({
   group,
   onFork,
+  onRewrite,
   onSealToggle,
   onToggle,
   open,
@@ -66,6 +68,7 @@ export const TimelineSeat = memo(function TimelineSeat({
     <ReplyActionHost
       forkUnavailableReason={replyForkReason ?? null}
       onFork={onFork}
+      onRewrite={onRewrite}
       text={replyText}
       keepTurns={replyKeepTurns ?? null}
       usage={replyUsage}

@@ -38,6 +38,9 @@ export interface ConversationCoreDeps {
   readonly emitControls: (p: { threadId: string; controls: Controls }) => void
   /** 上下文用量单独报（见契约里 controls.contextChanged 的头注：它不搭控件那班车） */
   readonly emitContextUsage: (p: { threadId: string; usage: ContextUsage | null }) => void
+  /** 斜杠命令的输出与命令表变化（commands.output / commands.changed） */
+  readonly emitCommandOutput: (p: { threadId: string; text: string }) => void
+  readonly emitCommandsChanged: (p: { threadId: string }) => void
   readonly emitInteractionRequested: (p: { threadId: string; interaction: Interaction }) => void
   readonly emitInteractionResolved: (p: { threadId: string; interactionId: string }) => void
   /** 「Core 即时回显」：提交行的两条通知（存库后推送） */
@@ -166,8 +169,8 @@ export class ConversationCore {
         setPosture: (threadId, posture) => {
           this.threads.setPosture(threadId, posture)
         },
-        setTitleFromSession: (threadId, title, sessionFile) => {
-          this.threads.setTitleFromSession(threadId, title, sessionFile)
+        setTitleFromSession: (threadId, title, source, sessionFile) => {
+          this.threads.setTitleFromSession(threadId, title, source, sessionFile)
         },
       },
       emitThreadUpdated: d.emitThreadUpdated,
@@ -176,6 +179,8 @@ export class ConversationCore {
       emitQueue: d.emitQueue,
       emitControls: d.emitControls,
       emitContextUsage: d.emitContextUsage,
+      emitCommandOutput: d.emitCommandOutput,
+      emitCommandsChanged: d.emitCommandsChanged,
       emitInteractionRequested: d.emitInteractionRequested,
       emitInteractionResolved: d.emitInteractionResolved,
       emitTurnSettled: d.emitTurnSettled,

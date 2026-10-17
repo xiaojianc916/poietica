@@ -52,6 +52,8 @@ export default defineCoreModule({
       emitQueue: (p) => ctx.rpc.emit('queue.changed', p),
       emitControls: (p) => ctx.rpc.emit('controls.changed', p),
       emitContextUsage: (p) => ctx.rpc.emit('controls.contextChanged', p),
+      emitCommandOutput: (p) => ctx.rpc.emit('commands.output', p),
+      emitCommandsChanged: (p) => ctx.rpc.emit('commands.changed', p),
       emitInteractionRequested: (p) => ctx.rpc.emit('interactions.requested', p),
       emitInteractionResolved: (p) => ctx.rpc.emit('interactions.resolved', p),
       emitSubmissionChanged: (submission) =>

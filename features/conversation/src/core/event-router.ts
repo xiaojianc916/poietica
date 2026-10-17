@@ -34,8 +34,8 @@ export interface EventRouterDeps {
     threadOf(row: ThreadRow): Thread
     /** controls 事件里的姿态与线程行不一致时把行改掉（服务行为表） */
     setPosture(threadId: string, posture: Posture): void
-    /** omp 自动总结出的标题（omp 知识 #17）；守卫住在 thread-service 里 */
-    setTitleFromSession(threadId: string, title: string, sessionFile: string): void
+    /** omp 的会话名变了（自动总结或用户定名，omp 知识 #17）；守卫住在 thread-service 里 */
+    setTitleFromSession(threadId: string, title: string, source: 'auto' | 'user', sessionFile: string): void
   }
   readonly emitThreadUpdated: (thread: Thread) => void
   readonly emitTurnState: (state: TurnState) => void
@@ -54,6 +54,8 @@ export interface EventRouterDeps {
     error: { code: string; message: string } | null
   }) => void
   readonly emitUsageSampled: (p: { threadId: string; sample: UsageSample; at: number }) => void
+  readonly emitCommandOutput: (p: { threadId: string; text: string }) => void
+  readonly emitCommandsChanged: (p: { threadId: string }) => void
 }
 
 export class EventRouter {
@@ -131,7 +133,13 @@ export class EventRouter {
          * omp 的自动总结标题替换首句兜底（omp 知识 #17）。**不**改 epoch、不整页重取：
          * 这只是一格标题，线程行原地改写就够了（与 setPosture 同一条规矩）。
          */
-        this.d.threads.setTitleFromSession(threadId, event.title, event.sessionFile)
+        this.d.threads.setTitleFromSession(threadId, event.title, event.source, event.sessionFile)
+        break
+      case 'commandOutput':
+        this.d.emitCommandOutput({ threadId, text: event.text })
+        break
+      case 'commandsChanged':
+        this.d.emitCommandsChanged({ threadId })
         break
     }
   }

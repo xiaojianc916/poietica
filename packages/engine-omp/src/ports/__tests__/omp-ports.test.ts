@@ -46,6 +46,9 @@ function registryOf(): { registry: OmpModelRegistry; calls: string[] } {
     refreshInBackground: () => {
       calls.push('refreshInBackground')
     },
+    refreshProvider: async (providerId) => {
+      calls.push(`refreshProvider:${providerId}`)
+    },
   }
   return { registry, calls }
 }

@@ -1,6 +1,7 @@
 import './composer-actions.css'
 import './question-panel.css'
 
+import type { SlashCommand } from '@poietica/engine'
 import { memo, type Ref, useMemo } from 'react'
 import type { SessionConfigControl } from '../../shared/model/config'
 import type { DialogAnswer } from '../../shared/model/dialog'
@@ -44,6 +45,11 @@ export interface AssistantComposerProps {
   readonly ref?: Ref<PromptInputHandle> | undefined
   readonly skills?: readonly AgentSkill[] | undefined
   readonly mcpServers?: readonly AgentMcpServer[] | undefined
+  /** omp 的斜杠命令（面板「命令」一组）；选中交给 onPickCommand */
+  readonly commands?: readonly SlashCommand[] | undefined
+  readonly onPickCommand?: ((command: SlashCommand, draft: string) => void) | undefined
+  /** 直接执行一句命令（上下文面板的维护动作用它）；缺席时那排按钮不画 */
+  readonly onRunCommand?: ((text: string) => void) | undefined
   /** Everything the session (or, before one exists, the agent config) offers. */
   readonly controls: readonly SessionConfigControl[]
   /** 这张表还没被 agent 确认过：画得出内容，但点不动。 */
@@ -64,7 +70,15 @@ export interface AssistantComposerProps {
 /* 只声明这一层真的兑现的那几项：声明了不转发会悄悄吃掉调用方的 ref。 */
 type ComposerToolbarProps = Pick<
   AssistantComposerProps,
-  'controls' | 'controlsPending' | 'onCancel' | 'onContinue' | 'onSelectControl' | 'onSubmit' | 'usage'
+  | 'commands'
+  | 'controls'
+  | 'controlsPending'
+  | 'onCancel'
+  | 'onContinue'
+  | 'onRunCommand'
+  | 'onSelectControl'
+  | 'onSubmit'
+  | 'usage'
 > & {
   readonly status: ChatStatus
   /** 只用来组装要发出去的东西的那张表；未确认时是空的。 */
@@ -72,11 +86,13 @@ type ComposerToolbarProps = Pick<
 }
 
 function ComposerToolbar({
+  commands,
   confirmed,
   controls,
   controlsPending,
   onCancel,
   onContinue,
+  onRunCommand,
   onSelectControl,
   onSubmit,
   status,
@@ -103,7 +119,12 @@ function ComposerToolbar({
       <span className="assistant-toolbar__spacer" />
 
       {/* 上下文余量在模型选择器左侧：先说这条会话还装得下多少，再说这一句由谁来答。 */}
-      <ContextGauge usage={usage} />
+      <ContextGauge
+        busy={status === 'streaming' || status === 'submitted'}
+        commands={commands}
+        onRunCommand={onRunCommand}
+        usage={usage}
+      />
 
       {/* 模型选择器挨着「发」：它说的正是这一句将被谁回答。 */}
       <SessionControls controls={controls} onSelect={onSelectControl} pending={controlsPending} />
@@ -120,12 +141,14 @@ function ComposerToolbar({
 export const AssistantComposer = memo(function AssistantComposer({
   approval,
   attachments,
+  commands,
   initialText,
   onChange,
   onAnswerDialog,
   onAnswerQuestions,
   onDismissQuestions,
   mcpServers,
+  onPickCommand,
   onResolvePlan,
   plan,
   skills,
@@ -148,12 +171,14 @@ export const AssistantComposer = memo(function AssistantComposer({
   const groups = useMemo(
     () =>
       composerPaletteGroups({
+        commands,
         controls: confirmed,
         mcpServers: mcpServers ?? [],
+        onPickCommand,
         onSelectControl: toolbar.onSelectControl,
         skills: skills ?? [],
       }),
-    [confirmed, mcpServers, skills, toolbar.onSelectControl],
+    [commands, confirmed, mcpServers, onPickCommand, skills, toolbar.onSelectControl],
   )
 
   return (
@@ -198,7 +223,13 @@ export const AssistantComposer = memo(function AssistantComposer({
               <PromptInputEditor placeholder={placeholder} />
             </PromptInputBody>
 
-            <ComposerToolbar confirmed={confirmed} onSubmit={onSubmit} status={status} {...toolbar} />
+            <ComposerToolbar
+              commands={commands}
+              confirmed={confirmed}
+              onSubmit={onSubmit}
+              status={status}
+              {...toolbar}
+            />
           </>
         )}
       </PromptInput>

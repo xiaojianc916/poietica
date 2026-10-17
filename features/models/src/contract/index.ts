@@ -1,6 +1,15 @@
 import { defineContract, defineMethod, defineNotification } from '@poietica/contract-kit'
 import { z } from 'zod'
-import { ApiKeyInput, CustomProviderDef, ModelInfo, ModelRef, ProviderInfo } from './entities'
+import {
+  ApiKeyInput,
+  CustomProviderDef,
+  LoginEvent,
+  LoginProvider,
+  ModelInfo,
+  ModelRef,
+  ModelRoleInfo,
+  ProviderInfo,
+} from './entities'
 import { modelsErrors } from './errors'
 
 export * from './entities'
@@ -32,6 +41,34 @@ export const modelsContract = defineContract({
       params: z.object({ provider: z.string().min(1) }),
       result: empty,
       description: '清除服务商的 API key',
+    }),
+    defineMethod({
+      name: 'models.loginProviders',
+      owner: 'core',
+      params: empty,
+      result: z.object({ providers: z.array(LoginProvider) }),
+      description: '可订阅登录的服务商（omp 的 getOAuthProviders）及是否已有凭据',
+    }),
+    defineMethod({
+      name: 'models.startLogin',
+      owner: 'core',
+      params: z.object({ providerId: z.string().min(1) }),
+      result: z.object({ loginId: z.string() }),
+      description: '开始一次订阅登录；之后的网址、进度、要填的格子与结局都经 models.loginEvent 推送',
+    }),
+    defineMethod({
+      name: 'models.answerLogin',
+      owner: 'core',
+      params: z.object({ loginId: z.string().min(1), promptId: z.string().min(1), value: z.string() }),
+      result: empty,
+      description: '交回登录过程中 omp 要人填的那一格（授权码、回调网址……）',
+    }),
+    defineMethod({
+      name: 'models.cancelLogin',
+      owner: 'core',
+      params: z.object({ loginId: z.string().min(1) }),
+      result: empty,
+      description: '取消一次进行中的订阅登录',
     }),
     defineMethod({
       name: 'models.upsertCustomProvider',
@@ -69,23 +106,18 @@ export const modelsContract = defineContract({
       description: '默认模型与默认思考强度',
     }),
     defineMethod({
-      name: 'models.titleModel',
+      name: 'models.roles',
       owner: 'core',
       params: empty,
-      result: z.object({
-        model: ModelRef.nullable(),
-        /* 可选项：**omp 此刻真正可用的模型**（引擎 getAvailable，与输入框的模型选择器同源）。不给 UI 自己按 providers.configured 过滤的机会：那个判的是
-         * 「这家配过凭据没有」，而这里要的是「这一条模型此刻在不在可用目录里」—— 停用的、还没发现出来的都该缺席。 */
-        choices: z.array(z.object({ ref: ModelRef, label: z.string() })),
-      }),
-      description: '读取「生成对话标题用的模型」与可选项；null 表示跟随对话自己的模型',
+      result: z.object({ roles: z.array(ModelRoleInfo) }),
+      description: 'omp 的全部模型角色（内置 + 自定义）：当前选择器与候选模型，均由 omp 给出',
     }),
     defineMethod({
-      name: 'models.setTitleModel',
+      name: 'models.setRole',
       owner: 'core',
-      params: z.object({ model: ModelRef.nullable() }),
+      params: z.object({ role: z.string().min(1), selector: z.string().min(1).nullable() }),
       result: empty,
-      description: '设置「生成对话标题用的模型」；null 表示跟随对话自己的模型',
+      description: '设置一个模型角色（omp modelRoles.<role>）；null 表示删掉、交回 omp 的回退链',
     }),
     defineMethod({
       name: 'models.setDefaults',
@@ -96,6 +128,12 @@ export const modelsContract = defineContract({
     }),
   ],
   notifications: [
+    defineNotification({
+      name: 'models.loginEvent',
+      owner: 'core',
+      params: z.object({ loginId: z.string(), event: LoginEvent }),
+      description: '订阅登录过程中的一步（打开网址 / 进度 / 要填一格 / 完成 / 失败）',
+    }),
     defineNotification({
       name: 'models.changed',
       owner: 'core',

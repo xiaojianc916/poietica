@@ -1,3 +1,10 @@
+import { getOAuthProviders } from '@oh-my-pi/pi-ai/oauth'
+import {
+  getKnownRoleIds,
+  getRoleInfo,
+  MODEL_ROLES,
+  roleCandidatePool,
+} from '@oh-my-pi/pi-coding-agent/config/model-roles'
 import type { AgentEngine } from '@poietica/engine'
 import type { Logger } from '@poietica/foundation'
 import type { DataLayout } from '@poietica/runtime-layout'
@@ -5,11 +12,13 @@ import type { OmpModelRegistry, OmpSessionLike } from '../omp-context'
 import type { SettingsScope } from '../settings-access'
 import { OmpMcpPort } from './mcp'
 import { registryPortOf } from './model-helpers'
-import { OmpModelsPort } from './models'
+import { OmpModelsPort, type OmpOAuth, type OmpRoles } from './models'
 import { CustomProvidersFile, modelsFilePath } from './models-file'
 import { OmpPluginsPort } from './plugins'
+import { roleTextOf } from './role-catalog'
 import { OmpSessionFilesPort } from './session-files'
 import { OmpSettingsPort } from './settings'
+import { settingsInstanceOf } from './settings-writes'
 import { OmpSkillsPort } from './skills'
 
 export interface OmpPortsOptions {
@@ -57,6 +66,8 @@ export async function ompPorts(o: OmpPortsOptions): Promise<{
     models: new OmpModelsPort({
       registry: registryPortOf(o.registry),
       credentials: (o.authStorage as { credentials: never }).credentials,
+      oauth: ompOAuthOf(o.authStorage as OmpAuthStorageWithOAuth, getOAuthProviders),
+      roles: ompRolesOf(o.root, o.registry),
       root: o.root,
       customProviders,
       logger: o.logger,
@@ -71,5 +82,39 @@ export async function ompPorts(o: OmpPortsOptions): Promise<{
     mcp,
     mcpRefreshStatus: () => mcp.refreshStatus(),
     plugins: new OmpPluginsPort({ cwd: o.layout.coreCwd, logger: o.logger }),
+  }
+}
+
+/** omp 的角色目录：清单、名字、候选都直接问 config/model-roles（与 omp 自己的 /model 角色面板同一份事实） */
+export function ompRolesOf(root: SettingsScope, registry: Pick<OmpModelRegistry, 'getAvailable'>): OmpRoles {
+  const settings = () => settingsInstanceOf(root)
+  return {
+    known: () => getKnownRoleIds(settings()),
+    info: (role) => {
+      const info = getRoleInfo(role, settings())
+      /* 名字没被 modelTags 改过（还是 omp 内置那一个）才换中文；用户自己起的名字原样交回 */
+      const builtinName = (MODEL_ROLES as Record<string, { name: string } | undefined>)[role]?.name
+      const text = roleTextOf(role, info.name === builtinName)
+      return {
+        name: text.name ?? info.name,
+        description: text.description,
+        section: info.section === 'kind' ? 'kind' : 'chat',
+      }
+    },
+    candidates: (role) => roleCandidatePool(role, settings(), registry as never),
+  }
+}
+
+/** omp AuthStorage 里订阅登录用得着的两格（keys.source / oauth.login），签名照 pi-ai auth/types.ts */
+interface OmpAuthStorageWithOAuth {
+  readonly keys: { source(provider: string): unknown }
+  readonly oauth: { login: OmpOAuth['login'] }
+}
+
+function ompOAuthOf(storage: OmpAuthStorageWithOAuth, providers: OmpOAuth['providers']): OmpOAuth {
+  return {
+    providers,
+    authenticated: (provider) => storage.keys.source(provider) !== undefined,
+    login: (providerId, ctrl) => storage.oauth.login(providerId, ctrl),
   }
 }

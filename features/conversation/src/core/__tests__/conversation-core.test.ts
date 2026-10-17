@@ -108,6 +108,8 @@ async function makeCore(overrides: { engine?: FakeEngine; workspaces?: Workspace
       queues.push(p)
     },
     emitControls: () => undefined,
+    emitCommandOutput: () => undefined,
+    emitCommandsChanged: () => undefined,
     emitContextUsage: (p) => {
       contextUsages.push(p)
     },
@@ -284,6 +286,8 @@ describe('conversation core（不经内核的直连测试）', () => {
       emitThreadRemovedEvent: () => undefined,
       emitTurnSettled: () => undefined,
       emitUsageSampled: () => undefined,
+      emitCommandOutput: () => undefined,
+      emitCommandsChanged: () => undefined,
       emitContextUsage: () => undefined,
       emitUserMessage: () => undefined,
     })
@@ -962,6 +966,8 @@ describe('conversation core（不经内核的直连测试）', () => {
         emitTurnDropped: () => undefined,
         emitQueue: () => undefined,
         emitControls: () => undefined,
+        emitCommandOutput: () => undefined,
+        emitCommandsChanged: () => undefined,
         emitContextUsage: () => undefined,
         emitInteractionRequested: () => undefined,
         emitInteractionResolved: () => undefined,

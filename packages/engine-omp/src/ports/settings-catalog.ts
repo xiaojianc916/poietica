@@ -391,6 +391,7 @@ export const SETTING_LABELS: Readonly<Record<string, string>> = {
   'goal.enabled': '目标模式',
   'goal.statusInFooter': '页脚显示目标状态',
   'goal.continuationModes': '目标续跑模式',
+  'title.generator': '标题生成器',
   'title.refreshOnReplan': '重规划时刷新标题',
   'task.isolation.enabled': '隔离子代理',
   'isolation.backend': '隔离后端',
@@ -720,6 +721,8 @@ export const SETTING_DESCRIPTIONS: Readonly<Record<string, string>> = {
   'plan.autosaveDir': '自动保存计划的目录。支持 ~、绝对路径与相对 cwd 的路径。留空使用 <project>/.omp/plans/。',
   'goal.enabled': '启用每会话的目标模式与隐藏的 goal 工具',
   'goal.continuationModes': '活跃目标可在轮次之间自动续跑的运行模式',
+  'title.generator':
+    '谁给没有标题的对话起名：分叉 = 用这条对话自己的模型顺带起名（默认）；微型 = 只用「模型角色」里的微型模型',
   'title.refreshOnReplan': '待办初始化导致重新规划后刷新自动生成的会话标题，除非标题是用户设定的',
   'task.isolation.enabled': '在检出的隔离副本中运行子代理，事后再把改动集成回来',
   'isolation.backend': '子代理隔离与工作树克隆所使用的后端',
@@ -1072,6 +1075,10 @@ const OPTION_LABELS: Readonly<Record<string, Readonly<Record<string, string>>>> 
   modelRoleStorage: {
     global: '全局',
     project: '按项目',
+  },
+  'title.generator': {
+    fork: '分叉（对话自己的模型）',
+    tiny: '微型模型角色',
   },
 }
 

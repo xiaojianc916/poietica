@@ -50,6 +50,7 @@ import {
   type SkillPromptMessage,
 } from './prompt'
 import { OmpSession } from './session'
+import { listSlashCommands, resolveSlashCommand, runBuiltinCommand } from './slash-commands'
 
 type BreakdownSession = Parameters<typeof computeSessionContextBreakdown>[0]
 
@@ -81,6 +82,9 @@ interface OmpAgentSessionLike {
     getCwd(): string
     getSessionName?(): string | undefined
     onSessionNameChanged?(cb: () => void): () => void
+    /** omp 的会话名来源（会话头 titleSource）：user = 用户定名，之后自动总结不再覆盖 */
+    readonly titleSource?: 'auto' | 'user' | undefined
+    setSessionName?(name: string, source: 'auto' | 'user'): Promise<boolean>
   }
   readonly skills: readonly {
     readonly name: string
@@ -136,6 +140,8 @@ interface OmpAgentSessionLike {
     dropGoal(): Promise<unknown>
   }
   readonly isStreaming?: boolean
+  /* 命令表变化（插件装卸、技能 / 命令目录重扫、MCP 提示词上线）；RPC / ACP 宿主靠它重发命令表 */
+  subscribeCommandMetadataChanged?(listener: () => void): () => void
   sendPlanModeContext?(options?: { deliverAs?: 'steer' | 'followUp' | 'nextTurn' | 'aside' }): Promise<void>
   sendGoalModeContext?(options?: { deliverAs?: 'steer' | 'followUp' | 'nextTurn' | 'aside' }): Promise<void>
 }
@@ -345,6 +351,11 @@ export async function wrapOmpSession(input: WrapOmpSessionInput): Promise<Engine
         }
       },
       now: () => systemClock.now(),
+      commands: async () => await listSlashCommands(session),
+      resolveCommand: async (text) => await resolveSlashCommand(session, text),
+      setSessionName: async (name) => (await session.sessionManager?.setSessionName?.(name, 'user')) ?? false,
+      runBuiltinCommand: async (text, hooks) => await runBuiltinCommand(session, text, hooks),
+      reseat: () => projector.seat(lastTurnOrdinal(transcriptOf())),
     },
     { sessionId: session.sessionId, sessionFile: session.sessionFile ?? '' },
   )
@@ -366,11 +377,12 @@ export async function wrapOmpSession(input: WrapOmpSessionInput): Promise<Engine
     toSub(
       session.sessionManager?.onSessionNameChanged?.(() => {
         const name = session.sessionManager?.getSessionName?.()
-        if (typeof name === 'string' && name !== '') ompSession.emitSessionTitle(name)
+        if (typeof name === 'string' && name !== '') ompSession.emitSessionTitle(name, titleSourceOf(session))
       }) ?? (() => undefined),
     ),
     // omp 的 subscribe 直接返回退订函数：包一层再存，dispose 时真的退订
     toSub(session.subscribe((event) => handleOmpEvent(event, pump))),
+    toSub(session.subscribeCommandMetadataChanged?.(() => ompSession.commandsChanged()) ?? (() => undefined)),
   ]
   if (input.subagentBus !== null) {
     subscriptions.push(
@@ -405,8 +417,14 @@ export async function wrapOmpSession(input: WrapOmpSessionInput): Promise<Engine
   if (input.thinking !== null) ompSession.setThinking(input.thinking)
   /* 打开一条已经有名字的会话：补报一次 —— onSessionNameChanged 没有回放，而会话池在返回值之后才订阅 */
   const seededName = session.sessionManager?.getSessionName?.()
-  if (typeof seededName === 'string' && seededName !== '') ompSession.emitSessionTitle(seededName)
+  if (typeof seededName === 'string' && seededName !== '')
+    ompSession.emitSessionTitle(seededName, titleSourceOf(session))
   return ompSession
+}
+
+/** omp 记的会话名来源；读不到按 auto（omp setSessionName 的默认来源） */
+function titleSourceOf(session: OmpAgentSessionLike): 'auto' | 'user' {
+  return session.sessionManager?.titleSource === 'user' ? 'user' : 'auto'
 }
 
 function thinkingLevelsOf(session: OmpAgentSessionLike): readonly string[] {

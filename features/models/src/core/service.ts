@@ -1,6 +1,6 @@
 import type { ModelsPort } from '@poietica/engine'
 import { AppError, type Logger } from '@poietica/foundation'
-import type { CustomProviderDef, ModelInfo, ModelRef, ProviderInfo } from '../contract'
+import type { CustomProviderDef, ModelInfo, ModelRef, ModelRoleInfo, ProviderInfo } from '../contract'
 import { modelsErrors } from '../contract/errors'
 
 export interface ModelsServiceDeps {
@@ -18,9 +18,10 @@ export interface ModelsService {
   catalog(): Promise<ModelInfo[]>
   setEnabled(model: ModelRef, enabled: boolean): Promise<void>
   defaults(): Promise<{ model: ModelRef | null; thinking: string | null }>
-  /** null = 跟随对话自己的模型 */
-  titleModel(): Promise<{ model: ModelRef | null; choices: readonly { ref: ModelRef; label: string }[] }>
-  setTitleModel(model: ModelRef | null): Promise<void>
+  /** omp 的模型角色表（清单、名字、候选全由引擎给） */
+  roles(): Promise<ModelRoleInfo[]>
+  /** null = 删掉这一格、交回 omp 的回退链 */
+  setRole(role: string, selector: string | null): Promise<void>
   setDefaults(input: { model?: ModelRef; thinking?: string | null }): Promise<void>
 }
 
@@ -91,15 +92,12 @@ export function createModelsService(d: ModelsServiceDeps): ModelsService {
       d.emitChanged()
     },
 
-    /* 标题模型：null 一路透传（= 跟随对话自己的模型），端口那一层负责把 null 落成「删掉这一格」。可选项现读引擎的可用模型 —— 与输入框选择器
-     * 同一份事实。 */
-    async titleModel() {
-      const [model, choices] = await Promise.all([d.models.titleModel(), d.models.availableModels()])
-      return { model, choices }
+    roles() {
+      return d.models.modelRoles()
     },
-    async setTitleModel(model) {
-      await d.models.setTitleModel(model)
-      d.logger.info('title model set', { model: model === null ? null : `${model.provider}/${model.id}` })
+    async setRole(role, selector) {
+      await d.models.setModelRole(role, selector)
+      d.logger.info('model role set', { role, selector })
       d.emitChanged()
     },
   }

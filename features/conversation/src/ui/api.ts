@@ -1,4 +1,12 @@
-import type { ContextUsage, Controls, Interaction, InteractionAnswer, ModelRef, Posture } from '@poietica/engine'
+import type {
+  ContextUsage,
+  Controls,
+  Interaction,
+  InteractionAnswer,
+  ModelRef,
+  Posture,
+  SlashCommand,
+} from '@poietica/engine'
 import type { TypedRpcClient } from '@poietica/rpc'
 import type { TranscriptOperation, TranscriptPage } from '@poietica/transcript'
 import type { UiFeatureContext } from '@poietica/ui-kernel'
@@ -92,6 +100,12 @@ export function createConversationApi(ctx: UiFeatureContext) {
       rpc.call('controls.setGoal', { threadId, goal }),
     pauseGoal: (threadId: string): Promise<Controls> => rpc.call('controls.pauseGoal', { threadId }),
     resumeGoal: (threadId: string): Promise<Controls> => rpc.call('controls.resumeGoal', { threadId }),
+    listCommands: async (threadId: string): Promise<readonly SlashCommand[]> =>
+      (await rpc.call('commands.list', { threadId })).commands,
+    runCommand: (threadId: string, text: string): Promise<void> =>
+      rpc.call('commands.run', { threadId, text }).then(() => undefined),
+    onCommandOutput: (l: (p: { threadId: string; text: string }) => void) => rpc.on('commands.output', l),
+    onCommandsChanged: (l: (p: { threadId: string }) => void) => rpc.on('commands.changed', l),
     respond: (threadId: string, interactionId: string, answer: InteractionAnswer): Promise<void> =>
       rpc.call('interactions.respond', { threadId, interactionId, answer }).then(() => undefined),
 

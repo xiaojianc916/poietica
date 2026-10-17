@@ -282,3 +282,33 @@
 .context-gauge__swatch--buffer {
   background: var(--gauge-tint-buffer);
 }
+
+/* 维护动作：一排等宽小钮，压在构成表下面，用面板自己的字色与分隔线，不另起配色。 */
+.context-gauge__actions {
+  display: flex;
+  gap: 6px;
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px solid var(--gauge-panel-frame, rgb(0 0 0 / 3.9%));
+}
+
+.context-gauge__action {
+  flex: 1;
+  padding: 4px 8px;
+  border: 1px solid var(--gauge-panel-frame, rgb(0 0 0 / 3.9%));
+  border-radius: 6px;
+  background: transparent;
+  color: var(--gauge-figure, #0f1115);
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.context-gauge__action:hover:not(:disabled) {
+  background: var(--gauge-bar-track, rgb(38 49 72 / 5.9%));
+}
+
+.context-gauge__action:disabled {
+  color: var(--gauge-label, #61666b);
+  cursor: default;
+  opacity: 0.6;
+}

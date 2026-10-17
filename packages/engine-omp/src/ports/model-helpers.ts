@@ -12,6 +12,7 @@ export interface RegistryPort {
   hasConfiguredAuth(model: OmpModelLike): boolean
   hydrateCredentialScopedModelCaches(): Promise<void>
   refreshInBackground(): void
+  refreshProvider(providerId: string): Promise<void>
 }
 
 /** omp 的一条模型里我们读的那几格（`model-helpers` 与 `models.ts` 共用的形状）。 */
@@ -26,6 +27,7 @@ export function registryPortOf(registry: OmpModelRegistry): RegistryPort {
     hasConfiguredAuth: (model) => registry.hasConfiguredAuth(model as never),
     hydrateCredentialScopedModelCaches: () => registry.hydrateCredentialScopedModelCaches(),
     refreshInBackground: () => registry.refreshInBackground(),
+    refreshProvider: (providerId) => registry.refreshProvider(providerId, 'online'),
   }
 }
 

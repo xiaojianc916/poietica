@@ -9,8 +9,9 @@ import { Settings } from '@oh-my-pi/pi-coding-agent/config/settings'
 import type { Logger } from '@poietica/foundation'
 import type { OmpModel } from '../../omp-context'
 import { aliasOf, enabledMatcher, nextEnabledPatterns, stringArrayOf } from '../model-helpers'
-import { OmpModelsPort } from '../models'
+import { migrateLegacyTitleRole, OmpModelsPort } from '../models'
 import { CustomProvidersFile, modelsFilePath } from '../models-file'
+import { ompRolesOf } from '../omp-ports'
 
 const made: string[] = []
 afterEach(() => {
@@ -45,6 +46,8 @@ interface Harness {
   readonly logged: string[]
   /** registry 重读的次数（models.yml 写完之后必须重读） */
   readonly reloads: number[]
+  /** 登录之后只刷那一家（refreshProvider） */
+  readonly refreshed: string[]
 }
 
 function makePort(): Harness {
@@ -61,6 +64,7 @@ function makePort(): Harness {
     child: () => logger,
   }
   const reloads: number[] = []
+  const refreshed: string[] = []
   const noteReload = (): void => {
     reloads.push(reloads.length)
   }
@@ -72,7 +76,26 @@ function makePort(): Harness {
       hasConfiguredAuth: (model) => authorized.has(model.provider),
       hydrateCredentialScopedModelCaches: () => Promise.resolve(),
       refreshInBackground: () => undefined,
+      refreshProvider: (provider) => {
+        refreshed.push(provider)
+        return Promise.resolve()
+      },
     },
+    oauth: {
+      providers: () => [
+        { id: 'anthropic', name: 'Claude Pro/Max', available: true },
+        { id: 'openai-codex-device', name: 'ChatGPT（设备码）', available: true, storeCredentialsAs: 'openai-codex' },
+      ],
+      authenticated: (provider) => credentials.has(provider),
+      login: async (providerId, ctrl) => {
+        ctrl.onAuth({ url: `https://auth.example/${providerId}`, launchUrl: 'http://127.0.0.1:1455/go' })
+        const code = await ctrl.onPrompt({ message: 'code', secret: true })
+        credentials.add(providerId === 'openai-codex-device' ? 'openai-codex' : providerId)
+        return { type: 'oauth', email: `${code}@example.com` }
+      },
+    },
+    /* 角色目录用 omp 真身（config/model-roles），只把注册表换成两条模型 */
+    roles: ompRolesOf(settings, { getAvailable: () => MODELS }),
     credentials: {
       has: (provider) => credentials.has(provider),
       set: (provider) => {
@@ -99,8 +122,56 @@ function makePort(): Harness {
       return Promise.resolve()
     },
   })
-  return { port, settings, credentials, authorized, logged, reloads }
+  return { port, settings, credentials, authorized, logged, reloads, refreshed }
 }
+
+describe('ModelsPort 订阅登录', () => {
+  test('loginProviders 照 omp 名单报，凭据记在 storeCredentialsAs 名下', async () => {
+    const harness = makePort()
+    expect(await harness.port.loginProviders()).toEqual([
+      { id: 'anthropic', name: 'Claude Pro/Max', provider: 'anthropic', available: true, authenticated: true },
+      {
+        id: 'openai-codex-device',
+        name: 'ChatGPT（设备码）',
+        provider: 'openai-codex',
+        available: true,
+        authenticated: false,
+      },
+    ])
+  })
+
+  test('login 把网址与要填的格子交给宿主（secret 不拒绝），成功后只刷那一家并报身份', async () => {
+    const harness = makePort()
+    const seen: string[] = []
+    const identity = await harness.port.login('openai-codex-device', {
+      onAuth: (info) => seen.push(`auth ${info.url} ${info.launchUrl}`),
+      onProgress: (message) => seen.push(`progress ${message}`),
+      onPrompt: async (prompt) => {
+        seen.push(`prompt secret=${prompt.secret}`)
+        return 'me'
+      },
+      signal: new AbortController().signal,
+    })
+    expect(seen).toEqual([
+      'auth https://auth.example/openai-codex-device http://127.0.0.1:1455/go',
+      'prompt secret=true',
+    ])
+    expect(identity).toEqual({ kind: 'oauth', email: 'me@example.com', orgName: null })
+    expect(harness.refreshed).toEqual(['openai-codex'])
+    expect(harness.credentials.has('openai-codex')).toBe(true)
+  })
+
+  test('不在 omp 名单里的登录报 invalid_params，不去碰凭据', async () => {
+    const harness = makePort()
+    const io = {
+      onAuth: () => undefined,
+      onProgress: () => undefined,
+      onPrompt: async () => '',
+      signal: new AbortController().signal,
+    }
+    await expect(harness.port.login('nope', io)).rejects.toMatchObject({ code: 'kernel.invalid_params' })
+  })
+})
 
 describe('ModelsPort', () => {
   test('providers 列出 registry 认得的全部 provider，custom 来自 models.yml', async () => {
@@ -197,15 +268,43 @@ describe('ModelsPort', () => {
     expect(await harness.port.defaultThinking()).toBe(typeof schemaDefault === 'string' ? schemaDefault : null)
   })
 
-  test('标题模型读写 modelRoles.title；null = 删掉这一格', async () => {
+  test('角色清单与名字来自 omp；写入落 modelRoles.<role>，null 删掉，未知角色拒绝', async () => {
     const harness = makePort()
-    expect(await harness.port.titleModel()).toBeNull()
-    await harness.port.setTitleModel({ provider: 'openai', id: 'gpt-5' })
-    expect(await harness.port.titleModel()).toEqual({ provider: 'openai', id: 'gpt-5' })
-    await harness.port.setTitleModel(null)
-    expect(await harness.port.titleModel()).toBeNull()
-    const roles = harness.settings.getGlobalSettings().modelRoles as Record<string, unknown> | undefined
-    expect(roles?.title).toBeUndefined()
+    const roles = await harness.port.modelRoles()
+    const ids = roles.map((r) => r.role)
+    /* omp 内置角色（MODEL_ROLE_IDS）全在，且两区都有 */
+    for (const id of ['default', 'smol', 'slow', 'tiny', 'commit', 'task', 'image', 'judge']) expect(ids).toContain(id)
+    expect(roles.find((r) => r.role === 'tiny')?.selector).toBeNull()
+    expect(roles.find((r) => r.role === 'image')?.section).toBe('kind')
+    expect(roles.find((r) => r.role === 'smol')?.candidates.map((c) => c.selector)).toContain('openai/gpt-5')
+
+    await harness.port.setModelRole('tiny', 'openai/gpt-5:low')
+    expect((harness.settings.getGlobalSettings().modelRoles as Record<string, unknown>).tiny).toBe('openai/gpt-5:low')
+    expect((await harness.port.modelRoles()).find((r) => r.role === 'tiny')?.selector).toBe('openai/gpt-5:low')
+    await harness.port.setModelRole('tiny', null)
+    expect(
+      (harness.settings.getGlobalSettings().modelRoles as Record<string, unknown> | undefined)?.tiny,
+    ).toBeUndefined()
+    await expect(harness.port.setModelRole('title', 'openai/gpt-5')).rejects.toThrow()
+  })
+
+  test('旧版 modelRoles.title：tiny 没配就迁进 tiny 并切 title.generator=tiny；tiny 已配只删旧键', async () => {
+    const fresh = makePort()
+    fresh.settings.setModelRole('title', 'openai/gpt-5')
+    expect(await migrateLegacyTitleRole(fresh.settings)).toBe(true)
+    const roles = fresh.settings.getGlobalSettings().modelRoles as Record<string, unknown>
+    expect(roles.tiny).toBe('openai/gpt-5')
+    expect(roles.title).toBeUndefined()
+    expect(lookupGenerator(fresh.settings)).toBe('tiny')
+    expect(await migrateLegacyTitleRole(fresh.settings)).toBe(false)
+
+    const kept = makePort()
+    kept.settings.setModelRole('tiny', 'anthropic/claude-opus-4-5')
+    kept.settings.setModelRole('title', 'openai/gpt-5')
+    await migrateLegacyTitleRole(kept.settings)
+    const keptRoles = kept.settings.getGlobalSettings().modelRoles as Record<string, unknown>
+    expect(keptRoles.tiny).toBe('anthropic/claude-opus-4-5')
+    expect(keptRoles.title).toBeUndefined()
   })
 
   test('upsertCustomProvider 写进 models.yml、让 registry 重读，并把 provider 认成自定义', async () => {
@@ -274,4 +373,9 @@ function settingDefault(path: string): unknown {
 function readRole(settings: Settings): unknown {
   const value = settings.getGlobalSettings().modelRoles
   return typeof value === 'object' && value !== null ? (value as Record<string, unknown>).default : undefined
+}
+
+/** title.generator 的当前值（走 omp 的设置句柄读，避免依赖 getGlobalSettings 的嵌套形状） */
+function lookupGenerator(settings: Settings): unknown {
+  return (lookup('title.generator') as unknown as { get(s: Settings): unknown }).get(settings)
 }

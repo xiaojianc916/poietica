@@ -1,6 +1,14 @@
 import type { TypedRpcClient } from '@poietica/rpc'
 import type { UiFeatureContext } from '@poietica/ui-kernel'
-import type { CustomProviderDef, ModelInfo, ModelRef, ProviderInfo } from '../contract'
+import type {
+  CustomProviderDef,
+  LoginEvent,
+  LoginProvider,
+  ModelInfo,
+  ModelRef,
+  ModelRoleInfo,
+  ProviderInfo,
+} from '../contract'
 import { modelsContract } from '../contract'
 
 export function createModelsApi(ctx: UiFeatureContext) {
@@ -22,11 +30,19 @@ export function createModelsApi(ctx: UiFeatureContext) {
     defaults: (): Promise<{ model: ModelRef | null; thinking: string | null }> => rpc.call('models.defaults', {}),
     setDefaults: (patch: { model?: ModelRef; thinking?: string | null }): Promise<void> =>
       rpc.call('models.setDefaults', patch).then(() => undefined),
-    titleModel: (): Promise<{ model: ModelRef | null; choices: readonly { ref: ModelRef; label: string }[] }> =>
-      rpc.call('models.titleModel', {}),
-    setTitleModel: (model: ModelRef | null): Promise<void> =>
-      rpc.call('models.setTitleModel', { model }).then(() => undefined),
+    roles: (): Promise<ModelRoleInfo[]> =>
+      rpc.call('models.roles', {}).then((r: { roles: ModelRoleInfo[] }) => r.roles),
+    setRole: (role: string, selector: string | null): Promise<void> =>
+      rpc.call('models.setRole', { role, selector }).then(() => undefined),
     onChanged: (l: () => void) => rpc.on('models.changed', l),
+    /* 订阅登录：流程在 Core 那台机器上的 omp 里跑，这里只开头、答格、取消、听事件 */
+    loginProviders: (): Promise<LoginProvider[]> => rpc.call('models.loginProviders', {}).then((r) => r.providers),
+    startLogin: (providerId: string): Promise<string> =>
+      rpc.call('models.startLogin', { providerId }).then((r) => r.loginId),
+    answerLogin: (loginId: string, promptId: string, value: string): Promise<void> =>
+      rpc.call('models.answerLogin', { loginId, promptId, value }).then(() => undefined),
+    cancelLogin: (loginId: string): Promise<void> => rpc.call('models.cancelLogin', { loginId }).then(() => undefined),
+    onLoginEvent: (l: (p: { loginId: string; event: LoginEvent }) => void) => rpc.on('models.loginEvent', l),
   }
 }
 

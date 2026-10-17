@@ -55,9 +55,12 @@ export interface ModelsSettingsProps {
   readonly hiddenModelAliases: readonly string[]
   readonly providerOrder: readonly string[]
   readonly onModelVisibilityChange: (modelId: string, visible: boolean) => void
+  /** 画在服务商目录之前的那一块（订阅登录） */
+  readonly lead?: ReactNode
 }
 
 export function ModelsSettings({
+  lead,
   modelCatalog,
   hiddenModelAliases,
   providerOrder,
@@ -65,6 +68,7 @@ export function ModelsSettings({
 }: ModelsSettingsProps) {
   return (
     <section className="models-page">
+      {lead}
       <ModelCatalogPanel
         hiddenModelAliases={hiddenModelAliases}
         onModelVisibilityChange={onModelVisibilityChange}

@@ -154,6 +154,7 @@ describe('SettingsPort', () => {
         hasConfiguredAuth: () => true,
         hydrateCredentialScopedModelCaches: async () => undefined,
         refreshInBackground: () => undefined,
+        refreshProvider: async () => undefined,
       },
     })
     const entry = (await port.catalog()).find((row) => row.path === 'sharpshooter.model')

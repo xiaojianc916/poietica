@@ -3,6 +3,7 @@
  */
 
 export { ActiveOwner } from './active-owner'
+export { useThreadCommands } from './commands'
 export {
   hiddenModelsOf,
   PLAN_CONTROL_ID,

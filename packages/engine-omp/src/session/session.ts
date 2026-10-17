@@ -13,6 +13,7 @@ import {
   type QueueOutcome,
   type QueueSnapshot,
   type SessionState,
+  type SlashCommand,
   type SubmitInput,
 } from '@poietica/engine'
 import { AppError, createId, Emitter, type Logger, SystemErrorCode } from '@poietica/foundation'
@@ -25,6 +26,7 @@ import { OpenTurnScreen, overlayOpenTurn } from '../projector/open-turn'
 import { describeError } from './event-faults'
 import type { LoadedImage } from './prompt'
 import { type SkillPromptMessage, wireTextOf } from './prompt'
+import type { BuiltinCommandHooks, runBuiltinCommand } from './slash-commands'
 import { usageOf } from './usage'
 
 /** OmpSession 需要的最小 omp 会话面（细节由 session-factory 注入，会话自己不认识 omp 类型） */
@@ -66,6 +68,8 @@ export interface OmpSessionHost {
    */
   readonly liveModel: () => ModelRef | null
   readonly maybeAutoTitle: (text: string) => void
+  /** omp 的 sessionManager.setSessionName(name, 'user')；false = omp 拒收（空名 / 会话已释放） */
+  readonly setSessionName: (name: string) => Promise<boolean>
   readonly liveThinking: () => string | null
   readonly lastAssistant: () => { readonly stopReason?: string; readonly errorMessage?: string } | undefined
   /** 会话此刻的上下文用量（读数 + 构成）；算不出就是 null（窗口未知 / omp 还没水合） */
@@ -117,6 +121,16 @@ export interface OmpSessionHost {
     options: { readonly openTurnShown: boolean },
   ) => Promise<TranscriptPage>
   readonly now: () => number
+  /** 此刻的斜杠命令表（omp 现算，GUI 拦掉的已剔除；实现在 slash-commands.ts） */
+  readonly commands: () => Promise<readonly SlashCommand[]>
+  /** 这句输入点名的命令（名字 + 来源）；不认识或 GUI 拦掉的是 null */
+  readonly resolveCommand: (
+    text: string,
+  ) => Promise<{ readonly name: string; readonly source: SlashCommand['source'] } | null>
+  /** 跑一条内置命令（omp 的 executeAcpBuiltinSlashCommand） */
+  readonly runBuiltinCommand: (text: string, hooks: BuiltinCommandHooks) => ReturnType<typeof runBuiltinCommand>
+  /** 累加器按会话文件重新落座：命令改过文件（压缩、重试）之后，下一轮的号要与历史投影对得上 */
+  readonly reseat: () => void
 }
 
 interface QueueEntry {
@@ -186,7 +200,7 @@ export class OmpSession implements EngineSession {
   private disposed = false
   private titleRequested = false
   /** 还没有订阅者时收到的会话名先存着（见 subscribe 的补发） */
-  private seededTitle: string | null = null
+  private seededTitle: { readonly title: string; readonly source: 'auto' | 'user' } | null = null
   /**
    * 正在执行的目标改动数。大于 0 时 omp 的 goal_updated 不各自重报控件：一次「换暂停目标的正文」
    * 在 omp 里是 resume → replace → pause 三步，逐条重报会让屏幕闪一下「进行中」。
@@ -200,6 +214,11 @@ export class OmpSession implements EngineSession {
   private goalRun: 'none' | 'held' | 'reserved' | 'running' = 'none'
   /** held 期间留着的上一轮错误：最后真收成 idle 时原样报出（Core 据此判 failed） */
   private heldError: { code: string; message: string } | null = null
+  /**
+   * 正在跑的斜杠命令。非 null 时这一轮是「命令轮」：收口之后整页重取（命令改的是会话文件，增量里猜不出它改了什么），
+   * 停止键要连同命令自己的 AbortSignal 一起拉。
+   */
+  private commandRun: { readonly abort: AbortController } | null = null
 
   constructor(
     private readonly o: OmpSessionHost,
@@ -237,9 +256,9 @@ export class OmpSession implements EngineSession {
     const subscription = this.events.event(listener)
     /* 监听者异常带上下文记一条 error —— Core 的 stderr 会被 Host 收进 core.log，裸文本看不出是哪条会话 */
     if (this.seededTitle !== null) {
-      const title = this.seededTitle
+      const seeded = this.seededTitle
       this.seededTitle = null
-      this.emit({ type: 'sessionTitle', title, sessionFile: this.sessionFile })
+      this.emit({ type: 'sessionTitle', ...seeded, sessionFile: this.sessionFile })
     }
     return subscription
   }
@@ -353,6 +372,28 @@ export class OmpSession implements EngineSession {
       // 投影成不成功都要复位：否则下一句话（或插话）会落进已经结束的那一轮
       this.o.projector.abandonTurn()
       this.settleIdle(error)
+      this.closeCommandRun()
+    }
+  }
+
+  /**
+   * 命令轮收口：累加器按文件重新落座，再整页重取。命令那一句没有写进会话文件（omp 不记命令原文），
+   * 重取之后屏幕上留下的就是文件里的事实（压缩摘要、重跑出的回答……），与重开会话看到的一致。
+   */
+  private closeCommandRun(): void {
+    if (this.commandRun === null) return
+    this.commandRun = null
+    try {
+      this.o.reseat()
+    } catch (error) {
+      this.o.logger.warn('reseat after command failed', { error: describeError(error) })
+    }
+    this.emit({ type: 'timelineReset', agentId: 'main' })
+    /* /compact、/shake、/handoff 这类本地命令不走 agent_end，用量那一格要在这里补报，否则仪表停在压缩前的读数 */
+    try {
+      this.reportContextUsage()
+    } catch (error) {
+      this.o.logger.warn('context usage after command failed', { error: describeError(error) })
     }
   }
 
@@ -510,6 +551,8 @@ export class OmpSession implements EngineSession {
     /* 先停续跑、再 abort：被中断那一轮自己的 agent_end 也会过控制器，不先停它就会再排一次续跑 */
     this.o.stopGoalContinuation()
     this.endedWithPending = null
+    /* 命令自己的活（压缩、交接摘要）不一定挂在 agent 的 abort 上：把交给命令的那根信号一起拉掉 */
+    this.commandRun?.abort.abort()
     this.o.broker.cancelAll()
     await this.o.abort()
     this.goalRun = 'none'
@@ -702,6 +745,71 @@ export class OmpSession implements EngineSession {
     }
   }
 
+  /** omp 报命令表变了（事件泵外的那条订阅）：`emit` 是 private，这里留的出口 */
+  commandsChanged(): void {
+    this.emit({ type: 'commandsChanged' })
+  }
+
+  async commands(): Promise<readonly SlashCommand[]> {
+    this.assertLive()
+    return await this.o.commands()
+  }
+
+  /**
+   * 斜杠命令（端口语义见 EngineSession.runCommand）。路由与 omp 的宿主同一个次序：内置命令走
+   * executeAcpBuiltinSlashCommand；其余（扩展 / 自定义 / 文件 / MCP 提示词命令）原样交给 prompt，由 omp 就地展开。
+   * 命令先开一轮把原句画上屏：`/retry` 这类命令排出的那一轮 agent 要有地方落；本地命令收口时这一轮随整页重取消失。
+   */
+  async runCommand(text: string): Promise<void> {
+    this.assertLive()
+    if (this.stateValue !== 'idle') throw new AppError(EngineErrorCode.busy, 'agent 正忙')
+    const line = text.trim()
+    const command = await this.o.resolveCommand(line)
+    if (command === null) {
+      throw new AppError(EngineErrorCode.commandUnknown, `没有这条命令：${line.split(/\s+/)[0] ?? line}`)
+    }
+    /* 查表要等一拍：这一拍里可能已经有一轮开出来了 */
+    if (this.stateValue !== 'idle') throw new AppError(EngineErrorCode.busy, 'agent 正忙')
+    this.endedWithPending = null
+    this.setState('running')
+    const abort = new AbortController()
+    this.commandRun = { abort }
+    this.timeline(this.o.projector.userTurn({ text: line, skills: [] }))
+    // 不 await：压缩之类的命令要跑很久，调用方与 submit 一样只等「开始了」
+    void this.driveCommand(line, command.source, abort.signal)
+  }
+
+  private async driveCommand(line: string, source: SlashCommand['source'], signal: AbortSignal): Promise<void> {
+    try {
+      let prompt = line
+      if (source === 'builtin') {
+        const result = await this.o.runBuiltinCommand(line, {
+          signal,
+          output: (chunk) => this.emit({ type: 'commandOutput', text: chunk }),
+          configChanged: () => this.controlsChanged(),
+          commandsChanged: () => this.commandsChanged(),
+        })
+        if (result.kind === 'local') {
+          this.closeTurnAfterRun('completed', null, null)
+          return
+        }
+        /* 命令自己排了一轮（`/retry`）：那一轮的 agent_end 收口 */
+        if (result.kind === 'turn') return
+        if (result.kind === 'prompt') prompt = result.text
+      }
+      const input: SubmitInput = { text: prompt, images: [], files: [], skills: [], deliverAs: 'turn' }
+      this.ownPrompt = { kind: 'user', wireText: wireTextOf(input) }
+      const delivered = await this.o.promptWithImages(input, [], null)
+      /* omp 在 prompt 里就地办完（扩展命令、自定义 TS 命令）：没有 agent_end，这里收口 */
+      if (!delivered) this.closeTurnAfterRun('completed', null, null)
+    } catch (error) {
+      const mapped = toEngineError(error)
+      /* 命令轮收口会整页重取，挂在这一轮上的报错帧也会随之消失：失败原文改走命令输出那一块 */
+      this.emit({ type: 'commandOutput', text: mapped.message })
+      this.closeTurnAfterRun('failed', mapped.message, { code: mapped.code, message: mapped.message })
+    }
+  }
+
   interactions(): readonly Interaction[] {
     return this.o.broker.pending()
   }
@@ -795,13 +903,20 @@ export class OmpSession implements EngineSession {
     this.timeline(ops)
   }
 
-  /** omp 自动总结出的会话标题（omp 知识 #17）：`emit` 是 private，这里留的出口 */
-  emitSessionTitle(title: string): void {
+  /** omp 的会话名变了（自动总结或用户定名，omp 知识 #17）：`emit` 是 private，这里留的出口 */
+  emitSessionTitle(title: string, source: 'auto' | 'user'): void {
     if (!this.events.hasListeners) {
-      this.seededTitle = title
+      this.seededTitle = { title, source }
       return
     }
-    this.emit({ type: 'sessionTitle', title, sessionFile: this.sessionFile })
+    this.emit({ type: 'sessionTitle', title, source, sessionFile: this.sessionFile })
+  }
+
+  async rename(title: string): Promise<void> {
+    this.assertLive()
+    if (!(await this.o.setSessionName(title))) {
+      throw new AppError(SystemErrorCode.invalidParams, '会话名不能为空')
+    }
   }
 
   /**

@@ -1,5 +1,6 @@
 import { defineCoreModule } from '@poietica/core-kernel'
 import { modelsContract } from '../contract'
+import { LoginFlows } from './login-flows'
 import { createModelsService } from './service'
 
 export default defineCoreModule({
@@ -13,6 +14,24 @@ export default defineCoreModule({
     })
 
     ctx.rpc.handle('models.providers', async () => ({ providers: await service.providers() }))
+    /* 订阅登录：流程归 omp（AuthStorage.oauth.login），这里只做回调 ↔ 通知的翻译 */
+    const logins = new LoginFlows({
+      models: ctx.engine.models,
+      logger: ctx.logger,
+      emit: (loginId, event) => ctx.rpc.emit('models.loginEvent', { loginId, event }),
+      emitChanged: () => ctx.rpc.emit('models.changed', {}),
+    })
+    ctx.disposables.add({ dispose: () => logins.dispose() })
+    ctx.rpc.handle('models.loginProviders', async () => ({ providers: await ctx.engine.models.loginProviders() }))
+    ctx.rpc.handle('models.startLogin', ({ providerId }) => ({ loginId: logins.start(providerId) }))
+    ctx.rpc.handle('models.answerLogin', ({ loginId, promptId, value }) => {
+      logins.answer(loginId, promptId, value)
+      return {}
+    })
+    ctx.rpc.handle('models.cancelLogin', ({ loginId }) => {
+      logins.cancel(loginId)
+      return {}
+    })
     ctx.rpc.handle('models.setApiKey', async ({ provider, apiKey }) => {
       await service.setApiKey(provider, apiKey)
       return {}
@@ -35,13 +54,9 @@ export default defineCoreModule({
       return {}
     })
     ctx.rpc.handle('models.defaults', () => service.defaults())
-    ctx.rpc.handle('models.titleModel', async () => {
-      const { model, choices } = await service.titleModel()
-      /* 契约那一格收可变数组，这里按值拷一份（只读是服务内部的约定，不该漏到线上）。 */
-      return { model, choices: [...choices] }
-    })
-    ctx.rpc.handle('models.setTitleModel', async ({ model }) => {
-      await service.setTitleModel(model)
+    ctx.rpc.handle('models.roles', async () => ({ roles: await service.roles() }))
+    ctx.rpc.handle('models.setRole', async ({ role, selector }) => {
+      await service.setRole(role, selector)
       return {}
     })
     ctx.rpc.handle('models.setDefaults', async (patch) => {

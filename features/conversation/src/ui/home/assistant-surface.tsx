@@ -1,13 +1,25 @@
 import '../shared/styles/surface.css'
 
 import { Banner, WorkspacePicker, type WorkspacePickerProps } from '@poietica/design-system'
+import type { SlashCommand } from '@poietica/engine'
 import { FeatureScope, type Observable, useContributions, useObservable } from '@poietica/ui-kernel'
-import { memo, type ReactNode, type Ref, useCallback, useMemo, useRef, useState } from 'react'
+import {
+  memo,
+  type ReactNode,
+  type Ref,
+  type RefObject,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react'
 import type { Thread } from '../../contract'
 import { composerContextItems, threadHeaderItems } from '../../ui-api'
 import type { PermissionDockProps, PromptInputHandle, PromptInputMessage } from '../composer'
 import {
   AssistantComposer,
+  CommandOutputDock,
   ComposerDraftKeyContext,
   ComposerNotice,
   PromptQueue,
@@ -15,6 +27,7 @@ import {
   useAgentToolkit,
   useDockClearance,
 } from '../composer'
+import { hasCommand, matchCommand, type ThreadCommands } from '../shared/model/commands'
 import type { SessionConfigControl } from '../shared/model/config'
 import type { SessionGoal } from '../shared/model/goal'
 import type { GoalActionHandler } from '../shared/model/goal-control'
@@ -45,6 +58,10 @@ export interface AssistantSurfaceProps {
   readonly session?: AgentSessionPort
   readonly onUserMessage?: ((threadId: string, text: string) => void) | undefined
   readonly onFork?: ((keepTurns: number) => void) | undefined
+  /** 从某一轮重写：由组合根分出新对话并把那一句放回新对话的输入框 */
+  readonly onRewrite?: ((turn: number) => void) | undefined
+  /** 进这条对话时要放进输入框的一句（重写带过来的那句话）；每条对话只放一次 */
+  readonly prefill?: string | undefined
   readonly onPinThread?: ((threadId: string, pinned: boolean) => void) | undefined
   readonly onRenameThread?: ((threadId: string, title: string) => void) | undefined
   readonly onExportThread?: ((threadId: string) => void) | undefined
@@ -58,6 +75,8 @@ export interface AssistantSurfaceProps {
   readonly goal?: SessionGoal | undefined
   readonly onGoalAction?: GoalActionHandler | undefined
   readonly composer?: Ref<PromptInputHandle> | undefined
+  /** 这条对话的斜杠命令（omp 的表与执行）；入口页没有会话，缺席 */
+  readonly commands?: ThreadCommands | undefined
   readonly thread?: Thread | undefined
   readonly todoThread?: (Observable<string | null> & { set(next: string | null): void }) | undefined
 }
@@ -153,14 +172,82 @@ function useDismissed(message: string | null): readonly [boolean, () => void] {
 /** **不走**淡出：后面挂着未了的事（取回正文重发）；Banner 无「永久」档，所以报一个够长的数。 */
 const FAILURE_HOLD_MS = 60 * 60 * 1000
 
+/**
+ * 斜杠命令的两条入口（键入回车、面板点选）收在这一处，不摊进 AssistantSurface。
+ * - 回车：行首点名了表里的一条命令、又没挂附件与技能，交给 omp 的命令路由，不当一句话发给模型；
+ *   表里没有的 `/xxx`（路径、随手打的斜杠）照常发 —— 判据是 omp 的命令表，不是「以斜杠开头」。
+ * - 点选：不带参数的当场执行（草稿留着）；带参数的把 `/名字 ` 接在草稿前面放回输入框，人补完参数按回车。
+ */
+function useCommandRouting(commands: ThreadCommands | undefined, draft: RefObject<PromptInputHandle | null>) {
+  const routeCommand = useCallback(
+    (message: Omit<PromptInputMessage, 'queued'>): boolean => {
+      if (commands === undefined || message.assets.length > 0 || message.skills.length > 0) return false
+      if (matchCommand(commands.list, message.text) === null) return false
+      void commands.run(message.text)
+      return true
+    },
+    [commands],
+  )
+  const pickCommand = useCallback(
+    (command: SlashCommand, text: string) => {
+      if (command.hint === null) {
+        void commands?.run(`/${command.name}`)
+        return
+      }
+      draft.current?.setText(`${`/${command.name} ${text}`.trimEnd()} `)
+      draft.current?.focus()
+    },
+    [commands, draft],
+  )
+  /* 维护动作与重试钮都只是命令的快捷方式：同一条 commands.run，结果落进同一块命令输出。 */
+  const runCommand = useCallback(
+    (text: string) => {
+      void commands?.run(text)
+    },
+    [commands],
+  )
+  const canRetry = commands !== undefined && hasCommand(commands.list, 'retry')
+  const retry = useCallback(() => {
+    void commands?.run('/retry')
+  }, [commands])
+  return {
+    pickCommand,
+    retry: canRetry ? retry : undefined,
+    routeCommand,
+    runCommand: commands === undefined ? undefined : runCommand,
+  }
+}
+
+function CommandOutputSlot({ commands }: { readonly commands: ThreadCommands | undefined }) {
+  if (commands?.output == null) return null
+  return (
+    <CommandOutputDock
+      command={commands.output.command}
+      lines={commands.output.lines}
+      onDismiss={commands.dismissOutput}
+    />
+  )
+}
+
 /** 本机的乐观记录优先，其次是 Core 库里那一行 —— 排队 / 插话只有后者。 */
 function recoverableTextOf(assistant: AssistantSession): string | null {
   const failed = assistant.submissions.find((submission) => submission.phase === 'failed')
   return failed?.text ?? assistant.failedSubmissionText
 }
 
+/** 重写带过来的那一句：输入框挂好之后放一次；换了对话（标签页复用同一实例）再放那一条的 */
+function usePrefill(draft: RefObject<PromptInputHandle | null>, endpoint: string, prefill: string | undefined) {
+  const placed = useRef<string | null>(null)
+  useEffect(() => {
+    if (prefill === undefined || prefill === '' || placed.current === endpoint) return
+    placed.current = endpoint
+    draft.current?.restore(prefill, [])
+  }, [draft, endpoint, prefill])
+}
+
 /* 相位是显式的，不由转录反推：转录里任何一帧变动都能搬动整块构成。转录归 TranscriptView。 */
 export const AssistantSurface = memo(function AssistantSurface({
+  commands,
   composer,
   controls,
   controlsFailure,
@@ -174,8 +261,10 @@ export const AssistantSurface = memo(function AssistantSurface({
   onPinThread,
   onRenameThread,
   onRetryControls,
+  onRewrite,
   onSelectControl,
   onUserMessage,
+  prefill,
   prepare,
   session,
   thread,
@@ -225,18 +314,22 @@ export const AssistantSurface = memo(function AssistantSurface({
 
   const draftKey = endpoint
 
+  /* 把手两个读者：外面写草稿，这层取回队列那句改；铺一条回调 ref 分给两边。 */
+  const draft = useRef<PromptInputHandle | null>(null)
+  const { pickCommand, retry, routeCommand, runCommand } = useCommandRouting(commands, draft)
+
   /* 发言就是那次转场，先于 send：这一刻起就是对话而非入口。`queued` 是人点名的「排队」，跑着时走 followUp 不打断。 */
   const submit = useCallback(
     ({ queued, ...message }: PromptInputMessage) => {
       setPhase('live')
+      if (routeCommand(message)) {
+        return
+      }
       /* 失败由横幅说：正常发送不看回执。 */
       void assistant.send(message, queued === true ? 'followUp' : undefined)
     },
-    [assistant.send],
+    [assistant.send, routeCommand],
   )
-
-  /* 把手两个读者：外面写草稿，这层取回队列那句改；铺一条回调 ref 分给两边。 */
-  const draft = useRef<PromptInputHandle | null>(null)
 
   const composerRef = useCallback(
     (handle: PromptInputHandle | null) => {
@@ -250,6 +343,8 @@ export const AssistantSurface = memo(function AssistantSurface({
     },
     [composer],
   )
+
+  usePrefill(draft, endpoint, prefill)
 
   /* 撤回的那一句（正文 + 附件）回输入框改：改完重发就是重新投一次（队列的顺序归 agent，本机不预演）。 */
   const edit = useCallback((restored: WithdrawnMessage) => {
@@ -280,6 +375,8 @@ export const AssistantSurface = memo(function AssistantSurface({
       )}
       <PromptQueue onEdit={edit} queue={assistant.queue} />
 
+      <CommandOutputSlot commands={commands} />
+
       {/* 连不上 agent：卡上沿一条提示，不在工具栏里冒充模型选择器。 */}
       {controlsFailure === undefined ? null : (
         <ComposerNotice detail={controlsFailure} message={DISCONNECTED} onRetry={onRetryControls} />
@@ -287,6 +384,7 @@ export const AssistantSurface = memo(function AssistantSurface({
 
       <AssistantComposer
         approval={approval}
+        commands={commands?.list}
         controls={controls}
         controlsPending={controlsPending}
         mcpServers={mcpServers}
@@ -295,6 +393,8 @@ export const AssistantSurface = memo(function AssistantSurface({
         onCancel={assistant.cancel}
         onContinue={continueConversation}
         onDismissQuestions={assistant.dismissQuestions}
+        onPickCommand={pickCommand}
+        onRunCommand={runCommand}
         onResolvePlan={assistant.resolvePlan}
         plan={pendingPlan}
         onSelectControl={onSelectControl}
@@ -336,7 +436,13 @@ export const AssistantSurface = memo(function AssistantSurface({
           <div className="conversation-veil" data-assistant-skin />
 
           {live ? (
-            <TranscriptView dockClearance={clearance.value} onFork={onFork} sessionKey={assistant.key} />
+            <TranscriptView
+              dockClearance={clearance.value}
+              onFork={onFork}
+              onRetry={retry}
+              onRewrite={onRewrite}
+              sessionKey={assistant.key}
+            />
           ) : (
             <div className="assistant-surface__entry">
               {/* 提示画在入口区顶部，吉祥物仍钉在输入框上方（入口区 justify-content: flex-end）；

@@ -35,20 +35,20 @@ const PROVIDERS: ProviderInfo[] = [
 ]
 
 describe('models 服务（14 页 §6.5）', () => {
-  test('标题模型：默认 null（= 跟随对话自己的模型），设了能读回，清掉又变回 null；可选项来自引擎', async () => {
+  test('模型角色：清单与候选来自引擎；设了能读回，传 null 删掉；引擎不认的角色被拒', async () => {
     const { service, changed } = make(PROVIDERS)
-    /* 没设过就是 null —— 这一格的口径是「不设置就用对话自己的模型」（omp 知识 #17）。 */
-    expect((await service.titleModel()).model).toBeNull()
+    const tiny = async () => (await service.roles()).find((r) => r.role === 'tiny')
+    expect((await tiny())?.selector).toBeNull()
 
-    await service.setTitleModel({ provider: 'anthropic', id: 'claude-haiku' })
-    expect((await service.titleModel()).model).toEqual({ provider: 'anthropic', id: 'claude-haiku' })
+    await service.setRole('tiny', 'anthropic/claude-haiku')
+    expect((await tiny())?.selector).toBe('anthropic/claude-haiku')
 
-    /* 选回「跟随对话模型」= 传 null：读回来必须是 null，而不是一条空串。 */
-    await service.setTitleModel(null)
-    expect((await service.titleModel()).model).toBeNull()
+    /* 选回「未设置」= 传 null：读回来必须是 null，而不是一条空串。 */
+    await service.setRole('tiny', null)
+    expect((await tiny())?.selector).toBeNull()
     expect(changed()).toBeGreaterThanOrEqual(2)
-    /* 可选项是引擎此刻可用的那批（替身读 enabled 目录），UI 不自己过滤。 */
-    expect(Array.isArray((await service.titleModel()).choices)).toBe(true)
+    /* 角色名单由引擎定，服务不自列：替身不认的 title 被拒 */
+    await expect(service.setRole('title', 'anthropic/claude-haiku')).rejects.toThrow()
   })
 
   test('setApiKey 之后测试 logger 收到的全部字段中都不含 sk-ant——…', async () => {

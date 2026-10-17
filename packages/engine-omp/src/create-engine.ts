@@ -7,8 +7,8 @@ import { resolveSessionModel } from './model-resolve'
 import type { OmpSessionLike } from './omp-context'
 import { draftControlsOf } from './ports/draft-controls'
 import { registryPortOf } from './ports/model-helpers'
+import { migrateLegacyTitleRole } from './ports/models'
 import { ompPorts } from './ports/omp-ports'
-import { modelRoleOf } from './ports/settings-writes'
 import { wrapOmpSession } from './session/omp-session-adapter'
 import { SessionFactory } from './session/session-factory'
 import { isConfiguredSetting, overrideSetting, readSetting, writeGlobalSetting } from './settings-access'
@@ -87,7 +87,8 @@ export async function createOmpEngineWith(o: CreateEngineOptions, seams: EngineT
     await root.flush()
   }
   overrideSetting(root, 'browser.relayUrl', `http://127.0.0.1:${String(o.relayPort)}`)
-  // 自动总结标题（omp 知识 #17）：不额外改任何设置，omp 的默认就是产品要的
+  // 自动总结标题（omp 知识 #17）：不额外改任何设置，omp 的默认就是产品要的；旧版自造的 modelRoles.title 迁进 omp 的 tiny 角色
+  if (await migrateLegacyTitleRole(root)) o.logger.info('legacy title model role migrated to tiny')
   const authStorage = await omp.discoverAuthStorage()
   const registry = new omp.ModelRegistry(authStorage)
   await registry.hydrateCredentialScopedModelCaches()
@@ -146,10 +147,6 @@ export async function createOmpEngineWith(o: CreateEngineOptions, seams: EngineT
     registry,
     tools,
     testSeams: seams,
-    titleModelAlias: () => {
-      const value = modelRoleOf(root, 'title')
-      return value === undefined || value === '' ? null : value
-    },
     /* 解析出**注册表里那一条实例**（不是精简对 —— SDK 要读 identity / api / baseUrl）；还要求 provider 真的配过凭据 */
     resolveModel: (selector) =>
       resolveSessionModel(

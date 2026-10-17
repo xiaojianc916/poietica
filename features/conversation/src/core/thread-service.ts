@@ -100,9 +100,17 @@ export class ThreadService {
     return row
   }
 
-  rename(id: string, title: string): ThreadRow {
+  /**
+   * 用户改名：**先写进 omp**（会话名的唯一产地，P4），再改行。开着的会话走 `session.rename`（omp 的 setSessionName，
+   * 与 RPC `set_session_name` 同一条路），没开着的直接改会话文件头；还没有会话文件（一句话都没发）的只改行，
+   * 等会话第一次打开时由 `onOpened` 补写进去。omp 记下 user 来源之后自己就不会再自动起名。
+   */
+  async rename(id: string, title: string): Promise<ThreadRow> {
     const row = this.requireRow(id)
     const next = normalizeTitle(title)
+    const live = this.d.peekSession(id)
+    if (live !== undefined) await live.rename(next)
+    else if (row.sessionFile !== null) await this.d.engine.sessionFiles.rename(row.sessionFile, next)
     /*
      * 改名不是活动：**不碰 updatedAt**。侧栏那格「N 分钟前」与排序读的都是它，
      * 改个名字就让对话跳到「现在」是把元数据编辑当成了对话活动（产品负责人
@@ -147,24 +155,24 @@ export class ThreadService {
   }
 
   /**
-   * omp 自动总结出的标题（omp 知识 #17）：总结成功之后替换**首句兜底**。
+   * omp 的会话名变了（omp 知识 #17）。omp 是会话名的唯一产地，行里那一格只是它的投影：
+   * - `user`（GUI 改名回声、`/rename` 命令、重开时 omp 报回的定名）→ 照抄，来源记 user，**不碰 updatedAt**（改名不是活动）；
+   * - `auto`（自动总结）→ 替换首句兜底；行已是 user 时不覆盖（omp 自己也会拒，这里挡的是迟到事件）。
    *
-   * 这是「总结成功才换、失败保留兜底」里那一半的落地：omp 生成失败 / 超时 / 低信号时
-   * 根本不发事件，行里留着 `autoTitle` 写的首句，屏幕上不会出现空标题或「新对话」。
-   *
-   * 四条守卫，缺一条都会写错：
-   * - 行没了（线程已删）→ 无事可做；
-   * - `user`（用户或自动化定过名）→ 绝不覆盖；omp 那边的 `titleSource` 与我们这份是两份
-   *   事实，所以这里必须自己挡；
-   * - `sessionFile` 对不上（线程被驱逐重开 / 换过分支）→ 这是旧会话的迟到事件；
-   * - 空标题或与当前相同 → 不产生一次假更新。
+   * 共同守卫：行没了 → 无事可做；`sessionFile` 对不上（线程被驱逐重开 / 换过分支）→ 旧会话的迟到事件；
+   * 空标题或与当前完全相同 → 不产生一次假更新。
    */
-  setTitleFromSession(threadId: string, title: string, sessionFile: string): void {
+  setTitleFromSession(threadId: string, title: string, source: 'auto' | 'user', sessionFile: string): void {
     const row = this.d.repo.get(threadId)
-    if (row === null || row.titleSource === 'user') return
-    if (row.sessionFile !== sessionFile) return
+    if (row === null || row.sessionFile !== sessionFile) return
     const next = normalizeTitle(title)
-    if (next === '' || next === row.title) return
+    if (next === '' || (next === row.title && row.titleSource === source)) return
+    if (source === 'user') {
+      this.d.repo.update(threadId, { title: next, titleSource: 'user' })
+      this.emitUpdated({ ...row, title: next, titleSource: 'user' })
+      return
+    }
+    if (row.titleSource === 'user' || next === row.title) return
     const now = this.d.clock.now()
     this.d.repo.update(threadId, { title: next, titleSource: 'auto', updatedAt: now })
     this.emitUpdated({ ...row, title: next, titleSource: 'auto', updatedAt: now })
@@ -204,6 +212,12 @@ export class ThreadService {
       this.d.repo.update(threadId, { sessionId: session.sessionId, sessionFile: session.sessionFile })
       const next = { ...row, sessionId: session.sessionId, sessionFile: session.sessionFile }
       this.emitUpdated(next)
+      /* 会话文件出现之前就定过名（一句话都没发就改名）：第一次绑上会话时补写进 omp，之后两边同一个名字 */
+      if (row.sessionFile === null && row.titleSource === 'user') {
+        session.rename(row.title).catch((error: unknown) => {
+          this.d.logger.warn('session rename on open failed', { threadId, error: String(error) })
+        })
+      }
     }
   }
 
@@ -238,12 +252,14 @@ export class ThreadService {
     if (row.sessionFile === null) {
       throw new AppError(conversationErrors.thread_empty, '对话还没有任何内容')
     }
-    const forked = await this.d.engine.sessionFiles.fork(row.sessionFile, keepTurns)
+    /* 分叉的名字一并写进 omp 的新会话（P4）：行里的标题只是它的投影 */
+    const forkTitle = normalizeTitle(title ?? `${row.title}（分支）`)
+    const forked = await this.d.engine.sessionFiles.fork(row.sessionFile, keepTurns, forkTitle)
     const now = this.d.clock.now()
     const next: ThreadRow = {
       ...row,
       id: createId(),
-      title: title ?? `${row.title}（分支）`,
+      title: forkTitle,
       titleSource: 'user',
       sessionId: forked.sessionId,
       sessionFile: forked.sessionFile,
