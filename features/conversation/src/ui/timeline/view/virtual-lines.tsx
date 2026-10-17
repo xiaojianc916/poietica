@@ -20,12 +20,15 @@ const OVERSCAN = 8
 export function VirtualLines({
   className,
   lineClassName,
+  lineHeight = LINE_PX,
   lines,
   measured = false,
   viewport,
 }: {
   readonly className: string
   readonly lineClassName: string
+  /** 首屏估高。正本在各消费者的字号令牌里，这里只收它的读数。 */
+  readonly lineHeight?: number
   readonly lines: readonly string[]
   /** 一格会折行时置起：高度交给虚拟器量，估的那个数只是初值。 */
   readonly measured?: boolean
@@ -33,7 +36,7 @@ export function VirtualLines({
 }) {
   const virtualizer = useVirtualizer({
     count: lines.length,
-    estimateSize: () => LINE_PX,
+    estimateSize: () => lineHeight,
     getScrollElement: () => viewport,
     overscan: OVERSCAN,
   })

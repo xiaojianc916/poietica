@@ -1,18 +1,46 @@
-import { useState } from 'react'
+import { Fragment, type ReactNode, useState } from 'react'
 import { PromptChip, promptSegments } from '../../shared/primitives/prompt-chip'
 import type { MessageFile, MessageImage } from '../../shared/timeline/timeline-contract'
 import { MessageAttachments } from './message-attachments'
+import { VirtualLines } from './virtual-lines'
 
 import './user-message.css'
 
 /*
- * 一道淡出而不是嵌套滚动盒：嵌在滚动中的转录里会吃掉滚轮、也看不出消息到哪儿结束。裁剪与否由文本决定，所以一个值同时驱动折叠与那颗键。
+ * 太长就在气泡里自己滚，不再给「展开全部」：滚动条说的是「这里还有」，折叠带说的是「这里有东西被藏了」，
+ * 而人想知道的是前一句。判据只剩行数 —— 话怎么读由行决定，字数不是人读的单位。
+ *
+ * 7 是从上限反推的：--cp-timeline-said-max（10.5rem = 168px）÷ 行高（0.875rem × 1.65 ≈ 23.1px）≈ 7.27 行。
+ * 再小会让 8 行的话默认被裁掉一截却没有滚动条；再大则 8 行以内的话平白出现滚动条。
  */
-const CLAMP_CHARS = 420
-const CLAMP_LINES = 9
+const SCROLL_ABOVE_LINES = 7
 
-function isLong(text: string): boolean {
-  return text.length > CLAMP_CHARS || text.split('\n').length > CLAMP_LINES
+/** 超过这么多行就虚拟化：粘进来的整份文档不该整段进 DOM（与工具输出面板同一条判据）。 */
+export const USER_VIRTUAL_ABOVE_LINES = 50
+
+/*
+ * 与 row-estimate.ts 同一条规矩：--ui-prose-size（0.875rem）× --ui-prose-line-height（1.65）≈ 23.1px 是正本，这里是它的读数。
+ * 折行后的真高交给虚拟器量（measured），这个数只当估高；偏一点只影响滚动条总长，不会错位。
+ */
+const USER_LINE_PX = 23.1
+
+/** @mcp 记号的写法只有 promptSegments 这一对读写处，这里只负责把段落变成节点。 */
+function inlineOf(text: string, keyPrefix: string): readonly ReactNode[] {
+  return promptSegments(text).map((segment, at) =>
+    segment.kind === 'text' ? (
+      <Fragment key={`${keyPrefix}-${String(at)}`}>{segment.text}</Fragment>
+    ) : (
+      <PromptChip key={`${keyPrefix}-${String(at)}`} kind="mcp" name={segment.name} />
+    ),
+  )
+}
+
+/** 技能与文件在输入框里就是正文里的一枚记号：发出去之后画成气泡里的同一枚记号。 */
+function chipsOf(files: readonly MessageFile[], skills: readonly string[]): readonly ReactNode[] {
+  return [
+    ...skills.map((name) => <PromptChip key={`skill-${name}`} kind="skill" name={name} />),
+    ...files.map((file, at) => <PromptChip key={`file-${String(at)}-${file.name}`} kind="file" name={file.name} />),
+  ]
 }
 
 /**
@@ -54,8 +82,10 @@ function Said({
   readonly text: string
   readonly undelivered: boolean
 }) {
-  const [expanded, setExpanded] = useState(false)
-  const long = isLong(text)
+  const [viewport, setViewport] = useState<HTMLElement | null>(null)
+  const lines = text.split('\n')
+  const long = lines.length > SCROLL_ABOVE_LINES
+  const chips = chipsOf(files, skills)
 
   if (text.length === 0 && skills.length === 0 && files.length === 0) {
     return null
@@ -64,36 +94,30 @@ function Said({
   return (
     <div
       className="timeline-user"
-      data-clamped={long && !expanded ? 'true' : undefined}
+      data-long={long ? 'true' : undefined}
       data-undelivered={undelivered ? 'true' : undefined}
     >
-      <p className="timeline-user__text">
-        {skills.map((name) => (
-          <PromptChip key={`skill-${name}`} kind="skill" name={name} />
-        ))}
-        {files.map((file, at) => (
-          <PromptChip key={`file-${String(at)}-${file.name}`} kind="file" name={file.name} />
-        ))}
-        {promptSegments(text).map((segment, at) =>
-          segment.kind === 'text' ? (
-            segment.text
-          ) : (
-            <PromptChip key={`mcp-${String(at)}-${segment.name}`} kind="mcp" name={segment.name} />
-          ),
-        )}
-      </p>
-
-      {long ? (
-        <button
-          className="timeline-user__more"
-          onClick={() => {
-            setExpanded(!expanded)
-          }}
-          type="button"
-        >
-          {expanded ? '收起' : '展开全部'}
-        </button>
-      ) : null}
+      {lines.length >= USER_VIRTUAL_ABOVE_LINES ? (
+        <>
+          {/* 记号在滚动盒外面：虚拟器只铺视口附近，跟着行走就会随滚动消失。 */}
+          {chips.length > 0 ? <p className="timeline-user__chips">{chips}</p> : null}
+          <div className="timeline-user__text" data-scrollable="" ref={setViewport}>
+            <VirtualLines
+              className="timeline-user__output"
+              lineClassName="timeline-user__line"
+              lineHeight={USER_LINE_PX}
+              lines={lines}
+              measured
+              viewport={viewport}
+            />
+          </div>
+        </>
+      ) : (
+        <p className="timeline-user__text" data-scrollable={long ? '' : undefined}>
+          {chips}
+          {inlineOf(text, 'said')}
+        </p>
+      )}
     </div>
   )
 }

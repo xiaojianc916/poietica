@@ -4193,3 +4193,50 @@ openai-codex-device / xai-oauth / gitlab-duo / gitlab-duo-agent / factory-droid 
   `bun test packages/engine-omp/src/ports/__tests__/models.test.ts` 20 pass；
   `packages/engine-testkit` + `packages/protocol` 29 pass；`bun run protocol:snapshot` 已重新生成。
 
+## R-34 用户气泡：折叠换成内部滚动，五十行起虚拟化（2026-10-17）
+
+**来源**：产品负责人交办「发送的信息太多了不是会在用户气泡显示『展开更多』什么的吗，把这个改成如果内容太多了
+就会有上下滑动条，并且加上超过 50 行就虚拟化」。
+
+**改法**：
+
+- `user-message.tsx`：`isLong()` 的两条判据（`> 420 字` / `> 9 行`）收成一条 —— **只看原始换行数**，
+  超过 `SCROLL_ABOVE_LINES` 就滚。阈值 7 由上限反推：`--cp-timeline-said-max`（10.5rem = 168px）÷
+  行高（`--ui-prose-size` 0.875rem × `--ui-prose-line-height` 1.65 ≈ 23.1px）≈ 7.27 行。
+- 删掉 `expanded` state 与那颗「展开全部 / 收起」按钮（`data-clamped`、`.timeline-user__more` 一并消失）。
+- `user-message.css`：`overflow: clip` 的裁剪 + 底部 `mask-image` 淡出改成 `overflow: hidden auto`，
+  上限仍是 `--cp-timeline-said-max`；滚动盒戴 `data-scrollable=""`，走 `feed/nested-scroll.ts` 的
+  滚轮仲裁（滚到边界才把这一笔交给转录视口，否则跟随末端会被误判成人离开了末端）。
+- 原始换行数 ≥ 50 时改走 `VirtualLines`：`virtual-lines.tsx` 新增 `lineHeight` 参数（默认值仍是
+  工具输出那档的 19.5px），气泡传 `USER_LINE_PX`（正文档 23.1px），并开 `measured`（`white-space: pre-wrap`
+  会折行，估高只是一个初值）。
+- 技能 / 文件 / `@mcp` 记号在虚拟化档留在**滚动盒外面**：`VirtualLines` 只铺视口 ± overscan，
+  记号跟着某一行走就会随滚动消失；它也不是哪一行的话。非虚拟档照旧排在正文之前、同一个 `<p>` 里。
+
+**偏差（推翻既有设计，按产品要求执行）**：`user-message.css` 原头注写着「一道淡出而不是嵌套滚动盒：
+嵌在滚动中的转录里会吃掉滚轮、也看不出消息到哪儿结束」，`overflow: clip` + mask 就是照那条设计写的。
+本轮按产品要求改成内部滚动：嵌套滚轮由 `data-scrollable` 的仲裁接管（那条协议本来就是为这个场景立的，
+工具输出面板与过程组成员列表都在用），「消息到哪儿结束」由滚动条交代而不是淡出。**不加两端渐隐蒙版**：
+有滚动条再加雾就是两种说法（产品明确不要）。
+
+**产品复核后的两条修正**：
+
+1. **滚动时宽度钉死**。气泡本来是 `inline-size: fit-content`，宽度跟着最长那行走；虚拟化之后 DOM 里
+   只有视口附近十几行，「最长那行」随滚动换来换去，整颗气泡横向抽动。改成滚起来那一档 `data-long`
+   取满上限（32rem，与不滚时同一个上限）：宽度不再是内容的函数。
+2. **滚动条往右靠**。条画在滚动盒的 padding box 右缘，气泡原有的 14px 右内边距整个垫在条外面，
+   看起来悬在半空。`data-long` 把 `padding-inline-end` 收到 4px，条贴到离气泡边 4px 处；
+   正文右缘从 14px 挪到 4px + 条宽（5px）= 9px，换行几乎不动。
+
+两条都在真 Electron 里量过（900×700、`--force-device-scale-factor` 默认）：气泡 530px 宽
+（32rem 正文 + 14px 左内边距 + 4px 右内边距）、滚动盒右缘离气泡右缘 4px、条占 5px、
+60 行内容 `scrollHeight` = 1386px（60 × 23.1），虚拟化后 DOM 里 16 行。
+
+**未做**：`text.length === 0` 那支永远是死路（`0 > 420` 从来为假，且它排在 `return null` 之前），
+是既有死角，不混进这次改动。
+
+**测试**：`features/conversation/src/ui/__tests__/user-message.test.tsx` 从 3 条加到 8 条 —— 七行不滚 /
+八行才滚、超过七行戴 `data-scrollable` 且气泡里没有任何按钮、五十行起不整段进 DOM（末行不在 DOM 里）、
+虚拟化档的记号留在滚动盒外面。三条附件用例原样保留。
+
+

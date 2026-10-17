@@ -9,6 +9,7 @@
   gap: 0.25rem;
   margin: 0;
   margin-inline-start: auto;
+  /* 短句按内容收窄；一滚起来就钉到上限（见下 data-long 那一条），宽度才不随行变。 */
   inline-size: fit-content;
   max-inline-size: min(100%, 32rem);
   padding: var(--cp-timeline-pad);
@@ -34,24 +35,45 @@
   border: 1px dashed var(--cp-hairline);
 }
 
-/* Clipped, never scrolled: overflow: clip keeps this box from becoming a second scroller inside the transcript's; the mask fade works on any bubble colour. */
-.timeline-user[data-clamped="true"] .timeline-user__text {
+/*
+ * 滚动那一档的形状（产品指出两条现象）。
+ *
+ * 1. **宽度钉死**。气泡本来是 fit-content，宽度跟着最长的那行变；虚拟化之后 DOM 里只有视口附近几行，
+ *    滚动时「最长那行」换来换去，整颗气泡跟着横向抽动。所以滚起来的这一档宽度不再是内容的函数：
+ *    取满上限（与不滚时同一个上限）。
+ * 2. **条往右挪**。滚动条画在滚动盒的 padding box 右缘，气泡原有的 14px 右内边距会整个垫在条外面，
+ *    看着是悬在气泡里。这一档把右内边距收到 4px：条贴到离气泡边 4px 处，离它左边还有位置可用。
+ *    代价是正文右缘从 14px 挪到 4px + 条宽（5px）= 9px，换行几乎不动。
+ *
+ * 不写 overscroll-behavior: contain —— 滚到两头时这一笔要照原样交给转录视口认（feed/nested-scroll.ts 的仲裁靠这个）。
+ * 也不加两端渐隐：条已经说了「下面还有」，再加一层雾就是两种说法。
+ */
+.timeline-user[data-long="true"] {
+  inline-size: 100%;
+  padding-inline-end: 0.25rem;
+}
+
+.timeline-user__text[data-scrollable] {
   max-block-size: var(--cp-timeline-said-max);
-  overflow: clip;
-  mask-image: linear-gradient(to bottom, #000 calc(100% - 2.75rem), transparent);
+  overflow: hidden auto;
 }
 
-.timeline-user__more {
-  border: 0;
-  padding: 0;
-  background: none;
-  color: var(--cp-timeline-quiet-text);
+/* 记号排在正文之前、滚动盒之外：跟着行走就会随滚动消失。气泡是 justify-items: end 的网格，这一格要自己靠左。 */
+.timeline-user__chips {
+  margin: 0;
   font: inherit;
-  font-size: var(--ui-prose-size-aux);
-  cursor: pointer;
-  transition: color 120ms var(--cp-motion-ease);
+  justify-self: start;
+  white-space: pre-wrap;
 }
 
-.timeline-user__more:hover {
-  color: var(--cp-ink);
+/* 虚拟化的行盒必须与气泡里其它行一字不差，交界处才看不出接缝。 */
+.timeline-user__output {
+  min-inline-size: min-content;
+}
+
+/* 一行一格；折行后的真高由虚拟器量（measured），这里只保证不折行时的高度与正文同档。 */
+.timeline-user__line {
+  min-block-size: calc(var(--ui-prose-size) * var(--ui-prose-line-height));
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
 }
