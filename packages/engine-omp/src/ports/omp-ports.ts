@@ -1,4 +1,5 @@
 import { getOAuthProviders } from '@oh-my-pi/pi-ai/oauth'
+import { getProviderDefinition } from '@oh-my-pi/pi-ai/registry'
 import {
   getKnownRoleIds,
   getRoleInfo,
@@ -66,7 +67,7 @@ export async function ompPorts(o: OmpPortsOptions): Promise<{
     models: new OmpModelsPort({
       registry: registryPortOf(o.registry),
       credentials: (o.authStorage as { credentials: never }).credentials,
-      oauth: ompOAuthOf(o.authStorage as OmpAuthStorageWithOAuth, getOAuthProviders),
+      oauth: ompOAuthOf(o.authStorage as OmpAuthStorageWithOAuth, getOAuthProviders, getProviderDefinition),
       roles: ompRolesOf(o.root, o.registry),
       root: o.root,
       customProviders,
@@ -105,16 +106,52 @@ export function ompRolesOf(root: SettingsScope, registry: Pick<OmpModelRegistry,
   }
 }
 
-/** omp AuthStorage 里订阅登录用得着的两格（keys.source / oauth.login），签名照 pi-ai auth/types.ts */
+/** omp AuthStorage 里账号登录用得着的几格（credentials 的 OAuth 那几行 / oauth.login），签名照 pi-ai auth/types.ts */
 interface OmpAuthStorageWithOAuth {
-  readonly keys: { source(provider: string): unknown }
+  readonly credentials: {
+    hasOAuth(provider: string): boolean
+    getOAuth(provider: string): { readonly email?: string; readonly orgName?: string } | undefined
+    list(provider: string): readonly { readonly id: number; readonly credential: { readonly type: string } }[]
+    removeById(provider: string, credentialId: number): Promise<boolean>
+  }
   readonly oauth: { login: OmpOAuth['login'] }
 }
 
-function ompOAuthOf(storage: OmpAuthStorageWithOAuth, providers: OmpOAuth['providers']): OmpOAuth {
+/** pi-ai 的 ProviderDefinition 里判得出「是不是账号授权」的三格 */
+interface LoginDefinition {
+  readonly refreshToken?: unknown
+  readonly callbackPort?: number
+  readonly pasteCodeFlow?: boolean
+}
+
+/**
+ * 这条登录是哪一种：有刷新令牌的是账号授权（omp 存成 OAuth 凭据）；没有刷新令牌但有本机回调端口或粘贴授权码流程的，
+ * 是在浏览器里授权、换回一把 API Key（omp 存成 api_key）；两样都没有的那几十家，「登录」只是让人贴一把 API Key。
+ * 插件注册的登录查不到定义，按账号授权算 —— 它们实现的是 OAuthProviderInterface。
+ */
+export function loginKindOf(definition: LoginDefinition | undefined): 'account' | 'browser-key' | 'manual-key' {
+  if (definition === undefined || definition.refreshToken !== undefined) return 'account'
+  if (definition.callbackPort !== undefined || definition.pasteCodeFlow === true) return 'browser-key'
+  return 'manual-key'
+}
+
+function ompOAuthOf(
+  storage: OmpAuthStorageWithOAuth,
+  providers: () => readonly { id: string; name: string; available: boolean; storeCredentialsAs?: string }[],
+  definitionOf: (id: string) => LoginDefinition | undefined,
+): OmpOAuth {
   return {
-    providers,
-    authenticated: (provider) => storage.keys.source(provider) !== undefined,
+    providers: () => providers().map((entry) => ({ ...entry, kind: loginKindOf(definitionOf(entry.id)) })),
+    authenticated: (provider) => storage.credentials.hasOAuth(provider),
+    account: (provider) => {
+      const credential = storage.credentials.getOAuth(provider)
+      return credential?.email ?? credential?.orgName ?? null
+    },
     login: (providerId, ctrl) => storage.oauth.login(providerId, ctrl),
+    logout: async (provider) => {
+      for (const row of storage.credentials.list(provider)) {
+        if (row.credential.type === 'oauth') await storage.credentials.removeById(provider, row.id)
+      }
+    },
   }
 }

@@ -16,6 +16,7 @@ import type { z } from 'zod'
 import { toEngineError } from '../errors'
 import { readSetting, type SettingsScope, unsetGlobalSetting, writeGlobalSetting } from '../settings-access'
 import { THINKING_ORDER } from './draft-controls'
+import { loginAuthText, loginProgressText, loginPromptText } from './login-text'
 import {
   aliasOf,
   ENABLED_MODELS_PATH,
@@ -42,9 +43,11 @@ export interface ModelsPortDeps {
   readonly credentials: {
     has(provider: string): boolean
     set(provider: string, value: { type: 'api_key'; key: string; source: string }): Promise<void>
-    remove(provider: string): Promise<void>
+    /** 这家名下存着的每一行凭据（API Key 与 OAuth 各占一行，按行删才能只删其中一种） */
+    list(provider: string): readonly { readonly id: number; readonly credential: { readonly type: string } }[]
+    removeById(provider: string, credentialId: number): Promise<boolean>
   }
-  /** omp 的订阅登录（AuthStorage.oauth.login + getOAuthProviders + keys.source）；凭据由 omp 自己落库 */
+  /** omp 的账号登录（AuthStorage.oauth.login + getOAuthProviders + credentials 的 OAuth 那几行）；凭据由 omp 自己落库 */
   readonly oauth: OmpOAuth
   /** omp 的模型角色目录（config/model-roles）；角色清单、名字、候选全由 omp 定，端口不自列 */
   readonly roles: OmpRoles
@@ -62,11 +65,25 @@ export interface OmpRoles {
   candidates(role: string): readonly OmpModelLike[]
 }
 
-/** omp 订阅登录那几件事的最小形状（真身：pi-ai 的 getOAuthProviders 与 AuthStorage.oauth / keys） */
+/** omp 账号登录那几件事的最小形状（真身：pi-ai 的 getOAuthProviders / getProviderDefinition 与 AuthStorage.oauth / credentials） */
 export interface OmpOAuth {
-  providers(): readonly { id: string; name: string; available: boolean; storeCredentialsAs?: string }[]
-  /** 这家名下有没有任何来源的凭据（keys.source !== undefined，与 omp rpc-mode get_login_providers 同一判据） */
+  /**
+   * `kind`：`account` = 账号授权（浏览器回调、粘贴授权码或设备码，拿回可刷新的令牌）；
+   * `browser-key` = 浏览器里授权，换回一把 API Key；`manual-key` = 这条「登录」只是让人贴一把 API Key（不报给宿主）
+   */
+  providers(): readonly {
+    id: string
+    name: string
+    available: boolean
+    storeCredentialsAs?: string
+    kind: 'account' | 'browser-key' | 'manual-key'
+  }[]
+  /** 这家名下有没有账号登录留下的凭据（credentials.hasOAuth）；API Key、环境变量不算 */
   authenticated(provider: string): boolean
+  /** 那份 OAuth 凭据记的账号：邮箱，没有就组织名 */
+  account(provider: string): string | null
+  /** 删掉这家名下的 OAuth 凭据，API Key 那几行不动 */
+  logout(provider: string): Promise<void>
   login(
     providerId: string,
     ctrl: {
@@ -115,7 +132,7 @@ export class OmpModelsPort implements ModelsPort {
            */
           configured: this.d.registry.hasConfiguredAuth(model),
           custom: await this.d.customProviders.defined(id),
-          /** 钥匙那条路；订阅登录另走 loginProviders / login（一家可以两条都有） */
+          /** 钥匙那条路；账号登录另走 loginProviders / login（一家可以两条都有） */
           authKind: 'api_key',
           /** omp 的目录里没有「文档地址」这一格，如实交 null，不编一个 */
           docsUrl: null,
@@ -163,7 +180,10 @@ export class OmpModelsPort implements ModelsPort {
 
   async clearApiKey(provider: string): Promise<void> {
     try {
-      await this.d.credentials.remove(provider)
+      /* 只删 API Key 那几行：同一家名下的账号登录是另一件事，走 logout */
+      for (const row of this.d.credentials.list(provider)) {
+        if (row.credential.type === 'api_key') await this.d.credentials.removeById(provider, row.id)
+      }
       await this.#refreshCredentials()
       this.d.logger.info('api key cleared', { provider })
       this.#change.fire()
@@ -174,16 +194,36 @@ export class OmpModelsPort implements ModelsPort {
 
   async loginProviders(): Promise<z.infer<typeof LoginProvider>[]> {
     try {
-      return this.d.oauth.providers().map((entry) => {
-        const provider = entry.storeCredentialsAs ?? entry.id
-        return {
-          id: entry.id,
-          name: entry.name,
-          provider,
-          available: entry.available,
-          authenticated: this.d.oauth.authenticated(provider),
-        }
-      })
+      return this.d.oauth
+        .providers()
+        .filter((entry) => entry.kind !== 'manual-key')
+        .map((entry) => {
+          const provider = entry.storeCredentialsAs ?? entry.id
+          const issuesApiKey = entry.kind === 'browser-key'
+          const authenticated = !issuesApiKey && this.d.oauth.authenticated(provider)
+          return {
+            id: entry.id,
+            name: entry.name,
+            provider,
+            available: entry.available,
+            authenticated,
+            account: authenticated ? this.d.oauth.account(provider) : null,
+            issuesApiKey,
+          }
+        })
+    } catch (error) {
+      throw toEngineError(error)
+    }
+  }
+
+  async logout(provider: string): Promise<void> {
+    try {
+      if (!this.d.oauth.authenticated(provider)) return
+      await this.d.oauth.logout(provider)
+      await this.d.registry.refreshProvider(provider)
+      await this.#refreshCredentials()
+      this.d.logger.info('account logout', { provider })
+      this.#change.fire()
     } catch (error) {
       throw toEngineError(error)
     }
@@ -196,15 +236,18 @@ export class OmpModelsPort implements ModelsPort {
   async login(providerId: string, io: LoginIO): Promise<z.infer<typeof LoginIdentity> | null> {
     try {
       const known = this.d.oauth.providers().find((entry) => entry.id === providerId)
-      if (known === undefined) throw new AppError(SystemErrorCode.invalidParams, `没有这个订阅登录：${providerId}`)
+      if (known === undefined) throw new AppError(SystemErrorCode.invalidParams, `不支持用账号登录：${providerId}`)
+      /* omp 推来的话一律先过 login-text：认得的换成中文，进度不认得就不转发 */
       const identity = await this.d.oauth.login(providerId, {
         onAuth: (info) =>
-          io.onAuth({ url: info.url, launchUrl: info.launchUrl ?? null, instructions: info.instructions ?? null }),
-        onProgress: (message) => io.onProgress(message),
+          io.onAuth({ url: info.url, launchUrl: info.launchUrl ?? null, ...loginAuthText(info.instructions ?? null) }),
+        onProgress: (message) => {
+          const text = loginProgressText(message)
+          if (text !== null) io.onProgress(text)
+        },
         onPrompt: (prompt) =>
           io.onPrompt({
-            message: prompt.message,
-            placeholder: prompt.placeholder ?? null,
+            ...loginPromptText(prompt.message, prompt.placeholder ?? null),
             secret: prompt.secret === true,
             allowEmpty: prompt.allowEmpty === true,
           }),
@@ -212,7 +255,7 @@ export class OmpModelsPort implements ModelsPort {
       })
       await this.d.registry.refreshProvider(known.storeCredentialsAs ?? known.id)
       await this.#refreshCredentials()
-      this.d.logger.info('subscription login stored', { provider: providerId })
+      this.d.logger.info('account login stored', { provider: providerId })
       this.#change.fire()
       if (identity === undefined) return null
       return { kind: identity.type, email: identity.email ?? null, orgName: identity.orgName ?? null }

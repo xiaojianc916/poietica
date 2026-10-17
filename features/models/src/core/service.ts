@@ -13,6 +13,8 @@ export interface ModelsService {
   providers(): Promise<ProviderInfo[]>
   setApiKey(provider: string, apiKey: string): Promise<void>
   clearApiKey(provider: string): Promise<void>
+  /** 退出账号登录（provider = LoginProvider.provider，凭据记在的那一家） */
+  logout(provider: string): Promise<void>
   upsertCustomProvider(def: CustomProviderDef): Promise<void>
   removeCustomProvider(providerId: string): Promise<void>
   catalog(): Promise<ModelInfo[]>
@@ -54,6 +56,16 @@ export function createModelsService(d: ModelsServiceDeps): ModelsService {
       }
       await d.models.clearApiKey(provider)
       d.logger.info('api key cleared', { provider })
+      d.emitChanged()
+    },
+
+    async logout(provider) {
+      const logins = await d.models.loginProviders()
+      if (!logins.some((p) => p.provider === provider)) {
+        throw new AppError(modelsErrors.provider_not_found, '模型服务商不存在')
+      }
+      await d.models.logout(provider)
+      d.logger.info('account logout', { provider })
       d.emitChanged()
     },
 

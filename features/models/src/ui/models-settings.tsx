@@ -13,16 +13,8 @@ import {
   type SelectOption,
   Switch,
 } from '@poietica/design-system'
-import { ArrowLeft, ChevronDown, Eye, EyeOff, Plus, RotateCw, Trash2 } from 'lucide-react'
-import {
-  type ComponentProps,
-  type FormEvent,
-  type ReactNode,
-  useEffect,
-  useMemo,
-  useState,
-  useSyncExternalStore,
-} from 'react'
+import { ArrowLeft, ChevronDown, Plus, RotateCw, Trash2 } from 'lucide-react'
+import { type FormEvent, type ReactNode, useEffect, useMemo, useState, useSyncExternalStore } from 'react'
 import { describeAgentCliFailure } from './agent-cli-text'
 import {
   type CatalogProvider,
@@ -35,6 +27,8 @@ import {
   type ProviderModelInput,
 } from './model-catalog'
 import './models-settings.css'
+import type { ProviderAuthSlot } from './provider-auth'
+import { SecretInput } from './secret-input'
 
 const COLLAPSED_MODEL_LIMIT = 8
 const ADD_PROVIDER = '__add_provider__'
@@ -55,12 +49,12 @@ export interface ModelsSettingsProps {
   readonly hiddenModelAliases: readonly string[]
   readonly providerOrder: readonly string[]
   readonly onModelVisibilityChange: (modelId: string, visible: boolean) => void
-  /** 画在服务商目录之前的那一块（订阅登录） */
-  readonly lead?: ReactNode
+  /** 内置服务商的认证区（账号登录 / API Key）；自定义服务商仍走自己的表单 */
+  readonly auth: ProviderAuthSlot
 }
 
 export function ModelsSettings({
-  lead,
+  auth,
   modelCatalog,
   hiddenModelAliases,
   providerOrder,
@@ -68,8 +62,8 @@ export function ModelsSettings({
 }: ModelsSettingsProps) {
   return (
     <section className="models-page">
-      {lead}
       <ModelCatalogPanel
+        auth={auth}
         hiddenModelAliases={hiddenModelAliases}
         onModelVisibilityChange={onModelVisibilityChange}
         providerOrder={providerOrder}
@@ -80,11 +74,13 @@ export function ModelsSettings({
 }
 
 function ModelCatalogPanel({
+  auth,
   store,
   hiddenModelAliases,
   providerOrder,
   onModelVisibilityChange,
 }: {
+  readonly auth: ProviderAuthSlot
   readonly store: ModelCatalogStore
   readonly hiddenModelAliases: readonly string[]
   readonly providerOrder: readonly string[]
@@ -107,6 +103,8 @@ function ModelCatalogPanel({
       return false
     }
   }
+
+  const removingCustom = snapshot.data?.providers.some((p) => p.id === removing && p.providerType === 'custom') ?? false
 
   if (snapshot.data === null) {
     if (snapshot.error !== null) {
@@ -138,6 +136,7 @@ function ModelCatalogPanel({
         }}
       />
       <ProviderWorkspace
+        auth={auth}
         data={snapshot.data}
         disabled={snapshot.mutating}
         onModelVisibilityChange={onModelVisibilityChange}
@@ -147,8 +146,12 @@ function ModelCatalogPanel({
       />
       <ConfirmationDialog
         busy={snapshot.mutating}
-        confirmLabel="删除"
-        description={`删除 ${removing ?? ''} 后，它的模型与密钥一起从 agent 配置里移除。`}
+        confirmLabel={removingCustom ? '删除' : '移除'}
+        description={
+          removingCustom
+            ? `删除 ${removing ?? ''} 后，它的模型与密钥一起从 agent 配置里移除。`
+            : `将清除 ${removing ?? ''} 的 API Key 并退出账号登录。之后可以从目录重新添加。`
+        }
         destructive
         onCancel={() => setRemoving(null)}
         onConfirm={() => {
@@ -159,7 +162,7 @@ function ModelCatalogPanel({
           }
         }}
         open={removing !== null}
-        title="删除这个服务商？"
+        title={removingCustom ? '删除这个供应商？' : '移除这个供应商？'}
       />
     </>
   )
@@ -277,6 +280,7 @@ function ConfiguredModel({
 }
 
 function ProviderWorkspace({
+  auth,
   data,
   disabled,
   providerOrder,
@@ -284,6 +288,7 @@ function ProviderWorkspace({
   onRemove,
   onRun,
 }: {
+  readonly auth: ProviderAuthSlot
   readonly data: ModelCatalogData
   readonly disabled: boolean
   readonly providerOrder: readonly string[]
@@ -333,6 +338,7 @@ function ProviderWorkspace({
         <Accordion onValueChange={(next) => setOpenId(next[0] ?? null)} value={openId === null ? [] : [openId]}>
           {openId === ADD_PROVIDER ? (
             <AddProviderItem
+              auth={auth}
               data={data}
               disabled={disabled}
               onClose={() => setOpenId(null)}
@@ -343,6 +349,7 @@ function ProviderWorkspace({
           ) : null}
           {providers.map((provider) => (
             <ProviderItem
+              auth={auth}
               disabled={disabled}
               key={provider.id}
               models={modelsByProvider.get(provider.id) ?? []}
@@ -380,6 +387,7 @@ function reconcileProviderOrder(providers: readonly ModelProvider[], preferred: 
 }
 
 function ProviderItem({
+  auth,
   provider,
   disabled,
   models,
@@ -387,6 +395,7 @@ function ProviderItem({
   onRun,
   onSaved,
 }: {
+  readonly auth: ProviderAuthSlot
   readonly provider: ModelProvider
   readonly disabled: boolean
   readonly models: readonly ModelDescriptor[]
@@ -394,30 +403,43 @@ function ProviderItem({
   readonly onRun: RunMutation
   readonly onSaved: () => void
 }) {
+  const custom = provider.providerType === 'custom'
+  const method = custom ? null : auth.signedIn(provider.id) ? '账号登录' : 'API Key'
   return (
     <AccordionItem className="models-accordion-item" value={provider.id}>
       <AccordionHeader className="models-accordion-header">
         <AccordionTrigger className="models-accordion-trigger">
           <span className="models-provider-summary">
             <strong>{provider.id}</strong>
-            <span className="models-provider-pill">{provider.providerType}</span>
+            {custom ? <span className="models-provider-pill">自定义</span> : null}
           </span>
           <span className="models-provider-meta">
-            <span>{models.length} 个模型</span>
+            <span>{method === null ? `${models.length} 个模型` : `${method} · ${models.length} 个模型`}</span>
             <ChevronDown aria-hidden="true" className="models-provider-chevron" size={14} />
           </span>
         </AccordionTrigger>
       </AccordionHeader>
       <AccordionPanel className="models-accordion-panel">
         <div className="models-accordion-panel__inner">
-          <ProviderForm
-            current={{ models, provider }}
-            disabled={disabled}
-            key={provider.id}
-            onDelete={onRemove}
-            onRun={onRun}
-            onSaved={onSaved}
-          />
+          {custom ? (
+            <ProviderForm
+              current={{ models, provider }}
+              disabled={disabled}
+              key={provider.id}
+              onDelete={onRemove}
+              onRun={onRun}
+              onSaved={onSaved}
+            />
+          ) : (
+            <div className="models-builtin">
+              {auth.render({ providerId: provider.id, configured: provider.hasApiKey, disabled })}
+              <div className="models-builtin__footer">
+                <Button disabled={disabled} onClick={onRemove} size="xs" type="button" variant="dangerSoft">
+                  移除供应商
+                </Button>
+              </div>
+            </div>
+          )}
         </div>
       </AccordionPanel>
     </AccordionItem>
@@ -432,6 +454,7 @@ const ADD_MODES = [
 ] as const satisfies readonly SegmentedOption<AddMode>[]
 
 function AddProviderItem({
+  auth,
   data,
   disabled,
   onClose,
@@ -439,6 +462,7 @@ function AddProviderItem({
   onOpen,
   onRun,
 }: {
+  readonly auth: ProviderAuthSlot
   readonly data: ModelCatalogData
   readonly disabled: boolean
   readonly onClose: () => void
@@ -469,6 +493,7 @@ function AddProviderItem({
           <div className="models-tab-panel">
             {mode === 'catalog' ? (
               <CatalogAddTab
+                auth={auth}
                 data={data}
                 disabled={disabled}
                 onImported={(id) => {
@@ -498,12 +523,14 @@ function AddProviderItem({
 }
 
 function CatalogAddTab({
+  auth,
   data,
   disabled,
   onImported,
   onModelVisibilityChange,
   onRun,
 }: {
+  readonly auth: ProviderAuthSlot
   readonly data: ModelCatalogData
   readonly disabled: boolean
   readonly onImported: (id: string) => void
@@ -513,129 +540,44 @@ function CatalogAddTab({
   const configured = useMemo(() => new Set(data.providers.map((p) => p.id)), [data.providers])
   const [query, setQuery] = useState('')
   const [selected, setSelected] = useState<CatalogProvider | null>(null)
-  const [name, setName] = useState('')
-  const [apiKey, setApiKey] = useState('')
-  const [baseUrl, setBaseUrl] = useState('')
-  const [message, setMessage] = useState<string | null>(null)
+  /* 能用账号登录的排前面：有订阅的人多半是来找它们的 */
   const catalog = useMemo(() => {
     const needle = query.trim().toLowerCase()
-    return data.catalog.filter(
+    const matched = data.catalog.filter(
       (provider) =>
         !configured.has(provider.id) &&
         !provider.rejected &&
         provider.models.length > 0 &&
         (needle === '' || provider.name.toLowerCase().includes(needle) || provider.id.toLowerCase().includes(needle)),
     )
-  }, [data.catalog, configured, query])
-  const selectCatalog = (provider: CatalogProvider) => {
-    setSelected(provider)
-    setName(provider.id)
-    setApiKey('')
-    setBaseUrl('')
-    setMessage(null)
-  }
-  const submit = async () => {
-    if (selected === null) {
-      return
-    }
-    const localId = name.trim()
-    if (localId === '') {
-      setMessage('请填写供应商名称。')
-      return
-    }
-    if (selected.needsBaseUrl && baseUrl.trim() === '') {
-      setMessage('这个目录项需要 Base URL。')
-      return
-    }
-    const ok = await onRun({
-      kind: 'importCatalog',
-      catalogId: selected.id,
-      id: localId,
-      ...(apiKey.trim() === '' ? {} : { apiKey: apiKey.trim() }),
-      ...(baseUrl.trim() === '' ? {} : { baseUrl: baseUrl.trim() }),
-    })
-    if (!ok) {
-      setMessage(`导入 ${selected.name} 失败，请重试。`)
-      return
-    }
-    for (const model of selected.models) {
-      onModelVisibilityChange(modelAlias(localId, model.id), true)
-    }
-    onImported(localId)
-  }
+    return [...matched.filter((p) => auth.canSignIn(p.id)), ...matched.filter((p) => !auth.canSignIn(p.id))]
+  }, [auth, data.catalog, configured, query])
 
   if (selected !== null) {
+    /* 内置服务商在 omp 里不需要名称和 Base URL：认证一完成就算添加好了 */
+    const finish = async () => {
+      await onRun({ kind: 'refreshProviders' })
+      for (const model of selected.models) {
+        onModelVisibilityChange(modelAlias(selected.id, model.id), true)
+      }
+      onImported(selected.id)
+    }
     return (
       <div className="models-add-tab">
         <button className="models-catalog-back" onClick={() => setSelected(null)} type="button">
           <ArrowLeft aria-hidden="true" size={14} /> 返回目录列表
         </button>
-        <Field
-          htmlFor="catalog-confirm-name"
-          label={
-            <>
-              名称<span className="models-required">*</span>
-            </>
-          }
-        >
-          <input
-            aria-required
-            className="settings-input"
-            id="catalog-confirm-name"
-            onChange={(event) => setName(event.target.value)}
-            value={name}
-          />
-        </Field>
-        <Field
-          htmlFor="catalog-confirm-api-key"
-          label={
-            <>
-              API Key<span className="models-required">*</span>
-            </>
-          }
-        >
-          <SecretInput
-            id="catalog-confirm-api-key"
-            onChange={(event) => setApiKey(event.target.value)}
-            placeholder="sk-..."
-            value={apiKey}
-          />
-        </Field>
-        {selected.needsBaseUrl ? (
-          <Field
-            htmlFor="catalog-confirm-base-url"
-            label={
-              <>
-                Base URL<span className="models-required">*</span>
-              </>
-            }
-          >
-            <input
-              aria-required
-              className="settings-input"
-              id="catalog-confirm-base-url"
-              onChange={(event) => setBaseUrl(event.target.value)}
-              placeholder="https://api.example.com/v1"
-              type="url"
-              value={baseUrl}
-            />
-          </Field>
-        ) : null}
-        <p className="models-add-hint">将从目录导入 {selected.models.length} 个模型</p>
-        <div className="models-form-footer">
-          <span aria-live="polite" className="models-model-message">
-            {message}
-          </span>
-          <div className="models-form-footer__actions">
-            {disabled ? <InlineSpinner /> : null}
-            <Button onClick={() => setSelected(null)} size="xs" type="button" variant="ghost">
-              取消
-            </Button>
-            <Button disabled={disabled} onClick={() => void submit()} size="xs" type="button" variant="default">
-              {disabled ? '正在导入…' : '导入'}
-            </Button>
-          </div>
+        <div className="models-add-heading">
+          <strong>{selected.name}</strong>
+          <span>{selected.models.length} 个模型</span>
         </div>
+        {auth.render({
+          providerId: selected.id,
+          configured: false,
+          disabled,
+          submitLabel: '添加',
+          onAuthorized: finish,
+        })}
       </div>
     )
   }
@@ -659,12 +601,12 @@ function CatalogAddTab({
               className="models-catalog-row"
               disabled={disabled}
               key={provider.id}
-              onClick={() => selectCatalog(provider)}
+              onClick={() => setSelected(provider)}
               type="button"
             >
               <span className="models-catalog-row__main">
                 <strong>{provider.name}</strong>
-                <span className="models-provider-pill">{provider.wireType ?? 'openai'}</span>
+                {auth.canSignIn(provider.id) ? <span className="models-provider-pill">可账号登录</span> : null}
               </span>
               <span className="models-catalog-row__count">{provider.models.length} 个模型</span>
             </button>
@@ -1057,30 +999,6 @@ function ModelListEditor({
         </Button>
       </div>
     </div>
-  )
-}
-
-type SecretInputProps = Omit<ComponentProps<'input'>, 'type'>
-function SecretInput({ className, disabled, ...props }: SecretInputProps) {
-  const [revealed, setRevealed] = useState(false)
-  return (
-    <span className="models-secret">
-      <input
-        {...props}
-        className={`settings-input ${className ?? ''}`}
-        disabled={disabled}
-        type={revealed ? 'text' : 'password'}
-      />
-      <button
-        aria-label={revealed ? '隐藏 API Key' : '显示 API Key'}
-        className="models-secret__toggle"
-        disabled={disabled}
-        onClick={() => setRevealed((value) => !value)}
-        type="button"
-      >
-        {revealed ? <EyeOff aria-hidden="true" size={15} /> : <Eye aria-hidden="true" size={15} />}
-      </button>
-    </span>
   )
 }
 

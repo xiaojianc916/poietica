@@ -39,8 +39,8 @@ const MODELS: readonly OmpModel[] = [
 interface Harness {
   readonly port: OmpModelsPort
   readonly settings: Settings
-  /** agent.db 里的凭据（credentials.has 的记账） */
-  readonly credentials: Set<string>
+  /** agent.db 里的凭据（API Key 与 OAuth 各占一行） */
+  readonly credentials: Ledger
   /** omp 自己的鉴权判据（hasConfiguredAuth 的记账）——写 key、写 models.yml、免密钥端点都会让它为真 */
   readonly authorized: Set<string>
   readonly logged: string[]
@@ -50,10 +50,41 @@ interface Harness {
   readonly refreshed: string[]
 }
 
+/** agent.db 凭据表的替身：按行记，每行一种（api_key / oauth） */
+class Ledger {
+  #rows: { id: number; provider: string; type: 'api_key' | 'oauth'; email: string | null }[] = []
+  #next = 1
+  add(provider: string, type: 'api_key' | 'oauth', email: string | null = null): void {
+    this.#rows.push({ id: this.#next++, provider, type, email })
+  }
+  has(provider: string, type?: 'api_key' | 'oauth'): boolean {
+    return this.#rows.some((row) => row.provider === provider && (type === undefined || row.type === type))
+  }
+  email(provider: string): string | null {
+    return this.#rows.find((row) => row.provider === provider && row.type === 'oauth')?.email ?? null
+  }
+  list(provider: string): { id: number; credential: { type: string } }[] {
+    return this.#rows
+      .filter((row) => row.provider === provider)
+      .map((row) => ({ id: row.id, credential: { type: row.type } }))
+  }
+  remove(provider: string, id: number): boolean {
+    const before = this.#rows.length
+    this.#rows = this.#rows.filter((row) => !(row.provider === provider && row.id === id))
+    return this.#rows.length !== before
+  }
+  drop(provider: string, type: 'api_key' | 'oauth'): void {
+    this.#rows = this.#rows.filter((row) => !(row.provider === provider && row.type === type))
+  }
+}
+
 function makePort(): Harness {
   const dir = tempDir()
   const settings = Settings.isolated()
-  const credentials = new Set<string>(['anthropic'])
+  /* anthropic 两样都有：一把 API Key，外加一份账号登录 —— 删一样不能连带另一样 */
+  const credentials = new Ledger()
+  credentials.add('anthropic', 'api_key')
+  credentials.add('anthropic', 'oauth', 'pro@example.com')
   const authorized = new Set<string>(['anthropic'])
   const logged: string[] = []
   const logger: Logger = {
@@ -83,14 +114,39 @@ function makePort(): Harness {
     },
     oauth: {
       providers: () => [
-        { id: 'anthropic', name: 'Claude Pro/Max', available: true },
-        { id: 'openai-codex-device', name: 'ChatGPT（设备码）', available: true, storeCredentialsAs: 'openai-codex' },
+        { id: 'anthropic', name: 'Claude Pro/Max', available: true, kind: 'account' },
+        {
+          id: 'openai-codex-device',
+          name: 'ChatGPT（设备码）',
+          available: true,
+          storeCredentialsAs: 'openai-codex',
+          kind: 'account',
+        },
+        { id: 'openrouter', name: 'OpenRouter', available: true, kind: 'browser-key' },
+        { id: 'deepseek', name: 'DeepSeek', available: true, kind: 'manual-key' },
       ],
-      authenticated: (provider) => credentials.has(provider),
+      authenticated: (provider) => credentials.has(provider, 'oauth'),
+      account: (provider) => credentials.email(provider),
+      logout: async (provider) => {
+        credentials.drop(provider, 'oauth')
+      },
       login: async (providerId, ctrl) => {
-        ctrl.onAuth({ url: `https://auth.example/${providerId}`, launchUrl: 'http://127.0.0.1:1455/go' })
-        const code = await ctrl.onPrompt({ message: 'code', secret: true })
-        credentials.add(providerId === 'openai-codex-device' ? 'openai-codex' : providerId)
+        ctrl.onAuth({
+          url: `https://auth.example/${providerId}`,
+          launchUrl: 'http://127.0.0.1:1455/go',
+          instructions: 'Enter code: ABCD-1234',
+        })
+        ctrl.onProgress('Waiting for browser authentication...')
+        ctrl.onProgress('Some brand-new omp phrase')
+        const code = await ctrl.onPrompt({
+          message: 'Paste the authorization code (or full redirect URL):',
+          secret: true,
+        })
+        credentials.add(
+          providerId === 'openai-codex-device' ? 'openai-codex' : providerId,
+          'oauth',
+          `${code}@example.com`,
+        )
         return { type: 'oauth', email: `${code}@example.com` }
       },
     },
@@ -99,15 +155,12 @@ function makePort(): Harness {
     credentials: {
       has: (provider) => credentials.has(provider),
       set: (provider) => {
-        credentials.add(provider)
+        credentials.add(provider, 'api_key')
         authorized.add(provider)
         return Promise.resolve()
       },
-      remove: (provider) => {
-        credentials.delete(provider)
-        authorized.delete(provider)
-        return Promise.resolve()
-      },
+      list: (provider) => credentials.list(provider),
+      removeById: (provider, id) => Promise.resolve(credentials.remove(provider, id)),
     },
     root: settings,
     customProviders: new CustomProvidersFile({
@@ -125,40 +178,76 @@ function makePort(): Harness {
   return { port, settings, credentials, authorized, logged, reloads, refreshed }
 }
 
-describe('ModelsPort 订阅登录', () => {
-  test('loginProviders 照 omp 名单报，凭据记在 storeCredentialsAs 名下', async () => {
+describe('ModelsPort 账号登录', () => {
+  test('loginProviders 只报账号授权与浏览器换钥匙两类，凭据记在 storeCredentialsAs 名下，带上登录的账号', async () => {
     const harness = makePort()
     expect(await harness.port.loginProviders()).toEqual([
-      { id: 'anthropic', name: 'Claude Pro/Max', provider: 'anthropic', available: true, authenticated: true },
+      {
+        id: 'anthropic',
+        name: 'Claude Pro/Max',
+        provider: 'anthropic',
+        available: true,
+        authenticated: true,
+        account: 'pro@example.com',
+        issuesApiKey: false,
+      },
       {
         id: 'openai-codex-device',
         name: 'ChatGPT（设备码）',
         provider: 'openai-codex',
         available: true,
         authenticated: false,
+        account: null,
+        issuesApiKey: false,
+      },
+      {
+        id: 'openrouter',
+        name: 'OpenRouter',
+        provider: 'openrouter',
+        available: true,
+        authenticated: false,
+        account: null,
+        issuesApiKey: true,
       },
     ])
   })
 
-  test('login 把网址与要填的格子交给宿主（secret 不拒绝），成功后只刷那一家并报身份', async () => {
+  test('login 把网址、设备码与要填的格子交给宿主：认得的话换成中文，认不得的进度不转发', async () => {
     const harness = makePort()
     const seen: string[] = []
     const identity = await harness.port.login('openai-codex-device', {
-      onAuth: (info) => seen.push(`auth ${info.url} ${info.launchUrl}`),
+      onAuth: (info) => seen.push(`auth ${info.url} ${info.launchUrl} code=${info.code} ${info.instructions}`),
       onProgress: (message) => seen.push(`progress ${message}`),
       onPrompt: async (prompt) => {
-        seen.push(`prompt secret=${prompt.secret}`)
+        seen.push(`prompt ${prompt.message} secret=${prompt.secret} fallback=${prompt.fallback}`)
         return 'me'
       },
       signal: new AbortController().signal,
     })
     expect(seen).toEqual([
-      'auth https://auth.example/openai-codex-device http://127.0.0.1:1455/go',
-      'prompt secret=true',
+      'auth https://auth.example/openai-codex-device http://127.0.0.1:1455/go code=ABCD-1234 null',
+      'progress 等待在浏览器中完成授权…',
+      'prompt 粘贴授权码或完整的回调地址 secret=true fallback=true',
     ])
     expect(identity).toEqual({ kind: 'oauth', email: 'me@example.com', orgName: null })
     expect(harness.refreshed).toEqual(['openai-codex'])
-    expect(harness.credentials.has('openai-codex')).toBe(true)
+    expect(harness.credentials.has('openai-codex', 'oauth')).toBe(true)
+  })
+
+  test('logout 只删 OAuth 那一行，API Key 留着；没登录时什么也不做', async () => {
+    const harness = makePort()
+    let fired = 0
+    const sub = harness.port.onDidChange(() => {
+      fired += 1
+    })
+    await harness.port.logout('anthropic')
+    expect(harness.credentials.has('anthropic', 'oauth')).toBe(false)
+    expect(harness.credentials.has('anthropic', 'api_key')).toBe(true)
+    expect(harness.refreshed).toEqual(['anthropic'])
+    expect(fired).toBe(1)
+    await harness.port.logout('openai')
+    expect(fired).toBe(1)
+    sub.dispose()
   })
 
   test('不在 omp 名单里的登录报 invalid_params，不去碰凭据', async () => {
@@ -229,14 +318,15 @@ describe('ModelsPort', () => {
     expect(harness.logged.join('\n')).toContain('api key stored')
   })
 
-  test('clearApiKey 删凭据并 fire', async () => {
+  test('clearApiKey 只删 API Key 那一行（账号登录留着）并 fire', async () => {
     const harness = makePort()
     let fired = 0
     const sub = harness.port.onDidChange(() => {
       fired += 1
     })
     await harness.port.clearApiKey('anthropic')
-    expect(harness.credentials.has('anthropic')).toBe(false)
+    expect(harness.credentials.has('anthropic', 'api_key')).toBe(false)
+    expect(harness.credentials.has('anthropic', 'oauth')).toBe(true)
     expect(fired).toBe(1)
     sub.dispose()
   })

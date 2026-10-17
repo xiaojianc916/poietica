@@ -297,12 +297,6 @@
   color: var(--ui-foreground);
   background: var(--models-field);
 }
-.models-add-hint {
-  margin: 0;
-  color: var(--ui-muted-foreground);
-  font-size: 12px;
-  line-height: 1.5;
-}
 .models-catalog-list {
   display: flex;
   flex-direction: column;
@@ -366,20 +360,6 @@
   font-size: 11px;
   font-variant-numeric: tabular-nums;
 }
-.models-form-footer {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  min-block-size: 36px;
-  margin-block-start: 4px;
-}
-.models-form-footer__actions {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
 .models-provider-form {
   display: flex;
   min-block-size: 0;
@@ -512,39 +492,198 @@
   gap: 12px;
 }
 
-/* 订阅登录：动作钮并排，流程面板在那一行下面展开（网址、要填的一格、结局）。 */
-.models-login__actions {
-  display: inline-flex;
-  gap: 6px;
-}
-
-.models-login__flow {
+/* 内置服务商的面板：认证区（账号登录 | API Key）+ 一行页脚。 */
+.models-builtin {
   display: flex;
   flex-direction: column;
-  gap: 6px;
-  width: 100%;
-  margin-top: 8px;
+  gap: 12px;
+}
+.models-builtin__footer {
+  display: flex;
+  justify-content: flex-start;
+  padding-block-start: 4px;
 }
 
-.models-login__line {
+.models-auth {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+:root[data-theme="dark"] .segmented-control.models-auth__methods {
+  background: #2e2e2e;
+}
+:root[data-theme="dark"] .models-auth__methods .segmented-control__thumb {
+  background: #424242;
+}
+.models-auth__row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  min-block-size: 36px;
+}
+.models-auth__copy {
+  display: flex;
+  min-inline-size: 0;
+  flex-direction: column;
+  gap: 2px;
+}
+.models-auth__title {
+  font-size: 13px;
+  font-weight: 550;
+}
+.models-auth__sub {
+  overflow: hidden;
+  color: var(--ui-muted-foreground);
+  font-size: 12px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.models-auth__actions {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: 6px;
+}
+.models-auth__key {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.models-auth__key-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.models-auth__key-row .models-secret {
+  flex: 1 1 auto;
+}
+.models-auth__fetch,
+.models-login__toggle {
+  align-self: flex-start;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--ui-muted-foreground);
+  font-size: 12px;
+  cursor: pointer;
+}
+.models-auth__fetch:hover:not(:disabled),
+.models-login__toggle:hover {
+  color: var(--ui-foreground);
+  text-decoration: underline;
+}
+.models-auth__error {
   margin: 0;
+  color: var(--ui-destructive);
+  font-size: 12px;
+}
+.models-add-heading {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+}
+.models-add-heading strong {
+  font-size: 13px;
+  font-weight: 550;
+}
+.models-add-heading span {
+  color: var(--ui-muted-foreground);
   font-size: 12px;
 }
 
-.models-login__line[data-ok="false"] {
-  color: var(--destructive, #dc2626);
+/* 登录对话框（挂在传送门里，读不到 .models-page 的变量，只用全局令牌）。 */
+.models-login-dialog {
+  max-width: 26rem;
+}
+.models-login {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 0 20px 8px;
 }
 
-.models-login__prompt {
+.models-login__status {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.5;
+}
+.models-login__status {
   display: flex;
-  align-items: flex-end;
+  align-items: center;
+  gap: 8px;
+  font-weight: 550;
+}
+.models-login__status[data-tone="success"] svg {
+  color: var(--ui-success);
+}
+.models-login__status[data-tone="danger"] svg {
+  color: var(--ui-destructive);
+}
+.models-login__hint,
+.models-login__waiting {
+  margin: 0;
+  color: var(--ui-muted-foreground);
+  font-size: 12px;
+}
+.models-login__waiting {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.models-login__detail {
+  margin: 0;
+  max-block-size: 120px;
+  overflow: auto;
+  padding: 8px 10px;
+  border-radius: var(--ui-radius-md);
+  background: var(--ui-muted);
+  color: var(--ui-muted-foreground);
+  font-size: 12px;
+  overflow-wrap: anywhere;
+}
+.models-login__links {
+  display: flex;
   gap: 6px;
 }
-
-.models-login__label {
+.models-login__btn {
+  gap: 5px;
+}
+.models-login__code {
   display: flex;
-  flex: 1;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 12px 10px 16px;
+  border: 1px solid var(--ui-divider);
+  border-radius: var(--ui-radius-lg);
+  font-family: var(--ui-font-mono);
+  font-size: 20px;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+}
+.models-login__form {
+  display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 6px;
+}
+.models-login__form--manual {
+  padding-block-start: 4px;
+}
+.models-login__label {
+  color: var(--ui-muted-foreground);
   font-size: 12px;
+}
+.models-login__row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.models-login__row .settings-input {
+  flex: 1 1 auto;
+}
+.models-login__footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
 }

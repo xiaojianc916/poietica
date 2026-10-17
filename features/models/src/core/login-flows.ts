@@ -16,7 +16,7 @@ interface Flow {
 }
 
 /**
- * 进行中的订阅登录。流程本身全在 omp（AuthStorage.oauth.login）：这里只把它的回调翻成通知、把界面填的格子按 promptId 交回去，
+ * 进行中的账号登录。流程本身全在 omp（AuthStorage.oauth.login）：这里只把它的回调翻成通知、把界面填的格子按 promptId 交回去，
  * 不碰 token —— 凭据由 omp 落进 agent.db，结局只报身份（邮箱 / 组织名）。
  */
 export class LoginFlows {
@@ -46,13 +46,13 @@ export class LoginFlows {
     void this.d.models
       .login(providerId, io)
       .then((identity) => {
-        this.d.logger.info('subscription login done', { provider: providerId })
+        this.d.logger.info('account login done', { provider: providerId })
         this.d.emit(loginId, { kind: 'done', identity })
         this.d.emitChanged()
       })
       .catch((error: unknown) => {
         const reason = error instanceof Error ? error.message : String(error)
-        this.d.logger.warn('subscription login failed', { provider: providerId, error: reason })
+        this.d.logger.warn('account login failed', { provider: providerId, error: reason })
         this.d.emit(loginId, { kind: 'failed', message: flow.abort.signal.aborted ? '登录已取消' : reason })
       })
       .finally(() => {

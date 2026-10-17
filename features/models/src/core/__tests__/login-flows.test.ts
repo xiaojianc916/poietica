@@ -38,8 +38,14 @@ const settle = () => new Promise((resolve) => setTimeout(resolve, 0))
 describe('LoginFlows', () => {
   test('网址 → 要一格 → 答了 → 完成，并通知模型目录变了', async () => {
     const h = harness(async (_id, io) => {
-      io.onAuth({ url: 'https://auth', launchUrl: null, instructions: null })
-      const code = await io.onPrompt({ message: '授权码', placeholder: null, secret: false, allowEmpty: false })
+      io.onAuth({ url: 'https://auth', launchUrl: null, code: null, instructions: null })
+      const code = await io.onPrompt({
+        message: '授权码',
+        placeholder: null,
+        secret: false,
+        allowEmpty: false,
+        fallback: false,
+      })
       return { kind: 'oauth', email: `${code}@x`, orgName: null }
     })
     const loginId = h.flows.start('anthropic')
@@ -55,7 +61,7 @@ describe('LoginFlows', () => {
 
   test('取消：信号中止、等着的格子被拒，结局报「登录已取消」，之后答格报 login_not_found', async () => {
     const h = harness(async (_id, io) => {
-      await io.onPrompt({ message: '授权码', placeholder: null, secret: false, allowEmpty: false })
+      await io.onPrompt({ message: '授权码', placeholder: null, secret: false, allowEmpty: false, fallback: true })
       return null
     })
     const loginId = h.flows.start('anthropic')

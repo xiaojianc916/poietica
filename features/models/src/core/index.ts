@@ -14,7 +14,7 @@ export default defineCoreModule({
     })
 
     ctx.rpc.handle('models.providers', async () => ({ providers: await service.providers() }))
-    /* 订阅登录：流程归 omp（AuthStorage.oauth.login），这里只做回调 ↔ 通知的翻译 */
+    /* 账号登录：流程归 omp（AuthStorage.oauth.login），这里只做回调 ↔ 通知的翻译 */
     const logins = new LoginFlows({
       models: ctx.engine.models,
       logger: ctx.logger,
@@ -30,6 +30,10 @@ export default defineCoreModule({
     })
     ctx.rpc.handle('models.cancelLogin', ({ loginId }) => {
       logins.cancel(loginId)
+      return {}
+    })
+    ctx.rpc.handle('models.logout', async ({ provider }) => {
+      await service.logout(provider)
       return {}
     })
     ctx.rpc.handle('models.setApiKey', async ({ provider, apiKey }) => {

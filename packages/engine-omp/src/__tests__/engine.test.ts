@@ -109,6 +109,7 @@ function makeEngine(over: Partial<ConstructorParameters<typeof OmpEngine>[0]> = 
       setApiKey: async () => undefined,
       loginProviders: async () => [],
       login: async () => null,
+      logout: async () => undefined,
       clearApiKey: async () => undefined,
       setModelEnabled: async () => undefined,
       defaultModel: async () => null,

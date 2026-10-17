@@ -720,6 +720,8 @@ export function createFakeEngine(opts: FakeEngineOptions = {}): FakeEngine {
   let frozen = false
   const change = new Emitter<void>()
   let providers: ProviderInfoValue[] = []
+  /** 账号登录过的服务商 → 账号（OAuth 凭据的替身；API Key 不在这里） */
+  const signedIn = new Map<string, string>()
   let models: ModelInfoValue[] = []
   let settings: SettingDescriptorValue[] = []
   let skills: SkillInfoValue[] = []
@@ -872,21 +874,41 @@ export function createFakeEngine(opts: FakeEngineOptions = {}): FakeEngine {
         providers = providers.map((p) => (p.id === id ? { ...p, configured: false } : p))
         change.fire()
       },
-      /* 订阅登录：每一家内置服务商都假装能登；流程与 omp 的回环登录同形 —— 先给网址，再要一格授权码，填了才算登上 */
+      /* 账号登录：每一家内置服务商都假装能登；流程与 omp 的回环登录同形 —— 先给网址，再要一格授权码，填了才算登上 */
       async loginProviders() {
         return providers
           .filter((p) => !p.custom)
-          .map((p) => ({ id: p.id, name: p.name, provider: p.id, available: true, authenticated: p.configured }))
+          .map((p) => ({
+            id: p.id,
+            name: p.name,
+            provider: p.id,
+            available: true,
+            authenticated: signedIn.has(p.id),
+            account: signedIn.get(p.id) ?? null,
+            issuesApiKey: false,
+          }))
+      },
+      async logout(providerId) {
+        if (!signedIn.delete(providerId)) return
+        providers = providers.map((p) => (p.id === providerId ? { ...p, configured: false } : p))
+        change.fire()
       },
       async login(providerId, io) {
         if (!providers.some((p) => p.id === providerId && !p.custom)) {
-          throw new AppError(SystemErrorCode.invalidParams, `没有这个订阅登录：${providerId}`)
+          throw new AppError(SystemErrorCode.invalidParams, `不支持用账号登录：${providerId}`)
         }
-        io.onAuth({ url: `https://login.example/${providerId}`, launchUrl: null, instructions: null })
+        io.onAuth({ url: `https://login.example/${providerId}`, launchUrl: null, code: null, instructions: null })
         io.onProgress('等待授权')
-        const code = await io.onPrompt({ message: '授权码', placeholder: null, secret: false, allowEmpty: false })
+        const code = await io.onPrompt({
+          message: '授权码',
+          placeholder: null,
+          secret: false,
+          allowEmpty: false,
+          fallback: false,
+        })
         if (io.signal.aborted) throw new AppError(SystemErrorCode.cancelled, '登录已取消')
         if (code === '') throw new AppError(SystemErrorCode.invalidParams, '没有填授权码')
+        signedIn.set(providerId, 'fake@example.com')
         providers = providers.map((p) => (p.id === providerId ? { ...p, configured: true } : p))
         change.fire()
         return { kind: 'oauth' as const, email: 'fake@example.com', orgName: null }

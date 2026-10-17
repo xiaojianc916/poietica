@@ -4097,3 +4097,64 @@ UI `entry-defaults.test.ts` 4 例；`core-recovery.test.tsx` 的入口草稿用�
 biome、自定义闸门、omp 文档核对与 depcruise 全绿；lint 仅余基线已有的 4 条 `noDescendingSpecificity` 警告）。
 U-01 点名的三个套件单独跑：`slash-palette.test.tsx` 6 例、`command-catalog.test.ts` 3 例、
 `commands.test.ts` 9 例（含新增的排序 / 参数判断 / 草稿形状用例）全通过。
+
+## U-02 认证跟着服务商走：账号登录与 API Key 分家（基于 3cc9c0aa，协议 31，2026-10-17）
+
+**来源**：`U-02.md`（基线 `4add4081`，方案按协议 27 → 29 写）。当前 HEAD 已是 `3cc9c0aa`（协议 30），
+因此按方案逐条重放，不是原样贴补丁。
+
+**问题**（四条，都在方案里点名）：
+
+1. 「订阅登录」单独一组放在页顶，omp 登录名单里的 83 项全塞进一个下拉，其中 66 项其实只是让人贴一把 API Key。
+2. 「已有凭据」的判据把 API Key、环境变量都算成已登录；「退出」调的是 `clearApiKey`，会把 API Key 与登录一起删掉。
+3. 登录过程直接显示 omp 的英文进度与提示；备用的「粘贴授权码」输入框一开始就出现，看起来像必填项。
+4. 内置服务商的面板套用了自定义服务商的表单；标签显示英文 `builtin` / `custom`，目录里每一行都标着 `openai`。
+
+**改法**：
+
+- 引擎端口（`packages/engine`）：`LoginProvider` 增加 `account` / `issuesApiKey`，`authenticated` 只算账号凭据；
+  新增 `ModelsPort.logout`；`LoginIO.onAuth` 增加 `code`、`onPrompt` 增加 `fallback`。
+- engine-omp：新增 `ports/login-text.ts`（进度 / 输入提示 / 授权说明的中文化与设备码提取）；`omp-ports.ts` 的
+  `loginKindOf` 按 pi-ai 的 `ProviderDefinition` 把登录分三类（账号授权 / 浏览器换 Key / 只收 Key）；
+  `clearApiKey` 与 `logout` 改走 `credentials.list` + `removeById`，按行只删对应的一种。
+- 协议：新增 `models.logout { provider }`、`loginEvent` 的 `auth.code` / `prompt.fallback`；
+  `PROTOCOL_VERSION` 30 → 31，`bun run protocol:snapshot` 重新生成。
+- 界面：新增 `provider-auth.tsx`（认证区：账号登录 | API Key 二选一）、`account-login.tsx`（登录对话框）、
+  `secret-input.tsx`（从 `models-settings.tsx` 里提出来）；删掉 `subscription-login.tsx`；内置服务商面板换成认证区，
+  目录确认页去掉无效的名称与 Base URL，能账号登录的排在前面并标「可账号登录」。
+- 测试替身：FakeEngine 把账号登录与 API Key 分开记账（不再拿 `configured` 冒充已登录）。
+
+**实测分类**（用随包 omp 18.10.3 的真实登录名单核过，与方案一致）：83 项 = 14 账号授权 + 3 浏览器换 Key + 66 只收 Key。
+账号授权：openai-codex / anthropic / kimi-code / github-copilot / cursor / google-antigravity / google-gemini-cli /
+openai-codex-device / xai-oauth / gitlab-duo / gitlab-duo-agent / factory-droid / snowflake / stencil；
+浏览器换 Key：zai-coding-plan / openrouter / devin。
+
+**偏差**：
+
+1. **协议版本 30 → 31**（方案写的是 27 → 29）。HEAD 已经是 30，退回去会撞号；版本号只用来发现装坏了或忘了重建 Core。
+2. **`autoFocus` 换成 `focusOnMount`**。方案里两处登录输入格用 `autoFocus` + 抑制注释；
+   本仓铁律 3 的闸门（`tooling/checks/no-biome-ignore.ts`）全仓禁抑制注释，而 `design-system` 早有
+   `focusOnMount` 这个专职出口（它的注释就写着「不用 autoFocus」），所以改成 `ref={focusOnMount}`。
+3. **补了两处方案没写的异常收尾**（守则 §8.1 不吞异常）：登录对话框点「继续」交回那一格失败时，
+   现在报失败与原因，而不是静默停在等待；关闭 → 取消失败按收尾动作吞掉（对话框已经要关了）。
+   对应新增 `provider-auth.test.tsx` 一例。
+4. **删掉两条方案遗留的 CSS 孤儿规则**（`.models-add-hint`、`.models-form-footer*`）：它们只被删掉的那段
+   目录确认页 markup 用，留着就是死样式。
+
+**验证**：
+
+- `bun run typecheck`：通过（771 文件 / 80 工程 + 1,033 文件测试工程）。
+- `bun run lint`：通过（biome、两项自定义闸门、omp 文档核对与 depcruise 全绿；仅余基线已有的 4 条
+  `noDescendingSpecificity` 警告）。
+- `bun run all`：通过（2,436 pass / 0 fail，307 文件 / 11,490 断言 / 3 快照）。
+- 定向：`bun test features/models` 20 pass（含新 `provider-auth.test.tsx` 7 例）；
+  `bun test packages/engine-omp/src/ports/__tests__/models.test.ts .../login-text.test.ts` 24 pass；
+  `bun test packages/protocol` 8 pass；`bun run protocol:snapshot` 已重新生成。
+- `bun run core:build` 在本机未通过：`EPERM: rm apps/core/dist` —— 开发中的 `poietica-core.exe`
+  正被运行中的进程占用（本机开着 `bun run dev`），属环境问题，与本项改动无关（改动本身已由
+  typecheck + 全量测试覆盖）。
+
+**待决问题**：自定义服务商的编辑表单读不到原来的 Base URL 与 API 格式（`ProviderInfo` 不带这两项），
+表单里显示为空和「选择 API 格式…」，直接保存会把 Base URL 写成空。需要在契约里补上这两项，建议单独处理
+（方案也把它列在「范围外发现」里）。
+

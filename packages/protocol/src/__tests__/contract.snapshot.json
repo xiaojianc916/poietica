@@ -10580,7 +10580,7 @@
       "name": "models.cancelLogin",
       "owner": "core",
       "timeoutMs": 30000,
-      "description": "取消一次进行中的订阅登录",
+      "description": "取消一次进行中的账号登录",
       "params": {
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "type": "object",
@@ -10674,7 +10674,7 @@
       "name": "models.clearApiKey",
       "owner": "core",
       "timeoutMs": 30000,
-      "description": "清除服务商的 API key",
+      "description": "清除服务商存着的 API key（账号登录不动）",
       "params": {
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "type": "object",
@@ -10752,7 +10752,7 @@
       "name": "models.loginProviders",
       "owner": "core",
       "timeoutMs": 30000,
-      "description": "可订阅登录的服务商（omp 的 getOAuthProviders）及是否已有凭据",
+      "description": "能用账号登录的服务商（omp 的 getOAuthProviders 里真正走授权的那些）、是否已登录及登录的账号",
       "params": {
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "type": "object",
@@ -10781,6 +10781,15 @@
                 },
                 "authenticated": {
                   "type": "boolean"
+                },
+                "account": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "issuesApiKey": {
+                  "type": "boolean"
                 }
               },
               "required": [
@@ -10788,7 +10797,9 @@
                 "name",
                 "provider",
                 "available",
-                "authenticated"
+                "authenticated",
+                "account",
+                "issuesApiKey"
               ],
               "additionalProperties": false
             }
@@ -10797,6 +10808,31 @@
         "required": [
           "providers"
         ],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "models.logout",
+      "owner": "core",
+      "timeoutMs": 30000,
+      "description": "退出这家服务商的账号登录（只删 OAuth 凭据，API Key 不动）",
+      "params": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "provider": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "required": [
+          "provider"
+        ]
+      },
+      "result": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {},
         "additionalProperties": false
       }
     },
@@ -11125,7 +11161,7 @@
       "name": "models.startLogin",
       "owner": "core",
       "timeoutMs": 30000,
-      "description": "开始一次订阅登录；之后的网址、进度、要填的格子与结局都经 models.loginEvent 推送",
+      "description": "开始一次账号登录；之后的网址、进度、要填的格子与结局都经 models.loginEvent 推送",
       "params": {
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "type": "object",
@@ -25566,7 +25602,7 @@
     {
       "name": "models.loginEvent",
       "owner": "core",
-      "description": "订阅登录过程中的一步（打开网址 / 进度 / 要填一格 / 完成 / 失败）",
+      "description": "账号登录过程中的一步（打开网址 / 进度 / 要填一格 / 完成 / 失败）",
       "params": {
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "type": "object",
@@ -25592,6 +25628,12 @@
                       "null"
                     ]
                   },
+                  "code": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  },
                   "instructions": {
                     "type": [
                       "string",
@@ -25603,6 +25645,7 @@
                   "kind",
                   "url",
                   "launchUrl",
+                  "code",
                   "instructions"
                 ],
                 "additionalProperties": false
@@ -25648,6 +25691,9 @@
                   },
                   "allowEmpty": {
                     "type": "boolean"
+                  },
+                  "fallback": {
+                    "type": "boolean"
                   }
                 },
                 "required": [
@@ -25656,7 +25702,8 @@
                   "message",
                   "placeholder",
                   "secret",
-                  "allowEmpty"
+                  "allowEmpty",
+                  "fallback"
                 ],
                 "additionalProperties": false
               },

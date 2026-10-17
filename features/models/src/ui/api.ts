@@ -35,13 +35,14 @@ export function createModelsApi(ctx: UiFeatureContext) {
     setRole: (role: string, selector: string | null): Promise<void> =>
       rpc.call('models.setRole', { role, selector }).then(() => undefined),
     onChanged: (l: () => void) => rpc.on('models.changed', l),
-    /* 订阅登录：流程在 Core 那台机器上的 omp 里跑，这里只开头、答格、取消、听事件 */
+    /* 账号登录：流程在 Core 那台机器上的 omp 里跑，这里只开头、答格、取消、听事件 */
     loginProviders: (): Promise<LoginProvider[]> => rpc.call('models.loginProviders', {}).then((r) => r.providers),
     startLogin: (providerId: string): Promise<string> =>
       rpc.call('models.startLogin', { providerId }).then((r) => r.loginId),
     answerLogin: (loginId: string, promptId: string, value: string): Promise<void> =>
       rpc.call('models.answerLogin', { loginId, promptId, value }).then(() => undefined),
     cancelLogin: (loginId: string): Promise<void> => rpc.call('models.cancelLogin', { loginId }).then(() => undefined),
+    logout: (provider: string): Promise<void> => rpc.call('models.logout', { provider }).then(() => undefined),
     onLoginEvent: (l: (p: { loginId: string; event: LoginEvent }) => void) => rpc.on('models.loginEvent', l),
   }
 }

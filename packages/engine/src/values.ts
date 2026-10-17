@@ -192,7 +192,7 @@ export const ProviderInfo = z.object({
   docsUrl: z.string().nullable(),
 })
 /**
- * 一家可以「订阅登录」的服务商（omp 的 getOAuthProviders：Claude Pro/Max、ChatGPT/Codex、GitHub Copilot、Gemini CLI……）。
+ * 一家可以用账号登录的服务商（omp 的 getOAuthProviders：Claude Pro/Max、ChatGPT/Codex、GitHub Copilot、Gemini CLI……）。
  * `provider` 是登录之后凭据记在哪一家名下（omp 的 storeCredentialsAs，没有就是 id）—— 它对得上 ProviderInfo.id 与模型的 provider。
  */
 export const LoginProvider = z.object({
@@ -201,8 +201,15 @@ export const LoginProvider = z.object({
   provider: z.string(),
   /** omp 说这家此刻能不能走登录（缺依赖、平台不支持时为 false） */
   available: z.boolean(),
-  /** 这家名下已经有凭据（任何来源：登录、钥匙、环境变量） */
+  /** 这家名下有账号登录留下的凭据（OAuth）。API Key、环境变量不算 —— 它们不是「登录」 */
   authenticated: z.boolean(),
+  /** 登录的是哪个账号（omp 记下的邮箱或组织名）；没登录或 omp 没记时为 null */
+  account: z.string().nullable(),
+  /**
+   * 这条登录走完拿回的是一把 API Key（OpenRouter、Devin 这类：浏览器里授权，换回一把钥匙存成 API Key），
+   * 不是可刷新的账号凭据 —— 界面把它当「在浏览器中获取 API Key」，`authenticated` 恒为 false
+   */
+  issuesApiKey: z.boolean(),
 })
 /** 登录完成后 omp 报回的身份；`kind: 'api_key'` = 那一家的「登录」其实是收了一把钥匙 */
 export const LoginIdentity = z.object({

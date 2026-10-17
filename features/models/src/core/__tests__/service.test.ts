@@ -111,6 +111,39 @@ describe('models 服务（14 页 §6.5）', () => {
     expect(JSON.stringify(records)).toContain('api key cleared')
   })
 
+  test('logout 只认登录名单里的那一家（按凭据记在的 provider），退出后通知目录变了', async () => {
+    const out: string[] = []
+    let changed = 0
+    const service = createModelsService({
+      models: {
+        ...createFakeEngine().models,
+        loginProviders: async () => [
+          {
+            id: 'openai-codex-device',
+            name: 'ChatGPT',
+            provider: 'openai-codex',
+            available: true,
+            authenticated: true,
+            account: 'me@example.com',
+            issuesApiKey: false,
+          },
+        ],
+        logout: async (provider) => {
+          out.push(provider)
+        },
+      },
+      logger: createTestLogger(),
+      emitChanged: () => {
+        changed += 1
+      },
+    })
+    await service.logout('openai-codex')
+    expect(out).toEqual(['openai-codex'])
+    expect(changed).toBe(1)
+    await expect(service.logout('openai-codex-device')).rejects.toBeInstanceOf(AppError)
+    expect(changed).toBe(1)
+  })
+
   test('providers 与 catalog 直接转发', async () => {
     const { service } = make(PROVIDERS)
     expect((await service.providers()).length).toBe(2)

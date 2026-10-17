@@ -24,6 +24,48 @@ function toProvider(provider: ProviderInfo): ProviderDto {
   }
 }
 
+/* 自定义服务商的新建与改名保存：写 models.yml，Key 另存（只写不读） */
+async function saveCustomProvider(
+  api: ModelsApi,
+  operation: Extract<ModelCatalogOperation, { readonly kind: 'create' | 'replace' }>,
+): Promise<void> {
+  const source = operation.kind === 'create' ? operation.provider : operation.provider
+  const id = operation.kind === 'create' ? operation.provider.id : (operation.provider.newId ?? operation.providerId)
+  await api.upsertCustomProvider({
+    id,
+    name: id,
+    api:
+      source.providerType === 'anthropic'
+        ? 'anthropic-messages'
+        : source.providerType === 'openai_responses'
+          ? 'openai-responses'
+          : 'openai-completions',
+    baseUrl: source.baseUrl ?? '',
+    models: source.models.map((model) => ({
+      id: model.model,
+      name: model.displayName ?? model.model,
+      contextWindow: model.maxContextSize,
+      reasoning: model.adaptiveThinking === true,
+      vision: (model.capabilities ?? []).includes('vision'),
+    })),
+  })
+  if (operation.kind === 'replace' && operation.providerId !== id) {
+    await api.removeCustomProvider(operation.providerId)
+  }
+  if (source.apiKey !== undefined && source.apiKey !== '') await api.setApiKey(id, source.apiKey)
+}
+
+/* 自定义服务商删掉 models.yml 里那一段；内置服务商的「移除」= 存着的 Key 与账号登录都清掉（omp 的目录里它还在，回到「从目录添加」那一页） */
+async function removeProvider(api: ModelsApi, target: string): Promise<void> {
+  if ((await api.providers()).some((p) => p.id === target && p.custom)) {
+    await api.removeCustomProvider(target)
+    return
+  }
+  await api.clearApiKey(target)
+  const logins = await api.loginProviders()
+  if (logins.some((login) => login.provider === target && login.authenticated)) await api.logout(target)
+}
+
 export function createCatalogPort(api: ModelsApi): ModelCatalogPort {
   const read = async (): Promise<ModelCatalogData> => {
     const [providers, models, defaults] = await Promise.all([api.providers(), api.catalog(), api.defaults()])
@@ -79,42 +121,13 @@ export function createCatalogPort(api: ModelsApi): ModelCatalogPort {
       case 'snapshot':
       case 'refreshProviders':
         break
-      case 'delete': {
-        const target = operation.providerId
-        const isCustom = (await api.providers()).some((p) => p.id === target && p.custom)
-        if (isCustom) await api.removeCustomProvider(target)
-        else await api.clearApiKey(target)
+      case 'delete':
+        await removeProvider(api, operation.providerId)
         break
-      }
       case 'create':
-      case 'replace': {
-        const source = operation.kind === 'create' ? operation.provider : operation.provider
-        const id =
-          operation.kind === 'create' ? operation.provider.id : (operation.provider.newId ?? operation.providerId)
-        await api.upsertCustomProvider({
-          id,
-          name: id,
-          api:
-            source.providerType === 'anthropic'
-              ? 'anthropic-messages'
-              : source.providerType === 'openai_responses'
-                ? 'openai-responses'
-                : 'openai-completions',
-          baseUrl: source.baseUrl ?? '',
-          models: source.models.map((model) => ({
-            id: model.model,
-            name: model.displayName ?? model.model,
-            contextWindow: model.maxContextSize,
-            reasoning: model.adaptiveThinking === true,
-            vision: (model.capabilities ?? []).includes('vision'),
-          })),
-        })
-        if (operation.kind === 'replace' && operation.providerId !== id) {
-          await api.removeCustomProvider(operation.providerId)
-        }
-        if (source.apiKey !== undefined && source.apiKey !== '') await api.setApiKey(id, source.apiKey)
+      case 'replace':
+        await saveCustomProvider(api, operation)
         break
-      }
       case 'importCatalog': {
         // 目录导入 = 给这家服务商填 key（内置服务商在 omp 里只需要这一个）。
         if (operation.apiKey !== undefined && operation.apiKey !== '') {

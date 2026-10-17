@@ -47,12 +47,17 @@ export interface ModelsPort {
   providers(): Promise<z.infer<typeof ProviderInfo>[]>
   models(): Promise<z.infer<typeof ModelInfo>[]>
   setApiKey(provider: string, key: string): Promise<void> // key 永不回传
-  /** 清掉这家名下的全部凭据（钥匙与订阅登录一起）：omp 的凭据表按服务商存，没有「只退登录」这一半 */
+  /** 清掉这家名下存着的 API Key（账号登录的凭据不动；环境变量与 models.yml 里写死的钥匙不归这里删） */
   clearApiKey(provider: string): Promise<void>
-  /** 可订阅登录的服务商（omp 的 getOAuthProviders，含插件注册的） */
-  loginProviders(): Promise<z.infer<typeof LoginProvider>[]>
   /**
-   * 走一遍 omp 的订阅登录（AuthStorage.oauth.login）：要打开的网址、进度、要人填的东西都经 `io` 交给宿主，
+   * 能用账号登录的服务商（omp 的 getOAuthProviders，含插件注册的）。只报真正走浏览器 / 设备码授权的那些：
+   * omp 的登录名单里还有几十家「登录」其实只是收一把 API Key，它们走 setApiKey 那条路。
+   */
+  loginProviders(): Promise<z.infer<typeof LoginProvider>[]>
+  /** 退出账号登录：删掉这家名下的 OAuth 凭据，API Key 不动；没登录时什么也不做 */
+  logout(provider: string): Promise<void>
+  /**
+   * 走一遍 omp 的账号登录（AuthStorage.oauth.login）：要打开的网址、进度、要人填的东西都经 `io` 交给宿主，
    * 凭据由 omp 自己落库（agent.db），端口不经手 token。`io.signal` 中止 = 取消登录。
    */
   login(providerId: string, io: LoginIO): Promise<z.infer<typeof LoginIdentity> | null>
@@ -92,17 +97,30 @@ export interface DefaultSelection {
   readonly model: ModelRef | null
   readonly thinking: string | null
 }
-/** 订阅登录时 omp 要宿主做的几件事（omp OAuthLoginController 的宿主无关子集） */
+/** 账号登录时 omp 要宿主做的几件事（omp OAuthLoginController 的宿主无关子集） */
 export interface LoginIO {
-  /** 打开这个网址让人去授权；`launchUrl` 是本机回环的短链（omp 推荐给人复制的那一条） */
-  onAuth(info: { readonly url: string; readonly launchUrl: string | null; readonly instructions: string | null }): void
+  /**
+   * 打开这个网址让人去授权；`launchUrl` 是本机回环的短链（omp 推荐给人复制的那一条）。
+   * `code` 是设备码流程要人在网页上输入的那串码（GitHub Copilot 这类），没有就是 null；`instructions` 是其余的说明。
+   */
+  onAuth(info: {
+    readonly url: string
+    readonly launchUrl: string | null
+    readonly code: string | null
+    readonly instructions: string | null
+  }): void
+  /** 给人看的进度（已是中文）；omp 报了一句端口不认识的话时不转发，免得把英文原文甩给人 */
   onProgress(message: string): void
-  /** 要人填一格（授权码、回调网址、组织名……）；`secret` = 输入要遮住 */
+  /**
+   * 要人填一格（授权码、回调网址、组织名……）；`secret` = 输入要遮住。
+   * `fallback` = 这一格是浏览器回调的备用通道（「没自动跳回就把授权码贴这里」），授权正常完成时不必填。
+   */
   onPrompt(prompt: {
     readonly message: string
     readonly placeholder: string | null
     readonly secret: boolean
     readonly allowEmpty: boolean
+    readonly fallback: boolean
   }): Promise<string>
   readonly signal: AbortSignal
 }
