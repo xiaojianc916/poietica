@@ -178,7 +178,8 @@ export class TurnService {
    * 入口那一格（还没有对话）的**草稿**控件表。
    *
    * `controls.get` 的免会话版本：**不开会话、不写设置、不碰文件**，只是把引擎那一支
-   * `draftControls` 转发出去。`init` 只决定哪一格被选中（用户改过的草稿），不改全局默认。
+   * `draftControls` 转发出去。`init` 只决定哪一格被选中（还没落账的草稿），不改全局默认；
+   * 改默认走 `setDraftDefault`。
    */
   async draftControls(init: {
     model: ModelRef | null
@@ -192,6 +193,28 @@ export class TurnService {
       posture: init.posture ?? DEFAULT_POSTURE,
       ...(init.hidden === undefined ? {} : { hidden: init.hidden }),
     })
+  }
+
+  /**
+   * 入口页的选择写穿「新对话默认」那一份意图（引擎的 `modelRoles.default:档位`）。只改档位时
+   * （`model` 为 null）用草稿表同一条规矩解出此刻显示的模型 —— 意图里写的必须是人看见的那一条，
+   * 不能是另一处兜底挑出来的。解不出（目录为空）就没有可写的意图，如实报错。
+   */
+  async setDraftDefault(input: {
+    model: ModelRef | null
+    thinking?: string | null
+    hidden?: readonly string[]
+  }): Promise<void> {
+    const model =
+      input.model ??
+      (
+        await this.d.engine.draftControls({
+          model: null,
+          ...(input.hidden === undefined ? {} : { hidden: input.hidden }),
+        })
+      ).model.current
+    if (model === null) throw new AppError(SystemErrorCode.invalidParams, '没有可用的模型，无法写入默认选择')
+    await this.d.engine.models.setDefaultModel(model, input.thinking)
   }
 
   async setModel(threadId: string, model: ModelRef): Promise<Controls> {

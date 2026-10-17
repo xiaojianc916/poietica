@@ -179,11 +179,22 @@ describe('R-04 Core 换代后的装配行为', () => {
       })
     }
 
-    const drafts = bridge.params.filter((call) => call.method === 'controls.draft')
-    expect(drafts.length).toBeGreaterThan(0)
-    for (const call of drafts) {
+    /*
+     * 问题 1 二期：盘上草稿里那一笔（旧版只写本地）在 Core 就绪后写穿「新对话默认」意图（controls.setDraft），
+     * 写成功就从草稿里抹掉 —— 之后的 controls.draft 不再带它，由 Core 从意图里读回同一条模型与档位。
+     * 所以要钉的是：写穿之前的每一次读都带着盘上的选择，写穿的正是那一笔，写穿之后草稿不再重复带它。
+     */
+    const writeAt = bridge.params.findIndex((call) => call.method === 'controls.setDraft')
+    expect(writeAt).toBeGreaterThanOrEqual(0)
+    expect(bridge.params[writeAt]?.params).toEqual({ model: picked, thinking: 'max', hidden: [] })
+    const before = bridge.params.slice(0, writeAt).filter((call) => call.method === 'controls.draft')
+    const after = bridge.params.slice(writeAt + 1).filter((call) => call.method === 'controls.draft')
+    expect(before.length).toBeGreaterThan(0)
+    for (const call of before) {
       expect((call.params as { readonly model: unknown }).model).toEqual(picked)
       expect((call.params as { readonly thinking: unknown }).thinking).toBe('max')
     }
+    /* 抹掉草稿会让入口页重读一次：最后那一次不再带本地那一笔 */
+    expect(after.at(-1)?.params).toMatchObject({ model: null, thinking: null })
   })
 })

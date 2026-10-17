@@ -3,6 +3,7 @@ export { EngineErrorCode, engineErrorMessages } from './errors'
 export { interactionCardOf, interactionStateOf } from './interaction-card'
 export type {
   CustomProviderDef,
+  DefaultSelection,
   LoginIO,
   McpPort,
   ModelsPort,

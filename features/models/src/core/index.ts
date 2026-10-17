@@ -68,10 +68,11 @@ export default defineCoreModule({
     })
 
     // omp 自己刷新目录时 UI 也能更新（两者都 emit，重复通知无害）。
-    ctx.disposables.add(
-      ctx.engine.models.onDidChange(() => {
-        ctx.rpc.emit('models.changed', {})
-      }),
-    )
+    const changed = (): void => {
+      ctx.rpc.emit('models.changed', {})
+    }
+    ctx.disposables.add(ctx.engine.models.onDidChange(changed))
+    // 入口页写穿默认意图时模型页的「默认」标记也要跟着变：默认值变更单独一条事件（不让会话池换代）
+    ctx.disposables.add(ctx.engine.models.onDidChangeDefaults(changed))
   },
 })

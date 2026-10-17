@@ -528,6 +528,44 @@ export function runEngineConformance(name: string, make: () => Promise<Conforman
       expect(withThinking.thinking.current).toBe('low')
     })
 
+    /*
+     * C-DEFAULT-SELECTION：「新对话默认模型 + 档位」是**一份**持久意图（omp 的 `modelRoles.default:档位`）。
+     * 断言四件事：写它只发 onDidChangeDefaults、不发 onDidChange（不该让会话池换代）；读回原样；
+     * 只换模型保留档位、null 去掉档位；草稿表（没给模型时）整份用这份意图。
+     */
+    test('C-DEFAULT-SELECTION', async () => {
+      /* 目录可能是空的（替身没配模型）：意图照样能写能读，草稿表对目录外的 ref 原样回显 */
+      const ref = (await target.engine.draftControls({})).model.choices[0]?.ref ?? { provider: 'conformance', id: 'm1' }
+      const counts = { change: 0, defaults: 0 }
+      const subs = [
+        target.engine.models.onDidChange(() => {
+          counts.change += 1
+        }),
+        target.engine.models.onDidChangeDefaults(() => {
+          counts.defaults += 1
+        }),
+      ]
+      try {
+        await target.engine.models.setDefaultModel(ref, 'low')
+        expect(counts.defaults).toBeGreaterThan(0)
+        expect(counts.change).toBe(0)
+        expect(await target.engine.models.defaultSelection()).toEqual({ model: ref, thinking: 'low' })
+        expect(await target.engine.models.defaultModel()).toEqual(ref)
+
+        const draft = await target.engine.draftControls({})
+        expect(draft.model.current).toEqual(ref)
+        expect(draft.thinking.current).toBe('low')
+
+        await target.engine.models.setDefaultModel(ref)
+        expect((await target.engine.models.defaultSelection()).thinking).toBe('low')
+        await target.engine.models.setDefaultModel(ref, null)
+        expect((await target.engine.models.defaultSelection()).thinking).toBeNull()
+        expect(counts.change).toBe(0)
+      } finally {
+        for (const sub of subs) sub.dispose()
+      }
+    })
+
     test('C-REOPEN', async () => {
       const first = await openNew()
       const record = recorder(first)

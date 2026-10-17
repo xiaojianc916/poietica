@@ -249,6 +249,50 @@ describe('ModelsPort', () => {
     expect(readEnabled(harness.settings)).toEqual(['anthropic/claude-opus-4-5', 'openai/gpt-5'])
   })
 
+  test('默认选择器带 :档位 后缀时 id 不被污染，档位作为显式意图读出', async () => {
+    const harness = makePort()
+    setSetting(harness.settings, 'modelRoles', { default: 'anthropic/claude-opus-4-5:max' })
+    // 旧实现按第一个斜杠硬切，读出 id = 'claude-opus-4-5:max'
+    expect(await harness.port.defaultModel()).toEqual({ provider: 'anthropic', id: 'claude-opus-4-5' })
+    expect(await harness.port.defaultSelection()).toEqual({
+      model: { provider: 'anthropic', id: 'claude-opus-4-5' },
+      thinking: 'max',
+    })
+    // 目录外的选择器按字面去后缀，如实报出
+    setSetting(harness.settings, 'modelRoles', { default: 'gone/old-model:low' })
+    expect(await harness.port.defaultSelection()).toEqual({
+      model: { provider: 'gone', id: 'old-model' },
+      thinking: 'low',
+    })
+    setSetting(harness.settings, 'modelRoles', {})
+    expect(await harness.port.defaultSelection()).toEqual({ model: null, thinking: null })
+  })
+
+  test('setDefaultModel：省略档位保留原后缀、null 去掉、非法档位拒绝；只发 onDidChangeDefaults', async () => {
+    const harness = makePort()
+    const counts = { change: 0, defaults: 0 }
+    harness.port.onDidChange(() => {
+      counts.change += 1
+    })
+    harness.port.onDidChangeDefaults(() => {
+      counts.defaults += 1
+    })
+    await harness.port.setDefaultModel({ provider: 'anthropic', id: 'claude-opus-4-5' }, 'high')
+    expect(readRole(harness.settings)).toBe('anthropic/claude-opus-4-5:high')
+    await harness.port.setDefaultModel({ provider: 'openai', id: 'gpt-5' })
+    expect(readRole(harness.settings)).toBe('openai/gpt-5:high')
+    await harness.port.setDefaultModel({ provider: 'openai', id: 'gpt-5' }, null)
+    expect(readRole(harness.settings)).toBe('openai/gpt-5')
+    await expect(harness.port.setDefaultModel({ provider: 'openai', id: 'gpt-5' }, 'turbo')).rejects.toThrow()
+    expect(readRole(harness.settings)).toBe('openai/gpt-5')
+    await harness.port.setModelRole('default', 'anthropic/claude-opus-4-5:low')
+    await harness.port.setDefaultThinking('medium')
+    expect(counts).toEqual({ change: 0, defaults: 5 })
+    // 别的角色活着的会话也在用：照旧走 onDidChange
+    await harness.port.setModelRole('smol', 'openai/gpt-5')
+    expect(counts).toEqual({ change: 1, defaults: 5 })
+  })
+
   test('默认模型读写 modelRoles.default，defaultThinking 读写 defaultThinkingLevel', async () => {
     const harness = makePort()
     setSetting(harness.settings, 'modelRoles', { default: 'anthropic/claude-opus-4-5' })

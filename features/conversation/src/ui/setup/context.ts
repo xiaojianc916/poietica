@@ -14,7 +14,8 @@ import {
   type UiFeatureContext,
 } from '@poietica/ui-kernel'
 import { createConversationApi } from '../api'
-import { type ConversationStores, createStores } from '../session'
+import { createEntryDefaults } from '../home'
+import { type ConversationStores, createStores, hiddenModelsOf } from '../session'
 import { createPostureIntent } from '../session/configuration/posture-intent'
 import { createSessionRegistry, type SessionRegistry } from '../session/session-registry'
 import { TranscriptStore } from '../timeline/model/transcript-store'
@@ -41,6 +42,14 @@ export function createConversationSetup(ctx: UiFeatureContext) {
   const workspaces = ctx.services.get(WorkspacesUiToken) as WorkspacesUi
 
   const stores: ConversationStores = createStores(api)
+  /* 入口页的模型 / 档位写穿「新对话默认」意图；hidden 只约束 Core「只改档位时解出显示的模型」那一步的兜底 */
+  const entryDefaults = createEntryDefaults({
+    composer: stores.composer,
+    write: (choice) => api.setDraftDefaults({ ...choice, hidden: hiddenModelsOf(prefs.current()) }),
+    report: (cause) => {
+      ctx.logger.warn('entry default selection write failed', { error: String(cause) })
+    },
+  })
 
   /* 转录 store：副本、队列、待答都在里面，数据来源由 session-port 接到 RPC 上；它经 Context 交给组件树。 */
   let sessions: SessionRegistry
@@ -58,6 +67,7 @@ export function createConversationSetup(ctx: UiFeatureContext) {
     api,
     ctx,
     dialogs,
+    entryDefaults,
     layout,
     navigation,
     platform,

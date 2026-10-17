@@ -100,3 +100,67 @@ describe('CV-14 入口页选好再发送', () => {
     await h.dispose()
   })
 })
+
+/*
+ * 问题 1 二期：入口页的模型 / 档位写穿「新对话默认」那一份意图（引擎的 `modelRoles.default:档位`），
+ * 默认值变更只让入口页重读草稿表，不让会话池换代。
+ */
+describe('CV-15 入口页写穿新对话默认意图', () => {
+  test('controls.setDraft 写进引擎默认意图；controls.draft 不带草稿时读回它', async () => {
+    const { h, engine } = await harness()
+    const api = h.client(conversationContract)
+
+    await api.call('controls.setDraft', { model: { provider: 'fake', id: 'second' }, thinking: 'high' })
+    expect(await engine.models.defaultSelection()).toEqual({
+      model: { provider: 'fake', id: 'second' },
+      thinking: 'high',
+    })
+    const draft = await api.call('controls.draft', { model: null, thinking: null, posture: null })
+    expect(draft.model.current).toEqual({ provider: 'fake', id: 'second' })
+    expect(draft.thinking.current).toBe('high')
+
+    /* 只改档位：model 交 null，Core 解出此刻显示的那条模型 */
+    await api.call('controls.setDraft', { model: null, thinking: 'low' })
+    expect(await engine.models.defaultSelection()).toEqual({
+      model: { provider: 'fake', id: 'second' },
+      thinking: 'low',
+    })
+    /* 只换模型：档位省略 = 保留 */
+    await api.call('controls.setDraft', { model: { provider: 'fake', id: 'first' } })
+    expect((await engine.models.defaultSelection()).thinking).toBe('low')
+
+    await h.dispose()
+  })
+
+  test('没有可显示的模型时只改档位如实报错，不编一条', async () => {
+    const { h } = await harness()
+    const api = h.client(conversationContract)
+    await expect(api.call('controls.setDraft', { model: null, thinking: 'low' })).rejects.toThrow()
+    await h.dispose()
+  })
+
+  test('默认值变更只发 controls.draftChanged，空闲会话不被换代；目录变更照旧换代', async () => {
+    const { h, engine } = await harness()
+    const api = h.client(conversationContract)
+    const workspace = await h.client(workspacesContract).call('workspaces.createScratch', {})
+    const thread = await api.call('threads.create', { workspaceId: workspace.id })
+    await api.call('threads.open', { threadId: thread.id })
+    const openedAfterOpen = openedOf(engine).length
+    const changedBefore = h.notifications(conversationContract, 'controls.draftChanged').length
+
+    await api.call('controls.setDraft', { model: { provider: 'fake', id: 'second' }, thinking: 'high' })
+    await new Promise((resolve) => setTimeout(resolve, 20))
+    expect(h.notifications(conversationContract, 'controls.draftChanged').length).toBeGreaterThan(changedBefore)
+    /* 会话还在池里：再读控件表不重开 */
+    await api.call('controls.get', { threadId: thread.id })
+    expect(openedOf(engine).length).toBe(openedAfterOpen)
+
+    /* 对照：目录变了（启停模型）仍让空闲会话换代，下一次读控件表要重开 */
+    await engine.models.setModelEnabled({ provider: 'fake', id: 'second' }, false)
+    await new Promise((resolve) => setTimeout(resolve, 20))
+    await api.call('controls.get', { threadId: thread.id })
+    expect(openedOf(engine).length).toBe(openedAfterOpen + 1)
+
+    await h.dispose()
+  })
+})

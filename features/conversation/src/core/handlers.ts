@@ -108,6 +108,14 @@ export function registerHandlers(ctx: Ctx, core: ConversationCore, hub: Timeline
   )
 
   ctx.rpc.handle('controls.draft', (p) => turns.draftControls(p))
+  ctx.rpc.handle('controls.setDraft', async (p) => {
+    await turns.setDraftDefault({
+      model: p.model,
+      ...(p.thinking === undefined ? {} : { thinking: p.thinking }),
+      ...(p.hidden === undefined ? {} : { hidden: p.hidden }),
+    })
+    return {}
+  })
   ctx.rpc.handle('controls.get', ({ threadId }) => turns.controls(threadId))
   ctx.rpc.handle('controls.setModel', ({ threadId, model }) => turns.setModel(threadId, model))
   ctx.rpc.handle('controls.setThinking', ({ threadId, level }) => turns.setThinking(threadId, level))

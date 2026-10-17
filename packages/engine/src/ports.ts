@@ -57,8 +57,20 @@ export interface ModelsPort {
    */
   login(providerId: string, io: LoginIO): Promise<z.infer<typeof LoginIdentity> | null>
   setModelEnabled(ref: ModelRef, enabled: boolean): Promise<void>
+  /** 新会话的默认模型（`defaultSelection().model` 的简写；选择器里带的 `:档位` 不会混进 id） */
   defaultModel(): Promise<ModelRef | null>
-  setDefaultModel(ref: ModelRef): Promise<void>
+  /**
+   * 「新对话用什么」的**唯一一份持久意图**：omp 的 `modelRoles.default`（选择器可带 `:档位` 后缀）。
+   * `thinking` 只报选择器里**显式**写的那一档；没写就是 null，由模型自己的默认档、再由全局
+   * `defaultThinkingLevel` 兜（omp 建会话时同一顺序）。
+   */
+  defaultSelection(): Promise<DefaultSelection>
+  /**
+   * 写这份意图。`thinking`：省略 = 保留原选择器里的档位后缀（只换模型）；null = 去掉后缀；
+   * 字符串 = 写成 `provider/id:档位`（不是 omp 认的档位报 invalid_params）。
+   * 只发 `onDidChangeDefaults`，不发 `onDidChange` —— 默认值变了不等于目录变了。
+   */
+  setDefaultModel(ref: ModelRef, thinking?: string | null): Promise<void>
   defaultThinking(): Promise<string | null>
   setDefaultThinking(level: string | null): Promise<void>
   /** omp 已知的全部模型角色（内置 + 自定义），每格带当前选择器与候选；产品不发明角色键（P5） */
@@ -67,7 +79,18 @@ export interface ModelsPort {
   setModelRole(role: string, selector: string | null): Promise<void>
   upsertCustomProvider(def: CustomProviderDef): Promise<void>
   removeCustomProvider(id: string): Promise<void>
+  /** 目录 / 凭据 / 白名单 / 非默认角色变了：会话池要换代（R-03） */
   readonly onDidChange: Event<void>
+  /**
+   * 只有「新会话默认值」变了（`modelRoles.default`、全局 `defaultThinkingLevel`）。与 onDidChange 分开发：
+   * 活着的会话早已定好自己的模型与档位，默认值变更不该让会话池整池换代；入口页重读草稿表就够了。
+   */
+  readonly onDidChangeDefaults: Event<void>
+}
+/** 新会话默认的那一份意图（见 ModelsPort.defaultSelection） */
+export interface DefaultSelection {
+  readonly model: ModelRef | null
+  readonly thinking: string | null
 }
 /** 订阅登录时 omp 要宿主做的几件事（omp OAuthLoginController 的宿主无关子集） */
 export interface LoginIO {

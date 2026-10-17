@@ -667,6 +667,9 @@ class FakeSession implements EngineSession {
  * `session` 是本地命令（只出一段文字），`retry` 交给 agent（开一轮）—— 两种结局各有一条可测。
  */
 /** 替身的角色表：omp MODEL_ROLES 的前几格（chat 区三格 + kind 区一格），够覆盖「两区」与「未知角色」两件事 */
+/** 替身认的档位（omp 的档位全序；`off` 不是「一档」） */
+const FAKE_THINKING_LEVELS: readonly string[] = Object.freeze(['minimal', 'low', 'medium', 'high', 'xhigh', 'max'])
+
 const FAKE_ROLES: readonly { role: string; name: string; section: 'chat' | 'kind' }[] = Object.freeze([
   { role: 'default', name: 'Default', section: 'chat' },
   { role: 'smol', name: 'Fast', section: 'chat' },
@@ -726,7 +729,11 @@ export function createFakeEngine(opts: FakeEngineOptions = {}): FakeEngine {
   let plugins: PluginInfoValue[] = []
   let capabilities: CapabilitiesValue = { computerUse: false, browserControl: false }
   let defaultModelRef: ModelRef | null = null
+  /** 默认选择器里显式写的那一档（omp 的 `modelRoles.default` 的 `:档位` 后缀） */
+  let defaultSuffix: string | null = null
   let defaultThinkingLevel: string | null = null
+  /** 只有新会话默认值变了（ModelsPort.onDidChangeDefaults） */
+  const defaultsChange = new Emitter<void>()
   /** 模型角色（omp 的 modelRoles）：替身只认这几格，没配 = 不在表里 */
   const roleSelectors = new Map<string, string>()
   /** 当前设置的 Python 解释器（PY-1 断言写入的那一格）。 */
@@ -743,7 +750,10 @@ export function createFakeEngine(opts: FakeEngineOptions = {}): FakeEngine {
      * 可选模型来自目录（只取 enabled），思考档位按当前模型的 thinkingLevels 给，姿态是 init.posture ?? 'auto-edit'。
      */
     async draftControls(init) {
-      const current = init?.model ?? defaultModelRef
+      /* 与真引擎同一规矩：只有没给模型时才套默认选择器里的档位 */
+      const explicit = init?.model ?? null
+      const current = explicit ?? defaultModelRef
+      const suffix = explicit === null ? defaultSuffix : null
       const posture = init?.posture ?? 'auto-edit'
       return {
         model: {
@@ -758,7 +768,7 @@ export function createFakeEngine(opts: FakeEngineOptions = {}): FakeEngine {
             })),
         },
         thinking: {
-          current: init?.thinking ?? defaultThinkingLevel,
+          current: init?.thinking ?? suffix ?? defaultThinkingLevel,
           choices: (opts.thinkingLevels ?? []).map((level) => ({ id: level, label: level })),
         },
         posture,
@@ -884,16 +894,24 @@ export function createFakeEngine(opts: FakeEngineOptions = {}): FakeEngine {
       async defaultModel() {
         return defaultModelRef
       },
-      async setDefaultModel(ref) {
+      async defaultSelection() {
+        return { model: defaultModelRef, thinking: defaultModelRef === null ? null : defaultSuffix }
+      },
+      async setDefaultModel(ref, thinking) {
+        if (typeof thinking === 'string' && !FAKE_THINKING_LEVELS.includes(thinking)) {
+          throw new AppError(SystemErrorCode.invalidParams, `unknown thinking level: ${thinking}`)
+        }
         defaultModelRef = ref
-        change.fire()
+        /* 省略 = 保留原后缀（只换模型），null = 去掉 */
+        if (thinking !== undefined) defaultSuffix = thinking
+        defaultsChange.fire()
       },
       async defaultThinking() {
         return defaultThinkingLevel
       },
       async setDefaultThinking(level) {
         defaultThinkingLevel = level
-        change.fire()
+        defaultsChange.fire()
       },
       /* 角色：候选是目录里 enabled 的那些（真引擎问 omp 的 roleCandidatePool），清单取 omp 内置的前几格 */
       async modelRoles() {
@@ -915,7 +933,8 @@ export function createFakeEngine(opts: FakeEngineOptions = {}): FakeEngine {
         }
         if (selector === null || selector === '') roleSelectors.delete(role)
         else roleSelectors.set(role, selector)
-        change.fire()
+        if (role === 'default') defaultsChange.fire()
+        else change.fire()
       },
       async upsertCustomProvider(def: CustomProviderDef) {
         providers = [
@@ -929,6 +948,7 @@ export function createFakeEngine(opts: FakeEngineOptions = {}): FakeEngine {
         change.fire()
       },
       onDidChange: change.event,
+      onDidChangeDefaults: defaultsChange.event,
     },
     settings: {
       groupOrder: [],
@@ -1036,6 +1056,7 @@ export function createFakeEngine(opts: FakeEngineOptions = {}): FakeEngine {
       await Promise.all([...sessions].map((session) => session.dispose()))
       sessions.clear()
       change.dispose()
+      defaultsChange.dispose()
     },
   }
   return engine

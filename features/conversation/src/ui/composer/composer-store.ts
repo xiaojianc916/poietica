@@ -1,9 +1,11 @@
+import type { ModelRef } from '@poietica/engine'
 import { createFeatureStore, type FeatureStore } from '@poietica/ui-kernel'
 import type { DraftAttachment } from '../../ui-api'
 import type { DraftSelection } from '../entry-init'
 
 /**
- * 只改本地、不改全局默认；发送时带进 `threads.create`。它**只在入口页**（threadId 为 null）用得上，因此挂在草稿的同一格里、随 `conversation.drafts` 一起落盘。
+ * 入口页选择器里**还没落账**的那一笔；发送时带进 `threads.create`。模型 / 档位写穿新对话默认意图成功后由 `settleSelection` 抹掉，
+ * 写失败才留在这里。它**只在入口页**（threadId 为 null）用得上，因此挂在草稿的同一格里、随 `conversation.drafts` 一起落盘。
  */
 /** 形状与组件那一份逐字一致（entry-init 的 DraftSelection）。 */
 export type EntrySelection = DraftSelection
@@ -44,6 +46,14 @@ export interface ComposerStore {
   /** 入口页改一格选择器：只动本地草稿，不下发。 */
   setSelection(threadId: string | null, patch: EntrySelection): void
   selectionOf(threadId: string | null): EntrySelection
+  /**
+   * 模型 / 档位已写成默认意图：抹掉草稿里**仍等于写出去那个值**的键。写的途中人又改了一格，那一格不等于
+   * 写出去的值，就留着等下一次写 —— 不能整格清空，否则那一下改动丢了。
+   */
+  settleSelection(
+    threadId: string | null,
+    sent: { readonly model?: ModelRef | null | undefined; readonly thinking?: string | null | undefined },
+  ): void
   clear(threadId: string | null): void
   restore(threadId: string | null, draft: Draft): void
   /** Core 回报 missing 时清理（R-07 §3.4）。内容没变不换引用；返回实际移除的条数。 */
@@ -55,6 +65,12 @@ export interface ComposerStore {
   markEntryReady(): void
   /** 持久化用：只留非空草稿 */
   snapshot(): Readonly<Record<string, Draft>>
+}
+
+function sameModel(left: ModelRef | null | undefined, right: ModelRef | null): boolean {
+  if (left === undefined) return false
+  if (left === null || right === null) return left === right
+  return left.provider === right.provider && left.id === right.id
 }
 
 export function createComposerStore(initial: Readonly<Record<string, Draft>> = {}): ComposerStore {
@@ -90,6 +106,20 @@ export function createComposerStore(initial: Readonly<Record<string, Draft>> = {
       patch(threadId, (d) => ({ ...d, selection: { ...d.selection, ...patch_ } }))
     },
     selectionOf: (threadId) => read(threadId).selection ?? {},
+    settleSelection: (threadId, sent) => {
+      const held = read(threadId).selection
+      if (held === undefined) return
+      const dropModel = sent.model !== undefined && sameModel(held.model, sent.model)
+      const dropThinking = sent.thinking !== undefined && held.thinking === sent.thinking
+      if (!dropModel && !dropThinking) return
+      const { model, thinking, ...rest } = held
+      const next: EntrySelection = {
+        ...rest,
+        ...(dropModel || model === undefined ? {} : { model }),
+        ...(dropThinking || thinking === undefined ? {} : { thinking }),
+      }
+      patch(threadId, (d) => ({ ...d, selection: next }))
+    },
     clear: (threadId) => {
       patch(threadId, cleared)
     },

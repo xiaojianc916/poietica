@@ -85,11 +85,16 @@ export default defineCoreModule({
      * 什么，所以这条通知不带参数。少了它，用户在设置里配好 key 回到首页，那排选择器还是空的，
      * 要切一次页面才刷新。
      */
-    ctx.disposables.add(
-      ctx.engine.models.onDidChange(() => {
-        ctx.rpc.emit('controls.draftChanged', {})
-      }),
-    )
+    const draftChanged = (): void => {
+      ctx.rpc.emit('controls.draftChanged', {})
+    }
+    ctx.disposables.add(ctx.engine.models.onDidChange(draftChanged))
+    /*
+     * 只是「新对话默认模型 / 档位」变了（入口页写穿意图、模型页设为默认）：草稿表要重读，但**不**换代
+     * 会话池 —— 活着的会话早定好了自己的模型与档位。旧版两者共用 onDidChange，入口页每切一次模型就把
+     * 空闲会话全部释放，下一次进对话要重开会话。
+     */
+    ctx.disposables.add(ctx.engine.models.onDidChangeDefaults(draftChanged))
 
     // 工作区被移除：其中所有线程被删除（运行中的先取消）
     ctx.disposables.add(

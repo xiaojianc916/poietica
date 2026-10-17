@@ -35,7 +35,7 @@ function inLadder(level: string | null | undefined, levels: readonly string[]): 
  * omp 的档位全序（pi-catalog `THINKING_EFFORTS`，effort.ts）。`off` 不在其中 —— 它不是「一档」。
  * engine-omp 不能直接依赖 pi-catalog（只允许已声明依赖），所以这里抄一份；上游加档时要同步。
  */
-const THINKING_ORDER: readonly string[] = ['minimal', 'low', 'medium', 'high', 'xhigh', 'max']
+export const THINKING_ORDER: readonly string[] = ['minimal', 'low', 'medium', 'high', 'xhigh', 'max']
 
 /**
  * 与 omp 建会话/切模型时同一条夹取规矩（pi-catalog `clampThinkingLevelForModel`，model-thinking.ts）：

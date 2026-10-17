@@ -38,6 +38,7 @@ function applyDraftModes(
 }
 
 import { AssistantSurface } from './assistant-surface'
+import type { EntryDefaults } from './entry-defaults'
 
 /* 没有持久意图（这一个宿主没接）时的订阅占位：引用终生不变，否则 useSyncExternalStore 每帧重订。 */
 const NO_SUBSCRIPTION = (): (() => void) => () => undefined
@@ -54,10 +55,13 @@ export interface HomeSurfaceProps {
   readonly onOpenThread: (threadId: string) => void
   /** 偏好：读设置页关掉的模型（`modelPicker.hiddenModels`）。订阅着读，开关一拨菜单当场变；没接就不藏。 */
   readonly preferences?: PreferencesApi | undefined
+  /** 「新对话默认」那一份意图：选模型 / 档位写穿它，草稿只留没写成功的那一笔。没接就只改本地草稿（旧行为）。 */
+  readonly entryDefaults?: EntryDefaults | undefined
 }
 
 export function HomeSurface({
   api,
+  entryDefaults,
   onOpenThread,
   posture: postureIntent,
   preferences,
@@ -170,15 +174,25 @@ export function HomeSurface({
     return prepared
   }, [api, controls, draft, effectivePosture, entry, sessions, stores.threads, view.active?.id, view.items])
 
-  /* 仅改本地草稿，不下发、不写任何全局默认；三个 id 就是 `sessionConfigControlsOf` 造的那三个。 */
+  /*
+   * 模型 / 档位：先记进草稿（屏幕当场跟手），再写穿「新对话默认」意图，写成功由 entryDefaults 从草稿里抹掉 ——
+   * 与批准方式同一个形制：跨会话的决定只有一份。三个 id 就是 `sessionConfigControlsOf` 造的那三个。
+   */
+  const remember = (): void => {
+    void entryDefaults?.flush().catch(() => undefined)
+  }
   const select = (controlId: string, value: string): void => {
     if (controlId === 'model') {
       const at = value.indexOf('/')
-      if (at > 0) setDraft((held) => ({ ...held, model: { provider: value.slice(0, at), id: value.slice(at + 1) } }))
+      if (at > 0) {
+        setDraft((held) => ({ ...held, model: { provider: value.slice(0, at), id: value.slice(at + 1) } }))
+        remember()
+      }
       return
     }
     if (controlId === 'thought') {
       setDraft((held) => ({ ...held, thinking: value }))
+      remember()
       return
     }
     if (controlId === 'permission') {

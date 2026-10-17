@@ -41,7 +41,7 @@ import { useRunningThreadIds } from './use-running-thread-ids'
 
 /** 界面、侧栏、面板等贡献。 */
 export function createConversationContributions(setup: ConversationSetup, actions: ConversationActions): void {
-  const { api, ctx, layout, posture, prefs, sessions, stores, transcripts, workspaces } = setup
+  const { api, ctx, entryDefaults, layout, posture, prefs, sessions, stores, transcripts, workspaces } = setup
   const { archived, collapsed, exportThread, newThread, openThread, showArchived, todoThread } = actions
   /* 线程表面挂载 / 换对话时预热会话并主动问一次控件表（审查 R-19-4，判据见 thread-lifecycle.ts）。setup 级的稳定引用：它进了 effect 依赖。 */
   const openThreadSurface = createThreadSurfaceOpener({
@@ -218,6 +218,7 @@ export function createConversationContributions(setup: ConversationSetup, action
         <ActiveOwner layout={layout} owner={null} />
         <HomeSurface
           api={api}
+          entryDefaults={entryDefaults}
           preferences={prefs}
           onOpenThread={openThread}
           posture={posture}

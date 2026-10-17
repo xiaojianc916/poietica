@@ -5,7 +5,7 @@ import type { ConversationSetup } from './context'
 
 /** 各条 `api.on…` 通知订阅，以及 onCoreLost / onCoreReady。 */
 export function createConversationSubscriptions(setup: ConversationSetup, actions: ConversationActions): void {
-  const { api, ctx, platform, preferences, posture, sessions, stores, transcripts } = setup
+  const { api, ctx, entryDefaults, platform, preferences, posture, sessions, stores, transcripts } = setup
   const { draftPin, notify, openThread } = actions
 
   ctx.lifecycle.onDispose(
@@ -132,6 +132,11 @@ export function createConversationSubscriptions(setup: ConversationSetup, action
       ...(first ? ([['posture', () => posture.load()]] as const) : []),
       /* 读失败时保持「没恢复」，所以不是「只有第一次」—— 恢复到之前每次 ready 都试。 */
       ...(draftPin.restored() ? [] : ([['drafts', () => loadDrafts()]] as const)),
+      /*
+       * 草稿里还没落账的模型 / 档位写成默认意图：上一次写失败（Core 正在换代）的在这里补；旧版草稿里存的入口页
+       * 选择（那时只写本地）也在这里迁进意图。必须排在 drafts 之后 —— 草稿没读回来时这里读到的是空的。
+       */
+      ['entryDefaults', () => entryDefaults.flush()],
       [
         'transcripts',
         () => {

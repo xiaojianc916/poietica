@@ -1,5 +1,7 @@
+import { extractExplicitThinkingSelector, resolveModelRoleValue } from '@oh-my-pi/pi-coding-agent/config/model-resolver'
 import type {
   CustomProviderDef,
+  DefaultSelection,
   LoginIdentity,
   LoginIO,
   LoginProvider,
@@ -13,6 +15,7 @@ import { AppError, Emitter, type Logger, SystemErrorCode } from '@poietica/found
 import type { z } from 'zod'
 import { toEngineError } from '../errors'
 import { readSetting, type SettingsScope, unsetGlobalSetting, writeGlobalSetting } from '../settings-access'
+import { THINKING_ORDER } from './draft-controls'
 import {
   aliasOf,
   ENABLED_MODELS_PATH,
@@ -23,7 +26,7 @@ import {
   stringArrayOf,
 } from './model-helpers'
 import type { CustomProvidersFile } from './models-file'
-import { flushOf, modelRoleOf, setModelRoleOf } from './settings-writes'
+import { flushOf, modelRoleOf, setModelRoleOf, settingsInstanceOf } from './settings-writes'
 
 /** 默认模型那一格：`modelRoles.default`，值是整串 provider/id */
 const DEFAULT_ROLE_KEY = 'default'
@@ -84,6 +87,9 @@ export interface OmpOAuth {
 export class OmpModelsPort implements ModelsPort {
   readonly #change = new Emitter<void>()
   readonly onDidChange = this.#change.event
+  /** 只有新会话默认值变了（见 ModelsPort.onDidChangeDefaults）：不让会话池为它换代 */
+  readonly #defaults = new Emitter<void>()
+  readonly onDidChangeDefaults = this.#defaults.event
 
   constructor(private readonly d: ModelsPortDeps) {}
 
@@ -232,18 +238,35 @@ export class OmpModelsPort implements ModelsPort {
   }
 
   async defaultModel(): Promise<ModelRef | null> {
+    return (await this.defaultSelection()).model
+  }
+
+  /**
+   * 解析交给 omp 自己（resolveModelRoleValue / extractExplicitThinkingSelector，建会话时同一对函数）：
+   * 旧实现按第一个斜杠硬切，`anthropic/claude-opus-4-5:max` 会切出 id=`claude-opus-4-5:max`，
+   * 草稿表在目录里找不到它，梯子为空、档位被丢，入口页显示的和新会话实际用的就分了岔。
+   */
+  async defaultSelection(): Promise<DefaultSelection> {
     try {
-      return modelOf(this.d.root, DEFAULT_ROLE_KEY)
+      const read = this.#readDefault()
+      return { model: read.model, thinking: levelOrNull(read.explicit) }
     } catch (error) {
       throw toEngineError(error)
     }
   }
 
-  async setDefaultModel(ref: ModelRef): Promise<void> {
+  /** 只换模型时保留原后缀，与 omp 自己的 formatRoleModelValue 同一规矩（用户在 omp 里写的档位不被我们抹掉） */
+  async setDefaultModel(ref: ModelRef, thinking?: string | null): Promise<void> {
     try {
-      setModelRoleOf(this.d.root, DEFAULT_ROLE_KEY, aliasOf(ref))
+      if (typeof thinking === 'string' && !THINKING_ORDER.includes(thinking)) {
+        throw new AppError(SystemErrorCode.invalidParams, `omp 不认这个思考档位：${thinking}`)
+      }
+      /* 保留的是**原样**的后缀（含 `off` 这类不上梯子的写法）；`inherit` 与 omp formatModelSelectorValue 一样不落 */
+      const kept = thinking === undefined ? this.#readDefault().explicit : (thinking ?? undefined)
+      const suffix = kept === undefined || kept === 'inherit' ? '' : `:${kept}`
+      setModelRoleOf(this.d.root, DEFAULT_ROLE_KEY, `${aliasOf(ref)}${suffix}`)
       await this.#flush()
-      this.#change.fire()
+      this.#defaults.fire()
     } catch (error) {
       throw toEngineError(error)
     }
@@ -279,7 +302,9 @@ export class OmpModelsPort implements ModelsPort {
       }
       setModelRoleOf(this.d.root, role, selector === null || selector === '' ? undefined : selector)
       await this.#flush()
-      this.#change.fire()
+      /* default 那一格就是新会话的默认意图：只是默认值变了，其余角色（tiny / smol …）活着的会话也在用 */
+      if (role === DEFAULT_ROLE_KEY) this.#defaults.fire()
+      else this.#change.fire()
     } catch (error) {
       throw toEngineError(error)
     }
@@ -299,7 +324,8 @@ export class OmpModelsPort implements ModelsPort {
       if (level === null) unsetGlobalSetting(this.d.root, DEFAULT_THINKING_PATH)
       else writeGlobalSetting(this.d.root, DEFAULT_THINKING_PATH, level)
       await this.#flush()
-      this.#change.fire()
+      /* 全局默认档只在建会话时读一次：活着的会话不受它影响，不必换代 */
+      this.#defaults.fire()
     } catch (error) {
       throw toEngineError(error)
     }
@@ -335,6 +361,23 @@ export class OmpModelsPort implements ModelsPort {
     })
   }
 
+  /** `modelRoles.default` → 模型 + 选择器里显式写的档位（原样，未过滤） */
+  #readDefault(): { readonly model: ModelRef | null; readonly explicit: string | undefined } {
+    const selector = modelRoleOf(this.d.root, DEFAULT_ROLE_KEY)?.trim()
+    if (selector === undefined || selector === '') return { model: null, explicit: undefined }
+    const settings = settingsInstanceOf(this.d.root)
+    const all = this.d.registry.all()
+    const explicit = extractExplicitThinkingSelector(selector, settings, {
+      isLiteralModelId: (provider, id) =>
+        all.some((model) => model.id === id && (provider === undefined || model.provider === provider)),
+    })
+    const resolved = resolveModelRoleValue(selector, all as never, { settings })
+    return {
+      model: resolved.model === undefined ? literalRefOf(selector, explicit) : refOfModel(resolved.model),
+      explicit,
+    }
+  }
+
   async #flush(): Promise<void> {
     await flushOf(this.d.root)
   }
@@ -342,6 +385,7 @@ export class OmpModelsPort implements ModelsPort {
   /** AgentEngine.dispose 时一并释放监听器 */
   dispose(): void {
     this.#change.dispose()
+    this.#defaults.dispose()
   }
 }
 
@@ -352,7 +396,26 @@ function splitAlias(alias: string): ModelRef {
   return { provider: alias.slice(0, cut), id: alias.slice(cut + 1) }
 }
 
-/** modelRoles 里那一格 → ModelRef；没配或空串就是 null */
+/** omp 解出来的那条模型 → ModelRef */
+function refOfModel(model: { readonly provider: string; readonly id: string }): ModelRef {
+  return { provider: model.provider, id: model.id }
+}
+
+/**
+ * 目录里解不出来（下架的 id、provider 暂时没凭据）时按字面报：先去掉 omp 认出的档位后缀再切。
+ * 如实报出那条坏值，不换成别的 —— 换了等于替用户做决定（草稿表会照原样显示它）。
+ */
+function literalRefOf(selector: string, explicit: string | undefined): ModelRef {
+  const suffix = explicit === undefined ? '' : `:${explicit}`
+  const bare = suffix !== '' && selector.endsWith(suffix) ? selector.slice(0, -suffix.length) : selector
+  return splitAlias(bare)
+}
+
+/** 只把真正的「一档」交出去：`inherit` / `auto` / `off` 不是梯子上的档，交 null 让模型默认档与全局默认去兜 */
+function levelOrNull(level: string | undefined): string | null {
+  return level !== undefined && THINKING_ORDER.includes(level) ? level : null
+}
+
 /**
  * 旧版的「标题模型」写在 omp 不认的 `modelRoles.title`，靠每个会话把它覆盖进 tiny 才生效。迁移：tiny 没配就把它挪进
  * tiny（omp 的标题模型角色），并把 `title.generator` 切到 tiny —— 用户当初要的是「标题由这个模型写」，而 omp 默认的
@@ -369,11 +432,6 @@ export async function migrateLegacyTitleRole(scope: SettingsScope): Promise<bool
   setModelRoleOf(scope, LEGACY_TITLE_ROLE_KEY, undefined)
   await flushOf(scope)
   return true
-}
-
-function modelOf(scope: SettingsScope, role: string): ModelRef | null {
-  const value = modelRoleOf(scope, role)
-  return value === undefined || value === '' ? null : splitAlias(value)
 }
 
 /** 让 biome 知道 OmpModelLike 在这里被用作形状约束（RegistryPort 的成员） */

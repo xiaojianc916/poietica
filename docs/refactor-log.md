@@ -4018,3 +4018,40 @@ design-system（review 那处 `as MarkdownRenderer` 一并去掉）；新增 dep
 **验证**：`bun run all` 通过（2,390 pass / 0 fail，302 文件 / 11,274 断言；typecheck、biome、
 自定义闸门、omp 文档核对与 depcruise 全绿；lint 仅余基线已有的 4 条
 `noDescendingSpecificity` 警告）。相关定向套件另有 127 pass / 0 fail。
+
+## Q1-二期：新对话默认模型 / 档位收敛为一份持久意图（基于 ee199d2，协议 29，2026-10-17）
+
+**来源**：Q1-入口草稿 的二期建议。一期只修了启动时序；根上仍有**两份**互不知道的「新对话用什么」：
+UI 本地草稿（`conversation.drafts` 的 `__new__.selection`）与引擎的 `modelRoles.default`（模型页「设为默认」、
+自动化取默认都读它）。另有一处实锤缺陷：`OmpModelsPort.defaultModel()` 按第一个斜杠硬切选择器，
+`provider/id:max` 会切出 id=`id:max`，草稿表在目录里找不到它，梯子为空、档位被丢。
+
+**改法**：
+
+- 唯一意图 = omp 原生的 `modelRoles.default`（选择器可带 `:档位`）。`ModelsPort` 新增
+  `defaultSelection()`（解析交给 omp 的 `resolveModelRoleValue` / `extractExplicitThinkingSelector`，
+  解析不出按字面去后缀报出）；`setDefaultModel(ref, thinking?)` 省略档位 = 保留原后缀（与 omp
+  `formatRoleModelValue` 同规矩），null = 去掉，非档位值报 invalid_params；`defaultModel()` 改为它的简写。
+- 通知分两条：新增 `onDidChangeDefaults`。`setDefaultModel` / `setDefaultThinking` / `setModelRole('default')`
+  只发它；目录、凭据、白名单、其它角色照旧发 `onDidChange`。conversation core：`onDidChange` → 会话池换代 +
+  `controls.draftChanged`；`onDidChangeDefaults` → 只发 `controls.draftChanged`（活着的会话早定好了模型与档位，
+  原先入口页每切一次模型就把空闲会话整池释放）。models core 两条都发 `models.changed`。
+- `draftControls` 没给模型时整份取意图（模型 + 显式档位），给了模型不套默认后缀 —— 与 omp sdk
+  `pickInitialThinkingLevel` 的顺序一致。FakeEngine 同步实现；一致性套件新增 `C-DEFAULT-SELECTION`。
+- 契约新增 `controls.setDraft`（`model` 可为 null = 只改档位，由 Core 用草稿表同一条规矩解出显示的模型；
+  `thinking` 省略 = 保留）。`PROTOCOL_VERSION` 28 → 29，`bun run protocol:snapshot` 重新生成。
+- UI 新增 `home/entry-defaults.ts`：入口页选模型 / 档位先记草稿（当场跟手），再串行写穿意图，成功后
+  `composer.settleSelection` 只抹掉仍等于写出值的键；失败上报、草稿留着。`onCoreReady` 在 drafts 之后加
+  `entryDefaults` 一步：补写失败的那一笔，并把旧版草稿里遗留的入口页选择迁进意图。
+
+**偏差**：二期建议里的「hiddenModels 下沉为引擎可见的设置」**没有做**。omp 没有「隐藏」概念，下沉只能发明
+设置键（违反 P5）；R-24 也已定它与 `enabledModels` 不是一个开关。收敛之后 hidden 只在「从没有意图」时的兜底
+里起作用（人一选就写成意图），UI 继续经 `hidden` 参数传；剩余缺口是没有意图时自动化取到的默认仍不认 hidden。
+
+**待决问题**：入口页的选择现在会改模型页的「默认」标记（同一份意图）——这是收敛的本意，若产品上想要
+「入口页只管这一次」，需另起一份会话级覆盖，而不是回到两份默认。
+
+**验证**：`bun check -b`、`bun check -p tsconfig.tests.json`、`bun run lint` 通过；新增/改动用例：
+engine-omp `models.test.ts` 2 例、一致性 `C-DEFAULT-SELECTION`（Fake 与 OmpEngine）、conversation core CV-15 3 例、
+UI `entry-defaults.test.ts` 4 例；`core-recovery.test.tsx` 的入口草稿用例按新行为改写（写穿前每次读都带盘上
+选择、写穿的正是那一笔、写穿后不再重复带）。

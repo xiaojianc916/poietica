@@ -111,6 +111,7 @@ function makeEngine(over: Partial<ConstructorParameters<typeof OmpEngine>[0]> = 
       clearApiKey: async () => undefined,
       setModelEnabled: async () => undefined,
       defaultModel: async () => null,
+      defaultSelection: async () => ({ model: null, thinking: null }),
       setDefaultModel: async () => undefined,
       defaultThinking: async () => null,
       setDefaultThinking: async () => undefined,
@@ -119,6 +120,7 @@ function makeEngine(over: Partial<ConstructorParameters<typeof OmpEngine>[0]> = 
       upsertCustomProvider: async () => undefined,
       removeCustomProvider: async () => undefined,
       onDidChange: () => ({ dispose: () => undefined }),
+      onDidChangeDefaults: () => ({ dispose: () => undefined }),
     },
     settings: {
       groupOrder: [],

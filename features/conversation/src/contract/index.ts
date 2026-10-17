@@ -248,8 +248,9 @@ export const conversationContract = defineContract({
     /*
      * 入口那一格（还没有对话）的选择器：**草稿**控件表。
      *
-     * 它只读，不开会话、不写设置、不碰文件。草案与会话页共用同一个选择器组件，只是入口页改
-     * 选择只改本地草稿、不改全局默认；发送时把选中的值带进 `threads.create` 的 `ThreadInit`。
+     * 它只读，不开会话、不写设置、不碰文件。没给 model 时模型与档位取「新对话默认」那一份持久意图
+     * （omp 的 `modelRoles.default:档位`）；入口页改模型 / 档位经 `controls.setDraft` 写穿那份意图，
+     * 本地草稿只留「还没写成功的那一笔」。发送时把选中的值带进 `threads.create` 的 `ThreadInit`。
      */
     defineMethod({
       name: 'controls.draft',
@@ -263,6 +264,23 @@ export const conversationContract = defineContract({
       }),
       result: Controls,
       description: '读入口那一格（草稿）的控件表：只读，不开会话',
+    }),
+    /*
+     * 入口页改了模型 / 档位：写成「新对话默认」那一份持久意图（omp 的 `modelRoles.default`，带 `:档位`）。
+     * 原先只改 UI 本地草稿，和模型页的「设为默认」、自动化取的默认是两份互不知道的状态，启动时谁先到谁赢。
+     * `model` 为 null = 只改档位：Core 用草稿表同一条规矩解出此刻显示的模型（`hidden` 只约束那一步的兜底）。
+     * `thinking` 省略 = 保留原档位后缀；null = 去掉后缀。写完只发 `controls.draftChanged`，不让会话池换代。
+     */
+    defineMethod({
+      name: 'controls.setDraft',
+      owner: 'core',
+      params: z.object({
+        model: ModelRef.nullable(),
+        thinking: z.string().nullable().optional(),
+        hidden: z.array(z.string()).optional(),
+      }),
+      result: empty,
+      description: '把入口页选的模型 / 档位写成新对话的默认意图',
     }),
     defineMethod({
       name: 'controls.get',
@@ -444,9 +462,9 @@ export const conversationContract = defineContract({
       description: '上下文用量变化',
     }),
     /*
-     * 模型列表变了（装/卸服务商、启停模型）→ 入口页重新读一次草稿表。它不带参数：草稿选择是
-     * **入口页本地**的，Core 不知道用户此刻在草稿里选了什么，所以只报「目录变了」，重读由
-     * 入口页自己发起（带上它手里的草稿）。
+     * 模型列表变了（装/卸服务商、启停模型），或新对话默认意图变了（`controls.setDraft`、模型页设为默认）
+     * → 入口页重新读一次草稿表。它不带参数：还没落账的那一笔草稿在**入口页本地**，重读由入口页
+     * 自己发起（带上它手里的草稿）。
      */
     defineNotification({
       name: 'controls.draftChanged',

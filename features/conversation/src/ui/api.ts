@@ -81,7 +81,7 @@ export function createConversationApi(ctx: UiFeatureContext) {
       threadId: string,
       modes: { steer?: QueueView['modes']['steer']; followUp?: QueueView['modes']['followUp'] },
     ): Promise<QueueView> => rpc.call('queue.setModes', { threadId, ...modes }),
-    /** 入口那一格（还没有对话）的**草稿**控件表：带上本地草稿、只读、不开会话；改选择本身走入口页自己的 state。 */
+    /** 入口那一格（还没有对话）的**草稿**控件表：带上还没落账的本地草稿、只读、不开会话；改默认走 setDraftDefaults。 */
     getDraftControls: (draft: {
       readonly model: ModelRef | null
       readonly thinking: string | null
@@ -94,6 +94,19 @@ export function createConversationApi(ctx: UiFeatureContext) {
         posture: draft.posture,
         ...(draft.hidden === undefined ? {} : { hidden: [...draft.hidden] }),
       }),
+    /** 入口页的模型 / 档位写成新对话的默认意图；`thinking` 省略 = 保留原档位，`model` 为 null = 只改档位 */
+    setDraftDefaults: (choice: {
+      readonly model: ModelRef | null
+      readonly thinking?: string | null
+      readonly hidden?: readonly string[]
+    }): Promise<void> =>
+      rpc
+        .call('controls.setDraft', {
+          model: choice.model,
+          ...(choice.thinking === undefined ? {} : { thinking: choice.thinking }),
+          ...(choice.hidden === undefined ? {} : { hidden: [...choice.hidden] }),
+        })
+        .then(() => undefined),
     getControls: (threadId: string): Promise<Controls> => rpc.call('controls.get', { threadId }),
     setModel: (threadId: string, model: ModelRef): Promise<Controls> =>
       rpc.call('controls.setModel', { threadId, model }),

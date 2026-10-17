@@ -88,11 +88,17 @@ export class OmpEngine implements AgentEngine {
    * `init` 只决定**哪一格被选中**：不改任何全局默认，也不落盘。
    */
   async draftControls(init?: DraftControlInit): Promise<Controls> {
-    const current = init?.model ?? (await this.o.models.defaultModel())
+    /*
+     * 没给模型时整份取默认意图（`modelRoles.default` 连同它的 `:档位`），与 omp 建会话的顺序一致：
+     * 选择器里显式的档位只在「没有显式模型」时生效（sdk 的 pickInitialThinkingLevel）。给了模型就不套
+     * 默认后缀 —— 那一档是为默认模型写的，套到别的模型上是第二份语义。
+     */
+    const explicit = init?.model ?? null
+    const fallback = explicit === null ? await this.o.models.defaultSelection() : null
     return this.o.draftControls({
-      current,
+      current: explicit ?? fallback?.model ?? null,
       posture: init?.posture ?? 'auto-edit',
-      thinking: init?.thinking ?? null,
+      thinking: init?.thinking ?? fallback?.thinking ?? null,
       hidden: init?.hidden ?? [],
     })
   }

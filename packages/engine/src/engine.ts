@@ -11,7 +11,8 @@ export interface EngineInfo {
 
 /**
  * 草稿选择：入口页（还没有 threadId）画选择器要用的那几格。全部可选，缺席的由引擎填默认值
- * （模型用 modelRoles.default、思考档位用 defaultThinkingLevel、姿态用 auto-edit）。
+ * （模型与档位用 modelRoles.default 这一份意图——选择器可带 `:档位`；没写档位再按模型默认档、
+ * 全局 defaultThinkingLevel 兜；姿态用 auto-edit）。显式给了 model 时不套默认选择器里的档位。
  */
 export interface DraftControlInit {
   readonly model?: ModelRef | null
