@@ -124,6 +124,7 @@ export async function createOmpEngineWith(o: CreateEngineOptions, seams: EngineT
           registry: registryPortOf(registry),
           root,
           thinking: init.thinking,
+          hidden: init.hidden,
         }),
       ),
     models: ports.models,

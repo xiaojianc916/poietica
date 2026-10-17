@@ -18,10 +18,11 @@ import { createRoot, type Root } from 'react-dom/client'
  * 因为这一段逻辑住在 ui/index.tsx，单测碰不到。
  */
 
-function testBridge() {
+function testBridge(stored: Readonly<Record<string, unknown>> = {}) {
   const listeners = new Set<(m: RpcMessage) => void>()
   const calls: string[] = []
   const reads: string[] = []
+  const params: Array<{ readonly method: string; readonly params: unknown }> = []
   const replies: Readonly<Record<string, unknown>> = {
     'core.getStatus': { state: 'ready', reason: null, attempt: 0 },
     'threads.list': { threads: [] },
@@ -38,34 +39,42 @@ function testBridge() {
       updates: { autoCheck: true },
     },
   }
-  const bridge: WindowBridge & { calls: readonly string[]; emit(message: RpcMessage): void; reads: readonly string[] } =
-    {
-      calls,
-      reads,
-      emit(message) {
-        for (const listener of [...listeners]) listener(message)
-      },
-      send(message: RpcMessage) {
-        if ('id' in message && typeof message.id === 'number' && 'method' in message) {
-          const id = message.id
-          calls.push(message.method)
-          if (message.method === 'uiState.get') {
-            reads.push(String((message.params as { readonly key?: unknown }).key ?? ''))
-          }
-          const result = replies[message.method] ?? {}
-          queueMicrotask(() => {
-            for (const listener of [...listeners]) listener({ jsonrpc: '2.0', id, result })
-          })
+  const bridge: WindowBridge & {
+    calls: readonly string[]
+    emit(message: RpcMessage): void
+    params: readonly { readonly method: string; readonly params: unknown }[]
+    reads: readonly string[]
+  } = {
+    calls,
+    params,
+    reads,
+    emit(message) {
+      for (const listener of [...listeners]) listener(message)
+    },
+    send(message: RpcMessage) {
+      if ('id' in message && typeof message.id === 'number' && 'method' in message) {
+        const id = message.id
+        calls.push(message.method)
+        params.push({ method: message.method, params: message.params })
+        let result = replies[message.method] ?? {}
+        if (message.method === 'uiState.get') {
+          const key = String((message.params as { readonly key?: unknown }).key ?? '')
+          reads.push(key)
+          if (key in stored) result = { value: stored[key] }
         }
-      },
-      onMessage(listener: (message: RpcMessage) => void) {
-        listeners.add(listener)
-        return () => {
-          listeners.delete(listener)
-        }
-      },
-      pathForFile: () => 'C:/tmp/x',
-    }
+        queueMicrotask(() => {
+          for (const listener of [...listeners]) listener({ jsonrpc: '2.0', id, result })
+        })
+      }
+    },
+    onMessage(listener: (message: RpcMessage) => void) {
+      listeners.add(listener)
+      return () => {
+        listeners.delete(listener)
+      }
+    },
+    pathForFile: () => 'C:/tmp/x',
+  }
   return bridge
 }
 
@@ -134,5 +143,47 @@ describe('R-04 Core 换代后的装配行为', () => {
      * 首帧一次 + 重启一次。
      */
     expect(bridge.calls.filter((method) => method === 'threads.list').length).toBe(2)
+  })
+  /*
+   * 真实故障（启动时入口页先显示另一条模型、改一次档位才变成自己选的）：入口页挂载时盘上的草稿还没读回来，
+   * 拿空草稿向 Core 要了一份兜底控件表并画了出来。钉住「入口页的每一次 controls.draft 都带着盘上的选择」。
+   */
+  test('入口页在盘上草稿读回之前不要控件表：每次 controls.draft 都带着盘上那条模型', async () => {
+    const host = document.createElement('div')
+    document.body.append(host)
+    const picked = { provider: 'workbuddy', id: 'deepseek-v4.1-flash' }
+    const bridge = testBridge({
+      'conversation.drafts': {
+        __new__: { text: '', attachments: [], skills: [], selection: { model: picked, thinking: 'max' } },
+      },
+    })
+    const kernel = createUiKernel({
+      features: [workbenchFeature, platform, preferences, workspaces, conversation],
+      errorMessages: {},
+      validateResults: false,
+      defaultRoute: { surface: 'conversation.home', params: {} },
+      bridge,
+    })
+    await kernel.start()
+    root = createRoot(host)
+    await act(async () => {
+      root?.render(
+        <KernelProvider kernel={kernel}>
+          <Workbench />
+        </KernelProvider>,
+      )
+    })
+    for (let i = 0; i < 3; i += 1) {
+      await act(async () => {
+        await Bun.sleep(0)
+      })
+    }
+
+    const drafts = bridge.params.filter((call) => call.method === 'controls.draft')
+    expect(drafts.length).toBeGreaterThan(0)
+    for (const call of drafts) {
+      expect((call.params as { readonly model: unknown }).model).toEqual(picked)
+      expect((call.params as { readonly thinking: unknown }).thinking).toBe('max')
+    }
   })
 })

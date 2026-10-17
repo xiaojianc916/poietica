@@ -5,7 +5,7 @@ import path from 'node:path'
 import { Settings } from '@oh-my-pi/pi-coding-agent/config/settings'
 import type { OmpModel } from '../../omp-context'
 import { writeGlobalSetting } from '../../settings-access'
-import { draftControlsOf } from '../draft-controls'
+import { clampToLadder, draftControlsOf } from '../draft-controls'
 import type { RegistryPort } from '../model-helpers'
 
 const made: string[] = []
@@ -241,6 +241,91 @@ describe('draftControlsOf', () => {
     expect(controls.thinking.current).toBeNull()
   })
 
+  /*
+   * 真机故障（用户报「打开软件先显示一条在设置里关掉的模型，改一次档位才变成自己选的」）：
+   * 入口页还没拿到草稿时 current 为 null，兜底取目录第一条 —— 恰好是用户关掉的那条。
+   */
+  test('兜底跳过 hidden（用户在「已配置的模型」里关掉的）；显式 ref 不受影响', async () => {
+    const root = await settingsRoot()
+    /* 本机用户的全局 enabledModels 也会参与过滤；这条只验 hidden，先显式清成「不过滤」。 */
+    writeGlobalSetting(root, 'enabledModels', [])
+    const fallback = draftControlsOf({
+      registry: registryOf(MODELS),
+      root,
+      current: null,
+      posture: 'auto-edit',
+      thinking: null,
+      hidden: ['anthropic/claude-opus-4-5'],
+    })
+    expect(fallback.model.current).toEqual({ provider: 'openai', id: 'gpt-5' })
+    /* 梯子跟着兜底那一条走（gpt-5 没有梯子） */
+    expect(fallback.thinking.choices).toEqual([])
+
+    const explicit = draftControlsOf({
+      registry: registryOf(MODELS),
+      root,
+      current: { provider: 'anthropic', id: 'claude-opus-4-5' },
+      posture: 'auto-edit',
+      thinking: null,
+      hidden: ['anthropic/claude-opus-4-5'],
+    })
+    expect(explicit.model.current).toEqual({ provider: 'anthropic', id: 'claude-opus-4-5' })
+
+    const allHidden = draftControlsOf({
+      registry: registryOf(MODELS),
+      root,
+      current: null,
+      posture: 'auto-edit',
+      thinking: null,
+      hidden: ['anthropic/claude-opus-4-5', 'openai/gpt-5'],
+    })
+    /* 全部关掉时仍给一条，不让胶囊塌成 0 宽 */
+    expect(allHidden.model.current).toEqual({ provider: 'anthropic', id: 'claude-opus-4-5' })
+  })
+
+  test('草稿档位按 omp 同一规矩夹到当前模型的梯子上', async () => {
+    const root = await settingsRoot()
+    const clamped = draftControlsOf({
+      registry: registryOf(MODELS),
+      root,
+      current: { provider: 'anthropic', id: 'claude-opus-4-5' },
+      posture: 'auto-edit',
+      thinking: 'max',
+    })
+    expect(clamped.thinking.current).toBe('high')
+
+    /* 非推理 / 没有梯子的模型：没有档位可报 */
+    const flat = draftControlsOf({
+      registry: registryOf(MODELS),
+      root,
+      current: { provider: 'openai', id: 'gpt-5' },
+      posture: 'auto-edit',
+      thinking: 'max',
+    })
+    expect(flat.thinking.current).toBeNull()
+
+    /* 目录里找不到的模型：草稿值原样（上游同样原样返回） */
+    const unknown = draftControlsOf({
+      registry: registryOf(MODELS),
+      root,
+      current: { provider: 'gone', id: 'x' },
+      posture: 'auto-edit',
+      thinking: 'max',
+    })
+    expect(unknown.thinking.current).toBe('max')
+  })
+
+  test('clampToLadder：在梯子里原样，否则取不超过请求的最高档，再否则取第一档', () => {
+    expect(clampToLadder('high', ['low', 'medium', 'high'])).toBe('high')
+    expect(clampToLadder('max', ['low', 'medium', 'high'])).toBe('high')
+    expect(clampToLadder('xhigh', ['low', 'high', 'max'])).toBe('high')
+    expect(clampToLadder('minimal', ['medium', 'high'])).toBe('medium')
+    expect(clampToLadder('weird', ['medium', 'high'])).toBe('medium')
+    expect(clampToLadder('high', [])).toBeNull()
+    expect(clampToLadder(null, ['high'])).toBeNull()
+  })
+
+  /* 放在最后：它写的 enabledModels 会留在进程级 Settings 上 */
   test('enabledModels 白名单滤掉停用的模型', async () => {
     const root = await settingsRoot()
     /* 与 models.test.ts 同一套写入面（settings-access 的句柄）。 */

@@ -69,4 +69,13 @@ describe('草稿 store（07 页 §5E：草稿持久化到 uiState 的 conversati
     expect(store.dropAttachments(['nope'])).toBe(0)
     expect(store.store.getState().drafts).toBe(before)
   })
+  test('entryReady：起始为 false，markEntryReady 只翻一次（重复调用不换状态引用）', () => {
+    const store = createComposerStore()
+    expect(store.store.getState().entryReady).toBe(false)
+    store.markEntryReady()
+    const after = store.store.getState()
+    expect(after.entryReady).toBe(true)
+    store.markEntryReady()
+    expect(store.store.getState()).toBe(after)
+  })
 })

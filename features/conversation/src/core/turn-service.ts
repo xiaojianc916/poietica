@@ -184,11 +184,13 @@ export class TurnService {
     model: ModelRef | null
     thinking: string | null
     posture: Posture | null
+    hidden?: readonly string[] | undefined
   }): Promise<Controls> {
     return this.d.engine.draftControls({
       model: init.model,
       thinking: init.thinking,
       posture: init.posture ?? DEFAULT_POSTURE,
+      ...(init.hidden === undefined ? {} : { hidden: init.hidden }),
     })
   }
 

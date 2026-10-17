@@ -4289,6 +4289,12 @@
                 "type": "null"
               }
             ]
+          },
+          "hidden": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
           }
         },
         "required": [

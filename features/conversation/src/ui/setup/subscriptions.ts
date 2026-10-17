@@ -98,6 +98,24 @@ export function createConversationSubscriptions(setup: ConversationSetup, action
     }
     draftPin.markRestored()
   }
+  /* 同一时刻只有一次在读：setup 时发起的那一次与 onCoreReady 的重试共用一个 Promise。 */
+  let draftsInFlight: Promise<void> | null = null
+  const loadDrafts = (): Promise<void> => {
+    /* onCoreReady 的步骤表是在 ready 那一刻排的，轮到这一步时 setup 发起的那一次可能已经读完了 */
+    if (draftPin.restored()) return Promise.resolve()
+    draftsInFlight ??= loadDraftsOnce().finally(() => {
+      draftsInFlight = null
+      /* 读成功或确定失败都放行入口页：失败时它照兜底规则画，总比一直不画选择器强。 */
+      stores.composer.markEntryReady()
+    })
+    return draftsInFlight
+  }
+  /*
+   * 草稿住在 Host 的 uiState 里，Host 在窗口创建之前就读好了 —— 它**不依赖 Core**。原先这一步排在 onCoreReady 里、
+   * 还在 threads.refresh 与 posture.load 之后：入口页早已挂载、拿空草稿向 Core 要了一份兜底控件表并画了出来，
+   * 盘上的选择晚到再盖一次，两次应答谁后到谁赢（真实故障：启动时模型 / 档位时好时坏地错位）。生命周期跟着数据归属走：setup 时就读。
+   */
+  void loadDrafts()
 
   let readyCount = 0
   ctx.lifecycle.onCoreReady(async () => {
@@ -113,7 +131,7 @@ export function createConversationSubscriptions(setup: ConversationSetup, action
       ['threads', () => stores.threads.refresh()],
       ...(first ? ([['posture', () => posture.load()]] as const) : []),
       /* 读失败时保持「没恢复」，所以不是「只有第一次」—— 恢复到之前每次 ready 都试。 */
-      ...(draftPin.restored() ? [] : ([['drafts', () => loadDraftsOnce()]] as const)),
+      ...(draftPin.restored() ? [] : ([['drafts', () => loadDrafts()]] as const)),
       [
         'transcripts',
         () => {

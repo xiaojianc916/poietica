@@ -48,6 +48,29 @@ describe('CV-13 草稿控件表', () => {
 
     await h.dispose()
   })
+
+  test('hidden 从 RPC 透传给引擎：只影响兜底，空表仍按目录第一条', async () => {
+    const { h, engine } = await harness()
+    const api = h.client(conversationContract)
+    const seen: Array<readonly string[] | undefined> = []
+    const draftControls = engine.draftControls.bind(engine)
+    engine.draftControls = async (init) => {
+      seen.push(init?.hidden)
+      return draftControls(init)
+    }
+
+    await api.call('controls.draft', {
+      model: null,
+      thinking: null,
+      posture: null,
+      hidden: ['fake/first'],
+    })
+    await api.call('controls.draft', { model: null, thinking: null, posture: null })
+
+    expect(seen).toEqual([['fake/first'], undefined])
+
+    await h.dispose()
+  })
 })
 
 describe('CV-14 入口页选好再发送', () => {

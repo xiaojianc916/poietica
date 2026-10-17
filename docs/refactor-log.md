@@ -3988,3 +3988,33 @@ design-system（review 那处 `as MarkdownRenderer` 一并去掉）；新增 dep
 - `bun test packages/engine-omp`：487 pass / 0 fail；文档提到的 T-ISO-5/6 在本机通过，且已在基线 `3d22454` 上单独复核为 6 pass / 0 fail，不是本次改动引入的例外。
 - `bun test features/conversation packages/engine-testkit`：571 pass / 0 fail；`bun test features/models features/agent-settings`：35 pass / 0 fail；`bun test packages/protocol`：8 pass / 0 fail。
 - `bun run protocol:snapshot` 已重新生成；协议版本最终为 27。
+
+## Q1-入口草稿：入口页首帧拿到被隐藏模型的兜底、档位与实际发送不一致（基于 8980706，协议 28，2026-10-17）
+
+**来源**：`问题1.md`（外部输入，不入库）。现象是打开软件时入口页先显示注册表第一条、且已
+在设置里关闭的模型与全局默认档位，动一下选择器才变回用户上次的选择。
+
+**根因**：草稿属于 Host 的 `uiState`，却挂在 Core 的 `onCoreReady` 上恢复；入口页在草稿尚未
+读回时就以空草稿请求 `controls.draft`，拿到的兜底模型来自注册表第一条，而 `modelPicker.hiddenModels`
+只约束 UI 菜单、没有进入引擎；并发请求没有序号，旧应答可以后到；恢复前的 composer 变更也会
+把不含选择器的快照写回 Host；草稿档位没有按当前模型的梯子夹取。
+
+**改法**：
+
+- `DraftControlInit` 增加可选的 `hidden`，只约束「没有显式 model、也没有全局默认」时的兜底；
+  `draftControlsOf` 的兜底跳过 hidden，全部隐藏时仍保留一条，避免胶囊宽度塌成 0。
+- `draftControlsOf` 新增与 omp `clampThinkingLevelForModel` 同规矩的 `clampToLadder`：在梯子内原样、
+  否则取不超过请求的最高档、再否则取第一档；目录里找不到模型时原样报出，无梯子报 null。
+- `controls.draft` 契约增加可选 `hidden`；Core 的 `TurnService.draftControls` 原样透传，UI API 带上该字段。
+  `PROTOCOL_VERSION` 27 → 28，并用 `bun run protocol:snapshot` 重新生成快照。
+- conversation UI 在 setup 时立即共享发起一次草稿读取，`onCoreReady` 只做失败重试；composer store
+  新增 `entryReady`，入口页在恢复完成或确定失败前不请求控件表，并对应答按请求序号丢弃旧结果；
+  `persistDrafts` 在恢复前不写盘。
+
+**偏差**：`问题1.md` 的补丁块在契约快照 hunk 末尾被截断，因此该快照没有手抄，而是用仓库唯一的
+`bun run protocol:snapshot` 入口生成。`engine-omp` 新回归用例额外显式清空 `enabledModels`，避免
+本机 omp 用户目录的白名单让「只验 hidden」的断言失真。
+
+**验证**：`bun run all` 通过（2,390 pass / 0 fail，302 文件 / 11,274 断言；typecheck、biome、
+自定义闸门、omp 文档核对与 depcruise 全绿；lint 仅余基线已有的 4 条
+`noDescendingSpecificity` 警告）。相关定向套件另有 127 pass / 0 fail。

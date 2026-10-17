@@ -17,6 +17,11 @@ export interface DraftControlInit {
   readonly model?: ModelRef | null
   readonly thinking?: string | null
   readonly posture?: Posture
+  /**
+   * 用户在「已配置的模型」里关掉的那些（provider/id）。**只**约束兜底：没给 model、也没有全局默认时，
+   * 不从这里面挑第一条；显式给出的 ref 照原样报出（那是用户自己的选择）。
+   */
+  readonly hidden?: readonly string[]
 }
 
 export interface AgentEngine {

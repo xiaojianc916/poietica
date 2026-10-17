@@ -100,21 +100,36 @@ export function HomeSurface({
   }
   const entry = entryRef.current
 
+  /* 盘上的草稿读回来（或确定读不回来）之前不要控件表：空草稿换来的兜底先画出来、再被盘上的选择盖掉，就是启动时的错位。 */
+  const entryReady = useFeatureStore(stores.composer.store, (s) => s.entryReady)
+  /*
+   * 后发先至：hydrate、posture.load、`controls.draftChanged`（Core 启动时模型目录变了也会发）都会触发一次读，
+   * 几次请求在 Core 里的 await 深浅不同，旧请求的应答可能后到。只认最后一次发出的那一份，旧的直接丢。
+   */
+  const readSeq = useRef(0)
+
   /* `draft` 是依赖：换了模型，思考档位的候选要换成那条模型的梯子；全空草稿也要读一次拿默认梯子。 */
   const readDraft = useCallback(() => {
+    if (!entryReady) return
+    const seq = ++readSeq.current
     /* 继承来的那一档也要带进草稿表，不然首帧画的是引擎默认档。 */
     void api
       .getDraftControls({
         model: draft.model ?? null,
         thinking: draft.thinking ?? null,
         posture: effectivePosture ?? null,
+        /* 兜底（没选过、也没有全局默认）时别选中设置页关掉的模型 —— 它在菜单里都不出现 */
+        hidden: hiddenModels,
       })
       .then(
         /* 就地盖到表上：不盖的话用户点了「计划」下一帧就被刷回去。 */
-        (next) => setControls(applyDraftModes(sessionConfigControlsOf(next), { plan: draft.plan, goal: draft.goal })),
+        (next) => {
+          if (seq !== readSeq.current) return
+          setControls(applyDraftModes(sessionConfigControlsOf(next), { plan: draft.plan, goal: draft.goal }))
+        },
         () => undefined,
       )
-  }, [api, draft, effectivePosture])
+  }, [api, draft, effectivePosture, entryReady, hiddenModels])
 
   useEffect(() => {
     readDraft()

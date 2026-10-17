@@ -23,6 +23,12 @@ export interface ComposerState {
   /** threadId 为键；home 页的新对话用 '__new__' */
   readonly drafts: Readonly<Record<string, Draft>>
   readonly submitting: boolean
+  /**
+   * 入口页那一格「可以读控件表了」：盘上的草稿（含选择器）已经读回来，或者确定读不回来。
+   * 在这之前入口页**不**向 Core 要草稿控件表 —— 空草稿换来的是兜底模型，先画出来再被盘上的选择盖掉，
+   * 就是「打开软件先显示另一条模型、改一次档位才变成自己选的」（真实故障）。
+   */
+  readonly entryReady: boolean
 }
 
 export const NEW_THREAD_KEY = '__new__'
@@ -45,12 +51,14 @@ export interface ComposerStore {
   setSubmitting(v: boolean): void
   /** 启动时把 uiState 里那份草稿读回来（持久化用）。 */
   hydrate(drafts: Readonly<Record<string, Draft>>): void
+  /** 草稿恢复这一步结束（成功或确定失败）：只翻一次，之后恒为 true。 */
+  markEntryReady(): void
   /** 持久化用：只留非空草稿 */
   snapshot(): Readonly<Record<string, Draft>>
 }
 
 export function createComposerStore(initial: Readonly<Record<string, Draft>> = {}): ComposerStore {
-  const store = createFeatureStore<ComposerState>(() => ({ drafts: initial, submitting: false }))
+  const store = createFeatureStore<ComposerState>(() => ({ drafts: initial, submitting: false, entryReady: false }))
   const read = (threadId: string | null): Draft => store.getState().drafts[draftKeyOf(threadId)] ?? EMPTY_DRAFT
 
   /** 清空正文、附件与技能，但**保住入口页的选择器**（发送后草稿的 init 保留）。 */
@@ -109,6 +117,9 @@ export function createComposerStore(initial: Readonly<Record<string, Draft>> = {
     },
     hydrate: (drafts) => {
       store.setState((s) => ({ drafts: { ...s.drafts, ...drafts } }))
+    },
+    markEntryReady: () => {
+      if (!store.getState().entryReady) store.setState({ entryReady: true })
     },
     snapshot: () => {
       const out: Record<string, Draft> = {}

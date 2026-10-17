@@ -258,6 +258,8 @@ export const conversationContract = defineContract({
         model: ModelRef.nullable(),
         thinking: z.string().nullable(),
         posture: Posture.nullable(),
+        /** 「已配置的模型」里关掉的 provider/id：只约束无指定、无全局默认时的兜底，不让它选中被关掉的模型 */
+        hidden: z.array(z.string()).optional(),
       }),
       result: Controls,
       description: '读入口那一格（草稿）的控件表：只读，不开会话',

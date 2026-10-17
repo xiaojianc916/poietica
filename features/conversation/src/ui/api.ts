@@ -83,10 +83,17 @@ export function createConversationApi(ctx: UiFeatureContext) {
     ): Promise<QueueView> => rpc.call('queue.setModes', { threadId, ...modes }),
     /** 入口那一格（还没有对话）的**草稿**控件表：带上本地草稿、只读、不开会话；改选择本身走入口页自己的 state。 */
     getDraftControls: (draft: {
-      model: ModelRef | null
-      thinking: string | null
-      posture: Posture | null
-    }): Promise<Controls> => rpc.call('controls.draft', draft),
+      readonly model: ModelRef | null
+      readonly thinking: string | null
+      readonly posture: Posture | null
+      readonly hidden?: readonly string[]
+    }): Promise<Controls> =>
+      rpc.call('controls.draft', {
+        model: draft.model,
+        thinking: draft.thinking,
+        posture: draft.posture,
+        ...(draft.hidden === undefined ? {} : { hidden: [...draft.hidden] }),
+      }),
     getControls: (threadId: string): Promise<Controls> => rpc.call('controls.get', { threadId }),
     setModel: (threadId: string, model: ModelRef): Promise<Controls> =>
       rpc.call('controls.setModel', { threadId, model }),

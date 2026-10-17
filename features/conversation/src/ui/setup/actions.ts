@@ -34,6 +34,12 @@ export function createConversationActions(setup: ConversationSetup): Conversatio
     if (draftWrite !== null) clearTimeout(draftWrite)
     draftWrite = setTimeout(() => {
       draftWrite = null
+      /*
+       * 盘上那份还没读回来之前一律不写：此刻的快照不含盘上的选择器，写进 Host 的 uiState 就把用户上次的选择盖掉了，
+       * 随后的 `uiState.get` 读回的是被盖过的那份（真实故障：入口页选择时好时坏地丢）。恢复之后的第一次变更（hydrate 本身）
+       * 会再排一次写盘，把恢复前敲的字一并带上。
+       */
+      if (!draftPin.restored()) return
       const snapshot = stores.composer.snapshot()
       void preferences.call('uiState.set', { key: 'conversation.drafts', value: snapshot }).catch((cause) => {
         ctx.logger.warn('drafts persist failed', { error: String(cause) })

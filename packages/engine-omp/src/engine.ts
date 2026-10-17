@@ -25,6 +25,7 @@ export interface OmpEngineOptions {
     readonly current: ModelRef | null
     readonly posture: Posture
     readonly thinking: string | null
+    readonly hidden: readonly string[]
   }) => Promise<Controls>
   readonly createSession: (spec: OpenSessionSpec, tools: ReadonlyMap<string, EngineToolSpec>) => Promise<EngineSession>
   readonly sessionFiles: AgentEngine['sessionFiles']
@@ -92,6 +93,7 @@ export class OmpEngine implements AgentEngine {
       current,
       posture: init?.posture ?? 'auto-edit',
       thinking: init?.thinking ?? null,
+      hidden: init?.hidden ?? [],
     })
   }
 
