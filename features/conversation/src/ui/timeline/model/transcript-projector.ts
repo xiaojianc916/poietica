@@ -15,6 +15,7 @@ import type {
   TranscriptTurn,
   TurnOrigin,
 } from '@poietica/transcript'
+import { retryNoticeOf } from '@poietica/transcript'
 import type { DialogRequest } from '../../shared/model/dialog'
 import type { QuestionChoice, QuestionItem } from '../../shared/model/question'
 import type { TurnMark } from '../../shared/model/thread'
@@ -28,6 +29,7 @@ import type {
   PermissionItem,
   PlanItem,
   QuestionTimelineItem,
+  RetryTimelineItem,
   SubagentItem,
   TimelineItem,
   TimelineState,
@@ -249,6 +251,30 @@ function toolFrameOf(
   } satisfies ToolCallTimelineItem
 }
 
+/**
+ * 自动重试那一格（引擎按同一个 frameId 原地改写）。重试成功就不再上屏：后面紧跟的正常回复已经说明了结局，
+ * 留一行「重试成功」只是噪音。返回 undefined = 不是重试那一格（或旧版本只写了 message），照普通提示画。
+ */
+function retryItemOf(
+  frame: Extract<TranscriptFrame, { kind: 'notice' }>,
+  turn: number,
+  stamp: number,
+): RetryTimelineItem | null | undefined {
+  const notice = retryNoticeOf(frame)
+  if (notice === null) return undefined
+  if (notice.state === 'recovered') return null
+  return {
+    type: 'retry',
+    id: frame.frameId,
+    turn,
+    at: stamp,
+    state: notice.state,
+    attempt: notice.attempt,
+    maxAttempts: notice.maxAttempts,
+    errors: notice.errors,
+  }
+}
+
 function frameOf(
   frame: TranscriptFrame,
   turn: number,
@@ -267,11 +293,13 @@ function frameOf(
         text: frame.text,
         sealed: true,
       }
-    case 'notice':
+    case 'notice': {
       /* info 在本产品里没有样子：引擎侧已经不发了。 */
-      return frame.level === 'info'
-        ? null
-        : { type: 'error', id: frame.frameId, turn, at: stamp, message: frame.message, level: frame.level }
+      if (frame.level === 'info') return null
+      const retry = retryItemOf(frame, turn, stamp)
+      if (retry !== undefined) return retry
+      return { type: 'error', id: frame.frameId, turn, at: stamp, message: frame.message, level: frame.level }
+    }
     case 'tool':
       return toolFrameOf(frame, turn, stamp)
   }
@@ -996,6 +1024,8 @@ function errorItemOf(turn: TranscriptTurn, items: TimelineItem[], stamp: number)
   ) {
     return
   }
+  /* 重试那一格已经说了「重试 n 次仍失败」并列着每次的报错，这一轮的报错（「Retry budget exhausted…」）是同一件事，不再另起一行 */
+  if (items.some((item) => item.type === 'retry' && item.state === 'failed')) return
   items.push({
     type: 'error',
     id: `turn-error:${turn.turnId}`,

@@ -45,6 +45,8 @@ export type { TranscriptItem, TranscriptMarker, TranscriptTaskRef } from './mode
 export { itemId } from './model/item'
 export type { TranscriptMeta, TranscriptMetaMerge } from './model/meta'
 export type { TranscriptPrompt } from './model/prompt'
+export type { RetryNotice, RetryNoticeState } from './model/retry'
+export { RETRY_NOTICE_SOURCE, retryNoticeOf } from './model/retry'
 export type { TranscriptTask } from './model/task'
 export type { TodoItem as TranscriptTodoItem, TranscriptTodo } from './model/todo'
 export type { SystemTrigger, TranscriptStep, TranscriptTurn, TranscriptUsage, TurnOrigin } from './model/turn'

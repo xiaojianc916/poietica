@@ -58,12 +58,22 @@ async function ompModules() {
 }
 
 /**
+ * 产品默认：只在这一格从来没被谁配过时落一次，人改过的值永远不被覆盖。
+ * - browser.relay：浏览器中继默认开；
+ * - retry.maxRetries：自动重试最多 5 次。omp 默认 10 次，服务商真出问题时要等很久才报错，界面上就是「正在重试 n/10」一直往上走。
+ */
+const PRODUCT_DEFAULTS: readonly (readonly [string, unknown])[] = [
+  ['browser.relay', true],
+  ['retry.maxRetries', 5],
+]
+
+/**
  * omp 知识 #16：Core 的编译参数必须与 omp 官方一致（关闭四类自动加载、bytecode、external
  * fastembed/onnxruntime-node、define PI_COMPILED），那一步在 apps/core/scripts/build.ts。
  *
  * 创建顺序就是正确性：ensureThemeSync（omp 知识 #3：ask 工具无条件读主题单例）→ Settings.init 后
  * initializeWithSettings（omp 知识 #10 的前置）→ 先放行已撤销的外来 provider 再禁用剩下的（omp 知识
- * #10）→ browser.relay 只在从未配置过时写默认值（omp 知识 #11）→ browser.relayUrl 只写运行时覆盖层
+ * #10）→ 产品默认（PRODUCT_DEFAULTS）只在从未配置过时写一次（omp 知识 #11）→ browser.relayUrl 只写运行时覆盖层
  * → 模型注册表先补本地目录、联网发现放后台（**不要** await refresh：缓存过期时它会当场等网络）
  * → 工具表、SessionFactory、6 个端口。
  */
@@ -83,10 +93,9 @@ export async function createOmpEngineWith(o: CreateEngineOptions, seams: EngineT
   const disabled = await disableForeignProviders(root, () => root.flush(), omp.disableProvider)
   if (disabled.length > 0) o.logger.info('foreign providers disabled', { count: disabled.length })
   // omp 知识 #11：只有这一格从来没被谁配过才落一次默认值
-  if (!isConfiguredSetting(root, 'browser.relay')) {
-    writeGlobalSetting(root, 'browser.relay', true)
-    await root.flush()
-  }
+  const unset = PRODUCT_DEFAULTS.filter(([path]) => !isConfiguredSetting(root, path))
+  for (const [path, value] of unset) writeGlobalSetting(root, path, value)
+  if (unset.length > 0) await root.flush()
   overrideSetting(root, 'browser.relayUrl', `http://127.0.0.1:${String(o.relayPort)}`)
   // 自动总结标题（omp 知识 #17）：不额外改任何设置，omp 的默认就是产品要的；旧版自造的 modelRoles.title 迁进 omp 的 tiny 角色
   if (await migrateLegacyTitleRole(root)) o.logger.info('legacy title model role migrated to tiny')

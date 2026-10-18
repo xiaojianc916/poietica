@@ -72,6 +72,8 @@ export {
   TriangleAlert as WarningIcon,
   Unplug as PluginIcon,
   Wifi as LinkIcon,
+  Wifi as RetryIcon,
+  WifiOff as RetryFailedIcon,
   X as CloseIcon,
   Zap as QueueSteerIcon,
   Zap as SkillIcon,

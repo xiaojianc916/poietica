@@ -120,7 +120,7 @@ export interface Presentation {
 }
 
 /* 旁白不是助手正文；过程折叠按运行计算。 */
-const ASIDE: ReadonlySet<FeedRow['item']['type']> = new Set(['error', 'link', 'permission', 'question'])
+const ASIDE: ReadonlySet<FeedRow['item']['type']> = new Set(['error', 'link', 'permission', 'question', 'retry'])
 /* 字面量而不是 TimelineItem['type']：注解成联合后 === 不再收窄。 */
 const SAID = 'user_message'
 

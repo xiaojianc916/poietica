@@ -78,6 +78,7 @@ const RHYTHM: Record<FeedRow['item']['type'], RowRhythm> = {
   permission: 'prose',
   plan: 'prose',
   question: 'prose',
+  retry: 'glyph',
   tool_call: 'glyph',
   run_anchor: 'prose',
   user_message: 'prose',
@@ -89,10 +90,18 @@ function rowRhythmOf(row: FeedRow | undefined): RowRhythm {
   return item === undefined ? 'prose' : RHYTHM[item.type]
 }
 
-/** 末行是一条错误级报错，且这一轮已经停下：只有这时 omp 的 retry 才有东西可撤 */
+/** 这一轮已经停下，且以报错收尾（错误级报错在末行，或自动重试用尽）：只有这时 omp 的 retry 才有东西可撤 */
 function endsInError(feed: Presentation): boolean {
   const last = feed.rowAt(feed.count - 1)?.item
-  return feed.running === undefined && last?.type === 'error' && last.level !== 'warning'
+  if (feed.running !== undefined || last === undefined) return false
+  if (last.type === 'error') return last.level !== 'warning'
+  /* 重试那一行未必在末尾：后几次请求流出的半截回复接在它后面，所以在末轮里往前找 */
+  for (let index = feed.count - 1; index >= 0; index -= 1) {
+    const item = feed.rowAt(index)?.item
+    if (item === undefined || item.turn !== last.turn) return false
+    if (item.type === 'retry') return item.state === 'failed'
+  }
+  return false
 }
 
 export function TranscriptView({ dockClearance, lead, onFork, onRetry, onRewrite, sessionKey }: TranscriptViewProps) {

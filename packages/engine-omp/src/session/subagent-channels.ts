@@ -4,6 +4,7 @@ import { isSubagentChannelId } from '../projector/agent-refs'
 import { type OmpMessage, projectHistoryPage } from '../projector/history'
 import { LiveProjector } from '../projector/live'
 import { OpenTurnScreen, overlayOpenTurn } from '../projector/open-turn'
+import { retryEndOf, retryStartOf } from '../projector/retry'
 
 /*
  * 子代理通道：每个子代理一条与主对话**同形**的时间线（turn / step / frame），号是子代理的 id。
@@ -128,16 +129,12 @@ export class SubagentChannels {
           this.push(id, channel, channel.projector.notice(event.level, String(event.message), source))
         }
         break
+      /* 与主会话同一套：一次重试过程只占一格，原地改写 */
       case 'auto_retry_start':
-        this.push(
-          id,
-          channel,
-          channel.projector.notice(
-            'warning',
-            `请求失败，第 ${String(event.attempt)}/${String(event.maxAttempts)} 次重试：${String(event.errorMessage ?? '')}`,
-            'auto_retry',
-          ),
-        )
+        this.push(id, channel, channel.projector.retryStart(retryStartOf(event)))
+        break
+      case 'auto_retry_end':
+        this.push(id, channel, channel.projector.retryEnd(retryEndOf(event)))
         break
       case 'agent_end':
         this.agentEnd(id, channel)

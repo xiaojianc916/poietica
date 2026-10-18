@@ -241,6 +241,19 @@ export interface CompactionTimelineItem extends TimelineEntry {
   readonly superseded?: true
 }
 
+/** 自动重试那一格：running = 在等 / 在重试；failed = 次数用完或不再重试；cancelled = 人停下了（成功的那一格不上屏） */
+export type RetryState = 'running' | 'failed' | 'cancelled'
+
+export interface RetryTimelineItem extends TimelineEntry {
+  readonly type: 'retry'
+  readonly state: RetryState
+  /** 第几次重试（从 1 起）；收口时是最后跑到的那一次 */
+  readonly attempt: number
+  readonly maxAttempts: number
+  /** 每次请求失败的原文，按先后：第一条是原请求的报错 */
+  readonly errors: readonly string[]
+}
+
 interface ErrorItem extends TimelineEntry {
   readonly type: 'error'
   readonly message: string
@@ -259,6 +272,7 @@ export type TimelineItem =
   | LinkTimelineItem
   | InflightPromptItem
   | CompactionTimelineItem
+  | RetryTimelineItem
   | ErrorItem
 
 export interface TurnSpan {

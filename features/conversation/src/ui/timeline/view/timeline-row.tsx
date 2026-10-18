@@ -9,6 +9,7 @@ import type { FeedRow } from '../presentation'
 import { CompactionStatus } from './compaction-status'
 import { ErrorNotice } from './error-notice'
 import { LinkCard } from './link-card'
+import { RetryStatus } from './retry-status'
 import { ToolCallCard } from './tools/tool-call-card'
 import { UserMessage } from './user-message'
 
@@ -97,6 +98,17 @@ export const TimelineRow = memo(function TimelineRow({ isOpen, onToggle, row, th
     case 'compaction':
       return (
         <CompactionStatus
+          isOpen={isOpen}
+          item={item}
+          onToggle={() => {
+            onToggle(item.id)
+          }}
+        />
+      )
+
+    case 'retry':
+      return (
+        <RetryStatus
           isOpen={isOpen}
           item={item}
           onToggle={() => {

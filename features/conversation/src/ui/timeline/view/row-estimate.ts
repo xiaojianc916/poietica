@@ -11,6 +11,7 @@ const ROW_PX: Record<Exclude<FeedRow['item']['type'], 'agent_text'>, number> = {
   /* 计划卡片走输入框上沿那条带子（与审批同一条），不占时间线行高 */
   plan: 0,
   question: 96,
+  retry: 32,
   tool_call: 32,
   run_anchor: 32,
   user_message: 72,

@@ -4458,3 +4458,45 @@ openai-codex-device / xai-oauth / gitlab-duo / gitlab-duo-agent / factory-droid 
   `(session too small or already rolled over)` / `Already compacted` / `Compaction already in progress` / `Nothing to hand off …` / `No model selected`）。
   另跑一次性脚本，把 omp 自己的 `formatShakeSummary` 真输出喂进 `commandOutputText`，五种句式全部译对；
   压缩 / 交接 / 改名 / 换模型的成功句全部返回 `null`（不重复推送）。
+
+## U-05 自动重试：一行原地计数、上限 5 次、失败才摊开报错（基于 7b514ff3，协议未改，2026-10-18）
+
+**来源**：`U-05.md`（基线 `7b514ff3`，分支 `u05-retry` / `f10cd9c1`，20 文件 +841 / −69）。
+当前 HEAD 就是 `7b514ff3`，文档里的补丁用 `git apply` 原样打上，20 个文件全部干净应用（13 改 / 7 新增），
+`git diff --numstat` 合计 329 + 512 = **+841 / −69**，与方案登记一致，无手工重放。
+
+**改法**：
+
+- 词汇（`packages/transcript`）：新增 `model/retry.ts` —— 重试仍是 notice 帧，`source = auto_retry`，
+  进展放 `detail.retry`（`{state, attempt, maxAttempts, errors}`）；`retryNoticeOf` 只认这一种形状，
+  旧版本写的或形状不对一律 `null`，调用方照普通提示画。协议形状未动，`PROTOCOL_VERSION` 不升。
+- 引擎（`packages/engine-omp`）：新增 `projector/retry.ts` —— `auto_retry_start/end` 载荷读数、收口三态
+  （`success` / `Retry cancelled` / 其余失败）、`Provider requested …ms wait, exceeds retry.maxDelayMs …`
+  译成中文（判据对过随包 omp 18.10.3 `src/session/turn-recovery.ts:2794,2878,2973` 的原句）。
+  `LiveProjector` 新增 `retrySlot`：同一 frameId 原地改写，`retryEnd` 收口并清槽，轮终 `closeRetry` 兜底；
+  主会话与子代理通道都接同一套（子代理补上 `auto_retry_end`）。
+- 产品默认（`create-engine.ts`）：`PRODUCT_DEFAULTS` 表（`browser.relay`、`retry.maxRetries = 5`），
+  只在 `isConfiguredSetting` 为 false 时写一次，设置页改过的值不动。
+- 界面：`timeline-contract` 新增 `retry` 条目；`transcript-projector` 把重试帧投影成 `retry`（`recovered` 不上屏），
+  并用尽时不再让本轮的 `Retry budget exhausted…` 另起一行；`retry-status.tsx/.css` 与工具调用同一套行
+  （Wi‑Fi 字形 + 一句状态 + 展开），展开面按请求序号列报错、连续相同合并成「第 1–3 次请求」、顶部「n 次请求失败」+ 复制；
+  `presentation` 把它当旁白（不并进过程折叠），`row-estimate` 32px，`transcript-view` 的 `endsInError`
+  认「这一轮以失败的重试收尾」以显示「重试这一轮」。
+
+**偏差**：无。
+
+**验证（在本机 HEAD `7b514ff3` 上重跑）**：
+
+- `bun run typecheck`：通过（783 文件 / 80 工程；1,064 文件测试工程）。
+- `bun run lint`：通过（仅剩基线已有的 4 条 `noDescendingSpecificity` 警告）。
+- `bun test features/conversation`：618 pass / 0 fail / 88 文件。
+- `bun test packages/transcript`：25 pass / 0 fail / 3 文件。
+- `bun test packages/engine-omp`：527 pass / 0 fail / 59 文件 / 2 快照（方案里 T-ISO-5/6 的沙箱失败本机不复现）。
+- `bun test`（全仓）：**2,514 pass / 0 fail / 324 文件 / 3 快照 / 85 秒**。
+- 定向：`auto-retry.test.ts` 8、`retry.test.ts` 3、`retry-status.test.tsx` 4、`transcript-projector-retry.test.ts` 4 全过。
+- 另跑一次性脚本（已删）把 `LiveProjector` 的真实 op 流接进 `projectTranscript` 与 `RetryStatus`：
+  成功一路无 retry 条目、用尽只剩一格 failed（本轮错误不再另起一行）、停止落 cancelled、等待超限译中文。
+- 另跑一次性脚本（已删）验证 `PRODUCT_DEFAULTS` 的写入条件：全新设置写两格、改过 `retry.maxRetries` 的不覆盖。
+
+**已知限制**（照方案，未额外处理）：重开对话看不到这一行（omp 会话记录不存重试过程与本轮报错）；
+换备用模型会重新计数；上限 5 次只对从没配过 `retry.maxRetries` 的用户生效。

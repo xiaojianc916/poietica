@@ -24,6 +24,7 @@ import { BackgroundJobLedger, jobIdOf } from '../projector/background-jobs'
 import { compactionEndPayload, latestCompactionOf } from '../projector/compaction'
 import { lastTurnOrdinal, type OmpMessage, projectHistoryPage } from '../projector/history'
 import { LiveProjector } from '../projector/live'
+import { retryEndOf, retryStartOf } from '../projector/retry'
 import { SubagentLedger } from '../projector/subagents'
 import { TodoMirror } from '../projector/todos'
 import type { SettingsScope } from '../settings-access'
@@ -967,23 +968,16 @@ function dispatchOmpEvent(event: Record<string, unknown>, pump: EventPump): void
       session.reportContextUsage()
       break
     }
-    /* 自动重试起止各上一条 notice 帧：不接它，服务商抖动的那几十秒在屏幕上就是「卡住了」 */
+    /*
+     * 自动重试：一次重试过程在时间线上只占一格（retryStart / retryEnd 原地改写同一帧）。
+     * 不接它，服务商抖动的那几十秒在屏幕上就是「卡住了」；成功之后那一格由界面收起，后面紧跟正常回复。
+     */
     case 'auto_retry_start':
-      session.requestTimeline(
-        projector.notice(
-          'warning',
-          `请求失败，第 ${String(event.attempt)}/${String(event.maxAttempts)} 次重试：${String(event.errorMessage ?? '')}`,
-          'auto_retry',
-        ),
-      )
+      session.requestTimeline(projector.retryStart(retryStartOf(event)))
       break
     case 'auto_retry_end':
-      if (event.success === true) {
-        /* 成功只落日志：上一条 warning 后面紧跟正常回复，已经说明了结局 */
-        pump.logger.info('omp auto retry succeeded', { attempt: event.attempt ?? null })
-        break
-      }
-      session.requestTimeline(projector.notice('error', `重试失败：${String(event.finalError ?? '')}`, 'auto_retry'))
+      if (event.success === true) pump.logger.info('omp auto retry succeeded', { attempt: event.attempt ?? null })
+      session.requestTimeline(projector.retryEnd(retryEndOf(event)))
       break
     default:
       break

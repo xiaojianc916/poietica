@@ -1,14 +1,20 @@
 import {
   type AgentRef,
+  type FrameId,
   frameId,
+  RETRY_NOTICE_SOURCE,
+  type RetryNotice,
+  type StepId,
   stepId,
   type TranscriptAttachment,
   type TranscriptOperation,
+  type TurnId,
   turnId,
 } from '@poietica/transcript'
 import { agentRefsOf } from './agent-refs'
 import { assistantFrameId, interjectionFrameId } from './frame-ids'
 import { GOAL_CONTINUATION_ORIGIN, type TurnOrigin, userOrigin } from './origin'
+import { retryEndState, retryErrorText, retryMessageOf } from './retry'
 
 /** 一张图片附件：号由调用方铸（session 里的 createId），像素是内联 data URL */
 export interface ImageAttachmentInput {
@@ -63,6 +69,14 @@ interface Streaming {
   readonly since: number
 }
 
+/** 开着的那一格自动重试落在哪（turn / step / frame），以及到此为止的进展 */
+interface RetrySlot {
+  readonly turnId: TurnId
+  readonly stepId: StepId
+  readonly frameId: FrameId
+  readonly notice: RetryNotice
+}
+
 export interface LiveProjectorOptions {
   readonly now: () => number
   /** 时钟毫秒 → 时间戳字符串。默认 ISO */
@@ -112,6 +126,9 @@ export class LiveProjector {
   /** 增量那条路上压缩格的流水号，与开着的那一格（还没关门） */
   private compactionSeq = 0
   private compactionOpen: string | null = null
+
+  /** 开着的那一格自动重试：一次重试过程只占一格，记着它落在哪、到此为止的进展；收口就清掉 */
+  private retrySlot: RetrySlot | null = null
 
   constructor(private readonly o: LiveProjectorOptions) {}
 
@@ -480,7 +497,8 @@ export class LiveProjector {
     if (!this.turnOpen) return []
     const turn = turnId(this.turn)
     const at = this.now()
-    const ops: TranscriptOperation[] = []
+    /* omp 每次重试过程都会收口；万一没收（进程被打断之类），轮终替它收，不留一格永远在转的「正在重试」 */
+    const ops: TranscriptOperation[] = this.closeRetry(outcome)
     if (this.stepOpen) {
       ops.push({
         op: 'step.upsert',
@@ -576,6 +594,7 @@ export class LiveProjector {
    */
   abandonTurn(): void {
     this.turnOpen = false
+    this.retrySlot = null
     this.turnAttachments = []
     this.stepOpen = false
     this.streaming = null
@@ -603,6 +622,89 @@ export class LiveProjector {
           level,
           message,
           ...(source === undefined ? {} : { source }),
+        },
+      },
+    ]
+  }
+
+  /**
+   * omp 开始一次自动重试（auto_retry_start，在退避等待之前发）。同一次重试过程只占一格：
+   * 次数原地往上走（「正在重试 1/5」→「2/5」），触发这次重试的那条报错按先后记下，展开那一面列出。
+   */
+  retryStart(input: {
+    readonly attempt: number
+    readonly maxAttempts: number
+    readonly error: string
+  }): TranscriptOperation[] {
+    if (!this.turnOpen) return []
+    const slot = this.retrySlot ?? this.openRetrySlot()
+    const errors = input.error.trim() === '' ? slot.notice.errors : [...slot.notice.errors, retryErrorText(input.error)]
+    return this.writeRetry(
+      { ...slot, notice: { state: 'running', attempt: input.attempt, maxAttempts: input.maxAttempts, errors } },
+      true,
+    )
+  }
+
+  /**
+   * 这次重试过程收口（auto_retry_end）：成功、次数用完、被人停下，都落回同一格。
+   * 失败时 finalError 是最后那次请求的报错（它没有再触发一次 start），接在列表末尾。
+   */
+  retryEnd(input: {
+    readonly success: boolean
+    readonly attempt: number
+    readonly finalError: string
+  }): TranscriptOperation[] {
+    if (!this.turnOpen) return []
+    /* 没见过开头：成功就不必说；失败另开一格兜住（omp 有几条路不经 start 直接收口） */
+    if (this.retrySlot === null && input.success) return []
+    const slot = this.retrySlot ?? this.openRetrySlot()
+    const state = retryEndState(input.success, input.finalError)
+    const errors =
+      state === 'failed' && input.finalError.trim() !== ''
+        ? [...slot.notice.errors, retryErrorText(input.finalError)]
+        : slot.notice.errors
+    const attempt = input.attempt > 0 ? input.attempt : slot.notice.attempt
+    const maxAttempts = Math.max(slot.notice.maxAttempts, attempt)
+    return this.writeRetry({ ...slot, notice: { state, attempt, maxAttempts, errors } }, false)
+  }
+
+  private closeRetry(outcome: 'completed' | 'cancelled' | 'failed'): TranscriptOperation[] {
+    const slot = this.retrySlot
+    if (slot === null) return []
+    const state = outcome === 'completed' ? 'recovered' : outcome === 'cancelled' ? 'cancelled' : 'failed'
+    return this.writeRetry({ ...slot, notice: { ...slot.notice, state } }, false)
+  }
+
+  /** 新开一格：号与提示帧同一条流水，落在当前 step 里 */
+  private openRetrySlot(): RetrySlot {
+    const turn = turnId(this.turn)
+    const step = stepId(turn, this.step)
+    const id = frameId(step, this.frame)
+    this.frame += 1
+    return {
+      turnId: turn,
+      stepId: step,
+      frameId: id,
+      notice: { state: 'running', attempt: 0, maxAttempts: 0, errors: [] },
+    }
+  }
+
+  /** 按同一个 frameId 改写那一格；open = 这次重试过程还没收口 */
+  private writeRetry(slot: RetrySlot, open: boolean): TranscriptOperation[] {
+    this.retrySlot = open ? slot : null
+    const { notice } = slot
+    return [
+      {
+        op: 'frame.upsert',
+        turnId: slot.turnId,
+        stepId: slot.stepId,
+        frame: {
+          kind: 'notice',
+          frameId: slot.frameId,
+          level: notice.state === 'failed' ? 'error' : 'warning',
+          message: retryMessageOf(notice),
+          source: RETRY_NOTICE_SOURCE,
+          detail: { retry: notice },
         },
       },
     ]
