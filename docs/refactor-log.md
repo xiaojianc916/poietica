@@ -4662,3 +4662,76 @@ workbench / conversation / browser 的界面改动，不碰本方案的文件，
 - fork 失败路径的两处健壮性（`thread-service` 的 `enqueue` 自身抛错会覆盖原始 insert 错误；`session-files` 的
   `forked.close()` 抛错会跳过 `discard`）：方案未要求，属极小概率路径，未在方案之外加补丁；若要补，最小改法是
   catch 里把 enqueue + reclaimFile 包一层保原始错误、finally 里 close 失败时仍尝试 discard。
+
+---
+
+## R-37 升级安装写不进 core.exe：装成「新 Host + 旧 Core」后 protocol_mismatch（2026-10-18）
+
+**来源**：产品负责人真机事故（外部输入，不入库）。现象链：0.5.10 自动更新 → 安装向导报
+「Poietica 无法关闭。请手动关闭它，然后单击重试以继续」→ 重试/取消后装完 → 启动即
+「安装文件不一致，请重新安装」（`failed/protocol_mismatch`）→ 卸载重装仍然一样，`Core 不可用（protocol_mismatch）`。
+
+**根因（三层，缺一不成立）**：
+
+1. **omp 的 daemon broker 逃出了进程树**。omp 在 `launch/client.ts` 用
+   `BROKER_SPAWN_OPTIONS = { detached: true, windowsHide: true }` 起 `poietica-core.exe __omp_worker_daemon_broker`
+   （「The broker must outlive whichever omp process happened to spawn it」）。它是**同一个 core.exe**，
+   却不在 Core 的进程树里，所以 `killTree`（`taskkill /PID <core> /T /F`）收不到它；Core 正常退出（code 0）
+   之后它继续活着，占着 `<安装目录>\resources\core\poietica-core.exe` 的映像。
+2. **安装器只认 Poietica.exe**。electron-builder 的 `CHECK_APP_RUNNING` 按安装目录枚举，但只对
+   `Poietica.exe` 做判断；残留的 `poietica-core.exe` 既没被杀、又让覆盖写入失败。实测证据：
+   `main.log` 里 Host 已是 35、core 报 32；已装 `app.asar` 与本地构建哈希相同，而 `poietica-core.exe`
+   是 **205,464,576 B / EF35…271C**（0.5.9），本地产物是 **205,600,256 B / 6583…6EE3**，
+   `resources/core` 里连 `core-manifest.json` 都没有 —— 这个目录压根没被覆盖。
+3. **协议版本只用来发现装坏了，发现后是确定性失败**。`PROTOCOL_VERSION` 35 ≠ 32 → `fail('protocol_mismatch')`
+   → 不重试。所以「点重新启动」无效，重装只要残留进程还在就复现。
+
+**改法**（两处，各管一段）：
+
+1. **Host 侧止血（`packages/process-kit` + `packages/host-kernel`）**：
+   - `process-kit` 新增 `listProcesses()`（PowerShell `Get-CimInstance Win32_Process` → `ConvertTo-Json`，
+     显式 UTF-8 输出编码；`parseProcessList` 单独导出以便纯函数测试，`ConvertTo-Json` 的对象/数组/空串
+     三种形状都认）。永不 reject，非 Windows 返回空表。
+   - `host-kernel/src/core-reaper.ts`：`findStaleCoreProcesses` **只认本应用 core.exe 的完整路径**
+     （大小写不敏感、去 \\?\ 前缀），再按命令行里的 `__omp_worker_` 区分「正统 Core」与「omp 后台进程」。
+     按文件名匹配是错的：同机还跑着 dev checkout 的 Core 时会把别人杀掉（这条被 `core-supervisor.test.ts`
+     的 22 条用例当场抓到）。
+   - `CoreSupervisor`：`start()` 在 spawn **之前**先 `reapBeforeLaunch()`；`stop()` 落定 `stopped` 之后
+     `reapAfterStop()` 收掉本代派发的 omp 后台进程。清理必须排在状态机之外（先 `setState` 再清），
+     否则一次进程枚举就会把 `stop()` 卡在 `starting`，让 `launch` 继续 spawn（R-05 M6 抓到的）。
+2. **安装器侧治本（`apps/desktop/resources/installer.nsh` + `electron-builder.yml`）**：用
+   `nsis.include` 挂一份 `customCheckAppRunning`，在**解包覆盖之前**把 `Poietica.exe` 与
+   `poietica-core.exe` 一起 `taskkill /F /T`，再用 `tasklist` 轮询确认一个都不剩，最后等 700 ms
+   让 Windows 释放 exe 映像句柄。全程不弹窗（`/S` 下弹窗会卡死）。
+
+**踩到的坑（写在这里，避免下次重犯）**：
+
+- NSIS 会把脚本里的 `$` 当变量解析，PowerShell 的 `$_` / `$()` 必须写成 `$$`/`$$()`；但
+  `$$($INSTDIR)` 展开后是 `$(D:\...)`，PowerShell 会把括号里的路径当命令执行并**静默失败** ——
+  第一版因此「安装成功但什么也没清」（用一份独立 `.nsi` 探测脚本才看出来计数恒为 0）。
+  改用 `taskkill`/`tasklist` 后没有引用转义问题。
+- 自定义了 `customCheckAppRunning` 就不能再用 electron-builder 的 `FIND_PROCESS`/`KILL_PROCESS`：
+  它们依赖 `pid` 变量与 `IsPowerShellAvailable`，而这两格只在**没有**自定义宏时才由模板声明
+  （`allowOnlyOneInstallerInstance.nsh` 的 `!ifmacrondef`），makensis 会按错误处理它们未定义/未使用。
+
+**测试**：
+
+- `packages/process-kit/src/__tests__/list-processes.test.ts`：4 条（对象/数组/空集/缺 pid）。
+- `packages/host-kernel/src/__tests__/core-reaper.test.ts`：9 条（路径精确匹配、别家路径不动、
+  大小写与 \\?\ 前缀、拿不到 Path 时按名字兜底、枚举失败只 warn、单个清理失败不影响其余、`ownPid` 不误杀）。
+- `core-supervisor.test.ts` 新增 R-37 两条（启动前清上一代 Core 与 broker；关停后收掉 detached broker），
+  并把 `listProcesses` 注入成空表，让状态机用例不再依赖本机真实进程。
+- `bun run typecheck` / `bun run lint` / `bun test` 全绿：**2595 pass / 1 skip / 0 fail**（334 文件）。
+
+**真机验证（本机，非脚本化）**：用安装版 core.exe 的 `serve` 另起一个「不在进程树里」的进程占住
+`resources\core\poietica-core.exe`（实测写打开报 being used by another process），复现事故状态；
+再跑新安装包 `/S`：安装器清掉占用进程、安装成功、无残留进程、`core.exe` 205,600,256 B 且哈希与
+`core-manifest.json` 一致。**修复前的对照**：同一路径下第一版（PowerShell 计数）装完仍留 pid 16728。
+
+**没做的 / 待决**：
+
+- `listProcesses` 每次约 0.5 s（PowerShell 起进程的开销），启动路径上最多一次、关停路径再一次；
+  本机可接受，未做缓存。若以后嫌慢，可换成 `tasklist` 解析或原生 API，签名不变。
+- omp 的 detached broker 是上游行为（他们要「跨 omp 实例复用」），**不打算关掉它**：产品侧的正确姿势是
+  「退出与安装时收干净」，这次就是这么做的。卸载同样走这份钩子。
+- 未改 `PROTOCOL_VERSION`、未改 RPC 契约（这两处都不涉及跨进程形状）。

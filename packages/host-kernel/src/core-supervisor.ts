@@ -13,11 +13,12 @@ import {
   systemClock,
   withTimeout,
 } from '@poietica/foundation'
-import { killTree } from '@poietica/process-kit'
+import { killTree, listProcesses, type ProcessInfo } from '@poietica/process-kit'
 import { type InboundContext, type RpcMeta, RpcPeer } from '@poietica/rpc'
 import { createChildProcessTransport } from '@poietica/rpc/stdio'
 import { buildCoreLaunch, CORE_EXIT_CODES, CORE_SHUTDOWN_BUDGET_MS, type DataLayout } from '@poietica/runtime-layout'
 import type { CoreOutputSink } from './core-output'
+import { findStaleCoreProcesses, reapStaleCoreProcesses, type StaleProcess } from './core-reaper'
 import { pickFreePort } from './relay-port'
 import { ensureRelayToken } from './relay-token'
 
@@ -73,6 +74,11 @@ export interface CoreSupervisorOptions {
   readonly kill?: (pid: number) => Promise<void>
   /** 测试注入用：默认 READY_TIMEOUT_MS，注入短值即可验证超时行为，不必真等 45 秒。 */
   readonly readyTimeoutMs?: number
+  /**
+   * 测试注入用：列出系统进程（启动前清理残留、关停后收拾 omp 后台进程）。
+   * 默认走 process-kit 的 PowerShell 实现；注入空表就等价于「这台机器上没有残留」。
+   */
+  readonly listProcesses?: () => Promise<ProcessInfo[]>
 }
 
 interface ReadyPayload {
@@ -91,6 +97,8 @@ export class CoreSupervisor {
   private relay: RelayEndpoint | null = null
   private restartTimer: Disposable | undefined
   private stopped: Deferred<void> | undefined
+  /** 启动前清掉的残留（诊断与测试用） */
+  private reaped: StaleProcess[] = []
   private readonly statusEmitter = new Emitter<CoreStatus>()
   private readonly readyEmitter = new Emitter<void>()
   readonly onStatus = this.statusEmitter.event
@@ -117,12 +125,36 @@ export class CoreSupervisor {
     return this.relay
   }
 
+  /** 最近一次启动前清掉的上代 Core / omp 后台进程（诊断与测试用） */
+  reapedProcesses(): readonly StaleProcess[] {
+    return this.reaped
+  }
+
   /** 首次启动，或从 failed / stopped 重新启动 */
   async start(): Promise<void> {
     if (this.state !== 'idle' && this.state !== 'failed' && this.state !== 'stopped') return
     this.reason = null
     this.setState('starting')
+    // 上一代 Core 与它派发的 omp 后台进程必须先清干净（refactor-log R-37）：后者占着 exe 与 SQLite，
+    // 不清就会「新 Host + 旧 Core」→ 协议不一致直接 failed，而且覆盖安装也修不好。
+    await this.reapBeforeLaunch()
     await this.launchSafely()
+  }
+
+  /** 启动前的残留清理。失败只记日志，不影响启动（清理是尽力而为）。 */
+  private async reapBeforeLaunch(): Promise<void> {
+    try {
+      this.reaped = await reapStaleCoreProcesses({
+        logger: this.o.logger,
+        ownPid: this.child?.pid,
+        coreExe: this.o.coreExe,
+        ...(this.o.listProcesses === undefined ? {} : { list: this.o.listProcesses }),
+        ...(this.o.kill === undefined ? {} : { kill: this.o.kill }),
+      })
+    } catch (e) {
+      this.o.logger.warn('残留进程清理失败，继续启动', { error: String(e) })
+      this.reaped = []
+    }
   }
 
   /** 清空崩溃记录，停止当前进程（如有），再启动。 */
@@ -141,7 +173,10 @@ export class CoreSupervisor {
     this.restartTimer = undefined
     const child = this.child
     if (child === undefined) {
+      /* 先落状态再清：清理要跑一次进程枚举，不能让它把状态机卡在 starting（那时 launch 还会继续 spawn） */
       this.setState('stopped')
+      /* 本代 Core 已经退出了：它派发的 omp 后台进程可以收了（不占 exe 的话，下次升级就不会卡安装） */
+      await this.reapAfterStop()
       return
     }
     this.stopped = new Deferred<void>()
@@ -156,6 +191,38 @@ export class CoreSupervisor {
       await withTimeout(this.stopped.promise, 2_000, () => new Error('kill timeout'), this.clock).catch(() => undefined)
     }
     this.setState('stopped')
+    /* 等清理跑完再返回：Host 退出流程在这个调用之后就要 exit，残留必须在这之前收掉 */
+    await this.reapAfterStop()
+  }
+
+  /**
+   * 关停后收拾本代 Core 派发的 omp 后台进程（detached 的 daemon broker、lsp mux、blob broker……）。
+   *
+   * 它们**不在** Core 的进程树里，taskkill /T 收不到；不止血的话，每次正常退出都会在后台留一个
+   * 占着 core.exe 的进程 —— 这正是 0.5.10 覆盖安装失败、装成「新 Host + 旧 Core」的直接原因。
+   * 只在**真的关停**时做（stop / 退出），不在崩溃重启时做：崩溃那一路由退避重启接管，
+   * 新 Core 起来前也会先 reapBeforeLaunch 一次。
+   */
+  private async reapAfterStop(): Promise<void> {
+    const list = this.o.listProcesses ?? listProcesses
+    try {
+      const processes = await list()
+      const stale = findStaleCoreProcesses(processes, undefined, this.o.coreExe)
+      if (stale.length === 0) return
+      this.o.logger.info('清理 Core 派发的 omp 后台进程', {
+        processes: stale.map((s) => ({ pid: s.pid, what: s.what })),
+      })
+      const kill = this.o.kill ?? killTree
+      for (const s of stale) {
+        try {
+          await kill(s.pid)
+        } catch (e) {
+          this.o.logger.warn('清理 omp 后台进程失败', { pid: s.pid, error: String(e) })
+        }
+      }
+    } catch (e) {
+      this.o.logger.warn('清点 omp 后台进程失败', { error: String(e) })
+    }
   }
 
   /** 立即杀掉（Windows 注销 / 关机时的 session-end）。 */

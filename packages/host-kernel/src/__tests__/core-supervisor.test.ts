@@ -98,6 +98,8 @@ async function setup(
     spawn: spawn as never,
     clock,
     pickPort: async () => 12345,
+    /* 残留清理走注入的空进程表：这些用例测的是看护状态机，不该被本机真实进程影响，也不该真去跑 PowerShell */
+    listProcesses: async () => [],
     kill: async (pid) => {
       killed.push(pid)
       const found = spawned.find((s) => s.child.pid === pid)
@@ -557,6 +559,77 @@ describe('CoreSupervisor', () => {
     expect(s.spawned.length).toBe(1)
     ready(s.spawned[0]!.child)
     await waitFor(() => s.sup.status.state === 'ready')
+  })
+
+  /*
+   * R-37：上一代 Core 与它丢弃在进程树之外的 omp 后台进程，必须在 spawn 之前清掉。
+   * 不清的后果是覆盖安装写不进 core.exe，装成「新 Host + 旧 Core」→ protocol_mismatch，重装也修不好。
+   */
+  test('R-37 启动前清掉上一代 Core 与 omp 后台进程', async () => {
+    const coreExe = process.execPath
+    const oldPid = 9001
+    const brokerPid = 9002
+    const s = await setup({
+      listProcesses: async () => [
+        { pid: oldPid, parentPid: 0, name: 'poietica-core.exe', executablePath: coreExe, commandLine: 'core serve' },
+        {
+          pid: brokerPid,
+          parentPid: 0,
+          name: 'poietica-core.exe',
+          executablePath: coreExe,
+          commandLine: 'core __omp_worker_daemon_broker',
+        },
+      ],
+      /* 走 setup 的默认 kill：它会把 killed 记进 s.killed，并让对应 fake child 退出 */
+    })
+    const killed = s.killed
+    const started = s.sup.start()
+    await waitFor(() => s.sup.reapedProcesses().length === 2)
+    expect(s.sup.reapedProcesses().map((p) => p.pid)).toEqual([oldPid, brokerPid])
+    expect(killed).toEqual([oldPid, brokerPid])
+    // 清理之后才 spawn 本代 Core
+    expect(s.spawned.length).toBe(1)
+    ready(s.spawned[0]!.child)
+    await started
+  })
+
+  test('R-37 关停后收掉 detached 的 omp 后台进程（否则下次升级又被它占住 exe）', async () => {
+    const coreExe = process.execPath
+    const brokerPid = 9100
+    const killed: number[] = []
+    // 关停阶段才出现的 broker：模拟「这一代 Core 运行期间 omp 才把后台进程拉起来」
+    let brokerVisible = false
+    const s = await setup({
+      listProcesses: async () =>
+        brokerVisible
+          ? [
+              {
+                pid: brokerPid,
+                parentPid: 0,
+                name: 'poietica-core.exe',
+                executablePath: coreExe,
+                commandLine: 'core __omp_worker_daemon_broker',
+              },
+            ]
+          : [],
+      kill: async (pid) => {
+        killed.push(pid)
+        const found = s.spawned.find((x) => x.child.pid === pid)
+        if (found !== undefined) setTimeout(() => exitChild(found.child, 0), 0)
+      },
+    })
+    const started = s.sup.start()
+    await tick()
+    ready(s.spawned[0]!.child)
+    await started
+    brokerVisible = true
+    const stopping = s.sup.stop()
+    // 本代 Core 正常退出 → stop 落定后 brokker 必须已经被收掉
+    s.spawned[0]!.child.stdin.end()
+    exitChild(s.spawned[0]!.child, 0)
+    await stopping
+    expect(killed).toContain(brokerPid)
+    expect(s.sup.status.state).toBe('stopped')
   })
 
   test('S-29 launch 持续抛错：窗口内超过上限进 failed/crash_loop，而不是无限重试', async () => {

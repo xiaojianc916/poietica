@@ -50,6 +50,10 @@ win:
   executableName: Poietica
 
 nsis:
+  # 自定义 NSIS 脚本：安装 / 卸载前把本安装目录里的进程（含 detached 的 poietica-core.exe
+  # 后台进程）全部杀掉并等到句柄释放。没有这一步，覆盖安装会悄悄失败在 core.exe 上，
+  # 装成「新 app.asar + 旧 core.exe」后启动即 protocol_mismatch（refactor-log R-37）。
+  include: resources/installer.nsh
   # 显示安装向导（可改安装目录），安装到用户目录、不需要管理员权限，
   # 卸载时保留数据根（对话、设置、API key 都在里面）。
   oneClick: false
