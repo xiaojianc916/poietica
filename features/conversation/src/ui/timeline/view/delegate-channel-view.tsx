@@ -2,8 +2,9 @@ import '../../shared/styles/surface.css'
 import './delegate-channel-view.css'
 
 import { isAppError } from '@poietica/foundation'
-import { Send, Square } from 'lucide-react'
-import { type FormEvent, type KeyboardEvent, useCallback, useEffect, useState } from 'react'
+import { Square } from 'lucide-react'
+import { useCallback, useEffect, useRef, useState } from 'react'
+import { AuxiliaryComposerBar } from '../../composer'
 import { describeFailure } from '../../failure'
 import { SwarmIcon } from '../../shared/primitives/icons'
 import type { BackgroundTaskStatus, TimelineState } from '../../shared/timeline/timeline-contract'
@@ -12,14 +13,14 @@ import { useTranscripts } from '../model/transcripts-context'
 import { useAssistantSubagents, useAssistantTimeline } from '../model/use-assistant-session'
 import { useAgentControls } from './agent-controls-context'
 import { TranscriptView } from './transcript-view'
-import { UserMessage } from './user-message'
 
 /*
  * 子代理通道：右坞「子代理」组里的一个标签。皮必须由这一层挂：--cp-* 只声明在 [data-assistant-skin] 下且不带兜底，不挂就整套令牌失效。
  *
- * 转录本身走 `thread#agent` 那条 feed（engine 按 agentId 分流的 transcript 通道），所以与主对话同一种画法、同一套实时；
- * 派发那句是父对话那次调用的入参，不属子代理转录，画成同一滚动盒的首块。父对话里找不到那次调用（异步派发、重开旧对话、
- * 调用已滚出已载入的页）时**照样画**转录，只是不画首块 —— 早先这里整块换成一句「这条派发不在当前对话里」，等于通道打不开。
+ * 转录本身走 `thread#agent` 那条 feed（engine 按 agentId 分流的 transcript 通道），所以与主对话同一种画法、同一套实时。
+ * 子代理收到的任务就是它自己会话里的第一句用户消息，转录里已经有了，这里不再另画首块：早先拿父对话派发调用的标题
+ * 垫一个用户气泡，一次派出几个子代理时标题是「3 个子代理」，每个标签页顶上都冒出这么一句并不存在的话。
+ * 底部的引导框复用辅助对话那颗输入药丸（AuxiliaryComposerBar）。
  */
 
 interface DelegateChannelProps {
@@ -74,6 +75,67 @@ export function useDelegateChannelNames(conversationId: string | null): (agentId
   )
 }
 
+/* 停止要点两下：第一下只把按钮换成「确认停止」，这么久没点第二下就自己退回去。 */
+const STOP_CONFIRM_MS = 3000
+
+/**
+ * 两下才生效的停止键：第一下「停止」→「确认停止」（变红），第二下才真的停；超时或失焦退回原样。
+ * 停一个子代理收不回来（它这一轮的活就白干了），误触一下不该就停掉。
+ */
+export function ConfirmStopButton({
+  confirmMs = STOP_CONFIRM_MS,
+  disabled,
+  onConfirm,
+}: {
+  readonly confirmMs?: number
+  readonly disabled: boolean
+  readonly onConfirm: () => void
+}) {
+  const [armed, setArmed] = useState(false)
+  const timer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const clearTimer = useCallback(() => {
+    if (timer.current !== null) clearTimeout(timer.current)
+    timer.current = null
+  }, [])
+  const disarm = useCallback(() => {
+    clearTimer()
+    setArmed(false)
+  }, [clearTimer])
+  /* 卸载（子代理结束、标签关掉）时别留一个还在走的定时器 */
+  useEffect(() => clearTimer, [clearTimer])
+
+  const onClick = () => {
+    if (armed) {
+      disarm()
+      onConfirm()
+      return
+    }
+    setArmed(true)
+    clearTimer()
+    timer.current = setTimeout(() => {
+      timer.current = null
+      setArmed(false)
+    }, confirmMs)
+  }
+
+  return (
+    <button
+      aria-label={armed ? '再点一次确认停止这个子代理' : '停止这个子代理'}
+      className="delegate-channel__stop"
+      data-armed={armed || undefined}
+      data-delegate-action="cancel"
+      disabled={disabled}
+      onBlur={disarm}
+      onClick={onClick}
+      title={armed ? '再点一次确认停止（不影响主代理）' : '停止这个子代理（不影响主代理）'}
+      type="button"
+    >
+      <Square aria-hidden className="delegate-channel__button-icon" />
+      <span>{armed ? '确认停止' : '停止'}</span>
+    </button>
+  )
+}
+
 function failureText(cause: unknown): string {
   return isAppError(cause) && cause.message.length > 0 ? cause.message : describeFailure(cause)
 }
@@ -89,7 +151,6 @@ export function DelegateChannelPane({ agentId, conversationId }: DelegateChannel
   /* 子代理表单独订一份：它变得比整条时间线少，状态行跟着它走。 */
   useAssistantSubagents(conversationId)
   const controls = useAgentControls()
-  const call = delegationOf(timeline, agentId)
   const title = subagentTitleOf(timeline, agentId)
   const status = statusOf(timeline, agentId)
   const running = status === 'running'
@@ -126,18 +187,6 @@ export function DelegateChannelPane({ agentId, conversationId }: DelegateChannel
     }
   }, [agentId, busy, controls, conversationId])
 
-  const onSubmit = (event: FormEvent) => {
-    event.preventDefault()
-    void steer()
-  }
-  const onKeyDown = (event: KeyboardEvent<HTMLTextAreaElement>) => {
-    /* 与主输入框同一条键位：Enter 发送、Shift+Enter 换行；输入法组字时的 Enter 不算。 */
-    if (event.key === 'Enter' && !event.shiftKey && !event.nativeEvent.isComposing) {
-      event.preventDefault()
-      void steer()
-    }
-  }
-
   return (
     <section
       className="assistant-surface delegate-channel"
@@ -152,26 +201,11 @@ export function DelegateChannelPane({ agentId, conversationId }: DelegateChannel
         </span>
         {status === null ? null : <span className="delegate-channel__status">{STATUS_LABEL[status]}</span>}
         {running && controls !== null ? (
-          <button
-            aria-label="停止这个子代理"
-            className="delegate-channel__stop"
-            data-delegate-action="cancel"
-            disabled={busy !== null}
-            onClick={() => void cancel()}
-            title="停止这个子代理（不影响主代理）"
-            type="button"
-          >
-            <Square aria-hidden className="delegate-channel__button-icon" />
-            <span>停止</span>
-          </button>
+          <ConfirmStopButton disabled={busy !== null} onConfirm={() => void cancel()} />
         ) : null}
       </header>
       <div className="delegate-channel__body">
-        <TranscriptView
-          dockClearance={null}
-          lead={call === undefined ? undefined : <UserMessage text={call.subject === '' ? call.title : call.subject} />}
-          sessionKey={channel}
-        />
+        <TranscriptView dockClearance={null} sessionKey={channel} />
       </div>
       {notice === null ? null : (
         <p className="delegate-channel__notice" role="status">
@@ -179,27 +213,16 @@ export function DelegateChannelPane({ agentId, conversationId }: DelegateChannel
         </p>
       )}
       {running && controls !== null ? (
-        <form className="delegate-channel__steer" onSubmit={onSubmit}>
-          <textarea
-            aria-label="引导这个子代理"
-            className="delegate-channel__input"
-            disabled={busy === 'cancel'}
-            onChange={(event) => setDraft(event.target.value)}
-            onKeyDown={onKeyDown}
-            placeholder="给这个子代理插一句话（它在下一步之前读到）"
-            rows={2}
-            value={draft}
-          />
-          <button
-            aria-label="发送引导"
-            className="delegate-channel__send"
-            data-delegate-action="steer"
-            disabled={busy !== null || draft.trim() === ''}
-            type="submit"
-          >
-            <Send aria-hidden className="delegate-channel__button-icon" />
-          </button>
-        </form>
+        <AuxiliaryComposerBar
+          disabled={busy === 'cancel'}
+          inputLabel="引导这个子代理"
+          onChange={setDraft}
+          onSubmit={() => void steer()}
+          placeholder="引导这个子代理（它在下一步之前读到）..."
+          submitDisabled={busy !== null || draft.trim() === ''}
+          submitLabel="发送引导"
+          value={draft}
+        />
       ) : null}
     </section>
   )

@@ -1,4 +1,4 @@
-/* 子代理通道：标题条 + 转录 + 引导框。令牌都来自 [data-assistant-skin]。 */
+/* 子代理通道：标题条 + 转录 + 引导框（引导框是辅助对话那颗药丸，样式归 auxiliary-composer.css）。令牌都来自 [data-assistant-skin]。 */
 .delegate-channel__header {
   display: flex;
   flex: none;
@@ -31,8 +31,7 @@
   font-size: 12px;
 }
 
-.delegate-channel__stop,
-.delegate-channel__send {
+.delegate-channel__stop {
   display: inline-flex;
   flex: none;
   align-items: center;
@@ -47,13 +46,20 @@
   cursor: pointer;
 }
 
-.delegate-channel__stop:hover:not(:disabled),
-.delegate-channel__send:hover:not(:disabled) {
+.delegate-channel__stop:hover:not(:disabled) {
   background: var(--cp-hover);
 }
 
-.delegate-channel__stop:disabled,
-.delegate-channel__send:disabled {
+.delegate-channel__stop[data-armed] {
+  border-color: var(--cp-diff-removed-text, #ff5c5c);
+  color: var(--cp-diff-removed-text, #ff5c5c);
+}
+
+.delegate-channel__stop[data-armed]:hover:not(:disabled) {
+  background: color-mix(in oklab, var(--cp-diff-removed-text, #ff5c5c) 12%, transparent);
+}
+
+.delegate-channel__stop:disabled {
   cursor: default;
   opacity: 0.5;
 }
@@ -77,31 +83,4 @@
   padding: 6px 12px;
   color: var(--cp-diff-removed-text, #ff5c5c);
   font-size: 12px;
-}
-
-.delegate-channel__steer {
-  display: flex;
-  flex: none;
-  align-items: flex-end;
-  gap: 8px;
-  padding: 8px 12px 12px;
-  border-block-start: 1px solid #333;
-}
-
-.delegate-channel__input {
-  min-inline-size: 0;
-  flex: 1 1 auto;
-  padding: 6px 8px;
-  border: 1px solid #4c4c4c;
-  border-radius: 8px;
-  background: transparent;
-  color: var(--cp-ink);
-  font: inherit;
-  font-size: 13px;
-  resize: none;
-}
-
-.delegate-channel__input:focus-visible {
-  outline: 2px solid var(--cp-accent);
-  outline-offset: -1px;
 }

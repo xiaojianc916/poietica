@@ -65,3 +65,8 @@
 .auxiliary-composer__field::placeholder {
   color: var(--cp-placeholder);
 }
+
+/* 左端没有加号时（子代理标签页的引导框）：草稿别贴着药丸的圆边起笔。 */
+.auxiliary-composer__pill[data-leading="none"] {
+  padding-inline-start: calc(var(--cp-inset) * 2);
+}

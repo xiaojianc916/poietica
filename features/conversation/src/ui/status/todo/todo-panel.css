@@ -328,18 +328,82 @@
   animation: status-panel-spin 1s linear infinite;
 }
 
+.status-panel__fold-item {
+  margin: 0;
+  padding: 0;
+}
+
+/* 折叠行本身是一颗按钮（悬浮卡的触发器）：去掉按钮自带的边框与底色，样子与原来那一行一致。 */
 .status-panel__fold {
   display: flex;
+  inline-size: 100%;
   block-size: 32px;
   min-inline-size: 0;
   align-items: center;
   gap: 8px;
   margin: 0;
   padding: 0 8px;
+  border: 0;
   border-radius: 8px;
+  background: transparent;
   color: var(--cp-ink-subtle);
+  font: inherit;
   font-size: var(--status-panel-font-size);
   line-height: 20px;
+  text-align: start;
+  cursor: default;
+}
+
+.status-panel__fold:focus-visible {
+  outline: 2px solid var(--cp-accent);
+  outline-offset: -2px;
+}
+
+/* 悬浮卡：列被折起来的那几项。宽度跟弹窗差不多，长标题换行而不是截断（悬停就是为了看全）。 */
+.status-panel__fold-card.status-panel__fold-card {
+  /* 卡片经 Portal 挂在面板外，读不到 .status-panel 上的色值；图标统一跟卡片的字色走（浅色主题下是反色气泡）。 */
+  --status-panel-success: currentcolor;
+  --cp-ink: currentcolor;
+  --cp-placeholder: currentcolor;
+
+  max-inline-size: min(320px, 80vw);
+  padding: 6px 8px;
+  border-radius: 8px;
+  font-size: 12px;
+  line-height: 18px;
+}
+
+.status-panel__fold-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.status-panel__fold-entry {
+  display: flex;
+  min-inline-size: 0;
+  align-items: flex-start;
+  gap: 6px;
+}
+
+.status-panel__fold-entry .status-panel__glyph {
+  margin-block-start: 2px;
+}
+
+.status-panel__fold-text {
+  min-inline-size: 0;
+  overflow-wrap: anywhere;
+}
+
+.status-panel__fold-text[data-done] {
+  opacity: 0.7;
+}
+
+.status-panel__fold-more {
+  opacity: 0.7;
 }
 
 .status-panel__fold:hover {

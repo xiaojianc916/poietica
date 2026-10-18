@@ -4,7 +4,7 @@ import './auxiliary-composer.css'
 
 import { useWorkspacesView, type WorkspacesUi, WorkspacesUiToken } from '@poietica/feature-workspaces/ui-api'
 import { useService } from '@poietica/ui-kernel'
-import { type KeyboardEvent, useCallback, useId, useMemo, useRef, useState } from 'react'
+import { type KeyboardEvent, type ReactNode, type Ref, useCallback, useId, useMemo, useRef, useState } from 'react'
 import type { SessionConfigControl } from '../../shared/model/config'
 import { PlusIcon, SubmitIcon } from '../../shared/primitives/icons'
 import { useAgentToolkit } from '../toolkit'
@@ -144,17 +144,29 @@ export function AuxiliaryComposer() {
         <p className="auxiliary-composer-pane__empty" />
       </div>
 
-      <div className="auxiliary-composer-pane__dock">
-        <form
-          className="auxiliary-composer"
-          onKeyDownCapture={onKeyDown}
-          onSubmit={(event) => {
-            /* 还没有收信人：这一颗先把样子画出来，提交什么都不发生。 */
-            event.preventDefault()
-          }}
-          ref={bar}
-        >
-          {/* 面板贴着药丸上沿向上展开，位置归 composer-palette 自己。 */}
+      <AuxiliaryComposerBar
+        formRef={bar}
+        leading={
+          <button
+            aria-controls={listboxId}
+            aria-expanded={open}
+            aria-label="添加内容"
+            className="assistant-plus"
+            onClick={() => {
+              setHighlighted(0)
+              setPaletteOpen((current) => !current)
+            }}
+            type="button"
+          >
+            <PlusIcon aria-hidden="true" />
+          </button>
+        }
+        onChange={setDraft}
+        onKeyDownCapture={onKeyDown}
+        /* 还没有收信人：这一颗先把样子画出来，提交什么都不发生。 */
+        onSubmit={() => undefined}
+        overlay={
+          /* 面板贴着药丸上沿向上展开，位置归 composer-palette 自己。 */
           <ComposerPalette
             groups={groups}
             highlighted={highlighted}
@@ -163,44 +175,93 @@ export function AuxiliaryComposer() {
             onHighlight={setHighlighted}
             onPick={pick}
           />
-
-          <div className="auxiliary-composer__pill">
-            <button
-              aria-controls={listboxId}
-              aria-expanded={open}
-              aria-label="添加内容"
-              className="assistant-plus"
-              onClick={() => {
-                setHighlighted(0)
-                setPaletteOpen((current) => !current)
-              }}
-              type="button"
-            >
-              <PlusIcon aria-hidden="true" />
-            </button>
-
-            <input
-              aria-label="输入"
-              className="auxiliary-composer__field"
-              onChange={(event) => {
-                setDraft(event.target.value)
-              }}
-              placeholder="问问侧边聊天..."
-              value={draft}
-            />
-
+        }
+        placeholder="问问侧边聊天..."
+        trailing={
+          <>
             {/* 模型与档位、批准方式：与主对话工具条上的是同两个控件。 */}
             <SessionControls controls={controls} onSelect={select} />
-
             {/* 这一格只有侧栏那么宽，标签让位给字形；当前档位在弹层里逐档说清。 */}
             <PermissionPicker controls={controls} iconOnly onSelect={select} />
-
-            <button aria-label="发送" data-slot="prompt-input-submit" type="submit">
-              <SubmitIcon aria-hidden="true" />
-            </button>
-          </div>
-        </form>
-      </div>
+          </>
+        }
+        value={draft}
+      />
     </section>
+  )
+}
+
+export interface AuxiliaryComposerBarProps {
+  readonly value: string
+  readonly onChange: (value: string) => void
+  /** 提交（Enter 或点发送键）；表单默认的整页提交已在这一层拦掉。 */
+  readonly onSubmit: () => void
+  readonly placeholder: string
+  readonly inputLabel?: string | undefined
+  readonly submitLabel?: string | undefined
+  /** 输入框不可用（例如正在停止）。 */
+  readonly disabled?: boolean | undefined
+  /** 发送键不可用（空草稿、正在发送）。 */
+  readonly submitDisabled?: boolean | undefined
+  /** 药丸左端（加号）。 */
+  readonly leading?: ReactNode
+  /** 输入框与发送键之间（模型、档位、批准方式）。 */
+  readonly trailing?: ReactNode
+  /** 贴着药丸的浮层（加号面板），以表单为定位上下文。 */
+  readonly overlay?: ReactNode
+  readonly onKeyDownCapture?: ((event: KeyboardEvent<HTMLFormElement>) => void) | undefined
+  readonly formRef?: Ref<HTMLFormElement> | undefined
+}
+
+/*
+ * 侧栏那颗一行高的输入药丸：辅助对话与子代理标签页共用这一份（版式、键位、发送键都一样），
+ * 两端放什么由调用方决定。它只管画和收发草稿，不认识会话。
+ */
+export function AuxiliaryComposerBar({
+  disabled,
+  formRef,
+  inputLabel = '输入',
+  leading,
+  onChange,
+  onKeyDownCapture,
+  onSubmit,
+  overlay,
+  placeholder,
+  submitDisabled,
+  submitLabel = '发送',
+  trailing,
+  value,
+}: AuxiliaryComposerBarProps) {
+  return (
+    <div className="auxiliary-composer-pane__dock">
+      <form
+        className="auxiliary-composer"
+        onKeyDownCapture={onKeyDownCapture}
+        onSubmit={(event) => {
+          event.preventDefault()
+          if (submitDisabled !== true) onSubmit()
+        }}
+        ref={formRef}
+      >
+        {overlay}
+        <div className="auxiliary-composer__pill" data-leading={leading === undefined ? 'none' : undefined}>
+          {leading}
+          <input
+            aria-label={inputLabel}
+            className="auxiliary-composer__field"
+            disabled={disabled}
+            onChange={(event) => {
+              onChange(event.target.value)
+            }}
+            placeholder={placeholder}
+            value={value}
+          />
+          {trailing}
+          <button aria-label={submitLabel} data-slot="prompt-input-submit" disabled={submitDisabled} type="submit">
+            <SubmitIcon aria-hidden="true" />
+          </button>
+        </div>
+      </form>
+    </div>
   )
 }

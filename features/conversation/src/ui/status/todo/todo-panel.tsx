@@ -6,6 +6,10 @@ import {
   AccordionTrigger,
   GitBranchPicker,
   type GitBranchPickerProps,
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
 } from '@poietica/design-system'
 import {
   ArrowRight,
@@ -398,6 +402,49 @@ function TodoStatusGlyph({ status }: { readonly status: TodoItem['status'] }) {
   return <Circle aria-hidden className="status-panel__glyph--pending" />
 }
 
+/* 悬浮卡最多列这么多行：再多就超出视口了，剩下的用一行「还有 N 项」带过。 */
+const TODO_FOLD_PREVIEW_LIMIT = 12
+
+/*
+ * 折起来的那几项（「已完成 N 项」「待处理 N 项」）：悬停或键盘聚焦时，用悬浮卡逐条列出被折起来的内容。
+ * 触发器是行内的按钮而不是 li 本身：键盘用户也要能聚焦到它，Base UI 的触发器也需要一个可以聚焦的元素。
+ */
+function TodoFold({ items, label }: { readonly items: readonly TodoItem[]; readonly label: string }) {
+  const shown = items.slice(0, TODO_FOLD_PREVIEW_LIMIT)
+  const rest = items.length - shown.length
+  return (
+    <li className="status-panel__fold-item">
+      <TooltipProvider delay={200}>
+        <Tooltip>
+          <TooltipTrigger className="status-panel__fold" type="button">
+            <ChevronRight aria-hidden className="status-panel__fold-icon" />
+            <span>{label}</span>
+          </TooltipTrigger>
+          <TooltipContent className="status-panel__fold-card" side="left" sideOffset={8}>
+            <ul className="status-panel__fold-list">
+              {shown.map((item, index) => (
+                <li
+                  className="status-panel__fold-entry"
+                  data-status={item.status}
+                  key={[`fold-${index}`, item.title].join(':')}
+                >
+                  <span aria-label={TASK_STATUS_LABEL[item.status]} className="status-panel__glyph" role="img">
+                    <TodoStatusGlyph status={item.status} />
+                  </span>
+                  <span className="status-panel__fold-text" data-done={item.status === 'done' || undefined}>
+                    {item.title}
+                  </span>
+                </li>
+              ))}
+              {rest > 0 ? <li className="status-panel__fold-more">还有 {rest} 项</li> : null}
+            </ul>
+          </TooltipContent>
+        </Tooltip>
+      </TooltipProvider>
+    </li>
+  )
+}
+
 function TodoSection({ separated, todos }: { readonly separated: boolean; readonly todos: readonly TodoItem[] }) {
   /* 空表整格不提：画一行「暂无任务」是废话，摘要也不留 0/0。 */
   if (todos.length === 0) {
@@ -430,25 +477,25 @@ function TodoSection({ separated, todos }: { readonly separated: boolean; readon
     >
       <ul className="status-panel__list">
         {window.compact && window.preceding.length > 0 ? (
-          <li className="status-panel__fold">
-            <ChevronRight aria-hidden className="status-panel__fold-icon" />
-            <span>
-              {window.preceding.every((item) => item.status === 'done')
+          <TodoFold
+            items={window.preceding}
+            label={
+              window.preceding.every((item) => item.status === 'done')
                 ? `已完成 ${window.preceding.length} 项`
-                : `前面 ${window.preceding.length} 项`}
-            </span>
-          </li>
+                : `前面 ${window.preceding.length} 项`
+            }
+          />
         ) : null}
         {window.focus.map(renderItem)}
         {window.compact && window.following.length > 0 ? (
-          <li className="status-panel__fold">
-            <ChevronRight aria-hidden className="status-panel__fold-icon" />
-            <span>
-              {window.following.every((item) => item.status === 'pending')
+          <TodoFold
+            items={window.following}
+            label={
+              window.following.every((item) => item.status === 'pending')
                 ? `待处理 ${window.following.length} 项`
-                : `后面 ${window.following.length} 项`}
-            </span>
-          </li>
+                : `后面 ${window.following.length} 项`
+            }
+          />
         ) : null}
       </ul>
     </Section>
