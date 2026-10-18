@@ -94,15 +94,35 @@ export interface SessionControlsProps {
   readonly onSelect: (controlId: string, value: string) => void
   /** 这张表还没被 agent 确认过：画法不变，只是点不动。 */
   readonly pending?: boolean | undefined
+  /**
+   * 从外面打开（斜杠命令 `/model`）：每变一次就打开一次，直接落在模型清单那一页。
+   * 是个计数而不是布尔：同一个值连敲两次 `/model` 也得开两次，开合本身仍归这一层。
+   */
+  readonly openRequest?: number | undefined
 }
 
-export const SessionControls = memo(function SessionControls({ controls, onSelect, pending }: SessionControlsProps) {
+export const SessionControls = memo(function SessionControls({
+  controls,
+  onSelect,
+  openRequest,
+  pending,
+}: SessionControlsProps) {
   const rows = useMemo(() => sessionControlRows(controls), [controls])
   const [pane, setPane] = useState<string>(LEVEL)
   const [open, setOpen] = useState(false)
+  const [seenRequest, setSeenRequest] = useState(openRequest)
 
   const level = rows.find((control) => control.purpose === 'thought')
   const model = rows.find((control) => control.purpose === 'model')
+
+  /* 渲染期对比上一次的请求号（React 的「props 变了就调 state」写法），不走 effect：开这一下不该晚一帧 */
+  if (seenRequest !== openRequest) {
+    setSeenRequest(openRequest)
+    if (openRequest !== undefined && pending !== true && model !== undefined) {
+      setOpen(true)
+      setPane(MODEL)
+    }
+  }
 
   /* 没有控件可画就整个不画：连不上怎么说归 composer-notice 那条提示。 */
   if (level === undefined && model === undefined) {

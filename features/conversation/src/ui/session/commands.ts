@@ -1,5 +1,5 @@
 import type { SlashCommand } from '@poietica/engine'
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { ConversationApi } from '../api'
 import type { ThreadCommands } from '../shared/model/commands'
 
@@ -42,12 +42,18 @@ export function useThreadCommands(
 ): ThreadCommands {
   const [list, setList] = useState<readonly SlashCommand[]>(NO_COMMANDS)
   const [output, setOutput] = useState<ThreadCommands['output']>(null)
+  /* 正在跑的那一句：结果到了才开那一块，开的时候要知道是哪条命令说的 */
+  const running = useRef('')
 
   const run = useCallback(
     async (text: string) => {
       const command = text.trim()
-      /* 新命令换一块输出：上一条的输出到这里就算看过了 */
-      setOutput({ command, lines: [] })
+      running.current = command
+      /*
+       * 新命令先收掉上一块：上一条的结果到这里就算看过了。这一条有话要说时才出现 ——
+       * 压缩、交接、改名、换模型的结果在时间线 / 标题 / 模型胶囊上，引擎不推，也就没有一块转圈等不到结果的框。
+       */
+      setOutput(null)
       try {
         await api.runCommand(threadId, command)
       } catch (error) {
@@ -77,7 +83,7 @@ export function useThreadCommands(
     const offOutput = api.onCommandOutput((p) => {
       if (p.threadId !== threadId) return
       setOutput((held) =>
-        held === null ? { command: '', lines: [p.text] } : { ...held, lines: [...held.lines, p.text] },
+        held === null ? { command: running.current, lines: [p.text] } : { ...held, lines: [...held.lines, p.text] },
       )
     })
     /* 取走即消费：StrictMode 第二遍挂载取到的是空，不会执行两次 */

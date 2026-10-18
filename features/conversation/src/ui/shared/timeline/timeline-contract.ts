@@ -225,6 +225,8 @@ export interface CompactionTimelineItem extends TimelineEntry {
   readonly agentId: string
   readonly state: CompactionState
   readonly trigger?: 'manual' | 'auto'
+  /** 这是一次交接（/handoff，或 omp 按交接策略自动做的）：摘要就是交接文档 */
+  readonly handoff?: true
   readonly instruction?: string
   readonly turnId?: number
   readonly tokensBefore?: number

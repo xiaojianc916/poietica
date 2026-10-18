@@ -53,6 +53,20 @@ const NEEDS_HISTORY: ReadonlySet<string> = new Set([
 
 type OmpCommandSession = SlashCommandRuntime['session'] & AvailableCommandsSession
 
+/**
+ * 会改写上下文的那两条内置命令：`/compact` 是压缩，`/handoff` 是写一份交接文档再就地压缩。
+ * 交回的是 omp 压缩事件里的 action 写法（时间线那一格据此说「正在压缩上下文」还是「正在生成交接文档」），其余命令是 null。
+ */
+export function compactionActionOf(command: {
+  readonly name: string
+  readonly source: SlashCommand['source']
+}): 'context-full' | 'handoff' | null {
+  if (command.source !== 'builtin') return null
+  if (command.name === 'compact') return 'context-full'
+  if (command.name === 'handoff') return 'handoff'
+  return null
+}
+
 /** 这句输入点名的是不是一条可执行命令；返回 omp 的条目（含来源），GUI 拦掉的与不认识的都是 null */
 export async function resolveSlashCommand(
   session: unknown,

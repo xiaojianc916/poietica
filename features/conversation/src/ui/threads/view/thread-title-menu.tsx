@@ -22,6 +22,11 @@ export interface ThreadTitleMenuProps {
   readonly onPin?: ((threadId: string, pinned: boolean) => void) | undefined
   readonly onRename?: ((threadId: string, title: string) => void) | undefined
   readonly onExport?: ((threadId: string) => void) | undefined
+  /**
+   * 从外面进改名（斜杠命令 `/rename`）：每变一次就进一次就地改名，与点标题同一个编辑框。
+   * 计数而不是布尔：改完再敲一次 `/rename` 也得再进一次。
+   */
+  readonly renameRequest?: number | undefined
 }
 
 function TitleRenameField({
@@ -229,8 +234,17 @@ function ThreadActionsMenu({
   )
 }
 
-export function ThreadTitleMenu({ onExport, onPin, onRename, thread }: ThreadTitleMenuProps): ReactNode {
+export function ThreadTitleMenu({ onExport, onPin, onRename, renameRequest, thread }: ThreadTitleMenuProps): ReactNode {
   const [isRenaming, setRenaming] = useState(false)
+  const [seenRequest, setSeenRequest] = useState(renameRequest)
+
+  /* 渲染期对比上一次的请求号（「props 变了就调 state」），编辑框挂上时自己抢焦点、全选 */
+  if (seenRequest !== renameRequest) {
+    setSeenRequest(renameRequest)
+    if (renameRequest !== undefined && onRename !== undefined && thread !== undefined) {
+      setRenaming(true)
+    }
+  }
 
   if (thread === undefined) {
     return null

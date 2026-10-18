@@ -6,8 +6,11 @@ import { memo, useCallback, useEffect, useLayoutEffect, useRef, useState } from 
 import { createPortal } from 'react-dom'
 import { CONTEXT_COMMANDS, hasCommand } from '../../shared/model/commands'
 import type { AgentUsageBreakdown } from '../../shared/model/dto'
-import type { SessionUsage } from '../../shared/model/usage'
+import { formatTokens, type SessionUsage } from '../../shared/model/usage'
 import { useDismissOutside } from './composer-palette'
+
+/* 短写规则住在 shared/model/usage（时间线的压缩行也用它）；这里照旧导出，读胶囊的人不必知道它搬过家 */
+export { formatTokens }
 
 /* 上下文用量胶囊：常显圆环，悬浮出提示，点开出面板。圆环与面板几何照抄上游 ContextMeter（14 视窗、r=5.5、描边 2），本仓多了 75/90/95 三档阈值。 */
 
@@ -47,19 +50,6 @@ function levelOf(fraction: number): 'ok' | 'warn' | 'high' | 'critical' {
     return 'warn'
   }
   return 'ok'
-}
-
-export function formatTokens(value: number): string {
-  const scaled = (candidate: number) =>
-    candidate >= 100 ? String(Math.round(candidate)) : String(Math.round(candidate * 10) / 10)
-
-  if (value < 1_000) {
-    return String(value)
-  }
-  if (value < 1_000_000) {
-    return `${scaled(value / 1_000)}K`
-  }
-  return `${scaled(value / 1_000_000)}M`
 }
 
 export interface GaugeLayout {
@@ -162,10 +152,25 @@ export interface ContextGaugeProps {
   readonly onRunCommand?: ((text: string) => void) | undefined
   /** 一轮正在跑：维护动作此时只会被 omp 以「忙」拒绝 */
   readonly busy?: boolean | undefined
+  /** 从外面打开（斜杠命令 `/context`）：每变一次就打开一次面板；计数而不是布尔，开合仍归这一层 */
+  readonly openRequest?: number | undefined
 }
 
-export const ContextGauge = memo(function ContextGauge({ busy, commands, onRunCommand, usage }: ContextGaugeProps) {
+export const ContextGauge = memo(function ContextGauge({
+  busy,
+  commands,
+  onRunCommand,
+  openRequest,
+  usage,
+}: ContextGaugeProps) {
   const [open, setOpen] = useState(false)
+  const [seenRequest, setSeenRequest] = useState(openRequest)
+
+  /* 渲染期对比上一次的请求号（「props 变了就调 state」）；还没有读数时胶囊不画，也就不开 */
+  if (seenRequest !== openRequest) {
+    setSeenRequest(openRequest)
+    if (openRequest !== undefined && usage !== undefined && usage.size > 0) setOpen(true)
+  }
   const rootRef = useRef<HTMLSpanElement>(null)
   const panelRef = useRef<HTMLDivElement>(null)
   const [position, setPosition] = useState<{ left: number; top: number } | null>(null)

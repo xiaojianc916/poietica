@@ -192,4 +192,24 @@ describe('会话页左上角标题菜单', () => {
 
     expect(renamed).toEqual(['菜单改的名'])
   })
+
+  test('U-04 斜杠命令 /rename：请求号一变就进就地改名，与点标题同一个编辑框', async () => {
+    const renamed: string[] = []
+    const onRename = (_id: string, title: string): void => {
+      renamed.push(title)
+    }
+    const { rerender } = await mount(<ThreadTitleMenu onRename={onRename} thread={threadOf({ title: '旧标题' })} />)
+    expect(screen.queryByLabelText('重命名对话')).toBeNull()
+
+    await rerender(<ThreadTitleMenu onRename={onRename} renameRequest={1} thread={threadOf({ title: '旧标题' })} />)
+    const field = screen.getByLabelText('重命名对话') as HTMLInputElement
+    expect(field.value).toBe('旧标题')
+    fireEvent.change(field, { target: { value: '命令改的名' } })
+    fireEvent.submit(field.closest('form') as HTMLFormElement)
+    expect(renamed).toEqual(['命令改的名'])
+
+    /* 改完再敲一次 /rename：再进一次 */
+    await rerender(<ThreadTitleMenu onRename={onRename} renameRequest={2} thread={threadOf({ title: '旧标题' })} />)
+    expect(screen.getByLabelText('重命名对话')).toBeDefined()
+  })
 })

@@ -4414,3 +4414,47 @@ openai-codex-device / xai-oauth / gitlab-duo / gitlab-duo-agent / factory-droid 
 - `features/platform/src/ui/__tests__/format-bytes.test.ts` 测的是 `@poietica/design-system` 的 `formatBytes`，
   文件位置不对（应在 `packages/design-system/src/__tests__/`）。挪它要动 `editor-project-map` 闸门的收录范围，
   不属于本次「删无用测试」。
+
+## U-04 命令结果：能打开控件的直接打开，压缩/交接只在时间线留一行，结果卡单行/多行两形（基于 8609ee42，协议 33，2026-10-18）
+
+**来源**：`U-04.md`（基线 `7a12acb4`，分支 `u04-results` / `6035bcd6`，29 文件 +1,155 / −197）。
+当前 HEAD 是 `8609ee42`（T-01 之后），补丁用 `git apply --recount` 原样打上，29 个文件全部干净应用，无手工重放。
+
+**改法**：
+
+- 引擎（`packages/engine-omp`）：新增 `session/command-output.ts` —— omp 内置命令的输出分三种结局：已在别处体现的
+  （压缩行 / 标题 / 模型胶囊）返回 `null` 不推；认得的句子译成中文（含 `/shake` 的 `formatShakeSummary` 全部句式、
+  压缩 / 交接 / 改名的失败原因）；认不出的原样交回。`shortTokens` 与界面 `formatTokens` 同一规则。
+- `session.ts`：`runCommand` 对 `/compact`、`/handoff` 不画用户原句，改开 `compactionStart` 一格（`compactionActionOf`
+  在 `slash-commands.ts`），收口时 `compactionEnd(null)` 复位投影里的门；输出与抛错都经 `command-output` 过滤。
+- 界面：`CommandOutputDock` 去掉「跑着」那一态，单行（名字 · 结果 · 关闭）/ 多行（卡 + 复制 + 关闭）两形，
+  `looksTabular` 决定是否换等宽；`compaction-status.tsx` 一行只说结果、默认收起，展开是说明 + 复制 + 摘要，
+  交接单独一种说法（`handoff` 进了 `CompactionTimelineItem`，`transcript-projector` 从 `method`/`action` 认）；
+  `commandShortcutOf` 让不带参数的 `/model`、`/rename`、`/context` 直接打开 `SessionControls` / `ThreadTitleMenu` /
+  `ContextGauge`（`openRequest` 计数），控件此刻给不出来就照常交给 omp；发下一条消息时收起结果卡。
+- 共享：`formatTokens` 从 `context-gauge.tsx` 移进 `shared/model/usage.ts`（原处保留再导出，旧测试不动）。
+- 测试：引擎 `command-output.test.ts`（7）、`command-run.test.ts`（4）、`host-fixture.ts`（从 `controls.test.ts` 抽出）；
+  界面 `command-output.test.tsx`（3）、`session-controls.test.tsx`（2）、`context-gauge.test.tsx`（2）、
+  `compaction-status.test.tsx` 重写（5）；`commands.test.ts`、`thread-title-menu.test.tsx` 各补一组。
+
+**偏差**：
+
+1. **补丁的 hunk 头行数被文档截断**（`…` 省略），`git apply` 报 `corrupt patch at line 1969`；用 `--recount` 按实际行数
+   重算后原样应用，内容一字未改。
+2. **文档登记 29 文件，实际 `git status` 也是 29**（22 改 / 7 新增），与方案一致。
+
+**验证（在本机 HEAD `8609ee42` 上重跑，不是抄方案里的数）**：
+
+- `bun run typecheck`：通过（780 文件 / 80 工程；1,058 文件测试工程）。
+- `bun run lint`：通过（仅剩基线已有的 4 条 `noDescendingSpecificity` 警告）。
+- `bun test features/conversation`：610 pass / 0 fail / 86 文件。
+- `bun test packages/engine-omp`：521 pass / 0 fail / 59 文件 / 2 快照。
+- `bun test`（全仓）：**2,497 pass / 0 fail / 321 文件 / 3 快照 / 86 秒**。
+- 定向：`command-output.test.ts` + `command-run.test.ts` 11 pass；四条新界面用例 12 pass。
+- **对照随包 omp 18.10.3 的真实句式逐条核对**（不是只看自己的测试）：`src/slash-commands/builtin-lifecycle.ts`
+  （`Compaction complete…` / `Context handed off and compacted in place.` / `Session renamed to …` / `Rename failed: …`）、
+  `builtin-modes.ts`（`Current model: …` / `Unknown model: …` / `Model set to …` / `Failed to set|switch model: …`）、
+  `session/shake-types.ts`（`formatShakeSummary` 五种句式）、`session/session-maintenance.ts`（`Nothing to compact (session too small)` /
+  `(session too small or already rolled over)` / `Already compacted` / `Compaction already in progress` / `Nothing to hand off …` / `No model selected`）。
+  另跑一次性脚本，把 omp 自己的 `formatShakeSummary` 真输出喂进 `commandOutputText`，五种句式全部译对；
+  压缩 / 交接 / 改名 / 换模型的成功句全部返回 `null`（不重复推送）。

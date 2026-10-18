@@ -14,7 +14,7 @@ describe('入口页的命令表', () => {
     const names = list.map((command) => command.name)
 
     expect(names).toContain('model')
-    expect(list.find((command) => command.name === 'model')?.description).toBe('查看当前的模型设置')
+    expect(list.find((command) => command.name === 'model')?.description).toBe('切换模型')
     for (const absent of ['compact', 'handoff', 'retry', 'rename', 'pin', 'move', 'wt', 'stats', 'trace']) {
       expect(names).not.toContain(absent)
     }

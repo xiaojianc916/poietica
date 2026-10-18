@@ -19,7 +19,7 @@ const COMMAND_TEXT: ReadonlyMap<string, CommandText> = new Map<string, CommandTe
   ['shake', { description: '移除工具输出等大块内容，释放上下文' }],
   ['retry', { description: '重试上一轮失败的回复' }],
   ['context', { description: '查看上下文用量明细' }],
-  ['rename', { description: '重命名对话，不填标题则自动生成', hint: '[标题]' }],
+  ['rename', { description: '重命名对话', hint: '[标题]' }],
   ['fresh', { description: '重置与服务商的连接状态，对话记录不变' }],
   ['export', { description: '把对话导出为 HTML 文件', hint: '[路径]' }],
   ['dump', { description: '以纯文本输出完整对话记录' }],
@@ -30,7 +30,7 @@ const COMMAND_TEXT: ReadonlyMap<string, CommandText> = new Map<string, CommandTe
   ['green', { description: '反复修复 CI 失败，直到分支通过' }],
   ['annotate', { description: '批注改动、文件或最近一条回复', hint: '[目标]' }],
   /* 模型与模式 */
-  ['model', { description: '查看当前的模型设置' }],
+  ['model', { description: '切换模型' }],
   ['switch', { description: '只为这条对话切换模型', hint: '[模型]' }],
   ['effort', { description: '设置或查看推理强度', hint: '[档位]' }],
   ['fast', { description: '开关快速模式', hint: '[on|ultra|off]' }],

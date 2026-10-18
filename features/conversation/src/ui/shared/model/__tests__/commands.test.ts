@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'bun:test'
 import type { SlashCommand } from '@poietica/engine'
-import { hasCommand, rankCommands, requiresArgument, slashQueryOf } from '../commands'
+import { commandShortcutOf, hasCommand, rankCommands, requiresArgument, slashQueryOf } from '../commands'
 
 const retry: SlashCommand = {
   name: 'retry',
@@ -81,5 +81,32 @@ describe('选中命令时要不要先补参数', () => {
     expect(requiresArgument(command('add-dir', { hint: '<路径>' }))).toBe(true)
     expect(requiresArgument(command('compact', { hint: '[关注点]' }))).toBe(false)
     expect(requiresArgument(command('retry'))).toBe(false)
+  })
+})
+
+/* U-04：不带参数的 /model、/rename 交给界面上现成的控件；带参数的、别的来源的照常交给 omp。 */
+describe('交给现成控件的命令', () => {
+  const list = [
+    command('model', { aliases: ['models'] }),
+    command('rename', { hint: '[标题]' }),
+    command('context'),
+    command('switch', { hint: '[模型]' }),
+    command('deploy', { source: 'file' }),
+  ]
+
+  test('不带参数：/model（别名 /models）开模型选择器，/rename 开改名框，/context 开上下文面板', () => {
+    expect(commandShortcutOf(list, '/model')).toBe('model-picker')
+    expect(commandShortcutOf(list, '/models  ')).toBe('model-picker')
+    expect(commandShortcutOf(list, '/rename')).toBe('rename')
+    expect(commandShortcutOf(list, '/context')).toBe('context-panel')
+  })
+
+  test('带参数、/switch、自定义命令、不在表里的：照常执行', () => {
+    expect(commandShortcutOf(list, '/model opus')).toBeNull()
+    expect(commandShortcutOf(list, '/rename 新标题')).toBeNull()
+    expect(commandShortcutOf(list, '/context full')).toBeNull()
+    expect(commandShortcutOf(list, '/switch')).toBeNull()
+    expect(commandShortcutOf(list, '/deploy')).toBeNull()
+    expect(commandShortcutOf(list, '/unknown')).toBeNull()
   })
 })

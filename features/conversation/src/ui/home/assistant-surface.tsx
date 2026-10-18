@@ -26,7 +26,13 @@ import {
   useAgentToolkit,
   useDockClearance,
 } from '../composer'
-import { hasCommand, matchCommand, type ThreadCommands } from '../shared/model/commands'
+import {
+  type CommandShortcut,
+  commandShortcutOf,
+  hasCommand,
+  matchCommand,
+  type ThreadCommands,
+} from '../shared/model/commands'
 import type { SessionConfigControl } from '../shared/model/config'
 import type { SessionGoal } from '../shared/model/goal'
 import type { GoalActionHandler } from '../shared/model/goal-control'
@@ -176,16 +182,47 @@ const FAILURE_HOLD_MS = 60 * 60 * 1000
  * 或在斜杠面板里选中 —— 面板把名字放回草稿再提交，到这里是同一句话）。
  * 行首点名了表里的一条命令、又没挂附件与技能，交给 omp 的命令路由，不当一句话发给模型；
  * 表里没有的 `/xxx`（路径、随手打的斜杠）照常发 —— 判据是 omp 的命令表，不是「以斜杠开头」。
+ *
+ * 不带参数的 `/model`、`/rename`、`/context` 不交给 omp：直接打开模型选择器 / 标题改名框 / 上下文面板
+ * （commandShortcutOf）。那个控件此刻给不出来（模型表还没确认、没有改名动作、还没有用量）就照常交给 omp，
+ * 不吞掉这一句。
  */
-function useCommandRouting(commands: ThreadCommands | undefined) {
+function useCommandRouting(
+  commands: ThreadCommands | undefined,
+  context: {
+    readonly controls: readonly SessionConfigControl[]
+    readonly controlsPending: boolean | undefined
+    readonly thread: Thread | undefined
+    readonly onRenameThread: AssistantSurfaceProps['onRenameThread']
+    readonly usage: SessionUsage | undefined
+  },
+) {
+  /* 每个控件此刻给不给得出来；给不出来的那条命令照常交给 omp */
+  const modelPicker =
+    context.controlsPending !== true && context.controls.some((control) => control.purpose === 'model')
+  const rename = context.thread !== undefined && context.onRenameThread !== undefined
+  const contextPanel = context.usage !== undefined && context.usage.size > 0
+  /* 请求号：每敲一次就加一，控件见号变了就打开一次（见 SessionControls / ThreadTitleMenu / ContextGauge 的 openRequest） */
+  const [requests, setRequests] = useState<Readonly<Partial<Record<CommandShortcut, number>>>>({})
   const routeCommand = useCallback(
     (message: Omit<PromptInputMessage, 'queued'>): boolean => {
       if (commands === undefined || message.assets.length > 0 || message.skills.length > 0) return false
       if (matchCommand(commands.list, message.text) === null) return false
+      const shortcut = commandShortcutOf(commands.list, message.text)
+      const available: Readonly<Record<CommandShortcut, boolean>> = {
+        'context-panel': contextPanel,
+        'model-picker': modelPicker,
+        rename,
+      }
+      if (shortcut !== null && available[shortcut]) {
+        commands.dismissOutput()
+        setRequests((held) => ({ ...held, [shortcut]: (held[shortcut] ?? 0) + 1 }))
+        return true
+      }
       void commands.run(message.text)
       return true
     },
-    [commands],
+    [commands, contextPanel, modelPicker, rename],
   )
   /* 维护动作与重试钮都只是命令的快捷方式：同一条 commands.run，结果落进同一块命令输出。 */
   const runCommand = useCallback(
@@ -198,7 +235,14 @@ function useCommandRouting(commands: ThreadCommands | undefined) {
   const retry = useCallback(() => {
     void commands?.run('/retry')
   }, [commands])
+  const dismissOutput = useCallback(() => {
+    commands?.dismissOutput()
+  }, [commands])
   return {
+    contextPanelRequest: requests['context-panel'],
+    dismissOutput,
+    modelPickerRequest: requests['model-picker'],
+    renameRequest: requests.rename,
     retry: canRetry ? retry : undefined,
     routeCommand,
     runCommand: commands === undefined ? undefined : runCommand,
@@ -303,7 +347,8 @@ export const AssistantSurface = memo(function AssistantSurface({
 
   /* 把手两个读者：外面写草稿，这层取回队列那句改；铺一条回调 ref 分给两边。 */
   const draft = useRef<PromptInputHandle | null>(null)
-  const { retry, routeCommand, runCommand } = useCommandRouting(commands)
+  const { contextPanelRequest, dismissOutput, modelPickerRequest, renameRequest, retry, routeCommand, runCommand } =
+    useCommandRouting(commands, { controls, controlsPending, onRenameThread, thread, usage })
 
   /* 发言就是那次转场，先于 send：这一刻起就是对话而非入口。`queued` 是人点名的「排队」，跑着时走 followUp 不打断。 */
   const submit = useCallback(
@@ -312,10 +357,12 @@ export const AssistantSurface = memo(function AssistantSurface({
       if (routeCommand(message)) {
         return
       }
+      /* 说下一句话时，上一条命令的结果就算看过了：收起来，不在输入框上方一直挂着 */
+      dismissOutput()
       /* 失败由横幅说：正常发送不看回执。 */
       void assistant.send(message, queued === true ? 'followUp' : undefined)
     },
-    [assistant.send, routeCommand],
+    [assistant.send, dismissOutput, routeCommand],
   )
 
   const composerRef = useCallback(
@@ -372,9 +419,11 @@ export const AssistantSurface = memo(function AssistantSurface({
       <AssistantComposer
         approval={approval}
         commands={commands?.list}
+        contextPanelRequest={contextPanelRequest}
         controls={controls}
         controlsPending={controlsPending}
         mcpServers={mcpServers}
+        modelPickerRequest={modelPickerRequest}
         onAnswerDialog={assistant.answerDialog}
         onAnswerQuestions={assistant.answerQuestions}
         onCancel={assistant.cancel}
@@ -405,7 +454,13 @@ export const AssistantSurface = memo(function AssistantSurface({
       {/* 内容区固定的那一条（36px 高、地色底），两个相位都在；右端是 threadHeaderItems 的落点。 */}
       <div className="conversation-header" data-assistant-skin>
         {/* 机器图标 + 标题 + 下拉菜单（固定 / 重命名 / 导出 + 其它功能贡献的动作）；标题跟着线程库走。 */}
-        <ThreadTitleMenu onExport={onExportThread} onPin={onPinThread} onRename={onRenameThread} thread={thread} />
+        <ThreadTitleMenu
+          onExport={onExportThread}
+          onPin={onPinThread}
+          onRename={onRenameThread}
+          renameRequest={renameRequest}
+          thread={thread}
+        />
 
         <ThreadHeaderItems thread={thread} />
       </div>

@@ -850,6 +850,8 @@ function compactionOf(mark: TranscriptMarker, turn: number): CompactionTimelineI
     agentId: 'main',
     state,
     ...(trigger === 'manual' || trigger === 'auto' ? { trigger } : {}),
+    /* 落了盘的那一行带 method，跑着的那一格带 action（omp 压缩事件的写法） */
+    ...(payload.method === 'handoff' || payload.action === 'handoff' ? { handoff: true as const } : {}),
     ...(typeof instruction === 'string' && instruction !== '' ? { instruction } : {}),
     ...(tokensBefore === undefined ? {} : { tokensBefore }),
     ...(tokensAfter === undefined ? {} : { tokensAfter }),

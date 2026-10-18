@@ -23,10 +23,11 @@ import { AskCallTracker } from '../interactions/ask-calls'
 import type { InteractionBroker } from '../interactions/broker'
 import type { FileAttachmentInput, ImageAttachmentInput, LiveProjector } from '../projector/live'
 import { OpenTurnScreen, overlayOpenTurn } from '../projector/open-turn'
+import { commandErrorText, commandOutputText } from './command-output'
 import { describeError } from './event-faults'
 import type { LoadedImage } from './prompt'
 import { type SkillPromptMessage, wireTextOf } from './prompt'
-import type { BuiltinCommandHooks, runBuiltinCommand } from './slash-commands'
+import { type BuiltinCommandHooks, compactionActionOf, type runBuiltinCommand } from './slash-commands'
 import { usageOf } from './usage'
 
 /** OmpSession 需要的最小 omp 会话面（细节由 session-factory 注入，会话自己不认识 omp 类型） */
@@ -224,7 +225,8 @@ export class OmpSession implements EngineSession {
    * 正在跑的斜杠命令。非 null 时这一轮是「命令轮」：收口之后整页重取（命令改的是会话文件，增量里猜不出它改了什么），
    * 停止键要连同命令自己的 AbortSignal 一起拉。
    */
-  private commandRun: { readonly abort: AbortController } | null = null
+  /** 在跑的那条命令：中止信号，以及它有没有在时间线上开一格「正在压缩 / 正在生成交接文档」 */
+  private commandRun: { readonly abort: AbortController; readonly compacting: boolean } | null = null
 
   constructor(
     private readonly o: OmpSessionHost,
@@ -388,6 +390,8 @@ export class OmpSession implements EngineSession {
    */
   private closeCommandRun(): void {
     if (this.commandRun === null) return
+    /* 开过的那一格不必单独关：整页重取会把它换成会话文件里的那一行（失败、取消时就是没有这一行）；这里只把投影里的门复位 */
+    if (this.commandRun.compacting) this.o.projector.compactionEnd(null)
     this.commandRun = null
     try {
       this.o.reseat()
@@ -765,6 +769,9 @@ export class OmpSession implements EngineSession {
    * 斜杠命令（端口语义见 EngineSession.runCommand）。路由与 omp 的宿主同一个次序：内置命令走
    * executeAcpBuiltinSlashCommand；其余（扩展 / 自定义 / 文件 / MCP 提示词命令）原样交给 prompt，由 omp 就地展开。
    * 命令先开一轮把原句画上屏：`/retry` 这类命令排出的那一轮 agent 要有地方落；本地命令收口时这一轮随整页重取消失。
+   * `/compact`、`/handoff` 例外：不画原句，改开一格压缩行（「正在压缩上下文…」/「正在生成交接文档…」）——
+   * omp 手动跑它们时不发 auto_compaction_start，不开这一格，几十秒里屏幕上只有一句 `/compact`；收口整页重取后，
+   * 这一格落成会话文件里那一行「上下文已压缩 …」，位置不跳。
    */
   async runCommand(text: string): Promise<void> {
     this.assertLive()
@@ -779,8 +786,13 @@ export class OmpSession implements EngineSession {
     this.endedWithPending = null
     this.setState('running')
     const abort = new AbortController()
-    this.commandRun = { abort }
-    this.timeline(this.o.projector.userTurn({ text: line, skills: [] }))
+    const compaction = compactionActionOf(command)
+    this.commandRun = { abort, compacting: compaction !== null }
+    this.timeline(
+      compaction === null
+        ? this.o.projector.userTurn({ text: line, skills: [] })
+        : this.o.projector.compactionStart({ reason: 'manual', action: compaction }),
+    )
     // 不 await：压缩之类的命令要跑很久，调用方与 submit 一样只等「开始了」
     void this.driveCommand(line, command.source, abort.signal)
   }
@@ -791,7 +803,11 @@ export class OmpSession implements EngineSession {
       if (source === 'builtin') {
         const result = await this.o.runBuiltinCommand(line, {
           signal,
-          output: (chunk) => this.emit({ type: 'commandOutput', text: chunk }),
+          /* 已在别处体现的结果（压缩行、标题、模型胶囊）不推；认得的句子换成中文（command-output.ts） */
+          output: (chunk) => {
+            const text = commandOutputText(chunk)
+            if (text !== null) this.emit({ type: 'commandOutput', text })
+          },
           configChanged: () => this.controlsChanged(),
           commandsChanged: () => this.commandsChanged(),
         })
@@ -811,7 +827,7 @@ export class OmpSession implements EngineSession {
     } catch (error) {
       const mapped = toEngineError(error)
       /* 命令轮收口会整页重取，挂在这一轮上的报错帧也会随之消失：失败原文改走命令输出那一块 */
-      this.emit({ type: 'commandOutput', text: mapped.message })
+      this.emit({ type: 'commandOutput', text: commandErrorText(mapped.message) })
       this.closeTurnAfterRun('failed', mapped.message, { code: mapped.code, message: mapped.message })
     }
   }

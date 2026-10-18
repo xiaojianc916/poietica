@@ -49,6 +49,10 @@ export interface AssistantComposerProps {
   readonly commands?: readonly SlashCommand[] | undefined
   /** 直接执行一句命令（上下文面板的维护动作用它）；缺席时那排按钮不画 */
   readonly onRunCommand?: ((text: string) => void) | undefined
+  /** 每变一次就打开一次模型选择器（斜杠命令 `/model`），见 SessionControls.openRequest */
+  readonly modelPickerRequest?: number | undefined
+  /** 每变一次就打开一次上下文用量面板（斜杠命令 `/context`），见 ContextGauge.openRequest */
+  readonly contextPanelRequest?: number | undefined
   /** Everything the session (or, before one exists, the agent config) offers. */
   readonly controls: readonly SessionConfigControl[]
   /** 这张表还没被 agent 确认过：画得出内容，但点不动。 */
@@ -70,8 +74,10 @@ export interface AssistantComposerProps {
 type ComposerToolbarProps = Pick<
   AssistantComposerProps,
   | 'commands'
+  | 'contextPanelRequest'
   | 'controls'
   | 'controlsPending'
+  | 'modelPickerRequest'
   | 'onCancel'
   | 'onContinue'
   | 'onRunCommand'
@@ -87,8 +93,10 @@ type ComposerToolbarProps = Pick<
 function ComposerToolbar({
   commands,
   confirmed,
+  contextPanelRequest,
   controls,
   controlsPending,
+  modelPickerRequest,
   onCancel,
   onContinue,
   onRunCommand,
@@ -122,11 +130,17 @@ function ComposerToolbar({
         busy={status === 'streaming' || status === 'submitted'}
         commands={commands}
         onRunCommand={onRunCommand}
+        openRequest={contextPanelRequest}
         usage={usage}
       />
 
       {/* 模型选择器挨着「发」：它说的正是这一句将被谁回答。 */}
-      <SessionControls controls={controls} onSelect={onSelectControl} pending={controlsPending} />
+      <SessionControls
+        controls={controls}
+        onSelect={onSelectControl}
+        openRequest={modelPickerRequest}
+        pending={controlsPending}
+      />
 
       {/* 按钮与 onSubmit 读同一份草稿；字段用法没有发送键。 */}
       {onSubmit === undefined ? null : (

@@ -2,7 +2,8 @@ import type { SlashCommand } from '@poietica/engine'
 
 /**
  * 一条对话的斜杠命令面：表与执行都归 omp（经 Core 的 commands.*），这里只是屏幕要的那几格。
- * `output` 只留**最近一条命令**的输出：它不进会话文件，换一条命令就换一块，不在屏幕上越积越长。
+ * `output` 只留**最近一条命令**的结果：它不进会话文件，换一条命令就换一块，不在屏幕上越积越长。
+ * 有结果才有这一块（lines 至少一行）：结果已在别处体现的命令（压缩、改名、换模型）引擎不推，这一格一直是 null。
  */
 export interface ThreadCommands {
   readonly list: readonly SlashCommand[]
@@ -10,6 +11,28 @@ export interface ThreadCommands {
   /** 执行一句以 `/` 开头的输入；失败（忙、没有这条命令）写进 output，不抛 */
   readonly run: (text: string) => Promise<void>
   readonly dismissOutput: () => void
+}
+
+/**
+ * 交给界面上现成控件、不必让 omp 执行的命令：不带参数的 `/model`（`/models`）就是「打开模型选择器」，
+ * 不带参数的 `/rename` 就是「改标题」，不带参数的 `/context` 就是「打开上下文用量面板」——
+ * 与专业 agent 的做法一致，敲命令等于点那个控件，而不是回一句「当前模型：…」或一张英文的字符报表。
+ * 带了参数的照常交给 omp（`/model opus`、`/rename 新标题`），`/switch`（只对这条对话生效）也照常执行。
+ */
+export type CommandShortcut = 'model-picker' | 'rename' | 'context-panel'
+
+const SHORTCUTS: Readonly<Record<string, CommandShortcut>> = {
+  model: 'model-picker',
+  rename: 'rename',
+  context: 'context-panel',
+}
+
+export function commandShortcutOf(list: readonly SlashCommand[], text: string): CommandShortcut | null {
+  const command = matchCommand(list, text)
+  if (command === null || command.source !== 'builtin') return null
+  const args = text.trimStart().slice(1).replace(/^\S+/, '').trim()
+  if (args !== '') return null
+  return SHORTCUTS[command.name] ?? null
 }
 
 /** 一句话是不是在点名表里的一条命令：只认行首 `/名字`（名字到空白或冒号为止，与 omp 的 parseSlashCommand 同一个切法） */
