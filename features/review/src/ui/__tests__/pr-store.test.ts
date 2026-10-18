@@ -11,7 +11,7 @@ import {
   relativeTimeAgo,
   sortChecks,
 } from '../pr-format'
-import { createPrStore, filterCounts, type PrGateway, visiblePulls } from '../pr-store'
+import { createPrStore, FRESH_MS, filterCounts, type PrGateway, visiblePulls } from '../pr-store'
 
 /* 纯函数与状态机的行为契约。UI 三块各自渲染，但它们对「多久以前」「什么颜色」「哪几条可见」的判断
  * 都从这里来，所以这一份测试守的是三块共同的口径。 */
@@ -180,7 +180,7 @@ describe('代码审查页的状态机', () => {
     expect(state.reading.pulls.map((p) => p.number)).toEqual([3])
   })
 
-  test('gh 不可用只说一句为什么，列表进 unavailable', async () => {
+  test('GitHub 不可用只说一句为什么，列表进 unavailable', async () => {
     const store = createPrStore({
       gateway: gateway({ availability: async () => ({ available: false, reason: '没登录', login: null }) }),
       report: () => undefined,
@@ -243,5 +243,118 @@ describe('代码审查页的状态机', () => {
     store.comment()
     await settle()
     expect(sent).toBe(0)
+  })
+
+  describe('缓存：离开页面再回来', () => {
+    function counting(over: Partial<PrGateway> = {}) {
+      const calls = { list: 0, pull: 0, comments: 0 }
+      const base = gateway(over)
+      const counted: PrGateway = {
+        ...base,
+        pullRequests: () => {
+          calls.list += 1
+          return base.pullRequests()
+        },
+        pullRequest: (number) => {
+          calls.pull += 1
+          return base.pullRequest(number)
+        },
+        comments: (number) => {
+          calls.comments += 1
+          return base.comments(number)
+        },
+      }
+      return { calls, gateway: counted }
+    }
+
+    test('新鲜期内回来：不重读，状态原样（选中项、标签页都还在）', async () => {
+      let clock = NOW
+      const { calls, gateway: g } = counting()
+      const store = createPrStore({ gateway: g, report: () => undefined, now: () => clock })
+      let stop = store.start()
+      await settle()
+      store.select(3)
+      store.setTab('timeline')
+      await settle()
+      stop()
+
+      clock += FRESH_MS - 1
+      stop = store.start()
+      const state = store.store.getState()
+      expect(state.reading.phase).toBe('ready')
+      expect(state.selected).toBe(3)
+      expect(state.tab).toBe('timeline')
+      await settle()
+      expect(calls).toEqual({ list: 1, pull: 0, comments: 1 })
+      stop()
+    })
+
+    test('过期了回来：先画旧的，背后重读，读回来再换上', async () => {
+      let clock = NOW
+      let title = '旧标题'
+      const { calls, gateway: g } = counting({
+        pullRequests: async () => ({
+          repository: { owner: 'a', name: 'b', fullName: 'a/b', url: 'https://x' },
+          pulls: [pull({ title })],
+        }),
+      })
+      const store = createPrStore({ gateway: g, report: () => undefined, now: () => clock })
+      const stop = store.start()
+      await settle()
+      stop()
+
+      clock += FRESH_MS
+      title = '新标题'
+      store.start()
+      /* 重读还在路上：屏幕上照旧是旧清单，不是加载态 */
+      expect(store.store.getState().reading.phase).toBe('ready')
+      expect(store.store.getState().refreshing).toBe(true)
+      expect(store.store.getState().reading.pulls[0]?.title).toBe('旧标题')
+      await settle()
+      expect(store.store.getState().refreshing).toBe(false)
+      expect(store.store.getState().reading.pulls[0]?.title).toBe('新标题')
+      expect(calls.list).toBe(2)
+    })
+
+    test('背后重读失败：手上那份不打掉', async () => {
+      let clock = NOW
+      let broken = false
+      const store = createPrStore({
+        gateway: gateway({
+          pullRequests: async () => {
+            if (broken) throw new Error('offline')
+            return { repository: { owner: 'a', name: 'b', fullName: 'a/b', url: 'https://x' }, pulls: [pull()] }
+          },
+        }),
+        report: () => undefined,
+        now: () => clock,
+      })
+      store.start()
+      await settle()
+      broken = true
+      clock += FRESH_MS
+      store.refresh()
+      await settle()
+      expect(store.store.getState().reading.phase).toBe('ready')
+      expect(store.store.getState().reading.pulls).toHaveLength(1)
+    })
+
+    test('点开一条：列表里的字段先画上，只补读评论；再点回来是即时的', async () => {
+      const { calls, gateway: g } = counting()
+      const store = createPrStore({ gateway: g, report: () => undefined, now: () => NOW })
+      store.start()
+      await settle()
+      store.select(3)
+      expect(store.store.getState().facts.phase).toBe('ready')
+      await settle()
+      expect(calls.pull).toBe(0)
+      expect(calls.comments).toBe(1)
+
+      store.select(null)
+      store.select(3)
+      expect(store.store.getState().comments.phase).toBe('ready')
+      await settle()
+      expect(calls.comments).toBe(1)
+    })
   })
 })

@@ -100,7 +100,8 @@ export function PrSidebar(p: PrSidebarProps): ReactNode {
         busy={state.busy}
         counts={p.counts}
         filter={state.filter}
-        loading={loading}
+        /* 背后重读（回到页面、手动刷新）时只让刷新钮转，不把列表换成加载态。 */
+        loading={loading || state.refreshing}
         onFilter={p.onFilter}
         onQuery={p.onQuery}
         onRefresh={p.onRefresh}

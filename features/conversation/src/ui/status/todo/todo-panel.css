@@ -359,51 +359,36 @@
   outline-offset: -2px;
 }
 
-/* 悬浮卡：列被折起来的那几项。宽度跟弹窗差不多，长标题换行而不是截断（悬停就是为了看全）。 */
-.status-panel__fold-card.status-panel__fold-card {
-  /* 卡片经 Portal 挂在面板外，读不到 .status-panel 上的色值；图标统一跟卡片的字色走（浅色主题下是反色气泡）。 */
-  --status-panel-success: currentcolor;
-  --cp-ink: currentcolor;
-  --cp-placeholder: currentcolor;
-
+/*
+ * 折叠悬浮卡：一块小号的状态面板（同挂 .status-panel，墨色与深浅主题都从那一格来）。外壳照浮层面板
+ * （conversation-todo-popover__surface）：同一圈 #363636 外框、同一档阴影、深色同一块 #202020 —— 只把圆角收一档。
+ * 双类是为了压过提示气泡的默认皮（.ui-tooltip 与它的 bg-foreground / px-3 / text-xs）。
+ */
+.status-panel.status-panel__fold-card {
+  inline-size: 320px;
   max-inline-size: min(320px, 80vw);
-  padding: 6px 8px;
-  border-radius: 8px;
-  font-size: 12px;
-  line-height: 18px;
+  max-block-size: min(64dvh, 32rem);
+  padding: 8px;
+  overflow-y: auto;
+  border: 1px solid #363636;
+  border-radius: 12px;
+  background: var(--cp-ground, #fff);
+  color: var(--cp-ink);
+  font-size: var(--status-panel-font-size);
+  line-height: 20px;
+  box-shadow:
+    0 4px 6px -1px rgb(0 0 0 / 10%),
+    0 2px 4px -2px rgb(0 0 0 / 10%);
 }
 
-.status-panel__fold-list {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  margin: 0;
-  padding: 0;
-  list-style: none;
+:root[data-theme="dark"] .status-panel.status-panel__fold-card {
+  background: #202020;
 }
 
-.status-panel__fold-entry {
-  display: flex;
-  min-inline-size: 0;
-  align-items: flex-start;
-  gap: 6px;
-}
-
-.status-panel__fold-entry .status-panel__glyph {
-  margin-block-start: 2px;
-}
-
-.status-panel__fold-text {
-  min-inline-size: 0;
-  overflow-wrap: anywhere;
-}
-
-.status-panel__fold-text[data-done] {
-  opacity: 0.7;
-}
-
-.status-panel__fold-more {
-  opacity: 0.7;
+/* 「还有 N 项」借折叠行的样子，但它不是按钮，悬停不变色。 */
+.status-panel__fold-more,
+.status-panel__fold-more:hover {
+  background: transparent;
 }
 
 .status-panel__fold:hover {

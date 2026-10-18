@@ -4,13 +4,13 @@ import type { WorkspacesUi } from '@poietica/feature-workspaces/ui-api'
 import { AppError } from '@poietica/foundation'
 import { type ToastService, ToastsToken, type UiFeatureContext, useFeatureStore, useService } from '@poietica/ui-kernel'
 import { FileDiff } from 'lucide-react'
-import { type ReactNode, useEffect, useMemo } from 'react'
+import type { ReactNode } from 'react'
 import type { GithubPullRequest } from '../contract'
-import { createGithubGateway, createReviewApi } from './api'
 import { PrDetail, PrDetailActions } from './pr-detail'
 import { PrInfo } from './pr-info'
 import { PrSidebar } from './pr-sidebar'
-import { createPrStore, filterCounts, visiblePulls } from './pr-store'
+import { filterCounts, visiblePulls } from './pr-store'
+import { usePrStore } from './pr-store-holder'
 
 import './pr-page.css'
 
@@ -19,7 +19,8 @@ import './pr-page.css'
  * 这里只做装配与接线 —— 页面是唯一认识 RPC、平台能力与输入框的地方，三块因此保持纯展示。
  *
  * 三者共用一个 store：左栏选中谁、中栏画谁、右栏报谁的账，不会出现「列表选了 #3、右栏说的是 #2」。
- * 数据源是工作区远端仓库的 GitHub pull request，读法与写法的边界在 core 侧（gh CLI 的薄封装）。
+ * store 按工作区常驻（pr-store-holder）：离开页面再回来不重新加载，选中项、标签页、搜索词都还在。
+ * 数据源是工作区远端仓库的 GitHub pull request，读法与写法的边界在 core 侧（直连 GitHub API，见 core/github-http.ts）。
  */
 
 export interface CodeReviewPageProps {
@@ -41,15 +42,7 @@ export function CodeReviewPage({ ctx, workspaces, openExternal }: CodeReviewPage
   const workspaceId = useFeatureStore(workspaces.store, (held) => held.activeId)
   const toasts = useService(ToastsToken) as ToastService
 
-  /* 契约以 workspaceId 为键，而页面按活动工作区寻址：闭包把 workspaceId 固定在这一层，三块都不必认识它。 */
-  const gateway = useMemo(() => {
-    if (workspaceId === null) {
-      return null
-    }
-    return createGithubGateway(createReviewApi(ctx, workspaceId))
-  }, [ctx, workspaceId])
-
-  if (gateway === null) {
+  if (workspaceId === null) {
     return (
       <div className="pr-page__blank">
         <FileDiff aria-hidden className="size-8 opacity-30" />
@@ -61,14 +54,15 @@ export function CodeReviewPage({ ctx, workspaces, openExternal }: CodeReviewPage
 
   return (
     <CodeReviewBody
-      gateway={gateway}
-      key={workspaceId ?? 'none'}
+      ctx={ctx}
+      key={workspaceId}
       onFailure={(cause) => {
         /* 读不到与写失败都只提示一次：页面自己降级成空态，不把用户堵在错误页上。 */
         ctx.logger.warn('代码审查页操作失败', { error: String(cause) })
         toasts.error(cause)
       }}
       openExternal={openExternal}
+      workspaceId={workspaceId}
     />
   )
 }
@@ -79,23 +73,23 @@ function renderPullMarkdown(text: string): ReactNode {
 }
 
 function CodeReviewBody({
-  gateway,
+  ctx,
   onFailure,
   openExternal,
+  workspaceId,
 }: {
-  readonly gateway: ReturnType<typeof createGithubGateway>
+  readonly ctx: UiFeatureContext
   readonly onFailure: (cause: unknown) => void
   readonly openExternal: (url: string) => void
+  readonly workspaceId: string
 }): ReactNode {
   const conversation = useService(ConversationUiToken) as ConversationUi
-  const store = useMemo(
-    () => createPrStore({ gateway, report: (context) => onFailure(context.cause) }),
-    [gateway, onFailure],
-  )
+  /*
+   * 这个工作区常驻的那一份 store：挂载时 start（没读过就读，过期就背后重读，新鲜就不动），卸载时只作废还在路上的回包，
+   * 数据留着给下次回来。以前这里每次挂载都 new 一份（而且 onFailure 每次渲染都是新函数，useMemo 形同虚设）。
+   */
+  const store = usePrStore(ctx, workspaceId, (context) => onFailure(context.cause))
   const state = useFeatureStore(store.store, (held) => held)
-
-  /* 挂载即读一次；start 交回的清理函数把还在路上的回包作废（Core 会重启，页面会重新挂载）。 */
-  useEffect(() => store.start(), [store])
 
   const pull = state.facts.pull
   const repository = state.reading.repository

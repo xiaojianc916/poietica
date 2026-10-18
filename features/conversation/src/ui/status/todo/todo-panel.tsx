@@ -405,8 +405,24 @@ function TodoStatusGlyph({ status }: { readonly status: TodoItem['status'] }) {
 /* 悬浮卡最多列这么多行：再多就超出视口了，剩下的用一行「还有 N 项」带过。 */
 const TODO_FOLD_PREVIEW_LIMIT = 12
 
+/* 待办的一行：列表本身与折叠悬浮卡共用这一份，两处的字号、行高、图标与删除线因此永远一致。 */
+function TodoRow({ item }: { readonly item: TodoItem }) {
+  return (
+    <li className="status-panel__item" data-status={item.status}>
+      <span aria-label={TASK_STATUS_LABEL[item.status]} className="status-panel__glyph" role="img">
+        <TodoStatusGlyph status={item.status} />
+      </span>
+      <span className="status-panel__item-text" data-done={item.status === 'done' || undefined} title={item.title}>
+        {item.title}
+      </span>
+    </li>
+  )
+}
+
 /*
- * 折起来的那几项（「已完成 N 项」「待处理 N 项」）：悬停或键盘聚焦时，用悬浮卡逐条列出被折起来的内容。
+ * 折起来的那几项（「已完成 N 项」「待处理 N 项」）：悬停或键盘聚焦时，在面板左侧弹出一张卡逐条列出。
+ * 卡片就是一块小号的状态面板：挂 .status-panel 拿到同一套墨色与深浅主题，行用 TodoRow，外壳照面板的边、圆角、底色 ——
+ * 不用默认的提示气泡皮（12px 反色小字），那是解释按钮用的，与面板里的列表不是一种东西。
  * 触发器是行内的按钮而不是 li 本身：键盘用户也要能聚焦到它，Base UI 的触发器也需要一个可以聚焦的元素。
  */
 function TodoFold({ items, label }: { readonly items: readonly TodoItem[]; readonly label: string }) {
@@ -414,29 +430,23 @@ function TodoFold({ items, label }: { readonly items: readonly TodoItem[]; reado
   const rest = items.length - shown.length
   return (
     <li className="status-panel__fold-item">
-      <TooltipProvider delay={200}>
+      <TooltipProvider delay={150}>
         <Tooltip>
           <TooltipTrigger className="status-panel__fold" type="button">
             <ChevronRight aria-hidden className="status-panel__fold-icon" />
             <span>{label}</span>
           </TooltipTrigger>
-          <TooltipContent className="status-panel__fold-card" side="left" sideOffset={8}>
-            <ul className="status-panel__fold-list">
+          {/* 偏移 = 面板内边距 8 + 外框 1 + 留缝 8：卡片贴在面板外侧，而不是压在面板上。 */}
+          <TooltipContent className="status-panel status-panel__fold-card" side="left" sideOffset={17}>
+            <ul className="status-panel__list">
               {shown.map((item, index) => (
-                <li
-                  className="status-panel__fold-entry"
-                  data-status={item.status}
-                  key={[`fold-${index}`, item.title].join(':')}
-                >
-                  <span aria-label={TASK_STATUS_LABEL[item.status]} className="status-panel__glyph" role="img">
-                    <TodoStatusGlyph status={item.status} />
-                  </span>
-                  <span className="status-panel__fold-text" data-done={item.status === 'done' || undefined}>
-                    {item.title}
-                  </span>
-                </li>
+                <TodoRow item={item} key={[`fold-${index}`, item.title].join(':')} />
               ))}
-              {rest > 0 ? <li className="status-panel__fold-more">还有 {rest} 项</li> : null}
+              {rest > 0 ? (
+                <li className="status-panel__fold status-panel__fold-more">
+                  <span>还有 {rest} 项</span>
+                </li>
+              ) : null}
             </ul>
           </TooltipContent>
         </Tooltip>
@@ -453,14 +463,7 @@ function TodoSection({ separated, todos }: { readonly separated: boolean; readon
   const done = todos.filter((item) => item.status === 'done').length
   const window = todoFocusWindow(todos)
   const renderItem = (item: TodoItem, index: number) => (
-    <li className="status-panel__item" data-status={item.status} key={[`todo-${index}`, item.title].join(':')}>
-      <span aria-label={TASK_STATUS_LABEL[item.status]} className="status-panel__glyph" role="img">
-        <TodoStatusGlyph status={item.status} />
-      </span>
-      <span className="status-panel__item-text" data-done={item.status === 'done' || undefined} title={item.title}>
-        {item.title}
-      </span>
-    </li>
+    <TodoRow item={item} key={[`todo-${index}`, item.title].join(':')} />
   )
   return (
     <Section

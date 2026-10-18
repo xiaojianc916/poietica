@@ -16,6 +16,11 @@ import type {
  *
  * 页面自身没有「第几页」这类持久状态：列表一次取回（仓库的 PR 数量是几十的量级），
  * 过滤与搜索都在内存里做，键盘上下移动才不会有进程往返。
+ *
+ * 缓存：store 按工作区常驻（见 pr-store-holder），离开页面再回来，屏幕上直接是上次读到的东西，
+ * 不再整页回到「加载中」。回来时数据若已过了 FRESH_MS，就在背后安静地重读一遍（stale-while-revalidate），
+ * 读回来再换上；读失败也不把手上那份打掉。打开一条 PR 时：列表里已经有它的全部字段，先拿来画，
+ * 只补读评论；读过的评论按编号记着，再点回来是即时的。
  */
 
 export type PrFilter = 'all' | 'prs' | 'issues'
@@ -55,6 +60,8 @@ export interface PrState {
   readonly draft: string
   /** 有一次写操作（评论 / 请求评审 / 合并）在路上。 */
   readonly busy: boolean
+  /** 手上已有数据，正在背后重读（不遮挡界面，只让刷新按钮转起来）。 */
+  readonly refreshing: boolean
 }
 
 export interface PrGateway {
@@ -87,7 +94,12 @@ export interface PrStore {
 export interface PrStoreOptions {
   readonly gateway: PrGateway
   readonly report: PrFailureReport
+  /** 测试注入；默认 Date.now。 */
+  readonly now?: () => number
 }
+
+/* 这么久之内读过的就当新鲜：来回切页面不重读；过了才在背后重读。手动刷新与写操作之后不看它。 */
+export const FRESH_MS = 60_000
 
 /** AppError 的 message 已经是给人看的；其余错误不把栈端到界面上。 */
 function messageOf(cause: unknown): string {
@@ -108,16 +120,25 @@ const ASKING: PrState = {
   tab: 'summary',
   draft: '',
   busy: false,
+  refreshing: false,
 }
 
 export function createPrStore(options: PrStoreOptions): PrStore {
   const { gateway, report } = options
+  const now = options.now ?? Date.now
   const store = createFeatureStore<PrState>(() => ASKING)
   const read = (): PrState => store.getState()
   /* 每次重新列清单都换一代：旧代的异步回包不许再落到新状态上（Core 会重启，页面也会刷新）。 */
   let generation = 0
   let factsFor: number | null = null
   let stopWatch: (() => void) | null = null
+  /* 上次列表读成功的时刻；0 表示还没读成过。 */
+  let listedAt = 0
+  /* 每条 PR 读回来的详情与评论（按编号），连同读到的时刻：再点回来先画它。 */
+  const opened = new Map<
+    number,
+    { pull: GithubPullRequest | null; comments: readonly GithubComment[] | null; at: number }
+  >()
 
   function publish(change: Partial<PrState>): void {
     const before = read()
@@ -133,67 +154,172 @@ export function createPrStore(options: PrStoreOptions): PrStore {
     store.setState(next)
   }
 
+  function markUnavailable(reason: string | null): void {
+    publish({
+      reading: { phase: 'unavailable', repository: null, login: null, pulls: [] },
+      trouble: reason,
+      facts: { phase: 'idle', pull: null },
+      comments: { phase: 'idle', items: [] },
+      refreshing: false,
+    })
+  }
+
+  function applyPage(
+    login: string | null,
+    page: { repository: GithubRepository | null; pulls: readonly GithubPullRequest[] },
+  ): void {
+    listedAt = now()
+    publish({
+      reading: { phase: 'ready', repository: page.repository, login, pulls: page.pulls },
+      trouble: null,
+      refreshing: false,
+    })
+    /* 选中的那条若在新清单里，详情跟着换成新读到的（同一套字段） */
+    const selected = read().selected
+    const fresh = selected === null ? undefined : page.pulls.find((pull) => pull.number === selected)
+    if (fresh !== undefined && read().facts.phase === 'ready') {
+      publish({ facts: { phase: 'ready', pull: fresh } })
+    }
+  }
+
+  function listFailed(cause: unknown, quiet: boolean): void {
+    report({ cause })
+    if (quiet) {
+      /* 背后重读失败：手上那份照旧画着，只提示一次。 */
+      publish({ refreshing: false })
+      return
+    }
+    publish({
+      reading: { phase: 'unavailable', repository: null, login: null, pulls: [] },
+      trouble: messageOf(cause),
+      refreshing: false,
+    })
+  }
+
   async function list(): Promise<void> {
     generation += 1
     const mine = generation
-    publish({ reading: { ...read().reading, phase: 'asking' }, trouble: null })
+    /* 手上已有清单：背后重读，不把列表打回加载态。 */
+    const quiet = read().reading.phase === 'ready'
+    publish(quiet ? { refreshing: true } : { reading: { ...read().reading, phase: 'asking' }, trouble: null })
     try {
       const availability = await gateway.availability()
       if (mine !== generation) return
       if (!availability.available) {
-        publish({
-          reading: { phase: 'unavailable', repository: null, login: null, pulls: [] },
-          trouble: availability.reason,
-          facts: { phase: 'idle', pull: null },
-          comments: { phase: 'idle', items: [] },
-        })
+        markUnavailable(availability.reason)
         return
       }
       const page = await gateway.pullRequests()
-      if (mine !== generation) return
-      publish({
-        reading: {
-          phase: 'ready',
-          repository: page.repository,
-          login: availability.login,
-          pulls: page.pulls,
-        },
-      })
+      if (mine === generation) applyPage(availability.login, page)
     } catch (cause) {
-      if (mine !== generation) return
-      report({ cause })
-      publish({
-        reading: { phase: 'unavailable', repository: null, login: null, pulls: [] },
-        trouble: messageOf(cause),
-      })
+      if (mine === generation) listFailed(cause, quiet)
     }
   }
 
-  /* 打开某一条：详情与评论一起拉，任一失败都只降级这一条，不把列表打回加载态。 */
-  async function open(number: number): Promise<void> {
-    const mine = generation
-    factsFor = number
+  type Entry = { pull: GithubPullRequest | null; comments: readonly GithubComment[] | null; at: number }
+
+  /* 打开时手上已有的：读过的详情 / 评论，或者列表里它那一行（列表与详情是同一套字段）。 */
+  function seedOf(number: number): {
+    readonly memo: Entry | undefined
+    readonly listed: GithubPullRequest | null
+    readonly pull: GithubPullRequest | null
+    readonly comments: readonly GithubComment[] | null
+  } {
+    const memo = opened.get(number)
+    const listed = read().reading.pulls.find((pull) => pull.number === number) ?? null
+    return { memo, listed, pull: memo?.pull ?? listed, comments: memo?.comments ?? null }
+  }
+
+  /* 要补读哪几样：force 两样都读；否则列表新鲜时详情不重读，评论读过且新鲜也不重读。 */
+  function needsOf(seed: ReturnType<typeof seedOf>, force: boolean): { pull: boolean; comments: boolean } {
+    if (force) return { pull: true, comments: true }
+    const stale = seed.memo === undefined || now() - seed.memo.at >= FRESH_MS
+    const listStale = seed.listed === null || now() - listedAt >= FRESH_MS
+    return {
+      pull: seed.pull === null || (stale && listStale),
+      comments: seed.comments === null || stale,
+    }
+  }
+
+  function applyFacts(
+    number: number,
+    result: PromiseSettledResult<GithubPullRequest>,
+    seedPull: GithubPullRequest | null,
+    entry: Entry,
+  ): void {
+    if (result.status === 'fulfilled') {
+      entry.pull = result.value
+      publish({ facts: { phase: 'ready', pull: result.value } })
+      return
+    }
+    report({ cause: result.reason })
+    const missing = result.reason instanceof AppError && String(result.reason.code).endsWith('pull_request_missing')
+    if (missing) {
+      opened.delete(number)
+      publish({ facts: { phase: 'missing', pull: null } })
+    } else if (seedPull === null) {
+      publish({ facts: { phase: 'unreadable', pull: null } })
+    }
+  }
+
+  function applyComments(
+    result: PromiseSettledResult<readonly GithubComment[]>,
+    seedComments: readonly GithubComment[] | null,
+    entry: Entry,
+  ): void {
+    if (result.status === 'fulfilled') {
+      entry.comments = result.value
+      publish({ comments: { phase: 'ready', items: result.value } })
+      return
+    }
+    report({ cause: result.reason })
+    if (seedComments === null) {
+      publish({ comments: { phase: 'unreadable', items: [] } })
+    }
+  }
+
+  function showSeed(number: number, seed: ReturnType<typeof seedOf>, switching: boolean): void {
     publish({
       selected: number,
-      facts: { phase: 'loading', pull: null },
-      comments: { phase: 'loading', items: [] },
-      draft: '',
+      facts: seed.pull === null ? { phase: 'loading', pull: null } : { phase: 'ready', pull: seed.pull },
+      comments: seed.comments === null ? { phase: 'loading', items: [] } : { phase: 'ready', items: seed.comments },
+      ...(switching ? { draft: '' } : {}),
     })
-    const [facts, comments] = await Promise.allSettled([gateway.pullRequest(number), gateway.comments(number)])
+  }
+
+  /* 两样都读成才记下时刻：只读成一半的，下次回来还要补。读成「查无此条」的不记。 */
+  function remember(number: number, entry: Entry, complete: boolean): void {
+    if (complete) {
+      entry.at = now()
+    }
+    if (read().facts.phase !== 'missing') {
+      opened.set(number, entry)
+    }
+  }
+
+  /*
+   * 打开某一条。先画手上有的，所以点下去是即时的；再补读缺的或过期的（见 needsOf）。
+   * 补读失败只在「手上什么都没有」时才降级成读不出来，已经画着的不打掉。
+   */
+  async function open(number: number, force = false): Promise<void> {
+    const mine = generation
+    const switching = factsFor !== number || read().selected !== number
+    factsFor = number
+    const seed = seedOf(number)
+    showSeed(number, seed, switching)
+    const need = needsOf(seed, force)
+    if (!need.pull && !need.comments) {
+      return
+    }
+    const [facts, comments] = await Promise.allSettled([
+      need.pull || seed.pull === null ? gateway.pullRequest(number) : Promise.resolve(seed.pull),
+      need.comments ? gateway.comments(number) : Promise.resolve(seed.comments ?? []),
+    ])
     if (mine !== generation || factsFor !== number) return
-    if (facts.status === 'rejected') {
-      report({ cause: facts.reason })
-      const missing = facts.reason instanceof AppError && String(facts.reason.code).endsWith('pull_request_missing')
-      publish({ facts: { phase: missing ? 'missing' : 'unreadable', pull: null } })
-    } else {
-      publish({ facts: { phase: 'ready', pull: facts.value } })
-    }
-    if (comments.status === 'rejected') {
-      report({ cause: comments.reason })
-      publish({ comments: { phase: 'unreadable', items: [] } })
-    } else {
-      publish({ comments: { phase: 'ready', items: comments.value } })
-    }
+    const entry = opened.get(number) ?? { pull: null, comments: null, at: 0 }
+    applyFacts(number, facts, seed.pull, entry)
+    applyComments(comments, seed.comments, entry)
+    remember(number, entry, facts.status === 'fulfilled' && comments.status === 'fulfilled')
   }
 
   /* 写操作完成后按「重新读一次」收尾：评论与检查项都可能在别处变了，不接受发出去的那份回包当真相。 */
@@ -209,7 +335,7 @@ export function createPrStore(options: PrStoreOptions): PrStore {
     } finally {
       publish({ busy: false })
     }
-    await Promise.allSettled([list(), number === null ? Promise.resolve() : open(number)])
+    await Promise.allSettled([list(), number === null ? Promise.resolve() : open(number, true)])
   }
 
   function selectedOrNull(): number | null {
@@ -219,7 +345,15 @@ export function createPrStore(options: PrStoreOptions): PrStore {
   return {
     store,
     start: () => {
-      void list()
+      /* 回到页面：没读成过就读；读成过但过了新鲜期就背后重读；还新鲜就什么都不做（屏幕上已经是它）。 */
+      const reading = read().reading
+      if (reading.phase !== 'ready' || now() - listedAt >= FRESH_MS) {
+        void list()
+      }
+      const number = read().selected
+      if (number !== null) {
+        void open(number)
+      }
       return () => {
         generation += 1
         factsFor = null
@@ -231,7 +365,7 @@ export function createPrStore(options: PrStoreOptions): PrStore {
       void list()
       const number = selectedOrNull()
       if (number !== null) {
-        void open(number)
+        void open(number, true)
       }
     },
     setFilter: (filter) => {

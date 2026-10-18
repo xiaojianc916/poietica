@@ -4273,3 +4273,51 @@ openai-codex-device / xai-oauth / gitlab-duo / gitlab-duo-agent / factory-droid 
 
 
 
+## R-36 状态面板悬浮卡与审查页缓存，审查数据源从 gh CLI 换成直连 GitHub API（2026-10-18）
+
+**来源**：外部方案 `P5.md`（方案方给出，含三段改动与一份可 `git apply` 的补丁）。基线 `490ae419`，
+补丁按 `P5.md` 落盘，13 个文件 / +1137 / −449。
+
+**改动**：
+
+1. **折叠悬浮卡与面板同一套皮**（`conversation/ui/status/todo`）：抽出 `TodoRow`，列表行与悬浮卡共用
+   `li.status-panel__item`；卡片改挂 `status-panel status-panel__fold-card`（320px、深色 `#202020`、
+   外框 `#363636`、14px 字号、超高可滚动），旧的 fold-card / fold-list / fold-entry / fold-text 样式删除。
+2. **审查页 stale-while-revalidate**：新增 `ui/pr-store-holder.ts`（store 按 workspaceId 常驻、引用计数
+   retain / release）；`pr-store.ts` 加 `FRESH_MS`（60 秒）、`refreshing` 状态与按 PR 编号的详情 / 评论缓存，
+   `open` / `list` 拆成 seedOf / needsOf / showSeed / applyFacts / applyComments / remember / applyPage /
+   listFailed。切页回来不再整页「加载中」，过期时背后重读且失败不清空。
+3. **直连 GitHub API**：新增 `core/github-http.ts`（fetch 打 REST + GraphQL、凭据链 GH_TOKEN → `gh auth token`
+   → `git credential fill`、仓库从本地 `git remote -v` 认、401 重取一次），`core/pr.ts` 改用它，
+   删除 `core/gh.ts`。
+
+**偏差与手工修正**：
+
+- **协议描述文字未改**（方案明说）：`contract/errors.ts` / `contract/index.ts` 里仍有两句提到 gh。它们进了
+  协议快照，改就得提升 `PROTOCOL_VERSION`；本次按方案留到下次协议升级一起改，`PROTOCOL_VERSION` 不动。
+- **`github-http.ts` 第 249 行的正则被方案文本转义错了**：`P5.md` 里写作
+  `github\.com:/\/([^/\s]+?)(?:\.git)?\/?$`（`[:/]` 被吃成 `:/\/`，owner / name 两个分组只剩一个）——
+  按原样落盘会 `TS1127: Invalid character`。改为
+  `github\.com[:/]([^/\s]+?)\/([^/\s]+?)(?:\.git)?\/?$`，与同一份方案里 `github-http.test.ts` 断言的
+  五种写法（https / ssh / scp / 带凭据 / 带尾斜杠）逐条对上。其余 12 个文件的 blob 与补丁头记的
+  `index …..` 哈希逐个一致，只有这一行不同。
+
+**验证**：
+
+- `bun check -b`：779 文件 / 80 工程 0 错误；`bun check -p tsconfig.tests.json`：1,052 文件 0 错误。
+- `bun run lint`：0 错误（仅余基线已有的 4 条 `noDescendingSpecificity` warning）；
+  `biome check features/review features/conversation` 通过。
+- `bun test features/review features/conversation packages/protocol`：694 pass / 0 fail（93 文件）。
+- `bun run all`：typecheck + lint + test 全绿，2,502 pass / 0 fail（317 文件 / 3 快照）。
+- 新增测试按方案：`core/__tests__/github-http.test.ts` 10 例（认远端 / 凭据链 / HTTP 失败语义），
+  `core/__tests__/pr.test.ts` 改写成假 fetch（字段映射、单次请求、查无此条、非 GitHub 远端不发请求、
+  评论 / 合并 / 草稿），`ui/__tests__/pr-store.test.ts` 加 4 例（新鲜期不重读、过期背后重读、重读失败不打掉、
+  点开只补读评论且再点即时）。
+
+**未做（方案外，留作待决）**：
+
+- 悬浮卡的真机视觉核对（方案附了 `fold-after.png` / `fold-after2.png`）本次没有重跑；改的是状态面板的 CSS，
+  不在 `check:ticker` 的清单里，但真机观感仍需人工看一眼。
+- `tooling/checks/review-page/run.ts`（`bun run check:review-page`）仍自己起 `gh` 取冒烟数据：它是
+  tooling，不能 import 功能源码，且不在 `bun run all` 里。本次没动，等下次动它时一起改直连。
+

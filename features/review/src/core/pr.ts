@@ -11,18 +11,21 @@ import type {
   GithubRepository,
   GithubReviewState,
 } from '../contract/entities'
-import { detectGh, type GhRunner, ghApiJson, ghGraphql, systemGhRunner } from './gh'
+import { createGithubClient, type GithubClient, pickGithubRemote } from './github-http'
 
 /*
  * GitHub 事实 → 契约实体。所有「GitHub 怎么说」的判断都收在这个文件里：UI 只认契约的名字，
  * 不该知道 CONFLICTING / mergeStateStatus / CheckRun 这些词。映射规则逐条写在下方，改动只会在这里。
  *
- * 每个方法都按 cwd（工作区目录）寻址：`gh repo view` 在那里面认 origin 远端，所以同一台机器上
- * 多个工作区各自指向自己的仓库，互不干扰。
+ * 每个方法都按 cwd（工作区目录）寻址：在那里面读 git 远端认出 owner/name，所以同一台机器上
+ * 多个工作区各自指向自己的仓库，互不干扰。请求走 github-http 的直连客户端（不再起 gh 子进程）。
  */
 
 export interface GithubServiceDeps {
-  readonly runner?: GhRunner
+  /** 直连客户端；测试里换成带假 fetch 的那一个。 */
+  readonly client?: GithubClient
+  /** 在 cwd 里跑 `git remote -v`，交回原样输出；不是仓库 / 没有远端时交回空串。 */
+  readonly remotes: (cwd: string) => Promise<string>
   readonly logger: Logger
 }
 
@@ -48,7 +51,10 @@ export interface GithubService {
 
 interface RawAuthor {
   readonly login?: string | null
+  /** GraphQL 的写法。 */
   readonly avatarUrl?: string | null
+  /** REST 的写法。 */
+  readonly avatar_url?: string | null
 }
 
 interface RawCheckNode {
@@ -286,7 +292,7 @@ function toComment(raw: RawComment, kind: 'comment' | 'review'): GithubComment {
     id: String(raw.id ?? ''),
     kind,
     author: raw.user?.login ?? 'ghost',
-    avatarUrl: raw.user?.avatarUrl ?? null,
+    avatarUrl: raw.user?.avatar_url ?? raw.user?.avatarUrl ?? null,
     body: raw.body ?? '',
     createdAt: raw.created_at ?? raw.submitted_at ?? '',
     reviewState: kind === 'review' ? reviewStateFromRest(raw.state) : null,
@@ -301,33 +307,51 @@ function mergeTimeline(
   return [...comments, ...reviews].sort((a, b) => Date.parse(a.createdAt) - Date.parse(b.createdAt))
 }
 
-export function createGithubService(d: GithubServiceDeps): GithubService {
-  const runner = d.runner ?? systemGhRunner
+const NODE_ID_QUERY = `query($owner: String!, $name: String!, $number: Int!) {
+  repository(owner: $owner, name: $name) { pullRequest(number: $number) { id } }
+}`
 
-  /*
-   * 每次都现问一次 gh repo view：工作区的远端是随时会被人改的东西（换了 origin、目录换了仓库），
-   * 而这里没有可靠的失效时机 —— 缓存的代价是「换过远端之后这一页一直读旧仓库」。一次进程往返换一份
-   * 不会说谎的事实，划算。
-   */
-  const repositoryOf = async (cwd: string): Promise<GithubRepository | null> => {
-    const result = await runner(['repo', 'view', '--json', 'nameWithOwner,url'], { cwd })
-    if (result.exitCode !== 0) {
-      /* 远端不是 GitHub、目录不是仓库、gh 读不到 —— 都是「这里没有 GitHub 仓库」，不是错误。 */
-      d.logger.debug('repository is not on GitHub', { cwd, stderr: result.stderr.trim().slice(0, 200) })
-      return null
+const READY_MUTATION = `mutation($id: ID!) { markPullRequestReadyForReview(input: { pullRequestId: $id }) { clientMutationId } }`
+const DRAFT_MUTATION = `mutation($id: ID!) { convertPullRequestToDraft(input: { pullRequestId: $id }) { clientMutationId } }`
+
+/*
+ * 远端认出来的仓库只记这么久：列表、详情、评论三路几乎同时来，各跑一次 git 是浪费；
+ * 但工作区的远端随时会被人改（换了 origin、目录换了仓库），记久了这一页就会一直读旧仓库。
+ */
+const REPOSITORY_TTL_MS = 15_000
+
+function statusOf(cause: unknown): number | null {
+  if (!(cause instanceof AppError)) return null
+  const data = cause.data as { readonly status?: unknown } | undefined
+  return typeof data?.status === 'number' ? data.status : null
+}
+
+export function createGithubService(d: GithubServiceDeps): GithubService {
+  const client = d.client ?? createGithubClient()
+  const repositories = new Map<string, { readonly at: number; readonly value: Promise<GithubRepository | null> }>()
+  /* 登录名按 token 记：同一份凭据的登录名不会变，换了凭据（重新登录）自然换一格。 */
+  const logins = new Map<string, Promise<string | null>>()
+
+  const repositoryOf = (cwd: string): Promise<GithubRepository | null> => {
+    const hit = repositories.get(cwd)
+    if (hit !== undefined && Date.now() - hit.at < REPOSITORY_TTL_MS) {
+      return hit.value
     }
-    let parsed: { readonly nameWithOwner?: string; readonly url?: string }
-    try {
-      parsed = JSON.parse(result.stdout) as typeof parsed
-    } catch {
-      return null
-    }
-    const fullName = parsed.nameWithOwner ?? ''
-    const [owner = '', name = ''] = fullName.split('/')
-    if (owner === '' || name === '') {
-      return null
-    }
-    return { owner, name, fullName, url: parsed.url ?? `https://github.com/${fullName}` }
+    const value = d
+      .remotes(cwd)
+      .catch(() => '')
+      .then((output) => {
+        const picked = pickGithubRemote(output)
+        if (picked === null) {
+          /* 远端不是 GitHub、目录不是仓库 —— 都是「这里没有 GitHub 仓库」，不是错误。 */
+          d.logger.debug('repository is not on GitHub', { cwd })
+          return null
+        }
+        const fullName = `${picked.owner}/${picked.name}`
+        return { owner: picked.owner, name: picked.name, fullName, url: `https://github.com/${fullName}` }
+      })
+    repositories.set(cwd, { at: Date.now(), value })
+    return value
   }
 
   const requireRepository = async (cwd: string, number: number): Promise<GithubRepository> => {
@@ -338,20 +362,44 @@ export function createGithubService(d: GithubServiceDeps): GithubService {
     return repository
   }
 
+  const loginOf = (token: string): Promise<string | null> => {
+    let login = logins.get(token)
+    if (login === undefined) {
+      login = client
+        .rest<{ readonly login?: string }>('GET', '/user')
+        .then((user) => (typeof user.login === 'string' && user.login !== '' ? user.login : null))
+      /* 失败（断网、凭据失效）不记：下次进页面重新问。 */
+      login.catch(() => logins.delete(token))
+      logins.set(token, login)
+    }
+    return login
+  }
+
+  const pathOf = (repository: GithubRepository): string =>
+    `/repos/${encodeURIComponent(repository.owner)}/${encodeURIComponent(repository.name)}`
+
   return {
     async availability() {
-      const found = await detectGh(runner)
-      if (found.path === null) {
+      const token = await client.token()
+      if (token === null) {
         return {
           available: false,
-          reason: '没找到 gh：安装 GitHub CLI 并登录后，这一页会显示仓库的 pull request',
+          reason:
+            '没找到 GitHub 凭据：设置 GITHUB_TOKEN 环境变量，或运行 gh auth login（也认 Git 凭据管理器里登录过的 github.com）后回到这一页',
           login: null,
         }
       }
-      if (found.login === null) {
-        return { available: false, reason: 'gh 还没登录：运行 gh auth login 后回到这一页', login: null }
+      try {
+        const login = await loginOf(token)
+        return login === null
+          ? { available: false, reason: 'GitHub 没认出这份凭据：重新运行 gh auth login 后回到这一页', login: null }
+          : { available: true, reason: null, login }
+      } catch (cause) {
+        if (cause instanceof AppError && String(cause.code).endsWith('github_unavailable')) {
+          return { available: false, reason: cause.message, login: null }
+        }
+        throw cause
       }
-      return { available: true, reason: null, login: found.login }
     },
 
     repository: (cwd) => repositoryOf(cwd),
@@ -361,29 +409,22 @@ export function createGithubService(d: GithubServiceDeps): GithubService {
       if (repository === null) {
         return { repository: null, pulls: [] }
       }
-      const data = await ghGraphql<{
+      const data = await client.graphql<{
         readonly repository?: { readonly pullRequests?: { readonly nodes?: readonly RawPullNode[] } }
-      }>(
-        runner,
-        LIST_QUERY,
-        {
-          owner: repository.owner,
-          name: repository.name,
-          states: includeClosed ? ['OPEN', 'CLOSED', 'MERGED'] : ['OPEN'],
-        },
-        { cwd },
-      )
+      }>(LIST_QUERY, {
+        owner: repository.owner,
+        name: repository.name,
+        states: includeClosed ? ['OPEN', 'CLOSED', 'MERGED'] : ['OPEN'],
+      })
       const nodes = data.repository?.pullRequests?.nodes ?? []
       return { repository, pulls: nodes.map(toPull) }
     },
 
     async pullRequest(cwd, number) {
       const repository = await requireRepository(cwd, number)
-      const data = await ghGraphql<{ readonly repository?: { readonly pullRequest?: RawPullNode | null } }>(
-        runner,
+      const data = await client.graphql<{ readonly repository?: { readonly pullRequest?: RawPullNode | null } }>(
         ONE_QUERY,
         { owner: repository.owner, name: repository.name, number },
-        { cwd },
       )
       const node = data.repository?.pullRequest
       if (node === undefined || node === null) {
@@ -394,10 +435,10 @@ export function createGithubService(d: GithubServiceDeps): GithubService {
 
     async comments(cwd, number) {
       const repository = await requireRepository(cwd, number)
-      const base = `repos/${repository.owner}/${repository.name}`
+      const base = pathOf(repository)
       const [comments, reviews] = await Promise.all([
-        ghApiJson<readonly RawComment[]>(runner, `${base}/issues/${String(number)}/comments?per_page=100`, { cwd }),
-        ghApiJson<readonly RawComment[]>(runner, `${base}/pulls/${String(number)}/reviews?per_page=100`, { cwd }),
+        client.rest<readonly RawComment[]>('GET', `${base}/issues/${String(number)}/comments?per_page=100`),
+        client.rest<readonly RawComment[]>('GET', `${base}/pulls/${String(number)}/reviews?per_page=100`),
       ])
       return mergeTimeline(
         comments.map((raw) => toComment(raw, 'comment')),
@@ -407,41 +448,38 @@ export function createGithubService(d: GithubServiceDeps): GithubService {
 
     async comment(cwd, number, body) {
       const repository = await requireRepository(cwd, number)
-      const result = await runner(['pr', 'comment', String(number), '--body-file', '-'], { cwd, input: body })
-      if (result.exitCode !== 0) {
-        throw new AppError(reviewErrors.github_failed, result.stderr.trim() || '评论没能发出去')
-      }
-      /* gh 不回评论对象；按「刚发的那一条就是最新一条评论」再读一次，比在本地拼更接近真相。 */
-      const base = `repos/${repository.owner}/${repository.name}`
-      const comments = await ghApiJson<readonly RawComment[]>(
-        runner,
-        `${base}/issues/${String(number)}/comments?per_page=100`,
-        { cwd },
-      )
-      const mine = comments.at(-1)
-      if (mine === undefined) {
-        throw new AppError(reviewErrors.github_failed, '评论发出去了，但读不回来')
-      }
-      return toComment(mine, 'comment')
+      /* REST 直接回刚建好的评论对象：不必再读一遍列表去猜「最后一条是不是我的」。 */
+      const created = await client.rest<RawComment>('POST', `${pathOf(repository)}/issues/${String(number)}/comments`, {
+        body,
+      })
+      return toComment(created, 'comment')
     },
 
     async setDraft(cwd, number, draft) {
-      await requireRepository(cwd, number)
-      /* gh 不带参数时按「转成可评审」理解；转草稿要显式给 --undo。 */
-      const args = draft ? ['pr', 'ready', String(number), '--undo'] : ['pr', 'ready', String(number)]
-      const result = await runner(args, { cwd })
-      if (result.exitCode !== 0) {
-        throw new AppError(reviewErrors.github_failed, result.stderr.trim() || '状态没能改过来')
+      const repository = await requireRepository(cwd, number)
+      /* 草稿 / 可评审只有 GraphQL 能改，且要的是节点 id 而不是编号。 */
+      const data = await client.graphql<{
+        readonly repository?: { readonly pullRequest?: { readonly id?: string } | null }
+      }>(NODE_ID_QUERY, { owner: repository.owner, name: repository.name, number })
+      const id = data.repository?.pullRequest?.id
+      if (id === undefined) {
+        throw new AppError(reviewErrors.pull_request_missing, `这个仓库里没有 #${String(number)}`, { number })
       }
+      await client.graphql(draft ? DRAFT_MUTATION : READY_MUTATION, { id })
     },
 
     async merge(cwd, number, method) {
-      await requireRepository(cwd, number)
-      const flag = method === 'squash' ? '--squash' : method === 'rebase' ? '--rebase' : '--merge'
+      const repository = await requireRepository(cwd, number)
       /* 不删分支：那是用户的决定，不是「合并」这个词隐含的动作。 */
-      const result = await runner(['pr', 'merge', String(number), flag], { cwd })
-      if (result.exitCode !== 0) {
-        throw new AppError(reviewErrors.merge_refused, result.stderr.trim() || 'GitHub 拒绝这次合并')
+      try {
+        await client.rest('PUT', `${pathOf(repository)}/pulls/${String(number)}/merge`, { merge_method: method })
+      } catch (cause) {
+        const status = statusOf(cause)
+        /* 405 不可合并、409 头提交变了、422 方法不被允许：都是 GitHub 拒绝，把它那句话原样交给用户。 */
+        if (status === 405 || status === 409 || status === 422) {
+          throw new AppError(reviewErrors.merge_refused, (cause as AppError).message || 'GitHub 拒绝这次合并')
+        }
+        throw cause
       }
     },
   }

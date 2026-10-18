@@ -16,7 +16,14 @@ export default defineCoreModule({
       gitFor: (cwd) => createGit({ cwd }),
       logger: ctx.logger,
     })
-    const github: GithubService = createGithubService({ logger: ctx.logger })
+    const github: GithubService = createGithubService({
+      logger: ctx.logger,
+      /* 仓库从本地远端认（不问网络）；不是仓库时 git 非 0 退出，按「没有远端」处理。 */
+      remotes: (cwd) =>
+        createGit({ cwd })
+          .run(['remote', '-v'], { okExitCodes: [0, 128], timeoutMs: 10_000 })
+          .then((result) => (result.exitCode === 0 ? result.stdout : '')),
+    })
     const watcher = createReviewWatcher({
       start: repositoryWatcher((error) => {
         ctx.logger.warn('repository watch failed', { error: String(error) })
