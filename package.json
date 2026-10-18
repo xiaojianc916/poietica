@@ -53,7 +53,7 @@
       "electron": "^44.7.0",
       "electron-builder": "^26.15.3",
       "electron-updater": "^6.8.9",
-      "electron-vite": "^5.0.0",
+      "electron-vite": "^6.0.0",
       "katex": "^0.19.0",
       "@lexical/react": "^0.52.0",
       "lexical": "^0.52.0",

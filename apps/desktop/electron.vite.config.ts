@@ -1,7 +1,7 @@
 import path from 'node:path'
 import tailwindcss from '@tailwindcss/vite'
 import react from '@vitejs/plugin-react'
-import { defineConfig, externalizeDepsPlugin } from 'electron-vite'
+import { defineConfig } from 'electron-vite'
 import type { Plugin, Rollup } from 'vite'
 
 type OutputChunk = Rollup.OutputChunk
@@ -9,20 +9,17 @@ type OutputChunk = Rollup.OutputChunk
 /**
  * electron-vite 会分别构建 main、preload、renderer 三份产物，每份的要求不同：
  *
- * - main 用 externalizeDepsPlugin()（默认参数）：它只外部化 dependencies 里的包
- *   （最终只有 @lydell/node-pty 与 electron-updater），再加上 electron 本身；其余依赖都在
- *   devDependencies，会被打进 bundle。工作区包的 exports 指向 TS 源码，正因为如此它们必须
- *   放 devDependencies 被打包，不能外部化。
+ * - main 用 build.externalizeDeps（electron-vite 6 起默认开启，v5 的 externalizeDepsPlugin
+ *   已废弃）：它只外部化 dependencies 里的包（最终只有 @lydell/node-pty 与 electron-updater），
+ *   再加上 electron 本身；其余依赖都在 devDependencies，会被打进 bundle。工作区包的 exports
+ *   指向 TS 源码，正因为如此它们必须放 devDependencies 被打包，不能外部化。
  *
- *   **实测补丁**：只靠 externalizeDepsPlugin 时 @lydell/node-pty 仍被内联进
- *   out/main/index.cjs（它从 features/terminal 的源码进来，插件按「离构建根最近的那个
- *   package.json」判依赖，工作区包的依赖不在那张表里）。内联之后它的 requireBinary() 变成
- *   「从 out/main 找 @lydell/node-pty-win32-x64」—— 那个二进制包不在 apps/desktop/node_modules
- *   下，于是 terminal.open 每次都以 terminal.spawn_failed 失败（真机日志：
- *   "could not find the binary package for it: @lydell/node-pty-win32-x64/conpty.node"）。
- *   所以原生 PTY 这两个包显式写进 ssr.external —— 与 electron 同一条理由：留在外部的包
- *   必须真的能在运行时被 require 到（它们在 apps/desktop 的 dependencies 里，随包发货）。
- * - preload 不用 externalizeDepsPlugin，输出 cjs 单文件：sandbox 模式下的 preload 只能是
+ *   **v5 的老问题**：当时 externalizeDepsPlugin 只认「离构建根最近的那个 package.json」，
+ *   @lydell/node-pty 从 features/terminal 的源码进来时不在那张表里，于是被内联 —— 它的
+ *   requireBinary() 改成从 out/main 找 @lydell/node-pty-win32-x64/conpty.node，找不到，
+ *   terminal.open 一律 spawn_failed。v6 的 externalizeDeps 作用在模块 id 上，不再依赖
+ *   谁引入的，原先补在 ssr.external 上的那一条随之删掉（dev 下 terminal.open 实测通过）。
+ * - preload 关掉 externalizeDeps，输出 cjs 单文件：sandbox 模式下的 preload 只能是
  *   CommonJS，而且除了 electron 的少数模块不能 require 任何东西。
  * - renderer 用 React 插件，加上 cspPlugin 把 index.html 的 %POIETICA_CSP% 换成对应环境的 CSP。
  */
@@ -149,38 +146,36 @@ export default defineConfig(({ mode }) => {
   const isDev = mode !== 'production'
   return {
     main: {
-      plugins: [externalizeDepsPlugin()],
-      /*
-       * 原生 PTY 必须留在外部：@lydell/node-pty 的 requireBinary() 是按**包的相对位置**
-       * require('@lydell/node-pty-<platform>-<arch>/conpty.node') 的，只有包本体留在
-       * node_modules 里、且平台二进制包与它相邻时这条解析才成立。内联进 bundle 之后
-       * 解析起点变成 out/main，二进制包找不到 —— 终端一开就 spawn_failed。
-       */
-      ssr: { external: ['@lydell/node-pty', '@lydell/node-pty-win32-x64'] },
       build: {
-        // electron 必须外部化：它在 devDependencies 里（由 vite 打进 bundle 的都是 devDependencies），
-        // 而 externalizeDepsPlugin 只外部化 dependencies。少了这一条，打包器会把 npm 上的 electron
-        // **安装器** 打进来，它在 require 时就去 spawn install.js 并抛
-        // "Electron failed to install correctly"（真实故障：bun run dev 以退出码 3 结束）。
+        // externalizeDeps 是 electron-vite 6 的默认值；显式写出来是因为这条行为决定
+        // dependencies 是「运行时 require」还是「打进 bundle」，不该靠默认值兜底。
+        /*
+         * 顺带解决了 v5 的老问题：当时 externalizeDepsPlugin 只认「离构建根最近的那个
+         * package.json」，@lydell/node-pty 从 features/terminal 的源码进来时不在那张表里，
+         * 于是被内联 —— 它的 requireBinary() 改成从 out/main 找
+         * @lydell/node-pty-win32-x64/conpty.node，找不到，terminal.open 一律 spawn_failed。
+         * v6 的 externalizeDeps 走 rolldown 的 external，作用在模块 id 上，不再依赖
+         * 谁引入的，所以原先那条 ssr.external 补丁可以删了（dev 下 terminal.open 实测通过）。
+         */
+        externalizeDeps: true,
         outDir: path.join(__dirname, 'out/main'),
         lib: { entry: path.join(__dirname, 'src/main/index.ts'), formats: ['cjs'], fileName: () => 'index.cjs' },
-        rollupOptions: {
-          external: ['electron', /^electron\/.+/],
+        // electron 本身由 electron-vite 的 main preset 外部化（它不看 dependencies），
+        // 否则会把 npm 上的 electron **安装器** 打进来。
+        rolldownOptions: {
           output: { entryFileNames: 'index.cjs' },
         },
       },
     },
     preload: {
       build: {
+        // preload 是 sandbox 下的自包含单文件 CJS：业务依赖必须全部内联，所以关掉
+        // electron-vite 6 默认开启的 externalizeDeps（它会把 apps/desktop 的
+        // dependencies 留成运行时 require）。electron 由 preload preset 外部化。
+        externalizeDeps: false,
         outDir: path.join(__dirname, 'out/preload'),
         lib: { entry: path.join(__dirname, 'src/preload/index.ts'), formats: ['cjs'], fileName: () => 'index.cjs' },
-        rollupOptions: {
-          // 业务依赖全部打进这一个文件（sandbox 下的 preload 只能是自包含的单文件 CJS），
-          // 但 electron 本身必须外部化：它在 devDependencies 里，不外部化就会把 npm 上的
-          // electron **安装器** 打进来，它在顶层 require("child_process") —— sandbox 里没有这个模块，
-          // preload 直接报 "module not found: child_process"，bridge 不会挂上，
-          // 渲染进程随后抛 "preload 没有暴露 bridge"，整个外壳渲染不出来（真实故障）。
-          external: ['electron', /^electron\/.+/],
+        rolldownOptions: {
           output: { entryFileNames: 'index.cjs' },
         },
       },
@@ -205,7 +200,7 @@ export default defineConfig(({ mode }) => {
       // 加 alias 会把 `@poietica/design-system/styles.css` 这类子路径也重写成 index.ts。
       build: {
         outDir: path.join(__dirname, 'out/renderer'),
-        rollupOptions: { input: path.join(__dirname, 'src/renderer/index.html') },
+        rolldownOptions: { input: path.join(__dirname, 'src/renderer/index.html') },
       },
     },
   }
