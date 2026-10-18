@@ -1,11 +1,19 @@
 import { z } from 'zod'
 
+/** 站点图标挂在资源协议的哪个 host 下：poietica-asset://browser-favicon/<sha256>。 */
+export const FAVICON_ASSET_HOST = 'browser-favicon'
+/**
+ * 标签图标只认宿主代取、按内容寻址的资源地址。外站给的原始地址（https:、data:、http://内网…）一律进不了契约：
+ * 应用界面是特权渲染进程，CSP 也只放行受信协议 —— 让它直连外站，既违反信任边界，又会被 CSP 静默拦掉（地球图标就是这么来的）。
+ */
+export const FAVICON_URL = new RegExp(`^poietica-asset://${FAVICON_ASSET_HOST}/[a-f0-9]{64}$`)
+
 export const BrowserTab = z.object({
   id: z.number().int().positive(), // Host 内自增，从 1 开始
   url: z.string().nullable(), // 空白标签为 null（内部是 about:blank）
   title: z.string(),
   loading: z.boolean(),
-  favicon: z.string().nullable(),
+  favicon: z.string().regex(FAVICON_URL).nullable(), // 宿主代取后的 poietica-asset 地址；没有或取不回来为 null
   canGoBack: z.boolean(),
   canGoForward: z.boolean(),
   zoom: z.number(), // Electron zoomLevel，0 为默认

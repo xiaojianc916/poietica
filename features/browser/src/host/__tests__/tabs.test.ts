@@ -3,6 +3,7 @@ import { createTestLogger, type FakeClock, fakeClock } from '@poietica/test-kit'
 import type { BrowserState } from '../../contract'
 import {
   type BrowserTabs,
+  type BrowserTabsOptions,
   type ContentsListener,
   createBrowserTabs,
   type RectangleLike,
@@ -140,7 +141,18 @@ interface Harness {
   readonly resize: { run(): void }
 }
 
-function harness(): Harness {
+const ICON_A = `poietica-asset://browser-favicon/${'a'.repeat(64)}`
+const ICON_B = `poietica-asset://browser-favicon/${'b'.repeat(64)}`
+const ICON_C = `poietica-asset://browser-favicon/${'c'.repeat(64)}`
+
+/** 让已经 resolve 的取图结果跑完 then。 */
+async function settle(): Promise<void> {
+  for (let i = 0; i < 3; i += 1) {
+    await Promise.resolve()
+  }
+}
+
+function harness(resolveFavicon?: BrowserTabsOptions['resolveFavicon']): Harness {
   const created: FakeWebContentsView[] = []
   const attached: FakeWebContentsView[] = []
   const states: BrowserState[] = []
@@ -182,6 +194,7 @@ function harness(): Harness {
     onPickerCallback: (_tabId, url) => {
       picked.push(url)
     },
+    ...(resolveFavicon === undefined ? {} : { resolveFavicon }),
   })
 
   tabs.onState((state) => {
@@ -611,11 +624,116 @@ describe('导航与事件', () => {
     expect(h.tabs.state().tabs[0]?.title).toBe('A 站')
   })
 
-  test('favicon 进标签', () => {
+  test('favicon：候选交给宿主代取，原始外站地址不进标签', async () => {
+    const asked: { candidates: readonly string[]; pageUrl: string }[] = []
+    const local = harness((candidates, pageUrl) => {
+      asked.push({ candidates, pageUrl })
+
+      return Promise.resolve(ICON_A)
+    })
+
+    local.tabs.openTab('https://a.example/')
+    lastView(local).webContents.emit('page-favicon-updated', {}, ['https://a.example/favicon.ico', 42, ''])
+
+    expect(local.tabs.state().tabs[0]?.favicon).toBeNull()
+
+    await settle()
+
+    expect(asked).toEqual([{ candidates: ['https://a.example/favicon.ico'], pageUrl: 'https://a.example/' }])
+    expect(local.tabs.state().tabs[0]?.favicon).toBe(ICON_A)
+  })
+
+  test('favicon：没接代取就没有图标', () => {
     h.tabs.openTab('https://a.example/')
     lastView(h).webContents.emit('page-favicon-updated', {}, ['https://a.example/favicon.ico'])
 
-    expect(h.tabs.state().tabs[0]?.favicon).toBe('https://a.example/favicon.ico')
+    expect(h.tabs.state().tabs[0]?.favicon).toBeNull()
+  })
+
+  test('favicon：新文档清掉上一页的图标，上一页晚到的结果作废', async () => {
+    const pending: ((icon: string | null) => void)[] = []
+    const local = harness(
+      () =>
+        new Promise((resolve) => {
+          pending.push(resolve)
+        }),
+    )
+
+    local.tabs.openTab('https://a.example/')
+
+    const contents = lastView(local).webContents
+
+    contents.emit('page-favicon-updated', {}, ['https://a.example/a.png'])
+    pending.shift()?.(ICON_A)
+    await settle()
+    expect(local.tabs.state().tabs[0]?.favicon).toBe(ICON_A)
+
+    contents.emit('page-favicon-updated', {}, ['https://a.example/a2.png'])
+    contents.emit('did-navigate', {}, 'https://b.example/')
+    expect(local.tabs.state().tabs[0]?.favicon).toBeNull()
+
+    pending.shift()?.(ICON_C)
+    await settle()
+    expect(local.tabs.state().tabs[0]?.favicon).toBeNull()
+
+    contents.emit('page-favicon-updated', {}, ['https://b.example/b.png'])
+    pending.shift()?.(ICON_B)
+    await settle()
+    expect(local.tabs.state().tabs[0]?.favicon).toBe(ICON_B)
+  })
+
+  test('favicon：同文档跳转不动图标，取不回来也不清掉已有的', async () => {
+    const results = [ICON_A, null]
+    const local = harness(() => Promise.resolve(results.shift() ?? null))
+
+    local.tabs.openTab('https://a.example/')
+
+    const contents = lastView(local).webContents
+
+    contents.emit('page-favicon-updated', {}, ['https://a.example/a.png'])
+    await settle()
+    contents.emit('did-navigate-in-page', {}, 'https://a.example/#next')
+    contents.emit('page-favicon-updated', {}, ['https://a.example/badge.png'])
+    await settle()
+
+    expect(local.tabs.state().tabs[0]?.favicon).toBe(ICON_A)
+  })
+
+  test('favicon：页面没声明图标，停止装载时补取一次（只给页面地址，候选为空）', async () => {
+    const asked: { candidates: readonly string[]; pageUrl: string }[] = []
+    const local = harness((candidates, pageUrl) => {
+      asked.push({ candidates, pageUrl })
+
+      return Promise.resolve(ICON_A)
+    })
+
+    local.tabs.openTab('https://a.example/')
+
+    const contents = lastView(local).webContents
+
+    contents.emit('did-navigate', {}, 'https://a.example/')
+    contents.emit('did-stop-loading')
+    contents.emit('did-stop-loading')
+    await settle()
+
+    expect(asked).toEqual([{ candidates: [], pageUrl: 'https://a.example/' }])
+    expect(local.tabs.state().tabs[0]?.favicon).toBe(ICON_A)
+  })
+
+  test('favicon：空白页与非网页地址不取', async () => {
+    const asked: string[] = []
+    const local = harness((_candidates, pageUrl) => {
+      asked.push(pageUrl)
+
+      return Promise.resolve(ICON_A)
+    })
+
+    local.tabs.openTab(null)
+    lastView(local).webContents.emit('page-favicon-updated', {}, ['https://a.example/favicon.ico'])
+    lastView(local).webContents.emit('did-stop-loading')
+    await settle()
+
+    expect(asked).toEqual([])
   })
 
   test('弹窗一律拒：http(s) 的目标改成宿主开一个新标签', () => {

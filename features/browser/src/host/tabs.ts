@@ -98,6 +98,11 @@ export interface BrowserTabsOptions {
   readonly clock?: Clock
   /** 拦到拾取回调地址时叫一次（解码与租约归 index.ts） */
   readonly onPickerCallback: (tabId: number, url: string) => void
+  /**
+   * 把页面报上来的图标候选换成界面能画的受信地址（favicon.ts，由 index.ts 接上浏览器分区的会话）。
+   * 不给就没有图标 —— 外站原始地址永远不进标签状态。
+   */
+  readonly resolveFavicon?: (candidates: readonly string[], pageUrl: string) => Promise<string | null>
 }
 
 const RECENTLY_CLOSED_CAP = 10
@@ -113,7 +118,12 @@ interface Tab {
   url: string | null
   title: string
   loading: boolean
+  /** 只放 resolveFavicon 给的受信地址。 */
   favicon: string | null
+  /** 每换一页（或换一批候选）+1：晚到的取图结果对不上号就丢，免得上一页的图标落到这一页。 */
+  faviconTicket: number
+  /** 这一页有没有发起过取图；页面一个图标都没声明时，停止装载那一刻补取 /favicon.ico。 */
+  faviconAsked: boolean
   canGoBack: boolean
   canGoForward: boolean
   zoom: number
@@ -131,6 +141,7 @@ interface Tab {
 
 export function createBrowserTabs(host: ViewHost, opts: BrowserTabsOptions): BrowserTabs {
   const clock = opts.clock ?? systemClock
+  const resolveFavicon = opts.resolveFavicon ?? (() => Promise.resolve(null))
   const tabs: Tab[] = []
   const recentlyClosed: { url: string; title: string }[] = []
   const stateListeners = new Set<(s: BrowserState) => void>()
@@ -284,6 +295,43 @@ export function createBrowserTabs(host: ViewHost, opts: BrowserTabsOptions): Bro
     publish()
   }
 
+  /* 新文档提交即作废旧图标：没有图标的页面不该顶着上一个站点的脸。同文档内跳转（锚点、pushState）不走这里。 */
+  function resetFavicon(tab: Tab): void {
+    tab.faviconTicket += 1
+    tab.faviconAsked = false
+    tab.favicon = null
+  }
+
+  function requestFavicon(tab: Tab, candidates: readonly string[]): void {
+    const pageUrl = tab.url
+
+    if (pageUrl === null || !isWebAddress(pageUrl)) {
+      return
+    }
+
+    tab.faviconAsked = true
+    tab.faviconTicket += 1
+
+    const ticket = tab.faviconTicket
+
+    resolveFavicon(candidates, pageUrl).then(
+      (icon) => {
+        if (disposed || find(tab.id) !== tab || tab.faviconTicket !== ticket) {
+          return
+        }
+
+        // 取不回来不清掉已有的：页面换图标（比如未读角标）失败时，留着上一张比退回地球强。
+        if (icon !== null && tab.favicon !== icon) {
+          tab.favicon = icon
+          publish()
+        }
+      },
+      (cause: unknown) => {
+        opts.logger.debug('browser favicon resolve failed', { tabId: tab.id, error: String(cause) })
+      },
+    )
+  }
+
   function setLoading(tab: Tab, loading: boolean): void {
     if (tab.loading === loading) {
       return
@@ -363,6 +411,7 @@ export function createBrowserTabs(host: ViewHost, opts: BrowserTabsOptions): Bro
       const tab = tabOf(contents)
 
       if (tab !== undefined && typeof url === 'string') {
+        resetFavicon(tab)
         noteUrl(tab, url)
       }
     })
@@ -383,16 +432,19 @@ export function createBrowserTabs(host: ViewHost, opts: BrowserTabsOptions): Bro
       }
     })
 
+    /* 这里拿到的只是页面声明的候选（外站说了算的任意地址），交给 resolveFavicon 代取，结果回来再进状态。 */
     contents.on('page-favicon-updated', (_event: unknown, favicons: unknown) => {
       const tab = tabOf(contents)
-      const icon = Array.isArray(favicons)
-        ? (favicons.find((candidate) => typeof candidate === 'string' && candidate.length > 0) ?? null)
-        : null
 
-      if (tab !== undefined && tab.favicon !== icon) {
-        tab.favicon = typeof icon === 'string' ? icon : null
-        publish()
+      if (tab === undefined) {
+        return
       }
+
+      const candidates = Array.isArray(favicons)
+        ? favicons.filter((candidate): candidate is string => typeof candidate === 'string' && candidate.length > 0)
+        : []
+
+      requestFavicon(tab, candidates)
     })
 
     contents.on('did-start-loading', () => {
@@ -408,6 +460,11 @@ export function createBrowserTabs(host: ViewHost, opts: BrowserTabsOptions): Bro
       if (tab !== undefined) {
         setLoading(tab, false)
         syncHistory(tab)
+
+        if (!tab.faviconAsked) {
+          requestFavicon(tab, [])
+        }
+
         publish()
       }
     })
@@ -429,6 +486,7 @@ export function createBrowserTabs(host: ViewHost, opts: BrowserTabsOptions): Bro
         opts.logger.error('browser renderer crashed twice; leaving the tab blank', { tabId: tab.id })
         tab.url = null
         tab.loading = false
+        resetFavicon(tab)
         layout()
         publish()
         return
@@ -484,6 +542,8 @@ export function createBrowserTabs(host: ViewHost, opts: BrowserTabsOptions): Bro
       title: normalized === null ? '新标签页' : displayHost(normalized),
       loading: normalized !== null,
       favicon: null,
+      faviconTicket: 0,
+      faviconAsked: false,
       canGoBack: false,
       canGoForward: false,
       zoom: 0,

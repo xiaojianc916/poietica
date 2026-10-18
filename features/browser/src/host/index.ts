@@ -2,8 +2,15 @@ import { AppError, type Logger } from '@poietica/foundation'
 import { type CoreStatus, defineHostModule, type WindowRegistry } from '@poietica/host-kernel'
 import { session, WebContentsView } from 'electron'
 import { browserContract } from '../contract'
-import { BROWSER_PARTITION, type BrowserState, PICKER_CALLBACK_HOST, type PickedElement } from '../contract/entities'
+import {
+  BROWSER_PARTITION,
+  type BrowserState,
+  FAVICON_ASSET_HOST,
+  PICKER_CALLBACK_HOST,
+  type PickedElement,
+} from '../contract/entities'
 import { browserErrors } from '../contract/errors'
+import { createFaviconStore } from './favicon'
 import { createPicker, decodePickerCallback, isPickerCallback, type Picker } from './picker'
 import { pickerRuntime } from './picker-runtime'
 import { createRelayClient, type RelayTabsPort, relayUrlForStatus } from './relay-client'
@@ -24,6 +31,20 @@ export default defineHostModule({
   setup(ctx) {
     const picker: Picker = createPicker()
     let tabs: BrowserTabs | null = null
+    /* 图标用浏览器分区的会话去取：与页面同一套 Cookie / 代理 / 证书策略，不借应用主会话替外站发请求。 */
+    const favicons = createFaviconStore({
+      logger: ctx.logger.child({ scope: 'favicon' }),
+      fetch: (url, init) =>
+        session.fromPartition(BROWSER_PARTITION).fetch(url, {
+          signal: init.signal,
+          credentials: 'include',
+          redirect: 'follow',
+          headers: { Accept: 'image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8' },
+          bypassCustomProtocolHandlers: true,
+        }),
+    })
+
+    ctx.assets.register(FAVICON_ASSET_HOST, favicons.handler)
 
     function ensureTabs(): BrowserTabs {
       if (tabs !== null) {
@@ -37,6 +58,7 @@ export default defineHostModule({
         onPickerCallback: (tabId, url) => {
           finishPick(tabId, url)
         },
+        resolveFavicon: (candidates, pageUrl) => favicons.resolve(candidates, pageUrl),
       })
 
       return tabs
