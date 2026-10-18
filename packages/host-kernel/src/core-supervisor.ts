@@ -134,11 +134,12 @@ export class CoreSupervisor {
     this.setState('stopping')
     this.peer?.request('core.shutdown', {}, { timeoutMs: 2_000 }).catch(() => undefined)
     try {
-      await withTimeout(this.stopped.promise, STOP_GRACE_MS, () => new Error('stop timeout'))
+      /* 走注入的 clock：默认是 systemClock（生产行为不变），测试注入 fakeClock 时不必真等满 10 秒 */
+      await withTimeout(this.stopped.promise, STOP_GRACE_MS, () => new Error('stop timeout'), this.clock)
     } catch {
       this.o.logger.warn('core did not exit in time, killing')
       if (child.pid !== undefined) await (this.o.kill ?? killTree)(child.pid)
-      await withTimeout(this.stopped.promise, 2_000, () => new Error('kill timeout')).catch(() => undefined)
+      await withTimeout(this.stopped.promise, 2_000, () => new Error('kill timeout'), this.clock).catch(() => undefined)
     }
     this.setState('stopped')
   }

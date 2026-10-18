@@ -6,7 +6,7 @@ import { encodeFrame } from '@poietica/rpc'
 import { type DataLayout, dataLayout } from '@poietica/runtime-layout'
 import { createTestLogger, type FakeClock, fakeClock, type TempDir, tempDir, waitFor } from '@poietica/test-kit'
 import type { CoreLogSink } from '../core-log-sink'
-import { CoreSupervisor, type CoreSupervisorOptions } from '../core-supervisor'
+import { CoreSupervisor, type CoreSupervisorOptions, STOP_GRACE_MS } from '../core-supervisor'
 
 interface FakeChild extends EventEmitter {
   pid: number
@@ -270,7 +270,8 @@ describe('CoreSupervisor', () => {
     await started
     const stopping = s.sup.stop()
     await Promise.resolve()
-    // STOP_GRACE_MS 用的是真实时钟：CORE_SHUTDOWN_BUDGET_MS + 2 秒（R-05 §3.3）
+    /* 宽限期的定时器走注入的 clock（R-05 §3.3），推过 STOP_GRACE_MS 而不是真等 10 秒 */
+    await s.clock.advanceAsync(STOP_GRACE_MS)
     await stopping
     expect(s.killed).toContain(child.pid)
     expect(s.sup.status.state).toBe('stopped')
@@ -450,8 +451,10 @@ describe('CoreSupervisor', () => {
     const stale = s.spawned[0]!.child
     expect(stale.exitCode).toBeNull()
     const restarting = s.sup.restart()
-    // stop() 满宽限期（STOP_GRACE_MS）后 kill 第一代；kill 桩让子进程退出，restart 才继续
-    await waitFor(() => s.spawned.length === 2, { timeoutMs: 20_000, intervalMs: 10 })
+    /* stop() 的宽限期走注入的 clock：推过去之后 kill 桩让第一代退出，restart 才继续 */
+    await Promise.resolve()
+    await s.clock.advanceAsync(STOP_GRACE_MS)
+    await waitFor(() => s.spawned.length === 2, { timeoutMs: 5_000, intervalMs: 5 })
     ready(s.spawned[1]!.child)
     await restarting
     expect(s.killed).toContain(stale.pid)
