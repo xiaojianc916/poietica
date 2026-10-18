@@ -76,7 +76,6 @@ describe('conversation core 模块', () => {
     await finish()
   })
 
-  /* CV-3：运行中提交 turn 被接受，并转为 followUp（排队）。 */
   test('CV-3 运行中 turns.submit(turn) 被接受并转为排队；steer 与 followUp 也被接受', async () => {
     // 用一个会停在交互上的脚本：这一档的会话稳定是「忙」，不会被下一拍跑完
     const { api, thread, h, finish } = await started(BUSY_SCRIPT)

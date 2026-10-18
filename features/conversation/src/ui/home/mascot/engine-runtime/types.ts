@@ -21,7 +21,6 @@ export interface BodyPose {
   yaw: number
 }
 
-/** 单眼姿态 */
 export interface EyePose {
   x: number
   y: number
@@ -36,7 +35,6 @@ export interface EyePose {
   ring?: EyeRing | undefined
 }
 
-/** 一帧完整姿态 */
 export interface Pose {
   body: BodyPose
   left: EyePose
@@ -68,7 +66,6 @@ export interface BallHandle {
   destroy: () => void
 }
 
-/** 单个眼睛的 DOM 与缓存状态 */
 export interface EyeNode {
   node: SVGPathElement
   ring: EyeRing

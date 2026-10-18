@@ -328,7 +328,6 @@ export function createConversationContributions(setup: ConversationSetup, action
                 return
               }
               if (controlId === 'thought') void api.setThinking(threadId, value)
-              /* 计划：点了就立刻下发给会话。 */
               if (controlId === PLAN_CONTROL_ID) void api.setPlanMode(threadId, value === PLAN_ENABLED)
               /*
                * **打开**那一档走「发送时生效」（正文就是 objective，只有发送那一步拿得到）；**关掉**必须当场生效 ——
@@ -351,7 +350,6 @@ export function createConversationContributions(setup: ConversationSetup, action
               choices: view.items.map((w) => ({ id: w.id, name: w.name })),
               current: view.active,
               onBrowse: () => void workspaces.pickAndAdd(),
-              /* 选择器交回的是工作区 id。 */
               onChoose: (workspaceId) => workspaces.setActive(workspaceId),
               onClear: () => void workspaces.createScratch(),
             }}

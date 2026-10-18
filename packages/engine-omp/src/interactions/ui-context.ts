@@ -241,7 +241,6 @@ function selectValueOf(answer: InteractionAnswer): string | undefined {
   return answer.kind === 'select' ? (answer.value ?? undefined) : undefined
 }
 
-/** confirm 的答复 → 布尔；dismiss 与形状不符一律 false */
 function confirmValueOf(answer: InteractionAnswer): boolean {
   return answer.kind === 'confirm' && answer.value
 }

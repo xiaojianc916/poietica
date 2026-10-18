@@ -30,7 +30,6 @@ export const astGrepView: Handler = (ctx) => {
   )
 }
 
-// glob 的模式住在 path 字段里。
 export const globView: Handler = (ctx) => {
   const pattern = pick(ctx.input, 'path') ?? ''
   const count = numb(ctx.details, 'fileCount')

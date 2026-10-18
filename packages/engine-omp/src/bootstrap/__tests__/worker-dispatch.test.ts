@@ -57,7 +57,6 @@ describe('holdEarlyMessages（R-20-2）', () => {
     const got: unknown[] = []
     port.on('message', (value) => got.push(value))
     expect(got).toEqual(['init', 'run-1'])
-    /* 缓存监听者已经摘掉、`on` 换回原样 */
     expect(port.count()).toBe(1)
     expect(port.on).toBe(originalOn)
 

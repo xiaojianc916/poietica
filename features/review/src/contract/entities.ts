@@ -102,7 +102,6 @@ export const GithubPullRequest = z.object({
   commits: z.number().int(),
   /** 评论条数（含 review 评论）。 */
   comments: z.number().int(),
-  /** 评审条数。 */
   reviews: z.number().int(),
   mergeStatus: GithubMergeStatus,
   reviewState: GithubReviewState,

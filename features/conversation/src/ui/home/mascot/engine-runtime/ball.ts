@@ -47,7 +47,6 @@ interface OrbitSample {
   z: number
   l: number
 }
-/** 一条彩带的运行时状态 */
 interface Trail {
   o: Orbit
   r: number
@@ -70,7 +69,6 @@ interface TrailConfig {
   hue: number
   orbit?: boolean
 }
-/** 撒花粒子 */
 interface ConfettiPiece {
   x: number
   y: number
@@ -665,7 +663,6 @@ export function createBall(container: Element, opts: BallOptions): BallHandle {
     return orbitWant
   }
 
-  /** 彩带逐帧更新 */
   function updateTrails(dt: number, fast: boolean, dir: number, dYaw: number, vel: number, orbitWant: boolean) {
     for (let ti = trails.length - 1; ti >= 0; ti--) {
       /* ti 由循环上界保证落在 trails 内（removeTrail 后立即 continue） */

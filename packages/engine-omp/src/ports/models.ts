@@ -37,7 +37,6 @@ const LEGACY_TITLE_ROLE_KEY = 'title'
 /** 全局那一档思考深度（session/settings.ts 的 cfgDefaultThinkingLevel） */
 const DEFAULT_THINKING_PATH = 'defaultThinkingLevel'
 
-/** ModelsPort 需要的东西：registry、凭据存储、root 设置、models.yml 的读写器 */
 export interface ModelsPortDeps {
   readonly registry: RegistryPort
   /** omp 的 AuthStorage.credentials 子 API */

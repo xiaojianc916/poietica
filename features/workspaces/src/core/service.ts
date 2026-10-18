@@ -87,7 +87,6 @@ export function createWorkspacesService(d: WorkspacesServiceDeps): WorkspacesApi
       const existing = d.repo.findByKey(key)
       const now = d.clock.now()
       if (existing !== null) {
-        // 已存在：更新 last_opened_at 并原样返回。
         d.repo.update(existing.id, { lastOpenedAt: now })
         return toEntity({ ...existing, lastOpenedAt: now })
       }

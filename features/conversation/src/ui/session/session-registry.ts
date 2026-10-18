@@ -23,7 +23,6 @@ export interface SessionRegistry {
 
 export interface SessionRegistryOptions {
   readonly api: ConversationApi
-  /** 快照里的提交行交给谁。 */
   readonly onSubmissions?:
     | ((threadId: string, rows: readonly import('../../contract').SubmissionView[]) => void)
     | undefined

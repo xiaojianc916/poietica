@@ -28,7 +28,6 @@ export const FINISH_MS = 220
 export interface RollScheduler {
   /** 每次渲染都喂：同 key 是原地更新，异 key 是下一句。 */
   offer(next: LineSnapshot, previous: LineSnapshot | null): void
-  /** 当前显示的那句。 */
   shown(): LineSnapshot
   /** 是否有下一句在等（容器据此让旧句加速收尾）。 */
   waiting(): boolean

@@ -178,7 +178,6 @@ function spanOf(view: SourceView, body: readonly string[]): [number, number] | n
   return [start, Math.max(...hits.map((n) => statementEnd(view.lines, n)))]
 }
 
-/** 把 `:12-30` 写成解析得到的最小-最大；单行区间仍然写成单行 */
 const rangeToken = (span: readonly [number, number]): string =>
   span[0] === span[1] ? `:${span[0]}` : `:${span[0]}-${span[1]}`
 

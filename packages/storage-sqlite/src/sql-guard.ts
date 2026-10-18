@@ -1,4 +1,3 @@
-/** 模块 id → 表前缀：'agent-settings' → 'agent_settings' */
 export function tablePrefix(moduleId: string): string {
   return moduleId.replace(/-/g, '_')
 }

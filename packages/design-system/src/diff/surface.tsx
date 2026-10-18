@@ -19,10 +19,8 @@ import './surface.css'
 
 type RowStyle = CSSProperties & Record<`--${string}`, string>
 
-/* 没有展开的折叠带。 */
 const NO_GAPS: ReadonlySet<string> = new Set<string>()
 
-/* 超过这么多行就虚拟化。 */
 const VIRTUAL_AFTER = 500
 
 /* 折叠带的身份：路径 + 它在行带里的位置。 */

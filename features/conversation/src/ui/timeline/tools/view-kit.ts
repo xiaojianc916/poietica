@@ -229,7 +229,6 @@ export type Handler = (ctx: Ctx) => OmpToolView
 export const failed = (ctx: Ctx): boolean => ctx.error !== undefined && ctx.error !== ''
 export const saidText = (ctx: Ctx): readonly ToolCallContent[] => (ctx.said === undefined ? NONE : [text(ctx.said)])
 export const proseSaid = (ctx: Ctx): readonly ToolCallContent[] => (ctx.said === undefined ? NONE : [prose(ctx.said)])
-// 失败时那一句顶替产出。
 export const failOr = (ctx: Ctx, body: readonly ToolCallContent[]): readonly ToolCallContent[] =>
   failed(ctx) ? [text(ctx.error ?? '这次调用失败了。')] : body
 

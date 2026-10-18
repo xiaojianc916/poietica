@@ -2,7 +2,6 @@ import { describe, expect, test } from 'bun:test'
 import type { LogLevel } from '@poietica/foundation'
 import { createLogger, type LogSink } from '../logger'
 
-/** 把记录收进数组的 sink */
 function collectingSink(into: Array<Readonly<Record<string, unknown>>>): LogSink {
   return {
     write(record) {

@@ -1,6 +1,5 @@
 // 显式罗列而非 export *：线上契约在 contract/，消费侧读法在 model/，通配会藏起同名同形的分叉。
 
-// —— 模型与 op（src/model、src/ops）——
 export type { TranscriptAttachment } from './model/attachment'
 export type { AgentRef, TranscriptFrame, TranscriptSkillActivation } from './model/frame'
 export type {

@@ -320,7 +320,6 @@ export const McpStatus = z.object({
  * 缺什么也带回来（`inputs` / `warnings`）。
  */
 export const McpCatalogEntry = z.object({
-  /** 目录自己的稳定 id。 */
   id: z.string(),
   /** 写进配置的**建议名**（已按 omp 的名称约束归一；重名由调用方另让用户改）。 */
   name: z.string(),
@@ -332,7 +331,6 @@ export const McpCatalogEntry = z.object({
   sourceType: z.enum(['remote', 'package']),
   /** 用的人多不多（目录方的报数），列表按它排序。 */
   useCount: z.number().int(),
-  /** 目录方核过的条目。 */
   verified: z.boolean(),
   /** 这一条要人补什么值才跑得起来。 */
   inputs: z.array(

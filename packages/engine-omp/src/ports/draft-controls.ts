@@ -9,7 +9,6 @@ import { aliasOf, ENABLED_MODELS_PATH, enabledMatcher, stringArrayOf } from './m
  * 三样 —— registry 里此刻可用的模型、当前模型静态烤在目录里的 `thinking.efforts`、`enabledModels` 白名单。
  */
 
-/** 目录里的一条模型 → ModelRef */
 function refOf(model: OmpModelLike): ModelRef {
   return { provider: model.provider, id: model.id }
 }

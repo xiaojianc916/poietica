@@ -77,7 +77,6 @@ function springStep(s: Spring, w: number, z: number, dt: number): void {
   }
 }
 
-/* 两组眼环逐点插值 */
 function lerpRing(a: EyeRing, b: EyeRing, t: number): EyeRing {
   const out: RingPoint[] = new Array(a.length)
   for (let i = 0; i < a.length; i++) {

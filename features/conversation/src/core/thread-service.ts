@@ -31,7 +31,6 @@ export interface ThreadServiceDeps {
   readonly logger: Logger
   /** 会话此刻的状态（来自会话池；组合根注入，避免与 turn-service 互相依赖） */
   readonly sessionState: (threadId: string) => TurnState['state']
-  /** 会话池里这一条线程此刻的会话（没有就是 undefined） */
   readonly peekSession: (threadId: string) => EngineSession | undefined
   /** 这一条线程的会话正在打开（打开中的不算忙，见 #isBusy） */
   readonly isOpening: (threadId: string) => boolean

@@ -9,7 +9,6 @@ const PROBE = { probeBuild: true }
 const RELEASE = { probeBuild: false }
 
 describe('parseCoreArgs', () => {
-  // RL-4：完整参数
   test('RL-4 完整参数', () => {
     expect(parseCoreArgs(COMPLETE, PROBE)).toEqual({
       mode: 'serve',

@@ -72,7 +72,6 @@ function optionsOf(options: unknown): EngineQuestionGroup['options'] {
   return mapped
 }
 
-/** 产品题组 → 交互草稿（kind 为 question） */
 export function questionInteraction(questions: readonly EngineQuestionGroup[]): InteractionDraft {
   return { kind: 'question', questions: [...questions] }
 }

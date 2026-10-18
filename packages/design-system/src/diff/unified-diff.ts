@@ -96,7 +96,6 @@ interface Count {
   removed: number
 }
 
-/** 一对正文算出一处改动。 */
 export function computeFile(path: string, oldText: string, newText: string): DiffFile {
   const patch = structuredPatch(path, path, oldText, newText, '', '', { context: KEPT })
 

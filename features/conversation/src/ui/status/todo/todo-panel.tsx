@@ -700,8 +700,6 @@ function TerminalsSection({
   )
 }
 
-/* 面板 */
-
 const NO_AGENTS: readonly AgentRow[] = []
 
 export function TaskPanelContent({

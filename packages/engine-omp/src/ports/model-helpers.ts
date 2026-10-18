@@ -18,7 +18,6 @@ export interface RegistryPort {
 /** omp 的一条模型里我们读的那几格（`model-helpers` 与 `models.ts` 共用的形状）。 */
 export type OmpModelLike = OmpModelShape
 
-/** omp 的 ModelRegistry 实例 → RegistryPort。 */
 export function registryPortOf(registry: OmpModelRegistry): RegistryPort {
   return {
     all: () => registry.getAll(),

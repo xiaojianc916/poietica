@@ -51,7 +51,6 @@ interface Fixture {
   readonly imageReads: { readonly count: number }
   /** 发一帧 queue_update（把两个队列当前的样子报出去） */
   syncQueue(): void
-  /** 发一帧 message_start */
   messageStart(message: Record<string, unknown>): void
   /** 让下一次 followUp 投递挂住，直到 openFollowUpGate()（Q9 的慢投递） */
   installFollowUpGate(): void

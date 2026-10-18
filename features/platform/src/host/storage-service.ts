@@ -20,7 +20,6 @@ export interface StorageDeps {
   readonly maxFiles?: number
   /** 主窗口的 defaultSession（生产里每次取到的都是 Electron 的同一个 Session 对象） */
   readonly appSession: () => ChromiumSessionLike
-  /** 内置浏览器分区 */
   readonly browserSession: () => ChromiumSessionLike & { clearStorageData(): Promise<void> }
   /** 默认取 runtime-layout 的 storage-budget；测试注入小值 */
   readonly budget?: { readonly httpCacheBytes: number; readonly codeCacheBytes: number }

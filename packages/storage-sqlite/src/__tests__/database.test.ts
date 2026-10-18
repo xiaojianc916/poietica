@@ -31,7 +31,6 @@ describe('openDatabase', () => {
     }
   })
 
-  // DB-2：模块视图只允许访问本模块前缀的表
   test('DB-2 本模块前缀的表通过、别的模块的表抛错', () => {
     const db = openDatabase(':memory:')
     try {

@@ -319,7 +319,6 @@ describe('CV-8 会话池：空闲上限与 TTL', () => {
       clock.advance(1)
       await pool.acquire(`t${i}`)
     }
-    // 让 t1 忙起来
     const busy = pool.peek('t1')!
     await busy.submit({ text: 'hi', images: [], files: [], skills: [], deliverAs: 'turn' })
     expect(busy.isBusy()).toBe(true)

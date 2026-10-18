@@ -59,7 +59,6 @@ export class InteractionBroker {
     this.onChange = this.changes.event
   }
 
-  /** 登记一次交互并等答复 */
   ask(draft: InteractionDraft, options?: AskOptions): Promise<InteractionAnswer>
   /** 登记并等答复，同时把答复翻成上游要的形状（ui-context 走这一支） */
   ask<T>(draft: InteractionDraft, toUpstream: ToUpstream<T>, options?: AskOptions): Promise<T>

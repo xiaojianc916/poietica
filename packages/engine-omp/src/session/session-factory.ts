@@ -26,7 +26,6 @@ export interface SessionFactoryOptions {
   readonly tools: ReadonlyMap<string, EngineToolSpec>
   /** 测试缝：存在时跳过模型解析、直接用注入的 mock */
   readonly testSeams?: { readonly model?: unknown; readonly getApiKey?: (model: unknown) => string } | null
-  /** 本会话的模型解析 */
   readonly resolveModel: (selector: string | null) => { provider: string; id: string } | null
   readonly modelRoles: () => Readonly<Record<string, string>>
   /** 把 omp 的会话对象包成 OmpSession（由 omp-session-factory 的调用方提供，避免这里绑死形状） */

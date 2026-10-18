@@ -312,7 +312,6 @@ export class TurnService {
   }
 
   // ── 小工具 ────────────────────────────────────────────────────────────────
-  /** 线程此刻的运行时状态（会话不在池中时为 idle） */
   stateOf(threadId: string): TurnState['state'] {
     return this.d.pool.peek(threadId)?.state() ?? 'idle'
   }

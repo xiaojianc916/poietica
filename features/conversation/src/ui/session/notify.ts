@@ -9,12 +9,10 @@ import type { Thread } from '../../contract'
  * 把「什么时候该说」与「怎么说」分开，是为了让这几条能被直接断言。
  */
 
-/** 窗口没有焦点、且偏好里开着完成通知 —— 两个条件都成立才发 */
 export function shouldNotify(focused: boolean, notifyOnCompletion: boolean): boolean {
   return !focused && notifyOnCompletion
 }
 
-/** 一轮结束时该说什么 */
 export function completionBody(error: { readonly code: string } | null): string {
   return error === null ? '已完成' : '运行失败'
 }

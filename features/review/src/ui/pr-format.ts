@@ -55,7 +55,6 @@ export const STATE_GLYPHS: Readonly<Record<StateGlyph, LucideIcon>> = {
 }
 
 export interface StatePresentation {
-  /** 状态胶囊里的词。 */
   readonly label: string
   /** 胶囊配色（design-system 的语义色 token 类）。 */
   readonly className: string

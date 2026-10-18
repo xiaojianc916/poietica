@@ -20,7 +20,6 @@ export interface EyeSpec {
   readonly lookX?: number
   readonly lookY?: number
 }
-/** 身体姿态片段 */
 export interface BodySpec {
   readonly x?: number
   readonly y?: number

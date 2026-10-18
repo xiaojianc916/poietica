@@ -20,7 +20,6 @@ export interface CreateOmpEngineForTestOptions {
   readonly engineVersion?: string
 }
 
-/** 一个 mock 回复就是 omp 自己的 MockResponse */
 type MockReply = MockResponse
 
 /**

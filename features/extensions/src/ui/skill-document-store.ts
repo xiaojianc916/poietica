@@ -6,7 +6,6 @@ export interface SkillDocumentStore extends Observable<SkillDocument | undefined
   open(document: SkillDocument): void
 }
 
-/** 技能文档那一格的 panel id。 */
 export const SKILL_DOCUMENT_PANEL = 'extensions.skillDocument'
 
 /**

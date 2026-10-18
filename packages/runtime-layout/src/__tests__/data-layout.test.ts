@@ -42,7 +42,6 @@ describe('dataLayout', () => {
     }).toThrow()
   })
 
-  // RL-2：相对路径抛错
   test('RL-2 相对路径抛错', () => {
     expect(() => dataLayout('relative')).toThrow('数据根必须是绝对路径：relative')
   })

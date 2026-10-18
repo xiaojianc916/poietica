@@ -3,11 +3,9 @@
  * 坐标系：viewBox -15 -15 259 259，头部中心 114.2705。
  * 数据本体逐字未改；类型只是为了让它参与 tsc 检查。 */
 
-/** 单个轮廓点 [x, y] */
 export type RingPoint = readonly [number, number]
 /** 一条闭合轮廓环（48 点） */
 export type EyeRing = readonly RingPoint[]
-/** 一组表情眼环：[左眼环, 右眼环] */
 export type EmotionRings = readonly [EyeRing, EyeRing]
 /** 身体形状：轮廓环 + 脸部拟合参数 */
 export interface ShapeRing {

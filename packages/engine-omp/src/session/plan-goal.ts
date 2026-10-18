@@ -18,7 +18,6 @@ export const DEFAULT_PLAN_FILE = 'local://PLAN.md'
 const PLAN_ENABLED_PATH = 'plan.enabled'
 const GOAL_ENABLED_PATH = 'goal.enabled'
 
-/** 会话面上计划模式用到的那几格 */
 export interface PlanCapableSession {
   getEnabledToolNames(): string[]
   hasBuiltInTool(name: string): boolean

@@ -12,7 +12,6 @@ export function claimsLongText(text: string): boolean {
   return text.length > 0 && text.split('\n').length > PASTE_TEXT_ABOVE_LINES
 }
 
-/** 剪贴板里那份纯文字；没有就交回空串。 */
 export function textFromClipboard(clipboardData: DataTransfer | null): string {
   return clipboardData?.getData('text/plain') ?? ''
 }

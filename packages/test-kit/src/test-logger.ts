@@ -9,7 +9,6 @@ export interface TestLogRecord {
 export interface TestLogger extends Logger {
   /** 本 logger 及其全部 child 写出的记录（共享同一个数组） */
   readonly records: TestLogRecord[]
-  /** 某个级别的记录 */
   at(level: LogLevel): TestLogRecord[]
 }
 

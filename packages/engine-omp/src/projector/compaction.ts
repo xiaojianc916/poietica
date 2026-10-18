@@ -70,7 +70,6 @@ export function compactionEndPayload(
   return { state: 'completed' }
 }
 
-/** 显示经过里最近的那一条压缩摘要 */
 export function latestCompactionOf<M extends CompactionMessage>(messages: readonly M[]): M | undefined {
   return messages.findLast((message) => message.role === 'compactionSummary')
 }

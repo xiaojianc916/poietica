@@ -24,7 +24,6 @@ function projector(): LiveProjector {
   return new LiveProjector({ now: () => T0 })
 }
 
-/** 时间线里的一行压缩标记 */
 type CompactionRow = Extract<TranscriptItem, { kind: 'marker' }>
 
 /** 把一串 marker op 落到时间线上，返回压缩标记那几行（类型谓词把联合收窄到 marker） */

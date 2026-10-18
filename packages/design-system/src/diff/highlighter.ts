@@ -66,7 +66,6 @@ function highlighter(): Promise<HighlighterCore> {
   return pending
 }
 
-/** 一段正文在两套主题下的词元，按行切好。 */
 export async function tokenize(code: string, lang: PaintedLanguage): Promise<ThemedTokenWithVariants[][]> {
   return (await highlighter()).codeToTokensWithThemes(code, { lang, themes: THEMES })
 }

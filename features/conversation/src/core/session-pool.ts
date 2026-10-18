@@ -9,7 +9,6 @@ export interface SessionPoolDeps {
   readonly engine: AgentEngine
   readonly clock: Clock
   readonly logger: Logger
-  /** 打开会话所需的参数（cwd、会话文件、姿态、初始模型） */
   describe(threadId: string): OpenSessionSpec
   /** 新会话第一次打开后回调：把 sessionId / sessionFile 绑定到线程行 */
   onOpened(threadId: string, session: EngineSession): void

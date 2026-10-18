@@ -29,7 +29,6 @@ export function Workbench(): ReactNode {
 
   const { sidebar, right, auxiliary } = layout
   const dockAuxiliary = right.open
-  /* 坞不在场时全屏不算数。 */
   const isAuxiliaryFullscreen = dockAuxiliary && auxiliary.fullscreen
   /* 设置打开时外壳自己的区域换内容：侧栏区放设置导航、主区放设置内容，右栏与页头不动。 */
   const route = useObservable(kernel.kernelServices.navigation).route

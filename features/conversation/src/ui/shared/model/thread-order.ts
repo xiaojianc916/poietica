@@ -5,7 +5,6 @@ import { normalizeWorkspaceRoot, workspaceRootName } from './workspace-root'
  * 一级索引是工作区，不是时间：时间桶那道信息架构属于个人聊天机器人，而 agent 客户端的主线索是「在哪个项目里」，时间退回行尾那一格的元数据。
  */
 
-/** 一条对话，列表需要它的样子。 */
 export interface ThreadListItem {
   readonly id: string
   readonly title: string

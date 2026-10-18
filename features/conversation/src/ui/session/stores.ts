@@ -14,7 +14,6 @@ export interface ComposerApi {
   setText(text: string): void
   addAttachments(items: readonly import('../../ui-api').DraftAttachment[]): void
   removeAttachment(id: string): void
-  /** ComposerDraft 的形状：贡献者通过它往草稿里加东西 */
   insertText(text: string): void
   submit(deliverAs: 'turn' | 'steer' | 'followUp'): void
   setModel(model: ModelRef): void
