@@ -1,36 +1,12 @@
 import type { Element, ElementContent, Root, RootContent, Text } from 'hast'
+import { planWave, WAVE, type WaveOptions, type WaveSegment, waveSettledAt } from './wave-plan'
 
 /*
  * 流式正文的「批次波浪淡入」（P-03）：每批新到的文字切成小段错开启动，波首尾相接。这一层只打标记；动画由 wave-dom.ts 在提交后挂上，
  * 并把 startTime 钉在小段的绝对启动时刻 —— React 复用或挪动 DOM 都不会让动画重播或被截断，且同一时刻的 span 数有上限，与回复长度无关。
  */
 
-export interface WaveOptions {
-  readonly fadeMs: number
-  readonly stepMs: number
-  /** 一批的波最多铺开多久，也是跨批排队的积压上限 */
-  readonly spreadMs: number
-  readonly minSegment: number
-  readonly maxSegments: number
-  /** 一批超过 hugeBatch 个字素（如从后台切回）：只给最后 hugeTail 个做动画，前面的直接实显 */
-  readonly hugeBatch: number
-  readonly hugeTail: number
-  readonly settleMarginMs: number
-  /** 一次提交里最多新起 maxFreshPerCommit 个动画，超出的直接实显 —— 从后台切回时不让整屏一起淡 */
-  readonly maxFreshPerCommit: number
-}
-
-export const WAVE: WaveOptions = {
-  fadeMs: 320,
-  stepMs: 30,
-  spreadMs: 240,
-  minSegment: 6,
-  maxSegments: 24,
-  hugeBatch: 1500,
-  hugeTail: 600,
-  settleMarginMs: 80,
-  maxFreshPerCommit: 64,
-}
+export { WAVE, type WaveOptions } from './wave-plan'
 
 /** 这些子树不拆字：代码块由专门组件画，图与 MathML 拆了会坏 */
 const OPAQUE = new Set(['pre', 'svg', 'math', 'annotation'])
@@ -47,16 +23,9 @@ const MIN_SHARED = 8
 export const WAVE_START_ATTRIBUTE = 'data-wave-start'
 export const WAVE_MARKER_ATTRIBUTE = 'data-wave-marker'
 
-interface Segment {
-  readonly from: number
-  readonly to: number
-  /** 绝对启动时刻（performance.now 时基，与 document.timeline 同源） */
-  readonly start: number
-}
-
 interface BlockLedger {
   text: string
-  segments: Segment[]
+  segments: WaveSegment[]
 }
 
 type Atom =
@@ -126,38 +95,29 @@ function sharedPrefix(a: string, b: string): number {
   return i
 }
 
-let segmenter: Intl.Segmenter | undefined
-function graphemeEdges(text: string, base: number): number[] {
-  segmenter ??= new Intl.Segmenter(undefined, { granularity: 'grapheme' })
-  const edges: number[] = []
-  for (const { index } of segmenter.segment(text.slice(base))) edges.push(base + index)
-  edges.push(text.length)
-  return edges
-}
+const markOf = (seg: WaveSegment): string => String(Math.round(seg.start * 10) / 10)
 
-const markOf = (seg: Segment): string => String(Math.round(seg.start * 10) / 10)
-
-const waveSpan = (seg: Segment, children: ElementContent[]): Element => ({
+const waveSpan = (seg: WaveSegment, children: ElementContent[]): Element => ({
   type: 'element',
   tagName: 'span',
   properties: { [WAVE_START_ATTRIBUTE]: markOf(seg) },
   children,
 })
 
-function segmentAt(segments: readonly Segment[], at: number): Segment | undefined {
+function segmentAt(segments: readonly WaveSegment[], at: number): WaveSegment | undefined {
   const first = segments[0]
   if (first === undefined || at < first.from) return undefined
   return segments.find((s) => at >= s.from && at < s.to)
 }
 
-function markItems(items: readonly ListItem[], segments: readonly Segment[]): void {
+function markItems(items: readonly ListItem[], segments: readonly WaveSegment[]): void {
   for (const item of items) {
     const seg = segmentAt(segments, item.first)
     if (seg !== undefined) item.node.properties = { ...item.node.properties, [WAVE_MARKER_ATTRIBUTE]: markOf(seg) }
   }
 }
 
-function paintUnit(atom: Extract<Atom, { kind: 'unit' }>, segments: readonly Segment[]): void {
+function paintUnit(atom: Extract<Atom, { kind: 'unit' }>, segments: readonly WaveSegment[]): void {
   const seg = segmentAt(segments, atom.at)
   if (seg === undefined) return
   if (WRAPPED_UNIT.has(atom.node.tagName)) {
@@ -168,7 +128,7 @@ function paintUnit(atom: Extract<Atom, { kind: 'unit' }>, segments: readonly Seg
   atom.node.properties = { ...atom.node.properties, [WAVE_START_ATTRIBUTE]: markOf(seg) }
 }
 
-function splitText(value: string, at: number, segments: readonly Segment[]): ElementContent[] {
+function splitText(value: string, at: number, segments: readonly WaveSegment[]): ElementContent[] {
   const end = at + value.length
   const out: ElementContent[] = []
   let cut = 0
@@ -184,7 +144,7 @@ function splitText(value: string, at: number, segments: readonly Segment[]): Ele
   return out
 }
 
-function paintText(atom: Extract<Atom, { kind: 'text' }>, segments: readonly Segment[]): void {
+function paintText(atom: Extract<Atom, { kind: 'text' }>, segments: readonly WaveSegment[]): void {
   const first = segments[0]
   if (first === undefined || atom.at + atom.node.value.length <= first.from) return
   const out = splitText(atom.node.value, atom.at, segments)
@@ -193,7 +153,7 @@ function paintText(atom: Extract<Atom, { kind: 'text' }>, segments: readonly Seg
   siblings.splice(siblings.indexOf(atom.node), 1, ...out)
 }
 
-function paint(atoms: readonly Atom[], items: readonly ListItem[], segments: readonly Segment[]): void {
+function paint(atoms: readonly Atom[], items: readonly ListItem[], segments: readonly WaveSegment[]): void {
   if (segments.length === 0) return
   markItems(items, segments)
   for (const atom of atoms) {
@@ -242,21 +202,11 @@ export function createWaveReveal(options: WaveOptions = WAVE, now: () => number 
   }
 
   const schedule = (ledger: BlockLedger, text: string, known: number, t: number): void => {
-    let edges = graphemeEdges(text, known)
-    if (edges.length - 1 > options.hugeBatch) edges = edges.slice(edges.length - 1 - options.hugeTail)
-    const count = edges.length - 1
-    if (count <= 0) return
-    const pieces = Math.min(options.maxSegments, Math.ceil(count / options.minSegment))
-    const step = pieces > 1 ? Math.min(options.stepMs, options.spreadMs / (pieces - 1)) : 0
-    /* 接在上一波后面；但积压不超过 spreadMs —— 宁可两波重叠，也不让字迟迟不出 */
-    const first = Math.min(Math.max(cursor, t), t + options.spreadMs)
-    for (let j = 0; j < pieces; j++) {
-      const from = edges[Math.floor((j * count) / pieces)]!
-      const to = edges[Math.floor(((j + 1) * count) / pieces)]!
-      if (to > from) ledger.segments.push({ from, to, start: first + j * step })
-    }
-    cursor = first + pieces * step
-    busy = Math.max(busy, first + (pieces - 1) * step + options.fadeMs + options.settleMarginMs)
+    const plan = planWave(text, known, t, cursor, options)
+    if (plan.segments.length === 0) return
+    ledger.segments.push(...plan.segments)
+    cursor = plan.cursor
+    busy = Math.max(busy, plan.busyUntil)
   }
 
   const transform = (tree: Root): void => {
@@ -269,9 +219,7 @@ export function createWaveReveal(options: WaveOptions = WAVE, now: () => number 
       return
     }
     /* 淡完的并回正文；被改写掉的那截不再画 */
-    ledger.segments = ledger.segments.filter(
-      (s) => s.to <= known && t < s.start + options.fadeMs + options.settleMarginMs,
-    )
+    ledger.segments = ledger.segments.filter((s) => s.to <= known && t < waveSettledAt(s, options))
     if (text.length > known) schedule(ledger, text, known, t)
     ledger.text = text
     paint(atoms, items, ledger.segments)

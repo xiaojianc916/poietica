@@ -14,14 +14,13 @@ export interface TickerLineProps {
   /** 下一句在等：加快写完这一句。 */
   readonly finishing: boolean
   readonly reduced: boolean
-  readonly ink: boolean
 }
 
-export function TickerLine({ text, fresh, finishing, reduced, ink }: TickerLineProps) {
+export function TickerLine({ text, fresh, finishing, reduced }: TickerLineProps) {
   const host = useRef<HTMLSpanElement | null>(null)
   const engine = useRef<TickerEngine | null>(null)
   /* 只用挂载那一刻的取值建引擎：同一句的整个生命周期一个引擎，后续变化走下面几个副作用。 */
-  const initial = useRef({ text, fresh, reduced, ink })
+  const initial = useRef({ text, fresh, reduced })
   /* motion 的退场信号：AnimatePresence 开始让这一句退场时为 false。 */
   const present = useIsPresent()
 

@@ -81,21 +81,19 @@ describe('思考句（还在写）', () => {
     expect(container.textContent).toBe(full)
   })
 
-  it('成批到达时不是一批一下：两批之间屏幕上的字数至少变过一次', async () => {
-    const full = '先读一下 tooling 目录里的检查脚本，看它们怎么挂到 lint 上'
+  it('成批到达时不是一批一下：一批字切成几段、错开起淡（与回复正文同一个 planWave）', async () => {
+    const full = '先读一下 tooling 目录里的检查脚本，看它们怎么挂到 lint 上，再决定改哪一层'
     const { container, update } = mount(thought('0', full.slice(0, 2)))
-    let between = 0
 
-    for (let end = 10; end <= full.length; end += 8) {
-      const before = container.textContent ?? ''
+    await update(thought('0', full))
+    await advance(250)
 
-      await update(thought('0', full.slice(0, end)))
-      const seen = await sample(container, 240, 30)
+    const starts = [...container.querySelectorAll<HTMLElement>('.ticker-track > span')].map(
+      (node) => node.getAnimations()[0]?.startTime,
+    )
 
-      if (new Set([before, ...seen]).size > 2) between += 1
-    }
-
-    expect(between).toBeGreaterThan(0)
+    expect(starts.length).toBeGreaterThan(1)
+    expect(new Set(starts).size).toBe(starts.length)
   })
 
   it('前面的字被改写（Markdown 记号闭合）：从改写处重放，最后没有错字', async () => {
@@ -107,15 +105,23 @@ describe('思考句（还在写）', () => {
     expect(container.textContent).toBe('先看 配置文件')
   })
 
-  it('墨迹：刚写下的字在 .ticker-ink 里，过一会儿冷却并入正文', async () => {
+  it('新字与回复正文同一套：成段淡入（只动透明度），淡完并回正文；没有第二种颜色', async () => {
     const { container, update } = mount(thought('0', '我'))
 
     await update(thought('0', '我需要确认端口'))
-    await advance(200)
-    expect((container.querySelector('.ticker-ink')?.textContent ?? '').length).toBeGreaterThan(0)
+    await advance(40)
 
-    await advance(1800)
-    expect(container.querySelector('.ticker-ink')?.textContent).toBe('')
+    const fading = [...container.querySelectorAll<HTMLElement>('.ticker-track > span')]
+
+    expect(fading.length).toBeGreaterThan(0)
+    for (const node of fading) {
+      expect(node.className).toBe('')
+      expect(node.style.color).toBe('')
+      expect(node.getAnimations()).toHaveLength(1)
+    }
+
+    await advance(1500)
+    expect(container.querySelectorAll('.ticker-track > span')).toHaveLength(0)
     expect(container.textContent).toBe('我需要确认端口')
   })
 
@@ -147,12 +153,12 @@ describe('思考句（还在写）', () => {
 })
 
 describe('不动的格子', () => {
-  it('工具行：从头显示整句，不建引擎（没有墨迹、没有位移）', () => {
+  it('工具行：从头显示整句，不建引擎（没有淡入段、没有位移）', () => {
     const { container } = mount(<RollingLine contentKey="call-1" following shimmer text="读 config.ts" />)
     const track = container.querySelector<HTMLElement>('.ticker-track')
 
     expect(container.querySelector('.rolling-line')?.getAttribute('data-variant')).toBe('tool')
-    expect(container.querySelector('.ticker-ink')).toBeNull()
+    expect(container.querySelector('.ticker-track > span')).toBeNull()
     expect(track?.textContent).toBe('读 config.ts')
     expect(track?.style.transform).toBe('')
   })
@@ -163,7 +169,7 @@ describe('不动的格子', () => {
     )
 
     expect(container.querySelector('.rolling-line')?.hasAttribute('data-following')).toBe(false)
-    expect(container.querySelector('.ticker-ink')).toBeNull()
+    expect(container.querySelector('.ticker-track > span')).toBeNull()
     expect(container.querySelector('.ticker-track')?.textContent).toBe('结论：端口是 8123')
   })
 
@@ -173,21 +179,35 @@ describe('不动的格子', () => {
     )
 
     expect(container.querySelector('.timeline-shimmer')).not.toBeNull()
-    expect(container.querySelector('.ticker-ink')).toBeNull()
+    expect(container.querySelector('.ticker-track > span')).toBeNull()
   })
 })
 
 describe('换句', () => {
-  it('新句出现：旧句先露面够久，再换成新句，新句从第一个字写起', async () => {
+  it('新句出现：旧句先露面够久，再换成新句，新句从第一段淡起', async () => {
     const { container, update } = mount(thought('0', '第一句。'))
 
     await update(thought('5', '然后看配置文件', { key: '0', text: '第一句。' }))
     expect(container.textContent).toContain('第一句')
 
-    const seen = await sample(container, 2000)
-    const fresh = seen.filter((text) => !text.includes('第一句'))
+    /* 新句里已经落定（不在淡入段里）的那截：从第一个字淡起，就该见过「一个都没落定」的时刻 */
+    const settled: string[] = []
 
-    expect(fresh.some((text) => text.length < '然后看配置文件'.length && '然后看配置文件'.startsWith(text))).toBe(true)
+    for (let elapsed = 0; elapsed < 2000; elapsed += 20) {
+      await advance(20)
+
+      const track = [...container.querySelectorAll('.ticker-track')].at(-1)
+      const text = track?.textContent ?? ''
+
+      if (text.includes('第一句')) continue
+
+      const fading = [...(track?.querySelectorAll('span') ?? [])].map((node) => node.textContent ?? '').join('')
+
+      settled.push(text.slice(0, text.length - fading.length))
+    }
+
+    expect(settled[0]).toBe('')
+    for (const text of settled) expect('然后看配置文件'.startsWith(text)).toBe(true)
     expect(container.textContent).toBe('然后看配置文件')
   })
 

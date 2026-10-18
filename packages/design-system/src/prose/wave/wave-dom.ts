@@ -1,4 +1,5 @@
-import { WAVE, WAVE_MARKER_ATTRIBUTE, WAVE_START_ATTRIBUTE, type WaveOptions } from './wave-reveal'
+import { WAVE, type WaveOptions } from './wave-plan'
+import { WAVE_MARKER_ATTRIBUTE, WAVE_START_ATTRIBUTE } from './wave-reveal'
 
 const KEYFRAMES: Keyframe[] = [{ opacity: 0 }, { opacity: 1 }]
 const MARKER_KEYFRAMES: Keyframe[] = [{ color: 'transparent' }, {}]
@@ -44,7 +45,6 @@ export function syncWave(host: Element, options: WaveOptions = WAVE): void {
     visit(el, WAVE_MARKER_ATTRIBUTE, marker, true)
     visit(el, WAVE_START_ATTRIBUTE, body, false)
   }
-  const timing: KeyframeAnimationOptions = { duration: options.fadeMs, easing: EASING, fill: 'backwards' }
   /* 一次来得太多（从后台切回、长时间卡顿后）：只让最后 maxFreshPerCommit 个淡入 */
   const skip = Math.max(0, fresh.length - options.maxFreshPerCommit)
   fresh.forEach(({ el, start, map, isMarker }, index) => {
@@ -52,10 +52,19 @@ export function syncWave(host: Element, options: WaveOptions = WAVE): void {
       map.set(el, { animation: null, start })
       return
     }
-    const animation = isMarker
-      ? el.animate(MARKER_KEYFRAMES, { ...timing, pseudoElement: '::marker' })
-      : el.animate(KEYFRAMES, timing)
-    animation.startTime = start
-    map.set(el, { animation, start })
+    map.set(el, { animation: waveFadeIn(el, start, options, isMarker), start })
   })
+}
+
+/**
+ * 给一段新字挂淡入，startTime 钉在它的绝对启动时刻：回复正文（syncWave）与思考行（ticker-engine）共用这一条 ——
+ * 同一套关键帧、时长与曲线，两处的「新字出现」是同一个样子。
+ */
+export function waveFadeIn(el: Element, start: number, options: WaveOptions = WAVE, isMarker = false): Animation {
+  const timing: KeyframeAnimationOptions = { duration: options.fadeMs, easing: EASING, fill: 'backwards' }
+  const animation = isMarker
+    ? el.animate(MARKER_KEYFRAMES, { ...timing, pseudoElement: '::marker' })
+    : el.animate(KEYFRAMES, timing)
+  animation.startTime = start
+  return animation
 }

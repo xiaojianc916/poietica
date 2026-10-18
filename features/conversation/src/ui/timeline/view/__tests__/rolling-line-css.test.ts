@@ -67,6 +67,14 @@ describe('rolling-line.css', () => {
     }
   })
 
+  test('思考句不另起颜色：跟组头那一行走，与工具调用同一档（没有「墨迹」色、没有写死的安静色）', () => {
+    const code = CSS.replaceAll(/\/\*[\s\S]*?\*\//gu, '')
+
+    expect(declaredValue('.rolling-line[data-variant="thought"] .ticker-track', 'color')).toBeUndefined()
+    expect(code).not.toMatch(/ticker-ink/u)
+    expect(code).not.toMatch(/\bcolor\s*:/u)
+  })
+
   test('高度钉死一行：虚拟列表的测量不会因为这一格抖动', () => {
     expect(declaredValue('.rolling-line', 'block-size')).toBe('1lh')
     expect(declaredValue('.rolling-line', 'overflow')).toBe('hidden')

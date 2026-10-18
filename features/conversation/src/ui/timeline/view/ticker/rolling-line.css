@@ -33,20 +33,17 @@
   margin-inline-end: auto;
 }
 
-/* 思考句：安静色；右侧留两字的空 —— 滑行时 o 的上限就是它。 */
+/*
+ * 思考句：右侧留两字的空 —— 滑行时 o 的上限就是它。
+ * 不写颜色：跟组头那一行（.timeline-row）走，与工具调用同一档、同一个悬停反馈；新字的「新」只由透明度说（波浪淡入）。
+ */
 .rolling-line[data-variant="thought"] .ticker-track {
   padding-inline-end: var(--cp-ticker-tail);
-  color: var(--cp-timeline-quiet-text);
 }
 
 /* 只在真正逐帧改 transform 时提示合成层：常驻 will-change 会让每一行都占一层。 */
 .ticker-track[data-moving] {
   will-change: transform;
-}
-
-/* 刚写下的字：只变颜色，不变透明度。 */
-.ticker-ink {
-  color: var(--cp-ticker-ink);
 }
 
 /*

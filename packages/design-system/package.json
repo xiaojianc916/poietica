@@ -11,7 +11,8 @@
     "./diff": "./src/diff/index.ts",
     "./diff/surface": "./src/diff/surface.tsx",
     "./prose": "./src/prose/index.ts",
-    "./styles.css": "./src/styles.css"
+    "./styles.css": "./src/styles.css",
+    "./wave": "./src/prose/wave/index.ts"
   },
   "dependencies": {
     "@base-ui/react": "catalog:",

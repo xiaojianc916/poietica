@@ -91,7 +91,6 @@ export const RollingLine = memo(function RollingLine({
             <TickerLine
               finishing={waiting}
               fresh={line.key !== mountedKey.current}
-              ink
               reduced={reduced}
               text={line.text}
             />

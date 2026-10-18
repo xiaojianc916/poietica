@@ -71,6 +71,7 @@
 | R-18 | `show_widget` 的 `url` 来源只收 `localhost / 127.0.0.1` 的 http(s)，**拒绝 Poietica 自己的 dev server**（同源） | 组件在独立来源的外壳文档里跑（`poietica-asset://widget/shell-1.html`，自带 CSP）；主窗口 CSP 只加 `frame-src` |
 | R-34 | 用户气泡改为内部滚动（推翻原「一道淡出」的设计） | 嵌套滚轮交给 `data-scrollable` 仲裁；有滚动条就不再叠两端渐隐 |
 | R-35 | 「超过 50 行」不虚拟化，改成收成 `.md` 附件 | contenteditable 的虚拟化会拆掉 IME / 选区 / 撤销栈；产品负责人确认 |
+| R-38 | 思考行新字改用回复正文的批次波浪淡入（推翻 R-21 的「新字只变颜色不变透明度」）；颜色只有一种，跟 `.timeline-row` 走 | 用户 2026-10-18：思考一行两种颜色、出字像逐字。墨迹（`--cp-ticker-ink` 450ms 冷却）在快模型下半行都是亮墨，且思考轨道写死的颜色让悬停时与工具行不同步。节奏改由 `@poietica/design-system/wave` 的 `planWave` 一处产出：放得下时与正文同样成段；放不下（在滚）时进轨道的粒度须 ≤ 滑行余量（tail − 设定值 ≈ 1.5em），故仍由 `ticker-pace` 匀速放字，同一 `stepMs` 内的字并成一段淡入（纯 `planWave` 实测应动未动 84%）。滑行上限改读轨道 `padding-inline-end`，删掉 `TAIL_EM`。沙箱 headless 实测 steady 延迟 p95 ~320→~150ms、sJ90 0.27→0.17；**Windows 真机 `bun run check:ticker` 未跑** |
 
 ## 历史条目索引
 
