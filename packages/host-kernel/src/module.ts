@@ -17,7 +17,7 @@ import {
 } from '@poietica/foundation'
 import type { DataLayout } from '@poietica/runtime-layout'
 import type { AssetHandler } from './asset-protocol'
-import type { CoreStatus } from './core-supervisor'
+import type { CoreStatus, RelayEndpoint } from './core-supervisor'
 import type { QuitOptions } from './quit'
 import type { HostRpcBinding } from './rpc-binding'
 import type { WindowRegistry } from './windows'
@@ -45,8 +45,8 @@ export interface CoreCaller {
   ): Disposable
   readonly status: () => CoreStatus
   onStatus(listener: (status: CoreStatus) => void): Disposable
-  /** Core 从未启动过时为 null。 */
-  relayPort(): number | null
+  /** Core 的 browser relay 地址与 `/ext` 口令；Core 从未启动过时为 null。 */
+  relayEndpoint(): RelayEndpoint | null
 }
 
 export interface HostModuleContext<C extends Contract = Contract> {

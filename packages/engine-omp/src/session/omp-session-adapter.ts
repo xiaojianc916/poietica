@@ -24,6 +24,7 @@ import { BackgroundJobLedger, jobIdOf } from '../projector/background-jobs'
 import { compactionEndPayload, latestCompactionOf } from '../projector/compaction'
 import { lastTurnOrdinal, type OmpMessage, projectHistoryPage } from '../projector/history'
 import { LiveProjector } from '../projector/live'
+import type { MediaRef } from '../projector/media'
 import { retryEndOf, retryStartOf } from '../projector/retry'
 import { SubagentLedger } from '../projector/subagents'
 import { TodoMirror } from '../projector/todos'
@@ -184,6 +185,8 @@ export interface WrapOmpSessionInput {
   readonly loadImageFiles?: (
     images: readonly { readonly path: string; readonly mime: string }[],
   ) => Promise<readonly LoadedImage[]>
+  /** 用户图片 → 时间线地址。生产是 `blobMediaRef(layout.ompBlobsDir)`；必填 —— 漏传等于发出 Host 读不到字节的地址 */
+  readonly mediaRef: MediaRef
 }
 
 export async function wrapOmpSession(input: WrapOmpSessionInput): Promise<EngineSession> {
@@ -262,6 +265,7 @@ export async function wrapOmpSession(input: WrapOmpSessionInput): Promise<Engine
       projector,
       /* 图片在 runTurn 里异步读一次，结果既画时间线又交给 prompt，两处共用同一份 base64 */
       loadImages: async (images) => await (input.loadImageFiles ?? loadImages)(images),
+      mediaRef: input.mediaRef,
       promptWithImages: async (submit, images, skillMessage) =>
         await deliverPrompt(session, submit, skillMessage, images),
       /*
@@ -359,6 +363,7 @@ export async function wrapOmpSession(input: WrapOmpSessionInput): Promise<Engine
         const page = projectHistoryPage(transcriptOf(), beforeTurnId, {
           isTurnOpen: projector.isTurnOpen && !openTurnShown,
           openTurnAttachments: projector.openTurnAttachments,
+          mediaRef: input.mediaRef,
         })
         /*
          * 子代理行、后台作业、待办只活在增量那条路上：整页不带它们，重订阅（切走再切回、Core 重启、补缺口）

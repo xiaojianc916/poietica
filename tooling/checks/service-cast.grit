@@ -1,0 +1,12 @@
+language js
+
+// services.get / tryGet 按令牌的类型参数返回 T（foundation 的 ModuleServices）：取用处的 `as X` 强转是多余的，
+// 还会把真错误遮住 —— 令牌声明的类型与实现对不上时，强转让编译器闭嘴。要别的类型就改令牌，不在取用处强转。
+
+`$obj.services.$method($token) as $type` where {
+  $method <: or {
+    `get`,
+    `tryGet`
+  },
+  register_diagnostic(span=$type, message="services.get / tryGet 已按令牌返回正确类型：去掉 as 强转；要别的类型就改令牌的类型参数")
+}

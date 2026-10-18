@@ -8,3 +8,4 @@ export {
   isolatedConfigDir,
 } from './core-launch'
 export { type DataLayout, dataLayout, type ResolveDataRootInput, resolveDataRoot } from './data-layout'
+export { parseRelayToken, RELAY_TOKEN_FILE_ENV } from './relay-token'

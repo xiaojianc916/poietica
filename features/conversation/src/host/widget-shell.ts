@@ -130,7 +130,12 @@ export function createWidgetShellHandler(): AssetHandler {
     if (segments.length !== 1 || segments[0] !== WIDGET_SHELL_FILE) return new Response(null, { status: 404 })
     return new Response(WIDGET_SHELL_HTML, {
       status: 200,
-      headers: { 'Content-Type': 'text/html; charset=utf-8', 'Content-Security-Policy': WIDGET_CSP },
+      headers: {
+        'Content-Type': 'text/html; charset=utf-8',
+        'Content-Security-Policy': WIDGET_CSP,
+        // 外壳是随应用版本变的代码，不是内容寻址的资产：不吃资源协议默认的 immutable（asset-protocol.ts）
+        'Cache-Control': 'no-cache',
+      },
     })
   }
 }

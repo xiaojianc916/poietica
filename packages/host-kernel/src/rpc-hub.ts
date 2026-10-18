@@ -24,7 +24,7 @@ export interface HubWebContents {
 export interface RpcHubOptions {
   readonly appContract: AppContract
   readonly hostRouter: Router
-  readonly supervisor: Pick<CoreSupervisor, 'forward' | 'status' | 'onStatus' | 'relayPort'>
+  readonly supervisor: Pick<CoreSupervisor, 'forward' | 'status' | 'onStatus' | 'relayEndpoint'>
   readonly logger: Logger
   /** 生产环境传 createIpcTransport；测试传入返回 transportPair 一端的函数。 */
   readonly createTransport: (wc: HubWebContents) => Transport
@@ -142,7 +142,7 @@ export class RpcHub {
       },
       status: () => this.o.supervisor.status,
       onStatus: (l) => this.o.supervisor.onStatus(l),
-      relayPort: () => this.o.supervisor.relayPort(),
+      relayEndpoint: () => this.o.supervisor.relayEndpoint(),
     }
   }
 

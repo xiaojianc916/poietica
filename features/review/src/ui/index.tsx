@@ -1,8 +1,8 @@
 /// <reference path="../../../../packages/design-system/src/css.d.ts" />
 
 import { composerContextItems, workspaceGitProviders } from '@poietica/feature-conversation/ui-api'
-import { type WorkspacesUi, WorkspacesUiToken } from '@poietica/feature-workspaces/ui-api'
-import { builtinPoints, defineUiFeature, type LayoutService, LayoutToken, ToastsToken } from '@poietica/ui-kernel'
+import { WorkspacesUiToken } from '@poietica/feature-workspaces/ui-api'
+import { builtinPoints, defineUiFeature, LayoutToken, ToastsToken } from '@poietica/ui-kernel'
 import { FileDiff, GitCompareArrows } from 'lucide-react'
 import { ComposerBranchChip } from './composer-branch'
 import { BranchStatusItem, CodeReviewNavRow, CodeReviewSurface, ReviewPanel } from './surface'
@@ -16,9 +16,9 @@ export default defineUiFeature({
   id: 'review',
   dependsOn: ['conversation', 'platform', 'workspaces'],
   setup(ctx) {
-    const layout = ctx.services.get(LayoutToken) as LayoutService
+    const layout = ctx.services.get(LayoutToken)
     const toasts = ctx.services.get(ToastsToken)
-    const workspaces = ctx.services.get(WorkspacesUiToken) as WorkspacesUi
+    const workspaces = ctx.services.get(WorkspacesUiToken)
 
     const report = (
       code: 'GIT_CHANGES_UNREADABLE' | 'GIT_REVIEW_ACTION_FAILED',

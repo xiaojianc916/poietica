@@ -1,7 +1,7 @@
 export { type AppIdentity, configureAppIdentity } from './app-identity'
 export { APP_ENTRY_URL, APP_SCHEME, createAppProtocolHandler, type FetchFile } from './app-protocol'
 export { ASSET_SCHEME, type AssetDispatcher, type AssetHandler, createAssetDispatcher } from './asset-protocol'
-export { type CoreLogSink, createCoreLogSink } from './core-log-sink'
+export { type CoreOutputSink, createCoreOutputSink } from './core-output'
 export {
   BACKOFF_MS,
   type CoreFailureReason,
@@ -13,6 +13,7 @@ export {
   MAX_CRASHES_IN_WINDOW,
   QUEUE_WAIT_MS,
   READY_TIMEOUT_MS,
+  type RelayEndpoint,
   STOP_GRACE_MS,
 } from './core-supervisor'
 export { createIpcTransport } from './ipc-transport'

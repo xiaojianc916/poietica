@@ -1,7 +1,11 @@
 import { beforeEach, describe, expect, test } from 'bun:test'
 import { createTestLogger, type FakeClock, fakeClock } from '@poietica/test-kit'
 import { BLANK_PAGE, type BrowserState } from '../../contract'
-import { createRelayClient, type RelaySocket, relayUrlForStatus } from '../relay-client'
+import { createRelayClient, type RelaySocket, type RelayTarget, relayTargetForStatus } from '../relay-client'
+
+const TOKEN = 'ef'.repeat(32)
+const target = (port: number): RelayTarget => ({ url: `http://127.0.0.1:${String(port)}`, token: TOKEN })
+
 import { DISCARDED_TABS_PROTOCOL_VERSION } from '../relay-protocol'
 import type { ContentsListener, WebContentsLike } from '../tabs'
 
@@ -169,11 +173,16 @@ interface Harness {
   readonly connected: boolean[]
   readonly attachedLog: (readonly number[])[]
   readonly clock: FakeClock
+  readonly log: ReturnType<typeof createTestLogger>
   readonly client: ReturnType<typeof createRelayClient>
   readonly state: BrowserState
 }
 
-function harness(url: string): Harness {
+function harness(
+  url: string,
+  createSocket: (target: string) => RelaySocket = (target) => new FakeSocket(target),
+  openSocket = true,
+): Harness {
   FakeSocket.instances = []
 
   const contents = fakeContents(url)
@@ -185,6 +194,7 @@ function harness(url: string): Harness {
   const connected: boolean[] = []
   const attachedLog: (readonly number[])[] = []
   const clock = fakeClock()
+  const log = createTestLogger()
   const state: BrowserState = {
     revision: 1,
     tabs: [
@@ -258,10 +268,10 @@ function harness(url: string): Harness {
       browserVersion: () => 'Chrome/999',
     },
     {
-      logger: createTestLogger(),
+      logger: log,
       clock,
       instanceId: 'poietica-test',
-      createSocket: (target) => new FakeSocket(target),
+      createSocket,
     },
   )
 
@@ -271,11 +281,11 @@ function harness(url: string): Harness {
   client.onAttachedChange((ids) => {
     attachedLog.push(ids)
   })
-  client.setUrl('http://127.0.0.1:9224')
+  client.setTarget(target(9224))
 
   const socket = FakeSocket.instances[0] as FakeSocket
 
-  socket.open()
+  if (openSocket) socket.open()
 
   return {
     socket,
@@ -288,6 +298,7 @@ function harness(url: string): Harness {
     connected,
     attachedLog,
     clock,
+    log,
     client,
     state,
   }
@@ -320,7 +331,7 @@ describe('BR-2: 握手与驱动标记', () => {
     const h = harness('https://a.example/')
     const hello = h.socket.messages().find((message) => message.t === 'hello')
 
-    expect(h.socket.url).toBe('ws://127.0.0.1:9224/ext')
+    expect(h.socket.url).toBe(`ws://127.0.0.1:9224/ext?token=${TOKEN}`)
     expect(hello?.instanceId).toBe('poietica-test')
     expect(hello?.userAgent).toBe('kernel-ua')
     expect(hello?.browserVersion).toBe('Chrome/999')
@@ -406,7 +417,7 @@ describe('BR-2: 握手与驱动标记', () => {
     client.onConnectedChange((next) => {
       connected.push(next)
     })
-    client.setUrl('http://127.0.0.1:9224')
+    client.setTarget(target(9224))
     ;(FakeSocket.instances[0] as FakeSocket).open()
 
     expect(ensured).toEqual([1])
@@ -752,11 +763,11 @@ describe('BR-6: 重连', () => {
     h.client.dispose()
   })
 
-  test('setUrl(null) 停止重连（restarting 期间不再拨号）', () => {
+  test('setTarget(null) 停止重连（restarting 期间不再拨号）', () => {
     const h = harness('https://a.example/')
 
     h.socket.drop()
-    h.client.setUrl(null)
+    h.client.setTarget(null)
     FakeSocket.instances = []
     h.clock.advance(60_000)
 
@@ -908,7 +919,7 @@ describe('不变式：连着就至少有一张页（面板关空后 open 永久 
 
     expect(h.ensured).toEqual([])
 
-    h.client.setUrl(null)
+    h.client.setTarget(null)
     h.state.tabs.length = 0
     h.client.publish({ ...h.state, revision: 3 })
 
@@ -919,25 +930,56 @@ describe('不变式：连着就至少有一张页（面板关空后 open 永久 
 })
 
 describe('BR-11: Core 状态 → relay 地址', () => {
-  test('ready(5000) → restarting → ready(5001)', () => {
-    expect(relayUrlForStatus('ready', 5000)).toBe('http://127.0.0.1:5000')
-    expect(relayUrlForStatus('restarting', 5000)).toBeNull()
-    expect(relayUrlForStatus('ready', 5001)).toBe('http://127.0.0.1:5001')
-    expect(relayUrlForStatus('ready', null)).toBeNull()
+  test('ready(5000) → restarting → ready(5001)；口令随端点一起交出', () => {
+    expect(relayTargetForStatus('ready', { port: 5000, token: TOKEN })).toEqual(target(5000))
+    expect(relayTargetForStatus('restarting', { port: 5000, token: TOKEN })).toBeNull()
+    expect(relayTargetForStatus('ready', { port: 5001, token: TOKEN })).toEqual(target(5001))
+    expect(relayTargetForStatus('ready', null)).toBeNull()
   })
 
   test('换地址真的换 socket：5000 断掉、5001 重新拨号', () => {
     const h = harness('https://a.example/')
 
-    h.client.setUrl('http://127.0.0.1:5000')
+    h.client.setTarget(target(5000))
 
-    expect((FakeSocket.instances.at(-1) as FakeSocket).url).toBe('ws://127.0.0.1:5000/ext')
+    expect((FakeSocket.instances.at(-1) as FakeSocket).url).toBe(`ws://127.0.0.1:5000/ext?token=${TOKEN}`)
 
-    h.client.setUrl(null)
+    h.client.setTarget(null)
     FakeSocket.instances = []
-    h.client.setUrl('http://127.0.0.1:5001')
+    h.client.setTarget(target(5001))
 
-    expect((FakeSocket.instances.at(-1) as FakeSocket).url).toBe('ws://127.0.0.1:5001/ext')
+    expect((FakeSocket.instances.at(-1) as FakeSocket).url).toBe(`ws://127.0.0.1:5001/ext?token=${TOKEN}`)
+
+    h.client.dispose()
+  })
+
+  test('同一目标重复设置不重拨；口令变了才重拨（口令不进日志）', () => {
+    const h = harness('https://a.example/')
+    const before = FakeSocket.instances.length
+
+    h.client.setTarget(target(9224))
+
+    expect(FakeSocket.instances).toHaveLength(before)
+
+    h.client.setTarget({ url: 'http://127.0.0.1:9224', token: 'ab'.repeat(32) })
+
+    expect(FakeSocket.instances).toHaveLength(before + 1)
+    expect((FakeSocket.instances.at(-1) as FakeSocket).url).toBe(`ws://127.0.0.1:9224/ext?token=${'ab'.repeat(32)}`)
+    h.client.dispose()
+  })
+
+  test('连接失败时日志只有 url 与错误，不出现口令', () => {
+    const h = harness(
+      'https://a.example/',
+      () => {
+        throw new Error('ECONNREFUSED')
+      },
+      false,
+    )
+    expect(h.log.records.length).toBeGreaterThan(0)
+    const logged = JSON.stringify(h.log.records)
+    expect(logged).not.toContain(TOKEN)
+    expect(logged).not.toContain('ab'.repeat(32))
 
     h.client.dispose()
   })

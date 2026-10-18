@@ -42,7 +42,6 @@
         "@poietica/feature-workspaces": "workspace:*",
         "@poietica/foundation": "workspace:*",
         "@poietica/logging": "workspace:*",
-        "@poietica/process-kit": "workspace:*",
         "@poietica/protocol": "workspace:*",
         "@poietica/rpc": "workspace:*",
         "@poietica/runtime-layout": "workspace:*",

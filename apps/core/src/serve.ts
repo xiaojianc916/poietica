@@ -7,7 +7,7 @@ import {
   runIsolationSelfCheck,
 } from '@poietica/engine-omp/bootstrap'
 import { systemClock } from '@poietica/foundation'
-import { createLogger, stderrJsonSink } from '@poietica/logging'
+import { createLogger, jsonlFileSink } from '@poietica/logging'
 import { appContract, PROTOCOL_VERSION } from '@poietica/protocol'
 import { createStdioTransport } from '@poietica/rpc/stdio'
 import { CORE_EXIT_CODES, dataLayout, parseCoreArgs } from '@poietica/runtime-layout'
@@ -29,7 +29,11 @@ export async function serve(launchEnv: LaunchEnv): Promise<void> {
   //    （只返回键名）。本文件不 import 任何 @oh-my-pi/*（03 页 §9 omp-confined）。
   const scrubbed = await launchEnv.scrubInjected()
   let logLevel = args.logLevel //    级别可在运行时由 diagnostics.setLogLevel 调整
-  const logger = createLogger({ level: () => logLevel, sinks: [stderrJsonSink()], base: { proc: 'core' } })
+  //    Core 自己写 logs/core.log（按批落盘、error 当场落盘）：不再把每条日志序列化到 stderr、让 Host 在 Electron
+  //    主线程上逐行解析再写一遍。stderr 只剩意外输出，Host 记进 main.log（host-kernel/src/core-output.ts）。
+  const coreLog = jsonlFileSink({ file: layout.coreLog, maxBytes: 5 * 1024 * 1024, keep: 3 })
+  process.on('exit', () => coreLog.close())
+  const logger = createLogger({ level: () => logLevel, sinks: [coreLog], base: { proc: 'core' } })
   if (scrubbed.length > 0) logger.info('scrubbed injected env', { keys: scrubbed })
   const check = await runIsolationSelfCheck(layout) // 6. 所有 omp 目录必须在 layout.ompRoot 之下
   if (!check.ok) {

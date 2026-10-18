@@ -1,18 +1,8 @@
 import { platformContract } from '@poietica/feature-platform/contract'
 import { preferencesContract } from '@poietica/feature-preferences/contract'
 import { PreferencesToken } from '@poietica/feature-preferences/ui-api'
-import { type WorkspacesUi, WorkspacesUiToken } from '@poietica/feature-workspaces/ui-api'
-import {
-  type DialogService,
-  DialogsToken,
-  type LayoutService,
-  LayoutToken,
-  type NavigationService,
-  NavigationToken,
-  type ToastService,
-  ToastsToken,
-  type UiFeatureContext,
-} from '@poietica/ui-kernel'
+import { WorkspacesUiToken } from '@poietica/feature-workspaces/ui-api'
+import { DialogsToken, LayoutToken, NavigationToken, ToastsToken, type UiFeatureContext } from '@poietica/ui-kernel'
 import { createConversationApi } from '../api'
 import { createEntryDefaults } from '../home'
 import { type ConversationStores, createStores, hiddenModelsOf } from '../session'
@@ -36,11 +26,11 @@ export function createConversationSetup(ctx: UiFeatureContext) {
       ctx.logger.warn('permission posture memory failed', { error: String(cause) })
     },
   })
-  const navigation = ctx.services.get(NavigationToken) as NavigationService
-  const dialogs = ctx.services.get(DialogsToken) as DialogService
-  const toasts = ctx.services.get(ToastsToken) as ToastService
+  const navigation = ctx.services.get(NavigationToken)
+  const dialogs = ctx.services.get(DialogsToken)
+  const toasts = ctx.services.get(ToastsToken)
   const prefs = ctx.services.get(PreferencesToken)
-  const workspaces = ctx.services.get(WorkspacesUiToken) as WorkspacesUi
+  const workspaces = ctx.services.get(WorkspacesUiToken)
 
   const stores: ConversationStores = createStores(api)
   /* 入口页的模型 / 档位写穿「新对话默认」意图；hidden 只约束 Core「只改档位时解出显示的模型」那一步的兜底 */
@@ -62,7 +52,7 @@ export function createConversationSetup(ctx: UiFeatureContext) {
       for (const row of rows) transcripts.upsertSubmission(threadId, row)
     },
   })
-  const layout = ctx.services.get(LayoutToken) as LayoutService
+  const layout = ctx.services.get(LayoutToken)
   /* 右坞「子代理」组的标签账：按对话号分账，由线程表面（打开）与右坞（选中 / 关闭）共用。 */
   const subagentTabs = new SubagentTabsStore()
 

@@ -24,6 +24,7 @@ describe('组件外壳（审查 R-18）', () => {
     expect(ok.status).toBe(200)
     expect(ok.headers.get('Content-Type')).toBe('text/html; charset=utf-8')
     expect(ok.headers.get('Content-Security-Policy')).toBe(WIDGET_CSP)
+    expect(ok.headers.get('Cache-Control')).toBe('no-cache')
     expect(await ok.text()).toBe(WIDGET_SHELL_HTML)
     expect((await handler([], request)).status).toBe(404)
     expect((await handler(['other.html'], request)).status).toBe(404)

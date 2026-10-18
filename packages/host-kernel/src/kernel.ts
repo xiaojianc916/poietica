@@ -17,7 +17,7 @@ import { app, dialog, net, protocol, type WebContents } from 'electron'
 import { type AppIdentity, configureAppIdentity } from './app-identity'
 import { APP_SCHEME, APP_SCHEME_PRIVILEGES, createAppProtocolHandler } from './app-protocol'
 import { ASSET_SCHEME, createAssetDispatcher } from './asset-protocol'
-import { createCoreLogSink } from './core-log-sink'
+import { createCoreOutputSink } from './core-output'
 import { CoreSupervisor } from './core-supervisor'
 import { createIpcTransport } from './ipc-transport'
 import { HostLoggingToken, type HostModule, type HostModuleContext } from './module'
@@ -69,11 +69,12 @@ export function runHostKernel(opts: HostKernelOptions): void {
   // ③ 目录与日志
   mkdirSync(identity.layout.logsDir, { recursive: true })
   let level: 'debug' | 'info' | 'warn' | 'error' = identity.isPackaged ? 'info' : 'debug'
+  const mainLog = jsonlFileSink({ file: identity.layout.mainLog, maxBytes: 5 * 1024 * 1024, keep: 3 })
+  // 按批落盘（见 jsonl-file-sink.ts）：退出时把攒着的写完；error 级记录本来就当场落盘
+  process.on('exit', () => mainLog.close())
   const logger = createLogger({
     level: () => level,
-    sinks: identity.isPackaged
-      ? [jsonlFileSink({ file: identity.layout.mainLog, maxBytes: 5 * 1024 * 1024, keep: 3 })]
-      : [jsonlFileSink({ file: identity.layout.mainLog, maxBytes: 5 * 1024 * 1024, keep: 3 }), consoleSink()],
+    sinks: identity.isPackaged ? [mainLog] : [mainLog, consoleSink()],
     base: { proc: 'host' },
   })
   process.on('uncaughtException', (e) => logger.error('uncaughtException', { error: String(e), stack: e.stack }))
@@ -110,7 +111,6 @@ async function boot(
   registry.kernelScope().provide(HostLoggingToken, { level: levelRef.get, setLevel: levelRef.set })
   const windows = new WindowRegistry({ logger: logger.child({ scope: 'window' }), isPackaged: identity.isPackaged })
   const assets = createAssetDispatcher(logger.child({ scope: 'asset' }))
-  const coreLog = createCoreLogSink({ file: identity.layout.coreLog })
 
   // ⑤ 总机与 Core 看护人（此时两者都还没有连接）
   let hub!: RpcHub
@@ -123,7 +123,7 @@ async function boot(
     baseEnv: () => ({ ...process.env }),
     protocolVersion: opts.protocolVersion,
     logger: logger.child({ scope: 'supervisor' }),
-    coreLog,
+    coreOutput: createCoreOutputSink(logger),
     onRequest: (method, params, ctx) => hub.handleFromCore(method, params, ctx),
     onNotification: (method, params) => hub.fromCore(method, params),
   })

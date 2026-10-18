@@ -7,6 +7,7 @@ import type { EngineSession, EngineSessionEvent, OpenSessionSpec, SubmitInput } 
 import type { Logger, LogLevel } from '@poietica/foundation'
 import type { TranscriptOperation } from '@poietica/transcript'
 import { TOOL_FALLBACK_TEXT } from '../../projector/live'
+import { hashMediaRef } from '../../projector/media'
 import { wrapOmpSession } from '../omp-session-adapter'
 
 /*
@@ -153,6 +154,7 @@ async function fixture(): Promise<Fixture> {
   }
 
   const session = await wrapOmpSession({
+    mediaRef: hashMediaRef,
     spec: BASE_SPEC,
     settings: agentSession.settings,
     agentSession,

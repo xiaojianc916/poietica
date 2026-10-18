@@ -1,7 +1,10 @@
 import type { LogSink } from './logger'
 import { redactSecrets } from './redact'
 
-/** Core 专用：每条记录一行 JSON 写到 stderr。Host 的 CoreLogSink 逐行收集写入 logs/core.log（06 页 §4.10） */
+/**
+ * 每条记录一行 JSON 写到 stderr（探针脚本等短命进程用）。Core 的 serve 不用它：Core 自己写 logs/core.log，
+ * stderr 只留给意外输出（Host 记进 main.log，见 host-kernel/src/core-output.ts）。
+ */
 export function stderrJsonSink(stream: { write(text: string): unknown } = process.stderr): LogSink {
   return {
     write(record) {

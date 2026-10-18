@@ -1,5 +1,6 @@
 import { describe, expect, test } from 'bun:test'
 import { type OmpMessage, projectHistoryPage } from '../history'
+import { sha256Hex } from '../media'
 import { assistant, assistantTexts, prompts, T0, toolCall, toolResult, user } from './fixtures/history'
 
 /*
@@ -121,7 +122,7 @@ describe('历史里的图片（legacy history-images.test.ts）', () => {
     expect(page.attachments).toHaveLength(1)
     expect(page.attachments[0]).toMatchObject({
       mediaType: 'image/png',
-      source: { kind: 'url', url: 'data:image/png;base64,AAAA' },
+      source: { kind: 'blob', sha256: sha256Hex(Buffer.from('AAAA', 'base64')) },
     })
     // 号里带上这条消息的时刻：两条各带一张图的用户消息不能撞号（撞了后一张会盖掉前一张）
     const second = projectHistoryPage(
@@ -143,21 +144,45 @@ describe('历史里的图片（legacy history-images.test.ts）', () => {
     expect(new Set(ids).size).toBe(2)
   })
 
-  test('已经是 data URL 的原样带上，不叠一层前缀', () => {
+  test('旧会话里内联的 data URL：地址按解出来的原始字节算，与纯 base64 的同一张图是同一个地址', () => {
     const page = projectHistoryPage(
       [
         {
           role: 'user',
           timestamp: T0,
-          content: [{ type: 'image', data: 'data:image/webp;base64:DDDD', mimeType: 'image/webp' }],
+          content: [
+            { type: 'image', data: 'data:image/webp;base64,DDDD', mimeType: 'image/webp' },
+            { type: 'image', data: 'DDDD', mimeType: 'image/webp' },
+          ],
         },
       ],
       null,
     )
-    expect(page.attachments[0]?.source).toEqual({
-      kind: 'url',
-      url: 'data:image/webp;base64:DDDD',
+    const expected = { kind: 'blob' as const, sha256: sha256Hex(Buffer.from('DDDD', 'base64')) }
+    expect(page.attachments.map((attachment) => attachment.source)).toEqual([expected, expected])
+  })
+
+  test('时间线里不出现像素：整页序列化后找不到图片的 base64', () => {
+    const pixels = 'iVBORw0KGgo'.repeat(200)
+    const page = projectHistoryPage(
+      [{ role: 'user', timestamp: T0, content: [{ type: 'image', data: pixels, mimeType: 'image/png' }] }],
+      null,
+    )
+    expect(page.attachments).toHaveLength(1)
+    expect(JSON.stringify(page)).not.toContain(pixels.slice(0, 64))
+  })
+
+  test('mediaRef 收到的是 omp 的图片块本身（实现可以按块对象记住算过的地址）', () => {
+    const block = { type: 'image', data: 'FFFF', mimeType: 'image/png' }
+    const seen: unknown[] = []
+    projectHistoryPage([{ role: 'user', timestamp: T0, content: [block] }], null, {
+      mediaRef: (image) => {
+        seen.push(image)
+        return 'e'.repeat(64)
+      },
     })
+    expect(seen).toEqual([block])
+    expect(seen[0]).toBe(block)
   })
 
   test('块没声明内容类型时按 png 兜底；空数据的图片块不是一张图', () => {

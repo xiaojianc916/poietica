@@ -51,9 +51,6 @@
       "path": "../../packages/logging"
     },
     {
-      "path": "../../packages/process-kit"
-    },
-    {
       "path": "../../packages/protocol"
     },
     {

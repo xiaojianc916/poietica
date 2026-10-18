@@ -14,6 +14,7 @@ import { agentRefsOf } from './agent-refs'
 import { compactionPayloadOf } from './compaction'
 import { assistantFrameId, extraFrameId, interjectionFrameId } from './frame-ids'
 import { FILE_MEDIA_TYPE } from './live'
+import { hashMediaRef, type MediaRef } from './media'
 import { GOAL_CONTINUATION_ORIGIN, type TurnOrigin, userOrigin } from './origin'
 
 /** omp 的消息形状（只取投影要读的那几格，避免绑到 omp 的深层类型） */
@@ -53,6 +54,11 @@ export interface HistoryPageOptions {
    * 收尾那一刻轮头指向界面没见过的号，图就从气泡上消失了。
    */
   readonly openTurnAttachments?: readonly TranscriptAttachment[]
+  /**
+   * 用户图片块 → 时间线上的内容寻址地址（见 media.ts）。主会话传 `blobMediaRef`（保证字节在 blob 目录里）；
+   * 不给就只算地址（单测、子代理会话）。
+   */
+  readonly mediaRef?: MediaRef
 }
 
 interface ScreenResult {
@@ -125,7 +131,7 @@ export function projectHistoryPage(
   const ops = [
     ...head,
     ...window.flatMap((entry) => [
-      ...turnOps(entry, o.openTurnAttachments ?? []),
+      ...turnOps(entry, o.openTurnAttachments ?? [], o.mediaRef ?? hashMediaRef),
       ...compactionOps(entry.turn, entry.compactions),
     ]),
   ]
@@ -331,10 +337,14 @@ function compactionOps(turn: number, compactions: readonly OmpMessage[]): Transc
   )
 }
 
-function turnOps(entry: ScreenTurn, openTurnAttachments: readonly TranscriptAttachment[]): TranscriptOperation[] {
+function turnOps(
+  entry: ScreenTurn,
+  openTurnAttachments: readonly TranscriptAttachment[],
+  mediaRef: MediaRef,
+): TranscriptOperation[] {
   const turn = turnId(entry.turn)
   const attached = [
-    ...promptImagesOf(entry, openTurnAttachments),
+    ...promptImagesOf(entry, openTurnAttachments, mediaRef),
     ...(entry.prompt === null ? [] : filesOf(entry.prompt, entry.openedAt)),
   ]
   /* 轮头必须带上号（审查 R-19-1）：界面只按轮头的 attachmentIds 找图与文件，只发条目不挂号 = 重开之后它们全部消失。 */
@@ -354,7 +364,7 @@ function turnOps(entry: ScreenTurn, openTurnAttachments: readonly TranscriptAtta
   for (const message of entry.steps) {
     if (roleOf(message) === 'prompt') {
       seen.interjections += 1
-      ops.push(...interjectionOps(turn, step, message, interjectionFrameId(turn, seen.interjections)))
+      ops.push(...interjectionOps(turn, step, message, interjectionFrameId(turn, seen.interjections), mediaRef))
       step += 1
       continue
     }
@@ -404,9 +414,15 @@ function frameIdsOf(
  * 一句插话：与增量那条路（`LiveProjector.steeredFrame`）同一个形状 —— 一条 role:user、origin:user 的文本帧，
  * 图先发条目、帧上挂号。它自占一段：前后的段都是助手的产出，插话夹在中间。
  */
-function interjectionOps(turn: string, step: number, message: OmpMessage, id: string): TranscriptOperation[] {
+function interjectionOps(
+  turn: string,
+  step: number,
+  message: OmpMessage,
+  id: string,
+  mediaRef: MediaRef,
+): TranscriptOperation[] {
   const at = stampOf(message)
-  const attached = [...imagesOf(message.content, at), ...filesOf(message, at)]
+  const attached = [...imagesOf(message.content, at, mediaRef), ...filesOf(message, at)]
   const attachmentIds = attached.map((op) => op.attachment.attachmentId)
   return [
     stepOp(turn, step, 'completed', at, at),
@@ -604,34 +620,35 @@ type AttachmentUpsert = Extract<TranscriptOperation, { op: 'attachment.upsert' }
  * 这一轮开头那句人话的图片条目。还开着的那一轮优先沿用增量那条路发过的那一批（号与像素都相同）；
  * 只有张数对得上才沿用 —— 对不上说明 omp 的消息里还没有这一句（或者根本不是同一句），各用各的号更安全。
  */
-function promptImagesOf(entry: ScreenTurn, openTurnAttachments: readonly TranscriptAttachment[]): AttachmentUpsert[] {
-  const fromHistory = imagesOf(entry.prompt === null ? undefined : entry.prompt.content, entry.openedAt)
+function promptImagesOf(
+  entry: ScreenTurn,
+  openTurnAttachments: readonly TranscriptAttachment[],
+  mediaRef: MediaRef,
+): AttachmentUpsert[] {
+  const fromHistory = imagesOf(entry.prompt === null ? undefined : entry.prompt.content, entry.openedAt, mediaRef)
   if (entry.state !== 'running' || openTurnAttachments.length === 0) return fromHistory
   if (openTurnAttachments.length !== fromHistory.length) return fromHistory
   return openTurnAttachments.map((attachment) => ({ op: 'attachment.upsert', attachment }))
 }
 
 /**
- * 用户消息里的图片。omp 读会话时已把 blob 换回内联 base64，所以像素此刻就在手上。
+ * 用户消息里的图片。omp 读会话时已把 blob 换回内联 base64，但时间线上只发内容寻址的地址（`mediaRef`），
+ * 像素由 Host 从 blob 目录直接流给界面 —— 不让几 MB 的 base64 走 stdio、主进程与渲染进程的每一跳。
  * 号必须跨消息唯一：号里带上这条消息的时刻，否则两条各带一张图的用户消息会撞号、后一张覆盖前一张。
  */
-function imagesOf(content: unknown, stamp: string): AttachmentUpsert[] {
+function imagesOf(content: unknown, stamp: string, mediaRef: MediaRef): AttachmentUpsert[] {
   if (!Array.isArray(content)) return []
   const ops: AttachmentUpsert[] = []
   for (const [index, value] of content.entries()) {
     const block = value as { readonly type?: unknown; readonly data?: unknown; readonly mimeType?: unknown }
     if (block.type !== 'image' || typeof block.data !== 'string' || block.data === '') continue
     const mediaType = typeof block.mimeType === 'string' ? block.mimeType : 'image/png'
-    const attachmentId = `${stamp}#${String(index)}`
     ops.push({
       op: 'attachment.upsert',
       attachment: {
-        attachmentId,
+        attachmentId: `${stamp}#${String(index)}`,
         mediaType,
-        source: {
-          kind: 'url',
-          url: block.data.startsWith('data:') ? block.data : `data:${mediaType};base64,${block.data}`,
-        },
+        source: { kind: 'blob', sha256: mediaRef(block as { readonly data: string }) },
       },
     })
   }

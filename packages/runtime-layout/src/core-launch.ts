@@ -1,6 +1,7 @@
 import path from 'node:path'
 import { AppError } from '@poietica/foundation'
 import { dataLayout } from './data-layout'
+import { RELAY_TOKEN_FILE_ENV } from './relay-token'
 
 const CREDENTIAL_PATTERNS = [/_API_KEY$/i, /_AUTH_TOKEN$/i, /_OAUTH_TOKEN$/i, /_ACCESS_TOKEN$/i, /_SECRET_KEY$/i]
 const CREDENTIAL_NAMES = new Set([
@@ -95,6 +96,7 @@ export function buildCoreLaunch(input: CoreLaunchInput): CoreLaunch {
     XDG_DATA_HOME: layout.nativeHomeDir,
     PI_NOTIFICATIONS: 'off',
     PI_NO_PTY: '1',
+    [RELAY_TOKEN_FILE_ENV]: layout.relayTokenFile,
   })
   return {
     command: input.coreExe,

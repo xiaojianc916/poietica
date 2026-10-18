@@ -12,8 +12,8 @@
 export const WIDGET_ASSET_HOST = 'widget'
 
 /**
- * 外壳文档的文件名。外壳内容一变就换名字：资源协议统一回 `immutable` 缓存头，
- * 同名地址可能拿到旧外壳。
+ * 外壳文档的文件名。外壳的响应自己带 `Cache-Control: no-cache`（widget-shell.ts），
+ * 不吃资源协议给内容寻址资产的 immutable 默认值，所以改外壳内容不必再换名字。
  */
 export const WIDGET_SHELL_FILE = 'shell-1.html'
 

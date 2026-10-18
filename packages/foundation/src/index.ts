@@ -7,6 +7,7 @@ export { AppError, isAppError, SerializedAppError, SystemErrorCode, toAppError }
 export { Emitter, type Event, onceEvent } from './event'
 export { createId, idTime, isId } from './id'
 export { lastResort } from './last-resort'
+export { LineSplitter, type LineSplitterOptions } from './line-splitter'
 export { LOG_LEVELS, type Logger, type LogLevel, noopLogger } from './logger'
 export { type ModuleNode, sortModules } from './module-graph'
 export { createServiceRegistry, KERNEL_OWNER, type ModuleServices, type ServiceRegistry } from './service-registry'

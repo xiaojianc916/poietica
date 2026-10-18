@@ -2,6 +2,7 @@ import type { OpenSessionSpec } from '@poietica/engine'
 import { noopLogger } from '@poietica/foundation'
 import { InteractionBroker } from '../../interactions/broker'
 import { LiveProjector } from '../../projector/live'
+import { hashMediaRef } from '../../projector/media'
 import type { OmpSessionHost } from '../session'
 
 /*
@@ -44,6 +45,7 @@ export function hostOf(over: Partial<OmpSessionHost> = {}): OmpSessionHost {
     broker: new InteractionBroker(() => NOW),
     projector: new LiveProjector({ now: () => NOW }),
     loadImages: async () => [],
+    mediaRef: hashMediaRef,
     /* 自动总结标题：这一档用例不测它，给一个什么都不做的实现（omp 知识 #17） */
     maybeAutoTitle: () => undefined,
     setSessionName: async () => true,

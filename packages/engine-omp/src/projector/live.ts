@@ -16,11 +16,11 @@ import { assistantFrameId, interjectionFrameId } from './frame-ids'
 import { GOAL_CONTINUATION_ORIGIN, type TurnOrigin, userOrigin } from './origin'
 import { retryEndState, retryErrorText, retryMessageOf } from './retry'
 
-/** 一张图片附件：号由调用方铸（session 里的 createId），像素是内联 data URL */
+/** 一张图片附件：号由调用方铸（session 里的 createId），字节按 sha256 落在 omp 的 blob 目录里（见 media.ts） */
 export interface ImageAttachmentInput {
   readonly attachmentId: string
   readonly mediaType: string
-  readonly dataUrl: string
+  readonly sha256: string
   readonly name?: string
 }
 
@@ -28,7 +28,7 @@ function attachmentOf(input: ImageAttachmentInput): TranscriptAttachment {
   return {
     attachmentId: input.attachmentId,
     mediaType: input.mediaType,
-    source: { kind: 'url', url: input.dataUrl },
+    source: { kind: 'blob', sha256: input.sha256 },
     ...(input.name === undefined ? {} : { name: input.name }),
   }
 }

@@ -13,7 +13,7 @@ import { browserErrors } from '../contract/errors'
 import { createFaviconStore } from './favicon'
 import { createPicker, decodePickerCallback, isPickerCallback, type Picker } from './picker'
 import { pickerRuntime } from './picker-runtime'
-import { createRelayClient, type RelayTabsPort, relayUrlForStatus } from './relay-client'
+import { createRelayClient, type RelayTabsPort, relayTargetForStatus } from './relay-client'
 import { applySessionPolicy } from './session-policy'
 import {
   BROWSER_VIEW_PREFERENCES,
@@ -223,9 +223,9 @@ export default defineHostModule({
         logger: ctx.logger.child({ scope: 'relay' }),
       })
 
-      /* Core 每次重启端口都可能变：ready 时用 supervisor.relayPort() 重新设置地址。relay 服务只在 omp 第一次用浏览器工具时才起，「连不上」是常态。 */
+      /* Core 每次重启端口都可能变：ready 时用 ctx.core.relayEndpoint() 重新设置目标（端口 + `/ext` 口令）。relay 服务只在 omp 第一次用浏览器工具时才起，「连不上」是常态。 */
       const applyCoreStatus = (status: CoreStatus): void => {
-        relay.setUrl(relayUrlForStatus(status.state, ctx.core.relayPort()))
+        relay.setTarget(relayTargetForStatus(status.state, ctx.core.relayEndpoint()))
       }
 
       ctx.disposables.add(ctx.core.onStatus(applyCoreStatus))

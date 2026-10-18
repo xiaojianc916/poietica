@@ -7,6 +7,7 @@ import type { GoalModeState } from '@oh-my-pi/pi-coding-agent/goals/state'
 import type { RpcGoalSession } from '@oh-my-pi/pi-coding-agent/modes/rpc/rpc-goal'
 import { EngineErrorCode, type EngineSession, type EngineSessionEvent, type OpenSessionSpec } from '@poietica/engine'
 import { type AppError, noopLogger, SystemErrorCode } from '@poietica/foundation'
+import { hashMediaRef } from '../../projector/media'
 import { overrideSetting } from '../../settings-access'
 import { createGoalHost, type GoalHost } from '../goal-host'
 import { wrapOmpSession } from '../omp-session-adapter'
@@ -352,6 +353,7 @@ async function wrapped(): Promise<Wrapped> {
     thinking: null,
   }
   const session = await wrapOmpSession({
+    mediaRef: hashMediaRef,
     spec,
     settings,
     agentSession,

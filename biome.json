@@ -56,6 +56,16 @@
         "!**/features/**/*.test.ts",
         "!**/features/**/*.test.tsx"
       ]
+    },
+    {
+      "path": "./tooling/checks/service-cast.grit",
+      "includes": [
+        "**/features/**/*.ts",
+        "**/features/**/*.tsx",
+        "**/packages/**/*.ts",
+        "**/packages/**/*.tsx",
+        "!**/__tests__/**"
+      ]
     }
   ],
   "css": {

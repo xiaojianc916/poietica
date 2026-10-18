@@ -6,12 +6,10 @@ import {
   type CommandItem,
   defineUiFeature,
   type KeybindingItem,
-  type NavigationService,
   NavigationToken,
   SETTINGS_GROUPS,
   type SettingsPageItem,
   ToastsToken,
-  type UiLogging,
   UiLoggingToken,
   useCoreStatus,
 } from '@poietica/ui-kernel'
@@ -38,8 +36,8 @@ export default defineUiFeature({
     const api = createPlatformApi(ctx)
     // system 契约由内核拥有：ui-kernel 的 ctx.rpc 无条件放行它。
     const system = ctx.rpc(systemContract)
-    const navigation = ctx.services.get(NavigationToken) as NavigationService
-    const logging = ctx.services.get(UiLoggingToken) as UiLogging
+    const navigation = ctx.services.get(NavigationToken)
+    const logging = ctx.services.get(UiLoggingToken)
     ctx.services.get(ToastsToken)
 
     logging.setSink((entries) => {

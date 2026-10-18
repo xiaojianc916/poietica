@@ -1,4 +1,5 @@
 import { AppError, type Clock, type Disposable, type Logger, systemClock, toDisposable } from '@poietica/foundation'
+import type { RelayEndpoint } from '@poietica/host-kernel'
 import type { BrowserState } from '../contract/entities'
 import { BLANK_PAGE } from '../contract/entities'
 import { browserErrors } from '../contract/errors'
@@ -7,7 +8,7 @@ import { DISCARDED_TABS_PROTOCOL_VERSION } from './relay-protocol'
 import type { WebContentsLike } from './tabs'
 
 /* 内置浏览器接进 agent 的那条线（relay 通道）。electron 的 API 全部注入：createSocket 与
- * RelayTabsPort.userAgent() 由 index.ts 用真实对象实现，测试喂假 socket 就能钉住 BR-2…BR-7；连接由 setUrl
+ * RelayTabsPort.userAgent() 由 index.ts 用真实对象实现，测试喂假 socket 就能钉住 BR-2…BR-7；连接由 setTarget
  * 驱动（Core 每次重启端口都可能变）。不走「开应用级 remote-debugging-port 再把 cdpUrl 指过去」：那个端点上
  * 主界面自己也是一个 page target，agent 挑 target 会钻进主界面，而且整个应用的调试面就此开在回环上。 */
 
@@ -40,9 +41,15 @@ export interface RelayTabsPort {
   browserVersion(): string
 }
 
+/** 连 relay 要的两样：HTTP 基址与 `/ext` 口令（口令只进连接地址，不进日志）。 */
+export interface RelayTarget {
+  readonly url: string
+  readonly token: string
+}
+
 export interface RelayClient {
-  /** 设置 relay 地址并（重新）开始连接；null = 停止连接 */
-  setUrl(url: string | null): void
+  /** 设置 relay 目标并（重新）开始连接；null = 停止连接 */
+  setTarget(target: RelayTarget | null): void
   publish(state: BrowserState): void
   readonly connected: () => boolean
   onConnectedChange(listener: (connected: boolean) => void): Disposable
@@ -52,8 +59,10 @@ export interface RelayClient {
 }
 
 /** restarting 期间必须先收掉地址：Core 每次重启端口都可能变（BR-11）。 */
-export function relayUrlForStatus(state: string, port: number | null): string | null {
-  return state === 'ready' && port !== null ? `http://127.0.0.1:${String(port)}` : null
+export function relayTargetForStatus(state: string, relay: RelayEndpoint | null): RelayTarget | null {
+  return state === 'ready' && relay !== null
+    ? { url: `http://127.0.0.1:${String(relay.port)}`, token: relay.token }
+    : null
 }
 
 export interface RelayClientOptions {
@@ -71,7 +80,7 @@ export function createRelayClient(tabs: RelayTabsPort, opts: RelayClientOptions)
   /* 浏览器身份：relay 按它给标签分命名空间，同名实例是「最新连接顶掉旧连接」—— 固定 id 会被别的连接挤出 CDP 发现，所以每次启动换一个。 */
   const instanceId = opts.instanceId ?? `poietica-${crypto.randomUUID()}`
 
-  let url: string | null = null
+  let target: RelayTarget | null = null
   let socket: RelaySocket | null = null
   let reconnectDelay = RECONNECT_MIN_MS
   let reconnectTimer: Disposable | null = null
@@ -91,9 +100,6 @@ export function createRelayClient(tabs: RelayTabsPort, opts: RelayClientOptions)
   const attached = new Set<number>()
   const listeners = new Set<(connected: boolean) => void>()
   const attachedListeners = new Set<(attachedTabIds: readonly number[]) => void>()
-
-  /* 端点 http://… → ws://…/ext：WebSocket 构造函数只认 ws/wss，直接把 http 地址喂给它是一句 SyntaxError。 */
-  const endpoint = (): string => relaySocketUrl(url ?? '')
 
   function post(message: RelayOutbound): void {
     if (socket !== null && socket.readyState === SOCKET_OPEN) {
@@ -353,7 +359,7 @@ export function createRelayClient(tabs: RelayTabsPort, opts: RelayClientOptions)
   }
 
   function scheduleReconnect(): void {
-    if (disposed || reconnectTimer !== null || url === null) {
+    if (disposed || reconnectTimer !== null || target === null) {
       return
     }
 
@@ -367,16 +373,16 @@ export function createRelayClient(tabs: RelayTabsPort, opts: RelayClientOptions)
   }
 
   function open(): void {
-    if (disposed || socket !== null || url === null) {
+    if (disposed || socket !== null || target === null) {
       return
     }
 
     let next: RelaySocket
 
     try {
-      next = connect(endpoint())
+      next = connect(relaySocketUrl(target))
     } catch (cause) {
-      opts.logger.debug('browser relay connect failed', { endpoint: endpoint(), error: String(cause) })
+      opts.logger.debug('browser relay connect failed', { url: target.url, error: String(cause) })
       scheduleReconnect()
 
       return
@@ -465,12 +471,12 @@ export function createRelayClient(tabs: RelayTabsPort, opts: RelayClientOptions)
   }
 
   return {
-    setUrl(next) {
-      if (disposed || url === next) {
+    setTarget(next) {
+      if (disposed || sameTarget(target, next)) {
         return
       }
 
-      url = next
+      target = next
       reconnectTimer?.dispose()
       reconnectTimer = null
       reconnectDelay = RECONNECT_MIN_MS
@@ -516,8 +522,13 @@ function defaultCreateSocket(target: string): RelaySocket {
   return new WebSocket(target) as unknown as RelaySocket
 }
 
-export function relaySocketUrl(base: string): string {
-  const endpoint = `${base.replace(/\/+$/, '')}/ext`
+function sameTarget(a: RelayTarget | null, b: RelayTarget | null): boolean {
+  return a === b || (a !== null && b !== null && a.url === b.url && a.token === b.token)
+}
+
+/* 基址 http://… → ws://…/ext?token=…：WebSocket 构造函数只认 ws/wss，直接把 http 地址喂给它是一句 SyntaxError。 */
+export function relaySocketUrl(target: RelayTarget): string {
+  const endpoint = `${target.url.replace(/\/+$/, '')}/ext?token=${encodeURIComponent(target.token)}`
 
   return endpoint.replace(/^http/, 'ws')
 }

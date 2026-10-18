@@ -16231,59 +16231,22 @@
                                       "type": "number"
                                     },
                                     "source": {
-                                      "oneOf": [
-                                        {
-                                          "type": "object",
-                                          "properties": {
-                                            "kind": {
-                                              "type": "string",
-                                              "const": "url"
-                                            },
-                                            "url": {
-                                              "type": "string"
-                                            }
-                                          },
-                                          "required": [
-                                            "kind",
-                                            "url"
-                                          ],
-                                          "additionalProperties": false
+                                      "type": "object",
+                                      "properties": {
+                                        "kind": {
+                                          "type": "string",
+                                          "const": "blob"
                                         },
-                                        {
-                                          "type": "object",
-                                          "properties": {
-                                            "kind": {
-                                              "type": "string",
-                                              "const": "file"
-                                            },
-                                            "fileId": {
-                                              "type": "string"
-                                            }
-                                          },
-                                          "required": [
-                                            "kind",
-                                            "fileId"
-                                          ],
-                                          "additionalProperties": false
-                                        },
-                                        {
-                                          "type": "object",
-                                          "properties": {
-                                            "kind": {
-                                              "type": "string",
-                                              "const": "session_media"
-                                            },
-                                            "fileId": {
-                                              "type": "string"
-                                            }
-                                          },
-                                          "required": [
-                                            "kind",
-                                            "fileId"
-                                          ],
-                                          "additionalProperties": false
+                                        "sha256": {
+                                          "type": "string",
+                                          "pattern": "^[a-f0-9]{64}$"
                                         }
-                                      ]
+                                      },
+                                      "required": [
+                                        "kind",
+                                        "sha256"
+                                      ],
+                                      "additionalProperties": false
                                     },
                                     "placeholder": {
                                       "type": "string"
@@ -18339,59 +18302,22 @@
                                 "type": "number"
                               },
                               "source": {
-                                "oneOf": [
-                                  {
-                                    "type": "object",
-                                    "properties": {
-                                      "kind": {
-                                        "type": "string",
-                                        "const": "url"
-                                      },
-                                      "url": {
-                                        "type": "string"
-                                      }
-                                    },
-                                    "required": [
-                                      "kind",
-                                      "url"
-                                    ],
-                                    "additionalProperties": false
+                                "type": "object",
+                                "properties": {
+                                  "kind": {
+                                    "type": "string",
+                                    "const": "blob"
                                   },
-                                  {
-                                    "type": "object",
-                                    "properties": {
-                                      "kind": {
-                                        "type": "string",
-                                        "const": "file"
-                                      },
-                                      "fileId": {
-                                        "type": "string"
-                                      }
-                                    },
-                                    "required": [
-                                      "kind",
-                                      "fileId"
-                                    ],
-                                    "additionalProperties": false
-                                  },
-                                  {
-                                    "type": "object",
-                                    "properties": {
-                                      "kind": {
-                                        "type": "string",
-                                        "const": "session_media"
-                                      },
-                                      "fileId": {
-                                        "type": "string"
-                                      }
-                                    },
-                                    "required": [
-                                      "kind",
-                                      "fileId"
-                                    ],
-                                    "additionalProperties": false
+                                  "sha256": {
+                                    "type": "string",
+                                    "pattern": "^[a-f0-9]{64}$"
                                   }
-                                ]
+                                },
+                                "required": [
+                                  "kind",
+                                  "sha256"
+                                ],
+                                "additionalProperties": false
                               },
                               "placeholder": {
                                 "type": "string"
@@ -20395,59 +20321,22 @@
                   "type": "number"
                 },
                 "source": {
-                  "oneOf": [
-                    {
-                      "type": "object",
-                      "properties": {
-                        "kind": {
-                          "type": "string",
-                          "const": "url"
-                        },
-                        "url": {
-                          "type": "string"
-                        }
-                      },
-                      "required": [
-                        "kind",
-                        "url"
-                      ],
-                      "additionalProperties": false
+                  "type": "object",
+                  "properties": {
+                    "kind": {
+                      "type": "string",
+                      "const": "blob"
                     },
-                    {
-                      "type": "object",
-                      "properties": {
-                        "kind": {
-                          "type": "string",
-                          "const": "file"
-                        },
-                        "fileId": {
-                          "type": "string"
-                        }
-                      },
-                      "required": [
-                        "kind",
-                        "fileId"
-                      ],
-                      "additionalProperties": false
-                    },
-                    {
-                      "type": "object",
-                      "properties": {
-                        "kind": {
-                          "type": "string",
-                          "const": "session_media"
-                        },
-                        "fileId": {
-                          "type": "string"
-                        }
-                      },
-                      "required": [
-                        "kind",
-                        "fileId"
-                      ],
-                      "additionalProperties": false
+                    "sha256": {
+                      "type": "string",
+                      "pattern": "^[a-f0-9]{64}$"
                     }
-                  ]
+                  },
+                  "required": [
+                    "kind",
+                    "sha256"
+                  ],
+                  "additionalProperties": false
                 },
                 "placeholder": {
                   "type": "string"
@@ -22347,59 +22236,22 @@
                       "type": "number"
                     },
                     "source": {
-                      "oneOf": [
-                        {
-                          "type": "object",
-                          "properties": {
-                            "kind": {
-                              "type": "string",
-                              "const": "url"
-                            },
-                            "url": {
-                              "type": "string"
-                            }
-                          },
-                          "required": [
-                            "kind",
-                            "url"
-                          ],
-                          "additionalProperties": false
+                      "type": "object",
+                      "properties": {
+                        "kind": {
+                          "type": "string",
+                          "const": "blob"
                         },
-                        {
-                          "type": "object",
-                          "properties": {
-                            "kind": {
-                              "type": "string",
-                              "const": "file"
-                            },
-                            "fileId": {
-                              "type": "string"
-                            }
-                          },
-                          "required": [
-                            "kind",
-                            "fileId"
-                          ],
-                          "additionalProperties": false
-                        },
-                        {
-                          "type": "object",
-                          "properties": {
-                            "kind": {
-                              "type": "string",
-                              "const": "session_media"
-                            },
-                            "fileId": {
-                              "type": "string"
-                            }
-                          },
-                          "required": [
-                            "kind",
-                            "fileId"
-                          ],
-                          "additionalProperties": false
+                        "sha256": {
+                          "type": "string",
+                          "pattern": "^[a-f0-9]{64}$"
                         }
-                      ]
+                      },
+                      "required": [
+                        "kind",
+                        "sha256"
+                      ],
+                      "additionalProperties": false
                     },
                     "placeholder": {
                       "type": "string"
@@ -28091,59 +27943,22 @@
                                 "type": "number"
                               },
                               "source": {
-                                "oneOf": [
-                                  {
-                                    "type": "object",
-                                    "properties": {
-                                      "kind": {
-                                        "type": "string",
-                                        "const": "url"
-                                      },
-                                      "url": {
-                                        "type": "string"
-                                      }
-                                    },
-                                    "required": [
-                                      "kind",
-                                      "url"
-                                    ],
-                                    "additionalProperties": false
+                                "type": "object",
+                                "properties": {
+                                  "kind": {
+                                    "type": "string",
+                                    "const": "blob"
                                   },
-                                  {
-                                    "type": "object",
-                                    "properties": {
-                                      "kind": {
-                                        "type": "string",
-                                        "const": "file"
-                                      },
-                                      "fileId": {
-                                        "type": "string"
-                                      }
-                                    },
-                                    "required": [
-                                      "kind",
-                                      "fileId"
-                                    ],
-                                    "additionalProperties": false
-                                  },
-                                  {
-                                    "type": "object",
-                                    "properties": {
-                                      "kind": {
-                                        "type": "string",
-                                        "const": "session_media"
-                                      },
-                                      "fileId": {
-                                        "type": "string"
-                                      }
-                                    },
-                                    "required": [
-                                      "kind",
-                                      "fileId"
-                                    ],
-                                    "additionalProperties": false
+                                  "sha256": {
+                                    "type": "string",
+                                    "pattern": "^[a-f0-9]{64}$"
                                   }
-                                ]
+                                },
+                                "required": [
+                                  "kind",
+                                  "sha256"
+                                ],
+                                "additionalProperties": false
                               },
                               "placeholder": {
                                 "type": "string"
@@ -30199,59 +30014,22 @@
                           "type": "number"
                         },
                         "source": {
-                          "oneOf": [
-                            {
-                              "type": "object",
-                              "properties": {
-                                "kind": {
-                                  "type": "string",
-                                  "const": "url"
-                                },
-                                "url": {
-                                  "type": "string"
-                                }
-                              },
-                              "required": [
-                                "kind",
-                                "url"
-                              ],
-                              "additionalProperties": false
+                          "type": "object",
+                          "properties": {
+                            "kind": {
+                              "type": "string",
+                              "const": "blob"
                             },
-                            {
-                              "type": "object",
-                              "properties": {
-                                "kind": {
-                                  "type": "string",
-                                  "const": "file"
-                                },
-                                "fileId": {
-                                  "type": "string"
-                                }
-                              },
-                              "required": [
-                                "kind",
-                                "fileId"
-                              ],
-                              "additionalProperties": false
-                            },
-                            {
-                              "type": "object",
-                              "properties": {
-                                "kind": {
-                                  "type": "string",
-                                  "const": "session_media"
-                                },
-                                "fileId": {
-                                  "type": "string"
-                                }
-                              },
-                              "required": [
-                                "kind",
-                                "fileId"
-                              ],
-                              "additionalProperties": false
+                            "sha256": {
+                              "type": "string",
+                              "pattern": "^[a-f0-9]{64}$"
                             }
-                          ]
+                          },
+                          "required": [
+                            "kind",
+                            "sha256"
+                          ],
+                          "additionalProperties": false
                         },
                         "placeholder": {
                           "type": "string"

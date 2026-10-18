@@ -1,4 +1,3 @@
-import type { LayoutService, NavigationService } from '@poietica/ui-kernel'
 import {
   builtinPoints,
   CommandsToken,
@@ -20,8 +19,8 @@ const SETTINGS_ROUTE: Route = { surface: 'workbench.settings', params: {} }
 export const workbenchFeature = defineUiFeature({
   id: 'workbench',
   setup(ctx) {
-    const navigation = ctx.services.get(NavigationToken) as NavigationService
-    const layout = ctx.services.get(LayoutToken) as LayoutService
+    const navigation = ctx.services.get(NavigationToken)
+    const layout = ctx.services.get(LayoutToken)
     ctx.services.get(CommandsToken)
     // 命令面板的开关状态由 Workbench 订阅（见 palette-state.ts）
     void subscribePalette

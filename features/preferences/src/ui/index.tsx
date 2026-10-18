@@ -1,14 +1,10 @@
 import type { IconComponent } from '@poietica/ui-kernel'
 import {
   builtinPoints,
-  type CommandService,
   CommandsToken,
   defineUiFeature,
-  type KeybindingService,
   KeybindingsToken,
-  type LayoutService,
   LayoutToken,
-  type NavigationService,
   NavigationToken,
   type Route,
   SETTINGS_GROUPS,
@@ -25,10 +21,10 @@ export default defineUiFeature({
   id: 'preferences',
   setup(ctx) {
     const api = createPreferencesApi(ctx)
-    const navigation = ctx.services.get(NavigationToken) as NavigationService
-    const layout = ctx.services.get(LayoutToken) as LayoutService
-    const keybindings = ctx.services.get(KeybindingsToken) as KeybindingService
-    ctx.services.get(CommandsToken) as CommandService
+    const navigation = ctx.services.get(NavigationToken)
+    const layout = ctx.services.get(LayoutToken)
+    const keybindings = ctx.services.get(KeybindingsToken)
+    ctx.services.get(CommandsToken)
 
     // setup 同步而 prefs.get 异步：先拿默认值兜底，拿到真值后替换（下面「首帧就解一次」那一处一并替换）。
     let current: () => Preferences = () => PreferencesSchema.parse({})

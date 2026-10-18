@@ -269,4 +269,22 @@ describe('timeline', () => {
     const parsed = transcriptOperationSchema.parse({ op: 'turn.upsert', turn: legacy })
     expect(parsed.op === 'turn.upsert' ? parsed.turn.origin : null).toEqual({ kind: 'other' })
   })
+
+  /* 时间线不内联像素：附件只收内容寻址的地址，data URL / 任意 URL 在契约层就被拒（不靠各个生产者自觉） */
+  test('TL-13 附件来源只收 64 位 sha256：data URL、http 地址、大写或截断的 sha 都过不了 schema', () => {
+    const op = (source: unknown) => ({
+      op: 'attachment.upsert',
+      attachment: { attachmentId: 'a#0', mediaType: 'image/png', source },
+    })
+    const ok = op({ kind: 'blob', sha256: 'a'.repeat(64) })
+    expect(transcriptOperationSchema.parse(ok)).toEqual(ok as TranscriptOperation)
+    for (const bad of [
+      { kind: 'url', url: 'data:image/png;base64,AAAA' },
+      { kind: 'url', url: 'https://example.com/a.png' },
+      { kind: 'blob', sha256: 'A'.repeat(64) },
+      { kind: 'blob', sha256: 'a'.repeat(63) },
+    ]) {
+      expect(transcriptOperationSchema.safeParse(op(bad)).success).toBe(false)
+    }
+  })
 })

@@ -28,7 +28,7 @@ function fatal(scope: string, error: unknown): void {
 const launchEnv = captureLaunchEnv() // ① 第一条语句：快照启动时就有的环境变量键（必须先于任何 omp 模块求值）
 /*
  * 06 页 §2.7：main.ts 顶层注册兜底 —— 任何未捕获异常 / 未处理拒绝写一条 fatal 日志
- * （stderr JSONL，Host 的 CoreLogSink 逐行收进 core.log），随后以退出码 1 退出，
+ * （stderr JSONL：这一刻 core.log 的写入器可能还没建好，Host 把 stderr 记进 main.log 的 core-output），随后以退出码 1 退出，
  * Host 按崩溃处理（退避重启；60 秒内超过 5 次进 failed）。
  */
 process.on('uncaughtException', (error) => {

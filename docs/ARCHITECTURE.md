@@ -157,7 +157,7 @@ omp 的版本锁在根 `package.json` 的 catalog（四个 `@oh-my-pi/*` 同一�
 | 窗口位置 | platform | `window-state.json` |
 | 内置 Python | python | `tools/python/` |
 | 内置浏览器 | browser | `session/Partitions/persist:poietica-browser` |
-| 日志 | Host / Core | `logs/main.log` / `logs/core.log` |
+| 日志 | Host / Core | `logs/main.log` / `logs/core.log`（各只有一个写者：Host 写 main，Core 自己写 core；stderr 只留意外输出） |
 
 规则：数据路径只来自 `DataLayout`；SQL 只写在功能的 `core/repository.ts`，表名以功能 id
 （`-` 换 `_`）为前缀，内核启动时校验。JSON 文件统一走 `@poietica/fs-kit` 的

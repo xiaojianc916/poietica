@@ -1,3 +1,4 @@
+import { LineSplitter } from '@poietica/foundation'
 import type { RpcMessage } from './messages'
 
 export const FRAME_PREFIX = '\x1e'
@@ -9,28 +10,30 @@ export function encodeLine(message: RpcMessage): string {
   return `${JSON.stringify(message)}\n`
 }
 
-/** 增量解码器。requirePrefix=true 用于 Core stdout；false 用于 Core stdin（纯行 JSON）。 */
+/** 单帧上限（字符数）。超过即视为对端失控：报一次 `[frame overflow]` 并丢弃到下一个换行 */
+export const MAX_FRAME_CHARS = 64 * 1024 * 1024
+
+/**
+ * 增量解码器。requirePrefix=true 用于 Core stdout；false 用于 Core stdin（纯行 JSON）。
+ * 切行交给 foundation 的 LineSplitter（线性时间、只认 `\n`），这里只管「一行 → 一条消息」。
+ */
 export class FrameDecoder {
-  private buffer = ''
+  private readonly lines: LineSplitter
+
   constructor(
     private readonly requirePrefix: boolean,
     private readonly onMessage: (message: RpcMessage) => void,
     private readonly onStray: (text: string) => void,
-  ) {}
+    maxFrameChars: number = MAX_FRAME_CHARS,
+  ) {
+    this.lines = new LineSplitter((line) => this.handleLine(line), {
+      maxLineLength: maxFrameChars,
+      onOverflow: (head) => this.onStray(`[frame overflow] ${head}`),
+    })
+  }
 
   push(chunk: string): void {
-    this.buffer += chunk
-    let nl = this.buffer.indexOf('\n')
-    while (nl !== -1) {
-      const line = this.buffer.slice(0, nl).replace(/\r$/, '')
-      this.buffer = this.buffer.slice(nl + 1)
-      this.handleLine(line)
-      nl = this.buffer.indexOf('\n')
-    }
-    if (this.buffer.length > 64 * 1024 * 1024) {
-      this.onStray(`[frame overflow] ${this.buffer.slice(0, 200)}`)
-      this.buffer = ''
-    }
+    this.lines.push(chunk)
   }
 
   private handleLine(line: string): void {

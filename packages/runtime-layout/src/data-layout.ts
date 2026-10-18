@@ -9,10 +9,17 @@ export interface DataLayout {
   readonly coreDir: string
   readonly dbFile: string
   readonly coreCwd: string
+  /** browser relay `/ext` 口令（Host 生成并持久化，见 relay-token.ts） */
+  readonly relayTokenFile: string
   readonly attachmentsDir: string
   readonly scratchDir: string
   readonly ompRoot: string
   readonly ompAgentDir: string
+  /**
+   * 内容寻址的媒体目录（文件名 = 原始字节的 sha256），即 omp 的 `<agent>/blobs`。时间线上的图片只发 sha：
+   * Core 发地址前保证字节在这里（engine-omp 的 blobMediaRef），Host 从这里读给界面。
+   */
+  readonly ompBlobsDir: string
   readonly nativeHomeDir: string
   readonly toolsDir: string
   readonly pythonDir: string
@@ -39,10 +46,12 @@ export function dataLayout(root: string): DataLayout {
     coreDir,
     dbFile: path.join(coreDir, 'poietica.db'),
     coreCwd: path.join(coreDir, 'cwd'),
+    relayTokenFile: path.join(coreDir, 'relay.token'),
     attachmentsDir: path.join(r, 'attachments'),
     scratchDir: path.join(r, 'scratch'),
     ompRoot,
     ompAgentDir: path.join(ompRoot, 'agent'),
+    ompBlobsDir: path.join(ompRoot, 'agent', 'blobs'),
     nativeHomeDir: path.join(r, 'native-home'),
     toolsDir,
     pythonDir: path.join(toolsDir, 'python'),

@@ -1749,6 +1749,9 @@ React DevTools Profiler 录 5 秒流式 —— `TickList` 只在新增一轮 / �
    `dispose()` 共用 `discard()` 清两个定时器、`held`、`running`、环与 `ringChars`。
    `emit()` 发出前 `compactOps`，入环时按批数与 `RING_MAX_CHARS = 8_000_000`（约 16MB
    UTF-16）双限裁旧（至少留最新一批），`catchUp` 去掉内部 `chars` 字段、对外形状不变。
+   **时间线不再带像素（A–E 审查方案 B 之后）**：附件帧只剩 sha256，同一份预算能覆盖的轮次明显变多。
+   上限本身仍是按「最坏情况正文 + 工具输出」定的，不跟着像素的消失一起下调 —— 调小会让长工具输出的
+   断线补发更早走整页重读；真要调需要按真机上的平均帧大小重新定，不在这次审查修复的范围里。
 3. **协议形状不变**：op 的类型与字段都没动，只是少发、合并发；不改 engine-omp、不改 UI。
 
 **行为变化**（方案 §5.4）：工具卡片照样立刻出现（首帧不节流）；运行中输出最多 10 次/秒、
@@ -4502,3 +4505,62 @@ openai-codex-device / xai-oauth / gitlab-duo / gitlab-duo-agent / factory-droid 
 
 **已知限制**（照方案，未额外处理）：重开对话看不到这一行（omp 会话记录不存重试过程与本轮报错）；
 换备用模型会重新计数；上限 5 次只对从没配过 `retry.maxRetries` 的用户生效。
+
+## A–E 全面审查修复：A 线性分帧 / B 图片内容寻址 / C Core 自写日志 / D relay 口令 / E 资源协议与强转清理（基于 fd5cf50，协议 34 → 35，2026-10-18）
+
+**来源**：`审查报告/Poietica 全面审查（main @ fd5cf50）：结论与方案索引` 与方案 A–E 五页（外部输入，不入库）。
+按报告「应用顺序」把五个 `.diff` 依次 `git apply --index` 到 `review/fd5cf50` 分支，全部干净应用（97 文件，
+1488 + / 721 −，其中 B 的契约快照按报告要求用 `bun run protocol:snapshot` 现生成，不手抄）。报告登记的五处衔接点
+（`core-supervisor.ts`、`runtime-layout` 布局、`host-kernel/index.ts`、conversation 的 contract/host、协议 34→35）
+全部对得上，没有需要手工重放的 hunk。
+
+**改法**（严格按方案，不在原路径上加缓存 / 限流 / try-catch）：
+
+1. **A 线性分帧**：切行唯一实现移到 `packages/foundation/src/line-splitter.ts`（chunk 数组累积、只在换行处 join
+   一次、`maxLineLength` + `onOverflow` 后丢弃到下一个换行）；`rpc/frame.ts` 只做「一行 → 一条消息」，导出
+   `MAX_FRAME_CHARS = 64MB`；`process-kit` 不再导出 `LineSplitter`，`apps/core` 去掉对它的依赖。
+2. **B 图片内容寻址（协议 35）**：`AttachmentSource` 只剩 `{ kind: 'blob', sha256 }`；engine-omp 新增
+   `projector/media.ts`（纯哈希）与 `session/media-store.ts`（`BlobStore.putSync` 保证字节先落盘），历史 / 实时
+   两条投影都经 `mediaRef`；conversation 新增 `media` 契约与 Host 的 `media/<sha256>` 流式处理器；`DataLayout` 新增
+   `ompBlobsDir`。旧会话的 data URL 在读投影时解码成同一份 sha，不需要迁移。
+3. **C Core 自写日志**：`jsonlFileSink` 改为按批落盘（默认 250ms，error 当场、64KB 提前、`flush/close` 收尾）；
+   Core 的 `serve` 自建 `logs/core.log` 写入器；Host 删掉 `core-log-sink`，只把 stderr / stdout 杂散输出记成
+   `core-output` 的 warn 进 `main.log`；Host 的 main 日志也挂上退出时 flush。
+4. **D relay 口令**：Host 生成并持久化 `<数据根>/core/relay.token`（32 字节随机数、临时文件改名、POSIX 0600），
+   Core 的环境只带 `POIETICA_RELAY_TOKEN_FILE` 路径；engine-omp 的 `browser-relay` 在 import omp cli 之前补
+   `--token`（手工参数优先，有路径但读不到/格式错则拒绝启动）；browser 的 relay client 从 `setUrl` 改成
+   `setTarget({url, token})`，口令只进 `?token=`，同一目标不重拨、口令变了才重拨。
+5. **E 资源协议归位**：`safePathSegments` 成为 `poietica-app` / `poietica-asset` 的唯一路径解析（坏编码、`.`/`..`、
+   解码后的分隔符与 NUL → 400，处理器不被调用）；`withAssetHeaders` 复制响应头（不原地改不可变头），2xx 默认
+   immutable、非 2xx `no-store`、处理器自己写的 Cache-Control 照用；组件外壳显式 `no-cache`；31 处
+   `services.get(...) as X` 去掉强转，并加 `tooling/checks/service-cast.grit` 由 biome 把关。
+
+**偏差**：
+
+1. **`RING_MAX_CHARS` 没有下调**。报告把它列为「B 落地后可以下调」的小项，不是验收条件；在没有真机帧大小分布的情况下
+   调小会让长工具输出的补发更早退化成整页重读。已在 P-05 一节记下理由，留作以后按实测数据决定。
+2. **只在 `docs/ARCHITECTURE.md` 与 `docs/refactor-log.md` 补了说明**：A–E 的方案页自带文档，但没有逐页改
+   `ARCHITECTURE`；这次只改了「日志只有一个写者」那一行（C 改变了所有权的表述），其余章节与代码不冲突。
+3. **D 的 `/cdp` 与端口空窗期仍开着**（报告文末的上游提案），这是方案里明确划出的边界，不是本轮遗漏。
+
+**验证（本机在 `review/fd5cf50` 上重跑，不是抄报告的数）**：
+
+- `bun install`：无变化（888 installs / 1003 packages）。
+- `bun run refs`：`references 已是最新`（A 删掉的 `apps/core → process-kit` 引用已同步）。
+- `bun run protocol:snapshot`：重新生成 `contract.snapshot.json`（-306 / +84 行，全是 `source` 三态 → blob 的生成差异）。
+- `bun run typecheck`：通过（790 文件 / 80 工程；1,081 文件测试工程）。
+- `bun run lint`：通过（biome 仅剩基线已有的 4 条 `noDescendingSpecificity` 警告；自定义闸门、omp 文档锚点、
+  depcruise 全部通过）。
+- `bun test`（全仓，含最后补的「口令不进日志」一条）：**2,573 pass / 1 skip / 0 fail / 332 文件 / 3 快照 / 87.82 秒**（skip 是 RT-H4：Windows 上没有 POSIX 权限位）。
+- 定向：`features/conversation packages/engine-omp packages/transcript packages/host-kernel packages/runtime-layout
+  packages/foundation packages/rpc` → 1,378 pass / 1 skip / 0 fail / 181 文件 / 59 秒。
+- 补的判据：`relay-client` 增加「连接失败时日志只有 url 与错误，不出现口令」（口令不进日志这条以前只在方案里写着，
+  没有断言钉住）。
+
+**未做（照报告的「Windows 真机核对」，需要打包应用 + 真 omp，不在单测能证明的范围）**：
+
+- A：让 agent 读 30MB 以上文件或跑大输出命令，界面不应出现秒级冻结；`main.log` 里不应出现成串 `[bad frame]` / 巨型 stray。
+- B：带图消息在 DevTools Network 里走 `poietica-asset://media/<sha256>`；打开升级前的旧会话图片正常且 blob 目录出现对应文件。
+- C：正常使用后 `logs/core.log` 持续有记录、`main.log` 不再逐条转录 Core 日志；任务管理器结束 Core 后 error 记录还在。
+- D：`<数据根>/core/relay.token` 是 64 位十六进制；不带口令连 `/ext` 返回 401；内置浏览器仍能被 agent 驱动。
+- E：附件图片、站点图标、组件正常显示；2xx 带 immutable、404 带 no-store、组件外壳带 no-cache。

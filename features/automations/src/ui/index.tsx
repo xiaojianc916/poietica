@@ -1,12 +1,7 @@
 /// <reference path="../../../../packages/design-system/src/css.d.ts" />
 
 import { conversationContract, MAIN_AGENT_ID, type Thread } from '@poietica/feature-conversation/contract'
-import {
-  type ConversationUi,
-  ConversationUiToken,
-  threadActions,
-  toolCallRenderers,
-} from '@poietica/feature-conversation/ui-api'
+import { ConversationUiToken, threadActions, toolCallRenderers } from '@poietica/feature-conversation/ui-api'
 import { platformContract } from '@poietica/feature-platform/contract'
 import {
   builtinPoints,
@@ -66,8 +61,8 @@ export default defineUiFeature({
   id: 'automations',
   dependsOn: ['conversation', 'workspaces', 'platform'],
   setup(ctx) {
-    const navigation = ctx.services.get(NavigationToken) as NavigationService
-    const conversation = ctx.services.get(ConversationUiToken) as ConversationUi
+    const navigation = ctx.services.get(NavigationToken)
+    const conversation = ctx.services.get(ConversationUiToken)
     const api = createAutomationsApi(ctx)
     const store = createAutomationsStore({ api, logger: ctx.logger })
 

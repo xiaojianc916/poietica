@@ -94,7 +94,7 @@ function fakeSupervisor() {
         },
       }
     },
-    relayPort: () => 1234,
+    relayEndpoint: () => ({ port: 1234, token: 'ab'.repeat(32) }),
     forward: (method: string, params: unknown, opts: { signal: AbortSignal; meta: unknown }) => {
       forwarded.push({ method, params, meta: opts.meta })
       return forwardImpl(method, params, opts)
@@ -150,7 +150,7 @@ function makeHub(): HubHarness {
   const hub = new RpcHub({
     appContract,
     hostRouter,
-    supervisor: sup as unknown as Pick<CoreSupervisor, 'forward' | 'status' | 'onStatus' | 'relayPort'>,
+    supervisor: sup as unknown as Pick<CoreSupervisor, 'forward' | 'status' | 'onStatus' | 'relayEndpoint'>,
     logger: createTestLogger(),
     createTransport: () => {
       const [a, b] = transportPair()
@@ -279,7 +279,7 @@ describe('RpcHub', () => {
     sup.setStatus({ state: 'ready', reason: null, attempt: 0 })
     const caller = hub.coreCaller()
     expect(await caller.call(coreContract, 'conversation.list', {})).toEqual({ items: ['x'] })
-    expect(caller.relayPort()).toBe(1234)
+    expect(caller.relayEndpoint()).toEqual({ port: 1234, token: 'ab'.repeat(32) })
   })
 
   test('coreCaller().on 订阅 owner=host 的通知 → method_not_found', () => {

@@ -1,4 +1,4 @@
-import { type WindowCloseGuard, WindowCloseToken } from '@poietica/feature-platform/ui-api'
+import { WindowCloseToken } from '@poietica/feature-platform/ui-api'
 import { createId } from '@poietica/foundation'
 import { builtinPoints } from '@poietica/ui-kernel'
 import { Bot, MessageSquareText } from 'lucide-react'
@@ -18,7 +18,7 @@ export function createConversationServices(setup: ConversationSetup, actions: Co
   const { activeThreadId, draftPin, openThread, runningThreadIds, subscribeActive } = actions
 
   // 退出拦截：有运行中的对话就先确认
-  const guard = ctx.services.get(WindowCloseToken) as WindowCloseGuard
+  const guard = ctx.services.get(WindowCloseToken)
   ctx.lifecycle.onDispose(
     guard.onCloseRequested(async () => {
       const ok = await confirmQuit(dialogs, runningThreadIds().size)

@@ -227,8 +227,7 @@ describe('投影器坐到屏幕的位置上（legacy projection.test.ts / screen
  * 新接口由 LiveProjector.attachmentOp 出这条 upsert。
  */
 describe('现场图片上屏（legacy live-image-attachments.test.ts）', () => {
-  /** 一张 1×1 的 PNG，够证明「像素过得了这条线」而不必带大文件 */
-  const PIXEL = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg=='
+  const SHA = 'f'.repeat(64)
 
   test('图片先落一条能画的 attachment.upsert，再开一轮引用它', () => {
     const p = projector()
@@ -237,18 +236,18 @@ describe('现场图片上屏（legacy live-image-attachments.test.ts）', () => 
       ...p.attachmentOp({
         attachmentId,
         mediaType: 'image/png',
-        dataUrl: `data:image/png;base64,${PIXEL}`,
+        sha256: SHA,
         name: 'shot.png',
       }),
       ...p.userTurn({ text: '这是什么', attachmentIds: [attachmentId] }),
     ]
     const state = applyOps(emptyTimeline(), ops)
 
-    /* 屏幕那一边：同一个号上是一条能画的 upsert（界面按 url 源直接画） */
+    /* 屏幕那一边：同一个号上是一条能画的 upsert（界面按 sha 拼资源协议地址，像素不进时间线） */
     expect(state.attachments.get(attachmentId)).toMatchObject({
       mediaType: 'image/png',
       name: 'shot.png',
-      source: { kind: 'url', url: `data:image/png;base64,${PIXEL}` },
+      source: { kind: 'blob', sha256: SHA },
     })
     const turn = state.items[0]
     expect(turn?.kind === 'turn' && turn.attachmentIds).toEqual([attachmentId])

@@ -22,6 +22,7 @@ import { outcomeOf, type TurnOutcome, toEngineError } from '../errors'
 import { AskCallTracker } from '../interactions/ask-calls'
 import type { InteractionBroker } from '../interactions/broker'
 import type { FileAttachmentInput, ImageAttachmentInput, LiveProjector } from '../projector/live'
+import type { MediaRef } from '../projector/media'
 import { OpenTurnScreen, overlayOpenTurn } from '../projector/open-turn'
 import { commandErrorText, commandOutputText } from './command-output'
 import { describeError } from './event-faults'
@@ -40,6 +41,8 @@ export interface OmpSessionHost {
   readonly loadImages: (
     images: readonly { readonly path: string; readonly mime: string }[],
   ) => Promise<readonly { readonly path: string; readonly mime: string; readonly base64: string }[]>
+  /** 读好的图 → 时间线上的内容寻址地址；生产实现同时保证字节落在 omp 的 blob 目录（session/media-store.ts） */
+  readonly mediaRef: MediaRef
   readonly promptWithImages: (
     input: SubmitInput,
     images: readonly { readonly path: string; readonly mime: string; readonly base64: string }[],
@@ -157,7 +160,6 @@ interface QueueEntry {
   readonly files: readonly FileAttachmentInput[]
 }
 
-/** 读好的图 → 时间线附件条目。号跨消息唯一，`#序号` 只为读日志时一眼看出是第几张 */
 /** 这一句带的普通文件 → 时间线附件条目。名字与投递正文里那一行同一份，重开之后读回来的也是它 */
 function fileInputsOf(files: SubmitInput['files']): FileAttachmentInput[] {
   if (files.length === 0) return []
@@ -165,12 +167,16 @@ function fileInputsOf(files: SubmitInput['files']): FileAttachmentInput[] {
   return files.map((file, index) => ({ attachmentId: `${batch}#f${String(index)}`, name: file.name }))
 }
 
-function imageInputsOf(images: readonly LoadedImage[]): ImageAttachmentInput[] {
+/**
+ * 读好的图 → 时间线附件条目。号跨消息唯一，`#序号` 只为读日志时一眼看出是第几张。
+ * 条目只带内容寻址的地址：像素已经交给 omp（prompt），不再随时间线复制一份 data URL。
+ */
+function imageInputsOf(images: readonly LoadedImage[], mediaRef: MediaRef): ImageAttachmentInput[] {
   const batch = createId()
   return images.map((image, index) => ({
     attachmentId: `${batch}#${String(index)}`,
     mediaType: image.mime,
-    dataUrl: `data:${image.mime};base64,${image.base64}`,
+    sha256: mediaRef({ data: image.base64 }),
   }))
 }
 
@@ -335,7 +341,7 @@ export class OmpSession implements EngineSession {
         this.o.projector.userTurn({
           text: input.text,
           skills: input.skills,
-          ...(images.length === 0 ? {} : { images: imageInputsOf(images) }),
+          ...(images.length === 0 ? {} : { images: imageInputsOf(images, this.o.mediaRef) }),
           ...(input.files.length === 0 ? {} : { files: fileInputsOf(input.files) }),
         }),
       )
@@ -499,7 +505,7 @@ export class OmpSession implements EngineSession {
         deliverAs,
         createdAt: this.o.now(),
         input,
-        images: imageInputsOf(images),
+        images: imageInputsOf(images, this.o.mediaRef),
         files: fileInputsOf(input.files),
       })
       this.emitQueue()

@@ -7,8 +7,8 @@ exports[`一页的代表性形状（12 页 §9.5 的快照） 两轮：带图的
       "attachmentId": "2023-11-14T22:13:20.000Z#1",
       "mediaType": "image/png",
       "source": {
-        "kind": "url",
-        "url": "data:image/png;base64,AAAA",
+        "kind": "blob",
+        "sha256": "709e80c88487a2411e1ee4dfb9f22a861492d20c4765150c0c794abd70f8147c",
       },
     },
   ],

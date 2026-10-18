@@ -7,17 +7,19 @@ import {
   Deferred,
   type Disposable,
   Emitter,
+  LineSplitter,
   type Logger,
   SystemErrorCode,
   systemClock,
   withTimeout,
 } from '@poietica/foundation'
-import { killTree, LineSplitter } from '@poietica/process-kit'
+import { killTree } from '@poietica/process-kit'
 import { type InboundContext, type RpcMeta, RpcPeer } from '@poietica/rpc'
 import { createChildProcessTransport } from '@poietica/rpc/stdio'
 import { buildCoreLaunch, CORE_EXIT_CODES, CORE_SHUTDOWN_BUDGET_MS, type DataLayout } from '@poietica/runtime-layout'
-import type { CoreLogSink } from './core-log-sink'
+import type { CoreOutputSink } from './core-output'
 import { pickFreePort } from './relay-port'
+import { ensureRelayToken } from './relay-token'
 
 export type CoreStatusState = (typeof CORE_STATUS_STATES)[number]
 export type CoreFailureReason = (typeof CORE_FAILURE_REASONS)[number]
@@ -39,6 +41,17 @@ export const READY_TIMEOUT_MS = 45_000
  */
 export const STOP_GRACE_MS = CORE_SHUTDOWN_BUDGET_MS + 2_000
 export const QUEUE_WAIT_MS = 30_000
+/** stderr 单行上限：失控的输出没有换行时，不让它在主进程里无限攒 */
+const STDERR_LINE_MAX = 1024 * 1024
+
+/**
+ * Core 的 browser relay：端口由 Host 每次拉起 Core 时挑选，口令由 Host 按数据根生成（runtime-layout 的 relay-token.ts）。
+ * 两者一起交出去：只拿端口连 `/ext` 会被 relay 以 401 拒绝。
+ */
+export interface RelayEndpoint {
+  readonly port: number
+  readonly token: string
+}
 
 export interface CoreSupervisorOptions {
   readonly layout: DataLayout
@@ -49,7 +62,8 @@ export interface CoreSupervisorOptions {
   readonly baseEnv: () => Readonly<Record<string, string | undefined>>
   readonly protocolVersion: number
   readonly logger: Logger
-  readonly coreLog: CoreLogSink
+  /** Core 的意外输出（stderr 行、stdout 杂散文本）；Core 的结构化日志由 Core 自己写 core.log */
+  readonly coreOutput: CoreOutputSink
   readonly onRequest: (method: string, params: unknown, ctx: InboundContext) => Promise<unknown>
   readonly onNotification: (method: string, params: unknown) => void
   /** 测试注入用。 */
@@ -74,7 +88,7 @@ export class CoreSupervisor {
   private child: ChildProcess | undefined
   private peer: RpcPeer | undefined
   private generation = 0
-  private port: number | null = null
+  private relay: RelayEndpoint | null = null
   private restartTimer: Disposable | undefined
   private stopped: Deferred<void> | undefined
   private readonly statusEmitter = new Emitter<CoreStatus>()
@@ -99,8 +113,8 @@ export class CoreSupervisor {
     return { state: map[this.state], reason: this.reason, attempt: this.crashes.length }
   }
 
-  relayPort(): number | null {
-    return this.port
+  relayEndpoint(): RelayEndpoint | null {
+    return this.relay
   }
 
   /** 首次启动，或从 failed / stopped 重新启动 */
@@ -243,7 +257,7 @@ export class CoreSupervisor {
     }
     const port = await (this.o.pickPort ?? pickFreePort)()
     if (this.stale(gen)) return
-    this.port = port
+    this.relay = { port, token: ensureRelayToken(this.o.layout.relayTokenFile) }
     const launch = buildCoreLaunch({
       coreExe: this.o.coreExe,
       dataRoot: this.o.layout.root,
@@ -262,8 +276,11 @@ export class CoreSupervisor {
     })
     this.child = child
     const ready = new Deferred<ReadyPayload>()
-    const transport = createChildProcessTransport(child, { onStray: (text) => this.o.coreLog.stray(text) })
-    const stderr = new LineSplitter((line) => this.o.coreLog.line(line))
+    const transport = createChildProcessTransport(child, { onStray: (text) => this.o.coreOutput.stray(text) })
+    const stderr = new LineSplitter((line) => this.o.coreOutput.line(line), {
+      maxLineLength: STDERR_LINE_MAX,
+      onOverflow: (head) => this.o.coreOutput.line(`[stderr line overflow] ${head}`),
+    })
     child.stderr?.setEncoding('utf8')
     child.stderr?.on('data', (chunk: string) => stderr.push(chunk))
     this.peer = new RpcPeer({
@@ -324,7 +341,7 @@ export class CoreSupervisor {
       if (child.pid !== undefined) await (this.o.kill ?? killTree)(child.pid)
       return
     }
-    this.o.logger.info('core ready', { ...payload, pid: child.pid, relayPort: this.port })
+    this.o.logger.info('core ready', { ...payload, pid: child.pid, relayPort: this.relay?.port })
     this.reason = null
     this.setState('ready')
     this.readyEmitter.fire()

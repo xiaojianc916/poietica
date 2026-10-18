@@ -69,6 +69,53 @@ describe('poietica-asset:// 分派', () => {
     expect(logger.at('error').some((r) => r.msg === 'asset handler failed')).toBe(true)
   })
 
+  test('坏的百分号编码、NUL → 400，处理器不被调用（旧代码 URIError 直接让 dispatch 拒绝）', async () => {
+    const d = createAssetDispatcher(createTestLogger())
+    let called = false
+    d.register('a', 'attachment', () => {
+      called = true
+      return new Response('x')
+    })
+    for (const tail of ['%E0%A4%A', 'a%00b']) {
+      expect((await d.dispatch(new Request(`${ASSET_SCHEME}://attachment/${tail}`))).status).toBe(400)
+    }
+    expect(called).toBe(false)
+  })
+
+  test('处理器的非 2xx 响应 → no-store：「还没取到」的 404 不能被当成一年有效的答案', async () => {
+    const d = createAssetDispatcher(createTestLogger())
+    d.register('a', 'attachment', () => new Response(null, { status: 404 }))
+    const res = await d.dispatch(new Request(`${ASSET_SCHEME}://attachment/x`))
+    expect(res.status).toBe(404)
+    expect(res.headers.get('Cache-Control')).toBe('no-store')
+    expect(res.headers.get('X-Content-Type-Options')).toBe('nosniff')
+  })
+
+  test('处理器自己写的 Cache-Control 照用（缓存策略归处理器）', async () => {
+    const d = createAssetDispatcher(createTestLogger())
+    d.register('a', 'attachment', () => new Response('x', { headers: { 'Cache-Control': 'no-cache' } }))
+    const res = await d.dispatch(new Request(`${ASSET_SCHEME}://attachment/x`))
+    expect(res.headers.get('Cache-Control')).toBe('no-cache')
+  })
+
+  test('响应头不可变（fetch() 的结果）也照常加头，不变成 500', async () => {
+    const d = createAssetDispatcher(createTestLogger())
+    d.register('a', 'attachment', () => {
+      const res = new Response('body', { status: 200, headers: { 'Content-Type': 'image/png' } })
+      // undici 的 fetch 结果头是 immutable guard：模拟它，原地 set 会抛 TypeError
+      const frozen = new Headers(res.headers)
+      frozen.set = () => {
+        throw new TypeError('immutable')
+      }
+      Object.defineProperty(res, 'headers', { value: frozen })
+      return res
+    })
+    const res = await d.dispatch(new Request(`${ASSET_SCHEME}://attachment/x`))
+    expect(res.status).toBe(200)
+    expect(res.headers.get('Content-Type')).toBe('image/png')
+    expect(await res.text()).toBe('body')
+  })
+
   test('成功的响应加上 nosniff 与 immutable 缓存头', async () => {
     const d = createAssetDispatcher(createTestLogger())
     d.register('a', 'attachment', () => new Response('x'))

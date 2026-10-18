@@ -7,6 +7,7 @@ import { Settings } from '@oh-my-pi/pi-coding-agent/config/settings'
 import type { EngineSession, EngineSessionEvent, OpenSessionSpec } from '@poietica/engine'
 import { type Logger, noopLogger } from '@poietica/foundation'
 import { wrapOmpSession } from '../../../session/omp-session-adapter'
+import { hashMediaRef } from '../../media'
 
 /*
  * 一个假的 omp AgentSession：只实现 wrapOmpSession 真正用到的那几格（OmpAgentSessionLike），
@@ -153,6 +154,7 @@ export async function fakeOmpSession(o: FakeSessionOptions = {}): Promise<FakeSe
     getAvailableThinkingLevels: () => o.thinkingLevels ?? [],
   }
   const engineSession = await wrapOmpSession({
+    mediaRef: hashMediaRef,
     spec: { ...BASE_SPEC, ...o.spec },
     settings: session.settings,
     agentSession: session,

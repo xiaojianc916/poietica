@@ -1,6 +1,5 @@
 import { defineCoreModule } from '@poietica/core-kernel'
 import {
-  type ConversationService,
   ConversationServiceToken,
   type SubmissionFailed,
   submissionFailed,
@@ -9,12 +8,7 @@ import {
   threadRemoved,
   turnSettled,
 } from '@poietica/feature-conversation/core-api'
-import {
-  type WorkspaceRemoved,
-  type WorkspacesService,
-  WorkspacesServiceToken,
-  workspaceRemoved,
-} from '@poietica/feature-workspaces/core-api'
+import { type WorkspaceRemoved, WorkspacesServiceToken, workspaceRemoved } from '@poietica/feature-workspaces/core-api'
 import { automationsContract } from '../contract'
 import { registerAgentTools } from './agent-tools'
 import { registerHandlers } from './handlers'
@@ -32,8 +26,8 @@ export default defineCoreModule({
   migrations,
   setup(ctx) {
     const repo = createAutomationsRepository(ctx.db)
-    const conversation = ctx.services.get(ConversationServiceToken) as ConversationService
-    const workspaces = ctx.services.get(WorkspacesServiceToken) as WorkspacesService
+    const conversation = ctx.services.get(ConversationServiceToken)
+    const workspaces = ctx.services.get(WorkspacesServiceToken)
 
     const runner = createRunner({
       repo,

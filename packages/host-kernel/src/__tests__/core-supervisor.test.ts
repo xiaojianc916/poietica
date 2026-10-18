@@ -1,11 +1,12 @@
 import { describe, expect, test } from 'bun:test'
 import { EventEmitter } from 'node:events'
+import { readFileSync } from 'node:fs'
 import { PassThrough } from 'node:stream'
 import { type AppError, Deferred, SystemErrorCode } from '@poietica/foundation'
 import { encodeFrame } from '@poietica/rpc'
 import { type DataLayout, dataLayout } from '@poietica/runtime-layout'
 import { createTestLogger, type FakeClock, fakeClock, type TempDir, tempDir, waitFor } from '@poietica/test-kit'
-import type { CoreLogSink } from '../core-log-sink'
+import type { CoreOutputSink } from '../core-output'
 import { CoreSupervisor, type CoreSupervisorOptions, STOP_GRACE_MS } from '../core-supervisor'
 
 interface FakeChild extends EventEmitter {
@@ -21,13 +22,18 @@ interface Spawned {
   readonly child: FakeChild
   readonly command: string
   readonly args: readonly string[]
+  readonly env: Readonly<Record<string, string>> | undefined
 }
 
 function makeSpawn(): { spawn: unknown; spawned: Spawned[]; killed: number[] } {
   const spawned: Spawned[] = []
   const killed: number[] = []
   let nextPid = 1000
-  const spawn = (command: string, args: readonly string[]): FakeChild => {
+  const spawn = (
+    command: string,
+    args: readonly string[],
+    options?: { readonly env?: Readonly<Record<string, string>> },
+  ): FakeChild => {
     const child = new EventEmitter() as FakeChild
     child.pid = nextPid++
     child.exitCode = null
@@ -35,7 +41,7 @@ function makeSpawn(): { spawn: unknown; spawned: Spawned[]; killed: number[] } {
     child.stdout = new PassThrough()
     child.stderr = new PassThrough()
     child.killed = false
-    spawned.push({ child, command, args })
+    spawned.push({ child, command, args, env: options?.env })
     return child
   }
   return { spawn, spawned, killed }
@@ -75,7 +81,7 @@ async function setup(
   const clock = fakeClock()
   const log = createTestLogger()
   const { spawn, spawned, killed } = makeSpawn()
-  const coreLog: CoreLogSink = { line: () => undefined, stray: () => undefined }
+  const coreOutput: CoreOutputSink = { line: () => undefined, stray: () => undefined }
   const coreExe = opts.coreExeExists === false ? `${dir.path}/missing.exe` : process.execPath
   const sup = new CoreSupervisor({
     layout,
@@ -86,7 +92,7 @@ async function setup(
     baseEnv: () => ({ PATH: 'x' }),
     protocolVersion: 1,
     logger: log,
-    coreLog,
+    coreOutput,
     onRequest: async () => ({}),
     onNotification: () => undefined,
     spawn: spawn as never,
@@ -113,7 +119,7 @@ describe('CoreSupervisor', () => {
     await started
     expect(states).toEqual(['starting', 'ready'])
     expect(s.sup.status.state).toBe('ready')
-    expect(s.sup.relayPort()).toBe(12345)
+    expect(s.sup.relayEndpoint()?.port).toBe(12345)
   })
 
   test('S-2 协议版本不一致 → failed/protocol_mismatch 且杀掉子进程', async () => {
@@ -389,7 +395,7 @@ describe('CoreSupervisor', () => {
   test('状态机对外只有五个 state 值；idle 报告为 starting', async () => {
     const s = await setup()
     expect(s.sup.status.state).toBe('starting')
-    expect(s.sup.relayPort()).toBeNull()
+    expect(s.sup.relayEndpoint()).toBeNull()
   })
 
   /*
@@ -436,7 +442,7 @@ describe('CoreSupervisor', () => {
     await Promise.all([started, restarting])
     expect(s.spawned.length).toBe(1)
     expect(s.sup.status.state).toBe('ready')
-    expect(s.sup.relayPort()).toBe(23456)
+    expect(s.sup.relayEndpoint()?.port).toBe(23456)
   })
 
   /*
@@ -477,9 +483,23 @@ describe('CoreSupervisor', () => {
     expect(args).toContain('12345')
   })
 
-  test('stderr 逐行送到 coreLog', async () => {
+  test('relay 口令：拉起前按数据根落盘，端点交出同一份；Core 的环境只带文件路径', async () => {
+    const s = await setup()
+    const started = s.sup.start()
+    await tick()
+    ready(s.spawned[0]!.child)
+    await started
+    const layout = dataLayout(s.dir.path)
+    const token = readFileSync(layout.relayTokenFile, 'utf8')
+    expect(s.sup.relayEndpoint()).toEqual({ port: 12345, token })
+    const env = s.spawned[0]!.env ?? {}
+    expect(env.POIETICA_RELAY_TOKEN_FILE).toBe(layout.relayTokenFile)
+    expect(Object.values(env)).not.toContain(token)
+  })
+
+  test('stderr 逐行送到 coreOutput', async () => {
     const lines: string[] = []
-    const s = await setup({ coreLog: { line: (t) => lines.push(t), stray: () => undefined } })
+    const s = await setup({ coreOutput: { line: (t) => lines.push(t), stray: () => undefined } })
     const started = s.sup.start()
     await tick()
     const child = s.spawned[0]!.child

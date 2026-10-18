@@ -1,4 +1,5 @@
 import path from 'node:path'
+import { safePathSegments } from './url-segments'
 
 /*
  * 应用外壳协议 poietica-app://shell/…（性能审查 P-06）。安装版以前用 loadFile 从 file:// 加载渲染进程，
@@ -23,23 +24,6 @@ export const APP_SCHEME_PRIVILEGES = {
 
 export type FetchFile = (absolutePath: string) => Promise<Response>
 
-/** URL 路径 → 解码后的段；任何可疑的段都让整条请求作废（返回 undefined）。 */
-function segmentsOf(pathname: string): string[] | undefined {
-  const raw = pathname.split('/').filter((segment) => segment.length > 0)
-  const segments: string[] = []
-  for (const segment of raw) {
-    let decoded: string
-    try {
-      decoded = decodeURIComponent(segment)
-    } catch {
-      return undefined
-    }
-    if (decoded === '.' || decoded === '..' || /[/\\\0]/.test(decoded)) return undefined
-    segments.push(decoded)
-  }
-  return segments
-}
-
 export function createAppProtocolHandler(
   rendererDir: string,
   fetchFile: FetchFile,
@@ -54,7 +38,7 @@ export function createAppProtocolHandler(
       return new Response(null, { status: 400 })
     }
     if (url.hostname !== APP_HOST) return new Response(null, { status: 404 })
-    const segments = segmentsOf(url.pathname)
+    const segments = safePathSegments(url.pathname)
     if (segments === undefined) return new Response(null, { status: 400 })
     if (segments.length === 0) return new Response(null, { status: 404 })
     const full = path.join(root, ...segments)

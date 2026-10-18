@@ -1,11 +1,6 @@
 import { defineCoreModule } from '@poietica/core-kernel'
-import { type AttachmentsService, AttachmentsServiceToken } from '@poietica/feature-attachments/core-api'
-import {
-  type WorkspaceRemoved,
-  type WorkspacesService,
-  WorkspacesServiceToken,
-  workspaceRemoved,
-} from '@poietica/feature-workspaces/core-api'
+import { AttachmentsServiceToken } from '@poietica/feature-attachments/core-api'
+import { type WorkspaceRemoved, WorkspacesServiceToken, workspaceRemoved } from '@poietica/feature-workspaces/core-api'
 import { conversationContract } from '../contract'
 import {
   ConversationServiceToken,
@@ -36,12 +31,12 @@ export default defineCoreModule({
       emitReset: (p) => ctx.rpc.emit('timeline.reset', wireResetNotice(p)),
     })
 
-    const attachments = ctx.services.get(AttachmentsServiceToken) as AttachmentsService
+    const attachments = ctx.services.get(AttachmentsServiceToken)
     const core = new ConversationCore({
       db: ctx.db,
       engine: ctx.engine,
       hub,
-      workspaces: ctx.services.get(WorkspacesServiceToken) as WorkspacesService,
+      workspaces: ctx.services.get(WorkspacesServiceToken),
       attachments,
       clock: ctx.clock,
       logger: ctx.logger,

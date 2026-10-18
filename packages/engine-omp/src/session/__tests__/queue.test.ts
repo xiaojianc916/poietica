@@ -8,7 +8,11 @@ import { Settings } from '@oh-my-pi/pi-coding-agent/config/settings'
 import type { EngineSession, EngineSessionEvent, OpenSessionSpec, SubmitInput } from '@poietica/engine'
 import { AppError, noopLogger } from '@poietica/foundation'
 import { applyOps, emptyTimeline, type TranscriptOperation } from '@poietica/transcript'
+import { hashMediaRef, sha256Hex } from '../../projector/media'
 import { wrapOmpSession } from '../omp-session-adapter'
+
+/** 假读盘交回的 base64 'QUJD' 就是字节 'ABC'：时间线上只该出现它的 sha256 */
+const ABC_SHA = sha256Hex(Buffer.from('ABC'))
 
 /*
  * 排队 / 插话这条链路的十条判据（R-01）。
@@ -164,6 +168,7 @@ async function fixture(): Promise<Fixture> {
     model: null,
     thinking: null,
     /* R-08-1：读盘计数交给用例断言「每张图只读一次」 */
+    mediaRef: hashMediaRef,
     loadImageFiles: async (images) => {
       imageReads.count += images.length
       return images.map((image) => ({ path: image.path, mime: image.mime, base64: 'QUJD' }))
@@ -475,8 +480,8 @@ describe('排队 / 插话链路（R-01 §5.1）', () => {
     const turns = ops.flatMap((op) => (op.op === 'turn.upsert' ? [op.turn] : []))
     expect(upserts).toHaveLength(2)
     expect(upserts.map((attachment) => attachment.source)).toEqual([
-      { kind: 'url', url: 'data:image/png;base64,QUJD' },
-      { kind: 'url', url: 'data:image/jpeg;base64,QUJD' },
+      { kind: 'blob', sha256: ABC_SHA },
+      { kind: 'blob', sha256: ABC_SHA },
     ])
     expect(turns[0]?.attachmentIds).toEqual(upserts.map((attachment) => attachment.attachmentId))
     await f.session.cancel()
@@ -511,7 +516,7 @@ describe('排队 / 插话链路（R-01 §5.1）', () => {
     const frame = ops[frameAt]
     if (upsert?.op !== 'attachment.upsert' || frame?.op !== 'frame.upsert' || frame.frame.kind !== 'text')
       throw new Error('unreachable')
-    expect(upsert.attachment.source).toEqual({ kind: 'url', url: 'data:image/png;base64,QUJD' })
+    expect(upsert.attachment.source).toEqual({ kind: 'blob', sha256: ABC_SHA })
     expect(frame.frame.attachmentIds).toEqual([upsert.attachment.attachmentId])
     expect(f.imageReads.count).toBe(1)
     await f.session.cancel()

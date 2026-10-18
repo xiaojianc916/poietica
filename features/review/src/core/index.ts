@@ -1,5 +1,5 @@
 import { defineCoreModule } from '@poietica/core-kernel'
-import { type WorkspacesService, WorkspacesServiceToken } from '@poietica/feature-workspaces/core-api'
+import { WorkspacesServiceToken } from '@poietica/feature-workspaces/core-api'
 import { createGit } from '@poietica/git'
 import { reviewContract } from '../contract'
 import { createGithubService, type GithubService } from './pr'
@@ -11,7 +11,7 @@ export default defineCoreModule({
   contract: reviewContract,
   dependsOn: ['workspaces'],
   setup(ctx) {
-    const workspaces = ctx.services.get(WorkspacesServiceToken) as WorkspacesService
+    const workspaces = ctx.services.get(WorkspacesServiceToken)
     const service: ReviewService = createReviewService({
       gitFor: (cwd) => createGit({ cwd }),
       logger: ctx.logger,

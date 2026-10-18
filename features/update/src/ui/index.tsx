@@ -1,16 +1,8 @@
 /// <reference path="../../../../packages/design-system/src/css.d.ts" />
 
-import { type ConversationUi, ConversationUiToken } from '@poietica/feature-conversation/ui-api'
-import { type PreferencesApi, PreferencesToken } from '@poietica/feature-preferences/ui-api'
-import {
-  builtinPoints,
-  type DialogService,
-  DialogsToken,
-  defineUiFeature,
-  type ToastService,
-  ToastsToken,
-  useFeatureStore,
-} from '@poietica/ui-kernel'
+import { ConversationUiToken } from '@poietica/feature-conversation/ui-api'
+import { PreferencesToken } from '@poietica/feature-preferences/ui-api'
+import { builtinPoints, DialogsToken, defineUiFeature, ToastsToken, useFeatureStore } from '@poietica/ui-kernel'
 import { createUpdateApi } from './api'
 import { createUpdateStore, type UpdateUiStore } from './store'
 import { UpdateBanner } from './update-banner'
@@ -40,10 +32,10 @@ export default defineUiFeature({
   setup(ctx) {
     const api = createUpdateApi(ctx)
     const store = createUpdateStore()
-    const preferences = ctx.services.get(PreferencesToken) as PreferencesApi
-    const conversation = ctx.services.get(ConversationUiToken) as ConversationUi
-    const dialogs = ctx.services.get(DialogsToken) as DialogService
-    const toasts = ctx.services.get(ToastsToken) as ToastService
+    const preferences = ctx.services.get(PreferencesToken)
+    const conversation = ctx.services.get(ConversationUiToken)
+    const dialogs = ctx.services.get(DialogsToken)
+    const toasts = ctx.services.get(ToastsToken)
 
     ctx.lifecycle.onDispose(
       api.onStateChanged((state) => {

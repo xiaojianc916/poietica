@@ -77,6 +77,7 @@ describe('buildCoreLaunch', () => {
     expect(launch.env.XDG_DATA_HOME).toBe(`${DATA_ROOT}\\native-home`)
     expect(launch.env.PI_NOTIFICATIONS).toBe('off')
     expect(launch.env.PI_NO_PTY).toBe('1')
+    expect(launch.env.POIETICA_RELAY_TOKEN_FILE).toBe(`${DATA_ROOT}\\core\\relay.token`)
   })
 
   test('RL-5 mustExistDirs 含 native-home\\omp', () => {

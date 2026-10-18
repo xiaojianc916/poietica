@@ -1,12 +1,6 @@
 import { Prose } from '@poietica/design-system/prose'
 import type { Disposable } from '@poietica/foundation'
-import {
-  builtinPoints,
-  type LayoutService,
-  LayoutToken,
-  type UiFeatureContext,
-  useObservable,
-} from '@poietica/ui-kernel'
+import { builtinPoints, LayoutToken, type UiFeatureContext, useObservable } from '@poietica/ui-kernel'
 import { AlertTriangle, FileText } from 'lucide-react'
 import { useState } from 'react'
 import type { SkillDocument } from './skill-document'
@@ -175,7 +169,7 @@ function pathCrumbs(path: string): readonly { readonly key: string; readonly lab
  */
 export function createSkillDocumentOpener(ctx: UiFeatureContext): (document: SkillDocument) => void {
   const store = createSkillDocumentStore()
-  const layout = ctx.services.get(LayoutToken) as LayoutService
+  const layout = ctx.services.get(LayoutToken)
   let panel: Disposable | undefined
   return (document) => {
     toggleSkillDocument(layout, store, document, () => {

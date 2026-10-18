@@ -1,5 +1,6 @@
 import { expect, test } from 'bun:test'
 import { applyOps, emptyTimeline, pageFromState, type TranscriptOperation } from '@poietica/transcript'
+import { mediaAssetUrl } from '../../../../contract'
 import type { TranscriptPage } from '../../../shared/model/transcript'
 import { type ProjectionMemo, projectTranscript } from '../transcript-projector'
 
@@ -12,14 +13,15 @@ import { type ProjectionMemo, projectTranscript } from '../transcript-projector'
  */
 
 const AT = '2026-10-10T00:00:00.000Z'
-const PNG = 'data:image/png;base64,QUJD'
+const SHA = 'a'.repeat(64)
+const PNG = mediaAssetUrl(SHA, 'image/png')
 const memo = (): ProjectionMemo => ({ sealed: [], outline: [] })
 
-function attachmentOp(attachmentId: string, url: string): TranscriptOperation {
+function attachmentOp(attachmentId: string, sha256: string = SHA): TranscriptOperation {
   return {
     op: 'attachment.upsert',
-    attachment: { attachmentId, mediaType: 'image/png', source: { kind: 'url', url } },
-  } as unknown as TranscriptOperation
+    attachment: { attachmentId, mediaType: 'image/png', source: { kind: 'blob', sha256 } },
+  }
 }
 
 /** 一轮在跑的对话：开轮那一句 + 一句插话（插话帧可带图） */
@@ -86,14 +88,14 @@ const bubble = (state: ReturnType<typeof emptyTimeline>, text: string, m = memo(
   userMessages(projectTranscript(pageOf(state), m)).find((message) => message.text === text)
 
 test('A1 插话帧上的图：气泡画得出来（轮头不带号也要建索引）', () => {
-  const state = applyOps(emptyTimeline(), [attachmentOp('img-1', PNG), ...steeredTurn(['img-1'])])
+  const state = applyOps(emptyTimeline(), [attachmentOp('img-1'), ...steeredTurn(['img-1'])])
 
   expect(bubble(state, '插话带图')?.images).toEqual([{ url: PNG }])
   expect(bubble(state, '开头一句')?.images).toBeUndefined()
 })
 
 test('A2 轮头带图：开轮那一句的气泡照常有图', () => {
-  const state = applyOps(emptyTimeline(), [attachmentOp('img-h', PNG), ...steeredTurn(undefined, ['img-h'])])
+  const state = applyOps(emptyTimeline(), [attachmentOp('img-h'), ...steeredTurn(undefined, ['img-h'])])
 
   expect(bubble(state, '开头一句')?.images).toEqual([{ url: PNG }])
 })
@@ -103,16 +105,16 @@ test('A3 条目后到：同一轮的投影缓存失效，补上图', () => {
   const before = applyOps(emptyTimeline(), steeredTurn(['img-2']))
   expect(bubble(before, '插话带图', m)?.images).toBeUndefined()
 
-  const after = applyOps(before, [attachmentOp('img-2', PNG)])
+  const after = applyOps(before, [attachmentOp('img-2')])
   expect(bubble(after, '插话带图', m)?.images).toEqual([{ url: PNG }])
 })
 
 test('A4 条目换了像素：不沿用旧的投影', () => {
   const m = memo()
-  const first = applyOps(emptyTimeline(), [attachmentOp('img-3', PNG), ...steeredTurn(undefined, ['img-3'])])
+  const first = applyOps(emptyTimeline(), [attachmentOp('img-3'), ...steeredTurn(undefined, ['img-3'])])
   expect(bubble(first, '开头一句', m)?.images).toEqual([{ url: PNG }])
 
-  const other = 'data:image/png;base64,REVG'
-  const second = applyOps(first, [attachmentOp('img-3', other)])
-  expect(bubble(second, '开头一句', m)?.images).toEqual([{ url: other }])
+  const otherSha = 'b'.repeat(64)
+  const second = applyOps(first, [attachmentOp('img-3', otherSha)])
+  expect(bubble(second, '开头一句', m)?.images).toEqual([{ url: mediaAssetUrl(otherSha, 'image/png') }])
 })

@@ -32,7 +32,7 @@ describe('历史分页：轮头挂上图片的号', () => {
 
   test('还开着的那一轮沿用增量那条路的号：收尾时的轮头指向同一批条目', () => {
     const live = [
-      { attachmentId: 'live#0', mediaType: 'image/png', source: { kind: 'url', url: 'data:image/png;base64,AAAA' } },
+      { attachmentId: 'live#0', mediaType: 'image/png', source: { kind: 'blob', sha256: 'a'.repeat(64) } },
     ] as const
     const page = projectHistoryPage([withImage('看图', 0)], null, { isTurnOpen: true, openTurnAttachments: live })
     const turn = page.items.find((item) => item.kind === 'turn')
@@ -41,7 +41,9 @@ describe('历史分页：轮头挂上图片的号', () => {
   })
 
   test('张数对不上（omp 的消息里还没有这一句）就不沿用：不把这一轮的图挂到上一轮头上', () => {
-    const live = [{ attachmentId: 'live#0', mediaType: 'image/png', source: { kind: 'url', url: 'data:x' } }] as const
+    const live = [
+      { attachmentId: 'live#0', mediaType: 'image/png', source: { kind: 'blob', sha256: 'b'.repeat(64) } },
+    ] as const
     const page = projectHistoryPage([{ role: 'user', timestamp: T0, content: '上一句' }, assistant('答', 10)], null, {
       isTurnOpen: true,
       openTurnAttachments: live,
@@ -50,14 +52,16 @@ describe('历史分页：轮头挂上图片的号', () => {
   })
 
   test('已经收口的轮不受 openTurnAttachments 影响', () => {
-    const live = [{ attachmentId: 'live#0', mediaType: 'image/png', source: { kind: 'url', url: 'data:x' } }] as const
+    const live = [
+      { attachmentId: 'live#0', mediaType: 'image/png', source: { kind: 'blob', sha256: 'b'.repeat(64) } },
+    ] as const
     const page = projectHistoryPage([withImage('看图', 0), assistant('答', 10)], null, { openTurnAttachments: live })
     expect(page.attachments.map((attachment) => attachment.attachmentId)).not.toContain('live#0')
   })
 })
 
 describe('LiveProjector：插话与开轮带图', () => {
-  const image = (id: string) => ({ attachmentId: id, mediaType: 'image/png', dataUrl: 'data:image/png;base64,QUJD' })
+  const image = (id: string) => ({ attachmentId: id, mediaType: 'image/png', sha256: 'c'.repeat(64) })
 
   test('userTurn 带 images：先发条目、轮头挂号，开着时 openTurnAttachments 交得出这批条目', () => {
     const p = projector()

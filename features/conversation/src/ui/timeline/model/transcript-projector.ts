@@ -16,6 +16,7 @@ import type {
   TurnOrigin,
 } from '@poietica/transcript'
 import { retryNoticeOf } from '@poietica/transcript'
+import { mediaAssetUrl } from '../../../contract'
 import type { DialogRequest } from '../../shared/model/dialog'
 import type { QuestionChoice, QuestionItem } from '../../shared/model/question'
 import type { TurnMark } from '../../shared/model/thread'
@@ -107,10 +108,10 @@ const NO_TURN_ATTACHMENTS: TurnAttachments = { images: [], files: [] }
 const EMPTY_INDEX: ReadonlyMap<string, TranscriptAttachment> = new Map()
 const NO_IDS: readonly string[] = []
 
-/* 图片只有一种来源：`attachment.upsert` 里内联的 data URL。给不出 source 就返回 undefined，不排一次取字节。 */
+/* 图片只有一种来源：内容寻址的 blob，字节由 Host 经资源协议直接流给 <img>。给不出 source 就返回 undefined。 */
 function imageUrlOf(attachment: TranscriptAttachment): string | undefined {
   const { source } = attachment
-  return source?.kind === 'url' ? source.url : undefined
+  return source === undefined ? undefined : mediaAssetUrl(source.sha256, attachment.mediaType)
 }
 
 /**

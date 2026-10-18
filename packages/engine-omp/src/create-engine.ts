@@ -9,6 +9,7 @@ import { draftControlsOf } from './ports/draft-controls'
 import { registryPortOf } from './ports/model-helpers'
 import { migrateLegacyTitleRole } from './ports/models'
 import { ompPorts } from './ports/omp-ports'
+import { blobMediaRef } from './session/media-store'
 import { wrapOmpSession } from './session/omp-session-adapter'
 import { SessionFactory } from './session/session-factory'
 import { listCommandCatalog } from './session/slash-commands'
@@ -84,6 +85,8 @@ export async function createOmpEngineWith(o: CreateEngineOptions, seams: EngineT
   theme.ensureThemeSync()
   const omp = await ompModules()
   const root = await omp.Settings.init()
+  /* 全部会话共用一个：按图片块对象记住算过的地址，翻页不重算 */
+  const mediaRef = blobMediaRef(o.layout.ompBlobsDir)
   // omp 知识 #10：先绑定再禁用。capability 的开关只在绑定过 Settings 之后才读写它；没有这一步，
   // disableProvider 落进一个「未绑定」的进程级集合，配置一刷就被丢掉，外来 provider 会照常被读进隔离根。
   omp.initializeWithSettings(root)
@@ -176,6 +179,7 @@ export async function createOmpEngineWith(o: CreateEngineOptions, seams: EngineT
       const wrapped = await wrapOmpSession({
         ...sessionInput,
         logger: o.logger,
+        mediaRef,
         subagentBus:
           (
             sessionInput.created as {

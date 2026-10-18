@@ -394,13 +394,8 @@ export const attachmentSchema = z.object({
   mediaType: z.string(),
   name: z.string().optional(),
   size: z.number().optional(),
-  source: z
-    .discriminatedUnion('kind', [
-      z.object({ kind: z.literal('url'), url: z.string() }),
-      z.object({ kind: z.literal('file'), fileId: z.string() }),
-      z.object({ kind: z.literal('session_media'), fileId: z.string() }),
-    ])
-    .optional(),
+  /* 只收内容寻址的地址：data URL / 任意 URL 进不了契约（见 model/attachment.ts） */
+  source: z.object({ kind: z.literal('blob'), sha256: z.string().regex(/^[a-f0-9]{64}$/) }).optional(),
   placeholder: z.string().optional(),
 })
 

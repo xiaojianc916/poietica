@@ -8,9 +8,7 @@ import {
   type DialogService,
   DialogsToken,
   defineUiFeature,
-  type LayoutService,
   LayoutToken,
-  type NavigationService,
   NavigationToken,
   ToastsToken,
   useLayout,
@@ -46,9 +44,9 @@ export default defineUiFeature({
   id: 'browser',
   dependsOn: ['conversation', 'attachments'],
   setup(ctx) {
-    const layout = ctx.services.get(LayoutToken) as LayoutService
-    const navigation = ctx.services.get(NavigationToken) as NavigationService
-    const dialogs = ctx.services.get(DialogsToken) as DialogService
+    const layout = ctx.services.get(LayoutToken)
+    const navigation = ctx.services.get(NavigationToken)
+    const dialogs = ctx.services.get(DialogsToken)
     const toasts = ctx.services.get(ToastsToken)
     const conversation = ctx.services.get(ConversationUiToken)
     const api = createBrowserApi(ctx)

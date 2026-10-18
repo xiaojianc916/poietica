@@ -59,3 +59,60 @@ describe('jsonlFileSink', () => {
     expect(existsSync(file)).toBe(true)
   })
 })
+
+describe('jsonlFileSink：按批落盘', () => {
+  const linesOf = (file: string): string[] =>
+    existsSync(file)
+      ? readFileSync(file, 'utf8')
+          .split('\n')
+          .filter((line) => line !== '')
+          .map((line) => (JSON.parse(line) as { msg: string }).msg)
+      : []
+
+  test('普通记录先攒着：flush 之前文件里没有，flush 之后一次写齐', () => {
+    const file = path.join(tempDir(), 'x.log')
+    const sink = jsonlFileSink({ file, flushMs: 60_000 })
+    sink.write({ ts: 1, level: 'info', msg: 'a' })
+    sink.write({ ts: 2, level: 'debug', msg: 'b' })
+    expect(linesOf(file)).toEqual([])
+    sink.flush()
+    expect(linesOf(file)).toEqual(['a', 'b'])
+    sink.close()
+  })
+
+  test('error 级记录当场落盘，并带上它之前攒着的记录（顺序不乱）', () => {
+    const file = path.join(tempDir(), 'x.log')
+    const sink = jsonlFileSink({ file, flushMs: 60_000 })
+    sink.write({ ts: 1, level: 'info', msg: 'before' })
+    sink.write({ ts: 2, level: 'error', msg: 'boom' })
+    expect(linesOf(file)).toEqual(['before', 'boom'])
+    sink.close()
+  })
+
+  test('到点自动落盘', async () => {
+    const file = path.join(tempDir(), 'x.log')
+    const sink = jsonlFileSink({ file, flushMs: 10 })
+    sink.write({ ts: 1, level: 'info', msg: 'later' })
+    expect(linesOf(file)).toEqual([])
+    await Bun.sleep(40)
+    expect(linesOf(file)).toEqual(['later'])
+    sink.close()
+  })
+
+  test('攒满 64 KB 不等定时器', () => {
+    const file = path.join(tempDir(), 'x.log')
+    const sink = jsonlFileSink({ file, flushMs: 60_000 })
+    const big = 'x'.repeat(1024)
+    for (let i = 0; i < 70; i++) sink.write({ ts: i, level: 'info', msg: big })
+    expect(linesOf(file).length).toBeGreaterThanOrEqual(60)
+    sink.close()
+  })
+
+  test('flushMs: 0 → 每条同步写', () => {
+    const file = path.join(tempDir(), 'x.log')
+    const sink = jsonlFileSink({ file, flushMs: 0 })
+    sink.write({ ts: 1, level: 'info', msg: 'now' })
+    expect(linesOf(file)).toEqual(['now'])
+    sink.close()
+  })
+})

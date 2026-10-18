@@ -8,6 +8,7 @@ import { Settings } from '@oh-my-pi/pi-coding-agent/config/settings'
 import { defaultPlanAutosaveDir } from '@oh-my-pi/pi-coding-agent/plan-mode/plan-autosave'
 import type { EngineSession, EngineSessionEvent, Interaction, OpenSessionSpec } from '@poietica/engine'
 import { noopLogger } from '@poietica/foundation'
+import { hashMediaRef } from '../../projector/media'
 import { overrideSetting } from '../../settings-access'
 import { wrapOmpSession } from '../omp-session-adapter'
 
@@ -186,6 +187,7 @@ async function harness(): Promise<Harness> {
     thinking: null,
   }
   const session = await wrapOmpSession({
+    mediaRef: hashMediaRef,
     spec,
     settings,
     agentSession,

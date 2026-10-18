@@ -63,6 +63,47 @@ describe('FrameDecoder', () => {
     expect(strays[0]?.startsWith('[not jsonrpc]')).toBe(true)
   })
 
+  test('超长帧：一条 [frame overflow]，超长帧的尾巴不会变成第二条 stray，下一帧照常解出', () => {
+    const messages: RpcMessage[] = []
+    const strays: string[] = []
+    const decoder = new FrameDecoder(
+      true,
+      (m) => messages.push(m),
+      (t) => strays.push(t),
+      64,
+    )
+    const huge = encodeFrame({ jsonrpc: '2.0', method: 'a.b', params: { text: 'z'.repeat(500) } })
+    for (let i = 0; i < huge.length; i += 16) decoder.push(huge.slice(i, i + 16))
+    decoder.push(encodeFrame(message(5)))
+    expect(strays.length).toBe(1)
+    expect(strays[0]?.startsWith('[frame overflow]')).toBe(true)
+    expect(messages).toEqual([message(5)])
+  })
+
+  test('大帧按 64KB 分片推入是线性时间：8MB 与 32MB 的耗时比远小于平方增长', () => {
+    const timeFor = (chars: number): number => {
+      const frame = encodeFrame({ jsonrpc: '2.0', id: 1, result: { text: 'x'.repeat(chars) } })
+      let got = 0
+      const decoder = new FrameDecoder(
+        true,
+        () => {
+          got += 1
+        },
+        () => undefined,
+      )
+      const started = performance.now()
+      for (let i = 0; i < frame.length; i += 64 * 1024) decoder.push(frame.slice(i, i + 64 * 1024))
+      const elapsed = performance.now() - started
+      expect(got).toBe(1)
+      return elapsed
+    }
+    timeFor(1024 * 1024) // 预热
+    const small = timeFor(8 * 1024 * 1024)
+    const large = timeFor(32 * 1024 * 1024)
+    // 线性 ≈ 4 倍、平方 ≈ 16 倍；取 10 倍为界，并给小样本留 5ms 的计时噪声
+    expect(large).toBeLessThan(Math.max(small, 5) * 10)
+  })
+
   test('空行被忽略', () => {
     const { decoder, messages, strays } = collector(true)
     decoder.push('\n\n   \n')

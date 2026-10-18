@@ -1,0 +1,28 @@
+import { createHash } from 'node:crypto'
+
+/**
+ * 一张图在时间线上的地址 = 原始字节的 sha256（小写十六进制）。与 omp 的 blob 目录是同一套内容寻址
+ * （omp `session/blob-store.ts`：文件名就是原始字节的 sha256），所以 Host 只按这个名字去 blob 目录里读字节。
+ *
+ * 入参是 omp 的图片内容块本身（`{ data }`：base64，旧会话里可能是整条 data URL）。传块对象而不是字符串，
+ * 是为了让实现能按对象记住算过的结果：同一条会话反复翻页时，同一张图不必重新解码、重算、重查盘。
+ */
+export type MediaRef = (image: { readonly data: string }) => string
+
+const DATA_URL_BASE64 = /^data:[^,]*;base64,/
+
+/** 块里的 base64（或旧会话里的 data URL）→ 原始字节 */
+export function imageBytesOf(data: string): Buffer {
+  const prefix = DATA_URL_BASE64.exec(data)
+  return Buffer.from(prefix === null ? data : data.slice(prefix[0].length), 'base64')
+}
+
+export function sha256Hex(bytes: Uint8Array): string {
+  return createHash('sha256').update(bytes).digest('hex')
+}
+
+/**
+ * 只算地址、不落盘（纯函数）：单测用，以及字节确定已经在 blob 目录里的路径（子代理会话）。
+ * 主会话必须用 `session/media-store.ts` 的 `blobMediaRef`：它保证每个上屏的地址背后都有字节。
+ */
+export const hashMediaRef: MediaRef = (image) => sha256Hex(imageBytesOf(image.data))

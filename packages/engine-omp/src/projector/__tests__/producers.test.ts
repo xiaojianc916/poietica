@@ -11,18 +11,18 @@ import { LiveProjector } from '../live'
 const projector = (): LiveProjector => new LiveProjector({ now: () => 1_700_000_000_000 })
 
 describe('LiveProjector 的附件条目', () => {
-  test('attachmentOp 产出一条 attachment.upsert，像素是 data URL', () => {
+  test('attachmentOp 产出一条 attachment.upsert，只带内容寻址的地址', () => {
     const p = projector()
     const ops = p.attachmentOp({
       attachmentId: 'a1',
       mediaType: 'image/png',
-      dataUrl: 'data:image/png;base64,AAAA',
+      sha256: 'a'.repeat(64),
     })
     expect(ops.length).toBe(1)
     const page = pageFromState(applyOps(emptyTimeline(), ops))
     expect(page.attachments.length).toBe(1)
     expect(page.attachments[0]?.mediaType).toBe('image/png')
-    expect(page.attachments[0]?.source).toEqual({ kind: 'url', url: 'data:image/png;base64,AAAA' })
+    expect(page.attachments[0]?.source).toEqual({ kind: 'blob', sha256: 'a'.repeat(64) })
   })
 
   test('附件先落、用户轮引用它：两批 ops 合起来能查到那张图', () => {
@@ -30,7 +30,7 @@ describe('LiveProjector 的附件条目', () => {
     const attachments = p.attachmentOp({
       attachmentId: 'a1',
       mediaType: 'image/png',
-      dataUrl: 'data:image/png;base64,AAAA',
+      sha256: 'a'.repeat(64),
     })
     const turn = p.userTurn({ text: '看图', attachmentIds: ['a1'] })
     const page = pageFromState(applyOps(emptyTimeline(), [...attachments, ...turn]))
