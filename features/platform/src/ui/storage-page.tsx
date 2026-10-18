@@ -7,7 +7,9 @@ import { StorageBar } from './storage-usage'
 
 /* 先看见、再清理；占用那张卡里是一条用量条加一排图例，清理那一组两个动作（安全的直接清、要重新登录的走二次确认）。
  * 只改数据来源：legacy 的 StorageGateway 换成 platform 契约的 storageUsage / storageClear；二次确认用内核的 dialogs.confirm。
- * 契约里几个只有几 MB 的 id（数据库、非会话的 agent 数据、临时会话目录）在界面上合成一格：类多了没人看得懂那几兆是什么。 */
+ * 契约里的 id 在界面上按「谁的数据」合成几格（数据库、omp 的其余数据、临时会话目录都是「Agent 数据」）：类多了没人看得懂。
+ * 每一格都有主人和上限：聊天里的图片随对话由 Core 回收，浏览器缓存有预算（runtime-layout 的 storage-budget），
+ * 日志按大小轮换；这里的文案照实写这些规则，不许诺做不到的（比如「按天保留」）。 */
 const MEASURED_AT = new Intl.DateTimeFormat('zh-CN', { hour: '2-digit', minute: '2-digit' })
 
 export function StoragePage({ api }: { readonly api: PlatformApi }): ReactElement {
@@ -83,7 +85,10 @@ export function StoragePage({ api }: { readonly api: PlatformApi }): ReactElemen
       </SettingsGroup>
 
       <SettingsGroup title="清理">
-        <SettingRow description="网页与代码的磁盘缓存。清完只是下次加载慢一点，登录态不动。" label="内核缓存">
+        <SettingRow
+          description="网页与脚本的磁盘缓存，有上限、满了自动淘汰旧的。清完只是下次加载慢一点，登录态不动。"
+          label="浏览器缓存"
+        >
           <Button disabled={busy} onClick={() => void clear('cache', false)} size="xs" type="button" variant="soft">
             {busy ? '清理中…' : '清除缓存'}
           </Button>
@@ -101,7 +106,7 @@ export function StoragePage({ api }: { readonly api: PlatformApi }): ReactElemen
           </Button>
         </SettingRow>
 
-        <SettingRow description="排障用；日志按天保留。" label="日志与暂存">
+        <SettingRow description="排障用；每个日志满 5 MB 就轮换，另外只留 3 份旧的。清理只删旧的那几份。" label="日志">
           <Button disabled={busy} onClick={() => void clear('logs', false)} size="xs" type="button" variant="soft">
             清理日志
           </Button>

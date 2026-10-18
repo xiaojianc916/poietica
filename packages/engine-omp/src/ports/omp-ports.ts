@@ -17,6 +17,7 @@ import { OmpMcpPort } from './mcp'
 import { registryPortOf } from './model-helpers'
 import { OmpModelsPort, type OmpOAuth, type OmpRoles } from './models'
 import { CustomProvidersFile, modelsFilePath } from './models-file'
+import { ompMediaGc } from './omp-gc'
 import { OmpPluginsPort } from './plugins'
 import { roleTextOf } from './role-catalog'
 import { OmpSessionFilesPort } from './session-files'
@@ -65,7 +66,7 @@ export async function ompPorts(o: OmpPortsOptions): Promise<{
   })
   const mcp = new OmpMcpPort({ ompAgentDir: o.layout.ompAgentDir, sessions: o.sessions, logger: o.logger })
   return {
-    sessionFiles: new OmpSessionFilesPort({ sessionDir, logger: o.logger }),
+    sessionFiles: new OmpSessionFilesPort({ sessionDir, mediaGc: ompMediaGc(o.layout.ompAgentDir), logger: o.logger }),
     models: new OmpModelsPort({
       registry: registryPortOf(o.registry),
       credentials: (o.authStorage as { credentials: never }).credentials,

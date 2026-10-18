@@ -9,6 +9,9 @@ import { createShellService } from './shell-service'
 import { createStorageService } from './storage-service'
 import { createWindowStateStore } from './window-state'
 
+/** 启动后多久检查一次缓存预算 */
+const BUDGET_DELAY_MS = 60_000
+
 function pathExists(p: string): boolean {
   try {
     statSync(p)
@@ -37,17 +40,8 @@ export default defineHostModule({
     })
     const storage = createStorageService({
       layout: ctx.layout,
-      clearDefaultSessionCache: async () => {
-        await session.defaultSession.clearCache()
-      },
-      browserSession: {
-        clearCache: async () => {
-          await session.fromPartition(BROWSER_PARTITION).clearCache()
-        },
-        clearStorageData: async () => {
-          await session.fromPartition(BROWSER_PARTITION).clearStorageData()
-        },
-      },
+      appSession: () => session.defaultSession,
+      browserSession: () => session.fromPartition(BROWSER_PARTITION),
     })
 
     ctx.lifecycle.beforeWindow(async () => {
@@ -96,6 +90,18 @@ export default defineHostModule({
     ctx.lifecycle.onShutdown(async () => {
       await windowState.flush()
     })
+    /* 缓存预算（storage-budget.ts）：启动一分钟后量一次，超出的用 Electron 的接口清掉。不放在启动路径上：
+     * 量代码缓存要走一遍目录，清缓存要等 Chromium 的缓存后端，都不该和首屏抢。 */
+    const budgetTimer = setTimeout(() => {
+      storage
+        .enforceBudgets()
+        .then((trimmed) => {
+          if (trimmed.length > 0) ctx.logger.info('chromium caches over budget cleared', { trimmed })
+        })
+        .catch((e: unknown) => ctx.logger.warn('chromium cache budget failed', { error: String(e) }))
+    }, BUDGET_DELAY_MS)
+    budgetTimer.unref()
+    ctx.disposables.add({ dispose: () => clearTimeout(budgetTimer) })
 
     ctx.rpc.handle('app.info', () => ({
       version: ctx.appVersion,

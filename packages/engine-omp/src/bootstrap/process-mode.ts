@@ -1,5 +1,6 @@
 import { parentPort } from 'node:worker_threads'
 import { declareWorkerHostEntry, isWorkerHostSelector } from '@oh-my-pi/pi-utils/worker-host'
+import { MAINTENANCE_MODE, runMaintenance } from './maintenance'
 import { withRelayToken } from './relay-token'
 import { type EarlyMessagePort, holdEarlyMessages, ompCliSelfDispatches } from './worker-dispatch'
 
@@ -16,7 +17,7 @@ import { type EarlyMessagePort, holdEarlyMessages, ompCliSelfDispatches } from '
  */
 declareWorkerHostEntry()
 
-export type ProcessMode = 'serve' | 'worker' | 'browser-relay'
+export type ProcessMode = 'serve' | 'worker' | 'browser-relay' | typeof MAINTENANCE_MODE
 
 /** 永不兑现：worker 与 relay 都由 omp 自己接管生命周期 */
 function never(): Promise<never> {
@@ -58,6 +59,10 @@ export async function dispatchProcessMode(argv: readonly string[] = process.argv
     const cli = await import('@oh-my-pi/pi-coding-agent/cli')
     if (!ompCliSelfDispatches()) void cli.runCli([...relayArgs])
     return never()
+  }
+  if (selector === MAINTENANCE_MODE) {
+    // 维护子进程（maintenance.ts）：跑完即退，退出码交给拉起它的 Core
+    process.exit(await runMaintenance(argv.slice(3)))
   }
   if (selector === 'serve') return 'serve'
   process.stderr.write(`未知模式：${selector}\n`)

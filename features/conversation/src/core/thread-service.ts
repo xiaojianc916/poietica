@@ -274,7 +274,14 @@ export class ThreadService {
       createdAt: now,
       updatedAt: now,
     }
-    this.d.repo.insert(next)
+    try {
+      this.d.repo.insert(next)
+    } catch (error) {
+      /* 副本已经落盘、行却没写进去：没有线程认领它。入回收队列再删 —— 删不掉留给下次启动，不在磁盘上留一份孤儿 */
+      this.d.reclaim.enqueue(forked.sessionFile, next.id, now)
+      await this.reclaimFile(forked.sessionFile)
+      throw error
+    }
     /*
      * R-07 §3.3：分支继承了历史，也就要继承历史里那些附件的引用。
      * 少了这一句，删掉原对话（releaseOwner）后 24 小时的回收会把文件删掉，

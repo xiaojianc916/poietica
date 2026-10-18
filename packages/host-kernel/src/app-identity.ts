@@ -1,5 +1,5 @@
 import { mkdirSync } from 'node:fs'
-import { type DataLayout, dataLayout, resolveDataRoot } from '@poietica/runtime-layout'
+import { CHROMIUM_HTTP_CACHE_BYTES, type DataLayout, dataLayout, resolveDataRoot } from '@poietica/runtime-layout'
 import { app } from 'electron'
 
 export interface AppIdentity {
@@ -20,6 +20,8 @@ export function configureAppIdentity(): AppIdentity {
   )
   app.setPath('userData', layout.root)
   app.setPath('sessionData', layout.chromiumSessionDir)
+  // 会话数据的位置与 HTTP 缓存的上限一起定：不给上限，Chromium 按磁盘剩余空间给每个会话最多 320 MB（storage-budget.ts）
+  app.commandLine.appendSwitch('disk-cache-size', String(CHROMIUM_HTTP_CACHE_BYTES))
   app.setAppLogsPath(layout.logsDir)
   // root 与 logsDir 由这里在启动第一步创建（日志之前）；其余目录各归其主
   // （CoreSupervisor 的 mustExistDirs / 各 Core 模块的第一次写入）。

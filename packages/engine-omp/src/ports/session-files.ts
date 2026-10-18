@@ -6,16 +6,18 @@ import { formatSessionHistoryMarkdown } from '@oh-my-pi/pi-coding-agent/session/
 import { loadSessionMessagesReadOnly } from '@oh-my-pi/pi-coding-agent/session/session-loader'
 import { SessionManager } from '@oh-my-pi/pi-coding-agent/session/session-manager'
 import { FileSessionStorage } from '@oh-my-pi/pi-coding-agent/session/session-storage'
-import type { SessionFilesPort } from '@poietica/engine'
+import type { MediaGcResult, SessionFilesPort } from '@poietica/engine'
 import { EngineErrorCode } from '@poietica/engine'
 import { AppError, type Logger, SystemErrorCode } from '@poietica/foundation'
 import { toEngineError } from '../errors'
 import { type OmpMessage, turnOpenings } from '../projector/history'
 
-/** SessionFilesPort 需要的东西：omp 的会话目录，以及一个只用来记异常的 logger。 */
+/** SessionFilesPort 需要的东西：omp 的会话目录、媒体回收，以及一个只用来记异常的 logger。 */
 export interface SessionFilesPortDeps {
   /** omp 的会话目录（getSessionsDir(agentDir)，即 <ompAgentDir>/sessions） */
   readonly sessionDir: string
+  /** 会话媒体回收（生产是 omp-gc.ts 的 ompMediaGc：子进程里跑 omp gc 的 blobs 段） */
+  readonly mediaGc: (signal?: AbortSignal) => Promise<MediaGcResult>
   readonly logger: Logger
 }
 
@@ -50,15 +52,22 @@ export class OmpSessionFilesPort implements SessionFilesPort {
        * 原文件全程只读 —— 正在跑的那条会话不会被我们抢走单写者锁。
        */
       const forked = await SessionManager.forkFrom(sessionFile, path.dirname(sessionFile), this.d.sessionDir)
+      const created = forked.getSessionFile()
+      let kept = false
       try {
         if (keepTurns !== undefined) keepFirstTurns(forked, keepTurns)
         /* 分叉的名字也落进 omp（P4）：否则副本沿用原会话的名字，omp 的会话列表里两条同名 */
         if (title !== undefined) await requireNamed(forked, title)
-        const created = forked.getSessionFile()
         if (created === undefined) throw new AppError(SystemErrorCode.internal, 'omp 没有为新会话签发文件')
+        kept = true
         return { sessionId: forked.getSessionId(), sessionFile: created }
       } finally {
         await forked.close()
+        /*
+         * 截断、定名失败：整份克隆（含产物）已经落了盘，没人认领 —— 不删就是一份永远不会出现在任何线程里的会话
+         * （实测：越界的 keepTurns 每试一次就多一整份副本）。删不掉只记一笔：它不影响这次报错的语义。
+         */
+        if (!kept && created !== undefined) await this.discard(created)
       }
     } catch (error) {
       throw toEngineError(error)
@@ -104,6 +113,14 @@ export class OmpSessionFilesPort implements SessionFilesPort {
     }
   }
 
+  async collectGarbage(signal?: AbortSignal): Promise<MediaGcResult> {
+    try {
+      return await this.d.mediaGc(signal)
+    } catch (error) {
+      throw toEngineError(error)
+    }
+  }
+
   async exportHtml(sessionFile: string, outFile: string): Promise<void> {
     try {
       await this.requireFile(sessionFile)
@@ -123,6 +140,15 @@ export class OmpSessionFilesPort implements SessionFilesPort {
       return markdownOf(await loadSessionMessagesReadOnly(sessionFile))
     } catch (error) {
       throw toEngineError(error)
+    }
+  }
+
+  /** 丢掉一份没认领的副本（fork 半途失败）：与 delete 同一条路，失败只记日志 */
+  private async discard(sessionFile: string): Promise<void> {
+    try {
+      await this.delete(sessionFile)
+    } catch (error) {
+      this.d.logger.warn('orphan fork copy not removed', { sessionFile, error: String(error) })
     }
   }
 

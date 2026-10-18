@@ -42,6 +42,21 @@ export interface SessionFilesPort {
   delete(sessionFile: string): Promise<void>
   exportHtml(sessionFile: string, outFile: string): Promise<void>
   exportMarkdown(sessionFile: string): Promise<string>
+  /**
+   * 回收会话媒体：删掉不再被**任何**会话文件引用的图片字节（截图、粘贴的图……）。`delete` 只删会话文件与它的产物，
+   * 图片按内容寻址、可能被多条会话共用，只能在全部会话都看过一遍之后回收（mark-and-sweep）。刚写入不久的不删
+   * （正在落盘的那一轮还没来得及引用它）。不移动、不归档任何会话文件 —— 线程行绑着路径。
+   * `signal` 中止 = 停下来（应用要退出了）：已经删掉的不回滚，下次再从头标记。
+   */
+  collectGarbage(signal?: AbortSignal): Promise<MediaGcResult>
+}
+export interface MediaGcResult {
+  /** 删掉的文件数（同一张图的硬链接旁路各算一个） */
+  readonly deletedFiles: number
+  /** 删掉的字节（omp 的账：按路径累加，同一张图的硬链接旁路会算两次 —— 只用来记日志，不当磁盘的实际变化） */
+  readonly freedBytes: number
+  /** 没删掉的那几个（权限、占用）：记日志，下次再试 */
+  readonly errors: readonly string[]
 }
 export interface ModelsPort {
   providers(): Promise<z.infer<typeof ProviderInfo>[]>

@@ -6,6 +6,7 @@ export type {
   DefaultSelection,
   LoginIO,
   McpPort,
+  MediaGcResult,
   ModelsPort,
   PluginsPort,
   SessionFilesPort,

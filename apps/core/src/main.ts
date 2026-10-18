@@ -39,7 +39,7 @@ process.on('unhandledRejection', (error) => {
   fatal('unhandledRejection', error)
   process.exit(1)
 })
-const mode = await dispatchProcessMode() // ② 顶层同步 declareWorkerHostEntry；worker / browser-relay 模式在这里被 omp 接管，永不返回
+const mode = await dispatchProcessMode() // ② 顶层同步 declareWorkerHostEntry；worker / browser-relay 模式在这里被 omp 接管、gc（维护子进程）跑完即退，都不返回
 if (mode === 'serve') {
   // ③ serve 的全部依赖都动态导入，worker 子进程不会加载它们
   const { serve } = await import('./serve')

@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, test } from 'bun:test'
-import { mkdtempSync, readFileSync, rmSync } from 'node:fs'
+import { mkdtempSync, readdirSync, readFileSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { SessionManager } from '@oh-my-pi/pi-coding-agent/session/session-manager'
@@ -18,6 +18,7 @@ import { OmpSessionFilesPort } from '../session-files'
  */
 
 const made: string[] = []
+const noGc = async () => ({ deletedFiles: 0, freedBytes: 0, errors: [] })
 afterEach(() => {
   for (const dir of made.splice(0)) rmSync(dir, { recursive: true, force: true })
 })
@@ -67,7 +68,7 @@ async function sessionOf(steps: readonly Step[]): Promise<{ port: OmpSessionFile
   const file = manager.getSessionFile()
   await manager.close()
   if (file === undefined) throw new Error('omp 没有落盘')
-  return { port: new OmpSessionFilesPort({ sessionDir: dir, logger: noopLogger }), file, dir }
+  return { port: new OmpSessionFilesPort({ sessionDir: dir, mediaGc: noGc, logger: noopLogger }), file, dir }
 }
 
 /** 重开一份会话文件，按时间线的历史分页画出来：每轮的开场一句 + 正文 */
@@ -133,6 +134,14 @@ describe('fork 按轮号截断', () => {
     await expect(port.fork(file, 4)).rejects.toMatchObject({ code: SystemErrorCode.invalidParams })
     await expect(port.fork(file, -1)).rejects.toMatchObject({ code: SystemErrorCode.invalidParams })
     await expect(port.fork(file, 1.5)).rejects.toMatchObject({ code: SystemErrorCode.invalidParams })
+  })
+
+  test('F-7 截断 / 定名失败不留副本：目录里还是原来那几样（不再每试一次多一整份克隆）', async () => {
+    const { port, file, dir } = await sessionOf(THREE)
+    const before = readdirSync(dir).sort()
+    await expect(port.fork(file, 4)).rejects.toMatchObject({ code: SystemErrorCode.invalidParams })
+    await expect(port.fork(file, 1, '   ')).rejects.toMatchObject({ code: SystemErrorCode.invalidParams })
+    expect(readdirSync(dir).sort()).toEqual(before)
   })
 
   test('F-4 技能开的那一轮（custom，不是 role:user）也是一轮：留 1 轮就只剩第 1 轮', async () => {

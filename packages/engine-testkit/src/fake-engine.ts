@@ -877,6 +877,9 @@ export function createFakeEngine(opts: FakeEngineOptions = {}): FakeEngine {
       async exportMarkdown() {
         return '# 会话\n'
       },
+      async collectGarbage() {
+        return { deletedFiles: 0, freedBytes: 0, errors: [] }
+      },
     },
     models: {
       async providers() {

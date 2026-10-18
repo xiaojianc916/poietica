@@ -4591,3 +4591,74 @@ openai-codex-device / xai-oauth / gitlab-duo / gitlab-duo-agent / factory-droid 
 - C：正常使用后 `logs/core.log` 持续有记录、`main.log` 不再逐条转录 Core 日志；任务管理器结束 Core 后 error 记录还在。
 - D：`<数据根>/core/relay.token` 是 64 位十六进制；不带口令连 `/ext` 返回 401；内置浏览器仍能被 agent 驱动。
 - E：附件图片、站点图标、组件正常显示；2xx 带 immutable、404 带 no-store、组件外壳带 no-cache。
+
+
+## F-01 存储地基：每类数据的主人、上限、回收路径（基于 43e0878e，协议未改，2026-10-18）
+
+**来源**：外部方案 `方案 F.md`（基线写的是 `2d93eccb`，实际落地时 HEAD 已到 `43e0878e`；两份之间只差
+workbench / conversation / browser 的界面改动，不碰本方案的文件，所以补丁原样干净应用）。方案「五、补丁」的
+代码块按行提取成 `F-storage.diff`（1304 行）→ `git apply`，23 个文件全部干净应用，42 个 hunk 的新侧全命中
+工作区，无手工重放；`git apply -R --check` 通过（工作区严格 = HEAD + 补丁），`+632 / −208` 与方案 §4 一致。
+
+**改法**（严格按方案 §3 八条，未加方案之外的东西）：
+
+1. **预算只在一处定义**：`packages/runtime-layout/src/storage-budget.ts`（`CHROMIUM_HTTP_CACHE_BYTES` 128 MiB、
+   `CHROMIUM_CODE_CACHE_BYTES` 64 MiB），注释写清 Chromium 的 `PreferredCacheSize` 默认规则与为什么选这个量级。
+2. **HTTP 缓存交给 Chromium，只告诉它上限**：`host-kernel/src/app-identity.ts` 在 `setPath('sessionData')` 之后
+   `appendSwitch('disk-cache-size', …)`（ready 之前，每个持久会话的 `http_cache_max_size`）。
+3. **代码缓存由 Host 定预算**：Electron 没有大小开关，`storage-service.enforceBudgets()` + `platform/host/index.ts`
+   启动后 60 秒量一次（定时器 `unref`，挂 `disposables`）：`getCacheSize()` 超预算 1.25 倍就 `clearCache()`，
+   `Code Cache/` 超预算就 `clearCodeCaches({})`。这一条同时兜住升级前涨上去的那几百 MB。
+4. **清理只走 Electron 的接口**：`clear('cache')` 对两个会话各 `clearCache()` + `clearCodeCaches({})`，不再 `rm` 缓存目录；
+   `clear('browser')` 仍是 `clearStorageData()`；腾出的字节数 = 只对受影响那一格在清理前后各量一次再相减。
+5. **测量讲真话**：每次 `report` 新建 `Scan`（文件计数与硬链接去重集合都属于这一次测量，并发 `report` 互不干扰）；
+   `stat(…, { bigint: true })` 且 `nlink > 1` 按 `(dev, ino)` 只记第一次；各格**互不重叠**地遍历（`skip` 集合，
+   Windows 上小写比较路径），不用「总数减子项」；聊天 = `sessions` + `blobs`；浏览器缓存 = 两会话的 `Cache/` +
+   `Code Cache/`；浏览器数据 / 内核状态用 `session.storagePath` 而不是拼路径。
+6. **会话媒体回收（omp gc 的 blobs 段，子进程）**：引擎端口 `SessionFilesPort.collectGarbage(signal?)` →
+   `MediaGcResult`；engine-omp 新增维护模式 `<core> gc --agent-dir <dir>`（`bootstrap/maintenance.ts`，由
+   `process-mode.ts` 分派，动态 import `gc-cli`，不 import omp 的 `cli`），`ports/omp-gc.ts` 拉起子进程并解析 JSON；
+   conversation 的 `onReady` 顺序 = 会话文件对账 → 清回收队列 → 回收图片（不阻塞启动，结果进日志），退出时
+   `AbortController` 结束子进程。**只跑 blobs**：archive 会移走会话文件（线程行绑着路径）、wal 会对 Core 正开着的
+   sqlite 做 TRUNCATE checkpoint、stale 清的是 omp 终端版的面包屑与报告目录。
+7. **fork 不留孤儿**：`OmpSessionFilesPort.fork` 在 `finally` 里「没认领就按 delete 同一条路删掉」；
+   `thread-service.fork` 在副本已落盘、写行失败时先入回收队列再删，删不掉留给下次启动。
+8. **文案照实写**：缓存一行改「浏览器缓存」（有上限、满了自动淘汰旧的），日志一行改「每个日志满 5 MB 就轮换，
+   另外只留 3 份旧的。清理只删旧的那几份。」
+
+**偏差**：无（逐行照方案 §3 与补丁；新增文件 5 个与方案 §4 列的完全一致）。
+
+**验证（本机重跑，不是抄方案里的数）**：
+
+- `git apply` 前：`git apply --check F-storage.diff` 通过；应用后 `git status` = 18 改 + 5 新增 + 2 未跟踪
+  （`方案 F.md`、`F-storage.diff`），无多余改动。
+- `bun run typecheck`：793 文件 / 80 工程 0 错误；`tsconfig.tests.json` 1,086 文件 0 错误。
+- `bun run lint`：0 错误（仅剩基线已有的 4 条 `noDescendingSpecificity` 警告；自定义闸门、omp 文档锚点、depcruise 全过）。
+- `bun run all`（typecheck + lint + test 全仓）：**2,580 pass / 1 skip / 0 fail / 332 文件 / 3 快照**（skip 是
+  RT-H4：Windows 上没有 POSIX 权限位）。
+- 方案 §6 列的四个定向测试文件：**29 pass / 0 fail**（storage-service 9、omp-gc 5、session-files-fork 10、session-files 5）。
+  其中 `omp-gc.test.ts` 的 G-1 是端到端：拉起真实维护子进程、跑真实 omp gc，未被引用的图连同 `.png` 旁路一起删掉、
+  被引用的与 5 分钟内刚写的都保留、会话文件不动、不出现 `archive` 目录；F-7 在旧代码上会失败（每次失败多一整份孤儿副本）。
+- `bun test packages/engine-omp/src/__tests__/isolation.test.ts`：5 pass（本次没动 bootstrap / 环境 / 路径，
+  但方案第 6 条动了 bootstrap 的子进程分支，按 AGENTS §5.5 仍跑一遍）。
+- `bun run protocol:snapshot`：无变化（契约形状未动，`PROTOCOL_VERSION` 仍是 35，无需提升）。
+
+**本机环境说明（不是本次改动的问题）**：`bun run core:probe` 在本机 10 秒内收不到 `core.ready` 而失败；
+用 `git stash` 回到基线 `43e0878e` 重跑同样是这个失败，根因是本机后台常驻着 dev 模式的 Electron 与
+`apps/core/dist/poietica-core.exe`（探针在同一个 dist 树里构建，且机器上已有一个 `%APPDATA%\Poietica` 的 Core 在跑），
+属于环境占用，与补丁无关。**core:build / core:probe 的干净机器验证仍待发布前在 CI / 虚拟机上做。**
+
+**未做（按方案 §7「有意为之」，留作待决）**：
+
+- 自动化新线程的保留策略、fork 改为共享前缀、omp gc 的 archive / wal / stale 三段、按时间清理缓存：方案明确不做。
+- Windows 真机手动确认（方案 §6 的三步：启动 1 分钟后浏览器缓存回落、聊天变大 / Agent 数据变小、删带截图对话后重启看
+  `session media collected`）需要打包应用 + 真实数据，单测证明不了，留到安装包冒烟时人工看。
+- `enforceBudgets` 的 `clearCache` 返回后立刻量目录，Windows 上删除落盘可能滞后，`freedBytes` 可能偏小
+  （显示「腾出 0 B」）：方案本身就规定「只量受影响那格」，属已知近似，不改。
+- `pathKey` 只做 `resolve` + Windows 小写，不做 `realpath` / 8.3 短名归一：仅当 `session.storagePath` 与
+  `layout.chromiumSessionDir` 是同一目录的不同写法（junction / 短名）时，`browser-data` / `kernel-state` 的
+  `skip` 集合可能匹配不上而重复计数。本机 `app-identity.ts` 用同一个 layout 值设 `sessionData`，构造上二者字面相同，
+  所以实际不触发；真要统一可以以后让 `pathKey` 走 `fs.realpath`。
+- fork 失败路径的两处健壮性（`thread-service` 的 `enqueue` 自身抛错会覆盖原始 insert 错误；`session-files` 的
+  `forked.close()` 抛错会跳过 `discard`）：方案未要求，属极小概率路径，未在方案之外加补丁；若要补，最小改法是
+  catch 里把 enqueue + reclaimFile 包一层保原始错误、finally 里 close 失败时仍尝试 discard。

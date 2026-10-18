@@ -9,3 +9,4 @@ export {
 } from './core-launch'
 export { type DataLayout, dataLayout, type ResolveDataRootInput, resolveDataRoot } from './data-layout'
 export { parseRelayToken, RELAY_TOKEN_FILE_ENV } from './relay-token'
+export { CHROMIUM_CODE_CACHE_BYTES, CHROMIUM_HTTP_CACHE_BYTES } from './storage-budget'

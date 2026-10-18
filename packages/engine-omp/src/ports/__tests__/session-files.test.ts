@@ -7,6 +7,7 @@ import { noopLogger } from '@poietica/foundation'
 import { OmpSessionFilesPort } from '../session-files'
 
 const made: string[] = []
+const noGc = async () => ({ deletedFiles: 0, freedBytes: 0, errors: [] })
 afterEach(() => {
   for (const dir of made.splice(0)) rmSync(dir, { recursive: true, force: true })
 })
@@ -16,7 +17,7 @@ function makePort(): { port: OmpSessionFilesPort; sessions: string; workspace: s
   const workspace = mkdtempSync(path.join(tmpdir(), 'poietica-ws-'))
   made.push(sessions, workspace)
   return {
-    port: new OmpSessionFilesPort({ sessionDir: sessions, logger: noopLogger }),
+    port: new OmpSessionFilesPort({ sessionDir: sessions, mediaGc: noGc, logger: noopLogger }),
     sessions,
     workspace,
   }

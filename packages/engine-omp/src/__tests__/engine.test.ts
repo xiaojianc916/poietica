@@ -105,6 +105,7 @@ function makeEngine(over: Partial<ConstructorParameters<typeof OmpEngine>[0]> = 
       delete: async () => undefined,
       exportHtml: async () => undefined,
       exportMarkdown: async () => '',
+      collectGarbage: async () => ({ deletedFiles: 0, freedBytes: 0, errors: [] }),
     },
     models: {
       providers: async () => [],

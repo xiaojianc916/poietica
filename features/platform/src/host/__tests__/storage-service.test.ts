@@ -1,26 +1,68 @@
 import { describe, expect, test } from 'bun:test'
-import { mkdirSync, writeFileSync } from 'node:fs'
+import { linkSync, mkdirSync, readdirSync, rmSync, writeFileSync } from 'node:fs'
 import path from 'node:path'
 import { dataLayout } from '@poietica/runtime-layout'
 import { tempDir } from '@poietica/test-kit'
-import { createStorageService, STORAGE_CLEANABLE, STORAGE_LABELS } from '../storage-service'
+import { type ChromiumSessionLike, createStorageService, STORAGE_CLEANABLE, STORAGE_LABELS } from '../storage-service'
 
 const MB = 1024 * 1024
+const BROWSER_PARTITION = 'poietica-browser'
 
 function write(dir: string, name: string, bytes: number): void {
   mkdirSync(dir, { recursive: true })
   writeFileSync(path.join(dir, name), Buffer.alloc(bytes, 0))
 }
 
-async function makeTree(): Promise<{
-  root: string
-  layout: ReturnType<typeof dataLayout>
-  service: ReturnType<typeof createStorageService>
-  dispose: () => Promise<void>
-}> {
+function emptyDir(dir: string): void {
+  let names: string[]
+  try {
+    names = readdirSync(dir)
+  } catch {
+    return
+  }
+  for (const name of names) rmSync(path.join(dir, name), { recursive: true, force: true })
+}
+
+/** 假 Electron Session：clear* 像 Chromium 一样只清缓存目录里的条目、目录本身留着；调用次数记在 calls 里 */
+interface FakeSession extends ChromiumSessionLike {
+  clearStorageData(): Promise<void>
+  readonly calls: { clearCache: number; clearCodeCaches: number; clearStorageData: number }
+  cacheSize: number
+}
+
+function fakeSession(storagePath: string | null): FakeSession {
+  const s: FakeSession = {
+    storagePath,
+    calls: { clearCache: 0, clearCodeCaches: 0, clearStorageData: 0 },
+    cacheSize: 0,
+    async getCacheSize() {
+      return s.cacheSize
+    },
+    async clearCache() {
+      s.calls.clearCache++
+      s.cacheSize = 0
+      if (storagePath !== null) emptyDir(path.join(storagePath, 'Cache'))
+    },
+    async clearCodeCaches() {
+      s.calls.clearCodeCaches++
+      if (storagePath !== null) emptyDir(path.join(storagePath, 'Code Cache'))
+    },
+    async clearStorageData() {
+      s.calls.clearStorageData++
+      if (storagePath !== null) emptyDir(path.join(storagePath, 'Local Storage'))
+    },
+  }
+  return s
+}
+
+async function makeTree(options: { maxFiles?: number } = {}) {
   const dir = await tempDir('storage-')
   const layout = dataLayout(dir.path)
-  write(path.join(layout.ompAgentDir, 'sessions'), 'x.jsonl', 3 * MB)
+  const browserPath = path.join(layout.chromiumSessionDir, 'Partitions', BROWSER_PARTITION)
+  // 聊天：会话文件 3 MB + 一张 1 MB 的图（`<sha>` 与 `<sha>.png` 是同一份字节的硬链接）
+  write(path.join(layout.ompAgentDir, 'sessions', '-proj-'), 'x.jsonl', 3 * MB)
+  write(layout.ompBlobsDir, 'abc', 1 * MB)
+  linkSync(path.join(layout.ompBlobsDir, 'abc'), path.join(layout.ompBlobsDir, 'abc.png'))
   write(layout.ompRoot, 'config.yml', 1 * MB)
   write(layout.nativeHomeDir, 'n.bin', 1 * MB)
   write(layout.coreDir, 'poietica.db', 2 * MB)
@@ -30,34 +72,49 @@ async function makeTree(): Promise<{
   write(layout.logsDir, 'main.log', 1 * MB)
   write(layout.logsDir, 'main.log.1', 2 * MB)
   write(layout.logsDir, 'main.log.2', 3 * MB)
-  write(path.join(layout.chromiumSessionDir, 'Cache'), 'c.bin', 5 * MB)
-  write(path.join(layout.chromiumSessionDir, 'Partitions', 'p1', 'Cache'), 'pc.bin', 2 * MB)
-  write(path.join(layout.chromiumSessionDir, 'Partitions', 'p1'), 'ls.bin', 3 * MB)
+  // 主窗口会话 = session/ 本身
+  write(path.join(layout.chromiumSessionDir, 'Cache', 'Cache_Data'), 'c.bin', 5 * MB)
+  write(path.join(layout.chromiumSessionDir, 'Code Cache', 'js'), 'cc.bin', 1 * MB)
+  write(path.join(layout.chromiumSessionDir, 'GPUCache'), 'g.bin', 1 * MB)
   write(layout.chromiumSessionDir, 'other.bin', 1 * MB)
+  // 内置浏览器分区
+  write(path.join(browserPath, 'Cache', 'Cache_Data'), 'pc.bin', 2 * MB)
+  write(path.join(browserPath, 'Code Cache', 'wasm'), 'pw.bin', 2 * MB)
+  write(path.join(browserPath, 'Local Storage'), 'ls.bin', 3 * MB)
+  write(path.join(browserPath, 'GPUCache'), 'pg.bin', 1 * MB)
+  // 旧版本留下的别的分区：不归浏览器，记在 kernel-state
+  write(path.join(layout.chromiumSessionDir, 'Partitions', 'legacy'), 'old.bin', 1 * MB)
+
+  const app = fakeSession(layout.chromiumSessionDir)
+  const browser = fakeSession(browserPath)
   const service = createStorageService({
     layout,
-    clearDefaultSessionCache: async () => undefined,
-    browserSession: { clearCache: async () => undefined, clearStorageData: async () => undefined },
+    appSession: () => app,
+    browserSession: () => browser,
+    budget: { httpCacheBytes: 4 * MB, codeCacheBytes: 1.5 * MB },
+    ...options,
   })
-  return { root: dir.path, layout, service, dispose: dir.dispose }
+  const bytesOf = async (): Promise<Record<string, number>> =>
+    Object.fromEntries((await service.report()).map((e) => [e.id, e.bytes]))
+  return { layout, app, browser, service, bytesOf, dispose: dir.dispose }
 }
 
 describe('storage-service', () => {
-  test('10 项字节数精确；cleanable 与表一致', async () => {
+  test('10 项字节数精确；cleanable / label 与表一致', async () => {
     const t = await makeTree()
     const entries = await t.service.report()
     const byId = Object.fromEntries(entries.map((e) => [e.id, e.bytes]))
     expect(entries.length).toBe(10)
-    expect(byId.conversations).toBe(3 * MB)
+    expect(byId.conversations).toBe(4 * MB) // 会话 3 + 图片 1（硬链接只算一次）
     expect(byId.database).toBe(2 * MB)
     expect(byId.attachments).toBe(4 * MB)
-    expect(byId['omp-other']).toBe(2 * MB)
+    expect(byId['omp-other']).toBe(2 * MB) // config 1 + native-home 1，不含 sessions / blobs
     expect(byId.scratch).toBe(1 * MB)
     expect(byId.tools).toBe(2 * MB)
     expect(byId.logs).toBe(6 * MB)
-    expect(byId['kernel-cache']).toBe(7 * MB)
-    expect(byId['browser-data']).toBe(3 * MB)
-    expect(byId['kernel-state']).toBe(1 * MB)
+    expect(byId['kernel-cache']).toBe(10 * MB) // 两会话的 Cache + Code Cache
+    expect(byId['browser-data']).toBe(4 * MB) // 分区里除缓存外的：Local Storage 3 + GPUCache 1
+    expect(byId['kernel-state']).toBe(3 * MB) // 主会话 GPUCache 1 + other 1 + 旧分区 1
     for (const e of entries) {
       expect(e.label).toBe(STORAGE_LABELS[e.id])
       expect(e.cleanable).toBe(STORAGE_CLEANABLE[e.id])
@@ -65,83 +122,85 @@ describe('storage-service', () => {
     await t.dispose()
   })
 
-  test('session/ 三项之和等于 session/ 总大小', async () => {
+  test('各格互不重叠：session/ 三格之和等于 session/ 的真实大小', async () => {
     const t = await makeTree()
-    const entries = await t.service.report()
-    const byId = Object.fromEntries(entries.map((e) => [e.id, e.bytes]))
-    const total = 5 * MB + 2 * MB + 3 * MB + 1 * MB
-    expect(byId['kernel-cache']! + byId['browser-data']! + byId['kernel-state']!).toBe(total)
+    const byId = await t.bytesOf()
+    const sessionDir = 5 + 1 + 1 + 1 + (2 + 2 + 3 + 1) + 1
+    expect(byId['kernel-cache']! + byId['browser-data']! + byId['kernel-state']!).toBe(sessionDir * MB)
     await t.dispose()
   })
 
-  test('maxFiles 上限：放 10 个文件、上限 5 也不抛错', async () => {
-    const dir = await tempDir('storage-limit-')
-    const layout = dataLayout(dir.path)
-    for (let i = 0; i < 10; i++) write(layout.coreDir, `f${i}.bin`, 1 * MB)
-    const service = createStorageService({
-      layout,
-      maxFiles: 5,
-      clearDefaultSessionCache: async () => undefined,
-      browserSession: { clearCache: async () => undefined, clearStorageData: async () => undefined },
-    })
-    const entries = await service.report()
+  test('maxFiles 上限：文件超过上限只返回已统计的值，不抛错', async () => {
+    const t = await makeTree({ maxFiles: 3 })
+    const entries = await t.service.report()
     expect(entries.length).toBe(10)
-    await dir.dispose()
+    const total = entries.reduce((sum, e) => sum + e.bytes, 0)
+    expect(total).toBeLessThanOrEqual(4 * MB)
+    await t.dispose()
+  })
+
+  test('并发 report 互不干扰（每次测量独立计数）', async () => {
+    const t = await makeTree({ maxFiles: 50 })
+    const [a, b] = await Promise.all([t.service.report(), t.service.report()])
+    expect(a).toEqual(b)
+    expect(a.find((e) => e.id === 'conversations')?.bytes).toBe(4 * MB)
+    await t.dispose()
   })
 
   test("clear('logs') 只删除 *.log.N，当前 *.log 保留；freedBytes 正确", async () => {
     const t = await makeTree()
     const { freedBytes } = await t.service.clear('logs')
     expect(freedBytes).toBe(5 * MB)
-    const after = await t.service.report()
-    const logs = after.find((e) => e.id === 'logs')
-    expect(logs?.bytes).toBe(1 * MB)
+    expect((await t.bytesOf()).logs).toBe(1 * MB)
     await t.dispose()
   })
 
-  test("clear('cache') 删除缓存目录并调用两个 clearCache", async () => {
-    let defaultCache = 0
-    let browserCache = 0
-    const dir = await tempDir('storage-cache-')
-    const layout = dataLayout(dir.path)
-    write(path.join(layout.chromiumSessionDir, 'Cache'), 'c.bin', 5 * MB)
-    const service = createStorageService({
-      layout,
-      clearDefaultSessionCache: async () => {
-        defaultCache++
-      },
-      browserSession: {
-        clearCache: async () => {
-          browserCache++
-        },
-        clearStorageData: async () => undefined,
-      },
-    })
-    const { freedBytes } = await service.clear('cache')
-    expect(freedBytes).toBe(5 * MB)
-    expect(defaultCache).toBe(1)
-    expect(browserCache).toBe(1)
-    await dir.dispose()
+  test("clear('cache') 只走 Electron 接口（两会话各 clearCache + clearCodeCaches），不碰别的数据", async () => {
+    const t = await makeTree()
+    const { freedBytes } = await t.service.clear('cache')
+    expect(freedBytes).toBe(10 * MB)
+    expect(t.app.calls).toEqual({ clearCache: 1, clearCodeCaches: 1, clearStorageData: 0 })
+    expect(t.browser.calls).toEqual({ clearCache: 1, clearCodeCaches: 1, clearStorageData: 0 })
+    const after = await t.bytesOf()
+    expect(after['kernel-cache']).toBe(0)
+    expect(after['browser-data']).toBe(4 * MB)
+    expect(after['kernel-state']).toBe(3 * MB)
+    await t.dispose()
   })
 
-  test("clear('browser') 调用 clearStorageData", async () => {
-    let cleared = 0
-    const dir = await tempDir('storage-browser-')
+  test("clear('browser') 调用浏览器分区的 clearStorageData，freedBytes 来自前后相减", async () => {
+    const t = await makeTree()
+    const { freedBytes } = await t.service.clear('browser')
+    expect(t.browser.calls.clearStorageData).toBe(1)
+    expect(t.app.calls.clearStorageData).toBe(0)
+    expect(freedBytes).toBe(3 * MB)
+    await t.dispose()
+  })
+
+  test('enforceBudgets：只清超出预算的那几份', async () => {
+    const t = await makeTree()
+    t.app.cacheSize = 6 * MB // > 4 MB × 1.25
+    t.browser.cacheSize = 4.5 * MB // 在 1.25 倍容差内
+    // 代码缓存预算 1.5 MB：主会话 1 MB 未超，浏览器 2 MB 超
+    const trimmed = await t.service.enforceBudgets()
+    expect([...trimmed].sort()).toEqual(['app:http', 'browser:code'])
+    expect(t.app.calls).toEqual({ clearCache: 1, clearCodeCaches: 0, clearStorageData: 0 })
+    expect(t.browser.calls).toEqual({ clearCache: 0, clearCodeCaches: 1, clearStorageData: 0 })
+    expect(await t.service.enforceBudgets()).toEqual([])
+    await t.dispose()
+  })
+
+  test('内存会话（storagePath 为 null）不计目录、不量代码缓存', async () => {
+    const dir = await tempDir('storage-mem-')
     const layout = dataLayout(dir.path)
-    const session = path.join(layout.chromiumSessionDir, 'Partitions', 'p1')
-    write(session, 'ls.bin', 2 * MB)
-    const service = createStorageService({
-      layout,
-      clearDefaultSessionCache: async () => undefined,
-      browserSession: {
-        clearCache: async () => undefined,
-        clearStorageData: async () => {
-          cleared++
-        },
-      },
-    })
-    await service.clear('browser')
-    expect(cleared).toBe(1)
+    write(path.join(layout.chromiumSessionDir, 'Cache'), 'c.bin', 1 * MB)
+    const app = fakeSession(layout.chromiumSessionDir)
+    const browser = fakeSession(null)
+    const service = createStorageService({ layout, appSession: () => app, browserSession: () => browser })
+    const byId = Object.fromEntries((await service.report()).map((e) => [e.id, e.bytes]))
+    expect(byId['kernel-cache']).toBe(1 * MB)
+    expect(byId['browser-data']).toBe(0)
+    expect(await service.enforceBudgets()).toEqual([])
     await dir.dispose()
   })
 })

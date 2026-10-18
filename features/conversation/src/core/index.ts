@@ -103,17 +103,32 @@ export default defineCoreModule({
     /*
      * 启动对账（会话池还没开过任何会话，UI 的请求要等 core.ready）：
      * 1. 行上绑着、文件却不在的 —— 解绑，回到「还没有会话」（升级前留下的坏账，见 reconcileSessionFiles）；
-     * 2. 回收队列里上次没删掉的会话文件 —— 再删一遍，不阻塞启动。
+     * 2. 回收队列里上次没删掉的会话文件 —— 再删一遍，不阻塞启动；
+     * 3. 删完之后回收会话媒体：没有任何会话文件再引用的图片（删掉的对话里的截图、粘贴图）。图片按内容寻址、
+     *    可能被多条会话共用，所以删对话时不能顺手删，只能等全部会话文件都在场时标记一遍（omp gc 的 blobs 段，子进程里跑）。
      */
+    const maintenance = new AbortController()
     ctx.lifecycle.onReady(async () => {
       await core.threads.reconcileSessionFiles()
-      void core.threads.reclaimPending().catch((err: unknown) => {
-        ctx.logger.warn('session file reclaim failed', { error: String(err) })
-      })
+      void core.threads
+        .reclaimPending()
+        .catch((err: unknown) => {
+          ctx.logger.warn('session file reclaim failed', { error: String(err) })
+        })
+        .then(() => (maintenance.signal.aborted ? null : ctx.engine.sessionFiles.collectGarbage(maintenance.signal)))
+        .then((gc) => {
+          if (gc !== null && (gc.deletedFiles > 0 || gc.errors.length > 0)) {
+            ctx.logger.info('session media collected', { ...gc })
+          }
+        })
+        .catch((err: unknown) => {
+          if (!maintenance.signal.aborted) ctx.logger.warn('session media gc failed', { error: String(err) })
+        })
     })
 
     // 会话池与 hub 的释放都是异步/有序的：模块的 onShutdown 里逐个做
     ctx.lifecycle.onShutdown(async () => {
+      maintenance.abort()
       hub.dispose()
       await core.dispose()
     })
