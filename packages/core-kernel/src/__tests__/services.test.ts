@@ -55,18 +55,4 @@ describe('core-kernel 服务装配', () => {
     expect(optional).toBeUndefined()
     expect(errors).toEqual([SystemErrorCode.serviceAccessDenied])
   })
-
-  test('内核服务视图（kernel.services）能读任意模块提供的服务', async () => {
-    const alpha = defineServiceToken<{ v: number }>('alpha', 'AlphaService')
-    const h = await makeKernel([
-      defineCoreModule({
-        id: 'alpha',
-        setup: (ctx) => {
-          ctx.services.provide(alpha, { v: 7 })
-        },
-      }),
-    ])
-    expect(h.kernel.services.get(alpha)).toEqual({ v: 7 })
-    await h.dispose()
-  })
 })

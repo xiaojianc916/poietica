@@ -136,7 +136,7 @@ describe('应动未动与平滑度', () => {
       { at: 900, length: 20 },
     ])
 
-    expect(metrics.sJ90).toBeGreaterThan(0)
+    expect(metrics.sJ90).toBeCloseTo(0.2609, 4)
   })
 })
 

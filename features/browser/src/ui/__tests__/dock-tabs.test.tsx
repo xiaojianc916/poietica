@@ -112,8 +112,17 @@ describe('浏览器页签面（dockTabs）', () => {
   test('宿主没回快照时交空表：坞不该凭空长出标签', () => {
     const { dockTabs, store } = harness(stateOf())
 
+    /* 宿主还没送过任何一份快照（store.apply 没被调用）：坞这一格什么都不报。 */
+    const empty = createBrowserPanelStore({
+      state: async () => stateOf(),
+    } as unknown as BrowserApi)
+    const lonely = createBrowserDockTabs({ api: {} as BrowserApi, report: () => undefined, store: empty })
+
+    expect(empty.snapshot()).toBeNull()
+    expect(lonely.tabs()).toEqual([])
+    /* store 有快照时才有标签 —— 对照项，证明空表来自「没有快照」而不是 tabs() 恒空。 */
     expect(store.snapshot()).not.toBeNull()
-    expect(dockTabs.tabs().length).toBe(1)
+    expect(dockTabs.tabs()).toHaveLength(1)
   })
 
   test('subscribe 转发宿主的订阅：store 一变坞就重读', () => {

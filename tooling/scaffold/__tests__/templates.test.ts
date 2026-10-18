@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test'
-import { camel, renderFeature, renderPackage } from '../templates'
+import { renderFeature, renderPackage } from '../templates'
 
 describe('scaffold templates', () => {
   test('renderPackage 生成 4 个文件，bun 运行时带 @types/bun', () => {
@@ -29,9 +29,5 @@ describe('scaffold templates', () => {
     )
     expect(files['features/agent-settings/src/contract/index.ts']).toContain("namespaces: ['agentSettings']")
     expect(pkg.dependencies['@poietica/core-kernel']).toBe('workspace:*')
-  })
-
-  test('camel', () => {
-    expect(camel('agent-settings')).toBe('agentSettings')
   })
 })

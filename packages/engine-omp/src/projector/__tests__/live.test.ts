@@ -71,17 +71,6 @@ describe('LiveProjector', () => {
     expect(roles).toEqual(['assistant', 'user', 'assistant'])
   })
 
-  test('没开着一轮时插话退回新的一轮', () => {
-    const p = projector()
-    p.userTurn({ text: 'q' })
-    p.turnEnd('completed', null)
-    const ops = p.steeredFrame('下一句')
-    const state = applyOps(emptyTimeline(), ops)
-    const turns = state.items.filter((i) => i.kind === 'turn')
-    expect(turns.length).toBe(1)
-    expect(turns[0]?.kind === 'turn' && turns[0].prompt).toBe('下一句')
-  })
-
   test('turnEnd 收 step 与 turn，并 merge activity: idle', () => {
     const p = projector()
     p.userTurn({ text: 'q' })

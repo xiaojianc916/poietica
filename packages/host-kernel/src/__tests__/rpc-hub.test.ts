@@ -7,7 +7,7 @@ import {
   defineMethod,
   defineNotification,
 } from '@poietica/contract-kit'
-import { AppError, Deferred, SystemErrorCode } from '@poietica/foundation'
+import { AppError, SystemErrorCode } from '@poietica/foundation'
 import { Router, RpcPeer, type Transport } from '@poietica/rpc'
 import { createTestLogger, transportPair } from '@poietica/test-kit'
 import { z } from 'zod'
@@ -364,31 +364,5 @@ describe('RpcHub', () => {
     expect(seen).toEqual(['ready'])
     expect(caller.status().state).toBe('ready')
     d.dispose()
-  })
-
-  test('排队与取消路径由 CoreSupervisor 负责：forward 的 signal 原样透传', async () => {
-    const { attach, sup } = makeHub()
-    const { peer } = attach(fakeWindow(1))
-    const gate = new Deferred<void>()
-    let got: AbortSignal | undefined
-    sup.setForwardImpl(async (_m, _p, opts) => {
-      got = opts.signal
-      await gate.promise
-      return { items: [] }
-    })
-    const ac = new AbortController()
-    const p = peer.request('conversation.list', {})
-    void ac
-    gate.resolve()
-    await p
-    expect(got).toBeDefined()
-    peer.dispose()
-  })
-
-  test('core.ready 通知不会经 fromCore（由 supervisor 消费）', () => {
-    const { hub } = makeHub()
-    const seen: unknown[] = []
-    hub.fromCore('core.ready', { coreVersion: '1', protocolVersion: 1, engineVersion: '1' })
-    expect(seen).toEqual([])
   })
 })

@@ -54,13 +54,4 @@ describe('depcruise 配置的自检', () => {
     expect(src).toContain("name: 'workbench-agnostic'")
     expect(src).toContain('^packages/(workbench|core-kernel|host-kernel|ui-kernel)/')
   })
-
-  test('配置能被 depcruise 加载（规则正则不触发 safe-regex 拒绝）', async () => {
-    const proc = Bun.spawnSync(['bunx', 'depcruise', '--config', CONFIG, 'packages/foundation/src/index.ts'], {
-      cwd: path.resolve(import.meta.dir, '../../..'),
-    })
-    const out = `${proc.stdout.toString()}${proc.stderr.toString()}`
-    expect(out).not.toContain('safe-regex')
-    expect(out).not.toContain('Invalid')
-  })
 })

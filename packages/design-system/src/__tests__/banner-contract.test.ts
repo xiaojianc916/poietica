@@ -86,13 +86,4 @@ describe('横幅的时间契约', () => {
     expect(stickyRule).not.toContain('ui-banner-fade')
     expect(stickyRule).toContain('ui-banner-in')
   })
-
-  /*
-   * 进度轨的宽度是行内算的（百分比是宿主报来的数），样式表只管它的位置与配色。
-   */
-  it('进度轨由调用方给确数,组件只画宽度', () => {
-    expect(component).toContain('ui-banner__progress-fill')
-    expect(component).toContain('width:')
-    expect(stylesheet).toContain('.ui-banner__progress-fill')
-  })
 })

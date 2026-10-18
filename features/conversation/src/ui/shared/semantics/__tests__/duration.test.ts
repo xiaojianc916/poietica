@@ -64,14 +64,4 @@ describe('数字与单位分格（等宽字只戴在数字上）', () => {
   test('1 小时：三对数字与单位', () => {
     expect(formatRunDuration(3_661_000).map((part) => part.text)).toEqual(['1', '小时', '1', '分', '1', '秒'])
   })
-
-  test('拼回去与逐格渲染等价：两条渲染路径不会各说各的', () => {
-    for (const span of [0, 999, 1_000, 59_999, 60_000, 3_661_000, 7_200_000]) {
-      expect(
-        formatRunDuration(span)
-          .map((part) => part.text)
-          .join(''),
-      ).toBe(runDurationText(span))
-    }
-  })
 })

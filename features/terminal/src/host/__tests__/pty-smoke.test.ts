@@ -1,7 +1,6 @@
 import { describe, expect, test } from 'bun:test'
 import { execFileSync } from 'node:child_process'
 import { fileURLToPath } from 'node:url'
-import { which } from '@poietica/process-kit'
 
 /* TM-9：真实 PTY 冒烟。不在 bun test 进程里直接开 PTY：node-pty 的**生产宿主是 Electron 主进程**（Node 运行时），而 Bun 1.4.2 在
  * Windows 上给不了 ConPTY 输出 —— **实测**同一个探针，Bun 下只收到 ConPTY 的 16 字节初始化序列（ESC[?9001h ESC[?1004h）后
@@ -30,20 +29,26 @@ const PROBE = [
 const nodeModules = fileURLToPath(new URL('../../../node_modules', import.meta.url))
 
 describe('TM-9: 真实 PTY 冒烟（Electron/Node 运行时）', () => {
-  test.skipIf(process.platform !== 'win32')(
+  /*
+   * 运行时齐备才跑。`which` 在模块顶层做一次：`test.skipIf` 需要在**声明**时就知道，
+   * 而原先写在测试体内的 `return` 会以「通过」收场 —— 缺 node / shell 的机器上这条永远是绿的，
+   * 与「没验过」分不开。
+   */
+  const node = Bun.which('node')
+  const shell = Bun.which('pwsh.exe') ?? Bun.which('powershell.exe')
+  const runnable = process.platform === 'win32' && node !== null && shell !== null
+
+  test.skipIf(!runnable)(
     '打开 shell → echo hi → 2 秒内输出包含 hi',
-    async () => {
-      const node = await which('node')
-      const shell = (await which('pwsh.exe')) ?? (await which('powershell.exe'))
-
-      /* 没有与生产一致的运行时，跳过而不是假绿。 */
-      if (node === null || shell === null) {
-        return
-      }
-
-      const out = execFileSync(node, ['-e', PROBE, shell, process.cwd()], {
+    () => {
+      const out = execFileSync(node as string, ['-e', PROBE, shell as string, process.cwd()], {
         cwd: process.cwd(),
-        env: { ...process.env, NODE_PATH: nodeModules, SMOKE_SHELL: shell, SMOKE_CWD: process.cwd() },
+        env: {
+          ...process.env,
+          NODE_PATH: nodeModules,
+          SMOKE_SHELL: shell as string,
+          SMOKE_CWD: process.cwd(),
+        },
         encoding: 'utf8',
         timeout: 20_000,
       })

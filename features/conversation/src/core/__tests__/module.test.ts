@@ -111,7 +111,7 @@ describe('conversation core 模块', () => {
       skills: [],
       deliverAs: 'steer',
     })
-    await api.call('turns.submit', {
+    const followUp = await api.call('turns.submit', {
       threadId: thread.id,
       clientTurnId: 'D',
       text: '排队',
@@ -119,6 +119,9 @@ describe('conversation core 模块', () => {
       skills: [],
       deliverAs: 'followUp',
     })
+    /* 名字里那三条都要有断言：steer / followUp 也被接受（不是以 thread_busy 拒绝），
+     * 且同样先落成 pending —— 上一行的 await 已经证明没抛。 */
+    expect(followUp.submission.status).toBe('pending')
     await runOneBeat(h)
     await finish()
   })

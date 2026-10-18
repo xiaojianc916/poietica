@@ -1,7 +1,6 @@
 import { describe, expect, test } from 'bun:test'
 import {
   descriptionOf,
-  GROUP_LABELS,
   groupLabelOf,
   isProductSetting,
   labelOf,
@@ -136,14 +135,6 @@ describe('剥离页的归属', () => {
   test('记忆栏里的格子不会同时命中个性化名单', () => {
     for (const path of ['personality', 'skillful', 'defaultThinkingLevel']) {
       expect(sectionOf(path, 'memory')).toBe('memory')
-    }
-  })
-
-  test('分节中文名表覆盖 omp 的每一栏（缺一条只是显示英文，不是缺陷）', () => {
-    expect(Object.keys(GROUP_LABELS).length).toBeGreaterThan(20)
-    for (const [key, value] of Object.entries(GROUP_LABELS)) {
-      expect(value.length).toBeGreaterThan(0)
-      expect(key.length).toBeGreaterThan(0)
     }
   })
 })

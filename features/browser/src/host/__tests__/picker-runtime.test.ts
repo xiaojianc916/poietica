@@ -52,14 +52,6 @@ function clear(): void {
 afterEach(clear)
 
 describe('BR-9: pickerRuntime.toString() 在 happy-dom 里执行', () => {
-  test('自包含：new Function 出来的副本能跑（函数体不引用任何外部变量）', () => {
-    const h = harness()
-
-    expect(() => {
-      h.start()
-    }).not.toThrow()
-  })
-
   test('overlay 出现：注入后宿主节点挂上了标记与主题', () => {
     const h = harness()
 

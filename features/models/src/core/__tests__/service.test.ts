@@ -143,10 +143,4 @@ describe('models 服务（14 页 §6.5）', () => {
     await expect(service.logout('openai-codex-device')).rejects.toBeInstanceOf(AppError)
     expect(changed).toBe(1)
   })
-
-  test('providers 与 catalog 直接转发', async () => {
-    const { service } = make(PROVIDERS)
-    expect((await service.providers()).length).toBe(2)
-    expect(await service.catalog()).toEqual([])
-  })
 })

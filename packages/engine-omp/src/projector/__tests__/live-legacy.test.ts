@@ -210,19 +210,6 @@ describe('投影器坐到屏幕的位置上（legacy projection.test.ts / screen
     ).toEqual([9])
   })
 
-  test('开着轮时不改号：那一轮自己已经写在号上了', () => {
-    const p = projector()
-    p.userTurn({ text: '第一句' })
-    p.seat(99)
-    expect(p.turnOrdinal).toBe(1)
-    expect(
-      p
-        .turnEnd('completed', null)
-        .filter((op) => op.op === 'turn.upsert')
-        .map((op) => op.turn.ordinal),
-    ).toEqual([1])
-  })
-
   test('指定座位开轮时以它为准（legacy 的 at.ordinal 等价于先 seat 一位）', () => {
     const p = projector()
     p.seat(41)
@@ -230,14 +217,6 @@ describe('投影器坐到屏幕的位置上（legacy projection.test.ts / screen
     expect(opened.find((op) => op.op === 'turn.upsert')).toMatchObject({
       turn: { turnId: 't42', prompt: '翻回来的一格' },
     })
-  })
-
-  test('座位数出屏幕上已有的 3 轮之后，接着说话从第 4 轮起', () => {
-    const p = projector()
-    p.seat(3)
-    const opened = p.userTurn({ text: '第四句' })
-    expect(opened.filter((op) => op.op === 'turn.upsert').map((op) => op.turn.ordinal)).toEqual([4])
-    expect(p.isTurnOpen).toBe(true)
   })
 })
 

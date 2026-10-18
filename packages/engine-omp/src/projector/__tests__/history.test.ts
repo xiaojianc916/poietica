@@ -97,35 +97,6 @@ describe('projectHistoryPage', () => {
     expect(tool?.kind === 'tool' && tool.error).toBe('炸了')
   })
 
-  test('用户消息里的图片变成附件条目', () => {
-    const page = projectHistoryPage(
-      [
-        {
-          role: 'user',
-          timestamp: T0,
-          content: [
-            { type: 'text', text: '看图' },
-            { type: 'image', data: 'AAAA', mimeType: 'image/png' },
-          ],
-        },
-        assistant('看到了', 10),
-      ],
-      null,
-    )
-    expect(page.attachments.length).toBe(1)
-    expect(page.attachments[0]?.mediaType).toBe('image/png')
-    expect(page.attachments[0]?.source).toEqual({ kind: 'url', url: 'data:image/png;base64,AAAA' })
-  })
-
-  test('压缩那一条铺成 marker', () => {
-    const page = projectHistoryPage(
-      [{ role: 'compactionSummary', timestamp: T0, summary: '压好了' }, user('问题', 10), assistant('答', 20)],
-      null,
-    )
-    const marker = page.items.find((i) => i.kind === 'marker')
-    expect(marker?.kind === 'marker' && marker.marker).toBe('compaction')
-  })
-
   /*
    * 审查 R-21-1：压缩之后前文消失。分页读的是显示经过（压缩前的对话都在，摘要在它发生的位置），
    * 压缩挂在当时开着的那一轮后面、不开轮 —— 轮号与增量那条路一致，中途压缩之后的段仍在这一轮里。

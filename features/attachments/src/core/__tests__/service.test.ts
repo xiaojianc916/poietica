@@ -256,24 +256,6 @@ describe('attachments 服务（07 页 §4G、14 页 §8.6）', () => {
     await root.dispose()
   })
 
-  test('ensureDir 兜底：attachmentsDir 预先不存在时也能写入', async () => {
-    const { service, root, db } = await make()
-    const nested = path.join(root.path, 'x', 'y')
-    const s2 = createAttachmentsService({
-      repo: createAttachmentsRepository(db.forModule('attachments')),
-      dir: nested,
-      clock: fakeClock(),
-      logger: createTestLogger(),
-    })
-    void service
-    const src = path.join(root.path, 'a.txt')
-    fs.writeFileSync(src, 'x')
-    await s2.importPaths([src])
-    expect(fs.existsSync(nested)).toBe(true)
-    db.close()
-    await root.dispose()
-  })
-
   /* sweep 与「同内容导入」的竞态。sweep 先删表、再 `await rm(文件)`；这个 await 期间导入同一内容会走「目标已存在」的去重分支（只补表行、
    * 不碰盘），随后 sweep 的 rm 把文件删掉 —— 新的 item 从此指向一个不存在的文件。服务内加了串行互斥：导入排到 sweep 之后，那时文件确实
    * 没了，它走正常落盘分支。假 rm 用手动 resolve 的 Promise 把「删到一半」这一刻钉住。 */

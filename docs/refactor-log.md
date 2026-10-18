@@ -4321,3 +4321,96 @@ openai-codex-device / xai-oauth / gitlab-duo / gitlab-duo-agent / factory-droid 
 - `tooling/checks/review-page/run.ts`（`bun run check:review-page`）仍自己起 `gh` 取冒烟数据：它是
   tooling，不能 import 功能源码，且不在 `bun run all` 里。本次没动，等下次动它时一起改直连。
 
+## T-01 测试集瘦身与提速：omp 测试运行时开关、宽限期走注入时钟、删除 28 条无效用例（2026-10-18）
+
+**来源**：产品负责人交办「测试都是 AI 写的，可能有的只是某次任务用的、有的完全没必要；删掉无用测试，
+并且测试跑得慢，想想办法」。基线 `bun test` 全仓 **176 秒 / 2,502 用例 / 5 条红**。
+
+**根因（慢与红是同一个）**：omp 的 `isBunTestRuntime()`（`@oh-my-pi/pi-utils/env`）只认
+`PI_TEST_RUNTIME=1`，或 `NODE_ENV`/`BUN_ENV` 为 `test` **且** `Bun.main` 是 `*.test.ts`。本仓 `bun test`
+把 `NODE_ENV` 留成 `development`，两个条件都不成立，于是每个 `createOmpEngineForTest` 都按生产启动：
+`ModelRegistry.refreshInBackground()` 去联网发现模型，`setApiKey` 触发的 `refreshIfStale()` 等满
+`REMOTE_DISCOVERY_TIMEOUT_MS`（10 秒）。实测三次建引擎：15.4s / 15.2s / 0.9s（第三次才吃到缓存）。
+同一条链路也解释了 `engine-omp` 一致性套件里 5 条卡在 5,000ms 的失败（默认单测超时）。
+
+**改法**：
+
+1. `tooling/test/preload.ts` 设 `PI_TEST_RUNTIME=1`。preload 先于任何测试文件求值，且只影响 omp 的
+   「测试进程」分支（网络发现关闭、judgment / skill 描述缓存不落盘、会话租约走临时目录）。
+2. `CoreSupervisor.stop()` 的两处 `withTimeout` 传入 `this.clock`（默认 `systemClock`，生产行为不变）。
+   此前宽限期只认真实时钟，S-8 与 R-05 M8 各真等 10 秒；现在测试 `clock.advanceAsync(STOP_GRACE_MS)`
+   推过去，同一条分支、同一批断言。
+3. 删除 28 条无独立判据的用例、改写 5 条空转用例（见下）。
+
+**逐条（删除）**：
+
+| 位置 | 用例 | 判据 |
+| --- | --- | --- |
+| `packages/engine/src/__tests__/engine.test.ts` | `engineErrorMessages 覆盖每个错误码` | `Record<EngineErrorCode, string>`，tsc 已钉 |
+| `packages/engine-omp/src/__tests__/omp-version.test.ts` | `解析到的包里有 omp 的 package.json` | 自己重算 `dirname(dirname(entry))`；同文件上一条已验生产解析 |
+| `packages/engine-omp/src/ports/__tests__/plugins.test.ts` | `list 交回数组…` / `marketplace(null)…` | 离线时循环体与过滤都不执行，只剩 `Array.isArray` |
+| `packages/engine-omp/src/ports/__tests__/settings-catalog.test.ts` | `分节中文名表覆盖…` | 自陈「缺一条只是显示英文，不是缺陷」；回退行为已被 `groupLabelOf` 用例覆盖 |
+| `packages/engine-omp/src/ports/__tests__/login-text.test.ts` | `只贴 API Key 的占了大头` | 对第三方名单算比例，不碰 `loginKindOf` 映射（同文件上一条已逐家验） |
+| `packages/engine-omp/src/projector/__tests__/history.test.ts` | `用户消息里的图片变成附件条目` / `压缩那一条铺成 marker` | `history-legacy` 同一 setup 且多验 data URL 构造、号不撞、marker payload；同文件下一条验压缩全貌 |
+| `packages/engine-omp/src/projector/__tests__/live.test.ts` | `没开着一轮时插话退回新的一轮` | `live-legacy` 同 setup 且同时验 prompts 与 turnIds |
+| `packages/engine-omp/src/projector/__tests__/live-legacy.test.ts` | `开着轮时不改号` / `座位数出 3 轮…` | 前者与 `live.test.ts` 的 `seat 只在没开着轮时改号` 同值；后者被同 describe 的 seat(7) 用例覆盖 |
+| `packages/ui-kernel/src/__tests__/builtin-points.test.ts` | 整个文件 | 断言 `'overlays' in builtinPoints` 与 `id === 'workbench.overlays'`，两者都是字面量类型；浮层行为由 `workbench.test.tsx` 覆盖 |
+| `packages/workbench/src/__tests__/workbench.test.tsx` | `useService 在 workbench 里可用` | `Consumer` 声明后 `void Consumer`，从未渲染；真实 `useService` 由 `ui-kernel/kernel.test.tsx:450` 渲染断言 |
+| `packages/host-kernel/src/__tests__/rpc-hub.test.ts` | `forward 的 signal 原样透传` / `core.ready 通知不会经 fromCore` | 前者只 `toBeDefined()` 且 `AbortController` 未接；后者的 `seen` 从未接线，恒为空 |
+| `packages/contract-kit/src/__tests__/define.test.ts` | `ParamsOut 从契约推导出输出类型` | 纯类型层事实，`bun check` 已钉 |
+| `tooling/scaffold/__tests__/templates.test.ts` | `camel` | 同文件 `renderFeature` 已验 `namespaces: ['agentSettings']`，是 `camel` 的唯一消费点 |
+| `tooling/depcruise/__tests__/config.test.ts` | `配置能被 depcruise 加载` | `bun run lint` 已跑 `depcruise --config …`，加载失败即红 |
+| `packages/core-kernel/src/__tests__/services.test.ts` | `内核服务视图能读任意模块提供的服务` | 同一断言已在 `kernel.test.ts` K-4b 末尾 |
+| `features/models/src/core/__tests__/service.test.ts` | `providers 与 catalog 直接转发` | 两行恒等转发；形状由契约快照钉 |
+| `features/platform/src/core/__tests__/module.test.ts` | `setLogLevel 调用了 ctx.runtime.setLogLevel` / `非法值被拒` | 前者 harness 的 `setLogLevel` 是 `() => undefined`，调用不可观测；后者只 `instanceof Error`，枚举已在契约快照 |
+| `features/attachments/src/core/__tests__/service.test.ts` | `ensureDir 兜底…` | 与「目录第一次写入时自动创建」只差嵌套层数 |
+| `features/extensions/src/ui/__tests__/catalog.test.ts` | `行类型穿过分组不丢` | `isRegistryRow` 已在同 describe 上一条逐行验过 |
+| `features/conversation/src/ui/shared/semantics/__tests__/duration.test.ts` | `拼回去与逐格渲染等价` | `runDurationText` 就是 `formatRunDuration(...).map(text).join('')`，测试重算同一表达式 |
+| `packages/design-system/src/__tests__/banner-contract.test.ts` | `进度轨由调用方给确数` | 只查两个源码字符串是否含某个 class 名与 `width:`，无行为 |
+| `features/browser/src/host/__tests__/picker-runtime.test.ts` | `自包含：new Function 出来的副本能跑` | 裸 `not.toThrow()`；同文件三条后续用例都先 `h.start()`，不自包含会在同一调用点抛 `ReferenceError` |
+
+**逐条（改写，不是删）**：
+
+- `tooling/checks/ticker-layout/__tests__/ticker-layout.test.ts`：`sJ90 > 0` → `toBeCloseTo(0.2609, 4)`。
+  原断言对任何非零垃圾都通过，百分位逻辑实际没测。
+- `features/conversation/src/ui/home/mascot/__tests__/mascot-baseline.test.ts`：`长停留 + 自旋 + 撒花 + 弹跳 + 注视`
+  原先只验 `innerHTML` 含 `<svg>`；改为验自旋后画面变了、撒花/弹跳期间逐帧有内容且画面在动、注视切换改变了画面。
+  （实测撒花期间 `innerHTML` 只在 3345–3349 间变化，`Set.size` 为 5，因此按「集合大小 > 1」断言。）
+- `features/conversation/src/core/__tests__/module.test.ts`：CV-3 的 `steer` / `followUp` 两次提交补上 `pending` 断言
+  （原名声称「也被接受」，实际没有任何断言）。
+- `features/browser/src/ui/__tests__/dock-tabs.test.tsx`：`宿主没回快照时交空表` 原本 `harness()` 已经 `store.apply`，
+  名实不符；改为真的用未 apply 的 store 验空表，并保留有快照时的对照。
+- `features/terminal/src/host/__tests__/pty-smoke.test.ts`：缺 node/shell 时 `return`（假绿）→ 模块顶层 `Bun.which`
+  探测 + `test.skipIf`，跳过与通过分得开。
+- `features/update/src/ui/__tests__/update-banner.test.tsx`：`waitFor` 预算 4s < 单测时限 15s（原先是 5s 对 5s，
+  测试自己的超时先到，报的是「超时」而不是断言结果）。
+
+**刻意保留**（审计里判为可疑但按仓库规矩不能动）：
+
+- `*-legacy.test.ts` 与当前测试的**跨文件**重复：那批文件是十来个已删测试文件的合并迁移，注释逐条点名来源，
+  且 `projector` 的两层（增量 / 历史）语义是仓库最容易出错的地方（AGENTS §8.6）。
+- 读样式表 / 配置文件文本的契约测试（`rolling-line-css`、`shell-grid-contract`、`dev-config`、`depcruise` 规则名）：
+  happy-dom 不做布局，这些是唯一的机械判据；`check:ticker` 不在 `bun run all` 里。
+- `features/review` 的 `maybe = gitAvailable ? test : test.skip`：没有 git 的机器上静默跳过，属于既有形态，
+  改成硬失败会伤害那条环境；已记在下面「未做」。
+
+**验证**：
+
+- `bun run typecheck`：779 文件 / 80 工程 0 错误；1,051 文件测试工程 0 错误。
+- `bun run lint`：0 错误（4 条 `noDescendingSpecificity` warning 是基线已有的）。
+- `bun test`：**2,474 pass / 0 fail / 316 文件 / 83.6 秒**（改前 2,502 / 5 fail / 317 文件 / 176.2 秒）。
+  用例数从 2,502 减到 2,474：删 28 条（含 `builtin-points.test.ts` 整文件 2 条），5 条改写不减数。
+- `bun test packages/host-kernel/src/__tests__/core-supervisor.test.ts`：20.2s → 0.35s，29 条全过。
+- `bun test packages/engine-omp/src/session/__tests__/goal-continuation.test.ts`：66.9s → 6.7s，8 条全过。
+- `bun test features/update/src/ui/__tests__/update-banner.test.tsx`、`features/browser/src/ui/__tests__/dock-tabs.test.tsx`、
+  `features/conversation/src/ui/home/mascot/__tests__/mascot-baseline.test.ts`、`tooling/checks/ticker-layout`：均单独跑过、全绿。
+
+**未做（留作待决）**：
+
+- `features/review/src/core/__tests__/service.test.ts` 的 `test.skip` 兜底：没有 git 的机器上 19 条静默跳过。
+  要改成「缺 git 就红」需要产品负责人拍板（CI 是 windows-latest，git 恒在，故当前无实际影响）。
+- `packages/engine-omp/src/ports/__tests__/{mcp,skills,draft-controls}.test.ts` 整目录单跑互相干扰（`omp-home` 夹具的
+  进程级共享状态）。`PI_TEST_RUNTIME=1` 之后这次没再复现，但根因未动，仍记在 B-0x 的既有待决里。
+- `features/platform/src/ui/__tests__/format-bytes.test.ts` 测的是 `@poietica/design-system` 的 `formatBytes`，
+  文件位置不对（应在 `packages/design-system/src/__tests__/`）。挪它要动 `editor-project-map` 闸门的收录范围，
+  不属于本次「删无用测试」。

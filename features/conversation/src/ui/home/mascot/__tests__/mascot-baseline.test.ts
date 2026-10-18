@@ -128,13 +128,28 @@ describe('吉祥物迁移版：行为基线', () => {
       }
       /* 长停留：表情池轮换 / 眨眼 / 待机小动作 / 常驻环带 / zzz 都会在这里走到 */
       for (let f = 0; f < 200; f++) frame()
+      const idle = host.innerHTML
       engine.spin(3)
       for (let f = 0; f < 40; f++) frame()
+      /* 自旋必须真的转到画面（偏航角进变换矩阵），不只是「还画着 svg」 */
+      expect(host.innerHTML).not.toBe(idle)
       engine.burst(30)
       engine.bounce()
-      for (let f = 0; f < 40; f++) frame()
+      const beforeEffects = host.innerHTML
+      const during: string[] = []
+      for (let f = 0; f < 40; f++) {
+        frame()
+        during.push(host.innerHTML)
+      }
+      /* 撒花 / 弹跳期间每一帧都有内容，且画面在动（粒子或弹跳改变了 DOM） */
+      expect(during.every((frame) => frame.includes('<svg'))).toBe(true)
+      expect(new Set(during).size).toBeGreaterThan(1)
+      expect(host.innerHTML).not.toBe(beforeEffects)
       engine.setGaze(0.8, -0.5)
+      const beforeGaze = host.innerHTML
       for (let f = 0; f < 15; f++) frame()
+      /* 注视切换把眼的偏移写进画面 */
+      expect(host.innerHTML).not.toBe(beforeGaze)
       engine.clearGaze()
       for (let f = 0; f < 8; f++) frame()
       expect(host.innerHTML).toContain('<svg')

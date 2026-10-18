@@ -11,25 +11,6 @@ function makePort(): OmpPluginsPort {
 }
 
 describe('PluginsPort', () => {
-  test('list 交回数组，元素形状合契约（离线：没有装过就是空表）', async () => {
-    const plugins = await makePort().list()
-    expect(Array.isArray(plugins)).toBe(true)
-    for (const plugin of plugins) {
-      expect(typeof plugin.id).toBe('string')
-      expect(typeof plugin.name).toBe('string')
-      expect(typeof plugin.version).toBe('string')
-      expect(typeof plugin.enabled).toBe('boolean')
-    }
-  })
-
-  test('marketplace(null) 用 omp 自己的市场源；查询串大小写不敏感地过滤', async () => {
-    const port = makePort()
-    const all = await port.marketplace(null)
-    expect(Array.isArray(all)).toBe(true)
-    const filtered = await port.marketplace('NO-SUCH-PLUGIN-NAME-XYZ')
-    expect(filtered).toEqual([])
-  })
-
   test('install 要求 name@marketplace 形状的 id，形状不对时如实拒绝', async () => {
     await expect(makePort().install('no-marketplace-part')).rejects.toMatchObject({
       code: 'kernel.invalid_params',

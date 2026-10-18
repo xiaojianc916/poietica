@@ -1,7 +1,6 @@
 import '../../__tests__/omp-home'
 
 import { describe, expect, test } from 'bun:test'
-import { getOAuthProviders } from '@oh-my-pi/pi-ai/oauth'
 import { getProviderDefinition } from '@oh-my-pi/pi-ai/registry'
 import { loginAuthText, loginProgressText, loginPromptText } from '../login-text'
 import { loginKindOf } from '../omp-ports'
@@ -50,13 +49,5 @@ describe('loginKindOf', () => {
     expect(kind('openrouter')).toBe('browser-key')
     expect(kind('zai')).toBe('manual-key')
     expect(loginKindOf(undefined)).toBe('account')
-  })
-
-  test('只贴 API Key 的占了 omp 登录名单的大头', () => {
-    const all = getOAuthProviders()
-    const manual = all.filter(
-      (p) => loginKindOf(getProviderDefinition(p.id) as Parameters<typeof loginKindOf>[0]) === 'manual-key',
-    )
-    expect(manual.length).toBeGreaterThan(all.length / 2)
   })
 })

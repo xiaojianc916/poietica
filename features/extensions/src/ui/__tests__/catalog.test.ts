@@ -110,9 +110,4 @@ describe('目录行与精选行合并', () => {
 
     expect(groups.map((group) => group.title).slice(0, 2)).toEqual(['精选', '在线目录'])
   })
-
-  test('行类型穿过分组不丢（卡片据此选动作区）', () => {
-    const groups = groupRows(registryServerRows([entry()], []))
-    expect(isRegistryRow(groups[0]!.rows[0]!)).toBe(true)
-  })
 })

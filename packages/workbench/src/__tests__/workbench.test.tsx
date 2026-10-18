@@ -1,5 +1,4 @@
 import { afterEach, describe, expect, test } from 'bun:test'
-import { defineServiceToken } from '@poietica/foundation'
 import type { RpcMessage, WindowBridge } from '@poietica/rpc'
 import {
   builtinPoints,
@@ -9,7 +8,6 @@ import {
   SETTINGS_GROUPS,
   type UiFeature,
   type UiKernel,
-  useService,
 } from '@poietica/ui-kernel'
 import { cleanup, render, screen } from '@testing-library/react'
 import { Workbench } from '../workbench'
@@ -495,30 +493,6 @@ describe('workbench 外壳', () => {
     /* 只有抛错那一格显示占位，其余照常渲染。 */
     expect(document.querySelector('[data-workbench-part="title-bar"]')).not.toBeNull()
     expect(document.querySelector('[data-workbench-part="unknown-surface"]')).not.toBeNull()
-    kernel.dispose()
-  })
-
-  test('useService 在 workbench 里可用（内核服务令牌）', async () => {
-    const Token = defineServiceToken<{ hello: string }>('test', 'Thing')
-    let got: { hello: string } | undefined
-    const feature = defineUiFeature({
-      id: 'test',
-      setup: (ctx) => {
-        ctx.services.provide(Token, { hello: 'world' })
-      },
-    })
-    const feature2 = defineUiFeature({
-      id: 'test2',
-      dependsOn: ['test'],
-      setup: () => undefined,
-    })
-    const kernel = await mount([feature, feature2])
-    function Consumer() {
-      got = useService(Token)
-      return <span data-consumer>{got.hello}</span>
-    }
-    void Consumer
-    expect(kernel.servicesFor('test2').get(Token).hello).toBe('world')
     kernel.dispose()
   })
 })

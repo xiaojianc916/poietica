@@ -27,19 +27,4 @@ describe('platform core（diagnostics）', () => {
     expect(diag.dirs.ompAgentDir?.startsWith(diag.ompRoot)).toBe(true)
     await h.dispose()
   })
-
-  test('diagnostics.setLogLevel 调用了 ctx.runtime.setLogLevel', async () => {
-    const h = await createCoreHarness({ modules: [platform], engine: createFakeEngine() })
-    const api = h.client(platformContract)
-    expect(await api.call('diagnostics.setLogLevel', { level: 'debug' })).toEqual({})
-    await h.dispose()
-  })
-
-  test('setLogLevel 的 level 由契约约束（非法值被拒）', async () => {
-    const h = await createCoreHarness({ modules: [platform], engine: createFakeEngine() })
-    const api = h.client(platformContract)
-    const err = await api.call('diagnostics.setLogLevel', { level: 'trace' } as never).catch((e: unknown) => e)
-    expect(err).toBeInstanceOf(Error)
-    await h.dispose()
-  })
 })
