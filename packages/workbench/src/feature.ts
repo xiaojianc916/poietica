@@ -25,8 +25,11 @@ export const workbenchFeature = defineUiFeature({
     // 命令面板的开关状态由 Workbench 订阅（见 palette-state.ts）
     void subscribePalette
 
-    const command = (id: string, title: string, run: () => void): void => {
-      ctx.contribute(builtinPoints.commands, { id, title, category: '外壳', run })
+    const command = (id: string, title: string, run: () => void, enabled?: () => boolean): void => {
+      ctx.contribute(
+        builtinPoints.commands,
+        enabled === undefined ? { id, title, category: '外壳', run } : { id, title, category: '外壳', run, enabled },
+      )
     }
     command('workbench.commandPalette', '命令面板', openPalette)
     command('workbench.toggleSidebar', '切换侧栏', () => {
@@ -38,12 +41,23 @@ export const workbenchFeature = defineUiFeature({
     command('workbench.openSettings', '打开设置', () => {
       navigation.navigate(SETTINGS_ROUTE)
     })
-    command('workbench.back', '后退', () => {
-      navigation.back()
-    })
-    command('workbench.forward', '前进', () => {
-      navigation.forward()
-    })
+    /* 没有可回退 / 可前进的一页时点下去没反应：自报不可用，命令面板就不画。 */
+    command(
+      'workbench.back',
+      '后退',
+      () => {
+        navigation.back()
+      },
+      () => navigation.current().canGoBack,
+    )
+    command(
+      'workbench.forward',
+      '前进',
+      () => {
+        navigation.forward()
+      },
+      () => navigation.current().canGoForward,
+    )
     command('workbench.home', '回到首页', () => {
       navigation.home()
     })

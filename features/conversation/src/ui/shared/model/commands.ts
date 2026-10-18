@@ -101,10 +101,3 @@ export const COMMAND_GROUPS: readonly {
   { id: 'mcp', heading: 'MCP 提示词', sources: ['mcp_prompt'] },
   { id: 'builtin', heading: '内置命令', sources: ['builtin'] },
 ]
-
-/** 上下文面板底部那一排：都是 omp 的内置命令，顺序即按钮顺序；文案只是命令的中文名，行为全在 omp */
-export const CONTEXT_COMMANDS = [
-  { name: 'compact', label: '压缩', hint: '把较早的对话总结成摘要（/compact）' },
-  { name: 'shake', label: '瘦身', hint: '丢掉工具结果与大段内容（/shake）' },
-  { name: 'handoff', label: '交接', hint: '写一份交接文档并原地压缩（/handoff）' },
-] as const

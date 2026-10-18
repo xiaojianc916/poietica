@@ -32,6 +32,8 @@ describe('上下文面板的外部打开', () => {
       view.rerender(<ContextGauge openRequest={1} usage={usage} />)
     })
     expect(screen.getByText('系统提示词')).toBeDefined()
+    /* 面板只读：底部那一排压缩 / 瘦身 / 交接已删，命令仍只能从草稿里的 `/` 走 */
+    expect(screen.queryByRole('button', { name: '压缩' })).toBeNull()
   })
 
   test('还没有读数：胶囊不画，请求也不开面板', async () => {

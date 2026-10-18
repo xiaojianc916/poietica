@@ -4506,6 +4506,33 @@ openai-codex-device / xai-oauth / gitlab-duo / gitlab-duo-agent / factory-droid 
 **已知限制**（照方案，未额外处理）：重开对话看不到这一行（omp 会话记录不存重试过程与本轮报错）；
 换备用模型会重新计数；上限 5 次只对从没配过 `retry.maxRetries` 的用户生效。
 
+## 界面瘦身：删上下文面板的三颗维护钮、命令面板按 enabled 过滤（2026-10-18）
+
+**来源**：产品负责人反馈两处界面噪音 —— (1) 上下文用量面板底部那排「压缩 / 瘦身 / 交接」要去掉；
+(2) 命令面板在入口页也列出「删除对话 / 导出对话」等一堆没有落点的命令，且「拾取网页元素」在设置页
+点得到、点了还会顺手把浏览器面板开出来。基线 `2d93eccb`。
+
+**改法**：
+
+1. **上下文面板只读**：删掉 `context-gauge.tsx` 的 `ContextActions` 及其 `commands` / `onRunCommand` / `busy` 三个 prop，
+   `context-gauge.css` 的 `.context-gauge__actions` / `.context-gauge__action*` 一并删除；上层的
+   `AssistantComposer`、`assistant-surface.tsx` 的 `runCommand` 与 `CONTEXT_COMMANDS`（`shared/model/commands.ts`）随之消失。
+   压缩 / 瘦身 / 交接仍可照旧在输入框敲 `/compact`、`/shake`、`/handoff`，功能没有减少。
+2. **命令面板按 enabled 过滤**：`command-palette.tsx` 改用与设置页「全部命令」同一判据
+   （`hidden !== true && enabled() !== false`），并把 `open` 放进 `useMemo` 依赖，每次打开重算此刻的前台。
+3. **各命令自报能不能用**：conversation 的重命名 / 删除 / 分支 / 导出 / 停止运行 `enabled` 取「有没有当前对话」（停止运行另加「那条在跑」）；
+   workbench 的后退 / 前进取 `navigation.canGoBack / canGoForward`；browser 的拾取取「浏览器面板正开着 且 活动标签是正经网页」。
+   拾取的这条判据是根因：拾取面板画在页面里，浏览器面板一藏宿主就 `cancelPick`（`BrowsePanelHost` 与 `host/tabs.ts`），
+   所以从设置页点它只会凭空开出一列再立刻失效 —— 现在它根本不出现在面板里。
+
+**偏差**：无。
+
+**验证**：
+
+- 定向：`bun test features/conversation` 619 pass；`bun test packages/workbench` 37 pass（新增「命令面板不画此刻用不了的命令」一条）；
+  `context-gauge.test.tsx` 补一条「面板里没有压缩钮」的断言，`context-gauge-actions.test.tsx` 整份删除（它测的就是已删的那排钮）。
+- `bun run all`（typecheck + lint + test 全仓）：**2,571 pass / 1 skip / 0 fail / 331 文件 / 98 秒**。
+
 ## A–E 全面审查修复：A 线性分帧 / B 图片内容寻址 / C Core 自写日志 / D relay 口令 / E 资源协议与强转清理（基于 fd5cf50，协议 34 → 35，2026-10-18）
 
 **来源**：`审查报告/Poietica 全面审查（main @ fd5cf50）：结论与方案索引` 与方案 A–E 五页（外部输入，不入库）。

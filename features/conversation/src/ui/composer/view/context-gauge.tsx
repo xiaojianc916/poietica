@@ -1,10 +1,8 @@
 import './context-gauge.css'
 
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@poietica/design-system'
-import type { SlashCommand } from '@poietica/engine'
 import { memo, useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
-import { CONTEXT_COMMANDS, hasCommand } from '../../shared/model/commands'
 import type { AgentUsageBreakdown } from '../../shared/model/dto'
 import { formatTokens, type SessionUsage } from '../../shared/model/usage'
 import { useDismissOutside } from './composer-palette'
@@ -110,59 +108,13 @@ function Ring({ fraction }: { readonly fraction: number }) {
   )
 }
 
-interface ContextActionsProps {
-  readonly commands: readonly SlashCommand[]
-  readonly busy: boolean
-  readonly onRun: (text: string) => void
-}
-
-/* 面板底部的维护动作：每一颗都是 omp 内置命令的快捷方式（经 commands.run，与在输入框打 `/compact` 同一条路）。
-   命令表里没有的不画；一轮在跑时 omp 只会回「忙」，所以按钮先灰掉。 */
-function ContextActions({ busy, commands, onRun }: ContextActionsProps) {
-  const available = CONTEXT_COMMANDS.filter((action) => hasCommand(commands, action.name))
-
-  if (available.length === 0) {
-    return null
-  }
-
-  return (
-    <div className="context-gauge__actions">
-      {available.map((action) => (
-        <button
-          className="context-gauge__action"
-          disabled={busy}
-          key={action.name}
-          onClick={() => {
-            onRun(`/${action.name}`)
-          }}
-          title={action.hint}
-          type="button"
-        >
-          {action.label}
-        </button>
-      ))}
-    </div>
-  )
-}
-
 export interface ContextGaugeProps {
   readonly usage?: SessionUsage | undefined
-  /** omp 的命令表；与 onRunCommand 同时给出时，面板底部才出现维护动作 */
-  readonly commands?: readonly SlashCommand[] | undefined
-  readonly onRunCommand?: ((text: string) => void) | undefined
-  /** 一轮正在跑：维护动作此时只会被 omp 以「忙」拒绝 */
-  readonly busy?: boolean | undefined
   /** 从外面打开（斜杠命令 `/context`）：每变一次就打开一次面板；计数而不是布尔，开合仍归这一层 */
   readonly openRequest?: number | undefined
 }
 
-export const ContextGauge = memo(function ContextGauge({
-  busy,
-  commands,
-  onRunCommand,
-  openRequest,
-  usage,
-}: ContextGaugeProps) {
+export const ContextGauge = memo(function ContextGauge({ openRequest, usage }: ContextGaugeProps) {
   const [open, setOpen] = useState(false)
   const [seenRequest, setSeenRequest] = useState(openRequest)
 
@@ -322,17 +274,6 @@ export const ContextGauge = memo(function ContextGauge({
                     </div>
                   ))}
                 </dl>
-              )}
-
-              {commands === undefined || onRunCommand === undefined ? null : (
-                <ContextActions
-                  busy={busy === true}
-                  commands={commands}
-                  onRun={(text) => {
-                    close()
-                    onRunCommand(text)
-                  }}
-                />
               )}
             </div>,
             document.body,

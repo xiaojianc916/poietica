@@ -210,6 +210,30 @@ describe('workbench 外壳', () => {
     kernel.dispose()
   })
 
+  /* 回归：入口页没有当前对话，删除 / 导出这类命令点下去没有任何反应 —— 它们自报 enabled 为假，面板就不该画。 */
+  test('命令面板不画此刻用不了的命令', async () => {
+    const { workbenchFeature } = await import('../feature')
+    const feature = defineUiFeature({
+      id: 'test',
+      setup: (ctx) => {
+        ctx.contribute(builtinPoints.commands, {
+          id: 'test.off',
+          title: '用不了的命令',
+          run: () => undefined,
+          enabled: () => false,
+        })
+        ctx.contribute(builtinPoints.commands, { id: 'test.on', title: '能用的命令', run: () => undefined })
+      },
+    })
+    const kernel = await mount([workbenchFeature, feature])
+    await kernel.kernelServices.commands.execute('workbench.commandPalette')
+    await new Promise((r) => setTimeout(r, 5))
+    const values = optionValues()
+    expect(values.some((v) => v.includes('能用的命令'))).toBe(true)
+    expect(values.some((v) => v.includes('用不了的命令'))).toBe(false)
+    kernel.dispose()
+  })
+
   test('workbenchFeature 贡献命令、快捷键与设置表面', async () => {
     const { workbenchFeature } = await import('../feature')
     const kernel = await mount([workbenchFeature])

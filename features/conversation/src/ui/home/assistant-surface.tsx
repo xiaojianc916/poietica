@@ -224,13 +224,7 @@ function useCommandRouting(
     },
     [commands, contextPanel, modelPicker, rename],
   )
-  /* 维护动作与重试钮都只是命令的快捷方式：同一条 commands.run，结果落进同一块命令输出。 */
-  const runCommand = useCallback(
-    (text: string) => {
-      void commands?.run(text)
-    },
-    [commands],
-  )
+  /* 重试钮只是命令的快捷方式：同一条 commands.run，结果落进同一块命令输出。 */
   const canRetry = commands !== undefined && hasCommand(commands.list, 'retry')
   const retry = useCallback(() => {
     void commands?.run('/retry')
@@ -245,7 +239,6 @@ function useCommandRouting(
     renameRequest: requests.rename,
     retry: canRetry ? retry : undefined,
     routeCommand,
-    runCommand: commands === undefined ? undefined : runCommand,
   }
 }
 
@@ -347,7 +340,7 @@ export const AssistantSurface = memo(function AssistantSurface({
 
   /* 把手两个读者：外面写草稿，这层取回队列那句改；铺一条回调 ref 分给两边。 */
   const draft = useRef<PromptInputHandle | null>(null)
-  const { contextPanelRequest, dismissOutput, modelPickerRequest, renameRequest, retry, routeCommand, runCommand } =
+  const { contextPanelRequest, dismissOutput, modelPickerRequest, renameRequest, retry, routeCommand } =
     useCommandRouting(commands, { controls, controlsPending, onRenameThread, thread, usage })
 
   /* 发言就是那次转场，先于 send：这一刻起就是对话而非入口。`queued` 是人点名的「排队」，跑着时走 followUp 不打断。 */
@@ -429,7 +422,6 @@ export const AssistantSurface = memo(function AssistantSurface({
         onCancel={assistant.cancel}
         onContinue={continueConversation}
         onDismissQuestions={assistant.dismissQuestions}
-        onRunCommand={runCommand}
         onResolvePlan={assistant.resolvePlan}
         plan={pendingPlan}
         onSelectControl={onSelectControl}

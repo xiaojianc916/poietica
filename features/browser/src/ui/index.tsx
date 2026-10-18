@@ -166,8 +166,18 @@ export default defineUiFeature({
     const toggle = (): void => {
       layout.togglePanel('right', PANEL_ID)
     }
+    /* 拾取面板画在页面里、浏览器面板一藏宿主就 cancelPick：面板不在场或活动标签还是空白时这条命令无从做起，自报不可用。 */
+    const canPick = (): boolean => {
+      if (!visible()) {
+        return false
+      }
+
+      const state = store.snapshot()
+      const tab = state?.activeTabId == null ? null : (state.tabs.find((tab_) => tab_.id === state.activeTabId) ?? null)
+
+      return tab !== null && tab.url !== null
+    }
     const pickElement = (): void => {
-      open()
       const state = store.snapshot()
       const tabId = state?.activeTabId ?? null
       const tab = tabId === null ? null : (state?.tabs.find((candidate) => candidate.id === tabId) ?? null)
@@ -196,7 +206,13 @@ export default defineUiFeature({
       run: focusAddress,
       enabled: visible,
     })
-    command({ id: 'browser.pickElement', title: '拾取网页元素', category: '浏览器', run: pickElement })
+    command({
+      id: 'browser.pickElement',
+      title: '拾取网页元素',
+      category: '浏览器',
+      run: pickElement,
+      enabled: canPick,
+    })
 
     ctx.contribute(builtinPoints.keybindings, { command: 'browser.toggle', key: 'Ctrl+Shift+B' })
     ctx.contribute(builtinPoints.keybindings, {

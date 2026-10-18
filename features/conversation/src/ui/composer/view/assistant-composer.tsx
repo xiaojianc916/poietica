@@ -44,8 +44,6 @@ export interface AssistantComposerProps {
   readonly mcpServers?: readonly AgentMcpServer[] | undefined
   /** omp 的斜杠命令：草稿敲下行首 `/` 弹出的命令面板；选中执行仍走 onSubmit（收信人按正文认命令） */
   readonly commands?: readonly SlashCommand[] | undefined
-  /** 直接执行一句命令（上下文面板的维护动作用它）；缺席时那排按钮不画 */
-  readonly onRunCommand?: ((text: string) => void) | undefined
   /** 每变一次就打开一次模型选择器（斜杠命令 `/model`），见 SessionControls.openRequest */
   readonly modelPickerRequest?: number | undefined
   /** 每变一次就打开一次上下文用量面板（斜杠命令 `/context`），见 ContextGauge.openRequest */
@@ -70,14 +68,12 @@ export interface AssistantComposerProps {
 /* 只声明这一层真的兑现的那几项：声明了不转发会悄悄吃掉调用方的 ref。 */
 type ComposerToolbarProps = Pick<
   AssistantComposerProps,
-  | 'commands'
   | 'contextPanelRequest'
   | 'controls'
   | 'controlsPending'
   | 'modelPickerRequest'
   | 'onCancel'
   | 'onContinue'
-  | 'onRunCommand'
   | 'onSelectControl'
   | 'onSubmit'
   | 'usage'
@@ -88,7 +84,6 @@ type ComposerToolbarProps = Pick<
 }
 
 function ComposerToolbar({
-  commands,
   confirmed,
   contextPanelRequest,
   controls,
@@ -96,7 +91,6 @@ function ComposerToolbar({
   modelPickerRequest,
   onCancel,
   onContinue,
-  onRunCommand,
   onSelectControl,
   onSubmit,
   status,
@@ -123,13 +117,7 @@ function ComposerToolbar({
       <span className="assistant-toolbar__spacer" />
 
       {/* 上下文余量在模型选择器左侧：先说这条会话还装得下多少，再说这一句由谁来答。 */}
-      <ContextGauge
-        busy={status === 'streaming' || status === 'submitted'}
-        commands={commands}
-        onRunCommand={onRunCommand}
-        openRequest={contextPanelRequest}
-        usage={usage}
-      />
+      <ContextGauge openRequest={contextPanelRequest} usage={usage} />
 
       {/* 模型选择器挨着「发」：它说的正是这一句将被谁回答。 */}
       <SessionControls
@@ -236,13 +224,7 @@ export const AssistantComposer = memo(function AssistantComposer({
               <PromptInputEditor placeholder={placeholder ?? placeholderOf(commands)} />
             </PromptInputBody>
 
-            <ComposerToolbar
-              commands={commands}
-              confirmed={confirmed}
-              onSubmit={onSubmit}
-              status={status}
-              {...toolbar}
-            />
+            <ComposerToolbar confirmed={confirmed} onSubmit={onSubmit} status={status} {...toolbar} />
           </>
         )}
       </PromptInput>

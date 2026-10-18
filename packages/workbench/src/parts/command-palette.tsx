@@ -18,6 +18,8 @@ export function CommandPalette({ open, onClose }: { readonly open: boolean; read
   const groups = useMemo<readonly CommandMenuGroup[]>(() => {
     void overrides // 改键后行尾的按键要立即刷新
 
+    /* 打开面板这一刻重算一次：enabled() 读的是此刻的前台（有没有当前对话、浏览器面板开没开），不能拿上一次打开时的结果。 */
+    void open
     const visible = commands.filter((c) => c.item.hidden !== true).filter((c) => c.item.enabled?.() !== false)
 
     const keyOf = (id: string): string | undefined => kernelServices.keybindings.keyFor(id) ?? undefined
@@ -56,7 +58,7 @@ export function CommandPalette({ open, onClose }: { readonly open: boolean; read
     }
 
     return [...byCategory].map(([title, items]) => ({ id: title, title, items }))
-  }, [commands, query, recent, kernelServices, overrides])
+  }, [commands, open, query, recent, kernelServices, overrides])
 
   const execute = (id: string): void => {
     onClose()
