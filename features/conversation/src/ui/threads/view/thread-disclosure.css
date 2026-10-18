@@ -1,5 +1,0 @@
-/* 高度在动所以必须裁剪。时长与曲线在 thread-disclosure.tsx，行距那条声明在 assistant-threads.css。 */
-
-.thread-disclosure {
-  overflow: hidden;
-}

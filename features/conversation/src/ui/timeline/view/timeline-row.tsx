@@ -1,5 +1,4 @@
-import './message.css'
-import './plan.css'
+import './flow-row.css'
 
 import { Prose } from '@poietica/design-system/prose'
 import { FeatureScope, useContributions } from '@poietica/ui-kernel'

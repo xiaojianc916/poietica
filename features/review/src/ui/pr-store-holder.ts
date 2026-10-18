@@ -66,8 +66,3 @@ export function usePrStore(ctx: UiFeatureContext, workspaceId: string, report: P
   useEffect(() => retain(entry), [entry])
   return entry.store
 }
-
-/** 只给测试用：清掉常驻的 store。 */
-export function resetPrStoresForTest(): void {
-  held.clear()
-}

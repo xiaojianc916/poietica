@@ -2,11 +2,6 @@ import type { AgentId, AttachmentId, FrameId, InteractionId, TaskId, TodoId } fr
 
 export type { InteractionKind, InteractionState } from './interaction'
 
-export type FrameRef = {
-  readonly target: 'frame'
-  readonly frameId: FrameId
-}
-
 export interface TranscriptSkillActivation {
   readonly skillName: string
   readonly skillArgs?: string

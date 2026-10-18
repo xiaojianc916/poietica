@@ -3,22 +3,6 @@ import type { TranscriptTurn } from './turn'
 
 export type MarkerKey = string
 
-export const KNOWN_MARKERS = [
-  'compaction',
-  'undo',
-  'clear',
-  'goal',
-  'plan.enter',
-  'plan.exit',
-  'plan.revision',
-  'swarm.enter',
-  'swarm.exit',
-  'skill',
-  'cron.fired',
-  'notice',
-  'hook',
-] as const
-
 export interface TranscriptMarker {
   readonly kind: 'marker'
   readonly markerId: MarkerId

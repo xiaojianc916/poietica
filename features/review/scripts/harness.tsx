@@ -12,7 +12,7 @@ import { createPrStore, type PrStore } from '../src/ui/pr-store'
 
 /*
  * 代码审查页的真机冒烟：真实 Electron + 真实组件 + 真 GitHub 数据（脚本侧读到后经 window.__prFixture 注入）。
- * 它不做判断，只把读到的几何交回宿主 stdout；阈值与判定在 smoke-run.ts。
+ * 它不做判断，只把读到的几何交回宿主 stdout；阈值与判定在 tooling/checks/review-page/run.ts。
  */
 
 export interface PrFixture {

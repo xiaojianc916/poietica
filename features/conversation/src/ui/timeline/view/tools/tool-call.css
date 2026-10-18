@@ -103,13 +103,6 @@
   margin-block-start: 0;
 }
 
-.timeline-tool__empty {
-  margin: 0;
-  color: var(--cp-timeline-quiet-text);
-  font-size: var(--ui-prose-size-aux);
-  line-height: var(--ui-line-height-normal);
-}
-
 /* 切换条自占一条窄带，底色归 __body 一处声明。不改 tabs.css 那个全局原语：半透明墨叠在纸上只解出约 12% 的对比，这里换成实色的上一档。 */
 .timeline-tool__tabs {
   padding: 0.375rem 0.75rem;

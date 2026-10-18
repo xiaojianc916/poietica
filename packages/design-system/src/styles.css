@@ -12,12 +12,10 @@
 
 @import "./tokens/palette.css";
 @import "./tokens/typography.css";
-@import "./tokens/radii.css";
-@import "./tokens/shadows.css";
+@import "./tokens/scales.css";
 @import "./tokens/controls.css";
 @import "./tokens/assistant.css";
 @import "./tokens/rows.css";
-@import "./tokens/motion.css";
 @import "./tokens/layers.css";
 @import "./tokens/light.css";
 @import "./tokens/dark.css";

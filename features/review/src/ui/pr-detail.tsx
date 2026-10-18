@@ -20,16 +20,14 @@ import {
   ChevronDown,
   ExternalLink,
   GitMerge,
-  GitMergeConflict,
   GitPullRequest,
-  GitPullRequestClosed,
   GitPullRequestDraft,
   Link as LinkIcon,
 } from 'lucide-react'
 import type { ReactNode } from 'react'
 import type { GithubComment, GithubMergeMethod, GithubPullRequest, GithubReviewState } from '../contract'
 import { Avatar } from './avatar'
-import { pullBranchLine, pullStatePresentation, relativeTime, relativeTimeAgo, type StateGlyph } from './pr-format'
+import { pullBranchLine, pullStatePresentation, relativeTime, relativeTimeAgo, STATE_GLYPHS } from './pr-format'
 import type { PrComments, PrFacts, PrState, PrTab } from './pr-store'
 
 import './pr-detail.css'
@@ -63,15 +61,6 @@ const TAB_LABEL: Readonly<Record<PrTab, string>> = {
   summary: 'Summary',
   changes: 'Changes',
   timeline: 'Timeline',
-}
-
-/* 状态字形表：与左栏、右栏读同一套（见 pr-format）。 */
-const STATE_GLYPHS: Readonly<Record<StateGlyph, typeof GitMerge>> = {
-  'pr-open': GitPullRequest,
-  'pr-draft': GitPullRequestDraft,
-  'pr-merged': GitMerge,
-  'pr-closed': GitPullRequestClosed,
-  'pr-conflict': GitMergeConflict,
 }
 
 const ROW_CLASS = 'min-w-0 flex-1 truncate'

@@ -1,15 +1,5 @@
 import { Button, cn } from '@poietica/design-system'
-import {
-  Check,
-  ChevronRight,
-  GitMerge,
-  GitMergeConflict,
-  GitPullRequest,
-  GitPullRequestClosed,
-  GitPullRequestDraft,
-  LoaderCircle,
-  X,
-} from 'lucide-react'
+import { Check, ChevronRight, GitMergeConflict, LoaderCircle, X } from 'lucide-react'
 import { type ReactNode, useState } from 'react'
 import type { GithubCheck, GithubCheckState, GithubPullRequest, GithubReviewState } from '../contract'
 import {
@@ -17,7 +7,7 @@ import {
   mergeStatusTone,
   pullStatePresentation,
   relativeTime,
-  type StateGlyph as StateGlyphKind,
+  STATE_GLYPHS,
   sortChecks,
   type Tone,
 } from './pr-format'
@@ -34,15 +24,6 @@ import './pr-info.css'
  *
  * 事实只从 props 进来：这里不读 store、不调 RPC，因此可以单独喂一份数据渲染。
  */
-
-/* 状态字形：与左栏列表读同一份呈现规则（pr-format），两处不会各画各的。 */
-const STATE_GLYPHS: Readonly<Record<StateGlyphKind, typeof GitMerge>> = {
-  'pr-open': GitPullRequest,
-  'pr-draft': GitPullRequestDraft,
-  'pr-merged': GitMerge,
-  'pr-closed': GitPullRequestClosed,
-  'pr-conflict': GitMergeConflict,
-}
 
 /** 评论条目：kind='review' 的那几条没有正文，只有一条评审结论。 */
 type PullComment = PrComments['items'][number]

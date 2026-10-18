@@ -6,8 +6,6 @@ import { usageErrors } from './errors'
 export * from './entities'
 export { usageErrors } from './errors'
 
-const _empty = z.object({})
-
 /** from <= to，且跨度不超过 400 天（热力图要 53 周 = 371 天，留出余量）。 */
 const MAX_RANGE_DAYS = 400
 const DayRange = z

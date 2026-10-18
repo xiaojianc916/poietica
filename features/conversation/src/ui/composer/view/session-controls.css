@@ -1,4 +1,4 @@
-/* 模型与思考档位选择器：量度与配色住在 skin/metrics.css 的 --cp-model-*，轨道四层的定位关系只在 stopOffset 算一次，分开算会错位。 */
+/* 模型与思考档位选择器：量度与配色住在 tokens/assistant.css 的 --cp-model-*，轨道四层的定位关系只在 stopOffset 算一次，分开算会错位。 */
 
 /* 静息要透明，跟工具条另外两枚胶囊一样：常驻的灰底会被读成「已选中/已展开」。 */
 .assistant-model-select__button {

@@ -43,11 +43,6 @@
   background: var(--color-surface);
 }
 
-.pr-detail__avatar {
-  background: var(--color-muted);
-  border-radius: 9999px;
-}
-
 .pr-detail__note {
   padding: 12px;
   border-radius: var(--radius-lg);

@@ -276,13 +276,6 @@
   color: var(--ui-muted-foreground);
   font-size: 12px;
 }
-/* 行右端的路径这类长文本：右对齐且可换行。 */
-.settings-row__path {
-  color: var(--ui-muted-foreground);
-  font-size: 12px;
-  text-align: end;
-  overflow-wrap: anywhere;
-}
 
 /*
  * 设置表单的通用词汇（`.settings-input` 一族）：输入框本体、占位符、聚焦环、禁用态。
@@ -649,129 +642,6 @@
   line-height: 1.5;
 }
 
-.settings-keymap-row {
-  position: relative;
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 16px;
-  padding: 11px 14px;
-}
-
-.settings-keymap-row + .settings-keymap-row::before {
-  content: "";
-  position: absolute;
-  inset-inline: var(--settings-divider-inset);
-  inset-block-start: 0;
-  block-size: 0;
-  border-block-start: 1px solid var(--settings-divider);
-}
-
-.settings-keymap-row__copy {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  min-inline-size: 0;
-}
-
-.settings-keymap-row__copy strong {
-  color: var(--ui-foreground);
-  font-size: 13px;
-  font-weight: 550;
-  line-height: 1.3;
-}
-
-.settings-keymap-row__copy p {
-  margin: 0;
-  color: var(--ui-muted-foreground);
-  font-size: 12px;
-  line-height: 1.45;
-}
-
-.settings-keymap-row__bindings {
-  flex: none;
-  display: flex;
-  flex-direction: column;
-  align-items: flex-end;
-  gap: 6px;
-}
-
-.settings-keymap-binding {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-}
-
-.settings-keymap-binding__key {
-  padding: 2px 8px;
-  border-radius: 6px;
-  background: color-mix(in oklab, var(--ui-divider) 35%, var(--settings-surface));
-  color: var(--ui-foreground);
-  font-family: inherit;
-  font-size: 12px;
-  font-variant-numeric: tabular-nums;
-  line-height: 1.5;
-}
-
-.settings-keymap-binding__unassigned {
-  color: var(--ui-muted-foreground);
-  font-size: 12px;
-}
-
-.settings-keymap-binding__icon {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 4px;
-  border: 0;
-  border-radius: 6px;
-  background: transparent;
-  color: var(--ui-muted-foreground);
-  cursor: pointer;
-  transition:
-    background-color 120ms ease,
-    color 120ms ease;
-}
-
-.settings-keymap-binding__icon:hover {
-  background: color-mix(in oklab, var(--ui-divider) 40%, var(--settings-surface));
-  color: var(--ui-foreground);
-}
-
-.settings-keymap-binding__icon:focus-visible {
-  outline: 2px solid var(--ui-ring);
-  outline-offset: -2px;
-}
-
-.settings-keymap-binding__input {
-  min-inline-size: 120px;
-  padding: 3px 10px;
-  border: 1px solid var(--ui-ring);
-  border-radius: 6px;
-  background: var(--settings-surface);
-  color: var(--ui-foreground);
-  font-size: 12px;
-  line-height: 1.5;
-  outline: none;
-}
-
-.settings-keymap-binding__input::placeholder {
-  color: var(--ui-muted-foreground);
-}
-
-.settings-keymap-binding__cancel {
-  padding: 2px 4px;
-  border: 0;
-  background: transparent;
-  color: var(--ui-muted-foreground);
-  font-size: 12px;
-  cursor: pointer;
-}
-
-.settings-keymap-binding__cancel:hover {
-  color: var(--ui-foreground);
-}
-
 /*
  * 设置词汇（余下全部）：页/组/行/字段/输入框/开关行/卡片/度量/热力图/趋势图/键位绑定……
  *
@@ -893,18 +763,8 @@
 }
 
 /*
- * 设置词汇（补全）：以「后代 / 组合选择器」写的那几条（度量、热力图、趋势图、过滤、键位列表、
- * 关于页路径行……）。它们的主类名不是选择器开头，按主类名迁的那一批漏了它们。用量页另有 6 条
- * 整条漏掉（读数、热力图图例方块、趋势图图例色块、折线、横轴），其中 `.settings-trend__line`
- * 与 `.settings-trend__axis` 漏掉的后果最重 —— 见各自那条的头注。
+ * 设置词汇（补全）：主类名不在选择器开头的那几条（度量、热力图、趋势图……）。
  */
-/* 只读取值（如占用字节数）：与说明同一档字号，等宽数字让一列数值对齐。 */
-.settings-row__value {
-  color: var(--ui-muted-foreground);
-  font-size: 12px;
-  font-variant-numeric: tabular-nums;
-}
-
 /* 用量指标共用一张卡，时间范围放在组标题，避免占用指标格。 */
 
 .settings-metrics {
@@ -1086,31 +946,6 @@
   overflow-wrap: anywhere;
 }
 
-/* ---------------- 说明与筛选 ---------------- */
-
-.settings-filter {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-
-/* ---------------- 快捷键列表 ---------------- */
-
-/* 快捷键行左命令右绑定列表，结构与 SettingsRow 不同，不复用 SettingsGroup。 */
-.settings-keymap-list {
-  display: flex;
-  flex-direction: column;
-  overflow: hidden;
-  border: 1px solid var(--settings-frame);
-  border-radius: 10px;
-  background: var(--settings-surface);
-}
-
-/* 绝对路径须完整可读，故换行而不是省略号。 */
-.settings-about-path {
-  word-break: break-all;
-  text-align: right;
-}
 /* ---------------- 存储占用（用量条 + 图例） ---------------- */
 
 /*

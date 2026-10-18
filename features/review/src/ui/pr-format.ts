@@ -1,6 +1,14 @@
+import {
+  GitMerge,
+  GitMergeConflict,
+  GitPullRequest,
+  GitPullRequestClosed,
+  GitPullRequestDraft,
+  type LucideIcon,
+} from 'lucide-react'
 import type { GithubCheck, GithubCheckState, GithubMergeStatus, GithubPullRequest, GithubPullState } from '../contract'
 
-/* 代码审查页的纯展示规则：相对时间、状态文案、色调。全在这里，组件里不各写各的。 */
+/* 代码审查页的纯展示规则：相对时间、状态文案、色调与字形。全在这里，组件里不各写各的。 */
 
 const MINUTE = 60
 const HOUR = 60 * MINUTE
@@ -36,6 +44,15 @@ export function relativeTimeAgo(iso: string, now: number = Date.now()): string {
 }
 
 export type StateGlyph = 'pr-open' | 'pr-draft' | 'pr-merged' | 'pr-closed' | 'pr-conflict'
+
+/** 状态字形：左栏、详情头、右栏读同一份，同一个 PR 在哪一栏都是同一个形状。 */
+export const STATE_GLYPHS: Readonly<Record<StateGlyph, LucideIcon>> = {
+  'pr-open': GitPullRequest,
+  'pr-draft': GitPullRequestDraft,
+  'pr-merged': GitMerge,
+  'pr-closed': GitPullRequestClosed,
+  'pr-conflict': GitMergeConflict,
+}
 
 export interface StatePresentation {
   /** 状态胶囊里的词。 */

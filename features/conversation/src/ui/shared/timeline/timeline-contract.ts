@@ -22,14 +22,14 @@ export interface MessageFile {
   readonly meta: string
 }
 
-export function fileExtensionLabel(name: string): string {
+function fileExtensionLabel(name: string): string {
   const dot = name.lastIndexOf('.')
   const extension = dot > 0 ? name.slice(dot + 1) : ''
   return extension === '' ? '文件' : extension.slice(0, 5).toUpperCase()
 }
 
 /** 字节数的界面写法：格式化只有 design-system 那一份（`formatBytes`），这里只补「没报大小就不写」这一条。 */
-export function formatByteSize(bytes: number | undefined): string | undefined {
+function formatByteSize(bytes: number | undefined): string | undefined {
   if (bytes === undefined || !Number.isFinite(bytes) || bytes < 0) {
     return undefined
   }

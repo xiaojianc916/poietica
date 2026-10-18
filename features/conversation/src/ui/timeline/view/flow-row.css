@@ -62,3 +62,25 @@ button.timeline-row:focus-visible {
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+
+/* 正文的墨在这一层定，不在 Prose 里：回答与「我」说的话同一档（--cp-timeline-body-ink），两处不各写各的。 */
+.timeline-message {
+  color: var(--cp-timeline-body-ink);
+  overflow-wrap: anywhere;
+}
+
+/* 收起时整块不挂载（见 disclosure.tsx），所以这里只剩箭头。 */
+.disclosure__chevron {
+  transform: rotate(-90deg);
+  transition: transform var(--cp-motion-drawer) var(--cp-motion-drawer-ease, cubic-bezier(0.2, 0, 0, 1));
+}
+
+[aria-expanded="true"] .disclosure__chevron {
+  transform: rotate(0deg);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .disclosure__chevron {
+    transition: none;
+  }
+}

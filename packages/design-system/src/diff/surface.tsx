@@ -298,7 +298,7 @@ function VirtualRows({
   /*
    * 这份列表的原点，两个触发源各走各的路：上方内容的开合改的是布局（items 换了就是它），量
    * 一次比观察谁都准，每次提交后重量一次；面板拖宽改的是滚动口自己的盒子，那条路上浏览器不发
-   * resize（见 packages/browser/src/viewport-alignment.ts），观察滚动口与列表本身接住它。
+   * resize，观察滚动口与列表本身接住它。
    */
   const [origin, setOrigin] = useState(0)
   useLayoutEffect(() => {

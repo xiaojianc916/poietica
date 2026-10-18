@@ -88,7 +88,3 @@ export const STREAMS: readonly Stream[] = [
 ]
 
 export const SCENARIO_IDS: readonly string[] = STREAMS.map((stream) => stream.id)
-
-export function streamById(id: string): Stream | undefined {
-  return STREAMS.find((stream) => stream.id === id)
-}

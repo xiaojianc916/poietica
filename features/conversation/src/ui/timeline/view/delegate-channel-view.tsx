@@ -65,16 +65,6 @@ function statusOf(timeline: TimelineState, agentId: string): BackgroundTaskStatu
   return call.status === 'failed' ? 'failed' : 'completed'
 }
 
-/** 名字住在派发它的那次调用上，所以要订这条对话的转录；没有对话可读时退回 agentId 本身。 */
-export function useDelegateChannelNames(conversationId: string | null): (agentId: string) => string {
-  const timeline = useAssistantTimeline(conversationId ?? '')
-
-  return useCallback(
-    (agentId: string) => (conversationId === null ? agentId : subagentTitleOf(timeline, agentId)),
-    [conversationId, timeline],
-  )
-}
-
 /* 停止要点两下：第一下只把按钮换成「确认停止」，这么久没点第二下就自己退回去。 */
 const STOP_CONFIRM_MS = 3000
 

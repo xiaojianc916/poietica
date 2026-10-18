@@ -2,17 +2,11 @@ import type { TypedRpcClient } from '@poietica/rpc'
 import type { UiFeatureContext } from '@poietica/ui-kernel'
 import type { DayKey, MessageCountDay, ModelDay, TokenDay } from '../contract'
 import { usageContract } from '../contract'
+import { dayKeyOf } from './usage-activity'
 
 /* 窗口的算式只有一份：**最近 span 天，含今天**（offset = span - 1，earliest = 今天 - offset）。不写 `今天 - span * 86400000`：那是
  * span + 1 天，多出来那一天会让「最近 7 天」的合计把第 8 天也算进去，与热力图/趋势图同一窗口对不上。跨天加减走 Date 构造器的
  * 溢出归一（夏令时那天只有 23 小时，毫秒乘法会错一格）。 */
-function dayKeyOf(at: Date): DayKey {
-  const month = String(at.getMonth() + 1).padStart(2, '0')
-  const day = String(at.getDate()).padStart(2, '0')
-
-  return `${at.getFullYear()}-${month}-${day}`
-}
-
 export function windowOf(span: number, now: Date = new Date()): { readonly from: DayKey; readonly to: DayKey } {
   const days = Math.max(1, Math.floor(span))
   const from = new Date(now.getFullYear(), now.getMonth(), now.getDate() - (days - 1))

@@ -1,0 +1,42 @@
+/* 只声明自定义属性的标尺：圆角、投影、动效时长与曲线。值在哪儿改都是改这里。 */
+
+:root {
+  --ui-radius-sm: 0.375rem;
+  --ui-radius-md: 0.5rem;
+  --ui-radius-lg: 0.625rem;
+  --ui-radius-xl: 0.75rem;
+  /* 浮层卡那一档 = DSH 正本的 --dsw-radius-lg。 */
+  --ui-radius-2xl: 1rem;
+
+  --ui-duration-fast: 120ms;
+  --ui-duration-normal: 180ms;
+
+  --ui-ease-standard: cubic-bezier(0.2, 0, 0, 1);
+  --ui-ease-emphasized: cubic-bezier(0.2, 0.8, 0.2, 1);
+  --ui-ease-exit: cubic-bezier(0.4, 0, 1, 1);
+}
+
+/* 投影按主题两档：深色下更要靠影子把面从底上抬起来。 */
+:root {
+  --ui-shadow-xs: 0 1px 1px rgb(0 0 0 / 5%);
+
+  --ui-shadow-sm: 0 1px 2px rgb(0 0 0 / 8%);
+
+  --ui-shadow-md: 0 4px 12px rgb(0 0 0 / 12%);
+
+  --ui-shadow-lg: 0 12px 32px rgb(0 0 0 / 16%);
+
+  --ui-shadow-xl: 0 20px 48px rgb(0 0 0 / 22%);
+}
+
+:root[data-theme="dark"] {
+  --ui-shadow-xs: 0 1px 1px rgb(0 0 0 / 18%);
+
+  --ui-shadow-sm: 0 1px 2px rgb(0 0 0 / 24%);
+
+  --ui-shadow-md: 0 4px 12px rgb(0 0 0 / 32%);
+
+  --ui-shadow-lg: 0 12px 32px rgb(0 0 0 / 40%);
+
+  --ui-shadow-xl: 0 20px 48px rgb(0 0 0 / 48%);
+}

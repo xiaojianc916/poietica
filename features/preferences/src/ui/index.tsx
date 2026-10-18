@@ -19,7 +19,7 @@ import { type Preferences, Preferences as PreferencesSchema } from '../contract'
 import { type PreferencesApi, PreferencesToken } from '../ui-api'
 import { createPreferencesApi, type PreferencesRpcApi } from './api'
 import { AppearancePage, GeneralPage, KeymapPage } from './settings-pages'
-import { resolveStartupTheme, systemPrefersDark } from './theme'
+import { applyResolvedTheme, resolveStartupTheme, systemPrefersDark } from './theme'
 
 export default defineUiFeature({
   id: 'preferences',
@@ -47,11 +47,8 @@ export default defineUiFeature({
     }
     ctx.services.provide(PreferencesToken, preferencesApi)
 
-    const applyTheme = (resolved: 'light' | 'dark'): void => {
-      document.documentElement.dataset.theme = resolved
-    }
     const applyThemePreference = (preference: 'light' | 'dark' | 'system'): void => {
-      applyTheme(resolveStartupTheme(preference, systemPrefersDark()))
+      applyResolvedTheme(resolveStartupTheme(preference, systemPrefersDark()))
     }
     const applyAppearance = (p: Awaited<ReturnType<PreferencesRpcApi['get']>>): void => {
       document.documentElement.dataset.density = p.appearance.density
@@ -65,7 +62,7 @@ export default defineUiFeature({
      * 所以渲染层此刻读到的 prefers-color-scheme **就是解析后的那一档**（选浅色 / 深色时被强制，选跟随系统时是系统那档）。
      * 同步投一次，prefs.get 回来再以偏好为准校一次；prefs.get 失败时也不会停在浅色。
      */
-    applyTheme(systemPrefersDark() ? 'dark' : 'light')
+    applyResolvedTheme(systemPrefersDark() ? 'dark' : 'light')
 
     /* 首帧就解一次：偏好住在 Host 的 JSON 里，渲染层只能问一次；不等 Core ready，主题是外壳自己的事。 */
     void api.get().then(
@@ -133,7 +130,7 @@ export default defineUiFeature({
         for (const l of [...listeners]) (l as (p: unknown) => void)(p)
       }).dispose,
     )
-    ctx.lifecycle.onDispose(api.onThemeChanged(applyTheme).dispose)
+    ctx.lifecycle.onDispose(api.onThemeChanged(applyResolvedTheme).dispose)
     ctx.lifecycle.onDispose(
       api.onKeymapChanged((o) => {
         keybindings.setOverrides(o)

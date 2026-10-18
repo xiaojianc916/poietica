@@ -9,7 +9,6 @@ export type InteractionId = string
 export type AttachmentId = string
 export type TodoId = string
 export type PromptId = string
-export type ItemId = string
 
 export function turnId(ordinal: number): TurnId {
   return `t${ordinal}`
@@ -21,10 +20,6 @@ export function stepId(turn: TurnId, ordinal: number): StepId {
 
 export function frameId(step: StepId, ordinal: number): FrameId {
   return `${step}.f${ordinal}`
-}
-
-export function compareTurnIds(a: TurnId, b: TurnId): number {
-  return turnOrdinal(a) - turnOrdinal(b)
 }
 
 export function turnOrdinal(id: TurnId): number {

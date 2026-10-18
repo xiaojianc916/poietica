@@ -8,23 +8,11 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@poietica/design-system'
-import {
-  Ellipsis,
-  Funnel,
-  GitMerge,
-  GitMergeConflict,
-  GitPullRequest,
-  GitPullRequestClosed,
-  GitPullRequestDraft,
-  type LucideIcon,
-  RefreshCw,
-  Search,
-  X,
-} from 'lucide-react'
+import { Ellipsis, Funnel, RefreshCw, Search, X } from 'lucide-react'
 import { type ReactNode, useEffect, useRef } from 'react'
 import type { GithubPullRequest, GithubRepository } from '../contract'
 import { Avatar } from './avatar'
-import { pullStatePresentation, relativeTime, type StateGlyph } from './pr-format'
+import { pullStatePresentation, relativeTime, STATE_GLYPHS } from './pr-format'
 import type { PrFilter, PrState } from './pr-store'
 
 import './pr-sidebar.css'
@@ -47,15 +35,6 @@ export interface PrSidebarProps {
   readonly onQuery: (query: string) => void
   readonly onSelect: (number: number) => void
   readonly onRefresh: () => void
-}
-
-/* 状态字形与 pr-format 的 glyph 一一对应，颜色由那份呈现规则给。 */
-const GLYPHS: Readonly<Record<StateGlyph, LucideIcon>> = {
-  'pr-open': GitPullRequest,
-  'pr-draft': GitPullRequestDraft,
-  'pr-merged': GitMerge,
-  'pr-closed': GitPullRequestClosed,
-  'pr-conflict': GitMergeConflict,
 }
 
 const FILTERS: readonly { readonly label: string; readonly value: PrFilter }[] = [
@@ -323,7 +302,7 @@ function PullRow({
   readonly register: (number: number, node: HTMLButtonElement | null) => void
 }): ReactNode {
   const presentation = pullStatePresentation(entry)
-  const Glyph = GLYPHS[presentation.glyph]
+  const Glyph = STATE_GLYPHS[presentation.glyph]
   return (
     <li>
       <button

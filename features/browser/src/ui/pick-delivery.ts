@@ -69,8 +69,6 @@ export function createPickDelivery(deps: PickDeliveryDeps) {
   }
 }
 
-export type PickDelivery = ReturnType<typeof createPickDelivery>
-
 export async function cancelPick(api: BrowserApi): Promise<void> {
   await api.cancelPick().catch(() => undefined)
 }

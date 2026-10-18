@@ -1,5 +1,3 @@
-import './thread-disclosure.css'
-
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react'
 import type { ReactNode } from 'react'
 import { ENTER_EASE, ENTER_SECONDS, EXIT_EASE, EXIT_SECONDS } from '../../shared/primitives/motion'

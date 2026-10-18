@@ -22,7 +22,7 @@ const PRESENTATION: Record<SessionGoal['status'], GoalBarPresentation | null> = 
   complete: null,
 }
 
-export function goalBarPresentation(status: SessionGoal['status']): GoalBarPresentation | null {
+function goalBarPresentation(status: SessionGoal['status']): GoalBarPresentation | null {
   return PRESENTATION[status]
 }
 

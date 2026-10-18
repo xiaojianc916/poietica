@@ -131,7 +131,7 @@ export function sessionConfigControlsOf(controls: Controls | null | undefined): 
  * 引擎那一格带**构成明细**（五类占用 + 空闲 + 自动压缩缓冲），原样透传给胶囊：面板那七行与条上的分段都按它画。引擎报 null 时退成只画总条。
  * `inputOther / inputCacheRead / inputCacheCreation` 留 0：那三格是**累计**输入口径，与上下文占用不是一回事，引擎端口没有对应报数，如实留空、不编假值。
  */
-export function sessionUsageOf(context: ContextUsage | null | undefined): SessionUsage | undefined {
+function sessionUsageOf(context: ContextUsage | null | undefined): SessionUsage | undefined {
   if (context === null || context === undefined) return undefined
   return {
     used: context.usedTokens,

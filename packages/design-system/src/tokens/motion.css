@@ -1,8 +1,0 @@
-:root {
-  --ui-duration-fast: 120ms;
-  --ui-duration-normal: 180ms;
-
-  --ui-ease-standard: cubic-bezier(0.2, 0, 0, 1);
-  --ui-ease-emphasized: cubic-bezier(0.2, 0.8, 0.2, 1);
-  --ui-ease-exit: cubic-bezier(0.4, 0, 1, 1);
-}

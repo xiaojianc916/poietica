@@ -1,6 +1,3 @@
-import './composer-actions.css'
-import './question-panel.css'
-
 import type { SlashCommand } from '@poietica/engine'
 import { memo, type Ref, useMemo } from 'react'
 import type { SessionConfigControl } from '../../shared/model/config'

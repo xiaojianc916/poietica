@@ -123,7 +123,7 @@ function progressLabel(counts: readonly (readonly [number, string])[]): string {
     .join('\u2002\u00b7\u2002')
 }
 
-export function backgroundTaskProgressLabel(tasks: readonly BackgroundTaskItem[]): string {
+function backgroundTaskProgressLabel(tasks: readonly BackgroundTaskItem[]): string {
   const running = tasks.filter((task) => task.status === 'running').length
   const completed = tasks.filter((task) => task.status === 'completed').length
   /* 空表即空串，调用方据此整格不画。 */
@@ -238,7 +238,7 @@ function Section({
 
 /* 只要是 git 工作区就恒画，干净仓库照画（+0 -0）：undefined 才是「这一区不画」（不是仓库、没装 git、还没读到）。 */
 /* 导出只为测试：钉住「干净仓库也画得出 +0 -0」这一格长什么样。 */
-export function GitStatusSection({
+function GitStatusSection({
   git,
   onOpenReview,
   picker,
@@ -370,7 +370,7 @@ interface TodoFocusWindow {
   readonly following: readonly TodoItem[]
 }
 
-export function todoFocusWindow(items: readonly TodoItem[]): TodoFocusWindow {
+function todoFocusWindow(items: readonly TodoItem[]): TodoFocusWindow {
   if (items.length <= COMPACT_TODO_THRESHOLD) {
     return { compact: false, preceding: [], focus: items, following: [] }
   }
@@ -652,7 +652,7 @@ function TerminalsSection({
   readonly separated: boolean
   readonly tasks: readonly BackgroundTaskItem[]
 }) {
-  /* hook 先于闸门：早退写在 hook 之前会让同一组件的 hook 顺序随数据变化，是 React 的硬错。 */
+  /* 同上：hook 必须走在「没有任务就返回 null」之前。 */
   const running = tasks.filter((task) => task.status === 'running' && task.startedAt !== undefined)
   const now = useSecond(running.length > 0)
   /* 没有后台任务就整格不提，同待办事项。 */

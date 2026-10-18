@@ -27,7 +27,7 @@
 | `src/agent/{address,config,goal,link,permission,question,run,session,thread,tool-call,toolkit,transcript,usage,failure}.ts` | `ui/agent/*` | 类型层；四个 DTO 落 `agent/dto.ts` |
 | `src/timeline/{timeline-contract,presentation,timeline-queries,ordered-lookup,renderable,delegate-channel}.ts` | `ui/timeline/*` | 时间线投影；数据换成新 transcript 的 `TimelineState`（**待接**） |
 | `src/composer/{drafts,attachment,prompt}.ts` | `ui/composer/*` | 草稿与附件的小工具 |
-| `src/threads/{thread-order,thread-title,workspace-root}.ts` | `ui/threads/*` | 列表次序与分组 |
+| `src/threads/{thread-order,thread-title,workspace-root}.ts` | `ui/threads/*` | 列表次序与分组。`thread-title.ts` 迁后无消费方（标题由契约的 `title` + 列表组件直接读），已删 |
 | `src/interjection/message-queue.ts` | `ui/interjection/*` | 队列看法；数据换成 `QueueSnapshot`（**待接**） |
 | `vendor/aora-bot/**` | `src/ui/components/mascot/engine-runtime/**` | 吉祥物运行时，由上游 JS 迁为 TS（IIFE 拆模块、window 改成 import）；上游 `vendor/aora-bot/` 目录（含其 LICENSE / NOTICE）已按维护者确认删除。详见 `engine-runtime/README.md` 与 refactor-log V-01 |
 

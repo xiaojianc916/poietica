@@ -1,3 +1,5 @@
+import './question-panel.css'
+
 import { Button, Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@poietica/design-system'
 import { invariant } from '@poietica/foundation'
 import { ChevronLeft, ChevronRight, Circle, CircleCheck, X } from 'lucide-react'

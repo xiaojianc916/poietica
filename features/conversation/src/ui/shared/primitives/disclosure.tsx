@@ -1,5 +1,3 @@
-import './disclosure.css'
-
 import type { ReactNode } from 'react'
 
 /**

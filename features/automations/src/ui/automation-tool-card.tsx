@@ -254,7 +254,7 @@ function Body({ body, deps, now }: { readonly body: CardBody; readonly deps: Too
   }
 }
 
-export function AutomationToolCardView({
+function AutomationToolCardView({
   deps,
   model,
 }: {

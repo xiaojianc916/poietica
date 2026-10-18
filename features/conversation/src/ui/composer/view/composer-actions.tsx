@@ -1,3 +1,5 @@
+import './composer-actions.css'
+
 import type { ReactNode } from 'react'
 import type { SessionConfigControl } from '../../shared/model/config'
 import { GOAL_CONTROL_ID } from '../../shared/model/goal-control'

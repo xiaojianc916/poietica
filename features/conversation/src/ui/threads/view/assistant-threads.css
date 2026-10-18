@@ -167,6 +167,11 @@
   gap: calc(var(--ui-hairline) * 2);
 }
 
+/* 高度在动所以必须裁剪；时长与曲线在 thread-disclosure.tsx。 */
+.thread-disclosure {
+  overflow: hidden;
+}
+
 /* 行高读侧边栏的 --ui-row-height，不读编排器的控件尺寸：两处各读一套，同一列上下两段就不同高。 */
 .assistant-thread {
   position: relative;
@@ -288,34 +293,6 @@
 .assistant-thread__action:hover {
   background: var(--cp-hover);
   color: var(--cp-ink);
-}
-
-/* 上传中没有可点的东西，只有「它在跑」。 */
-.assistant-thread__sharing {
-  display: grid;
-  block-size: var(--assistant-threads-action-size);
-  inline-size: var(--assistant-threads-action-size);
-  place-items: center;
-  color: var(--cp-ink-muted);
-}
-
-.assistant-thread__sharing svg {
-  block-size: var(--cp-icon);
-  inline-size: var(--cp-icon);
-  animation: assistant-thread-sharing 900ms linear infinite;
-}
-
-@keyframes assistant-thread-sharing {
-  to {
-    transform: rotate(360deg);
-  }
-}
-
-/* 减少动效下转圈留着（它是「还在跑」的唯一说法），只是慢到 2400ms。 */
-@media (prefers-reduced-motion: reduce) {
-  .assistant-thread__sharing svg {
-    animation-duration: 2400ms;
-  }
 }
 
 /*

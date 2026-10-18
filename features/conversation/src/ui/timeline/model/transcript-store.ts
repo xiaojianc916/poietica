@@ -26,7 +26,6 @@ import type { TranscriptPage, TranscriptSignal } from '../../shared/model/transc
 import {
   createTimelineState,
   fileMetaLabel,
-  isInFlight,
   type MessageFile,
   type MessageImage,
   type TimelineItem,
@@ -272,9 +271,7 @@ export class TranscriptStore implements TranscriptSink {
   readonly #pending = new Map<string, TranscriptSignal[]>()
   readonly #lifetimes = new Map<string, AbortController>()
   readonly #listeners = new Map<string, Set<() => void>>()
-  readonly #runningListeners = new Set<() => void>()
   readonly #now: () => number
-  #running = new Set<string>()
   /** 每条对话一根端口：身份就是对话号，切对话、入口页刚铸号都不会撞上「一根端口，换就抛错」。 */
   readonly #sessions = new Map<string, HeldSession>()
   /** 迁移过的键 → 它现在的键：迁移是转场，不是两个真相 —— 旧键的引用都落到同一格上。 */
@@ -362,11 +359,6 @@ export class TranscriptStore implements TranscriptSink {
         this.#listeners.delete(target)
       }
     }
-  }
-  runningSnapshot = (): ReadonlySet<string> => this.#running
-  subscribeRunning = (listener: () => void): (() => void) => {
-    this.#runningListeners.add(listener)
-    return () => this.#runningListeners.delete(listener)
   }
 
   /*
@@ -576,8 +568,6 @@ export class TranscriptStore implements TranscriptSink {
       this.#held.clear()
       this.#listeners.clear()
       this.#stale.clear()
-      this.#running = new Set()
-      this.#runningListeners.clear()
     }
   }
 
@@ -831,7 +821,6 @@ export class TranscriptStore implements TranscriptSink {
         this.#aliases.delete(from)
       }
     }
-    this.#publishRunning()
   }
 
   /** Core 丢失：所有已绑定的对话都不可信了。只打标记、不发请求 —— 此刻 Core 不可用，RPC 只会排队到超时。 */
@@ -1287,7 +1276,6 @@ export class TranscriptStore implements TranscriptSink {
      */
     const merged = withSubmissionRows(withRows, seen)
     this.#held.set(target, { ...merged, status: activityOf(merged) })
-    this.#publishRunning()
     this.#fire(target)
   }
 
@@ -1312,21 +1300,6 @@ export class TranscriptStore implements TranscriptSink {
   }
   #fire(key: string): void {
     for (const listener of this.#listeners.get(this.#resolveKey(key)) ?? []) {
-      listener()
-    }
-  }
-  #publishRunning(): void {
-    const next = new Set<string>()
-    for (const [key, value] of this.#held) {
-      if (isInFlight(value.status)) {
-        next.add(addressOf(key).conversation)
-      }
-    }
-    if (next.size === this.#running.size && [...next].every((key) => this.#running.has(key))) {
-      return
-    }
-    this.#running = next
-    for (const listener of this.#runningListeners) {
       listener()
     }
   }

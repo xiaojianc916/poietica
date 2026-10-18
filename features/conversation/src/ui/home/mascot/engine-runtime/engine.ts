@@ -1053,8 +1053,6 @@ export class Engine {
 export function createEngine(target: string | Element, opts?: EngineOptions): EngineHandle {
   return new Engine(target, opts)
 }
-export const ENGINE_VERSION = '1.0.0'
-
 /* 载入种子配置（数据层已随模块打进包，不再依赖脚本加载顺序） */
 for (const raw of EMOTION_SEED) {
   const result = register(raw)

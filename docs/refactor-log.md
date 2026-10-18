@@ -2521,6 +2521,8 @@ TS2307），与本项无关；那半边收尾后复跑即全绿。
 3. **`.timeline-plan*` 四条规则没有对应的活动组件**（`timeline-row.tsx` 的 `case 'plan'` 返回
    `null`）。清单说这些规则「放回各自组件旁边」，但那个组件不存在；为免静默删掉规则，
    仍收在 `timeline/plan.css`，由 `timeline-row.tsx` 引入。
+   **（已结案）** 后续清理确认四条规则在渲染上零效果（组件返回 `null`，无宿主元素），
+   `plan.css` 与 `timeline-row.tsx` 的 import 一并删除。
 4. **`build` 用的那两个项目名保留**：`features/python/scripts/tsconfig.json` 的
    `extends` 深度从 `../tooling` 改成 `../../../tooling`、`references` 改成 `../src/core`，
    并把 `features/*/scripts/tsconfig.json` 加进 `tooling/refs/sync.ts` 的工程模式。

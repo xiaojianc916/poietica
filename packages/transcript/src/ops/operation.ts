@@ -115,11 +115,6 @@ export type TranscriptOperation =
   | MetaMergeOp
   | ItemsRemoveOp
 
-export interface TranscriptOpBatch {
-  readonly agentId: AgentId
-  readonly ops: readonly TranscriptOperation[]
-}
-
 export interface AgentTranscriptSnapshot {
   readonly items: readonly TranscriptItem[]
   readonly tasks: readonly TranscriptTask[]
@@ -129,14 +124,4 @@ export interface AgentTranscriptSnapshot {
   readonly prompts: readonly TranscriptPrompt[]
   readonly meta: TranscriptMeta
   readonly hasMoreOlder?: boolean
-}
-
-export interface AppliedOps {
-  readonly accepted: readonly TranscriptOperation[]
-  readonly gap?: { readonly target: AppendTarget; readonly expected: number; readonly got: number }
-}
-
-export interface TranscriptChangeEvent {
-  readonly agentId: AgentId
-  readonly ops: readonly TranscriptOperation[]
 }

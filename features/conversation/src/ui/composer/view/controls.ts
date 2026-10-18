@@ -1,4 +1,4 @@
-/* 两个 composer（对话与自动化）共用的框体、量度与配置控件：框体与量度是纯样式，经 './frame.css' 与 './actions.css' 按需引入。 */
+/* 对话与自动化两个 composer 共用的配置控件（框体与量度的样式在 composer-frame.css / composer-actions.css）。 */
 
 export { PermissionPicker } from './permission-picker'
 export {
