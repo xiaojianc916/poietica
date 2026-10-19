@@ -1,0 +1,22 @@
+/*
+ * 换页的舞台（pane-stage.tsx）：盒子裁住正在变形的那一段，旧页的残影绝对定位叠在这里面，所以它得是定位上下文。
+ * flex: none —— 菜单卡是纵向 flex，舞台的宽高是量出来再补间的，不能让卡再按 flex 把它挤一遍。
+ */
+.pane-stage {
+  position: relative;
+  flex: none;
+  overflow: hidden;
+}
+
+/* 页按自己的内容（页自己说的宽）定大小，不被舞台此刻补间中的宽拉伸：量到的才是这一页真正要的宽。 */
+.pane-stage__page {
+  inline-size: max-content;
+}
+
+/* 残影钉在左上角、保持它被拷下时的大小（拷贝带着页自己的宽），不参与舞台的量度。 */
+.pane-stage__ghost {
+  position: absolute;
+  inset-block-start: 0;
+  inset-inline-start: 0;
+  pointer-events: none;
+}

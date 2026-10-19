@@ -261,6 +261,11 @@
    * 色阶在两套主题下取向相反，深色那一档在文件末尾给；蓝不跟着主题走。
    */
   --cp-model-panel: 224px;
+  /*
+   * 模型清单那一页的卡宽。默认与档位页同宽（基准截图就是同宽），想让长模型名少省略一点，改这一个数即可 ——
+   * 两页在同一张卡里换，宽和高一起补间，不必另写过渡。
+   */
+  --cp-model-list-panel: var(--cp-model-panel);
   --cp-model-panel-pad: 12px;
   --cp-model-panel-lead: 8px;
   --cp-model-panel-gap: 12px;

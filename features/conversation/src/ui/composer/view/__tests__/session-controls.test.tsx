@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, test } from 'bun:test'
-import { act, cleanup, render, screen } from '@testing-library/react'
+import { act, cleanup, fireEvent, render, screen } from '@testing-library/react'
 import type { SessionConfigControl } from '../../../shared/model/config'
 import { SessionControls } from '../session-controls'
 
@@ -46,5 +46,71 @@ describe('模型选择器的外部打开', () => {
       view.rerender(<SessionControls controls={controls} onSelect={() => undefined} openRequest={1} pending />)
     })
     expect(screen.queryByText('Claude Opus')).toBeNull()
+  })
+})
+
+/*
+ * 退场那 120ms 里弹层还在画：关的那一下若把页换回档位页，卡片会先闪一下档位页再消失。
+ * happy-dom 里退场同样要等一拍才卸载，所以「刚点完、卡还在」这一刻量得到。
+ */
+describe('模型选择器的开合与换页', () => {
+  const popup = () => document.querySelector('.assistant-model-select__panel')
+  const showing = (pane: 'band' | 'list') => document.querySelector(`.assistant-model-select__${pane}-pane`) !== null
+
+  test('在清单页点选模型：退场时卡里仍是清单页，不闪回档位页', async () => {
+    const view = render(<SessionControls controls={controls} onSelect={() => undefined} />)
+    await act(async () => {
+      view.rerender(<SessionControls controls={controls} onSelect={() => undefined} openRequest={1} />)
+    })
+    expect(showing('list')).toBe(true)
+
+    act(() => {
+      fireEvent.click(screen.getByText('Claude Opus'))
+    })
+
+    expect(popup()).not.toBeNull()
+    expect(showing('band')).toBe(false)
+    expect(showing('list')).toBe(true)
+  })
+
+  test('清单页的 Escape 退回档位页，卡不关；档位页的 Escape 才关', async () => {
+    const view = render(<SessionControls controls={controls} onSelect={() => undefined} />)
+    await act(async () => {
+      view.rerender(<SessionControls controls={controls} onSelect={() => undefined} openRequest={1} />)
+    })
+    expect(showing('list')).toBe(true)
+
+    await act(async () => {
+      fireEvent.keyDown(popup() as Element, { key: 'Escape' })
+      await new Promise((resolve) => setTimeout(resolve, 30))
+    })
+    expect(popup()).not.toBeNull()
+    expect(showing('band')).toBe(true)
+    /* 焦点回到进清单的那一行，而不是被菜单接到卡里第一个可 Tab 的档位滑块上 */
+    expect(document.activeElement?.classList.contains('assistant-model-select__head')).toBe(true)
+
+    await act(async () => {
+      fireEvent.keyDown(popup() as Element, { key: 'Escape' })
+      await new Promise((resolve) => setTimeout(resolve, 50))
+    })
+    expect(popup()).toBeNull()
+  })
+
+  test('关的时候不换页，但下一次从胶囊打开仍从档位页进', async () => {
+    const view = render(<SessionControls controls={controls} onSelect={() => undefined} />)
+    await act(async () => {
+      view.rerender(<SessionControls controls={controls} onSelect={() => undefined} openRequest={1} />)
+    })
+    await act(async () => {
+      fireEvent.click(screen.getByText('Claude Opus'))
+      await new Promise((resolve) => setTimeout(resolve, 50))
+    })
+    expect(popup()).toBeNull()
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: '模型与思考档位' }))
+    })
+    expect(showing('band')).toBe(true)
+    expect(showing('list')).toBe(false)
   })
 })

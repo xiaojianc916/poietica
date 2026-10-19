@@ -10,13 +10,17 @@ import {
   DropdownMenuTrigger,
 } from '@poietica/design-system'
 import { Check, ChevronRight } from 'lucide-react'
-import { memo, useMemo, useState } from 'react'
+import { memo, useMemo, useRef, useState } from 'react'
 import type { SessionConfigControl } from '../../shared/model/config'
+import { PaneStage } from './pane-stage'
 import { SWARM_CONTROL_ID } from './swarm-toggle'
 
 /*
  * 工具条上一颗胶囊，打开是一张卡，卡里换的是页。值没有第二份：agent 报的那张表就是全部，点了就发一次改动，值由答复换掉 —— 滑轨因此受控。
  * 档位那一行 closeOnClick=false（职责是换页不是提交）；Escape 在清单页先退回根页，再按一次才关闭。
+ *
+ * 进哪一页由「怎么打开的」决定（胶囊进档位页，`/model` 进清单页），关的时候一页都不换：Base UI 关闭时先播退场动画，
+ * 那段时间卡还在画，此刻换回档位页就是一闪。换页的补间（盒子量着页变形、两页交叠淡入淡出）归 PaneStage。
  */
 
 export function isToggleControl(control: SessionConfigControl): boolean {
@@ -111,6 +115,7 @@ export const SessionControls = memo(function SessionControls({
   const [pane, setPane] = useState<string>(LEVEL)
   const [open, setOpen] = useState(false)
   const [seenRequest, setSeenRequest] = useState(openRequest)
+  const head = useRef<HTMLDivElement>(null)
 
   const level = rows.find((control) => control.purpose === 'thought')
   const model = rows.find((control) => control.purpose === 'model')
@@ -133,6 +138,7 @@ export const SessionControls = memo(function SessionControls({
   const band = level === undefined ? undefined : chosen(level)
 
   const listing = model !== undefined && (level === undefined || pane === MODEL)
+  const busy = pending === true ? true : undefined
 
   const listPane =
     model === undefined ? null : (
@@ -177,6 +183,7 @@ export const SessionControls = memo(function SessionControls({
           <DropdownMenuItem
             className="assistant-model-select__head"
             closeOnClick={false}
+            ref={head}
             onClick={() => {
               setPane(MODEL)
             }}
@@ -197,23 +204,44 @@ export const SessionControls = memo(function SessionControls({
 
   return (
     <DropdownMenu
-      onOpenChange={(nextOpen) => {
-        /* 未确认时开不动，但外观与平时一样：不靠 disabled，那会连画法一起改掉（DropdownMenuTrigger 自带 disabled:opacity-50）。 */
-        if (pending) {
+      onOpenChange={(nextOpen, details) => {
+        /*
+         * 清单页的 Escape 是退回档位页，不是关闭；档位页的 Escape 仍是关闭。拦在开合这一层而不是卡的 onKeyDown：Base UI 的
+         * Escape 关闭就挂在卡自己的 keydown 上，与卡上别的处理器合并在同一个元素，stopPropagation 拦不住它 ——
+         * 原先写在 onKeyDown 里，真浏览器中按下去卡照样关，退场途中还闪回档位页。
+         */
+        if (details.reason === 'escape-key' && listing && level !== undefined) {
+          details.cancel()
+          setPane(LEVEL)
+          /*
+           * 焦点回到进清单的那一行，像退回上一层那样。不交给菜单自己接：清单页一摘，菜单把焦点接回卡里，接到的是卡里
+           * 第一个可 Tab 的 —— 档位滑块，方向键一按就改了档位。等这一帧档位页挂上、菜单接完再挪。
+           */
+          requestAnimationFrame(() => {
+            head.current?.focus()
+          })
           return
         }
 
-        setOpen(nextOpen)
+        /*
+         * 未确认时开不动，但外观与平时一样：不靠 disabled，那会连画法一起改掉（DropdownMenuTrigger 自带 disabled:opacity-50）。
+         * 只拦「开」：开着的时候表才变回未确认（换了会话），关仍得放行，不能把人关在卡里。
+         */
+        if (nextOpen && pending) {
+          return
+        }
 
-        if (!nextOpen) {
+        if (nextOpen) {
           setPane(LEVEL)
         }
+
+        setOpen(nextOpen)
       }}
       open={open}
     >
       <DropdownMenuTrigger
-        aria-busy={pending ? true : undefined}
-        aria-disabled={pending ? true : undefined}
+        aria-busy={busy}
+        aria-disabled={busy}
         aria-label="模型与思考档位"
         className="assistant-model-select__button"
       >
@@ -226,18 +254,11 @@ export const SessionControls = memo(function SessionControls({
         align="end"
         className="assistant-model-select__panel"
         data-assistant-skin
-        onKeyDown={(event) => {
-          if (event.key === 'Escape' && listing) {
-            /* 清单页的 Escape 是退回档位页，不是关闭；档位页的 Escape 仍归 Base UI。 */
-            event.preventDefault()
-            event.stopPropagation()
-            setPane(LEVEL)
-          }
-        }}
         side="top"
         sideOffset={6}
       >
-        {listing ? listPane : bandPane}
+        {/* 清单页在档位页里面一层：进清单是往里走，Escape 退回是往回走。 */}
+        <PaneStage depth={listing ? 1 : 0}>{listing ? listPane : bandPane}</PaneStage>
       </DropdownMenuContent>
     </DropdownMenu>
   )

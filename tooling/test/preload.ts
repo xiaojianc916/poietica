@@ -14,3 +14,19 @@ import { GlobalRegistrator } from '@happy-dom/global-registrator'
 process.env.PI_TEST_RUNTIME = '1'
 
 GlobalRegistrator.register({ url: 'http://localhost/', width: 1440, height: 900 })
+
+/*
+ * happy-dom 的 Animation.cancel() 照规范 reject 了 finished，却漏了规范同一步里的另一半：先把这个 promise 标成
+ * 「已处理」（Web Animations 的 cancel() 一节：reject 之前把它的 [[PromiseIsHandled]] 置为 true）。
+ * 浏览器里取消一段动画从不产生未处理的 rejection；happy-dom 里它会，于是任何一段 motion 动画在播完前被打断
+ * （换页、卸载）都会让 bun 判「Unhandled error between tests」，挂掉的是恰好排在后面的那个用例。
+ *
+ * 在这里补上那一半，而不是各测试自己套 MotionConfig skipAnimations：后者只治装了它的那一份，组件里新加一段动画，
+ * 没套的老测试（比如从整台工作台装起来的那些）就会无端变红。
+ */
+const cancelAnimation = Animation.prototype.cancel
+
+Animation.prototype.cancel = function cancel(this: Animation) {
+  this.finished.catch(() => undefined)
+  cancelAnimation.call(this)
+}
