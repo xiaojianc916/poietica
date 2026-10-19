@@ -8,7 +8,7 @@ import type { ReclaimRepository } from './reclaim-repository'
 import type { ThreadRow, ThreadsRepository } from './repository'
 import { threadOf } from './repository'
 import type { TimelineHub } from './timeline-hub'
-import { deriveTitle, normalizeTitle, PENDING_TITLE } from './title'
+import { deriveTitle, forkTitleOf, normalizeTitle, PENDING_TITLE } from './title'
 
 /** 附件引用的 ownerKey 拼法：'<功能 id>:<实体>:<id>' */
 export const OWNER_KEY = (threadId: string): string => `conversation:thread:${threadId}`
@@ -257,7 +257,7 @@ export class ThreadService {
       throw new AppError(conversationErrors.thread_empty, '对话还没有任何内容')
     }
     /* 分叉的名字一并写进 omp 的新会话（P4）：行里的标题只是它的投影 */
-    const forkTitle = normalizeTitle(title ?? `${row.title}（分支）`)
+    const forkTitle = normalizeTitle(title ?? forkTitleOf(row.title))
     const forked = await this.d.engine.sessionFiles.fork(row.sessionFile, keepTurns, forkTitle)
     const now = this.d.clock.now()
     const next: ThreadRow = {

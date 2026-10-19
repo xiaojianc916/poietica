@@ -24,6 +24,7 @@
 | Q45 / Q47 | 2026-10-14 | `features/browser/src/host/relay-protocol.ts` 是 omp 内部协议的**副本**（omp 未导出稳定契约） | **已结清（分层审查 2026-10-19）**：协议移进引擎端口（`packages/engine/src/browser-relay.ts`），与 omp 的对齐由 `engine-omp/src/browser-relay-conformance.ts` 在 `typecheck` 里机检（移入时即查出 `cdpEvent.params` 已漂成 `unknown`）。端口与口令改由引擎自备：`AgentEngine.browserRelay()` → browser 的 Core 模块 `browser.relayEndpoint` → Host；`CoreSupervisor` / `CoreCaller` / 启动参数不再认识 relay |
 | Q46 | 2026-10-16 | `runtime-layout/src/core-args.ts` 的 33 行 argv 解析可用 `node:util.parseArgs` 替，但它接受 `--k=v`、报错是英文 `ERR_PARSE_ARGS_*`，而 9 条用例钉的是中文文案与「参数重复」语义 | 未决，属可接受的行为变更，需产品裁决 |
 | Q48 | 2026-10-16 | `omp-version.ts` 兜底值写死 `'18.5.0'`，会进 `core.ready` 与 `diagnostics.core` | **已结清（R-33）**：改为现读随包 omp 的 `package.json`，读不到才是 `0.0.0-unknown` |
+| Q49 | 2026-10-19 | 分叉标题的序号只在「源名已带后缀」时进一档：同一个对话分叉两次（兄弟分支）会得到两个同名 `X（分支）` | 未决。可选路径：落标题前按同工作区现有标题去重（撞名进一档），或就允许重名。当前实现只做链式分叉的递增，兄弟分支不去重 |
 
 ## 其他待办（无编号）
 
