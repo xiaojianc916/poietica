@@ -1,8 +1,7 @@
 import { Button, TooltipProvider } from '@poietica/design-system'
 import { builtinPoints, FeatureScope, useContributions, useKernel, useLayout, useObservable } from '@poietica/ui-kernel'
 import { PanelLeft, Search } from 'lucide-react'
-import { type ReactNode, Suspense, useCallback, useEffect, useMemo, useSyncExternalStore } from 'react'
-import { auxiliaryMaxWidth } from './layout'
+import { type ReactNode, Suspense, useCallback, useEffect, useLayoutEffect, useMemo, useSyncExternalStore } from 'react'
 import { closePalette, openPalette, paletteSnapshot, subscribePalette } from './palette-state'
 import { AuxiliaryDock } from './parts/auxiliary-dock'
 import { CommandPalette } from './parts/command-palette'
@@ -40,6 +39,8 @@ export function Workbench(): ReactNode {
   const settingsPage = route.params.page ?? ''
   /* 交互态必须订阅着读：不订阅则 data-splitter 永远是 idle。 */
   const splitterState = useObservable(kernel.kernelServices.layout.splitterState)
+  /* 列宽与分隔条范围只读有效几何：sidebar.width / right.size 是意图，放不下时画出来的会比它窄。 */
+  const geometry = useObservable(kernel.kernelServices.layout.geometry)
   const layoutService = kernel.kernelServices.layout
   /* 打开设置时把辅助面板归属切到设置那一格。**关闭时不写**：目标表面自己声明当前前台，写在这里会与它的 effect 抢同一个值。 */
   useEffect(() => {
@@ -119,17 +120,16 @@ export function Workbench(): ReactNode {
         auxiliary={
           <AuxiliaryRegion
             fullscreen={isAuxiliaryFullscreen}
+            geometry={geometry.right}
             isDocked={dockAuxiliary}
-            maxWidth={auxiliaryMaxWidth({ sidebarOpen: sidebar.visible, sidebarWidth: sidebar.width })}
             onActivity={onAuxiliaryActivity}
             onClose={closeAuxiliary}
             onResize={resizeAuxiliary}
-            width={right.size}
           >
             {auxiliaryDock}
           </AuxiliaryRegion>
         }
-        auxiliaryColumnWidth={dockAuxiliary ? right.size : 0}
+        auxiliaryColumnWidth={geometry.right.column}
         chrome={chrome}
         isAuxiliaryDocked={dockAuxiliary}
         isAuxiliaryFullscreen={isAuxiliaryFullscreen}
@@ -148,16 +148,16 @@ export function Workbench(): ReactNode {
         overlays={overlays}
         sidebar={
           <SidebarRegion
+            geometry={geometry.sidebar}
             isDocked={sidebar.visible}
             onActivity={onSidebarActivity}
             onClose={toggleSidebar}
             onResize={resizeSidebar}
-            width={sidebar.width}
           >
             {sidebarContent}
           </SidebarRegion>
         }
-        sidebarColumnWidth={sidebar.visible ? sidebar.width : 0}
+        sidebarColumnWidth={geometry.sidebar.column}
         splitter={splitterState.activity}
         splitterRegion={splitterState.region}
       />
@@ -243,9 +243,12 @@ function TitleBar({ sidebarOpen, toggleSidebar, onOpenSearch }: TitleBarProps): 
   )
 }
 
-/** 外壳有多宽交给 LayoutService：辅助列的宽度上限要把它让出来（见 auxiliaryMaxWidth）。 */
+/**
+ * 外壳有多宽交给 LayoutService：两侧列要给主列地板让位（见 resolveLayoutGeometry）。
+ * 首量放在 layout effect：赶在首帧绘制之前，否则先按「不设限」画一帧，再带着列宽过渡缩回去。
+ */
 function useViewportWidth(layout: { setViewportWidth(w: number): void }): void {
-  useEffect(() => {
+  useLayoutEffect(() => {
     const root = document.documentElement
     const observer = new ResizeObserver(() => {
       layout.setViewportWidth(root.clientWidth)

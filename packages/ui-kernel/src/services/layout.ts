@@ -35,19 +35,69 @@ export interface DockPanesState {
   readonly byOwner: Readonly<Record<string, DockPaneSet>>
 }
 
-/**
- * 默认布局与边界。默认宽度取迁移来源 WORKSPACE_LAYOUT 的值（侧栏 280、辅助列 420），
- * 边界取布局图的范围：侧栏 200–480、右侧面板坞宽 280–900。
- */
+/** 默认布局：侧栏 280、辅助列 420。 */
 export const DEFAULT_LAYOUT: LayoutState = {
   sidebar: { visible: true, width: 280 },
   right: { open: false, activeId: null, size: 420 },
   auxiliary: { owner: null, activeOwner: null, fullscreen: false },
 }
+/**
+ * 外壳三列的宽度边界，全仓只此一份：写入、读盘、渲染、分隔条与无障碍值都读这里。
+ * 以前内核按布局图钳 200–480 / 280–900、外壳的分隔条另按 220–360 / 320–800 钳，两份互不认账 ——
+ * 存下的宽度在分隔条上限之外时照原样画出来，第一下拖拽就被夹回去（真实故障）。
+ */
 export const LAYOUT_LIMITS = {
-  sidebar: [200, 480],
-  right: [280, 900],
+  sidebar: [220, 360],
+  right: [320, 800],
+  /** 主列地板：两侧列合计最多占到「外壳宽 − 地板」。 */
+  mainMin: 360,
 } as const
+
+/**
+ * 一侧列此刻的有效几何。`size` 是它在场时画多宽（收起过渡期间内容仍按它排，所以不在场也有值），
+ * `column` 是栅格里那一列此刻的宽（不在场为 0），`min` / `max` 是它的分隔条此刻的可拖范围。
+ * 在场时 `size` 恒在 `[min, max]` 里：拖拽的起点就是看到的宽度，第一下不会跳。
+ */
+export interface RegionGeometry {
+  readonly size: number
+  readonly column: number
+  readonly min: number
+  readonly max: number
+}
+
+export interface LayoutGeometry {
+  readonly sidebar: RegionGeometry
+  readonly right: RegionGeometry
+}
+
+const fit = (value: number, min: number, max: number): number => Math.min(max, Math.max(min, value))
+
+/**
+ * 意图 + 外壳宽 → 有效几何。LayoutState 里的宽度是**意图**（用户拖出来的值），不随窗口或另一侧的开合改写；
+ * 放不下时只在这里让位，放得下了原样回来。产品上限是常量，不随另一侧开合加减（以前侧栏收起会给右栏上限加回侧栏宽，
+ * 「最大」本身随开合漂移，开合来回一遍就回不到原样）；另一侧只经「窗口还剩多少」影响上限，宽窗口下开合上限纹丝不动。
+ *
+ * 让位次序只有一条：右栏先缩（到下限为止），侧栏再缩（到下限为止），两侧都在下限仍放不下才轮到主列地板
+ * （栅格的 minmax(0, 1fr) 吃掉差额）。拖拽沿用同一次序：侧栏拖到主列地板后继续推右栏，右栏拖到地板即止。
+ */
+export function resolveLayoutGeometry(state: LayoutState, viewportWidth: number | null): LayoutGeometry {
+  const [sidebarMin, sidebarMax] = LAYOUT_LIMITS.sidebar
+  const [rightMin, rightMax] = LAYOUT_LIMITS.right
+  /* 两侧列合计最多能占多宽；还没量到外壳时这一维不设限。 */
+  const room = viewportWidth === null ? Number.POSITIVE_INFINITY : viewportWidth - LAYOUT_LIMITS.mainMin
+  const sidebarCap = fit(room - (state.right.open ? rightMin : 0), sidebarMin, sidebarMax)
+  const sidebarSize = fit(state.sidebar.width, sidebarMin, sidebarCap)
+  const sidebarColumn = state.sidebar.visible ? sidebarSize : 0
+  const rightCap = fit(room - sidebarColumn, rightMin, rightMax)
+  const rightSize = fit(state.right.size, rightMin, rightCap)
+  return {
+    sidebar: { size: sidebarSize, column: sidebarColumn, min: sidebarMin, max: sidebarCap },
+    right: { size: rightSize, column: state.right.open ? rightSize : 0, min: rightMin, max: rightCap },
+  }
+}
+
+const sameRegion = (a: RegionGeometry, b: RegionGeometry): boolean =>
+  a.size === b.size && a.column === b.column && a.min === b.min && a.max === b.max
 
 export type SplitterActivity = 'idle' | 'hover' | 'drag'
 /**
@@ -99,9 +149,14 @@ export interface LayoutService extends Observable<LayoutState> {
   splitter(): SplitterActivity
   splitterRegion(): SplitterRegion
   readonly splitterState: Observable<SplitterState>
-  /** 辅助列的宽度上限要把它让出来。 */
+  /** 外壳此刻多宽（CSS 像素）。非有限或非正的读数（还没布局、最小化）不算数。 */
   setViewportWidth(width: number): void
   viewportWidth(): number | null
+  /**
+   * 有效几何（见 resolveLayoutGeometry）。画列宽、分隔条范围、无障碍值**只读这里**，不读 LayoutState 里的意图宽度。
+   * 单独一个 Observable：窗口宽不是意图，不进 LayoutState，也就不落盘。
+   */
+  readonly geometry: Observable<LayoutGeometry>
   /** preferences 恢复上次布局；非法值按默认值与边界修正。 */
   restore(state: unknown): void
 }
@@ -260,8 +315,17 @@ export function createLayoutService(): LayoutService {
   const splitterValue = createValue<SplitterState>({ activity: 'idle', region: 'sidebar' })
   let splitter: SplitterActivity = 'idle'
   let splitterRegion: SplitterRegion = 'sidebar'
-  /* 窗口宽度同理不进主 Observable：量窗口时重渲整棵外壳没有意义 */
   let viewportWidth: number | null = null
+  const geometryValue = createValue<LayoutGeometry>(resolveLayoutGeometry(v.current(), viewportWidth))
+  /* 意图与外壳宽任一变化都重算；算出来没变就不通知，外壳不必跟着重画。 */
+  const refreshGeometry = (): void => {
+    const next = resolveLayoutGeometry(v.current(), viewportWidth)
+    const prev = geometryValue.current()
+    if (sameRegion(next.sidebar, prev.sidebar) && sameRegion(next.right, prev.right)) return
+    geometryValue.set(next)
+  }
+  /* 先于任何外部订阅者挂上：v 通知时几何已经是新的，订阅两者的组件读不到一新一旧。 */
+  v.subscribe(refreshGeometry)
 
   return {
     current: v.current,
@@ -295,11 +359,15 @@ export function createLayoutService(): LayoutService {
     splitterRegion: () => splitterRegion,
     splitterState: splitterValue,
     setViewportWidth: (width) => {
-      // 量不到就不设限：一个非有限的数会把整条上限算式变成 NaN
-      if (!Number.isFinite(width)) return
-      viewportWidth = Math.round(width)
+      /* 非有限的数会把整条上限算式变成 NaN；0 是还没布局（或窗口最小化）时的读数，按它算会把两侧压到下限。 */
+      if (!Number.isFinite(width) || width <= 0) return
+      const next = Math.round(width)
+      if (next === viewportWidth) return
+      viewportWidth = next
+      refreshGeometry()
     },
     viewportWidth: () => viewportWidth,
+    geometry: geometryValue,
     restore(raw) {
       const r = (typeof raw === 'object' && raw !== null ? raw : {}) as Record<string, unknown>
       const section = (x: unknown): Record<string, unknown> | undefined =>

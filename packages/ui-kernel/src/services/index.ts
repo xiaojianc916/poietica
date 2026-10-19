@@ -77,9 +77,12 @@ export {
   type DockPaneSet,
   type DockPanesState,
   LAYOUT_LIMITS,
+  type LayoutGeometry,
   type LayoutService,
   type LayoutState,
   type PanelDockState,
+  type RegionGeometry,
+  resolveLayoutGeometry,
   type SplitterActivity,
   type SplitterRegion,
 } from './layout'

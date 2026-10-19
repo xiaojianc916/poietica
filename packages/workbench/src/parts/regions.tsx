@@ -1,10 +1,12 @@
 import { RegionSplitter } from '@poietica/design-system'
+import type { RegionGeometry } from '@poietica/ui-kernel'
 import type { ReactNode } from 'react'
 import { WORKSPACE_LAYOUT } from '../layout'
 
 export interface SidebarRegionProps {
   readonly isDocked: boolean
-  readonly width: number
+  /** 有效几何（LayoutService.geometry）：内容宽、分隔条范围与当前值都从这一份读，不读意图宽度。 */
+  readonly geometry: RegionGeometry
   readonly onClose: () => void
   readonly onResize: (width: number) => void
   readonly onActivity: (activity: 'idle' | 'hover' | 'drag') => void
@@ -13,7 +15,7 @@ export interface SidebarRegionProps {
 
 export function SidebarRegion({
   isDocked,
-  width,
+  geometry,
   onClose,
   onResize,
   onActivity,
@@ -23,7 +25,7 @@ export function SidebarRegion({
     <div className="workspace-shell__region workspace-shell__sidebar bg-sidebar" inert={!isDocked}>
       <div className="workspace-shell__region-clip">
         {/* 定宽内容贴 inline-start：列窄于内容时从右边（远离主区那一端）被裁掉。 */}
-        <div className="workspace-shell__region-content" style={{ width }}>
+        <div className="workspace-shell__region-content" style={{ width: geometry.size }}>
           {children}
         </div>
       </div>
@@ -32,12 +34,12 @@ export function SidebarRegion({
         <RegionSplitter
           edge="inline-start"
           label="调整侧边栏宽度"
-          max={WORKSPACE_LAYOUT.sidebar.maxWidth}
-          min={WORKSPACE_LAYOUT.sidebar.minWidth}
+          max={geometry.max}
+          min={geometry.min}
           onActivity={onActivity}
           onCollapse={onClose}
           onResize={onResize}
-          width={width}
+          width={geometry.size}
         />
       ) : null}
     </div>
@@ -47,8 +49,8 @@ export function SidebarRegion({
 export interface AuxiliaryRegionProps {
   readonly isDocked: boolean
   readonly fullscreen: boolean
-  readonly width: number
-  readonly maxWidth: number
+  /** 同 SidebarRegionProps.geometry。 */
+  readonly geometry: RegionGeometry
   readonly onClose: () => void
   readonly onResize: (width: number) => void
   readonly onActivity: (activity: 'idle' | 'hover' | 'drag') => void
@@ -58,8 +60,7 @@ export interface AuxiliaryRegionProps {
 export function AuxiliaryRegion({
   isDocked,
   fullscreen,
-  width,
-  maxWidth,
+  geometry,
   onClose,
   onResize,
   onActivity,
@@ -70,7 +71,7 @@ export function AuxiliaryRegion({
       <div className="workspace-shell__region-clip">
         <div
           className="workspace-shell__region-content workspace-shell__auxiliary-content bg-background"
-          style={{ width: fullscreen ? '100%' : width - WORKSPACE_LAYOUT.card.gap }}
+          style={{ width: fullscreen ? '100%' : geometry.size - WORKSPACE_LAYOUT.card.gap }}
         >
           {children}
         </div>
@@ -80,12 +81,12 @@ export function AuxiliaryRegion({
         <RegionSplitter
           edge="inline-end"
           label="调整辅助面板宽度"
-          max={maxWidth}
-          min={WORKSPACE_LAYOUT.auxiliary.minWidth}
+          max={geometry.max}
+          min={geometry.min}
           onActivity={onActivity}
           onCollapse={onClose}
           onResize={onResize}
-          width={width}
+          width={geometry.size}
         />
       ) : null}
     </div>
