@@ -362,6 +362,9 @@
   --cp-overlay-hover: color-mix(in srgb, var(--ui-foreground) 6%, var(--cp-surface));
   --cp-hairline: var(--ui-divider-subtle);
 
+  /* 项目与分支选择器弹层里的横线：搜索栏下沿与底部动作区上沿。浅色沿用卡内线，深色由产品指定 #454648（见文件末尾 dark 块）。 */
+  --cp-picker-rule: var(--cp-hairline);
+
   /* 抽屉里上下两面之间那条分割线。浅色沿用 --cp-hairline，深色产品指定 #3b3b3b（见文件末尾 dark 块）。 */
   --cp-timeline-seam: var(--cp-hairline);
 
@@ -610,6 +613,9 @@
   --cp-tile-face: #383838;
 
   --cp-menu-hover: #2e2e2e;
+
+  /* 项目与分支选择器弹层里的横线：产品指定 #454648，与实色卡面同一层。 */
+  --cp-picker-rule: #454648;
 
   /* turn-seal 下沿分隔线：产品指定深灰，不随 quiet-text 走。 */
   --cp-turn-seal-rule: #2b2b2b;

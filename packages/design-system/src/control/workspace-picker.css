@@ -116,9 +116,13 @@
   display: none;
 }
 
-/* 卡面、行盒与那条分隔线都归通用弹窗；这一张只声明自己的最小宽度与搜索栏。 */
+/* 卡面、行盒与那条分隔线都归通用弹窗；这一张只声明自己的最小宽度、搜索栏与两条横线。 */
 .workspace-picker__menu {
   min-inline-size: 216px;
+}
+
+.workspace-picker__menu .workspace-picker__separator {
+  background-color: var(--cp-picker-rule);
 }
 
 .workspace-picker__field {
@@ -126,7 +130,7 @@
   align-items: center;
   gap: 8px;
   margin: 2px 4px 4px;
-  border-block-end: var(--cp-px) solid var(--cp-hairline);
+  border-block-end: var(--cp-px) solid var(--cp-picker-rule);
   padding: 4px 4px 8px;
   color: var(--cp-ink-subtle);
 }

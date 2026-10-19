@@ -67,7 +67,7 @@
   align-items: center;
   gap: 8px;
   margin: 2px 4px 4px;
-  border-block-end: var(--cp-px) solid var(--cp-hairline);
+  border-block-end: var(--cp-px) solid var(--cp-picker-rule);
   padding: 4px 4px 8px;
   color: var(--cp-ink-subtle);
 }
@@ -130,5 +130,5 @@
 .git-branch-picker__menu .git-branch-picker__separator {
   /* 4px：工具条浮层族的 --am-pad 随皮肤拆掉了。 */
   margin: 4px 8px;
-  background-color: var(--cp-hairline);
+  background-color: var(--cp-picker-rule);
 }
