@@ -845,7 +845,7 @@ describe('conversation core（不经内核的直连测试）', () => {
     /* 再分叉一次：序号进一档，不再叠一段（分支） */
     const again = await core.threads.fork(forked.id, undefined)
     expect(again.forkedFrom).toBe(forked.id)
-    expect(again.title).toBe(core.threads.row(row.id)!.title + '（分支2）')
+    expect(again.title).toBe(`${core.threads.row(row.id)!.title}（分支2）`)
     await core.dispose()
     db.close()
     await dir.dispose()

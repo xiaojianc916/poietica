@@ -39,7 +39,7 @@ export function forkTitleOf(source: string): string {
     }
   }
   const next = level + 1
-  const suffix = next === 1 ? '（分支）' : '（分支' + String(next) + '）'
+  const suffix = next === 1 ? '（分支）' : `（分支${String(next)}）`
   const named = attached === undefined ? trimmed : trimmed.slice(0, attached.index).trimEnd()
   const base = named === '' && attached === undefined ? PENDING_TITLE : named
   const room = MAX_STORED_CHARS - Array.from(suffix).length
