@@ -1,4 +1,3 @@
-import './omp-home'
 import { describe, expect, test } from 'bun:test'
 import { mkdtemp } from 'node:fs/promises'
 import { tmpdir } from 'node:os'

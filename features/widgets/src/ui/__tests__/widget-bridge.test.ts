@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test'
-import { WIDGET_TOKEN_NAMES } from '../../../../contract'
+import { WIDGET_TOKEN_NAMES } from '../../contract'
 import {
   externalUrlOf,
   parseWidgetMessage,

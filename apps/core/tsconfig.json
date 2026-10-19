@@ -39,6 +39,9 @@
       "path": "../../features/usage/src/core"
     },
     {
+      "path": "../../features/widgets/src/core"
+    },
+    {
       "path": "../../features/workspaces/src/core"
     },
     {

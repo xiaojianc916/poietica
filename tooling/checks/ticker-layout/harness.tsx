@@ -1,6 +1,4 @@
 /// <reference lib="dom" />
-/// <reference path="../../../packages/design-system/src/css.d.ts" />
-
 import '../../../packages/design-system/src/styles.css'
 import '../../../features/conversation/src/ui/timeline/view/flow-row.css'
 import '../../../features/conversation/src/ui/timeline/view/ticker/rolling-line.css'

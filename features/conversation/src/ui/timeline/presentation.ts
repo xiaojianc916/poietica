@@ -1,4 +1,5 @@
 import type { TranscriptUsage } from '@poietica/transcript'
+import type { ToolCallRenderer } from '../../ui-api'
 import {
   isTerminal,
   type TimelineItem,
@@ -124,11 +125,33 @@ const ASIDE: ReadonlySet<FeedRow['item']['type']> = new Set(['error', 'link', 'p
 /* 字面量而不是 TimelineItem['type']：注解成联合后 === 不再收窄。 */
 const SAID = 'user_message'
 
-/* 自己就是内容的工具（R-18 的 show_widget）：不并进过程组，轮次落定后也不折进「过程」里；失败的那次照常归过程。 */
-const SHOWN_INLINE: ReadonlySet<string> = new Set(['show_widget'])
+/**
+ * 哪些工具自己就是内容：不并进过程组，轮次落定后也不折进「过程」里；失败的那次照常归过程。
+ * 由贡献了 `inline` 卡片的功能说了算（toolCallRenderers，例如 widgets 的 show_widget），conversation 不认识具体工具名。
+ * 投影的各级缓存按它的**引用**判命中：调用方每个视图给一份稳定的判据（inlineToolsOf + useMemo）。
+ */
+export type InlineTools = (toolName: string) => boolean
 
-function isShownInline(item: FeedRow['item']): boolean {
-  return item.type === 'tool_call' && item.status !== 'failed' && SHOWN_INLINE.has(item.invokedTool)
+export const NO_INLINE_TOOLS: InlineTools = () => false
+
+/** 贡献的 toolName 认不认这次调用：字符串比相等；正则每次新建一份再 test（贡献方给的正则可能带 g，lastIndex 会串）。 */
+export function matchesToolName(toolName: string | RegExp, invokedTool: string): boolean {
+  return typeof toolName === 'string'
+    ? toolName === invokedTool
+    : new RegExp(toolName.source, toolName.flags).test(invokedTool)
+}
+
+/** 从贡献的卡片里收出判据：只看 `inline: true` 的。 */
+export function inlineToolsOf(renderers: readonly ToolCallRenderer[]): InlineTools {
+  const inline = renderers.filter((renderer) => renderer.inline === true)
+  if (inline.length === 0) {
+    return NO_INLINE_TOOLS
+  }
+  return (toolName) => inline.some((renderer) => matchesToolName(renderer.toolName, toolName))
+}
+
+function isShownInline(item: FeedRow['item'], inline: InlineTools): boolean {
+  return item.type === 'tool_call' && item.status !== 'failed' && inline(item.invokedTool)
 }
 
 const LEAST = 2
@@ -138,12 +161,12 @@ type RunFlavor = string
 
 const THOUGHT = 'thought'
 
-function runFlavorOf(item: FeedRow['item']): RunFlavor | undefined {
+function runFlavorOf(item: FeedRow['item'], inline: InlineTools): RunFlavor | undefined {
   if (item.type === 'agent_thought') {
     return THOUGHT
   }
 
-  if (item.type !== 'tool_call' || isShownInline(item)) {
+  if (item.type !== 'tool_call' || isShownInline(item, inline)) {
     return undefined
   }
 
@@ -173,6 +196,7 @@ interface TurnAt {
 
 /** 一次运行的全部派生。TurnPage 是缓存单位，也是封条的唯一所有者。 */
 interface Segment {
+  readonly inline: InlineTools
   readonly span: TurnSpan | undefined
   readonly running: boolean
   readonly picked: boolean | undefined
@@ -188,11 +212,13 @@ interface Segment {
 /** 一份状态的投影。state 相同则段、轮、生命周期全都相同，只剩人选的开合要比。 */
 interface Held {
   readonly chosen: ReadonlyMap<number, boolean>
+  readonly inline: InlineTools
   readonly result: Presentation
 }
 
 interface Prefix {
   readonly chosen: ReadonlyMap<number, boolean>
+  readonly inline: InlineTools
   readonly tailSpan: TurnSpan | undefined
   readonly segments: readonly Segment[]
   readonly offsets: readonly number[]
@@ -285,7 +311,7 @@ function answerStart(rows: readonly FeedRow[], from: number, until: number): num
 }
 
 /** 输入、运行锚点、诊断与组件保留可见，其余前缀是过程。 */
-function foldFrom(rows: readonly FeedRow[], frontier: number): readonly number[] {
+function foldFrom(rows: readonly FeedRow[], frontier: number, inline: InlineTools): readonly number[] {
   const out: number[] = []
 
   for (let i = 0; i < frontier; i += 1) {
@@ -296,7 +322,7 @@ function foldFrom(rows: readonly FeedRow[], frontier: number): readonly number[]
       item.type === SAID ||
       item.type === 'run_anchor' ||
       ASIDE.has(item.type) ||
-      isShownInline(item)
+      isShownInline(item, inline)
     ) {
       continue
     }
@@ -341,8 +367,8 @@ function speechFrom(rows: readonly FeedRow[], from: number, until: number): stri
 }
 
 /** 一行能并进这一组吗。思考对每一族都是透明的（「想了一会儿」不是断点，它只借组头一闪）；真正决定分组的是工具自己：同一族相邻就连成一条，换族才断。 */
-function continuesGroup(next: FeedRow['item'], flavor: RunFlavor): boolean {
-  const nextFlavor = runFlavorOf(next)
+function continuesGroup(next: FeedRow['item'], flavor: RunFlavor, inline: InlineTools): boolean {
+  const nextFlavor = runFlavorOf(next, inline)
 
   if (nextFlavor === undefined) {
     return false
@@ -356,19 +382,19 @@ function continuesGroup(next: FeedRow['item'], flavor: RunFlavor): boolean {
 }
 
 /** 从 start 那条开始，同轮同过程一直并到哪一行为止（不含）。一组由思考打头时，第一件工具负责定档，之后的工具照这一档比。 */
-function runEnd(rows: readonly FeedRow[], start: number, flavor: RunFlavor, turn: number): number {
+function runEnd(rows: readonly FeedRow[], start: number, flavor: RunFlavor, turn: number, inline: InlineTools): number {
   let held = flavor
   let end = start + 1
 
   while (end < rows.length) {
     const next = rows[end]?.item
 
-    if (next === undefined || next.turn !== turn || !continuesGroup(next, held)) {
+    if (next === undefined || next.turn !== turn || !continuesGroup(next, held, inline)) {
       break
     }
 
     if (held === THOUGHT) {
-      const adopted = runFlavorOf(next)
+      const adopted = runFlavorOf(next, inline)
 
       if (adopted !== undefined && adopted !== THOUGHT) {
         held = adopted
@@ -393,7 +419,10 @@ function planOfTools(tools: readonly FeedRow[]): Pick<ToolGroupPlan, 'family' | 
   return { family, kind: family === PROCESS_FAMILY ? 'process' : head.kind }
 }
 
-function groupIn(rows: readonly FeedRow[]): {
+function groupIn(
+  rows: readonly FeedRow[],
+  inline: InlineTools,
+): {
   readonly rows: readonly FeedRow[]
   readonly groups: ReadonlyMap<string, ToolGroupPlan>
 } {
@@ -418,7 +447,7 @@ function groupIn(rows: readonly FeedRow[]): {
     }
 
     const start = cursor
-    const flavor = runFlavorOf(row.item)
+    const flavor = runFlavorOf(row.item, inline)
 
     if (flavor === undefined) {
       kept?.push(row)
@@ -427,7 +456,7 @@ function groupIn(rows: readonly FeedRow[]): {
       continue
     }
 
-    const end = runEnd(rows, cursor, flavor, row.item.turn)
+    const end = runEnd(rows, cursor, flavor, row.item.turn, inline)
 
     const members = rows.slice(cursor, end)
     const tools = members.filter((member) => member.item.type === 'tool_call')
@@ -569,6 +598,7 @@ function buildSegment(
   span: TurnSpan | undefined,
   running: boolean,
   picked: boolean | undefined,
+  inline: InlineTools,
 ): Segment {
   const all = rowsOf(page, running)
   /* 有插话的那一轮不折：过程里夹着人自己的话，折起来会把它一起藏掉。 */
@@ -576,10 +606,10 @@ function buildSegment(
   /* 在跑、被人叫停、自己坏掉、中途有人插话都不折。 */
   const isOpen = running || pinnedOpen(page.outcome, interjected) || (picked ?? false)
   const answer = answerStart(all, 0, all.length)
-  const process = foldFrom(all, answer ?? all.length)
+  const process = foldFrom(all, answer ?? all.length, inline)
   const seal = sealOf(page, span, running, isOpen, process.length > 0, interjected)
   const visible = isOpen || seal === undefined || process.length === 0 ? all : omitSorted(all, process)
-  const grouped = groupIn(visible)
+  const grouped = groupIn(visible, inline)
   const where = placesIn(grouped.rows)
   const first = grouped.rows[0]
   const sealAt = first === undefined ? undefined : where.get(first.item.id)
@@ -595,6 +625,7 @@ function buildSegment(
 
   return {
     groups: grouped.groups,
+    inline,
     ownMessage,
     picked,
     replies:
@@ -610,14 +641,26 @@ function buildSegment(
   }
 }
 
-function segmentOf(page: TurnPage, span: TurnSpan | undefined, running: boolean, picked: boolean | undefined): Segment {
+function segmentOf(
+  page: TurnPage,
+  span: TurnSpan | undefined,
+  running: boolean,
+  picked: boolean | undefined,
+  inline: InlineTools,
+): Segment {
   const held = SEGMENTS.get(page)
 
-  if (held !== undefined && held.span === span && held.running === running && held.picked === picked) {
+  if (
+    held !== undefined &&
+    held.span === span &&
+    held.running === running &&
+    held.picked === picked &&
+    held.inline === inline
+  ) {
     return held
   }
 
-  const built = buildSegment(page, span, running, picked)
+  const built = buildSegment(page, span, running, picked, inline)
 
   SEGMENTS.set(page, built)
 
@@ -647,12 +690,12 @@ function spanOf(spans: readonly TurnSpan[], turn: number): TurnSpan | undefined 
 }
 
 /** 已封口那一段的派生，一次算好跨帧用：sealed 段封口之后不再改写，只有末段那一条还可能被收口，所以命中时复核它。 */
-function prefixOf(state: TimelineState, chosen: ReadonlyMap<number, boolean>): Prefix {
+function prefixOf(state: TimelineState, chosen: ReadonlyMap<number, boolean>, inline: InlineTools): Prefix {
   const sealed = state.sealed
   const last = sealed.at(-1)
   const tailSpan = last === undefined ? undefined : spanOf(state.spans, last.turn)
   const kept = PREFIX.get(sealed)
-  if (kept !== undefined && kept.chosen === chosen && kept.tailSpan === tailSpan) {
+  if (kept !== undefined && kept.chosen === chosen && kept.inline === inline && kept.tailSpan === tailSpan) {
     return kept
   }
 
@@ -665,7 +708,13 @@ function prefixOf(state: TimelineState, chosen: ReadonlyMap<number, boolean>): P
   let lastTurnId: string | undefined
 
   for (const page of sealed) {
-    const segment = segmentOf(page, spanOf(state.spans, page.turn), page.run?.settled === false, chosen.get(page.turn))
+    const segment = segmentOf(
+      page,
+      spanOf(state.spans, page.turn),
+      page.run?.settled === false,
+      chosen.get(page.turn),
+      inline,
+    )
     segments.push(segment)
     offsets.push(count)
     precedingTurnIds.push(lastTurnId)
@@ -678,6 +727,7 @@ function prefixOf(state: TimelineState, chosen: ReadonlyMap<number, boolean>): P
   const built: Prefix = {
     chosen,
     count,
+    inline,
     lastTurn,
     lastTurnId,
     latestOwnMessage,
@@ -712,16 +762,21 @@ function prefixLocations(prefix: Prefix): ReadonlyMap<string, number> {
 }
 
 /** 运行中无条件展开；终止后才读取用户选择。生命周期来自状态机，span 只装饰耗时。 */
-export function selectPresentation(state: TimelineState, chosen: ReadonlyMap<number, boolean>): Presentation {
+export function selectPresentation(
+  state: TimelineState,
+  chosen: ReadonlyMap<number, boolean>,
+  /** 缺省「没有内联工具」：只有测试这样调；界面上由 transcript-view 按贡献的卡片给出 */
+  inline: InlineTools = NO_INLINE_TOOLS,
+): Presentation {
   const held = FEEDS.get(state)
   const running = state.active.run?.settled === false
-  if (held !== undefined && held.chosen === chosen) {
+  if (held !== undefined && held.chosen === chosen && held.inline === inline) {
     return held.result
   }
 
-  const prefix = prefixOf(state, chosen)
+  const prefix = prefixOf(state, chosen, inline)
   const activeSpan = spanOf(state.spans, state.active.turn)
-  const tail = segmentOf(state.active, activeSpan, running, chosen.get(state.active.turn))
+  const tail = segmentOf(state.active, activeSpan, running, chosen.get(state.active.turn), inline)
   const count = prefix.count + tail.rows.length
 
   const locate = (index: number) => {
@@ -813,7 +868,7 @@ export function selectPresentation(state: TimelineState, chosen: ReadonlyMap<num
     },
   }
 
-  FEEDS.set(state, { chosen, result })
+  FEEDS.set(state, { chosen, inline, result })
   return result
 }
 

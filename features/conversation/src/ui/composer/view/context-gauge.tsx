@@ -1,6 +1,6 @@
 import './context-gauge.css'
 
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@poietica/design-system'
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger, useOverlayRef } from '@poietica/design-system'
 import { memo, useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import type { AgentUsageBreakdown } from '../../shared/model/dto'
@@ -125,6 +125,8 @@ export const ContextGauge = memo(function ContextGauge({ openRequest, usage }: C
   }
   const rootRef = useRef<HTMLSpanElement>(null)
   const panelRef = useRef<HTMLDivElement>(null)
+  /* 面板自己建传送门，不经 design-system 的浮层控件，所以自己登记（浏览器面板的原生视图靠它让路） */
+  const panelOverlayRef = useOverlayRef('anchored', panelRef)
   const [position, setPosition] = useState<{ left: number; top: number } | null>(null)
 
   const close = useCallback(() => {
@@ -233,7 +235,7 @@ export const ContextGauge = memo(function ContextGauge({ openRequest, usage }: C
             <div
               aria-label="上下文已用"
               className="context-gauge__panel"
-              ref={panelRef}
+              ref={panelOverlayRef}
               role="dialog"
               style={position ?? { left: 0, top: 0, visibility: 'hidden' }}
             >

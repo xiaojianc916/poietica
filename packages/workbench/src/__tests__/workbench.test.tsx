@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, test } from 'bun:test'
+import { overlaysOnScreen } from '@poietica/design-system'
 import type { RpcMessage, WindowBridge } from '@poietica/rpc'
 import {
   builtinPoints,
@@ -425,6 +426,13 @@ describe('workbench 外壳', () => {
     kernel.kernelServices.toasts.show({ severity: 'info', title: '提示一下' })
     await new Promise((r) => setTimeout(r, 5))
     expect(screen.getByText('提示一下')).toBeDefined()
+    /* 通知卡钉在右下角，正压在浏览器面板的原生视图上：必须登记为贴边浮层，否则会被网页盖住（P-07）。 */
+    const anchored = overlaysOnScreen().flatMap((overlay) =>
+      overlay.kind === 'anchored' ? [overlay.element.textContent ?? ''] : [],
+    )
+    expect(anchored.some((text) => text.includes('提示一下'))).toBe(true)
+    cleanup()
+    expect(overlaysOnScreen()).toEqual([])
     kernel.dispose()
   })
 

@@ -34,6 +34,7 @@
     "@poietica/feature-terminal": "workspace:*",
     "@poietica/feature-update": "workspace:*",
     "@poietica/feature-usage": "workspace:*",
+    "@poietica/feature-widgets": "workspace:*",
     "@poietica/feature-workspaces": "workspace:*",
     "@poietica/host-kernel": "workspace:*",
     "@poietica/protocol": "workspace:*",

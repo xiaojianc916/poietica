@@ -7,6 +7,8 @@
       "devDependencies": {
         "@biomejs/biome": "catalog:",
         "@happy-dom/global-registrator": "catalog:",
+        "@poietica/fs-kit": "workspace:*",
+        "@poietica/runtime-layout": "workspace:*",
         "@swc/core": "catalog:",
         "@types/bun": "catalog:",
         "@types/node": "catalog:",
@@ -40,6 +42,7 @@
         "@poietica/feature-python": "workspace:*",
         "@poietica/feature-review": "workspace:*",
         "@poietica/feature-usage": "workspace:*",
+        "@poietica/feature-widgets": "workspace:*",
         "@poietica/feature-workspaces": "workspace:*",
         "@poietica/foundation": "workspace:*",
         "@poietica/logging": "workspace:*",
@@ -76,6 +79,7 @@
         "@poietica/feature-terminal": "workspace:*",
         "@poietica/feature-update": "workspace:*",
         "@poietica/feature-usage": "workspace:*",
+        "@poietica/feature-widgets": "workspace:*",
         "@poietica/feature-workspaces": "workspace:*",
         "@poietica/host-kernel": "workspace:*",
         "@poietica/protocol": "workspace:*",
@@ -123,7 +127,6 @@
       "dependencies": {
         "@poietica/contract-kit": "workspace:*",
         "@poietica/core-kernel": "workspace:*",
-        "@poietica/design-system": "workspace:*",
         "@poietica/feature-platform": "workspace:*",
         "@poietica/foundation": "workspace:*",
         "@poietica/fs-kit": "workspace:*",
@@ -464,13 +467,39 @@
         "@types/react": "catalog:",
       },
     },
+    "features/widgets": {
+      "name": "@poietica/feature-widgets",
+      "version": "0.0.0",
+      "dependencies": {
+        "@poietica/core-kernel": "workspace:*",
+        "@poietica/feature-conversation": "workspace:*",
+        "@poietica/feature-platform": "workspace:*",
+        "@poietica/foundation": "workspace:*",
+        "@poietica/host-kernel": "workspace:*",
+        "@poietica/ui-kernel": "workspace:*",
+        "lucide-react": "catalog:",
+        "react": "catalog:",
+        "zod": "catalog:",
+      },
+      "devDependencies": {
+        "@poietica/engine": "workspace:*",
+        "@poietica/engine-testkit": "workspace:*",
+        "@poietica/feature-attachments": "workspace:*",
+        "@poietica/feature-workspaces": "workspace:*",
+        "@poietica/test-kit": "workspace:*",
+        "@testing-library/react": "catalog:",
+        "@types/bun": "catalog:",
+        "@types/node": "catalog:",
+        "@types/react": "catalog:",
+        "electron": "catalog:",
+      },
+    },
     "features/workspaces": {
       "name": "@poietica/feature-workspaces",
       "version": "0.0.0",
       "dependencies": {
         "@poietica/contract-kit": "workspace:*",
         "@poietica/core-kernel": "workspace:*",
-        "@poietica/design-system": "workspace:*",
         "@poietica/feature-platform": "workspace:*",
         "@poietica/foundation": "workspace:*",
         "@poietica/fs-kit": "workspace:*",
@@ -1177,6 +1206,8 @@
     "@poietica/feature-update": ["@poietica/feature-update@workspace:features/update"],
 
     "@poietica/feature-usage": ["@poietica/feature-usage@workspace:features/usage"],
+
+    "@poietica/feature-widgets": ["@poietica/feature-widgets@workspace:features/widgets"],
 
     "@poietica/feature-workspaces": ["@poietica/feature-workspaces@workspace:features/workspaces"],
 

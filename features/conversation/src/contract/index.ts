@@ -17,7 +17,6 @@ import { conversationErrors } from './errors'
 export * from './entities'
 export { conversationErrors } from './errors'
 export * from './media'
-export * from './widget'
 
 const empty = z.object({})
 

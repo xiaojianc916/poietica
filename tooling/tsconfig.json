@@ -5,6 +5,7 @@
     "jsx": "react-jsx",
     "types": ["bun", "node"]
   },
+  "files": ["./tsconfig/css-imports.d.ts"],
   "include": ["scaffold", "refs", "test", "checks", "release", "**/__tests__/**/*", "**/*.test.ts"],
   "exclude": ["${configDir}/.tsbuild"],
   "references": [
@@ -21,7 +22,13 @@
       "path": "../packages/design-system"
     },
     {
+      "path": "../packages/fs-kit"
+    },
+    {
       "path": "../packages/host-kernel"
+    },
+    {
+      "path": "../packages/runtime-layout"
     },
     {
       "path": "../packages/ui-kernel"

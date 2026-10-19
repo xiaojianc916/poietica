@@ -1,5 +1,3 @@
-/// <reference path="../../../../packages/design-system/src/css.d.ts" />
-
 import { platformContract } from '@poietica/feature-platform/contract'
 import { WorkspacesUiToken } from '@poietica/feature-workspaces/ui-api'
 import { builtinPoints, defineUiFeature, type KeybindingItem, LayoutToken, ToastsToken } from '@poietica/ui-kernel'

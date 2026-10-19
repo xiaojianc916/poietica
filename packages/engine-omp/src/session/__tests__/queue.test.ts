@@ -1,5 +1,3 @@
-import '../../__tests__/omp-home'
-
 import { describe, expect, test } from 'bun:test'
 import { existsSync, mkdirSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'

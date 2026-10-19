@@ -2,6 +2,7 @@ import { Menu } from '@base-ui/react/menu'
 import { Check } from 'lucide-react'
 import type { ComponentProps, ReactNode } from 'react'
 import { cn } from '../class-names'
+import { useOverlayRef } from '../overlay-presence'
 import './menu.css'
 import {
   menuCardClassName,
@@ -59,11 +60,14 @@ export function DropdownMenuContent({
   className,
   compact = false,
   dense = false,
+  ref,
   scrollable = false,
   side = 'bottom',
   sideOffset = 4,
   ...props
 }: DropdownMenuPopupProps) {
+  const overlayRef = useOverlayRef('anchored', ref)
+
   return (
     <Menu.Portal>
       <Menu.Positioner align={align} className={popupPositionerClassName} side={side} sideOffset={sideOffset}>
@@ -76,6 +80,7 @@ export function DropdownMenuContent({
             scrollable && menuScrollableClassName,
             className,
           )}
+          ref={overlayRef}
           {...props}
         />
       </Menu.Positioner>

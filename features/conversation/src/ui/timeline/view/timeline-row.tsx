@@ -4,7 +4,7 @@ import { Prose } from '@poietica/design-system/prose'
 import { FeatureScope, useContributions } from '@poietica/ui-kernel'
 import { memo } from 'react'
 import { type ToolCallRendererProps, toolCallRenderers } from '../../../ui-api'
-import type { FeedRow } from '../presentation'
+import { type FeedRow, matchesToolName } from '../presentation'
 import { CompactionStatus } from './compaction-status'
 import { ErrorNotice } from './error-notice'
 import { LinkCard } from './link-card'
@@ -25,13 +25,8 @@ export interface TimelineRowProps {
 
 /*
  * 其它功能为自己的 agent 工具贡献卡片（toolCallRenderers）。
- * 匹配按 invokedTool —— 它就是「真正在跑的是谁」，与字形、身份同一格。
+ * 匹配按 invokedTool（matchesToolName，与「内联」判据同一份）—— 它就是「真正在跑的是谁」，与字形、身份同一格。
  */
-function matchesToolName(toolName: string | RegExp, invokedTool: string): boolean {
-  return typeof toolName === 'string'
-    ? toolName === invokedTool
-    : new RegExp(toolName.source, toolName.flags).test(invokedTool)
-}
 
 /** 时间线的四档状态 → 贡献点的三档（running/succeeded/failed）。 */
 function rendererStatusOf(status: 'completed' | 'failed' | 'in_progress' | 'pending'): ToolCallRendererProps['status'] {

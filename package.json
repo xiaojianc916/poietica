@@ -117,6 +117,8 @@
     "@types/react": "catalog:",
     "@types/react-dom": "catalog:",
     "dependency-cruiser": "catalog:",
-    "typescript": "catalog:"
+    "typescript": "catalog:",
+    "@poietica/fs-kit": "workspace:*",
+    "@poietica/runtime-layout": "workspace:*"
   }
 }

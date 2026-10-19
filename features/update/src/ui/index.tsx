@@ -1,5 +1,3 @@
-/// <reference path="../../../../packages/design-system/src/css.d.ts" />
-
 import { ConversationUiToken } from '@poietica/feature-conversation/ui-api'
 import { PreferencesToken } from '@poietica/feature-preferences/ui-api'
 import { builtinPoints, DialogsToken, defineUiFeature, ToastsToken, useFeatureStore } from '@poietica/ui-kernel'

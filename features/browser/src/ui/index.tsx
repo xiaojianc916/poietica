@@ -1,12 +1,8 @@
-/// <reference path="../../../../packages/design-system/src/css.d.ts" />
-
 import { attachmentsContract } from '@poietica/feature-attachments/contract'
 import { ConversationUiToken, toolCallRenderers } from '@poietica/feature-conversation/ui-api'
 import {
   builtinPoints,
   type CommandItem,
-  type DialogService,
-  DialogsToken,
   defineUiFeature,
   LayoutToken,
   NavigationToken,
@@ -19,7 +15,7 @@ import type { BrowserState, PickedElement } from '../contract'
 import { createBrowserApi } from './api'
 import { createBrowserDockTabs } from './dock-tabs'
 import { revealDrivenBrowser } from './driven-open'
-import { overlayPresent, watchOverlays } from './overlay-watch'
+import { coveredNow, watchCover } from './overlay-cover'
 import { BrowserPanel } from './panel'
 import { cancelPick, createPickDelivery } from './pick-delivery'
 import { createBrowserPanelStore } from './store'
@@ -32,13 +28,9 @@ import './browser-panel.css'
 
 const PANEL_ID = 'browser.panel'
 
-/** 浮层（命令面板、确认框、Dialog…）都经传送门挂在应用根之外，查询只看那里（P-07）。 */
-function dialogOpen(): boolean {
-  return overlayPresent(document)
-}
-
-function overlayOpen(dialogs: DialogService): boolean {
-  return dialogs.current().length > 0 || dialogOpen()
+/** 视图占位（panel.tsx 的 Viewport）。浮层只有和这块地相交才需要视图让路（overlay-cover.ts）。 */
+function viewportElement(): Element | null {
+  return document.querySelector('[data-browser-viewport]')
 }
 
 export default defineUiFeature({
@@ -47,7 +39,6 @@ export default defineUiFeature({
   setup(ctx) {
     const layout = ctx.services.get(LayoutToken)
     const navigation = ctx.services.get(NavigationToken)
-    const dialogs = ctx.services.get(DialogsToken)
     const toasts = ctx.services.get(ToastsToken)
     const conversation = ctx.services.get(ConversationUiToken)
     const api = createBrowserApi(ctx)
@@ -126,7 +117,7 @@ export default defineUiFeature({
       title: '浏览器',
       icon: Globe,
       dockTabs: createBrowserDockTabs({ api, report, store }),
-      component: () => <BrowserPanelHost api={api} dialogs={dialogs} report={report} store={store} />,
+      component: () => <BrowserPanelHost api={api} report={report} store={store} />,
     })
 
     /** 「在面板中查看」除了开那一格，还要切到卡片上那条地址所在的标签。 */
@@ -231,17 +222,15 @@ export default defineUiFeature({
 /** 面板宿主：算清「该不该让原生视图露面」再交给面板。原生子 webview 摆在外壳之上，右栏收起、活动面板不是浏览器、或有覆盖层时都必须自己收起来。 */
 function BrowserPanelHost({
   api,
-  dialogs,
   report,
   store,
 }: {
   readonly api: ReturnType<typeof createBrowserApi>
-  readonly dialogs: DialogService
   readonly report: (message: string, cause?: unknown) => void
   readonly store: ReturnType<typeof createBrowserPanelStore>
 }): ReactNode {
   const layoutState = useLayout()
-  const [covered, setCovered] = useState(() => overlayOpen(dialogs))
+  const [covered, setCovered] = useState(coveredNow)
   const dock = layoutState.right
   const sidebar = layoutState.sidebar
   const visible = dock.open && dock.activeId === PANEL_ID && !covered
@@ -252,20 +241,8 @@ function BrowserPanelHost({
     [dock.activeId, dock.open, dock.size, sidebar.visible, sidebar.width],
   )
 
-  useEffect(() => {
-    const update = (): void => {
-      setCovered(overlayOpen(dialogs))
-    }
-
-    update()
-    const stopDialogs = dialogs.subscribe(update)
-    const stopOverlays = watchOverlays(document, update)
-
-    return () => {
-      stopDialogs()
-      stopOverlays()
-    }
-  }, [dialogs])
+  /* 确认框等内核对话框也是 design-system 的 Dialog 画的，同样经浮层登记，不必再另听 DialogService。 */
+  useEffect(() => watchCover(viewportElement, setCovered), [])
 
   useEffect(() => {
     if (!visible) {

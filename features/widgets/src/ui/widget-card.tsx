@@ -1,9 +1,9 @@
 import './widget-card.css'
 
+import type { ToolCallRendererProps } from '@poietica/feature-conversation/ui-api'
 import { ExternalLink, RotateCw } from 'lucide-react'
 import { type ComponentType, type ReactNode, useEffect, useRef, useState } from 'react'
-import { WIDGET_SHELL_URL } from '../../../contract'
-import type { ToolCallRendererProps } from '../../../ui-api'
+import { WIDGET_SHELL_URL } from '../contract'
 import {
   externalUrlOf,
   parseWidgetMessage,

@@ -1,5 +1,3 @@
-/// <reference path="../../../../packages/design-system/src/css.d.ts" />
-
 import { platformContract } from '@poietica/feature-platform/contract'
 import { defineUiFeature, ToastsToken } from '@poietica/ui-kernel'
 import type { Attachment } from '../contract'

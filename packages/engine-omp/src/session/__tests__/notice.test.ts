@@ -1,4 +1,3 @@
-import '../../__tests__/omp-home'
 import { describe, expect, test } from 'bun:test'
 import type { EngineSessionEvent } from '@poietica/engine'
 import type { Logger, LogLevel } from '@poietica/foundation'

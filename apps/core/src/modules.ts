@@ -10,6 +10,7 @@ import platform from '@poietica/feature-platform/core'
 import python from '@poietica/feature-python/core'
 import review from '@poietica/feature-review/core'
 import usage from '@poietica/feature-usage/core'
+import widgets from '@poietica/feature-widgets/core'
 import workspaces from '@poietica/feature-workspaces/core'
 
 /**
@@ -28,4 +29,5 @@ export const coreModules: readonly CoreModule[] = [
   python,
   automations,
   browser,
+  widgets,
 ]

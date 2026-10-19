@@ -1,6 +1,7 @@
 import './toast.css'
 import { CircleAlert } from 'lucide-react'
 import { cn } from '../class-names'
+import { useOverlayRef } from '../overlay-presence'
 export interface ToastNotice {
   readonly id: string
   readonly title: string
@@ -20,6 +21,9 @@ export interface ToastRegionProps {
  * 交给 CSS。整张卡片就是那个关闭控件，所以没有叉。
  */
 export function ToastRegion({ notices, onDismiss, onHoverChange }: ToastRegionProps) {
+  /* 一张卡一份登记（同一个 ref 回调挂在每张卡上，React 按元素各记一份清理）：区域本身常驻，空着时不算在场。 */
+  const overlayRef = useOverlayRef<HTMLButtonElement>('anchored')
+
   return (
     <div
       className={cn(
@@ -48,6 +52,7 @@ export function ToastRegion({ notices, onDismiss, onHoverChange }: ToastRegionPr
           onClick={() => {
             onDismiss(notice.id)
           }}
+          ref={overlayRef}
           type="button"
         >
           <CircleAlert aria-hidden="true" className="mt-0.5 size-4 shrink-0 text-destructive" />

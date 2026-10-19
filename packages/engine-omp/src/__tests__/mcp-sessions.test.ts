@@ -1,4 +1,3 @@
-import './omp-home'
 import { describe, expect, test } from 'bun:test'
 import { noopLogger } from '@poietica/foundation'
 import type { DataLayout } from '@poietica/runtime-layout'

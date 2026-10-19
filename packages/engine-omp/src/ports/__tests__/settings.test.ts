@@ -1,5 +1,3 @@
-import '../../__tests__/omp-home'
-
 import { describe, expect, test } from 'bun:test'
 import { Settings } from '@oh-my-pi/pi-coding-agent/config/settings'
 import { noopLogger } from '@poietica/foundation'

@@ -19,6 +19,7 @@
     "@poietica/feature-python": "workspace:*",
     "@poietica/feature-review": "workspace:*",
     "@poietica/feature-usage": "workspace:*",
+    "@poietica/feature-widgets": "workspace:*",
     "@poietica/feature-workspaces": "workspace:*",
     "@poietica/foundation": "workspace:*",
     "@poietica/logging": "workspace:*",

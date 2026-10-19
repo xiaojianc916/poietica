@@ -1,5 +1,3 @@
-/// <reference path="../../../../../../packages/design-system/src/css.d.ts" />
-
 import {
   Button,
   ConfirmationDialog,

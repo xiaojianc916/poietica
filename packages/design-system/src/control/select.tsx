@@ -2,6 +2,7 @@ import { Select as BaseSelect } from '@base-ui/react/select'
 import { Check, ChevronDown } from 'lucide-react'
 import type { ReactNode } from 'react'
 import { cn } from '../class-names'
+import { useOverlayRef } from '../overlay-presence'
 import { popupPositionerClassName, popupSurfaceClassName } from './popup-surface'
 
 /** 类型参数保留选项值的字面量联合，避免调用点转换形状或断言类型。 */
@@ -111,6 +112,8 @@ export function Select<TValue extends string = string>({
   id,
   onValueChange,
 }: SelectProps<TValue>) {
+  const overlayRef = useOverlayRef<HTMLDivElement>('anchored')
+
   return (
     <BaseSelect.Root<TValue>
       items={data}
@@ -167,6 +170,7 @@ export function Select<TValue extends string = string>({
         >
           <BaseSelect.Popup
             className={popupSurfaceClassName}
+            ref={overlayRef}
             style={{
               minInlineSize: `max(var(--anchor-width), ${POPUP_MIN_INLINE_SIZE})`,
               maxInlineSize: POPUP_MAX_INLINE_SIZE,

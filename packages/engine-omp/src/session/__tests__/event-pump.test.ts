@@ -1,5 +1,3 @@
-import '../../__tests__/omp-home'
-
 import { describe, expect, test } from 'bun:test'
 import '@oh-my-pi/pi-coding-agent/config/all-settings'
 import { Settings } from '@oh-my-pi/pi-coding-agent/config/settings'

@@ -1,6 +1,7 @@
 import { Tooltip } from '@base-ui/react/tooltip'
 import type { ComponentProps } from 'react'
 import { cn } from '../class-names'
+import { useOverlayRef } from '../overlay-presence'
 import { popupPositionerClassName } from './popup-surface'
 import './tooltip.css'
 
@@ -36,6 +37,7 @@ const TooltipTrigger = Tooltip.Trigger
  */
 function TooltipContent({
   className,
+  ref,
   side,
   sideOffset = 4,
   ...props
@@ -43,6 +45,8 @@ function TooltipContent({
   readonly sideOffset?: number
   readonly side?: Tooltip.Positioner.Props['side']
 }) {
+  const overlayRef = useOverlayRef('anchored', ref)
+
   return (
     <Tooltip.Portal>
       <Tooltip.Positioner className={popupPositionerClassName} side={side} sideOffset={sideOffset}>
@@ -57,6 +61,7 @@ function TooltipContent({
             'data-[ending-style]:scale-95 data-[ending-style]:opacity-0',
             className,
           )}
+          ref={overlayRef}
           {...props}
         />
       </Tooltip.Positioner>

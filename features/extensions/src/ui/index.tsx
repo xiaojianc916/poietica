@@ -1,5 +1,3 @@
-/// <reference path="../../../../packages/design-system/src/css.d.ts" />
-
 import { composerToolkitSources } from '@poietica/feature-conversation/ui-api'
 import { builtinPoints, defineUiFeature, SETTINGS_GROUPS, ToastsToken } from '@poietica/ui-kernel'
 import { PackageOpen, Plug } from 'lucide-react'

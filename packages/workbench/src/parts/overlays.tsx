@@ -1,3 +1,4 @@
+import { useOverlayRef } from '@poietica/design-system'
 import { builtinPoints, FeatureScope, type OverlayItem, useContributions, useKernel } from '@poietica/ui-kernel'
 import { type ReactElement, type ReactNode, Suspense, useState } from 'react'
 import { PartSkeleton } from './part-skeleton'
@@ -27,10 +28,12 @@ function OverlayHost({ item }: { readonly item: OverlayItem }): ReactNode {
 function FailureNotice(): ReactElement | null {
   const { failures } = useKernel()
   const [open, setOpen] = useState(false)
+  /* 钉在页头下方的一块自绘浮层：登记为贴边浮层，浏览器面板的原生视图才会给它让路（P-07）。 */
+  const overlayRef = useOverlayRef<HTMLDivElement>('anchored')
   const failed = [...failures.entries()]
   if (failed.length === 0) return null
   return (
-    <div className="workbench__failures" data-workbench-part="failure-notice">
+    <div className="workbench__failures" data-workbench-part="failure-notice" ref={overlayRef}>
       <button
         className="workbench__failures-button"
         data-feature-failures={failed.length}

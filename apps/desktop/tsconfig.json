@@ -66,6 +66,12 @@
       "path": "../../features/usage/src/ui"
     },
     {
+      "path": "../../features/widgets/src/host"
+    },
+    {
+      "path": "../../features/widgets/src/ui"
+    },
+    {
       "path": "../../features/workspaces/src/ui"
     },
     {

@@ -1,0 +1,9 @@
+language js
+
+// 通配符模块声明（declare module '*.css' 之类）是全局的：同一个通配符出现两份，哪一份生效取决于编译到哪个包。
+// 全仓只许 tooling/tsconfig/css-imports.d.ts 这一份（biome.json 的 includes 把它排除在外）。
+
+TsExternalModuleDeclaration(source=$name) where {
+  $name <: r"^['\"]\*.*",
+  register_diagnostic(span=$name, message="通配符模块声明全仓只有一份：tooling/tsconfig/css-imports.d.ts（由 dom.json 带进 DOM 工程），不要在别处再声明")
+}

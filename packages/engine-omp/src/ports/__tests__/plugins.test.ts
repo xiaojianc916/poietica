@@ -1,5 +1,3 @@
-import '../../__tests__/omp-home'
-
 import { describe, expect, test } from 'bun:test'
 import { noopLogger } from '@poietica/foundation'
 import { OmpPluginsPort } from '../plugins'

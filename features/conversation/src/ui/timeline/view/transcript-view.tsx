@@ -1,4 +1,6 @@
+import { useContributions } from '@poietica/ui-kernel'
 import { type ReactNode, useCallback, useMemo, useRef, useState } from 'react'
+import { toolCallRenderers } from '../../../ui-api'
 import type { TurnMark } from '../../shared/model/thread'
 import { AgentActivityFeed, type FeedPort, type RowRhythm } from '../feed/agent-activity-feed'
 import { ConversationMinimap } from '../minimap/conversation-minimap'
@@ -10,7 +12,7 @@ import {
   useAssistantTimeline,
 } from '../model/use-assistant-session'
 import type { FeedRow, Presentation } from '../presentation'
-import { selectPresentation } from '../presentation'
+import { inlineToolsOf, selectPresentation } from '../presentation'
 import { selectIsBusy } from '../timeline-queries'
 import { RetryTurn } from './retry-turn'
 import { createRowEstimator } from './row-estimate'
@@ -149,8 +151,10 @@ export function TranscriptView({ dockClearance, lead, onFork, onRetry, onRewrite
 
   const { items, seals } = disclosure
 
-  /* 投影里的缓存不在这里包 useMemo：依赖每帧换引用，包了也永远不命中。 */
-  const feed = selectPresentation(timeline, seals)
+  /* 判据跟着贡献走，引用稳定，投影的缓存按它判命中。投影本身不在这里包 useMemo：依赖每帧换引用，包了也永远不命中。 */
+  const renderers = useContributions(toolCallRenderers)
+  const inline = useMemo(() => inlineToolsOf(renderers.map((contributed) => contributed.item)), [renderers])
+  const feed = selectPresentation(timeline, seals, inline)
   const estimateRow = useMemo(() => {
     void sessionKey
     return createRowEstimator()
@@ -200,7 +204,7 @@ export function TranscriptView({ dockClearance, lead, onFork, onRetry, onRewrite
   const reveal = useCallback(
     (mark: TurnMark, toRow: (row: number) => void) => {
       const landingOf = (allowNearest: boolean): number | undefined => {
-        const projection = selectPresentation(transcripts.read(sessionKey).timeline, seals)
+        const projection = selectPresentation(transcripts.read(sessionKey).timeline, seals, inline)
         const exact = projection.rowOf(mark.admissionId)
         if (exact !== undefined || !allowNearest) {
           return exact
@@ -221,7 +225,7 @@ export function TranscriptView({ dockClearance, lead, onFork, onRetry, onRewrite
         }
       })
     },
-    [outline, seals, sessionKey, transcripts],
+    [inline, outline, seals, sessionKey, transcripts],
   )
 
   /* onSelect 内联等于每帧换一个函数身份，而 ConversationMinimap 是 memo 的，那一栏会跟着滚动逐帧重渲（实测 15/15 次 commit 都真重渲）。落点从 ref 读最新那份。 */

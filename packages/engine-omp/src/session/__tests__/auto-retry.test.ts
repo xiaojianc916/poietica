@@ -1,4 +1,3 @@
-import '../../__tests__/omp-home'
 import { describe, expect, test } from 'bun:test'
 import type { EngineSessionEvent } from '@poietica/engine'
 import { applyOps, emptyTimeline, type RetryNotice, retryNoticeOf } from '@poietica/transcript'

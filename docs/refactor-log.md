@@ -36,7 +36,6 @@
 | 2026-10-17 | 自定义服务商的编辑表单读不到原 Base URL 与 API 格式：`ProviderInfo` 不带这两项，`catalog-port.ts` 的 `baseUrl` 恒为 `null`，直接保存会把 Base URL 写成空 | U-02。要补契约字段，建议单独处理 |
 | 2026-10-17 | 入口页的选择会改模型页的「默认」标记（同一份意图，收敛的本意）。若产品要「入口页只管这一次」，需另起会话级覆盖 | Q1-二期 |
 | 2026-10-18 | `features/review/src/core/__tests__/service.test.ts` 用 `test.skip` 兜底：没有 git 的机器上 19 条静默跳过。改成「缺 git 就红」需拍板 | T-01 |
-| 2026-10-18 | `packages/engine-omp/src/ports/__tests__/{mcp,skills,draft-controls}.test.ts` 整目录单跑互相干扰（`omp-home` 夹具的进程级共享状态）：`bun test packages/engine-omp/src/ports` 现在仍 3 fail，单文件全过 | R-19（2026-10-12）/ T-01 |
 | 2026-10-18 | `features/platform/src/ui/__tests__/format-bytes.test.ts` 测的是 design-system 的 `formatBytes`，位置不对；挪它要动 `editor-project-map` 闸门的收录范围 | T-01 |
 | 2026-10-18 | `RING_MAX_CHARS` 仍为 8MB：没有真机帧大小分布，调小会让长工具输出更早退化成整页重读 | A–E（P-05 的理由） |
 | 2026-10-18 | 自动化新线程的保留策略、fork 改为共享前缀、omp gc 的 archive / wal / stale 三段、按时间清理缓存：方案明确不做 | F-01 §7 |
@@ -67,9 +66,11 @@
 | R-09 | `auto_retry_end` 成功不再上屏（12 页 §9.1 原表为起止各一条） | info 级提示一律不上屏；重试成功由紧随其后的正常回复说明 |
 | R-10 | 轮终点只由**上屏的段**决定，不算工具结果的落地时刻 | omp 重开会话会合成工具结果（`timestamp: Date.now()`），拿它当终点会把一轮算到重启那一刻 |
 | R-12 | 思考不产生任何可展开 UI，历史回放也不显示（`thought-card.tsx` 与相关样式整条移除） | 产品要求；`virtual-lines.tsx` 的 `measured` 档现只剩 `tool-call-panels` 一个消费者 |
+| P-07（修订） | 浏览器原生视图给浮层让路改为**显式登记**（`design-system` 的 `overlay-presence`：Dialog / Menu / Select / Tooltip / 横幅 / 通知卡自己登记，包外自绘浮层用 `useOverlayRef` / `useModalOverlay`），删掉 P-07 的 DOM 观察 `overlay-watch.ts` | 分层审查 2026-10-19：DOM 观察依赖 design-system 的内部结构（传送门是 body 直接子节点、弹层是 `[role="dialog"][data-open]`），而且只认对话框——菜单、下拉、提示、context-gauge 面板、灯箱都会被网页盖住。判定在 browser：模态一律让，贴边浮层与视图相交才让（开在对话区的提示不让网页闪）。没做截图占位：要 `browser.capture` 契约与协议升级，等真机观感再定 |
 | B-01 | 工具卡判定浏览器调用看「调用形状」而不是解析代码：字符串里出现 `browser.open(` 会被误认 | 卡片仍照常显示代码与输出，信息不丢；测试里写成已知边界 |
 | R-13 | 封条挂在这一轮的第一行上；状态行/封条的出现与封口判据照 DSH | 详见 `features/conversation/src/ui/timeline` 的注释与本条历史版本 |
 | R-18 | `show_widget` 的 `url` 来源只收 `localhost / 127.0.0.1` 的 http(s)，**拒绝 Poietica 自己的 dev server**（同源） | 组件在独立来源的外壳文档里跑（`poietica-asset://widget/shell-1.html`，自带 CSP）；主窗口 CSP 只加 `frame-src` |
+| P-07（外壳补齐） | 外壳自己画的两处浮层也登记：`workbench/parts/toasts.tsx` 的通知卡（钉在右下角，正压浏览器面板那块地）与 `parts/overlays.tsx` 的「N 个功能加载失败」（钉在页头下方）。它们不是 design-system 的控件，P7 只登记了 `design-system` 的 `ToastRegion`，而外壳实际用的是自己那份 `Toasts` | 同一类病：画浮层的一方不登记，原生视图就不知道让路。前者挡住的是最常出现的一类浮层（内核服务的失败提示） |
 | R-34 | 用户气泡改为内部滚动（推翻原「一道淡出」的设计） | 嵌套滚轮交给 `data-scrollable` 仲裁；有滚动条就不再叠两端渐隐 |
 | R-35 | 「超过 50 行」不虚拟化，改成收成 `.md` 附件 | contenteditable 的虚拟化会拆掉 IME / 选区 / 撤销栈；产品负责人确认 |
 | R-38 | 思考行新字改用回复正文的批次波浪淡入（推翻 R-21 的「新字只变颜色不变透明度」）；颜色只有一种，跟 `.timeline-row` 走 | 用户 2026-10-18：思考一行两种颜色、出字像逐字。墨迹（`--cp-ticker-ink` 450ms 冷却）在快模型下半行都是亮墨，且思考轨道写死的颜色让悬停时与工具行不同步。节奏改由 `@poietica/design-system/wave` 的 `planWave` 一处产出：放得下时与正文同样成段；放不下（在滚）时进轨道的粒度须 ≤ 滑行余量（tail − 设定值 ≈ 1.5em），故仍由 `ticker-pace` 匀速放字，同一 `stepMs` 内的字并成一段淡入（纯 `planWave` 实测应动未动 84%）。滑行上限改读轨道 `padding-inline-end`，删掉 `TAIL_EM`。沙箱 headless 实测 steady 延迟 p95 ~320→~150ms、sJ90 0.27→0.17；**Windows 真机 `bun run check:ticker` 未跑** |

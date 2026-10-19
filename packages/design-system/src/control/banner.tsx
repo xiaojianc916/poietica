@@ -4,6 +4,7 @@ import { CheckCircle, TriangleAlert } from 'lucide-react'
 import type { CSSProperties, ReactNode } from 'react'
 import { Fragment, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
+import { useOverlayRef } from '../overlay-presence'
 
 /*
  * 顶部居中的一句话横幅：滑入、停留、淡出，自己报完就走。
@@ -94,6 +95,7 @@ export function Banner({ text, icon, tone, actions, holdMs = HOLD_MS, progress, 
    * 不在射程内。
    */
   const [left, setLeft] = useState<number | null>(null)
+  const overlayRef = useOverlayRef<HTMLDivElement>('anchored')
 
   useLayoutEffect(() => {
     if (anchor === null || anchor === undefined) {
@@ -117,6 +119,7 @@ export function Banner({ text, icon, tone, actions, holdMs = HOLD_MS, progress, 
   return createPortal(
     <div
       className={holdMs === null ? 'ui-banner ui-banner--sticky' : 'ui-banner'}
+      ref={overlayRef}
       role="alert"
       style={
         {

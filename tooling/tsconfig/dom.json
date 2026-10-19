@@ -4,5 +4,6 @@
     "lib": ["ES2023", "DOM", "DOM.Iterable", "ESNext.TypedArrays"],
     "types": [],
     "jsx": "react-jsx"
-  }
+  },
+  "files": ["./css-imports.d.ts"]
 }

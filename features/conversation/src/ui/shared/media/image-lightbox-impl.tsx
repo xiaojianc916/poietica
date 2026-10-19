@@ -3,6 +3,7 @@ import Counter from 'yet-another-react-lightbox/plugins/counter'
 import Zoom from 'yet-another-react-lightbox/plugins/zoom'
 import 'yet-another-react-lightbox/plugins/counter.css'
 import 'yet-another-react-lightbox/styles.css'
+import { useModalOverlay } from '@poietica/design-system'
 import { useCallback, useMemo } from 'react'
 import type { ImageLightboxProps, PreviewableImage } from './image-lightbox-types'
 import './image-lightbox.css'
@@ -30,6 +31,8 @@ const toSlides = (images: readonly PreviewableImage[]): Slide[] =>
 export function ImageLightboxImpl({ images, index, onIndexChange }: ImageLightboxProps) {
   const slides = useMemo(() => toSlides(images), [images])
   const open = index !== null && index >= 0 && index < slides.length
+  /* 灯箱由库自己建传送门、铺满窗口：按模态浮层登记（浏览器面板的原生视图靠它让路） */
+  useModalOverlay(open)
 
   const handleClose = useCallback(() => {
     onIndexChange(null)

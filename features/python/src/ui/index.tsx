@@ -1,5 +1,3 @@
-/// <reference path="../../../../packages/design-system/src/css.d.ts" />
-
 import { builtinPoints, defineUiFeature } from '@poietica/ui-kernel'
 import { createPythonApi } from './api'
 import { PythonKernelGroup } from './python-settings'

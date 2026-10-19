@@ -27,7 +27,7 @@
 | `bun install` | 安装依赖（isolated linker，不 hoist） |
 | `bun run dev` | 构建 Core 后启动桌面端 |
 | `bun run  all` | **唯一的准入闸门**：typecheck + lint（biome、自定义闸门、depcruise）+ test |
-| `bun test <路径>` | 只跑某一部分测试 |
+| `bun test <路径>` | 只跑某一部分测试（在仓库根运行：测试 preload 只登记在根 `bunfig.toml`） |
 | `bun run format` | biome 自动格式化 |
 | `bun run refs` | 重新生成 tsconfig 项目引用（禁止手改 references） |
 | `bun run protocol:snapshot` | 契约形状变化后更新协议快照 |
@@ -43,7 +43,7 @@
 ​
 ```
 L5  protocol · workbench · apps/core · apps/desktop      汇总与外壳
-L4  features/*（15 个功能，垂直切片）                    功能
+L4  features/*（16 个功能，垂直切片）                    功能
 L3  core-kernel · host-kernel · ui-kernel · design-system · engine-omp · engine-testkit
 L2  runtime-layout · process-kit · fs-kit · logging · storage-sqlite · git · test-kit
 L1  contract-kit · rpc · transcript · engine
@@ -166,11 +166,12 @@ L0  foundation
 - 前端状态用 `createFeatureStore`（zustand），store 归属于某个功能，不建跨功能的全局 store；功能的界面包在 `FeatureErrorBoundary` 里，一个功能崩了不拖垮外壳。
 - 调 RPC 统一走功能 `ui/api.ts` 里的薄封装，组件里不直接拼方法名。
 - 样式用 `design-system` 的组件与 token，加 Tailwind 4；不要在功能里另起一套颜色或间距。
+- 浮层优先用 `design-system` 的 Dialog / DropdownMenu / Select / Tooltip（它们自己登记 `overlay-presence`）。功能里自绘的浮层（`createPortal`、第三方弹层）必须用 `useOverlayRef` / `useModalOverlay` 登记，否则会被浏览器面板的原生视图盖住——原生视图画在整页 DOM 之上，只能靠登记知道该让路。
 - 界面文案与视觉以基准截图（`docs/baseline/`，由维护者提供）为准，**不得擅自改动**。
 ​
 ## 10. 测试
 ​
-- 框架是 `bun:test`。测试放在 `src/**/__tests__/*.test.ts(x)`；UI 测试由 `tooling/test/` 的 preload 提供 happy-dom 和 React 环境。
+- 框架是 `bun:test`。测试放在 `src/**/__tests__/*.test.ts(x)`；UI 测试由 `tooling/test/` 的 preload 提供 happy-dom 和 React 环境；omp 的落盘隔离也在 preload 里（`omp-isolation.ts`，整个测试进程的 omp 目录指到一次性数据根），测试文件不要自己设 `PI_*` 隔离变量，要数据根就从 `engine-omp/src/__tests__/omp-home.ts` 取 `testLayout`。
 - 内核级测试用 `@poietica/core-kernel/testing` 的 `createCoreHarness`（只装被测模块和它的依赖，加 FakeEngine）。引擎替身来自 `@poietica/engine-testkit`；改了引擎行为时，一致性用例要同时跑 FakeEngine 和 OmpEngine。测试用 logger 来自 `@poietica/test-kit`。
 - 修 bug 时**先写一个在旧代码上失败的测试**，再改实现。
 - 隔离相关的改动要过 `packages/engine-omp/src/__tests__/isolation.test.ts`，再跑 `bun run core:probe`。

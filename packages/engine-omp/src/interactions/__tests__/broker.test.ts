@@ -1,7 +1,3 @@
-import '../../__tests__/omp-home'
-// 本文件经 ui-context 触到 omp 的运行时模块（pi-tui/theme 与 extensions/types 的函数），
-// 所以按包内约定先钉住 omp 的隔离目录。
-import '../../__tests__/omp-home'
 import { describe, expect, test } from 'bun:test'
 import { EngineErrorCode, type InteractionAnswer } from '@poietica/engine'
 import { AppError, SystemErrorCode } from '@poietica/foundation'

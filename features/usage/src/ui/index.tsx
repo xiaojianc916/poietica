@@ -1,5 +1,3 @@
-/// <reference path="../../../../packages/design-system/src/css.d.ts" />
-
 import type { Thread } from '@poietica/feature-conversation/contract'
 import { conversationContract } from '@poietica/feature-conversation/contract'
 import { modelsContract } from '@poietica/feature-models/contract'

@@ -1,5 +1,3 @@
-import '../../__tests__/omp-home'
-
 import { afterEach, describe, expect, test } from 'bun:test'
 import { readFileSync, rmSync, writeFileSync } from 'node:fs'
 import path from 'node:path'
@@ -10,7 +8,7 @@ import { OmpMcpPort } from '../mcp'
 
 /**
  * 用户级 mcp.json 的位置是 <ompAgentDir>/mcp.json，omp 自己的发现也读同一处
- * （测试里 omp-home 把 PI_CODING_AGENT_DIR 指到隔离根），所以两边说的是同一个文件。
+ * （测试进程的 preload（tooling/test/omp-isolation.ts）把 PI_CODING_AGENT_DIR 指到隔离根），所以两边说的是同一个文件。
  */
 const configFile = path.join(testLayout.ompAgentDir, 'mcp.json')
 

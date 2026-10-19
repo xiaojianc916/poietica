@@ -1,11 +1,17 @@
 import { describe, expect, test } from 'bun:test'
+import { createCoreHarness } from '@poietica/core-kernel/testing'
 import type { EngineToolContext, EngineToolSpec } from '@poietica/engine'
+import { createFakeEngine } from '@poietica/engine-testkit'
+import attachments from '@poietica/feature-attachments/core'
+import { conversationContract } from '@poietica/feature-conversation/contract'
+import conversation from '@poietica/feature-conversation/core'
 import { workspacesContract } from '@poietica/feature-workspaces/contract'
+import workspaces from '@poietica/feature-workspaces/core'
 import { AppError } from '@poietica/foundation'
-import { tempDir } from '@poietica/test-kit'
-import { conversationContract, WIDGET_HTML_MAX } from '../../contract'
+import { fakeClock, tempDir } from '@poietica/test-kit'
+import { WIDGET_HTML_MAX } from '../../contract'
+import widgets from '../index'
 import { type ProbeFetch, registerWidgetTool, widgetUrlOf } from '../widget-tool'
-import { harness } from './helpers'
 
 /*
  * show_widget（审查 R-18）：Core 这一侧只钉参数校验、url 探活、交回什么。渲染在 UI
@@ -123,12 +129,16 @@ describe('show_widget（审查 R-18）', () => {
 })
 
 describe('show_widget 经真内核（审查 R-18）', () => {
-  test('M1 conversation 模块装好以后 agent 就能调 show_widget：参数原样记在这次调用上（卡片从这里读）', async () => {
+  test('M1 widgets 模块装好以后 agent 就能调 show_widget：参数原样记在这次调用上（卡片从这里读）', async () => {
     const dir = await tempDir('show-widget-')
     const html = '<button class="primary" onclick="poietica.send(\'用方案 B\')">用方案 B</button>'
-    const { h, engine } = await harness({
+    /* conversation 只负责把这一轮跑起来；show_widget 是 widgets 自己注册的（conversation 不认识它）。 */
+    const clock = fakeClock()
+    const engine = createFakeEngine({
+      clock,
       script: () => [{ kind: 'tool', name: 'show_widget', args: { title: '方案对比', html }, result: '' }],
     })
+    const h = await createCoreHarness({ modules: [attachments, workspaces, conversation, widgets], engine, clock })
     const ws = await h.client(workspacesContract).call('workspaces.add', { path: dir.path })
     const api = h.client(conversationContract)
     const thread = await api.call('threads.create', { workspaceId: ws.id })

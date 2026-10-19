@@ -2,6 +2,7 @@ import { Dialog as BaseDialog } from '@base-ui/react/dialog'
 import { X } from 'lucide-react'
 import { type ReactNode, useRef } from 'react'
 import { cn } from '../class-names'
+import { useOverlayRef } from '../overlay-presence'
 import { Button } from './button'
 
 export interface DialogProps {
@@ -38,6 +39,8 @@ export function Dialog({
   onOpenChange,
 }: DialogProps) {
   const closeButtonRef = useRef<HTMLButtonElement>(null)
+  /* 弹层挂着就算在场：离场动画放完 Base UI 才卸它，原生视图不会抢在淡出前冒出来（见 overlay-presence）。 */
+  const overlayRef = useOverlayRef<HTMLDivElement>('modal')
 
   const requestOpenChange = (nextOpen: boolean) => {
     if (!nextOpen && busy) {
@@ -107,6 +110,7 @@ export function Dialog({
               className,
             )}
             initialFocus={showHeader && showCloseButton ? closeButtonRef : undefined}
+            ref={overlayRef}
           >
             {showHeader ? (
               <header className={cn('flex min-h-14', 'shrink-0 items-start', 'justify-between gap-4', 'px-5 py-4')}>

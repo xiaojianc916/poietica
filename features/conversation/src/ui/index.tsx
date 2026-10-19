@@ -1,5 +1,3 @@
-/// <reference path="../../../../packages/design-system/src/css.d.ts" />
-
 import { defineUiFeature } from '@poietica/ui-kernel'
 import { createConversationActions } from './setup/actions'
 import { createConversationAttachments } from './setup/attachments'

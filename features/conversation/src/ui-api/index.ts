@@ -75,6 +75,11 @@ export interface ToolCallRendererProps {
 export interface ToolCallRenderer {
   readonly toolName: string | RegExp
   readonly component: ComponentType<ToolCallRendererProps>
+  /**
+   * 卡片自己就是内容（例如 widgets 的 show_widget）：不并进过程组，轮次落定后也不折进「过程」；失败的那次照常归过程。
+   * 缺省 false —— 普通工具卡片是过程的一部分。
+   */
+  readonly inline?: boolean
 }
 export const toolCallRenderers = defineContributionPoint<ToolCallRenderer>('conversation.toolCallRenderers')
 
@@ -140,5 +145,9 @@ export interface ConversationUi {
   openThread(threadId: string): void
   /** 当前页面上的输入框（home 页或线程页）；没有输入框的页面（例如设置页）返回 null */
   activeComposer(): ComposerDraft | null
+  /** 某条线程的输入框草稿，不论它此刻在不在屏幕上 */
+  composerOf(threadId: string): ComposerDraft
+  /** 以用户消息直接提交到这条线程，不经输入框（用户正在打的字不受影响）；提交失败照常抛出 */
+  sendText(threadId: string, text: string): Promise<void>
 }
 export const ConversationUiToken = defineServiceToken<ConversationUi>('conversation', 'ConversationUi')

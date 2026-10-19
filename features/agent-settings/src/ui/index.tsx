@@ -1,4 +1,3 @@
-/// <reference path="../../../../packages/design-system/src/css.d.ts" />
 import { builtinPoints, defineUiFeature, SETTINGS_GROUPS } from '@poietica/ui-kernel'
 import { Brain, Monitor, Wand } from 'lucide-react'
 import { AgentPage } from './agent-page'

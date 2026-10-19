@@ -1,5 +1,3 @@
-/// <reference path="../../../../packages/design-system/src/css.d.ts" />
-
 import { conversationContract, MAIN_AGENT_ID, type Thread } from '@poietica/feature-conversation/contract'
 import { ConversationUiToken, threadActions, toolCallRenderers } from '@poietica/feature-conversation/ui-api'
 import { platformContract } from '@poietica/feature-platform/contract'

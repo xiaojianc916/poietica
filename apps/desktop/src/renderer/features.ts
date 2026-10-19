@@ -12,6 +12,7 @@ import review from '@poietica/feature-review/ui'
 import terminal from '@poietica/feature-terminal/ui'
 import update from '@poietica/feature-update/ui'
 import usage from '@poietica/feature-usage/ui'
+import widgets from '@poietica/feature-widgets/ui'
 import workspaces from '@poietica/feature-workspaces/ui'
 import type { UiFeature } from '@poietica/ui-kernel'
 
@@ -19,8 +20,8 @@ import type { UiFeature } from '@poietica/ui-kernel'
  * UI 功能清单。顺序无关（内核按 dependsOn 拓扑排序）。
  * workbenchFeature 由 main.tsx 加入（它是外壳本身，不属于功能清单）。
  *
- * P5 的 attachments 依赖 conversation 的 ui-api，因此排在 conversation 之后（内核也会按
- * dependsOn 拓扑排序，这里的次序只是为了读起来顺）。
+ * 次序按功能分级（tooling/depcruise/feature-tiers.json）从底往上排，只是为了读起来顺：
+ * attachments 在 conversation 之前（conversation 的 UI 依赖它的 ui-api），插件在最后。
  */
 export const uiFeatures: readonly UiFeature[] = [
   platform,
@@ -28,8 +29,8 @@ export const uiFeatures: readonly UiFeature[] = [
   workspaces,
   models,
   agentSettings,
-  conversation,
   attachments,
+  conversation,
   usage,
   review,
   terminal,
@@ -38,4 +39,5 @@ export const uiFeatures: readonly UiFeature[] = [
   update,
   extensions,
   python,
+  widgets,
 ]

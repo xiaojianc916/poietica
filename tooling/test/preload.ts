@@ -1,5 +1,6 @@
 // 为 UI 测试提供 DOM 全局对象（document、window…）。Core / Host 代码的运行时纯度由 tsconfig 预设保证，不靠测试环境。
 import { GlobalRegistrator } from '@happy-dom/global-registrator'
+import { isolateOmpForTests } from './omp-isolation'
 
 /*
  * 告诉 omp「这是测试进程」。omp 的 isBunTestRuntime()（@oh-my-pi/pi-utils/env）只认
@@ -12,6 +13,9 @@ import { GlobalRegistrator } from '@happy-dom/global-registrator'
  * 「测试进程」分支：网络发现关闭、judgment / skill 描述缓存不落盘、会话租约走临时目录。
  */
 process.env.PI_TEST_RUNTIME = '1'
+
+// omp 的落盘目录全部指到一次性测试数据根（理由见 omp-isolation.ts）。同样必须先于任何测试文件求值。
+isolateOmpForTests()
 
 GlobalRegistrator.register({ url: 'http://localhost/', width: 1440, height: 900 })
 

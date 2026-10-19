@@ -16,7 +16,6 @@ import { registerHandlers } from './handlers'
 import { registerImageTool } from './image-tool'
 import { migrations } from './migrations'
 import { TimelineHub } from './timeline-hub'
-import { registerWidgetTool } from './widget-tool'
 import { wireOpsNotice, wireResetNotice } from './wire'
 
 export default defineCoreModule({
@@ -64,8 +63,6 @@ export default defineCoreModule({
     registerHandlers(ctx, core, hub)
     // R-13：agent 往对话里展示图片的正式入口。工具集在全部 setup 之后冻结，只能在这里注册
     registerImageTool({ tools: ctx.agentTools, attachments })
-    // R-18：同一条理由
-    registerWidgetTool({ tools: ctx.agentTools })
     ctx.services.provide(ConversationServiceToken, conversationService(core))
 
     // 引擎配置变化：会话池换代 —— 空闲的立刻释放；变更时正在跑的会话这一轮结束后释放（R-03）

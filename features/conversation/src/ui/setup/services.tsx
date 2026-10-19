@@ -2,13 +2,12 @@ import { WindowCloseToken } from '@poietica/feature-platform/ui-api'
 import { createId } from '@poietica/foundation'
 import { builtinPoints } from '@poietica/ui-kernel'
 import { Bot, MessageSquareText } from 'lucide-react'
-import { ConversationUiToken, toolCallRenderers } from '../../ui-api'
+import { type ComposerDraft, ConversationUiToken } from '../../ui-api'
 import { AuxiliaryComposer } from '../composer/view/auxiliary-composer'
 import { ConversationProviders } from '../composition'
 import { confirmQuit } from '../session/notify'
 import { subagentTitleOf } from '../timeline/view/delegate-channel-view'
 import { createSubagentDockTabs, SUBAGENT_PANEL_ID, SubagentDockPanel } from '../timeline/view/subagent-dock'
-import { createWidgetCard } from '../timeline/view/widget-card'
 import type { ConversationActions } from './actions'
 import type { ConversationSetup } from './context'
 
@@ -65,41 +64,34 @@ export function createConversationServices(setup: ConversationSetup, actions: Co
     ),
   })
 
-  /* 对话内组件（R-18）：send 直接按用户消息提交，不经输入框 —— 用户正在打的字不受影响；提交失败就把那句话放回输入框。 */
-  ctx.contribute(toolCallRenderers, {
-    toolName: 'show_widget',
-    component: createWidgetCard({
-      send: (threadId, text) => {
-        void stores.api
-          .submit({ threadId, clientTurnId: createId(), text, attachmentIds: [], skills: [], deliverAs: 'turn' })
-          .catch(() => {
-            stores.composerFor(threadId).insertText(text)
-          })
+  const draftOf = (threadId: string | null): ComposerDraft => {
+    const handle = stores.composerFor(threadId)
+    return {
+      threadId: handle.threadId,
+      addAttachments: handle.addAttachments,
+      insertText: handle.insertText,
+      submit: () => {
+        handle.submit('turn')
       },
-      draft: (threadId, text) => {
-        stores.composerFor(threadId).insertText(text)
-      },
-      openExternal: (url) => {
-        void platform.call('shell.openExternal', { url })
-      },
-    }),
-  })
+    }
+  }
 
   ctx.services.provide(ConversationUiToken, {
     activeThreadId,
     subscribeActive,
     runningCount: () => runningThreadIds().size,
     openThread,
-    activeComposer: () => {
-      const handle = stores.composerFor(activeThreadId())
-      return {
-        threadId: handle.threadId,
-        addAttachments: handle.addAttachments,
-        insertText: handle.insertText,
-        submit: () => {
-          handle.submit('turn')
-        },
-      }
+    activeComposer: () => draftOf(activeThreadId()),
+    composerOf: (threadId) => draftOf(threadId),
+    sendText: async (threadId, text) => {
+      await stores.api.submit({
+        threadId,
+        clientTurnId: createId(),
+        text,
+        attachmentIds: [],
+        skills: [],
+        deliverAs: 'turn',
+      })
     },
   })
 }

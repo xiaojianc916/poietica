@@ -1,5 +1,3 @@
-import '../../__tests__/omp-home'
-
 import { describe, expect, test } from 'bun:test'
 import { getProviderDefinition } from '@oh-my-pi/pi-ai/registry'
 import { loginAuthText, loginProgressText, loginPromptText } from '../login-text'
