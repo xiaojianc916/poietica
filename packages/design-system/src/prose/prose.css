@@ -380,24 +380,55 @@
   margin-block: var(--cp-prose-flow);
 }
 
-/* 只按宽度适配：宽度吃满栏宽，高度交给 svg 固有比例，不裁剪不滚动 —— 宽图整体缩小，高图顺着正文往下长。 */
+/* 只按宽度适配，且**只缩不放**：图保留 pele 排出来的自然尺寸，超过栏宽时等比缩小，窄图维持原大。
+   若改成 width:100%，pele 那种紧凑排版（160×64 的流程图）会被连字号一起放大到满栏。
+
+   pele 认的是一组 --pele-* 变量（svg 里就是 var(--pele-fg) 这种引用），所以图上屏时就定好了令牌，
+   换主题只是 CSS 重新求值 —— 不重跑布局，也不会先闪一张旧配色的图。这里只做映射，不给具体颜色。
+   节点面取 --ui-secondary、线取 --cp-ink-muted：图在对话里不该比正文抢眼，与原先那套配色同一取向。 */
 .timeline-prose__diagram-stage {
   inline-size: 100%;
+
+  /* 只用 --ui-* 这一层基础令牌：--cp-* 是会话皮肤的中间层，只挂在 [data-assistant-skin] 上，
+     而这个正文组件也被计划坞、技能文档、PR 页用 —— 换一处没有那层皮肤，图就会退回引擎的默认色。 */
+  --pele-bg: var(--ui-background);
+  --pele-fg: var(--ui-foreground);
+  --pele-muted: var(--ui-muted-foreground);
+  --pele-line: var(--ui-muted-foreground);
+  --pele-surface: var(--ui-secondary);
+  --pele-surface-alt: var(--ui-sunken);
+  --pele-border: var(--ui-divider);
+  --pele-accent: var(--ui-primary);
+  --pele-critical: var(--ui-destructive);
+  --pele-error: var(--ui-destructive);
+  --pele-radius: var(--ui-radius-md);
+  --pele-font: var(--ui-font-sans);
+  --pele-font-mono: var(--ui-font-mono);
+
+  /* 图表八档序列色：pele 默认是它自己那套（蓝、橙、绿…），在深浅两套主题里都不属于本仓。
+     这里按「前景墨兑进节点面」的同一把梯子排开，档与档之间只差亮度 —— 与本仓其它图一个取向。 */
+  --pele-series-1: color-mix(in oklab, var(--ui-foreground) 62%, var(--ui-secondary));
+  --pele-series-2: color-mix(in oklab, var(--ui-foreground) 50%, var(--ui-secondary));
+  --pele-series-3: color-mix(in oklab, var(--ui-foreground) 40%, var(--ui-secondary));
+  --pele-series-4: color-mix(in oklab, var(--ui-foreground) 32%, var(--ui-secondary));
+  --pele-series-5: color-mix(in oklab, var(--ui-foreground) 25%, var(--ui-secondary));
+  --pele-series-6: color-mix(in oklab, var(--ui-foreground) 19%, var(--ui-secondary));
+  --pele-series-7: color-mix(in oklab, var(--ui-foreground) 14%, var(--ui-secondary));
+  --pele-series-8: color-mix(in oklab, var(--ui-foreground) 10%, var(--ui-secondary));
 }
 
-/* 行内元素的基线间隙会在图下方垫出几个像素。宽高由 diagram.tsx 的 ground() 定（100% / auto）；下面几条压的是 mermaid
- * 写进 svg 的那份样式表（选择器是 #id，节点圆角在那边写死 0）。颜色不在这一条：流程图走 themeVariables、
- * mindmap 走 themeCSS，都在 diagram-theme.ts。 */
+/* 行内元素的基线间隙会在图下方垫出几个像素。颜色与圆角不在这里：
+   pele 把两者都写成 var(--pele-*) 引用，映射在上面那条 --pele-* 规则里。 */
 .timeline-prose__diagram-stage svg {
   display: block;
+
+  /* 尺寸必须在这里写回。tokens/controls.css 的 :where(svg) 把所有 svg 默认压成 --ui-icon 一格，
+     而那张图的 width/height 是 SVG 表现属性 —— 比任何 CSS 规则都低，不写回就会变成一枚图标那么大。
+     auto 取回引擎排出的自然尺寸，max-inline-size 只管超宽时等比缩小。 */
+  inline-size: auto;
+  block-size: auto;
   max-inline-size: 100%;
   margin-inline: auto;
-}
-
-.timeline-prose__diagram-stage .node rect,
-.timeline-prose__diagram-stage .cluster rect {
-  rx: var(--ui-radius-lg);
-  ry: var(--ui-radius-lg);
 }
 
 .timeline-prose__diagram[data-view="code"] .timeline-prose__diagram-stage {

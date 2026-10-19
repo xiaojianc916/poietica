@@ -109,7 +109,7 @@ CoreSupervisor（启动/重启/关闭 Core，含退避与 crash loop 判定）�
 
 - `design-system` 收的是**不认识业务的富界面**：不调 RPC、不持有功能 store、不 import 任何功能的
   `contract`，数据全从 props 进、动作全从回调出。带重依赖的单开子入口（`./diff` 带 shiki，`./prose`
-  带 streamdown / katex / mermaid），不进根入口的闭包。
+  带 streamdown / katex / pele），不进根入口的闭包。
 - 功能的 `ui-api` 只放跨功能的**形状、贡献点与服务令牌**，不放带样式的组件（depcruise `ui-api-no-styles`）。
   反例就是这条规则的来历：Prose、分支选择器、技能文档面板曾经因为「功能之间不得 import ui」被吸进
   conversation，再经类型被擦掉的服务令牌（`MarkdownRendererToken`、`SkillDocumentToken`）漏给别的功能。

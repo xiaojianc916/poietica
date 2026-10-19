@@ -1,6 +1,4 @@
-import type { DiagramInks } from './diagram-theme'
-
-/* 画过的图按「颜色 + 源码」留下 SVG 字符串：所在行会被虚拟器卸载，没有这一份，滚回来就要重跑布局引擎
+/* 画过的图按源码留下 SVG 字符串：所在行会被虚拟器卸载，没有这一份，滚回来就要重跑布局引擎
    （主线程上几十到几百毫秒），而且行高先源码面板、再变成图，虚拟器收到两次尺寸变化、位置跟着跳。
    存字符串不存节点：同一个节点不能同时挂在两处。 */
 const SVG_ENTRIES = 64
@@ -9,16 +7,9 @@ const SVG_CHARS = 4_000_000
 const svgs = new Map<string, string>()
 let chars = 0
 
-/* inks 的键顺序不保证稳定（引擎交回的对象字面量会重排），按键排一遍再拼，同一张图才能命中。 */
-export function inksKey(inks: DiagramInks): string {
-  return Object.entries(inks)
-    .sort(([left], [right]) => left.localeCompare(right))
-    .map(([slot, value]) => `${slot}=${value}`)
-    .join('\u0001')
-}
-
-export function svgKey(inks: DiagramInks, code: string): string {
-  return `${inksKey(inks)}\u0000${code}`
+/* 键只有源码：pele 交回的 svg 里颜色全是 var(--pele-*) 引用，换主题是 CSS 的事，不该再重画一张。 */
+export function svgKey(code: string): string {
+  return code
 }
 
 /** 命中即算一次使用：挪到最近端，淘汰最后才轮到它。 */
@@ -65,25 +56,8 @@ export function keepSvg(key: string, svg: string): void {
   }
 }
 
-/* 上一次在这个主题下读到的颜色：取色探针要挂在真实祖先里才读得到令牌，而祖先要等节点上屏，
-   所以重挂载后的第一帧本来没有颜色、也就画不出图。按主题留一份，第一帧就有颜色。 */
-const inksByTheme = new Map<string, DiagramInks>()
-
-export function currentTheme(): string {
-  return document.documentElement.getAttribute('data-theme') ?? ''
-}
-
-export function cachedInks(theme: string): DiagramInks | undefined {
-  return inksByTheme.get(theme)
-}
-
-export function keepInks(theme: string, inks: DiagramInks): void {
-  inksByTheme.set(theme, inks)
-}
-
 /** 仅测试使用：模块级缓存跨用例留着，淘汰顺序就不可预期。 */
 export function resetDiagramCacheForTests(): void {
   svgs.clear()
   chars = 0
-  inksByTheme.clear()
 }

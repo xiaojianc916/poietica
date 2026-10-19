@@ -20,12 +20,12 @@
     "@streamdown/cjk": "catalog:",
     "@streamdown/code": "catalog:",
     "@streamdown/math": "catalog:",
-    "@streamdown/mermaid": "catalog:",
     "@tanstack/react-virtual": "catalog:",
     "clsx": "catalog:",
     "diff": "catalog:",
     "katex": "catalog:",
     "lucide-react": "catalog:",
+    "pele": "catalog:",
     "shiki": "catalog:",
     "streamdown": "catalog:",
     "tailwind-merge": "catalog:"
