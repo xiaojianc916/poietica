@@ -126,7 +126,7 @@ export function AgentActivityFeed({
   /* 这些令牌注册为 length，getComputedStyle 因而返回可直接相加的像素值。 */
   const metrics = useMemo(() => {
     if (viewport === null) {
-      return { dissolve: 0, gap: 0, glyph: 0, prose: 0 }
+      return { dissolve: 0, gap: 0, glyph: 0, landing: 0, prose: 0 }
     }
 
     const style = getComputedStyle(viewport)
@@ -136,6 +136,8 @@ export function AgentActivityFeed({
       dissolve: read('--cp-dock-dissolve'),
       gap: read('--cp-dock-gap'),
       glyph: read('--cp-feed-glyph-row-gap'),
+      /* 视口上沿的留白（--cp-gutter）：滚到顶时第一轮离上沿这么远，跳到哪一轮也落在这里。 */
+      landing: Number.parseFloat(style.paddingBlockStart) || 0,
       prose: read('--cp-feed-prose-row-gap'),
     }
   }, [viewport])
@@ -146,8 +148,12 @@ export function AgentActivityFeed({
   const paddingEnd = dockClearance === null ? 0 : dockClearance + runway
 
   const virtualizer = useVirtualizer({
-    /* 落点 = item.start - scrollPaddingStart：被揭示的行之上留一格行距。 */
-    scrollPaddingStart: revealing === null ? 0 : leadOf(revealing),
+    /*
+     * 落点 = item.start - scrollPaddingStart：被揭示的那一行落在「滚到顶时第一行」的位置，也就让开了页头下面那道雾。
+     * 必须是常数：虚拟器在 scrollend 之后还会按最新测量再校一两帧，这一格若跟着 revealing 撤成 0，
+     * 刚落定的那一轮会再往上窜一截，正好钻进雾里。
+     */
+    scrollPaddingStart: metrics.landing,
     count: feed.count,
     getScrollElement: () => viewport,
     estimateSize: estimateItem,
@@ -176,6 +182,29 @@ export function AgentActivityFeed({
 
   const intent = revealing === null ? (pinned ? `end:${String(end)}` : null) : `row:${String(revealing)}:${String(end)}`
   const wroteAt = useRef<string | null>(null)
+
+  /*
+   * 跑道换档（运行行来去）与行长高必须落在同一帧。一轮结束时这两件事在同一次提交里发生：末尾留白收掉
+   * 一截跑道，同时回复底下长出操作条、组头收起、封条出现。留白是渲染时就算进 total 的，行高却要等
+   * ResizeObserver 下一帧才量到 —— 钉在末端的对话于是先往下掉一截跑道、下一帧再被操作条顶回来。
+   * 在写位置之前（下面那个效应）把已渲染的行当场量一遍，两件事就进了同一次绘制。只在换档时量：
+   * 流式的每一批照旧交给 ResizeObserver。
+   */
+  const measuredRunway = useRef(runway)
+
+  useLayoutEffect(() => {
+    if (measuredRunway.current === runway) {
+      return
+    }
+
+    measuredRunway.current = runway
+
+    /* 不走 measureElement：不带 ResizeObserver 条目时它交回缓存里的旧高，正是这里要绕开的那一份；offsetHeight 与它首次挂载时的量法同口径。 */
+    for (const row of transcriptRef.current?.querySelectorAll<HTMLElement>(':scope > .agent-activity-feed__row') ??
+      []) {
+      virtualizer.resizeItem(Number(row.dataset.index), row.offsetHeight)
+    }
+  }, [runway, virtualizer])
 
   useLayoutEffect(() => {
     if (intent === null) {

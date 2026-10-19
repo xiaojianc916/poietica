@@ -72,6 +72,7 @@
 | R-34 | 用户气泡改为内部滚动（推翻原「一道淡出」的设计） | 嵌套滚轮交给 `data-scrollable` 仲裁；有滚动条就不再叠两端渐隐 |
 | R-35 | 「超过 50 行」不虚拟化，改成收成 `.md` 附件 | contenteditable 的虚拟化会拆掉 IME / 选区 / 撤销栈；产品负责人确认 |
 | R-38 | 思考行新字改用回复正文的批次波浪淡入（推翻 R-21 的「新字只变颜色不变透明度」）；颜色只有一种，跟 `.timeline-row` 走 | 用户 2026-10-18：思考一行两种颜色、出字像逐字。墨迹（`--cp-ticker-ink` 450ms 冷却）在快模型下半行都是亮墨，且思考轨道写死的颜色让悬停时与工具行不同步。节奏改由 `@poietica/design-system/wave` 的 `planWave` 一处产出：放得下时与正文同样成段；放不下（在滚）时进轨道的粒度须 ≤ 滑行余量（tail − 设定值 ≈ 1.5em），故仍由 `ticker-pace` 匀速放字，同一 `stepMs` 内的字并成一段淡入（纯 `planWave` 实测应动未动 84%）。滑行上限改读轨道 `padding-inline-end`，删掉 `TAIL_EM`。沙箱 headless 实测 steady 延迟 p95 ~320→~150ms、sJ90 0.27→0.17；**Windows 真机 `bun run check:ticker` 未跑** |
+| R-39 | 对话区三处「两件事差一帧」：一轮结束时跑道收掉与回复操作条长出、输入区变高变矮与转录末尾留白、minimap 落点与落定后的校正 | 用户 2026-10-19：回复结束或发完消息后整段对话偶尔抖一下；minimap 跳过去偏下。① 跑道换档（运行行来去）在渲染时就进了 total，行长高却要等 ResizeObserver 下一帧（且这一帧有 scrollToEnd 在途，虚拟器不做同步补偿）→ 先掉 31px 再顶回：换档那次提交在写位置前按 offsetHeight 当场量已渲染的行（`agent-activity-feed.tsx`）。② `useDockClearance` 在 RO 回调里 setState 走默认优先级，留白晚一帧：改 `flushSync`。③ `scrollPaddingStart` 随 `revealing` 撤成 0，scrollend 后虚拟器再校一帧，刚落定的那一轮再上窜一截、钻进页头下的雾（`.conversation-veil`，两行高）：改为常数 = 视口上沿留白（`--cp-gutter`），落点与「滚到顶时第一行」同位。沙箱 headless 实验台（真实 virtualizer + 令牌）逐帧验证；**未在 Electron 真机核对** |
 
 ## 历史条目索引
 
