@@ -1,4 +1,5 @@
 import type { Disposable } from '@poietica/foundation'
+import type { BrowserRelayEndpoint } from './browser-relay'
 import type { McpPort, ModelsPort, PluginsPort, SessionFilesPort, SettingsPort, SkillsPort } from './ports'
 import type { EngineSession, OpenSessionSpec } from './session'
 import type { EngineToolSpec } from './tools'
@@ -49,5 +50,10 @@ export interface AgentEngine {
   readonly skills: SkillsPort
   readonly mcp: McpPort
   readonly plugins: PluginsPort
+  /**
+   * 内置浏览器要连的 relay 服务（见 ./browser-relay.ts）。引擎没有这项能力、或这一次没开（测试替身、探针）时为 null。
+   * 端口由引擎自己挑：Host 不再在启动参数里替它选，内核与启动契约因此不认识 relay。
+   */
+  browserRelay(): BrowserRelayEndpoint | null
   dispose(): Promise<void>
 }

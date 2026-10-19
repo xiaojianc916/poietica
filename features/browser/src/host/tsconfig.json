@@ -3,10 +3,16 @@
   "include": ["."],
   "references": [
     {
+      "path": "../../../../packages/engine"
+    },
+    {
       "path": "../../../../packages/foundation"
     },
     {
       "path": "../../../../packages/host-kernel"
+    },
+    {
+      "path": "../../../../packages/runtime-layout"
     },
     {
       "path": "../contract"

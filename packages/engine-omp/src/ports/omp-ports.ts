@@ -32,7 +32,6 @@ export interface OmpPortsOptions {
   /** omp 的 ModelRegistry：端口只认收窄后的 RegistryPort（model-helpers 的 registryPortOf 转） */
   readonly registry: OmpModelRegistry
   readonly authStorage: object
-  readonly relayPort: number
   /** 活着的会话：MCP 状态要按名汇总它们各自的 mcpManager */
   readonly sessions: Set<OmpSessionLike>
 }

@@ -78,6 +78,7 @@ function makeEngine(over: Partial<ConstructorParameters<typeof OmpEngine>[0]> = 
   const opened: string[] = []
   const engine = new OmpEngine({
     info: { name: 'omp', version: '0.0.0-test' },
+    browserRelay: null,
     /*
      * 草稿表这一支：OmpEngine 只做转发，实际组装在组合根（ports/draft-controls.ts）。
      * 这里给一个空表替身即可 —— 组装规则的用例在 engine-testkit 的 C-DRAFT-CONTROLS

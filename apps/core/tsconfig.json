@@ -15,6 +15,9 @@
       "path": "../../features/automations/src/core"
     },
     {
+      "path": "../../features/browser/src/core"
+    },
+    {
       "path": "../../features/conversation/src/core"
     },
     {

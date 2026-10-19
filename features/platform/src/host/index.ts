@@ -1,6 +1,6 @@
 import { statSync } from 'node:fs'
-import { BROWSER_PARTITION } from '@poietica/feature-browser/contract'
 import { defineHostModule } from '@poietica/host-kernel'
+import { BROWSER_PARTITION } from '@poietica/runtime-layout'
 import { type BrowserWindow, dialog, Notification, screen, session, shell } from 'electron'
 import { platformContract } from '../contract'
 import { createLogSink } from './log-sink'

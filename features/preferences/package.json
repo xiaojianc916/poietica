@@ -14,7 +14,6 @@
     "@poietica/design-system": "workspace:*",
     "@poietica/feature-platform": "workspace:*",
     "@poietica/fs-kit": "workspace:*",
-    "@poietica/test-kit": "workspace:*",
     "@poietica/foundation": "workspace:*",
     "@poietica/host-kernel": "workspace:*",
     "@poietica/ui-kernel": "workspace:*",
@@ -23,7 +22,7 @@
     "zod": "catalog:"
   },
   "devDependencies": {
-    "@poietica/engine-testkit": "workspace:*",
+    "@poietica/test-kit": "workspace:*",
     "@testing-library/react": "catalog:",
     "@types/node": "catalog:",
     "@types/react": "catalog:",

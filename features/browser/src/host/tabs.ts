@@ -1,5 +1,6 @@
 import { AppError, type Clock, type Disposable, type Logger, systemClock, toDisposable } from '@poietica/foundation'
-import { BLANK_PAGE, BROWSER_PARTITION, type BrowserState, type BrowserTab, PICKER_WORLD } from '../contract/entities'
+import { BROWSER_PARTITION } from '@poietica/runtime-layout'
+import { BLANK_PAGE, type BrowserState, type BrowserTab, PICKER_WORLD } from '../contract/entities'
 import { browserErrors } from '../contract/errors'
 import { displayHost, isNavigableAddress, isWebAddress, normalizeAddress } from './address'
 

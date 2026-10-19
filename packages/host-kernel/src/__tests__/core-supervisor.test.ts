@@ -1,6 +1,5 @@
 import { describe, expect, test } from 'bun:test'
 import { EventEmitter } from 'node:events'
-import { readFileSync } from 'node:fs'
 import { PassThrough } from 'node:stream'
 import { type AppError, Deferred, SystemErrorCode } from '@poietica/foundation'
 import { encodeFrame } from '@poietica/rpc'
@@ -47,7 +46,7 @@ function makeSpawn(): { spawn: unknown; spawned: Spawned[]; killed: number[] } {
   return { spawn, spawned, killed }
 }
 
-/** 让 launch() 里的 await（pickPort、mkdir）走完，使子进程真正被创建 */
+/** 让 start() 里的 await（清残留的进程枚举）走完，使子进程真正被创建 */
 async function tick(times = 5): Promise<void> {
   for (let i = 0; i < times; i++) await Promise.resolve()
 }
@@ -97,7 +96,6 @@ async function setup(
     onNotification: () => undefined,
     spawn: spawn as never,
     clock,
-    pickPort: async () => 12345,
     /* 残留清理走注入的空进程表：这些用例测的是看护状态机，不该被本机真实进程影响，也不该真去跑 PowerShell */
     listProcesses: async () => [],
     kill: async (pid) => {
@@ -121,7 +119,6 @@ describe('CoreSupervisor', () => {
     await started
     expect(states).toEqual(['starting', 'ready'])
     expect(s.sup.status.state).toBe('ready')
-    expect(s.sup.relayEndpoint()?.port).toBe(12345)
   })
 
   test('S-2 协议版本不一致 → failed/protocol_mismatch 且杀掉子进程', async () => {
@@ -397,37 +394,43 @@ describe('CoreSupervisor', () => {
   test('状态机对外只有五个 state 值；idle 报告为 starting', async () => {
     const s = await setup()
     expect(s.sup.status.state).toBe('starting')
-    expect(s.sup.relayEndpoint()).toBeNull()
   })
 
   /*
-   * R-05 §3.4（M6）：stop() 恰好落在 pickPort 期间 —— 旧代码 child 还是 undefined，
-   * 直接进 stopped，随后 launch 继续 spawn，就绪时把状态又变回 ready（幽灵进程）。
+   * R-05 §3.4（M6）：stop() 恰好落在启动前的让出点（清残留要枚举进程）期间 —— child 还是 undefined，
+   * 直接进 stopped；start() 回来若不查代际就继续 spawn，就绪时把状态又变回 ready（幽灵进程）。
+   * 这个让出点以前是 Host 替 Core 挑 relay 端口；端口改由引擎自己挑之后，守住它的是 start() 自己的代际检查。
    */
-  test('R-05 M6 pickPort 期间 stop()：不 spawn、最终 stopped', async () => {
-    const port = new Deferred<number>()
-    const s = await setup({ pickPort: () => port.promise })
+  test('R-05 M6 启动前清残留期间 stop()：不 spawn、最终 stopped', async () => {
+    const listed = new Deferred<[]>()
+    let calls = 0
+    const s = await setup({
+      listProcesses: () => {
+        calls += 1
+        return calls === 1 ? listed.promise : Promise.resolve([])
+      },
+    })
     const started = s.sup.start()
     await tick()
     expect(s.spawned.length).toBe(0)
     const stopping = s.sup.stop()
-    port.resolve(12345)
+    listed.resolve([])
     await Promise.all([started, stopping])
     expect(s.spawned.length).toBe(0)
     expect(s.sup.status.state).toBe('stopped')
   })
 
   /*
-   * R-05 §3.4（M7）：restart() 恰好落在 pickPort 期间 —— 旧代码第一代继续 spawn 另一个
+   * R-05 §3.4（M7）：restart() 恰好落在启动前的让出点期间 —— 第一代若继续 spawn 另一个
    * Core 并覆盖 this.child，第一代就绪时因代际过期直接 return（不杀子进程），
    * 两个 Core 同时打开同一个 SQLite 与 omp 会话目录。
    */
-  test('R-05 M7 pickPort 期间 restart()：过期一代不 spawn', async () => {
-    const first = new Deferred<number>()
-    const second = new Deferred<number>()
+  test('R-05 M7 启动前清残留期间 restart()：过期一代不 spawn', async () => {
+    const first = new Deferred<[]>()
+    const second = new Deferred<[]>()
     let calls = 0
     const s = await setup({
-      pickPort: () => {
+      listProcesses: () => {
         calls += 1
         return calls === 1 ? first.promise : second.promise
       },
@@ -436,15 +439,14 @@ describe('CoreSupervisor', () => {
     await tick()
     const restarting = s.sup.restart()
     await tick()
-    // 第二代的 pickPort 立即落地；第一代随后落地时必须自己收手
-    second.resolve(23456)
-    first.resolve(12345)
+    // 第二代的进程枚举先落地；第一代随后落地时必须自己收手
+    second.resolve([])
+    first.resolve([])
     await tick(20)
     ready(s.spawned[0]!.child)
     await Promise.all([started, restarting])
     expect(s.spawned.length).toBe(1)
     expect(s.sup.status.state).toBe('ready')
-    expect(s.sup.relayEndpoint()?.port).toBe(23456)
   })
 
   /*
@@ -472,7 +474,7 @@ describe('CoreSupervisor', () => {
     void started
   }, 30_000)
 
-  test('启动参数按 buildCoreLaunch 生成（含 --strict 与 relay 端口）', async () => {
+  test('启动参数按 buildCoreLaunch 生成（含 --strict；relay 不在启动契约里）', async () => {
     const s = await setup()
     const started = s.sup.start()
     await tick()
@@ -481,22 +483,7 @@ describe('CoreSupervisor', () => {
     const args = s.spawned[0]!.args
     expect(args[0]).toBe('serve')
     expect(args).toContain('--strict')
-    expect(args).toContain('--relay-port')
-    expect(args).toContain('12345')
-  })
-
-  test('relay 口令：拉起前按数据根落盘，端点交出同一份；Core 的环境只带文件路径', async () => {
-    const s = await setup()
-    const started = s.sup.start()
-    await tick()
-    ready(s.spawned[0]!.child)
-    await started
-    const layout = dataLayout(s.dir.path)
-    const token = readFileSync(layout.relayTokenFile, 'utf8')
-    expect(s.sup.relayEndpoint()).toEqual({ port: 12345, token })
-    const env = s.spawned[0]!.env ?? {}
-    expect(env.POIETICA_RELAY_TOKEN_FILE).toBe(layout.relayTokenFile)
-    expect(Object.values(env)).not.toContain(token)
+    expect(args).not.toContain('--relay-port')
   })
 
   test('stderr 逐行送到 coreOutput', async () => {
@@ -542,13 +529,13 @@ describe('CoreSupervisor', () => {
     expect(s.sup.status.attempt).toBe(1)
   })
 
-  test('S-28 launch 里抛错（取端口失败）：start 不抛、进退避，之后能自愈', async () => {
+  test('S-28 launch 里抛错（组装启动环境失败）：start 不抛、进退避，之后能自愈', async () => {
     let calls = 0
     const s = await setup({
-      pickPort: async () => {
+      baseEnv: () => {
         calls++
-        if (calls === 1) throw new Error('no free port')
-        return 12345
+        if (calls === 1) throw new Error('env unavailable')
+        return { PATH: 'x' }
       },
     })
     await s.sup.start()
@@ -634,8 +621,8 @@ describe('CoreSupervisor', () => {
 
   test('S-29 launch 持续抛错：窗口内超过上限进 failed/crash_loop，而不是无限重试', async () => {
     const s = await setup({
-      pickPort: async () => {
-        throw new Error('no free port')
+      baseEnv: () => {
+        throw new Error('env unavailable')
       },
     })
     await s.sup.start()

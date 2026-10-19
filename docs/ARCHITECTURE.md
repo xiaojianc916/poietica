@@ -48,7 +48,7 @@ L0  基础         foundation
 
 | 层 | 机制 | 位置 |
 | --- | --- | --- |
-| 1 | bun 的 isolated linker：每个包只能看见自己声明的依赖 | `bunfig.toml` |
+| 1 | bun 的 isolated linker：每个包只能看见自己声明的依赖；声明必须如实（不多不少） | `bunfig.toml`、`tooling/checks/manifest-deps.ts` |
 | 2 | tsconfig 运行时预设 + 项目引用：类型层面就看不见不该看的 | `tooling/tsconfig/*`、`bun run refs` |
 | 3 | dependency-cruiser：跨包/跨子入口的边逐个检查 | `tooling/depcruise/config.cjs` |
 
@@ -64,6 +64,11 @@ L0  基础         foundation
 | `ui` | dom | 本功能 `contract` / `ui-api`、`ui-kernel`、`design-system`、react、zustand、**依赖功能的 `contract` / `ui-api`** |
 
 任何子入口都不得 import 其它功能的 `core` / `host` / `ui`。
+
+功能之间还有**方向**：`tooling/depcruise/feature-tiers.json` 把 L4 分成五级——0 平台（platform）、1 基础状态
+（preferences、workspaces）、2 能力（attachments、models）、3 主干（conversation）、4 插件（其余）。产品代码只能依赖
+级别严格更低的功能（depcruise `feature-tier:<id>`），三个进程共用这一张表，所以同一对功能在 Core / Host / UI 里一定同向。
+下层功能需要认识上层的某个**事实**时（例如内置浏览器的分区名），把事实下沉到平台包，而不是让下层去依赖上层。
 
 ## 4. 三个进程与三个微内核
 
@@ -195,7 +200,7 @@ omp 的版本锁在根 `package.json` 的 catalog（四个 `@oh-my-pi/*` 同一�
 
 **升级 omp**：改根 `package.json` catalog 的四个 `@oh-my-pi/*` 版本 → `bun install` →
 `bun run check:omp-doc:write`（刷 `docs/omp-sdk-reference.md` 的版本头与行号锚点）→
-按 16 页 §5 的陷阱表逐项核对（会话文件、设置键、工具名、事件形状、浏览器 relay 协议……）→
+按 16 页 §5 的陷阱表逐项核对（会话文件、设置键、工具名、事件形状……；浏览器 relay 协议由 typecheck 机检）→
 记录到 `docs/refactor-log.md` → `bun run core:build` + `core:probe` + `bun run  all`。
 
 **发布**：`bun run version:set <x.y.z>`（唯一入口，同时改根、desktop 与 core）→ 提交 →

@@ -10,10 +10,10 @@ import { createUiKernel } from '@poietica/ui-kernel'
 /*
  * R-07 U7：conversation 与 attachments 两个 UI 功能一起装载。
  *
- * 这一条钉的是**依赖方向**：草稿引用同步住在 attachments 的 UI（它本来就依赖
- * conversation），conversation 只交出只读视图、不反过来依赖 attachments。
- * 报告原稿的 §3.4 让 conversation 也依赖 attachments，两边一合就是环 ——
- * `sortModules` 会在 start() 时抛 `kernel.module_graph_invalid`。
+ * 这一条钉的是**依赖方向**：conversation → attachments（与 Core 同向，见 tooling/depcruise/feature-tiers.json），
+ * attachments 不认识 conversation。草稿引用同步由 conversation 把只读视图交给 attachments 的 `trackDraftRefs`，
+ * 正是报告原稿 §3.4 的接法；当初它与「attachments → conversation」的旧方向一合就是环，才临时反过来放。
+ * 方向再被翻回去时，`sortModules` 会在 start() 时抛 `kernel.module_graph_invalid`。
  */
 
 function statusBridge(): WindowBridge {
@@ -46,7 +46,7 @@ function statusBridge(): WindowBridge {
 describe('R-07 草稿引用同步的装配', () => {
   test('U7 conversation 与 attachments 一起装载：不成环，且两边 setup 都成功', async () => {
     const kernel = createUiKernel({
-      features: [platform, preferences, workspaces, conversation, attachments],
+      features: [platform, preferences, workspaces, attachments, conversation],
       errorMessages: {},
       validateResults: false,
       defaultRoute: { surface: 'conversation.home', params: {} },

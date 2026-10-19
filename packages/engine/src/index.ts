@@ -1,3 +1,12 @@
+export {
+  type BrowserRelayEndpoint,
+  DISCARDED_TABS_PROTOCOL_VERSION,
+  parseRelayToken,
+  type RelayInbound,
+  type RelayOutbound,
+  type RelayRpc,
+  type TabSnapshot,
+} from './browser-relay'
 export type { AgentEngine, DraftControlInit, EngineInfo } from './engine'
 export { EngineErrorCode, engineErrorMessages } from './errors'
 export { interactionCardOf, interactionStateOf } from './interaction-card'

@@ -1,7 +1,7 @@
 import { mkdirSync } from 'node:fs'
 import { homedir } from 'node:os'
 import path from 'node:path'
-import { type DataLayout, isolatedConfigDir } from '@poietica/runtime-layout'
+import { type DataLayout, OMP_ISOLATION_ENV_KEYS, ompIsolationEnv } from '@poietica/runtime-layout'
 
 export interface IsolationResult {
   /** 原来有值、且被我们改正的键（只有键名。serve.ts 在非空时记一条 warn：有人绕过 Host 手工启动了 exe） */
@@ -11,23 +11,11 @@ export interface IsolationResult {
 }
 
 /** 隔离变量的键名。launch-env 的 scrubInjected 靠它保证这几个键不被误当成 .env 注入删掉。 */
-export const ISOLATION_ENV_KEYS: readonly string[] = Object.freeze([
-  'PI_CONFIG_DIR',
-  'PI_CODING_AGENT_DIR',
-  'XDG_DATA_HOME',
-  'PI_NOTIFICATIONS',
-  'PI_NO_PTY',
-])
+export const ISOLATION_ENV_KEYS: readonly string[] = OMP_ISOLATION_ENV_KEYS
 
-/** 隔离变量与期望值（04 页 §3.3 / 12 页 §4.5）。natives 加载器只认 XDG_DATA_HOME（omp 知识 #5） */
+/** 隔离变量与期望值：与 Host 写进 Core 环境的是同一份定义（runtime-layout 的 ompIsolationEnv） */
 export function isolationEnv(layout: DataLayout, home = homedir()): Record<string, string> {
-  return {
-    PI_CONFIG_DIR: isolatedConfigDir(home, layout.ompRoot), // omp 知识 #5
-    PI_CODING_AGENT_DIR: layout.ompAgentDir,
-    XDG_DATA_HOME: layout.nativeHomeDir,
-    PI_NOTIFICATIONS: 'off',
-    PI_NO_PTY: '1',
-  }
+  return ompIsolationEnv(home, layout)
 }
 
 const DROP = ['OMP_PROFILE', 'PI_PROFILE']

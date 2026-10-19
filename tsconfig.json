@@ -35,6 +35,9 @@
       "path": "features/attachments/src/ui"
     },
     {
+      "path": "features/attachments/src/ui-api"
+    },
+    {
       "path": "features/automations/src/contract"
     },
     {
@@ -45,6 +48,9 @@
     },
     {
       "path": "features/browser/src/contract"
+    },
+    {
+      "path": "features/browser/src/core"
     },
     {
       "path": "features/browser/src/host"

@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, test } from 'bun:test'
+import attachments from '@poietica/feature-attachments/ui'
 import conversation from '@poietica/feature-conversation/ui'
 import platform from '@poietica/feature-platform/ui'
 import preferences from '@poietica/feature-preferences/ui'
@@ -108,7 +109,7 @@ describe('侧栏 · 归档', () => {
     const host = document.createElement('div')
     document.body.append(host)
     const kernel = createUiKernel({
-      features: [workbenchFeature, platform, preferences, workspaces, conversation],
+      features: [workbenchFeature, platform, preferences, workspaces, attachments, conversation],
       errorMessages: {},
       validateResults: false,
       defaultRoute: { surface: 'conversation.home', params: {} },

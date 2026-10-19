@@ -8,7 +8,6 @@
   },
   "dependencies": {
     "@poietica/contract-kit": "workspace:*",
-    "@poietica/fs-kit": "workspace:*",
     "@poietica/foundation": "workspace:*",
     "@poietica/logging": "workspace:*",
     "@poietica/process-kit": "workspace:*",

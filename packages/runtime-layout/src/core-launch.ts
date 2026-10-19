@@ -1,7 +1,6 @@
 import path from 'node:path'
 import { AppError } from '@poietica/foundation'
-import { dataLayout } from './data-layout'
-import { RELAY_TOKEN_FILE_ENV } from './relay-token'
+import { type DataLayout, dataLayout } from './data-layout'
 
 const CREDENTIAL_PATTERNS = [/_API_KEY$/i, /_AUTH_TOKEN$/i, /_OAUTH_TOKEN$/i, /_ACCESS_TOKEN$/i, /_SECRET_KEY$/i]
 const CREDENTIAL_NAMES = new Set([
@@ -58,7 +57,6 @@ export interface CoreLaunchInput {
   readonly coreExe: string // <resources>/core/poietica-core.exe
   readonly dataRoot: string
   readonly homeDir: string // os.homedir()
-  readonly relayPort: number
   readonly logLevel: 'debug' | 'info' | 'warn' | 'error'
   readonly strict: boolean // 开发版 true：Core 校验自己发出的结果与通知（06 页 §2.3）
   readonly baseEnv: Readonly<Record<string, string | undefined>>
@@ -79,6 +77,33 @@ export function isolatedConfigDir(homeDir: string, ompRoot: string): string {
   return rel
 }
 
+/**
+ * omp 的隔离变量与期望值（04 页 §3.3 / 12 页 §4.5）。**唯一产地**：Host 拉起 Core 时写进子进程环境（buildCoreLaunch），
+ * Core 启动后再强制一遍（engine-omp 的 prepareIsolation，防有人绕过 Host 手工启动 exe）。以前两边各写一份字面量，
+ * 改一边忘一边就是隔离失效。natives 加载器只认 XDG_DATA_HOME（omp 知识 #5）。
+ */
+export function ompIsolationEnv(
+  homeDir: string,
+  layout: Pick<DataLayout, 'ompRoot' | 'ompAgentDir' | 'nativeHomeDir'>,
+) {
+  return {
+    PI_CONFIG_DIR: isolatedConfigDir(homeDir, layout.ompRoot), // omp 知识 #5
+    PI_CODING_AGENT_DIR: layout.ompAgentDir,
+    XDG_DATA_HOME: layout.nativeHomeDir,
+    PI_NOTIFICATIONS: 'off',
+    PI_NO_PTY: '1',
+  } as const satisfies Record<string, string>
+}
+
+/** ompIsolationEnv 的键名（engine-omp 的 scrubInjected 靠它保证这几个键不被误当成 .env 注入删掉） */
+export const OMP_ISOLATION_ENV_KEYS: readonly (keyof ReturnType<typeof ompIsolationEnv>)[] = Object.freeze([
+  'PI_CONFIG_DIR',
+  'PI_CODING_AGENT_DIR',
+  'XDG_DATA_HOME',
+  'PI_NOTIFICATIONS',
+  'PI_NO_PTY',
+])
+
 export function buildCoreLaunch(input: CoreLaunchInput): CoreLaunch {
   const layout = dataLayout(input.dataRoot)
   const env: Record<string, string> = {}
@@ -90,26 +115,10 @@ export function buildCoreLaunch(input: CoreLaunchInput): CoreLaunch {
     if (CREDENTIAL_PATTERNS.some((r) => r.test(key))) continue
     env[key] = value
   }
-  Object.assign(env, {
-    PI_CONFIG_DIR: isolatedConfigDir(input.homeDir, layout.ompRoot),
-    PI_CODING_AGENT_DIR: layout.ompAgentDir,
-    XDG_DATA_HOME: layout.nativeHomeDir,
-    PI_NOTIFICATIONS: 'off',
-    PI_NO_PTY: '1',
-    [RELAY_TOKEN_FILE_ENV]: layout.relayTokenFile,
-  })
+  Object.assign(env, ompIsolationEnv(input.homeDir, layout))
   return {
     command: input.coreExe,
-    args: [
-      'serve',
-      '--data-root',
-      layout.root,
-      '--log-level',
-      input.logLevel,
-      '--relay-port',
-      String(input.relayPort),
-      ...(input.strict ? ['--strict'] : []),
-    ],
+    args: ['serve', '--data-root', layout.root, '--log-level', input.logLevel, ...(input.strict ? ['--strict'] : [])],
     env,
     cwd: layout.coreCwd,
     mustExistDirs: [

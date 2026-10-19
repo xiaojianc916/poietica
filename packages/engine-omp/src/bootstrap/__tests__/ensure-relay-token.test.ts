@@ -2,8 +2,8 @@ import { afterEach, describe, expect, test } from 'bun:test'
 import { mkdtempSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
-import { parseRelayToken } from '@poietica/runtime-layout'
-import { ensureRelayToken } from '../relay-token'
+import { parseRelayToken } from '@poietica/engine'
+import { ensureRelayToken, prepareRelayToken, RELAY_TOKEN_FILE_ENV } from '../relay-token'
 
 const dirs: string[] = []
 function tempFile(): string {
@@ -44,5 +44,17 @@ describe('ensureRelayToken', () => {
     const file = tempFile()
     ensureRelayToken(file)
     expect(statSync(file).mode & 0o777).toBe(0o600)
+  })
+})
+
+describe('prepareRelayToken', () => {
+  test('RT-H5 生成口令并只把文件路径放进环境（口令本身不进环境）', () => {
+    const file = tempFile()
+    const env: Record<string, string | undefined> = {}
+    prepareRelayToken({ relayTokenFile: file }, env)
+    expect(env[RELAY_TOKEN_FILE_ENV]).toBe(file)
+    const token = readFileSync(file, 'utf8')
+    expect(parseRelayToken(token)).toBe(token)
+    expect(Object.values(env)).not.toContain(token)
   })
 })

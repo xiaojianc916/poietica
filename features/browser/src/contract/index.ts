@@ -8,6 +8,7 @@ export { browserErrors } from './errors'
 
 const empty = z.object({})
 const host = { owner: 'host' } as const
+const core = { owner: 'core' } as const
 const tabId = z.object({ tabId: z.number().int().positive() })
 
 export const browserContract = defineContract({
@@ -20,6 +21,14 @@ export const browserContract = defineContract({
       params: empty,
       result: BrowserState,
       description: '读标签面整份快照',
+    }),
+    defineMethod({
+      name: 'browser.relayEndpoint',
+      ...core,
+      params: empty,
+      result: z.object({ port: z.number().int().positive().nullable() }),
+      description:
+        '引擎 browser relay 服务的端口（引擎这一次没开 relay 为 null）；口令不经 RPC，Host 读 relayTokenFile',
     }),
     defineMethod({
       name: 'browser.newTab',

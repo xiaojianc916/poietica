@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, test } from 'bun:test'
+import attachments from '@poietica/feature-attachments/ui'
 import conversation from '@poietica/feature-conversation/ui'
 import platform from '@poietica/feature-platform/ui'
 import preferences from '@poietica/feature-preferences/ui'
@@ -94,7 +95,7 @@ describe('R-04 Core 换代后的装配行为', () => {
     document.body.append(host)
     const bridge = testBridge()
     const kernel = createUiKernel({
-      features: [workbenchFeature, platform, preferences, workspaces, conversation],
+      features: [workbenchFeature, platform, preferences, workspaces, attachments, conversation],
       errorMessages: {},
       validateResults: false,
       defaultRoute: { surface: 'conversation.home', params: {} },
@@ -158,7 +159,7 @@ describe('R-04 Core 换代后的装配行为', () => {
       },
     })
     const kernel = createUiKernel({
-      features: [workbenchFeature, platform, preferences, workspaces, conversation],
+      features: [workbenchFeature, platform, preferences, workspaces, attachments, conversation],
       errorMessages: {},
       validateResults: false,
       defaultRoute: { surface: 'conversation.home', params: {} },

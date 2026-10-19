@@ -1,17 +1,11 @@
 /// <reference path="../../../../packages/design-system/src/css.d.ts" />
 
-import {
-  type ComposerDraft,
-  ConversationUiToken,
-  composerInputHandlers,
-  composerProviders,
-} from '@poietica/feature-conversation/ui-api'
 import { platformContract } from '@poietica/feature-platform/contract'
 import { defineUiFeature, ToastsToken } from '@poietica/ui-kernel'
-import type { ReactNode } from 'react'
+import type { Attachment } from '../contract'
+import { AttachmentsUiToken } from '../ui-api'
 import { createAttachmentsApi } from './api'
-import { createDraftRefSync } from './draft-refs'
-import { AttachmentIntakeProvider, createAttachmentIntake } from './intake-provider'
+import { createDraftRefSync, type DraftRefSync } from './draft-refs'
 import {
   claimsLongText,
   imageFromClipboard,
@@ -21,119 +15,88 @@ import {
   textFromClipboard,
 } from './paste'
 
-/* legacy 里附件的入库口由宿主持有，经 `AttachmentIntakeContext` 发给输入框；新架构里这份能力属于 attachments 功能 —— 它认识 platform 的
- * dialog.pickFiles 与自己的契约方法。两处落点：composerProviders 把入库口**注入输入框树**（输入框左端那枚回形针**不在这里**：legacy 与基准
- * 截图 #03 都只有一枚加号）；composerInputHandlers 里剪贴板的图片 → importData、拖放的本地文件 → pathForFile → importPaths，返回 true 表示
- * 事件已经被吃掉。 */
+/* 附件的入库口：认识 platform 的 dialog.pickFiles 与自己的契约方法，经 AttachmentsUiToken 交出去。
+ * 输入框怎么用它（注入输入框树、接粘贴与拖放、交出草稿视图）是 conversation 的事 —— 这里不认识输入框。
+ * 剪贴板的图片 → importData、拖放的本地文件 → pathForFile → importPaths；超长纯文字收成一份 .md。 */
 export default defineUiFeature({
   id: 'attachments',
-  dependsOn: ['conversation', 'platform'],
+  dependsOn: ['platform'],
   setup(ctx) {
     const api = createAttachmentsApi(ctx)
     const platform = ctx.rpc(platformContract)
     const toasts = ctx.services.get(ToastsToken)
 
-    /* 依赖方向本来就是 attachments → conversation，所以这一侧持有同步逻辑，读 conversation 交出的草稿视图、调自己的契约。 */
-    const draftAttachments = ctx.services.get(ConversationUiToken).draftAttachments
-    const draftRefs = createDraftRefSync({
-      drafts: draftAttachments,
-      setOwnerRefs: (ownerKey, attachmentIds) => api.setOwnerRefs(ownerKey, attachmentIds),
-      warn: (message, data) => {
-        ctx.logger.warn(message, data)
-      },
-      reportMissing: (count) => {
-        toasts.show({ severity: 'warning', title: `有 ${count} 个草稿附件已失效，已从草稿中移除` })
-      },
-    })
-    ctx.lifecycle.onDispose(
-      draftAttachments.subscribe(() => {
-        draftRefs.schedule()
-      }),
-    )
-    ctx.lifecycle.onDispose(() => {
-      draftRefs.dispose()
-    })
+    /* 正在登记的草稿视图。Core 换代时每一份都要无条件重发（上一代 Core 收到的引用不算数）。 */
+    const tracked = new Set<DraftRefSync>()
     ctx.lifecycle.onCoreReady(() => {
-      draftRefs.onCoreReady()
+      for (const sync of tracked) sync.onCoreReady()
+    })
+    ctx.lifecycle.onDispose(() => {
+      for (const sync of tracked) sync.dispose()
+      tracked.clear()
     })
 
-    const addPaths = async (draft: ComposerDraft, paths: readonly string[]): Promise<boolean> => {
-      if (paths.length === 0) return false
+    /* 归附件库的事件：入库失败报一条 toast，事件仍算被吃掉（交回空数组，草稿里不多出东西）。 */
+    const settle = async (run: () => Promise<readonly Attachment[]>): Promise<readonly Attachment[]> => {
       try {
-        const imported = await api.importPaths(paths)
-        draft.addAttachments(imported.map((a) => ({ id: a.id, name: a.name, kind: a.kind, previewUrl: a.previewUrl })))
-        return true
+        return await run()
       } catch (e) {
         toasts.error(e)
-        return true
+        return []
       }
     }
 
-    const addImage = async (draft: ComposerDraft, file: File): Promise<boolean> => {
-      try {
-        const imported = await importClipboardImage(api, file)
-        draft.addAttachments([
-          { id: imported.id, name: imported.name, kind: imported.kind, previewUrl: imported.previewUrl },
-        ])
-        return true
-      } catch (e) {
-        toasts.error(e)
-        return true
-      }
-    }
+    const importPaths = async (paths: readonly string[]): Promise<readonly Attachment[]> =>
+      paths.length === 0 ? [] : api.importPaths(paths)
 
-    /* 超长纯文字收成一份 .md：进附件库、在正文里落一枚文件记号，全部走既有那条路。 */
-    const addPastText = async (draft: ComposerDraft, text: string): Promise<boolean> => {
-      try {
-        const { bytes, filename, mime } = markdownOf(text)
-        const imported = await api.importData(filename, mime, bytes.toBase64())
-        draft.addAttachments([
-          { id: imported.id, name: imported.name, kind: imported.kind, previewUrl: imported.previewUrl },
-        ])
-        return true
-      } catch (e) {
-        toasts.error(e)
-        return true
-      }
-    }
-
-    const intake = createAttachmentIntake({
-      api,
-      multiple: true,
-      pickFiles: async (multiple) => {
+    ctx.services.provide(AttachmentsUiToken, {
+      importPaths,
+      pick: async (multiple) => {
         const picked = await platform.call('dialog.pickFiles', { multiple })
-        return picked.paths
+        return importPaths(picked.paths)
       },
-    })
-
-    ctx.contribute(composerProviders, {
-      id: 'attachments.intake',
-      order: 10,
-      component: (({ children }: { readonly children: ReactNode }) => (
-        <AttachmentIntakeProvider intake={intake}>{children}</AttachmentIntakeProvider>
-      )) as (props: { readonly children: ReactNode }) => ReactNode,
-    })
-
-    ctx.contribute(composerInputHandlers, {
-      id: 'attachments.input',
-      /* 超长文字必须在 Lexical 插入之前就认领：粘进去之后再抽出来，那一大段已经建过一次节点了。 */
-      claims: (event) => claimsLongText(textFromClipboard(event.clipboardData)),
-      onPaste: async (event, draft) => {
+      importData: (filename, mime, bytes) =>
+        api.importData(filename.length > 0 ? filename : '粘贴的图片.png', mime, bytes.toBase64()),
+      claimsPaste: (event) => claimsLongText(textFromClipboard(event.clipboardData)),
+      fromPaste: async (event) => {
         const clipboard = event.clipboardData
-        if (clipboard === null) return false
+        if (clipboard === null) return null
         const text = textFromClipboard(clipboard)
-        if (claimsLongText(text)) return addPastText(draft, text)
+        if (claimsLongText(text)) {
+          const { bytes, filename, mime } = markdownOf(text)
+          return settle(async () => [await api.importData(filename, mime, bytes.toBase64())])
+        }
         const file = imageFromClipboard([...clipboard.items])
-        if (file === null) return false
-        return addImage(draft, file)
+        if (file === null) return null
+        return settle(async () => [await importClipboardImage(api, file)])
       },
-      onDrop: async (event, draft) => {
+      fromDrop: async (event) => {
         const transfer = event.dataTransfer
-        if (transfer === null) return false
-        const files = [...transfer.files]
-        const paths = pathsFromDrop(files, (file) => ctx.files.pathForFile(file))
-        if (paths.length === 0) return false
-        return addPaths(draft, paths)
+        if (transfer === null) return null
+        const paths = pathsFromDrop([...transfer.files], (file) => ctx.files.pathForFile(file))
+        if (paths.length === 0) return null
+        return settle(() => api.importPaths(paths))
+      },
+      trackDraftRefs: (source) => {
+        const sync = createDraftRefSync({
+          drafts: source,
+          setOwnerRefs: (ownerKey, attachmentIds) => api.setOwnerRefs(ownerKey, attachmentIds),
+          warn: (message, data) => {
+            ctx.logger.warn(message, data)
+          },
+          reportMissing: (count) => {
+            toasts.show({ severity: 'warning', title: `有 ${count} 个草稿附件已失效，已从草稿中移除` })
+          },
+        })
+        const unsubscribe = source.subscribe(() => {
+          sync.schedule()
+        })
+        tracked.add(sync)
+        return () => {
+          unsubscribe()
+          sync.dispose()
+          tracked.delete(sync)
+        }
       },
     })
   },

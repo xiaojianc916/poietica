@@ -13,7 +13,6 @@ export {
   MAX_CRASHES_IN_WINDOW,
   QUEUE_WAIT_MS,
   READY_TIMEOUT_MS,
-  type RelayEndpoint,
   STOP_GRACE_MS,
 } from './core-supervisor'
 export { createIpcTransport } from './ipc-transport'
@@ -27,7 +26,6 @@ export {
   type HostModuleContext,
 } from './module'
 export { createQuitCoordinator, type QuitCoordinator, type QuitDeps, type QuitOptions } from './quit'
-export { pickFreePort } from './relay-port'
 export { createHostRpcBinding, type HostRpcBinding } from './rpc-binding'
 export { type HubWebContents, RpcHub, type RpcHubOptions } from './rpc-hub'
 export { WINDOW_BACKGROUND } from './window-colors'

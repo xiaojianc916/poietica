@@ -1,7 +1,7 @@
 import { FeatureScope, useContributions } from '@poietica/ui-kernel'
 import { type ReactNode, useMemo } from 'react'
 import { composerProviders, workspaceGitProviders } from '../ui-api'
-import { AttachmentIntakeContext } from '../ui-api/composer-assets'
+import { AttachmentIntakeContext } from './composer/attachment'
 import { ComposerDrafts } from './composer/drafts'
 import { ComposerDraftsContext } from './composer/drafts-context'
 import type { PostureIntent } from './session/configuration/posture-intent'

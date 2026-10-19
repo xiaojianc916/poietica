@@ -1,19 +1,16 @@
+import { readFileSync } from 'node:fs'
+import { parseRelayToken } from '@poietica/engine'
 import { AppError, type Logger } from '@poietica/foundation'
 import { type CoreStatus, defineHostModule, type WindowRegistry } from '@poietica/host-kernel'
+import { BROWSER_PARTITION } from '@poietica/runtime-layout'
 import { session, WebContentsView } from 'electron'
 import { browserContract } from '../contract'
-import {
-  BROWSER_PARTITION,
-  type BrowserState,
-  FAVICON_ASSET_HOST,
-  PICKER_CALLBACK_HOST,
-  type PickedElement,
-} from '../contract/entities'
+import { type BrowserState, FAVICON_ASSET_HOST, PICKER_CALLBACK_HOST, type PickedElement } from '../contract/entities'
 import { browserErrors } from '../contract/errors'
 import { createFaviconStore } from './favicon'
 import { createPicker, decodePickerCallback, isPickerCallback, type Picker } from './picker'
 import { pickerRuntime } from './picker-runtime'
-import { createRelayClient, type RelayTabsPort, relayTargetForStatus } from './relay-client'
+import { createRelayClient, type RelayTabsPort, relayTargetOf } from './relay-client'
 import { applySessionPolicy } from './session-policy'
 import {
   BROWSER_VIEW_PREFERENCES,
@@ -223,9 +220,26 @@ export default defineHostModule({
         logger: ctx.logger.child({ scope: 'relay' }),
       })
 
-      /* Core 每次重启端口都可能变：ready 时用 ctx.core.relayEndpoint() 重新设置目标（端口 + `/ext` 口令）。relay 服务只在 omp 第一次用浏览器工具时才起，「连不上」是常态。 */
+      /*
+       * Core 每次重启端口都可能变：非 ready 先收掉地址；ready 时问本功能的 Core 模块要端口（引擎自己挑的，
+       * 内核与启动参数都不经手），口令读 Core 按数据根写下的文件。epoch 挡住过期的回答：问的那一代 Core
+       * 已经重启过，就不拿它的端口去覆盖新一代的。relay 服务只在 omp 第一次用浏览器工具时才起，「连不上」是常态。
+       */
+      let epoch = 0
       const applyCoreStatus = (status: CoreStatus): void => {
-        relay.setTarget(relayTargetForStatus(status.state, ctx.core.relayEndpoint()))
+        const asked = ++epoch
+        if (status.state !== 'ready') {
+          relay.setTarget(null)
+          return
+        }
+        ctx.core.call(browserContract, 'browser.relayEndpoint', {}).then(
+          ({ port }) => {
+            if (asked === epoch) relay.setTarget(relayTargetOf(port, readRelayToken(ctx.layout.relayTokenFile)))
+          },
+          (cause: unknown) => {
+            ctx.logger.debug('browser relay endpoint unavailable', { error: String(cause) })
+          },
+        )
       }
 
       ctx.disposables.add(ctx.core.onStatus(applyCoreStatus))
@@ -311,4 +325,12 @@ function injectPicker(contents: WebContentsLike, token: string, theme: 'light' |
   void contents.executeJavaScriptInIsolatedWorld(999, [{ code }]).catch((cause: unknown) => {
     logger.warn('browser picker injection failed', { error: String(cause) })
   })
+}
+
+function readRelayToken(file: string): string | null {
+  try {
+    return parseRelayToken(readFileSync(file, 'utf8'))
+  } catch {
+    return null
+  }
 }

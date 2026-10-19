@@ -2,6 +2,7 @@ import type { CoreModule } from '@poietica/core-kernel'
 import agentSettings from '@poietica/feature-agent-settings/core'
 import attachments from '@poietica/feature-attachments/core'
 import automations from '@poietica/feature-automations/core'
+import browser from '@poietica/feature-browser/core'
 import conversation from '@poietica/feature-conversation/core'
 import extensions from '@poietica/feature-extensions/core'
 import models from '@poietica/feature-models/core'
@@ -26,4 +27,5 @@ export const coreModules: readonly CoreModule[] = [
   extensions,
   python,
   automations,
+  browser,
 ]

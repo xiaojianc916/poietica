@@ -55,17 +55,7 @@ async function main(): Promise<void> {
     // 与 Host 完全相同的启动规格；只额外补回 POIETICA_PROBE_BUILD 与 --probe-mock-model
     // （buildCoreLaunch 会剔除 POIETICA_* 前缀，探针版标记必须单独补回给子进程）
     const launch = envForCore(fakeHome, layout)
-    const args = [
-      'serve',
-      '--data-root',
-      dataRoot,
-      '--log-level',
-      'debug',
-      '--relay-port',
-      '45999',
-      '--strict',
-      '--probe-mock-model',
-    ]
+    const args = ['serve', '--data-root', dataRoot, '--log-level', 'debug', '--strict', '--probe-mock-model']
     // 用 node:child_process 而不是 Bun.spawn：createChildProcessTransport 面向 Node 风格的子进程流，
     // 这也是 CoreSupervisor 启动 Core 的同一条路径。
     child = nodeSpawn(EXE, args, {
@@ -153,7 +143,6 @@ function envForCore(fakeHome: string, layout: DataLayout): Record<string, string
     coreExe: EXE,
     dataRoot: layout.root,
     homeDir: fakeHome,
-    relayPort: 45999,
     logLevel: 'debug',
     strict: true,
     baseEnv: { ...process.env, USERPROFILE: fakeHome, HOME: fakeHome },

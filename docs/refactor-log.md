@@ -21,7 +21,7 @@
 | Q41 | 2026-10-12 | 换句的上下刷仍带 260ms 透明度变化；规格给了「翻牌式」可选项 | 未决，等真机观感定 |
 | Q43 | 2026-10-14 | `docs/omp-sdk-reference.md` 曾停在 18.5.0（relay 缺陷正是照旧文档核对漏出来的） | **已结清（R-33）**：行号锚点可机检（`check:omp-doc`）。升级 omp 时仍按 AGENTS §11 逐项核对内容 |
 | Q44 | 2026-10-14 | MCP 配置四个死键（`bearerTokenEnvVar` / `toolTimeoutMs` / `enabledTools` / `disabledTools`）+ 名称校验与 omp 的 `validateServerName` 错位 | **已结清（2026-10-17）**：死键连同 `startupTimeoutMs` 一起删，改用 omp 认的 `timeout`；名称按 omp 判据在表单本地判；Core 写盘前再用 omp 的校验拦一次 |
-| Q45 / Q47 | 2026-10-14 | `features/browser/src/host/relay-protocol.ts` 是 omp 内部协议的**副本**（omp 未导出稳定契约） | 未决。根治要在 engine 端口转出协议；在那之前**每次升级 omp 必须手工核这个文件** |
+| Q45 / Q47 | 2026-10-14 | `features/browser/src/host/relay-protocol.ts` 是 omp 内部协议的**副本**（omp 未导出稳定契约） | **已结清（分层审查 2026-10-19）**：协议移进引擎端口（`packages/engine/src/browser-relay.ts`），与 omp 的对齐由 `engine-omp/src/browser-relay-conformance.ts` 在 `typecheck` 里机检（移入时即查出 `cdpEvent.params` 已漂成 `unknown`）。端口与口令改由引擎自备：`AgentEngine.browserRelay()` → browser 的 Core 模块 `browser.relayEndpoint` → Host；`CoreSupervisor` / `CoreCaller` / 启动参数不再认识 relay |
 | Q46 | 2026-10-16 | `runtime-layout/src/core-args.ts` 的 33 行 argv 解析可用 `node:util.parseArgs` 替，但它接受 `--k=v`、报错是英文 `ERR_PARSE_ARGS_*`，而 9 条用例钉的是中文文案与「参数重复」语义 | 未决，属可接受的行为变更，需产品裁决 |
 | Q48 | 2026-10-16 | `omp-version.ts` 兜底值写死 `'18.5.0'`，会进 `core.ready` 与 `diagnostics.core` | **已结清（R-33）**：改为现读随包 omp 的 `package.json`，读不到才是 `0.0.0-unknown` |
 
@@ -61,7 +61,7 @@
 | V-01 | 吉祥物运行时按上游逐字迁移：`engine-runtime` 5 个文件保留 `var`、分号与高复杂度函数 | 逐字等价优先于套本仓风格。两条 biome 例外（`noInnerDeclarations` 关闭、`noExcessiveCognitiveComplexity` 80）写在 `biome.json` 的 `overrides`，原因见 `engine-runtime/README.md` |
 | R-01 | 排队条两枚按钮仍只画在**最后一行** | 底层已支持任意一行；「每行都加按钮」是产品选择，报告明确不在范围 |
 | R-04 | `onCoreLost` 的同步语义依赖「先广播状态、再拉起子进程」；看护人若改成并行启动需重新核对 | `CoreSupervisor` 实现保证 |
-| R-07 | 草稿引用的同步放在 **attachments 的 UI**，不是 conversation 的 UI | 报告原文让 conversation 依赖 attachments，而 attachments 已依赖 conversation → 模块图成环，`sortModules` 抛 `kernel.module_graph_invalid` |
+| R-07 | ~~草稿引用的同步放在 **attachments 的 UI**，不是 conversation 的 UI~~ | **已收回（分层审查 2026-10-19）**：当初的环是方向错了而不是报告错了——attachments 的 UI 实现 conversation ui-api 里定义的入库口，与 Core 侧方向相反。现在 attachments 只交自己的 `AttachmentsUiToken`（入库 + `trackDraftRefs`），conversation → attachments 与 Core 同向，同步回到报告 §3.4 的接法；方向由 `tooling/depcruise/feature-tiers.json` 钉住 |
 | R-08 | 保留 `onEvent` / `hasThreadState` 两个单测观察口 | 删掉要改写 `conversation-core.test.ts` 喂事件的用例，超出任务范围 |
 | R-09 | `auto_retry_end` 成功不再上屏（12 页 §9.1 原表为起止各一条） | info 级提示一律不上屏；重试成功由紧随其后的正常回复说明 |
 | R-10 | 轮终点只由**上屏的段**决定，不算工具结果的落地时刻 | omp 重开会话会合成工具结果（`timestamp: Date.now()`），拿它当终点会把一轮算到重启那一刻 |

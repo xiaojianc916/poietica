@@ -15,7 +15,7 @@ import type { ConversationSetup } from './context'
 /** 关窗守卫，以及 ConversationUiToken 等服务的提供。 */
 export function createConversationServices(setup: ConversationSetup, actions: ConversationActions): void {
   const { api, ctx, dialogs, layout, platform, posture, stores, subagentTabs, transcripts } = setup
-  const { activeThreadId, draftPin, openThread, runningThreadIds, subscribeActive } = actions
+  const { activeThreadId, openThread, runningThreadIds, subscribeActive } = actions
 
   // 退出拦截：有运行中的对话就先确认
   const guard = ctx.services.get(WindowCloseToken)
@@ -100,13 +100,6 @@ export function createConversationServices(setup: ConversationSetup, actions: Co
           handle.submit('turn')
         },
       }
-    },
-    draftAttachments: {
-      ids: draftPin.view.ids,
-      subscribe: (listener) => {
-        return draftPin.view.subscribe(listener)
-      },
-      drop: draftPin.view.drop,
     },
   })
 }

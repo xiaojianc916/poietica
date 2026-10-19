@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test'
-import { parseRelayToken } from '../relay-token'
+import { parseRelayToken } from '../browser-relay'
 
 const TOKEN = 'ab'.repeat(32)
 

@@ -58,10 +58,10 @@ L0  foundation
 ## 4. 边界铁律（全部有闸门，违反就是 check 红）
 ​
 1. **只有 `packages/engine-omp` 能 import `@oh-my-pi/*`**（`apps/core/scripts` 的构建脚本除外）；也只有 `apps/core` 能依赖 `engine-omp`。业务只认 `@poietica/engine` 的接口。
-2. **功能之间只经 `contract` / `core-api` / `ui-api` 协作**，绝不 import 别的功能的 `core` / `host` / `ui`。同进程内只有三种合法协作方式：服务令牌、进程内事件（`ctx.events`）、UI 贡献点。
+2. **功能之间只经 `contract` / `core-api` / `ui-api` 协作**，绝不 import 别的功能的 `core` / `host` / `ui`；且只能依赖**级别更低**的功能（`tooling/depcruise/feature-tiers.json`：平台 < 基础状态 < 能力 < 主干 < 插件，插件之间互不依赖）。同进程内只有三种合法协作方式：服务令牌、进程内事件（`ctx.events`）、UI 贡献点。
 3. **子入口的运行时纯度**：`ui` 不碰 electron、node-pty 和 Node core 模块；`core` 不碰 react、electron、zustand；`host` 不碰 react、zustand、`bun:`；`contract` / `core-api` 只依赖 contract-kit、foundation、transcript、engine、zod 和功能 contract。
 4. **平台包和内核不认识功能**（`protocol` 例外，且只能 import 功能的 contract）；功能包不依赖 workbench、protocol、apps。
-5. **只能 import 本包 `package.json` 声明过的依赖**。第三方版本只写在根 `package.json` 的 `catalog`，子包写 `"catalog:"`；改了依赖要跑 `bun install`。
+5. **只能 import 本包 `package.json` 声明过的依赖**。第三方版本只写在根 `package.json` 的 `catalog`，子包写 `"catalog:"`；改了依赖要跑 `bun install`。反过来，声明过的工作区依赖（`@poietica/*`）必须真被用到，只有测试用的放 `devDependencies`（闸门 `manifest-deps`）：isolated linker 按清单放行，清单多一条，第一层强制就松一条。
 6. 无循环依赖。
 ​
 ## 5. 架构约定
@@ -180,9 +180,9 @@ L0  foundation
 ## 11. 常见任务
 ​
 - **加平台包**：`bun run new:package <name> --layer <0|1|2|3|5> --runtime <neutral|dom|node|bun|electron-main>`（会自动登记到 `layers.json`）→ `bun run refs` → `bun run  all`。
-- **加功能**：`bun run new:feature <id> --parts …` → 写 contract → 在 protocol 登记并提升版本 → 实现 core / host（服务、仓储、迁移、handlers）→ 实现 ui → 三个清单各加一行 → 写测试 → `refs` + `protocol:snapshot` + `check`。完整步骤见 ARCHITECTURE §9。
+- **加功能**：`bun run new:feature <id> --parts … [--tier <0-4>]`（登记功能分级，缺省 4 = 插件）→ 写 contract → 在 protocol 登记并提升版本 → 实现 core / host（服务、仓储、迁移、handlers）→ 实现 ui → 三个清单各加一行 → 写测试 → `refs` + `protocol:snapshot` + `check`。完整步骤见 ARCHITECTURE §9。
 - **加或删一个 RPC 方法**：改 contract → 实现 handler → 提升 `PROTOCOL_VERSION` → `protocol:snapshot`。
-- **升级 omp**：改 catalog 里四个 `@oh-my-pi/*` 的版本（版本号只有这一个产地）→ `bun install` → 跑 `bun run check:omp-doc:write` 刷 `docs/omp-sdk-reference.md` 的行号锚点，再对照它与代码里的「omp 知识 #N」注释（`rg "omp 知识 #" packages/engine-omp`）逐项核对会话文件格式、设置键、工具名、事件形状、浏览器 relay 协议 → 核对结果写进 refactor-log → `core:build` + `core:probe` + `check`。核对完成前不合并。
+- **升级 omp**：改 catalog 里四个 `@oh-my-pi/*` 的版本（版本号只有这一个产地）→ `bun install` → 跑 `bun run check:omp-doc:write` 刷 `docs/omp-sdk-reference.md` 的行号锚点，再对照它与代码里的「omp 知识 #N」注释（`rg "omp 知识 #" packages/engine-omp`）逐项核对会话文件格式、设置键、工具名、事件形状（浏览器 relay 协议由 `browser-relay-conformance.ts` 在 typecheck 里核对，类型报错即漂移）→ 核对结果写进 refactor-log → `core:build` + `core:probe` + `check`。核对完成前不合并。
 - **发布**：`bun run version:set <x.y.z>` → 提交 → 打 tag `v<x.y.z>` 并推送 → release 工作流出草稿 → 在干净虚拟机上人工验收 → 转为正式发布。
 ​
 ## 12. 工作方式

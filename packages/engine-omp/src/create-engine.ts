@@ -18,6 +18,7 @@ import { isConfiguredSetting, overrideSetting, readSetting, writeGlobalSetting }
 export interface CreateEngineOptions {
   readonly layout: DataLayout
   readonly logger: Logger
+  /** 本进程 browser relay 的端口（只写运行时覆盖层，不落盘）；0 = 这一次不开（测试、探针），browserRelay() 报 null */
   readonly relayPort: number
   readonly appVersion: string
   /** omp 的版本（来自 package.json） */
@@ -115,7 +116,6 @@ export async function createOmpEngineWith(o: CreateEngineOptions, seams: EngineT
     root,
     registry,
     authStorage,
-    relayPort: o.relayPort,
     sessions: liveSessions,
   })
   // 先把引擎建出来（它持有工具表的唯一真相）再交给 SessionFactory：两份 Map 会让 registerTool 写进 A、会话从 B 读
@@ -123,6 +123,7 @@ export async function createOmpEngineWith(o: CreateEngineOptions, seams: EngineT
   const engine = new OmpEngine({
     info: { name: 'omp', version: o.engineVersion },
     logger: o.logger,
+    browserRelay: o.relayPort > 0 ? { port: o.relayPort } : null,
     createSession: (spec) => {
       if (factory === null) throw new AppError(SystemErrorCode.internal, 'SessionFactory 尚未就绪')
       return factory.create(spec)

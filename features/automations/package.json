@@ -17,7 +17,6 @@
     "@poietica/feature-platform": "workspace:*",
     "@poietica/feature-workspaces": "workspace:*",
     "@poietica/foundation": "workspace:*",
-    "@poietica/rpc": "workspace:*",
     "@poietica/storage-sqlite": "workspace:*",
     "@poietica/ui-kernel": "workspace:*",
     "croner": "catalog:",

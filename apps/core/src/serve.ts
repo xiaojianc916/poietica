@@ -18,7 +18,7 @@ export async function serve(launchEnv: LaunchEnv): Promise<void> {
   const writeFrame = installStdoutGuard() // 1. 此后 stdout 只允许写帧；杂散输出全部改到 stderr
   let args: ReturnType<typeof parseCoreArgs>
   try {
-    args = parseCoreArgs(process.argv) // 2. --data-root、--log-level、--relay-port、--strict（缺必填参数：退出码 2）
+    args = parseCoreArgs(process.argv) // 2. --data-root、--log-level、--strict（缺必填参数：退出码 2）
   } catch (e) {
     process.stderr.write(`poietica-core: ${e instanceof Error ? e.message : String(e)}\n`)
     process.exit(CORE_EXIT_CODES.badArguments)
@@ -40,9 +40,7 @@ export async function serve(launchEnv: LaunchEnv): Promise<void> {
     logger.error('isolation self-check failed', { violations: check.violations })
     process.exit(CORE_EXIT_CODES.isolationViolated) //    退出码 3：Host 不重启，横幅提示
   }
-  const engine = args.probeMockModel
-    ? await createProbeEngine(layout, logger)
-    : await createRealEngine(layout, args.relayPort, logger)
+  const engine = args.probeMockModel ? await createProbeEngine(layout, logger) : await createRealEngine(layout, logger)
   const kernel = createCoreKernel({
     modules: coreModules,
     engine,
@@ -75,14 +73,14 @@ export async function serve(launchEnv: LaunchEnv): Promise<void> {
 
 async function createRealEngine(
   layout: Parameters<typeof createCoreKernel>[0]['layout'],
-  relayPort: number,
   logger: Parameters<typeof createCoreKernel>[0]['logger'],
 ) {
   const { createOmpEngine } = await import('@poietica/engine-omp')
+  // browser relay 的端口与口令由引擎自己备（写口令文件路径进本进程环境），所以必须在上面的 scrubInjected 之后
   // appVersion 必给；engineVersion 由 engine-omp 自己定（生产编译期注入，源码运行读随包那份 omp 的 package.json）。
   // 两个都不能缺：engine.info.version 会成为 core.ready 载荷与 diagnostics.core 的 engineVersion，
   // 契约要求它是 string —— undefined 会让 strict 模式下的 diagnostics.core 整个方法失败。
-  return createOmpEngine({ layout, relayPort, logger: logger.child({ module: 'engine' }), appVersion: CORE_VERSION })
+  return createOmpEngine({ layout, logger: logger.child({ module: 'engine' }), appVersion: CORE_VERSION })
 }
 
 /**

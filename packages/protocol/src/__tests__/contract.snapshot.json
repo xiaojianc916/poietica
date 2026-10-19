@@ -3609,6 +3609,39 @@
       }
     },
     {
+      "name": "browser.relayEndpoint",
+      "owner": "core",
+      "timeoutMs": 30000,
+      "description": "引擎 browser relay 服务的端口（引擎这一次没开 relay 为 null）；口令不经 RPC，Host 读 relayTokenFile",
+      "params": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {}
+      },
+      "result": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "port": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "exclusiveMinimum": 0,
+                "maximum": 9007199254740991
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "port"
+        ],
+        "additionalProperties": false
+      }
+    },
+    {
       "name": "browser.reload",
       "owner": "host",
       "timeoutMs": 30000,

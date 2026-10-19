@@ -70,7 +70,6 @@ async function portsOf(): Promise<{
         remove: async () => undefined,
       },
     },
-    relayPort: 0,
     sessions: new Set(),
   })
   return { models: ports.models, calls }

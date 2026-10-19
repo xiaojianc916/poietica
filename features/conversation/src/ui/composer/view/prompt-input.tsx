@@ -42,13 +42,12 @@ import {
   composerInputHandlers,
   type DraftAttachment,
 } from '../../../ui-api'
-import { useAttachmentIntake } from '../../../ui-api/composer-assets'
 import { requiresArgument, slashQueryOf } from '../../shared/model/commands'
 import type { ChatStatus } from '../../shared/model/run'
 import type { PromptConfiguration, PromptSkill } from '../../shared/model/session'
 import { ResumeIcon, StopIcon, SubmitIcon } from '../../shared/primitives/icons'
 import { $createChipNode, ChipNode, type PromptChipValue, samePromptChip } from '../../shared/primitives/prompt-chip'
-import { type ComposerAsset, isInlineAttachment } from '../attachment'
+import { type ComposerAsset, isInlineAttachment, useAttachmentIntake } from '../attachment'
 import type { ComposerDraft } from '../drafts'
 import { ENTRY_DRAFT_KEY, useComposerDraftKey, useComposerDrafts } from '../drafts-context'
 import {

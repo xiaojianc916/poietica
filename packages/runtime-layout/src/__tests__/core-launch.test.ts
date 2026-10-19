@@ -1,6 +1,14 @@
 import { describe, expect, test } from 'bun:test'
+import path from 'node:path'
 import { AppError } from '@poietica/foundation'
-import { buildCoreLaunch, CORE_EXIT_CODES, isolatedConfigDir } from '../core-launch'
+import {
+  buildCoreLaunch,
+  CORE_EXIT_CODES,
+  isolatedConfigDir,
+  OMP_ISOLATION_ENV_KEYS,
+  ompIsolationEnv,
+} from '../core-launch'
+import { dataLayout } from '../data-layout'
 
 const HOME = 'C:\\Users\\a'
 const DATA_ROOT = 'C:\\Users\\a\\AppData\\Roaming\\Poietica Dev'
@@ -9,7 +17,6 @@ const INPUT = {
   coreExe: 'C:\\Program Files\\Poietica\\resources\\core\\poietica-core.exe',
   dataRoot: DATA_ROOT,
   homeDir: HOME,
-  relayPort: 4321,
   logLevel: 'info' as const,
   strict: true,
   baseEnv: {
@@ -62,22 +69,24 @@ describe('buildCoreLaunch', () => {
   test('RL-5 隔离变量与启动参数', () => {
     const launch = buildCoreLaunch(INPUT)
     expect(launch.command).toBe(INPUT.coreExe)
-    expect(launch.args).toEqual([
-      'serve',
-      '--data-root',
-      DATA_ROOT,
-      '--log-level',
-      'info',
-      '--relay-port',
-      '4321',
-      '--strict',
-    ])
+    expect(launch.args).toEqual(['serve', '--data-root', DATA_ROOT, '--log-level', 'info', '--strict'])
     expect(launch.cwd).toBe(`${DATA_ROOT}\\core\\cwd`)
     expect(launch.env.PI_CODING_AGENT_DIR).toBe(`${DATA_ROOT}\\omp\\agent`)
     expect(launch.env.XDG_DATA_HOME).toBe(`${DATA_ROOT}\\native-home`)
     expect(launch.env.PI_NOTIFICATIONS).toBe('off')
     expect(launch.env.PI_NO_PTY).toBe('1')
-    expect(launch.env.POIETICA_RELAY_TOKEN_FILE).toBe(`${DATA_ROOT}\\core\\relay.token`)
+    /* relay 的端口与口令是引擎自己的事（engine-omp 的 createOmpEngine），启动契约不带 */
+    expect(Object.keys(launch.env).some((key) => key.startsWith('POIETICA_'))).toBe(false)
+  })
+
+  test('RL-5 隔离变量一处定义：Host 写的就是 Core 再强制的那一份，键名清单与之一致', () => {
+    /* 只比两边是否同一份，与平台无关：路径用本机格式造（其余 RL-5 用例钉的是 Windows 上的具体值） */
+    const home = path.resolve('/home-for-test')
+    const dataRoot = path.join(home, 'Poietica Dev')
+    const isolation = ompIsolationEnv(home, dataLayout(dataRoot))
+    expect(Object.keys(isolation).sort()).toEqual([...OMP_ISOLATION_ENV_KEYS].sort())
+    const launch = buildCoreLaunch({ ...INPUT, homeDir: home, dataRoot })
+    for (const [key, value] of Object.entries(isolation)) expect(launch.env[key]).toBe(value)
   })
 
   test('RL-5 mustExistDirs 含 native-home\\omp', () => {
@@ -98,8 +107,6 @@ describe('buildCoreLaunch', () => {
       DATA_ROOT,
       '--log-level',
       'info',
-      '--relay-port',
-      '4321',
     ])
   })
 

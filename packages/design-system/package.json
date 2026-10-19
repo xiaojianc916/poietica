@@ -32,7 +32,6 @@
   },
   "devDependencies": {
     "@happy-dom/global-registrator": "catalog:",
-    "@poietica/test-kit": "workspace:*",
     "@testing-library/react": "catalog:",
     "@types/hast": "catalog:",
     "@types/react": "catalog:",

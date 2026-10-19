@@ -15,11 +15,9 @@
     "@poietica/core-kernel": "workspace:*",
     "@poietica/design-system": "workspace:*",
     "@poietica/feature-platform": "workspace:*",
-    "@poietica/feature-preferences": "workspace:*",
     "@poietica/foundation": "workspace:*",
     "@poietica/fs-kit": "workspace:*",
     "@poietica/rpc": "workspace:*",
-    "@poietica/runtime-layout": "workspace:*",
     "@poietica/storage-sqlite": "workspace:*",
     "@poietica/ui-kernel": "workspace:*",
     "lucide-react": "catalog:",
@@ -27,7 +25,6 @@
     "zod": "catalog:"
   },
   "devDependencies": {
-    "@poietica/engine-testkit": "workspace:*",
     "@poietica/test-kit": "workspace:*",
     "@testing-library/react": "catalog:",
     "@types/bun": "catalog:",

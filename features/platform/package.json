@@ -14,7 +14,6 @@
     "@poietica/contract-kit": "workspace:*",
     "@poietica/core-kernel": "workspace:*",
     "@poietica/design-system": "workspace:*",
-    "@poietica/feature-browser": "workspace:*",
     "@poietica/foundation": "workspace:*",
     "@poietica/fs-kit": "workspace:*",
     "@poietica/host-kernel": "workspace:*",

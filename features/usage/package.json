@@ -13,7 +13,6 @@
     "@poietica/core-kernel": "workspace:*",
     "@poietica/design-system": "workspace:*",
     "@poietica/engine": "workspace:*",
-    "@poietica/foundation": "workspace:*",
     "@poietica/rpc": "workspace:*",
     "@poietica/storage-sqlite": "workspace:*",
     "@poietica/ui-kernel": "workspace:*",

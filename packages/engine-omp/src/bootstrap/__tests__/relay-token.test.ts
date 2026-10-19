@@ -5,7 +5,7 @@ const TOKEN = 'cd'.repeat(32)
 const ENV = { POIETICA_RELAY_TOKEN_FILE: '/data/core/relay.token' }
 
 describe('withRelayToken', () => {
-  test('RT-C1 Host 拉起的进程：读口令文件，补上 --token（omp 的 browser-relay 已支持这个参数）', () => {
+  test('RT-C1 Core 派生的进程：读口令文件，补上 --token（omp 的 browser-relay 已支持这个参数）', () => {
     const read = (file: string): string => {
       expect(file).toBe('/data/core/relay.token')
       return `${TOKEN}\n`

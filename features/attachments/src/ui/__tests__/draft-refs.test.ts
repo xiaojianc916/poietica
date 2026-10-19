@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test'
-import type { DraftAttachments } from '@poietica/feature-conversation/ui-api'
+import type { DraftRefSource } from '../../ui-api'
 import { createDraftRefSync, DRAFTS_OWNER } from '../draft-refs'
 
 /* 草稿引用同步。用一个手推的假草稿视图 + 记录调用的假 setOwnerRefs：要钉的是**时序与幂等**，不是 RPC 本身（那条路在 module.test.ts
@@ -31,7 +31,7 @@ function make(opts: { restored?: boolean; missing?: (ids: readonly string[]) => 
   let inFlight = 0
   let maxInFlight = 0
   const arrivalOrder: string[] = []
-  const drafts: DraftAttachments = {
+  const drafts: DraftRefSource = {
     ids: () => ids,
     subscribe: (listener) => {
       listeners.add(listener)

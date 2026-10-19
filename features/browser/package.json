@@ -5,22 +5,27 @@
   "type": "module",
   "exports": {
     "./contract": "./src/contract/index.ts",
+    "./core": "./src/core/index.ts",
     "./host": "./src/host/index.ts",
     "./ui": "./src/ui/index.tsx"
   },
   "dependencies": {
     "@poietica/contract-kit": "workspace:*",
+    "@poietica/core-kernel": "workspace:*",
     "@poietica/design-system": "workspace:*",
+    "@poietica/engine": "workspace:*",
     "@poietica/feature-attachments": "workspace:*",
     "@poietica/feature-conversation": "workspace:*",
     "@poietica/foundation": "workspace:*",
     "@poietica/host-kernel": "workspace:*",
+    "@poietica/runtime-layout": "workspace:*",
     "@poietica/ui-kernel": "workspace:*",
     "lucide-react": "catalog:",
     "react": "catalog:",
     "zod": "catalog:"
   },
   "devDependencies": {
+    "@poietica/engine-testkit": "workspace:*",
     "@poietica/test-kit": "workspace:*",
     "@testing-library/react": "catalog:",
     "@types/bun": "catalog:",

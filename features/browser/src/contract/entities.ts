@@ -39,7 +39,6 @@ export const PickedElement = z.object({
 })
 export type PickedElement = z.infer<typeof PickedElement>
 
-export const BROWSER_PARTITION = 'persist:poietica-browser'
 /** 空白页写法的唯一产地；宿主记的是「没有 url」。 */
 export const BLANK_PAGE = 'about:blank'
 /** 拾取脚本住的隔离世界：0 是页面主世界，不能用（会被页面自己的 CSP 判死）。 */

@@ -11,6 +11,7 @@
     "@poietica/feature-agent-settings": "workspace:*",
     "@poietica/feature-attachments": "workspace:*",
     "@poietica/feature-automations": "workspace:*",
+    "@poietica/feature-browser": "workspace:*",
     "@poietica/feature-conversation": "workspace:*",
     "@poietica/feature-extensions": "workspace:*",
     "@poietica/feature-models": "workspace:*",
@@ -26,8 +27,6 @@
     "@poietica/runtime-layout": "workspace:*"
   },
   "devDependencies": {
-    "@poietica/engine-testkit": "workspace:*",
-    "@poietica/test-kit": "workspace:*",
     "@types/bun": "catalog:"
   }
 }

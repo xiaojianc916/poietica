@@ -8,7 +8,7 @@ import { createWorkspacesApi } from './api'
 
 export default defineUiFeature({
   id: 'workspaces',
-  dependsOn: ['platform', 'preferences'],
+  dependsOn: ['platform'],
   setup(ctx) {
     const api = createWorkspacesApi(ctx)
     const platform = ctx.rpc(platformContract)

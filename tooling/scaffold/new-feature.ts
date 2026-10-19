@@ -1,11 +1,13 @@
-// 用法：bun run new:feature <id> --parts core,core-api,host,ui,ui-api   （contract 总是生成）
+// 用法：bun run new:feature <id> --parts core,core-api,host,ui,ui-api [--tier 0-4]   （contract 总是生成；级别缺省 4 = 插件）
+import { readFileSync, writeFileSync } from 'node:fs'
+import path from 'node:path'
 import { parseArgs } from 'node:util'
 import { FEATURE_PARTS, type FeaturePart, KEBAB, renderFeature } from './templates'
-import { fail, syncReferences, writeFiles } from './write'
+import { fail, ROOT, syncReferences, writeFiles } from './write'
 
 const { values, positionals } = parseArgs({
   args: process.argv.slice(2),
-  options: { parts: { type: 'string', default: '' } },
+  options: { parts: { type: 'string', default: '' }, tier: { type: 'string', default: '4' } },
   allowPositionals: true,
 })
 const id = positionals[0]
@@ -17,8 +19,17 @@ const parts = (values.parts ?? '')
 for (const p of parts) if (!FEATURE_PARTS.includes(p)) fail(`未知子入口：${p}（可选：${FEATURE_PARTS.join(', ')}）`)
 if (parts.includes('core-api') && !parts.includes('core')) fail('有 core-api 就必须有 core')
 if (parts.includes('ui-api') && !parts.includes('ui')) fail('有 ui-api 就必须有 ui')
+const tier = Number(values.tier)
+if (!Number.isInteger(tier) || tier < 0 || tier > 4)
+  fail('--tier 必须是 0–4（见 tooling/depcruise/feature-tiers.json.md）')
 
 writeFiles(renderFeature(id, parts))
+const tiersFile = path.join(ROOT, 'tooling/depcruise/feature-tiers.json')
+const tiers = JSON.parse(readFileSync(tiersFile, 'utf8')) as Record<string, number>
+if (!(id in tiers)) {
+  tiers[id] = tier
+  writeFileSync(tiersFile, `${JSON.stringify(tiers, null, 2)}\n`)
+}
 syncReferences()
 console.log(`已创建 features/${id}。下一步：
   1. bun install

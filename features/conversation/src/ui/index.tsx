@@ -2,16 +2,17 @@
 
 import { defineUiFeature } from '@poietica/ui-kernel'
 import { createConversationActions } from './setup/actions'
+import { createConversationAttachments } from './setup/attachments'
 import { createConversationCommands } from './setup/commands'
 import { createConversationSetup } from './setup/context'
 import { createConversationContributions } from './setup/contributions'
 import { createConversationServices } from './setup/services'
 import { createConversationSubscriptions } from './setup/subscriptions'
 
-/* conversation 的装配层：只按顺序调五段，段落本体在 ui/setup/ 下 —— 别把段落正文搬回来。 */
+/* conversation 的装配层：只按顺序调六段，段落本体在 ui/setup/ 下 —— 别把段落正文搬回来。 */
 export default defineUiFeature({
   id: 'conversation',
-  dependsOn: ['workspaces', 'preferences', 'platform'],
+  dependsOn: ['workspaces', 'preferences', 'platform', 'attachments'],
   setup(ctx) {
     const setup = createConversationSetup(ctx)
     const actions = createConversationActions(setup)
@@ -19,5 +20,6 @@ export default defineUiFeature({
     createConversationContributions(setup, actions)
     createConversationCommands(setup, actions)
     createConversationServices(setup, actions)
+    createConversationAttachments(setup, actions)
   },
 })

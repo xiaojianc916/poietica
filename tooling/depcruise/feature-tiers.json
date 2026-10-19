@@ -1,0 +1,17 @@
+{
+  "platform": 0,
+  "preferences": 1,
+  "workspaces": 1,
+  "attachments": 2,
+  "models": 2,
+  "conversation": 3,
+  "agent-settings": 4,
+  "automations": 4,
+  "browser": 4,
+  "extensions": 4,
+  "python": 4,
+  "review": 4,
+  "terminal": 4,
+  "update": 4,
+  "usage": 4
+}

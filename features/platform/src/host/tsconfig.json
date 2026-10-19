@@ -15,9 +15,6 @@
       "path": "../../../../packages/runtime-layout"
     },
     {
-      "path": "../../../browser/src/contract"
-    },
-    {
       "path": "../contract"
     }
   ]

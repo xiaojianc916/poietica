@@ -1,5 +1,6 @@
 import {
   type AgentEngine,
+  type BrowserRelayEndpoint,
   type Controls,
   type DraftControlInit,
   EngineErrorCode,
@@ -16,6 +17,8 @@ import { AppError, type Disposable, type Logger, SystemErrorCode, toDisposable }
 export interface OmpEngineOptions {
   readonly info: EngineInfo
   readonly logger: Logger
+  /** 本进程 omp 的 browser relay 在哪儿（端口由组合根挑好并写进 omp 的 browser.relayUrl）；没开为 null */
+  readonly browserRelay: BrowserRelayEndpoint | null
   /**
    * 草稿控件表的实现：由组合根（create-engine.ts）注入，因为它要读 omp 的注册表。
    *
@@ -54,6 +57,10 @@ export class OmpEngine implements AgentEngine {
 
   constructor(private readonly o: OmpEngineOptions) {
     this.info = o.info
+  }
+
+  browserRelay(): BrowserRelayEndpoint | null {
+    return this.o.browserRelay
   }
 
   get sessionFiles() {

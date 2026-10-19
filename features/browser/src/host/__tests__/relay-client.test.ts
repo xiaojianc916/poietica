@@ -1,12 +1,12 @@
 import { beforeEach, describe, expect, test } from 'bun:test'
 import { createTestLogger, type FakeClock, fakeClock } from '@poietica/test-kit'
 import { BLANK_PAGE, type BrowserState } from '../../contract'
-import { createRelayClient, type RelaySocket, type RelayTarget, relayTargetForStatus } from '../relay-client'
+import { createRelayClient, type RelaySocket, type RelayTarget, relayTargetOf } from '../relay-client'
 
 const TOKEN = 'ef'.repeat(32)
 const target = (port: number): RelayTarget => ({ url: `http://127.0.0.1:${String(port)}`, token: TOKEN })
 
-import { DISCARDED_TABS_PROTOCOL_VERSION } from '../relay-protocol'
+import { DISCARDED_TABS_PROTOCOL_VERSION } from '@poietica/engine'
 import type { ContentsListener, WebContentsLike } from '../tabs'
 
 /* relay 这一侧的自检：socket 与 clock 都注入，真 Chromium 与真 WebSocket 不参与；钉住 BR-2…BR-7 与 BR-11。 */
@@ -929,12 +929,12 @@ describe('不变式：连着就至少有一张页（面板关空后 open 永久 
   })
 })
 
-describe('BR-11: Core 状态 → relay 地址', () => {
-  test('ready(5000) → restarting → ready(5001)；口令随端点一起交出', () => {
-    expect(relayTargetForStatus('ready', { port: 5000, token: TOKEN })).toEqual(target(5000))
-    expect(relayTargetForStatus('restarting', { port: 5000, token: TOKEN })).toBeNull()
-    expect(relayTargetForStatus('ready', { port: 5001, token: TOKEN })).toEqual(target(5001))
-    expect(relayTargetForStatus('ready', null)).toBeNull()
+describe('BR-11: Core 报的端口 + 口令文件 → relay 地址', () => {
+  test('5000 → 收掉（restarting 时调用方传 null）→ 5001；缺口令不连', () => {
+    expect(relayTargetOf(5000, TOKEN)).toEqual(target(5000))
+    expect(relayTargetOf(null, TOKEN)).toBeNull()
+    expect(relayTargetOf(5001, TOKEN)).toEqual(target(5001))
+    expect(relayTargetOf(5001, null)).toBeNull()
   })
 
   test('换地址真的换 socket：5000 断掉、5001 重新拨号', () => {

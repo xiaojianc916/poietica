@@ -4,23 +4,6 @@ import type { ComponentType, ReactNode } from 'react'
 import type { Thread } from '../contract'
 
 /*
- * 输入框草稿的资产形状与「谁来把它们弄进来」的接口。
- *
- * 这两样同时被 conversation 的输入框（消费方）与 attachments 的入库实现（提供方）
- * 用到，而两个功能之间只能经 contract / core-api / ui-api 协作（守则 3），所以它们
- * 住在 ui-api 这一格。消费方直接引本文件，不再留转发层。
- */
-export {
-  type AttachmentIntake,
-  AttachmentIntakeContext,
-  type AttachmentUpload,
-  type ComposerAsset,
-  type ComposerAssetContext,
-  isInlineAttachment,
-  useAttachmentIntake,
-} from './composer-assets'
-
-/*
  * 分支选择器本体（GitBranchPicker）住在 design-system：它只认 props、不认识 git 也不调 RPC，
  * review（输入框那枚 chip）与 conversation（状态面板那一行）各自从 `@poietica/design-system` 取。
  */
@@ -53,12 +36,10 @@ export interface ComposerContextItem {
 export const composerContextItems = defineContributionPoint<ComposerContextItem>('conversation.composerContextItems')
 
 /**
- * 输入框树的外层提供者。
+ * 输入框树的外层提供者：别的功能往输入框树里放一层 Context 的插槽。
  *
- * 附件的入库口（AttachmentIntake）由 attachments 提供：它认识 dialog.pickFiles 与
- * attachments.importPaths，而 conversation 的 `ui` 不能 import 它（features 之间只能经
- * contract / core-api / ui-api 协作）。于是 conversation 在树里留一个插槽，attachments
- * 往里面放一个 Provider —— 这是双向都合法的接法（attachments 取本文件的令牌与 Context）。
+ * 附件的入库口不走这里的外部贡献：conversation 依赖 attachments（功能分级里 attachments 在下），
+ * 由 ui/setup/attachments.tsx 用 `AttachmentsUiToken` 拼好入库口，自己往这个插槽里放。
  */
 export interface ComposerProviderItem {
   readonly id: string
@@ -152,26 +133,6 @@ export interface ThreadHeaderItem {
 }
 export const threadHeaderItems = defineContributionPoint<ThreadHeaderItem>('conversation.threadHeaderItems')
 
-/**
- * 草稿引用的附件：给 attachments 的 UI 做引用登记（R-07 §3.4）。
- *
- * conversation 不认识 attachments，只交出这份只读视图；整体替换的登记由 attachments
- * 那一侧调自己的契约完成。
- */
-export interface DraftAttachments {
-  /**
-   * 全部草稿（每条线程 + 入口页）引用的附件 id，去重、升序。
-   *
-   * **草稿还没从盘上恢复时为 null**：attachments 的 onCoreReady 可能先于草稿读盘，
-   * 那一刻拿空集合去整体替换会把盘上草稿的引用全部清掉。
-   */
-  ids(): readonly string[] | null
-  /** id 集合变化时回调（打字不触发）；恢复完成时也回调一次 */
-  subscribe(listener: () => void): () => void
-  /** 从所有草稿里移除这些附件，返回实际移除的条数 */
-  drop(ids: readonly string[]): number
-}
-
 export interface ConversationUi {
   activeThreadId(): string | null
   subscribeActive(listener: () => void): () => void
@@ -179,6 +140,5 @@ export interface ConversationUi {
   openThread(threadId: string): void
   /** 当前页面上的输入框（home 页或线程页）；没有输入框的页面（例如设置页）返回 null */
   activeComposer(): ComposerDraft | null
-  readonly draftAttachments: DraftAttachments
 }
 export const ConversationUiToken = defineServiceToken<ConversationUi>('conversation', 'ConversationUi')

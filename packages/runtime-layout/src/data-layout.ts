@@ -9,7 +9,7 @@ export interface DataLayout {
   readonly coreDir: string
   readonly dbFile: string
   readonly coreCwd: string
-  /** browser relay `/ext` 口令（Host 生成并持久化，见 relay-token.ts） */
+  /** browser relay `/ext` 口令（Core 生成并持久化，见 engine-omp 的 bootstrap/relay-token.ts；Host 的 browser 功能只读） */
   readonly relayTokenFile: string
   readonly attachmentsDir: string
   readonly scratchDir: string

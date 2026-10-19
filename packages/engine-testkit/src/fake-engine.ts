@@ -763,6 +763,8 @@ export function createFakeEngine(opts: FakeEngineOptions = {}): FakeEngine {
 
   const engine: FakeEngine = {
     info: { name: 'omp', version: 'fake' } satisfies EngineInfo,
+    /* 替身不跑 relay 服务：browser 功能的 Core 模块据此回 port: null，Host 那一侧就不去连 */
+    browserRelay: () => null,
     opened,
     pythonInterpreterCalls,
     sessionNames,

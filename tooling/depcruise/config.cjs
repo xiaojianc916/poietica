@@ -21,6 +21,19 @@ const TEST = '(/__tests__/|\\.test\\.tsx?$)'
  */
 const sameLayer = require('./same-layer.json')
 
+/*
+ * 白名单只收**同层**边。跨层向下的边本来就允许，写进来不起作用；跨层向上的边写进来会被
+ * 下面的 banned 过滤悄悄放行——两种都是失效条目，曾经出现过（core-kernel、host-kernel 两条），
+ * 所以在加载配置时就拒绝。
+ */
+for (const [p, allowed] of Object.entries(sameLayer)) {
+  for (const q of allowed) {
+    if (layers[p] === undefined || layers[q] !== layers[p]) {
+      throw new Error(`same-layer.json：${p} → ${q} 不是同层边（L${layers[p]} → L${layers[q]}），白名单只收同层边`)
+    }
+  }
+}
+
 /** packages/<p> 只能依赖层级严格更低的包（03 页 §2.2 点名的同层依赖除外） */
 const layerRules = names.map((p) => {
   const allowed = new Set(sameLayer[p] ?? [])
@@ -34,9 +47,35 @@ const layerRules = names.map((p) => {
   }
 })
 
+/*
+ * L4 内部的功能分级（feature-tiers.json.md）：功能只能依赖级别严格更低的功能。layer-order 管不到 features/，
+ * feature-cross-impl 只管「经哪种子入口」不管方向——没有这一组，功能之间可以成环，同一对功能在不同进程里方向还能相反。
+ */
+const tiers = require('./feature-tiers.json')
+const featureIds = Object.keys(tiers)
+const tierRules = featureIds.map((f) => {
+  const banned = featureIds.filter((g) => g !== f && tiers[g] >= tiers[f])
+  return {
+    name: `feature-tier:${f}`,
+    severity: 'error',
+    comment: `${f}（第 ${tiers[f]} 级）只能依赖级别更低的功能（tooling/depcruise/feature-tiers.json）`,
+    from: { path: `^features/${esc(f)}/`, pathNot: TEST },
+    to: { path: banned.length > 0 ? `^features/(${banned.map(esc).join('|')})/` : '^$impossible^' },
+  }
+})
+
 module.exports = {
   forbidden: [
     ...layerRules,
+    ...tierRules,
+    {
+      name: 'unknown-feature-tier',
+      severity: 'error',
+      comment:
+        'features/ 下每个功能都必须在 tooling/depcruise/feature-tiers.json 中登记级别（用 bun run new:feature 创建会自动登记）',
+      from: { path: '^features/', pathNot: `^features/(${featureIds.map(esc).join('|')})/` },
+      to: {},
+    },
     {
       name: 'unknown-package-layer',
       severity: 'error',

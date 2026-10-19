@@ -19,8 +19,6 @@ import { createChildProcessTransport } from '@poietica/rpc/stdio'
 import { buildCoreLaunch, CORE_EXIT_CODES, CORE_SHUTDOWN_BUDGET_MS, type DataLayout } from '@poietica/runtime-layout'
 import type { CoreOutputSink } from './core-output'
 import { findStaleCoreProcesses, reapStaleCoreProcesses, type StaleProcess } from './core-reaper'
-import { pickFreePort } from './relay-port'
-import { ensureRelayToken } from './relay-token'
 
 export type CoreStatusState = (typeof CORE_STATUS_STATES)[number]
 export type CoreFailureReason = (typeof CORE_FAILURE_REASONS)[number]
@@ -45,15 +43,6 @@ export const QUEUE_WAIT_MS = 30_000
 /** stderr 单行上限：失控的输出没有换行时，不让它在主进程里无限攒 */
 const STDERR_LINE_MAX = 1024 * 1024
 
-/**
- * Core 的 browser relay：端口由 Host 每次拉起 Core 时挑选，口令由 Host 按数据根生成（runtime-layout 的 relay-token.ts）。
- * 两者一起交出去：只拿端口连 `/ext` 会被 relay 以 401 拒绝。
- */
-export interface RelayEndpoint {
-  readonly port: number
-  readonly token: string
-}
-
 export interface CoreSupervisorOptions {
   readonly layout: DataLayout
   readonly coreExe: string
@@ -70,7 +59,6 @@ export interface CoreSupervisorOptions {
   /** 测试注入用。 */
   readonly spawn?: typeof nodeSpawn
   readonly clock?: Clock
-  readonly pickPort?: () => Promise<number>
   readonly kill?: (pid: number) => Promise<void>
   /** 测试注入用：默认 READY_TIMEOUT_MS，注入短值即可验证超时行为，不必真等 45 秒。 */
   readonly readyTimeoutMs?: number
@@ -94,7 +82,6 @@ export class CoreSupervisor {
   private child: ChildProcess | undefined
   private peer: RpcPeer | undefined
   private generation = 0
-  private relay: RelayEndpoint | null = null
   private restartTimer: Disposable | undefined
   private stopped: Deferred<void> | undefined
   /** 启动前清掉的残留（诊断与测试用） */
@@ -121,10 +108,6 @@ export class CoreSupervisor {
     return { state: map[this.state], reason: this.reason, attempt: this.crashes.length }
   }
 
-  relayEndpoint(): RelayEndpoint | null {
-    return this.relay
-  }
-
   /** 最近一次启动前清掉的上代 Core / omp 后台进程（诊断与测试用） */
   reapedProcesses(): readonly StaleProcess[] {
     return this.reaped
@@ -135,9 +118,15 @@ export class CoreSupervisor {
     if (this.state !== 'idle' && this.state !== 'failed' && this.state !== 'stopped') return
     this.reason = null
     this.setState('starting')
+    /*
+     * 清残留要枚举进程，是一段真的让出：期间 stop() / restart() 都可能进来。先占一代，回来时过期就收手 ——
+     * 否则 stop 之后这里照样 spawn，或者两次 restart 各拉起一个 Core。
+     */
+    const gen = ++this.generation
     // 上一代 Core 与它派发的 omp 后台进程必须先清干净（refactor-log R-37）：后者占着 exe 与 SQLite，
     // 不清就会「新 Host + 旧 Core」→ 协议不一致直接 failed，而且覆盖安装也修不好。
     await this.reapBeforeLaunch()
+    if (this.stale(gen)) return
     await this.launchSafely()
   }
 
@@ -292,7 +281,7 @@ export class CoreSupervisor {
   }
 
   /**
-   * launch 的唯一入口：launch 里任何一步抛错（取端口、建目录、spawn 同步抛错）都按「这一代起不来」处理，
+   * launch 的唯一入口：launch 里任何一步抛错（组装启动参数、建目录、spawn 同步抛错）都按「这一代起不来」处理，
    * 走与崩溃同一条退避路径。否则 start() 的 Promise 带着异常被 `void` 掉，状态永远停在 starting，
    * UI 只能看到每个请求排队 30 秒后报「Core 启动超时」，而看护人再也不会重试。
    */
@@ -322,14 +311,10 @@ export class CoreSupervisor {
       this.fail('core_missing')
       return
     }
-    const port = await (this.o.pickPort ?? pickFreePort)()
-    if (this.stale(gen)) return
-    this.relay = { port, token: ensureRelayToken(this.o.layout.relayTokenFile) }
     const launch = buildCoreLaunch({
       coreExe: this.o.coreExe,
       dataRoot: this.o.layout.root,
       homeDir: this.o.homeDir,
-      relayPort: port,
       logLevel: this.o.logLevel(),
       strict: this.o.strict,
       baseEnv: this.o.baseEnv(),
@@ -408,7 +393,7 @@ export class CoreSupervisor {
       if (child.pid !== undefined) await (this.o.kill ?? killTree)(child.pid)
       return
     }
-    this.o.logger.info('core ready', { ...payload, pid: child.pid, relayPort: this.relay?.port })
+    this.o.logger.info('core ready', { ...payload, pid: child.pid })
     this.reason = null
     this.setState('ready')
     this.readyEmitter.fire()
@@ -416,7 +401,7 @@ export class CoreSupervisor {
 
   /**
    * 代际是否已过期（R-05 §3.4）。`idle` 也算：restart() 先置 idle 再 start()，而 start() 立刻
-   * setState('starting') 并在 launch 里 ++generation —— 新一代不会被误判，落在中间的旧一代一律收手。
+   * setState('starting') 并 ++generation（launch 里再 ++ 一次）—— 新一代不会被误判，落在中间的旧一代一律收手。
    */
   private stale(gen: number): boolean {
     return gen !== this.generation || this.state === 'stopping' || this.state === 'stopped' || this.state === 'idle'

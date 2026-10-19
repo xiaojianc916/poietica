@@ -1,10 +1,13 @@
+import {
+  DISCARDED_TABS_PROTOCOL_VERSION,
+  type RelayInbound,
+  type RelayOutbound,
+  type TabSnapshot,
+} from '@poietica/engine'
 import { AppError, type Clock, type Disposable, type Logger, systemClock, toDisposable } from '@poietica/foundation'
-import type { RelayEndpoint } from '@poietica/host-kernel'
 import type { BrowserState } from '../contract/entities'
 import { BLANK_PAGE } from '../contract/entities'
 import { browserErrors } from '../contract/errors'
-import type { RelayInbound, RelayOutbound, TabSnapshot } from './relay-protocol'
-import { DISCARDED_TABS_PROTOCOL_VERSION } from './relay-protocol'
 import type { WebContentsLike } from './tabs'
 
 /* 内置浏览器接进 agent 的那条线（relay 通道）。electron 的 API 全部注入：createSocket 与
@@ -58,11 +61,12 @@ export interface RelayClient {
   dispose(): void
 }
 
-/** restarting 期间必须先收掉地址：Core 每次重启端口都可能变（BR-11）。 */
-export function relayTargetForStatus(state: string, relay: RelayEndpoint | null): RelayTarget | null {
-  return state === 'ready' && relay !== null
-    ? { url: `http://127.0.0.1:${String(relay.port)}`, token: relay.token }
-    : null
+/**
+ * 端口（Core 经 `browser.relayEndpoint` 报的）+ 口令（读 `relayTokenFile` 得的）→ 连接目标；缺一样就不连。
+ * restarting 期间调用方传 null 端口先收掉地址：Core 每次重启端口都可能变（BR-11）。
+ */
+export function relayTargetOf(port: number | null, token: string | null): RelayTarget | null {
+  return port !== null && token !== null ? { url: `http://127.0.0.1:${String(port)}`, token } : null
 }
 
 export interface RelayClientOptions {
@@ -223,7 +227,7 @@ export function createRelayClient(tabs: RelayTabsPort, opts: RelayClientOptions)
           tabId,
           ...(typeof sessionId === 'string' ? { sessionId } : {}),
           method: String(method),
-          params,
+          ...(isRecord(params) ? { params } : {}),
         })
       })
       debugger_.on('detach', (_event: unknown, reason: unknown) => {
@@ -353,7 +357,7 @@ export function createRelayClient(tabs: RelayTabsPort, opts: RelayClientOptions)
       browserVersion: tabs.browserVersion(),
       tabs: snapshots,
       attachedTabIds: [],
-      /* 缺了它 relay 把这一侧整实例判成不 eligible、浏览器工具直接报「扩展过期」（见 relay-protocol.ts 文件头）。 */
+      /* 缺了它 relay 把这一侧整实例判成不 eligible、浏览器工具直接报「扩展过期」（见 @poietica/engine 的 browser-relay.ts 文件头）。 */
       discardedTabsProtocol: DISCARDED_TABS_PROTOCOL_VERSION,
     })
   }
@@ -516,6 +520,10 @@ export function createRelayClient(tabs: RelayTabsPort, opts: RelayClientOptions)
       attachedListeners.clear()
     },
   }
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value)
 }
 
 function defaultCreateSocket(target: string): RelaySocket {

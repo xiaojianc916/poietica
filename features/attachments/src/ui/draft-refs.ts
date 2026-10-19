@@ -1,4 +1,4 @@
-import type { DraftAttachments } from '@poietica/feature-conversation/ui-api'
+import type { DraftRefSource } from '../ui-api'
 
 /**
  * 草稿附件的引用登记。三条规矩：`ids()` 为 null（草稿还没从盘上恢复）时**什么都不发** —— 空集合不等于「草稿是空的」；整体替换、按集合键去重，
@@ -8,7 +8,7 @@ export const DRAFTS_OWNER = 'ui:conversation.drafts'
 export const DRAFT_PIN_DEBOUNCE_MS = 500
 
 export interface DraftRefSyncDeps {
-  readonly drafts: DraftAttachments
+  readonly drafts: DraftRefSource
   readonly setOwnerRefs: (ownerKey: string, attachmentIds: readonly string[]) => Promise<{ missing: string[] }>
   readonly warn: (message: string, data: Record<string, unknown>) => void
   readonly reportMissing: (count: number) => void

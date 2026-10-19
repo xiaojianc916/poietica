@@ -20,7 +20,7 @@ function proc(partial: Partial<ProcessInfo> & { pid: number }): ProcessInfo {
 describe('findStaleCoreProcesses', () => {
   test('上一代 Core 与它的 omp 后台进程都在清单里，本代自己的 pid 跳过', () => {
     const rows = [
-      proc({ pid: 100, commandLine: 'poietica-core.exe serve --data-root C:\\d --relay-port 1' }),
+      proc({ pid: 100, commandLine: 'poietica-core.exe serve --data-root C:\\d --log-level info' }),
       // detached 的 omp daemon broker：命令行里是 __omp_worker_*，不在 Core 的进程树里
       proc({ pid: 200, commandLine: 'poietica-core.exe __omp_worker_daemon_broker' }),
       proc({ pid: 300 }),

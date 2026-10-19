@@ -18,7 +18,6 @@
     "@poietica/foundation": "workspace:*",
     "@poietica/git": "workspace:*",
     "@poietica/process-kit": "workspace:*",
-    "@poietica/rpc": "workspace:*",
     "@poietica/ui-kernel": "workspace:*",
     "lucide-react": "catalog:",
     "react": "catalog:",
