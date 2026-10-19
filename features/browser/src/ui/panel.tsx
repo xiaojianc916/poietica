@@ -33,8 +33,12 @@ export function BrowserPanel({
 }: BrowserPanelProps): ReactNode {
   const state = useSyncExternalStore(store.subscribe, store.snapshot)
   const activeTab = state === null ? null : (state.tabs.find((tab) => tab.id === state.activeTabId) ?? null)
+  /*
+   * 菜单是浮层（DropdownMenuContent 挂在 body 上），不占布局 —— 以前这里还按菜单高度在工具栏下面
+   * 垫一块等高占位让它「让位」，那块占位带底色和下缘线，在深色面板上就是一条凭空发亮的横线
+   * （用户 2026-10-19 报告）。浮层不需要让位，占位连同 menuHeight 一起删除。
+   */
   const [menuOpen, setMenuOpen] = useState(false)
-  const [menuHeight, setMenuHeight] = useState(0)
 
   /* 该露面还是该收起只能下发给宿主；卸载时补一发 false，否则面板被拆掉后视图会留在屏幕上。 */
   useEffect(() => {
@@ -56,9 +60,7 @@ export function BrowserPanel({
         <BrowserToolbar
           activeTab={activeTab}
           api={api}
-          menuHeight={menuHeight}
           menuOpen={menuOpen}
-          onMenuHeightChange={setMenuHeight}
           onMenuOpenChange={setMenuOpen}
           onPickToggle={onPickToggle}
           report={report}
@@ -80,9 +82,7 @@ export function BrowserPanel({
 interface BrowserToolbarProps {
   readonly activeTab: BrowserTab | null
   readonly api: BrowserApi
-  readonly menuHeight: number
   readonly menuOpen: boolean
-  readonly onMenuHeightChange: (height: number) => void
   readonly onMenuOpenChange: (open: boolean) => void
   readonly onPickToggle: (tabId: number, picking: boolean) => void
   readonly report: (message: string, cause?: unknown) => void
@@ -92,9 +92,7 @@ interface BrowserToolbarProps {
 function BrowserToolbar({
   activeTab,
   api,
-  menuHeight,
   menuOpen,
-  onMenuHeightChange,
   onMenuOpenChange,
   onPickToggle,
   report,
@@ -173,7 +171,6 @@ function BrowserToolbar({
 
         <BrowserOverflowMenu
           commands={{}}
-          onHeightChange={onMenuHeightChange}
           onOpenChange={onMenuOpenChange}
           onReopen={(index) => {
             run(api.reopenClosed(index))
@@ -190,9 +187,6 @@ function BrowserToolbar({
           zoomLevel={activeTab?.zoom ?? 0}
         />
       </div>
-      {menuOpen ? (
-        <div aria-hidden className="border-b border-current/10 bg-muted/30" style={{ blockSize: menuHeight }} />
-      ) : null}
     </div>
   )
 }

@@ -6,7 +6,7 @@ import {
   DropdownMenuTrigger,
 } from '@poietica/design-system'
 import { ChevronRight, History, Minus, MoreHorizontal, Plus, RotateCcw } from 'lucide-react'
-import { type ReactNode, useLayoutEffect, useRef } from 'react'
+import type { ReactNode } from 'react'
 
 /* 工具栏右端那张「更多操作」菜单。菜单壳、行清单、行类名、缩放步进照 legacy；换掉三处口径：没接进来的条目不再假装存在、缩放范围按契约 browser.setZoom 的 -3…5、最近关闭是新增的。 */
 
@@ -15,12 +15,15 @@ const triggerClassName =
 
 const labelClassName = 'min-w-0 flex-1 truncate text-xs'
 
+/*
+ * 菜单壳。以前这里还要量出菜单高度、报给面板让它垫一块等高占位 —— 菜单是浮层，不占布局，
+ * 那块占位只会变成工具栏下方一条发亮的横线（用户 2026-10-19 报告）。量高整段删除。
+ */
 function MenuShell({
   children,
   className,
   icon,
   label,
-  onHeightChange,
   onOpenChange,
   open,
 }: {
@@ -28,37 +31,15 @@ function MenuShell({
   readonly className: string
   readonly icon: ReactNode
   readonly label: string
-  readonly onHeightChange: (height: number) => void
   readonly onOpenChange: (open: boolean) => void
   readonly open: boolean
 }) {
-  const popup = useRef<HTMLDivElement | null>(null)
-
-  useLayoutEffect(() => {
-    const element = popup.current
-    if (!open || element === null) {
-      onHeightChange(0)
-      return undefined
-    }
-
-    const report = (): void => {
-      onHeightChange(Math.ceil(element.getBoundingClientRect().height + 6))
-    }
-
-    report()
-    const observer = new ResizeObserver(report)
-    observer.observe(element)
-    return () => {
-      observer.disconnect()
-    }
-  }, [onHeightChange, open])
-
   return (
     <DropdownMenu onOpenChange={onOpenChange} open={open}>
       <DropdownMenuTrigger aria-label={label} className={triggerClassName} title={label}>
         {icon}
       </DropdownMenuTrigger>
-      <DropdownMenuContent align="end" className={className} ref={popup}>
+      <DropdownMenuContent align="end" className={className}>
         {children}
       </DropdownMenuContent>
     </DropdownMenu>
@@ -113,7 +94,6 @@ function ZoomRow({ onZoom, level }: { readonly onZoom: (level: number) => void; 
 
 export interface BrowserOverflowMenuProps {
   readonly commands: Readonly<Partial<Record<string, () => void>>>
-  readonly onHeightChange: (height: number) => void
   readonly onOpenChange: (open: boolean) => void
   readonly onReopen: (index: number) => void
   readonly onZoom: (level: number) => void
@@ -174,7 +154,6 @@ function CommandRow({
 
 export function BrowserOverflowMenu({
   commands,
-  onHeightChange,
   onOpenChange,
   onReopen,
   onZoom,
@@ -187,7 +166,6 @@ export function BrowserOverflowMenu({
       className="w-64"
       icon={<MoreHorizontal aria-hidden className="size-4" />}
       label="更多操作"
-      onHeightChange={onHeightChange}
       onOpenChange={onOpenChange}
       open={open}
     >

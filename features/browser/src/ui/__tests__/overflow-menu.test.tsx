@@ -10,7 +10,6 @@ async function mount(commands: Readonly<Partial<Record<string, () => void>>> = {
     render(
       <BrowserOverflowMenu
         commands={commands}
-        onHeightChange={() => undefined}
         onOpenChange={() => undefined}
         onReopen={() => undefined}
         onZoom={() => undefined}
