@@ -9,10 +9,10 @@
   "automations": 4,
   "browser": 4,
   "extensions": 4,
+  "intelligent-ui": 4,
   "python": 4,
   "review": 4,
   "terminal": 4,
   "update": 4,
-  "usage": 4,
-  "widgets": 4
+  "usage": 4
 }

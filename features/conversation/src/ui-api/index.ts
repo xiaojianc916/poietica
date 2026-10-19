@@ -67,6 +67,8 @@ export {
 /** 工具调用卡片：按工具名匹配；conversation 自带 omp 内置工具的卡片，其它功能为自己的工具贡献卡片 */
 export interface ToolCallRendererProps {
   readonly threadId: string
+  /** 这次工具调用的号：跨重渲、跨虚拟列表回收都不变，贡献卡片靠它认「同一个实例」（状态、量过的高度） */
+  readonly callId: string
   readonly toolName: string
   readonly args: unknown
   readonly result: unknown | null // 未完成时为 null
@@ -76,7 +78,7 @@ export interface ToolCallRenderer {
   readonly toolName: string | RegExp
   readonly component: ComponentType<ToolCallRendererProps>
   /**
-   * 卡片自己就是内容（例如 widgets 的 show_widget）：不并进过程组，轮次落定后也不折进「过程」；失败的那次照常归过程。
+   * 卡片自己就是内容（例如 intelligent-ui 的 intelligent_ui）：不并进过程组，轮次落定后也不折进「过程」；失败的那次照常归过程。
    * 缺省 false —— 普通工具卡片是过程的一部分。
    */
   readonly inline?: boolean

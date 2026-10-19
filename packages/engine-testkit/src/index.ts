@@ -1,5 +1,11 @@
 export { type ConformanceTarget, runEngineConformance } from './conformance'
-export { createFakeEngine, type FakeEngine, type FakeEngineOptions, type FakeToolCall } from './fake-engine'
+export {
+  createFakeEngine,
+  type FakeEngine,
+  type FakeEngineOptions,
+  type FakePrompt,
+  type FakeToolCall,
+} from './fake-engine'
 export {
   callTool,
   type DistributiveOmit,

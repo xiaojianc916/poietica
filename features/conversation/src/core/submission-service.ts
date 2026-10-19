@@ -7,6 +7,7 @@ import type { QueueView, SubmissionView } from '../contract'
 import { conversationErrors } from '../contract/errors'
 import { type SubmissionRow, type SubmissionsRepository, submissionOf } from './submissions-repository'
 import { OWNER_KEY } from './thread-service'
+import type { CollectedContext } from './turn-context'
 
 /**
  * 「Core 即时回显」的提交服务。三条规则：
@@ -36,6 +37,8 @@ export interface SubmissionServiceDeps {
   readonly acquireSession: (threadId: string) => Promise<EngineSession>
   /** 用户发出去一句话（准入）→ usage 的日账 */
   readonly emitUserMessage: (p: { threadId: string; at: number }) => void
+  /** 轮次上下文（别的功能经 TurnContextRegistry 交来）：交接那一刻同步收一次。缺省 = 没有提供方 */
+  readonly collectContext?: (threadId: string) => CollectedContext
 }
 
 /** 同一线程的交接串行：两条提交不会同时在跑 `pool.acquire`。 */
@@ -379,6 +382,7 @@ export class SubmissionService {
     this.handed.add(row.clientTurnId)
     if (deliveredAs === 'turn') this.pendingTurn.set(row.threadId, row.clientTurnId)
 
+    const context = this.d.collectContext?.(row.threadId)
     await session.submit({
       text: row.text,
       images: resolved.filter((a) => a.kind === 'image').map((a) => ({ path: a.path, mime: a.mime })),
@@ -387,7 +391,10 @@ export class SubmissionService {
       deliverAs: deliveredAs,
       /* 排队项的结局靠这个号对回本行（审查 R-20-1） */
       ref: row.clientTurnId,
+      ...(context === undefined || context.blocks.length === 0 ? {} : { context: context.blocks }),
     })
+    /* 引擎收下了（开轮或入队）才算送达；submit 抛错时提供方的内容留到下一句 */
+    context?.delivered()
     if (deliveredAs !== 'turn') {
       /* 结局可能已经先到（送达 → 行已删 / 丢弃 → failed）：只有还停在 pending 才记成 queued */
       if (this.d.repo.get(row.clientTurnId)?.status === 'pending') this.update(row.clientTurnId, { status: 'queued' })

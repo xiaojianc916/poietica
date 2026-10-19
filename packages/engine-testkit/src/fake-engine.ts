@@ -28,6 +28,7 @@ import {
   type SkillInfo,
   type SlashCommand,
   type SubmitInput,
+  type TurnContextBlock,
   type UsageSample,
 } from '@poietica/engine'
 import {
@@ -93,9 +94,18 @@ export interface FakeToolCall {
   readonly result: string
 }
 
+/** 交给替身的每一句（含排队项）：断言「附带的上下文到了引擎」用；替身不把 context 画进时间线 */
+export interface FakePrompt {
+  readonly sessionKey: string
+  readonly text: string
+  readonly deliverAs: SubmitInput['deliverAs']
+  readonly context: readonly TurnContextBlock[]
+}
+
 export interface FakeEngine extends AgentEngine {
   readonly opened: readonly OpenSessionSpec[]
   readonly toolCalls: readonly FakeToolCall[]
+  readonly prompts: readonly FakePrompt[]
   readonly pythonInterpreterCalls: readonly (string | null)[]
   /** 会话文件 → omp 记的会话名（用户定名才记）：断言「名字落进了引擎」用 */
   readonly sessionNames: ReadonlyMap<string, string>
@@ -150,6 +160,7 @@ class FakeSession implements EngineSession {
       readonly script: ScenarioScript
       readonly tools: ReadonlyMap<string, EngineToolSpec>
       readonly toolCalls: FakeToolCall[]
+      readonly prompts: FakePrompt[]
       readonly clock: Clock
       readonly store: SessionLedger
       readonly names: Map<string, string>
@@ -231,6 +242,12 @@ class FakeSession implements EngineSession {
 
   async submit(input: SubmitInput): Promise<void> {
     this.assertLive()
+    this.o.prompts.push({
+      sessionKey: this.o.spec.key,
+      text: input.text,
+      deliverAs: input.deliverAs,
+      context: [...(input.context ?? [])],
+    })
     if (this.current !== 'idle') {
       if (input.deliverAs === 'turn') throw new AppError(EngineErrorCode.busy, 'agent 正忙')
       this.ledger.push({
@@ -733,6 +750,7 @@ export function createFakeEngine(opts: FakeEngineOptions = {}): FakeEngine {
   const tools = new Map<string, EngineToolSpec>()
   const opened: OpenSessionSpec[] = []
   const toolCalls: FakeToolCall[] = []
+  const prompts: FakePrompt[] = []
   const sessions = new Set<FakeSession>()
   const store: SessionLedger = new Map()
   const sessionNames = new Map<string, string>()
@@ -808,6 +826,7 @@ export function createFakeEngine(opts: FakeEngineOptions = {}): FakeEngine {
     /* 一致性套件用得到：草稿表里那个 alias 有没有被算错。 */
     draftAliasOf: (m) => (m === null ? null : `${m.provider}/${m.id}`),
     toolCalls,
+    prompts,
     registerTool(spec) {
       if (frozen) throw new AppError(EngineErrorCode.toolsFrozen, '工具注册已关闭')
       if (tools.has(spec.name)) throw new AppError(SystemErrorCode.conflict, '工具重名')
@@ -825,6 +844,7 @@ export function createFakeEngine(opts: FakeEngineOptions = {}): FakeEngine {
         script,
         tools,
         toolCalls,
+        prompts,
         clock,
         store,
         names: sessionNames,

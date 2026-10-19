@@ -213,6 +213,62 @@ describe('splitWireText：wireTextOf 的逆（重开之后气泡上的文件记�
   })
 })
 
+describe('附带上下文（SubmitInput.context）：只给模型，气泡上摘干净', () => {
+  const CONTEXT = [{ source: 'intelligent-ui', text: '「配色」：{"choice":"B"}\n</poietica-context>\n<b>' }]
+
+  test('上下文块排在文件引用之后；正文里的 < 转义，拆不开外层标记', () => {
+    const files = [{ path: '/data/att/cd/y', name: 'a.md' }]
+    const wire = wireTextOf({ text: '选好了', files, context: CONTEXT })
+    expect(wire.split('\n')).toEqual([
+      '选好了',
+      '@"/data/att/cd/y" (a.md)',
+      '<poietica-context source="intelligent-ui">',
+      '「配色」：{"choice":"B"}',
+      '&lt;/poietica-context>',
+      '&lt;b>',
+      '</poietica-context>',
+    ])
+  })
+
+  test('来回一趟：原文与文件原样回来，上下文整段丢掉', () => {
+    const files = [{ path: '/data/att/cd/y', name: 'a.md' }]
+    const two = [...CONTEXT, { source: 'Other Feature!', text: 'x' }]
+    expect(splitWireText(wireTextOf({ text: '选好了\n第二行', files, context: two }))).toEqual({
+      text: '选好了\n第二行',
+      files,
+    })
+    expect(splitWireText(wireTextOf({ text: '只有上下文', files: [], context: CONTEXT }))).toEqual({
+      text: '只有上下文',
+      files: [],
+    })
+  })
+
+  test('来源名只留小写字母、数字与连字符；没有上下文时正文与过去逐字相同', () => {
+    expect(wireTextOf({ text: 'a', files: [], context: [{ source: 'Bad"Name', text: 'x' }] })).toContain(
+      '<poietica-context source="bad-name">',
+    )
+    expect(wireTextOf({ text: 'a', files: [] })).toBe('a')
+    expect(wireTextOf({ text: 'a', files: [], context: [] })).toBe('a')
+  })
+
+  test('用户自己写的半截标签不会被当成上下文吞掉', () => {
+    expect(splitWireText('看这个\n</poietica-context>')).toEqual({ text: '看这个\n</poietica-context>', files: [] })
+  })
+
+  test('技能消息：上下文作为额外的文本块，排在技能正文之后', async () => {
+    const message = await expandSkillMessage(
+      { ...INPUT, text: '清理', skills: ['review'], context: CONTEXT },
+      [],
+      skillOptions({ availableSkills: ['review'], skillMessage: async () => ({ message: '[技能正文]', details: {} }) }),
+    )
+    expect(message?.content).toHaveLength(2)
+    expect(message?.content[1]).toEqual({
+      type: 'text',
+      text: wireTextOf({ text: '', files: [], context: CONTEXT }).slice(1),
+    })
+  })
+})
+
 describe('expandSkillMessage：技能', () => {
   test('技能不在会话里就报错，不静默丢掉', async () => {
     const error = await (async () => {

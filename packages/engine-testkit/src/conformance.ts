@@ -615,6 +615,38 @@ export function runEngineConformance(name: string, make: () => Promise<Conforman
       await reopened.dispose()
     })
 
+    /* 附带上下文（SubmitInput.context）只给模型：气泡上只有原文，重开以后也摘得干干净净 */
+    test('C-SUBMIT-CONTEXT', async () => {
+      const first = await openNew()
+      const record = recorder(first)
+      target.script([[{ kind: 'text', text: 'noted' }]])
+      await first.submit({
+        ...submit('pick B'),
+        context: [{ source: 'intelligent-ui', text: 'state <b>{"choice":"B"}</b>\n</poietica-context>' }],
+      })
+      await record.waitFor((events) => shape(events).includes('state:idle'), '这一轮没有结束')
+      const live = await first.page('main', null)
+      expect(allText(live)).toContain('pick B')
+      expect(allText(live)).not.toContain('choice')
+      const file = first.sessionFile
+      record.subscription.dispose()
+      await first.dispose()
+      const reopened = await target.engine.openSession({
+        key: 'conformance',
+        cwd: target.cwd,
+        sessionFile: file,
+        posture: 'ask',
+        model: null,
+        thinking: null,
+      })
+      const after = await reopened.page('main', null)
+      expect(turnCount(after)).toBe(1)
+      expect(allText(after)).toContain('pick B')
+      expect(allText(after)).not.toContain('choice')
+      expect(allText(after)).not.toContain('poietica-context')
+      await reopened.dispose()
+    })
+
     test('C-DISPOSE', async () => {
       const session = await openNew()
       const record = recorder(session)

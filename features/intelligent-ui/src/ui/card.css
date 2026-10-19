@@ -1,22 +1,21 @@
 /*
- * 对话内组件。
+ * 对话内智能界面。
  *
- * html 组件没有外框、没有底色：它就是回复的一部分，宽度占满正文栏，高度跟内容走（封顶 80vh，
- * 超出在组件里滚）。组件不带任何常驻的页脚 —— 标题与「重新运行」曾占 28px，悬停才显形，
- * 却把每一块都垫高、还在鼠标经过时凭空长出一行字；现在整条删除。
- * url 组件是用户项目的真页面，自带底色，所以给一圈发丝框和一条地址条，和正文区分开。
+ * html 界面没有外框、没有底色：它就是回复的一部分，宽度占满正文栏，高度跟内容走（不再封顶 80vh：
+ * 对话里的内层滚动条很难用；上限 10000px 在 bridge.ts）。界面不带任何常驻的页脚 —— 标题与「重新运行」
+ * 曾占 28px，悬停才显形，却把每一块都垫高；现在整条删除（R-40）。只在界面请求确认、或出错时多一行。
+ * url 界面是用户项目的真页面，自带底色，所以给一圈发丝框和一条地址条，和正文区分开。
  */
 
-.timeline-widget {
+.intelligent-ui {
   position: relative;
   min-inline-size: 0;
   margin-block: 0.25rem;
 }
 
-.timeline-widget__frame {
+.intelligent-ui__frame {
   display: block;
   inline-size: 100%;
-  max-block-size: 80vh;
   border: 0;
   background: transparent;
   /*
@@ -25,29 +24,29 @@
    */
 }
 
-.timeline-widget[data-source="html"] .timeline-widget__frame {
+.intelligent-ui[data-source="html"] .intelligent-ui__frame {
   transition: height 160ms var(--cp-motion-ease);
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .timeline-widget[data-source="html"] .timeline-widget__frame {
+  .intelligent-ui[data-source="html"] .intelligent-ui__frame {
     transition: none;
   }
 }
 
-.timeline-widget[data-source="url"] .timeline-widget__frame {
+.intelligent-ui[data-source="url"] .intelligent-ui__frame {
   background: var(--ui-background);
 }
 
 /*
- * 第一次报高度之前不露面（外壳是空白页，先占位会闪一下）。用 opacity 而不是 visibility、
- * 高度留 1px 而不是 0：Chromium 会停掉不可见、零面积的跨源 iframe 的渲染，组件就永远量不出高度。
+ * 第一次报高度之前不露面（外壳是空白页；有缓存高度时先按它占位）。用 opacity 而不是 visibility、
+ * 高度留 1px 而不是 0：Chromium 会停掉不可见、零面积的跨源 iframe 的渲染，界面就永远量不出高度。
  */
-.timeline-widget[data-source="html"][data-ready="false"] .timeline-widget__frame {
+.intelligent-ui[data-source="html"][data-ready="false"] .intelligent-ui__frame {
   opacity: 0;
 }
 
-.timeline-widget__button {
+.intelligent-ui__button {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -66,19 +65,20 @@
     background-color 100ms var(--cp-motion-ease);
 }
 
-.timeline-widget__button:hover,
-.timeline-widget__button:focus-visible {
+.intelligent-ui__button:hover,
+.intelligent-ui__button:focus-visible {
   background: var(--cp-hover);
   color: var(--cp-ink);
 }
 
-/* url：细框 + 地址条 */ .timeline-widget[data-source="url"] {
+/* url：细框 + 地址条 */
+.intelligent-ui[data-source="url"] {
   overflow: hidden;
   border: 1px solid var(--cp-edge);
   border-radius: var(--ui-radius-lg);
 }
 
-.timeline-widget__bar {
+.intelligent-ui__bar {
   display: flex;
   align-items: center;
   gap: 0.125rem;
@@ -88,7 +88,7 @@
   background: var(--cp-timeline-output-surface);
 }
 
-.timeline-widget__address {
+.intelligent-ui__address {
   flex: 1;
   min-inline-size: 0;
   overflow: hidden;
@@ -99,19 +99,21 @@
   white-space: nowrap;
 }
 
-.timeline-widget__pending,
-.timeline-widget__failure {
+.intelligent-ui__pending,
+.intelligent-ui__failure {
   display: inline-block;
   font-size: var(--ui-prose-size-aux);
   line-height: 1.75rem;
 }
 
-.timeline-widget__failure {
+.intelligent-ui__failure {
   color: var(--cp-timeline-danger-text);
 }
 
-.timeline-widget__error {
+.intelligent-ui__error,
+.intelligent-ui__ask {
   display: flex;
+  flex-wrap: wrap;
   align-items: baseline;
   gap: 0.5rem;
   margin-block-start: 0.25rem;
@@ -119,12 +121,17 @@
   font-size: var(--ui-prose-size-aux);
 }
 
-.timeline-widget__error-text {
+.intelligent-ui__ask {
+  color: var(--cp-timeline-quiet-text);
+}
+
+.intelligent-ui__error-text,
+.intelligent-ui__ask-text {
   min-inline-size: 0;
   overflow-wrap: anywhere;
 }
 
-.timeline-widget__link {
+.intelligent-ui__link {
   flex: none;
   padding: 0;
   border: 0;
@@ -134,6 +141,10 @@
   cursor: pointer;
 }
 
-.timeline-widget__link:hover {
+.intelligent-ui__link:hover {
   text-decoration: underline;
+}
+
+.intelligent-ui__link--quiet {
+  color: var(--cp-timeline-quiet-text);
 }

@@ -9570,6 +9570,141 @@
       }
     },
     {
+      "name": "intelligentUi.getState",
+      "owner": "core",
+      "timeoutMs": 30000,
+      "description": "读回一次界面调用的状态（卡片挂载时用；没写过为 null）",
+      "params": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "threadId": {
+            "type": "string",
+            "minLength": 1
+          },
+          "callId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200
+          }
+        },
+        "required": [
+          "threadId",
+          "callId"
+        ]
+      },
+      "result": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "state": {
+            "anyOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "model": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "maxLength": 4096
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "view": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "maxLength": 12288
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  }
+                },
+                "required": [
+                  "model",
+                  "view"
+                ],
+                "additionalProperties": false
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "state"
+        ],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "intelligentUi.setState",
+      "owner": "core",
+      "timeoutMs": 30000,
+      "description": "写入一次界面调用的状态；model 变了的那份等下一句话交给模型",
+      "params": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "threadId": {
+            "type": "string",
+            "minLength": 1
+          },
+          "callId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200
+          },
+          "title": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 80
+          },
+          "model": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 4096
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "view": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 12288
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "threadId",
+          "callId",
+          "title",
+          "model",
+          "view"
+        ]
+      },
+      "result": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {},
+        "additionalProperties": false
+      }
+    },
+    {
       "name": "interactions.list",
       "owner": "core",
       "timeoutMs": 30000,
@@ -31135,6 +31270,10 @@
     {
       "code": "extensions.skill_not_removable",
       "message": "内置或项目技能不能删除"
+    },
+    {
+      "code": "intelligent-ui.thread_not_found",
+      "message": "这条对话不存在或已删除"
     },
     {
       "code": "kernel.cancelled",

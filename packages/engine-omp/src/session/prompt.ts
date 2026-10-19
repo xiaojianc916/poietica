@@ -2,7 +2,7 @@ import { readFileSync, statSync } from 'node:fs'
 import { readFile } from 'node:fs/promises'
 import { isUserInvokedSkillPrompt, SKILL_PROMPT_MESSAGE_TYPE } from '@oh-my-pi/pi-coding-agent/session/messages'
 import { tagImageAttachmentSource } from '@oh-my-pi/pi-tui/prompt/image-source'
-import type { SubmitInput } from '@poietica/engine'
+import type { SubmitInput, TurnContextBlock } from '@poietica/engine'
 import { AppError, SystemErrorCode } from '@poietica/foundation'
 
 /** 一张图片超过 20 MB 就拒收：base64 要进上下文，太大等于把一轮直接撑爆 */
@@ -67,9 +67,41 @@ export function isGoalContinuationMessage(message: {
  * 重开之后气泡上那几枚文件记号只能从这里读回来（`splitWireText` 是它的逆，两处改一处必须改另一处）。
  * 名字里的 `@` 换成全角，免得被认成又一个记号。
  */
-export function wireTextOf(input: Pick<SubmitInput, 'text' | 'files'>): string {
+export function wireTextOf(input: Pick<SubmitInput, 'text' | 'files' | 'context'>): string {
   const referenced = input.files.map((file) => `@"${file.path}" (${wireNameOf(file.name)})`).join('\n')
-  return referenced === '' ? input.text : `${input.text}\n${referenced}`
+  const lines = referenced === '' ? [input.text] : [input.text, referenced]
+  for (const block of input.context ?? []) lines.push(contextBlockOf(block))
+  return lines.join('\n')
+}
+
+/*
+ * 附带上下文（`SubmitInput.context`）在投递正文里的写法：文件引用之后，每块一段
+ *
+ *   <poietica-context source="intelligent-ui">
+ *   …正文…
+ *   </poietica-context>
+ *
+ * 开闭标签各占整行。正文里的 `<` 换成 `&lt;`：任何一行都不可能被认成标签，`splitWireText` 从末尾倒着摘也就摘不错；
+ * 来源名只留小写字母、数字与连字符，拼不出引号。会话文件里落盘的就是这一份，重开时由 `splitWireText` 摘掉。
+ */
+const CONTEXT_OPEN = /^<poietica-context source="[a-z0-9-]+">$/u
+const CONTEXT_CLOSE = '</poietica-context>'
+
+export function contextBlockOf(block: TurnContextBlock): string {
+  const source = block.source.toLowerCase().replace(/[^a-z0-9-]/gu, '-') || 'context'
+  return `<poietica-context source="${source}">\n${block.text.replaceAll('<', '&lt;')}\n${CONTEXT_CLOSE}`
+}
+
+/** 末尾连续的上下文块从第几行开始（没有就是 lines.length）。第 0 行永远是原文，不参与 */
+function contextStartOf(lines: readonly string[]): number {
+  let end = lines.length
+  while (end > 2 && lines[end - 1] === CONTEXT_CLOSE) {
+    let open = end - 2
+    while (open >= 1 && !CONTEXT_OPEN.test(lines[open] ?? '')) open -= 1
+    if (open < 1) break
+    end = open
+  }
+  return end
 }
 
 function wireNameOf(name: string): string {
@@ -109,11 +141,13 @@ function referenceOf(line: string): WireFile | null {
 }
 
 /**
- * `wireTextOf` 的逆：从会话文件里那句投递正文摘回用户原文与它带的文件。只摘**末尾**连续的引用行，
+ * `wireTextOf` 的逆：从会话文件里那句投递正文摘回用户原文与它带的文件（附带上下文整段丢掉）。只摘**末尾**连续的引用行，
  * 且第一行永远是原文（原文为空时它是空行）—— 用户自己在句中写的 `@路径` 不会被当成附件吞掉。
  */
 export function splitWireText(wire: string): { readonly text: string; readonly files: readonly WireFile[] } {
-  const lines = wire.split('\n')
+  const all = wire.split('\n')
+  /* 上下文块在文件引用之后：先摘它，再摘文件行 */
+  const lines = all.slice(0, contextStartOf(all))
   const files: WireFile[] = []
   let end = lines.length
   while (end > 1) {
@@ -122,7 +156,8 @@ export function splitWireText(wire: string): { readonly text: string; readonly f
     files.unshift(file)
     end -= 1
   }
-  return files.length === 0 ? { text: wire, files } : { text: lines.slice(0, end).join('\n'), files }
+  if (files.length === 0 && lines.length === all.length) return { text: wire, files }
+  return { text: lines.slice(0, end).join('\n'), files }
 }
 
 /** 用户自己发起的技能消息：类型 + 归属两格都对才算（自动加载的技能是 agent 自己塞的上下文） */
@@ -233,9 +268,11 @@ export async function expandSkillMessage(
     if (block !== null) blocks.push(block)
   }
   if (blocks.length === 0) return null
+  /* 技能消息不走 wireTextOf：附带上下文作为额外的文本块交给模型。气泡读 details 里的 prompt / args，不读 content */
+  const context = (input.context ?? []).map((block) => ({ type: 'text' as const, text: contextBlockOf(block) }))
   return {
     customType: SKILL_MESSAGE_TYPE,
-    content: [...blocks.map((block) => ({ type: 'text' as const, text: block.message })), ...imageContents],
+    content: [...blocks.map((block) => ({ type: 'text' as const, text: block.message })), ...context, ...imageContents],
     display: true,
     details: blocks[0]?.details,
     attribution: 'user',

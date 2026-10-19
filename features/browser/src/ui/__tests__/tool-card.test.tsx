@@ -104,6 +104,7 @@ function mount(
   render(
     <Card
       args={over.args === undefined ? ARGS : over.args}
+      callId="call-1"
       /** null 是「还没有产出」的正经取值，不能被兜底吃掉。 */
       result={over.result === undefined ? RESULT : over.result}
       status={over.status ?? 'succeeded'}

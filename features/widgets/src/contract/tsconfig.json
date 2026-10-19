@@ -1,5 +1,0 @@
-{
-  "extends": "../../../../tooling/tsconfig/neutral.json",
-  "include": ["."],
-  "references": []
-}

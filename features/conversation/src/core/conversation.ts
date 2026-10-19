@@ -18,6 +18,7 @@ import { SubmissionService } from './submission-service'
 import { createSubmissionsRepository } from './submissions-repository'
 import { ThreadService } from './thread-service'
 import type { TimelineHub } from './timeline-hub'
+import type { TurnContextHub } from './turn-context'
 import { TurnService } from './turn-service'
 
 export { OWNER_KEY } from './thread-service'
@@ -63,6 +64,8 @@ export interface ConversationCoreDeps {
   /** 线程被删除（R-06）：按线程索引的订阅方清账 */
   readonly emitThreadRemovedEvent: (p: { threadId: string }) => void
   readonly emitUsageSampled: (p: { threadId: string; sample: UsageSample; at: number }) => void
+  /** 轮次上下文登记处（index.ts 建一个、同时作为 TurnContextRegistryToken 提供出去）；测试可缺省 */
+  readonly turnContext?: TurnContextHub
   /** 用户发出去一句话（准入）→ usage 的「消息数量」日账（ADR 0039） */
   readonly emitUserMessage: (p: { threadId: string; at: number }) => void
 }
@@ -145,6 +148,7 @@ export class ConversationCore {
      * （router 要认领 clientTurnId、它要 pool 开会话），所以两边都走**惰性引用**：
      * 这里只把 this 上的实例交给 router，调用发生在运行时。
      */
+    const turnContext = d.turnContext
     this.submissions = new SubmissionService({
       repo: submissionsRepo,
       workspaces: d.workspaces,
@@ -160,6 +164,7 @@ export class ConversationCore {
       emitFailed: d.emitSubmissionFailed,
       acquireSession: (threadId) => this.pool.acquire(threadId),
       emitUserMessage: d.emitUserMessage,
+      ...(turnContext === undefined ? {} : { collectContext: (threadId: string) => turnContext.collect(threadId) }),
     })
 
     this.router = new EventRouter({

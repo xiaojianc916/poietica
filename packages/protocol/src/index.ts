@@ -5,6 +5,7 @@ import { automationsContract } from '@poietica/feature-automations/contract'
 import { browserContract } from '@poietica/feature-browser/contract'
 import { conversationContract } from '@poietica/feature-conversation/contract'
 import { extensionsContract } from '@poietica/feature-extensions/contract'
+import { intelligentUiContract } from '@poietica/feature-intelligent-ui/contract'
 import { modelsContract } from '@poietica/feature-models/contract'
 import { platformContract } from '@poietica/feature-platform/contract'
 import { preferencesContract } from '@poietica/feature-preferences/contract'
@@ -35,6 +36,7 @@ export const appContract = composeContracts(
   browserContract,
   automationsContract,
   updateContract,
+  intelligentUiContract,
 )
 
 export { contractSnapshot } from '@poietica/contract-kit'

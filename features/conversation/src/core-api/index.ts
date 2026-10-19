@@ -1,6 +1,6 @@
 import { type CoreEvent, defineCoreEvent } from '@poietica/core-kernel/events'
 import type { ModelRef, Posture, UsageSample } from '@poietica/engine'
-import { defineServiceToken } from '@poietica/foundation'
+import { type Disposable, defineServiceToken } from '@poietica/foundation'
 import type { Thread } from '../contract'
 
 export interface ConversationService {
@@ -73,3 +73,26 @@ export const userMessageSubmitted: CoreEvent<UserMessageSubmitted> = defineCoreE
   'conversation',
   'userMessageSubmitted',
 )
+
+/**
+ * 轮次上下文登记处：别的功能把「下一句话要顺带告诉模型的事」交给 conversation（例如 intelligent-ui
+ * 交出对话内界面的最新状态）。conversation 不认识具体内容，只在把一句话交给引擎的那一刻同步问一遍
+ * 全部提供方，结果作为 `SubmitInput.context` 交出去 —— 只进模型的上下文，不画进气泡。
+ *
+ * 只在交接成功后才回调 `delivered`：交接失败（冷打开失败、引擎拒收）那一句没送达，提供方的内容下一句再带。
+ */
+export interface TurnContextPart {
+  /** 给模型看的原文；引擎负责把它包起来、拆不开外层的标记 */
+  readonly text: string
+  readonly delivered: () => void
+}
+export interface TurnContextProvider {
+  /** 提供方的功能 id：同时是交给模型时的来源标签，一个功能只能登记一次 */
+  readonly id: string
+  /** **同步**：交接一路同步走到引擎。没有要说的就回 null */
+  collect(threadId: string): TurnContextPart | null
+}
+export interface TurnContextRegistry {
+  register(provider: TurnContextProvider): Disposable
+}
+export const TurnContextRegistryToken = defineServiceToken<TurnContextRegistry>('conversation', 'TurnContextRegistry')

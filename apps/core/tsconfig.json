@@ -24,6 +24,9 @@
       "path": "../../features/extensions/src/core"
     },
     {
+      "path": "../../features/intelligent-ui/src/core"
+    },
+    {
       "path": "../../features/models/src/core"
     },
     {
@@ -37,9 +40,6 @@
     },
     {
       "path": "../../features/usage/src/core"
-    },
-    {
-      "path": "../../features/widgets/src/core"
     },
     {
       "path": "../../features/workspaces/src/core"

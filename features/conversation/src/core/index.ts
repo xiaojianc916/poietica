@@ -5,6 +5,7 @@ import { conversationContract } from '../contract'
 import {
   ConversationServiceToken,
   submissionFailed,
+  TurnContextRegistryToken,
   threadRemoved,
   turnSettled,
   usageSampled,
@@ -16,6 +17,7 @@ import { registerHandlers } from './handlers'
 import { registerImageTool } from './image-tool'
 import { migrations } from './migrations'
 import { TimelineHub } from './timeline-hub'
+import { TurnContextHub } from './turn-context'
 import { wireOpsNotice, wireResetNotice } from './wire'
 
 export default defineCoreModule({
@@ -31,6 +33,8 @@ export default defineCoreModule({
     })
 
     const attachments = ctx.services.get(AttachmentsServiceToken)
+    /* 别的功能（例如 intelligent-ui）往这里登记「下一句顺带告诉模型的事」；交接时由提交服务收一次 */
+    const turnContext = new TurnContextHub(ctx.logger)
     const core = new ConversationCore({
       db: ctx.db,
       engine: ctx.engine,
@@ -58,12 +62,14 @@ export default defineCoreModule({
       emitThreadRemovedEvent: (p) => ctx.events.emit(threadRemoved, p),
       emitUsageSampled: (p) => ctx.events.emit(usageSampled, p),
       emitUserMessage: (p) => ctx.events.emit(userMessageSubmitted, p),
+      turnContext,
     })
 
     registerHandlers(ctx, core, hub)
     // R-13：agent 往对话里展示图片的正式入口。工具集在全部 setup 之后冻结，只能在这里注册
     registerImageTool({ tools: ctx.agentTools, attachments })
     ctx.services.provide(ConversationServiceToken, conversationService(core))
+    ctx.services.provide(TurnContextRegistryToken, turnContext)
 
     // 引擎配置变化：会话池换代 —— 空闲的立刻释放；变更时正在跑的会话这一轮结束后释放（R-03）
     const invalidateSessions = (): void => {

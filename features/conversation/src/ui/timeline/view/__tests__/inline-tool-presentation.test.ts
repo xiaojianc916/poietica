@@ -3,10 +3,10 @@ import type { ToolCallStatus, ToolKind } from '../../../shared/model/tool-call'
 import type { TimelineItem, TimelineState, ToolCallTimelineItem } from '../../../shared/timeline/timeline-contract'
 import { inlineToolsOf, selectPresentation } from '../../presentation'
 
-/* 贡献了 inline 卡片的工具（例如 widgets 的 show_widget，审查 R-18）不并进过程组，落定后也不折进「过程」；失败的那次照常归过程。
- * 判据来自贡献，conversation 不认识具体工具名：没有贡献时 show_widget 就是一件普通工具。 */
+/* 贡献了 inline 卡片的工具（例如 intelligent-ui 的 intelligent_ui，原 R-18 的 show_widget）不并进过程组，落定后也不折进「过程」；失败的那次照常归过程。
+ * 判据来自贡献，conversation 不认识具体工具名：没有贡献时 intelligent_ui 就是一件普通工具。 */
 
-const INLINE = inlineToolsOf([{ toolName: 'show_widget', inline: true, component: () => null }])
+const INLINE = inlineToolsOf([{ toolName: 'intelligent_ui', inline: true, component: () => null }])
 
 function ask(): TimelineItem {
   return { type: 'user_message', id: 'ask', turn: 0, at: 0, text: '给我三种输入框样式' }
@@ -74,12 +74,12 @@ function idsOf(state: TimelineState): string[] {
 
 describe('组件在时间线里的位置（审查 R-18）', () => {
   it('落定后：前面的读文件折进过程，组件与答复都留在外面', () => {
-    const state = settled([ask(), tool('r', 'read', 'read'), tool('w', 'show_widget', 'other'), said('a')])
+    const state = settled([ask(), tool('r', 'read', 'read'), tool('w', 'intelligent_ui', 'other'), said('a')])
     expect(idsOf(state)).toEqual(['ask', 'w', 'a'])
   })
 
-  it('没有功能贡献 inline 卡片时，show_widget 只是一件普通工具：落定后照常折进过程', () => {
-    const state = settled([ask(), tool('r', 'read', 'read'), tool('w', 'show_widget', 'other'), said('a')])
+  it('没有功能贡献 inline 卡片时，intelligent_ui 只是一件普通工具：落定后照常折进过程', () => {
+    const state = settled([ask(), tool('r', 'read', 'read'), tool('w', 'intelligent_ui', 'other'), said('a')])
     const feed = selectPresentation(state, new Map())
     const ids: string[] = []
     for (let index = 0; index < feed.count; index += 1) {
@@ -96,11 +96,11 @@ describe('组件在时间线里的位置（审查 R-18）', () => {
     ])
     expect(inline('canvas_draw')).toBe(true)
     expect(inline('browser')).toBe(false)
-    expect(inline('show_widget')).toBe(false)
+    expect(inline('intelligent_ui')).toBe(false)
   })
 
   it('组件是最后一条（没有答复正文）：照样留在外面', () => {
-    const state = settled([ask(), tool('r', 'read', 'read'), tool('w', 'show_widget', 'other')])
+    const state = settled([ask(), tool('r', 'read', 'read'), tool('w', 'intelligent_ui', 'other')])
     expect(idsOf(state)).toEqual(['ask', 'w'])
   })
 
@@ -109,7 +109,7 @@ describe('组件在时间线里的位置（审查 R-18）', () => {
       ask(),
       thought('t'),
       tool('o1', 'other_tool', 'other'),
-      tool('w', 'show_widget', 'other'),
+      tool('w', 'intelligent_ui', 'other'),
       tool('o2', 'other_tool', 'other'),
     ])
     const feed = selectPresentation(state, new Map([[0, true]]), INLINE)
@@ -127,8 +127,8 @@ describe('组件在时间线里的位置（审查 R-18）', () => {
   it('失败的那次照常归过程：落定后折起来', () => {
     const state = settled([
       ask(),
-      tool('w', 'show_widget', 'other', 'failed'),
-      tool('w2', 'show_widget', 'other'),
+      tool('w', 'intelligent_ui', 'other', 'failed'),
+      tool('w2', 'intelligent_ui', 'other'),
       said('a'),
     ])
     expect(idsOf(state)).toEqual(['ask', 'w2', 'a'])

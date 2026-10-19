@@ -9,6 +9,12 @@
       "path": "../../../../packages/foundation"
     },
     {
+      "path": "../../../../packages/storage-sqlite"
+    },
+    {
+      "path": "../../../conversation/src/core-api"
+    },
+    {
       "path": "../contract"
     }
   ]

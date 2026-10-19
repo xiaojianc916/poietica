@@ -30,6 +30,12 @@
       "path": "../../features/extensions/src/ui"
     },
     {
+      "path": "../../features/intelligent-ui/src/host"
+    },
+    {
+      "path": "../../features/intelligent-ui/src/ui"
+    },
+    {
       "path": "../../features/models/src/ui"
     },
     {
@@ -64,12 +70,6 @@
     },
     {
       "path": "../../features/usage/src/ui"
-    },
-    {
-      "path": "../../features/widgets/src/host"
-    },
-    {
-      "path": "../../features/widgets/src/ui"
     },
     {
       "path": "../../features/workspaces/src/ui"

@@ -24,6 +24,18 @@ export interface OpenSessionSpec {
   readonly autoTitle?: boolean
 }
 
+/**
+ * 随这一句交给模型、但**不画进气泡**的上下文（例如对话内智能界面的最新状态）。
+ *
+ * 由别的功能经 conversation 的轮次上下文登记处交来；引擎把它附在投递正文的末尾，重开会话时再摘掉 ——
+ * 气泡、标题、用量口径只认 `text`。`text` 是给模型看的原文，引擎负责让它拆不开外层的标记。
+ */
+export interface TurnContextBlock {
+  /** 来源功能 id（例如 `intelligent-ui`）：模型据此知道这段话从哪来；只许小写字母、数字与连字符 */
+  readonly source: string
+  readonly text: string
+}
+
 export interface SubmitInput {
   readonly text: string
   readonly images: readonly { readonly path: string; readonly mime: string }[]
@@ -35,6 +47,8 @@ export interface SubmitInput {
    * 经 `queueSettled` 原样交回 —— 队列快照的项号是引擎自己签的，调用方没有别的办法把结局对回自己的记录（审查 R-20-1）。
    */
   readonly ref?: string | undefined
+  /** 见 `TurnContextBlock`。缺省 = 这一句没有附带上下文 */
+  readonly context?: readonly TurnContextBlock[] | undefined
 }
 
 /**

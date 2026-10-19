@@ -704,6 +704,7 @@ async function deliverPrompt(
     readonly images: readonly { readonly path: string; readonly mime: string }[]
     readonly files: readonly { readonly path: string; readonly name: string }[]
     readonly skills: readonly string[]
+    readonly context?: SubmitInput['context']
   },
   skillMessage: SkillPromptMessage | null,
   images?: readonly { readonly path: string; readonly mime: string; readonly base64: string }[],
@@ -727,6 +728,7 @@ function prepareFor(
     readonly images: readonly { readonly path: string; readonly mime: string }[]
     readonly files: readonly { readonly path: string; readonly name: string }[]
     readonly skills: readonly string[]
+    readonly context?: SubmitInput['context']
   },
   deliverAs: SubmitInput['deliverAs'],
   images?: readonly { readonly path: string; readonly mime: string; readonly base64: string }[],
@@ -738,6 +740,7 @@ function prepareFor(
       files: submit.files,
       skills: submit.skills,
       deliverAs,
+      context: submit.context,
     },
     images === undefined ? {} : { loadedImages: images },
   )

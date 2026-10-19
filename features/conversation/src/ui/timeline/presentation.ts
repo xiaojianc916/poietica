@@ -127,7 +127,7 @@ const SAID = 'user_message'
 
 /**
  * 哪些工具自己就是内容：不并进过程组，轮次落定后也不折进「过程」里；失败的那次照常归过程。
- * 由贡献了 `inline` 卡片的功能说了算（toolCallRenderers，例如 widgets 的 show_widget），conversation 不认识具体工具名。
+ * 由贡献了 `inline` 卡片的功能说了算（toolCallRenderers，例如 intelligent-ui 的 intelligent_ui），conversation 不认识具体工具名。
  * 投影的各级缓存按它的**引用**判命中：调用方每个视图给一份稳定的判据（inlineToolsOf + useMemo）。
  */
 export type InlineTools = (toolName: string) => boolean

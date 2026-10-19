@@ -4,6 +4,7 @@ import automations from '@poietica/feature-automations/ui'
 import browser from '@poietica/feature-browser/ui'
 import conversation from '@poietica/feature-conversation/ui'
 import extensions from '@poietica/feature-extensions/ui'
+import intelligentUi from '@poietica/feature-intelligent-ui/ui'
 import models from '@poietica/feature-models/ui'
 import platform from '@poietica/feature-platform/ui'
 import preferences from '@poietica/feature-preferences/ui'
@@ -12,7 +13,6 @@ import review from '@poietica/feature-review/ui'
 import terminal from '@poietica/feature-terminal/ui'
 import update from '@poietica/feature-update/ui'
 import usage from '@poietica/feature-usage/ui'
-import widgets from '@poietica/feature-widgets/ui'
 import workspaces from '@poietica/feature-workspaces/ui'
 import type { UiFeature } from '@poietica/ui-kernel'
 
@@ -39,5 +39,5 @@ export const uiFeatures: readonly UiFeature[] = [
   update,
   extensions,
   python,
-  widgets,
+  intelligentUi,
 ]

@@ -5,12 +5,12 @@ import automations from '@poietica/feature-automations/core'
 import browser from '@poietica/feature-browser/core'
 import conversation from '@poietica/feature-conversation/core'
 import extensions from '@poietica/feature-extensions/core'
+import intelligentUi from '@poietica/feature-intelligent-ui/core'
 import models from '@poietica/feature-models/core'
 import platform from '@poietica/feature-platform/core'
 import python from '@poietica/feature-python/core'
 import review from '@poietica/feature-review/core'
 import usage from '@poietica/feature-usage/core'
-import widgets from '@poietica/feature-widgets/core'
 import workspaces from '@poietica/feature-workspaces/core'
 
 /**
@@ -29,5 +29,5 @@ export const coreModules: readonly CoreModule[] = [
   python,
   automations,
   browser,
-  widgets,
+  intelligentUi,
 ]

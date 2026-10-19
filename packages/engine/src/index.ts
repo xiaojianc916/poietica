@@ -22,7 +22,14 @@ export type {
   SettingsPort,
   SkillsPort,
 } from './ports'
-export type { EngineSession, EngineSessionEvent, OpenSessionSpec, QueueOutcome, SubmitInput } from './session'
+export type {
+  EngineSession,
+  EngineSessionEvent,
+  OpenSessionSpec,
+  QueueOutcome,
+  SubmitInput,
+  TurnContextBlock,
+} from './session'
 export type { EngineToolContext, EngineToolResult, EngineToolSpec } from './tools'
 export {
   Capabilities,
