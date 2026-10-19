@@ -48,24 +48,6 @@ function ReloadButton({ onReload, label }: { readonly onReload: () => void; read
   )
 }
 
-function HtmlWidget(props: {
-  readonly deps: WidgetCardDeps
-  readonly threadId: string
-  readonly widget: WidgetArgs & { readonly html: string }
-}): ReactNode {
-  /* 重新运行 = 整块重挂 */
-  const [generation, setGeneration] = useState(0)
-  return (
-    <HtmlFrame
-      key={generation}
-      {...props}
-      onReload={() => {
-        setGeneration((value) => value + 1)
-      }}
-    />
-  )
-}
-
 interface FrameContext {
   readonly deps: WidgetCardDeps
   readonly threadId: string
@@ -113,21 +95,22 @@ function actForUser(message: Extract<WidgetMessage, { type: 'send' | 'draft' | '
 
 function HtmlFrame({
   deps,
-  onReload,
   threadId,
   widget,
 }: {
   readonly deps: WidgetCardDeps
-  readonly onReload: () => void
   readonly threadId: string
   readonly widget: WidgetArgs & { readonly html: string }
 }): ReactNode {
   const frame = useRef<HTMLIFrameElement | null>(null)
-  const [height, setHeight] = useState<number | null>(widget.height ?? null)
+  /*
+   * 高度只跟内容走。window.height 是给 url 来源的固定窗高；html 用它会把组件钉在半屏空白上
+   * （模型随手写的 300 与内容无关）。首帧 1px、量到再露，见 widget-card.css。
+   */
+  const [height, setHeight] = useState<number | null>(null)
   const [error, setError] = useState<string | null>(null)
   const lastSend = useRef(0)
   const { bare, html, title } = widget
-  const fixed = widget.height
 
   useEffect(() => {
     const element = frame.current
@@ -144,7 +127,7 @@ function HtmlFrame({
         post({ type: 'poietica:render', html, css: tokensAt(element), theme: themeNow(), bare })
       },
       resize: (next) => {
-        if (fixed === undefined) setHeight(Math.max(next, 24))
+        setHeight(Math.max(next, 24))
       },
       fail: setError,
     }
@@ -164,7 +147,7 @@ function HtmlFrame({
       window.removeEventListener('message', onMessage)
       watch.disconnect()
     }
-  }, [bare, deps, fixed, html, threadId])
+  }, [bare, deps, html, threadId])
 
   return (
     <div className="timeline-widget" data-ready={height !== null} data-source="html">
@@ -191,10 +174,6 @@ function HtmlFrame({
           </button>
         </div>
       )}
-      <div className="timeline-widget__foot">
-        <span className="timeline-widget__title">{title}</span>
-        <ReloadButton label="重新运行" onReload={onReload} />
-      </div>
     </div>
   )
 }
@@ -279,7 +258,7 @@ export function createWidgetCard(deps: WidgetCardDeps): ComponentType<ToolCallRe
     const widget = widgetArgsOf(args)
     if (status === 'running' || widget === null) return <WidgetPending title={widgetTitleOf(args)} />
     if (widget.html !== undefined)
-      return <HtmlWidget deps={deps} threadId={threadId} widget={{ ...widget, html: widget.html }} />
+      return <HtmlFrame deps={deps} threadId={threadId} widget={{ ...widget, html: widget.html }} />
     if (widget.url !== undefined) return <UrlWidget deps={deps} widget={{ ...widget, url: widget.url }} />
     return null
   }

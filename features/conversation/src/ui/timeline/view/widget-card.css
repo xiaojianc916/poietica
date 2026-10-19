@@ -2,7 +2,8 @@
  * 对话内组件。
  *
  * html 组件没有外框、没有底色：它就是回复的一部分，宽度占满正文栏，高度跟内容走（封顶 80vh，
- * 超出在组件里滚）。底下一行安静的标题与「重新运行」，悬停整块才显现，透明时不挡点击。
+ * 超出在组件里滚）。组件不带任何常驻的页脚 —— 标题与「重新运行」曾占 28px，悬停才显形，
+ * 却把每一块都垫高、还在鼠标经过时凭空长出一行字；现在整条删除。
  * url 组件是用户项目的真页面，自带底色，所以给一圈发丝框和一条地址条，和正文区分开。
  */
 
@@ -44,31 +45,6 @@
  */
 .timeline-widget[data-source="html"][data-ready="false"] .timeline-widget__frame {
   opacity: 0;
-}
-
-.timeline-widget__foot {
-  display: flex;
-  align-items: center;
-  gap: 0.25rem;
-  min-block-size: 1.75rem;
-  opacity: 0;
-  pointer-events: none;
-  transition: opacity 120ms var(--cp-motion-ease);
-}
-
-.timeline-widget:hover .timeline-widget__foot,
-.timeline-widget:focus-within .timeline-widget__foot {
-  opacity: 1;
-  pointer-events: auto;
-}
-
-.timeline-widget__title {
-  min-inline-size: 0;
-  overflow: hidden;
-  color: var(--cp-timeline-quiet-text);
-  font-size: var(--cp-font-micro);
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }
 
 .timeline-widget__button {

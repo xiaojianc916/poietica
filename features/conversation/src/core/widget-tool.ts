@@ -38,7 +38,7 @@ const showWidgetParams = z.object({
     .min(80)
     .max(2000)
     .optional()
-    .describe('Fixed height in px. Default: html follows its content; url uses 560.'),
+    .describe('url only: fixed frame height in px (default 560). html widgets always follow their content.'),
   bare: z
     .boolean()
     .optional()
