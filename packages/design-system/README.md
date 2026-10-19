@@ -13,6 +13,6 @@ legacy 全仓没有任何使用处的导出已删除，有使用的保留且接�
 | --- | --- | --- |
 | `.` | 令牌、控件、标记、选择器 | base-ui |
 | `./diff` | 统一 diff 的解析与着色 | shiki |
-| `./prose` | Markdown 正文（流式波浪、数学、mermaid、表格导出） | streamdown、katex、mermaid |
+| `./prose` | Markdown 正文（流式波浪、数学、mermaid 图、表格导出） | streamdown、katex、pele |
 
 详见架构文档 13 页 §4。

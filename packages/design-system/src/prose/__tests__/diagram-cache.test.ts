@@ -1,15 +1,5 @@
 import { beforeEach, describe, expect, test } from 'bun:test'
-import { cachedInks, cachedSvg, inksKey, keepInks, keepSvg, resetDiagramCacheForTests, svgKey } from '../diagram-cache'
-import { DIAGRAM_INKS, type DiagramInks } from '../diagram-theme'
-
-/* 键集跟着真实槽位走，值只要互不相同 —— 这里量的是缓存键的算法，不是颜色。 */
-function inksWith(overrides: Partial<DiagramInks> = {}): DiagramInks {
-  const inks = Object.fromEntries(
-    Object.keys(DIAGRAM_INKS).map((slot, index) => [slot, `rgb(${String(index)}, ${String(index)}, ${String(index)})`]),
-  )
-
-  return { ...inks, ...overrides } as DiagramInks
-}
+import { cachedSvg, keepSvg, resetDiagramCacheForTests, svgKey } from '../diagram-cache'
 
 beforeEach(() => {
   resetDiagramCacheForTests()
@@ -64,33 +54,9 @@ describe('SVG 缓存', () => {
 })
 
 describe('键', () => {
-  test('键顺序不同、内容相同的两份颜色算出同一个键', () => {
-    const straight = inksWith()
-    const shuffled = Object.fromEntries(
-      Object.entries(inksWith())
-        .reverse()
-        .map(([slot, value]) => [slot, value]),
-    ) as DiagramInks
-
-    expect(inksKey(shuffled)).toBe(inksKey(straight))
-  })
-
-  test('颜色不同或源码不同都不命中同一格', () => {
-    const one = svgKey(inksWith(), 'graph TD;A-->B')
-
-    expect(svgKey(inksWith({ mainBkg: 'rgb(1, 2, 3)' }), 'graph TD;A-->B')).not.toBe(one)
-    expect(svgKey(inksWith(), 'graph TD;A-->C')).not.toBe(one)
-    expect(svgKey(inksWith(), 'graph TD;A-->B')).toBe(one)
-  })
-})
-
-describe('颜色缓存', () => {
-  test('按主题各留一份：换主题不会拿着上一套颜色画', () => {
-    keepInks('', inksWith({ mainBkg: 'rgb(5, 5, 5)' }))
-    keepInks('dark', inksWith({ mainBkg: 'rgb(6, 6, 6)' }))
-
-    expect(cachedInks('')?.mainBkg).toBe('rgb(5, 5, 5)')
-    expect(cachedInks('dark')?.mainBkg).toBe('rgb(6, 6, 6)')
-    expect(cachedInks('light')).toBeUndefined()
+  /* 键只认源码：颜色以 var(--pele-*) 写进 svg，换主题走 CSS，不该让同一段源码再画一张。 */
+  test('同一段源码同一个键，差一个字符就不同', () => {
+    expect(svgKey('graph TD;A-->B')).toBe('graph TD;A-->B')
+    expect(svgKey('graph TD;A-->B')).not.toBe(svgKey('graph TD;A-->C'))
   })
 })
