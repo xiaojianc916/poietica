@@ -54,4 +54,28 @@ describe('TurnContextHub', () => {
     hub.register({ id: 'a', collect: () => ({ text: 'again', delivered: () => undefined }) })
     expect(hub.collect('t').blocks).toEqual([{ source: 'a', text: 'again' }])
   })
+
+  test('退回：每家的 undelivered 都回调；某一家抛错只记 warn，不挡别家', () => {
+    const logger = createTestLogger()
+    const hub = new TurnContextHub(logger)
+    const rolled: string[] = []
+    hub.register({
+      id: 'a',
+      collect: () => ({
+        text: 'a',
+        delivered: () => undefined,
+        undelivered: () => {
+          throw new Error('boom')
+        },
+      }),
+    })
+    hub.register({ id: 'b', collect: () => ({ text: 'b', delivered: () => undefined }) })
+    hub.register({
+      id: 'c',
+      collect: () => ({ text: 'c', delivered: () => undefined, undelivered: () => rolled.push('c') }),
+    })
+    hub.collect('t').undelivered()
+    expect(rolled).toEqual(['c'])
+    expect(logger.at('warn').map((r) => r.msg)).toEqual(['turn context rollback failed'])
+  })
 })

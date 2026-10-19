@@ -3,6 +3,9 @@
   "include": ["."],
   "references": [
     {
+      "path": "../../../../packages/design-system"
+    },
+    {
       "path": "../../../../packages/ui-kernel"
     },
     {

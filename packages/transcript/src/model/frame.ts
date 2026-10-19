@@ -66,6 +66,11 @@ export interface ToolCallFrame {
    * （pi-wire 的 INTENT_FIELD，提示里叫 "concise intent"）。由模型自己写、比我们按参数猜得准，官方渲染器也优先用它。
    */
   readonly intent?: string
+  /**
+   * 参数还在流（模型还在写这次调用的参数，工具没开始跑）：`input` 是到此为止解析出来的那一份，会被同号的
+   * 下一帧整格替换。只有声明了 `streamInput` 的工具会出这一档；工具开始跑（或这一轮收口）时去掉。
+   */
+  readonly inputPending?: true
   readonly output?: unknown
   readonly error?: string
   readonly progress?: ToolFrameProgress

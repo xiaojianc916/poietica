@@ -73,6 +73,11 @@ export interface ToolCallRendererProps {
   readonly args: unknown
   readonly result: unknown | null // 未完成时为 null
   readonly status: 'running' | 'succeeded' | 'failed'
+  /**
+   * 参数还在流（status 仍是 running）：`args` 是到此为止解析出来的那一份，之后还会再长。只有工具声明了
+   * `streamInput` 才会出现（EngineToolSpec）；卡片可以先画个预览，等 succeeded 再当真。
+   */
+  readonly argsStreaming?: boolean
 }
 export interface ToolCallRenderer {
   readonly toolName: string | RegExp

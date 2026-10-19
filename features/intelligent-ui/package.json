@@ -12,12 +12,16 @@
   "dependencies": {
     "@poietica/contract-kit": "workspace:*",
     "@poietica/core-kernel": "workspace:*",
+    "@poietica/design-system": "workspace:*",
     "@poietica/feature-conversation": "workspace:*",
     "@poietica/feature-platform": "workspace:*",
     "@poietica/foundation": "workspace:*",
     "@poietica/host-kernel": "workspace:*",
     "@poietica/storage-sqlite": "workspace:*",
     "@poietica/ui-kernel": "workspace:*",
+    "chart.js": "catalog:",
+    "d3": "catalog:",
+    "lucide": "catalog:",
     "lucide-react": "catalog:",
     "react": "catalog:",
     "zod": "catalog:"

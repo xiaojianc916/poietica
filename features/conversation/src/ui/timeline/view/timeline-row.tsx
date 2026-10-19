@@ -68,6 +68,7 @@ export const TimelineRow = memo(function TimelineRow({ isOpen, onToggle, row, th
           <FeatureScope featureId={contributed.featureId}>
             <Card
               args={item.rawInput}
+              argsStreaming={item.status === 'pending'}
               callId={item.toolCallId}
               result={item.rawOutput ?? null}
               status={rendererStatusOf(item.status)}

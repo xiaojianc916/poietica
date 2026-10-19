@@ -59,7 +59,12 @@
     },
     {
       "path": "./tooling/checks/wildcard-modules.grit",
-      "includes": ["**/*.ts", "**/*.tsx", "!**/tooling/tsconfig/css-imports.d.ts"]
+      "includes": [
+        "**/*.ts",
+        "**/*.tsx",
+        "!**/tooling/tsconfig/css-imports.d.ts",
+        "!**/tooling/tsconfig/raw-imports.d.ts"
+      ]
     },
     {
       "path": "./tooling/checks/service-cast.grit",

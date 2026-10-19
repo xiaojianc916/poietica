@@ -79,12 +79,16 @@ export const userMessageSubmitted: CoreEvent<UserMessageSubmitted> = defineCoreE
  * 交出对话内界面的最新状态）。conversation 不认识具体内容，只在把一句话交给引擎的那一刻同步问一遍
  * 全部提供方，结果作为 `SubmitInput.context` 交出去 —— 只进模型的上下文，不画进气泡。
  *
- * 只在交接成功后才回调 `delivered`：交接失败（冷打开失败、引擎拒收）那一句没送达，提供方的内容下一句再带。
+ * 只在交接成功后才回调 `delivered`：交接失败（冷打开失败、引擎拒收、开轮时被引擎丢掉）那一句没送达，
+ * 提供方的内容下一句再带。排队的那一句（插话 / 排队发送）引擎收下就算交出，之后若被丢弃或撤回，
+ * 再回调 `undelivered`：提供方把「已交」退回去，内容同样留给下一句。
  */
 export interface TurnContextPart {
   /** 给模型看的原文；引擎负责把它包起来、拆不开外层的标记 */
   readonly text: string
   readonly delivered: () => void
+  /** 交出之后又没送到（排队项被丢弃 / 撤回）：撤销 `delivered` 记下的那一笔。缺省 = 不撤 */
+  readonly undelivered?: () => void
 }
 export interface TurnContextProvider {
   /** 提供方的功能 id：同时是交给模型时的来源标签，一个功能只能登记一次 */

@@ -84,6 +84,74 @@ describe('智能界面外壳', () => {
     expect(html).toContain('VIEW_MAX=12288')
   })
 
+  test('S6 CSP：随包库只多放外壳自己这个 host；connect-src 不放它', () => {
+    const csp = directives(INTELLIGENT_UI_CSP)
+    expect(csp.get('script-src')).toContain('poietica-asset://intelligent-ui')
+    expect(csp.get('connect-src')).not.toContain('poietica-asset://intelligent-ui')
+    expect(csp.get('style-src')).not.toContain('poietica-asset://intelligent-ui')
+  })
+
+  test('S7 预览：不装小桥、body 带 inert，去掉会执行与会导航的东西；render 才换成真界面', () => {
+    const html = INTELLIGENT_UI_SHELL_HTML
+    expect(html).toContain('if(d.preview)preview(port,d);else live(port,d)')
+    expect(html).toContain('<body inert></body>')
+    for (const tag of ['script', 'iframe', 'object', 'embed', 'base', 'meta', 'template']) expect(html).toContain(tag)
+    expect(html).toContain("name.slice(0,2)==='on'")
+    expect(html).toContain("if(d.type==='render'){ro.disconnect();port.onmessage=null;live(port,d)}")
+    /* 预览期间端口上只接 preview / theme / render，小桥（window.poietica）不存在 */
+    expect(html.indexOf('function preview(')).toBeLessThan(html.indexOf('function install('))
+  })
+
+  test('S7b 预览清理 URL：非安全 scheme 的属性删掉；# 锚点与 http(s)/mailto/data 图片保留', () => {
+    const html = INTELLIGENT_UI_SHELL_HTML
+    expect(html).toContain("var URL_ATTRS={href:1,src:1,action:1,formaction:1,poster:1,'xlink:href':1}")
+    expect(html).toContain('function safeUrl(v)')
+    expect(html).toContain("t.charAt(0)==='#'")
+    expect(html).toContain('t=trimUrl(v).toLowerCase()')
+    expect(html).toContain('/^(?:https?:|mailto:|data:image\\/(?:png|jpeg|gif|webp)(?:[;,]|$))/')
+    expect(html).not.toContain('^\\\\s*javascript:')
+  })
+
+  test('S7c 预览清理样式：@import 与 url(...) 里非图片 data: 的引用去掉；超长未闭合输入不会炸正则', () => {
+    const html = INTELLIGENT_UI_SHELL_HTML
+    expect(html).toContain('function withoutImports(css)')
+    expect(html).toContain("low.indexOf('@import',pos)")
+    expect(html).toContain('function cleanCss(css)')
+    expect(html).toContain("low.indexOf('url(',pos)")
+    expect(html).toContain('function cssUrl(v)')
+    expect(html).toContain('if(cssUrl(raw))out+=text.slice(next,close+1)')
+    expect(html).toContain('n.textContent=cleanCss(n.textContent)')
+    expect(html).toContain("if(name==='style'){var css=cleanCss(a.value)")
+  })
+
+  test('S8 随包库：只换精确地址，被换的那个 <script> 去掉 integrity / crossorigin / type', () => {
+    const html = INTELLIGENT_UI_SHELL_HTML
+    expect(html).toContain('https://cdn.jsdelivr.net/npm/d3@7.9.0/dist/d3.min.js')
+    expect(html).toContain('poietica-asset://intelligent-ui/vendor/d3-7.9.0.min.js')
+    expect(html).toContain('if(!own(map,url))return all')
+    expect(html).toContain('(integrity|crossorigin|type)')
+    /* 注释里的伪 <script>、script 正文里的字符串都不替换；<script src> 的引号/空白与属性名大小写都认 */
+    expect(html).toContain("text.slice(open,open+4)==='<!--'")
+    expect(html).toContain('function tagEnd(html,at)')
+    expect(html).toContain('var next=tag.replace(/(\\ssrc\\s*=\\s*)(?:"([^"]*)"|\'([^\']*)\'|([^\\s"\'=<>]+))/i')
+  })
+
+  test('S9 调整面板：组数、控件数、选项数有上限；只记与默认值不同的值，全部重置写 {}', () => {
+    const html = INTELLIGENT_UI_SHELL_HTML
+    expect(html).toContain('LIMIT={"groups":8,"controls":12,"options":12}')
+    expect(html).toContain('TWEAKS_MAX=4096')
+    expect(html).toContain("(texts.tweaks===null?null:'{}')")
+    expect(html).toContain("if(d.type==='tweak.values'){tweaked(d);return}")
+  })
+
+  test('S10 range 的 coerce 与 bridge 同语义：只认有限 number，字符串不再隐式转换', () => {
+    const html = INTELLIGENT_UI_SHELL_HTML
+    expect(html).toContain(
+      "function coerce(c,v){if(c.type==='range')return typeof v==='number'&&isFinite(v)?Math.min(c.max,Math.max(c.min,v)):c.value",
+    )
+    expect(html).not.toContain('var x=Number(v)')
+  })
+
   test('S5 预置样式：特异性为零；契约列出的类名在外壳里都有，反之亦然', () => {
     const rules = BASE_CSS.split('\n').filter((line) => line.trim() !== '')
     for (const rule of rules) {

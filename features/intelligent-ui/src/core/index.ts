@@ -15,7 +15,7 @@ import { registerIntelligentUiTools } from './tool'
  * intelligent-ui 的 Core 半边：
  * - 给 agent 注册 intelligent_ui 与 intelligent_ui_guide（工具集在全部 setup 之后冻结，所以必须在 setup 里注册）；
  * - 界面状态的读写（intelligentUi.getState / setState）；
- * - 向 conversation 的轮次上下文登记处交「上次之后变过的 model 状态」，下一句话随之交给模型；
+ * - 向 conversation 的轮次上下文登记处交「上次之后变过的 model / tweaks 状态」，下一句话随之交给模型；
  * - 线程删除时清掉它的全部状态（threadRemoved；启动时再对一次账）。
  */
 export default defineCoreModule({
@@ -30,7 +30,7 @@ export default defineCoreModule({
 
     ctx.rpc.handle('intelligentUi.getState', ({ threadId, callId }) => {
       const row = repo.get(threadId, callId)
-      return { state: row === null ? null : { model: row.modelJson, view: row.viewJson } }
+      return { state: row === null ? null : { model: row.modelJson, view: row.viewJson, tweaks: row.tweaksJson } }
     })
     ctx.rpc.handle('intelligentUi.setState', (p) => {
       /* 线程已删：写进去就是一行永远没人清的孤账 */
@@ -43,6 +43,7 @@ export default defineCoreModule({
         title: p.title,
         modelJson: p.model,
         viewJson: p.view,
+        tweaksJson: p.tweaks,
         at: ctx.clock.now(),
       })
       return {}

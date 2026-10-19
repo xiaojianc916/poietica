@@ -107,6 +107,7 @@ export const toolCallFrameSchema = z.object({
   state: z.enum(['running', 'done', 'error']),
   input: z.unknown().optional(),
   intent: z.string().optional(),
+  inputPending: z.literal(true).optional(),
   output: z.unknown().optional(),
   error: z.string().optional(),
   progress: toolFrameProgressSchema.optional(),

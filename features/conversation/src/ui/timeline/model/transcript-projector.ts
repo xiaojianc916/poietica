@@ -211,6 +211,11 @@ function textFrameOf(
   )
 }
 
+function statusOfToolFrame(state: Extract<TranscriptFrame, { kind: 'tool' }>['state']): ToolCallTimelineItem['status'] {
+  if (state === 'running') return 'in_progress'
+  return state === 'error' ? 'failed' : 'completed'
+}
+
 function toolFrameOf(
   frame: Extract<TranscriptFrame, { kind: 'tool' }>,
   turn: number,
@@ -234,7 +239,8 @@ function toolFrameOf(
     subject: view.subject || (tool?.subject ?? ''),
     shape: view.shape,
     ...(view.background ? { isBackground: true as const } : {}),
-    status: frame.state === 'running' ? 'in_progress' : frame.state === 'error' ? 'failed' : 'completed',
+    /* 参数还在流（只有声明了 streamInput 的工具，例如 intelligent_ui）：pending，工具还没开始跑 */
+    status: frame.inputPending === true ? 'pending' : statusOfToolFrame(frame.state),
     requestContent: view.request.length > 0 ? view.request : textContent(jsonOf(frame.input)),
     content: view.response.length > 0 ? view.response : textContent(frame.error ?? frame.output),
     locations: [],

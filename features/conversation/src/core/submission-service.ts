@@ -46,6 +46,17 @@ interface Lane {
   readonly tail: Promise<void>
 }
 
+/**
+ * 排队项（steer / followUp）随附的轮次上下文：引擎收下就记已交（下一句不会再带一遍），结局是丢弃 / 撤回
+ * 再撤销。结局可能先于 `submit` 返回到达（omp 在 submit 里就消化了队列）：先记在 `settled`，submit 回来再按它办。
+ */
+interface QueuedContext {
+  readonly threadId: string
+  readonly context: CollectedContext
+  readonly submitted: boolean
+  readonly settled: QueueOutcome | null
+}
+
 export class SubmissionService {
   /** threadId → 还没交给 omp 的提交号（`turn` 方式）。事件路由用它盖 clientTurnId。 */
   private readonly pendingTurn = new Map<string, string>()
@@ -60,6 +71,8 @@ export class SubmissionService {
    * null（先查后认领是真实顺序）；线程删除时随 `forget` 一起清掉。
    */
   private readonly turnIds = new Map<string, Map<string, string | null>>()
+  /** clientTurnId → 排队项随附的上下文，等 `queueSettled` 收口；线程删除时随 `forget` 清掉 */
+  private readonly queuedContexts = new Map<string, QueuedContext>()
 
   constructor(private readonly d: SubmissionServiceDeps) {}
 
@@ -130,6 +143,7 @@ export class SubmissionService {
     const row = this.d.repo.get(clientTurnId)
     if (row === null) throw new AppError(conversationErrors.thread_not_found, '这条提交不存在')
     if (row.status !== 'failed') throw new AppError(conversationErrors.thread_busy, '只有失败的提交可以删除')
+    this.dropQueuedContext(clientTurnId, true)
     this.d.repo.delete(clientTurnId)
     /* 别的窗口 / 重开的对话里也画着这一行：只回 RPC 不推事件，那边的气泡与横幅就一直挂着 */
     this.d.emitRemoved({ threadId: row.threadId, clientTurnId })
@@ -147,6 +161,7 @@ export class SubmissionService {
    * 结局可能先于 `deliver` 里那句 `queued` 落库到达。
    */
   settleQueued(threadId: string, clientTurnId: string, outcome: QueueOutcome): void {
+    this.settleQueuedContext(threadId, clientTurnId, outcome)
     const row = this.d.repo.get(clientTurnId)
     if (row === null || row.threadId !== threadId) return
     const waiting = row.status === 'queued' || (row.status === 'pending' && this.handed.has(clientTurnId))
@@ -288,6 +303,8 @@ export class SubmissionService {
       message: conversationErrors.core_restarted,
     }
     for (const row of this.d.repo.failUndelivered(error)) {
+      /* 重启后这条排队项不可能再送达：残留的上下文先摘掉，已交出的回退一次 */
+      this.dropQueuedContext(row.clientTurnId, true)
       this.d.emitChanged(submissionOf(row))
       /*
        * 仓储已经改过库，这里只补事件：automations 的订阅那时还没建立（拓扑序 conversation 在前），
@@ -316,14 +333,37 @@ export class SubmissionService {
     this.pendingTurn.delete(threadId)
     /* R-08-2：按线程索引的号表跟线程一起走（只增不减就是内存泄漏） */
     this.turnIds.delete(threadId)
+    for (const [clientTurnId, entry] of this.queuedContexts) {
+      /* 线程已删：只释放条目，不回退 —— 提供方的状态也随线程一起清掉 */
+      if (entry.threadId === threadId) this.dropQueuedContext(clientTurnId, false)
+    }
   }
 
-  /** 测试用：这条线程是否还有按线程索引的状态（交接车道 / 待认领号） */
+  /** 测试用：这条线程是否还有按线程索引的状态（交接车道 / 待认领号 / 等结局的上下文） */
   has(threadId: string): boolean {
-    return this.lanes.has(threadId) || this.pendingTurn.has(threadId) || this.turnIds.has(threadId)
+    return (
+      this.lanes.has(threadId) ||
+      this.pendingTurn.has(threadId) ||
+      this.turnIds.has(threadId) ||
+      [...this.queuedContexts.values()].some((entry) => entry.threadId === threadId)
+    )
   }
 
   // ── 内部 ─────────────────────────────────────────────────────────────────
+  /**
+   * 这条提交再也不会送达：统一摘掉排队上下文。
+   *
+   * 只有引擎确实收下过（`submitted`，此刻 `delivered` 已经回调）的才回退；结局先到、submit
+   * 还没回来的条目从未记过已交，不能补一次 `undelivered`。线程删除等不需要回退的路径传
+   * `false`，但同样要清掉条目 —— 否则 Core 长期运行会按 clientTurnId 只增不减（R-03 §2.3）。
+   */
+  private dropQueuedContext(clientTurnId: string, rollback: boolean): void {
+    const entry = this.queuedContexts.get(clientTurnId)
+    if (entry === undefined) return
+    this.queuedContexts.delete(clientTurnId)
+    if (rollback && entry.submitted) entry.context.undelivered()
+  }
+
   /**
    * 新的一句进来，同线程更早的 failed 行到此为止（审查 R-20-1）：界面的 `send()` 本来就会清掉本机那份
    * 失败记录，库里的不清，下次整读又从「最后一条失败」里把横幅和「取回文字」复活出来。
@@ -331,6 +371,7 @@ export class SubmissionService {
   private supersedeFailed(threadId: string, keep: string): void {
     for (const row of this.d.repo.listByThread(threadId)) {
       if (row.clientTurnId === keep || row.status !== 'failed') continue
+      this.dropQueuedContext(row.clientTurnId, true)
       this.d.repo.delete(row.clientTurnId)
       this.d.emitRemoved({ threadId, clientTurnId: row.clientTurnId })
     }
@@ -382,26 +423,74 @@ export class SubmissionService {
     this.handed.add(row.clientTurnId)
     if (deliveredAs === 'turn') this.pendingTurn.set(row.threadId, row.clientTurnId)
 
-    const context = this.d.collectContext?.(row.threadId)
-    await session.submit({
-      text: row.text,
-      images: resolved.filter((a) => a.kind === 'image').map((a) => ({ path: a.path, mime: a.mime })),
-      files: resolved.filter((a) => a.kind === 'file').map((a) => ({ path: a.path, name: a.name })),
-      skills: [...row.skills],
-      deliverAs: deliveredAs,
-      /* 排队项的结局靠这个号对回本行（审查 R-20-1） */
-      ref: row.clientTurnId,
-      ...(context === undefined || context.blocks.length === 0 ? {} : { context: context.blocks }),
-    })
-    /* 引擎收下了（开轮或入队）才算送达；submit 抛错时提供方的内容留到下一句 */
-    context?.delivered()
+    const context = this.contextFor(row, deliveredAs)
+    try {
+      await session.submit({
+        text: row.text,
+        images: resolved.filter((a) => a.kind === 'image').map((a) => ({ path: a.path, mime: a.mime })),
+        files: resolved.filter((a) => a.kind === 'file').map((a) => ({ path: a.path, name: a.name })),
+        skills: [...row.skills],
+        deliverAs: deliveredAs,
+        /* 排队项的结局靠这个号对回本行（审查 R-20-1） */
+        ref: row.clientTurnId,
+        ...(context === null ? {} : { context: context.blocks }),
+      })
+    } catch (cause) {
+      /* submit 抛错：这一句没送达，提供方的内容留到下一句 */
+      this.dropQueuedContext(row.clientTurnId, false)
+      throw cause
+    }
     if (deliveredAs !== 'turn') {
+      this.handOverQueuedContext(row.clientTurnId)
       /* 结局可能已经先到（送达 → 行已删 / 丢弃 → failed）：只有还停在 pending 才记成 queued */
       if (this.d.repo.get(row.clientTurnId)?.status === 'pending') this.update(row.clientTurnId, { status: 'queued' })
     } else if (this.pendingTurn.get(row.threadId) === row.clientTurnId && session.state() === 'idle') {
+      /* 引擎收下又丢了（开轮没开起来）：这一句没送达，上下文也不算交出 */
       throw new AppError(conversationErrors.submit_dropped, conversationErrors.submit_dropped)
+    } else {
+      /* 开轮成功才算送达 */
+      context?.delivered()
     }
     this.d.emitUserMessage({ threadId: row.threadId, at: this.d.clock.now() })
+  }
+
+  /** 这一句要带的上下文；排队项的结局可能在 submit 返回之前就到：先登记，settleQueued 才对得上 */
+  private contextFor(row: SubmissionRow, deliveredAs: 'turn' | 'steer' | 'followUp'): CollectedContext | null {
+    const collected = this.d.collectContext?.(row.threadId)
+    if (collected === undefined || collected.blocks.length === 0) return null
+    if (deliveredAs !== 'turn') {
+      this.queuedContexts.set(row.clientTurnId, {
+        threadId: row.threadId,
+        context: collected,
+        submitted: false,
+        settled: null,
+      })
+    }
+    return collected
+  }
+
+  /** submit 回来了：结局还没到 → 记已交、等结局；已经到了 → 送达才记，丢弃 / 撤回就当没交过 */
+  private handOverQueuedContext(clientTurnId: string): void {
+    const entry = this.queuedContexts.get(clientTurnId)
+    if (entry === undefined) return
+    if (entry.settled === null) {
+      this.queuedContexts.set(clientTurnId, { ...entry, submitted: true })
+      entry.context.delivered()
+      return
+    }
+    this.dropQueuedContext(clientTurnId, false)
+    if (entry.settled === 'delivered') entry.context.delivered()
+  }
+
+  /** 排队项的结局：已经记过已交的，丢弃 / 撤回就撤销；submit 还没回来的，先把结局记下 */
+  private settleQueuedContext(threadId: string, clientTurnId: string, outcome: QueueOutcome): void {
+    const entry = this.queuedContexts.get(clientTurnId)
+    if (entry === undefined || entry.threadId !== threadId) return
+    if (!entry.submitted) {
+      this.queuedContexts.set(clientTurnId, { ...entry, settled: outcome })
+      return
+    }
+    this.dropQueuedContext(clientTurnId, outcome !== 'delivered')
   }
 
   /** 失败结局（没送达 → failed，错误码原样存下）。 */
@@ -415,6 +504,8 @@ export class SubmissionService {
 
   /** 唯一的「变为 failed」出口：写库、推 UI、发 Core 事件（R-06 §3.2） */
   private markFailed(row: SubmissionRow, error: { code: string; message: string }): void {
+    /* 失败是「这一条再也不会送达」的收口：先回退仍挂着的排队上下文 */
+    this.dropQueuedContext(row.clientTurnId, true)
     const next = this.d.repo.update(row.clientTurnId, { status: 'failed', error })
     if (next === null) return
     this.d.emitChanged(submissionOf(next))

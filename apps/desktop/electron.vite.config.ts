@@ -47,7 +47,7 @@ const DEV_CSP = [
   "font-src 'self' data:",
   "worker-src 'self' blob:",
   "object-src 'none'",
-  'frame-src poietica-asset://intelligent-ui http://localhost:* http://127.0.0.1:*',
+  'frame-src poietica-asset://intelligent-ui',
   "base-uri 'none'",
   "form-action 'none'",
 ].join('; ')
@@ -63,7 +63,7 @@ const PROD_CSP = [
   "font-src 'self' data:",
   "worker-src 'self' blob:",
   "object-src 'none'",
-  'frame-src poietica-asset://intelligent-ui http://localhost:* http://127.0.0.1:*',
+  'frame-src poietica-asset://intelligent-ui',
   "base-uri 'none'",
   "form-action 'none'",
 ].join('; ')

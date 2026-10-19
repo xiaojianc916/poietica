@@ -7,8 +7,9 @@ export { intelligentUiErrors } from './errors'
 /*
  * 对话内智能界面（intelligent_ui，原 R-18 的 show_widget）。
  *
- * 常量三个进程共用：Core 的工具指南要把「能从哪里加载库」告诉模型；Host 用同一张表拼外壳的 CSP；
- * UI 用外壳地址做 iframe 的 src。两条 RPC 只服务「界面状态」：卡片挂载时读回、用户操作后写入。
+ * 常量三个进程共用：Core 的工具指南要把「能从哪里加载库、随包带了哪些库」告诉模型；Host 用同一张表拼外壳的
+ * CSP、挂随包库；UI 用外壳地址做 iframe 的 src。RPC 分两组：Core 管「界面状态」（卡片挂载时读回、用户操作后写入）；
+ * Host 管要碰窗口与文件系统的两件事（复制为图片、导出 HTML）。
  */
 
 /** 外壳挂在资源协议的哪个 host 下：poietica-asset://intelligent-ui/… */
@@ -24,7 +25,7 @@ export const INTELLIGENT_UI_SHELL_URL = `poietica-asset://${INTELLIGENT_UI_ASSET
 
 /**
  * 界面能从哪些地方加载脚本、样式和字体。只放公共 npm CDN：能用 d3、three、chart.js 这类库，
- * 但 fetch、图片、WebSocket 一律连不出去（数据只能写在界面里）。离线随包的库见方案第二阶段。
+ * 但 fetch、图片、WebSocket 一律连不出去（数据只能写在界面里）。常用的几个库另有随包的一份（下面的清单），离线也能用。
  */
 export const INTELLIGENT_UI_LIBRARY_ORIGINS: readonly string[] = [
   'https://cdn.jsdelivr.net',
@@ -33,19 +34,84 @@ export const INTELLIGENT_UI_LIBRARY_ORIGINS: readonly string[] = [
   'https://esm.sh',
 ]
 
-/** html 来源的上限（字符数）。界面是模型现写的，再大就该拆或者改用 url 来源 */
-export const INTELLIGENT_UI_HTML_MAX = 262_144
+/** 随包库挂在外壳同一个 host 下的哪一段：poietica-asset://intelligent-ui/vendor/<asset> */
+export const INTELLIGENT_UI_VENDOR_SEGMENT = 'vendor'
 
-/** url 来源只认本机开发服务器 */
-export const INTELLIGENT_UI_URL_HOSTS: readonly string[] = ['localhost', '127.0.0.1']
+export interface IntelligentUiLibrary {
+  /** npm 包名，也是 CDN 地址里的那一段 */
+  readonly name: string
+  readonly version: string
+  /** 包里的 UMD 文件（classic <script> 能直接用、挂一个全局） */
+  readonly file: string
+  /** 挂到 window 上的全局名 */
+  readonly global: string
+  readonly license: string
+  /** 本地文件名（vendor/ 下） */
+  readonly asset: string
+}
 
 /**
- * 状态的两半，各自是一段 JSON 文本：
+ * 随包的库（版本钉死，与 features/intelligent-ui/package.json 的依赖一致，有单测钉住）。
+ *
+ * 模型照常写 CDN 地址；外壳在写入界面之前把**精确匹配**的那几个地址（下面 `intelligentUiLibraryUrls` 给出的
+ * jsDelivr / unpkg 两种写法）换成本地的一份 —— 离线能用、不等网络、也不把「用户在看什么」漏给 CDN。
+ * 别的版本、别的文件照旧走 CDN，不猜。只收 UMD：classic <script> 不受跨源模块加载的 CORS 约束。
+ */
+export const INTELLIGENT_UI_LIBRARIES: readonly IntelligentUiLibrary[] = [
+  { name: 'd3', version: '7.9.0', file: 'dist/d3.min.js', global: 'd3', license: 'ISC', asset: 'd3-7.9.0.min.js' },
+  {
+    name: 'chart.js',
+    version: '4.5.1',
+    file: 'dist/chart.umd.min.js',
+    global: 'Chart',
+    license: 'MIT',
+    asset: 'chart.js-4.5.1.umd.min.js',
+  },
+  {
+    name: 'lucide',
+    version: '1.59.0',
+    file: 'dist/umd/lucide.min.js',
+    global: 'lucide',
+    license: 'ISC',
+    asset: 'lucide-1.59.0.min.js',
+  },
+]
+
+/** 外壳认的 CDN 写法（精确匹配）。第一条是指南里推荐给模型的那一条 */
+export function intelligentUiLibraryUrls(library: IntelligentUiLibrary): readonly string[] {
+  const path = `${library.name}@${library.version}/${library.file}`
+  return [`https://cdn.jsdelivr.net/npm/${path}`, `https://unpkg.com/${path}`]
+}
+
+export function intelligentUiVendorUrl(library: IntelligentUiLibrary): string {
+  return `poietica-asset://${INTELLIGENT_UI_ASSET_HOST}/${INTELLIGENT_UI_VENDOR_SEGMENT}/${library.asset}`
+}
+
+/** html 的上限（字符数）。界面是模型现写的，再大就该拆成几个界面 */
+export const INTELLIGENT_UI_HTML_MAX = 262_144
+
+/** `wide` 界面按多宽排版：整屏桌面应用的样机按这个宽度画，再整体缩放到对话栏的宽度（展开时原尺寸） */
+export const INTELLIGENT_UI_WIDE_WIDTH = 1100
+
+/**
+ * 状态的三份，各自是一段 JSON 文本：
  * - `model`：下一句话时交给模型（只交「上次交出之后变过的」）。要短：它每次都进上下文；
- * - `view`：只给界面自己恢复用（滚回来、重开对话后还原选中项、输入值），模型看不到。
+ * - `view`：只给界面自己恢复用（滚回来、重开对话后还原选中项、输入值），模型看不到；
+ * - `tweaks`：用户在卡片的「调整」面板里改过的值（按面板分组，只记与默认值不同的那些）。随 model 一起交给模型，
+ *   界面重建时外壳按组还原。
  */
 export const INTELLIGENT_UI_MODEL_STATE_MAX = 4096
 export const INTELLIGENT_UI_VIEW_STATE_MAX = 12_288
+export const INTELLIGENT_UI_TWEAKS_STATE_MAX = 4096
+
+/**
+ * 「调整」面板（poietica.tweak）：界面登记几组参数控件，卡片在界面外面画成原生控件 —— 用户调参不用模型
+ * 先把滑块写进界面，界面也不必自己画一套。上限防界面写坏了刷屏。
+ */
+export const INTELLIGENT_UI_TWEAK_GROUPS_MAX = 8
+export const INTELLIGENT_UI_TWEAK_CONTROLS_MAX = 12
+export const INTELLIGENT_UI_TWEAK_OPTIONS_MAX = 12
+export const INTELLIGENT_UI_TWEAK_TYPES: readonly string[] = ['range', 'color', 'toggle', 'select']
 
 /** 界面里能用的 CSS 变量：UI 从设计令牌求值后交给外壳，模型写样式时只用这些名字 */
 export const INTELLIGENT_UI_TOKEN_NAMES: readonly string[] = [
@@ -108,10 +174,19 @@ const StateText = (max: number) => z.string().max(max).refine(isJsonText, { mess
 export const IntelligentUiState = z.object({
   model: StateText(INTELLIGENT_UI_MODEL_STATE_MAX),
   view: StateText(INTELLIGENT_UI_VIEW_STATE_MAX),
+  tweaks: StateText(INTELLIGENT_UI_TWEAKS_STATE_MAX),
 })
 export type IntelligentUiState = z.infer<typeof IntelligentUiState>
 
 const CallRef = z.object({ threadId: z.string().min(1), callId: z.string().min(1).max(200) })
+
+/** 主窗口里的一块矩形（CSS 像素，相对窗口内容区左上角；可以有一部分在窗口外，Host 裁掉） */
+const Rect = z.object({
+  x: z.number().min(-20_000).max(20_000),
+  y: z.number().min(-20_000).max(20_000),
+  width: z.number().positive().max(20_000),
+  height: z.number().positive().max(20_000),
+})
 
 export const intelligentUiContract = defineContract({
   id: 'intelligent-ui',
@@ -122,7 +197,12 @@ export const intelligentUiContract = defineContract({
       owner: 'core',
       params: CallRef,
       result: z.object({ state: IntelligentUiState.nullable() }),
-      description: '读回一次界面调用的状态（卡片挂载时用；没写过为 null）',
+      /*
+       * 刻意不校验线程：卡片卸载/线程删除之后仍要能读（读不到就是 null），而行会随 threadRemoved 清掉。
+       * 写（setState）才校验线程 —— 往已删线程里写只会留一行永远没人清的孤账。别把这里改成抛 thread_not_found。
+       */
+      description:
+        '读回一次界面调用的状态（卡片挂载时用；没写过或线程已删除均为 null，后者是刻意语义：卡片卸载后仍可读，行会随 threadRemoved 清掉）',
     }),
     defineMethod({
       name: 'intelligentUi.setState',
@@ -130,7 +210,32 @@ export const intelligentUiContract = defineContract({
       /* 整份覆盖：外壳那一侧持有当前值，合并在那里做，这里每次收到的都是完整状态 */
       params: CallRef.extend({ title: z.string().min(1).max(80), ...IntelligentUiState.shape }),
       result: z.object({}),
-      description: '写入一次界面调用的状态；model 变了的那份等下一句话交给模型',
+      description: '写入一次界面调用的状态；model 或 tweaks 变了的那份等下一句话交给模型',
+    }),
+    defineMethod({
+      name: 'intelligentUi.copyImage',
+      owner: 'host',
+      params: z.object({ rect: Rect }),
+      result: z.object({}),
+      description: '把主窗口里这块矩形（界面所在的位置）截下来放进剪贴板',
+    }),
+    defineMethod({
+      name: 'intelligentUi.exportHtml',
+      owner: 'host',
+      params: z.object({
+        title: z.string().min(1).max(80),
+        html: z.string().max(INTELLIGENT_UI_HTML_MAX),
+        bare: z.boolean(),
+        wide: z.boolean(),
+        /* 求值后的设计令牌（:root{…}）与当时的主题：导出的文件离开应用也长一个样 */
+        css: z.string().max(16_384),
+        theme: z.enum(['light', 'dark']),
+        state: IntelligentUiState,
+      }),
+      result: z.object({ path: z.string().nullable() }),
+      /* 要等用户在保存对话框里选位置 */
+      timeoutMs: 0,
+      description: '把界面导出成一个独立的 HTML 文件（随包库内嵌、状态带上）；用户取消保存为 null',
     }),
   ],
   /* 没有通知：状态只有那一个界面实例在写，读写都由它发起；Core 重启后卡片下次挂载再读一次 */

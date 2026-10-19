@@ -8,6 +8,7 @@ import { createTestLogger, waitFor } from '@poietica/test-kit'
 import { migrations } from '../migrations'
 import { SubmissionService } from '../submission-service'
 import { createSubmissionsRepository, type SubmissionRow, type SubmissionsRepository } from '../submissions-repository'
+import type { CollectedContext } from '../turn-context'
 
 /*
  * R-08-2：`turnId → clientTurnId` 的查询缓存。
@@ -21,6 +22,7 @@ function serviceOf(
     readonly session?: (submits: SubmitInput[]) => EngineSession
     readonly failures?: { clientTurnId: string; deliverAs: string; code: string }[]
     readonly removed?: string[]
+    readonly collectContext?: (threadId: string) => CollectedContext
   } = {},
 ): {
   service: SubmissionService
@@ -72,6 +74,7 @@ function serviceOf(
       return overrides.session(submits)
     },
     emitUserMessage: () => undefined,
+    ...(overrides.collectContext === undefined ? {} : { collectContext: overrides.collectContext }),
   })
   return { service, findCalls: () => calls, repo }
 }
@@ -410,5 +413,348 @@ describe('R-20-1 迁移 v3：清掉升级前的旧账', () => {
 
     expect(repo.listByThread('t1').map((r) => r.clientTurnId)).toEqual(['later'])
     expect(repo.listByThread('t2').map((r) => r.clientTurnId)).toEqual(['earlier', 'last-fail'])
+  })
+})
+
+/*
+ * 排队项的上下文回执（第一阶段 R1）：插话 / 排队交给 omp 之后被丢弃，提供方要把「已交出」退回去，
+ * 下一句再交一次；submit 还没返回结局就先到了，按结局算，不先记已交再撤。
+ */
+describe('排队项的上下文回执', () => {
+  function receipts(): { readonly log: string[]; readonly collect: (threadId: string) => CollectedContext } {
+    const log: string[] = []
+    return {
+      log,
+      collect: () => ({
+        blocks: [{ source: 'intelligent-ui', text: '「配色」：{"choice":"B"}' }],
+        delivered: () => log.push('delivered'),
+        undelivered: () => log.push('undelivered'),
+      }),
+    }
+  }
+
+  async function queued(collect: (threadId: string) => CollectedContext) {
+    const ctx = serviceOf({ collectContext: collect, session: (submits) => fakeSession(submits, true) })
+    ctx.service.submit({
+      threadId: 't1',
+      clientTurnId: 'c1',
+      text: '再来一版',
+      attachmentIds: [],
+      skills: [],
+      deliverAs: 'followUp',
+    })
+    await waitFor(() => ctx.repo.get('c1') !== null && ctx.repo.get('c1')?.status !== 'pending')
+    return ctx
+  }
+
+  test('U1 送达：只记一次已交', async () => {
+    const r = receipts()
+    const { service } = await queued(r.collect)
+    service.settleQueued('t1', 'c1', 'delivered')
+    expect(r.log).toEqual(['delivered'])
+  })
+
+  test('U2 被丢弃 / 撤回：已交退回成未交；重复的结局不再动', async () => {
+    const r = receipts()
+    const { service } = await queued(r.collect)
+    service.settleQueued('t1', 'c1', 'dropped')
+    service.settleQueued('t1', 'c1', 'dropped')
+    expect(r.log).toEqual(['delivered', 'undelivered'])
+  })
+
+  test('U3 结局抢在 submit 返回之前：丢弃 → 两头都不记；送达 → 只记已交', async () => {
+    for (const outcome of ['dropped', 'delivered'] as const) {
+      const r = receipts()
+      let service!: SubmissionService
+      const ctx = serviceOf({
+        collectContext: r.collect,
+        session: (submits) =>
+          ({
+            sessionId: 's1',
+            sessionFile: 's1.jsonl',
+            state: () => 'running',
+            isBusy: () => true,
+            submit: async (input: SubmitInput) => {
+              submits.push(input)
+              /* omp 的 queue_update 抢在 submit 返回之前 */
+              service.settleQueued('t1', input.ref!, outcome)
+            },
+          }) as unknown as EngineSession,
+      })
+      service = ctx.service
+      service.submit({
+        threadId: 't1',
+        clientTurnId: 'c1',
+        text: '抢跑',
+        attachmentIds: [],
+        skills: [],
+        deliverAs: 'followUp',
+      })
+      await waitFor(() => ctx.repo.get('c1')?.status !== 'pending')
+      expect(r.log).toEqual(outcome === 'delivered' ? ['delivered'] : [])
+    }
+  })
+})
+
+/*
+ * R1 残留清理：排队上下文不能活过「这一条再也不会送达」的收口。
+ *
+ * 这些路径原先只改库 / 删行，queuedContexts 仍按 clientTurnId 挂着：Core 长期运行会只增不减，
+ * 已经记过「已交」的那一笔也再没人撤销。下面逐条钉住「条目被摘掉、回执不重复」。
+ */
+describe('R1 排队上下文在失败路径收口', () => {
+  interface DebugQueuedEntry {
+    readonly threadId: string
+    readonly context: CollectedContext
+    readonly submitted: boolean
+    readonly settled: null
+  }
+
+  /*
+   * settleUnstarted / cancelUnhanded / supersedeFailed / discard 的正常入口都先把行改成 failed，
+   * 旧代码在这里不可能留下条目 —— 只有历史泄漏（或别的收口路径漏删）才会出现。为了把这几条出口
+   * 单独钉住，测试直接种一条「已交、等结局」的残留；行为与真实的 QueuedContext 同形。
+   */
+  function seedQueuedContext(
+    service: SubmissionService,
+    clientTurnId: string,
+    threadId: string,
+    log: string[],
+    submitted = true,
+  ): void {
+    const contexts = (service as unknown as { queuedContexts: Map<string, DebugQueuedEntry> }).queuedContexts
+    contexts.set(clientTurnId, {
+      threadId,
+      context: {
+        blocks: [{ source: 'intelligent-ui', text: '「配色」：{"choice":"B"}' }],
+        delivered: () => log.push('delivered'),
+        undelivered: () => log.push('undelivered'),
+      },
+      submitted,
+      settled: null,
+    })
+  }
+
+  /** 可切换忙 / 闲的会话：第一句排队，重试时可换成直接开轮 */
+  function switchableSession(submits: SubmitInput[]): { readonly session: EngineSession; idle(): void } {
+    let live: 'idle' | 'running' = 'running'
+    const session = {
+      sessionId: 's1',
+      sessionFile: 's1.jsonl',
+      state: () => live,
+      isBusy: () => live !== 'idle',
+      submit: async (input: SubmitInput) => {
+        submits.push(input)
+        live = 'running'
+      },
+    } as unknown as EngineSession
+    return {
+      session,
+      idle: () => {
+        live = 'idle'
+      },
+    }
+  }
+
+  /** 交接车道是否还在跑：cancelUnhanded 只认「已经不在 handed 里」的 pending，必须等这趟收尾 */
+  function laneActive(service: SubmissionService, threadId: string): boolean {
+    return (service as unknown as { lanes: Map<string, unknown> }).lanes.has(threadId)
+  }
+
+  /** 走一遍真实交接：提交停在 queued，上下文已记「已交」 */
+  async function queuedWithContext() {
+    const log: string[] = []
+    const submits: SubmitInput[] = []
+    const control = switchableSession(submits)
+    const ctx = serviceOf({
+      session: () => control.session,
+      collectContext: () => ({
+        blocks: [{ source: 'intelligent-ui', text: '「配色」：{"choice":"B"}' }],
+        delivered: () => log.push('delivered'),
+        undelivered: () => log.push('undelivered'),
+      }),
+    })
+    ctx.service.submit({
+      threadId: 't1',
+      clientTurnId: 'c1',
+      text: '再来一版',
+      attachmentIds: [],
+      skills: [],
+      deliverAs: 'followUp',
+    })
+    await waitFor(() => ctx.repo.get('c1')?.status === 'queued' && !laneActive(ctx.service, 't1'))
+    return { ...ctx, submits, control, log }
+  }
+
+  /*
+   * 交出一轮、引擎收下但还没产出 turn：行停在 pending，pendingTurn 已登记，handed 已收尾。
+   * settleUnstarted / cancelUnhanded 的真实前提就是这样。
+   */
+  async function pendingTurn() {
+    const submits: SubmitInput[] = []
+    let live: 'idle' | 'running' = 'idle'
+    const ctx = serviceOf({
+      session: () =>
+        ({
+          sessionId: 's1',
+          sessionFile: 's1.jsonl',
+          state: () => live,
+          isBusy: () => live !== 'idle',
+          submit: async (input: SubmitInput) => {
+            submits.push(input)
+            live = 'running'
+          },
+        }) as unknown as EngineSession,
+    })
+    ctx.service.submit({
+      threadId: 't1',
+      clientTurnId: 'c1',
+      text: '引擎收下但没开轮',
+      attachmentIds: [],
+      skills: [],
+      deliverAs: 'turn',
+    })
+    await waitFor(() => ctx.repo.get('c1')?.status === 'pending' && !laneActive(ctx.service, 't1'))
+    return { ...ctx, submits }
+  }
+
+  test('recoverOnStart：queued 收成 failed 后不再残留，已交出的只回退一次', async () => {
+    const { service, repo, log } = await queuedWithContext()
+    expect(service.has('t1')).toBe(true)
+    expect(log).toEqual(['delivered'])
+
+    service.recoverOnStart()
+    service.recoverOnStart()
+
+    expect(repo.get('c1')?.status).toBe('failed')
+    expect(service.has('t1')).toBe(false)
+    expect(log).toEqual(['delivered', 'undelivered'])
+  })
+
+  test('discard：删掉 failed 行时把还挂着的上下文一并清掉', () => {
+    const log: string[] = []
+    const { service, repo } = serviceOf()
+    repo.insert({ ...rowOf('c0', null), status: 'failed', error: { code: 'x', message: 'x' } })
+    seedQueuedContext(service, 'c0', 't1', log)
+    expect(service.has('t1')).toBe(true)
+
+    service.discard('c0')
+
+    expect(repo.get('c0')).toBeNull()
+    expect(service.has('t1')).toBe(false)
+    expect(log).toEqual(['undelivered'])
+  })
+
+  test('settleUnstarted：pending 收成 failed 后不再残留，重复收口不再回调', async () => {
+    const log: string[] = []
+    const { service, repo } = await pendingTurn()
+    seedQueuedContext(service, 'c1', 't1', log)
+    expect(service.has('t1')).toBe(true)
+
+    service.settleUnstarted('t1', { code: 'conversation.submit_dropped', message: '引擎没开轮' })
+    service.settleUnstarted('t1', { code: 'conversation.submit_dropped', message: '引擎没开轮' })
+
+    expect(repo.get('c1')?.status).toBe('failed')
+    expect(service.has('t1')).toBe(false)
+    expect(log).toEqual(['undelivered'])
+  })
+
+  test('cancelUnhanded：未交给 omp 的 pending 收成 failed 后不再残留，重复取消不再回调', async () => {
+    const log: string[] = []
+    const { service, repo } = await pendingTurn()
+    seedQueuedContext(service, 'c1', 't1', log)
+    expect(service.has('t1')).toBe(true)
+
+    service.cancelUnhanded('t1')
+    service.cancelUnhanded('t1')
+
+    expect(repo.get('c1')?.status).toBe('failed')
+    expect(repo.get('c1')?.error?.code).toBe('conversation.submit_cancelled')
+    expect(service.has('t1')).toBe(false)
+    expect(log).toEqual(['undelivered'])
+  })
+
+  test('markFailed（经 settleQueued 丢弃）：条目被摘掉，重复的结局不再回调', async () => {
+    const { service, repo, log } = await queuedWithContext()
+
+    service.settleQueued('t1', 'c1', 'dropped')
+    service.settleQueued('t1', 'c1', 'dropped')
+
+    expect(repo.get('c1')?.status).toBe('failed')
+    expect(service.has('t1')).toBe(false)
+    expect(log).toEqual(['delivered', 'undelivered'])
+  })
+
+  test('supersedeFailed：新的一句删掉更早 failed 行时，连带清掉它还挂着的上下文', async () => {
+    const log: string[] = []
+    const { service, repo } = serviceOf()
+    repo.insert({ ...rowOf('c0', null), status: 'failed', error: { code: 'x', message: 'x' } })
+    seedQueuedContext(service, 'c0', 't1', log)
+
+    service.submit({
+      threadId: 't1',
+      clientTurnId: 'c1',
+      text: '接着说',
+      attachmentIds: [],
+      skills: [],
+      deliverAs: 'turn',
+    })
+    /* 新的一句交接失败也不影响上一步：这里等车道收尾，好让 has 只看冻结后的状态 */
+    await waitFor(() => repo.get('c1')?.status === 'failed' && !laneActive(service, 't1'))
+
+    expect(repo.get('c0')).toBeNull()
+    expect(service.has('t1')).toBe(false)
+    expect(log).toEqual(['undelivered'])
+  })
+
+  test('submit 尚未返回就重启：只清未交付的条目，不补 undelivered / delivered', async () => {
+    const log: string[] = []
+    let started!: () => void
+    const startedP = new Promise<void>((resolve) => {
+      started = resolve
+    })
+    let release!: () => void
+    const gate = new Promise<void>((resolve) => {
+      release = resolve
+    })
+    const submits: SubmitInput[] = []
+    const ctx = serviceOf({
+      session: () =>
+        ({
+          sessionId: 's1',
+          sessionFile: 's1.jsonl',
+          state: () => 'running',
+          isBusy: () => true,
+          submit: async (input: SubmitInput) => {
+            submits.push(input)
+            started()
+            await gate
+          },
+        }) as unknown as EngineSession,
+      collectContext: () => ({
+        blocks: [{ source: 'intelligent-ui', text: '「配色」：{"choice":"B"}' }],
+        delivered: () => log.push('delivered'),
+        undelivered: () => log.push('undelivered'),
+      }),
+    })
+    ctx.service.submit({
+      threadId: 't1',
+      clientTurnId: 'c1',
+      text: '交给引擎途中重启',
+      attachmentIds: [],
+      skills: [],
+      deliverAs: 'followUp',
+    })
+    await startedP
+    expect(ctx.service.has('t1')).toBe(true)
+
+    ctx.service.recoverOnStart()
+    expect(ctx.repo.get('c1')?.status).toBe('failed')
+    release()
+    await waitFor(() => !laneActive(ctx.service, 't1'))
+
+    expect(ctx.service.has('t1')).toBe(false)
+    expect(log).toEqual([])
+    expect(submits).toHaveLength(1)
   })
 })

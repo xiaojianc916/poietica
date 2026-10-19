@@ -9570,10 +9570,168 @@
       }
     },
     {
+      "name": "intelligentUi.copyImage",
+      "owner": "host",
+      "timeoutMs": 30000,
+      "description": "把主窗口里这块矩形（界面所在的位置）截下来放进剪贴板",
+      "params": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "rect": {
+            "type": "object",
+            "properties": {
+              "x": {
+                "type": "number",
+                "minimum": -20000,
+                "maximum": 20000
+              },
+              "y": {
+                "type": "number",
+                "minimum": -20000,
+                "maximum": 20000
+              },
+              "width": {
+                "type": "number",
+                "exclusiveMinimum": 0,
+                "maximum": 20000
+              },
+              "height": {
+                "type": "number",
+                "exclusiveMinimum": 0,
+                "maximum": 20000
+              }
+            },
+            "required": [
+              "x",
+              "y",
+              "width",
+              "height"
+            ]
+          }
+        },
+        "required": [
+          "rect"
+        ]
+      },
+      "result": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {},
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "intelligentUi.exportHtml",
+      "owner": "host",
+      "timeoutMs": 0,
+      "description": "把界面导出成一个独立的 HTML 文件（随包库内嵌、状态带上）；用户取消保存为 null",
+      "params": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "title": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 80
+          },
+          "html": {
+            "type": "string",
+            "maxLength": 262144
+          },
+          "bare": {
+            "type": "boolean"
+          },
+          "wide": {
+            "type": "boolean"
+          },
+          "css": {
+            "type": "string",
+            "maxLength": 16384
+          },
+          "theme": {
+            "type": "string",
+            "enum": [
+              "light",
+              "dark"
+            ]
+          },
+          "state": {
+            "type": "object",
+            "properties": {
+              "model": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "maxLength": 4096
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "view": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "maxLength": 12288
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "tweaks": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "maxLength": 4096
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": [
+              "model",
+              "view",
+              "tweaks"
+            ]
+          }
+        },
+        "required": [
+          "title",
+          "html",
+          "bare",
+          "wide",
+          "css",
+          "theme",
+          "state"
+        ]
+      },
+      "result": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "path": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "path"
+        ],
+        "additionalProperties": false
+      }
+    },
+    {
       "name": "intelligentUi.getState",
       "owner": "core",
       "timeoutMs": 30000,
-      "description": "读回一次界面调用的状态（卡片挂载时用；没写过为 null）",
+      "description": "读回一次界面调用的状态（卡片挂载时用；没写过或线程已删除均为 null，后者是刻意语义：卡片卸载后仍可读，行会随 threadRemoved 清掉）",
       "params": {
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "type": "object",
@@ -9623,11 +9781,23 @@
                         "type": "null"
                       }
                     ]
+                  },
+                  "tweaks": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "maxLength": 4096
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
                   }
                 },
                 "required": [
                   "model",
-                  "view"
+                  "view",
+                  "tweaks"
                 ],
                 "additionalProperties": false
               },
@@ -9647,7 +9817,7 @@
       "name": "intelligentUi.setState",
       "owner": "core",
       "timeoutMs": 30000,
-      "description": "写入一次界面调用的状态；model 变了的那份等下一句话交给模型",
+      "description": "写入一次界面调用的状态；model 或 tweaks 变了的那份等下一句话交给模型",
       "params": {
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "type": "object",
@@ -9687,6 +9857,17 @@
                 "type": "null"
               }
             ]
+          },
+          "tweaks": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 4096
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         },
         "required": [
@@ -9694,7 +9875,8 @@
           "callId",
           "title",
           "model",
-          "view"
+          "view",
+          "tweaks"
         ]
       },
       "result": {
@@ -15489,6 +15671,10 @@
                                                         "intent": {
                                                           "type": "string"
                                                         },
+                                                        "inputPending": {
+                                                          "type": "boolean",
+                                                          "const": true
+                                                        },
                                                         "output": {},
                                                         "error": {
                                                           "type": "string"
@@ -17569,6 +17755,10 @@
                                   "intent": {
                                     "type": "string"
                                   },
+                                  "inputPending": {
+                                    "type": "boolean",
+                                    "const": true
+                                  },
                                   "output": {},
                                   "error": {
                                     "type": "string"
@@ -19579,6 +19769,10 @@
                                     "intent": {
                                       "type": "string"
                                     },
+                                    "inputPending": {
+                                      "type": "boolean",
+                                      "const": true
+                                    },
                                     "output": {},
                                     "error": {
                                       "type": "string"
@@ -21493,6 +21687,10 @@
                                         "input": {},
                                         "intent": {
                                           "type": "string"
+                                        },
+                                        "inputPending": {
+                                          "type": "boolean",
+                                          "const": true
                                         },
                                         "output": {},
                                         "error": {
@@ -27201,6 +27399,10 @@
                                                   "intent": {
                                                     "type": "string"
                                                   },
+                                                  "inputPending": {
+                                                    "type": "boolean",
+                                                    "const": true
+                                                  },
                                                   "output": {},
                                                   "error": {
                                                     "type": "string"
@@ -29281,6 +29483,10 @@
                             "intent": {
                               "type": "string"
                             },
+                            "inputPending": {
+                              "type": "boolean",
+                              "const": true
+                            },
                             "output": {},
                             "error": {
                               "type": "string"
@@ -31270,6 +31476,14 @@
     {
       "code": "extensions.skill_not_removable",
       "message": "内置或项目技能不能删除"
+    },
+    {
+      "code": "intelligent-ui.capture_failed",
+      "message": "界面不在窗口的可见区域里，没能截图"
+    },
+    {
+      "code": "intelligent-ui.export_failed",
+      "message": "没能导出界面文件"
     },
     {
       "code": "intelligent-ui.thread_not_found",

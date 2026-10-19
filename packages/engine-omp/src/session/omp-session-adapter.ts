@@ -421,6 +421,7 @@ export async function wrapOmpSession(input: WrapOmpSessionInput): Promise<Engine
     faults: new EventFaults(input.logger, () => projector.turnOrdinal),
     latestCompaction: () => latestCompactionOf(transcriptOf()),
     logger: input.logger,
+    streamsInput: (toolName) => input.tools.get(toolName)?.streamInput === true,
     afterEvent: (type) => {
       /*
        * 待办与后台作业都没有自己的增量事件：todo 工具在 execute 里直接改 omp 的 phases，后台作业在
@@ -868,6 +869,8 @@ interface EventPump {
   readonly logger: Logger
   /** 每条事件翻译完之后：现读待办 / 后台作业的真身（它们没有自己的增量事件） */
   readonly afterEvent: (type: string) => void
+  /** 这个工具要不要参数流式上屏（EngineToolSpec.streamInput） */
+  readonly streamsInput: (toolName: string) => boolean
 }
 
 const TOOL_EVENTS = new Set(['tool_execution_start', 'tool_execution_update', 'tool_execution_end'])
@@ -884,6 +887,10 @@ function dispatchOmpEvent(event: Record<string, unknown>, pump: EventPump): void
     case 'message_update': {
       const assistant = event.assistantMessageEvent as Record<string, unknown> | undefined
       const deltaType = assistant?.type
+      if (deltaType === 'toolcall_start' || deltaType === 'toolcall_delta' || deltaType === 'toolcall_end') {
+        if (assistant !== undefined) streamToolInput(assistant, pump)
+        break
+      }
       const delta = assistant?.delta
       if (typeof delta !== 'string') break
       /* 块在这条助手消息 content 里的下标：帧号由它派生，重开之后历史那条路给出同一个号（frame-ids.ts） */
@@ -990,6 +997,26 @@ function dispatchOmpEvent(event: Record<string, unknown>, pump: EventPump): void
     default:
       break
   }
+}
+
+/**
+ * 工具参数的增量（pi-ai 的 toolcall_*）：start / delta 的那一块在 `partial.content[contentIndex]`，end 直接带
+ * `toolCall`。块里的 `arguments` 是服务商边流边解析出来的那一份（攒够一截才重解析，见 parseStreamingJsonThrottled）。
+ * 只有声明了 streamInput 的工具往下走；其余工具的参数照旧等 tool_execution_start 一次给齐。
+ */
+function streamToolInput(assistant: Record<string, unknown>, pump: EventPump): void {
+  const final = assistant.type === 'toolcall_end'
+  const block = final ? assistant.toolCall : contentBlockOf(assistant.partial, assistant.contentIndex)
+  if (typeof block !== 'object' || block === null) return
+  const { id, name, arguments: args } = block as Record<string, unknown>
+  if (typeof id !== 'string' || id === '' || typeof name !== 'string' || !pump.streamsInput(name)) return
+  pump.session.requestTimeline(pump.projector.toolInput({ toolCallId: id, toolName: name, args: args ?? {}, final }))
+}
+
+function contentBlockOf(message: unknown, index: unknown): unknown {
+  if (typeof index !== 'number' || typeof message !== 'object' || message === null) return undefined
+  const content = (message as { readonly content?: unknown }).content
+  return Array.isArray(content) ? content[index] : undefined
 }
 
 /** 事件泵分流：分类只看 `event.type` 字符串，`agent_end` 特判，工具类失败就地降级那一格，其余只记日志 */

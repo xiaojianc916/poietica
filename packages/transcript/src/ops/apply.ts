@@ -296,6 +296,7 @@ function frameEquals(a: TranscriptFrame, b: TranscriptFrame): boolean {
       a.toolCallId === b.toolCallId &&
       a.name === b.name &&
       a.input === b.input &&
+      a.inputPending === b.inputPending &&
       a.intent === b.intent &&
       a.output === b.output &&
       a.error === b.error &&

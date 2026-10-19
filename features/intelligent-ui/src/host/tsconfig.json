@@ -3,6 +3,9 @@
   "include": ["."],
   "references": [
     {
+      "path": "../../../../packages/foundation"
+    },
+    {
       "path": "../../../../packages/host-kernel"
     },
     {

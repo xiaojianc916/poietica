@@ -15,7 +15,7 @@
     "skipLibCheck": true,
     "noEmit": true
   },
-  "files": ["tooling/tsconfig/css-imports.d.ts"],
+  "files": ["tooling/tsconfig/css-imports.d.ts", "tooling/tsconfig/raw-imports.d.ts"],
   "include": [
     "tooling/**/*.test.ts",
     "packages/*/src/**/__tests__/**/*",

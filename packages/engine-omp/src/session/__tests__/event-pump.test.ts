@@ -1,9 +1,10 @@
 import { describe, expect, test } from 'bun:test'
 import '@oh-my-pi/pi-coding-agent/config/all-settings'
 import { Settings } from '@oh-my-pi/pi-coding-agent/config/settings'
-import type { EngineSession, EngineSessionEvent, OpenSessionSpec, SubmitInput } from '@poietica/engine'
+import type { EngineSession, EngineSessionEvent, EngineToolSpec, OpenSessionSpec, SubmitInput } from '@poietica/engine'
 import type { Logger, LogLevel } from '@poietica/foundation'
 import type { TranscriptOperation } from '@poietica/transcript'
+import { z } from 'zod'
 import { TOOL_FALLBACK_TEXT } from '../../projector/live'
 import { hashMediaRef } from '../../projector/media'
 import { wrapOmpSession } from '../omp-session-adapter'
@@ -71,7 +72,7 @@ const BASE_SPEC: OpenSessionSpec = {
   thinking: null,
 }
 
-async function fixture(): Promise<Fixture> {
+async function fixture(tools: ReadonlyMap<string, EngineToolSpec> = new Map()): Promise<Fixture> {
   const listeners: ((event: Record<string, unknown>) => void)[] = []
   const steering: string[] = []
   const followUp: string[] = []
@@ -160,7 +161,7 @@ async function fixture(): Promise<Fixture> {
       ui = next as UiLike
     },
     mcpManager: null,
-    tools: new Map(),
+    tools,
     logger,
     subagentBus: null,
     initializeExtensions: async () => undefined,
@@ -447,6 +448,88 @@ describe('omp 事件泵（R-02 §4）', () => {
     expect(f.events.filter((event) => event.type === 'state' && event.state === 'idle')).toHaveLength(1)
     expect(closedTurnsOf(opsOf(f.events))).toHaveLength(1)
     expect(f.session.state()).toBe('idle')
+    expectNoReset(f.events)
+  })
+})
+
+/** 只给事件泵看 streamInput 那一格的工具规格（execute 不会被调用） */
+function toolSpec(name: string, streamInput: boolean): EngineToolSpec {
+  return {
+    name,
+    label: name,
+    description: name,
+    parameters: z.object({}),
+    approval: 'read',
+    streamInput,
+    execute: async () => ({ content: [] }),
+  } as unknown as EngineToolSpec
+}
+
+describe('工具参数流式上屏（toolcall_start / delta / end）', () => {
+  const streamed = (): ReadonlyMap<string, EngineToolSpec> =>
+    new Map([
+      ['intelligent_ui', toolSpec('intelligent_ui', true)],
+      ['bash', toolSpec('bash', false)],
+    ])
+
+  const toolcall = (type: string, block: Record<string, unknown>): Record<string, unknown> =>
+    type === 'toolcall_end'
+      ? { type: 'message_update', assistantMessageEvent: { type, contentIndex: 0, toolCall: block } }
+      : { type: 'message_update', assistantMessageEvent: { type, contentIndex: 0, partial: { content: [block] } } }
+
+  test('P1 声明 streamInput 的工具：start 即占格（inputPending），end 带齐入参、仍等工具开跑', async () => {
+    const f = await fixture(streamed())
+    await f.session.submit(submit('画个界面'))
+    f.feed(toolcall('toolcall_start', { type: 'toolCall', id: 'u1', name: 'intelligent_ui', arguments: {} }))
+    f.feed(
+      toolcall('toolcall_end', {
+        type: 'toolCall',
+        id: 'u1',
+        name: 'intelligent_ui',
+        arguments: { title: '表', html: '<p>x</p>' },
+      }),
+    )
+    const frames = framesOf(opsOf(f.events)).filter((op) => op.frame.kind === 'tool')
+    expect(frames).toHaveLength(2)
+    const [first, last] = frames
+    expect(first?.frame).toMatchObject({ toolCallId: 'u1', name: 'intelligent_ui', inputPending: true })
+    expect(last?.frame).toMatchObject({
+      toolCallId: 'u1',
+      inputPending: true,
+      input: { title: '表', html: '<p>x</p>' },
+    })
+    expect(last?.frame.frameId).toBe(first?.frame.frameId ?? '')
+    expectNoReset(f.events)
+  })
+
+  test('P2 普通工具与缺 id 的块：不产生任何工具帧', async () => {
+    const f = await fixture(streamed())
+    await f.session.submit(submit('跑一下'))
+    f.feed(toolcall('toolcall_start', { type: 'toolCall', id: 'b1', name: 'bash', arguments: {} }))
+    f.feed(toolcall('toolcall_delta', { type: 'toolCall', id: '', name: 'intelligent_ui', arguments: {} }))
+    f.feed({ type: 'message_update', assistantMessageEvent: { type: 'toolcall_delta', contentIndex: 3, partial: {} } })
+    expect(framesOf(opsOf(f.events)).filter((op) => op.frame.kind === 'tool')).toHaveLength(0)
+    expect(f.logs.filter((entry) => entry.level === 'warn')).toHaveLength(0)
+    expectNoReset(f.events)
+  })
+
+  test('P3 工具开跑后同一格接着用：tool_execution_start 不另起一帧，迟到的增量不理', async () => {
+    const f = await fixture(streamed())
+    await f.session.submit(submit('画个界面'))
+    f.feed(toolcall('toolcall_start', { type: 'toolCall', id: 'u2', name: 'intelligent_ui', arguments: {} }))
+    f.feed({
+      type: 'tool_execution_start',
+      toolCallId: 'u2',
+      toolName: 'intelligent_ui',
+      args: { title: 't', html: 'h' },
+    })
+    f.feed(
+      toolcall('toolcall_end', { type: 'toolCall', id: 'u2', name: 'intelligent_ui', arguments: { title: 'late' } }),
+    )
+    const frames = framesOf(opsOf(f.events)).filter((op) => op.frame.kind === 'tool')
+    expect(new Set(frames.map((op) => op.frame.frameId)).size).toBe(1)
+    expect(frames.at(-1)?.frame).toMatchObject({ input: { title: 't', html: 'h' } })
+    expect(frames.at(-1)?.frame).not.toHaveProperty('inputPending')
     expectNoReset(f.events)
   })
 })

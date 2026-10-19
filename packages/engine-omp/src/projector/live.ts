@@ -77,6 +77,66 @@ interface RetrySlot {
   readonly notice: RetryNotice
 }
 
+/**
+ * 参数流式上屏（只有声明了 streamInput 的工具，见 EngineToolSpec）的硬下界：同一次调用两次 frame.upsert
+ * 至少隔这么久（intelligent_ui.md 4.3）。收尾那一份（toolcall_end）不节流。
+ */
+export const TOOL_INPUT_INTERVAL_MS = 250
+
+/**
+ * 大对象降频：250ms 下界到点后，累计入参比上次发出时增长不足这么多 UTF-8 字节，就先只记下最新一份。
+ * 时间门限已经保证不会每秒超过四帧；这一层再把几十 KB HTML 的中间预览压到「增长一截或等久一点」才发。
+ */
+export const TOOL_INPUT_MIN_GROWTH_BYTES = 16 * 1024
+
+/**
+ * 小步增长的最长等待：即使每次都不到增长门限，距上次发出超过这么久也发一帧，避免预览长时间停住。
+ * 它只会减少中间帧，不突破 TOOL_INPUT_INTERVAL_MS 的下界，因而不改变 intelligent_ui.md 的节流语义。
+ */
+export const TOOL_INPUT_MAX_WAIT_MS = 1000
+
+/** 序列化后的入参：JSON 用来去重，字节数用来量增长（UTF-8，与跨进程传的 JSON 同口径） */
+interface SerializedInput {
+  readonly json: string
+  readonly bytes: number
+}
+
+/** 参数还在流的那一格：最新入参、上次发出时的样子与时刻、上次检查序列化的时刻 */
+interface PendingInput {
+  readonly frameId: string
+  readonly turnId: TurnId
+  readonly stepId: StepId
+  readonly toolName: string
+  readonly args: unknown
+  /** 上次发出去的那份入参的 JSON；null = 序列化不了，到检查点就发 */
+  readonly sent: string | null
+  /** 上次发出去的那份入参的 UTF-8 字节数；null = 序列化不了，无法比较增长 */
+  readonly sentBytes: number | null
+  /** 上次真正发出帧的时刻：250ms 下界与最长等待都从这里算 */
+  readonly sentAt: number
+  /** 上次做过序列化检查的时刻（含没发的那次）：小增长被压住时不要每条 delta 都再序列化一遍 */
+  readonly checkedAt: number
+}
+
+/** toolInput 收到的一份累计参数（omp 的 toolcall_start / delta / end） */
+interface ToolInputEvent {
+  readonly toolCallId: string
+  readonly toolName: string
+  readonly args: unknown
+  readonly final: boolean
+}
+
+const utf8 = new TextEncoder()
+
+function serializeInput(args: unknown): SerializedInput | null {
+  try {
+    const json = JSON.stringify(args)
+    return json === undefined ? null : { json, bytes: utf8.encode(json).byteLength }
+  } catch {
+    return null
+  }
+}
+
 export interface LiveProjectorOptions {
   readonly now: () => number
   /** 时钟毫秒 → 时间戳字符串。默认 ISO */
@@ -109,6 +169,8 @@ export class LiveProjector {
   private readonly tools = new Map<string, string>()
   private readonly args = new Map<string, unknown>()
   private readonly intents = new Map<string, string>()
+  /** 参数还在流、工具还没开始跑的调用（toolCallId →）：toolStart 接手，轮终把剩下的收成普通 running */
+  private readonly inputs = new Map<string, PendingInput>()
   /**
    * 这一轮开头那份轮头的 origin 与 prompt（审查 R-11）：turnEnd 要原样带回去。
    * turn.upsert 是整头替换（transcript 的 applyTurnUpsert），收尾时现造一份 `{ kind: 'user' }`
@@ -271,6 +333,7 @@ export class LiveProjector {
     this.tools.clear()
     this.args.clear()
     this.intents.clear()
+    this.inputs.clear()
     this.origin = input.origin
     this.prompt = input.prompt
     this.promptId = input.promptId
@@ -388,6 +451,101 @@ export class LiveProjector {
     ]
   }
 
+  /**
+   * 工具的参数还在流（omp 的 toolcall_start / toolcall_delta / toolcall_end，只对声明了 streamInput 的工具）：
+   * 先在时间线上占住这次调用的那一格（与 toolStart 同一个帧号），`inputPending` 标明入参还在长。
+   *
+   * 双门限：两帧之间至少隔 TOOL_INPUT_INTERVAL_MS；到点后，累计入参增长不足 TOOL_INPUT_MIN_GROWTH_BYTES 时
+   * 先只记下最新一份，等增长够或距上次发出满 TOOL_INPUT_MAX_WAIT_MS 再发。入参没变的不发；`final`（参数写完）
+   * 只去重、不受时间与体积门限约束。跳过的最新那份留给轮终 settleInputs 收口；toolStart 之后的迟到增量一律不理。
+   */
+  toolInput(call: ToolInputEvent): TranscriptOperation[] {
+    if (!this.turnOpen || this.tools.has(call.toolCallId)) return []
+    const at = this.o.now()
+    const held = this.inputs.get(call.toolCallId)
+    /* 时间下界与小增长检查点：每个间隔内最多序列化一次，大 HTML 不会因为每条 delta 都过一遍 JSON.stringify */
+    if (held !== undefined && !call.final && !this.inputCheckDue(held, at)) {
+      this.inputs.set(call.toolCallId, { ...held, args: call.args })
+      return []
+    }
+    const current = serializeInput(call.args)
+    if (held !== undefined && current !== null && current.json === held.sent) {
+      /* 到点了但入参没变（服务商的增量解析是攒够一截才重解析一次）：同样记一次检查时刻 */
+      this.inputs.set(call.toolCallId, { ...held, args: call.args, checkedAt: at })
+      return []
+    }
+    if (held !== undefined && !call.final && current !== null && this.inputGrowthSmall(held, at, current)) {
+      this.inputs.set(call.toolCallId, { ...held, args: call.args, checkedAt: at })
+      return []
+    }
+    /* 与 toolStart 同一个规矩：工具那一格之后的正文另起一帧 */
+    this.streaming = null
+    const turn = held?.turnId ?? turnId(this.turn)
+    const step = held?.stepId ?? stepId(turn, this.step)
+    const pending: PendingInput = {
+      frameId: held?.frameId ?? `tool.${call.toolCallId}`,
+      turnId: turn,
+      stepId: step,
+      toolName: call.toolName,
+      args: call.args,
+      sent: current?.json ?? null,
+      sentBytes: current?.bytes ?? null,
+      sentAt: at,
+      checkedAt: at,
+    }
+    this.inputs.set(call.toolCallId, pending)
+    return [this.pendingInputOp(call.toolCallId, pending, true)]
+  }
+
+  /**
+   * 非 final 的序列化检查点：250ms 下界到点，并且距上次检查也满一个下界。
+   * 最长等待也在这些检查点上判断 —— 不在两条 delta 之间另起定时器，也不让超过等待后每条 delta 都重新序列化。
+   */
+  private inputCheckDue(pending: PendingInput, at: number): boolean {
+    return at - pending.sentAt >= TOOL_INPUT_INTERVAL_MS && at - pending.checkedAt >= TOOL_INPUT_INTERVAL_MS
+  }
+
+  /**
+   * 增长不足门限且还没到最长等待：先攒着，只更新字段，不产生帧。
+   * 入参序列化失败（循环引用、BigInt 等）时 `sentBytes` 为 null：量不出体积，就退回纯 250ms 时间门限，
+   * 不能因为无法比较增长把整次预览永远按住。
+   */
+  private inputGrowthSmall(pending: PendingInput, at: number, current: SerializedInput): boolean {
+    if (pending.sentBytes === null) return false
+    if (at - pending.sentAt >= TOOL_INPUT_MAX_WAIT_MS) return false
+    return current.bytes - pending.sentBytes < TOOL_INPUT_MIN_GROWTH_BYTES
+  }
+
+  private pendingInputOp(toolCallId: string, pending: PendingInput, streaming: boolean): TranscriptOperation {
+    return {
+      op: 'frame.upsert',
+      turnId: pending.turnId,
+      stepId: pending.stepId,
+      frame: {
+        kind: 'tool',
+        frameId: pending.frameId,
+        toolCallId,
+        name: pending.toolName,
+        state: 'running',
+        input: pending.args,
+        ...(streaming ? { inputPending: true as const } : {}),
+      },
+    }
+  }
+
+  /**
+   * 轮终时参数还没流完、工具也没开始跑的那几格（中途取消、服务商断流）：去掉 `inputPending`，按最新那份入参
+   * 收成普通的 running —— 与历史投影对「有调用、没结果」的工具给出的样子一致，重开对话前后屏幕不变。
+   */
+  private settleInputs(): TranscriptOperation[] {
+    const ops: TranscriptOperation[] = []
+    for (const [toolCallId, pending] of this.inputs) {
+      if (!this.tools.has(toolCallId)) ops.push(this.pendingInputOp(toolCallId, pending, false))
+    }
+    this.inputs.clear()
+    return ops
+  }
+
   /** 工具调用开始：起工具前先封掉正在流的正文（工具与文本不同帧） */
   toolStart(call: {
     readonly toolCallId: string
@@ -400,6 +558,8 @@ export class LiveProjector {
     const turn = turnId(this.turn)
     const step = stepId(turn, this.step)
     const id = `tool.${call.toolCallId}`
+    /* 参数流过的那一格就是这一格（同号整格替换，去掉 inputPending） */
+    this.inputs.delete(call.toolCallId)
     this.tools.set(call.toolCallId, id)
     this.args.set(call.toolCallId, call.args)
     if (call.intent !== undefined && call.intent !== '') this.intents.set(call.toolCallId, call.intent)
@@ -499,6 +659,7 @@ export class LiveProjector {
     const at = this.now()
     /* omp 每次重试过程都会收口；万一没收（进程被打断之类），轮终替它收，不留一格永远在转的「正在重试」 */
     const ops: TranscriptOperation[] = this.closeRetry(outcome)
+    ops.push(...this.settleInputs())
     if (this.stepOpen) {
       ops.push({
         op: 'step.upsert',
@@ -563,6 +724,7 @@ export class LiveProjector {
     if (known === undefined) {
       // start 失败：照 toolStart 的规矩先封掉正在流的正文，再登记这一格
       this.streaming = null
+      this.inputs.delete(call.toolCallId)
       this.tools.set(call.toolCallId, id)
     }
     const args = this.args.get(call.toolCallId)
@@ -601,6 +763,7 @@ export class LiveProjector {
     this.tools.clear()
     this.args.clear()
     this.intents.clear()
+    this.inputs.clear()
     this.promptId = undefined
   }
 
