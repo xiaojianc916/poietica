@@ -15,20 +15,6 @@
  * 这条约定才真的成立。
  */
 
-/* 行首图标：14 一格（正本 .itemIcon 与其 svg）。 */
-.ds-menu-item > svg {
-  inline-size: 14px;
-  block-size: 14px;
-}
-
-/*
- * 图标不跟正文同色，走 --ui-popup-icon（正本 --dsw-alias-menu-icon，比正文浅一档）。
- * 危险行例外：整行已经是红的，图标跟着行走（正本用 .danger 覆盖一次，这里用同一个判据）。
- */
-.ds-menu-item:not(.ds-menu-item-danger) > svg {
-  color: var(--ui-popup-icon);
-}
-
 /* 选中那枚勾（正本 .check）：颜色是行字那一档。 */
 .ds-menu-check {
   display: inline-flex;
@@ -40,9 +26,38 @@
   color: var(--ui-popup-ink);
 }
 
+/* 行首图标：14 一格（正本 .itemIcon 与其 svg）。 */
+.ds-menu-item > svg {
+  inline-size: 14px;
+  block-size: 14px;
+}
+
 .ds-menu-check > svg {
   inline-size: 14px;
   block-size: 14px;
+}
+
+/*
+ * 图标不跟正文同色，走 --ui-popup-icon（正本 --dsw-alias-menu-icon，比正文浅一档）。
+ * 危险行例外：整行已经是红的，图标跟着行走（正本用 .danger 覆盖一次，这里用同一个判据）。
+ *
+ * 这条比上面两条多一档 :not，放在后面让特异级别一路向上，不出现倒挂。
+ */
+.ds-menu-item:not(.ds-menu-item-danger) > svg {
+  color: var(--ui-popup-icon);
+}
+
+/*
+ * 两条线挨在一起只画一条（正本 .separator + .separator）。
+ *
+ * 正本另外两条是「行自带 separatorBefore 时，行内的线不重复画」；本仓的行没有那个属性，分隔线
+ * 是平级元素，所以那两条在这里没有对应物 —— 写成 :first-child 会把「组标题上面那条线」一起吞掉
+ * （组在 DOM 里就是一个包装元素，线是它的第一个子级），整张卡于是矮两格。卡自己的第一条就是线
+ * 时仍然不画：那是同一件事里唯一还成立的一半。
+ */
+.ds-menu-separator + .ds-menu-separator,
+.ds-menu-card > .ds-menu-separator:first-child {
+  display: none;
 }
 
 /* dense：只压行距，排版与卡宽不动（正本 .denseList；标题行同样压一档）。 */
@@ -85,19 +100,6 @@
   padding: 3px 6px;
   font-size: 10px;
   line-height: 15px;
-}
-
-/*
- * 两条线挨在一起只画一条（正本 .separator + .separator）。
- *
- * 正本另外两条是「行自带 separatorBefore 时，行内的线不重复画」；本仓的行没有那个属性，分隔线
- * 是平级元素，所以那两条在这里没有对应物 —— 写成 :first-child 会把「组标题上面那条线」一起吞掉
- * （组在 DOM 里就是一个包装元素，线是它的第一个子级），整张卡于是矮两格。卡自己的第一条就是线
- * 时仍然不画：那是同一件事里唯一还成立的一半。
- */
-.ds-menu-separator + .ds-menu-separator,
-.ds-menu-card > .ds-menu-separator:first-child {
-  display: none;
 }
 
 /*

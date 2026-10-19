@@ -321,18 +321,18 @@
   vertical-align: top;
 }
 
-/* 表头与正文之间、行与行之间各一根发丝线；末行不留。 */
-.timeline-prose [data-streamdown="table-header"] + [data-streamdown="table-body"],
-.timeline-prose [data-streamdown="table-body"] [data-streamdown="table-row"] + [data-streamdown="table-row"] {
-  border-block-start: 1px solid var(--cp-hairline);
-}
-
 /* 深色下这几根行线改 #2a2a2a：这张表没有壳，行与行的分隔全靠它们。改的是「行」的 border-color 而不是某一条边 ——
  * 塌边取谁的颜色按「行 > 行组」裁定，实际画出来的是上一行的 border-block-end（读 --ui-border）；tbody 一并给上让第二来源同色。
  * 浅色不动：同样的值铺在白纸上就是几道黑杠。 */
 :where(:root[data-theme="dark"]) .timeline-prose [data-streamdown="table-body"],
 :where(:root[data-theme="dark"]) .timeline-prose [data-streamdown="table-body"] [data-streamdown="table-row"] {
   border-color: #2a2a2a;
+}
+
+/* 表头与正文之间、行与行之间各一根发丝线；末行不留。 */
+.timeline-prose [data-streamdown="table-header"] + [data-streamdown="table-body"],
+.timeline-prose [data-streamdown="table-body"] [data-streamdown="table-row"] + [data-streamdown="table-row"] {
+  border-block-start: 1px solid var(--cp-hairline);
 }
 
 /* 末列让位 = 内边距 ×2 + 一枚复制键，与控件层同一组常量：复制键右缘与表头文字之间不会压着一个字。 */
