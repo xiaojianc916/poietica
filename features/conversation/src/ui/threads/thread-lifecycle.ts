@@ -49,3 +49,15 @@ export function createThreadSurfaceOpener(deps: {
     return opened
   }
 }
+
+/**
+ * 归档这一条时，当前页面要不要让位（回入口页）。
+ *
+ * 用户 2026-10-19：停在一个已归档的会话里是自相矛盾的 —— 侧栏上它已经不在了，主区却还开着它。
+ * 归档**别的**对话时页面一动不动：那不是当前页面的消失，只是列表里少一行。
+ *
+ * 两个入参都是「当前页面正开着谁」与「要归档谁」；前者缺席（停在入口页 / 设置页）时不跳。
+ */
+export function leaveForArchive(activeThreadId: string | null, archivedThreadId: string): boolean {
+  return activeThreadId !== null && activeThreadId === archivedThreadId
+}

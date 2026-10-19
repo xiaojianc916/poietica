@@ -2,6 +2,7 @@ import { createValue } from '@poietica/ui-kernel'
 import { createDraftPin, type DraftPinView } from '../composer/draft-pin'
 import type { ConversationTodoThread } from '../session/conversation-controls'
 import { shouldNotify } from '../session/notify'
+import { leaveForArchive } from '../threads/thread-lifecycle'
 import type { ConversationSetup } from './context'
 
 /** 活动线程、打开 / 导出 / 新建线程、侧栏折叠、归档横幅、通知。 */
@@ -11,6 +12,11 @@ export interface ConversationActions {
   readonly subscribeActive: (listener: () => void) => () => void
   readonly openThread: (threadId: string) => void
   readonly newThread: (workspaceId?: string) => void
+  /**
+   * 归档一条对话。**归档的正是当前这条**时回到入口页 —— 停在一个已经不在活动列表里的会话上
+   * 是自相矛盾的：侧栏没有它的行、内容却还占着主区。归档别的对话不影响当前页面。
+   */
+  readonly archiveThread: (threadId: string) => void
   readonly exportThread: (threadId: string) => Promise<void>
   readonly showArchived: () => void
   readonly notify: (threadId: string, body: string, kind: 'completion' | 'needs-confirm') => void
@@ -149,8 +155,25 @@ export function createConversationActions(setup: ConversationSetup): Conversatio
     navigation.navigate({ surface: 'conversation.home', params: {} })
   }
 
+  /*
+   * 归档 = 移出活动列表。当前页面若正是这一条，导航必须先走：留在那儿的话，主区显示的是一条
+   * 侧栏上已经不存在的会话，再点别的对话才把它挤掉。判据是路由派生的 activeThreadId ——
+   * 与侧栏高亮同一份事实，不存在「跳转路径忘了同步」的第二种当前会话。
+   *
+   * 先导航后请求：setArchived 失败时用户已经落在入口页，但那条对话还在列表里（什么都没丢）。
+   * 反过来先请求再导航，会有一小段时间停在一个已归档的会话上。
+   */
+  const archiveThread = (threadId: string): void => {
+    if (leaveForArchive(activeThreadId(), threadId)) newThread()
+    void api.setArchived(threadId, true).then((t) => {
+      stores.threads.upsert(t)
+      archived.set({ threadId, seq: (archived.current()?.seq ?? 0) + 1 })
+    })
+  }
+
   return {
     activeThreadId,
+    archiveThread,
     archived,
     collapsed,
     draftPin,
