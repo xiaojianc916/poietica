@@ -245,12 +245,20 @@
   transform: translateY(-50%);
 }
 
-/* 时间与两个图标叠在同一网格单元，由同一条选择器决定谁在画：两条互不相干的条件会在「菜单开着而指针已离开」时同时成立，图标于是压在时间上。 */
+/*
+ * 时间与两个图标叠在同一网格单元，由同一条选择器决定谁在画：两条互不相干的条件会在
+ * 「菜单开着而指针已离开」时同时成立，图标于是压在时间上。
+ *
+ * 格子宽度取两者中更宽的那一个（时间「3 分钟前」比两个 20px 按钮更宽），而 justify-items: end
+ * 把那点差额全留在左侧 —— 悬停时图钉就离开右缘、往行中间缩 4~5px，正是「左边明明还有位置」。
+ * 时间不参与格子宽度：它绝对定位在格的右缘（与操作组同一右边缘），格子于是收到按钮组的宽度，
+ * 图钉贴到右缘，静息时那行时间的位置一分不动。
+ */
 .assistant-thread__trail {
+  position: relative;
   display: grid;
   flex: none;
   align-items: center;
-  justify-items: end;
   margin-inline-start: auto;
 }
 
@@ -261,17 +269,26 @@
 /* 静息说时间、介入说操作，由行上那两个自定义属性决定谁在画；静息值写在这里的 var() 回退里，因为自定义属性表示「覆盖」不表示「默认」。
  * 时间不接指针（否则会弹出 title 里的绝对时刻）；操作不能改成 display: none —— 菜单关闭动画里触发器离开布局，弹层会在窗口左上角闪一帧（真实故障）。 */
 .assistant-thread__time {
+  position: absolute;
+  inset-block-start: 50%;
+  inset-inline-end: 0;
   font-size: var(--cp-font-micro);
   color: var(--cp-ink-subtle);
   opacity: var(--thread-trail-time, 1);
   pointer-events: none;
+  white-space: nowrap;
+  transform: translateY(-50%);
   transition: opacity var(--cp-motion-swift) var(--cp-motion-ease);
 }
 
+/*
+ * 两枚动作的间距。归档贴右缘不动，加大这一格就是把置顶往左推（flex 整组右对齐，间距只往左长）——
+ * 用户 2026-10-19：图钉往左挪、两枚之间拉开。原先 2px 让两枚几乎连成一块，视觉上分不出是两颗。
+ */
 .assistant-thread__actions {
   display: flex;
   align-items: center;
-  gap: 2px;
+  gap: 8px;
   opacity: var(--thread-trail-actions, 0);
   transition: opacity var(--cp-motion-swift) var(--cp-motion-ease);
 }
