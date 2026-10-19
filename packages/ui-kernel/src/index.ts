@@ -41,6 +41,7 @@ export {
   type CoreStatus,
   CoreStatusToken,
   createValue,
+  DEFAULT_PANEL_WIDTH,
   type DialogService,
   DialogsToken,
   type DockPaneSet,

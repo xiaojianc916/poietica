@@ -18,6 +18,7 @@ import { type ReactNode, useEffect, useMemo, useState } from 'react'
 import type { BrowserState, PickedElement } from '../contract'
 import { createBrowserApi } from './api'
 import { createBrowserDockTabs } from './dock-tabs'
+import { revealDrivenBrowser } from './driven-open'
 import { overlayPresent, watchOverlays } from './overlay-watch'
 import { BrowserPanel } from './panel'
 import { cancelPick, createPickDelivery } from './pick-delivery'
@@ -104,7 +105,7 @@ export default defineUiFeature({
     let driven = false
     const watchDriven = (state: BrowserState): void => {
       if (state.driven && !driven) {
-        layout.openPanel('right', PANEL_ID)
+        revealDrivenBrowser(layout, PANEL_ID)
       }
 
       driven = state.driven

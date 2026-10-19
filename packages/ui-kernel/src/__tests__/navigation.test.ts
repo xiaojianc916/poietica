@@ -1,7 +1,7 @@
 import { describe, expect, test } from 'bun:test'
 import { AppError } from '@poietica/foundation'
 import { describeError } from '../services/errors'
-import { createLayoutService, DEFAULT_LAYOUT, LAYOUT_LIMITS } from '../services/layout'
+import { createLayoutService, DEFAULT_LAYOUT, DEFAULT_PANEL_WIDTH, LAYOUT_LIMITS } from '../services/layout'
 import { createNavigationService } from '../services/navigation'
 import { createToastService } from '../services/toasts'
 
@@ -132,6 +132,11 @@ describe('layout', () => {
 
     l.closePanel('right')
     expect(l.current().right.open).toBe(false)
+  })
+
+  test('右坞默认宽度 560：AI 拉起内置浏览器时网页不至于只剩一条窄页', () => {
+    expect(DEFAULT_LAYOUT.right.size).toBe(DEFAULT_PANEL_WIDTH)
+    expect(DEFAULT_PANEL_WIDTH).toBe(560)
   })
 
   test('面板尺寸按边界收紧', () => {

@@ -74,6 +74,7 @@ export {
   type AuxiliaryState,
   createLayoutService,
   DEFAULT_LAYOUT,
+  DEFAULT_PANEL_WIDTH,
   type DockPaneSet,
   type DockPanesState,
   LAYOUT_LIMITS,

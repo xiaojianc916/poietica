@@ -35,10 +35,13 @@ export interface DockPanesState {
   readonly byOwner: Readonly<Record<string, DockPaneSet>>
 }
 
-/** 默认布局：侧栏 280、辅助列 420。 */
+/** 右坞默认宽度：560。420 时 agent 驾驶内置浏览器只剩一条窄页，操作过程看不清；560 在默认 1280 窗口下仍给主列留下 440。 */
+export const DEFAULT_PANEL_WIDTH = 560
+
+/** 默认布局：侧栏 280、辅助列 560。 */
 export const DEFAULT_LAYOUT: LayoutState = {
   sidebar: { visible: true, width: 280 },
-  right: { open: false, activeId: null, size: 420 },
+  right: { open: false, activeId: null, size: DEFAULT_PANEL_WIDTH },
   auxiliary: { owner: null, activeOwner: null, fullscreen: false },
 }
 /**
