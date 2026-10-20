@@ -2,7 +2,6 @@
  * session 区：会话的装配点（store 束、端口注册表、会话可调项、通知）。区与区之间只能经本文件互相引用。
  */
 
-export { ActiveOwner } from './active-owner'
 export { useCommandCatalog, useThreadCommands } from './commands'
 export {
   hiddenModelsOf,

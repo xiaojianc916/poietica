@@ -13,7 +13,6 @@ import { useEffect, useMemo, useState } from 'react'
 import { ConversationProviders } from '../composition'
 import { AssistantSurface } from '../home/assistant-surface'
 import { HomeSurface } from '../home/home-surface'
-import { ActiveOwner } from '../session/active-owner'
 import { useThreadCommands } from '../session/commands'
 import {
   effectiveUsage,
@@ -263,7 +262,6 @@ export function createConversationContributions(setup: ConversationSetup, action
     title: '新对话',
     component: () => (
       <ConversationProviders posture={posture} transcripts={transcripts}>
-        <ActiveOwner layout={layout} owner={null} />
         <HomeSurface
           api={api}
           entryDefaults={entryDefaults}
@@ -281,6 +279,8 @@ export function createConversationContributions(setup: ConversationSetup, action
   ctx.contribute(builtinPoints.surfaces, {
     id: 'conversation.thread',
     title: '对话',
+    /* 右坞按对话分账：每条对话自己记开没开、开着哪几格。入口页（还没有线程）不写 dockOwner，那里不画右坞。 */
+    dockOwner: (params) => (params.threadId === undefined || params.threadId === '' ? null : params.threadId),
     component: ({ params }: { readonly params: Readonly<Record<string, string>> }) => {
       const threadId = String(params.threadId ?? '')
       /*
@@ -331,7 +331,6 @@ export function createConversationContributions(setup: ConversationSetup, action
           posture={posture}
           transcripts={transcripts}
         >
-          <ActiveOwner layout={layout} owner={threadId} />
           <AssistantSurface
             {...(session === undefined ? {} : { session })}
             commands={commands}

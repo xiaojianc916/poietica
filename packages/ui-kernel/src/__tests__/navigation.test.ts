@@ -2,7 +2,13 @@ import { describe, expect, test } from 'bun:test'
 import { AppError } from '@poietica/foundation'
 import { createBannerService } from '../services/banners'
 import { describeError } from '../services/errors'
-import { createLayoutService, DEFAULT_LAYOUT, DEFAULT_PANEL_WIDTH, LAYOUT_LIMITS } from '../services/layout'
+import {
+  createLayoutService,
+  DEFAULT_LAYOUT,
+  DEFAULT_PANEL_WIDTH,
+  LAYOUT_LIMITS,
+  SETTINGS_OWNER,
+} from '../services/layout'
 import { createNavigationService } from '../services/navigation'
 
 describe('navigation', () => {
@@ -118,7 +124,7 @@ describe('layout', () => {
     l.setActiveOwner('t1')
     l.openPanel('right', 'p1')
     expect(l.current().right).toEqual({ open: true, activeId: 'p1', size: DEFAULT_LAYOUT.right.size })
-    expect(l.panes.current().byOwner.t1).toEqual({ ids: ['p1'], activeId: 'p1' })
+    expect(l.panes.current().byOwner.t1).toEqual({ ids: ['p1'], activeId: 'p1', open: true })
 
     l.togglePanel('right', 'p1')
     expect(l.current().right.open).toBe(false)
@@ -132,6 +138,80 @@ describe('layout', () => {
 
     l.closePanel('right')
     expect(l.current().right.open).toBe(false)
+  })
+
+  /*
+   * 坞按归属分账：开合、格清单、选中格都是每个归属自己的。内容归属（auxiliary.owner）在前台的坞没开时保持上一位，
+   * 收起 / 换前台的过渡期间坞里的内容不换人。
+   */
+  test('各归属各记开合；换前台时内容归属保持上一位', () => {
+    const l = createLayoutService()
+
+    l.setActiveOwner('t1')
+    l.openPanel('right', 'p1')
+    l.setActiveOwner('t2')
+    expect(l.current().right.open).toBe(false)
+    expect(l.current().auxiliary.owner).toBe('t1')
+
+    l.togglePanel('right')
+    expect(l.current().right.open).toBe(true)
+    expect(l.current().auxiliary.owner).toBe('t2')
+    l.closePanel('right')
+
+    l.setActiveOwner('t1')
+    expect(l.current().right).toEqual({ open: true, activeId: 'p1', size: DEFAULT_LAYOUT.right.size })
+    expect(l.panes.current().byOwner.t2?.open).toBe(false)
+  })
+
+  test('面板的归属类别：设置页只收 settings 的格，对话只收 surface 的格；设置页关掉最后一格即收起', () => {
+    const scopes: Record<string, 'surface' | 'settings'> = { skill: 'settings', browser: 'surface' }
+    const l = createLayoutService({ scopeOf: (id) => scopes[id] })
+
+    l.setActiveOwner(SETTINGS_OWNER)
+    l.openPanel('right', 'browser')
+    l.togglePanel('right')
+    expect(l.current().right.open).toBe(false)
+
+    l.openPanel('right', 'skill')
+    expect(l.current().right).toMatchObject({ open: true, activeId: 'skill' })
+    l.closePane(SETTINGS_OWNER, 'skill')
+    expect(l.current().right.open).toBe(false)
+
+    l.setActiveOwner('t1')
+    l.openPanel('right', 'skill')
+    l.focusPane('t1', 'skill')
+    expect(l.panes.current().byOwner.t1).toBeUndefined()
+    l.openPanel('right', 'browser')
+    expect(l.current().right).toMatchObject({ open: true, activeId: 'browser' })
+  })
+
+  test('forgetOwner：清掉那一份坞，内容归属与前台引用一起清', () => {
+    const l = createLayoutService()
+    l.setActiveOwner('t1')
+    l.openPanel('right', 'p1')
+
+    l.forgetOwner('t1')
+    expect(l.panes.current().byOwner.t1).toBeUndefined()
+    expect(l.current().auxiliary).toEqual({ owner: null, activeOwner: null, fullscreen: false })
+    expect(l.current().right.open).toBe(false)
+  })
+
+  /*
+   * 读盘是异步的，常常晚于外壳第一次写前台：清掉 activeOwner 会让启动后第一屏对话的坞一直不出来。
+   * 设置页那一位不补开合：技能文档是随文档现开的瞬时格，重启后没有可看的文档。
+   */
+  test('restore：保留当前前台；存盘时在场的那一位补开合；设置页不补', () => {
+    const l = createLayoutService()
+    l.setActiveOwner('t1')
+    l.restore({ right: { open: true, size: 600 }, auxiliary: { owner: 't1' } })
+    expect(l.current().auxiliary.activeOwner).toBe('t1')
+    expect(l.current().right).toEqual({ open: true, activeId: null, size: 600 })
+
+    const s = createLayoutService()
+    s.restore({ right: { open: true, size: 600 }, auxiliary: { owner: SETTINGS_OWNER } })
+    s.setActiveOwner(SETTINGS_OWNER)
+    expect(s.current().right.open).toBe(false)
+    expect(s.panes.current().byOwner[SETTINGS_OWNER]).toBeUndefined()
   })
 
   test('右坞默认宽度 560：AI 拉起内置浏览器时网页不至于只剩一条窄页', () => {

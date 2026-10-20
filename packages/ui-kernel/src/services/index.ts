@@ -1,4 +1,5 @@
 import { defineServiceToken, KERNEL_OWNER, type ServiceRegistry } from '@poietica/foundation'
+import { builtinPoints } from '../builtin-points'
 import type { ContributionRegistry } from '../contribution'
 import { type BannerService, createBannerService } from './banners'
 import { type CommandService, createCommandService } from './commands'
@@ -43,7 +44,13 @@ export function registerKernelServices(o: {
     commands,
     keybindings: createKeybindingService(o.registry, commands),
     coreStatus: createCoreStatusService(),
-    layout: createLayoutService(),
+    /* 面板的归属类别只登记在贡献里：布局服务开格前按 id 回查，设置页里开不出对话的面板，反之亦然。 */
+    layout: createLayoutService({
+      scopeOf: (panelId) => {
+        const found = o.registry.list(builtinPoints.panels).find((c) => c.item.id === panelId)
+        return found === undefined ? undefined : (found.item.scope ?? 'surface')
+      },
+    }),
     banners,
     dialogs: createDialogService(),
     logging,
@@ -81,10 +88,13 @@ export {
   LAYOUT_LIMITS,
   type LayoutGeometry,
   type LayoutService,
+  type LayoutServiceOptions,
   type LayoutState,
   type PanelDockState,
+  type PanelScope,
   type RegionGeometry,
   resolveLayoutGeometry,
+  SETTINGS_OWNER,
   type SplitterActivity,
   type SplitterRegion,
 } from './layout'

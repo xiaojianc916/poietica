@@ -1,8 +1,10 @@
 import {
   builtinPoints,
   type Contributed,
+  type DockPaneSet,
   FeatureScope,
   type PanelItem,
+  SETTINGS_OWNER,
   useContributions,
   useKernel,
   useLayout,
@@ -16,6 +18,7 @@ import { PartSkeleton } from './part-skeleton'
 /*
  * 右侧面板坞。两类贡献：无 dockTabs 的是「pane」（活在 LayoutService 的 panes 分账里，一开一个标签）；
  * 有 dockTabs 的是「组」（页签由功能自己的 store 给，坞只聚合展示）。
+ * 贡献按 scope 分两类：对话等普通表面的坞画标签条 / 启动器；设置页的坞只画设置自己的那一格（见 SettingsDock）。
  */
 
 type PanelContribution = Contributed<PanelItem>
@@ -183,23 +186,79 @@ function readGroupTabs(groups: readonly PanelContribution[]): readonly GroupView
   })
 }
 
+const scopeOf = (contribution: PanelContribution) => contribution.item.scope ?? 'surface'
+
 export function AuxiliaryDock(): ReactNode {
+  const kernel = useKernel()
+  const layoutState = useLayout()
+  const panesState = useObservable(kernel.kernelServices.layout.panes)
+  const contributions = useContributions(builtinPoints.panels)
+
+  /* 坞里画谁的内容看 auxiliary.owner（收起过渡期间保持上一位）；设置页那一位只有设置自己的格，形状也不同。 */
+  const owner = layoutState.auxiliary.owner
+  const paneSet = owner === null ? null : (panesState.byOwner[owner] ?? null)
+  const scope = owner === SETTINGS_OWNER ? 'settings' : 'surface'
+  /* ContributionRegistry.list 已按 order 升序返回，这里只筛、不排序。 */
+  const rightPanels = useMemo(
+    () => contributions.filter((c) => c.item.location === 'right' && scopeOf(c) === scope),
+    [contributions, scope],
+  )
+
+  return (
+    <aside aria-label="辅助面板" className="flex h-full min-h-0 flex-col" id="workspace-auxiliary-panel">
+      {scope === 'settings' ? (
+        <SettingsDock paneSet={paneSet} panels={rightPanels} />
+      ) : (
+        <SurfaceDock paneSet={paneSet} panels={rightPanels} />
+      )}
+    </aside>
+  )
+}
+
+/**
+ * 设置页的坞：只画选中的那一格本身。设置页的格是随设置项现开的（技能文档），只有这一种内容，
+ * 标签条、启动器、加号菜单与全屏都没有意义 —— 收起靠再点一次同一行或拖分隔条。
+ */
+function SettingsDock({
+  paneSet,
+  panels,
+}: {
+  readonly paneSet: DockPaneSet | null
+  readonly panels: readonly PanelContribution[]
+}): ReactNode {
+  const open = paneSet === null ? [] : panels.filter((c) => paneSet.ids.includes(c.item.id))
+  const body = open.find((c) => c.item.id === paneSet?.activeId) ?? open.at(-1) ?? null
+  return body === null ? null : <PanelBody contribution={body} />
+}
+
+function PanelBody({ contribution }: { readonly contribution: PanelContribution }): ReactNode {
+  return (
+    <div className="min-h-0 flex-1 overflow-hidden">
+      <FeatureScope featureId={contribution.featureId} key={contribution.item.id}>
+        <Suspense fallback={<PartSkeleton />}>
+          <contribution.item.component />
+        </Suspense>
+      </FeatureScope>
+    </div>
+  )
+}
+
+function SurfaceDock({
+  paneSet,
+  panels,
+}: {
+  readonly paneSet: DockPaneSet | null
+  readonly panels: readonly PanelContribution[]
+}): ReactNode {
   const kernel = useKernel()
   const layoutService = kernel.kernelServices.layout
   const layoutState = useLayout()
-  const panesState = useObservable(layoutService.panes)
-  const contributions = useContributions(builtinPoints.panels)
-
-  /* ContributionRegistry.list 已按 order 升序返回，这里只分组、不排序。 */
-  const rightPanels = useMemo(() => contributions.filter((c) => c.item.location === 'right'), [contributions])
-  const paneContributions = useMemo(() => rightPanels.filter((c) => c.item.dockTabs === undefined), [rightPanels])
-  const groups = useMemo(() => rightPanels.filter((c) => c.item.dockTabs !== undefined), [rightPanels])
+  const paneContributions = useMemo(() => panels.filter((c) => c.item.dockTabs === undefined), [panels])
+  const groups = useMemo(() => panels.filter((c) => c.item.dockTabs !== undefined), [panels])
   const groupTabs = useGroupTabs(groups)
 
-  const owner = layoutState.auxiliary.owner
-  const activeOwner = layoutState.auxiliary.activeOwner
-  const right = layoutState.right
-  const paneSet = owner === null ? null : (panesState.byOwner[owner] ?? null)
+  /* 坞只在前台的坞开着时可交互（不在场时整列 inert），所以动作一律落在前台那一位身上。 */
+  const front = layoutState.auxiliary.activeOwner
 
   /* 只认确实有 pane 贡献的 id：组 id 不进 pane 标签，未知 id 也不许把无关贡献画出来。 */
   const openPaneContributions = useMemo(() => {
@@ -216,7 +275,7 @@ export function AuxiliaryDock(): ReactNode {
 
   const offers = useMemo<readonly AuxiliaryOffer[]>(
     () =>
-      rightPanels
+      panels
         .filter((c) => c.item.offer !== false)
         .map((c) => ({
           kind: c.item.id,
@@ -224,14 +283,14 @@ export function AuxiliaryDock(): ReactNode {
           description: c.item.description ?? '',
           icon: <c.item.icon aria-hidden className="size-3.5 shrink-0 opacity-60" />,
         })),
-    [rightPanels],
+    [panels],
   )
 
-  /* pane 开进当前归属，owner 缺席时先落到 activeOwner；组先让它自己开，再把坞的 active 指到组贡献 id。 */
+  /* pane 开进前台那一份；组先让它自己开，再把前台的选中格指到组贡献 id。 */
   const openOffer = (kind: string): void => {
-    const contribution = rightPanels.find((c) => c.item.id === kind)
+    const contribution = panels.find((c) => c.item.id === kind)
 
-    if (contribution === undefined) {
+    if (contribution === undefined || front === null) {
       return
     }
 
@@ -239,18 +298,12 @@ export function AuxiliaryDock(): ReactNode {
 
     if (dockTabs !== undefined) {
       dockTabs.onOpen()
-      if (owner === null) {
-        layoutService.setAuxiliaryOwner(activeOwner)
-      }
-      layoutService.setPanelActive('right', kind)
+      layoutService.focusPane(front, kind)
+      layoutService.setDockOpen(front, true)
       return
     }
 
-    /* 归属两栏都空 = 当下没有前台，面板无处可落。 */
-    const target = owner ?? activeOwner
-    if (target !== null) {
-      layoutService.openPane(target, kind)
-    }
+    layoutService.openPane(front, kind)
   }
 
   const tabs = useMemo<TabView[]>(() => {
@@ -265,14 +318,13 @@ export function AuxiliaryDock(): ReactNode {
         icon: <contribution.item.icon aria-hidden className="size-3.5 shrink-0 opacity-60" />,
         active: paneSet?.activeId === paneId,
         onSelect: () => {
-          const target = owner ?? activeOwner
-          if (target !== null) {
-            layoutService.focusPane(target, paneId)
+          if (front !== null) {
+            layoutService.focusPane(front, paneId)
           }
         },
         onClose: () => {
-          if (owner !== null) {
-            layoutService.closePane(owner, paneId)
+          if (front !== null) {
+            layoutService.closePane(front, paneId)
           }
         },
       })
@@ -291,13 +343,12 @@ export function AuxiliaryDock(): ReactNode {
           domId: auxiliaryGroupTabId(groupId, tab.id),
           title: tab.title,
           icon: tab.icon,
-          active: right.activeId === groupId && tab.active,
+          active: paneSet?.activeId === groupId && tab.active,
           onSelect: () => {
             dockTabs.onSelect(tab.id)
-            if (owner === null) {
-              layoutService.setAuxiliaryOwner(activeOwner)
+            if (front !== null) {
+              layoutService.focusPane(front, groupId)
             }
-            layoutService.setPanelActive('right', groupId)
           },
           onClose: () => {
             dockTabs.onClose(tab.id)
@@ -307,7 +358,7 @@ export function AuxiliaryDock(): ReactNode {
     }
 
     return views
-  }, [activeOwner, groupTabs, layoutService, openPaneContributions, owner, paneSet, right.activeId])
+  }, [front, groupTabs, layoutService, openPaneContributions, paneSet])
 
   const showLauncher = openPaneContributions.length === 0 && groupTabs.every((g) => g.tabs.length === 0)
 
@@ -315,7 +366,7 @@ export function AuxiliaryDock(): ReactNode {
   const activePane =
     paneSet === null ? null : (openPaneContributions.find((c) => c.item.id === paneSet.activeId) ?? null)
   const activeGroup =
-    activePane === null ? (groupTabs.find((group) => group.contribution.item.id === right.activeId) ?? null) : null
+    activePane === null ? (groupTabs.find((group) => group.contribution.item.id === paneSet?.activeId) ?? null) : null
   const fallbackPane = openPaneContributions.at(-1) ?? null
   const fallbackGroup = groupTabs.find((group) => group.tabs.length > 0) ?? null
   const body = activePane ?? activeGroup?.contribution ?? fallbackPane ?? fallbackGroup?.contribution ?? null
@@ -323,40 +374,32 @@ export function AuxiliaryDock(): ReactNode {
   const [menuOpen, setMenuOpen] = useState(false)
   const [menuHeight, setMenuHeight] = useState(0)
 
+  if (showLauncher) {
+    return <AuxiliaryLauncher offers={offers} onOpen={openOffer} />
+  }
+
   return (
-    <aside aria-label="辅助面板" className="flex h-full min-h-0 flex-col" id="workspace-auxiliary-panel">
-      {showLauncher ? (
+    <>
+      <AuxiliaryTabStrip
+        fullscreen={layoutState.auxiliary.fullscreen}
+        menuHeight={menuHeight}
+        menuOpen={menuOpen}
+        offers={offers}
+        onMenuHeightChange={setMenuHeight}
+        onMenuOpenChange={setMenuOpen}
+        onOpenOffer={openOffer}
+        onToggleFullscreen={() => {
+          layoutService.toggleAuxiliaryFullscreen()
+        }}
+        tabs={tabs}
+      />
+      {body === null ? (
+        /* 理论上到不了，留一条兜底只为不画白板。 */
         <AuxiliaryLauncher offers={offers} onOpen={openOffer} />
       ) : (
-        <>
-          <AuxiliaryTabStrip
-            fullscreen={layoutState.auxiliary.fullscreen}
-            menuHeight={menuHeight}
-            menuOpen={menuOpen}
-            offers={offers}
-            onMenuHeightChange={setMenuHeight}
-            onMenuOpenChange={setMenuOpen}
-            onOpenOffer={openOffer}
-            onToggleFullscreen={() => {
-              layoutService.toggleAuxiliaryFullscreen()
-            }}
-            tabs={tabs}
-          />
-          {body === null ? (
-            /* 理论上到不了，留一条兜底只为不画白板。 */
-            <AuxiliaryLauncher offers={offers} onOpen={openOffer} />
-          ) : (
-            <div className="min-h-0 flex-1 overflow-hidden">
-              <FeatureScope featureId={body.featureId} key={body.item.id}>
-                <Suspense fallback={<PartSkeleton />}>
-                  <body.item.component />
-                </Suspense>
-              </FeatureScope>
-            </div>
-          )}
-        </>
+        <PanelBody contribution={body} />
       )}
-    </aside>
+    </>
   )
 }
 

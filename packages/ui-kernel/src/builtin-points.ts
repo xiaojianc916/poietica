@@ -1,5 +1,6 @@
 import type { ComponentType, LazyExoticComponent, ReactNode } from 'react'
 import { defineContributionPoint } from './contribution'
+import type { PanelScope } from './services/layout'
 
 export type SurfaceComponent<P = Record<string, never>> = ComponentType<P> | LazyExoticComponent<ComponentType<P>>
 export type IconComponent = ComponentType<{ className?: string }>
@@ -22,6 +23,12 @@ export interface SurfaceItem {
   readonly id: string
   readonly title: string
   readonly component: SurfaceComponent<{ params: Readonly<Record<string, string>> }>
+  /**
+   * 这一页的右坞归谁（布局服务的 activeOwner）。缺省即「没有归属」：这一页上不画右坞，开格命令也不开。
+   * 由外壳按路由统一写这一个值 —— 以前是各表面在自己的 effect 里写、设置页由外壳另写，两个写者抢同一个值，
+   * 没写的表面（自动化、代码审查）还会沿用上一页对话的坞。
+   */
+  readonly dockOwner?: (params: Readonly<Record<string, string>>) => string | null
 }
 export interface SidebarSectionItem {
   readonly id: string
@@ -81,6 +88,8 @@ export interface PanelItem {
   readonly offer?: boolean
   readonly description?: string
   readonly dockTabs?: PanelDockTabs
+  /** 服务于哪一类归属，缺省 `surface`。`settings` 的格只在设置页出现，设置页也只画这一类（不画标签条）。 */
+  readonly scope?: PanelScope
 }
 export interface SettingsPageItem {
   readonly id: string

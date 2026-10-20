@@ -4,24 +4,27 @@ import { SubagentTabsStore } from '../subagent-tabs'
 import { createSubagentDockTabs, openSubagentTab, SUBAGENT_PANEL_ID } from '../view/subagent-dock'
 
 /*
- * 布局服务的最小替身：只做这几条用例碰得到的部分，派生规则照内核（在场 = 有归属且归属正是前台；选中格 = 归属那一份的 activeId）。
- * 内核不导出工厂，功能不能深引它的实现。
+ * 布局服务的最小替身：只做这几条用例碰得到的部分，派生规则照内核（在场 = 前台那一份坞开着；选中格 = 前台那一份的 activeId；
+ * 内容归属 = 前台开着就是前台，否则保持上一位）。内核不导出工厂，功能不能深引它的实现。
  */
 function fakeLayout(): LayoutService & { setPanelSize(location: 'right', px: number): void } {
-  let owner: string | null = null
+  let shown: string | null = null
   let activeOwner: string | null = null
   let size = 420
-  let byOwner: Record<string, { ids: readonly string[]; activeId: string | null }> = {}
+  let byOwner: Record<string, { ids: readonly string[]; activeId: string | null; open: boolean }> = {}
   const listeners = new Set<() => void>()
   const fire = () => {
+    const front = activeOwner === null ? undefined : byOwner[activeOwner]
+    if (front?.open === true) shown = activeOwner
     for (const listener of [...listeners]) listener()
   }
   const state = () => {
-    const open = owner !== null && owner === activeOwner
+    const front = activeOwner === null ? undefined : byOwner[activeOwner]
+    const open = front?.open === true
     return {
       sidebar: { visible: true, width: 280 },
-      right: { open, activeId: open && owner !== null ? (byOwner[owner]?.activeId ?? null) : null, size },
-      auxiliary: { owner, activeOwner, fullscreen: false },
+      right: { open, activeId: open ? (front?.activeId ?? null) : null, size },
+      auxiliary: { owner: shown, activeOwner, fullscreen: false },
     }
   }
   const fake = {
@@ -35,18 +38,23 @@ function fakeLayout(): LayoutService & { setPanelSize(location: 'right', px: num
       activeOwner = next
       fire()
     },
-    setAuxiliaryOwner: (next: string | null) => {
-      owner = next
+    setDockOpen: (target: string, open: boolean) => {
+      byOwner = { ...byOwner, [target]: { ids: [], activeId: null, ...byOwner[target], open } }
       fire()
     },
     openPane: (target: string, paneId: string) => {
       const ids = byOwner[target]?.ids ?? []
-      byOwner = { ...byOwner, [target]: { ids: ids.includes(paneId) ? ids : [...ids, paneId], activeId: paneId } }
-      owner = target
+      byOwner = {
+        ...byOwner,
+        [target]: { ids: ids.includes(paneId) ? ids : [...ids, paneId], activeId: paneId, open: true },
+      }
       fire()
     },
     focusPane: (target: string, paneId: string) => {
-      byOwner = { ...byOwner, [target]: { ids: byOwner[target]?.ids ?? [], activeId: paneId } }
+      byOwner = {
+        ...byOwner,
+        [target]: { ids: byOwner[target]?.ids ?? [], activeId: paneId, open: byOwner[target]?.open ?? false },
+      }
       fire()
     },
     setPanelSize: (_location: 'right', px: number) => {
@@ -94,7 +102,7 @@ describe('SubagentTabsStore', () => {
 })
 
 describe('右坞的子代理组', () => {
-  test('打开即认领坞并选中子代理组；标签只报坞归属那条对话的', () => {
+  test('打开即打开这条对话的坞并选中子代理组；标签只报坞归属那条对话的', () => {
     const layout = fakeLayout()
     const store = new SubagentTabsStore()
     const tabs = createSubagentDockTabs({ layout, store, resolveTitle: (_thread, agentId) => `名字 ${agentId}` })

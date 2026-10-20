@@ -5,7 +5,19 @@ import type { ConversationSetup } from './context'
 
 /** 各条 `api.on…` 通知订阅，以及 onCoreLost / onCoreReady。 */
 export function createConversationSubscriptions(setup: ConversationSetup, actions: ConversationActions): void {
-  const { api, ctx, entryDefaults, platform, preferences, posture, sessions, stores, subagentTabs, transcripts } = setup
+  const {
+    api,
+    ctx,
+    entryDefaults,
+    layout,
+    platform,
+    preferences,
+    posture,
+    sessions,
+    stores,
+    subagentTabs,
+    transcripts,
+  } = setup
   const { draftPin, notify, openThread } = actions
 
   ctx.lifecycle.onDispose(
@@ -41,6 +53,8 @@ export function createConversationSubscriptions(setup: ConversationSetup, action
       sessions.release(p.threadId)
       /* 右坞的子代理标签按对话号记账：对话没了，它们也没有可读的转录了。 */
       subagentTabs.forget(p.threadId)
+      /* 右坞那一份（开合、格清单）同样按对话号记账；不清就只增不减，存盘里也可能留着一个已删对话的归属。 */
+      layout.forgetOwner(p.threadId)
     }).dispose,
   )
   /*

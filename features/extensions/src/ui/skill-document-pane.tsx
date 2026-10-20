@@ -183,6 +183,8 @@ export function createSkillDocumentOpener(ctx: UiFeatureContext): (document: Ski
           icon: FileText,
           /* 只由打开文档的人带进来，不出现在启动器 / 加号菜单里。 */
           offer: false,
+          /* 只属于设置页：设置页的坞只画这一格本身（没有标签条），对话的坞里也开不出它。 */
+          scope: 'settings',
           component: () => <SkillDocumentPane store={store} />,
         })
       }

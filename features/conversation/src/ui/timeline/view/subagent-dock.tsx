@@ -10,8 +10,8 @@ export const SUBAGENT_PANEL_ID = 'conversation.subagents'
 type DockTabs = NonNullable<PanelItem['dockTabs']>
 
 /**
- * 把一个子代理开进右坞：标签记在它所属对话的账上，坞的归属认领给这条对话，再把坞的选中格指到子代理组。
- * 归属与前台不一致（不在这条对话的表面上）时坞不在场，标签照样记着，回到这条对话就看得见。
+ * 把一个子代理开进右坞：标签记在它所属对话的账上，把这条对话那一份坞的选中格指到子代理组并打开它。
+ * 不在这条对话的表面上时坞不在场，标签与开合照样记着，回到这条对话就看得见；别的对话的坞不受影响。
  */
 export function openSubagentTab(
   layout: LayoutService,
@@ -21,10 +21,8 @@ export function openSubagentTab(
   title?: string,
 ): void {
   store.open(threadId, agentId, title)
-  if (layout.current().auxiliary.owner !== threadId) {
-    layout.setAuxiliaryOwner(threadId)
-  }
   layout.focusPane(threadId, SUBAGENT_PANEL_ID)
+  layout.setDockOpen(threadId, true)
 }
 
 /**

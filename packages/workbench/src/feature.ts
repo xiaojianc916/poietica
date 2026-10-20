@@ -6,6 +6,7 @@ import {
   NavigationToken,
   type Route,
   SETTINGS_GROUPS,
+  SETTINGS_OWNER,
 } from '@poietica/ui-kernel'
 import { closePalette, openPalette, subscribePalette } from './palette-state'
 import { SettingsContentRegion } from './parts/settings-regions'
@@ -90,6 +91,8 @@ export const workbenchFeature = defineUiFeature({
       id: 'workbench.settings',
       title: '设置',
       component: SettingsContentRegion,
+      /* 设置页的右坞只给设置自己的格用（技能文档），与任何一条对话的坞都不相干。 */
+      dockOwner: () => SETTINGS_OWNER,
     })
   },
 })

@@ -54,7 +54,8 @@ export function ConversationAuxiliaryToggle({ layout }: { readonly layout: Layou
 
   if (threadId === null) return null
 
-  const open = state.auxiliary.owner === threadId
+  /* 开关只认这条对话自己那一份：在场 = 前台（就是这条对话）的坞开着。 */
+  const open = state.right.open && state.auxiliary.owner === threadId
   const label = open ? '收起辅助面板' : '打开辅助面板'
   return (
     <button
@@ -63,7 +64,7 @@ export function ConversationAuxiliaryToggle({ layout }: { readonly layout: Layou
       aria-label={label}
       className={controlClass}
       onClick={() => {
-        layout.setAuxiliaryOwner(open ? null : threadId)
+        layout.setDockOpen(threadId, !open)
       }}
       type="button"
     >

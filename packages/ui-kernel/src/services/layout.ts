@@ -7,8 +7,12 @@ export interface PanelDockState {
 }
 
 /**
- * 右坞的归属状态。`owner` 是这一格归谁（由开格或坞的开关直接写），`activeOwner` 是当前前台（表面在 effect 里声明）。
- * 两者相等且 owner 非空时右坞才在场；`fullscreen` 是瞬时全屏态，不落盘。
+ * 右坞的归属状态。坞的开合、格清单与选中格都**按归属分账**（见 {@link DockPanesState}），这里只放跨归属的三格：
+ *
+ * - `activeOwner`：当前前台，由外壳按路由写（表面贡献的 `dockOwner`），是唯一的写者；
+ * - `owner`：坞里此刻画的是谁的内容（派生）。前台的坞开着就是前台；前台的坞没开时保持上一位 ——
+ *   收起 / 换前台的过渡期间坞里的内容不换人，不会先闪一下启动器再滑走。归属被遗忘时清空；
+ * - `fullscreen`：瞬时全屏态，不落盘；坞离场（收起或换前台）即作废。
  */
 export interface AuxiliaryState {
   readonly owner: string | null
@@ -22,18 +26,35 @@ export interface LayoutState {
   readonly auxiliary: AuxiliaryState
 }
 
+/** 一个归属自己的那一份坞：开没开、开着哪几格、选中哪一格。 */
 export interface DockPaneSet {
   readonly ids: readonly string[]
   readonly activeId: string | null
+  readonly open: boolean
 }
 
 /**
- * 各归属的格清单。**瞬时态、不落盘**：它不进 LayoutState，所以 preferences 存盘时不会带上它，restore 也不会写回来。
+ * 各归属的那一份坞。**瞬时态、不落盘**：它不进 LayoutState，所以 preferences 存盘时不会带上它，restore 也不会写回来
+ * （restore 只按存盘时在场的那一位补一条 `open`）。
  * 单独一个 Observable 是因为坞只订阅它：列宽每帧变时，标签条不必跟着整棵外壳重画。
  */
 export interface DockPanesState {
   readonly byOwner: Readonly<Record<string, DockPaneSet>>
 }
+
+/**
+ * 设置页那一位归属。设置是外壳自己的表面，右坞在这里只为设置页自己的面板服务（技能文档）：
+ * 不画标签条、启动器与加号菜单，也不收别的面板（见 {@link PanelScope}）。
+ */
+export const SETTINGS_OWNER = 'settings'
+
+/**
+ * 一块右坞面板服务于哪一类归属：`surface`（缺省）是普通表面（对话等），`settings` 只在设置页出现。
+ * 写反了的开格请求（设置页里开浏览器、对话里开技能文档）在布局服务这一层就被拒，坞那一层再按同一条规则筛一遍。
+ */
+export type PanelScope = 'surface' | 'settings'
+
+const scopeOfOwner = (owner: string): PanelScope => (owner === SETTINGS_OWNER ? 'settings' : 'surface')
 
 /** 右坞默认宽度：560。420 时 agent 驾驶内置浏览器只剩一条窄页，操作过程看不清；560 在默认 1280 窗口下仍给主列留下 440。 */
 export const DEFAULT_PANEL_WIDTH = 560
@@ -124,25 +145,30 @@ export interface LayoutService extends Observable<LayoutState> {
   toggleSidebar(): void
   setSidebarWidth(px: number): void
   /**
-   * 打开一个面板坞，归属是**当前前台**（`auxiliary.activeOwner`）；入口页没有前台时命令不开坞。
+   * 在**当前前台**（`auxiliary.activeOwner`）的坞里开一格并打开坞；没有前台（入口页等）时命令不开坞，
+   * 面板与前台的 {@link PanelScope} 对不上时也不开。
    */
   openPanel(location: 'right', panelId: string): void
   togglePanel(location: 'right', panelId?: string): void
+  /** 收起当前前台的坞（格清单保留，再打开原样还在）。 */
   closePanel(location: 'right'): void
   setPanelSize(location: 'right', px: number): void
 
   readonly panes: Observable<DockPanesState>
-  /** 与坞的 owner 不一致即面板离场、全屏作废。 */
+  /** 由外壳按路由写（唯一的写者）。换前台即全屏作废；新前台的坞开没开看它自己那一份。 */
   setActiveOwner(owner: string | null): void
-  /** 把坞认领给某个归属；传 null 收起，收起时全屏态一并作废。 */
-  setAuxiliaryOwner(owner: string | null): void
-  /** 开一格（去重）并选中它，同时把坞的归属改到该 owner（不改 activeOwner）。 */
+  /**
+   * 开 / 收某个归属自己的坞，不碰别的归属：在对话 A 开坞不会收掉对话 B 的。
+   * 设置页没有启动器，一格都没开时打不开（打开也只是一块空白）。
+   */
+  setDockOpen(owner: string, open: boolean): void
+  /** 开一格（去重）并选中它，同时打开该归属的坞（不改 activeOwner）。 */
   openPane(owner: string, paneId: string): void
+  /** 设置页关掉最后一格即收起：那里没有启动器可以退回。 */
   closePane(owner: string, paneId: string): void
-  /** 允许 dockTabs 组 id（不在 ids 里也写）。 */
+  /** 只换选中格、不改开合。允许 dockTabs 组 id（不在 ids 里也写）。 */
   focusPane(owner: string, paneId: string): void
-  setPanelActive(location: 'right', panelId: string | null): void
-  /** 归属消失（对话被删等）：清掉它的格与坞 / 前台引用，并作废全屏。 */
+  /** 归属消失（对话被删等）：清掉它那一份坞与前台 / 内容引用，并作废全屏。 */
   forgetOwner(owner: string): void
   setAuxiliaryFullscreen(fullscreen: boolean): void
   toggleAuxiliaryFullscreen(): void
@@ -167,24 +193,45 @@ export interface LayoutService extends Observable<LayoutState> {
 const clamp = (v: number, [min, max]: readonly [number, number]): number => Math.min(max, Math.max(min, Math.round(v)))
 
 /**
- * `right.open` / `right.activeId` 是派生的，不单独记账：在场 = 坞有归属且归属正是当前前台；
- * 活动格 = 当前归属格清单里的选中格，不在场时恒为 null。派生在一处算，不变量就不会因为某条写入路径忘了同步而破。
+ * `right.open` / `right.activeId` / `auxiliary.owner` 都是派生的，不单独记账：在场 = 前台那一份坞开着；
+ * 活动格 = 前台那一份的选中格，不在场时恒为 null；内容归属见 {@link AuxiliaryState}。
+ * 派生在一处算，不变量就不会因为某条写入路径忘了同步而破。
  */
-function deriveRight(state: LayoutState, panes: DockPanesState): LayoutState {
-  const { owner, activeOwner } = state.auxiliary
-  const open = owner !== null && owner === activeOwner
-  const activeId = owner !== null && open ? (panes.byOwner[owner]?.activeId ?? null) : null
-  if (state.right.open === open && state.right.activeId === activeId) return state
-  return { ...state, right: { ...state.right, open, activeId } }
+function derive(state: LayoutState, panes: DockPanesState): LayoutState {
+  const { activeOwner } = state.auxiliary
+  const set = activeOwner === null ? undefined : panes.byOwner[activeOwner]
+  const open = set?.open === true
+  const activeId = open ? (set.activeId ?? null) : null
+  const kept = state.auxiliary.owner
+  const owner = open ? activeOwner : kept !== null && panes.byOwner[kept] !== undefined ? kept : null
+  const fullscreen = open && state.auxiliary.fullscreen
+  if (
+    state.right.open === open &&
+    state.right.activeId === activeId &&
+    state.auxiliary.owner === owner &&
+    state.auxiliary.fullscreen === fullscreen
+  ) {
+    return state
+  }
+  return {
+    ...state,
+    right: { ...state.right, open, activeId },
+    auxiliary: { ...state.auxiliary, owner, fullscreen },
+  }
 }
 
-export function createLayoutService(): LayoutService {
+export interface LayoutServiceOptions {
+  /** 某块面板服务于哪一类归属；认不得的 id（还没贡献的面板）返回 undefined，按「不拦」处理，坞那一层再筛。 */
+  readonly scopeOf?: (panelId: string) => PanelScope | undefined
+}
+
+export function createLayoutService(options: LayoutServiceOptions = {}): LayoutService {
   const v = createValue<LayoutState>(DEFAULT_LAYOUT)
   const panesValue = createValue<DockPanesState>({ byOwner: {} })
 
-  /** 格清单与布局状态一起换：订阅者看不到「归属换了、格还没进去」的中间态。 */
+  /** 格清单与布局状态一起换：订阅者看不到「开合换了、格还没进去」的中间态。 */
   const commit = (state: LayoutState, panes: DockPanesState): void => {
-    const next = deriveRight(state, panes)
+    const next = derive(state, panes)
     if (panes !== panesValue.current()) panesValue.set(panes)
     if (next !== v.current()) v.set(next)
   }
@@ -193,94 +240,80 @@ export function createLayoutService(): LayoutService {
     commit(fn(v.current()), panesValue.current())
   }
 
-  const updateAuxiliary = (fn: (a: AuxiliaryState) => AuxiliaryState): void => {
-    const state = v.current()
-    const auxiliary = fn(state.auxiliary)
-    if (
-      auxiliary.owner === state.auxiliary.owner &&
-      auxiliary.activeOwner === state.auxiliary.activeOwner &&
-      auxiliary.fullscreen === state.auxiliary.fullscreen
-    ) {
-      return
-    }
-    commit({ ...state, auxiliary }, panesValue.current())
+  const admits = (owner: string, paneId: string): boolean => {
+    const scope = options.scopeOf?.(paneId)
+    return scope === undefined || scope === scopeOfOwner(owner)
+  }
+
+  /** 改某个归属自己的那一份；fn 返回同一个对象即「没变」，不发通知。 */
+  const updateSet = (owner: string, fn: (current: DockPaneSet | undefined) => DockPaneSet | undefined): void => {
+    const panes = panesValue.current()
+    const current = panes.byOwner[owner]
+    const next = fn(current)
+    if (next === current || next === undefined) return
+    commit(v.current(), { byOwner: { ...panes.byOwner, [owner]: next } })
   }
 
   const openPane = (owner: string, paneId: string): void => {
-    const state = v.current()
-    const panes = panesValue.current()
-    const current = panes.byOwner[owner]
-    const alreadyOpen = current?.ids.includes(paneId) === true
-    const ids = alreadyOpen ? current.ids : [...(current?.ids ?? []), paneId]
-    const ownerChanged = state.auxiliary.owner !== owner
-    const panesChanged = current === undefined || current.activeId !== paneId || !alreadyOpen
-    if (!ownerChanged && !panesChanged) return
-    commit(
-      ownerChanged ? { ...state, auxiliary: { ...state.auxiliary, owner } } : state,
-      panesChanged ? { byOwner: { ...panes.byOwner, [owner]: { ids, activeId: paneId } } } : panes,
-    )
-  }
-
-  const closePane = (owner: string, paneId: string): void => {
-    const panes = panesValue.current()
-    const current = panes.byOwner[owner]
-    if (current === undefined || !current.ids.includes(paneId)) return
-    const ids = current.ids.filter((id) => id !== paneId)
-    /* 只有关掉的正是当前选中格才挪焦点（落到剩余最后一格，空则 null）；全空后坞回到启动器。 */
-    const activeId = current.activeId === paneId ? (ids.at(-1) ?? null) : current.activeId
-    commit(v.current(), { byOwner: { ...panes.byOwner, [owner]: { ids, activeId } } })
-  }
-
-  const focusPane = (owner: string, paneId: string): void => {
-    const panes = panesValue.current()
-    const current = panes.byOwner[owner]
-    if (current !== undefined && current.activeId === paneId) return
-    commit(v.current(), {
-      byOwner: { ...panes.byOwner, [owner]: { ids: current?.ids ?? [], activeId: paneId } },
+    if (!admits(owner, paneId)) return
+    updateSet(owner, (current) => {
+      const alreadyOpen = current?.ids.includes(paneId) === true
+      if (alreadyOpen && current.activeId === paneId && current.open) return current
+      return { ids: alreadyOpen ? current.ids : [...(current?.ids ?? []), paneId], activeId: paneId, open: true }
     })
   }
 
-  const setAuxiliaryOwner = (owner: string | null): void => {
-    updateAuxiliary((current) => ({
-      ...current,
-      owner,
-      /* 收起即离场：全屏是那一格此刻的瞬时态，面板不在了就作废。 */
-      fullscreen: owner === null ? false : current.fullscreen,
-    }))
+  const closePane = (owner: string, paneId: string): void => {
+    updateSet(owner, (current) => {
+      if (current === undefined || !current.ids.includes(paneId)) return current
+      const ids = current.ids.filter((id) => id !== paneId)
+      /* 只有关掉的正是当前选中格才挪焦点（落到剩余最后一格，空则 null）；全空后坞回到启动器 —— 设置页没有启动器，直接收起。 */
+      const activeId = current.activeId === paneId ? (ids.at(-1) ?? null) : current.activeId
+      const open = current.open && !(ids.length === 0 && scopeOfOwner(owner) === 'settings')
+      return { ids, activeId, open }
+    })
+  }
+
+  const focusPane = (owner: string, paneId: string): void => {
+    if (!admits(owner, paneId)) return
+    updateSet(owner, (current) =>
+      current?.activeId === paneId
+        ? current
+        : { ids: current?.ids ?? [], activeId: paneId, open: current?.open ?? false },
+    )
+  }
+
+  const setDockOpen = (owner: string, open: boolean): void => {
+    updateSet(owner, (current) => {
+      if ((current?.open ?? false) === open) return current
+      if (open && scopeOfOwner(owner) === 'settings' && (current?.ids.length ?? 0) === 0) return current
+      return { ids: current?.ids ?? [], activeId: current?.activeId ?? null, open }
+    })
   }
 
   const setActiveOwner = (owner: string | null): void => {
-    updateAuxiliary((current) => ({
-      ...current,
-      activeOwner: owner,
-      /* 前台换人 = 这一格离场：全屏瞬时态作废，但 owner 与格清单保留。 */
-      fullscreen: current.owner !== owner ? false : current.fullscreen,
-    }))
+    const state = v.current()
+    if (state.auxiliary.activeOwner === owner) return
+    /* 前台换人 = 这一格离场：全屏瞬时态作废，各归属的开合与格清单原样保留。 */
+    commit({ ...state, auxiliary: { ...state.auxiliary, activeOwner: owner, fullscreen: false } }, panesValue.current())
   }
 
   const forgetOwner = (owner: string): void => {
     const state = v.current()
     const panes = panesValue.current()
-    const ownsDock = state.auxiliary.owner === owner
     const ownsFront = state.auxiliary.activeOwner === owner
-    if (panes.byOwner[owner] === undefined && !ownsDock && !ownsFront) return
+    if (panes.byOwner[owner] === undefined && !ownsFront && state.auxiliary.owner !== owner) return
     const byOwner = { ...panes.byOwner }
     delete byOwner[owner]
     const auxiliary: AuxiliaryState = {
-      owner: ownsDock ? null : state.auxiliary.owner,
+      ...state.auxiliary,
       activeOwner: ownsFront ? null : state.auxiliary.activeOwner,
-      fullscreen: ownsDock || ownsFront ? false : state.auxiliary.fullscreen,
+      fullscreen: ownsFront ? false : state.auxiliary.fullscreen,
     }
     commit({ ...state, auxiliary }, { byOwner })
   }
 
   /* location 参数只有一个取值，留在签名里是为了调用点读起来仍是「哪一块坞」。 */
-  const setPanelActive = (_location: 'right', panelId: string | null): void => {
-    const owner = v.current().auxiliary.owner
-    if (owner === null || panelId === null) return
-    focusPane(owner, panelId)
-  }
-
   const openPanel = (_location: 'right', panelId: string): void => {
     const owner = v.current().auxiliary.activeOwner
     if (owner === null) return
@@ -289,29 +322,29 @@ export function createLayoutService(): LayoutService {
 
   const togglePanel = (_location: 'right', panelId?: string): void => {
     const state = v.current()
-    if (state.right.open && (panelId === undefined || state.right.activeId === panelId)) {
-      setAuxiliaryOwner(null)
-      return
-    }
     const owner = state.auxiliary.activeOwner
     if (owner === null) return
-    if (panelId === undefined) {
-      setAuxiliaryOwner(owner)
+    if (state.right.open && (panelId === undefined || state.right.activeId === panelId)) {
+      setDockOpen(owner, false)
       return
     }
-    openPanel('right', panelId)
+    if (panelId === undefined) {
+      setDockOpen(owner, true)
+      return
+    }
+    openPane(owner, panelId)
   }
 
   const closePanel = (_location: 'right'): void => {
-    setAuxiliaryOwner(null)
+    const owner = v.current().auxiliary.activeOwner
+    if (owner !== null) setDockOpen(owner, false)
   }
 
-  const setAuxiliaryFullscreen = (fullscreen: boolean): void => {
-    updateAuxiliary((current) => ({ ...current, fullscreen }))
-  }
-
-  const toggleAuxiliaryFullscreen = (): void => {
-    updateAuxiliary((current) => ({ ...current, fullscreen: !current.fullscreen }))
+  const setFullscreen = (fn: (current: boolean) => boolean): void => {
+    const state = v.current()
+    const fullscreen = fn(state.auxiliary.fullscreen)
+    if (fullscreen === state.auxiliary.fullscreen) return
+    commit({ ...state, auxiliary: { ...state.auxiliary, fullscreen } }, panesValue.current())
   }
 
   /* 交互态自己一个 Observable：外壳必须跟着它重画，否则 data-splitter 永远停在 idle。 */
@@ -342,14 +375,17 @@ export function createLayoutService(): LayoutService {
     closePanel,
     setPanelSize: (loc, px) => update((s) => ({ ...s, [loc]: { ...s[loc], size: clamp(px, LAYOUT_LIMITS[loc]) } })),
     setActiveOwner,
-    setAuxiliaryOwner,
+    setDockOpen,
     openPane,
     closePane,
     focusPane,
-    setPanelActive,
     forgetOwner,
-    setAuxiliaryFullscreen,
-    toggleAuxiliaryFullscreen,
+    setAuxiliaryFullscreen: (fullscreen) => {
+      setFullscreen(() => fullscreen)
+    },
+    toggleAuxiliaryFullscreen: () => {
+      setFullscreen((current) => !current)
+    },
     setSplitterActivity: (activity, region) => {
       // 一侧正在拖时，另一侧的悬停不夺焦点
       if (splitter === 'drag' && region !== splitterRegion) return
@@ -378,33 +414,41 @@ export function createLayoutService(): LayoutService {
       const num = (x: unknown, d: number): number => (typeof x === 'number' && Number.isFinite(x) ? x : d)
       const bool = (x: unknown, d: boolean): boolean => (typeof x === 'boolean' ? x : d)
       const str = (x: unknown): string | null => (typeof x === 'string' ? x : null)
-      const dock = (
-        x: Record<string, unknown> | undefined,
-        d: PanelDockState,
-        lim: readonly [number, number],
-      ): PanelDockState => ({
-        open: bool(x?.open, d.open),
-        activeId: str(x?.activeId),
-        size: clamp(num(x?.size, d.size), lim),
-      })
       const sidebar = section(r.sidebar)
-      /*
-       * 兼容旧数据：旧形状只有 right.open / right.activeId，没有 auxiliary。归属只认 auxiliary.owner；
-       * activeOwner / fullscreen 是运行期状态，读盘时恒为 null / false，restore 之后由前台表面 setActiveOwner。
-       */
+      const right = section(r.right)
       const auxiliary = section(r.auxiliary)
-      v.set(
-        deriveRight(
-          {
-            sidebar: {
-              visible: bool(sidebar?.visible, true),
-              width: clamp(num(sidebar?.width, 280), LAYOUT_LIMITS.sidebar),
+      /*
+       * 存盘里只有「存盘那一刻坞里画的是谁、在不在场」：在场才给那一位补一条 open，格清单不落盘（再打开是启动器）。
+       * 设置页那一位不补：技能文档那一格是随文档现开的瞬时格，重启后没有文档可看，补出来只是一块空白。
+       * activeOwner 是运行期状态、由外壳按路由写；读盘是异步的，可能晚于外壳首次写前台，所以**保留**当前值而不是清空，
+       * 否则启动后第一屏对话的坞要等换一次页才出来。旧形状（没有 auxiliary）只恢复宽度。
+       */
+      const owner = str(auxiliary?.owner)
+      const reopen = owner !== null && owner !== SETTINGS_OWNER && bool(right?.open, false)
+      const panes = panesValue.current()
+      const seeded = reopen
+        ? {
+            byOwner: {
+              ...panes.byOwner,
+              [owner]: {
+                ids: panes.byOwner[owner]?.ids ?? [],
+                activeId: panes.byOwner[owner]?.activeId ?? null,
+                open: true,
+              },
             },
-            right: dock(section(r.right), DEFAULT_LAYOUT.right, LAYOUT_LIMITS.right),
-            auxiliary: { owner: str(auxiliary?.owner), activeOwner: null, fullscreen: false },
+          }
+        : panes
+      const state = v.current()
+      commit(
+        {
+          sidebar: {
+            visible: bool(sidebar?.visible, true),
+            width: clamp(num(sidebar?.width, 280), LAYOUT_LIMITS.sidebar),
           },
-          panesValue.current(),
-        ),
+          right: { ...state.right, size: clamp(num(right?.size, DEFAULT_LAYOUT.right.size), LAYOUT_LIMITS.right) },
+          auxiliary: { owner: reopen ? owner : null, activeOwner: state.auxiliary.activeOwner, fullscreen: false },
+        },
+        seeded,
       )
     },
   }

@@ -1,7 +1,7 @@
 import { Button, TooltipProvider } from '@poietica/design-system'
 import { builtinPoints, FeatureScope, useContributions, useKernel, useLayout, useObservable } from '@poietica/ui-kernel'
 import { PanelLeft, Search } from 'lucide-react'
-import { type ReactNode, Suspense, useCallback, useEffect, useLayoutEffect, useMemo, useSyncExternalStore } from 'react'
+import { type ReactNode, Suspense, useCallback, useLayoutEffect, useMemo, useSyncExternalStore } from 'react'
 import { closePalette, openPalette, paletteSnapshot, subscribePalette } from './palette-state'
 import { AuxiliaryDock } from './parts/auxiliary-dock'
 import { Banners } from './parts/banners'
@@ -42,10 +42,15 @@ export function Workbench(): ReactNode {
   /* 列宽与分隔条范围只读有效几何：sidebar.width / right.size 是意图，放不下时画出来的会比它窄。 */
   const geometry = useObservable(kernel.kernelServices.layout.geometry)
   const layoutService = kernel.kernelServices.layout
-  /* 打开设置时把辅助面板归属切到设置那一格。**关闭时不写**：目标表面自己声明当前前台，写在这里会与它的 effect 抢同一个值。 */
-  useEffect(() => {
-    if (isSettingsOpen) layoutService.setActiveOwner('settings')
-  }, [isSettingsOpen, layoutService])
+  /*
+   * 右坞的前台归属只有这一个写者：按路由查表面贡献的 dockOwner（设置页的那一条在 feature.ts）。layout effect 赶在所有
+   * 子组件的普通 effect 之前落定，表面挂载时发起的开格请求读到的就是新前台。
+   */
+  const surfaces = useContributions(builtinPoints.surfaces)
+  const dockOwner = surfaces.find((c) => c.item.id === route.surface)?.item.dockOwner?.(route.params) ?? null
+  useLayoutEffect(() => {
+    layoutService.setActiveOwner(dockOwner)
+  }, [dockOwner, layoutService])
   const toggleSidebar = useCallback(() => layoutService.toggleSidebar(), [layoutService])
   const resizeSidebar = useCallback((w: number) => layoutService.setSidebarWidth(w), [layoutService])
   const resizeAuxiliary = useCallback((w: number) => layoutService.setPanelSize('right', w), [layoutService])
