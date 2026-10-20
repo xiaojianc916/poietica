@@ -87,7 +87,7 @@ export function createUiKernel(opts: UiKernelOptions): UiKernel {
             await h.fn()
           } catch (e) {
             logger.error('onCoreReady failed', { feature: h.featureId, error: String(e) })
-            kernelServices.toasts.error(e, `${h.featureId} 数据加载失败`)
+            kernelServices.banners.error(e, `${h.featureId} 数据加载失败`)
           }
         }
       }),

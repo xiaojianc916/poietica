@@ -37,7 +37,6 @@ export { ErrorState, InlineSpinner, LoadingState } from './control/feedback'
 export { SegmentedControl, type SegmentedOption } from './control/segmented-control'
 export { Select, type SelectOption } from './control/select'
 export { Switch } from './control/switch'
-export { ToastRegion } from './control/toast'
 export {
   Tooltip,
   TooltipContent,

@@ -1,5 +1,6 @@
 import { systemContract } from '@poietica/contract-kit'
 import {
+  BannersToken,
   builtinPoints,
   type CommandItem,
   defineUiFeature,
@@ -7,7 +8,6 @@ import {
   NavigationToken,
   SETTINGS_GROUPS,
   type SettingsPageItem,
-  ToastsToken,
   UiLoggingToken,
   useCoreStatus,
 } from '@poietica/ui-kernel'
@@ -36,7 +36,7 @@ export default defineUiFeature({
     const system = ctx.rpc(systemContract)
     const navigation = ctx.services.get(NavigationToken)
     const logging = ctx.services.get(UiLoggingToken)
-    ctx.services.get(ToastsToken)
+    ctx.services.get(BannersToken)
 
     logging.setSink((entries) => {
       void api.logWrite(entries).catch(() => undefined)

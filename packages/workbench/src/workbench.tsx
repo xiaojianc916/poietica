@@ -4,6 +4,7 @@ import { PanelLeft, Search } from 'lucide-react'
 import { type ReactNode, Suspense, useCallback, useEffect, useLayoutEffect, useMemo, useSyncExternalStore } from 'react'
 import { closePalette, openPalette, paletteSnapshot, subscribePalette } from './palette-state'
 import { AuxiliaryDock } from './parts/auxiliary-dock'
+import { Banners } from './parts/banners'
 import { CommandPalette } from './parts/command-palette'
 import { ConfirmHost } from './parts/confirm-host'
 import { MainArea } from './parts/main-area'
@@ -12,7 +13,6 @@ import { PartSkeleton } from './parts/part-skeleton'
 import { AuxiliaryRegion, SidebarRegion } from './parts/regions'
 import { SettingsContentRegion, SettingsNavigation } from './parts/settings-regions'
 import { SidebarFooter } from './parts/sidebar-footer'
-import { Toasts } from './parts/toasts'
 import { WorkspaceFrame } from './parts/workspace-frame'
 import { WorkspaceSidebar } from './parts/workspace-sidebar'
 
@@ -167,7 +167,7 @@ export function Workbench(): ReactNode {
         }}
         open={paletteOpen}
       />
-      <Toasts />
+      <Banners />
       <ConfirmHost />
     </TooltipProvider>
   )

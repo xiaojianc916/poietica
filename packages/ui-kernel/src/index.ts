@@ -36,6 +36,10 @@ export {
 export { FeatureScope, KernelProvider, useFeatureId, useKernel } from './react/kernel-context'
 export {
   type AuxiliaryState,
+  type BannerNotice,
+  type BannerService,
+  type BannerSeverity,
+  BannersToken,
   type CommandService,
   CommandsToken,
   type CoreStatus,
@@ -65,9 +69,6 @@ export {
   registerKernelServices,
   type SplitterActivity,
   type SplitterRegion,
-  type Toast,
-  type ToastService,
-  ToastsToken,
   type UiLogEntry,
   type UiLogging,
   UiLoggingToken,

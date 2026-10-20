@@ -12,7 +12,7 @@
  * 下，是共享同一 stacking context 的兄弟节点。在对话框内打开菜单或下拉是常规场景，popover
  * 低于 dialog 会让弹层被对话框整块盖住。
  *
- * toast 高于 popover：toast 固定在角落且不拦截自身矩形外的指针事件，反过来会出现"报错提示
+ * banner 高于 popover：banner 固定在顶部且不拦截自身矩形外的指针事件，反过来会出现"报错提示
  * 被一个下拉框遮住"。
  *
  * chrome 是窗口装饰，压在所有浮层之上：致命屏的标题栏必须在场，被任何一个弹层盖住，那个窗口
@@ -22,6 +22,6 @@
   --ui-z-floating: 40;
   --ui-z-dialog: 100;
   --ui-z-popover: 110;
-  --ui-z-toast: 120;
+  --ui-z-banner: 120;
   --ui-z-chrome: 130;
 }

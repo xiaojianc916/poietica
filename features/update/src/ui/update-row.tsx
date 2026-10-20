@@ -1,6 +1,6 @@
 import { DropdownMenuItem } from '@poietica/design-system'
 import type { ConversationUi } from '@poietica/feature-conversation/ui-api'
-import { type DialogService, type ToastService, useFeatureStore } from '@poietica/ui-kernel'
+import { type BannerService, type DialogService, useFeatureStore } from '@poietica/ui-kernel'
 import { Download, LoaderCircle } from 'lucide-react'
 import type { ReactElement } from 'react'
 import type { UpdateState } from '../contract'
@@ -15,13 +15,13 @@ export function UpdateRow({
   conversation,
   dialogs,
   store,
-  toasts,
+  banners,
 }: {
   readonly api: UpdateApi
   readonly conversation: ConversationUi
   readonly dialogs: DialogService
   readonly store: UpdateUiStore
-  readonly toasts: ToastService
+  readonly banners: BannerService
 }): ReactElement {
   const state = useFeatureStore(store.store, (held) => held.state)
   const phase = state?.phase ?? null
@@ -46,11 +46,11 @@ export function UpdateRow({
             if (next.phase === 'idle') {
               store.announceLatest()
             } else if (next.phase === 'error') {
-              toasts.show({ severity: 'error', title: next.error ?? '检查更新失败' })
+              banners.show({ severity: 'error', title: next.error ?? '检查更新失败' })
             }
           },
           (e: unknown) => {
-            toasts.error(e, '检查更新失败')
+            banners.error(e, '检查更新失败')
           },
         )
       }}

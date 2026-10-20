@@ -1,8 +1,8 @@
 import { Button, SettingRow, SettingsGroup, SettingsPage } from '@poietica/design-system'
 import {
+  BannersToken,
   builtinPoints,
   FeatureScope,
-  ToastsToken,
   useContributions,
   useCoreStatus,
   useService,
@@ -74,7 +74,7 @@ function AboutSections(): ReactElement | null {
 }
 
 export function AboutPage({ api }: { readonly api: PlatformApi }): ReactElement {
-  const toasts = useService(ToastsToken)
+  const banners = useService(BannersToken)
   const coreStatus = useCoreStatus()
   const [info, setInfo] = useState<AppInfo | null>(null)
   const [diag, setDiag] = useState<CoreDiagnostics | null>(null)
@@ -103,7 +103,7 @@ export function AboutPage({ api }: { readonly api: PlatformApi }): ReactElement 
     try {
       await navigator.clipboard.writeText(text)
     } catch (e) {
-      toasts.error(e, '复制失败')
+      banners.error(e, '复制失败')
     }
   }
 

@@ -1,6 +1,6 @@
 import { ConversationUiToken, toolCallRenderers } from '@poietica/feature-conversation/ui-api'
 import { platformContract } from '@poietica/feature-platform/contract'
-import { defineUiFeature, ToastsToken } from '@poietica/ui-kernel'
+import { BannersToken, defineUiFeature } from '@poietica/ui-kernel'
 import { intelligentUiContract } from '../contract'
 import { createIntelligentUiCard } from './card'
 
@@ -16,7 +16,7 @@ export default defineUiFeature({
   dependsOn: ['conversation', 'platform'],
   setup(ctx) {
     const conversation = ctx.services.get(ConversationUiToken)
-    const toasts = ctx.services.get(ToastsToken)
+    const banners = ctx.services.get(BannersToken)
     const platform = ctx.rpc(platformContract)
     const rpc = ctx.rpc(intelligentUiContract)
 
@@ -46,11 +46,11 @@ export default defineUiFeature({
         showInFolder: (path) => {
           void platform.call('shell.showInFolder', { path })
         },
-        toast: (toast) => {
-          toasts.show(toast)
+        banner: (banner) => {
+          banners.show(banner)
         },
-        toastError: (cause, title) => {
-          toasts.error(cause, title)
+        bannerError: (cause, title) => {
+          banners.error(cause, title)
         },
       }),
     })

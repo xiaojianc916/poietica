@@ -1,16 +1,16 @@
 import { describe, expect, test } from 'bun:test'
 import { builtinPoints } from '../builtin-points'
 import { ContributionRegistry } from '../contribution'
+import { createBannerService } from '../services/banners'
 import { createCommandService } from '../services/commands'
 import { createKeybindingService, normalizeKeyEvent } from '../services/keybindings'
-import { createToastService } from '../services/toasts'
 
 function setup() {
   const registry = new ContributionRegistry()
-  const toasts = createToastService({})
-  const commands = createCommandService(registry, toasts, { ...consoleLogger })
+  const banners = createBannerService({})
+  const commands = createCommandService(registry, banners, { ...consoleLogger })
   const keybindings = createKeybindingService(registry, commands)
-  return { registry, commands, keybindings, toasts }
+  return { registry, commands, keybindings, banners }
 }
 
 const consoleLogger = {
@@ -181,14 +181,14 @@ describe('快捷键服务', () => {
 
 describe('命令服务', () => {
   test('未知命令只记 warn，不抛错', async () => {
-    const { commands, toasts } = setup()
+    const { commands, banners } = setup()
     await expect(commands.execute('nope')).resolves.toBeUndefined()
-    /* 未知命令不是失败：不弹 toast，静默收场。 */
-    expect(toasts.current()).toEqual([])
+    /* 未知命令不是失败：不弹横幅，静默收场。 */
+    expect(banners.current()).toEqual([])
   })
 
-  test('命令抛错时显示 toast', async () => {
-    const { registry, commands, toasts } = setup()
+  test('命令抛错时显示横幅', async () => {
+    const { registry, commands, banners } = setup()
     registry.add(builtinPoints.commands, 'a', {
       id: 'a.bad',
       title: '坏命令',
@@ -197,8 +197,8 @@ describe('命令服务', () => {
       },
     })
     await commands.execute('a.bad')
-    expect(toasts.current().length).toBe(1)
-    expect(toasts.current()[0]!.title).toContain('坏命令')
+    expect(banners.current().length).toBe(1)
+    expect(banners.current()[0]!.title).toContain('坏命令')
   })
 
   test('isEnabled', () => {

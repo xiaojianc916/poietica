@@ -17,7 +17,7 @@ interface Held {
   readonly store: PrStore
   refs: number
   stop: (() => void) | null
-  /* 报错走最新一次渲染给的那个回调（它闭包着 toasts / logger），store 本身不必重建。 */
+  /* 报错走最新一次渲染给的那个回调（它闭包着 banners / logger），store 本身不必重建。 */
   report: PrFailureReport
 }
 

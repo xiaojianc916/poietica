@@ -45,7 +45,7 @@ export function ConversationTodoPopover({
   /*
    * 「提交或推送」那一行开审查面：审查面由 review 贡献，打开它走命令 id（跨功能只经
    * 贡献点 / 命令协作，conversation 不 import review）。命令失败由 CommandService
-   * 自己记账（logger + toast），这里再兜一层，不让它冒泡。
+   * 自己记账（logger + 横幅），这里再兜一层，不让它冒泡。
    */
   const openReview = useCallback(() => {
     if (onOpenReview !== undefined) {

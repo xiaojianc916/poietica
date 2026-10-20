@@ -1,5 +1,5 @@
 import { platformContract } from '@poietica/feature-platform/contract'
-import { defineUiFeature, ToastsToken } from '@poietica/ui-kernel'
+import { BannersToken, defineUiFeature } from '@poietica/ui-kernel'
 import type { Attachment } from '../contract'
 import { AttachmentsUiToken } from '../ui-api'
 import { createAttachmentsApi } from './api'
@@ -22,7 +22,7 @@ export default defineUiFeature({
   setup(ctx) {
     const api = createAttachmentsApi(ctx)
     const platform = ctx.rpc(platformContract)
-    const toasts = ctx.services.get(ToastsToken)
+    const banners = ctx.services.get(BannersToken)
 
     /* 正在登记的草稿视图。Core 换代时每一份都要无条件重发（上一代 Core 收到的引用不算数）。 */
     const tracked = new Set<DraftRefSync>()
@@ -34,12 +34,12 @@ export default defineUiFeature({
       tracked.clear()
     })
 
-    /* 归附件库的事件：入库失败报一条 toast，事件仍算被吃掉（交回空数组，草稿里不多出东西）。 */
+    /* 归附件库的事件：入库失败报一条横幅，事件仍算被吃掉（交回空数组，草稿里不多出东西）。 */
     const settle = async (run: () => Promise<readonly Attachment[]>): Promise<readonly Attachment[]> => {
       try {
         return await run()
       } catch (e) {
-        toasts.error(e)
+        banners.error(e)
         return []
       }
     }
@@ -83,7 +83,7 @@ export default defineUiFeature({
             ctx.logger.warn(message, data)
           },
           reportMissing: (count) => {
-            toasts.show({ severity: 'warning', title: `有 ${count} 个草稿附件已失效，已从草稿中移除` })
+            banners.show({ severity: 'warning', title: `有 ${count} 个草稿附件已失效，已从草稿中移除` })
           },
         })
         const unsubscribe = source.subscribe(() => {

@@ -1,9 +1,9 @@
 import { describe, expect, test } from 'bun:test'
 import { AppError } from '@poietica/foundation'
+import { createBannerService } from '../services/banners'
 import { describeError } from '../services/errors'
 import { createLayoutService, DEFAULT_LAYOUT, DEFAULT_PANEL_WIDTH, LAYOUT_LIMITS } from '../services/layout'
 import { createNavigationService } from '../services/navigation'
-import { createToastService } from '../services/toasts'
 
 describe('navigation', () => {
   const home = { surface: 'home', params: {} }
@@ -169,57 +169,50 @@ describe('layout', () => {
   })
 })
 
-describe('toasts', () => {
+describe('banners', () => {
   test('show / dismiss', () => {
-    const t = createToastService({})
-    const d = t.show({ severity: 'info', title: '提示' })
-    expect(t.current().length).toBe(1)
+    const b = createBannerService({})
+    const d = b.show({ severity: 'info', title: '提示' })
+    expect(b.current().length).toBe(1)
     d.dispose()
-    expect(t.current()).toEqual([])
+    expect(b.current()).toEqual([])
   })
 
   test('UK-5 同一条错误 3 秒内重复出现只显示一次', () => {
-    const t = createToastService({})
+    const b = createBannerService({})
     const err = new AppError('alpha.boom', '炸了')
-    t.error(err)
-    t.error(err)
-    expect(t.current().length).toBe(1)
+    b.error(err)
+    b.error(err)
+    expect(b.current().length).toBe(1)
   })
 
-  test('不同的错误分别显示', () => {
-    const t = createToastService({})
-    t.error(new AppError('alpha.boom', '炸了'))
-    t.error(new AppError('alpha.other', '别的'))
-    expect(t.current().length).toBe(2)
+  test('后一条替换前一条：屏幕上只留最新这一条', () => {
+    const b = createBannerService({})
+    b.show({ severity: 'info', title: '第一条' })
+    b.show({ severity: 'success', title: '第二条' })
+    expect(b.current().map((n) => n.title)).toEqual(['第二条'])
   })
 
-  test('最多同时显示 5 条', () => {
-    const t = createToastService({})
-    for (let i = 0; i < 8; i++) t.show({ severity: 'info', title: `t${i}` })
-    expect(t.current().length).toBe(5)
-    expect(t.current()[4]!.title).toBe('t7')
-  })
-
-  test('error 默认不自动消失，其余 4 秒', () => {
-    const t = createToastService({})
-    t.error(new AppError('a.b', 'x'))
-    expect(t.current()[0]!.durationMs).toBe(0)
-    t.show({ severity: 'success', title: 'ok' })
-    expect(t.current()[1]!.durationMs).toBe(4_000)
+  test('默认停留时长：错误 6 秒，其余 4 秒', () => {
+    const b = createBannerService({})
+    b.error(new AppError('a.b', 'x'))
+    expect(b.current()[0]!.holdMs).toBe(6_000)
+    b.show({ severity: 'success', title: 'ok' })
+    expect(b.current()[0]!.holdMs).toBe(4_000)
   })
 
   test('error 用契约文案作标题，服务端 message 作详情', () => {
-    const t = createToastService({ 'alpha.boom': '炸了标题' })
-    t.error(new AppError('alpha.boom', '细节'))
-    expect(t.current()[0]!.title).toBe('炸了标题')
-    expect(t.current()[0]!.detail).toBe('细节')
+    const b = createBannerService({ 'alpha.boom': '炸了标题' })
+    b.error(new AppError('alpha.boom', '细节'))
+    expect(b.current()[0]!.title).toBe('炸了标题')
+    expect(b.current()[0]!.detail).toBe('细节')
   })
 
   test('显式 title 时把契约文案拼进详情', () => {
-    const t = createToastService({ 'alpha.boom': '炸了标题' })
-    t.error(new AppError('alpha.boom', '细节'), '对话失败')
-    expect(t.current()[0]!.title).toBe('对话失败')
-    expect(t.current()[0]!.detail).toContain('炸了标题')
+    const b = createBannerService({ 'alpha.boom': '炸了标题' })
+    b.error(new AppError('alpha.boom', '细节'), '对话失败')
+    expect(b.current()[0]!.title).toBe('对话失败')
+    expect(b.current()[0]!.detail).toContain('炸了标题')
   })
 })
 

@@ -149,41 +149,6 @@
   white-space: nowrap;
 }
 
-/* ── 浮层：通知 / 确认框 ───────────────────────────────────────── */
-.workbench__toasts {
-  position: fixed;
-  inset-block-end: 3rem;
-  inset-inline-end: 2rem;
-  z-index: var(--ui-z-toast);
-  display: flex;
-  flex-direction: column;
-  gap: 0.5rem;
-  width: min(400px, calc(100vw - 4rem));
-}
-
-.workbench__toast {
-  display: flex;
-  flex-direction: column;
-  gap: 0.25rem;
-  padding: 0.75rem 1rem;
-  border: 1px solid var(--ui-divider);
-  border-radius: var(--radius-md);
-  background: var(--ui-popover);
-  color: var(--ui-popover-foreground);
-  box-shadow: var(--shadow-md);
-  text-align: start;
-  cursor: pointer;
-}
-
-.workbench__toast-title {
-  font-weight: 500;
-}
-
-.workbench__toast-detail {
-  color: var(--ui-muted-foreground);
-  font-size: var(--text-micro);
-}
-
 /* 功能错误边界（ui-kernel 的 FeatureErrorBoundary 用 data-* 属性） */
 [data-feature-error] {
   display: grid;

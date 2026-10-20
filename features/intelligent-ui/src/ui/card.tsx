@@ -50,7 +50,7 @@ import { createHeightCache, createRecentCache, HEIGHT_CACHE_LIMIT } from './heig
  * - wide：按 1100px 排版，整体缩放到正文栏的宽度。
  */
 
-export interface CardToast {
+export interface CardBanner {
   readonly severity: 'success' | 'info'
   readonly title: string
   readonly detail?: string
@@ -79,8 +79,8 @@ export interface IntelligentUiCardDeps {
   /** 用户取消保存为 null */
   readonly exportHtml: (request: ExportRequest) => Promise<string | null>
   readonly showInFolder: (path: string) => void
-  readonly toast: (toast: CardToast) => void
-  readonly toastError: (cause: unknown, title: string) => void
+  readonly banner: (banner: CardBanner) => void
+  readonly bannerError: (cause: unknown, title: string) => void
 }
 
 const ASK_PREVIEW_MAX = 120
@@ -511,13 +511,13 @@ function HtmlFrame({
       if (rect.width < 1 || rect.height < 1) return
       const clipped = rect.top < 0 || rect.left < 0 || rect.bottom > innerHeight || rect.right > innerWidth
       await deps.copyImage({ x: rect.left, y: rect.top, width: rect.width, height: rect.height })
-      deps.toast({
+      deps.banner({
         severity: 'success',
         title: '已复制为图片',
         ...(clipped ? { detail: '界面比窗口大，只截了窗口里看得见的那一部分' } : {}),
       })
     } catch (cause) {
-      deps.toastError(cause, '没能复制为图片')
+      deps.bannerError(cause, '没能复制为图片')
     } finally {
       setCapturing(false)
     }
@@ -537,13 +537,13 @@ function HtmlFrame({
         state: session.current?.state() ?? EMPTY_STATE,
       })
       if (path === null) return
-      deps.toast({
+      deps.banner({
         severity: 'success',
         title: `已导出「${title}」`,
         action: { label: '在文件夹中显示', run: () => deps.showInFolder(path) },
       })
     } catch (cause) {
-      deps.toastError(cause, '没能导出')
+      deps.bannerError(cause, '没能导出')
     }
   }
 

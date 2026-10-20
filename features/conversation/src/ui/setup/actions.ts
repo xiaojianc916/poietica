@@ -27,7 +27,7 @@ export interface ConversationActions {
 }
 
 export function createConversationActions(setup: ConversationSetup): ConversationActions {
-  const { api, ctx, navigation, platform, preferences, prefs, stores, toasts, workspaces } = setup
+  const { api, ctx, navigation, platform, preferences, prefs, stores, banners, workspaces } = setup
 
   /*
    * 草稿落盘（`conversation.drafts`）。**每一格**草稿都要记住 —— 正文 / 附件 / 技能，以及入口页那排选择器的值。
@@ -136,9 +136,9 @@ export function createConversationActions(setup: ConversationSetup): Conversatio
     if (picked.path === null) return
     try {
       await api.exportThread({ threadId, format: 'markdown', targetPath: picked.path })
-      toasts.show({ severity: 'success', title: '已导出' })
+      banners.show({ severity: 'success', title: '已导出' })
     } catch (e) {
-      toasts.error(e)
+      banners.error(e)
     }
   }
 

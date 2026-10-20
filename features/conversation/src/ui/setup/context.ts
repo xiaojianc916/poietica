@@ -2,7 +2,7 @@ import { platformContract } from '@poietica/feature-platform/contract'
 import { preferencesContract } from '@poietica/feature-preferences/contract'
 import { PreferencesToken } from '@poietica/feature-preferences/ui-api'
 import { WorkspacesUiToken } from '@poietica/feature-workspaces/ui-api'
-import { DialogsToken, LayoutToken, NavigationToken, ToastsToken, type UiFeatureContext } from '@poietica/ui-kernel'
+import { BannersToken, DialogsToken, LayoutToken, NavigationToken, type UiFeatureContext } from '@poietica/ui-kernel'
 import { createConversationApi } from '../api'
 import { createEntryDefaults } from '../home'
 import { type ConversationStores, createStores, hiddenModelsOf } from '../session'
@@ -28,7 +28,7 @@ export function createConversationSetup(ctx: UiFeatureContext) {
   })
   const navigation = ctx.services.get(NavigationToken)
   const dialogs = ctx.services.get(DialogsToken)
-  const toasts = ctx.services.get(ToastsToken)
+  const banners = ctx.services.get(BannersToken)
   const prefs = ctx.services.get(PreferencesToken)
   const workspaces = ctx.services.get(WorkspacesUiToken)
 
@@ -70,7 +70,7 @@ export function createConversationSetup(ctx: UiFeatureContext) {
     sessions,
     stores,
     subagentTabs,
-    toasts,
+    banners,
     transcripts,
     workspaces,
   }

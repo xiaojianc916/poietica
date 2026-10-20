@@ -4,7 +4,7 @@ import type { ConversationActions } from './actions'
 import type { ConversationSetup } from './context'
 
 export function createConversationCommands(setup: ConversationSetup, actions: ConversationActions): void {
-  const { api, ctx, dialogs, prefs, stores, toasts } = setup
+  const { api, ctx, dialogs, prefs, stores, banners } = setup
   const { activeThreadId, exportThread, newThread, openThread } = actions
 
   /* 停在入口页时重命名 / 删除 / 分支 / 导出都没有落点：enabled 报假，命令面板与快捷键都不给点。 */
@@ -61,7 +61,7 @@ export function createConversationCommands(setup: ConversationSetup, actions: Co
         /* 失败要看得见、查得到：原先 `void` 一丢，删不掉时既没有提示也没有日志 */
         void api.deleteThread(thread.id).catch((cause: unknown) => {
           ctx.logger.warn('thread delete failed', { threadId: thread.id, error: String(cause) })
-          toasts.error(cause)
+          banners.error(cause)
         })
       })
     },

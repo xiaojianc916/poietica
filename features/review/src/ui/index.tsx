@@ -1,6 +1,6 @@
 import { composerContextItems, workspaceGitProviders } from '@poietica/feature-conversation/ui-api'
 import { WorkspacesUiToken } from '@poietica/feature-workspaces/ui-api'
-import { builtinPoints, defineUiFeature, LayoutToken, ToastsToken } from '@poietica/ui-kernel'
+import { BannersToken, builtinPoints, defineUiFeature, LayoutToken } from '@poietica/ui-kernel'
 import { FileDiff, GitCompareArrows } from 'lucide-react'
 import { ComposerBranchChip } from './composer-branch'
 import { BranchStatusItem, CodeReviewNavRow, CodeReviewSurface, ReviewPanel } from './surface'
@@ -15,7 +15,7 @@ export default defineUiFeature({
   dependsOn: ['conversation', 'platform', 'workspaces'],
   setup(ctx) {
     const layout = ctx.services.get(LayoutToken)
-    const toasts = ctx.services.get(ToastsToken)
+    const banners = ctx.services.get(BannersToken)
     const workspaces = ctx.services.get(WorkspacesUiToken)
 
     const report = (
@@ -27,7 +27,7 @@ export default defineUiFeature({
         return
       }
       ctx.logger.warn('git 动作失败', { error: String(context.cause) })
-      toasts.error(context.cause, '提交或分支操作失败')
+      banners.error(context.cause, '提交或分支操作失败')
     }
 
     ctx.contribute(builtinPoints.panels, {

@@ -1,6 +1,6 @@
 import { platformContract } from '@poietica/feature-platform/contract'
 import { WorkspacesUiToken } from '@poietica/feature-workspaces/ui-api'
-import { builtinPoints, defineUiFeature, type KeybindingItem, LayoutToken, ToastsToken } from '@poietica/ui-kernel'
+import { BannersToken, builtinPoints, defineUiFeature, type KeybindingItem, LayoutToken } from '@poietica/ui-kernel'
 import { SquareTerminal } from 'lucide-react'
 import { lazy } from 'react'
 import { createTerminalApi } from './api'
@@ -16,7 +16,7 @@ export default defineUiFeature({
   dependsOn: ['workspaces', 'platform'],
   setup(ctx) {
     const layout = ctx.services.get(LayoutToken)
-    const toasts = ctx.services.get(ToastsToken)
+    const banners = ctx.services.get(BannersToken)
     const workspaces = ctx.services.get(WorkspacesUiToken)
     const api = createTerminalApi(ctx)
     const platform = ctx.rpc(platformContract)
@@ -27,11 +27,11 @@ export default defineUiFeature({
       cwd: () => workspaces.active()?.path ?? null,
       openExternal: (url) => {
         void platform.call('shell.openExternal', { url }).catch((cause: unknown) => {
-          toasts.error(cause, '链接没能打开')
+          banners.error(cause, '链接没能打开')
         })
       },
       onError: (error, title) => {
-        toasts.error(error, title)
+        banners.error(error, title)
       },
     })
 

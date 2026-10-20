@@ -1,5 +1,5 @@
 import { platformContract } from '@poietica/feature-platform/contract'
-import { builtinPoints, type CommandItem, defineUiFeature, ToastsToken } from '@poietica/ui-kernel'
+import { BannersToken, builtinPoints, type CommandItem, defineUiFeature } from '@poietica/ui-kernel'
 import type { Workspace } from '../contract'
 import { WorkspacesUiToken } from '../ui-api'
 import { createWorkspacesApi } from './api'
@@ -10,7 +10,7 @@ export default defineUiFeature({
   setup(ctx) {
     const api = createWorkspacesApi(ctx)
     const platform = ctx.rpc(platformContract)
-    const toasts = ctx.services.get(ToastsToken)
+    const banners = ctx.services.get(BannersToken)
 
     /* 当前工作区保存在 store（不持久化）。别的功能通过 WorkspacesUiToken 读它、切它。 */
     let items: readonly Workspace[] = []
@@ -41,7 +41,7 @@ export default defineUiFeature({
         bump()
         return workspace
       } catch (e) {
-        toasts.error(e)
+        banners.error(e)
         return null
       }
     }
@@ -53,7 +53,7 @@ export default defineUiFeature({
         activeId = workspace.id
         bump()
       } catch (e) {
-        toasts.error(e)
+        banners.error(e)
       }
     }
 

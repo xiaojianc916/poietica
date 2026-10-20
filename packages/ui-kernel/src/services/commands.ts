@@ -1,7 +1,7 @@
 import type { Logger } from '@poietica/foundation'
 import { builtinPoints } from '../builtin-points'
 import type { ContributionRegistry } from '../contribution'
-import type { ToastService } from './toasts'
+import type { BannerService } from './banners'
 
 export interface CommandService {
   execute(id: string, args?: unknown): Promise<void>
@@ -10,7 +10,7 @@ export interface CommandService {
 
 export function createCommandService(
   registry: ContributionRegistry,
-  toasts: ToastService,
+  banners: BannerService,
   logger: Logger,
 ): CommandService {
   const find = (id: string) => registry.list(builtinPoints.commands).find((c) => c.item.id === id)?.item
@@ -30,7 +30,7 @@ export function createCommandService(
         await c.run(args)
       } catch (e) {
         logger.error('command failed', { id, error: String(e) })
-        toasts.error(e, `命令“${c.title}”执行失败`)
+        banners.error(e, `命令“${c.title}”执行失败`)
       }
     },
   }

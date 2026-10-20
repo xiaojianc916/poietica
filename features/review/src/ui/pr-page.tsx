@@ -2,7 +2,13 @@ import { Prose } from '@poietica/design-system/prose'
 import { type ConversationUi, ConversationUiToken } from '@poietica/feature-conversation/ui-api'
 import type { WorkspacesUi } from '@poietica/feature-workspaces/ui-api'
 import { AppError } from '@poietica/foundation'
-import { type ToastService, ToastsToken, type UiFeatureContext, useFeatureStore, useService } from '@poietica/ui-kernel'
+import {
+  type BannerService,
+  BannersToken,
+  type UiFeatureContext,
+  useFeatureStore,
+  useService,
+} from '@poietica/ui-kernel'
 import { FileDiff } from 'lucide-react'
 import type { ReactNode } from 'react'
 import type { GithubPullRequest } from '../contract'
@@ -40,7 +46,7 @@ function contextPrompt(repository: string | null, pull: GithubPullRequest): stri
 
 export function CodeReviewPage({ ctx, workspaces, openExternal }: CodeReviewPageProps): ReactNode {
   const workspaceId = useFeatureStore(workspaces.store, (held) => held.activeId)
-  const toasts = useService(ToastsToken) as ToastService
+  const banners = useService(BannersToken) as BannerService
 
   if (workspaceId === null) {
     return (
@@ -59,7 +65,7 @@ export function CodeReviewPage({ ctx, workspaces, openExternal }: CodeReviewPage
       onFailure={(cause) => {
         /* 读不到与写失败都只提示一次：页面自己降级成空态，不把用户堵在错误页上。 */
         ctx.logger.warn('代码审查页操作失败', { error: String(cause) })
-        toasts.error(cause)
+        banners.error(cause)
       }}
       openExternal={openExternal}
       workspaceId={workspaceId}

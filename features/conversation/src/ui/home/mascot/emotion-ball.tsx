@@ -4,7 +4,7 @@ import './emotion-ball.css'
 import { memo, useCallback, useEffect, useRef } from 'react'
 import type { EmotionBallEngine, EmotionGroup } from './emotion-ball-runtime'
 
-/* 组件拿不到内核句柄（ctx.logger 与 toasts），运行时的问题只能走日志系统不可用时的最后通道（lastResort）；
+/* 组件拿不到内核句柄（ctx.logger 与 banners），运行时的问题只能走日志系统不可用时的最后通道（lastResort）；
    吉祥物坏了也不该挡住对话。 */
 function reportMascotError(...args: readonly unknown[]): void {
   lastResort('[emotion-ball]', args.map((a) => String(a)).join(' '))

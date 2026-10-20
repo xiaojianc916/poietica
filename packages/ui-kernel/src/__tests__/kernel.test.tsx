@@ -131,18 +131,18 @@ describe('ui-kernel', () => {
     expect(nav!.current().route.surface).toBe('x')
   })
 
-  test('UK-5 toasts 服务：同一条错误重复只显示一次', async () => {
-    const { ToastsToken } = await import('../services')
+  test('UK-5 banners 服务：同一条错误重复只显示一次', async () => {
+    const { BannersToken } = await import('../services')
     const f = defineUiFeature({
       id: 'alpha',
       setup: (ctx) => {
-        ctx.services.get(ToastsToken)
+        ctx.services.get(BannersToken)
       },
     })
     const { kernel } = await startKernel({ features: [f] })
-    kernel.kernelServices.toasts.error(new AppError('alpha.boom', 'x'))
-    kernel.kernelServices.toasts.error(new AppError('alpha.boom', 'x'))
-    expect(kernel.kernelServices.toasts.current().length).toBe(1)
+    kernel.kernelServices.banners.error(new AppError('alpha.boom', 'x'))
+    kernel.kernelServices.banners.error(new AppError('alpha.boom', 'x'))
+    expect(kernel.kernelServices.banners.current().length).toBe(1)
   })
 
   test('UK-7 Core 状态：先订阅通知，再拉当前值', async () => {
@@ -206,7 +206,7 @@ describe('ui-kernel', () => {
     expect(runs.length).toBe(2)
   })
 
-  test('onCoreReady 抛错时显示 toast，不影响其它功能', async () => {
+  test('onCoreReady 抛错时显示横幅，不影响其它功能', async () => {
     const f = defineUiFeature({
       id: 'alpha',
       setup: (ctx) => {
@@ -224,8 +224,8 @@ describe('ui-kernel', () => {
     const { kernel, bridge } = await startKernel({ features: [f, g] })
     bridge.emit({ jsonrpc: '2.0', method: 'core.status', params: { state: 'ready', reason: null, attempt: 0 } })
     await new Promise((r) => setTimeout(r, 5))
-    expect(kernel.kernelServices.toasts.current().length).toBe(1)
-    expect(kernel.kernelServices.toasts.current()[0]!.title).toContain('alpha')
+    expect(kernel.kernelServices.banners.current().length).toBe(1)
+    expect(kernel.kernelServices.banners.current()[0]!.title).toContain('alpha')
   })
 
   /*

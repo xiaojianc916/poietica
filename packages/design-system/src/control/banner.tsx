@@ -12,8 +12,9 @@ import { useOverlayRef } from '../overlay-presence'
  * 形状照抄 deepseek-harness 的 Toast.tsx / Toast.module.css（行为与时长，别改），但令牌是本
  * 仓的：那边读 --dsw-* 设计平台，这里读 --ui-*。
  *
- * 一件要说出口、且说得出「怎么办」的事才用它：句子后面接得住动作才有意义。纯失败通知走
- * ToastRegion，那是另一件事、另一个落点。
+
+ * 内核的失败与成功通知也走这里（workbench/parts/banners.tsx）：全应用只有这一个通知落点。
+
  */
 
 /** 停满不淡的那一段，样式表里 --ui-banner-hold 的回退值必须与它相等。 */

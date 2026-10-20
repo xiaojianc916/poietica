@@ -1,5 +1,5 @@
 import { composerToolkitSources } from '@poietica/feature-conversation/ui-api'
-import { builtinPoints, defineUiFeature, SETTINGS_GROUPS, ToastsToken } from '@poietica/ui-kernel'
+import { BannersToken, builtinPoints, defineUiFeature, SETTINGS_GROUPS } from '@poietica/ui-kernel'
 import { PackageOpen, Plug } from 'lucide-react'
 import { createExtensionsApi } from './api'
 import { createComposerToolkitSource } from './composer-toolkit'
@@ -13,7 +13,7 @@ export default defineUiFeature({
   dependsOn: ['conversation', 'platform'],
   setup(ctx) {
     const api = createExtensionsApi(ctx)
-    const toasts = ctx.services.get(ToastsToken)
+    const banners = ctx.services.get(BannersToken)
 
     /* 名册属于本功能，conversation 只画面板，所以往它的贡献点里放一台来源。两条通知各自刷新一格：skills.changed 清技能缓存，
      * mcp.statusChanged 整份替换 MCP；Core 重启后两边都清空重来。 */
@@ -67,9 +67,9 @@ export default defineUiFeature({
 
         try {
           await api.skills.install({ kind, path })
-          toasts.show({ severity: 'success', title: '技能已安装' })
+          banners.show({ severity: 'success', title: '技能已安装' })
         } catch (cause) {
-          toasts.error(cause, '技能安装失败')
+          banners.error(cause, '技能安装失败')
         }
       })()
     }

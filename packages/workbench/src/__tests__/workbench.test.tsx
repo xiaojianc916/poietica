@@ -421,12 +421,14 @@ describe('workbench 外壳', () => {
     kernel.dispose()
   })
 
-  test('toasts 浮层显示内核服务的提示', async () => {
+  test('内核通知落在顶部横幅，不再有右下角通知区', async () => {
     const kernel = await mount()
-    kernel.kernelServices.toasts.show({ severity: 'info', title: '提示一下' })
+    kernel.kernelServices.banners.show({ severity: 'info', title: '提示一下' })
     await new Promise((r) => setTimeout(r, 5))
     expect(screen.getByText('提示一下')).toBeDefined()
-    /* 通知卡钉在右下角，正压在浏览器面板的原生视图上：必须登记为贴边浮层，否则会被网页盖住（P-07）。 */
+    expect(document.querySelector('.ui-banner')).not.toBeNull()
+    expect(document.querySelector('[data-workbench-part="toasts"]')).toBeNull()
+    /* 横幅同样登记为贴边浮层：压在浏览器面板的原生视图上时必须让路（P-07）。 */
     const anchored = overlaysOnScreen().flatMap((overlay) =>
       overlay.kind === 'anchored' ? [overlay.element.textContent ?? ''] : [],
     )

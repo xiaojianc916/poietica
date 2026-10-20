@@ -1,6 +1,6 @@
 import { ConversationUiToken } from '@poietica/feature-conversation/ui-api'
 import { PreferencesToken } from '@poietica/feature-preferences/ui-api'
-import { builtinPoints, DialogsToken, defineUiFeature, ToastsToken, useFeatureStore } from '@poietica/ui-kernel'
+import { BannersToken, builtinPoints, DialogsToken, defineUiFeature, useFeatureStore } from '@poietica/ui-kernel'
 import { createUpdateApi } from './api'
 import { createUpdateStore, type UpdateUiStore } from './store'
 import { UpdateBanner } from './update-banner'
@@ -33,7 +33,7 @@ export default defineUiFeature({
     const preferences = ctx.services.get(PreferencesToken)
     const conversation = ctx.services.get(ConversationUiToken)
     const dialogs = ctx.services.get(DialogsToken)
-    const toasts = ctx.services.get(ToastsToken)
+    const banners = ctx.services.get(BannersToken)
 
     ctx.lifecycle.onDispose(
       api.onStateChanged((state) => {
@@ -91,7 +91,7 @@ export default defineUiFeature({
       id: 'update.check',
       order: 100,
       component: () => (
-        <UpdateRow api={api} conversation={conversation} dialogs={dialogs} store={store} toasts={toasts} />
+        <UpdateRow api={api} conversation={conversation} dialogs={dialogs} store={store} banners={banners} />
       ),
     })
   },

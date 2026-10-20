@@ -1,12 +1,12 @@
 import { attachmentsContract } from '@poietica/feature-attachments/contract'
 import { ConversationUiToken, toolCallRenderers } from '@poietica/feature-conversation/ui-api'
 import {
+  BannersToken,
   builtinPoints,
   type CommandItem,
   defineUiFeature,
   LayoutToken,
   NavigationToken,
-  ToastsToken,
   useLayout,
 } from '@poietica/ui-kernel'
 import { Globe } from 'lucide-react'
@@ -39,7 +39,7 @@ export default defineUiFeature({
   setup(ctx) {
     const layout = ctx.services.get(LayoutToken)
     const navigation = ctx.services.get(NavigationToken)
-    const toasts = ctx.services.get(ToastsToken)
+    const banners = ctx.services.get(BannersToken)
     const conversation = ctx.services.get(ConversationUiToken)
     const api = createBrowserApi(ctx)
     const store = createBrowserPanelStore(api)
@@ -52,7 +52,7 @@ export default defineUiFeature({
       }
 
       ctx.logger.warn(message, { error: String(cause) })
-      toasts.error(cause, message)
+      banners.error(cause, message)
     }
 
     const delivery = createPickDelivery({
