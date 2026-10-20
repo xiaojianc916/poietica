@@ -28,6 +28,8 @@ const GLYPHS: Readonly<Record<string, ToolGlyph>> = {
   grep: 'search',
   hub: 'delegate',
   ida: 'code',
+  intelligent_ui: 'wand',
+  intelligent_ui_guide: 'wand',
   js: 'execute',
   learn: 'learning',
   lsp: 'code',

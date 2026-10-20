@@ -34,6 +34,7 @@ export type ToolGlyph =
   | 'skill'
   | 'speech'
   | 'todo'
+  | 'wand'
   | 'write'
   | 'yield'
 

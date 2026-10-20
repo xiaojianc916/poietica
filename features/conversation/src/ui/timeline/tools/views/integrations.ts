@@ -264,6 +264,9 @@ export const imageGenView: Handler = (ctx) => {
   )
 }
 
+/* 产品自己的智能界面指南：参数永远是空对象，能看的只有产出。flow 让面板像运行命令那样竖着摞，而不是两个页签。 */
+export const intelligentUiGuideView: Handler = (ctx) => view('other', '', '', NONE, failOr(ctx, proseSaid(ctx)), 'flow')
+
 export const ttsView: Handler = (ctx) => {
   const said = pick(ctx.input, 'text') ?? ''
   const path = pick(ctx.input, 'output_path') ?? ''

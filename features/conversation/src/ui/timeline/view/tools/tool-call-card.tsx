@@ -29,6 +29,7 @@ import {
   SkillIcon,
   TerminalIcon,
   ToolIcon,
+  WandIcon,
   YieldIcon,
 } from '../../../shared/primitives/icons'
 import { toDiffFilesOf } from '../../../shared/semantics/tool-call-facets'
@@ -92,6 +93,8 @@ export function ToolGlyphIcon({ name, scheme = '' }: { readonly name: string; re
       return <MicIcon aria-hidden="true" className={className} />
     case 'todo':
       return <PlanIcon aria-hidden="true" className={className} />
+    case 'wand':
+      return <WandIcon aria-hidden="true" className={className} />
     case 'write':
       return <PencilIcon aria-hidden="true" className={className} />
     case 'yield':

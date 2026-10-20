@@ -71,6 +71,7 @@ export {
   Trash2 as TrashIcon,
   TriangleAlert as WarningIcon,
   Unplug as PluginIcon,
+  WandSparkles as WandIcon,
   Wifi as LinkIcon,
   Wifi as RetryIcon,
   WifiOff as RetryFailedIcon,

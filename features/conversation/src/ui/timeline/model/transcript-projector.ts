@@ -66,6 +66,11 @@ const statusOf = (state: TranscriptTurn['state']): TimelineState['status'] =>
 const textContent = (value: unknown): readonly ToolCallContent[] =>
   typeof value === 'string' && value.length > 0 ? [{ type: 'content', content: { type: 'text', text: value } }] : []
 
+// 空入参（{}、[]）没有输入面可言：不画一格只有 {} 的面板，也让整张卡直接摊成产出那一面。
+function emptyInput(value: unknown): boolean {
+  return typeof value === 'object' && value !== null && Reflect.ownKeys(value).length === 0
+}
+
 // 工具入参是模型写的任意值，不能假定可序列化；循环引用时退回空。
 function jsonOf(value: unknown): string | undefined {
   try {
@@ -241,7 +246,8 @@ function toolFrameOf(
     ...(view.background ? { isBackground: true as const } : {}),
     /* 参数还在流（只有声明了 streamInput 的工具，例如 intelligent_ui）：pending，工具还没开始跑 */
     status: frame.inputPending === true ? 'pending' : statusOfToolFrame(frame.state),
-    requestContent: view.request.length > 0 ? view.request : textContent(jsonOf(frame.input)),
+    requestContent:
+      view.request.length > 0 || emptyInput(frame.input) ? view.request : textContent(jsonOf(frame.input)),
     content: view.response.length > 0 ? view.response : textContent(frame.error ?? frame.output),
     locations: [],
     channels:
