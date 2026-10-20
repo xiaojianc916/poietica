@@ -163,6 +163,7 @@ export async function createOmpEngineWith(o: CreateEngineOptions, seams: EngineT
     registry,
     tools,
     testSeams: seams,
+    disableAutoTitle: seams?.disableAutoTitle === true,
     /* 解析出**注册表里那一条实例**（不是精简对 —— SDK 要读 identity / api / baseUrl）；还要求 provider 真的配过凭据 */
     resolveModel: (selector) =>
       resolveSessionModel(
@@ -200,7 +201,6 @@ export async function createOmpEngineWith(o: CreateEngineOptions, seams: EngineT
         },
         model: sessionInput.model,
         thinking: sessionInput.spec.thinking,
-        disableAutoTitle: seams?.disableAutoTitle === true,
         /* 静态目录：模型名字与思考梯子烤在 omp 的注册表里，开会话之前就查得到。消费者是 `controls()` 的思考候选 / 默认档兜底与模型候选的 label */
         modelCatalog: (ref) => {
           const found = registry.find(ref.provider, ref.id)

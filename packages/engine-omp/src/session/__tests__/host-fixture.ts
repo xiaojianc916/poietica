@@ -46,8 +46,7 @@ export function hostOf(over: Partial<OmpSessionHost> = {}): OmpSessionHost {
     projector: new LiveProjector({ now: () => NOW }),
     loadImages: async () => [],
     mediaRef: hashMediaRef,
-    /* 自动总结标题：这一档用例不测它，给一个什么都不做的实现（omp 知识 #17） */
-    maybeAutoTitle: () => undefined,
+    /* 定名：这一档用例不测它，给一个什么都不做的实现 */
     setSessionName: async () => true,
     /* 斜杠命令：这一档用例不测它 */
     commands: async () => [],

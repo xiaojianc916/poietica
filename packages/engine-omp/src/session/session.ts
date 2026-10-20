@@ -71,7 +71,6 @@ export interface OmpSessionHost {
    * 那一条（真机实测：报构造入参会把空 ref 发上屏，契约当场退回）。thinking 同理。
    */
   readonly liveModel: () => ModelRef | null
-  readonly maybeAutoTitle: (text: string) => void
   /** omp 的 sessionManager.setSessionName(name, 'user')；false = omp 拒收（空名 / 会话已释放） */
   readonly setSessionName: (name: string) => Promise<boolean>
   readonly liveThinking: () => string | null
@@ -211,7 +210,6 @@ export class OmpSession implements EngineSession {
   private modelRef: ModelRef | null
   private thinkingValue: string | null
   private disposed = false
-  private titleRequested = false
   /** 还没有订阅者时收到的会话名先存着（见 subscribe 的补发） */
   private seededTitle: { readonly title: string; readonly source: 'auto' | 'user' } | null = null
   /**
@@ -324,11 +322,11 @@ export class OmpSession implements EngineSession {
     /* 图片先读一次：同一份像素既画 attachment.upsert 又交给 omp prompt，不再同步读两遍 */
     this.endedWithPending = null
     this.setState('running')
-    /* omp 知识 #17：只在第一条真轮代 omp 触发一次自动标题；`autoTitle === false` 的线程一次都不触发 */
-    if (!this.titleRequested) {
-      this.titleRequested = true
-      if (this.o.spec.autoTitle !== false) this.o.maybeAutoTitle(input.text)
-    }
+    /*
+     * 自动总结标题**不在这里**（omp 知识 #17）：omp 自己在首条回复开始流式时起名（`config.autoTitle`，
+     * 由 session-factory 开会话时打开），起好经 `onSessionNameChanged` 报回来。宿主要做的只有一条：
+     * 用户定过名的线程把 `spec.autoTitle` 关掉 —— 那是对 omp 的输入，不是这里代它发一次请求。
+     */
     // 不 await：一轮会挂在交互上，submit 必须立即返回
     void this.runTurn(input)
   }

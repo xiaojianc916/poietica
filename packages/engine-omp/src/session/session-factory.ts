@@ -26,6 +26,8 @@ export interface SessionFactoryOptions {
   readonly tools: ReadonlyMap<string, EngineToolSpec>
   /** 测试缝：存在时跳过模型解析、直接用注入的 mock */
   readonly testSeams?: { readonly model?: unknown; readonly getApiKey?: (model: unknown) => string } | null
+  /** 测试缝：mock 也是 `tiny` 角色的候选，标题请求会吃掉一条脚本回复 */
+  readonly disableAutoTitle?: boolean
   readonly resolveModel: (selector: string | null) => { provider: string; id: string } | null
   readonly modelRoles: () => Readonly<Record<string, string>>
   /** 把 omp 的会话对象包成 OmpSession（由 omp-session-factory 的调用方提供，避免这里绑死形状） */
@@ -97,6 +99,12 @@ export class SessionFactory {
       modelRegistry: this.o.registry,
       // omp 知识 #6：hasUI: true + setToolUIContext + initializeExtensions 三者缺一不可
       hasUI: true,
+      /*
+       * omp 知识 #17：**必须在这里打开**。omp 的自动起名只由 `config.autoTitle === true` 这一道门放行
+       * （agent-session.ts 的 `#noteTitleInput`），默认 false；宿主不传就一次都不会跑，线程永远停在首句兜底上。
+       * `spec.autoTitle === false` 是线程自己的门禁（用户定过名的线程），测试缝关掉是为了别吃掉 mock 脚本。
+       */
+      autoTitle: this.o.disableAutoTitle !== true && spec.autoTitle !== false,
       ...(this.o.testSeams?.model === undefined ? {} : { model: this.o.testSeams.model }),
       ...(this.o.testSeams?.getApiKey === undefined ? {} : { getApiKey: this.o.testSeams.getApiKey }),
       ...(model === null ? {} : { model }),

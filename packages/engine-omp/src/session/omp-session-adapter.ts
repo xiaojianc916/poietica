@@ -105,8 +105,6 @@ interface OmpAgentSessionLike {
   abort(options?: Record<string, unknown>): Promise<void>
   dispose(options?: Record<string, unknown>): Promise<void>
   setPromptDropped(handler: ((prompt: { readonly text: string }) => void) | undefined): void
-  /* omp 知识 #17：首条输入触发自动总结标题；这里只做门禁，生成由 omp 自己跑 */
-  maybeStartTitleGeneration?(firstMessage: string): void
   setThinkingLevel(level: unknown, persist?: boolean): void
   setSteeringMode(mode: 'all' | 'one-at-a-time', persist?: boolean): void
   setFollowUpMode(mode: 'all' | 'one-at-a-time', persist?: boolean): void
@@ -174,8 +172,6 @@ export interface WrapOmpSessionInput {
   readonly initializeExtensions: (session: unknown, ui: unknown) => Promise<void>
   readonly model: { provider: string; id: string } | null
   readonly thinking: string | null
-  /* 关掉自动总结标题（omp 知识 #17）；只有测试入口会传（mock 也是 tiny 候选，会吃掉一条脚本回复） */
-  readonly disableAutoTitle?: boolean
   /* 按 ref 查模型目录（静态）：会话还没水合时，控件初值也要答得出来；查不到就交 null，不编一条 */
   readonly modelCatalog: (ref: { readonly provider: string; readonly id: string }) => {
     readonly label: string
@@ -388,18 +384,6 @@ export async function wrapOmpSession(input: WrapOmpSessionInput): Promise<Engine
         /* 立刻对一次账：面板上的「停止」要马上变成「已停止」，不等下一次轮询 */
         refreshJobs()
         return cancelled
-      },
-      /*
-       * omp 知识 #17：omp 的自动总结标题只由它的 input-controller 触发，而我们直接调 session.prompt，
-       * 所以这里代它触发一次；omp 自己做低信号过滤与去重。
-       */
-      maybeAutoTitle: (text) => {
-        if (input.disableAutoTitle === true) return
-        try {
-          session.maybeStartTitleGeneration?.(text)
-        } catch (error) {
-          input.logger.warn('auto title kickoff failed', { error: describeError(error) })
-        }
       },
       now: () => systemClock.now(),
       commands: async () => await listSlashCommands(session),

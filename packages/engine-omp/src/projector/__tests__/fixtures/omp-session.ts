@@ -34,8 +34,6 @@ export interface FakeSession {
   setSessionName(title: string): void
   /** 投递出去的那几次调用，按顺序 */
   readonly calls: DeliveredCall[]
-  /** 适配器代 omp 触发的自动总结请求（omp 知识 #17），按顺序 */
-  readonly titleRequests: string[]
   /** deferSubscribe 时的订阅动作：把前面攒下的会话名补发出来 */
   listen(): void
   /** 适配器收到的全部事件，按顺序（判断 timelineReset 之类的副作用） */
@@ -85,7 +83,6 @@ const BASE_SPEC: OpenSessionSpec = {
 
 export async function fakeOmpSession(o: FakeSessionOptions = {}): Promise<FakeSession> {
   const listeners: ((event: Record<string, unknown>) => void)[] = []
-  const titleRequests: string[] = []
   /** 会话名的唯一真相 + 名字变化的订阅者（omp 的 SessionManager 那两格的替身） */
   let sessionName: string | undefined
   const nameListeners = new Set<() => void>()
@@ -139,9 +136,6 @@ export async function fakeOmpSession(o: FakeSessionOptions = {}): Promise<FakeSe
     abort: async (): Promise<void> => undefined,
     dispose: async (): Promise<void> => undefined,
     setPromptDropped: (): void => undefined,
-    maybeStartTitleGeneration: (text: string): void => {
-      titleRequests.push(text)
-    },
     setThinkingLevel: (): void => undefined,
     setSteeringMode: (): void => undefined,
     setFollowUpMode: (): void => undefined,
@@ -173,7 +167,6 @@ export async function fakeOmpSession(o: FakeSessionOptions = {}): Promise<FakeSe
   if (o.deferSubscribe !== true) listen()
   return {
     session: engineSession,
-    titleRequests,
     listen,
     setSessionName(title) {
       sessionName = title
