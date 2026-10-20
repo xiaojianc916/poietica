@@ -25,6 +25,8 @@ import {
   type QueueSnapshot,
   type SessionState,
   type SettingDescriptor,
+  type SideTopic,
+  type SideTurn,
   type SkillInfo,
   type SlashCommand,
   type SubmitInput,
@@ -124,6 +126,19 @@ function needsApproval(posture: Posture, approval: EngineToolSpec['approval']): 
 /** 会话文件的账本：dispose 后重开同一个文件要能读回同样的内容（C-REOPEN） */
 type SessionLedger = Map<string, TranscriptOperation[]>
 
+/** 侧边话题的账本（omp 存在会话的 artifacts 目录里）：按会话文件分账，重开、分叉、删除都跟着会话文件走 */
+type SideLedger = Map<string, SideTopic[]>
+
+/** 侧边一问不占主时间线的轮号：脚本拿到的 turnIndex 恒为它 */
+export const SIDE_TURN_INDEX = -1
+
+/** 正在答的那一问：话题号、它在话题里的下标；`cancelled` 由 cancelSide 打上，答题的那一拍看见就收手 */
+interface SideRun {
+  readonly topicId: string
+  readonly turn: number
+  cancelled: boolean
+}
+
 class FakeSession implements EngineSession {
   readonly sessionId = `fake-${createId()}`
   readonly sessionFile: string
@@ -153,6 +168,8 @@ class FakeSession implements EngineSession {
   private step = 0
   private turnCount = 0
   private disposed = false
+  /** 正在答（或刚开问）的侧边一问；同一时刻只有一问（与 omp 的 RpcBtwController 同一条规矩） */
+  private side: SideRun | null = null
 
   constructor(
     private readonly o: {
@@ -163,6 +180,7 @@ class FakeSession implements EngineSession {
       readonly prompts: FakePrompt[]
       readonly clock: Clock
       readonly store: SessionLedger
+      readonly sides: SideLedger
       readonly names: Map<string, string>
       readonly posture: Posture
       readonly contextUsage: () => ContextUsage | null
@@ -176,14 +194,32 @@ class FakeSession implements EngineSession {
     this.model = o.spec.model
     this.thinking = o.spec.thinking
     this.turnCount = this.ops.filter((op) => op.op === 'turn.upsert').length
+    /* 与 omp 重开历史同一条规矩：上一个进程还在答的那一问记成 interrupted（BtwHistoryStore 的 recover） */
+    const topics = o.sides.get(this.sessionFile)
+    if (topics !== undefined) {
+      o.sides.set(
+        this.sessionFile,
+        topics.map((topic) =>
+          topic.turns.some((turn) => turn.status === 'running')
+            ? {
+                ...topic,
+                turns: topic.turns.map((turn) =>
+                  turn.status === 'running' ? { ...turn, status: 'interrupted' as const } : turn,
+                ),
+              }
+            : topic,
+        ),
+      )
+    }
   }
 
   state(): SessionState {
     return this.current
   }
 
+  /* 侧边一问在答也算忙：会话池回收会把它当场停掉（端口注释） */
   isBusy(): boolean {
-    return this.current !== 'idle'
+    return this.current !== 'idle' || this.side !== null
   }
 
   subscribe(listener: (event: EngineSessionEvent) => void): { dispose(): void } {
@@ -689,8 +725,112 @@ class FakeSession implements EngineSession {
     return false
   }
 
+  // ── 侧边提问（omp 的 /btw）：不碰时间线、不改 state、不跑工具 ─────────────────
+  private sideTopicsOf(): SideTopic[] {
+    return this.o.sides.get(this.sessionFile) ?? []
+  }
+
+  private writeSideTopic(topic: SideTopic): void {
+    const others = this.sideTopicsOf().filter((held) => held.id !== topic.id)
+    this.o.sides.set(this.sessionFile, [...others, topic])
+  }
+
+  private patchSideTurn(run: SideRun, patch: Partial<SideTurn>): SideTopic | null {
+    const topic = this.sideTopicsOf().find((held) => held.id === run.topicId)
+    const turn = topic?.turns[run.turn]
+    if (topic === undefined || turn === undefined) return null
+    const next: SideTopic = {
+      ...topic,
+      turns: topic.turns.map((held, index) => (index === run.turn ? { ...turn, ...patch } : held)),
+    }
+    this.writeSideTopic(next)
+    return next
+  }
+
+  async askSide(question: string, topicId: string | null): Promise<SideTopic> {
+    this.assertLive()
+    const text = question.trim()
+    if (text === '') throw new AppError(SystemErrorCode.invalidParams, '侧边提问不能为空')
+    if (this.side !== null) throw new AppError(EngineErrorCode.sideBusy, '上一个侧边提问还没答完')
+    const previous = topicId === null ? undefined : this.sideTopicsOf().find((topic) => topic.id === topicId)
+    if (topicId !== null && previous === undefined) {
+      throw new AppError(EngineErrorCode.sideTopicUnknown, `找不到这个侧边话题：${topicId}`)
+    }
+    const now = this.o.clock.now()
+    const turn: SideTurn = {
+      question: text,
+      answer: '',
+      status: 'running',
+      createdAt: now,
+      updatedAt: now,
+      error: null,
+    }
+    const topic: SideTopic =
+      previous === undefined
+        ? { id: `side-${createId()}`, leafId: this.ops.length === 0 ? null : `leaf-${this.turnCount}`, turns: [turn] }
+        : { ...previous, turns: [...previous.turns, turn] }
+    this.writeSideTopic(topic)
+    const run: SideRun = { topicId: topic.id, turn: topic.turns.length - 1, cancelled: false }
+    this.side = run
+    this.emit({ type: 'sideTopic', topic })
+    /* 脚本按「下一轮怎么答」取一份：只认正文与 fail，工具 / 交互一律不跑（omp 的一次性回合从不执行工具） */
+    const steps = this.o.script({ text, images: [], files: [], skills: [], deliverAs: 'turn' }, SIDE_TURN_INDEX)
+    /* 与 omp 同序：先交回开问的快照，答案从下一拍起才流出 */
+    this.o.clock.setTimeout(() => {
+      void this.answerSide(run, steps).catch(() => undefined)
+    }, 0)
+    return topic
+  }
+
+  private async answerSide(run: SideRun, steps: readonly ScenarioStep[]): Promise<void> {
+    let answer = ''
+    for (const step of steps) {
+      if (run.cancelled || this.disposed) return
+      if (step.kind === 'fail') {
+        this.finishSide(run, { status: 'error', error: step.message })
+        return
+      }
+      if (step.kind !== 'text') continue
+      const offset = answer.length
+      answer += step.text
+      this.patchSideTurn(run, { answer, updatedAt: this.o.clock.now() })
+      this.emit({ type: 'sideDelta', topicId: run.topicId, turn: run.turn, offset, delta: step.text })
+      /* 每一截之间让出一拍：停止键要有机会插进来 */
+      await new Promise<void>((resolve) => {
+        this.o.clock.setTimeout(resolve, 0)
+      })
+    }
+    if (run.cancelled || this.disposed) return
+    this.finishSide(run, { status: 'complete' })
+  }
+
+  /** 收口只做一次：之后同一问再有结局（停止与答完撞车）一律不认 */
+  private finishSide(run: SideRun, patch: Partial<SideTurn>): void {
+    if (this.side !== run) return
+    this.side = null
+    const topic = this.patchSideTurn(run, { ...patch, updatedAt: this.o.clock.now() })
+    if (topic !== null) this.emit({ type: 'sideTopic', topic })
+  }
+
+  cancelSide(topicId: string | null): boolean {
+    const run = this.side
+    if (run === null || (topicId !== null && run.topicId !== topicId)) return false
+    run.cancelled = true
+    this.finishSide(run, { status: 'cancelled' })
+    return true
+  }
+
+  async sideTopics(): Promise<readonly SideTopic[]> {
+    this.assertLive()
+    return [...this.sideTopicsOf()].sort(
+      (a, b) => (b.turns[0]?.createdAt ?? 0) - (a.turns[0]?.createdAt ?? 0) || a.id.localeCompare(b.id),
+    )
+  }
+
   async dispose(): Promise<void> {
     if (this.disposed) return
+    /* 与 omp 的 RpcBtwController.close 同序：先停掉在答的那一问并落账，再关会话 */
+    this.cancelSide(null)
     this.disposed = true
     for (const [, settle] of this.pending) settle({ kind: 'dismiss' })
     this.pending.clear()
@@ -753,6 +893,7 @@ export function createFakeEngine(opts: FakeEngineOptions = {}): FakeEngine {
   const prompts: FakePrompt[] = []
   const sessions = new Set<FakeSession>()
   const store: SessionLedger = new Map()
+  const sides: SideLedger = new Map()
   const sessionNames = new Map<string, string>()
   let frozen = false
   const change = new Emitter<void>()
@@ -847,6 +988,7 @@ export function createFakeEngine(opts: FakeEngineOptions = {}): FakeEngine {
         prompts,
         clock,
         store,
+        sides,
         names: sessionNames,
         posture: spec.posture ?? opts.posture ?? 'ask',
         /* 没给就是 undefined：一次都不报，与真引擎「还没水合」同义。 */
@@ -880,6 +1022,9 @@ export function createFakeEngine(opts: FakeEngineOptions = {}): FakeEngine {
           throw new AppError(SystemErrorCode.invalidParams, `不能只留前 ${keepTurns} 轮`)
         }
         store.set(next, [...(store.get(file) ?? [])])
+        /* omp 的分叉连 artifacts 一起复制：侧边话题跟着过去 */
+        const topics = sides.get(file)
+        if (topics !== undefined) sides.set(next, [...topics])
         const name = title === undefined ? sessionNames.get(file) : title.trim()
         if (name !== undefined && name !== '') sessionNames.set(next, name)
         return { sessionId: createId(), sessionFile: next }
@@ -892,6 +1037,7 @@ export function createFakeEngine(opts: FakeEngineOptions = {}): FakeEngine {
       },
       async delete(file) {
         store.delete(file)
+        sides.delete(file)
       },
       async exportHtml(file, outFile) {
         store.set(outFile, [...(store.get(file) ?? [])])

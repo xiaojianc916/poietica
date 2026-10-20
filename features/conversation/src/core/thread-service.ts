@@ -397,12 +397,16 @@ export class ThreadService {
   }
 
   /**
-   * 活会话在忙才算忙。打开中的**不算忙**：删除 / fork 允许继续，删除由 `release` 的取消
+   * 活会话的**主对话**在忙才算忙。打开中的**不算忙**：删除 / fork 允许继续，删除由 `release` 的取消
    * 语义保证打开完成后立刻丢弃（R-03 §2.3）。
+   *
+   * 读 `state()` 而不是 `isBusy()`：后者把右坞里正在答的侧边提问也算进去（那是给会话池看的「别回收」），
+   * 而侧边一问不该拦住删除与分叉 —— 删除时它随会话一起停掉，分叉复制的是已经落盘的话题。
    */
   async #isBusy(threadId: string): Promise<boolean> {
     if (this.d.isOpening(threadId)) return false
-    return this.d.peekSession(threadId)?.isBusy() === true
+    const state = this.d.peekSession(threadId)?.state()
+    return state !== undefined && state !== 'idle'
   }
 
   private emitUpdated(row: ThreadRow): ThreadRow {

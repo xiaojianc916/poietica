@@ -127,6 +127,12 @@ export function registerHandlers(ctx: Ctx, core: ConversationCore, hub: Timeline
     cancelled: await turns.cancelBackgroundTask(threadId, taskId),
   }))
 
+  ctx.rpc.handle('side.ask', async ({ threadId, question, topicId }) => ({
+    topic: await turns.askSide(threadId, question, topicId),
+  }))
+  ctx.rpc.handle('side.cancel', ({ threadId, topicId }) => ({ cancelled: turns.cancelSide(threadId, topicId) }))
+  ctx.rpc.handle('side.list', async ({ threadId }) => ({ topics: [...(await turns.sideTopics(threadId))] }))
+
   ctx.rpc.handle('controls.draft', (p) => turns.draftControls(p))
   ctx.rpc.handle('controls.setDraft', async (p) => {
     await turns.setDraftDefault({

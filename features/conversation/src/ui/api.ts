@@ -5,6 +5,7 @@ import type {
   InteractionAnswer,
   ModelRef,
   Posture,
+  SideTopic,
   SlashCommand,
 } from '@poietica/engine'
 import type { TypedRpcClient } from '@poietica/rpc'
@@ -90,6 +91,14 @@ export function createConversationApi(ctx: UiFeatureContext) {
     /** 停一个后台作业（task 行 kind 为 shell / tool） */
     cancelBackgroundTask: async (threadId: string, taskId: string): Promise<boolean> =>
       (await rpc.call('backgroundTasks.cancel', { threadId, taskId })).cancelled,
+    /** 侧边提问（右坞辅助对话）：开问即返回快照（这一问 running）；topicId 为 null 开新话题 */
+    askSide: async (threadId: string, question: string, topicId: string | null): Promise<SideTopic> =>
+      (await rpc.call('side.ask', { threadId, question, topicId })).topic,
+    /** 停掉正在答的那一问；false = 已经答完或停过了（不报错） */
+    cancelSide: async (threadId: string, topicId: string | null): Promise<boolean> =>
+      (await rpc.call('side.cancel', { threadId, topicId })).cancelled,
+    listSide: async (threadId: string): Promise<readonly SideTopic[]> =>
+      (await rpc.call('side.list', { threadId })).topics,
     /** 入口那一格（还没有对话）的**草稿**控件表：带上还没落账的本地草稿、只读、不开会话；改默认走 setDraftDefaults。 */
     getDraftControls: (draft: {
       readonly model: ModelRef | null
@@ -156,6 +165,10 @@ export function createConversationApi(ctx: UiFeatureContext) {
     onContextUsage: (l: (p: { threadId: string; usage: ContextUsage | null }) => void) =>
       rpc.on('controls.contextChanged', l),
     onDraftControlsChanged: (l: () => void) => rpc.on('controls.draftChanged', l),
+    onSideTopic: (l: (p: { threadId: string; topic: SideTopic }) => void) => rpc.on('side.topic', l),
+    onSideDelta: (l: (p: { threadId: string; topicId: string; turn: number; offset: number; delta: string }) => void) =>
+      rpc.on('side.delta', l),
+    onSideNotice: (l: (p: { threadId: string; message: string }) => void) => rpc.on('side.notice', l),
     onInteractionRequested: (l: (p: { threadId: string; interaction: Interaction }) => void) =>
       rpc.on('interactions.requested', l),
     onInteractionResolved: (l: (p: { threadId: string; interactionId: string }) => void) =>

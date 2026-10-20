@@ -52,6 +52,9 @@ export default defineCoreModule({
       emitContextUsage: (p) => ctx.rpc.emit('controls.contextChanged', p),
       emitCommandOutput: (p) => ctx.rpc.emit('commands.output', p),
       emitCommandsChanged: (p) => ctx.rpc.emit('commands.changed', p),
+      emitSideTopic: (p) => ctx.rpc.emit('side.topic', p),
+      emitSideDelta: (p) => ctx.rpc.emit('side.delta', p),
+      emitSideNotice: (p) => ctx.rpc.emit('side.notice', p),
       emitInteractionRequested: (p) => ctx.rpc.emit('interactions.requested', p),
       emitInteractionResolved: (p) => ctx.rpc.emit('interactions.resolved', p),
       emitSubmissionChanged: (submission) =>

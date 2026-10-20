@@ -32,6 +32,7 @@ export {
   Check as CheckIcon,
   CheckCheck as CheckCheckIcon,
   ChevronDown as ChevronDownIcon,
+  ChevronLeft as ChevronLeftIcon,
   ChevronUp as ChevronUpIcon,
   CircleAlert as FailureIcon,
   CircleDotDashed as YieldIcon,

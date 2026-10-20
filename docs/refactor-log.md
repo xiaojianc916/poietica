@@ -25,6 +25,7 @@
 | Q46 | 2026-10-16 | `runtime-layout/src/core-args.ts` 的 33 行 argv 解析可用 `node:util.parseArgs` 替，但它接受 `--k=v`、报错是英文 `ERR_PARSE_ARGS_*`，而 9 条用例钉的是中文文案与「参数重复」语义 | 未决，属可接受的行为变更，需产品裁决 |
 | Q48 | 2026-10-16 | `omp-version.ts` 兜底值写死 `'18.5.0'`，会进 `core.ready` 与 `diagnostics.core` | **已结清（R-33）**：改为现读随包 omp 的 `package.json`，读不到才是 `0.0.0-unknown` |
 | Q49 | 2026-10-19 | 分叉标题的序号只在「源名已带后缀」时进一档：同一个对话分叉两次（兄弟分支）会得到两个同名 `X（分支）` | 未决。可选路径：落标题前按同工作区现有标题去重（撞名进一档），或就允许重名。当前实现只做链式分叉的递增，兄弟分支不去重 |
+| Q50 | 2026-10-21 | 输入框有**两份草稿模型**：按线程的 `stores.composer`（`ConversationUiToken.composerOf` / `activeComposer` 写它，持久化草稿也只回填它）与屏幕上的 Lexical 编辑器（`prompt-input`，离屏存 `ComposerDrafts`）互不相通。intelligent-ui、浏览器拾取投递、审查页经 `composerOf` 插进去的字 / 附件**从不出现在输入框里** | 部分处置（R-48）：加「在屏输入框登记表」`composer/live-composers.ts`，对话格的编辑器挂载时登记自己的 `ContributedDraft`，`composerOf(id)` 先找在屏的那份、找不到才退回 `stores.composer`。离屏线程的插入与持久化草稿回填仍走旧模型，彻底统一需让编辑器以 `stores.composer` 为唯一事实源（或删掉后者），属单独一次重构 |
 
 ## 其他待办（无编号）
 
@@ -45,6 +46,7 @@
 | 2026-10-18 | fork 失败路径两处健壮性：`thread-service` 的 `enqueue` 抛错会覆盖原始 insert 错误；`session-files` 的 `forked.close()` 抛错会跳过 `discard` | F-01 §7 |
 | 2026-10-18 | `tooling/checks/review-page/run.ts` 仍自己起 `gh` 取冒烟数据（tooling 不能 import 功能源码，也不在 `bun run all` 里） | R-36 |
 | 2026-10-18 | `listProcesses` 每次约 0.5s（PowerShell 起进程开销），启动与关停各一次，未做缓存 | R-37 |
+| 2026-10-21 | 测试不按平台跳过：Linux 上 `bun test` 稳定 62 失败 + 1 error（Windows 路径、PowerShell、`.exe` 等），另有 `agent-activity-feed.test.tsx` 两条（happy-dom 下 `offsetHeight` 桩不生效）与 `goal-continuation.test.ts` C4 满载超时。CI 只跑 windows-latest，所以从没红过；要么给平台专属用例加 `test.skipIf(process.platform !== 'win32')`，要么 CI 加一条 ubuntu 任务 | R-48 审查 |
 
 ## 偏差与裁决
 
@@ -83,6 +85,7 @@
 | R-45 | 右坞默认宽度 420 → 560（`DEFAULT_PANEL_WIDTH`）；AI 开始驾驶内置浏览器、且浏览器那一格还没在前台时，先把宽度抬到默认值再打开。用户正看着那一格时不动他拖出来的宽度。只抬不收紧，窗口放不下仍由 `resolveLayoutGeometry` 统一让位 | 用户 2026-10-19：AI 自动打开右侧浏览器时宽度太小，网页只剩一条窄页，驾驶过程看不清。旧存盘里的 420 也必须被这条路径抬起来，否则只改默认值对老用户无效；默认 1280 窗口下 560 仍给主列留 440，未越过 `LAYOUT_LIMITS.right` 的 800 上限 |
 | R-46 | 右坞开合改为**按归属分账**：`DockPaneSet` 增加 `open`，`auxiliary.owner` 改为派生（前台开着就是前台，收起时保持上一位）；删掉 `setAuxiliaryOwner` / `setPanelActive`，换成 `setDockOpen(owner, open)`。面板贡献加 `scope`（缺省 `surface`，技能文档为 `settings`），`openPane` / `focusPane` 拒收类别不符的格；设置页的坞只画选中那一格，不带标签条、启动器与加号。前台归属唯一写者是 Workbench：表面贡献 `dockOwner(params)`，删掉 `ActiveOwner`。删除对话时 `forgetOwner`；`restore` 不再清空前台、不恢复设置页的开合 | 用户 2026-10-20：在设置页「技能」里唤出的右栏还挂着浏览器、辅助对话、终端等标签，应只看技能。根因是坞只有一个全局 `auxiliary.owner` 槽（在 t2 开坞会收掉 t1 的）、面板没有归属类别（`location:'right'` 在任何归属都出现）、前台归属有 Workbench 与 `<ActiveOwner>` 两个写者；`forgetOwner` 无人调用，`panes.byOwner` 只增不减。**未在 Electron 真机核对** |
 | R-47 | 设置的右坞**按页分账**：归属从整个设置共用的 `'settings'` 改为每页一位 `settings:<页 id>`（`settingsDockOwner`）；`PanelScope` 改为 `'surface' \| settings:<页 id>`，技能文档声明 `settingsDockOwner(SKILLS_SETTINGS_PAGE)`，只进「技能」页的坞（`panelAdmits`）。Workbench 用 `useSettingsPageId` 把不带页的设置路由解析成实际落在的那一页再算 `dockOwner`，内容区读同一处。restore 对新旧两种设置归属都不补开合 | 用户 2026-10-20：技能页打开技能文档，退出设置再进来落在缺省的「通用」页，「通用」页右侧仍是技能文档。根因是 R-46 只把设置与对话分开，设置内部所有页共用一位归属，坞开合跟着这一位走、不认页。**未在 Electron 真机核对** |
+| R-48 | 右坞「辅助对话」接上 omp 的 `/btw`（协议 41）：引擎端口加 `askSide` / `cancelSide` / `sideTopics` 与 `sideTopic` / `sideDelta` / `sideNotice` 三个事件，`engine-omp` 包 `RpcBtwController`（`session/side-questions.ts`），Core 出 `side.ask` / `side.cancel` / `side.list` 与 `side.topic` / `side.delta` / `side.notice`，UI 由 `composer/side-store.ts` 按线程记话题。**和基准不一致的地方**：① 不调用工具 —— omp 的 btw 本来就把工具挂成「不执行」，答题只用当前上下文的快照；② 去掉占位版的「批准方式 / 计划 / 目标」三枚控件（对一个不跑工具、不写记录的提问没有意义），只留模型与思考档位，且**与主对话共用**（改它就是改主对话的下一轮）；③ fork 会把侧边话题一起复制（omp fork 克隆整个 artifacts 目录），删除会话时一起删；④ 端口的 `isBusy` 语义扩展为「主轮或侧边提问在跑」，thread-service 的删除 / 分叉守卫改读 `state() !== 'idle'`，侧边提问在跑时仍可删除 / 分叉 | 「为什么不在 UI 层拼」：辅助对话需要的是**同一份上下文的旁路采样**，这只有引擎能给（omp 在 `AgentSession` 里取消息快照、单独起一次流），Core 契约此前没有任何通道，所以占位版只能是假控件 + 空 `onSubmit`。基准截图里的那三枚控件需产品确认是否补回；**未在 Electron 真机核对** |
 | 偏差 #80 | 自动起名改成**只在开会话时打开 omp 的开关**：`SessionFactory` 往 `createAgentSession` 传 `autoTitle`（`disableAutoTitle !== true && spec.autoTitle !== false`），删掉 `OmpSessionHost.maybeAutoTitle` 端口、`OmpAgentSessionLike.maybeStartTitleGeneration` 声明与适配器里的「代 omp 触发」。生产语义：首条回复开始流式时 omp 自己起名 | 用户 2026-10-20：对话标题时灵时不灵。真因是 `maybeStartTitleGeneration` **在 omp 18.10.3 / 18.11.1 里根本不存在**（`src` 与 `dist` 均无定义），可选链把调用吞成空操作；而 `createAgentSession` 又没传 `autoTitle`，omp 的 `#noteTitleInput` 第一道门（`config.autoTitle === true`）恒假。库内 47 条线程里 30 条标题与「首句折叠 + 截 60 字」逐字相同。能变成 AI 总结的 16 条全部跑过 `todo op=init` —— omp 还有一条 `title.refreshOnReplan`（默认 true）的重规划刷新。测试夹具自己造了那个方法，所以旧用例 T-AT-1/2 测的是假货；改成直接断言 `createAgentSession` 入参 + 真 omp 冒烟（收到 `sessionTitle: Fix login page styles`） |
 
 ## 历史条目索引
@@ -169,3 +172,4 @@
 | 吉祥物迁移 | 2026-10-14 | V-01：运行时从上游 JS 迁为 TS（见上表偏差 V-01） |
 | 界面瘦身 | 2026-10-18 | 删上下文面板三颗维护钮、命令面板按 `enabled` 过滤 |
 | 标题开关 | 2026-10-20 | `autoTitle` 从未交给 omp：首句自动总结一次都没跑过（详见上表偏差 #80） |
+| 辅助对话 | 2026-10-21 | 右坞辅助对话从占位接成 omp `/btw`：侧边提问不进记录、不调工具（协议 40 → 41，详见上表偏差 R-48） |

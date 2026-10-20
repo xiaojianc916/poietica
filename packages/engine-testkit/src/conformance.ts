@@ -6,7 +6,9 @@ import {
   type EngineSessionEvent,
   type EngineToolSpec,
   type Interaction,
+  latestSideTurn,
   type ModelRef,
+  type SideTopic,
 } from '@poietica/engine'
 import { AppError, type Disposable, SystemErrorCode } from '@poietica/foundation'
 import { applyOps, emptyTimeline, pageFromState, type TranscriptPage } from '@poietica/transcript'
@@ -110,6 +112,30 @@ function toolTextOf(output: unknown): string {
     .filter((block) => block.type === 'text' && typeof block.text === 'string')
     .map((block) => block.text as string)
     .join('\n')
+}
+
+/** 某个侧边话题最近一次快照（sideTopic 事件），没有就是 undefined */
+function lastSideTopic(events: readonly EngineSessionEvent[], topicId: string): SideTopic | undefined {
+  let found: SideTopic | undefined
+  for (const event of events) if (event.type === 'sideTopic' && event.topic.id === topicId) found = event.topic
+  return found
+}
+
+/** 侧边话题最后一问已经有了结局（不再是 running） */
+function sideSettled(events: readonly EngineSessionEvent[], topicId: string, turns = 1): boolean {
+  const topic = lastSideTopic(events, topicId)
+  return topic !== undefined && topic.turns.length === turns && latestSideTurn(topic).status !== 'running'
+}
+
+/** 把 sideDelta 按 offset 拼回去：每一截的 offset 都必须正好接在已有长度后面（端口注释里的那条规矩） */
+function splicedAnswer(events: readonly EngineSessionEvent[], topicId: string, turn: number): string {
+  let answer = ''
+  for (const event of events) {
+    if (event.type !== 'sideDelta' || event.topicId !== topicId || event.turn !== turn) continue
+    expect(event.offset).toBe(answer.length)
+    answer += event.delta
+  }
+  return answer
 }
 
 function turnCount(page: TranscriptPage): number {
@@ -644,6 +670,121 @@ export function runEngineConformance(name: string, make: () => Promise<Conforman
       expect(allText(after)).toContain('pick B')
       expect(allText(after)).not.toContain('choice')
       expect(allText(after)).not.toContain('poietica-context')
+      await reopened.dispose()
+    })
+
+    /*
+     * C-SIDE-*：侧边提问（omp 的 /btw）。端口语义只钉四件事：开问即返回、答案按 offset 流出并以整份快照收口；
+     * 不碰主时间线与主状态；同一时刻只答一问；话题跟着会话文件走（重开读得回来）。
+     */
+    test('C-SIDE-ASK', async () => {
+      const session = await openNew()
+      const record = recorder(session)
+      target.script([[{ kind: 'text', text: 'side answer' }]])
+      const topic = await session.askSide('  what is this?  ', null)
+      expect(topic.turns).toHaveLength(1)
+      expect(topic.turns[0]?.question).toBe('what is this?')
+      expect(topic.turns[0]?.status).toBe('running')
+      await record.waitFor((events) => sideSettled(events, topic.id), '侧边提问没有答完')
+      const done = lastSideTopic(record.events, topic.id)
+      expect(done === undefined ? undefined : latestSideTurn(done).status).toBe('complete')
+      expect(done === undefined ? '' : latestSideTurn(done).answer).toContain('side answer')
+      expect(splicedAnswer(record.events, topic.id, 0)).toContain('side answer')
+      /* 不进主会话：主时间线一轮都没有，主状态一次都没变 */
+      expect(record.events.some((e) => e.type === 'timeline' || e.type === 'state')).toBe(false)
+      expect(turnCount(await session.page('main', null))).toBe(0)
+      expect(session.isBusy()).toBe(false)
+      const listed = await session.sideTopics()
+      expect(listed.map((t) => t.id)).toEqual([topic.id])
+      const empty = await session.askSide('   ', null).catch((error: unknown) => error)
+      expect((empty as AppError).code).toBe(SystemErrorCode.invalidParams)
+      record.subscription.dispose()
+    })
+
+    test('C-SIDE-BUSY', async () => {
+      const session = await openNew()
+      const record = recorder(session)
+      target.script([[{ kind: 'text', text: 'one' }]])
+      const first = session.askSide('first', null)
+      /* 第一问还在开问：第二问不排队、当场拒 */
+      const second = await session.askSide('second', null).catch((error: unknown) => error)
+      expect(second).toBeInstanceOf(AppError)
+      expect((second as AppError).code).toBe(EngineErrorCode.sideBusy)
+      const topic = await first
+      expect(session.isBusy()).toBe(true)
+      await record.waitFor((events) => sideSettled(events, topic.id), '第一问没有答完')
+      expect((await session.sideTopics()).length).toBe(1)
+      record.subscription.dispose()
+    })
+
+    test('C-SIDE-UNKNOWN-TOPIC', async () => {
+      const session = await openNew()
+      const refused = await session.askSide('follow', 'no-such-topic').catch((error: unknown) => error)
+      expect(refused).toBeInstanceOf(AppError)
+      expect((refused as AppError).code).toBe(EngineErrorCode.sideTopicUnknown)
+      expect(session.cancelSide(null)).toBe(false)
+      expect(session.cancelSide('no-such-topic')).toBe(false)
+      expect(await session.sideTopics()).toEqual([])
+    })
+
+    test('C-SIDE-CANCEL', async () => {
+      const session = await openNew()
+      const record = recorder(session)
+      target.script([[{ kind: 'text', text: 'never mind' }]])
+      const topic = await session.askSide('stop me', null)
+      expect(session.cancelSide('another-topic')).toBe(false)
+      expect(session.cancelSide(topic.id)).toBe(true)
+      await record.waitFor((events) => sideSettled(events, topic.id), '停止后没有收口')
+      const stopped = lastSideTopic(record.events, topic.id)
+      expect(stopped === undefined ? undefined : latestSideTurn(stopped).status).toBe('cancelled')
+      expect(session.isBusy()).toBe(false)
+      expect(session.cancelSide(null)).toBe(false)
+      /* 停下之后马上能再问 */
+      target.script([[{ kind: 'text', text: 'again' }]])
+      const next = await session.askSide('again?', null)
+      await record.waitFor((events) => sideSettled(events, next.id), '再问没有答完')
+      record.subscription.dispose()
+    })
+
+    test('C-SIDE-FOLLOWUP', async () => {
+      const session = await openNew()
+      const record = recorder(session)
+      target.script([[{ kind: 'text', text: 'first answer' }]])
+      const topic = await session.askSide('first question', null)
+      await record.waitFor((events) => sideSettled(events, topic.id), '第一问没有答完')
+      target.script([[{ kind: 'text', text: 'second answer' }]])
+      const followed = await session.askSide('second question', topic.id)
+      expect(followed.id).toBe(topic.id)
+      expect(followed.turns).toHaveLength(2)
+      await record.waitFor((events) => sideSettled(events, topic.id, 2), '追问没有答完')
+      expect(splicedAnswer(record.events, topic.id, 1)).toContain('second answer')
+      const [listed] = await session.sideTopics()
+      expect(listed?.turns.map((turn) => turn.question)).toEqual(['first question', 'second question'])
+      expect(listed?.turns.map((turn) => turn.status)).toEqual(['complete', 'complete'])
+      record.subscription.dispose()
+    })
+
+    test('C-SIDE-REOPEN', async () => {
+      const first = await openNew()
+      const record = recorder(first)
+      target.script([[{ kind: 'text', text: 'kept' }]])
+      const topic = await first.askSide('remember me', null)
+      await record.waitFor((events) => sideSettled(events, topic.id), '侧边提问没有答完')
+      const file = first.sessionFile
+      record.subscription.dispose()
+      await first.dispose()
+      const reopened = await target.engine.openSession({
+        key: 'conformance',
+        cwd: target.cwd,
+        sessionFile: file,
+        posture: 'ask',
+        model: null,
+        thinking: null,
+      })
+      const listed = await reopened.sideTopics()
+      expect(listed.map((t) => t.id)).toEqual([topic.id])
+      expect(listed[0] === undefined ? undefined : latestSideTurn(listed[0]).answer).toContain('kept')
+      expect(turnCount(await reopened.page('main', null))).toBe(0)
       await reopened.dispose()
     })
 

@@ -4,6 +4,8 @@ import { PreferencesToken } from '@poietica/feature-preferences/ui-api'
 import { WorkspacesUiToken } from '@poietica/feature-workspaces/ui-api'
 import { BannersToken, DialogsToken, LayoutToken, NavigationToken, type UiFeatureContext } from '@poietica/ui-kernel'
 import { createConversationApi } from '../api'
+import { createLiveComposers } from '../composer/live-composers'
+import { createSideStore } from '../composer/side-store'
 import { createEntryDefaults } from '../home'
 import { type ConversationStores, createStores, hiddenModelsOf } from '../session'
 import { createPostureIntent } from '../session/configuration/posture-intent'
@@ -55,6 +57,10 @@ export function createConversationSetup(ctx: UiFeatureContext) {
   const layout = ctx.services.get(LayoutToken)
   /* 右坞「子代理」组的标签账：按对话号分账，由线程表面（打开）与右坞（选中 / 关闭）共用。 */
   const subagentTabs = new SubagentTabsStore()
+  /* 右坞「辅助对话」的账（侧边提问的话题表）：按对话号分账，数据只来自 side.* */
+  const side = createSideStore(api)
+  /* 屏幕上正在编辑的对话输入框：辅助对话「放进输入框」与 ConversationUiToken.composerOf 都从这里找那一格 */
+  const liveComposers = createLiveComposers()
 
   return {
     api,
@@ -62,12 +68,14 @@ export function createConversationSetup(ctx: UiFeatureContext) {
     dialogs,
     entryDefaults,
     layout,
+    liveComposers,
     navigation,
     platform,
     posture,
     preferences,
     prefs,
     sessions,
+    side,
     stores,
     subagentTabs,
     banners,

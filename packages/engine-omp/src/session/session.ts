@@ -13,6 +13,7 @@ import {
   type QueueOutcome,
   type QueueSnapshot,
   type SessionState,
+  type SideTopic,
   type SlashCommand,
   type SubmitInput,
 } from '@poietica/engine'
@@ -28,6 +29,7 @@ import { commandErrorText, commandOutputText } from './command-output'
 import { describeError } from './event-faults'
 import type { LoadedImage } from './prompt'
 import { type SkillPromptMessage, wireTextOf } from './prompt'
+import type { SideEvent, SideQuestions } from './side-questions'
 import { type BuiltinCommandHooks, compactionActionOf, type runBuiltinCommand } from './slash-commands'
 import { usageOf } from './usage'
 
@@ -140,6 +142,8 @@ export interface OmpSessionHost {
   readonly steerSubagent: (agentId: string, text: string) => Promise<void>
   /** 停一个后台作业（omp 的 AsyncJobManager.cancel）；false = 已结束或不认识 */
   readonly cancelBackgroundTask: (taskId: string) => Promise<boolean>
+  /** 侧边提问（omp 的 /btw，实现在 side-questions.ts）；它的事件经 `emitSide` 发出 */
+  readonly side: Pick<SideQuestions, 'busy' | 'ask' | 'cancel' | 'topics' | 'close'>
 }
 
 interface QueueEntry {
@@ -260,8 +264,9 @@ export class OmpSession implements EngineSession {
     return this.stateValue
   }
 
+  /* 侧边一问在答也算忙（端口注释）：会话池回收会把它当场停掉；只问主对话忙不忙的读 state() */
   isBusy(): boolean {
-    return this.stateValue !== 'idle'
+    return this.stateValue !== 'idle' || this.o.side.busy
   }
 
   subscribe(listener: (event: EngineSessionEvent) => void): { dispose(): void } {
@@ -954,6 +959,27 @@ export class OmpSession implements EngineSession {
     return this.o.cancelBackgroundTask(taskId)
   }
 
+  // ── 侧边提问（omp 的 /btw，omp 知识 #21）：不碰时间线、不改 state ─────────────
+  async askSide(question: string, topicId: string | null): Promise<SideTopic> {
+    this.assertLive()
+    return await this.o.side.ask(question, topicId)
+  }
+
+  cancelSide(topicId: string | null): boolean {
+    if (this.disposed) return false
+    return this.o.side.cancel(topicId)
+  }
+
+  async sideTopics(): Promise<readonly SideTopic[]> {
+    this.assertLive()
+    return await this.o.side.topics()
+  }
+
+  /** side-questions.ts 的出口：`emit` 是 private */
+  emitSide(event: SideEvent): void {
+    this.emit(event)
+  }
+
   /** omp 的会话名变了（自动总结或用户定名，omp 知识 #17）：`emit` 是 private，这里留的出口 */
   emitSessionTitle(title: string, source: 'auto' | 'user'): void {
     if (!this.events.hasListeners) {
@@ -1027,9 +1053,13 @@ export class OmpSession implements EngineSession {
 
   async dispose(): Promise<void> {
     if (this.disposed) return
+    /* 在答的侧边一问先停：「已停止」那份快照要赶在关门之前发给订阅者，屏幕才不会停在「正在回答」 */
+    this.o.side.cancel(null)
     this.disposed = true
     for (const subscription of this.subscriptions) subscription.dispose()
     this.o.broker.cancelAll()
+    /* omp 的会话关掉之前把侧边话题收口的那一笔落盘（RpcBtwController.close 的约定）；它自己不抛 */
+    await this.o.side.close()
     try {
       await this.o.disposeSession()
     } catch (error) {

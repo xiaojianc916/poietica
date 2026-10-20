@@ -10,6 +10,7 @@ import type {
   Posture,
   QueueSnapshot,
   SessionState,
+  SideTopic,
   SlashCommand,
   UsageSample,
 } from './values'
@@ -99,12 +100,32 @@ export type EngineSessionEvent =
   | { readonly type: 'commandsChanged' }
   /* 斜杠命令给人的输出（omp 的 runtime.output）。**不进会话文件**，所以不走时间线：屏幕把它画成临时的一块 */
   | { readonly type: 'commandOutput'; readonly text: string }
+  /*
+   * 侧边提问（`askSide`）的三条事件。它们**不碰时间线、不改 state**：侧边一问不进主会话文件，主对话的屏幕与停止键都与它无关。
+   * - `sideTopic`：话题的整份快照，每次生命周期变化各发一次（开问、答完、停止、出错）—— 接收方按它整份替换；
+   * - `sideDelta`：正在答的那一问又流出一截。`turn` 是这一问在话题里的下标，`offset` 是这一截之前已有的字数（UTF-16 码元）——
+   *   接收方手里的长度对不上 offset 就说明漏了一截，该重读 `sideTopics()`，而不是硬拼（与时间线的 seq 同一条规矩）；
+   * - `sideNotice`：话题没能存盘之类的提醒（答案还在内存里，但重开会话后会丢）。
+   */
+  | { readonly type: 'sideTopic'; readonly topic: SideTopic }
+  | {
+      readonly type: 'sideDelta'
+      readonly topicId: string
+      readonly turn: number
+      readonly offset: number
+      readonly delta: string
+    }
+  | { readonly type: 'sideNotice'; readonly message: string }
 
 export interface EngineSession {
   readonly sessionId: string
   readonly sessionFile: string
   state(): SessionState
-  isBusy(): boolean // running 或者有待答交互
+  /**
+   * 会话里还有东西在跑：主轮 running、有待答交互，**或者一个侧边提问还在答**。会话池据此不回收它 ——
+   * 回收会把侧边那一问当场停掉。只想知道主对话忙不忙（删除 / 分叉的守卫、停止键）的调用方读 `state()`。
+   */
+  isBusy(): boolean
   subscribe(listener: (event: EngineSessionEvent) => void): Disposable
   submit(input: SubmitInput): Promise<void> // turn：开始一轮后立即返回；steer / followUp：入队后返回
   cancel(): Promise<void>
@@ -178,5 +199,21 @@ export interface EngineSession {
    * 返回 false = 它已经结束或不认识；不抛。子代理不走这里（用 `cancelSubagent`）。
    */
   cancelBackgroundTask(taskId: string): Promise<boolean>
+  /**
+   * 侧边提问（omp 的 `/btw`）：拿主对话此刻的上下文（含正在流式输出的那一截）问一句，**不进主会话文件、不改主对话状态**，
+   * 主轮跑着也能问。沿用会话的模型与系统提示，与主轮共用提示缓存；**从不执行工具**（omp 的一次性回合不跑工具调用）。
+   *
+   * `topicId` 为 null 开新话题，否则接在那个话题后面追问。话题落盘、开问之后即返回（返回的快照里这一问是 running），
+   * 答案经 `sideDelta` 流出、经 `sideTopic` 收口。同一时刻只答一问：还有一问在答时抛 `engine.side_busy`；
+   * 话题不存在抛 `engine.side_topic_unknown`；会话没有可用模型抛 `engine.side_unavailable`；空问题抛 invalid_params。
+   */
+  askSide(question: string, topicId: string | null): Promise<SideTopic>
+  /**
+   * 停掉正在答（或正在开问）的那一问；给了 `topicId` 时只停那个话题的。返回 false = 没有对得上的在答，不抛。
+   * 已经流出来的那一截留在话题里，状态记 cancelled。
+   */
+  cancelSide(topicId: string | null): boolean
+  /** 这条会话的全部侧边话题，新开的在前；正在答的那一问带着已经流出来的那一截 */
+  sideTopics(): Promise<readonly SideTopic[]>
   dispose(): Promise<void>
 }

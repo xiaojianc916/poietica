@@ -1,10 +1,12 @@
 import { WindowCloseToken } from '@poietica/feature-platform/ui-api'
 import { createId } from '@poietica/foundation'
-import { builtinPoints } from '@poietica/ui-kernel'
+import { builtinPoints, isSettingsDockOwner, useFeatureStore, useLayout, useObservable } from '@poietica/ui-kernel'
 import { Bot, MessageSquareText } from 'lucide-react'
+import { useEffect, useMemo } from 'react'
 import { type ComposerDraft, ConversationUiToken } from '../../ui-api'
 import { AuxiliaryComposer } from '../composer/view/auxiliary-composer'
 import { ConversationProviders } from '../composition'
+import { hiddenModelsOf, sessionConfigControlsOf, withoutHiddenModels } from '../session'
 import { confirmQuit } from '../session/notify'
 import { subagentTitleOf } from '../timeline/view/delegate-channel-view'
 import { createSubagentDockTabs, SUBAGENT_PANEL_ID, SubagentDockPanel } from '../timeline/view/subagent-dock'
@@ -13,7 +15,7 @@ import type { ConversationSetup } from './context'
 
 /** 关窗守卫，以及 ConversationUiToken 等服务的提供。 */
 export function createConversationServices(setup: ConversationSetup, actions: ConversationActions): void {
-  const { api, ctx, dialogs, layout, posture, stores, subagentTabs, transcripts } = setup
+  const { api, ctx, dialogs, layout, liveComposers, posture, prefs, side, stores, subagentTabs, transcripts } = setup
   const { activeThreadId, openThread, runningThreadIds, subscribeActive } = actions
 
   // 退出拦截：有运行中的对话就先确认。只答「放不放行」——真正的 app.quit 由守卫在所有处理器放行后统一发起，
@@ -23,19 +25,59 @@ export function createConversationServices(setup: ConversationSetup, actions: Co
     guard.onCloseRequested(async () => await confirmQuit(dialogs, runningThreadIds().size)).dispose,
   )
 
+  /* 辅助对话里换模型 / 档位：就是这条对话的那两格（与主对话工具条同一条路，失败时重读控件表） */
+  const selectSideControl = (threadId: string, controlId: string, value: string): void => {
+    const handle = stores.composerFor(threadId)
+    if (controlId === 'thought') {
+      handle.setThinking(value)
+      return
+    }
+    const at = value.indexOf('/')
+    if (controlId === 'model' && at > 0) handle.setModel({ provider: value.slice(0, at), id: value.slice(at + 1) })
+  }
+
+  /* 右坞的格归哪条对话就问哪条对话（坞按对话分账；设置页的坞不收这一格，归属是 settings:* 时当作没有对话） */
+  const SideChatPanel = () => {
+    const owner = useLayout().auxiliary.owner
+    const threadId = owner === null || isSettingsDockOwner(owner) ? null : owner
+    const controls = useFeatureStore(stores.controls.store, (s) =>
+      threadId === null ? undefined : s.byThread[threadId],
+    )
+    const hiddenModels = hiddenModelsOf(useObservable(prefs))
+    /* 侧边一问不动手：只留模型与思考档位，批准方式 / 计划 / 目标都不进这一格 */
+    const shown = useMemo(
+      () =>
+        withoutHiddenModels(sessionConfigControlsOf(controls), hiddenModels).filter(
+          (control) => control.purpose === 'model' || control.purpose === 'thought',
+        ),
+      [controls, hiddenModels],
+    )
+    const missing = threadId !== null && controls === undefined
+    useEffect(() => {
+      if (missing && threadId !== null) void stores.controls.refresh(threadId)
+    }, [missing, threadId])
+    return (
+      <AuxiliaryComposer
+        controls={shown}
+        onInsert={(id, text) => draftOf(id).insertText(text)}
+        onSelectControl={(controlId, value) => {
+          if (threadId !== null) selectSideControl(threadId, controlId, value)
+        }}
+        side={side}
+        threadId={threadId}
+      />
+    )
+  }
+
   // ui-api：给其它功能的服务
-  /* 右坞第一格：辅助对话。order 5 让它排在审查（10）/ 终端（15）/ 浏览器（20）之前；输入条要读会话上下文的工具名册，所以经 ConversationProviders 包一层。 */
+  /* 右坞第一格：辅助对话（omp 的 /btw 侧边提问）。order 5 让它排在审查（10）/ 终端（15）/ 浏览器（20）之前。 */
   ctx.contribute(builtinPoints.panels, {
     id: 'conversation.auxiliary',
     location: 'right',
     order: 5,
     title: '辅助对话',
     icon: MessageSquareText,
-    component: () => (
-      <ConversationProviders posture={posture} transcripts={transcripts}>
-        <AuxiliaryComposer />
-      </ConversationProviders>
-    ),
+    component: SideChatPanel,
   })
 
   /*
@@ -61,7 +103,13 @@ export function createConversationServices(setup: ConversationSetup, actions: Co
     ),
   })
 
+  /*
+   * 「这条对话的输入框」：屏幕上挂着的那一格优先（插字、加附件、提交都与手打一句话同一条路）；
+   * 没挂在屏幕上（切走了、入口页）才退回草稿模型。
+   */
   const draftOf = (threadId: string | null): ComposerDraft => {
+    const live = threadId === null ? undefined : liveComposers.get(threadId)
+    if (live !== undefined) return live
     const handle = stores.composerFor(threadId)
     return {
       threadId: handle.threadId,

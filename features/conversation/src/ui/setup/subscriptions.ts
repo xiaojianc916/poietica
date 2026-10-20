@@ -14,6 +14,7 @@ export function createConversationSubscriptions(setup: ConversationSetup, action
     preferences,
     posture,
     sessions,
+    side,
     stores,
     subagentTabs,
     transcripts,
@@ -55,8 +56,14 @@ export function createConversationSubscriptions(setup: ConversationSetup, action
       subagentTabs.forget(p.threadId)
       /* 右坞那一份（开合、格清单）同样按对话号记账；不清就只增不减，存盘里也可能留着一个已删对话的归属。 */
       layout.forgetOwner(p.threadId)
+      /* 辅助对话的话题随对话一起删（存在会话的 artifacts 里，Core 那边已经没了） */
+      side.forget(p.threadId)
     }).dispose,
   )
+  /* 侧边提问（右坞辅助对话）的三条通知：快照整份替换，增量对不上 offset 由 store 自己重读 */
+  ctx.lifecycle.onDispose(api.onSideTopic((p) => side.applyTopic(p.threadId, p.topic)).dispose)
+  ctx.lifecycle.onDispose(api.onSideDelta((p) => side.applyDelta(p.threadId, p)).dispose)
+  ctx.lifecycle.onDispose(api.onSideNotice((p) => side.applyNotice(p.threadId, p.message)).dispose)
   /*
    * 「结束」= turns.state 从 running / awaiting 回到 idle（CV-10）。判据用**前一份状态**：只看当前是 idle 会把 threads.list 的初始快照也当成一次「结束」，一打开软件就弹。
    * `document.hasFocus()` 与偏好由 notify() 统一判，测试只验这条规则。
@@ -161,6 +168,8 @@ export function createConversationSubscriptions(setup: ConversationSetup, action
           }
         },
       ],
+      /* Core 换代时正在答的那一问已经停了（落盘为 interrupted）：读过的对话重读一遍，屏幕上不留一个永远「正在答」 */
+      ['side', () => side.reloadLoaded()],
     ]
     /* 每一步各自兜底：某一格抛错不该把后面的恢复步骤跳过 —— 原先整段共用一次 await，第一步失败就等于「重启之后什么都不再同步」。 */
     for (const [name, run] of steps) {

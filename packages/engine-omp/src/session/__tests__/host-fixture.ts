@@ -58,6 +58,14 @@ export function hostOf(over: Partial<OmpSessionHost> = {}): OmpSessionHost {
     cancelSubagent: async () => false,
     steerSubagent: async () => undefined,
     cancelBackgroundTask: async () => false,
+    /* 侧边提问：这一档用例不测它（side-questions.test.ts 单测） */
+    side: {
+      busy: false,
+      ask: async () => Promise.reject(new Error('side questions are not wired')),
+      cancel: () => false,
+      topics: async () => [],
+      close: async () => undefined,
+    },
     steer: async () => ({ wireText: '' }),
     abort: async () => undefined,
     disposeSession: async () => undefined,

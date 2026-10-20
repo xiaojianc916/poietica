@@ -13536,6 +13536,262 @@
       }
     },
     {
+      "name": "side.ask",
+      "owner": "core",
+      "timeoutMs": 30000,
+      "description": "问一句侧边提问：开问即返回（这一问 running）；还有一问在答时抛 engine.side_busy，话题不存在抛 engine.side_topic_unknown，没有可用模型抛 engine.side_unavailable",
+      "params": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "threadId": {
+            "type": "string",
+            "minLength": 1
+          },
+          "question": {
+            "type": "string",
+            "minLength": 1
+          },
+          "topicId": {
+            "anyOf": [
+              {
+                "type": "string",
+                "minLength": 1
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "threadId",
+          "question",
+          "topicId"
+        ]
+      },
+      "result": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "topic": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string",
+                "minLength": 1
+              },
+              "leafId": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "turns": {
+                "minItems": 1,
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "question": {
+                      "type": "string"
+                    },
+                    "answer": {
+                      "type": "string"
+                    },
+                    "status": {
+                      "type": "string",
+                      "enum": [
+                        "running",
+                        "complete",
+                        "cancelled",
+                        "error",
+                        "interrupted"
+                      ]
+                    },
+                    "createdAt": {
+                      "type": "number"
+                    },
+                    "updatedAt": {
+                      "type": "number"
+                    },
+                    "error": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "question",
+                    "answer",
+                    "status",
+                    "createdAt",
+                    "updatedAt",
+                    "error"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            },
+            "required": [
+              "id",
+              "leafId",
+              "turns"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "required": [
+          "topic"
+        ],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "side.cancel",
+      "owner": "core",
+      "timeoutMs": 30000,
+      "description": "停掉正在答的侧边提问（给了 topicId 只停那个话题的）；没有在答的时 cancelled=false",
+      "params": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "threadId": {
+            "type": "string",
+            "minLength": 1
+          },
+          "topicId": {
+            "anyOf": [
+              {
+                "type": "string",
+                "minLength": 1
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "threadId",
+          "topicId"
+        ]
+      },
+      "result": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "cancelled": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "cancelled"
+        ],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "side.list",
+      "owner": "core",
+      "timeoutMs": 30000,
+      "description": "这条对话的全部侧边话题（新开的在前）；从没落过盘的对话返回空表，不开会话",
+      "params": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "threadId": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "required": [
+          "threadId"
+        ]
+      },
+      "result": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "topics": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "leafId": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "turns": {
+                  "minItems": 1,
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "question": {
+                        "type": "string"
+                      },
+                      "answer": {
+                        "type": "string"
+                      },
+                      "status": {
+                        "type": "string",
+                        "enum": [
+                          "running",
+                          "complete",
+                          "cancelled",
+                          "error",
+                          "interrupted"
+                        ]
+                      },
+                      "createdAt": {
+                        "type": "number"
+                      },
+                      "updatedAt": {
+                        "type": "number"
+                      },
+                      "error": {
+                        "type": [
+                          "string",
+                          "null"
+                        ]
+                      }
+                    },
+                    "required": [
+                      "question",
+                      "answer",
+                      "status",
+                      "createdAt",
+                      "updatedAt",
+                      "error"
+                    ],
+                    "additionalProperties": false
+                  }
+                }
+              },
+              "required": [
+                "id",
+                "leafId",
+                "turns"
+              ],
+              "additionalProperties": false
+            }
+          }
+        },
+        "required": [
+          "topics"
+        ],
+        "additionalProperties": false
+      }
+    },
+    {
       "name": "skills.install",
       "owner": "core",
       "timeoutMs": 300000,
@@ -26866,6 +27122,156 @@
         "required": [
           "threadId",
           "queue"
+        ],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "side.delta",
+      "owner": "core",
+      "description": "正在答的侧边提问又流出一截（offset = 这一截之前已有的 UTF-16 码元数）",
+      "params": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "threadId": {
+            "type": "string",
+            "minLength": 1
+          },
+          "topicId": {
+            "type": "string",
+            "minLength": 1
+          },
+          "turn": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991
+          },
+          "offset": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991
+          },
+          "delta": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "threadId",
+          "topicId",
+          "turn",
+          "offset",
+          "delta"
+        ],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "side.notice",
+      "owner": "core",
+      "description": "侧边话题的提醒（例如没能存盘：重开对话后会丢）",
+      "params": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "threadId": {
+            "type": "string",
+            "minLength": 1
+          },
+          "message": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "threadId",
+          "message"
+        ],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "side.topic",
+      "owner": "core",
+      "description": "一个侧边话题的整份快照",
+      "params": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "threadId": {
+            "type": "string",
+            "minLength": 1
+          },
+          "topic": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string",
+                "minLength": 1
+              },
+              "leafId": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "turns": {
+                "minItems": 1,
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "question": {
+                      "type": "string"
+                    },
+                    "answer": {
+                      "type": "string"
+                    },
+                    "status": {
+                      "type": "string",
+                      "enum": [
+                        "running",
+                        "complete",
+                        "cancelled",
+                        "error",
+                        "interrupted"
+                      ]
+                    },
+                    "createdAt": {
+                      "type": "number"
+                    },
+                    "updatedAt": {
+                      "type": "number"
+                    },
+                    "error": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "question",
+                    "answer",
+                    "status",
+                    "createdAt",
+                    "updatedAt",
+                    "error"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            },
+            "required": [
+              "id",
+              "leafId",
+              "turns"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "required": [
+          "threadId",
+          "topic"
         ],
         "additionalProperties": false
       }

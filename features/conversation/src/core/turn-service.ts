@@ -8,6 +8,7 @@ import {
   type ModelRef,
   type Posture,
   type QueueSnapshot,
+  type SideTopic,
   type SlashCommand,
 } from '@poietica/engine'
 import type { AttachmentsService } from '@poietica/feature-attachments/core-api'
@@ -296,6 +297,33 @@ export class TurnService {
   async runCommand(threadId: string, text: string): Promise<void> {
     const session = await this.d.pool.acquire(threadId)
     await session.runCommand(text)
+  }
+
+  // ── 侧边提问（右坞「辅助对话」，omp 的 /btw）────────────────────────────────
+  /*
+   * 问一句要会话（acquire）：答案拿的就是这条会话的模型、系统提示与历史快照。
+   * 进行中由引擎拒绝（engine.side_busy）；问题的空白已在契约层收掉。
+   */
+  async askSide(threadId: string, question: string, topicId: string | null): Promise<SideTopic> {
+    const session = await this.d.pool.acquire(threadId)
+    return await session.askSide(question, topicId)
+  }
+
+  /** 与 cancelSubagent 同一条理由：正在答的侧边提问只活在活会话里，没有活会话就是「没有在答的」。 */
+  cancelSide(threadId: string, topicId: string | null): boolean {
+    return this.d.pool.peek(threadId)?.cancelSide(topicId) ?? false
+  }
+
+  /**
+   * 话题表。还没落过盘的线程（行上没有会话文件）也没有话题可读：不为打开右坞去冷启动一条会话。
+   * 落过盘的线程要会话 —— 话题存在会话的 artifacts 目录里，路径只有引擎知道。
+   */
+  async sideTopics(threadId: string): Promise<readonly SideTopic[]> {
+    const live = this.d.pool.peek(threadId)
+    if (live !== undefined) return await live.sideTopics()
+    if (this.d.requireRow(threadId).sessionFile === null) return []
+    const session = await this.d.pool.acquire(threadId)
+    return await session.sideTopics()
   }
 
   // ── 交互（07 页 §5C 的 interactions 两方法）───────────────────────────────

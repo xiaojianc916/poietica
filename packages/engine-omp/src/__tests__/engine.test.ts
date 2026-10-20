@@ -41,6 +41,11 @@ function stubSession(): EngineSession {
     cancelSubagent: async () => false,
     steerSubagent: async () => undefined,
     cancelBackgroundTask: async () => false,
+    askSide: async () => {
+      throw new AppError(EngineErrorCode.sideUnavailable, '替身不答侧边提问')
+    },
+    cancelSide: () => false,
+    sideTopics: async () => [],
     respond: () => undefined,
     page: async () => ({
       items: [],

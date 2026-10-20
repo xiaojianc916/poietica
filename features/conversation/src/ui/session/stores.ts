@@ -44,6 +44,12 @@ export function createStores(
   const composer = createComposerStore(initialDrafts)
   const controls = createControlsStore(api)
 
+  /*
+   * 换模型 / 档位 / 姿态失败（会话起不来、模型被下架）：重读一次控件表，屏幕回到 agent 手里的真值；
+   * 重读也失败时由控件 store 记进 failure，那一条横幅会说原因（AGENTS.md §8.1：void 的 promise 必须带 .catch）。
+   */
+  const resync = (threadId: string) => (): Promise<void> => controls.refresh(threadId)
+
   const stores: ConversationStores = {
     api,
     threads,
@@ -87,21 +93,30 @@ export function createStores(
         submit,
         setModel: (model) => {
           if (threadId === null) return
-          void stores.api.setModel(threadId, model).then((c: Controls) => {
-            controls.set(threadId, c)
-          })
+          void stores.api
+            .setModel(threadId, model)
+            .then((c: Controls) => {
+              controls.set(threadId, c)
+            })
+            .catch(resync(threadId))
         },
         setThinking: (level) => {
           if (threadId === null) return
-          void stores.api.setThinking(threadId, level).then((c: Controls) => {
-            controls.set(threadId, c)
-          })
+          void stores.api
+            .setThinking(threadId, level)
+            .then((c: Controls) => {
+              controls.set(threadId, c)
+            })
+            .catch(resync(threadId))
         },
         setPosture: (posture) => {
           if (threadId === null) return
-          void stores.api.setPosture(threadId, posture).then((c: Controls) => {
-            controls.set(threadId, c)
-          })
+          void stores.api
+            .setPosture(threadId, posture)
+            .then((c: Controls) => {
+              controls.set(threadId, c)
+            })
+            .catch(resync(threadId))
         },
       }
     },

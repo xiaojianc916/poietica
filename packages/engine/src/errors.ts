@@ -13,6 +13,10 @@ export const EngineErrorCode = {
   queueItemConsumed: 'engine.queue_item_consumed', // 这条排队项已经被 agent 取走，撤不回来了
   commandUnknown: 'engine.command_unknown', // 不是 omp 认识的斜杠命令（或是 GUI 宿主办不了的那几条）
   subagentNotRunning: 'engine.subagent_not_running', // 子代理已经结束（或已被父轮收下结果），不能再引导
+  sideBusy: 'engine.side_busy', // 侧边提问同一时刻只答一问：上一问还没答完
+  sideTopicUnknown: 'engine.side_topic_unknown', // 追问的侧边话题不在这条会话里（可能是重开前的旧号）
+  sideUnavailable: 'engine.side_unavailable', // 会话没有可用模型，侧边提问无从答起
+  sideFailed: 'engine.side_failed', // 侧边提问没能开问（例如话题存不了盘）；message 为原因
 } as const
 export type EngineErrorCode = (typeof EngineErrorCode)[keyof typeof EngineErrorCode]
 
@@ -30,4 +34,8 @@ export const engineErrorMessages: Readonly<Record<EngineErrorCode, string>> = Ob
   'engine.queue_item_consumed': '这条消息已经交给 agent，撤不回来了',
   'engine.command_unknown': '没有这条命令',
   'engine.subagent_not_running': '这个子代理已经结束了',
+  'engine.side_busy': '上一个侧边提问还没答完',
+  'engine.side_topic_unknown': '找不到这个侧边话题',
+  'engine.side_unavailable': '这条对话还没有可用的模型',
+  'engine.side_failed': '侧边提问没能开始',
 })

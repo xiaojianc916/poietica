@@ -41,9 +41,30 @@ import { useRunningThreadIds } from './use-running-thread-ids'
 
 /** 界面、侧栏、面板等贡献。 */
 export function createConversationContributions(setup: ConversationSetup, actions: ConversationActions): void {
-  const { api, ctx, entryDefaults, layout, posture, prefs, sessions, stores, subagentTabs, transcripts, workspaces } =
-    setup
+  const {
+    api,
+    ctx,
+    entryDefaults,
+    layout,
+    liveComposers,
+    posture,
+    prefs,
+    sessions,
+    stores,
+    subagentTabs,
+    transcripts,
+    workspaces,
+  } = setup
   const { archiveThread, archived, collapsed, exportThread, newThread, openThread, showArchived, todoThread } = actions
+  /*
+   * 点一下就发出去的那些调用（置顶、改名、分叉、换模型……）没有人在等结果：失败至少记一条带上下文的 warn（AGENTS.md §8.1）。
+   * 屏幕不用回滚 —— 这些都不是乐观更新，失败了屏幕上本来就还是旧值；控件表另由 controls.changed 推回真值。
+   */
+  const failed =
+    (action: string, threadId: string) =>
+    (cause: unknown): void => {
+      ctx.logger.warn('conversation action failed', { action, threadId, error: String(cause) })
+    }
   /* 线程表面挂载 / 换对话时预热会话并主动问一次控件表（审查 R-19-4，判据见 thread-lifecycle.ts）。setup 级的稳定引用：它进了 effect 依赖。 */
   const openThreadSurface = createThreadSurfaceOpener({
     open: api.openThread,
@@ -65,11 +86,14 @@ export function createConversationContributions(setup: ConversationSetup, action
   }
   const rewriteThread = (threadId: string, turn: number) => {
     const text = promptOfTurn(transcripts.read(threadId).timeline, turn)
-    void api.forkThread({ threadId, keepTurns: turn - 1 }).then((t) => {
-      stores.threads.upsert(t)
-      if (text !== '') prefills.set(t.id, text)
-      openThread(t.id)
-    })
+    void api
+      .forkThread({ threadId, keepTurns: turn - 1 })
+      .then((t) => {
+        stores.threads.upsert(t)
+        if (text !== '') prefills.set(t.id, text)
+        openThread(t.id)
+      })
+      .catch(failed('rewrite', threadId))
   }
 
   /* 侧栏导航「新建对话」归 conversation —— 这个功能才知道入口在哪儿，外壳一个产品常量都不写。 */
@@ -172,7 +196,10 @@ export function createConversationContributions(setup: ConversationSetup, action
               if (workspace !== undefined) setRemoving({ id: workspace.id, name: workspace.name })
             }}
             onPin={(threadId, pinned) => {
-              void api.setPinned(threadId, pinned).then((t) => stores.threads.upsert(t))
+              void api
+                .setPinned(threadId, pinned)
+                .then((t) => stores.threads.upsert(t))
+                .catch(failed('pin', threadId))
             }}
             onToggleWorkspace={(workspaceId) => {
               /* 换一份新 Set 再 set：可订阅值按引用判变化。 */
@@ -220,7 +247,10 @@ export function createConversationContributions(setup: ConversationSetup, action
                   onClick: () => {
                     const threadId = archivedNotice.threadId
                     archived.set(null)
-                    void api.setArchived(threadId, false).then((t) => stores.threads.upsert(t))
+                    void api
+                      .setArchived(threadId, false)
+                      .then((t) => stores.threads.upsert(t))
+                      .catch(failed('unarchive', threadId))
                   },
                 },
                 { label: '筛选已归档会话', onClick: showArchived, prefix: '或' },
@@ -327,6 +357,7 @@ export function createConversationContributions(setup: ConversationSetup, action
       return (
         <ConversationProviders
           agentControls={api}
+          liveComposers={liveComposers}
           onOpenDelegateChannel={openDelegateChannel}
           posture={posture}
           transcripts={transcripts}
@@ -340,29 +371,44 @@ export function createConversationContributions(setup: ConversationSetup, action
             goal={goal}
             isNew={false}
             onFork={(keepTurns) => {
-              void api.forkThread({ threadId, keepTurns }).then((t) => {
-                stores.threads.upsert(t)
-                openThread(t.id)
-              })
+              void api
+                .forkThread({ threadId, keepTurns })
+                .then((t) => {
+                  stores.threads.upsert(t)
+                  openThread(t.id)
+                })
+                .catch(failed('fork', threadId))
             }}
             onRewrite={(turn) => rewriteThread(threadId, turn)}
             prefill={held.threadId === threadId ? held.text : undefined}
             onGoalAction={(action) => runGoalAction(api, threadId, action)}
             onExportThread={(id) => void exportThread(id)}
             onPinThread={(id, pinned) => {
-              void api.setPinned(id, pinned).then((t) => stores.threads.upsert(t))
+              void api
+                .setPinned(id, pinned)
+                .then((t) => stores.threads.upsert(t))
+                .catch(failed('pin', id))
             }}
             onRenameThread={(id, title) => {
-              void api.renameThread(id, title).then((t) => stores.threads.upsert(t))
+              void api
+                .renameThread(id, title)
+                .then((t) => stores.threads.upsert(t))
+                .catch(failed('rename', id))
             }}
             onSelectControl={(controlId, value) => {
               if (controlId === 'model') {
                 const at = value.indexOf('/')
-                if (at > 0) void api.setModel(threadId, { provider: value.slice(0, at), id: value.slice(at + 1) })
+                if (at > 0) {
+                  void api
+                    .setModel(threadId, { provider: value.slice(0, at), id: value.slice(at + 1) })
+                    .catch(failed('setModel', threadId))
+                }
                 return
               }
-              if (controlId === 'thought') void api.setThinking(threadId, value)
-              if (controlId === PLAN_CONTROL_ID) void api.setPlanMode(threadId, value === PLAN_ENABLED)
+              if (controlId === 'thought') void api.setThinking(threadId, value).catch(failed('setThinking', threadId))
+              if (controlId === PLAN_CONTROL_ID) {
+                void api.setPlanMode(threadId, value === PLAN_ENABLED).catch(failed('setPlanMode', threadId))
+              }
               /*
                * **打开**那一档走「发送时生效」（正文就是 objective，只有发送那一步拿得到）；**关掉**必须当场生效 ——
                * 人点的是「不收这个目标了」，等下一句才收等于开关失灵。暂停 / 继续 / 改正文走 onGoalAction（R-10）。
@@ -374,7 +420,7 @@ export function createConversationContributions(setup: ConversationSetup, action
               if (controlId === 'permission') {
                 /* 选的是**产品值**（manual / yolo / auto），发回引擎的必须是它那一档（ask / auto-edit / full-access），直接下发会被 Core 拒掉。映射表在 control-shapes.ts。 */
                 const posture = postureOfControl(value)
-                if (posture !== undefined) void api.setPosture(threadId, posture)
+                if (posture !== undefined) void api.setPosture(threadId, posture).catch(failed('setPosture', threadId))
               }
             }}
             thread={thread}

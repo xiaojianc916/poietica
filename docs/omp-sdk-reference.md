@@ -1129,3 +1129,63 @@ Physical format: one JSON object per line, UTF-8, newline-terminated (`SessionSt
 {"type":"custom_message","id":"...","parentId":"...","timestamp":"...","customType":"skill-prompt","content":"...","display":true,"details":{"name":"...","path":"...","args":"...","lineCount":3},"attribution":"..."}
 {"type":"custom","id":"...","parentId":"...","timestamp":"...","customType":"system-prompt-digest","data":"c295d636c3e2e072"}
 ```
+
+## O. /btw side questions — rpc-btw, btw-turn, btw-history
+
+The auxiliary dock's side chat (engine `askSide` / `cancelSide` / `sideTopics`) is a thin wrapper over omp's RPC `/btw` controller (`packages/engine-omp/src/session/side-questions.ts`, omp knowledge #21). The controller is constructed per session from the live `AgentSession`; it runs **one side question at a time** against the main session's current model + system prompt + history (in-flight streaming text included), never blocks or alters the main turn, and checkpoints every turn into a per-session history sidecar so TUI and RPC hosts read and continue the same topics.
+
+```ts
+// from: src/modes/rpc/rpc-btw.ts:35-252
+export class RpcBtwController {
+ constructor(session: Pick<AgentSession, "model" | "runEphemeralTurn" | "sessionManager">, output: (frame: RpcBtwOutputFrame) => void,) {
+ async ask(question: string, recordId?: string): Promise<BtwHistoryRecord> {
+ cancel(recordId?: string): boolean {
+ async history(): Promise<readonly BtwHistoryRecord[]> {
+ async close(): Promise<void> {
+```
+
+`ask` resolves once the new turn is checkpointed as `running` (a new topic when `recordId` is omitted, otherwise a follow-up in that topic); the answer then streams through `output`. `cancel()` without an id stops whatever is running. `close()` flushes pending checkpoints; poietica calls it from `dispose` before the session itself is disposed.
+
+```ts
+// from: src/modes/rpc/rpc-types.ts:610-620
+export interface RpcBtwDeltaFrame { type: "btw_delta"; recordId: string; delta: string; }
+export interface RpcBtwRecordFrame { type: "btw_record"; record: BtwHistoryRecord; }
+```
+
+The controller's private output union also carries `{ type: "notice"; level: "error"; message: string; source: "btw-history" }` for sidecar read/write failures (mapped to the engine's `sideNotice`). A `btw_record` frame arrives on every lifecycle change (started, complete, cancelled, error); deltas only ever extend the **latest** turn of the running record, so the engine computes `turn`/`offset` itself and drops deltas that arrive after the record settled.
+
+```ts
+// from: src/session/btw-history.ts:8-23
+export { type BtwHistoryRecord, type BtwHistoryTurn, getBtwCopyText, getBtwLatestTurn, getBtwTurns, } from "@oh-my-pi/pi-tui/overlays/btw-history";
+const turnFields = { question: "string", answer: "string", status: "'running' | 'complete' | 'cancelled' | 'error' | 'interrupted'", createdAt: "0 <= number <= 8640000000000000", updatedAt: "0 <= number <= 8640000000000000", "error?": "string", } as const;
+```
+
+```ts
+// from: TUIROOT/src/overlays/btw-history.ts:1-22
+export interface BtwHistoryTurn { question: string; answer: string; status: "running" | "complete" | "cancelled" | "error" | "interrupted"; createdAt: number; updatedAt: number; error?: string; }
+export interface BtwHistoryRecord extends BtwHistoryTurn { id: string; leafId: string | null; followUps?: readonly BtwHistoryTurn[]; }
+export function getBtwTurns(record: BtwHistoryRecord): readonly BtwHistoryTurn[] {
+```
+
+A record **is** its first turn; follow-ups hang off it. The engine flattens this into `SideTopic { id, leafId, turns }` (`getBtwTurns` order). `interrupted` marks a turn that was `running` when its process died — the sidecar is reread with it on the next open.
+
+```ts
+// from: src/session/btw-turn.ts:21-98
+export function beginBtwTurn(question: string, leafId: string | null, previous?: BtwHistoryRecord): BtwTurnStart {
+export function runBtwTurn(
+```
+
+`runBtwTurn` replays earlier turns of the topic as detached context messages (rendered through `prompts/system/btw-user.md`, which tells the model "NEVER use tools") and calls `runEphemeralTurn`. A cancelled or failed turn rotates the provider `conversationKey`, so a retry starts a fresh lineage.
+
+```ts
+// from: src/session/agent-session.ts:11145-11320
+async runEphemeralTurn(args: EphemeralTurnOptions): Promise<EphemeralTurnResult> {
+```
+
+Per its JSDoc and `EphemeralTurnOptions.tools` (src/session/agent-session-types.ts:582): the main turn's tool catalog is still sent (prompt-cache reuse), but **tool calls are never executed**, and the session's history and persisted state are not modified. This is why the side chat has no tool, approval, plan or goal controls: it can only answer from context the main conversation already holds.
+
+Storage and lifecycle facts poietica relies on:
+
+- History lives under the session's artifacts directory, `btw-history/` (`historyDirectory`, src/session/btw-history.ts:80), one `entry-<id>.json` per topic; a session that has never been written to disk (no artifacts dir) keeps its topics in memory only.
+- Forking a session copies its artifacts directory, so the fork starts with the parent's side topics; deleting a session removes them with the artifacts.
+- `ask` while a side question is running is rejected by the controller; the engine pre-checks this (`engine.side_busy`) and also rejects with `engine.side_unavailable` when the session has no model.

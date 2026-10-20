@@ -5,6 +5,7 @@ export {
   type FakeEngineOptions,
   type FakePrompt,
   type FakeToolCall,
+  SIDE_TURN_INDEX,
 } from './fake-engine'
 export {
   callTool,

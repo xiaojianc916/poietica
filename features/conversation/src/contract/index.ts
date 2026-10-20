@@ -7,6 +7,7 @@ import {
   InteractionAnswer,
   ModelRef,
   Posture,
+  SideTopic,
   SlashCommand,
 } from '@poietica/engine'
 import { transcriptOperationSchema, transcriptPageSchema } from '@poietica/transcript'
@@ -39,6 +40,7 @@ export const conversationContract = defineContract({
     'commands',
     'subagents',
     'backgroundTasks',
+    'side',
   ],
   methods: [
     defineMethod({
@@ -264,6 +266,38 @@ export const conversationContract = defineContract({
       params: z.object({ threadId: z.string().min(1), taskId: z.string().min(1) }),
       result: z.object({ cancelled: z.boolean() }),
       description: '停掉一个后台作业（task 行 kind 为 shell / tool）；已结束或不认识时 cancelled=false',
+    }),
+    /*
+     * 侧边提问（右坞「辅助对话」，omp 的 /btw）：拿这条对话此刻的上下文与模型问一句，不进会话文件、不碰主轮，
+     * 主轮跑着也能问；**从不调用工具**。答案经 side.delta 流出、side.topic 收口。同一时刻只答一问。
+     * 问题的空白在契约层收掉（与 controls.setGoal 同一条理由：空白问题不该进 omp 的历史侧档）。
+     */
+    defineMethod({
+      name: 'side.ask',
+      owner: 'core',
+      params: z.object({
+        threadId: z.string().min(1),
+        question: z.string().trim().min(1),
+        /** null = 开新话题；否则接在这个话题后面追问 */
+        topicId: z.string().min(1).nullable(),
+      }),
+      result: z.object({ topic: SideTopic }),
+      description:
+        '问一句侧边提问：开问即返回（这一问 running）；还有一问在答时抛 engine.side_busy，话题不存在抛 engine.side_topic_unknown，没有可用模型抛 engine.side_unavailable',
+    }),
+    defineMethod({
+      name: 'side.cancel',
+      owner: 'core',
+      params: z.object({ threadId: z.string().min(1), topicId: z.string().min(1).nullable() }),
+      result: z.object({ cancelled: z.boolean() }),
+      description: '停掉正在答的侧边提问（给了 topicId 只停那个话题的）；没有在答的时 cancelled=false',
+    }),
+    defineMethod({
+      name: 'side.list',
+      owner: 'core',
+      params: z.object({ threadId: z.string().min(1) }),
+      result: z.object({ topics: z.array(SideTopic) }),
+      description: '这条对话的全部侧边话题（新开的在前）；从没落过盘的对话返回空表，不开会话',
     }),
     defineMethod({
       name: 'queue.setModes',
@@ -522,6 +556,34 @@ export const conversationContract = defineContract({
       owner: 'core',
       params: z.object({ threadId: z.string().min(1) }),
       description: '这条对话的命令表变了：重读 commands.list',
+    }),
+    /*
+     * 侧边提问的三条通知。side.topic 是整份快照（开问、答完、停止、出错各一次），收到就整份替换；
+     * side.delta 只接在正在答的那一问后面：本地长度对不上 offset 就是漏了一截 —— 重读 side.list，不硬拼。
+     */
+    defineNotification({
+      name: 'side.topic',
+      owner: 'core',
+      params: z.object({ threadId: z.string().min(1), topic: SideTopic }),
+      description: '一个侧边话题的整份快照',
+    }),
+    defineNotification({
+      name: 'side.delta',
+      owner: 'core',
+      params: z.object({
+        threadId: z.string().min(1),
+        topicId: z.string().min(1),
+        turn: z.number().int().nonnegative(),
+        offset: z.number().int().nonnegative(),
+        delta: z.string(),
+      }),
+      description: '正在答的侧边提问又流出一截（offset = 这一截之前已有的 UTF-16 码元数）',
+    }),
+    defineNotification({
+      name: 'side.notice',
+      owner: 'core',
+      params: z.object({ threadId: z.string().min(1), message: z.string() }),
+      description: '侧边话题的提醒（例如没能存盘：重开对话后会丢）',
     }),
     defineNotification({
       name: 'interactions.requested',

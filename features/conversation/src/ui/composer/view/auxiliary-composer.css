@@ -3,7 +3,9 @@
 .auxiliary-composer-pane__feed {
   min-block-size: 0;
   flex: 1;
-  overflow: hidden;
+  /* 一问一答往下长：这一格自己滚，输入药丸钉在底下不动。 */
+  overflow-y: auto;
+  overscroll-behavior: contain;
 }
 
 .auxiliary-composer-pane__empty {
@@ -69,4 +71,253 @@
 /* 左端没有加号时（子代理标签页的引导框）：草稿别贴着药丸的圆边起笔。 */
 .auxiliary-composer__pill[data-leading="none"] {
   padding-inline-start: calc(var(--cp-inset) * 2);
+}
+
+/* ── 辅助对话（侧边提问）的正文 ─────────────────────────────────────────────
+ * 侧栏只有 320–800 宽：问题是一颗靠右的浅底气泡（与主对话的用户消息同一个读法），答案是不带底的正文。
+ * 所有量度取 --cp-* 那一套，不另起数字；状态只用字色说（不另起底色），与时间线的克制程度一致。
+ */
+
+.auxiliary-chat__intro,
+.auxiliary-chat__topic {
+  display: grid;
+  gap: var(--cp-stack);
+  padding: var(--cp-stack) var(--cp-gutter);
+}
+
+.auxiliary-chat__lead {
+  margin: 0;
+  font-size: var(--cp-font-label);
+  color: var(--cp-ink);
+}
+
+.auxiliary-chat__hint {
+  margin: 0;
+  font-size: var(--cp-font-caption);
+  line-height: var(--cp-line-ratio);
+  color: var(--cp-ink-subtle);
+}
+
+.auxiliary-chat__recent {
+  display: grid;
+  gap: var(--cp-control-gap);
+}
+
+.auxiliary-chat__recent-heading {
+  margin: 0;
+  font-size: var(--cp-font-micro);
+  font-weight: inherit;
+  color: var(--cp-ink-subtle);
+}
+
+.auxiliary-chat__recent-list {
+  display: grid;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.auxiliary-chat__recent-row {
+  display: flex;
+  inline-size: 100%;
+  min-block-size: var(--cp-target-min);
+  align-items: center;
+  gap: var(--cp-control-gap);
+  padding-inline: var(--cp-pad-mid);
+  border: 0;
+  border-radius: var(--cp-radius-item);
+  background: transparent;
+  font: inherit;
+  font-size: var(--cp-font-caption);
+  color: var(--cp-ink-muted);
+  text-align: start;
+  cursor: pointer;
+}
+
+.auxiliary-chat__recent-row:hover,
+.auxiliary-chat__recent-row:focus-visible {
+  background: var(--cp-hover);
+  color: var(--cp-ink);
+}
+
+/* 问题一行收尾：完整的那句在点进去之后的气泡里。 */
+.auxiliary-chat__recent-question {
+  min-inline-size: 0;
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.auxiliary-chat__recent-meta {
+  flex: none;
+  font-size: var(--cp-font-micro);
+  color: var(--cp-ink-subtle);
+}
+
+.auxiliary-chat__back {
+  display: inline-flex;
+  justify-self: start;
+  align-items: center;
+  gap: var(--cp-pill-gap);
+  padding: 0 var(--cp-pad-mid) 0 0;
+  border: 0;
+  background: transparent;
+  font: inherit;
+  font-size: var(--cp-font-caption);
+  color: var(--cp-ink-subtle);
+  cursor: pointer;
+}
+
+.auxiliary-chat__back:hover,
+.auxiliary-chat__back:focus-visible {
+  color: var(--cp-ink);
+}
+
+.auxiliary-chat__back svg {
+  inline-size: var(--cp-icon);
+  block-size: var(--cp-icon);
+}
+
+.auxiliary-chat__turns {
+  display: grid;
+  gap: var(--cp-stack);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.auxiliary-chat__turn {
+  display: grid;
+  gap: var(--cp-control-gap);
+}
+
+.auxiliary-chat__question {
+  justify-self: end;
+  max-inline-size: 90%;
+  margin: 0;
+  padding: var(--cp-pad-mid) var(--cp-pad-x);
+  border-radius: var(--cp-radius);
+  background: var(--cp-timeline-user-surface);
+  color: var(--cp-timeline-body-ink);
+  font-size: var(--cp-font-label);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.auxiliary-chat__answer {
+  min-inline-size: 0;
+  font-size: var(--cp-font-label);
+  color: var(--cp-timeline-body-ink);
+}
+
+.auxiliary-chat__thinking,
+.auxiliary-chat__outcome {
+  display: flex;
+  align-items: center;
+  gap: var(--cp-pill-gap);
+  margin: 0;
+  font-size: var(--cp-font-caption);
+  color: var(--cp-ink-subtle);
+}
+
+.auxiliary-chat__outcome[data-tone="error"] {
+  color: var(--cp-timeline-danger-text);
+}
+
+.auxiliary-chat__spinner {
+  inline-size: var(--cp-icon);
+  block-size: var(--cp-icon);
+  animation: auxiliary-chat-spin 1s linear infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .auxiliary-chat__spinner {
+    animation: none;
+  }
+}
+
+@keyframes auxiliary-chat-spin {
+  to {
+    transform: rotate(1turn);
+  }
+}
+
+.auxiliary-chat__actions {
+  display: flex;
+  align-items: center;
+  gap: var(--cp-pill-gap);
+}
+
+.auxiliary-chat__icon-button,
+.auxiliary-chat__text-button {
+  display: inline-flex;
+  block-size: var(--cp-control-xs);
+  align-items: center;
+  justify-content: center;
+  gap: var(--cp-pill-gap);
+  border: 0;
+  border-radius: var(--cp-radius-item);
+  background: transparent;
+  font: inherit;
+  font-size: var(--cp-font-caption);
+  color: var(--cp-ink-subtle);
+  cursor: pointer;
+}
+
+.auxiliary-chat__icon-button {
+  inline-size: var(--cp-control-xs);
+}
+
+.auxiliary-chat__text-button {
+  padding-inline: var(--cp-pad-mid);
+}
+
+.auxiliary-chat__icon-button:hover,
+.auxiliary-chat__text-button:hover:not(:disabled),
+.auxiliary-chat__icon-button:focus-visible,
+.auxiliary-chat__text-button:focus-visible {
+  background: var(--cp-hover);
+  color: var(--cp-ink);
+}
+
+.auxiliary-chat__text-button:disabled {
+  cursor: default;
+  opacity: 0.5;
+}
+
+.auxiliary-chat__icon-button svg,
+.auxiliary-chat__text-button svg {
+  inline-size: var(--cp-icon);
+  block-size: var(--cp-icon);
+}
+
+/* 失败与提醒贴着药丸上沿：说的是「刚才那一下」，离输入最近。 */
+.auxiliary-chat__notice {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: var(--cp-control-gap);
+  margin: 0 var(--cp-inset) var(--cp-control-gap);
+  padding: var(--cp-pad-mid) var(--cp-pad-mid) var(--cp-pad-mid) var(--cp-pad-x);
+  border: var(--cp-px) solid var(--cp-edge);
+  border-radius: var(--cp-notice-radius);
+  background: var(--cp-surface);
+  font-size: var(--cp-font-caption);
+  color: var(--cp-ink-muted);
+}
+
+.auxiliary-chat__notice[data-tone="error"] {
+  color: var(--cp-timeline-danger-text);
+}
+
+.auxiliary-chat__notice-text {
+  min-inline-size: 0;
+  flex: 1;
+  overflow-wrap: anywhere;
+}
+
+/* 停止键与发送键同位同形，只换字形：正在答的时候它就是那颗键。 */
+.auxiliary-composer [data-slot="prompt-input-submit"][data-running="true"] {
+  cursor: pointer;
 }

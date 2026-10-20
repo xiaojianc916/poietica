@@ -1,3 +1,4 @@
+import { invariant } from '@poietica/foundation'
 import { z } from 'zod'
 
 export const ModelRef = z.object({ provider: z.string().min(1), id: z.string().min(1) })
@@ -398,3 +399,41 @@ export const SlashCommand = z.object({
 export type SlashCommand = z.infer<typeof SlashCommand>
 
 export const Capabilities = z.object({ computerUse: z.boolean(), browserControl: z.boolean() })
+
+/**
+ * 侧边提问（omp 的 `/btw`）一问一答的结局。`interrupted` = 上次进程还在答的时候退出了（omp 重开历史时把 running 改成它），
+ * 与 `cancelled`（人按了停止）分开：屏幕对前者说「上次没答完」，对后者说「已停止」。
+ */
+export const SideTurnStatus = z.enum(['running', 'complete', 'cancelled', 'error', 'interrupted'])
+export type SideTurnStatus = z.infer<typeof SideTurnStatus>
+
+/** 侧边话题里的一问一答。`answer` 在 running 时是已经流出来的那一截；`error` 只在 status 为 error 时非空。 */
+export const SideTurn = z.object({
+  question: z.string(),
+  answer: z.string(),
+  status: SideTurnStatus,
+  createdAt: z.number(),
+  updatedAt: z.number(),
+  error: z.string().nullable(),
+})
+export type SideTurn = z.infer<typeof SideTurn>
+
+/**
+ * 一个侧边话题：第一问开题，之后的追问接在同一题下（omp 的 BtwHistoryRecord + followUps 摊平成一张表）。
+ * `leafId` 是开题那一刻主对话停在哪一条（omp 的会话树叶子）；没有任何消息时是 null。
+ * 话题存在会话的 artifacts 目录里，不进主会话文件：删对话一起删，分叉一起复制（refactor-log 记了这一条）。
+ */
+export const SideTopic = z.object({
+  id: z.string().min(1),
+  leafId: z.string().nullable(),
+  turns: z.array(SideTurn).min(1),
+})
+export type SideTopic = z.infer<typeof SideTopic>
+
+/** 话题里最后一问（正在答的、或者最近答完的那一问） */
+export function latestSideTurn(topic: SideTopic): SideTurn {
+  const turn = topic.turns.at(-1)
+  /* schema 要求至少一问：走到这里说明有人绕过 schema 手搓了一个空话题 */
+  invariant(turn !== undefined, `side topic ${topic.id} has no turns`)
+  return turn
+}

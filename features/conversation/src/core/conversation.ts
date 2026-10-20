@@ -4,6 +4,7 @@ import type {
   Controls,
   EngineSessionEvent,
   Interaction,
+  SideTopic,
   UsageSample,
 } from '@poietica/engine'
 import type { AttachmentsService } from '@poietica/feature-attachments/core-api'
@@ -43,6 +44,16 @@ export interface ConversationCoreDeps {
   /** 斜杠命令的输出与命令表变化（commands.output / commands.changed） */
   readonly emitCommandOutput: (p: { threadId: string; text: string }) => void
   readonly emitCommandsChanged: (p: { threadId: string }) => void
+  /** 侧边提问（右坞辅助对话）的三条通知：side.topic / side.delta / side.notice */
+  readonly emitSideTopic: (p: { threadId: string; topic: SideTopic }) => void
+  readonly emitSideDelta: (p: {
+    threadId: string
+    topicId: string
+    turn: number
+    offset: number
+    delta: string
+  }) => void
+  readonly emitSideNotice: (p: { threadId: string; message: string }) => void
   readonly emitInteractionRequested: (p: { threadId: string; interaction: Interaction }) => void
   readonly emitInteractionResolved: (p: { threadId: string; interactionId: string }) => void
   /** 「Core 即时回显」：提交行的两条通知（存库后推送） */
@@ -189,6 +200,9 @@ export class ConversationCore {
       emitContextUsage: d.emitContextUsage,
       emitCommandOutput: d.emitCommandOutput,
       emitCommandsChanged: d.emitCommandsChanged,
+      emitSideTopic: d.emitSideTopic,
+      emitSideDelta: d.emitSideDelta,
+      emitSideNotice: d.emitSideNotice,
       emitInteractionRequested: d.emitInteractionRequested,
       emitInteractionResolved: d.emitInteractionResolved,
       emitTurnSettled: d.emitTurnSettled,

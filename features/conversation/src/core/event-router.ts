@@ -1,4 +1,4 @@
-import type { ContextUsage, Controls, EngineSessionEvent, Posture, UsageSample } from '@poietica/engine'
+import type { ContextUsage, Controls, EngineSessionEvent, Posture, SideTopic, UsageSample } from '@poietica/engine'
 import type { Clock } from '@poietica/foundation'
 import type { TranscriptOperation } from '@poietica/transcript'
 import { MAIN_AGENT_ID, type QueueView, type Thread, type TurnState } from '../contract/entities'
@@ -56,6 +56,16 @@ export interface EventRouterDeps {
   readonly emitUsageSampled: (p: { threadId: string; sample: UsageSample; at: number }) => void
   readonly emitCommandOutput: (p: { threadId: string; text: string }) => void
   readonly emitCommandsChanged: (p: { threadId: string }) => void
+  /** 侧边提问（右坞辅助对话）：原样转成 side.* 通知 —— 它们不进时间线、不碰回合运行时 */
+  readonly emitSideTopic: (p: { threadId: string; topic: SideTopic }) => void
+  readonly emitSideDelta: (p: {
+    threadId: string
+    topicId: string
+    turn: number
+    offset: number
+    delta: string
+  }) => void
+  readonly emitSideNotice: (p: { threadId: string; message: string }) => void
 }
 
 export class EventRouter {
@@ -144,6 +154,21 @@ export class EventRouter {
         break
       case 'commandsChanged':
         this.d.emitCommandsChanged({ threadId })
+        break
+      case 'sideTopic':
+        this.d.emitSideTopic({ threadId, topic: event.topic })
+        break
+      case 'sideDelta':
+        this.d.emitSideDelta({
+          threadId,
+          topicId: event.topicId,
+          turn: event.turn,
+          offset: event.offset,
+          delta: event.delta,
+        })
+        break
+      case 'sideNotice':
+        this.d.emitSideNotice({ threadId, message: event.message })
         break
     }
   }

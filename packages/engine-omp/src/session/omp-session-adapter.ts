@@ -1,6 +1,7 @@
 import type { Settings } from '@oh-my-pi/pi-coding-agent/config/settings'
 import { buildSkillPromptMessage } from '@oh-my-pi/pi-coding-agent/extensibility/skills'
 import type { LocalProtocolOptions } from '@oh-my-pi/pi-coding-agent/internal-urls/local-protocol'
+import { RpcBtwController } from '@oh-my-pi/pi-coding-agent/modes/rpc/rpc-btw'
 import type { RpcGoalSession } from '@oh-my-pi/pi-coding-agent/modes/rpc/rpc-goal'
 import { computeSessionContextBreakdown } from '@oh-my-pi/pi-coding-agent/session/context-usage-runtime'
 import {
@@ -54,6 +55,7 @@ import {
   type SkillPromptMessage,
 } from './prompt'
 import { OmpSession } from './session'
+import { SideQuestions } from './side-questions'
 import { listSlashCommands, resolveSlashCommand, runBuiltinCommand } from './slash-commands'
 import { userTextOf } from './subagent-channels'
 import { createSubagentHost, type SubagentHost } from './subagent-host'
@@ -262,9 +264,22 @@ export async function wrapOmpSession(input: WrapOmpSessionInput): Promise<Engine
       continuationDropped: () => ompSession.goalContinuationDropped(),
     },
   })
+  /*
+   * 侧边提问（omp 知识 #21）：控制器只在开问时才碰会话（model / runEphemeralTurn / sessionManager），所以测试里的
+   * 结构替身也能照常建它。真身形状由 omp 的类型说了算，这里与 goal 那一条一样直接交 agentSession。
+   */
+  const side = new SideQuestions({
+    createController: (output) =>
+      new RpcBtwController(input.agentSession as ConstructorParameters<typeof RpcBtwController>[0], output),
+    hasModel: () => session.model !== undefined && session.model !== null,
+    /* 与 planner 一样：箭头调用时才求值 ompSession */
+    emit: (event) => ompSession.emitSide(event),
+    logger: input.logger,
+  })
   const ompSession = new OmpSession(
     {
       spec: input.spec,
+      side,
       logger: input.logger,
       broker,
       projector,

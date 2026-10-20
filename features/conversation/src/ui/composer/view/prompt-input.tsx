@@ -50,6 +50,7 @@ import { $createChipNode, ChipNode, type PromptChipValue, samePromptChip } from 
 import { type ComposerAsset, isInlineAttachment, useAttachmentIntake } from '../attachment'
 import type { ComposerDraft } from '../drafts'
 import { ENTRY_DRAFT_KEY, useComposerDraftKey, useComposerDrafts } from '../drafts-context'
+import { LiveComposersContext } from '../live-composers'
 import {
   canSubmitDraft,
   type PendingPromptConfiguration,
@@ -648,6 +649,16 @@ function PromptInputShell({
     }),
     [addAssets, draftKey, insertText, requestFormSubmit],
   )
+
+  /*
+   * 对话那一格挂在屏幕上就登记：别处（右坞的辅助对话、ConversationUiToken.composerOf）往「这条对话的输入框」里插字时
+   * 找到的是这一格。入口页不登记（它的键是空串 / ENTRY_DRAFT_KEY，不是对话号），照旧走草稿模型。
+   */
+  const liveComposers = useContext(LiveComposersContext)
+  useEffect(() => {
+    if (liveComposers === null || draftKey === '' || draftKey === ENTRY_DRAFT_KEY) return
+    return liveComposers.register(draftKey, contributedDraft)
+  }, [contributedDraft, draftKey, liveComposers])
 
   /* 贡献的输入处理器：粘贴与拖放各走一遍，谁先吃掉谁负责 —— 返回 true 就跳过内置那条路。 */
   const inputHandlers = useContributions(composerInputHandlers)

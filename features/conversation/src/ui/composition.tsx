@@ -4,6 +4,7 @@ import { composerProviders, workspaceGitProviders } from '../ui-api'
 import { AttachmentIntakeContext } from './composer/attachment'
 import { ComposerDrafts } from './composer/drafts'
 import { ComposerDraftsContext } from './composer/drafts-context'
+import { type LiveComposers, LiveComposersContext } from './composer/live-composers'
 import type { PostureIntent } from './session/configuration/posture-intent'
 import { SessionControlsContext } from './session/configuration/session-controls-context'
 import { SessionControlsStore } from './session/configuration/session-controls-store'
@@ -26,11 +27,14 @@ export interface ConversationProvidersProps {
   readonly onOpenDelegateChannel?: OpenDelegateChannel | undefined
   /** 子代理 / 后台作业的取消与引导出口（ConversationApi 本身即满足）；缺席时这些控件画成不可用。 */
   readonly agentControls?: AgentControls | undefined
+  /** 屏幕上正在编辑的输入框登记表（见 composer/live-composers.ts）；缺席就不登记 */
+  readonly liveComposers?: LiveComposers | undefined
 }
 
 export function ConversationProviders({
   agentControls,
   children,
+  liveComposers,
   onOpenDelegateChannel,
   posture,
   transcripts,
@@ -77,7 +81,9 @@ export function ConversationProviders({
         <SessionControlsContext value={sessionControls}>
           <DelegateChannelContext value={openDelegate}>
             <AgentControlsContext value={agentControls ?? null}>
-              <AttachmentIntakeContext value={null}>{provided}</AttachmentIntakeContext>
+              <AttachmentIntakeContext value={null}>
+                <LiveComposersContext value={liveComposers ?? null}>{provided}</LiveComposersContext>
+              </AttachmentIntakeContext>
             </AgentControlsContext>
           </DelegateChannelContext>
         </SessionControlsContext>
