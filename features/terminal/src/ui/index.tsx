@@ -2,15 +2,17 @@ import { platformContract } from '@poietica/feature-platform/contract'
 import { WorkspacesUiToken } from '@poietica/feature-workspaces/ui-api'
 import { BannersToken, builtinPoints, defineUiFeature, type KeybindingItem, LayoutToken } from '@poietica/ui-kernel'
 import { SquareTerminal } from 'lucide-react'
-import { lazy } from 'react'
 import { createTerminalApi } from './api'
+import { createTerminalDockTabs, watchLastTerminal } from './terminal-dock-tabs'
 import { createLazyTerminalRuntime } from './terminal-loader'
+import { TerminalPanel } from './terminal-panel'
 
 const PANEL_ID = 'terminal.panel'
 
 /* 终端功能的 UI 装配。**偏差**：方案把终端落在底坞，而 legacy 的终端是右坞四格之一；产品负责人要求「UI 与对话效果必须与 legacy
- * 一模一样」，故以 legacy 为准落 `right`、order 15。已记 docs/refactor-log.md。落点：panels(right, order 15)「终端」；commands /
- * keybindings —— terminal.new（Ctrl+Shift+`）、terminal.toggle（Ctrl+`）、terminal.closeActive、terminal.clear。 */
+ * 一模一样」，故以 legacy 为准落 `right`、order 15。已记 docs/refactor-log.md。落点：panels(right, order 15)「终端」，每条终端是
+ * 右坞标签条上的一格（dockTabs，R-49）；commands / keybindings —— terminal.new（Ctrl+Shift+`）、terminal.toggle（Ctrl+`）、
+ * terminal.closeActive、terminal.clear。 */
 export default defineUiFeature({
   id: 'terminal',
   dependsOn: ['workspaces', 'platform'],
@@ -35,19 +37,18 @@ export default defineUiFeature({
       },
     })
 
-    const TerminalPanelLazy = lazy(async () => {
-      const [loaded, { TerminalPanel }] = await Promise.all([runtime.load(), import('./terminal-panel')])
-      return { default: () => <TerminalPanel runtime={loaded} /> }
-    })
-
     ctx.contribute(builtinPoints.panels, {
       id: PANEL_ID,
       location: 'right',
       order: 15,
       title: '终端',
       icon: SquareTerminal,
-      component: TerminalPanelLazy,
+      dockTabs: createTerminalDockTabs({ layout, panelId: PANEL_ID, runtime }),
+      component: () => <TerminalPanel runtime={runtime} />,
     })
+
+    /* 最后一条终端没了：坞别停在一块空的终端面上。 */
+    ctx.lifecycle.onDispose(watchLastTerminal(runtime, layout, PANEL_ID))
 
     ctx.lifecycle.onDispose(
       api.onOutput((p) => {
@@ -65,9 +66,10 @@ export default defineUiFeature({
       await runtime.restore()
     })
 
+    /* 先建后开：标签先上了条，坞打开时第一帧就停在这一格上，而不是先画一块空的终端面。 */
     const newTerminal = (): void => {
-      layout.openPanel('right', PANEL_ID)
       runtime.create()
+      layout.openPanel('right', PANEL_ID)
     }
 
     /* Ctrl+`：收起 → 展开本面板；开着本面板 → 收起。展开且还没终端时顺手开一个。 */
@@ -75,11 +77,11 @@ export default defineUiFeature({
       const dock = layout.current().right
       const wasOpen = dock.open && dock.activeId === PANEL_ID
 
-      layout.togglePanel('right', PANEL_ID)
-
       if (!wasOpen && runtime.count() === 0) {
         runtime.create()
       }
+
+      layout.togglePanel('right', PANEL_ID)
     }
 
     const command = (id: string, title: string, run: () => void, enabled?: () => boolean): void => {

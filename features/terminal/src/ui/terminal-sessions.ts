@@ -7,6 +7,9 @@ import type { TerminalApi } from './api'
 import { terminalTheme } from './xterm-theme'
 
 import '@xterm/xterm/css/xterm.css'
+/* 必须排在 xterm.css 之后、同一个分块里：两边有同特异性的规则（`.xterm .xterm-viewport`），谁后到谁赢。面板本身进了首屏，
+ * 这份覆盖要是跟着面板走，就会比按需加载的 xterm.css 先到、反被它盖掉（露黑边、多一条原生滚动条）。 */
+import './terminal-pane.css'
 
 /* 每个终端一个**常驻**的 xterm Terminal 对象，存在 store 之外的 Map 里。切换标签只换哪一块 DOM 可见，对象不动 —— 后台标签的
  * 输出照样写进它自己的画面，切回来时内容不缺。观测、量尺寸、剪贴板与链接规则与 legacy 一致，只把数据来源从原生 root 键换成
@@ -210,6 +213,9 @@ export function createTerminalSession(
       element = next
       next.addEventListener('contextmenu', exchangeClipboard)
 
+      /* 先上色再 open：open 之后的第一帧就按主题画，不先拿 xterm 的默认黑底垫一下。 */
+      terminal.options.theme = terminalTheme(next)
+
       /* xterm 的 open() 只能有一次；重挂时把已有的 xterm DOM 搬进新容器即可 —— 画面与回卷都在对象里，不在旧节点里。 */
       const opened = terminal.element
 
@@ -219,7 +225,6 @@ export function createTerminalSession(
         next.append(opened)
       }
 
-      terminal.options.theme = terminalTheme(next)
       applyFit()
     },
     detach() {
@@ -291,7 +296,8 @@ export function createTerminalSession(
 }
 
 export interface TerminalSessions {
-  create(): TerminalSession
+  /** id 缺省时按 `local-N` 自己编；给了就用它（加载壳先上了标签的那一格） */
+  create(id?: string): TerminalSession
   adopt(info: TerminalInfo): TerminalSession
   get(id: string): TerminalSession | undefined
   writeToHost(hostId: string, data: string): void
@@ -315,8 +321,8 @@ export function createTerminalSessions(d: TerminalSessionDeps): TerminalSessions
 
   themes.observe(document.documentElement, { attributeFilter: ['data-theme'], attributes: true })
 
-  const add = (initial: TerminalInfo | null): TerminalSession => {
-    const id = `local-${++seq}`
+  const add = (initial: TerminalInfo | null, given?: string): TerminalSession => {
+    const id = given ?? `local-${++seq}`
     const session = createTerminalSession(
       id,
       {
@@ -338,7 +344,7 @@ export function createTerminalSessions(d: TerminalSessionDeps): TerminalSessions
   }
 
   return {
-    create: () => add(null),
+    create: (id) => add(null, id),
     adopt: (info) => add(info),
     get: (id) => sessions.get(id),
     writeToHost(hostId, data) {

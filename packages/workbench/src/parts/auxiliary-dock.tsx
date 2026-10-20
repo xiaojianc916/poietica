@@ -311,6 +311,19 @@ function SurfaceDock({
     layoutService.openPane(front, kind)
   }
 
+  const showLauncher = openPaneContributions.length === 0 && groupTabs.every((g) => g.tabs.length === 0)
+
+  /* 兜底次序：active pane → active 组 → 最后一个已开 pane → 有页签的组（页签还在时启动器不许盖住它）。 */
+  const activePane =
+    paneSet === null ? null : (openPaneContributions.find((c) => c.item.id === paneSet.activeId) ?? null)
+  const activeGroup =
+    activePane === null ? (groupTabs.find((group) => group.contribution.item.id === paneSet?.activeId) ?? null) : null
+  const fallbackPane = openPaneContributions.at(-1) ?? null
+  const fallbackGroup = groupTabs.find((group) => group.tabs.length > 0) ?? null
+  const body = activePane ?? activeGroup?.contribution ?? fallbackPane ?? fallbackGroup?.contribution ?? null
+  /* 标签的选中态跟着**画出来的那一格**走，而不是 activeId：落到兜底时（选中格已关掉 / 指向空组）标签条上仍有且只有一格亮着。 */
+  const shownId = body?.item.id ?? null
+
   const tabs = useMemo<TabView[]>(() => {
     const views: TabView[] = []
 
@@ -321,7 +334,7 @@ function SurfaceDock({
         domId: auxiliaryPaneTabId(paneId),
         title: contribution.item.title,
         icon: <contribution.item.icon aria-hidden className="size-3.5 shrink-0 opacity-60" />,
-        active: paneSet?.activeId === paneId,
+        active: shownId === paneId,
         onSelect: () => {
           if (front !== null) {
             layoutService.focusPane(front, paneId)
@@ -348,7 +361,7 @@ function SurfaceDock({
           domId: auxiliaryGroupTabId(groupId, tab.id),
           title: tab.title,
           icon: tab.icon,
-          active: paneSet?.activeId === groupId && tab.active,
+          active: shownId === groupId && tab.active,
           onSelect: () => {
             dockTabs.onSelect(tab.id)
             if (front !== null) {
@@ -363,21 +376,9 @@ function SurfaceDock({
     }
 
     return views
-  }, [front, groupTabs, layoutService, openPaneContributions, paneSet])
-
-  const showLauncher = openPaneContributions.length === 0 && groupTabs.every((g) => g.tabs.length === 0)
-
-  /* 兜底次序：active pane → active 组 → 最后一个已开 pane → 有页签的组（页签还在时启动器不许盖住它）。 */
-  const activePane =
-    paneSet === null ? null : (openPaneContributions.find((c) => c.item.id === paneSet.activeId) ?? null)
-  const activeGroup =
-    activePane === null ? (groupTabs.find((group) => group.contribution.item.id === paneSet?.activeId) ?? null) : null
-  const fallbackPane = openPaneContributions.at(-1) ?? null
-  const fallbackGroup = groupTabs.find((group) => group.tabs.length > 0) ?? null
-  const body = activePane ?? activeGroup?.contribution ?? fallbackPane ?? fallbackGroup?.contribution ?? null
+  }, [front, groupTabs, layoutService, openPaneContributions, shownId])
 
   const [menuOpen, setMenuOpen] = useState(false)
-  const [menuHeight, setMenuHeight] = useState(0)
 
   if (showLauncher) {
     return <AuxiliaryLauncher offers={offers} onOpen={openOffer} />
@@ -387,10 +388,8 @@ function SurfaceDock({
     <>
       <AuxiliaryTabStrip
         fullscreen={layoutState.auxiliary.fullscreen}
-        menuHeight={menuHeight}
         menuOpen={menuOpen}
         offers={offers}
-        onMenuHeightChange={setMenuHeight}
         onMenuOpenChange={setMenuOpen}
         onOpenOffer={openOffer}
         onToggleFullscreen={() => {
@@ -414,20 +413,16 @@ function SurfaceDock({
  */
 function AuxiliaryTabStrip({
   fullscreen,
-  menuHeight,
   menuOpen,
   offers,
-  onMenuHeightChange,
   onMenuOpenChange,
   onOpenOffer,
   onToggleFullscreen,
   tabs,
 }: {
   readonly fullscreen: boolean
-  readonly menuHeight: number
   readonly menuOpen: boolean
   readonly offers: readonly AuxiliaryOffer[]
-  readonly onMenuHeightChange: (height: number) => void
   readonly onMenuOpenChange: (open: boolean) => void
   readonly onOpenOffer: (kind: string) => void
   readonly onToggleFullscreen: () => void
@@ -464,13 +459,7 @@ function AuxiliaryTabStrip({
         </div>
 
         <span className="contents" data-auxiliary-tab-fallback>
-          <AuxiliaryNewTabMenu
-            offers={offers}
-            onHeightChange={onMenuHeightChange}
-            onOpenChange={onMenuOpenChange}
-            onOpen={onOpenOffer}
-            open={menuOpen}
-          />
+          <AuxiliaryNewTabMenu offers={offers} onOpenChange={onMenuOpenChange} onOpen={onOpenOffer} open={menuOpen} />
         </span>
 
         <button
@@ -484,10 +473,9 @@ function AuxiliaryTabStrip({
           {fullscreen ? <Minimize2 aria-hidden className="size-4" /> : <Maximize2 aria-hidden className="size-4" />}
         </button>
       </div>
-      {menuOpen ? (
-        /* 只负责让位，不许画边：画了就是标签条下面凭空多一条线。 */
-        <div aria-hidden className="bg-muted/30" style={{ blockSize: menuHeight }} />
-      ) : null}
+      {/* 加号菜单是 DropdownMenuContent 浮层（挂 body、不占布局），这里不垫让位块（R-49，同 R-43）：那块带 bg-muted/30 的占位
+       * 把面板主体整个往下推一个菜单高，终端因此每开一次菜单就 refit 两回、PTY 跟着 resize 两回；浏览器原生视图的让路已由
+       * overlay-presence 登记负责（P-07 修订）。 */}
     </div>
   )
 }

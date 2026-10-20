@@ -5,11 +5,12 @@ import {
   createUiKernel,
   defineUiFeature,
   KernelProvider,
+  type PanelDockTabs,
   SETTINGS_GROUPS,
   settingsDockOwner,
   type UiFeature,
 } from '@poietica/ui-kernel'
-import { cleanup, fireEvent, render } from '@testing-library/react'
+import { act, cleanup, fireEvent, render } from '@testing-library/react'
 import { workbenchFeature } from '../feature'
 import { Workbench } from '../workbench'
 
@@ -446,6 +447,166 @@ describe('设置的右坞按页分账', () => {
     await settle()
     expect(layout.current().auxiliary.activeOwner).toBe(settingsDockOwner('general'))
     expect(docked()).toBe('false')
+    kernel.dispose()
+  })
+})
+
+/*
+ * R-49：终端改成右坞 dockTabs 组（每条终端一格标签）。钉住的是坞这一侧的三件事：组标签与 pane 标签同条、
+ * 启动器 / 加号菜单点组走组自己的 onOpen；标签选中态跟着**画出来的那一格**走；加号菜单打开时不再往面板上方垫让位块。
+ */
+describe('dockTabs 组与标签选中态（R-49）', () => {
+  const settle = () => new Promise((r) => setTimeout(r, 5))
+  const tabs = () => [...document.querySelectorAll('[role="tab"]')]
+  const selected = () => tabs().filter((t) => t.getAttribute('aria-selected') === 'true')
+
+  function groupFeature() {
+    const listeners = new Set<() => void>()
+    let entries: { id: string; title: string }[] = []
+    let activeId: string | null = null
+    const opened: string[] = []
+    const emit = () => {
+      for (const listener of [...listeners]) {
+        listener()
+      }
+    }
+    let snapshot: readonly { id: string; title: string; icon: null; active: boolean }[] = []
+    const rebuild = () => {
+      snapshot = entries.map((e) => ({ ...e, icon: null, active: e.id === activeId }))
+      emit()
+    }
+    const dockTabs: PanelDockTabs = {
+      subscribe: (listener) => {
+        listeners.add(listener)
+        return () => listeners.delete(listener)
+      },
+      tabs: () => snapshot,
+      onSelect: (id) => {
+        activeId = id
+        rebuild()
+      },
+      onClose: (id) => {
+        entries = entries.filter((e) => e.id !== id)
+        activeId = entries.at(-1)?.id ?? null
+        rebuild()
+      },
+      onOpen: () => {
+        const id = `s${entries.length + 1}`
+        opened.push(id)
+        entries = [...entries, { id, title: `格 ${entries.length + 1}` }]
+        activeId = id
+        rebuild()
+      },
+    }
+    const feature = defineUiFeature({
+      id: 'group',
+      setup: (ctx) => {
+        ctx.contribute(builtinPoints.panels, {
+          id: 'group.shells',
+          location: 'right',
+          order: 40,
+          title: '多格',
+          icon: () => <span />,
+          dockTabs,
+          component: () => <p data-panel="group.shells">多格的正文</p>,
+        })
+      },
+    })
+    return { feature, opened, dockTabs }
+  }
+
+  test('启动器点组：走组自己的 onOpen，组标签进标签条且选中，画的是组的正文', async () => {
+    const { feature, opened } = groupFeature()
+    const kernel = await mount([panelsFeature(), feature])
+    const { layout } = kernel.kernelServices
+
+    layout.setActiveOwner('t1')
+    layout.setDockOpen('t1', true)
+    await settle()
+
+    const button = [...document.querySelectorAll('section[aria-label="辅助面板启动器"] button')].find((b) =>
+      (b.textContent ?? '').includes('多格'),
+    )
+    fireEvent.click(button!)
+    await settle()
+
+    expect(opened).toEqual(['s1'])
+    expect(tabs().map((t) => t.textContent)).toEqual(['格 1'])
+    expect(selected().map((t) => t.textContent)).toEqual(['格 1'])
+    expect(document.querySelector('[data-panel="group.shells"]')).not.toBeNull()
+    kernel.dispose()
+  })
+
+  test('选中格指向不在场的 id：正文落到兜底那一格，标签条上亮着的也正是它（有且只有一格）', async () => {
+    const kernel = await mount([panelsFeature()])
+    const { layout } = kernel.kernelServices
+
+    layout.setActiveOwner('t1')
+    layout.openPane('t1', 'panels.review')
+    layout.openPane('t1', 'panels.terminal')
+    await settle()
+
+    /* focusPane 允许写组 id（不在 ids 里也写）—— 组贡献缺席或组里一格都没有时，activeId 就落空 */
+    layout.focusPane('t1', 'group.gone')
+    await settle()
+
+    expect(document.querySelector('[data-panel="panels.terminal"]')).not.toBeNull()
+    expect(selected().map((t) => t.textContent)).toEqual(['终端'])
+    kernel.dispose()
+  })
+
+  test('组标签与 pane 标签同条：点哪格亮哪格，正文跟着换，亮着的始终只有一格', async () => {
+    const { feature, dockTabs } = groupFeature()
+    const kernel = await mount([panelsFeature(), feature])
+    const { layout } = kernel.kernelServices
+
+    layout.setActiveOwner('t1')
+    layout.openPane('t1', 'panels.review')
+    await settle()
+
+    /* 组走代码路径开两格（同终端的 Ctrl+Shift+` 新建）：onOpen 之后把选中格指到组 */
+    dockTabs.onOpen()
+    dockTabs.onOpen()
+    layout.focusPane('t1', 'group.shells')
+    await settle()
+
+    expect(tabs().map((t) => t.textContent)).toEqual(['审查', '格 1', '格 2'])
+    expect(selected().map((t) => t.textContent)).toEqual(['格 2'])
+    expect(document.querySelector('[data-panel="group.shells"]')).not.toBeNull()
+
+    fireEvent.click(tabs()[0]!)
+    await settle()
+    expect(selected().map((t) => t.textContent)).toEqual(['审查'])
+    expect(document.querySelector('[data-panel="panels.review"]')).not.toBeNull()
+
+    fireEvent.click(tabs()[1]!)
+    await settle()
+    expect(selected().map((t) => t.textContent)).toEqual(['格 1'])
+    expect(document.querySelector('[data-panel="group.shells"]')).not.toBeNull()
+    kernel.dispose()
+  })
+
+  test('加号菜单打开时不往面板上方垫让位块：面板主体仍紧贴标签条', async () => {
+    const kernel = await mount([panelsFeature()])
+    const { layout } = kernel.kernelServices
+
+    layout.setActiveOwner('t1')
+    layout.openPane('t1', 'panels.review')
+    await settle()
+
+    const trigger = document.querySelector('button[aria-label="新建标签页"]')
+    expect(trigger).not.toBeNull()
+    const strip = trigger!.closest('[role="tablist"]')?.parentElement?.parentElement ?? null
+    const before = strip?.children.length ?? 0
+
+    await act(async () => {
+      fireEvent.click(trigger!)
+      await settle()
+    })
+
+    expect(document.querySelector('[role="menu"]')).not.toBeNull()
+    expect(strip?.children.length ?? 0).toBe(before)
+    expect(document.querySelector('.bg-muted\\/30')).toBeNull()
     kernel.dispose()
   })
 })

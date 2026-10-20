@@ -2,38 +2,10 @@ import type { Logger } from '@poietica/foundation'
 import { createFeatureStore, type FeatureStore } from '@poietica/ui-kernel'
 import type { TerminalInfo } from '../contract'
 import type { TerminalApi } from './api'
+import { INITIAL_TERMINAL_UI, type TerminalEntry, type TerminalUiState } from './terminal-model'
 import { createTerminalSessions, type TerminalSession } from './terminal-sessions'
 
-/* xterm 的 Terminal 对象不在 store 里 —— 它们在 terminal-sessions.ts 的 Map 中，store 只放 React 要画的字段。 */
-
-export interface TerminalEntry {
-  readonly id: string
-  readonly info: TerminalInfo | null
-}
-
-export interface TerminalUiState {
-  readonly terminals: readonly TerminalEntry[]
-  readonly activeId: string | null
-}
-
-export const INITIAL_TERMINAL_UI: TerminalUiState = { terminals: [], activeId: null }
-
-export function terminalOrdinal(terminalId: string): number {
-  const n = Number.parseInt(terminalId.slice(1), 10)
-  return Number.isFinite(n) ? n : 0
-}
-
-export function terminalTabLabel(entry: TerminalEntry): string {
-  if (entry.info === null) {
-    return '终端'
-  }
-
-  if (entry.info.exited) {
-    return entry.info.exitCode === null ? '已退出' : `已退出 (${entry.info.exitCode})`
-  }
-
-  return `${entry.info.title} • ${terminalOrdinal(entry.info.terminalId)}`
-}
+/* xterm 的 Terminal 对象不在 store 里 —— 它们在 terminal-sessions.ts 的 Map 中，store 只放 React 要画的字段（形状见 terminal-model.ts）。 */
 
 export interface TerminalRuntimeDeps {
   readonly api: TerminalApi
@@ -50,7 +22,8 @@ export interface TerminalRuntime {
   /** offset 是这段输出首码元在累计输出里的位置（R-08-15）：重放回来的那一份会把这些通知裁到不重不漏。 */
   writeToHost(terminalId: string, data: string, offset: number): void
   markHostExited(terminalId: string, exitCode: number | null): void
-  create(): string
+  /** id 缺省时自己编；加载壳在 xterm 到之前就把标签上了条，这时传它当初给那一格的 id，标签不换人。 */
+  create(id?: string): string
   select(id: string): void
   close(id: string): void
   closeActive(): void
@@ -249,8 +222,8 @@ export function createTerminalRuntime(d: TerminalRuntimeDeps): TerminalRuntime {
     markHostExited: (terminalId, exitCode) => {
       sessions.markHostExited(terminalId, exitCode)
     },
-    create() {
-      const session = sessions.create()
+    create(id) {
+      const session = sessions.create(id)
       push({ id: session.id, info: null }, true)
       return session.id
     },

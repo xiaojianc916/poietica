@@ -2,7 +2,8 @@ import { describe, expect, test } from 'bun:test'
 import { createTestLogger } from '@poietica/test-kit'
 import type { TerminalInfo } from '../../contract'
 import type { TerminalApi } from '../api'
-import { createTerminalRuntime, terminalTabLabel } from '../terminal-store'
+import { terminalTabLabel } from '../terminal-model'
+import { createTerminalRuntime } from '../terminal-store'
 
 const info = (terminalId: string, over: Partial<TerminalInfo> = {}): TerminalInfo => ({
   terminalId,

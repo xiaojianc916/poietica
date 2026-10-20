@@ -1,6 +1,6 @@
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@poietica/design-system'
 import { Plus } from 'lucide-react'
-import { type ReactNode, useLayoutEffect, useRef } from 'react'
+import type { ReactNode } from 'react'
 
 /*
  * 辅助面板加号菜单。定位、碰撞翻转、键盘与 aria 归 @poietica/design-system 的 DropdownMenu；
@@ -25,7 +25,6 @@ function MenuShell({
   className,
   icon,
   label,
-  onHeightChange,
   onOpenChange,
   open,
 }: {
@@ -33,32 +32,15 @@ function MenuShell({
   readonly className: string
   readonly icon: ReactNode
   readonly label: string
-  readonly onHeightChange: (height: number) => void
   readonly onOpenChange: (open: boolean) => void
   readonly open: boolean
 }) {
-  const popup = useRef<HTMLDivElement | null>(null)
-
-  useLayoutEffect(() => {
-    const element = popup.current
-    if (!open || element === null) {
-      onHeightChange(0)
-      return undefined
-    }
-
-    const report = () => onHeightChange(Math.ceil(element.getBoundingClientRect().height + 6))
-    report()
-    const observer = new ResizeObserver(report)
-    observer.observe(element)
-    return () => observer.disconnect()
-  }, [onHeightChange, open])
-
   return (
     <DropdownMenu onOpenChange={onOpenChange} open={open}>
       <DropdownMenuTrigger aria-label={label} className={triggerClassName} title={label}>
         {icon}
       </DropdownMenuTrigger>
-      <DropdownMenuContent align="end" className={className} ref={popup}>
+      <DropdownMenuContent align="end" className={className}>
         {children}
       </DropdownMenuContent>
     </DropdownMenu>
@@ -67,13 +49,11 @@ function MenuShell({
 
 export function AuxiliaryNewTabMenu({
   offers,
-  onHeightChange,
   onOpenChange,
   onOpen,
   open,
 }: {
   readonly offers: readonly AuxiliaryOffer[]
-  readonly onHeightChange: (height: number) => void
   readonly onOpenChange: (open: boolean) => void
   readonly onOpen: (kind: string) => void
   readonly open: boolean
@@ -83,7 +63,6 @@ export function AuxiliaryNewTabMenu({
       className="min-w-40"
       icon={<Plus aria-hidden className="size-4" />}
       label="新建标签页"
-      onHeightChange={onHeightChange}
       onOpenChange={onOpenChange}
       open={open}
     >

@@ -102,14 +102,20 @@ describe('P-06 终端按需加载', () => {
     runtime.dispose()
   })
 
-  test('L3 加载前连按两次新建：加载完正好两条，模块只加载一次', async () => {
+  test('L3 加载前连按两次新建：标签立刻上两格，加载完还是这两格（同一个 id），模块只加载一次', async () => {
     const { runtime, state } = open()
     runtime.create()
     runtime.create()
-    expect(runtime.count()).toBe(0)
+    const queued = runtime.snapshot()
+    expect(queued.terminals.map((t) => t.info)).toEqual([null, null])
+    expect(queued.activeId).toBe(queued.terminals[1]!.id)
+    expect(runtime.count()).toBe(2)
+    expect(runtime.session(queued.terminals[0]!.id)).toBeUndefined()
     await tick()
     expect(state.loads).toBe(1)
-    expect(runtime.count()).toBe(2)
+    expect(runtime.snapshot().terminals.map((t) => t.id)).toEqual(queued.terminals.map((t) => t.id))
+    expect(runtime.snapshot().activeId).toBe(queued.activeId)
+    expect(runtime.session(queued.terminals[0]!.id)).toBeDefined()
     runtime.dispose()
   })
 
@@ -159,16 +165,82 @@ describe('P-06 终端按需加载', () => {
     runtime.dispose()
   })
 
-  /* 命令里先 openPanel 再 create()，面板是 lazy(Promise.all([load(), import(面板)]))。create() 的续体先挂在同一个 load() 上，必然先于
-   * 面板挂载执行；面板挂载时 count() 已是 1，它「没有终端就先开一条」的 effect 不会再开第二条。 */
-  test('L8 新建命令 + 面板首次挂载：只开出一条终端', async () => {
+  test('L8 加载前就关掉排队的那一格：加载完不再建它，也不开 PTY', async () => {
+    const { runtime, calls } = open()
+    runtime.create()
+    runtime.create()
+    const [first, second] = runtime.snapshot().terminals.map((t) => t.id)
+    runtime.close(first!)
+    expect(runtime.snapshot().terminals.map((t) => t.id)).toEqual([second!])
+    await tick()
+    expect(runtime.snapshot().terminals.map((t) => t.id)).toEqual([second!])
+    expect(calls).not.toContain('open')
+    runtime.dispose()
+  })
+
+  test('L9 加载前选中别的那一格：加载完选中不变', async () => {
     const { runtime } = open()
     runtime.create()
-    /* 最贴近「面板分块已在缓存里」的最紧情形。 */
-    const [loaded] = await Promise.all([runtime.load(), Promise.resolve(TerminalPanel)])
-    render(createElement(TerminalPanel, { runtime: loaded }))
-    await new Promise((resolve) => setTimeout(resolve, 100))
-    expect(runtime.count()).toBe(1)
+    runtime.create()
+    const first = runtime.snapshot().terminals[0]!.id
+    runtime.select(first)
+    expect(runtime.snapshot().activeId).toBe(first)
+    await tick()
+    expect(runtime.snapshot().activeId).toBe(first)
+    runtime.dispose()
+  })
+
+  test('L10 加载失败：排队的标签撤下，连按几次也只报一次错', async () => {
+    const { runtime, state, errors } = open()
+    state.fail = true
+    runtime.create()
+    runtime.create()
+    expect(runtime.count()).toBe(2)
+    await tick()
+    expect(runtime.count()).toBe(0)
+    expect(errors).toEqual(['终端没能加载'])
+  })
+
+  test('L11 订阅者在排队、加载完成与之后每次 store 变化时都收到通知；snapshot 引用在状态不变时稳定', async () => {
+    const { runtime } = open()
+    let seen = 0
+    const stop = runtime.subscribe(() => {
+      seen += 1
+    })
+    const empty = runtime.snapshot()
+    expect(runtime.snapshot()).toBe(empty)
+    runtime.create()
+    expect(seen).toBe(1)
+    const queued = runtime.snapshot()
+    expect(runtime.snapshot()).toBe(queued)
+    await tick()
+    const afterLoad = seen
+    expect(afterLoad).toBeGreaterThan(1)
+    runtime.create()
+    expect(seen).toBeGreaterThan(afterLoad)
+    stop()
+    const settled = seen
+    runtime.create()
+    expect(seen).toBe(settled)
+    runtime.dispose()
+  })
+
+  test('L12 面板静态挂载、不等 xterm：加载前只有终端底色，加载完排队的那一格有了画面', async () => {
+    const { runtime, state } = open()
+    let release = (): void => undefined
+    state.gate = new Promise<void>((resolve) => {
+      release = resolve
+    })
+    runtime.create()
+    const { container } = render(createElement(TerminalPanel, { runtime }))
+    const panel = container.querySelector('[data-terminal-panel]')
+    expect(panel).not.toBeNull()
+    expect(panel!.className).toContain('bg-[var(--terminal-background)]')
+    expect(panel!.querySelector('.xterm')).toBeNull()
+    release()
+    await tick()
+    await tick()
+    expect(container.querySelector('[data-terminal-panel] .xterm')).not.toBeNull()
     runtime.dispose()
   })
 })
