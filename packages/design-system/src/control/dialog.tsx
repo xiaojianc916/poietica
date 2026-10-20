@@ -11,6 +11,8 @@ export interface DialogProps {
   readonly description?: string
   readonly children?: ReactNode
   readonly footer?: ReactNode
+  /** 表头右侧、关闭钮之前的一组操作（图标钮）；与关闭钮同一行、同一个高度 */
+  readonly actions?: ReactNode
   readonly showHeader?: boolean
   readonly showCloseButton?: boolean
   readonly className?: string
@@ -30,6 +32,7 @@ export function Dialog({
   description,
   children,
   footer,
+  actions,
   showHeader = true,
   showCloseButton = true,
   className,
@@ -49,6 +52,15 @@ export function Dialog({
 
     onOpenChange(nextOpen)
   }
+
+  const closeButton = showCloseButton ? (
+    <BaseDialog.Close
+      disabled={busy}
+      render={<Button aria-label="关闭" ref={closeButtonRef} size="icon" type="button" variant="ghost" />}
+    >
+      <X aria-hidden="true" className="size-4" />
+    </BaseDialog.Close>
+  ) : null
 
   return (
     <BaseDialog.Root
@@ -124,14 +136,14 @@ export function Dialog({
                   ) : null}
                 </div>
 
-                {showCloseButton ? (
-                  <BaseDialog.Close
-                    disabled={busy}
-                    render={<Button aria-label="关闭" ref={closeButtonRef} size="icon" type="button" variant="ghost" />}
-                  >
-                    <X aria-hidden="true" className="size-4" />
-                  </BaseDialog.Close>
-                ) : null}
+                {actions === undefined || actions === null ? (
+                  closeButton
+                ) : (
+                  <div className={cn('flex shrink-0', 'items-center gap-1')}>
+                    {actions}
+                    {closeButton}
+                  </div>
+                )}
               </header>
             ) : (
               /*

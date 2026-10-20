@@ -179,7 +179,7 @@ const LIMITS = {
 export const SHELL_JS = `(function(){'use strict';
 var FRAME=${JSON.stringify(FRAME_CSS)},ALONE=${JSON.stringify(STANDALONE_CSS)},ALONE_WIDE=${JSON.stringify(STANDALONE_WIDE_CSS)},BASE=${JSON.stringify(BASE_CSS)},DROP=${JSON.stringify(PREVIEW_DROP)};
 var MODEL_MAX=${INTELLIGENT_UI_MODEL_STATE_MAX},VIEW_MAX=${INTELLIGENT_UI_VIEW_STATE_MAX},TWEAKS_MAX=${INTELLIGENT_UI_TWEAKS_STATE_MAX},GESTURE_MS=${GESTURE_MS},VENDOR=${JSON.stringify(VENDOR)},LIMIT=${JSON.stringify(LIMITS)};
-var now=Date.now.bind(Date),stringify=JSON.stringify.bind(JSON),parse=JSON.parse.bind(JSON),define=Object.defineProperty,freeze=Object.freeze,keys=Object.keys,isArray=Array.isArray,own=Function.prototype.call.bind(Object.prototype.hasOwnProperty);
+var now=Date.now.bind(Date),stringify=JSON.stringify.bind(JSON),parse=JSON.parse.bind(JSON),define=Object.defineProperty,freeze=Object.freeze,keys=Object.keys,isArray=Array.isArray,own=Function.prototype.call.bind(Object.prototype.hasOwnProperty),defer=setTimeout.bind(window);
 var ua=navigator.userActivation,uaGet=ua?Object.getOwnPropertyDescriptor(Object.getPrototypeOf(ua),'isActive'):null;
 var active=uaGet&&uaGet.get?uaGet.get.bind(ua):function(){return true};
 function themeOf(t){return t==='dark'?'dark':'light'}
@@ -269,6 +269,8 @@ var saved=json(texts.tweaks);if(!saved||typeof saved!=='object'||isArray(saved))
 var groups={},byId={},seq=0,credit=false,creditAt=0;
 function grant(e){if(e.isTrusted){credit=true;creditAt=now()}}
 ['pointerdown','click','keydown','submit','input','change'].forEach(function(n){addEventListener(n,grant,true)});
+/* Esc 出不了 iframe：派发完了界面也没 preventDefault（它自己的弹层没拦），才转告卡片（展开的对话框靠它关闭） */
+addEventListener('keydown',function(e){if(e.key!=='Escape'||!e.isTrusted||e.isComposing)return;defer(function(){if(!e.defaultPrevented)post({type:'escape'})},0)});
 function gesture(){var g=credit&&now()-creditAt<GESTURE_MS&&active();if(g)credit=false;return g}
 function act(type,key,value){var msg={type:type,gesture:gesture()};msg[key]=String(value);post(msg)}
 function copy(v){return v==null?null:parse(stringify(v))}

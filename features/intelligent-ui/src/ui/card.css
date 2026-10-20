@@ -2,9 +2,12 @@
  * 对话内智能界面。
  *
  * 界面没有外框、没有底色：它就是回复的一部分，宽度占满正文栏，高度跟内容走（不再封顶 80vh：
- * 对话里的内层滚动条很难用；上限 10000px 在 bridge.ts）。界面不带任何常驻的页脚 —— 标题与「重新运行」
- * 曾占 28px，悬停才显形，却把每一块都垫高；现在整条删除（R-40）。只在生成中、界面请求确认、出错、
- * 打开调整面板时多一行；工具条悬停时浮在右上角，不占高度。
+ * 对话里的内层滚动条很难用；上限 10000px 在 bridge.ts）。标题与「重新运行」那条页脚早已删掉（R-40）。
+ *
+ * 界面下面常驻一行（__bar）：预览期是「正在生成」，定稿后换成工具，悬停才露面。这一行曾经省掉、工具浮在
+ * 界面右上角 —— 结果盖住了界面自己右上角的按钮（「重置视角」之类）：跨源 iframe 里的指针位置父窗口看不见，
+ * 浮层没法避让。时间线的行又是虚拟器绝对定位的，同 reply-actions 一样只能在流里占位。
+ * 另外只在界面请求确认、出错、打开调整面板时多一行。
  */
 
 .intelligent-ui {
@@ -82,36 +85,53 @@
   overflow: hidden;
 }
 
-/* 悬停（或键盘聚焦进来）时才露面；截图期间藏起来，免得截进图里 */
-.intelligent-ui__tools {
-  position: absolute;
-  inset-block-start: 0.25rem;
-  inset-inline-end: 0.25rem;
+/* 界面下面那一行：高度固定，预览 → 定稿、悬停与否都不跳 */
+.intelligent-ui__bar {
   display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  min-block-size: 1.75rem;
+  margin-block-start: 0.25rem;
+}
+
+.intelligent-ui__tools {
+  display: flex;
+  align-items: center;
   gap: 0.125rem;
-  padding: 0.125rem;
-  border: 1px solid var(--cp-edge);
-  border-radius: var(--ui-radius-md);
-  background: var(--ui-popover);
-  box-shadow: var(--ui-shadow-sm);
+  margin-inline-start: auto;
+}
+
+.intelligent-ui__tools[data-placement="header"] {
+  gap: 0.25rem;
+}
+
+/* 时间线里：悬停、键盘聚焦进来、调整面板开着时才露面（同 .timeline-reply-actions） */
+.intelligent-ui__tools[data-placement="row"] {
   opacity: 0;
   pointer-events: none;
   transition: opacity 120ms var(--cp-motion-ease);
 }
 
-.intelligent-ui:hover .intelligent-ui__tools,
-.intelligent-ui:focus-within .intelligent-ui__tools,
-.intelligent-ui__tools:focus-within {
+.intelligent-ui:hover .intelligent-ui__tools[data-placement="row"],
+.intelligent-ui__bar:focus-within .intelligent-ui__tools[data-placement="row"],
+.intelligent-ui[data-tweaking="true"] .intelligent-ui__tools[data-placement="row"] {
   opacity: 1;
   pointer-events: auto;
 }
 
-.intelligent-ui[data-capturing="true"] .intelligent-ui__tools {
-  visibility: hidden;
-  pointer-events: none;
+@media (prefers-reduced-motion: reduce) {
+  .intelligent-ui__tools[data-placement="row"] {
+    transition: none;
+  }
 }
 
-.intelligent-ui__button[aria-pressed="true"] {
+/* 截图期间藏起所有提示：提示挂在 body 上，可能压在界面上被截进去（尤其对话框表头那一排朝下的） */
+html:has(.intelligent-ui[data-capturing="true"]) .ui-tooltip {
+  visibility: hidden;
+}
+
+.intelligent-ui__button[aria-pressed="true"],
+.intelligent-ui-dialog__tools [aria-pressed="true"] {
   background: var(--cp-hover);
   color: var(--cp-ink);
 }
@@ -221,6 +241,19 @@
 .intelligent-ui-dialog {
   inline-size: min(1200px, calc(100vw - 4rem));
   max-inline-size: none;
+  /* 用对话区那张底色（--cp-ground），不用浮层色：界面是照着时间线的底画的，换个底卡片就和背景对不上 */
+  background: var(--ui-background);
+}
+
+/* 皮肤补在这一格（见 card.tsx）：它只是令牌的载体，不占版面 */
+.intelligent-ui-dialog__skin {
+  display: contents;
+}
+
+/* 表头那一排：跟关闭钮同一个按钮，挨着排 */
+.intelligent-ui-dialog__tools {
+  display: flex;
+  align-items: center;
 }
 
 .intelligent-ui-dialog__body {
@@ -240,6 +273,15 @@
 
 .intelligent-ui__failure {
   color: var(--cp-timeline-danger-text);
+}
+
+/* 只在界面下面那一行里出现：一行写不下就省略，不把这一行撑高 */
+.intelligent-ui__pending {
+  flex: 1 1 auto;
+  min-inline-size: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .intelligent-ui__error,

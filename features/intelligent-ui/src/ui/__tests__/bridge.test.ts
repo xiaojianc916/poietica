@@ -65,8 +65,9 @@ describe('智能界面的纯逻辑', () => {
     expect(viewDraftOf(undefined)).toEqual({ title: '界面', html: '', bare: false, wide: false })
   })
 
-  test('B4 端口消息：只认七种；字段不对当没收到；手势只认 true；字截到上限', () => {
+  test('B4 端口消息：只认八种；字段不对当没收到；手势只认 true；字截到上限', () => {
     expect(parseFrameMessage({ type: 'height', height: 120.2 })).toEqual({ type: 'height', height: 121 })
+    expect(parseFrameMessage({ type: 'escape', key: 'x' })).toEqual({ type: 'escape' })
     expect(parseFrameMessage({ type: 'height', height: 1e9 })).toEqual({ type: 'height', height: VIEW_HEIGHT_MAX })
     expect(parseFrameMessage({ type: 'height', height: -1 })).toBeNull()
     expect(parseFrameMessage({ type: 'height', height: Number.NaN })).toBeNull()

@@ -28,6 +28,8 @@ interface Rig {
   readonly failures: string[]
   readonly tweaks: (readonly TweakGroup[])[]
   readonly fromShell: unknown[]
+  /** 外壳转告的 Esc 次数 */
+  escapes: number
   /** render 成功投递的次数 */
   rendered: number
   /** deliver 抛错（测试投递失败回滚） */
@@ -52,6 +54,7 @@ function rig(load: () => Promise<IntelligentUiState | null> = async () => null, 
     failures: [],
     tweaks: [],
     fromShell: [],
+    escapes: 0,
     rendered: 0,
     deliverFails: false,
     loads: 0,
@@ -94,6 +97,9 @@ function rig(load: () => Promise<IntelligentUiState | null> = async () => null, 
       tweaks: (groups) => r.tweaks.push(groups),
       rendered: () => {
         r.rendered += 1
+      },
+      escape: () => {
+        r.escapes += 1
       },
     },
   })
@@ -510,6 +516,51 @@ describe('卡片与外壳的私有端口', () => {
     expect(tweakingAfterGroups(true, 0)).toBe(false)
     expect(tweakingAfterGroups(true, 2)).toBe(true)
     expect(tweakingAfterGroups(false, 2)).toBe(false)
+  })
+
+  test('F20 Esc：外壳转告的照转给卡片（展开的对话框靠它关闭）；卡片不接时不报错，卸载之后不再转', async () => {
+    const r = await started()
+    r.shell().postMessage({ type: 'escape' })
+    await tick()
+    expect(r.escapes).toBe(1)
+    r.session.dispose()
+    r.shell().postMessage({ type: 'escape' })
+    await tick()
+    expect(r.escapes).toBe(1)
+    r.shell().close()
+
+    const failures: string[] = []
+    let delivered: MessagePort | undefined
+    const bare = openFrameSession({
+      content: { html: '<p>hi</p>', bare: false, wide: false },
+      live: true,
+      actions: {
+        send: () => undefined,
+        draft: () => undefined,
+        open: () => undefined,
+        loadState: async () => null,
+        saveState: async () => undefined,
+      },
+      view: {
+        deliver: (_message, transfer) => {
+          delivered = transfer[0] as MessagePort | undefined
+        },
+        look: () => ({ css: '', theme: 'light' }),
+        userActive: () => true,
+        resize: () => undefined,
+        fail: (message) => failures.push(message),
+        ask: () => undefined,
+        tweaks: () => undefined,
+        rendered: () => undefined,
+      },
+    })
+    bare.start()
+    await tick()
+    expect(() => delivered?.postMessage({ type: 'escape' })).not.toThrow()
+    await tick()
+    expect(failures).toEqual([])
+    bare.dispose()
+    delivered?.close()
   })
 
   test('F12 调整面板：组数有上限，多出来的不画', async () => {

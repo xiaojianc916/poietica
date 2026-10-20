@@ -40,6 +40,8 @@ export interface FrameView {
   readonly tweaks: (groups: readonly TweakGroup[]) => void
   /** render 已经成功投递给外壳（预览量到的高度不算），卡片据此才露出工具条 */
   readonly rendered: () => void
+  /** 焦点在界面里时按了 Esc（展开的对话框靠它关闭；时间线里的那一份不理） */
+  readonly escape?: () => void
 }
 
 /** 真界面的那三项（预览期间 bare / wide 也已经在用） */
@@ -200,6 +202,9 @@ export function openFrameSession(o: {
         return
       case 'error':
         o.view.fail(message.message)
+        return
+      case 'escape':
+        o.view.escape?.()
         return
       default:
         act(message)

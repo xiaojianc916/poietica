@@ -134,6 +134,8 @@ export type FrameMessage =
   | { readonly type: 'draft'; readonly text: string; readonly gesture: boolean }
   | { readonly type: 'open'; readonly url: string; readonly gesture: boolean }
   | { readonly type: 'error'; readonly message: string }
+  /** 焦点在界面里时按了 Esc，界面自己没拦（preventDefault）：键盘事件出不了 iframe，由外壳转告 */
+  | { readonly type: 'escape' }
 
 /** 界面是别人写的代码，不能让它塞一本书进来 */
 export const VIEW_TEXT_MAX = 4000
@@ -271,7 +273,7 @@ function saidOf(type: 'send' | 'draft', bag: Record<string, unknown>, gesture: b
 }
 
 /**
- * 外壳经私有端口发来的消息：只认这七种，字段类型不对就当没收到。
+ * 外壳经私有端口发来的消息：只认这八种，字段类型不对就当没收到。
  * gesture 是小桥的证词（这次调用前 5 秒内有一次没用过的真实操作）；UI 还要再叠父窗口的 userActivation。
  */
 export function parseFrameMessage(data: unknown): FrameMessage | null {
@@ -292,6 +294,8 @@ export function parseFrameMessage(data: unknown): FrameMessage | null {
       return typeof bag.url === 'string' ? { type: 'open', url: bag.url, gesture } : null
     case 'error':
       return typeof bag.message === 'string' ? { type: 'error', message: bag.message.slice(0, 500) } : null
+    case 'escape':
+      return { type: 'escape' }
     default:
       return null
   }

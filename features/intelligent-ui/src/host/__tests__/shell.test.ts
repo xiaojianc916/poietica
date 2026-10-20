@@ -84,6 +84,13 @@ describe('智能界面外壳', () => {
     expect(html).toContain('VIEW_MAX=12288')
   })
 
+  test('S11 Esc：只转真实按键、不在输入法组字里；等派发完、界面没拦才转告（键盘事件出不了 iframe）', () => {
+    const html = INTELLIGENT_UI_SHELL_HTML
+    expect(html).toContain('defer=setTimeout.bind(window)')
+    expect(html).toContain("if(e.key!=='Escape'||!e.isTrusted||e.isComposing)return")
+    expect(html).toContain("if(!e.defaultPrevented)post({type:'escape'})")
+  })
+
   test('S6 CSP：随包库只多放外壳自己这个 host；connect-src 不放它', () => {
     const csp = directives(INTELLIGENT_UI_CSP)
     expect(csp.get('script-src')).toContain('poietica-asset://intelligent-ui')

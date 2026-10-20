@@ -1,6 +1,6 @@
 import './card.css'
 
-import { Dialog } from '@poietica/design-system'
+import { Button, Dialog, Tooltip, TooltipContent, TooltipTrigger } from '@poietica/design-system'
 import type { ToolCallRendererProps } from '@poietica/feature-conversation/ui-api'
 import { Download, Image as ImageIcon, Maximize2, RotateCcw, SlidersHorizontal } from 'lucide-react'
 import {
@@ -45,8 +45,9 @@ import { createHeightCache, createRecentCache, HEIGHT_CACHE_LIMIT } from './heig
  * 第二阶段：
  * - 参数还在流（argsStreaming）或工具还没跑完：同一个 iframe 先画预览（外壳不跑脚本），下面一行「正在生成」；
  *   succeeded 时在原地换成真界面。iframe 的会话只跟 callId 走，参数变了只推新的一版，不重建；
- * - 悬停时右上角一排工具：调整（界面登记了控件才有）、复制为图片、导出 HTML、展开（对话框里原尺寸再开一个实例，
- *   时间线里那个换成占位 —— 同一时间只有一个实例在写状态）；
+ * - 界面下面一行工具（悬停才露面）：调整（界面登记了控件才有）、复制为图片、导出 HTML、展开（对话框里原尺寸再开
+ *   一个实例，时间线里那个换成占位 —— 同一时间只有一个实例在写状态）。不浮在界面上：浮层会盖住界面自己右上角的
+ *   按钮（跨源 iframe 里的指针位置父窗口看不见，没法「避让」）；展开后工具挪进对话框表头，和关闭钮一排；
  * - wide：按 1100px 排版，整体缩放到正文栏的宽度。
  */
 
@@ -107,7 +108,7 @@ function sizeOf(html: string): string {
   return `${(html.length / 1024).toFixed(1)} KB`
 }
 
-/** 等浏览器真的画过一帧（藏起工具条之后再截图） */
+/** 等浏览器真的画过一帧（藏起提示之后再截图） */
 function painted(): Promise<void> {
   return new Promise((resolve) => {
     requestAnimationFrame(() => requestAnimationFrame(() => resolve()))
@@ -161,28 +162,45 @@ function AskBar({
   )
 }
 
+type ToolPlacement = 'row' | 'header'
+
+/* 提示走 design-system 的 Tooltip（不用 title：Electron 在 Windows 上画的是系统那种白边小框，跟应用不搭） */
 function ToolButton({
   label,
   onClick,
   pressed,
+  placement,
   children,
 }: {
   readonly label: string
   readonly onClick: () => void
   readonly pressed?: boolean
+  readonly placement: ToolPlacement
   readonly children: ReactNode
 }): ReactNode {
+  const trigger =
+    placement === 'header' ? (
+      <Button aria-label={label} aria-pressed={pressed} onClick={onClick} size="icon" type="button" variant="ghost">
+        {children}
+      </Button>
+    ) : (
+      <button
+        aria-label={label}
+        aria-pressed={pressed}
+        className="intelligent-ui__button"
+        onClick={onClick}
+        onMouseDown={(event) => event.preventDefault()}
+        type="button"
+      >
+        {children}
+      </button>
+    )
   return (
-    <button
-      aria-label={label}
-      aria-pressed={pressed}
-      className="intelligent-ui__button"
-      onClick={onClick}
-      title={label}
-      type="button"
-    >
-      {children}
-    </button>
+    <Tooltip>
+      <TooltipTrigger render={trigger} />
+      {/* 朝下：时间线里那一行在界面下面，朝上会压在界面上；截图期间提示一律藏起来（card.css） */}
+      <TooltipContent side="bottom">{label}</TooltipContent>
+    </Tooltip>
   )
 }
 
@@ -309,39 +327,48 @@ function frameStyleOf(wide: boolean, height: number, scale: number): CSSProperti
   return { width: INTELLIGENT_UI_WIDE_WIDTH, height, ...(scale < 1 ? { transform: `scale(${scale})` } : {}) }
 }
 
-/** 悬浮工具条（界面跑起来之后才有）：调整 / 复制为图片 / 导出 HTML / 展开 */
-function FrameTools({
+/** 工具条（界面跑起来之后才有）：调整 / 复制为图片 / 导出 HTML / 展开。row 在界面下面那一行，header 在对话框表头 */
+export function FrameTools({
   tweaking,
   onTweak,
   onCopy,
   onExport,
   onExpand,
   capturing,
+  placement,
 }: {
   readonly tweaking: boolean
   readonly onTweak: (() => void) | undefined
   readonly onCopy: () => void
   readonly onExport: () => void
   readonly onExpand: (() => void) | undefined
-  /** 截图期间整条工具条 inert，免得键盘焦点跑进正在隐藏的那一条 */
+  /** 截图期间整条工具条 inert，免得连点两次 */
   readonly capturing: boolean
+  readonly placement: ToolPlacement
 }): ReactNode {
+  const icon = placement === 'header' ? 16 : 14
   return (
-    <div aria-label="界面工具" className="intelligent-ui__tools" inert={capturing} role="toolbar">
+    <div
+      aria-label="界面工具"
+      className="intelligent-ui__tools"
+      data-placement={placement}
+      inert={capturing}
+      role="toolbar"
+    >
       {onTweak === undefined ? null : (
-        <ToolButton label="调整" onClick={onTweak} pressed={tweaking}>
-          <SlidersHorizontal aria-hidden size={14} strokeWidth={1.75} />
+        <ToolButton label="调整" onClick={onTweak} placement={placement} pressed={tweaking}>
+          <SlidersHorizontal aria-hidden size={icon} strokeWidth={1.75} />
         </ToolButton>
       )}
-      <ToolButton label="复制为图片" onClick={onCopy}>
-        <ImageIcon aria-hidden size={14} strokeWidth={1.75} />
+      <ToolButton label="复制为图片" onClick={onCopy} placement={placement}>
+        <ImageIcon aria-hidden size={icon} strokeWidth={1.75} />
       </ToolButton>
-      <ToolButton label="导出 HTML" onClick={onExport}>
-        <Download aria-hidden size={14} strokeWidth={1.75} />
+      <ToolButton label="导出 HTML" onClick={onExport} placement={placement}>
+        <Download aria-hidden size={icon} strokeWidth={1.75} />
       </ToolButton>
       {onExpand === undefined ? null : (
-        <ToolButton label="展开" onClick={onExpand}>
-          <Maximize2 aria-hidden size={14} strokeWidth={1.75} />
+        <ToolButton label="展开" onClick={onExpand} placement={placement}>
+          <Maximize2 aria-hidden size={icon} strokeWidth={1.75} />
         </ToolButton>
       )}
     </div>
@@ -377,6 +404,59 @@ function FrameError({ error, onFix }: { readonly error: string; readonly onFix: 
   )
 }
 
+interface ToolsLook {
+  readonly capturing: boolean
+  readonly tweakable: boolean
+  readonly tweaking: boolean
+  readonly onExpand: (() => void) | undefined
+}
+
+interface ToolsRun {
+  readonly onCopy: () => void
+  readonly onExport: () => void
+  readonly onTweak: () => void
+}
+
+function toolsOf(placement: ToolPlacement, look: ToolsLook, run: { readonly current: ToolsRun }): ReactNode {
+  return (
+    <FrameTools
+      capturing={look.capturing}
+      onCopy={() => run.current.onCopy()}
+      onExpand={look.onExpand}
+      onExport={() => run.current.onExport()}
+      onTweak={look.tweakable ? () => run.current.onTweak() : undefined}
+      placement={placement}
+      tweaking={look.tweaking}
+    />
+  )
+}
+
+/*
+ * 工具条：row 画在界面下面那一行；展开模式另交一份 header 给对话框表头。按钮的回调经 ref 取最新的，
+ * 表头那一份只在看得见的状态（截图中 / 调整开合 / 有没有调整）变了才重交。
+ */
+function useFrameTools({
+  liveReady,
+  onTools,
+  run: handlers,
+  ...look
+}: ToolsLook & {
+  readonly liveReady: boolean
+  readonly run: ToolsRun
+  readonly onTools: ((tools: ReactNode | null) => void) | undefined
+}): (placement: ToolPlacement) => ReactNode {
+  const run = useRef(handlers)
+  run.current = handlers
+  const { capturing, tweakable, tweaking } = look
+  useEffect(() => {
+    if (onTools === undefined) return
+    /* 展开模式没有「展开」 */
+    onTools(liveReady ? toolsOf('header', { capturing, tweakable, tweaking, onExpand: undefined }, run) : null)
+    return () => onTools(null)
+  }, [capturing, liveReady, onTools, tweakable, tweaking])
+  return (placement) => toolsOf(placement, look, run)
+}
+
 type FrameMode = 'inline' | 'expanded'
 
 function HtmlFrame({
@@ -388,6 +468,8 @@ function HtmlFrame({
   streaming,
   mode,
   onExpand,
+  onTools,
+  onEscape,
 }: {
   readonly deps: IntelligentUiCardDeps
   readonly threadId: string
@@ -399,6 +481,10 @@ function HtmlFrame({
   readonly streaming: boolean
   readonly mode: FrameMode
   readonly onExpand?: () => void
+  /** 展开模式：工具条交给对话框表头去画（null：还没有 / 撤掉了） */
+  readonly onTools?: (tools: ReactNode | null) => void
+  /** 焦点在界面里时按了 Esc（键盘事件出不了 iframe，外壳转告） */
+  readonly onEscape?: () => void
 }): ReactNode {
   const frame = useRef<HTMLIFrameElement | null>(null)
   const stage = useRef<HTMLDivElement | null>(null)
@@ -438,6 +524,8 @@ function HtmlFrame({
   actionsRef.current = actions
   const latest = useRef({ view, live })
   latest.current = { view, live }
+  const escapeRef = useRef(onEscape)
+  escapeRef.current = onEscape
 
   useEffect(() => {
     const element = frame.current
@@ -468,6 +556,7 @@ function HtmlFrame({
         ask: setAsk,
         tweaks: setGroups,
         rendered: () => setRendered(true),
+        escape: () => escapeRef.current?.(),
       },
     })
     session.current = opened
@@ -547,6 +636,21 @@ function HtmlFrame({
     }
   }
 
+  const tweakable = groups.length > 0
+  const tools = useFrameTools({
+    capturing,
+    liveReady,
+    tweakable,
+    tweaking,
+    onExpand,
+    onTools,
+    run: {
+      onCopy: () => void copyImage(),
+      onExport: () => void exportHtml(),
+      onTweak: () => setTweaking((open) => !open),
+    },
+  })
+
   return (
     <div
       className="intelligent-ui"
@@ -554,6 +658,7 @@ function HtmlFrame({
       data-mode={mode}
       data-ready={ready && !empty}
       data-source="html"
+      data-tweaking={tweaking && tweakable}
       data-wide={wide}
     >
       <div className="intelligent-ui__stage" ref={stage} style={wide ? { height: frameHeight * scale } : undefined}>
@@ -571,19 +676,15 @@ function HtmlFrame({
           style={frameStyleOf(wide, frameHeight, scale)}
           title={title}
         />
-        {liveReady ? (
-          <FrameTools
-            capturing={capturing}
-            onCopy={() => void copyImage()}
-            onExpand={onExpand}
-            onExport={() => void exportHtml()}
-            onTweak={groups.length > 0 ? () => setTweaking((open) => !open) : undefined}
-            tweaking={tweaking}
-          />
-        ) : null}
       </div>
-      {live ? null : <PendingLine html={html} streaming={streaming} title={title} />}
-      {liveReady && tweaking && groups.length > 0 ? (
+      {/* 时间线里：界面下面常驻一行（预览期是「正在生成」，定稿后换成工具），高度不随悬停与定稿跳 */}
+      {mode === 'inline' ? (
+        <div className="intelligent-ui__bar">
+          {live ? null : <PendingLine html={html} streaming={streaming} title={title} />}
+          {liveReady ? tools('row') : null}
+        </div>
+      ) : null}
+      {liveReady && tweaking && tweakable ? (
         <TweakPanel groups={groups} onChange={(id, values) => session.current?.setTweak(id, values)} />
       ) : null}
       {ask === null ? null : <AskBar actions={actions} ask={ask} onDone={() => setAsk(null)} />}
@@ -613,12 +714,18 @@ function HtmlCard({
   readonly streaming: boolean
 }): ReactNode {
   const [expanded, setExpanded] = useState(false)
+  /* 展开的那个实例把自己的工具交上来，画在对话框表头（和关闭钮一排，不压在界面上） */
+  const [tools, setTools] = useState<ReactNode | null>(null)
   const placeholder = heights.get(`${threadId}\u0000${callId}`)
 
   return (
     <>
       {expanded ? (
-        <div className="intelligent-ui intelligent-ui__placeholder" style={{ minHeight: placeholder }}>
+        <div
+          className="intelligent-ui intelligent-ui__placeholder"
+          /* 界面 + 下面那一行工具（card.css 的 __bar：1.75rem + 0.25rem） */
+          style={placeholder === undefined ? undefined : { minHeight: `calc(${placeholder}px + 2rem)` }}
+        >
           <span>界面「{view.title}」已展开</span>
           <button className="intelligent-ui__link" onClick={() => setExpanded(false)} type="button">
             收起
@@ -637,23 +744,35 @@ function HtmlCard({
         />
       )}
       <Dialog
+        actions={
+          tools === null ? undefined : (
+            <div className="intelligent-ui-dialog__tools" data-assistant-skin>
+              {tools}
+            </div>
+          )
+        }
         className="intelligent-ui-dialog"
         contentClassName="intelligent-ui-dialog__body"
         onOpenChange={setExpanded}
         open={expanded}
         title={view.title}
       >
-        {expanded ? (
-          <HtmlFrame
-            callId={callId}
-            deps={deps}
-            live={live}
-            mode="expanded"
-            streaming={false}
-            threadId={threadId}
-            view={view}
-          />
-        ) : null}
+        {/* 对话框挂在 body 上、不在时间线的皮肤里：这里补上，界面取的 --cp-* 令牌与卡片自己的样式才在 */}
+        <div className="intelligent-ui-dialog__skin" data-assistant-skin>
+          {expanded ? (
+            <HtmlFrame
+              callId={callId}
+              deps={deps}
+              live={live}
+              mode="expanded"
+              onEscape={() => setExpanded(false)}
+              onTools={setTools}
+              streaming={false}
+              threadId={threadId}
+              view={view}
+            />
+          ) : null}
+        </div>
       </Dialog>
     </>
   )
