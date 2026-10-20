@@ -1,4 +1,4 @@
-import { type DisposableStore, type Logger, withTimeout } from '@poietica/foundation'
+import { type DisposableStore, type Logger, systemClock, withTimeout } from '@poietica/foundation'
 import { app } from 'electron'
 import type { CoreSupervisor } from './core-supervisor'
 import type { WindowRegistry } from './windows'
@@ -15,26 +15,60 @@ export interface QuitOptions {
 export interface QuitCoordinator {
   readonly quitting: boolean
   quit(reason: string, opts?: QuitOptions): Promise<void>
+  /**
+   * 退出途中用户又启动了一次（second-instance）：单实例锁还在本进程手里，新进程只能退出。
+   * 记下来，收尾完成后由本进程 relaunch 一个新实例，用户那一下双击就不会「什么都没发生」。
+   */
+  requestRelaunch(): void
   addShutdownHook(moduleId: string, fn: () => void | Promise<void>): void
   addDisposables(store: DisposableStore): void
 }
 
 export interface QuitDeps {
   readonly logger: Logger
-  readonly supervisor: Pick<CoreSupervisor, 'stop'>
-  readonly windows: Pick<WindowRegistry, 'destroyAll'>
+  readonly supervisor: Pick<CoreSupervisor, 'stop' | 'reapOrphans'>
+  readonly windows: Pick<WindowRegistry, 'hideAll' | 'destroyAll'>
   /** 默认 app.exit(code)；测试注入假实现时不必加载 electron。 */
   readonly exit?: (code: number) => void
+  /** 默认 app.relaunch()；同上。 */
+  readonly relaunch?: () => void
 }
 
+/**
+ * 退出分四段，**用户感知的「关掉了」与进程收尾解耦**：
+ *
+ * 1. 离场：窗口立刻藏起来（不毁），用户点完关闭当场就看不见它了；
+ * 2. 停 Core：Core 关停期间仍可能调用 owner='host' 的方法，Host 服务必须还活着（R-08-11）；
+ * 3. 收尾：Host 钩子（倒序串行）与「收 omp 后台进程」并发 —— 后者只碰 Core 那个 exe 派发的进程，
+ *    与 Host 钩子（终端、浏览器、偏好落盘）互不相干，没理由排队；
+ * 4. 销毁窗口 → 退出（必要时 relaunch）。
+ *
+ * 以前窗口要等 2～4 全部跑完才销毁：Core 逐条关会话 + 一次 PowerShell 进程枚举 + Host 钩子，
+ * 用户看到的就是「点了关闭，窗口还挂着好几秒」。
+ */
 export function createQuitCoordinator(o: QuitDeps): QuitCoordinator {
   const exit = o.exit ?? ((code: number) => app.exit(code))
+  const relaunch = o.relaunch ?? (() => app.relaunch())
   const hooks: Array<{ moduleId: string; fn: () => void | Promise<void> }> = []
   const stores: DisposableStore[] = []
   let running: Promise<void> | undefined
+  let relaunchRequested = false
+
+  const runHostHooks = async (): Promise<void> => {
+    for (const h of [...hooks].reverse()) {
+      await withTimeout(Promise.resolve().then(h.fn), 5_000, () => new Error('timeout')).catch((e: unknown) =>
+        o.logger.warn('onShutdown hook failed', { module: h.moduleId, error: String(e) }),
+      )
+    }
+  }
+
   return {
     get quitting() {
       return running !== undefined
+    },
+    requestRelaunch: () => {
+      if (running === undefined) return
+      relaunchRequested = true
     },
     addShutdownHook: (moduleId, fn) => {
       hooks.push({ moduleId, fn })
@@ -45,18 +79,16 @@ export function createQuitCoordinator(o: QuitDeps): QuitCoordinator {
     quit(reason, opts) {
       if (running !== undefined) return running
       running = (async () => {
+        const t0 = systemClock.now()
         o.logger.info('quitting', { reason })
-        /*
-         * 先停 Core，再跑 Host 钩子与 disposables（R-08-11）。Core 关停期间（会话中止、工具收尾）
-         * 仍可能调用 owner='host' 的方法，那时 Host 的服务必须还活着；反过来不存在顾虑 ——
-         * Host 钩子里全是本地动作，没有需要 Core 活着的。
-         */
-        await o.supervisor.stop()
-        for (const h of [...hooks].reverse()) {
-          await withTimeout(Promise.resolve().then(h.fn), 5_000, () => new Error('timeout')).catch((e: unknown) =>
-            o.logger.warn('onShutdown hook failed', { module: h.moduleId, error: String(e) }),
-          )
+        try {
+          o.windows.hideAll()
+        } catch (e) {
+          o.logger.warn('hide windows failed', { error: String(e) })
         }
+        await o.supervisor.stop()
+        const coreStoppedMs = systemClock.now() - t0
+        await Promise.all([o.supervisor.reapOrphans(), runHostHooks()])
         for (const s of [...stores].reverse()) {
           try {
             s.dispose()
@@ -65,8 +97,10 @@ export function createQuitCoordinator(o: QuitDeps): QuitCoordinator {
           }
         }
         o.windows.destroyAll()
-        o.logger.info('bye')
+        o.logger.info('bye', { coreStoppedMs, totalMs: systemClock.now() - t0 })
         if (opts?.finalize === undefined) {
+          /* update 的 quitAndInstall 自己会拉起新版本，那一路不再 relaunch */
+          if (relaunchRequested) relaunch()
           exit(0)
           return
         }

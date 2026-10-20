@@ -13,17 +13,14 @@ import type { ConversationSetup } from './context'
 
 /** 关窗守卫，以及 ConversationUiToken 等服务的提供。 */
 export function createConversationServices(setup: ConversationSetup, actions: ConversationActions): void {
-  const { api, ctx, dialogs, layout, platform, posture, stores, subagentTabs, transcripts } = setup
+  const { api, ctx, dialogs, layout, posture, stores, subagentTabs, transcripts } = setup
   const { activeThreadId, openThread, runningThreadIds, subscribeActive } = actions
 
-  // 退出拦截：有运行中的对话就先确认
+  // 退出拦截：有运行中的对话就先确认。只答「放不放行」——真正的 app.quit 由守卫在所有处理器放行后统一发起，
+  // 处理器自己再发一次会让后面的处理器还没被问到就开始退出。
   const guard = ctx.services.get(WindowCloseToken)
   ctx.lifecycle.onDispose(
-    guard.onCloseRequested(async () => {
-      const ok = await confirmQuit(dialogs, runningThreadIds().size)
-      if (ok) await platform.call('app.quit', {}).catch(() => undefined)
-      return ok
-    }).dispose,
+    guard.onCloseRequested(async () => await confirmQuit(dialogs, runningThreadIds().size)).dispose,
   )
 
   // ui-api：给其它功能的服务

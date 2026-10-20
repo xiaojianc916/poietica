@@ -29,7 +29,7 @@ import { retryEndOf, retryStartOf } from '../projector/retry'
 import { SubagentLedger } from '../projector/subagents'
 import { TodoMirror } from '../projector/todos'
 import type { SettingsScope } from '../settings-access'
-import { toContextUsage } from './context-usage'
+import { type OmpUsageStatisticsLike, toContextUsage } from './context-usage'
 import { describeError, EventFaults } from './event-faults'
 import { createGoalHost, type GoalHost } from './goal-host'
 import type { GoalCapableSession, PlanArtifactSession, PlanCapableSession } from './plan-goal'
@@ -91,6 +91,8 @@ interface OmpAgentSessionLike {
     /** omp 的会话名来源（会话头 titleSource）：user = 用户定名，之后自动总结不再覆盖 */
     readonly titleSource?: 'auto' | 'user' | undefined
     setSessionName?(name: string, source: 'auto' | 'user'): Promise<boolean>
+    /** omp 的会话用量累计（/usage、ACP usage_update 读的同一份）；形状由 context-usage.ts 收窄 */
+    getUsageStatistics?(): OmpUsageStatisticsLike
   }
   readonly skills: readonly {
     readonly name: string
@@ -222,7 +224,8 @@ export async function wrapOmpSession(input: WrapOmpSessionInput): Promise<Engine
   projector.seat(lastTurnOrdinal(transcriptOf()))
   /*
    * 上下文用量：读数取 getContextUsage，构成取 omp 自己的 computeSessionContextBreakdown（/context 面板印的
-   * 就是这一份；自己折那五格会与屏幕上显示的对不上）。每次现读、不存第二份，算不出构成只是没有明细。
+   * 就是这一份；自己折那五格会与屏幕上显示的对不上），会话用量取 sessionManager.getUsageStatistics()
+   * （/usage 与 ACP usage_update 那一份）。每次现读、不存第二份；算不出构成只是没有明细，读不到用量只是不画那两行。
    */
   const readContextUsage = (): ContextUsage | null => {
     let breakdown: Parameters<typeof toContextUsage>[1]
@@ -231,7 +234,13 @@ export async function wrapOmpSession(input: WrapOmpSessionInput): Promise<Engine
     } catch (cause) {
       input.logger.warn('context breakdown failed', { error: String(cause) })
     }
-    return toContextUsage(session.getContextUsage(), breakdown)
+    let stats: OmpUsageStatisticsLike | undefined
+    try {
+      stats = session.sessionManager.getUsageStatistics?.()
+    } catch (cause) {
+      input.logger.warn('session usage statistics failed', { error: String(cause) })
+    }
+    return toContextUsage(session.getContextUsage(), breakdown, stats)
   }
 
   const ui = createUiContext(broker, { grantTool: (tool) => grantToolForSession(input.settings, tool) })

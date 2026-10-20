@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test'
-import { toContextUsage } from '../context-usage'
+import { toContextUsage, toSessionTokenUsage } from '../context-usage'
 
 /*
  * omp 的上下文读数 → 引擎端口。
@@ -32,12 +32,28 @@ const SDK_BREAKDOWN = {
   autoCompactBufferTokens: 150_000,
 }
 
+/** 真实 SDK 的会话用量形状（session-entries.ts 的 UsageStatistics；费用 / 编排那几格不转运） */
+const SDK_STATS = {
+  input: 12_000,
+  output: 3_000,
+  cacheRead: 84_000,
+  cacheWrite: 4_000,
+  totalTokens: 103_000,
+  orchestrationInput: 0,
+  orchestrationOutput: 0,
+  orchestrationCacheRead: 0,
+  premiumRequests: 0,
+  cost: 0.42,
+  subagentCost: 0,
+}
+
 describe('omp 的上下文读数 → 引擎端口', () => {
   test('按真实 SDK 的字段名读：tokens / contextWindow，不是 usedTokens / windowTokens', () => {
     expect(toContextUsage(SDK_USAGE, undefined)).toEqual({
       usedTokens: 27_200,
       windowTokens: 1_000_000,
       breakdown: null,
+      session: null,
     })
   })
 
@@ -45,16 +61,32 @@ describe('omp 的上下文读数 → 引擎端口', () => {
    * 逐格对位。这一类映射最容易犯的错是串格（tools 与 context 写反、free 与 buffer 写反），
    * 而串格不会让任何一条求和或总数断言变红 —— 只能逐格钉。
    */
-  test('构成逐格对位（含 free / autoCompactBuffer 不串格）', () => {
+  test('构成逐格对位；omp 的空闲 / 自动压缩缓冲不再转运', () => {
     expect(toContextUsage(SDK_USAGE, SDK_BREAKDOWN)?.breakdown).toEqual({
       systemPrompt: 2_500,
       systemTools: 3_400,
       systemContext: 466,
       skills: 28,
       messages: 20_806,
-      free: 822_800,
-      autoCompactBuffer: 150_000,
     })
+  })
+
+  /* 会话用量同样逐格钉：cacheRead 与 cacheWrite 写反，命中率会差出一截，而总数一个都不会变。 */
+  test('会话用量逐格对位，total 照 omp 的 totalTokens', () => {
+    expect(toContextUsage(SDK_USAGE, SDK_BREAKDOWN, SDK_STATS)?.session).toEqual({
+      input: 12_000,
+      output: 3_000,
+      cacheRead: 84_000,
+      cacheWrite: 4_000,
+      total: 103_000,
+    })
+  })
+
+  test('会话用量缺格就整体不报（半份数字算出的命中率是错的）；totalTokens 缺了按四格现加', () => {
+    expect(toSessionTokenUsage(undefined)).toBeNull()
+    expect(toSessionTokenUsage({ ...SDK_STATS, cacheRead: undefined })).toBeNull()
+    expect(toSessionTokenUsage({ ...SDK_STATS, cacheWrite: Number.NaN })).toBeNull()
+    expect(toSessionTokenUsage({ ...SDK_STATS, totalTokens: undefined })?.total).toBe(103_000)
   })
 
   /*

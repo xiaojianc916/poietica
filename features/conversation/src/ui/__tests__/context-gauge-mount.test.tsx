@@ -8,10 +8,8 @@ import type { SessionUsage } from '../shared/model/usage'
 const usage = (breakdown: SessionUsage['breakdown']): SessionUsage => ({
   used: 140_000,
   size: 200_000,
-  inputOther: 1,
-  inputCacheRead: 2,
-  inputCacheCreation: 3,
   breakdown,
+  tokens: null,
 })
 
 describe('上下文胶囊的触发方式', () => {

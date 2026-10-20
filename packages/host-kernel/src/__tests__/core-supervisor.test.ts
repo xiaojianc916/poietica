@@ -611,12 +611,72 @@ describe('CoreSupervisor', () => {
     await started
     brokerVisible = true
     const stopping = s.sup.stop()
-    // 本代 Core 正常退出 → stop 落定后 brokker 必须已经被收掉
     s.spawned[0]!.child.stdin.end()
     exitChild(s.spawned[0]!.child, 0)
     await stopping
+    /* stop() 只管本代进程树：broker 还活着，要等退出协调器调 reapOrphans 才收 */
+    expect(killed).not.toContain(brokerPid)
+    await s.sup.reapOrphans()
     expect(killed).toContain(brokerPid)
     expect(s.sup.status.state).toBe('stopped')
+  })
+
+  test('stop() 不枚举系统进程；restart() 只在 spawn 前枚举一次（以前 stop + start 各一次）', async () => {
+    let listed = 0
+    const s = await setup({
+      listProcesses: async () => {
+        listed += 1
+        return []
+      },
+    })
+    const started = s.sup.start()
+    await tick()
+    ready(s.spawned[0]!.child)
+    await started
+    expect(listed).toBe(1)
+
+    const stopping = s.sup.stop()
+    exitChild(s.spawned[0]!.child, 0)
+    await stopping
+    expect(listed).toBe(1)
+
+    const restarted = s.sup.restart()
+    await tick()
+    ready(s.spawned[1]!.child)
+    await restarted
+    expect(listed).toBe(2)
+  })
+
+  test('reapOrphans 在 Core 还没停时调用 → 跳过，绝不误杀活着的这一代', async () => {
+    const coreExe = process.execPath
+    let listed = 0
+    /* 启动之后才出现的 omp 后台进程：启动前那次清理看不到它 */
+    let brokerVisible = false
+    const s = await setup({
+      listProcesses: async () => {
+        listed += 1
+        return brokerVisible
+          ? [
+              {
+                pid: 9200,
+                parentPid: 0,
+                name: 'poietica-core.exe',
+                executablePath: coreExe,
+                commandLine: 'core __omp_worker_daemon_broker',
+              },
+            ]
+          : []
+      },
+    })
+    const started = s.sup.start()
+    await tick()
+    ready(s.spawned[0]!.child)
+    await started
+    brokerVisible = true
+    const before = listed
+    await s.sup.reapOrphans()
+    expect(listed).toBe(before)
+    expect(s.killed).not.toContain(9200)
   })
 
   test('S-29 launch 持续抛错：窗口内超过上限进 failed/crash_loop，而不是无限重试', async () => {

@@ -230,7 +230,11 @@ async function boot(
   }
   void supervisor.start()
   // ⑩ 应用级事件
-  app.on('second-instance', () => windows.focusMain())
+  /* 退出途中窗口已经藏起来了：再 focus 会把一个正在收尾的窗口重新亮出来。改为收尾后 relaunch 一个新实例。 */
+  app.on('second-instance', () => {
+    if (quit.quitting) quit.requestRelaunch()
+    else windows.focusMain()
+  })
   app.on('before-quit', (event) => {
     if (!quit.quitting) {
       event.preventDefault()

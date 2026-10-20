@@ -9,17 +9,13 @@ afterEach(cleanup)
 const usage: SessionUsage = {
   used: 53_710,
   size: 200_000,
-  inputOther: 0,
-  inputCacheRead: 0,
-  inputCacheCreation: 0,
+  tokens: { input: 6_000, output: 2_000, cacheRead: 42_000, cacheWrite: 2_000, total: 52_000 },
   breakdown: {
     systemPrompt: 9_120,
     systemContext: 2_040,
     systemTools: 4_310,
     skills: 1_960,
     messages: 36_280,
-    free: 116_290,
-    autoCompactBuffer: 30_000,
   },
 }
 
@@ -32,6 +28,13 @@ describe('上下文面板的外部打开', () => {
       view.rerender(<ContextGauge openRequest={1} usage={usage} />)
     })
     expect(screen.getByText('系统提示词')).toBeDefined()
+    /* 原「空闲 / 自动压缩缓冲」两行换成 omp 的会话用量：42K ÷ (6K + 42K + 2K) = 84% */
+    expect(screen.queryByText('空闲')).toBeNull()
+    expect(screen.queryByText('自动压缩缓冲')).toBeNull()
+    expect(screen.getByText('缓存命中率')).toBeDefined()
+    expect(screen.getByText('84%')).toBeDefined()
+    expect(screen.getByText('token 消耗')).toBeDefined()
+    expect(screen.getByText('~52K')).toBeDefined()
     /* 面板只读：底部那一排压缩 / 瘦身 / 交接已删，命令仍只能从草稿里的 `/` 走 */
     expect(screen.queryByRole('button', { name: '压缩' })).toBeNull()
   })

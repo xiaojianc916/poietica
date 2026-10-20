@@ -390,7 +390,7 @@ describe('conversation core（不经内核的直连测试）', () => {
    * （真机故障「输入框没有用量显示」的另一半）。含 null 那一次有效报数。
    */
   test('上下文用量单独转发：引擎每报一次就发一次，null 也发（它是一次有效报数）', async () => {
-    const contextUsage = { usedTokens: 27_200, windowTokens: 1_000_000, breakdown: null }
+    const contextUsage = { usedTokens: 27_200, windowTokens: 1_000_000, breakdown: null, session: null }
     const { core, contextUsages, dir, db } = await makeCore({
       engine: createFakeEngine({
         contextUsage,

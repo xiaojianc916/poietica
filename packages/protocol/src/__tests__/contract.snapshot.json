@@ -4745,16 +4745,6 @@
                             "type": "integer",
                             "minimum": -9007199254740991,
                             "maximum": 9007199254740991
-                          },
-                          "free": {
-                            "type": "integer",
-                            "minimum": -9007199254740991,
-                            "maximum": 9007199254740991
-                          },
-                          "autoCompactBuffer": {
-                            "type": "integer",
-                            "minimum": -9007199254740991,
-                            "maximum": 9007199254740991
                           }
                         },
                         "required": [
@@ -4762,9 +4752,52 @@
                           "systemContext",
                           "systemTools",
                           "skills",
-                          "messages",
-                          "free",
-                          "autoCompactBuffer"
+                          "messages"
+                        ],
+                        "additionalProperties": false
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "session": {
+                    "anyOf": [
+                      {
+                        "type": "object",
+                        "properties": {
+                          "input": {
+                            "type": "integer",
+                            "minimum": -9007199254740991,
+                            "maximum": 9007199254740991
+                          },
+                          "output": {
+                            "type": "integer",
+                            "minimum": -9007199254740991,
+                            "maximum": 9007199254740991
+                          },
+                          "cacheRead": {
+                            "type": "integer",
+                            "minimum": -9007199254740991,
+                            "maximum": 9007199254740991
+                          },
+                          "cacheWrite": {
+                            "type": "integer",
+                            "minimum": -9007199254740991,
+                            "maximum": 9007199254740991
+                          },
+                          "total": {
+                            "type": "integer",
+                            "minimum": -9007199254740991,
+                            "maximum": 9007199254740991
+                          }
+                        },
+                        "required": [
+                          "input",
+                          "output",
+                          "cacheRead",
+                          "cacheWrite",
+                          "total"
                         ],
                         "additionalProperties": false
                       },
@@ -4777,7 +4810,8 @@
                 "required": [
                   "usedTokens",
                   "windowTokens",
-                  "breakdown"
+                  "breakdown",
+                  "session"
                 ],
                 "additionalProperties": false
               },
@@ -5062,16 +5096,6 @@
                             "type": "integer",
                             "minimum": -9007199254740991,
                             "maximum": 9007199254740991
-                          },
-                          "free": {
-                            "type": "integer",
-                            "minimum": -9007199254740991,
-                            "maximum": 9007199254740991
-                          },
-                          "autoCompactBuffer": {
-                            "type": "integer",
-                            "minimum": -9007199254740991,
-                            "maximum": 9007199254740991
                           }
                         },
                         "required": [
@@ -5079,9 +5103,52 @@
                           "systemContext",
                           "systemTools",
                           "skills",
-                          "messages",
-                          "free",
-                          "autoCompactBuffer"
+                          "messages"
+                        ],
+                        "additionalProperties": false
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "session": {
+                    "anyOf": [
+                      {
+                        "type": "object",
+                        "properties": {
+                          "input": {
+                            "type": "integer",
+                            "minimum": -9007199254740991,
+                            "maximum": 9007199254740991
+                          },
+                          "output": {
+                            "type": "integer",
+                            "minimum": -9007199254740991,
+                            "maximum": 9007199254740991
+                          },
+                          "cacheRead": {
+                            "type": "integer",
+                            "minimum": -9007199254740991,
+                            "maximum": 9007199254740991
+                          },
+                          "cacheWrite": {
+                            "type": "integer",
+                            "minimum": -9007199254740991,
+                            "maximum": 9007199254740991
+                          },
+                          "total": {
+                            "type": "integer",
+                            "minimum": -9007199254740991,
+                            "maximum": 9007199254740991
+                          }
+                        },
+                        "required": [
+                          "input",
+                          "output",
+                          "cacheRead",
+                          "cacheWrite",
+                          "total"
                         ],
                         "additionalProperties": false
                       },
@@ -5094,7 +5161,8 @@
                 "required": [
                   "usedTokens",
                   "windowTokens",
-                  "breakdown"
+                  "breakdown",
+                  "session"
                 ],
                 "additionalProperties": false
               },
@@ -5379,16 +5447,6 @@
                             "type": "integer",
                             "minimum": -9007199254740991,
                             "maximum": 9007199254740991
-                          },
-                          "free": {
-                            "type": "integer",
-                            "minimum": -9007199254740991,
-                            "maximum": 9007199254740991
-                          },
-                          "autoCompactBuffer": {
-                            "type": "integer",
-                            "minimum": -9007199254740991,
-                            "maximum": 9007199254740991
                           }
                         },
                         "required": [
@@ -5396,9 +5454,52 @@
                           "systemContext",
                           "systemTools",
                           "skills",
-                          "messages",
-                          "free",
-                          "autoCompactBuffer"
+                          "messages"
+                        ],
+                        "additionalProperties": false
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "session": {
+                    "anyOf": [
+                      {
+                        "type": "object",
+                        "properties": {
+                          "input": {
+                            "type": "integer",
+                            "minimum": -9007199254740991,
+                            "maximum": 9007199254740991
+                          },
+                          "output": {
+                            "type": "integer",
+                            "minimum": -9007199254740991,
+                            "maximum": 9007199254740991
+                          },
+                          "cacheRead": {
+                            "type": "integer",
+                            "minimum": -9007199254740991,
+                            "maximum": 9007199254740991
+                          },
+                          "cacheWrite": {
+                            "type": "integer",
+                            "minimum": -9007199254740991,
+                            "maximum": 9007199254740991
+                          },
+                          "total": {
+                            "type": "integer",
+                            "minimum": -9007199254740991,
+                            "maximum": 9007199254740991
+                          }
+                        },
+                        "required": [
+                          "input",
+                          "output",
+                          "cacheRead",
+                          "cacheWrite",
+                          "total"
                         ],
                         "additionalProperties": false
                       },
@@ -5411,7 +5512,8 @@
                 "required": [
                   "usedTokens",
                   "windowTokens",
-                  "breakdown"
+                  "breakdown",
+                  "session"
                 ],
                 "additionalProperties": false
               },
@@ -5696,16 +5798,6 @@
                             "type": "integer",
                             "minimum": -9007199254740991,
                             "maximum": 9007199254740991
-                          },
-                          "free": {
-                            "type": "integer",
-                            "minimum": -9007199254740991,
-                            "maximum": 9007199254740991
-                          },
-                          "autoCompactBuffer": {
-                            "type": "integer",
-                            "minimum": -9007199254740991,
-                            "maximum": 9007199254740991
                           }
                         },
                         "required": [
@@ -5713,9 +5805,52 @@
                           "systemContext",
                           "systemTools",
                           "skills",
-                          "messages",
-                          "free",
-                          "autoCompactBuffer"
+                          "messages"
+                        ],
+                        "additionalProperties": false
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "session": {
+                    "anyOf": [
+                      {
+                        "type": "object",
+                        "properties": {
+                          "input": {
+                            "type": "integer",
+                            "minimum": -9007199254740991,
+                            "maximum": 9007199254740991
+                          },
+                          "output": {
+                            "type": "integer",
+                            "minimum": -9007199254740991,
+                            "maximum": 9007199254740991
+                          },
+                          "cacheRead": {
+                            "type": "integer",
+                            "minimum": -9007199254740991,
+                            "maximum": 9007199254740991
+                          },
+                          "cacheWrite": {
+                            "type": "integer",
+                            "minimum": -9007199254740991,
+                            "maximum": 9007199254740991
+                          },
+                          "total": {
+                            "type": "integer",
+                            "minimum": -9007199254740991,
+                            "maximum": 9007199254740991
+                          }
+                        },
+                        "required": [
+                          "input",
+                          "output",
+                          "cacheRead",
+                          "cacheWrite",
+                          "total"
                         ],
                         "additionalProperties": false
                       },
@@ -5728,7 +5863,8 @@
                 "required": [
                   "usedTokens",
                   "windowTokens",
-                  "breakdown"
+                  "breakdown",
+                  "session"
                 ],
                 "additionalProperties": false
               },
@@ -6082,16 +6218,6 @@
                             "type": "integer",
                             "minimum": -9007199254740991,
                             "maximum": 9007199254740991
-                          },
-                          "free": {
-                            "type": "integer",
-                            "minimum": -9007199254740991,
-                            "maximum": 9007199254740991
-                          },
-                          "autoCompactBuffer": {
-                            "type": "integer",
-                            "minimum": -9007199254740991,
-                            "maximum": 9007199254740991
                           }
                         },
                         "required": [
@@ -6099,9 +6225,52 @@
                           "systemContext",
                           "systemTools",
                           "skills",
-                          "messages",
-                          "free",
-                          "autoCompactBuffer"
+                          "messages"
+                        ],
+                        "additionalProperties": false
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "session": {
+                    "anyOf": [
+                      {
+                        "type": "object",
+                        "properties": {
+                          "input": {
+                            "type": "integer",
+                            "minimum": -9007199254740991,
+                            "maximum": 9007199254740991
+                          },
+                          "output": {
+                            "type": "integer",
+                            "minimum": -9007199254740991,
+                            "maximum": 9007199254740991
+                          },
+                          "cacheRead": {
+                            "type": "integer",
+                            "minimum": -9007199254740991,
+                            "maximum": 9007199254740991
+                          },
+                          "cacheWrite": {
+                            "type": "integer",
+                            "minimum": -9007199254740991,
+                            "maximum": 9007199254740991
+                          },
+                          "total": {
+                            "type": "integer",
+                            "minimum": -9007199254740991,
+                            "maximum": 9007199254740991
+                          }
+                        },
+                        "required": [
+                          "input",
+                          "output",
+                          "cacheRead",
+                          "cacheWrite",
+                          "total"
                         ],
                         "additionalProperties": false
                       },
@@ -6114,7 +6283,8 @@
                 "required": [
                   "usedTokens",
                   "windowTokens",
-                  "breakdown"
+                  "breakdown",
+                  "session"
                 ],
                 "additionalProperties": false
               },
@@ -6417,16 +6587,6 @@
                             "type": "integer",
                             "minimum": -9007199254740991,
                             "maximum": 9007199254740991
-                          },
-                          "free": {
-                            "type": "integer",
-                            "minimum": -9007199254740991,
-                            "maximum": 9007199254740991
-                          },
-                          "autoCompactBuffer": {
-                            "type": "integer",
-                            "minimum": -9007199254740991,
-                            "maximum": 9007199254740991
                           }
                         },
                         "required": [
@@ -6434,9 +6594,52 @@
                           "systemContext",
                           "systemTools",
                           "skills",
-                          "messages",
-                          "free",
-                          "autoCompactBuffer"
+                          "messages"
+                        ],
+                        "additionalProperties": false
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "session": {
+                    "anyOf": [
+                      {
+                        "type": "object",
+                        "properties": {
+                          "input": {
+                            "type": "integer",
+                            "minimum": -9007199254740991,
+                            "maximum": 9007199254740991
+                          },
+                          "output": {
+                            "type": "integer",
+                            "minimum": -9007199254740991,
+                            "maximum": 9007199254740991
+                          },
+                          "cacheRead": {
+                            "type": "integer",
+                            "minimum": -9007199254740991,
+                            "maximum": 9007199254740991
+                          },
+                          "cacheWrite": {
+                            "type": "integer",
+                            "minimum": -9007199254740991,
+                            "maximum": 9007199254740991
+                          },
+                          "total": {
+                            "type": "integer",
+                            "minimum": -9007199254740991,
+                            "maximum": 9007199254740991
+                          }
+                        },
+                        "required": [
+                          "input",
+                          "output",
+                          "cacheRead",
+                          "cacheWrite",
+                          "total"
                         ],
                         "additionalProperties": false
                       },
@@ -6449,7 +6652,8 @@
                 "required": [
                   "usedTokens",
                   "windowTokens",
-                  "breakdown"
+                  "breakdown",
+                  "session"
                 ],
                 "additionalProperties": false
               },
@@ -6738,16 +6942,6 @@
                             "type": "integer",
                             "minimum": -9007199254740991,
                             "maximum": 9007199254740991
-                          },
-                          "free": {
-                            "type": "integer",
-                            "minimum": -9007199254740991,
-                            "maximum": 9007199254740991
-                          },
-                          "autoCompactBuffer": {
-                            "type": "integer",
-                            "minimum": -9007199254740991,
-                            "maximum": 9007199254740991
                           }
                         },
                         "required": [
@@ -6755,9 +6949,52 @@
                           "systemContext",
                           "systemTools",
                           "skills",
-                          "messages",
-                          "free",
-                          "autoCompactBuffer"
+                          "messages"
+                        ],
+                        "additionalProperties": false
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "session": {
+                    "anyOf": [
+                      {
+                        "type": "object",
+                        "properties": {
+                          "input": {
+                            "type": "integer",
+                            "minimum": -9007199254740991,
+                            "maximum": 9007199254740991
+                          },
+                          "output": {
+                            "type": "integer",
+                            "minimum": -9007199254740991,
+                            "maximum": 9007199254740991
+                          },
+                          "cacheRead": {
+                            "type": "integer",
+                            "minimum": -9007199254740991,
+                            "maximum": 9007199254740991
+                          },
+                          "cacheWrite": {
+                            "type": "integer",
+                            "minimum": -9007199254740991,
+                            "maximum": 9007199254740991
+                          },
+                          "total": {
+                            "type": "integer",
+                            "minimum": -9007199254740991,
+                            "maximum": 9007199254740991
+                          }
+                        },
+                        "required": [
+                          "input",
+                          "output",
+                          "cacheRead",
+                          "cacheWrite",
+                          "total"
                         ],
                         "additionalProperties": false
                       },
@@ -6770,7 +7007,8 @@
                 "required": [
                   "usedTokens",
                   "windowTokens",
-                  "breakdown"
+                  "breakdown",
+                  "session"
                 ],
                 "additionalProperties": false
               },
@@ -7064,16 +7302,6 @@
                             "type": "integer",
                             "minimum": -9007199254740991,
                             "maximum": 9007199254740991
-                          },
-                          "free": {
-                            "type": "integer",
-                            "minimum": -9007199254740991,
-                            "maximum": 9007199254740991
-                          },
-                          "autoCompactBuffer": {
-                            "type": "integer",
-                            "minimum": -9007199254740991,
-                            "maximum": 9007199254740991
                           }
                         },
                         "required": [
@@ -7081,9 +7309,52 @@
                           "systemContext",
                           "systemTools",
                           "skills",
-                          "messages",
-                          "free",
-                          "autoCompactBuffer"
+                          "messages"
+                        ],
+                        "additionalProperties": false
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "session": {
+                    "anyOf": [
+                      {
+                        "type": "object",
+                        "properties": {
+                          "input": {
+                            "type": "integer",
+                            "minimum": -9007199254740991,
+                            "maximum": 9007199254740991
+                          },
+                          "output": {
+                            "type": "integer",
+                            "minimum": -9007199254740991,
+                            "maximum": 9007199254740991
+                          },
+                          "cacheRead": {
+                            "type": "integer",
+                            "minimum": -9007199254740991,
+                            "maximum": 9007199254740991
+                          },
+                          "cacheWrite": {
+                            "type": "integer",
+                            "minimum": -9007199254740991,
+                            "maximum": 9007199254740991
+                          },
+                          "total": {
+                            "type": "integer",
+                            "minimum": -9007199254740991,
+                            "maximum": 9007199254740991
+                          }
+                        },
+                        "required": [
+                          "input",
+                          "output",
+                          "cacheRead",
+                          "cacheWrite",
+                          "total"
                         ],
                         "additionalProperties": false
                       },
@@ -7096,7 +7367,8 @@
                 "required": [
                   "usedTokens",
                   "windowTokens",
-                  "breakdown"
+                  "breakdown",
+                  "session"
                 ],
                 "additionalProperties": false
               },
@@ -7386,16 +7658,6 @@
                             "type": "integer",
                             "minimum": -9007199254740991,
                             "maximum": 9007199254740991
-                          },
-                          "free": {
-                            "type": "integer",
-                            "minimum": -9007199254740991,
-                            "maximum": 9007199254740991
-                          },
-                          "autoCompactBuffer": {
-                            "type": "integer",
-                            "minimum": -9007199254740991,
-                            "maximum": 9007199254740991
                           }
                         },
                         "required": [
@@ -7403,9 +7665,52 @@
                           "systemContext",
                           "systemTools",
                           "skills",
-                          "messages",
-                          "free",
-                          "autoCompactBuffer"
+                          "messages"
+                        ],
+                        "additionalProperties": false
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "session": {
+                    "anyOf": [
+                      {
+                        "type": "object",
+                        "properties": {
+                          "input": {
+                            "type": "integer",
+                            "minimum": -9007199254740991,
+                            "maximum": 9007199254740991
+                          },
+                          "output": {
+                            "type": "integer",
+                            "minimum": -9007199254740991,
+                            "maximum": 9007199254740991
+                          },
+                          "cacheRead": {
+                            "type": "integer",
+                            "minimum": -9007199254740991,
+                            "maximum": 9007199254740991
+                          },
+                          "cacheWrite": {
+                            "type": "integer",
+                            "minimum": -9007199254740991,
+                            "maximum": 9007199254740991
+                          },
+                          "total": {
+                            "type": "integer",
+                            "minimum": -9007199254740991,
+                            "maximum": 9007199254740991
+                          }
+                        },
+                        "required": [
+                          "input",
+                          "output",
+                          "cacheRead",
+                          "cacheWrite",
+                          "total"
                         ],
                         "additionalProperties": false
                       },
@@ -7418,7 +7723,8 @@
                 "required": [
                   "usedTokens",
                   "windowTokens",
-                  "breakdown"
+                  "breakdown",
+                  "session"
                 ],
                 "additionalProperties": false
               },
@@ -25151,16 +25457,6 @@
                                 "type": "integer",
                                 "minimum": -9007199254740991,
                                 "maximum": 9007199254740991
-                              },
-                              "free": {
-                                "type": "integer",
-                                "minimum": -9007199254740991,
-                                "maximum": 9007199254740991
-                              },
-                              "autoCompactBuffer": {
-                                "type": "integer",
-                                "minimum": -9007199254740991,
-                                "maximum": 9007199254740991
                               }
                             },
                             "required": [
@@ -25168,9 +25464,52 @@
                               "systemContext",
                               "systemTools",
                               "skills",
-                              "messages",
-                              "free",
-                              "autoCompactBuffer"
+                              "messages"
+                            ],
+                            "additionalProperties": false
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ]
+                      },
+                      "session": {
+                        "anyOf": [
+                          {
+                            "type": "object",
+                            "properties": {
+                              "input": {
+                                "type": "integer",
+                                "minimum": -9007199254740991,
+                                "maximum": 9007199254740991
+                              },
+                              "output": {
+                                "type": "integer",
+                                "minimum": -9007199254740991,
+                                "maximum": 9007199254740991
+                              },
+                              "cacheRead": {
+                                "type": "integer",
+                                "minimum": -9007199254740991,
+                                "maximum": 9007199254740991
+                              },
+                              "cacheWrite": {
+                                "type": "integer",
+                                "minimum": -9007199254740991,
+                                "maximum": 9007199254740991
+                              },
+                              "total": {
+                                "type": "integer",
+                                "minimum": -9007199254740991,
+                                "maximum": 9007199254740991
+                              }
+                            },
+                            "required": [
+                              "input",
+                              "output",
+                              "cacheRead",
+                              "cacheWrite",
+                              "total"
                             ],
                             "additionalProperties": false
                           },
@@ -25183,7 +25522,8 @@
                     "required": [
                       "usedTokens",
                       "windowTokens",
-                      "breakdown"
+                      "breakdown",
+                      "session"
                     ],
                     "additionalProperties": false
                   },
@@ -25268,16 +25608,6 @@
                             "type": "integer",
                             "minimum": -9007199254740991,
                             "maximum": 9007199254740991
-                          },
-                          "free": {
-                            "type": "integer",
-                            "minimum": -9007199254740991,
-                            "maximum": 9007199254740991
-                          },
-                          "autoCompactBuffer": {
-                            "type": "integer",
-                            "minimum": -9007199254740991,
-                            "maximum": 9007199254740991
                           }
                         },
                         "required": [
@@ -25285,9 +25615,52 @@
                           "systemContext",
                           "systemTools",
                           "skills",
-                          "messages",
-                          "free",
-                          "autoCompactBuffer"
+                          "messages"
+                        ],
+                        "additionalProperties": false
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "session": {
+                    "anyOf": [
+                      {
+                        "type": "object",
+                        "properties": {
+                          "input": {
+                            "type": "integer",
+                            "minimum": -9007199254740991,
+                            "maximum": 9007199254740991
+                          },
+                          "output": {
+                            "type": "integer",
+                            "minimum": -9007199254740991,
+                            "maximum": 9007199254740991
+                          },
+                          "cacheRead": {
+                            "type": "integer",
+                            "minimum": -9007199254740991,
+                            "maximum": 9007199254740991
+                          },
+                          "cacheWrite": {
+                            "type": "integer",
+                            "minimum": -9007199254740991,
+                            "maximum": 9007199254740991
+                          },
+                          "total": {
+                            "type": "integer",
+                            "minimum": -9007199254740991,
+                            "maximum": 9007199254740991
+                          }
+                        },
+                        "required": [
+                          "input",
+                          "output",
+                          "cacheRead",
+                          "cacheWrite",
+                          "total"
                         ],
                         "additionalProperties": false
                       },
@@ -25300,7 +25673,8 @@
                 "required": [
                   "usedTokens",
                   "windowTokens",
-                  "breakdown"
+                  "breakdown",
+                  "session"
                 ],
                 "additionalProperties": false
               },

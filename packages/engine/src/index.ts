@@ -55,6 +55,7 @@ export {
   QueueSnapshot,
   SessionGoalSnapshot,
   SessionState,
+  SessionTokenUsage,
   SettingDescriptor,
   SettingOption,
   SettingSection,

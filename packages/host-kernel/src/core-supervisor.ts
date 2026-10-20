@@ -156,16 +156,20 @@ export class CoreSupervisor {
     await this.start()
   }
 
-  /** 优雅停止：core.shutdown → 最多等 STOP_GRACE_MS → killTree */
+  /**
+   * 优雅停止：core.shutdown → 最多等 STOP_GRACE_MS → killTree。
+   *
+   * **只管本代 Core 这一棵进程树**，不再顺手枚举系统进程收 omp 后台进程（那一步是 {@link reapOrphans}）。
+   * 两件事以前绑在一起：stop 每次都要跑一遍 PowerShell 的 Win32_Process 枚举，退出路径白白多等一截，
+   * restart() 更是「stop 枚举一次 + start 前 reapBeforeLaunch 再枚举一次」。
+   */
   async stop(): Promise<void> {
     this.restartTimer?.dispose()
     this.restartTimer = undefined
     const child = this.child
     if (child === undefined) {
-      /* 先落状态再清：清理要跑一次进程枚举，不能让它把状态机卡在 starting（那时 launch 还会继续 spawn） */
+      /* 先落状态：launch 正停在启动前的让出点时，它醒来看到 stopped 就不会再 spawn */
       this.setState('stopped')
-      /* 本代 Core 已经退出了：它派发的 omp 后台进程可以收了（不占 exe 的话，下次升级就不会卡安装） */
-      await this.reapAfterStop()
       return
     }
     this.stopped = new Deferred<void>()
@@ -180,8 +184,6 @@ export class CoreSupervisor {
       await withTimeout(this.stopped.promise, 2_000, () => new Error('kill timeout'), this.clock).catch(() => undefined)
     }
     this.setState('stopped')
-    /* 等清理跑完再返回：Host 退出流程在这个调用之后就要 exit，残留必须在这之前收掉 */
-    await this.reapAfterStop()
   }
 
   /**
@@ -189,10 +191,14 @@ export class CoreSupervisor {
    *
    * 它们**不在** Core 的进程树里，taskkill /T 收不到；不止血的话，每次正常退出都会在后台留一个
    * 占着 core.exe 的进程 —— 这正是 0.5.10 覆盖安装失败、装成「新 Host + 旧 Core」的直接原因。
-   * 只在**真的关停**时做（stop / 退出），不在崩溃重启时做：崩溃那一路由退避重启接管，
-   * 新 Core 起来前也会先 reapBeforeLaunch 一次。
+   * 只在**真的退出应用**时由退出协调器调用（与 Host 钩子并发，窗口此时已经藏起来了），不在崩溃重启 / restart 时做：
+   * 那两路新 Core 起来前都会先 reapBeforeLaunch 一次，再枚举一遍是纯开销。永不抛错。
    */
-  private async reapAfterStop(): Promise<void> {
+  async reapOrphans(): Promise<void> {
+    if (this.state !== 'stopped') {
+      this.o.logger.warn('reapOrphans 只能在 stop() 之后调用，跳过', { state: this.state })
+      return
+    }
     const list = this.o.listProcesses ?? listProcesses
     try {
       const processes = await list()
@@ -202,13 +208,13 @@ export class CoreSupervisor {
         processes: stale.map((s) => ({ pid: s.pid, what: s.what })),
       })
       const kill = this.o.kill ?? killTree
-      for (const s of stale) {
-        try {
-          await kill(s.pid)
-        } catch (e) {
-          this.o.logger.warn('清理 omp 后台进程失败', { pid: s.pid, error: String(e) })
-        }
-      }
+      await Promise.all(
+        stale.map((s) =>
+          kill(s.pid).catch((e: unknown) =>
+            this.o.logger.warn('清理 omp 后台进程失败', { pid: s.pid, error: String(e) }),
+          ),
+        ),
+      )
     } catch (e) {
       this.o.logger.warn('清点 omp 后台进程失败', { error: String(e) })
     }

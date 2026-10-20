@@ -7,7 +7,7 @@ import { effectiveUsage } from '../session/configuration/control-shapes'
  * 第二条是真缺陷的形状：换到没有窗口元数据的模型时若回退，屏幕上会留着上一个模型的旧数字。
  */
 
-const CTX: ContextUsage = { usedTokens: 27_200, windowTokens: 1_000_000, breakdown: null }
+const CTX: ContextUsage = { usedTokens: 27_200, windowTokens: 1_000_000, breakdown: null, session: null }
 const INITIAL = { context: CTX }
 
 describe('上下文胶囊读哪一份用量', () => {
@@ -15,15 +15,13 @@ describe('上下文胶囊读哪一份用量', () => {
     expect(effectiveUsage(undefined, INITIAL)).toEqual({
       used: 27_200,
       size: 1_000_000,
-      inputOther: 0,
-      inputCacheRead: 0,
-      inputCacheCreation: 0,
       breakdown: null,
+      tokens: null,
     })
   })
 
   test('收到推送之后以推送为准（它比初值新）', () => {
-    const pushed: ContextUsage = { usedTokens: 500_000, windowTokens: 1_000_000, breakdown: null }
+    const pushed: ContextUsage = { usedTokens: 500_000, windowTokens: 1_000_000, breakdown: null, session: null }
 
     expect(effectiveUsage(pushed, INITIAL)?.used).toBe(500_000)
   })
@@ -37,7 +35,7 @@ describe('上下文胶囊读哪一份用量', () => {
     expect(effectiveUsage(undefined, null)).toBeUndefined()
   })
 
-  test('构成明细原样透传（面板那七行按它画）', () => {
+  test('构成明细与会话用量原样透传（面板的五行构成与两行用量按它画）', () => {
     const withBreakdown: ContextUsage = {
       usedTokens: 1_000,
       windowTokens: 10_000,
@@ -47,11 +45,17 @@ describe('上下文胶囊读哪一份用量', () => {
         systemContext: 300,
         skills: 0,
         messages: 400,
-        free: 9_000,
-        autoCompactBuffer: 0,
       },
+      session: { input: 10, output: 20, cacheRead: 30, cacheWrite: 40, total: 100 },
     }
 
     expect(effectiveUsage(undefined, { context: withBreakdown })?.breakdown?.systemPrompt).toBe(100)
+    expect(effectiveUsage(undefined, { context: withBreakdown })?.tokens).toEqual({
+      input: 10,
+      output: 20,
+      cacheRead: 30,
+      cacheWrite: 40,
+      total: 100,
+    })
   })
 })

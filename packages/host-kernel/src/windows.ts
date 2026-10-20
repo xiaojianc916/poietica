@@ -41,6 +41,15 @@ export class WindowRegistry {
     this.win.focus()
   }
 
+  /**
+   * 退出的第一步：用户点了关闭，窗口就该**立刻**从屏幕和任务栏上消失。
+   * 只藏不毁 —— Core 关停期间还可能调用 owner='host' 的方法（浏览器标签、对话框服务），webContents 必须活着；
+   * 真正销毁仍在 {@link destroyAll}，排在所有清理之后。
+   */
+  hideAll(): void {
+    for (const w of BrowserWindow.getAllWindows()) if (!w.isDestroyed() && w.isVisible()) w.hide()
+  }
+
   destroyAll(): void {
     for (const w of BrowserWindow.getAllWindows()) if (!w.isDestroyed()) w.destroy()
   }

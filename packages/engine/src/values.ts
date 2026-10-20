@@ -32,8 +32,9 @@ export const QueueSnapshot = z.object({
 export type QueueSnapshot = z.infer<typeof QueueSnapshot>
 
 /**
- * 上下文用量的**构成明细**（omp 自己的 `computeContextBreakdown`）。七格 = 五类占用（五者之和即 usedTokens）
- * + 空闲 + 自动压缩缓冲；agent 没报就是 null，屏幕退成只画总条。
+ * 上下文用量的**构成明细**（omp 自己的 `computeContextBreakdown`）。五类占用，五者之和即 usedTokens；
+ * agent 没报就是 null，屏幕退成只画总条。omp 那份还带「空闲 / 自动压缩缓冲」两格，它们按定义就是窗口里剩下的灰条，
+ * 屏幕不再单列（换成了会话用量那两行），端口也就不再转运。
  */
 export const ContextUsageBreakdown = z.object({
   systemPrompt: z.number().int(),
@@ -41,19 +42,35 @@ export const ContextUsageBreakdown = z.object({
   systemTools: z.number().int(),
   skills: z.number().int(),
   messages: z.number().int(),
-  free: z.number().int(),
-  autoCompactBuffer: z.number().int(),
 })
 export type ContextUsageBreakdown = z.infer<typeof ContextUsageBreakdown>
 
 /**
- * 上下文用量：`usedTokens / windowTokens` 是读数，`breakdown` 是构成。窗口未知（模型没有窗口元数据）时一律报 null
- * —— 没有分母就画不出圆环，报 0 只会画出一颗空的。
+ * 本会话**至今**的 token 用量：omp 的 `sessionManager.getUsageStatistics()` 原样转运（它的 `/usage` 命令、ACP 的
+ * `usage_update` 读的同一份）。按会话文件里每条带用量的记录累计 —— 压缩不清零，已完成的子代理（task 结果）也在内。
+ *
+ * 口径照 omp（pi-ai 的 Usage）：`input` 是**未命中缓存**的输入，`cacheRead` / `cacheWrite` 各自另计，
+ * `total = input + output + cacheRead + cacheWrite`。比率之类的派生数不在端口里算，屏幕按这几格现算。
+ */
+export const SessionTokenUsage = z.object({
+  input: z.number().int(),
+  output: z.number().int(),
+  cacheRead: z.number().int(),
+  cacheWrite: z.number().int(),
+  total: z.number().int(),
+})
+export type SessionTokenUsage = z.infer<typeof SessionTokenUsage>
+
+/**
+ * 上下文用量：`usedTokens / windowTokens` 是读数，`breakdown` 是构成，`session` 是本会话至今的用量。
+ * 窗口未知（模型没有窗口元数据）时整体报 null —— 没有分母就画不出圆环，报 0 只会画出一颗空的。
+ * `session` 读不到（替身、老会话管理器）时是 null，屏幕不画那两行。
  */
 export const ContextUsage = z.object({
   usedTokens: z.number().int(),
   windowTokens: z.number().int(),
   breakdown: ContextUsageBreakdown.nullable(),
+  session: SessionTokenUsage.nullable(),
 })
 export type ContextUsage = z.infer<typeof ContextUsage>
 

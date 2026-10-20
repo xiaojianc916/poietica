@@ -7,21 +7,29 @@ export interface AgentUsageBreakdown {
   readonly systemTools: number
   readonly skills: number
   readonly messages: number
-  readonly free: number
-  readonly autoCompactBuffer: number
+}
+
+/** 本会话至今的 token 用量（omp 的 sessionManager.getUsageStatistics()，原样转运）。 */
+export interface AgentSessionTokens {
+  /** 未命中缓存的输入 */
+  readonly input: number
+  readonly output: number
+  readonly cacheRead: number
+  readonly cacheWrite: number
+  /** input + output + cacheRead + cacheWrite（omp 的 totalTokens） */
+  readonly total: number
 }
 
 /**
- * used / size / breakdown 来自 Controls.context（omp 的 getContextUsage 加 computeContextBreakdown），明细是真的；
- * 三个 cache 累计引擎端口没报给 UI，如实留空。
+ * used / size / breakdown 来自 Controls.context（omp 的 getContextUsage 加 computeContextBreakdown），
+ * tokens 来自同一份报数里 omp 的会话用量累计；三者都是 omp 的原数，屏幕只做派生（比例、短写）。
  */
 export interface AgentSessionUsage {
   readonly used: number
   readonly size: number
-  readonly inputOther: number
-  readonly inputCacheRead: number
-  readonly inputCacheCreation: number
   readonly breakdown: AgentUsageBreakdown | null
+  /** 读不到（替身、老会话）时为 null：面板不画「缓存命中率 / token 消耗」两行 */
+  readonly tokens: AgentSessionTokens | null
 }
 
 export interface AgentPromptResult {
