@@ -223,6 +223,39 @@
   white-space: nowrap;
 }
 
+/*
+ * 悬停时把省略号关掉：横移到达远端后，省略号会盖在已经露出来的字上。
+ * 只在真能悬停的设备上生效 —— 触摸点一下会粘住 :hover，那行会永久没有省略号。
+ */
+@media (hover: hover) {
+  .assistant-thread:hover .assistant-thread__title,
+  .assistant-thread:hover .assistant-thread__title-base {
+    text-overflow: clip;
+  }
+}
+
+/*
+ * 悬停横移：标题放不下时 Rows 侧逐帧把 scrollLeft 往右推（见 title-marquee.ts），
+ * 爬动期间两端各留 12px 的渐隐，免得把半颗字硬切成一条边。
+ * data-scrolled = 已离开开头（左端），data-clipped = 右边还有字没露出来；
+ * 爬到远端时右钩子摘掉，最后一个字以全强度出现。
+ * 遮罩挂在被裁的那一层本身，行首状态点与行尾序号不跟着变淡。
+ */
+.assistant-thread__title[data-scrolled],
+.assistant-thread__title-base[data-scrolled] {
+  mask-image: linear-gradient(to right, transparent, #000 12px);
+}
+
+.assistant-thread__title[data-clipped],
+.assistant-thread__title-base[data-clipped] {
+  mask-image: linear-gradient(to left, transparent, #000 12px);
+}
+
+.assistant-thread__title[data-scrolled][data-clipped],
+.assistant-thread__title-base[data-scrolled][data-clipped] {
+  mask-image: linear-gradient(to right, transparent, #000 12px, #000 calc(100% - 12px), transparent);
+}
+
 /* 行首那格由 padding-inline-start 留着，指示器绝对定位进去：出现与消失时标题不移动。 */
 .assistant-thread__running {
   position: absolute;

@@ -2,7 +2,8 @@ import './assistant-threads.css'
 
 import { PixelLoader } from '@poietica/design-system'
 import { AlarmClock, FolderClosed, FolderOpen, PinOff } from 'lucide-react'
-import { memo, useCallback, useMemo, useState } from 'react'
+import type { RefObject } from 'react'
+import { memo, useCallback, useMemo, useRef, useState } from 'react'
 import type { Thread } from '../../../contract'
 import { byIsoDescending } from '../../shared/model/thread-order'
 import { useHorizon, useNow } from '../../shared/primitives/clock'
@@ -12,6 +13,7 @@ import { ThreadDisclosure } from './thread-disclosure'
 import type { ArchivedFilter } from './thread-view'
 import { GROUP_BY, type GroupBy, shapeGroups } from './thread-view'
 import { ThreadsHeader } from './threads-header'
+import { useTitleMarquee } from './title-marquee'
 
 /* 行必须是 memo，否则时钟每跳一次就重渲整张列表；新建交给工作台开或激活，不在库里先造一条没人说过话的会话。 */
 
@@ -89,19 +91,31 @@ function PinGlyph({ isPinned }: { readonly isPinned: boolean }) {
 /** 结尾的分叉序号，例如 (2)。 */
 const TRAILING_ORDINAL = /^(?<base>.*)(?<ordinal>\(\d+\))$/su
 
-/* 带序号的名字拆两段：正文吃省略号，序号钉在末尾。 */
-function ThreadTitle({ title }: { readonly title: string }) {
+/* 带序号的名字拆两段：正文吃省略号，序号钉在末尾。ref 只指向真正会被裁的那一段 —— 横移时序号不跟着跑。 */
+function ThreadTitle({
+  title,
+  titleRef,
+}: {
+  readonly title: string
+  readonly titleRef: RefObject<HTMLSpanElement | null>
+}) {
   const matched = TRAILING_ORDINAL.exec(title)
   const base = matched?.groups?.base
   const ordinal = matched?.groups?.ordinal
 
   if (base === undefined || ordinal === undefined) {
-    return <span className="assistant-thread__title">{title}</span>
+    return (
+      <span className="assistant-thread__title" ref={titleRef}>
+        {title}
+      </span>
+    )
   }
 
   return (
     <span className="assistant-thread__title" data-ordinal="true">
-      <span className="assistant-thread__title-base">{base}</span>
+      <span className="assistant-thread__title-base" ref={titleRef}>
+        {base}
+      </span>
       <span className="assistant-thread__title-ordinal">{ordinal}</span>
     </span>
   )
@@ -140,6 +154,8 @@ const ThreadRow = memo(function ThreadRow({
 }: ThreadRowProps) {
   const isPinned = thread.isPinned === true
   const pinLabel = isPinned ? '取消固定' : '固定'
+  const titleRef = useRef<HTMLSpanElement>(null)
+  const marquee = useTitleMarquee(titleRef)
 
   const togglePin = () => {
     onPin(thread.id, !isPinned)
@@ -150,6 +166,8 @@ const ThreadRow = memo(function ThreadRow({
       className="assistant-thread"
       data-active={isActive ? 'true' : undefined}
       data-muted={thread.isMuted === true ? 'true' : undefined}
+      onPointerEnter={marquee.enter}
+      onPointerLeave={marquee.leave}
     >
       <ThreadLead fromAutomation={thread.record?.origin === 'automation'} isRunning={isRunning} />
 
@@ -161,7 +179,7 @@ const ThreadRow = memo(function ThreadRow({
         }}
         type="button"
       >
-        <ThreadTitle title={thread.title} />
+        <ThreadTitle title={thread.title} titleRef={titleRef} />
       </button>
 
       {/* 时间与操作共用这一个格子，谁可见由同一条规则决定。 */}
