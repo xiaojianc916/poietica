@@ -2,6 +2,7 @@ import type { ToolCallRendererProps } from '@poietica/feature-conversation/ui-ap
 import {
   AlarmClock,
   ArrowUpRight,
+  ChevronDown,
   CircleCheck,
   CirclePause,
   CircleSlash,
@@ -11,7 +12,7 @@ import {
   SkipForward,
   TriangleAlert,
 } from 'lucide-react'
-import type { ComponentType, ReactNode } from 'react'
+import { type ComponentType, type ReactNode, useState } from 'react'
 import { describeMoment } from './automation'
 import {
   type CardAutomation,
@@ -238,17 +239,9 @@ function Body({ body, deps, now }: { readonly body: CardBody; readonly deps: Too
           <p className="automation-tool__summary">{body.summary}</p>
         </div>
       )
-    case 'run': {
-      const threadId = body.threadId
-      return threadId === null ? null : (
-        <div className="automation-tool__inline-actions">
-          <button className="automation-tool__button" onClick={() => deps.openThread(threadId)} type="button">
-            查看这次运行
-            <ArrowUpRight aria-hidden className="automation-tool__glyph" />
-          </button>
-        </div>
-      )
-    }
+    case 'run':
+      /* 动作已经挪到行尾（见 AutomationToolCardView）：展开区里不再重复一枚按钮。 */
+      return null
     default:
       return null
   }
@@ -262,19 +255,53 @@ function AutomationToolCardView({
   readonly model: ToolCardModel
 }): ReactNode {
   const now = deps.now?.() ?? Date.now()
+  /* 「查看这次运行」是这一行的动作，不是展开区里的内容：按钮跑到上面的正文里，右边就该留一条直达入口。 */
+  const runThreadId = model.body.kind === 'run' ? model.body.threadId : null
+  /* 只有真的摊得开的东西才给箭头：run 的动作在行尾，none 与 error 没有可展开的面。 */
+  const expandable = model.body.kind !== 'none' && model.body.kind !== 'run'
+  const [open, setOpen] = useState(false)
+
+  const row = (
+    <>
+      {model.status === 'running' ? (
+        <LoaderCircle aria-hidden className="timeline-row__icon automation-tool__spin" />
+      ) : (
+        <AlarmClock aria-hidden className="timeline-row__icon" />
+      )}
+      <span className="timeline-row__label">{model.line}</span>
+      <StatusChip model={model} />
+      {expandable ? <ChevronDown aria-hidden className="timeline-row__chevron disclosure__chevron" /> : null}
+    </>
+  )
+
   return (
     <section className="timeline-tool automation-tool" data-automation-tool="" data-status={model.status}>
-      <div className="timeline-row automation-tool__row">
-        {model.status === 'running' ? (
-          <LoaderCircle aria-hidden className="timeline-row__icon automation-tool__spin" />
+      <div className="automation-tool__rowline">
+        {expandable ? (
+          <button
+            aria-expanded={open}
+            className="timeline-row automation-tool__row"
+            onClick={() => {
+              setOpen(!open)
+            }}
+            type="button"
+          >
+            {row}
+          </button>
         ) : (
-          <AlarmClock aria-hidden className="timeline-row__icon" />
+          <div className="timeline-row automation-tool__row">{row}</div>
         )}
-        <span className="timeline-row__label">{model.line}</span>
-        <StatusChip model={model} />
+
+        {runThreadId === null ? null : (
+          <button className="automation-tool__run-link" onClick={() => deps.openThread(runThreadId)} type="button">
+            查看这次运行
+            <ArrowUpRight aria-hidden className="automation-tool__glyph" />
+          </button>
+        )}
       </div>
+
       {model.error === null ? null : <p className="automation-tool__error">{model.error}</p>}
-      <Body body={model.body} deps={deps} now={now} />
+      {expandable && open ? <Body body={model.body} deps={deps} now={now} /> : null}
     </section>
   )
 }

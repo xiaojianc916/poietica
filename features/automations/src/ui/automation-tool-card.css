@@ -1,12 +1,44 @@
-/* 行与纸都是时间线的，这里只排纸上的内容：一种字号给正文、一种给标注（--cp-font-micro）；分隔只用发丝线（--cp-hairline），
- * 不用边框、阴影、渐变；颜色只给状态点、失败、需要关注，其余都是墨色的深浅，数字一律等宽。 */
+/* 行与纸都是时间线的，这里只排纸上的内容：一种字号给正文、一种给标注（--cp-font-micro）；分隔只用这一张纸自己的线（--automation-tool-hairline，#3b3b3b），
+ * 不用边框、渐变；颜色只给状态点、失败、需要关注，其余都是墨色的深浅，数字一律等宽。 */
 
 .automation-tool {
+  /* 这一张纸里的分隔线固定 #3b3b3b：深色主题下时间线的发丝线在卡片底色上太淡，几乎看不见。 */
+  --automation-tool-hairline: #3b3b3b;
+
   gap: 0;
 }
 
-.automation-tool__row {
+/* 行与行尾的动作同处一条带子：动作在这一行的右边，不挤进展开区。 */
+.automation-tool__rowline {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
   max-inline-size: min(100%, var(--cp-timeline-tool-max));
+}
+
+.automation-tool__row {
+  flex: 0 1 auto;
+}
+
+.automation-tool__run-link {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  gap: 0.25rem;
+  border: 0;
+  border-radius: calc(var(--cp-radius-item) - 2px);
+  padding: 0 0.375rem;
+  background: transparent;
+  color: var(--cp-timeline-quiet-text);
+  font: inherit;
+  font-size: var(--ui-prose-size-aux);
+  cursor: pointer;
+}
+
+.automation-tool__run-link:hover,
+.automation-tool__run-link:focus-visible {
+  background: color-mix(in srgb, currentColor 7%, transparent);
+  color: var(--cp-ink);
 }
 
 .automation-tool__spin {
@@ -175,7 +207,7 @@
   gap: 0.25rem 1rem;
   margin: 0.375rem 0 0;
   padding-block-start: 0.5rem;
-  box-shadow: inset 0 1px 0 var(--cp-hairline);
+  box-shadow: inset 0 1px 0 var(--automation-tool-hairline);
 }
 
 .automation-tool__meta-row {
@@ -208,7 +240,7 @@
   gap: 0.375rem 0.75rem;
   margin-block-start: 0.25rem;
   padding-block-start: 0.5rem;
-  box-shadow: inset 0 1px 0 var(--cp-hairline);
+  box-shadow: inset 0 1px 0 var(--automation-tool-hairline);
 }
 
 .automation-tool__upcoming {
@@ -217,15 +249,9 @@
   font-variant-numeric: tabular-nums;
 }
 
-.automation-tool__actions,
-.automation-tool__inline-actions {
+.automation-tool__actions {
   display: inline-flex;
   gap: 0.25rem;
-}
-
-.automation-tool__inline-actions {
-  margin-block-start: 0.125rem;
-  margin-inline-start: calc(var(--cp-timeline-tool-indent) - 0.5rem);
 }
 
 .automation-tool__button {
