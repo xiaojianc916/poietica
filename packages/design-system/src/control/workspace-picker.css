@@ -259,8 +259,8 @@
 }
 
 /* `data-persisted-highlight` 由组件维护：菜单打开时自动落在当前项目或第一项，指针/键盘移动时只替换为一个新 id，指针离开菜单后不清除。
- * 当前项目的 `data-current` 只负责右侧勾号。高亮底色读菜单卡面那一档悬停（--cp-menu-hover），不读 --cp-hover：后者是半透明墨，
- * 压在这张实色浮层上还要再兑一次底。 */
+ * 当前项目的 `data-current` 只负责右侧勾号。高亮底与「新建项目」等普通菜单行读同一支 --ui-popup-highlight，
+ * 不另取实色 --cp-menu-hover：两种底色压在卡面上会是两个颜色。 */
 .workspace-picker__menu[data-assistant-skin] .workspace-picker__item[data-workspace-choice="true"][data-highlighted],
 .workspace-picker__menu[data-assistant-skin]
   .workspace-picker__item[data-workspace-choice="true"][data-current="true"] {
@@ -273,5 +273,5 @@
   .workspace-picker__item[data-workspace-choice="true"][data-persisted-highlight="true"][data-highlighted],
 .workspace-picker__menu[data-assistant-skin]
   .workspace-picker__item[data-workspace-choice="true"][data-persisted-highlight="true"][data-current="true"] {
-  background: var(--cp-menu-hover);
+  background: var(--ui-popup-highlight);
 }
