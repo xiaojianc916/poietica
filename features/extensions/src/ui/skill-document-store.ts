@@ -8,6 +8,9 @@ export interface SkillDocumentStore extends Observable<SkillDocument | undefined
 
 export const SKILL_DOCUMENT_PANEL = 'extensions.skillDocument'
 
+/** 「技能」设置页的 id。技能文档那一格只属于这一页（右坞按设置页分账），注册设置页与声明面板归属读同一个常量。 */
+export const SKILLS_SETTINGS_PAGE = 'extensions.skills'
+
 /**
  * 判据取路径：它来自名册那一行，一份技能一个，是这一格的真正身份 —— 面板 id 是常量，坞自己分不出「又点了同一行」与「换了另一行」。
  */

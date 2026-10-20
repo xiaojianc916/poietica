@@ -7,7 +7,8 @@ import {
   DEFAULT_LAYOUT,
   DEFAULT_PANEL_WIDTH,
   LAYOUT_LIMITS,
-  SETTINGS_OWNER,
+  type PanelScope,
+  settingsDockOwner,
 } from '../services/layout'
 import { createNavigationService } from '../services/navigation'
 
@@ -163,18 +164,27 @@ describe('layout', () => {
     expect(l.panes.current().byOwner.t2?.open).toBe(false)
   })
 
-  test('面板的归属类别：设置页只收 settings 的格，对话只收 surface 的格；设置页关掉最后一格即收起', () => {
-    const scopes: Record<string, 'surface' | 'settings'> = { skill: 'settings', browser: 'surface' }
+  test('面板的归属：设置页的格只进它声明的那一页，对话只收 surface 的格；设置页关掉最后一格即收起', () => {
+    const skills = settingsDockOwner('skills')
+    const general = settingsDockOwner('general')
+    const scopes: Record<string, PanelScope> = { skill: skills, browser: 'surface' }
     const l = createLayoutService({ scopeOf: (id) => scopes[id] })
 
-    l.setActiveOwner(SETTINGS_OWNER)
+    l.setActiveOwner(skills)
     l.openPanel('right', 'browser')
     l.togglePanel('right')
     expect(l.current().right.open).toBe(false)
 
     l.openPanel('right', 'skill')
     expect(l.current().right).toMatchObject({ open: true, activeId: 'skill' })
-    l.closePane(SETTINGS_OWNER, 'skill')
+    l.closePane(skills, 'skill')
+    expect(l.current().right.open).toBe(false)
+
+    /* 设置里的别的页（「通用」）开不出技能文档 */
+    l.setActiveOwner(general)
+    l.openPanel('right', 'skill')
+    l.focusPane(general, 'skill')
+    expect(l.panes.current().byOwner[general]).toBeUndefined()
     expect(l.current().right.open).toBe(false)
 
     l.setActiveOwner('t1')
@@ -183,6 +193,26 @@ describe('layout', () => {
     expect(l.panes.current().byOwner.t1).toBeUndefined()
     l.openPanel('right', 'browser')
     expect(l.current().right).toMatchObject({ open: true, activeId: 'browser' })
+  })
+
+  /* 用户 2026-10-20 报的故障：技能页开着技能文档，退出设置再进来落在缺省的「通用」页，右坞照样开着、画的还是技能文档。 */
+  test('设置按页分账：技能页开着的坞，到了「通用」页不在场，回到技能页原样还在', () => {
+    const skills = settingsDockOwner('skills')
+    const general = settingsDockOwner('general')
+    const l = createLayoutService({ scopeOf: (id) => (id === 'skill' ? skills : undefined) })
+
+    l.setActiveOwner(skills)
+    l.openPanel('right', 'skill')
+    expect(l.current().right.open).toBe(true)
+
+    l.setActiveOwner(null)
+    l.setActiveOwner(general)
+    expect(l.current().right).toMatchObject({ open: false, activeId: null })
+    l.togglePanel('right')
+    expect(l.current().right.open).toBe(false)
+
+    l.setActiveOwner(skills)
+    expect(l.current().right).toMatchObject({ open: true, activeId: 'skill' })
   })
 
   test('forgetOwner：清掉那一份坞，内容归属与前台引用一起清', () => {
@@ -207,11 +237,15 @@ describe('layout', () => {
     expect(l.current().auxiliary.activeOwner).toBe('t1')
     expect(l.current().right).toEqual({ open: true, activeId: null, size: 600 })
 
-    const s = createLayoutService()
-    s.restore({ right: { open: true, size: 600 }, auxiliary: { owner: SETTINGS_OWNER } })
-    s.setActiveOwner(SETTINGS_OWNER)
-    expect(s.current().right.open).toBe(false)
-    expect(s.panes.current().byOwner[SETTINGS_OWNER]).toBeUndefined()
+    /* 新的按页归属与旧版本整个设置共用的 'settings' 都不补 */
+    for (const owner of [settingsDockOwner('skills'), 'settings']) {
+      const s = createLayoutService()
+      s.restore({ right: { open: true, size: 600 }, auxiliary: { owner } })
+      s.setActiveOwner(owner)
+      expect(s.current().right.open).toBe(false)
+      expect(s.current().auxiliary.owner).toBeNull()
+      expect(s.panes.current().byOwner[owner]).toBeUndefined()
+    }
   })
 
   test('右坞默认宽度 560：AI 拉起内置浏览器时网页不至于只剩一条窄页', () => {

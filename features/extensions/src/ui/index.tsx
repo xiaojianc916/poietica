@@ -4,6 +4,7 @@ import { PackageOpen, Plug } from 'lucide-react'
 import { createExtensionsApi } from './api'
 import { createComposerToolkitSource } from './composer-toolkit'
 import { McpSettingsPage } from './mcp-settings'
+import { SKILLS_SETTINGS_PAGE } from './skill-document-store'
 import { SkillsSettingsPage } from './skills-settings'
 
 export default defineUiFeature({
@@ -29,7 +30,7 @@ export default defineUiFeature({
     })
 
     ctx.contribute(builtinPoints.settingsPages, {
-      id: 'extensions.skills',
+      id: SKILLS_SETTINGS_PAGE,
       group: SETTINGS_GROUPS.agent,
       order: 500,
       title: '技能',

@@ -11,7 +11,7 @@ import { MainArea } from './parts/main-area'
 import { Overlays } from './parts/overlays'
 import { PartSkeleton } from './parts/part-skeleton'
 import { AuxiliaryRegion, SidebarRegion } from './parts/regions'
-import { SettingsContentRegion, SettingsNavigation } from './parts/settings-regions'
+import { SettingsContentRegion, SettingsNavigation, useSettingsPageId } from './parts/settings-regions'
 import { SidebarFooter } from './parts/sidebar-footer'
 import { WorkspaceFrame } from './parts/workspace-frame'
 import { WorkspaceSidebar } from './parts/workspace-sidebar'
@@ -47,7 +47,14 @@ export function Workbench(): ReactNode {
    * 子组件的普通 effect 之前落定，表面挂载时发起的开格请求读到的就是新前台。
    */
   const surfaces = useContributions(builtinPoints.surfaces)
-  const dockOwner = surfaces.find((c) => c.item.id === route.surface)?.item.dockOwner?.(route.params) ?? null
+  /*
+   * 设置的路由常常不带页（「打开设置」、退出再进来都落在缺省页），dockOwner 必须拿到**解析后**的那一页：
+   * 设置的坞按页分账，拿空串去算会认成一位不存在的页，或与内容区画的那一页对不上。
+   */
+  const settingsPageId = useSettingsPageId(settingsPage)
+  const dockParams =
+    isSettingsOpen && settingsPageId !== undefined ? { ...route.params, page: settingsPageId } : route.params
+  const dockOwner = surfaces.find((c) => c.item.id === route.surface)?.item.dockOwner?.(dockParams) ?? null
   useLayoutEffect(() => {
     layoutService.setActiveOwner(dockOwner)
   }, [dockOwner, layoutService])

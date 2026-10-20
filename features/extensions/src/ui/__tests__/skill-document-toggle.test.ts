@@ -1,15 +1,21 @@
 import { describe, expect, it } from 'bun:test'
 import type { RpcMessage, WindowBridge } from '@poietica/rpc'
-import { createUiKernel, type LayoutService } from '@poietica/ui-kernel'
+import { createUiKernel, type LayoutService, settingsDockOwner } from '@poietica/ui-kernel'
 import type { SkillDocument } from '../skill-document'
-import { createSkillDocumentStore, SKILL_DOCUMENT_PANEL, toggleSkillDocument } from '../skill-document-store'
+import {
+  createSkillDocumentStore,
+  SKILL_DOCUMENT_PANEL,
+  SKILLS_SETTINGS_PAGE,
+  toggleSkillDocument,
+} from '../skill-document-store'
 
 /*
  * 面板是静态贡献，坞按 id 判「停的是不是这一格」，分不出「又点同一行」与「换了另一行」。
  * 那两件事由这里裁决；用例走真身：toggleSkillDocument 加内核给的 layout，不复刻判据。
  */
 
-const OWNER = 'settings'
+/* 设置的右坞按页分账：技能文档开在「技能」页自己那一位。 */
+const OWNER = settingsDockOwner(SKILLS_SETTINGS_PAGE)
 
 /** 只回核心状态的最小 bridge。 */
 function testBridge(): WindowBridge {

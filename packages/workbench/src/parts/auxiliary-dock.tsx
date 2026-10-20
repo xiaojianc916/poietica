@@ -3,8 +3,9 @@ import {
   type Contributed,
   type DockPaneSet,
   FeatureScope,
+  isSettingsDockOwner,
   type PanelItem,
-  SETTINGS_OWNER,
+  panelAdmits,
   useContributions,
   useKernel,
   useLayout,
@@ -18,7 +19,7 @@ import { PartSkeleton } from './part-skeleton'
 /*
  * 右侧面板坞。两类贡献：无 dockTabs 的是「pane」（活在 LayoutService 的 panes 分账里，一开一个标签）；
  * 有 dockTabs 的是「组」（页签由功能自己的 store 给，坞只聚合展示）。
- * 贡献按 scope 分两类：对话等普通表面的坞画标签条 / 启动器；设置页的坞只画设置自己的那一格（见 SettingsDock）。
+ * 贡献按 scope 分两类：对话等普通表面的坞画标签条 / 启动器；设置页的坞只画那一页自己的格（见 SettingsDock）。
  */
 
 type PanelContribution = Contributed<PanelItem>
@@ -194,19 +195,23 @@ export function AuxiliaryDock(): ReactNode {
   const panesState = useObservable(kernel.kernelServices.layout.panes)
   const contributions = useContributions(builtinPoints.panels)
 
-  /* 坞里画谁的内容看 auxiliary.owner（收起过渡期间保持上一位）；设置页那一位只有设置自己的格，形状也不同。 */
+  /* 坞里画谁的内容看 auxiliary.owner（收起过渡期间保持上一位）；设置页每一页一位，只有那一页自己的格，形状也不同。 */
   const owner = layoutState.auxiliary.owner
   const paneSet = owner === null ? null : (panesState.byOwner[owner] ?? null)
-  const scope = owner === SETTINGS_OWNER ? 'settings' : 'surface'
-  /* ContributionRegistry.list 已按 order 升序返回，这里只筛、不排序。 */
+  const settings = owner !== null && isSettingsDockOwner(owner)
+  /* ContributionRegistry.list 已按 order 升序返回，这里只筛、不排序。没有归属时按普通表面筛（启动器的候选）。 */
   const rightPanels = useMemo(
-    () => contributions.filter((c) => c.item.location === 'right' && scopeOf(c) === scope),
-    [contributions, scope],
+    () =>
+      contributions.filter(
+        (c) =>
+          c.item.location === 'right' && (owner === null ? scopeOf(c) === 'surface' : panelAdmits(scopeOf(c), owner)),
+      ),
+    [contributions, owner],
   )
 
   return (
     <aside aria-label="辅助面板" className="flex h-full min-h-0 flex-col" id="workspace-auxiliary-panel">
-      {scope === 'settings' ? (
+      {settings ? (
         <SettingsDock paneSet={paneSet} panels={rightPanels} />
       ) : (
         <SurfaceDock paneSet={paneSet} panels={rightPanels} />

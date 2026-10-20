@@ -143,19 +143,16 @@ export function SettingsNavigation({
   )
 }
 
-/** 设置内容区：内容宽度上限 720px 居中；作为 surface 注册，所以签名要收 params。 */
-export function SettingsContentRegion({
-  params,
-}: {
-  readonly params?: Readonly<Record<string, string>>
-} = {}): ReactNode {
+/**
+ * 设置此刻落在哪一页：路由给了认得的页就是它，否则（没给、空串、页已不在）是第一段的第一页 —— 不是「贡献顺序里的第一个」。
+ * 内容区画哪一页、右坞归哪一页（Workbench 按它算设置的 dockOwner）都读这一处：两边若各算各的，
+ * 「退出设置再进来落在缺省页」时坞就会认成另一页。
+ */
+export function useSettingsPageId(wanted: string | undefined): string | undefined {
   const pages = useContributions(builtinPoints.settingsPages)
   const groups = useContributions(builtinPoints.settingsGroups)
-  const { kernelServices } = useKernel()
-  const route = kernelServices.navigation.current().route
-  const pageId = params?.page ?? route.params.page
-  /* 缺省页与导航高亮同源：两处若各自用「贡献顺序里的第一个」，段序一变就会指到不同的页。 */
-  const firstPageId = groupSettingsPages(
+  if (wanted !== undefined && wanted !== '' && pages.some((c) => c.item.id === wanted)) return wanted
+  return groupSettingsPages(
     groups.map((c) => c.item),
     pages.map((c) => ({
       id: c.item.id,
@@ -165,7 +162,20 @@ export function SettingsContentRegion({
       icon: c.item.icon,
     })),
   )[0]?.items[0]?.id
-  const active = pages.find((c) => c.item.id === pageId) ?? pages.find((c) => c.item.id === firstPageId)
+}
+
+/** 设置内容区：内容宽度上限 720px 居中；作为 surface 注册，所以签名要收 params。 */
+export function SettingsContentRegion({
+  params,
+}: {
+  readonly params?: Readonly<Record<string, string>>
+} = {}): ReactNode {
+  const pages = useContributions(builtinPoints.settingsPages)
+  const { kernelServices } = useKernel()
+  const route = kernelServices.navigation.current().route
+  /* 缺省页与导航高亮同源：两处若各自用「贡献顺序里的第一个」，段序一变就会指到不同的页。 */
+  const activeId = useSettingsPageId(params?.page ?? route.params.page)
+  const active = pages.find((c) => c.item.id === activeId)
 
   if (active === undefined) {
     return (

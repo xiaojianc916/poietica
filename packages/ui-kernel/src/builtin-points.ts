@@ -88,7 +88,10 @@ export interface PanelItem {
   readonly offer?: boolean
   readonly description?: string
   readonly dockTabs?: PanelDockTabs
-  /** 服务于哪一类归属，缺省 `surface`。`settings` 的格只在设置页出现，设置页也只画这一类（不画标签条）。 */
+  /**
+   * 服务于哪一位归属，缺省 `surface`（普通表面）。写 `settingsDockOwner('<设置页 id>')` 的格只在设置里的**那一页**出现，
+   * 设置页的坞也只画属于自己那一页的格（不画标签条）。
+   */
   readonly scope?: PanelScope
 }
 export interface SettingsPageItem {

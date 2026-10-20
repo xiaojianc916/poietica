@@ -1,12 +1,19 @@
 import { Prose } from '@poietica/design-system/prose'
 import type { Disposable } from '@poietica/foundation'
-import { builtinPoints, LayoutToken, type UiFeatureContext, useObservable } from '@poietica/ui-kernel'
+import {
+  builtinPoints,
+  LayoutToken,
+  settingsDockOwner,
+  type UiFeatureContext,
+  useObservable,
+} from '@poietica/ui-kernel'
 import { AlertTriangle, FileText } from 'lucide-react'
 import { useState } from 'react'
 import type { SkillDocument } from './skill-document'
 import {
   createSkillDocumentStore,
   SKILL_DOCUMENT_PANEL,
+  SKILLS_SETTINGS_PAGE,
   type SkillDocumentStore,
   toggleSkillDocument,
 } from './skill-document-store'
@@ -183,8 +190,8 @@ export function createSkillDocumentOpener(ctx: UiFeatureContext): (document: Ski
           icon: FileText,
           /* 只由打开文档的人带进来，不出现在启动器 / 加号菜单里。 */
           offer: false,
-          /* 只属于设置页：设置页的坞只画这一格本身（没有标签条），对话的坞里也开不出它。 */
-          scope: 'settings',
+          /* 只属于「技能」设置页：那一页的坞只画这一格本身（没有标签条）；设置的别的页、对话的坞里都开不出它。 */
+          scope: settingsDockOwner(SKILLS_SETTINGS_PAGE),
           component: () => <SkillDocumentPane store={store} />,
         })
       }

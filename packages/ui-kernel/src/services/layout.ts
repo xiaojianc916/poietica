@@ -43,18 +43,34 @@ export interface DockPanesState {
 }
 
 /**
- * 设置页那一位归属。设置是外壳自己的表面，右坞在这里只为设置页自己的面板服务（技能文档）：
- * 不画标签条、启动器与加号菜单，也不收别的面板（见 {@link PanelScope}）。
+ * 设置页的归属**按页分**：每一页一位 `settings:<页 id>`，坞的开合与格清单各记各的。
+ * 以前整个设置只有一位 `'settings'`：在「技能」页开了技能文档，换到「通用」页（或退出设置再进来，落在缺省的「通用」页）
+ * 坞仍然开着、画的还是技能文档。按页分账之后，一页的格只在那一页出现。
+ * 设置页的坞只为设置自己的面板服务（技能文档）：不画标签条、启动器与加号菜单，也不收别的面板（见 {@link PanelScope}）。
  */
-export const SETTINGS_OWNER = 'settings'
+export type SettingsDockOwner = `settings:${string}`
+
+const SETTINGS_OWNER_PREFIX = 'settings:'
+
+/** 设置里某一页的坞归属。页 id 就是 settingsPages 贡献的 id。 */
+export const settingsDockOwner = (pageId: string): SettingsDockOwner => `${SETTINGS_OWNER_PREFIX}${pageId}`
+
+export const isSettingsDockOwner = (owner: string): owner is SettingsDockOwner =>
+  owner.startsWith(SETTINGS_OWNER_PREFIX)
+
+/** 旧版本存盘里整个设置共用的那一位；只在 restore 里认它，免得把它当成一条对话补开。 */
+const LEGACY_SETTINGS_OWNER = 'settings'
 
 /**
- * 一块右坞面板服务于哪一类归属：`surface`（缺省）是普通表面（对话等），`settings` 只在设置页出现。
- * 写反了的开格请求（设置页里开浏览器、对话里开技能文档）在布局服务这一层就被拒，坞那一层再按同一条规则筛一遍。
+ * 一块右坞面板服务于哪一位：`surface`（缺省）是普通表面（对话等）；`settings:<页 id>` 只属于设置里的那一页。
+ * 写错了地方的开格请求（设置页里开浏览器、对话里开技能文档、「通用」页里开技能文档）在布局服务这一层就被拒，
+ * 坞那一层再按同一条规则（{@link panelAdmits}）筛一遍。
  */
-export type PanelScope = 'surface' | 'settings'
+export type PanelScope = 'surface' | SettingsDockOwner
 
-const scopeOfOwner = (owner: string): PanelScope => (owner === SETTINGS_OWNER ? 'settings' : 'surface')
+/** 某一位归属的坞收不收这块面板：普通面板只进普通表面；设置页的面板只进它声明的那一页。 */
+export const panelAdmits = (scope: PanelScope, owner: string): boolean =>
+  scope === 'surface' ? !isSettingsDockOwner(owner) : scope === owner
 
 /** 右坞默认宽度：560。420 时 agent 驾驶内置浏览器只剩一条窄页，操作过程看不清；560 在默认 1280 窗口下仍给主列留下 440。 */
 export const DEFAULT_PANEL_WIDTH = 560
@@ -242,7 +258,7 @@ export function createLayoutService(options: LayoutServiceOptions = {}): LayoutS
 
   const admits = (owner: string, paneId: string): boolean => {
     const scope = options.scopeOf?.(paneId)
-    return scope === undefined || scope === scopeOfOwner(owner)
+    return scope === undefined || panelAdmits(scope, owner)
   }
 
   /** 改某个归属自己的那一份；fn 返回同一个对象即「没变」，不发通知。 */
@@ -269,7 +285,7 @@ export function createLayoutService(options: LayoutServiceOptions = {}): LayoutS
       const ids = current.ids.filter((id) => id !== paneId)
       /* 只有关掉的正是当前选中格才挪焦点（落到剩余最后一格，空则 null）；全空后坞回到启动器 —— 设置页没有启动器，直接收起。 */
       const activeId = current.activeId === paneId ? (ids.at(-1) ?? null) : current.activeId
-      const open = current.open && !(ids.length === 0 && scopeOfOwner(owner) === 'settings')
+      const open = current.open && !(ids.length === 0 && isSettingsDockOwner(owner))
       return { ids, activeId, open }
     })
   }
@@ -286,7 +302,7 @@ export function createLayoutService(options: LayoutServiceOptions = {}): LayoutS
   const setDockOpen = (owner: string, open: boolean): void => {
     updateSet(owner, (current) => {
       if ((current?.open ?? false) === open) return current
-      if (open && scopeOfOwner(owner) === 'settings' && (current?.ids.length ?? 0) === 0) return current
+      if (open && isSettingsDockOwner(owner) && (current?.ids.length ?? 0) === 0) return current
       return { ids: current?.ids ?? [], activeId: current?.activeId ?? null, open }
     })
   }
@@ -419,12 +435,13 @@ export function createLayoutService(options: LayoutServiceOptions = {}): LayoutS
       const auxiliary = section(r.auxiliary)
       /*
        * 存盘里只有「存盘那一刻坞里画的是谁、在不在场」：在场才给那一位补一条 open，格清单不落盘（再打开是启动器）。
-       * 设置页那一位不补：技能文档那一格是随文档现开的瞬时格，重启后没有文档可看，补出来只是一块空白。
+       * 设置页（各页 `settings:<页 id>`，以及旧版本共用的 `settings`）不补：技能文档那一格是随文档现开的瞬时格，重启后没有文档可看，补出来只是一块空白。
        * activeOwner 是运行期状态、由外壳按路由写；读盘是异步的，可能晚于外壳首次写前台，所以**保留**当前值而不是清空，
        * 否则启动后第一屏对话的坞要等换一次页才出来。旧形状（没有 auxiliary）只恢复宽度。
        */
       const owner = str(auxiliary?.owner)
-      const reopen = owner !== null && owner !== SETTINGS_OWNER && bool(right?.open, false)
+      const reopen =
+        owner !== null && owner !== LEGACY_SETTINGS_OWNER && !isSettingsDockOwner(owner) && bool(right?.open, false)
       const panes = panesValue.current()
       const seeded = reopen
         ? {

@@ -6,7 +6,7 @@ import {
   NavigationToken,
   type Route,
   SETTINGS_GROUPS,
-  SETTINGS_OWNER,
+  settingsDockOwner,
 } from '@poietica/ui-kernel'
 import { closePalette, openPalette, subscribePalette } from './palette-state'
 import { SettingsContentRegion } from './parts/settings-regions'
@@ -91,8 +91,11 @@ export const workbenchFeature = defineUiFeature({
       id: 'workbench.settings',
       title: '设置',
       component: SettingsContentRegion,
-      /* 设置页的右坞只给设置自己的格用（技能文档），与任何一条对话的坞都不相干。 */
-      dockOwner: () => SETTINGS_OWNER,
+      /*
+       * 设置的右坞**按页分账**：技能页开的技能文档只属于技能页，换到「通用」或退出再进来（落在缺省页）都看不到它。
+       * params.page 由 Workbench 先解析成实际落在的那一页再传进来；解析不出页（还没有任何设置页）就不画右坞。
+       */
+      dockOwner: (params) => (params.page === undefined || params.page === '' ? null : settingsDockOwner(params.page)),
     })
   },
 })

@@ -5,11 +5,16 @@ import {
   createUiKernel,
   defineUiFeature,
   KernelProvider,
-  SETTINGS_OWNER,
+  SETTINGS_GROUPS,
+  settingsDockOwner,
   type UiFeature,
 } from '@poietica/ui-kernel'
 import { cleanup, fireEvent, render } from '@testing-library/react'
+import { workbenchFeature } from '../feature'
 import { Workbench } from '../workbench'
+
+/* 技能文档那一格只属于设置里的「技能」页。 */
+const SKILLS_OWNER = settingsDockOwner('skills')
 
 /*
  * 右坞与主区右上角控件。用例钉住的是形状与语义：mainControls 按 order 落进栅格（data-slot 分主区 / 窗口两格）；
@@ -81,7 +86,7 @@ function panelsFeature(): UiFeature {
         title: '技能文档',
         icon: () => <span />,
         offer: false,
-        scope: 'settings',
+        scope: SKILLS_OWNER,
         component: () => <p data-panel="panels.skill">技能文档的正文</p>,
       })
     },
@@ -278,7 +283,7 @@ describe('右坞按归属分账', () => {
     const kernel = await mount([panelsFeature()])
     const { layout } = kernel.kernelServices
 
-    layout.setActiveOwner(SETTINGS_OWNER)
+    layout.setActiveOwner(SKILLS_OWNER)
     layout.openPanel('right', 'panels.review')
     layout.togglePanel('right')
     await settle()
@@ -292,7 +297,7 @@ describe('右坞按归属分账', () => {
     expect(document.querySelector('[role="tablist"]')).toBeNull()
     expect(document.querySelector('section[aria-label="辅助面板启动器"]')).toBeNull()
     expect(document.querySelector('button[aria-label="全屏显示"]')).toBeNull()
-    expect(layout.panes.current().byOwner[SETTINGS_OWNER]?.ids).toEqual(['panels.skill'])
+    expect(layout.panes.current().byOwner[SKILLS_OWNER]?.ids).toEqual(['panels.skill'])
     kernel.dispose()
   })
 
@@ -350,6 +355,97 @@ describe('右坞按归属分账', () => {
     navigation.navigate({ surface: 'surfaces.thread', params: { threadId: 't1' } })
     await settle()
     expect(docked()).toBe('true')
+    kernel.dispose()
+  })
+})
+
+/*
+ * 用户 2026-10-20 报的故障：技能页开着技能文档，按「返回」退出设置，再打开设置（落在缺省的「通用」页），
+ * 右坞照样开着、画的还是技能文档。走真路由：设置表面、设置页与 Workbench 的 dockOwner 解析都是真身。
+ */
+describe('设置的右坞按页分账', () => {
+  const docked = () => document.querySelector('.workspace-shell')?.getAttribute('data-auxiliary-docked')
+  const settle = () => new Promise((r) => setTimeout(r, 5))
+
+  function settingsPagesFeature(): UiFeature {
+    return defineUiFeature({
+      id: 'pages',
+      setup: (ctx) => {
+        ctx.contribute(builtinPoints.settingsPages, {
+          id: 'general',
+          group: SETTINGS_GROUPS.app,
+          order: 10,
+          title: '通用',
+          icon: () => <span />,
+          component: () => <p>通用页</p>,
+        })
+        ctx.contribute(builtinPoints.settingsPages, {
+          id: 'skills',
+          group: SETTINGS_GROUPS.agent,
+          order: 500,
+          title: '技能',
+          icon: () => <span />,
+          component: () => <p>技能页</p>,
+        })
+      },
+    })
+  }
+
+  test('技能页开的技能文档：退出设置再进来落在「通用」页时不在场，Ctrl+Alt+B 也打不开；回到技能页原样还在', async () => {
+    const kernel = await mount([workbenchFeature, settingsPagesFeature(), panelsFeature()])
+    const { layout, navigation } = kernel.kernelServices
+
+    navigation.navigate({ surface: 'workbench.settings', params: { page: 'skills' } })
+    await settle()
+    expect(layout.current().auxiliary.activeOwner).toBe(SKILLS_OWNER)
+    layout.openPanel('right', 'panels.skill')
+    await settle()
+    expect(docked()).toBe('true')
+    expect(document.querySelector('[data-panel="panels.skill"]')).not.toBeNull()
+
+    navigation.home()
+    await settle()
+    expect(docked()).toBe('false')
+
+    /* 「打开设置」不带页：解析成缺省的第一页「通用」，归属是通用页自己那一位 */
+    navigation.navigate({ surface: 'workbench.settings', params: {} })
+    await settle()
+    expect(layout.current().auxiliary.activeOwner).toBe(settingsDockOwner('general'))
+    expect(docked()).toBe('false')
+    layout.togglePanel('right')
+    layout.openPanel('right', 'panels.skill')
+    await settle()
+    expect(docked()).toBe('false')
+
+    navigation.navigate({ surface: 'workbench.settings', params: { page: 'general' } })
+    await settle()
+    expect(docked()).toBe('false')
+
+    navigation.navigate({ surface: 'workbench.settings', params: { page: 'skills' } })
+    await settle()
+    expect(docked()).toBe('true')
+    expect(document.querySelector('[data-panel="panels.skill"]')).not.toBeNull()
+    kernel.dispose()
+  })
+
+  test('技能页里换到别的设置页，坞随即离场；认不得的页按缺省页算', async () => {
+    const kernel = await mount([workbenchFeature, settingsPagesFeature(), panelsFeature()])
+    const { layout, navigation } = kernel.kernelServices
+
+    navigation.navigate({ surface: 'workbench.settings', params: { page: 'skills' } })
+    await settle()
+    layout.openPanel('right', 'panels.skill')
+    await settle()
+    expect(docked()).toBe('true')
+
+    navigation.navigate({ surface: 'workbench.settings', params: { page: 'general' } })
+    await settle()
+    expect(docked()).toBe('false')
+
+    navigation.navigate({ surface: 'workbench.settings', params: { page: 'gone' } })
+    await settle()
+    expect(layout.current().auxiliary.activeOwner).toBe(settingsDockOwner('general'))
+    expect(docked()).toBe('false')
     kernel.dispose()
   })
 })

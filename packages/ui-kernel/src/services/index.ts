@@ -85,6 +85,7 @@ export {
   DEFAULT_PANEL_WIDTH,
   type DockPaneSet,
   type DockPanesState,
+  isSettingsDockOwner,
   LAYOUT_LIMITS,
   type LayoutGeometry,
   type LayoutService,
@@ -92,11 +93,13 @@ export {
   type LayoutState,
   type PanelDockState,
   type PanelScope,
+  panelAdmits,
   type RegionGeometry,
   resolveLayoutGeometry,
-  SETTINGS_OWNER,
+  type SettingsDockOwner,
   type SplitterActivity,
   type SplitterRegion,
+  settingsDockOwner,
 } from './layout'
 export { createUiLogging, type UiLogEntry, type UiLogging } from './logging'
 export { createNavigationService, type NavigationService, type NavigationState, type Route } from './navigation'
