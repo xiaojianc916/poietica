@@ -45,7 +45,7 @@
   inset-block-start: var(--conversation-todo-gap);
   inset-inline-end: var(--conversation-todo-gap);
   overflow: hidden;
-  border: 1px solid #363636;
+  border: 1px solid #2b2b2b;
   border-radius: 16px;
   background: var(--cp-ground);
   color: var(--cp-ink);
@@ -95,7 +95,7 @@
   inline-size: 14px;
 }
 
-/* 深色下 --cp-ground 与地色齐平，只剩一圈边线；抬一档。产品指定 #202020，外框 #363636。 */
+/* 深色下 --cp-ground 与地色齐平，只剩一圈边线；抬一档。产品指定 #202020，外框 #2b2b2b。 */
 :root[data-theme="dark"] .conversation-todo-popover__surface {
   background: #202020;
 }

@@ -361,7 +361,7 @@
 
 /*
  * 折叠悬浮卡：一块小号的状态面板（同挂 .status-panel，墨色与深浅主题都从那一格来）。外壳照浮层面板
- * （conversation-todo-popover__surface）：同一圈 #363636 外框、同一档阴影、深色同一块 #202020 —— 只把圆角收一档。
+ * （conversation-todo-popover__surface）：同一圈 #2b2b2b 外框、同一档阴影、深色同一块 #202020 —— 只把圆角收一档。
  * 双类是为了压过提示气泡的默认皮（.ui-tooltip 与它的 bg-foreground / px-3 / text-xs）。
  */
 .status-panel.status-panel__fold-card {
@@ -370,7 +370,7 @@
   max-block-size: min(64dvh, 32rem);
   padding: 8px;
   overflow-y: auto;
-  border: 1px solid #363636;
+  border: 1px solid #2b2b2b;
   border-radius: 12px;
   background: var(--cp-ground, #fff);
   color: var(--cp-ink);
