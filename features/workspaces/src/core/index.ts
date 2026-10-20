@@ -1,6 +1,5 @@
 import fs from 'node:fs'
 import { defineCoreModule } from '@poietica/core-kernel'
-import { ensureDir } from '@poietica/fs-kit'
 import { workspacesContract } from '../contract'
 import { type WorkspaceRemoved, WorkspacesServiceToken, workspaceRemoved } from '../core-api'
 import { registerHandlers } from './handlers'
@@ -15,9 +14,7 @@ export default defineCoreModule({
   setup(ctx) {
     const service = createWorkspacesService({
       repo: createWorkspacesRepository(ctx.db),
-      scratchDir: ctx.layout.scratchDir,
       clock: ctx.clock,
-      logger: ctx.logger,
       emitChanged: () => {
         ctx.rpc.emit('workspaces.changed', { workspaces: [...service.list()] })
       },
@@ -26,8 +23,6 @@ export default defineCoreModule({
       },
       fs: {
         isDirectory: (p) => fs.statSync(p, { throwIfNoEntry: false })?.isDirectory() ?? false,
-        mkdir: (p) => ensureDir(p),
-        exists: (p) => fs.existsSync(p),
       },
     })
 
@@ -37,7 +32,5 @@ export default defineCoreModule({
       requireUsable: service.requireUsable,
       list: service.list,
     })
-
-    // scratchDir 由 createScratch 的第一次写入创建（第一次写入时 ensureDir）。
   },
 })

@@ -53,6 +53,8 @@ export interface AssistantComposerProps {
   /** 这张表还没被 agent 确认过：画得出内容，但点不动。 */
   readonly controlsPending?: boolean | undefined
   readonly onSelectControl: (controlId: string, value: string, input?: string) => void
+  /** 还没选项目：发送键画灰，Enter 也不再提交（PromptInput 那一层一起挡）。 */
+  readonly submitDisabled?: boolean | undefined
   readonly usage?: SessionUsage | undefined
   /** 非空时输入框长成问答面板，空着就是平常那个 composer。 */
   readonly question?: QuestionTimelineItem | null | undefined
@@ -76,6 +78,7 @@ type ComposerToolbarProps = Pick<
   | 'onContinue'
   | 'onSelectControl'
   | 'onSubmit'
+  | 'submitDisabled'
   | 'usage'
 > & {
   readonly status: ChatStatus
@@ -94,6 +97,7 @@ function ComposerToolbar({
   onSelectControl,
   onSubmit,
   status,
+  submitDisabled,
   usage,
 }: ComposerToolbarProps) {
   /* 这层不订草稿：订在这里，「有没有东西可发」一翻转就要重渲整条工具栏。 */
@@ -129,7 +133,12 @@ function ComposerToolbar({
 
       {/* 按钮与 onSubmit 读同一份草稿；字段用法没有发送键。 */}
       {onSubmit === undefined ? null : (
-        <PromptInputSubmit onCancel={onCancel} onContinue={onContinue} status={status} />
+        <PromptInputSubmit
+          disabled={submitDisabled === true}
+          onCancel={onCancel}
+          onContinue={onContinue}
+          status={status}
+        />
       )}
     </PromptInputToolbar>
   )
@@ -159,6 +168,7 @@ export const AssistantComposer = memo(function AssistantComposer({
   ref,
   status = 'ready',
   onSubmit,
+  submitDisabled,
   ...toolbar
 }: AssistantComposerProps) {
   /* 换掉的只是壳里的内容（同一个 form），不是浮层 —— 浮层在滚动、聚焦和 Esc 上处处露馅。分支写在孩子身上：提问支曾漏掉 multiple。 */
@@ -199,6 +209,7 @@ export const AssistantComposer = memo(function AssistantComposer({
         onSubmit={onSubmit}
         ref={ref}
         slashCommands={asking ? undefined : commands}
+        submitDisabled={submitDisabled}
       >
         {asking && question.dialog !== undefined ? (
           /* 单问（确认 / 单选 / 输入）一张自己的卡；key 同题组：换一问就从空草稿重来。 */
@@ -224,7 +235,13 @@ export const AssistantComposer = memo(function AssistantComposer({
               <PromptInputEditor placeholder={placeholder ?? placeholderOf(commands)} />
             </PromptInputBody>
 
-            <ComposerToolbar confirmed={confirmed} onSubmit={onSubmit} status={status} {...toolbar} />
+            <ComposerToolbar
+              confirmed={confirmed}
+              onSubmit={onSubmit}
+              status={status}
+              submitDisabled={submitDisabled}
+              {...toolbar}
+            />
           </>
         )}
       </PromptInput>

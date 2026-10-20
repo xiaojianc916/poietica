@@ -13552,7 +13552,6 @@
                     "database",
                     "attachments",
                     "omp-other",
-                    "scratch",
                     "tools",
                     "logs",
                     "kernel-cache",
@@ -24305,13 +24304,6 @@
             "type": "string",
             "minLength": 1
           },
-          "kind": {
-            "type": "string",
-            "enum": [
-              "folder",
-              "scratch"
-            ]
-          },
           "path": {
             "type": "string"
           },
@@ -24334,64 +24326,6 @@
         },
         "required": [
           "id",
-          "kind",
-          "path",
-          "name",
-          "createdAt",
-          "lastOpenedAt",
-          "exists"
-        ],
-        "additionalProperties": false
-      }
-    },
-    {
-      "name": "workspaces.createScratch",
-      "owner": "core",
-      "timeoutMs": 30000,
-      "description": "新建一个“临时对话”工作区",
-      "params": {
-        "$schema": "https://json-schema.org/draft/2020-12/schema",
-        "type": "object",
-        "properties": {}
-      },
-      "result": {
-        "$schema": "https://json-schema.org/draft/2020-12/schema",
-        "type": "object",
-        "properties": {
-          "id": {
-            "type": "string",
-            "minLength": 1
-          },
-          "kind": {
-            "type": "string",
-            "enum": [
-              "folder",
-              "scratch"
-            ]
-          },
-          "path": {
-            "type": "string"
-          },
-          "name": {
-            "type": "string"
-          },
-          "createdAt": {
-            "type": "integer",
-            "minimum": -9007199254740991,
-            "maximum": 9007199254740991
-          },
-          "lastOpenedAt": {
-            "type": "integer",
-            "minimum": -9007199254740991,
-            "maximum": 9007199254740991
-          },
-          "exists": {
-            "type": "boolean"
-          }
-        },
-        "required": [
-          "id",
-          "kind",
           "path",
           "name",
           "createdAt",
@@ -24424,13 +24358,6 @@
                   "type": "string",
                   "minLength": 1
                 },
-                "kind": {
-                  "type": "string",
-                  "enum": [
-                    "folder",
-                    "scratch"
-                  ]
-                },
                 "path": {
                   "type": "string"
                 },
@@ -24453,7 +24380,6 @@
               },
               "required": [
                 "id",
-                "kind",
                 "path",
                 "name",
                 "createdAt",
@@ -24525,13 +24451,6 @@
             "type": "string",
             "minLength": 1
           },
-          "kind": {
-            "type": "string",
-            "enum": [
-              "folder",
-              "scratch"
-            ]
-          },
           "path": {
             "type": "string"
           },
@@ -24554,7 +24473,6 @@
         },
         "required": [
           "id",
-          "kind",
           "path",
           "name",
           "createdAt",
@@ -31313,13 +31231,6 @@
                   "type": "string",
                   "minLength": 1
                 },
-                "kind": {
-                  "type": "string",
-                  "enum": [
-                    "folder",
-                    "scratch"
-                  ]
-                },
                 "path": {
                   "type": "string"
                 },
@@ -31342,7 +31253,6 @@
               },
               "required": [
                 "id",
-                "kind",
                 "path",
                 "name",
                 "createdAt",

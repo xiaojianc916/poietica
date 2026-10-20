@@ -7,13 +7,21 @@ export interface WorkspacesState {
   readonly activeId: string | null
 }
 
+/**
+ * 「当前项目」是**必选的**：没有任何项目时 `activeId` 为 null，入口页据此禁用发送。
+ * `setActive` 也收 null —— 列表被清空（项目被移除、目录失效）时它要能回到「还没选」。
+ */
 export interface WorkspacesUi {
   readonly store: FeatureStore<WorkspacesState>
   active(): Workspace | null
   setActive(id: string | null): void
   subscribeActive(listener: (workspace: Workspace | null) => void): () => void
   pickAndAdd(): Promise<Workspace | null>
-  createScratch(): Promise<void>
+  /**
+   * 从名单里移除这个项目（不删磁盘目录）。它底下的对话由 conversation 的级联删除，当前项目被删掉时
+   * `activeId` 回到 null —— 「还没选项目」于是又成立，入口页照规矩禁用发送。
+   */
+  remove(id: string): Promise<void>
 }
 export const WorkspacesUiToken = defineServiceToken<WorkspacesUi>('workspaces', 'WorkspacesUi')
 

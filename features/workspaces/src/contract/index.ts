@@ -27,13 +27,6 @@ export const workspacesContract = defineContract({
       description: '添加一个文件夹工作区；已存在则返回已有记录并更新最近打开时间',
     }),
     defineMethod({
-      name: 'workspaces.createScratch',
-      owner: 'core',
-      params: empty,
-      result: Workspace,
-      description: '新建一个“临时对话”工作区',
-    }),
-    defineMethod({
       name: 'workspaces.rename',
       owner: 'core',
       params: z.object({ workspaceId: z.string().min(1), name: z.string() }),

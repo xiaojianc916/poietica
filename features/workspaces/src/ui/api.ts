@@ -8,7 +8,6 @@ export function createWorkspacesApi(ctx: UiFeatureContext) {
     list: (): Promise<Workspace[]> =>
       rpc.call('workspaces.list', {}).then((r: { workspaces: Workspace[] }) => r.workspaces),
     add: (path: string): Promise<Workspace> => rpc.call('workspaces.add', { path }),
-    createScratch: (): Promise<Workspace> => rpc.call('workspaces.createScratch', {}),
     rename: (workspaceId: string, name: string): Promise<Workspace> =>
       rpc.call('workspaces.rename', { workspaceId, name }),
     remove: (workspaceId: string): Promise<void> =>

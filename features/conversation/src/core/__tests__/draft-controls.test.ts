@@ -1,5 +1,6 @@
 import { describe, expect, test } from 'bun:test'
 import { workspacesContract } from '@poietica/feature-workspaces/contract'
+import { tempDir } from '@poietica/test-kit'
 import { conversationContract } from '../../contract'
 import { harness } from './helpers'
 
@@ -14,6 +15,13 @@ import { harness } from './helpers'
  */
 const openedOf = (engine: unknown): readonly { posture?: string; thinking?: string | null }[] =>
   (engine as { opened: readonly { posture?: string; thinking?: string | null }[] }).opened
+
+/** 工作区只有「真实文件夹」一种：建一个临时目录再加进来。 */
+async function addWorkspace(h: Awaited<ReturnType<typeof harness>>['h']) {
+  const dir = await tempDir('conv-draft-')
+  const workspace = await h.client(workspacesContract).call('workspaces.add', { path: dir.path })
+  return { workspace, dir }
+}
 
 describe('CV-13 草稿控件表', () => {
   test('controls.draft 不开会话，默认姿态是 auto-edit', async () => {
@@ -77,7 +85,7 @@ describe('CV-14 入口页选好再发送', () => {
   test('选中值带进 threads.create（posture / thinking）', async () => {
     const { h, engine } = await harness()
     const api = h.client(conversationContract)
-    const workspace = await h.client(workspacesContract).call('workspaces.createScratch', {})
+    const { workspace, dir } = await addWorkspace(h)
 
     const thread = await api.call('threads.create', {
       workspaceId: workspace.id,
@@ -98,6 +106,7 @@ describe('CV-14 入口页选好再发送', () => {
     expect(opened?.thinking).toBe('low')
 
     await h.dispose()
+    await dir.dispose()
   })
 })
 
@@ -142,7 +151,7 @@ describe('CV-15 入口页写穿新对话默认意图', () => {
   test('默认值变更只发 controls.draftChanged，空闲会话不被换代；目录变更照旧换代', async () => {
     const { h, engine } = await harness()
     const api = h.client(conversationContract)
-    const workspace = await h.client(workspacesContract).call('workspaces.createScratch', {})
+    const { workspace } = await addWorkspace(h)
     const thread = await api.call('threads.create', { workspaceId: workspace.id })
     await api.call('threads.open', { threadId: thread.id })
     const openedAfterOpen = openedOf(engine).length

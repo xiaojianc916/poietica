@@ -1,5 +1,6 @@
 import { describe, expect, test } from 'bun:test'
 import { workspacesContract } from '@poietica/feature-workspaces/contract'
+import { tempDir } from '@poietica/test-kit'
 import { conversationContract } from '../../contract'
 import { harness } from './helpers'
 
@@ -11,7 +12,8 @@ import { harness } from './helpers'
 async function openThread() {
   const { h } = await harness()
   const api = h.client(conversationContract)
-  const workspace = await h.client(workspacesContract).call('workspaces.createScratch', {})
+  const dir = await tempDir('conv-goal-')
+  const workspace = await h.client(workspacesContract).call('workspaces.add', { path: dir.path })
   const thread = await api.call('threads.create', { workspaceId: workspace.id })
   const lastChanged = () =>
     h

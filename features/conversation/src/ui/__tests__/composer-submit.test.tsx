@@ -14,6 +14,7 @@ import {
   PromptInputBody,
   PromptInputEditor,
   type PromptInputHandle,
+  PromptInputSubmit,
   PromptInputToolbar,
 } from '../composer/view/prompt-input'
 
@@ -54,7 +55,10 @@ function statusBridge(): WindowBridge {
 }
 
 async function harness(): Promise<{
-  readonly renderComposer: (onSubmit: (message: PromptInputMessage) => void) => {
+  readonly renderComposer: (
+    onSubmit: (message: PromptInputMessage) => void,
+    options?: { readonly submitDisabled?: boolean },
+  ) => {
     readonly container: HTMLElement
     readonly handle: () => PromptInputHandle | null
   }
@@ -87,7 +91,7 @@ async function harness(): Promise<{
   const containers: HTMLElement[] = []
 
   return {
-    renderComposer: (onSubmit) => {
+    renderComposer: (onSubmit, options = {}) => {
       let handle: PromptInputHandle | null = null
 
       function Composer(): ReactNode {
@@ -110,12 +114,14 @@ async function harness(): Promise<{
                     ref.current = next
                     handle = next
                   }}
+                  submitDisabled={options.submitDisabled === true}
                 >
                   <PromptInputBody>
                     <PromptInputEditor placeholder="问我任何问题…" />
                   </PromptInputBody>
                   <PromptInputToolbar>
                     <ComposerActions />
+                    <PromptInputSubmit />
                   </PromptInputToolbar>
                 </PromptInput>
               </ComposerDraftsContext>
@@ -178,6 +184,47 @@ describe('从加号面板到提交', () => {
     } finally {
       /* 等面板的退场动画走完再拆，否则 happy-dom 里半途取消会抛 AbortError（真机不会）。 */
       await Bun.sleep(400)
+      harnessed.unmount()
+    }
+  })
+
+  /*
+   * 项目必选（用户裁决）：还没有选项目时发送键是灰的，Enter 也不提交，草稿原样留在输入框里 ——
+   * 只把按钮画灰、Enter 却还能发，是最难解释的一种「禁用」。
+   */
+  test('禁止提交时：发送键 disabled，Enter 不发也不清空草稿', async () => {
+    const closed: PromptInputMessage[] = []
+    const harnessed = await harness()
+
+    try {
+      const { container, handle } = harnessed.renderComposer(
+        (message) => {
+          closed.push(message)
+        },
+        { submitDisabled: true },
+      )
+
+      const submit = container.querySelector<HTMLButtonElement>('button[data-slot="prompt-input-submit"]')
+      expect(submit).not.toBeNull()
+      expect(submit!.disabled).toBe(true)
+
+      handle()?.setText('这一句先留着')
+
+      const editor = container.querySelector<HTMLElement>('[data-slot="prompt-input-editor"]')
+      expect(editor).not.toBeNull()
+
+      /* Lexical 的更新在微任务里落地：等正文真的进了编辑器再敲 Enter。 */
+      await waitFor(() => {
+        expect(editor?.textContent ?? '').toContain('这一句先留着')
+      })
+      fireEvent.keyDown(editor!, { key: 'Enter' })
+
+      await waitFor(() => {
+        expect(closed).toHaveLength(0)
+      })
+      /* 草稿还在：选好项目之后这一句照样能发出去。 */
+      expect(editor?.textContent ?? '').toContain('这一句先留着')
+    } finally {
       harnessed.unmount()
     }
   })

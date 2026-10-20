@@ -157,9 +157,14 @@ export function HomeSurface({
   /* 项目名单订阅着读：原先读一次性快照，首帧 store 还空着，「选择项目」就被写死到屏幕上（真实故障）。 */
   const view = useWorkspacesView(workspaces)
 
-  /* 交回 `{key, port}`：号是这一刻才由 Core 铸出来的，端口按号建。第二次提交直接交回手上那一份，不再建第二条线程。 */
+  /*
+   * 交回 `{key, port}`：号是这一刻才由 Core 铸出来的，端口按号建。第二次提交直接交回手上那一份，不再建第二条线程。
+   *
+   * 项目**必选**：没有当前项目就交回 null（输入框与发送键在那边已经是禁用态，这里再挡一层，
+   * 不让任何别的调用路径绕过 UI 造出「不在项目中」的线程）。
+   */
   const prepare = useCallback(async (): Promise<PreparedThread | null> => {
-    const workspaceId = view.active?.id ?? view.items[0]?.id
+    const workspaceId = view.active?.id
     const prepared = await entry.prepare({
       init: entryThreadInitOf({
         workspaceId,
@@ -180,7 +185,7 @@ export function HomeSurface({
       await api.setPlanMode(prepared.key, true)
     }
     return prepared
-  }, [api, controls, draft, effectivePosture, entry, sessions, stores.threads, view.active?.id, view.items])
+  }, [api, controls, draft, effectivePosture, entry, sessions, stores.threads, view.active?.id])
 
   /*
    * 模型 / 档位：先记进草稿（屏幕当场跟手），再写穿「新对话默认」意图，写成功由 entryDefaults 从草稿里抹掉 ——
@@ -191,7 +196,7 @@ export function HomeSurface({
   }
 
   /* 入口页的斜杠命令：表按工作区读；执行 = 先铸出这条对话，再交给组合根跳过去执行。铸号失败就写在命令输出那一块。 */
-  const catalog = useCommandCatalog(api, view.active?.id ?? view.items[0]?.id ?? null)
+  const catalog = useCommandCatalog(api, view.active?.id ?? null)
   const [commandFailure, setCommandFailure] = useState<ThreadCommands['output']>(null)
   const commands = useMemo<ThreadCommands>(
     () => ({
@@ -256,14 +261,14 @@ export function HomeSurface({
         onOpenThread(id)
       }}
       prepare={prepare}
+      /* 项目是必选的：没有当前项目时入口页禁用发送，选择器只负责「先选一个」。 */
+      workspaceRequired={view.active === null}
       workspace={{
         choices: view.items.map((w) => ({ id: w.id, name: w.name })),
         current: view.active,
         onBrowse: () => void workspaces.pickAndAdd(),
         /* 选择器交回的是 `WorkspaceChoice.id`（工作区实体 id）。此前拿它比 `w.path`：永远不相等，切换到新工作区后名字要等重挂载才变（真机故障）。 */
         onChoose: (workspaceId) => workspaces.setActive(workspaceId),
-        /* 点「不在项目中工作」（folder → ×）把下一条会话放进临时工作目录（`createScratch`）。 */
-        onClear: () => void workspaces.createScratch(),
       }}
     />
   )

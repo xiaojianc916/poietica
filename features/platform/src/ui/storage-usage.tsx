@@ -26,8 +26,8 @@ export interface StorageSegment {
 }
 
 /**
- * 契约把存储切得很细：同名的几格在屏幕上合成一格（如「Agent 数据」= 数据库 + agent 数据 + 临时会话目录）。
- * 三格并一格之后名字由宿主的 STORAGE_LABELS 给，界面上不再有「临时会话文件夹」这种只有几 MB 的独立类。
+ * 契约把存储切得很细：同名的几格在屏幕上合成一格（如「Agent 数据」= 数据库 + agent 数据）。
+ * 两格并一格之后名字由宿主的 STORAGE_LABELS 给，界面上不再有「临时会话文件夹」这种只有几 MB 的独立类。
  */
 function mergeByName(entries: readonly StorageEntry[]): { label: string; bytes: number }[] {
   const merged: { label: string; bytes: number }[] = []

@@ -1,7 +1,13 @@
 import './assistant-threads.css'
 
-import { PixelLoader } from '@poietica/design-system'
-import { AlarmClock, FolderClosed, FolderOpen, PinOff } from 'lucide-react'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+  PixelLoader,
+} from '@poietica/design-system'
+import { AlarmClock, FolderClosed, FolderOpen, MoreHorizontal, PinOff, Trash2 } from 'lucide-react'
 import type { RefObject } from 'react'
 import { memo, useCallback, useMemo, useRef, useState } from 'react'
 import type { Thread } from '../../../contract'
@@ -36,7 +42,6 @@ export interface AssistantThreadWorkspaceGroup {
 
 export interface AssistantThreadListProps {
   readonly groups: readonly AssistantThreadWorkspaceGroup[]
-  readonly projectlessWorkspaces?: ReadonlySet<string>
   readonly isLoading?: boolean
   /** 空列表与读失败不能共用一句「还没有对话」。 */
   readonly failure?: string | null
@@ -52,6 +57,8 @@ export interface AssistantThreadListProps {
   readonly onArchivedFilterChange: (value: ArchivedFilter) => void
   readonly onActivate: (threadId: string) => void
   readonly onCreate: (workspaceId?: string) => void
+  /** 删除项目：移除记录与其中对话，不动磁盘目录。确认框由宿主负责。 */
+  readonly onRemoveWorkspace?: ((workspaceId: string) => void) | undefined
   readonly onPin: (threadId: string, pinned: boolean) => void
   readonly onArchive?: (threadId: string) => void
 }
@@ -62,8 +69,6 @@ const PLACEHOLDER_WIDTHS = ['72%', '54%', '64%', '46%']
 const PAGE = 10
 
 const NO_PAGES: ReadonlyMap<string, number> = new Map()
-
-const NO_PROJECTLESS_WORKSPACES: ReadonlySet<string> = new Set()
 
 /** 只有读成功才说得出口的「读完了，确实没有」。 */
 const EMPTY = ''
@@ -221,10 +226,11 @@ interface WorkspaceHeaderProps {
   readonly isOpen: boolean
   readonly onCreate: (workspaceId?: string) => void
   readonly onToggle: (workspaceId: string) => void
+  readonly onRemove?: ((workspaceId: string) => void) | undefined
 }
 
 /* 组头是这一列里的另一行。不数条数；收与展往上报，不就地写一份全局状态。 */
-function WorkspaceHeader({ workspaceId, name, isOpen, onCreate, onToggle }: WorkspaceHeaderProps) {
+function WorkspaceHeader({ workspaceId, name, isOpen, onCreate, onToggle, onRemove }: WorkspaceHeaderProps) {
   const createLabel = `在${name}中新建对话`
   const Glyph = isOpen ? FolderOpen : FolderClosed
 
@@ -253,6 +259,34 @@ function WorkspaceHeader({ workspaceId, name, isOpen, onCreate, onToggle }: Work
       >
         <ComposeIcon aria-hidden="true" />
       </button>
+
+      {onRemove === undefined ? null : (
+        <DropdownMenu modal={false}>
+          <DropdownMenuTrigger aria-label={`项目操作：${name}`} className="assistant-threads__create">
+            <MoreHorizontal aria-hidden="true" />
+          </DropdownMenuTrigger>
+
+          <DropdownMenuContent
+            align="end"
+            className="assistant-thread-menu"
+            data-assistant-skin
+            side="bottom"
+            sideOffset={6}
+          >
+            <DropdownMenuItem
+              className="assistant-thread-menu__item"
+              danger
+              onClick={() => {
+                onRemove(workspaceId)
+              }}
+            >
+              <Trash2 aria-hidden="true" />
+
+              <span>删除项目</span>
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
+      )}
     </div>
   )
 }
@@ -275,7 +309,6 @@ function ThreadSectionHeader({ label, isOpen, onToggle }: ThreadSectionHeaderPro
 
 export function AssistantThreadList({
   groups,
-  projectlessWorkspaces = NO_PROJECTLESS_WORKSPACES,
   isLoading,
   failure,
   activeThreadId,
@@ -287,6 +320,7 @@ export function AssistantThreadList({
   onToggleWorkspace,
   onActivate,
   onCreate,
+  onRemoveWorkspace,
   onPin,
   onArchive,
 }: AssistantThreadListProps) {
@@ -326,26 +360,18 @@ export function AssistantThreadList({
     [painted],
   )
 
-  const recent = useMemo(
-    () =>
-      painted
-        .filter((group) => projectlessWorkspaces.has(group.id))
-        .flatMap((group) => group.members)
-        .filter(({ thread }) => !thread.isPinned)
-        .sort((left, right) => byIsoDescending(left.thread.updatedAt, right.thread.updatedAt)),
-    [painted, projectlessWorkspaces],
-  )
-
+  /*
+   * 所有对话都属于某个项目：没有「无项目」那一组，项目名单就是全部。
+   * 空项目也保留（用户 2026-10-20）：还没有对话的项目同样要出现在侧栏，
+   * 这样才有地方重命名、删除它，也能看见它确实被加进来了。
+   */
   const repositories = useMemo(
     () =>
-      painted
-        .filter((group) => !projectlessWorkspaces.has(group.id))
-        .map((group) => ({
-          ...group,
-          members: group.members.filter(({ thread }) => !thread.isPinned),
-        }))
-        .filter((group) => group.members.length > 0),
-    [painted, projectlessWorkspaces],
+      painted.map((group) => ({
+        ...group,
+        members: group.members.filter(({ thread }) => !thread.isPinned),
+      })),
+    [painted],
   )
 
   /* 期限与分组维度无关，所以只认一串解析好的时刻。 */
@@ -354,7 +380,6 @@ export function AssistantThreadList({
   useHorizon(nextChangeIn(instants, now))
 
   const [isPinOpen, setPinOpen] = useState(true)
-  const [isRecentOpen, setRecentOpen] = useState(true)
   const [isRepositoriesOpen, setRepositoriesOpen] = useState(true)
 
   /* 只活本次会话故不落盘；要活过重启的收起状态由宿主传。 */
@@ -455,6 +480,7 @@ export function AssistantThreadList({
                     isOpen={isOpen}
                     name={named}
                     onCreate={onCreate}
+                    onRemove={onRemoveWorkspace}
                     onToggle={onToggleWorkspace}
                     workspaceId={group.id}
                   />
@@ -480,23 +506,6 @@ export function AssistantThreadList({
           })}
         </ThreadDisclosure>
       </section>
-
-      {/* projectless conversations follow repositories */}
-      {recent.length === 0 ? null : (
-        <section className="assistant-threads__section">
-          <ThreadSectionHeader
-            isOpen={isRecentOpen}
-            label="对话"
-            onToggle={() => {
-              setRecentOpen((open) => !open)
-            }}
-          />
-
-          <ThreadDisclosure isOpen={isRecentOpen}>
-            <ul className="assistant-threads__list">{recent.map(renderThread)}</ul>
-          </ThreadDisclosure>
-        </section>
-      )}
     </nav>
   )
 }

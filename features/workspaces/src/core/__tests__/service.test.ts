@@ -4,7 +4,7 @@ import path from 'node:path'
 import { AppError } from '@poietica/foundation'
 import { ensureDir } from '@poietica/fs-kit'
 import { openDatabase } from '@poietica/storage-sqlite'
-import { createTestLogger, fakeClock, tempDir } from '@poietica/test-kit'
+import { fakeClock, tempDir } from '@poietica/test-kit'
 import type { WorkspaceRemoved } from '../../core-api'
 import { migrations } from '../migrations'
 import { createWorkspacesRepository } from '../repository'
@@ -15,14 +15,11 @@ async function make() {
   for (const m of migrations) db.forModule('workspaces').exec(m.sql!)
   const clock = fakeClock()
   const root = await tempDir('ws-')
-  const scratchDir = path.join(root.path, 'scratch')
   const changed: number[] = []
   const removed: WorkspaceRemoved[] = []
   const service = createWorkspacesService({
     repo: createWorkspacesRepository(db.forModule('workspaces')),
-    scratchDir,
     clock,
-    logger: createTestLogger(),
     emitChanged: () => {
       changed.push(1)
     },
@@ -31,11 +28,9 @@ async function make() {
     },
     fs: {
       isDirectory: (p) => fs.existsSync(p) && fs.statSync(p).isDirectory(),
-      mkdir: (p) => ensureDir(p),
-      exists: (p) => fs.existsSync(p),
     },
   })
-  return { service, clock, root, scratchDir, changed, removed, db }
+  return { service, clock, root, changed, removed, db }
 }
 
 describe('workspaces 服务（07 页 §3G）', () => {
@@ -86,30 +81,7 @@ describe('workspaces 服务（07 页 §3G）', () => {
     await root.dispose()
   })
 
-  test('createScratch 建目录、name 是“临时对话”、kind 是 scratch', async () => {
-    const { service, root, db } = await make()
-    const ws = await service.createScratch()
-    expect(ws.kind).toBe('scratch')
-    expect(ws.name).toBe('临时对话')
-    expect(fs.existsSync(ws.path)).toBe(true)
-    expect(ws.exists).toBe(true)
-    db.close()
-    await root.dispose()
-  })
-
-  test('移除 scratch → 目录被删除；workspaceRemoved.kind === scratch', async () => {
-    const { service, removed, root, db } = await make()
-    const ws = await service.createScratch()
-    expect(fs.existsSync(ws.path)).toBe(true)
-    await service.remove(ws.id)
-    expect(fs.existsSync(ws.path)).toBe(false)
-    expect(removed).toEqual([{ workspaceId: ws.id, kind: 'scratch', path: ws.path }])
-    expect(service.get(ws.id)).toBeNull()
-    db.close()
-    await root.dispose()
-  })
-
-  test('移除 folder → 目录与其中文件都还在', async () => {
+  test('移除工作区 → 目录与其中文件都还在（工作区只有一种，移除一律不动磁盘）', async () => {
     const { service, removed, root, db } = await make()
     const dir = path.join(root.path, 'keep')
     await ensureDir(dir)
@@ -118,7 +90,7 @@ describe('workspaces 服务（07 页 §3G）', () => {
     await service.remove(ws.id)
     expect(fs.existsSync(dir)).toBe(true)
     expect(fs.readFileSync(path.join(dir, 'file.txt'), 'utf8')).toBe('important')
-    expect(removed[0]!.kind).toBe('folder')
+    expect(removed).toEqual([{ workspaceId: ws.id, path: dir }])
     db.close()
     await root.dispose()
   })
@@ -135,17 +107,13 @@ describe('workspaces 服务（07 页 §3G）', () => {
     void removedCb
     const probe = createWorkspacesService({
       repo: createWorkspacesRepository(db.forModule('workspaces')),
-      scratchDir: path.join(root.path, 'scratch'),
       clock: fakeClock(),
-      logger: createTestLogger(),
       emitChanged: () => undefined,
       emitRemoved: (e) => {
         seen = service.get(e.workspaceId)
       },
       fs: {
         isDirectory: (p) => fs.existsSync(p) && fs.statSync(p).isDirectory(),
-        mkdir: (p) => ensureDir(p),
-        exists: (p) => fs.existsSync(p),
       },
     })
     await probe.remove(ws.id)

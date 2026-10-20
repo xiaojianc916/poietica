@@ -30,7 +30,6 @@ async function makeCore(overrides: { engine?: FakeEngine; workspaces?: Workspace
         id === 'ws1'
           ? ({
               id: 'ws1',
-              kind: 'folder',
               path: dir.path,
               name: 'ws1',
               createdAt: 0,
@@ -231,7 +230,6 @@ describe('conversation core（不经内核的直连测试）', () => {
         id === 'ws1'
           ? {
               id: 'ws1',
-              kind: 'folder' as const,
               path: dir.path,
               name: 'ws1',
               createdAt: 0,

@@ -24,10 +24,15 @@ export default defineUiFeature({
       for (const l of [...activeListeners]) l(active)
     }
 
-    const reload = async (): Promise<void> => {
+    /*
+     * 名单变了只校正**失效**的当前项目。`selectFirst` 只在启动那一次为真：那时还没有「当前项目」，
+     * 按最近打开选一个（原来的行为）；其余重载不替用户补选 —— 删掉当前项目之后 `activeId` 就是 null，
+     * 「还没选项目」是一个真实的界面状态，入口页据此禁用发送。
+     */
+    const reload = async (selectFirst = false): Promise<void> => {
       items = await api.list()
-      if (activeId === null && items[0] !== undefined) activeId = items[0].id
-      if (activeId !== null && !items.some((w) => w.id === activeId)) activeId = items[0]?.id ?? null
+      if (activeId !== null && !items.some((w) => w.id === activeId)) activeId = null
+      if (activeId === null && selectFirst && items[0] !== undefined) activeId = items[0].id
       bump()
     }
 
@@ -46,21 +51,10 @@ export default defineUiFeature({
       }
     }
 
-    const createScratch = async (): Promise<void> => {
-      try {
-        const workspace = await api.createScratch()
-        await reload()
-        activeId = workspace.id
-        bump()
-      } catch (e) {
-        banners.error(e)
-      }
-    }
-
     ctx.lifecycle.onDispose(api.onChanged(() => void reload()).dispose)
 
     ctx.lifecycle.onCoreReady(async () => {
-      await reload()
+      await reload(true)
     })
 
     /* legacy 的侧栏是「导航行 + 会话列表 + 底部行」三段，工作区只以**会话列表里的组头**出现；`Repositories` 那一行是会话列表面板内部的工具栏，
@@ -72,7 +66,6 @@ export default defineUiFeature({
       ctx.contribute(builtinPoints.commands, { id, title, category: '工作区', run } satisfies CommandItem)
     }
     command('workspaces.open', '打开文件夹…', () => void pickAndAdd())
-    command('workspaces.newScratch', '新建临时对话', () => void createScratch())
     ctx.contribute(builtinPoints.keybindings, { command: 'workspaces.open', key: 'Ctrl+O' })
 
     // ── ui-api ────────────────────────────────────────────────────────────
@@ -105,7 +98,16 @@ export default defineUiFeature({
         }
       },
       pickAndAdd,
-      createScratch,
+      remove: async (id) => {
+        try {
+          await api.remove(id)
+          /* 删的是当前项目就回到「还没选」，不替用户挑下一个：入口页会用那条提示挡住发送。 */
+          if (activeId === id) activeId = null
+          await reload()
+        } catch (e) {
+          banners.error(e)
+        }
+      },
     })
   },
 })

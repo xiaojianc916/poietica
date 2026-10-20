@@ -65,6 +65,7 @@ export function shapeGroups<T extends ViewThread>(
   groups: readonly ViewGroup<T>[],
   options: ViewOptions,
 ): readonly ViewGroup<T>[] {
+  const searching = options.query.trim().length > 0
   const kept = groups
     .map((group) => ({
       ...group,
@@ -72,7 +73,12 @@ export function shapeGroups<T extends ViewThread>(
         (item) => visible(item, options.archivedFilter) && matchesQuery(item.title, options.query),
       ),
     }))
-    .filter((group) => group.items.length > 0)
+    /*
+     * 按项目分组时，空项目也要留在名单里（用户 2026-10-20：某个项目还没有对话，
+     * 侧栏也得看得见它，否则既不能切过去，也没地方删）。搜索时例外：没有命中的
+     * 项目不该因为「它是空的」而留在结果里。单列表模式没有项目这层含义，照旧滤空。
+     */
+    .filter((group) => group.items.length > 0 || (options.groupBy === GROUP_BY.workspace && !searching))
 
   if (options.groupBy !== GROUP_BY.flat || kept.length === 0) {
     return kept

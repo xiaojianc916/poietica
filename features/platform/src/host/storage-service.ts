@@ -49,11 +49,10 @@ const HTTP_OVERSHOOT = 1.25
 export const STORAGE_LABELS: Readonly<Record<StorageEntryId, string>> = Object.freeze({
   /* 聊天 = omp 的会话文件 + 会话里的图片（omp 的 blob 目录）：图片是对话内容，跟着对话生、跟着对话回收（Core 的 omp gc）。 */
   conversations: '聊天',
-  /* 数据库、omp 的其余数据（配置、模型目录、历史库）与临时会话目录合成一格。 */
+  /* 数据库与 omp 的其余数据（配置、模型目录、历史库）合成一格。 */
   database: 'Agent 数据',
   attachments: '附件',
   'omp-other': 'Agent 数据',
-  scratch: 'Agent 数据',
   tools: '内置工具',
   logs: '日志',
   'kernel-cache': '浏览器缓存',
@@ -66,7 +65,6 @@ export const STORAGE_CLEANABLE: Readonly<Record<StorageEntryId, 'none' | 'safe' 
   database: 'none',
   attachments: 'none',
   'omp-other': 'none',
-  scratch: 'none',
   tools: 'none',
   logs: 'safe',
   'kernel-cache': 'safe',
@@ -79,7 +77,6 @@ const ORDER: readonly StorageEntryId[] = [
   'database',
   'attachments',
   'omp-other',
-  'scratch',
   'tools',
   'logs',
   'kernel-cache',
@@ -170,7 +167,6 @@ export function createStorageService(d: StorageDeps): StorageService {
       'omp-other':
         (await sizeOf(scan, d.layout.ompRoot, new Set([pathKey(sessionsDir), pathKey(d.layout.ompBlobsDir)]))) +
         (await sizeOf(scan, d.layout.nativeHomeDir)),
-      scratch: await sizeOf(scan, d.layout.scratchDir),
       tools: await sizeOf(scan, d.layout.toolsDir),
       logs: await sizeOf(scan, d.layout.logsDir),
       'kernel-cache': await cacheBytes(scan),

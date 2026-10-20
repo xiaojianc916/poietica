@@ -28,7 +28,6 @@ export const StorageEntryId = z.enum([
   'database',
   'attachments',
   'omp-other',
-  'scratch',
   'tools',
   'logs',
   'kernel-cache',

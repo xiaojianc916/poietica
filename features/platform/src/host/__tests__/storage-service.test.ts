@@ -67,7 +67,6 @@ async function makeTree(options: { maxFiles?: number } = {}) {
   write(layout.nativeHomeDir, 'n.bin', 1 * MB)
   write(layout.coreDir, 'poietica.db', 2 * MB)
   write(layout.attachmentsDir, 'a.bin', 4 * MB)
-  write(layout.scratchDir, 's.bin', 1 * MB)
   write(layout.toolsDir, 't.bin', 2 * MB)
   write(layout.logsDir, 'main.log', 1 * MB)
   write(layout.logsDir, 'main.log.1', 2 * MB)
@@ -100,16 +99,15 @@ async function makeTree(options: { maxFiles?: number } = {}) {
 }
 
 describe('storage-service', () => {
-  test('10 项字节数精确；cleanable / label 与表一致', async () => {
+  test('9 项字节数精确；cleanable / label 与表一致', async () => {
     const t = await makeTree()
     const entries = await t.service.report()
     const byId = Object.fromEntries(entries.map((e) => [e.id, e.bytes]))
-    expect(entries.length).toBe(10)
+    expect(entries.length).toBe(9)
     expect(byId.conversations).toBe(4 * MB) // 会话 3 + 图片 1（硬链接只算一次）
     expect(byId.database).toBe(2 * MB)
     expect(byId.attachments).toBe(4 * MB)
     expect(byId['omp-other']).toBe(2 * MB) // config 1 + native-home 1，不含 sessions / blobs
-    expect(byId.scratch).toBe(1 * MB)
     expect(byId.tools).toBe(2 * MB)
     expect(byId.logs).toBe(6 * MB)
     expect(byId['kernel-cache']).toBe(10 * MB) // 两会话的 Cache + Code Cache
@@ -133,7 +131,7 @@ describe('storage-service', () => {
   test('maxFiles 上限：文件超过上限只返回已统计的值，不抛错', async () => {
     const t = await makeTree({ maxFiles: 3 })
     const entries = await t.service.report()
-    expect(entries.length).toBe(10)
+    expect(entries.length).toBe(9)
     const total = entries.reduce((sum, e) => sum + e.bytes, 0)
     expect(total).toBeLessThanOrEqual(4 * MB)
     await t.dispose()

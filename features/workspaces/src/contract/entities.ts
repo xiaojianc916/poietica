@@ -4,7 +4,6 @@ export const WorkspaceId = z.string().min(1)
 
 export const Workspace = z.object({
   id: WorkspaceId,
-  kind: z.enum(['folder', 'scratch']),
   path: z.string(),
   name: z.string(),
   createdAt: z.number().int(),

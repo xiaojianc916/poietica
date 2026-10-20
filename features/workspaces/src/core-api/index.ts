@@ -12,7 +12,6 @@ export const WorkspacesServiceToken = defineServiceToken<WorkspacesService>('wor
 
 export interface WorkspaceRemoved {
   readonly workspaceId: string
-  readonly kind: 'folder' | 'scratch'
   readonly path: string
 }
 export const workspaceRemoved: CoreEvent<WorkspaceRemoved> = defineCoreEvent<WorkspaceRemoved>(

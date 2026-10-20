@@ -7,10 +7,9 @@ type Ctx = CoreModuleContext<typeof workspacesContract>
 export function registerHandlers(ctx: Ctx, service: WorkspacesApi): void {
   ctx.rpc.handle('workspaces.list', () => ({ workspaces: [...service.list()] }))
   ctx.rpc.handle('workspaces.add', ({ path }) => service.add(path))
-  ctx.rpc.handle('workspaces.createScratch', () => service.createScratch())
   ctx.rpc.handle('workspaces.rename', ({ workspaceId, name }) => service.rename(workspaceId, name))
-  ctx.rpc.handle('workspaces.remove', async ({ workspaceId }) => {
-    await service.remove(workspaceId)
+  ctx.rpc.handle('workspaces.remove', ({ workspaceId }) => {
+    service.remove(workspaceId)
     return {}
   })
   ctx.rpc.handle('workspaces.touch', ({ workspaceId }) => {

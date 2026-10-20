@@ -1,4 +1,4 @@
-import { Banner } from '@poietica/design-system'
+import { Banner, ConfirmationDialog } from '@poietica/design-system'
 import { useWorkspacesView } from '@poietica/feature-workspaces/ui-api'
 import {
   builtinPoints,
@@ -138,6 +138,18 @@ export function createConversationContributions(setup: ConversationSetup, action
         const workspace = view.items.find((w) => w.id === workspaceId)
         return workspace?.name ?? null
       })
+      /*
+       * 还没有对话的项目也要出现在侧栏（用户 2026-10-20）。有对话的组沿用 groupByWorkspace 的
+       * 最近活动序，空项目接在后面并保持工作区表的顺序 —— 它们同样要有组头，删除入口才在。
+       */
+      const groupedIds = new Set(grouped.map((group) => group.id))
+      const allGroups = [
+        ...grouped,
+        ...view.items
+          .filter((workspace) => !groupedIds.has(workspace.id))
+          .map((workspace) => ({ id: workspace.id, name: workspace.name, items: [] })),
+      ]
+      const [removing, setRemoving] = useState<{ readonly id: string; readonly name: string } | null>(null)
       return (
         <>
           <AssistantThreadList
@@ -145,7 +157,7 @@ export function createConversationContributions(setup: ConversationSetup, action
             archivedFilter={archivedFilter}
             collapsedWorkspaces={collapsedWorkspaces}
             failure={state.failure}
-            groups={grouped}
+            groups={allGroups}
             isLoading={state.isLoading}
             onActivate={openThread}
             onArchive={archiveThread}
@@ -156,6 +168,10 @@ export function createConversationContributions(setup: ConversationSetup, action
               void stores.threads.refresh()
             }}
             onCreate={newThread}
+            onRemoveWorkspace={(workspaceId) => {
+              const workspace = view.items.find((w) => w.id === workspaceId)
+              if (workspace !== undefined) setRemoving({ id: workspace.id, name: workspace.name })
+            }}
             onPin={(threadId, pinned) => {
               void api.setPinned(threadId, pinned).then((t) => stores.threads.upsert(t))
             }}
@@ -167,6 +183,30 @@ export function createConversationContributions(setup: ConversationSetup, action
               collapsed.set(next)
             }}
             runningThreadIds={runningIds}
+          />
+
+          <ConfirmationDialog
+            confirmLabel="删除项目"
+            description={
+              removing === null
+                ? ''
+                : `「${removing.name}」会从侧栏移除，其中的对话会一起删除。磁盘上的文件夹不会被删除。`
+            }
+            destructive
+            onCancel={() => {
+              setRemoving(null)
+            }}
+            onConfirm={() => {
+              const target = removing
+              setRemoving(null)
+              if (target === null) return
+              /* 当前页若属于这个项目，先回入口页：不要停在一个即将不存在的对话上。 */
+              const current = active === null ? undefined : stores.threads.byId(active)
+              if (current?.workspaceId === target.id) newThread()
+              void workspaces.remove(target.id)
+            }}
+            open={removing !== null}
+            title="删除项目？"
           />
 
           {/*
@@ -346,7 +386,6 @@ export function createConversationContributions(setup: ConversationSetup, action
               current: view.active,
               onBrowse: () => void workspaces.pickAndAdd(),
               onChoose: (workspaceId) => workspaces.setActive(workspaceId),
-              onClear: () => void workspaces.createScratch(),
             }}
           />
         </ConversationProviders>

@@ -7,7 +7,7 @@ import { StorageBar } from './storage-usage'
 
 /* 先看见、再清理；占用那张卡里是一条用量条加一排图例，清理那一组两个动作（安全的直接清、要重新登录的走二次确认）。
  * 只改数据来源：legacy 的 StorageGateway 换成 platform 契约的 storageUsage / storageClear；二次确认用内核的 dialogs.confirm。
- * 契约里的 id 在界面上按「谁的数据」合成几格（数据库、omp 的其余数据、临时会话目录都是「Agent 数据」）：类多了没人看得懂。
+ * 契约里的 id 在界面上按「谁的数据」合成几格（数据库、omp 的其余数据都是「Agent 数据」）：类多了没人看得懂。
  * 每一格都有主人和上限：聊天里的图片随对话由 Core 回收，浏览器缓存有预算（runtime-layout 的 storage-budget），
  * 日志按大小轮换；这里的文案照实写这些规则，不许诺做不到的（比如「按天保留」）。 */
 const MEASURED_AT = new Intl.DateTimeFormat('zh-CN', { hour: '2-digit', minute: '2-digit' })

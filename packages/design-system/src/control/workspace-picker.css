@@ -235,79 +235,23 @@
 
 .workspace-picker__context-control .workspace-picker__context-trigger {
   min-inline-size: 0;
-  border-radius: 0 var(--cp-radius) var(--cp-radius) 0;
-  padding-inline-start: 0;
+  border-radius: var(--cp-radius);
+  padding-inline-start: var(--cp-inset);
   background: transparent;
 }
 
-/* 这条规则不使用 :first-child：Base UI 打开弹窗时可能改变触发器附近的辅助 DOM，用结构伪类会让 padding 突然失效，造成图标和文字向左跳。 */
-.workspace-picker__context-control[data-projectless="true"] .workspace-picker__context-trigger {
-  border-radius: var(--cp-radius);
-  padding-inline-start: var(--cp-inset);
+/* 还没选项目：名字写的是「选择项目」，用次级墨色；选了之后用正文墨色。 */
+.workspace-picker__context-trigger[data-empty="true"] {
   color: var(--cp-ink-subtle);
 }
 
-.workspace-picker__context-control[data-projectless="true"] .workspace-picker__context-trigger svg {
+.workspace-picker__context-trigger[data-empty="true"] svg {
   color: currentcolor;
 }
 
 .workspace-picker__context-control .workspace-picker__context-trigger:hover,
 .workspace-picker__context-control .workspace-picker__context-trigger[data-popup-open] {
   background: transparent;
-}
-
-/* 外层胶囊仍用普通 hover 色；内层圆形只属于清除按钮，不会延伸到项目文字。 */
-.workspace-picker__context-clear {
-  position: relative;
-  display: grid;
-  block-size: calc(var(--cp-icon) + var(--cp-optical));
-  inline-size: calc(var(--cp-icon) + var(--cp-optical));
-  flex: none;
-  place-items: center;
-  margin-inline-start: var(--cp-optical);
-  margin-inline-end: var(--cp-control-gap);
-  border: 0;
-  border-radius: 9999px;
-  padding: 0;
-  background: transparent;
-  color: var(--cp-ink-muted);
-  cursor: pointer;
-  transition:
-    background-color var(--cp-motion-swift) var(--cp-motion-ease),
-    color var(--cp-motion-swift) var(--cp-motion-ease);
-}
-
-.workspace-picker__context-folder,
-.workspace-picker__context-x {
-  grid-area: 1 / 1;
-  block-size: var(--cp-icon);
-  inline-size: var(--cp-icon);
-  transition: opacity var(--cp-motion-swift) var(--cp-motion-ease);
-}
-
-.workspace-picker__context-x {
-  opacity: 0;
-}
-
-.workspace-picker__context-clear:hover,
-.workspace-picker__context-clear:focus-visible {
-  background: color-mix(in srgb, var(--cp-ink) 13%, transparent);
-  color: var(--cp-ink);
-}
-
-.workspace-picker__context-clear:hover .workspace-picker__context-folder,
-.workspace-picker__context-clear:focus-visible .workspace-picker__context-folder {
-  opacity: 0;
-}
-
-.workspace-picker__context-clear:hover .workspace-picker__context-x,
-.workspace-picker__context-clear:focus-visible .workspace-picker__context-x {
-  opacity: 1;
-}
-
-.workspace-picker__context-clear:focus-visible {
-  outline: calc(var(--cp-px) * 2) solid var(--cp-accent);
-  outline-offset: var(--cp-px);
 }
 
 .workspace-picker__check {

@@ -3,7 +3,6 @@ import type { Workspace } from '../contract'
 
 export interface WorkspaceRow {
   id: string
-  kind: 'folder' | 'scratch'
   path: string
   pathKey: string
   name: string
@@ -13,7 +12,6 @@ export interface WorkspaceRow {
 
 interface Row {
   id: string
-  kind: string
   path: string
   path_key: string
   name: string
@@ -30,12 +28,11 @@ export interface WorkspacesRepository {
   delete(id: string): void
 }
 
-const COLUMNS = 'id, kind, path, path_key, name, created_at, last_opened_at'
+const COLUMNS = 'id, path, path_key, name, created_at, last_opened_at'
 
 function toRow(r: Row): WorkspaceRow {
   return {
     id: r.id,
-    kind: r.kind as WorkspaceRow['kind'],
     path: r.path,
     pathKey: r.path_key,
     name: r.name,
@@ -48,7 +45,6 @@ function toRow(r: Row): WorkspaceRow {
 export function workspaceOf(row: WorkspaceRow, exists: boolean): Workspace {
   return {
     id: row.id,
-    kind: row.kind,
     path: row.path,
     name: row.name,
     createdAt: row.createdAt,
@@ -60,9 +56,8 @@ export function workspaceOf(row: WorkspaceRow, exists: boolean): Workspace {
 export function createWorkspacesRepository(db: ModuleDatabase): WorkspacesRepository {
   return {
     insert(row) {
-      db.prepare(`INSERT INTO workspaces_workspaces (${COLUMNS}) VALUES (?, ?, ?, ?, ?, ?, ?)`).run(
+      db.prepare(`INSERT INTO workspaces_workspaces (${COLUMNS}) VALUES (?, ?, ?, ?, ?, ?)`).run(
         row.id,
-        row.kind,
         row.path,
         row.pathKey,
         row.name,
@@ -91,7 +86,6 @@ export function createWorkspacesRepository(db: ModuleDatabase): WorkspacesReposi
         sets.push(`${col} = ?`)
         params.push(value)
       }
-      if (patch.kind !== undefined) put('kind', patch.kind)
       if (patch.path !== undefined) put('path', patch.path)
       if (patch.pathKey !== undefined) put('path_key', patch.pathKey)
       if (patch.name !== undefined) put('name', patch.name)

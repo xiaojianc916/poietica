@@ -1,6 +1,5 @@
 import path from 'node:path'
-import { AppError, type Clock, createId, type Logger, SystemErrorCode } from '@poietica/foundation'
-import { removeSafe } from '@poietica/fs-kit'
+import { AppError, type Clock, createId, SystemErrorCode } from '@poietica/foundation'
 import type { Workspace } from '../contract'
 import { workspacesErrors } from '../contract/errors'
 import type { WorkspaceRemoved } from '../core-api'
@@ -15,23 +14,18 @@ export interface WorkspacesService {
 
 export interface WorkspacesServiceDeps {
   readonly repo: WorkspacesRepository
-  readonly scratchDir: string
   readonly clock: Clock
-  readonly logger: Logger
   readonly emitChanged: () => void
   readonly emitRemoved: (e: WorkspaceRemoved) => void
   readonly fs: {
     isDirectory(p: string): boolean
-    mkdir(p: string): Promise<void>
-    exists(p: string): boolean
   }
 }
 
 export interface WorkspacesApi extends WorkspacesService {
   add(p: string): Workspace
-  createScratch(): Promise<Workspace>
   rename(id: string, name: string): Workspace
-  remove(id: string): Promise<void>
+  remove(id: string): void
   touch(id: string): void
 }
 
@@ -92,28 +86,9 @@ export function createWorkspacesService(d: WorkspacesServiceDeps): WorkspacesApi
       }
       const row: WorkspaceRow = {
         id: createId(),
-        kind: 'folder',
         path: resolved,
         pathKey: key,
         name: nameOfPath(resolved),
-        createdAt: now,
-        lastOpenedAt: now,
-      }
-      d.repo.insert(row)
-      d.emitChanged()
-      return toEntity(row)
-    },
-    async createScratch() {
-      const id = createId()
-      const dir = path.join(d.scratchDir, id)
-      await d.fs.mkdir(dir)
-      const now = d.clock.now()
-      const row: WorkspaceRow = {
-        id,
-        kind: 'scratch',
-        path: dir,
-        pathKey: pathKey(dir),
-        name: '临时对话',
         createdAt: now,
         lastOpenedAt: now,
       }
@@ -132,17 +107,10 @@ export function createWorkspacesService(d: WorkspacesServiceDeps): WorkspacesApi
       d.emitChanged()
       return toEntity({ ...row, name: trimmed })
     },
-    async remove(id) {
+    remove(id) {
       const row = requireRow(id)
-      // 顺序：先删行 → 再发 workspaceRemoved → 再删 scratch 目录 → 最后发 changed。
       d.repo.delete(id)
-      d.emitRemoved({ workspaceId: id, kind: row.kind, path: row.path })
-      if (row.kind === 'scratch') {
-        // removeSafe 拒绝删除 scratchDir 之外的路径：防止 bug 删错目录。
-        await removeSafe(row.path, { within: d.scratchDir }).catch((e: unknown) => {
-          d.logger.warn('scratch remove failed', { workspaceId: id, error: String(e) })
-        })
-      }
+      d.emitRemoved({ workspaceId: id, path: row.path })
       d.emitChanged()
     },
     touch(id) {

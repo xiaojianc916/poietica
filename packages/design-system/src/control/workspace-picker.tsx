@@ -1,6 +1,6 @@
 import './workspace-picker.css'
 
-import { Check, ChevronDown, FolderClosed, FolderPlus, ListFilter, Plus, Search, X } from 'lucide-react'
+import { Check, ChevronDown, FolderClosed, FolderPlus, ListFilter, Plus, Search } from 'lucide-react'
 import { useState } from 'react'
 import { focusOnMount } from '../focus-on-mount'
 import {
@@ -27,8 +27,6 @@ export interface WorkspacePickerProps {
   readonly current: WorkspaceChoice | null
   readonly choices: readonly WorkspaceChoice[]
   readonly onChoose: (rootPath: string) => void
-  /** 清除项目选择；缺席 = 这一处不接受「不在项目中工作」，两处入口都不画。 */
-  readonly onClear?: (() => void) | undefined
   /** 开系统的文件夹选择器。这一层不知道那是怎么开的。 */
   readonly onBrowse: () => void
   /** 侧栏行，或者新对话输入框下方的上下文栏。 */
@@ -65,14 +63,7 @@ function preferredWorkspaceHighlight(
   return choices[0]?.id ?? null
 }
 
-export function WorkspacePicker({
-  choices,
-  current,
-  onBrowse,
-  onChoose,
-  onClear,
-  placement = 'sidebar',
-}: WorkspacePickerProps) {
+export function WorkspacePicker({ choices, current, onBrowse, onChoose, placement = 'sidebar' }: WorkspacePickerProps) {
   const [query, setQuery] = useState('')
   const [open, setOpen] = useState(false)
   const [expanded, setExpanded] = useState(true)
@@ -83,9 +74,6 @@ export function WorkspacePicker({
   const matches = matchingWorkspaceChoices(choices, query)
 
   const activeHighlightId = preferredWorkspaceHighlight(matches, heldHighlightId, current)
-
-  /* 有目录、且这一处接受「不在项目中」时，左边那一格才存在。 */
-  const clearable = current !== null && onClear !== undefined
 
   return (
     <div className="workspace-picker" data-assistant-skin data-placement={placement}>
@@ -107,24 +95,14 @@ export function WorkspacePicker({
         open={open}
       >
         {placement === 'composer' ? (
-          <div className="workspace-picker__context-control" data-projectless={clearable ? undefined : 'true'}>
-            {clearable ? (
-              <button
-                aria-label="不在项目中工作"
-                className="workspace-picker__context-clear"
-                onClick={() => {
-                  setOpen(false)
-                  onClear?.()
-                }}
-                type="button"
-              >
-                <FolderClosed aria-hidden="true" className="workspace-picker__context-folder" />
-                <X aria-hidden="true" className="workspace-picker__context-x" />
-              </button>
-            ) : null}
-
-            <DropdownMenuTrigger aria-label="切换项目" className="workspace-picker__context-trigger">
-              {current === null ? <FolderClosed aria-hidden="true" /> : null}
+          <div className="workspace-picker__context-control">
+            <DropdownMenuTrigger
+              aria-label="切换项目"
+              className="workspace-picker__context-trigger"
+              data-empty={current === null ? 'true' : undefined}
+            >
+              {/* 图标常驻：它说明这一格是「项目」，不是只在没选的时候才出现。 */}
+              <FolderClosed aria-hidden="true" />
 
               <span className="workspace-picker__context-name">{current?.name ?? '选择项目'}</span>
             </DropdownMenuTrigger>
@@ -234,19 +212,6 @@ export function WorkspacePicker({
 
             <span className="workspace-picker__item-name">新建项目</span>
           </DropdownMenuItem>
-
-          {clearable ? (
-            <DropdownMenuItem
-              className="workspace-picker__item"
-              onClick={() => {
-                onClear?.()
-              }}
-            >
-              <X aria-hidden="true" />
-
-              <span className="workspace-picker__item-name">不在项目中工作</span>
-            </DropdownMenuItem>
-          ) : null}
         </DropdownMenuContent>
       </DropdownMenu>
     </div>

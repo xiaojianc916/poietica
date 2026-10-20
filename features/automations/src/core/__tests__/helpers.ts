@@ -23,7 +23,6 @@ export function createTestDatabase(): { db: Database; repo: AutomationsRepositor
 export function testWorkspace(id = 'ws1', path = 'D:/ws'): Workspace {
   return {
     id,
-    kind: 'folder',
     path,
     name: id,
     createdAt: 0,

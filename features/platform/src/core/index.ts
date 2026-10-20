@@ -17,7 +17,6 @@ export default defineCoreModule({
         coreCwd: ctx.layout.coreCwd,
         dbFile: ctx.layout.dbFile,
         attachmentsDir: ctx.layout.attachmentsDir,
-        scratchDir: ctx.layout.scratchDir,
         toolsDir: ctx.layout.toolsDir,
         pythonDir: ctx.layout.pythonDir,
         logsDir: ctx.layout.logsDir,

@@ -86,6 +86,8 @@ const ActionsContext = createContext<PromptInputActions | null>(null)
 const AttachmentsContext = createContext<readonly ComposerAsset[]>(NO_ATTACHMENTS)
 const DraftContext = createContext<PromptInputDraft | null>(null)
 const ContributedDraftContext = createContext<ContributedComposerDraft | null>(null)
+/* 发送这一刻被挡住（还没选项目）。发送键不是 form 的孩子，读不到 shell 的闭包，所以经 context 传一格布尔。 */
+const SubmitBlockedContext = createContext(false)
 
 /** sessionToken 空着：附件身份走 attachments 契约的 id。 */
 function composerAssetOf(item: DraftAttachment): ComposerAsset {
@@ -313,6 +315,11 @@ export interface PromptInputProps {
   readonly configuration?: readonly PromptConfiguration[] | undefined
   /** 缺席时这一格是字段而非消息框：Enter 只换行、没有提交、草稿不被消费。 */
   readonly onSubmit?: ((message: PromptInputMessage) => void) | undefined
+  /**
+   * 这一刻不允许提交（入口页还没选项目）。Enter 与表单提交一起挡住，草稿原样留在编辑器里 ——
+   * 只把发送键画灰、Enter 却还能发，是最难解释的一种「禁用」。
+   */
+  readonly submitDisabled?: boolean | undefined
 }
 
 interface PromptInputShellProps extends PromptInputProps {
@@ -364,6 +371,7 @@ function PromptInputShell({
   ref,
   restored,
   slashCommands,
+  submitDisabled = false,
 }: PromptInputShellProps) {
   const [editor] = useLexicalComposerContext()
   const intake = useAttachmentIntake()
@@ -383,10 +391,12 @@ function PromptInputShell({
   const report = useRef(onChange)
   const submit = useRef(onSubmit)
   const seeded = useRef(false)
+  const blocked = useRef(submitDisabled)
 
   handoff.current = { attachments, configuration: pendingConfiguration }
   report.current = onChange
   submit.current = onSubmit
+  blocked.current = submitDisabled
 
   const listboxId = useId()
   /* HTML 不允许 form 嵌套（React 报 <form> cannot be a descendant of <form>），没有 onSubmit 时也没有提交语义，所以换成 div；
@@ -457,6 +467,12 @@ function PromptInputShell({
           /* 没有收信人时 Enter 就是换行：字段不是消息框。 */
           if (submit.current === undefined || event === null || event.shiftKey) {
             return false
+          }
+
+          /* 不许提交时把 Enter 吃掉：既不发出，也不在正文里插一个空行。 */
+          if (blocked.current) {
+            event.preventDefault()
+            return true
           }
 
           if (editor.isComposing()) {
@@ -977,8 +993,8 @@ function PromptInputShell({
               onSubmit={(event) => {
                 event.preventDefault()
 
-                /* 字段没有收信人：这一条路整条不存在，草稿也不许被消费掉。 */
-                if (submit.current === undefined) {
+                /* 字段没有收信人、或这一刻不许发（还没选项目）：草稿不许被消费掉。 */
+                if (submit.current === undefined || blocked.current) {
                   return
                 }
 
@@ -1066,7 +1082,9 @@ function PromptInputShell({
                 onPick={pickRow}
               />
 
-              <PaletteAriaContext value={paletteAria}>{children}</PaletteAriaContext>
+              <PaletteAriaContext value={paletteAria}>
+                <SubmitBlockedContext value={submitDisabled}>{children}</SubmitBlockedContext>
+              </PaletteAriaContext>
             </Shell>
           </ContributedDraftContext>
         </DraftContext>
@@ -1130,6 +1148,7 @@ export function PromptInputSubmit({
   readonly onContinue?: (() => void) | undefined
 }) {
   const draft = usePromptInputDraft()
+  const blocked = useContext(SubmitBlockedContext)
   const cancelling = status === 'cancelling'
   const running = status === 'submitted' || status === 'streaming' || status === 'queued'
   const drafted = canSubmitDraft(draft)
@@ -1144,7 +1163,7 @@ export function PromptInputSubmit({
       className={className}
       data-slot="prompt-input-submit"
       data-status={status}
-      disabled={cancelling || disabled === true || (!canCancel && !canContinue && !drafted)}
+      disabled={cancelling || disabled === true || blocked || (!canCancel && !canContinue && !drafted)}
       onClick={canCancel ? onCancel : canContinue ? onContinue : undefined}
       type={canCancel || canContinue ? 'button' : 'submit'}
     >
