@@ -1,9 +1,7 @@
 import type { ToolCallRendererProps } from '@poietica/feature-conversation/ui-api'
-import { Globe } from 'lucide-react'
+import { ChevronDown, Globe } from 'lucide-react'
 import { type ReactNode, useState } from 'react'
-import type { BrowserApi } from './api'
-import type { BrowserPanelStore } from './store'
-import { type BrowserCallModel, type BrowserStep, browserCallModel, revealTabFor } from './tool-card-model'
+import { type BrowserCallModel, type BrowserStep, browserCallModel } from './tool-card-model'
 import './browser-tool-card.css'
 
 /* agent 那条线的浏览器工具卡片。折叠行那句「浏览器 · <动作> <目标>」与 legacy 的 omp 浏览器视图同一套词汇。
@@ -28,7 +26,6 @@ const BROWSER_ACTIONS: Readonly<Record<string, string>> = {
 }
 
 const SHOT_CAP = 4
-const TEXT_LINES = 12
 const LINE_CAP = 120
 
 function dot(...parts: readonly (string | null)[]): string {
@@ -46,50 +43,33 @@ function oneLine(value: string): string {
   return said.length > LINE_CAP ? `${said.slice(0, LINE_CAP)}…` : said
 }
 
-/* 折叠行那句话：`浏览器 · <动作> <目标>`，多步时追加「等 N 步」。还没有状态事件时退回代码首行 —— 那一格不能是空的。 */
-function headlineOf(steps: readonly BrowserStep[], code: string | null): string {
-  const [first] = steps
+/* 一步印在折叠行上的那句话：**一步一行**，`浏览器 · <动作> <目标>`。还没有状态事件时（预判期间）退回代码首行 —— 那一格不能是空的。 */
+function lineOf(step: BrowserStep, code: string | null): string {
+  if (step.action === '') {
+    const said = step.said !== '' ? step.said : code === null ? '' : oneLine(code)
 
-  if (first === undefined) {
-    const opening = code === null ? null : oneLine(code)
-
-    return opening === null ? '浏览器' : dot('浏览器', opening)
+    return said === '' ? '浏览器' : dot('浏览器', said)
   }
 
-  const action = BROWSER_ACTIONS[first.action] ?? first.action
-  const rest = steps.length > 1 ? `等 ${String(steps.length)} 步` : null
-
-  return dot('浏览器', join(action, first.target) || '浏览器', rest)
+  return dot('浏览器', join(BROWSER_ACTIONS[step.action] ?? step.action, step.target) || '浏览器')
 }
 
-function StepLine({ step }: { readonly step: BrowserStep }): ReactNode {
-  const action = BROWSER_ACTIONS[step.action] ?? step.action
-
-  if (action === '') {
-    return <li className="browser-tool__step">{step.said}</li>
+/* 截图与代码各归各自那一步：有截图步就只归截图步，有执行脚本步就归脚本步；
+ * 老会话只有一条 open 时两者都没有，退回最后一步（那时图与代码确实是那次调用唯一的产出）。 */
+function stepIndexOf(steps: readonly BrowserStep[], actions: readonly string[]): number {
+  for (let at = steps.length - 1; at >= 0; at -= 1) {
+    const action = steps[at]?.action ?? ''
+    if (actions.includes(action)) {
+      return at
+    }
   }
 
-  return (
-    <li className="browser-tool__step">
-      <span className="browser-tool__step-action">{action}</span>
-      {step.tab === null ? null : <span className="browser-tool__step-tab">{step.tab}</span>}
-      {step.target === null ? null : <span className="browser-tool__step-target">{step.target}</span>}
-    </li>
-  )
+  return -1
 }
 
-function Steps({ steps }: { readonly steps: readonly BrowserStep[] }): ReactNode {
-  if (steps.length === 0) {
-    return null
-  }
-
-  return (
-    <ul className="browser-tool__steps">
-      {steps.map((step) => (
-        <StepLine key={step.said} step={step} />
-      ))}
-    </ul>
-  )
+/* 还没有状态事件时用代码首行垫一行，让折叠行不是空的。 */
+function placeholderStep(code: string | null): BrowserStep {
+  return { action: '', tab: null, target: null, said: code === null ? '' : oneLine(code) }
 }
 
 /* 放大的那张图：原生 dialog 自带顶层与 Esc 关闭，一张截图不值得引一个灯箱库。 */
@@ -154,111 +134,112 @@ function Shots({ images }: { readonly images: BrowserCallModel['images'] }): Rea
   )
 }
 
+/* 代码就是这一步的内容：展开即全文，不再套一层「代码」折叠。 */
 function CodeBlock({ code, language }: { readonly code: string; readonly language: 'js' | 'py' }): ReactNode {
   return (
-    <details className="browser-tool__details">
-      <summary className="browser-tool__summary">代码</summary>
-      <pre className="browser-tool__code" data-language={language === 'py' ? 'python' : 'javascript'}>
-        {code}
-      </pre>
-    </details>
+    <pre className="browser-tool__code" data-language={language === 'py' ? 'python' : 'javascript'}>
+      {code}
+    </pre>
   )
 }
 
+/* 产出就是全文：面板自己滚，不再折成「显示全部 N 行」—— 那一行按钮点开也只是同一段字。 */
 function Output({ text }: { readonly text: string }): ReactNode {
-  const [all, setAll] = useState(false)
-
   if (text === '') {
     return null
   }
 
-  const lines = text.split('\n')
-  const clipped = !all && lines.length > TEXT_LINES
-
   return (
     <div className="browser-tool__output" data-browser-output="">
-      <pre className="browser-tool__text">{clipped ? lines.slice(0, TEXT_LINES).join('\n') : text}</pre>
-      {clipped ? (
-        <button
-          className="browser-tool__more"
-          onClick={() => {
-            setAll(true)
-          }}
-          type="button"
-        >
-          显示全部 {String(lines.length)} 行
-        </button>
-      ) : null}
+      <pre className="browser-tool__text">{text}</pre>
     </div>
   )
 }
+function StepBody({
+  at,
+  codeAt,
+  model,
+  shotsAt,
+  step,
+}: {
+  readonly at: number
+  readonly codeAt: number
+  readonly model: BrowserCallModel
+  readonly shotsAt: number
+  readonly step: BrowserStep
+}): ReactNode {
+  /* 截图那一步只有图片预览：截图要看的本来就是那张图，正文是工具的旁白，不该铺在下面。
+   * 执行脚本那一步是代码 + 产出（正文与错误）；其余步骤没有可画的就退回自己的原话。
+   * 老会话只有一条 open、没有单列截图那一步时，图与代码落在同一格，两样都画。 */
+  const shots = at === shotsAt && model.images.length > 0
+  const code = at === codeAt && model.code !== null
 
-function CardBody({ model, onReveal }: { readonly model: BrowserCallModel; readonly onReveal: () => void }): ReactNode {
+  if (shots && at !== codeAt) {
+    return (
+      <div className="browser-tool__preview">
+        <Shots images={model.images} />
+      </div>
+    )
+  }
+
+  const returned = at === codeAt && (model.text !== '' || model.error !== null)
+
   return (
-    <div className="browser-tool__body">
-      <Steps steps={model.steps} />
-      <Shots images={model.images} />
-      {model.code === null ? null : <CodeBlock code={model.code} language={model.language} />}
-      <Output text={model.text} />
-
-      {model.error === null ? null : (
-        <p className="browser-tool__error" data-browser-error="">
-          {model.error}
-        </p>
-      )}
-
-      <div className="browser-tool__actions">
-        <button className="browser-tool__open" onClick={onReveal} type="button">
-          在面板中查看
-        </button>
+    <div className="timeline-tool__body">
+      <div className="timeline-tool__panel browser-tool__panel">
+        {shots ? <Shots images={model.images} /> : null}
+        {code && model.code !== null ? <CodeBlock code={model.code} language={model.language} /> : null}
+        {at === codeAt ? <Output text={model.text} /> : null}
+        {at === codeAt && model.error !== null ? (
+          <p className="browser-tool__error" data-browser-error="">
+            {model.error}
+          </p>
+        ) : null}
+        {code || returned ? null : (
+          <p className="browser-tool__said">{step.said === '' ? '浏览器没有返回内容。' : step.said}</p>
+        )}
       </div>
     </div>
   )
 }
+/* 一次 eval 里每一步各成一行工具调用（图标、一句话、箭头，与别的工具行同一副长相），不再并成「等 N 步」。 */
+export function BrowserToolCard({ args, result, status }: ToolCallRendererProps): ReactNode {
+  const model = browserCallModel(args, result, status === 'failed')
+  const [openAt, setOpenAt] = useState<number | null>(null)
+  const steps = model.steps.length === 0 ? [placeholderStep(model.code)] : model.steps
+  const shotStep = stepIndexOf(steps, ['screenshot'])
+  const runStep = stepIndexOf(steps, ['run', 'call'])
+  const legacy = shotStep < 0 && runStep < 0
+  const shotsAt = shotStep >= 0 ? shotStep : legacy ? steps.length - 1 : -1
+  const codeAt = runStep >= 0 ? runStep : legacy ? steps.length - 1 : -1
 
-export interface BrowserToolCardDeps {
-  readonly api: BrowserApi
-  readonly store: BrowserPanelStore
-  readonly openPanel: () => void
-  readonly report: (message: string, cause?: unknown) => void
-}
+  return (
+    <>
+      {steps.map((step, at) => {
+        const open = openAt === at
+        const last = at === steps.length - 1
+        return (
+          <section className="timeline-tool browser-tool" data-browser-tool="" key={`${step.said}:${String(at)}`}>
+            <button
+              aria-expanded={open}
+              className="timeline-row browser-tool__row"
+              data-browser-step=""
+              onClick={() => {
+                setOpenAt(open ? null : at)
+              }}
+              type="button"
+            >
+              <Globe aria-hidden className="timeline-row__icon" />
+              <span className="timeline-row__label">{lineOf(step, model.code)}</span>
+              {last && status === 'running' ? <span className="browser-tool__status">进行中</span> : null}
 
-export function createBrowserToolCard(deps: BrowserToolCardDeps) {
-  return function BrowserToolCard({ args, result, status }: ToolCallRendererProps): ReactNode {
-    const model = browserCallModel(args, result, status === 'failed')
-    const [open, setOpen] = useState(false)
+              <ChevronDown aria-hidden className="timeline-row__chevron disclosure__chevron" />
+            </button>
 
-    const reveal = (): void => {
-      deps.openPanel()
-
-      const state = deps.store.snapshot()
-      const tabId = state === null ? null : revealTabFor(state, model.lastUrl)
-
-      if (tabId !== null) {
-        void deps.api.selectTab(tabId).catch((cause: unknown) => {
-          deps.report('标签页没能切换', cause)
-        })
-      }
-    }
-
-    return (
-      <section className="timeline-tool browser-tool" data-browser-tool="">
-        <button
-          aria-expanded={open}
-          className="timeline-row browser-tool__row"
-          onClick={() => {
-            setOpen(!open)
-          }}
-          type="button"
-        >
-          <Globe aria-hidden className="timeline-row__icon" />
-          <span className="timeline-row__label">{headlineOf(model.steps, model.code)}</span>
-          {status === 'running' ? <span className="browser-tool__status">进行中</span> : null}
-          {status === 'failed' ? <span className="browser-tool__status browser-tool__status--failed">失败</span> : null}
-        </button>
-
-        {open ? <CardBody model={model} onReveal={reveal} /> : null}
-      </section>
-    )
-  }
+            {open ? <StepBody at={at} codeAt={codeAt} model={model} shotsAt={shotsAt} step={step} /> : null}
+          </section>
+        )
+      })}
+    </>
+  )
 }

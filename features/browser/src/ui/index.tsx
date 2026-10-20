@@ -19,7 +19,7 @@ import { coveredNow, watchCover } from './overlay-cover'
 import { BrowserPanel } from './panel'
 import { cancelPick, createPickDelivery } from './pick-delivery'
 import { createBrowserPanelStore } from './store'
-import { createBrowserToolCard } from './tool-card'
+import { BrowserToolCard } from './tool-card'
 
 import './browser-panel.css'
 
@@ -120,17 +120,10 @@ export default defineUiFeature({
       component: () => <BrowserPanelHost api={api} report={report} store={store} />,
     })
 
-    /** 「在面板中查看」除了开那一格，还要切到卡片上那条地址所在的标签。 */
+    /* 浏览器的每一步各成一行（见 tool-card.tsx），不再有「在面板中查看」那枚按钮。 */
     ctx.contribute(toolCallRenderers, {
       toolName: 'browser',
-      component: createBrowserToolCard({
-        api,
-        store,
-        report,
-        openPanel: () => {
-          layout.openPanel('right', PANEL_ID)
-        },
-      }),
+      component: BrowserToolCard,
     })
 
     const visible = (): boolean => {

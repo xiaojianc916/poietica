@@ -3,8 +3,6 @@
  * details.statusEvents 与 details.cells[].statusEvents，截图落在 details.images[]；入参只有
  * { language, code, title } —— 按旧顶层工具的 args.action / args.url 读，读到的永远是空的。 */
 
-import type { BrowserState } from '../contract'
-
 export interface BrowserStep {
   readonly action: string // open / close / goto / click / run / tabs …
   readonly tab: string | null // 标签名（main…）；tabs / close all 没有
@@ -19,7 +17,6 @@ export interface BrowserCallModel {
   readonly text: string // 输出正文，最多 4000 字
   readonly images: readonly { readonly src: string; readonly alt: string }[]
   readonly error: string | null
-  readonly lastUrl: string | null // 最后一次 open 的地址，「在面板中查看」用
 }
 
 const TEXT_CAP = 4000
@@ -276,13 +273,6 @@ export function browserCallModel(args: unknown, result: unknown, failed: boolean
   const { code, language } = codeOf(args, details)
   const text = textOf(result)
   const steps = stepsOf(details)
-  let lastUrl: string | null = null
-
-  for (const step of steps) {
-    if (step.action === 'open' && step.target !== null) {
-      lastUrl = step.target
-    }
-  }
 
   return {
     steps,
@@ -291,43 +281,5 @@ export function browserCallModel(args: unknown, result: unknown, failed: boolean
     text,
     images: imagesOf(details, result),
     error: failed ? (firstParagraph(text) ?? '浏览器操作失败') : null,
-    lastUrl,
   }
-}
-
-function withoutHash(address: string): string | null {
-  try {
-    const url = new URL(address)
-
-    return `${url.origin}${url.pathname}${url.search}`
-  } catch {
-    return null
-  }
-}
-
-/** 卡片对应哪张标签：先按地址精确匹配（忽略 hash），再退到同源；都没有就不切，只开面板。 */
-export function revealTabFor(state: BrowserState, lastUrl: string | null): number | null {
-  const wanted = lastUrl === null ? null : withoutHash(lastUrl)
-
-  if (wanted === null) {
-    return null
-  }
-
-  const origin = wanted.slice(0, wanted.indexOf('/', wanted.indexOf('://') + 3))
-
-  for (const tab of state.tabs) {
-    if (tab.url !== null && withoutHash(tab.url) === wanted) {
-      return tab.id
-    }
-  }
-
-  for (const tab of state.tabs) {
-    const address = tab.url === null ? null : withoutHash(tab.url)
-
-    if (address !== null && origin !== '' && address.startsWith(`${origin}/`)) {
-      return tab.id
-    }
-  }
-
-  return null
 }

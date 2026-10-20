@@ -1,5 +1,5 @@
 /* agent 那条线的浏览器工具卡片。折叠行本身读的是对话时间线的行类名（.timeline-tool / .timeline-row__icon / .timeline-row__label），
- * 这里只补三件时间线没有的东西：截图缩略图、状态胶囊、「在面板中查看」那枚按钮；取色一律走同一套令牌。 */
+ * 这里只补时间线没有的东西：截图缩略图、一步的原话；取色一律走同一套令牌。 */
 
 .browser-tool {
   display: grid;
@@ -11,147 +11,102 @@
   margin: 0;
 }
 
+/* 「进行中」与其它工具行同一档音量：只是状态说明，不是失败告示（失败由行本身的墨色表达，不再挂胶囊）。 */
 .browser-tool__status {
   flex: none;
-  border-radius: var(--ui-radius-sm);
-  background: color-mix(in srgb, currentColor 8%, transparent);
-  padding: 0.125rem 0.375rem;
   font-size: 11px;
-  opacity: 0.7;
+  opacity: 0.6;
 }
 
-.browser-tool__status--failed {
-  color: var(--ui-destructive);
-  opacity: 1;
+/* 截图预览不进面板：图片自己就是内容，不该再套一层深色纸。缩进与工具行同一档，宽度跟着正文栏收。 */
+.browser-tool__preview {
+  margin-block-start: var(--cp-control-gap);
+  margin-inline-start: var(--cp-timeline-tool-indent);
+  max-inline-size: min(100%, var(--cp-timeline-tool-max) - var(--cp-timeline-tool-indent));
 }
 
 .browser-tool__shots {
   display: flex;
   flex-wrap: wrap;
   gap: var(--cp-control-gap);
-  margin-inline-start: var(--cp-timeline-tool-indent);
 }
 
 .browser-tool__shot {
   display: block;
   border: 1px solid var(--ui-card-divider);
-  border-radius: var(--ui-radius-sm);
+  border-radius: var(--ui-radius-md);
   padding: 0;
   background: none;
   cursor: zoom-in;
   overflow: hidden;
 }
 
+/* 预览是缩略图，不是正片：宽高都收在 12rem 以内，原比例不变；正片点开在对话框里看。
+ * 之前只设上限不设宽、图又是竖版，浏览器就会把它撑到整栏宽、整屏高。 */
 .browser-tool__shot img {
   display: block;
+  inline-size: auto;
+  block-size: auto;
   max-inline-size: 12rem;
-  max-block-size: 8rem;
-  object-fit: cover;
+  max-block-size: 12rem;
+  object-fit: contain;
 }
 
-/* 放大的那张图：原生 dialog 自带顶层与 Esc 关闭，样式只管摆位；点任意处就关，所以不给关闭按钮。 */
+/* 展开一步的面板就是工具抽屉那一张纸：宽度、圆角、底色与内边距都归 .timeline-tool__panel，
+ * 这里只补一条纵向排布，别再另画一套宽度（否则它会比运行命令那张纸宽出一截）。 */
+.browser-tool__panel {
+  display: grid;
+  gap: var(--cp-control-gap);
+}
+
+/* 放大的那张图：原生 dialog 默认按 UA 样式居中，改成 fixed + inset:0 + margin:auto 才不会被
+ *「relative」拉回文档流里变成卡片里的一小块。点背景或 Esc 关闭。 */
 .browser-tool__zoom {
-  position: relative;
-  max-inline-size: 90vw;
-  max-block-size: 90vh;
+  position: fixed;
+  inset: 0;
+  margin: auto;
+  inline-size: fit-content;
+  block-size: fit-content;
+  max-inline-size: 92vw;
+  max-block-size: 92vh;
   border: 0;
   padding: 0;
   background: none;
+  overflow: visible;
+}
+
+.browser-tool__zoom::backdrop {
+  background: color-mix(in srgb, black 72%, transparent);
+  backdrop-filter: blur(2px);
 }
 
 .browser-tool__zoom img {
   display: block;
-  max-inline-size: 90vw;
-  max-block-size: 90vh;
+  max-inline-size: 92vw;
+  max-block-size: 88vh;
   border-radius: var(--ui-radius-md);
+  object-fit: contain;
 }
 
 .browser-tool__zoom-close {
   position: absolute;
-  inset-block-start: -0.5rem;
-  inset-inline-end: -0.5rem;
+  inset-block-start: 0.5rem;
+  inset-inline-end: 0.5rem;
   border-radius: var(--ui-radius-md);
-  padding: 0.25rem 0.5rem;
+  padding: 0.25rem 0.625rem;
   background: var(--ui-launcher);
   font-size: 12px;
 }
 
-/* 展开区：一张纸，左边缘从那句话的第一个字起（与抽屉的缩进同一档）。 */
-.browser-tool__body {
-  display: grid;
-  gap: var(--cp-control-gap);
-  margin-inline-start: var(--cp-timeline-tool-indent);
-  border-radius: var(--cp-radius-item);
-  background: var(--cp-timeline-drawer-surface);
-  padding: 0.625rem 0.75rem;
-}
-
-.browser-tool__steps {
-  display: grid;
-  gap: 0.125rem;
-  margin: 0;
-  padding: 0;
-  list-style: none;
-  font-size: var(--ui-prose-size-aux);
-}
-
-.browser-tool__step {
-  display: flex;
-  align-items: baseline;
-  gap: 0.375rem;
-  min-inline-size: 0;
-}
-
-.browser-tool__step-action {
-  flex: none;
-  opacity: 0.85;
-}
-
-.browser-tool__step-tab {
-  flex: none;
-  border-radius: var(--ui-radius-sm);
-  background: color-mix(in srgb, currentColor 8%, transparent);
-  padding: 0 0.25rem;
-  font-size: 11px;
-  opacity: 0.7;
-}
-
-.browser-tool__step-target {
-  min-inline-size: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  opacity: 0.6;
-}
-
-/* 代码与输出：等宽、可滚（横轴由这里接住，卡片本身不滚）。 */
+/* 代码就是这一步的内容：等宽、只由面板滚，自己不另设滚动容器。 */
 .browser-tool__code,
 .browser-tool__text {
   margin: 0;
-  max-block-size: var(--cp-timeline-output-max);
-  overflow: auto;
   font-family: var(--ui-font-mono, ui-monospace, monospace);
   font-size: var(--ui-prose-size-aux);
   line-height: 1.5;
   white-space: pre-wrap;
   overflow-wrap: anywhere;
-}
-
-.browser-tool__details {
-  font-size: var(--ui-prose-size-aux);
-}
-
-.browser-tool__summary {
-  cursor: pointer;
-  opacity: 0.7;
-}
-
-.browser-tool__summary:hover {
-  opacity: 1;
-}
-
-.browser-tool__details[open] .browser-tool__summary {
-  margin-block-end: var(--cp-control-gap);
 }
 
 .browser-tool__output {
@@ -181,21 +136,10 @@
   overflow-wrap: anywhere;
 }
 
-.browser-tool__actions {
-  display: flex;
-  gap: var(--cp-control-gap);
-  margin-inline-start: var(--cp-timeline-tool-indent);
-}
-
-.browser-tool__open {
-  min-height: var(--ui-control-height-sm);
-  border-radius: var(--ui-radius-md);
-  background: var(--ui-launcher);
-  padding-inline: 0.625rem;
-  font-size: 12px;
-  opacity: 0.85;
-}
-
-.browser-tool__open:hover {
-  opacity: 1;
+/* 这一步的原话：没有可画的截图 / 代码 / 正文时，点开至少还能看见它到底做了什么。 */
+.browser-tool__said {
+  margin: 0;
+  font-size: var(--ui-prose-size-aux);
+  opacity: 0.7;
+  overflow-wrap: anywhere;
 }
