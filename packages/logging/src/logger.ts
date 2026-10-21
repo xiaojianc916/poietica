@@ -23,23 +23,39 @@ export interface CreateLoggerOptions {
   readonly clock?: Pick<Clock, 'now'>
 }
 
+/** 一条日志记录：时间、级别、绑定的字段、正文、本条的字段；保留字一律不覆盖 */
+function recordOf(
+  level: LogLevel,
+  msg: string,
+  bindings: Readonly<Record<string, unknown>>,
+  data: Record<string, unknown> | undefined,
+  ts: number,
+): Record<string, unknown> {
+  const record: Record<string, unknown> = { ts, level }
+  for (const [k, v] of Object.entries(bindings)) if (!RESERVED.has(k)) record[k] = v
+  record.msg = msg
+  if (data !== undefined) for (const [k, v] of Object.entries(data)) if (!RESERVED.has(k)) record[k] = v
+  return record
+}
+
+/** 交给每一个 sink；sink 约定不抛错，万一抛了也不能让日志打断业务 */
+function writeAll(record: Record<string, unknown>, sinks: readonly LogSink[]): void {
+  for (const sink of sinks) {
+    try {
+      sink.write(record)
+    } catch {
+      // 吞掉：日志写失败不该冒到调用方
+    }
+  }
+}
+
 export function createLogger(o: CreateLoggerOptions): Logger {
   const levelOf = typeof o.level === 'function' ? o.level : (): LogLevel => o.level as LogLevel
   const now = o.clock?.now ?? (() => Date.now())
   const make = (bindings: Readonly<Record<string, unknown>>): Logger => {
     const emit = (level: LogLevel, msg: string, data: Record<string, unknown> | undefined): void => {
       if (ORDER[level] < ORDER[levelOf()]) return
-      const record: Record<string, unknown> = { ts: now(), level }
-      for (const [k, v] of Object.entries(bindings)) if (!RESERVED.has(k)) record[k] = v
-      record.msg = msg
-      if (data !== undefined) for (const [k, v] of Object.entries(data)) if (!RESERVED.has(k)) record[k] = v
-      for (const sink of o.sinks) {
-        try {
-          sink.write(record)
-        } catch {
-          // sink 约定不抛错；万一抛了也不能让日志打断业务
-        }
-      }
+      writeAll(recordOf(level, msg, bindings, data, now()), o.sinks)
     }
     return {
       debug: (msg, data) => emit('debug', msg, data),

@@ -282,7 +282,6 @@
       "includes": [
         "features/conversation/src/ui/setup/contributions.tsx",
         "features/models/src/ui/catalog-port.ts",
-        "packages/logging/src/logger.ts",
         "packages/logging/src/redact.ts"
       ],
       "linter": {
