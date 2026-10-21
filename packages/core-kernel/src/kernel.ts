@@ -250,41 +250,10 @@ export function createCoreKernel(opts: CoreKernelOptions): CoreKernel {
     const remaining = (cap: number): number => Math.max(0, Math.min(cap, deadline - opts.clock.now()))
     try {
       if (wasStarting) await awaitStartupYield(remaining(STARTUP_ABORT_WAIT_MS))
-      if (inflight > 0) {
-        const budget = remaining(INFLIGHT_DRAIN_MS)
-        if (budget > 0) {
-          drained = new Deferred<void>()
-          await withTimeout(drained.promise, budget, () => new Error('drain timeout'), opts.clock).catch(() =>
-            log.warn('in-flight requests did not finish', { inflight }),
-          )
-        } else {
-          log.warn('shutdown budget exhausted, skipping inflight drain', { inflight })
-        }
-      }
-      // 逆拓扑序串行：依赖顺序有意义，不能并发（R-05 §7）
-      for (const h of [...shutdownHooks].reverse()) {
-        const budget = remaining(SHUTDOWN_HOOK_TIMEOUT_MS)
-        if (budget === 0) {
-          log.warn('shutdown budget exhausted, skipping hook', { module: h.moduleId })
-          continue
-        }
-        await withTimeout(Promise.resolve().then(h.fn), budget, () => new Error('timeout'), opts.clock).catch(
-          (e: unknown) => log.warn('onShutdown hook failed', { module: h.moduleId, error: String(e) }),
-        )
-      }
-      for (const d of [...moduleDisposables].reverse()) {
-        try {
-          d.dispose()
-        } catch (e) {
-          log.warn('dispose failed', { error: String(e) })
-        }
-      }
-      if (wasStarted) {
-        const budget = Math.max(ENGINE_DISPOSE_FLOOR_MS, remaining(Number.POSITIVE_INFINITY))
-        await withTimeout(opts.engine.dispose(), budget, () => new Error('engine dispose timeout'), opts.clock).catch(
-          (e: unknown) => log.warn('engine dispose failed', { error: String(e) }),
-        )
-      }
+      await drainInflight(remaining(INFLIGHT_DRAIN_MS))
+      await runShutdownHooks(remaining)
+      disposeModules()
+      if (wasStarted) await disposeEngine(remaining)
     } finally {
       // 数据库与 RPC 对端无论上面成败都要收掉：留着就是「进程不退出」或「库被两个进程打开」
       db?.close()
@@ -293,6 +262,52 @@ export function createCoreKernel(opts: CoreKernelOptions): CoreKernel {
     state = 'stopped'
     exitCode = 0
     for (const fn of exitListeners) fn(0)
+  }
+
+  /** 等手上的请求跑完；预算用完就放弃等待并记账（Core 要能硬停，不能被一个卡住的请求拖住） */
+  async function drainInflight(budget: number): Promise<void> {
+    if (inflight <= 0) return
+    if (budget <= 0) {
+      log.warn('shutdown budget exhausted, skipping inflight drain', { inflight })
+      return
+    }
+    drained = new Deferred<void>()
+    await withTimeout(drained.promise, budget, () => new Error('drain timeout'), opts.clock).catch(() =>
+      log.warn('in-flight requests did not finish', { inflight }),
+    )
+  }
+
+  /** 逆拓扑序串行：依赖顺序有意义，不能并发（R-05 §7） */
+  async function runShutdownHooks(remaining: (cap: number) => number): Promise<void> {
+    for (const h of [...shutdownHooks].reverse()) {
+      const budget = remaining(SHUTDOWN_HOOK_TIMEOUT_MS)
+      if (budget === 0) {
+        log.warn('shutdown budget exhausted, skipping hook', { module: h.moduleId })
+        continue
+      }
+      await withTimeout(Promise.resolve().then(h.fn), budget, () => new Error('timeout'), opts.clock).catch(
+        (e: unknown) => log.warn('onShutdown hook failed', { module: h.moduleId, error: String(e) }),
+      )
+    }
+  }
+
+  /** 逆序释放模块占的资源：一个抛错不挡下一个 */
+  function disposeModules(): void {
+    for (const d of [...moduleDisposables].reverse()) {
+      try {
+        d.dispose()
+      } catch (e) {
+        log.warn('dispose failed', { error: String(e) })
+      }
+    }
+  }
+
+  /** 引擎释放有下限：前面把预算花光了也要给它，否则 omp 的后台进程会留成孤儿 */
+  async function disposeEngine(remaining: (cap: number) => number): Promise<void> {
+    const budget = Math.max(ENGINE_DISPOSE_FLOOR_MS, remaining(Number.POSITIVE_INFINITY))
+    await withTimeout(opts.engine.dispose(), budget, () => new Error('engine dispose timeout'), opts.clock).catch(
+      (e: unknown) => log.warn('engine dispose failed', { error: String(e) }),
+    )
   }
 
   return {
