@@ -187,7 +187,29 @@
   outline-offset: -2px;
 }
 
-/* 正本 .viewOptionsMenu 的 min-width: 200px。 */
+/* 正本 .viewOptionsMenu 的 min-width: 200px；选项 13px，比默认菜单的 14px 小一档。 */
 .threads-header__menu {
   min-inline-size: 200px;
+  font-size: 13px;
+}
+
+.threads-header__menu .ds-menu-item {
+  min-block-size: 28px;
+  font-size: 13px;
+}
+
+/* 勾仍占 16 一格：字小一档，勾跟着缩会读成另一套控件。 */
+.threads-header__menu .ds-menu-check,
+.threads-header__menu .ds-menu-check > svg {
+  inline-size: 16px;
+  block-size: 16px;
+}
+
+/* 组标题是更弱的一级：11px、常规字重，与 13px 的选项一眼分得开。 */
+.threads-header__menu .ds-menu-label,
+.threads-header__menu .threads-header__menu-label {
+  padding-block: 4px;
+  font-size: 11px;
+  font-weight: 400;
+  line-height: 16px;
 }

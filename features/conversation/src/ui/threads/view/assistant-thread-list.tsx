@@ -65,8 +65,9 @@ export interface AssistantThreadListProps {
 
 const PLACEHOLDER_WIDTHS = ['72%', '54%', '64%', '46%']
 
-/* 一组先画多少条：几百条一次全画会把其余工作区推出屏幕，所以给「更多」增量展开而非分页。 */
-const PAGE = 10
+/* 一组默认先画十条；之后每次再多画五条，展开到底给出「收起全部」。 */
+const DEFAULT_VISIBLE = 10
+const PAGE = 5
 
 const NO_PAGES: ReadonlyMap<string, number> = new Map()
 
@@ -386,7 +387,18 @@ export function AssistantThreadList({
   const [shown, setShown] = useState<ReadonlyMap<string, number>>(NO_PAGES)
 
   const showMore = useCallback((workspaceId: string) => {
-    setShown((held) => new Map(held).set(workspaceId, (held.get(workspaceId) ?? PAGE) + PAGE))
+    setShown((held) => new Map(held).set(workspaceId, (held.get(workspaceId) ?? DEFAULT_VISIBLE) + PAGE))
+  }, [])
+
+  /* 收起只把这一组丢回默认十条，不动别的组已经展开的部分。 */
+  const collapseAll = useCallback((workspaceId: string) => {
+    setShown((held) => {
+      if (!held.has(workspaceId)) return held
+
+      const next = new Map(held)
+      next.delete(workspaceId)
+      return next
+    })
   }, [])
 
   /* 首帧给行的形状不给结论：「还没有对话」只有读完才成立。 */
@@ -469,9 +481,10 @@ export function AssistantThreadList({
             /* 名字缺席的组不长组头：编一个「默认工作区」是造一个用户问得出「在哪」而界面答不上的标题。无标题故也无折叠，收不起一个说不出名字的东西。 */
             const named = group.name
             const isOpen = named === null || !collapsedWorkspaces.has(group.id)
-            const limit = shown.get(group.id) ?? PAGE
+            const limit = shown.get(group.id) ?? DEFAULT_VISIBLE
             const members = group.members.slice(0, limit)
             const rest = group.members.length - members.length
+            const canCollapse = rest === 0 && group.members.length > DEFAULT_VISIBLE
 
             return (
               <section className="assistant-threads__group" key={group.id}>
@@ -497,7 +510,17 @@ export function AssistantThreadList({
                       }}
                       type="button"
                     >
-                      更多
+                      展开其余 {rest} 个会话
+                    </button>
+                  ) : canCollapse ? (
+                    <button
+                      className="assistant-threads__more"
+                      onClick={() => {
+                        collapseAll(group.id)
+                      }}
+                      type="button"
+                    >
+                      收起全部
                     </button>
                   ) : null}
                 </ThreadDisclosure>

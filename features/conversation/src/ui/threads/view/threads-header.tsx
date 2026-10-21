@@ -12,7 +12,7 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from '@poietica/design-system'
-import { ListFilter, Menu, Plus, Search, X } from 'lucide-react'
+import { Menu, Plus, Search, X } from 'lucide-react'
 import { type ReactNode, useEffect, useRef, useState } from 'react'
 import { ARCHIVED_FILTER, type ArchivedFilter, GROUP_BY, type GroupBy } from './thread-view'
 
@@ -72,10 +72,8 @@ export function ThreadsHeader({
     onQueryChange('')
   }
 
-  const optionRow = (value: string, label: string, Icon?: typeof ListFilter): ReactNode => (
+  const optionRow = (value: string, label: string): ReactNode => (
     <DropdownMenuRadioItem value={value}>
-      {Icon === undefined ? null : <Icon aria-hidden="true" />}
-
       <span>{label}</span>
 
       <DropdownMenuRadioItemIndicator />
@@ -156,7 +154,7 @@ export function ThreadsHeader({
           </Tooltip>
 
           <DropdownMenuContent align="end" className="threads-header__menu" data-assistant-skin side="bottom">
-            <DropdownMenuLabel>分组方式</DropdownMenuLabel>
+            <DropdownMenuLabel className="threads-header__menu-label">分组方式</DropdownMenuLabel>
 
             <DropdownMenuRadioGroup
               onValueChange={(value) => {
@@ -165,12 +163,12 @@ export function ThreadsHeader({
               }}
               value={groupBy}
             >
-              {optionRow(GROUP_BY.workspace, '按工作区', ListFilter)}
+              {optionRow(GROUP_BY.workspace, '按工作区')}
 
               {optionRow(GROUP_BY.flat, '单列表')}
             </DropdownMenuRadioGroup>
 
-            <DropdownMenuLabel>筛选会话</DropdownMenuLabel>
+            <DropdownMenuLabel className="threads-header__menu-label">筛选会话</DropdownMenuLabel>
 
             <DropdownMenuRadioGroup
               onValueChange={(value) => {
