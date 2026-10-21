@@ -4,11 +4,11 @@ import type { DataLayout } from '@poietica/runtime-layout'
 import { OmpEngine } from './engine'
 import { disableForeignProviders, releaseForeignProviders } from './foreign-providers'
 import { resolveSessionModel } from './model-resolve'
-import type { OmpSessionLike } from './omp-context'
 import { draftControlsOf } from './ports/draft-controls'
 import { registryPortOf } from './ports/model-helpers'
 import { migrateLegacyTitleRole } from './ports/models'
 import { ompPorts } from './ports/omp-ports'
+import { McpWorkspaces } from './session/mcp-workspaces'
 import { blobMediaRef } from './session/media-store'
 import { wrapOmpSession } from './session/omp-session-adapter'
 import { SessionFactory } from './session/session-factory'
@@ -34,18 +34,36 @@ export interface EngineTestSeams {
    * 脚本回复** —— 那测的是脚本被谁消费，不是引擎语义。生产入口不传（seams 恒为 null）。
    */
   readonly disableAutoTitle?: boolean
+  /** MCP 工作区的空闲宽限期（默认 MCP_IDLE_GRACE_MS）：测试用它验证「宽限到期进程退出」而不必等几分钟 */
+  readonly mcpIdleGraceMs?: number
 }
 
 /** omp 的模块入口：集中在这里动态 import，便于测试替换与阅读创建顺序 */
 async function ompModules() {
-  const [sdk, settings, registry, sessions, capability] = await Promise.all([
-    import('@oh-my-pi/pi-coding-agent'),
-    import('@oh-my-pi/pi-coding-agent/config/settings'),
-    import('@oh-my-pi/pi-coding-agent/config/model-registry'),
-    import('@oh-my-pi/pi-coding-agent/session/session-manager'),
-    import('@oh-my-pi/pi-coding-agent/capability'),
-  ])
+  const [sdk, settings, registry, sessions, capability, mcpManager, mcpToolCache, mcpConfig, executor, agentSession] =
+    await Promise.all([
+      import('@oh-my-pi/pi-coding-agent'),
+      import('@oh-my-pi/pi-coding-agent/config/settings'),
+      import('@oh-my-pi/pi-coding-agent/config/model-registry'),
+      import('@oh-my-pi/pi-coding-agent/session/session-manager'),
+      import('@oh-my-pi/pi-coding-agent/capability'),
+      import('@oh-my-pi/pi-coding-agent/mcp/manager'),
+      import('@oh-my-pi/pi-coding-agent/mcp/tool-cache'),
+      import('@oh-my-pi/pi-coding-agent/mcp/config'),
+      import('@oh-my-pi/pi-coding-agent/task/executor'),
+      import('@oh-my-pi/pi-coding-agent/session/agent-session'),
+    ])
   return {
+    // omp 知识 #22：MCP 归工作区，引擎持有 manager、会话借用（session/mcp-workspaces.ts）
+    mcp: {
+      MCPManager: mcpManager.MCPManager,
+      MCPToolCache: mcpToolCache.MCPToolCache,
+      loadAllMCPConfigs: mcpConfig.loadAllMCPConfigs,
+      shouldFilterBrowserMCPForPrelude: mcpConfig.shouldFilterBrowserMCPForPrelude,
+      createMCPProxyTools: executor.createMCPProxyTools,
+      followMCPTools: executor.followMCPTools,
+      turnWaitMs: agentSession.MCP_DISCOVERY_TURN_WAIT_MS,
+    },
     Settings: settings.Settings,
     ModelRegistry: registry.ModelRegistry,
     // discoverAuthStorage 在包根（sdk.d.ts:415），不在 auth-storage 子模块
@@ -77,7 +95,7 @@ const PRODUCT_DEFAULTS: readonly (readonly [string, unknown])[] = [
  * initializeWithSettings（omp 知识 #10 的前置）→ 先放行已撤销的外来 provider 再禁用剩下的（omp 知识
  * #10）→ 产品默认（PRODUCT_DEFAULTS）只在从未配置过时写一次（omp 知识 #11）→ browser.relayUrl 只写运行时覆盖层
  * → 模型注册表先补本地目录、联网发现放后台（**不要** await refresh：缓存过期时它会当场等网络）
- * → 工具表、SessionFactory、6 个端口。
+ * → MCP 工作区（omp 知识 #22）→ 工具表、SessionFactory、6 个端口。
  */
 /** 生产入口：包根的 createOmpEngine(opts) 就是它（seams 恒为 null） */
 export async function createOmpEngineWith(o: CreateEngineOptions, seams: EngineTestSeams | null): Promise<AgentEngine> {
@@ -108,17 +126,27 @@ export async function createOmpEngineWith(o: CreateEngineOptions, seams: EngineT
   await registry.hydrateCredentialScopedModelCaches()
   registry.refreshInBackground()
 
-  /* 端口与引擎共用同一份活会话表（MCP 的状态要按名汇总各活会话的 mcpManager）；端口另建一个空 Set 的话，mcp.status() 永远报不出任何一台服务器 */
-  const liveSessions = new Set<OmpSessionLike>()
+  /* MCP 服务器归工作区（omp 知识 #22）：端口的状态从这里的共享 manager 汇总，配置写入后让旧连接退役 */
+  let refreshMcpStatus = (): void => undefined
+  const mcp = new McpWorkspaces({
+    runtime: omp.mcp,
+    root,
+    authStorage,
+    logger: o.logger,
+    onStatus: () => refreshMcpStatus(),
+    ...(seams?.mcpIdleGraceMs === undefined ? {} : { idleGraceMs: seams.mcpIdleGraceMs }),
+  })
   const ports = await ompPorts({
     layout: o.layout,
     logger: o.logger,
     root,
     registry,
     authStorage,
-    sessions: liveSessions,
+    mcpManagers: () => mcp.managers(),
+    onMcpConfigChanged: () => mcp.retireAll(),
     mediaRef,
   })
+  refreshMcpStatus = ports.mcpRefreshStatus
   // 先把引擎建出来（它持有工具表的唯一真相）再交给 SessionFactory：两份 Map 会让 registerTool 写进 A、会话从 B 读
   let factory: SessionFactory | null = null
   const engine = new OmpEngine({
@@ -149,6 +177,8 @@ export async function createOmpEngineWith(o: CreateEngineOptions, seams: EngineT
     mcp: ports.mcp,
     plugins: ports.plugins,
     disposeRuntime: async () => {
+      /* 会话都已关掉（OmpEngine.dispose 先关会话）：宽限期里的服务器在这里一并退出 */
+      await mcp.dispose()
       await root.flush()
     },
   })
@@ -163,6 +193,7 @@ export async function createOmpEngineWith(o: CreateEngineOptions, seams: EngineT
     authStorage,
     registry,
     tools,
+    mcp,
     testSeams: seams,
     disableAutoTitle: seams?.disableAutoTitle === true,
     /* 解析出**注册表里那一条实例**（不是精简对 —— SDK 要读 identity / api / baseUrl）；还要求 provider 真的配过凭据 */
@@ -178,8 +209,8 @@ export async function createOmpEngineWith(o: CreateEngineOptions, seams: EngineT
       const roles = readSetting(root, 'modelRoles')
       return typeof roles === 'object' && roles !== null ? (roles as Record<string, string>) : {}
     },
-    wrapSession: async (sessionInput) => {
-      const wrapped = await wrapOmpSession({
+    wrapSession: (sessionInput) =>
+      wrapOmpSession({
         ...sessionInput,
         logger: o.logger,
         mediaRef,
@@ -212,24 +243,7 @@ export async function createOmpEngineWith(o: CreateEngineOptions, seams: EngineT
             defaultLevel: found.thinking?.defaultLevel ?? null,
           }
         },
-      })
-      /* 活会话账：MCP 的状态要按名汇总各活会话的 mcpManager。会话关掉就摘掉 —— 留着死会话的坑，界面上的状态灯会一直在 */
-      const live: OmpSessionLike = {
-        sessionId: wrapped.sessionId,
-        sessionKey: sessionInput.spec.key,
-        mcpManager: sessionInput.mcpManager as OmpSessionLike['mcpManager'],
-      }
-      liveSessions.add(live)
-      ports.mcpRefreshStatus()
-      const originalDispose = wrapped.dispose.bind(wrapped)
-      return Object.assign(wrapped, {
-        async dispose(): Promise<void> {
-          liveSessions.delete(live)
-          await originalDispose()
-          ports.mcpRefreshStatus()
-        },
-      })
-    },
+      }),
   })
   return engine
 }

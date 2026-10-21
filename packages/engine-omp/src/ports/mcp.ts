@@ -13,7 +13,7 @@ import type { McpCatalogEntry, McpPort, McpServerInfo, McpStatus } from '@poieti
 import { AppError, Emitter, type Logger, SystemErrorCode } from '@poietica/foundation'
 import type { z } from 'zod'
 import { toEngineError } from '../errors'
-import type { OmpMcpManager, OmpSessionLike } from '../omp-context'
+import type { OmpMcpManager } from '../omp-context'
 
 /** 用户级 MCP 配置文件：<ompAgentDir>/mcp.json（omp 自己的位置，不自己拼 JSON）。 */
 const MCP_CONFIG_NAME = 'mcp.json'
@@ -27,17 +27,20 @@ const CATALOG_LIMIT = 20
 /** omp 的名称判据（字母数字与 `_ . - :`、词间单个空格、≤100）拒绝时给的中文说明。 */
 const NAME_HINT = '只能包含字母、数字、连字符、下划线、点与冒号，词之间只允许一个空格，最长 100 个字符'
 
-/** McpPort 需要的东西：omp 的 agent 目录、活着的会话（状态要汇总它们）、logger。 */
+/** McpPort 需要的东西：omp 的 agent 目录、各工作区共享的 manager（状态要汇总它们）、logger。 */
 export interface McpPortDeps {
   readonly ompAgentDir: string
-  readonly sessions: ReadonlySet<OmpSessionLike>
+  /** 各工作区共享的 MCP manager（omp 知识 #22）：服务器归工作区，不再归某个会话 */
+  readonly managers: () => Iterable<OmpMcpManager>
   readonly logger: Logger
+  /** 配置写完之后调用：持有者据此让旧连接退役（不然空闲工作区会带着旧配置撑到宽限期满） */
+  readonly onConfigChanged?: () => void
 }
 
 /**
  * MCP 端口。读配置走 omp 的 loadAllMCPConfigs（只读配置，不发起连接）；写的是用户级
  * <ompAgentDir>/mcp.json，一律经 omp 的 mcp/config-writer，不自己拼 JSON（校验、原子写、
- * disabledServers 的清理规则都是它的事）。状态从活会话的 mcpManager 汇总。
+ * disabledServers 的清理规则都是它的事）。状态从各工作区共享的 manager 汇总。
  */
 export class OmpMcpPort implements McpPort {
   readonly #change = new Emitter<z.infer<typeof McpStatus>[]>()
@@ -97,6 +100,7 @@ export class OmpMcpPort implements McpPort {
       else await addMCPServer(file, server.name, config)
       /* 配置里带着 enabled，这里把它同时落到 disabledServers：omp 的列出判据看的是那一格。 */
       await setServerDisabled(file, server.name, !server.enabled)
+      this.d.onConfigChanged?.()
       this.#fire()
     } catch (error) {
       throw toEngineError(error)
@@ -107,18 +111,22 @@ export class OmpMcpPort implements McpPort {
   async remove(name: string): Promise<void> {
     try {
       await removeMCPServer(this.#configFile(), name)
+      this.d.onConfigChanged?.()
       this.#fire()
     } catch (error) {
       throw toEngineError(error)
     }
   }
 
-  /** 各活跃会话的 mcpManager 汇总，按服务器名合并；没有会话就没有状态。 */
+  /**
+   * 各工作区共享 manager 的汇总，按服务器名合并（当前的在前）。最后一个会话关掉后，
+   * 宽限期里的服务器仍在线，状态照报；没有任何工作区就没有状态。
+   */
   async status(): Promise<z.infer<typeof McpStatus>[]> {
     try {
       const merged = new Map<string, z.infer<typeof McpStatus>>()
-      for (const session of this.d.sessions) {
-        for (const row of statusOf(session.mcpManager)) {
+      for (const manager of this.d.managers()) {
+        for (const row of statusOf(manager)) {
           if (!merged.has(row.name)) merged.set(row.name, row)
         }
       }
@@ -167,7 +175,7 @@ export class OmpMcpPort implements McpPort {
     }
   }
 
-  /** 会话状态变化时由 OmpEngine 调一次：按名汇总后 fire。 */
+  /** 连接状态有变（连上 / 断开 / 工作区释放）时由 MCP 工作区调一次：按名汇总后 fire。 */
   refreshStatus(): void {
     void this.status().then(
       (rows) => this.#change.fire(rows),
@@ -212,12 +220,11 @@ function mcpConfigOf(server: z.infer<typeof McpServerInfo>): never {
 }
 
 /**
- * 一台会话里某个 MCP 管理器的状态。omp 的 MCPManager 没有批量状态接口
+ * 一个工作区共享的 MCP 管理器的状态。omp 的 MCPManager 没有批量状态接口
  * （只有 getAllServerNames / getConnectionStatus / getConnection），所以逐个名字问；
  * getServerStatus 若存在则优先用它（别的实现可能有）。
  */
-function statusOf(manager: OmpMcpManager | undefined): readonly z.infer<typeof McpStatus>[] {
-  if (manager === undefined) return []
+function statusOf(manager: OmpMcpManager): readonly z.infer<typeof McpStatus>[] {
   if (manager.getServerStatus !== undefined) {
     return manager.getServerStatus().map((row) => ({
       name: row.name,

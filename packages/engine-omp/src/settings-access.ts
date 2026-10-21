@@ -34,6 +34,11 @@ export function overrideSetting(scope: SettingsScope, path: string, value: unkno
   settingAt(path).override(scope, value as never)
 }
 
+/** 订阅一格的变化（各层合并后的值变了才触发）；返回退订函数 */
+export function listenSetting(scope: SettingsScope, path: string, onChange: (value: unknown) => void): () => void {
+  return settingAt(path).listen(scope, (value) => onChange(value))
+}
+
 /**
  * 这一格有没有被**谁显式配过**（全局、项目或运行时覆盖），而不是回落到 schema 默认。
  * 判「有没有人选过」只能问它，不能读值：值与默认相同时读不出来（omp 知识 #11 依赖这个区分）。

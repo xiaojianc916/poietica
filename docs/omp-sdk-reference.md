@@ -1189,3 +1189,71 @@ Storage and lifecycle facts poietica relies on:
 - History lives under the session's artifacts directory, `btw-history/` (`historyDirectory`, src/session/btw-history.ts:80), one `entry-<id>.json` per topic; a session that has never been written to disk (no artifacts dir) keeps its topics in memory only.
 - Forking a session copies its artifacts directory, so the fork starts with the parent's side topics; deleting a session removes them with the artifacts.
 - `ask` while a side question is running is rejected by the controller; the engine pre-checks this (`engine.side_busy`) and also rejects with `engine.side_unavailable` when the session has no model.
+
+## P. MCP manager ownership — owned vs. borrowed managers
+
+`createAgentSession` either **owns** an MCP manager or **borrows** one, decided by a single option (omp knowledge #22, `packages/engine-omp/src/session/mcp-workspaces.ts`). Without `options.mcpManager` and with `hasUI: true` it builds a fresh `MCPManager` per session, starts discovery in the background once the session exists, and disconnects every server when the session is disposed. Poietica opens and closes sessions with the thread surface, so the owned model restarted every MCP process on every thread switch.
+
+```ts
+// from: src/sdk.ts:2497-2500
+let mcpManager: MCPManager | undefined = enableMCP ? options.mcpManager : undefined;
+const deferMCPDiscoveryForUI = enableMCP && !mcpManager && options.hasUI === true;
+```
+
+```ts
+// from: src/sdk.ts:4570
+const ownedMcpManager = options.mcpManager ? undefined : mcpManager;
+```
+
+A borrower runs no discovery and never disconnects. The single-slot callbacks, the `mcp.notifications` listener and the `mcp.enableProjectConfig` reconcile are wired **only by the owner**; the notification bridge to the session's extensions is installed for every session, and `MCPManager.setInstance(manager)` still runs for every top-level session (`src/sdk.ts:2609`).
+
+```ts
+// from: src/sdk.ts:5290-5348
+if (mcpManager && !options.mcpManager) {
+mcpManager.setOnToolsChanged(async tools => {
+mcpManager.setOnPromptsChanged(serverName => {
+mcpManager.setOnResourcesChanged((serverName, uri) => {
+cfgMcpNotifications.listen(session, enabled => mcpManager.setNotificationsEnabled(enabled));
+unsubscribeMcpNotifications = mcpManager.addNotificationListener((server, method, params) => {
+```
+
+Poietica keeps one manager per `cwd` and plays the owner itself: prompt slash commands (a copy of the private `buildMCPPromptCommands`, `src/sdk.ts:1533`, command name `server:prompt`), the per-`server:uri` debounce of resource notifications into `yieldQueue.enqueue("mcp-notification", …)`, the two settings listeners, and the Exa key hand-off (`applyMCPEnvironment`, `src/sdk.ts:531`). Tools follow the shared manager the way omp's subagents do:
+
+```ts
+// from: dist/types/task/executor.d.ts:328-355 — import specifier "@oh-my-pi/pi-coding-agent/task/executor"
+export declare function createMCPProxyTools(mcpManager: MCPManager): CustomTool[];
+export type MCPToolFollowerSession = Pick<AgentSession, "refreshMCPTools" | "addDisposer">;
+export interface MCPToolFollower {
+export declare function followMCPTools(mcpManager: MCPManager, reservedNames?: ReadonlySet<string>): MCPToolFollower;
+```
+
+Subscribe (`followMCPTools`) **before** building proxies; `bind(session)` replays any change seen in between and registers the unsubscribe as a session disposer. Proxies re-resolve the source tool by server + tool name on every call, so a reconnect that replaced the tool instance is picked up.
+
+```ts
+// from: dist/types/session/agent-session.d.ts:87-673 — import specifier "@oh-my-pi/pi-coding-agent/session/agent-session"
+export declare const MCP_DISCOVERY_TURN_WAIT_MS = 1500;
+refreshMCPTools(mcpTools: CustomTool[]): Promise<void>;
+setPendingMCPDiscovery(discovery: Promise<void>): void;
+setMCPPromptCommands(commands: LoadedCustomCommand[]): void;
+```
+
+```ts
+// from: dist/types/mcp/manager.d.ts:110-307 — import specifier "@oh-my-pi/pi-coding-agent/mcp/manager"
+static setInstance(value: MCPManager | undefined): void;
+addConnectionStatusListener(listener: (event: McpConnectionStatusEvent) => void): () => void;
+addToolsChangedListener(listener: () => void): () => void;
+setOnResourcesChanged(handler: (serverName: string, uri: string) => void): void;
+setOnPromptsChanged(handler: (serverName: string) => void): void;
+setNotificationsEnabled(enabled: boolean): void;
+discoverAndConnect(options?: MCPDiscoverOptions): Promise<MCPLoadResult>;
+reconcileProjectConfig(enabled: boolean): Promise<void>;
+waitForStartup(timeoutMs: number): Promise<MCPStartupStatus>;
+disconnectAll(): Promise<void>;
+```
+
+Facts poietica relies on:
+
+- A turn waits for the pending discovery set by `setPendingMCPDiscovery` at most `MCP_DISCOVERY_TURN_WAIT_MS`, and only the first turn pays it. A session that borrows an already-settled manager gets its tools through `refreshMCPTools` before it is handed out, so its first turn waits for nothing.
+- `options.mcpTools !== undefined` counts as a changed cache shape (`forkCacheShapeChanged`, `src/sdk.ts:1911`) and drops the `providerPromptCacheKey` a resumed fork would inherit. Poietica therefore passes only `mcpManager` and refreshes the tools after creation, which is the path omp's own deferred discovery takes.
+- `setOnPromptsChanged` replays at once for servers that already have prompts. `disconnectAll` aborts handshakes in flight, but a discovery still reading configs can connect afterwards, so the owner disconnects again once discovery settles (omp's deferred path does the same).
+- Config files are read through a process-wide content cache (`src/capability/fs.ts`) that only `mcp/config-writer` invalidates. Reusing a manager is decided by comparing `loadAllMCPConfigs` output (≈1 ms warm), so it sees exactly what a fresh discovery would see. Tests that write `mcp.json` directly must call `invalidate` from `@oh-my-pi/pi-coding-agent/capability/fs`.

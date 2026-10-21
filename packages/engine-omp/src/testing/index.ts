@@ -18,6 +18,8 @@ export interface CreateOmpEngineForTestOptions {
   /** browser-relay 端口；测试里给 0 即可 */
   readonly relayPort?: number
   readonly engineVersion?: string
+  /** MCP 工作区的空闲宽限期（omp 知识 #22）；不给就是产品默认的 MCP_IDLE_GRACE_MS */
+  readonly mcpIdleGraceMs?: number
 }
 
 type MockReply = MockResponse
@@ -47,7 +49,12 @@ export async function createOmpEngineForTest(o: CreateOmpEngineForTestOptions): 
     },
     // omp 的 getApiKey 签名是 (model) => ApiKey；mock provider 不需要真 key，给一个常量串
     // disableAutoTitle：mock 也是 tiny 角色的候选，标题请求会吃掉一条脚本回复（见测试缝的注释）
-    { model: mock, getApiKey: () => 'mock', disableAutoTitle: true },
+    {
+      model: mock,
+      getApiKey: () => 'mock',
+      disableAutoTitle: true,
+      ...(o.mcpIdleGraceMs === undefined ? {} : { mcpIdleGraceMs: o.mcpIdleGraceMs }),
+    },
   )
   // mock provider 也要一份凭据：omp 的凭据解析在读模型之前跑，缺 key 会直接拒掉这一轮。
   // 走端口自己的写入面（credentials.set），不旁路内部的 authStorage。

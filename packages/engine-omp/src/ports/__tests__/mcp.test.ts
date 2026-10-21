@@ -3,7 +3,7 @@ import { readFileSync, rmSync, writeFileSync } from 'node:fs'
 import path from 'node:path'
 import { noopLogger } from '@poietica/foundation'
 import { testLayout } from '../../__tests__/omp-home'
-import type { OmpMcpManager, OmpSessionLike } from '../../omp-context'
+import type { OmpMcpManager } from '../../omp-context'
 import { OmpMcpPort } from '../mcp'
 
 /**
@@ -16,15 +16,12 @@ afterEach(() => {
   rmSync(configFile, { force: true })
 })
 
-function sessionWith(mcpManager: OmpMcpManager | undefined): OmpSessionLike {
-  return { sessionId: 's1', sessionKey: 'k1', mcpManager }
-}
-
-function makePort(sessions: OmpSessionLike[] = []): OmpMcpPort {
+function makePort(managers: OmpMcpManager[] = [], onConfigChanged?: () => void): OmpMcpPort {
   return new OmpMcpPort({
     ompAgentDir: testLayout.ompAgentDir,
-    sessions: new Set(sessions),
+    managers: () => managers,
     logger: noopLogger,
+    ...(onConfigChanged === undefined ? {} : { onConfigChanged }),
   })
 }
 
@@ -93,13 +90,13 @@ describe('McpPort', () => {
   })
 
   /* omp 的 MCPManager 没有批量状态接口：按名字逐个问（getAllServerNames + getConnectionStatus）。 */
-  test('status 从活会话的 mcpManager 汇总，disconnected 映射成 failed', async () => {
+  test('status 从各工作区的共享 manager 汇总，disconnected 映射成 failed', async () => {
     const manager: OmpMcpManager = {
       getAllServerNames: () => ['alpha', 'beta'],
       getConnectionStatus: (name) => (name === 'alpha' ? 'connected' : 'disconnected'),
       getConnection: (name) => (name === 'alpha' ? { tools: [1, 2, 3] } : undefined),
     }
-    const port = makePort([sessionWith(manager)])
+    const port = makePort([manager])
     expect(await port.status()).toEqual([
       { name: 'alpha', state: 'connected', toolCount: 3, error: null },
       { name: 'beta', state: 'failed', toolCount: 0, error: null },
@@ -111,11 +108,44 @@ describe('McpPort', () => {
       getServerStatus: () => [{ name: 'gamma', state: 'connecting', toolCount: 1 }],
       getAllServerNames: () => ['should-not-be-used'],
     }
-    const port = makePort([sessionWith(manager)])
+    const port = makePort([manager])
     expect(await port.status()).toEqual([{ name: 'gamma', state: 'connecting', toolCount: 1, error: null }])
   })
 
-  test('没有会话就没有状态；onDidChangeStatus 在 refreshStatus 后 fire', async () => {
+  test('同名服务器在多个工作区里：先报的那一份（当前工作区在前）', async () => {
+    const current: OmpMcpManager = {
+      getAllServerNames: () => ['alpha'],
+      getConnectionStatus: () => 'connected',
+    }
+    const retired: OmpMcpManager = {
+      getAllServerNames: () => ['alpha', 'beta'],
+      getConnectionStatus: () => 'connecting',
+    }
+    const rows = await makePort([current, retired]).status()
+    expect(rows.map((row) => [row.name, row.state])).toEqual([
+      ['alpha', 'connected'],
+      ['beta', 'connecting'],
+    ])
+  })
+
+  /* 配置写完要让持有者知道：不然宽限期里的空闲工作区会带着旧配置一直被复用到期满 */
+  test('upsert / remove 写完之后通知配置变了', async () => {
+    let changed = 0
+    const port = makePort([], () => {
+      changed++
+    })
+    await port.upsert({ name: 'demo', transport: 'stdio', enabled: true, config: { command: 'node' } })
+    expect(changed).toBe(1)
+    await port.remove('demo')
+    expect(changed).toBe(2)
+    /* 写失败（名字不合法）不通知 */
+    await expect(
+      port.upsert({ name: 'foo/bar', transport: 'stdio', enabled: true, config: { command: 'node' } }),
+    ).rejects.toMatchObject({ code: 'kernel.invalid_params' })
+    expect(changed).toBe(2)
+  })
+
+  test('没有工作区就没有状态；onDidChangeStatus 在 refreshStatus 后 fire', async () => {
     const port = makePort()
     let fired: unknown = 'never'
     const sub = port.onDidChangeStatus((rows) => {

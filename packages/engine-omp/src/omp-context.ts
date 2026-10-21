@@ -55,14 +55,6 @@ export interface OmpAuthStorage {
   }
 }
 
-/** 端口只需知道会话的这几件事（避免端口 ↔ 会话的循环依赖） */
-export interface OmpSessionLike {
-  readonly sessionId: string
-  readonly sessionKey: string
-  /** 该会话的 MCP 管理器（没有 MCP 时为 undefined） */
-  readonly mcpManager: OmpMcpManager | undefined
-}
-
 /**
  * omp 的 MCPManager（mcp/manager.ts）里端口用得着的那几格。
  * 没有 getServerStatus 这一个批量方法，状态要按名字逐个问（getConnectionStatus / getConnection）。

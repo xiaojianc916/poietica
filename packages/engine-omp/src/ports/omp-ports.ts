@@ -11,7 +11,7 @@ import {
 import type { AgentEngine } from '@poietica/engine'
 import { type Logger, systemClock } from '@poietica/foundation'
 import type { DataLayout } from '@poietica/runtime-layout'
-import type { OmpModelRegistry, OmpSessionLike } from '../omp-context'
+import type { OmpMcpManager, OmpModelRegistry } from '../omp-context'
 import type { MediaRef } from '../projector/media'
 import { readSetting, type SettingsScope } from '../settings-access'
 import { OmpMcpPort } from './mcp'
@@ -34,8 +34,10 @@ export interface OmpPortsOptions {
   /** omp 的 ModelRegistry：端口只认收窄后的 RegistryPort（model-helpers 的 registryPortOf 转） */
   readonly registry: OmpModelRegistry
   readonly authStorage: object
-  /** 活着的会话：MCP 状态要按名汇总它们各自的 mcpManager */
-  readonly sessions: Set<OmpSessionLike>
+  /** 各工作区共享的 MCP manager（omp 知识 #22，session/mcp-workspaces.ts）：状态按名汇总它们 */
+  readonly mcpManagers: () => Iterable<OmpMcpManager>
+  /** MCP 配置写入之后：让旧连接退役，新会话按新配置连 */
+  readonly onMcpConfigChanged?: () => void
   /** 与活会话共用的那一个（create-engine 里建）：冷读与活会话交出的图片地址必须同一个产地 */
   readonly mediaRef: MediaRef
 }
@@ -67,7 +69,12 @@ export async function ompPorts(o: OmpPortsOptions): Promise<{
     logger: o.logger,
     reload,
   })
-  const mcp = new OmpMcpPort({ ompAgentDir: o.layout.ompAgentDir, sessions: o.sessions, logger: o.logger })
+  const mcp = new OmpMcpPort({
+    ompAgentDir: o.layout.ompAgentDir,
+    managers: o.mcpManagers,
+    logger: o.logger,
+    ...(o.onMcpConfigChanged === undefined ? {} : { onConfigChanged: o.onMcpConfigChanged }),
+  })
   const history = new SessionHistoryReader({
     mediaRef: o.mediaRef,
     /* 与 sdk 同一个判据、同一个目录：secrets.enabled 开着才去读密钥文件（sdk.ts 里 buildSecretObfuscator 那一步） */

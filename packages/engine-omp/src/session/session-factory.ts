@@ -4,6 +4,7 @@ import type { DataLayout } from '@poietica/runtime-layout'
 import type { SettingsScope } from '../settings-access'
 import { createToolsExtension } from '../tools-extension'
 import { allowGoalContinuation } from './goal-host'
+import type { McpLease } from './mcp-workspaces'
 import { applyPosture } from './posture'
 
 export interface SessionFactoryOptions {
@@ -22,6 +23,8 @@ export interface SessionFactoryOptions {
   }
   readonly authStorage: unknown
   readonly registry: unknown
+  /** MCP 服务器的持有者（omp 知识 #22）：会话从这里借 manager；不给则退回 omp 的「每会话一份」 */
+  readonly mcp?: { lease(cwd: string): Promise<McpLease> }
   /** 引擎的工具表（会话建好后交给 adapter） */
   readonly tools: ReadonlyMap<string, EngineToolSpec>
   /** 测试缝：存在时跳过模型解析、直接用注入的 mock */
@@ -90,42 +93,58 @@ export class SessionFactory {
         register: (tool) => pi.registerTool(tool),
       })
     }
-    const created = await this.o.createAgentSession({
-      extensions: [extensionFactory],
-      cwd: spec.cwd,
-      settings,
-      sessionManager: manager,
-      authStorage: this.o.authStorage,
-      modelRegistry: this.o.registry,
-      // omp 知识 #6：hasUI: true + setToolUIContext + initializeExtensions 三者缺一不可
-      hasUI: true,
-      /*
-       * omp 知识 #17：**必须在这里打开**。omp 的自动起名只由 `config.autoTitle === true` 这一道门放行
-       * （agent-session.ts 的 `#noteTitleInput`），默认 false；宿主不传就一次都不会跑，线程永远停在首句兜底上。
-       * `spec.autoTitle === false` 是线程自己的门禁（用户定过名的线程），测试缝关掉是为了别吃掉 mock 脚本。
-       */
-      autoTitle: this.o.disableAutoTitle !== true && spec.autoTitle !== false,
-      ...(this.o.testSeams?.model === undefined ? {} : { model: this.o.testSeams.model }),
-      ...(this.o.testSeams?.getApiKey === undefined ? {} : { getApiKey: this.o.testSeams.getApiKey }),
-      ...(model === null ? {} : { model }),
-      ...(spec.thinking === null ? {} : { thinkingLevel: spec.thinking }),
-    })
-    const agentSession = created.session
-    const setToolUIContext = created.setToolUIContext
-    if (typeof setToolUIContext !== 'function') {
-      throw new AppError(SystemErrorCode.internal, 'no setToolUIContext in the result of createAgentSession')
+    const lease = (await this.o.mcp?.lease(spec.cwd)) ?? null
+    let session: EngineSession
+    try {
+      const created = await this.o.createAgentSession({
+        extensions: [extensionFactory],
+        cwd: spec.cwd,
+        settings,
+        sessionManager: manager,
+        authStorage: this.o.authStorage,
+        modelRegistry: this.o.registry,
+        // omp 知识 #6：hasUI: true + setToolUIContext + initializeExtensions 三者缺一不可
+        hasUI: true,
+        /*
+         * omp 知识 #22：MCP 服务器归工作区（mcp-workspaces.ts），会话只借用。给了 mcpManager，omp 就不再
+         * 为这个会话新建 manager、不在后台拉起服务器、dispose 时也不断开 —— 切对话不再杀掉重启全部 MCP 进程。
+         * 工具不经 mcpTools 传：那一格会被 omp 算作「缓存形状变了」，续开分叉会话时丢掉继承的 prompt cache key；
+         * 改由 attach 在会话建好后 refreshMCPTools（与 omp 延迟发现的路径相同）。
+         */
+        ...(lease === null ? {} : { mcpManager: lease.manager }),
+        /*
+         * omp 知识 #17：**必须在这里打开**。omp 的自动起名只由 `config.autoTitle === true` 这一道门放行
+         * （agent-session.ts 的 `#noteTitleInput`），默认 false；宿主不传就一次都不会跑，线程永远停在首句兜底上。
+         * `spec.autoTitle === false` 是线程自己的门禁（用户定过名的线程），测试缝关掉是为了别吃掉 mock 脚本。
+         */
+        autoTitle: this.o.disableAutoTitle !== true && spec.autoTitle !== false,
+        ...(this.o.testSeams?.model === undefined ? {} : { model: this.o.testSeams.model }),
+        ...(this.o.testSeams?.getApiKey === undefined ? {} : { getApiKey: this.o.testSeams.getApiKey }),
+        ...(model === null ? {} : { model }),
+        ...(spec.thinking === null ? {} : { thinkingLevel: spec.thinking }),
+      })
+      const agentSession = created.session
+      const setToolUIContext = created.setToolUIContext
+      if (typeof setToolUIContext !== 'function') {
+        throw new AppError(SystemErrorCode.internal, 'no setToolUIContext in the result of createAgentSession')
+      }
+      await lease?.attach(agentSession as never)
+      session = await this.o.wrapSession({
+        spec,
+        settings,
+        manager,
+        agentSession,
+        setToolUIContext: setToolUIContext as (ui: unknown, hasUI: boolean) => void,
+        mcpManager: created.mcpManager,
+        tools: this.o.tools,
+        created,
+        model,
+      })
+    } catch (error) {
+      /* 幂等：attach 过的会话之后再 dispose 时还会调一次，那一次是空操作 */
+      lease?.release()
+      throw error
     }
-    const session = await this.o.wrapSession({
-      spec,
-      settings,
-      manager,
-      agentSession,
-      setToolUIContext: setToolUIContext as (ui: unknown, hasUI: boolean) => void,
-      mcpManager: created.mcpManager,
-      tools: this.o.tools,
-      created,
-      model,
-    })
     if (spec.sessionFile === null) await this.materialize(manager, session)
     return session
   }

@@ -69,7 +69,7 @@ async function portsOf(): Promise<{
         remove: async () => undefined,
       },
     },
-    sessions: new Set(),
+    mcpManagers: () => [],
     mediaRef: hashMediaRef,
   })
   return { models: ports.models, calls }
