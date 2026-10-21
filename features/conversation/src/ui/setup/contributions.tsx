@@ -1,4 +1,5 @@
 import { Banner, ConfirmationDialog } from '@poietica/design-system'
+import { prefetchProseWhenIdle } from '@poietica/design-system/prose'
 import { useWorkspacesView } from '@poietica/feature-workspaces/ui-api'
 import {
   builtinPoints,
@@ -101,6 +102,16 @@ export function createConversationContributions(setup: ConversationSetup, action
         openThread(t.id)
       })
       .catch(failed('rewrite', threadId))
+  }
+
+  /*
+   * 正文排版（streamdown / shiki / pele）在独立分块里，不进首屏入口闭包（性能方案 P5）。入口页是开机必经的第一屏、
+   * 本身一个字的正文都不画：在它画完之后的空闲里预取，第一段正文上屏前就已到位。会话页也调一次（同一次启动只排一次）。
+   */
+  const prefetchProse = (): void => {
+    prefetchProseWhenIdle((cause: unknown) => {
+      ctx.logger.warn('正文排版模块没能加载，正文将按源码显示', { error: String(cause) })
+    })
   }
 
   /* 侧栏导航「新建对话」归 conversation —— 这个功能才知道入口在哪儿，外壳一个产品常量都不写。 */
@@ -297,21 +308,24 @@ export function createConversationContributions(setup: ConversationSetup, action
   ctx.contribute(builtinPoints.surfaces, {
     id: 'conversation.home',
     title: '新对话',
-    component: () => (
-      <ConversationProviders posture={posture} transcripts={transcripts}>
-        <HomeSurface
-          api={api}
-          entryDefaults={entryDefaults}
-          preferences={prefs}
-          onOpenThread={openThread}
-          onStartCommand={startCommand}
-          posture={posture}
-          sessions={sessions}
-          stores={stores}
-          workspaces={workspaces}
-        />
-      </ConversationProviders>
-    ),
+    component: () => {
+      useEffect(prefetchProse, [])
+      return (
+        <ConversationProviders posture={posture} transcripts={transcripts}>
+          <HomeSurface
+            api={api}
+            entryDefaults={entryDefaults}
+            preferences={prefs}
+            onOpenThread={openThread}
+            onStartCommand={startCommand}
+            posture={posture}
+            sessions={sessions}
+            stores={stores}
+            workspaces={workspaces}
+          />
+        </ConversationProviders>
+      )
+    },
   })
   ctx.contribute(builtinPoints.surfaces, {
     id: 'conversation.thread',
@@ -320,6 +334,7 @@ export function createConversationContributions(setup: ConversationSetup, action
     dockOwner: (params) => (params.threadId === undefined || params.threadId === '' ? null : params.threadId),
     component: ({ params }: { readonly params: Readonly<Record<string, string>> }) => {
       const threadId = String(params.threadId ?? '')
+      useEffect(prefetchProse, [])
       /*
        * 控件表、线程行、项目名单都要**订阅**着读。原先三样都读 `getState()`：那是一次性快照，
        * 而这些数据都要等一次往返才到，首帧拿到空值且不会重画 —— 屏幕上是「输入框那一排选择器不显示 / 项目名要切一次页面才出现」（真实故障）。

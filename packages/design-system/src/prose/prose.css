@@ -22,6 +22,12 @@
   display: contents;
 }
 
+/* 排版实现到达之前的源码显示（prose-shell.tsx）：原样保留换行，不当成一整段挤在一起。 */
+.timeline-prose--source {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
 .timeline-prose :is(p, ul, ol, blockquote, hr, h1, h2, h3, h4, h5, h6) {
   margin-block: var(--cp-prose-flow) 0;
 }

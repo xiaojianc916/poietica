@@ -81,14 +81,30 @@ function cspPlugin(isDev: boolean): Plugin {
  * 首屏入口闭包的守卫（性能审查 P-06）。
  *
  * 入口分块及其静态 import 链上的所有分块，渲染进程都要下载、解析、编译、求值完才能画第一帧。
- * 下面这些包只在交互之后才用得到（公式、终端、看大图），已经改成动态 import；谁再把它们
- * 静态带回入口，构建直接失败 —— 而不是等用户觉得启动又慢了。
+ * 下面这些模块只在交互之后、或第一段正文上屏时才用得到（公式、终端、看大图、正文排版），已经改成
+ * 动态 import；谁再把它们静态带回入口，构建直接失败 —— 而不是等用户觉得启动又慢了。
+ *
+ * 正文排版（性能方案 P5）：`@poietica/design-system/prose` 只是轻壳，实现 prose.tsx 连同 streamdown、
+ * remark / rehype 链（parse5 来自 rehype-raw）、shiki、pele 约 2.4MB 在独立分块里，首帧之后才预取。
+ * 守卫按实现文件与最重的几个包各记一条：哪一条被带回来，报错里就直接是哪一条。
  *
  * 体积只告警不失败：功能正常增长不该卡住构建，但每次越线都应该有人看一眼是谁涨的。
  */
-const DEFERRED_PACKAGES = ['/node_modules/katex/', '/node_modules/@xterm/', '/node_modules/yet-another-react-lightbox/']
-/** 入口静态闭包的体积告警线：P-06 之后约 5.11MB，留约 5% 余量 */
-const ENTRY_BUDGET_BYTES = 5_400_000
+const DEFERRED_MODULES = [
+  '/node_modules/katex/',
+  '/node_modules/@xterm/',
+  '/node_modules/yet-another-react-lightbox/',
+  '/packages/design-system/src/prose/prose.tsx',
+  '/node_modules/streamdown/',
+  '/node_modules/parse5/',
+  '/node_modules/shiki/',
+  '/node_modules/@shikijs/',
+  '/node_modules/pele/',
+]
+/** 有意留在首屏的样式表：streamdown 的样式随轻壳进主样式表、保住覆盖次序（见 prose-shell.tsx），不算带回 */
+const STATIC_STYLES = ['/node_modules/streamdown/styles.css']
+/** 入口静态闭包的体积告警线：P5 之后约 3.97MB，留约 5% 余量（P-06 之后曾是 5.11MB，P5 之前已涨到 6.39MB 而一直只是告警） */
+const ENTRY_BUDGET_BYTES = 4_200_000
 
 /** 从入口出发沿静态 import 走一遍（动态 import 不算：那是按需加载） */
 function staticClosure(chunks: ReadonlyMap<string, OutputChunk>): OutputChunk[] {
@@ -106,16 +122,18 @@ function staticClosure(chunks: ReadonlyMap<string, OutputChunk>): OutputChunk[] 
   return [...seen.values()]
 }
 
-/** 闭包里出现了哪些「应当按需」的包：每个包一行，带上它落在哪些分块里 */
+/** 闭包里出现了哪些「应当按需」的模块：每条一行，带上它落在哪些分块里 */
 function deferredIn(closure: readonly OutputChunk[]): string[] {
   const hits = new Map<string, Set<string>>()
   for (const chunk of closure) {
     for (const id of chunk.moduleIds) {
-      const pkg = DEFERRED_PACKAGES.find((name) => id.replaceAll('\\', '/').includes(name))
-      if (pkg !== undefined) hits.set(pkg, (hits.get(pkg) ?? new Set()).add(chunk.fileName))
+      const path = id.replaceAll('\\', '/')
+      if (STATIC_STYLES.some((style) => path.endsWith(style))) continue
+      const hit = DEFERRED_MODULES.find((name) => path.includes(name))
+      if (hit !== undefined) hits.set(hit, (hits.get(hit) ?? new Set()).add(chunk.fileName))
     }
   }
-  return [...hits].map(([pkg, files]) => `  ${pkg} ← ${[...files].join(', ')}`)
+  return [...hits].map(([hit, files]) => `  ${hit} ← ${[...files].join(', ')}`)
 }
 
 function entryBudgetPlugin(): Plugin {
@@ -130,7 +148,7 @@ function entryBudgetPlugin(): Plugin {
       const closure = staticClosure(chunks)
       const offenders = deferredIn(closure)
       if (offenders.length > 0) {
-        this.error(`这些按需加载的包被静态带进了首屏入口（见 P-06）：\n${offenders.join('\n')}`)
+        this.error(`这些按需加载的模块被静态带进了首屏入口（见 P-06、性能方案 P5）：\n${offenders.join('\n')}`)
       }
       const bytes = closure.reduce((sum, chunk) => sum + Buffer.byteLength(chunk.code), 0)
       if (bytes > ENTRY_BUDGET_BYTES) {

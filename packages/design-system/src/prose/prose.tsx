@@ -1,6 +1,7 @@
 import { invariant } from '@poietica/foundation'
 import { cjk } from '@streamdown/cjk'
 import { code } from '@streamdown/code'
+import { clsx } from 'clsx'
 import { memo, useEffect, useSyncExternalStore } from 'react'
 import {
   type ControlsConfig,
@@ -12,10 +13,6 @@ import {
   type StreamdownProps,
   type StreamdownTranslations,
 } from 'streamdown'
-import 'streamdown/styles.css'
-import './prose.css'
-
-import { clsx } from 'clsx'
 import { DIAGRAM_RENDERER } from './diagram'
 import { asIcon, CheckIcon, CopyIcon } from './icons'
 import { currentMath, loadMath, mayContainMath, subscribeMath } from './math-plugin'

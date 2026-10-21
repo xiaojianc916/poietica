@@ -1,3 +1,4 @@
+import { useProseSettled } from '@poietica/design-system/prose'
 import { useContributions } from '@poietica/ui-kernel'
 import { type ReactNode, useCallback, useMemo, useRef, useState } from 'react'
 import { toolCallRenderers } from '../../../ui-api'
@@ -106,7 +107,16 @@ function endsInError(feed: Presentation): boolean {
   return false
 }
 
-export function TranscriptView({ dockClearance, lead, onFork, onRetry, onRewrite, sessionKey }: TranscriptViewProps) {
+/**
+ * 第一次挂载压到正文排版落定之后（性能方案 P5：排版实现在独立分块里，首帧之后才预取）。行高按排版量：
+ * 先按源码画一遍再换成排版，虚拟器会量到两次高度、位置跟着跳。落定通常早于转录到手（预取在入口页画完就开始），
+ * 所以这一层多半不等；到不了时同样算落定，正文按源码显示。
+ */
+export function TranscriptView(props: TranscriptViewProps) {
+  return useProseSettled() ? <SettledTranscriptView {...props} /> : null
+}
+
+function SettledTranscriptView({ dockClearance, lead, onFork, onRetry, onRewrite, sessionKey }: TranscriptViewProps) {
   const timeline = useAssistantTimeline(sessionKey)
   const hasEarlier = useAssistantHasEarlier(sessionKey)
   const outline = useAssistantOutline(sessionKey)
