@@ -72,7 +72,6 @@ describe('辅助对话', () => {
     const { findByText, getByText, container } = setup([
       { id: 'a', leafId: null, turns: [turn({ answer: '它把参数拼成一条命令。' })] },
     ])
-    expect(getByText(/不调用工具，也不写进对话记录/)).toBeTruthy()
     fireEvent.click(await findByText('这个函数在干嘛？'))
     expect(container.querySelector('.auxiliary-chat__question')?.textContent).toBe('这个函数在干嘛？')
     expect(container.querySelector('.auxiliary-chat__answer')?.textContent).toContain('它把参数拼成一条命令。')

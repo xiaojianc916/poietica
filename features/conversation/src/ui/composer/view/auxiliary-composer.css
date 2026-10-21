@@ -85,19 +85,6 @@
   padding: var(--cp-stack) var(--cp-gutter);
 }
 
-.auxiliary-chat__lead {
-  margin: 0;
-  font-size: var(--cp-font-label);
-  color: var(--cp-ink);
-}
-
-.auxiliary-chat__hint {
-  margin: 0;
-  font-size: var(--cp-font-caption);
-  line-height: var(--cp-line-ratio);
-  color: var(--cp-ink-subtle);
-}
-
 .auxiliary-chat__recent {
   display: grid;
   gap: var(--cp-control-gap);

@@ -324,10 +324,6 @@ function SideIntro({
 }) {
   return (
     <div className="auxiliary-chat__intro">
-      <p className="auxiliary-chat__lead">随口问一句，不打断主对话</p>
-      <p className="auxiliary-chat__hint">
-        沿用这条对话此刻的上下文与模型作答，不调用工具，也不写进对话记录；主对话正在跑也能问。模型与思考档位与主对话共用。
-      </p>
       {topics.length === 0 ? null : (
         <section aria-label="最近的话题" className="auxiliary-chat__recent">
           <h3 className="auxiliary-chat__recent-heading">最近的话题</h3>
