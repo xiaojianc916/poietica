@@ -54,18 +54,9 @@ describe('LiveProjector', () => {
     p.userTurn({ text: 'q' })
     const ops = [...p.textDelta('前半'), ...p.steeredFrame('插一句'), ...p.textDelta('后半')]
     const state = applyOps(emptyTimeline(), ops)
-    const texts: string[] = []
-    const roles: string[] = []
-    for (const item of state.items) {
-      if (item.kind !== 'turn') continue
-      for (const step of item.steps)
-        for (const frame of step.frames) {
-          if (frame.kind === 'text') {
-            texts.push(frame.text)
-            roles.push(frame.role)
-          }
-        }
-    }
+    const textFrames = framesOf(state).filter((frame) => frame.kind === 'text')
+    const texts = textFrames.map((frame) => frame.text)
+    const roles = textFrames.map((frame) => frame.role)
     // 插话封掉正在流的那一帧，下一段正文另起一帧，所以顺序是：前半、插话、后半
     expect(texts).toEqual(['前半', '插一句', '后半'])
     expect(roles).toEqual(['assistant', 'user', 'assistant'])

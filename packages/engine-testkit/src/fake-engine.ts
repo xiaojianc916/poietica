@@ -182,7 +182,6 @@ class FakeSession implements EngineSession {
   private planMode = false
   /** 目标：正文 + 进行中 / 已暂停（R-10）；没有目标是 null */
   private goal: { objective: string; status: 'active' | 'paused' } | null = null
-  private ordinal = 0
   private titleRequested = false
   private step = 0
   private turnCount = 0
@@ -320,7 +319,6 @@ class FakeSession implements EngineSession {
     }
     this.turnCount++
     const ordinal = this.turnCount
-    this.ordinal = ordinal
     this.step = 0
     const turn = turnId(ordinal)
     const userStep = stepId(turn, 1)
@@ -468,6 +466,29 @@ class FakeSession implements EngineSession {
     }
   }
 
+  /** 问一次权限：挂起等答复，收下之后把它从 outstanding 里摘掉 */
+  private async requestApproval(name: string, args: unknown): Promise<InteractionAnswer> {
+    const request: Interaction = {
+      id: createId(),
+      kind: 'approval',
+      tool: name,
+      title: `允许使用工具：${name}`,
+      detail: JSON.stringify(args ?? {}),
+      allowSessionScope: true,
+      createdAt: this.o.clock.now(),
+      timeoutAt: null,
+    }
+    this.outstanding.push(request)
+    this.emit({ type: 'interactionRequested', interaction: request })
+    this.setState('awaiting')
+    const answer = await new Promise<InteractionAnswer>((resolve) => this.pending.set(request.id, resolve))
+    this.pending.delete(request.id)
+    this.outstanding.splice(this.outstanding.indexOf(request), 1)
+    this.emit({ type: 'interactionResolved', interactionId: request.id })
+    if (!this.disposed) this.setState('running')
+    return answer
+  }
+
   private async runTool(name: string, args: unknown, fallback: string, turn: string): Promise<TranscriptOperation[]> {
     this.step++
     const at = stepId(turn, this.step)
@@ -477,24 +498,7 @@ class FakeSession implements EngineSession {
     let isError = false
     let approved = true
     if (spec !== undefined && needsApproval(this.posture, spec.approval) && !this.granted.has(name)) {
-      const request: Interaction = {
-        id: createId(),
-        kind: 'approval',
-        tool: name,
-        title: `允许使用工具：${name}`,
-        detail: JSON.stringify(args ?? {}),
-        allowSessionScope: true,
-        createdAt: this.o.clock.now(),
-        timeoutAt: null,
-      }
-      this.outstanding.push(request)
-      this.emit({ type: 'interactionRequested', interaction: request })
-      this.setState('awaiting')
-      const answer = await new Promise<InteractionAnswer>((resolve) => this.pending.set(request.id, resolve))
-      this.pending.delete(request.id)
-      this.outstanding.splice(this.outstanding.indexOf(request), 1)
-      this.emit({ type: 'interactionResolved', interactionId: request.id })
-      if (!this.disposed) this.setState('running')
+      const answer = await this.requestApproval(name, args)
       approved = answer.kind === 'approval' && answer.decision === 'approve'
       if (approved && answer.kind === 'approval' && answer.scope === 'session') this.granted.add(name)
     }

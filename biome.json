@@ -242,9 +242,7 @@
         "features/conversation/src/ui/timeline/model/transcript-store.ts",
         "features/models/src/ui/models-settings.tsx",
         "features/platform/src/host/storage-service.ts",
-        "packages/engine-omp/src/projector/__tests__/live.test.ts",
         "packages/engine-testkit/src/conformance.ts",
-        "packages/engine-testkit/src/fake-engine.ts",
         "packages/host-kernel/src/core-supervisor.ts",
         "tooling/refs/sync.ts"
       ],
