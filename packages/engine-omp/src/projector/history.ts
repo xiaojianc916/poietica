@@ -171,55 +171,16 @@ function screenTurns(
   isTurnOpen: boolean,
 ): { readonly leading: readonly OmpMessage[]; readonly turns: ScreenTurn[] } {
   const results = resultsOf(messages)
-  const turns: ScreenTurn[] = []
-  const leading: OmpMessage[] = []
-  let open: OpenTurn | null = null
-  const seal = (): void => {
-    if (open === null) return
-    const held = open
-    open = null
-    const turn = turns.length + 1
-    turns.push({
-      turn,
-      opening: held.opening,
-      prompt: held.prompt,
-      steps: held.steps,
-      compactions: held.compactions,
-      openedAt: stampOf(held.prompt ?? held.opening),
-      endedAt: held.closedAt === null ? null : new Date(held.closedAt).toISOString(),
-      state: 'completed',
-      results,
-    })
+  const acc: TurnAcc = {
+    turns: [],
+    leading: [],
+    open: null,
+    blankTurn,
+    seal: () => sealTurn(acc, results),
   }
-  for (const message of messages) {
-    const role = roleOf(message)
-    if (role === 'skip') continue
-    if (role === 'compaction') {
-      if (open === null) leading.push(message)
-      else open.compactions.push(message)
-      continue
-    }
-    /* 工具结果与系统通知都不上屏：只记下这次运行此刻还有动静（插话判据要用） */
-    if (role === 'heard') {
-      if (open !== null) open.heardAt = laterOf(open.heardAt, closedAtOf(message))
-      continue
-    }
-    if (role === 'prompt' && open !== null && interjects(open, message)) {
-      open.steps.push(message)
-      continue
-    }
-    if (role !== null) {
-      seal()
-      open = blankTurn(message, role === 'prompt' ? message : null)
-      continue
-    }
-    if (open === null) open = blankTurn(message, null)
-    open.steps.push(message)
-    open.closedAt = laterOf(open.closedAt, closedAtOf(message))
-    open.heardAt = laterOf(open.heardAt, closedAtOf(message))
-    open.lastStop = message.stopReason
-  }
-  seal()
+  for (const message of messages) absorb(acc, message)
+  acc.seal()
+  const { turns, leading } = acc
   const newest = turns.at(-1)
   return {
     leading,
@@ -228,6 +189,63 @@ function screenTurns(
         ? [...turns.slice(0, -1), { ...newest, state: 'running', endedAt: null }]
         : turns,
   }
+}
+
+/** 分轮累加器的可变部分：一圈消息共用它，吸收每条消息时只改这一份状态 */
+interface TurnAcc {
+  readonly turns: ScreenTurn[]
+  readonly leading: OmpMessage[]
+  readonly blankTurn: (opening: OmpMessage, prompt: OmpMessage | null) => OpenTurn
+  readonly seal: () => void
+  open: OpenTurn | null
+}
+
+/** 把开着的那一轮封口：轮号是已有轮数 + 1，结果表整页共用一份 */
+function sealTurn(acc: TurnAcc, results: Map<string, ScreenResult>): void {
+  const held = acc.open
+  if (held === null) return
+  acc.open = null
+  acc.turns.push({
+    turn: acc.turns.length + 1,
+    opening: held.opening,
+    prompt: held.prompt,
+    steps: held.steps,
+    compactions: held.compactions,
+    openedAt: stampOf(held.prompt ?? held.opening),
+    endedAt: held.closedAt === null ? null : new Date(held.closedAt).toISOString(),
+    state: 'completed',
+    results,
+  })
+}
+
+/** 一条消息落进分轮累加器：开轮 / 插话 / 挂压缩 / 只记时刻 / 落进当前这一轮 */
+function absorb(acc: TurnAcc, message: OmpMessage): void {
+  const role = roleOf(message)
+  if (role === 'skip') return
+  if (role === 'compaction') {
+    if (acc.open === null) acc.leading.push(message)
+    else acc.open.compactions.push(message)
+    return
+  }
+  /* 工具结果与系统通知都不上屏：只记下这次运行此刻还有动静（插话判据要用） */
+  if (role === 'heard') {
+    if (acc.open !== null) acc.open.heardAt = laterOf(acc.open.heardAt, closedAtOf(message))
+    return
+  }
+  if (role === 'prompt' && acc.open !== null && interjects(acc.open, message)) {
+    acc.open.steps.push(message)
+    return
+  }
+  if (role !== null) {
+    acc.seal()
+    acc.open = acc.blankTurn(message, role === 'prompt' ? message : null)
+    return
+  }
+  if (acc.open === null) acc.open = acc.blankTurn(message, null)
+  acc.open.steps.push(message)
+  acc.open.closedAt = laterOf(acc.open.closedAt, closedAtOf(message))
+  acc.open.heardAt = laterOf(acc.open.heardAt, closedAtOf(message))
+  acc.open.lastStop = message.stopReason
 }
 
 function blankTurn(opening: OmpMessage, prompt: OmpMessage | null): OpenTurn {
@@ -360,38 +378,54 @@ function turnOps(
    * 助手消息即便一块都不上屏也要占一个号 —— 增量那条路在 message_start 就数了它。
    */
   const seen = { assistant: -1, extra: -1, interjections: 0 }
-  let step = 0
-  for (const message of entry.steps) {
-    if (roleOf(message) === 'prompt') {
-      seen.interjections += 1
-      ops.push(...interjectionOps(turn, step, message, interjectionFrameId(turn, seen.interjections), mediaRef))
-      step += 1
+  const cursor = { step: 0 }
+  for (const message of entry.steps) emitMessage(entry, message, ops, cursor, seen, turn, mediaRef)
+  return entry.state === 'running' ? markLastStepRunning(ops, turn) : ops
+}
+
+/** 一帧游标：段号跨消息累加，块之间的段号由它分配 */
+interface StepCursor {
+  step: number
+}
+
+/** 一条消息 → 若干 op：插话自占一段；其余消息按块切段，一次工具调用各占一段 */
+function emitMessage(
+  entry: ScreenTurn,
+  message: OmpMessage,
+  ops: TranscriptOperation[],
+  cursor: StepCursor,
+  seen: { assistant: number; extra: number; interjections: number },
+  turn: string,
+  mediaRef: MediaRef,
+): void {
+  if (roleOf(message) === 'prompt') {
+    seen.interjections += 1
+    ops.push(...interjectionOps(turn, cursor.step, message, interjectionFrameId(turn, seen.interjections), mediaRef))
+    cursor.step += 1
+    return
+  }
+  const idOf = frameIdsOf(turn, message, seen)
+  const at = stampOf(message)
+  const done = closedIsoOf(message)
+  const blocks = shownBlocksOf(entry, message)
+  if (blocks.length === 0) return
+  ops.push(stepOp(turn, cursor.step, 'completed', at, done))
+  let frame = 0
+  for (const block of blocks) {
+    if (block.kind === 'tool') {
+      // 一次工具调用占一个新段：入参与结果分成两段会被投影层认成两次调用
+      if (frame > 0) {
+        cursor.step += 1
+        frame = 0
+        ops.push(stepOp(turn, cursor.step, 'completed', at, done))
+      }
+      ops.push(toolOp(turn, cursor.step, block, entry.results.get(block.callId)))
       continue
     }
-    const idOf = frameIdsOf(turn, message, seen)
-    const at = stampOf(message)
-    const done = closedIsoOf(message)
-    const blocks = shownBlocksOf(entry, message)
-    let frame = 0
-    if (blocks.length === 0) continue
-    ops.push(stepOp(turn, step, 'completed', at, done))
-    for (const block of blocks) {
-      if (block.kind === 'tool') {
-        // 一次工具调用占一个新段：入参与结果分成两段会被投影层认成两次调用
-        if (frame > 0) {
-          step += 1
-          frame = 0
-          ops.push(stepOp(turn, step, 'completed', at, done))
-        }
-        ops.push(toolOp(turn, step, block, entry.results.get(block.callId)))
-        continue
-      }
-      ops.push(frameOp(turn, step, idOf(block.index), block))
-      frame += 1
-    }
-    step += 1
+    ops.push(frameOp(turn, cursor.step, idOf(block.index), block))
+    frame += 1
   }
-  return entry.state === 'running' ? markLastStepRunning(ops, turn) : ops
+  cursor.step += 1
 }
 
 /** 这条消息里块下标 → 帧号；助手消息与其余上屏消息各数各的（只有助手消息在增量那条路上有对应） */
