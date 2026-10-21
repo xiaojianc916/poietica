@@ -3,6 +3,8 @@ import type { Automation, AutomationDraft, AutomationRun, RunOutcome, RunTrigger
 
 /* 照 legacy 逐字搬迁的纯逻辑。差别只有数据形状两处：时间戳由 ISO 字符串换成毫秒数；会话配置换成 AutomationDraft 的三格。 */
 
+const pad2 = (n: number): string => String(n).padStart(2, '0')
+
 const MINUTE = 60_000
 const HOUR = 60 * MINUTE
 const DAY = 24 * HOUR
@@ -65,20 +67,42 @@ export const WEEKDAY_LABELS: Readonly<Record<Weekday, string>> = {
   6: '周六',
 }
 
+/** 界面上的星期顺序：周一到周日。cron 的数字顺序从周日起，展示不能跟着它走。 */
+export const WEEKDAY_ORDER = [1, 2, 3, 4, 5, 6, 0] as const
+
 interface CommonSchedule {
   readonly kind: CommonScheduleKind
   readonly time: string | null
+  readonly minute: number | null
   readonly weekday: Weekday | null
+  readonly weekdays: readonly Weekday[]
+  readonly dayOfMonth: number | null
 }
 
-const CLOCK_CRON = /^([0-5]?\d) ([01]?\d|2[0-3]) (\*|1) \* (\*|1-5|[0-7])$/
+const HOURLY_CRON = /^([0-5]?\d) \* \* \* \*$/
+const CLOCK_CRON = /^([0-5]?\d) ([01]?\d|2[0-3]) (\*|[1-9]|[12]\d|3[01]) \* (\*|1-5|[0-7](?:,[0-7])*)$/
+
+function weekdayListOf(field: string): readonly Weekday[] {
+  return field
+    .split(',')
+    .map((day) => (Number(day) % 7) as Weekday)
+    .filter((day, index, days) => days.indexOf(day) === index)
+}
 
 function commonScheduleOf(schedule: string | null): CommonSchedule | null {
-  if (schedule === '0 * * * *') {
-    return { kind: 'hourly', time: null, weekday: null }
-  }
   if (schedule === null) {
     return null
+  }
+  const hourly = HOURLY_CRON.exec(schedule)
+  if (hourly?.[1] !== undefined) {
+    return {
+      kind: 'hourly',
+      time: null,
+      minute: Number(hourly[1]),
+      weekday: null,
+      weekdays: [],
+      dayOfMonth: null,
+    }
   }
 
   const match = CLOCK_CRON.exec(schedule)
@@ -87,24 +111,46 @@ function commonScheduleOf(schedule: string | null): CommonSchedule | null {
   }
 
   const [, minute, hour, dayOfMonth, dayOfWeek] = match
-  if (minute === undefined || hour === undefined || dayOfWeek === undefined) {
+  if (minute === undefined || hour === undefined || dayOfMonth === undefined || dayOfWeek === undefined) {
     return null
   }
   const time = `${hour.padStart(2, '0')}:${minute.padStart(2, '0')}`
 
-  if (dayOfMonth === '1' && dayOfWeek === '*') {
-    return { kind: 'monthly', time, weekday: null }
-  }
   if (dayOfMonth !== '*') {
-    return null
+    if (dayOfWeek !== '*') {
+      return null
+    }
+    return {
+      kind: 'monthly',
+      time,
+      minute: Number(minute),
+      weekday: null,
+      weekdays: [],
+      dayOfMonth: Number(dayOfMonth),
+    }
   }
   if (dayOfWeek === '*') {
-    return { kind: 'daily', time, weekday: null }
+    return { kind: 'daily', time, minute: Number(minute), weekday: null, weekdays: [], dayOfMonth: null }
   }
   if (dayOfWeek === '1-5') {
-    return { kind: 'weekdays', time, weekday: null }
+    return {
+      kind: 'weekdays',
+      time,
+      minute: Number(minute),
+      weekday: null,
+      weekdays: [1, 2, 3, 4, 5],
+      dayOfMonth: null,
+    }
   }
-  return { kind: 'weekly', time, weekday: (Number(dayOfWeek) % 7) as Weekday }
+  const weekdays = weekdayListOf(dayOfWeek)
+  return {
+    kind: 'weekly',
+    time,
+    minute: Number(minute),
+    weekday: weekdays[0] ?? null,
+    weekdays,
+    dayOfMonth: null,
+  }
 }
 
 export function scheduleKindOf(schedule: string | null): ScheduleKind | null {
@@ -115,8 +161,20 @@ export function scheduleTimeOf(schedule: string | null): string | null {
   return commonScheduleOf(schedule)?.time ?? null
 }
 
+export function scheduleMinuteOf(schedule: string | null): number | null {
+  return commonScheduleOf(schedule)?.minute ?? null
+}
+
 export function scheduleWeekdayOf(schedule: string | null): Weekday | null {
   return commonScheduleOf(schedule)?.weekday ?? null
+}
+
+export function scheduleWeekdaysOf(schedule: string | null): readonly Weekday[] {
+  return commonScheduleOf(schedule)?.weekdays ?? []
+}
+
+export function scheduleDayOfMonthOf(schedule: string | null): number | null {
+  return commonScheduleOf(schedule)?.dayOfMonth ?? null
 }
 
 function timeParts(time: string): { readonly hour: number; readonly minute: number } {
@@ -130,10 +188,11 @@ function timeParts(time: string): { readonly hour: number; readonly minute: numb
 export function scheduleFor(
   kind: CommonScheduleKind,
   time: string = DEFAULT_SCHEDULE_TIME,
-  weekday: Weekday = 1,
+  weekdays: readonly Weekday[] = [1],
+  dayOfMonth = 1,
 ): string {
   if (kind === 'hourly') {
-    return '0 * * * *'
+    return [timeParts(time).minute, '*', '*', '*', '*'].join(' ')
   }
 
   const { hour, minute } = timeParts(time)
@@ -144,17 +203,24 @@ export function scheduleFor(
     return [minute, hour, '*', '*', '1-5'].join(' ')
   }
   if (kind === 'weekly') {
-    return [minute, hour, '*', '*', String(weekday)].join(' ')
+    const days = weekdays.length === 0 ? '1' : [...new Set(weekdays)].sort((a, b) => a - b).join(',')
+    return [minute, hour, '*', '*', days].join(' ')
   }
-  return [minute, hour, '1', '*', '*'].join(' ')
+  return [minute, hour, String(dayOfMonth), '*', '*'].join(' ')
 }
 
 export const DEFAULT_SCHEDULE = scheduleFor('daily')
 
-const SCHEDULE_LABEL: Record<Exclude<CommonScheduleKind, 'hourly' | 'weekly'>, string> = {
-  daily: '每天',
-  weekdays: '每工作日',
-  monthly: '每月 1 号',
+/** 本地时区偏移 → GMT 文案（zcode 的 formatGmtOffset 口径），半小时时区写成 GMT+5:30。 */
+export function formatGmtOffset(offsetMinutes = -new Date().getTimezoneOffset()): string {
+  if (offsetMinutes === 0) {
+    return 'GMT'
+  }
+  const sign = offsetMinutes > 0 ? '+' : '-'
+  const absolute = Math.abs(offsetMinutes)
+  const hours = Math.floor(absolute / 60)
+  const minutes = absolute % 60
+  return `GMT${sign}${hours}${minutes > 0 ? `:${pad2(minutes)}` : ''}`
 }
 
 export function describeSchedule(schedule: string | null): string {
@@ -166,16 +232,23 @@ export function describeSchedule(schedule: string | null): string {
     return schedule
   }
   if (common.kind === 'hourly') {
-    return '每小时'
+    return `每小时的第 ${pad2(common.minute ?? 0)} 分`
   }
   const time = common.time ?? DEFAULT_SCHEDULE_TIME
   if (common.kind === 'weekly') {
-    return `每${WEEKDAY_LABELS[common.weekday ?? 1]} ${time}`
+    const days = WEEKDAY_ORDER.filter((day) => common.weekdays.includes(day))
+      .map((day) => WEEKDAY_LABELS[day])
+      .join('、')
+    return `每周${days} ${time}`
   }
-  return `${SCHEDULE_LABEL[common.kind]} ${time}`
+  if (common.kind === 'monthly') {
+    return `每月 ${common.dayOfMonth ?? 1} 号 ${time}`
+  }
+  if (common.kind === 'weekdays') {
+    return `每工作日 ${time}`
+  }
+  return `每天 ${time}`
 }
-
-const pad2 = (n: number): string => String(n).padStart(2, '0')
 
 export function clockOf(at: number): string {
   const d = new Date(at)
