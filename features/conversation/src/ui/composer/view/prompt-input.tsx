@@ -7,7 +7,7 @@ import { PlainTextPlugin } from '@lexical/react/LexicalPlainTextPlugin'
 import { cn } from '@poietica/design-system'
 import type { SlashCommand } from '@poietica/engine'
 import { invariant } from '@poietica/foundation'
-import { FeatureScope, useContributions } from '@poietica/ui-kernel'
+import { FeatureScope, useContributions, useKernel } from '@poietica/ui-kernel'
 import {
   $createParagraphNode,
   $createTextNode,
@@ -269,6 +269,9 @@ function snapshotOf(
   return { assets, configuration, editorState: state.toJSON() }
 }
 
+/** 一条消息里最多带几张图片：这一批加上草稿里已有的会超，就整批拒绝，不先收下再丢。 */
+export const MAX_IMAGES_PER_SEND = 10
+
 function mergeAssets(
   current: readonly ComposerAsset[],
   incoming: readonly ComposerAsset[],
@@ -383,6 +386,7 @@ function PromptInputShell({
   const [editor] = useLexicalComposerContext()
   const intake = useAttachmentIntake()
   const drafts = useComposerDrafts()
+  const kernel = useKernel()
   /* 初值直接读编辑器此刻的状态：装回草稿不触发更新监听器，取空会让它在首次编辑之前发不出去。 */
   const [draftText, setDraftText] = useState<DraftProjection>(() => editor.getEditorState().read(readDraft))
   const [attachments, setAttachments] = useState<readonly ComposerAsset[]>(restored?.assets ?? NO_ATTACHMENTS)
@@ -532,6 +536,19 @@ function PromptInputShell({
      记号被退格删掉后字节仍在册子里，按「新来的」算，重挑一次就什么都不发生。 */
   const addAssets = useCallback(
     (incoming: readonly ComposerAsset[]) => {
+      /* 一条消息最多 10 张图片：这一批加上草稿里已有的会超，就整批拒绝，一张都不收。 */
+      const heldTokens = new Set(handoff.current.attachments.map((asset) => asset.assetToken))
+      const heldImages = handoff.current.attachments.filter((asset) => asset.kind === 'image').length
+      const newImages = incoming.filter((asset) => asset.kind === 'image' && !heldTokens.has(asset.assetToken)).length
+
+      if (heldImages + newImages > MAX_IMAGES_PER_SEND) {
+        kernel.kernelServices.banners.show({
+          severity: 'warning',
+          title: `一条消息最多发送 ${MAX_IMAGES_PER_SEND} 张图片，本次已拒绝`,
+        })
+        return
+      }
+
       flushSync(() => {
         setAttachments((current) => mergeAssets(current, incoming, multiple, maxFiles))
       })
@@ -548,7 +565,7 @@ function PromptInputShell({
         })
       }
     },
-    [editor, maxFiles, multiple],
+    [editor, kernel, maxFiles, multiple],
   )
 
   const attach = useCallback(
