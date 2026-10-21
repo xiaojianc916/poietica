@@ -182,16 +182,8 @@ export class SubagentLedger {
       outputTail,
       startedAt: previous?.startedAt ?? iso(this.o.now()),
       ...(previous?.endedAt === undefined ? {} : { endedAt: previous.endedAt }),
-      ...(typeof frame.progress?.resolvedModel === 'string'
-        ? { model: frame.progress.resolvedModel }
-        : previous?.model === undefined
-          ? {}
-          : { model: previous.model }),
-      ...(typeof frame.progress?.resolvedThinkingLevel === 'string'
-        ? { thinkingEffort: frame.progress.resolvedThinkingLevel }
-        : previous?.thinkingEffort === undefined
-          ? {}
-          : { thinkingEffort: previous.thinkingEffort }),
+      ...carried('model', frame.progress?.resolvedModel, previous?.model),
+      ...carried('thinkingEffort', frame.progress?.resolvedThinkingLevel, previous?.thinkingEffort),
     })
   }
 
@@ -216,6 +208,16 @@ function sameTask(left: TranscriptTask | undefined, right: TranscriptTask): bool
     left.thinkingEffort === right.thinkingEffort &&
     left.error === right.error
   )
+}
+
+/** 本帧报了就用本帧的，否则沿用上一帧的；都没有就不写这一格 */
+function carried(
+  key: 'model' | 'thinkingEffort',
+  reported: unknown,
+  previous: string | undefined,
+): Record<string, string> {
+  if (typeof reported === 'string') return { [key]: reported }
+  return previous === undefined ? {} : { [key]: previous }
 }
 
 function iso(ms: number): string {

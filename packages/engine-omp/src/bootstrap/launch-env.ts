@@ -41,24 +41,33 @@ export function captureLaunchEnv(env: Record<string, string | undefined> = proce
           removed.push(key)
         }
       }
-      // omp 自己认可的 provider 环境变量：.env 里写 ANTHROPIC_API_KEY 也会被 pi-ai 认出来，
-      // 所以按 provider 清单逐个删
-      const api = (await import('@oh-my-pi/pi-ai')) as {
-        listProvidersWithEnvKey?: () => string[]
-        getEnvApiKeyName?: (provider: string) => string | null
-      }
-      if (typeof api.listProvidersWithEnvKey === 'function' && typeof api.getEnvApiKeyName === 'function') {
-        for (const provider of api.listProvidersWithEnvKey()) {
-          const name = api.getEnvApiKeyName(provider)
-          if (name !== null && !kept.has(name) && env[name] !== undefined) {
-            delete env[name]
-            removed.push(name)
-          }
-        }
-      }
+      removed.push(...(await dropProviderKeys(env, kept)))
       return Object.freeze(removed)
     },
   }
+}
+
+interface ProviderEnvApi {
+  listProvidersWithEnvKey?: () => string[]
+  getEnvApiKeyName?: (provider: string) => string | null
+}
+
+/**
+ * omp 自己认可的 provider 环境变量：.env 里写 ANTHROPIC_API_KEY 也会被 pi-ai 认出来，
+ * 所以按 provider 清单逐个删。返回被删的键名。
+ */
+async function dropProviderKeys(env: Record<string, string | undefined>, kept: ReadonlySet<string>): Promise<string[]> {
+  const api = (await import('@oh-my-pi/pi-ai')) as ProviderEnvApi
+  if (typeof api.listProvidersWithEnvKey !== 'function' || typeof api.getEnvApiKeyName !== 'function') return []
+  const removed: string[] = []
+  for (const provider of api.listProvidersWithEnvKey()) {
+    const name = api.getEnvApiKeyName(provider)
+    if (name !== null && !kept.has(name) && env[name] !== undefined) {
+      delete env[name]
+      removed.push(name)
+    }
+  }
+  return removed
 }
 
 /** 测试与诊断用：本次进程是否已经快照过 */
