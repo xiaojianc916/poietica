@@ -1,7 +1,7 @@
 import '../shared/styles/surface.css'
 
 import { Banner, WorkspacePicker, type WorkspacePickerProps } from '@poietica/design-system'
-import { FeatureScope, type Observable, useContributions, useObservable } from '@poietica/ui-kernel'
+import { FeatureScope, type Observable, useContributions, useKernel, useObservable } from '@poietica/ui-kernel'
 import {
   memo,
   type ReactNode,
@@ -55,7 +55,7 @@ import { EmotionBall, ENTRY_EMOTION_GROUPS } from './mascot/emotion-ball'
 /* 连不上 agent 时输入区上沿那一句；原文（controlsFailure）只做 title。 */
 const DISCONNECTED = '没连上 agent，点击重试'
 
-/* 还没选项目：会话必须落在某个项目里，这里不提供「不在项目中工作」。 */
+/* 没选项目时 banner 里那句话。只在这一刻说，不做常驻 UI。 */
 const PROJECT_REQUIRED = '先选择或新建一个项目，才能发送消息'
 
 export interface AssistantSurfaceProps {
@@ -283,45 +283,39 @@ function usePrefill(draft: RefObject<PromptInputHandle | null>, endpoint: string
   }, [draft, endpoint, prefill])
 }
 
-/* 输入区上沿的前置条件：两条互不相关的「现在还不能发」各画一句，都不住工具栏。 */
+/* 连不上 agent：卡上沿一条提示，不在工具栏里冒充模型选择器。还没选项目不画常驻提示 —— 只有真的按发送时才用横幅说一次。 */
 function ComposerPreconditions({
   controlsFailure,
   onRetryControls,
-  workspaceRequired,
 }: {
   readonly controlsFailure: string | undefined
   readonly onRetryControls: (() => void | Promise<void>) | undefined
-  readonly workspaceRequired: boolean
 }): ReactNode {
-  /* 项目必选：还没选项目时，同一条提示的位置换成这一句；发送键同时禁用（见 AssistantComposer 的 submitDisabled）。 */
-  if (workspaceRequired) {
-    return <ComposerNotice message={PROJECT_REQUIRED} />
-  }
-
-  /* 连不上 agent：卡上沿一条提示，不在工具栏里冒充模型选择器。 */
   return controlsFailure === undefined ? null : (
     <ComposerNotice detail={controlsFailure} message={DISCONNECTED} onRetry={onRetryControls} />
   )
 }
-
 /* 提交这一句：搬出组件是为了让表面本体只留装配（复杂度上限 20）。 */
 function useSubmit({
   assistant,
   dismissOutput,
   routeCommand,
   setPhase,
+  onBlocked,
   workspaceRequired,
 }: {
   readonly assistant: AssistantSession
   readonly dismissOutput: () => void
   readonly routeCommand: (message: Omit<PromptInputMessage, 'queued'>) => boolean
   readonly setPhase: (phase: 'entry' | 'live') => void
+  readonly onBlocked: () => void
   readonly workspaceRequired: boolean
 }): (message: PromptInputMessage) => void {
   return useCallback(
     ({ queued, ...message }: PromptInputMessage) => {
       /* 没有项目就没有收件人：不转场、不发，草稿留在输入框里等用户先选项目。 */
       if (workspaceRequired) {
+        onBlocked()
         return
       }
       setPhase('live')
@@ -333,7 +327,7 @@ function useSubmit({
       /* 失败由横幅说：正常发送不看回执。 */
       void assistant.send(message, queued === true ? 'followUp' : undefined)
     },
-    [assistant.send, dismissOutput, routeCommand, workspaceRequired, setPhase],
+    [assistant.send, dismissOutput, onBlocked, routeCommand, workspaceRequired, setPhase],
   )
 }
 
@@ -367,6 +361,11 @@ export const AssistantSurface = memo(function AssistantSurface({
   workspace,
   workspaceRequired = false,
 }: AssistantSurfaceProps) {
+  const kernel = useKernel()
+  const showProjectRequired = useCallback(() => {
+    kernel.kernelServices.banners.show({ severity: 'warning', title: PROJECT_REQUIRED })
+  }, [kernel])
+
   const assistant = useAssistantSession({ endpoint, onUserMessage, prepare, session })
 
   /* 技能按 cwd 分层（omp 扫工作区）；线程行还没到（点头一帧）时退到全局活动工作区。 */
@@ -415,7 +414,14 @@ export const AssistantSurface = memo(function AssistantSurface({
     useCommandRouting(commands, { controls, controlsPending, onRenameThread, thread, usage })
 
   /* 发言就是那次转场，先于 send：这一刻起就是对话而非入口。`queued` 是人点名的「排队」，跑着时走 followUp 不打断。 */
-  const submit = useSubmit({ assistant, dismissOutput, routeCommand, setPhase, workspaceRequired })
+  const submit = useSubmit({
+    assistant,
+    dismissOutput,
+    onBlocked: showProjectRequired,
+    routeCommand,
+    setPhase,
+    workspaceRequired,
+  })
 
   const composerRef = useCallback(
     (handle: PromptInputHandle | null) => {
@@ -464,11 +470,7 @@ export const AssistantSurface = memo(function AssistantSurface({
       <CommandOutputSlot commands={commands} />
 
       {/* 输入区上沿的两条前置条件：连不上 agent / 还没选项目。 */}
-      <ComposerPreconditions
-        controlsFailure={controlsFailure}
-        onRetryControls={onRetryControls}
-        workspaceRequired={workspaceRequired}
-      />
+      <ComposerPreconditions controlsFailure={controlsFailure} onRetryControls={onRetryControls} />
 
       <AssistantComposer
         approval={approval}
@@ -488,11 +490,12 @@ export const AssistantSurface = memo(function AssistantSurface({
         plan={pendingPlan}
         onSelectControl={onSelectControl}
         onSubmit={submit}
+        onSubmitBlocked={showProjectRequired}
         question={question}
+        submitDisabled={workspaceRequired}
         ref={composerRef}
         skills={skills}
         status={assistant.status}
-        submitDisabled={workspaceRequired}
         usage={usage}
       />
     </div>

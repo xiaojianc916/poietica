@@ -57,6 +57,8 @@ export interface AssistantComposerProps {
   readonly onSelectControl: (controlId: string, value: string, input?: string) => void
   /** 还没选项目：发送键画灰，Enter 也不再提交（PromptInput 那一层一起挡）。 */
   readonly submitDisabled?: boolean | undefined
+  /** 没选项目时按了发送：交给横幅提示，不发也不清空草稿。 */
+  readonly onSubmitBlocked?: (() => void) | undefined
   readonly usage?: SessionUsage | undefined
   /** 非空时输入框长成问答面板，空着就是平常那个 composer。 */
   readonly question?: QuestionTimelineItem | null | undefined
@@ -171,6 +173,7 @@ export const AssistantComposer = memo(function AssistantComposer({
   ref,
   status = 'ready',
   onSubmit,
+  onSubmitBlocked,
   submitDisabled,
   ...toolbar
 }: AssistantComposerProps) {
@@ -211,6 +214,7 @@ export const AssistantComposer = memo(function AssistantComposer({
         onChange={onChange}
         onEngage={onEngage}
         onSubmit={onSubmit}
+        onSubmitBlocked={onSubmitBlocked}
         ref={ref}
         slashCommands={asking ? undefined : commands}
         submitDisabled={submitDisabled}

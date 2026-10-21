@@ -329,6 +329,8 @@ export interface PromptInputProps {
    * 只把发送键画灰、Enter 却还能发，是最难解释的一种「禁用」。
    */
   readonly submitDisabled?: boolean | undefined
+  /** 提交被挡（没选项目）时按了什么：叫一声就走，草稿原样留着。 */
+  readonly onSubmitBlocked?: (() => void) | undefined
 }
 
 interface PromptInputShellProps extends PromptInputProps {
@@ -382,6 +384,7 @@ function PromptInputShell({
   restored,
   slashCommands,
   submitDisabled = false,
+  onSubmitBlocked,
 }: PromptInputShellProps) {
   const [editor] = useLexicalComposerContext()
   const intake = useAttachmentIntake()
@@ -404,12 +407,14 @@ function PromptInputShell({
   const submit = useRef(onSubmit)
   const seeded = useRef(false)
   const blocked = useRef(submitDisabled)
+  const blockedNotice = useRef(onSubmitBlocked)
 
   handoff.current = { attachments, configuration: pendingConfiguration }
   report.current = onChange
   engage.current = onEngage
   submit.current = onSubmit
   blocked.current = submitDisabled
+  blockedNotice.current = onSubmitBlocked
 
   const listboxId = useId()
   /* HTML 不允许 form 嵌套（React 报 <form> cannot be a descendant of <form>），没有 onSubmit 时也没有提交语义，所以换成 div；
@@ -485,6 +490,7 @@ function PromptInputShell({
           /* 不许提交时把 Enter 吃掉：既不发出，也不在正文里插一个空行。 */
           if (blocked.current) {
             event.preventDefault()
+            blockedNotice.current?.()
             return true
           }
 
@@ -1032,7 +1038,12 @@ function PromptInputShell({
                 event.preventDefault()
 
                 /* 字段没有收信人、或这一刻不许发（还没选项目）：草稿不许被消费掉。 */
-                if (submit.current === undefined || blocked.current) {
+                if (submit.current === undefined) {
+                  return
+                }
+
+                if (blocked.current) {
+                  blockedNotice.current?.()
                   return
                 }
 
