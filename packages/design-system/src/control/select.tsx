@@ -3,7 +3,8 @@ import { Check, ChevronDown } from 'lucide-react'
 import type { ReactNode } from 'react'
 import { cn } from '../class-names'
 import { useOverlayRef } from '../overlay-presence'
-import { popupPositionerClassName, popupSurfaceClassName } from './popup-surface'
+import './menu.css'
+import { menuCardClassName, popupPositionerClassName, popupSurfaceClassName } from './popup-surface'
 
 /** 类型参数保留选项值的字面量联合，避免调用点转换形状或断言类型。 */
 export interface SelectOption<TValue extends string = string> {
@@ -34,26 +35,43 @@ export interface SelectProps<TValue extends string = string> {
 }
 
 /*
- * cn 靠后的类覆盖靠前的冲突类，调用点的 className 因此排在最后。
+ * 触发器照 zcode 的 SelectTrigger 默认档（variant=input, size=default）：
+ *   h-7 rounded-md pl-2 pr-1 text-ui-base/relaxed
+ *   底 bg-input（--color-input-surface），框 --color-input-border、悬停 --color-input-border-hover
+ *   （两支走 control/menu.css 的无层规则），聚焦换 --color-input-focused
+ *   箭头 [&_svg]:size-3.5
+ * 尺寸与字色一律用同一支输入框令牌，触发器因此与同一排的输入框同高同底。
  *
- * 触发器与展开的面板同属一个控件：底取 --ui-popover（收起与展开同色），框取
- * --ui-popover-trigger-frame（比面板那圈轻一档）。两处都由令牌给值。
+ * cn 靠后的类覆盖靠前的冲突类，调用点的 className 因此排在最后。
  */
 const TRIGGER = cn(
-  'flex items-center justify-between',
+  'flex w-fit items-center justify-between gap-1.5',
+  'border whitespace-nowrap',
   'text-left text-foreground',
   'outline-none',
-  'transition-[border-color,box-shadow,background-color]',
-  'focus-visible:ring-2',
-  'focus-visible:ring-ring',
-  'disabled:cursor-not-allowed',
-  'disabled:opacity-50',
-  'h-[26px] gap-1 px-2 text-xs',
-  'w-auto max-w-full rounded-lg border border-divider [--color-divider:var(--ui-popover-trigger-frame)] bg-popover hover:bg-[var(--ui-popup-highlight)] data-[popup-open]:bg-[var(--ui-popup-highlight)]',
+  /*
+   * zcode 的 transition-colors（只过渡颜色）。本仓原先过渡的是
+   * border-color/box-shadow/background-color —— box-shadow 会在每次进入时触发一次额外的绘制，
+   * 而这里根本不画阴影。
+   */
+  'transition-colors',
+  'focus-visible:ring-0',
+  'focus-visible:bg-[var(--ui-input-focused)]',
+  'disabled:cursor-not-allowed disabled:opacity-50',
+  'h-7 max-w-full rounded-md pl-2 pr-1 text-sm leading-relaxed',
+  /*
+   * 框色不在这里给：`* { border-color: var(--color-divider) }` 是无层规则，压得过 utilities。
+   * 这里只挂 ds-select-trigger，框色由 control/menu.css 里那条无层规则统一声明。
+   */
+  'ds-select-trigger',
+  'bg-[var(--color-input-surface)]',
 )
 
-/* 触发器与清单里的字都是这一个盒子：图标另起一格，字占住剩下的并自己省略号收尾。 */
-const VALUE = cn('min-w-0 flex-1', 'truncate')
+/*
+ * 文字那一格只做省略号，不挂 truncate：truncate 带 overflow:hidden，会把同一 flex 行里的箭头
+ * 一起裁掉（截图里箭头只露出一半就是这么来的）。省略号交给 text-overflow + whitespace-nowrap。
+ */
+const VALUE = cn('min-w-0 flex-1', 'overflow-hidden text-ellipsis whitespace-nowrap')
 
 const TRIGGER_VALUE = cn('flex min-w-0 flex-1', 'items-center gap-1.5')
 
@@ -63,27 +81,29 @@ const MARK = cn('flex shrink-0', 'items-center', 'text-muted-foreground')
  * ChevronDown 而不是 ChevronsUpDown：双向箭头说的是「有一根轴能上下走」，那是步进器与可搜索
  * 输入的记号。这里是有限离散值的弹出菜单，说的是「下面会展开一张列表」。
  */
-const ICON = cn('size-3.5', 'shrink-0', 'text-muted-foreground/60')
-
-/* 无分组标题，间距由列表承担，无需额外分组层。 */
-const LIST = cn('max-h-64', 'overflow-y-auto', 'overscroll-contain', 'p-1 outline-none', 'grid gap-0.5')
+const ICON = cn('size-3.5', 'shrink-0', 'text-muted-foreground')
 
 /*
- * 行高比触发器高 2px，字号与触发器同档：菜单是控件的展开，不是新界面。
+ * 列表这一层不再自己给内边距：卡的 p-1 已经给过（menuCardClassName），再补一层会让面板比菜单
+ * 多缩进 4px。行间那 2px 留给卡面的 gap-0.5，列表只负责滚动与上限。
+ */
+const LIST = cn('max-h-64', 'overflow-y-auto', 'overscroll-contain', 'outline-none', 'grid gap-0.5')
+
+/*
+ * 最小 28 高、圆角 6、内边距 4/8、字 14/1.625。
  *
- * 高亮是中性的：勾号说「当前生效的值」，高亮说「指针或键盘现在指着谁」。用 --ui-accent 去画
- * 一个瞬时指向，等于给临时状态派了个语义色，而它还是命令面板与菜单的全局强调色。
+ * 高亮是中性的：勾号说「当前生效的值」，高亮说「指针或键盘现在指着谁」。用它 --ui-accent 那一档，
+ * 与菜单行同一个产地。
  */
 const ITEM = cn(
   'group relative flex',
-  'min-h-7 px-2 text-xs',
+  'min-h-7 w-full px-2 py-1 text-sm leading-relaxed',
   'cursor-default select-none',
   'items-center gap-2',
-  'rounded-[5px]',
+  'rounded-sm',
   'outline-none',
-  'transition-colors',
-  'data-[highlighted]:bg-[var(--ui-popup-highlight)]',
-  'data-[highlighted]:text-[var(--ui-foreground)]',
+  'data-[highlighted]:bg-menu-hover',
+  'data-[highlighted]:text-foreground',
   'data-[disabled]:pointer-events-none',
   'data-[disabled]:opacity-50',
 )
@@ -168,8 +188,13 @@ export function Select<TValue extends string = string>({
           className={popupPositionerClassName}
           sideOffset={4}
         >
+          {/*
+           * 与 DropdownMenu 戴同一组卡面类（menuCardClassName 里的 ds-menu-card 是边框色与两个行
+           * 变体的挂点）：只戴 popupSurfaceClassName 的话，边框色会落回全局
+           * `* { border-color: var(--color-divider) }`，同一个应用里就出现两种菜单框。
+           */}
           <BaseSelect.Popup
-            className={popupSurfaceClassName}
+            className={cn(popupSurfaceClassName, menuCardClassName)}
             ref={overlayRef}
             style={{
               minInlineSize: `max(var(--anchor-width), ${POPUP_MIN_INLINE_SIZE})`,

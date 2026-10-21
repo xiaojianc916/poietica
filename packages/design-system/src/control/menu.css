@@ -1,13 +1,11 @@
 /*
  * 菜单行里那些「不属于行本身」的格子：图标、勾、两个变体的行高，以及浮层内部那条滚动条。
  *
- * 逐条照抄 DeepSeek Harness 的 Menu.module.css 与 MenuSurface.module.css
- * （@deepseek-ai/dsh-client-ui-primitives，装机版本 2026-10-01）：
- *   .item        34 高、圆角 12、内边距 6px 8px、字 13/20（在 control/popup-surface.ts）
- *   .itemIcon    14 一格，颜色读菜单图标那一档；.itemIcon svg 同为 14
- *   .check       14 一格，颜色走正文那一档，不伸缩
- *   .denseList   行 34 → 30（只压行距），标题行同样压一档
- *   .compactList 卡 156 起、圆角 12、行 24、圆角 8、字 11/17、间距 5、图标与勾 12、标题 10/15
+ * 菜单族的形制在 control/popup-surface.ts（照 zcode 的 DropdownMenu）：卡 8 圆角 + 1px 边线 +
+ * 实色底，行最小 28 高、圆角 6、内边距 4/8、字 14/1.625。这里补三件事：
+ *   .itemIcon   16 一格（正本 [&_svg]:size-4）；.check 16 一格
+ *   .denseList  行压到 24（只压行距，排版与卡宽不动）
+ *   .compactList 整档缩小（行 24、圆角 6、字 12/17、图标与勾 12、标题 11/15）
  *
  * 为什么是后代规则而不是把每一格都做成组件：图标与文字在调用点直接作为行的子级出现（组件不
  * 接管 children 的形状），而调用点自己那点 size-3.5 / text-xs 与工具类同层，谁赢只看生成
@@ -15,31 +13,67 @@
  * 这条约定才真的成立。
  */
 
-/* 选中那枚勾（正本 .check）：颜色是行字那一档。 */
+/*
+ * 卡面那圈线：与分隔线同一个值（zcode 的 border-popover-border 就是 --color-border，分隔线也用它）。
+ * 深色 rgba(255,255,255,.1) 压在 --ui-menu #2b2b2b 上是 #414141，浅色 rgba(13,13,13,.1) 压白底。
+ *
+ * 为什么写在无层规则里：`* { border-color: var(--color-divider) }` 也是无层规则，且特异级别更
+ * 低；同一层里 .ds-menu-card 这条赢。写成 utilities 的 border-* 反而会被那条 `*` 吃掉。
+ */
+.ds-menu-card,
+.ds-dialog {
+  border-color: var(--ui-menu-border);
+}
+
+/*
+ * 箭头 14 一格（zcode 的 [&_svg:not([class*='size-'])]:size-3.5）。
+ *
+ * 这里得压过全局那条 `:where(svg) { inline-size: var(--ui-icon) }`（16）。:where 的特异级别是 0，
+ * 所以 .ds-select-trigger 里任意一条后代规则都赢；写成无层规则是为了不跟工具类抢层级。
+ */
+/* 用 :where 把触发器这一格的自身特异度压到 0，与它上面两条同档，不构成倒挂。 */
+:where(.ds-select-trigger) > :where(span) > svg {
+  inline-size: 14px;
+  block-size: 14px;
+}
+/*
+ * 触发器（收起态）的框：zcode 的 border-input-border，悬停换 --color-input-border-hover。
+ * 与卡面那条同理 —— 必须是无层规则，才压得过全局的 `* { border-color: var(--color-divider) }`。
+ * 底色由 select.tsx 的 bg-[var(--color-input-surface)] 给（utilities 里没有别的规则抢这一格）。
+ */
+.ds-select-trigger {
+  border-color: var(--color-input-border);
+}
+
+.ds-select-trigger:hover:not(:disabled) {
+  border-color: var(--color-input-border-hover);
+}
+
+/* 选中那枚勾（正本 .check）：颜色跟随行字。 */
 .ds-menu-check {
   display: inline-flex;
   flex: none;
   align-items: center;
   justify-content: center;
-  inline-size: 14px;
-  block-size: 14px;
-  color: var(--ui-popup-ink);
+  inline-size: 16px;
+  block-size: 16px;
+  color: currentcolor;
 }
 
-/* 行首图标：14 一格（正本 .itemIcon 与其 svg）。 */
+/* 行首图标：16 一格（正本 [&_svg:not([class*='size-'])]:size-4）。 */
 .ds-menu-item > svg {
-  inline-size: 14px;
-  block-size: 14px;
+  inline-size: 16px;
+  block-size: 16px;
 }
 
 .ds-menu-check > svg {
-  inline-size: 14px;
-  block-size: 14px;
+  inline-size: 16px;
+  block-size: 16px;
 }
 
 /*
  * 图标不跟正文同色，走 --ui-popup-icon（正本 --dsw-alias-menu-icon，比正文浅一档）。
- * 危险行例外：整行已经是红的，图标跟着行走（正本用 .danger 覆盖一次，这里用同一个判据）。
+ * 危险行例外：整行已经是红的，图标跟着行走（正本用 data-variant=destructive 覆盖一次）。
  *
  * 这条比上面两条多一档 :not，放在后面让特异级别一路向上，不出现倒挂。
  */
@@ -60,28 +94,28 @@
   display: none;
 }
 
-/* dense：只压行距，排版与卡宽不动（正本 .denseList；标题行同样压一档）。 */
+/* dense：只压行距，排版与卡宽不动。 */
 .ds-menu-card.ds-menu-dense .ds-menu-item {
   min-height: var(--ui-menu-row-height-dense);
-  padding-block: 4px;
+  padding-block: 2px;
 }
 
 .ds-menu-card.ds-menu-dense .ds-menu-label {
   padding-block: 3px;
 }
 
-/* compact：整档缩小（正本 .compactList 与 MenuSurface 的 .compact）。 */
+/* compact：整档缩小。 */
 .ds-menu-card.ds-menu-compact {
   min-width: 156px;
-  border-radius: var(--ui-radius-xl);
+  gap: 1px;
 }
 
 .ds-menu-card.ds-menu-compact .ds-menu-item {
   min-height: var(--ui-menu-row-height-compact);
-  gap: 5px;
+  gap: 6px;
   padding: 2px 6px;
-  border-radius: var(--ui-radius-md);
-  font-size: 11px;
+  border-radius: var(--ui-radius-sm);
+  font-size: 12px;
   line-height: 17px;
 }
 
@@ -93,28 +127,17 @@
 }
 
 .ds-menu-card.ds-menu-compact .ds-menu-separator {
-  margin: 2px;
+  margin: 4px -4px;
 }
 
 .ds-menu-card.ds-menu-compact .ds-menu-label {
   padding: 3px 6px;
-  font-size: 10px;
+  font-size: 11px;
   line-height: 15px;
 }
 
 /*
- * 浮层内部那条滚动条：正本把 elevation 的 l2 两档改绑在这一层（Menu.module.css 的
- * --dsh-scrollbar-thumb*），滑块于是比页面那条亮一档，压在玻璃卡上才看得见。改绑只在本卡片内
- * 生效 —— 自定义属性继承到真正滚动的那个后代身上，全仓其余滚动区不受影响。
- */
-.ds-menu-card {
-  --ui-scrollbar-thumb: var(--ui-popup-scrollbar-thumb);
-  --ui-scrollbar-thumb-hover: var(--ui-popup-scrollbar-thumb-hover);
-}
-
-/*
  * 名单滚起来时的高度上限（正本 .scrollable）：卡最多到视口下沿再让 12px，更多内容在卡内滚。
- * 正本上面那一段是 macOS 的窗口层内缩，本仓没有那一层，取同一个 12。
  */
 .ds-menu-scrollable {
   max-height: calc(100vh - 24px);

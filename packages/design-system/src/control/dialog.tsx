@@ -4,6 +4,7 @@ import { type ReactNode, useRef } from 'react'
 import { cn } from '../class-names'
 import { useOverlayRef } from '../overlay-presence'
 import { Button } from './button'
+import './menu.css'
 
 export interface DialogProps {
   readonly open: boolean
@@ -126,10 +127,11 @@ export function Dialog({
               'flex-col gap-4 overflow-hidden',
               'rounded-2xl border',
               /*
-               * 弹窗的框在深色下不能读区域线那格：16% 白压在 #2a2a2a 上兑出 #4c4c4c，比它与遮罩的对比还亮。
-               * 取浮层族的框色，与 zcode 的 border-popover-border 同一档。
+               * 框色不在这里给：``* { border-color: var(--color-divider) }`` 是无层规则，压得过 utilities
+               * （写 border-[var(--…)] 会被它整个吃掉）。这里只挂 ds-dialog，卡面那圈框由
+               * control/menu.css 里那条无层规则统一声明成 zcode 的 border-popover-border 档位。
                */
-              'border-[var(--ui-popover-trigger-frame)]',
+              'ds-dialog',
               /*
                * 与浮层同一张脸：对话框也是浮起来的一层，深色下浮层那格比页面底色抬一档（见
                * tokens/dark.css）。

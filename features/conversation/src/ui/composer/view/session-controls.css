@@ -93,7 +93,7 @@
 [data-assistant-skin] .assistant-model-select__head:hover,
 [data-assistant-skin] .assistant-model-select__head[data-highlighted] {
   outline: none;
-  background: var(--ui-popup-highlight);
+  background: var(--ui-menu-hover);
 }
 
 .assistant-model-select__head-band {

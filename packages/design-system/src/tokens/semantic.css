@@ -25,6 +25,10 @@
   --color-divider: var(--ui-divider);
   --color-border: var(--ui-border);
   --color-input: var(--ui-input);
+  /* 输入框族的另三支：zcode 的 bg-input / border-input-border / border-input-border-hover。 */
+  --color-input-surface: var(--ui-input-surface);
+  --color-input-border: var(--ui-input-border);
+  --color-input-border-hover: var(--ui-input-border-hover);
   --color-ring: var(--ui-ring);
 
   --color-primary: var(--ui-primary);
@@ -44,6 +48,11 @@
 
   --color-popover: var(--ui-popover);
   --color-popover-foreground: var(--ui-popover-foreground);
+
+  /* 菜单的表面与线：zcode 的 bg-menu / bg-menu-hover / border-popover-border 三支。 */
+  --color-menu: var(--ui-menu);
+  --color-menu-hover: var(--ui-menu-hover);
+  --color-menu-border: var(--ui-menu-border);
 
   --color-destructive: var(--ui-destructive);
   --color-destructive-foreground: var(--ui-destructive-foreground);

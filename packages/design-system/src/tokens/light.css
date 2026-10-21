@@ -60,6 +60,17 @@
   --ui-surface-frame: #e4e4e4;
   --ui-surface-shadow: 0 1px 2px rgb(0 0 0 / 2%);
   --ui-input: var(--ui-palette-neutral-300);
+
+  /*
+   * 输入框族，照抄 zcode 的 --color-input / --color-input-border / --color-input-border-hover /
+   * --color-input-focused（styles.css 的 .theme-zai-light）：底白、框取 --color-border
+   * （rgba(13,13,13,.1)），悬停换成 .15 那档，聚焦底色不跳。
+   */
+  --ui-input-surface: #ffffff;
+  /* 与 --ui-menu-border 同一个道理：写「兑好之后」的实色。 */
+  --ui-input-border: #e6e6e6;
+  --ui-input-border-hover: #d9d9d9;
+  --ui-input-focused: #ffffff;
   --ui-ring: var(--ui-palette-blue-500);
 
   --ui-primary: var(--ui-palette-blue-500);
@@ -87,6 +98,21 @@
   --ui-accent-foreground: oklch(0.2 0.01 90);
 
   --ui-popover: #ffffff;
+
+  /*
+   * 菜单表面：照抄 zcode 的 --color-menu 与 --color-menu-hover（styles.css 的 .theme-zai-light）。
+   * 浅色下菜单就是白卡，悬停 #f0f0f0；与深色那一组同名同构，两套主题各自成立。
+   */
+  --ui-menu: #ffffff;
+  --ui-menu-hover: #f0f0f0;
+
+  /*
+   * 菜单的线：边框与分隔线是同一个值。
+   *
+   * zcode 写的是 rgba(13,13,13,.1)，兑在 #ffffff 上是 #e6e6e6；本仓半透明 1px 边框会被抗锯齿与
+   * 底色再混一次，所以这里同样直接写兑好之后的实色。
+   */
+  --ui-menu-border: #e6e6e6;
   --ui-popover-foreground: var(--ui-foreground);
 
   /*

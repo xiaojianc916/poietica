@@ -47,6 +47,17 @@
   --ui-surface-frame: #2a2a2a;
   --ui-surface-shadow: 0 1px 2px rgb(0 0 0 / 18%);
   --ui-input: rgb(255 255 255 / 24%);
+
+  /*
+   * 输入框族，照抄 zcode 的 --color-input / --color-input-border / --color-input-border-hover /
+   * --color-input-focused（styles.css 的 .theme-zai-dark）：底与菜单同格 #2b2b2b，框取
+   * --color-border（rgba(255,255,255,.1)），悬停换成 .15 那档，聚焦底色不跳。
+   */
+  --ui-input-surface: #2b2b2b;
+  /* 与 --ui-menu-border 同一个道理：写「兑好之后」的实色，不让抗锯齿再混一次。 */
+  --ui-input-border: #414141;
+  --ui-input-border-hover: #4d4d4d;
+  --ui-input-focused: #2b2b2b;
   /* 焦点色：比主色淡一档的蓝，输入框的焦点边框与各控件的焦点环同一个值。 */
   --ui-ring: #6e9ecc;
 
@@ -72,6 +83,23 @@
    * 与它同色。
    */
   --ui-popover: #2a2a2a;
+
+  /*
+   * 菜单表面：照抄 zcode 的 --color-menu 与 --color-menu-hover（styles.css 的 .theme-zai-dark）。
+   * 菜单是贴着一个控件展开的实色卡，与浮层族不是同一个材质 —— 它的底比 --ui-popover 亮一格，
+   * 悬停再抬一格，两格都在源码里写死了值，这里照抄，不再用「与某支令牌同档」去凑。
+   */
+  --ui-menu: #2b2b2b;
+  --ui-menu-hover: #363636;
+
+  /*
+   * 菜单的线：边框与分隔线是同一个值。
+   *
+   * zcode 源码写的是 --color-border: rgba(255,255,255,.1)；它在屏幕上呈什么颜色取决于浏览器怎样把
+   * 半透明叠到 #2b2b2b 上（Chromium 按 oklab 插值，落在 #414141）。本仓半透明 1px 边框会被抗锯齿
+   * 与底色混一次，量出来偏暗；所以这里直接写「兑出来之后」的实色 #414141，屏幕上是同一个数。
+   */
+  --ui-menu-border: #414141;
   /* 与 light.css 同构：浮层上的字就是默认前景色，不另开一档白。 */
   --ui-popover-foreground: var(--ui-foreground);
   /* 与 light.css 同构：材质、elevation、行高亮与内线都取正本那四条令牌的深色值。 */
