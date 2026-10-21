@@ -413,32 +413,7 @@ function applyItemsRemove(state: AgentState, ids: readonly string[]): ApplyResul
   )
   const items = state.items.filter((entry) => !drop.has(itemIdOf(entry)))
   if (items.length === state.items.length) return { state, changed: false }
-  let pending = state.pendingInteractions
-  let interactions = state.interactions
-  if (removedTurns.length > 0) {
-    const anchoredToolCallIds = new Set<string>()
-    const nextPending = new Set(pending)
-    const deadEntityIds = new Set<InteractionId>()
-    for (const turn of removedTurns) {
-      for (const step of turn.steps) {
-        for (const frame of step.frames) {
-          if (frame.kind === 'tool') anchoredToolCallIds.add(frame.toolCallId)
-        }
-      }
-    }
-    for (const interaction of interactions.values()) {
-      if (interaction.toolCallId !== undefined && anchoredToolCallIds.has(interaction.toolCallId)) {
-        deadEntityIds.add(interaction.interactionId)
-        nextPending.delete(interaction.interactionId)
-      }
-    }
-    if (deadEntityIds.size > 0) {
-      const nextInteractions = new Map(interactions)
-      for (const id of deadEntityIds) nextInteractions.delete(id)
-      interactions = nextInteractions
-    }
-    pending = nextPending
-  }
+  const { interactions, pending } = dropAnchoredInteractions(state, removedTurns)
   return {
     state: {
       ...state,
@@ -449,6 +424,55 @@ function applyItemsRemove(state: AgentState, ids: readonly string[]): ApplyResul
     },
     changed: true,
   }
+}
+
+/**
+ * 被删掉的那几轮带着工具调用一起走了：锚在那些调用上的审批 / 提问也随之作废 ——
+ * 卡片还挂着，却永远不会有人来答。返回摘干净之后的交互表与待答集合。
+ */
+function dropAnchoredInteractions(
+  state: AgentState,
+  removedTurns: readonly TranscriptTurn[],
+): { interactions: AgentState['interactions']; pending: AgentState['pendingInteractions'] } {
+  if (removedTurns.length === 0) {
+    return { interactions: state.interactions, pending: state.pendingInteractions }
+  }
+  const anchoredToolCallIds = toolCallIdsOf(removedTurns)
+  const pending = new Set(state.pendingInteractions)
+  const deadEntityIds = deadInteractionIds(state.interactions, anchoredToolCallIds, pending)
+  if (deadEntityIds.size === 0) return { interactions: state.interactions, pending }
+  const interactions = new Map(state.interactions)
+  for (const id of deadEntityIds) interactions.delete(id)
+  return { interactions, pending }
+}
+
+/** 这几轮里所有工具调用的号（审批 / 提问就是锚在它们上面的） */
+function toolCallIdsOf(turns: readonly TranscriptTurn[]): Set<string> {
+  const ids = new Set<string>()
+  for (const turn of turns) {
+    for (const step of turn.steps) {
+      for (const frame of step.frames) {
+        if (frame.kind === 'tool') ids.add(frame.toolCallId)
+      }
+    }
+  }
+  return ids
+}
+
+/** 锚在已删工具调用上的交互：它们已经没人能答，顺手从待答集合里摘掉 */
+function deadInteractionIds(
+  interactions: AgentState['interactions'],
+  anchoredToolCallIds: ReadonlySet<string>,
+  pending: Set<InteractionId>,
+): Set<InteractionId> {
+  const dead = new Set<InteractionId>()
+  for (const interaction of interactions.values()) {
+    const toolCallId = interaction.toolCallId
+    if (toolCallId === undefined || !anchoredToolCallIds.has(toolCallId)) continue
+    dead.add(interaction.interactionId)
+    pending.delete(interaction.interactionId)
+  }
+  return dead
 }
 
 function applyTaskUpsert(state: AgentState, task: TranscriptTask): ApplyResult {
@@ -587,31 +611,28 @@ function phaseEquals(a: AgentPhaseMeta | undefined, b: AgentPhaseMeta | undefine
 }
 
 function applyMetaMerge(state: AgentState, meta: TranscriptMetaMerge): ApplyResult {
-  const modes =
-    meta.modes !== undefined
-      ? {
-          plan: meta.modes.plan === null ? undefined : (meta.modes.plan ?? state.meta.modes?.plan),
-          swarm: meta.modes.swarm === null ? undefined : (meta.modes.swarm ?? state.meta.modes?.swarm),
-          tower: meta.modes.tower === null ? undefined : (meta.modes.tower ?? state.meta.modes?.tower),
-        }
-      : state.meta.modes
-  const agent = meta.agent !== undefined ? { ...state.meta.agent, ...meta.agent } : state.meta.agent
   const next: TranscriptMeta = {
     goal: meta.goal === null ? undefined : (meta.goal ?? state.meta.goal),
     activity: meta.activity ?? state.meta.activity,
-    modes:
-      modes !== undefined && modes.plan === undefined && modes.swarm === undefined && modes.tower === undefined
-        ? undefined
-        : modes,
-    agent,
+    modes: mergedModes(state.meta.modes, meta.modes),
+    agent: meta.agent !== undefined ? { ...state.meta.agent, ...meta.agent } : state.meta.agent,
   }
-  if (
-    next.goal === state.meta.goal &&
-    next.activity === state.meta.activity &&
-    next.modes === state.meta.modes &&
-    agentMetaEquals(next.agent ?? {}, state.meta.agent ?? {})
-  ) {
-    return { state, changed: false }
-  }
+  if (!metaChanged(state.meta, next)) return { state, changed: false }
   return { state: { ...state, meta: next }, changed: true }
+}
+
+/** 三档模式的合并：null = 显式关掉，undefined = 没提这一档就沿用旧值；三档都空则整格收起 */
+function mergedModes(held: TranscriptMeta['modes'], patch: TranscriptMetaMerge['modes']): TranscriptMeta['modes'] {
+  if (patch === undefined) return held
+  const modes = {
+    plan: patch.plan === null ? undefined : (patch.plan ?? held?.plan),
+    swarm: patch.swarm === null ? undefined : (patch.swarm ?? held?.swarm),
+    tower: patch.tower === null ? undefined : (patch.tower ?? held?.tower),
+  }
+  return modes.plan === undefined && modes.swarm === undefined && modes.tower === undefined ? undefined : modes
+}
+
+function metaChanged(held: TranscriptMeta, next: TranscriptMeta): boolean {
+  if (next.goal !== held.goal || next.activity !== held.activity || next.modes !== held.modes) return true
+  return !agentMetaEquals(next.agent ?? {}, held.agent ?? {})
 }
