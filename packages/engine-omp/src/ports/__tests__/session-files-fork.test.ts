@@ -5,8 +5,10 @@ import path from 'node:path'
 import { SessionManager } from '@oh-my-pi/pi-coding-agent/session/session-manager'
 import { noopLogger, SystemErrorCode } from '@poietica/foundation'
 import { type OmpMessage, projectHistoryPage } from '../../projector/history'
+import { hashMediaRef } from '../../projector/media'
 import { GOAL_CONTINUATION_TYPE, SKILL_MESSAGE_TYPE } from '../../session/prompt'
 import { OmpSessionFilesPort } from '../session-files'
+import { SessionHistoryReader } from '../session-history'
 
 /*
  * 分叉按**轮号**截（`keepTurns` = 时间线上那一轮的 turn.ordinal），并且截断要**落盘**。
@@ -19,6 +21,13 @@ import { OmpSessionFilesPort } from '../session-files'
 
 const made: string[] = []
 const noGc = async () => ({ deletedFiles: 0, freedBytes: 0, errors: [] })
+const history = (): SessionHistoryReader =>
+  new SessionHistoryReader({
+    mediaRef: hashMediaRef,
+    obfuscatorFor: async () => undefined,
+    now: () => 0,
+    logger: noopLogger,
+  })
 afterEach(() => {
   for (const dir of made.splice(0)) rmSync(dir, { recursive: true, force: true })
 })
@@ -68,7 +77,11 @@ async function sessionOf(steps: readonly Step[]): Promise<{ port: OmpSessionFile
   const file = manager.getSessionFile()
   await manager.close()
   if (file === undefined) throw new Error('omp 没有落盘')
-  return { port: new OmpSessionFilesPort({ sessionDir: dir, mediaGc: noGc, logger: noopLogger }), file, dir }
+  return {
+    port: new OmpSessionFilesPort({ sessionDir: dir, mediaGc: noGc, history: history(), logger: noopLogger }),
+    file,
+    dir,
+  }
 }
 
 /** 重开一份会话文件，按时间线的历史分页画出来：每轮的开场一句 + 正文 */

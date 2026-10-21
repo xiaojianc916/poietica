@@ -2,7 +2,7 @@ import type { AgentEngine, EngineSession, ModelRef, Posture } from '@poietica/en
 import type { AttachmentsService } from '@poietica/feature-attachments/core-api'
 import type { WorkspacesService } from '@poietica/feature-workspaces/core-api'
 import { AppError, type Clock, createId, type Logger } from '@poietica/foundation'
-import { MAIN_AGENT_ID, type Thread, type TurnState } from '../contract/entities'
+import type { Thread, TurnState } from '../contract/entities'
 import { conversationErrors } from '../contract/errors'
 import type { ReclaimRepository } from './reclaim-repository'
 import type { ThreadRow, ThreadsRepository } from './repository'
@@ -209,8 +209,8 @@ export class ThreadService {
   onOpened(threadId: string, session: EngineSession): void {
     const row = this.d.repo.get(threadId)
     if (row === null) return
-    // 线程已有通道（会话被驱逐后又打开）→ 换 epoch，UI 整页重取
-    if (this.d.hub.has(threadId, MAIN_AGENT_ID)) this.d.hub.resetThread(threadId)
+    // 发过增量的通道（会话被驱逐后又打开）→ 换 epoch，UI 整页重取；只被冷读订阅过的通道不换（见 TimelineHub.resetAdvanced）
+    this.d.hub.resetAdvanced(threadId)
     if (row.sessionFile !== session.sessionFile) {
       // session_id 与 session_file 必须同时写（库里的 CHECK 约束）
       this.d.repo.update(threadId, { sessionId: session.sessionId, sessionFile: session.sessionFile })

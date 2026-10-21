@@ -4,10 +4,19 @@ import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { EngineErrorCode } from '@poietica/engine'
 import { noopLogger } from '@poietica/foundation'
+import { hashMediaRef } from '../../projector/media'
 import { OmpSessionFilesPort } from '../session-files'
+import { SessionHistoryReader } from '../session-history'
 
 const made: string[] = []
 const noGc = async () => ({ deletedFiles: 0, freedBytes: 0, errors: [] })
+const history = (): SessionHistoryReader =>
+  new SessionHistoryReader({
+    mediaRef: hashMediaRef,
+    obfuscatorFor: async () => undefined,
+    now: () => 0,
+    logger: noopLogger,
+  })
 afterEach(() => {
   for (const dir of made.splice(0)) rmSync(dir, { recursive: true, force: true })
 })
@@ -17,7 +26,7 @@ function makePort(): { port: OmpSessionFilesPort; sessions: string; workspace: s
   const workspace = mkdtempSync(path.join(tmpdir(), 'poietica-ws-'))
   made.push(sessions, workspace)
   return {
-    port: new OmpSessionFilesPort({ sessionDir: sessions, mediaGc: noGc, logger: noopLogger }),
+    port: new OmpSessionFilesPort({ sessionDir: sessions, mediaGc: noGc, history: history(), logger: noopLogger }),
     sessions,
     workspace,
   }

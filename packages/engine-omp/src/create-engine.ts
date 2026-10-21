@@ -117,6 +117,7 @@ export async function createOmpEngineWith(o: CreateEngineOptions, seams: EngineT
     registry,
     authStorage,
     sessions: liveSessions,
+    mediaRef,
   })
   // 先把引擎建出来（它持有工具表的唯一真相）再交给 SessionFactory：两份 Map 会让 registerTool 写进 A、会话从 B 读
   let factory: SessionFactory | null = null

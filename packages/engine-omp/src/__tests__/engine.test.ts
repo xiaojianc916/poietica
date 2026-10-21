@@ -106,6 +106,16 @@ function makeEngine(over: Partial<ConstructorParameters<typeof OmpEngine>[0]> = 
     },
     sessionFiles: {
       exists: async () => true,
+      readPage: async () => ({
+        items: [],
+        tasks: [],
+        interactions: [],
+        attachments: [],
+        todos: [],
+        prompts: [],
+        meta: {},
+        hasMoreOlder: false,
+      }),
       fork: async () => ({ sessionId: 'x', sessionFile: 'y' }),
       rename: async () => undefined,
       delete: async () => undefined,

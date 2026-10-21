@@ -16,7 +16,7 @@
 | Q28 | 2026-10-07 | 图片进模型上下文的通道 | **已裁决**：删掉 `media(fileId)`，图片只走内联（`attachment.upsert` 的 data URL） |
 | Q32 | 2026-10-09 | `~/.agents` 曾被列入 14 个外来 provider 的禁用表，导致 `~/.agents/skills` 的技能不出现 | **已裁决**：按 legacy 放行 `agents`（14 → 13），新增 `RELEASED_PROVIDERS` 供升级时撤销旧禁用 |
 | Q33 | 2026-10-09 | `auto_compaction_end` 的 `timelineReset('main')` 会在开着轮时整页重取，与增量投影编号打架 | **已结清（R-21）**：压缩收口改走增量 op，不再重取；`timelineReset` 只留给 `/compact` 这类本地命令（`session.ts`） |
-| Q39 | 2026-10-10 | 只是「看一眼」历史对话也要冷启动完整 AgentSession：`timeline.subscribe` / `controls.get` 都 acquire（拉起工具与 MCP） | 未决。可选路径：引擎端口加只读 `sessionFiles.readPage(...)`，会话不在池里时 `subscribe` 走它，第一次发送才 acquire。采纳需重审 R-03「先 acquire 再 position」的前提 |
+| Q39 | 2026-10-10 | 只是「看一眼」历史对话也要冷启动完整 AgentSession：`timeline.subscribe` / `controls.get` 都 acquire（拉起工具与 MCP） | **时间线已结清（性能方案 P1）**：引擎端口加只读 `sessionFiles.readPage`（与「重开再 page()」同一页，一致性 C-READ-PAGE），`timeline.subscribe` / `timeline.page` 不再 acquire；打开时只给这一代发过增量的通道换代（`TimelineHub.resetAdvanced`），「先 acquire 再取位置」的前提随之撤掉。`controls.get` / `queue.get` / `commands.list` / `side.list` 仍随 `threads.open` 预热打开 —— 控件表里的目标与上下文用量要活会话，留给后续方案 |
 | Q40 | 2026-10-12 | ticker 极快档（≥200 字/秒）仍有可见顿挫：应动未动 41%、sJ90 1.43。正确性不受影响 | 已知局限，不跟踪；真机若明显再让设定值随速度变化 |
 | Q41 | 2026-10-12 | 换句的上下刷仍带 260ms 透明度变化；规格给了「翻牌式」可选项 | 未决，等真机观感定 |
 | Q43 | 2026-10-14 | `docs/omp-sdk-reference.md` 曾停在 18.5.0（relay 缺陷正是照旧文档核对漏出来的） | **已结清（R-33）**：行号锚点可机检（`check:omp-doc`）。升级 omp 时仍按 AGENTS §11 逐项核对内容 |

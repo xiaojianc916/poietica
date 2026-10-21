@@ -53,6 +53,14 @@ export class TimelineChannel {
     return this.epoch
   }
 
+  /**
+   * 这一代里发过（或正压着）增量没有。没有 = 订阅者手里的每一页都只来自整页读（会话池里没有会话时就是会话文件的冷读），
+   * 会话再打开时不必换代（见 TimelineHub.resetAdvanced）。
+   */
+  advanced(): boolean {
+    return this.seq > 0 || this.pending.length > 0 || this.held.size > 0
+  }
+
   push(ops: readonly TranscriptOperation[]): void {
     if (ops.length === 0) return
     for (const op of ops) this.accept(op)
@@ -146,7 +154,7 @@ export class TimelineChannel {
   /**
    * 只丢弃补发用的历史：不换 epoch、不重置 seq、不通知 UI（R-05 §3.2）。
    *
-   * 会话被池子释放后这段环形缓存没有用处 —— 下次真的打开时会走 resetThread 换 epoch。
+   * 会话被池子释放后这段环形缓存没有用处 —— 下次真的打开时会走 resetAdvanced 换 epoch。
    * 之后的 catchUp 因缓存为空返回 complete:false，UI 整读；这里不能 reset，
    * 那会让 UI 立刻整读并 acquire 会话，刚驱逐就被重新打开。
    */

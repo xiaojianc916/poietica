@@ -139,6 +139,18 @@ interface SideRun {
   cancelled: boolean
 }
 
+/**
+ * 一份 ops 账 → 一页时间线。活会话的 page() 与端口的冷读 readPage() 都从这里出：替身里两条路天然同一页。
+ * 替身不派子代理：认不出的通道号按端口约定交空页，不抛。
+ */
+function pageOfOps(ops: readonly TranscriptOperation[], agentId: string, beforeTurnId: string | null): TranscriptPage {
+  if (agentId !== 'main') return pageFromState(emptyTimeline())
+  const page = pageFromState(applyOps(emptyTimeline(), ops))
+  if (beforeTurnId === null) return page
+  const limit = Number(beforeTurnId.slice(1))
+  return { ...page, items: page.items.filter((item) => item.kind !== 'turn' || item.ordinal < limit) }
+}
+
 class FakeSession implements EngineSession {
   readonly sessionId = `fake-${createId()}`
   readonly sessionFile: string
@@ -699,13 +711,7 @@ class FakeSession implements EngineSession {
   }
 
   async page(agentId: string, beforeTurnId: string | null): Promise<TranscriptPage> {
-    /* 替身不派子代理：认不出的通道号按端口约定交空页，不抛 */
-    if (agentId !== 'main') return pageFromState(emptyTimeline())
-    const state = applyOps(emptyTimeline(), this.ops)
-    const page = pageFromState(state)
-    if (beforeTurnId === null) return page
-    const limit = Number(beforeTurnId.slice(1))
-    return { ...page, items: page.items.filter((item) => item.kind !== 'turn' || item.ordinal < limit) }
+    return pageOfOps(this.ops, agentId, beforeTurnId)
   }
 
   /* 替身没有子代理与后台作业：三条都按「不在运行」答，形状与真引擎一致（false / subagent_not_running） */
@@ -1014,6 +1020,12 @@ export function createFakeEngine(opts: FakeEngineOptions = {}): FakeEngine {
     sessionFiles: {
       async exists(file) {
         return store.has(file)
+      },
+      /* 与 FakeSession.page 同一个产地（pageOfOps）：冷读与「重开再 page()」交出同一页，正是端口要的那条一致性 */
+      async readPage(file, agentId, beforeTurnId) {
+        const ops = store.get(file)
+        if (ops === undefined) throw new AppError(EngineErrorCode.sessionFileMissing, `会话文件不存在：${file}`)
+        return pageOfOps(ops, agentId, beforeTurnId)
       },
       async fork(file, keepTurns, title) {
         const next = `${file}.fork-${createId()}`

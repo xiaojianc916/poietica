@@ -73,19 +73,13 @@ export function registerHandlers(ctx: Ctx, core: ConversationCore, hub: Timeline
   })
 
   ctx.rpc.handle('timeline.subscribe', async ({ threadId, agentId }) => {
-    const row = threads.requireRow(threadId)
-    if (row.sessionFile === null) {
-      // 线程没有会话：返回空页，不打开会话（07 页 §5C 时间线通道）
-      const pos = hub.position(threadId, agentId)
-      const page = turns.emptyPage()
-      return wireSnapshot(page, pos.epoch, pos.seq, turns.submissionsOf(threadId, turnIdsOf(page)))
-    }
+    threads.requireRow(threadId)
     /*
-     * 先把会话拿到手：冷打开会在 onOpened 里换 epoch，必须发生在取位置之前 ——
-     * 否则这次订阅拿到的是旧 epoch，UI 还会收到一条 reset 再整读一次（R-03 §2.4）。
-     * 再取位置、最后取整页：后两步之间到达的增量会被 UI 缓存（05 页 §12.2）。
+     * 先取位置、再取整页：两步之间到达的增量会被 UI 缓存（05 页 §12.2）。
+     * **不打开会话**（读写分离，性能方案 P1）：池里没有这条会话时整页来自会话文件的冷读（turns.page），真要写时才打开；
+     * 打开时只给这一代里发过增量的通道换 epoch（ThreadService.onOpened → TimelineHub.resetAdvanced），所以这一份快照
+     * 不会被随后的打开作废（R-03 §2.4 当初「先 acquire 再取位置」要防的正是那一次 reset）。
      */
-    await turns.acquire(threadId)
     const pos = hub.position(threadId, agentId)
     /*
      * 提交号与提交行只属于主对话：子代理通道的 turnId 也从 t1 数起，按号盖章会把人的提交号盖到子代理的轮上，

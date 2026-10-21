@@ -6,6 +6,7 @@ import { Settings } from '@oh-my-pi/pi-coding-agent/config/settings'
 import { noopLogger } from '@poietica/foundation'
 import { dataLayout } from '@poietica/runtime-layout'
 import type { OmpModelRegistry } from '../../omp-context'
+import { hashMediaRef } from '../../projector/media'
 import { ompPorts } from '../omp-ports'
 
 /*
@@ -69,6 +70,7 @@ async function portsOf(): Promise<{
       },
     },
     sessions: new Set(),
+    mediaRef: hashMediaRef,
   })
   return { models: ports.models, calls }
 }

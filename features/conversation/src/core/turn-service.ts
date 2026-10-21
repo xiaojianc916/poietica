@@ -53,13 +53,9 @@ export interface TurnServiceDeps {
 export class TurnService {
   constructor(private readonly d: TurnServiceDeps) {}
 
-  // ── 会话池的四个口（供 handlers / 组合根用）───────────────────────────────
+  // ── 会话池的三个口（供 handlers / 组合根用；读时间线不在这里取会话，见 page）────────────
   peek(threadId: string): EngineSession | undefined {
     return this.d.pool.peek(threadId)
-  }
-
-  async acquire(threadId: string): Promise<EngineSession> {
-    return this.d.pool.acquire(threadId)
   }
 
   async open(threadId: string): Promise<void> {
@@ -111,8 +107,8 @@ export class TurnService {
   }
 
   // ── 时间线（timeline 三段）───────────────────────────────────────────────
-  /** 空页：线程还没有会话时 timeline.subscribe 用它（不打开会话） */
-  emptyPage(): TranscriptPage {
+  /** 空页：线程还没落过盘（行上没有会话文件）时 page 交它 —— 没有正文可读，也不为一次读去签发会话文件 */
+  private emptyPage(): TranscriptPage {
     return {
       items: [],
       tasks: [],
@@ -125,9 +121,22 @@ export class TurnService {
     } as TranscriptPage
   }
 
+  /**
+   * 时间线的一页 —— **读不开会话**（读写分离，性能方案 P1）。
+   *
+   * 会话开着就问它：正在流式的那一截只有它知道。不在池里（包括正在打开）就冷读会话文件
+   * （`SessionFilesPort.readPage`，与「重开再 page()」同一页）：看一眼历史对话、往上翻页、定时任务从线程预填，
+   * 都不再冷启动一整条 AgentSession —— 那要装工具与扩展、按会话拉起全部 MCP 服务器，而且引擎里所有打开排成一队。
+   * 打开中的也冷读：打开不改文件里已有的正文（中断修补在冷读里按同一口径补齐），打开之后的变化经增量补上，
+   * 只被冷读订阅过的通道打开时也不换代（TimelineHub.resetAdvanced）。
+   * 还没落过盘的线程没有正文可读：空页，不为一次读去签发会话文件。
+   */
   async page(threadId: string, agentId: string, beforeTurnId: string | null): Promise<TranscriptPage> {
-    const session = await this.d.pool.acquire(threadId)
-    return session.page(agentId, beforeTurnId)
+    const live = this.d.pool.peek(threadId)
+    if (live !== undefined) return await live.page(agentId, beforeTurnId)
+    const { sessionFile } = this.d.requireRow(threadId)
+    if (sessionFile === null) return this.emptyPage()
+    return await this.d.engine.sessionFiles.readPage(sessionFile, agentId, beforeTurnId)
   }
 
   // ── 队列（queue 三方法）──────────────────────────────────────────────────

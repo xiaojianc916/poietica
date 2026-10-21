@@ -185,8 +185,9 @@ describe('conversation core 模块', () => {
    * fork 出来的线程正好是「有会话文件、池里没有会话、进程内还没有通道」那一档：旧代码
    * 先 `hub.position()`（顺手建了通道，epoch E1），再 acquire 冷打开；`onOpened` 一看
    * 通道已经有了就 resetThread（epoch E2）并发出 `timeline.reset`，这一份快照（E1）当场作废，
-   * UI 收到 reset 后会再整读一次。新代码先把会话拿到手：reset 该发生在取位置之前，
-   * 这一次订阅不该看到任何 reset，返回的 epoch 与之后的增量一致。
+   * UI 收到 reset 后会再整读一次。R-03 的修法是先把会话拿到手；性能方案 P1 之后 subscribe 根本不开会话（冷读），
+   * 随后真要写时的那次打开只给这一代发过增量的通道换代 —— 这条只被冷读订阅过的通道不换。
+   * 判据不变：这一次订阅不该看到任何 reset，返回的 epoch 与之后的增量一致。
    */
   test('R-03 T2 冷打开的历史对话：subscribe 不发 reset，epoch 与之后的 ops 一致', async () => {
     const { api, thread, h, finish } = await started()
@@ -219,6 +220,56 @@ describe('conversation core 模块', () => {
     const ops = h.notifications(conversationContract, 'timeline.ops').filter((n) => n.threadId === forked.id)
     expect(ops.length).toBeGreaterThan(0)
     expect(ops.every((n) => n.epoch === snap.epoch)).toBe(true)
+    await finish()
+  })
+
+  /*
+   * 性能方案 P1（读写分离）：看历史对话不打开会话。会话释放之后，subscribe 与往上翻页都由会话文件冷读交出，
+   * 引擎一条会话都不开；一句话发出去（写）才打开。被驱逐过的会话（这一代发过增量）再打开时照旧换代 ——
+   * 订阅者手里那份是旧会话增量堆出来的，安全网不撤。
+   */
+  test('P1 历史对话：subscribe / page 冷读不开会话，写的时候才打开；发过增量的通道打开时照旧换代', async () => {
+    const { api, thread, h, engine, finish } = await started()
+    for (const id of ['A1', 'A2', 'A3']) {
+      await api.call('turns.submit', {
+        threadId: thread.id,
+        clientTurnId: id,
+        text: `第 ${id} 句`,
+        attachmentIds: [],
+        skills: [],
+        deliverAs: 'turn',
+      })
+      await runToIdle(h, api, thread.id)
+    }
+    await api.call('threads.close', { threadId: thread.id })
+    const opened = engine.opened.length
+
+    const snap = await api.call('timeline.subscribe', { threadId: thread.id, agentId: 'main' })
+    expect(snap.page.items.filter((item) => item.kind === 'turn')).toHaveLength(3)
+    const older = await api.call('timeline.page', { threadId: thread.id, agentId: 'main', beforeTurnId: 't3' })
+    expect(older.items.filter((item) => item.kind === 'turn')).toHaveLength(2)
+    expect(engine.opened.length).toBe(opened)
+
+    const resetsBefore = h.notifications(conversationContract, 'timeline.reset').length
+    await api.call('turns.submit', {
+      threadId: thread.id,
+      clientTurnId: 'B1',
+      text: '再来一句',
+      attachmentIds: [],
+      skills: [],
+      deliverAs: 'turn',
+    })
+    await runToIdle(h, api, thread.id)
+    expect(engine.opened.length).toBe(opened + 1)
+    expect(h.notifications(conversationContract, 'timeline.reset').length).toBe(resetsBefore + 1)
+    await finish()
+  })
+
+  test('P1 还没落过盘的线程：timeline.page 交空页，不为一次读签发会话', async () => {
+    const { api, thread, engine, finish } = await started()
+    const page = await api.call('timeline.page', { threadId: thread.id, agentId: 'main', beforeTurnId: 't1' })
+    expect(page.items).toEqual([])
+    expect(engine.opened.length).toBe(0)
     await finish()
   })
 

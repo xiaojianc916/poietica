@@ -179,20 +179,25 @@ describe('TimelineHub', () => {
     hub.dispose()
   })
 
-  test('resetThread 只动该线程的通道', () => {
+  test('resetAdvanced 只动该线程里发过增量的通道', () => {
     const clock = fakeClock()
-    const resets: { threadId: string; epoch: number }[] = []
+    const resets: { threadId: string; agentId: string; epoch: number }[] = []
     const hub = new TimelineHub({
       clock,
       emitOps: () => undefined,
-      emitReset: (p) => resets.push({ threadId: p.threadId, epoch: p.epoch }),
+      emitReset: (p) => resets.push({ threadId: p.threadId, agentId: p.agentId, epoch: p.epoch }),
       epochBase: 1,
     })
     hub.position('t1', 'main')
+    hub.position('t1', 'Explorer')
     hub.position('t2', 'main')
-    hub.resetThread('t1')
+    hub.push('t1', 'main', [op(1)])
+    hub.push('t2', 'main', [op(2)])
+    hub.resetAdvanced('t1')
+    expect(resets.map((r) => `${r.threadId}/${r.agentId}`)).toEqual(['t1/main'])
+    /* 换过代的通道 seq 归零：再打开一次不会再换（只被整页读订阅过） */
+    hub.resetAdvanced('t1')
     expect(resets.length).toBe(1)
-    expect(resets[0]!.threadId).toBe('t1')
     hub.dispose()
   })
 

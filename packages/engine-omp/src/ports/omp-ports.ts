@@ -9,10 +9,11 @@ import {
   roleCandidatePool,
 } from '@oh-my-pi/pi-coding-agent/config/model-roles'
 import type { AgentEngine } from '@poietica/engine'
-import type { Logger } from '@poietica/foundation'
+import { type Logger, systemClock } from '@poietica/foundation'
 import type { DataLayout } from '@poietica/runtime-layout'
 import type { OmpModelRegistry, OmpSessionLike } from '../omp-context'
-import type { SettingsScope } from '../settings-access'
+import type { MediaRef } from '../projector/media'
+import { readSetting, type SettingsScope } from '../settings-access'
 import { OmpMcpPort } from './mcp'
 import { registryPortOf } from './model-helpers'
 import { OmpModelsPort, type OmpOAuth, type OmpRoles } from './models'
@@ -21,6 +22,7 @@ import { ompMediaGc } from './omp-gc'
 import { OmpPluginsPort } from './plugins'
 import { roleTextOf } from './role-catalog'
 import { OmpSessionFilesPort } from './session-files'
+import { SessionHistoryReader } from './session-history'
 import { OmpSettingsPort } from './settings'
 import { settingsInstanceOf } from './settings-writes'
 import { OmpSkillsPort } from './skills'
@@ -34,6 +36,8 @@ export interface OmpPortsOptions {
   readonly authStorage: object
   /** 活着的会话：MCP 状态要按名汇总它们各自的 mcpManager */
   readonly sessions: Set<OmpSessionLike>
+  /** 与活会话共用的那一个（create-engine 里建）：冷读与活会话交出的图片地址必须同一个产地 */
+  readonly mediaRef: MediaRef
 }
 
 /** 六个端口一次组装好。端口之间不互相依赖，只依赖 omp 对象与设置句柄。 */
@@ -64,8 +68,24 @@ export async function ompPorts(o: OmpPortsOptions): Promise<{
     reload,
   })
   const mcp = new OmpMcpPort({ ompAgentDir: o.layout.ompAgentDir, sessions: o.sessions, logger: o.logger })
+  const history = new SessionHistoryReader({
+    mediaRef: o.mediaRef,
+    /* 与 sdk 同一个判据、同一个目录：secrets.enabled 开着才去读密钥文件（sdk.ts 里 buildSecretObfuscator 那一步） */
+    obfuscatorFor: async (cwd) => {
+      if (readSetting(o.root, 'secrets.enabled') !== true) return undefined
+      const secrets = await import('@oh-my-pi/pi-coding-agent/secrets')
+      return await secrets.buildSecretObfuscator(cwd, dirs.getAgentDir())
+    },
+    now: () => systemClock.now(),
+    logger: o.logger,
+  })
   return {
-    sessionFiles: new OmpSessionFilesPort({ sessionDir, mediaGc: ompMediaGc(o.layout.ompAgentDir), logger: o.logger }),
+    sessionFiles: new OmpSessionFilesPort({
+      sessionDir,
+      mediaGc: ompMediaGc(o.layout.ompAgentDir),
+      history,
+      logger: o.logger,
+    }),
     models: new OmpModelsPort({
       registry: registryPortOf(o.registry),
       credentials: (o.authStorage as { credentials: never }).credentials,

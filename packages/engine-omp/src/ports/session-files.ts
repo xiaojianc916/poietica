@@ -9,8 +9,10 @@ import { FileSessionStorage } from '@oh-my-pi/pi-coding-agent/session/session-st
 import type { MediaGcResult, SessionFilesPort } from '@poietica/engine'
 import { EngineErrorCode } from '@poietica/engine'
 import { AppError, type Logger, SystemErrorCode } from '@poietica/foundation'
+import type { TranscriptPage } from '@poietica/transcript'
 import { toEngineError } from '../errors'
 import { type OmpMessage, turnOpenings } from '../projector/history'
+import type { SessionHistoryReader } from './session-history'
 
 /** SessionFilesPort 需要的东西：omp 的会话目录、媒体回收，以及一个只用来记异常的 logger。 */
 export interface SessionFilesPortDeps {
@@ -18,6 +20,8 @@ export interface SessionFilesPortDeps {
   readonly sessionDir: string
   /** 会话媒体回收（生产是 omp-gc.ts 的 ompMediaGc：子进程里跑 omp gc 的 blobs 段） */
   readonly mediaGc: (signal?: AbortSignal) => Promise<MediaGcResult>
+  /** 没开着的会话的只读时间线（readPage）：与活会话同一套投影，见 session-history.ts */
+  readonly history: SessionHistoryReader
   readonly logger: Logger
 }
 
@@ -38,6 +42,10 @@ export class OmpSessionFilesPort implements SessionFilesPort {
       if ((error as NodeJS.ErrnoException).code === 'ENOENT') return false
       throw toEngineError(error)
     }
+  }
+
+  async readPage(sessionFile: string, agentId: string, beforeTurnId: string | null): Promise<TranscriptPage> {
+    return await this.d.history.page(sessionFile, agentId, beforeTurnId)
   }
 
   async fork(
@@ -98,6 +106,7 @@ export class OmpSessionFilesPort implements SessionFilesPort {
    * 与 omp 自己的 `SessionManager.dropSession` 同一条规矩（ENOENT 视为成功）。
    */
   async delete(sessionFile: string): Promise<void> {
+    this.d.history.forget(sessionFile)
     try {
       /* 文件与它的产物目录一起删；omp 自己的选择器同此处理。 */
       await new FileSessionStorage().deleteSessionWithArtifacts(sessionFile)

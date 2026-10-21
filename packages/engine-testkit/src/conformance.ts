@@ -641,6 +641,63 @@ export function runEngineConformance(name: string, make: () => Promise<Conforman
       await reopened.dispose()
     })
 
+    /*
+     * C-READ-PAGE：没开着的会话的冷读（SessionFilesPort.readPage，读写分离）。三件事：
+     * - 与「重新打开会话再 page()」**逐页相同**（第一页与往前翻的那一页都比），带工具调用的轮也一样 —— 冷读与活会话是同一个产地；
+     * - 只读：不开会话（openedCount 不动）；
+     * - 口径同 EngineSession.page：认不出的子代理号交空页、不抛；文件不在报 session_file_missing。
+     */
+    test('C-READ-PAGE', async () => {
+      const first = await openNew()
+      const record = recorder(first)
+      for (let i = 0; i < 3; i++) {
+        target.script([
+          i === 1
+            ? [
+                { kind: 'tool', name: 'echo_test', args: { text: 'x' }, result: 'ignored' },
+                { kind: 'text', text: `reply${i}` },
+              ]
+            : [{ kind: 'text', text: `reply${i}` }],
+        ])
+        await first.submit(submit(`cold${i}`))
+        await record.waitFor(
+          (events) => events.filter((e) => e.type === 'state' && e.state === 'idle').length >= i + 1,
+          `第 ${i} 轮没有结束`,
+        )
+      }
+      const file = first.sessionFile
+      record.subscription.dispose()
+      await first.dispose()
+
+      const openedBefore = target.openedCount?.()
+      const cold = await target.engine.sessionFiles.readPage(file, 'main', null)
+      const coldOlder = await target.engine.sessionFiles.readPage(file, 'main', 't3')
+      const coldUnknown = await target.engine.sessionFiles.readPage(file, 'Nobody', null)
+      if (openedBefore !== undefined) expect(target.openedCount?.()).toBe(openedBefore)
+      expect(turnCount(cold)).toBe(3)
+      expect(allText(cold)).toContain('cold0')
+      expect(turnCount(coldOlder)).toBe(2)
+      expect(turnCount(coldUnknown)).toBe(0)
+
+      const reopened = await target.engine.openSession({
+        key: 'conformance',
+        cwd: target.cwd,
+        sessionFile: file,
+        posture: 'ask',
+        model: null,
+        thinking: null,
+      })
+      expect(cold).toEqual(await reopened.page('main', null))
+      expect(coldOlder).toEqual(await reopened.page('main', 't3'))
+      await reopened.dispose()
+
+      const missing = await target.engine.sessionFiles
+        .readPage(`${file}.gone`, 'main', null)
+        .catch((error: unknown) => error)
+      expect(missing).toBeInstanceOf(AppError)
+      expect((missing as AppError).code).toBe(EngineErrorCode.sessionFileMissing)
+    })
+
     /* 附带上下文（SubmitInput.context）只给模型：气泡上只有原文，重开以后也摘得干干净净 */
     test('C-SUBMIT-CONTEXT', async () => {
       const first = await openNew()

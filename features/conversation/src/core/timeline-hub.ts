@@ -87,10 +87,16 @@ export class TimelineHub implements Disposable {
     return c.catchUp(epoch, sinceSeq)
   }
 
-  /** 会话被驱逐后又打开：该线程的所有通道换 epoch，UI 整页重取 */
-  resetThread(threadId: string): void {
+  /**
+   * 会话（重新）打开：该线程里**这一代发过增量**的通道换 epoch，UI 整页重取（会话被驱逐后又打开，订阅者手里的状态
+   * 有一部分只活在旧会话的增量里，例如子代理行与后台作业）。
+   *
+   * 一条增量都没发过的通道不动：它的订阅者手里只有整页读出来的页 —— 池里没有会话时那是会话文件的冷读，而文件正是
+   * 新会话的起点。换代只会让 UI 白白再整读一次（读写分离之后，「先冷读、后打开」是看历史对话的常态）。
+   */
+  resetAdvanced(threadId: string): void {
     for (const [k, c] of this.channels) {
-      if (k.startsWith(`${threadId}\u0000`)) c.reset()
+      if (k.startsWith(`${threadId}\u0000`) && c.advanced()) c.reset()
     }
   }
 
