@@ -111,12 +111,13 @@ describe('会话页左上角标题菜单', () => {
     expect(screen.queryByText('新对话')).toBeNull()
   })
 
-  test('菜单是固定 / 重命名 / 导出会话，之后接贡献的动作', async () => {
+  test('菜单是固定 / 重命名 / 导出会话 / 复制会话链接，之后接贡献的动作', async () => {
     await mount(
       <ThreadTitleMenu
         onExport={() => undefined}
         onPin={() => undefined}
         onRename={() => undefined}
+        onShare={() => undefined}
         thread={threadOf()}
       />,
       true,
@@ -129,6 +130,7 @@ describe('会话页左上角标题菜单', () => {
     expect(screen.getByText('固定')).toBeDefined()
     expect(screen.getByText('重命名')).toBeDefined()
     expect(screen.getByText('导出会话')).toBeDefined()
+    expect(screen.getByText('复制会话链接')).toBeDefined()
     expect(screen.getByText('以此对话创建定时任务')).toBeDefined()
     /*
      * 贡献项自带字形，菜单里要跟着画：这一行若无图标，与另外三项排在一起时会被读成另一种层级。

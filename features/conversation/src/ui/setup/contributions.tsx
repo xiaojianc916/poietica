@@ -55,7 +55,17 @@ export function createConversationContributions(setup: ConversationSetup, action
     transcripts,
     workspaces,
   } = setup
-  const { archiveThread, archived, collapsed, exportThread, newThread, openThread, showArchived, todoThread } = actions
+  const {
+    archiveThread,
+    archived,
+    collapsed,
+    exportThread,
+    newThread,
+    openThread,
+    shareThread,
+    showArchived,
+    todoThread,
+  } = actions
   /*
    * 点一下就发出去的那些调用（置顶、改名、分叉、换模型……）没有人在等结果：失败至少记一条带上下文的 warn（AGENTS.md §8.1）。
    * 屏幕不用回滚 —— 这些都不是乐观更新，失败了屏幕上本来就还是旧值；控件表另由 controls.changed 推回真值。
@@ -386,6 +396,7 @@ export function createConversationContributions(setup: ConversationSetup, action
             prefill={held.threadId === threadId ? held.text : undefined}
             onGoalAction={(action) => runGoalAction(api, threadId, action)}
             onExportThread={(id) => void exportThread(id)}
+            onShareThread={(id) => void shareThread(id)}
             onPinThread={(id, pinned) => {
               void api
                 .setPinned(id, pinned)

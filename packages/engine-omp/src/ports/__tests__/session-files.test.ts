@@ -26,7 +26,13 @@ function makePort(): { port: OmpSessionFilesPort; sessions: string; workspace: s
   const workspace = mkdtempSync(path.join(tmpdir(), 'poietica-ws-'))
   made.push(sessions, workspace)
   return {
-    port: new OmpSessionFilesPort({ sessionDir: sessions, mediaGc: noGc, history: history(), logger: noopLogger }),
+    port: new OmpSessionFilesPort({
+      sessionDir: sessions,
+      mediaGc: noGc,
+      history: history(),
+      logger: noopLogger,
+      ompAgentDir: sessions,
+    }),
     sessions,
     workspace,
   }
@@ -47,7 +53,7 @@ describe('SessionFilesPort', () => {
   })
 
   /* omp 知识 #14：会话文件在首次水合之后才落盘，所以这三个动作用之前都要 exists 校验（delete 是「确保不存在」，见下）。 */
-  test('fork / exportHtml / exportMarkdown 对不存在的文件抛 session_file_missing', async () => {
+  test('fork / exportHtml / exportMarkdown / share 对不存在的文件抛 session_file_missing', async () => {
     const { port, sessions, workspace } = makePort()
     const missing = path.join(sessions, 'missing.jsonl')
     const missingCode = EngineErrorCode.sessionFileMissing
@@ -56,6 +62,7 @@ describe('SessionFilesPort', () => {
       code: missingCode,
     })
     await expect(port.exportMarkdown(missing)).rejects.toMatchObject({ code: missingCode })
+    await expect(port.share(missing)).rejects.toMatchObject({ code: missingCode })
   })
 
   /*

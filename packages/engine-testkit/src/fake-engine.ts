@@ -1070,6 +1070,11 @@ export function createFakeEngine(opts: FakeEngineOptions = {}): FakeEngine {
       async exportMarkdown() {
         return '# 会话\n'
       },
+      /* 分享链接是测试替身造的确定值：会话不在时报同一条 session_file_missing，不真的上传 */
+      async share(file) {
+        if (!store.has(file)) throw new AppError(EngineErrorCode.sessionFileMissing, `会话文件不存在：${file}`)
+        return { url: `https://share.example/${encodeURIComponent(file)}#test-key`, truncated: false }
+      },
       async collectGarbage() {
         return { deletedFiles: 0, freedBytes: 0, errors: [] }
       },

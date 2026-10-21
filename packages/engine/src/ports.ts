@@ -65,6 +65,12 @@ export interface SessionFilesPort {
   exportHtml(sessionFile: string, outFile: string): Promise<void>
   exportMarkdown(sessionFile: string): Promise<string>
   /**
+   * 用 omp 的「分享」把整条会话变成一个加密链接（/share 同一条路）：会话快照封进 AES-GCM blob，
+   * 上传到分享服务或 secret gist，交回查看器链接。链接里的密钥只在浏览器侧解密，不经网络上传。
+   * 会话文件不存在报 engine.session_file_missing；太大时 omp 会裁内容后上传，truncated 为 true。
+   */
+  share(sessionFile: string): Promise<{ url: string; truncated: boolean }>
+  /**
    * 回收会话媒体：删掉不再被**任何**会话文件引用的图片字节（截图、粘贴的图……）。`delete` 只删会话文件与它的产物，
    * 图片按内容寻址、可能被多条会话共用，只能在全部会话都看过一遍之后回收（mark-and-sweep）。刚写入不久的不删
    * （正在落盘的那一轮还没来得及引用它）。不移动、不归档任何会话文件 —— 线程行绑着路径。

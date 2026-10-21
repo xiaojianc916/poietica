@@ -92,6 +92,7 @@ export async function ompPorts(o: OmpPortsOptions): Promise<{
       mediaGc: ompMediaGc(o.layout.ompAgentDir),
       history,
       logger: o.logger,
+      ompAgentDir: o.layout.ompAgentDir,
     }),
     models: new OmpModelsPort({
       registry: registryPortOf(o.registry),

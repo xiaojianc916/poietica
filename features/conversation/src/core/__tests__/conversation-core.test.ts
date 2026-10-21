@@ -834,6 +834,21 @@ describe('conversation core（不经内核的直连测试）', () => {
     await dir.dispose()
   })
 
+  test('share：无会话 → thread_empty；有会话 → 交回 omp 分享的链接', async () => {
+    const { core, db, dir } = await makeCore()
+    const row = core.threads.create({ workspaceId: 'ws1' })
+    const err = await core.threads.shareThread(row.id).catch((e: unknown) => e)
+    expect((err as { code?: string }).code).toBe('conversation.thread_empty')
+    await submit(core, row.id, 'hi')
+    await new Promise((r) => setTimeout(r, 30))
+    const shared = await core.threads.shareThread(row.id)
+    expect(shared.url.startsWith('https://share.example/')).toBe(true)
+    expect(shared.truncated).toBe(false)
+    await core.dispose()
+    db.close()
+    await dir.dispose()
+  })
+
   test('fork：无会话 → thread_empty；有会话 → 新线程绑定新会话文件', async () => {
     const { core, db, dir } = await makeCore()
     const row = core.threads.create({ workspaceId: 'ws1' })

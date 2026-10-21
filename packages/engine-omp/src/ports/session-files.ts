@@ -14,6 +14,7 @@ import type { TranscriptPage } from '@poietica/transcript'
 import { toEngineError } from '../errors'
 import { type OmpMessage, turnOpenings } from '../projector/history'
 import { sideTopicsOf } from '../session/side-questions'
+import { readSetting } from '../settings-access'
 import type { SessionHistoryReader } from './session-history'
 
 /** SessionFilesPort 需要的东西：omp 的会话目录、媒体回收，以及一个只用来记异常的 logger。 */
@@ -25,6 +26,8 @@ export interface SessionFilesPortDeps {
   /** 没开着的会话的只读时间线（readPage）：与活会话同一套投影，见 session-history.ts */
   readonly history: SessionHistoryReader
   readonly logger: Logger
+  /** omp 的 agent 目录：分享时按 omp 的规矩构建密钥混淆器（与 SDK 同一个目录来源） */
+  readonly ompAgentDir: string
 }
 
 /**
@@ -163,6 +166,43 @@ export class OmpSessionFilesPort implements SessionFilesPort {
     try {
       await this.requireFile(sessionFile)
       return markdownOf(await loadSessionMessagesReadOnly(sessionFile))
+    } catch (error) {
+      throw toEngineError(error)
+    }
+  }
+
+  /**
+   * 分享走 omp 自己的 /share（export/share 的 shareSession）：与终端里那条命令同一个上传、同一个加密、
+   * 同一个脱敏开关。设置按**会话自己的 cwd** 读（omp 的 /share 也这样做），因此项目级配置说了算。
+   */
+  async share(sessionFile: string): Promise<{ url: string; truncated: boolean }> {
+    try {
+      await this.requireFile(sessionFile)
+      const manager = await SessionManager.open(sessionFile, path.dirname(sessionFile), undefined, {
+        throwIfMissing: true,
+        suppressBreadcrumb: true,
+      })
+      try {
+        const { Settings } = await import('@oh-my-pi/pi-coding-agent/config/settings')
+        const settings = await Settings.loadReadOnly({ cwd: manager.getCwd() })
+        const { shareSession } = await import('@oh-my-pi/pi-coding-agent/export/share')
+        const redact = readSetting(settings, 'share.redactSecrets') === true
+        const obfuscator =
+          redact && readSetting(settings, 'secrets.enabled') === true
+            ? await (await import('@oh-my-pi/pi-coding-agent/secrets')).buildSecretObfuscator(
+                manager.getCwd(),
+                this.d.ompAgentDir,
+              )
+            : undefined
+        const result = await shareSession(manager, {
+          serverUrl: String(readSetting(settings, 'share.serverUrl')),
+          store: readSetting(settings, 'share.store') === 'gist' ? 'gist' : 'blob',
+          ...(obfuscator === undefined ? {} : { obfuscator }),
+        })
+        return { url: result.url, truncated: result.truncated }
+      } finally {
+        await manager.close()
+      }
     } catch (error) {
       throw toEngineError(error)
     }

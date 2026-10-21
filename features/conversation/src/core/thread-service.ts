@@ -306,6 +306,18 @@ export class ThreadService {
     return { path: targetPath }
   }
 
+  /**
+   * 分享：交给引擎的 omp /share（加密快照 + 查看器链接）。空会话没有会话文件可分享，报 thread_empty；
+   * 链接的生成与脱敏都在引擎那一侧，Core 只负责把线程行上的会话文件找出来。
+   */
+  async shareThread(threadId: string): Promise<{ url: string; truncated: boolean }> {
+    const row = this.requireRow(threadId)
+    if (row.sessionFile === null) {
+      throw new AppError(conversationErrors.thread_empty, '对话还没有任何内容')
+    }
+    return await this.d.engine.sessionFiles.share(row.sessionFile)
+  }
+
   /** 工作区被移除：该工作区的每个线程都走一遍 delete 的清理（运行中的先取消） */
   async removeWorkspaceThreads(workspaceId: string): Promise<void> {
     for (const row of this.d.repo.listByWorkspace(workspaceId)) {

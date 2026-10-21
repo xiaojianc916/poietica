@@ -133,6 +133,14 @@ export const conversationContract = defineContract({
       timeoutMs: 120_000,
       description: '导出线程为 HTML 或 Markdown',
     }),
+    defineMethod({
+      name: 'threads.share',
+      owner: 'core',
+      params: z.object({ threadId: z.string().min(1) }),
+      result: z.object({ url: z.string(), truncated: z.boolean() }),
+      timeoutMs: 120_000,
+      description: '用 omp 的分享功能生成一条可打开查看的会话链接（加密快照）',
+    }),
 
     defineMethod({
       name: 'turns.submit',

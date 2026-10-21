@@ -51,6 +51,7 @@ export function registerHandlers(ctx: Ctx, core: ConversationCore, hub: Timeline
   ctx.rpc.handle('threads.export', ({ threadId, format, targetPath }) =>
     threads.exportThread(threadId, format, targetPath),
   )
+  ctx.rpc.handle('threads.share', ({ threadId }) => threads.shareThread(threadId))
 
   ctx.rpc.handle('turns.submit', (p) =>
     turns.submit({

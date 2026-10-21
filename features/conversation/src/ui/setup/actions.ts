@@ -18,6 +18,8 @@ export interface ConversationActions {
    */
   readonly archiveThread: (threadId: string) => void
   readonly exportThread: (threadId: string) => Promise<void>
+  /** omp 的分享：拿到链接后复制到剪贴板（空会话由 Core 报 thread_empty，横幅说清楚） */
+  readonly shareThread: (threadId: string) => Promise<void>
   readonly showArchived: () => void
   readonly notify: (threadId: string, body: string, kind: 'completion' | 'needs-confirm') => void
   readonly runningThreadIds: () => ReadonlySet<string>
@@ -143,6 +145,30 @@ export function createConversationActions(setup: ConversationSetup): Conversatio
   }
 
   /*
+   * 分享：链接由 omp 的 /share 生成（加密快照），这里只负责复制与提示。
+   * 空会话（一条消息都没发）没有会话文件，Core 报 thread_empty —— 横幅把它说成人话，不假装复制成功。
+   */
+  const shareThread = async (threadId: string): Promise<void> => {
+    try {
+      const { url, truncated } = await api.shareThread(threadId)
+      await navigator.clipboard.writeText(url)
+      banners.show({
+        severity: 'success',
+        title: '会话链接已复制',
+        ...(truncated ? { detail: '内容较大，分享时已裁掉部分内容。' } : {}),
+      })
+    } catch (cause) {
+      const empty = (cause as { code?: unknown }).code === 'conversation.thread_empty'
+      if (empty) {
+        banners.show({ severity: 'warning', title: '对话还没有内容，先把第一句话说出去' })
+        return
+      }
+      ctx.logger.warn('thread share failed', { threadId, error: String(cause) })
+      banners.error(cause, '分享会话失败')
+    }
+  }
+
+  /*
    * 「新建对话」= **打开入口页**，不是当场建一条线程：号由入口页发出第一句话时的 `prepare()` 铸，**没有**「先建空线程」这一步。
    * 原先这里直接 `createThread` + `openThread`：点一次加号就落一条标题为「新对话」的空线程（真机实测：点两下，库里多两条 `title_source = pending` 的行）。
    * 不点名工作区就是「当前那个」；点了名就先切过去。
@@ -179,6 +205,7 @@ export function createConversationActions(setup: ConversationSetup): Conversatio
     draftPin,
     exportThread,
     newThread,
+    shareThread,
     notify,
     openThread,
     runningThreadIds,

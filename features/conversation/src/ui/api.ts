@@ -43,6 +43,9 @@ export function createConversationApi(ctx: UiFeatureContext) {
       format: 'html' | 'markdown'
       targetPath: string
     }): Promise<{ path: string }> => rpc.call('threads.export', p),
+    /** 用 omp 的分享生成查看器链接（加密快照）；空会话 Core 报 conversation.thread_empty */
+    shareThread: (threadId: string): Promise<{ url: string; truncated: boolean }> =>
+      rpc.call('threads.share', { threadId }),
 
     submit: (p: {
       threadId: string

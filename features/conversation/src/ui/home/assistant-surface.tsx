@@ -73,6 +73,7 @@ export interface AssistantSurfaceProps {
   readonly onPinThread?: ((threadId: string, pinned: boolean) => void) | undefined
   readonly onRenameThread?: ((threadId: string, title: string) => void) | undefined
   readonly onExportThread?: ((threadId: string) => void) | undefined
+  readonly onShareThread?: ((threadId: string) => void) | undefined
   readonly controls: readonly SessionConfigControl[]
   readonly controlsPending?: boolean | undefined
   readonly controlsFailure?: string | undefined
@@ -349,6 +350,7 @@ export const AssistantSurface = memo(function AssistantSurface({
   onComposeIntent,
   onExportThread,
   onFork,
+  onShareThread,
   onGoalAction = NO_GOAL_ACTIONS,
   onPinThread,
   onRenameThread,
@@ -510,6 +512,7 @@ export const AssistantSurface = memo(function AssistantSurface({
         <ThreadTitleMenu
           onExport={onExportThread}
           onPin={onPinThread}
+          onShare={onShareThread}
           onRename={onRenameThread}
           renameRequest={renameRequest}
           thread={thread}

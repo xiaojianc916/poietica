@@ -15781,6 +15781,42 @@
       }
     },
     {
+      "name": "threads.share",
+      "owner": "core",
+      "timeoutMs": 120000,
+      "description": "用 omp 的分享功能生成一条可打开查看的会话链接（加密快照）",
+      "params": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "threadId": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "required": [
+          "threadId"
+        ]
+      },
+      "result": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "url": {
+            "type": "string"
+          },
+          "truncated": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "url",
+          "truncated"
+        ],
+        "additionalProperties": false
+      }
+    },
+    {
       "name": "timeline.catchUp",
       "owner": "core",
       "timeoutMs": 30000,

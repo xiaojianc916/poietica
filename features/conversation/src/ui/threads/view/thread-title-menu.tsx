@@ -8,7 +8,7 @@ import {
   DropdownMenuTrigger,
 } from '@poietica/design-system'
 import { useContributions } from '@poietica/ui-kernel'
-import { ChevronDown, Download, Laptop, Pencil, Pin, PinOff } from 'lucide-react'
+import { ChevronDown, Download, Laptop, Link2, Pencil, Pin, PinOff } from 'lucide-react'
 import { type ReactNode, useCallback, useRef, useState } from 'react'
 import type { Thread } from '../../../contract'
 import { threadActions } from '../../../ui-api'
@@ -22,6 +22,8 @@ export interface ThreadTitleMenuProps {
   readonly onPin?: ((threadId: string, pinned: boolean) => void) | undefined
   readonly onRename?: ((threadId: string, title: string) => void) | undefined
   readonly onExport?: ((threadId: string) => void) | undefined
+  /** 用 omp 的分享生成会话链接并复制；空会话由 Core 报 thread_empty */
+  readonly onShare?: ((threadId: string) => void) | undefined
   /**
    * 从外面进改名（斜杠命令 `/rename`）：每变一次就进一次就地改名，与点标题同一个编辑框。
    * 计数而不是布尔：改完再敲一次 `/rename` 也得再进一次。
@@ -126,12 +128,14 @@ function ThreadActionsMenu({
   onBeginRename,
   onExport,
   onPin,
+  onShare,
   thread,
 }: {
   readonly canRename: boolean
   readonly onBeginRename: (() => void) | undefined
   readonly onExport: ((threadId: string) => void) | undefined
   readonly onPin: ((threadId: string, pinned: boolean) => void) | undefined
+  readonly onShare: ((threadId: string) => void) | undefined
   readonly thread: Thread
 }): ReactNode {
   /*
@@ -203,6 +207,18 @@ function ThreadActionsMenu({
           </DropdownMenuItem>
         )}
 
+        {onShare === undefined ? null : (
+          <DropdownMenuItem
+            className="assistant-thread-menu__item"
+            onClick={() => {
+              onShare(thread.id)
+            }}
+          >
+            <Link2 aria-hidden="true" />
+            <span>复制会话链接</span>
+          </DropdownMenuItem>
+        )}
+
         {contributed.length === 0 ? null : (
           <>
             <DropdownMenuSeparator />
@@ -234,7 +250,14 @@ function ThreadActionsMenu({
   )
 }
 
-export function ThreadTitleMenu({ onExport, onPin, onRename, renameRequest, thread }: ThreadTitleMenuProps): ReactNode {
+export function ThreadTitleMenu({
+  onExport,
+  onPin,
+  onRename,
+  onShare,
+  renameRequest,
+  thread,
+}: ThreadTitleMenuProps): ReactNode {
   const [isRenaming, setRenaming] = useState(false)
   const [seenRequest, setSeenRequest] = useState(renameRequest)
 
@@ -283,6 +306,7 @@ export function ThreadTitleMenu({ onExport, onPin, onRename, renameRequest, thre
           onBeginRename={onRename === undefined ? undefined : beginRename}
           onExport={onExport}
           onPin={onPin}
+          onShare={onShare}
           thread={thread}
         />
       )}

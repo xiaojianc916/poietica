@@ -78,7 +78,13 @@ async function sessionOf(steps: readonly Step[]): Promise<{ port: OmpSessionFile
   await manager.close()
   if (file === undefined) throw new Error('omp 没有落盘')
   return {
-    port: new OmpSessionFilesPort({ sessionDir: dir, mediaGc: noGc, history: history(), logger: noopLogger }),
+    port: new OmpSessionFilesPort({
+      sessionDir: dir,
+      mediaGc: noGc,
+      history: history(),
+      logger: noopLogger,
+      ompAgentDir: dir,
+    }),
     file,
     dir,
   }
