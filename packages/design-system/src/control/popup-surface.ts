@@ -127,7 +127,7 @@ export const menuLabelClassName = ['ds-menu-label', 'px-2 py-1.5', 'text-sm font
  * 颜色走背景不走 border-color：styles.css 里那条 `* { border-color: var(--color-divider) }` 是无层
  * 规则，压得过 @layer utilities 里的任何边框色类。
  */
-export const menuSeparatorClassName = 'ds-menu-separator -mx-1 my-1 h-px shrink-0 bg-menu-border'
+export const menuSeparatorClassName = 'ds-menu-separator -mx-1 my-1 h-[0.5px] shrink-0 bg-menu-border'
 
 /*
  * 选中那枚勾（正本 .check）：16 一格，颜色跟随行字，自己顶到行尾。

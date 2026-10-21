@@ -106,6 +106,6 @@ describe('菜单族的表面', () => {
     await renderMenu()
 
     const separator = menu().querySelector('.ds-menu-separator')
-    expect([...(separator?.classList ?? [])]).toEqual(expect.arrayContaining(['-mx-1', 'my-1', 'h-px']))
+    expect([...(separator?.classList ?? [])]).toEqual(expect.arrayContaining(['-mx-1', 'my-1', 'h-[0.5px]']))
   })
 })
