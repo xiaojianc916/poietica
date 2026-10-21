@@ -3,16 +3,33 @@ import { Dialog } from './dialog'
 import './confirmation-dialog.css'
 
 /*
- * 定值就写成模块常量：这个目录既有的形制是模块常量（itemClassName / popupClassName / BASE），
- * 而不是零参数函数或行内数组字面量 —— 后者每次渲染都重新 join 一遍同一个字符串。
+ * 确认框，几何照 zcode 的 AlertDialog（packages/ui/src/components/ui/alert-dialog.tsx）与
+ * ConfirmDialog（packages/ui/src/ConfirmDialog.tsx）的组合：
+ *
+ *   卡     圆角 16、无边框、popover/98 底、内边距 20、块间距 20、上限 28rem；存在感由
+ *          一级 elevation（--ui-shadow-xl，对应 zcode 的 shadow-2xl）给
+ *   标题   16 / 600
+ *   说明   14 / 24、次要字色、保留换行
+ *   页脚   右对齐、按钮间距 8，取消在前、确认在后
+ *
+ * 确认是这一步唯一要做的事，所以不给右上角关闭钮：取消走页脚那颗按钮、Escape 与（非 busy 时的）
+ * 遮罩。按钮高读 controls 令牌的 36，与 zcode 的 h-9 同一档。
  */
 const DIALOG_CLASS_NAME = [
-  'confirmation-dialog',
-  '!max-w-[26rem]',
-  '!shadow-[0_14px_30px_-22px_rgb(15_23_42_/_0.35)]',
+  'max-w-md',
+  'gap-5',
+  'border-0',
+  'bg-popover/98',
+  'p-5',
+  'shadow-[var(--ui-shadow-xl)]',
 ].join(' ')
 
-const FOOTER_CLASS_NAME = 'flex flex-wrap justify-end gap-2.5'
+const TITLE_CLASS_NAME = 'text-base font-semibold'
+
+/* 标题与说明之间 10：zcode 的 AlertDialog 是表头 gap-2 + 说明 pt-0.5。 */
+const DESCRIPTION_CLASS_NAME = 'mt-[10px] whitespace-pre-line leading-6'
+
+const FOOTER_CLASS_NAME = 'justify-end gap-2'
 
 export interface ConfirmationDialogProps {
   readonly open: boolean
@@ -29,9 +46,9 @@ export interface ConfirmationDialogProps {
 /**
  * A compact, decision-focused dialog.
  *
- * Confirmation is explicit through the two footer actions, so this composition
- * intentionally has no redundant close icon. Cancellation remains available
- * through the outlined button, Escape, and (when not busy) the light backdrop.
+ * Confirmation is explicit through the two footer actions, so this composition intentionally has no
+ * redundant close icon. Cancellation remains available through the secondary button, Escape, and
+ * (when not busy) the light backdrop.
  */
 export function ConfirmationDialog({
   open,
@@ -49,15 +66,10 @@ export function ConfirmationDialog({
       busy={busy}
       className={DIALOG_CLASS_NAME}
       description={description}
+      descriptionClassName={DESCRIPTION_CLASS_NAME}
       footer={
-        <div className={FOOTER_CLASS_NAME}>
-          <Button
-            className="confirmation-dialog__cancel px-3"
-            disabled={busy}
-            onClick={onCancel}
-            type="button"
-            variant="ghost"
-          >
+        <>
+          <Button disabled={busy} onClick={onCancel} type="button" variant="secondary">
             {cancelLabel}
           </Button>
 
@@ -71,8 +83,9 @@ export function ConfirmationDialog({
           >
             {busy ? '处理中…' : confirmLabel}
           </Button>
-        </div>
+        </>
       }
+      footerClassName={FOOTER_CLASS_NAME}
       onOpenChange={(nextOpen) => {
         if (!nextOpen) {
           onCancel()
@@ -81,6 +94,7 @@ export function ConfirmationDialog({
       open={open}
       showCloseButton={false}
       title={title}
+      titleClassName={TITLE_CLASS_NAME}
     />
   )
 }

@@ -17,14 +17,28 @@ export interface DialogProps {
   readonly showCloseButton?: boolean
   readonly className?: string
   readonly contentClassName?: string
+  readonly titleClassName?: string
+  readonly descriptionClassName?: string
+  readonly footerClassName?: string
   readonly busy?: boolean
   readonly closeOnOverlayClick?: boolean
   readonly onOpenChange: (open: boolean) => void
 }
 
-/**
- * 建在 Base UI Dialog 上的项目对话框：Base UI 管传送门生命周期、焦点圈禁、初始与最终焦点、
- * Escape、外点按压与模态无障碍语义；Poietica 管视觉令牌、布局、busy 策略与产品文案。
+/*
+ * 通用对话框的壳，几何照 zcode 的通用 Dialog（packages/ui/src/components/ui/dialog.tsx）：
+ *
+ *   遮罩   铺满视口、24% 黑（不模糊），180ms 淡入淡出
+ *   卡     圆角 16、1px 描边、popover 底、shadow-md、内边距 16、块间距 16
+ *   标题   14/500；说明 14/1.625、次要字色
+ *   页脚   窄屏竖排倒序、宽屏右对齐（zcode 的 DialogFooter）
+ *
+ * 内边距统一由卡自己给（p-4）：表头 / 正文 / 页脚不再各带一条横向内边距，通栏铺满的调用点
+ * （命令面板这类自己接管内边距的浮层）用 className 覆盖成 p-0 就行。
+ * 宽度沿用本仓既有的 max-w-lg 默认：zcode 的通用 Dialog 自己只保证左右各留 16（100% - 2rem），
+ * 宽度全归调用点；本仓多数调用点不写宽度，所以这里保留一条默认值，宽的那些自己覆盖。
+ *
+ * Base UI 管传送门生命周期、焦点圈禁、初始与最终焦点、Escape、外点按压与模态无障碍语义。
  */
 export function Dialog({
   open,
@@ -37,6 +51,9 @@ export function Dialog({
   showCloseButton = true,
   className,
   contentClassName,
+  titleClassName,
+  descriptionClassName,
+  footerClassName,
   busy = false,
   closeOnOverlayClick = true,
   onOpenChange,
@@ -56,9 +73,18 @@ export function Dialog({
   const closeButton = showCloseButton ? (
     <BaseDialog.Close
       disabled={busy}
-      render={<Button aria-label="关闭" ref={closeButtonRef} size="icon" type="button" variant="ghost" />}
+      render={
+        <Button
+          aria-label="关闭"
+          className="size-6 shrink-0"
+          ref={closeButtonRef}
+          size="icon"
+          type="button"
+          variant="ghost"
+        />
+      }
     >
-      <X aria-hidden="true" className="size-4" />
+      <X aria-hidden="true" className="size-3" />
     </BaseDialog.Close>
   ) : null
 
@@ -75,7 +101,12 @@ export function Dialog({
           className={cn(
             'fixed inset-0',
             'z-[var(--ui-z-dialog)]',
-            'bg-black/8',
+            /*
+             * 遮罩只压一层淡淡的黑（24%），不做模糊。这是「感觉得到、但还看得见底下」的那一档：
+             * 再淡（8%）在浅色主题下几乎看不出这一层在场，再深就走到 zcode 那档 60% 的反面 ——
+             * 那会把背后的对话整块推走，弹窗看着像另开了一屏。
+             */
+            'bg-black/24',
             'transition-opacity',
             'duration-[var(--ui-duration-normal)]',
             'ease-[var(--ui-ease-standard)]',
@@ -85,52 +116,51 @@ export function Dialog({
         />
 
         <BaseDialog.Viewport
-          className={cn(
-            'fixed inset-0',
-            'z-[var(--ui-z-dialog)]',
-            'grid place-items-center',
-            'overflow-y-auto p-4',
-            'max-sm:p-0',
-          )}
+          className={cn('fixed inset-0', 'z-[var(--ui-z-dialog)]', 'grid place-items-center', 'overflow-y-auto p-4')}
         >
           <BaseDialog.Popup
             aria-busy={busy || undefined}
             className={cn(
               'flex w-full max-w-lg',
               'max-h-[calc(100dvh-2rem)]',
-              'flex-col overflow-hidden',
-              'rounded-xl border',
-              'border-divider',
+              'flex-col gap-4 overflow-hidden',
+              'rounded-2xl border',
+              /*
+               * 弹窗的框在深色下不能读区域线那格：16% 白压在 #2a2a2a 上兑出 #4c4c4c，比它与遮罩的对比还亮。
+               * 取浮层族的框色，与 zcode 的 border-popover-border 同一档。
+               */
+              'border-[var(--ui-popover-trigger-frame)]',
               /*
                * 与浮层同一张脸：对话框也是浮起来的一层，深色下浮层那格比页面底色抬一档（见
                * tokens/dark.css）。
                */
               'bg-popover',
+              'p-4',
+              'text-sm',
+              'leading-relaxed',
               'text-popover-foreground',
-              'shadow-[var(--ui-shadow-xl)] outline-none',
+              'shadow-md outline-none',
               'transition-[transform,scale,opacity]',
-              'duration-[var(--ui-duration-normal)]',
+              'duration-[var(--ui-duration-fast)]',
               'ease-[var(--ui-ease-standard)]',
               'data-[starting-style]:scale-95',
               'data-[starting-style]:opacity-0',
               'data-[ending-style]:scale-95',
               'data-[ending-style]:opacity-0',
-              'max-sm:h-dvh',
-              'max-sm:max-h-dvh',
-              'max-sm:max-w-none',
-              'max-sm:rounded-none',
               className,
             )}
             initialFocus={showHeader && showCloseButton ? closeButtonRef : undefined}
             ref={overlayRef}
           >
             {showHeader ? (
-              <header className={cn('flex min-h-14', 'shrink-0 items-start', 'justify-between gap-4', 'px-5 py-4')}>
+              <header className={cn('flex shrink-0', 'items-start', 'justify-between gap-4')}>
                 <div className="min-w-0">
-                  <BaseDialog.Title className="text-base font-semibold">{title}</BaseDialog.Title>
+                  <BaseDialog.Title className={cn('text-sm font-medium', titleClassName)}>{title}</BaseDialog.Title>
 
                   {description ? (
-                    <BaseDialog.Description className={cn('mt-1 text-sm', 'leading-5', 'text-muted-foreground')}>
+                    <BaseDialog.Description
+                      className={cn('mt-1 text-sm', 'leading-relaxed', 'text-muted-foreground', descriptionClassName)}
+                    >
                       {description}
                     </BaseDialog.Description>
                   ) : null}
@@ -150,14 +180,20 @@ export function Dialog({
                * 模态对话框必须有名称。隐藏视觉表头不等于放弃无障碍名称：showHeader 为 false 时
                * header 整块不渲染，BaseDialog.Title 也随之消失，对话框就没有任何可访问名称了。
                */
-              <BaseDialog.Title className="sr-only">{title}</BaseDialog.Title>
+              <BaseDialog.Title className={cn('sr-only', titleClassName)}>{title}</BaseDialog.Title>
             )}
 
             {children !== undefined && children !== null ? (
               <div className={cn('min-h-0 flex-1', 'overflow-auto', contentClassName)}>{children}</div>
             ) : null}
 
-            {footer ? <footer className={cn('shrink-0', 'px-5 py-3')}>{footer}</footer> : null}
+            {footer ? (
+              <footer
+                className={cn('flex shrink-0', 'flex-col-reverse gap-2', 'sm:flex-row sm:justify-end', footerClassName)}
+              >
+                {footer}
+              </footer>
+            ) : null}
           </BaseDialog.Popup>
         </BaseDialog.Viewport>
       </BaseDialog.Portal>

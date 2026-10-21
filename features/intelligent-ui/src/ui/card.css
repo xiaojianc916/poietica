@@ -256,8 +256,9 @@ html:has(.intelligent-ui[data-capturing="true"]) .ui-tooltip {
   align-items: center;
 }
 
+/* 内边距由通用弹窗的 p-4 给；这里不再补横向内边距，否则正文会比表头多缩进。 */
 .intelligent-ui-dialog__body {
-  padding: 0 1.25rem 1.25rem;
+  padding: 0;
 }
 
 .intelligent-ui-dialog__body .intelligent-ui {

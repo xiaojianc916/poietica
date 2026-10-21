@@ -68,7 +68,7 @@ export function CommandPalette({ open, onClose }: { readonly open: boolean; read
 
   return (
     <Dialog
-      className="max-w-xl rounded-[20px] border-0 shadow-[var(--ui-shadow-lg)]"
+      className="max-w-xl gap-0 rounded-2xl border-0 p-0 shadow-lg"
       contentClassName="overflow-hidden"
       onOpenChange={(next) => {
         if (!next) onClose()

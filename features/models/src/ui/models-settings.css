@@ -585,11 +585,11 @@
 .models-login-dialog {
   max-width: 26rem;
 }
+/* 内边距由通用弹窗的 p-4 给，这里只留纵向节奏。 */
 .models-login {
   display: flex;
   flex-direction: column;
   gap: 12px;
-  padding: 0 20px 8px;
 }
 
 .models-login__status {
