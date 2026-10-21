@@ -307,6 +307,11 @@ export interface PromptInputProps {
   /** 只在挂载时写进编辑器一次，此后不再读；装回草稿也只发生一次。 */
   readonly initialText?: string | undefined
   readonly onChange?: ((text: string) => void) | undefined
+  /**
+   * 人开始写：编辑器（或框里的任何一处）拿到焦点、往框里拖进文件。打字与粘贴都要先有焦点，所以这两处就够了。
+   * 每次都报，去重归调用方（对话页据此预热会话，性能方案 P4）。
+   */
+  readonly onEngage?: (() => void) | undefined
   readonly groups?: readonly PaletteGroup[] | undefined
   /**
    * 斜杠命令：给了（且非空）草稿敲下行首 `/` 就弹命令面板，代替加号面板；回车执行走的仍是 onSubmit，
@@ -368,6 +373,7 @@ function PromptInputShell({
   maxFiles,
   multiple = false,
   onChange,
+  onEngage,
   onSubmit,
   ref,
   restored,
@@ -390,12 +396,14 @@ function PromptInputShell({
   const handoff = useRef({ attachments, configuration: pendingConfiguration })
   /* 监听器与命令只注册一次，回调却每次渲染都可能是新的。 */
   const report = useRef(onChange)
+  const engage = useRef(onEngage)
   const submit = useRef(onSubmit)
   const seeded = useRef(false)
   const blocked = useRef(submitDisabled)
 
   handoff.current = { attachments, configuration: pendingConfiguration }
   report.current = onChange
+  engage.current = onEngage
   submit.current = onSubmit
   blocked.current = submitDisabled
 
@@ -954,12 +962,14 @@ function PromptInputShell({
                 }
               }}
               onDrop={(event) => {
+                engage.current?.()
                 /* 落下必须先同步 preventDefault —— 异步回调里再补就晚了（默认动作早已发生）；只在真的有人接拖放时才拦。 */
                 if (inputHandlers.some(({ item }) => item.onDrop !== undefined)) {
                   event.preventDefault()
                   void handleContributedDrop(event)
                 }
               }}
+              onFocus={() => engage.current?.()}
               onKeyDown={onFormKeyDown}
               onKeyDownCapture={onPaletteKeyDown}
               onMouseDown={onFormMouseDown}

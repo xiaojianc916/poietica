@@ -26,6 +26,11 @@ export interface DraftControlInit {
   readonly hidden?: readonly string[]
 }
 
+export interface CommandCatalogOptions {
+  /** 这条对话已经有过对话（会话文件在）：压缩、重试、重命名这类只对已有对话有意义的命令也列出来。缺省 false（入口页）。 */
+  readonly history?: boolean
+}
+
 export interface AgentEngine {
   readonly info: EngineInfo
   /**
@@ -34,11 +39,12 @@ export interface AgentEngine {
    */
   draftControls(init?: DraftControlInit): Promise<Controls>
   /**
-   * 还没有对话时能用的斜杠命令（入口页的命令面板）：内置命令加 `cwd` 下的文件命令，不开会话。
-   * 只对已有对话起作用的那几条（压缩、重试、重命名……）不在表里；扩展与 MCP 提示词命令要会话装起来才有，也不在。
-   * `cwd` 为 null 时只列内置命令。
+   * 不开会话的斜杠命令表：内置命令加 `cwd` 下的文件命令。两处用它 —— 入口页（还没有对话），以及**没开着**的对话
+   * （看一眼历史对话不为一张命令表去打开会话，性能方案 P4）。扩展、自定义 TS 命令与 MCP 提示词要会话装起来才有，不在表里；
+   * 会话打开后调用方改问 `EngineSession.commands()`。`cwd` 为 null 时只列内置命令。
+   * 只对已有对话起作用的那几条（压缩、重试、重命名……）只在 `options.history` 为 true 时列出。
    */
-  commandCatalog(cwd: string | null): Promise<readonly SlashCommand[]>
+  commandCatalog(cwd: string | null, options?: CommandCatalogOptions): Promise<readonly SlashCommand[]>
   /** 注册内置 agent 工具。必须在第一次 openSession 之前完成；之后调用抛 engine.tools_frozen。 */
   registerTool(spec: EngineToolSpec): Disposable
   /** 冻结工具表。core-kernel 在全部模块 setup 完成后调用一次。 */

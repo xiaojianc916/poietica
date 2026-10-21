@@ -139,6 +139,13 @@ interface SideRun {
   cancelled: boolean
 }
 
+/** 话题表的次序（与 omp `RpcBtwController.history` 同一条）：新开的在前，同一刻开的按号排。活会话与冷读共用 */
+function newestFirst(topics: readonly SideTopic[]): SideTopic[] {
+  return [...topics].sort(
+    (a, b) => (b.turns[0]?.createdAt ?? 0) - (a.turns[0]?.createdAt ?? 0) || a.id.localeCompare(b.id),
+  )
+}
+
 /**
  * 一份 ops 账 → 一页时间线。活会话的 page() 与端口的冷读 readPage() 都从这里出：替身里两条路天然同一页。
  * 替身不派子代理：认不出的通道号按端口约定交空页，不抛。
@@ -828,9 +835,7 @@ class FakeSession implements EngineSession {
 
   async sideTopics(): Promise<readonly SideTopic[]> {
     this.assertLive()
-    return [...this.sideTopicsOf()].sort(
-      (a, b) => (b.turns[0]?.createdAt ?? 0) - (a.turns[0]?.createdAt ?? 0) || a.id.localeCompare(b.id),
-    )
+    return newestFirst(this.sideTopicsOf())
   }
 
   async dispose(): Promise<void> {
@@ -937,8 +942,12 @@ export function createFakeEngine(opts: FakeEngineOptions = {}): FakeEngine {
      * 草稿控件表（方案 §04 的 draftControls）：只读，不开会话、不写设置。与会话里那份同一条规则：
      * 可选模型来自目录（只取 enabled），思考档位按当前模型的 thinkingLevels 给，姿态是 init.posture ?? 'auto-edit'。
      */
-    /* 与真引擎同一条规则：入口页的命令表不列只对已有对话有意义的那几条（这里是 compact 与 retry） */
-    async commandCatalog() {
+    /*
+     * 与真引擎同一条规则：入口页的命令表不列只对已有对话有意义的那几条（这里是 compact 与 retry）；
+     * 没开着的对话（options.history）列全 —— 替身的会话没有扩展命令，冷表与活表因此同一张。
+     */
+    async commandCatalog(_cwd, options) {
+      if (options?.history === true) return FAKE_COMMANDS
       return FAKE_COMMANDS.filter((command) => command.name !== 'compact' && command.name !== 'retry')
     },
     async draftControls(init) {
@@ -1026,6 +1035,10 @@ export function createFakeEngine(opts: FakeEngineOptions = {}): FakeEngine {
         const ops = store.get(file)
         if (ops === undefined) throw new AppError(EngineErrorCode.sessionFileMissing, `会话文件不存在：${file}`)
         return pageOfOps(ops, agentId, beforeTurnId)
+      },
+      /* 与 FakeSession.sideTopics 同一本账、同一条次序：冷读与「重开再问」同一张表 */
+      async sideTopics(file) {
+        return newestFirst(sides.get(file) ?? [])
       },
       async fork(file, keepTurns, title) {
         const next = `${file}.fork-${createId()}`

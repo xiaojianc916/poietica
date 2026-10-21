@@ -153,6 +153,14 @@ export class SideQuestions {
   }
 }
 
+/**
+ * 存档里的话题 → 端口的话题表：新开的在前，同一刻开的按号排（omp `RpcBtwController.history` 同一条次序）。
+ * 冷读（SessionFilesPort.sideTopics）用它；活会话问控制器，控制器自己排。
+ */
+export function sideTopicsOf(records: readonly BtwHistoryRecord[]): SideTopic[] {
+  return [...records].sort((a, b) => b.createdAt - a.createdAt || a.id.localeCompare(b.id)).map(topicOf)
+}
+
 /** omp 的一条记录（首问 + followUps）→ 端口的话题（问题表摊平；omp 的 getBtwTurns 同一个次序） */
 export function topicOf(record: BtwHistoryRecord): SideTopic {
   return { id: record.id, leafId: record.leafId, turns: [record, ...(record.followUps ?? [])].map(turnOf) }

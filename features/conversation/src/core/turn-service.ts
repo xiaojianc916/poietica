@@ -18,6 +18,7 @@ import type { TranscriptPage } from '@poietica/transcript'
 import type { QueueView } from '../contract'
 import { DEFAULT_POSTURE, type Thread, type TurnState } from '../contract/entities'
 import { conversationErrors } from '../contract/errors'
+import { controlsFromSnapshot } from './controls-snapshot'
 import type { EventRouter } from './event-router'
 import type { ThreadsRepository } from './repository'
 import type { SessionPool } from './session-pool'
@@ -50,6 +51,9 @@ export interface TurnServiceDeps {
   readonly emitUserMessage: (p: { threadId: string; at: number }) => void
 }
 
+/** 没开着的会话的队列：空，两档模式是每条新会话的起点（与引擎 OmpSession 的初值同一份） */
+const IDLE_QUEUE: QueueSnapshot = { items: [], modes: { steer: 'all', followUp: 'all' } }
+
 export class TurnService {
   constructor(private readonly d: TurnServiceDeps) {}
 
@@ -58,6 +62,10 @@ export class TurnService {
     return this.d.pool.peek(threadId)
   }
 
+  /**
+   * 预热（threads.open）：**写意图**才来 —— UI 在人开始写这一句（输入框拿到焦点、拖进文件）时发，第一句话发出去时会话已经开好。
+   * 读（时间线、控件、队列、命令、侧边话题）一律不经过这里，看一眼历史对话不开会话（性能方案 P1 / P4）。
+   */
   async open(threadId: string): Promise<void> {
     this.d.requireRow(threadId)
     await this.d.pool.acquire(threadId).catch((e: unknown) => {
@@ -140,9 +148,15 @@ export class TurnService {
   }
 
   // ── 队列（queue 三方法）──────────────────────────────────────────────────
+  /**
+   * 队列快照 —— **读不开会话**（性能方案 P4）。队列只活在活会话的内存里：没开着的会话一定是空队列，
+   * 两档模式也是新会话的起点（引擎每条会话都从 all / all 起，不落盘）—— 与「为这一读打开会话再问」逐字相同。
+   */
   async queue(threadId: string): Promise<QueueView> {
-    const session = await this.d.pool.acquire(threadId)
-    return this.queueViewOf(threadId, session)
+    const live = this.d.pool.peek(threadId)
+    if (live !== undefined) return this.queueViewOf(threadId, live)
+    this.d.requireRow(threadId)
+    return this.d.submissions.queueViewOf(threadId, IDLE_QUEUE)
   }
 
   /** 队列只从这里出去：引擎快照挂上提交行的附件，界面才画得出缩略图（见 SubmissionService.queueViewOf） */
@@ -199,9 +213,32 @@ export class TurnService {
   }
 
   // ── 控件（controls 六方法 + 草稿）────────────────────────────────────────
+  /**
+   * 控件表 —— **读不开会话**（性能方案 P4）。会话开着就问它；没开着：
+   * - 还没落过盘（行上没有会话文件）：草稿表，按行上记的初始模型 / 档位 / 姿态 —— 打开时 describe 交给引擎的正是这三格；
+   * - 落过盘：控件表快照（会话最后一次报的模型、档位、计划、目标、上下文）配上现读的候选与可用性（controls-snapshot.ts）；
+   * - 落过盘却没有快照（升级前的线程、分叉出来的新线程）：照旧打开会话现问 —— 打开时快照写进来，下一次就是冷读。
+   * 会话打开时 Core 主动推一次真值（controls.changed），冷读与真值有出入（模型下架被换掉）也只差到那一刻。
+   */
   async controls(threadId: string): Promise<Controls> {
-    const session = await this.d.pool.acquire(threadId)
-    return session.controls()
+    const live = this.d.pool.peek(threadId)
+    if (live !== undefined) return live.controls()
+    const row = this.d.requireRow(threadId)
+    if (row.sessionFile === null) {
+      return await this.d.engine.draftControls({
+        model: row.initialModel,
+        thinking: row.initialThinking,
+        posture: row.posture,
+      })
+    }
+    const snapshot = this.d.repo.controlsSnapshot(threadId)
+    if (snapshot === null) return (await this.d.pool.acquire(threadId)).controls()
+    const draft = await this.d.engine.draftControls({
+      model: snapshot.model,
+      thinking: snapshot.thinking.current,
+      posture: row.posture,
+    })
+    return controlsFromSnapshot(snapshot, draft, row.posture)
   }
 
   /**
@@ -292,9 +329,17 @@ export class TurnService {
   }
 
   // ── 斜杠命令（表与执行都归引擎，这里只拿会话转交）──────────────────────────
+  /**
+   * 命令表 —— **读不开会话**（性能方案 P4）。会话开着就问它（含扩展、自定义 TS 命令与 MCP 提示词）；
+   * 没开着交不开会话的那张表（内置 + 工作区的文件命令），落过盘的对话连「压缩、重试」这类只对已有对话有意义的也列上。
+   * 会话打开时 Core 发 commands.changed，UI 重读就换成活会话那张。
+   */
   async commands(threadId: string): Promise<readonly SlashCommand[]> {
-    const session = await this.d.pool.acquire(threadId)
-    return await session.commands()
+    const live = this.d.pool.peek(threadId)
+    if (live !== undefined) return await live.commands()
+    const row = this.d.requireRow(threadId)
+    const cwd = this.d.workspaces.requireUsable(row.workspaceId).path
+    return await this.d.engine.commandCatalog(cwd, { history: row.sessionFile !== null })
   }
 
   /** 入口页的命令表：不开会话，文件命令按工作区目录读（没给工作区就只有内置命令） */
@@ -324,15 +369,15 @@ export class TurnService {
   }
 
   /**
-   * 话题表。还没落过盘的线程（行上没有会话文件）也没有话题可读：不为打开右坞去冷启动一条会话。
-   * 落过盘的线程要会话 —— 话题存在会话的 artifacts 目录里，路径只有引擎知道。
+   * 话题表 —— **读不开会话**（性能方案 P4）。会话开着就问它（正在答的那一问只有它知道）；没开着就冷读会话产物目录里的
+   * 话题存档（`SessionFilesPort.sideTopics`，与「重开再问」同一张表）。还没落过盘的线程没有话题可读：空表。
    */
   async sideTopics(threadId: string): Promise<readonly SideTopic[]> {
     const live = this.d.pool.peek(threadId)
     if (live !== undefined) return await live.sideTopics()
-    if (this.d.requireRow(threadId).sessionFile === null) return []
-    const session = await this.d.pool.acquire(threadId)
-    return await session.sideTopics()
+    const { sessionFile } = this.d.requireRow(threadId)
+    if (sessionFile === null) return []
+    return await this.d.engine.sessionFiles.sideTopics(sessionFile)
   }
 
   // ── 交互（07 页 §5C 的 interactions 两方法）───────────────────────────────

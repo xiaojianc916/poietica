@@ -1,17 +1,19 @@
 import { mkdir, rm, stat } from 'node:fs/promises'
 import path from 'node:path'
 import { exportFromFile } from '@oh-my-pi/pi-coding-agent/export/html'
+import { BtwHistoryStore } from '@oh-my-pi/pi-coding-agent/session/btw-history'
 import type { SessionEntry } from '@oh-my-pi/pi-coding-agent/session/session-entries'
 import { formatSessionHistoryMarkdown } from '@oh-my-pi/pi-coding-agent/session/session-history-format'
 import { loadSessionMessagesReadOnly } from '@oh-my-pi/pi-coding-agent/session/session-loader'
 import { SessionManager } from '@oh-my-pi/pi-coding-agent/session/session-manager'
 import { FileSessionStorage } from '@oh-my-pi/pi-coding-agent/session/session-storage'
-import type { MediaGcResult, SessionFilesPort } from '@poietica/engine'
+import type { MediaGcResult, SessionFilesPort, SideTopic } from '@poietica/engine'
 import { EngineErrorCode } from '@poietica/engine'
 import { AppError, type Logger, SystemErrorCode } from '@poietica/foundation'
 import type { TranscriptPage } from '@poietica/transcript'
 import { toEngineError } from '../errors'
 import { type OmpMessage, turnOpenings } from '../projector/history'
+import { sideTopicsOf } from '../session/side-questions'
 import type { SessionHistoryReader } from './session-history'
 
 /** SessionFilesPort 需要的东西：omp 的会话目录、媒体回收，以及一个只用来记异常的 logger。 */
@@ -46,6 +48,20 @@ export class OmpSessionFilesPort implements SessionFilesPort {
 
   async readPage(sessionFile: string, agentId: string, beforeTurnId: string | null): Promise<TranscriptPage> {
     return await this.d.history.page(sessionFile, agentId, beforeTurnId)
+  }
+
+  /**
+   * 侧边话题的冷读：omp 自己的存档读法（`BtwHistoryStore.open` —— 只 readdir / readFile，不加锁、不写），与活会话里
+   * `RpcBtwController.history()` 读的是同一个目录（产物目录 / btw-history）。没答完就退出的那一问由它按 `interrupted` 交出。
+   */
+  async sideTopics(sessionFile: string): Promise<readonly SideTopic[]> {
+    const artifacts = artifactsDirOf(sessionFile)
+    if (artifacts === null) return []
+    try {
+      return sideTopicsOf((await BtwHistoryStore.open(artifacts)).getRecords())
+    } catch (error) {
+      throw toEngineError(error)
+    }
   }
 
   async fork(

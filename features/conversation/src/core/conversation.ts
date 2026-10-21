@@ -145,6 +145,17 @@ export class ConversationCore {
       describe: (threadId) => this.threads.describe(threadId),
       onOpened: (threadId, session) => {
         this.threads.onOpened(threadId, session)
+        /*
+         * 会话打开了（性能方案 P4）：没开着时屏幕上画的是冷读那一份（控件表快照、不含扩展与 MCP 提示词的命令表），
+         * 这里主动报一次真值 —— 控件表走 controls 事件同一条路（推送 + 写快照），命令表让 UI 重读。
+         * 读不出控件表只记一条 warn：不能因为它把刚开好的会话丢掉（这个回调抛错，会话池会 dispose 它）。
+         */
+        try {
+          this.router.onEvent(threadId, { type: 'controls', controls: session.controls() })
+        } catch (error) {
+          d.logger.warn('controls snapshot on open failed', { threadId, error: String(error) })
+        }
+        d.emitCommandsChanged({ threadId })
       },
       onEvent: (threadId, event) => {
         this.router.onEvent(threadId, event)

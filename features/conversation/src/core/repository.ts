@@ -1,6 +1,7 @@
 import type { ModelRef, Posture } from '@poietica/engine'
 import type { ModuleDatabase, SqlValue } from '@poietica/storage-sqlite'
 import type { Thread } from '../contract'
+import { type ControlsSnapshot, parseSnapshot } from './controls-snapshot'
 
 export interface ThreadRow {
   id: string
@@ -53,6 +54,10 @@ export interface ThreadsRepository {
   listByWorkspace(workspaceId: string): ThreadRow[]
   /** 绑着会话文件的那些行（启动对账用：行上的路径必须真有文件） */
   listBound(): Array<{ readonly id: string; readonly sessionFile: string }>
+  /** 控件表快照（性能方案 P4，见 controls-snapshot.ts）：没有、或读不懂都是 null。不在 COLUMNS 里 —— 列线程不必捎上它 */
+  controlsSnapshot(id: string): ControlsSnapshot | null
+  /** 覆盖控件表快照；内容没变就不写（比较在库里做，进程内不另记一份） */
+  saveControlsSnapshot(id: string, snapshot: ControlsSnapshot): void
 }
 
 const COLUMNS = `id, workspace_id, title, title_source, posture, origin, session_id, session_file,
@@ -183,6 +188,20 @@ export function createThreadsRepository(db: ModuleDatabase): ThreadsRepository {
         )
         .all(workspaceId)
         .map(toRow)
+    },
+    controlsSnapshot(id) {
+      const r = db
+        .prepare<{ controls_snapshot: string | null }>(
+          'SELECT controls_snapshot FROM conversation_threads WHERE id = ?',
+        )
+        .get(id)
+      return r === null || r === undefined ? null : parseSnapshot(r.controls_snapshot)
+    },
+    saveControlsSnapshot(id, snapshot) {
+      const text = JSON.stringify(snapshot)
+      db.prepare(
+        'UPDATE conversation_threads SET controls_snapshot = ? WHERE id = ? AND controls_snapshot IS NOT ?',
+      ).run(text, id, text)
     },
     listBound() {
       return db

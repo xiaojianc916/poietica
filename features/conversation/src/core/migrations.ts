@@ -94,4 +94,14 @@ DELETE FROM conversation_submissions
   updated_at   INTEGER NOT NULL
 );`,
   },
+  {
+    version: 5,
+    name: 'controls_snapshot',
+    /*
+     * 控件表快照（性能方案 P4，见 controls-snapshot.ts）：看一条没开着的对话时，输入框那一排选择器照它画，
+     * 不为一张控件表去打开会话。活会话每报一次控件表、上下文用量就覆盖一次；随行删除，不必另外清理。
+     * 升级前的线程没有这一格：第一次看时照旧打开会话现问，打开时写进来，此后就是冷读。
+     */
+    sql: `ALTER TABLE conversation_threads ADD COLUMN controls_snapshot TEXT;`,
+  },
 ]

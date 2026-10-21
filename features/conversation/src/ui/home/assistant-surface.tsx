@@ -88,6 +88,11 @@ export interface AssistantSurfaceProps {
   readonly goal?: SessionGoal | undefined
   readonly onGoalAction?: GoalActionHandler | undefined
   readonly composer?: Ref<PromptInputHandle> | undefined
+  /**
+   * 人开始写这一句（输入框拿到焦点、拖进文件）：对话页据此预热会话（性能方案 P4，看不开、写才开）。会反复触发，去重归调用方；
+   * 入口页不传。
+   */
+  readonly onComposeIntent?: (() => void) | undefined
   /** 这条对话的斜杠命令（omp 的表与执行）；入口页没有会话，缺席 */
   readonly commands?: ThreadCommands | undefined
   readonly thread?: Thread | undefined
@@ -341,6 +346,7 @@ export const AssistantSurface = memo(function AssistantSurface({
   endpoint,
   goal,
   isNew,
+  onComposeIntent,
   onExportThread,
   onFork,
   onGoalAction = NO_GOAL_ACTIONS,
@@ -475,6 +481,7 @@ export const AssistantSurface = memo(function AssistantSurface({
         onCancel={assistant.cancel}
         onContinue={continueConversation}
         onDismissQuestions={assistant.dismissQuestions}
+        onEngage={onComposeIntent}
         onResolvePlan={assistant.resolvePlan}
         plan={pendingPlan}
         onSelectControl={onSelectControl}

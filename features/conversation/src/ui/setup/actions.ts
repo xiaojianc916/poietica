@@ -116,10 +116,10 @@ export function createConversationActions(setup: ConversationSetup): Conversatio
   const openThread = (threadId: string): void => {
     /* 高亮由路由派生，这里只负责导航。 */
     navigation.navigate({ surface: 'conversation.thread', params: { threadId } })
-    void api.openThread(threadId).catch(() => undefined)
     /*
-     * `threads.open` 只做「后台预热会话」，不返回控件表；表要等 Core 的 `controls.changed` 通知。
-     * 只等通知的话，那一排选择器（模型 / 思考 / 批准方式）在预热完成之前一直不画 —— 用户看到的就是「没有权限选择与模型选择」（真实故障）。这里主动问一次，通知到了再覆盖。
+     * 点开一条对话**不开会话**（性能方案 P4）：只是看，时间线、控件表、命令表都由 Core 冷读作答；会话在人开始写时才由
+     * 线程表面预热（thread-lifecycle.ts 的 engage）。控件表这里主动问一次 —— 只等表面挂载那一次的话，
+     * 那一排选择器（模型 / 思考 / 批准方式）要晚一拍才画（真实故障「没有权限选择与模型选择」），重复请求由 controls-store 合并。
      */
     void stores.controls.refresh(threadId)
     const thread = stores.threads.byId(threadId)

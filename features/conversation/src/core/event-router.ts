@@ -3,6 +3,7 @@ import type { Clock } from '@poietica/foundation'
 import type { TranscriptOperation } from '@poietica/transcript'
 import { MAIN_AGENT_ID, type QueueView, type Thread, type TurnState } from '../contract/entities'
 import { conversationErrors } from '../contract/errors'
+import { snapshotOf } from './controls-snapshot'
 import type { ThreadRow, ThreadsRepository } from './repository'
 import type { TimelineHub } from './timeline-hub'
 
@@ -126,12 +127,18 @@ export class EventRouter {
         break
       case 'controls':
         this.d.emitControls({ threadId, controls: event.controls })
+        /* 快照跟着每一份控件表走：会话关掉以后，看这条对话的人照它画选择器（性能方案 P4） */
+        this.d.repo.saveControlsSnapshot(threadId, snapshotOf(event.controls))
         if (event.controls.posture !== this.d.repo.get(threadId)?.posture)
           this.d.threads.setPosture(threadId, event.controls.posture)
         break
-      case 'contextUsage':
+      case 'contextUsage': {
         this.d.emitContextUsage({ threadId, usage: event.usage })
+        /* 用量不搭控件表那班车（见 controls.contextChanged），快照里那一格单独跟上；还没有快照就等打开时那一份 */
+        const held = this.d.repo.controlsSnapshot(threadId)
+        if (held !== null) this.d.repo.saveControlsSnapshot(threadId, { ...held, context: event.usage })
         break
+      }
       case 'usage':
         this.d.emitUsageSampled({ threadId, sample: event.usage, at: this.d.clock.now() })
         break

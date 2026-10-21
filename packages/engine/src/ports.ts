@@ -15,6 +15,7 @@ import type {
   PluginInfo,
   ProviderInfo,
   SettingDescriptor,
+  SideTopic,
   SkillInfo,
 } from './values'
 
@@ -33,6 +34,13 @@ export interface SessionFilesPort {
    * 文件不存在报 `engine.session_file_missing`。
    */
   readPage(sessionFile: string, agentId: string, beforeTurnId: string | null): Promise<TranscriptPage>
+  /**
+   * **没开着的**会话的侧边话题（右坞辅助对话，性能方案 P4）：只读会话产物目录里的话题存档 —— 不建会话、不抢锁、不写文件。
+   * 与「把这条会话重新打开、再 `EngineSession.sideTopics()`」同一张表（一致性用例 C-SIDE-READ）：新开的在前；
+   * 上次没答完就退出的那一问报 `interrupted`（与重开时的修补同一口径）。从没问过（没有存档目录）交空表。
+   * 开着的会话以它自己的 `sideTopics()` 为准（正在答的那一问只有它知道），调用方只在会话池里没有这条会话时才走这里。
+   */
+  sideTopics(sessionFile: string): Promise<readonly SideTopic[]>
   /**
    * 复制一条会话；给了 `keepTurns` 就只留屏幕上的前 `keepTurns` 轮（轮号就是时间线上 `turn.ordinal` 那个号，
    * 由引擎自己签发、自己认回）。不给 = 整条复制。`0` = 只留会话头不留任何一轮（「从第 1 轮重写」用它，

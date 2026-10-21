@@ -116,6 +116,7 @@ function makeEngine(over: Partial<ConstructorParameters<typeof OmpEngine>[0]> = 
         meta: {},
         hasMoreOlder: false,
       }),
+      sideTopics: async () => [],
       fork: async () => ({ sessionId: 'x', sessionFile: 'y' }),
       rename: async () => undefined,
       delete: async () => undefined,

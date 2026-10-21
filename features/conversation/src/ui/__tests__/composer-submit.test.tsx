@@ -57,7 +57,7 @@ function statusBridge(): WindowBridge {
 async function harness(): Promise<{
   readonly renderComposer: (
     onSubmit: (message: PromptInputMessage) => void,
-    options?: { readonly submitDisabled?: boolean },
+    options?: { readonly submitDisabled?: boolean; readonly onEngage?: () => void },
   ) => {
     readonly container: HTMLElement
     readonly handle: () => PromptInputHandle | null
@@ -109,6 +109,7 @@ async function harness(): Promise<{
               <ComposerDraftsContext value={drafts}>
                 <PromptInput
                   groups={groups}
+                  onEngage={options.onEngage}
                   onSubmit={onSubmit}
                   ref={(next) => {
                     ref.current = next
@@ -141,6 +142,38 @@ async function harness(): Promise<{
     },
   }
 }
+
+/*
+ * 性能方案 P4：对话页靠这一格判断「人开始写了」再预热会话。只是挂上去（看一眼对话）不能报 ——
+ * 那等于又回到挂载即开会话；拿到焦点、拖进文件才报。
+ */
+describe('开始写（onEngage）', () => {
+  test('挂载不报；编辑器拿到焦点、往框里拖东西才报', async () => {
+    let engaged = 0
+    const harnessed = await harness()
+
+    try {
+      const { container } = harnessed.renderComposer(() => undefined, {
+        onEngage: () => {
+          engaged += 1
+        },
+      })
+      expect(engaged).toBe(0)
+
+      const editor = container.querySelector<HTMLElement>('[contenteditable="true"]')
+      expect(editor).not.toBeNull()
+      fireEvent.focusIn(editor!)
+      expect(engaged).toBe(1)
+
+      const shell = container.querySelector<HTMLElement>('[data-slot="prompt-input"]')
+      expect(shell).not.toBeNull()
+      fireEvent.drop(shell!)
+      expect(engaged).toBe(2)
+    } finally {
+      harnessed.unmount()
+    }
+  })
+})
 
 describe('从加号面板到提交', () => {
   test('技能那一行落进正文，发送时 skills 里带着它的名字', async () => {

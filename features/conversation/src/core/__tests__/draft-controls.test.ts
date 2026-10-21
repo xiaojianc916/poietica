@@ -164,10 +164,15 @@ describe('CV-15 入口页写穿新对话默认意图', () => {
     await api.call('controls.get', { threadId: thread.id })
     expect(openedOf(engine).length).toBe(openedAfterOpen)
 
-    /* 对照：目录变了（启停模型）仍让空闲会话换代，下一次读控件表要重开 */
+    /*
+     * 对照：目录变了（启停模型）仍让空闲会话换代 —— 会话被释放，下一次要会话（预热）就重开一条。
+     * 读控件表不算：没开着的会话由快照冷读作答（性能方案 P4），换代之后看一眼也不开会话。
+     */
     await engine.models.setModelEnabled({ provider: 'fake', id: 'second' }, false)
     await new Promise((resolve) => setTimeout(resolve, 20))
     await api.call('controls.get', { threadId: thread.id })
+    expect(openedOf(engine).length).toBe(openedAfterOpen)
+    await api.call('threads.open', { threadId: thread.id })
     expect(openedOf(engine).length).toBe(openedAfterOpen + 1)
 
     await h.dispose()

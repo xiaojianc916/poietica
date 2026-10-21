@@ -1,8 +1,5 @@
 import { describe, expect, test } from 'bun:test'
-import { renderHook } from '@testing-library/react'
-import { StrictMode } from 'react'
 import { completionBody, confirmQuit, isTurnSettled, shouldNotify } from '../session/notify'
-import { useThreadSessionLifecycle } from '../threads/thread-lifecycle'
 
 /*
  * 只测规则，不测 IO —— 发与不发的接线在 index.tsx 的 setup 里。
@@ -72,57 +69,5 @@ describe('confirmQuit（07 页 §5E 的关闭拦截）', () => {
     expect(seen[0]?.body).toContain('退出将中断')
     expect(seen[0]?.confirmLabel).toBe('退出')
     expect(seen[0]?.danger).toBe(true)
-  })
-})
-
-describe('useThreadSessionLifecycle（挂载预热 / 卸载释放）', () => {
-  test('挂载发 threads.open；卸载发 threads.close', async () => {
-    const calls: string[] = []
-    const hook = renderHook(
-      (props: { threadId: string }) =>
-        useThreadSessionLifecycle({
-          threadId: props.threadId,
-          open: async (id) => {
-            calls.push(`open:${id}`)
-          },
-          close: async (id) => {
-            calls.push(`close:${id}`)
-          },
-        }),
-      { initialProps: { threadId: 't1' } },
-    )
-
-    await Bun.sleep(10)
-    expect(calls).toEqual(['open:t1'])
-
-    hook.unmount()
-    await Bun.sleep(10)
-    expect(calls).toEqual(['open:t1', 'close:t1'])
-  })
-
-  test('StrictMode 的双渲染（卸载后立刻重挂同一线程）不发 close', async () => {
-    const calls: string[] = []
-    const hook = renderHook(
-      () =>
-        useThreadSessionLifecycle({
-          threadId: 't1',
-          open: async (id) => {
-            calls.push(`open:${id}`)
-          },
-          close: async (id) => {
-            calls.push(`close:${id}`)
-          },
-        }),
-      { wrapper: StrictMode },
-    )
-    /*
-     * StrictMode 会把 effect 跑两遍。清理里排的 close 必须被紧随其后的挂载取消掉，
-     * 否则每一屏都会白关一次刚预热的会话。
-     */
-    await Bun.sleep(2)
-    expect(calls).toEqual(['open:t1', 'open:t1'])
-    hook.unmount()
-    await Bun.sleep(10)
-    expect(calls).toEqual(['open:t1', 'open:t1', 'close:t1'])
   })
 })

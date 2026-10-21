@@ -170,7 +170,7 @@ export async function createOmpEngineWith(o: CreateEngineOptions, seams: EngineT
           hidden: init.hidden,
         }),
       ),
-    commandCatalog: (cwd) => listCommandCatalog(cwd),
+    commandCatalog: (cwd, options) => listCommandCatalog(cwd, options),
     models: ports.models,
     settings: ports.settings,
     skills: ports.skills,

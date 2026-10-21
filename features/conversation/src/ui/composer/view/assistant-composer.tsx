@@ -36,6 +36,8 @@ export interface AssistantComposerProps {
   /** 只写一次；此后草稿归 PromptInput。 */
   readonly initialText?: string | undefined
   readonly onChange?: ((text: string) => void) | undefined
+  /** 人开始写（拿到焦点、拖进文件），见 PromptInput 的同名一格 */
+  readonly onEngage?: (() => void) | undefined
   readonly attachments?: boolean | undefined
   readonly onCancel?: (() => void) | undefined
   readonly onContinue?: (() => void) | undefined
@@ -156,6 +158,7 @@ export const AssistantComposer = memo(function AssistantComposer({
   commands,
   initialText,
   onChange,
+  onEngage,
   onAnswerDialog,
   onAnswerQuestions,
   onDismissQuestions,
@@ -206,6 +209,7 @@ export const AssistantComposer = memo(function AssistantComposer({
         initialText={initialText}
         multiple
         onChange={onChange}
+        onEngage={onEngage}
         onSubmit={onSubmit}
         ref={ref}
         slashCommands={asking ? undefined : commands}

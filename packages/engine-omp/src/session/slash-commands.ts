@@ -6,7 +6,7 @@ import {
 } from '@oh-my-pi/pi-coding-agent/slash-commands/available-commands'
 import { parseSlashCommand } from '@oh-my-pi/pi-coding-agent/slash-commands/helpers/parse'
 import type { SlashCommandRuntime } from '@oh-my-pi/pi-coding-agent/slash-commands/types'
-import type { SlashCommand } from '@poietica/engine'
+import type { CommandCatalogOptions, SlashCommand } from '@poietica/engine'
 import { builtinDescriptionOf, builtinHintOf, builtinRankOf } from './command-text'
 
 /*
@@ -115,10 +115,14 @@ async function loadBundledAware(
 }
 
 /**
- * 不开会话的命令表（入口页）：同一个 `buildAvailableSlashCommands`，交给它一份空会话 —— 没有扩展、自定义 TS 命令与
- * MCP 提示词（那些要会话装起来才有），文件命令照 `cwd` 读。再剔掉只对已有对话有意义的那几条（NEEDS_HISTORY）。
+ * 不开会话的命令表（入口页，与没开着的对话）：同一个 `buildAvailableSlashCommands`，交给它一份空会话 —— 没有扩展、
+ * 自定义 TS 命令与 MCP 提示词（那些要会话装起来才有），文件命令照 `cwd` 读。还没有对话时（`history` 不为 true）
+ * 再剔掉只对已有对话有意义的那几条（NEEDS_HISTORY）。
  */
-export async function listCommandCatalog(cwd: string | null): Promise<readonly SlashCommand[]> {
+export async function listCommandCatalog(
+  cwd: string | null,
+  options?: CommandCatalogOptions,
+): Promise<readonly SlashCommand[]> {
   const bare: AvailableCommandsSession = {
     customCommands: [],
     skills: [],
@@ -129,9 +133,9 @@ export async function listCommandCatalog(cwd: string | null): Promise<readonly S
   const commands = await buildAvailableSlashCommands(bare, (dir) =>
     cwd === null ? Promise.resolve([]) : loadBundledAware(dir, undefined, bundled),
   )
-  return foldCommands(commands, bundled).filter(
-    (command) => command.source !== 'builtin' || !NEEDS_HISTORY.has(command.name),
-  )
+  const folded = foldCommands(commands, bundled)
+  if (options?.history === true) return folded
+  return folded.filter((command) => command.source !== 'builtin' || !NEEDS_HISTORY.has(command.name))
 }
 
 type OmpAvailableCommand = Awaited<ReturnType<typeof buildAvailableSlashCommands>>[number]

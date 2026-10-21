@@ -845,6 +845,58 @@ export function runEngineConformance(name: string, make: () => Promise<Conforman
       await reopened.dispose()
     })
 
+    /*
+     * C-SIDE-READ：没开着的会话的侧边话题冷读（SessionFilesPort.sideTopics，性能方案 P4）。
+     * 与「重新打开会话再 sideTopics()」同一张表；只读（不开会话）；从没问过的交空表。
+     */
+    test('C-SIDE-READ', async () => {
+      const first = await openNew()
+      const record = recorder(first)
+      target.script([[{ kind: 'text', text: 'one' }], [{ kind: 'text', text: 'two' }]])
+      const a = await first.askSide('first topic', null)
+      await record.waitFor((events) => sideSettled(events, a.id), '第一个侧边提问没有答完')
+      const b = await first.askSide('second topic', null)
+      await record.waitFor((events) => sideSettled(events, b.id), '第二个侧边提问没有答完')
+      const file = first.sessionFile
+      record.subscription.dispose()
+      await first.dispose()
+
+      const openedBefore = target.openedCount?.()
+      const cold = await target.engine.sessionFiles.sideTopics(file)
+      if (openedBefore !== undefined) expect(target.openedCount?.()).toBe(openedBefore)
+      expect([...cold.map((topic) => topic.id)].sort()).toEqual([a.id, b.id].sort())
+      expect(await target.engine.sessionFiles.sideTopics(`${file}.gone`)).toEqual([])
+
+      const reopened = await target.engine.openSession({
+        key: 'conformance',
+        cwd: target.cwd,
+        sessionFile: file,
+        posture: 'ask',
+        model: null,
+        thinking: null,
+      })
+      expect(cold).toEqual(await reopened.sideTopics())
+      await reopened.dispose()
+    })
+
+    /*
+     * C-COMMAND-CATALOG：不开会话的命令表。入口页（没有 history）不列只对已有对话有意义的命令（compact）；
+     * 没开着的对话（history: true）列出来；冷表里的每一条活会话里都有（冷表少的只是要会话装起来才有的那些）。
+     */
+    test('C-COMMAND-CATALOG', async () => {
+      const openedBefore = target.openedCount?.()
+      const entry = (await target.engine.commandCatalog(target.cwd)).map((command) => command.name)
+      const cold = (await target.engine.commandCatalog(target.cwd, { history: true })).map((command) => command.name)
+      if (openedBefore !== undefined) expect(target.openedCount?.()).toBe(openedBefore)
+      expect(entry).not.toContain('compact')
+      expect(cold).toContain('compact')
+      expect(new Set(cold).size).toBe(cold.length)
+      const session = await openNew()
+      const live = new Set((await session.commands()).map((command) => command.name))
+      expect(cold.filter((name) => !live.has(name))).toEqual([])
+      await session.dispose()
+    })
+
     test('C-DISPOSE', async () => {
       const session = await openNew()
       const record = recorder(session)

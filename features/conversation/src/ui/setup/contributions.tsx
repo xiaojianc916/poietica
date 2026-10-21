@@ -30,7 +30,7 @@ import { GOAL_CONTROL_ID, GOAL_DISABLED } from '../shared/model/goal-control'
 import { groupByWorkspace } from '../shared/model/thread-order'
 import type { TimelineState } from '../shared/timeline/timeline-contract'
 import { runGoalAction } from '../status/goal/goal-actions'
-import { createThreadSurfaceOpener, useThreadSessionLifecycle } from '../threads/thread-lifecycle'
+import { useThreadSessionLifecycle } from '../threads/thread-lifecycle'
 import { AssistantThreadList } from '../threads/view/assistant-thread-list'
 import { NewConversationNavRow } from '../threads/view/new-conversation-nav-row'
 import { ARCHIVED_FILTER, type ArchivedFilter } from '../threads/view/thread-view'
@@ -65,11 +65,8 @@ export function createConversationContributions(setup: ConversationSetup, action
     (cause: unknown): void => {
       ctx.logger.warn('conversation action failed', { action, threadId, error: String(cause) })
     }
-  /* 线程表面挂载 / 换对话时预热会话并主动问一次控件表（审查 R-19-4，判据见 thread-lifecycle.ts）。setup 级的稳定引用：它进了 effect 依赖。 */
-  const openThreadSurface = createThreadSurfaceOpener({
-    open: api.openThread,
-    refreshControls: (threadId) => stores.controls.refresh(threadId),
-  })
+  /* 线程表面挂载 / 换对话时主动问一次控件表（审查 R-19-4，判据见 thread-lifecycle.ts）。setup 级的稳定引用：它进了 effect 依赖。 */
+  const refreshControls = (threadId: string): Promise<void> => stores.controls.refresh(threadId)
 
   /* 重写分出来的新对话要带上的那一句：按新对话号放一次、取一次（setup 级，跨表面实例） */
   const prefills = new Map<string, string>()
@@ -339,8 +336,13 @@ export function createConversationContributions(setup: ConversationSetup, action
        * 会话端口从注册表取（**不要在这里新建**）：注册表按对话号持有身份，所以「同一条对话永远是同一根端口」在重挂载、
        * StrictMode 双渲染、切走再切回来这几条路上都成立。组件里 `useMemo` 做不到 —— 它随组件生命周期生灭，换个实例就换一根端口。
        */ const session = threadId === '' ? undefined : sessions.port(threadId)
-      /* 挂载预热 / 卸载释放（threads.open / threads.close）；规则与 StrictMode 的兜底在 thread-lifecycle.ts 里。 */
-      useThreadSessionLifecycle({ threadId, open: openThreadSurface, close: api.closeThread })
+      /* 看不开、写才开（性能方案 P4）：挂载只问控件表，人开始写时 engage 预热，卸载释放；规则与 StrictMode 的兜底在 thread-lifecycle.ts 里。 */
+      const engage = useThreadSessionLifecycle({
+        threadId,
+        open: api.openThread,
+        close: api.closeThread,
+        refreshControls,
+      })
       /* omp 的斜杠命令：表随会话现算，输出不进会话文件，所以由这一层按对话号收着 */
       const commands = useThreadCommands(api, threadId, takePendingCommand)
       /* 表面实例跨对话复用：按对话号记着取到的那一句，换了对话就重取，不把上一条的话放进这一条 */
@@ -370,6 +372,7 @@ export function createConversationContributions(setup: ConversationSetup, action
             endpoint={threadId}
             goal={goal}
             isNew={false}
+            onComposeIntent={engage}
             onFork={(keepTurns) => {
               void api
                 .forkThread({ threadId, keepTurns })

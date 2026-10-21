@@ -1,6 +1,7 @@
 import {
   type AgentEngine,
   type BrowserRelayEndpoint,
+  type CommandCatalogOptions,
   type Controls,
   type DraftControlInit,
   EngineErrorCode,
@@ -113,8 +114,8 @@ export class OmpEngine implements AgentEngine {
     })
   }
 
-  async commandCatalog(cwd: string | null): Promise<readonly SlashCommand[]> {
-    return await this.o.commandCatalog(cwd)
+  async commandCatalog(cwd: string | null, options?: CommandCatalogOptions): Promise<readonly SlashCommand[]> {
+    return await this.o.commandCatalog(cwd, options)
   }
 
   registerTool(spec: EngineToolSpec): Disposable {
