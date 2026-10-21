@@ -266,7 +266,6 @@
     {
       "includes": [
         "features/conversation/src/ui/session/session-port.ts",
-        "features/conversation/src/ui/timeline/model/transcript-projector.ts",
         "features/extensions/src/ui/mcp-config.ts",
         "packages/engine-omp/src/projector/__tests__/fixtures/live.ts"
       ],

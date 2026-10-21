@@ -1,6 +1,7 @@
 import { invariant } from '@poietica/foundation'
 import type {
   AgentTranscriptSnapshot,
+  ApprovalInteraction,
   ConfirmInteraction,
   InputInteraction,
   PlanInteraction,
@@ -229,6 +230,7 @@ function toolFrameOf(
   const view = ompToolView(frame.name, frame.input, frame.output, frame.error, frame.intent)
   // 只在 view 不认识该工具或 subject 为空时才要 describeTool，避免 15k 次无用 Reflect.get。
   const tool = view.known && view.subject ? undefined : describeTool(frame.input)
+  const running = frame.state === 'running'
   return {
     type: 'tool_call',
     id: frame.frameId,
@@ -246,22 +248,32 @@ function toolFrameOf(
     ...(view.background ? { isBackground: true as const } : {}),
     /* 参数还在流（只有声明了 streamInput 的工具，例如 intelligent_ui）：pending，工具还没开始跑 */
     status: frame.inputPending === true ? 'pending' : statusOfToolFrame(frame.state),
-    requestContent:
-      view.request.length > 0 || emptyInput(frame.input) ? view.request : textContent(jsonOf(frame.input)),
+    requestContent: requestContentOf(frame, view),
     content: view.response.length > 0 ? view.response : textContent(frame.error ?? frame.output),
     locations: [],
-    channels:
-      frame.agentRefs === undefined || frame.agentRefs.length === 0
-        ? []
-        : frame.agentRefs.map((agent) => ({
-            agentId: agent.agentId,
-            name: agent.agentId,
-          })),
+    channels: channelsOf(frame.agentRefs),
     rawInput: frame.input,
     rawOutput: frame.output,
     startedAt: stamp,
-    ...(frame.state === 'running' ? {} : { endedAt: stamp }),
+    ...(running ? {} : { endedAt: stamp }),
   } satisfies ToolCallTimelineItem
+}
+
+/** 请求原文：视图认得就用手工拼的那一份，认不出（或入参为空）才退回落成 JSON */
+function requestContentOf(
+  frame: Extract<TranscriptFrame, { kind: 'tool' }>,
+  view: ReturnType<typeof ompToolView>,
+): ToolCallTimelineItem['requestContent'] {
+  if (view.request.length > 0 || emptyInput(frame.input)) return view.request
+  return textContent(jsonOf(frame.input))
+}
+
+/** 帧上挂的子代理通道；没有就空表（界面据此画「智能体」那一节） */
+function channelsOf(
+  agentRefs: Extract<TranscriptFrame, { kind: 'tool' }>['agentRefs'],
+): ToolCallTimelineItem['channels'] {
+  if (agentRefs === undefined || agentRefs.length === 0) return []
+  return agentRefs.map((agent) => ({ agentId: agent.agentId, name: agent.agentId }))
 }
 
 /**
@@ -335,85 +347,98 @@ function interactionOf(
   turn: number,
   stamp: number,
 ): PermissionItem | PlanItem | QuestionTimelineItem {
-  const resolved = interaction.state !== 'pending'
   switch (interaction.interactionKind) {
-    case 'plan': {
-      const { request } = interaction
-      const resolution = resolved ? planResolutionOf(interaction) : undefined
-      return {
-        type: 'plan',
-        id: interaction.interactionId,
-        turn,
-        at: stamp,
-        requestId: interaction.interactionId,
-        title: request.title === '' ? '计划' : request.title,
-        planFilePath: request.planFilePath,
-        planMarkdown: request.planMarkdown,
-        ...(resolution === undefined ? {} : { resolution }),
-      }
-    }
-    case 'approval': {
-      const { toolName, detail } = interaction.request
-      /*
-       * 主语取上游算好的那一段（`Command: rm -rf …` 这类），不是工具名：判据是「要不要让它做这件事」。用 headline 而不是 subject：headline 是多行原文，sayToolLine 只截第一行。
-       */
-      const said = detail === '' ? toolName : detail
-      return {
-        type: 'permission',
-        id: interaction.interactionId,
-        turn,
-        at: stamp,
-        requestId: interaction.interactionId,
-        title: said === '' ? 'Approval' : said,
-        ...(said === '' ? {} : { headline: said }),
-        kind: 'other',
-        subject: toolName,
-        locations: [],
-        ...(resolved ? { resolution: { decision: approvalDecision(interaction.state) } } : {}),
-      }
-    }
+    case 'plan':
+      return planItemOf(interaction, turn, stamp)
+    case 'approval':
+      return permissionItemOf(interaction, turn, stamp)
     case 'confirm':
     case 'select':
     case 'input':
-      return {
-        type: 'question',
-        id: interaction.interactionId,
-        turn,
-        at: stamp,
-        questionId: interaction.interactionId,
-        questions: [],
-        dialog: dialogOf(interaction),
-        /* 单问答过就收：它不上屏（与审批同理，操作痕迹归事件日志），终态只用来让面板让位 */
-        ...(resolved
-          ? {
-              resolution: {
-                outcome:
-                  interaction.state === 'cancelled' || interaction.state === 'dismissed' ? 'cancelled' : 'answered',
-                answers: {},
-                note: '',
-              },
-            }
-          : {}),
-      }
+      return dialogItemOf(interaction, turn, stamp)
     case 'question':
-      return {
-        type: 'question',
-        id: interaction.interactionId,
-        turn,
-        at: stamp,
-        questionId: interaction.interactionId,
-        ...(interaction.toolCallId === undefined ? {} : { toolCallId: interaction.toolCallId }),
-        questions: questionItemsOf(interaction),
-        ...(resolved
-          ? {
-              resolution: {
-                outcome: questionOutcome(interaction.state),
-                answers: answersOf(interaction),
-                note: '',
-              },
-            }
-          : {}),
-      }
+      return questionItemOf(interaction, turn, stamp)
+  }
+}
+
+function planItemOf(interaction: PlanInteraction, turn: number, stamp: number): PlanItem {
+  const { request } = interaction
+  const resolution = interaction.state === 'pending' ? undefined : planResolutionOf(interaction)
+  return {
+    type: 'plan',
+    id: interaction.interactionId,
+    turn,
+    at: stamp,
+    requestId: interaction.interactionId,
+    title: request.title === '' ? '计划' : request.title,
+    planFilePath: request.planFilePath,
+    planMarkdown: request.planMarkdown,
+    ...(resolution === undefined ? {} : { resolution }),
+  }
+}
+
+function permissionItemOf(interaction: ApprovalInteraction, turn: number, stamp: number): PermissionItem {
+  const { toolName, detail } = interaction.request
+  /*
+   * 主语取上游算好的那一段（`Command: rm -rf …` 这类），不是工具名：判据是「要不要让它做这件事」。用 headline 而不是 subject：headline 是多行原文，sayToolLine 只截第一行。
+   */
+  const said = detail === '' ? toolName : detail
+  const resolved = interaction.state !== 'pending'
+  return {
+    type: 'permission',
+    id: interaction.interactionId,
+    turn,
+    at: stamp,
+    requestId: interaction.interactionId,
+    title: said === '' ? 'Approval' : said,
+    ...(said === '' ? {} : { headline: said }),
+    kind: 'other',
+    subject: toolName,
+    locations: [],
+    ...(resolved ? { resolution: { decision: approvalDecision(interaction.state) } } : {}),
+  }
+}
+
+function dialogItemOf(interaction: DialogInteraction, turn: number, stamp: number): QuestionTimelineItem {
+  return {
+    type: 'question',
+    id: interaction.interactionId,
+    turn,
+    at: stamp,
+    questionId: interaction.interactionId,
+    questions: [],
+    dialog: dialogOf(interaction),
+    /* 单问答过就收：它不上屏（与审批同理，操作痕迹归事件日志），终态只用来让面板让位 */
+    ...(interaction.state === 'pending'
+      ? {}
+      : {
+          resolution: {
+            outcome: interaction.state === 'cancelled' || interaction.state === 'dismissed' ? 'cancelled' : 'answered',
+            answers: {},
+            note: '',
+          },
+        }),
+  }
+}
+
+function questionItemOf(interaction: QuestionInteraction, turn: number, stamp: number): QuestionTimelineItem {
+  return {
+    type: 'question',
+    id: interaction.interactionId,
+    turn,
+    at: stamp,
+    questionId: interaction.interactionId,
+    ...(interaction.toolCallId === undefined ? {} : { toolCallId: interaction.toolCallId }),
+    questions: questionItemsOf(interaction),
+    ...(interaction.state === 'pending'
+      ? {}
+      : {
+          resolution: {
+            outcome: questionOutcome(interaction.state),
+            answers: answersOf(interaction),
+            note: '',
+          },
+        }),
   }
 }
 
@@ -873,9 +898,8 @@ function compactionOf(mark: TranscriptMarker, turn: number): CompactionTimelineI
   const payload =
     typeof mark.payload === 'object' && mark.payload !== null ? (mark.payload as Record<string, unknown>) : {}
 
-  const state = compactionStateOf(payload.state)
-  const trigger = payload.trigger
-  const instruction = payload.instruction
+  const trigger = triggerOf(payload.trigger)
+  const instruction = textOf(payload.instruction)
   const tokensBefore = countOf(payload.tokensBefore)
   const tokensAfter = countOf(payload.tokensAfter)
   /* 展开那一面给人读：有 PR 式短摘要就用它，没有才用整份摘要 */
@@ -889,11 +913,11 @@ function compactionOf(mark: TranscriptMarker, turn: number): CompactionTimelineI
     turn,
     at: timeOf(mark.at) ?? 0,
     agentId: 'main',
-    state,
-    ...(trigger === 'manual' || trigger === 'auto' ? { trigger } : {}),
+    state: compactionStateOf(payload.state),
+    ...(trigger === undefined ? {} : { trigger }),
     /* 落了盘的那一行带 method，跑着的那一格带 action（omp 压缩事件的写法） */
     ...(payload.method === 'handoff' || payload.action === 'handoff' ? { handoff: true as const } : {}),
-    ...(typeof instruction === 'string' && instruction !== '' ? { instruction } : {}),
+    ...(instruction === undefined ? {} : { instruction }),
     ...(tokensBefore === undefined ? {} : { tokensBefore }),
     ...(tokensAfter === undefined ? {} : { tokensAfter }),
     ...(summary === undefined ? {} : { summary }),
@@ -901,6 +925,11 @@ function compactionOf(mark: TranscriptMarker, turn: number): CompactionTimelineI
     ...(warning === undefined ? {} : { warning }),
     ...(payload.superseded === true ? { superseded: true as const } : {}),
   }
+}
+
+/** 压缩是谁触发的：只认 manual / auto 两档，认不出就不写这一格 */
+function triggerOf(value: unknown): 'manual' | 'auto' | undefined {
+  return value === 'manual' || value === 'auto' ? value : undefined
 }
 
 function textOf(value: unknown): string | undefined {
