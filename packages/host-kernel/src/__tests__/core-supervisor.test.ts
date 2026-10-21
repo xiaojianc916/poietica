@@ -2,6 +2,7 @@ import { describe, expect, test } from 'bun:test'
 import { EventEmitter } from 'node:events'
 import { PassThrough } from 'node:stream'
 import { type AppError, Deferred, SystemErrorCode } from '@poietica/foundation'
+import type { ProcessInfo } from '@poietica/process-kit'
 import { encodeFrame } from '@poietica/rpc'
 import { type DataLayout, dataLayout } from '@poietica/runtime-layout'
 import { createTestLogger, type FakeClock, fakeClock, type TempDir, tempDir, waitFor } from '@poietica/test-kit'
@@ -645,6 +646,56 @@ describe('CoreSupervisor', () => {
     ready(s.spawned[1]!.child)
     await restarted
     expect(listed).toBe(2)
+  })
+
+  /*
+   * 性能方案 P3：第一次启动清残留用 Host 一启动就发起的那份进程表快照（与 Electron 初始化、建窗并行），
+   * 不再在 start() 里现查；快照只用一次，restart() 照旧现查。快照里的上一代照样清掉、清完才 spawn。
+   */
+  test('P3 第一次 start() 用启动快照清残留，不再现查；restart() 照旧现查', async () => {
+    const coreExe = process.execPath
+    const snapshot = new Deferred<ProcessInfo[]>()
+    let listed = 0
+    const s = await setup({
+      processSnapshot: snapshot.promise,
+      listProcesses: async () => {
+        listed += 1
+        return []
+      },
+    })
+    const started = s.sup.start()
+    await tick()
+    /* 快照还没回来：不 spawn（清残留必须在 spawn 之前），也不另起一次现查 */
+    expect(s.spawned.length).toBe(0)
+    expect(listed).toBe(0)
+    snapshot.resolve([
+      { pid: 9300, parentPid: 0, name: 'poietica-core.exe', executablePath: coreExe, commandLine: 'core serve' },
+    ])
+    await waitFor(() => s.spawned.length === 1)
+    expect(s.killed).toEqual([9300])
+    expect(listed).toBe(0)
+    ready(s.spawned[0]!.child)
+    await started
+
+    const restarted = s.sup.restart()
+    exitChild(s.spawned[0]!.child, 0)
+    await waitFor(() => s.spawned.length === 2)
+    ready(s.spawned[1]!.child)
+    await restarted
+    expect(listed).toBe(1)
+  })
+
+  test('P3 core ready 日志带启动耗时：spawn 到就绪、清残留、Host 进程运行时长', async () => {
+    const s = await setup()
+    const started = s.sup.start()
+    await tick()
+    s.clock.advance(120)
+    ready(s.spawned[0]!.child)
+    await started
+    const record = s.log.records.find((r) => r.msg === 'core ready')
+    expect(record?.data.readyMs).toBe(120)
+    expect(record?.data.reapMs).toBe(0)
+    expect(typeof record?.data.hostUptimeMs).toBe('number')
   })
 
   test('reapOrphans 在 Core 还没停时调用 → 跳过，绝不误杀活着的这一代', async () => {

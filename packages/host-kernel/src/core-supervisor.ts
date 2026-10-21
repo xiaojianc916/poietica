@@ -13,12 +13,12 @@ import {
   systemClock,
   withTimeout,
 } from '@poietica/foundation'
-import { killTree, listProcesses, type ProcessInfo } from '@poietica/process-kit'
+import { killTree, type ProcessInfo } from '@poietica/process-kit'
 import { type InboundContext, type RpcMeta, RpcPeer } from '@poietica/rpc'
 import { createChildProcessTransport } from '@poietica/rpc/stdio'
 import { buildCoreLaunch, CORE_EXIT_CODES, CORE_SHUTDOWN_BUDGET_MS, type DataLayout } from '@poietica/runtime-layout'
 import type { CoreOutputSink } from './core-output'
-import { findStaleCoreProcesses, reapStaleCoreProcesses, type StaleProcess } from './core-reaper'
+import { findStaleCoreProcesses, listCoreProcesses, reapStaleCoreProcesses, type StaleProcess } from './core-reaper'
 
 export type CoreStatusState = (typeof CORE_STATUS_STATES)[number]
 export type CoreFailureReason = (typeof CORE_FAILURE_REASONS)[number]
@@ -64,9 +64,15 @@ export interface CoreSupervisorOptions {
   readonly readyTimeoutMs?: number
   /**
    * 测试注入用：列出系统进程（启动前清理残留、关停后收拾 omp 后台进程）。
-   * 默认走 process-kit 的 PowerShell 实现；注入空表就等价于「这台机器上没有残留」。
+   * 默认只问 Core 的映像名（core-reaper 的 listCoreProcesses）；注入空表就等价于「这台机器上没有残留」。
    */
   readonly listProcesses?: () => Promise<ProcessInfo[]>
+  /**
+   * **第一次** start() 清残留用的进程表：Host 一拿到单实例锁就发起（kernel.ts 的 runHostKernel），
+   * 与 Electron 初始化、模块 setup、建窗并行 —— 查进程表是一次子进程往返，不该排在建窗之后再串行地等。
+   * 只用一次：崩溃重启、restart() 一律现查（那时的进程表才是那一刻的真相）。
+   */
+  readonly processSnapshot?: Promise<ProcessInfo[]>
 }
 
 interface ReadyPayload {
@@ -86,6 +92,10 @@ export class CoreSupervisor {
   private stopped: Deferred<void> | undefined
   /** 启动前清掉的残留（诊断与测试用） */
   private reaped: StaleProcess[] = []
+  /** 见 CoreSupervisorOptions.processSnapshot：第一次 start() 取走后置空 */
+  private snapshot: Promise<ProcessInfo[]> | undefined
+  /** 最近一次 start() 里清残留花的时间（进 'core ready' 日志，真机核对启动耗时用） */
+  private reapMs: number | null = null
   private readonly statusEmitter = new Emitter<CoreStatus>()
   private readonly readyEmitter = new Emitter<void>()
   readonly onStatus = this.statusEmitter.event
@@ -93,6 +103,7 @@ export class CoreSupervisor {
 
   constructor(private readonly o: CoreSupervisorOptions) {
     this.clock = o.clock ?? systemClock
+    this.snapshot = o.processSnapshot
   }
 
   get status(): CoreStatus {
@@ -125,19 +136,24 @@ export class CoreSupervisor {
     const gen = ++this.generation
     // 上一代 Core 与它派发的 omp 后台进程必须先清干净（refactor-log R-37）：后者占着 exe 与 SQLite，
     // 不清就会「新 Host + 旧 Core」→ 协议不一致直接 failed，而且覆盖安装也修不好。
-    await this.reapBeforeLaunch()
+    const snapshot = this.snapshot
+    this.snapshot = undefined
+    const t0 = this.clock.now()
+    await this.reapBeforeLaunch(snapshot)
+    this.reapMs = this.clock.now() - t0
     if (this.stale(gen)) return
     await this.launchSafely()
   }
 
-  /** 启动前的残留清理。失败只记日志，不影响启动（清理是尽力而为）。 */
-  private async reapBeforeLaunch(): Promise<void> {
+  /** 启动前的残留清理。失败只记日志，不影响启动（清理是尽力而为）。给了快照就用快照，否则现查。 */
+  private async reapBeforeLaunch(snapshot: Promise<ProcessInfo[]> | undefined): Promise<void> {
+    const list = snapshot === undefined ? this.o.listProcesses : () => snapshot
     try {
       this.reaped = await reapStaleCoreProcesses({
         logger: this.o.logger,
         ownPid: this.child?.pid,
         coreExe: this.o.coreExe,
-        ...(this.o.listProcesses === undefined ? {} : { list: this.o.listProcesses }),
+        ...(list === undefined ? {} : { list }),
         ...(this.o.kill === undefined ? {} : { kill: this.o.kill }),
       })
     } catch (e) {
@@ -199,7 +215,7 @@ export class CoreSupervisor {
       this.o.logger.warn('reapOrphans 只能在 stop() 之后调用，跳过', { state: this.state })
       return
     }
-    const list = this.o.listProcesses ?? listProcesses
+    const list = this.o.listProcesses ?? (() => listCoreProcesses(this.o.coreExe))
     try {
       const processes = await list()
       const stale = findStaleCoreProcesses(processes, undefined, this.o.coreExe)
@@ -326,6 +342,7 @@ export class CoreSupervisor {
       baseEnv: this.o.baseEnv(),
     })
     for (const dir of launch.mustExistDirs) mkdirSync(dir, { recursive: true })
+    const spawnedAt = this.clock.now()
     const child = (this.o.spawn ?? nodeSpawn)(launch.command, [...launch.args], {
       cwd: launch.cwd,
       env: launch.env,
@@ -399,7 +416,17 @@ export class CoreSupervisor {
       if (child.pid !== undefined) await (this.o.kill ?? killTree)(child.pid)
       return
     }
-    this.o.logger.info('core ready', { ...payload, pid: child.pid })
+    /*
+     * 启动耗时三个数（真机核对用）：readyMs = spawn 到 core.ready；reapMs = 这一次 start() 里清残留等了多久
+     * （崩溃退避重启不清残留，记 null）；hostUptimeMs = Host 进程起来到此刻 —— 用户眼里「界面什么时候有内容」就是它。
+     */
+    this.o.logger.info('core ready', {
+      ...payload,
+      pid: child.pid,
+      readyMs: this.clock.now() - spawnedAt,
+      reapMs: this.reapMs,
+      hostUptimeMs: Math.round(process.uptime() * 1000),
+    })
     this.reason = null
     this.setState('ready')
     this.readyEmitter.fire()
@@ -458,6 +485,7 @@ export class CoreSupervisor {
       return
     }
     const delay = BACKOFF_MS[Math.min(this.crashes.length - 1, BACKOFF_MS.length - 1)]!
+    this.reapMs = null
     if (this.reason === null) this.reason = 'crashed'
     this.setState('restarting')
     this.restartTimer = this.clock.setTimeout(() => {

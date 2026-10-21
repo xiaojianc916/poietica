@@ -80,6 +80,8 @@ export default defineHostModule({
       ctx.core.onStatus((status) => {
         if (status.state === 'ready') syncLogLevel(prefs.get().logLevel)
       })
+      /* Core 与 onReady 并行启动（host-kernel 的 boot ⑨）：订阅之前它若已经 ready，这一次同步要自己补上 */
+      if (ctx.core.status().state === 'ready') syncLogLevel(prefs.get().logLevel)
     })
 
     ctx.lifecycle.onShutdown(async () => {

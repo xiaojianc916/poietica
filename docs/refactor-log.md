@@ -45,7 +45,7 @@
 | 2026-10-18 | `pathKey` 只做 `resolve` + Windows 小写，不做 `realpath` / 8.3 短名归一；junction / 短名场景下 `skip` 集合可能匹配不上而重复计数（构造上本机不触发） | F-01 §7 |
 | 2026-10-18 | fork 失败路径两处健壮性：`thread-service` 的 `enqueue` 抛错会覆盖原始 insert 错误；`session-files` 的 `forked.close()` 抛错会跳过 `discard` | F-01 §7 |
 | 2026-10-18 | `tooling/checks/review-page/run.ts` 仍自己起 `gh` 取冒烟数据（tooling 不能 import 功能源码，也不在 `bun run all` 里） | R-36 |
-| 2026-10-18 | `listProcesses` 每次约 0.5s（PowerShell 起进程开销），启动与关停各一次，未做缓存 | R-37 |
+| 2026-10-18 | `listProcesses` 每次约 0.5s（PowerShell 起进程开销），启动与关停各一次。**已结清（性能方案 P3）**：清残留只问 Core 的映像名（`listCoreProcesses`），先用 tasklist 问「有没有」，常态不起 PowerShell；真有同名进程才用 WQL 过滤只取那几行。首次启动那一次在 Host 拿到单实例锁时就发起，与 Electron 初始化、建窗并行；Core 在窗口挂上总机后就启动，不再排在全部 onReady 之后。**真机核对时发现并顺手修掉一个会把收益吃掉的旧 bug**：CIM 输出保留 `Name` / `ExecutablePath` / `CommandLine` 的原始大小写，而 `parseProcessList` 只读小写键，导致名字 / 路径 / 命令行全是空串、`findStaleCoreProcesses` 一个残留也认不出（P3 只按名字预筛会把这个空串原样放大）。解析改成两种大小写都认，并用真实 PowerShell 输出钉了用例 | R-37 |
 | 2026-10-21 | 测试不按平台跳过：Linux 上 `bun test` 稳定 62 失败 + 1 error（Windows 路径、PowerShell、`.exe` 等），另有 `agent-activity-feed.test.tsx` 两条（happy-dom 下 `offsetHeight` 桩不生效）与 `goal-continuation.test.ts` C4 满载超时。CI 只跑 windows-latest，所以从没红过；要么给平台专属用例加 `test.skipIf(process.platform !== 'win32')`，要么 CI 加一条 ubuntu 任务 | R-48 审查 |
 | 2026-10-20 | `PartSkeleton`（`.workbench__skeleton`：`--ui-muted` 40%）对其它懒加载部位同样是一块突兀的灰：深色主题下加载一闪而过就是一次「闪灰」。可改为延迟约 150ms 再出现，或按所在部位的底色画 | R-49 |
 

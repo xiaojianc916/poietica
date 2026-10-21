@@ -1,3 +1,4 @@
+import path from 'node:path'
 import type { Logger } from '@poietica/foundation'
 import { killTree, listProcesses, type ProcessInfo } from '@poietica/process-kit'
 
@@ -17,6 +18,17 @@ function pathKey(p: string): string {
   return p.toLowerCase().replace(/^\\\\\?\\/, '')
 }
 
+/**
+ * 本应用 Core 映像名的进程（`poietica-core.exe`）：只问这一个名字。
+ *
+ * 常态下上一代退得干干净净，tasklist 一问就答「没有」，不再每次起 PowerShell 枚举整张进程表（见 process-kit 的
+ * `ListProcessesOptions`）。按名字筛不会比按路径认漏掉什么：{@link findStaleCoreProcesses} 认的进程映像名一定就是它。
+ * coreExe 一律按 Windows 路径取文件名（测试在 Linux 上跑时也一样）。
+ */
+export function listCoreProcesses(coreExe: string): Promise<ProcessInfo[]> {
+  return listProcesses({ imageName: path.win32.basename(coreExe) })
+}
+
 /** 一条需要清理的残留：上一代 Core，或它派发出来、现在还活着的 omp 后台进程 */
 export interface StaleProcess {
   readonly pid: number
@@ -30,7 +42,7 @@ export interface ReapOptions {
   readonly ownPid: number | undefined
   /** 本应用 Core 的绝对路径；**只清这个路径上的进程**，别的 checkout / 别的安装目录一概不碰 */
   readonly coreExe: string
-  /** 测试注入：默认走 process-kit 的 PowerShell 枚举 */
+  /** 默认 {@link listCoreProcesses}；Host 启动时传进来的是一启动就发起的那份快照（见 CoreSupervisorOptions.processSnapshot） */
   readonly list?: () => Promise<ProcessInfo[]>
   /** 测试注入：默认走 killTree（taskkill /T /F） */
   readonly kill?: (pid: number) => Promise<void>
@@ -81,7 +93,7 @@ export function findStaleCoreProcesses(
  * 永不抛错：清理失败只记 warn，启动照常（与 killTree 一样，清理是尽力而为）。
  */
 export async function reapStaleCoreProcesses(o: ReapOptions): Promise<StaleProcess[]> {
-  const list = o.list ?? listProcesses
+  const list = o.list ?? (() => listCoreProcesses(o.coreExe))
   const kill = o.kill ?? killTree
   let processes: ProcessInfo[]
   try {

@@ -12,12 +12,14 @@ import {
   sortModules,
 } from '@poietica/foundation'
 import { consoleSink, createLogger, jsonlFileSink } from '@poietica/logging'
+import type { ProcessInfo } from '@poietica/process-kit'
 import { Router } from '@poietica/rpc'
 import { app, dialog, net, protocol, type WebContents } from 'electron'
 import { type AppIdentity, configureAppIdentity } from './app-identity'
 import { APP_SCHEME, APP_SCHEME_PRIVILEGES, createAppProtocolHandler } from './app-protocol'
 import { ASSET_SCHEME, createAssetDispatcher } from './asset-protocol'
 import { createCoreOutputSink } from './core-output'
+import { listCoreProcesses } from './core-reaper'
 import { CoreSupervisor } from './core-supervisor'
 import { createIpcTransport } from './ipc-transport'
 import { HostLoggingToken, type HostModule, type HostModuleContext } from './module'
@@ -79,6 +81,12 @@ export function runHostKernel(opts: HostKernelOptions): void {
   })
   process.on('uncaughtException', (e) => logger.error('uncaughtException', { error: String(e), stack: e.stack }))
   process.on('unhandledRejection', (e) => logger.error('unhandledRejection', { error: String(e) }))
+  /*
+   * ③½ 启动前清残留要的进程表，现在就去查（不等 app ready）：它是一次子进程往返，与 Electron 初始化、模块 setup、
+   * 建窗互不相干。以前排在建窗与全部 onReady 之后才开始，整段串在「Core 什么时候能用」的关键路径上。
+   * 必须在单实例锁之后：第二实例不该替第一实例去清进程。只给第一次启动用（见 CoreSupervisorOptions.processSnapshot）。
+   */
+  const coreProcesses = listCoreProcesses(opts.paths.coreExe)
   // ④ 自定义协议特权声明（ready 之前，只能调用一次）
   protocol.registerSchemesAsPrivileged([
     { scheme: ASSET_SCHEME, privileges: { standard: true, secure: true, supportFetchAPI: true, stream: true } },
@@ -88,12 +96,18 @@ export function runHostKernel(opts: HostKernelOptions): void {
   void app
     .whenReady()
     .then(() =>
-      boot(opts, identity, logger, {
-        get: () => level,
-        set: (l) => {
-          level = l
+      boot(
+        opts,
+        identity,
+        logger,
+        {
+          get: () => level,
+          set: (l) => {
+            level = l
+          },
         },
-      }),
+        coreProcesses,
+      ),
     )
     .catch((e: unknown) => fatal(logger, identity.layout.mainLog, 'kernel', e))
 }
@@ -103,6 +117,7 @@ async function boot(
   identity: AppIdentity,
   logger: Logger,
   levelRef: { get(): 'debug' | 'info' | 'warn' | 'error'; set(l: 'debug' | 'info' | 'warn' | 'error'): void },
+  coreProcesses: Promise<ProcessInfo[]>,
 ): Promise<void> {
   const log = logger.child({ scope: 'kernel' })
   const strict = !identity.isPackaged
@@ -126,6 +141,7 @@ async function boot(
     coreOutput: createCoreOutputSink(logger),
     onRequest: (method, params, ctx) => hub.handleFromCore(method, params, ctx),
     onNotification: (method, params) => hub.fromCore(method, params),
+    processSnapshot: coreProcesses,
   })
   hub = new RpcHub({
     appContract: opts.appContract,
@@ -220,7 +236,15 @@ async function boot(
   })
   hub.attachWindow(win.webContents)
   win.on('session-end', () => supervisor.killNow()) // Windows 注销 / 关机：来不及优雅退出，直接杀 Core
-  // ⑨ onReady → 启动 Core（不等待）
+  /*
+   * ⑨ 启动 Core（不等待）→ onReady。
+   *
+   * Core 是启动关键路径上最长的一段（清残留 + 起进程 + 引擎 + 迁移），窗口一挂上总机就放它走，不再排在全部
+   * onReady 之后。它要的东西此刻都齐了：Host 方法在 setup 里注册完（Core 能回调），日志级别在 beforeWindow 里
+   * 读进偏好（启动参数 --log-level 用的就是它），窗口已挂到总机（Core 的通知有人收）。onReady 里关心 Core 状态的
+   * 模块按「订阅 + 先补一次当前状态」写，Core 先于它们 ready 也不会漏（browser、preferences）。
+   */
+  void supervisor.start()
   for (const fn of onReady) {
     try {
       await fn()
@@ -228,7 +252,6 @@ async function boot(
       log.error('onReady hook failed', { error: String(e) })
     }
   }
-  void supervisor.start()
   // ⑩ 应用级事件
   /* 退出途中窗口已经藏起来了：再 focus 会把一个正在收尾的窗口重新亮出来。改为收尾后 relaunch 一个新实例。 */
   app.on('second-instance', () => {
@@ -244,7 +267,12 @@ async function boot(
   app.on('window-all-closed', () => {
     void quit.quit('window-all-closed')
   })
-  log.info('host ready', { version: opts.appVersion, dataRoot: identity.layout.root })
+  /* uptimeMs：进程起来到这里多久（真机核对启动耗时用，与 supervisor 的 'core ready' 日志对照着看） */
+  log.info('host ready', {
+    version: opts.appVersion,
+    dataRoot: identity.layout.root,
+    uptimeMs: Math.round(process.uptime() * 1000),
+  })
 }
 
 function fatal(logger: Logger, logFile: string, where: string, error: unknown): void {
