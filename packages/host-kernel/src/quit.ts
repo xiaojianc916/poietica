@@ -62,6 +62,45 @@ export function createQuitCoordinator(o: QuitDeps): QuitCoordinator {
     }
   }
 
+  /** 第 1 段：窗口先藏起来，用户点完关闭当场就看不见它了 */
+  const hideWindows = (): void => {
+    try {
+      o.windows.hideAll()
+    } catch (e) {
+      o.logger.warn('hide windows failed', { error: String(e) })
+    }
+  }
+
+  /** 第 3 段的收尾：逆序释放各模块的 disposables，一个抛错不挡下一个 */
+  const disposeStores = (): void => {
+    for (const s of [...stores].reverse()) {
+      try {
+        s.dispose()
+      } catch (e) {
+        o.logger.warn('dispose failed', { error: String(e) })
+      }
+    }
+  }
+
+  /**
+   * 第 4 段：退出。update 传了 finalize（quitAndInstall 自己会拉起新版本），那一路不再 relaunch；
+   * finalize 抛错或 10 秒内进程仍未退出 → 兜底 app.exit(0)。
+   */
+  const finish = (opts: QuitOptions | undefined): void => {
+    if (opts?.finalize === undefined) {
+      if (relaunchRequested) relaunch()
+      exit(0)
+      return
+    }
+    setTimeout(() => exit(0), 10_000).unref()
+    try {
+      opts.finalize()
+    } catch (e) {
+      o.logger.error('quit finalize failed', { error: String(e) })
+      exit(0)
+    }
+  }
+
   return {
     get quitting() {
       return running !== undefined
@@ -81,36 +120,14 @@ export function createQuitCoordinator(o: QuitDeps): QuitCoordinator {
       running = (async () => {
         const t0 = systemClock.now()
         o.logger.info('quitting', { reason })
-        try {
-          o.windows.hideAll()
-        } catch (e) {
-          o.logger.warn('hide windows failed', { error: String(e) })
-        }
+        hideWindows()
         await o.supervisor.stop()
         const coreStoppedMs = systemClock.now() - t0
         await Promise.all([o.supervisor.reapOrphans(), runHostHooks()])
-        for (const s of [...stores].reverse()) {
-          try {
-            s.dispose()
-          } catch (e) {
-            o.logger.warn('dispose failed', { error: String(e) })
-          }
-        }
+        disposeStores()
         o.windows.destroyAll()
         o.logger.info('bye', { coreStoppedMs, totalMs: systemClock.now() - t0 })
-        if (opts?.finalize === undefined) {
-          /* update 的 quitAndInstall 自己会拉起新版本，那一路不再 relaunch */
-          if (relaunchRequested) relaunch()
-          exit(0)
-          return
-        }
-        setTimeout(() => exit(0), 10_000).unref()
-        try {
-          opts.finalize()
-        } catch (e) {
-          o.logger.error('quit finalize failed', { error: String(e) })
-          exit(0)
-        }
+        finish(opts)
       })()
       return running
     },

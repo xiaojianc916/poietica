@@ -246,7 +246,6 @@
         "packages/engine-testkit/src/conformance.ts",
         "packages/engine-testkit/src/fake-engine.ts",
         "packages/host-kernel/src/core-supervisor.ts",
-        "packages/host-kernel/src/quit.ts",
         "tooling/refs/sync.ts"
       ],
       "linter": {
