@@ -18,6 +18,16 @@ interface Timer {
   readonly interval: number | null
 }
 
+/** 最早到期的一次性定时器（间隔定时器不参与，否则 runAllTimeouts 会死循环） */
+function earliestTimeout(timers: ReadonlyMap<number, Timer>): Timer | undefined {
+  let best: Timer | undefined
+  for (const t of timers.values()) {
+    if (t.interval !== null) continue
+    if (best === undefined || t.due < best.due || (t.due === best.due && t.id < best.id)) best = t
+  }
+  return best
+}
+
 export function fakeClock(start = 1_700_000_000_000): FakeClock {
   let now = start
   let nextId = 1
@@ -68,15 +78,7 @@ export function fakeClock(start = 1_700_000_000_000): FakeClock {
       now = target
     },
     runAllTimeouts() {
-      for (;;) {
-        let best: Timer | undefined
-        for (const t of timers.values()) {
-          if (t.interval !== null) continue
-          if (best === undefined || t.due < best.due || (t.due === best.due && t.id < best.id)) best = t
-        }
-        if (best === undefined) return
-        fire(best)
-      }
+      for (let t = earliestTimeout(timers); t !== undefined; t = earliestTimeout(timers)) fire(t)
     },
     pendingTimers: () => timers.size,
   }

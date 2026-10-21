@@ -27,12 +27,7 @@ export function toEngineError(error: unknown): AppError {
   if (/model not found|unknown model|no such model|找不到.*模型/i.test(message)) {
     return new AppError(EngineErrorCode.modelNotFound, message)
   }
-  const status =
-    typeof candidate.statusCode === 'number'
-      ? candidate.statusCode
-      : typeof candidate.status === 'number'
-        ? candidate.status
-        : undefined
+  const status = statusOf(candidate)
   if (
     status !== undefined ||
     /rate limit|timed? ?out|timeout|ECONNRESET|socket hang up|overloaded|429|5\d\d/i.test(message)
@@ -40,6 +35,11 @@ export function toEngineError(error: unknown): AppError {
     return new AppError(EngineErrorCode.upstream, message, status === undefined ? undefined : { status })
   }
   return new AppError(SystemErrorCode.internal, message)
+}
+
+function statusOf(candidate: { status?: unknown; statusCode?: unknown }): number | undefined {
+  if (typeof candidate.statusCode === 'number') return candidate.statusCode
+  return typeof candidate.status === 'number' ? candidate.status : undefined
 }
 
 export interface TurnOutcome {

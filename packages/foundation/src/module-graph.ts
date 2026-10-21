@@ -13,17 +13,7 @@ const MODULE_ID = /^[a-z][a-z0-9]*(-[a-z0-9]+)*$/
  */
 export function sortModules<T extends ModuleNode>(modules: readonly T[]): T[] {
   const byId = new Map<string, T>()
-  for (const m of modules) {
-    if (!MODULE_ID.test(m.id)) throw invalid(`模块 id 不合法：${m.id}`)
-    if (byId.has(m.id)) throw invalid(`模块 id 重复：${m.id}`)
-    byId.set(m.id, m)
-  }
-  for (const m of modules) {
-    for (const dep of m.dependsOn ?? []) {
-      if (dep === m.id) throw invalid(`模块 ${m.id} 依赖了自己`)
-      if (!byId.has(dep)) throw invalid(`模块 ${m.id} 依赖的 ${dep} 不在模块清单中`)
-    }
-  }
+  validateModules(modules, byId)
   const result: T[] = []
   const state = new Map<string, 'visiting' | 'done'>()
   const visit = (m: T, path: readonly string[]): void => {
@@ -37,6 +27,20 @@ export function sortModules<T extends ModuleNode>(modules: readonly T[]): T[] {
   }
   for (const m of modules) visit(m, [])
   return result
+}
+
+function validateModules<T extends ModuleNode>(modules: readonly T[], byId: Map<string, T>): void {
+  for (const m of modules) {
+    if (!MODULE_ID.test(m.id)) throw invalid(`模块 id 不合法：${m.id}`)
+    if (byId.has(m.id)) throw invalid(`模块 id 重复：${m.id}`)
+    byId.set(m.id, m)
+  }
+  for (const m of modules) {
+    for (const dep of m.dependsOn ?? []) {
+      if (dep === m.id) throw invalid(`模块 ${m.id} 依赖了自己`)
+      if (!byId.has(dep)) throw invalid(`模块 ${m.id} 依赖的 ${dep} 不在模块清单中`)
+    }
+  }
 }
 
 function invalid(message: string): AppError {

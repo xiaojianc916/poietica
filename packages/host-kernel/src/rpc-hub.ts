@@ -30,6 +30,17 @@ export interface RpcHubOptions {
   readonly createTransport: (wc: HubWebContents) => Transport
 }
 
+function rethrowOnTimeout(
+  e: unknown,
+  aborted: boolean,
+  callerAborted: boolean,
+  name: string,
+  timeoutMs: number,
+): never {
+  if (aborted && !callerAborted) throw new AppError(SystemErrorCode.timeout, `${name} 超时（${timeoutMs}ms）`)
+  throw e
+}
+
 export class RpcHub {
   private readonly windows = new Map<number, RpcPeer>()
   private readonly coreListeners = new Map<string, Set<(params: unknown) => void>>()
@@ -112,10 +123,7 @@ export class RpcHub {
           })
           return def.result.parse(raw) as ResultOf<C, N>
         } catch (e) {
-          if (ac.signal.aborted && !(opts?.signal?.aborted ?? false)) {
-            throw new AppError(SystemErrorCode.timeout, `${def.name} 超时（${timeoutMs}ms）`)
-          }
-          throw e
+          rethrowOnTimeout(e, ac.signal.aborted, opts?.signal?.aborted ?? false, def.name, timeoutMs)
         } finally {
           if (timer !== undefined) clearTimeout(timer)
           opts?.signal?.removeEventListener('abort', onAbort)

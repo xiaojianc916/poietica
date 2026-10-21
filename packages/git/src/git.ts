@@ -29,6 +29,13 @@ export interface CreateGitOptions {
 
 const NOT_A_REPO = /not a git repository/i
 
+/** RunError 分类：找不到 git / 不是仓库 / 其它命令失败（下次调用重新查找 git） */
+function classify(e: RunError, args: readonly string[], cwd: string): Error {
+  if (e.reason === 'spawn') return new GitNotFoundError(e.message)
+  if (e.reason === 'exit' && NOT_A_REPO.test(e.stderr)) return new NotARepositoryError(`${cwd} 不是 git 仓库`)
+  return new GitCommandError(e.reason, args, e.exitCode, e.stderr.slice(0, 2000))
+}
+
 export function createGit(o: CreateGitOptions): Git {
   let resolved: string | undefined = o.gitPath
   const gitExe = async (): Promise<string> => {
@@ -59,12 +66,10 @@ export function createGit(o: CreateGitOptions): Git {
       })
     } catch (e) {
       if (!(e instanceof RunError)) throw e
-      if (e.reason === 'spawn') {
-        resolved = o.gitPath // 下次重新查找（git 可能被卸载或移动）
-        throw new GitNotFoundError(e.message)
-      }
-      if (e.reason === 'exit' && NOT_A_REPO.test(e.stderr)) throw new NotARepositoryError(`${o.cwd} 不是 git 仓库`)
-      throw new GitCommandError(e.reason, args, e.exitCode, e.stderr.slice(0, 2000))
+      const classified = classify(e, args, o.cwd)
+      // git 可能被卸载或移动：下次重新查找
+      if (classified instanceof GitNotFoundError) resolved = o.gitPath
+      throw classified
     }
   }
 
