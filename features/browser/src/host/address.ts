@@ -7,38 +7,51 @@ export function normalizeAddress(input: string): string | null {
     return null
   }
 
-  if (trimmed.includes('://') || trimmed.startsWith('file:')) {
-    let parsed: URL
-
-    try {
-      parsed = new URL(trimmed)
-    } catch {
-      return null
-    }
-
-    if (parsed.protocol === 'http:' || parsed.protocol === 'https:') {
-      return parsed.hostname.length > 0 ? parsed.toString() : null
-    }
-
-    return parsed.protocol === 'file:' && parsed.hostname.length === 0 && parsed.pathname.startsWith('/')
-      ? parsed.toString()
-      : null
+  if (isExplicitAddress(trimmed)) {
+    return explicitAddressOf(trimmed)
   }
 
   if (trimmed.includes(' ')) {
     return null
   }
 
-  const scheme = isLocalAuthority(trimmed) ? 'http' : 'https'
-  let parsed: URL
+  return bareAuthorityOf(trimmed)
+}
 
+/** 带 scheme 的那一路（含 file:）：原样解析 */
+function isExplicitAddress(trimmed: string): boolean {
+  return trimmed.includes('://') || trimmed.startsWith('file:')
+}
+
+function explicitAddressOf(trimmed: string): string | null {
+  const parsed = parseUrl(trimmed)
+  if (parsed === null) return null
+  if (parsed.protocol === 'http:' || parsed.protocol === 'https:') {
+    return parsed.hostname.length > 0 ? parsed.toString() : null
+  }
+  return isLocalFile(parsed) ? parsed.toString() : null
+}
+
+/** 本地文件：空 host，且路径是绝对路径（file:///…） */
+function isLocalFile(parsed: URL): boolean {
+  return parsed.protocol === 'file:' && parsed.hostname.length === 0 && parsed.pathname.startsWith('/')
+}
+
+/** 裸主机名那一路：本地权威补 http，其余补 https，且必须看起来像个域名 */
+function bareAuthorityOf(trimmed: string): string | null {
+  const scheme = isLocalAuthority(trimmed) ? 'http' : 'https'
+  const parsed = parseUrl(`${scheme}://${trimmed}`)
+  if (parsed === null) return null
+  return scheme === 'https' && !parsed.hostname.includes('.') ? null : parsed.toString()
+}
+
+/** 解析失败一律返回 null（调用方只关心「能不能变成地址」） */
+function parseUrl(value: string): URL | null {
   try {
-    parsed = new URL(`${scheme}://${trimmed}`)
+    return new URL(value)
   } catch {
     return null
   }
-
-  return scheme === 'https' && !parsed.hostname.includes('.') ? null : parsed.toString()
 }
 
 function isLocalAuthority(address: string): boolean {

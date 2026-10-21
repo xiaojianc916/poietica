@@ -224,7 +224,6 @@
       "includes": [
         "features/automations/src/ui/automation-editor.tsx",
         "features/automations/src/ui/index.tsx",
-        "features/browser/src/host/address.ts",
         "features/browser/src/host/picker-runtime.ts",
         "features/browser/src/host/relay-client.ts",
         "features/browser/src/ui/tool-card.tsx",
