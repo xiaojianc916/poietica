@@ -32,44 +32,64 @@ function afterFields(record: string, n: number): string {
 
 export function parsePorcelainV2(stdout: string): PorcelainStatus {
   const tokens = stdout.split('\0')
-  let oid: string | null = null
-  let head: string | null = null
-  let upstream: string | null = null
-  let ahead = 0
-  let behind = 0
+  const header: BranchHeader = { oid: null, head: null, upstream: null, ahead: 0, behind: 0 }
   const entries: PorcelainEntry[] = []
   for (let i = 0; i < tokens.length; i++) {
     const t = tokens[i]!
     if (t === '') continue
     if (t.startsWith('# ')) {
-      const [key, ...rest] = t.slice(2).split(' ')
-      const value = rest.join(' ')
-      if (key === 'branch.oid') oid = value === '(initial)' ? null : value
-      else if (key === 'branch.head') head = value === '(detached)' ? null : value
-      else if (key === 'branch.upstream') upstream = value
-      else if (key === 'branch.ab') {
-        const [a, b] = value.split(' ')
-        ahead = Number(a?.slice(1) ?? 0) || 0
-        behind = Number(b?.slice(1) ?? 0) || 0
-      }
+      readBranchLine(header, t.slice(2))
       continue
     }
-    const marker = t[0]
-    if (marker === '1') {
-      entries.push({ kind: 'ordinary', index: t[2]!, worktree: t[3]!, path: afterFields(t, 8), oldPath: null })
-    } else if (marker === '2') {
-      const oldPath = tokens[i + 1] ?? ''
-      i++
-      entries.push({ kind: 'renamed', index: t[2]!, worktree: t[3]!, path: afterFields(t, 9), oldPath })
-    } else if (marker === 'u') {
-      entries.push({ kind: 'unmerged', index: t[2]!, worktree: t[3]!, path: afterFields(t, 10), oldPath: null })
-    } else if (marker === '?') {
-      entries.push({ kind: 'untracked', index: '?', worktree: '?', path: t.slice(2), oldPath: null })
-    } else if (marker === '!') {
-      entries.push({ kind: 'ignored', index: '!', worktree: '!', path: t.slice(2), oldPath: null })
-    }
+    const entry = entryOf(t, tokens[i + 1])
+    if (entry === null) continue
+    /* 重命名那条把旧路径放在下一个 token 里（-z 分段），吃掉它 */
+    if (entry.kind === 'renamed') i++
+    entries.push(entry)
   }
-  return { oid, head, upstream, ahead, behind, entries }
+  return { ...header, entries }
+}
+
+interface BranchHeader {
+  oid: string | null
+  head: string | null
+  upstream: string | null
+  ahead: number
+  behind: number
+}
+
+/** 一行 `# branch.xxx value`：认不出的键就不动（git 以后加新键也不会把解析打挂） */
+function readBranchLine(header: BranchHeader, line: string): void {
+  const [key, ...rest] = line.split(' ')
+  const value = rest.join(' ')
+  if (key === 'branch.oid') header.oid = value === '(initial)' ? null : value
+  else if (key === 'branch.head') header.head = value === '(detached)' ? null : value
+  else if (key === 'branch.upstream') header.upstream = value
+  else if (key === 'branch.ab') {
+    const [a, b] = value.split(' ')
+    header.ahead = Number(a?.slice(1) ?? 0) || 0
+    header.behind = Number(b?.slice(1) ?? 0) || 0
+  }
+}
+
+/** 一条 porcelain 记录 → 条目；认不出的标记（新版本 git 可能加）返回 null */
+function entryOf(line: string, next: string | undefined): PorcelainEntry | null {
+  const index = line[2]!
+  const worktree = line[3]!
+  switch (line[0]) {
+    case '1':
+      return { kind: 'ordinary', index, worktree, path: afterFields(line, 8), oldPath: null }
+    case '2':
+      return { kind: 'renamed', index, worktree, path: afterFields(line, 9), oldPath: next ?? '' }
+    case 'u':
+      return { kind: 'unmerged', index, worktree, path: afterFields(line, 10), oldPath: null }
+    case '?':
+      return { kind: 'untracked', index: '?', worktree: '?', path: line.slice(2), oldPath: null }
+    case '!':
+      return { kind: 'ignored', index: '!', worktree: '!', path: line.slice(2), oldPath: null }
+    default:
+      return null
+  }
 }
 
 export interface ChangeEntry {
@@ -102,16 +122,26 @@ export function toChangeLists(entries: readonly PorcelainEntry[]): { staged: Cha
   const unstaged: ChangeEntry[] = []
   for (const e of entries) {
     if (e.kind === 'ordinary' || e.kind === 'renamed') {
-      if (e.index !== '.')
-        staged.push({ path: e.path, change: changeOf(e.index), oldPath: e.kind === 'renamed' ? e.oldPath : null })
+      if (e.index !== '.') staged.push({ path: e.path, change: changeOf(e.index), oldPath: oldPathOf(e) })
       if (e.worktree !== '.') unstaged.push({ path: e.path, change: changeOf(e.worktree), oldPath: null })
-    } else if (e.kind === 'unmerged') {
-      unstaged.push({ path: e.path, change: 'conflicted', oldPath: null })
-    } else if (e.kind === 'untracked') {
-      unstaged.push({ path: e.path, change: 'untracked', oldPath: null })
+      continue
     }
+    const change = unstagedChangeOf(e)
+    if (change !== null) unstaged.push({ path: e.path, change, oldPath: null })
   }
   return { staged, unstaged }
+}
+
+/** 重命名那一条的旧路径只在已暂存那一组里有意义（未暂存那组的旧路径归 git 自己管） */
+function oldPathOf(entry: PorcelainEntry): string | null {
+  return entry.kind === 'renamed' ? entry.oldPath : null
+}
+
+/** 只落未暂存一组的那几档：conflicted / untracked；ignored 与 ordinary 之外的不上屏 */
+function unstagedChangeOf(entry: PorcelainEntry): FileChangeKind | null {
+  if (entry.kind === 'unmerged') return 'conflicted'
+  if (entry.kind === 'untracked') return 'untracked'
+  return null
 }
 
 export interface NumstatEntry {
