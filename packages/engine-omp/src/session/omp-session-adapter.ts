@@ -892,52 +892,13 @@ function noticeLevelOf(value: unknown): 'error' | 'warning' | 'info' {
 function dispatchOmpEvent(event: Record<string, unknown>, pump: EventPump): void {
   const { session, projector } = pump
   switch (event.type) {
-    case 'message_update': {
-      const assistant = event.assistantMessageEvent as Record<string, unknown> | undefined
-      const deltaType = assistant?.type
-      if (deltaType === 'toolcall_start' || deltaType === 'toolcall_delta' || deltaType === 'toolcall_end') {
-        if (assistant !== undefined) streamToolInput(assistant, pump)
-        break
-      }
-      const delta = assistant?.delta
-      if (typeof delta !== 'string') break
-      /* 块在这条助手消息 content 里的下标：帧号由它派生，重开之后历史那条路给出同一个号（frame-ids.ts） */
-      const index = typeof assistant?.contentIndex === 'number' ? assistant.contentIndex : undefined
-      if (deltaType === 'text_delta') session.requestTimeline(projector.textDelta(delta, index))
-      else if (deltaType === 'thinking_delta') session.requestTimeline(projector.thinkingDelta(delta, index))
+    case 'message_update':
+      applyMessageUpdate(event, pump)
       break
-    }
     case 'tool_execution_start':
-      session.requestTimeline(
-        projector.toolStart({
-          toolCallId: String(event.toolCallId),
-          toolName: String(event.toolName),
-          args: event.args,
-          ...(typeof event.intent === 'string' ? { intent: event.intent } : {}),
-        }),
-      )
-      /* 先上调用、再补题组的号：卡片锚的是这条调用 */
-      session.onToolStart(String(event.toolCallId), String(event.toolName))
-      break
     case 'tool_execution_update':
-      session.requestTimeline(
-        projector.toolUpdate({
-          toolCallId: String(event.toolCallId),
-          toolName: String(event.toolName),
-          partial: event.partialResult,
-        }),
-      )
-      break
     case 'tool_execution_end':
-      session.requestTimeline(
-        projector.toolEnd({
-          toolCallId: String(event.toolCallId),
-          toolName: String(event.toolName),
-          result: event.result,
-          ...(event.isError === true ? { isError: true } : {}),
-        }),
-      )
-      session.onToolEnd(String(event.toolCallId), String(event.toolName))
+      applyToolEvent(event.type, event, pump)
       break
     case 'message_start': {
       /* 助手消息一开始就计数：历史那条路按同一个口径数（见 frame-ids.ts），两边对同一段话给出同一个号 */
@@ -963,18 +924,9 @@ function dispatchOmpEvent(event: Record<string, unknown>, pump: EventPump): void
     case 'goal_updated':
       session.controlsChanged()
       break
-    case 'notice': {
-      const level = noticeLevelOf(event.level)
-      const message = String(event.message)
-      const source = typeof event.source === 'string' ? event.source : undefined
-      if (level === 'info') {
-        /* info 是 omp 给 TUI 状态栏的（xd:// 挂载、协作者进出……），不是对话内容 */
-        pump.logger.debug('omp notice', { source: source ?? null, message })
-        break
-      }
-      session.requestTimeline(projector.notice(level, message, source))
+    case 'notice':
+      applyNotice(event, pump)
       break
-    }
     case 'auto_compaction_start':
       session.requestTimeline(projector.compactionStart({ reason: event.reason, action: event.action }))
       break
@@ -985,12 +937,9 @@ function dispatchOmpEvent(event: Record<string, unknown>, pump: EventPump): void
      * timelineReset，一来重取的那一页是按「压缩后的模型上下文」算的 —— 前文全没了；二来重置会丢掉还没
      * 发出去的关门那一帧，换上历史那一格的 running，于是一直停在「正在压缩上下文…」。
      */
-    case 'auto_compaction_end': {
-      const persisted = event.result === undefined || event.result === null ? undefined : pump.latestCompaction()
-      session.requestTimeline(projector.compactionEnd(compactionEndPayload(event, persisted)))
-      session.reportContextUsage()
+    case 'auto_compaction_end':
+      applyCompactionEnd(event, pump)
       break
-    }
     /*
      * 自动重试：一次重试过程在时间线上只占一格（retryStart / retryEnd 原地改写同一帧）。
      * 不接它，服务商抖动的那几十秒在屏幕上就是「卡住了」；成功之后那一格由界面收起，后面紧跟正常回复。
@@ -1005,6 +954,75 @@ function dispatchOmpEvent(event: Record<string, unknown>, pump: EventPump): void
     default:
       break
   }
+}
+
+/** 助手消息的增量：文本 / 思考正文各一帧；工具参数增量走 streamToolInput */
+function applyMessageUpdate(event: Record<string, unknown>, pump: EventPump): void {
+  const { session, projector } = pump
+  const assistant = event.assistantMessageEvent as Record<string, unknown> | undefined
+  const deltaType = assistant?.type
+  if (deltaType === 'toolcall_start' || deltaType === 'toolcall_delta' || deltaType === 'toolcall_end') {
+    if (assistant !== undefined) streamToolInput(assistant, pump)
+    return
+  }
+  const delta = assistant?.delta
+  if (typeof delta !== 'string') return
+  /* 块在这条助手消息 content 里的下标：帧号由它派生，重开之后历史那条路给出同一个号（frame-ids.ts） */
+  const index = typeof assistant?.contentIndex === 'number' ? assistant.contentIndex : undefined
+  if (deltaType === 'text_delta') session.requestTimeline(projector.textDelta(delta, index))
+  else if (deltaType === 'thinking_delta') session.requestTimeline(projector.thinkingDelta(delta, index))
+}
+
+/** 工具开始 / 增量 / 结束：同一格按 toolCallId 整格替换 */
+function applyToolEvent(eventType: string, event: Record<string, unknown>, pump: EventPump): void {
+  const { session, projector } = pump
+  const toolCallId = String(event.toolCallId)
+  const toolName = String(event.toolName)
+  if (eventType === 'tool_execution_start') {
+    session.requestTimeline(
+      projector.toolStart({
+        toolCallId,
+        toolName,
+        args: event.args,
+        ...(typeof event.intent === 'string' ? { intent: event.intent } : {}),
+      }),
+    )
+    /* 先上调用、再补题组的号：卡片锚的是这条调用 */
+    session.onToolStart(toolCallId, toolName)
+    return
+  }
+  if (eventType === 'tool_execution_update') {
+    session.requestTimeline(projector.toolUpdate({ toolCallId, toolName, partial: event.partialResult }))
+    return
+  }
+  session.requestTimeline(
+    projector.toolEnd({
+      toolCallId,
+      toolName,
+      result: event.result,
+      ...(event.isError === true ? { isError: true } : {}),
+    }),
+  )
+  session.onToolEnd(toolCallId, toolName)
+}
+
+/** omp 的通知：info 只进日志（那是 TUI 状态栏的东西），上屏才是对话内容 */
+function applyNotice(event: Record<string, unknown>, pump: EventPump): void {
+  const level = noticeLevelOf(event.level)
+  const message = String(event.message)
+  const source = typeof event.source === 'string' ? event.source : undefined
+  if (level === 'info') {
+    pump.logger.debug('omp notice', { source: source ?? null, message })
+    return
+  }
+  pump.session.requestTimeline(pump.projector.notice(level, message, source))
+}
+
+/** 压缩收口：改写那一格，再重报上下文占用（压完圆环要立刻掉下来）；**不整页重取**（审查 R-21-1/2） */
+function applyCompactionEnd(event: Record<string, unknown>, pump: EventPump): void {
+  const persisted = event.result === undefined || event.result === null ? undefined : pump.latestCompaction()
+  pump.session.requestTimeline(pump.projector.compactionEnd(compactionEndPayload(event, persisted)))
+  pump.session.reportContextUsage()
 }
 
 /**
@@ -1031,27 +1049,32 @@ function contentBlockOf(message: unknown, index: unknown): unknown {
 function handleOmpEvent(event: Record<string, unknown>, pump: EventPump): void {
   const eventType = typeof event.type === 'string' ? event.type : 'unknown'
   /* 目标控制器**先**看这一条（omp 的 RPC 宿主同一个次序）：agent_end 时它要先决定续不续跑 */
-  try {
-    pump.goal.observe(event)
-  } catch (error) {
-    pump.faults.report(`${eventType}.goal`, error)
-  }
-  if (eventType === 'agent_end') {
-    endTurn(pump)
-  } else {
+  guarded(pump, `${eventType}.goal`, () => pump.goal.observe(event))
+  if (eventType === 'agent_end') endTurn(pump)
+  else {
     try {
       dispatchOmpEvent(event, pump)
     } catch (error) {
-      const toolCallId = typeof event.toolCallId === 'string' ? event.toolCallId : null
-      pump.faults.report(eventType, error, toolCallId === null ? {} : { toolCallId })
-      if (TOOL_EVENTS.has(eventType) && toolCallId !== null) degradeTool(eventType, event, toolCallId, pump)
+      reportDispatchFault(eventType, event, error, pump)
     }
   }
+  guarded(pump, `${eventType}.side`, () => pump.afterEvent(eventType))
+}
+
+/** 一段可能抛错的副作用：抛了就记一条带上下文的账，不连累同一条事件的其它段 */
+function guarded(pump: EventPump, scope: string, fn: () => void): void {
   try {
-    pump.afterEvent(eventType)
+    fn()
   } catch (error) {
-    pump.faults.report(`${eventType}.side`, error)
+    pump.faults.report(scope, error)
   }
+}
+
+/** 分派失败：先记账；工具类事件就地降级那一格（同 id 整格替换，覆盖一次就重新一致） */
+function reportDispatchFault(eventType: string, event: Record<string, unknown>, error: unknown, pump: EventPump): void {
+  const toolCallId = typeof event.toolCallId === 'string' ? event.toolCallId : null
+  pump.faults.report(eventType, error, toolCallId === null ? {} : { toolCallId })
+  if (TOOL_EVENTS.has(eventType) && toolCallId !== null) degradeTool(eventType, event, toolCallId, pump)
 }
 
 /** 投影失败就地降级这一格：`frame.upsert` 是同 id 整格替换，覆盖一次就重新一致 */

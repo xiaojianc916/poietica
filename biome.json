@@ -303,11 +303,7 @@
       }
     },
     {
-      "includes": [
-        "features/conversation/src/core/repository.ts",
-        "packages/engine-omp/src/session/omp-session-adapter.ts",
-        "packages/git/src/parse.ts"
-      ],
+      "includes": ["features/conversation/src/core/repository.ts", "packages/git/src/parse.ts"],
       "linter": {
         "rules": {
           "complexity": {
