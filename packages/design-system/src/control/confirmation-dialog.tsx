@@ -31,6 +31,9 @@ const DESCRIPTION_CLASS_NAME = 'mt-[10px] whitespace-pre-line leading-6'
 
 const FOOTER_CLASS_NAME = 'justify-end gap-2'
 
+/* 两颗键比通用按钮更圆、去投影：确认框本身就是浮起的一层，卡里的选择不该再各自抬一层。 */
+const BUTTON_CLASS_NAME = 'rounded-lg shadow-none'
+
 export interface ConfirmationDialogProps {
   readonly open: boolean
   readonly title: string
@@ -69,13 +72,13 @@ export function ConfirmationDialog({
       descriptionClassName={DESCRIPTION_CLASS_NAME}
       footer={
         <>
-          <Button disabled={busy} onClick={onCancel} type="button" variant="secondary">
+          <Button className={BUTTON_CLASS_NAME} disabled={busy} onClick={onCancel} type="button" variant="secondary">
             {cancelLabel}
           </Button>
 
           <Button
             aria-busy={busy || undefined}
-            className={destructive ? 'confirmation-dialog__destructive' : undefined}
+            className={destructive ? `${BUTTON_CLASS_NAME} confirmation-dialog__destructive` : BUTTON_CLASS_NAME}
             disabled={busy}
             onClick={onConfirm}
             type="button"
