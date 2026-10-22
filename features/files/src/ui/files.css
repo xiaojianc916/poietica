@@ -1,0 +1,90 @@
+/* 右坞「文件」的两格（树、查看器）。分隔线、筛选框、工具键的取色与审查面板同一档（review-pane.css 的 .review-rule /
+ * .review-filter / .review-toolbar-action）：同一条坞里两格并排切换，深浅不一样就是缺陷。色写在类里而非 Tailwind 工具类 ——
+ * app.css 的无层级通配规则压过 utilities 层。 */
+
+.files-rule {
+  border-bottom: 1px solid var(--ui-card-divider);
+}
+
+:root[data-theme="dark"] .files-rule {
+  border-bottom-color: color-mix(in srgb, currentColor 10%, transparent);
+}
+
+.files-filter {
+  border: 1px solid var(--ui-card-divider);
+}
+
+.files-action:hover,
+.files-action[aria-pressed="true"] {
+  background-color: #f2f3f3;
+}
+
+:root[data-theme="dark"] .files-action:hover,
+:root[data-theme="dark"] .files-action[aria-pressed="true"] {
+  background-color: color-mix(in srgb, #ffffff 10%, transparent);
+}
+
+/* 图片放在棋盘格上：透明的 PNG / SVG 才看得出边界。两档主题各一组格色。 */
+.files-image-stage {
+  background-color: #ffffff;
+  background-image:
+    linear-gradient(45deg, #eeeeee 25%, transparent 25%), linear-gradient(-45deg, #eeeeee 25%, transparent 25%),
+    linear-gradient(45deg, transparent 75%, #eeeeee 75%), linear-gradient(-45deg, transparent 75%, #eeeeee 75%);
+  background-size: 16px 16px;
+  background-position:
+    0 0,
+    0 8px,
+    8px -8px,
+    -8px 0;
+}
+
+:root[data-theme="dark"] .files-image-stage {
+  background-color: #1e1e1e;
+  background-image:
+    linear-gradient(45deg, #2a2a2a 25%, transparent 25%), linear-gradient(-45deg, #2a2a2a 25%, transparent 25%),
+    linear-gradient(45deg, transparent 75%, #2a2a2a 75%), linear-gradient(-45deg, transparent 75%, #2a2a2a 75%);
+}
+
+/* 代码视图的滚动口：行带自己不横滚（DiffBody scrollX），这里双轴都归它，行号槽跟着纵向走。 */
+.files-code-scroll {
+  container-type: inline-size;
+}
+
+/* Markdown 预览：正文的排版与对话里同一份（Prose），这里只给页边距。 */
+.files-markdown {
+  padding: 1rem 1.25rem 2rem;
+}
+
+/* 图片下方那一行：分隔线在上。 */
+.files-rule--top {
+  border-bottom: 0;
+  border-top: 1px solid var(--ui-card-divider);
+}
+
+:root[data-theme="dark"] .files-rule--top {
+  border-top-color: color-mix(in srgb, currentColor 10%, transparent);
+}
+
+/* 从正文链接跳到某一行：那一行底下垫一道淡色，两秒后退去（每次打开 key 变，动画重放）。 */
+.files-line-mark {
+  z-index: 1;
+  background-color: var(--ui-selection-background);
+  animation: files-line-mark 2s ease-out forwards;
+}
+
+@keyframes files-line-mark {
+  0%,
+  60% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .files-line-mark {
+    animation: none;
+    opacity: 0.6;
+  }
+}

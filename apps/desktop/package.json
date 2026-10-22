@@ -26,6 +26,7 @@
     "@poietica/feature-conversation": "workspace:*",
     "@poietica/feature-browser": "workspace:*",
     "@poietica/feature-extensions": "workspace:*",
+    "@poietica/feature-files": "workspace:*",
     "@poietica/feature-intelligent-ui": "workspace:*",
     "@poietica/feature-models": "workspace:*",
     "@poietica/feature-platform": "workspace:*",

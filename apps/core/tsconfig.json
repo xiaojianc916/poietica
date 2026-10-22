@@ -24,6 +24,9 @@
       "path": "../../features/extensions/src/core"
     },
     {
+      "path": "../../features/files/src/core"
+    },
+    {
       "path": "../../features/intelligent-ui/src/core"
     },
     {

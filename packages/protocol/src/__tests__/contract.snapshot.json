@@ -8066,6 +8066,347 @@
       }
     },
     {
+      "name": "files.list",
+      "owner": "core",
+      "timeoutMs": 30000,
+      "description": "列一个目录的直属条目（目录在前；.git 不列）；超出上限 truncated=true",
+      "params": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "workspaceId": {
+            "type": "string",
+            "minLength": 1
+          },
+          "path": {
+            "type": "string",
+            "maxLength": 4096
+          }
+        },
+        "required": [
+          "workspaceId",
+          "path"
+        ]
+      },
+      "result": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "path": {
+            "type": "string"
+          },
+          "entries": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "name": {
+                  "type": "string"
+                },
+                "path": {
+                  "type": "string"
+                },
+                "kind": {
+                  "type": "string",
+                  "enum": [
+                    "file",
+                    "directory"
+                  ]
+                },
+                "ignored": {
+                  "type": "boolean"
+                }
+              },
+              "required": [
+                "name",
+                "path",
+                "kind",
+                "ignored"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "truncated": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "path",
+          "entries",
+          "truncated"
+        ],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "files.locate",
+      "owner": "core",
+      "timeoutMs": 30000,
+      "description": "把正文里写的路径解析成工作区内的相对路径与绝对路径；不在工作区内 → outside_workspace",
+      "params": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "workspaceId": {
+            "type": "string",
+            "minLength": 1
+          },
+          "path": {
+            "type": "string",
+            "maxLength": 4096
+          }
+        },
+        "required": [
+          "workspaceId",
+          "path"
+        ]
+      },
+      "result": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "path": {
+            "type": "string"
+          },
+          "absolutePath": {
+            "type": "string"
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "file",
+              "directory"
+            ]
+          }
+        },
+        "required": [
+          "path",
+          "absolutePath",
+          "kind"
+        ],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "files.read",
+      "owner": "core",
+      "timeoutMs": 30000,
+      "description": "读一个文件：正文（超过上限截断）/ 图片（只给元数据）/ 二进制",
+      "params": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "workspaceId": {
+            "type": "string",
+            "minLength": 1
+          },
+          "path": {
+            "type": "string",
+            "maxLength": 4096
+          }
+        },
+        "required": [
+          "workspaceId",
+          "path"
+        ]
+      },
+      "result": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "oneOf": [
+          {
+            "type": "object",
+            "properties": {
+              "kind": {
+                "type": "string",
+                "const": "text"
+              },
+              "path": {
+                "type": "string"
+              },
+              "size": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9007199254740991
+              },
+              "mtimeMs": {
+                "type": "number"
+              },
+              "text": {
+                "type": "string"
+              },
+              "encoding": {
+                "type": "string",
+                "enum": [
+                  "utf-8",
+                  "utf-16le",
+                  "utf-16be",
+                  "lossy"
+                ]
+              },
+              "truncated": {
+                "type": "boolean"
+              }
+            },
+            "required": [
+              "kind",
+              "path",
+              "size",
+              "mtimeMs",
+              "text",
+              "encoding",
+              "truncated"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "kind": {
+                "type": "string",
+                "const": "image"
+              },
+              "path": {
+                "type": "string"
+              },
+              "size": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9007199254740991
+              },
+              "mtimeMs": {
+                "type": "number"
+              },
+              "mime": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "kind",
+              "path",
+              "size",
+              "mtimeMs",
+              "mime"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "kind": {
+                "type": "string",
+                "const": "binary"
+              },
+              "path": {
+                "type": "string"
+              },
+              "size": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9007199254740991
+              },
+              "mtimeMs": {
+                "type": "number"
+              }
+            },
+            "required": [
+              "kind",
+              "path",
+              "size",
+              "mtimeMs"
+            ],
+            "additionalProperties": false
+          }
+        ]
+      }
+    },
+    {
+      "name": "files.search",
+      "owner": "core",
+      "timeoutMs": 30000,
+      "description": "按路径筛文件（空格分开的几段都要命中，不分大小写）；仓库里尊重 .gitignore",
+      "params": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "workspaceId": {
+            "type": "string",
+            "minLength": 1
+          },
+          "query": {
+            "type": "string",
+            "maxLength": 256
+          },
+          "limit": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 500
+          }
+        },
+        "required": [
+          "workspaceId",
+          "query"
+        ]
+      },
+      "result": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "hits": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "path": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "path"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "truncated": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "hits",
+          "truncated"
+        ],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "files.watch",
+      "owner": "core",
+      "timeoutMs": 30000,
+      "description": "声明此刻要监听的工作区全集（不是引用计数）：不在集合里的停掉；Core 重启后由界面重发",
+      "params": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "workspaceIds": {
+            "maxItems": 32,
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1
+            }
+          }
+        },
+        "required": [
+          "workspaceIds"
+        ]
+      },
+      "result": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {},
+        "additionalProperties": false
+      }
+    },
+    {
       "name": "git.branches",
       "owner": "core",
       "timeoutMs": 30000,
@@ -26120,6 +26461,39 @@
       }
     },
     {
+      "name": "files.changed",
+      "owner": "core",
+      "description": "工作区里有文件变了（去抖后合并）；paths 为相对路径，太多时为 null（= 全部重读）",
+      "params": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "workspaceId": {
+            "type": "string",
+            "minLength": 1
+          },
+          "paths": {
+            "anyOf": [
+              {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "workspaceId",
+          "paths"
+        ],
+        "additionalProperties": false
+      }
+    },
+    {
       "name": "git.changed",
       "owner": "core",
       "description": "仓库有变化（300ms 去抖后）",
@@ -32212,6 +32586,26 @@
     {
       "code": "extensions.skill_not_removable",
       "message": "内置或项目技能不能删除"
+    },
+    {
+      "code": "files.is_directory",
+      "message": "这是一个目录，不是文件"
+    },
+    {
+      "code": "files.not_a_directory",
+      "message": "这不是一个目录"
+    },
+    {
+      "code": "files.not_found",
+      "message": "文件不存在"
+    },
+    {
+      "code": "files.outside_workspace",
+      "message": "这个路径不在当前工作区里"
+    },
+    {
+      "code": "files.unreadable",
+      "message": "无法读取这个文件"
     },
     {
       "code": "intelligent-ui.capture_failed",

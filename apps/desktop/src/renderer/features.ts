@@ -4,6 +4,7 @@ import automations from '@poietica/feature-automations/ui'
 import browser from '@poietica/feature-browser/ui'
 import conversation from '@poietica/feature-conversation/ui'
 import extensions from '@poietica/feature-extensions/ui'
+import files from '@poietica/feature-files/ui'
 import intelligentUi from '@poietica/feature-intelligent-ui/ui'
 import models from '@poietica/feature-models/ui'
 import platform from '@poietica/feature-platform/ui'
@@ -33,6 +34,7 @@ export const uiFeatures: readonly UiFeature[] = [
   conversation,
   usage,
   review,
+  files,
   terminal,
   browser,
   automations,

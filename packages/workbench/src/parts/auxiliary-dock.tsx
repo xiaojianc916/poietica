@@ -35,6 +35,7 @@ interface TabView {
   readonly key: string
   readonly domId: string
   readonly title: string
+  readonly hint?: string | undefined
   readonly icon: ReactNode
   readonly active: boolean
   readonly onSelect: () => void
@@ -87,6 +88,7 @@ function closeFocusedTab(tab: HTMLButtonElement, onClose: () => void): void {
 /* 图标↔叉的取色规则在 features/browser 的 browser-panel.css，这里不写第二遍。 */
 function AuxiliaryTab({
   active,
+  hint,
   icon,
   id,
   onClose,
@@ -94,6 +96,8 @@ function AuxiliaryTab({
   title,
 }: {
   readonly active: boolean
+  /** 悬停提示：标题会被截断、也会重名（两个 index.ts），完整路径这类区分得开的说法放这里。 */
+  readonly hint?: string | undefined
   readonly icon: ReactNode
   readonly id: string
   readonly onClose: () => void
@@ -131,6 +135,7 @@ function AuxiliaryTab({
       }}
       role="tab"
       tabIndex={active ? 0 : -1}
+      title={hint}
       type="button"
     >
       <span aria-hidden className="auxiliary-tab-icon relative size-4 shrink-0 self-center">
@@ -358,6 +363,7 @@ function SurfaceDock({
           key: `group:${groupId}:${tab.id}`,
           domId: auxiliaryGroupTabId(groupId, tab.id),
           title: tab.title,
+          hint: tab.hint,
           icon: tab.icon,
           active: shownId === groupId && tab.active,
           onSelect: () => {
@@ -446,6 +452,7 @@ function AuxiliaryTabStrip({
           {tabs.map((tab) => (
             <AuxiliaryTab
               active={tab.active}
+              hint={tab.hint}
               icon={tab.icon}
               id={tab.domId}
               key={tab.key}

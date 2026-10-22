@@ -1,6 +1,7 @@
+import { type ProseFileLinks, ProseFileLinksContext } from '@poietica/design-system/prose'
 import { FeatureScope, useContributions } from '@poietica/ui-kernel'
 import { type ReactNode, useMemo } from 'react'
-import { composerProviders, workspaceGitProviders } from '../ui-api'
+import { composerProviders, fileReferenceOpeners, workspaceGitProviders } from '../ui-api'
 import { AttachmentIntakeContext } from './composer/attachment'
 import { ComposerDrafts } from './composer/drafts'
 import { ComposerDraftsContext } from './composer/drafts-context'
@@ -29,11 +30,34 @@ export interface ConversationProvidersProps {
   readonly agentControls?: AgentControls | undefined
   /** 屏幕上正在编辑的输入框登记表（见 composer/live-composers.ts）；缺席就不登记 */
   readonly liveComposers?: LiveComposers | undefined
+  /** 正文里的文件链接属于哪条对话、哪个工作区；缺席即「当前前台」（右坞里的子代理、辅助对话）。 */
+  readonly fileScope?: FileScope | undefined
+}
+
+export interface FileScope {
+  readonly threadId: string | null
+  readonly workspaceId: string | null
+}
+
+/*
+ * 正文文件链接的出口：order 最小的那个 fileReferenceOpeners 贡献接手，并带上这一棵树的对话与工作区。
+ * 一个贡献都没有时给 null —— 正文据此把文件名画成不可点，而不是画一个点了没反应的链接。
+ */
+function useFileLinks(scope: FileScope | undefined): ProseFileLinks | null {
+  const openers = useContributions(fileReferenceOpeners)
+  const threadId = scope?.threadId ?? null
+  const workspaceId = scope?.workspaceId ?? null
+  return useMemo(() => {
+    const opener = [...openers].sort((left, right) => left.item.order - right.item.order)[0]?.item
+    if (opener === undefined) return null
+    return { open: (ref) => opener.open({ ...ref, threadId, workspaceId }) }
+  }, [openers, threadId, workspaceId])
 }
 
 export function ConversationProviders({
   agentControls,
   children,
+  fileScope,
   liveComposers,
   onOpenDelegateChannel,
   posture,
@@ -65,6 +89,7 @@ export function ConversationProviders({
     children,
   )
 
+  const fileLinks = useFileLinks(fileScope)
   const providers = useContributions(composerProviders)
   const provided = providers.reduceRight<ReactNode>(
     (inner, { featureId, item }) => (
@@ -82,7 +107,9 @@ export function ConversationProviders({
           <DelegateChannelContext value={openDelegate}>
             <AgentControlsContext value={agentControls ?? null}>
               <AttachmentIntakeContext value={null}>
-                <LiveComposersContext value={liveComposers ?? null}>{provided}</LiveComposersContext>
+                <LiveComposersContext value={liveComposers ?? null}>
+                  <ProseFileLinksContext value={fileLinks}>{provided}</ProseFileLinksContext>
+                </LiveComposersContext>
               </AttachmentIntakeContext>
             </AgentControlsContext>
           </DelegateChannelContext>

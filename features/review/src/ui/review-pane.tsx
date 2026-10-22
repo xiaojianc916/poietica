@@ -6,8 +6,11 @@ import {
   DropdownMenuItem,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
+  FileTree,
+  type FileTreeRow,
   FileTypeMark,
   GithubMark,
+  pathTreeRows,
   RegionSplitter,
   Tooltip,
   TooltipContent,
@@ -20,7 +23,6 @@ import {
   ArrowUp,
   Check,
   ChevronDown,
-  ChevronRight,
   Copy,
   FileText,
   Folders,
@@ -39,7 +41,6 @@ import {
 } from 'lucide-react'
 import { type CSSProperties, Fragment, type ReactNode, type RefObject, useRef } from 'react'
 import type { FileChange } from '../contract'
-import { type ChangeTreeFile, type ChangeTreeFolder, changeTreeRows } from './change-tree'
 import {
   type ReviewFailureReport,
   type ReviewGateway,
@@ -471,10 +472,11 @@ function Tree({
   readonly state: ReviewState
   readonly store: ReviewStore
 }) {
-  const rows = changeTreeRows(
+  const rows: readonly FileTreeRow[] = pathTreeRows(
     shown.map((file) => file.path),
     state.collapsedFolders,
-  )
+  ).map((row) => (row.kind === 'folder' ? { ...row, expanded: !state.collapsedFolders.has(row.key) } : row))
+  const statuses = state.reading.phase === 'ready' ? state.reading.statuses : null
   return (
     <aside className="review-tree" inert={!docked}>
       <div className="review-tree__clip">
@@ -511,13 +513,25 @@ function Tree({
             {rows.length === 0 ? (
               <Note>没有匹配的文件。</Note>
             ) : (
-              rows.map((row) =>
-                row.kind === 'folder' ? (
-                  <FolderRow collapsed={state.collapsedFolders.has(row.key)} key={row.key} row={row} store={store} />
-                ) : (
-                  <FileRow key={row.key} row={row} state={state} store={store} />
-                ),
-              )
+              <FileTree
+                dragText={(row) => (row.kind === 'file' ? row.key : null)}
+                label="变更文件"
+                onOpen={(row) => {
+                  const opening = !state.openFiles.has(row.key)
+                  store.toggleFile(row.key)
+                  if (opening) {
+                    document.getElementById(cardId(row.key))?.scrollIntoView({ block: 'start' })
+                  }
+                }}
+                onToggle={(row) => {
+                  store.toggleFolder(row.key)
+                }}
+                rows={rows}
+                trailing={(row) => {
+                  const status = row.kind === 'file' ? statuses?.get(row.key) : undefined
+                  return status === undefined ? null : <ChangeMark status={status} />
+                }}
+              />
             )}
           </div>
         </div>
@@ -536,100 +550,6 @@ function Tree({
         />
       ) : null}
     </aside>
-  )
-}
-/* 16px 一格；文件图标占掉箭头那一格，所以文件比同级目录少缩一格。 */
-const TREE_INDENT = 16
-function treePaddingStart(depth: number, folder: boolean): number {
-  if (folder || depth === 0) {
-    return 8 + depth * TREE_INDENT
-  }
-  return 8 + (depth - 1) * TREE_INDENT
-}
-function treeGuideStart(index: number): number {
-  return 8 + index * TREE_INDENT + 8
-}
-function TreeGuides({ depth }: { readonly depth: number }) {
-  return (
-    <>
-      {Array.from({ length: depth }, (_, index) => (
-        <span
-          aria-hidden
-          className="tree-guide"
-          key={treeGuideStart(index)}
-          style={{ insetInlineStart: `${String(treeGuideStart(index))}px` }}
-        />
-      ))}
-    </>
-  )
-}
-function FolderRow({
-  collapsed,
-  row,
-  store,
-}: {
-  readonly collapsed: boolean
-  readonly row: ChangeTreeFolder
-  readonly store: ReviewStore
-}) {
-  return (
-    <button
-      aria-expanded={!collapsed}
-      className="review-tree-row relative flex h-7 w-full items-center gap-1.5 rounded-md pr-2 text-left"
-      onClick={() => {
-        store.toggleFolder(row.key)
-      }}
-      style={{ paddingInlineStart: `${String(treePaddingStart(row.depth, true))}px` }}
-      type="button"
-    >
-      <TreeGuides depth={row.depth} />
-      {collapsed ? (
-        <ChevronRight aria-hidden className="size-4 shrink-0 opacity-40" />
-      ) : (
-        <ChevronDown aria-hidden className="size-4 shrink-0 opacity-40" />
-      )}
-      <span className="min-w-0 flex-1 truncate text-[13px] font-medium opacity-70">{row.label}</span>
-    </button>
-  )
-}
-function FileRow({
-  row,
-  state,
-  store,
-}: {
-  readonly row: ChangeTreeFile
-  readonly state: ReviewState
-  readonly store: ReviewStore
-}) {
-  const status = state.reading.phase === 'ready' ? state.reading.statuses.get(row.path) : undefined
-  return (
-    <li
-      className="review-tree-row relative flex h-7 items-center rounded-md pr-2"
-      draggable
-      onDragStart={(event) => {
-        event.dataTransfer.setData('text/plain', row.path)
-        event.dataTransfer.effectAllowed = 'copy'
-      }}
-      style={{ paddingInlineStart: `${String(treePaddingStart(row.depth, false))}px` }}
-    >
-      <TreeGuides depth={row.depth} />
-      <button
-        className="flex min-w-0 flex-1 items-center gap-1.5 text-left"
-        onClick={() => {
-          const opening = !state.openFiles.has(row.path)
-          store.toggleFile(row.path)
-          if (opening) {
-            document.getElementById(cardId(row.path))?.scrollIntoView({ block: 'start' })
-          }
-        }}
-        type="button"
-      >
-        {row.depth === 0 ? null : <span aria-hidden className="w-4 shrink-0" />}
-        <FileTypeMark className="size-3.5 shrink-0" name={row.path} />
-        <span className="min-w-0 flex-1 truncate text-xs">{row.label}</span>
-        {status === undefined ? null : <ChangeMark status={status} />}
-      </button>
-    </li>
   )
 }
 function cardId(path: string): string {

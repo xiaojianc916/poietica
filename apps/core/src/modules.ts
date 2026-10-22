@@ -5,6 +5,7 @@ import automations from '@poietica/feature-automations/core'
 import browser from '@poietica/feature-browser/core'
 import conversation from '@poietica/feature-conversation/core'
 import extensions from '@poietica/feature-extensions/core'
+import files from '@poietica/feature-files/core'
 import intelligentUi from '@poietica/feature-intelligent-ui/core'
 import models from '@poietica/feature-models/core'
 import platform from '@poietica/feature-platform/core'
@@ -25,6 +26,7 @@ export const coreModules: readonly CoreModule[] = [
   conversation,
   usage,
   review,
+  files,
   extensions,
   python,
   automations,

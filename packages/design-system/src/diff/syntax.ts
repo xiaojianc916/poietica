@@ -54,7 +54,9 @@ async function painted(file: DiffFile): Promise<DiffFile> {
     return file
   }
   const { tokenize } = await shader()
-  const sides = [sideOf(file, 'added'), sideOf(file, 'removed')]
+  /* 没有改动行（文件查看器的整份正文）时两侧是同一份正文：只分词一次，大文件省掉一半时间。 */
+  const changed = rowsOf(file).some((row) => row.kind === 'added' || row.kind === 'removed')
+  const sides = changed ? [sideOf(file, 'added'), sideOf(file, 'removed')] : [sideOf(file, 'gap')]
   const tokens = await Promise.all(sides.map((side) => tokenize(side.code, lang)))
   const found = new Map<DiffRow, readonly DiffPiece[]>()
   for (const [index, side] of sides.entries()) {

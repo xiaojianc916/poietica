@@ -276,6 +276,14 @@ const BY_SUFFIX = {
 
 /** 一个文件名或路径配哪一枚图标；认不出来就是通用文档。 */
 export function fileMarkIdOf(name: string): FileMarkId {
+  return knownFileMarkOf(name) ?? FALLBACK
+}
+
+/**
+ * 认得出来才交回图标，认不出来是 undefined。正文里「这串行内代码像不像一个文件名」要的是这一问（prose/file-ref.ts）：
+ * 退回通用文档的那一格答的是「不知道」，不能当成「是文件」。
+ */
+export function knownFileMarkOf(name: string): FileMarkId | undefined {
   const lower = name.toLowerCase()
   const base = lower.split(/[\\/]/u).at(-1) ?? lower
   const named = BY_NAME[base as keyof typeof BY_NAME]
@@ -299,7 +307,7 @@ export function fileMarkIdOf(name: string): FileMarkId {
     }
   }
 
-  return FALLBACK
+  return undefined
 }
 
 export function FileTypeMark({ className, name }: { readonly className: string; readonly name: string }) {

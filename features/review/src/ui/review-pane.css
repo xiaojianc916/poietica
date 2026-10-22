@@ -37,29 +37,10 @@
   border: 1px solid var(--ui-card-divider);
 }
 
-.tree-guide {
-  position: absolute;
-  top: 0;
-  margin-top: -2px;
-  height: calc(100% + 2px);
-  width: 1px;
-  pointer-events: none;
-  background: #f1f1f1;
-  opacity: 0;
-}
-
-.review-tree:hover .tree-guide {
+/* 树行与引导线的样式随 FileTree 下沉到 design-system（tree/file-tree.css）；这里只留审查自己的那一条：
+ * 悬停整个树栏（连同筛选框）就亮出引导线，不只是悬停树本身。 */
+.review-tree:hover .file-tree__guide {
   opacity: 1;
-}
-
-/* 深色下必须给实色：引导线每行一根、上下各探 2px 过缝，相邻两行的线在缝处叠 2px，半透明的墨叠起来会加倍（14% + 14% ≈ 26%），
- * 那条缝上就出现一串比线本身亮的 2px 小点。实色叠加仍是同一个颜色。 */
-:root[data-theme="dark"] .tree-guide {
-  background: #383838;
-}
-
-.review-tree-row:hover {
-  background: var(--ui-sunken);
 }
 
 /* 变更徽章：新增 U、删除 D 都是裸字母（不要框），改写是方框里一个点。外框用 box-shadow 画不用 border：Chromium 对 border-width
@@ -96,10 +77,6 @@
 
 :root[data-theme="dark"] .review-mark[data-status="deleted"] {
   color: #f9423e;
-}
-
-:root[data-theme="dark"] .review-tree-row:hover {
-  background: color-mix(in srgb, #ffffff 5%, transparent);
 }
 
 /* 菜单触发器打开时也取这一档（data-popup-open）：弹窗盖住的正是按钮本身，补这一档指针移开才留有反馈。 */

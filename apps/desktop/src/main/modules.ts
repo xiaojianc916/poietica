@@ -1,6 +1,7 @@
 import attachments from '@poietica/feature-attachments/host'
 import browser from '@poietica/feature-browser/host'
 import conversation from '@poietica/feature-conversation/host'
+import files from '@poietica/feature-files/host'
 import intelligentUi from '@poietica/feature-intelligent-ui/host'
 import platform from '@poietica/feature-platform/host'
 import preferences from '@poietica/feature-preferences/host'
@@ -17,6 +18,7 @@ export const hostModules: readonly HostModule[] = [
   preferences,
   attachments,
   conversation,
+  files,
   terminal,
   browser,
   update,

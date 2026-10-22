@@ -10,6 +10,7 @@ import {
   type ReviewFile,
   reviewContract,
 } from '../contract'
+import { coreSessionOf } from './core-session'
 
 /** `ctx.rpc(reviewContract)` 的薄封装。契约以 workspaceId 为键而审查面按仓库根寻址，所以「哪个工作区」固定在组合根这一层。 */
 export function createReviewApi(ctx: UiFeatureContext, workspaceId: string) {
@@ -17,6 +18,7 @@ export function createReviewApi(ctx: UiFeatureContext, workspaceId: string) {
 
   return {
     workspaceId,
+    session: coreSessionOf(ctx),
     status: (): Promise<GitStatus> => rpc.call('git.status', { workspaceId }),
     branches: (): Promise<{ current: string | null; branches: GitBranch[] }> =>
       rpc.call('git.branches', { workspaceId }),
@@ -77,10 +79,23 @@ export function createReviewGateway(api: ReviewApi): import('./review-store').Re
     },
     filePatch: (_base, path, _ignoreWhitespace) => api.filePatch(path, 'HEAD'),
     async watch(onChange) {
+      const born = api.session.generation()
       await api.watch()
       const off = api.onChanged(onChange)
+      /*
+       * Core 换了一世：新进程里没有这一份计数，重发一次，并照样重读一次（断线期间的改动没有通知）。重发失败也重读 ——
+       * 读得到就是最新，读不到由那一次读去报错。注册之后才丢的 Core 才要重发：断线期间注册的那一次本来就发给了新的一世。
+       */
+      let sent = born
+      const offRenewed = api.session.onRenewed(() => {
+        const now = api.session.generation()
+        if (sent === now) return
+        sent = now
+        api.watch().then(onChange, onChange)
+      })
       return async () => {
         off.dispose()
+        offRenewed()
         await api.unwatch()
       }
     },

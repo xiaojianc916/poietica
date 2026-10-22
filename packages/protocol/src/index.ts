@@ -5,6 +5,7 @@ import { automationsContract } from '@poietica/feature-automations/contract'
 import { browserContract } from '@poietica/feature-browser/contract'
 import { conversationContract } from '@poietica/feature-conversation/contract'
 import { extensionsContract } from '@poietica/feature-extensions/contract'
+import { filesContract } from '@poietica/feature-files/contract'
 import { intelligentUiContract } from '@poietica/feature-intelligent-ui/contract'
 import { modelsContract } from '@poietica/feature-models/contract'
 import { platformContract } from '@poietica/feature-platform/contract'
@@ -32,6 +33,7 @@ export const appContract = composeContracts(
   usageContract,
   pythonContract,
   reviewContract,
+  filesContract,
   terminalContract,
   browserContract,
   automationsContract,

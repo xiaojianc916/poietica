@@ -2,7 +2,7 @@
 
 ## 1. 一句话
 
-Poietica 是「三个进程 × 三个微内核 × 20 个平台包 + 16 个功能包」的 Windows 桌面 agent 应用：
+Poietica 是「三个进程 × 三个微内核 × 20 个平台包 + 17 个功能包」的 Windows 桌面 agent 应用：
 omp（Oh My Pi）经引擎端口接入，随包发布，与用户机器上的全局 omp 完全隔离。
 
 ```
@@ -33,7 +33,7 @@ omp（Oh My Pi）经引擎端口接入，随包发布，与用户机器上的全
 
 ```
 L5  汇总与外壳   protocol · workbench · apps/core · apps/desktop
-L4  功能         features/*（16 个垂直功能包）
+L4  功能         features/*（17 个垂直功能包）
 L3  内核与适配   core-kernel · host-kernel · ui-kernel · design-system · engine-omp · engine-testkit
 L2  运行时工具   runtime-layout · process-kit · fs-kit · logging · storage-sqlite · git · test-kit
 L1  契约与模型   contract-kit · rpc · transcript · engine

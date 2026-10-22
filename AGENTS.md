@@ -43,7 +43,7 @@
 ​
 ```
 L5  protocol · workbench · apps/core · apps/desktop      汇总与外壳
-L4  features/*（16 个功能，垂直切片）                    功能
+L4  features/*（17 个功能，垂直切片）                    功能
 L3  core-kernel · host-kernel · ui-kernel · design-system · engine-omp · engine-testkit
 L2  runtime-layout · process-kit · fs-kit · logging · storage-sqlite · git · test-kit
 L1  contract-kit · rpc · transcript · engine

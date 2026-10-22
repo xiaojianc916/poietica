@@ -50,7 +50,7 @@
 
 ```
 L5  汇总与外壳   protocol · workbench · apps/core · apps/desktop
-L4  功能         features/*（16 个垂直功能包）
+L4  功能         features/*（17 个垂直功能包）
 L3  内核与适配   core-kernel · host-kernel · ui-kernel · design-system · engine-omp · engine-testkit
 L2  运行时工具   runtime-layout · process-kit · fs-kit · logging · storage-sqlite · git · test-kit
 L1  契约与模型   contract-kit · rpc · transcript · engine

@@ -2,6 +2,7 @@ import { loadMath } from '@poietica/design-system/prose'
 import { completionBody, isTurnSettled } from '../session/notify'
 import type { ConversationActions } from './actions'
 import type { ConversationSetup } from './context'
+import { followThreadWorkspace } from './workspace-follow'
 
 /** 各条 `api.on…` 通知订阅，以及 onCoreLost / onCoreReady。 */
 export function createConversationSubscriptions(setup: ConversationSetup, actions: ConversationActions): void {
@@ -20,6 +21,10 @@ export function createConversationSubscriptions(setup: ConversationSetup, action
     transcripts,
   } = setup
   const { draftPin, notify, openThread } = actions
+
+  ctx.lifecycle.onDispose(
+    followThreadWorkspace({ navigation: setup.navigation, threads: stores.threads, workspaces: setup.workspaces }),
+  )
 
   ctx.lifecycle.onDispose(
     api.onTimelineOps((p) => {

@@ -550,3 +550,24 @@
   font-size: var(--ui-prose-size-meta);
   font-style: italic;
 }
+
+/* 本地文件链接（file-link.tsx）：墨色与下划线沿用上面的正文链接，只多一枚文件类型图标；图标按字号走，跟着行高不跳。 */
+.timeline-prose .prose-file-link__mark {
+  display: inline-block;
+  inline-size: 1em;
+  block-size: 1em;
+  margin-inline-end: 0.25em;
+  vertical-align: -0.125em;
+}
+
+/* 链接里包着的行内代码：字形留等宽，底色交给链接 —— 一处文件引用只有一种颜色。 */
+.timeline-prose a[data-file-ref] > code {
+  padding: 0;
+  background: none;
+  color: inherit;
+}
+
+/* 没有宿主可开（不在对话里的正文）：只是一个带图标的文件名，不装成链接。 */
+.timeline-prose .prose-file-link[data-inert] {
+  overflow-wrap: anywhere;
+}

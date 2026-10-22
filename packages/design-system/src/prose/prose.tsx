@@ -6,6 +6,7 @@ import { memo, useEffect, useSyncExternalStore } from 'react'
 import {
   type ControlsConfig,
   defaultRehypePlugins,
+  defaultRemarkPlugins,
   type IconMap,
   type LinkSafetyConfig,
   type PluginConfig,
@@ -14,9 +15,11 @@ import {
   type StreamdownTranslations,
 } from 'streamdown'
 import { DIAGRAM_RENDERER } from './diagram'
+import { FILE_HREF_PREFIX } from './file-ref'
 import { asIcon, CheckIcon, CopyIcon } from './icons'
 import { currentMath, loadMath, mayContainMath, subscribeMath } from './math-plugin'
 import { ProseLink } from './prose-link'
+import { remarkFileRefs } from './remark-file-refs'
 import { ExportableTable } from './table-export'
 import { useWaveReveal } from './wave/use-wave-reveal'
 
@@ -60,8 +63,11 @@ const COMPONENTS = { a: ProseLink, table: ExportableTable }
 
 /* 图片走资产协议：streamdown 的默认净化链只放行 http/https 的 src，这里补的是**协议名**，
  * 不是放行任意地址：file://、data:、javascript: 仍在白名单之外。
- * 必须换整条链：rehypePlugins 是**替换**语义，少一环就等于把净化摘了。 */
+ * 必须换整条链：rehypePlugins 是**替换**语义，少一环就等于把净化摘了。
+ * 链接同理只补一个协议名：`poietica-file:` 是 remark-file-refs.ts 改写出来的本地文件地址，点击由 FileLink 拦下交给宿主，
+ * 浏览器从不导航过去；file:、javascript: 依旧被摘。 */
 const ASSET_SRC_SCHEME = 'poietica-asset'
+const FILE_HREF_SCHEME = FILE_HREF_PREFIX.slice(0, -1)
 type RehypeChain = NonNullable<StreamdownProps['rehypePlugins']>
 type RehypeEntry = RehypeChain[number]
 
@@ -83,10 +89,18 @@ function withAssetImages(entry: RehypeEntry | undefined): RehypeEntry {
     plugin,
     {
       ...schema,
-      protocols: { ...protocols, src: [...(protocols.src ?? []), ASSET_SRC_SCHEME] },
+      protocols: {
+        ...protocols,
+        href: [...(protocols.href ?? []), FILE_HREF_SCHEME],
+        src: [...(protocols.src ?? []), ASSET_SRC_SCHEME],
+      },
     },
   ] as RehypeEntry
 }
+
+/* remarkPlugins 也是**替换**语义：默认的 gfm 与 codeMeta 必须原样带上，文件引用接在它们之后（要认 gfm 的链接与表格里的代码）。 */
+type RemarkChain = NonNullable<StreamdownProps['remarkPlugins']>
+const REMARK_PLUGINS: RemarkChain = [...Object.values(defaultRemarkPlugins), remarkFileRefs]
 
 const REHYPE_PLUGINS: RehypeChain = [
   withAssetImages(defaultRehypePlugins.raw),
@@ -126,6 +140,7 @@ export const Prose = memo(function Prose({
         mode={mode}
         plugins={plugins}
         rehypePlugins={wave.rehypePlugins}
+        remarkPlugins={REMARK_PLUGINS}
         tableMaxHeight={TABLE_CAP}
         translations={TRANSLATIONS}
       >

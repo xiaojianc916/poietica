@@ -124,8 +124,7 @@ export function createConversationActions(setup: ConversationSetup): Conversatio
      * 那一排选择器（模型 / 思考 / 批准方式）要晚一拍才画（真实故障「没有权限选择与模型选择」），重复请求由 controls-store 合并。
      */
     void stores.controls.refresh(threadId)
-    const thread = stores.threads.byId(threadId)
-    if (thread !== undefined) workspaces.setActive(thread.workspaceId)
+    /* 当前工作区不在这里写：它跟着路由派生（workspace-follow.ts），恢复路由、后退 / 前进也一样成立。 */
   }
 
   const exportThread = async (threadId: string): Promise<void> => {

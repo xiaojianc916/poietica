@@ -21,6 +21,9 @@
       "path": "../../features/extensions/src/contract"
     },
     {
+      "path": "../../features/files/src/contract"
+    },
+    {
       "path": "../../features/intelligent-ui/src/contract"
     },
     {

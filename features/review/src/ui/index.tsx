@@ -3,6 +3,7 @@ import { WorkspacesUiToken } from '@poietica/feature-workspaces/ui-api'
 import { BannersToken, builtinPoints, defineUiFeature, LayoutToken } from '@poietica/ui-kernel'
 import { FileDiff, GitCompareArrows } from 'lucide-react'
 import { ComposerBranchChip } from './composer-branch'
+import { coreSessionOf } from './core-session'
 import { BranchStatusItem, CodeReviewNavRow, CodeReviewSurface, ReviewPanel } from './surface'
 import { WorkspaceGitSource } from './workspace-git-source'
 
@@ -17,6 +18,8 @@ export default defineUiFeature({
     const layout = ctx.services.get(LayoutToken)
     const banners = ctx.services.get(BannersToken)
     const workspaces = ctx.services.get(WorkspacesUiToken)
+    /* Core 的世代从装配那一刻算起：之后每次重启，开着的审查面板都要重发 git.watch（见 core-session.ts）。 */
+    coreSessionOf(ctx)
 
     const report = (
       code: 'GIT_CHANGES_UNREADABLE' | 'GIT_REVIEW_ACTION_FAILED',

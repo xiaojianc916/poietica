@@ -30,6 +30,12 @@
       "path": "../../features/extensions/src/ui"
     },
     {
+      "path": "../../features/files/src/host"
+    },
+    {
+      "path": "../../features/files/src/ui"
+    },
+    {
       "path": "../../features/intelligent-ui/src/host"
     },
     {

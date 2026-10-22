@@ -16,4 +16,5 @@ export {
   diffStatOf,
   parseUnifiedPatch,
   toDisplayPath,
+  wholeFile,
 } from './unified-diff'

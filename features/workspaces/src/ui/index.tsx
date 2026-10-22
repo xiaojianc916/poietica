@@ -88,7 +88,10 @@ export default defineUiFeature({
         /* 当前工作区本身**不持久化**，重启后默认取 `list()` 的第一项 = `last_opened_at` 最新的那一条。少了这一步，切换只活在内存里，重启后顺序
          * 没变，屏幕就回到旧的那个工作区（真实故障）。`touch` 不发通知，所以这里不会让列表抖动。 */
         if (id !== null) {
-          void api.touch(id).catch(() => undefined)
+          /* 记不上只影响下次启动默认选哪个，不打扰人；但要留下痕迹，不能静默吞掉。 */
+          void api.touch(id).catch((cause: unknown) => {
+            ctx.logger.warn('workspace touch failed', { workspaceId: id, error: String(cause) })
+          })
         }
       },
       subscribeActive: (listener) => {

@@ -1,26 +1,38 @@
-/* 变更清单 → 目录树的行。纯函数。只有一个子目录且没有直属文件的目录段并成一行（src/review/…）—— 变更集是稀疏的，不并就会出现
- * 一长串单孩子目录。 */
-import { basename } from '@poietica/design-system/diff'
+/*
+ * 一组路径 → 目录树的行。纯函数，不认 React。
+ *
+ * 只有一个子目录且没有直属文件的目录段并成一行（src/review/…）：稀疏的路径集（变更清单、搜索结果）不并就是一长串
+ * 单孩子目录。原先是 review 私有的 change-tree.ts；文件树下沉到 design-system 之后，「路径集画成树」也跟着下来，
+ * 审查与文件两处共用同一份行模型（插件之间不能互相依赖，见 AGENTS.md 功能分级）。
+ */
 
-export interface ChangeTreeFile {
+/* 不从 ../diff 取 basename：那一条子路径带着 jsdiff，根入口不该为一个 lastIndexOf 把它拽进首屏闭包。 */
+function basename(path: string): string {
+  const tail = path.slice(path.lastIndexOf('/') + 1)
+  return tail === '' ? path : tail
+}
+
+export interface PathTreeFile {
   readonly kind: 'file'
   readonly key: string
   readonly label: string
   readonly depth: number
   readonly path: string
 }
-export interface ChangeTreeFolder {
+export interface PathTreeFolder {
   readonly kind: 'folder'
   readonly key: string
   readonly label: string
   readonly depth: number
 }
-export type ChangeTreeNode = ChangeTreeFile | ChangeTreeFolder
+export type PathTreeNode = PathTreeFile | PathTreeFolder
+
 interface Branch {
   readonly folders: Map<string, Branch>
   readonly files: string[]
 }
-export function changeTreeRows(paths: readonly string[], collapsed: ReadonlySet<string>): readonly ChangeTreeNode[] {
+
+export function pathTreeRows(paths: readonly string[], collapsed: ReadonlySet<string>): readonly PathTreeNode[] {
   const tree = branch()
   for (const held of [...paths].sort((left, right) => left.localeCompare(right))) {
     const parts = held.split('/')
@@ -32,20 +44,16 @@ export function changeTreeRows(paths: readonly string[], collapsed: ReadonlySet<
     }
     here.files.push(held)
   }
-  const rows: ChangeTreeNode[] = []
+  const rows: PathTreeNode[] = []
   walk(tree, '', 0, collapsed, rows)
   return rows
 }
+
 function branch(): Branch {
   return { files: [], folders: new Map<string, Branch>() }
 }
-function walk(
-  here: Branch,
-  prefix: string,
-  depth: number,
-  collapsed: ReadonlySet<string>,
-  rows: ChangeTreeNode[],
-): void {
+
+function walk(here: Branch, prefix: string, depth: number, collapsed: ReadonlySet<string>, rows: PathTreeNode[]): void {
   for (const [name, child] of here.folders) {
     let folder = child
     let label = name

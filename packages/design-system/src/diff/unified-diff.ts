@@ -102,6 +102,24 @@ export function computeFile(path: string, oldText: string, newText: string): Dif
   return fileOf(path, patch.hunks, false, false)
 }
 
+/**
+ * 一份完整正文画成「全是上下文行」的一处改动：文件查看器借用同一条行带（行号槽、语法着色、换行、超过 500 行虚拟化），
+ * 不另写一套代码视图。结尾的换行不算一行（与编辑器的行号一致）。
+ */
+export function wholeFile(path: string, text: string): DiffFile {
+  const lines = text.split(/\r?\n/u)
+  if (lines.length > 1 && lines.at(-1) === '') {
+    lines.pop()
+  }
+
+  return {
+    binary: false,
+    path,
+    rows: lines.map((line, at) => rowOf({ kind: 'context', number: at + 1, text: line }, at)),
+    stat: { added: 0, removed: 0 },
+  }
+}
+
 /** 一份多文件补丁摊成每一处改动；emphasis 打开时做词级强调。 */
 export function parseUnifiedPatch(patch: string, emphasis: boolean): readonly DiffFile[] {
   const files: DiffFile[] = []

@@ -1,0 +1,38 @@
+{
+  "name": "@poietica/feature-files",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    "./contract": "./src/contract/index.ts",
+    "./core": "./src/core/index.ts",
+    "./host": "./src/host/index.ts",
+    "./ui": "./src/ui/index.tsx"
+  },
+  "dependencies": {
+    "@poietica/contract-kit": "workspace:*",
+    "@poietica/core-kernel": "workspace:*",
+    "@poietica/design-system": "workspace:*",
+    "@poietica/feature-conversation": "workspace:*",
+    "@poietica/feature-platform": "workspace:*",
+    "@poietica/feature-workspaces": "workspace:*",
+    "@poietica/foundation": "workspace:*",
+    "@poietica/fs-kit": "workspace:*",
+    "@poietica/git": "workspace:*",
+    "@poietica/host-kernel": "workspace:*",
+    "@poietica/ui-kernel": "workspace:*",
+    "lucide-react": "catalog:",
+    "react": "catalog:",
+    "zod": "catalog:"
+  },
+  "devDependencies": {
+    "@poietica/test-kit": "workspace:*",
+    "@testing-library/react": "catalog:",
+    "@types/bun": "catalog:",
+    "@types/node": "catalog:",
+    "@types/react": "catalog:",
+    "@types/react-dom": "catalog:",
+    "electron": "catalog:",
+    "react-dom": "catalog:"
+  }
+}

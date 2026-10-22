@@ -382,6 +382,7 @@ export function createConversationContributions(setup: ConversationSetup, action
       return (
         <ConversationProviders
           agentControls={api}
+          fileScope={{ threadId, workspaceId: thread?.workspaceId ?? null }}
           liveComposers={liveComposers}
           onOpenDelegateChannel={openDelegateChannel}
           posture={posture}

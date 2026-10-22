@@ -1,5 +1,5 @@
 import { defineCoreModule } from '@poietica/core-kernel'
-import { WorkspacesServiceToken } from '@poietica/feature-workspaces/core-api'
+import { type WorkspaceRemoved, WorkspacesServiceToken, workspaceRemoved } from '@poietica/feature-workspaces/core-api'
 import { createGit } from '@poietica/git'
 import { reviewContract } from '../contract'
 import { createGithubService, type GithubService } from './pr'
@@ -28,6 +28,9 @@ export default defineCoreModule({
       start: repositoryWatcher((error) => {
         ctx.logger.warn('repository watch failed', { error: String(error) })
       }),
+      onChange: (workspaceId) => {
+        ctx.rpc.emit('git.changed', { workspaceId })
+      },
     })
 
     /* 每次调用都问一遍，工作区被移走后自然报 workspaces.not_found。 */
@@ -35,6 +38,12 @@ export default defineCoreModule({
 
     ctx.disposables.add({ dispose: () => watcher.dispose() })
     ctx.lifecycle.onShutdown(() => watcher.dispose())
+    /* 工作区被移走：它的监听一并停掉（界面那边的 unwatch 可能永远不会来了）。 */
+    ctx.disposables.add(
+      ctx.events.on<WorkspaceRemoved>(workspaceRemoved, (e) => {
+        watcher.forget(e.workspaceId)
+      }),
+    )
 
     ctx.rpc.handle('git.status', (p) => service.status(pathOf(p.workspaceId)))
     ctx.rpc.handle('git.branches', (p) => service.branches(pathOf(p.workspaceId)))
@@ -50,8 +59,7 @@ export default defineCoreModule({
     ctx.rpc.handle('git.unstage', (p) => service.unstage(pathOf(p.workspaceId), p.paths))
     ctx.rpc.handle('git.commit', (p) => service.commit(pathOf(p.workspaceId), p.message, p.stageAll))
     ctx.rpc.handle('git.watch', (p) => {
-      const path = pathOf(p.workspaceId)
-      watcher.watch(path, () => ctx.rpc.emit('git.changed', { workspaceId: p.workspaceId }))
+      watcher.watch(p.workspaceId, pathOf(p.workspaceId))
       return {}
     })
     /* 代码审查页那一侧：读 GitHub 上的 pull request，以及三种写操作。 */
@@ -79,12 +87,9 @@ export default defineCoreModule({
       github.merge(pathOf(p.workspaceId), p.number, p.method).then(() => ({})),
     )
 
+    /* 按 workspaceId 摘，不再问路径：工作区已被移走时也摘得掉（移走那一刻 forget 已经停过，这里是空操作）。 */
     ctx.rpc.handle('git.unwatch', (p) => {
-      try {
-        watcher.unwatch(pathOf(p.workspaceId))
-      } catch {
-        // 工作区已被移除：监听也随它一起没了，不算失败
-      }
+      watcher.unwatch(p.workspaceId)
       return {}
     })
   },

@@ -161,6 +161,30 @@ export interface ThreadHeaderItem {
 }
 export const threadHeaderItems = defineContributionPoint<ThreadHeaderItem>('conversation.threadHeaderItems')
 
+/**
+ * 正文里的本地文件链接点了交给谁（AI 回复里的 `[a.ts](C:\\repo\\a.ts)`、行内代码 `src/a.ts:12`）。
+ *
+ * 认路径、画链接在 design-system 的正文里；conversation 只知道「这是哪条对话、哪个工作区」，不认识文件 ——
+ * 开在右坞的哪一格、怎么预览，归 files 功能。与 composerProviders 同一形制：这里留贡献点，order 最小的那一个接手；
+ * 一个都没有时正文里的文件名画成不可点（不退回「用系统默认程序打开」：模型写下的路径不该一点就执行）。
+ */
+export interface FileReferenceRequest {
+  /** 写在正文里的路径，原样：绝对（Windows / UNC / POSIX）或相对（相对于 workspaceId 那个工作区）。 */
+  readonly path: string
+  readonly line: number | null
+  readonly column: number | null
+  /** 哪条对话的正文（右坞按它分账）；不在某条对话里（辅助面板等）为 null，接手方按当前前台处理。 */
+  readonly threadId: string | null
+  /** 相对路径按哪个工作区解析；null 即当前工作区。 */
+  readonly workspaceId: string | null
+}
+export interface FileReferenceOpener {
+  readonly id: string
+  readonly order: number
+  open(request: FileReferenceRequest): void
+}
+export const fileReferenceOpeners = defineContributionPoint<FileReferenceOpener>('conversation.fileReferenceOpeners')
+
 export interface ConversationUi {
   activeThreadId(): string | null
   subscribeActive(listener: () => void): () => void

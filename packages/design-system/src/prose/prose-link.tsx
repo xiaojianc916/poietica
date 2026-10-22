@@ -1,5 +1,7 @@
 import type { ComponentProps } from 'react'
 import { Tooltip, TooltipContent, TooltipTrigger } from '../control/tooltip'
+import { FileLink } from './file-link'
+import { FILE_HREF_PREFIX } from './file-ref'
 
 /*
  * 正文链接带一枚显示真实地址的悬停提示：markdown 的链接文字是作者随手起的，target=_blank 之后地址栏也不再教人它要去哪。
@@ -12,6 +14,15 @@ const INCOMPLETE = 'streamdown:incomplete-link'
 type LinkProps = ComponentProps<'a'> & { readonly node?: unknown }
 
 export function ProseLink({ children, className, href, node: _node, ...props }: LinkProps) {
+  /* 本地文件（remark-file-refs.ts 改写过的地址）不是网页：另画成带文件图标、点了在右坞打开的那一种。 */
+  if (href?.startsWith(FILE_HREF_PREFIX) === true) {
+    return (
+      <FileLink {...props} className={className} href={href}>
+        {children}
+      </FileLink>
+    )
+  }
+
   const anchor = (
     <a {...props} className={className} data-streamdown="link" href={href} rel="noreferrer" target="_blank">
       {children}

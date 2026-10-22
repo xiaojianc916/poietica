@@ -46,6 +46,8 @@ export interface SidebarSectionItem {
 export interface DockTabDescriptor {
   readonly id: string
   readonly title: string
+  /** 悬停提示（例如文件的完整相对路径）：标题会截断、会重名，靠它区分。 */
+  readonly hint?: string
   readonly icon: ReactNode
   readonly active: boolean
 }

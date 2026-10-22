@@ -9,5 +9,7 @@ const norm = (p: string): string => path.resolve(p).toLowerCase()
 export function isInside(parent: string, child: string, o: { orEqual?: boolean } = {}): boolean {
   const rel = path.relative(norm(parent), norm(child))
   if (rel === '') return o.orEqual === true
-  return !rel.startsWith('..') && !path.isAbsolute(rel)
+  /* 只认 `..` 这一整段：`..foo` 是 parent 里一个名字以两个点开头的目录，不是逃出去。 */
+  const escapes = rel === '..' || rel.startsWith(`..${path.sep}`)
+  return !escapes && !path.isAbsolute(rel)
 }
