@@ -77,3 +77,15 @@
   block-size: var(--ui-icon);
   stroke-width: var(--ui-icon-stroke);
 }
+
+/*
+ * 文件类型图标换成 img 之后要自己拿尺寸：:where(svg) 管不到它，而 img 默认按固有尺寸铺开。
+ * 盒子与字形同一条 --ui-icon，调用方给的 className 仍然能盖过去。
+ */
+:where(img[data-file-mark]) {
+  display: block;
+  flex: none;
+  inline-size: var(--ui-icon);
+  block-size: var(--ui-icon);
+  object-fit: contain;
+}

@@ -625,7 +625,7 @@ function FileRow({
         type="button"
       >
         {row.depth === 0 ? null : <span aria-hidden className="w-4 shrink-0" />}
-        <FileTypeMark className="size-3.5 shrink-0" name={row.label} />
+        <FileTypeMark className="size-3.5 shrink-0" name={row.path} />
         <span className="min-w-0 flex-1 truncate text-xs">{row.label}</span>
         {status === undefined ? null : <ChangeMark status={status} />}
       </button>

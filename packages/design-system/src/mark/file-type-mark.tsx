@@ -1,121 +1,317 @@
 /*
  * 文件类型的字形。通用 File 图标说不出这是 tsx 还是 rs，类型本身就是这一行要说的话。
  *
- * 字形取自 Material Icon Theme（MIT），与 opencode 同一套；那边把整套 SVG 收进仓库再生成雪碧
- * 图，这里只用得到这十一种，内联省掉一个构建插件与一张近 1 MB 的图。后缀表是这个产品自己的
- * 知识，手写。
+ * 字形取自 Material Icon Theme（MIT，见 file-marks/LICENSE）。整套 SVG 收在 file-marks/，
+ * 由 Vite 当静态资源纳入构建 —— 补全之后已有上百枚，内联 path 会把组件撑成一张没法维护的字形表。
+ * 文件名/后缀映射是本产品自己的知识，手写在这一个文件里。
  */
 
-interface Mark {
-  readonly box: string
-  readonly fill: string
-  readonly path: readonly string[]
-}
+import { FILE_MARK_SOURCE, type FileMarkId } from './file-mark-assets'
 
-const DOCUMENT: Mark = {
-  box: '0 0 24 24',
-  fill: '#42a5f5',
-  path: ['M8 16h8v2H8zm0-4h8v2H8zm6-10H6c-1.1 0-2 .9-2 2v16c0 1.1.89 2 1.99 2H18c1.1 0 2-.9 2-2V8zm4 18H6V4h7v5h5z'],
-}
+const FALLBACK: FileMarkId = 'document'
 
-const REACT: readonly string[] = [
-  'M16 12c7.444 0 12 2.59 12 4s-4.556 4-12 4-12-2.59-12-4 4.556-4 12-4m0-2c-7.732 0-14 2.686-14 6s6.268 6 14 6 14-2.686 14-6-6.268-6-14-6',
-  'M16 14a2 2 0 1 0 2 2 2 2 0 0 0-2-2',
-  'M10.458 5.507c2.017 0 5.937 3.177 9.006 8.493 3.722 6.447 3.757 11.687 2.536 12.392a.9.9 0 0 1-.457.1c-2.017 0-5.938-3.176-9.007-8.492C8.814 11.553 8.779 6.313 10 5.608a.9.9 0 0 1 .458-.1m-.001-2A2.87 2.87 0 0 0 9 3.875C6.13 5.532 6.938 12.304 10.804 19c3.284 5.69 7.72 9.493 10.74 9.493A2.87 2.87 0 0 0 23 28.124c2.87-1.656 2.062-8.428-1.804-15.124-3.284-5.69-7.72-9.493-10.74-9.493Z',
-  'M21.543 5.507a.9.9 0 0 1 .457.1c1.221.706 1.186 5.946-2.536 12.393-3.07 5.316-6.99 8.493-9.007 8.493a.9.9 0 0 1-.457-.1C8.779 25.686 8.814 20.446 12.536 14c3.07-5.316 6.99-8.493 9.007-8.493m0-2c-3.02 0-7.455 3.804-10.74 9.493C6.939 19.696 6.13 26.468 9 28.124a2.87 2.87 0 0 0 1.457.369c3.02 0 7.455-3.804 10.74-9.493C25.061 12.304 25.87 5.532 23 3.876a2.87 2.87 0 0 0-1.457-.369',
+/* 整名匹配：没有后缀（Makefile）或后缀说不出身份（package.json、bunfig.toml）的名字。一律小写。 */
+const BY_NAME = {
+  '.editorconfig': 'editorconfig',
+  '.gitattributes': 'git',
+  '.gitconfig': 'git',
+  '.gitignore': 'git',
+  '.gitkeep': 'git',
+  '.gitmodules': 'git',
+  '.npmignore': 'npm',
+  '.npmrc': 'npm',
+  '.nvmrc': 'nodejs',
+  'agents.md': 'agent',
+  'angular.json': 'angular',
+  'biome.json': 'biome',
+  'biome.jsonc': 'biome',
+  'bun.lock': 'bun',
+  'bun.lockb': 'bun',
+  'bunfig.toml': 'bun',
+  'cargo.lock': 'lock',
+  'cargo.toml': 'rust',
+  'cmakelists.txt': 'cmake',
+  codeowners: 'codeowners',
+  'composer.json': 'php',
+  'deno.json': 'deno',
+  'deno.jsonc': 'deno',
+  'deno.lock': 'deno',
+  dockerfile: 'docker',
+  'go.mod': 'go',
+  'go.sum': 'go',
+  makefile: 'makefile',
+  'package-lock.json': 'nodejs',
+  'package.json': 'nodejs',
+  pipfile: 'python',
+  'pipfile.lock': 'python',
+  'pnpm-lock.yaml': 'lock',
+  'poetry.lock': 'lock',
+  'pyproject.toml': 'python',
+  'requirements.txt': 'python',
+  'setup.cfg': 'python',
+  'setup.py': 'python',
+  'tsconfig.json': 'tsconfig',
+  'yarn.lock': 'lock',
+} as const satisfies Record<string, FileMarkId>
+
+/* 后缀会说谎的配置名（vite.config.ts、.env.local）：排在整名之后、后缀之前，先命中先返回。 */
+type PathRule = {
+  readonly mark: FileMarkId
+  readonly names: readonly string[]
+  readonly prefixes: readonly string[]
+}
+const PATH_RULES: readonly PathRule[] = [
+  { mark: 'tsconfig', names: ['tsconfig'], prefixes: ['tsconfig.'] },
+  { mark: 'tune', names: ['.env'], prefixes: ['.env.'] },
+  { mark: 'readme', names: ['readme'], prefixes: ['readme.'] },
+  { mark: 'license', names: ['license', 'licence'], prefixes: ['license.', 'licence.'] },
+  { mark: 'changelog', names: ['changelog', 'changes'], prefixes: ['changelog.', 'changes.'] },
+  {
+    mark: 'contributing',
+    names: ['contributing', 'conduct', 'code_of_conduct'],
+    prefixes: ['contributing.', 'conduct.', 'code_of_conduct.'],
+  },
+  { mark: 'architecture', names: ['architecture'], prefixes: ['architecture.'] },
+  { mark: 'vite', names: ['electron.vite.config.ts', 'electron.vite.config.js'], prefixes: ['vite.config.'] },
+  { mark: 'vitest', names: [], prefixes: ['vitest.config.', 'vitest.workspace.'] },
+  { mark: 'eslint', names: [], prefixes: ['eslint.config.', '.eslintrc'] },
+  { mark: 'prettier', names: ['.prettierignore'], prefixes: ['prettier.config.', '.prettierrc'] },
+  { mark: 'tailwindcss', names: [], prefixes: ['tailwind.config.'] },
+  {
+    mark: 'docker',
+    names: ['docker-compose.yml', 'docker-compose.yaml', 'compose.yml', 'compose.yaml'],
+    prefixes: [],
+  },
+  { mark: 'nginx', names: ['nginx.conf'], prefixes: [] },
+  { mark: 'gradle', names: ['gradle.properties'], prefixes: ['build.gradle', 'settings.gradle'] },
 ]
+function idOfPath(raw: string): FileMarkId | undefined {
+  const lower = raw.toLowerCase().replace(/\\/gu, '/')
+  const base = lower.split(/[\\/]/u).at(-1) ?? lower
 
-const BY_SUFFIX: Readonly<Record<string, Mark>> = {
-  cjs: {
-    box: '0 0 16 16',
-    fill: '#ffca28',
-    path: [
-      'M2 2v12h12V2zm6 6h1v4a1.003 1.003 0 0 1-1 1H7a1.003 1.003 0 0 1-1-1v-1h1v1h1zm3 0h2v1h-2v1h1a1.003 1.003 0 0 1 1 1v1a1.003 1.003 0 0 1-1 1h-2v-1h2v-1h-1a1.003 1.003 0 0 1-1-1V9a1.003 1.003 0 0 1 1-1',
-    ],
-  },
-  css: {
-    box: '0 0 32 32',
-    fill: '#7e57c2',
-    path: [
-      'M20 18h-2v-2h-2v2c0 .193 0 .703 1.254 1.033A3.345 3.345 0 0 1 20 22h2v2h2v-2c0-.388-.562-.851-1.254-1.034C20.356 20.34 20 18.84 20 18m-3.254 2.966C14.356 20.34 14 18.84 14 18h-2v-2h-2v8h2v-2h4v2h2v-2c0-.388-.562-.851-1.254-1.034',
-      'M24 4H4v20a4 4 0 0 0 4 4h16.16A3.84 3.84 0 0 0 28 24.16V8a4 4 0 0 0-4-4m2 14h-2v-2h-2v2c0 .193 0 .703 1.254 1.033A3.345 3.345 0 0 1 26 22v2a2 2 0 0 1-2 2h-2a2 2 0 0 1-2-2 2 2 0 0 1-2 2h-2a2 2 0 0 1-2-2 2 2 0 0 1-2 2h-2a2 2 0 0 1-2-2v-8a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2 2 2 0 0 1 2-2h2a2 2 0 0 1 2 2 2 2 0 0 1 2-2h2a2 2 0 0 1 2 2Z',
-    ],
-  },
-  html: {
-    box: '0 0 32 32',
-    fill: '#e65100',
-    path: [
-      'm4 4 2 22 10 2 10-2 2-22Zm19.72 7H11.28l.29 3h11.86l-.802 9.335L15.99 25l-6.635-1.646L8.93 19h3.02l.19 2 3.86.77 3.84-.77.29-4H8.84L8 8h16Z',
-    ],
-  },
-  json: {
-    box: '0 -960 960 960',
-    fill: '#f9a825',
-    path: [
-      'M560-160v-80h120q17 0 28.5-11.5T720-280v-80q0-38 22-69t58-44v-14q-36-13-58-44t-22-69v-80q0-17-11.5-28.5T680-720H560v-80h120q50 0 85 35t35 85v80q0 17 11.5 28.5T840-560h40v160h-40q-17 0-28.5 11.5T800-360v80q0 50-35 85t-85 35zm-280 0q-50 0-85-35t-35-85v-80q0-17-11.5-28.5T120-400H80v-160h40q17 0 28.5-11.5T160-600v-80q0-50 35-85t85-35h120v80H280q-17 0-28.5 11.5T240-680v80q0 38-22 69t-58 44v14q36 13 58 44t22 69v80q0 17 11.5 28.5T280-240h120v80z',
-    ],
-  },
-  jsx: { box: '0 0 32 32', fill: '#00bcd4', path: REACT },
-  md: {
-    box: '0 0 32 32',
-    fill: '#42a5f5',
-    path: ['m14 10-4 3.5L6 10H4v12h4v-6l2 2 2-2v6h4V10zm12 6v-6h-4v6h-4l6 8 6-8z'],
-  },
-  rs: {
-    box: '0 0 32 32',
-    fill: '#ff7043',
-    path: [
-      'm30 12-4-2V6h-4l-2-4-4 2-4-2-2 4H6v4l-4 2 2 4-2 4 4 2v4h4l2 4 4-2 4 2 2-4h4v-4l4-2-2-4ZM6 16a9.9 9.9 0 0 1 .842-4H10v8H6.842A9.9 9.9 0 0 1 6 16m10 10a9.98 9.98 0 0 1-7.978-4H16v-2h-2v-2h4c.819.819.297 2.308 1.179 3.37a1.89 1.89 0 0 0 1.46.63h3.34A9.98 9.98 0 0 1 16 26m-2-12v-2h4a1 1 0 0 1 0 2Zm11.158 6H24a2.006 2.006 0 0 1-2-2 2 2 0 0 0-2-2 3 3 0 0 0 3-3q0-.08-.004-.161A3.115 3.115 0 0 0 19.83 10H8.022a9.986 9.986 0 0 1 17.136 10',
-    ],
-  },
-  svg: {
-    box: '0 0 32 32',
-    fill: '#ffb300',
-    path: [
-      'M29.168 14.03a2.7 2.7 0 0 0-1.968-.83 2.51 2.51 0 0 0-1.929.8h-4.443l3.078-3.078a2.835 2.835 0 0 0 2.857-2.842 2.6 2.6 0 0 0-.831-1.969 2.82 2.82 0 0 0-2.014-.788 2.67 2.67 0 0 0-1.968.788 2.36 2.36 0 0 0-.812 1.922L18 11.17V6.726a2.51 2.51 0 0 0 .8-1.929 2.7 2.7 0 0 0-.832-1.968 2.745 2.745 0 0 0-3.936 0 2.7 2.7 0 0 0-.832 1.968 2.51 2.51 0 0 0 .8 1.93v4.443l-3.138-3.138a2.36 2.36 0 0 0-.812-1.922 2.66 2.66 0 0 0-1.968-.788 2.83 2.83 0 0 0-2.014.788 2.6 2.6 0 0 0-.831 1.969 2.74 2.74 0 0 0 .831 2.013 2.8 2.8 0 0 0 2.026.829l3.078 3.078H6.729a2.51 2.51 0 0 0-1.929-.8 2.7 2.7 0 0 0-1.968.831 2.745 2.745 0 0 0 0 3.937 2.7 2.7 0 0 0 1.968.832 2.51 2.51 0 0 0 1.929-.8h4.443l-3.078 3.077a2.835 2.835 0 0 0-2.857 2.842 2.6 2.6 0 0 0 .831 1.969 2.82 2.82 0 0 0 2.014.788 2.67 2.67 0 0 0 1.968-.788 2.36 2.36 0 0 0 .812-1.922L14 20.827v4.444a2.51 2.51 0 0 0-.8 1.929 2.784 2.784 0 0 0 4.768 1.968A2.7 2.7 0 0 0 18.8 27.2a2.51 2.51 0 0 0-.8-1.929v-4.444l3.138 3.138a2.36 2.36 0 0 0 .812 1.922 2.66 2.66 0 0 0 1.968.788 2.83 2.83 0 0 0 2.014-.788 2.6 2.6 0 0 0 .831-1.969 2.74 2.74 0 0 0-.831-2.013 2.8 2.8 0 0 0-2.026-.829L20.828 18h4.443a2.51 2.51 0 0 0 1.93.8 2.784 2.784 0 0 0 1.967-4.769Z',
-    ],
-  },
-  ts: {
-    box: '0 0 16 16',
-    fill: '#0288d1',
-    path: [
-      'M2 2v12h12V2zm4 6h3v1H8v4H7V9H6zm5 0h2v1h-2v1h1a1.003 1.003 0 0 1 1 1v1a1.003 1.003 0 0 1-1 1h-2v-1h2v-1h-1a1.003 1.003 0 0 1-1-1V9a1.003 1.003 0 0 1 1-1',
-    ],
-  },
-  tsx: { box: '0 0 32 32', fill: '#0288d1', path: REACT },
+  if (lower.includes('.github/workflows/') && /\.ya?ml$/u.test(base)) {
+    return 'github-actions-workflow'
+  }
+
+  return PATH_RULES.find((rule) => rule.names.includes(base) || rule.prefixes.some((prefix) => base.startsWith(prefix)))
+    ?.mark
 }
 
-/* 别名共享字形：后缀表只留一份形状。 */
-const ALIAS: Readonly<Record<string, string>> = {
-  cts: 'ts',
-  js: 'cjs',
+/*
+ * 后缀。先长后短：`test.ts.snap` 先命中 test.ts.snap，再退回 snap、ts。
+ * 同一形状的别名直接指向同一个 id，不写第二份字形。
+ */
+const BY_SUFFIX = {
+  'test.ts': 'test-ts',
+  'test.cts': 'test-ts',
+  'test.mts': 'test-ts',
+  'spec.ts': 'test-ts',
+  'spec.cts': 'test-ts',
+  'spec.mts': 'test-ts',
+  'test.tsx': 'test-jsx',
+  'spec.tsx': 'test-jsx',
+  'test.js': 'test-js',
+  'test.cjs': 'test-js',
+  'test.mjs': 'test-js',
+  'spec.js': 'test-js',
+  'spec.cjs': 'test-js',
+  'spec.mjs': 'test-js',
+  'test.ts.snap': 'test-ts',
+  'ts.snap': 'test-ts',
+  'test.tsx.snap': 'test-jsx',
+  'tsx.snap': 'test-jsx',
+  'test.js.snap': 'test-js',
+  'js.snap': 'test-js',
+  'd.ts': 'typescript-def',
+  'd.cts': 'typescript-def',
+  'd.mts': 'typescript-def',
+  astro: 'astro',
+  avif: 'image',
+  bash: 'console',
+  bat: 'console',
+  bmp: 'image',
+  bz2: 'zip',
+  c: 'c',
+  cc: 'cpp',
+  cer: 'certificate',
+  cfg: 'settings',
+  cjs: 'javascript',
+  cmd: 'console',
+  cmake: 'cmake',
+  conf: 'settings',
+  config: 'settings',
+  cpp: 'cpp',
+  crt: 'certificate',
+  cs: 'csharp',
+  csproj: 'csharp',
+  css: 'css',
+  csv: 'table',
+  cts: 'typescript',
+  cxx: 'cpp',
+  dart: 'dart',
+  db: 'database',
+  diff: 'diff',
+  dll: 'dll',
+  doc: 'word',
+  docx: 'word',
+  ejs: 'html',
+  eml: 'email',
+  env: 'tune',
+  erb: 'ruby',
+  exe: 'exe',
+  fish: 'console',
+  flac: 'audio',
+  gif: 'image',
+  gpg: 'key',
+  gql: 'graphql',
+  gradle: 'gradle',
+  graphql: 'graphql',
+  grit: 'command',
+  gz: 'zip',
+  h: 'c',
+  hpp: 'cpp',
+  htm: 'html',
+  html: 'html',
+  hxx: 'cpp',
+  ico: 'image',
+  ini: 'settings',
+  java: 'java',
+  jpeg: 'image',
+  jpg: 'image',
+  js: 'javascript',
+  json: 'json',
+  json5: 'json',
   jsonc: 'json',
-  mdx: 'md',
-  mjs: 'cjs',
-  mts: 'ts',
-}
+  jsonl: 'json',
+  jsx: 'react',
+  key: 'key',
+  kt: 'kotlin',
+  kts: 'kotlin',
+  less: 'less',
+  lib: 'lib',
+  lock: 'lock',
+  log: 'log',
+  lua: 'lua',
+  m4a: 'audio',
+  markdown: 'markdown',
+  md: 'markdown',
+  mdx: 'markdown',
+  mjs: 'javascript',
+  mk: 'makefile',
+  mkv: 'video',
+  mov: 'video',
+  mp3: 'audio',
+  mp4: 'video',
+  mts: 'typescript',
+  ndjson: 'json',
+  nsh: 'command',
+  nu: 'console',
+  ogg: 'audio',
+  otf: 'font',
+  patch: 'diff',
+  pcss: 'postcss',
+  pdf: 'pdf',
+  pem: 'key',
+  pfx: 'certificate',
+  php: 'php',
+  png: 'image',
+  ppt: 'powerpoint',
+  pptx: 'powerpoint',
+  prefs: 'settings',
+  properties: 'settings',
+  proto: 'proto',
+  ps1: 'powershell',
+  ps1xml: 'powershell',
+  psc1: 'powershell',
+  psd1: 'powershell',
+  psm1: 'powershell',
+  py: 'python',
+  pyi: 'python',
+  pyw: 'python',
+  rar: 'zip',
+  rb: 'ruby',
+  rst: 'markdown',
+  rs: 'rust',
+  sass: 'sass',
+  scss: 'sass',
+  sh: 'console',
+  sln: 'csharp',
+  snap: 'test-js',
+  sql: 'database',
+  sqlite: 'database',
+  sqlite3: 'database',
+  styl: 'stylus',
+  svelte: 'svelte',
+  svg: 'svg',
+  swift: 'swift',
+  tar: 'zip',
+  tf: 'terraform',
+  tfvars: 'terraform',
+  tif: 'image',
+  tiff: 'image',
+  toml: 'toml',
+  ts: 'typescript',
+  tsv: 'table',
+  tsx: 'react_ts',
+  ttf: 'font',
+  txt: 'document',
+  vue: 'vue',
+  wasm: 'webassembly',
+  wav: 'audio',
+  webm: 'video',
+  webmanifest: 'json',
+  webp: 'image',
+  woff: 'font',
+  woff2: 'font',
+  xls: 'table',
+  xlsx: 'table',
+  xml: 'xml',
+  xsd: 'xml',
+  xsl: 'xml',
+  yaml: 'yaml',
+  yml: 'yaml',
+  zip: 'zip',
+  zsh: 'console',
+} as const satisfies Record<string, FileMarkId>
 
-/* 由长到短试后缀，所以 d.ts 这类复合后缀先于 ts 命中。 */
-function markOf(name: string): Mark {
-  const parts = name.toLowerCase().split('.')
+/** 一个文件名或路径配哪一枚图标；认不出来就是通用文档。 */
+export function fileMarkIdOf(name: string): FileMarkId {
+  const lower = name.toLowerCase()
+  const base = lower.split(/[\\/]/u).at(-1) ?? lower
+  const named = BY_NAME[base as keyof typeof BY_NAME]
+
+  if (named !== undefined) {
+    return named
+  }
+
+  const byPath = idOfPath(lower)
+
+  if (byPath !== undefined) {
+    return byPath
+  }
+
+  const parts = base.split('.')
   for (let at = 1; at < parts.length; at += 1) {
     const suffix = parts.slice(at).join('.')
-    const mark = BY_SUFFIX[ALIAS[suffix] ?? suffix]
+    const mark = BY_SUFFIX[suffix as keyof typeof BY_SUFFIX]
     if (mark !== undefined) {
       return mark
     }
   }
-  return DOCUMENT
+
+  return FALLBACK
 }
 
 export function FileTypeMark({ className, name }: { readonly className: string; readonly name: string }) {
-  const mark = markOf(name)
-
   return (
-    <svg aria-hidden="true" className={className} fill={mark.fill} viewBox={mark.box}>
-      {mark.path.map((d) => (
-        <path d={d} key={d} />
-      ))}
-    </svg>
+    <img
+      alt=""
+      aria-hidden="true"
+      className={className}
+      decoding="async"
+      data-file-mark=""
+      draggable={false}
+      src={FILE_MARK_SOURCE[fileMarkIdOf(name)]}
+    />
   )
 }

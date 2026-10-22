@@ -112,7 +112,7 @@ function FileDiff({ file }: { readonly file: DiffFile }) {
   return (
     <div className="timeline-tool__file">
       <div className="timeline-tool__path" title={file.path}>
-        <FileTypeMark className="timeline-tool__path-icon" name={name} />
+        <FileTypeMark className="timeline-tool__path-icon" name={file.path} />
         <span className="timeline-tool__path-name">{name}</span>
       </div>
 
