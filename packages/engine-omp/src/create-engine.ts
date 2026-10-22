@@ -119,7 +119,11 @@ export async function createOmpEngineWith(o: CreateEngineOptions, seams: EngineT
   for (const [path, value] of unset) writeGlobalSetting(root, path, value)
   if (unset.length > 0) await root.flush()
   overrideSetting(root, 'browser.relayUrl', `http://127.0.0.1:${String(o.relayPort)}`)
-  // 自动总结标题（omp 知识 #17）：不额外改任何设置，omp 的默认就是产品要的；旧版自造的 modelRoles.title 迁进 omp 的 tiny 角色
+
+  //标题只留正文，不要 omp 的卡片前缀（`🎤 POET: …` 那个图标 + 代号）
+  overrideSetting(root, 'title.icons', 'boring')
+  // 自动总结标题（omp 知识 #17）：旧版自造的 modelRoles.title 迁进 omp 的 tiny 角色
+
   if (await migrateLegacyTitleRole(root)) o.logger.info('legacy title model role migrated to tiny')
   const authStorage = await omp.discoverAuthStorage()
   const registry = new omp.ModelRegistry(authStorage)
