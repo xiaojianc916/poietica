@@ -291,6 +291,15 @@ function VirtualRows({
   readonly wrap: boolean
 }) {
   const host = useRef<HTMLDivElement | null>(null)
+  /*
+   * 滚动口是祖先：它的 ref 在整棵树的 layout 阶段之后才挂上，虚拟器（在 layout effect 里认滚动元素）与下面的原点量测
+   * 在挂载那一遍读到的都是 null。所以挂载后用一次被动 effect 把它取进 state，再渲一遍 —— 不然要等一次外来的重渲
+   * （着色换了一份行、拖宽了面板）才画得出行：文件查看器里不着色的长文件（bun.lock、LICENSE）打开就是一片空白。
+   */
+  const [scrollEl, setScrollEl] = useState<HTMLDivElement | null>(null)
+  useEffect(() => {
+    setScrollEl(scroller.current)
+  }, [scroller])
   const items = useMemo(() => spreadRows(file.rows, file.path, openGaps), [file.path, file.rows, openGaps])
   const widest = useMemo(() => widestOf(file.rows), [file.rows])
   /*
@@ -301,7 +310,6 @@ function VirtualRows({
   const [origin, setOrigin] = useState(0)
   useLayoutEffect(() => {
     const hostEl = host.current
-    const scrollEl = scroller.current
     if (hostEl === null || scrollEl === null) {
       return
     }
@@ -309,7 +317,6 @@ function VirtualRows({
   })
   useLayoutEffect(() => {
     const hostEl = host.current
-    const scrollEl = scroller.current
     if (hostEl === null || scrollEl === null) {
       return
     }
@@ -321,11 +328,11 @@ function VirtualRows({
     return () => {
       observer.disconnect()
     }
-  }, [scroller])
+  }, [scrollEl])
   const virtualizer = useVirtualizer({
     count: items.length,
     estimateSize: () => 20,
-    getScrollElement: () => scroller.current,
+    getScrollElement: () => scrollEl,
     getItemKey: (index: number) => items[index]?.key ?? index,
     overscan: 12,
     scrollMargin: origin,
