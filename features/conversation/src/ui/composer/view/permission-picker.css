@@ -1,4 +1,4 @@
-@import "./session-controls.css";
+@import './session-controls.css';
 
 .assistant-posture,
 .assistant-posture-menu {
@@ -61,7 +61,7 @@
 /* 两行字加一枚字形：格还在，但字号、字色、行盒取自通用弹窗的行。 */
 .assistant-posture-menu__item {
   display: grid;
-  grid-template-areas: "glyph name tick" "glyph detail tick";
+  grid-template-areas: 'glyph name tick' 'glyph detail tick';
   grid-template-columns: auto minmax(0, 1fr) auto;
   column-gap: 6px;
   row-gap: 2px;

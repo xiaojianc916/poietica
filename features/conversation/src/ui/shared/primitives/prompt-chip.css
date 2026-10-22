@@ -16,12 +16,12 @@
 }
 
 /* 悬停底只给草稿，转录里那一枚是只读的。 */
-[data-slot="prompt-input-editor"] .assistant-prompt-chip {
+[data-slot='prompt-input-editor'] .assistant-prompt-chip {
   user-select: none;
   transition: background-color var(--cp-motion-swift) var(--cp-motion-ease);
 }
 
-[data-slot="prompt-input-editor"] .assistant-prompt-chip:hover {
+[data-slot='prompt-input-editor'] .assistant-prompt-chip:hover {
   background: var(--cp-chip-hover);
 }
 

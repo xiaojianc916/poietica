@@ -1,18 +1,18 @@
 /* 外壳的样式入口。@import 必须在最前：CSS 规定，biome 也按位置报错。 */
-@import "./sidebar.css";
-@import "./auxiliary.css";
-@import "./parts.css";
-@import "./settings-nav.css";
+@import './sidebar.css';
+@import './auxiliary.css';
+@import './parts.css';
+@import './settings-nav.css';
 
 /* 应用外壳的栅格：唯一真相是命名区域与列宽，区域组件只声明占哪一格。列宽由 WorkspaceFrame 写成内联自定义属性，注册成 <length> 才能被 CSS 过渡插值。 */
 @property --workspace-sidebar-column-width {
-  syntax: "<length>";
+  syntax: '<length>';
   inherits: true;
   initial-value: 0px;
 }
 
 @property --workspace-auxiliary-column-width {
-  syntax: "<length>";
+  syntax: '<length>';
   inherits: true;
   initial-value: 0px;
 }
@@ -32,15 +32,15 @@
   /* 两行：页头 / 三列主体（主体 minmax(0, 1fr) 收下剩余高度，永不溢出）。横幅不占格；加回一行会在退出时闪出一条没有字的 `--ui-accent` 色块。 */
   grid-template-rows: var(--chrome-height) minmax(0, 1fr);
   grid-template-areas:
-    "chrome chrome chrome"
-    "sidebar main auxiliary";
+    'chrome chrome chrome'
+    'sidebar main auxiliary';
   transition:
     --workspace-sidebar-column-width var(--workspace-layout-duration) var(--workspace-layout-ease),
     --workspace-auxiliary-column-width var(--workspace-layout-duration) var(--workspace-layout-ease);
 }
 
 /* 拖拽中不插值：宽度每帧都在变，补间只会让列追不上指针。 */
-.workspace-shell[data-splitter="drag"] {
+.workspace-shell[data-splitter='drag'] {
   transition: none;
 }
 
@@ -62,25 +62,25 @@
 }
 
 /* 钉在主区，不进右栏。 */
-.workspace-shell__conversation-control[data-slot="main"] {
+.workspace-shell__conversation-control[data-slot='main'] {
   grid-column: 2;
   transition: margin-inline-end var(--workspace-layout-duration) var(--workspace-layout-ease);
 }
 
-.workspace-shell[data-auxiliary-docked="false"] .workspace-shell__conversation-control[data-slot="main"] {
+.workspace-shell[data-auxiliary-docked='false'] .workspace-shell__conversation-control[data-slot='main'] {
   margin-inline-end: calc(var(--workspace-card-gap) + var(--workspace-card-radius) + var(--workspace-card-control));
 }
 
-.workspace-shell__conversation-control[data-slot="window"] {
+.workspace-shell__conversation-control[data-slot='window'] {
   grid-column: 1 / -1;
 }
 
-.workspace-shell[data-auxiliary-fullscreen="true"] .workspace-shell__conversation-control {
+.workspace-shell[data-auxiliary-fullscreen='true'] .workspace-shell__conversation-control {
   display: none;
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .workspace-shell__conversation-control[data-slot="main"] {
+  .workspace-shell__conversation-control[data-slot='main'] {
     transition: none;
   }
 }
@@ -107,7 +107,7 @@
     var(--workspace-divider-line, var(--color-divider))
   );
 
-  content: "";
+  content: '';
   position: absolute;
   inset-block: 6%;
   inset-inline-start: calc(-0.75 * var(--ui-region-divider-width));
@@ -123,40 +123,40 @@
   margin-inline-end: calc(var(--workspace-card-gap) / 2);
 }
 
-:root:not([data-theme="dark"]) .workspace-shell__divider--auxiliary {
+:root:not([data-theme='dark']) .workspace-shell__divider--auxiliary {
   --workspace-divider-line: var(--ui-card-divider);
 }
 
-:root:not([data-theme="dark"]) .workspace-shell__divider--auxiliary::after {
+:root:not([data-theme='dark']) .workspace-shell__divider--auxiliary::after {
   --workspace-divider-grip: color-mix(in oklab, var(--color-foreground) 14%, var(--workspace-divider-line));
 }
 
 /* :not 隔离两侧开关；辅助面板全屏时主列消失，其末像素上的分隔线也须隐藏。 */
-.workspace-shell[data-sidebar-docked="false"] .workspace-shell__divider:not(.workspace-shell__divider--auxiliary),
-.workspace-shell[data-auxiliary-docked="false"] .workspace-shell__divider--auxiliary,
-.workspace-shell[data-auxiliary-fullscreen="true"] .workspace-shell__divider--auxiliary {
+.workspace-shell[data-sidebar-docked='false'] .workspace-shell__divider:not(.workspace-shell__divider--auxiliary),
+.workspace-shell[data-auxiliary-docked='false'] .workspace-shell__divider--auxiliary,
+.workspace-shell[data-auxiliary-fullscreen='true'] .workspace-shell__divider--auxiliary {
   opacity: 0;
 }
 
 /* 悬停要够 50ms 才浮现，擦边划过不闪。 */
-.workspace-shell[data-splitter="hover"][data-splitter-region="sidebar"]
-.workspace-shell__divider:not(.workspace-shell__divider--auxiliary)::after,
-.workspace-shell[data-splitter="hover"][data-splitter-region="auxiliary"] .workspace-shell__divider--auxiliary::after {
+.workspace-shell[data-splitter='hover'][data-splitter-region='sidebar']
+  .workspace-shell__divider:not(.workspace-shell__divider--auxiliary)::after,
+.workspace-shell[data-splitter='hover'][data-splitter-region='auxiliary'] .workspace-shell__divider--auxiliary::after {
   opacity: 1;
   transition-delay: var(--workspace-divider-hover-delay);
 }
 
 /* 拖拽中立刻浮现；键盘焦点同样不留延迟。 */
-.workspace-shell[data-splitter="drag"][data-splitter-region="sidebar"]
-.workspace-shell__divider:not(.workspace-shell__divider--auxiliary)::after,
-.workspace-shell[data-splitter="drag"][data-splitter-region="auxiliary"] .workspace-shell__divider--auxiliary::after {
+.workspace-shell[data-splitter='drag'][data-splitter-region='sidebar']
+  .workspace-shell__divider:not(.workspace-shell__divider--auxiliary)::after,
+.workspace-shell[data-splitter='drag'][data-splitter-region='auxiliary'] .workspace-shell__divider--auxiliary::after {
   opacity: 1;
 }
 
 /* 键盘焦点不留延迟。 */
-.workspace-shell:has(.workspace-region-splitter[data-edge="inline-start"]:focus-visible)
-.workspace-shell__divider:not(.workspace-shell__divider--auxiliary)::after,
-.workspace-shell:has(.workspace-region-splitter[data-edge="inline-end"]:focus-visible)
+.workspace-shell:has(.workspace-region-splitter[data-edge='inline-start']:focus-visible)
+  .workspace-shell__divider:not(.workspace-shell__divider--auxiliary)::after,
+.workspace-shell:has(.workspace-region-splitter[data-edge='inline-end']:focus-visible)
   .workspace-shell__divider--auxiliary::after {
   opacity: 1;
 }
@@ -205,7 +205,7 @@
 }
 
 /* 侧栏收起时补左缝：主区贴窗口左缘，不留就三面有缝。 */
-.workspace-shell[data-sidebar-docked="false"] .workspace-shell__main {
+.workspace-shell[data-sidebar-docked='false'] .workspace-shell__main {
   padding-inline-start: var(--workspace-card-gap);
 }
 
@@ -229,15 +229,15 @@
   border-radius: var(--workspace-card-radius);
 }
 
-.workspace-shell[data-auxiliary-fullscreen="true"] .workspace-shell__auxiliary-content {
+.workspace-shell[data-auxiliary-fullscreen='true'] .workspace-shell__auxiliary-content {
   max-inline-size: calc(100% - var(--workspace-card-gap));
 }
 
-.workspace-shell[data-auxiliary-fullscreen="true"][data-sidebar-docked="false"] .workspace-shell__auxiliary-content {
+.workspace-shell[data-auxiliary-fullscreen='true'][data-sidebar-docked='false'] .workspace-shell__auxiliary-content {
   max-inline-size: calc(100% - 2 * var(--workspace-card-gap));
   margin-inline-start: var(--workspace-card-gap);
 }
 
-.workspace-shell[data-auxiliary-fullscreen="true"] .workspace-shell__main {
+.workspace-shell[data-auxiliary-fullscreen='true'] .workspace-shell__main {
   display: none;
 }

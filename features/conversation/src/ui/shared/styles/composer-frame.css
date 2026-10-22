@@ -1,5 +1,5 @@
 /* conversation 与自动化的输入框共用的一副框。 */
-[data-slot="prompt-input"] {
+[data-slot='prompt-input'] {
   position: relative;
   /*
    * 下面那条上下文栏向上探进卡里一个圆角的量，卡必须压在栏之上，否则栏的底色会吃掉卡片下沿的圆角。
@@ -16,7 +16,7 @@
   cursor: text;
 }
 
-[data-slot="prompt-input-body"] {
+[data-slot='prompt-input-body'] {
   display: flex;
   inline-size: 100%;
   min-inline-size: 0;
@@ -30,7 +30,7 @@
   min-inline-size: 0;
 }
 
-[data-slot="prompt-input-editor"] {
+[data-slot='prompt-input-editor'] {
   display: block;
   min-block-size: var(--cp-editor-idle);
   max-block-size: var(--cp-editor-max);
@@ -58,7 +58,7 @@
 /*
  * 工具条自己当容器查询的容器：判据是这一行还剩多宽，不是窗口多宽。它下面没有 fixed 定位的后代（弹层都 portal 到 body）。
  */
-[data-slot="prompt-input-toolbar"] {
+[data-slot='prompt-input-toolbar'] {
   display: flex;
   inline-size: 100%;
   min-inline-size: 0;
@@ -68,7 +68,7 @@
   container-type: inline-size;
 }
 
-[data-slot="prompt-input-tools"] {
+[data-slot='prompt-input-tools'] {
   display: flex;
   align-items: center;
   gap: 4px;
@@ -93,7 +93,7 @@
   }
 }
 
-textarea[data-slot="prompt-input-editor"] {
+textarea[data-slot='prompt-input-editor'] {
   inline-size: 100%;
   border: 0;
   resize: none;
@@ -101,7 +101,7 @@ textarea[data-slot="prompt-input-editor"] {
   field-sizing: content;
 }
 
-textarea[data-slot="prompt-input-editor"]::placeholder {
+textarea[data-slot='prompt-input-editor']::placeholder {
   color: var(--cp-placeholder);
   opacity: 1;
 }
@@ -124,7 +124,7 @@ textarea[data-slot="prompt-input-editor"]::placeholder {
   background: var(--cp-shelf);
 }
 
-[data-slot="prompt-input-submit"] {
+[data-slot='prompt-input-submit'] {
   display: inline-grid;
   block-size: var(--cp-control);
   inline-size: var(--cp-control);
@@ -144,21 +144,21 @@ textarea[data-slot="prompt-input-editor"]::placeholder {
     transform var(--cp-motion-swift) var(--cp-motion-ease);
 }
 
-[data-slot="prompt-input-submit"]:hover:not(:disabled) {
+[data-slot='prompt-input-submit']:hover:not(:disabled) {
   background: var(--cp-accent-hover);
 }
 
-[data-slot="prompt-input-submit"]:active:not(:disabled) {
+[data-slot='prompt-input-submit']:active:not(:disabled) {
   transform: scale(0.96);
 }
 
-[data-slot="prompt-input-submit"]:disabled {
+[data-slot='prompt-input-submit']:disabled {
   background: var(--cp-accent-idle);
   box-shadow: none;
   cursor: default;
 }
 
-[data-slot="prompt-input-submit"][data-status="submitted"] svg {
+[data-slot='prompt-input-submit'][data-status='submitted'] svg {
   animation: assistant-spin 900ms linear infinite;
 }
 

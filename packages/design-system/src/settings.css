@@ -21,7 +21,7 @@
 }
 
 /* 深色下分隔线写字面实色（产品指定），不跟卡片线那支半透明墨。 */
-:root[data-theme="dark"] .settings-content {
+:root[data-theme='dark'] .settings-content {
   --settings-divider: #353535;
 }
 
@@ -97,7 +97,7 @@
 
 /* 卡内分隔线用伪元素实现两侧内缩，避免整行边框接到卡片边缘。 */
 .settings-row + .settings-row::before {
-  content: "";
+  content: '';
   position: absolute;
   inset-inline: var(--settings-divider-inset);
   inset-block-start: 0;
@@ -234,7 +234,7 @@
 }
 
 .settings-about-details > div + div::before {
-  content: "";
+  content: '';
   position: absolute;
   inset-inline: var(--settings-divider-inset);
   inset-block-start: 0;
@@ -329,7 +329,7 @@
 }
 
 /* 深色下白底会连字一起吃掉：输入格比卡面再抬一档，框色也另给一格。 */
-:root[data-theme="dark"] .settings-input {
+:root[data-theme='dark'] .settings-input {
   --settings-input-border: #4d4d4d;
   background: #2c2c2c;
 }
@@ -354,8 +354,8 @@
  * 而环与框本来就该是同一个蓝。两条焦点规则都得跟着走 —— 带图标的那个焦点
  * 落在容器上，不是 input 自己。
  */
-:root[data-theme="dark"] .settings-input:focus-visible,
-:root[data-theme="dark"] .settings-input--with-icon:focus-within {
+:root[data-theme='dark'] .settings-input:focus-visible,
+:root[data-theme='dark'] .settings-input--with-icon:focus-within {
   border-color: var(--ui-ring);
 }
 
@@ -479,48 +479,48 @@
   border-radius: 2px;
 }
 
-.settings-trend__swatch[data-series="1"],
-.settings-trend__dot[data-series="1"] {
+.settings-trend__swatch[data-series='1'],
+.settings-trend__dot[data-series='1'] {
   background: var(--settings-series-1);
 }
 
-.settings-trend__swatch[data-series="2"],
-.settings-trend__dot[data-series="2"] {
+.settings-trend__swatch[data-series='2'],
+.settings-trend__dot[data-series='2'] {
   background: var(--settings-series-2);
 }
 
-.settings-trend__swatch[data-series="3"],
-.settings-trend__dot[data-series="3"] {
+.settings-trend__swatch[data-series='3'],
+.settings-trend__dot[data-series='3'] {
   background: var(--settings-series-3);
 }
 
-.settings-trend__swatch[data-series="4"],
-.settings-trend__dot[data-series="4"] {
+.settings-trend__swatch[data-series='4'],
+.settings-trend__dot[data-series='4'] {
   background: var(--settings-series-4);
 }
 
-.settings-trend__swatch[data-series="5"],
-.settings-trend__dot[data-series="5"] {
+.settings-trend__swatch[data-series='5'],
+.settings-trend__dot[data-series='5'] {
   background: var(--settings-series-5);
 }
 
-.settings-trend__line[data-series="1"] {
+.settings-trend__line[data-series='1'] {
   stroke: var(--settings-series-1);
 }
 
-.settings-trend__line[data-series="2"] {
+.settings-trend__line[data-series='2'] {
   stroke: var(--settings-series-2);
 }
 
-.settings-trend__line[data-series="3"] {
+.settings-trend__line[data-series='3'] {
   stroke: var(--settings-series-3);
 }
 
-.settings-trend__line[data-series="4"] {
+.settings-trend__line[data-series='4'] {
   stroke: var(--settings-series-4);
 }
 
-.settings-trend__line[data-series="5"] {
+.settings-trend__line[data-series='5'] {
   stroke: var(--settings-series-5);
 }
 
@@ -563,23 +563,23 @@
   pointer-events: none;
 }
 
-.settings-trend__point[data-series="1"] {
+.settings-trend__point[data-series='1'] {
   background: var(--settings-series-1);
 }
 
-.settings-trend__point[data-series="2"] {
+.settings-trend__point[data-series='2'] {
   background: var(--settings-series-2);
 }
 
-.settings-trend__point[data-series="3"] {
+.settings-trend__point[data-series='3'] {
   background: var(--settings-series-3);
 }
 
-.settings-trend__point[data-series="4"] {
+.settings-trend__point[data-series='4'] {
   background: var(--settings-series-4);
 }
 
-.settings-trend__point[data-series="5"] {
+.settings-trend__point[data-series='5'] {
   background: var(--settings-series-5);
 }
 
@@ -658,7 +658,7 @@
 
 .settings-metric:not(:nth-child(3n + 1))::before {
   position: absolute;
-  content: "";
+  content: '';
   inset-block: var(--settings-divider-inset);
   inset-inline-start: 0;
   inline-size: 0;
@@ -667,7 +667,7 @@
 
 .settings-metric:nth-child(n + 4)::after {
   position: absolute;
-  content: "";
+  content: '';
   inset-inline: var(--settings-divider-inset);
   inset-block-start: 0;
   block-size: 0;
@@ -698,12 +698,12 @@
  * 无读数格是占位符：placeholder 语义就是「还没有内容」；字重退回常规，避免与真实读数同重而
  * 分不出空格，字号不动以免行高跳动。
  */
-.settings-metric__value[data-unrecorded="true"] {
+.settings-metric__value[data-unrecorded='true'] {
   color: var(--ui-placeholder);
   font-weight: 400;
 }
 
-.settings-metric__value[data-long="true"] {
+.settings-metric__value[data-long='true'] {
   display: -webkit-box;
   overflow: hidden;
   font-size: 14px;
@@ -725,19 +725,19 @@
   background: var(--settings-heat-0);
 }
 
-.settings-heatmap__cell[data-level="1"] {
+.settings-heatmap__cell[data-level='1'] {
   background: var(--settings-heat-1);
 }
 
-.settings-heatmap__cell[data-level="2"] {
+.settings-heatmap__cell[data-level='2'] {
   background: var(--settings-heat-2);
 }
 
-.settings-heatmap__cell[data-level="3"] {
+.settings-heatmap__cell[data-level='3'] {
   background: var(--settings-heat-3);
 }
 
-.settings-heatmap__cell[data-level="4"] {
+.settings-heatmap__cell[data-level='4'] {
   background: var(--settings-heat-4);
 }
 
@@ -791,7 +791,7 @@
 }
 
 /* 深色主题下 #f5f5f5 亮过满档，底色那一侧回到分隔线。 */
-:root[data-theme="dark"] .settings-heatmap {
+:root[data-theme='dark'] .settings-heatmap {
   --settings-heat-0: var(--ui-divider);
 }
 
@@ -916,7 +916,7 @@
   pointer-events: none;
 }
 
-:root[data-theme="dark"] .settings-trend__hint {
+:root[data-theme='dark'] .settings-trend__hint {
   background: #121212;
   color: var(--ui-foreground);
 }
@@ -980,7 +980,7 @@
   background: color-mix(in oklab, var(--ui-divider) 50%, transparent);
 }
 
-:root[data-theme="dark"] .settings-storage__bar {
+:root[data-theme='dark'] .settings-storage__bar {
   background: var(--ui-divider);
 }
 
@@ -1019,7 +1019,7 @@
 }
 
 /* 还没量出字节的格子与标签同一档色：读数那栏写的是「0 字节」，不该读成一个真实读数。 */
-.settings-storage__item dd[data-unmeasured="true"] {
+.settings-storage__item dd[data-unmeasured='true'] {
   color: var(--ui-muted-foreground);
 }
 
@@ -1031,36 +1031,36 @@
 }
 
 /* 「其它」不进序列色轮转：它在条上的样子就是那截轨道底色，色块照抄同一档。 */
-.settings-storage__swatch[data-series="-1"] {
+.settings-storage__swatch[data-series='-1'] {
   background: var(--ui-divider);
 }
 
-.settings-storage__segment[data-series="0"],
-.settings-storage__swatch[data-series="0"] {
+.settings-storage__segment[data-series='0'],
+.settings-storage__swatch[data-series='0'] {
   background: var(--settings-series-0);
 }
 
-.settings-storage__segment[data-series="1"],
-.settings-storage__swatch[data-series="1"] {
+.settings-storage__segment[data-series='1'],
+.settings-storage__swatch[data-series='1'] {
   background: var(--settings-series-1);
 }
 
-.settings-storage__segment[data-series="2"],
-.settings-storage__swatch[data-series="2"] {
+.settings-storage__segment[data-series='2'],
+.settings-storage__swatch[data-series='2'] {
   background: var(--settings-series-2);
 }
 
-.settings-storage__segment[data-series="3"],
-.settings-storage__swatch[data-series="3"] {
+.settings-storage__segment[data-series='3'],
+.settings-storage__swatch[data-series='3'] {
   background: var(--settings-series-3);
 }
 
-.settings-storage__segment[data-series="4"],
-.settings-storage__swatch[data-series="4"] {
+.settings-storage__segment[data-series='4'],
+.settings-storage__swatch[data-series='4'] {
   background: var(--settings-series-4);
 }
 
-.settings-storage__segment[data-series="5"],
-.settings-storage__swatch[data-series="5"] {
+.settings-storage__segment[data-series='5'],
+.settings-storage__swatch[data-series='5'] {
   background: var(--settings-series-5);
 }

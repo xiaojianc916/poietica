@@ -1,7 +1,7 @@
 /* 与对话输入框是**同一张脸**：legacy 直接复用 conversation 的 composer/frame.css，而跨功能 import 别的功能的 ui 是铁律禁止的，
  * 所以按同一份度量抄下几何，只认 design-system 的 --cp-* 令牌。conversation 把这张卡导出之后，这份样式应当整份删除。 */
 
-.automation-composer [data-slot="prompt-input"] {
+.automation-composer [data-slot='prompt-input'] {
   position: relative;
   z-index: 1;
   display: flex;
@@ -15,14 +15,14 @@
   cursor: text;
 }
 
-.automation-composer [data-slot="prompt-input-body"] {
+.automation-composer [data-slot='prompt-input-body'] {
   display: flex;
   inline-size: 100%;
   min-inline-size: 0;
   flex-direction: column;
 }
 
-.automation-composer textarea[data-slot="prompt-input-editor"] {
+.automation-composer textarea[data-slot='prompt-input-editor'] {
   display: block;
   inline-size: 100%;
   min-inline-size: 0;
@@ -44,12 +44,12 @@
   box-sizing: border-box;
 }
 
-.automation-composer textarea[data-slot="prompt-input-editor"]::placeholder {
+.automation-composer textarea[data-slot='prompt-input-editor']::placeholder {
   color: var(--cp-placeholder);
   opacity: 1;
 }
 
-.automation-composer [data-slot="prompt-input-toolbar"] {
+.automation-composer [data-slot='prompt-input-toolbar'] {
   display: flex;
   inline-size: 100%;
   min-inline-size: 0;
@@ -58,7 +58,7 @@
   padding: var(--cp-pad-mid) var(--cp-inset) var(--cp-inset);
 }
 
-.automation-composer [data-slot="prompt-input-tools"] {
+.automation-composer [data-slot='prompt-input-tools'] {
   display: flex;
   align-items: center;
   gap: 4px;

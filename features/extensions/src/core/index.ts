@@ -54,9 +54,10 @@ export default defineCoreModule({
     })
 
     ctx.rpc.handle('skills.install', async (p) => {
-      const skill = await (p.source.kind === 'directory'
-        ? engine.skills.installFromDirectory(p.source.path)
-        : engine.skills.installFromZip(p.source.path)
+      const skill = await (
+        p.source.kind === 'directory'
+          ? engine.skills.installFromDirectory(p.source.path)
+          : engine.skills.installFromZip(p.source.path)
       ).catch(translateInstallError)
       emitSkillsChanged()
       return skill

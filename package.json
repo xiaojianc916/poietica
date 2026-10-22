@@ -8,9 +8,9 @@
     "type": "git",
     "url": "git+https://github.com/xiaojianc916/poietica.git"
   },
-  "packageManager": "bun@1.4.3",
+  "packageManager": "bun@1.4.4",
   "engines": {
-    "bun": ">=1.4.3"
+    "bun": ">=1.4.4"
   },
   "type": "module",
   "workspaces": {
@@ -78,10 +78,11 @@
   "scripts": {
     "typecheck": "bun run tooling/refs/sync.ts --check && bun check -b && bun check -p tsconfig.tests.json",
     "refs": "bun run tooling/refs/sync.ts",
-    "lint": "biome check . && bun run tooling/checks/no-biome-ignore.ts && bun run tooling/checks/editor-project-map.ts && bun run tooling/checks/manifest-deps.ts && bun run check:omp-doc && depcruise --config tooling/depcruise/config.cjs tooling packages features apps",
+    "lint": "biome check --formatter-enabled=false . && bun run tooling/checks/no-biome-ignore.ts && bun run tooling/checks/editor-project-map.ts && bun run tooling/checks/manifest-deps.ts && bun run check:omp-doc && depcruise --config tooling/depcruise/config.cjs tooling packages features apps",
     "test": "bun test",
-    "all": "bun run typecheck && bun run lint && bun run test",
-    "format": "biome check --write .",
+    "all": "bun run typecheck && bun run format:check && bun run lint && bun run test",
+    "format": "bun fmt",
+    "format:check": "bun fmt --check",
     "dev": "bun run core:build && bun run --filter @poietica/desktop dev",
     "core:build": "bun run apps/core/scripts/build.ts",
     "core:probe": "bun run apps/core/scripts/probe.ts",

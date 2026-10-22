@@ -46,22 +46,22 @@ L0  基础         foundation
 
 三层强制（缺一层都能被绕过）：
 
-| 层 | 机制 | 位置 |
-| --- | --- | --- |
-| 1 | bun 的 isolated linker：每个包只能看见自己声明的依赖；声明必须如实（不多不少） | `bunfig.toml`、`tooling/checks/manifest-deps.ts` |
-| 2 | tsconfig 运行时预设 + 项目引用：类型层面就看不见不该看的 | `tooling/tsconfig/*`、`bun run refs` |
-| 3 | dependency-cruiser：跨包/跨子入口的边逐个检查 | `tooling/depcruise/config.cjs` |
+| 层  | 机制                                                                           | 位置                                             |
+| --- | ------------------------------------------------------------------------------ | ------------------------------------------------ |
+| 1   | bun 的 isolated linker：每个包只能看见自己声明的依赖；声明必须如实（不多不少） | `bunfig.toml`、`tooling/checks/manifest-deps.ts` |
+| 2   | tsconfig 运行时预设 + 项目引用：类型层面就看不见不该看的                       | `tooling/tsconfig/*`、`bun run refs`             |
+| 3   | dependency-cruiser：跨包/跨子入口的边逐个检查                                  | `tooling/depcruise/config.cjs`                   |
 
 功能子入口的允许依赖（03 页 §5.2）：
 
-| 子入口 | 运行时 | 可以 import |
-| --- | --- | --- |
-| `contract` | neutral | `contract-kit`、`foundation`、`transcript`（仅 conversation）、zod、**其它功能的 `contract`** |
-| `core-api` | neutral | 本功能 `contract`、`foundation`、`engine`（类型）、`@poietica/core-kernel/events` |
-| `core` | bun | 本功能 `contract` / `core-api`、L0–L3 的 bun/node/neutral 包、**依赖功能的 `contract` / `core-api`** |
-| `host` | electron-main | 本功能 `contract`、`host-kernel`、L0–L2 的 node/neutral 包、electron、**依赖功能的 `contract`** |
-| `ui-api` | dom | 本功能 `contract`、`ui-kernel`、`design-system`、react |
-| `ui` | dom | 本功能 `contract` / `ui-api`、`ui-kernel`、`design-system`、react、zustand、**依赖功能的 `contract` / `ui-api`** |
+| 子入口     | 运行时        | 可以 import                                                                                                      |
+| ---------- | ------------- | ---------------------------------------------------------------------------------------------------------------- |
+| `contract` | neutral       | `contract-kit`、`foundation`、`transcript`（仅 conversation）、zod、**其它功能的 `contract`**                    |
+| `core-api` | neutral       | 本功能 `contract`、`foundation`、`engine`（类型）、`@poietica/core-kernel/events`                                |
+| `core`     | bun           | 本功能 `contract` / `core-api`、L0–L3 的 bun/node/neutral 包、**依赖功能的 `contract` / `core-api`**             |
+| `host`     | electron-main | 本功能 `contract`、`host-kernel`、L0–L2 的 node/neutral 包、electron、**依赖功能的 `contract`**                  |
+| `ui-api`   | dom           | 本功能 `contract`、`ui-kernel`、`design-system`、react                                                           |
+| `ui`       | dom           | 本功能 `contract` / `ui-api`、`ui-kernel`、`design-system`、react、zustand、**依赖功能的 `contract` / `ui-api`** |
 
 任何子入口都不得 import 其它功能的 `core` / `host` / `ui`。
 
@@ -104,11 +104,11 @@ UI → Host → Core 方向不变（消息对象 / 整条 JSON 行）。
 
 功能之间只有三种合法协作方式：
 
-| 方式 | 说明 | 例子 |
-| --- | --- | --- |
-| 服务令牌 | 同进程同步调用 | `automations/core` 经 `ConversationServiceToken` 发起对话 |
-| 进程内事件 | 发布/订阅 | `conversation/core` 发 `usageSampled`，`usage/core` 订阅后落库 |
-| 贡献点 | UI 扩展 | `browser/ui` 往 conversation 的 `toolCallRenderers` 贡献卡片 |
+| 方式       | 说明           | 例子                                                           |
+| ---------- | -------------- | -------------------------------------------------------------- |
+| 服务令牌   | 同进程同步调用 | `automations/core` 经 `ConversationServiceToken` 发起对话      |
+| 进程内事件 | 发布/订阅      | `conversation/core` 发 `usageSampled`，`usage/core` 订阅后落库 |
+| 贡献点     | UI 扩展        | `browser/ui` 往 conversation 的 `toolCallRenderers` 贡献卡片   |
 
 **共享的界面不是协作，是下沉。** 两个以上功能都要画的那一块界面（Markdown 正文、分支 / 工作区选择器……）
 不走上面三种方式中的任何一种，而是下沉到 `design-system`：
@@ -159,16 +159,16 @@ omp 的版本锁在根 `package.json` 的 catalog（四个 `@oh-my-pi/*` 同一�
 
 ## 7. 数据与存储
 
- | 数据 | 唯一主人 | 落点 |
-| --- | --- | --- |
-| 对话内容 | omp | `omp/agent/sessions/*.jsonl` |
-| 线程/工作区/附件/自动化/用量的元数据 | 各功能的 core | `core/poietica.db`（SQLite） |
-| 附件内容 | attachments | `attachments/<sha 前两位>/<sha>` |
-| 用户偏好 / 布局记忆 / 快捷键 | preferences | `preferences.json` / `ui-state.json` / `keymap.json` |
-| 窗口位置 | platform | `window-state.json` |
-| 内置 Python | python | `tools/python/` |
-| 内置浏览器 | browser | `session/Partitions/persist:poietica-browser` |
-| 日志 | Host / Core | `logs/main.log` / `logs/core.log`（各只有一个写者：Host 写 main，Core 自己写 core；stderr 只留意外输出） |
+| 数据                                 | 唯一主人      | 落点                                                                                                     |
+| ------------------------------------ | ------------- | -------------------------------------------------------------------------------------------------------- |
+| 对话内容                             | omp           | `omp/agent/sessions/*.jsonl`                                                                             |
+| 线程/工作区/附件/自动化/用量的元数据 | 各功能的 core | `core/poietica.db`（SQLite）                                                                             |
+| 附件内容                             | attachments   | `attachments/<sha 前两位>/<sha>`                                                                         |
+| 用户偏好 / 布局记忆 / 快捷键         | preferences   | `preferences.json` / `ui-state.json` / `keymap.json`                                                     |
+| 窗口位置                             | platform      | `window-state.json`                                                                                      |
+| 内置 Python                          | python        | `tools/python/`                                                                                          |
+| 内置浏览器                           | browser       | `session/Partitions/persist:poietica-browser`                                                            |
+| 日志                                 | Host / Core   | `logs/main.log` / `logs/core.log`（各只有一个写者：Host 写 main，Core 自己写 core；stderr 只留意外输出） |
 
 规则：数据路径只来自 `DataLayout`；SQL 只写在功能的 `core/repository.ts`，表名以功能 id
 （`-` 换 `_`）为前缀，内核启动时校验。JSON 文件统一走 `@poietica/fs-kit` 的
@@ -176,15 +176,15 @@ omp 的版本锁在根 `package.json` 的 catalog（四个 `@oh-my-pi/*` 同一�
 
 ## 8. 测试策略
 
-| 层 | 位置 | 说明 |
-| --- | --- | --- |
-| 单元 | `packages/*/src/**/__tests__`、`features/*/src/**/__tests__` | 纯函数与不依赖内核的类 |
-| 内核级 | 同上，`@poietica/core-kernel/testing` 的 `createCoreHarness` | 只装被测模块及其依赖的真实内核 + FakeEngine |
-| 一致性 | `@poietica/engine-testkit` | 同一套用例分别跑 FakeEngine 与 OmpEngine，保证替身可信 |
-| 隔离 | `packages/engine-omp/src/__tests__/isolation.test.ts` + `bun run core:probe` | 进程级自检与假用户目录零写入 |
-| 端到端 | `bun run dev`（真机） | 界面流程；发布前另有安装包冒烟（`bun run desktop:smoke`） |
+| 层     | 位置                                                                         | 说明                                                      |
+| ------ | ---------------------------------------------------------------------------- | --------------------------------------------------------- |
+| 单元   | `packages/*/src/**/__tests__`、`features/*/src/**/__tests__`                 | 纯函数与不依赖内核的类                                    |
+| 内核级 | 同上，`@poietica/core-kernel/testing` 的 `createCoreHarness`                 | 只装被测模块及其依赖的真实内核 + FakeEngine               |
+| 一致性 | `@poietica/engine-testkit`                                                   | 同一套用例分别跑 FakeEngine 与 OmpEngine，保证替身可信    |
+| 隔离   | `packages/engine-omp/src/__tests__/isolation.test.ts` + `bun run core:probe` | 进程级自检与假用户目录零写入                              |
+| 端到端 | `bun run dev`（真机）                                                        | 界面流程；发布前另有安装包冒烟（`bun run desktop:smoke`） |
 
-`bun run  all` = `typecheck` + `lint` + `test`，是唯一的准入闸门（CI 跑的就是它）。
+`bun run  all` = `typecheck` + `format:check` + `lint` + `test`，是唯一的准入闸门（CI 跑的就是它）。
 
 ## 9. 扩展配方
 

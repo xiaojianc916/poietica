@@ -36,16 +36,14 @@ function rig(importPaths?: AttachmentsService['importPaths']): Rig {
       importPaths ??
       (async (paths) => {
         imported.push([...paths])
-        return paths.map(
-          (p): DescribedAttachment => ({
-            id: 'att-1',
-            name: p.split(/[\\/]/).at(-1) ?? p,
-            mime: 'image/png',
-            kind: 'image',
-            size: 3,
-            previewUrl: URL_OF('image/png'),
-          }),
-        )
+        return paths.map((p): DescribedAttachment => ({
+          id: 'att-1',
+          name: p.split(/[\\/]/).at(-1) ?? p,
+          mime: 'image/png',
+          kind: 'image',
+          size: 3,
+          previewUrl: URL_OF('image/png'),
+        }))
       }),
     resolve: () => [],
     describe: () => [],

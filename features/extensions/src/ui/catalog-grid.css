@@ -4,7 +4,7 @@
   background: #f3f3f4;
 }
 
-:root[data-theme="dark"] .catalog-card:hover {
+:root[data-theme='dark'] .catalog-card:hover {
   background: #242424;
 }
 

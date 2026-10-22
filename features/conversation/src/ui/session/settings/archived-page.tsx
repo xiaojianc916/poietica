@@ -35,8 +35,7 @@ const ARCHIVED_DATE = new Intl.DateTimeFormat('zh-CN', {
 })
 
 type PendingDeletion =
-  | { readonly kind: 'single'; readonly threadId: string; readonly title: string }
-  | { readonly kind: 'all' }
+  { readonly kind: 'single'; readonly threadId: string; readonly title: string } | { readonly kind: 'all' }
 
 interface DeleteConfirmationCopy {
   readonly confirmLabel: string

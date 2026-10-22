@@ -46,11 +46,11 @@
   border-radius: inherit;
   background: var(--ui-popup-surface);
   backdrop-filter: blur(40px) saturate(150%);
-  content: "";
+  content: '';
   pointer-events: none;
 }
 
-:root[data-theme="dark"] .assistant-approval__bar::before {
+:root[data-theme='dark'] .assistant-approval__bar::before {
   background: #292929;
   backdrop-filter: none;
 }
@@ -145,17 +145,17 @@
 
 /* 主按钮是被抬起来的那一颗，不是被染色的那一颗：品牌色实心块是「提交表单」的语言，而这里是一次
    带风险的放行，同屏已有一颗蓝色实心圆（发送键），第二颗只会分掉注意力。 */
-.assistant-approval__option[data-lead="true"] {
+.assistant-approval__option[data-lead='true'] {
   background: color-mix(in srgb, var(--ui-foreground) 14%, transparent);
   color: var(--cp-ink);
   font-weight: 600;
 }
 
-.assistant-approval__option[data-lead="true"]:hover:not(:disabled) {
+.assistant-approval__option[data-lead='true']:hover:not(:disabled) {
   background: color-mix(in srgb, var(--ui-foreground) 20%, transparent);
 }
 
-.assistant-approval__option[data-pending="true"] {
+.assistant-approval__option[data-pending='true'] {
   opacity: 0.72;
 }
 

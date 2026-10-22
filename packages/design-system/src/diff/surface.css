@@ -21,7 +21,7 @@
   line-height: 20px;
 }
 
-:root[data-theme="dark"] .diff-body {
+:root[data-theme='dark'] .diff-body {
   --diff-added-fill: #1f3124;
   --diff-added-emphasis: color-mix(in srgb, #4fa356 30%, transparent);
   --diff-removed-fill: #3b1f1a;
@@ -60,7 +60,7 @@
 }
 
 .diff-line--removed::before {
-  content: "";
+  content: '';
   position: absolute;
   inset-block: 0;
   /* left:0 落在 padding-box，被 4px 透明 border 顶右；负偏移补回 border 宽度。 */
@@ -116,7 +116,7 @@
  */
 .diff-line--added::after,
 .diff-line--removed::after {
-  content: "";
+  content: '';
   position: absolute;
   inset-block: 0;
   inset-inline-start: calc(2.75rem + 3px);
@@ -142,7 +142,7 @@
 }
 
 /* 深色模式下的红竖线条纹色。 */
-:root[data-theme="dark"] .diff-body .diff-line--removed::before {
+:root[data-theme='dark'] .diff-body .diff-line--removed::before {
   background: repeating-linear-gradient(to bottom, #fa423e 0, #fa423e 1.333px, #51231e 1.333px, #51231e 2px);
 }
 
@@ -151,7 +151,7 @@
   color: var(--diff-syntax-light);
 }
 
-:root[data-theme="dark"] .diff-code {
+:root[data-theme='dark'] .diff-code {
   color: var(--diff-syntax-dark);
 }
 
@@ -168,7 +168,7 @@
   border-radius: 6px;
 }
 
-:root[data-theme="dark"] .diff-gap {
+:root[data-theme='dark'] .diff-gap {
   background: #2f2f2f;
 }
 

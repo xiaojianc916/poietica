@@ -73,7 +73,7 @@
   transition: rotate var(--cp-motion-swift) cubic-bezier(0.2, 0, 0, 1);
 }
 
-.turn-seal--toggle[aria-expanded="true"] .turn-seal__chevron {
+.turn-seal--toggle[aria-expanded='true'] .turn-seal__chevron {
   rotate: 0deg;
 }
 

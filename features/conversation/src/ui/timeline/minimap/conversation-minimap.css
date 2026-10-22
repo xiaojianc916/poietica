@@ -161,7 +161,7 @@
   }
 }
 /* 深色下三档墨要反过来：浅底上最深的一根最跳，深底上指着的那根必须给最亮的一档，否则等于把它从轨道上擦掉。写死的浅色卡边与卡面压在近黑上同样不成立。 */
-:root[data-theme="dark"] .conversation-minimap {
+:root[data-theme='dark'] .conversation-minimap {
   --cp-rail-ink-rest: #464646;
   --cp-rail-ink-active: #909090;
   --cp-rail-ink-aimed: #dfdfdf;

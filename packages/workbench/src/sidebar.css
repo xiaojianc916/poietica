@@ -39,7 +39,7 @@
   background: var(--ui-sidebar-accent);
 }
 
-.sidebar-nav-row[aria-current="page"] {
+.sidebar-nav-row[aria-current='page'] {
   background: var(--ui-sidebar-accent);
   color: var(--ui-foreground);
 }

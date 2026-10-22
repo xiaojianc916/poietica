@@ -474,15 +474,13 @@ function questionItemsOf(interaction: QuestionInteraction): readonly QuestionIte
   if (held !== undefined) {
     return held
   }
-  const items = request.questions.map(
-    (question): QuestionItem => ({
-      id: question.id,
-      question: question.prompt,
-      options: question.options,
-      multiSelect: question.multiple,
-      allowOther: question.allowCustom,
-    }),
-  )
+  const items = request.questions.map((question): QuestionItem => ({
+    id: question.id,
+    question: question.prompt,
+    options: question.options,
+    multiSelect: question.multiple,
+    allowOther: question.allowCustom,
+  }))
   QUESTION_ITEMS.set(request, items)
   return items
 }

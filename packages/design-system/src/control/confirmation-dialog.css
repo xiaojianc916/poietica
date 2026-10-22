@@ -5,11 +5,11 @@
  * 暗底上炸开一块亮斑；改成一层红墨压出底色、字留给红，浓度只在 --ui-destructive-soft* 里写
  * 一遍（light.css / dark.css 各一格），与软性危险动作同一个产地。
  */
-:root[data-theme="dark"] .confirmation-dialog__destructive {
+:root[data-theme='dark'] .confirmation-dialog__destructive {
   background-color: var(--ui-destructive-soft);
   color: var(--ui-destructive);
 }
 
-:root[data-theme="dark"] .confirmation-dialog__destructive:hover:not(:disabled) {
+:root[data-theme='dark'] .confirmation-dialog__destructive:hover:not(:disabled) {
   background-color: var(--ui-destructive-soft-hover);
 }

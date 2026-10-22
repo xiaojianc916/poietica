@@ -262,7 +262,7 @@
 }
 
 .mcp-card + .mcp-card::before {
-  content: "";
+  content: '';
   position: absolute;
   inset-inline: 16px;
   inset-block-start: 0;
@@ -287,7 +287,7 @@
   background: var(--ui-muted-foreground);
 }
 
-.mcp-card__dot[data-live="true"] {
+.mcp-card__dot[data-live='true'] {
   background: var(--ui-success);
 }
 
@@ -414,7 +414,7 @@
 }
 
 .mcp-create__footer .mcp__primary,
-.mcp-create__footer button[class*="Button"] {
+.mcp-create__footer button[class*='Button'] {
   min-inline-size: 72px;
 }
 
@@ -474,7 +474,7 @@
 }
 
 /* 错误跟着那一格走：边框变红，说明紧贴在输入框下面（与底部那块指认不出一格的横幅并存，不互相替代）。 */
-.mcp-field > :is(input, textarea)[aria-invalid="true"] {
+.mcp-field > :is(input, textarea)[aria-invalid='true'] {
   border-color: var(--ui-destructive);
 }
 

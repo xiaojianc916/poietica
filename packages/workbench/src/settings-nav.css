@@ -49,7 +49,7 @@
   color: var(--ui-foreground);
 }
 
-.settings-navigation__item[data-active="true"] {
+.settings-navigation__item[data-active='true'] {
   background: var(--settings-nav-hover);
   color: var(--ui-foreground);
 }

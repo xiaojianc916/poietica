@@ -12,10 +12,12 @@ Export map: `.` -> `src/index.ts` (types `dist/types/index.d.ts`); `./*` -> `src
 // from: dist/types/sdk.d.ts:620
 export declare function createAgentSession(options?: CreateAgentSessionOptions): Promise<CreateAgentSessionResult>;
 ```
+
 ```ts
 // from: dist/types/sdk.d.ts:412-431
 export interface CreateAgentSessionResult { session: AgentSession; extensionsResult: LoadExtensionsResult; setToolUIContext: (uiContext: ExtensionUIContext, hasUI: boolean) => void; mcpManager?: MCPManager; modelFallbackMessage?: string; lspServers?: LspStartupServerInfo[]; startBackgroundModelDiscovery?: () => Promise<void>; eventBus: EventBus; subagentEventBus?: EventBus; }
 ```
+
 ```ts
 // from: dist/types/sdk.d.ts:38-410 (all fields, types verbatim)
 export interface CreateAgentSessionOptions { cwd?: string; additionalDirectories?: string[]; agentDir?: string; spawns?: string; inheritedSessionAgents?: readonly AgentDefinition[]; authStorage?: AuthStorage; modelRegistry?: ModelRegistry; getApiKey?: AgentOptions["getApiKey"]; credentialSourceSessionId?: string; model?: Model; rebindModelAfterDiscovery?: boolean; deferRetryFallbackValidation?: boolean; modelPattern?: string | string[]; modelPatternAuthFallback?: string; modelPatternFallbackRole?: string; modelPatternDefaultFallbackChain?: string[]; thinkingLevel?: ConfiguredThinkingLevel; thinkingLevelCeiling?: Effort; openAIServiceTier?: ServiceTier | null; cacheWarming?: boolean; resolveServiceTierByFamily?: (model: Model | undefined) => ServiceTierByFamily; scopedModels?: Array<{ model: Model; thinkingLevel?: ThinkingLevel; }>; prewalk?: Prewalk; deferredPrewalk?: { target: string; patterns: string[]; }; onPrewalkWarning?: (warning: string) => void; planYolo?: PlanYolo; systemPrompt?: string | string[] | ((defaultPrompt: string[]) => string | string[]); systemPromptTemplate?: string; customSystemPrompt?: string; appendSystemPrompt?: string; titleSystemPrompt?: string; providerSessionId?: string; providerPromptCacheKey?: string; providerPromptCacheKeySource?: "explicit" | "fork"; deadline?: number; customTools?: (CustomTool | ToolDefinition)[]; extensions?: ExtensionFactory[]; additionalExtensionPaths?: string[]; disableExtensionDiscovery?: boolean; extensionRoots?: () => EffectiveExtensionRoots; preloadedExtensions?: LoadExtensionsResult; preloadedExtensionPaths?: string[]; preloadedPreparedExtensions?: readonly PreparedExtension[]; preloadedCustomToolPaths?: ToolPathWithSource[]; eventBus?: EventBus; subagentEventBus?: EventBus; skills?: Skill[]; rules?: Rule[]; contextFiles?: Array<{ path: string; content: string; }>; workspaceTree?: WorkspaceTree; promptTemplates?: PromptTemplate[]; slashCommands?: FileSlashCommand[]; enableMCP?: boolean; mcpManager?: MCPManager; enableLsp?: boolean; lspReadOnly?: boolean; enableIrc?: boolean; skipPythonPreflight?: boolean; toolNames?: string[]; restrictToolNames?: boolean; allowRestrictedCustomTools?: boolean; outputSchema?: unknown; outputSchemaMode?: StructuredSubagentSchemaMode; requireYieldTool?: boolean; bindProcessState?: boolean; taskDepth?: number; parentHindsightSessionState?: HindsightSessionState; parentMnemopiSessionState?: MnemopiSessionState; agentId?: string; agentDisplayName?: string; agentName?: string; agentRegistry?: AgentRegistry; expectedAgentRef?: AgentRef | null; parentTaskPrefix?: string; parentAgentId?: string; sessionManager?: SessionManager; localProtocolOptions?: LocalProtocolOptions; settings?: Settings; settingsManager?: Settings | Promise<Settings>; hasUI?: boolean; interactivePrompts?: boolean; settingsApproval?: boolean; deferUsageReserveConfirmation?: boolean; telemetry?: AgentTelemetryConfig; onFirstChatDispatch?: () => void; autoApprove?: boolean; }
@@ -146,12 +148,14 @@ Also declared: `reapplyModelPolicies:87`, `refreshProvider:130`, `refreshDiscove
 // from: dist/types/sdk.d.ts:465 (discoverAuthStorage)
 export declare function discoverAuthStorage(agentDir?: string, options?: Omit<DiscoverAuthStorageOptions, "agentDir" | "configValueResolver"> & Omit<EffectiveSettingsScope, "agentDir">): Promise<AuthStorage>;
 ```
+
 ```ts
 // from: dist/types/session/auth-storage.d.ts:5-7 (pure re-export of the pi-ai surface)
 export type { ApiKeyCredential, AuthCredential, AuthCredentialEntry, AuthCredentialStore, AuthStorageData, AuthStorageOptions, CredentialOrigin, CredentialOriginKind, OAuthAccountIdentity, OAuthAccountSummary, OAuthCredential, ResetCreditAccountStatus, ResetCreditRedeemOutcome, ResetCreditTarget, StoredAuthCredential, } from "@oh-my-pi/pi-ai";
 export { AuthStorage, REMOTE_REFRESH_SENTINEL, SqliteAuthCredentialStore } from "@oh-my-pi/pi-ai";
 export type { SnapshotResponse } from "@oh-my-pi/pi-ai/auth-broker/types";
 ```
+
 ```ts
 // from: AIROOT/dist/types/auth-storage.d.ts:14-71
 export declare class AuthStorage { #private; constructor(store: AuthCredentialStore, options?: AuthStorageOptions); get credentials(): CredentialsApi; get keys(): KeysApi; get oauth(): OAuthApi; get sessions(): SessionsApi; get usage(): UsageApi; get health(): HealthApi; get limits(): LimitsApi; get resets(): ResetsApi; get blocks(): BlocksApi; setAccountPolicies(config: { accountPolicies: AuthAccountPolicies; defaultReservePct: number; }): void; replaceStore(store: AuthCredentialStore, options?: { sourceLabel?: string; }): Promise<void>; static create(dbPath: string, options?: AuthStorageOptions): Promise<AuthStorage>; close(): void; getApiKey(provider: string, sessionId?: string, options?: AuthApiKeyOptions): Promise<string | undefined>; reload(): Promise<void>; }
@@ -363,6 +367,7 @@ export interface AgentSessionDisposeOptions { mnemopiConsolidateTimeoutMs?: numb
 // from: TUIROOT/dist/types/status-line/types.d.ts:9-15 (ContextUsage)
 export interface ContextUsage { tokens: number; contextWindow: number; percent: number; }
 ```
+
 ```ts
 // from: COREROOT/dist/types/thinking.d.ts:1-18 (ThinkingLevel)
 import { Effort } from "@oh-my-pi/pi-catalog/effort";
@@ -370,6 +375,7 @@ export declare const ThinkingLevel: { readonly Inherit: "inherit"; readonly Off:
 export type ThinkingLevel = (typeof ThinkingLevel)[keyof typeof ThinkingLevel];
 export type ResolvedThinkingLevel = Exclude<ThinkingLevel, "inherit">;
 ```
+
 ```ts
 // from: TUIROOT/dist/types/render/render-utils.d.ts:14 (ConfiguredThinkingLevel)
 export type ConfiguredThinkingLevel = ThinkingLevel | "auto";
@@ -394,22 +400,27 @@ export declare function initializeExtensions(session: AgentSession, options: Ini
 // from: dist/types/sdk.d.ts:418
  setToolUIContext: (uiContext: ExtensionUIContext, hasUI: boolean) => void;
 ```
+
 ```ts
 // from: dist/types/main.d.ts:30 (member of AcpSessionHandle)
  setToolUIContext: (uiContext: ExtensionUIContext, hasUI: boolean) => void;
 ```
+
 ```ts
 // from: dist/types/main.d.ts:30 (member of AcpSessionFactoryOptions, inside the options object)
  setToolUIContext: (uiContext: ExtensionUIContext, hasUI: boolean) => void;
 ```
+
 ```ts
 // from: dist/types/modes/interactive-mode.d.ts:474
  setToolUIContext(uiContext: ExtensionUIContext, hasUI: boolean): void;
 ```
+
 ```ts
 // from: dist/types/modes/types.d.ts:267
  setToolUIContext(uiContext: ExtensionUIContext, hasUI: boolean): void;
 ```
+
 ```ts
 // from: dist/types/modes/acp/acp-mode.d.ts:8
  setToolUIContext: (uiContext: ExtensionUIContext, hasUI: boolean) => void;
@@ -445,6 +456,7 @@ export declare function exportFromFile(inputPath: string, options?: ExportOption
 // from: dist/types/sdk.d.ts:520-523
 export declare function discoverSkills(cwd?: string, _agentDir?: string, settings?: SkillsSettings & Pick<LoadSkillsOptions, "disabledExtensions">): Promise<{ skills: Skill[]; warnings: SkillWarning[]; }>;
 ```
+
 ```ts
 // from: dist/types/extensibility/skills.d.ts:6-76, :76
 export interface Skill { name: string; description: string; filePath: string; baseDir: string; source: string; hide?: boolean; containRoot?: string; _source?: SourceMeta; }
@@ -484,6 +496,7 @@ export declare function setServerForceEnabled(filePath: string, name: string, fo
 export interface SetMcpServerEnabledOptions { userPath: string; projectPath: string; sourcePath?: string; name: string; enabled: boolean; }
 export declare function setMcpServerEnabled(options: SetMcpServerEnabledOptions): Promise<void>;
 ```
+
 ```ts
 // from: dist/types/mcp/types.d.ts:105-134
 export interface MCPHttpServerConfig extends MCPServerConfigBase { type: "http"; url: string; headers?: Record<string, string>; headerPolicy?: "origin-locked"; }
@@ -505,6 +518,7 @@ export * from "./marketplace/index.js";
 export * from "./parser.js";
 export type * from "./types.js";
 ```
+
 ```ts
 // from: dist/types/extensibility/plugins/manager.d.ts:4-92 (members, verbatim; wrapped signatures joined)
  constructor(cwd?: string);
@@ -522,6 +536,7 @@ export type * from "./types.js";
  deletePluginSetting(name: string, key: string): Promise<void>;
  doctor(options?: DoctorOptions): Promise<DoctorCheck[]>;
 ```
+
 ```ts
 // from: dist/types/extensibility/plugins/installer.d.ts (entire file)
 import type { InstalledPlugin } from "./types.js";
@@ -530,6 +545,7 @@ export declare function uninstallPlugin(name: string): Promise<void>;
 export declare function listPlugins(): Promise<InstalledPlugin[]>;
 export declare function linkPlugin(localPath: string): Promise<void>;
 ```
+
 ```ts
 // from: dist/types/extensibility/plugins/marketplace/index.d.ts (entire file) — import specifier ".../plugins/marketplace"
 export * from "./cache.js";
@@ -539,6 +555,7 @@ export * from "./registry.js";
 export * from "./source-resolver.js";
 export * from "./types.js";
 ```
+
 ```ts
 // from: dist/types/extensibility/plugins/marketplace/manager.d.ts:10-63 (members, verbatim; wrapped signatures joined)
  marketplacesRegistryPath: string;
@@ -564,6 +581,7 @@ export * from "./types.js";
  upgradePluginAcrossScopes(pluginId: string): Promise<InstalledPluginEntry[]>;
  upgradeAllPlugins(): Promise<Array<{ pluginId: string; scope: "user" | "project"; from: string; to: string; }>>;
 ```
+
 ```ts
 // from: dist/types/extensibility/plugins/types.d.ts:5-155
 export interface PluginFeature { description?: string; default?: boolean; extensions?: string[]; tools?: string[]; hooks?: string[]; commands?: string[]; }
@@ -607,6 +625,7 @@ export declare const CACHE_WARMING_MODES: readonly ["off", "streaming", "idle"];
 export interface CacheWarmingRefreshStart { phase: "streaming" | "idle"; provider: string; model: string; }
 export interface CacheWarmingRefreshEnd extends CacheWarmingRefreshStart { outcome: "hit" | "miss" | "error" | "aborted"; usage?: Usage; warmingStopReason?: string; }
 ```
+
 ```ts
 // from: dist/types/extensibility/shared-events.d.ts:216-229 (RetryErrorUpdate, used by auto_retry_end)
 export interface RetryErrorUpdate { entryId: string; persistenceKey?: string; note: string; retryRecovery: AssistantRetryRecovery; }
@@ -624,6 +643,7 @@ export interface ToolDefinition<TParams extends TSchema = TSchema, TDetails = un
 // from: dist/types/extensibility/extensions/types.d.ts:1111 (registerTool)
  registerTool<TParams extends TSchema = TSchema, TDetails = unknown>(tool: ToolDefinition<TParams, TDetails>): void;
 ```
+
 ```ts
 // from: dist/types/extensibility/extensions/types.d.ts (ExtensionAPI members):1053-1142 (members, verbatim; wrapped signatures joined)
  logger: typeof PiLogger;
@@ -687,6 +707,7 @@ export interface ToolDefinition<TParams extends TSchema = TSchema, TDetails = un
  on(event: "user_python", handler: ExtensionHandler<UserPythonEvent, UserPythonEventResult>): void;
  on(event: "mcp_notification", handler: ExtensionHandler<McpNotificationEvent>): void;
 ```
+
 ```ts
 // from: dist/types/extensibility/extensions/types.d.ts:1043-1382 (ExtensionHandler), :1238 (ExtensionFactory)
 export type ExtensionHandler<E, R = undefined> = (event: E, ctx: ExtensionContext) => Promise<R | void> | R | void;
@@ -952,6 +973,7 @@ export function requiresApproval(tool: ApprovalSubject, args: unknown, mode: App
 export function truncateForPrompt(value: string, maxChars = DEFAULT_PROMPT_TRUNCATE_CHARS): string { if (value.length <= maxChars) return value; const omitted = value.length - maxChars; return `${value.slice(0, maxChars)}[…${omitted}ch elided…]`; }
 export function formatApprovalPrompt(tool: ApprovalSubject, args: unknown, reason?: string): string { const lines = [`Allow tool: ${tool.name}`]; if (tool.name.startsWith("mcp__") && tool.approval === undefined) { lines.push("Origin: MCP server tool"); } if (reason) { lines.push(`Reason: ${reason}`); } const details = tool.formatApprovalDetails?.(args); if (typeof details === "string") { if (details.length > 0) lines.push(details); } else if (Array.isArray(details)) { for (const detail of details) { if (detail.length > 0) lines.push(detail); } } return lines.join("\n"); }
 ```
+
 ```ts
 // from: dist/types/tools/approval.d.ts:9-108 — import specifier "@oh-my-pi/pi-coding-agent/tools/approval"
 import type { AgentTool, ToolApprovalDecision, ToolTier } from "@oh-my-pi/pi-agent-core";
@@ -991,6 +1013,7 @@ How the approval dialog reaches `uiContext.select` (`Allow tool:`):
  await emitApprovalResolved(approved, approved ? undefined : "denied by user");
  if (!approved) { cancelPreflight(); throw new Error(`Tool call denied by user: ${this.tool.name}`); }
 ```
+
 ```ts
 // from: PKGROOT/src/eval/preludes.ts:1-113
  throw new Error(`Eval prelude "${definition.name}" requires approval but no interactive UI is available.\n` + `Set tools.approval.${definition.name}: allow or use an interactive UI to approve the call.`,);
@@ -1081,15 +1104,18 @@ Sessions root = `getSessionsDir(agentDir?)` = `<agentDir>/sessions`; agent dir d
 // from: UTILSROOT/dist/types/dirs.d.ts:291 (getSessionsDir)
 export declare function getSessionsDir(agentDir?: string): string;
 ```
+
 ```ts
 // from: PKGROOT/src/session/session-manager.ts:3951-3965 (session file name and header write)
 	static createEmptySessionFile(cwd: string, storage: SessionStorage = new FileSessionStorage()): string { const sessionDir = SessionManager.getDefaultSessionDir(cwd, undefined, storage); const id = mintSessionId(); const timestamp = nowIso(); const header: SessionHeader = { type: "session", version: CURRENT_SESSION_VERSION, id, timestamp, cwd: path.resolve(cwd), }; const file = path.join(sessionDir, `${fileSafeTimestamp(timestamp)}_${id}.jsonl`); storage.writeTextSync(file, `${serializeTitleSlot({ updatedAt: timestamp })}${JSON.stringify(header)}\n`); return file; }
 ```
+
 ```ts
 // from: PKGROOT/src/session/session-title-slot.ts:112-130 (fixed-width title slot)
 export function serializeTitleSlot(options: SessionTitleUpdate): string { const title = truncateTitleForSlot(options.title ?? "", options.source, options.updatedAt); const unpadded = titleSlotLine(title, options.source, options.updatedAt, ""); const padBytes = SESSION_TITLE_SLOT_BYTES - byteLength(unpadded); if (padBytes < 0) throw new Error("Session title slot metadata exceeds fixed slot size"); const line = titleSlotLine(title, options.source, options.updatedAt, " ".repeat(padBytes)); if (byteLength(line) !== SESSION_TITLE_SLOT_BYTES) { throw new Error("Session title slot serialization failed to produce fixed-width output"); } return line; }
 export function overlayTitleSlotContent(content: string, update: SessionTitleUpdate): string { const slot = Buffer.from(serializeTitleSlot(update), "utf-8"); const existing = Buffer.from(content, "utf-8"); if (existing.length <= slot.length) return slot.toString("utf-8"); return Buffer.concat([slot, existing.subarray(slot.length)]).toString("utf-8"); }
 ```
+
 ```ts
 // from: PKGROOT/src/session/session-loader.ts:333-357 (first line peeled as the title slot)
  sink.append(chunk);

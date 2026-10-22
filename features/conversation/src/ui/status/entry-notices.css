@@ -1,4 +1,5 @@
-/* 入口提示浮在吉祥物之上；它是入口版心，不占外壳栅格的行。 */ .entry-notices {
+/* 入口提示浮在吉祥物之上；它是入口版心，不占外壳栅格的行。 */
+.entry-notices {
   display: flex;
   flex-direction: column;
   align-items: center;

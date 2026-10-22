@@ -55,10 +55,10 @@
 }
 
 /* 这一趟在飞；字形旋转复用 skin/surface.css 的 assistant-spin。 */
-.assistant-notice__retry[data-retrying="true"] {
+.assistant-notice__retry[data-retrying='true'] {
   cursor: default;
 }
 
-.assistant-notice__retry[data-retrying="true"] svg {
+.assistant-notice__retry[data-retrying='true'] svg {
   animation: assistant-spin 900ms linear infinite;
 }

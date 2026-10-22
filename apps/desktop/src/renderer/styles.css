@@ -10,9 +10,9 @@
  */
 /* 顺序照 legacy app.css：design-system 在前、tailwindcss 在后 —— @import 是层叠顺序，
    tailwind 的 preflight 因此盖在 design-system 的 base 之上。 */
-@import "@poietica/design-system/styles.css";
-@import "@poietica/workbench/styles.css";
-@import "tailwindcss" source("../../../../");
+@import '@poietica/design-system/styles.css';
+@import '@poietica/workbench/styles.css';
+@import 'tailwindcss' source('../../../../');
 
 @source "../../../../packages/*/src/**/*.{ts,tsx}";
 @source "../../../../features/*/src/**/*.{ts,tsx}";
@@ -46,7 +46,7 @@
   --window-backing-surface: var(--ui-background);
 }
 
-:root[data-theme="dark"] {
+:root[data-theme='dark'] {
   --window-backing-surface: #202020;
 }
 
@@ -106,6 +106,6 @@ body {
  *
  * 本文件只剩「哪些地方不要条」：那必须逐处说出来。滑块宽度在正本里是 5px。
  */
-[role="tablist"] {
+[role='tablist'] {
   scrollbar-width: none;
 }

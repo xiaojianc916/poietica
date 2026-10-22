@@ -72,12 +72,7 @@ export { type CommandService, createCommandService } from './commands'
 export { type CoreStatus, type CoreStatusService, createCoreStatusService } from './core-status'
 export { type ConfirmRequest, createDialogService, type DialogService } from './dialogs'
 export { type DescribedError, describeError } from './errors'
-export {
-  createKeybindingService,
-  type KeybindingService,
-  type KeyOverrides,
-  normalizeKeyEvent,
-} from './keybindings'
+export { createKeybindingService, type KeybindingService, type KeyOverrides, normalizeKeyEvent } from './keybindings'
 export {
   type AuxiliaryState,
   createLayoutService,

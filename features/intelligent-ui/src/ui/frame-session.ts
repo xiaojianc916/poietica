@@ -16,8 +16,7 @@ import { coerceTweak, externalUrlOf, type FrameMessage, parseFrameMessage, type 
  */
 
 export type FrameAsk =
-  | { readonly kind: 'send' | 'draft'; readonly text: string }
-  | { readonly kind: 'open'; readonly url: string }
+  { readonly kind: 'send' | 'draft'; readonly text: string } | { readonly kind: 'open'; readonly url: string }
 
 export interface FrameActions {
   readonly send: (text: string) => void

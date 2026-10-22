@@ -23,13 +23,13 @@
  * 线要够实（浅色下用主色本体，不兑透明度），这是状态指示不是装饰。
  */
 @property --browser-agent-ring-sweep-a {
-  syntax: "<angle>";
+  syntax: '<angle>';
   inherits: false;
   initial-value: 0turn;
 }
 
 @property --browser-agent-ring-sweep-b {
-  syntax: "<angle>";
+  syntax: '<angle>';
   inherits: false;
   initial-value: 0turn;
 }
@@ -44,7 +44,7 @@
   --browser-agent-ring-hi: color-mix(in oklab, var(--ui-background) 72%, var(--ui-primary));
 }
 
-:root[data-theme="dark"] [data-browser-viewport][data-browser-agent-ring] {
+:root[data-theme='dark'] [data-browser-viewport][data-browser-agent-ring] {
   --browser-agent-ring-line: var(--ui-primary);
   /* 深色下要的是「更亮」，不是「更白」：亮斑兑 --ui-foreground（#c3c3c3），
    * 兑纯白会亮得跟主题脱节。 */
@@ -53,7 +53,7 @@
 }
 
 [data-browser-viewport][data-browser-agent-ring]::after {
-  content: "";
+  content: '';
   position: absolute;
   inset: 0;
   z-index: 4;

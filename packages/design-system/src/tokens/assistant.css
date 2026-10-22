@@ -14,25 +14,25 @@
  * calc/var 会让 parseFloat 得 NaN。落点补偿（agent-activity-feed）要读它的像素值。
  */
 @property --cp-feed-prose-row-gap {
-  syntax: "<length>";
+  syntax: '<length>';
   inherits: true;
   initial-value: 0px;
 }
 
 @property --cp-feed-glyph-row-gap {
-  syntax: "<length>";
+  syntax: '<length>';
   inherits: true;
   initial-value: 0px;
 }
 
 @property --cp-dock-dissolve {
-  syntax: "<length>";
+  syntax: '<length>';
   inherits: true;
   initial-value: 0px;
 }
 
 @property --cp-dock-gap {
-  syntax: "<length>";
+  syntax: '<length>';
   inherits: true;
   initial-value: 0px;
 }
@@ -562,7 +562,7 @@
   --cp-running-rule: rgb(0 0 0 / 5.5%);
 }
 
-:root[data-theme="dark"] [data-assistant-skin] {
+:root[data-theme='dark'] [data-assistant-skin] {
   /*
    * 内联代码的底：定稿给的实色 #2e2e2e。与浅色那支同为字面值 —— 近黑卡面上铺浅色那一
    * 档就是一块白斑，两档各给一格，不共用。

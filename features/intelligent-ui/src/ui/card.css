@@ -28,17 +28,17 @@
 }
 
 /* wide：iframe 按 1100px 排版、从左上角缩放（见下面的 __stage） */
-.intelligent-ui[data-wide="true"] .intelligent-ui__frame {
+.intelligent-ui[data-wide='true'] .intelligent-ui__frame {
   max-inline-size: none;
   transform-origin: 0 0;
 }
 
-.intelligent-ui[data-source="html"] .intelligent-ui__frame {
+.intelligent-ui[data-source='html'] .intelligent-ui__frame {
   transition: height 160ms var(--cp-motion-ease);
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .intelligent-ui[data-source="html"] .intelligent-ui__frame {
+  .intelligent-ui[data-source='html'] .intelligent-ui__frame {
     transition: none;
   }
 }
@@ -47,7 +47,7 @@
  * 第一次报高度之前不露面（外壳是空白页；有缓存高度时先按它占位）。用 opacity 而不是 visibility、
  * 高度留 1px 而不是 0：Chromium 会停掉不可见、零面积的跨源 iframe 的渲染，界面就永远量不出高度。
  */
-.intelligent-ui[data-source="html"][data-ready="false"] .intelligent-ui__frame {
+.intelligent-ui[data-source='html'][data-ready='false'] .intelligent-ui__frame {
   opacity: 0;
 }
 
@@ -81,7 +81,7 @@
   position: relative;
 }
 
-.intelligent-ui[data-wide="true"] .intelligent-ui__stage {
+.intelligent-ui[data-wide='true'] .intelligent-ui__stage {
   overflow: hidden;
 }
 
@@ -101,37 +101,37 @@
   margin-inline-start: auto;
 }
 
-.intelligent-ui__tools[data-placement="header"] {
+.intelligent-ui__tools[data-placement='header'] {
   gap: 0.25rem;
 }
 
 /* 时间线里：悬停、键盘聚焦进来、调整面板开着时才露面（同 .timeline-reply-actions） */
-.intelligent-ui__tools[data-placement="row"] {
+.intelligent-ui__tools[data-placement='row'] {
   opacity: 0;
   pointer-events: none;
   transition: opacity 120ms var(--cp-motion-ease);
 }
 
-.intelligent-ui:hover .intelligent-ui__tools[data-placement="row"],
-.intelligent-ui__bar:focus-within .intelligent-ui__tools[data-placement="row"],
-.intelligent-ui[data-tweaking="true"] .intelligent-ui__tools[data-placement="row"] {
+.intelligent-ui:hover .intelligent-ui__tools[data-placement='row'],
+.intelligent-ui__bar:focus-within .intelligent-ui__tools[data-placement='row'],
+.intelligent-ui[data-tweaking='true'] .intelligent-ui__tools[data-placement='row'] {
   opacity: 1;
   pointer-events: auto;
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .intelligent-ui__tools[data-placement="row"] {
+  .intelligent-ui__tools[data-placement='row'] {
     transition: none;
   }
 }
 
 /* 截图期间藏起所有提示：提示挂在 body 上，可能压在界面上被截进去（尤其对话框表头那一排朝下的） */
-html:has(.intelligent-ui[data-capturing="true"]) .ui-tooltip {
+html:has(.intelligent-ui[data-capturing='true']) .ui-tooltip {
   visibility: hidden;
 }
 
-.intelligent-ui__button[aria-pressed="true"],
-.intelligent-ui-dialog__tools [aria-pressed="true"] {
+.intelligent-ui__button[aria-pressed='true'],
+.intelligent-ui-dialog__tools [aria-pressed='true'] {
   background: var(--cp-hover);
   color: var(--cp-ink);
 }
@@ -174,18 +174,18 @@ html:has(.intelligent-ui[data-capturing="true"]) .ui-tooltip {
   color: var(--cp-timeline-quiet-text);
 }
 
-.intelligent-ui__tweak input[type="range"],
+.intelligent-ui__tweak input[type='range'],
 .intelligent-ui__tweak select {
   min-inline-size: 0;
   accent-color: var(--cp-accent);
 }
 
-.intelligent-ui__tweak input[type="checkbox"] {
+.intelligent-ui__tweak input[type='checkbox'] {
   justify-self: start;
   accent-color: var(--cp-accent);
 }
 
-.intelligent-ui__tweak input[type="color"] {
+.intelligent-ui__tweak input[type='color'] {
   justify-self: start;
   inline-size: 2rem;
   block-size: 1.5rem;

@@ -23,8 +23,8 @@ files:
 asar: true
 # 原生模块不能从 asar 内加载；node-pty 还要执行同目录下的 conpty.dll 与 OpenConsole.exe。
 asarUnpack:
-  - "**/*.node"
-  - "**/node_modules/@lydell/node-pty*/**"
+  - '**/*.node'
+  - '**/node_modules/@lydell/node-pty*/**'
 
 # Core 是独立的 exe，不能放进 asar；桌面侧的 coreExe 路径读的就是 resources/core（06 页 §7）。
 extraResources:

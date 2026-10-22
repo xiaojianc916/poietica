@@ -3,7 +3,7 @@
  * 这里只留浮层自己的壳、卡片与收起钮。几何常量由宿主的 CONVERSATION_TODO_LAYOUT_STYLE 写在 .conversation-body 上，原样继承下来。
  */
 @property --assistant-surface-inline-end-clearance {
-  syntax: "<length>";
+  syntax: '<length>';
   inherits: true;
   initial-value: 0px;
 }
@@ -18,11 +18,9 @@
 }
 
 @container conversation-body (min-width: 900px) {
-  .conversation-canvas:has(> .conversation-todo-popover[data-open="true"]) {
+  .conversation-canvas:has(> .conversation-todo-popover[data-open='true']) {
     --assistant-surface-inline-end-clearance: calc(
-      var(--conversation-todo-width) +
-      var(--conversation-todo-gap) +
-      var(--conversation-todo-gap)
+      var(--conversation-todo-width) + var(--conversation-todo-gap) + var(--conversation-todo-gap)
     );
   }
 }
@@ -96,6 +94,6 @@
 }
 
 /* 深色下 --cp-ground 与地色齐平，只剩一圈边线；抬一档。产品指定 #202020，外框 #2b2b2b。 */
-:root[data-theme="dark"] .conversation-todo-popover__surface {
+:root[data-theme='dark'] .conversation-todo-popover__surface {
   background: #202020;
 }

@@ -59,7 +59,7 @@ describe('rolling-line.css', () => {
   })
 
   test('工具行与落定态：从头显示，放不下时末尾省略号', () => {
-    for (const scope of ['.rolling-line[data-variant="tool"]', '.rolling-line:not([data-following])']) {
+    for (const scope of [".rolling-line[data-variant='tool']", '.rolling-line:not([data-following])']) {
       expect(declaredValue(`${scope} .ticker-window`, 'justify-content')).toBe('flex-start')
       expect(declaredValue(`${scope} .ticker-track`, 'text-overflow')).toBe('ellipsis')
       expect(declaredValue(`${scope} .ticker-track`, 'overflow')).toBe('hidden')
@@ -70,7 +70,7 @@ describe('rolling-line.css', () => {
   test('思考句不另起颜色：跟组头那一行走，与工具调用同一档（没有「墨迹」色、没有写死的安静色）', () => {
     const code = CSS.replaceAll(/\/\*[\s\S]*?\*\//gu, '')
 
-    expect(declaredValue('.rolling-line[data-variant="thought"] .ticker-track', 'color')).toBeUndefined()
+    expect(declaredValue(".rolling-line[data-variant='thought'] .ticker-track", 'color')).toBeUndefined()
     expect(code).not.toMatch(/ticker-ink/u)
     expect(code).not.toMatch(/\bcolor\s*:/u)
   })

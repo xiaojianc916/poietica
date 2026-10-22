@@ -35,7 +35,7 @@
 }
 
 /* 搜索展开：另两枚让位给输入框，退场时带一点位移（正本 headerActionsHidden 的 translate(4px)）。 */
-.threads-header[data-expanded="true"] .threads-header__actions {
+.threads-header[data-expanded='true'] .threads-header__actions {
   max-inline-size: 0;
   opacity: 0;
   visibility: hidden;
@@ -61,7 +61,7 @@
     border-color var(--ui-duration-normal) var(--ui-ease-standard);
 }
 
-.threads-header__search[data-expanded="true"] {
+.threads-header__search[data-expanded='true'] {
   max-inline-size: 100%;
   flex: 1 1 auto;
   border-color: var(--ui-divider-subtle);
@@ -94,11 +94,11 @@
 }
 
 /* 展开时那一圈边占掉两格宽，按钮内缩补回来，图标才不会往右跳一格；那一格此时也归输入框，悬停不再铺底（正本 .searchExpanded .searchButton:hover）。 */
-.threads-header__search[data-expanded="true"] .threads-header__search-button {
+.threads-header__search[data-expanded='true'] .threads-header__search-button {
   margin-inline-start: calc(var(--ui-hairline) * -1);
 }
 
-.threads-header__search[data-expanded="true"] .threads-header__search-button:hover {
+.threads-header__search[data-expanded='true'] .threads-header__search-button:hover {
   background: transparent;
   color: var(--cp-ink-muted);
 }
@@ -118,7 +118,7 @@
   transition: opacity var(--ui-duration-fast) var(--ui-ease-standard);
 }
 
-.threads-header__search[data-expanded="true"] .threads-header__input {
+.threads-header__search[data-expanded='true'] .threads-header__input {
   opacity: 1;
   pointer-events: auto;
 }

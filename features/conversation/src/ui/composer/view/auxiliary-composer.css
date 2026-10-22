@@ -41,7 +41,7 @@
 
 /* 加号与发送同高：两颗圆钮是这一行两端的括号，中间那三样都比它们矮。 */
 .auxiliary-composer .assistant-plus,
-.auxiliary-composer [data-slot="prompt-input-submit"] {
+.auxiliary-composer [data-slot='prompt-input-submit'] {
   block-size: var(--cp-control-sm);
   inline-size: var(--cp-control-sm);
 }
@@ -69,7 +69,7 @@
 }
 
 /* 左端没有加号时（子代理标签页的引导框）：草稿别贴着药丸的圆边起笔。 */
-.auxiliary-composer__pill[data-leading="none"] {
+.auxiliary-composer__pill[data-leading='none'] {
   padding-inline-start: calc(var(--cp-inset) * 2);
 }
 
@@ -208,7 +208,7 @@
   color: var(--cp-ink-subtle);
 }
 
-.auxiliary-chat__outcome[data-tone="error"] {
+.auxiliary-chat__outcome[data-tone='error'] {
   color: var(--cp-timeline-danger-text);
 }
 
@@ -294,7 +294,7 @@
   color: var(--cp-ink-muted);
 }
 
-.auxiliary-chat__notice[data-tone="error"] {
+.auxiliary-chat__notice[data-tone='error'] {
   color: var(--cp-timeline-danger-text);
 }
 
@@ -305,6 +305,6 @@
 }
 
 /* 停止键与发送键同位同形，只换字形：正在答的时候它就是那颗键。 */
-.auxiliary-composer [data-slot="prompt-input-submit"][data-running="true"] {
+.auxiliary-composer [data-slot='prompt-input-submit'][data-running='true'] {
   cursor: pointer;
 }

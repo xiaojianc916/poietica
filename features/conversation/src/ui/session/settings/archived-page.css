@@ -51,7 +51,7 @@
 }
 
 .archived-chats__row + .archived-chats__row::before {
-  content: "";
+  content: '';
   position: absolute;
   inset-inline: var(--settings-divider-inset);
   inset-block-start: 0;

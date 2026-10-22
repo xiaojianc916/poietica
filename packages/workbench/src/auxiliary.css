@@ -2,18 +2,18 @@
   border-bottom: 1px solid var(--ui-card-divider);
 }
 
-:root[data-theme="dark"] .auxiliary-toolbar {
+:root[data-theme='dark'] .auxiliary-toolbar {
   border-bottom-color: color-mix(in srgb, currentColor 10%, transparent);
 }
 
 /*
  * 启动器按钮深色下压在 #1f1f1f 上的悬浮要单独给，浅色那支不动。
  */
-:root[data-theme="dark"] .auxiliary-launcher {
+:root[data-theme='dark'] .auxiliary-launcher {
   background-color: var(--ui-launcher);
 }
 
-:root[data-theme="dark"] .auxiliary-launcher:hover:not(:disabled) {
+:root[data-theme='dark'] .auxiliary-launcher:hover:not(:disabled) {
   background-color: #2a2a2a;
 }
 

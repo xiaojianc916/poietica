@@ -82,12 +82,12 @@
  * 人不要求减少动效、也没开强制配色（强制配色下 mask 出来的形状会被系统色顶掉）。
  * 不满足就走上面那条静态 SVG —— 它是一条描边路径，任何环境都画得出来。
  */
-@supports (mask-mode: alpha) and (mask-image: url("")) {
+@supports (mask-mode: alpha) and (mask-image: url('')) {
   @media (prefers-reduced-motion: no-preference) and (forced-colors: none) {
     .running-status__whale-animated {
       display: block;
       background: currentColor;
-      mask: url("./assets/whale-tail.png") 50% / 100% 100% no-repeat alpha;
+      mask: url('./assets/whale-tail.png') 50% / 100% 100% no-repeat alpha;
       will-change: transform;
     }
 

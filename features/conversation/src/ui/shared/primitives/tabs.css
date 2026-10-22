@@ -30,7 +30,7 @@
   color: var(--cp-ink);
 }
 
-.tabs__tab[aria-selected="true"] {
+.tabs__tab[aria-selected='true'] {
   background: var(--cp-hover);
   color: var(--cp-ink);
 }

@@ -19,7 +19,7 @@
   overflow: hidden auto;
 }
 
-.timeline-group__members[data-scroll-mask="both"] {
+.timeline-group__members[data-scroll-mask='both'] {
   mask-image: linear-gradient(
     to bottom,
     transparent,
@@ -29,10 +29,10 @@
   );
 }
 
-.timeline-group__members[data-scroll-mask="top"] {
+.timeline-group__members[data-scroll-mask='top'] {
   mask-image: linear-gradient(to bottom, transparent, #000 var(--cp-timeline-group-fade));
 }
 
-.timeline-group__members[data-scroll-mask="bottom"] {
+.timeline-group__members[data-scroll-mask='bottom'] {
   mask-image: linear-gradient(to bottom, #000 calc(100% - var(--cp-timeline-group-fade)), transparent);
 }

@@ -28,8 +28,7 @@ export interface OmpContextBreakdownLike {
   readonly contextWindow?: number | undefined
   readonly usedTokens?: number | undefined
   readonly categories?:
-    | readonly { readonly id?: string | undefined; readonly tokens?: number | undefined }[]
-    | undefined
+    readonly { readonly id?: string | undefined; readonly tokens?: number | undefined }[] | undefined
 }
 
 /** omp 的 UsageStatistics（session-entries.ts；同上，只取 token 那几格，费用与编排口径不转运） */

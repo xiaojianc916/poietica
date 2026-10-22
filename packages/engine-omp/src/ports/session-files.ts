@@ -189,10 +189,9 @@ export class OmpSessionFilesPort implements SessionFilesPort {
         const redact = readSetting(settings, 'share.redactSecrets') === true
         const obfuscator =
           redact && readSetting(settings, 'secrets.enabled') === true
-            ? await (await import('@oh-my-pi/pi-coding-agent/secrets')).buildSecretObfuscator(
-                manager.getCwd(),
-                this.d.ompAgentDir,
-              )
+            ? await (
+                await import('@oh-my-pi/pi-coding-agent/secrets')
+              ).buildSecretObfuscator(manager.getCwd(), this.d.ompAgentDir)
             : undefined
         const result = await shareSession(manager, {
           serverUrl: String(readSetting(settings, 'share.serverUrl')),

@@ -16,7 +16,7 @@
 /* 与工具条上另外两枚胶囊同一个名字（--cp-input-hover）：三处是同一块底压在同一张输入卡上，
    各写各的迟早分叉。不读 --cp-menu-hover：那是弹层卡面上的悬停，压在实色卡上要再兑一次底。 */
 .assistant-plus:hover,
-.assistant-plus[aria-expanded="true"] {
+.assistant-plus[aria-expanded='true'] {
   background: var(--cp-input-hover);
   color: var(--cp-ink);
 }
@@ -66,7 +66,7 @@
  * 深色下按用途给实色 #373737：--cp-hairline 在深色下是 #1d1d1d，压在 #2a2a2a 的输入卡上
  * 比卡面还暗，读出来是一道凹槽而不是分隔线。只写这一处，不动 --cp-hairline。
  */
-:root[data-theme="dark"] .assistant-mode-chip__divider {
+:root[data-theme='dark'] .assistant-mode-chip__divider {
   background: #373737;
 }
 

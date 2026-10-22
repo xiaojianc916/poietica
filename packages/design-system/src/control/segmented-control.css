@@ -26,11 +26,11 @@
 }
 
 /* 深色下轨道与滑块都落在卡面档（#232323），只差一圈阴影，选中哪一档读不出来。 */
-:root[data-theme="dark"] .segmented-control {
+:root[data-theme='dark'] .segmented-control {
   background: #262626;
 }
 
-:root[data-theme="dark"] .segmented-control__thumb {
+:root[data-theme='dark'] .segmented-control__thumb {
   background: #3a3a3a;
 }
 

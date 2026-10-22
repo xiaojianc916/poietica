@@ -257,8 +257,8 @@
   background: var(--cp-hover);
 }
 
-.status-panel__item[data-status="in_progress"],
-.status-panel__item[data-status="running"] {
+.status-panel__item[data-status='in_progress'],
+.status-panel__item[data-status='running'] {
   color: var(--cp-ink);
 }
 
@@ -381,7 +381,7 @@
     0 2px 4px -2px rgb(0 0 0 / 10%);
 }
 
-:root[data-theme="dark"] .status-panel.status-panel__fold-card {
+:root[data-theme='dark'] .status-panel.status-panel__fold-card {
   background: #202020;
 }
 
@@ -565,7 +565,7 @@
 
 /* 深色下 --cp-ground 与地色齐平只剩一圈边线，抬到产品指定的 #202020（不是 ZCode 的 #2b2b2b）；
  * 墨色档位仍照 zai-dark：正文 #d4d4d4、次要 60%、最次 30%。 */
-:root[data-theme="dark"] .status-panel {
+:root[data-theme='dark'] .status-panel {
   --cp-ink: #d4d4d4;
   --cp-ink-muted: #d4d4d4;
   --cp-ink-subtle: color-mix(in oklab, #d4d4d4 60%, transparent);
@@ -613,7 +613,7 @@
   outline-offset: -2px;
 }
 
-.status-panel__agent[data-status="running"] .status-panel__item {
+.status-panel__agent[data-status='running'] .status-panel__item {
   color: var(--cp-ink);
 }
 

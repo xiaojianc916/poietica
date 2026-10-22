@@ -1,15 +1,5 @@
 export type ToolKind =
-  | 'delegate'
-  | 'edit'
-  | 'execute'
-  | 'fetch'
-  | 'goal'
-  | 'other'
-  | 'read'
-  | 'search'
-  | 'skill'
-  | 'todo'
-  | 'write'
+  'delegate' | 'edit' | 'execute' | 'fetch' | 'goal' | 'other' | 'read' | 'search' | 'skill' | 'todo' | 'write'
 
 // 折叠行上那一枚字形：按工具名分得比 ToolKind 细，映射在 transcript/omp-tool-glyphs.ts；认不出的名字归 other。
 export type ToolGlyph =

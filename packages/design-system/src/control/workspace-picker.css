@@ -12,7 +12,7 @@
 }
 
 /* 左侧标题仍是工作区切换入口；右侧筛选按钮打开同一张选择菜单，添加按钮调用宿主的文件夹选择器。 */
-.workspace-picker[data-placement="sidebar"] {
+.workspace-picker[data-placement='sidebar'] {
   display: flex;
   block-size: var(--ui-row-height);
   flex: none;
@@ -56,7 +56,7 @@
     transform var(--cp-motion-swift) var(--cp-motion-ease);
 }
 
-.workspace-picker__repositories-title[aria-expanded="true"] .workspace-picker__repositories-chevron {
+.workspace-picker__repositories-title[aria-expanded='true'] .workspace-picker__repositories-chevron {
   transform: rotate(0deg);
 }
 
@@ -96,7 +96,7 @@
 
 .workspace-picker__repositories-action:hover,
 .workspace-picker__repositories-action[data-popup-open],
-.workspace-picker__repositories-action[aria-expanded="true"] {
+.workspace-picker__repositories-action[aria-expanded='true'] {
   background: var(--cp-hover);
   color: var(--cp-ink);
 }
@@ -106,13 +106,13 @@
 }
 
 /* 列表原本用 --cp-mast-gap 作顶部内边距，第一行工作区离工具栏过远；这里只保留一道最小的视觉间隔，不影响列表底部留白。 */
-.workspace-picker[data-placement="sidebar"] + .assistant-threads {
+.workspace-picker[data-placement='sidebar'] + .assistant-threads {
   padding-block-start: calc(var(--ui-hairline) * 2);
 }
 
 /* 收起时只隐藏下面整张会话导航，Repositories 工具栏本身继续保留。 */
-.workspace-picker[data-placement="sidebar"]:has(.workspace-picker__repositories-title[aria-expanded="false"])
-+ .assistant-threads {
+.workspace-picker[data-placement='sidebar']:has(.workspace-picker__repositories-title[aria-expanded='false'])
+  + .assistant-threads {
   display: none;
 }
 
@@ -170,7 +170,7 @@
 }
 
 /* 灰色基座属于 .composer-context：项目与分支是它里面的两枚平级 chip，条不归任何一枚 chip 所有。这里只剩项目胶囊自己的盒子。 */
-.workspace-picker[data-placement="composer"] {
+.workspace-picker[data-placement='composer'] {
   display: inline-flex;
   min-inline-size: 0;
   align-items: center;
@@ -241,11 +241,11 @@
 }
 
 /* 还没选项目：名字写的是「选择项目」，用次级墨色；选了之后用正文墨色。 */
-.workspace-picker__context-trigger[data-empty="true"] {
+.workspace-picker__context-trigger[data-empty='true'] {
   color: var(--cp-ink-subtle);
 }
 
-.workspace-picker__context-trigger[data-empty="true"] svg {
+.workspace-picker__context-trigger[data-empty='true'] svg {
   color: currentcolor;
 }
 
@@ -261,17 +261,17 @@
 /* `data-persisted-highlight` 由组件维护：菜单打开时自动落在当前项目或第一项，指针/键盘移动时只替换为一个新 id，指针离开菜单后不清除。
  * 当前项目的 `data-current` 只负责右侧勾号。高亮底与「新建项目」等普通菜单行读同一支 --ui-menu-hover
  * （zcode 的 bg-menu-hover），不另取实色 --cp-menu-hover：两种底色压在卡面上会是两个颜色。 */
-.workspace-picker__menu[data-assistant-skin] .workspace-picker__item[data-workspace-choice="true"][data-highlighted],
+.workspace-picker__menu[data-assistant-skin] .workspace-picker__item[data-workspace-choice='true'][data-highlighted],
 .workspace-picker__menu[data-assistant-skin]
-  .workspace-picker__item[data-workspace-choice="true"][data-current="true"] {
+  .workspace-picker__item[data-workspace-choice='true'][data-current='true'] {
   background: transparent;
 }
 
 .workspace-picker__menu[data-assistant-skin]
-  .workspace-picker__item[data-workspace-choice="true"][data-persisted-highlight="true"],
+  .workspace-picker__item[data-workspace-choice='true'][data-persisted-highlight='true'],
 .workspace-picker__menu[data-assistant-skin]
-  .workspace-picker__item[data-workspace-choice="true"][data-persisted-highlight="true"][data-highlighted],
+  .workspace-picker__item[data-workspace-choice='true'][data-persisted-highlight='true'][data-highlighted],
 .workspace-picker__menu[data-assistant-skin]
-  .workspace-picker__item[data-workspace-choice="true"][data-persisted-highlight="true"][data-current="true"] {
+  .workspace-picker__item[data-workspace-choice='true'][data-persisted-highlight='true'][data-current='true'] {
   background: var(--ui-menu-hover);
 }

@@ -70,7 +70,7 @@
 
 /* 搜索展开：标题与另两枚动作一起让位，这一栏整个让给输入框（正本 sectionLabelHidden / headerActionsHidden）。
  * visibility 延迟到补间之后才切，退场那一帧才还看得见字。 */
-.assistant-threads__section-bar[data-searching="true"] .assistant-threads__section-title {
+.assistant-threads__section-bar[data-searching='true'] .assistant-threads__section-title {
   max-inline-size: 0;
   opacity: 0;
   visibility: hidden;
@@ -102,7 +102,7 @@
     transform var(--cp-motion-swift) var(--cp-motion-ease);
 }
 
-.assistant-threads__section-title[aria-expanded="true"] .assistant-threads__section-chevron {
+.assistant-threads__section-title[aria-expanded='true'] .assistant-threads__section-chevron {
   transform: rotate(0deg);
 }
 
@@ -194,11 +194,11 @@
   --thread-trail-actions: 1;
 }
 
-.assistant-thread[data-active="true"] {
+.assistant-thread[data-active='true'] {
   background: var(--ui-sidebar-accent);
 }
 
-.assistant-thread[data-muted="true"] {
+.assistant-thread[data-muted='true'] {
   opacity: 0.45;
 }
 
@@ -355,7 +355,7 @@
 }
 
 /* 会话列表首帧：读取落定之前不说"还没有会话"，所以指针也关掉。 */
-.assistant-thread[data-placeholder="true"] {
+.assistant-thread[data-placeholder='true'] {
   pointer-events: none;
 }
 
@@ -394,7 +394,7 @@
   justify-content: center;
 }
 
-.assistant-thread__glyph[data-pinned="true"] {
+.assistant-thread__glyph[data-pinned='true'] {
   color: var(--cp-ink);
 }
 

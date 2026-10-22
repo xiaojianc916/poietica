@@ -184,18 +184,16 @@ export function createBrowserTabs(host: ViewHost, opts: BrowserTabsOptions): Bro
   function snapshot(shown: readonly Tab[], active: number | null): BrowserState {
     return {
       revision,
-      tabs: shown.map(
-        (tab): BrowserTab => ({
-          id: tab.id,
-          url: tab.url,
-          title: tab.title,
-          loading: tab.loading,
-          favicon: tab.favicon,
-          canGoBack: tab.canGoBack,
-          canGoForward: tab.canGoForward,
-          zoom: tab.zoom,
-        }),
-      ),
+      tabs: shown.map((tab): BrowserTab => ({
+        id: tab.id,
+        url: tab.url,
+        title: tab.title,
+        loading: tab.loading,
+        favicon: tab.favicon,
+        canGoBack: tab.canGoBack,
+        canGoForward: tab.canGoForward,
+        zoom: tab.zoom,
+      })),
       activeTabId: active,
       pickingTabId,
       recentlyClosed: [...recentlyClosed],

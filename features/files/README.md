@@ -14,11 +14,11 @@
 
 子入口：
 
-| 入口 | 内容 |
-|---|---|
+| 入口       | 内容                                                                                                                                   |
+| ---------- | -------------------------------------------------------------------------------------------------------------------------------------- |
 | `contract` | `files.list` / `files.read` / `files.locate` / `files.search` / `files.watch`，通知 `files.changed`；`imageMimeOf`、`workspaceFileUrl` |
-| `core` | 路径边界（`paths.ts`）、解码（`decode.ts`）、目录 / 读取 / 搜索（`service.ts`）、声明式监听（`watch.ts`） |
-| `host` | 图片资源协议：每次经 Core `files.locate` 校验，只发图片，SVG 带 CSP sandbox |
-| `ui` | 树模型、标签账、打开入口（`opener.ts`）、两格面板 |
+| `core`     | 路径边界（`paths.ts`）、解码（`decode.ts`）、目录 / 读取 / 搜索（`service.ts`）、声明式监听（`watch.ts`）                              |
+| `host`     | 图片资源协议：每次经 Core `files.locate` 校验，只发图片，SVG 带 CSP sandbox                                                            |
+| `ui`       | 树模型、标签账、打开入口（`opener.ts`）、两格面板                                                                                      |
 
 监听是声明式的：界面把「当前工作区 ∪ 有标签开着的工作区」作为全集交给 `files.watch`，Core 重启后在 `onCoreReady` 里重发。

@@ -128,11 +128,15 @@ const SCENARIOS: Record<string, readonly (readonly ScenarioStep[])[]> = {
 
 describe('增量与历史两条投影对同一段真实会话同形（帧号也一样）', () => {
   for (const [name, turns] of Object.entries(SCENARIOS)) {
-    test(name, async () => {
-      const { live, history, reopened } = await threePages(turns)
-      expect(history).toEqual(live)
-      expect(reopened).toEqual(live)
-    }, 20_000)
+    test(
+      name,
+      async () => {
+        const { live, history, reopened } = await threePages(turns)
+        expect(history).toEqual(live)
+        expect(reopened).toEqual(live)
+      },
+      20_000,
+    )
   }
 
   test('开轮那句人话只在轮头：屏幕上没有来源不明（没有 origin）的用户帧', async () => {

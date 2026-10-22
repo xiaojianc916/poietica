@@ -17,7 +17,7 @@
 
 /* 深色下必须给实色：引导线每行一根、上下各探 2px 过缝，相邻两行的线在缝处叠 2px，半透明的墨叠起来会加倍（14% + 14% ≈ 26%），
  * 那条缝上就出现一串比线本身亮的 2px 小点。实色叠加仍是同一个颜色。 */
-:root[data-theme="dark"] .file-tree__guide {
+:root[data-theme='dark'] .file-tree__guide {
   background: #383838;
 }
 
@@ -31,7 +31,7 @@
 }
 
 /* 选中（右坞里正开着的那个文件）比悬停深一档；悬停在选中行上不再变。 */
-.file-tree__row[aria-selected="true"] {
+.file-tree__row[aria-selected='true'] {
   background: var(--cp-hover);
 }
 
@@ -44,6 +44,6 @@
   opacity: 0.5;
 }
 
-:root[data-theme="dark"] .file-tree__row:hover {
+:root[data-theme='dark'] .file-tree__row:hover {
   background: color-mix(in srgb, #ffffff 5%, transparent);
 }

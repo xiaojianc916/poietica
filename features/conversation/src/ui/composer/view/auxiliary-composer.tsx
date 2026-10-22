@@ -274,15 +274,13 @@ export function sideTopicGroups(
       checked: thread.selected === null,
       action: { kind: 'run', run: () => onOpen(null) },
     },
-    ...thread.topics.slice(0, PALETTE_LIMIT).map(
-      (topic): PaletteRow => ({
-        id: `side:${topic.id}`,
-        label: titleOf(topic),
-        detail: sideTopicMeta(topic),
-        checked: thread.selected === topic.id,
-        action: { kind: 'run', run: () => onOpen(topic.id) },
-      }),
-    ),
+    ...thread.topics.slice(0, PALETTE_LIMIT).map((topic): PaletteRow => ({
+      id: `side:${topic.id}`,
+      label: titleOf(topic),
+      detail: sideTopicMeta(topic),
+      checked: thread.selected === topic.id,
+      action: { kind: 'run', run: () => onOpen(topic.id) },
+    })),
   ]
   return [{ id: 'side-topics', heading: '话题', rows }]
 }

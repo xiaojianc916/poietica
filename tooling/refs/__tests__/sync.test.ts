@@ -74,7 +74,7 @@ test('planSync：写入后再次计划为空', () => {
   for (const [file, content] of first) writeFileSync(path.join(root, file), content)
   expect(planSync(root).size).toBe(0)
 })
-test('planSync 写出的 tsconfig 是合法 JSON，格式与 biome 一致', () => {
+test('planSync 写出的 tsconfig 是合法 JSON，格式与 bun fmt 一致', () => {
   fixture()
   const first = planSync(root)
   for (const [, content] of first) JSON.parse(content)

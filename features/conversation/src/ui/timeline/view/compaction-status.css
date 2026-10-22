@@ -34,7 +34,7 @@
 
 .timeline-compaction__copy:hover,
 .timeline-compaction__copy:focus-visible,
-.timeline-compaction__copy[data-copied="true"] {
+.timeline-compaction__copy[data-copied='true'] {
   background: var(--cp-hover);
   color: var(--cp-ink);
 }

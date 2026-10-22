@@ -22,7 +22,7 @@
   line-height: 1.5;
 }
 
-.view-switch__option[aria-pressed="true"] {
+.view-switch__option[aria-pressed='true'] {
   background: var(--ui-background);
   color: var(--ui-foreground);
   box-shadow: var(--ui-shadow-xs);

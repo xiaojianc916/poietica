@@ -8,3 +8,20 @@ exact = false
 preload = ["./tooling/test/preload.ts", "./tooling/test/react-setup.ts"]
 # 不扫描参考目录与构建产物
 pathIgnorePatterns = ["**/node_modules/**", "**/out/**", "**/dist/**", "**/.tsbuild/**"]
+
+[fmt]
+# 格式化的唯一配置源；Biome 只保留 lint（配置见 biome.json）。
+printWidth = 120
+semi = false
+singleQuote = true
+trailingComma = "all"
+tabWidth = 2
+jsxSingleQuote = false
+quoteProps = "as-needed"
+arrowParens = "always"
+bracketSpacing = true
+bracketSameLine = false
+objectWrap = "preserve"
+# 保留文档表格与逐字代码块，避免格式化 Markdown 时改变其语义。
+proseWrap = "preserve"
+embeddedLanguageFormatting = "off"

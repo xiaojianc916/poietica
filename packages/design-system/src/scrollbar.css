@@ -27,7 +27,7 @@
 }
 
 /* 深色常态是产品指定的一格；悬停仍是 #545557。 */
-:root[data-theme="dark"] {
+:root[data-theme='dark'] {
   --ui-scrollbar-thumb: #2b2b2b;
   --ui-scrollbar-thumb-hover: #545557;
 }

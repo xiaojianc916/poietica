@@ -134,19 +134,17 @@ export function computeReferences(root: string): Map<string, string[]> {
 }
 
 const REPO_ROOT = path.resolve(import.meta.dir, '../..')
-const BIOME = path.join(REPO_ROOT, 'node_modules', '.bin', process.platform === 'win32' ? 'biome.exe' : 'biome')
-const BIOME_CONFIG = path.join(REPO_ROOT, 'biome.json')
 
 function format(root: string, value: unknown, file: string): string {
   const raw = `${JSON.stringify(value, null, 2)}\n`
-  /* cwd 与 --config-path 都钉在仓库上：root 在单测里是临时目录，那里既没有 node_modules 也没有
-   * biome.json，不钉就会退回 biome 内建的 Tab 缩进，写出与仓库风格不一致的文件。 */
-  const formatted = spawnSync(
-    BIOME,
-    ['format', `--config-path=${BIOME_CONFIG}`, `--stdin-file-path=${posix(path.relative(root, file))}`],
-    { cwd: REPO_ROOT, input: raw, encoding: 'utf8' },
-  )
-  if (formatted.status !== 0) throw new Error(`biome 格式化失败：${formatted.stderr}`)
+  /* cwd 钉在仓库上：root 在单测里是临时目录，那里没有 bunfig.toml，
+   * 不钉就会用 bun fmt 的默认风格，写出与仓库 [fmt] 配置不一致的文件。 */
+  const formatted = spawnSync(process.execPath, ['fmt', `--stdin-filepath=${posix(path.relative(root, file))}`], {
+    cwd: REPO_ROOT,
+    input: raw,
+    encoding: 'utf8',
+  })
+  if (formatted.status !== 0) throw new Error(`bun fmt 格式化失败：${formatted.stderr}`)
   return formatted.stdout
 }
 

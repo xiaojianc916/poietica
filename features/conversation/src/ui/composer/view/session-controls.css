@@ -23,7 +23,7 @@
 }
 
 .assistant-model-select__button:hover,
-.assistant-model-select__button[aria-expanded="true"] {
+.assistant-model-select__button[aria-expanded='true'] {
   background: var(--cp-input-hover);
 }
 
@@ -160,7 +160,7 @@
   block-size: var(--cp-target-min);
   translate: -50% -50%;
   border-radius: 50%;
-  content: "";
+  content: '';
   pointer-events: auto;
 }
 
@@ -170,7 +170,7 @@
 }
 
 /* 已越过的档位点长在填充上，那里要的是提亮而不是压深，所以是一层白墨。 */
-.assistant-model-select__dot[data-passed="true"] {
+.assistant-model-select__dot[data-passed='true'] {
   background: rgb(255 255 255 / 30%);
 }
 

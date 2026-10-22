@@ -21,9 +21,11 @@ export function createUsageRepo(db: ModuleDatabase) {
     },
     tokenDays(from: string, to: string) {
       return db
-        .prepare(`SELECT day, SUM(input) AS input, SUM(output) AS output, SUM(cache_read) AS cacheRead,
+        .prepare(
+          `SELECT day, SUM(input) AS input, SUM(output) AS output, SUM(cache_read) AS cacheRead,
                                 SUM(cache_write) AS cacheWrite, SUM(cost) AS cost
-                         FROM usage_events WHERE day BETWEEN ? AND ? GROUP BY day ORDER BY day`)
+                         FROM usage_events WHERE day BETWEEN ? AND ? GROUP BY day ORDER BY day`,
+        )
         .all(from, to) as Array<{
         day: string
         input: number
@@ -35,8 +37,10 @@ export function createUsageRepo(db: ModuleDatabase) {
     },
     modelDays(from: string, to: string) {
       return db
-        .prepare(`SELECT day, provider, model, SUM(input) AS input, SUM(output) AS output, SUM(cost) AS cost
-                         FROM usage_events WHERE day BETWEEN ? AND ? GROUP BY day, provider, model ORDER BY day, provider, model`)
+        .prepare(
+          `SELECT day, provider, model, SUM(input) AS input, SUM(output) AS output, SUM(cost) AS cost
+                         FROM usage_events WHERE day BETWEEN ? AND ? GROUP BY day, provider, model ORDER BY day, provider, model`,
+        )
         .all(from, to) as Array<{
         day: string
         provider: string

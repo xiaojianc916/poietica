@@ -74,7 +74,7 @@ docs/                  架构、omp SDK 参考、重构日志、发布说明
 
 ## 开发
 
-需要 **Bun 1.4.3+**（`packageManager` 锁定，`bun check` 做类型检查）与 **Node 20+**（Electron 与部分工具链用）。
+需要 **Bun 1.4.4+**（`packageManager` 锁定，`bun check` 做类型检查）与 **Node 20+**（Electron 与部分工具链用）。
 CI 跑在 `windows-latest`。
 
 ```bash
@@ -82,32 +82,32 @@ bun install
 bun run dev          # 构建 Core 后启动 electron-vite 开发模式
 ```
 
-| 命令 | 作用 |
-| --- | --- |
-| `bun run  all` | **唯一的准入闸门**：typecheck + lint（biome、自定义闸门、depcruise）+ test |
-| `bun test <路径>` | 只跑某一部分测试 |
-| `bun run format` | biome 自动格式化 |
-| `bun run refs` | 按 package.json 依赖同步 tsconfig references（禁止手改 references） |
-| `bun run protocol:snapshot` | 契约形状变化后更新协议快照 |
-| `bun run core:build` / `core:probe` / `core:verify-dist` | 构建 `poietica-core.exe`、进程级隔离自检、校验产物 |
-| `bun run desktop:build` | 只构建 Electron 三端产物（不出安装包） |
-| `bun run dist` | 构建并打安装包（产物在 `apps/desktop/release/`） |
-| `bun run desktop:smoke <安装包>` | 安装包冒烟测试 |
-| `bun run new:package` / `new:feature` | 脚手架（创建包或功能的唯一入口） |
-| `bun run version:set <x.y.z>` | 版本号的唯一入口（同时改根、desktop 与 core） |
-| `bun run python:pin` | 升级内置 Python 时钉住校验和 |
+| 命令                                                     | 作用                                                                                           |
+| -------------------------------------------------------- | ---------------------------------------------------------------------------------------------- |
+| `bun run  all`                                           | **唯一的准入闸门**：typecheck + format:check + lint（biome 规则、自定义闸门、depcruise）+ test |
+| `bun test <路径>`                                        | 只跑某一部分测试                                                                               |
+| `bun run format`                                         | bun fmt 自动格式化（检查用 `bun run format:check`）                                            |
+| `bun run refs`                                           | 按 package.json 依赖同步 tsconfig references（禁止手改 references）                            |
+| `bun run protocol:snapshot`                              | 契约形状变化后更新协议快照                                                                     |
+| `bun run core:build` / `core:probe` / `core:verify-dist` | 构建 `poietica-core.exe`、进程级隔离自检、校验产物                                             |
+| `bun run desktop:build`                                  | 只构建 Electron 三端产物（不出安装包）                                                         |
+| `bun run dist`                                           | 构建并打安装包（产物在 `apps/desktop/release/`）                                               |
+| `bun run desktop:smoke <安装包>`                         | 安装包冒烟测试                                                                                 |
+| `bun run new:package` / `new:feature`                    | 脚手架（创建包或功能的唯一入口）                                                               |
+| `bun run version:set <x.y.z>`                            | 版本号的唯一入口（同时改根、desktop 与 core）                                                  |
+| `bun run python:pin`                                     | 升级内置 Python 时钉住校验和                                                                   |
 
 改契约、加功能、升级 omp 的完整步骤见 `docs/ARCHITECTURE.md` §9 与 `AGENTS.md` §11。
 
 ## 文档
 
-| 文档 | 用途 |
-| --- | --- |
-| `docs/ARCHITECTURE.md` | 现状架构：分层、进程、契约、数据归属、测试策略、扩展配方 |
-| `AGENTS.md` | 工作守则与边界铁律（AI 与人类贡献者都先读这一页） |
+| 文档                        | 用途                                                        |
+| --------------------------- | ----------------------------------------------------------- |
+| `docs/ARCHITECTURE.md`      | 现状架构：分层、进程、契约、数据归属、测试策略、扩展配方    |
+| `AGENTS.md`                 | 工作守则与边界铁律（AI 与人类贡献者都先读这一页）           |
 | `docs/omp-sdk-reference.md` | 随包 omp 的精确 API（带源码行号），写 engine-omp 前先查这里 |
-| `docs/refactor-log.md` | 重构进度、偏差、待决问题 |
-| `docs/release-notes/` | 每个版本的发布说明 |
+| `docs/refactor-log.md`      | 重构进度、偏差、待决问题                                    |
+| `docs/release-notes/`       | 每个版本的发布说明                                          |
 
 ## 贡献
 

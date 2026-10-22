@@ -5,13 +5,13 @@ IIFE 脚本（`rings.js` / `emotions.js` / `ball.js` / `engine.js`）逐字迁�
 
 ## 文件
 
-| 文件 | 说明 |
-| --- | --- |
-| [rings.ts](rings.ts) | 几何数据层：眼环轮廓、身体形状。数据本体未改 |
-| [emotions.ts](emotions.ts) | 表情配置层：4 组 32 套表情。数据本体未改 |
-| [ball.ts](ball.ts) | 渲染层：SVG 构建、球面投影、彩带 / 撒花 / zzz |
-| [engine.ts](engine.ts) | 驱动层：配置注册中心、rAF 状态机、动画原语、待机策略 |
-| [types.ts](types.ts) | 三层之间的共享类型（pose 形状等） |
+| 文件                       | 说明                                                 |
+| -------------------------- | ---------------------------------------------------- |
+| [rings.ts](rings.ts)       | 几何数据层：眼环轮廓、身体形状。数据本体未改         |
+| [emotions.ts](emotions.ts) | 表情配置层：4 组 32 套表情。数据本体未改             |
+| [ball.ts](ball.ts)         | 渲染层：SVG 构建、球面投影、彩带 / 撒花 / zzz        |
+| [engine.ts](engine.ts)     | 驱动层：配置注册中心、rAF 状态机、动画原语、待机策略 |
+| [types.ts](types.ts)       | 三层之间的共享类型（pose 形状等）                    |
 
 ## 消费方
 
@@ -27,7 +27,7 @@ IIFE 脚本（`rings.js` / `emotions.js` / `ball.js` / `engine.js`）逐字迁�
 等价性是实测的，不是推断：迁移时把上游原始 `.js` 与迁移后的 `.ts` 放进同一 happy-dom、
 固定随机数与时钟，比对 **32 套表情 × 3 种形状**连续切表情 + 自旋 + 注视的逐帧 SVG，以及
 `config.exportConfig()` 与分组列表，**逐字节一致**。结论冻结在
-[../__tests__/mascot-baseline.test.ts](../__tests__/mascot-baseline.test.ts)。
+[`../__tests__/mascot-baseline.test.ts`](../__tests__/mascot-baseline.test.ts)。
 
 ## 两条规则例外
 

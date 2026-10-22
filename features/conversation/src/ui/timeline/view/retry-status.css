@@ -34,7 +34,7 @@
 
 .timeline-retry-status__copy:hover,
 .timeline-retry-status__copy:focus-visible,
-.timeline-retry-status__copy[data-copied="true"] {
+.timeline-retry-status__copy[data-copied='true'] {
   background: var(--cp-hover);
   color: var(--cp-ink);
 }

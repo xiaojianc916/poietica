@@ -8,9 +8,9 @@ P0.8 生成的 `layer-order` 规则按「依赖同层或更高层的包」禁用
 写进来不起作用；跨层向上的边写进来会被悄悄放行。曾经的 `core-kernel`（L3→L2）、`host-kernel`（L3→L2）两条
 即属前者，已删。现存四条：
 
-| 边 | 层 | 理由 |
-| --- | --- | --- |
-| engine → transcript | L1 | 引擎端口的事件流以 transcript 的 TimelineOp 为载荷 |
-| rpc → contract-kit | L1 | 通道按契约描述做校验与分发 |
-| git → process-kit | L2 | git 经 process-kit 起子进程 |
-| engine-omp → engine-testkit | L3 | 只有 `src/testing`（`@poietica/engine-omp/testing`）用到，类型级 |
+| 边                          | 层  | 理由                                                             |
+| --------------------------- | --- | ---------------------------------------------------------------- |
+| engine → transcript         | L1  | 引擎端口的事件流以 transcript 的 TimelineOp 为载荷               |
+| rpc → contract-kit          | L1  | 通道按契约描述做校验与分发                                       |
+| git → process-kit           | L2  | git 经 process-kit 起子进程                                      |
+| engine-omp → engine-testkit | L3  | 只有 `src/testing`（`@poietica/engine-omp/testing`）用到，类型级 |

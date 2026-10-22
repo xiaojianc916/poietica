@@ -45,7 +45,7 @@
 }
 
 /* 深色主题下卡面改用抬起来的那一档，免得深底上再压一块纯黑。 */
-:root[data-theme="dark"] .ui-banner {
+:root[data-theme='dark'] .ui-banner {
   --banner-fill: var(--ui-surface);
   --banner-label: var(--ui-foreground);
 }
@@ -79,7 +79,7 @@
 }
 
 /* 深色下卡面是抬起来的那一档，轨道要跟着反过来。 */
-:root[data-theme="dark"] .ui-banner__progress {
+:root[data-theme='dark'] .ui-banner__progress {
   --banner-progress-track: rgb(0 0 0 / 22%);
 }
 

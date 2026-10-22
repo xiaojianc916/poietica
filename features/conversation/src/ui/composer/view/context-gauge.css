@@ -24,7 +24,7 @@
   --gauge-figure: #0f1115;
 }
 
-:root[data-theme="dark"] {
+:root[data-theme='dark'] {
   --gauge-ring-track: #ffffff29;
   --gauge-ring-color: #adb2b8;
 
@@ -65,20 +65,20 @@
 }
 
 [data-assistant-skin] .context-gauge__trigger:hover,
-[data-assistant-skin] .context-gauge__trigger[aria-expanded="true"] {
+[data-assistant-skin] .context-gauge__trigger[aria-expanded='true'] {
   background: var(--cp-hover);
 }
 
 /* 阈值色必须写在 hover 之后：同特异度靠顺序取胜，否则一悬浮或展开就被底色的那两笔冲掉。 */
-[data-assistant-skin] .context-gauge__trigger[data-level="warn"] {
+[data-assistant-skin] .context-gauge__trigger[data-level='warn'] {
   --gauge-ring-color: var(--gauge-warn-ink);
 }
 
-[data-assistant-skin] .context-gauge__trigger[data-level="high"] {
+[data-assistant-skin] .context-gauge__trigger[data-level='high'] {
   --gauge-ring-color: var(--gauge-high-ink);
 }
 
-[data-assistant-skin] .context-gauge__trigger[data-level="critical"] {
+[data-assistant-skin] .context-gauge__trigger[data-level='critical'] {
   --gauge-ring-color: var(--gauge-critical-ink);
 }
 
@@ -121,7 +121,7 @@
   animation: context-gauge-tooltip-in 150ms cubic-bezier(0.4, 0, 0.2, 1);
 }
 
-:root[data-theme="dark"] .context-gauge__card.context-gauge__card {
+:root[data-theme='dark'] .context-gauge__card.context-gauge__card {
   background: #43454a;
 }
 

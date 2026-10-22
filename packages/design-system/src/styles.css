@@ -10,21 +10,21 @@
  * 6. accessibility policies
  */
 
-@import "./tokens/palette.css";
-@import "./tokens/typography.css";
-@import "./tokens/scales.css";
-@import "./tokens/controls.css";
-@import "./tokens/assistant.css";
-@import "./tokens/rows.css";
-@import "./tokens/layers.css";
-@import "./tokens/light.css";
-@import "./tokens/dark.css";
-@import "./tokens/semantic.css";
-@import "./surface.css";
-@import "./tokens/accessibility.css";
-@import "./scrollbar.css";
-@import "./selection.css";
-@import "./settings.css";
+@import './tokens/palette.css';
+@import './tokens/typography.css';
+@import './tokens/scales.css';
+@import './tokens/controls.css';
+@import './tokens/assistant.css';
+@import './tokens/rows.css';
+@import './tokens/layers.css';
+@import './tokens/light.css';
+@import './tokens/dark.css';
+@import './tokens/semantic.css';
+@import './surface.css';
+@import './tokens/accessibility.css';
+@import './scrollbar.css';
+@import './selection.css';
+@import './settings.css';
 
 /*
  * 图标盒。

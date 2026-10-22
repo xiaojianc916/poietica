@@ -33,13 +33,7 @@ export interface FaviconStoreOptions {
 }
 
 export type FaviconMime =
-  | 'image/png'
-  | 'image/jpeg'
-  | 'image/gif'
-  | 'image/webp'
-  | 'image/bmp'
-  | 'image/x-icon'
-  | 'image/svg+xml'
+  'image/png' | 'image/jpeg' | 'image/gif' | 'image/webp' | 'image/bmp' | 'image/x-icon' | 'image/svg+xml'
 
 const MAX_ICON_BYTES = 256 * 1024
 const BUDGET_BYTES = 8 * 1024 * 1024

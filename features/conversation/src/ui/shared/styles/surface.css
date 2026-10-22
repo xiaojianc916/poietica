@@ -1,5 +1,5 @@
 /* 皮肤挂在同一条 import 上；卡片框体仍由 composer-frame.css 提供。 */
-@import "./composer-frame.css";
+@import './composer-frame.css';
 
 /* 外框只给面板高与地色：读法宽度、自由空间和两个静止态全在滚动盒里，让外框也滚就会有两个滚轮的主人。 */
 .assistant-surface {
@@ -91,7 +91,7 @@
   );
 }
 
-[data-slot="prompt-input-submit"] svg,
+[data-slot='prompt-input-submit'] svg,
 .assistant-threads__create svg,
 .assistant-thread__action svg,
 .workspace-picker__repositories-action svg,
@@ -136,8 +136,7 @@
   padding-block: var(--cp-pad-mid) var(--cp-gutter);
   padding-inline-start: var(--assistant-surface-inline-padding);
   padding-inline-end: calc(
-    var(--assistant-surface-inline-padding) +
-    var(--assistant-surface-inline-end-clearance, 0px)
+    var(--assistant-surface-inline-padding) + var(--assistant-surface-inline-end-clearance, 0px)
   );
 }
 
@@ -167,15 +166,15 @@
 
 /* 三条叠起来：最上面那条再收一档，台阶逐级放开（离输入卡越远越窄）。 */
 .assistant-surface__composer
-> :is(.prompt-queue, .assistant-approval):has(
-  ~ :is(.prompt-queue, .assistant-approval) ~ :is(.prompt-queue, .assistant-approval)
-) {
+  > :is(.prompt-queue, .assistant-approval):has(
+    ~ :is(.prompt-queue, .assistant-approval) ~ :is(.prompt-queue, .assistant-approval)
+  ) {
   inline-size: calc(100% - (var(--cp-queue-inset) + var(--cp-dock-stack-step) * 2) * 2);
   max-inline-size: calc(var(--cp-queue-card-max) - var(--cp-dock-stack-step) * 4);
 }
 
 /* 会话态：输入框盖在转录上，入口态是居中的。最后一条消息由 useDockClearance 实测后传给虚拟器的 paddingEnd，不会被压住。 */
-.assistant-surface[data-phase="live"] .assistant-surface__dock {
+.assistant-surface[data-phase='live'] .assistant-surface__dock {
   position: absolute;
   inset-block-end: 0;
   /*
@@ -188,15 +187,15 @@
 }
 
 /* 只在卡片下方画一条不透明底色条：下方那圈下 padding 不补就会漏字；再往上多盖一个圆角半径，因为卡片底部圆角外侧的三角区不是卡片背景。 */
-.assistant-surface[data-phase="live"] .assistant-surface__dock::after {
-  content: "";
+.assistant-surface[data-phase='live'] .assistant-surface__dock::after {
+  content: '';
   position: absolute;
   inset: auto 0 0;
   block-size: calc(var(--cp-gutter) + var(--cp-radius));
   background: var(--cp-ground);
 }
 
-.assistant-surface[data-phase="live"] .assistant-surface__composer {
+.assistant-surface[data-phase='live'] .assistant-surface__composer {
   /* 带子整体 pointer-events: none，只把输入框本体放出来接指针。 */
   position: relative;
   pointer-events: auto;

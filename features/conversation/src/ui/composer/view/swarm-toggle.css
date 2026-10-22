@@ -31,7 +31,7 @@
 
 /* 浅色档 #e1e1e1 压在深色栏底上就是一圈白光（与 --cp-lift 在深色下变成光晕同一个病），深色另给
    #333333：框仍在，只是不再发亮。 */
-:root[data-theme="dark"] .swarm-toggle {
+:root[data-theme='dark'] .swarm-toggle {
   --sw-edge: #333333;
 }
 
@@ -58,7 +58,7 @@
   border-color: color-mix(in srgb, var(--sw-fill) 30%, var(--sw-edge));
 }
 
-.swarm-toggle[aria-pressed="true"] .swarm-toggle__box {
+.swarm-toggle[aria-pressed='true'] .swarm-toggle__box {
   border-color: var(--sw-fill);
   background: var(--sw-fill);
 }
@@ -71,7 +71,7 @@
   transition: opacity var(--cp-motion-swift) var(--cp-motion-ease);
 }
 
-.swarm-toggle[aria-pressed="true"] .swarm-toggle__check {
+.swarm-toggle[aria-pressed='true'] .swarm-toggle__check {
   opacity: 1;
 }
 

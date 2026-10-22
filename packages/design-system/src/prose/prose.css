@@ -118,7 +118,7 @@
  * header 变顶栏，一个 grid 把 actions 放进同一条栏而不是浮在代码上方。 */
 /* 栏高与复制键尺寸是一组：抬头与复制键共处一条栏，栏高钉在两者身上，不然行高由较高的那个说话。
  * 上游抬头写死 h-8（2rem），对一个语言名太宽裕；栏收一档之后，16px 字形加 8px 内边距的复制键就顶满了这条栏，两者同步收。 */
-.timeline-prose [data-streamdown="code-block"] {
+.timeline-prose [data-streamdown='code-block'] {
   --cp-code-band: 1.5rem;
   --cp-code-control: 1.25rem;
   --cp-code-icon: 0.875rem;
@@ -136,32 +136,32 @@
 
 /* 深色下面 #2a2a2a、边 #333333，抬头与正文同一张面、中间不画线；浅色不动（#2a2a2a 铺在白纸上是一块黑斑）。
  * `:where()` 把主题前缀压成零权重，这几条仍是 0,2,0：压得住同名基线，压不过 tool-call.css 里那条 0,3,0。 */
-:where(:root[data-theme="dark"]) .timeline-prose [data-streamdown="code-block"] {
+:where(:root[data-theme='dark']) .timeline-prose [data-streamdown='code-block'] {
   border-color: #333333;
   background: #2a2a2a;
 }
 
-.timeline-prose > [data-streamdown="code-block"]:first-child {
+.timeline-prose > [data-streamdown='code-block']:first-child {
   margin-block-start: 0;
 }
 
-.timeline-prose [data-streamdown="code-block-header"],
-.timeline-prose [data-streamdown="code-block"] > :has(> [data-streamdown="code-block-actions"]) {
+.timeline-prose [data-streamdown='code-block-header'],
+.timeline-prose [data-streamdown='code-block'] > :has(> [data-streamdown='code-block-actions']) {
   border-block-end: 1px solid var(--ui-border);
   background: var(--cp-timeline-output-surface);
 }
 
 /* 深色：抬头也是那一块面，抬头与正文之间那条线不要。 */
-:where(:root[data-theme="dark"]) .timeline-prose [data-streamdown="code-block-header"],
-:where(:root[data-theme="dark"])
+:where(:root[data-theme='dark']) .timeline-prose [data-streamdown='code-block-header'],
+:where(:root[data-theme='dark'])
   .timeline-prose
-  [data-streamdown="code-block"]
-  > :has(> [data-streamdown="code-block-actions"]) {
+  [data-streamdown='code-block']
+  > :has(> [data-streamdown='code-block-actions']) {
   border-block-end-color: transparent;
   background: #2a2a2a;
 }
 
-.timeline-prose [data-streamdown="code-block-header"] {
+.timeline-prose [data-streamdown='code-block-header'] {
   grid-area: 1 / 1;
   block-size: var(--cp-code-band);
   padding-inline-start: 0.75rem;
@@ -169,7 +169,7 @@
 }
 
 /* actions 从浮层里出来，落到那条栏上。栏高与抬头同一个 token：两条轨道同一行，只能有一个高度。 */
-.timeline-prose [data-streamdown="code-block"] > :has(> [data-streamdown="code-block-actions"]) {
+.timeline-prose [data-streamdown='code-block'] > :has(> [data-streamdown='code-block-actions']) {
   grid-area: 1 / 2;
   position: static;
   margin: 0;
@@ -178,7 +178,7 @@
   pointer-events: auto;
 }
 
-.timeline-prose [data-streamdown="code-block-actions"] {
+.timeline-prose [data-streamdown='code-block-actions'] {
   border: 0;
   padding: 0;
   background: none;
@@ -187,7 +187,7 @@
 
 /* 复制键上游带 p-1 包着 size=14 的属性值 —— 属性管不了尺寸：全局的 :where(svg)（0 权重）会把字形改写成 --ui-icon。
  * 尺寸因此从这里下发，一个变量就够，不必再写一条 svg 选择器；颜色、悬停与 disabled 仍走上游工具类。 */
-.timeline-prose [data-streamdown="code-block-actions"] > button {
+.timeline-prose [data-streamdown='code-block-actions'] > button {
   --ui-icon: var(--cp-code-icon);
 
   display: grid;
@@ -200,7 +200,7 @@
 
 /* 高度上限与 overflow 缺一不可：外层用 overflow: hidden 拿圆角裁内部，没出口时长行会被裁掉、字符取不到。
  * 纵向上限归 prose.tsx 的 codeBlockMaxHeight —— 只有上游拿到高度，它才给这个盒子挂流式末端锚定。 */
-.timeline-prose [data-streamdown="code-block-body"] {
+.timeline-prose [data-streamdown='code-block-body'] {
   grid-area: 2 / 1 / 3 / 3;
   overflow: auto;
   padding: 0.75rem;
@@ -213,7 +213,7 @@
 }
 
 /* 行怎么排是包的事；这里只定 tab 宽度 2（上游没有样式表声明它）。代码从不被重排：重排会改写字符串字面量。 */
-.timeline-prose [data-streamdown="code-block-body"] pre {
+.timeline-prose [data-streamdown='code-block-body'] pre {
   margin: 0;
   background: transparent;
   tab-size: 2;
@@ -221,13 +221,13 @@
 
 /* 行盒是结构不是装饰：streamdown 每源行发一个 <span>、之间不写东西，只有块级才成行。上游把「块」类塞在行号类表里
  * 条件应用，我们不画行号，行盒随边距槽一起没了，每行都连在一起（vercel/streamdown#532）。 */
-.timeline-prose [data-streamdown="code-block-body"] pre code > span {
+.timeline-prose [data-streamdown='code-block-body'] pre code > span {
   display: block;
 }
 
 /* 高亮色只在自定义属性里，得由我们花掉：上游的 color 声明在 Tailwind 工具类里，而本应用的 Tailwind 不扫 node_modules ——
  * 变量照旧下发、没人消费，每个 token 回落到 inherit，结构还在、颜色全丢。fallback 到 inherit：Shiki 没解析完的那几帧是纯文本，不是透明。 */
-.timeline-prose [data-streamdown="code-block-body"] pre code span {
+.timeline-prose [data-streamdown='code-block-body'] pre code span {
   color: light-dark(var(--sdm-c, inherit), var(--shiki-dark, var(--sdm-c, inherit)));
   /* 少数 token 自带底色（diff、命中标记）。只花 --sdm-tbg，不碰 --shiki-dark-bg —— 后者是整块主题底色、会继承下来。 */
   background-color: var(--sdm-tbg, transparent);
@@ -245,7 +245,7 @@
 /* 表格：上游包了三层，正文里因此出现卡中卡；这张表**没有壳** —— 不画边框、表头不铺底色，上下分隔全由行线承担。
  * 栏高只有一个来源：--cp-table-head 同时是表头单元格与控件层的 block-size。包裹层不能 overflow: hidden：复制键是 absolute，裁剪会把它剪断。 */
 
-.timeline-prose [data-streamdown="table-wrapper"] {
+.timeline-prose [data-streamdown='table-wrapper'] {
   --cp-table-head: 2.25rem;
   --cp-table-pad: 0.75rem;
   --cp-table-control: 1.75rem;
@@ -261,7 +261,7 @@
 
 /* 控件层绝对定位、不参与流、也不撑宽包裹层。写在滚动盒**外面**是要求不是偏好：表格横向滚得动，
  * 埋在滚动盒里的控件会跟着一起滑出视野。 */
-.timeline-prose [data-streamdown="table-actions"] {
+.timeline-prose [data-streamdown='table-actions'] {
   position: absolute;
   z-index: 1;
   inset-block-start: 0;
@@ -271,7 +271,7 @@
   block-size: var(--cp-table-head);
 }
 
-.timeline-prose [data-streamdown="table-actions"] > button {
+.timeline-prose [data-streamdown='table-actions'] > button {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -285,33 +285,33 @@
     color 120ms var(--cp-motion-ease);
 }
 
-.timeline-prose [data-streamdown="table-actions"] > button:hover {
+.timeline-prose [data-streamdown='table-actions'] > button:hover {
   background: var(--cp-hover);
   color: var(--cp-ink);
 }
 
 /* 轴写死成「横向 auto、纵向 hidden」：上游给的 overflow-auto 让两个轴都成了滚动容器，而表格从来没有纵向上限 ——
  * 一个不会滚的滚动容器会被浮层当成候选轨道，指针停在表格上时滚轮整个失效。 */
-.timeline-prose [data-streamdown="table-wrapper"] > div:last-child {
+.timeline-prose [data-streamdown='table-wrapper'] > div:last-child {
   overflow: auto hidden;
   border: 0;
   border-radius: inherit;
   background: transparent;
 }
 
-.timeline-prose [data-streamdown="table"] {
+.timeline-prose [data-streamdown='table'] {
   inline-size: 100%;
   border-collapse: collapse;
   font-size: var(--ui-prose-size-aux);
 }
 
 /* 表头不铺底色：与正文同一张面，归零也压掉上游的 bg-muted/80。 */
-.timeline-prose [data-streamdown="table-header"] {
+.timeline-prose [data-streamdown='table-header'] {
   background: transparent;
 }
 
 /* padding-block 归零、行高不参与，栏高就是 --cp-table-head —— 控件层用同一个 token，两者不可能错位。 */
-.timeline-prose [data-streamdown="table-header-cell"] {
+.timeline-prose [data-streamdown='table-header-cell'] {
   block-size: var(--cp-table-head);
   padding: 0 var(--cp-table-pad);
   font-size: inherit;
@@ -321,7 +321,7 @@
   white-space: nowrap;
 }
 
-.timeline-prose [data-streamdown="table-cell"] {
+.timeline-prose [data-streamdown='table-cell'] {
   padding: 0.5rem var(--cp-table-pad);
   font-size: inherit;
   vertical-align: top;
@@ -330,19 +330,19 @@
 /* 深色下这几根行线改 #2a2a2a：这张表没有壳，行与行的分隔全靠它们。改的是「行」的 border-color 而不是某一条边 ——
  * 塌边取谁的颜色按「行 > 行组」裁定，实际画出来的是上一行的 border-block-end（读 --ui-border）；tbody 一并给上让第二来源同色。
  * 浅色不动：同样的值铺在白纸上就是几道黑杠。 */
-:where(:root[data-theme="dark"]) .timeline-prose [data-streamdown="table-body"],
-:where(:root[data-theme="dark"]) .timeline-prose [data-streamdown="table-body"] [data-streamdown="table-row"] {
+:where(:root[data-theme='dark']) .timeline-prose [data-streamdown='table-body'],
+:where(:root[data-theme='dark']) .timeline-prose [data-streamdown='table-body'] [data-streamdown='table-row'] {
   border-color: #2a2a2a;
 }
 
 /* 表头与正文之间、行与行之间各一根发丝线；末行不留。 */
-.timeline-prose [data-streamdown="table-header"] + [data-streamdown="table-body"],
-.timeline-prose [data-streamdown="table-body"] [data-streamdown="table-row"] + [data-streamdown="table-row"] {
+.timeline-prose [data-streamdown='table-header'] + [data-streamdown='table-body'],
+.timeline-prose [data-streamdown='table-body'] [data-streamdown='table-row'] + [data-streamdown='table-row'] {
   border-block-start: 1px solid var(--cp-hairline);
 }
 
 /* 末列让位 = 内边距 ×2 + 一枚复制键，与控件层同一组常量：复制键右缘与表头文字之间不会压着一个字。 */
-.timeline-prose [data-streamdown="table-wrapper"] [data-streamdown="table-header-cell"]:last-child {
+.timeline-prose [data-streamdown='table-wrapper'] [data-streamdown='table-header-cell']:last-child {
   padding-inline-end: calc(var(--cp-table-pad) * 2 + var(--cp-table-control));
 }
 
@@ -437,7 +437,7 @@
   margin-inline: auto;
 }
 
-.timeline-prose__diagram[data-view="code"] .timeline-prose__diagram-stage {
+.timeline-prose__diagram[data-view='code'] .timeline-prose__diagram-stage {
   display: none;
 }
 
@@ -529,23 +529,23 @@
 
 /* 上游 image.tsx 的外观全在 Tailwind 工具类里（my-4、max-w-full rounded-lg、失败时 hidden），官方 styles.css 不含这些类、
  * 本应用的 Tailwind 也不扫 node_modules —— 与 --sdm-c 同一个坑：类不存在，加载失败时破图占位与兜底文案同时在屏幕上。 */
-.timeline-prose [data-streamdown="image-wrapper"] {
+.timeline-prose [data-streamdown='image-wrapper'] {
   display: block;
   margin-block: var(--cp-prose-flow) 0;
 }
 
-.timeline-prose [data-streamdown="image"] {
+.timeline-prose [data-streamdown='image'] {
   display: block;
   max-inline-size: 100%;
   border-radius: var(--ui-radius-md);
 }
 
 /* 兜底文案在 img 之后，所以由包裹层来判：破图不占位，只留那一句话。 */
-.timeline-prose [data-streamdown="image-wrapper"]:has([data-streamdown="image-fallback"]) [data-streamdown="image"] {
+.timeline-prose [data-streamdown='image-wrapper']:has([data-streamdown='image-fallback']) [data-streamdown='image'] {
   display: none;
 }
 
-.timeline-prose [data-streamdown="image-fallback"] {
+.timeline-prose [data-streamdown='image-fallback'] {
   color: var(--cp-timeline-quiet-text);
   font-size: var(--ui-prose-size-meta);
   font-style: italic;

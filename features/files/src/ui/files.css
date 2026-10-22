@@ -6,7 +6,7 @@
   border-bottom: 1px solid var(--ui-card-divider);
 }
 
-:root[data-theme="dark"] .files-rule {
+:root[data-theme='dark'] .files-rule {
   border-bottom-color: color-mix(in srgb, currentColor 10%, transparent);
 }
 
@@ -15,12 +15,12 @@
 }
 
 .files-action:hover,
-.files-action[aria-pressed="true"] {
+.files-action[aria-pressed='true'] {
   background-color: #f2f3f3;
 }
 
-:root[data-theme="dark"] .files-action:hover,
-:root[data-theme="dark"] .files-action[aria-pressed="true"] {
+:root[data-theme='dark'] .files-action:hover,
+:root[data-theme='dark'] .files-action[aria-pressed='true'] {
   background-color: color-mix(in srgb, #ffffff 10%, transparent);
 }
 
@@ -38,7 +38,7 @@
     -8px 0;
 }
 
-:root[data-theme="dark"] .files-image-stage {
+:root[data-theme='dark'] .files-image-stage {
   background-color: #1e1e1e;
   background-image:
     linear-gradient(45deg, #2a2a2a 25%, transparent 25%), linear-gradient(-45deg, #2a2a2a 25%, transparent 25%),
@@ -61,7 +61,7 @@
   border-top: 1px solid var(--ui-card-divider);
 }
 
-:root[data-theme="dark"] .files-rule--top {
+:root[data-theme='dark'] .files-rule--top {
   border-top-color: color-mix(in srgb, currentColor 10%, transparent);
 }
 

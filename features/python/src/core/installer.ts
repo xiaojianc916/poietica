@@ -51,9 +51,7 @@ export interface InstallerDeps {
 }
 
 export type InstallerState =
-  | { kind: 'idle' }
-  | { kind: 'downloading'; progress: number; abort: AbortController }
-  | { kind: 'installing' }
+  { kind: 'idle' } | { kind: 'downloading'; progress: number; abort: AbortController } | { kind: 'installing' }
 
 export interface PythonInstaller {
   readonly state: InstallerState

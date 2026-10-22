@@ -28,11 +28,11 @@
   border-radius: inherit;
   background: var(--ui-popup-surface);
   backdrop-filter: blur(40px) saturate(150%);
-  content: "";
+  content: '';
   pointer-events: none;
 }
 
-:root[data-theme="dark"] .prompt-queue__panel::before {
+:root[data-theme='dark'] .prompt-queue__panel::before {
   background: #292929;
   backdrop-filter: none;
 }
@@ -244,10 +244,10 @@
 }
 
 /* 按下的那一枚模式图标填成实心：状态只由字形报，不铺底（铺底是悬停的读法）。 */
-.prompt-queue__action[aria-pressed="true"] {
+.prompt-queue__action[aria-pressed='true'] {
   color: var(--cp-ink);
 }
 
-.prompt-queue__action[aria-pressed="true"] svg {
+.prompt-queue__action[aria-pressed='true'] svg {
   fill: currentColor;
 }

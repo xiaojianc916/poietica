@@ -37,7 +37,7 @@
  * 思考句：右侧留两字的空 —— 滑行时 o 的上限就是它。
  * 不写颜色：跟组头那一行（.timeline-row）走，与工具调用同一档、同一个悬停反馈；新字的「新」只由透明度说（波浪淡入）。
  */
-.rolling-line[data-variant="thought"] .ticker-track {
+.rolling-line[data-variant='thought'] .ticker-track {
   padding-inline-end: var(--cp-ticker-tail);
 }
 
@@ -50,13 +50,13 @@
  * 工具行与落定态：从头显示，放不下时末尾省略号。
  * 写在最后、与上面同权重：落定的思考句也走这里（去掉右侧留白，交给省略号）。
  */
-.rolling-line[data-variant="tool"] .ticker-window,
+.rolling-line[data-variant='tool'] .ticker-window,
 .rolling-line:not([data-following]) .ticker-window {
   justify-content: flex-start;
   white-space: nowrap;
 }
 
-.rolling-line[data-variant="tool"] .ticker-track,
+.rolling-line[data-variant='tool'] .ticker-track,
 .rolling-line:not([data-following]) .ticker-track {
   flex: 0 1 auto;
   min-inline-size: 0;

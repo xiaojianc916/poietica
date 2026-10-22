@@ -7,13 +7,7 @@
  */
 
 export { cn } from './class-names'
-export {
-  Accordion,
-  AccordionHeader,
-  AccordionItem,
-  AccordionPanel,
-  AccordionTrigger,
-} from './control/accordion'
+export { Accordion, AccordionHeader, AccordionItem, AccordionPanel, AccordionTrigger } from './control/accordion'
 export { Banner } from './control/banner'
 export { GitBranchPicker, type GitBranchPickerProps } from './control/branch-picker'
 export { Button } from './control/button'
@@ -37,20 +31,12 @@ export { ErrorState, InlineSpinner, LoadingState } from './control/feedback'
 export { SegmentedControl, type SegmentedOption } from './control/segmented-control'
 export { Select, type SelectOption } from './control/select'
 export { Switch } from './control/switch'
-export {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from './control/tooltip'
+export { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from './control/tooltip'
 export { ViewSwitch, type ViewSwitchOption } from './control/view-switch'
 export { type WorkspaceChoice, WorkspacePicker, type WorkspacePickerProps } from './control/workspace-picker'
 export { focusOnMount } from './focus-on-mount'
 export { formatBytes } from './format-bytes'
-export {
-  RegionSplitter,
-  type SplitterActivity,
-} from './layout/region-splitter'
+export { RegionSplitter, type SplitterActivity } from './layout/region-splitter'
 export { FileTypeMark } from './mark/file-type-mark'
 export { integrationMarkFor } from './mark/integration-mark'
 export { GithubMark } from './mark/local-glyphs'

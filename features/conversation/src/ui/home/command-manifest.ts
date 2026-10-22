@@ -31,17 +31,7 @@ export type CommandPlace = 'draft' | 'idle' | 'busy'
 
 /** 由 conversation 自己办的那几条（打开控件、走现成动作），不经 omp */
 export type NativeAction =
-  | 'new'
-  | 'fork'
-  | 'rename'
-  | 'context'
-  | 'export'
-  | 'share'
-  | 'plan'
-  | 'model'
-  | 'effort'
-  | 'settings'
-  | 'todo'
+  'new' | 'fork' | 'rename' | 'context' | 'export' | 'share' | 'plan' | 'model' | 'effort' | 'settings' | 'todo'
 
 /**
  * 选中之后怎么执行：

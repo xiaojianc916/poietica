@@ -24,8 +24,7 @@ export interface SessionRegistry {
 export interface SessionRegistryOptions {
   readonly api: ConversationApi
   readonly onSubmissions?:
-    | ((threadId: string, rows: readonly import('../../contract').SubmissionView[]) => void)
-    | undefined
+    ((threadId: string, rows: readonly import('../../contract').SubmissionView[]) => void) | undefined
 }
 
 export function createSessionRegistry({ api, onSubmissions }: SessionRegistryOptions): SessionRegistry {

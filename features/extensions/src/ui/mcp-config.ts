@@ -15,8 +15,7 @@ export type McpField = 'name' | 'transport' | 'timeout' | 'command' | 'args' | '
 
 /** 用户输入不合法**不抛异常** —— 它由字段旁边的一句提示承接，不是一次失败；两处调用点都按同一个形状读 message。 */
 export type McpValidation<T> =
-  | { readonly ok: true; readonly value: T }
-  | { readonly ok: false; readonly message: string; readonly field?: McpField }
+  { readonly ok: true; readonly value: T } | { readonly ok: false; readonly message: string; readonly field?: McpField }
 
 export function mcpOk<T>(value: T): McpValidation<T> {
   return { ok: true, value }

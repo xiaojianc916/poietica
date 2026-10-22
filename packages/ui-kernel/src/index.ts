@@ -25,14 +25,7 @@ export { type Contributed, type ContributionPoint, ContributionRegistry, defineC
 export { defineUiFeature, type UiFeature, type UiFeatureContext } from './feature'
 export { createUiKernel, type UiKernel, type UiKernelOptions } from './kernel'
 export { FeatureErrorBoundary } from './react/error-boundary'
-export {
-  useContributions,
-  useCoreStatus,
-  useLayout,
-  useNavigation,
-  useObservable,
-  useService,
-} from './react/hooks'
+export { useContributions, useCoreStatus, useLayout, useNavigation, useObservable, useService } from './react/hooks'
 export { FeatureScope, KernelProvider, useFeatureId, useKernel } from './react/kernel-context'
 export {
   type AuxiliaryState,
@@ -78,9 +71,4 @@ export {
   type UiLogging,
   UiLoggingToken,
 } from './services'
-export {
-  createFeatureStore,
-  type FeatureStore,
-  useFeatureStore,
-  useFeatureStoreShallow,
-} from './store'
+export { createFeatureStore, type FeatureStore, useFeatureStore, useFeatureStoreShallow } from './store'

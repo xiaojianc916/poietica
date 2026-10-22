@@ -44,7 +44,7 @@
 }
 
 .skill-list__row + .skill-list__row::before {
-  content: "";
+  content: '';
   position: absolute;
   inset-inline: 20px;
   inset-block-start: 0;
@@ -53,7 +53,7 @@
 }
 
 .skill-list__row:hover,
-.skill-list__row[data-focused="true"] {
+.skill-list__row[data-focused='true'] {
   background: var(--ui-accent);
 }
 

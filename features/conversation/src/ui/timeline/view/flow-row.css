@@ -22,7 +22,7 @@
 }
 
 /* 推理摘要的量度归阅读栏：这一行像显示屏一样滚，轨道左边缘直接裁，量度是它唯一的刹车。 */
-.timeline-row[data-measure="prose"] {
+.timeline-row[data-measure='prose'] {
   --cp-row-measure: var(--cp-input-max);
 }
 
@@ -44,14 +44,15 @@ button.timeline-row:focus-visible {
   block-size: 1lh;
 }
 
-/* 箭头是给鼠标的第二遍提示，读屏那一遍由 aria-expanded 说。一直占位，出现时不重排。 */ .timeline-row__chevron {
+/* 箭头是给鼠标的第二遍提示，读屏那一遍由 aria-expanded 说。一直占位，出现时不重排。 */
+.timeline-row__chevron {
   opacity: 0;
   transition: opacity var(--cp-motion-swift) var(--cp-motion-ease);
 }
 
 .timeline-row:hover .timeline-row__chevron,
 .timeline-row:focus-visible .timeline-row__chevron,
-.timeline-row[aria-expanded="true"] .timeline-row__chevron {
+.timeline-row[aria-expanded='true'] .timeline-row__chevron {
   opacity: 1;
 }
 
@@ -75,7 +76,7 @@ button.timeline-row:focus-visible {
   transition: transform var(--cp-motion-drawer) var(--cp-motion-drawer-ease, cubic-bezier(0.2, 0, 0, 1));
 }
 
-[aria-expanded="true"] .disclosure__chevron {
+[aria-expanded='true'] .disclosure__chevron {
   transform: rotate(0deg);
 }
 

@@ -25,14 +25,7 @@ export interface ThreadCommands {
 
 /** 命令面板的分组，按用途而不是按来源；次序就是空查询时面板的次序 */
 export type CommandGroupId =
-  | 'conversation'
-  | 'mode'
-  | 'model'
-  | 'workflow'
-  | 'settings'
-  | 'custom'
-  | 'extension'
-  | 'mcp'
+  'conversation' | 'mode' | 'model' | 'workflow' | 'settings' | 'custom' | 'extension' | 'mcp'
 
 export const COMMAND_GROUPS: readonly { readonly id: CommandGroupId; readonly heading: string }[] = [
   { id: 'conversation', heading: '对话' },

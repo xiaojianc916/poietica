@@ -341,18 +341,16 @@ function isVisible(message: OmpMessage): boolean {
  * 把它标成 running，中途压缩之后这一行就永远停在「正在压缩上下文…」）。
  */
 function compactionOps(turn: number, compactions: readonly OmpMessage[]): TranscriptOperation[] {
-  return compactions.map(
-    (message, index): TranscriptOperation => ({
-      op: 'marker.upsert',
-      item: {
-        kind: 'marker',
-        markerId: `compaction-${String(turn)}-${String(index + 1)}`,
-        marker: 'compaction',
-        at: stampOf(message),
-        payload: compactionPayloadOf(message),
-      },
-    }),
-  )
+  return compactions.map((message, index): TranscriptOperation => ({
+    op: 'marker.upsert',
+    item: {
+      kind: 'marker',
+      markerId: `compaction-${String(turn)}-${String(index + 1)}`,
+      marker: 'compaction',
+      at: stampOf(message),
+      payload: compactionPayloadOf(message),
+    },
+  }))
 }
 
 function turnOps(
@@ -695,16 +693,14 @@ function imagesOf(content: unknown, stamp: string, mediaRef: MediaRef): Attachme
  */
 function filesOf(message: OmpMessage, stamp: string): AttachmentUpsert[] {
   if (message.role !== 'user') return []
-  return splitWireText(textOf(message.content)).files.map(
-    (file, index): AttachmentUpsert => ({
-      op: 'attachment.upsert',
-      attachment: {
-        attachmentId: `${stamp}#f${String(index)}`,
-        mediaType: FILE_MEDIA_TYPE,
-        ...(file.name === undefined ? {} : { name: file.name }),
-      },
-    }),
-  )
+  return splitWireText(textOf(message.content)).files.map((file, index): AttachmentUpsert => ({
+    op: 'attachment.upsert',
+    attachment: {
+      attachmentId: `${stamp}#f${String(index)}`,
+      mediaType: FILE_MEDIA_TYPE,
+      ...(file.name === undefined ? {} : { name: file.name }),
+    },
+  }))
 }
 
 function stampOf(message: OmpMessage): string {

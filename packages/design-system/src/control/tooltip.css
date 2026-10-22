@@ -5,7 +5,7 @@
  * 选择器用 :where() 把主题那半段压成零权重，整条只剩 0-1-0：调用方自己的卡片类
  * （如 context-gauge__card 的 0-2-0）仍然压得过它。不这么写就会把那些面板一起改成深底。
  */
-:where(:root[data-theme="dark"]) .ui-tooltip {
+:where(:root[data-theme='dark']) .ui-tooltip {
   background-color: #121212;
   color: var(--ui-foreground);
 }

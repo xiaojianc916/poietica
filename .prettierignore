@@ -1,0 +1,14 @@
+# bun fmt 的排除清单；这些路径要么是生成物，要么必须保持逐字不变。
+packages/protocol/src/__tests__/contract.snapshot.json
+**/*.snap
+**/*.svg
+**/*.min.js
+docs/baseline/
+apps/desktop/release/
+dist/
+out/
+dist-release/
+coverage/
+.tsbuild/
+.bun-cache/
+node_modules/

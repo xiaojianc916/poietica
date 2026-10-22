@@ -31,7 +31,7 @@
  * 没送达的那一句（R-08-5）：虚线框说「它在，但没到 agent 手里」。不换底色、不把字染成失败色 ——
  * 说出口的话还是那句话，错的是投递。
  */
-.timeline-user[data-undelivered="true"] {
+.timeline-user[data-undelivered='true'] {
   border: 1px dashed var(--cp-hairline);
 }
 
@@ -48,7 +48,7 @@
  * 不写 overscroll-behavior: contain —— 滚到两头时这一笔要照原样交给转录视口认（feed/nested-scroll.ts 的仲裁靠这个）。
  * 也不加两端渐隐：条已经说了「下面还有」，再加一层雾就是两种说法。
  */
-.timeline-user[data-long="true"] {
+.timeline-user[data-long='true'] {
   inline-size: 100%;
   padding-inline-end: 0.25rem;
 }

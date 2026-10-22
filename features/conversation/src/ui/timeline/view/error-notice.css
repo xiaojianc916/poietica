@@ -8,7 +8,7 @@
 /* 两侧的线自己伸缩；min-inline-size 保证窄容器里也还认得出这是一条线。 */
 .timeline-error::before,
 .timeline-error::after {
-  content: "";
+  content: '';
   flex: 1 1 0;
   min-inline-size: 0.75rem;
   block-size: 1px;
@@ -54,7 +54,7 @@
 }
 
 /* warning 不是失败：图标退回正文的安静色，线与字都不变（R-09）。 */
-.timeline-error[data-level="warning"] .timeline-error__mark {
+.timeline-error[data-level='warning'] .timeline-error__mark {
   color: var(--cp-timeline-quiet-text);
 }
 
@@ -67,10 +67,10 @@
 }
 
 /* 复制成功后 2.2 秒内整行亮一档：反馈是状态，不是另一种颜色。 */
-.timeline-error[data-copied="true"] .timeline-error__action {
+.timeline-error[data-copied='true'] .timeline-error__action {
   color: var(--cp-ink);
 }
 
-.timeline-error[data-copied="true"] .timeline-error__mark {
+.timeline-error[data-copied='true'] .timeline-error__mark {
   color: inherit;
 }

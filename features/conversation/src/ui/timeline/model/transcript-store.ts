@@ -1011,8 +1011,8 @@ export class TranscriptStore implements TranscriptSink {
             blocks: true,
             indeterminate: leftTheMachine,
           },
-          submissions: current.submissions.map(
-            (entry): PendingSubmission => (entry.id === submission.id ? { ...entry, phase: 'failed' } : entry),
+          submissions: current.submissions.map((entry): PendingSubmission =>
+            entry.id === submission.id ? { ...entry, phase: 'failed' } : entry,
           ),
         })
       }

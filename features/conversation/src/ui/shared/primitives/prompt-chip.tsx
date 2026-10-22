@@ -53,8 +53,7 @@ function mention(name: string): string {
 }
 
 export type PromptSegment =
-  | { readonly kind: 'text'; readonly text: string }
-  | { readonly kind: 'mcp'; readonly name: string }
+  { readonly kind: 'text'; readonly text: string } | { readonly kind: 'mcp'; readonly name: string }
 
 export function promptSegments(text: string): readonly PromptSegment[] {
   const segments: PromptSegment[] = []

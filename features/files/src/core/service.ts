@@ -141,14 +141,12 @@ export function createFilesService(d: { readonly git: FilesGit; readonly now?: (
       })
       const visible = dirents.filter((entry) => entry.name !== '.git')
       const entries = await Promise.all(
-        visible.map(
-          async (entry): Promise<FileEntry> => ({
-            name: entry.name,
-            path: joinRelative(at.relative, entry.name),
-            kind: await kindOf(entry, path.join(at.real, entry.name)),
-            ignored: false,
-          }),
-        ),
+        visible.map(async (entry): Promise<FileEntry> => ({
+          name: entry.name,
+          path: joinRelative(at.relative, entry.name),
+          kind: await kindOf(entry, path.join(at.real, entry.name)),
+          ignored: false,
+        })),
       )
       entries.sort(byKindThenName)
       const kept = entries.slice(0, LIST_LIMIT)

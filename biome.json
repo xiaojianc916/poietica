@@ -24,7 +24,7 @@
     "maxSize": 2097152
   },
   "formatter": {
-    "enabled": true,
+    "enabled": false,
     "indentStyle": "space",
     "indentWidth": 2,
     "lineWidth": 120,

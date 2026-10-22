@@ -64,7 +64,7 @@
   padding-block: var(--cp-feed-prose-row-gap);
 }
 
-.agent-activity-feed__row[data-rhythm="glyph"] {
+.agent-activity-feed__row[data-rhythm='glyph'] {
   padding-block: var(--cp-feed-glyph-row-gap);
 }
 
@@ -94,7 +94,7 @@
     background-color var(--cp-motion-swift) var(--cp-motion-ease);
 }
 
-.agent-activity-feed__to-latest[data-shown="true"] {
+.agent-activity-feed__to-latest[data-shown='true'] {
   opacity: 1;
   transform: none;
 }

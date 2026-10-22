@@ -1,4 +1,4 @@
-:root[data-theme="dark"] {
+:root[data-theme='dark'] {
   color-scheme: dark;
 
   --ui-background: var(--ui-palette-dark-950);

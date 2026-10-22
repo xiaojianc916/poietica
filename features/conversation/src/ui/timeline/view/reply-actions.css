@@ -52,7 +52,7 @@
   color: var(--cp-ink);
 }
 
-.timeline-reply-actions__button[data-copied="true"] {
+.timeline-reply-actions__button[data-copied='true'] {
   color: var(--cp-ink);
 }
 
