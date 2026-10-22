@@ -1,8 +1,9 @@
 import { encodeFrame, encodeLine, FrameDecoder } from './frame'
+import { FrameByteDecoder } from './frame-bytes'
 import type { Transport } from './transport'
 import { TransportCore } from './transport-core'
 
-/** 最小可读文本流接口：Node/Bun 的 process.stdin、child.stdout 都满足 */
+/** 最小可读文本流接口：Node/Bun 的 process.stdin 满足（Core 侧） */
 export interface TextReadable {
   setEncoding(encoding: 'utf8'): unknown
   on(event: 'data', listener: (chunk: string) => void): unknown
@@ -17,10 +18,15 @@ export interface TextWritable {
   on(event: 'error', listener: (error: Error) => void): unknown
 }
 
+/** 最小可读字节流接口：child.stdout 不设编码时满足（data 是 Buffer）；给字符串也认 */
+export interface ByteReadable {
+  on(event: 'data', listener: (chunk: Uint8Array | string) => void): unknown
+}
+
 /** 最小子进程接口：node:child_process 的 ChildProcess 满足 */
 export interface ChildProcessLike {
   readonly stdin: TextWritable | null
-  readonly stdout: TextReadable | null
+  readonly stdout: ByteReadable | null
   once(event: 'exit', listener: (code: number | null, signal: string | null) => void): unknown
 }
 
@@ -54,6 +60,8 @@ export function createStdioTransport(o: {
 
 /**
  * Host 侧：向子进程 stdin 写“每行一个 JSON”，从 stdout 解码 `\x1e` 帧；不带前缀的行交给 onStray。
+ * stdout **不设编码**、按字节解码：收到的消息里载荷（params / result）是 RawJson —— Host 只看信封做路由，
+ * 载荷原样转交给 UI；要用值的地方调 jsonValue()（见 frame-bytes.ts）。
  * 子进程退出 → onClose('exit <code|signal>')。close() 会结束 stdin（Core 读到 EOF 后自行退出）。
  * stdin 的 'error'（子进程已死时的 EPIPE）被吞掉，因为随后必然有 'exit'。
  */
@@ -65,8 +73,7 @@ export function createChildProcessTransport(
   const stdout = child.stdout
   if (stdin === null || stdout === null) throw new Error('子进程必须以 stdio: ["pipe", "pipe", ...] 启动')
   const core = new TransportCore()
-  const decoder = new FrameDecoder(true, (m) => core.deliver(m), o.onStray)
-  stdout.setEncoding('utf8')
+  const decoder = new FrameByteDecoder((m) => core.deliver(m), o.onStray)
   stdout.on('data', (chunk) => decoder.push(chunk))
   stdin.on('error', () => undefined)
   child.once('exit', (code, signal) => core.markClosed(`exit ${code ?? signal ?? 'unknown'}`))

@@ -1,4 +1,5 @@
 import { AppError, type Disposable, type Logger, SystemErrorCode, toAppError } from '@poietica/foundation'
+import { jsonValue } from './frame'
 import {
   CANCEL_METHOD,
   type ErrorObject,
@@ -119,7 +120,8 @@ export class RpcPeer implements Disposable {
     }
     if (isNotification(m)) {
       if (m.method === CANCEL_METHOD) {
-        this.inbound.get((m.params as { id: RpcId }).id)?.abort()
+        /* Host 上来自 Core 的载荷是 RawJson（frame-bytes.ts），取值要经过 jsonValue */
+        this.inbound.get((jsonValue(m.params) as { id: RpcId } | undefined)?.id ?? -1)?.abort()
         return
       }
       try {

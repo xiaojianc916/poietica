@@ -8,7 +8,7 @@ import type {
   ResultOf,
 } from '@poietica/contract-kit'
 import { AppError, createId, type Disposable, type Logger, SystemErrorCode } from '@poietica/foundation'
-import { type InboundContext, type Router, RpcPeer, type Transport } from '@poietica/rpc'
+import { type InboundContext, jsonValue, type Router, RpcPeer, type Transport } from '@poietica/rpc'
 import type { CoreSupervisor } from './core-supervisor'
 import type { CoreCaller } from './module'
 
@@ -76,13 +76,19 @@ export class RpcHub {
     for (const peer of this.windows.values()) peer.notify(method, params)
   }
 
-  /** Core 发来的通知：先给 Host 模块旁听，再广播给窗口（core.ready 由 supervisor 消费，不会到这里）。 */
+  /**
+   * Core 发来的通知：先给 Host 模块旁听，再广播给窗口（core.ready 由 supervisor 消费，不会到这里）。
+   * params 是 RawJson（rpc/frame-bytes.ts）：只有真有 Host 模块旁听时才解析，广播给窗口的是原样的 JSON 文本。
+   */
   fromCore(method: string, params: unknown): void {
-    for (const l of [...(this.coreListeners.get(method) ?? [])]) {
-      try {
-        l(params)
-      } catch (e) {
-        this.o.logger.error('core notification listener threw', { method, error: String(e) })
+    const listeners = this.coreListeners.get(method)
+    if (listeners !== undefined && listeners.size > 0) {
+      for (const l of [...listeners]) {
+        try {
+          l(jsonValue(params))
+        } catch (e) {
+          this.o.logger.error('core notification listener threw', { method, error: String(e) })
+        }
       }
     }
     this.broadcast(method, params)
@@ -94,7 +100,7 @@ export class RpcHub {
     if (def === undefined || def.owner !== 'host') {
       throw new AppError(SystemErrorCode.methodNotFound, `Core 不能调用 ${method}`)
     }
-    return this.o.hostRouter.handle(method, params, ctx)
+    return this.o.hostRouter.handle(method, jsonValue(params), ctx)
   }
 
   coreCaller(): CoreCaller {
@@ -121,7 +127,7 @@ export class RpcHub {
             signal: ac.signal,
             meta: { traceId: createId(), origin: 'host' },
           })
-          return def.result.parse(raw) as ResultOf<C, N>
+          return def.result.parse(jsonValue(raw)) as ResultOf<C, N>
         } catch (e) {
           rethrowOnTimeout(e, ac.signal.aborted, opts?.signal?.aborted ?? false, def.name, timeoutMs)
         } finally {
@@ -157,7 +163,8 @@ export class RpcHub {
     const def = this.o.appContract.methods.get(method)
     if (def === undefined) throw new AppError(SystemErrorCode.methodNotFound, `未知方法 ${method}`)
     if (def.owner === 'host') return this.o.hostRouter.handle(method, params, ctx)
-    // owner='core'：Hub 不设超时（timeoutMs=0），UI 侧超时后发 $/cancelRequest，ctx.signal 随之中止并转发取消
+    // owner='core'：Hub 不设超时（timeoutMs=0），UI 侧超时后发 $/cancelRequest，ctx.signal 随之中止并转发取消。
+    // 结果是 RawJson，原样交回给窗口的对端：Host 不解析、不重编码（ipc-transport 发成「信封 + 载荷文本」）。
     return this.o.supervisor.forward(method, params, { signal: ctx.signal, meta: ctx.meta })
   }
 }

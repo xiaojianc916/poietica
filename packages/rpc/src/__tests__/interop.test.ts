@@ -2,6 +2,7 @@ import { afterEach, describe, expect, test } from 'bun:test'
 import { type ChildProcess, spawn } from 'node:child_process'
 import path from 'node:path'
 import { type AppError, noopLogger } from '@poietica/foundation'
+import { jsonValue, RawJson } from '../frame'
 import { createMessagePortTransport } from '../message-port'
 import { RpcPeer } from '../peer'
 import { createChildProcessTransport } from '../stdio'
@@ -58,15 +59,18 @@ afterEach(() => {
 })
 
 describe('stdio 子进程互通', () => {
-  test('IO-1 echo 原样返回（含非 ASCII）', async () => {
+  test('IO-1 echo 原样返回（含非 ASCII）；Host 侧拿到的是未解析的 RawJson', async () => {
     const host = makeHost()
-    expect(await host.peer.request('echo', { a: 1, s: '中文' })).toEqual({ a: 1, s: '中文' })
+    const raw = await host.peer.request('echo', { a: 1, s: '中文' })
+    expect(raw).toBeInstanceOf(RawJson)
+    expect((raw as RawJson).text).toBe(JSON.stringify({ a: 1, s: '中文' }))
+    expect(jsonValue(raw)).toEqual({ a: 1, s: '中文' })
   })
 
   test('IO-2 杂散输出不破坏帧', async () => {
     const host = makeHost()
-    expect(await host.peer.request('noise', {})).toEqual({ ok: true })
-    expect(await host.peer.request('echo', { b: 2 })).toEqual({ b: 2 })
+    expect(jsonValue(await host.peer.request('noise', {}))).toEqual({ ok: true })
+    expect(jsonValue(await host.peer.request('echo', { b: 2 }))).toEqual({ b: 2 })
     expect(host.strays.some((t) => t.includes('杂散输出'))).toBe(true)
     expect(host.strays.some((t) => t.includes('半行杂散'))).toBe(true)
   })
@@ -75,18 +79,18 @@ describe('stdio 子进程互通', () => {
     const host = makeHost()
     const error = await host.peer.request('slow', {}, { timeoutMs: 200 }).catch((e: unknown) => e)
     expect((error as AppError).code).toBe('kernel.timeout')
-    expect(await host.peer.request('echo', { ok: 1 })).toEqual({ ok: 1 })
+    expect(jsonValue(await host.peer.request('echo', { ok: 1 }))).toEqual({ ok: 1 })
   })
 
   test('IO-4 子进程反向请求 Host', async () => {
     const host = makeHost()
-    expect(await host.peer.request('askHost', {})).toEqual({ pong: true })
+    expect(jsonValue(await host.peer.request('askHost', {}))).toEqual({ pong: true })
   })
 
   test('IO-5 并发 50 个请求各自对应', async () => {
     const host = makeHost()
     const results = await Promise.all(
-      Array.from({ length: 50 }, (_, i) => host.peer.request('echo', { i }) as Promise<{ i: number }>),
+      Array.from({ length: 50 }, async (_, i) => jsonValue(await host.peer.request('echo', { i })) as { i: number }),
     )
     expect(results.map((r) => r.i)).toEqual(Array.from({ length: 50 }, (_, i) => i))
   })

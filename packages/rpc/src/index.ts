@@ -1,4 +1,18 @@
-export { encodeFrame, encodeLine, FRAME_PREFIX, FrameDecoder } from './frame'
+export {
+  type DecodeFailure,
+  decodeMessage,
+  encodeFrame,
+  encodeLine,
+  encodeMessage,
+  FRAME_PREFIX,
+  FrameDecoder,
+  isDecodeFailure,
+  joinRelayParts,
+  jsonValue,
+  PAYLOAD_SEPARATOR,
+  RawJson,
+  relayParts,
+} from './frame'
 export { createMessagePortTransport, type MessagePortLike } from './message-port'
 export {
   CANCEL_METHOD,
@@ -27,4 +41,10 @@ export {
 export { Router, type TypedHandler } from './router'
 export type { Transport } from './transport'
 export { type CallOptions, createTypedClient, type RpcChannel, type TypedRpcClient } from './typed-client'
-export { BRIDGE_GLOBAL, IPC_CHANNEL, type WindowBridge } from './window-bridge'
+export {
+  BRIDGE_GLOBAL,
+  IPC_CHANNEL,
+  type PreloadBridge,
+  type WindowBridge,
+  windowBridgeFromPreload,
+} from './window-bridge'

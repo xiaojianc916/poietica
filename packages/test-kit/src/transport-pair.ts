@@ -1,8 +1,9 @@
 import { type Disposable, Emitter } from '@poietica/foundation'
-import type { RpcMessage, Transport } from '@poietica/rpc'
+import { decodeMessage, encodeMessage, isDecodeFailure, type RpcMessage, type Transport } from '@poietica/rpc'
 
 /**
- * 一对互相连接的内存传输。消息经 JSON 往返（模拟 stdio 的序列化：undefined 字段丢失、Date 变字符串），
+ * 一对互相连接的内存传输。消息经真实的线上编码往返（`encodeMessage` → `decodeMessage`，模拟 stdio 的序列化：
+ * undefined 字段丢失、Date 变字符串；载荷是 RawJson 时按原样文本转交、在对端解析 —— 与 Host 转交给 UI 一致），
  * 并通过 queueMicrotask 异步投递（模拟真实传输的异步性）。任一端 close → 两端都触发 onClose。
  */
 export function transportPair(): [Transport, Transport] {
@@ -19,7 +20,8 @@ export function transportPair(): [Transport, Transport] {
   const endpoint = (self: typeof a, peer: typeof a): Transport => ({
     send(message) {
       if (self.closed) return
-      const copy = JSON.parse(JSON.stringify(message)) as RpcMessage
+      const copy = decodeMessage(encodeMessage(message))
+      if (isDecodeFailure(copy)) throw new Error(`transportPair：消息无法往返编码（${copy.failure}）`)
       queueMicrotask(() => {
         if (!peer.closed) peer.messages.fire(copy)
       })

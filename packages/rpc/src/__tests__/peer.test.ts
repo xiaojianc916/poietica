@@ -1,6 +1,7 @@
 import { describe, expect, test } from 'bun:test'
-import { AppError, type Logger, noopLogger } from '@poietica/foundation'
+import { AppError, Emitter, type Logger, noopLogger } from '@poietica/foundation'
 import { transportPair } from '@poietica/test-kit'
+import { RawJson } from '../frame'
 import { CANCEL_METHOD, type RpcMessage } from '../messages'
 import { RpcPeer } from '../peer'
 import type { Transport } from '../transport'
@@ -196,5 +197,34 @@ describe('RpcPeer', () => {
     expect(seen).toEqual({ traceId: 't1', origin: 'ui' })
     client.dispose()
     server.dispose()
+  })
+
+  test('$/cancelRequest 的 params 是 RawJson（Host 收 Core 的取消）也能取消对应的入站请求', async () => {
+    const inbound = new Emitter<RpcMessage>()
+    const sent: RpcMessage[] = []
+    const transport: Transport = {
+      send: (m) => sent.push(m),
+      onMessage: (l) => inbound.event(l),
+      onClose: () => ({ dispose: () => undefined }),
+      close: () => undefined,
+    }
+    let aborted = false
+    const peer = new RpcPeer({
+      name: 'host→core',
+      transport,
+      logger: noopLogger,
+      onRequest: (_m, _p, ctx) =>
+        new Promise((resolve) => {
+          ctx.signal.addEventListener('abort', () => {
+            aborted = true
+            resolve(null)
+          })
+        }),
+    })
+    inbound.fire({ jsonrpc: '2.0', id: 5, method: 'platform.slow', params: new RawJson('{}') })
+    inbound.fire({ jsonrpc: '2.0', method: CANCEL_METHOD, params: new RawJson('{"id":5}') })
+    await Bun.sleep(1)
+    expect(aborted).toBe(true)
+    peer.dispose()
   })
 })

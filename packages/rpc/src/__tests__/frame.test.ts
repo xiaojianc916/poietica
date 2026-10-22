@@ -1,6 +1,18 @@
 import { describe, expect, test } from 'bun:test'
 import { noopLogger } from '@poietica/foundation'
-import { encodeFrame, FRAME_PREFIX, FrameDecoder } from '../frame'
+import {
+  decodeMessage,
+  encodeFrame,
+  encodeLine,
+  encodeMessage,
+  FRAME_PREFIX,
+  FrameDecoder,
+  isDecodeFailure,
+  joinRelayParts,
+  jsonValue,
+  RawJson,
+  relayParts,
+} from '../frame'
 import type { RpcMessage } from '../messages'
 import { RpcPeer } from '../peer'
 import { createChildProcessTransport } from '../stdio'
@@ -164,5 +176,59 @@ describe('坏帧的协议行为（05 §4）', () => {
     expect(JSON.parse(writes[0] ?? '')).toMatchObject({ id: 7, result: 'ok' })
     expect(writes.join('')).not.toContain('32700')
     peer.dispose()
+  })
+})
+
+describe('拆信封的线上形态（P6）', () => {
+  const samples: RpcMessage[] = [
+    { jsonrpc: '2.0', id: 1, method: 'a.b', params: { s: '中文\u001f\u2028' }, meta: { traceId: 't', origin: 'ui' } },
+    { jsonrpc: '2.0', method: 'a.tick', params: [1, 2] },
+    { jsonrpc: '2.0', method: 'a.bare', params: undefined },
+    { jsonrpc: '2.0', id: 2, result: null },
+    { jsonrpc: '2.0', id: 3, error: { code: -32000, message: '炸了', data: { code: 'x.y', message: '炸了' } } },
+  ]
+
+  test('encodeMessage → decodeMessage 往返不变；有载荷时信封与载荷以第一个 \\x1f 分开', () => {
+    for (const m of samples) expect(decodeMessage(encodeMessage(m))).toEqual(m)
+    expect(encodeMessage(samples[1]!)).toBe('{"jsonrpc":"2.0","method":"a.tick"}\x1f[1,2]')
+    expect(encodeMessage(samples[2]!)).toBe('{"jsonrpc":"2.0","method":"a.bare"}')
+  })
+
+  test('decodeMessage 也认完整的 JSON-RPC 消息（旧形态）；坏的与非 JSON-RPC 的分别报告', () => {
+    for (const m of samples) expect(decodeMessage(JSON.stringify(m))).toEqual(m)
+    expect(decodeMessage('{oops')).toMatchObject({ failure: 'bad' })
+    expect(decodeMessage('{"a":1}\x1f{}')).toMatchObject({ failure: 'not-jsonrpc' })
+    expect(decodeMessage('[1]')).toMatchObject({ failure: 'not-jsonrpc' })
+    /* 对端数据里带 failure 键也不会被当成解码失败 */
+    expect(isDecodeFailure(decodeMessage('{"jsonrpc":"2.0","method":"m","failure":"bad"}'))).toBe(false)
+  })
+
+  test('relayParts：载荷是 RawJson 时拆成「信封对象 + 载荷 JSON 文本」，joinRelayParts 还原；否则返回 null', () => {
+    expect(relayParts(samples[0]!)).toBeNull()
+    const raw = new RawJson('{"s":"中文\\u2028"}')
+    const parts = relayParts({ jsonrpc: '2.0', id: 42, result: raw })!
+    expect(parts).toEqual([{ jsonrpc: '2.0', id: 42 }, '{"s":"中文\\u2028"}'])
+    expect(joinRelayParts(parts[0], parts[1])).toEqual({ jsonrpc: '2.0', id: 42, result: { s: '中文\u2028' } })
+    const note = relayParts({ jsonrpc: '2.0', method: 'a.b', params: new RawJson('[1]') })!
+    expect(joinRelayParts(note[0], note[1])).toEqual({ jsonrpc: '2.0', method: 'a.b', params: [1] })
+    expect(joinRelayParts(note[0], '{oops')).toMatchObject({ failure: 'bad' })
+    expect(joinRelayParts({ a: 1 }, '{}')).toMatchObject({ failure: 'not-jsonrpc' })
+  })
+
+  test('encodeLine（Host → Core）是一整条 JSON；误带 RawJson 载荷时序列化的是值（toJSON 兜底）', () => {
+    expect(encodeLine(samples[0]!)).toBe(`${JSON.stringify(samples[0])}\n`)
+    const raw = new RawJson('{"v":1}')
+    expect(encodeLine({ jsonrpc: '2.0', method: 'a.b', params: raw })).toBe(
+      '{"jsonrpc":"2.0","method":"a.b","params":{"v":1}}\n',
+    )
+  })
+
+  test('RawJson.value 只解析一次；jsonValue 对普通值原样返回', () => {
+    const raw = new RawJson('{"v":[1]}')
+    const first = raw.value()
+    expect(raw.value()).toBe(first)
+    expect(jsonValue(raw)).toBe(first)
+    const plain = { v: 1 }
+    expect(jsonValue(plain)).toBe(plain)
   })
 })

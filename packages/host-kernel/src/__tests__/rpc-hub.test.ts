@@ -8,7 +8,7 @@ import {
   defineNotification,
 } from '@poietica/contract-kit'
 import { AppError, SystemErrorCode } from '@poietica/foundation'
-import { Router, RpcPeer, type Transport } from '@poietica/rpc'
+import { RawJson, Router, RpcPeer, type Transport } from '@poietica/rpc'
 import { createTestLogger, transportPair } from '@poietica/test-kit'
 import { z } from 'zod'
 import type { CoreStatus, CoreSupervisor } from '../core-supervisor'
@@ -362,5 +362,62 @@ describe('RpcHub', () => {
     expect(seen).toEqual(['ready'])
     expect(caller.status().state).toBe('ready')
     d.dispose()
+  })
+
+  describe('P6 Host 只看信封：Core 的载荷原样转交', () => {
+    /** 记下 value() 被调了几次：Host 转交时不该解析 */
+    class CountingRaw extends RawJson {
+      calls = 0
+      override value(): unknown {
+        this.calls += 1
+        return super.value()
+      }
+    }
+
+    test('Core 通知：没有旁听者时不解析，窗口收到的值与 Core 发出的一致', async () => {
+      const { hub, attach } = makeHub()
+      const { peer, onNotification } = attach(fakeWindow(1))
+      const raw = new CountingRaw('{"v":7}')
+      hub.fromCore('conversation.changed', raw)
+      await new Promise((r) => setTimeout(r, 5))
+      expect(raw.calls).toBe(0)
+      expect(onNotification.get('conversation.changed')).toEqual([{ v: 7 }])
+      peer.dispose()
+    })
+
+    test('Core 通知：有旁听者时只解析一次，旁听者拿到值', () => {
+      const { hub } = makeHub()
+      const heard: Array<{ v: number }> = []
+      const caller = hub.coreCaller()
+      caller.on(coreContract, 'conversation.changed', (p) => heard.push(p))
+      caller.on(coreContract, 'conversation.changed', (p) => heard.push(p))
+      hub.fromCore('conversation.changed', new CountingRaw('{"v":8}'))
+      expect(heard).toEqual([{ v: 8 }, { v: 8 }])
+    })
+
+    test('UI 请求 core 方法：Hub 不解析结果，窗口收到原值', async () => {
+      const { attach, sup } = makeHub()
+      const { peer } = attach(fakeWindow(1))
+      const raw = new CountingRaw('{"items":["中文"]}')
+      sup.setForwardImpl(async () => raw)
+      sup.setStatus({ state: 'ready', reason: null, attempt: 0 })
+      expect(await peer.request('conversation.list', {})).toEqual({ items: ['中文'] })
+      expect(raw.calls).toBe(0)
+      peer.dispose()
+    })
+
+    test('Core 调 Host 方法与 coreCaller().call：RawJson 解析后才交给路由 / 契约校验', async () => {
+      const { hub, sup } = makeHub()
+      expect(
+        await hub.handleFromCore('platform.ping', new CountingRaw('{}'), {
+          id: 1,
+          signal: new AbortController().signal,
+          meta: undefined,
+        }),
+      ).toEqual({ pong: true })
+      sup.setForwardImpl(async () => new CountingRaw('{"items":["x"]}'))
+      sup.setStatus({ state: 'ready', reason: null, attempt: 0 })
+      expect(await hub.coreCaller().call(coreContract, 'conversation.list', {})).toEqual({ items: ['x'] })
+    })
   })
 })

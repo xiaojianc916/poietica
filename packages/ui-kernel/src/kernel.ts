@@ -1,6 +1,13 @@
 import { type Contract, SYSTEM_CONTRACT_ID } from '@poietica/contract-kit'
 import { AppError, createServiceRegistry, type Disposable, SystemErrorCode, sortModules } from '@poietica/foundation'
-import { BRIDGE_GLOBAL, createTypedClient, RpcPeer, type WindowBridge } from '@poietica/rpc'
+import {
+  BRIDGE_GLOBAL,
+  createTypedClient,
+  type PreloadBridge,
+  RpcPeer,
+  type WindowBridge,
+  windowBridgeFromPreload,
+} from '@poietica/rpc'
 import { createWindowBridgeTransport } from './bridge-transport'
 import { createUiChannel, type UiChannel } from './channel'
 import { ContributionRegistry } from './contribution'
@@ -28,8 +35,10 @@ export interface UiKernel {
 }
 
 export function createUiKernel(opts: UiKernelOptions): UiKernel {
-  const bridge = opts.bridge ?? (globalThis as unknown as Record<string, WindowBridge>)[BRIDGE_GLOBAL]
-  if (bridge === undefined) throw new Error('preload 没有暴露 bridge：请检查 BrowserWindow 的 preload 配置')
+  const preload = (globalThis as unknown as Record<string, PreloadBridge | undefined>)[BRIDGE_GLOBAL]
+  if (opts.bridge === undefined && preload === undefined) {
+    throw new Error('preload 没有暴露 bridge：请检查 BrowserWindow 的 preload 配置')
+  }
   const registry = new ContributionRegistry()
   const services = createServiceRegistry()
   const kernelServices = registerKernelServices({
@@ -39,6 +48,11 @@ export function createUiKernel(opts: UiKernelOptions): UiKernel {
     defaultRoute: opts.defaultRoute,
   })
   const logger = kernelServices.logging.logger
+  const bridge: WindowBridge =
+    opts.bridge ??
+    windowBridgeFromPreload(preload as PreloadBridge, (sample) =>
+      logger.warn('丢弃一条无法解析的 Host 消息', { sample }),
+    )
   const transport = createWindowBridgeTransport(bridge)
   // channel 只会在 start() 之后被通知引用，那时一定已赋值
   let channel: UiChannel

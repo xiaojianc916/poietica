@@ -5,7 +5,7 @@
 ## 1. 项目速览
 ​
 - Windows 本地 AI agent 桌面应用（AGPL-3.0）。三个进程：**UI**（Electron 渲染进程，React）↔ **Host**（Electron 主进程）↔ **Core**（`poietica-core.exe`，Bun 编译）。
-- UI↔Host 走 IPC `poietica:rpc`，Host↔Core 走 stdio（`\x1e` 分帧），两段都是 JSON-RPC 2.0。Host 的 `CoreSupervisor` 负责看护 Core：Core 会崩溃、会重启，UI 必须能重新同步。
+- UI↔Host 走 IPC `poietica:rpc`，Host↔Core 走 stdio（`\x1e` 分帧），两段都是 JSON-RPC 2.0。Core → Host 的帧拆成「信封 `\x1f` 载荷」：Host 只解析信封做路由，载荷以 JSON 文本原样转交、由页面解析（`packages/rpc/src/frame-bytes.ts`）；Host 代码要用 Core 载荷的值一律经 `jsonValue()`。Host 的 `CoreSupervisor` 负责看护 Core：Core 会崩溃、会重启，UI 必须能重新同步。
 - 每个进程一个微内核（`core-kernel` / `host-kernel` / `ui-kernel`），功能以模块或贡献的形式插进去。外壳（`workbench`）只渲染贡献点，不认识任何具体功能。
 - agent 引擎是 omp（Oh My Pi，`@oh-my-pi/*` 的版本锁在根 `package.json` 的 catalog），只经 `@poietica/engine` 端口接入，唯一实现是 `packages/engine-omp`。omp 随包发布，数据落在 `%APPDATA%\Poietica\omp\`，与用户机器上的全局 omp 完全隔离。
 ​

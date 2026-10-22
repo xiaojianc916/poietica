@@ -87,6 +87,12 @@ L0  基础         foundation
 CoreSupervisor（启动/重启/关闭 Core，含退避与 crash loop 判定）、IPC 传输、窗口注册表、
 `poietica-asset://` 协议、退出协调、日志落盘。
 
+Host 是总机，不碰 Core 的载荷：Core 写 `\x1e` 信封 `\x1f` 载荷 `\n`，Host 按字节切帧、只 JSON.parse
+信封（`rpc/frame-bytes.ts`），载荷解成字符串留作 `RawJson`，转交时以「信封对象 + 载荷 JSON 文本」两个 IPC
+参数发给页面（`relayParts`），字符串跨 contextBridge 不拷贝，页面 JSON.parse 一次（`windowBridgeFromPreload`）。
+Host 自己要用的值（`core.ready`、旁听的通知、Host 发起的 core 调用、Core 调 Host 的方法）经 `jsonValue()` 取。
+UI → Host → Core 方向不变（消息对象 / 整条 JSON 行）。
+
 ### 4.3 UI（Electron 渲染进程）
 
 `ui-kernel` 提供：功能定义（`defineUiFeature`）、贡献点（`defineContributionPoint`）、内核服务

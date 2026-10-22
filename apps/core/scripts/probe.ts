@@ -4,7 +4,7 @@ import path from 'node:path'
 import { LineSplitter, systemClock, withTimeout } from '@poietica/foundation'
 import { createLogger, stderrJsonSink } from '@poietica/logging'
 import { PROTOCOL_VERSION } from '@poietica/protocol'
-import { RpcPeer } from '@poietica/rpc'
+import { jsonValue, RpcPeer } from '@poietica/rpc'
 import { createChildProcessTransport } from '@poietica/rpc/stdio'
 import { buildCoreLaunch, type DataLayout, dataLayout } from '@poietica/runtime-layout'
 
@@ -71,7 +71,7 @@ async function main(): Promise<void> {
       transport,
       logger: createLogger({ level: 'error', sinks: [stderrJsonSink()] }),
       onNotification: (method, params) => {
-        if (method === 'core.ready') ready = params as typeof ready
+        if (method === 'core.ready') ready = jsonValue(params) as typeof ready
       },
     })
 

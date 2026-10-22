@@ -27,7 +27,7 @@
 
 三个进程、三个微内核：**UI**（Electron 渲染进程，React）↔ **Host**（Electron 主进程）↔
 **Core**（`poietica-core.exe`，Bun 编译）。UI↔Host 走 IPC `poietica:rpc`，Host↔Core 走 stdio
-（`\x1e` 分帧），两段都是 JSON-RPC 2.0。
+（`\x1e` 分帧），两段都是 JSON-RPC 2.0；Host 只看信封做路由，Core 的载荷以文本原样转交给页面解析。
 
 ```
 ┌────────── UI 进程 ──────────┐ ┌────────── Host 进程 ─────────┐ ┌────────── Core 进程 ─────────┐

@@ -14,7 +14,7 @@ import {
   withTimeout,
 } from '@poietica/foundation'
 import { killTree, type ProcessInfo } from '@poietica/process-kit'
-import { type InboundContext, type RpcMeta, RpcPeer } from '@poietica/rpc'
+import { type InboundContext, jsonValue, type RpcMeta, RpcPeer } from '@poietica/rpc'
 import { createChildProcessTransport } from '@poietica/rpc/stdio'
 import { buildCoreLaunch, CORE_EXIT_CODES, CORE_SHUTDOWN_BUDGET_MS, type DataLayout } from '@poietica/runtime-layout'
 import type { CoreOutputSink } from './core-output'
@@ -364,7 +364,8 @@ export class CoreSupervisor {
       logger: this.o.logger,
       onRequest: this.o.onRequest,
       onNotification: (method, params) => {
-        if (method === 'core.ready') ready.resolve(params as ReadyPayload)
+        // 载荷是 RawJson（rpc/frame-bytes.ts）：Host 自己要读的只有这一条，其余原样交给 Hub 转交
+        if (method === 'core.ready') ready.resolve(jsonValue(params) as ReadyPayload)
         else this.o.onNotification(method, params)
       },
     })

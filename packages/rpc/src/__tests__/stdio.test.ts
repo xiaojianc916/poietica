@@ -1,7 +1,8 @@
 import { describe, expect, test } from 'bun:test'
 import { EventEmitter } from 'node:events'
 import { PassThrough } from 'node:stream'
-import type { RpcMessage } from '../messages'
+import { decodeMessage, encodeFrame, jsonValue, RawJson } from '../frame'
+import type { NotificationMessage, RpcMessage } from '../messages'
 import { createChildProcessTransport, createStdioTransport } from '../stdio'
 
 const message = (method: string): RpcMessage => ({ jsonrpc: '2.0', method, params: {} })
@@ -22,14 +23,13 @@ describe('createStdioTransport（Core 侧）', () => {
     expect(received).toEqual([message('a.b')])
   })
 
-  test('send → writeFrame 收到 \\x1e{…}\\n', () => {
+  test('send → writeFrame 收到 \\x1e信封\\x1f载荷\\n', () => {
     const input = new PassThrough()
     const frames: string[] = []
     const transport = createStdioTransport({ input, writeFrame: (f) => frames.push(f), onStray: () => {} })
     transport.send(message('a.b'))
-    expect(frames[0]?.startsWith('\x1e')).toBe(true)
-    expect(frames[0]?.endsWith('\n')).toBe(true)
-    expect(JSON.parse(frames[0]!.slice(1))).toEqual(message('a.b'))
+    expect(frames[0]).toBe('\x1e{"jsonrpc":"2.0","method":"a.b"}\x1f{}\n')
+    expect(decodeMessage(frames[0]!.slice(1, -1))).toEqual(message('a.b'))
   })
 
   test('stdin end() → onClose("stdin closed")', async () => {
@@ -76,6 +76,20 @@ describe('createChildProcessTransport（Host 侧）', () => {
     await Bun.sleep(1)
     expect(strays).toEqual(['noise from native'])
     expect(received).toEqual([message('a.b')])
+  })
+
+  test('新帧：载荷留成 RawJson（Host 不解码、不解析），信封照常交付', async () => {
+    const { child, stdout } = fakeChild()
+    const received: RpcMessage[] = []
+    const transport = createChildProcessTransport(child, { onStray: () => {} })
+    transport.onMessage((m) => received.push(m))
+    stdout.write(encodeFrame({ jsonrpc: '2.0', method: 'a.b', params: { s: '中文' } }))
+    await Bun.sleep(1)
+    expect(received).toHaveLength(1)
+    const params = (received[0] as NotificationMessage).params
+    expect(params).toBeInstanceOf(RawJson)
+    expect((params as RawJson).text).toBe('{"s":"中文"}')
+    expect(jsonValue(params)).toEqual({ s: '中文' })
   })
 
   test('emit exit → onClose("exit 0")；close 结束 stdin；stdin error 不抛出', async () => {
