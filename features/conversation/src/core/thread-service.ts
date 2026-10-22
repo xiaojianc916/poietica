@@ -8,7 +8,7 @@ import type { ReclaimRepository } from './reclaim-repository'
 import type { ThreadRow, ThreadsRepository } from './repository'
 import { threadOf } from './repository'
 import type { TimelineHub } from './timeline-hub'
-import { deriveTitle, forkTitleOf, normalizeTitle, PENDING_TITLE } from './title'
+import { deriveTitle, forkTitleOf, LEAKED_MARKUP_PREFIX, normalizeTitle, PENDING_TITLE } from './title'
 
 /** 附件引用的 ownerKey 拼法：'<功能 id>:<实体>:<id>' */
 export const OWNER_KEY = (threadId: string): string => `conversation:thread:${threadId}`
@@ -169,7 +169,12 @@ export class ThreadService {
   setTitleFromSession(threadId: string, title: string, source: 'auto' | 'user', sessionFile: string): void {
     const row = this.d.repo.get(threadId)
     if (row === null || row.sessionFile !== sessionFile) return
-    const next = normalizeTitle(title)
+    /*
+     * 标题模型偶发不按格式输出，整段标注会随正文一起落进会话名（`<｜｜DSML｜｜ …>评估将项目迁移到 GPUI`）。
+     * omp 的兜底只剥思考链与 `<title>` 标签，这道防护只能补在宿主这里；剥空就留原串，不给线程起空名字。
+     */
+    const cleaned = title.replace(LEAKED_MARKUP_PREFIX, '')
+    const next = normalizeTitle(cleaned === '' ? title : cleaned)
     if (next === '' || (next === row.title && row.titleSource === source)) return
     if (source === 'user') {
       this.d.repo.update(threadId, { title: next, titleSource: 'user' })

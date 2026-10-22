@@ -15,6 +15,17 @@ export function normalizeTitle(title: string): string {
   return Array.from(title.trim()).slice(0, MAX_STORED_CHARS).join('')
 }
 
+/**
+ * 标题模型不按格式输出时泄漏到标题开头的标注段。
+ *
+ * 真实故障：`<｜｜DSML｜｜ parameter name="title">评估将项目迁移到 GPUI` —— DeepSeek 走的是 DSML 方言，
+ * 没输出约定的 `<title>…</title>`，omp 的 `extractGeneratedTitle` 兜底只剥思考链与 `<title>` 标签，
+ * 于是整段 `<…>` 连着正文一起被当成会话名。上游没有这道防护（源码里搜 `DSML` 零命中），所以补在宿主这一侧。
+ *
+ * 只认**开头这一段**、长度有界、不含换行：正常的标题不会以 `<` 起头。
+ */
+export const LEAKED_MARKUP_PREFIX = /^<[^>\n]{0,120}>\s*/u
+
 /* 结尾的分叉后缀串：（分支）、（分支）（分支）、（分支2）… 只认贴着名字末尾的那一串。 */
 const FORK_SUFFIX_RUN = /(?:（分支(?:\d+)?）)+/gu
 
