@@ -114,3 +114,36 @@
     transition: none;
   }
 }
+
+/*
+ * 正在生成标题：与时间线「正在进行」同一种画法（一道扫过字的光，见 timeline 的 shimmer.css）。threads 区不引别区的样式，
+ * 这里照那一份的写法另写一条；只动 background-position，不碰会改高度的属性。
+ */
+.conversation-title__text[data-titling="true"] {
+  color: var(--cp-ink-subtle);
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .conversation-title__text[data-titling="true"] {
+    background-image:
+      linear-gradient(90deg, transparent 40%, var(--cp-ink) 50%, transparent 60%),
+      linear-gradient(var(--cp-ink-subtle), var(--cp-ink-subtle));
+    background-repeat: no-repeat, repeat;
+    background-size:
+      250% 100%,
+      auto;
+    background-clip: text;
+    color: transparent;
+    animation: conversation-title-titling 2000ms linear infinite;
+  }
+}
+
+@keyframes conversation-title-titling {
+  from {
+    background-position: 100% center;
+  }
+
+  to {
+    background-position: 0% center;
+  }
+}

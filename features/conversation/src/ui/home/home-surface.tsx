@@ -18,7 +18,7 @@ import {
   useCommandCatalog,
   withoutHiddenModels,
 } from '../session'
-import type { ThreadCommands } from '../shared/model/commands'
+import type { CommandOutputNotice, ThreadCommands } from '../shared/model/commands'
 import type { SessionConfigControl } from '../shared/model/config'
 import { GOAL_CONTROL_ID, GOAL_DISABLED, GOAL_ENABLED } from '../shared/model/goal-control'
 import type { PreparedThread } from '../timeline'
@@ -195,21 +195,29 @@ export function HomeSurface({
     void entryDefaults?.flush().catch(() => undefined)
   }
 
-  /* 入口页的斜杠命令：表按工作区读；执行 = 先铸出这条对话，再交给组合根跳过去执行。铸号失败就写在命令输出那一块。 */
+  /*
+   * 入口页的斜杠命令：表按工作区读。走到这里的只有「交给模型的一段话」那一类（/review、文件命令……）：
+   * 先铸出这条对话，再交给组合根跳过去执行 —— 与发出第一句话同一件事。打开控件、打开设置页的那些命令由表面就地办，
+   * 不铸号（原先任何命令都先 prepare()，敲一条 /model 就多一条空对话）。铸号失败由表面报成横幅。
+   */
   const catalog = useCommandCatalog(api, view.active?.id ?? null)
-  const [commandFailure, setCommandFailure] = useState<ThreadCommands['output']>(null)
+  const [commandFailure, setCommandFailure] = useState<CommandOutputNotice | null>(null)
   const commands = useMemo<ThreadCommands>(
     () => ({
       list: catalog,
       output: commandFailure,
-      dismissOutput: () => setCommandFailure(null),
       run: async (text: string) => {
         const command = text.trim()
         try {
           const prepared = await prepare()
           if (prepared !== null) onStartCommand(prepared.key, command)
         } catch (error) {
-          setCommandFailure({ command, lines: [error instanceof Error ? error.message : String(error)] })
+          setCommandFailure((held) => ({
+            seq: (held?.seq ?? 0) + 1,
+            command,
+            text: error instanceof Error ? error.message : String(error),
+            tone: 'error',
+          }))
         }
       },
     }),

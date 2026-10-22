@@ -14,11 +14,10 @@ import {
   useState,
 } from 'react'
 import type { Thread } from '../../contract'
-import { composerContextItems, threadHeaderItems } from '../../ui-api'
+import { composerContextItems, slashCommands, threadHeaderItems } from '../../ui-api'
 import type { PermissionDockProps, PromptInputHandle, PromptInputMessage } from '../composer'
 import {
   AssistantComposer,
-  CommandOutputDock,
   ComposerDraftKeyContext,
   ComposerNotice,
   PromptQueue,
@@ -26,13 +25,7 @@ import {
   useAgentToolkit,
   useDockClearance,
 } from '../composer'
-import {
-  type CommandShortcut,
-  commandShortcutOf,
-  hasCommand,
-  matchCommand,
-  type ThreadCommands,
-} from '../shared/model/commands'
+import type { ThreadCommands } from '../shared/model/commands'
 import type { SessionConfigControl } from '../shared/model/config'
 import type { SessionGoal } from '../shared/model/goal'
 import type { GoalActionHandler } from '../shared/model/goal-control'
@@ -50,6 +43,7 @@ import {
 import { ThreadTitleMenu } from '../threads'
 import type { PreparedThread } from '../timeline'
 import { type AssistantSession, TranscriptView, useAssistantInteractions, useAssistantSession } from '../timeline'
+import { useSlashCommands } from './command-dispatch'
 import { EmotionBall, ENTRY_EMOTION_GROUPS } from './mascot/emotion-ball'
 
 /* 连不上 agent 时输入区上沿那一句；原文（controlsFailure）只做 title。 */
@@ -191,80 +185,10 @@ function useDismissed(message: string | null): readonly [boolean, () => void] {
 /** **不走**淡出：后面挂着未了的事（取回正文重发）；Banner 无「永久」档，所以报一个够长的数。 */
 const FAILURE_HOLD_MS = 60 * 60 * 1000
 
-/**
- * 斜杠命令的路由收在这一处，不摊进 AssistantSurface。命令只有一个入口：草稿里的 `/名字`（手打回车，
- * 或在斜杠面板里选中 —— 面板把名字放回草稿再提交，到这里是同一句话）。
- * 行首点名了表里的一条命令、又没挂附件与技能，交给 omp 的命令路由，不当一句话发给模型；
- * 表里没有的 `/xxx`（路径、随手打的斜杠）照常发 —— 判据是 omp 的命令表，不是「以斜杠开头」。
- *
- * 不带参数的 `/model`、`/rename`、`/context` 不交给 omp：直接打开模型选择器 / 标题改名框 / 上下文面板
- * （commandShortcutOf）。那个控件此刻给不出来（模型表还没确认、没有改名动作、还没有用量）就照常交给 omp，
- * 不吞掉这一句。
- */
-function useCommandRouting(
-  commands: ThreadCommands | undefined,
-  context: {
-    readonly controls: readonly SessionConfigControl[]
-    readonly controlsPending: boolean | undefined
-    readonly thread: Thread | undefined
-    readonly onRenameThread: AssistantSurfaceProps['onRenameThread']
-    readonly usage: SessionUsage | undefined
-  },
-) {
-  /* 每个控件此刻给不给得出来；给不出来的那条命令照常交给 omp */
-  const modelPicker =
-    context.controlsPending !== true && context.controls.some((control) => control.purpose === 'model')
-  const rename = context.thread !== undefined && context.onRenameThread !== undefined
-  const contextPanel = context.usage !== undefined && context.usage.size > 0
-  /* 请求号：每敲一次就加一，控件见号变了就打开一次（见 SessionControls / ThreadTitleMenu / ContextGauge 的 openRequest） */
-  const [requests, setRequests] = useState<Readonly<Partial<Record<CommandShortcut, number>>>>({})
-  const routeCommand = useCallback(
-    (message: Omit<PromptInputMessage, 'queued'>): boolean => {
-      if (commands === undefined || message.assets.length > 0 || message.skills.length > 0) return false
-      if (matchCommand(commands.list, message.text) === null) return false
-      const shortcut = commandShortcutOf(commands.list, message.text)
-      const available: Readonly<Record<CommandShortcut, boolean>> = {
-        'context-panel': contextPanel,
-        'model-picker': modelPicker,
-        rename,
-      }
-      if (shortcut !== null && available[shortcut]) {
-        commands.dismissOutput()
-        setRequests((held) => ({ ...held, [shortcut]: (held[shortcut] ?? 0) + 1 }))
-        return true
-      }
-      void commands.run(message.text)
-      return true
-    },
-    [commands, contextPanel, modelPicker, rename],
-  )
-  /* 重试钮只是命令的快捷方式：同一条 commands.run，结果落进同一块命令输出。 */
-  const canRetry = commands !== undefined && hasCommand(commands.list, 'retry')
-  const retry = useCallback(() => {
-    void commands?.run('/retry')
-  }, [commands])
-  const dismissOutput = useCallback(() => {
-    commands?.dismissOutput()
-  }, [commands])
-  return {
-    contextPanelRequest: requests['context-panel'],
-    dismissOutput,
-    modelPickerRequest: requests['model-picker'],
-    renameRequest: requests.rename,
-    retry: canRetry ? retry : undefined,
-    routeCommand,
-  }
-}
-
-function CommandOutputSlot({ commands }: { readonly commands: ThreadCommands | undefined }) {
-  if (commands?.output == null) return null
-  return (
-    <CommandOutputDock
-      command={commands.output.command}
-      lines={commands.output.lines}
-      onDismiss={commands.dismissOutput}
-    />
-  )
+/* 别的功能贡献的斜杠命令（/mcp、/usage……）：贡献表的引用随注册变化，拍平成命令本体交给清单 */
+function useContributedCommands() {
+  const contributions = useContributions(slashCommands)
+  return useMemo(() => contributions.map(({ item }) => item), [contributions])
 }
 
 /** 本机的乐观记录优先，其次是 Core 库里那一行 —— 排队 / 插话只有后者。 */
@@ -298,14 +222,12 @@ function ComposerPreconditions({
 /* 提交这一句：搬出组件是为了让表面本体只留装配（复杂度上限 20）。 */
 function useSubmit({
   assistant,
-  dismissOutput,
   routeCommand,
   setPhase,
   onBlocked,
   workspaceRequired,
 }: {
   readonly assistant: AssistantSession
-  readonly dismissOutput: () => void
   readonly routeCommand: (message: Omit<PromptInputMessage, 'queued'>) => boolean
   readonly setPhase: (phase: 'entry' | 'live') => void
   readonly onBlocked: () => void
@@ -318,16 +240,18 @@ function useSubmit({
         onBlocked()
         return
       }
-      setPhase('live')
+      /*
+       * 命令先认：认下了就不转场 —— 入口页敲 `/model`、`/settings` 不该把页面切成一条空对话（真实故障）。
+       * 交给模型的那类命令（/review）会铸出对话并跳过去，转场由那条对话的表面负责。
+       */
       if (routeCommand(message)) {
         return
       }
-      /* 说下一句话时，上一条命令的结果就算看过了：收起来，不在输入框上方一直挂着 */
-      dismissOutput()
+      setPhase('live')
       /* 失败由横幅说：正常发送不看回执。 */
       void assistant.send(message, queued === true ? 'followUp' : undefined)
     },
-    [assistant.send, dismissOutput, onBlocked, routeCommand, workspaceRequired, setPhase],
+    [assistant.send, onBlocked, routeCommand, workspaceRequired, setPhase],
   )
 }
 
@@ -410,15 +334,33 @@ export const AssistantSurface = memo(function AssistantSurface({
 
   /* 把手两个读者：外面写草稿，这层取回队列那句改；铺一条回调 ref 分给两边。 */
   const draft = useRef<PromptInputHandle | null>(null)
-  const { contextPanelRequest, dismissOutput, modelPickerRequest, renameRequest, retry, routeCommand } =
-    useCommandRouting(commands, { controls, controlsPending, onRenameThread, thread, usage })
+  const restoreDraft = useCallback((text: string) => {
+    draft.current?.restore(text, [])
+  }, [])
+  const slash = useSlashCommands({
+    commands,
+    contributed: useContributedCommands(),
+    controls,
+    controlsPending,
+    endpoint,
+    isNew,
+    onExportThread,
+    onRenameThread,
+    onSelectControl,
+    onShareThread,
+    restore: restoreDraft,
+    services: kernel.kernelServices,
+    status: assistant.status,
+    thread,
+    todo: todoThread,
+    usage,
+  })
 
   /* 发言就是那次转场，先于 send：这一刻起就是对话而非入口。`queued` 是人点名的「排队」，跑着时走 followUp 不打断。 */
   const submit = useSubmit({
     assistant,
-    dismissOutput,
     onBlocked: showProjectRequired,
-    routeCommand,
+    routeCommand: slash.route,
     setPhase,
     workspaceRequired,
   })
@@ -467,19 +409,17 @@ export const AssistantSurface = memo(function AssistantSurface({
       )}
       <PromptQueue onEdit={edit} queue={assistant.queue} />
 
-      <CommandOutputSlot commands={commands} />
-
       {/* 输入区上沿的两条前置条件：连不上 agent / 还没选项目。 */}
       <ComposerPreconditions controlsFailure={controlsFailure} onRetryControls={onRetryControls} />
 
       <AssistantComposer
         approval={approval}
-        commands={commands?.list}
-        contextPanelRequest={contextPanelRequest}
+        commands={slash.list}
+        contextPanelRequest={slash.contextPanelRequest}
         controls={controls}
         controlsPending={controlsPending}
         mcpServers={mcpServers}
-        modelPickerRequest={modelPickerRequest}
+        modelPickerRequest={slash.modelPickerRequest}
         onAnswerDialog={assistant.answerDialog}
         onAnswerQuestions={assistant.answerQuestions}
         onCancel={assistant.cancel}
@@ -517,8 +457,9 @@ export const AssistantSurface = memo(function AssistantSurface({
           onPin={onPinThread}
           onShare={onShareThread}
           onRename={onRenameThread}
-          renameRequest={renameRequest}
+          renameRequest={slash.renameRequest}
           thread={thread}
+          titling={slash.titling}
         />
 
         <ThreadHeaderItems thread={thread} />
@@ -539,7 +480,7 @@ export const AssistantSurface = memo(function AssistantSurface({
             <TranscriptView
               dockClearance={clearance.value}
               onFork={onFork}
-              onRetry={retry}
+              onRetry={slash.retry}
               onRewrite={onRewrite}
               sessionKey={assistant.key}
             />

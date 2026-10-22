@@ -1,5 +1,6 @@
 import type {
   AgentEngine,
+  CommandOutputTone,
   ContextUsage,
   Controls,
   EngineSessionEvent,
@@ -42,7 +43,7 @@ export interface ConversationCoreDeps {
   /** 上下文用量单独报（见契约里 controls.contextChanged 的头注：它不搭控件那班车） */
   readonly emitContextUsage: (p: { threadId: string; usage: ContextUsage | null }) => void
   /** 斜杠命令的输出与命令表变化（commands.output / commands.changed） */
-  readonly emitCommandOutput: (p: { threadId: string; text: string }) => void
+  readonly emitCommandOutput: (p: { threadId: string; text: string; tone: CommandOutputTone }) => void
   readonly emitCommandsChanged: (p: { threadId: string }) => void
   /** 侧边提问（右坞辅助对话）的三条通知：side.topic / side.delta / side.notice */
   readonly emitSideTopic: (p: { threadId: string; topic: SideTopic }) => void

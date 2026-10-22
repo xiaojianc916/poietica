@@ -25473,7 +25473,7 @@
     {
       "name": "commands.output",
       "owner": "core",
-      "description": "斜杠命令给人的一段输出（不进会话文件，只画一次）",
+      "description": "斜杠命令给人的一段输出（不进会话文件，只画一次）；tone 决定横幅的色调",
       "params": {
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "type": "object",
@@ -25484,11 +25484,21 @@
           },
           "text": {
             "type": "string"
+          },
+          "tone": {
+            "type": "string",
+            "enum": [
+              "info",
+              "success",
+              "warning",
+              "error"
+            ]
           }
         },
         "required": [
           "threadId",
-          "text"
+          "text",
+          "tone"
         ],
         "additionalProperties": false
       }

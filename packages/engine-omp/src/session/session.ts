@@ -25,7 +25,7 @@ import type { InteractionBroker } from '../interactions/broker'
 import type { FileAttachmentInput, ImageAttachmentInput, LiveProjector } from '../projector/live'
 import type { MediaRef } from '../projector/media'
 import { OpenTurnScreen, overlayOpenTurn } from '../projector/open-turn'
-import { commandErrorText, commandOutputText } from './command-output'
+import { commandErrorOf, commandOutputOf } from './command-output'
 import { describeError } from './event-faults'
 import type { LoadedImage } from './prompt'
 import { type SkillPromptMessage, wireTextOf } from './prompt'
@@ -812,10 +812,10 @@ export class OmpSession implements EngineSession {
       if (source === 'builtin') {
         const result = await this.o.runBuiltinCommand(line, {
           signal,
-          /* 已在别处体现的结果（压缩行、标题、模型胶囊）不推；认得的句子换成中文（command-output.ts） */
+          /* 已在别处体现的结果（压缩行、标题、模型胶囊）不推；认得的句子换成中文并定色调（command-output.ts） */
           output: (chunk) => {
-            const text = commandOutputText(chunk)
-            if (text !== null) this.emit({ type: 'commandOutput', text })
+            const said = commandOutputOf(chunk)
+            if (said !== null) this.emit({ type: 'commandOutput', text: said.text, tone: said.tone })
           },
           configChanged: () => this.controlsChanged(),
           commandsChanged: () => this.commandsChanged(),
@@ -836,7 +836,8 @@ export class OmpSession implements EngineSession {
     } catch (error) {
       const mapped = toEngineError(error)
       /* 命令轮收口会整页重取，挂在这一轮上的报错帧也会随之消失：失败原文改走命令输出那一块 */
-      this.emit({ type: 'commandOutput', text: commandErrorText(mapped.message) })
+      const said = commandErrorOf(mapped.message)
+      this.emit({ type: 'commandOutput', text: said.text, tone: said.tone })
       this.closeTurnAfterRun('failed', mapped.message, { code: mapped.code, message: mapped.message })
     }
   }

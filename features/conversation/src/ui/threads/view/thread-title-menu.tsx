@@ -29,7 +29,14 @@ export interface ThreadTitleMenuProps {
    * 计数而不是布尔：改完再敲一次 `/rename` 也得再进一次。
    */
   readonly renameRequest?: number | undefined
+  /**
+   * 正在按对话内容生成标题（不带标题的 `/rename`）：标题那一格换成一道扫光的「正在生成标题…」，
+   * 新标题到了（线程库推回来）或生成失败（横幅另说）时由调用方收回。
+   */
+  readonly titling?: boolean | undefined
 }
+
+const TITLING = '正在生成标题…'
 
 function TitleRenameField({
   initial,
@@ -105,13 +112,20 @@ function TitleRenameField({
 function TitleLabel({
   onRename,
   title,
+  titling,
 }: {
   readonly onRename: (() => void) | undefined
   readonly title: string
+  readonly titling: boolean
 }): ReactNode {
-  const text = <span className="conversation-title__text">{title}</span>
+  const text = (
+    <span className="conversation-title__text" data-titling={titling ? 'true' : undefined}>
+      {titling ? TITLING : title}
+    </span>
+  )
 
-  if (onRename === undefined) {
+  /* 生成中不给点：此刻手动改名会和马上到的新标题互相盖 */
+  if (onRename === undefined || titling) {
     return <span className="conversation-title__label conversation-title__label--static">{text}</span>
   }
 
@@ -257,6 +271,7 @@ export function ThreadTitleMenu({
   onShare,
   renameRequest,
   thread,
+  titling = false,
 }: ThreadTitleMenuProps): ReactNode {
   const [isRenaming, setRenaming] = useState(false)
   const [seenRequest, setSeenRequest] = useState(renameRequest)
@@ -296,7 +311,11 @@ export function ThreadTitleMenu({
           }}
         />
       ) : (
-        <TitleLabel onRename={onRename === undefined ? undefined : beginRename} title={thread.title} />
+        <TitleLabel
+          onRename={onRename === undefined ? undefined : beginRename}
+          title={thread.title}
+          titling={titling}
+        />
       )}
 
       {/* 下拉箭头：自己一枚按钮，开菜单。改名期间也留着 —— 菜单里还有别的动作。 */}

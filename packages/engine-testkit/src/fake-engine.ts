@@ -701,7 +701,7 @@ class FakeSession implements EngineSession {
       return
     }
     this.setState('running')
-    this.emit({ type: 'commandOutput', text: `${command.name}: ok` })
+    this.emit({ type: 'commandOutput', text: `${command.name}: ok`, tone: 'success' })
     this.emit({ type: 'timelineReset', agentId: 'main' })
     /* 本地命令（压缩、瘦身）改了上下文却不走轮终：收口补报一次占用，与真引擎同序 */
     this.emit({ type: 'contextUsage', usage: this.o.contextUsage() })

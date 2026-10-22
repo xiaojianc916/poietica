@@ -12,6 +12,9 @@
       "path": "../../../../packages/ui-kernel"
     },
     {
+      "path": "../../../conversation/src/ui-api"
+    },
+    {
       "path": "../contract"
     }
   ]

@@ -1,5 +1,5 @@
-import type { SlashCommand } from '@poietica/engine'
 import { memo, type Ref, useMemo } from 'react'
+import type { ComposerCommand } from '../../shared/model/commands'
 import type { SessionConfigControl } from '../../shared/model/config'
 import type { DialogAnswer } from '../../shared/model/dialog'
 import type { PlanAnswer } from '../../shared/model/plan'
@@ -12,7 +12,7 @@ import type { PromptInputMessage } from '../prompt'
 import { AttachmentTray } from './attachment-tray'
 import { activePromptConfiguration, ComposerActions, ComposerChips, composerPaletteGroups } from './composer-actions'
 import { ContextGauge } from './context-gauge'
-import { PermissionPicker, SessionControls } from './controls'
+import { type ControlsOpenRequest, PermissionPicker, SessionControls } from './controls'
 import { DialogPanel } from './dialog-panel'
 import { PermissionDock, type PermissionDockProps } from './permission-dock'
 import { PlanDock, type PlanDockProps } from './plan-dock'
@@ -45,9 +45,9 @@ export interface AssistantComposerProps {
   readonly skills?: readonly AgentSkill[] | undefined
   readonly mcpServers?: readonly AgentMcpServer[] | undefined
   /** omp 的斜杠命令：草稿敲下行首 `/` 弹出的命令面板；选中执行仍走 onSubmit（收信人按正文认命令） */
-  readonly commands?: readonly SlashCommand[] | undefined
-  /** 每变一次就打开一次模型选择器（斜杠命令 `/model`），见 SessionControls.openRequest */
-  readonly modelPickerRequest?: number | undefined
+  readonly commands?: readonly ComposerCommand[] | undefined
+  /** 每变一次就打开一次模型与档位卡（斜杠命令 `/model`、`/effort`），见 SessionControls.openRequest */
+  readonly modelPickerRequest?: ControlsOpenRequest | undefined
   /** 每变一次就打开一次上下文用量面板（斜杠命令 `/context`），见 ContextGauge.openRequest */
   readonly contextPanelRequest?: number | undefined
   /** Everything the session (or, before one exists, the agent config) offers. */
@@ -149,7 +149,7 @@ function ComposerToolbar({
 }
 
 /* 有命令可用就在占位字里说一声 `/` 能做什么：这是唯一的入口，不说就没人知道（专业 agent 的输入框都这么写）。 */
-function placeholderOf(commands: readonly SlashCommand[] | undefined): string {
+function placeholderOf(commands: readonly ComposerCommand[] | undefined): string {
   return commands === undefined || commands.length === 0 ? '问我任何问题…' : '问我任何问题，输入 / 使用命令'
 }
 

@@ -398,6 +398,13 @@ export const SlashCommand = z.object({
 })
 export type SlashCommand = z.infer<typeof SlashCommand>
 
+/**
+ * 一句命令输出的色调：成功（已切换、已移除）、提示（当前状态、报表）、警告（做不了、没有可做的）、错误（执行失败）。
+ * 由认得原句的适配器定 —— 屏幕据此挑横幅色调，不拿译文去猜成败。
+ */
+export const CommandOutputTone = z.enum(['info', 'success', 'warning', 'error'])
+export type CommandOutputTone = z.infer<typeof CommandOutputTone>
+
 export const Capabilities = z.object({ computerUse: z.boolean(), browserControl: z.boolean() })
 
 /**

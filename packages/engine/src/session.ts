@@ -1,6 +1,7 @@
 import type { Disposable } from '@poietica/foundation'
 import type { TranscriptOperation, TranscriptPage } from '@poietica/transcript'
 import type {
+  CommandOutputTone,
   ContextUsage,
   Controls,
   DeliverAs,
@@ -98,8 +99,12 @@ export type EngineSessionEvent =
     }
   /* 命令表变了（装卸插件、技能 / 自定义命令目录变化、MCP 提示词上线）：调用方重读 `commands()`，事件本身不带表 */
   | { readonly type: 'commandsChanged' }
-  /* 斜杠命令给人的输出（omp 的 runtime.output）。**不进会话文件**，所以不走时间线：屏幕把它画成临时的一块 */
-  | { readonly type: 'commandOutput'; readonly text: string }
+  /*
+   * 斜杠命令给人的输出（omp 的 runtime.output）。**不进会话文件**，所以不走时间线：屏幕把它画成一条横幅。
+   * `tone` 由认得原句的适配器定（它才知道「Fast mode is unavailable」是失败不是成功）：屏幕据此挑横幅的色调，
+   * 不再拿中文去猜成败。
+   */
+  | { readonly type: 'commandOutput'; readonly text: string; readonly tone: CommandOutputTone }
   /*
    * 侧边提问（`askSide`）的三条事件。它们**不碰时间线、不改 state**：侧边一问不进主会话文件，主对话的屏幕与停止键都与它无关。
    * - `sideTopic`：话题的整份快照，每次生命周期变化各发一次（开问、答完、停止、出错）—— 接收方按它整份替换；
