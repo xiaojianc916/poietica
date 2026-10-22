@@ -1,5 +1,3 @@
-import { createHash } from 'node:crypto'
-
 /**
  * 一张图在时间线上的地址 = 原始字节的 sha256（小写十六进制）。与 omp 的 blob 目录是同一套内容寻址
  * （omp `session/blob-store.ts`：文件名就是原始字节的 sha256），所以 Host 只按这个名字去 blob 目录里读字节。
@@ -18,7 +16,7 @@ export function imageBytesOf(data: string): Buffer {
 }
 
 export function sha256Hex(bytes: Uint8Array): string {
-  return createHash('sha256').update(bytes).digest('hex')
+  return Bun.SHA256.hash(bytes, 'hex')
 }
 
 /**

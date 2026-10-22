@@ -16,6 +16,7 @@ import {
   DEFAULT_SCHEDULE_TIME,
   describeSchedule,
   formatGmtOffset,
+  pad2,
   type ScheduleKind,
   scheduleDayOfMonthOf,
   scheduleFor,
@@ -57,8 +58,6 @@ export interface ScheduleValue {
   readonly cron: string | null
   readonly at: number | null
 }
-
-const pad2 = (n: number): string => String(n).padStart(2, '0')
 
 export function localInputOf(at: number): string {
   const d = new Date(at)

@@ -1,5 +1,5 @@
 import { describe, expect, spyOn, test } from 'bun:test'
-import { Emitter, onceEvent } from '../event'
+import { Emitter } from '../event'
 
 describe('Emitter', () => {
   test('fire 通知全部监听器', () => {
@@ -105,22 +105,5 @@ describe('Emitter', () => {
     expect(() => emitter.fire(1)).not.toThrow()
     expect(spy).toHaveBeenCalled()
     spy.mockRestore()
-  })
-})
-
-describe('onceEvent', () => {
-  test('resolve 第一次的值', async () => {
-    const emitter = new Emitter<number>()
-    const promise = onceEvent(emitter.event)
-    emitter.fire(7)
-    expect(await promise).toBe(7)
-  })
-
-  test('signal 中止时 reject', async () => {
-    const emitter = new Emitter<number>()
-    const ac = new AbortController()
-    const promise = onceEvent(emitter.event, ac.signal)
-    ac.abort('stop')
-    await expect(promise).rejects.toBe('stop')
   })
 })

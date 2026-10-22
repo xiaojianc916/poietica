@@ -3,7 +3,6 @@ import { type ChildProcess, spawn } from 'node:child_process'
 import path from 'node:path'
 import { type AppError, noopLogger } from '@poietica/foundation'
 import { jsonValue, RawJson } from '../frame'
-import { createMessagePortTransport } from '../message-port'
 import { RpcPeer } from '../peer'
 import { createChildProcessTransport } from '../stdio'
 import type { Transport } from '../transport'
@@ -114,45 +113,5 @@ describe('stdio 子进程互通', () => {
     await Bun.sleep(150)
     host.transport.close('bye')
     expect(await exited).toBe(0)
-  })
-})
-
-describe('MessageChannel 互通', () => {
-  function messageChannelPair(): [RpcPeer, RpcPeer, Transport] {
-    const channel = new MessageChannel()
-    const left = createMessagePortTransport(channel.port1)
-    const right = createMessagePortTransport(channel.port2)
-    const a = new RpcPeer({ name: 'mc-a', transport: left, logger: noopLogger })
-    const b = new RpcPeer({
-      name: 'mc-b',
-      transport: right,
-      logger: noopLogger,
-      onRequest: async (method, params, ctx) => {
-        if (method === 'echo') return params
-        if (method === 'slow') {
-          await new Promise<void>((resolve, reject) => {
-            ctx.signal.addEventListener('abort', () => reject(new Error('aborted')))
-            setTimeout(resolve, 10_000)
-          })
-          return {}
-        }
-        return {}
-      },
-    })
-    return [a, b, left]
-  }
-
-  test('IO-8 MessageChannel 上的 echo / 超时取消 / 并发 50', async () => {
-    const [client, server, clientTransport] = messageChannelPair()
-    expect(await client.request('echo', { a: 1 })).toEqual({ a: 1 })
-    const error = await client.request('slow', {}, { timeoutMs: 100 }).catch((e: unknown) => e)
-    expect((error as AppError).code).toBe('kernel.timeout')
-    const results = await Promise.all(
-      Array.from({ length: 50 }, (_, i) => client.request('echo', { i }) as Promise<{ i: number }>),
-    )
-    expect(results.map((r) => r.i)).toEqual(Array.from({ length: 50 }, (_, i) => i))
-    client.dispose()
-    server.dispose()
-    clientTransport.close('done')
   })
 })

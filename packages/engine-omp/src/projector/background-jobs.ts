@@ -139,8 +139,8 @@ export class BackgroundJobLedger {
       detached: true,
       description: row.label ?? row.command ?? row.id,
       outputTail: previous?.outputTail ?? '',
-      ...(row.startTime === undefined ? {} : { startedAt: iso(row.startTime) }),
-      ...(row.endTime === undefined ? {} : { endedAt: iso(row.endTime) }),
+      ...(row.startTime === undefined ? {} : { startedAt: new Date(row.startTime).toISOString() }),
+      ...(row.endTime === undefined ? {} : { endedAt: new Date(row.endTime).toISOString() }),
     }
   }
 
@@ -161,8 +161,4 @@ function sameTask(left: TranscriptTask, right: TranscriptTask): boolean {
     left.endedAt === right.endedAt &&
     left.stateReason === right.stateReason
   )
-}
-
-function iso(ms: number): string {
-  return new Date(ms).toISOString()
 }

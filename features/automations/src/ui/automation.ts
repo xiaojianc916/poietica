@@ -3,35 +3,11 @@ import type { Automation, AutomationDraft, AutomationRun, RunOutcome, RunTrigger
 
 /* 照 legacy 逐字搬迁的纯逻辑。差别只有数据形状两处：时间戳由 ISO 字符串换成毫秒数；会话配置换成 AutomationDraft 的三格。 */
 
-const pad2 = (n: number): string => String(n).padStart(2, '0')
+export const pad2 = (n: number): string => String(n).padStart(2, '0')
 
 const MINUTE = 60_000
 const HOUR = 60 * MINUTE
 const DAY = 24 * HOUR
-const SUMMARY_WINDOW = 7 * DAY
-
-export function summarize(
-  automations: readonly Automation[],
-  runsOf: (automationId: string) => readonly AutomationRun[],
-  now = Date.now(),
-): { total: number; succeeded: number; failed: number } {
-  let succeeded = 0
-  let failed = 0
-  for (const automation of automations) {
-    for (const run of runsOf(automation.id)) {
-      const age = now - (run.settledAt ?? run.startedAt)
-      if (!Number.isFinite(age) || age < 0 || age > SUMMARY_WINDOW) {
-        continue
-      }
-      if (run.outcome === 'succeeded') {
-        succeeded += 1
-      } else if (run.outcome === 'failed') {
-        failed += 1
-      }
-    }
-  }
-  return { total: automations.length, succeeded, failed }
-}
 
 export function isTerminal(outcome: RunOutcome): boolean {
   return outcome === 'succeeded' || outcome === 'failed' || outcome === 'cancelled' || outcome === 'skipped'
@@ -83,10 +59,7 @@ const HOURLY_CRON = /^([0-5]?\d) \* \* \* \*$/
 const CLOCK_CRON = /^([0-5]?\d) ([01]?\d|2[0-3]) (\*|[1-9]|[12]\d|3[01]) \* (\*|1-5|[0-7](?:,[0-7])*)$/
 
 function weekdayListOf(field: string): readonly Weekday[] {
-  return field
-    .split(',')
-    .map((day) => (Number(day) % 7) as Weekday)
-    .filter((day, index, days) => days.indexOf(day) === index)
+  return [...new Set(field.split(',').map((day) => (Number(day) % 7) as Weekday))]
 }
 
 function commonScheduleOf(schedule: string | null): CommonSchedule | null {

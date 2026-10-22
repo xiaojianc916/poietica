@@ -69,7 +69,6 @@ export function createConversationServices(setup: ConversationSetup, actions: Co
     )
   }
 
-  // ui-api：给其它功能的服务
   /* 右坞第一格：辅助对话（omp 的 /btw 侧边提问）。order 5 让它排在审查（10）/ 终端（15）/ 浏览器（20）之前。 */
   ctx.contribute(builtinPoints.panels, {
     id: 'conversation.auxiliary',

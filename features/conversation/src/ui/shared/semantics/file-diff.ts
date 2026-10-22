@@ -1,6 +1,4 @@
-import { basename, computeFile, type DiffFile, toDisplayPath } from '@poietica/design-system/diff'
-
-export { basename, toDisplayPath }
+import { computeFile, type DiffFile, toDisplayPath } from '@poietica/design-system/diff'
 
 import type { ToolContentPart } from './tool-call-content'
 

@@ -2,7 +2,7 @@ import './banner.css'
 
 import { CheckCircle, TriangleAlert } from 'lucide-react'
 import type { CSSProperties, ReactNode } from 'react'
-import { Fragment, useEffect, useLayoutEffect, useRef, useState } from 'react'
+import { Fragment, useEffect, useLayoutEffect, useRef } from 'react'
 import { createPortal } from 'react-dom'
 import { useOverlayRef } from '../overlay-presence'
 
@@ -54,8 +54,6 @@ export interface BannerProps {
    * 不知道进度时不给（不要画一条 0% 的轨假装在动）。
    */
   readonly progress?: number
-  /** 横幅横向跟谁对齐中心。不给就居中于视口。 */
-  readonly anchor?: HTMLElement | null
   /** 淡完时叫一次，调用方在这里卸载它。 */
   readonly onDone: () => void
 }
@@ -69,7 +67,7 @@ export interface BannerProps {
  * 停留时长由一条自定义属性同时喂给卸载定时器和样式表的淡出延迟，两边因此不会各说各话、把
  * 横幅卸在淡出一半的地方。重渲不会延长寿命：定时器只认 holdMs。
  */
-export function Banner({ text, icon, tone, actions, holdMs = HOLD_MS, progress, anchor, onDone }: BannerProps) {
+export function Banner({ text, icon, tone, actions, holdMs = HOLD_MS, progress, onDone }: BannerProps) {
   const latestOnDone = useRef(onDone)
 
   useLayoutEffect(() => {
@@ -91,31 +89,7 @@ export function Banner({ text, icon, tone, actions, holdMs = HOLD_MS, progress, 
     }
   }, [holdMs])
 
-  /*
-   * 跟着锚点居中时在窗口缩放上重量一次。横幅一共活四秒上下，这段时间里窗口内部的布局漂移
-   * 不在射程内。
-   */
-  const [left, setLeft] = useState<number | null>(null)
   const overlayRef = useOverlayRef<HTMLDivElement>('anchored')
-
-  useLayoutEffect(() => {
-    if (anchor === null || anchor === undefined) {
-      return
-    }
-
-    const measure = () => {
-      const rect = anchor.getBoundingClientRect()
-
-      setLeft(rect.left + rect.width / 2)
-    }
-
-    measure()
-    window.addEventListener('resize', measure)
-
-    return () => {
-      window.removeEventListener('resize', measure)
-    }
-  }, [anchor])
 
   return createPortal(
     <div
@@ -124,7 +98,6 @@ export function Banner({ text, icon, tone, actions, holdMs = HOLD_MS, progress, 
       role="alert"
       style={
         {
-          ...(left === null ? {} : { left }),
           /* 常驻不设停留时长：样式表那边没有要等的淡出。 */
           ...(holdMs === null ? {} : { '--ui-banner-hold': `${String(holdMs)}ms` }),
         } as CSSProperties

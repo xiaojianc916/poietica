@@ -23,8 +23,6 @@ import type { TimelineHub } from './timeline-hub'
 import type { TurnContextHub } from './turn-context'
 import { TurnService } from './turn-service'
 
-export { OWNER_KEY } from './thread-service'
-
 export interface ConversationCoreDeps {
   readonly db: Parameters<typeof createThreadsRepository>[0]
   readonly engine: AgentEngine

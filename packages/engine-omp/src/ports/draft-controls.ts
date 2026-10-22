@@ -9,10 +9,6 @@ import { aliasOf, ENABLED_MODELS_PATH, enabledMatcher, stringArrayOf } from './m
  * 三样 —— registry 里此刻可用的模型、当前模型静态烤在目录里的 `thinking.efforts`、`enabledModels` 白名单。
  */
 
-function refOf(model: OmpModelLike): ModelRef {
-  return { provider: model.provider, id: model.id }
-}
-
 function labelOfLevel(level: string): string {
   return level.charAt(0).toUpperCase() + level.slice(1)
 }
@@ -76,7 +72,7 @@ export function draftControlsOf(input: {
    * 兜底候选：跳过用户关掉的模型。真实故障：注册表第一条恰好是用户在设置里关掉的那条，入口页一打开
    * 就选中它（而它在选择器列表里根本不出现）。全被关掉时退回 available[0]，宁可显示一条也不让胶囊塌成 0 宽。
    */
-  const fallback = available.find((model) => !hidden.has(aliasOf(refOf(model)))) ?? available[0]
+  const fallback = available.find((model) => !hidden.has(aliasOf(model))) ?? available[0]
 
   /*
    * 选中的那一条：草稿给的 ref 优先，其次调用方解出来的默认模型，再没有就是目录里第一条可用的。
@@ -85,7 +81,7 @@ export function draftControlsOf(input: {
    * 找不到它（下架的 id）时照原样报出去，不换成别的 —— 那等于替用户做了决定。
    */
   const found = input.current === null ? undefined : input.registry.find(input.current.provider, input.current.id)
-  const current = input.current ?? (fallback === undefined ? null : refOf(fallback))
+  const current = input.current ?? (fallback === undefined ? null : { provider: fallback.provider, id: fallback.id })
   const owned = input.current === null ? fallback : found
   const levels = levelsOf(owned)
 

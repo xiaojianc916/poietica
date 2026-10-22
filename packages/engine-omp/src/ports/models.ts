@@ -426,7 +426,10 @@ export class OmpModelsPort implements ModelsPort {
     })
     const resolved = resolveModelRoleValue(selector, all as never, { settings })
     return {
-      model: resolved.model === undefined ? literalRefOf(selector, explicit) : refOfModel(resolved.model),
+      model:
+        resolved.model === undefined
+          ? literalRefOf(selector, explicit)
+          : { provider: resolved.model.provider, id: resolved.model.id },
       explicit,
     }
   }
@@ -447,11 +450,6 @@ function splitAlias(alias: string): ModelRef {
   const cut = alias.indexOf('/')
   if (cut <= 0 || cut === alias.length - 1) return { provider: alias, id: alias }
   return { provider: alias.slice(0, cut), id: alias.slice(cut + 1) }
-}
-
-/** omp 解出来的那条模型 → ModelRef */
-function refOfModel(model: { readonly provider: string; readonly id: string }): ModelRef {
-  return { provider: model.provider, id: model.id }
 }
 
 /**

@@ -5,9 +5,6 @@ import { type ComposerStore, createComposerStore } from '../composer'
 import { createThreadsStore, createTurnStatesStore, type ThreadsStore, type TurnStatesStore } from '../threads'
 import { type ControlsStore, createControlsStore } from './configuration/controls-store'
 
-export { createDraftPin } from '../composer'
-export type { TurnStatesStore }
-
 export interface ComposerApi {
   readonly threadId: string | null
   readonly draft: import('../composer').Draft
@@ -67,7 +64,6 @@ export function createStores(
         const skills = [...current.skills]
         composer.clear(threadId)
         void stores.api.submit({ threadId, clientTurnId, text, attachmentIds, skills, deliverAs }).catch(() => {
-          // 失败：把正文与附件放回草稿
           composer.restore(threadId, { text, attachments: current.attachments, skills })
         })
       }

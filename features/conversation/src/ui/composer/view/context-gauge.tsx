@@ -7,9 +7,6 @@ import type { AgentSessionTokens, AgentUsageBreakdown } from '../../shared/model
 import { formatTokens, type SessionUsage } from '../../shared/model/usage'
 import { useDismissOutside } from './composer-palette'
 
-/* 短写规则住在 shared/model/usage（时间线的压缩行也用它）；这里照旧导出，读胶囊的人不必知道它搬过家 */
-export { formatTokens }
-
 /* 上下文用量胶囊：常显圆环，悬浮出提示，点开出面板。圆环与面板几何照抄上游 ContextMeter（14 视窗、r=5.5、描边 2），本仓多了 75/90/95 三档阈值。 */
 
 const RADIUS = 5.5

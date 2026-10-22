@@ -1,5 +1,7 @@
 import type { TranscriptOperation, TranscriptTask } from '@poietica/transcript'
 
+import { recordOf } from './wire'
+
 /*
  * omp 子代理可观测面 → transcript 的 task 行。
  *
@@ -29,10 +31,6 @@ export interface SubagentProgressFrame {
     readonly resolvedModel?: string
     readonly resolvedThinkingLevel?: string
   }
-}
-
-function recordOf(value: unknown): Record<string, unknown> | null {
-  return typeof value === 'object' && value !== null ? (value as Record<string, unknown>) : null
 }
 
 function stringOf(source: Record<string, unknown>, key: string): string | undefined {
@@ -137,7 +135,7 @@ export class SubagentLedger {
     const previous = this.tasksById.get(frame.id)
     // 已结的行不许被翻回运行中：omp 会补发迟到的帧
     if (previous !== undefined && isTerminal(previous.state) && !isTerminal(state)) return []
-    const stamp = iso(this.o.now())
+    const stamp = new Date(this.o.now()).toISOString()
     const startedAt = previous?.startedAt ?? stamp
     return this.commit({
       taskId: frame.id,
@@ -180,7 +178,7 @@ export class SubagentLedger {
       agentId: id,
       description: description ?? previous?.description ?? id,
       outputTail,
-      startedAt: previous?.startedAt ?? iso(this.o.now()),
+      startedAt: previous?.startedAt ?? new Date(this.o.now()).toISOString(),
       ...(previous?.endedAt === undefined ? {} : { endedAt: previous.endedAt }),
       ...carried('model', frame.progress?.resolvedModel, previous?.model),
       ...carried('thinkingEffort', frame.progress?.resolvedThinkingLevel, previous?.thinkingEffort),
@@ -218,8 +216,4 @@ function carried(
 ): Record<string, string> {
   if (typeof reported === 'string') return { [key]: reported }
   return previous === undefined ? {} : { [key]: previous }
-}
-
-function iso(ms: number): string {
-  return new Date(ms).toISOString()
 }

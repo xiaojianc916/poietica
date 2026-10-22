@@ -1,6 +1,6 @@
-import { type DiffFile, type DiffStat, diffStatOf } from '@poietica/design-system/diff'
+import { type DiffFile, type DiffStat, diffStatOf, toDisplayPath } from '@poietica/design-system/diff'
 import type { ToolCallContent } from '../model/tool-call'
-import { toDiffFiles, toDisplayPath } from './file-diff'
+import { toDiffFiles } from './file-diff'
 import { type ToolContentPart, toToolContentParts } from './tool-call-content'
 
 // 两个面（送出/交回）都交 markdown 给同一条渲染管线：优先用投影层映好的 requestContent，缺席才退回入参 JSON。

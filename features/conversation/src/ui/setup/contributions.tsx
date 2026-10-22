@@ -124,7 +124,6 @@ export function createConversationContributions(setup: ConversationSetup, action
     component: () => <NewConversationNavRow />,
   })
 
-  // 侧栏：线程列表（数据来自契约）
   ctx.contribute(builtinPoints.sidebarSections, {
     id: 'conversation.threads',
     order: 20,
@@ -300,7 +299,6 @@ export function createConversationContributions(setup: ConversationSetup, action
     component: () => <ConversationAuxiliaryToggle layout={layout} />,
   })
 
-  // 表面：新对话入口与会话页（两个相位）
   /*
    * 入口表面：这一格在发出第一句话之前**还没有线程**，所以线程是懒建的 —— `prepare` 里 createThread，拿到号之后才把端口交给表面。
    * 这是两个路由，所以这里建完号就导航过去。

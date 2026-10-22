@@ -43,16 +43,12 @@ function dumpTail(file: string): void {
   for (const line of lines.slice(-200)) console.error(line)
 }
 
-/** 同步睡眠：整个冒烟脚本是顺序执行的，异步只会让读日志的时序更难判断 */
-function sleep(ms: number): void {
-  Bun.sleepSync(ms)
-}
-
 function waitFor(check: () => boolean, timeoutMs: number, what: string): void {
   const deadline = Date.now() + timeoutMs
   while (Date.now() < deadline) {
     if (check()) return
-    sleep(POLL_MS)
+    /* 同步睡眠：整个冒烟脚本是顺序执行的，异步只会让读日志的时序更难判断 */
+    Bun.sleepSync(POLL_MS)
   }
   fail(`等待超时（${Math.round(timeoutMs / 1000)} 秒）：${what}`)
 }

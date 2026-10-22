@@ -1,4 +1,4 @@
-import { describeSchedule } from './automation'
+import { describeSchedule, pad2 } from './automation'
 
 /* 工具调用 → 一份只读的卡片模型。纯函数、不碰 React —— 卡片长什么样由 automation-tool-card.tsx 画，「这一次调用说了什么」只在
  * 这里判一次。输入是 conversation 交来的三样：args（「已修改：…」读它给了哪些键）、result、status。读不出来的一律退回
@@ -174,8 +174,6 @@ function errorOf(result: unknown): string | null {
   return json === null ? text : (str(json, 'message') ?? str(json, 'error') ?? text)
 }
 
-const pad = (n: number): string => String(n).padStart(2, '0')
-
 export function clockText(at: string | number, timeZone: string | null = null): string | null {
   const ms = typeof at === 'number' ? at : Date.parse(at)
   if (!Number.isFinite(ms)) return null
@@ -192,7 +190,7 @@ export function clockText(at: string | number, timeZone: string | null = null): 
     return `${part('month')}-${part('day')} ${part('hour')}:${part('minute')}`
   } catch {
     const d = new Date(ms)
-    return `${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`
+    return `${pad2(d.getMonth() + 1)}-${pad2(d.getDate())} ${pad2(d.getHours())}:${pad2(d.getMinutes())}`
   }
 }
 

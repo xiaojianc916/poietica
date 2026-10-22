@@ -1,7 +1,8 @@
 import { describe, expect, test } from 'bun:test'
-import { cacheHitRate, formatTokens, gaugeLayout } from '../composer/view/context-gauge'
+import { cacheHitRate, gaugeLayout } from '../composer/view/context-gauge'
 import type { AgentSessionTokens, AgentUsageBreakdown } from '../shared/model/dto'
 import type { SessionUsage } from '../shared/model/usage'
+import { formatTokens } from '../shared/model/usage'
 
 /*
  * 夹具守 omp 自己的恒等式：五类占用之和就是 used，编一组对不上的数就测不到这条恒等式。

@@ -180,13 +180,8 @@ export function createFaviconStore(opts: FaviconStoreOptions): FaviconStore {
   async function download(url: string): Promise<Outcome> {
     if (url.toLowerCase().startsWith('data:')) return accept(decodeDataUrl(url, maxIconBytes))
 
-    const controller = new AbortController()
-    const timer = setTimeout(() => {
-      controller.abort()
-    }, timeoutMs)
-
     try {
-      const res = await opts.fetch(url, { signal: controller.signal })
+      const res = await opts.fetch(url, { signal: AbortSignal.timeout(timeoutMs) })
 
       if (!res.ok) {
         await res.body?.cancel().catch(() => undefined)
@@ -200,8 +195,6 @@ export function createFaviconStore(opts: FaviconStoreOptions): FaviconStore {
       opts.logger.debug('browser favicon fetch failed', { url, error: String(cause) })
 
       return { kind: 'fail', final: false }
-    } finally {
-      clearTimeout(timer)
     }
   }
 

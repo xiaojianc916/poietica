@@ -54,23 +54,3 @@ export class Emitter<T> implements Disposable {
     this.listeners = undefined
   }
 }
-
-/** 等待事件的下一次触发；signal 中止时 reject（reason 为 signal.reason）。 */
-export function onceEvent<T>(event: Event<T>, signal?: AbortSignal): Promise<T> {
-  return new Promise<T>((resolve, reject) => {
-    if (signal?.aborted === true) {
-      reject(signal.reason)
-      return
-    }
-    const onAbort = (): void => {
-      sub.dispose()
-      reject(signal?.reason)
-    }
-    const sub = event((value) => {
-      sub.dispose()
-      signal?.removeEventListener('abort', onAbort)
-      resolve(value)
-    })
-    signal?.addEventListener('abort', onAbort, { once: true })
-  })
-}

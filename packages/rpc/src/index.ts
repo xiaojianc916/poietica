@@ -13,7 +13,6 @@ export {
   RawJson,
   relayParts,
 } from './frame'
-export { createMessagePortTransport, type MessagePortLike } from './message-port'
 export {
   CANCEL_METHOD,
   type ErrorMessage,
@@ -40,6 +39,7 @@ export {
 } from './peer'
 export { Router, type TypedHandler } from './router'
 export type { Transport } from './transport'
+export { isRpcMessage } from './transport-core'
 export { type CallOptions, createTypedClient, type RpcChannel, type TypedRpcClient } from './typed-client'
 export {
   BRIDGE_GLOBAL,

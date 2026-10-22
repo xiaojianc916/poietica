@@ -168,7 +168,7 @@ export function createCoreKernel(opts: CoreKernelOptions): CoreKernel {
   }
 
   async function startModules(): Promise<void> {
-    // 0. 先建立 RPC 对端：setup 期间模块就可以 emit 通知（Host 会照常广播）
+    // 先建立 RPC 对端：setup 期间模块就可以 emit 通知（Host 会照常广播）
     peer = new RpcPeer({
       name: 'core',
       transport: opts.transport,
@@ -179,16 +179,13 @@ export function createCoreKernel(opts: CoreKernelOptions): CoreKernel {
     opts.transport.onClose((reason) => {
       void shutdown(`transport closed: ${reason}`)
     })
-    // 1. 模块图
     const sorted = sortModules(opts.modules)
     validateModules(sorted)
-    // 2. 数据库与迁移
     db = openDatabase(opts.databaseFile)
     runMigrations(
       db,
       sorted.map((m) => ({ moduleId: m.id, migrations: m.migrations ?? [] })),
     )
-    // 3. 逐个 setup（拓扑序）
     for (const m of sorted) {
       const disposables = new DisposableStore()
       moduleDisposables.push(disposables)
@@ -221,15 +218,11 @@ export function createCoreKernel(opts: CoreKernelOptions): CoreKernel {
       if (aborted()) return
       log.info('module ready', { module: m.id, ms: opts.clock.now() - t0 })
     }
-    // 4. 每个 owner='core' 的方法都必须有实现
     assertAllCoreMethodsHandled()
-    // 5. 冻结 agent 工具集
     opts.engine.freezeTools()
     toolsFrozen = true
-    // 6. onReady（顺序执行；单个失败只记录并发 core.notice，不阻止启动）
     await runReadyHooks()
     if (aborted()) return
-    // 7. 开始服务
     state = 'ready'
     getPeer().notify('core.ready', {
       coreVersion: opts.coreVersion,

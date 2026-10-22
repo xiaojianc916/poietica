@@ -57,7 +57,6 @@ export type {
   TranscriptOperation,
   TurnHeader,
 } from './ops/operation'
-// —— 本包新增：三个进程共用的高层 API ——
 export {
   applyOps,
   emptyTimeline,

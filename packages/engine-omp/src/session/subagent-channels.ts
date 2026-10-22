@@ -5,6 +5,7 @@ import { type OmpMessage, projectHistoryPage } from '../projector/history'
 import { LiveProjector } from '../projector/live'
 import { OpenTurnScreen, overlayOpenTurn } from '../projector/open-turn'
 import { retryEndOf, retryStartOf } from '../projector/retry'
+import { recordOf } from '../projector/wire'
 
 /*
  * 子代理通道：每个子代理一条与主对话**同形**的时间线（turn / step / frame），号是子代理的 id。
@@ -43,10 +44,6 @@ export function userTextOf(content: unknown): string {
     .filter((block) => block.type === 'text' && typeof block.text === 'string')
     .map((block) => block.text as string)
     .join('\n')
-}
-
-function recordOf(value: unknown): Record<string, unknown> | null {
-  return typeof value === 'object' && value !== null ? (value as Record<string, unknown>) : null
 }
 
 export class SubagentChannels {

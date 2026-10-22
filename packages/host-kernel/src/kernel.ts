@@ -48,13 +48,13 @@ export interface HostKernelOptions {
 }
 
 export function runHostKernel(opts: HostKernelOptions): void {
-  // ① 身份与数据根（ready 之前）
+  // 身份与数据根必须在 app ready 之前定下来
   const identity = configureAppIdentity()
-  // ② 单实例
+  // 单实例
   if (!app.requestSingleInstanceLock()) {
     // 走到这里有两种情况，凭现象分不出来：a) 真的已经有一个实例在跑；b) 拿不到实例锁 —— Chromium 的
     // SingletonLock 建不出来（userData 权限、终端是管理员身份等），上游同样报 "Lock file can not be created"
-    // 并返回 false。此时日志目录还没建（第 ③ 步在后面），什么都不写就退出，现象就是「窗口一闪、没有任何日志」。
+    // 并返回 false。此时日志目录还没建（mkdir 在后面），什么都不写就退出，现象就是「窗口一闪、没有任何日志」。
     // 这条 stderr 就是为 #21 那次排查补的：让人一眼看出是锁的问题而不是崩溃。
     const existing = app.hasSingleInstanceLock()
     process.stderr.write(
@@ -68,7 +68,7 @@ export function runHostKernel(opts: HostKernelOptions): void {
     app.quit()
     return
   }
-  // ③ 目录与日志
+  // 目录与日志
   mkdirSync(identity.layout.logsDir, { recursive: true })
   let level: 'debug' | 'info' | 'warn' | 'error' = identity.isPackaged ? 'info' : 'debug'
   const mainLog = jsonlFileSink({ file: identity.layout.mainLog, maxBytes: 5 * 1024 * 1024, keep: 3 })
@@ -82,12 +82,12 @@ export function runHostKernel(opts: HostKernelOptions): void {
   process.on('uncaughtException', (e) => logger.error('uncaughtException', { error: String(e), stack: e.stack }))
   process.on('unhandledRejection', (e) => logger.error('unhandledRejection', { error: String(e) }))
   /*
-   * ③½ 启动前清残留要的进程表，现在就去查（不等 app ready）：它是一次子进程往返，与 Electron 初始化、模块 setup、
+   * 启动前清残留要的进程表，现在就去查（不等 app ready）：它是一次子进程往返，与 Electron 初始化、模块 setup、
    * 建窗互不相干。以前排在建窗与全部 onReady 之后才开始，整段串在「Core 什么时候能用」的关键路径上。
    * 必须在单实例锁之后：第二实例不该替第一实例去清进程。只给第一次启动用（见 CoreSupervisorOptions.processSnapshot）。
    */
   const coreProcesses = listCoreProcesses(opts.paths.coreExe)
-  // ④ 自定义协议特权声明（ready 之前，只能调用一次）
+  // 自定义协议特权声明：必须在 ready 之前，且只能调用一次
   protocol.registerSchemesAsPrivileged([
     { scheme: ASSET_SCHEME, privileges: { standard: true, secure: true, supportFetchAPI: true, stream: true } },
     /* 应用外壳：安装版从这里加载渲染进程，才有 V8 代码缓存（P-06，见 app-protocol.ts）。 */
@@ -127,7 +127,7 @@ async function boot(
   const windows = new WindowRegistry({ logger: logger.child({ scope: 'window' }), isPackaged: identity.isPackaged })
   const assets = createAssetDispatcher(logger.child({ scope: 'asset' }))
 
-  // ⑤ 总机与 Core 看护人（此时两者都还没有连接）
+  // 总机与 Core 看护人：此时两者都还没有连接
   let hub!: RpcHub
   const supervisor = new CoreSupervisor({
     layout: identity.layout,
@@ -165,7 +165,7 @@ async function boot(
 
   const quit = createQuitCoordinator({ logger: logger.child({ scope: 'quit' }), supervisor, windows })
 
-  // ⑥ 模块 setup（拓扑序）
+  // 模块 setup（拓扑序）
   const beforeWindow: Array<() => void | Promise<void>> = []
   const onReady: Array<() => void | Promise<void>> = []
   for (const m of sortModules(opts.modules)) {
@@ -209,7 +209,7 @@ async function boot(
       return
     }
   }
-  // ⑦ 每个 owner='host' 的方法都必须有实现
+  // 每个 owner='host' 的方法都必须有实现
   const missing = [...opts.appContract.methods.values()]
     .filter((d) => d.owner === 'host' && !hostRouter.has(d.name))
     .map((d) => d.name)
@@ -223,7 +223,7 @@ async function boot(
     return
   }
 
-  // ⑧ beforeWindow → 协议 → 窗口
+  // beforeWindow → 协议 → 窗口
   for (const fn of beforeWindow) await fn()
   protocol.handle(ASSET_SCHEME, (request) => assets.dispatch(request))
   protocol.handle(
@@ -237,7 +237,7 @@ async function boot(
   hub.attachWindow(win.webContents)
   win.on('session-end', () => supervisor.killNow()) // Windows 注销 / 关机：来不及优雅退出，直接杀 Core
   /*
-   * ⑨ 启动 Core（不等待）→ onReady。
+   * 启动 Core（不等待）→ onReady。
    *
    * Core 是启动关键路径上最长的一段（清残留 + 起进程 + 引擎 + 迁移），窗口一挂上总机就放它走，不再排在全部
    * onReady 之后。它要的东西此刻都齐了：Host 方法在 setup 里注册完（Core 能回调），日志级别在 beforeWindow 里
@@ -252,7 +252,7 @@ async function boot(
       log.error('onReady hook failed', { error: String(e) })
     }
   }
-  // ⑩ 应用级事件
+  // 应用级事件
   /* 退出途中窗口已经藏起来了：再 focus 会把一个正在收尾的窗口重新亮出来。改为收尾后 relaunch 一个新实例。 */
   app.on('second-instance', () => {
     if (quit.quitting) quit.requestRelaunch()

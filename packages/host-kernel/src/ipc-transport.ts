@@ -1,10 +1,6 @@
 import type { Disposable } from '@poietica/foundation'
-import { IPC_CHANNEL, type RpcMessage, relayParts, type Transport } from '@poietica/rpc'
+import { IPC_CHANNEL, isRpcMessage, type RpcMessage, relayParts, type Transport } from '@poietica/rpc'
 import { type IpcMainEvent, ipcMain, type WebContents } from 'electron'
-
-function looksLikeRpc(value: unknown): value is RpcMessage {
-  return typeof value === 'object' && value !== null && (value as { jsonrpc?: unknown }).jsonrpc === '2.0'
-}
 
 /**
  * 一个 webContents 的一次“页面生命期”对应一个 Transport；页面重新加载时由 RpcHub 关闭旧的、创建新的。
@@ -18,7 +14,7 @@ export function createIpcTransport(wc: WebContents): Transport {
   const closeListeners = new Set<(reason: string) => void>()
   let closed = false
   const onIpc = (event: IpcMainEvent, message: unknown): void => {
-    if (closed || event.sender !== wc || !looksLikeRpc(message)) return
+    if (closed || event.sender !== wc || !isRpcMessage(message)) return
     for (const l of [...messageListeners]) l(message)
   }
   const onDestroyed = (): void => close('webContents destroyed')

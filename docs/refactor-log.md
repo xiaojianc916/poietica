@@ -177,3 +177,4 @@
 | 辅助对话 | 2026-10-21 | 右坞辅助对话从占位接成 omp `/btw`：侧边提问不进记录、不调工具（协议 40 → 41，详见上表偏差 R-48） |
 | 多终端 | 2026-10-20 | 右坞终端改为每条一格标签的多终端，修首开闪 #212121（Suspense 灰块等 xterm 分块，详见上表偏差 R-49） |
 | 性能方案 P5 | 2026-10-21 | 正文排版（streamdown / remark·rehype / shiki / pele，约 2.4MB）移出首屏入口闭包：`design-system/prose` 改为轻壳、入口页画完后空闲预取，时间线第一次挂载等排版落定；入口守卫加这几条、告警线收到 4.2MB |
+| 官方能力替换（第四轮） | 2026-10-22 | 手搓 sha256 / fetch 超时 / RPC 守卫 / 去重换官方能力；按实测零引用删 `message-port`、`onceEvent`、`removeSafe`、`PoieticaMark`、`summarize` 与四处转发 re-export；删装饰性步骤编号与复述注释（详见提交说明） |
