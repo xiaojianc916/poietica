@@ -107,9 +107,7 @@ function AuxiliaryTab({
       aria-selected={active}
       className={
         'flex min-w-24 max-w-44 shrink-0 items-center rounded-sm text-xs leading-none ' +
-        (active
-          ? 'gap-0.5 border border-[#4c4c4c] bg-[#2a2a2a] py-1 pl-1.5 pr-1.5'
-          : 'gap-1.5 py-[5px] pl-2 pr-2 hover:bg-[#2a2a2a]')
+        (active ? 'gap-0.5 bg-[#2a2a2a] py-1 pl-1.5 pr-1.5' : 'gap-1.5 py-[5px] pl-2 pr-2 hover:bg-[#2a2a2a]')
       }
       id={id}
       onClick={(event) => {
