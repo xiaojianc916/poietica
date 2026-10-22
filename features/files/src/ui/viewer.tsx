@@ -1,25 +1,14 @@
-import { cn, FileTypeMark, formatBytes, useCopy } from '@poietica/design-system'
+import { cn, FileTypeMark, formatBytes, ViewSwitch, type ViewSwitchOption } from '@poietica/design-system'
 import { type DiffFile, paint, wholeFile } from '@poietica/design-system/diff'
 import { DiffBody } from '@poietica/design-system/diff/surface'
 import { isAbsoluteFilePath, Prose, type ProseFileLinks, ProseFileLinksContext } from '@poietica/design-system/prose'
 import { useLayout } from '@poietica/ui-kernel'
-import {
-  Check,
-  Code,
-  Copy,
-  Eye,
-  FolderOpen,
-  Maximize,
-  RefreshCw,
-  Scan,
-  SquareArrowOutUpRight,
-  TextWrap,
-} from 'lucide-react'
+import { Maximize, RefreshCw, Scan, TextWrap } from 'lucide-react'
 import { type ReactNode, useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react'
 import { type FileContent, filesErrors, workspaceFileUrl } from '../contract'
 import { type FilesApi, touches } from './api'
-import { joinPath, opensAsProgram, parentDirectory } from './open-policy'
 import type { FileOpener } from './opener'
+import { joinPath, parentDirectory } from './relative-path'
 import type { FileReveal, FileTab, FileTabsStore } from './tabs'
 import { IconButton, Note, Placeholder } from './tree-pane'
 import './files.css'
@@ -27,7 +16,7 @@ import './files.css'
 /*
  * 右坞里开着的那个文件：只读预览。正文用审查同一份行带（DiffBody，整份文件当作一段全是上下文的改动）——
  * 行号槽、语法色、大文件虚拟化与审查、工具抽屉是同一套；Markdown 可切到正文排版（与对话同一份 Prose）；
- * 图片走资源协议（字节不进 RPC）。改文件不在这里做：「用默认应用打开」交给系统，可执行类型只给「在资源管理器中显示」。
+ * 图片走资源协议（字节不进 RPC）。只读：工具条只管怎么看（Preview / Source、自动换行）与重读，不碰文件本身。
  */
 
 /* 着色要在主线程分词：超过这个量就只画黑白，不让一次点开卡住界面。 */
@@ -40,22 +29,22 @@ const REVEAL_ABOVE = 3
 
 const MARKDOWN = /\.(?:md|markdown|mdown|mkd)$/iu
 
-export interface FileShell {
-  /** 在系统文件管理器里定位（经 Core 解析出绝对路径）。 */
-  reveal(workspaceId: string, path: string): void
-  /** 用系统默认程序打开；可执行类型调用方已拦下。 */
-  openExternally(workspaceId: string, path: string): void
-}
+type ViewMode = 'preview' | 'source'
+
+/* 与技能文档面板同一组字样：两处是同一个开关。 */
+const VIEW_MODES: readonly ViewSwitchOption<ViewMode>[] = [
+  { value: 'preview', label: 'Preview' },
+  { value: 'source', label: 'Source' },
+]
 
 export interface FileViewerPanelProps {
   readonly api: FilesApi
   readonly opener: FileOpener
-  readonly shell: FileShell
   readonly tabs: FileTabsStore
 }
 
 /** 坞里画的那一块：坞此刻归属的那条对话里选中的文件。 */
-export function FileViewerPanel({ api, opener, shell, tabs }: FileViewerPanelProps): ReactNode {
+export function FileViewerPanel({ api, opener, tabs }: FileViewerPanelProps): ReactNode {
   const owner = useLayout().auxiliary.owner
   const set = useSyncExternalStore(
     useCallback((listener: () => void) => tabs.subscribe(listener), [tabs]),
@@ -72,7 +61,6 @@ export function FileViewerPanel({ api, opener, shell, tabs }: FileViewerPanelPro
       opener={opener}
       owner={owner}
       reveal={tabs.revealOf(owner, tab.id)}
-      shell={shell}
       tab={tab}
     />
   )
@@ -84,7 +72,10 @@ type Loaded =
   | { readonly phase: 'failed'; readonly cause: unknown }
 
 /* 读一个文件，并在它变了的时候重读（重读期间留着上一份，不闪空白）。 */
-function useFileContent(api: FilesApi, tab: FileTab): { readonly loaded: Loaded; readonly reload: () => void } {
+function useFileContent(
+  api: Pick<FilesApi, 'read' | 'onChanged'>,
+  tab: FileTab,
+): { readonly loaded: Loaded; readonly reload: () => void } {
   const [loaded, setLoaded] = useState<Loaded>({ phase: 'loading' })
   const [serial, setSerial] = useState(0)
   const reload = useCallback(() => setSerial((value) => value + 1), [])
@@ -117,28 +108,26 @@ function useFileContent(api: FilesApi, tab: FileTab): { readonly loaded: Loaded;
   return { loaded, reload }
 }
 
-function FileView({
+/** 一个打开着的文件：工具条 + 正文。与布局无关（归属由面板交进来），所以能脱离内核单测。 */
+export function FileView({
   api,
   opener,
   owner,
   reveal,
-  shell,
   tab,
 }: {
-  readonly api: FilesApi
+  readonly api: Pick<FilesApi, 'read' | 'onChanged'>
   readonly opener: FileOpener
   readonly owner: string
   readonly reveal: FileReveal | undefined
-  readonly shell: FileShell
   readonly tab: FileTab
 }) {
   const { loaded, reload } = useFileContent(api, tab)
   const [wrap, setWrap] = useState(false)
   const markdown = MARKDOWN.test(tab.path)
-  const [preview, setPreview] = useState(markdown)
+  const [mode, setMode] = useState<ViewMode>(markdown ? 'preview' : 'source')
   const text = loaded.phase === 'ready' && loaded.content.kind === 'text'
-  const { copied, copy } = useCopy()
-  const executable = opensAsProgram(tab.path)
+  const preview = markdown && mode === 'preview'
 
   return (
     <div className="flex h-full min-h-0 flex-col">
@@ -147,42 +136,19 @@ function FileView({
         <span className="min-w-0 flex-1 truncate text-xs opacity-70" title={tab.path}>
           {tab.path}
         </span>
-        {markdown && text ? (
-          <IconButton label={preview ? '查看源码' : '预览'} onClick={() => setPreview((value) => !value)}>
-            {preview ? <Code aria-hidden className="size-3.5" /> : <Eye aria-hidden className="size-3.5" />}
-          </IconButton>
-        ) : null}
-        {text && !(markdown && preview) ? (
+        {text && !preview ? (
           <IconButton label="自动换行" onClick={() => setWrap((value) => !value)} pressed={wrap}>
             <TextWrap aria-hidden className="size-3.5" />
           </IconButton>
         ) : null}
-        <IconButton label={copied ? '已复制' : '复制路径'} onClick={() => copy(tab.path)}>
-          {copied ? <Check aria-hidden className="size-3.5" /> : <Copy aria-hidden className="size-3.5" />}
-        </IconButton>
-        <IconButton label="在资源管理器中显示" onClick={() => shell.reveal(tab.workspaceId, tab.path)}>
-          <FolderOpen aria-hidden className="size-3.5" />
-        </IconButton>
-        <IconButton
-          disabled={executable}
-          label={executable ? '可执行文件不从这里打开' : '用默认应用打开'}
-          onClick={() => shell.openExternally(tab.workspaceId, tab.path)}
-        >
-          <SquareArrowOutUpRight aria-hidden className="size-3.5" />
-        </IconButton>
+        {markdown && text ? (
+          <ViewSwitch className="mx-1" label="查看方式" onValueChange={setMode} options={VIEW_MODES} value={mode} />
+        ) : null}
         <IconButton label="重新读取" onClick={reload}>
           <RefreshCw aria-hidden className="size-3.5" />
         </IconButton>
       </div>
-      <Body
-        loaded={loaded}
-        opener={opener}
-        owner={owner}
-        preview={markdown && preview}
-        reveal={reveal}
-        tab={tab}
-        wrap={wrap}
-      />
+      <Body loaded={loaded} opener={opener} owner={owner} preview={preview} reveal={reveal} tab={tab} wrap={wrap} />
     </div>
   )
 }
@@ -212,11 +178,7 @@ function Body({
     return <ImageView content={content} key={content.mtimeMs} workspaceId={tab.workspaceId} />
   }
   if (content.kind === 'binary') {
-    return (
-      <Placeholder title="这是一个二进制文件">
-        {formatBytes(content.size)}，无法在这里预览；可以用默认应用打开。
-      </Placeholder>
-    )
+    return <Placeholder title="这是一个二进制文件">{formatBytes(content.size)}，无法在这里预览。</Placeholder>
   }
   return (
     <>
@@ -304,7 +266,8 @@ function CodeView({
 
   return (
     <section aria-label="文件内容" className="files-code-scroll min-h-0 flex-1 overflow-auto" ref={scroller}>
-      <div className="relative w-max min-w-full">
+      {/* 不换行时行带取最宽一行那么宽、由这里横滚；换行时必须随滚动口宽 —— max-content 的父级里行永远折不下来。 */}
+      <div className={wrap ? 'relative' : 'relative w-max min-w-full'}>
         {line !== null && !wrap ? (
           <div
             aria-hidden
@@ -366,7 +329,7 @@ function ImageView({
   const src = workspaceFileUrl(workspaceId, content.path, content.mtimeMs)
 
   if (broken) {
-    return <Placeholder title="这张图画不出来">文件可能已损坏，或者格式不受支持；可以用默认应用打开。</Placeholder>
+    return <Placeholder title="这张图画不出来">文件可能已损坏，或者格式不受支持。</Placeholder>
   }
   return (
     <div className="flex min-h-0 flex-1 flex-col">

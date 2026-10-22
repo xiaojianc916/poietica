@@ -1,3 +1,4 @@
+import { ViewSwitch, type ViewSwitchOption } from '@poietica/design-system'
 import { Prose } from '@poietica/design-system/prose'
 import type { Disposable } from '@poietica/foundation'
 import {
@@ -26,6 +27,11 @@ import './skill-document-pane.css'
 
 type ViewMode = 'preview' | 'source'
 
+const VIEW_MODES: readonly ViewSwitchOption<ViewMode>[] = [
+  { value: 'preview', label: 'Preview' },
+  { value: 'source', label: 'Source' },
+]
+
 export function SkillDocumentPane({ store }: { readonly store: SkillDocumentStore }) {
   const document = useObservable(store)
   const [mode, setMode] = useState<ViewMode>('preview')
@@ -52,28 +58,7 @@ export function SkillDocumentPane({ store }: { readonly store: SkillDocumentStor
           ))}
         </nav>
 
-        <fieldset aria-label="查看方式" className="skill-doc__modes">
-          <button
-            aria-pressed={mode === 'preview'}
-            className="skill-doc__mode"
-            onClick={() => {
-              setMode('preview')
-            }}
-            type="button"
-          >
-            Preview
-          </button>
-          <button
-            aria-pressed={mode === 'source'}
-            className="skill-doc__mode"
-            onClick={() => {
-              setMode('source')
-            }}
-            type="button"
-          >
-            Source
-          </button>
-        </fieldset>
+        <ViewSwitch label="查看方式" onValueChange={setMode} options={VIEW_MODES} value={mode} />
       </div>
 
       <div className="skill-doc__body">

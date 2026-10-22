@@ -43,6 +43,7 @@ export {
   TooltipProvider,
   TooltipTrigger,
 } from './control/tooltip'
+export { ViewSwitch, type ViewSwitchOption } from './control/view-switch'
 export { type WorkspaceChoice, WorkspacePicker, type WorkspacePickerProps } from './control/workspace-picker'
 export { focusOnMount } from './focus-on-mount'
 export { formatBytes } from './format-bytes'

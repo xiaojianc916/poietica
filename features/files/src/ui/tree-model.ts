@@ -57,6 +57,7 @@ export class FileTreeModel {
   private search: SearchState = { phase: 'idle' }
   private searchTimer: ReturnType<typeof setTimeout> | undefined
   private searchSerial = 0
+  private revealing: string | null = null
 
   constructor(
     readonly workspaceId: string,
@@ -126,14 +127,28 @@ export class FileTreeModel {
     this.bump()
   }
 
-  /** 让一个条目在树里看得见：展开它的每一层祖先（缺的读进来），并清掉筛选；open 时连它自己（目录）也展开。 */
+  /**
+   * 让一个条目在树里看得见：展开它的每一层祖先（缺的读进来），并清掉筛选；open 时连它自己（目录）也展开。
+   * 树是虚拟化的，展开了它也未必在视口里：记一笔「要滚到它」，树画出这一行时滚过去、再经 revealed 销账。
+   */
   reveal(path: string, open = false): void {
     if (this.query !== '') this.setQuery('')
+    this.revealing = path === '' ? null : path
     for (const dir of open && path !== '' ? [...ancestorsOf(path), path] : ancestorsOf(path)) {
       this.expanded.add(dir)
       if (!this.dirs.has(dir)) void this.load(dir)
     }
     this.bump()
+  }
+
+  /** 还没滚到的那一条（树挂载晚于 reveal 时也接得住：正文里点目录，是先展开、再打开树格）。 */
+  revealTarget(): string | null {
+    return this.revealing
+  }
+
+  /** 树已经滚到了：销账。不通知 —— 没有哪一处画面跟着它变。 */
+  revealed(path: string): void {
+    if (this.revealing === path) this.revealing = null
   }
 
   setQuery(query: string): void {

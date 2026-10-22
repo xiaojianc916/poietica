@@ -551,13 +551,22 @@
   font-style: italic;
 }
 
-/* 本地文件链接（file-link.tsx）：墨色与下划线沿用上面的正文链接，只多一枚文件类型图标；图标按字号走，跟着行高不跳。 */
+/* 本地文件链接（file-link.tsx）：墨色沿用上面的正文链接，多一枚文件类型图标；图标按字号走，跟着行高不跳。 */
 .timeline-prose .prose-file-link__mark {
   display: inline-block;
   inline-size: 1em;
   block-size: 1em;
   margin-inline-end: 0.25em;
   vertical-align: -0.125em;
+}
+
+/* 文件名常常一句里连着好几处，常显的虚线会把一段话划成一排格子：平时只有墨色与图标，指上去才出那道虚线（线形仍是上面那一套）。 */
+.timeline-prose a[data-file-ref] {
+  text-decoration-line: none;
+}
+
+.timeline-prose a[data-file-ref]:hover {
+  text-decoration-line: underline;
 }
 
 /* 链接里包着的行内代码：字形留等宽，底色交给链接 —— 一处文件引用只有一种颜色。 */

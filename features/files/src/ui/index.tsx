@@ -1,6 +1,5 @@
 import { FileTypeMark } from '@poietica/design-system'
 import { fileReferenceOpeners } from '@poietica/feature-conversation/ui-api'
-import { platformContract } from '@poietica/feature-platform/contract'
 import { WorkspacesUiToken } from '@poietica/feature-workspaces/ui-api'
 import {
   BannersToken,
@@ -12,12 +11,11 @@ import {
 } from '@poietica/ui-kernel'
 import { FileText, FolderTree } from 'lucide-react'
 import { createFilesApi } from './api'
-import { opensAsProgram } from './open-policy'
 import { createFileOpener, TREE_PANEL_ID, VIEWER_PANEL_ID } from './opener'
 import { FileTabsStore } from './tabs'
 import { FileTreeModels } from './tree-models'
 import { FilesTreePanel } from './tree-pane'
-import { type FileShell, FileViewerPanel } from './viewer'
+import { FileViewerPanel } from './viewer'
 
 /* Core 一次最多监听这么多个工作区（契约 files.watch 的上限）。 */
 const WATCH_LIMIT = 32
@@ -38,12 +36,11 @@ function basenameOf(path: string): string {
  */
 export default defineUiFeature({
   id: 'files',
-  dependsOn: ['conversation', 'platform', 'workspaces'],
+  dependsOn: ['conversation', 'workspaces'],
   setup(ctx) {
     const layout = ctx.services.get(LayoutToken)
     const banners = ctx.services.get(BannersToken)
     const workspaces = ctx.services.get(WorkspacesUiToken)
-    const platform = ctx.rpc(platformContract)
     const api = createFilesApi(ctx)
 
     const report = (what: string, cause: unknown): void => {
@@ -64,32 +61,6 @@ export default defineUiFeature({
       },
     })
 
-    /* 两个系统动作都要绝对路径：先经 Core 解析（同一道工作区边界），再交给平台。可执行类型连这一步都不走。 */
-    const viaShell = (
-      workspaceId: string,
-      path: string,
-      method: 'shell.openPath' | 'shell.showInFolder',
-      title: string,
-    ): void => {
-      api
-        .locate(workspaceId, path)
-        .then(async (located) => {
-          if (method === 'shell.openPath' && opensAsProgram(located.absolutePath)) return
-          await platform.call(method, { path: located.absolutePath })
-        })
-        .catch((cause: unknown) => {
-          banners.error(cause, title)
-        })
-    }
-    const shell: FileShell = {
-      reveal: (workspaceId, path) => {
-        viaShell(workspaceId, path, 'shell.showInFolder', '无法在资源管理器中显示')
-      },
-      openExternally: (workspaceId, path) => {
-        if (!opensAsProgram(path)) viaShell(workspaceId, path, 'shell.openPath', '无法用默认应用打开')
-      },
-    }
-
     ctx.contribute(builtinPoints.panels, {
       id: TREE_PANEL_ID,
       location: 'right',
@@ -107,7 +78,7 @@ export default defineUiFeature({
       icon: FileText,
       offer: false,
       dockTabs: createFileDockTabs(layout, tabs),
-      component: () => <FileViewerPanel api={api} opener={opener} shell={shell} tabs={tabs} />,
+      component: () => <FileViewerPanel api={api} opener={opener} tabs={tabs} />,
     })
 
     ctx.contribute(fileReferenceOpeners, {

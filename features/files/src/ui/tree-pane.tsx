@@ -78,6 +78,7 @@ function TreeView({
   const filtering = query.trim() !== ''
   const onToggle = useCallback((row: FileTreeRow) => model.toggle(row), [model])
   const onOpenRow = useCallback((row: FileTreeRow) => onOpen(row.key), [onOpen])
+  const onRevealed = useCallback((key: string) => model.revealed(key), [model])
 
   return (
     <div className="files-pane flex h-full min-h-0 flex-col">
@@ -101,20 +102,22 @@ function TreeView({
         </IconButton>
       </div>
       <Filter onChange={(next) => model.setQuery(next)} value={query} />
-      <div className="min-h-0 flex-1 overflow-y-auto px-2 pb-2">
-        <TreeBody filtering={filtering} model={model} />
-        {rows.length > 0 ? (
-          <FileTree
-            dragText={(row) => (row.kind === 'file' ? row.key : null)}
-            label="工作区文件"
-            onOpen={onOpenRow}
-            onToggle={onToggle}
-            rows={rows}
-            selectedKey={selected}
-          />
-        ) : null}
-        <TreeFooter filtering={filtering} model={model} />
-      </div>
+      <TreeBody filtering={filtering} model={model} />
+      {/* 树自己是滚动口（虚拟化要它）；末尾那句提示钉在树下，滚到哪都看得见。 */}
+      {rows.length > 0 ? (
+        <FileTree
+          className="min-h-0 flex-1 px-2 pb-2"
+          dragText={(row) => (row.kind === 'file' ? row.key : null)}
+          label="工作区文件"
+          onOpen={onOpenRow}
+          onRevealed={onRevealed}
+          onToggle={onToggle}
+          revealKey={model.revealTarget()}
+          rows={rows}
+          selectedKey={selected}
+        />
+      ) : null}
+      <TreeFooter filtering={filtering} model={model} />
     </div>
   )
 }

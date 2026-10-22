@@ -1,5 +1,16 @@
+import { defaultRangeExtractor, type Range, useVirtualizer } from '@tanstack/react-virtual'
 import { ChevronDown, ChevronRight } from 'lucide-react'
-import { type DragEvent, type KeyboardEvent, type ReactNode, useCallback, useRef, useState } from 'react'
+import {
+  type DragEvent,
+  type KeyboardEvent,
+  type ReactNode,
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react'
 import { cn } from '../class-names'
 import { FileTypeMark } from '../mark/file-type-mark'
 import { treeKeyEffect } from './tree-keys'
@@ -11,6 +22,11 @@ import './file-tree.css'
  *
  * 文件图标用 FileTypeMark（项目内联的 Material Icon Theme），目录只有开合箭头 —— 那套图标里没有收文件夹字形，
  * 与审查树一直以来的样子一致。
+ *
+ * 行是虚拟化的（@tanstack/react-virtual，与 DiffBody 同一个虚拟器）：展开几层大目录就是上万行，代价要随视口走、不随行数走。
+ * 所以这棵树自己就是滚动口 —— 虚拟器要在挂载的同一次提交里拿到滚动元素，祖先的 ref 那时还没挂上（判例见 diff/surface.tsx）。
+ * 行不全在 DOM 里，无障碍树就靠 aria-level / aria-setsize / aria-posinset 自报位置；漫游焦点那一行无论滚到哪都留着
+ * （rangeExtractor 把它并进渲染范围），Tab 进出树、焦点所在的行被滚出视口，都不会把焦点丢回 body。
  */
 
 export interface FileTreeRow {
@@ -37,8 +53,18 @@ export interface FileTreeProps {
   readonly trailing?: (row: FileTreeRow) => ReactNode
   /** 拖出去时放进 text/plain 的文字；返回 null 即这一行不可拖。 */
   readonly dragText?: (row: FileTreeRow) => string | null
+  /**
+   * 要滚到眼前的那一行（「在树中定位」、正文里点了一个目录）。它可能还不在 rows 里（祖先正在读）：等它出现再滚，
+   * 滚到后回调 onRevealed，由消费方把请求清掉 —— 否则下次挂载又会滚一次。
+   */
+  readonly revealKey?: string | null
+  readonly onRevealed?: (key: string) => void
+  /** 加在滚动口上：消费方给尺寸（flex-1 / min-h-0）与内边距。 */
   readonly className?: string
 }
+
+/* 行高：与行的 h-7 同一个数。行高固定，虚拟器不必逐行量。 */
+const ROW_PX = 28
 
 /* 16px 一格；文件图标占掉箭头那一格，所以文件比同级目录少缩一格。 */
 const INDENT = 16
@@ -93,6 +119,33 @@ function RowBody({ row, trailing }: { readonly row: FileTreeRow; readonly traili
   )
 }
 
+/*
+ * 每一行在兄弟里的位置（aria-setsize / aria-posinset）：行是先序展开的，同一个父亲下的兄弟是同一深度的一段，
+ * 中间只隔着更深的子孙。一遍扫过去，每一层开着的那一组记着成员，遇到更浅的行就把更深的组结账。
+ */
+interface SiblingPlace {
+  readonly size: number
+  readonly position: number
+}
+
+function siblingPlaces(rows: readonly FileTreeRow[]): readonly SiblingPlace[] {
+  const sizes = new Array<number>(rows.length).fill(0)
+  const positions = new Array<number>(rows.length).fill(0)
+  const open: number[][] = []
+  const settle = (group: readonly number[]): void => {
+    for (const index of group) sizes[index] = group.length
+  }
+  rows.forEach((row, index) => {
+    while (open.length > row.depth + 1) settle(open.pop() ?? [])
+    while (open.length < row.depth + 1) open.push([])
+    const group = open[row.depth] ?? []
+    group.push(index)
+    positions[index] = group.length
+  })
+  for (const group of open) settle(group)
+  return rows.map((_, index) => ({ size: sizes[index] ?? 0, position: positions[index] ?? 0 }))
+}
+
 /* 焦点落在哪一行：上次按键挪到的那行还在就留着；不在了（被收起、被筛掉）退到选中行，再退到第一行。 */
 function rovingKey(rows: readonly FileTreeRow[], focused: string | null, selected: string | null): string | null {
   if (focused !== null && rows.some((row) => row.key === focused)) {
@@ -109,14 +162,78 @@ export function FileTree({
   dragText,
   label,
   onOpen,
+  onRevealed,
   onToggle,
+  revealKey = null,
   rows,
   selectedKey = null,
   trailing,
 }: FileTreeProps) {
   const [focused, setFocused] = useState<string | null>(null)
   const elements = useRef(new Map<string, HTMLElement>())
+  /* 方向键挪到一行时它可能还没渲染：记下来，等它挂上再给焦点。 */
+  const pendingFocus = useRef<string | null>(null)
+  const viewport = useRef<HTMLDivElement | null>(null)
+  const sizer = useRef<HTMLDivElement | null>(null)
+  /* 滚动口自己的上内边距（消费方给的 py-1 之类）：列表从它下面开始，滚到某一行要把它算进去。内边距是消费方一次给定的，量一次。 */
+  const [margin, setMargin] = useState(0)
+  useLayoutEffect(() => {
+    setMargin(sizer.current?.offsetTop ?? 0)
+  }, [])
   const tabStop = rovingKey(rows, focused, selectedKey)
+  const indexOf = useMemo(() => new Map(rows.map((row, index) => [row.key, index])), [rows])
+  const places = useMemo(() => siblingPlaces(rows), [rows])
+  const tabIndex = tabStop === null ? -1 : (indexOf.get(tabStop) ?? -1)
+
+  const keep = useCallback(
+    (range: Range): number[] => {
+      const shown = defaultRangeExtractor(range)
+      if (tabIndex < 0 || shown.includes(tabIndex)) return shown
+      return [...shown, tabIndex].sort((a, b) => a - b)
+    },
+    [tabIndex],
+  )
+  /* 键函数换了虚拟器就重排全部行的位置：只随 rows 换，滚动引起的重渲不付这一份。 */
+  const itemKey = useCallback((index: number) => rows[index]?.key ?? index, [rows])
+  const virtualizer = useVirtualizer({
+    count: rows.length,
+    estimateSize: () => ROW_PX,
+    getItemKey: itemKey,
+    getScrollElement: () => viewport.current,
+    overscan: 12,
+    rangeExtractor: keep,
+    scrollMargin: margin,
+  })
+
+  const moveFocus = (key: string): void => {
+    setFocused(key)
+    const index = indexOf.get(key)
+    if (index !== undefined) virtualizer.scrollToIndex(index, { align: 'auto' })
+    const element = elements.current.get(key)
+    if (element === undefined) {
+      pendingFocus.current = key
+      return
+    }
+    element.focus({ preventScroll: true })
+  }
+
+  useLayoutEffect(() => {
+    const key = pendingFocus.current
+    if (key === null) return
+    const element = elements.current.get(key)
+    if (element === undefined) return
+    pendingFocus.current = null
+    element.focus({ preventScroll: true })
+  })
+
+  useEffect(() => {
+    if (revealKey === null) return
+    const index = indexOf.get(revealKey)
+    if (index === undefined) return
+    setFocused(revealKey)
+    virtualizer.scrollToIndex(index, { align: 'auto' })
+    onRevealed?.(revealKey)
+  }, [indexOf, onRevealed, revealKey, virtualizer])
 
   const activate = useCallback(
     (row: FileTreeRow) => {
@@ -132,8 +249,7 @@ export function FileTree({
     if (effect.kind === 'none') return
     event.preventDefault()
     if (effect.kind === 'focus') {
-      setFocused(effect.key)
-      elements.current.get(effect.key)?.focus()
+      moveFocus(effect.key)
       return
     }
     const target = rows.find((held) => held.key === effect.key)
@@ -151,40 +267,52 @@ export function FileTree({
   }
 
   return (
-    <div aria-label={label} className={cn('file-tree flex flex-col', className)} role="tree">
-      {rows.map((row) => (
-        <div
-          aria-expanded={row.kind === 'folder' ? row.expanded === true : undefined}
-          aria-level={row.depth + 1}
-          aria-selected={selectedKey === null ? undefined : row.key === selectedKey}
-          className="file-tree__row relative flex h-7 w-full shrink-0 items-center gap-1.5 rounded-md pr-2 text-left"
-          data-dimmed={row.dimmed === true ? '' : undefined}
-          draggable={dragText !== undefined}
-          key={row.key}
-          onClick={() => {
-            activate(row)
-          }}
-          onDragStart={(event) => {
-            onDragStart(event, row)
-          }}
-          onKeyDown={(event) => {
-            onKeyDown(event, row)
-          }}
-          ref={(element) => {
-            if (element === null) return
-            elements.current.set(row.key, element)
-            return () => {
-              elements.current.delete(row.key)
-            }
-          }}
-          role="treeitem"
-          style={{ paddingInlineStart: `${String(paddingStart(row.depth, row.kind === 'folder'))}px` }}
-          tabIndex={row.key === tabStop ? 0 : -1}
-        >
-          <Guides depth={row.depth} />
-          <RowBody row={row} trailing={trailing?.(row) ?? null} />
-        </div>
-      ))}
+    <div aria-label={label} className={cn('file-tree relative overflow-y-auto', className)} ref={viewport} role="tree">
+      <div className="relative w-full" ref={sizer} style={{ height: virtualizer.getTotalSize() }}>
+        {virtualizer.getVirtualItems().map((item) => {
+          const row = rows[item.index]
+          if (row === undefined) return null
+          const place = places[item.index]
+          return (
+            <div
+              aria-expanded={row.kind === 'folder' ? row.expanded === true : undefined}
+              aria-level={row.depth + 1}
+              aria-posinset={place?.position}
+              aria-selected={selectedKey === null ? undefined : row.key === selectedKey}
+              aria-setsize={place?.size}
+              className="file-tree__row absolute top-0 left-0 flex h-7 w-full items-center gap-1.5 rounded-md pr-2 text-left"
+              data-dimmed={row.dimmed === true ? '' : undefined}
+              draggable={dragText !== undefined}
+              key={item.key}
+              onClick={() => {
+                activate(row)
+              }}
+              onDragStart={(event) => {
+                onDragStart(event, row)
+              }}
+              onKeyDown={(event) => {
+                onKeyDown(event, row)
+              }}
+              ref={(element) => {
+                if (element === null) return
+                elements.current.set(row.key, element)
+                return () => {
+                  elements.current.delete(row.key)
+                }
+              }}
+              role="treeitem"
+              style={{
+                paddingInlineStart: `${String(paddingStart(row.depth, row.kind === 'folder'))}px`,
+                transform: `translateY(${String(item.start - margin)}px)`,
+              }}
+              tabIndex={row.key === tabStop ? 0 : -1}
+            >
+              <Guides depth={row.depth} />
+              <RowBody row={row} trailing={trailing?.(row) ?? null} />
+            </div>
+          )
+        })}
+      </div>
     </div>
   )
 }

@@ -82,6 +82,20 @@ describe('FileTreeModel：懒加载的工作区树', () => {
     expect(model.rows().map((row) => row.key)).toEqual(['src', 'src/deep', 'src/b.ts', 'README.md', 'dist.js'])
   })
 
+  test('reveal 记下要滚到的那一条，树滚到后 revealed 销账（别的路径销不掉它）；根不记', () => {
+    const { api } = fakeApi(TREE)
+    const model = new FileTreeModel('w1', api, () => undefined)
+    expect(model.revealTarget()).toBeNull()
+    model.reveal('src/deep/a.ts')
+    expect(model.revealTarget()).toBe('src/deep/a.ts')
+    model.revealed('src/b.ts')
+    expect(model.revealTarget()).toBe('src/deep/a.ts')
+    model.revealed('src/deep/a.ts')
+    expect(model.revealTarget()).toBeNull()
+    model.reveal('', true)
+    expect(model.revealTarget()).toBeNull()
+  })
+
   test('changed 只重读读过的、受影响的目录；null 全部重读', async () => {
     const { api, listed } = fakeApi(TREE)
     const model = new FileTreeModel('w1', api, () => undefined)

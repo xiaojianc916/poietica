@@ -2,7 +2,7 @@ import { z } from 'zod'
 
 /*
  * 工作区文件的只读视图。路径一律是**相对工作区根**的正斜杠路径（'' 是根本身）：界面拿它当身份、拼树、显示；
- * 绝对路径只在 files.locate 里交出去（「在资源管理器中显示」「用默认应用打开」要的就是它），不在别处流转。
+ * 绝对路径只在 files.locate 里交出去（Host 的图片资源协议按它读字节），不在别处流转。
  */
 
 export const FileEntryKind = z.enum(['file', 'directory'])

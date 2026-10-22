@@ -1,0 +1,33 @@
+/* 查看方式切换（view-switch.tsx）：数值照原技能文档面板的 .skill-doc__modes / .skill-doc__mode 逐条搬来，别改 —— 两处要一个样子。 */
+.view-switch {
+  display: flex;
+  flex: none;
+  gap: 2px;
+  margin: 0;
+  min-inline-size: 0;
+  padding: 2px;
+  border: 0;
+  border-radius: 7px;
+  background: var(--ui-sunken);
+}
+
+.view-switch__option {
+  padding: 2px 8px;
+  border: 0;
+  border-radius: 5px;
+  outline: 0;
+  background: transparent;
+  color: var(--ui-muted-foreground);
+  font-size: 11px;
+  line-height: 1.5;
+}
+
+.view-switch__option[aria-pressed="true"] {
+  background: var(--ui-background);
+  color: var(--ui-foreground);
+  box-shadow: var(--ui-shadow-xs);
+}
+
+.view-switch__option:focus-visible {
+  box-shadow: inset 0 0 0 2px var(--ui-ring);
+}

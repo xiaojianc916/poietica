@@ -509,31 +509,32 @@ function Tree({
               </span>
             </div>
           </div>
-          <div className="review-tree__scroll min-h-0 flex-1 overflow-y-auto px-2 py-1">
-            {rows.length === 0 ? (
+          {rows.length === 0 ? (
+            <div className="review-tree__scroll min-h-0 flex-1 overflow-y-auto px-2 py-1">
               <Note>没有匹配的文件。</Note>
-            ) : (
-              <FileTree
-                dragText={(row) => (row.kind === 'file' ? row.key : null)}
-                label="变更文件"
-                onOpen={(row) => {
-                  const opening = !state.openFiles.has(row.key)
-                  store.toggleFile(row.key)
-                  if (opening) {
-                    document.getElementById(cardId(row.key))?.scrollIntoView({ block: 'start' })
-                  }
-                }}
-                onToggle={(row) => {
-                  store.toggleFolder(row.key)
-                }}
-                rows={rows}
-                trailing={(row) => {
-                  const status = row.kind === 'file' ? statuses?.get(row.key) : undefined
-                  return status === undefined ? null : <ChangeMark status={status} />
-                }}
-              />
-            )}
-          </div>
+            </div>
+          ) : (
+            <FileTree
+              className="review-tree__scroll min-h-0 flex-1 px-2 py-1"
+              dragText={(row) => (row.kind === 'file' ? row.key : null)}
+              label="变更文件"
+              onOpen={(row) => {
+                const opening = !state.openFiles.has(row.key)
+                store.toggleFile(row.key)
+                if (opening) {
+                  document.getElementById(cardId(row.key))?.scrollIntoView({ block: 'start' })
+                }
+              }}
+              onToggle={(row) => {
+                store.toggleFolder(row.key)
+              }}
+              rows={rows}
+              trailing={(row) => {
+                const status = row.kind === 'file' ? statuses?.get(row.key) : undefined
+                return status === undefined ? null : <ChangeMark status={status} />
+              }}
+            />
+          )}
         </div>
       </div>
       {/* 指针捕获与键盘微调都在这条条上，本格不重写一套拖拽。 */}
