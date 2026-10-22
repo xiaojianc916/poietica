@@ -108,6 +108,21 @@
   inline-size: var(--cp-icon);
 }
 
+/* 行尾的当前值或「›」：与快捷键同一个位置（一行里两者不会同时出现） */
+.composer-palette__trail {
+  flex: none;
+  margin-inline-start: auto;
+  font-size: var(--cp-font-micro);
+  color: var(--cp-ink-subtle);
+  white-space: nowrap;
+}
+
+/* 选不动的那一行（必填参数还没写）：字退一档，高亮仍可落在上面 —— 它在说「还差什么」 */
+.composer-palette__row[data-disabled="true"] .composer-palette__label,
+.composer-palette__row[data-disabled="true"] .composer-palette__argument {
+  color: var(--cp-ink-subtle);
+}
+
 /* 浅色面板取设计字面值（纯白面板、浅灰悬停），深色仍走令牌。悬停那格不接 --cp-menu-hover：
    那个值是 #f2f2f3，与产品定稿的 #f2f3f3 差一个通道，兑不出来。 */
 :root[data-theme="light"] .composer-palette__panel {

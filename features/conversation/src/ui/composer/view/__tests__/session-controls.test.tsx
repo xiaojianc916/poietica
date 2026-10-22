@@ -3,8 +3,10 @@ import { act, cleanup, fireEvent, render, screen } from '@testing-library/react'
 import type { SessionConfigControl } from '../../../shared/model/config'
 import { SessionControls } from '../session-controls'
 
-/* U-04：斜杠命令 `/model` 等于点开模型选择器 —— 请求号一变就打开，直接落在模型清单那一页。 */
+/* U-04：斜杠命令 `/model` 等于点开模型选择器 —— 请求号一变就打开，直接落在模型清单那一页；`/effort` 落在档位页。 */
 afterEach(cleanup)
+
+const MODEL_REQUEST = { seq: 1, pane: 'model' } as const
 
 const controls: readonly SessionConfigControl[] = [
   {
@@ -35,16 +37,34 @@ describe('模型选择器的外部打开', () => {
     expect(screen.queryByText('Claude Opus')).toBeNull()
 
     await act(async () => {
-      view.rerender(<SessionControls controls={controls} onSelect={() => undefined} openRequest={1} />)
+      view.rerender(<SessionControls controls={controls} onSelect={() => undefined} openRequest={MODEL_REQUEST} />)
     })
     expect(screen.getByText('Claude Opus')).toBeDefined()
   })
 
-  test('表还没确认（pending）时不开：点不动的东西也不该被命令打开', async () => {
+  test('表还没确认（pending）时先不开，等表到了再开：/model 不会因为模型列表在转圈就落空', async () => {
     const view = render(<SessionControls controls={controls} onSelect={() => undefined} pending />)
     await act(async () => {
-      view.rerender(<SessionControls controls={controls} onSelect={() => undefined} openRequest={1} pending />)
+      view.rerender(
+        <SessionControls controls={controls} onSelect={() => undefined} openRequest={MODEL_REQUEST} pending />,
+      )
     })
+    expect(screen.queryByText('Claude Opus')).toBeNull()
+
+    await act(async () => {
+      view.rerender(<SessionControls controls={controls} onSelect={() => undefined} openRequest={MODEL_REQUEST} />)
+    })
+    expect(screen.getByText('Claude Opus')).toBeDefined()
+  })
+
+  test('/effort 落在档位页，不进模型清单', async () => {
+    const view = render(<SessionControls controls={controls} onSelect={() => undefined} />)
+    await act(async () => {
+      view.rerender(
+        <SessionControls controls={controls} onSelect={() => undefined} openRequest={{ seq: 1, pane: 'level' }} />,
+      )
+    })
+    expect(document.querySelector('.assistant-model-select__band-pane')).not.toBeNull()
     expect(screen.queryByText('Claude Opus')).toBeNull()
   })
 })
@@ -60,7 +80,7 @@ describe('模型选择器的开合与换页', () => {
   test('在清单页点选模型：退场时卡里仍是清单页，不闪回档位页', async () => {
     const view = render(<SessionControls controls={controls} onSelect={() => undefined} />)
     await act(async () => {
-      view.rerender(<SessionControls controls={controls} onSelect={() => undefined} openRequest={1} />)
+      view.rerender(<SessionControls controls={controls} onSelect={() => undefined} openRequest={MODEL_REQUEST} />)
     })
     expect(showing('list')).toBe(true)
 
@@ -76,7 +96,7 @@ describe('模型选择器的开合与换页', () => {
   test('清单页的 Escape 退回档位页，卡不关；档位页的 Escape 才关', async () => {
     const view = render(<SessionControls controls={controls} onSelect={() => undefined} />)
     await act(async () => {
-      view.rerender(<SessionControls controls={controls} onSelect={() => undefined} openRequest={1} />)
+      view.rerender(<SessionControls controls={controls} onSelect={() => undefined} openRequest={MODEL_REQUEST} />)
     })
     expect(showing('list')).toBe(true)
 
@@ -99,7 +119,7 @@ describe('模型选择器的开合与换页', () => {
   test('关的时候不换页，但下一次从胶囊打开仍从档位页进', async () => {
     const view = render(<SessionControls controls={controls} onSelect={() => undefined} />)
     await act(async () => {
-      view.rerender(<SessionControls controls={controls} onSelect={() => undefined} openRequest={1} />)
+      view.rerender(<SessionControls controls={controls} onSelect={() => undefined} openRequest={MODEL_REQUEST} />)
     })
     await act(async () => {
       fireEvent.click(screen.getByText('Claude Opus'))

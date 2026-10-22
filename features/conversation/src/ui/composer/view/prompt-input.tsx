@@ -5,7 +5,6 @@ import { LexicalErrorBoundary } from '@lexical/react/LexicalErrorBoundary'
 import { HistoryPlugin } from '@lexical/react/LexicalHistoryPlugin'
 import { PlainTextPlugin } from '@lexical/react/LexicalPlainTextPlugin'
 import { cn } from '@poietica/design-system'
-import type { SlashCommand } from '@poietica/engine'
 import { invariant } from '@poietica/foundation'
 import { FeatureScope, useContributions, useKernel } from '@poietica/ui-kernel'
 import {
@@ -42,7 +41,7 @@ import {
   composerInputHandlers,
   type DraftAttachment,
 } from '../../../ui-api'
-import { requiresArgument, slashQueryOf } from '../../shared/model/commands'
+import { type ComposerCommand, slashStateOf } from '../../shared/model/commands'
 import type { ChatStatus } from '../../shared/model/run'
 import type { PromptConfiguration, PromptSkill } from '../../shared/model/session'
 import { ResumeIcon, StopIcon, SubmitIcon } from '../../shared/primitives/icons'
@@ -318,9 +317,10 @@ export interface PromptInputProps {
   readonly groups?: readonly PaletteGroup[] | undefined
   /**
    * 斜杠命令：给了（且非空）草稿敲下行首 `/` 就弹命令面板，代替加号面板；回车执行走的仍是 onSubmit，
-   * 收信人照常按正文认命令。缺席（自动化的输入框、提问面板）就没有这块面板，`/` 只是一个字。
+   * 收信人照常按正文认命令。表是表面按此刻场所筛过的（不能用的不在里面）。
+   * 缺席（自动化的输入框、提问面板）就没有这块面板，`/` 只是一个字。
    */
-  readonly slashCommands?: readonly SlashCommand[] | undefined
+  readonly slashCommands?: readonly ComposerCommand[] | undefined
   readonly configuration?: readonly PromptConfiguration[] | undefined
   /** 缺席时这一格是字段而非消息框：Enter 只换行、没有提交、草稿不被消费。 */
   readonly onSubmit?: ((message: PromptInputMessage) => void) | undefined
@@ -846,10 +846,13 @@ function PromptInputShell({
     [allGroups, pendingConfiguration],
   )
   /*
-   * 斜杠命令面板：草稿就是行首 `/` 加一截名字时出来，代替加号面板。名字一变高亮回到第一行；
+   * 斜杠命令面板：草稿是一行以 `/` 开头的字时出来，代替加号面板（阶段见 slash-palette.ts）。草稿一变高亮回到第一行；
    * 刚敲下 `/` 那一刻加号面板收起，免得删掉斜杠时它又冒出来。
    */
-  const slashQuery = slashCommands === undefined || slashCommands.length === 0 ? null : slashQueryOf(draftText.text)
+  const slashQuery =
+    slashCommands === undefined || slashCommands.length === 0 || slashStateOf(draftText.text) === null
+      ? null
+      : draftText.text
   const [slashSeen, setSlashSeen] = useState<string | null>(null)
   if (slashSeen !== slashQuery) {
     setSlashSeen(slashQuery)
@@ -887,21 +890,22 @@ function PromptInputShell({
   )
 
   /*
-   * 选中一条命令：Tab 与带必填参数的命令只补全名字（留一个空格接着写参数）；其余就是执行 ——
-   * 放回 `/名字` 再走表单提交，与手打 `/compact` 回车同一条路，收信人那边不必知道面板存在。
+   * 选中面板的一行命令：Tab 只把草稿换成下一步（补名字、补选项），不提交；回车照那一行算好的下一步走 ——
+   * 要执行的就放回整句再走表单提交，与手打 `/compact` 回车同一条路，收信人那边不必知道面板存在。
    */
-  const pickCommand = useCallback(
-    (command: SlashCommand, via: PaletteVia) => {
-      const name = `/${command.name}`
-
-      if (via === 'tab' || requiresArgument(command)) {
-        setText(`${name} `)
+  const pickSlash = useCallback(
+    (action: { readonly fill: string; readonly submit: boolean; readonly tab: string }, via: PaletteVia) => {
+      if (via === 'tab') {
+        setText(action.tab)
 
         return
       }
 
-      setText(name)
-      queueMicrotask(requestFormSubmit)
+      setText(action.fill)
+
+      if (action.submit) {
+        queueMicrotask(requestFormSubmit)
+      }
     },
     [requestFormSubmit, setText],
   )
@@ -910,10 +914,15 @@ function PromptInputShell({
     (row: PaletteRow, via: PaletteVia) => {
       const { action } = row
 
+      /* 选不动的那一行（必填参数还没写）：回车什么都不做，面板留着说还差什么 */
+      if (row.disabled === true && via === 'enter') {
+        return
+      }
+
       closePalette()
 
-      if (action.kind === 'command') {
-        pickCommand(action.command, via)
+      if (action.kind === 'slash') {
+        pickSlash(action, via)
       } else if (action.kind === 'run') {
         action.run(draftText.text)
       } else if (action.kind === 'configure') {
@@ -928,7 +937,7 @@ function PromptInputShell({
 
       focusEditor()
     },
-    [closePalette, draftText.text, editor, focusEditor, pickCommand, toggleConfiguration],
+    [closePalette, draftText.text, editor, focusEditor, pickSlash, toggleConfiguration],
   )
 
   const muteSlash = useCallback(() => {

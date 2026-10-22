@@ -33,6 +33,7 @@ export type {
 export type { EngineToolContext, EngineToolResult, EngineToolSpec } from './tools'
 export {
   Capabilities,
+  CommandOutputTone,
   ContextUsage,
   ContextUsageBreakdown,
   Controls,

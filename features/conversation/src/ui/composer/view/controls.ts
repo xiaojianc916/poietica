@@ -2,6 +2,7 @@
 
 export { PermissionPicker } from './permission-picker'
 export {
+  type ControlsOpenRequest,
   isToggleControl,
   labelOf,
   SessionControls,

@@ -1,7 +1,8 @@
 import type { Thread } from '@poietica/feature-conversation/contract'
 import { conversationContract } from '@poietica/feature-conversation/contract'
+import { slashCommands } from '@poietica/feature-conversation/ui-api'
 import { modelsContract } from '@poietica/feature-models/contract'
-import { builtinPoints, defineUiFeature, SETTINGS_GROUPS } from '@poietica/ui-kernel'
+import { builtinPoints, defineUiFeature, NavigationToken, SETTINGS_GROUPS } from '@poietica/ui-kernel'
 import { Zap } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { createUsageApi } from './api'
@@ -65,6 +66,17 @@ export default defineUiFeature({
           watchThreads={watchThreads}
         />
       ),
+    })
+
+    /* 输入框里的 `/usage`：omp 在终端里打一张文字表，GUI 有整页的概览与图表，命令就是打开它。 */
+    const navigation = ctx.services.get(NavigationToken)
+    ctx.contribute(slashCommands, {
+      name: 'usage',
+      description: '打开用量概览',
+      order: 200,
+      run: () => {
+        navigation.navigate({ surface: 'workbench.settings', params: { page: 'usage.overview' } })
+      },
     })
   },
 })

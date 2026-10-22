@@ -64,6 +64,22 @@ export {
   type ToolkitSkill,
 } from './composer-toolkit'
 
+/**
+ * 输入框斜杠命令面板里由别的功能提供的命令：MCP、技能、用量、记忆…… 这些能力住在别的功能里，命令只是「打开那一页」的快捷方式，
+ * conversation 不认识那些页。与 omp 的内置命令同名时以这里为准（`/mcp` 在 GUI 里就是打开 MCP 设置页，不是终端里的子命令）。
+ * 任何场所都列（入口页也能用）：打开一页设置不需要对话。
+ */
+export interface SlashCommandContribution {
+  /** 命令名（不带 `/`） */
+  readonly name: string
+  readonly aliases?: readonly string[]
+  /** 面板里那一行的说明，写「做什么」 */
+  readonly description: string
+  readonly order: number
+  readonly run: () => void
+}
+export const slashCommands = defineContributionPoint<SlashCommandContribution>('conversation.slashCommands')
+
 /** 工具调用卡片：按工具名匹配；conversation 自带 omp 内置工具的卡片，其它功能为自己的工具贡献卡片 */
 export interface ToolCallRendererProps {
   readonly threadId: string

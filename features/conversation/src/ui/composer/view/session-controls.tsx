@@ -99,10 +99,22 @@ export interface SessionControlsProps {
   /** 这张表还没被 agent 确认过：画法不变，只是点不动。 */
   readonly pending?: boolean | undefined
   /**
-   * 从外面打开（斜杠命令 `/model`）：每变一次就打开一次，直接落在模型清单那一页。
-   * 是个计数而不是布尔：同一个值连敲两次 `/model` 也得开两次，开合本身仍归这一层。
+   * 从外面打开（斜杠命令 `/model` 落在模型清单页，`/effort` 落在档位页）：号每变一次就打开一次。
+   * 是个号而不是布尔：同一个值连敲两次 `/model` 也得开两次，开合本身仍归这一层。
    */
-  readonly openRequest?: number | undefined
+  readonly openRequest?: ControlsOpenRequest | undefined
+}
+
+/** 一次「从外面打开」：`seq` 每次加一，`pane` 是落在哪一页 */
+export interface ControlsOpenRequest {
+  readonly seq: number
+  readonly pane: 'model' | 'level'
+}
+
+/* 请求落在哪一页：要档位页且有档位就落档位页，否则落模型清单；连模型清单都没有就不开 */
+function requestedPane(request: ControlsOpenRequest, hasLevel: boolean, hasModel: boolean): string | null {
+  if (request.pane === 'level' && hasLevel) return LEVEL
+  return hasModel ? MODEL : null
 }
 
 export const SessionControls = memo(function SessionControls({
@@ -114,18 +126,23 @@ export const SessionControls = memo(function SessionControls({
   const rows = useMemo(() => sessionControlRows(controls), [controls])
   const [pane, setPane] = useState<string>(LEVEL)
   const [open, setOpen] = useState(false)
-  const [seenRequest, setSeenRequest] = useState(openRequest)
+  const [seenRequest, setSeenRequest] = useState(openRequest?.seq)
   const head = useRef<HTMLDivElement>(null)
 
   const level = rows.find((control) => control.purpose === 'thought')
   const model = rows.find((control) => control.purpose === 'model')
 
-  /* 渲染期对比上一次的请求号（React 的「props 变了就调 state」写法），不走 effect：开这一下不该晚一帧 */
-  if (seenRequest !== openRequest) {
-    setSeenRequest(openRequest)
-    if (openRequest !== undefined && pending !== true && model !== undefined) {
+  /*
+   * 渲染期对比上一次办过的请求号（React 的「props 变了就调 state」写法），不走 effect：开这一下不该晚一帧。
+   * 表还没确认（模型列表在转圈）时**不算办过**：等表到了再开 —— 原先这一下直接丢掉，`/model` 转交给 omp，
+   * 入口页因此为它建出一条空对话（真实故障）。表确认了还是没有那一页，才作罢。
+   */
+  if (openRequest !== undefined && seenRequest !== openRequest.seq && pending !== true) {
+    setSeenRequest(openRequest.seq)
+    const target = requestedPane(openRequest, level !== undefined, model !== undefined)
+    if (target !== null) {
       setOpen(true)
-      setPane(MODEL)
+      setPane(target)
     }
   }
 

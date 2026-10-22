@@ -1,5 +1,9 @@
 import { describe, expect, test } from 'bun:test'
-import { commandErrorText, commandOutputText, shortTokens } from '../command-output'
+import { commandErrorOf, commandOutputOf, shortTokens } from '../command-output'
+
+/* 大多数用例只看译文；色调另有一组用例 */
+const commandOutputText = (raw: string): string | null => commandOutputOf(raw)?.text ?? null
+const commandErrorText = (message: string): string => commandErrorOf(message).text
 
 /*
  * U-04：omp 内置命令的输出折成给人看的中文。判据是 omp 18.10.3 的原句（builtin-lifecycle / builtin-modes / shake-types）。
@@ -14,6 +18,7 @@ describe('命令输出的中文化', () => {
       'Session renamed to 修复登录.',
       'Model set to deepseek/deepseek-v4.',
       'Session-only model: deepseek/deepseek-v4.',
+      'Retrying the last failed turn.',
     ]) {
       expect(commandOutputText(said)).toBeNull()
     }
@@ -31,6 +36,9 @@ describe('命令输出的中文化', () => {
     expect(commandOutputText('Handoff failed: 429 rate limited')).toBe('交接失败：429 rate limited')
     expect(commandOutputText('Rename failed: disk full')).toBe('重命名失败：disk full')
     expect(commandOutputText('Handoff cancelled.')).toBe('已取消交接')
+    expect(commandOutputText('Could not generate a session title. Use /rename <title> to set one.')).toBe(
+      '没能自动生成标题',
+    )
   })
 
   test('模型：查看当前、找不到、切换失败', () => {
@@ -67,6 +75,34 @@ describe('命令输出的中文化', () => {
     expect(commandErrorText('Nothing to hand off (already compacted)')).toBe('刚压缩过，没有新的内容可交接')
     expect(commandErrorText('Rename failed: disk full')).toBe('重命名失败：disk full')
     expect(commandErrorText('agent 正忙')).toBe('agent 正忙')
+  })
+
+  test('色调：成功、提示、警告、错误由认得原句的这一层定，屏幕不拿译文猜', () => {
+    expect(commandOutputOf('Fast mode enabled.')).toEqual({ text: '已开启快速模式', tone: 'success' })
+    expect(commandOutputOf('Fast mode is unavailable for the current model.')).toEqual({
+      text: '当前模型不支持快速模式',
+      tone: 'warning',
+    })
+    expect(commandOutputOf('Fast mode is ultra.')).toEqual({ text: '快速模式：极速', tone: 'info' })
+    expect(commandOutputOf('Slow mode is off (auto).')).toEqual({ text: '慢速模式：关', tone: 'info' })
+    expect(commandOutputOf('Nothing to retry.')).toEqual({ text: '没有可重试的失败回复', tone: 'warning' })
+    expect(commandOutputOf('Fresh provider session started (2 provider states pruned).')).toEqual({
+      text: '已重置与服务商的连接（清掉 2 份连接状态）',
+      tone: 'success',
+    })
+    expect(commandOutputOf('Could not generate a session title. Use /rename <title> to set one.')).toEqual({
+      text: '没能自动生成标题',
+      tone: 'warning',
+    })
+    expect(commandOutputOf('Usage: /slow [on|off|status]')).toEqual({
+      text: '参数不对，用法：/slow [on|off|status]',
+      tone: 'warning',
+    })
+    expect(commandOutputOf('Compaction failed: Already compacted')?.tone).toBe('error')
+    expect(commandOutputOf('Shook 3 tool results (~100 tokens freed).')?.tone).toBe('success')
+    expect(commandOutputOf('Nothing to shake.')?.tone).toBe('info')
+    expect(commandOutputOf('Something new from omp.')?.tone).toBe('info')
+    expect(commandErrorOf('agent 正忙')).toEqual({ text: 'agent 正忙', tone: 'error' })
   })
 
   test('token 短写', () => {

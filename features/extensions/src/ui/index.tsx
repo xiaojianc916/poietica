@@ -1,5 +1,5 @@
-import { composerToolkitSources } from '@poietica/feature-conversation/ui-api'
-import { BannersToken, builtinPoints, defineUiFeature, SETTINGS_GROUPS } from '@poietica/ui-kernel'
+import { composerToolkitSources, slashCommands } from '@poietica/feature-conversation/ui-api'
+import { BannersToken, builtinPoints, defineUiFeature, NavigationToken, SETTINGS_GROUPS } from '@poietica/ui-kernel'
 import { PackageOpen, Plug } from 'lucide-react'
 import { createExtensionsApi } from './api'
 import { createComposerToolkitSource } from './composer-toolkit'
@@ -15,6 +15,7 @@ export default defineUiFeature({
   setup(ctx) {
     const api = createExtensionsApi(ctx)
     const banners = ctx.services.get(BannersToken)
+    const navigation = ctx.services.get(NavigationToken)
 
     /* 名册属于本功能，conversation 只画面板，所以往它的贡献点里放一台来源。两条通知各自刷新一格：skills.changed 清技能缓存，
      * mcp.statusChanged 整份替换 MCP；Core 重启后两边都清空重来。 */
@@ -45,6 +46,24 @@ export default defineUiFeature({
       title: 'MCP',
       icon: Plug,
       component: () => <McpSettingsPage api={api} />,
+    })
+
+    /* 输入框里的 `/mcp`、`/skills`：omp 的同名命令在终端里是子命令，GUI 里这两样都有自己的设置页 —— 命令就是「打开那一页」。 */
+    const openPage = (page: string) => (): void => {
+      navigation.navigate({ surface: 'workbench.settings', params: { page } })
+    }
+    ctx.contribute(slashCommands, {
+      name: 'mcp',
+      description: '打开 MCP 设置',
+      order: 100,
+      run: openPage('extensions.mcp'),
+    })
+    ctx.contribute(slashCommands, {
+      name: 'skills',
+      aliases: ['skill'],
+      description: '打开技能设置',
+      order: 110,
+      run: openPage(SKILLS_SETTINGS_PAGE),
     })
 
     /* 技能页要提供「从文件夹安装」/「从 zip 安装」，而 legacy 那一页上**没有**这两颗键，产品负责人又要求设置界面与 legacy 逐像素一致 ——

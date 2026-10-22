@@ -1,4 +1,5 @@
 import type {
+  CommandOutputTone,
   ContextUsage,
   Controls,
   Interaction,
@@ -147,7 +148,8 @@ export function createConversationApi(ctx: UiFeatureContext) {
       (await rpc.call('commands.catalog', workspaceId === null ? {} : { workspaceId })).commands,
     runCommand: (threadId: string, text: string): Promise<void> =>
       rpc.call('commands.run', { threadId, text }).then(() => undefined),
-    onCommandOutput: (l: (p: { threadId: string; text: string }) => void) => rpc.on('commands.output', l),
+    onCommandOutput: (l: (p: { threadId: string; text: string; tone: CommandOutputTone }) => void) =>
+      rpc.on('commands.output', l),
     onCommandsChanged: (l: (p: { threadId: string }) => void) => rpc.on('commands.changed', l),
     respond: (threadId: string, interactionId: string, answer: InteractionAnswer): Promise<void> =>
       rpc.call('interactions.respond', { threadId, interactionId, answer }).then(() => undefined),

@@ -1,4 +1,12 @@
-import type { ContextUsage, Controls, EngineSessionEvent, Posture, SideTopic, UsageSample } from '@poietica/engine'
+import type {
+  CommandOutputTone,
+  ContextUsage,
+  Controls,
+  EngineSessionEvent,
+  Posture,
+  SideTopic,
+  UsageSample,
+} from '@poietica/engine'
 import type { Clock } from '@poietica/foundation'
 import type { TranscriptOperation } from '@poietica/transcript'
 import { MAIN_AGENT_ID, type QueueView, type Thread, type TurnState } from '../contract/entities'
@@ -55,7 +63,7 @@ export interface EventRouterDeps {
     error: { code: string; message: string } | null
   }) => void
   readonly emitUsageSampled: (p: { threadId: string; sample: UsageSample; at: number }) => void
-  readonly emitCommandOutput: (p: { threadId: string; text: string }) => void
+  readonly emitCommandOutput: (p: { threadId: string; text: string; tone: CommandOutputTone }) => void
   readonly emitCommandsChanged: (p: { threadId: string }) => void
   /** 侧边提问（右坞辅助对话）：原样转成 side.* 通知 —— 它们不进时间线、不碰回合运行时 */
   readonly emitSideTopic: (p: { threadId: string; topic: SideTopic }) => void
@@ -157,7 +165,7 @@ export class EventRouter {
         this.d.threads.setTitleFromSession(threadId, event.title, event.source, event.sessionFile)
         break
       case 'commandOutput':
-        this.d.emitCommandOutput({ threadId, text: event.text })
+        this.d.emitCommandOutput({ threadId, text: event.text, tone: event.tone })
         break
       case 'commandsChanged':
         this.d.emitCommandsChanged({ threadId })

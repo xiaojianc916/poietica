@@ -1,6 +1,5 @@
 import './composer-palette.css'
 
-import type { SlashCommand } from '@poietica/engine'
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react'
 import { type KeyboardEvent, type ReactNode, type RefObject, useEffect, useRef } from 'react'
 import type { PromptConfiguration } from '../../shared/model/session'
@@ -18,8 +17,11 @@ export type PaletteAction =
       readonly label: string
     }
   | { readonly kind: 'run'; readonly run: (draft: string) => void }
-  /* 斜杠命令：回车执行（必填参数的先补参数），Tab 只补全名字 —— 草稿怎么改归 PromptInput */
-  | { readonly kind: 'command'; readonly command: SlashCommand }
+  /*
+   * 斜杠命令面板的一行：把草稿换成 `fill`，`submit` 为真就接着提交（与手打回车同一条路，收信人不必知道面板存在）；
+   * Tab 只把草稿换成 `tab`、不提交。下一步（进二级选项、等人写参数）由 slash-palette 按命令的参数形状算好。
+   */
+  | { readonly kind: 'slash'; readonly fill: string; readonly submit: boolean; readonly tab: string }
 
 /** 这一行是怎么被选中的：Tab 只补全，回车与点击是「就要这一条」 */
 export type PaletteVia = 'enter' | 'tab'
@@ -34,6 +36,10 @@ export interface PaletteRow {
   readonly detail?: string | undefined
   readonly hint?: string | undefined
   readonly checked?: boolean | undefined
+  /** 行尾的当前值（`/fast` 后面的「开启」）或「›」（选中后还有下一层） */
+  readonly trail?: string | undefined
+  /** 画出来但选不动（必填参数还没写）：回车不执行，留着那一行说明还差什么 */
+  readonly disabled?: boolean | undefined
 
   readonly action: PaletteAction
 }
@@ -177,6 +183,8 @@ function PaletteRowContent({ row }: { readonly row: PaletteRow }) {
 
       {row.hint === undefined ? null : <kbd className="composer-palette__hint">{row.hint}</kbd>}
 
+      {row.trail === undefined ? null : <span className="composer-palette__trail">{row.trail}</span>}
+
       {row.checked === true ? (
         <span className="composer-palette__tick">
           <CheckIcon aria-hidden="true" />
@@ -270,7 +278,9 @@ export function ComposerPalette({ groups, highlighted, isOpen, listboxId, onHigh
                     /* mousedown 而不是 click：preventDefault 拦住焦点转移，落点由 onPick 决定。 */
                     <button
                       aria-selected={at === highlighted}
+                      aria-disabled={row.disabled === true ? true : undefined}
                       className="composer-palette__row"
+                      data-disabled={row.disabled === true ? 'true' : undefined}
                       data-highlighted={at === highlighted ? 'true' : undefined}
                       id={paletteOptionId(listboxId, row.id)}
                       key={row.id}

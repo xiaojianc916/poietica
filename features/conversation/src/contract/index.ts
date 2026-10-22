@@ -1,5 +1,6 @@
 import { defineContract, defineMethod, defineNotification } from '@poietica/contract-kit'
 import {
+  CommandOutputTone,
   ContextUsage,
   Controls,
   DeliverAs,
@@ -556,8 +557,8 @@ export const conversationContract = defineContract({
     defineNotification({
       name: 'commands.output',
       owner: 'core',
-      params: z.object({ threadId: z.string().min(1), text: z.string() }),
-      description: '斜杠命令给人的一段输出（不进会话文件，只画一次）',
+      params: z.object({ threadId: z.string().min(1), text: z.string(), tone: CommandOutputTone }),
+      description: '斜杠命令给人的一段输出（不进会话文件，只画一次）；tone 决定横幅的色调',
     }),
     defineNotification({
       name: 'commands.changed',

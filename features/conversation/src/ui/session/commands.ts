@@ -1,7 +1,7 @@
-import type { SlashCommand } from '@poietica/engine'
+import type { CommandOutputTone, SlashCommand } from '@poietica/engine'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { ConversationApi } from '../api'
-import type { ThreadCommands } from '../shared/model/commands'
+import type { CommandOutputNotice, ThreadCommands } from '../shared/model/commands'
 
 const NO_COMMANDS: readonly SlashCommand[] = Object.freeze([])
 
@@ -31,7 +31,7 @@ export function useCommandCatalog(api: ConversationApi, workspaceId: string | nu
 }
 
 /**
- * 一条对话的斜杠命令：挂载读一次表，`commands.changed` 再读；输出按 threadId 收。
+ * 一条对话的斜杠命令：挂载读一次表，`commands.changed` 再读；输出按 threadId 收，只留最近一句（表面把它变成横幅）。
  * 没有对话号（入口页）时整面是空的 —— 入口页的表另由 useCommandCatalog 读。
  * `takePending`：入口页点了命令、刚建出这条对话就跳过来的那一句 —— 订阅好输出之后再执行，输出才不会漏在跳转那一拍里。
  */
@@ -41,27 +41,27 @@ export function useThreadCommands(
   takePending?: (threadId: string) => string | undefined,
 ): ThreadCommands {
   const [list, setList] = useState<readonly SlashCommand[]>(NO_COMMANDS)
-  const [output, setOutput] = useState<ThreadCommands['output']>(null)
-  /* 正在跑的那一句：结果到了才开那一块，开的时候要知道是哪条命令说的 */
+  const [output, setOutput] = useState<CommandOutputNotice | null>(null)
+  /* 正在跑的那一句：结果到了要知道是哪条命令说的（改名失败的横幅据此给「手动改名」） */
   const running = useRef('')
+  const seq = useRef(0)
+
+  const say = useCallback((text: string, tone: CommandOutputTone) => {
+    seq.current += 1
+    setOutput({ seq: seq.current, command: running.current, text, tone })
+  }, [])
 
   const run = useCallback(
     async (text: string) => {
       const command = text.trim()
       running.current = command
-      /*
-       * 新命令先收掉上一块：上一条的结果到这里就算看过了。这一条有话要说时才出现 ——
-       * 压缩、交接、改名、换模型的结果在时间线 / 标题 / 模型胶囊上，引擎不推，也就没有一块转圈等不到结果的框。
-       */
-      setOutput(null)
       try {
         await api.runCommand(threadId, command)
       } catch (error) {
-        const message = error instanceof Error ? error.message : String(error)
-        setOutput({ command, lines: [message] })
+        say(error instanceof Error ? error.message : String(error), 'error')
       }
     },
-    [api, threadId],
+    [api, say, threadId],
   )
 
   useEffect(() => {
@@ -81,10 +81,7 @@ export function useThreadCommands(
       if (p.threadId === threadId) load()
     })
     const offOutput = api.onCommandOutput((p) => {
-      if (p.threadId !== threadId) return
-      setOutput((held) =>
-        held === null ? { command: running.current, lines: [p.text] } : { ...held, lines: [...held.lines, p.text] },
-      )
+      if (p.threadId === threadId) say(p.text, p.tone)
     })
     /* 取走即消费：StrictMode 第二遍挂载取到的是空，不会执行两次 */
     const pending = takePending?.(threadId)
@@ -94,9 +91,7 @@ export function useThreadCommands(
       offChanged.dispose()
       offOutput.dispose()
     }
-  }, [api, run, takePending, threadId])
+  }, [api, run, say, takePending, threadId])
 
-  const dismissOutput = useCallback(() => setOutput(null), [])
-
-  return useMemo(() => ({ list, output, run, dismissOutput }), [list, output, run, dismissOutput])
+  return useMemo(() => ({ list, output, run }), [list, output, run])
 }

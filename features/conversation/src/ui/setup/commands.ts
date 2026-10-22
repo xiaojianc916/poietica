@@ -73,10 +73,16 @@ export function createConversationCommands(setup: ConversationSetup, actions: Co
     () => {
       const threadId = activeThreadId()
       if (threadId === null) return
-      void api.forkThread({ threadId }).then((t) => {
-        stores.threads.upsert(t)
-        openThread(t.id)
-      })
+      /* 斜杠命令 `/fork` 也走这一条：失败要报出来，不能静默（输入框里敲了命令却什么都没发生）。 */
+      void api.forkThread({ threadId }).then(
+        (t) => {
+          stores.threads.upsert(t)
+          openThread(t.id)
+        },
+        (cause: unknown) => {
+          banners.error(cause, '分支对话失败')
+        },
+      )
     },
     hasThread,
   )

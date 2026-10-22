@@ -1,4 +1,5 @@
-import { builtinPoints, defineUiFeature, SETTINGS_GROUPS } from '@poietica/ui-kernel'
+import { slashCommands } from '@poietica/feature-conversation/ui-api'
+import { builtinPoints, defineUiFeature, NavigationToken, SETTINGS_GROUPS } from '@poietica/ui-kernel'
 import { Brain, Monitor, Wand } from 'lucide-react'
 import { AgentPage } from './agent-page'
 import { createAgentSettingsApi } from './api'
@@ -6,6 +7,8 @@ import { CapabilitiesPage } from './capabilities-page'
 
 export default defineUiFeature({
   id: 'agent-settings',
+  /* conversation：往输入框的斜杠命令面板里放 `/memory`、`/computer` 两条「打开这一页」的命令（slashCommands）。 */
+  dependsOn: ['conversation'],
   setup(ctx) {
     const api = createAgentSettingsApi(ctx)
 
@@ -36,6 +39,25 @@ export default defineUiFeature({
       title: '电脑控制',
       icon: Monitor,
       component: () => <CapabilitiesPage api={api} />,
+    })
+
+    /* `/memory` 在 omp 里是一组终端子命令（view / clear / reset …），`/computer` 是开关电脑控制 —— GUI 里两样都有自己的设置页，
+     * 开关与授权都在页上做（电脑控制要先过能力检查，命令不能绕过去），命令只负责打开那一页。 */
+    const navigation = ctx.services.get(NavigationToken)
+    const openPage = (page: string) => (): void => {
+      navigation.navigate({ surface: 'workbench.settings', params: { page } })
+    }
+    ctx.contribute(slashCommands, {
+      name: 'memory',
+      description: '打开记忆设置',
+      order: 300,
+      run: openPage('agent-settings.memory'),
+    })
+    ctx.contribute(slashCommands, {
+      name: 'computer',
+      description: '打开电脑控制设置',
+      order: 310,
+      run: openPage('agent-settings.capabilities'),
     })
   },
 })
