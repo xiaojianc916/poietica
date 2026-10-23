@@ -20,6 +20,8 @@ export interface CreateOmpEngineForTestOptions {
   readonly engineVersion?: string
   /** MCP 工作区的空闲宽限期（omp 知识 #22）；不给就是产品默认的 MCP_IDLE_GRACE_MS */
   readonly mcpIdleGraceMs?: number
+  /** 打开会话预热（见 EngineTestSeams.warmSession）；默认关 */
+  readonly warmSession?: boolean
 }
 
 type MockReply = MockResponse
@@ -54,6 +56,7 @@ export async function createOmpEngineForTest(o: CreateOmpEngineForTestOptions): 
       getApiKey: () => 'mock',
       disableAutoTitle: true,
       ...(o.mcpIdleGraceMs === undefined ? {} : { mcpIdleGraceMs: o.mcpIdleGraceMs }),
+      ...(o.warmSession === true ? { warmSession: true } : {}),
     },
   )
   // mock provider 也要一份凭据：omp 的凭据解析在读模型之前跑，缺 key 会直接拒掉这一轮。

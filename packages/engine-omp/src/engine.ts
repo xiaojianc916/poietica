@@ -43,6 +43,8 @@ export interface OmpEngineOptions {
   readonly plugins: AgentEngine['plugins']
   /** 释放进程级资源（root Settings 的 flush、会话清理） */
   readonly disposeRuntime: () => Promise<void>
+  /** 工具表冻结后调用一次、不等待：后台付掉进程内第一次开会话的冷启动（SessionFactory.warm）。不给就不预热 */
+  readonly warm?: () => void
 }
 
 /**
@@ -130,7 +132,10 @@ export class OmpEngine implements AgentEngine {
   }
 
   freezeTools(): void {
+    if (this.frozen) return
     this.frozen = true
+    /* 冻结之后工具表才是最终形状：此时预热，装配的就是之后每个会话都会装的那一套 */
+    this.o.warm?.()
   }
 
   async openSession(spec: OpenSessionSpec): Promise<EngineSession> {

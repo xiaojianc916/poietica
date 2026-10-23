@@ -1,3 +1,4 @@
+import { tmpdir } from 'node:os'
 import type { AgentEngine } from '@poietica/engine'
 import { AppError, type Logger, SystemErrorCode } from '@poietica/foundation'
 import type { DataLayout } from '@poietica/runtime-layout'
@@ -36,6 +37,8 @@ export interface EngineTestSeams {
   readonly disableAutoTitle?: boolean
   /** MCP 工作区的空闲宽限期（默认 MCP_IDLE_GRACE_MS）：测试用它验证「宽限到期进程退出」而不必等几分钟 */
   readonly mcpIdleGraceMs?: number
+  /** 打开会话预热（生产恒开）：测试默认关，免得每个用例都多建一个会话、打乱「第几次 createAgentSession」类断言 */
+  readonly warmSession?: boolean
 }
 
 /** omp 的模块入口：集中在这里动态 import，便于测试替换与阅读创建顺序 */
@@ -180,6 +183,15 @@ export async function createOmpEngineWith(o: CreateEngineOptions, seams: EngineT
     skills: ports.skills,
     mcp: ports.mcp,
     plugins: ports.plugins,
+    ...(seams === null || seams.warmSession === true
+      ? {
+          warm: () => {
+            factory
+              ?.warm(tmpdir())
+              .catch((error: unknown) => o.logger.debug('session warm-up failed', { error: String(error) }))
+          },
+        }
+      : {}),
     disposeRuntime: async () => {
       /* 会话都已关掉（OmpEngine.dispose 先关会话）：宽限期里的服务器在这里一并退出 */
       await mcp.dispose()

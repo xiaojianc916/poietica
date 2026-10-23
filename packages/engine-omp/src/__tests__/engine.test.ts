@@ -195,6 +195,19 @@ function makeEngine(over: Partial<ConstructorParameters<typeof OmpEngine>[0]> = 
 }
 
 describe('OmpEngine', () => {
+  test('冻结工具表时触发一次开会话预热（重复冻结不再触发）', () => {
+    let warmed = 0
+    const { engine } = makeEngine({
+      warm: () => {
+        warmed += 1
+      },
+    })
+    expect(warmed).toBe(0)
+    engine.freezeTools()
+    engine.freezeTools()
+    expect(warmed).toBe(1)
+  })
+
   test('冻结之前 openSession 抛 engine.tools_frozen（防止会话拿到不完整的工具表）', async () => {
     const { engine } = makeEngine()
     const error = await engine.openSession(spec('a')).catch((e: unknown) => e)

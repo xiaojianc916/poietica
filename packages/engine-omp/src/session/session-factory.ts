@@ -20,6 +20,8 @@ export interface SessionFactoryOptions {
       sessionDir?: string,
     ): { getSessionId(): string; getSessionFile(): string | undefined; ensureOnDisk?(): Promise<void> }
     open(file: string, sessionDir?: string): Promise<{ getSessionId(): string; getSessionFile(): string | undefined }>
+    /** 不落盘的会话（预热用）；不给就不预热 */
+    inMemory?(cwd: string): unknown
   }
   readonly authStorage: unknown
   readonly registry: unknown
@@ -49,6 +51,9 @@ export interface SessionFactoryOptions {
   }) => Promise<EngineSession>
 }
 
+/** 预热会话的工具上下文键：不对应任何线程，预热会话也从不跑一轮，工具不会被调用 */
+const WARM_SESSION_KEY = '__warm__'
+
 /**
  * SessionFactory。
  *
@@ -61,10 +66,26 @@ export class SessionFactory {
   constructor(private readonly o: SessionFactoryOptions) {}
 
   create(spec: OpenSessionSpec): Promise<EngineSession> {
-    const run = this.tail.then(
-      () => this.open(spec),
-      () => this.open(spec),
-    )
+    return this.enqueue(() => this.open(spec))
+  }
+
+  /**
+   * 预热：在同一条串行链上建一个**内存会话**再立刻丢掉，把进程里第一次 createAgentSession 的冷启动付在用户发话之前。
+   *
+   * 实测（Linux、脚本模型）：进程内第一次开会话约 240–300ms，之后约 50ms，差额是 omp 一次性的模块求值、
+   * 设置初始化与工具装配，与 cwd 无关。新对话的第一句没有任何预热（入口页还没有线程号），这笔账原样落在首字延迟上。
+   *
+   * 预热会话不碰任何有外部效果的东西：内存 SessionManager（不写会话文件）、不拉 MCP、不起 LSP、不开自动起名、
+   * 不发现用户扩展（用户扩展的工厂可能有副作用，不该为预热多跑一遍）。失败只记 debug —— 预热不改变任何结果，
+   * 真正的 open 照常走自己的路径。
+   */
+  warm(cwd: string): Promise<void> {
+    return this.enqueue(() => this.prime(cwd))
+  }
+
+  /** omp 知识 #9：每次 createAgentSession 都接在上一次后面，无论上一次成功还是失败 */
+  private enqueue<T>(job: () => Promise<T>): Promise<T> {
+    const run = this.tail.then(job, job)
     this.tail = run.then(
       () => undefined,
       () => undefined,
@@ -72,32 +93,64 @@ export class SessionFactory {
     return run
   }
 
-  private async open(spec: OpenSessionSpec): Promise<EngineSession> {
-    // 每个会话一个 overlay：读取实时穿透到根实例，写入只进它自己的 override 层
-    const settings =
+  private async prime(cwd: string): Promise<void> {
+    const inMemory = this.o.sessionManager.inMemory
+    if (inMemory === undefined) return
+    const model = this.resolveModelFor(null)
+    const created = await this.o.createAgentSession({
+      extensions: [this.toolsExtension(WARM_SESSION_KEY, cwd)],
+      cwd,
+      settings: this.overlay(),
+      sessionManager: inMemory.call(this.o.sessionManager, cwd),
+      authStorage: this.o.authStorage,
+      modelRegistry: this.o.registry,
+      hasUI: false,
+      enableMCP: false,
+      enableLsp: false,
+      autoTitle: false,
+      disableExtensionDiscovery: true,
+      ...(this.o.testSeams?.model === undefined ? {} : { model: this.o.testSeams.model }),
+      ...(this.o.testSeams?.getApiKey === undefined ? {} : { getApiKey: this.o.testSeams.getApiKey }),
+      ...(model === null ? {} : { model }),
+    })
+    const dispose = (created.session as { dispose?: () => Promise<void> } | undefined)?.dispose
+    if (typeof dispose === 'function') await dispose.call(created.session)
+  }
+
+  /** 每个会话一个 overlay：读取实时穿透到根实例，写入只进它自己的 override 层 */
+  private overlay(): SettingsScope {
+    return (
       (this.o.root as { overlay?: (overrides?: Readonly<Record<string, unknown>>) => SettingsScope }).overlay?.() ??
       this.o.root
-    applyPosture(settings, spec.posture)
-    // 目标续跑：omp 的控制器只认 'rpc' 这一档，Poietica 按交互式宿主的设置放行（审查 R-11，goal-host.ts）
-    allowGoalContinuation(settings)
-    const manager = await this.openManager(spec)
-    const model = this.resolveModelFor(spec)
-    // omp 知识 #15：内置工具用 extensions 注册（customTools 会替换掉 omp 的默认工具）；
-    // 工具表在会话建立时冻结成一份快照，之后的 registerTool 不影响已开的会话。
-    const extensionFactory = (pi: { registerTool(tool: Record<string, unknown>): void }): void => {
+    )
+  }
+
+  // omp 知识 #15：内置工具用 extensions 注册（customTools 会替换掉 omp 的默认工具）；
+  // 工具表在会话建立时冻结成一份快照，之后的 registerTool 不影响已开的会话。
+  private toolsExtension(sessionKey: string, cwd: string) {
+    return (pi: { registerTool(tool: Record<string, unknown>): void }): void => {
       createToolsExtension({
         specs: this.o.tools,
-        sessionKey: spec.key,
-        cwd: spec.cwd,
+        sessionKey,
+        cwd,
         logger: this.o.logger,
         register: (tool) => pi.registerTool(tool),
       })
     }
+  }
+
+  private async open(spec: OpenSessionSpec): Promise<EngineSession> {
+    const settings = this.overlay()
+    applyPosture(settings, spec.posture)
+    // 目标续跑：omp 的控制器只认 'rpc' 这一档，Poietica 按交互式宿主的设置放行（审查 R-11，goal-host.ts）
+    allowGoalContinuation(settings)
+    const manager = await this.openManager(spec)
+    const model = this.resolveModelFor(spec.model)
     const lease = (await this.o.mcp?.lease(spec.cwd)) ?? null
     let session: EngineSession
     try {
       const created = await this.o.createAgentSession({
-        extensions: [extensionFactory],
+        extensions: [this.toolsExtension(spec.key, spec.cwd)],
         cwd: spec.cwd,
         settings,
         sessionManager: manager,
@@ -191,11 +244,10 @@ export class SessionFactory {
    * 解析模型（omp 知识 #7）：选择器是**整串** provider/id，不能按最后一个斜杠切分
    * （id 自己可能带斜杠，例如 workbuddy-ai/deepseek-v4.1-flash）。解析不出就不传，交给 SDK 兜底。
    */
-  private resolveModelFor(spec: OpenSessionSpec): { provider: string; id: string } | null {
+  private resolveModelFor(ref: OpenSessionSpec['model']): { provider: string; id: string } | null {
     // 测试缝：注入的 mock 模型直接交给 SDK，不做目录解析
     if (this.o.testSeams?.model !== undefined) return null
-    const selector =
-      spec.model === null ? (this.o.modelRoles().default ?? null) : `${spec.model.provider}/${spec.model.id}`
+    const selector = ref === null ? (this.o.modelRoles().default ?? null) : `${ref.provider}/${ref.id}`
     if (selector === null) return null
     return this.o.resolveModel(selector)
   }

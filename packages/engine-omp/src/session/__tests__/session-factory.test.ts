@@ -78,3 +78,119 @@ describe('自动起名的开关交给 omp（omp 知识 #17）', () => {
     expect((await optionsOf(SPEC, { disableAutoTitle: true })).autoTitle).toBe(false)
   })
 })
+
+/*
+ * 预热（SessionFactory.warm）：进程里第一次 createAgentSession 的冷启动提前在后台付掉。
+ * 这里钉住的是「预热不产生任何外部效果」与「不破坏 omp 知识 #9 的串行」，而不是预热能快多少（那由基准测量）。
+ */
+describe('开会话预热', () => {
+  function harness(over: Partial<SessionFactoryOptions> = {}) {
+    const calls: Record<string, unknown>[] = []
+    const effects: string[] = []
+    let inFlight = 0
+    let peak = 0
+    let failNext = false
+    const factory = new SessionFactory({
+      layout: testLayout,
+      logger: noopLogger,
+      root: Settings.isolated(),
+      createAgentSession: async (options) => {
+        calls.push(options)
+        inFlight += 1
+        peak = Math.max(peak, inFlight)
+        await Bun.sleep(5)
+        inFlight -= 1
+        if (failNext) {
+          failNext = false
+          throw new Error('cold start failed')
+        }
+        return {
+          session: { dispose: async () => void effects.push('dispose') },
+          setToolUIContext: () => undefined,
+        }
+      },
+      sessionManager: {
+        create: () => {
+          effects.push('create')
+          return {
+            getSessionId: () => 'session-1',
+            getSessionFile: () => 'session-1.jsonl',
+            ensureOnDisk: async () => void effects.push('ensureOnDisk'),
+          }
+        },
+        open: async () => ({ getSessionId: () => 'session-1', getSessionFile: () => 'session-1.jsonl' }),
+        inMemory: (cwd) => {
+          effects.push(`inMemory:${cwd}`)
+          return { inMemory: true }
+        },
+      },
+      authStorage: {},
+      registry: {},
+      mcp: {
+        lease: async () => {
+          effects.push('lease')
+          return { manager: {}, attach: async () => undefined, release: () => undefined } as never
+        },
+      },
+      tools: new Map(),
+      resolveModel: () => null,
+      modelRoles: () => ({}),
+      wrapSession: async () => {
+        effects.push('wrap')
+        return stubSession()
+      },
+      ...over,
+    })
+    return {
+      factory,
+      calls,
+      effects,
+      peak: () => peak,
+      failOnce: () => {
+        failNext = true
+      },
+    }
+  }
+
+  test('F-W-1 预热只建内存会话再丢掉：不落盘、不借 MCP、不包装、不起 LSP、不发现用户扩展', async () => {
+    const h = harness()
+    await h.factory.warm('/tmp/warm')
+    expect(h.effects).toEqual(['inMemory:/tmp/warm', 'dispose'])
+    const options = h.calls[0]
+    expect(options?.sessionManager).toEqual({ inMemory: true })
+    expect(options).toMatchObject({
+      hasUI: false,
+      enableMCP: false,
+      enableLsp: false,
+      autoTitle: false,
+      disableExtensionDiscovery: true,
+    })
+    expect(options?.mcpManager).toBeUndefined()
+  })
+
+  test('F-W-2 预热与真正的开会话接在同一条链上：createAgentSession 从不并发（omp 知识 #9）', async () => {
+    const h = harness()
+    await Promise.all([h.factory.warm('/tmp/warm'), h.factory.create(SPEC), h.factory.warm('/tmp/warm')])
+    expect(h.calls).toHaveLength(3)
+    expect(h.peak()).toBe(1)
+  })
+
+  test('F-W-3 预热失败不连累之后的开会话', async () => {
+    const h = harness()
+    h.failOnce()
+    await expect(h.factory.warm('/tmp/warm')).rejects.toThrow('cold start failed')
+    await h.factory.create(SPEC)
+    expect(h.effects).toContain('wrap')
+  })
+
+  test('F-W-4 SessionManager 不支持内存会话：不预热', async () => {
+    const h = harness({
+      sessionManager: {
+        create: () => ({ getSessionId: () => 's', getSessionFile: () => 's.jsonl' }),
+        open: async () => ({ getSessionId: () => 's', getSessionFile: () => 's.jsonl' }),
+      },
+    })
+    await h.factory.warm('/tmp/warm')
+    expect(h.calls).toHaveLength(0)
+  })
+})
