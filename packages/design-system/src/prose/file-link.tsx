@@ -6,7 +6,7 @@ import { type FileRef, fileRefOfHref } from './file-ref'
 
 /*
  * 正文里的一处本地文件：文件类型图标（项目内联的 Material Icon Theme，与文件树同一套）+ 链接色文字，悬停给出完整路径，
- * 点了交给宿主（ProseFileLinksContext）在右坞开一个标签。链接文字照作者写的（多半就是文件名）；行内代码保留等宽字形。
+ * 点了交给宿主（ProseFileLinksContext）在右坞开一个标签。链接文字照作者写的（多半就是文件名）；字形按正文，不再是代码字形。
  */
 
 type AnchorProps = ComponentProps<'a'> & { readonly node?: unknown }

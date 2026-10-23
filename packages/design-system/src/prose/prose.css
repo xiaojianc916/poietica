@@ -569,11 +569,14 @@
   text-decoration-line: underline;
 }
 
-/* 链接里包着的行内代码：字形留等宽，底色交给链接 —— 一处文件引用只有一种颜色。 */
-.timeline-prose a[data-file-ref] > code {
+/* 链接里包着的行内代码：文件引用按正文排版，不再是代码字形与代码字号；底色交给链接 —— 一处文件引用只有一种颜色。
+ * 字族点名正文字体而不是 inherit：文件引用若落在等宽上下文里（工具卡片），inherit 会把代码字形又带回来。 */
+.timeline-prose a[data-file-ref] code {
   padding: 0;
   background: none;
   color: inherit;
+  font-family: var(--ui-font-sans);
+  font-size: inherit;
 }
 
 /* 没有宿主可开（不在对话里的正文）：只是一个带图标的文件名，不装成链接。 */
