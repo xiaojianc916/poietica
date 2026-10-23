@@ -41,7 +41,6 @@ export { RegionSplitter, type SplitterActivity } from './layout/region-splitter'
 export { FileTypeMark } from './mark/file-type-mark'
 export { integrationMarkFor } from './mark/integration-mark'
 export { GithubMark } from './mark/local-glyphs'
-export { PixelLoader } from './mark/pixel-loader'
 export {
   type OverlayKind,
   type OverlayPresence,
