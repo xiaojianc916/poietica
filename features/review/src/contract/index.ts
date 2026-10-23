@@ -6,6 +6,7 @@ import {
   GithubComment,
   GithubMergeMethod,
   GithubPullRequest,
+  GithubPullSummary,
   GithubRepository,
   GitStatus,
   ReviewFile,
@@ -136,9 +137,9 @@ export const reviewContract = defineContract({
         /** 关掉的 PR 默认不列（截图里的 All/PRs/Issues 就是这一档）。 */
         includeClosed: z.boolean().optional(),
       }),
-      result: z.object({ repository: GithubRepository.nullable(), pulls: z.array(GithubPullRequest) }),
+      result: z.object({ repository: GithubRepository.nullable(), pulls: z.array(GithubPullSummary) }),
       timeoutMs: 60_000,
-      description: '仓库的 pull request 列表（列表栏用它）',
+      description: '仓库的 pull request 列表（只有列表行的字段；正文、检查项、计数走 github.pullRequest）',
     }),
     defineMethod({
       name: 'github.pullRequest',

@@ -6,7 +6,7 @@ import {
   GitPullRequestDraft,
   type LucideIcon,
 } from 'lucide-react'
-import type { GithubCheck, GithubCheckState, GithubMergeStatus, GithubPullRequest, GithubPullState } from '../contract'
+import type { GithubCheck, GithubCheckState, GithubMergeStatus, GithubPullState, GithubPullSummary } from '../contract'
 
 /* 代码审查页的纯展示规则：相对时间、状态文案、色调与字形。全在这里，组件里不各写各的。 */
 
@@ -77,7 +77,7 @@ const CONFLICT_TONE = 'text-destructive'
  * 草稿的 PR 有冲突时，「有冲突」才是人此刻要知道的那件事。
  */
 export function pullStatePresentation(
-  pr: Pick<GithubPullRequest, 'state' | 'draft' | 'mergeStatus'>,
+  pr: Pick<GithubPullSummary, 'state' | 'draft' | 'mergeStatus'>,
 ): StatePresentation {
   if (pr.state === 'merged') {
     return { label: 'Merged', className: MERGED_TONE, glyph: 'pr-merged' }
@@ -173,7 +173,7 @@ export function sortChecks(checks: readonly GithubCheck[]): readonly GithubCheck
 }
 
 /** 列表的 meta 行（含仓库与编号）；列表把编号单独摆，所以它主要用于别处的整行展示。 */
-export function pullMetaLine(pr: GithubPullRequest, repositoryName: string | null): string {
+export function pullMetaLine(pr: GithubPullSummary, repositoryName: string | null): string {
   const parts = [pr.author, relativeTimeAgo(pr.createdAt)]
   if (repositoryName !== null) {
     parts.push(`${repositoryName} #${String(pr.number)}`)
@@ -182,7 +182,7 @@ export function pullMetaLine(pr: GithubPullRequest, repositoryName: string | nul
 }
 
 /** 详情的 meta 行：「xiaojianc916 · 1mo ago · refactor/plugin-ledger-ownership → main」。 */
-export function pullBranchLine(pr: GithubPullRequest): string {
+export function pullBranchLine(pr: GithubPullSummary): string {
   return `${pr.headBranch} → ${pr.baseBranch}`
 }
 

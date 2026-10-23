@@ -118,6 +118,7 @@ function CodeReviewBody({
         counts={filterCounts(state.reading.pulls)}
         entries={visiblePulls(state.reading.pulls, state.filter, state.query)}
         onFilter={store.setFilter}
+        onPrefetch={store.prefetch}
         onQuery={store.setQuery}
         onRefresh={store.refresh}
         onSelect={store.select}

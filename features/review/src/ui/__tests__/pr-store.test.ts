@@ -11,7 +11,7 @@ import {
   relativeTimeAgo,
   sortChecks,
 } from '../pr-format'
-import { createPrStore, FRESH_MS, filterCounts, type PrGateway, visiblePulls } from '../pr-store'
+import { createPrStore, FRESH_MS, filterCounts, PREFETCH_DELAY_MS, type PrGateway, visiblePulls } from '../pr-store'
 
 /* 纯函数与状态机的行为契约。UI 三块各自渲染，但它们对「多久以前」「什么颜色」「哪几条可见」的判断
  * 都从这里来，所以这一份测试守的是三块共同的口径。 */
@@ -149,7 +149,7 @@ describe('代码审查页的状态机', () => {
         repository: { owner: 'a', name: 'b', fullName: 'a/b', url: 'https://x' },
         pulls: [pull()],
       }),
-      pullRequest: async () => pull(),
+      pullRequest: async (number) => pull({ number }),
       comments: async () => [],
       comment: async (): Promise<GithubComment> => ({
         id: '1',
@@ -285,7 +285,7 @@ describe('代码审查页的状态机', () => {
       expect(state.selected).toBe(3)
       expect(state.tab).toBe('timeline')
       await settle()
-      expect(calls).toEqual({ list: 1, pull: 0, comments: 1 })
+      expect(calls).toEqual({ list: 1, pull: 1, comments: 1 })
       stop()
     })
 
@@ -339,22 +339,180 @@ describe('代码审查页的状态机', () => {
       expect(store.store.getState().reading.pulls).toHaveLength(1)
     })
 
-    test('点开一条：列表里的字段先画上，只补读评论；再点回来是即时的', async () => {
+    test('点开一条：详情与评论各读一次（列表不再带详情）；再点回来是即时的', async () => {
       const { calls, gateway: g } = counting()
       const store = createPrStore({ gateway: g, report: () => undefined, now: () => NOW })
       store.start()
       await settle()
       store.select(3)
-      expect(store.store.getState().facts.phase).toBe('ready')
+      expect(store.store.getState().facts.phase).toBe('loading')
       await settle()
-      expect(calls.pull).toBe(0)
-      expect(calls.comments).toBe(1)
+      expect(store.store.getState().facts.phase).toBe('ready')
+      expect(calls).toEqual({ list: 1, pull: 1, comments: 1 })
 
       store.select(null)
       store.select(3)
+      expect(store.store.getState().facts.phase).toBe('ready')
       expect(store.store.getState().comments.phase).toBe('ready')
       await settle()
-      expect(calls.comments).toBe(1)
+      expect(calls).toEqual({ list: 1, pull: 1, comments: 1 })
     })
+
+    test('同一条连点几下（或回到页面时正好在读）：只发一份请求', async () => {
+      const { calls, gateway: g } = counting()
+      const store = createPrStore({ gateway: g, report: () => undefined, now: () => NOW })
+      store.start()
+      await settle()
+      store.select(3)
+      store.select(3)
+      store.select(3)
+      await settle()
+      expect(calls).toEqual({ list: 1, pull: 1, comments: 1 })
+    })
+
+    test('还没读回来就换了一条：结果照样记下，点回来不再读', async () => {
+      const { calls, gateway: g } = counting()
+      const store = createPrStore({ gateway: g, report: () => undefined, now: () => NOW })
+      store.start()
+      await settle()
+      store.select(3)
+      store.select(4)
+      await settle()
+      expect(store.store.getState().facts.pull?.number).toBe(4)
+      store.select(3)
+      expect(store.store.getState().facts.phase).toBe('ready')
+      expect(store.store.getState().facts.pull?.number).toBe(3)
+      await settle()
+      expect(calls).toEqual({ list: 1, pull: 2, comments: 2 })
+    })
+
+    test('悬停预读：停够了才读，读过的点下去是即时的；扫过去的不读', async () => {
+      const { calls, gateway: g } = counting()
+      const store = createPrStore({ gateway: g, report: () => undefined, now: () => NOW })
+      store.start()
+      await settle()
+
+      store.prefetch(5)
+      store.prefetch(null)
+      await new Promise((resolve) => setTimeout(resolve, PREFETCH_DELAY_MS + 20))
+      expect(calls.pull).toBe(0)
+
+      store.prefetch(3)
+      await new Promise((resolve) => setTimeout(resolve, PREFETCH_DELAY_MS + 20))
+      await settle()
+      expect(calls).toEqual({ list: 1, pull: 1, comments: 1 })
+      store.select(3)
+      expect(store.store.getState().facts.phase).toBe('ready')
+      expect(store.store.getState().comments.phase).toBe('ready')
+      await settle()
+      expect(calls).toEqual({ list: 1, pull: 1, comments: 1 })
+    })
+
+    test('列表里的 updatedAt 变了：那一条的缓存作废，下次点开重读', async () => {
+      let updatedAt = '2026-09-08T16:07:58Z'
+      const { calls, gateway: g } = counting({
+        pullRequests: async () => ({
+          repository: { owner: 'a', name: 'b', fullName: 'a/b', url: 'https://x' },
+          pulls: [pull({ updatedAt })],
+        }),
+        pullRequest: async () => pull({ updatedAt }),
+      })
+      const store = createPrStore({ gateway: g, report: () => undefined, now: () => NOW })
+      store.start()
+      await settle()
+      store.select(3)
+      await settle()
+      expect(calls.pull).toBe(1)
+      store.select(null)
+
+      /* 没变：再列一次清单，点回来照样是缓存 */
+      store.refresh()
+      await settle()
+      store.select(3)
+      await settle()
+      expect(calls.pull).toBe(1)
+      store.select(null)
+
+      updatedAt = '2026-09-09T00:00:00Z'
+      store.refresh()
+      await settle()
+      store.select(3)
+      expect(store.store.getState().facts.phase).toBe('ready')
+      await settle()
+      expect(calls.pull).toBe(2)
+      expect(store.store.getState().facts.pull?.updatedAt).toBe(updatedAt)
+    })
+
+    test('列清单的同时读详情：列表重读不会把正在读的详情晾在「加载中」', async () => {
+      let release: () => void = () => undefined
+      const gate = new Promise<void>((resolve) => {
+        release = resolve
+      })
+      const store = createPrStore({
+        gateway: gateway({
+          pullRequest: async () => {
+            await gate
+            return pull()
+          },
+        }),
+        report: () => undefined,
+        now: () => NOW,
+      })
+      store.start()
+      await settle()
+      store.select(3)
+      store.refresh()
+      release()
+      await settle()
+      expect(store.store.getState().facts.phase).toBe('ready')
+    })
+  })
+
+  test('「能不能用」与清单同时发：进页面只等一个来回', async () => {
+    const order: string[] = []
+    let release: () => void = () => undefined
+    const gate = new Promise<void>((resolve) => {
+      release = resolve
+    })
+    const store = createPrStore({
+      gateway: gateway({
+        availability: async () => {
+          order.push('availability')
+          await gate
+          return { available: true, reason: null, login: 'x' }
+        },
+        pullRequests: async () => {
+          order.push('pullRequests')
+          return { repository: null, pulls: [pull()] }
+        },
+      }),
+      report: () => undefined,
+    })
+    store.start()
+    await settle()
+    expect(order).toEqual(['availability', 'pullRequests'])
+    expect(store.store.getState().reading.phase).toBe('asking')
+    release()
+    await settle()
+    expect(store.store.getState().reading.phase).toBe('ready')
+  })
+
+  test('不可用时清单那一路的失败不报（它多半就是「没凭据」）', async () => {
+    const reported: unknown[] = []
+    const store = createPrStore({
+      gateway: gateway({
+        availability: async () => ({ available: false, reason: '没登录', login: null }),
+        pullRequests: async () => {
+          throw new Error('no token')
+        },
+      }),
+      report: ({ cause }) => {
+        reported.push(cause)
+      },
+    })
+    store.start()
+    await settle()
+    expect(store.store.getState().reading.phase).toBe('unavailable')
+    expect(reported).toEqual([])
   })
 })

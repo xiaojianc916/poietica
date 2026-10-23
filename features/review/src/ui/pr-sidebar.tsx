@@ -10,7 +10,7 @@ import {
 } from '@poietica/design-system'
 import { Ellipsis, Funnel, RefreshCw, Search, X } from 'lucide-react'
 import { type ReactNode, useEffect, useRef } from 'react'
-import type { GithubPullRequest, GithubRepository } from '../contract'
+import type { GithubPullSummary, GithubRepository } from '../contract'
 import { Avatar } from './avatar'
 import { pullStatePresentation, relativeTime, STATE_GLYPHS } from './pr-format'
 import type { PrFilter, PrState } from './pr-store'
@@ -29,11 +29,13 @@ export interface PrSidebarProps {
   readonly state: PrState
   readonly repository: GithubRepository | null
   /** 已按 filter + query 过滤好的条目；本栏不再自己筛。 */
-  readonly entries: readonly GithubPullRequest[]
+  readonly entries: readonly GithubPullSummary[]
   readonly counts: { readonly all: number; readonly prs: number; readonly issues: number }
   readonly onFilter: (filter: PrFilter) => void
   readonly onQuery: (query: string) => void
   readonly onSelect: (number: number) => void
+  /** 鼠标停在 / 焦点落在某一行（null：离开了）：页面拿它预读详情。 */
+  readonly onPrefetch?: (number: number | null) => void
   readonly onRefresh: () => void
 }
 
@@ -105,6 +107,7 @@ export function PrSidebar(p: PrSidebarProps): ReactNode {
               <PullRow
                 entry={entry}
                 key={entry.number}
+                onPrefetch={p.onPrefetch}
                 onSelect={p.onSelect}
                 register={(number, node) => {
                   if (node === null) rows.current.delete(number)
@@ -292,12 +295,14 @@ function PullRow({
   entry,
   selected,
   tabbable,
+  onPrefetch,
   onSelect,
   register,
 }: {
-  readonly entry: GithubPullRequest
+  readonly entry: GithubPullSummary
   readonly selected: boolean
   readonly tabbable: boolean
+  readonly onPrefetch: ((number: number | null) => void) | undefined
   readonly onSelect: (number: number) => void
   readonly register: (number: number, node: HTMLButtonElement | null) => void
 }): ReactNode {
@@ -312,8 +317,20 @@ function PullRow({
           /* 选中 = 一层 7% 的前景墨（在 #181818 上读得出来），悬停更浅一档。 */
           selected ? 'bg-foreground/[0.07]' : 'hover:bg-foreground/[0.04]',
         )}
+        onBlur={() => {
+          onPrefetch?.(null)
+        }}
         onClick={() => {
           onSelect(entry.number)
+        }}
+        onFocus={() => {
+          onPrefetch?.(entry.number)
+        }}
+        onPointerEnter={() => {
+          onPrefetch?.(entry.number)
+        }}
+        onPointerLeave={() => {
+          onPrefetch?.(null)
         }}
         ref={(node) => {
           register(entry.number, node)

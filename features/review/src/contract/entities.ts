@@ -82,7 +82,12 @@ export type GithubCheck = z.infer<typeof GithubCheck>
 export const GithubReviewState = z.enum(['approved', 'changes_requested', 'review_required', 'none'])
 export type GithubReviewState = z.infer<typeof GithubReviewState>
 
-export const GithubPullRequest = z.object({
+/*
+ * 列表里的一行：只有画列表行、搜索、过滤要的那几样。正文、检查项、评审结论、改动计数都不在这里 ——
+ * 它们只在打开某一条时按需读（github.pullRequest）。列表若带着它们，进页面就得等 GitHub 把每一条的
+ * 正文、检查项与合并状态都算一遍（以前就是这样：进页面慢，点开却是「已经加载好的」）。
+ */
+export const GithubPullSummary = z.object({
   number: z.number().int(),
   title: z.string(),
   state: GithubPullState,
@@ -92,10 +97,22 @@ export const GithubPullRequest = z.object({
   avatarUrl: z.string().nullable(),
   /** ISO 8601。相对时间在 UI 侧格式化。 */
   createdAt: z.string(),
+  /** 详情缓存拿它判断「这一条在 GitHub 上变过没有」。 */
   updatedAt: z.string(),
   mergedAt: z.string().nullable(),
   headBranch: z.string(),
   baseBranch: z.string(),
+  /**
+   * 列表行的状态字形要知道「有没有冲突」。列表里只按 mergeable 粗分（clean / conflicting / draft / unknown）；
+   * blocked / behind 这些要 GitHub 现算 mergeStateStatus 的档位只在详情里有。
+   */
+  mergeStatus: GithubMergeStatus,
+  url: z.string(),
+})
+export type GithubPullSummary = z.infer<typeof GithubPullSummary>
+
+/** 一条 PR 的全部：列表那一行的字段，加上详情才要的正文、计数、检查项与评审结论。 */
+export const GithubPullRequest = GithubPullSummary.extend({
   additions: z.number().int(),
   deletions: z.number().int(),
   changedFiles: z.number().int(),
@@ -103,9 +120,7 @@ export const GithubPullRequest = z.object({
   /** 评论条数（含 review 评论）。 */
   comments: z.number().int(),
   reviews: z.number().int(),
-  mergeStatus: GithubMergeStatus,
   reviewState: GithubReviewState,
-  url: z.string(),
   /** PR 正文的 Markdown（没写就是空串）。 */
   body: z.string(),
   labels: z.array(z.string()),

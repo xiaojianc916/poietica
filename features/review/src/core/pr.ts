@@ -8,6 +8,7 @@ import type {
   GithubMergeStatus,
   GithubPullRequest,
   GithubPullState,
+  GithubPullSummary,
   GithubRepository,
   GithubReviewState,
 } from '../contract/entities'
@@ -39,7 +40,7 @@ export interface GithubService {
   pullRequests(
     cwd: string,
     includeClosed: boolean,
-  ): Promise<{ repository: GithubRepository | null; pulls: readonly GithubPullRequest[] }>
+  ): Promise<{ repository: GithubRepository | null; pulls: readonly GithubPullSummary[] }>
   pullRequest(cwd: string, number: number): Promise<GithubPullRequest>
   comments(cwd: string, number: number): Promise<readonly GithubComment[]>
   comment(cwd: string, number: number, body: string): Promise<GithubComment>
@@ -92,11 +93,20 @@ export interface RawPullNode {
   readonly statusCheckRollup?: { readonly contexts?: { readonly nodes?: readonly RawCheckNode[] } } | null
 }
 
-const PULL_FIELDS = `
-  number title state isDraft createdAt updatedAt mergedAt
-  mergeable mergeStateStatus additions deletions changedFiles
-  headRefName baseRefName url body
+/*
+ * 列表只取画列表行要的那几样。不取：body（每条几 KB 的 Markdown）、statusCheckRollup（每条最多 50 个检查项）、
+ * labels、mergeStateStatus（GitHub 要按分支保护与检查结果现算）、reviewDecision 与各种 totalCount。
+ * 它们只有打开某一条时才用得上，由 ONE_QUERY 按需读。mergeable 留着：列表行要靠它画「有冲突」的字形。
+ */
+const SUMMARY_FIELDS = `
+  number title state isDraft createdAt updatedAt mergedAt mergeable
+  headRefName baseRefName url
   author { login avatarUrl }
+`
+
+const PULL_FIELDS = `
+  ${SUMMARY_FIELDS}
+  mergeStateStatus additions deletions changedFiles body
   reviewDecision
   comments { totalCount } reviews { totalCount } commits { totalCount }
   labels(first: 20) { nodes { name } }
@@ -110,7 +120,7 @@ const PULL_FIELDS = `
 const LIST_QUERY = `query($owner: String!, $name: String!, $states: [PullRequestState!]) {
   repository(owner: $owner, name: $name) {
     pullRequests(first: 50, states: $states, orderBy: {field: UPDATED_AT, direction: DESC}) {
-      nodes { ${PULL_FIELDS} }
+      nodes { ${SUMMARY_FIELDS} }
     }
   }
 }`
@@ -240,7 +250,8 @@ function labelsOf(node: RawPullNode): readonly string[] {
   )
 }
 
-export function toPull(node: RawPullNode): GithubPullRequest {
+/** 列表那一行。没取 mergeStateStatus，mergeStatusOf 只按 mergeable 与 isDraft 粗分。 */
+export function toSummary(node: RawPullNode): GithubPullSummary {
   return {
     number: node.number,
     title: node.title,
@@ -254,8 +265,14 @@ export function toPull(node: RawPullNode): GithubPullRequest {
     headBranch: node.headRefName ?? '',
     baseBranch: node.baseRefName ?? '',
     mergeStatus: mergeStatusOf(node),
-    reviewState: reviewStateOf(node),
     url: node.url ?? '',
+  }
+}
+
+export function toPull(node: RawPullNode): GithubPullRequest {
+  return {
+    ...toSummary(node),
+    reviewState: reviewStateOf(node),
     body: node.body ?? '',
     labels: [...labelsOf(node)],
     checks: [...checksOf(node)],
@@ -417,7 +434,7 @@ export function createGithubService(d: GithubServiceDeps): GithubService {
         states: includeClosed ? ['OPEN', 'CLOSED', 'MERGED'] : ['OPEN'],
       })
       const nodes = data.repository?.pullRequests?.nodes ?? []
-      return { repository, pulls: nodes.map(toPull) }
+      return { repository, pulls: nodes.map(toSummary) }
     },
 
     async pullRequest(cwd, number) {

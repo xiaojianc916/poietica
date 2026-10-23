@@ -207,6 +207,28 @@ describe('拉一条 pull request', () => {
     expect(page.pulls.map((pull) => pull.number)).toEqual([3])
     expect(calls[0]?.body).toMatchObject({ variables: { states: ['OPEN', 'CLOSED', 'MERGED'] } })
   })
+
+  test('列清单只取列表行的字段：不带正文、检查项、合并状态细档，那些留给打开时的单条查询', async () => {
+    const { service, calls } = serviceOf([
+      graphqlWhen('pullRequests(first', { data: { repository: { pullRequests: { nodes: [pullNode()] } } } }),
+      graphqlWhen('pullRequest(number', { data: { repository: { pullRequest: pullNode() } } }),
+    ])
+    const page = await service.pullRequests('D:\\ws', true)
+    const listQuery = String((calls[0]?.body as { query?: string } | undefined)?.query)
+    for (const heavy of ['body', 'statusCheckRollup', 'mergeStateStatus', 'labels', 'reviewDecision', 'totalCount']) {
+      expect(listQuery).not.toContain(heavy)
+    }
+    expect(Object.keys(page.pulls[0] ?? {})).not.toContain('body')
+    /* 列表行仍认得出冲突（只靠 mergeable） */
+    expect(page.pulls[0]?.mergeStatus).toBe('conflicting')
+
+    const one = await service.pullRequest('D:\\ws', 3)
+    const oneQuery = String((calls[1]?.body as { query?: string } | undefined)?.query)
+    expect(oneQuery).toContain('statusCheckRollup')
+    expect(oneQuery).toContain('mergeStateStatus')
+    expect(one.body).toBe('Summary\n\nmove it')
+    expect(one.checks).toHaveLength(3)
+  })
 })
 
 describe('可用性', () => {

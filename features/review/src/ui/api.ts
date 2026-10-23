@@ -5,6 +5,7 @@ import {
   type GithubComment,
   type GithubMergeMethod,
   type GithubPullRequest,
+  type GithubPullSummary,
   type GithubRepository,
   type GitStatus,
   type ReviewFile,
@@ -39,7 +40,7 @@ export function createReviewApi(ctx: UiFeatureContext, workspaceId: string) {
     githubAvailability: (): Promise<GithubAvailability> => rpc.call('github.availability', {}),
     githubRepository: (): Promise<GithubRepository | null> =>
       rpc.call('github.repository', { workspaceId }).then((r) => r.repository),
-    githubPullRequests: (): Promise<{ repository: GithubRepository | null; pulls: readonly GithubPullRequest[] }> =>
+    githubPullRequests: (): Promise<{ repository: GithubRepository | null; pulls: readonly GithubPullSummary[] }> =>
       rpc.call('github.pullRequests', { workspaceId, includeClosed: true }),
     githubPullRequest: (number: number): Promise<GithubPullRequest> =>
       rpc.call('github.pullRequest', { workspaceId, number }).then((r) => r.pull),

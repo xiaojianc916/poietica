@@ -9766,6 +9766,20 @@
               "baseBranch": {
                 "type": "string"
               },
+              "mergeStatus": {
+                "type": "string",
+                "enum": [
+                  "clean",
+                  "conflicting",
+                  "blocked",
+                  "behind",
+                  "draft",
+                  "unknown"
+                ]
+              },
+              "url": {
+                "type": "string"
+              },
               "additions": {
                 "type": "integer",
                 "minimum": -9007199254740991,
@@ -9796,17 +9810,6 @@
                 "minimum": -9007199254740991,
                 "maximum": 9007199254740991
               },
-              "mergeStatus": {
-                "type": "string",
-                "enum": [
-                  "clean",
-                  "conflicting",
-                  "blocked",
-                  "behind",
-                  "draft",
-                  "unknown"
-                ]
-              },
               "reviewState": {
                 "type": "string",
                 "enum": [
@@ -9815,9 +9818,6 @@
                   "review_required",
                   "none"
                 ]
-              },
-              "url": {
-                "type": "string"
               },
               "body": {
                 "type": "string"
@@ -9867,15 +9867,15 @@
               "mergedAt",
               "headBranch",
               "baseBranch",
+              "mergeStatus",
+              "url",
               "additions",
               "deletions",
               "changedFiles",
               "commits",
               "comments",
               "reviews",
-              "mergeStatus",
               "reviewState",
-              "url",
               "body",
               "labels",
               "checks"
@@ -9893,7 +9893,7 @@
       "name": "github.pullRequests",
       "owner": "core",
       "timeoutMs": 60000,
-      "description": "仓库的 pull request 列表（列表栏用它）",
+      "description": "仓库的 pull request 列表（只有列表行的字段；正文、检查项、计数走 github.pullRequest）",
       "params": {
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "type": "object",
@@ -9996,36 +9996,6 @@
                 "baseBranch": {
                   "type": "string"
                 },
-                "additions": {
-                  "type": "integer",
-                  "minimum": -9007199254740991,
-                  "maximum": 9007199254740991
-                },
-                "deletions": {
-                  "type": "integer",
-                  "minimum": -9007199254740991,
-                  "maximum": 9007199254740991
-                },
-                "changedFiles": {
-                  "type": "integer",
-                  "minimum": -9007199254740991,
-                  "maximum": 9007199254740991
-                },
-                "commits": {
-                  "type": "integer",
-                  "minimum": -9007199254740991,
-                  "maximum": 9007199254740991
-                },
-                "comments": {
-                  "type": "integer",
-                  "minimum": -9007199254740991,
-                  "maximum": 9007199254740991
-                },
-                "reviews": {
-                  "type": "integer",
-                  "minimum": -9007199254740991,
-                  "maximum": 9007199254740991
-                },
                 "mergeStatus": {
                   "type": "string",
                   "enum": [
@@ -10037,52 +10007,8 @@
                     "unknown"
                   ]
                 },
-                "reviewState": {
-                  "type": "string",
-                  "enum": [
-                    "approved",
-                    "changes_requested",
-                    "review_required",
-                    "none"
-                  ]
-                },
                 "url": {
                   "type": "string"
-                },
-                "body": {
-                  "type": "string"
-                },
-                "labels": {
-                  "type": "array",
-                  "items": {
-                    "type": "string"
-                  }
-                },
-                "checks": {
-                  "type": "array",
-                  "items": {
-                    "type": "object",
-                    "properties": {
-                      "name": {
-                        "type": "string"
-                      },
-                      "state": {
-                        "type": "string",
-                        "enum": [
-                          "success",
-                          "failure",
-                          "pending",
-                          "neutral",
-                          "skipped"
-                        ]
-                      }
-                    },
-                    "required": [
-                      "name",
-                      "state"
-                    ],
-                    "additionalProperties": false
-                  }
                 }
               },
               "required": [
@@ -10097,18 +10023,8 @@
                 "mergedAt",
                 "headBranch",
                 "baseBranch",
-                "additions",
-                "deletions",
-                "changedFiles",
-                "commits",
-                "comments",
-                "reviews",
                 "mergeStatus",
-                "reviewState",
-                "url",
-                "body",
-                "labels",
-                "checks"
+                "url"
               ],
               "additionalProperties": false
             }
