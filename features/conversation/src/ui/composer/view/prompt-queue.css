@@ -214,6 +214,45 @@
   white-space: nowrap;
 }
 
+/* 只发了图 / 文件时正文位的摘要：不是人打的话，退一档墨、不抢正文的位次。 */
+.prompt-queue__said--caption {
+  color: var(--cp-ink-muted);
+}
+
+/* 文件记号与缩略图同高、同边框：都是「这一句带着的东西」，一行里读成一类。文件名过长时自己省略，不挤掉正文。 */
+.prompt-queue__file {
+  display: inline-flex;
+  flex: none;
+  max-inline-size: 40%;
+  block-size: var(--cp-queue-thumb);
+  align-items: center;
+  gap: 4px;
+  padding: 0 6px;
+  box-sizing: border-box;
+  border: 1px solid var(--cp-queue-edge);
+  border-radius: 6px;
+  background: var(--cp-queue-hover);
+  color: var(--cp-ink-muted);
+  font-size: 12px;
+  line-height: 16px;
+}
+
+.prompt-queue__file-mark {
+  flex: none;
+}
+
+.prompt-queue__file-name {
+  min-inline-size: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.prompt-queue__file-more {
+  flex: none;
+  font-variant-numeric: tabular-nums;
+}
+
 /* 操作钮**长在行自己的 flex 里**（正文 flex:auto 把这一组顶到右缘），不另起一列：分成两列会让按钮游离在行之外，跟它要操作的那句话对不上。名字只在 aria-label 与悬停提示里。 */
 .prompt-queue__action {
   display: grid;

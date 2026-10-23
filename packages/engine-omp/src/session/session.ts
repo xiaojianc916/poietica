@@ -51,7 +51,8 @@ export interface OmpSessionHost {
     skillMessage: SkillPromptMessage | null,
   ) => Promise<boolean>
   /**
-   * 排队 / 插话投递；返回值是 omp 队列里这一项的正文（对账与 removeQueued 都认它）。
+   * 排队 / 插话投递。交回这一项在 omp 那边的两种写法：`wireText` 是投递正文（removeQueued 与 message_start 认领认它），
+   * `chipText` 是 omp 队列快照里它的样子（对账认它，见 prompt.ts 的 `queueChipOf`）。两者只在纯图那一句上不同。
    * `images` 是已经读好的图（与插话帧上的图同一份像素，不再读第二遍）；不给就由实现自己读。
    */
   readonly steer: (
@@ -59,7 +60,7 @@ export interface OmpSessionHost {
     deliverAs: 'steer' | 'followUp',
     skillMessage: SkillPromptMessage | null,
     images?: readonly LoadedImage[],
-  ) => Promise<{ readonly wireText: string }>
+  ) => Promise<{ readonly wireText: string; readonly chipText: string }>
   readonly abort: () => Promise<void>
   readonly disposeSession: () => Promise<void>
   readonly queueOf: () => { readonly steering: readonly string[]; readonly followUp: readonly string[] }
@@ -150,8 +151,10 @@ interface QueueEntry {
   readonly id: string
   /** 显示正文：用户原话（队列行、插话帧都画它） */
   readonly text: string
-  /** 投递正文：与 omp 队列对账、removeQueued、message_start 认领都用它 */
+  /** 投递正文：removeQueued、message_start 认领用它 */
   readonly wireText: string
+  /** omp 队列快照里这一项的样子：只有队列对账用它（纯图那一句是 `[Image]`，不是空的投递正文） */
+  readonly chipText: string
   /** 以技能消息投递（omp 发的是 custom 消息，不是 user 消息） */
   readonly skill: boolean
   readonly deliverAs: 'steer' | 'followUp'
@@ -499,11 +502,12 @@ export class OmpSession implements EngineSession {
       this.assertLive()
       const loaded = images.length === 0 ? undefined : images
       const skillMessage = input.skills.length === 0 ? null : await this.skillTextFor(input, loaded)
-      const { wireText } = await this.o.steer(input, deliverAs, skillMessage, loaded)
+      const { wireText, chipText } = await this.o.steer(input, deliverAs, skillMessage, loaded)
       this.ledger.push({
         id: createId(),
         text: input.text,
         wireText,
+        chipText,
         skill: skillMessage !== null,
         deliverAs,
         createdAt: this.o.now(),
@@ -532,6 +536,7 @@ export class OmpSession implements EngineSession {
   /**
    * 与 omp 的队列对账：按账本顺序做多重集匹配（同样的文本可以出现多次）。账本里有、omp 里已没有的
    * 项说明已经投递，搬进 `consumed` 等 message_start 认领 —— 直接丢弃会让那一句永远画不出来。
+   * 比的是 `chipText`（omp 快照里的写法），不是投递正文：纯图那一句两者不同。
    */
   reconcileQueue(steering: readonly string[], followUp: readonly string[]): void {
     const pools = new Map<'steer' | 'followUp', string[]>([
@@ -541,7 +546,7 @@ export class OmpSession implements EngineSession {
     const keep: QueueEntry[] = []
     for (const entry of this.ledger) {
       const pool = pools.get(entry.deliverAs) ?? []
-      const at = pool.indexOf(entry.wireText)
+      const at = pool.indexOf(entry.chipText)
       if (at >= 0) {
         pool.splice(at, 1)
         keep.push(entry)

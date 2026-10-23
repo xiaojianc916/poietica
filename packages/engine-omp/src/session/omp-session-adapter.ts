@@ -52,6 +52,7 @@ import {
   type LoadedImage,
   loadImages,
   preparePrompt,
+  queueChipOf,
   type SkillPromptMessage,
 } from './prompt'
 import { OmpSession } from './session'
@@ -303,11 +304,11 @@ export async function wrapOmpSession(input: WrapOmpSessionInput): Promise<Engine
              */
             queueChipText: submit.text,
           })
-          return { wireText: submit.text }
+          return { wireText: submit.text, chipText: submit.text }
         }
         if (deliverAs === 'steer') await session.steer(prepared.text, [...prepared.imageContents])
         else await session.followUp(prepared.text, [...prepared.imageContents])
-        return { wireText: prepared.text }
+        return { wireText: prepared.text, chipText: queueChipOf(prepared.text, prepared.imageContents.length) }
       },
       abort: async () => await session.abort(),
       disposeSession: async () => await session.dispose(),
@@ -595,8 +596,12 @@ function claimStartedMessage(raw: unknown, session: OmpSession): void {
     | undefined
   if (message === undefined) return
   if (message.role === 'user') {
-    const text = userTextOf(message.content)
-    if (text !== '') session.onUserMessageStart(text)
+    /*
+     * 空正文也要认领：只带图的那一句（本轮自己的纯图 prompt、纯图插话）正文就是 ''。以前这里跳过空正文，
+     * 纯图插话永远画不上屏（重开后历史投影却画得出来），纯图 prompt 的 ownPrompt 也一直不清，会吞掉下一条纯图插话。
+     * 账本里只有纯图项的投递正文是 ''，不会认错别的项。
+     */
+    session.onUserMessageStart(userTextOf(message.content))
     return
   }
   if (isUserSkillMessage(message)) session.onSkillMessageStart()

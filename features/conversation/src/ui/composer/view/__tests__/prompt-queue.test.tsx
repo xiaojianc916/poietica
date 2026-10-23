@@ -2,7 +2,7 @@ import { describe, expect, test } from 'bun:test'
 import { act, cleanup, fireEvent, render } from '@testing-library/react'
 import { MessageQueue } from '../../../shared/model/message-queue'
 import type { QueuedAttachment, QueuedMessages, WithdrawnMessage } from '../../../shared/model/session'
-import { PromptQueue, queueImages, queueRows } from '../prompt-queue'
+import { PromptQueue, queueCaption, queueFiles, queueImages, queueRows } from '../prompt-queue'
 
 /*
  * 队列条的按号操作（R-01 缺陷 D）：早先 UI 只把正文摊成字符串数组、撤回靠「猜队首」，于是画在最后一行、
@@ -161,6 +161,45 @@ describe('队列条的图片预览', () => {
     })
 
     expect(edits).toEqual([{ text: 's1', attachments: [SHOT, NOTES] }])
+    cleanup()
+  })
+})
+
+/*
+ * 插话不带图以外的附件、只发图时那一行是空白：文件在队列条上隐身，纯图那一行读成「丢了内容」。
+ * 这里钉：文件画成一枚记号（第一个名字 + N），正文为空时正文位换成弱化的附件摘要。
+ */
+describe('队列条的文件与纯附件行', () => {
+  test('queueFiles 只收文件；queueCaption 有正文时为 null，没正文时数附件', () => {
+    const pending: QueuedAttachment = { ...SHOT, id: 'a3', previewUrl: null }
+    expect(queueFiles([SHOT, NOTES])).toEqual(['notes.md'])
+    expect(queueCaption('快点啊', [SHOT])).toBeNull()
+    expect(queueCaption('', [SHOT, pending])).toBe('2 张图片')
+    expect(queueCaption('  ', [NOTES])).toBe('1 个文件')
+    expect(queueCaption('', [SHOT, NOTES])).toBe('1 张图片、1 个文件')
+  })
+
+  test('带文件的行画文件记号，多个记 +N；纯图那一行的正文位是弱化摘要', () => {
+    const NOTES2: QueuedAttachment = { ...NOTES, id: 'f2', name: 'plan.md' }
+    const snapshot = queued({
+      steering: [{ id: 's1', text: '', attachments: [SHOT] }],
+      followUp: [{ id: 'f2', text: '看看这两个', attachments: [NOTES, NOTES2] }],
+    })
+    const { queue } = queueOf(snapshot)
+
+    const { container } = render(<PromptQueue onEdit={() => undefined} queue={queue} />)
+    const rows = container.querySelectorAll('.prompt-queue__row')
+
+    expect(rows[0]!.querySelector('.prompt-queue__thumb img')?.getAttribute('src')).toBe(SHOT_URL)
+    expect(rows[0]!.querySelector('.prompt-queue__said--caption')?.textContent).toBe('1 张图片')
+    expect(rows[0]!.querySelector('.prompt-queue__file')).toBeNull()
+
+    const file = rows[1]!.querySelector('.prompt-queue__file')!
+    expect(file.querySelector('.prompt-queue__file-name')?.textContent).toBe('notes.md')
+    expect(file.querySelector('.prompt-queue__file-more')?.textContent).toBe('+1')
+    expect(file.getAttribute('title')).toBe('notes.md\nplan.md')
+    expect(rows[1]!.querySelector('.prompt-queue__said')?.textContent).toBe('看看这两个')
+    expect(rows[1]!.querySelector('.prompt-queue__said--caption')).toBeNull()
     cleanup()
   })
 })

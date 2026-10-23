@@ -66,7 +66,7 @@ export function hostOf(over: Partial<OmpSessionHost> = {}): OmpSessionHost {
       topics: async () => [],
       close: async () => undefined,
     },
-    steer: async () => ({ wireText: '' }),
+    steer: async () => ({ wireText: '', chipText: '' }),
     abort: async () => undefined,
     disposeSession: async () => undefined,
     queueOf: () => ({ steering: [], followUp: [] }),

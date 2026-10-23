@@ -74,6 +74,22 @@ export function wireTextOf(input: Pick<SubmitInput, 'text' | 'files' | 'context'
   return lines.join('\n')
 }
 
+/**
+ * omp 队列快照（`getQueuedMessages` / `queue_update`）里这一项的样子 —— 与投递正文**不是**同一份字符串：
+ * omp 的 `queueChipText`（`src/session/queued-messages.ts:100-107`）取消息里第一段文字，
+ * 没有文字、只带图的 user 消息报成 `[Image]`。
+ *
+ * 队列对账（`reconcileQueue`）必须按它比：按投递正文比，纯图那一句在下一帧 `queue_update` 里就对不上，
+ * 被当成「omp 已经取走」—— 提前报送达、提交行被删、队列条上那一行消失，而 omp 里它其实还排着。
+ * 另两处仍然认投递正文：撤回（`removeQueuedMessage`）先按 omp 记下的原文比；`message_start` 认领读的是消息正文。
+ */
+export const QUEUE_IMAGE_CHIP = '[Image]'
+
+export function queueChipOf(wireText: string, imageCount: number): string {
+  if (wireText !== '') return wireText
+  return imageCount > 0 ? QUEUE_IMAGE_CHIP : ''
+}
+
 /*
  * 附带上下文（`SubmitInput.context`）在投递正文里的写法：文件引用之后，每块一段
  *

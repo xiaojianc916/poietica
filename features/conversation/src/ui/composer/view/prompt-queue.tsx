@@ -11,7 +11,14 @@ import type {
   QueuedItem,
   WithdrawnMessage,
 } from '../../shared/model/session'
-import { ChevronDownIcon, ChevronUpIcon, ImageIcon, QueueSteerIcon, TrashIcon } from '../../shared/primitives/icons'
+import {
+  ChevronDownIcon,
+  ChevronUpIcon,
+  FileIcon,
+  ImageIcon,
+  QueueSteerIcon,
+  TrashIcon,
+} from '../../shared/primitives/icons'
 
 /* 图标库没有这张字形，就近画在用它这一处。 */
 function QueueGlyph({ className }: SVGProps<SVGSVGElement>) {
@@ -50,6 +57,10 @@ export interface QueueRow {
   readonly last: boolean
   /** 这一句带的图（只收有预览地址的那些）：队列行画第一张缩略图，点开是这一组的灯箱。 */
   readonly images: readonly PreviewableImage[]
+  /** 这一句带的文件名（kind 'file'）：画成一枚文件记号，图以外的附件不再在队列条上隐身。 */
+  readonly files: readonly string[]
+  /** 正文为空时（只发了图 / 文件）正文位画的那句弱化摘要；有正文时为 null。 */
+  readonly caption: string | null
 }
 
 /* 判据是进门分类 kind（与输入框那一排同口径）；还没有预览地址的图不画缩略图 —— 画出来也只是一块空底。 */
@@ -61,8 +72,31 @@ export function queueImages(attachments: readonly QueuedAttachment[]): readonly 
   )
 }
 
+export function queueFiles(attachments: readonly QueuedAttachment[]): readonly string[] {
+  return attachments.flatMap((attachment) => (attachment.kind === 'file' ? [attachment.name] : []))
+}
+
+/* 只带附件、没打字的一句：正文位不留白（空白行读成「这一条丢了内容」），报它带了什么。数的是全部附件，还没预览地址的图也算。 */
+export function queueCaption(text: string, attachments: readonly QueuedAttachment[]): string | null {
+  if (text.trim() !== '') {
+    return null
+  }
+  const images = attachments.filter((attachment) => attachment.kind === 'image').length
+  const files = attachments.length - images
+  const parts = [...(images > 0 ? [`${String(images)} 张图片`] : []), ...(files > 0 ? [`${String(files)} 个文件`] : [])]
+  return parts.length > 0 ? parts.join('、') : '（空消息）'
+}
+
 function rowOf(item: QueuedItem, tier: string, layer: QueuedDelivery) {
-  return { id: item.id, text: item.text, tier, layer, images: queueImages(item.attachments) }
+  return {
+    id: item.id,
+    text: item.text,
+    tier,
+    layer,
+    images: queueImages(item.attachments),
+    files: queueFiles(item.attachments),
+    caption: queueCaption(item.text, item.attachments),
+  }
 }
 
 /* steering 先走、followUp 后走，两层接着数一个序号。 */
@@ -176,6 +210,41 @@ function QueueThumbnail({
         </span>
       ) : null}
     </button>
+  )
+}
+
+/* 队列行里的文件记号：与缩略图同高，只写第一个文件名，多个记 +N；全部文件名在悬停提示里。不带文件的行什么都不画。 */
+function QueueFiles({ files }: { readonly files: readonly string[] }) {
+  const first = files[0]
+  if (first === undefined) {
+    return null
+  }
+  const more = files.length - 1
+  const label = files.join('\n')
+
+  return (
+    <span className="prompt-queue__file" title={label}>
+      <FileIcon aria-hidden className="prompt-queue__file-mark" size={12} />
+      <span className="prompt-queue__file-name">{first}</span>
+      {more > 0 ? (
+        <span aria-hidden className="prompt-queue__file-more">
+          +{more}
+        </span>
+      ) : null}
+    </span>
+  )
+}
+
+/* 正文位：人打的话原样画；只发了附件时换成弱化的摘要（见 queueCaption）。 */
+function QueueSaid({ row }: { readonly row: QueueRow }) {
+  if (row.caption !== null) {
+    return <span className="prompt-queue__said prompt-queue__said--caption">{row.caption}</span>
+  }
+
+  return (
+    <span className="prompt-queue__said" title={row.text}>
+      {row.text}
+    </span>
   )
 }
 
@@ -337,9 +406,9 @@ export const PromptQueue = memo(function PromptQueue({ onEdit, queue }: PromptQu
                     }}
                   />
 
-                  <span className="prompt-queue__said" title={row.text}>
-                    {row.text}
-                  </span>
+                  <QueueFiles files={row.files} />
+
+                  <QueueSaid row={row} />
 
                   {/* 一行时没有折叠头，两枚控件贴这一行的右缘（它们改的就是这一条）。 */}
                   {many || !row.last ? null : (

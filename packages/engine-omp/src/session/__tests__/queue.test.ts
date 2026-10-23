@@ -66,6 +66,16 @@ const BASE_SPEC: OpenSessionSpec = {
   thinking: null,
 }
 
+/*
+ * omp 的 queueChipText（queued-messages.ts:100-107）：队列快照里报的是消息第一段文字，没有文字只带图报 `[Image]`。
+ * 假 omp 照这条规则往队列里放 —— 早先它直接放投递正文，纯图插话的对账错位就测不出来。
+ */
+const IMAGE_CHIP = '[Image]'
+function chipOf(text: string, images: readonly unknown[] | undefined): string {
+  if (text !== '') return text
+  return (images?.length ?? 0) > 0 ? IMAGE_CHIP : ''
+}
+
 async function fixture(): Promise<Fixture> {
   const listeners: ((event: Record<string, unknown>) => void)[] = []
   const steering: string[] = []
@@ -114,19 +124,19 @@ async function fixture(): Promise<Fixture> {
       void message
       return true
     },
-    steer: async (text: string): Promise<void> => {
+    steer: async (text: string, images?: readonly unknown[]): Promise<void> => {
       calls.push({ how: 'steer', text })
-      steering.push(text)
+      steering.push(chipOf(text, images))
       emitQueue()
     },
-    followUp: async (text: string): Promise<void> => {
+    followUp: async (text: string, images?: readonly unknown[]): Promise<void> => {
       const held = gate
       if (held !== null) {
         gate = null
         await held
       }
       calls.push({ how: 'followUp', text })
-      followUp.push(text)
+      followUp.push(chipOf(text, images))
       emitQueue()
     },
     abort: async (): Promise<void> => undefined,
@@ -140,7 +150,8 @@ async function fixture(): Promise<Fixture> {
     getQueuedMessages: () => ({ steering: [...steering], followUp: [...followUp] }),
     removeQueuedMessage: (text: string, queue: 'steering' | 'followUp'): boolean => {
       const target = queue === 'steering' ? steering : followUp
-      const at = target.indexOf(text)
+      /* omp 先按入队时的原文比、再按 chip 比：纯图那一句的原文是 ''，chip 是 [Image] */
+      const at = text === '' ? target.indexOf(IMAGE_CHIP) : target.indexOf(text)
       if (at < 0) return false
       target.splice(at, 1)
       emitQueue()
@@ -608,6 +619,92 @@ describe('排队项结局（R-20-1）', () => {
     f.syncQueue()
 
     expect(settled(f.events)).toEqual([])
+    await f.session.cancel()
+  })
+})
+
+/*
+ * 纯图插话（只发图、不写字）：投递正文是 ''，omp 队列快照里却是 `[Image]`。早先对账按投递正文比，
+ * 下一帧 queue_update 就把它当成「已经取走」—— 提前报送达、队列条上消失；message_start 又跳过空正文，
+ * 真被取走时也画不上屏（重开后历史投影才画得出来）。三条判据：排着时不误报、取走后画出带图的插话帧、撤回能撤掉。
+ */
+describe('纯图插话', () => {
+  const settled = (events: readonly EngineSessionEvent[]) =>
+    events.flatMap((event) => (event.type === 'queueSettled' ? [[event.ref, event.outcome]] : []))
+  const IMAGE = { path: 'C:\\a.png', mime: 'image/png' }
+
+  test('排着时再来一句：纯图那一项仍在队列里，不误报送达', async () => {
+    const f = await fixture()
+    await f.session.submit(submit('打底'))
+    await f.session.submit(submit('', 'followUp', { images: [IMAGE], ref: 'c1' }))
+    await f.session.submit(submit('后一句', 'followUp', { ref: 'c2' }))
+    f.syncQueue()
+
+    expect(f.followUp).toEqual([IMAGE_CHIP, '后一句'])
+    expect(f.session.queue().items.map((item) => item.ref)).toEqual(['c1', 'c2'])
+    expect(settled(f.events)).toEqual([])
+    await f.session.cancel()
+  })
+
+  test('omp 取走后：画出一条挂着图的插话帧，且只报一次送达', async () => {
+    const f = await fixture()
+    await f.session.submit(submit('打底'))
+    await f.session.submit(submit('', 'steer', { images: [IMAGE], ref: 'c1' }))
+    const before = f.events.flatMap((event) => (event.type === 'timeline' ? event.ops : [])).length
+
+    f.steering.length = 0
+    f.syncQueue()
+    f.messageStart({
+      role: 'user',
+      content: [
+        { type: 'text', text: '' },
+        { type: 'image', data: 'QUJD', mimeType: 'image/png' },
+      ],
+      timestamp: NOW + 1,
+    })
+
+    const ops = f.events.flatMap((event) => (event.type === 'timeline' ? event.ops : [])).slice(before)
+    const upserts = ops.flatMap((op) => (op.op === 'attachment.upsert' ? [op.attachment] : []))
+    const frames = ops.flatMap((op) =>
+      op.op === 'frame.upsert' && op.frame.kind === 'text' && op.frame.role === 'user' ? [op.frame] : [],
+    )
+    expect(upserts.map((attachment) => attachment.source)).toEqual([{ kind: 'blob', sha256: ABC_SHA }])
+    expect(frames).toHaveLength(1)
+    expect(frames[0]?.attachmentIds).toEqual(upserts.map((attachment) => attachment.attachmentId))
+    expect(settled(f.events)).toEqual([['c1', 'delivered']])
+    await f.session.cancel()
+  })
+
+  test('撤回纯图那一项：omp 队列里也摘掉，报 withdrawn', async () => {
+    const f = await fixture()
+    await f.session.submit(submit('打底'))
+    await f.session.submit(submit('', 'followUp', { images: [IMAGE], ref: 'c1' }))
+    const [item] = f.session.queue().items
+
+    f.session.withdraw(item!.id)
+
+    expect(f.followUp).toEqual([])
+    expect(settled(f.events)).toEqual([['c1', 'withdrawn']])
+    await f.session.cancel()
+  })
+
+  test('纯图开轮之后的纯图插话：不被本轮自己的 prompt 吞掉', async () => {
+    const f = await fixture()
+    await f.session.submit(submit('', 'turn', { images: [IMAGE] }))
+    await Bun.sleep(10)
+    const image = { type: 'image', data: 'QUJD', mimeType: 'image/png' }
+    /* 本轮自己的 prompt 先到：它不是插话 */
+    f.messageStart({ role: 'user', content: [{ type: 'text', text: '' }, image], timestamp: NOW + 1 })
+    await f.session.submit(submit('', 'steer', { images: [IMAGE], ref: 'c1' }))
+    const before = f.events.flatMap((event) => (event.type === 'timeline' ? event.ops : [])).length
+
+    f.steering.length = 0
+    f.syncQueue()
+    f.messageStart({ role: 'user', content: [{ type: 'text', text: '' }, image], timestamp: NOW + 2 })
+
+    const ops = f.events.flatMap((event) => (event.type === 'timeline' ? event.ops : [])).slice(before)
+    const frames = ops.filter((op) => op.op === 'frame.upsert' && op.frame.kind === 'text' && op.frame.role === 'user')
+    expect(frames).toHaveLength(1)
     await f.session.cancel()
   })
 })
