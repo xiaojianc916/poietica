@@ -45,3 +45,16 @@ test('P4 首帧已有的字不做动画（切回会话、虚拟列表重新挂�
   expect(container.querySelectorAll('[data-wave-start]')).toHaveLength(0)
   cleanup()
 })
+
+test('P5 多段流式（旧块被 memo 不再重渲）：每个在 DOM 里的波浪小段都挂上了淡入', async () => {
+  const text = Array.from({ length: 6 }, () => PARA).join('\n\n')
+  const { container, rerender } = render(<Prose streaming text="" />)
+  for (let n = 6; n <= text.length; n += 6) {
+    await act(async () => {
+      rerender(<Prose streaming text={text.slice(0, n)} />)
+      await frame()
+    })
+    for (const el of container.querySelectorAll('[data-wave-start]')) expect(el.getAnimations()).toHaveLength(1)
+  }
+  cleanup()
+})
