@@ -115,7 +115,7 @@ export function HomeSurface({
   /* 盘上的草稿读回来（或确定读不回来）之前不要控件表：空草稿换来的兜底先画出来、再被盘上的选择盖掉，就是启动时的错位。 */
   const entryReady = useFeatureStore(stores.composer.store, (s) => s.entryReady)
   /*
-   * 后发先至：hydrate、posture.load、`controls.draftChanged`（Core 启动时模型目录变了也会发）都会触发一次读，
+   * 后发先至：hydrate、批准方式恢复（posture.restore）、`controls.draftChanged`（Core 启动时模型目录变了也会发）都会触发一次读，
    * 几次请求在 Core 里的 await 深浅不同，旧请求的应答可能后到。只认最后一次发出的那一份，旧的直接丢。
    */
   const readSeq = useRef(0)

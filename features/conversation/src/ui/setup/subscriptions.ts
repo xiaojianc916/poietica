@@ -2,25 +2,13 @@ import { loadMath } from '@poietica/design-system/prose'
 import { completionBody, isTurnSettled } from '../session/notify'
 import type { ConversationActions } from './actions'
 import type { ConversationSetup } from './context'
+import { leaveMissingLanding } from './landing-guard'
 import { followThreadWorkspace } from './workspace-follow'
 
 /** 各条 `api.on…` 通知订阅，以及 onCoreLost / onCoreReady。 */
 export function createConversationSubscriptions(setup: ConversationSetup, actions: ConversationActions): void {
-  const {
-    api,
-    ctx,
-    entryDefaults,
-    layout,
-    platform,
-    preferences,
-    posture,
-    sessions,
-    side,
-    stores,
-    subagentTabs,
-    transcripts,
-  } = setup
-  const { draftPin, notify, openThread } = actions
+  const { api, ctx, entryDefaults, layout, platform, sessions, side, stores, subagentTabs, transcripts } = setup
+  const { drafts, notify, openThread } = actions
 
   ctx.lifecycle.onDispose(
     followThreadWorkspace({ navigation: setup.navigation, threads: stores.threads, workspaces: setup.workspaces }),
@@ -108,43 +96,6 @@ export function createConversationSubscriptions(setup: ConversationSetup, action
     transcripts.markAllStale()
   })
 
-  /*
-   * `hydrate` 是 `{...当前, ...盘上}` 的合并：Core 每次重启都重读一遍，会把重启那一刻输入框里最近 300ms（UI 去抖）+ 500ms（Host 去抖）内敲的字用盘上的旧版本盖回去。
-   * `posture.load()` 与它同一条理由。
-   */
-  /* 「读失败」与「盘上没有值」必须分开（R-07 §3.4）：混在一起会让 attachments 那一侧在一个空集合上做整体替换，把盘上草稿的引用全清掉。读成功（哪怕是 null）才算恢复完成。 */
-  const loadDraftsOnce = async (): Promise<void> => {
-    let storedDrafts: unknown
-    try {
-      storedDrafts = (await preferences.call('uiState.get', { key: 'conversation.drafts' })).value
-    } catch (cause) {
-      ctx.logger.warn('drafts load failed', { error: String(cause) })
-      return
-    }
-    if (storedDrafts !== null && typeof storedDrafts === 'object') {
-      stores.composer.hydrate(storedDrafts as Record<string, import('../composer/composer-store').Draft>)
-    }
-    draftPin.markRestored()
-  }
-  /* 同一时刻只有一次在读：setup 时发起的那一次与 onCoreReady 的重试共用一个 Promise。 */
-  let draftsInFlight: Promise<void> | null = null
-  const loadDrafts = (): Promise<void> => {
-    /* onCoreReady 的步骤表是在 ready 那一刻排的，轮到这一步时 setup 发起的那一次可能已经读完了 */
-    if (draftPin.restored()) return Promise.resolve()
-    draftsInFlight ??= loadDraftsOnce().finally(() => {
-      draftsInFlight = null
-      /* 读成功或确定失败都放行入口页：失败时它照兜底规则画，总比一直不画选择器强。 */
-      stores.composer.markEntryReady()
-    })
-    return draftsInFlight
-  }
-  /*
-   * 草稿住在 Host 的 uiState 里，Host 在窗口创建之前就读好了 —— 它**不依赖 Core**。原先这一步排在 onCoreReady 里、
-   * 还在 threads.refresh 与 posture.load 之后：入口页早已挂载、拿空草稿向 Core 要了一份兜底控件表并画了出来，
-   * 盘上的选择晚到再盖一次，两次应答谁后到谁赢（真实故障：启动时模型 / 档位时好时坏地错位）。生命周期跟着数据归属走：setup 时就读。
-   */
-  void loadDrafts()
-
   let readyCount = 0
   ctx.lifecycle.onCoreReady(async () => {
     readyCount += 1
@@ -157,9 +108,17 @@ export function createConversationSubscriptions(setup: ConversationSetup, action
     }
     const steps: Array<readonly [string, () => unknown]> = [
       ['threads', () => stores.threads.refresh()],
-      ...(first ? ([['posture', () => posture.load()]] as const) : []),
-      /* 读失败时保持「没恢复」，所以不是「只有第一次」—— 恢复到之前每次 ready 都试。 */
-      ...(draftPin.restored() ? [] : ([['drafts', () => loadDrafts()]] as const)),
+      /* 启动时恢复出来的那条对话已经删了 / 归档了：线程表一到就判，回入口页（landing-guard.ts）。只管启动落地，之后的删除 / 归档各有各的入口。 */
+      ...(first
+        ? ([
+            ['landing', () => leaveMissingLanding({ api, navigation: setup.navigation, threads: stores.threads })],
+          ] as const)
+        : []),
+      /*
+       * 草稿与批准方式都在 setup 里由 uiState 槽恢复（契约 UI_STATE_RESTORE），这里不再读 —— 只有草稿读失败时（hold，保持「没恢复」）
+       * 要再试：所以不是「只有第一次」，恢复到之前每次 ready 都试；已恢复时 retry 直接返回。
+       */
+      ['drafts', () => drafts.retry()],
       /*
        * 草稿里还没落账的模型 / 档位写成默认意图：上一次写失败（Core 正在换代）的在这里补；旧版草稿里存的入口页
        * 选择（那时只写本地）也在这里迁进意图。必须排在 drafts 之后 —— 草稿没读回来时这里读到的是空的。

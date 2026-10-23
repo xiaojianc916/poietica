@@ -1,4 +1,6 @@
+import type { UiStateSlot } from '@poietica/feature-preferences/ui-api'
 import { createValue } from '@poietica/ui-kernel'
+import type { Draft } from '../composer/composer-store'
 import { createDraftPin, type DraftPinView } from '../composer/draft-pin'
 import type { ConversationTodoThread } from '../session/conversation-controls'
 import { shouldNotify } from '../session/notify'
@@ -24,39 +26,46 @@ export interface ConversationActions {
   readonly notify: (threadId: string, body: string, kind: 'completion' | 'needs-confirm') => void
   readonly runningThreadIds: () => ReadonlySet<string>
   readonly draftPin: DraftPinView
+  /** 草稿的 uiState 槽：读失败时保持未恢复，onCoreReady 里 `retry()` */
+  readonly drafts: UiStateSlot
   readonly collapsed: ReturnType<typeof createValue<ReadonlySet<string>>>
   readonly archived: ReturnType<typeof createValue<{ threadId: string; seq: number } | null>>
 }
 
 export function createConversationActions(setup: ConversationSetup): ConversationActions {
-  const { api, ctx, navigation, platform, preferences, prefs, stores, banners, workspaces } = setup
+  const { api, ctx, navigation, platform, prefs, stores, banners, workspaces } = setup
 
-  /*
-   * 草稿落盘（`conversation.drafts`）。**每一格**草稿都要记住 —— 正文 / 附件 / 技能，以及入口页那排选择器的值。
-   * 少写这一条，重开软件后入口页的选择就回到默认（真实故障）。写盘去抖：Host 的 `uiState.set` 已经走 500ms 的 saveDebounced，这一层只把「一串变更」并成一次提交。
-   */
-  let draftWrite: ReturnType<typeof setTimeout> | null = null
   /* 草稿附件的只读视图（R-07 §3.4）：attachments 的 UI 拿它做引用登记。 */
   const draftPin = createDraftPin(stores.composer)
-  const persistDrafts = (): void => {
-    if (draftWrite !== null) clearTimeout(draftWrite)
-    draftWrite = setTimeout(() => {
-      draftWrite = null
-      /*
-       * 盘上那份还没读回来之前一律不写：此刻的快照不含盘上的选择器，写进 Host 的 uiState 就把用户上次的选择盖掉了，
-       * 随后的 `uiState.get` 读回的是被盖过的那份（真实故障：入口页选择时好时坏地丢）。恢复之后的第一次变更（hydrate 本身）
-       * 会再排一次写盘，把恢复前敲的字一并带上。
-       */
-      if (!draftPin.restored()) return
-      const snapshot = stores.composer.snapshot()
-      void preferences.call('uiState.set', { key: 'conversation.drafts', value: snapshot }).catch((cause) => {
-        ctx.logger.warn('drafts persist failed', { error: String(cause) })
-      })
-    }, 300)
-  }
+  /*
+   * 草稿（`conversation.drafts`）。**每一格**草稿都要记住 —— 正文 / 附件 / 技能，以及入口页那排选择器的值。
+   * 少写这一条，重开软件后入口页的选择就回到默认（真实故障）。它住在 Host 的 uiState 里、**不依赖 Core**，setup 里就读
+   * （以前排在 onCoreReady 里：入口页拿空草稿向 Core 要了一份兜底控件表并画了出来，盘上的选择晚到再盖一次，两次应答谁后到谁赢）。
+   * - 读失败与「盘上没有值」必须分开（R-07 §3.4）：读失败保持「未恢复」（hold）、一直不写回 —— 此刻的快照不含盘上的选择器，
+   *   写出去就把用户上次的选择盖掉了；onCoreReady 每次都再试（subscriptions.ts）。读成功（哪怕是 null）才算恢复完成；
+   * - 恢复之前敲的字由槽记一笔、恢复完成后补写一次（hydrate 是 `{...当前, ...盘上}` 的合并，两边都在）；
+   * - 写盘去抖 300ms：Host 的 `uiState.set` 已经走 500ms 的 saveDebounced，这一层只把「一串变更」并成一次提交。
+   */
+  const drafts = prefs.uiStateSlot({
+    key: 'conversation.drafts',
+    parse: (stored) => (stored !== null && typeof stored === 'object' ? (stored as Record<string, Draft>) : null),
+    restore: (saved) => stores.composer.hydrate(saved),
+    snapshot: () => stores.composer.snapshot(),
+    subscribe: (listener) => stores.composer.store.subscribe(listener),
+    readFailure: 'hold',
+    debounceMs: 300,
+    onSettled: (outcome) => {
+      if (outcome === 'restored') draftPin.markRestored()
+      /* 读成功或确定失败都放行入口页：失败时它照兜底规则画，总比一直不画选择器强。 */
+      stores.composer.markEntryReady()
+    },
+    report: (cause, op) => {
+      ctx.logger.warn(op === 'read' ? 'drafts load failed' : 'drafts persist failed', { error: String(cause) })
+    },
+  })
+  ctx.lifecycle.onDispose(drafts.dispose)
   ctx.lifecycle.onDispose(
     stores.composer.store.subscribe(() => {
-      persistDrafts()
       draftPin.onChange()
     }),
   )
@@ -202,6 +211,7 @@ export function createConversationActions(setup: ConversationSetup): Conversatio
     archived,
     collapsed,
     draftPin,
+    drafts,
     exportThread,
     newThread,
     shareThread,

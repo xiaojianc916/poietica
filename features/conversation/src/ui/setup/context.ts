@@ -1,5 +1,4 @@
 import { platformContract } from '@poietica/feature-platform/contract'
-import { preferencesContract } from '@poietica/feature-preferences/contract'
 import { PreferencesToken } from '@poietica/feature-preferences/ui-api'
 import { WorkspacesUiToken } from '@poietica/feature-workspaces/ui-api'
 import { BannersToken, DialogsToken, LayoutToken, NavigationToken, type UiFeatureContext } from '@poietica/ui-kernel'
@@ -8,7 +7,7 @@ import { createLiveComposers } from '../composer/live-composers'
 import { createSideStore } from '../composer/side-store'
 import { createEntryDefaults } from '../home'
 import { type ConversationStores, createStores, hiddenModelsOf } from '../session'
-import { createPostureIntent } from '../session/configuration/posture-intent'
+import { createPostureIntent, storedPostureOf } from '../session/configuration/posture-intent'
 import { createSessionRegistry, type SessionRegistry } from '../session/session-registry'
 import { TranscriptStore } from '../timeline/model/transcript-store'
 import { SubagentTabsStore } from '../timeline/subagent-tabs'
@@ -18,20 +17,28 @@ import { SubagentTabsStore } from '../timeline/subagent-tabs'
 export function createConversationSetup(ctx: UiFeatureContext) {
   const api = createConversationApi(ctx)
   const platform = ctx.rpc(platformContract)
-  /* 批准方式的持久意图写在 preferences 功能的 uiState 里（`conversation.permissionPosture`，契约里已登记的键），conversation 的 `dependsOn` 本来就含 'preferences'。 */
-  const preferences = ctx.rpc(preferencesContract)
-  const posture = createPostureIntent({
-    read: () => preferences.call('uiState.get', { key: 'conversation.permissionPosture' }).then((r) => r.value),
-    write: (value) =>
-      preferences.call('uiState.set', { key: 'conversation.permissionPosture', value }).then(() => undefined),
-    report: (cause) => {
-      ctx.logger.warn('permission posture memory failed', { error: String(cause) })
+  const prefs = ctx.services.get(PreferencesToken)
+  /*
+   * 批准方式的持久意图写在 preferences 功能的 uiState 里（`conversation.permissionPosture`，契约 UI_STATE_RESTORE 里登记为 setup 阶段），
+   * conversation 的 `dependsOn` 本来就含 'preferences'。setup 里就读：以前排在首次 onCoreReady 里，冷启动这几秒入口页按默认档画。
+   * 读失败按「没有意图」处置（release），之后照常写回。
+   */
+  const posture = createPostureIntent()
+  const postureSlot = prefs.uiStateSlot({
+    key: 'conversation.permissionPosture',
+    parse: storedPostureOf,
+    restore: (value) => posture.restore(value),
+    snapshot: () => posture.read() ?? null,
+    subscribe: posture.subscribe,
+    readFailure: 'release',
+    report: (cause, op) => {
+      ctx.logger.warn('permission posture memory failed', { op, error: String(cause) })
     },
   })
+  ctx.lifecycle.onDispose(postureSlot.dispose)
   const navigation = ctx.services.get(NavigationToken)
   const dialogs = ctx.services.get(DialogsToken)
   const banners = ctx.services.get(BannersToken)
-  const prefs = ctx.services.get(PreferencesToken)
   const workspaces = ctx.services.get(WorkspacesUiToken)
 
   const stores: ConversationStores = createStores(api)
@@ -72,7 +79,6 @@ export function createConversationSetup(ctx: UiFeatureContext) {
     navigation,
     platform,
     posture,
-    preferences,
     prefs,
     sessions,
     side,

@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, test } from 'bun:test'
-import { createUiKernel, type UiKernel } from '@poietica/ui-kernel'
+import { createUiKernel, defineUiFeature, type UiFeature, type UiKernel } from '@poietica/ui-kernel'
 import { Preferences } from '../../contract/entities'
+import { PreferencesToken, type UiStateSlot } from '../../ui-api'
 import preferencesFeature, { routeOf } from '../index'
 
 /* preferences 不依赖 @poietica/rpc（依赖隔离）：桥的类型从 createUiKernel 的入参里取。 */
@@ -68,9 +69,9 @@ const flush = async (): Promise<void> => {
 let kernel: UiKernel | null = null
 const realMatchMedia = window.matchMedia
 
-function boot(w: Wire): Promise<void> {
+function boot(w: Wire, extra: readonly UiFeature[] = []): Promise<void> {
   kernel = createUiKernel({
-    features: [preferencesFeature],
+    features: [preferencesFeature, ...extra],
     errorMessages: {},
     validateResults: false,
     defaultRoute: { surface: 'home', params: {} },
@@ -191,5 +192,42 @@ describe('启动时上次那一页不等 Core', () => {
     expect(routeOf({ surface: 'a', params: [] })).toBeNull()
     expect(routeOf({ surface: 'a', params: { n: 1 } })).toBeNull()
     expect(routeOf({ surface: 'a' })).toBeNull()
+  })
+})
+
+/*
+ * 别的功能在 setup 里开的 uiState 槽（批准方式、草稿走的就是这一条）同样在首帧之前恢复。
+ * 批准方式以前排在首次 onCoreReady 里读：冷启动这几秒入口页按默认档画，Core 一就绪再跳成存下的那一档。
+ */
+describe('其它功能的 setup 阶段键也不等 Core', () => {
+  test('setup 里开的槽：kernel.start 返回时已经恢复，且恢复本身不写回', async () => {
+    const memory: { held: string | null } = { held: null }
+    let slot: UiStateSlot | null = null
+    const probe = defineUiFeature({
+      id: 'probe',
+      dependsOn: ['preferences'],
+      setup(ctx) {
+        slot = ctx.services.get(PreferencesToken).uiStateSlot({
+          key: 'conversation.permissionPosture',
+          parse: (stored) => (typeof stored === 'string' ? stored : null),
+          restore: (value) => {
+            memory.held = value
+          },
+          snapshot: () => memory.held,
+          subscribe: () => () => undefined,
+          readFailure: 'release',
+        })
+      },
+    })
+    const w = wire({
+      'core.getStatus': () => STARTING,
+      'prefs.get': () => Preferences.parse({}),
+      'uiState.get': (p) => ({ value: p.key === 'conversation.permissionPosture' ? 'full-access' : null }),
+    })
+    await boot(w, [probe])
+
+    expect(memory.held).toBe('full-access')
+    expect((slot as UiStateSlot | null)?.restored()).toBe(true)
+    expect(w.sent.filter((m) => m.method === 'uiState.set')).toEqual([])
   })
 })
