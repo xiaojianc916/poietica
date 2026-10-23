@@ -1,5 +1,5 @@
 import { AppError, createId, InvariantError, invariant, SystemErrorCode } from '@poietica/foundation'
-import type { AgentTranscriptSnapshot } from '@poietica/transcript'
+import { type AgentTranscriptSnapshot, turnOrdinal } from '@poietica/transcript'
 import type { SubmissionView } from '../../../contract'
 import { conversationErrors } from '../../../contract'
 import { describeFailure } from '../../failure'
@@ -884,19 +884,34 @@ export class TranscriptStore implements TranscriptSink {
       }
     } finally {
       if (this.#owners.get(address.conversation) === owner) {
-        this.#put(key, { ...this.read(key), reading: false, revealing: null })
+        this.#put(key, { ...this.read(key), reading: false })
       }
     }
   }
+  /**
+   * 把目录里还没载入的一轮读进来：**一次往返、一次发布**（`throughTurnId`），不再一页一页地读、每页整屏重渲一次。
+   * `revealing` 是这一趟的在场记号（轨道上那一格的忙碌态），只由最后一次点击持有：连点两格，先回来的那一趟不撤后一趟的记号。
+   */
   revealTurn = async (key: string, mark: TurnMark): Promise<void> => {
-    while (!this.read(key).outline.some((item) => item.turnId === mark.turnId)) {
-      const before = this.read(key).earlier
-      if (before === null || this.read(key).reading) {
-        return
+    const address = addressOf(key)
+    const owner = this.#owners.get(address.conversation)
+    const current = this.read(key)
+    const before = current.earlier
+    if (owner === undefined || before === null || turnOrdinal(mark.turnId) >= turnOrdinal(before)) {
+      return
+    }
+    this.#put(key, { ...current, revealing: mark.admissionId })
+    try {
+      await owner.readEarlier(address.agentId, before, mark.turnId)
+    } catch (cause) {
+      if (this.#owners.get(address.conversation) === owner) {
+        this.failed(key, cause)
+        throw cause
       }
-      await this.readEarlier(key)
-      if (this.read(key).earlier === before) {
-        invariant(false, 'Transcript pagination did not advance.')
+    } finally {
+      const after = this.read(key)
+      if (this.#owners.get(address.conversation) === owner && after.revealing === mark.admissionId) {
+        this.#put(key, { ...after, revealing: null })
       }
     }
   }

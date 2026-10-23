@@ -1,6 +1,7 @@
 import type { Event } from '@poietica/foundation'
 import type { TranscriptPage } from '@poietica/transcript'
 import type { z } from 'zod'
+import type { PageOptions } from './session'
 import type {
   Capabilities,
   LoginIdentity,
@@ -33,7 +34,12 @@ export interface SessionFilesPort {
    * `agentId` 口径同 `EngineSession.page`：`'main'` 是主对话，认不出的子代理号交空页、不抛；
    * 文件不存在报 `engine.session_file_missing`。
    */
-  readPage(sessionFile: string, agentId: string, beforeTurnId: string | null): Promise<TranscriptPage>
+  readPage(
+    sessionFile: string,
+    agentId: string,
+    beforeTurnId: string | null,
+    options?: PageOptions,
+  ): Promise<TranscriptPage>
   /**
    * **没开着的**会话的侧边话题（右坞辅助对话，性能方案 P4）：只读会话产物目录里的话题存档 —— 不建会话、不抢锁、不写文件。
    * 与「把这条会话重新打开、再 `EngineSession.sideTopics()`」同一张表（一致性用例 C-SIDE-READ）：新开的在前；

@@ -56,6 +56,7 @@ export type {
   StepHeader,
   TranscriptOperation,
   TurnHeader,
+  TurnOutlineEntry,
 } from './ops/operation'
 export {
   applyOps,

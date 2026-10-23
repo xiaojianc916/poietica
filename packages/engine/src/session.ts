@@ -16,6 +16,12 @@ import type {
   UsageSample,
 } from './values'
 
+/** 时间线分页的可选项。引擎可以不认（忽略即可）：调用方对缺席的效果另有兜底。 */
+export interface PageOptions {
+  /** 这一页至少往前覆盖到这一轮（含）：跳转到很早的一轮时一次读够。 */
+  readonly throughTurnId?: string
+}
+
 export interface OpenSessionSpec {
   readonly key: string // 调用方的稳定标识（conversation 用 threadId），用于日志和工具上下文
   readonly cwd: string
@@ -187,7 +193,7 @@ export interface EngineSession {
    * `agentId`、工具帧的 `agentRefs` 同一个值）。子代理的通道与主对话同一套 ops 形状，增量经 `timeline`
    * 事件按同一个 agentId 推出；认不出的号交一页空表（它可能是重开前的旧子代理，屏幕照样画得出空面板），不抛。
    */
-  page(agentId: string, beforeTurnId: string | null): Promise<TranscriptPage>
+  page(agentId: string, beforeTurnId: string | null, options?: PageOptions): Promise<TranscriptPage>
   /**
    * 停掉一个子代理（与 omp RPC `cancel_subagent` 同一条路：先立墓碑、再 abort 它自己的会话），父轮照常往下走 ——
    * 父轮收到的是「这个子代理被停了」的结果。返回 false = 它此刻不在运行（已结束、已被收下结果、不认识）；不抛。

@@ -1,0 +1,1414 @@
+diff --git a/features/conversation/src/contract/index.ts b/features/conversation/src/contract/index.ts
+index a250d7de..1bb11020 100644
+--- a/features/conversation/src/contract/index.ts
++++ b/features/conversation/src/contract/index.ts
+@@ -210,9 +210,11 @@ export const conversationContract = defineContract({
+         threadId: z.string().min(1),
+         agentId: z.string().min(1),
+         beforeTurnId: z.string().nullable(),
++        /** 至少往前覆盖到这一轮（含）：跳转到很早的一轮时一次读够。缺席 = 普通的一页。 */
++        throughTurnId: z.string().min(1).optional(),
+       }),
+       result: transcriptPageSchema,
+-      description: '加载更早的一页',
++      description: '加载更早的一页（可一次读到指定的轮）',
+     }),
+     defineMethod({
+       name: 'timeline.catchUp',
+diff --git a/features/conversation/src/core/handlers.ts b/features/conversation/src/core/handlers.ts
+index d1d752b5..90604e6c 100644
+--- a/features/conversation/src/core/handlers.ts
++++ b/features/conversation/src/core/handlers.ts
+@@ -94,8 +94,8 @@ export function registerHandlers(ctx: Ctx, core: ConversationCore, hub: Timeline
+     return wireSnapshot(page, pos.epoch, pos.seq, turns.submissionsOf(threadId, turnIdsOf(page)))
+   })
+   ctx.rpc.handle('timeline.unsubscribe', () => ({}))
+-  ctx.rpc.handle('timeline.page', async ({ threadId, agentId, beforeTurnId }) => {
+-    const page = await turns.page(threadId, agentId, beforeTurnId)
++  ctx.rpc.handle('timeline.page', async ({ threadId, agentId, beforeTurnId, throughTurnId }) => {
++    const page = await turns.page(threadId, agentId, beforeTurnId, throughTurnId ?? null)
+     return wirePage(agentId === MAIN_AGENT_ID ? submissions.stampPage(threadId, page) : page)
+   })
+   ctx.rpc.handle('timeline.catchUp', ({ threadId, agentId, epoch, sinceSeq }) => {
+diff --git a/features/conversation/src/core/turn-service.ts b/features/conversation/src/core/turn-service.ts
+index 06711517..2c975028 100644
+--- a/features/conversation/src/core/turn-service.ts
++++ b/features/conversation/src/core/turn-service.ts
+@@ -14,7 +14,7 @@ import {
+ import type { AttachmentsService } from '@poietica/feature-attachments/core-api'
+ import type { WorkspacesService } from '@poietica/feature-workspaces/core-api'
+ import { AppError, type Clock, type Logger, SystemErrorCode } from '@poietica/foundation'
+-import type { TranscriptPage } from '@poietica/transcript'
++import { prependOlder, type TranscriptPage } from '@poietica/transcript'
+ import type { QueueView } from '../contract'
+ import { DEFAULT_POSTURE, type Thread, type TurnState } from '../contract/entities'
+ import { conversationErrors } from '../contract/errors'
+@@ -139,12 +139,43 @@ export class TurnService {
+    * 只被冷读订阅过的通道打开时也不换代（TimelineHub.resetAdvanced）。
+    * 还没落过盘的线程没有正文可读：空页，不为一次读去签发会话文件。
+    */
+-  async page(threadId: string, agentId: string, beforeTurnId: string | null): Promise<TranscriptPage> {
++  async page(
++    threadId: string,
++    agentId: string,
++    beforeTurnId: string | null,
++    throughTurnId: string | null = null,
++  ): Promise<TranscriptPage> {
++    const options = throughTurnId === null ? undefined : { throughTurnId }
++    let page = await this.readPage(threadId, agentId, beforeTurnId, options)
++    if (throughTurnId === null) return page
++    /*
++     * 跳转到很早的一轮：界面只付一次往返。`throughTurnId` 是引擎的可选能力（engine-omp 一次切够，别的实现可以不认），
++     * 没覆盖到就在这里接着往前拼 —— 同一进程内的循环，不再是界面那边一页一次 IPC、一页一次整屏重渲。
++     */
++    let first = firstTurnOf(page)
++    while (page.hasMoreOlder === true && first !== undefined && !hasTurn(page, throughTurnId)) {
++      const older = await this.readPage(threadId, agentId, first.turnId, options)
++      const next = firstTurnOf(older)
++      if (next === undefined || next.ordinal >= first.ordinal) {
++        throw new AppError(SystemErrorCode.internal, 'Transcript pagination did not advance.')
++      }
++      page = prependOlder(page, older)
++      first = next
++    }
++    return page
++  }
++
++  private async readPage(
++    threadId: string,
++    agentId: string,
++    beforeTurnId: string | null,
++    options: { readonly throughTurnId: string } | undefined,
++  ): Promise<TranscriptPage> {
+     const live = this.d.pool.peek(threadId)
+-    if (live !== undefined) return await live.page(agentId, beforeTurnId)
++    if (live !== undefined) return await live.page(agentId, beforeTurnId, options)
+     const { sessionFile } = this.d.requireRow(threadId)
+     if (sessionFile === null) return this.emptyPage()
+-    return await this.d.engine.sessionFiles.readPage(sessionFile, agentId, beforeTurnId)
++    return await this.d.engine.sessionFiles.readPage(sessionFile, agentId, beforeTurnId, options)
+   }
+ 
+   // ── 队列（queue 三方法）──────────────────────────────────────────────────
+@@ -398,3 +429,14 @@ export class TurnService {
+     return this.d.pool.peek(threadId)?.state() ?? 'idle'
+   }
+ }
++
++type PageTurn = Extract<TranscriptPage['items'][number], { kind: 'turn' }>
++
++function firstTurnOf(page: TranscriptPage): PageTurn | undefined {
++  for (const item of page.items) if (item.kind === 'turn') return item
++  return undefined
++}
++
++function hasTurn(page: TranscriptPage, turnId: string): boolean {
++  return page.items.some((item) => item.kind === 'turn' && item.turnId === turnId)
++}
+diff --git a/features/conversation/src/ui/api.ts b/features/conversation/src/ui/api.ts
+index a61014a5..2b10808e 100644
+--- a/features/conversation/src/ui/api.ts
++++ b/features/conversation/src/ui/api.ts
+@@ -68,8 +68,18 @@ export function createConversationApi(ctx: UiFeatureContext) {
+ 
+     subscribeTimeline: (threadId: string, agentId: string): Promise<TimelineSnapshot> =>
+       rpc.call('timeline.subscribe', { threadId, agentId }),
+-    timelinePage: (threadId: string, agentId: string, beforeTurnId: string | null): Promise<TranscriptPage> =>
+-      rpc.call('timeline.page', { threadId, agentId, beforeTurnId }),
++    timelinePage: (
++      threadId: string,
++      agentId: string,
++      beforeTurnId: string | null,
++      throughTurnId?: string,
++    ): Promise<TranscriptPage> =>
++      rpc.call('timeline.page', {
++        threadId,
++        agentId,
++        beforeTurnId,
++        ...(throughTurnId === undefined ? {} : { throughTurnId }),
++      }),
+     catchUp: (
+       threadId: string,
+       agentId: string,
+diff --git a/features/conversation/src/ui/session/session-port.ts b/features/conversation/src/ui/session/session-port.ts
+index 4eabf8d0..cd96f41c 100644
+--- a/features/conversation/src/ui/session/session-port.ts
++++ b/features/conversation/src/ui/session/session-port.ts
+@@ -101,10 +101,15 @@ export function createSessionPort({ api, threadId, onSubmissions }: SessionPortO
+       }
+     },
+ 
+-    async readTranscript(sessionId: string, agentId: string, beforeTurn?: string): Promise<TranscriptPage> {
++    async readTranscript(
++      sessionId: string,
++      agentId: string,
++      beforeTurn?: string,
++      throughTurn?: string,
++    ): Promise<TranscriptPage> {
+       const target = sessionId === '' ? threadId : sessionId
+       if (beforeTurn !== undefined) {
+-        const older = await api.timelinePage(target, agentId, beforeTurn)
++        const older = await api.timelinePage(target, agentId, beforeTurn, throughTurn)
+         return {
+           ...older,
+           agentId,
+diff --git a/features/conversation/src/ui/shared/model/transcript.ts b/features/conversation/src/ui/shared/model/transcript.ts
+index 6e8a25ff..718d8ec1 100644
+--- a/features/conversation/src/ui/shared/model/transcript.ts
++++ b/features/conversation/src/ui/shared/model/transcript.ts
+@@ -45,6 +45,12 @@ export type TranscriptSignal =
+ 
+ export interface TranscriptPort {
+   readonly subscribeTranscript: (listener: (signal: TranscriptSignal) => void) => () => void
+-  readonly readTranscript: (sessionId: string, agentId: string, beforeTurn?: string) => Promise<TranscriptPage>
++  /** `throughTurn`：往前至少读到这一轮（含），跳转用；只在给了 `beforeTurn` 时有意义。 */
++  readonly readTranscript: (
++    sessionId: string,
++    agentId: string,
++    beforeTurn?: string,
++    throughTurn?: string,
++  ) => Promise<TranscriptPage>
+   readonly catchUpTranscript: (sessionId: string, agentId: string, sinceSeq: number) => Promise<TranscriptCatchUp>
+ }
+diff --git a/features/conversation/src/ui/timeline/feed/agent-activity-feed.tsx b/features/conversation/src/ui/timeline/feed/agent-activity-feed.tsx
+index fab6a684..90907e6e 100644
+--- a/features/conversation/src/ui/timeline/feed/agent-activity-feed.tsx
++++ b/features/conversation/src/ui/timeline/feed/agent-activity-feed.tsx
+@@ -1,7 +1,16 @@
+ import './agent-activity-feed.css'
+ 
+ import { defaultRangeExtractor, type Range, useVirtualizer, type VirtualItem } from '@tanstack/react-virtual'
+-import { type CSSProperties, type ReactNode, useCallback, useLayoutEffect, useMemo, useRef, useState } from 'react'
++import {
++  type CSSProperties,
++  type ReactNode,
++  useCallback,
++  useEffect,
++  useLayoutEffect,
++  useMemo,
++  useRef,
++  useState,
++} from 'react'
+ import { ToLatestIcon } from '../../shared/primitives/icons'
+ import { useDevicePixels } from '../../shared/primitives/use-device-pixels'
+ import type { Presentation } from '../presentation'
+@@ -13,6 +22,55 @@ import { useScrollAuthority } from './scroll-authority'
+ /* 两级而非折中值：首帧行高多是估的，铺多了白测；几何稳了再抬到盖得住一次快滚。 */
+ const OVERSCAN_COLD = 6
+ const OVERSCAN_SETTLED = 20
++/*
++ * 从冷档抬到稳档按空闲帧一步步走：一次抬满等于在落点那一帧之后再冷挂四十来行 markdown（一跳到很远的地方，
++ * 那里一行都没铺过），正好堵在人看见落点之后的第一下滚动上。
++ */
++const OVERSCAN_STEP = 4
++const OVERSCAN_IDLE_TIMEOUT_MS = 200
++
++/**
++ * 预铺行数：首帧与每次跳转回到冷档，落定之后借空闲帧逐步抬到稳档。跳转的那一帧只挂视口加几行，
++ * 落点先画出来；其余的行在人看着落点的时候补上。
++ */
++function useOverscan(settled: boolean, revealing: number | null): number {
++  const [overscan, setOverscan] = useState(OVERSCAN_COLD)
++  const [revealed, setRevealed] = useState(revealing)
++
++  if (revealed !== revealing) {
++    setRevealed(revealing)
++    if (revealing !== null && overscan !== OVERSCAN_COLD) {
++      setOverscan(OVERSCAN_COLD)
++    }
++  }
++
++  const ramping = settled && revealing === null && overscan < OVERSCAN_SETTLED
++
++  /* 一条空闲帧链走完整段抬升；抬满（ramping 变 false）或又一次跳转时由清理函数掐断。 */
++  useEffect(() => {
++    if (!ramping) {
++      return
++    }
++    let cancel = (): void => undefined
++    const schedule = (): void => {
++      if (typeof requestIdleCallback === 'function') {
++        const handle = requestIdleCallback(step, { timeout: OVERSCAN_IDLE_TIMEOUT_MS })
++        cancel = () => cancelIdleCallback(handle)
++      } else {
++        const handle = setTimeout(step, 0)
++        cancel = () => clearTimeout(handle)
++      }
++    }
++    const step = (): void => {
++      setOverscan((current) => Math.min(OVERSCAN_SETTLED, current + OVERSCAN_STEP))
++      schedule()
++    }
++    schedule()
++    return () => cancel()
++  }, [ramping])
++
++  return overscan
++}
+ 
+ const KEEP_ALIVE_ROWS = 80
+ 
+@@ -142,6 +200,8 @@ export function AgentActivityFeed({
+     }
+   }, [viewport])
+ 
++  const overscan = useOverscan(settled, revealing)
++
+   const leadOf = (row: number) => metrics[rowRhythm(row)]
+   /* 运行行在时留它的跑道；不在时只留净空 —— 静止态下整条跑道会读成悬空的一截。 */
+   const runway = trailing === undefined ? metrics.gap : metrics.dissolve
+@@ -162,7 +222,7 @@ export function AgentActivityFeed({
+     initialMeasurementsCache: restored === undefined ? [] : [...restored.rows],
+     scrollMargin: scrollMargin ?? 0,
+     paddingEnd,
+-    overscan: settled ? OVERSCAN_SETTLED : OVERSCAN_COLD,
++    overscan,
+     rangeExtractor: extractRange,
+     anchorTo: holding ? 'start' : 'end',
+     followOnAppend: !holding,
+diff --git a/features/conversation/src/ui/timeline/minimap/conversation-minimap.tsx b/features/conversation/src/ui/timeline/minimap/conversation-minimap.tsx
+index 2bdd3c68..189d174f 100644
+--- a/features/conversation/src/ui/timeline/minimap/conversation-minimap.tsx
++++ b/features/conversation/src/ui/timeline/minimap/conversation-minimap.tsx
+@@ -32,6 +32,47 @@ function indexOf(target: EventTarget | null): number {
+   const value = tick?.getAttribute(INDEX_ATTRIBUTE)
+   return value === undefined || value === null ? -1 : Number.parseInt(value, 10)
+ }
++/** 读屏名里的题面只要认得出是哪一轮：整段题面（可能上万字）进无障碍树是白占内存。 */
++const LABEL_PROMPT_CHARS = 80
++
++function labelOf(mark: TurnMark, index: number, count: number): string {
++  const prompt = mark.prompt.trim()
++  const shown = prompt.length > LABEL_PROMPT_CHARS ? `${prompt.slice(0, LABEL_PROMPT_CHARS)}…` : prompt
++  return `第 ${String(index + 1)} 轮，共 ${String(count)} 轮：${shown || UNNAMED}`
++}
++
++/* 一格一个 memo：读到哪一轮每滚一屏就换一次，换的只是两格的 aria-current，不该连带几百格一起重渲。 */
++const Tick = memo(function Tick({
++  active,
++  busy,
++  index,
++  label,
++  tabbable,
++}: {
++  readonly active: boolean
++  readonly busy: boolean
++  readonly index: number
++  readonly label: string
++  readonly tabbable: boolean
++}) {
++  return (
++    <li className="conversation-minimap__item">
++      <button
++        aria-busy={busy || undefined}
++        aria-current={active ? 'location' : undefined}
++        aria-label={label}
++        className="conversation-minimap__turn"
++        data-busy={busy ? '' : undefined}
++        data-minimap-index={index}
++        tabIndex={tabbable ? 0 : -1}
++        type="button"
++      >
++        <span className="conversation-minimap__bar" />
++      </button>
++    </li>
++  )
++})
++
+ const TickList = memo(function TickList({
+   activeIndex,
+   busyId,
+@@ -43,23 +84,19 @@ const TickList = memo(function TickList({
+   readonly marks: readonly TurnMark[]
+   readonly tabbable: number
+ }) {
++  /* 读屏名只随目录变：滚动换的是 activeIndex，不重拼几百条字符串。 */
++  const labels = useMemo(() => marks.map((mark, index) => labelOf(mark, index, marks.length)), [marks])
+   return (
+     <>
+       {marks.map((mark, index) => (
+-        <li className="conversation-minimap__item" key={mark.admissionId}>
+-          <button
+-            aria-busy={mark.admissionId === busyId || undefined}
+-            aria-current={index === activeIndex ? 'location' : undefined}
+-            aria-label={`第 ${String(index + 1)} 轮，共 ${String(marks.length)} 轮：${mark.prompt.trim() || UNNAMED}`}
+-            className="conversation-minimap__turn"
+-            data-busy={mark.admissionId === busyId ? '' : undefined}
+-            data-minimap-index={index}
+-            tabIndex={index === tabbable ? 0 : -1}
+-            type="button"
+-          >
+-            <span className="conversation-minimap__bar" />
+-          </button>
+-        </li>
++        <Tick
++          active={index === activeIndex}
++          busy={mark.admissionId === busyId}
++          index={index}
++          key={mark.admissionId}
++          label={labels[index] ?? UNNAMED}
++          tabbable={index === tabbable}
++        />
+       ))}
+     </>
+   )
+@@ -84,14 +121,9 @@ function PreviewCard({ mark }: { readonly mark: TurnMark | undefined }) {
+   )
+ }
+ function Rail({ activeId, busyId, marks, onSelect }: ConversationMinimapProps) {
+-  const activeIndex = useMemo(
+-    () =>
+-      Math.max(
+-        0,
+-        marks.findIndex((mark) => mark.admissionId === activeId),
+-      ),
+-    [activeId, marks],
+-  )
++  /* 号 → 下标的表只随目录建一次；滚动时 activeId 每换一次只查一次表，不再线性扫整条目录。 */
++  const indexById = useMemo(() => new Map(marks.map((mark, index) => [mark.admissionId, index])), [marks])
++  const activeIndex = activeId === undefined ? 0 : (indexById.get(activeId) ?? 0)
+   const [shown, setShown] = useState(-1)
+   const [tabbable, setTabbable] = useState(0)
+   const listRef = useRef<HTMLOListElement>(null)
+diff --git a/features/conversation/src/ui/timeline/model/__tests__/transcript-projector-memo.test.ts b/features/conversation/src/ui/timeline/model/__tests__/transcript-projector-memo.test.ts
+index f371ae46..dfd84b88 100644
+--- a/features/conversation/src/ui/timeline/model/__tests__/transcript-projector-memo.test.ts
++++ b/features/conversation/src/ui/timeline/model/__tests__/transcript-projector-memo.test.ts
+@@ -172,3 +172,41 @@ test('M7 只有一轮（没有封口页）：sealed 与 outline 都是空的且
+   expect(projectTranscript(pageOf(channel('d', 0)), memo()).sealed).toEqual([])
+   expect(outlineOf(pageOf(applyOps(emptyTimeline(), [])), memo())).toEqual([])
+ })
++
++/** 带目录的头页：目录列出 1..total 轮，已载入的是 from..total。 */
++function pagedOf(tag: string, from: number, total: number): TranscriptPage {
++  const ops: unknown[] = []
++  for (let ordinal = from; ordinal <= total; ordinal += 1) ops.push(...turnOps(tag, ordinal, false))
++  const outline = Array.from({ length: total }, (_, at) => ({
++    turnId: `${tag}-t${at + 1}`,
++    ordinal: at + 1,
++    prompt: `问 ${at + 1}`,
++    reply: `答 ${at + 1}`,
++  }))
++  return { ...pageOf(applyOps(emptyTimeline(), ops as TranscriptOperation[])), hasMoreOlder: from > 1, outline }
++}
++
++test('M8 轨道定义域是整条对话：未载入的轮来自目录，已载入的轮来自时间线', () => {
++  const page = pagedOf('o', 21, 40)
++  const marks = outlineOf(page, memo())
++
++  expect(marks.length).toBe(40)
++  expect(marks.map((mark) => mark.turnId).slice(18, 22)).toEqual(['o-t19', 'o-t20', 'o-t21', 'o-t22'])
++  expect(marks[0]).toEqual({ turnId: 'o-t1', admissionId: 'o-t1', prompt: '问 1', reply: '答 1' })
++})
++
++test('M9 往上翻一页：长度不变，冷前缀与已载入部分的格子沿用同一个对象', () => {
++  const m = memo()
++  const head = pagedOf('p', 21, 40)
++  const before = outlineOf(head, m)
++  const after = outlineOf({ ...pagedOf('p', 11, 40), outline: head.outline }, m)
++
++  expect(after.length).toBe(40)
++  expect(after[0]).toBe(before[0])
++  expect(after[39]).toBe(before[39])
++})
++
++test('M10 引擎没给目录：退回只有已载入的轮', () => {
++  const page = { ...pagedOf('q', 5, 8), outline: undefined }
++  expect(outlineOf(page, memo()).map((mark) => mark.turnId)).toEqual(['q-t5', 'q-t6', 'q-t7', 'q-t8'])
++})
+diff --git a/features/conversation/src/ui/timeline/model/__tests__/transcript-store-reveal.test.ts b/features/conversation/src/ui/timeline/model/__tests__/transcript-store-reveal.test.ts
+new file mode 100644
+index 00000000..036d0fa2
+--- /dev/null
++++ b/features/conversation/src/ui/timeline/model/__tests__/transcript-store-reveal.test.ts
+@@ -0,0 +1,156 @@
++import { expect, test } from 'bun:test'
++import { applyOps, emptyTimeline, type TranscriptOperation } from '@poietica/transcript'
++import type { AgentSessionPort } from '../../../shared/model/session'
++import type { TranscriptPage } from '../../../shared/model/transcript'
++import { TranscriptStore } from '../transcript-store'
++
++/*
++ * minimap 跳到一轮还没载入的历史：一次往返读够（throughTurnId），`revealing` 在这一趟里点亮、回来后熄灭；
++ * 连点两格时只有最后一次点击持有忙碌态。
++ */
++
++const AT = '2026-10-10T00:00:00.000Z'
++const TOTAL = 100
++
++function turnsOf(from: number, to: number): TranscriptOperation[] {
++  const ops: unknown[] = []
++  for (let n = from; n <= to; n += 1) {
++    const turnId = `t${n}`
++    const stepId = `${turnId}:s0`
++    ops.push(
++      {
++        op: 'turn.upsert',
++        turn: {
++          kind: 'turn',
++          turnId,
++          ordinal: n,
++          state: 'completed',
++          origin: { kind: 'user' },
++          prompt: `问 ${n}`,
++          startedAt: AT,
++          endedAt: AT,
++        },
++      },
++      {
++        op: 'step.upsert',
++        turnId,
++        step: { kind: 'step', stepId, turnId, ordinal: 0, state: 'completed', startedAt: AT, endedAt: AT },
++      },
++    )
++  }
++  return ops as TranscriptOperation[]
++}
++
++function pageOf(from: number, to: number, head: boolean): TranscriptPage {
++  const outline = Array.from({ length: TOTAL }, (_, at) => ({
++    turnId: `t${at + 1}`,
++    ordinal: at + 1,
++    prompt: `问 ${at + 1}`,
++  }))
++  return {
++    ...applyOps(emptyTimeline(), turnsOf(from, to)),
++    tasks: [],
++    interactions: [],
++    attachments: [],
++    todos: [],
++    prompts: [],
++    meta: {},
++    hasMoreOlder: from > 1,
++    agentId: 'main',
++    agents: [],
++    pendingInteractions: [],
++    seq: 1,
++    ...(head ? { outline } : {}),
++  } as unknown as TranscriptPage
++}
++
++type Read = { before?: string; through?: string; release: () => void }
++
++function pagingPort() {
++  const reads: Read[] = []
++  const port = {
++    transcript: {
++      subscribeTranscript: () => () => undefined,
++      readTranscript: (_sessionId: string, _agentId: string, before?: string, through?: string) => {
++        if (before === undefined) {
++          return Promise.resolve(pageOf(TOTAL - 19, TOTAL, true))
++        }
++        const end = Number(before.slice(1)) - 1
++        const start = through === undefined ? Math.max(1, end - 19) : Math.min(Number(through.slice(1)), end - 19)
++        return new Promise<TranscriptPage>((resolve) => {
++          reads.push({ before, through, release: () => resolve(pageOf(Math.max(1, start), end, false)) })
++        })
++      },
++      catchUpTranscript: async (_sessionId: string, agentId: string, sinceSeq: number) => ({
++        agentId,
++        batches: [],
++        latestSeq: sinceSeq,
++        complete: true,
++      }),
++    },
++    readQueue: async () => ({ threadId: 'T', steering: [], followUp: [] }),
++    subscribeQueue: () => () => undefined,
++    subscribePromptDropped: () => () => undefined,
++    subscribeRunFailed: () => () => undefined,
++  } as unknown as AgentSessionPort
++  return { port, reads }
++}
++
++async function opened() {
++  const held = pagingPort()
++  const store = new TranscriptStore({ sessions: () => held.port })
++  store.open('T')
++  await Bun.sleep(0)
++  return { store, reads: held.reads }
++}
++
++const mark = (n: number) => ({ turnId: `t${n}`, admissionId: `t${n}`, prompt: `问 ${n}`, reply: null })
++
++test('R1 头页就给出整条对话的轨道：100 格，不是已载入的 20 格', async () => {
++  const { store } = await opened()
++  expect(store.read('T').earlier).toBe('t81')
++  expect(store.read('T').outline.length).toBe(TOTAL)
++  expect(store.read('T').outline[0]?.turnId).toBe('t1')
++})
++
++test('R2 跳到第 7 轮：一次往返、带 throughTurnId；在途点亮 revealing，回来后熄灭', async () => {
++  const { store, reads } = await opened()
++  const going = store.revealTurn('T', mark(7))
++  await Bun.sleep(0)
++
++  expect(reads.map(({ before, through }) => [before, through])).toEqual([['t81', 't7']])
++  expect(store.read('T').revealing).toBe('t7')
++
++  reads[0]?.release()
++  await going
++  expect(reads.length).toBe(1)
++  expect(store.read('T').revealing).toBeNull()
++  expect(store.read('T').earlier).toBe('t7')
++  /* 读回来之后轨道长度不变：冷格换成已载入的轮。 */
++  expect(store.read('T').outline.length).toBe(TOTAL)
++})
++
++test('R3 已经载入的轮：不发请求', async () => {
++  const { store, reads } = await opened()
++  await store.revealTurn('T', mark(90))
++  expect(reads.length).toBe(0)
++  expect(store.read('T').revealing).toBeNull()
++})
++
++test('R4 连点两格：先回来的那一趟不撤后一趟的忙碌态', async () => {
++  const { store, reads } = await opened()
++  const first = store.revealTurn('T', mark(50))
++  await Bun.sleep(0)
++  const second = store.revealTurn('T', mark(3))
++  await Bun.sleep(0)
++  expect(store.read('T').revealing).toBe('t3')
++
++  reads[0]?.release()
++  await first
++  expect(store.read('T').revealing).toBe('t3')
++
++  while (reads.length < 2) await Bun.sleep(0)
++  reads[1]?.release()
++  await second
++  expect(store.read('T').revealing).toBeNull()
++})
+diff --git a/features/conversation/src/ui/timeline/model/transcript-projector.ts b/features/conversation/src/ui/timeline/model/transcript-projector.ts
+index 4ca8e7df..1c832d60 100644
+--- a/features/conversation/src/ui/timeline/model/transcript-projector.ts
++++ b/features/conversation/src/ui/timeline/model/transcript-projector.ts
+@@ -1315,10 +1315,44 @@ function markOf(turn: TranscriptTurn, previous: TurnMark | undefined): TurnMark
+ const sameOutline = (left: readonly TurnMark[], right: readonly TurnMark[]): boolean =>
+   left.length === right.length && left.every((mark, at) => mark === right[at])
+ 
++type OutlineEntry = NonNullable<AgentTranscriptSnapshot['outline']>[number]
++
++/* 目录条目在同一份快照里是同一个对象（副本只在整读时换目录），按身份记账，翻页、流式都不重算。 */
++const COLD_MARKS = new WeakMap<OutlineEntry, TurnMark>()
++
++/* 还没载入的轮在时间线上只有目录里的一格：号就是 turnId —— 历史投影的轮没有 triggerPromptId，载入后 markOf 算出来的也是它。 */
++function coldMarkOf(entry: OutlineEntry): TurnMark {
++  const held = COLD_MARKS.get(entry)
++  if (held !== undefined) {
++    return held
++  }
++  const mark: TurnMark = {
++    turnId: entry.turnId,
++    admissionId: entry.turnId,
++    prompt: entry.prompt,
++    reply: entry.reply ?? null,
++  }
++  COLD_MARKS.set(entry, mark)
++  return mark
++}
++
++/**
++ * 轮次目录 = 还没载入的那一截（快照里的整条目录，取比最早一轮更早的部分）+ 已载入的轮。
++ * 定义域是整条对话：轨道长度不随往上翻页伸缩，点一格还没载入的轮也有地方可去。引擎没给目录时退回只有已载入的轮。
++ */
+ export const outlineOf = (snapshot: AgentTranscriptSnapshot, memo: ProjectionMemo): readonly TurnMark[] => {
+   const previous = memo.outline
+   const marks: TurnMark[] = []
+ 
++  const firstLoaded = snapshot.items.find((item) => item.kind === 'turn')
++  const loadedFrom = firstLoaded?.kind === 'turn' ? firstLoaded.ordinal : Number.POSITIVE_INFINITY
++  for (const entry of snapshot.outline ?? []) {
++    if (entry.ordinal >= loadedFrom) {
++      break
++    }
++    marks.push(coldMarkOf(entry))
++  }
++
+   for (const item of snapshot.items) {
+     if (item.kind === 'turn' && sourceOfTurn(item).isUser) {
+       marks.push(markOf(item, previous[marks.length]))
+diff --git a/features/conversation/src/ui/timeline/model/transcript-replica.ts b/features/conversation/src/ui/timeline/model/transcript-replica.ts
+index 8020f589..ad59343c 100644
+--- a/features/conversation/src/ui/timeline/model/transcript-replica.ts
++++ b/features/conversation/src/ui/timeline/model/transcript-replica.ts
+@@ -18,15 +18,38 @@ interface ReduceResult {
+ 
+ class AgentReducer {
+   #state: TimelineState | null = null
++  /*
++   * 轮次目录不进索引状态（TimelineState 只管条目），由整读那一刻的快照定：头页 reset 带来新的一份（或带来缺席，
++   * 即引擎不给目录），往前翻页走 prependOlder，它保留当前页的目录。增量 op 不碰它 —— 新的轮在已加载的条目里。
++   */
++  #outline: AgentTranscriptSnapshot['outline'] = undefined
++  #page: { readonly state: TimelineState; readonly page: AgentTranscriptSnapshot } | null = null
+ 
+   snapshot(): AgentTranscriptSnapshot {
+-    return this.#state === null ? EMPTY_PAGE : pageFromState(this.#state)
++    if (this.#state === null) {
++      return EMPTY_PAGE
++    }
++    /* 同一份状态交同一个页对象：下游按引用判「没变」，每次现拼会让投影与目录的缓存全部落空。 */
++    if (this.#page?.state !== this.#state) {
++      const page = pageFromState(this.#state)
++      this.#page = {
++        state: this.#state,
++        page: this.#outline === undefined ? page : { ...page, outline: this.#outline },
++      }
++    }
++    return this.#page.page
+   }
+ 
+   receive(operations: readonly TranscriptOperation[]): ReduceResult {
+     if (operations.length === 0) return { accepted: [] }
+     try {
+       this.#state = applyOps(this.#state ?? emptyTimeline(), operations)
++      for (const operation of operations) {
++        if (operation.op === 'reset') {
++          this.#outline = operation.snapshot.outline
++          this.#page = null
++        }
++      }
+       return { accepted: operations }
+     } catch (error) {
+       if (error instanceof TranscriptGapError) {
+@@ -180,7 +203,8 @@ export class TranscriptReplica {
+     return this.#queue(signal.agentId, (feed) => this.#advance(signal, feed))
+   }
+ 
+-  readEarlier(agentId: string, beforeTurn: string): Promise<void> {
++  /** `throughTurn`：这一次至少往前读到这一轮（含）—— 跳转用，一次往返、一次发布。 */
++  readEarlier(agentId: string, beforeTurn: string, throughTurn?: string): Promise<void> {
+     return this.#queue(agentId, async (feed) => {
+       if (!feed.valid) {
+         await this.#head(agentId, feed)
+@@ -188,7 +212,9 @@ export class TranscriptReplica {
+       if (!this.#owns(agentId, feed)) {
+         return
+       }
+-      const page = await this.#read(agentId, feed, () => this.#port.readTranscript(this.sessionId, agentId, beforeTurn))
++      const page = await this.#read(agentId, feed, () =>
++        this.#port.readTranscript(this.sessionId, agentId, beforeTurn, throughTurn),
++      )
+       if (page === undefined || !this.#owns(agentId, feed)) {
+         return
+       }
+diff --git a/features/conversation/src/ui/timeline/model/transcript-store.ts b/features/conversation/src/ui/timeline/model/transcript-store.ts
+index 412c2643..dc9411fe 100644
+--- a/features/conversation/src/ui/timeline/model/transcript-store.ts
++++ b/features/conversation/src/ui/timeline/model/transcript-store.ts
+@@ -1,5 +1,5 @@
+ import { AppError, createId, InvariantError, invariant, SystemErrorCode } from '@poietica/foundation'
+-import type { AgentTranscriptSnapshot } from '@poietica/transcript'
++import { type AgentTranscriptSnapshot, turnOrdinal } from '@poietica/transcript'
+ import type { SubmissionView } from '../../../contract'
+ import { conversationErrors } from '../../../contract'
+ import { describeFailure } from '../../failure'
+@@ -884,19 +884,34 @@ export class TranscriptStore implements TranscriptSink {
+       }
+     } finally {
+       if (this.#owners.get(address.conversation) === owner) {
+-        this.#put(key, { ...this.read(key), reading: false, revealing: null })
++        this.#put(key, { ...this.read(key), reading: false })
+       }
+     }
+   }
++  /**
++   * 把目录里还没载入的一轮读进来：**一次往返、一次发布**（`throughTurnId`），不再一页一页地读、每页整屏重渲一次。
++   * `revealing` 是这一趟的在场记号（轨道上那一格的忙碌态），只由最后一次点击持有：连点两格，先回来的那一趟不撤后一趟的记号。
++   */
+   revealTurn = async (key: string, mark: TurnMark): Promise<void> => {
+-    while (!this.read(key).outline.some((item) => item.turnId === mark.turnId)) {
+-      const before = this.read(key).earlier
+-      if (before === null || this.read(key).reading) {
+-        return
++    const address = addressOf(key)
++    const owner = this.#owners.get(address.conversation)
++    const current = this.read(key)
++    const before = current.earlier
++    if (owner === undefined || before === null || turnOrdinal(mark.turnId) >= turnOrdinal(before)) {
++      return
++    }
++    this.#put(key, { ...current, revealing: mark.admissionId })
++    try {
++      await owner.readEarlier(address.agentId, before, mark.turnId)
++    } catch (cause) {
++      if (this.#owners.get(address.conversation) === owner) {
++        this.failed(key, cause)
++        throw cause
+       }
+-      await this.readEarlier(key)
+-      if (this.read(key).earlier === before) {
+-        invariant(false, 'Transcript pagination did not advance.')
++    } finally {
++      const after = this.read(key)
++      if (this.#owners.get(address.conversation) === owner && after.revealing === mark.admissionId) {
++        this.#put(key, { ...after, revealing: null })
+       }
+     }
+   }
+diff --git a/features/conversation/src/ui/timeline/view/transcript-view.tsx b/features/conversation/src/ui/timeline/view/transcript-view.tsx
+index b5628e9c..9a068c9a 100644
+--- a/features/conversation/src/ui/timeline/view/transcript-view.tsx
++++ b/features/conversation/src/ui/timeline/view/transcript-view.tsx
+@@ -211,15 +211,22 @@ function SettledTranscriptView({ dockClearance, lead, onFork, onRetry, onRewrite
+   )
+   const rowRhythmAt = useCallback((index: number) => rowRhythmOf(feed.rowAt(index)), [feed])
+ 
++  /* 只有最后一次点击落地：连点两格还没载入的轮，先读完的那一趟不能把视线拽回去。 */
++  const revealTicket = useRef(0)
+   const reveal = useCallback(
+     (mark: TurnMark, toRow: (row: number) => void) => {
++      const ticket = revealTicket.current + 1
++      revealTicket.current = ticket
++      /* 目录与投影都现读：读进来之后那一格的号可能换了（目录里的预览格换成载入的轮），按 turnId 认回同一轮。 */
+       const landingOf = (allowNearest: boolean): number | undefined => {
+-        const projection = selectPresentation(transcripts.read(sessionKey).timeline, seals, inline)
+-        const exact = projection.rowOf(mark.admissionId)
++        const current = transcripts.read(sessionKey)
++        const projection = selectPresentation(current.timeline, seals, inline)
++        const admissionId = current.outline.find((candidate) => candidate.turnId === mark.turnId)?.admissionId
++        const exact = projection.rowOf(admissionId ?? mark.admissionId)
+         if (exact !== undefined || !allowNearest) {
+           return exact
+         }
+-        return nearestLandingRow(projection, outline, mark.admissionId)
++        return nearestLandingRow(projection, current.outline, admissionId ?? mark.admissionId)
+       }
+ 
+       const known = landingOf(false)
+@@ -228,14 +235,21 @@ function SettledTranscriptView({ dockClearance, lead, onFork, onRetry, onRewrite
+         return
+       }
+ 
+-      void transcripts.revealTurn(sessionKey, mark).then(() => {
+-        const landed = landingOf(true)
+-        if (landed !== undefined) {
+-          toRow(landed)
+-        }
+-      })
++      transcripts.revealTurn(sessionKey, mark).then(
++        () => {
++          if (revealTicket.current !== ticket) {
++            return
++          }
++          const landed = landingOf(true)
++          if (landed !== undefined) {
++            toRow(landed)
++          }
++        },
++        /* 失败已经由 store 记进这条对话的错误态（failed），这里只是不让它变成未处理的拒绝。 */
++        () => undefined,
++      )
+     },
+-    [inline, outline, seals, sessionKey, transcripts],
++    [inline, seals, sessionKey, transcripts],
+   )
+ 
+   /* onSelect 内联等于每帧换一个函数身份，而 ConversationMinimap 是 memo 的，那一栏会跟着滚动逐帧重渲（实测 15/15 次 commit 都真重渲）。落点从 ref 读最新那份。 */
+diff --git a/packages/engine-omp/src/ports/session-files.ts b/packages/engine-omp/src/ports/session-files.ts
+index 55668d03..602ef51e 100644
+--- a/packages/engine-omp/src/ports/session-files.ts
++++ b/packages/engine-omp/src/ports/session-files.ts
+@@ -7,7 +7,7 @@ import { formatSessionHistoryMarkdown } from '@oh-my-pi/pi-coding-agent/session/
+ import { loadSessionMessagesReadOnly } from '@oh-my-pi/pi-coding-agent/session/session-loader'
+ import { SessionManager } from '@oh-my-pi/pi-coding-agent/session/session-manager'
+ import { FileSessionStorage } from '@oh-my-pi/pi-coding-agent/session/session-storage'
+-import type { MediaGcResult, SessionFilesPort, SideTopic } from '@poietica/engine'
++import type { MediaGcResult, PageOptions, SessionFilesPort, SideTopic } from '@poietica/engine'
+ import { EngineErrorCode } from '@poietica/engine'
+ import { AppError, type Logger, SystemErrorCode } from '@poietica/foundation'
+ import type { TranscriptPage } from '@poietica/transcript'
+@@ -49,8 +49,13 @@ export class OmpSessionFilesPort implements SessionFilesPort {
+     }
+   }
+ 
+-  async readPage(sessionFile: string, agentId: string, beforeTurnId: string | null): Promise<TranscriptPage> {
+-    return await this.d.history.page(sessionFile, agentId, beforeTurnId)
++  async readPage(
++    sessionFile: string,
++    agentId: string,
++    beforeTurnId: string | null,
++    options?: PageOptions,
++  ): Promise<TranscriptPage> {
++    return await this.d.history.page(sessionFile, agentId, beforeTurnId, options)
+   }
+ 
+   /**
+diff --git a/packages/engine-omp/src/ports/session-history.ts b/packages/engine-omp/src/ports/session-history.ts
+index 3a3879aa..094e5473 100644
+--- a/packages/engine-omp/src/ports/session-history.ts
++++ b/packages/engine-omp/src/ports/session-history.ts
+@@ -9,7 +9,7 @@ import {
+ } from '@oh-my-pi/pi-coding-agent/session/exit-diagnostics'
+ import { SessionManager } from '@oh-my-pi/pi-coding-agent/session/session-manager'
+ import { getLatestTodoPhasesFromEntries } from '@oh-my-pi/pi-coding-agent/tools/todo'
+-import { EngineErrorCode } from '@poietica/engine'
++import { EngineErrorCode, type PageOptions } from '@poietica/engine'
+ import { AppError, type Logger } from '@poietica/foundation'
+ import type { TranscriptPage, TranscriptTodo } from '@poietica/transcript'
+ import { toEngineError } from '../errors'
+@@ -63,11 +63,20 @@ export class SessionHistoryReader {
+ 
+   constructor(private readonly d: SessionHistoryDeps) {}
+ 
+-  async page(sessionFile: string, agentId: string, beforeTurnId: string | null): Promise<TranscriptPage> {
++  async page(
++    sessionFile: string,
++    agentId: string,
++    beforeTurnId: string | null,
++    options?: PageOptions,
++  ): Promise<TranscriptPage> {
+     try {
+       if (agentId !== 'main') return await this.subagentPage(sessionFile, agentId, beforeTurnId)
+       const cold = await this.transcriptOf(sessionFile)
+-      const page = projectHistoryPage(cold.messages, beforeTurnId, { mediaRef: this.d.mediaRef })
++      const through = options?.throughTurnId
++      const page = projectHistoryPage(cold.messages, beforeTurnId, {
++        mediaRef: this.d.mediaRef,
++        ...(through === undefined ? {} : { throughTurnId: through }),
++      })
+       /* 与活会话 page() 同一条规矩：待办是会话级的、不分页，每一页都带同一份；没开着的会话没有子代理行与后台作业 */
+       return { ...page, todos: cold.todo === null ? [] : [cold.todo] }
+     } catch (error) {
+diff --git a/packages/engine-omp/src/projector/__tests__/__snapshots__/history-legacy.test.ts.snap b/packages/engine-omp/src/projector/__tests__/__snapshots__/history-legacy.test.ts.snap
+index a0bad54a..92f17dfc 100644
+--- a/packages/engine-omp/src/projector/__tests__/__snapshots__/history-legacy.test.ts.snap
++++ b/packages/engine-omp/src/projector/__tests__/__snapshots__/history-legacy.test.ts.snap
+@@ -112,6 +112,20 @@ exports[`一页的代表性形状（12 页 §9.5 的快照） 两轮：带图的
+     },
+   ],
+   "meta": {},
++  "outline": [
++    {
++      "ordinal": 1,
++      "prompt": "看图",
++      "reply": "看到了",
++      "turnId": "t1",
++    },
++    {
++      "ordinal": 2,
++      "prompt": "跑一下",
++      "reply": "做完了",
++      "turnId": "t2",
++    },
++  ],
+   "prompts": [],
+   "tasks": [],
+   "todos": [],
+diff --git a/packages/engine-omp/src/projector/__tests__/history-outline.test.ts b/packages/engine-omp/src/projector/__tests__/history-outline.test.ts
+new file mode 100644
+index 00000000..7fe2b8b0
+--- /dev/null
++++ b/packages/engine-omp/src/projector/__tests__/history-outline.test.ts
+@@ -0,0 +1,68 @@
++import { describe, expect, test } from 'bun:test'
++import { type OmpMessage, projectHistoryPage } from '../history'
++import { assistant, prompts, T0, user } from './fixtures/history'
++
++/* n 轮对话：第 k 轮问「问 k」、答「答 k」。 */
++function rounds(n: number): OmpMessage[] {
++  const messages: OmpMessage[] = []
++  for (let k = 1; k <= n; k += 1) {
++    messages.push(user(`问 ${String(k)}`, k * 10), assistant(`答 ${String(k)}`, k * 10 + 5))
++  }
++  return messages
++}
++
++describe('轮次目录（minimap 的定义域）', () => {
++  test('头页带整条对话的目录，较早的页不带', () => {
++    const messages = rounds(30)
++    const head = projectHistoryPage(messages, null)
++    expect(head.items.length).toBe(20)
++    expect(head.outline?.length).toBe(30)
++    expect(head.outline?.[0]).toEqual({ turnId: 't1', ordinal: 1, prompt: '问 1', reply: '答 1' })
++    expect(head.outline?.at(-1)?.turnId).toBe('t30')
++
++    const older = projectHistoryPage(messages, 't11')
++    expect(older.outline).toBeUndefined()
++  })
++
++  test('目标续跑轮不进目录，轮号与时间线一致', () => {
++    const page = projectHistoryPage(
++      [
++        user('把测试迁完', 0),
++        assistant('第一轮', 10),
++        { role: 'custom', customType: 'goal-continuation', timestamp: T0 + 20, content: '继续', display: false },
++        assistant('第二轮', 30),
++        user('第三句', 40),
++      ] as OmpMessage[],
++      null,
++    )
++    expect(page.outline?.map((entry) => entry.turnId)).toEqual(['t1', 't3'])
++    expect(page.outline?.[1]?.reply).toBeUndefined()
++  })
++
++  test('题面与回复截断成预览', () => {
++    const page = projectHistoryPage([user('问'.repeat(500), 0), assistant('答'.repeat(900), 10)], null)
++    const [entry] = page.outline ?? []
++    expect(entry?.prompt.length).toBe(201)
++    expect(entry?.prompt.endsWith('…')).toBe(true)
++    expect(entry?.reply?.length).toBe(281)
++  })
++
++  test('throughTurnId：一次往前覆盖到目标那一轮（含），hasMoreOlder 照实给', () => {
++    const messages = rounds(100)
++    /* 屏幕上已有 t81..t100，跳到第 7 轮：一页给 t7..t80。 */
++    const page = projectHistoryPage(messages, 't81', { throughTurnId: 't7' })
++    expect(prompts(page)[0]).toBe('问 7')
++    expect(prompts(page).at(-1)).toBe('问 80')
++    expect(page.hasMoreOlder).toBe(true)
++
++    const all = projectHistoryPage(messages, 't81', { throughTurnId: 't1' })
++    expect(prompts(all).length).toBe(80)
++    expect(all.hasMoreOlder).toBe(false)
++  })
++
++  test('throughTurnId 比一页还近、或认不出：退回普通的一页', () => {
++    const messages = rounds(100)
++    expect(prompts(projectHistoryPage(messages, 't81', { throughTurnId: 't75' }))[0]).toBe('问 61')
++    expect(prompts(projectHistoryPage(messages, 't81', { throughTurnId: 'bogus' }))[0]).toBe('问 61')
++  })
++})
+diff --git a/packages/engine-omp/src/projector/history.ts b/packages/engine-omp/src/projector/history.ts
+index e19e3b3f..2df4091d 100644
+--- a/packages/engine-omp/src/projector/history.ts
++++ b/packages/engine-omp/src/projector/history.ts
+@@ -7,6 +7,7 @@ import {
+   type TranscriptAttachment,
+   type TranscriptOperation,
+   type TranscriptPage,
++  type TurnOutlineEntry,
+   turnId,
+ } from '@poietica/transcript'
+ import { isGoalContinuationMessage, isUserSkillMessage, splitWireText } from '../session/prompt'
+@@ -46,6 +47,11 @@ export interface OmpMessage {
+ export interface HistoryPageOptions {
+   /** 一页多少轮（默认 20） */
+   readonly pageSize?: number
++  /**
++   * 这一页至少要往前覆盖到这一轮（含）：跳转到很早的一轮时一次读够，不再一页一页往返。
++   * 比 pageSize 更早才生效；认不出的号按缺席处理。
++   */
++  readonly throughTurnId?: string
+   /** 已经是当前那一轮：留 running（屏幕上的封条还在转） */
+   readonly isTurnOpen?: boolean
+   /**
+@@ -125,7 +131,10 @@ export function projectHistoryPage(
+   const { leading, turns } = screenTurns(messages, o.isTurnOpen === true)
+   const before = beforeTurnId === null ? Number.POSITIVE_INFINITY : turnOrdinalOf(beforeTurnId)
+   const older = turns.filter((entry) => entry.turn < before)
+-  const window = older.slice(Math.max(0, older.length - pageSize))
++  const through = o.throughTurnId === undefined ? 0 : turnOrdinalOf(o.throughTurnId)
++  /* 轮号从 1 连续编（sealTurn），所以第 n 轮在 older 里的下标就是 n - 1。 */
++  const reach = through > 0 ? Math.min(older.length - pageSize, through - 1) : older.length - pageSize
++  const window = older.slice(Math.max(0, reach))
+   /* 第一句人话之前的压缩只跟着最早那一页走：别的页带上它，「加载更早」时它会在中间冒出来 */
+   const head = window.length === older.length ? compactionOps(0, leading) : []
+   const ops = [
+@@ -145,7 +154,50 @@ export function projectHistoryPage(
+     prompts: [],
+     meta: {},
+     hasMoreOlder: older.length > window.length,
++    /* 目录只随头页走：往前翻的页不重复交一遍整条对话 */
++    ...(beforeTurnId === null ? { outline: outlineOf(turns) } : {}),
++  }
++}
++
++/** 目录里的题面与回复只是预览（卡片至多三行）：截断后每轮至多几百字，整条目录随头页一次给出。 */
++const OUTLINE_PROMPT_CHARS = 200
++const OUTLINE_REPLY_CHARS = 280
++
++function clip(text: string, limit: number): string {
++  const trimmed = text.trim()
++  return trimmed.length <= limit ? trimmed : `${trimmed.slice(0, limit)}…`
++}
++
++/** 一轮里助手说的正文（够预览就停）：与界面 replyOf 同口径，只差截断。 */
++function replyPreviewOf(steps: readonly OmpMessage[]): string {
++  const said: string[] = []
++  let length = 0
++  for (const message of steps) {
++    if (length >= OUTLINE_REPLY_CHARS) break
++    if (message.role !== 'assistant') continue
++    for (const block of contentOf(message)) {
++      if (block.kind !== 'text') continue
++      said.push(block.text)
++      length += block.text.length
++    }
++  }
++  return clip(said.join('\n\n'), OUTLINE_REPLY_CHARS)
++}
++
++/** 整条对话的轮次目录，与 turnOps 同一套分轮与同一个「人话」判据（目标续跑轮不进目录）。 */
++function outlineOf(turns: readonly ScreenTurn[]): TurnOutlineEntry[] {
++  const outline: TurnOutlineEntry[] = []
++  for (const entry of turns) {
++    if (isGoalContinuationMessage(entry.opening)) continue
++    const reply = replyPreviewOf(entry.steps)
++    outline.push({
++      turnId: turnId(entry.turn),
++      ordinal: entry.turn,
++      prompt: entry.prompt === null ? '' : clip(promptTextOf(entry.prompt), OUTLINE_PROMPT_CHARS),
++      ...(reply === '' ? {} : { reply }),
++    })
+   }
++  return outline
+ }
+ 
+ /**
+diff --git a/packages/engine-omp/src/session/omp-session-adapter.ts b/packages/engine-omp/src/session/omp-session-adapter.ts
+index 363e8ea8..f2c9ddc6 100644
+--- a/packages/engine-omp/src/session/omp-session-adapter.ts
++++ b/packages/engine-omp/src/session/omp-session-adapter.ts
+@@ -377,11 +377,12 @@ export async function wrapOmpSession(input: WrapOmpSessionInput): Promise<Engine
+       livePlanMode: () => planner.isPlanModeOn(),
+       liveGoal: () => goalOf(session),
+       liveGoalSnapshot: () => goalSnapshotOf(session),
+-      page: async (agentId, beforeTurnId, { openTurnShown }) => {
++      page: async (agentId, beforeTurnId, { openTurnShown, throughTurnId }) => {
+         if (agentId !== 'main') {
+           return subagents === null ? projectHistoryPage([], null) : await subagents.page(agentId, beforeTurnId)
+         }
+         const page = projectHistoryPage(transcriptOf(), beforeTurnId, {
++          ...(throughTurnId === undefined ? {} : { throughTurnId }),
+           isTurnOpen: projector.isTurnOpen && !openTurnShown,
+           openTurnAttachments: projector.openTurnAttachments,
+           mediaRef: input.mediaRef,
+diff --git a/packages/engine-omp/src/session/session.ts b/packages/engine-omp/src/session/session.ts
+index fdedf29b..f175630b 100644
+--- a/packages/engine-omp/src/session/session.ts
++++ b/packages/engine-omp/src/session/session.ts
+@@ -9,6 +9,7 @@ import {
+   interactionCardOf,
+   type ModelRef,
+   type OpenSessionSpec,
++  type PageOptions,
+   type Posture,
+   type QueueOutcome,
+   type QueueSnapshot,
+@@ -124,7 +125,7 @@ export interface OmpSessionHost {
+   readonly page: (
+     agentId: string,
+     beforeTurnId: string | null,
+-    options: { readonly openTurnShown: boolean },
++    options: { readonly openTurnShown: boolean; readonly throughTurnId?: string | undefined },
+   ) => Promise<TranscriptPage>
+   readonly now: () => number
+   /** 此刻的斜杠命令表（omp 现算，GUI 拦掉的已剔除；实现在 slash-commands.ts） */
+@@ -860,11 +861,14 @@ export class OmpSession implements EngineSession {
+     this.o.broker.answer(interactionId, answer)
+   }
+ 
+-  async page(agentId: string, beforeTurnId: string | null): Promise<TranscriptPage> {
++  async page(agentId: string, beforeTurnId: string | null, options?: PageOptions): Promise<TranscriptPage> {
+     this.assertLive()
+     /* 与历史投影同一刻取：o.page 的投影在调用时就同步算完，等它的这一拍里可能又发出了增量 */
+     const view = agentId === 'main' ? this.openTurn.view() : null
+-    const page = await this.o.page(agentId, beforeTurnId, { openTurnShown: view !== null })
++    const page = await this.o.page(agentId, beforeTurnId, {
++      openTurnShown: view !== null,
++      throughTurnId: options?.throughTurnId,
++    })
+     return overlayOpenTurn(page, view, beforeTurnId === null)
+   }
+ 
+diff --git a/packages/engine/src/index.ts b/packages/engine/src/index.ts
+index 36f73504..dca90f00 100644
+--- a/packages/engine/src/index.ts
++++ b/packages/engine/src/index.ts
+@@ -26,6 +26,7 @@ export type {
+   EngineSession,
+   EngineSessionEvent,
+   OpenSessionSpec,
++  PageOptions,
+   QueueOutcome,
+   SubmitInput,
+   TurnContextBlock,
+diff --git a/packages/engine/src/ports.ts b/packages/engine/src/ports.ts
+index 09557b3e..ef977eb8 100644
+--- a/packages/engine/src/ports.ts
++++ b/packages/engine/src/ports.ts
+@@ -1,6 +1,7 @@
+ import type { Event } from '@poietica/foundation'
+ import type { TranscriptPage } from '@poietica/transcript'
+ import type { z } from 'zod'
++import type { PageOptions } from './session'
+ import type {
+   Capabilities,
+   LoginIdentity,
+@@ -33,7 +34,12 @@ export interface SessionFilesPort {
+    * `agentId` 口径同 `EngineSession.page`：`'main'` 是主对话，认不出的子代理号交空页、不抛；
+    * 文件不存在报 `engine.session_file_missing`。
+    */
+-  readPage(sessionFile: string, agentId: string, beforeTurnId: string | null): Promise<TranscriptPage>
++  readPage(
++    sessionFile: string,
++    agentId: string,
++    beforeTurnId: string | null,
++    options?: PageOptions,
++  ): Promise<TranscriptPage>
+   /**
+    * **没开着的**会话的侧边话题（右坞辅助对话，性能方案 P4）：只读会话产物目录里的话题存档 —— 不建会话、不抢锁、不写文件。
+    * 与「把这条会话重新打开、再 `EngineSession.sideTopics()`」同一张表（一致性用例 C-SIDE-READ）：新开的在前；
+diff --git a/packages/engine/src/session.ts b/packages/engine/src/session.ts
+index 7a1c495f..2d18f380 100644
+--- a/packages/engine/src/session.ts
++++ b/packages/engine/src/session.ts
+@@ -16,6 +16,12 @@ import type {
+   UsageSample,
+ } from './values'
+ 
++/** 时间线分页的可选项。引擎可以不认（忽略即可）：调用方对缺席的效果另有兜底。 */
++export interface PageOptions {
++  /** 这一页至少往前覆盖到这一轮（含）：跳转到很早的一轮时一次读够。 */
++  readonly throughTurnId?: string
++}
++
+ export interface OpenSessionSpec {
+   readonly key: string // 调用方的稳定标识（conversation 用 threadId），用于日志和工具上下文
+   readonly cwd: string
+@@ -187,7 +193,7 @@ export interface EngineSession {
+    * `agentId`、工具帧的 `agentRefs` 同一个值）。子代理的通道与主对话同一套 ops 形状，增量经 `timeline`
+    * 事件按同一个 agentId 推出；认不出的号交一页空表（它可能是重开前的旧子代理，屏幕照样画得出空面板），不抛。
+    */
+-  page(agentId: string, beforeTurnId: string | null): Promise<TranscriptPage>
++  page(agentId: string, beforeTurnId: string | null, options?: PageOptions): Promise<TranscriptPage>
+   /**
+    * 停掉一个子代理（与 omp RPC `cancel_subagent` 同一条路：先立墓碑、再 abort 它自己的会话），父轮照常往下走 ——
+    * 父轮收到的是「这个子代理被停了」的结果。返回 false = 它此刻不在运行（已结束、已被收下结果、不认识）；不抛。
+diff --git a/packages/protocol/src/__tests__/contract.snapshot.json b/packages/protocol/src/__tests__/contract.snapshot.json
+index 53fab53c..06bc5698 100644
+--- a/packages/protocol/src/__tests__/contract.snapshot.json
++++ b/packages/protocol/src/__tests__/contract.snapshot.json
+@@ -18227,6 +18227,35 @@
+                               },
+                               "hasMoreOlder": {
+                                 "type": "boolean"
++                              },
++                              "outline": {
++                                "type": "array",
++                                "items": {
++                                  "type": "object",
++                                  "properties": {
++                                    "turnId": {
++                                      "type": "string",
++                                      "minLength": 1
++                                    },
++                                    "ordinal": {
++                                      "type": "integer",
++                                      "minimum": -9007199254740991,
++                                      "maximum": 9007199254740991
++                                    },
++                                    "prompt": {
++                                      "type": "string"
++                                    },
++                                    "reply": {
++                                      "type": "string"
++                                    }
++                                  },
++                                  "required": [
++                                    "turnId",
++                                    "ordinal",
++                                    "prompt"
++                                  ],
++                                  "additionalProperties": false
++                                }
+                               }
+                             },
+                             "required": [
+@@ -20420,7 +20449,7 @@
+       "name": "timeline.page",
+       "owner": "core",
+       "timeoutMs": 30000,
+-      "description": "加载更早的一页",
++      "description": "加载更早的一页（可一次读到指定的轮）",
+       "params": {
+         "$schema": "https://json-schema.org/draft/2020-12/schema",
+         "type": "object",
+@@ -20438,6 +20467,10 @@
+               "string",
+               "null"
+             ]
++          },
++          "throughTurnId": {
++            "type": "string",
++            "minLength": 1
+           }
+         },
+         "required": [
+@@ -22325,6 +22358,35 @@
+           },
+           "hasMoreOlder": {
+             "type": "boolean"
++          },
++          "outline": {
++            "type": "array",
++            "items": {
++              "type": "object",
++              "properties": {
++                "turnId": {
++                  "type": "string",
++                  "minLength": 1
++                },
++                "ordinal": {
++                  "type": "integer",
++                  "minimum": -9007199254740991,
++                  "maximum": 9007199254740991
++                },
++                "prompt": {
++                  "type": "string"
++                },
++                "reply": {
++                  "type": "string"
++                }
++              },
++              "required": [
++                "turnId",
++                "ordinal",
++                "prompt"
++              ],
++              "additionalProperties": false
++            }
+           }
+         },
+         "required": [
+@@ -24244,6 +24306,35 @@
+               },
+               "hasMoreOlder": {
+                 "type": "boolean"
++              },
++              "outline": {
++                "type": "array",
++                "items": {
++                  "type": "object",
++                  "properties": {
++                    "turnId": {
++                      "type": "string",
++                      "minLength": 1
++                    },
++                    "ordinal": {
++                      "type": "integer",
++                      "minimum": -9007199254740991,
++                      "maximum": 9007199254740991
++                    },
++                    "prompt": {
++                      "type": "string"
++                    },
++                    "reply": {
++                      "type": "string"
++                    }
++                  },
++                  "required": [
++                    "turnId",
++                    "ordinal",
++                    "prompt"
++                  ],
++                  "additionalProperties": false
++                }
+               }
+             },
+             "required": [
+@@ -30151,6 +30242,35 @@
+                         },
+                         "hasMoreOlder": {
+                           "type": "boolean"
++                        },
++                        "outline": {
++                          "type": "array",
++                          "items": {
++                            "type": "object",
++                            "properties": {
++                              "turnId": {
++                                "type": "string",
++                                "minLength": 1
++                              },
++                              "ordinal": {
++                                "type": "integer",
++                                "minimum": -9007199254740991,
++                                "maximum": 9007199254740991
++                              },
++                              "prompt": {
++                                "type": "string"
++                              },
++                              "reply": {
++                                "type": "string"
++                              }
++                            },
++                            "required": [
++                              "turnId",
++                              "ordinal",
++                              "prompt"
++                            ],
++                            "additionalProperties": false
++                          }
+                         }
+                       },
+                       "required": [
+diff --git a/packages/transcript/src/contract/schema.ts b/packages/transcript/src/contract/schema.ts
+index 2d5ca79d..8ec7b333 100644
+--- a/packages/transcript/src/contract/schema.ts
++++ b/packages/transcript/src/contract/schema.ts
+@@ -421,6 +421,13 @@ export const transcriptPromptSchema = z.object({
+   steeredAt: z.string().optional(),
+ })
+ 
++export const turnOutlineEntrySchema = z.object({
++  turnId: turnIdSchema,
++  ordinal: z.number().int(),
++  prompt: z.string(),
++  reply: z.string().optional(),
++})
++
+ export const agentTranscriptSnapshotSchema = z.object({
+   items: z.array(transcriptItemSchema),
+   tasks: z.array(transcriptTaskSchema),
+@@ -430,6 +437,7 @@ export const agentTranscriptSnapshotSchema = z.object({
+   prompts: z.array(transcriptPromptSchema).default([]),
+   meta: transcriptMetaSchema,
+   hasMoreOlder: z.boolean().optional(),
++  outline: z.array(turnOutlineEntrySchema).optional(),
+ })
+ 
+ export const turnHeaderSchema = transcriptTurnSchema.omit({ steps: true })
+diff --git a/packages/transcript/src/index.ts b/packages/transcript/src/index.ts
+index ae76bc8b..2de822e4 100644
+--- a/packages/transcript/src/index.ts
++++ b/packages/transcript/src/index.ts
+@@ -56,6 +56,7 @@ export type {
+   StepHeader,
+   TranscriptOperation,
+   TurnHeader,
++  TurnOutlineEntry,
+ } from './ops/operation'
+ export {
+   applyOps,
+diff --git a/packages/transcript/src/ops/operation.ts b/packages/transcript/src/ops/operation.ts
+index 3b9956bd..65ba578d 100644
+--- a/packages/transcript/src/ops/operation.ts
++++ b/packages/transcript/src/ops/operation.ts
+@@ -115,6 +115,18 @@ export type TranscriptOperation =
+   | MetaMergeOp
+   | ItemsRemoveOp
+ 
++/**
++ * 一轮在「轮次目录」里的一格：整条对话的定义域，不随加载了几页伸缩。
++ * 只有头页（beforeTurn 缺席）带它，且只列人话开的轮（目标续跑轮不进目录，与界面 outline 同一判据）。
++ * 题面与回复是截断过的预览：正文仍以分页读到的 turn 为准。
++ */
++export interface TurnOutlineEntry {
++  readonly turnId: TurnId
++  readonly ordinal: number
++  readonly prompt: string
++  readonly reply?: string
++}
++
+ export interface AgentTranscriptSnapshot {
+   readonly items: readonly TranscriptItem[]
+   readonly tasks: readonly TranscriptTask[]
+@@ -124,4 +136,6 @@ export interface AgentTranscriptSnapshot {
+   readonly prompts: readonly TranscriptPrompt[]
+   readonly meta: TranscriptMeta
+   readonly hasMoreOlder?: boolean
++  /** 整条对话的轮次目录；缺席 = 引擎没给（旧引擎、子代理空页），界面退回「已加载的轮」。 */
++  readonly outline?: readonly TurnOutlineEntry[]
+ }

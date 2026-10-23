@@ -7,6 +7,7 @@ import {
   type TranscriptAttachment,
   type TranscriptOperation,
   type TranscriptPage,
+  type TurnOutlineEntry,
   turnId,
 } from '@poietica/transcript'
 import { isGoalContinuationMessage, isUserSkillMessage, splitWireText } from '../session/prompt'
@@ -46,6 +47,11 @@ export interface OmpMessage {
 export interface HistoryPageOptions {
   /** 一页多少轮（默认 20） */
   readonly pageSize?: number
+  /**
+   * 这一页至少要往前覆盖到这一轮（含）：跳转到很早的一轮时一次读够，不再一页一页往返。
+   * 比 pageSize 更早才生效；认不出的号按缺席处理。
+   */
+  readonly throughTurnId?: string
   /** 已经是当前那一轮：留 running（屏幕上的封条还在转） */
   readonly isTurnOpen?: boolean
   /**
@@ -125,7 +131,10 @@ export function projectHistoryPage(
   const { leading, turns } = screenTurns(messages, o.isTurnOpen === true)
   const before = beforeTurnId === null ? Number.POSITIVE_INFINITY : turnOrdinalOf(beforeTurnId)
   const older = turns.filter((entry) => entry.turn < before)
-  const window = older.slice(Math.max(0, older.length - pageSize))
+  const through = o.throughTurnId === undefined ? 0 : turnOrdinalOf(o.throughTurnId)
+  /* 轮号从 1 连续编（sealTurn），所以第 n 轮在 older 里的下标就是 n - 1。 */
+  const reach = through > 0 ? Math.min(older.length - pageSize, through - 1) : older.length - pageSize
+  const window = older.slice(Math.max(0, reach))
   /* 第一句人话之前的压缩只跟着最早那一页走：别的页带上它，「加载更早」时它会在中间冒出来 */
   const head = window.length === older.length ? compactionOps(0, leading) : []
   const ops = [
@@ -145,7 +154,50 @@ export function projectHistoryPage(
     prompts: [],
     meta: {},
     hasMoreOlder: older.length > window.length,
+    /* 目录只随头页走：往前翻的页不重复交一遍整条对话 */
+    ...(beforeTurnId === null ? { outline: outlineOf(turns) } : {}),
   }
+}
+
+/** 目录里的题面与回复只是预览（卡片至多三行）：截断后每轮至多几百字，整条目录随头页一次给出。 */
+const OUTLINE_PROMPT_CHARS = 200
+const OUTLINE_REPLY_CHARS = 280
+
+function clip(text: string, limit: number): string {
+  const trimmed = text.trim()
+  return trimmed.length <= limit ? trimmed : `${trimmed.slice(0, limit)}…`
+}
+
+/** 一轮里助手说的正文（够预览就停）：与界面 replyOf 同口径，只差截断。 */
+function replyPreviewOf(steps: readonly OmpMessage[]): string {
+  const said: string[] = []
+  let length = 0
+  for (const message of steps) {
+    if (length >= OUTLINE_REPLY_CHARS) break
+    if (message.role !== 'assistant') continue
+    for (const block of contentOf(message)) {
+      if (block.kind !== 'text') continue
+      said.push(block.text)
+      length += block.text.length
+    }
+  }
+  return clip(said.join('\n\n'), OUTLINE_REPLY_CHARS)
+}
+
+/** 整条对话的轮次目录，与 turnOps 同一套分轮与同一个「人话」判据（目标续跑轮不进目录）。 */
+function outlineOf(turns: readonly ScreenTurn[]): TurnOutlineEntry[] {
+  const outline: TurnOutlineEntry[] = []
+  for (const entry of turns) {
+    if (isGoalContinuationMessage(entry.opening)) continue
+    const reply = replyPreviewOf(entry.steps)
+    outline.push({
+      turnId: turnId(entry.turn),
+      ordinal: entry.turn,
+      prompt: entry.prompt === null ? '' : clip(promptTextOf(entry.prompt), OUTLINE_PROMPT_CHARS),
+      ...(reply === '' ? {} : { reply }),
+    })
+  }
+  return outline
 }
 
 /**

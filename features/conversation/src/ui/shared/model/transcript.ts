@@ -45,6 +45,12 @@ export type TranscriptSignal =
 
 export interface TranscriptPort {
   readonly subscribeTranscript: (listener: (signal: TranscriptSignal) => void) => () => void
-  readonly readTranscript: (sessionId: string, agentId: string, beforeTurn?: string) => Promise<TranscriptPage>
+  /** `throughTurn`：往前至少读到这一轮（含），跳转用；只在给了 `beforeTurn` 时有意义。 */
+  readonly readTranscript: (
+    sessionId: string,
+    agentId: string,
+    beforeTurn?: string,
+    throughTurn?: string,
+  ) => Promise<TranscriptPage>
   readonly catchUpTranscript: (sessionId: string, agentId: string, sinceSeq: number) => Promise<TranscriptCatchUp>
 }

@@ -101,10 +101,15 @@ export function createSessionPort({ api, threadId, onSubmissions }: SessionPortO
       }
     },
 
-    async readTranscript(sessionId: string, agentId: string, beforeTurn?: string): Promise<TranscriptPage> {
+    async readTranscript(
+      sessionId: string,
+      agentId: string,
+      beforeTurn?: string,
+      throughTurn?: string,
+    ): Promise<TranscriptPage> {
       const target = sessionId === '' ? threadId : sessionId
       if (beforeTurn !== undefined) {
-        const older = await api.timelinePage(target, agentId, beforeTurn)
+        const older = await api.timelinePage(target, agentId, beforeTurn, throughTurn)
         return {
           ...older,
           agentId,

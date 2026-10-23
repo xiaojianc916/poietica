@@ -7,7 +7,7 @@ import { formatSessionHistoryMarkdown } from '@oh-my-pi/pi-coding-agent/session/
 import { loadSessionMessagesReadOnly } from '@oh-my-pi/pi-coding-agent/session/session-loader'
 import { SessionManager } from '@oh-my-pi/pi-coding-agent/session/session-manager'
 import { FileSessionStorage } from '@oh-my-pi/pi-coding-agent/session/session-storage'
-import type { MediaGcResult, SessionFilesPort, SideTopic } from '@poietica/engine'
+import type { MediaGcResult, PageOptions, SessionFilesPort, SideTopic } from '@poietica/engine'
 import { EngineErrorCode } from '@poietica/engine'
 import { AppError, type Logger, SystemErrorCode } from '@poietica/foundation'
 import type { TranscriptPage } from '@poietica/transcript'
@@ -49,8 +49,13 @@ export class OmpSessionFilesPort implements SessionFilesPort {
     }
   }
 
-  async readPage(sessionFile: string, agentId: string, beforeTurnId: string | null): Promise<TranscriptPage> {
-    return await this.d.history.page(sessionFile, agentId, beforeTurnId)
+  async readPage(
+    sessionFile: string,
+    agentId: string,
+    beforeTurnId: string | null,
+    options?: PageOptions,
+  ): Promise<TranscriptPage> {
+    return await this.d.history.page(sessionFile, agentId, beforeTurnId, options)
   }
 
   /**

@@ -211,15 +211,22 @@ function SettledTranscriptView({ dockClearance, lead, onFork, onRetry, onRewrite
   )
   const rowRhythmAt = useCallback((index: number) => rowRhythmOf(feed.rowAt(index)), [feed])
 
+  /* 只有最后一次点击落地：连点两格还没载入的轮，先读完的那一趟不能把视线拽回去。 */
+  const revealTicket = useRef(0)
   const reveal = useCallback(
     (mark: TurnMark, toRow: (row: number) => void) => {
+      const ticket = revealTicket.current + 1
+      revealTicket.current = ticket
+      /* 目录与投影都现读：读进来之后那一格的号可能换了（目录里的预览格换成载入的轮），按 turnId 认回同一轮。 */
       const landingOf = (allowNearest: boolean): number | undefined => {
-        const projection = selectPresentation(transcripts.read(sessionKey).timeline, seals, inline)
-        const exact = projection.rowOf(mark.admissionId)
+        const current = transcripts.read(sessionKey)
+        const projection = selectPresentation(current.timeline, seals, inline)
+        const admissionId = current.outline.find((candidate) => candidate.turnId === mark.turnId)?.admissionId
+        const exact = projection.rowOf(admissionId ?? mark.admissionId)
         if (exact !== undefined || !allowNearest) {
           return exact
         }
-        return nearestLandingRow(projection, outline, mark.admissionId)
+        return nearestLandingRow(projection, current.outline, admissionId ?? mark.admissionId)
       }
 
       const known = landingOf(false)
@@ -228,14 +235,21 @@ function SettledTranscriptView({ dockClearance, lead, onFork, onRetry, onRewrite
         return
       }
 
-      void transcripts.revealTurn(sessionKey, mark).then(() => {
-        const landed = landingOf(true)
-        if (landed !== undefined) {
-          toRow(landed)
-        }
-      })
+      transcripts.revealTurn(sessionKey, mark).then(
+        () => {
+          if (revealTicket.current !== ticket) {
+            return
+          }
+          const landed = landingOf(true)
+          if (landed !== undefined) {
+            toRow(landed)
+          }
+        },
+        /* 失败已经由 store 记进这条对话的错误态（failed），这里只是不让它变成未处理的拒绝。 */
+        () => undefined,
+      )
     },
-    [inline, outline, seals, sessionKey, transcripts],
+    [inline, seals, sessionKey, transcripts],
   )
 
   /* onSelect 内联等于每帧换一个函数身份，而 ConversationMinimap 是 memo 的，那一栏会跟着滚动逐帧重渲（实测 15/15 次 commit 都真重渲）。落点从 ref 读最新那份。 */

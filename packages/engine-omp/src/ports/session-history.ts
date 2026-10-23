@@ -9,7 +9,7 @@ import {
 } from '@oh-my-pi/pi-coding-agent/session/exit-diagnostics'
 import { SessionManager } from '@oh-my-pi/pi-coding-agent/session/session-manager'
 import { getLatestTodoPhasesFromEntries } from '@oh-my-pi/pi-coding-agent/tools/todo'
-import { EngineErrorCode } from '@poietica/engine'
+import { EngineErrorCode, type PageOptions } from '@poietica/engine'
 import { AppError, type Logger } from '@poietica/foundation'
 import type { TranscriptPage, TranscriptTodo } from '@poietica/transcript'
 import { toEngineError } from '../errors'
@@ -63,11 +63,20 @@ export class SessionHistoryReader {
 
   constructor(private readonly d: SessionHistoryDeps) {}
 
-  async page(sessionFile: string, agentId: string, beforeTurnId: string | null): Promise<TranscriptPage> {
+  async page(
+    sessionFile: string,
+    agentId: string,
+    beforeTurnId: string | null,
+    options?: PageOptions,
+  ): Promise<TranscriptPage> {
     try {
       if (agentId !== 'main') return await this.subagentPage(sessionFile, agentId, beforeTurnId)
       const cold = await this.transcriptOf(sessionFile)
-      const page = projectHistoryPage(cold.messages, beforeTurnId, { mediaRef: this.d.mediaRef })
+      const through = options?.throughTurnId
+      const page = projectHistoryPage(cold.messages, beforeTurnId, {
+        mediaRef: this.d.mediaRef,
+        ...(through === undefined ? {} : { throughTurnId: through }),
+      })
       /* 与活会话 page() 同一条规矩：待办是会话级的、不分页，每一页都带同一份；没开着的会话没有子代理行与后台作业 */
       return { ...page, todos: cold.todo === null ? [] : [cold.todo] }
     } catch (error) {

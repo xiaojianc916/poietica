@@ -421,6 +421,13 @@ export const transcriptPromptSchema = z.object({
   steeredAt: z.string().optional(),
 })
 
+export const turnOutlineEntrySchema = z.object({
+  turnId: turnIdSchema,
+  ordinal: z.number().int(),
+  prompt: z.string(),
+  reply: z.string().optional(),
+})
+
 export const agentTranscriptSnapshotSchema = z.object({
   items: z.array(transcriptItemSchema),
   tasks: z.array(transcriptTaskSchema),
@@ -430,6 +437,7 @@ export const agentTranscriptSnapshotSchema = z.object({
   prompts: z.array(transcriptPromptSchema).default([]),
   meta: transcriptMetaSchema,
   hasMoreOlder: z.boolean().optional(),
+  outline: z.array(turnOutlineEntrySchema).optional(),
 })
 
 export const turnHeaderSchema = transcriptTurnSchema.omit({ steps: true })

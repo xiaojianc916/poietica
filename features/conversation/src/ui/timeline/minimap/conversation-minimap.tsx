@@ -32,6 +32,47 @@ function indexOf(target: EventTarget | null): number {
   const value = tick?.getAttribute(INDEX_ATTRIBUTE)
   return value === undefined || value === null ? -1 : Number.parseInt(value, 10)
 }
+/** 读屏名里的题面只要认得出是哪一轮：整段题面（可能上万字）进无障碍树是白占内存。 */
+const LABEL_PROMPT_CHARS = 80
+
+function labelOf(mark: TurnMark, index: number, count: number): string {
+  const prompt = mark.prompt.trim()
+  const shown = prompt.length > LABEL_PROMPT_CHARS ? `${prompt.slice(0, LABEL_PROMPT_CHARS)}…` : prompt
+  return `第 ${String(index + 1)} 轮，共 ${String(count)} 轮：${shown || UNNAMED}`
+}
+
+/* 一格一个 memo：读到哪一轮每滚一屏就换一次，换的只是两格的 aria-current，不该连带几百格一起重渲。 */
+const Tick = memo(function Tick({
+  active,
+  busy,
+  index,
+  label,
+  tabbable,
+}: {
+  readonly active: boolean
+  readonly busy: boolean
+  readonly index: number
+  readonly label: string
+  readonly tabbable: boolean
+}) {
+  return (
+    <li className="conversation-minimap__item">
+      <button
+        aria-busy={busy || undefined}
+        aria-current={active ? 'location' : undefined}
+        aria-label={label}
+        className="conversation-minimap__turn"
+        data-busy={busy ? '' : undefined}
+        data-minimap-index={index}
+        tabIndex={tabbable ? 0 : -1}
+        type="button"
+      >
+        <span className="conversation-minimap__bar" />
+      </button>
+    </li>
+  )
+})
+
 const TickList = memo(function TickList({
   activeIndex,
   busyId,
@@ -43,23 +84,19 @@ const TickList = memo(function TickList({
   readonly marks: readonly TurnMark[]
   readonly tabbable: number
 }) {
+  /* 读屏名只随目录变：滚动换的是 activeIndex，不重拼几百条字符串。 */
+  const labels = useMemo(() => marks.map((mark, index) => labelOf(mark, index, marks.length)), [marks])
   return (
     <>
       {marks.map((mark, index) => (
-        <li className="conversation-minimap__item" key={mark.admissionId}>
-          <button
-            aria-busy={mark.admissionId === busyId || undefined}
-            aria-current={index === activeIndex ? 'location' : undefined}
-            aria-label={`第 ${String(index + 1)} 轮，共 ${String(marks.length)} 轮：${mark.prompt.trim() || UNNAMED}`}
-            className="conversation-minimap__turn"
-            data-busy={mark.admissionId === busyId ? '' : undefined}
-            data-minimap-index={index}
-            tabIndex={index === tabbable ? 0 : -1}
-            type="button"
-          >
-            <span className="conversation-minimap__bar" />
-          </button>
-        </li>
+        <Tick
+          active={index === activeIndex}
+          busy={mark.admissionId === busyId}
+          index={index}
+          key={mark.admissionId}
+          label={labels[index] ?? UNNAMED}
+          tabbable={index === tabbable}
+        />
       ))}
     </>
   )
@@ -84,14 +121,9 @@ function PreviewCard({ mark }: { readonly mark: TurnMark | undefined }) {
   )
 }
 function Rail({ activeId, busyId, marks, onSelect }: ConversationMinimapProps) {
-  const activeIndex = useMemo(
-    () =>
-      Math.max(
-        0,
-        marks.findIndex((mark) => mark.admissionId === activeId),
-      ),
-    [activeId, marks],
-  )
+  /* 号 → 下标的表只随目录建一次；滚动时 activeId 每换一次只查一次表，不再线性扫整条目录。 */
+  const indexById = useMemo(() => new Map(marks.map((mark, index) => [mark.admissionId, index])), [marks])
+  const activeIndex = activeId === undefined ? 0 : (indexById.get(activeId) ?? 0)
   const [shown, setShown] = useState(-1)
   const [tabbable, setTabbable] = useState(0)
   const listRef = useRef<HTMLOListElement>(null)

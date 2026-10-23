@@ -1315,9 +1315,43 @@ function markOf(turn: TranscriptTurn, previous: TurnMark | undefined): TurnMark 
 const sameOutline = (left: readonly TurnMark[], right: readonly TurnMark[]): boolean =>
   left.length === right.length && left.every((mark, at) => mark === right[at])
 
+type OutlineEntry = NonNullable<AgentTranscriptSnapshot['outline']>[number]
+
+/* 目录条目在同一份快照里是同一个对象（副本只在整读时换目录），按身份记账，翻页、流式都不重算。 */
+const COLD_MARKS = new WeakMap<OutlineEntry, TurnMark>()
+
+/* 还没载入的轮在时间线上只有目录里的一格：号就是 turnId —— 历史投影的轮没有 triggerPromptId，载入后 markOf 算出来的也是它。 */
+function coldMarkOf(entry: OutlineEntry): TurnMark {
+  const held = COLD_MARKS.get(entry)
+  if (held !== undefined) {
+    return held
+  }
+  const mark: TurnMark = {
+    turnId: entry.turnId,
+    admissionId: entry.turnId,
+    prompt: entry.prompt,
+    reply: entry.reply ?? null,
+  }
+  COLD_MARKS.set(entry, mark)
+  return mark
+}
+
+/**
+ * 轮次目录 = 还没载入的那一截（快照里的整条目录，取比最早一轮更早的部分）+ 已载入的轮。
+ * 定义域是整条对话：轨道长度不随往上翻页伸缩，点一格还没载入的轮也有地方可去。引擎没给目录时退回只有已载入的轮。
+ */
 export const outlineOf = (snapshot: AgentTranscriptSnapshot, memo: ProjectionMemo): readonly TurnMark[] => {
   const previous = memo.outline
   const marks: TurnMark[] = []
+
+  const firstLoaded = snapshot.items.find((item) => item.kind === 'turn')
+  const loadedFrom = firstLoaded?.kind === 'turn' ? firstLoaded.ordinal : Number.POSITIVE_INFINITY
+  for (const entry of snapshot.outline ?? []) {
+    if (entry.ordinal >= loadedFrom) {
+      break
+    }
+    marks.push(coldMarkOf(entry))
+  }
 
   for (const item of snapshot.items) {
     if (item.kind === 'turn' && sourceOfTurn(item).isUser) {

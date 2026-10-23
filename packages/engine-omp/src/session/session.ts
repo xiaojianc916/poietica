@@ -9,6 +9,7 @@ import {
   interactionCardOf,
   type ModelRef,
   type OpenSessionSpec,
+  type PageOptions,
   type Posture,
   type QueueOutcome,
   type QueueSnapshot,
@@ -124,7 +125,7 @@ export interface OmpSessionHost {
   readonly page: (
     agentId: string,
     beforeTurnId: string | null,
-    options: { readonly openTurnShown: boolean },
+    options: { readonly openTurnShown: boolean; readonly throughTurnId?: string | undefined },
   ) => Promise<TranscriptPage>
   readonly now: () => number
   /** 此刻的斜杠命令表（omp 现算，GUI 拦掉的已剔除；实现在 slash-commands.ts） */
@@ -860,11 +861,14 @@ export class OmpSession implements EngineSession {
     this.o.broker.answer(interactionId, answer)
   }
 
-  async page(agentId: string, beforeTurnId: string | null): Promise<TranscriptPage> {
+  async page(agentId: string, beforeTurnId: string | null, options?: PageOptions): Promise<TranscriptPage> {
     this.assertLive()
     /* 与历史投影同一刻取：o.page 的投影在调用时就同步算完，等它的这一拍里可能又发出了增量 */
     const view = agentId === 'main' ? this.openTurn.view() : null
-    const page = await this.o.page(agentId, beforeTurnId, { openTurnShown: view !== null })
+    const page = await this.o.page(agentId, beforeTurnId, {
+      openTurnShown: view !== null,
+      throughTurnId: options?.throughTurnId,
+    })
     return overlayOpenTurn(page, view, beforeTurnId === null)
   }
 

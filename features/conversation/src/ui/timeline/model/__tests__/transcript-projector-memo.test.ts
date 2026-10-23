@@ -172,3 +172,41 @@ test('M7 只有一轮（没有封口页）：sealed 与 outline 都是空的且�
   expect(projectTranscript(pageOf(channel('d', 0)), memo()).sealed).toEqual([])
   expect(outlineOf(pageOf(applyOps(emptyTimeline(), [])), memo())).toEqual([])
 })
+
+/** 带目录的头页：目录列出 1..total 轮，已载入的是 from..total。 */
+function pagedOf(tag: string, from: number, total: number): TranscriptPage {
+  const ops: unknown[] = []
+  for (let ordinal = from; ordinal <= total; ordinal += 1) ops.push(...turnOps(tag, ordinal, false))
+  const outline = Array.from({ length: total }, (_, at) => ({
+    turnId: `${tag}-t${at + 1}`,
+    ordinal: at + 1,
+    prompt: `问 ${at + 1}`,
+    reply: `答 ${at + 1}`,
+  }))
+  return { ...pageOf(applyOps(emptyTimeline(), ops as TranscriptOperation[])), hasMoreOlder: from > 1, outline }
+}
+
+test('M8 轨道定义域是整条对话：未载入的轮来自目录，已载入的轮来自时间线', () => {
+  const page = pagedOf('o', 21, 40)
+  const marks = outlineOf(page, memo())
+
+  expect(marks.length).toBe(40)
+  expect(marks.map((mark) => mark.turnId).slice(18, 22)).toEqual(['o-t19', 'o-t20', 'o-t21', 'o-t22'])
+  expect(marks[0]).toEqual({ turnId: 'o-t1', admissionId: 'o-t1', prompt: '问 1', reply: '答 1' })
+})
+
+test('M9 往上翻一页：长度不变，冷前缀与已载入部分的格子沿用同一个对象', () => {
+  const m = memo()
+  const head = pagedOf('p', 21, 40)
+  const before = outlineOf(head, m)
+  const after = outlineOf({ ...pagedOf('p', 11, 40), outline: head.outline }, m)
+
+  expect(after.length).toBe(40)
+  expect(after[0]).toBe(before[0])
+  expect(after[39]).toBe(before[39])
+})
+
+test('M10 引擎没给目录：退回只有已载入的轮', () => {
+  const page = { ...pagedOf('q', 5, 8), outline: undefined }
+  expect(outlineOf(page, memo()).map((mark) => mark.turnId)).toEqual(['q-t5', 'q-t6', 'q-t7', 'q-t8'])
+})

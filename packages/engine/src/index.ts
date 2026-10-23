@@ -26,6 +26,7 @@ export type {
   EngineSession,
   EngineSessionEvent,
   OpenSessionSpec,
+  PageOptions,
   QueueOutcome,
   SubmitInput,
   TurnContextBlock,

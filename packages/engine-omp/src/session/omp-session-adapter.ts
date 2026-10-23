@@ -377,11 +377,12 @@ export async function wrapOmpSession(input: WrapOmpSessionInput): Promise<Engine
       livePlanMode: () => planner.isPlanModeOn(),
       liveGoal: () => goalOf(session),
       liveGoalSnapshot: () => goalSnapshotOf(session),
-      page: async (agentId, beforeTurnId, { openTurnShown }) => {
+      page: async (agentId, beforeTurnId, { openTurnShown, throughTurnId }) => {
         if (agentId !== 'main') {
           return subagents === null ? projectHistoryPage([], null) : await subagents.page(agentId, beforeTurnId)
         }
         const page = projectHistoryPage(transcriptOf(), beforeTurnId, {
+          ...(throughTurnId === undefined ? {} : { throughTurnId }),
           isTurnOpen: projector.isTurnOpen && !openTurnShown,
           openTurnAttachments: projector.openTurnAttachments,
           mediaRef: input.mediaRef,

@@ -112,6 +112,20 @@ exports[`一页的代表性形状（12 页 §9.5 的快照） 两轮：带图的
     },
   ],
   "meta": {},
+  "outline": [
+    {
+      "ordinal": 1,
+      "prompt": "看图",
+      "reply": "看到了",
+      "turnId": "t1",
+    },
+    {
+      "ordinal": 2,
+      "prompt": "跑一下",
+      "reply": "做完了",
+      "turnId": "t2",
+    },
+  ],
   "prompts": [],
   "tasks": [],
   "todos": [],

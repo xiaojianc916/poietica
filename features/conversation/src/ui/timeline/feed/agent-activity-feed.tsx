@@ -1,7 +1,16 @@
 import './agent-activity-feed.css'
 
 import { defaultRangeExtractor, type Range, useVirtualizer, type VirtualItem } from '@tanstack/react-virtual'
-import { type CSSProperties, type ReactNode, useCallback, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import {
+  type CSSProperties,
+  type ReactNode,
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react'
 import { ToLatestIcon } from '../../shared/primitives/icons'
 import { useDevicePixels } from '../../shared/primitives/use-device-pixels'
 import type { Presentation } from '../presentation'
@@ -13,6 +22,55 @@ import { useScrollAuthority } from './scroll-authority'
 /* 两级而非折中值：首帧行高多是估的，铺多了白测；几何稳了再抬到盖得住一次快滚。 */
 const OVERSCAN_COLD = 6
 const OVERSCAN_SETTLED = 20
+/*
+ * 从冷档抬到稳档按空闲帧一步步走：一次抬满等于在落点那一帧之后再冷挂四十来行 markdown（一跳到很远的地方，
+ * 那里一行都没铺过），正好堵在人看见落点之后的第一下滚动上。
+ */
+const OVERSCAN_STEP = 4
+const OVERSCAN_IDLE_TIMEOUT_MS = 200
+
+/**
+ * 预铺行数：首帧与每次跳转回到冷档，落定之后借空闲帧逐步抬到稳档。跳转的那一帧只挂视口加几行，
+ * 落点先画出来；其余的行在人看着落点的时候补上。
+ */
+function useOverscan(settled: boolean, revealing: number | null): number {
+  const [overscan, setOverscan] = useState(OVERSCAN_COLD)
+  const [revealed, setRevealed] = useState(revealing)
+
+  if (revealed !== revealing) {
+    setRevealed(revealing)
+    if (revealing !== null && overscan !== OVERSCAN_COLD) {
+      setOverscan(OVERSCAN_COLD)
+    }
+  }
+
+  const ramping = settled && revealing === null && overscan < OVERSCAN_SETTLED
+
+  /* 一条空闲帧链走完整段抬升；抬满（ramping 变 false）或又一次跳转时由清理函数掐断。 */
+  useEffect(() => {
+    if (!ramping) {
+      return
+    }
+    let cancel = (): void => undefined
+    const schedule = (): void => {
+      if (typeof requestIdleCallback === 'function') {
+        const handle = requestIdleCallback(step, { timeout: OVERSCAN_IDLE_TIMEOUT_MS })
+        cancel = () => cancelIdleCallback(handle)
+      } else {
+        const handle = setTimeout(step, 0)
+        cancel = () => clearTimeout(handle)
+      }
+    }
+    const step = (): void => {
+      setOverscan((current) => Math.min(OVERSCAN_SETTLED, current + OVERSCAN_STEP))
+      schedule()
+    }
+    schedule()
+    return () => cancel()
+  }, [ramping])
+
+  return overscan
+}
 
 const KEEP_ALIVE_ROWS = 80
 
@@ -142,6 +200,8 @@ export function AgentActivityFeed({
     }
   }, [viewport])
 
+  const overscan = useOverscan(settled, revealing)
+
   const leadOf = (row: number) => metrics[rowRhythm(row)]
   /* 运行行在时留它的跑道；不在时只留净空 —— 静止态下整条跑道会读成悬空的一截。 */
   const runway = trailing === undefined ? metrics.gap : metrics.dissolve
@@ -162,7 +222,7 @@ export function AgentActivityFeed({
     initialMeasurementsCache: restored === undefined ? [] : [...restored.rows],
     scrollMargin: scrollMargin ?? 0,
     paddingEnd,
-    overscan: settled ? OVERSCAN_SETTLED : OVERSCAN_COLD,
+    overscan,
     rangeExtractor: extractRange,
     anchorTo: holding ? 'start' : 'end',
     followOnAppend: !holding,

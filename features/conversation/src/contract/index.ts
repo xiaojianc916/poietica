@@ -210,9 +210,11 @@ export const conversationContract = defineContract({
         threadId: z.string().min(1),
         agentId: z.string().min(1),
         beforeTurnId: z.string().nullable(),
+        /** 至少往前覆盖到这一轮（含）：跳转到很早的一轮时一次读够。缺席 = 普通的一页。 */
+        throughTurnId: z.string().min(1).optional(),
       }),
       result: transcriptPageSchema,
-      description: '加载更早的一页',
+      description: '加载更早的一页（可一次读到指定的轮）',
     }),
     defineMethod({
       name: 'timeline.catchUp',

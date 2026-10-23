@@ -18,15 +18,38 @@ interface ReduceResult {
 
 class AgentReducer {
   #state: TimelineState | null = null
+  /*
+   * 轮次目录不进索引状态（TimelineState 只管条目），由整读那一刻的快照定：头页 reset 带来新的一份（或带来缺席，
+   * 即引擎不给目录），往前翻页走 prependOlder，它保留当前页的目录。增量 op 不碰它 —— 新的轮在已加载的条目里。
+   */
+  #outline: AgentTranscriptSnapshot['outline'] = undefined
+  #page: { readonly state: TimelineState; readonly page: AgentTranscriptSnapshot } | null = null
 
   snapshot(): AgentTranscriptSnapshot {
-    return this.#state === null ? EMPTY_PAGE : pageFromState(this.#state)
+    if (this.#state === null) {
+      return EMPTY_PAGE
+    }
+    /* 同一份状态交同一个页对象：下游按引用判「没变」，每次现拼会让投影与目录的缓存全部落空。 */
+    if (this.#page?.state !== this.#state) {
+      const page = pageFromState(this.#state)
+      this.#page = {
+        state: this.#state,
+        page: this.#outline === undefined ? page : { ...page, outline: this.#outline },
+      }
+    }
+    return this.#page.page
   }
 
   receive(operations: readonly TranscriptOperation[]): ReduceResult {
     if (operations.length === 0) return { accepted: [] }
     try {
       this.#state = applyOps(this.#state ?? emptyTimeline(), operations)
+      for (const operation of operations) {
+        if (operation.op === 'reset') {
+          this.#outline = operation.snapshot.outline
+          this.#page = null
+        }
+      }
       return { accepted: operations }
     } catch (error) {
       if (error instanceof TranscriptGapError) {
@@ -180,7 +203,8 @@ export class TranscriptReplica {
     return this.#queue(signal.agentId, (feed) => this.#advance(signal, feed))
   }
 
-  readEarlier(agentId: string, beforeTurn: string): Promise<void> {
+  /** `throughTurn`：这一次至少往前读到这一轮（含）—— 跳转用，一次往返、一次发布。 */
+  readEarlier(agentId: string, beforeTurn: string, throughTurn?: string): Promise<void> {
     return this.#queue(agentId, async (feed) => {
       if (!feed.valid) {
         await this.#head(agentId, feed)
@@ -188,7 +212,9 @@ export class TranscriptReplica {
       if (!this.#owns(agentId, feed)) {
         return
       }
-      const page = await this.#read(agentId, feed, () => this.#port.readTranscript(this.sessionId, agentId, beforeTurn))
+      const page = await this.#read(agentId, feed, () =>
+        this.#port.readTranscript(this.sessionId, agentId, beforeTurn, throughTurn),
+      )
       if (page === undefined || !this.#owns(agentId, feed)) {
         return
       }

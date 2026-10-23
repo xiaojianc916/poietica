@@ -115,6 +115,18 @@ export type TranscriptOperation =
   | MetaMergeOp
   | ItemsRemoveOp
 
+/**
+ * 一轮在「轮次目录」里的一格：整条对话的定义域，不随加载了几页伸缩。
+ * 只有头页（beforeTurn 缺席）带它，且只列人话开的轮（目标续跑轮不进目录，与界面 outline 同一判据）。
+ * 题面与回复是截断过的预览：正文仍以分页读到的 turn 为准。
+ */
+export interface TurnOutlineEntry {
+  readonly turnId: TurnId
+  readonly ordinal: number
+  readonly prompt: string
+  readonly reply?: string
+}
+
 export interface AgentTranscriptSnapshot {
   readonly items: readonly TranscriptItem[]
   readonly tasks: readonly TranscriptTask[]
@@ -124,4 +136,6 @@ export interface AgentTranscriptSnapshot {
   readonly prompts: readonly TranscriptPrompt[]
   readonly meta: TranscriptMeta
   readonly hasMoreOlder?: boolean
+  /** 整条对话的轮次目录；缺席 = 引擎没给（旧引擎、子代理空页），界面退回「已加载的轮」。 */
+  readonly outline?: readonly TurnOutlineEntry[]
 }

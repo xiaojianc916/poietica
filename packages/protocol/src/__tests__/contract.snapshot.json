@@ -18227,6 +18227,35 @@
                               },
                               "hasMoreOlder": {
                                 "type": "boolean"
+                              },
+                              "outline": {
+                                "type": "array",
+                                "items": {
+                                  "type": "object",
+                                  "properties": {
+                                    "turnId": {
+                                      "type": "string",
+                                      "minLength": 1
+                                    },
+                                    "ordinal": {
+                                      "type": "integer",
+                                      "minimum": -9007199254740991,
+                                      "maximum": 9007199254740991
+                                    },
+                                    "prompt": {
+                                      "type": "string"
+                                    },
+                                    "reply": {
+                                      "type": "string"
+                                    }
+                                  },
+                                  "required": [
+                                    "turnId",
+                                    "ordinal",
+                                    "prompt"
+                                  ],
+                                  "additionalProperties": false
+                                }
                               }
                             },
                             "required": [
@@ -20420,7 +20449,7 @@
       "name": "timeline.page",
       "owner": "core",
       "timeoutMs": 30000,
-      "description": "加载更早的一页",
+      "description": "加载更早的一页（可一次读到指定的轮）",
       "params": {
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "type": "object",
@@ -20438,6 +20467,10 @@
               "string",
               "null"
             ]
+          },
+          "throughTurnId": {
+            "type": "string",
+            "minLength": 1
           }
         },
         "required": [
@@ -22325,6 +22358,35 @@
           },
           "hasMoreOlder": {
             "type": "boolean"
+          },
+          "outline": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "turnId": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "ordinal": {
+                  "type": "integer",
+                  "minimum": -9007199254740991,
+                  "maximum": 9007199254740991
+                },
+                "prompt": {
+                  "type": "string"
+                },
+                "reply": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "turnId",
+                "ordinal",
+                "prompt"
+              ],
+              "additionalProperties": false
+            }
           }
         },
         "required": [
@@ -24244,6 +24306,35 @@
               },
               "hasMoreOlder": {
                 "type": "boolean"
+              },
+              "outline": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "turnId": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "ordinal": {
+                      "type": "integer",
+                      "minimum": -9007199254740991,
+                      "maximum": 9007199254740991
+                    },
+                    "prompt": {
+                      "type": "string"
+                    },
+                    "reply": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "turnId",
+                    "ordinal",
+                    "prompt"
+                  ],
+                  "additionalProperties": false
+                }
               }
             },
             "required": [
@@ -30151,6 +30242,35 @@
                         },
                         "hasMoreOlder": {
                           "type": "boolean"
+                        },
+                        "outline": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "turnId": {
+                                "type": "string",
+                                "minLength": 1
+                              },
+                              "ordinal": {
+                                "type": "integer",
+                                "minimum": -9007199254740991,
+                                "maximum": 9007199254740991
+                              },
+                              "prompt": {
+                                "type": "string"
+                              },
+                              "reply": {
+                                "type": "string"
+                              }
+                            },
+                            "required": [
+                              "turnId",
+                              "ordinal",
+                              "prompt"
+                            ],
+                            "additionalProperties": false
+                          }
                         }
                       },
                       "required": [

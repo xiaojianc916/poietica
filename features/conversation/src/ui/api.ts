@@ -68,8 +68,18 @@ export function createConversationApi(ctx: UiFeatureContext) {
 
     subscribeTimeline: (threadId: string, agentId: string): Promise<TimelineSnapshot> =>
       rpc.call('timeline.subscribe', { threadId, agentId }),
-    timelinePage: (threadId: string, agentId: string, beforeTurnId: string | null): Promise<TranscriptPage> =>
-      rpc.call('timeline.page', { threadId, agentId, beforeTurnId }),
+    timelinePage: (
+      threadId: string,
+      agentId: string,
+      beforeTurnId: string | null,
+      throughTurnId?: string,
+    ): Promise<TranscriptPage> =>
+      rpc.call('timeline.page', {
+        threadId,
+        agentId,
+        beforeTurnId,
+        ...(throughTurnId === undefined ? {} : { throughTurnId }),
+      }),
     catchUp: (
       threadId: string,
       agentId: string,

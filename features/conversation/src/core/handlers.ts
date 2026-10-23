@@ -94,8 +94,8 @@ export function registerHandlers(ctx: Ctx, core: ConversationCore, hub: Timeline
     return wireSnapshot(page, pos.epoch, pos.seq, turns.submissionsOf(threadId, turnIdsOf(page)))
   })
   ctx.rpc.handle('timeline.unsubscribe', () => ({}))
-  ctx.rpc.handle('timeline.page', async ({ threadId, agentId, beforeTurnId }) => {
-    const page = await turns.page(threadId, agentId, beforeTurnId)
+  ctx.rpc.handle('timeline.page', async ({ threadId, agentId, beforeTurnId, throughTurnId }) => {
+    const page = await turns.page(threadId, agentId, beforeTurnId, throughTurnId ?? null)
     return wirePage(agentId === MAIN_AGENT_ID ? submissions.stampPage(threadId, page) : page)
   })
   ctx.rpc.handle('timeline.catchUp', ({ threadId, agentId, epoch, sinceSeq }) => {

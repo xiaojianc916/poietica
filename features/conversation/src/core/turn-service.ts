@@ -14,7 +14,7 @@ import {
 import type { AttachmentsService } from '@poietica/feature-attachments/core-api'
 import type { WorkspacesService } from '@poietica/feature-workspaces/core-api'
 import { AppError, type Clock, type Logger, SystemErrorCode } from '@poietica/foundation'
-import type { TranscriptPage } from '@poietica/transcript'
+import { prependOlder, type TranscriptPage } from '@poietica/transcript'
 import type { QueueView } from '../contract'
 import { DEFAULT_POSTURE, type Thread, type TurnState } from '../contract/entities'
 import { conversationErrors } from '../contract/errors'
@@ -139,12 +139,43 @@ export class TurnService {
    * 只被冷读订阅过的通道打开时也不换代（TimelineHub.resetAdvanced）。
    * 还没落过盘的线程没有正文可读：空页，不为一次读去签发会话文件。
    */
-  async page(threadId: string, agentId: string, beforeTurnId: string | null): Promise<TranscriptPage> {
+  async page(
+    threadId: string,
+    agentId: string,
+    beforeTurnId: string | null,
+    throughTurnId: string | null = null,
+  ): Promise<TranscriptPage> {
+    const options = throughTurnId === null ? undefined : { throughTurnId }
+    let page = await this.readPage(threadId, agentId, beforeTurnId, options)
+    if (throughTurnId === null) return page
+    /*
+     * 跳转到很早的一轮：界面只付一次往返。`throughTurnId` 是引擎的可选能力（engine-omp 一次切够，别的实现可以不认），
+     * 没覆盖到就在这里接着往前拼 —— 同一进程内的循环，不再是界面那边一页一次 IPC、一页一次整屏重渲。
+     */
+    let first = firstTurnOf(page)
+    while (page.hasMoreOlder === true && first !== undefined && !hasTurn(page, throughTurnId)) {
+      const older = await this.readPage(threadId, agentId, first.turnId, options)
+      const next = firstTurnOf(older)
+      if (next === undefined || next.ordinal >= first.ordinal) {
+        throw new AppError(SystemErrorCode.internal, 'Transcript pagination did not advance.')
+      }
+      page = prependOlder(page, older)
+      first = next
+    }
+    return page
+  }
+
+  private async readPage(
+    threadId: string,
+    agentId: string,
+    beforeTurnId: string | null,
+    options: { readonly throughTurnId: string } | undefined,
+  ): Promise<TranscriptPage> {
     const live = this.d.pool.peek(threadId)
-    if (live !== undefined) return await live.page(agentId, beforeTurnId)
+    if (live !== undefined) return await live.page(agentId, beforeTurnId, options)
     const { sessionFile } = this.d.requireRow(threadId)
     if (sessionFile === null) return this.emptyPage()
-    return await this.d.engine.sessionFiles.readPage(sessionFile, agentId, beforeTurnId)
+    return await this.d.engine.sessionFiles.readPage(sessionFile, agentId, beforeTurnId, options)
   }
 
   // ── 队列（queue 三方法）──────────────────────────────────────────────────
@@ -397,4 +428,15 @@ export class TurnService {
   stateOf(threadId: string): TurnState['state'] {
     return this.d.pool.peek(threadId)?.state() ?? 'idle'
   }
+}
+
+type PageTurn = Extract<TranscriptPage['items'][number], { kind: 'turn' }>
+
+function firstTurnOf(page: TranscriptPage): PageTurn | undefined {
+  for (const item of page.items) if (item.kind === 'turn') return item
+  return undefined
+}
+
+function hasTurn(page: TranscriptPage, turnId: string): boolean {
+  return page.items.some((item) => item.kind === 'turn' && item.turnId === turnId)
 }
