@@ -13,6 +13,7 @@ import {
 } from '@poietica/ui-kernel'
 import { Maximize2, Minimize2, X } from 'lucide-react'
 import { type KeyboardEvent, type ReactNode, Suspense, useEffect, useMemo, useState } from 'react'
+import { useTabStripScroll } from '../tab-strip-scroll'
 import { AuxiliaryNewTabMenu, type AuxiliaryOffer } from './auxiliary-menu'
 import { PartSkeleton } from './part-skeleton'
 
@@ -109,9 +110,13 @@ function AuxiliaryTab({
       aria-controls={AUXILIARY_TABPANEL_ID}
       aria-keyshortcuts="Delete"
       aria-selected={active}
+      /* 两种状态共用**原本选中态**那一套度量（间距 2、内边距 4/6、小圆角），只差底色 —— 选中时万一换一套
+       * 内边距或间距，同一枚标签自己就换了宽高，排在后面的一起平移，切换时整条抖一下。
+       * 行高不再写 leading-none：12px 字压进 12px 行盒，`p` `g` `y` 的下伸部会被 truncate 的 overflow
+       * 切掉半截；text-xs 自带的行高就够，不另发明数字。 */
       className={
-        'flex min-w-24 max-w-44 shrink-0 items-center rounded-sm text-xs leading-none ' +
-        (active ? 'gap-0.5 bg-[#2a2a2a] py-1 pl-1.5 pr-1.5' : 'gap-1.5 py-[5px] pl-2 pr-2 hover:bg-[#2a2a2a]')
+        'flex min-w-24 max-w-44 shrink-0 items-center gap-0.5 rounded-sm py-1 pl-1.5 pr-1.5 text-xs ' +
+        (active ? 'bg-[#2a2a2a]' : 'hover:bg-[#2a2a2a]')
       }
       id={id}
       onClick={(event) => {
@@ -432,6 +437,8 @@ function AuxiliaryTabStrip({
   readonly onToggleFullscreen: () => void
   readonly tabs: readonly TabView[]
 }) {
+  const strip = useTabStripScroll()
+
   return (
     <div className="shrink-0">
       <div
@@ -444,8 +451,10 @@ function AuxiliaryTabStrip({
       >
         <div
           aria-label="辅助面板标签页"
-          className="flex min-w-0 flex-1 items-center gap-1 overflow-x-auto"
+          className="auxiliary-tab-strip__tabs flex min-w-0 flex-1 items-center gap-1 overflow-x-auto"
+          data-strip-scroll={strip.scroll}
           onKeyDown={moveTabFocus}
+          ref={strip.viewport}
           role="tablist"
           style={{ scrollbarWidth: 'none' }}
         >

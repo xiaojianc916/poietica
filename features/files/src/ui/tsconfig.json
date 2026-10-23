@@ -6,6 +6,9 @@
       "path": "../../../../packages/design-system"
     },
     {
+      "path": "../../../../packages/foundation"
+    },
+    {
       "path": "../../../../packages/ui-kernel"
     },
     {

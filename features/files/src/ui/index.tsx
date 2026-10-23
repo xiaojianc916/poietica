@@ -55,6 +55,7 @@ export default defineUiFeature({
       layout,
       workspaces,
       banners,
+      logger: ctx.logger,
       revealInTree: (owner, workspaceId, path) => {
         models.obtain(workspaceId).reveal(path, true)
         layout.openPane(owner, TREE_PANEL_ID)

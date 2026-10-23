@@ -1,5 +1,6 @@
 import { describe, expect, test } from 'bun:test'
-import type { LocatedFile } from '../../contract'
+import { AppError } from '@poietica/foundation'
+import { filesErrors, type LocatedFile } from '../../contract'
 import { createFileOpener, TREE_PANEL_ID, VIEWER_PANEL_ID } from '../opener'
 import { FileTabsStore } from '../tabs'
 
@@ -30,13 +31,14 @@ function make(o: {
     } as never,
     workspaces: { store: { getState: () => ({ items: [], activeId: o.activeWorkspace ?? null }) } as never },
     banners: {
-      show: (banner: { title: string }) => {
-        calls.push(`banner ${banner.title}`)
+      show: (banner: { detail?: string; title: string }) => {
+        calls.push(`banner ${banner.title}${banner.detail === undefined ? '' : `：${banner.detail}`}`)
       },
       error: (_cause: unknown, title?: string) => {
         calls.push(`error ${String(title)}`)
       },
     } as never,
+    logger: { warn: () => undefined, error: () => undefined, info: () => undefined, debug: () => undefined } as never,
     revealInTree: (owner, workspaceId, path) => {
       calls.push(`reveal ${owner} ${workspaceId} ${path}`)
     },
@@ -89,14 +91,23 @@ describe('createFileOpener', () => {
     none.opener.openReference({ path: 'a.ts' })
     await settle()
     expect(asked).toBe(false)
-    expect(none.calls).toEqual(['banner 这里打不开文件'])
+    expect(none.calls).toEqual(['banner 这里打不开文件：先打开一个有工作区的对话。'])
   })
 
-  test('Core 拒绝（越界、不存在）：横幅报错，不开标签', async () => {
-    const { opener, tabs, calls } = make({ locate: () => Promise.reject(new Error('outside')) })
-    opener.openReference({ path: '/etc/passwd', owner: 't1', workspaceId: 'w1' })
-    await settle()
-    expect(tabs.of('t1')).toBeNull()
-    expect(calls).toEqual(['error 打不开这个文件'])
+  test('Core 拒绝：横幅只有「文件不存在」一句，不带路径、不叠前缀', async () => {
+    /* 三种原因（不存在、越界、认不出的异常）在横幅上是同一句：路径与错误码都只进日志。 */
+    const cases = [
+      new AppError(filesErrors.not_found, '文件不存在：path.txt'),
+      new AppError(filesErrors.outside_workspace, '不在工作区内：/etc/passwd'),
+      new Error('boom'),
+    ]
+
+    for (const cause of cases) {
+      const { opener, tabs, calls } = make({ locate: () => Promise.reject(cause) })
+      opener.openReference({ path: 'path.txt', owner: 't1', workspaceId: 'w1' })
+      await settle()
+      expect(tabs.of('t1')).toBeNull()
+      expect(calls).toEqual(['banner 文件不存在'])
+    }
   })
 })

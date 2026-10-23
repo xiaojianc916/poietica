@@ -24,6 +24,25 @@
   transition: padding-inline-end var(--workspace-layout-duration) var(--workspace-layout-ease);
 }
 
+/*
+ * 标签条溢出时两端那道雾。正本是 dsh 的 ._stripTabs_6nhg2_257[data-dockkit-strip-scroll]：
+ * 三档、24px、同一个渐变写法。
+ *
+ * 遮罩挂在滚动容器自己身上，不盖一层地色 —— 底下会换主题，叠实色必露接缝。右缘那排按钮
+ * （加号、全屏）是兄弟节点，不在遮罩里，所以渐隐只吃掉标签，不吃按钮。
+ */
+.auxiliary-tab-strip__tabs[data-strip-scroll='end'] {
+  mask-image: linear-gradient(to right, #000 calc(100% - 24px), transparent);
+}
+
+.auxiliary-tab-strip__tabs[data-strip-scroll='start'] {
+  mask-image: linear-gradient(to right, transparent, #000 24px);
+}
+
+.auxiliary-tab-strip__tabs[data-strip-scroll='start end'] {
+  mask-image: linear-gradient(to right, transparent, #000 24px, #000 calc(100% - 24px), transparent);
+}
+
 @media (prefers-reduced-motion: reduce) {
   .auxiliary-tab-strip__row {
     transition: none;

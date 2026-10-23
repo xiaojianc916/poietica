@@ -17,7 +17,7 @@ interface LabRow {
 const VIEWPORT_PX = 400
 const realOffsetHeight = Object.getOwnPropertyDescriptor(HTMLElement.prototype, 'offsetHeight')
 const realScrollHeight = Object.getOwnPropertyDescriptor(Element.prototype, 'scrollHeight')
-const realClientHeight = Object.getOwnPropertyDescriptor(Element.prototype, 'clientHeight')
+const realClientHeight = Object.getOwnPropertyDescriptor(HTMLElement.prototype, 'clientHeight')
 const isViewport = (element: Element) => element.classList.contains('agent-activity-feed__viewport')
 const realStyle = window.getComputedStyle.bind(window)
 
@@ -43,9 +43,14 @@ beforeEach(() => {
       return isViewport(this) && transcript !== null ? 24 + Number.parseFloat(transcript.style.height || '0') : 0
     },
   })
-  Object.defineProperty(Element.prototype, 'clientHeight', {
+  /*
+   * `clientHeight` 必须挂在 HTMLElement.prototype：happy-dom 的真实 getter 就在那一层，
+   * 挂到 Element.prototype 只是新增了一个实例取不到的属性，桩等于没写 —— 虚拟器读到的视口高
+   * 一直是 0，calculateRange 返回 null、一行都不渲染，total 退化成估算值（曾静默跑红两条断言）。
+   */
+  Object.defineProperty(HTMLElement.prototype, 'clientHeight', {
     configurable: true,
-    get(this: Element) {
+    get(this: HTMLElement) {
       return isViewport(this) ? VIEWPORT_PX : 0
     },
   })
@@ -72,7 +77,7 @@ afterEach(() => {
   cleanup()
   if (realOffsetHeight !== undefined) Object.defineProperty(HTMLElement.prototype, 'offsetHeight', realOffsetHeight)
   if (realScrollHeight !== undefined) Object.defineProperty(Element.prototype, 'scrollHeight', realScrollHeight)
-  if (realClientHeight !== undefined) Object.defineProperty(Element.prototype, 'clientHeight', realClientHeight)
+  if (realClientHeight !== undefined) Object.defineProperty(HTMLElement.prototype, 'clientHeight', realClientHeight)
   window.getComputedStyle = realStyle
 })
 

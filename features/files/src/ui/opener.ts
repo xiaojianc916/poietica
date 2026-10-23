@@ -1,4 +1,5 @@
 import type { WorkspacesUi } from '@poietica/feature-workspaces/ui-api'
+import type { Logger } from '@poietica/foundation'
 import type { BannerService, LayoutService } from '@poietica/ui-kernel'
 import type { FilesApi } from './api'
 import type { FileTabsStore } from './tabs'
@@ -30,6 +31,8 @@ export function createFileOpener(d: {
   readonly layout: LayoutService
   readonly workspaces: Pick<WorkspacesUi, 'store'>
   readonly banners: Pick<BannerService, 'show' | 'error'>
+  /** 横幅只说一句人话，具体原因落这里。 */
+  readonly logger: Logger
   /** 目录：打开树并展开到它。 */
   readonly revealInTree: (owner: string, workspaceId: string, path: string) => void
 }): FileOpener {
@@ -56,7 +59,11 @@ export function createFileOpener(d: {
           else show(owner, workspaceId, located.path, request.line ?? null, request.column ?? null)
         },
         (cause: unknown) => {
-          d.banners.error(cause, '打不开这个文件')
+          /* 打不开就一句话：**文件不存在**。不叠「打不开这个文件：」这层前缀，也不带路径 ——
+           * 横幅上原先是「打不开这个文件：文件不存在：文件不存在：path.txt」（标题、契约文案、服务端
+           * message 各拼了一遍），读起来像三种错。具体原因（越界、权限、认不出的异常）落日志。 */
+          d.logger.warn('打开文件失败', { error: String(cause), path: request.path })
+          d.banners.show({ severity: 'error', title: '文件不存在' })
         },
       )
     },
