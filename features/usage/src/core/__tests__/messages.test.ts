@@ -88,8 +88,8 @@ describe('消息数量数的是准入账，不是采样条数', () => {
 })
 
 describe('v2 迁移', () => {
-  test('迁移表是 v1 + v2，且 v2 建的是准入账', () => {
-    expect(migrations.map((m) => m.version)).toEqual([1, 2])
+  test('迁移表是 v1 + v2 + v3，且 v2 建的是准入账', () => {
+    expect(migrations.map((m) => m.version)).toEqual([1, 2, 3])
     expect(migrations[1]?.sql).toContain('usage_messages')
   })
 

@@ -10,10 +10,21 @@ export function createUsageRepo(db: ModuleDatabase) {
   const ins =
     db.prepare(`INSERT INTO usage_events (thread_id, day, at, provider, model, input, output, cache_read, cache_write, cost)
                           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
+  /* 按天汇总（迁移 v3）：与明细同一个事务累加，读的一侧只碰这张小表 */
+  const rollup =
+    db.prepare(`INSERT INTO usage_daily (day, provider, model, input, output, cache_read, cache_write, cost)
+                          VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                          ON CONFLICT (day, provider, model) DO UPDATE SET
+                            input = input + excluded.input, output = output + excluded.output,
+                            cache_read = cache_read + excluded.cache_read, cache_write = cache_write + excluded.cache_write,
+                            cost = cost + excluded.cost`)
   const insMessage = db.prepare('INSERT INTO usage_messages (thread_id, day, at) VALUES (?, ?, ?)')
   return {
     insert(r: { threadId: string; day: string } & UsageSample): void {
-      ins.run(r.threadId, r.day, r.at, r.provider, r.model, r.input, r.output, r.cacheRead, r.cacheWrite, r.cost)
+      db.transaction(() => {
+        ins.run(r.threadId, r.day, r.at, r.provider, r.model, r.input, r.output, r.cacheRead, r.cacheWrite, r.cost)
+        rollup.run(r.day, r.provider, r.model, r.input, r.output, r.cacheRead, r.cacheWrite, r.cost)
+      })
     },
     /** 用户发出去一句话（准入）—— 数的是它，不是模型采样条数（ADR 0039）。 */
     insertMessage(r: { threadId: string; at: number }): void {
@@ -24,7 +35,7 @@ export function createUsageRepo(db: ModuleDatabase) {
         .prepare(
           `SELECT day, SUM(input) AS input, SUM(output) AS output, SUM(cache_read) AS cacheRead,
                                 SUM(cache_write) AS cacheWrite, SUM(cost) AS cost
-                         FROM usage_events WHERE day BETWEEN ? AND ? GROUP BY day ORDER BY day`,
+                         FROM usage_daily WHERE day BETWEEN ? AND ? GROUP BY day ORDER BY day`,
         )
         .all(from, to) as Array<{
         day: string
@@ -38,8 +49,8 @@ export function createUsageRepo(db: ModuleDatabase) {
     modelDays(from: string, to: string) {
       return db
         .prepare(
-          `SELECT day, provider, model, SUM(input) AS input, SUM(output) AS output, SUM(cost) AS cost
-                         FROM usage_events WHERE day BETWEEN ? AND ? GROUP BY day, provider, model ORDER BY day, provider, model`,
+          `SELECT day, provider, model, input, output, cost
+                         FROM usage_daily WHERE day BETWEEN ? AND ? ORDER BY day, provider, model`,
         )
         .all(from, to) as Array<{
         day: string

@@ -191,7 +191,9 @@ export function createAttachmentsService(d: AttachmentsServiceDeps): Attachments
     },
     retain(ids, ownerKey) {
       const now = d.clock.now()
-      for (const id of ids) d.repo.retain(ownerKey, id, now)
+      d.repo.transaction(() => {
+        for (const id of ids) d.repo.retain(ownerKey, id, now)
+      })
     },
     releaseOwner(ownerKey) {
       d.repo.releaseOwner(ownerKey)
@@ -206,14 +208,16 @@ export function createAttachmentsService(d: AttachmentsServiceDeps): Attachments
       return serial(async () => {
         const cutoff = d.clock.now() - SWEEP_GRACE_MS
         // 顺序：先删 items 行，再删没有 item 指向的 files 行，最后删磁盘文件。
-        let items = 0
-        for (const id of d.repo.unreferencedItems(cutoff)) {
-          d.repo.deleteItem(id)
-          items++
-        }
+        // 两步删行收进同一个事务（原先每删一行各自一次提交）；磁盘文件在事务之后删 —— 事务里不能 await。
+        const { items, orphans } = d.repo.transaction(() => {
+          const ids = d.repo.unreferencedItems(cutoff)
+          for (const id of ids) d.repo.deleteItem(id)
+          const shas = d.repo.orphanFiles()
+          for (const sha256 of shas) d.repo.deleteFile(sha256)
+          return { items: ids.length, orphans: shas }
+        })
         let files = 0
-        for (const sha256 of d.repo.orphanFiles()) {
-          d.repo.deleteFile(sha256)
+        for (const sha256 of orphans) {
           files++
           await removeFile(contentPath(d.dir, sha256)).catch((e: unknown) => {
             // 只记 warn：文件可能被杀毒软件占用，下次回收会再试一次。

@@ -104,4 +104,14 @@ DELETE FROM conversation_submissions
      */
     sql: `ALTER TABLE conversation_threads ADD COLUMN controls_snapshot TEXT;`,
   },
+  {
+    version: 6,
+    name: 'submissions_by_turn',
+    /*
+     * 提交号表（数据库性能方案 D2）：每次订阅时间线、每翻一页快照都要按线程取一张 `turnId → clientTurnId`，
+     * 流式期间每个新 turn 还要按 `(thread_id, turn_id)` 认一次号。原先只有 `(thread_id, created_at)`，两处都得回表读整行。
+     * 部分索引只收已经开出轮的行（pending / queued / failed 没有 turn_id），三列都在索引里：取号表不回表，认号直接定位。
+     */
+    sql: `CREATE INDEX conversation_submissions_by_turn ON conversation_submissions (thread_id, turn_id, client_turn_id) WHERE turn_id IS NOT NULL;`,
+  },
 ]

@@ -1,3 +1,4 @@
+import { Database as BunDatabase } from 'bun:sqlite'
 import { afterEach, describe, expect, test } from 'bun:test'
 import { mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
@@ -26,6 +27,9 @@ describe('openDatabase', () => {
       expect(db.raw.query('PRAGMA foreign_keys').get()).toEqual({ foreign_keys: 1 })
       // 注意：SQLite 把 `PRAGMA busy_timeout` 的列名报成 `timeout`，所以断言取值而不是列名
       expect(db.raw.query('PRAGMA busy_timeout').values()).toEqual([[5000]])
+      // 长连接维护（数据库性能方案 D4）：-wal 检查点后截回 64 MiB；optimize 每张表最多抽 400 行
+      expect(db.raw.query('PRAGMA journal_size_limit').values()).toEqual([[67108864]])
+      expect(db.raw.query('PRAGMA analysis_limit').values()).toEqual([[400]])
     } finally {
       db.close()
     }
@@ -59,6 +63,29 @@ describe('openDatabase', () => {
       expect(db.raw.query('PRAGMA foreign_keys').get()).toEqual({ foreign_keys: 1 })
     } finally {
       db.close()
+    }
+  })
+
+  // DB-5：关库前跑 optimize，规划器的统计（sqlite_stat1）落进库里，下次开库直接可用
+  test('DB-5 关库时刷新查询统计', () => {
+    const file = path.join(newTempDir(), 'stat.db')
+    const db = openDatabase(file)
+    const mdb = db.forModule('agent-settings')
+    mdb.exec('CREATE TABLE agent_settings_x (id TEXT PRIMARY KEY, k TEXT NOT NULL)')
+    mdb.exec('CREATE INDEX agent_settings_x_by_k ON agent_settings_x (k)')
+    mdb.transaction(() => {
+      for (let i = 0; i < 200; i++)
+        mdb.prepare('INSERT INTO agent_settings_x (id, k) VALUES (?, ?)').run(`id${i}`, `k${i % 5}`)
+    })
+    expect(mdb.prepare('SELECT id FROM agent_settings_x WHERE k = ?').all('k1')).toHaveLength(40)
+    db.close()
+
+    /* 用裸连接读：openDatabase 开库时自己也会补统计，那样就分不出是不是关库那一次写的 */
+    const plain = new BunDatabase(file, { readonly: true })
+    try {
+      expect(plain.query("SELECT tbl FROM sqlite_stat1 WHERE tbl = 'agent_settings_x'").all().length).toBeGreaterThan(0)
+    } finally {
+      plain.close()
     }
   })
 

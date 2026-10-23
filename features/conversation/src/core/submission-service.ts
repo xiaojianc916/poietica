@@ -259,8 +259,7 @@ export class SubmissionService {
     const cache = this.turnIds.get(threadId) ?? new Map<string, string | null>()
     cache.set(turnId, clientTurnId)
     this.turnIds.set(threadId, cache)
-    const row = this.d.repo.get(clientTurnId)
-    if (row === null) return
+    /* 行不在了（已删）update 就是 null：不必先读一遍 */
     const next = this.d.repo.update(clientTurnId, { status: 'started', turnId })
     if (next !== null) this.d.emitChanged(submissionOf(next))
   }

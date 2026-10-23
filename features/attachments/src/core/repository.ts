@@ -36,6 +36,8 @@ export interface AttachmentsRepository {
   /** 幂等 */
   copyOwner(from: string, to: string, at: number): void
   countRefs(itemId: string): number
+  /** 同步事务（批量增删收成一次提交；fn 抛错整体回滚） */
+  transaction<T>(fn: () => T): T
 }
 
 interface RawItem {
@@ -148,6 +150,9 @@ export function createAttachmentsRepository(db: ModuleDatabase): AttachmentsRepo
           'INSERT OR IGNORE INTO attachments_refs (owner_key, item_id, created_at) SELECT ?, item_id, ? FROM attachments_refs WHERE owner_key = ?',
         ).run(to, at, from)
       })
+    },
+    transaction(fn) {
+      return db.transaction(fn)
     },
     countRefs(itemId) {
       const r = db.prepare<{ n: number }>('SELECT COUNT(*) AS n FROM attachments_refs WHERE item_id = ?').get(itemId)

@@ -28,6 +28,15 @@ export function openDatabase(file: string): Database {
   raw.exec('PRAGMA synchronous = NORMAL')
   raw.exec('PRAGMA foreign_keys = ON')
   raw.exec('PRAGMA busy_timeout = 5000')
+  /*
+   * 长连接的维护三件（数据库性能方案 D4）。Core 一个进程只开这一条连接、一开就是一整天：
+   * - journal_size_limit：检查点之后把 -wal 截回 64 MiB 以内（一次大迁移 / 大批写入后不再永久占着那么大的文件）；
+   * - analysis_limit + optimize(0x10002)：给查询规划器补上统计（sqlite_stat1）。每张表最多抽 400 行，开库只多花几毫秒；
+   *   关库前再跑一次 optimize，把这一次会话里查过的表的统计刷新掉（SQLite 文档对长连接的推荐做法）。
+   */
+  raw.exec('PRAGMA journal_size_limit = 67108864')
+  raw.exec('PRAGMA analysis_limit = 400')
+  raw.exec('PRAGMA optimize = 0x10002')
   const modules = new Map<string, ModuleDatabase>()
   return {
     raw,
@@ -40,6 +49,11 @@ export function openDatabase(file: string): Database {
       return m
     },
     close() {
+      try {
+        raw.exec('PRAGMA optimize')
+      } catch {
+        /* 只读库、磁盘满：统计没刷上不影响关库 */
+      }
       raw.close()
     },
   }
