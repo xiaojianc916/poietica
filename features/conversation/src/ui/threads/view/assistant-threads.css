@@ -256,15 +256,49 @@
   mask-image: linear-gradient(to right, transparent, #000 12px, #000 calc(100% - 12px), transparent);
 }
 
-/* 行首那格由 padding-inline-start 留着，指示器绝对定位进去：出现与消失时标题不移动。 */
-.assistant-thread__running {
+/*
+ * 行首那格由 padding-inline-start 留着，状态点绝对定位进去：出现与消失时标题不移动。
+ *
+ * 点自己只有 10px（ongoing 14px），而这一格是 16px 的行首图标位：居中摆进去，才与组头的
+ * 文件夹、导航项的图标同一条中线。
+ */
+/* 选择器带行前缀：StateDot 自己的 .ui-state-dot 声明了 position: relative，单类选择器与它同权重，
+ * 谁在后面谁赢 —— 设计系统那份样式后加载时，点会退回文件流里，缩进到标题的落点。 */
+.assistant-thread > .assistant-thread__status {
   position: absolute;
   inset-block-start: 50%;
-  inset-inline-start: var(--ui-row-lead);
-  block-size: var(--ui-row-icon-size);
-  inline-size: var(--ui-row-icon-size);
-  color: var(--cp-ink);
+  inset-inline-start: calc(var(--ui-row-lead) + (var(--ui-row-icon-size) - 10px) / 2);
   transform: translateY(-50%);
+}
+
+/* ongoing 的环外径 14px，比实心点宽 4px：左偏移跟着收 2px，两种状态的中线才是同一条。 */
+.assistant-thread > .assistant-thread__status[data-state='ongoing'] {
+  inset-inline-start: calc(var(--ui-row-lead) + (var(--ui-row-icon-size) - 14px) / 2);
+}
+
+/* 行尾的待答短标签：字与颜色和「时间」同一档，但它是等人处理的信号，用警告色提一档。 */
+.assistant-thread__pending {
+  position: absolute;
+  inset-block-start: 50%;
+  inset-inline-end: 0;
+  color: var(--ui-warning);
+  font-size: var(--cp-font-micro);
+  white-space: nowrap;
+  /* 与相对时间同一个开关：指针进来让位给置顶 / 归档两枚动作，不然短标签会压在它们下面。 */
+  opacity: var(--thread-trail-time, 1);
+  pointer-events: none;
+  transform: translateY(-50%);
+  transition: opacity var(--cp-motion-swift) var(--cp-motion-ease);
+}
+
+/* 只给读屏的完整状态说法：视觉上不占位，但读屏能念出「等待审批」而不只是行尾那三个字。 */
+.assistant-thread__a11y {
+  position: absolute;
+  inline-size: 1px;
+  block-size: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
 }
 
 /* 定时任务开的对话：与运行中指示同一格，墨色淡一档 —— 它是来历，不是状态（R-16）。 */

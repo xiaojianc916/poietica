@@ -30,6 +30,7 @@ export {
 export { ErrorState, InlineSpinner, LoadingState } from './control/feedback'
 export { SegmentedControl, type SegmentedOption } from './control/segmented-control'
 export { Select, type SelectOption } from './control/select'
+export { StateDot, type StateDotState } from './control/state-dot'
 export { Switch } from './control/switch'
 export { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from './control/tooltip'
 export { ViewSwitch, type ViewSwitchOption } from './control/view-switch'

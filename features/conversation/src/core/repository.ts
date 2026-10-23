@@ -87,8 +87,15 @@ function toRow(r: Row): ThreadRow {
   }
 }
 
-/** 行 → 实体。state 由会话池决定（不在池中即 idle），这里只负责其余字段 */
-export function threadOf(row: ThreadRow, state: Thread['state']): Thread {
+/**
+ * 行 → 实体。state 与 pendingInteraction 都由活会话决定（不在池中即 idle / null），
+ * 这里只负责其余字段。
+ */
+export function threadOf(
+  row: ThreadRow,
+  state: Thread['state'],
+  pendingInteraction: Thread['pendingInteraction'],
+): Thread {
   return {
     id: row.id,
     workspaceId: row.workspaceId,
@@ -97,6 +104,7 @@ export function threadOf(row: ThreadRow, state: Thread['state']): Thread {
     posture: row.posture,
     origin: row.origin,
     state,
+    pendingInteraction,
     hasSession: row.sessionFile !== null,
     forkedFrom: row.forkedFrom,
     pinned: row.pinned,

@@ -1,5 +1,7 @@
-export { type AppIdentity, configureAppIdentity } from './app-identity'
+export { APP_ICON_FILE, resolveAppIcon } from './app-icon'
+export { type AppIdentity, configureAppIdentity, DEV_APP_ID, PACKAGED_APP_ID } from './app-identity'
 export { APP_ENTRY_URL, APP_SCHEME, createAppProtocolHandler, type FetchFile } from './app-protocol'
+export { type AppShortcut, type DesiredAppShortcut, listShortcutFiles, repairAppShortcuts } from './app-shortcut'
 export { ASSET_SCHEME, type AssetDispatcher, type AssetHandler, createAssetDispatcher } from './asset-protocol'
 export { type CoreOutputSink, createCoreOutputSink } from './core-output'
 export {

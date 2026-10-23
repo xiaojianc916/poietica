@@ -14,6 +14,7 @@ function thread(id: string, state: Thread['state']): Thread {
     posture: 'auto-edit',
     origin: 'user',
     state,
+    pendingInteraction: null,
     hasSession: true,
     forkedFrom: null,
     pinned: false,

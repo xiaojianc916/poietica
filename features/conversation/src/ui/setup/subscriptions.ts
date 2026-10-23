@@ -42,6 +42,7 @@ export function createConversationSubscriptions(setup: ConversationSetup, action
     api.onThreadRemoved((p) => {
       stores.threads.remove(p.threadId)
       stores.turnStates.clear(p.threadId)
+      stores.completionUnread.clear(p.threadId)
       /* 两者各管一半（store 退订阅、注册表丢对象），必须从同一个入口发起 —— 少发一处就是「一边忘了一边还记得」的半状态。 */
       transcripts.forget(p.threadId)
       sessions.release(p.threadId)
@@ -65,6 +66,11 @@ export function createConversationSubscriptions(setup: ConversationSetup, action
     api.onTurnState((s) => {
       const previous = stores.turnStates.get(s.threadId)?.state
       stores.turnStates.set(s)
+      /*
+       * 「跑完但还没回来看」的绿点：只在 running / awaiting → idle 的边沿点亮，而且那条
+       * 不能是当前正看着的这条（看着它跑完的人不需要被提醒）。判据与通知同一处取 previous。
+       */
+      stores.completionUnread.observe(s.threadId, previous, s.state, actions.activeThreadId())
       if (isTurnSettled(previous, s.state)) notify(s.threadId, completionBody(s.error), 'completion')
     }).dispose,
   )

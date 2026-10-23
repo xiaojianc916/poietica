@@ -14,9 +14,11 @@ import {
 import { consoleSink, createLogger, jsonlFileSink } from '@poietica/logging'
 import type { ProcessInfo } from '@poietica/process-kit'
 import { Router } from '@poietica/rpc'
-import { app, dialog, net, protocol, type WebContents } from 'electron'
+import { app, dialog, net, protocol, shell, type WebContents } from 'electron'
+import { resolveAppIcon } from './app-icon'
 import { type AppIdentity, configureAppIdentity } from './app-identity'
 import { APP_SCHEME, APP_SCHEME_PRIVILEGES, createAppProtocolHandler } from './app-protocol'
+import { repairDevShortcutsOnBoot } from './app-shortcut'
 import { ASSET_SCHEME, createAssetDispatcher } from './asset-protocol'
 import { createCoreOutputSink } from './core-output'
 import { listCoreProcesses } from './core-reaper'
@@ -112,6 +114,54 @@ export function runHostKernel(opts: HostKernelOptions): void {
     .catch((e: unknown) => fatal(logger, identity.layout.mainLog, 'kernel', e))
 }
 
+/**
+ * 建窗前的两件事：定下图标，以及在开发版把声称我们身份、target 已经丢失的快捷方式
+ * 改回正确指向。两件事都不得阻断启动。
+ */
+function createWindows(logger: Logger, identity: AppIdentity, resourcesDir: string): WindowRegistry {
+  const log = logger.child({ scope: 'kernel' })
+  const icon = resolveAppIcon(resourcesDir)
+  if (icon === undefined) {
+    log.warn('app icon not found; taskbar will fall back to the electron default', { resourcesDir })
+  }
+  /*
+   * 开发版的 AUMID 是固定字符串：只要机器上留下一个声称同一身份、但 target 已经不存在的
+   * 旧快捷方式（换过 Electron 版本、删过目录），Shell 就固定按它取图——那张图是通用白纸，
+   * 而且按 AUMID 缓存，改代码不动。
+   */
+  if (!identity.isPackaged && icon !== undefined) {
+    repairDevShortcutsOnBoot({
+      desired: {
+        appId: identity.appId,
+        target: process.execPath,
+        args: `"${app.getAppPath()}"`,
+        cwd: app.getAppPath(),
+        icon,
+        description: 'Poietica Dev',
+      },
+      programsDir: path.join(app.getPath('appData'), 'Microsoft', 'Windows', 'Start Menu', 'Programs'),
+      readShortcut: (file) => shell.readShortcutLink(file),
+      writeShortcut: (file, d) =>
+        shell.writeShortcutLink(file, 'update', {
+          target: d.target,
+          args: d.args,
+          cwd: d.cwd,
+          icon: d.icon,
+          iconIndex: 0,
+          description: d.description,
+          appUserModelId: d.appId,
+        }),
+      warn: (message, fields) => log.warn(message, fields),
+    })
+  }
+  return new WindowRegistry({
+    logger: logger.child({ scope: 'window' }),
+    isPackaged: identity.isPackaged,
+    icon,
+    appId: identity.appId,
+  })
+}
+
 async function boot(
   opts: HostKernelOptions,
   identity: AppIdentity,
@@ -124,7 +174,7 @@ async function boot(
   const hostRouter = new Router()
   const registry = createServiceRegistry()
   registry.kernelScope().provide(HostLoggingToken, { level: levelRef.get, setLevel: levelRef.set })
-  const windows = new WindowRegistry({ logger: logger.child({ scope: 'window' }), isPackaged: identity.isPackaged })
+  const windows = createWindows(logger, identity, opts.paths.resourcesDir)
   const assets = createAssetDispatcher(logger.child({ scope: 'asset' }))
 
   // 总机与 Core 看护人：此时两者都还没有连接

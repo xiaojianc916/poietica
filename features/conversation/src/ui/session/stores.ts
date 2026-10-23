@@ -2,7 +2,14 @@ import type { Controls, ModelRef, Posture } from '@poietica/engine'
 import { createId } from '@poietica/foundation'
 import type { ConversationApi } from '../api'
 import { type ComposerStore, createComposerStore } from '../composer'
-import { createThreadsStore, createTurnStatesStore, type ThreadsStore, type TurnStatesStore } from '../threads'
+import {
+  type CompletionUnreadStore,
+  createCompletionUnreadStore,
+  createThreadsStore,
+  createTurnStatesStore,
+  type ThreadsStore,
+  type TurnStatesStore,
+} from '../threads'
 import { type ControlsStore, createControlsStore } from './configuration/controls-store'
 
 export interface ComposerApi {
@@ -23,6 +30,8 @@ export interface ConversationStores {
   readonly threads: ThreadsStore
   readonly composer: ComposerStore
   readonly turnStates: TurnStatesStore
+  /** 跑完但还没回来看的那几条（只在内存里，绿点） */
+  readonly completionUnread: CompletionUnreadStore
   readonly controls: ControlsStore
   /** 某个线程（或 home）的输入框句柄 */
   composerFor(threadId: string | null): ComposerApi
@@ -37,6 +46,7 @@ export function createStores(
    * 构造顺序就是这条依赖的事实。
    */
   const turnStates = createTurnStatesStore()
+  const completionUnread = createCompletionUnreadStore()
   const threads = createThreadsStore(api, turnStates)
   const composer = createComposerStore(initialDrafts)
   const controls = createControlsStore(api)
@@ -52,6 +62,7 @@ export function createStores(
     threads,
     composer,
     turnStates,
+    completionUnread,
     controls,
     composerFor(threadId) {
       const submit = (deliverAs: 'turn' | 'steer' | 'followUp'): void => {

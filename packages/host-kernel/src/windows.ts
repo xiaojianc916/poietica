@@ -1,11 +1,13 @@
 import { AppError, type Logger, SystemErrorCode } from '@poietica/foundation'
-import { BrowserWindow, session, shell } from 'electron'
+import { app, BrowserWindow, session, shell } from 'electron'
 import { APP_ENTRY_URL } from './app-protocol'
 
 export interface MainWindowConfig {
   readonly bounds?: { readonly x?: number; readonly y?: number; readonly width: number; readonly height: number }
   readonly maximized?: boolean
   readonly backgroundColor?: string
+  /** 应用图标（绝对路径）。缺席时不传 icon，窗口退回 electron.exe 自带的原子图。 */
+  readonly icon?: string
 }
 
 const ALLOWED_PERMISSIONS = new Set(['clipboard-sanitized-write', 'notifications', 'fullscreen'])
@@ -15,7 +17,16 @@ export class WindowRegistry {
   private win: BrowserWindow | undefined
   private unresponsive = false
 
-  constructor(private readonly o: { logger: Logger; isPackaged: boolean }) {}
+  constructor(
+    private readonly o: {
+      logger: Logger
+      isPackaged: boolean
+      /** 应用图标绝对路径；undefined 表示没找到，窗口退回 electron.exe 的原子图 */
+      icon: string | undefined
+      /** Windows 的 AppUserModelID；任务栏按键按它归档并取图标 */
+      appId: string
+    },
+  ) {}
 
   /** 只能在 beforeWindow 钩子中调用：platform 恢复位置，preferences 设置底色 */
   configureMain(patch: MainWindowConfig): void {
@@ -55,6 +66,7 @@ export class WindowRegistry {
   }
 
   createMain(p: { preload: string; rendererDevUrl: string | undefined }): BrowserWindow {
+    const icon = this.config.icon ?? this.o.icon
     const win = new BrowserWindow({
       width: 1280,
       height: 800,
@@ -64,6 +76,8 @@ export class WindowRegistry {
       show: false,
       frame: false, // 自绘标题栏（workbench 的 TitleBar + platform 贡献的窗口按钮）
       backgroundColor: this.config.backgroundColor ?? '#ffffff',
+      // exactOptionalPropertyTypes：图标缺席时整条不写，别显式给 undefined。
+      ...(icon === undefined ? {} : { icon }),
       webPreferences: {
         preload: p.preload,
         sandbox: true,
@@ -76,6 +90,25 @@ export class WindowRegistry {
       },
     })
     this.win = win
+    /*
+     * 任务栏按键画的是「AUMID 对应快捷方式」的那张图，窗口自己的 icon 只管窗口本体、Alt+Tab 与任务预览。
+     * 在还没有可用快捷方式的机器上（开发版第一次跑就是），setAppDetails 的 appIconPath 是任务栏唯一
+     * 拿得到图的地方 —— appId 必须一起给，缺了它其余几项会静默失效（Electron 文档明写）。
+     */
+    if (icon !== undefined) {
+      try {
+        win.setAppDetails({
+          appId: this.o.appId,
+          appIconPath: icon,
+          appIconIndex: 0,
+          relaunchCommand: `"${process.execPath}" "${app.getAppPath()}"`,
+          relaunchDisplayName: this.o.isPackaged ? 'Poietica' : 'Poietica Dev',
+        })
+      } catch (e) {
+        // 非 Windows、或系统不认这个组合：图标退化可以接受，但日志里要留一条
+        this.o.logger.warn('setAppDetails failed', { error: String(e) })
+      }
+    }
     /* 安装版走 poietica-app://shell（P-06：file:// 没有 V8 代码缓存）；导航守卫与加载用同一个地址 */
     const appUrl = p.rendererDevUrl ?? APP_ENTRY_URL
     const isAppUrl = (url: string): boolean =>

@@ -68,6 +68,7 @@ export function stubConversation(): ConversationService & {
         posture: init.posture,
         origin: init.origin,
         state: 'idle',
+        pendingInteraction: null,
         hasSession: false,
         forkedFrom: null,
         pinned: false,

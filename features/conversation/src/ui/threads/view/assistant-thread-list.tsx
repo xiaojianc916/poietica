@@ -5,7 +5,7 @@ import {
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
-  PixelLoader,
+  StateDot,
 } from '@poietica/design-system'
 import { AlarmClock, FolderClosed, FolderOpen, MoreHorizontal, PinOff, Trash2 } from 'lucide-react'
 import type { RefObject } from 'react'
@@ -30,6 +30,10 @@ export interface AssistantThreadSummary {
   readonly updatedAt: string
   readonly isMuted?: boolean
   readonly isPinned?: boolean
+  /** 此刻在等人答的那一档；null / 缺席 = 没有待答交互。 */
+  readonly pendingInteraction?: Thread['pendingInteraction']
+  /** 跑完了、但人还没回来点开（绿点）；缺席 = 没有这条提醒。 */
+  readonly isDoneUnread?: boolean
   readonly record?: Thread
 }
 
@@ -127,11 +131,85 @@ function ThreadTitle({
   )
 }
 
-/* 行首那一格：运行中让给加载指示 —— 闹钟说的是来历，不是状态（R-16）。 */
-function ThreadLead({ fromAutomation, isRunning }: { readonly fromAutomation: boolean; readonly isRunning: boolean }) {
-  if (isRunning) return <PixelLoader className="assistant-thread__running" />
-  if (fromAutomation) return <AlarmClock aria-label="定时任务" className="assistant-thread__origin" role="img" />
+type PendingKind = NonNullable<Thread['pendingInteraction']>
+
+/*
+ * 待答交互的措辞（DSH 的 status.waitingApproval / planReview / waitingAnswer 与三枚短标签）：
+ * 完整说法进读屏与悬停，短标签替换行尾的相对时间 —— 一列行里哪个在等人，不该靠点颜色猜。
+ */
+const PENDING_LABEL: Readonly<Record<PendingKind, string>> = {
+  approval: '等待审批',
+  plan: '计划待审',
+  question: '等待回答',
+}
+
+const PENDING_COMPACT: Readonly<Record<PendingKind, string>> = {
+  approval: '待审批',
+  plan: '计划待审',
+  question: '待回答',
+}
+
+type LeadMark =
+  | { readonly kind: 'pending'; readonly state: PendingKind }
+  | { readonly kind: 'running' }
+  | { readonly kind: 'done' }
+  | { readonly kind: 'automation' }
+
+/*
+ * 行首那一格只画一枚记号，优先级照 DSH 的 sessionStatuses：待答交互 > 正在跑 > 跑完未看 > 来历。
+ *
+ * - 待答交互排在最前，是因为它是唯一「不处理就永远停在那里」的状态；运行中的环与它同时成立
+ *   （state 是 awaiting，不是 idle），若先画环，等审批的那一行看起来与普通运行中一模一样；
+ * - 绿点是「活干完了，你还没回来点开」：它只在没有活动时才有意义，所以排在运行环之后；
+ * - 定时任务那一枚闹钟说的是来历，不是状态（R-16），所以排在最后。
+ */
+function leadMarkOf(
+  fromAutomation: boolean,
+  isRunning: boolean,
+  isDoneUnread: boolean,
+  pending: PendingKind | null | undefined,
+): LeadMark | null {
+  if (pending !== null && pending !== undefined) return { kind: 'pending', state: pending }
+  if (isRunning) return { kind: 'running' }
+  if (isDoneUnread) return { kind: 'done' }
+  if (fromAutomation) return { kind: 'automation' }
   return null
+}
+
+function ThreadLead({
+  fromAutomation,
+  isRunning,
+  isDoneUnread,
+  pending,
+}: {
+  readonly fromAutomation: boolean
+  readonly isRunning: boolean
+  readonly isDoneUnread: boolean
+  readonly pending: PendingKind | null | undefined
+}) {
+  const mark = leadMarkOf(fromAutomation, isRunning, isDoneUnread, pending)
+
+  if (mark === null) return null
+  if (mark.kind === 'automation') {
+    return <AlarmClock aria-label="定时任务" className="assistant-thread__origin" role="img" />
+  }
+  if (mark.kind === 'running') {
+    return (
+      <>
+        <StateDot className="assistant-thread__status" state="ongoing" />
+        <span className="assistant-thread__a11y">进行中</span>
+      </>
+    )
+  }
+  if (mark.kind === 'done') {
+    return (
+      <>
+        <StateDot className="assistant-thread__status" state="done" />
+        <span className="assistant-thread__a11y">已完成，尚未查看</span>
+      </>
+    )
+  }
+  return <StateDot className="assistant-thread__status" state="warning" />
 }
 
 interface ThreadRowProps {
@@ -142,6 +220,7 @@ interface ThreadRowProps {
   readonly absolute: string | null
   readonly isActive: boolean
   readonly isRunning: boolean
+  readonly isDoneUnread: boolean
   readonly onActivate: (threadId: string) => void
   readonly onPin: (threadId: string, pinned: boolean) => void
   readonly onArchive?: ((threadId: string) => void) | undefined
@@ -154,6 +233,7 @@ const ThreadRow = memo(function ThreadRow({
   absolute,
   isActive,
   isRunning,
+  isDoneUnread,
   onActivate,
   onPin,
   onArchive,
@@ -175,7 +255,17 @@ const ThreadRow = memo(function ThreadRow({
       onPointerEnter={marquee.enter}
       onPointerLeave={marquee.leave}
     >
-      <ThreadLead fromAutomation={thread.record?.origin === 'automation'} isRunning={isRunning} />
+      <ThreadLead
+        fromAutomation={thread.record?.origin === 'automation'}
+        isDoneUnread={isDoneUnread}
+        isRunning={isRunning}
+        pending={thread.pendingInteraction ?? null}
+      />
+
+      {/* 完整状态说法给读屏与悬停：行尾那一句是短标签，说得出「哪个在等人」，说不全「等什么」。 */}
+      {thread.pendingInteraction === null || thread.pendingInteraction === undefined ? null : (
+        <span className="assistant-thread__a11y">{PENDING_LABEL[thread.pendingInteraction]}</span>
+      )}
 
       <button
         aria-busy={isRunning}
@@ -190,8 +280,16 @@ const ThreadRow = memo(function ThreadRow({
 
       {/* 时间与操作共用这一个格子，谁可见由同一条规则决定。 */}
       <span className="assistant-thread__trail">
-        {/* <time> 而非 <span>：读屏与悬停要拿得到准确时刻。 */}
-        {elapsed === null ? null : (
+        {/*
+         * 待答交互时行尾不报时间，改报**短标签**（DSH 的做法）：一列行里「谁在等人」比「什么时候动过」
+         * 更急需被看见，而完整说法已经在行首那枚点旁边给读屏了。悬停仍拿得到准确时刻。
+         */}
+        {thread.pendingInteraction !== null && thread.pendingInteraction !== undefined ? (
+          <span aria-hidden="true" className="assistant-thread__pending" title={absolute ?? undefined}>
+            {PENDING_COMPACT[thread.pendingInteraction]}
+          </span>
+        ) : elapsed === null ? null : (
+          /* <time> 而非 <span>：读屏与悬停要拿得到准确时刻。 */
           <time className="assistant-thread__time" dateTime={thread.updatedAt} title={absolute ?? undefined}>
             {elapsed}
           </time>
@@ -413,6 +511,7 @@ export function AssistantThreadList({
       absolute={absolute}
       elapsed={elapsed}
       isActive={thread.id === activeThreadId}
+      isDoneUnread={thread.isDoneUnread === true}
       isRunning={runningThreadIds.has(thread.id)}
       key={thread.id}
       onActivate={onActivate}

@@ -1,0 +1,102 @@
+/*
+ * 状态点（正本 DSH 的 StateDot.module.css）。
+ *
+ * 四档实心点共用 10px 的布局格，只画中心那一枚 60% 的点；ongoing 是唯一的非点状态：
+ * 一圈 25% 透明度的底环 + 一段呼吸的弧，整组连续旋转。两条动画共用 1.5s 周期，
+ * 钉住起点后同一屏上的环同相。
+ *
+ * 颜色读语义令牌（--ui-success / --ui-warning / --ui-destructive / --ui-muted-foreground），
+ * 不在组件里写死色值：换主题时点跟着走。
+ */
+.ui-state-dot {
+  position: relative;
+  display: inline-block;
+  flex: none;
+}
+
+.ui-state-dot::after {
+  content: '';
+  position: absolute;
+  inset: 20%;
+  border-radius: 50%;
+  background: currentcolor;
+}
+
+.ui-state-dot[data-state='done'] {
+  color: var(--ui-success);
+}
+
+.ui-state-dot[data-state='warning'] {
+  color: var(--ui-warning);
+}
+
+.ui-state-dot[data-state='error'] {
+  color: var(--ui-destructive);
+}
+
+.ui-state-dot[data-state='idle'] {
+  color: var(--ui-muted-foreground);
+}
+
+.ui-state-dot--ongoing {
+  color: var(--ui-muted-foreground);
+}
+
+.ui-state-dot__motion {
+  transform-origin: center;
+  animation: ui-state-dot-spin 1.5s linear infinite;
+}
+
+.ui-state-dot__track,
+.ui-state-dot__arc {
+  fill: none;
+  stroke: currentcolor;
+  stroke-width: 2;
+  stroke-linecap: round;
+}
+
+.ui-state-dot__track {
+  opacity: 0.25;
+}
+
+.ui-state-dot__arc {
+  stroke-dasharray: 12 150;
+  animation: ui-state-dot-dash 1.5s ease-in-out infinite;
+}
+
+@keyframes ui-state-dot-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes ui-state-dot-dash {
+  0% {
+    stroke-dasharray: 12 150;
+    stroke-dashoffset: 0;
+  }
+
+  50% {
+    stroke-dasharray: 24 150;
+    stroke-dashoffset: -6;
+  }
+
+  100% {
+    stroke-dasharray: 12 150;
+    stroke-dashoffset: 0;
+  }
+}
+
+/* 减少动效：停转，留一段中间长度的弧，仍然看得出「有人在跑」。全局策略把时长压到 0.01ms，
+ * 这里另外补上弧长，免得停下来只剩一小截。 */
+@media (prefers-reduced-motion: reduce) {
+  .ui-state-dot__motion,
+  .ui-state-dot__arc {
+    animation: none;
+  }
+
+  .ui-state-dot__arc {
+    stroke-dasharray: 18 150;
+    stroke-dashoffset: -3;
+  }
+}

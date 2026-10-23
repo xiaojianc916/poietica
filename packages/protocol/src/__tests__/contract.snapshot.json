@@ -15184,6 +15184,21 @@
               "awaiting"
             ]
           },
+          "pendingInteraction": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "approval",
+                  "plan",
+                  "question"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "hasSession": {
             "type": "boolean"
           },
@@ -15223,6 +15238,7 @@
           "posture",
           "origin",
           "state",
+          "pendingInteraction",
           "hasSession",
           "forkedFrom",
           "pinned",
@@ -15374,6 +15390,21 @@
               "awaiting"
             ]
           },
+          "pendingInteraction": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "approval",
+                  "plan",
+                  "question"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "hasSession": {
             "type": "boolean"
           },
@@ -15413,6 +15444,7 @@
           "posture",
           "origin",
           "state",
+          "pendingInteraction",
           "hasSession",
           "forkedFrom",
           "pinned",
@@ -15486,6 +15518,21 @@
               "awaiting"
             ]
           },
+          "pendingInteraction": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "approval",
+                  "plan",
+                  "question"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "hasSession": {
             "type": "boolean"
           },
@@ -15525,6 +15572,7 @@
           "posture",
           "origin",
           "state",
+          "pendingInteraction",
           "hasSession",
           "forkedFrom",
           "pinned",
@@ -15605,6 +15653,21 @@
                     "awaiting"
                   ]
                 },
+                "pendingInteraction": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "enum": [
+                        "approval",
+                        "plan",
+                        "question"
+                      ]
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
                 "hasSession": {
                   "type": "boolean"
                 },
@@ -15644,6 +15707,7 @@
                 "posture",
                 "origin",
                 "state",
+                "pendingInteraction",
                 "hasSession",
                 "forkedFrom",
                 "pinned",
@@ -15724,6 +15788,21 @@
               "awaiting"
             ]
           },
+          "pendingInteraction": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "approval",
+                  "plan",
+                  "question"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "hasSession": {
             "type": "boolean"
           },
@@ -15763,6 +15842,7 @@
           "posture",
           "origin",
           "state",
+          "pendingInteraction",
           "hasSession",
           "forkedFrom",
           "pinned",
@@ -15840,6 +15920,21 @@
               "awaiting"
             ]
           },
+          "pendingInteraction": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "approval",
+                  "plan",
+                  "question"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "hasSession": {
             "type": "boolean"
           },
@@ -15879,6 +15974,7 @@
           "posture",
           "origin",
           "state",
+          "pendingInteraction",
           "hasSession",
           "forkedFrom",
           "pinned",
@@ -15956,6 +16052,21 @@
               "awaiting"
             ]
           },
+          "pendingInteraction": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "approval",
+                  "plan",
+                  "question"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "hasSession": {
             "type": "boolean"
           },
@@ -15995,6 +16106,7 @@
           "posture",
           "origin",
           "state",
+          "pendingInteraction",
           "hasSession",
           "forkedFrom",
           "pinned",
@@ -16072,6 +16184,21 @@
               "awaiting"
             ]
           },
+          "pendingInteraction": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "approval",
+                  "plan",
+                  "question"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "hasSession": {
             "type": "boolean"
           },
@@ -16111,6 +16238,7 @@
           "posture",
           "origin",
           "state",
+          "pendingInteraction",
           "hasSession",
           "forkedFrom",
           "pinned",
@@ -28039,6 +28167,21 @@
               "awaiting"
             ]
           },
+          "pendingInteraction": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "approval",
+                  "plan",
+                  "question"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "hasSession": {
             "type": "boolean"
           },
@@ -28078,6 +28221,7 @@
           "posture",
           "origin",
           "state",
+          "pendingInteraction",
           "hasSession",
           "forkedFrom",
           "pinned",

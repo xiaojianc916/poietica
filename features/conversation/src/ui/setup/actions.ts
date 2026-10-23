@@ -125,6 +125,8 @@ export function createConversationActions(setup: ConversationSetup): Conversatio
   }
 
   const openThread = (threadId: string): void => {
+    /* 打开即「看过了」：那条会话的完成提醒（绿点）随之消失。 */
+    stores.completionUnread.consume(threadId)
     /* 高亮由路由派生，这里只负责导航。 */
     navigation.navigate({ surface: 'conversation.thread', params: { threadId } })
     /*

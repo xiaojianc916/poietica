@@ -38,7 +38,7 @@ import { ARCHIVED_FILTER, type ArchivedFilter } from '../threads/view/thread-vie
 import { openSubagentTab } from '../timeline/view/subagent-dock'
 import type { ConversationActions } from './actions'
 import type { ConversationSetup } from './context'
-import { useRunningThreadIds } from './use-running-thread-ids'
+import { useCompletionUnreadIds, useRunningThreadIds } from './use-running-thread-ids'
 
 /** 界面、侧栏、面板等贡献。 */
 export function createConversationContributions(setup: ConversationSetup, actions: ConversationActions): void {
@@ -135,6 +135,11 @@ export function createConversationContributions(setup: ConversationSetup, action
        * （真机实测：发出第一句话、列表长出第一行之后，整个侧栏那段当场被错误边界接管）。所以选 `s.items` 本身，行形状在外层 useMemo 派生。
        */
       const threads = useFeatureStore(stores.threads.store, (s) => s.items)
+      /*
+       * 跑完还没点开的那几条（绿点）。要在派生行形状之前读：`items` 的 useMemo 依赖它，
+       * 否则绿点亮了、行形状没变，memo 不会重算。
+       */
+      const doneUnreadIds = useCompletionUnreadIds(stores.completionUnread)
       const items = useMemo(
         () =>
           threads
@@ -147,11 +152,13 @@ export function createConversationContributions(setup: ConversationSetup, action
               id: thread.id,
               title: thread.title,
               isPinned: thread.pinned,
+              pendingInteraction: thread.pendingInteraction,
+              isDoneUnread: doneUnreadIds.has(thread.id),
               updatedAt: new Date(thread.updatedAt).toISOString(),
               workspaceId: thread.workspaceId,
               record: thread,
             })),
-        [threads],
+        [threads, doneUnreadIds],
       )
       const state = useFeatureStoreShallow(stores.threads.store, (s) => ({
         isLoading: s.isLoading,
@@ -165,6 +172,14 @@ export function createConversationContributions(setup: ConversationSetup, action
        */
       const { route } = useNavigation()
       const active = route.surface === 'conversation.thread' ? (route.params.threadId ?? null) : null
+      /*
+       * 停在一条会话上就等于「看过了」：启动时恢复出来的路由不会经过 openThread，
+       * 所以这里也收一次绿点。判据是本组件**画到屏幕上**的那一条，而不是别处记的当前页 ——
+       * 侧栏没挂载时（设置页）不该把任何一条当成已看。
+       */
+      useEffect(() => {
+        stores.completionUnread.consume(active)
+      }, [active])
       const collapsedWorkspaces = useObservable(collapsed)
       /*
        * 归档那一档要**换一次查询**（threads.list 带 includeArchived），所以它住在这里、不在列表的草稿里：
@@ -225,6 +240,7 @@ export function createConversationContributions(setup: ConversationSetup, action
               else next.add(workspaceId)
               collapsed.set(next)
             }}
+
             runningThreadIds={runningIds}
           />
 

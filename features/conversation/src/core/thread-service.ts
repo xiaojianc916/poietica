@@ -4,6 +4,7 @@ import type { WorkspacesService } from '@poietica/feature-workspaces/core-api'
 import { AppError, type Clock, createId, type Logger } from '@poietica/foundation'
 import type { Thread, TurnState } from '../contract/entities'
 import { conversationErrors } from '../contract/errors'
+import { pendingInteractionOf } from './pending-interaction'
 import type { ReclaimRepository } from './reclaim-repository'
 import type { ThreadRow, ThreadsRepository } from './repository'
 import { threadOf } from './repository'
@@ -59,7 +60,18 @@ export class ThreadService {
   }
 
   threadOf(row: ThreadRow): Thread {
-    return threadOf(row, this.stateOf(row.id))
+    return threadOf(row, this.stateOf(row.id), this.pendingInteractionOf(row.id))
+  }
+
+  /**
+   * 这条线程此刻挂着的是哪一档待答交互；没有活会话（或没有人等）就是 null。
+   *
+   * 与 stateOf 同一份来源：都在问会话池里的那个活会话。没开着的会话不可能有人等 —— broker
+   * 只在活会话里，会话被驱逐时 `cancelAll` 已经把人等的那几项以 dismiss 收口。
+   */
+  pendingInteractionOf(threadId: string): Thread['pendingInteraction'] {
+    const session = this.d.peekSession(threadId)
+    return session === undefined ? null : pendingInteractionOf(session.interactions())
   }
 
   stateOf(threadId: string): TurnState['state'] {

@@ -47,6 +47,10 @@ win:
     - target: nsis
       arch:
         - x64
+  # 显式给图标：不写就默认去 buildResources 下找 icon.ico，而本仓的正本叫 resources/icon.ico（
+  # 名字巧合上了，但那是暗合）。这一格决定 Poietica.exe 嵌进去哪张图，任务栏、
+  # 开始菜单、添加/删除程序都读它。
+  icon: resources/icon.ico
   executableName: Poietica
 
 nsis:

@@ -124,11 +124,18 @@ export class EventRouter {
       case 'state':
         this.onState(threadId, event.state, event.error)
         break
+      /*
+       * 待答交互是线程行的一部分（侧栏靠它画警告点与短标签）：登记与收口都要把线程行再报一次。
+       * 只发 interactions.* 通知的话，侧栏那一行要等下一次 turns.state 或别的往返才会重画 ——
+       * 审批卡弹出、答完收起，行上的警告点却慢一拍。
+       */
       case 'interactionRequested':
         this.d.emitInteractionRequested({ threadId, interaction: event.interaction })
+        this.emitThreadRow(threadId)
         break
       case 'interactionResolved':
         this.d.emitInteractionResolved({ threadId, interactionId: event.interactionId })
+        this.emitThreadRow(threadId)
         break
       case 'queue':
         this.d.emitQueue({ threadId, queue: this.d.submissions.queueViewOf(threadId, event.queue) })
@@ -216,6 +223,12 @@ export class EventRouter {
       const clientTurnId = this.d.submissions.clientTurnIdOf(threadId, turnId)
       return clientTurnId === null ? op : { ...op, turn: { ...op.turn, clientTurnId } }
     })
+  }
+
+  /** 线程行再报一次（行上的 state / pendingInteraction 由活会话现读）。 */
+  private emitThreadRow(threadId: string): void {
+    const row = this.d.repo.get(threadId)
+    if (row !== null) this.d.emitThreadUpdated(this.d.threads.threadOf(row))
   }
 
   private runtimeOf(threadId: string): Runtime {

@@ -45,6 +45,7 @@ function threadOf(over: Partial<Thread> = {}): Thread {
     posture: 'auto-edit',
     origin: 'user',
     state: 'idle',
+    pendingInteraction: null,
     hasSession: false,
     forkedFrom: null,
     pinned: false,

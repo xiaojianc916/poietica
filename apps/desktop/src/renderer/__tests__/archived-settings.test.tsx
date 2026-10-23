@@ -32,6 +32,7 @@ const ARCHIVED_THREAD = {
   posture: 'auto-edit',
   origin: 'user',
   state: 'idle',
+  pendingInteraction: null,
   hasSession: true,
   forkedFrom: null,
   pinned: false,

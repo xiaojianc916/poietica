@@ -8,6 +8,16 @@ export const MAIN_AGENT_ID = 'main'
 /** 新线程的默认姿态：threads.create 与 controls.draft 共用这一个值。 */
 export const DEFAULT_POSTURE: Posture = 'auto-edit'
 
+/**
+ * 一条线程此刻拦在人面前的是哪一种交互。DSH 的会话行把它分成三档
+ * （等待审批 / 计划待审 / 等待回答），侧栏据此画警告点与行尾短标签。
+ *
+ * 引擎的六种 Interaction 在这里折成这三档：approval → approval，plan → plan，
+ * question / select / input / confirm（后三种是扩展与工具发来的单问）→ question。
+ */
+export const PendingInteraction = z.enum(['approval', 'plan', 'question'])
+export type PendingInteraction = z.infer<typeof PendingInteraction>
+
 export const Thread = z.object({
   id: ThreadId,
   workspaceId: z.string(),
@@ -16,6 +26,13 @@ export const Thread = z.object({
   posture: Posture,
   origin: z.enum(['user', 'automation']),
   state: SessionState, // 运行时状态；会话不在内存中时为 idle
+  /**
+   * 此刻最早要人答的那一类交互；没有待答交互时是 null。
+   *
+   * 它是 `state === 'awaiting'` 的**细分类**，不是第二个状态源：值由 Core 从活会话的
+   * broker 现读，与 state 同一个时刻、同一份事实。侧栏只拿它决定警告点旁写哪一句话。
+   */
+  pendingInteraction: PendingInteraction.nullable(),
   hasSession: z.boolean(), // 是否已绑定 omp 会话文件
   forkedFrom: ThreadId.nullable(),
   pinned: z.boolean(),

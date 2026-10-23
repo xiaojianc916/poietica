@@ -58,6 +58,7 @@ const THREAD = {
   posture: 'ask',
   origin: 'user',
   state: 'idle',
+  pendingInteraction: null,
   hasSession: true,
   forkedFrom: null,
   pinned: false,
