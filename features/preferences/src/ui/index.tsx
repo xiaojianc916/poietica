@@ -17,6 +17,19 @@ import { createPreferencesApi, type PreferencesRpcApi } from './api'
 import { AppearancePage, GeneralPage, KeymapPage } from './settings-pages'
 import { applyResolvedTheme, resolveStartupTheme, systemPrefersDark } from './theme'
 
+/*
+ * uiState 里的 navigation 是上一版写下的 JSON，读回来不能直接当 Route 用：形状不对就留在 defaultRoute，
+ * 不让一份坏值把外壳带到一个画不出来的表面（以前是 `as Route` 直接交给 restore）。
+ */
+export function routeOf(value: unknown): Route | null {
+  if (value === null || typeof value !== 'object') return null
+  const { surface, params } = value as { surface?: unknown; params?: unknown }
+  if (typeof surface !== 'string' || surface === '') return null
+  if (params === null || typeof params !== 'object' || Array.isArray(params)) return null
+  if (!Object.values(params).every((v) => typeof v === 'string')) return null
+  return { surface, params: params as Record<string, string> }
+}
+
 export default defineUiFeature({
   id: 'preferences',
   setup(ctx) {
@@ -88,6 +101,27 @@ export default defineUiFeature({
         layoutRestored = true
       })
 
+    /*
+     * 上次停在哪一页（多半是某条对话）同样住在 Host 的 uiState 里，与布局同一条理由在 setup 里就恢复。
+     * 以前排在 onCoreReady 里：冷启动这几秒外壳按 defaultRoute 画「新建对话」，Core 一就绪才跳回上次那条对话 ——
+     * 看上去就是「重开软件先闪一下新建对话再跳过去」。目标表面提前挂载是安全的：它向 Core 要数据的请求由 Host 排到
+     * Core 就绪（core-supervisor 的 waitUntilReady），线程表晚到时侧栏 / 工作区跟随都订阅着重算（workspace-follow.ts）。
+     * 这条请求同样先于 kernel.start 里的 core.getStatus 发出、按序应答，所以 restore 落在第一次渲染之前。
+     */
+    let routeRestored = false
+    void api
+      .uiStateGet('navigation')
+      .then(
+        (saved) => {
+          const route = routeOf(saved)
+          if (route !== null) navigation.restore(route)
+        },
+        () => undefined,
+      )
+      .finally(() => {
+        routeRestored = true
+      })
+
     const page = (
       id: string,
       group: string,
@@ -110,10 +144,7 @@ export default defineUiFeature({
       applyAppearance(prefs)
       for (const l of [...listeners]) (l as (p: unknown) => void)(prefs)
 
-      // 读 uiState 并 restore（不进入历史）。布局已在 setup 里恢复（R-19-3）；路由要等 Core：目标表面一挂载就要向 Core 要数据。
-      const route = (await api.uiStateGet('navigation')) as Route | null
-      if (route !== null) navigation.restore(route)
-
+      /* 布局与路由都已在 setup 里恢复（R-19-3）：这里不再 restore —— 否则每次 Core 换代都会把人拉回启动时存下的那一页。 */
       keybindings.setOverrides(await api.keymapGet().catch(() => ({})))
     })
 
@@ -133,7 +164,6 @@ export default defineUiFeature({
       }).dispose,
     )
 
-    let restoring = true
     ctx.lifecycle.onDispose(
       layout.subscribe(() => {
         /* 恢复完成之前不写回：否则 DEFAULT_LAYOUT 会先把存下的那份盖掉。恢复完成之后不必等 Core —— 启动期间点了侧栏也要记住。 */
@@ -143,12 +173,10 @@ export default defineUiFeature({
     )
     ctx.lifecycle.onDispose(
       navigation.subscribe(() => {
-        if (restoring) return
+        /* 与布局同一条规则：恢复完成之前不写回（defaultRoute 会先把存下的那一页盖掉），完成之后不必等 Core。 */
+        if (!routeRestored) return
         void api.uiStateSet('navigation', navigation.current().route)
       }),
     )
-    ctx.lifecycle.onCoreReady(() => {
-      restoring = false
-    })
   },
 })

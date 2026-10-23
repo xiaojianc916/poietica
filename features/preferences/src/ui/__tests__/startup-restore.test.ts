@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, test } from 'bun:test'
 import { createUiKernel, type UiKernel } from '@poietica/ui-kernel'
 import { Preferences } from '../../contract/entities'
-import preferencesFeature from '../index'
+import preferencesFeature, { routeOf } from '../index'
 
 /* preferences 不依赖 @poietica/rpc（依赖隔离）：桥的类型从 createUiKernel 的入参里取。 */
 type WindowBridge = NonNullable<Parameters<typeof createUiKernel>[0]['bridge']>
@@ -59,6 +59,7 @@ function wire(
 
 const STARTING = { state: 'starting', reason: null, attempt: 0 }
 const SAVED_LAYOUT = { sidebar: { visible: false, width: 320 } }
+const SAVED_ROUTE = { surface: 'conversation.thread', params: { threadId: 't1' } }
 
 const flush = async (): Promise<void> => {
   for (let i = 0; i < 5; i += 1) await Promise.resolve()
@@ -130,5 +131,65 @@ describe('启动恢复不等 Core（R-19-2 / R-19-3）', () => {
     await boot(w)
 
     expect(document.documentElement.dataset.theme).toBe('dark')
+  })
+})
+
+/*
+ * 重开软件先闪一下「新建对话」再跳回上次那条对话：路由恢复以前排在 onCoreReady 里，冷启动这几秒外壳按 defaultRoute 画。
+ * 路由与布局同住 Host 的 uiState，同一条规则 —— 第一次渲染之前就恢复，不等 Core。
+ */
+describe('启动时上次那一页不等 Core', () => {
+  test('存下的路由在 kernel.start 返回时已经恢复：不进历史、不写回', async () => {
+    const w = wire({
+      'core.getStatus': () => STARTING,
+      'prefs.get': () => Preferences.parse({}),
+      'uiState.get': (p) => ({ value: p.key === 'navigation' ? SAVED_ROUTE : null }),
+    })
+    await boot(w)
+
+    expect(kernel?.kernelServices.navigation.current()).toEqual({
+      route: SAVED_ROUTE,
+      canGoBack: false,
+      canGoForward: false,
+    })
+    expect(w.sent.filter((m) => m.method === 'uiState.set')).toEqual([])
+  })
+
+  test('恢复之后、Core 就绪之前换了一页：照样写回', async () => {
+    const w = wire({
+      'core.getStatus': () => STARTING,
+      'prefs.get': () => Preferences.parse({}),
+      'uiState.get': (p) => ({ value: p.key === 'navigation' ? SAVED_ROUTE : null }),
+    })
+    await boot(w)
+    await flush()
+
+    const next = { surface: 'conversation.thread', params: { threadId: 't2' } }
+    kernel?.kernelServices.navigation.navigate(next)
+
+    const writes = w.sent.filter((m) => m.method === 'uiState.set')
+    expect(writes).toHaveLength(1)
+    expect(writes[0]?.params).toMatchObject({ key: 'navigation', value: next })
+    await Bun.sleep(1)
+  })
+
+  test('存下的值形状不对：留在 defaultRoute', async () => {
+    const w = wire({
+      'core.getStatus': () => STARTING,
+      'prefs.get': () => Preferences.parse({}),
+      'uiState.get': (p) => ({ value: p.key === 'navigation' ? { surface: 42, params: {} } : null }),
+    })
+    await boot(w)
+
+    expect(kernel?.kernelServices.navigation.current().route).toEqual({ surface: 'home', params: {} })
+  })
+
+  test('routeOf 只收 { surface: 非空串, params: 串值对象 }', () => {
+    expect(routeOf(SAVED_ROUTE)).toEqual(SAVED_ROUTE)
+    expect(routeOf(null)).toBeNull()
+    expect(routeOf({ surface: '', params: {} })).toBeNull()
+    expect(routeOf({ surface: 'a', params: [] })).toBeNull()
+    expect(routeOf({ surface: 'a', params: { n: 1 } })).toBeNull()
+    expect(routeOf({ surface: 'a' })).toBeNull()
   })
 })
