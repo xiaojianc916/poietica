@@ -1,7 +1,7 @@
 import { statSync } from 'node:fs'
 import { defineHostModule, resolveAppIcon } from '@poietica/host-kernel'
 import { BROWSER_PARTITION } from '@poietica/runtime-layout'
-import { type BrowserWindow, dialog, Menu, Notification, nativeImage, screen, session, shell, Tray } from 'electron'
+import { type BrowserWindow, dialog, Menu, Notification, screen, session, shell, Tray } from 'electron'
 import { platformContract } from '../contract'
 import { createLogSink } from './log-sink'
 import { createNotifyService } from './notify-service'
@@ -69,16 +69,11 @@ export default defineHostModule({
       else {
         ctx.disposables.add(
           createTray({
-            icon,
             focusMain: () => ctx.windows.focusMain(),
             hideMain: () => ctx.windows.main().hide(),
             quit: () => void ctx.app.quit(),
-            create: (iconPath, items) => {
-              const tray = new Tray(nativeImage.createFromPath(iconPath))
-              tray.setToolTip('Poietica')
-              tray.setContextMenu(Menu.buildFromTemplate(items))
-              return tray
-            },
+            tray: new Tray(icon),
+            buildMenu: Menu.buildFromTemplate,
           }),
         )
       }
