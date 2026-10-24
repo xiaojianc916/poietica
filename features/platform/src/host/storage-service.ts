@@ -1,8 +1,10 @@
 import type { Dirent } from 'node:fs'
 import { readdir, rm, stat } from 'node:fs/promises'
 import path from 'node:path'
+import { type Logger, noopLogger } from '@poietica/foundation'
+import { createJsonDocument } from '@poietica/fs-kit'
 import { CHROMIUM_CODE_CACHE_BYTES, CHROMIUM_HTTP_CACHE_BYTES, type DataLayout } from '@poietica/runtime-layout'
-import type { StorageEntry, StorageEntryId } from '../contract/entities'
+import { type StorageEntryId, StorageUsage } from '../contract/entities'
 
 /** Electron `Session` 里存储页用得到的那几样（测试注入假的）。 */
 export interface ChromiumSessionLike {
@@ -23,10 +25,20 @@ export interface StorageDeps {
   readonly browserSession: () => ChromiumSessionLike & { clearStorageData(): Promise<void> }
   /** 默认取 runtime-layout 的 storage-budget；测试注入小值 */
   readonly budget?: { readonly httpCacheBytes: number; readonly codeCacheBytes: number }
+  /** 测量结果的落盘位置来自 layout；测试也可以指到临时目录 */
+  readonly usageFile?: string
+  /** 写日志用（缓存损坏时警告）；测试可以不给 */
+  readonly logger?: Logger
+  /** 测量时刻，测试注入固定值 */
+  readonly now?: () => number
 }
 
 export interface StorageService {
-  report(): Promise<StorageEntry[]>
+  /**
+   * 存储占用。默认**读上次测量的缓存**（可能略旧），只有 `refresh: true` 才重新走一遍目录。
+   * 页面的「重新测量」是唯一需要全量扫描的入口；清完缓存之后也由它顺手重扫一次。
+   */
+  report(options?: { readonly refresh?: boolean }): Promise<StorageUsage>
   clear(kind: 'cache' | 'logs' | 'browser'): Promise<{ freedBytes: number }>
   /**
    * 启动后跑一次：哪个会话的 HTTP 缓存 / V8 代码缓存超出预算，就用 Electron 的接口清掉（返回清了哪几份）。
@@ -156,7 +168,18 @@ export function createStorageService(d: StorageDeps): StorageService {
     return await sizeOf(scan, browser.storagePath, new Set(cacheDirsOf(browser).map(pathKey)))
   }
 
-  const report = async (): Promise<StorageEntry[]> => {
+  const usageDoc = createJsonDocument({
+    file: d.usageFile ?? d.layout.storageUsageFile,
+    schema: StorageUsage,
+    defaults: () => ({ entries: [], measuredAt: null }),
+    logger: d.logger ?? noopLogger,
+  })
+  const now = d.now ?? (() => Date.now())
+  let usageLoaded: Promise<StorageUsage> | null = null
+  let scanning: Promise<StorageUsage> | null = null
+
+  /** 真正走一遍目录。结果同时写进缓存文件：下次打开设置页直接读它，不再等一遍扫描。 */
+  const scanAndCache = async (): Promise<StorageUsage> => {
     const scan = newScan()
     const sessionsDir = path.join(d.layout.ompAgentDir, 'sessions')
     const browserPath = d.browserSession().storagePath
@@ -178,7 +201,41 @@ export function createStorageService(d: StorageDeps): StorageService {
         new Set([...cacheDirsOf(d.appSession()), ...(browserPath === null ? [] : [browserPath])].map(pathKey)),
       ),
     }
-    return ORDER.map((id) => ({ id, label: STORAGE_LABELS[id], bytes: bytes[id], cleanable: STORAGE_CLEANABLE[id] }))
+    const usage: StorageUsage = {
+      entries: ORDER.map((id) => ({
+        id,
+        label: STORAGE_LABELS[id],
+        bytes: bytes[id],
+        cleanable: STORAGE_CLEANABLE[id],
+      })),
+      measuredAt: now(),
+    }
+    await usageDoc.save(usage)
+    return usage
+  }
+
+  /** 同一时刻只允许一次全量扫描：页面上的「重新测量」与清理后的重扫撞在一起时，共用这一份结果。 */
+  const refreshCache = (): Promise<StorageUsage> => {
+    scanning ??= scanAndCache().finally(() => {
+      scanning = null
+    })
+    return scanning
+  }
+
+  const report = async (options?: { readonly refresh?: boolean }): Promise<StorageUsage> => {
+    // 量完必须把结果收回内存缓存：否则「从没量过」这个分支每次都成立，
+    // 每进一次设置页就重扫一遍整个数据根（慢到一直在「正在测量…」）。
+    const fresh = async (): Promise<StorageUsage> => {
+      const scanned = await refreshCache()
+      usageLoaded = Promise.resolve(scanned)
+      return scanned
+    }
+
+    if (options?.refresh === true) return await fresh()
+    usageLoaded ??= usageDoc.load()
+    const cached = await usageLoaded
+    // 真的一次都没量过（首次启动、缓存文件不在）才扫；量过就照旧给缓存，哪怕它稍微旧一点。
+    return (cached.measuredAt ?? null) === null ? await fresh() : cached
   }
 
   const removeDirContents = async (dir: string, keep: (name: string) => boolean): Promise<void> => {

@@ -1,17 +1,21 @@
 import { formatBytes } from '@poietica/design-system'
 import type { ReactElement } from 'react'
-import type { StorageEntry } from '../contract'
+import type { StorageEntry, StorageUsage } from '../contract'
 
 /*
- * 磁盘用量条：一条按大小铺满的堆叠条 + 一格一类的图例（一格是「标签一行、读数下一行」）。
+ * 磁盘用量条：一条按大小铺满的堆叠条 + 一格一类的图例（色点 + 标签在上、读数在下）。
  *
  * 六档色借趋势图那套序列色（同是「多个平级类别」，谈不上对错），不借语义色那四档。
- * 占用为 0 的格子不上条，但留在图例里 —— 图一里那几格就写着「0 字节」。
+ * 占用为 0 的格子不上条，但留在图例里 —— 那几格写「0 字节」。
+ *
+ * 加载前后必须是同一个高度：没数据时画的是同一副骨架（空条 + 一行占位），
+ * 图例那一段的高度由 CSS 写死（见 settings.css 的 .settings-storage__empty），
+ * 读数回来只是把内容换进去，卡片不会先矮后高跳一下。
  */
 
 const SERIES_INKS = 6
 const MB = 1024 * 1024
-/* 低于一档的读数写字节：图例里一排「0.1 MB」不如「128 字节」直观。 */
+/* 低于一档的读数写字节：一排「0.1 MB」不如「128 字节」直观。 */
 const TINY = 0.1 * MB
 const OTHER_LABEL = '其它'
 
@@ -62,18 +66,12 @@ export function storageSegments(entries: readonly StorageEntry[], total: number)
   }))
 }
 
-export function StorageBar({
-  entries,
-  total,
-}: {
-  readonly entries: readonly StorageEntry[]
-  readonly total: number
-}): ReactElement {
-  const segments = storageSegments(entries, total)
+export function StorageBar({ usage }: { readonly usage: StorageUsage | null }): ReactElement {
+  const segments = usage === null ? [] : storageSegments(usage.entries, totalOf(usage.entries))
 
   return (
     <div className="settings-storage">
-      {/* 条只画形状：图例就在下面一格，读数与标签都在那里。 */}
+      {/* 条只画形状：读数在图例里。 */}
       <div aria-hidden="true" className="settings-storage__bar">
         {segments.map((segment) => (
           <span
@@ -85,17 +83,25 @@ export function StorageBar({
         ))}
       </div>
 
-      <dl className="settings-storage__legend">
-        {segments.map((segment) => (
-          <div className="settings-storage__item" key={segment.label}>
-            <dt>
-              <span aria-hidden="true" className="settings-storage__swatch" data-series={segment.series} />
-              {segment.label}
-            </dt>
-            <dd data-unmeasured={segment.bytes === 0 ? 'true' : undefined}>{segment.caption}</dd>
-          </div>
-        ))}
-      </dl>
+      {usage === null ? (
+        <p className="settings-storage__empty">正在测量…</p>
+      ) : (
+        <dl className="settings-storage__legend">
+          {segments.map((segment) => (
+            <div className="settings-storage__item" key={segment.label}>
+              <dt>
+                <span aria-hidden="true" className="settings-storage__swatch" data-series={segment.series} />
+                {segment.label}
+              </dt>
+              <dd data-unmeasured={segment.bytes === 0 ? 'true' : undefined}>{segment.caption}</dd>
+            </div>
+          ))}
+        </dl>
+      )}
     </div>
   )
+}
+
+function totalOf(entries: readonly StorageEntry[]): number {
+  return entries.reduce((sum, entry) => sum + entry.bytes, 0)
 }

@@ -781,6 +781,19 @@
 }
 
 /*
+ * 「正在测量…」与图例占同一块高度（色点 + 标签一行、读数一行，合计 32px）：
+ * 加载前后卡片高度必须一样，否则结果回来时整页会往下跳一次。
+ * 用量条本身高度固定，不用管。
+ */
+.settings-storage__empty {
+  margin: 0;
+  block-size: 32px;
+  color: var(--ui-muted-foreground);
+  font-size: 12px;
+  line-height: 32px;
+}
+
+/*
  * 设置词汇（补全）：主类名不在选择器开头的那几条（度量、热力图、趋势图……）。
  */
 /* 用量指标共用一张卡，时间范围放在组标题，避免占用指标格。 */
@@ -990,11 +1003,17 @@
   block-size: 100%;
 }
 
+/*
+ * 一排「一格一类」的图例；一格两行：色点 + 标签在上、读数在下。
+ * 读数必须一直看得见 —— 用户要的是逐格对账，不是悬浮才知道大小。
+ */
 .settings-storage__legend {
   display: flex;
   flex-wrap: wrap;
-  gap: 10px 18px;
+  align-content: flex-start;
+  min-block-size: 32px;
   margin: 0;
+  gap: 10px 18px;
 }
 
 .settings-storage__item {

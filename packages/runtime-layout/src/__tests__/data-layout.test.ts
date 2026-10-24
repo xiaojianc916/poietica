@@ -25,6 +25,7 @@ describe('dataLayout', () => {
         "pythonDir": "C:\\Users\\a\\AppData\\Roaming\\Poietica\\tools\\python",
         "relayTokenFile": "C:\\Users\\a\\AppData\\Roaming\\Poietica\\core\\relay.token",
         "root": "C:\\Users\\a\\AppData\\Roaming\\Poietica",
+        "storageUsageFile": "C:\\Users\\a\\AppData\\Roaming\\Poietica\\storage-usage.json",
         "toolsDir": "C:\\Users\\a\\AppData\\Roaming\\Poietica\\tools",
         "uiStateFile": "C:\\Users\\a\\AppData\\Roaming\\Poietica\\ui-state.json",
         "windowStateFile": "C:\\Users\\a\\AppData\\Roaming\\Poietica\\window-state.json",

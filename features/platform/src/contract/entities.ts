@@ -54,6 +54,13 @@ export const CoreDiagnostics = z.object({
 export type AppInfo = z.infer<typeof AppInfo>
 export type CoreDiagnostics = z.infer<typeof CoreDiagnostics>
 export type FileFilter = z.infer<typeof FileFilter>
+/** 一次测量：`measuredAt` 为 null 表示从没量过（首次启动、缓存还没写下来）。 */
+export const StorageUsage = z.object({
+  entries: z.array(StorageEntry),
+  measuredAt: z.number().int().nonnegative().nullable().optional(),
+})
+
 export type StorageEntry = z.infer<typeof StorageEntry>
+export type StorageUsage = z.infer<typeof StorageUsage>
 export type StorageEntryId = z.infer<typeof StorageEntryId>
 export type UiLogEntry = z.infer<typeof UiLogEntry>

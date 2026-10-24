@@ -1,5 +1,5 @@
 import type { UiFeatureContext } from '@poietica/ui-kernel'
-import { type AppInfo, type CoreDiagnostics, platformContract, type StorageEntry, type UiLogEntry } from '../contract'
+import { type AppInfo, type CoreDiagnostics, platformContract, type StorageUsage, type UiLogEntry } from '../contract'
 
 export function createPlatformApi(ctx: UiFeatureContext) {
   const rpc = ctx.rpc(platformContract)
@@ -18,7 +18,9 @@ export function createPlatformApi(ctx: UiFeatureContext) {
       rpc.call('notify.show', o).then(() => undefined),
     logWrite: (entries: readonly UiLogEntry[]): Promise<void> =>
       rpc.call('log.write', { entries: [...entries] }).then(() => undefined),
-    storageUsage: (): Promise<{ entries: StorageEntry[] }> => rpc.call('storage.usage', {}),
+    /** 默认拿 Host 缓存的上次测量；refresh 为真才重新扫目录（「重新测量」与清理后）。 */
+    storageUsage: (refresh = false): Promise<StorageUsage> =>
+      rpc.call('storage.usage', refresh ? { refresh: true } : {}),
     storageClear: (target: 'cache' | 'logs' | 'browser'): Promise<{ freedBytes: number }> =>
       rpc.call('storage.clear', { target }),
     openDataFolder: (): Promise<void> => rpc.call('storage.openDataFolder', {}).then(() => undefined),

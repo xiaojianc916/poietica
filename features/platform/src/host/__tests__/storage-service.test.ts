@@ -93,15 +93,16 @@ async function makeTree(options: { maxFiles?: number } = {}) {
     budget: { httpCacheBytes: 4 * MB, codeCacheBytes: 1.5 * MB },
     ...options,
   })
+  /** 断言「现在的真实字节」时一律显式 refresh：默认那条路给的是缓存。 */
   const bytesOf = async (): Promise<Record<string, number>> =>
-    Object.fromEntries((await service.report()).map((e) => [e.id, e.bytes]))
+    Object.fromEntries((await service.report({ refresh: true })).entries.map((e) => [e.id, e.bytes]))
   return { layout, app, browser, service, bytesOf, dispose: dir.dispose }
 }
 
 describe('storage-service', () => {
   test('9 项字节数精确；cleanable / label 与表一致', async () => {
     const t = await makeTree()
-    const entries = await t.service.report()
+    const entries = (await t.service.report()).entries
     const byId = Object.fromEntries(entries.map((e) => [e.id, e.bytes]))
     expect(entries.length).toBe(9)
     expect(byId.conversations).toBe(4 * MB) // 会话 3 + 图片 1（硬链接只算一次）
@@ -130,18 +131,75 @@ describe('storage-service', () => {
 
   test('maxFiles 上限：文件超过上限只返回已统计的值，不抛错', async () => {
     const t = await makeTree({ maxFiles: 3 })
-    const entries = await t.service.report()
+    const entries = (await t.service.report()).entries
     expect(entries.length).toBe(9)
     const total = entries.reduce((sum, e) => sum + e.bytes, 0)
     expect(total).toBeLessThanOrEqual(4 * MB)
     await t.dispose()
   })
 
+  test('第二次进来读的是缓存：目录没变就不再扫，measuredAt 也照旧', async () => {
+    const t = await makeTree()
+    const first = await t.service.report({ refresh: true })
+    expect(first.measuredAt).not.toBeNull()
+
+    // 缓存命中：不重扫，返回同一份读数与同一个测量时刻。
+    expect(await t.service.report()).toEqual(first)
+
+    // 新开一个 service（模拟下次启动）读同一份缓存文件：仍然不扫。
+    const again = createStorageService({
+      layout: t.layout,
+      appSession: () => t.app,
+      browserSession: () => t.browser,
+    })
+    expect((await again.report()).measuredAt).toBe(first.measuredAt)
+    await t.dispose()
+  })
+
+  test('缓存文件没有 → 第一次 report() 自己补一次扫描，并把时刻写下来', async () => {
+    const dir = await tempDir('storage-cold-')
+    const layout = dataLayout(dir.path)
+    write(layout.logsDir, 'main.log', 2 * MB)
+    const app = fakeSession(layout.chromiumSessionDir)
+    const browser = fakeSession(null)
+    const service = createStorageService({
+      layout,
+      appSession: () => app,
+      browserSession: () => browser,
+      now: () => 1_700_000_000_000,
+    })
+
+    const usage = await service.report()
+    expect(usage.measuredAt).toBe(1_700_000_000_000)
+    expect(usage.entries.find((e) => e.id === 'logs')?.bytes).toBe(2 * MB)
+
+    /* 回归：量完必须把结果收回内存缓存。旧实现只写文件、不更新 usageLoaded，
+     * 「从没量过」于是每次都成立 —— 每切回设置页就重扫一遍，一直卡在「正在测量…」。 */
+    write(layout.logsDir, 'main.log.9', 5 * MB)
+    expect(await service.report()).toEqual(usage)
+    await dir.dispose()
+  })
+
+  test('refresh: true 才重扫；并发的两次 refresh 共用同一次扫描', async () => {
+    const t = await makeTree()
+    const first = await t.service.report({ refresh: true })
+    write(t.layout.logsDir, 'main.log.9', 3 * MB)
+
+    // 不 refresh：还是旧读数。
+    const stale = await t.service.report()
+    expect(stale.entries.find((e) => e.id === 'logs')?.bytes).toBe(first.entries.find((e) => e.id === 'logs')?.bytes)
+
+    const [a, b] = await Promise.all([t.service.report({ refresh: true }), t.service.report({ refresh: true })])
+    expect(a).toBe(b)
+    expect(a.entries.find((e) => e.id === 'logs')?.bytes).toBe(9 * MB)
+    await t.dispose()
+  })
+
   test('并发 report 互不干扰（每次测量独立计数）', async () => {
     const t = await makeTree({ maxFiles: 50 })
-    const [a, b] = await Promise.all([t.service.report(), t.service.report()])
+    const [a, b] = await Promise.all([t.service.report({ refresh: true }), t.service.report({ refresh: true })])
     expect(a).toEqual(b)
-    expect(a.find((e) => e.id === 'conversations')?.bytes).toBe(4 * MB)
+    expect(a.entries.find((e) => e.id === 'conversations')?.bytes).toBe(4 * MB)
     await t.dispose()
   })
 
@@ -195,7 +253,7 @@ describe('storage-service', () => {
     const app = fakeSession(layout.chromiumSessionDir)
     const browser = fakeSession(null)
     const service = createStorageService({ layout, appSession: () => app, browserSession: () => browser })
-    const byId = Object.fromEntries((await service.report()).map((e) => [e.id, e.bytes]))
+    const byId = Object.fromEntries((await service.report({ refresh: true })).entries.map((e) => [e.id, e.bytes]))
     expect(byId['kernel-cache']).toBe(1 * MB)
     expect(byId['browser-data']).toBe(0)
     expect(await service.enforceBudgets()).toEqual([])

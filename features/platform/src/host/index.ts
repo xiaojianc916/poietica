@@ -43,6 +43,7 @@ export default defineHostModule({
       layout: ctx.layout,
       appSession: () => session.defaultSession,
       browserSession: () => session.fromPartition(BROWSER_PARTITION),
+      logger: ctx.logger,
     })
 
     ctx.lifecycle.beforeWindow(async () => {
@@ -202,7 +203,7 @@ export default defineHostModule({
       return {}
     })
 
-    ctx.rpc.handle('storage.usage', async () => ({ entries: await storage.report() }))
+    ctx.rpc.handle('storage.usage', async ({ refresh }) => storage.report(refresh === true ? { refresh: true } : {}))
     ctx.rpc.handle('storage.clear', async ({ target }) => storage.clear(target))
     ctx.rpc.handle('storage.openDataFolder', async () => {
       await shellService.openPath(ctx.layout.root)

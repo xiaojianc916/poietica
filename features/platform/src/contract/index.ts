@@ -1,6 +1,6 @@
 import { defineContract, defineMethod, defineNotification } from '@poietica/contract-kit'
 import { z } from 'zod'
-import { AppInfo, CoreDiagnostics, FileFilter, LogLevel, StorageEntry, UiLogEntry } from './entities'
+import { AppInfo, CoreDiagnostics, FileFilter, LogLevel, StorageUsage, UiLogEntry } from './entities'
 import { platformErrors } from './errors'
 
 export * from './entities'
@@ -122,9 +122,10 @@ export const platformContract = defineContract({
     defineMethod({
       name: 'storage.usage',
       ...host,
-      params: empty,
-      result: z.object({ entries: z.array(StorageEntry) }),
-      description: '统计各项存储占用',
+      params: z.object({ refresh: z.boolean().optional() }),
+      result: StorageUsage,
+      timeoutMs: 0,
+      description: '存储占用；默认给上次测量的缓存，refresh 为真时重新扫描',
     }),
     defineMethod({
       name: 'storage.clear',

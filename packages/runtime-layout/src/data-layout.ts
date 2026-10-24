@@ -6,6 +6,8 @@ export interface DataLayout {
   readonly uiStateFile: string
   readonly keymapFile: string
   readonly windowStateFile: string
+  /** 存储占用上次测量的缓存（platform 的存储页读写；见 storage-service.ts） */
+  readonly storageUsageFile: string
   readonly coreDir: string
   readonly dbFile: string
   readonly coreCwd: string
@@ -42,6 +44,7 @@ export function dataLayout(root: string): DataLayout {
     uiStateFile: path.join(r, 'ui-state.json'),
     keymapFile: path.join(r, 'keymap.json'),
     windowStateFile: path.join(r, 'window-state.json'),
+    storageUsageFile: path.join(r, 'storage-usage.json'),
     coreDir,
     dbFile: path.join(coreDir, 'poietica.db'),
     coreCwd: path.join(coreDir, 'cwd'),
