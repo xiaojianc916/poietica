@@ -82,7 +82,7 @@ function TreeView({
 
   return (
     <div className="files-pane flex h-full min-h-0 flex-col">
-      <div className="files-rule flex h-[var(--ui-control-height-sm)] items-center gap-1 px-2.5">
+      <div className="files-rule flex h-[var(--ui-control-height-sm)] shrink-0 items-center gap-1 px-2.5">
         <FolderTree aria-hidden className=" opacity-50" />
         <span className="min-w-0 flex-1 truncate text-xs font-medium opacity-70">{name ?? '工作区'}</span>
         <IconButton
@@ -149,7 +149,7 @@ function TreeFooter({ filtering, model }: { readonly filtering: boolean; readonl
 /* 与审查的筛选框同一形制：一条圆角药丸圈住图标与输入，清除键常占位、有字没字一样高。 */
 function Filter({ onChange, value }: { readonly onChange: (value: string) => void; readonly value: string }) {
   return (
-    <div className="flex px-2 py-2">
+    <div className="flex shrink-0 px-2 py-2">
       <div className="files-filter flex h-7 min-w-0 flex-1 items-center gap-1.5 rounded-full pr-2 pl-2.5">
         <Search aria-hidden className=" text-placeholder" />
         <input
@@ -196,7 +196,7 @@ export function IconButton({
         aria-label={label}
         aria-pressed={pressed}
         className={cn(
-          'files-action flex size-6  items-center justify-center rounded-md opacity-60 hover:opacity-100',
+          'files-action flex size-6 shrink-0 items-center justify-center rounded-md opacity-60 hover:opacity-100',
           disabled ? 'pointer-events-none opacity-30' : null,
         )}
         disabled={disabled}

@@ -49,7 +49,7 @@ export function AutomationList({ automations, pending, runsOf, onCreateBlank, on
     <>
       {automations.length === 0 ? (
         <>
-          <div className="mt-8 flex flex-col items-center justify-center gap-5 rounded-2xl border px-6 py-16">
+          <div className="mt-8 flex flex-col items-center justify-center gap-5 rounded-2xl border border-divider px-6 py-16">
             <p className="text-xs text-muted-foreground">还没有定时任务</p>
             <CreateButton onCreateBlank={onCreateBlank} />
           </div>
@@ -167,7 +167,7 @@ function TaskCard({
   const line = planLine(automation)
   return (
     <li className="flex">
-      <article className="flex w-full flex-col rounded-xl border bg-[var(--ui-card)] px-4 py-3.5">
+      <article className="flex w-full flex-col rounded-xl border border-divider bg-[var(--ui-card)] px-4 py-3.5">
         <div className="flex items-start gap-2">
           <h3 className="min-w-0 flex-1 text-xs font-medium">{automation.title}</h3>
           <TaskMenu
@@ -189,7 +189,7 @@ function TaskCard({
             <Clock aria-hidden />
             <span className="truncate">{line}</span>
           </span>
-          <span className="ml-auto rounded-md bg-sidebar-accent px-2 py-0.5 text-muted-foreground">
+          <span className="ml-auto shrink-0 rounded-md bg-sidebar-accent px-2 py-0.5 text-muted-foreground">
             已运行 {runs.length} 次
           </span>
         </div>
@@ -218,7 +218,7 @@ function TaskMenu({
     <DropdownMenu>
       <DropdownMenuTrigger
         aria-label={`${automation.title}的操作`}
-        className="inline-flex size-6 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-sidebar-accent hover:text-foreground"
+        className="inline-flex size-6 shrink-0 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-sidebar-accent hover:text-foreground"
         type="button"
       >
         <Ellipsis aria-hidden />
@@ -302,7 +302,7 @@ function CreateButton({ onCreateBlank }: { readonly onCreateBlank: () => void })
 function KeepAwakeRow() {
   const [keepAwake, setKeepAwake] = useState(false)
   return (
-    <div className="mt-5 flex items-center gap-2 rounded-2xl border px-5 py-3.5">
+    <div className="mt-5 flex items-center gap-2 rounded-2xl border border-divider px-5 py-3.5">
       <Info aria-hidden className=" text-muted-foreground" />
       <span className="text-xs text-muted-foreground">运行会话时保持电脑唤醒</span>
       <Switch

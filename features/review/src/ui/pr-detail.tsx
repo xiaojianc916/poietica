@@ -141,12 +141,12 @@ export function PrDetailTabs({
 }): ReactNode {
   return (
     <div className="pr-detail__tabs">
-      <div aria-label="Pull request tabs" className="flex min-w-0 items-center gap-0.5" role="tablist">
+      <div aria-label="Pull request tabs" className="flex min-w-0 shrink-0 items-center gap-0.5" role="tablist">
         {(['summary', 'changes', 'timeline'] as const).map((entry) => (
           <button
             aria-selected={tab === entry}
             className={cn(
-              'flex h-6  items-center gap-1.5 rounded-md px-2.5 text-xs transition-colors',
+              'flex h-6 shrink-0 items-center gap-1.5 rounded-md px-2.5 text-xs transition-colors',
               tab === entry ? 'bg-accent text-foreground' : 'text-muted-foreground hover:bg-accent/60',
             )}
             key={entry}
@@ -230,7 +230,7 @@ function IconAction({
     <Tooltip>
       <TooltipTrigger
         aria-label={label}
-        className="flex size-7 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+        className="flex size-7 shrink-0 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
         onClick={onClick}
       >
         {children}
@@ -261,7 +261,7 @@ function MergeButton({
         className={cn(
           /* flex-nowrap + whitespace-nowrap：这一格窄一点时「Merge ▾」会折断，
              按钮框还在而字形跳到第二行（真机截图里就是这么坏的）。 */
-          'ml-1 flex h-[var(--ui-control-height-sm)]  flex-nowrap items-center gap-1 whitespace-nowrap rounded-lg border  px-2.5 text-xs transition-colors',
+          'ml-1 flex h-[var(--ui-control-height-sm)] shrink-0 flex-nowrap items-center gap-1 whitespace-nowrap rounded-lg border border-current/15 px-2.5 text-xs transition-colors',
           'text-muted-foreground hover:bg-accent hover:text-foreground disabled:opacity-50',
         )}
         disabled={disabled}
@@ -323,7 +323,7 @@ function StatePill({
   const presentation = pullStatePresentation(pull)
   const Glyph = STATE_GLYPHS[presentation.glyph]
   const pill = cn(
-    'inline-flex h-6  items-center gap-1.5 rounded-full px-2.5 text-xs font-medium',
+    'inline-flex h-6 shrink-0 items-center gap-1.5 rounded-full px-2.5 text-xs font-medium',
     'bg-[color-mix(in_srgb,currentColor_12%,transparent)]',
     presentation.className,
   )
@@ -545,7 +545,7 @@ function Composer({
     if (canSend) onComment()
   }
   return (
-    <div className="pr-detail__composer px-3 pb-3">
+    <div className="pr-detail__composer shrink-0 px-3 pb-3">
       <div className="mx-auto w-full max-w-[52rem]">
         <div className="pr-detail__input flex items-end gap-2 rounded-xl p-2">
           <textarea
@@ -569,7 +569,7 @@ function Composer({
           />
           <button
             aria-label="Send comment"
-            className="flex size-7 items-center justify-center rounded-lg bg-primary text-primary-foreground transition-opacity disabled:opacity-40"
+            className="flex size-7 shrink-0 items-center justify-center rounded-lg bg-primary text-primary-foreground transition-opacity disabled:opacity-40"
             disabled={!canSend}
             onClick={submit}
             type="button"

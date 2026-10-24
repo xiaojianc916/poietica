@@ -143,7 +143,7 @@ function AuxiliaryTab({
       title={hint}
       type="button"
     >
-      <span aria-hidden className="auxiliary-tab-icon relative shrink-0 self-center">
+      <span aria-hidden className="auxiliary-tab-icon relative size-4 shrink-0 self-center">
         <span className="auxiliary-tab-icon__glyph pointer-events-none absolute inset-0 transition-opacity">
           {icon}
         </span>
@@ -515,7 +515,7 @@ function AuxiliaryLauncher({
               }}
               type="button"
             >
-              <span aria-hidden className="flex shrink-0 items-center justify-center">
+              <span aria-hidden className="flex size-4 shrink-0 items-center justify-center">
                 {offer.icon}
               </span>
               <span className="min-w-0">

@@ -47,7 +47,7 @@ const FILTERS: readonly { readonly label: string; readonly value: PrFilter }[] =
 
 /* 标题行右侧那两枚：安静（次要墨色），悬停才抬起底色。 */
 const ICON_BUTTON =
-  'flex size-7  items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-sidebar-accent hover:text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring'
+  'flex size-7 shrink-0 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-sidebar-accent hover:text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring'
 
 export function PrSidebar(p: PrSidebarProps): ReactNode {
   const { state } = p
@@ -146,7 +146,7 @@ function SidebarHead({
 }): ReactNode {
   const narrowed = query !== '' || filter !== 'all'
   return (
-    <div className=" px-3 pt-2 pb-1">
+    <div className="shrink-0 px-3 pt-2 pb-1">
       <div className="flex h-9 items-center gap-1">
         <h1 className="min-w-0 flex-1 truncate text-[15px] font-semibold">Code review</h1>
         <DropdownMenu>
@@ -180,7 +180,7 @@ function SidebarHead({
                 onRefresh()
               }}
             >
-              <RefreshCw aria-hidden className={cn(' ', loading && 'animate-spin')} />
+              <RefreshCw aria-hidden className={cn(loading && 'animate-spin')} />
               <span className="min-w-0 flex-1 truncate text-xs">{loading ? 'Refreshing…' : 'Refresh'}</span>
             </DropdownMenuItem>
             {narrowed ? (
@@ -269,7 +269,7 @@ function FilterTabs({
             aria-label={`${tab.label}, ${String(counts[tab.value])}`}
             aria-pressed={active}
             className={cn(
-              'flex h-5  items-center gap-1 rounded-md px-1.5 text-[11px] transition-colors',
+              'flex h-5 shrink-0 items-center gap-1 rounded-md px-1.5 text-[11px] transition-colors',
               active ? 'bg-foreground/[0.09] text-foreground' : 'text-muted-foreground hover:bg-foreground/[0.05]',
             )}
             key={tab.value}
@@ -341,12 +341,14 @@ function PullRow({
         <span className="line-clamp-2 text-sm font-medium">{entry.title}</span>
         {/* meta 行：状态字形 + 头像 + 作者 + 相对时间，编号推到最右 —— 都照参考实现。 */}
         <span className="flex min-w-0 items-center gap-1.5 text-xs text-muted-foreground">
-          <Glyph aria-hidden className={presentation.className} />
+          <Glyph aria-hidden className={cn(presentation.className)} />
           <Avatar login={entry.author} size="sm" url={entry.avatarUrl} />
           <span className="truncate">{entry.author}</span>
-          <span aria-hidden>·</span>
-          <span className=" tabular-nums">{relativeTime(entry.createdAt)}</span>
-          <span className="ml-auto pl-1 tabular-nums opacity-80">#{entry.number}</span>
+          <span aria-hidden className="shrink-0">
+            ·
+          </span>
+          <span className="shrink-0 tabular-nums">{relativeTime(entry.createdAt)}</span>
+          <span className="ml-auto shrink-0 pl-1 tabular-nums opacity-80">#{entry.number}</span>
         </span>
       </button>
     </li>
