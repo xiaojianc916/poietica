@@ -435,12 +435,12 @@
 /* 组头就是这一列里的另一行：行高、缩进、圆角、间距、字号墨色、悬停底色读会话行同一批令牌同一条判定。 */
 .assistant-threads__group-header {
   display: flex;
-  block-size: var(--ui-row-height, 28px);
+  block-size: var(--ui-row-height);
   align-items: center;
   border-radius: var(--ui-row-radius);
   gap: var(--ui-row-gap);
-  padding-inline-start: var(--ui-row-lead, 8px);
-  padding-inline-end: var(--ui-row-trail, 6px);
+  padding-inline-start: var(--ui-row-lead);
+  padding-inline-end: var(--ui-row-trail);
   font-size: var(--cp-font-caption);
 }
 
@@ -492,13 +492,13 @@
 .assistant-threads__more {
   display: block;
   width: 100%;
-  padding: 4px var(--ui-row-trail, 6px) 4px
-    calc(var(--ui-row-lead, 8px) + var(--ui-row-icon-size, 16px) + var(--ui-row-gap, 6px));
+  padding: 4px var(--ui-row-trail) 4px
+    calc(var(--ui-row-lead) + var(--ui-row-icon-size) + var(--ui-row-gap));
   border: 0;
   background: none;
   color: var(--cp-ink-subtle);
   font: inherit;
-  font-size: var(--cp-font-micro, 11px);
+  font-size: var(--cp-font-micro);
   text-align: start;
   cursor: default;
 }

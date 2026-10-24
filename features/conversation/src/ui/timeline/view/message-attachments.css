@@ -99,7 +99,7 @@
   place-items: center;
   inline-size: 1.5rem;
   block-size: 1.5rem;
-  border-radius: var(--ui-radius-sm, var(--ui-radius-md));
+  border-radius: var(--ui-radius-sm);
   color: var(--cp-ink-subtle);
 }
 

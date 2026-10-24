@@ -267,7 +267,7 @@
   font: inherit;
   font-size: var(--ui-prose-size-aux);
   cursor: pointer;
-  transition: background-color var(--cp-motion-swift, 120ms) ease;
+  transition: background-color var(--cp-motion-swift) ease;
 }
 
 .automation-tool__button:hover,

@@ -102,7 +102,7 @@
 .browser-tool__code,
 .browser-tool__text {
   margin: 0;
-  font-family: var(--ui-font-mono, ui-monospace, monospace);
+  font-family: var(--ui-font-mono);
   font-size: var(--ui-prose-size-aux);
   line-height: 1.5;
   white-space: pre-wrap;

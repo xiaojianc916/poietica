@@ -14,7 +14,7 @@
   border-radius: 8px;
   background: transparent;
   color: var(--cp-ink-muted);
-  font-size: var(--cp-font-caption, 12px);
+  font-size: var(--cp-font-caption);
   cursor: pointer;
 }
 
