@@ -24,6 +24,8 @@ export interface SubmissionServiceDeps {
   readonly logger: Logger
   readonly requireThread: (threadId: string) => { readonly id: string; readonly workspaceId: string }
   readonly autoTitle: (threadId: string, text: string) => void
+  /** 这一条线程「刚有人说话」：记活动时刻并推线程行（侧栏那格相对时间读它） */
+  readonly markActivity: (threadId: string) => void
   readonly emitChanged: (submission: SubmissionView) => void
   readonly emitRemoved: (p: { threadId: string; clientTurnId: string }) => void
   /** 「这句话没送达」→ Core 事件（automations 靠它收掉永远运行中的记录，R-06） */
@@ -121,6 +123,12 @@ export class SubmissionService {
     const view = submissionOf(row)
     this.d.emitChanged(view)
 
+    /*
+     * 活动与标题各写各的：`markActivity` 管 updatedAt（侧栏那格相对时间），`autoTitle` 只管首句标题。
+     * 活动**当场**记，不等 `deliver`：交接要开会话（冷启动可能几秒），而人在发出这句话的那一刻
+     * 就已经开始看这一行的时间了。
+     */
+    this.d.markActivity(input.threadId)
     if (input.deliverAs === 'turn') this.d.autoTitle(input.threadId, input.text)
 
     this.enqueue(input.threadId, () => this.handOver(input.clientTurnId))

@@ -62,6 +62,7 @@ function serviceOf(
     logger: createTestLogger(),
     requireThread: () => ({ id: 't1', workspaceId: 'ws1' }),
     autoTitle: () => undefined,
+    markActivity: () => undefined,
     emitChanged: () => undefined,
     emitRemoved: (p) => {
       overrides.removed?.push(p.clientTurnId)

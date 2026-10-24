@@ -156,18 +156,31 @@ export class ThreadService {
   }
 
   /**
+   * 用户发出一句话：这是活动。侧栏那格相对时间与排序都读 `updatedAt`，所以它必须在这一刻就改口，
+   * 而不是等整轮跑完（一轮可能跑很久，用户看到的是「10 天」一直挂着）。
+   */
+  markActivity(threadId: string): void {
+    const row = this.d.repo.get(threadId)
+    if (row === null) return
+    const now = this.d.clock.now()
+    this.d.repo.update(threadId, { updatedAt: now })
+    this.emitUpdated({ ...row, updatedAt: now })
+  }
+
+  /**
    * 第一条消息落地时按正文起标题（只从 `pending` 起一次）。
    *
    * 起标题的时机是**一条 `turn` 提交被存下**（提交可能在后台排队很久），所以住在提交服务
    * 调用的这里，而不是 TurnService 的 submit 里。
+   *
+   * 不碰 `updatedAt`：活动时刻由 `markActivity` 一处写，标题这一格只管标题。
    */
   autoTitle(threadId: string, text: string): void {
     const row = this.d.repo.get(threadId)
     if (row === null || row.titleSource !== 'pending') return
     const title = deriveTitle(text)
-    const now = this.d.clock.now()
-    this.d.repo.update(threadId, { title, titleSource: 'auto', updatedAt: now })
-    this.emitUpdated({ ...row, title, titleSource: 'auto', updatedAt: now })
+    this.d.repo.update(threadId, { title, titleSource: 'auto' })
+    this.emitUpdated({ ...row, title, titleSource: 'auto' })
   }
 
   /**

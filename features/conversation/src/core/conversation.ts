@@ -180,6 +180,10 @@ export class ConversationCore {
       autoTitle: (threadId, text) => {
         this.threads.autoTitle(threadId, text)
       },
+      /* 发出去就是活动：侧栏那格相对时间当场改口，不等这一轮跑完 */
+      markActivity: (threadId) => {
+        this.threads.markActivity(threadId)
+      },
       emitChanged: d.emitSubmissionChanged,
       emitRemoved: d.emitSubmissionRemoved,
       emitFailed: d.emitSubmissionFailed,

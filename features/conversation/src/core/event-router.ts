@@ -258,28 +258,36 @@ export class EventRouter {
       error,
       startedAt: state === 'idle' ? null : rt.startedAt,
     })
+    /*
+     * 一轮结束先记活动、**再**报线程行：侧栏那格相对时间读的是推送里的 updatedAt，
+     * 反过来（先报后写）推出去的就是旧时刻，一行「10 天」要等下一次别的事件才改口。
+     */
+    const finished = (previous === 'running' || previous === 'awaiting') && state === 'idle'
+    if (finished) this.d.repo.update(threadId, { updatedAt: this.d.clock.now() })
+
     const row = this.d.repo.get(threadId)
     if (row !== null) this.d.emitThreadUpdated(this.d.threads.threadOf(row))
+    if (finished) this.settle(threadId, rt, error)
+  }
 
-    if ((previous === 'running' || previous === 'awaiting') && state === 'idle') {
-      this.d.repo.update(threadId, { updatedAt: this.d.clock.now() })
-      const outcome: 'completed' | 'cancelled' | 'failed' =
-        error !== null ? 'failed' : rt.cancelRequested ? 'cancelled' : 'completed'
-      rt.startedAt = null
-      this.d.emitTurnSettled({ threadId, outcome, error })
-      /*
-       * 回到 idle 而那一轮**没开出来**：交出去的那条提交还停在 pending，说明 omp 没收下它。
-       * 按事件自带的 error 收成 failed；没有 error 时看是不是用户点了停止（cancelled），
-       * 否则就是 dropped。
-       */
-      this.d.submissions.settleUnstarted(
-        threadId,
-        error ??
-          (rt.cancelRequested
-            ? { code: conversationErrors.submit_cancelled, message: conversationErrors.submit_cancelled }
-            : { code: conversationErrors.submit_dropped, message: conversationErrors.submit_dropped }),
-      )
-      rt.cancelRequested = false
-    }
+  /** 一轮结束时的那一串收口（线程行已经在调用方报过了）。 */
+  private settle(threadId: string, rt: Runtime, error: { code: string; message: string } | null): void {
+    const outcome: 'completed' | 'cancelled' | 'failed' =
+      error !== null ? 'failed' : rt.cancelRequested ? 'cancelled' : 'completed'
+    rt.startedAt = null
+    this.d.emitTurnSettled({ threadId, outcome, error })
+    /*
+     * 回到 idle 而那一轮**没开出来**：交出去的那条提交还停在 pending，说明 omp 没收下它。
+     * 按事件自带的 error 收成 failed；没有 error 时看是不是用户点了停止（cancelled），
+     * 否则就是 dropped。
+     */
+    this.d.submissions.settleUnstarted(
+      threadId,
+      error ??
+        (rt.cancelRequested
+          ? { code: conversationErrors.submit_cancelled, message: conversationErrors.submit_cancelled }
+          : { code: conversationErrors.submit_dropped, message: conversationErrors.submit_dropped }),
+    )
+    rt.cancelRequested = false
   }
 }

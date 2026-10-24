@@ -8,7 +8,7 @@ import { AppError, createId, systemClock } from '@poietica/foundation'
 import { openDatabase } from '@poietica/storage-sqlite'
 import { createTestLogger, tempDir, waitFor } from '@poietica/test-kit'
 import type { TranscriptOperation } from '@poietica/transcript'
-import type { QueueView } from '../../contract'
+import type { QueueView, Thread } from '../../contract'
 import { ConversationCore } from '../conversation'
 import { migrations } from '../migrations'
 import { TimelineHub } from '../timeline-hub'
@@ -75,7 +75,8 @@ async function makeCore(overrides: { engine?: FakeEngine; workspaces?: Workspace
   const sampled: unknown[] = []
   const contextUsages: { threadId: string; usage: unknown }[] = []
   const messages: { threadId: string; at: number }[] = []
-  const updated: string[] = []
+  /* 整条线程而不是 id：侧栏那格相对时间读的就是推送里带的 updatedAt */
+  const updated: Thread[] = []
   const removed: string[] = []
   const submissionFailures: { threadId: string; clientTurnId: string; deliverAs: string; code: string }[] = []
   const submissionRemoved: string[] = []
@@ -95,7 +96,7 @@ async function makeCore(overrides: { engine?: FakeEngine; workspaces?: Workspace
     clock,
     logger: createTestLogger(),
     emitThreadUpdated: (t) => {
-      updated.push(t.id)
+      updated.push(t)
     },
     emitThreadRemoved: (id) => {
       removed.push(id)
@@ -829,6 +830,40 @@ describe('conversation core（不经内核的直连测试）', () => {
     const all = core.threads.list({ includeArchived: true })
     expect(all.map((t) => t.id)).toContain(b.id)
     void a
+    await core.dispose()
+    db.close()
+    await dir.dispose()
+  })
+
+  /*
+   * 侧栏那格相对时间读 threads.updated 推送里的 updatedAt。两处都要对：
+   * ① 发出去那一刻就改口（旧实现只在整轮跑完时写，冷启动开会话那几秒里还挂着「10 天」）；
+   * ② 那一轮结束时也是先写库、再报行（旧顺序反过来，推出去的是旧时刻）。
+   */
+  test('发一句话：当场就推新的 updatedAt，跑完再推时仍是同一条事实', async () => {
+    const { core, db, dir, updated, settled } = await makeCore()
+    const thread = core.threads.create({ workspaceId: 'ws1' })
+    /* 定名之后 autoTitle 不再动 updatedAt，这条用例量的就只是「有没有记活动」 */
+    await core.threads.rename(thread.id, '一周前说过话的对话')
+    /* 把这一行倒回十天前：与「发出这句话」拉开确定的一段落，不靠两次调用恰好跨毫秒 */
+    const before = Date.now() - 10 * 24 * 60 * 60 * 1000
+    db.forModule('conversation')
+      .prepare('UPDATE conversation_threads SET updated_at = ? WHERE id = ?')
+      .run(before, thread.id)
+
+    await submit(core, thread.id, '今天又发了一句')
+
+    /* ① 提交返回时（还没等 omp 开完会话）行上已经是新时刻 */
+    const atSubmit = core.threads.row(thread.id)!.updatedAt
+    expect(atSubmit).toBeGreaterThan(before)
+    expect(updated.filter((t) => t.id === thread.id).at(-1)!.updatedAt).toBe(atSubmit)
+
+    await waitFor(() => settled.some((entry) => entry.threadId === thread.id), { message: '这一轮没有结束' })
+
+    /* ② 跑完那一刻同样：推出去的那一份与库里逐字一致 */
+    const pushed = updated.filter((t) => t.id === thread.id).at(-1)!
+    expect(core.threads.row(thread.id)!.updatedAt).toBeGreaterThanOrEqual(atSubmit)
+    expect(pushed.updatedAt).toBe(core.threads.row(thread.id)!.updatedAt)
     await core.dispose()
     db.close()
     await dir.dispose()
