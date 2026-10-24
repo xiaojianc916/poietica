@@ -492,8 +492,7 @@
 .assistant-threads__more {
   display: block;
   width: 100%;
-  padding: 4px var(--ui-row-trail) 4px
-    calc(var(--ui-row-lead) + var(--ui-row-icon-size) + var(--ui-row-gap));
+  padding: 4px var(--ui-row-trail) 4px calc(var(--ui-row-lead) + var(--ui-row-icon-size) + var(--ui-row-gap));
   border: 0;
   background: none;
   color: var(--cp-ink-subtle);

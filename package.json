@@ -78,7 +78,7 @@
   "scripts": {
     "typecheck": "bun run tooling/refs/sync.ts --check && bun check -b && bun check -p tsconfig.tests.json",
     "refs": "bun run tooling/refs/sync.ts",
-    "lint": "biome check --formatter-enabled=false . && bun run tooling/checks/no-biome-ignore.ts && bun run tooling/checks/editor-project-map.ts && bun run tooling/checks/manifest-deps.ts && bun run check:omp-doc && depcruise --config tooling/depcruise/config.cjs tooling packages features apps",
+    "lint": "biome check --formatter-enabled=false . && bun run tooling/checks/no-biome-ignore.ts && bun run tooling/checks/editor-project-map.ts && bun run tooling/checks/manifest-deps.ts && bun run tooling/checks/style-boundaries.ts && bun run check:omp-doc && depcruise --config tooling/depcruise/config.cjs tooling packages features apps",
     "test": "bun test",
     "all": "bun run typecheck && bun run format:check && bun run lint && bun run test",
     "format": "bun fmt",
