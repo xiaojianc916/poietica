@@ -84,12 +84,48 @@ async function walk(root: string): Promise<readonly string[]> {
   return found.slice(0, WALK_LIMIT)
 }
 
+interface MatchedPath {
+  readonly path: string
+  readonly rank: number
+}
+
 /* 名字命中排前面，其次路径短的：人筛 review-pane 时要的是那个文件，不是某个目录里恰好带这几个字的一长串。 */
-function rank(file: string, last: string): number {
-  const base = file.slice(file.lastIndexOf('/') + 1).toLowerCase()
+function rank(base: string, last: string): number {
   if (base.startsWith(last)) return 0
   if (base.includes(last)) return 1
   return 2
+}
+
+function compare(left: MatchedPath, right: MatchedPath): number {
+  return left.rank - right.rank || left.path.length - right.path.length || collator.compare(left.path, right.path)
+}
+
+/* 搜索只交付前 limit 条：用有界堆留前 limit + 1 条判 truncated，不让整份命中清单的排序阻塞 Core。 */
+function retain(held: MatchedPath[], candidate: MatchedPath, capacity: number): void {
+  if (held.length === capacity && compare(candidate, held[0]!) >= 0) return
+  let at = held.length
+  held.push(candidate)
+  while (at > 0) {
+    const parent = (at - 1) >> 1
+    if (compare(held[parent]!, candidate) >= 0) break
+    held[at] = held[parent]!
+    at = parent
+  }
+  held[at] = candidate
+  if (held.length <= capacity) return
+
+  const tail = held.pop()!
+  if (held.length === 0) return
+  at = 0
+  for (;;) {
+    let child = at * 2 + 1
+    if (child >= held.length) break
+    if (child + 1 < held.length && compare(held[child + 1]!, held[child]!) > 0) child += 1
+    if (compare(tail, held[child]!) >= 0) break
+    held[at] = held[child]!
+    at = child
+  }
+  held[at] = tail
 }
 
 export function matchPaths(
@@ -103,15 +139,16 @@ export function matchPaths(
     .filter((term) => term !== '')
   const last = terms.at(-1)
   if (last === undefined) return { hits: [], truncated: false }
-  const matched = files.filter((file) => {
+  const matched: MatchedPath[] = []
+  const capacity = limit + 1
+  for (const file of files) {
     const lower = file.toLowerCase()
-    return terms.every((term) => lower.includes(term))
-  })
-  matched.sort(
-    (left, right) =>
-      rank(left, last) - rank(right, last) || left.length - right.length || collator.compare(left, right),
-  )
-  return { hits: matched.slice(0, limit), truncated: matched.length > limit }
+    if (!terms.every((term) => lower.includes(term))) continue
+    const base = lower.slice(lower.lastIndexOf('/') + 1)
+    retain(matched, { path: file, rank: rank(base, last) }, capacity)
+  }
+  matched.sort(compare)
+  return { hits: matched.slice(0, limit).map((entry) => entry.path), truncated: matched.length > limit }
 }
 
 export function createFilesService(d: { readonly git: FilesGit; readonly now?: () => number }): FilesService {
