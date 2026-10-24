@@ -1,12 +1,13 @@
 import { statSync } from 'node:fs'
-import { defineHostModule } from '@poietica/host-kernel'
+import { defineHostModule, resolveAppIcon } from '@poietica/host-kernel'
 import { BROWSER_PARTITION } from '@poietica/runtime-layout'
-import { type BrowserWindow, dialog, Notification, screen, session, shell } from 'electron'
+import { type BrowserWindow, dialog, Menu, Notification, nativeImage, screen, session, shell, Tray } from 'electron'
 import { platformContract } from '../contract'
 import { createLogSink } from './log-sink'
 import { createNotifyService } from './notify-service'
 import { createShellService } from './shell-service'
 import { createStorageService } from './storage-service'
+import { createTray } from './tray'
 import { createWindowStateStore } from './window-state'
 
 /** 启动后多久检查一次缓存预算 */
@@ -63,6 +64,24 @@ export default defineHostModule({
     })
     ctx.lifecycle.onReady(() => {
       const win = ctx.windows.main()
+      const icon = resolveAppIcon(ctx.resourcesDir)
+      if (icon === undefined) ctx.logger.warn('tray icon not found', { resourcesDir: ctx.resourcesDir })
+      else {
+        ctx.disposables.add(
+          createTray({
+            icon,
+            focusMain: () => ctx.windows.focusMain(),
+            hideMain: () => ctx.windows.main().hide(),
+            quit: () => void ctx.app.quit(),
+            create: (iconPath, items) => {
+              const tray = new Tray(nativeImage.createFromPath(iconPath))
+              tray.setToolTip('Poietica')
+              tray.setContextMenu(Menu.buildFromTemplate(items))
+              return tray
+            },
+          }),
+        )
+      }
       const save = (): void => {
         windowState.save({ bounds: win.getNormalBounds(), maximized: win.isMaximized() })
       }
