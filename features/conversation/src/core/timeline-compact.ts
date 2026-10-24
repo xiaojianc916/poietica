@@ -83,13 +83,20 @@ function joined(last: Op | undefined, op: AppendOp): AppendOp | undefined {
   return { ...last, text: last.text + op.text }
 }
 
-/** 规则 B：往回找同键的那一槽；中途遇到不可交换的就放弃 */
-function slotOf(out: readonly Op[], key: string): number {
+/**
+ * 规则 B：往回找同键的那一槽；中途遇到不可交换的就放弃。
+ *
+ * 键跟着 out 逐格并排存（`heldKeys`），**一格里只算一次**：从前每回看一格都要重新拼一遍键
+ * （拼字符串 + 每次新建四个字符串的比较），工具输出一大，一批就是几千条 op、每批 16ms 一次，
+ * 在 Core 里是实打实的固定开销。并排那张表与 out 永远同长同序。
+ */
+function slotOf(out: readonly Op[], keys: readonly (string | undefined)[], key: string): number {
   const stop = Math.max(0, out.length - COMPACT_LOOKBACK)
   for (let at = out.length - 1; at >= stop; at -= 1) {
     const prior = out[at]
     if (prior === undefined) break
-    if (replaceKey(prior) === key) return at
+    /* 并排表的键就是这一格的替换键：相等即命中；append 那一格不进这张表，因此不会被误认。 */
+    if (keys[at] === key) return at
     if (!commutes(prior, key)) break
   }
   return -1
@@ -101,6 +108,7 @@ function slotOf(out: readonly Op[], key: string): number {
 export function compactOps(ops: readonly Op[]): readonly Op[] {
   if (ops.length < 2) return ops
   const out: Op[] = []
+  const keys: (string | undefined)[] = []
   let changed = false
   for (const op of ops) {
     const appended = op.op === 'append' ? joined(out.at(-1), op) : undefined
@@ -110,13 +118,14 @@ export function compactOps(ops: readonly Op[]): readonly Op[] {
       continue
     }
     const key = replaceKey(op)
-    const slot = key === undefined ? -1 : slotOf(out, key)
+    const slot = key === undefined ? -1 : slotOf(out, keys, key)
     if (slot >= 0) {
       out[slot] = op
       changed = true
       continue
     }
     out.push(op)
+    keys.push(key)
   }
   return changed ? out : ops
 }

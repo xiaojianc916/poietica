@@ -660,27 +660,59 @@ function spanOf(turn: TranscriptTurn, index: number): TurnSpan {
  */
 const ANCHORED_PAGES = new WeakMap<TurnPage, { readonly held: readonly QuestionInteraction[]; page: TurnPage }>()
 
-function askIndexes(items: readonly TimelineItem[], toolCallId: string): readonly number[] {
-  const exact: number[] = []
-  const byName: number[] = []
+/*
+ * 一页里「哪次调用在哪一行」：调用号与工具名各一张表。从前每次找答复都整页扫一遍，
+ * 答复一多就成了「答复数 × 页数 × 页长」—— 长对话投影一次要几毫秒，而这条投影每批流式都在跑。
+ */
+interface AskPositions {
+  readonly exact: ReadonlyMap<string, readonly number[]>
+  readonly byName: ReadonlyMap<string, readonly number[]>
+}
+
+const ASK_POSITIONS = new WeakMap<readonly TimelineItem[], AskPositions>()
+
+function positionsOf(items: readonly TimelineItem[]): AskPositions {
+  const held = ASK_POSITIONS.get(items)
+
+  if (held !== undefined) {
+    return held
+  }
+
+  const exact = new Map<string, number[]>()
+  const byName = new Map<string, number[]>()
 
   for (const [at, item] of items.entries()) {
     if (item.type !== 'tool_call') {
       continue
     }
-    if (item.toolCallId === toolCallId) {
-      exact.push(at)
-    } else if (item.title === toolCallId) {
-      byName.push(at)
-    }
+    record(exact, item.toolCallId, at)
+    record(byName, item.title, at)
   }
 
-  return exact.length > 0 ? exact : byName
+  const fresh: AskPositions = { byName, exact }
+  ASK_POSITIONS.set(items, fresh)
+
+  return fresh
+}
+
+function record(into: Map<string, number[]>, key: string, at: number): void {
+  const held = into.get(key)
+
+  if (held === undefined) {
+    into.set(key, [at])
+  } else {
+    held.push(at)
+  }
+}
+
+/* 首选真调用号；回放时号退成了工具名，那就按工具名找 —— 两张表按同一个判据（有真号就只认真号）。 */
+function askIndexes(positions: AskPositions, toolCallId: string): readonly number[] {
+  return positions.exact.get(toolCallId) ?? positions.byName.get(toolCallId) ?? []
 }
 
 /* 首选真调用号；回放时号退成了工具名，那就按工具名找**下一条还没被认领的** —— 一轮里问过两次时，两组答复各归各的调用。 */
-function askAt(items: readonly TimelineItem[], toolCallId: string, used: Set<number>): number {
-  for (const at of askIndexes(items, toolCallId)) {
+function askAt(positions: AskPositions, toolCallId: string, used: Set<number>): number {
+  for (const at of askIndexes(positions, toolCallId)) {
     if (!used.has(at)) {
       return at
     }
@@ -702,9 +734,11 @@ function anchoredPage(page: TurnPage, held: readonly QuestionInteraction[]): Tur
 
   const items = [...page.items]
   const used = new Set<number>()
+  /* 位置表按页的原始条目建：这次只改 content，调用号与工具名不动，行号也就还是那份。 */
+  const positions = positionsOf(page.items)
 
   for (const interaction of held) {
-    const at = askAt(items, interaction.toolCallId ?? '', used)
+    const at = askAt(positions, interaction.toolCallId ?? '', used)
     const item = at < 0 ? undefined : items[at]
 
     if (item?.type !== 'tool_call') {
@@ -726,11 +760,24 @@ function anchoredPage(page: TurnPage, held: readonly QuestionInteraction[]): Tur
   return fresh
 }
 
-/** 把已结的题的答复折进发起它的那一次调用。只认提问：审批恒不上屏，而它的 toolCallId 是工具名，锚上去只会锚到别人的调用上。 */
-function anchorQuestions(
-  pages: readonly TurnPage[],
+/* 已结的、带调用号的提问：只有它们有落页的可能，也才是那一次扫描要找的号。 */
+function answerableAsks(interactions: AgentTranscriptSnapshot['interactions']): readonly QuestionInteraction[] {
+  return interactions.filter(
+    (interaction): interaction is QuestionInteraction =>
+      interaction.interactionKind === 'question' &&
+      interaction.state !== 'pending' &&
+      interaction.toolCallId !== undefined,
+  )
+}
+
+/*
+ * 一条答复归到它发起的那一页；审批与待答留在活动段尾。已结的答复锚不上任何一页就不上屏 ——
+ * 那是这一点从未变过的口径：它答的那次调用已经被删掉（items.remove 之后），印在末尾只会是无主的卡片。
+ */
+function groupAsks(
   interactions: AgentTranscriptSnapshot['interactions'],
-): { readonly pages: readonly TurnPage[]; readonly tail: readonly TranscriptInteraction[] } {
+  pageOf: ReadonlyMap<string, number> | null,
+): { readonly anchored: Map<number, QuestionInteraction[]>; readonly tail: readonly TranscriptInteraction[] } {
   const anchored = new Map<number, QuestionInteraction[]>()
   const tail: TranscriptInteraction[] = []
 
@@ -741,7 +788,7 @@ function anchorQuestions(
       continue
     }
 
-    const at = pages.findIndex((page) => askIndexes(page.items, interaction.toolCallId ?? '').length > 0)
+    const at = pageOf?.get(interaction.toolCallId ?? '') ?? -1
 
     if (at < 0) {
       continue
@@ -755,6 +802,24 @@ function anchorQuestions(
       held.push(interaction)
     }
   }
+
+  return { anchored, tail }
+}
+
+/**
+ * 把已结的题的答复折进发起它的那一次调用。只认提问：审批恒不上屏，而它的 toolCallId 是工具名，锚上去只会锚到别人的调用上。
+ *
+ * 先整页建一次「调用号 → 页号」再按号取页：从前每条答复都从第一页起扫、每页再整页扫一遍，
+ * 长对话（几百轮、几十次提问）就退化成平方级 —— 而这条投影每一批流式都要重跑一遍。
+ */
+function anchorQuestions(
+  pages: readonly TurnPage[],
+  interactions: AgentTranscriptSnapshot['interactions'],
+): { readonly pages: readonly TurnPage[]; readonly tail: readonly TranscriptInteraction[] } {
+  const wanted = new Set(answerableAsks(interactions).map((ask) => ask.toolCallId ?? ''))
+  /* 没有一条答复要落页时（审批与待答占多数）连扫都不扫。 */
+  const pageOf = wanted.size === 0 ? null : pagesOfAsks(pages, wanted)
+  const { anchored, tail } = groupAsks(interactions, pageOf)
 
   if (anchored.size === 0) {
     return { pages, tail }
@@ -771,6 +836,45 @@ function anchorQuestions(
   }
 
   return { pages: next, tail }
+}
+
+/**
+ * 要找的那几组答复落在哪一页：一条答复只认**最早**能锚上的那一页，与逐页 findIndex 同一个判据。
+ *
+ * 只扫一遍、只认 wanted 里的号：从前是「每条答复把每一页整页扫一遍」，建全表也无谓 ——
+ * 答复通常只有几条，把整页所有工具调用都编进表反而比扫一遍贵。
+ */
+function pagesOfAsks(pages: readonly TurnPage[], wanted: ReadonlySet<string>): ReadonlyMap<string, number> {
+  const pageOf = new Map<string, number>()
+
+  for (const [at, page] of pages.entries()) {
+    if (pageOf.size === wanted.size) {
+      break
+    }
+    collectAsks(page.items, at, wanted, pageOf)
+  }
+
+  return pageOf
+}
+
+/* 一页里认得出的那些号落到这一页；先前已经认过的页不改写（只认最早的那一页）。 */
+function collectAsks(
+  items: readonly TimelineItem[],
+  at: number,
+  wanted: ReadonlySet<string>,
+  pageOf: Map<string, number>,
+): void {
+  for (const item of items) {
+    if (item.type !== 'tool_call') {
+      continue
+    }
+    /* 真号优先于工具名：同一格里两种都认，真号命中就不再让工具名改写它。 */
+    if (wanted.has(item.toolCallId) && !pageOf.has(item.toolCallId)) {
+      pageOf.set(item.toolCallId, at)
+    } else if (wanted.has(item.title) && !pageOf.has(item.title)) {
+      pageOf.set(item.title, at)
+    }
+  }
 }
 
 /* 待答的审批与提问挂在活动段尾部。压缩不在这里：它按发生的位置落在各自那一页里（placeCompactions），只有一轮都还没有时才落在这一段。 */
