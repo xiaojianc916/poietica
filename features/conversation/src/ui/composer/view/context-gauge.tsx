@@ -261,7 +261,7 @@ export const ContextGauge = memo(function ContextGauge({ openRequest, usage }: C
   const fraction = Math.min(Math.max(usage.used / usage.size, 0), 1)
 
   return (
-    <span className="context-gauge" ref={rootRef}>
+    <span className="context-gauge" data-context-gauge="" ref={rootRef}>
       <TooltipProvider delay={200}>
         {/* 悬浮卡与点开的面板是两件事，不互相取代；面板开着时提示让位，免得两块浮层叠在一起。 */}
         <Tooltip disabled={open}>
@@ -279,7 +279,7 @@ export const ContextGauge = memo(function ContextGauge({ openRequest, usage }: C
             <Ring fraction={fraction} />
           </TooltipTrigger>
 
-          <TooltipContent className="context-gauge__card" side="top" sideOffset={8}>
+          <TooltipContent className="context-gauge__card" data-context-gauge="" side="top" sideOffset={8}>
             <span className="context-gauge__card-text">上下文已用 {label}</span>
           </TooltipContent>
         </Tooltip>
@@ -290,6 +290,7 @@ export const ContextGauge = memo(function ContextGauge({ openRequest, usage }: C
             <div
               aria-label="上下文已用"
               className="context-gauge__panel"
+              data-context-gauge=""
               ref={panelOverlayRef}
               role="dialog"
               style={position ?? { left: 0, top: 0, visibility: 'hidden' }}

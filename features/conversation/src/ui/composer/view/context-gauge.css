@@ -1,12 +1,17 @@
-/* 胶囊、悬浮卡与面板。卡与面板经 Portal 落在 body 下，[data-assistant-skin] 罩不到，所以每个 var 都带兜底值。
- * 玻璃底（40px 模糊 + 150% 饱和）与那圈 box-shadow 不改成实色；阈值 75/90/95 出自 ACP 建议档。 */
-:root {
+/*
+ * 胶囊、悬浮卡与面板。卡与面板经 Portal 落在 body 下，[data-assistant-skin] 罩不到 —— 三个挂点
+ * （原位容器、卡、面板，见 context-gauge.tsx）都带 data-context-gauge，变量定义挂在这一格上，
+ * 不再上 :root（2026-10-24 裁决 Q57）。玻璃底（40px 模糊 + 150% 饱和）与那圈 box-shadow 不改成
+ * 实色；阈值 75/90/95 出自 ACP 建议档。
+ */
+[data-context-gauge] {
   --gauge-warn-ink: #b45309;
   --gauge-high-ink: #c2410c;
   --gauge-critical-ink: #dc2626;
 
   --gauge-ring-track: #0000001f;
-  --gauge-ring-color: #81858c;
+  /* 圆环的墨与列标题同一支（上游同为 DSH 调色板，两主题逐键相同），读 popup 系令牌。 */
+  --gauge-ring-color: var(--ui-popup-label);
 
   --gauge-tint-system: #adb2b8;
   --gauge-tint-tools: #a78bfa;
@@ -16,33 +21,31 @@
   --gauge-tint-cache: #979da6;
   --gauge-tint-spend: #cfd3d6;
 
-  --gauge-panel: rgb(248 249 250 / 58%);
+  /* 面板的玻璃面即浮层那一张（两主题逐键相同，深色 45.1% 与 45% 同键）。 */
+  --gauge-panel: var(--ui-popup-surface);
   --gauge-panel-frame: rgb(0 0 0 / 3.9%);
   /* 投影的后两层与 --ui-popup-elevation 的后两层同值，但描边层深色与它不同（5.9% 白 vs 16%），
      复合值部分相同不合并 —— 面板的投影整条自立一份。 */
   --gauge-panel-elevation:
     0 0 0 0.5px var(--gauge-panel-frame), 0 3px 8px 0 rgb(0 0 0 / 3.9%), 0 0 20px 0 rgb(0 0 0 / 5.1%);
   --gauge-bar-track: rgb(38 49 72 / 5.9%);
-  --gauge-headline: #81858c;
+  --gauge-headline: var(--ui-popup-label);
   --gauge-label: #61666b;
-  --gauge-figure: #0f1115;
+  --gauge-figure: var(--ui-popup-ink);
   /* 悬浮卡（照抄上游 Tooltip 的 .bubble）：恒定深底白字，两套主题只有底色深浅换档。 */
   --gauge-card: #2c2c2e;
   --gauge-card-ink: rgb(255 255 255 / 86%);
 }
 
-:root[data-theme='dark'] {
+:root[data-theme='dark'] [data-context-gauge] {
   --gauge-ring-track: #ffffff29;
-  --gauge-ring-color: #adb2b8;
+  /* ring-color / panel / headline / figure 已随 --ui-popup-* 自动翻转。 */
 
-  /* --gauge-tint-* 七条与浅色逐字相同（分类色不跟主题翻），删掉重复声明、由浅色块继承。 */
+  /* --gauge-tint-* 七条与浅色逐字相同（分类色不跟主题翻），不再重复声明。 */
 
-  --gauge-panel: rgb(67 69 74 / 45.1%);
   --gauge-panel-frame: rgb(255 255 255 / 5.9%);
   --gauge-bar-track: rgb(255 255 255 / 7.8%);
-  --gauge-headline: #adb2b8;
   --gauge-label: #cfd3d6;
-  --gauge-figure: #f9fafb;
   --gauge-card: #43454a;
 }
 

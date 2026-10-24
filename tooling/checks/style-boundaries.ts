@@ -74,12 +74,6 @@ const EXCEPTIONS: readonly Exception[] = [
     budget: 3,
     note: '平台令牌两块 + prefers-color-scheme 首帧兜底一块（baseline 已知例外，不动）',
   },
-  {
-    rule: 'S7',
-    path: 'features/conversation/src/ui/composer/view/context-gauge.css',
-    budget: 2,
-    note: 'Q57：绕 Portal 挂 :root，待迁到 Portal 内容根（需 L2）',
-  },
   // S9：令牌兜底。
   {
     rule: 'S9',
