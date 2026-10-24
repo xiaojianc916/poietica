@@ -10,12 +10,12 @@
   --diff-added-edge: #00a240;
   --diff-added-emphasis: #c6e4ca;
   --diff-removed-fill: #fbe6e2;
-  --diff-removed-edge: #ba2623;
-  --diff-removed-emphasis: #f3caca;
   /*
-   * 删除行左缘那道 4px 条纹（亮/暗两段循环）。实色对是产品取值，与 --diff-removed-edge
-   * 近似但不同值（#ba2522 vs #ba2623，蓝通道差 1），不合并 —— 见 refactor-log 的 Q 记录。
+   * 删除族的线色与条纹亮段原为三处近似（#ba2623/#ba2724 对 #ba2522），2026-10-24 裁决
+   * 统一为同值，正本取条纹亮段 #ba2522（review-pane 徽章的删除色同此，见其注释）。
    */
+  --diff-removed-edge: #ba2522;
+  --diff-removed-emphasis: #f3caca;
   --diff-removed-stripe: repeating-linear-gradient(to bottom, #ba2522 0, #ba2522 1.333px, #f3cfcb 1.333px, #f3cfcb 2px);
   /* 行号槽底色：比正文浅一档。 */
   --diff-added-gutter: #edf7ed;

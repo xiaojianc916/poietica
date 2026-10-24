@@ -331,7 +331,7 @@
 }
 
 .status-panel__glyph--failed {
-  color: var(--cp-diff-removed-text, #ff5c5c);
+  color: var(--cp-diff-removed-text, #f9423e);
 }
 
 .status-panel__spin {
@@ -576,7 +576,7 @@
   --cp-placeholder: color-mix(in oklab, #d4d4d4 30%, transparent);
   --cp-hover: rgb(255 255 255 / 5%);
   --cp-diff-added-text: #46bf72;
-  --cp-diff-removed-text: #ff5c5c;
+  --cp-diff-removed-text: #f9423e;
   --status-panel-shell: #202020;
   background: var(--status-panel-shell);
 }

@@ -12,7 +12,7 @@
   position: fixed;
   top: 40px;
   left: 50%;
-  /* 栈序读 layers.css 那张表（banner 层），数值上还压过第三方图片灯箱（yarl 容器 1000）。 */
+  /* 栈序读 layers.css 那张表（banner 层，压过浮层与图片灯箱——灯箱走 dialog 层 100）。 */
   z-index: var(--ui-z-banner);
   /* 通知从不接指针。 */
   pointer-events: none;

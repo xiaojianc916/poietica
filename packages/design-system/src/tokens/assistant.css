@@ -252,12 +252,17 @@
   --cp-goal-bar-font: 13px;
   --cp-goal-bar-surface: rgb(245 246 247);
   --cp-goal-bar-edge: rgb(0 0 0 / 4%);
-  --cp-goal-bar-input-edge: rgb(0 0 0 / 10%);
-  --cp-goal-bar-primary: rgb(15 17 21);
+  /*
+   * 这五支两主题与 --ui-popup-* 逐条同键（上游同为 DeepSeek Harness 调色板，
+   * --cp-queue-* 是同一个收敛的先例）：2026-10-24 裁决改写成引用，产品调浮层系时目标栏连动。
+   * --cp-goal-bar-secondary 不在组内（深色才与 popup-icon 相等），保持字面。
+   */
+  --cp-goal-bar-input-edge: var(--ui-popup-divider);
+  --cp-goal-bar-primary: var(--ui-popup-ink);
   --cp-goal-bar-secondary: rgb(21 21 23);
-  --cp-goal-bar-tertiary: rgb(129 133 140);
-  --cp-goal-bar-hover: rgb(38 49 72 / 6%);
-  --cp-goal-bar-error: rgb(236 19 19);
+  --cp-goal-bar-tertiary: var(--ui-popup-label);
+  --cp-goal-bar-hover: var(--ui-popup-highlight);
+  --cp-goal-bar-error: var(--ui-popup-danger);
 
   /*
    * 模型与思考档位选择器：参考稿量出来的值，是这个平面上的一件控件，数字要么在
@@ -585,12 +590,9 @@
      独立：这一族（--cp-goal-bar-*）是 GoalBar 自己的面板取值，改玻璃带不该动它。 */
   --cp-goal-bar-surface: #292929;
   --cp-goal-bar-edge: rgb(255 255 255 / 6%);
-  --cp-goal-bar-input-edge: rgb(255 255 255 / 12%);
-  --cp-goal-bar-primary: rgb(249 250 251);
+  /* 其余五支读浅色段引用的 --ui-popup-*（自携主题深色值），深色不再覆盖；
+     secondary 保持字面（见浅色段注释）。 */
   --cp-goal-bar-secondary: rgb(235 238 242);
-  --cp-goal-bar-tertiary: rgb(173 178 184);
-  --cp-goal-bar-hover: rgb(255 255 255 / 8%);
-  --cp-goal-bar-error: rgb(242 90 90);
 
   /*
    * 模型选择器的那几档灰。参考稿只有浅色那一套，这里按同一条关系翻过来：轨道面是压在
@@ -639,9 +641,10 @@
    *
    * 不复用 --ui-success / --ui-destructive：那两个还要管按钮、横幅与焦点环，明度是照大块
    * 面定的，压在这一对 13px 的小字上发灰。这一支只服务这对数字。
+   * 删除深色原 #ff5c5c，2026-10-24 裁决与 review 徽章的删除色统一，正本取 #f9423e。
    */
   --cp-diff-added-text: #46bf72;
-  --cp-diff-removed-text: #ff5c5c;
+  --cp-diff-removed-text: #f9423e;
 
   /* 抽屉两面的分割线：产品指定 #3b3b3b。--cp-hairline（#1d1d1d）压在 #252525 的纸面上看不见。 */
   --cp-timeline-seam: #3b3b3b;

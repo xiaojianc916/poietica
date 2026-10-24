@@ -45,11 +45,12 @@
 /* 变更徽章：新增 U、删除 D 都是裸字母（不要框），改写是方框里一个点。外框用 box-shadow 画不用 border：Chromium 对 border-width
  * 另有一套吸附，1px 与 1.3333px 画出来一样宽；box-shadow 照写的值画，1.3333px 在 150% 缩放下就是屏幕上 2 个设备像素
  * （4/3 = 2 ÷ 1.5）。要动这个数，先量再改。色必须写在这里：app.css 的无层级通配规则会把 border-color 钉住，组件里改不动。
- * 徽章的墨是审查自己的色族（对着参考图量过），与 diff/surface.css 的竖线色部分同值部分差一，不共用（见 refactor-log Q）。 */
+ * 徽章的墨与 diff/surface.css 的线色同族：删除浅色统一到 #ba2522（2026-10-24 裁决，正本取条纹亮段）；
+ * 深色删除 #f9423e 是本族正本（--cp-diff-removed-text 深色已向它统一）。 */
 .review-mark {
   --review-mark-modified: #923b0f;
   --review-mark-added: #00a240;
-  --review-mark-deleted: #ba2724;
+  --review-mark-deleted: #ba2522;
 
   box-shadow: 0 0 0 1.3333px currentColor;
   color: var(--review-mark-modified);
