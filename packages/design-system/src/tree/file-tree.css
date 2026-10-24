@@ -53,5 +53,5 @@
 }
 
 :root[data-theme='dark'] .file-tree__row {
-  --file-tree-row-hover: color-mix(in srgb, var(--ui-palette-white) 5%, transparent);
+  --file-tree-row-hover: color-mix(in srgb, #ffffff 5%, transparent);
 }

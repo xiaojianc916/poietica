@@ -6,7 +6,7 @@
   align-items: center;
   justify-content: center;
   border: 0;
-  border-radius: 9999px;
+  border-radius: var(--ui-radius-full);
   padding: 0;
   background: transparent;
   color: var(--cp-ink-muted);
@@ -34,7 +34,7 @@
   align-items: center;
   gap: var(--cp-pill-gap);
   border: 0;
-  border-radius: 9999px;
+  border-radius: var(--ui-radius-full);
   padding-inline: var(--cp-pill-lead) var(--cp-pill-trail);
   background: transparent;
   color: var(--cp-ink-muted);
@@ -89,7 +89,7 @@
 [data-assistant-skin] .assistant-mode-chip__remove {
   display: grid;
   place-items: center;
-  border-radius: 9999px;
+  border-radius: var(--ui-radius-full);
   background: var(--cp-ink-subtle);
   color: var(--cp-surface);
   visibility: hidden;

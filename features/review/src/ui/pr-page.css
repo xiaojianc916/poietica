@@ -18,7 +18,7 @@
   height: 100%;
   min-height: 0;
   overflow: hidden;
-  background: var(--color-ground);
+  background: var(--ui-ground);
 }
 
 /* 窄窗时右栏折下去（容器查询，与 synara 同一个意思）。 */

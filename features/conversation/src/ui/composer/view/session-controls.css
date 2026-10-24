@@ -10,7 +10,7 @@
   align-items: center;
   gap: var(--cp-model-pill-gap);
   border: 0;
-  border-radius: 9999px;
+  border-radius: var(--ui-radius-full);
   padding-inline: var(--cp-model-pill-pad);
   background: transparent;
   font: inherit;
@@ -126,7 +126,7 @@
 .assistant-model-select__rail {
   position: relative;
   block-size: var(--cp-model-rail);
-  border-radius: 9999px;
+  border-radius: var(--ui-radius-full);
   background-color: var(--cp-model-rail-face);
   background-image: linear-gradient(var(--cp-model-rail-fill), var(--cp-model-rail-fill));
   background-repeat: no-repeat;
@@ -203,7 +203,7 @@
   padding: 0;
   appearance: none;
   border: 0;
-  border-radius: 9999px;
+  border-radius: var(--ui-radius-full);
   background: transparent;
   pointer-events: none;
 }

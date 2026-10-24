@@ -65,7 +65,7 @@
 .workbench__empty {
   padding: 1rem;
   color: var(--ui-muted-foreground);
-  font-size: var(--text-caption);
+  font-size: var(--ui-font-size-caption);
   text-align: center;
 }
 
@@ -105,10 +105,10 @@
   height: var(--ui-control-height-md);
   padding-inline: 1rem;
   border: 1px solid var(--ui-input);
-  border-radius: var(--radius-md);
+  border-radius: var(--ui-radius-md);
   background: var(--ui-background);
   color: inherit;
-  font-size: var(--text-caption);
+  font-size: var(--ui-font-size-caption);
   cursor: pointer;
 }
 
@@ -131,7 +131,7 @@
   border: 0;
   background: transparent;
   color: var(--ui-destructive);
-  font-size: var(--text-caption);
+  font-size: var(--ui-font-size-caption);
   cursor: pointer;
 }
 
@@ -143,9 +143,9 @@
   padding: 0.5rem 0.75rem;
   list-style: none;
   border: 1px solid var(--ui-divider);
-  border-radius: var(--radius-md);
+  border-radius: var(--ui-radius-md);
   background: var(--ui-popover);
-  box-shadow: var(--shadow-md);
+  box-shadow: var(--ui-shadow-md);
   white-space: nowrap;
 }
 
@@ -170,6 +170,6 @@
   margin: 0;
   overflow: auto;
   color: var(--ui-muted-foreground);
-  font-size: var(--text-micro);
+  font-size: var(--ui-font-size-micro);
   white-space: pre-wrap;
 }

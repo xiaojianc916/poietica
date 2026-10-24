@@ -26,8 +26,8 @@
  * backing surface.
  */
 :root {
-  --desktop-window-control-hover: color-mix(in srgb, var(--color-foreground) 5%, transparent);
-  --desktop-window-control-active: color-mix(in srgb, var(--color-foreground) 9%, transparent);
+  --desktop-window-control-hover: color-mix(in srgb, var(--ui-foreground) 5%, transparent);
+  --desktop-window-control-active: color-mix(in srgb, var(--ui-foreground) 9%, transparent);
 
   /* Native Windows destructive window-control color. */
   --desktop-window-close-hover: #c42b1c;
@@ -71,7 +71,7 @@
  * 行为覆盖，不是重复。
  */
 * {
-  border-color: var(--color-divider);
+  border-color: var(--ui-divider);
 }
 
 /*
@@ -93,7 +93,7 @@ body,
 body {
   overflow: hidden;
   font-family: var(--ui-font-sans);
-  color: var(--color-foreground);
+  color: var(--ui-foreground);
 }
 
 /*

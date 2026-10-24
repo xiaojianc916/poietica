@@ -17,7 +17,7 @@
  * 卡面那圈线：与分隔线同一个值（zcode 的 border-popover-border 就是 --color-border，分隔线也用它）。
  * 深色 rgba(255,255,255,.1) 压在 --ui-menu #2b2b2b 上是 #414141，浅色 rgba(13,13,13,.1) 压白底。
  *
- * 为什么写在无层规则里：`* { border-color: var(--color-divider) }` 也是无层规则，且特异级别更
+ * 为什么写在无层规则里：`* { border-color: var(--ui-divider) }` 也是无层规则，且特异级别更
  * 低；同一层里 .ds-menu-card 这条赢。写成 utilities 的 border-* 反而会被那条 `*` 吃掉。
  */
 .ds-menu-card,
@@ -38,15 +38,15 @@
 }
 /*
  * 触发器（收起态）的框：zcode 的 border-input-border，悬停换 --color-input-border-hover。
- * 与卡面那条同理 —— 必须是无层规则，才压得过全局的 `* { border-color: var(--color-divider) }`。
- * 底色由 select.tsx 的 bg-[var(--color-input-surface)] 给（utilities 里没有别的规则抢这一格）。
+ * 与卡面那条同理 —— 必须是无层规则，才压得过全局的 `* { border-color: var(--ui-divider) }`。
+ * 底色由 select.tsx 的 bg-[var(--ui-input-surface)] 给（utilities 里没有别的规则抢这一格）。
  */
 .ds-select-trigger {
-  border-color: var(--color-input-border);
+  border-color: var(--ui-input-border);
 }
 
 .ds-select-trigger:hover:not(:disabled) {
-  border-color: var(--color-input-border-hover);
+  border-color: var(--ui-input-border-hover);
 }
 
 /* 选中那枚勾（正本 .check）：颜色跟随行字。 */

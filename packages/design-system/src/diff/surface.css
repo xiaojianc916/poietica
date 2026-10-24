@@ -87,8 +87,8 @@
  * 中性灰在浅底上比底色还浅，半透明前景自己会跟着底色深浅走，深色主题下不用另写一套。
  */
 .diff-line__number {
-  color: color-mix(in srgb, var(--color-foreground) 30%, transparent);
-  font-family: var(--font-sans);
+  color: color-mix(in srgb, var(--ui-foreground) 30%, transparent);
+  font-family: var(--ui-font-sans);
   font-size: 12px;
 }
 

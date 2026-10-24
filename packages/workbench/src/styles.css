@@ -103,8 +103,8 @@
 .workspace-shell__divider::after {
   --workspace-divider-grip: color-mix(
     in oklab,
-    var(--color-foreground) 22%,
-    var(--workspace-divider-line, var(--color-divider))
+    var(--ui-foreground) 22%,
+    var(--workspace-divider-line, var(--ui-divider))
   );
 
   content: '';
@@ -128,7 +128,7 @@
 }
 
 :root:not([data-theme='dark']) .workspace-shell__divider--auxiliary::after {
-  --workspace-divider-grip: color-mix(in oklab, var(--color-foreground) 14%, var(--workspace-divider-line));
+  --workspace-divider-grip: color-mix(in oklab, var(--ui-foreground) 14%, var(--workspace-divider-line));
 }
 
 /* :not 隔离两侧开关；辅助面板全屏时主列消失，其末像素上的分隔线也须隐藏。 */

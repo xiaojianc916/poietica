@@ -14,5 +14,5 @@
 }
 
 .catalog-card:hover .catalog-card__install-btn:not(:disabled) {
-  background-color: color-mix(in srgb, var(--color-divider) 70%, transparent);
+  background-color: color-mix(in srgb, var(--ui-divider) 70%, transparent);
 }

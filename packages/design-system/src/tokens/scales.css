@@ -7,6 +7,12 @@
   --ui-radius-xl: 0.75rem;
   /* 浮层卡那一档 = DSH 正本的 --dsw-radius-lg。 */
   --ui-radius-2xl: 1rem;
+  /*
+   * 胶囊（药丸、圆钮、全圆行）：全圆的那一档。写 9999px 而不是 999px —— 计算值无关紧要，
+   * 盒子短边永远小于它，两者渲染相同；统一取一个数只是为了让「胶囊」这一个角色只有一个名字。
+   * 50% 是圆/椭圆（会随内容宽高变形），不是胶囊，不读这一档。
+   */
+  --ui-radius-full: 9999px;
 
   --ui-duration-fast: 120ms;
   --ui-duration-normal: 180ms;

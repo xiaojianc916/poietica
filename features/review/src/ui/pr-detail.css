@@ -40,29 +40,29 @@
 }
 
 .pr-detail__comment {
-  background: var(--color-surface);
+  background: var(--ui-surface);
 }
 
 .pr-detail__note {
   padding: 12px;
-  border-radius: var(--radius-lg);
-  color: var(--color-muted-foreground);
+  border-radius: var(--ui-radius-lg);
+  color: var(--ui-muted-foreground);
   font-size: 0.8125rem;
   line-height: 1.6;
 }
 
 .pr-detail__input {
-  background: var(--color-surface);
-  border: 1px solid var(--color-border);
+  background: var(--ui-surface);
+  border: 1px solid var(--ui-border);
 }
 
 .pr-detail__input:focus-within {
-  border-color: var(--color-ring);
+  border-color: var(--ui-ring);
 }
 
 .pr-detail__skeleton {
-  border-radius: var(--radius-md);
-  background: var(--color-muted);
+  border-radius: var(--ui-radius-md);
+  background: var(--ui-muted);
   opacity: 0.5;
 }
 /* 评论区与正文之间那道线：它把「这条 PR 说了什么」与「大家说了什么」分开。 */

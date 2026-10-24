@@ -118,7 +118,7 @@
   inset-block-start: var(--cp-tile-inset);
   inset-inline-end: var(--cp-tile-inset);
   border: 0;
-  border-radius: 9999px;
+  border-radius: var(--ui-radius-full);
   padding: 0;
   background: var(--cp-tile-badge-face);
   color: var(--cp-tile-badge-ink);

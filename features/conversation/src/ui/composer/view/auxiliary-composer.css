@@ -33,7 +33,7 @@
   gap: var(--cp-control-gap);
   padding-inline: var(--cp-inset);
   border: var(--cp-px) solid var(--cp-edge);
-  border-radius: 9999px;
+  border-radius: var(--ui-radius-full);
   background: var(--cp-surface);
   /* 影比输入卡那一档（--cp-lift）轻：这一条只有一行高。 */
   box-shadow: var(--ui-shadow-sm);

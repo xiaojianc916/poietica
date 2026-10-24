@@ -131,7 +131,7 @@ textarea[data-slot='prompt-input-editor']::placeholder {
   flex: none;
   place-items: center;
   border: 0;
-  border-radius: 9999px;
+  border-radius: var(--ui-radius-full);
   padding: 0;
   background: var(--cp-accent);
   color: var(--cp-accent-foreground);

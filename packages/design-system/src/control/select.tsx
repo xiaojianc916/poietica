@@ -60,11 +60,11 @@ const TRIGGER = cn(
   'disabled:cursor-not-allowed disabled:opacity-50',
   'h-7 max-w-full rounded-md pl-2 pr-1 text-sm leading-relaxed',
   /*
-   * 框色不在这里给：`* { border-color: var(--color-divider) }` 是无层规则，压得过 utilities。
+   * 框色不在这里给：`* { border-color: var(--ui-divider) }` 是无层规则，压得过 utilities。
    * 这里只挂 ds-select-trigger，框色由 control/menu.css 里那条无层规则统一声明。
    */
   'ds-select-trigger',
-  'bg-[var(--color-input-surface)]',
+  'bg-[var(--ui-input-surface)]',
 )
 
 /*
@@ -191,7 +191,7 @@ export function Select<TValue extends string = string>({
           {/*
            * 与 DropdownMenu 戴同一组卡面类（menuCardClassName 里的 ds-menu-card 是边框色与两个行
            * 变体的挂点）：只戴 popupSurfaceClassName 的话，边框色会落回全局
-           * `* { border-color: var(--color-divider) }`，同一个应用里就出现两种菜单框。
+           * `* { border-color: var(--ui-divider) }`，同一个应用里就出现两种菜单框。
            */}
           <BaseSelect.Popup
             className={cn(popupSurfaceClassName, menuCardClassName)}

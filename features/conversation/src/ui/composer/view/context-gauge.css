@@ -35,13 +35,7 @@
   --gauge-ring-track: #ffffff29;
   --gauge-ring-color: #adb2b8;
 
-  --gauge-tint-system: #adb2b8;
-  --gauge-tint-tools: #a78bfa;
-  --gauge-tint-messages: #4d93f8;
-  --gauge-tint-context: #4ed17e;
-  --gauge-tint-skills: #f7ad31;
-  --gauge-tint-cache: #979da6;
-  --gauge-tint-spend: #cfd3d6;
+  /* --gauge-tint-* 七条与浅色逐字相同（分类色不跟主题翻），删掉重复声明、由浅色块继承。 */
 
   --gauge-panel: rgb(67 69 74 / 45.1%);
   --gauge-panel-frame: rgb(255 255 255 / 5.9%);
@@ -148,7 +142,7 @@
 /* 面板落在 body 下，尺寸与配色只走 --gauge-*；位置由 JS 写进行内 style，这里只负责长相与栈序。 */
 .context-gauge__panel {
   position: fixed;
-  z-index: var(--ui-z-popover, 110);
+  z-index: var(--ui-z-popover);
   box-sizing: border-box;
   width: min(264px, 100vw - 24px);
   padding: 12px;

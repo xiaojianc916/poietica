@@ -20,7 +20,7 @@
   border-radius: 6px;
   background: color-mix(in srgb, currentColor 8%, transparent);
   padding: 2px 6px;
-  font-family: var(--font-mono, monospace);
+  font-family: var(--ui-font-mono);
   font-size: 11px;
   opacity: 0.6;
 }
@@ -92,7 +92,7 @@
 }
 
 :root[data-theme='dark'] .review-card__head-row {
-  --review-head-hover: color-mix(in srgb, var(--ui-palette-white) 5%, transparent);
+  --review-head-hover: color-mix(in srgb, #ffffff 5%, transparent);
 }
 
 /* 卡头钉在滚动口上缘：滚到哪张卡，哪张卡的文件名就停在工具条下面。底色必须给且必须不透明 —— 铺满整宽的只有这一层底色，
@@ -173,10 +173,10 @@
   --review-splitter-glow: linear-gradient(
     to bottom,
     transparent,
-    color-mix(in oklab, var(--color-foreground) 14%, #ededed),
+    color-mix(in oklab, var(--ui-foreground) 14%, #ededed),
     transparent
   );
-  --review-splitter-active: color-mix(in oklab, var(--color-foreground) 8%, #ededed);
+  --review-splitter-active: color-mix(in oklab, var(--ui-foreground) 8%, #ededed);
 
   position: absolute;
   inset-block: 0;
@@ -189,10 +189,10 @@
   --review-splitter-glow: linear-gradient(
     to bottom,
     transparent,
-    color-mix(in srgb, var(--ui-palette-white) 12%, transparent),
+    color-mix(in srgb, #ffffff 12%, transparent),
     transparent
   );
-  --review-splitter-active: color-mix(in srgb, var(--ui-palette-white) 12%, transparent);
+  --review-splitter-active: color-mix(in srgb, #ffffff 12%, transparent);
 }
 
 /* 与外壳 .workspace-shell__divider::after 同形：一道上下渐隐、中间 1.5px 的竖条。hover 要够 50ms 才浮现，擦边划过不闪；
