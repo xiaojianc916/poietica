@@ -3,8 +3,8 @@
  * 在本机完成一次发布：bun release [patch|minor|major|版本号] [--yes] [--draft]
  *
  * 构建、上传、验通道全部在本地用 gh 完成：不依赖仓库 Secret、不等 CI 排队，失败立刻回滚；
- * 代价是构建的十几分钟里终端得开着。`.github/workflows/release.yml` 那条链由 tag 触发、
- * 只建草稿，这条链默认直接发正式版。
+ * 代价是构建的十几分钟里终端得开着。这是**唯一**的发布链：`.github/workflows/` 下只有 CI，
+ * 不按 tag 发版（推 tag 只用于留档，不触发任何自动化）。
  */
 
 import { spawnSync } from 'node:child_process'
@@ -586,7 +586,10 @@ async function commitAndTag(tag: string, branch: string, state: PublishState): P
   versionFilesDirty = false
 
   run('git', 'tag', '-a', tag, '-m', tag)
-  run('git', 'push', 'origin', branch, '--follow-tags')
+  /* 只推这一次的 tag：`--follow-tags` 会把本地**所有**注解 tag 一起推出去。仓库里躺着
+     历史发布失败后被回滚掉的 v0.2.10 / v0.2.11，一次 --follow-tags 就把它们复活到远端 ——
+     远端多出两个没有 release 的版本 tag，任何按 tag 触发的自动化都会跟着跑一遍。 */
+  run('git', 'push', 'origin', branch, `refs/tags/${tag}`)
   state.tagPushed = true
 }
 

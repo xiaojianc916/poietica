@@ -9,7 +9,7 @@
   "scripts": {
     "dev": "electron-vite dev -c electron.vite.config.ts --",
     "build": "electron-vite build -c electron.vite.config.ts",
-    "package": "electron-builder --config electron-builder.yml --win --publish never",
+    "package": "bunx install-electron && electron-builder --config electron-builder.yml --win --publish never",
     "dist": "electron-vite build -c electron.vite.config.ts && bun run package"
   },
   "dependencies": {

@@ -16,7 +16,6 @@
 | `docs/ARCHITECTURE.md`      | 现状架构：分层、进程、契约、数据归属、测试策略、扩展配方                                                               |
 | `docs/refactor-log.md`      | 进度、**偏差**（与方案不一致之处及原因）、**待决问题**                                                                 |
 | `docs/omp-sdk-reference.md` | 随包 omp 的精确 API（带源码行号；`bun run lint` 会核对锚点是否跟得上随包版本）。写 engine-omp 之前先查这里，不要凭记忆 |
-| `docs/release-notes/`       | 每个版本的发布说明                                                                                                     |
 
 ## 2. 环境与命令
 
@@ -184,7 +183,7 @@ L0  foundation
 - **加功能**：`bun run new:feature <id> --parts … [--tier <0-4>]`（登记功能分级，缺省 4 = 插件）→ 写 contract → 在 protocol 登记并提升版本 → 实现 core / host（服务、仓储、迁移、handlers）→ 实现 ui → 三个清单各加一行 → 写测试 → `refs` + `protocol:snapshot` + `check`。完整步骤见 ARCHITECTURE §9。
 - **加或删一个 RPC 方法**：改 contract → 实现 handler → 提升 `PROTOCOL_VERSION` → `protocol:snapshot`。
 - **升级 omp**：改 catalog 里四个 `@oh-my-pi/*` 的版本（版本号只有这一个产地）→ `bun install` → 跑 `bun run check:omp-doc:write` 刷 `docs/omp-sdk-reference.md` 的行号锚点，再对照它与代码里的「omp 知识 #N」注释（`rg "omp 知识 #" packages/engine-omp`）逐项核对会话文件格式、设置键、工具名、事件形状（浏览器 relay 协议由 `browser-relay-conformance.ts` 在 typecheck 里核对，类型报错即漂移）→ 核对结果写进 refactor-log → `core:build` + `core:probe` + `check`。核对完成前不合并。
-- **发布**：`bun run version:set <x.y.z>` → 提交 → 打 tag `v<x.y.z>` 并推送 → release 工作流出草稿 → 在干净虚拟机上人工验收 → 转为正式发布。
+- **发布**：`bun run release`（本机链，唯一一条：门禁 → 写版本号 → 构建 + 冒烟 → 推 tag → `gh` 建 release → 验通道）。`.github/workflows/` 只有 CI，不按 tag 发版；`docs/release-notes/` 已删，说明走 `--generate-notes`。
 
 ## 12. 工作方式
 

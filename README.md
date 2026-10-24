@@ -107,7 +107,6 @@ bun run dev          # 构建 Core 后启动 electron-vite 开发模式
 | `AGENTS.md`                 | 工作守则与边界铁律（AI 与人类贡献者都先读这一页）           |
 | `docs/omp-sdk-reference.md` | 随包 omp 的精确 API（带源码行号），写 engine-omp 前先查这里 |
 | `docs/refactor-log.md`      | 重构进度、偏差、待决问题                                    |
-| `docs/release-notes/`       | 每个版本的发布说明                                          |
 
 ## 贡献
 

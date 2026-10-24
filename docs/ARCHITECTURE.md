@@ -209,6 +209,6 @@ omp 的版本锁在根 `package.json` 的 catalog（四个 `@oh-my-pi/*` 同一�
 按 16 页 §5 的陷阱表逐项核对（会话文件、设置键、工具名、事件形状……；浏览器 relay 协议由 typecheck 机检）→
 记录到 `docs/refactor-log.md` → `bun run core:build` + `core:probe` + `bun run  all`。
 
-**发布**：`bun run version:set <x.y.z>`（唯一入口，同时改根、desktop 与 core）→ 提交 →
-`git tag v<x.y.z>` → 推送 tag → release 工作流构建、冒烟、创建草稿 → 人工在干净虚拟机上验收 →
-把草稿改为正式发布。
+**发布**：`bun run release`（本机链：门禁 → 写版本号 → 构建 + 冒烟 → 推 tag → `gh` 建 release →
+验通道）。它自己调 `bun run version:set`，所以不要再手工跑一遍；`docs/release-notes/` 已不存在，
+发布说明走 `gh release create --generate-notes`。
