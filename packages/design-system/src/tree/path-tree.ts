@@ -35,12 +35,19 @@ interface Branch {
 export function pathTreeRows(paths: readonly string[], collapsed: ReadonlySet<string>): readonly PathTreeNode[] {
   const tree = branch()
   for (const held of [...paths].sort((left, right) => left.localeCompare(right))) {
-    const parts = held.split('/')
+    /* 逐段切而不是 split + slice：split 会为每条路径建一整张数组、slice 再建一张，切片只在插树时用一次。 */
     let here = tree
-    for (const part of parts.slice(0, -1)) {
+    let from = 0
+    for (;;) {
+      const cut = held.indexOf('/', from)
+      if (cut < 0) {
+        break
+      }
+      const part = held.slice(from, cut)
       const next = here.folders.get(part) ?? branch()
       here.folders.set(part, next)
       here = next
+      from = cut + 1
     }
     here.files.push(held)
   }
@@ -59,7 +66,8 @@ function walk(here: Branch, prefix: string, depth: number, collapsed: ReadonlySe
     let label = name
     let key = prefix === '' ? name : `${prefix}/${name}`
     while (folder.files.length === 0 && folder.folders.size === 1) {
-      const only = [...folder.folders.entries()][0]
+      /* 只取第一个：展开成数组再取 [0] 会为每个并段分配一张整表（几千条路径就是几千次）。 */
+      const only = folder.folders.entries().next().value
       if (only === undefined) {
         break
       }
