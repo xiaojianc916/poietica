@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test'
-import type { MenuItemConstructorOptions } from 'electron'
+import type { Menu, MenuItemConstructorOptions } from 'electron'
 import { createTray } from '../tray'
 
 describe('tray', () => {
@@ -33,6 +33,9 @@ describe('tray', () => {
         menuCalls.push(`hidden:${!visible}`)
         return {
           setContextMenu() {},
+          popUpContextMenu(menu?: Menu) {
+            menuCalls.push(`popup:${menu === undefined}`)
+          },
           on(event, listener) {
             events.set(event, listener)
             return this
@@ -44,6 +47,7 @@ describe('tray', () => {
       },
     })
     events.get('click')?.()
+    events.get('right-click')?.()
     menuCalls.push(`visible:${visible}`)
     disposable.dispose()
 
@@ -52,6 +56,7 @@ describe('tray', () => {
       'menu:显示主窗口,隐藏主窗口,退出',
       'quit',
       'hidden:true',
+      'popup:true',
       'visible:true',
     ])
     expect(visible).toBe(true)

@@ -1,8 +1,8 @@
 import type { Disposable } from '@poietica/foundation'
 import type { MenuItemConstructorOptions, Tray } from 'electron'
 
-type TrayPort = Pick<Tray, 'destroy'> & {
-  on(event: 'click', listener: () => void): unknown
+type TrayPort = Pick<Tray, 'destroy' | 'popUpContextMenu' | 'setContextMenu'> & {
+  on(event: 'click' | 'right-click', listener: () => void): unknown
 }
 
 export function createTray(d: {
@@ -18,6 +18,7 @@ export function createTray(d: {
     { label: '退出', click: d.quit },
   ]
   const tray = d.create(d.icon, menu)
+  tray.on('right-click', () => tray.popUpContextMenu())
   tray.on('click', d.focusMain)
   return { dispose: () => tray.destroy() }
 }
