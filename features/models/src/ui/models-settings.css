@@ -1,4 +1,6 @@
-/* **逐字迁移**自 legacy `packages/settings/src/ui/models/models-settings.css`：类名与数值一个字未改，页面结构与 legacy 逐格对应。 */
+/* **逐字迁移**自 legacy `packages/settings/src/ui/models/models-settings.css`：类名与数值一个字未改，页面结构与 legacy 逐格对应。
+ * 深色那几档灰原来散在七条规则里，收敛成本页变量（数值未动）：悬停抬一档 #2e2e2e（四条触发条/轨道）、
+ * 滑块抬一档 #424242（两处）、目录行悬停 #303030 —— 与 #2e2e2e 是同一意图的不同档，见 refactor-log Q。 */
 .models-page {
   --models-surface: var(--settings-surface);
   --models-divider: var(--settings-divider);
@@ -6,6 +8,12 @@
   display: flex;
   flex-direction: column;
   gap: 20px;
+}
+
+:root[data-theme='dark'] .models-page {
+  --models-hover-lift: #2e2e2e;
+  --models-thumb-lift: #424242;
+  --models-catalog-hover: #303030;
 }
 .models-block {
   display: flex;
@@ -186,7 +194,7 @@
 
 /* 深色下 hover 自成一格：卡面 #232323 上抬一档，浅色那两格在深色里是两块白。 */
 :root[data-theme='dark'] .models-accordion-trigger:hover {
-  background: #2e2e2e;
+  background: var(--models-hover-lift);
 }
 .models-accordion-panel {
   height: var(--accordion-panel-height);
@@ -256,11 +264,11 @@
 
 /* 这一处比组件默认亮一格；带 .segmented-control 才压得过组件自己的 dark 规则。 */
 :root[data-theme='dark'] .segmented-control.models-add-modes {
-  background: #2e2e2e;
+  background: var(--models-hover-lift);
 }
 
 :root[data-theme='dark'] .models-add-modes .segmented-control__thumb {
-  background: #424242;
+  background: var(--models-thumb-lift);
 }
 
 .models-tab-panel {
@@ -322,7 +330,7 @@
 
 /* 深色下同 accordion 触发条：浅色那格是整行白，另给一档。 */
 :root[data-theme='dark'] .models-catalog-row:hover:not(:disabled) {
-  background: #303030;
+  background: var(--models-catalog-hover);
 }
 
 .models-catalog-row:disabled {
@@ -499,10 +507,10 @@
   gap: 12px;
 }
 :root[data-theme='dark'] .segmented-control.models-auth__methods {
-  background: #2e2e2e;
+  background: var(--models-hover-lift);
 }
 :root[data-theme='dark'] .models-auth__methods .segmented-control__thumb {
-  background: #424242;
+  background: var(--models-thumb-lift);
 }
 .models-auth__row {
   display: flex;
@@ -711,7 +719,7 @@
   background: var(--ui-accent);
 }
 :root[data-theme='dark'] .model-roles__trigger:hover {
-  background: #2e2e2e;
+  background: var(--models-hover-lift);
 }
 .model-roles__trigger:focus-visible {
   outline: 2px solid var(--ui-ring);

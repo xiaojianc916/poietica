@@ -1,4 +1,5 @@
-/* 与报错行同列左齐；字色跟报错行的次要字，不抢那一行的红。 */
+/* 与报错行同列左齐；字色跟报错行的次要字，不抢那一行的红。令牌来自 [data-assistant-skin]，
+ * 不写兜底值（兜底必然是浅色假设，深色主题下就是黑字压近黑底）。 */
 .timeline-retry {
   display: flex;
   padding: 4px 0;
@@ -9,16 +10,16 @@
   align-items: center;
   gap: 6px;
   padding: 4px 10px;
-  border: 1px solid var(--cp-hairline, rgb(0 0 0 / 8%));
+  border: 1px solid var(--cp-hairline);
   border-radius: 8px;
   background: transparent;
-  color: var(--cp-ink-muted, #61666b);
+  color: var(--cp-ink-muted);
   font-size: var(--cp-font-caption, 12px);
   cursor: pointer;
 }
 
 .timeline-retry__action:hover {
-  background: var(--cp-hover, rgb(0 0 0 / 4%));
+  background: var(--cp-hover);
 }
 
 .timeline-retry__mark {

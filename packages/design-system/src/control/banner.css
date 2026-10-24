@@ -12,8 +12,8 @@
   position: fixed;
   top: 40px;
   left: 50%;
-  /* 压在图片灯箱(1000)之上：预览开着的时候报出来的事也必须读得到。 */
-  z-index: 1100;
+  /* 栈序读 layers.css 那张表（banner 层），数值上还压过第三方图片灯箱（yarl 容器 1000）。 */
+  z-index: var(--ui-z-banner);
   /* 通知从不接指针。 */
   pointer-events: none;
   display: flex;
@@ -68,13 +68,16 @@
  * 念过一遍。
  */
 .ui-banner__progress {
+  /* 轨道色：卡面在两个主题下都是深色（见 .ui-banner），轨道是卡面上的一条细槽。 */
+  --banner-progress-track: rgb(255 255 255 / 18%);
+
   position: absolute;
   right: 16px;
   bottom: 6px;
   left: 16px;
   height: 3px;
   border-radius: 999px;
-  background: var(--banner-progress-track, rgb(255 255 255 / 18%));
+  background: var(--banner-progress-track);
   overflow: hidden;
 }
 

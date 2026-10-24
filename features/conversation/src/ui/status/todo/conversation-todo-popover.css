@@ -37,19 +37,23 @@
 /*
  * 展开态：右上浮卡片。卡片外观画在壳上，滚动交给里面的 __scroll —— 收起钮才不会跟着内容滚走。
  * max-block-size 用**视口**高度而不是百分比：百分比挂在 canvas 上，正文越长它越怪。
+ * 壳的取值与折叠悬浮卡（todo-panel.css 的 --status-panel-shell 族）是同一张壳：挂载点跨皮肤内外，
+ * 做不到一份定义，两边注释互相点名，改一处核另一处。
  */
 .conversation-todo-popover__surface {
+  --todo-shell-frame: #2b2b2b;
+  --todo-shell: var(--cp-ground);
+  --todo-shell-shadow: 0 4px 6px -1px rgb(0 0 0 / 10%), 0 2px 4px -2px rgb(0 0 0 / 10%);
+
   position: absolute;
   inset-block-start: var(--conversation-todo-gap);
   inset-inline-end: var(--conversation-todo-gap);
   overflow: hidden;
-  border: 1px solid #2b2b2b;
+  border: 1px solid var(--todo-shell-frame);
   border-radius: 16px;
-  background: var(--cp-ground);
+  background: var(--todo-shell);
   color: var(--cp-ink);
-  box-shadow:
-    0 4px 6px -1px rgb(0 0 0 / 10%),
-    0 2px 4px -2px rgb(0 0 0 / 10%);
+  box-shadow: var(--todo-shell-shadow);
   display: flex;
   inline-size: var(--conversation-todo-width);
   max-inline-size: calc(100% - var(--conversation-todo-gap) - var(--conversation-todo-gap));
@@ -95,5 +99,5 @@
 
 /* 深色下 --cp-ground 与地色齐平，只剩一圈边线；抬一档。产品指定 #202020，外框 #2b2b2b。 */
 :root[data-theme='dark'] .conversation-todo-popover__surface {
-  background: #202020;
+  --todo-shell: #202020;
 }

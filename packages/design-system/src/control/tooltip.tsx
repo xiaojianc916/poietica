@@ -3,7 +3,6 @@ import type { ComponentProps } from 'react'
 import { cn } from '../class-names'
 import { useOverlayRef } from '../overlay-presence'
 import { popupPositionerClassName } from './popup-surface'
-import './tooltip.css'
 
 /*
  * 三个部件都从 Base UI 的命名空间直接展平，不再手搓转发：从 Radix 迁到 Base UI 只做了一半 ——
@@ -28,10 +27,9 @@ const TooltipRoot = Tooltip.Root
 const TooltipTrigger = Tooltip.Trigger
 
 /*
- * 浅色下气泡反色：提示与它解释的界面对调明暗，才不会被读成界面的一部分。反色的来源是主题
- * 令牌，不是 dark: 变体 —— 后者读的是 prefers-color-scheme，用户手动切主题时会脱钩。
- *
- * 深色下不反色，改读 tooltip.css 那一格：深色界面里反色是一块近白，比它解释的任何东西都亮。
+ * 气泡的底与字只有令牌一个产地（tokens/light.css 与 dark.css 的 --ui-tooltip-*）：
+ * 浅色反色（与它解释的界面对调明暗），深色改凹面（深色界面里反色是一块近白，比它解释的
+ * 任何东西都亮）。主题差异全在令牌层，这里不写 [data-theme] 覆盖。
  *
  * 进出动画交给 Base UI 的 data-starting-style / data-ending-style。
  */
@@ -53,7 +51,7 @@ function TooltipContent({
         <Tooltip.Popup
           className={cn(
             'ui-tooltip overflow-hidden rounded-md px-3 py-1.5 text-xs',
-            'bg-foreground text-background',
+            'bg-[var(--ui-tooltip-surface)] text-[var(--ui-tooltip-ink)]',
             'origin-[var(--transform-origin)]',
             'transition-[transform,scale,opacity]',
             'duration-[var(--ui-duration-fast)] ease-[var(--ui-ease-standard)]',

@@ -5,12 +5,14 @@
 
 .review-commit-menu [role='menuitem'][data-highlighted],
 .review-commit-menu [role='menuitem']:focus {
-  background-color: #f2f3f3;
+  --review-menu-highlight: #f2f3f3;
+
+  background-color: var(--review-menu-highlight);
 }
 
 :root[data-theme='dark'] .review-commit-menu [role='menuitem'][data-highlighted],
 :root[data-theme='dark'] .review-commit-menu [role='menuitem']:focus {
-  background-color: var(--ui-popup-highlight);
+  --review-menu-highlight: var(--ui-popup-highlight);
 }
 
 .review-commit-kbd {
@@ -23,18 +25,15 @@
   opacity: 0.6;
 }
 
+/* 坞内分隔线读 --ui-dock-rule（与文件格、外壳工具栏同一对，主题差异在令牌层）。 */
 .review-rule {
-  border-bottom: 1px solid var(--ui-card-divider);
+  border-bottom: 1px solid var(--ui-dock-rule);
 }
 
-:root[data-theme='dark'] .review-rule {
-  border-bottom-color: color-mix(in srgb, currentColor 10%, transparent);
-}
-
-/* 浅色是产品指定的 #ededed（--ui-card-divider 的正身），深色随令牌转成前景半透明。色写在类里而非 Tailwind 工具类 ——
+/* 浅色是产品指定的 #ededed（--ui-card-divider 的正身）。色写在类里而非 Tailwind 工具类 ——
  * app.css 的无层级通配规则压过 utilities 层。 */
 .review-filter {
-  border: 1px solid var(--ui-card-divider);
+  border: 1px solid var(--ui-dock-rule);
 }
 
 /* 树行与引导线的样式随 FileTree 下沉到 design-system（tree/file-tree.css）；这里只留审查自己的那一条：
@@ -45,10 +44,15 @@
 
 /* 变更徽章：新增 U、删除 D 都是裸字母（不要框），改写是方框里一个点。外框用 box-shadow 画不用 border：Chromium 对 border-width
  * 另有一套吸附，1px 与 1.3333px 画出来一样宽；box-shadow 照写的值画，1.3333px 在 150% 缩放下就是屏幕上 2 个设备像素
- * （4/3 = 2 ÷ 1.5）。要动这个数，先量再改。色必须写在这里：app.css 的无层级通配规则会把 border-color 钉住，组件里改不动。 */
+ * （4/3 = 2 ÷ 1.5）。要动这个数，先量再改。色必须写在这里：app.css 的无层级通配规则会把 border-color 钉住，组件里改不动。
+ * 徽章的墨是审查自己的色族（对着参考图量过），与 diff/surface.css 的竖线色部分同值部分差一，不共用（见 refactor-log Q）。 */
 .review-mark {
+  --review-mark-modified: #923b0f;
+  --review-mark-added: #00a240;
+  --review-mark-deleted: #ba2724;
+
   box-shadow: 0 0 0 1.3333px currentColor;
-  color: #923b0f;
+  color: var(--review-mark-modified);
 }
 
 .review-mark[data-status='added'],
@@ -59,43 +63,36 @@
 
 .review-mark[data-status='added'],
 .review-mark[data-status='untracked'] {
-  color: #00a240;
+  color: var(--review-mark-added);
 }
 
 .review-mark[data-status='deleted'] {
-  color: #ba2724;
+  color: var(--review-mark-deleted);
 }
 
 :root[data-theme='dark'] .review-mark {
-  color: #ff8549;
+  --review-mark-modified: #ff8549;
+  --review-mark-added: #40c977;
+  --review-mark-deleted: #f9423e;
 }
 
-:root[data-theme='dark'] .review-mark[data-status='added'],
-:root[data-theme='dark'] .review-mark[data-status='untracked'] {
-  color: #40c977;
-}
-
-:root[data-theme='dark'] .review-mark[data-status='deleted'] {
-  color: #f9423e;
-}
-
-/* 菜单触发器打开时也取这一档（data-popup-open）：弹窗盖住的正是按钮本身，补这一档指针移开才留有反馈。 */
+/* 菜单触发器打开时也取这一档（data-popup-open）：弹窗盖住的正是按钮本身，补这一档指针移开才留有反馈。
+ * 悬停底读 --ui-dock-hover（与文件格的工具键同一对）。 */
 .review-toolbar-action:hover,
 .review-toolbar-action[data-popup-open] {
-  background-color: #f2f3f3;
+  background-color: var(--ui-dock-hover);
 }
 
-:root[data-theme='dark'] .review-toolbar-action:hover,
-:root[data-theme='dark'] .review-toolbar-action[data-popup-open] {
-  background-color: color-mix(in srgb, #ffffff 10%, transparent);
+.review-card__head-row {
+  --review-head-hover: #f1f2f2;
 }
 
 .review-card__head-row:hover {
-  background: #f1f2f2;
+  background: var(--review-head-hover);
 }
 
-:root[data-theme='dark'] .review-card__head-row:hover {
-  background: color-mix(in srgb, #ffffff 5%, transparent);
+:root[data-theme='dark'] .review-card__head-row {
+  --review-head-hover: color-mix(in srgb, var(--ui-palette-white) 5%, transparent);
 }
 
 /* 卡头钉在滚动口上缘：滚到哪张卡，哪张卡的文件名就停在工具条下面。底色必须给且必须不透明 —— 铺满整宽的只有这一层底色，
@@ -120,15 +117,18 @@
 /* 整条与卡同宽的带子，一句话落在正中。与 <Note> 那一句不是一回事 —— Note 是「这里有一句说明」，这条是「这一格空着」。
  * 深色那一对（#282828 的带子、#9f9f9f 的字）对着截图量过。 */
 .review-empty {
+  --review-empty-surface: var(--ui-sunken);
+  --review-empty-ink: #8c8c8c;
+
   /* 上下各留一条地色缝：药丸 #242424 与带子 #282828 只差 4 格灰，贴在一起会读成一整块。 */
   margin-block: 4px;
-  background: var(--ui-sunken);
-  color: #8c8c8c;
+  background: var(--review-empty-surface);
+  color: var(--review-empty-ink);
 }
 
 :root[data-theme='dark'] .review-empty {
-  background: #282828;
-  color: #9f9f9f;
+  --review-empty-surface: #282828;
+  --review-empty-ink: #9f9f9f;
 }
 
 /* 也是折叠带宽度的容器查询参照（--diff-row-inline-size 量测落地前的回退）；横向不滚，所以只要 inline-size。 */
@@ -166,17 +166,33 @@
   overflow: clip;
 }
 
-/* 底面贴列的 inline-end：列收窄时从左侧被裁，内容不位移。 */
+/* 底面贴列的 inline-end：列收窄时从左侧被裁，内容不位移。线读 --ui-dock-rule；
+ * 抓手的渐变与强调态线是这一格自己的产品取值（#ededed 是浅色分量，兑好的实色），定义在本体、
+ * ::after 只消费，深色改写在下面的 dark 块。 */
 .review-tree__surface {
+  --review-splitter-glow: linear-gradient(
+    to bottom,
+    transparent,
+    color-mix(in oklab, var(--color-foreground) 14%, #ededed),
+    transparent
+  );
+  --review-splitter-active: color-mix(in oklab, var(--color-foreground) 8%, #ededed);
+
   position: absolute;
   inset-block: 0;
   inset-inline-end: 0;
-  border-inline-start: 1px solid var(--ui-card-divider);
+  border-inline-start: 1px solid var(--ui-dock-rule);
   transition: border-inline-start-color var(--workspace-layout-duration) ease;
 }
 
 :root[data-theme='dark'] .review-tree__surface {
-  border-inline-start-color: color-mix(in srgb, currentColor 10%, transparent);
+  --review-splitter-glow: linear-gradient(
+    to bottom,
+    transparent,
+    color-mix(in srgb, var(--ui-palette-white) 12%, transparent),
+    transparent
+  );
+  --review-splitter-active: color-mix(in srgb, var(--ui-palette-white) 12%, transparent);
 }
 
 /* 与外壳 .workspace-shell__divider::after 同形：一道上下渐隐、中间 1.5px 的竖条。hover 要够 50ms 才浮现，擦边划过不闪；
@@ -188,24 +204,15 @@
   inset-block: 0;
   inset-inline-start: calc(-1.25 * var(--ui-region-divider-width));
   inline-size: calc(var(--ui-region-divider-width) * 1.5);
-  background: linear-gradient(
-    to bottom,
-    transparent,
-    color-mix(in oklab, var(--color-foreground) 14%, #ededed),
-    transparent
-  );
+  background: var(--review-splitter-glow);
   opacity: 0;
   transition: opacity var(--workspace-layout-duration) ease;
   pointer-events: none;
 }
 
-:root[data-theme='dark'] .review-tree__surface::after {
-  background: linear-gradient(to bottom, transparent, color-mix(in srgb, #ffffff 12%, transparent), transparent);
-}
-
 .review-pane[data-splitter='hover'] .review-tree__surface,
 .review-pane[data-splitter='drag'] .review-tree__surface {
-  border-inline-start-color: color-mix(in oklab, var(--color-foreground) 8%, #ededed);
+  border-inline-start-color: var(--review-splitter-active);
 }
 
 .review-pane[data-splitter='hover'] .review-tree__surface::after {
@@ -215,11 +222,6 @@
 
 .review-pane[data-splitter='drag'] .review-tree__surface::after {
   opacity: 1;
-}
-
-:root[data-theme='dark'] .review-pane[data-splitter='hover'] .review-tree__surface,
-:root[data-theme='dark'] .review-pane[data-splitter='drag'] .review-tree__surface {
-  border-inline-start-color: color-mix(in srgb, #ffffff 12%, transparent);
 }
 
 .review-tree__scroll {

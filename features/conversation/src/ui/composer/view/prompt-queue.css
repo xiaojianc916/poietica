@@ -20,21 +20,17 @@
   box-shadow: var(--ui-popup-elevation);
 }
 
-/* z-index:-1 配 isolation，把这层底关在这张卡自己的层叠上下文里，不会漏到外面。 */
+/* z-index:-1 配 isolation，把这层底关在这张卡自己的层叠上下文里，不会漏到外面。
+ * 底与材质读 --cp-dock-glass 那一对（与审批带同一张脸，主题差异在令牌层）。 */
 .prompt-queue__panel::before {
   position: absolute;
   z-index: -1;
   inset: 0;
   border-radius: inherit;
-  background: var(--ui-popup-surface);
-  backdrop-filter: blur(40px) saturate(150%);
+  background: var(--cp-dock-glass);
+  backdrop-filter: var(--cp-dock-glass-blur);
   content: '';
   pointer-events: none;
-}
-
-:root[data-theme='dark'] .prompt-queue__panel::before {
-  background: #292929;
-  backdrop-filter: none;
 }
 
 /* 折叠头是**一格**而不是一颗按钮：左边管折叠，右边贴换层图标；一行时没有这一格，它们就贴那一行的右缘。 */
@@ -190,13 +186,16 @@
 
 /* 多张时角上的 +N：压在图上，所以自带一层暗底，亮图上也读得出。 */
 .prompt-queue__thumb-more {
+  --prompt-queue-thumb-veil: rgb(0 0 0 / 0.6);
+  --prompt-queue-thumb-ink: #ffffff;
+
   position: absolute;
   inset-block-end: 1px;
   inset-inline-end: 1px;
   padding: 0 3px;
   border-radius: 4px;
-  background: rgb(0 0 0 / 0.6);
-  color: #fff;
+  background: var(--prompt-queue-thumb-veil);
+  color: var(--prompt-queue-thumb-ink);
   font-size: 10px;
   font-variant-numeric: tabular-nums;
   line-height: 12px;

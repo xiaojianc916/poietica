@@ -4,8 +4,8 @@
  * 与它相同：宽度 5px、滑块竖边 0px、轨道与四角透明、`corner-shape: round`、圆角 999px、
  * 槽边距 0px、悬停只换底色。
  *
- * 取色是实色，不是 color-mix：实色可以逐格核对，混合写的是「看起来差不多」—— 浅色
- * #e5e5e5 / 悬停 #d4d4d4，深色 #2b2b2b / 悬停 #545557。
+ * 取色（--ui-scrollbar-thumb / --ui-scrollbar-thumb-hover，两主题四档）在 tokens/light.css 与
+ * tokens/dark.css：实色可逐格核对，混合写的是「看起来差不多」。
  *
  * 槽宽只剩 --ui-scrollbar-size 这一格（整仓没有第二个值）。改它等于同时改 xterm 自绘条的
  * 宽度：终端那条不走 ::-webkit-scrollbar，读的是同一个令牌
@@ -22,14 +22,6 @@
   --ui-scrollbar-size: 5px;
   --ui-scrollbar-thumb-border: 0px;
   --ui-scrollbar-track-margin: 0px;
-  --ui-scrollbar-thumb: #e5e5e5;
-  --ui-scrollbar-thumb-hover: #d4d4d4;
-}
-
-/* 深色常态是产品指定的一格；悬停仍是 #545557。 */
-:root[data-theme='dark'] {
-  --ui-scrollbar-thumb: #2b2b2b;
-  --ui-scrollbar-thumb-hover: #545557;
 }
 
 @supports not selector(::-webkit-scrollbar) {

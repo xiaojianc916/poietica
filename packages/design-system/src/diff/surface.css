@@ -12,9 +12,17 @@
   --diff-removed-fill: #fbe6e2;
   --diff-removed-edge: #ba2623;
   --diff-removed-emphasis: #f3caca;
+  /*
+   * 删除行左缘那道 4px 条纹（亮/暗两段循环）。实色对是产品取值，与 --diff-removed-edge
+   * 近似但不同值（#ba2522 vs #ba2623，蓝通道差 1），不合并 —— 见 refactor-log 的 Q 记录。
+   */
+  --diff-removed-stripe: repeating-linear-gradient(to bottom, #ba2522 0, #ba2522 1.333px, #f3cfcb 1.333px, #f3cfcb 2px);
   /* 行号槽底色：比正文浅一档。 */
   --diff-added-gutter: #edf7ed;
   --diff-removed-gutter: #fdece9;
+  /* 折叠带（悬浮药丸）的底色：差异视图自己的产品取值，不借 --ui-chrome（窗口家具的底色）。
+   * 与 --ui-palette-neutral-75 同值但独立：那一格是窗口衬底的正本，改它不该动这张药丸。 */
+  --diff-gap-surface: #f3f3f3;
   /* 行高：行号槽与正文列共用，两处差一像素行就错位。 */
   font-family: var(--ui-font-mono);
   font-size: 12px;
@@ -29,6 +37,8 @@
   /* dark 下 fill 已重赋值，gutter 另给一套浅一档。 */
   --diff-added-gutter: #132017;
   --diff-removed-gutter: #28130e;
+  --diff-removed-stripe: repeating-linear-gradient(to bottom, #fa423e 0, #fa423e 1.333px, #51231e 1.333px, #51231e 2px);
+  --diff-gap-surface: #2f2f2f;
 }
 
 /*
@@ -67,7 +77,7 @@
   inset-inline-start: -4px;
   inline-size: 4px;
   pointer-events: none;
-  background: repeating-linear-gradient(to bottom, #ba2522 0, #ba2522 1.333px, #f3cfcb 1.333px, #f3cfcb 2px);
+  background: var(--diff-removed-stripe);
 }
 
 /*
@@ -141,11 +151,6 @@
   z-index: 1;
 }
 
-/* 深色模式下的红竖线条纹色。 */
-:root[data-theme='dark'] .diff-body .diff-line--removed::before {
-  background: repeating-linear-gradient(to bottom, #fa423e 0, #fa423e 1.333px, #51231e 1.333px, #51231e 2px);
-}
-
 /* 语法色由 shiki 给出，两套主题各一个值；选哪一套是样式的事，组件不问主题。 */
 .diff-code {
   color: var(--diff-syntax-light);
@@ -160,16 +165,12 @@
 }
 
 /*
- * 折叠带的底色：悬浮药丸只这一处取色，不跟随上面的增删色。这一格是差异视图自己的产品取值，
- * 不借 --ui-chrome（那是窗口家具的底色）。
+ * 折叠带的底色（--diff-gap-surface，取值与主题差异见 .diff-body 的变量区）：悬浮药丸只这一处
+ * 取色，不跟随上面的增删色。
  */
 .diff-gap {
-  background: #f3f3f3;
+  background: var(--diff-gap-surface);
   border-radius: 6px;
-}
-
-:root[data-theme='dark'] .diff-gap {
-  background: #2f2f2f;
 }
 
 /*

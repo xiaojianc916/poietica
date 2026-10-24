@@ -115,8 +115,8 @@ function AuxiliaryTab({
        * 行高不再写 leading-none：12px 字压进 12px 行盒，`p` `g` `y` 的下伸部会被 truncate 的 overflow
        * 切掉半截；text-xs 自带的行高就够，不另发明数字。 */
       className={
-        'flex min-w-24 max-w-44 shrink-0 items-center gap-0.5 rounded-sm py-1 pl-1.5 pr-1.5 text-xs ' +
-        (active ? 'bg-[#2a2a2a]' : 'hover:bg-[#2a2a2a]')
+        'auxiliary-dock-tab flex min-w-24 max-w-44 shrink-0 items-center gap-0.5 rounded-sm py-1 pl-1.5 pr-1.5 text-xs ' +
+        (active ? 'bg-[var(--auxiliary-tab-active)]' : 'hover:bg-[var(--auxiliary-tab-active)]')
       }
       id={id}
       onClick={(event) => {
@@ -508,7 +508,7 @@ function AuxiliaryLauncher({
         <div className="mt-6 grid gap-2">
           {offers.map((offer) => (
             <button
-              className="auxiliary-launcher flex min-h-10 items-center gap-3 rounded-lg bg-launcher px-3 text-left hover:bg-current/[7%] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-current/30"
+              className="auxiliary-launcher flex min-h-10 items-center gap-3 rounded-lg bg-launcher px-3 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-current/30"
               key={offer.kind}
               onClick={() => {
                 onOpen(offer.kind)

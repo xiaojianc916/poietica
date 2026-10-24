@@ -1,10 +1,18 @@
-/* 面板贴着输入框卡片上沿、与它同宽，向上展开；令牌取自 skin/metrics.css，浅色字面值见文件尾。 */
+/* 面板贴着输入框卡片上沿、与它同宽，向上展开；令牌取自 skin/metrics.css，取色差异见面板规则的变量。 */
 
 .composer-palette {
   position: relative;
 }
 
 .composer-palette__panel {
+  /*
+   * 浅色取设计定稿的字面值（纯白面板、#f2f3f3 悬停）；深色走菜单那对令牌。悬停不接
+   * --cp-menu-hover：那个值是 #f2f2f3，与产品定稿的 #f2f3f3 差一个通道，兑不出来。
+   * 主题差异只在下面这对变量里（dark 块改写）。
+   */
+  --composer-palette-surface: var(--ui-popover);
+  --composer-palette-hover: #f2f3f3;
+
   position: absolute;
   right: 0;
   bottom: 8px;
@@ -15,9 +23,14 @@
   max-block-size: min(290px, calc(100vh - 96px));
   overflow-y: auto;
   padding: 0;
-  background: var(--cp-menu-face);
+  background: var(--composer-palette-surface);
   border: var(--cp-px) solid var(--cp-menu-edge);
   border-radius: 12px;
+}
+
+:root[data-theme='dark'] .composer-palette__panel {
+  --composer-palette-surface: var(--cp-menu-face);
+  --composer-palette-hover: var(--cp-menu-hover);
 }
 
 .composer-palette__group {
@@ -55,7 +68,7 @@
 /* 悬停色只认 data-highlighted（指针进入时由 tsx 挪过来）：再加一份 :hover 就是两行同时亮。 */
 .composer-palette__row[data-highlighted='true'] {
   outline: none;
-  background: var(--cp-menu-hover);
+  background: var(--composer-palette-hover);
 }
 
 .composer-palette__icon {
@@ -121,14 +134,4 @@
 .composer-palette__row[data-disabled='true'] .composer-palette__label,
 .composer-palette__row[data-disabled='true'] .composer-palette__argument {
   color: var(--cp-ink-subtle);
-}
-
-/* 浅色面板取设计字面值（纯白面板、浅灰悬停），深色仍走令牌。悬停那格不接 --cp-menu-hover：
-   那个值是 #f2f2f3，与产品定稿的 #f2f3f3 差一个通道，兑不出来。 */
-:root[data-theme='light'] .composer-palette__panel {
-  background: var(--ui-popover);
-}
-
-:root[data-theme='light'] .composer-palette__row[data-highlighted='true'] {
-  background: #f2f3f3;
 }

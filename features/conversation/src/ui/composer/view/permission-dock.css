@@ -44,15 +44,10 @@
   z-index: -1;
   inset: 0;
   border-radius: inherit;
-  background: var(--ui-popup-surface);
-  backdrop-filter: blur(40px) saturate(150%);
+  background: var(--cp-dock-glass);
+  backdrop-filter: var(--cp-dock-glass-blur);
   content: '';
   pointer-events: none;
-}
-
-:root[data-theme='dark'] .assistant-approval__bar::before {
-  background: #292929;
-  backdrop-filter: none;
 }
 
 @keyframes assistant-approval-turn {

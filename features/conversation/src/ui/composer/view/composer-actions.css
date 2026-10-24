@@ -55,19 +55,21 @@
  * 是屏幕上的两格。4/3 = 2 ÷ 1.5。要动这个数，先量再改。
  */
 .assistant-mode-chip__divider {
+  /*
+   * 深色下按用途给实色 #373737：--cp-hairline 在深色下是 #1d1d1d，压在 #2a2a2a 的输入卡上
+   * 比卡面还暗，读出来是一道凹槽而不是分隔线。只写这一处（变量化但保持独立），不动 --cp-hairline。
+   */
+  --assistant-mode-chip-rule: var(--cp-hairline);
+
   inline-size: calc(var(--cp-px) * 4 / 3);
   block-size: var(--cp-icon);
   flex: none;
   align-self: center;
-  background: var(--cp-hairline);
+  background: var(--assistant-mode-chip-rule);
 }
 
-/*
- * 深色下按用途给实色 #373737：--cp-hairline 在深色下是 #1d1d1d，压在 #2a2a2a 的输入卡上
- * 比卡面还暗，读出来是一道凹槽而不是分隔线。只写这一处，不动 --cp-hairline。
- */
 :root[data-theme='dark'] .assistant-mode-chip__divider {
-  background: #373737;
+  --assistant-mode-chip-rule: #373737;
 }
 
 .assistant-mode-chip__icon {

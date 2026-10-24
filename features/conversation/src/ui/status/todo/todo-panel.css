@@ -12,6 +12,16 @@
   --status-panel-success: var(--cp-diff-added-text, var(--ui-success));
   --status-panel-added: var(--cp-diff-added-text, var(--ui-success));
   --status-panel-removed: var(--cp-diff-removed-text, var(--ui-destructive));
+
+  /*
+   * 这张卡的壳族：卡内分区线（恒定一档）、壳外框、壳底与壳影。折叠悬浮卡（__fold-card，挂 body
+   * 皮肤外）与浮层宿主（conversation-todo-popover__surface，皮肤内）是同一张壳 —— 后者的取值在
+   * 它自己文件里（挂载点跨皮肤内外，做不到一份定义），两边注释互相点名，改一处核另一处。
+   */
+  --status-panel-rule: #414141;
+  --status-panel-shell-frame: #2b2b2b;
+  --status-panel-shell: var(--cp-ground, #fff);
+  --status-panel-shell-shadow: 0 4px 6px -1px rgb(0 0 0 / 10%), 0 2px 4px -2px rgb(0 0 0 / 10%);
 }
 
 @keyframes status-panel-fade-in {
@@ -55,7 +65,7 @@
 .status-panel__section[data-separated] {
   margin-block-start: 8px;
   padding-block-start: 8px;
-  border-block-start: 1px solid #414141;
+  border-block-start: 1px solid var(--status-panel-rule);
 }
 
 .status-panel__heading {
@@ -370,19 +380,13 @@
   max-block-size: min(64dvh, 32rem);
   padding: 8px;
   overflow-y: auto;
-  border: 1px solid #2b2b2b;
+  border: 1px solid var(--status-panel-shell-frame);
   border-radius: 12px;
-  background: var(--cp-ground, #fff);
+  background: var(--status-panel-shell);
   color: var(--cp-ink);
   font-size: var(--status-panel-font-size);
   line-height: 20px;
-  box-shadow:
-    0 4px 6px -1px rgb(0 0 0 / 10%),
-    0 2px 4px -2px rgb(0 0 0 / 10%);
-}
-
-:root[data-theme='dark'] .status-panel.status-panel__fold-card {
-  background: #202020;
+  box-shadow: var(--status-panel-shell-shadow);
 }
 
 /* 「还有 N 项」借折叠行的样子，但它不是按钮，悬停不变色。 */
@@ -502,7 +506,7 @@
 .status-panel__ended[data-separated] {
   margin-block-start: 8px;
   padding-block-start: 8px;
-  border-block-start: 1px solid #414141;
+  border-block-start: 1px solid var(--status-panel-rule);
 }
 
 .status-panel__ended-row {
@@ -573,7 +577,8 @@
   --cp-hover: rgb(255 255 255 / 5%);
   --cp-diff-added-text: #46bf72;
   --cp-diff-removed-text: #ff5c5c;
-  background: #202020;
+  --status-panel-shell: #202020;
+  background: var(--status-panel-shell);
 }
 
 @media (prefers-reduced-motion: reduce) {

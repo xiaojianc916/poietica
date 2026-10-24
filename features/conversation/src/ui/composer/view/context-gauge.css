@@ -18,10 +18,17 @@
 
   --gauge-panel: rgb(248 249 250 / 58%);
   --gauge-panel-frame: rgb(0 0 0 / 3.9%);
+  /* 投影的后两层与 --ui-popup-elevation 的后两层同值，但描边层深色与它不同（5.9% 白 vs 16%），
+     复合值部分相同不合并 —— 面板的投影整条自立一份。 */
+  --gauge-panel-elevation:
+    0 0 0 0.5px var(--gauge-panel-frame), 0 3px 8px 0 rgb(0 0 0 / 3.9%), 0 0 20px 0 rgb(0 0 0 / 5.1%);
   --gauge-bar-track: rgb(38 49 72 / 5.9%);
   --gauge-headline: #81858c;
   --gauge-label: #61666b;
   --gauge-figure: #0f1115;
+  /* 悬浮卡（照抄上游 Tooltip 的 .bubble）：恒定深底白字，两套主题只有底色深浅换档。 */
+  --gauge-card: #2c2c2e;
+  --gauge-card-ink: rgb(255 255 255 / 86%);
 }
 
 :root[data-theme='dark'] {
@@ -42,6 +49,7 @@
   --gauge-headline: #adb2b8;
   --gauge-label: #cfd3d6;
   --gauge-figure: #f9fafb;
+  --gauge-card: #43454a;
 }
 
 .context-gauge {
@@ -102,7 +110,7 @@
 }
 
 /* 悬浮卡照抄上游 Tooltip.module.css 的 .bubble；字收一格到 12px、白收到 86%（用户指定）。
-   类名叠写是为压过 TooltipContent 自带的 bg-foreground text-background：0-2-0 赢 0-1-0，与加载顺序无关。 */
+   类名叠写是为压过 TooltipContent 自带的气泡令牌：0-2-0 赢 0-1-0，与加载顺序无关。 */
 .context-gauge__card.context-gauge__card {
   display: inline-flex;
   align-items: center;
@@ -112,17 +120,13 @@
   padding: 3px 7px;
   border: none;
   border-radius: 8px;
-  background: #2c2c2e;
-  color: rgb(255 255 255 / 86%);
+  background: var(--gauge-card);
+  color: var(--gauge-card-ink);
   font-size: 12px;
   line-height: 20px;
   white-space: pre-line;
   overflow-wrap: break-word;
   animation: context-gauge-tooltip-in 150ms cubic-bezier(0.4, 0, 0.2, 1);
-}
-
-:root[data-theme='dark'] .context-gauge__card.context-gauge__card {
-  background: #43454a;
 }
 
 @keyframes context-gauge-tooltip-in {
@@ -152,10 +156,7 @@
   border-radius: 16px;
   background: var(--gauge-panel);
   backdrop-filter: blur(40px) saturate(150%);
-  box-shadow:
-    0 0 0 0.5px var(--gauge-panel-frame),
-    0 3px 8px 0 rgb(0 0 0 / 3.9%),
-    0 0 20px 0 rgb(0 0 0 / 5.1%);
+  box-shadow: var(--gauge-panel-elevation);
   color: var(--gauge-label);
   cursor: default;
   font-size: 12px;

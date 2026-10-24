@@ -1,12 +1,15 @@
-/* 子代理通道：标题条 + 转录 + 引导框（引导框是辅助对话那颗药丸，样式归 auxiliary-composer.css）。令牌都来自 [data-assistant-skin]。 */
+/* 子代理通道：标题条 + 转录 + 引导框（引导框是辅助对话那颗药丸，样式归 auxiliary-composer.css）。令牌都来自 [data-assistant-skin]。
+ * 标题条的线与停止钮的框是产品指定的两档深灰，两套主题同值（这格自成一张深色卡），私有命名，各只此一处。 */
 .delegate-channel__header {
+  --delegate-channel-rule: #333333;
+
   display: flex;
   flex: none;
   min-inline-size: 0;
   align-items: center;
   gap: 8px;
   padding: 8px 12px;
-  border-block-end: 1px solid #333;
+  border-block-end: 1px solid var(--delegate-channel-rule);
   font-size: 13px;
 }
 
@@ -32,12 +35,14 @@
 }
 
 .delegate-channel__stop {
+  --delegate-channel-frame: #4c4c4c;
+
   display: inline-flex;
   flex: none;
   align-items: center;
   gap: 4px;
   padding: 4px 8px;
-  border: 1px solid #4c4c4c;
+  border: 1px solid var(--delegate-channel-frame);
   border-radius: 6px;
   background: transparent;
   color: var(--cp-ink);
@@ -51,12 +56,12 @@
 }
 
 .delegate-channel__stop[data-armed] {
-  border-color: var(--cp-diff-removed-text, #ff5c5c);
-  color: var(--cp-diff-removed-text, #ff5c5c);
+  border-color: var(--cp-diff-removed-text);
+  color: var(--cp-diff-removed-text);
 }
 
 .delegate-channel__stop[data-armed]:hover:not(:disabled) {
-  background: color-mix(in oklab, var(--cp-diff-removed-text, #ff5c5c) 12%, transparent);
+  background: color-mix(in oklab, var(--cp-diff-removed-text) 12%, transparent);
 }
 
 .delegate-channel__stop:disabled {
@@ -81,6 +86,6 @@
   flex: none;
   margin: 0;
   padding: 6px 12px;
-  color: var(--cp-diff-removed-text, #ff5c5c);
+  color: var(--cp-diff-removed-text);
   font-size: 12px;
 }

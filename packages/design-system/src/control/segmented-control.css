@@ -3,8 +3,12 @@
  *
  * 轨道用透明边框内缩 —— padding 内缩会让绝对定位的滑块与栅格列宽错开基准；fit-content 必须有
  * —— display: grid 是块级，落在块级流里会撑满整行。
+ *
+ * 轨道与滑块的深色取值由下面的 dark 块改写变量：主题差异只在变量里。
  */
 .segmented-control {
+  --segmented-track: color-mix(in oklab, var(--ui-divider) 30%, var(--ui-card));
+
   position: relative;
   display: grid;
   inline-size: fit-content;
@@ -12,26 +16,31 @@
   grid-auto-flow: column;
   border: 3px solid transparent;
   border-radius: 999px;
-  background: color-mix(in oklab, var(--ui-divider) 30%, var(--ui-card));
+  background: var(--segmented-track);
 }
 
 /* 滑块是卡面色胶囊，靠投影与轨道分开；走 inset-inline-start，RTL 也成立。 */
 .segmented-control__thumb {
+  --segmented-thumb: var(--ui-card);
+
   position: absolute;
   inset-block: 0;
   border-radius: 999px;
-  background: var(--ui-card);
+  background: var(--segmented-thumb);
   box-shadow: var(--ui-shadow-sm);
   transition: inset-inline-start var(--ui-duration-fast) var(--ui-ease-standard);
 }
 
-/* 深色下轨道与滑块都落在卡面档（#232323），只差一圈阴影，选中哪一档读不出来。 */
+/*
+ * 深色下轨道与滑块都落在卡面档（#232323），只差一圈阴影，选中哪一档读不出来：
+ * 轨道压暗一档、滑块抬亮一档（产品指定的一对，各自独立，不与别的灰共用）。
+ */
 :root[data-theme='dark'] .segmented-control {
-  background: #262626;
+  --segmented-track: #262626;
 }
 
 :root[data-theme='dark'] .segmented-control__thumb {
-  background: #3a3a3a;
+  --segmented-thumb: #3a3a3a;
 }
 
 .segmented-control__option {

@@ -1,13 +1,20 @@
 /* 文件树：审查的变更树与右坞「文件」共用的那一份行样式（原 review-pane.css 的 .tree-guide / .review-tree-row，数值逐条照搬）。 */
 
 .file-tree__guide {
+  /*
+   * 引导线：浅色产品档；深色下必须给实色 —— 引导线每行一根、上下各探 2px 过缝，相邻两行的
+   * 线在缝处叠 2px，半透明的墨叠起来会加倍（14% + 14% ≈ 26%），那条缝上就出现一串比线本身
+   * 亮的 2px 小点。实色叠加仍是同一个颜色。
+   */
+  --file-tree-guide: #f1f1f1;
+
   position: absolute;
   top: 0;
   margin-top: -2px;
   height: calc(100% + 2px);
   width: 1px;
   pointer-events: none;
-  background: #f1f1f1;
+  background: var(--file-tree-guide);
   opacity: 0;
 }
 
@@ -15,19 +22,20 @@
   opacity: 1;
 }
 
-/* 深色下必须给实色：引导线每行一根、上下各探 2px 过缝，相邻两行的线在缝处叠 2px，半透明的墨叠起来会加倍（14% + 14% ≈ 26%），
- * 那条缝上就出现一串比线本身亮的 2px 小点。实色叠加仍是同一个颜色。 */
 :root[data-theme='dark'] .file-tree__guide {
-  background: #383838;
+  --file-tree-guide: #383838;
 }
 
 .file-tree__row {
+  /* 行悬停底：浅色读沉地档；深色铺一层 5% 白墨（压在树自己的底上跟着底走）。 */
+  --file-tree-row-hover: var(--ui-sunken);
+
   cursor: default;
   user-select: none;
 }
 
 .file-tree__row:hover {
-  background: var(--ui-sunken);
+  background: var(--file-tree-row-hover);
 }
 
 /* 选中（右坞里正开着的那个文件）比悬停深一档；悬停在选中行上不再变。 */
@@ -44,6 +52,6 @@
   opacity: 0.5;
 }
 
-:root[data-theme='dark'] .file-tree__row:hover {
-  background: color-mix(in srgb, #ffffff 5%, transparent);
+:root[data-theme='dark'] .file-tree__row {
+  --file-tree-row-hover: color-mix(in srgb, var(--ui-palette-white) 5%, transparent);
 }

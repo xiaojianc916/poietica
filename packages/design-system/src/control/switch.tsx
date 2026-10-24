@@ -58,8 +58,9 @@ export function Switch({ className, children, size = 'md', ...props }: SwitchPro
         'disabled:cursor-not-allowed',
         'disabled:opacity-45',
 
-        /* 开启态这支亮蓝与主色（更深、偏紫）不是一支，只服务开关，写字面值。 */
-        'data-[checked]:bg-[#339cff]',
+        /* 开启态这支亮蓝与主色（更深、偏紫）不是一支，只服务开关（tokens/light.css 的
+         * --ui-switch-checked，两套主题同值）。 */
+        'data-[checked]:bg-[var(--ui-switch-checked)]',
         'data-[unchecked]:bg-input/70',
 
         'motion-reduce:transition-none',

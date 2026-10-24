@@ -1,20 +1,32 @@
+/* 工具栏下缘那条线读 --ui-dock-rule（右坞工具格的那对令牌，与审查面板、文件格同一份）：浅色卡内线，
+ * 深色是一层跟字走的墨，主题差异在令牌层。 */
 .auxiliary-toolbar {
-  border-bottom: 1px solid var(--ui-card-divider);
-}
-
-:root[data-theme='dark'] .auxiliary-toolbar {
-  border-bottom-color: color-mix(in srgb, currentColor 10%, transparent);
+  border-bottom: 1px solid var(--ui-dock-rule);
 }
 
 /*
- * 启动器按钮深色下压在 #1f1f1f 上的悬浮要单独给，浅色那支不动。
+ * 启动器按钮的悬浮底：浅色是 utilities 那支 currentColor 7% 的墨（bg-launcher 的底随主题令牌
+ * 自己变，不需要重申）；深色压在 #1f1f1f 上要单独抬一档（产品指定实色）。hover 通道全在这里，
+ * tsx 不再写 hover:bg-current/[7%]。
  */
-:root[data-theme='dark'] .auxiliary-launcher {
-  background-color: var(--ui-launcher);
+.auxiliary-launcher {
+  --auxiliary-launcher-hover: color-mix(in srgb, currentColor 7%, transparent);
 }
 
-:root[data-theme='dark'] .auxiliary-launcher:hover:not(:disabled) {
-  background-color: #2a2a2a;
+.auxiliary-launcher:hover:not(:disabled) {
+  background-color: var(--auxiliary-launcher-hover);
+}
+
+:root[data-theme='dark'] .auxiliary-launcher {
+  --auxiliary-launcher-hover: #2a2a2a;
+}
+
+/*
+ * 右坞标签的活动底：产品指定的恒定深块，两套主题同值（不跟主题走）。与 --ui-popover 等
+ * 深色族同值但角色独立，互不引用。
+ */
+.auxiliary-dock-tab {
+  --auxiliary-tab-active: #2a2a2a;
 }
 
 /*

@@ -127,6 +127,12 @@
   /* 深色的浮层比页面亮，滚动条两档也跟着正本的 l2 抬一档。 */
   --ui-popup-scrollbar-thumb: #545557;
   --ui-popup-scrollbar-thumb-hover: #65676b;
+  /*
+   * 全局滚动条的深色两档（DSH 正本）：常态是产品指定的一格，悬停抬一档。
+   * 与 --ui-popup-scrollbar-* 深色不同值：浮层比页面亮，各自成档（见 light.css 同名注释）。
+   */
+  --ui-scrollbar-thumb: #2b2b2b;
+  --ui-scrollbar-thumb-hover: #545557;
 
   /*
    * 划选高亮底：深色下是产品指定的深蓝，与浅色那支的浅蓝各一格；字取本主题的默认前景，深底
@@ -188,4 +194,19 @@
    * 比描边字形轻。浅色那支在 light.css。
    */
   --ui-mark-ink: #c8c8c8;
+
+  /*
+   * 气泡深色那一对：不反色 —— 深色界面里反色是一块近白，比它解释的任何东西都亮；改用
+   * 产品指定的凹面实色，字回到默认前景。浅色那一对（反色）在 light.css。
+   */
+  --ui-tooltip-surface: #121212;
+  --ui-tooltip-ink: var(--ui-foreground);
+
+  /* 开关开启态的亮蓝两套主题同值（不跟主题走），与浅色那支逐字相同（见 light.css 注释）。 */
+  --ui-switch-checked: #339cff;
+
+  /* 右坞工具格的深色一对（浅色取值与命名理由见 light.css 同名注释）。
+   * currentColor 在消费元素上解析，各消费处的字色都是默认前景，兑出的灰一致。 */
+  --ui-dock-rule: color-mix(in srgb, currentColor 10%, transparent);
+  --ui-dock-hover: color-mix(in srgb, var(--ui-palette-white) 10%, transparent);
 }

@@ -142,9 +142,16 @@
   /*
    * 浮层里那条滚动条。正本整卡改绑 elevation 的 l2 两档（Menu.module.css 的 --dsh-scrollbar-*），
    * 浅色下与全局那两格同值，深色下与它们不同 —— 深色的浮层比页面亮，滑块要跟着抬。
+   * 与下面全局那对是「浅色同值、深色分档」的同源不同角色，各走各的。
    */
   --ui-popup-scrollbar-thumb: #e5e5e5;
   --ui-popup-scrollbar-thumb-hover: #d4d4d4;
+  /*
+   * 全局滚动条（直绘 ::-webkit-scrollbar 那套，形状规则在 scrollbar.css）。
+   * 取色照抄 DSH 正本：实色可逐格核对，不用 color-mix。深色两档在 dark.css。
+   */
+  --ui-scrollbar-thumb: #e5e5e5;
+  --ui-scrollbar-thumb-hover: #d4d4d4;
   /* 触发器收起态的框：与卡片线同一档。 */
   --ui-popover-trigger-frame: var(--ui-card-divider);
 
@@ -186,6 +193,30 @@
    * dark.css，两边各自成立。
    */
   --ui-mark-ink: #3a3a3a;
+
+  /*
+   * 开关开启态的亮蓝：与主色（--ui-primary，更深、偏紫）不是一支，产品指定的独立色，
+   * 两套主题同值（不跟主题走）。消费处在 control/switch.tsx。
+   * 与 settings.css 的设置输入框焦点蓝、assistant.css 的 --cp-model-level-ink /
+   * --cp-model-rail-fill 同值但角色各自独立，互不引用。
+   */
+  --ui-switch-checked: #339cff;
+
+  /*
+   * 气泡（tooltip / 趋势数值气泡）的底与字。浅色下气泡反色：提示与它解释的界面对调明暗，
+   * 才不会被读成界面的一部分。深色那一对在 dark.css（不反色，改凹面）。
+   * 趋势图那枚气泡（settings.css）与设计系统的 tooltip 是同一张脸，同一个产地。
+   */
+  --ui-tooltip-surface: var(--ui-foreground);
+  --ui-tooltip-ink: var(--ui-background);
+
+  /*
+   * 右坞工具格的一对：分隔线与工具键悬停底。审查面板（review-pane）、文件格（files）与
+   * 外壳工具栏（workbench/auxiliary）同坞并排，深浅不一致就是缺陷 —— 一对值只此一份。
+   * 深色那一对在 dark.css（线换成跟字走的墨、悬停换成 10% 白墨）。
+   */
+  --ui-dock-rule: var(--ui-card-divider);
+  --ui-dock-hover: #f2f3f3;
 
   /* 同上，浅底那一套。跟着 --ui-background 走，只能写 hex：xterm 不认 oklch。 */
   --terminal-background: #ffffff;

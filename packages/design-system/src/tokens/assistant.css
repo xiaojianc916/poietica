@@ -209,6 +209,14 @@
   --cp-queue-edge: var(--ui-popup-divider);
   --cp-queue-hover: var(--ui-popup-highlight);
   /*
+   * 停靠在输入卡上沿的玻璃带底：审批带（permission-dock）与排队面板（prompt-queue）是
+   * 同一张脸 —— 几何各读 --cp-queue-*，底与材质只此一份，产品改一处另一处必须跟着。
+   * 浅色是浮层玻璃（半透明 + 模糊）；深色是产品指定的实色 #292929、去模糊（近黑底上
+   * 玻璃读成灰斑）。与深色的 --cp-goal-bar-surface 同值但独立：那是目标面板自己的实面。
+   */
+  --cp-dock-glass: var(--ui-popup-surface);
+  --cp-dock-glass-blur: blur(40px) saturate(150%);
+  /*
    * 两条带子叠在一起时，上面那条两侧再各收这一档：宽度差就是接缝的台阶。
    * 只有一条时不收，与输入卡同宽。
    */
@@ -573,7 +581,8 @@
    * 明度抬 0.139、彩度乘 0.68，解出 oklch(0.735 0.099 251) 即 #7aaee6。
    */
   --cp-timeline-link-ink: oklch(0.735 0.099 251);
-  /* 目标面板的面：产品指定的实色 #292929，不跟浅色那一档。 */
+  /* 目标面板的面：产品指定的实色 #292929，不跟浅色那一档。与 --cp-dock-glass 深色同值但
+     独立：这一族（--cp-goal-bar-*）是 GoalBar 自己的面板取值，改玻璃带不该动它。 */
   --cp-goal-bar-surface: #292929;
   --cp-goal-bar-edge: rgb(255 255 255 / 6%);
   --cp-goal-bar-input-edge: rgb(255 255 255 / 12%);

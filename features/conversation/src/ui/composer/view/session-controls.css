@@ -171,7 +171,9 @@
 
 /* 已越过的档位点长在填充上，那里要的是提亮而不是压深，所以是一层白墨。 */
 .assistant-model-select__dot[data-passed='true'] {
-  background: rgb(255 255 255 / 30%);
+  --assistant-model-select-passed: rgb(255 255 255 / 30%);
+
+  background: var(--assistant-model-select-passed);
 }
 
 /* 原生滑块的落点是布局算出来的，位置一变就是跳，CSS 补不了间，所以自己画一颗。 */

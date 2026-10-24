@@ -11,6 +11,8 @@
   --cp-rail-ink-aimed: #1a1c1f;
   --cp-rail-card-edge: #e2e2e2;
   --cp-rail-card-face: var(--cp-surface);
+  /* 悬浮卡的影：两层黑墨，两套主题同一档（卡面深色自成一张，不随主题换影）。 */
+  --cp-rail-card-lift: 0 1px 2px rgb(0 0 0 / 6%), 0 4px 12px rgb(0 0 0 / 8%);
   /* 轨道离面板上下边缘留多少。 */
   --cp-rail-inset: 2px;
   position: absolute;
@@ -116,9 +118,7 @@
   border-radius: var(--cp-radius-item);
   padding: 6px 8px;
   background: var(--cp-rail-card-face);
-  box-shadow:
-    0 1px 2px rgb(0 0 0 / 6%),
-    0 4px 12px rgb(0 0 0 / 8%);
+  box-shadow: var(--cp-rail-card-lift);
   color: var(--cp-ink);
   font-size: var(--cp-font-micro);
   text-align: start;

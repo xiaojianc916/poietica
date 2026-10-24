@@ -12,6 +12,17 @@
   --settings-field: var(--ui-sunken);
   --settings-divider-inset: 14px;
 
+  /*
+   * 图表分类序列色（六档轮转）：趋势折线与存储堆叠条共用的一套 —— 同是「多个平级类别」，
+   * 注释见 .settings-trend。两个图都在这张内容卡里，定义收在共同祖先上，一份产地。
+   */
+  --settings-series-0: #4099ff;
+  --settings-series-1: #46bf72;
+  --settings-series-2: #7b5ce5;
+  --settings-series-3: #ff5c5c;
+  --settings-series-4: #ff8a30;
+  --settings-series-5: #42c8c8;
+
   position: relative;
   block-size: 100%;
   min-block-size: 0;
@@ -297,16 +308,23 @@
 .settings-input {
   /*
    * 框色自持一格，不读卡片线：深色下卡片线是半透明墨，压在输入格那层底上
-   * 兑出的灰与卡框同色，输入格就没有边界了。
+   * 兑出的灰与卡框同色，输入格就没有边界了。深色那一档在下面的 dark 块里改写。
    */
   --settings-input-border: #e4e4e5;
+  --settings-input-surface: var(--ui-popover);
+  /*
+   * 焦点蓝：与 --ui-ring（主色那支蓝，oklch）不同值也不共用 —— 这支是浅色下更亮的
+   * #339cff，只服务设置表单的输入框；与 --ui-switch-checked、--cp-model-level-ink
+   * 同值但角色独立，互不引用。深色改读 --ui-ring（见下）。
+   */
+  --settings-input-focus: #339cff;
 
   inline-size: 100%;
   min-block-size: 32px;
   padding: 7px 10px;
   border: 1px solid var(--settings-input-border);
   border-radius: 8px;
-  background: var(--ui-popover);
+  background: var(--settings-input-surface);
   color: var(--ui-foreground);
   font-size: 12px;
   line-height: 1.3;
@@ -319,7 +337,7 @@
 
 /* 焦点态直接给 border-color，压过上面那条 border 里的框色。 */
 .settings-input:focus-visible {
-  border-color: #339cff;
+  border-color: var(--settings-input-focus);
   outline: none;
 }
 
@@ -331,7 +349,7 @@
 /* 深色下白底会连字一起吃掉：输入格比卡面再抬一档，框色也另给一格。 */
 :root[data-theme='dark'] .settings-input {
   --settings-input-border: #4d4d4d;
-  background: #2c2c2c;
+  --settings-input-surface: #2c2c2c;
 }
 
 .settings-input--with-icon {
@@ -342,11 +360,11 @@
 }
 
 /*
- * 深色那一支（第 364 行）由特异性更高的选择器在更早处声明 —— 两条都必须在，且次序不能倒。
+ * 深色那一支由特异性更高的选择器在更早处声明 —— 两条都必须在，且次序不能倒。
  * 本文件的豁免登记在 biome.json 的精确路径 overrides 里（noDescendingSpecificity）。
  */
 .settings-input--with-icon:focus-within {
-  border-color: #339cff;
+  border-color: var(--settings-input-focus);
 }
 
 /*
@@ -356,7 +374,7 @@
  */
 :root[data-theme='dark'] .settings-input:focus-visible,
 :root[data-theme='dark'] .settings-input--with-icon:focus-within {
-  border-color: var(--ui-ring);
+  --settings-input-focus: var(--ui-ring);
 }
 
 .settings-about-card {
@@ -619,7 +637,7 @@
 }
 
 .settings-input--with-icon:focus-within {
-  border-color: #339cff;
+  border-color: var(--settings-input-focus);
 }
 
 .settings-about-card__copy {
@@ -813,9 +831,9 @@
 /* ---------------- 每日 Token 趋势图 ---------------- */
 
 /*
- * 折线自己画，不引图表库：这里只有网格与折线两样。六档色轮转取的是它自己那套蓝/绿/紫/红/
- * 橙/青，不是本页的语义色 —— 语义色只有四档，且红与橙在图上读起来像「出错了」，而用量图里
- * 没有对错。
+ * 折线自己画，不引图表库：这里只有网格与折线两样。六档色轮转取的是图表自己那套蓝/绿/紫/红/
+ * 橙/青（定义在 .settings-content，与存储条共用），不是本页的语义色 —— 语义色只有四档，且红与
+ * 橙在图上读起来像「出错了」，而用量图里没有对错。
  */
 .settings-trend {
   /*
@@ -827,12 +845,6 @@
   display: flex;
   flex-direction: column;
   gap: 12px;
-  --settings-series-0: #4099ff;
-  --settings-series-1: #46bf72;
-  --settings-series-2: #7b5ce5;
-  --settings-series-3: #ff5c5c;
-  --settings-series-4: #ff8a30;
-  --settings-series-5: #42c8c8;
 }
 
 /* 图与横轴共用同一段宽度：纵轴那一栏留白因此由两边一起让出来。 */
@@ -888,16 +900,15 @@
 }
 
 /*
- * 数值气泡：与设计系统的气泡同一张脸，位置由这里给 —— 它跟着指针所在的列走，不是挂在某个
- * 触发器上的浮层。
+ * 数值气泡：与设计系统的气泡（--ui-tooltip-*）同一张脸，位置由这里给 —— 它跟着指针所在的列
+ * 走，不是挂在某个触发器上的浮层。
  *
  * **横向夹紧要按气泡自己的宽度算，不能只夹中心**：气泡是以锚点为中心画的，只把中心限制在
  * 两端留白之内的话，靠边那一列仍会有一半伸到卡片外，被卡面的 overflow: hidden 切掉（屏幕上
  * 就是最后一天的气泡缺了右半边）。所以中心的下界/上界各让出「半个最大宽度」，而那一格与
  * max-inline-size 用同一个式子。
  *
- * 底色写字面值而不只借 .ui-tooltip：那条规则只在深色下改色，浅色那份在组件类里，这里没有
- * 那个类。深浅两支都写全，就不依赖样式表的先后。
+ * 底与字读气泡令牌（浅色反色、深色凹面，主题差异在令牌层），这里不写 [data-theme] 覆盖。
  */
 .settings-trend__hint {
   position: absolute;
@@ -909,16 +920,11 @@
   max-inline-size: min(22rem, 70%);
   padding: 6px 10px;
   border-radius: 6px;
-  background: var(--ui-foreground);
-  color: var(--ui-background);
+  background: var(--ui-tooltip-surface);
+  color: var(--ui-tooltip-ink);
   font-size: 12px;
   transform: translateX(-50%);
   pointer-events: none;
-}
-
-:root[data-theme='dark'] .settings-trend__hint {
-  background: #121212;
-  color: var(--ui-foreground);
 }
 
 /*
@@ -955,13 +961,6 @@
  * 六档色借趋势图那套序列色 —— 同是「多个平级类别」，谈不上对错，用不上语义色那四档。
  */
 .settings-storage {
-  --settings-series-0: #4099ff;
-  --settings-series-1: #46bf72;
-  --settings-series-2: #7b5ce5;
-  --settings-series-3: #ff5c5c;
-  --settings-series-4: #ff8a30;
-  --settings-series-5: #42c8c8;
-
   display: flex;
   flex-direction: column;
   gap: 12px;
@@ -973,15 +972,17 @@
  * 会把「剩下多少没用到」读成「又用掉了一截」。
  */
 .settings-storage__bar {
+  --settings-storage-track: color-mix(in oklab, var(--ui-divider) 50%, transparent);
+
   display: flex;
   overflow: hidden;
   block-size: 12px;
   border-radius: 6px;
-  background: color-mix(in oklab, var(--ui-divider) 50%, transparent);
+  background: var(--settings-storage-track);
 }
 
 :root[data-theme='dark'] .settings-storage__bar {
-  background: var(--ui-divider);
+  --settings-storage-track: var(--ui-divider);
 }
 
 .settings-storage__segment {
