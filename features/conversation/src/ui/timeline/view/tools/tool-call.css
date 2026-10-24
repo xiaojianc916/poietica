@@ -148,7 +148,7 @@
 /* 行带来自 design-system 的 DiffBody（全仓一份）；这一格只做唯一的双轴滚动容器 —— 两条横条并排只会说同一件事。 */
 .timeline-tool__diff {
   position: relative;
-  max-block-size: 60vh;
+  max-block-size: var(--cp-timeline-diff-max);
   padding-block: 0.375rem;
   overflow: auto;
 }

@@ -481,6 +481,7 @@
   --cp-timeline-said-max: 10.5rem;
   --cp-timeline-code-cap: 32rem;
   --cp-timeline-output-max: 14rem;
+  --cp-timeline-diff-max: 20rem;
   /*
    * 一次工具调用的量度：折叠着的那一行，和它摊开的那张纸，同一个上限。
    *
