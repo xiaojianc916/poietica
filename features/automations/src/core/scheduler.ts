@@ -88,7 +88,9 @@ export function createScheduler(d: {
     },
     start() {
       return clock.setInterval(() => {
-        void this.tick()
+        void this.tick().catch((e: unknown) => {
+          logger.error('automation tick failed', { error: String(e) })
+        })
       }, TICK_MS)
     },
   }
